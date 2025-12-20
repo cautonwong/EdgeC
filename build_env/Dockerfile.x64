@@ -1,0 +1,36 @@
+# build_env/Dockerfile.x64
+#
+# Defines the standard x64 build environment for C-EdgeX.
+# This ensures that every developer and the CI system use the exact same toolchain.
+
+# Pin the base OS to a specific Long-Term Support (LTS) version.
+FROM ubuntu:22.04
+
+# Avoid interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install pinned versions of all build tools and dependencies.
+# The versions are specific to Ubuntu 22.04 (jammy).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc-11 \
+    g++-11 \
+    cmake \
+    ninja-build \
+    pkg-config \
+    libuv1-dev \
+    git \
+    valgrind \
+    cppcheck \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set GCC 11 as the default compiler
+RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 100 && \
+    update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-11 100
+
+# Set up a working directory
+WORKDIR /work
+
+# Default command can be a shell
+CMD ["/bin/bash"]
+

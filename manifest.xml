@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest>
+  <!--
+    This manifest file describes the intended multi-repository topology for this project.
+    It is a blueprint for setting up a manifest-based build tool like Google's `repo`.
+    In the current single-repository boilerplate, these directories exist locally.
+    In a full production setup, the `repo` tool would check out each of these projects
+    as a separate Git repository into the correct location.
+  -->
+
+  <remote name="your-company-git" fetch="ssh://git@github.com/YourCompany/" />
+
+  <!-- The Platform Repository: Contains stable, core assets. -->
+  <project path="platform"
+           name="C-EdgeX-Platform.git"
+           remote="your-company-git"
+           revision="main">
+    <!--
+        The platform repo itself would contain the SDK, middleware, BSPs,
+        and common drivers. It could also use its own manifest to pull in
+        third-party libraries, or vendor them directly as done in this boilerplate.
+    -->
+  </project>
+
+  <!--
+    Product Repositories: Each product is a separate repository that consumes
+    the platform.
+  -->
+  <project path="products/sim_sensor_app"
+           name="product-sim-sensor.git"
+           remote="your-company-git"
+           revision="main" />
+
+  <!-- Example of another product -->
+  <!--
+  <project path="products/modbus-gateway-app"
+           name="product-modbus-gateway.git"
+           remote="your-company-git"
+           revision="main" />
+  -->
+
+</manifest>

@@ -1,0 +1,23 @@
+# Build artifacts
+/build
+*.a
+*.so
+*.o
+
+# Executables
+/c_edgex_app
+
+# Editor-specific files
+.vscode/
+.idea/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Ctags
+tags
+
+# Doxygen
+html/
+latex/
