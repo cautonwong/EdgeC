@@ -17,16 +17,18 @@ static int sim_init(cedgex_device_driver_t *self) {
     return 0; // Success
 }
 
-static int sim_read(cedgex_device_driver_t *self, cedgex_event_t *out_event) {
-    // Simulate generating data
-    strncpy(out_event->device_name, self->name, 31);
-    out_event->device_name[31] = '\0';
-    out_event->timestamp = (uint64_t)time(NULL);
+static int sim_read(cedgex_device_driver_t *self, cedgex_datapoint_t *out_point) {
+    // Simulate generating data and populate the new DataPoint structure
+    out_point->tag_id = 1001; // Example static tag_id
+    out_point->ts = current_ts_ms();
+    out_point->quality = CEDGEX_QUALITY_GOOD;
     
-    out_event->reading.type = VAL_FLOAT;
-    strcpy(out_event->reading.resource_name, "temperature");
+    out_point->type = CEDGEX_VAL_TYPE_FLOAT;
     // Generate a random number between 20.0 and 30.0
-    out_event->reading.value.f_val = 20.0 + ((float)rand() / (float)(RAND_MAX)) * 10.0;
+    out_point->val.f_val = 22.0 + ((float)rand() / (float)(RAND_MAX)) * 10.0;
+    
+    // The `key` and other source info would be mapped by the protocol adapter
+    // This driver just provides the core data.
     
     return 0; // Success
 }

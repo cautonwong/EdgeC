@@ -33,15 +33,16 @@ static void test_sim_device_lifecycle(void **state) {
     assert_int_equal(init_ret, 0);
 
     // 3. Test reading
-    cedgex_event_t evt;
-    int read_ret = DEVICE_READ(dev, &evt);
-
+    cedgex_datapoint_t pt;
+    int read_ret = DEVICE_READ(dev, &pt);
+    
     assert_int_equal(read_ret, 0);
-    assert_string_equal(evt.device_name, device_name);
-    assert_true(evt.timestamp > 0);
-    assert_string_equal(evt.reading.resource_name, "temperature");
-    assert_true(evt.reading.value.f_val >= 20.0);
-    assert_true(evt.reading.value.f_val <= 30.0);
+    assert_int_equal(pt.tag_id, 1001);
+    assert_int_equal(pt.quality, CEDGEX_QUALITY_GOOD);
+    assert_int_equal(pt.type, CEDGEX_VAL_TYPE_FLOAT);
+    assert_true(pt.ts > 0);
+    assert_true(pt.val.f_val >= 22.0);
+    assert_true(pt.val.f_val <= 32.0);
 
     // 4. Test closing
     int close_ret = DEVICE_CLOSE(dev);

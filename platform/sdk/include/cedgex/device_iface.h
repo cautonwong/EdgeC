@@ -10,7 +10,7 @@ typedef struct cedgex_device_driver_t cedgex_device_driver_t;
 // This is the key to achieving polymorphism in C.
 typedef struct {
     int (*init)(cedgex_device_driver_t *self);
-    int (*read)(cedgex_device_driver_t *self, cedgex_event_t *out_event);
+    int (*read)(cedgex_device_driver_t *self, cedgex_datapoint_t *out_point);
     int (*close)(cedgex_device_driver_t *self);
 } cedgex_device_vtable_t;
 

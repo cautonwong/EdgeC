@@ -1,0 +1,9 @@
+# platform/sdk/logger/CMakeLists.txt
+
+list(APPEND SDK_SOURCES
+  ${CMAKE_CURRENT_SOURCE_DIR}/logger.c
+)
+
+list(APPEND SDK_PRIVATE_INCLUDES
+  ${CMAKE_CURRENT_SOURCE_DIR}
+)

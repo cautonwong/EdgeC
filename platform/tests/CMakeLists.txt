@@ -21,7 +21,7 @@ add_executable(sdk_tests
 target_link_libraries(sdk_tests
   PRIVATE
     cedgex::sdk
-    cmocka
+    cmocka_static
     Threads::Threads
 )
 

@@ -11,6 +11,12 @@ add_subdirectory(external/cJSON)
 set(WITH_EXAMPLES OFF CACHE BOOL "Disable cmocka examples")
 set(WITH_TESTS OFF CACHE BOOL "Disable cmocka internal tests")
 add_subdirectory(external/cmocka)
+add_subdirectory(external/ccronexpr)
+add_subdirectory(external/zlog)
+
+# zlog has many sign-compare warnings that fail with our global -Werror.
+# Disable -Werror specifically for the zlog target.
+target_compile_options(zlog PRIVATE -Wno-error)
 
 # 2. Include the main C-EdgeX SDK
 # This is the core library that will be exported for product applications to use.

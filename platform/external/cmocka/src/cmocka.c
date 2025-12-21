@@ -1,3 +1,5 @@
+#include <signal.h>
+
 /*
  * Copyright 2008 Google Inc.
  * Copyright 2014-2018 Andreas Schneider <asn@cryptomilk.org>

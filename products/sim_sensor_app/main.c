@@ -42,15 +42,17 @@ typedef struct {
 // This function is called by the libuv timer on a regular interval
 void on_timer_tick(uv_timer_t *handle) {
     timer_context_t *ctx = (timer_context_t*)handle->data;
-    cedgex_event_t event;
+    cedgex_datapoint_t point;
     
     // Use the SDK's generic DEVICE_READ macro to read from the device
-    if (DEVICE_READ(ctx->device, &event) == 0) {
-        printf("[App] Event: Device=%s, Resource=%s, Value=%.2f\n", 
-               event.device_name, event.reading.resource_name, event.reading.value.f_val);
+    if (DEVICE_READ(ctx->device, &point) == 0) {
+        printf("[App] DataPoint: ts=%llu, tag_id=%u, quality=%d, value=%.2f\n", 
+               (unsigned long long)point.ts, 
+               point.tag_id, 
+               point.quality,
+               point.val.f_val);
         
-        // TODO: Here you would serialize the event (e.g., with cJSON) and
-        // send it to a message bus or MQTT broker.
+        // TODO: Here you would push the 'point' object to the data pipeline.
     }
 }
 
