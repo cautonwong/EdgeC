@@ -13,6 +13,7 @@ add_subdirectory(core_runtime)
 add_subdirectory(logger)
 add_subdirectory(storage)
 add_subdirectory(data_hub)
+add_subdirectory(protocol_adapter)
 
 # Define the SDK library target.
 add_library(c-edgex-sdk STATIC
@@ -38,7 +39,7 @@ target_include_directories(c-edgex-sdk
     ${CMAKE_CURRENT_SOURCE_DIR}/logger
     ${CMAKE_CURRENT_SOURCE_DIR}/storage
     ${CMAKE_CURRENT_SOURCE_DIR}/data_hub
-    ${SDK_PRIVATE_INCLUDES}
+    ${CMAKE_CURRENT_SOURCE_DIR}/protocol_adapter
 )
 
 # Link all external dependencies as PRIVATE.
@@ -49,8 +50,10 @@ target_link_libraries(c-edgex-sdk
     ccronexpr
     zlog
     sqlite3
+    tinyexpr
     Threads::Threads # For spinlocks, etc.
     rt # For shm_open, shm_unlink
+    dl # For dlopen, dlsym
 )
 
 # Apply global compiler options (like ASan) to the SDK

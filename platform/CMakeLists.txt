@@ -6,23 +6,18 @@
 # 1. Include third-party libraries
 # These are treated as internal components of the platform.
 add_subdirectory(external/cJSON)
-
-# Disable building examples and tests for cmocka, as we only need the library.
-set(WITH_EXAMPLES OFF CACHE BOOL "Disable cmocka examples")
-set(WITH_TESTS OFF CACHE BOOL "Disable cmocka internal tests")
 add_subdirectory(external/cmocka)
 add_subdirectory(external/ccronexpr)
 add_subdirectory(external/zlog)
 add_subdirectory(external/sqlite)
+add_subdirectory(external/tinyexpr)
+add_subdirectory(external/libmodbus)
 
-# zlog has many sign-compare warnings that fail with our global -Werror.
-# Disable -Werror specifically for the zlog target.
-target_compile_options(zlog PRIVATE -Wno-error)
-
-# 2. Include the main C-EdgeX SDK
-# This is the core library that will be exported for product applications to use.
+# Include the main C-EdgeX SDK
 add_subdirectory(sdk)
 
-# 3. Include tests for the platform
-# Tests are considered part of the platform's development and verification.
+# Include tests for the platform
 add_subdirectory(tests)
+
+# Include plugins
+add_subdirectory(plugins/modbus)

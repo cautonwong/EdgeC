@@ -4,3 +4,6 @@
 [submodule "platform/external/zlog"]
 	path = platform/external/zlog
 	url = https://github.com/HardySimpson/zlog.git
+[submodule "platform/external/libmodbus"]
+	path = platform/external/libmodbus
+	url = https://github.com/stephane/libmodbus.git
