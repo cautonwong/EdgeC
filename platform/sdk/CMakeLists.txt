@@ -11,6 +11,8 @@ set(SDK_SOURCES "")
 # Collect sources from sub-modules
 add_subdirectory(core_runtime)
 add_subdirectory(logger)
+add_subdirectory(storage)
+add_subdirectory(data_hub)
 
 # Define the SDK library target.
 add_library(c-edgex-sdk STATIC
@@ -34,17 +36,21 @@ target_include_directories(c-edgex-sdk
   PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/core_runtime
     ${CMAKE_CURRENT_SOURCE_DIR}/logger
+    ${CMAKE_CURRENT_SOURCE_DIR}/storage
+    ${CMAKE_CURRENT_SOURCE_DIR}/data_hub
     ${SDK_PRIVATE_INCLUDES}
 )
 
-# Link all external dependencies as PRIVATE. This treats them as
-# internal implementation details and solves all export-related issues.
+# Link all external dependencies as PRIVATE.
 target_link_libraries(c-edgex-sdk
   PRIVATE
     cjson
     cmocka_static
     ccronexpr
     zlog
+    sqlite3
+    Threads::Threads # For spinlocks, etc.
+    rt # For shm_open, shm_unlink
 )
 
 # Apply global compiler options (like ASan) to the SDK

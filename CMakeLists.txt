@@ -23,6 +23,10 @@ set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_compile_definitions(_GNU_SOURCE)
 
+# Find common packages needed by multiple modules
+find_package(Threads REQUIRED)
+
+
 # Add compiler warnings for high-quality code
 add_compile_options(-Wall -Wextra -Wpedantic -Wshadow -Wformat=2 -Wmissing-prototypes -Wstrict-prototypes)
 

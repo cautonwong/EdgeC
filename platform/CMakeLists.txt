@@ -13,6 +13,7 @@ set(WITH_TESTS OFF CACHE BOOL "Disable cmocka internal tests")
 add_subdirectory(external/cmocka)
 add_subdirectory(external/ccronexpr)
 add_subdirectory(external/zlog)
+add_subdirectory(external/sqlite)
 
 # zlog has many sign-compare warnings that fail with our global -Werror.
 # Disable -Werror specifically for the zlog target.

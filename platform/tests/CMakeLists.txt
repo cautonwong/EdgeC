@@ -6,7 +6,7 @@
 enable_testing()
 
 # Find dependencies for the test runner
-find_package(Threads REQUIRED)
+# (Threads is found in the root CMakeLists.txt)
 
 # Add the test runner executable
 add_executable(sdk_tests
