@@ -17,43 +17,48 @@
 namespace OHOS {
 namespace Hardware {
 class MacroGen : public Generator {
-public:
-    explicit MacroGen(std::shared_ptr<Ast> ast);
+ public:
+  explicit MacroGen(std::shared_ptr<Ast> ast);
 
-    ~MacroGen() override = default;
+  ~MacroGen() override = default;
 
-    bool Output() override;
+  bool Output() override;
 
-private:
-    bool Initialize();
+ private:
+  bool Initialize();
 
-    bool TemplateNodeSeparate();
+  bool TemplateNodeSeparate();
 
-    std::string GenFullName(int32_t depth, const std::shared_ptr<AstObject> &node, const std::string &sep);
+  std::string GenFullName(int32_t depth, const std::shared_ptr<AstObject> &node,
+                          const std::string &sep);
 
-    bool GenNodeForeach(int32_t depth, const std::shared_ptr<AstObject> &node);
+  bool GenNodeForeach(int32_t depth, const std::shared_ptr<AstObject> &node);
 
-    bool NodeWalk();
+  bool NodeWalk();
 
-    void SetTypeData(uint32_t type, const std::shared_ptr<AstObject> &current, uint32_t &arraySize, int32_t depth);
+  void SetTypeData(uint32_t type, const std::shared_ptr<AstObject> &current,
+                   uint32_t &arraySize, int32_t depth);
 
-    void SetTypeDataUinit64(const std::string &arrayName, uint32_t &arraySize, uint32_t arrayType,
-        const std::shared_ptr<AstObject> &current);
+  void SetTypeDataUinit64(const std::string &arrayName, uint32_t &arraySize,
+                          uint32_t arrayType,
+                          const std::shared_ptr<AstObject> &current);
 
-    bool HeaderTopOutput();
+  bool HeaderTopOutput();
 
-    bool HeaderBottomOutput();
+  bool HeaderBottomOutput();
 
-    static const std::string &ToUpperString(std::string &str);
+  static const std::string &ToUpperString(std::string &str);
 
-    bool GenArray(const std::string &arrName, uint32_t &arrSize, uint32_t type, const std::shared_ptr<AstObject> &node);
+  bool GenArray(const std::string &arrName, uint32_t &arrSize, uint32_t type,
+                const std::shared_ptr<AstObject> &node);
 
-    std::string GenRefObjName(int32_t depth, const std::shared_ptr<AstObject> &object);
+  std::string GenRefObjName(int32_t depth,
+                            const std::shared_ptr<AstObject> &object);
 
-    std::ofstream ofs_;
-    std::string outFileName_;
-    std::map<int, std::string> nodeNameMap_;
+  std::ofstream ofs_;
+  std::string outFileName_;
+  std::map<int, std::string> nodeNameMap_;
 };
-} // namespace Hardware
-} // namespace OHOS
-#endif // HC_GEN_MACRO_GEN_H
+}  // namespace Hardware
+}  // namespace OHOS
+#endif  // HC_GEN_MACRO_GEN_H

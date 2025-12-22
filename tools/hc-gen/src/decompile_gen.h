@@ -17,33 +17,35 @@
 namespace OHOS {
 namespace Hardware {
 class DecompileGen {
-public:
-    DecompileGen(std::shared_ptr<Ast> ast, std::string outPutFileName);
+ public:
+  DecompileGen(std::shared_ptr<Ast> ast, std::string outPutFileName);
 
-    ~DecompileGen() = default;
+  ~DecompileGen() = default;
 
-    bool OutPut();
+  bool OutPut();
 
-private:
-    bool Init();
+ private:
+  bool Init();
 
-    void WriteFile(const std::string &str);
+  void WriteFile(const std::string &str);
 
-    int32_t PrintBaseType(const std::shared_ptr<AstObject> &astObj);
+  int32_t PrintBaseType(const std::shared_ptr<AstObject> &astObj);
 
-    std::string GetNodeRefPath(uint32_t value);
+  std::string GetNodeRefPath(uint32_t value);
 
-    int32_t PrintArrayType(const std::shared_ptr<AstObject> &astObj);
+  int32_t PrintArrayType(const std::shared_ptr<AstObject> &astObj);
 
-    uint32_t OutPutWalk(const std::shared_ptr<AstObject> &astObj, int32_t walkDepth);
+  uint32_t OutPutWalk(const std::shared_ptr<AstObject> &astObj,
+                      int32_t walkDepth);
 
-    uint32_t CloseBrace(const std::shared_ptr<AstObject> &astObj, int32_t walkDepth);
+  uint32_t CloseBrace(const std::shared_ptr<AstObject> &astObj,
+                      int32_t walkDepth);
 
-    const std::string fileHeader_;
-    std::string outPutFileName_;
-    std::ofstream file_;
-    std::shared_ptr<Ast> ast_;
+  const std::string fileHeader_;
+  std::string outPutFileName_;
+  std::ofstream file_;
+  std::shared_ptr<Ast> ast_;
 };
-} // namespace Hardware
-} // namespace OHOS
-#endif // HC_GEN_DECOMPILE_GEN_H
+}  // namespace Hardware
+}  // namespace OHOS
+#endif  // HC_GEN_DECOMPILE_GEN_H

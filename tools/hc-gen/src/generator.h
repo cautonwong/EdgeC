@@ -16,17 +16,17 @@
 namespace OHOS {
 namespace Hardware {
 class Generator {
-public:
-    explicit Generator(const std::shared_ptr<Ast> &ast) : ast_(ast) {}
+ public:
+  explicit Generator(const std::shared_ptr<Ast> &ast) : ast_(ast) {}
 
-    virtual ~Generator() = default;
+  virtual ~Generator() = default;
 
-    virtual bool Output() = 0;
+  virtual bool Output() = 0;
 
-protected:
-    std::shared_ptr<Ast> ast_;
+ protected:
+  std::shared_ptr<Ast> ast_;
 };
-} // namespace Hardware
-} // namespace OHOS
+}  // namespace Hardware
+}  // namespace OHOS
 
-#endif // HC_GEN_GENERATOR_H
+#endif  // HC_GEN_GENERATOR_H

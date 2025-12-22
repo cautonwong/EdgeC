@@ -20,18 +20,17 @@ typedef struct DatabaseConnection DatabaseConnection;
  * number of items in the returned array of results.  The returned array of
  * results are statically allocated and should not be deallocated using free()
  */
-typedef unsigned int (*QueryDatabase)(
-    DatabaseConnection* const connection, const char * const query_string,
-    void *** const results);
+typedef unsigned int (*QueryDatabase)(DatabaseConnection* const connection,
+                                      const char* const query_string,
+                                      void*** const results);
 
 /* Connection to a database. */
 struct DatabaseConnection {
-    const char *url;
-    unsigned int port;
-    QueryDatabase query_database;
+  const char* url;
+  unsigned int port;
+  QueryDatabase query_database;
 };
 
 /* Connect to a database. */
-DatabaseConnection* connect_to_database(const char * const url,
+DatabaseConnection* connect_to_database(const char* const url,
                                         const unsigned int port);
-

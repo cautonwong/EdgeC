@@ -1,14 +1,13 @@
-#include "config.h"
-
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
 #include <cmocka.h>
 #include <cmocka_private.h>
-
 #include <errno.h>
-#include <sys/types.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stddef.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+
+#include "config.h"
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
@@ -17,25 +16,24 @@
 /**************************************
  *** assert_return_code
  **************************************/
-static void test_assert_return_code(void **state)
-{
-    struct stat sb;
-    int rc;
+static void test_assert_return_code(void **state) {
+  struct stat sb;
+  int rc;
 
-    (void)state; /* unused */
+  (void)state; /* unused */
 
-    rc = stat(".", &sb);
-    assert_return_code(rc, 0);
+  rc = stat(".", &sb);
+  assert_return_code(rc, 0);
 
 #ifndef _MSC_VER
-    assert_true(S_ISDIR(sb.st_mode));
+  assert_true(S_ISDIR(sb.st_mode));
 #endif
 }
 
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_assert_return_code),
-    };
+  const struct CMUnitTest tests[] = {
+      cmocka_unit_test(test_assert_return_code),
+  };
 
-    return cmocka_run_group_tests(tests, NULL, NULL);
+  return cmocka_run_group_tests(tests, NULL, NULL);
 }

@@ -1,17 +1,17 @@
 #ifndef CORE_MEM_H
 #define CORE_MEM_H
 
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 // 类似 Zephyr 的 net_buf，但在用户态简化
 typedef struct net_buf {
-    struct net_buf *next; // 链表指针
-    uint8_t *data;        // 有效数据起点
-    uint16_t len;         // 有效数据长度
-    uint16_t size;        // 总容量
-    uint8_t  ref;         // 引用计数
-    uint8_t  _storage[];  // 柔性数组，实际内存
+  struct net_buf *next;  // 链表指针
+  uint8_t *data;         // 有效数据起点
+  uint16_t len;          // 有效数据长度
+  uint16_t size;         // 总容量
+  uint8_t ref;           // 引用计数
+  uint8_t _storage[];    // 柔性数组，实际内存
 } net_buf_t;
 
 // 初始化内存池

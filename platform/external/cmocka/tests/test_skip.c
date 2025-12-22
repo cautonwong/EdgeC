@@ -14,26 +14,24 @@
  * limitations under the License.
  */
 
+#include <cmocka.h>
+#include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
 
 /* A test case that does check if an int is equal. */
 static void test_check_skip(void **state) {
-    (void)state; /* unused */
+  (void)state; /* unused */
 
-    skip();
+  skip();
 
-    assert_true(0);
+  assert_true(0);
 }
-
 
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_check_skip),
-    };
+  const struct CMUnitTest tests[] = {
+      cmocka_unit_test(test_check_skip),
+  };
 
-    return cmocka_run_group_tests(tests, NULL, NULL);
+  return cmocka_run_group_tests(tests, NULL, NULL);
 }
-

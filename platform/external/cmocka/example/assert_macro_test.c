@@ -13,34 +13,35 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include "assert_macro.h"
+
+#include <cmocka.h>
+#include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
-
-#include "assert_macro.h"
 
 /* This test will fail since the string returned by get_status_code_string(0)
  * doesn't match "Connection timed out". */
 static void get_status_code_string_test(void **state) {
-    (void) state; /* unused */
+  (void)state; /* unused */
 
-    assert_string_equal(get_status_code_string(0), "Address not found");
-    assert_string_equal(get_status_code_string(1), "Connection timed out");
+  assert_string_equal(get_status_code_string(0), "Address not found");
+  assert_string_equal(get_status_code_string(1), "Connection timed out");
 }
 
-/* This test will fail since the status code of "Connection timed out" isn't 1 */
+/* This test will fail since the status code of "Connection timed out" isn't 1
+ */
 static void string_to_status_code_test(void **state) {
-    (void) state; /* unused */
+  (void)state; /* unused */
 
-    assert_int_equal(string_to_status_code("Address not found"), 0);
-    assert_int_equal(string_to_status_code("Connection timed out"), 1);
+  assert_int_equal(string_to_status_code("Address not found"), 0);
+  assert_int_equal(string_to_status_code("Connection timed out"), 1);
 }
 
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test(get_status_code_string_test),
-        cmocka_unit_test(string_to_status_code_test),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+  const struct CMUnitTest tests[] = {
+      cmocka_unit_test(get_status_code_string_test),
+      cmocka_unit_test(string_to_status_code_test),
+  };
+  return cmocka_run_group_tests(tests, NULL, NULL);
 }

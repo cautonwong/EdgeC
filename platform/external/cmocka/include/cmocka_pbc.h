@@ -30,7 +30,7 @@
 #ifndef CMOCKA_PBC_H_
 #define CMOCKA_PBC_H_
 
-#if defined(UNIT_TESTING) || defined (DEBUG)
+#if defined(UNIT_TESTING) || defined(DEBUG)
 
 #include <assert.h>
 
@@ -50,13 +50,21 @@
  * of the class/struct are consistent. In other words,
  * that the instance has not been corrupted.
  */
-#define INVARIANT(invariant_fnc) do{ (invariant_fnc) } while (0);
+#define INVARIANT(invariant_fnc) \
+  do {                           \
+    (invariant_fnc)              \
+  } while (0);
 
 #else
-#define REQUIRE(cond) do { } while (0);
-#define ENSURE(cond) do { } while (0);
-#define INVARIANT(invariant_fnc) do{ } while (0);
+#define REQUIRE(cond) \
+  do {                \
+  } while (0);
+#define ENSURE(cond) \
+  do {               \
+  } while (0);
+#define INVARIANT(invariant_fnc) \
+  do {                           \
+  } while (0);
 
 #endif /* defined(UNIT_TESTING) || defined (DEBUG) */
 #endif /* CMOCKA_PBC_H_ */
-

@@ -15,40 +15,36 @@
  * limitations under the License.
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
-#include <stdio.h>
-#include <errno.h>
-#include <stdbool.h>
-#include <string.h>
-
 #include "chef.h"
 
+#include <cmocka.h>
+#include <errno.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
 
 /* This is the real chef, just not implemented yet, currently it always
  * returns ENOSYS
  */
-int chef_cook(const char *order, char **dish_out)
-{
-    if (order == NULL || dish_out == NULL) return EINVAL;
+int chef_cook(const char *order, char **dish_out) {
+  if (order == NULL || dish_out == NULL) return EINVAL;
 
-    return -ENOSYS;
+  return -ENOSYS;
 }
 
 /* Print chef return codes as string */
-const char *chef_strerror(int error)
-{
-    switch (error) {
+const char *chef_strerror(int error) {
+  switch (error) {
     case 0:
-        return "Success";
+      return "Success";
     case -1:
-        return "Unknown dish";
+      return "Unknown dish";
     case -2:
-        return "Not enough ingredients for the dish";
-    }
+      return "Not enough ingredients for the dish";
+  }
 
-    return "Unknown error!";
+  return "Unknown error!";
 }
-

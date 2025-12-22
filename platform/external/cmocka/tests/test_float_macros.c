@@ -17,24 +17,23 @@
 /* Use the unit test allocators */
 #define UNIT_TESTING 1
 
+#include <cmocka.h>
+#include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
 
 /* A test case that does check if float is equal. */
-static void float_test_success(void **state)
-{
-    (void)state; /* unused */
+static void float_test_success(void **state) {
+  (void)state; /* unused */
 
-    assert_float_equal(0.5f, 1.f / 2.f, 0.000001f);
-    assert_float_not_equal(0.5, 0.499f, 0.000001f);
+  assert_float_equal(0.5f, 1.f / 2.f, 0.000001f);
+  assert_float_not_equal(0.5, 0.499f, 0.000001f);
 }
 
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test(float_test_success),
-    };
+  const struct CMUnitTest tests[] = {
+      cmocka_unit_test(float_test_success),
+  };
 
-    return cmocka_run_group_tests(tests, NULL, NULL);
+  return cmocka_run_group_tests(tests, NULL, NULL);
 }

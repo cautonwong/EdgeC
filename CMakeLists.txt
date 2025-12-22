@@ -40,7 +40,24 @@ option(ENABLE_ASAN "Enable AddressSanitizer for memory safety" ON)
 
 # Add the platform, which contains the SDK and all core components.
 # This will be built first, and it will export its targets.
+# Find the clang-tidy program
+find_program(CLANG_TIDY clang-tidy)
+if(CLANG_TIDY)
+  message(STATUS "clang-tidy found: ${CLANG_TIDY}")
+  set(CMAKE_C_CLANG_TIDY ${CLANG_TIDY}
+    -extra-arg=-Wno-unknown-warning-option
+    -extra-arg=-Wno-error=unknown-warning-option
+    -p=${CMAKE_BINARY_DIR}
+    -checks=-*,readability-*,modernize-*,clang-analyzer-*
+  )
+else()
+  message(STATUS "clang-tidy not found. Skipping static analysis.")
+endif()
+
 add_subdirectory(platform)
+add_subdirectory(products)
+add_subdirectory(tools)
+
 
 # Add the platform's binary directory to the search path for packages.
 # This allows find_package(CEdgexSDK) to work from the build tree.

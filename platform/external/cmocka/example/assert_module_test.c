@@ -13,44 +13,44 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
-
 #include "assert_module.h"
 
-extern void increment_value(int * const value);
+#include <cmocka.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stddef.h>
+
+extern void increment_value(int *const value);
 
 /* This test case will fail but the assert is caught by run_tests() and the
  * next test is executed. */
 static void increment_value_fail(void **state) {
-    (void) state;
+  (void)state;
 
-    increment_value(NULL);
+  increment_value(NULL);
 }
 
 /* This test case succeeds since increment_value() asserts on the NULL
  * pointer. */
 static void increment_value_assert(void **state) {
-    (void) state;
+  (void)state;
 
-    expect_assert_failure(increment_value(NULL));
+  expect_assert_failure(increment_value(NULL));
 }
 
 /* This test case fails since decrement_value() doesn't assert on a NULL
  * pointer. */
 static void decrement_value_fail(void **state) {
-    (void) state;
+  (void)state;
 
-    expect_assert_failure(decrement_value(NULL));
+  expect_assert_failure(decrement_value(NULL));
 }
 
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test(increment_value_fail),
-        cmocka_unit_test(increment_value_assert),
-        cmocka_unit_test(decrement_value_fail),
-    };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+  const struct CMUnitTest tests[] = {
+      cmocka_unit_test(increment_value_fail),
+      cmocka_unit_test(increment_value_assert),
+      cmocka_unit_test(decrement_value_fail),
+  };
+  return cmocka_run_group_tests(tests, NULL, NULL);
 }

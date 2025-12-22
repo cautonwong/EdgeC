@@ -25,5 +25,4 @@ int metadata_manager_load_profile(const char *json_config);
  */
 void metadata_manager_cleanup(void);
 
-
-#endif // METADATA_MANAGER_H
+#endif  // METADATA_MANAGER_H

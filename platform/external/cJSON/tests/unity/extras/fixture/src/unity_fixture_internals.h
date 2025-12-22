@@ -9,29 +9,25 @@
 #define UNITY_FIXTURE_INTERNALS_H_
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
-struct UNITY_FIXTURE_T
-{
-    int Verbose;
-    unsigned int RepeatCount;
-    const char* NameFilter;
-    const char* GroupFilter;
+struct UNITY_FIXTURE_T {
+  int Verbose;
+  unsigned int RepeatCount;
+  const char* NameFilter;
+  const char* GroupFilter;
 };
 extern struct UNITY_FIXTURE_T UnityFixture;
 
 typedef void unityfunction(void);
-void UnityTestRunner(unityfunction* setup,
-                     unityfunction* body,
-                     unityfunction* teardown,
-                     const char* printableName,
-                     const char* group,
-                     const char* name,
-                     const char* file, unsigned int line);
+void UnityTestRunner(unityfunction* setup, unityfunction* body,
+                     unityfunction* teardown, const char* printableName,
+                     const char* group, const char* name, const char* file,
+                     unsigned int line);
 
-void UnityIgnoreTest(const char* printableName, const char* group, const char* name);
+void UnityIgnoreTest(const char* printableName, const char* group,
+                     const char* name);
 void UnityMalloc_StartTest(void);
 void UnityMalloc_EndTest(void);
 int UnityGetCommandLineOptions(int argc, const char* argv[]);

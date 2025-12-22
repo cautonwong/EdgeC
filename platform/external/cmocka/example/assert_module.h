@@ -14,5 +14,5 @@
  * limitations under the License.
  */
 
-void increment_value(int * const value);
-void decrement_value(int * const value);
+void increment_value(int* const value);
+void decrement_value(int* const value);

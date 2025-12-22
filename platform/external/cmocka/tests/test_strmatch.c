@@ -14,86 +14,81 @@
  * limitations under the License.
  */
 
-#include "config.h"
-
+#include <cmocka.h>
+#include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
 
 #include "../src/cmocka.c"
+#include "config.h"
 
-static void test_strmatch_null(void **state)
-{
-    int rc;
+static void test_strmatch_null(void **state) {
+  int rc;
 
-    (void)state;
+  (void)state;
 
-    rc = c_strmatch(NULL, NULL);
-    assert_int_equal(rc, 0);
+  rc = c_strmatch(NULL, NULL);
+  assert_int_equal(rc, 0);
 
-    rc = c_strmatch("", NULL);
-    assert_int_equal(rc, 0);
+  rc = c_strmatch("", NULL);
+  assert_int_equal(rc, 0);
 
-    rc = c_strmatch(NULL, "");
-    assert_int_equal(rc, 0);
+  rc = c_strmatch(NULL, "");
+  assert_int_equal(rc, 0);
 }
 
-static void test_strmatch_empty(void **state)
-{
-    int rc;
+static void test_strmatch_empty(void **state) {
+  int rc;
 
-    (void)state;
+  (void)state;
 
-    rc = c_strmatch("", "");
-    assert_int_equal(rc, 1);
+  rc = c_strmatch("", "");
+  assert_int_equal(rc, 1);
 
-    rc = c_strmatch("wurst", "");
-    assert_int_equal(rc, 0);
+  rc = c_strmatch("wurst", "");
+  assert_int_equal(rc, 0);
 
-    rc = c_strmatch("", "wurst");
-    assert_int_equal(rc, 0);
+  rc = c_strmatch("", "wurst");
+  assert_int_equal(rc, 0);
 }
 
-static void test_strmatch_single(void **state)
-{
-    int rc;
+static void test_strmatch_single(void **state) {
+  int rc;
 
-    (void)state;
+  (void)state;
 
-    rc = c_strmatch("wurst", "wurs?");
-    assert_int_equal(rc, 1);
+  rc = c_strmatch("wurst", "wurs?");
+  assert_int_equal(rc, 1);
 
-    rc = c_strmatch("wurst", "w?rs?");
-    assert_int_equal(rc, 1);
+  rc = c_strmatch("wurst", "w?rs?");
+  assert_int_equal(rc, 1);
 
-    rc = c_strmatch("wurst", "wur?");
-    assert_int_equal(rc, 0);
+  rc = c_strmatch("wurst", "wur?");
+  assert_int_equal(rc, 0);
 }
 
-static void test_strmatch_wildcard(void **state)
-{
-    int rc;
+static void test_strmatch_wildcard(void **state) {
+  int rc;
 
-    (void)state;
+  (void)state;
 
-    rc = c_strmatch("wurst", "wurst*");
-    assert_int_equal(rc, 1);
+  rc = c_strmatch("wurst", "wurst*");
+  assert_int_equal(rc, 1);
 
-    rc = c_strmatch("wurstbrot", "wurst*");
-    assert_int_equal(rc, 1);
+  rc = c_strmatch("wurstbrot", "wurst*");
+  assert_int_equal(rc, 1);
 
-    rc = c_strmatch("wurstbrot", "w*t");
-    assert_int_equal(rc, 1);
+  rc = c_strmatch("wurstbrot", "w*t");
+  assert_int_equal(rc, 1);
 }
 
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_strmatch_null),
-        cmocka_unit_test(test_strmatch_empty),
-        cmocka_unit_test(test_strmatch_single),
-        cmocka_unit_test(test_strmatch_wildcard),
-    };
+  const struct CMUnitTest tests[] = {
+      cmocka_unit_test(test_strmatch_null),
+      cmocka_unit_test(test_strmatch_empty),
+      cmocka_unit_test(test_strmatch_single),
+      cmocka_unit_test(test_strmatch_wildcard),
+  };
 
-    return cmocka_run_group_tests(tests, NULL, NULL);
+  return cmocka_run_group_tests(tests, NULL, NULL);
 }

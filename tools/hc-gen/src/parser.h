@@ -18,53 +18,54 @@ namespace OHOS {
 namespace Hardware {
 
 class Parser {
-public:
-    Parser() = default;
+ public:
+  Parser() = default;
 
-    ~Parser() = default;
+  ~Parser() = default;
 
-    bool Parse();
+  bool Parse();
 
-    std::list<std::shared_ptr<Ast>> ParseOne(const std::string &src);
+  std::list<std::shared_ptr<Ast>> ParseOne(const std::string &src);
 
-    std::shared_ptr<AstObject> ParseOneContent(const std::string &src, std::list<std::string> &includeList);
+  std::shared_ptr<AstObject> ParseOneContent(
+      const std::string &src, std::list<std::string> &includeList);
 
-    std::shared_ptr<Ast> GetAst();
+  std::shared_ptr<Ast> GetAst();
 
-private:
-    bool ProcessInclude(std::list<std::string> &includeList);
+ private:
+  bool ProcessInclude(std::list<std::string> &includeList);
 
-    bool CheckCycleInclude(const std::string &includeSrc);
+  bool CheckCycleInclude(const std::string &includeSrc);
 
-    std::shared_ptr<AstObject> ParseTemplate();
+  std::shared_ptr<AstObject> ParseTemplate();
 
-    std::shared_ptr<AstObject> ParseNodeAndTerm();
+  std::shared_ptr<AstObject> ParseNodeAndTerm();
 
-    std::shared_ptr<AstObject> ParseNodeCopy(Token &name);
+  std::shared_ptr<AstObject> ParseNodeCopy(Token &name);
 
-    std::shared_ptr<AstObject> ParseNodeRef(Token &name);
+  std::shared_ptr<AstObject> ParseNodeRef(Token &name);
 
-    std::shared_ptr<AstObject> ParseNodeDelete(Token &name);
+  std::shared_ptr<AstObject> ParseNodeDelete(Token &name);
 
-    std::shared_ptr<AstObject> ParseNodeInherit(Token &name);
+  std::shared_ptr<AstObject> ParseNodeInherit(Token &name);
 
-    std::shared_ptr<AstObject> ParseNode(Token &name, bool bracesStart = false);
+  std::shared_ptr<AstObject> ParseNode(Token &name, bool bracesStart = false);
 
-    std::shared_ptr<AstObject> ParseTerm(Token &name);
+  std::shared_ptr<AstObject> ParseTerm(Token &name);
 
-    std::shared_ptr<AstObject> ParseNodeWithRef(Token name);
+  std::shared_ptr<AstObject> ParseNodeWithRef(Token name);
 
-    std::shared_ptr<AstObject> ParseArray();
+  std::shared_ptr<AstObject> ParseArray();
 
-    void CleanError();
+  void CleanError();
 
-    Lexer lexer_;
-    Token current_;
-    std::shared_ptr<Ast> ast_;
-    std::list<std::string> srcQueue_;
-    uint32_t errno_ = NOERR;
+  Lexer lexer_;
+  Token current_;
+  std::shared_ptr<Ast> ast_;
+  std::list<std::string> srcQueue_;
+  uint32_t errno_ = NOERR;
 };
 
-} // namespace Hardware
-} // namespace OHOS
-#endif // HC_GEN_PARSER_H
+}  // namespace Hardware
+}  // namespace OHOS
+#endif  // HC_GEN_PARSER_H

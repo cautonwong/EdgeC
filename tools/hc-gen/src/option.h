@@ -15,78 +15,79 @@
 namespace OHOS {
 namespace Hardware {
 class Option {
-public:
-    Option() = default;
+ public:
+  Option() = default;
 
-    ~Option() = default;
+  ~Option() = default;
 
-    static Option &Instance();
+  static Option &Instance();
 
-    Option &Parse(int argc, char *argv[]);
+  Option &Parse(int argc, char *argv[]);
 
-    static void ShowUsage();
+  static void ShowUsage();
 
-    static void ShowVersion();
+  static void ShowVersion();
 
-    bool ShouldShowUsage() const;
+  bool ShouldShowUsage() const;
 
-    bool OptionError() const;
+  bool OptionError() const;
 
-    bool ShouldShowVersion() const;
+  bool ShouldShowVersion() const;
 
-    bool ShouldAlign() const;
+  bool ShouldAlign() const;
 
-    bool ShouldGenTextConfig() const;
+  bool ShouldGenTextConfig() const;
 
-    bool ShouldGenMacroConfig() const;
+  bool ShouldGenMacroConfig() const;
 
-    bool ShouldGenBinaryConfig() const;
+  bool ShouldGenBinaryConfig() const;
 
-    bool ShouldGenStartConfig() const;
+  bool ShouldGenStartConfig() const;
 
-    bool ShouldGenHexDump() const;
+  bool ShouldGenHexDump() const;
 
-    bool ShouldDecompile() const;
+  bool ShouldDecompile() const;
 
-    std::string GetSymbolPrefix() const;
+  std::string GetSymbolPrefix() const;
 
-    std::string GetSourceName() const;
+  std::string GetSourceName() const;
 
-    std::string GetSourceNameBase() const;
+  std::string GetSourceNameBase() const;
 
-    std::string GetOutputName() const;
+  std::string GetOutputName() const;
 
-    static void GetVersion(uint32_t &minor, uint32_t &major);
+  static void GetVersion(uint32_t &minor, uint32_t &major);
 
-    bool VerboseLog() const;
+  bool VerboseLog() const;
 
-    std::string GetSourceDir() const;
+  std::string GetSourceDir() const;
 
-    static std::string RealPathSourcePath(const char *path);
+  static std::string RealPathSourcePath(const char *path);
 
-private:
-    static void ShowOption(const std::string &option, const std::string &helpInfo);
-    bool ParseOptions(int argc, char *argv[]);
-    void SetOptionError(bool shouldShowUsage = true);
-    bool SetSourceOption(const char *srcName);
+ private:
+  static void ShowOption(const std::string &option,
+                         const std::string &helpInfo);
+  bool ParseOptions(int argc, char *argv[]);
+  void SetOptionError(bool shouldShowUsage = true);
+  bool SetSourceOption(const char *srcName);
 
-    bool showUsage_ = false;
-    bool showVersion_ = false;
-    bool shouldAlign_ = false;
-    bool shouldGenTextConfig_ = false;
-    bool shouldGenMacroConfig_ = false;
-    bool shouldGenByteCodeConfig_ = true;
-    bool genStartCfg_ = false;
-    bool showGenHexDump_ = false;
-    bool shouldDecompile_ = false;
-    bool verboseLog_ = false;
-    bool optionError_ = false;
-    std::string symbolNamePrefix_;
-    std::string sourceName_;
-    std::string sourceNameBase_;
-    std::string outputName_;
-    void SetOptionData(char op);
+  bool showUsage_ = false;
+  bool showVersion_ = false;
+  bool shouldAlign_ = false;
+  bool shouldGenTextConfig_ = false;
+  bool shouldGenMacroConfig_ = false;
+  bool shouldGenByteCodeConfig_ = true;
+  bool genStartCfg_ = false;
+  bool showGenHexDump_ = false;
+  bool shouldDecompile_ = false;
+  bool verboseLog_ = false;
+  bool optionError_ = false;
+  std::string symbolNamePrefix_;
+  std::string sourceName_;
+  std::string sourceNameBase_;
+  std::string outputName_;
+  void SetOptionData(char op);
 };
-} // namespace Hardware
-} // namespace OHOS
-#endif // HC_GEN_OPTION_H
+}  // namespace Hardware
+}  // namespace OHOS
+#endif  // HC_GEN_OPTION_H

@@ -17,63 +17,62 @@
 namespace OHOS {
 namespace Hardware {
 class Decompile {
-public:
-    explicit Decompile(const std::string &fileName);
+ public:
+  explicit Decompile(const std::string &fileName);
 
-    ~Decompile() = default;
+  ~Decompile() = default;
 
-    bool DoDecompile();
+  bool DoDecompile();
 
-private:
-    bool InitDecompileFile();
+ private:
+  bool InitDecompileFile();
 
-    bool ReadFile(char *buffer, size_t readSize);
+  bool ReadFile(char *buffer, size_t readSize);
 
-    uint32_t GetAlignSize(uint32_t size) const
-    {
-        if (isAlign_) {
-            return (size + ALIGN_SIZE - 1) & (~(ALIGN_SIZE - 1));
-        } else {
-            return size;
-        }
+  uint32_t GetAlignSize(uint32_t size) const {
+    if (isAlign_) {
+      return (size + ALIGN_SIZE - 1) & (~(ALIGN_SIZE - 1));
+    } else {
+      return size;
     }
+  }
 
-    bool ReadUint8(uint8_t &value);
+  bool ReadUint8(uint8_t &value);
 
-    bool ReadUint16(uint16_t &value);
+  bool ReadUint16(uint16_t &value);
 
-    bool ReadUint32(uint32_t &value);
+  bool ReadUint32(uint32_t &value);
 
-    bool ReadUint64(uint64_t &value);
+  bool ReadUint64(uint64_t &value);
 
-    bool ReadString(std::string &value);
+  bool ReadString(std::string &value);
 
-    void SetAlign(bool isAlign);
+  void SetAlign(bool isAlign);
 
-    bool VerifyDecompileFile();
+  bool VerifyDecompileFile();
 
-    bool GetNextByteCode(uint32_t &byteCode);
+  bool GetNextByteCode(uint32_t &byteCode);
 
-    std::shared_ptr<AstObject> RebuildObject(uint8_t opCode);
+  std::shared_ptr<AstObject> RebuildObject(uint8_t opCode);
 
-    std::shared_ptr<AstObject> RebuildNode();
+  std::shared_ptr<AstObject> RebuildNode();
 
-    std::shared_ptr<AstObject> RebuildTerm();
+  std::shared_ptr<AstObject> RebuildTerm();
 
-    std::shared_ptr<AstObject> RebuildNodeRefObject();
+  std::shared_ptr<AstObject> RebuildNodeRefObject();
 
-    std::shared_ptr<AstObject> RebuildNumberObject(uint8_t opCode);
+  std::shared_ptr<AstObject> RebuildNumberObject(uint8_t opCode);
 
-    std::shared_ptr<AstObject> RebuildArray();
+  std::shared_ptr<AstObject> RebuildArray();
 
-    std::shared_ptr<AstObject> RebuildStringObject();
+  std::shared_ptr<AstObject> RebuildStringObject();
 
-    std::shared_ptr<Ast> RebuildAst();
+  std::shared_ptr<Ast> RebuildAst();
 
-    bool isAlign_;
-    std::string fileName_;
-    std::ifstream file_;
+  bool isAlign_;
+  std::string fileName_;
+  std::ifstream file_;
 };
-} // namespace Hardware
-} // namespace OHOS
-#endif // HC_GEN_DECOMPILE_H
+}  // namespace Hardware
+}  // namespace OHOS
+#endif  // HC_GEN_DECOMPILE_H

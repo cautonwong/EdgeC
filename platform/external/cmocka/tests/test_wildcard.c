@@ -14,40 +14,37 @@
  * limitations under the License.
  */
 
+#include <cmocka.h>
+#include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
 
-static void test_ok1(void **state)
-{
-    (void)state;
+static void test_ok1(void **state) {
+  (void)state;
 
-    assert_true(1);
+  assert_true(1);
 }
 
-static void test_ok2(void **state)
-{
-    (void)state;
+static void test_ok2(void **state) {
+  (void)state;
 
-    assert_true(1);
+  assert_true(1);
 }
 
-static void test_fail(void **state)
-{
-    (void)state;
+static void test_fail(void **state) {
+  (void)state;
 
-    assert_false(1);
+  assert_false(1);
 }
 
 int main(void) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_ok1),
-        cmocka_unit_test(test_ok2),
-        cmocka_unit_test(test_fail),
-    };
+  const struct CMUnitTest tests[] = {
+      cmocka_unit_test(test_ok1),
+      cmocka_unit_test(test_ok2),
+      cmocka_unit_test(test_fail),
+  };
 
-    cmocka_set_test_filter("test_ok*");
+  cmocka_set_test_filter("test_ok*");
 
-    return cmocka_run_group_tests(tests, NULL, NULL);
+  return cmocka_run_group_tests(tests, NULL, NULL);
 }
