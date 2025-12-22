@@ -46,10 +46,10 @@ target_include_directories(c-edgex-sdk
 target_link_libraries(c-edgex-sdk
   PRIVATE
     cjson
-    cmocka_static
+    cmocka
     ccronexpr
     zlog
-    sqlite3
+    sqlite
     tinyexpr
     Threads::Threads # For spinlocks, etc.
     rt # For shm_open, shm_unlink
