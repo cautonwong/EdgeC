@@ -55,8 +55,8 @@ else()
 endif()
 
 add_subdirectory(platform)
-add_subdirectory(products)
-add_subdirectory(tools)
+# add_subdirectory(products)
+# add_subdirectory(tools)
 
 
 # Add the platform's binary directory to the search path for packages.

@@ -25,6 +25,7 @@ target_include_directories(cmocka PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/external/cmocka/src>
 )
 set_target_properties(cmocka PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_compile_options(cmocka PRIVATE -include signal.h)
 
 # ccronexpr
 add_library(ccronexpr STATIC

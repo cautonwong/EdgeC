@@ -38,7 +38,7 @@
       "displayName": "x64 Code Coverage",
       "description": "Build with coverage reporting enabled.",
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/${preset.name}",
+      "binaryDir": "${sourceDir}/build/x64-coverage",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_C_FLAGS": "--coverage",

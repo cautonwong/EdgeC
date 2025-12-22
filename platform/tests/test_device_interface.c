@@ -1,10 +1,12 @@
-#include <cedgex/device_iface.h>  // The SDK interface we are testing
-#include <cmocka.h>
+#include <signal.h>
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <cmocka.h>
+
+#include <cedgex/device_iface.h>  // The SDK interface we are testing
 
 // We need to reach into the "product" code to get our test subject.
 // In a real, complex project, you might have a dedicated test driver
