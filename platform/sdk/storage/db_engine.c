@@ -1,271 +1,168 @@
 #include "db_engine.h"
-
 #include <sqlite3.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define BATCH_SIZE 1000         // Max records per transaction
-#define FLUSH_INTERVAL_MS 1000  // Flush at least every 1 second
-
-// Buffer for batching records
 typedef struct {
-  cedgex_datapoint_t items[BATCH_SIZE];
-  int count;
-} BatchBuffer;
+    db_datapoint_t *items;
+    size_t count;
+    size_t capacity;
+} batch_buffer_t;
 
-// The main context for the DB engine
 typedef struct {
-  sqlite3 *db;
-  uv_loop_t *loop;
+    sqlite3 *db;
+    uv_loop_t *loop;
+    
+    batch_buffer_t buffers[2]; // Double buffering
+    _Atomic int active_buf_idx;
+    
+    uv_work_t work_req;
+    uv_timer_t flush_timer;
+    
+    _Atomic bool is_flushing;
+    char db_path[256];
+} db_engine_ctx_t;
 
-  // Double buffering
-  BatchBuffer *active_buf;
-  BatchBuffer *flush_buf;
+static db_engine_ctx_t g_db_ctx;
 
-  uv_work_t work_req;
-  uv_timer_t flush_timer;
+// --- Background worker thread for DB I/O ---
+static void _worker_flush_to_disk(uv_work_t *req) {
+    db_engine_ctx_t *ctx = (db_engine_ctx_t *)req->data;
+    int flush_idx = (atomic_load(&ctx->active_buf_idx) + 1) % 2;
+    batch_buffer_t *buf = &ctx->buffers[flush_idx];
 
-  volatile int is_flushing;
-  pthread_spinlock_t lock;  // For protecting access to the active buffer
-} DbEngineContext;
-
-static DbEngineContext g_ctx;
-static BatchBuffer g_buf1, g_buf2;
-
-// --- Forward Declarations ---
-static int run_migrations(sqlite3 *db);
-static void _trigger_flush(uv_timer_t *handle);
-
-// ==========================================
-// 1. Background Worker Thread: Writes to SQLite
-// ==========================================
-static void db_worker_flush(uv_work_t *req) {
-  DbEngineContext *ctx = (DbEngineContext *)req->data;
-  BatchBuffer *buf_to_flush = ctx->flush_buf;
-
-  if (buf_to_flush->count == 0) {
-    return;
-  }
-
-  sqlite3_exec(ctx->db, "BEGIN TRANSACTION;", 0, 0, 0);
-
-  sqlite3_stmt *stmt;
-  const char *sql =
-      "INSERT INTO ts_data (ts, tag_id, val_num, quality) VALUES (?, ?, ?, ?);";
-  if (sqlite3_prepare_v2(ctx->db, sql, -1, &stmt, NULL) != SQLITE_OK) {
-    fprintf(stderr, "[DB] Failed to prepare statement: %s\n",
-            sqlite3_errmsg(ctx->db));
-    sqlite3_exec(ctx->db, "ROLLBACK;", 0, 0, 0);
-    return;
-  }
-
-  for (int i = 0; i < buf_to_flush->count; i++) {
-    cedgex_datapoint_t *p = &buf_to_flush->items[i];
-    sqlite3_bind_int64(stmt, 1, p->ts);
-    sqlite3_bind_int(stmt, 2, p->tag_id);
-    if (p->type == CEDGEX_VAL_TYPE_FLOAT) {
-      sqlite3_bind_double(stmt, 3, p->val.f_val);
-    } else {
-      sqlite3_bind_double(stmt, 3, (double)p->val.i_val);
+    if (buf->count == 0) {
+        return;
     }
-    sqlite3_bind_int(stmt, 4, p->quality);
 
-    sqlite3_step(stmt);
-    sqlite3_reset(stmt);
-  }
+    sqlite3_exec(ctx->db, "BEGIN TRANSACTION;", 0, 0, 0);
+    
+    sqlite3_stmt *stmt;
+    sqlite3_prepare_v2(ctx->db, "INSERT INTO ts_data (ts, tag_id, val, quality) VALUES (?, ?, ?, ?);", -1, &stmt, NULL);
 
-  sqlite3_finalize(stmt);
-  sqlite3_exec(ctx->db, "COMMIT;", 0, 0, 0);
-}
-
-// ==========================================
-// 2. Main Loop Callback: After work is done
-// ==========================================
-static void after_db_worker_flush(uv_work_t *req, int status) {
-  if (status != 0) {
-    fprintf(stderr, "[DB] Worker flush failed with status %d\n", status);
-  }
-
-  DbEngineContext *ctx = (DbEngineContext *)req->data;
-  ctx->flush_buf->count = 0;  // Clear the flushed buffer
-  ctx->is_flushing = 0;       // Release the lock
-}
-
-// ==========================================
-// 3. Buffer Swap and Flush Trigger
-// ==========================================
-static void _trigger_flush(uv_timer_t *handle) {
-  DbEngineContext *ctx = &g_ctx;
-
-  if (ctx->is_flushing) {
-    fprintf(stderr,
-            "[DB] Warning: DB is busy, last flush not complete. Skipping this "
-            "tick.\n");
-    return;
-  }
-
-  pthread_spin_lock(&ctx->lock);
-  if (ctx->active_buf->count == 0) {
-    pthread_spin_unlock(&ctx->lock);
-    return;
-  }
-
-  // Swap active and flush buffers
-  BatchBuffer *temp = ctx->active_buf;
-  ctx->active_buf = ctx->flush_buf;
-  ctx->flush_buf = temp;
-  pthread_spin_unlock(&ctx->lock);
-
-  ctx->is_flushing = 1;
-  ctx->work_req.data = ctx;
-  uv_queue_work(ctx->loop, &ctx->work_req, db_worker_flush,
-                after_db_worker_flush);
-}
-
-// ==========================================
-// 4. Public API
-// ==========================================
-int db_engine_init(uv_loop_t *loop, const char *db_path) {
-  g_ctx.loop = loop;
-  g_ctx.active_buf = &g_buf1;
-  g_ctx.flush_buf = &g_buf2;
-  g_ctx.active_buf->count = 0;
-  g_ctx.flush_buf->count = 0;
-  g_ctx.is_flushing = 0;
-  pthread_spin_init(&g_ctx.lock, PTHREAD_PROCESS_PRIVATE);
-
-  // Open DB
-  if (sqlite3_open(db_path, &g_ctx.db) != SQLITE_OK) {
-    fprintf(stderr, "[DB] Can't open database: %s\n", sqlite3_errmsg(g_ctx.db));
-    return -1;
-  }
-
-  // Set pragmas for performance and durability
-  sqlite3_exec(g_ctx.db, "PRAGMA journal_mode=WAL;", 0, 0, 0);
-  sqlite3_exec(g_ctx.db, "PRAGMA synchronous=NORMAL;", 0, 0, 0);
-  sqlite3_exec(g_ctx.db, "PRAGMA cache_size=-4000;", 0, 0, 0);  // 4MB cache
-
-  // Run migrations
-  if (run_migrations(g_ctx.db) != 0) {
-    sqlite3_close(g_ctx.db);
-    return -1;
-  }
-
-  // Start the periodic flush timer
-  uv_timer_init(loop, &g_ctx.flush_timer);
-  uv_timer_start(&g_ctx.flush_timer, _trigger_flush, FLUSH_INTERVAL_MS,
-                 FLUSH_INTERVAL_MS);
-
-  printf("[DB] DB Engine initialized successfully.\n");
-  return 0;
-}
-
-int db_engine_insert_async(cedgex_datapoint_t *dp) {
-  pthread_spin_lock(&g_ctx.lock);
-  BatchBuffer *buf = g_ctx.active_buf;
-  if (buf->count >= BATCH_SIZE) {
-    pthread_spin_unlock(&g_ctx.lock);
-    // Trigger a flush immediately if the buffer is full
-    _trigger_flush(NULL);
-    return -1;  // Indicate buffer was full
-  }
-  buf->items[buf->count++] = *dp;
-  pthread_spin_unlock(&g_ctx.lock);
-  return 0;
-}
-
-void db_engine_cleanup(void) {
-  printf("[DB] Cleaning up DB engine...\n");
-  // Stop the timer and perform one final flush
-  uv_timer_stop(&g_ctx.flush_timer);
-  _trigger_flush(NULL);
-  // Note: In a real app, you'd need to wait for the last flush to complete.
-  // This is simplified for the example.
-
-  // Wait a moment for the last job to finish
-  uv_sleep(100);
-
-  sqlite3_close(g_ctx.db);
-  pthread_spin_destroy(&g_ctx.lock);
-}
-
-// ==========================================
-// 5. Database Migration Framework (from sql.md)
-// ==========================================
-#define TARGET_DB_VERSION 1  // Start with version 1
-
-typedef int (*MigrationFunc)(sqlite3 *db);
-
-int migrate_to_v1(sqlite3 *db) {
-  const char *sql =
-      "CREATE TABLE IF NOT EXISTS sys_config (key TEXT PRIMARY KEY, value "
-      "TEXT, updated_at INTEGER);"
-      "CREATE TABLE IF NOT EXISTS tags (id INTEGER PRIMARY KEY AUTOINCREMENT, "
-      "tag_name TEXT UNIQUE NOT NULL, unit TEXT, desc TEXT);"
-      "CREATE TABLE IF NOT EXISTS ts_data (ts INTEGER NOT NULL, tag_id INTEGER "
-      "NOT NULL, val_num REAL, val_str TEXT, quality INTEGER DEFAULT 0, "
-      "PRIMARY KEY (ts, tag_id)) WITHOUT ROWID;"
-      "CREATE INDEX IF NOT EXISTS idx_ts_data_time ON ts_data(ts);"
-      "CREATE TABLE IF NOT EXISTS alarms (id INTEGER PRIMARY KEY "
-      "AUTOINCREMENT, ts INTEGER NOT NULL, tag_id INTEGER, level INTEGER, "
-      "message TEXT, acked INTEGER DEFAULT 0);";
-
-  char *err = NULL;
-  if (sqlite3_exec(db, sql, NULL, NULL, &err) != SQLITE_OK) {
-    fprintf(stderr, "[DB Migration] V1 failed: %s\n", err);
-    sqlite3_free(err);
-    return -1;
-  }
-  return 0;
-}
-
-// Migration registry
-MigrationFunc migrations[] = {NULL,  // v0 is a placeholder
-                              migrate_to_v1};
-
-static int run_migrations(sqlite3 *db) {
-  sqlite3_stmt *stmt;
-  int current_ver = 0;
-
-  if (sqlite3_prepare_v2(db, "PRAGMA user_version;", -1, &stmt, NULL) ==
-      SQLITE_OK) {
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
-      current_ver = sqlite3_column_int(stmt, 0);
+    for (size_t i = 0; i < buf->count; i++) {
+        db_datapoint_t *p = &buf->items[i];
+        sqlite3_bind_int64(stmt, 1, p->ts);
+        sqlite3_bind_int(stmt, 2, p->tag_id);
+        sqlite3_bind_double(stmt, 3, p->value);
+        sqlite3_bind_int(stmt, 4, p->quality);
+        sqlite3_step(stmt);
+        sqlite3_reset(stmt);
     }
+    
     sqlite3_finalize(stmt);
-  }
+    sqlite3_exec(ctx->db, "COMMIT;", 0, 0, 0);
 
-  printf("[DB] DB Version: %d, Target Version: %d\n", current_ver,
-         TARGET_DB_VERSION);
+    // Clear the buffer that was just flushed
+    buf->count = 0;
+}
 
-  if (current_ver >= TARGET_DB_VERSION) {
-    return 0;  // No migration needed
-  }
+// --- Main thread callback after DB I/O is done ---
+static void _after_flush_to_disk(uv_work_t *req, int status) {
+    db_engine_ctx_t *ctx = (db_engine_ctx_t *)req->data;
+    atomic_store(&ctx->is_flushing, false);
+}
 
-  for (int v = current_ver + 1; v <= TARGET_DB_VERSION; v++) {
-    printf("[DB] Migrating to version %d...\n", v);
-
-    sqlite3_exec(db, "BEGIN TRANSACTION;", NULL, NULL, NULL);
-
-    if (migrations[v](db) != 0) {
-      fprintf(stderr, "[DB] Migration to version %d failed. Rolling back.\n",
-              v);
-      sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
-      return -1;
+// --- Triggers a buffer swap and flush ---
+static void _trigger_flush(db_engine_ctx_t *ctx) {
+    if (atomic_load(&ctx->is_flushing)) {
+        // Previous flush hasn't completed, data will wait in the active buffer.
+        return; 
     }
 
-    char ver_sql[64];
-    snprintf(ver_sql, sizeof(ver_sql), "PRAGMA user_version = %d;", v);
-    if (sqlite3_exec(db, ver_sql, NULL, NULL, NULL) != SQLITE_OK) {
-      fprintf(stderr, "[DB] Failed to set user_version to %d.\n", v);
-      sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
-      return -1;
+    int active_idx = atomic_load(&ctx->active_buf_idx);
+    if (ctx->buffers[active_idx].count == 0) {
+        // Nothing to flush.
+        return;
     }
 
-    sqlite3_exec(db, "COMMIT;", NULL, NULL, NULL);
-    printf("[DB] Migration to version %d successful.\n", v);
-  }
+    atomic_store(&ctx->is_flushing, true);
+    
+    // Swap buffers
+    int next_active_idx = (active_idx + 1) % 2;
+    atomic_store(&ctx->active_buf_idx, next_active_idx);
 
-  return 0;
+    // Queue the flush task to the libuv thread pool
+    ctx->work_req.data = ctx;
+    uv_queue_work(ctx->loop, &ctx->work_req, _worker_flush_to_disk, _after_flush_to_disk);
+}
+
+static void _on_timer_flush(uv_timer_t *handle) {
+    _trigger_flush(&g_db_ctx);
+}
+
+// --- Public API ---
+int db_engine_init(uv_loop_t *loop, const char *db_path, size_t batch_size, uint64_t flush_interval_ms) {
+    memset(&g_db_ctx, 0, sizeof(g_db_ctx));
+    g_db_ctx.loop = loop;
+    strncpy(g_db_ctx.db_path, db_path, sizeof(g_db_ctx.db_path) - 1);
+    atomic_init(&g_db_ctx.active_buf_idx, 0);
+    atomic_init(&g_db_ctx.is_flushing, false);
+
+    for (int i = 0; i < 2; ++i) {
+        g_db_ctx.buffers[i].items = malloc(batch_size * sizeof(db_datapoint_t));
+        if (!g_db_ctx.buffers[i].items) {
+            // Handle allocation failure
+            if (i > 0) free(g_db_ctx.buffers[0].items);
+            return -1;
+        }
+        g_db_ctx.buffers[i].capacity = batch_size;
+        g_db_ctx.buffers[i].count = 0;
+    }
+
+    if (sqlite3_open(g_db_ctx.db_path, &g_db_ctx.db) != SQLITE_OK) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(g_db_ctx.db));
+        free(g_db_ctx.buffers[0].items);
+        free(g_db_ctx.buffers[1].items);
+        return -1;
+    }
+
+    sqlite3_exec(g_db_ctx.db, "PRAGMA journal_mode=WAL;", 0, 0, 0);
+    sqlite3_exec(g_db_ctx.db, "PRAGMA synchronous=NORMAL;", 0, 0, 0);
+    
+    const char *sql_create = 
+        "CREATE TABLE IF NOT EXISTS ts_data (" 
+        "ts INTEGER, tag_id INTEGER, val REAL, quality INTEGER, " 
+        "PRIMARY KEY(ts, tag_id)) WITHOUT ROWID;";
+    sqlite3_exec(g_db_ctx.db, sql_create, 0, 0, 0);
+
+    uv_timer_init(loop, &g_db_ctx.flush_timer);
+    uv_timer_start(&g_db_ctx.flush_timer, _on_timer_flush, flush_interval_ms, flush_interval_ms);
+    
+    return 0;
+}
+
+bool db_engine_insert(const db_datapoint_t *dp) {
+    int active_idx = atomic_load(&g_db_ctx.active_buf_idx);
+    batch_buffer_t *buf = &g_db_ctx.buffers[active_idx];
+    
+    if (buf->count >= buf->capacity) {
+        _trigger_flush(&g_db_ctx);
+        // Re-check after attempting a flush
+        active_idx = atomic_load(&g_db_ctx.active_buf_idx);
+        buf = &g_db_ctx.buffers[active_idx];
+        if (buf->count >= buf->capacity) {
+            fprintf(stderr, "[DB] Buffer overflow, dropping data!\n");
+            return false;
+        }
+    }
+
+    buf->items[buf->count++] = *dp;
+    return true;
+}
+
+void db_engine_destroy(void) {
+    uv_timer_stop(&g_db_ctx.flush_timer);
+    _trigger_flush(&g_db_ctx);
+
+    // Busy-wait for the last flush to complete.
+    // In a real application, a more graceful shutdown with signaling is better.
+    while(atomic_load(&g_db_ctx.is_flushing)) {
+        usleep(10000); // Sleep for 10ms
+    }
+
+    sqlite3_close(g_db_ctx.db);
+    free(g_db_ctx.buffers[0].items);
+    free(g_db_ctx.buffers[1].items);
 }
