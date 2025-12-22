@@ -1,200 +1,172 @@
 #include "core_sched.h"
-
-#include <math.h>
-#include <stdio.h>
+#include "ccronexpr.h"
+#include <sys/timerfd.h>
+#include <unistd.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 
-#include "ccronexpr.h"
+struct cron_task {
+    cron_expr expr;
+    time_t next_run;
+    sched_cb cb;
+    void *arg;
+    int heap_idx;
+};
 
-// =========================================================
-// 1. Min-Heap Algorithm (O(log N)) for task management
-// =========================================================
+typedef struct {
+    uv_loop_t *loop;
+    int timer_fd;
+    uv_poll_t poll_handle;
+    cron_task_t **heap;
+    size_t capacity;
+    size_t size;
+    time_t last_run_time;
+} scheduler_t;
 
-static void _swap_tasks(SchedulerV2 *s, int i, int j) {
-  CronTask *temp = s->heap[i];
-  s->heap[i] = s->heap[j];
-  s->heap[j] = temp;
+static scheduler_t g_sched;
 
-  // Update the index stored within the task itself for fast access
-  s->heap[i]->heap_index = i;
-  s->heap[j]->heap_index = j;
+// --- Min-Heap Implementation ---
+static void _swap(int i, int j) {
+    cron_task_t *tmp = g_sched.heap[i];
+    g_sched.heap[i] = g_sched.heap[j];
+    g_sched.heap[j] = tmp;
+    g_sched.heap[i]->heap_idx = i;
+    g_sched.heap[j]->heap_idx = j;
 }
 
-static void _heap_sift_up(SchedulerV2 *s, int idx) {
-  while (idx > 0) {
-    int parent_idx = (idx - 1) / 2;
-    if (s->heap[idx]->next_run_ts < s->heap[parent_idx]->next_run_ts) {
-      _swap_tasks(s, idx, parent_idx);
-      idx = parent_idx;
+static void _heap_up(int i) {
+    while (i > 0) {
+        int parent = (i - 1) / 2;
+        if (g_sched.heap[i]->next_run < g_sched.heap[parent]->next_run) {
+            _swap(i, parent);
+            i = parent;
+        } else {
+            break;
+        }
+    }
+}
+
+static void _heap_down(int i) {
+    while (2 * i + 1 < g_sched.size) {
+        int left = 2 * i + 1;
+        int right = 2 * i + 2;
+        int smallest = left;
+        if (right < g_sched.size && g_sched.heap[right]->next_run < g_sched.heap[left]->next_run) {
+            smallest = right;
+        }
+        if (g_sched.heap[i]->next_run > g_sched.heap[smallest]->next_run) {
+            _swap(i, smallest);
+            i = smallest;
+        } else {
+            break;
+        }
+    }
+}
+
+static void _heap_push(cron_task_t *task) {
+    if (g_sched.size >= g_sched.capacity) return;
+    task->heap_idx = g_sched.size;
+    g_sched.heap[g_sched.size++] = task;
+    _heap_up(g_sched.size - 1);
+}
+
+static cron_task_t* _heap_pop() {
+    if (g_sched.size == 0) return NULL;
+    cron_task_t *root = g_sched.heap[0];
+    g_sched.heap[0] = g_sched.heap[--g_sched.size];
+    if (g_sched.size > 0) {
+        g_sched.heap[0]->heap_idx = 0;
+        _heap_down(0);
+    }
+    return root;
+}
+// --- End Min-Heap ---
+
+static void _rearm_timer() {
+    cron_task_t *top = (g_sched.size > 0) ? g_sched.heap[0] : NULL;
+    struct itimerspec new_val = {0};
+    if (top) {
+        new_val.it_value.tv_sec = top->next_run;
+    }
+    int flags = TFD_TIMER_ABSTIME | TFD_TIMER_CANCEL_ON_SET;
+    timerfd_settime(g_sched.timer_fd, flags, &new_val, NULL);
+}
+
+static void _on_timer_event(uv_poll_t *handle, int status, int events) {
+    uint64_t exp;
+    ssize_t sz = read(g_sched.timer_fd, &exp, sizeof(uint64_t));
+    time_t now = time(NULL);
+
+    if (sz != sizeof(uint64_t)) {
+        printf("[Sched] Clock jump detected! Recalculating...\n");
+        for (size_t i = 0; i < g_sched.size; i++) {
+            g_sched.heap[i]->next_run = cron_next(&g_sched.heap[i]->expr, now);
+        }
+        for (int i = (g_sched.size / 2) - 1; i >= 0; i--) {
+            _heap_down(i);
+        }
     } else {
-      break;
+        while (g_sched.size > 0) {
+            cron_task_t *t = g_sched.heap[0];
+            if (t->next_run > now) break;
+            
+            _heap_pop();
+            if (t->next_run > g_sched.last_run_time && t->cb) {
+                t->cb(t->arg);
+            }
+            t->next_run = cron_next(&t->expr, now);
+            _heap_push(t);
+        }
     }
-  }
+    g_sched.last_run_time = now;
+    _rearm_timer();
 }
 
-static void _heap_sift_down(SchedulerV2 *s, int idx) {
-  int left_child_idx;
-  while ((left_child_idx = 2 * idx + 1) < s->size) {
-    int right_child_idx = left_child_idx + 1;
-    int smallest_child_idx = left_child_idx;
+int core_sched_init(uv_loop_t *loop, size_t max_tasks) {
+    memset(&g_sched, 0, sizeof(g_sched));
+    g_sched.loop = loop;
+    g_sched.capacity = max_tasks;
+    g_sched.heap = calloc(max_tasks, sizeof(cron_task_t*));
+    if (!g_sched.heap) return -1;
 
-    if (right_child_idx < s->size && s->heap[right_child_idx]->next_run_ts <
-                                         s->heap[left_child_idx]->next_run_ts) {
-      smallest_child_idx = right_child_idx;
+    g_sched.timer_fd = timerfd_create(CLOCK_REALTIME, TFD_NONBLOCK | TFD_CLOEXEC);
+    if (g_sched.timer_fd < 0) {
+        free(g_sched.heap);
+        return -1;
     }
-
-    if (s->heap[idx]->next_run_ts > s->heap[smallest_child_idx]->next_run_ts) {
-      _swap_tasks(s, idx, smallest_child_idx);
-      idx = smallest_child_idx;
-    } else {
-      break;
-    }
-  }
-}
-
-static void _heap_push(SchedulerV2 *s, CronTask *task) {
-  if (s->size >= s->capacity) {
-    fprintf(stderr, "[SchedV2] Error: Scheduler capacity exceeded.\n");
-    return;
-  }
-  task->heap_index = s->size;
-  s->heap[s->size++] = task;
-  _heap_sift_up(s, s->size - 1);
-}
-
-static CronTask *_heap_pop(SchedulerV2 *s) {
-  if (s->size == 0) return NULL;
-  CronTask *root = s->heap[0];
-
-  s->heap[0] = s->heap[s->size - 1];
-  s->size--;
-
-  if (s->size > 0) {
-    s->heap[0]->heap_index = 0;
-    _heap_sift_down(s, 0);
-  }
-  return root;
-}
-
-// =========================================================
-// 2. Cron Logic and Clock-Jump-Aware Tick
-// =========================================================
-
-static time_t _calc_next_run_time(const char *expr, time_t now) {
-  cron_expr parsed;
-  const char *err = NULL;
-  cron_parse_expr(expr, &parsed, &err);
-  if (err) {
-    fprintf(stderr, "[SchedV2] Invalid cron expression '%s': %s\n", expr, err);
+    
+    uv_poll_init(loop, &g_sched.poll_handle, g_sched.timer_fd);
+    uv_poll_start(&g_sched.poll_handle, UV_READABLE, _on_timer_event);
     return 0;
-  }
-  return cron_next(&parsed, now);
 }
 
-static void _on_scheduler_tick(uv_timer_t *handle) {
-  SchedulerV2 *s = (SchedulerV2 *)handle->data;
-  time_t now = time(NULL);
+cron_task_t* core_sched_add_cron(const char *cron_str, sched_cb cb, void *arg) {
+    const char *err = NULL;
+    cron_task_t *task = calloc(1, sizeof(cron_task_t));
+    if (!task) return NULL;
 
-  // --- Clock Jump Detection ---
-  if (labs(now - s->last_real_time) > 2) {  // Use labs for long int
-    printf(
-        "[SchedV2] WARN: Clock jump detected! Last seen: %ld, Now: %ld. "
-        "Recalculating schedule...\n",
-        s->last_real_time, now);
-
-    // Re-calculate all run times based on the new "now"
-    for (size_t i = 0; i < s->size; i++) {
-      CronTask *t = s->heap[i];
-      t->next_run_ts = _calc_next_run_time(t->cron_expr, now);
+    cron_parse_expr(cron_str, &task->expr, &err);
+    if (err) {
+        free(task);
+        return NULL;
     }
-    // Re-heapify the entire array, which is an O(N) operation.
-    for (int i = (s->size / 2) - 1; i >= 0; i--) {
-      _heap_sift_down(s, i);
+
+    task->cb = cb;
+    task->arg = arg;
+    task->next_run = cron_next(&task->expr, time(NULL));
+    
+    _heap_push(task);
+    _rearm_timer();
+    
+    return task;
+}
+
+void core_sched_destroy(void) {
+    uv_poll_stop(&g_sched.poll_handle);
+    close(g_sched.timer_fd);
+    for (size_t i = 0; i < g_sched.size; i++) {
+        free(g_sched.heap[i]);
     }
-  }
-  s->last_real_time = now;
-
-  // --- Execute Due Tasks ---
-  while (s->size > 0) {
-    CronTask *t = s->heap[0];  // Peek at the task with the earliest run time
-
-    if (t->next_run_ts <= now) {
-      _heap_pop(s);  // Remove it from the heap
-
-      if (t->cb) {
-        t->cb(t->arg);  // Execute the callback
-      }
-
-      // Re-calculate its next run time and push it back into the heap
-      time_t next_ts = _calc_next_run_time(t->cron_expr, now);
-      if (next_ts > 0) {
-        t->next_run_ts = next_ts;
-        _heap_push(s, t);
-      } else {
-        // Invalid expression or one-shot, free the task
-        free(t);
-      }
-    } else {
-      // The earliest task is not due yet, so no other tasks can be.
-      break;
-    }
-  }
-}
-
-// =========================================================
-// 3. Public API Implementation
-// =========================================================
-
-int sched_v2_init(SchedulerV2 *s, uv_loop_t *loop, size_t max_tasks) {
-  if (!s || !loop) return -1;
-  s->loop = loop;
-  s->capacity = max_tasks;
-  s->size = 0;
-  s->heap = calloc(max_tasks, sizeof(CronTask *));
-  if (!s->heap) return -1;
-
-  s->last_real_time = time(NULL);
-
-  uv_timer_init(loop, &s->check_timer);
-  s->check_timer.data = s;
-  uv_timer_start(&s->check_timer, _on_scheduler_tick, 1000,
-                 1000);  // 1-second tick
-
-  return 0;
-}
-
-int sched_v2_add_cron(SchedulerV2 *s, int id, const char *expr, TaskCb cb,
-                      void *arg) {
-  if (!s || !expr || !cb) return -1;
-
-  CronTask *t = calloc(1, sizeof(CronTask));
-  if (!t) return -1;
-
-  t->id = id;
-  strncpy(t->cron_expr, expr, sizeof(t->cron_expr) - 1);
-  t->cb = cb;
-  t->arg = arg;
-
-  time_t now = time(NULL);
-  t->next_run_ts = _calc_next_run_time(expr, now);
-
-  if (t->next_run_ts == 0) {
-    free(t);
-    return -1;  // Invalid cron expression
-  }
-
-  _heap_push(s, t);
-  return 0;
-}
-
-void sched_v2_destroy(SchedulerV2 *s) {
-  if (!s) return;
-  uv_timer_stop(&s->check_timer);
-  for (size_t i = 0; i < s->size; i++) {
-    free(s->heap[i]);
-  }
-  free(s->heap);
-  s->size = 0;
-  s->capacity = 0;
+    free(g_sched.heap);
 }
