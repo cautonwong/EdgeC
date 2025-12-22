@@ -87,6 +87,14 @@ set_target_properties(sqlite PROPERTIES POSITION_INDEPENDENT_CODE ON)
 # The SDK will link against the libraries defined above.
 add_subdirectory(sdk)
 
-# --- 3. Include tests for the platform ---
+# --- 3. Include plugins ---
+
+add_subdirectory(plugins)
+
+
+
+# --- 4. Include tests for the platform ---
+
 # Tests are considered part of the platform's development and verification.
+
 # add_subdirectory(tests)
