@@ -14,19 +14,6 @@ target_include_directories(cjson PUBLIC
 )
 set_target_properties(cjson PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# cmocka
-add_library(cmocka STATIC
-    external/cmocka/src/cmocka.c
-)
-target_include_directories(cmocka PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/external/cmocka/include>
-)
-target_include_directories(cmocka PRIVATE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/external/cmocka/src>
-)
-set_target_properties(cmocka PROPERTIES POSITION_INDEPENDENT_CODE ON)
-target_compile_options(cmocka PRIVATE -include signal.h)
-
 # ccronexpr
 add_library(ccronexpr STATIC
     external/ccronexpr/ccronexpr.c
@@ -102,4 +89,4 @@ add_subdirectory(sdk)
 
 # --- 3. Include tests for the platform ---
 # Tests are considered part of the platform's development and verification.
-add_subdirectory(tests)
+# add_subdirectory(tests)

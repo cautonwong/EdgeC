@@ -46,7 +46,6 @@ target_include_directories(c-edgex-sdk
 target_link_libraries(c-edgex-sdk
   PRIVATE
     cjson
-    cmocka
     ccronexpr
     zlog
     sqlite
