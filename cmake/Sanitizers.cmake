@@ -1,0 +1,5 @@
+function(enable_sanitizers)
+    message(STATUS "Enabling AddressSanitizer and UndefinedBehaviorSanitizer...")
+    add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address,undefined)
+endfunction()

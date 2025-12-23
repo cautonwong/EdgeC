@@ -1,23 +1,14 @@
-# Build artifacts
-/build
-*.a
-*.so
-*.o
+# 1. 忽略所有编译目录
+build/
+build_*/
 
-# Executables
-/c_edgex_app
+# 2. 忽略 vendor 目录下的临时构建文件
+vendor/*/build/
+vendor/*/out/
 
-# Editor-specific files
-.vscode/
-.idea/
-
-# OS-specific files
-.DS_Store
-Thumbs.db
-
-# Ctags
-tags
-
-# Doxygen
-html/
-latex/
+# 3. [关键] 允许提交 .local 目录下的库文件
+!/.local/
+!*.a
+!*.so
+!*.h
+!*.cmake

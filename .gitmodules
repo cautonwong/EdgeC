@@ -25,3 +25,6 @@
 [submodule "tinyexpr"]
 	path = platform/external/tinyexpr
 	url = https://github.com/codeplea/tinyexpr.git
+[submodule "external/cmocka"]
+	path = external/cmocka
+	url = https://git.cryptomilk.org/projects/cmocka.git

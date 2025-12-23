@@ -1,9 +1,0 @@
-# platform/sdk/cmake/CEdgexSDKConfig.cmake.in
-#
-# This template is used to generate the CEdgeXSDKConfig.cmake file,
-# which allows other CMake projects to find and use this SDK.
-
-@PACKAGE_INIT@
-
-include("${CMAKE_CURRENT_LIST_DIR}/CEdgexSDKTargets.cmake")
-check_required_components(CEdgexSDK)
