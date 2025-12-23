@@ -40,8 +40,10 @@ add_library(edge_core_lib STATIC
     src/edge_version.c
     src/core_mem.c
     src/core_sched.c
+    src/shm_ring.c
+    src/db_engine.c
 )
-target_link_libraries(edge_core_lib PRIVATE ccronexpr Threads::Threads ${LIBUV_LIBRARIES})
+target_link_libraries(edge_core_lib PRIVATE ccronexpr Threads::Threads uv sqlite rt)
 
 # ==============================================================================
 # 4. 可执行文件目标 (Executable Target)
@@ -60,6 +62,13 @@ target_include_directories(ccronexpr PUBLIC
 )
 set_target_properties(ccronexpr PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+add_library(sqlite STATIC
+    external/sqlite/sqlite3.c
+)
+target_include_directories(sqlite PUBLIC
+    external/sqlite
+)
+set_target_properties(sqlite PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # ==============================================================================
 # 6. 测试集成 (Testing)
