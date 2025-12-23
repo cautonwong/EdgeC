@@ -32,6 +32,7 @@ include_directories(include)
 
 add_library(edge_core_lib STATIC
     src/edge_version.c
+    src/core_mem.c
 )
 
 # ==============================================================================
