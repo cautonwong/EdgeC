@@ -1,0 +1,9 @@
+[submodule "vendor/cJSON"]
+	path = vendor/cJSON
+	url = https://github.com/DaveGamble/cJSON.git
+[submodule "vendor/libuv"]
+	path = vendor/libuv
+	url = https://github.com/libuv/libuv.git
+[submodule "vendor/cmocka"]
+	path = vendor/cmocka
+	url = https://git.cryptomilk.org/projects/cmocka.git

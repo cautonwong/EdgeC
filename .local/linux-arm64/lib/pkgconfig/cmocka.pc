@@ -1,0 +1,11 @@
+# cmocka pkg-config source file
+
+prefix=/home/builder/src/.local/linux-arm64
+libdir=/home/builder/src/.local/linux-arm64/lib
+includedir=/home/builder/src/.local/linux-arm64/include
+
+Name: cmocka
+Description: The cmocka unit testing library
+Version: 1.9.0
+Libs: -L${libdir} -lcmocka
+Cflags: -I${includedir}
