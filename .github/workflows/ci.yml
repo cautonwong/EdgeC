@@ -12,7 +12,7 @@ jobs:
 
       # 1. 构建镜像 (利用 Docker Layer Caching)
       - name: Build Docker Image
-        run: docker build -t edgeos-builder:latest -f docker/Dockerfile docker/
+        run: docker build -t edgeos-builder:latest -f docker/Dockerfile .
 
       # 2. 在容器内运行代码检查
       - name: Static Analysis
