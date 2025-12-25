@@ -7,6 +7,10 @@
 #include <string.h>
 
 #include "arbiter.h"
+#include "shmring.h"
+
+// Dummy global ring
+shm_ring_t *global_ring = NULL;
 
 // Context for the test
 typedef struct {
@@ -39,7 +43,9 @@ static void on_grant_cb(arbiter_t *arb, arbiter_bus_t bus, void *user) {
     // If all expected grants have happened, stop the loop
     if (ctx->granted_count >= 3) { // Expecting 3 grants in this test
         arbiter_destroy(arb); // This will stop the timer and close its handle
-        uv_stop(ctx->loop); // Ensure the loop stops
+        // uv_stop is NOT enough because the async handle from arbiter might still be pending close
+        // But arbiter_destroy closes the timer.
+        // We need to let the loop run to process closes.
     }
 }
 
@@ -66,7 +72,16 @@ static void test_arbiter_scheduling(void **state) {
         ARB_PRIO_CRITICAL, ARB_EXCLUSIVE, 0,
         on_grant_cb, &ota_data);
 
-    // Run the loop until uv_stop is called from the callback
+    // Run the loop until we decide to stop
+    // We can run in a loop with check
+    int i;
+    for (i=0; i<500; i++) {
+        uv_run(ctx.loop, UV_RUN_NOWAIT);
+        if (ctx.granted_count >= 3) break;
+        usleep(1000);
+    }
+    
+    // Process final closes
     uv_run(ctx.loop, UV_RUN_DEFAULT);
 
     // Verify assertions

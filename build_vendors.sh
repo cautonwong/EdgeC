@@ -1,132 +1,105 @@
 #!/bin/bash
-set -e # 遇到错误立即退出
+set -e
 
-# 项目根目录
+# Project root
 PROJECT_ROOT=$(pwd)
+VENDOR_SRC="$PROJECT_ROOT/vendor"
 INSTALL_ROOT="$PROJECT_ROOT/.local"
 
-# 定义要构建的架构列表
-TARGETS=("host" "arm64")
-
-# =========================================================
-# 函数：编译 cJSON
-# =========================================================
-build_cjson() {
-    ARCH=$1
-    echo ">>> Building cJSON for [$ARCH] ..."
-    
-    SOURCE_DIR="$PROJECT_ROOT/vendor/cJSON"
-    BUILD_DIR="$SOURCE_DIR/build-$ARCH"
-    
-    # Host 架构归一化
-    if [ "$ARCH" == "host" ]; then
-        INSTALL_DIR="$INSTALL_ROOT/linux-x86_64"
-    else
-        INSTALL_DIR="$INSTALL_ROOT/linux-$ARCH"
-    fi
-    
-    rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR"
-    cd "$BUILD_DIR"
-    
-    CMAKE_ARGS="-DCMAKE_INSTALL_PREFIX=$INSTALL_DIR -DENABLE_CJSON_TEST=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release"
-    
-    if [ "$ARCH" == "aarch64" ]; then
-        CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_TOOLCHAIN_FILE=$PROJECT_ROOT/docker/toolchains/aarch64-linux-gnu.cmake"
-    fi
-    
-    cmake $CMAKE_ARGS ..
-    make -j$(nproc)
-    make install
-    
-    echo ">>> cJSON for [$ARCH] installed to $INSTALL_DIR"
-    cd $PROJECT_ROOT
-}
-
-# =========================================================
-# 函数：编译 libuv
-# =========================================================
-build_libuv() {
-    ARCH=$1
-    echo ">>> Building libuv for [$ARCH] ..."
-    
-    SOURCE_DIR="$PROJECT_ROOT/vendor/libuv"
-    BUILD_DIR="$SOURCE_DIR/build-$ARCH"
-    
-    if [ "$ARCH" == "host" ]; then
-        INSTALL_DIR="$INSTALL_ROOT/linux-x86_64"
-    else
-        INSTALL_DIR="$INSTALL_ROOT/linux-$ARCH"
-    fi
-
-    rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR"
-    cd "$BUILD_DIR"
-    
-    CMAKE_ARGS="-DCMAKE_INSTALL_PREFIX=$INSTALL_DIR -DBUILD_TESTING=OFF -DLIBUV_BUILD_SHARED=OFF -DCMAKE_BUILD_TYPE=Release"
-    
-    if [ "$ARCH" == "aarch64" ]; then
-        CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_TOOLCHAIN_FILE=$PROJECT_ROOT/docker/toolchains/aarch64-linux-gnu.cmake"
-    fi
-    
-    cmake $CMAKE_ARGS ..
-    make -j$(nproc)
-    make install
-    echo ">>> libuv for [$ARCH] installed."
-    cd $PROJECT_ROOT
-}
-
-# =========================================================
-# 函数：编译 cmocka
-# =========================================================
-build_cmocka() {
-    ARCH=$1
-    echo ">>> Building cmocka for [$ARCH] ..."
-    
-    SOURCE_DIR="$PROJECT_ROOT/vendor/cmocka"
-    BUILD_DIR="$SOURCE_DIR/build-$ARCH"
-
-    if [ "$ARCH" == "host" ]; then
-        INSTALL_DIR="$INSTALL_ROOT/linux-x86_64"
-    else
-        INSTALL_DIR="$INSTALL_ROOT/linux-$ARCH"
-    fi
-
-    rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR"
-    cd "$BUILD_DIR"
-    
-    CMAKE_ARGS="-DCMAKE_INSTALL_PREFIX=$INSTALL_DIR -DWITH_STATIC_LIB=ON -DWITH_EXAMPLES=OFF -DCMAKE_BUILD_TYPE=Release"
-    
-    if [ "$ARCH" == "aarch64" ]; then
-        CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_TOOLCHAIN_FILE=$PROJECT_ROOT/docker/toolchains/aarch64-linux-gnu.cmake"
-    fi
-    
-    cmake $CMAKE_ARGS ..
-    make -j$(nproc)
-    make install
-    echo ">>> cmocka for [$ARCH] installed."
-    cd $PROJECT_ROOT
-}
-
-
-# =========================================================
-# 主循环
-# =========================================================
-
+# Host architecture
 HOST_ARCH=$(uname -m)
+# Normalize arch name for directory
+if [ "$HOST_ARCH" == "aarch64" ]; then
+    ARCH_DIR="linux-aarch64"
+else
+    ARCH_DIR="linux-x86_64"
+fi
 
-for TARGET in "${TARGETS[@]}"; do
-    if [ "$TARGET" == "host" ]; then
-        REAL_ARCH=$HOST_ARCH
-    else
-        REAL_ARCH=$TARGET
+INSTALL_DIR="$INSTALL_ROOT/$ARCH_DIR"
+
+echo ">>> Building vendors into: $INSTALL_DIR"
+mkdir -p "$INSTALL_DIR" "$VENDOR_SRC"
+
+# 1. cJSON
+build_cjson() {
+    echo "--- Building cJSON ---"
+    cd "$VENDOR_SRC"
+    if [ ! -d "cJSON" ]; then 
+        git clone -b v1.7.15 https://github.com/DaveGamble/cJSON.git
     fi
     
-    echo "=========================================="
-    echo " Building vendors for Target: $REAL_ARCH"
-    echo "=========================================="
+    mkdir -p cJSON/build && cd cJSON/build
+    cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" \
+          -DENABLE_CJSON_TEST=OFF \
+          -DBUILD_SHARED_AND_STATIC_LIBS=ON \
+          -DCMAKE_BUILD_TYPE=Release ..
+    make -j$(nproc) install
+}
+
+# 2. Libuv
+build_libuv() {
+    echo "--- Building libuv ---"
+    cd "$VENDOR_SRC"
+    if [ ! -d "libuv" ]; then 
+        git clone -b v1.44.2 https://github.com/libuv/libuv.git
+    fi
     
-    build_cjson $TARGET
-    build_libuv $TARGET
-    build_cmocka $TARGET
-done
+    mkdir -p libuv/build && cd libuv/build
+    cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" \
+          -DBUILD_TESTING=OFF \
+          -DCMAKE_BUILD_TYPE=Release ..
+    make -j$(nproc) install
+}
+
+# 3. CMocka
+build_cmocka() {
+    echo "--- Building cmocka ---"
+    cd "$VENDOR_SRC"
+    if [ ! -d "cmocka" ]; then 
+        git clone https://git.cryptomilk.org/projects/cmocka.git
+    fi
+    
+    mkdir -p cmocka/build && cd cmocka/build
+    cmake -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" \
+          -DWITH_STATIC_LIB=ON \
+          -DWITH_EXAMPLES=OFF \
+          -DCMAKE_BUILD_TYPE=Release ..
+    make -j$(nproc) install
+}
+
+# 4. SQLite3 (Download Amalgamation)
+build_sqlite() {
+    echo "--- Building SQLite3 ---"
+    cd "$VENDOR_SRC"
+    SQLITE_YEAR="2023"
+    SQLITE_VER="3420000"
+    ZIP_NAME="sqlite-amalgamation-$SQLITE_VER.zip"
+    DIR_NAME="sqlite-amalgamation-$SQLITE_VER"
+
+    if [ ! -d "$DIR_NAME" ]; then
+        if [ ! -f "$ZIP_NAME" ]; then
+            echo "Downloading SQLite..."
+            wget "https://www.sqlite.org/$SQLITE_YEAR/$ZIP_NAME"
+        fi
+        unzip -o "$ZIP_NAME"
+    fi
+    
+    cd "$DIR_NAME"
+    
+    # Manual compile static lib
+    gcc -O2 -c sqlite3.c -o sqlite3.o -DSQLITE_ENABLE_COLUMN_METADATA -fPIC
+    ar rcs libsqlite3.a sqlite3.o
+    
+    # Install
+    mkdir -p "$INSTALL_DIR/include" "$INSTALL_DIR/lib"
+    cp sqlite3.h sqlite3ext.h "$INSTALL_DIR/include/"
+    cp libsqlite3.a "$INSTALL_DIR/lib/"
+    echo "SQLite3 installed to $INSTALL_DIR"
+}
+
+build_cjson
+build_libuv
+build_cmocka
+build_sqlite
 
 echo "✅ All vendors built successfully!"

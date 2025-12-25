@@ -25,6 +25,14 @@ struct arbiter {
     arb_bus_t buses[BUS_MAX];
 };
 
+/* Context for async callback */
+typedef struct {
+    arbiter_cb cb;
+    arbiter_t *arb;
+    arbiter_bus_t bus_id;
+    void *user;
+} grant_ctx_t;
+
 /* ===== Helpers ===== */
 
 static uint64_t now_ms(uv_loop_t *loop) {
@@ -40,25 +48,33 @@ static void enqueue_req(arb_bus_t *bus, arb_req_t *req) {
     *p = req;
 }
 
+static void on_grant_async(uv_async_t *handle) {
+    grant_ctx_t *ctx = (grant_ctx_t *)handle->data;
+    if (ctx) {
+        if (ctx->cb) {
+            ctx->cb(ctx->arb, ctx->bus_id, ctx->user);
+        }
+        free(ctx);
+    }
+    uv_close((uv_handle_t*)handle, (uv_close_cb)free);
+}
+
 static void grant_bus(arbiter_t *arb, arbiter_bus_t bus_id, arb_req_t *req) {
     arb_bus_t *bus = &arb->buses[bus_id];
     bus->owner = req;
     req->next = NULL;
 
-    /* 回调必须异步，保证不重入 */
-    arbiter_cb cb = req->cb;
-    void *user = req->user;
+    /* Prepare context for async callback */
+    grant_ctx_t *ctx = malloc(sizeof(grant_ctx_t));
+    ctx->cb = req->cb;
+    ctx->arb = arb;
+    ctx->bus_id = bus_id;
+    ctx->user = req->user;
 
     uv_async_t *async = malloc(sizeof(*async));
-    uv_async_init(arb->loop, async, 
-        (uv_async_cb) (void *) (uintptr_t) ({
-            void fn(uv_async_t *a) {
-                cb(arb, bus_id, user);
-                uv_close((uv_handle_t*)a, (uv_close_cb)free);
-            }
-            fn;
-        })
-    );
+    async->data = ctx;
+    
+    uv_async_init(arb->loop, async, on_grant_async);
     uv_async_send(async);
 }
 

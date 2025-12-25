@@ -5,6 +5,10 @@
 #include <unistd.h> // For close
 
 #include "driver_manager.h"
+#include "shmring.h"
+
+// Dummy global ring
+shm_ring_t *global_ring = NULL;
 
 static void test_driver_manager_lifecycle(void **state) {
     (void)state; // Unused
@@ -32,14 +36,7 @@ static void test_driver_manager_lifecycle(void **state) {
     assert_int_equal(fd_invalid, -1);
 
     // 6. Destroy the driver manager
-    // We can't easily check if fds are closed without complex OS-level checks,
-    // but we can ensure the function call doesn't crash.
-    // The valgrind/ASan will detect if we leak file descriptors on exit.
     driver_manager_destroy(dm);
-
-    // After destroy, attempting to use the fd should fail if it was closed,
-    // but the test process might get a new fd with the same number.
-    // So we don't assert on post-close behavior.
 }
 
 int main(void) {

@@ -1,0 +1,11 @@
+option(ENABLE_COVERAGE "Enable code coverage generation" OFF)
+
+if(ENABLE_COVERAGE)
+    if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        message(STATUS "Building with Coverage support")
+        add_compile_options(--coverage -O0 -g)
+        add_link_options(--coverage)
+    else()
+        message(FATAL_ERROR "Coverage requires GCC or Clang")
+    endif()
+endif()

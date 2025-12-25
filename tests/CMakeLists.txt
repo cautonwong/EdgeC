@@ -1,42 +1,52 @@
-# Define the test executable
-add_executable(unit_tests test_version.c)
-# Link the core library and cmocka
-target_link_libraries(unit_tests PRIVATE edge_core_lib ${CMOCKA_LIB})
-# Register with CTest
-add_test(NAME VersionCheck COMMAND unit_tests)
+cmake_minimum_required(VERSION 3.10)
+project(EdgeC_Tests)
 
-# Arbiter test executable
-add_executable(arbiter_test test_arbiter.c)
-target_link_libraries(arbiter_test PRIVATE edge_core_lib ${UV_LIB} ${CMOCKA_LIB})
-add_test(NAME ArbiterTest COMMAND arbiter_test)
+# No need to manual include dirs, edge_core_lib carries PUBLIC include props
+# But cmocka is test-only, so we link it here.
 
-# IO Executor test executable
-add_executable(io_executor_test test_io_executor.c)
-target_link_libraries(io_executor_test PRIVATE edge_core_lib ${UV_LIB} ${CMOCKA_LIB})
-add_test(NAME IOExecutorTest COMMAND io_executor_test)
+# Test Algorithm
+add_executable(test_algorithm_sum test_algorithm_sum.c)
+target_link_libraries(test_algorithm_sum PRIVATE edge_core_lib cmocka::cmocka pthread dl rt m)
+add_test(NAME AlgorithmSum COMMAND test_algorithm_sum)
 
-# Algorithm Sum test executable
-add_executable(algo_sum_test test_algorithm_sum.c)
-target_link_libraries(algo_sum_test PRIVATE edge_core_lib ${UV_LIB} ${CMOCKA_LIB})
-add_test(NAME AlgoSumTest COMMAND algo_sum_test)
+# Test SQLite
+add_executable(test_sqlite_service test_sqlite_service.c)
+target_link_libraries(test_sqlite_service PRIVATE edge_core_lib cmocka::cmocka pthread dl rt m)
+add_test(NAME SQLiteService COMMAND test_sqlite_service)
 
-# SQLite Service test executable
-add_executable(sqlite_service_test test_sqlite_service.c)
-target_link_libraries(sqlite_service_test PRIVATE edge_core_lib ${UV_LIB} ${CMOCKA_LIB} ${SQLITE3_LIB} m)
-add_test(NAME SqliteServiceTest COMMAND sqlite_service_test)
+# Test Protocol
+add_executable(test_modbus_protocol test_modbus_protocol.c)
+target_link_libraries(test_modbus_protocol PRIVATE edge_core_lib cmocka::cmocka pthread dl rt m)
+target_link_options(test_modbus_protocol PRIVATE -Wl,--wrap=io_submit)
+add_test(NAME ModbusProtocol COMMAND test_modbus_protocol)
 
-# Modbus Protocol test executable
-add_executable(modbus_protocol_test test_modbus_protocol.c)
-target_link_libraries(modbus_protocol_test PRIVATE edge_core_lib ${CMOCKA_LIB})
-add_test(NAME ModbusProtocolTest COMMAND modbus_protocol_test)
+# Test ShmRing
+add_executable(test_shmring test_shmring.c)
+target_link_libraries(test_shmring PRIVATE edge_core_lib cmocka::cmocka pthread dl rt m)
+add_test(NAME ShmRing COMMAND test_shmring)
 
-# Integration test executable
-add_executable(integration_test test_integration.c)
-target_link_libraries(integration_test PRIVATE edge_core_lib ${UV_LIB} ${CMOCKA_LIB})
-target_link_options(integration_test PRIVATE "-Wl,--wrap=io_submit")
-add_test(NAME IntegrationTest COMMAND integration_test)
+# Test Version
+add_executable(test_version test_version.c)
+target_link_libraries(test_version PRIVATE edge_core_lib cmocka::cmocka pthread dl rt m)
+add_test(NAME Version COMMAND test_version)
 
-# Driver Manager test executable
-add_executable(driver_manager_test test_driver_manager.c)
-target_link_libraries(driver_manager_test PRIVATE edge_core_lib ${CMOCKA_LIB})
-add_test(NAME DriverManagerTest COMMAND driver_manager_test)
+# Test Arbiter
+add_executable(test_arbiter test_arbiter.c)
+target_link_libraries(test_arbiter PRIVATE edge_core_lib cmocka::cmocka pthread dl rt m)
+add_test(NAME Arbiter COMMAND test_arbiter)
+
+# Test Driver Manager
+add_executable(test_driver_manager test_driver_manager.c)
+target_link_libraries(test_driver_manager PRIVATE edge_core_lib cmocka::cmocka pthread dl rt m)
+add_test(NAME DriverManager COMMAND test_driver_manager)
+
+# Test IO Executor
+add_executable(test_io_executor test_io_executor.c)
+target_link_libraries(test_io_executor PRIVATE edge_core_lib cmocka::cmocka pthread dl rt m)
+add_test(NAME IOExecutor COMMAND test_io_executor)
+
+# Test Integration
+add_executable(test_integration test_integration.c)
+target_link_libraries(test_integration PRIVATE edge_core_lib cmocka::cmocka pthread dl rt m)
+target_link_options(test_integration PRIVATE -Wl,--wrap=io_submit)
+add_test(NAME Integration COMMAND test_integration)

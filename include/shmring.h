@@ -1,43 +1,3 @@
-/*
- * shmring.h
- *
- * ========================= DESIGN CONTRACT =========================
- *
- * This file implements a fixed-size shared-memory ring buffer
- * optimized for HIGH-FREQUENCY DATA STREAMING.
- *
- * It is designed for:
- *   - Telemetry (voltage/current/state)
- *   - Algorithm input (aggregation / FFT / control loop)
- *   - One-writer, multi-reader pattern
- *
- * It is NOT designed for:
- *   - Key-Value storage
- *   - Random access lookup
- *   - Variable-sized payload per slot
- *   - Persistence or durability
- *
- * ========================= CORE RULES =========================
- *
- * 1. Fixed-size slots (Cache-line aligned)
- *    - Every slot is exactly the same size
- *    - Prevents cache pollution and false sharing
- *
- * 2. Seqlock synchronization
- *    - Writer is single-thread/process
- *    - Readers are lock-free
- *    - Readers may retry but never block
- *
- * 3. In-band metadata, Out-of-band large data
- *    - Slot stores scalar or reference ONLY
- *    - Large payloads live outside the ring
- *
- * 4. Overwrite-on-full semantics
- *    - Slow readers lose old data
- *    - System prioritizes real-time freshness
- *
- * ===================================================================
- */
 #ifndef SHMRING_H
 #define SHMRING_H
 
@@ -52,8 +12,9 @@
 
 /* Message type */
 enum {
-    PIPEMSG_SCALAR = 1,
-    PIPEMSG_REF    = 2,
+    PIPEMSG_SCALAR  = 1,
+    PIPEMSG_REF     = 2,
+    PIPE_SCALAR_F64 = 3, /* Added for compatibility with Algorithm Sum */
 };
 
 /* 64-byte fixed slot */
@@ -83,10 +44,11 @@ typedef struct {
     uint32_t magic;
     uint32_t slot_count;
 
-    atomic_uint seq;      /* seqlock sequence */
-    atomic_uint write_idx;
+    atomic_uint seq;        /* seqlock sequence for concurrency */
+    atomic_uint write_idx;  /* current write index */
+    atomic_uint_fast64_t total_writes; /* Monotonic counter of all writes */
 
-    uint8_t _pad[CACHELINE_SIZE - 16];
+    uint8_t _pad[CACHELINE_SIZE - 24]; /* Ensure 64-byte alignment */
 } ShmRingHeader;
 
 typedef struct {
@@ -96,59 +58,42 @@ typedef struct {
     char           name[256];
 } ShmRing;
 
+/* Typedefs for consistency with user request */
+typedef ShmRing shm_ring_t;
+typedef PipeMsg pipe_msg_t;
+
 /**
  * @brief Creates and initializes a new shared memory ring buffer.
- *
- * @param ring Pointer to the ShmRing structure to initialize.
- * @param name The name of the shared memory segment (e.g., "/my_ring").
- * @param slots The number of slots in the ring buffer.
- * @return 0 on success, -1 on failure.
  */
-int shmring_create(ShmRing *ring, const char *name, uint32_t slots);
+int shmring_create(shm_ring_t *ring, const char *name, uint32_t slots);
 
 /**
  * @brief Opens an existing shared memory ring buffer.
- *
- * @param ring Pointer to the ShmRing structure to initialize.
- * @param name The name of the shared memory segment.
- * @return 0 on success, -1 on failure.
  */
-int shmring_open(ShmRing *ring, const char *name);
+int shmring_open(shm_ring_t *ring, const char *name);
 
 /**
- * @brief Closes the shared memory ring buffer, unmapping it from memory.
- *
- * @param ring The ring buffer to close.
+ * @brief Closes the shared memory ring buffer.
  */
-void shmring_close(ShmRing *ring);
+void shmring_close(shm_ring_t *ring);
 
 /**
- * @brief Destroys the shared memory segment. Should only be called by one
- *        process (usually the creator) after all others have closed it.
- *
- * @param ring The ring buffer to destroy.
- * @return 0 on success, -1 on failure.
+ * @brief Destroys the shared memory segment.
  */
-int shmring_destroy(ShmRing *ring);
+int shmring_destroy(shm_ring_t *ring);
 
 /**
- * @brief Writes a message to the ring buffer. This is the single-writer function.
- *        It overwrites the oldest data if the buffer is full.
- *
- * @param ring The ring buffer.
- * @param msg The message to write.
+ * @brief Writes a message to the ring buffer.
  */
-void shmring_write(ShmRing *ring, const PipeMsg *msg);
+void shm_ring_write(shm_ring_t *ring, const PipeMsg *msg);
+/* Alias for existing API */
+#define shmring_write shm_ring_write
 
 /**
- * @brief Reads the most recently written message from the ring buffer.
- *        This is a lock-free, non-blocking function for multiple readers.
- *
- * @param ring The ring buffer.
- * @param out Pointer to a PipeMsg structure to store the read message.
- * @return true if a message was successfully read, false otherwise.
+ * @brief Reads the next message after 'last_seq'.
+ *        Updates 'last_seq' to the new sequence number.
+ * @return 0 on success (new data read), -1 if no new data.
  */
-bool shmring_read_latest(ShmRing *ring, PipeMsg *out);
-
+int shm_ring_read(shm_ring_t *ring, uint64_t *last_seq, PipeMsg *out);
 
 #endif // SHMRING_H

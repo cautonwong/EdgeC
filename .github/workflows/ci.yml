@@ -1,34 +1,52 @@
-name: EdgeOS CI (Dockerized)
+name: EdgeOS CI Pipeline
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
-  build-in-docker:
-    runs-on: ubuntu-latest
+  quality-gate:
+    name: Code Quality & Coverage
+    runs-on: ubuntu-22.04
+    
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      # 1. 构建镜像 (利用 Docker Layer Caching)
-      - name: Build Docker Image
-        run: docker build -t edgeos-builder:latest -f docker/Dockerfile .
-
-      # 2. 在容器内运行代码检查
-      - name: Static Analysis
+      - name: Install Dependencies
         run: |
-          docker run --rm -v $(pwd):/home/builder/src edgeos-builder:latest \
-          cppcheck --enable=all --error-exitcode=1 src/
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build clang-format clang-tidy lcov unzip wget libssl-dev
 
-      # 3. 在容器内编译并测试 (x86)
-      - name: Build & Test (x86)
+      - name: Build Hermetic Vendors
+        # This builds sqlite3, cmocka, libuv, cjson into .local/linux-x86_64
+        run: ./build_vendors.sh
+
+      - name: Check Formatting
         run: |
-          docker run --rm -v $(pwd):/home/builder/src edgeos-builder:latest \
-          /bin/bash -c "mkdir build && cd build && cmake -DCMAKE_BUILD_TYPE=Debug .. && make && ctest --output-on-failure"
+          find src include tests -name "*.[ch]" | xargs clang-format -n --Werror
 
-      # 4. 在容器内交叉编译 (ARM64)
-      - name: Cross Compile (ARM64)
+      - name: Configure CMake (Debug + Coverage + Tidy)
         run: |
-          docker run --rm -v $(pwd):/home/builder/src edgeos-builder:latest \
-          /bin/bash -c "mkdir build_arm && cd build_arm && cmake -DCMAKE_TOOLCHAIN_FILE=/home/builder/toolchains/aarch64-linux-gnu.cmake .. && make"
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DENABLE_COVERAGE=ON \
+            -DENABLE_CLANG_TIDY=ON
+          
+      - name: Build
+        run: cmake --build build
 
+      - name: Run Unit Tests
+        run: |
+          cd build
+          ctest --output-on-failure
+
+      - name: Generate Coverage Report
+        run: |
+          lcov --capture --directory build --output-file coverage.info
+          # Remove vendor/system libs from report
+          lcov --remove coverage.info '/usr/*' '*/tests/*' '*/vendor/*' --output-file coverage_clean.info
+          lcov --list coverage_clean.info

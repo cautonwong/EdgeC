@@ -8,7 +8,7 @@
 // Ensure the header struct is exactly one cache line
 _Static_assert(sizeof(ShmRingHeader) == CACHELINE_SIZE, "ShmRingHeader must be one cache line size");
 
-int shmring_create(ShmRing *ring, const char *name, uint32_t slots)
+int shmring_create(shm_ring_t *ring, const char *name, uint32_t slots)
 {
     if (!ring || !name || slots == 0 || slots > SHMRING_MAX_SLOTS) {
         return -1;
@@ -16,45 +16,43 @@ int shmring_create(ShmRing *ring, const char *name, uint32_t slots)
 
     size_t size = sizeof(ShmRingHeader) + slots * sizeof(PipeMsg);
 
-    // O_EXCL ensures that we are the exclusive creator of the object.
     int fd = shm_open(name, O_CREAT | O_RDWR | O_EXCL, 0666);
     if (fd < 0) {
-        perror("shm_open");
+        // Try opening to see if it exists, maybe unlink?
+        // For now, standard error behavior.
+        // perror("shm_open create"); 
         return -1;
     }
 
     if (ftruncate(fd, size) != 0) {
-        perror("ftruncate");
         close(fd);
         shm_unlink(name);
         return -1;
     }
 
     void *mem = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    close(fd); // fd can be closed after mmap without affecting the mapping
+    close(fd);
     if (mem == MAP_FAILED) {
-        perror("mmap");
         shm_unlink(name);
         return -1;
     }
 
-    // Initialize ring structure
     ring->hdr = (ShmRingHeader *)mem;
     ring->slots = (PipeMsg *)((uint8_t *)mem + sizeof(ShmRingHeader));
     ring->map_size = size;
     strncpy(ring->name, name, sizeof(ring->name) - 1);
     ring->name[sizeof(ring->name) - 1] = '\0';
 
-    // Initialize header fields
     ring->hdr->magic = SHMRING_MAGIC;
     ring->hdr->slot_count = slots;
     atomic_init(&ring->hdr->seq, 0);
     atomic_init(&ring->hdr->write_idx, 0);
+    atomic_init(&ring->hdr->total_writes, 0);
 
     return 0;
 }
 
-int shmring_open(ShmRing *ring, const char *name)
+int shmring_open(shm_ring_t *ring, const char *name)
 {
     if (!ring || !name) {
         return -1;
@@ -62,21 +60,17 @@ int shmring_open(ShmRing *ring, const char *name)
 
     int fd = shm_open(name, O_RDWR, 0666);
     if (fd < 0) {
-        perror("shm_open");
         return -1;
     }
 
-    // First, map only the header to read the actual size
     void *header_mem = mmap(NULL, sizeof(ShmRingHeader), PROT_READ, MAP_SHARED, fd, 0);
     if (header_mem == MAP_FAILED) {
-        perror("mmap header");
         close(fd);
         return -1;
     }
     
     ShmRingHeader *hdr = (ShmRingHeader *)header_mem;
     if (hdr->magic != SHMRING_MAGIC) {
-        fprintf(stderr, "Invalid shmring magic number.\n");
         munmap(header_mem, sizeof(ShmRingHeader));
         close(fd);
         return -1;
@@ -86,11 +80,9 @@ int shmring_open(ShmRing *ring, const char *name)
 
     size_t actual_size = sizeof(ShmRingHeader) + slots * sizeof(PipeMsg);
 
-    // Now map the full region
     void *mem = mmap(NULL, actual_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     close(fd);
     if (mem == MAP_FAILED) {
-        perror("mmap full");
         return -1;
     }
 
@@ -103,7 +95,7 @@ int shmring_open(ShmRing *ring, const char *name)
     return 0;
 }
 
-void shmring_close(ShmRing *ring)
+void shmring_close(shm_ring_t *ring)
 {
     if (ring && ring->hdr) {
         munmap(ring->hdr, ring->map_size);
@@ -112,7 +104,7 @@ void shmring_close(ShmRing *ring)
     }
 }
 
-int shmring_destroy(ShmRing *ring)
+int shmring_destroy(shm_ring_t *ring)
 {
     if (!ring || ring->name[0] == '\0') {
         return -1;
@@ -121,58 +113,60 @@ int shmring_destroy(ShmRing *ring)
     return shm_unlink(ring->name);
 }
 
-
-void shmring_write(ShmRing *ring, const PipeMsg *msg)
+void shm_ring_write(shm_ring_t *ring, const PipeMsg *msg)
 {
-    // Increment sequence to start write (odd number)
-    // This signals to readers that a write is in progress.
     atomic_fetch_add_explicit(&ring->hdr->seq, 1, memory_order_release);
 
-    // Get the next slot index
     uint32_t idx = atomic_load_explicit(&ring->hdr->write_idx, memory_order_relaxed);
     
-    // Write the data to the slot
     ring->slots[idx] = *msg;
 
-    // Move write index to the next slot for the *next* write
     atomic_store_explicit(&ring->hdr->write_idx, (idx + 1) % ring->hdr->slot_count, memory_order_relaxed);
+    
+    // Increment total_writes strictly after data write
+    atomic_fetch_add_explicit(&ring->hdr->total_writes, 1, memory_order_relaxed);
 
-    // Increment sequence again to finish write (even number)
-    // This signals to readers that the write is complete.
     atomic_fetch_add_explicit(&ring->hdr->seq, 1, memory_order_release);
 }
 
-bool shmring_read_latest(ShmRing *ring, PipeMsg *out)
+int shm_ring_read(shm_ring_t *ring, uint64_t *last_seq, PipeMsg *out)
 {
-    unsigned int seq1, seq2;
-    uint32_t idx;
+    uint64_t total = atomic_load_explicit(&ring->hdr->total_writes, memory_order_acquire);
+    
+    if (*last_seq >= total) {
+        return -1; // Up to date
+    }
 
+    // Determine which message to read.
+    // Since this is a ring, we might have been overwritten if we are too slow.
+    uint64_t target_seq = *last_seq;
+    uint32_t slots = ring->hdr->slot_count;
+    
+    if (total - target_seq > slots) {
+        // We are too slow, jump to the oldest available data
+        target_seq = total - slots;
+        // Optionally notify user of dropped frames?
+    }
+
+    // Calculate index for target_seq
+    // Since we start at 0, and total_writes increments after write, 
+    // the msg at 'total_writes=1' was written at index 0.
+    // So if total_writes is T, valid indices are (T-slots) to (T-1).
+    // The slot index for message #N (0-based) is N % slots.
+    uint32_t idx = target_seq % slots;
+
+    // Use seqlock to read safely
+    unsigned int seq1, seq2;
     do {
         seq1 = atomic_load_explicit(&ring->hdr->seq, memory_order_acquire);
+        if (seq1 & 1) continue; // Writer active
 
-        // If seq is odd, a write is in progress, so retry.
-        if (seq1 & 1) {
-            continue;
-        }
+        *out = ring->slots[idx];
 
-        // Get the last written index
-        idx = atomic_load_explicit(&ring->hdr->write_idx, memory_order_relaxed);
-        
-        // If nothing has been written yet, ring is empty
-        if (seq1 == 0 && idx == 0) {
-            return false;
-        }
-
-        // The latest message is at the previous index
-        uint32_t read_idx = (idx == 0) ? (ring->hdr->slot_count - 1) : (idx - 1);
-
-        // Read the data from the slot
-        *out = ring->slots[read_idx];
-
-        // Check the sequence number again
         seq2 = atomic_load_explicit(&ring->hdr->seq, memory_order_acquire);
+    } while (seq1 != seq2);
 
-    } while (seq1 != seq2); // If they differ, a write happened during our read, so retry.
-
-    return true;
+    // Update the caller's sequence
+    *last_seq = target_seq + 1;
+    return 0;
 }

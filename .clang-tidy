@@ -1,0 +1,7 @@
+---
+Checks: 'clang-diagnostic-*,clang-analyzer-*,bugprone-*,performance-*,portability-*,readability-*,misc-*,-readability-identifier-length'
+WarningsAsErrors: '*'
+CheckOptions:
+  - key:             readability-function-cognitive-complexity.Threshold
+    value:           '25'
+...
