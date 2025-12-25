@@ -4,9 +4,9 @@ libdir=/home/builder/src/.local/linux-arm64/lib
 includedir=/home/builder/src/.local/linux-arm64/include
 
 Name: libuv-static
-Version: 1.51.1
+Version: 1.44.2
 Description: multi-platform support library with a focus on asynchronous I/O.
 URL: http://libuv.org/
 
-Libs: -L${libdir} -l:libuv.a -lpthread -ldl -lrt -lm
+Libs: -L${libdir} -luv_a -lpthread -ldl -lrt
 Cflags: -I${includedir}

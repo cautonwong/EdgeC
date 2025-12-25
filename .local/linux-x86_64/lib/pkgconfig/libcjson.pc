@@ -2,7 +2,7 @@ libdir=/home/builder/src/.local/linux-x86_64/lib
 includedir=/home/builder/src/.local/linux-x86_64/include
 
 Name: libcjson
-Version: 1.7.19
+Version: 1.7.15
 Description: Ultralightweight JSON parser in ANSI C
 URL: https://github.com/DaveGamble/cJSON
 Libs: -L${libdir} -lcjson

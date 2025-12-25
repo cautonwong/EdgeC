@@ -1,0 +1,4 @@
+/home/builder/src/.local/linux-aarch64/lib/libsqlite3.a
+/home/builder/src/.local/linux-aarch64/include/sqlite3.h
+/home/builder/src/.local/linux-aarch64/include/sqlite3ext.h
+/home/builder/src/.local/linux-aarch64/bin/sqlite3_shell

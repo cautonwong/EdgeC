@@ -26,23 +26,114 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 # ==============================================================================
-# 3. 核心库目标 (Core Library Target)
+# 3. Vendor 依赖 (Vendor Dependencies)
 # ==============================================================================
-include_directories(include)
+# ==============================================================================
+# 3. Vendor 依赖 (Vendor Dependencies) - 从 .local 查找预编译库
+# ==============================================================================
+set(VENDOR_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.local")
+
+# 强制 CMake 只在指定路径下查找库和头文件，避免使用系统路径
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+
+# UV
+find_library(UV_LIB NAMES uv_a uv PATHS
+    "${VENDOR_ROOT}/linux-x86_64/lib"
+    "${VENDOR_ROOT}/linux-aarch64/lib"
+    "${VENDOR_ROOT}/linux-arm64/lib"
+)
+find_path(UV_INCLUDE NAMES uv.h PATHS
+    "${VENDOR_ROOT}/linux-x86_64/include"
+    "${VENDOR_ROOT}/linux-aarch64/include"
+    "${VENDOR_ROOT}/linux-arm64/include"
+)
+if(NOT UV_LIB OR NOT UV_INCLUDE)
+    message(FATAL_ERROR "libuv not found in ${VENDOR_ROOT}")
+endif()
+
+# CMocka
+find_library(CMOCKA_LIB NAMES cmocka-static cmocka PATHS
+    "${VENDOR_ROOT}/linux-x86_64/lib"
+    "${VENDOR_ROOT}/linux-aarch64/lib"
+    "${VENDOR_ROOT}/linux-arm64/lib"
+)
+find_path(CMOCKA_INCLUDE NAMES cmocka.h PATHS
+    "${VENDOR_ROOT}/linux-x86_64/include"
+    "${VENDOR_ROOT}/linux-aarch64/include"
+    "${VENDOR_ROOT}/linux-arm64/include"
+)
+if(NOT CMOCKA_LIB OR NOT CMOCKA_INCLUDE)
+    message(FATAL_ERROR "cmocka not found in ${VENDOR_ROOT}")
+endif()
+
+# SQLite3
+find_library(SQLITE3_LIB NAMES sqlite3 PATHS
+    "${VENDOR_ROOT}/linux-x86_64/lib"
+    "${VENDOR_ROOT}/linux-aarch64/lib"
+    "${VENDOR_ROOT}/linux-arm64/lib"
+)
+find_path(SQLITE3_INCLUDE NAMES sqlite3.h PATHS
+    "${VENDOR_ROOT}/linux-x86_64/include"
+    "${VENDOR_ROOT}/linux-aarch64/include"
+    "${VENDOR_ROOT}/linux-arm64/include"
+)
+if(NOT SQLITE3_LIB OR NOT SQLITE3_INCLUDE)
+    message(FATAL_ERROR "sqlite3 not found in ${VENDOR_ROOT}")
+endif()
+
+# cJSON (Used by project, assuming it's built to .local as well by build_vendors.sh)
+find_library(CJSON_LIB NAMES cjson PATHS
+    "${VENDOR_ROOT}/linux-x86_64/lib"
+    "${VENDOR_ROOT}/linux-aarch64/lib"
+    "${VENDOR_ROOT}/linux-arm64/lib"
+)
+find_path(CJSON_INCLUDE NAMES cJSON.h PATHS
+    "${VENDOR_ROOT}/linux-x86_64/include/cjson"
+    "${VENDOR_ROOT}/linux-x86_64/include" # Keep this in case other platforms install differently
+    "${VENDOR_ROOT}/linux-aarch64/include/cjson"
+    "${VENDOR_ROOT}/linux-aarch64/include"
+    "${VENDOR_ROOT}/linux-arm64/include/cjson"
+    "${VENDOR_ROOT}/linux-arm64/include"
+)
+if(NOT CJSON_LIB OR NOT CJSON_INCLUDE)
+    message(FATAL_ERROR "cJSON not found in ${VENDOR_ROOT}")
+endif()
+
+# ==============================================================================
+# 4. 核心库目标 (Core Library Target)
+# ==============================================================================
+include_directories(include
+    ${UV_INCLUDE}
+    ${CMOCKA_INCLUDE}
+    ${SQLITE3_INCLUDE}
+    ${CJSON_INCLUDE}
+)
 
 add_library(edge_core_lib STATIC
     src/edge_version.c
     src/core_mem.c
+    src/arbiter.c
+    src/io_executor.c
+    src/shm_ring.c
+    src/algorithm_sum.c
+    src/sqlite_service.c
+    src/modbus_protocol.c
+    src/driver_manager.c
 )
+target_link_libraries(edge_core_lib PRIVATE ${SQLITE3_LIB})
+# cJSON is not used by the core lib yet, but we can add it here when needed
+# target_link_libraries(edge_core_lib PUBLIC cjson)
+
 
 # ==============================================================================
-# 4. 可执行文件目标 (Executable Target)
+# 5. 可执行文件目标 (Executable Target)
 # ==============================================================================
 add_executable(edge_app src/main.c)
-target_link_libraries(edge_app PRIVATE edge_core_lib)
+target_link_libraries(edge_app PRIVATE edge_core_lib ${UV_LIB} m)
 
 # ==============================================================================
-# 5. 测试集成 (Testing)
+# 6. 测试集成 (Testing)
 # ==============================================================================
 enable_testing()
 add_subdirectory(tests)

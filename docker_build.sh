@@ -29,6 +29,17 @@ docker run --rm -it \
     -v "$PROJECT_ROOT":/home/builder/src \
     $IMAGE_NAME /bin/bash -c "
         set -e
+        
+        # Check if vendor libs are already built
+        if [ ! -f .local/linux-x86_64/lib/libuv_a.a ] || \
+           [ ! -f .local/linux-x86_64/lib/libcjson.a ] || \
+           [ ! -f .local/linux-x86_64/lib/libcmocka-static.a ]; then
+            echo \"[EdgeOS] Building vendor libraries...\"
+            ./build_vendors.sh
+        else
+            echo \"[EdgeOS] Vendor libraries already built, skipping build_vendors.sh\"
+        fi
+
         mkdir -p $BUILD_DIR && cd $BUILD_DIR
         
         if [ '$BUILD_TYPE' == 'arm' ]; then
