@@ -3,86 +3,82 @@
 #include <setjmp.h>
 #include <cmocka.h>
 #include <uv.h>
-#include <stdio.h>
-#include <sys/socket.h> 
-#include <unistd.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
-#include <errno.h>
 
 #include "io_executor.h"
-#include "shmring.h"
 
-shm_ring_t *global_ring = NULL;
-
+// Context for the test
 typedef struct {
     uv_loop_t *loop;
-    io_job_t job;
-    int io_completed;
+    int completed_count;
+    char rx_data[128];
 } test_io_ctx_t;
 
-static void io_test_on_done(io_job_t *job, void *user) {
-    test_io_ctx_t *ctx = (test_io_ctx_t *)user;
-    ctx->io_completed = 1;
-    // Do NOT free job->rx here, checking it in test function
+static void on_job_complete(io_job_t *job, void *user_data) {
+    test_io_ctx_t *ctx = (test_io_ctx_t *)user_data;
+    ctx->completed_count++;
+    
+    if (job->rx_len > 0) {
+        memcpy(ctx->rx_data, job->rx_buf, job->rx_len);
+        ctx->rx_data[job->rx_len] = '\0';
+    }
+    
+    io_job_free(job);
+    
+    // Stop loop after getting result
+    if (ctx->completed_count >= 1) {
+        uv_stop(ctx->loop);
+    }
 }
 
-static void test_io_executor_basic(void **state) {
+static void test_io_thread_ping_pong(void **state) {
     (void)state;
-
+    
     uv_loop_t loop;
     uv_loop_init(&loop);
-
-    test_io_ctx_t ctx = { .loop = &loop, .io_completed = 0 };
-
-    int fds[2]; 
-    assert_int_equal(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
-
-    io_job_t *job = &ctx.job;
-    job->bus = IO_RS485;
-    job->fd = fds[0]; 
-    job->tx = (uint8_t*)"PING\n";
-    job->tx_len = strlen((char*)job->tx);
-    job->rx = (uint8_t*)malloc(128);
-    job->rx_cap = 128;
-    job->rx_len = 0;
-    job->result = -1; 
-
-    io_submit(&loop, job, io_test_on_done, &ctx);
-
-    char read_buf[128] = {0};
-    ssize_t n = read(fds[1], read_buf, sizeof(read_buf));
-    if (n > 0) {
-        assert_memory_equal(read_buf, "PING\n", 5);
-        const char *mock_response = "PONG_ACK\n";
-        write(fds[1], mock_response, strlen(mock_response));
-    }
-
-    for (int i=0; i<100; i++) {
-        uv_run(&loop, UV_RUN_NOWAIT);
-        if (ctx.io_completed) break;
-        usleep(1000);
-    }
-
-    assert_int_equal(ctx.io_completed, 1);
-    assert_int_equal(job->result, 0); 
     
-    char rx_buf[128] = {0};
-    memcpy(rx_buf, job->rx, (size_t)job->rx_len);
-    assert_string_equal(rx_buf, "PONG_ACK\n");
-
-    // Cleanup
-    close(fds[0]);
-    close(fds[1]);
-    free(job->rx); // Free here now
+    test_io_ctx_t ctx = { .loop = &loop, .completed_count = 0 };
     
+    // 1. Init Executor
+    assert_int_equal(io_executor_init(&loop), 0);
+    
+    // 2. Create Job
+    io_job_t *job = io_job_create(IO_BUS_RS485_1, 10, 10);
+    assert_non_null(job);
+    
+    const char *msg = "PING";
+    memcpy(job->tx_buf, msg, 4);
+    job->tx_len = 4;
+    
+    job->cb = on_job_complete;
+    job->user_data = &ctx;
+    
+    // 3. Submit
+    assert_int_equal(io_executor_submit(job), 0);
+    
+    // 4. Run Loop
+    // The executor thread will pick up the job, simulate IO (copy TX to RX),
+    // and notify main loop via async handle.
+    // uv_run will block until async event comes.
     uv_run(&loop, UV_RUN_DEFAULT);
+    
+    // 5. Verify
+    assert_int_equal(ctx.completed_count, 1);
+    assert_string_equal(ctx.rx_data, "PING"); // Loopback simulation
+    
+    // 6. Cleanup
+    io_executor_shutdown();
+    
+    // Run loop once more to process close handles
+    uv_run(&loop, UV_RUN_NOWAIT);
     uv_loop_close(&loop);
 }
 
 int main(void) {
     const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_io_executor_basic),
+        cmocka_unit_test(test_io_thread_ping_pong),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

@@ -1,5 +1,5 @@
-libdir=/home/builder/src/.local/linux-x86_64/lib
-includedir=/home/builder/src/.local/linux-x86_64/include
+libdir=/workspaces/edgeos/EdgeC/.local/linux-x86_64/lib
+includedir=/workspaces/edgeos/EdgeC/.local/linux-x86_64/include
 
 Name: libcjson
 Version: 1.7.15

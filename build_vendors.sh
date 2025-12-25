@@ -8,9 +8,9 @@ INSTALL_ROOT="$PROJECT_ROOT/.local"
 
 # Host architecture
 HOST_ARCH=$(uname -m)
-# Normalize arch name for directory
+# Normalize arch name for directory (Consistent with your requirement: linux-x86_64 and linux-arm64)
 if [ "$HOST_ARCH" == "aarch64" ]; then
-    ARCH_DIR="linux-aarch64"
+    ARCH_DIR="linux-arm64" 
 else
     ARCH_DIR="linux-x86_64"
 fi
@@ -24,6 +24,11 @@ mkdir -p "$INSTALL_DIR" "$VENDOR_SRC"
 build_cjson() {
     echo "--- Building cJSON ---"
     cd "$VENDOR_SRC"
+    # Clean up if exists but empty or broken
+    if [ -d "cJSON" ] && [ ! -f "cJSON/CMakeLists.txt" ]; then
+        rm -rf cJSON
+    fi
+    
     if [ ! -d "cJSON" ]; then 
         git clone -b v1.7.15 https://github.com/DaveGamble/cJSON.git
     fi
@@ -40,6 +45,10 @@ build_cjson() {
 build_libuv() {
     echo "--- Building libuv ---"
     cd "$VENDOR_SRC"
+    if [ -d "libuv" ] && [ ! -f "libuv/CMakeLists.txt" ]; then
+        rm -rf libuv
+    fi
+
     if [ ! -d "libuv" ]; then 
         git clone -b v1.44.2 https://github.com/libuv/libuv.git
     fi
@@ -55,6 +64,10 @@ build_libuv() {
 build_cmocka() {
     echo "--- Building cmocka ---"
     cd "$VENDOR_SRC"
+    if [ -d "cmocka" ] && [ ! -f "cmocka/CMakeLists.txt" ]; then
+        rm -rf cmocka
+    fi
+
     if [ ! -d "cmocka" ]; then 
         git clone https://git.cryptomilk.org/projects/cmocka.git
     fi

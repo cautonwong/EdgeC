@@ -41,7 +41,7 @@ endif()
 # ==============================================================================
 # Detect Arch
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
-    set(TARGET_ARCH "linux-aarch64")
+    set(TARGET_ARCH "linux-arm64") # Use linux-arm64 as requested
 else()
     set(TARGET_ARCH "linux-x86_64")
 endif()
@@ -108,10 +108,10 @@ add_library(edge_core_lib STATIC
     src/algorithm_sum.c
     src/sqlite_service.c
     src/modbus_protocol.c
-    # src/core_mem.c
-    # src/arbiter.c
-    # src/io_executor.c
-    # src/driver_manager.c
+    src/core_mem.c
+    src/arbiter.c
+    src/io_executor.c
+    src/driver_manager.c
 )
 # Modern usage: link targets, not paths
 target_link_libraries(edge_core_lib PUBLIC 
