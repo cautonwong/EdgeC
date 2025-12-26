@@ -4,9 +4,9 @@ libdir=/home/cautonwong/rtos/C-EdegeX/.local/linux-x86_64/lib
 includedir=/home/cautonwong/rtos/C-EdegeX/.local/linux-x86_64/include
 
 Name: libuv-static
-Version: 1.44.2
+Version: 1.51.0
 Description: multi-platform support library with a focus on asynchronous I/O.
 URL: http://libuv.org/
 
-Libs: -L${libdir} -luv_a -lpthread -ldl -lrt
+Libs: -L${libdir} -l:libuv.a -lpthread -ldl -lrt -lm
 Cflags: -I${includedir}

@@ -2,11 +2,12 @@ prefix=/home/cautonwong/rtos/C-EdegeX/.local/linux-x86_64
 exec_prefix=${prefix}
 libdir=/home/cautonwong/rtos/C-EdegeX/.local/linux-x86_64/lib
 includedir=/home/cautonwong/rtos/C-EdegeX/.local/linux-x86_64/include
+LIBUV_STATIC=-L${libdir} -l:libuv.a -lpthread -ldl -lrt -lm
 
 Name: libuv
-Version: 1.44.2
+Version: 1.51.0
 Description: multi-platform support library with a focus on asynchronous I/O.
 URL: http://libuv.org/
 
-Libs: -L${libdir} -luv -lpthread -ldl -lrt
+Libs: -L${libdir} -luv -lpthread -ldl -lrt -lm
 Cflags: -I${includedir}
