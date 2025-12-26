@@ -1,8 +1,0 @@
-/home/cautonwong/rtos/C-EdegeX/vendor/sqlite/build-arm64/CMakeFiles/sqlite3_static.dir
-/home/cautonwong/rtos/C-EdegeX/vendor/sqlite/build-arm64/CMakeFiles/sqlite3_shell.dir
-/home/cautonwong/rtos/C-EdegeX/vendor/sqlite/build-arm64/CMakeFiles/edit_cache.dir
-/home/cautonwong/rtos/C-EdegeX/vendor/sqlite/build-arm64/CMakeFiles/rebuild_cache.dir
-/home/cautonwong/rtos/C-EdegeX/vendor/sqlite/build-arm64/CMakeFiles/list_install_components.dir
-/home/cautonwong/rtos/C-EdegeX/vendor/sqlite/build-arm64/CMakeFiles/install.dir
-/home/cautonwong/rtos/C-EdegeX/vendor/sqlite/build-arm64/CMakeFiles/install/local.dir
-/home/cautonwong/rtos/C-EdegeX/vendor/sqlite/build-arm64/CMakeFiles/install/strip.dir

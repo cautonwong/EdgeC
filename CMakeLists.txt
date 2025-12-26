@@ -56,9 +56,16 @@ message(STATUS "Looking for dependencies in: ${LOCAL_ROOT}")
 find_package(cJSON CONFIG REQUIRED)
 
 # 3.2 Libuv
-find_package(libuv CONFIG)
-if(NOT libuv_FOUND)
-    find_library(LIBUV_LIB NAMES uv uv_a libuv.a PATHS "${LOCAL_ROOT}/lib" NO_DEFAULT_PATH)
+find_package(libuv CONFIG QUIET)
+# If the config is found, it creates the `uv_a` target for static lib
+# Create an alias for consistency if it doesn't exist
+if(TARGET uv_a AND NOT TARGET libuv::uv)
+    add_library(libuv::uv ALIAS uv_a)
+endif()
+
+# If the target is still not found after trying config and alias, fallback to manual find
+if(NOT TARGET libuv::uv)
+    find_library(LIBUV_LIB NAMES uv_a libuv.a PATHS "${LOCAL_ROOT}/lib" NO_DEFAULT_PATH)
     find_path(LIBUV_INCLUDE NAMES uv.h PATHS "${LOCAL_ROOT}/include" NO_DEFAULT_PATH)
     if(LIBUV_LIB AND LIBUV_INCLUDE)
         add_library(libuv::uv STATIC IMPORTED)
@@ -67,15 +74,17 @@ if(NOT libuv_FOUND)
             INTERFACE_INCLUDE_DIRECTORIES "${LIBUV_INCLUDE}"
         )
     else()
-        message(FATAL_ERROR "libuv not found in local. Run ./build_vendors.sh first.")
+        message(FATAL_ERROR "libuv not found. Run ./build_vendors.sh first.")
     endif()
 endif()
 
 # 3.3 CMocka
-find_package(cmocka CONFIG)
-if(NOT cmocka_FOUND)
-    # Fallback for manual find if config not generated
-    find_library(CMOCKA_LIB NAMES cmocka cmocka-static libcmocka.a PATHS "${LOCAL_ROOT}/lib" NO_DEFAULT_PATH)
+find_package(cmocka CONFIG QUIET)
+
+# The cmocka config doesn't create a target, so we do it manually.
+# Check if a target has been created, otherwise, create an imported one.
+if(NOT TARGET cmocka::cmocka)
+    find_library(CMOCKA_LIB NAMES cmocka-static libcmocka-static.a cmocka libcmocka.a PATHS "${LOCAL_ROOT}/lib" NO_DEFAULT_PATH)
     find_path(CMOCKA_INCLUDE NAMES cmocka.h PATHS "${LOCAL_ROOT}/include" NO_DEFAULT_PATH)
     if(CMOCKA_LIB AND CMOCKA_INCLUDE)
         add_library(cmocka::cmocka STATIC IMPORTED)
@@ -83,6 +92,8 @@ if(NOT cmocka_FOUND)
             IMPORTED_LOCATION "${CMOCKA_LIB}"
             INTERFACE_INCLUDE_DIRECTORIES "${CMOCKA_INCLUDE}"
         )
+    else()
+        message(WARNING "cmocka not found. Tests will not be built correctly.")
     endif()
 endif()
 
@@ -99,6 +110,9 @@ else()
     message(FATAL_ERROR "sqlite3 not found in local. Run ./build_vendors.sh first.")
 endif()
 
+# 3.5 Modbus
+find_package(Modbus REQUIRED)
+
 # ==============================================================================
 # 4. Core Library
 # ==============================================================================
@@ -108,16 +122,19 @@ add_library(edge_core_lib STATIC
     src/algorithm_sum.c
     src/sqlite_service.c
     src/modbus_protocol.c
-    src/core_mem.c
+    src/core/core_mem.c
+    src/core/edge_context.c
     src/arbiter.c
     src/io_executor.c
     src/driver_manager.c
+    src/datahub.c
 )
 # Modern usage: link targets, not paths
 target_link_libraries(edge_core_lib PUBLIC 
     cjson 
     libuv::uv 
     SQLite::SQLite3
+    Modbus::Modbus
 )
 target_include_directories(edge_core_lib PUBLIC include)
 

@@ -4,6 +4,7 @@
 #include <cmocka.h>
 #include "algorithm_sum.h"
 #include <unistd.h>
+#include <sys/mman.h>
 
 // A mock ticker to simulate time passing if needed, 
 // or we just rely on usleep + uv_run.

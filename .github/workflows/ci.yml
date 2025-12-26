@@ -7,79 +7,82 @@ on:
     branches: [ "main" ]
 
 jobs:
-  quality-gate-x86:
-    name: Code Quality & Coverage (x86_64)
+  build-and-test:
+    name: Build & Test (${{ matrix.arch }})
     runs-on: ubuntu-22.04
-    
+    strategy:
+      matrix:
+        include:
+          - arch: linux-x86_64
+            c_compiler: gcc
+            toolchain_file_content: ""
+          - arch: linux-aarch64
+            c_compiler: aarch64-linux-gnu-gcc
+            toolchain_file_content: |
+              set(CMAKE_SYSTEM_NAME Linux)
+              set(CMAKE_SYSTEM_PROCESSOR aarch64)
+              set(CMAKE_C_COMPILER aarch64-linux-gnu-gcc)
+              set(CMAKE_CXX_COMPILER aarch64-linux-gnu-g++)
+              set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+              set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+              set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+              set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build clang-format clang-tidy lcov unzip wget libssl-dev
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build git pkg-config libssl-dev \
+            cppcheck valgrind clang-format lcov \
+            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross
 
-      - name: Build Hermetic Vendors (x86_64)
-        run: ./build_vendors.sh
+      - name: Build Vendor Dependencies
+        run: ./build_vendors.sh ${{ matrix.arch }}
 
-      - name: Check Formatting
+      - name: Check Formatting (x86 only)
+        if: matrix.arch == 'linux-x86_64'
         run: |
-          find src include tests -name "*. [ch]" | xargs clang-format -n --Werror
+          find src include tests -name "*.h" -o -name "*.c" | xargs clang-format --dry-run --Werror
 
-      - name: Configure CMake (Debug + Coverage + Tidy)
+      - name: Create Toolchain File (if needed)
+        if: matrix.toolchain_file_content != ''
         run: |
-          cmake -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DENABLE_COVERAGE=ON \
-            -DENABLE_CLANG_TIDY=ON
-          
-      - name: Build
+          echo "${{ matrix.toolchain_file_content }}" > toolchain.cmake
+      
+      - name: Configure CMake
+        run: |
+          CMAKE_ARGS=(
+            "-B build"
+            "-G Ninja"
+          )
+          if [[ "${{ matrix.arch }}" == "linux-x86_64" ]]; then
+            CMAKE_ARGS+=("-DCMAKE_BUILD_TYPE=Debug" "-DENABLE_COVERAGE=ON" "-DENABLE_CLANG_TIDY=ON")
+          else
+            CMAKE_ARGS+=("-DCMAKE_BUILD_TYPE=Release")
+          fi
+          if [[ -f "toolchain.cmake" ]]; then
+            CMAKE_ARGS+=("-DCMAKE_TOOLCHAIN_FILE=toolchain.cmake")
+          fi
+          cmake "${CMAKE_ARGS[@]}"
+
+      - name: Build Project
         run: cmake --build build
 
-      - name: Run Unit Tests
+      - name: Run Unit Tests (x86 only)
+        if: matrix.arch == 'linux-x86_64'
         run: |
           cd build
           ctest --output-on-failure
 
-      - name: Generate Coverage Report
+      - name: Generate Coverage Report (x86 only)
+        if: matrix.arch == 'linux-x86_64'
         run: |
           lcov --capture --directory build --output-file coverage.info
-          # Remove vendor/system libs from report
           lcov --remove coverage.info '/usr/*' '*/tests/*' '*/vendor/*' --output-file coverage_clean.info
           lcov --list coverage_clean.info
-
-  cross-compile-arm64:
-    name: Cross Compile Check (ARM64)
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install Cross Tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu cmake ninja-build
-
-      # In real scenario, we might use QEMU to build vendors or download prebuilts.
-      # For now, we simulate vendor availability or build what we can.
-      # Since we don't have qemu setup here for build_vendors.sh execution of compiled binaries,
-      # we assume we can cross-compile static libs.
-      
-      # We need a cross-compile toolchain file.
-      - name: Create Toolchain File
-        run: |
-          echo "set(CMAKE_SYSTEM_NAME Linux)
-          set(CMAKE_SYSTEM_PROCESSOR aarch64)
-          set(CMAKE_C_COMPILER aarch64-linux-gnu-gcc)
-          set(CMAKE_CXX_COMPILER aarch64-linux-gnu-g++)
-          set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
-          set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
-          set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
-          set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)" > aarch64-toolchain.cmake
-
-      # Note: build_vendors.sh currently builds for host. 
-      # We would need to adjust it to support cross-compilation argument 
-      # or run it inside a docker container with qemu user static.
-      # For this CI check, we skip full build if vendors are missing, 
-      # or we enhance build_vendors to cross-compile.

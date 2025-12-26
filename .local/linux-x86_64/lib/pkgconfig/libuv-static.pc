@@ -1,7 +1,7 @@
-prefix=/home/builder/src/.local/linux-x86_64
+prefix=/home/cautonwong/rtos/C-EdegeX/.local/linux-x86_64
 exec_prefix=${prefix}
-libdir=/home/builder/src/.local/linux-x86_64/lib
-includedir=/home/builder/src/.local/linux-x86_64/include
+libdir=/home/cautonwong/rtos/C-EdegeX/.local/linux-x86_64/lib
+includedir=/home/cautonwong/rtos/C-EdegeX/.local/linux-x86_64/include
 
 Name: libuv-static
 Version: 1.44.2

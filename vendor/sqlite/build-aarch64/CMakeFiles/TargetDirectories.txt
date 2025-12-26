@@ -1,8 +1,0 @@
-/home/builder/src/vendor/sqlite/build-aarch64/CMakeFiles/sqlite3_static.dir
-/home/builder/src/vendor/sqlite/build-aarch64/CMakeFiles/sqlite3_shell.dir
-/home/builder/src/vendor/sqlite/build-aarch64/CMakeFiles/edit_cache.dir
-/home/builder/src/vendor/sqlite/build-aarch64/CMakeFiles/rebuild_cache.dir
-/home/builder/src/vendor/sqlite/build-aarch64/CMakeFiles/list_install_components.dir
-/home/builder/src/vendor/sqlite/build-aarch64/CMakeFiles/install.dir
-/home/builder/src/vendor/sqlite/build-aarch64/CMakeFiles/install/local.dir
-/home/builder/src/vendor/sqlite/build-aarch64/CMakeFiles/install/strip.dir

@@ -1,4 +1,0 @@
-/home/cautonwong/rtos/C-EdegeX/.local/linux-arm64/lib/libsqlite3.a
-/home/cautonwong/rtos/C-EdegeX/.local/linux-arm64/include/sqlite3.h
-/home/cautonwong/rtos/C-EdegeX/.local/linux-arm64/include/sqlite3ext.h
-/home/cautonwong/rtos/C-EdegeX/.local/linux-arm64/bin/sqlite3_shell

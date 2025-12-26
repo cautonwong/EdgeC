@@ -1,1 +1,0 @@
-/usr/bin/cc -O3 -DNDEBUG CMakeFiles/sqlite3_shell.dir/shell.c.o CMakeFiles/sqlite3_shell.dir/sqlite3.c.o -o sqlite3_shell  -lpthread -ldl -lm 

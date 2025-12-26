@@ -17,7 +17,7 @@ add_test(NAME SQLiteService COMMAND test_sqlite_service)
 # Test Protocol
 add_executable(test_modbus_protocol test_modbus_protocol.c)
 target_link_libraries(test_modbus_protocol PRIVATE edge_core_lib cmocka::cmocka pthread dl rt m)
-target_link_options(test_modbus_protocol PRIVATE -Wl,--wrap=io_submit)
+target_link_options(test_modbus_protocol PRIVATE -Wl,--wrap=io_executor_submit)
 add_test(NAME ModbusProtocol COMMAND test_modbus_protocol)
 
 # Test ShmRing
@@ -48,5 +48,15 @@ add_test(NAME IOExecutor COMMAND test_io_executor)
 # Test Integration
 add_executable(test_integration test_integration.c)
 target_link_libraries(test_integration PRIVATE edge_core_lib cmocka::cmocka pthread dl rt m)
-target_link_options(test_integration PRIVATE -Wl,--wrap=io_submit)
+target_link_options(test_integration PRIVATE -Wl,--wrap=io_executor_submit)
 add_test(NAME Integration COMMAND test_integration)
+
+# Test DataHub
+add_executable(test_datahub test_datahub.c)
+target_link_libraries(test_datahub PRIVATE edge_core_lib cmocka::cmocka pthread dl rt m)
+add_test(NAME DataHub COMMAND test_datahub)
+
+# Test Edge Context
+add_executable(test_edge_context test_edge_context.c)
+target_link_libraries(test_edge_context PRIVATE edge_core_lib cmocka::cmocka pthread dl rt m)
+add_test(NAME EdgeContext COMMAND test_edge_context)

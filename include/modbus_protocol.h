@@ -5,6 +5,11 @@
 
 typedef void (*modbus_read_cb)(int status, const uint16_t *registers, uint16_t num_registers, void *user);
 
+typedef struct {
+    modbus_read_cb cb;
+    void *user;
+} modbus_ctx_t;
+
 void modbus_protocol_init(uv_loop_t *loop);
 void modbus_read_request(int meter_id);
 

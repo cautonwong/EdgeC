@@ -6,6 +6,8 @@
 #  MODBUS_INCLUDE_DIRS     - The Modbus include directories.
 #  MODBUS_LIBRARIES        - The Modbus libraries.
 
+find_package(Threads REQUIRED)
+
 find_path(MODBUS_INCLUDE_DIR modbus.h
     HINTS ${CMAKE_PREFIX_PATH}/include
     PATH_SUFFIXES include include/modbus)

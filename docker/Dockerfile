@@ -12,8 +12,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 # build-essential: GCC, Make 等
 # cmake, ninja-build: 构建系统
 # git: 版本控制
-# libuv1-dev, libsqlite3-dev: 核心运行时依赖
-# libcmocka-dev: 单元测试依赖
 # cppcheck, valgrind, clang-format: 质量工具
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -21,9 +19,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ninja-build \
     git \
     pkg-config \
-    libuv1-dev \
-    libsqlite3-dev \
-    libcmocka-dev \
     libssl-dev \
     cppcheck \
     valgrind \

@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <errno.h>
-#include <pthread.h>
+#include <uv.h> // Use libuv for threading primitives
 
 // Internal context for each IO thread
 typedef struct {
@@ -15,7 +15,7 @@ typedef struct {
     uv_async_t async_submit; // Async handle to wake up loop for new jobs
     
     // Job Queue (Protected by mutex)
-    pthread_mutex_t queue_lock;
+    uv_mutex_t queue_lock;
     io_job_t *head;
     io_job_t *tail;
     
@@ -24,7 +24,7 @@ typedef struct {
     uv_async_t async_complete; // Async handle to notify main loop
     
     // Completed Queue (passing back to main loop)
-    pthread_mutex_t done_lock;
+    uv_mutex_t done_lock;
     io_job_t *done_head;
     io_job_t *done_tail;
     
@@ -58,32 +58,25 @@ static io_job_t* dequeue_job(io_job_t **head, io_job_t **tail) {
 // --- IO Thread Logic ---
 
 static void perform_io(io_thread_ctx_t *ctx, io_job_t *job) {
+    (void)ctx; // Not used in mock yet
     // 1. Get FD from Driver Manager (Mock or Real)
-    // In a real implementation, we would likely keep the FD open in the ctx
-    // For now, let's assume we get it or open it.
-    // NOTE: This relies on driver_manager.h/c being compatible or mocked.
     int fd = -1; 
     // fd = driver_manager_get_fd(job->bus_id); 
-    // Fallback for demo: use a pipe or dummy if DM not ready
     if (fd < 0) {
         // Simulation mode
         usleep(10000); // Simulate 10ms bus time
-        // Loopback mock
-        if (job->tx && job->rx) {
+        if (job->tx_buf && job->rx_buf) {
             size_t copy_len = job->tx_len < job->rx_cap ? job->tx_len : job->rx_cap;
-            memcpy(job->rx, job->tx, copy_len);
+            memcpy(job->rx_buf, job->tx_buf, copy_len);
             job->rx_len = copy_len;
         }
         job->result = IO_RESULT_SUCCESS;
         return;
     }
 
-    // Real IO Logic (Blocking or Polling)
-    // Since we are in a dedicated thread, blocking read/write is acceptable and simplest for RTU.
-    
-    // Write
+    // Real IO Logic
     if (job->tx_len > 0) {
-        ssize_t n = write(fd, job->tx, job->tx_len);
+        ssize_t n = write(fd, job->tx_buf, job->tx_len);
         if (n < 0) {
             job->result = IO_RESULT_ERROR;
             job->system_errno = errno;
@@ -91,12 +84,8 @@ static void perform_io(io_thread_ctx_t *ctx, io_job_t *job) {
         }
     }
     
-    // Read
     if (job->rx_cap > 0) {
-        // RS485 specific: Wait for silence or timeout?
-        // Simple blocking read for now
-        // Set timeout via setsockopt or select if needed.
-        ssize_t n = read(fd, job->rx, job->rx_cap);
+        ssize_t n = read(fd, job->rx_buf, job->rx_cap);
         if (n < 0) {
             job->result = IO_RESULT_ERROR;
             job->system_errno = errno;
@@ -115,21 +104,18 @@ static void on_async_submit(uv_async_t *handle) {
     
     while (true) {
         io_job_t *job = NULL;
-        pthread_mutex_lock(&ctx->queue_lock);
+        uv_mutex_lock(&ctx->queue_lock);
         job = dequeue_job(&ctx->head, &ctx->tail);
-        pthread_mutex_unlock(&ctx->queue_lock);
+        uv_mutex_unlock(&ctx->queue_lock);
         
         if (!job) break;
         
-        // Execute Job
         perform_io(ctx, job);
         
-        // Push to done queue
-        pthread_mutex_lock(&ctx->done_lock);
+        uv_mutex_lock(&ctx->done_lock);
         enqueue_job(&ctx->done_head, &ctx->done_tail, job);
-        pthread_mutex_unlock(&ctx->done_lock);
+        uv_mutex_unlock(&ctx->done_lock);
         
-        // Notify Main Thread
         uv_async_send(&ctx->async_complete);
     }
 }
@@ -144,11 +130,8 @@ static void io_thread_entry(void *arg) {
     ctx->async_submit.data = ctx;
     
     ctx->running = true;
-    
-    // Run loop
     uv_run(ctx->loop, UV_RUN_DEFAULT);
     
-    // Cleanup
     uv_loop_close(ctx->loop);
     free(ctx->loop);
     ctx->running = false;
@@ -162,13 +145,12 @@ static void on_async_complete(uv_async_t *handle) {
     
     while (true) {
         io_job_t *job = NULL;
-        pthread_mutex_lock(&ctx->done_lock);
+        uv_mutex_lock(&ctx->done_lock);
         job = dequeue_job(&ctx->done_head, &ctx->done_tail);
-        pthread_mutex_unlock(&ctx->done_lock);
+        uv_mutex_unlock(&ctx->done_lock);
         
         if (!job) break;
         
-        // Callback
         if (job->cb) {
             job->cb(job, job->user_data);
         }
@@ -188,14 +170,12 @@ int io_executor_init(uv_loop_t *main_loop) {
         ctx->head = ctx->tail = NULL;
         ctx->done_head = ctx->done_tail = NULL;
         
-        pthread_mutex_init(&ctx->queue_lock, NULL);
-        pthread_mutex_init(&ctx->done_lock, NULL);
+        uv_mutex_init(&ctx->queue_lock);
+        uv_mutex_init(&ctx->done_lock);
         
-        // Init complete async in MAIN loop
         uv_async_init(main_loop, &ctx->async_complete, on_async_complete);
         ctx->async_complete.data = ctx;
         
-        // Start IO Thread
         uv_thread_create(&ctx->thread_id, io_thread_entry, ctx);
     }
     return 0;
@@ -205,14 +185,11 @@ void io_executor_shutdown(void) {
     for (int i = 0; i < IO_BUS_MAX; i++) {
         io_thread_ctx_t *ctx = &g_threads[i];
         if (ctx->running) {
-            // In a real app, we need a way to stop the IO loop (uv_stop or close async)
-            // For now, we assume process exit cleans up or we implement graceful stop later
-            // uv_async_send(&ctx->async_submit); // Trigger wake up then stop?
+            // Proper shutdown would involve uv_stop or closing handles
         }
-        pthread_mutex_destroy(&ctx->queue_lock);
-        pthread_mutex_destroy(&ctx->done_lock);
+        uv_mutex_destroy(&ctx->queue_lock);
+        uv_mutex_destroy(&ctx->done_lock);
         
-        // Close handles
         uv_close((uv_handle_t*)&ctx->async_complete, NULL);
     }
 }
@@ -222,11 +199,10 @@ int io_executor_submit(io_job_t *job) {
     
     io_thread_ctx_t *ctx = &g_threads[job->bus_id];
     
-    pthread_mutex_lock(&ctx->queue_lock);
+    uv_mutex_lock(&ctx->queue_lock);
     enqueue_job(&ctx->head, &ctx->tail, job);
-    pthread_mutex_unlock(&ctx->queue_lock);
+    uv_mutex_unlock(&ctx->queue_lock);
     
-    // Notify IO thread
     if (ctx->loop) {
         uv_async_send(&ctx->async_submit);
     }

@@ -1,2 +1,0 @@
-/usr/bin/aarch64-linux-gnu-ar qc libsqlite3.a CMakeFiles/sqlite3_static.dir/sqlite3.c.o
-/usr/bin/aarch64-linux-gnu-ranlib libsqlite3.a
