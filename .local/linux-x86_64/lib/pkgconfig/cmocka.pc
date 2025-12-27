@@ -1,11 +1,11 @@
 # cmocka pkg-config source file
 
-prefix=/workspaces/edgeos/EdgeC/.local/linux-x86_64
-libdir=/workspaces/edgeos/EdgeC/.local/linux-x86_64/lib
-includedir=/workspaces/edgeos/EdgeC/.local/linux-x86_64/include
+prefix=/root/.local/linux-x86_64
+libdir=/root/.local/linux-x86_64/lib
+includedir=/root/.local/linux-x86_64/include
 
 Name: cmocka
 Description: The cmocka unit testing library
-Version: 1.1.7
+Version: 2.0.1
 Libs: -L${libdir} -lcmocka
 Cflags: -I${includedir}

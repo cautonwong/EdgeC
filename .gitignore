@@ -3,9 +3,7 @@ build/
 build_*/
 _deps/
 
-# Local installation (dependencies)
-.local/
-
+.cache/
 # IDE settings
 .vscode/
 .idea/
@@ -15,3 +13,10 @@ _deps/
 
 # Logs
 *.log
+
+# Local installation (dependencies)
+!/.local/
+!*.a
+!*.so
+!*.h
+!*.cmake

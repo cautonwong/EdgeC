@@ -16,7 +16,7 @@ set(CMAKE_IMPORT_FILE_VERSION 1)
 set(_targetsDefined)
 set(_targetsNotDefined)
 set(_expectedTargets)
-foreach(_expectedTarget uv uv_a)
+foreach(_expectedTarget libuv::uv_a libuv::uv)
   list(APPEND _expectedTargets ${_expectedTarget})
   if(NOT TARGET ${_expectedTarget})
     list(APPEND _targetsNotDefined ${_expectedTarget})
@@ -50,21 +50,21 @@ if(_IMPORT_PREFIX STREQUAL "/")
   set(_IMPORT_PREFIX "")
 endif()
 
-# Create imported target uv
-add_library(uv SHARED IMPORTED)
+# Create imported target libuv::uv_a
+add_library(libuv::uv_a STATIC IMPORTED)
 
-set_target_properties(uv PROPERTIES
-  INTERFACE_COMPILE_DEFINITIONS "USING_UV_SHARED=1"
+set_target_properties(libuv::uv_a PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES "${_IMPORT_PREFIX}/include"
-  INTERFACE_LINK_LIBRARIES "pthread;dl;rt"
+  INTERFACE_LINK_LIBRARIES "pthread;dl;rt;m"
 )
 
-# Create imported target uv_a
-add_library(uv_a STATIC IMPORTED)
+# Create imported target libuv::uv
+add_library(libuv::uv SHARED IMPORTED)
 
-set_target_properties(uv_a PROPERTIES
+set_target_properties(libuv::uv PROPERTIES
+  INTERFACE_COMPILE_DEFINITIONS "USING_UV_SHARED=1"
   INTERFACE_INCLUDE_DIRECTORIES "${_IMPORT_PREFIX}/include"
-  INTERFACE_LINK_LIBRARIES "pthread;dl;rt"
+  INTERFACE_LINK_LIBRARIES "pthread;dl;rt;m"
 )
 
 if(CMAKE_VERSION VERSION_LESS 2.8.12)

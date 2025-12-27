@@ -1,0 +1,21 @@
+[submodule "third_party/cmocka"]
+	path = third_party/cmocka
+	url = https://github.com/coreboot/cmocka.git
+[submodule "third_party/libuv"]
+	path = third_party/libuv
+	url = https://github.com/libuv/libuv.git
+[submodule "third_party/libmodbus"]
+	path = third_party/libmodbus
+	url = https://github.com/stephane/libmodbus.git
+[submodule "third_party/cJSON"]
+	path = third_party/cJSON
+	url = https://github.com/DaveGamble/cJSON.git
+[submodule "third_party/libcurl"]
+	path = third_party/libcurl
+	url = https://github.com/curl/curl.git
+[submodule "third_party/paho.mqtt.c"]
+	path = third_party/paho.mqtt.c
+	url = https://github.com/eclipse/paho.mqtt.c.git
+[submodule "third_party/quickjs"]
+	path = third_party/quickjs
+	url = https://github.com/bellard/quickjs.git
