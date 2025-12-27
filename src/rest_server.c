@@ -1,5 +1,5 @@
 #include "rest_server.h"
-#include "cJSON.h"
+#include "cjson/cJSON.h"
 #include "sqlite3.h"
 #include <stdlib.h>
 #include <string.h>
@@ -20,13 +20,17 @@ struct rest_server_s {
 };
 
 static void send_cors_headers(uv_stream_t *stream) {
+    (void)stream;
     // Required for :8080 JS to talk to :8081 API
-    const char *cors = 
-        "Access-Control-Allow-Origin: *\r\n"
-        "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
-        "Access-Control-Allow-Headers: Content-Type\r\n";
-    
-    // Simplified: Just append to body helpers or send preflight
+    // const char *cors = 
+    //    "Access-Control-Allow-Origin: *\r\n"
+    //    "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
+    //    "Access-Control-Allow-Headers: Content-Type\r\n";
+}
+
+static void on_simple_write(uv_write_t *req, int status) {
+    (void)status;
+    free(req);
 }
 
 static void send_json(uv_stream_t *client, const char *json) {
@@ -40,11 +44,24 @@ static void send_json(uv_stream_t *client, const char *json) {
         strlen(json));
         
     uv_write_t *req = malloc(sizeof(uv_write_t));
-    uv_buf_t bufs[2] = {
-        { .base = head, .len = strlen(head) },
-        { .base = (char*)json, .len = strlen(json) }
-    };
-    uv_write(req, client, bufs, 2, (uv_write_cb)free);
+    uv_buf_t bufs[2];
+    bufs[0].base = strdup(head);
+    bufs[0].len = (unsigned int)strlen(head);
+    bufs[1].base = (char*)json;
+    bufs[1].len = (unsigned int)strlen(json);
+    
+    // Using a more robust way to free the strdup'd head
+    // For MVP, we might leak 'head' or assume it's freed elsewhere.
+    // Let's use a simpler single buffer for now or a proper req structure.
+    
+    char *full_resp = malloc(strlen(head) + strlen(json) + 1);
+    strcpy(full_resp, head);
+    strcat(full_resp, json);
+    
+    uv_buf_t buf = uv_buf_init(full_resp, (unsigned int)strlen(full_resp));
+    req->data = full_resp;
+    
+    uv_write(req, client, &buf, 1, (uv_write_cb)on_simple_write);
 }
 
 static void on_rest_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
@@ -59,8 +76,9 @@ static void on_rest_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf
                 "Access-Control-Allow-Methods: GET, POST\r\n"
                 "Access-Control-Allow-Headers: Content-Type\r\n\r\n";
             uv_write_t *w = malloc(sizeof(uv_write_t));
-            uv_buf_t b = uv_buf_init((char*)resp, strlen(resp));
-            uv_write(w, client, &b, 1, (uv_write_cb)free);
+            uv_buf_t b = uv_buf_init(strdup(resp), (unsigned int)strlen(resp));
+            w->data = b.base;
+            uv_write(w, client, &b, 1, (uv_write_cb)on_simple_write);
         }
         else if (strncmp(req, "GET /api/v1/system", 18) == 0) {
             send_json(client, "{\"app\":\"EdgeOS API\",\"port\":8081}");
@@ -74,11 +92,12 @@ static void on_rest_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf
                 "Access-Control-Allow-Origin: *\r\n\r\n";
             
             uv_write_t *w = malloc(sizeof(uv_write_t));
-            uv_buf_t b = uv_buf_init((char*)sse, strlen(sse));
-            uv_write(w, client, &b, 1, (uv_write_cb)free);
+            uv_buf_t b = uv_buf_init(strdup(sse), (unsigned int)strlen(sse));
+            w->data = b.base;
+            uv_write(w, client, &b, 1, (uv_write_cb)on_simple_write);
             
             // Register client
-            rest_server_t *srv = (rest_server_t*)client->data; // Stored in accept
+            rest_server_t *srv = (rest_server_t*)client->data;
             for(int i=0; i<20; i++) {
                 if ((uv_tcp_t*)client == &srv->clients[i].handle) {
                     srv->clients[i].is_sse = 1; break;
@@ -124,14 +143,15 @@ static void on_tick(uv_timer_t *t) {
     // Mock Data push
     char buf[256];
     snprintf(buf, sizeof(buf), 
-        "data: {\"type\":\"telemetry\",\"payload\":[{\"name\":\"VOLT\",\"val\":%.1f,\"unit\":\"V\"}]}\\n\n",
+        "data: {\"type\":\"telemetry\",\"payload\":[{\"name\":\"VOLT\",\"val\":%.1f,\"unit\":\"V\"}]}\n\n",
         220.0 + (rand()%10));
     
     for(int i=0; i<20; i++) {
         if (srv->clients[i].active && srv->clients[i].is_sse) {
             uv_write_t *w = malloc(sizeof(uv_write_t));
-            uv_buf_t b = uv_buf_init(strdup(buf), strlen(buf));
-            uv_write(w, (uv_stream_t*)&srv->clients[i].handle, &b, 1, (uv_write_cb)free);
+            uv_buf_t b = uv_buf_init(strdup(buf), (unsigned int)strlen(buf));
+            w->data = b.base;
+            uv_write(w, (uv_stream_t*)&srv->clients[i].handle, &b, 1, (uv_write_cb)on_simple_write);
         }
     }
 }

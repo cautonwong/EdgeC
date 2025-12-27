@@ -9,7 +9,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # 1. Architecture & Dependency Path
 # ==============================================================================
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
-    set(TARGET_ARCH "linux-arm64")
+    set(TARGET_ARCH "linux-aarch64")
 else()
     set(TARGET_ARCH "linux-x86_64")
 endif()
@@ -33,16 +33,13 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 # 2.1 cJSON
 find_package(cJSON REQUIRED)
-# If cJSON targets are not namespaced in some versions, alias them
 if(TARGET cjson AND NOT TARGET cJSON::cjson)
     add_library(cJSON::cjson ALIAS cjson)
 endif()
 
 # 2.2 libuv
-# libuv's cmake config provides 'uv_a' or 'uv' targets usually
 find_package(libuv REQUIRED)
 if(NOT TARGET libuv::uv)
-    # Fallback alias if the config defines it differently (e.g. just 'uv_a')
     if(TARGET uv_a)
         add_library(libuv::uv ALIAS uv_a)
     elseif(TARGET uv)
@@ -50,14 +47,23 @@ if(NOT TARGET libuv::uv)
     endif()
 endif()
 
-# 2.3 cmocka (Only for testing, but good to check early or conditional)
+# 2.3 cmocka
 find_package(cmocka REQUIRED)
 
-# 2.4 SQLite3 (Using custom FindSQLite3.cmake)
+# 2.4 SQLite3
 find_package(SQLite3 REQUIRED)
 
-# 2.5 libmodbus (Using custom FindModbus.cmake or Config if available)
+# 2.5 libmodbus
 find_package(Modbus REQUIRED)
+
+# 2.6 QuickJS
+find_package(QuickJS REQUIRED)
+
+# 2.7 CURL
+find_package(CURL REQUIRED)
+
+# 2.8 PahoMQTT
+find_package(PahoMQTT REQUIRED)
 
 # ==============================================================================
 # 3. Compiler Options & Tools
@@ -72,12 +78,13 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 # ==============================================================================
-# 4. Core Library
+# 5. Build Core Library
 # ==============================================================================
 add_library(edge_core_lib STATIC
     src/edge_version.c
     src/shmring.c
     src/algorithm_sum.c
+    src/sqlite_writer.c
     src/sqlite_service.c
     src/persistence_mgr.c
     src/northbound_mgr.c
@@ -88,14 +95,15 @@ add_library(edge_core_lib STATIC
     src/driver_manager.c
     src/bus_orchestrator.c
     src/driver_modbus.c
+    src/modbus_protocol.c
+    src/modbus_rtu_driver.c
     src/profile_loader.c
     src/datahub.c
     src/core/edge_service.c
-    src/apps/product_iems.c
     src/rest_server.c
+    src/web_server.c
 )
 
-# Link against found targets
 target_link_libraries(edge_core_lib PUBLIC 
     cJSON::cjson
     libuv::uv 
@@ -107,13 +115,22 @@ target_link_libraries(edge_core_lib PUBLIC
 target_include_directories(edge_core_lib PUBLIC include)
 
 # ==============================================================================
-# 5. Executable
+# 6. Build Product Applications (Cmd)
 # ==============================================================================
-add_executable(edge_app src/main.c)
-target_link_libraries(edge_app PRIVATE edge_core_lib)
+
+macro(add_product NAME SRC_DIR)
+    add_executable(${NAME} ${SRC_DIR}/main.c)
+    target_link_libraries(${NAME} PRIVATE edge_core_lib)
+endmacro()
+
+add_product(hems cmd/hems)
+add_product(iems cmd/iems)
+add_product(sg_el2025 cmd/sg)
+add_product(evse cmd/evse)
+add_product(dcu cmd/dcu)
 
 # ==============================================================================
-# 6. Tests
+# 7. Tests
 # ==============================================================================
 enable_testing()
 add_subdirectory(tests)

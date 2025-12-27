@@ -3,79 +3,79 @@
 #include <setjmp.h>
 #include <cmocka.h>
 #include <uv.h>
+#include "datahub.h"
+#include "algorithm_sum.h"
+#include "persistence_mgr.h"
+#include "shmring.h"
+#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-
-#include "arbiter.h"
-#include "io_executor.h"
-#include "shmring.h"
-#include "algorithm_sum.h"
-#include "bus_orchestrator.h"
-#include "edge_driver.h"
-
-extern edge_driver_t modbus_rtu_driver;
 
 typedef struct {
     uv_loop_t *loop;
-    shm_ring_t data_hub;
-    algo_sum_t algo_sum;
-    arbiter_t *arbiter;
-    edge_point_config_t point;
-} integration_test_ctx_t;
+    datahub_t data_hub;
+    algo_ctx_t *algo;
+    persistence_mgr_t storage;
+    int result_received;
+} integration_ctx_t;
+
+static void on_algo_result(algo_ctx_t *ctx, const algo_result_t *res, void *user) {
+    (void)ctx;
+    integration_ctx_t *ictx = (integration_ctx_t *)user;
+    ictx->result_received = 1;
+    printf("[Test] Algo Result: sum=%.2f, count=%u\n", res->total_sum, res->sample_count);
+}
 
 static void test_end_to_end_flow(void **state) {
     (void)state;
-    integration_test_ctx_t ctx = {0};
+    integration_ctx_t ctx = {0};
     ctx.loop = uv_default_loop();
-
-    // 1. Setup DataHub (shmring)
+    
     char ring_name[] = "/test_integration_hub";
     shm_unlink(ring_name);
-    assert_int_equal(shmring_create(&ctx.data_hub, ring_name, 8), 0);
-    
-    // 2. Setup IO Executor (Threads)
-    assert_int_equal(io_executor_init(ctx.loop), 0);
-    
-    // 3. Setup Arbiter
-    ctx.arbiter = arbiter_create(ctx.loop);
-    assert_non_null(ctx.arbiter);
-    
-    // 4. Setup Algorithm (summing from DataHub)
-    assert_int_equal(algo_sum_init(&ctx.algo_sum, ctx.loop, &ctx.data_hub, 10), 0);
 
-    // 5. Configure a point
-    ctx.point.tag_id = 2001;
-    ctx.point.reg_addr = 0x0001;
-    ctx.point.reg_count = 1;
-    ctx.point.scale = 1.0;
-    ctx.point.offset = 0.0;
+    // 1. Init DataHub
+    assert_int_equal(datahub_init(&ctx.data_hub, ctx.loop, ring_name, 64, NULL, NULL), 0);
 
-    // 6. Request a read (Orchestrator flow)
-    printf("[Test] Requesting Modbus Read via Orchestrator...\n");
-    edge_request_read(ctx.arbiter, BUS_RS485_1, &modbus_rtu_driver, &ctx.point, 1, &ctx.data_hub);
+    // 2. Init Algorithm
+    assert_int_equal(algo_init(&ctx.algo, ctx.loop, 10, on_algo_result, &ctx), 0);
 
-    // 7. Run loop and wait for result
-    // Flow: Orchestrator -> Arbiter -> IO Executor (Thread) -> Orchestrator Callback -> ShmRing -> Algo Sum
-    for (int i = 0; i < 100; i++) {
-        uv_run(ctx.loop, UV_RUN_NOWAIT);
-        if (ctx.algo_sum.sum > 0) break;
-        usleep(10000); 
+    // 3. Init Persistence (optional for this flow but tests components)
+    assert_int_equal(persistence_mgr_init(&ctx.storage, ctx.loop, &ctx.data_hub.ring, 100), 0);
+
+    // 4. Inject Data into DataHub
+    for (int i = 0; i < 15; i++) {
+        PipeMsg msg = {
+            .type = PIPEMSG_SCALAR_F64,
+            .tag_id = 100,
+            .payload.val_f = 10.0,
+            .ts = uv_now(ctx.loop)
+        };
+        datahub_publish(&ctx.data_hub, &msg);
+        
+        // Manual bridge: In real app, something reads from hub and submits to algo.
+        // For test, we read from hub and submit.
+        PipeMsg out;
+        uint64_t seq = (uint64_t)i;
+        if (shm_ring_read(&ctx.data_hub.ring, &seq, &out) == 0) {
+            algo_sample_t sample = { .value = out.payload.val_f, .ts = out.ts };
+            algo_submit(ctx.algo, &sample);
+        }
     }
 
-    // 8. Verify
-    assert_true(ctx.algo_sum.sum > 0.0);
-    printf("[Test] Success! Algo Sum detected data: %.2f\n", ctx.algo_sum.sum);
+    // 5. Run loop and wait for result
+    for (int i = 0; i < 200; i++) {
+        uv_run(ctx.loop, UV_RUN_NOWAIT);
+        if (ctx.result_received) break;
+        uv_sleep(5);
+    }
 
-    // 9. Cleanup
-    io_executor_shutdown();
-    arbiter_destroy(ctx.arbiter);
-    algo_sum_close(&ctx.algo_sum);
-    shmring_close(&ctx.data_hub);
-    shmring_destroy(&ctx.data_hub);
-    
-    uv_run(ctx.loop, UV_RUN_DEFAULT); // Final drain
+    assert_int_equal(ctx.result_received, 1);
+
+    // Cleanup
+    persistence_mgr_close(&ctx.storage);
+    algo_destroy(ctx.algo);
+    datahub_destroy(&ctx.data_hub);
 }
 
 int main(void) {

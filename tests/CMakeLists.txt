@@ -8,10 +8,10 @@ add_executable(test_algorithm_sum test_algorithm_sum.c)
 target_link_libraries(test_algorithm_sum PRIVATE edge_core_lib cmocka::cmocka)
 add_test(NAME AlgorithmSum COMMAND test_algorithm_sum)
 
-# Test SQLite
-add_executable(test_sqlite_service test_sqlite_service.c)
-target_link_libraries(test_sqlite_service PRIVATE edge_core_lib cmocka::cmocka)
-add_test(NAME SQLiteService COMMAND test_sqlite_service)
+# Test SQLite Writer
+add_executable(test_sqlite_writer test_sqlite_writer.c)
+target_link_libraries(test_sqlite_writer PRIVATE edge_core_lib cmocka::cmocka)
+add_test(NAME SQLiteWriter COMMAND test_sqlite_writer)
 
 # Test Protocol
 add_executable(test_modbus_protocol test_modbus_protocol.c)

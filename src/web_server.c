@@ -92,6 +92,11 @@ static void on_alloc(uv_handle_t *h, size_t size, uv_buf_t *buf) {
     buf->len = size;
 }
 
+static void on_free_write(uv_write_t *req, int status) {
+    (void)status;
+    free(req);
+}
+
 static void on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
     if (nread > 0) {
         // Always serve INDEX_HTML regardless of path for this MVP
@@ -103,10 +108,10 @@ static void on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
         
         uv_write_t *req = malloc(sizeof(uv_write_t));
         uv_buf_t bufs[2] = {
-            { .base = head, .len = strlen(head) },
-            { .base = (char*)INDEX_HTML, .len = strlen(INDEX_HTML) }
+            { .base = head, .len = (unsigned int)strlen(head) },
+            { .base = (char*)INDEX_HTML, .len = (unsigned int)strlen(INDEX_HTML) }
         };
-        uv_write(req, client, bufs, 2, (uv_write_cb)free);
+        uv_write(req, client, bufs, 2, on_free_write);
     }
     if (buf->base) free(buf->base);
 }

@@ -27,21 +27,28 @@ static void north_thread_entry(void *arg) {
 }
 
 int northbound_mgr_init(northbound_mgr_t *mgr, uv_loop_t *main_loop, shm_ring_t *ring) {
-    (void)main_loop; // Not used for now, could be used for async bridge
+    (void)main_loop; 
     mgr->ring = ring;
     mgr->running = 0;
-    
+    mgr->web_srv = NULL;
+    mgr->rest_srv = NULL;
+    return 0;
+}
+
+int northbound_mgr_start(northbound_mgr_t *mgr) {
+    if (!mgr) return -1;
     // Start the dedicated thread
     if (uv_thread_create(&mgr->thread, north_thread_entry, mgr) != 0) {
         return -1;
     }
-    
+    mgr->running = 1;
     return 0;
 }
 
 void northbound_mgr_stop(northbound_mgr_t *mgr) {
+    if (!mgr || !mgr->running) return;
     // In real implementation: send async signal to loop to stop
-    // Here we just wait (if loop stops on its own) or detach
-    // Simple join for MVP (blocking)
+    // Simple join for MVP
     uv_thread_join(&mgr->thread);
+    mgr->running = 0;
 }

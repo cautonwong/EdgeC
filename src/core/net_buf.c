@@ -12,7 +12,7 @@
 /* Helper to calculate the true size of a node including padding */
 static size_t get_node_size(uint16_t data_size) {
     // Round up to 8 bytes for alignment
-    return (sizeof(net_buf_t) + data_size + 7) & ~7;
+    return (sizeof(net_buf_t) + data_size + 7) & (size_t)~7;
 }
 
 int net_buf_pool_init(net_buf_pool_t *pool, uint16_t count, uint16_t size, 
