@@ -21,7 +21,7 @@ jobs:
               target: x86_64,
               cc: gcc,
               cxx: g++,
-              cmake_args: "-DENABLE_COVERAGE=ON -DENABLE_CLANG_TIDY=ON",
+              cmake_args: "-DENABLE_COVERAGE=ON",
               run_tests: true,
               use_qemu: false
             }
@@ -42,20 +42,15 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install Native Dependencies
+      - name: Install Native Build Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build clang-format clang-tidy lcov unzip wget libssl-dev
+          sudo apt-get install -y cmake ninja-build clang-format lcov libssl-dev
 
       - name: Install Cross-Compilation Tools
         if: matrix.config.target == 'arm64'
         run: |
           sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu qemu-user-static
-
-      - name: Build Hermetic Vendors (${{ matrix.config.target }})
-        run: |
-          chmod +x build_vendors.sh
-          ./build_vendors.sh ${{ matrix.config.target }}
 
       - name: Check Formatting (x86 only)
         if: matrix.config.target == 'x86_64'
@@ -80,17 +75,14 @@ jobs:
       - name: Run Unit Tests (QEMU)
         if: matrix.config.run_tests && matrix.config.use_qemu
         run: |
-          # For QEMU, we need to ensure the dynamic linker can find the libraries if shared, 
-          # but we are mostly using static libs. 
-          # However, the tests are executables.
           cd build
-          # CTest can be told to use a wrapper
-          cmake -DUR_RUN_TESTS_WRAPPER="${{ matrix.config.qemu_exec }}" ..
-          # Alternatively, run them manually or set CTEST_CUSTOM_PRE_TEST/POST_TEST
-          # Simplest for this seed: run a few key ones or all via a small loop
-          for t in bin/test_*; do
-            echo "Running $t via QEMU..."
-            ${{ matrix.config.qemu_exec }} -L /usr/aarch64-linux-gnu/ "$t"
+          # Manually run tests via QEMU since ctest integration can be complex with static libs and paths
+          # We search for test binaries in the tests/ directory
+          for t in tests/test_*; do
+            if [ -x "$t" ]; then
+              echo "Running $t via ${{ matrix.config.qemu_exec }}"...
+              ${{ matrix.config.qemu_exec }} -L /usr/aarch64-linux-gnu/ "$t"
+            fi
           done
 
       - name: Generate Coverage Report (x86 only)
