@@ -8,80 +8,93 @@ on:
 
 jobs:
   build-and-test:
-    name: Build & Test (${{ matrix.arch }})
-    runs-on: ubuntu-22.04
+    name: ${{ matrix.config.name }}
+    runs-on: ${{ matrix.config.os }}
+    
     strategy:
+      fail-fast: false
       matrix:
-        include:
-          - arch: linux-x86_64
-            c_compiler: gcc
-            toolchain_file_content: ""
-          - arch: linux-aarch64
-            c_compiler: aarch64-linux-gnu-gcc
-            toolchain_file_content: |
-              set(CMAKE_SYSTEM_NAME Linux)
-              set(CMAKE_SYSTEM_PROCESSOR aarch64)
-              set(CMAKE_C_COMPILER aarch64-linux-gnu-gcc)
-              set(CMAKE_CXX_COMPILER aarch64-linux-gnu-g++)
-              set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
-              set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
-              set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
-              set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
+        config:
+          - {
+              name: "Linux x86_64",
+              os: ubuntu-22.04,
+              target: x86_64,
+              cc: gcc,
+              cxx: g++,
+              cmake_args: "-DENABLE_COVERAGE=ON -DENABLE_CLANG_TIDY=ON",
+              run_tests: true,
+              use_qemu: false
+            }
+          - {
+              name: "Linux arm64 (Cross)",
+              os: ubuntu-22.04,
+              target: arm64,
+              cc: aarch64-linux-gnu-gcc,
+              cxx: aarch64-linux-gnu-g++,
+              cmake_args: "-DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/aarch64-linux-gnu.cmake",
+              run_tests: true,
+              use_qemu: true,
+              qemu_exec: qemu-aarch64-static
+            }
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Install Dependencies
+      - name: Install Native Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential cmake ninja-build git pkg-config libssl-dev \
-            cppcheck valgrind clang-format lcov \
-            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross
+          sudo apt-get install -y cmake ninja-build clang-format clang-tidy lcov unzip wget libssl-dev
 
-      - name: Build Vendor Dependencies
-        run: ./build_vendors.sh ${{ matrix.arch }}
+      - name: Install Cross-Compilation Tools
+        if: matrix.config.target == 'arm64'
+        run: |
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu qemu-user-static
+
+      - name: Build Hermetic Vendors (${{ matrix.config.target }})
+        run: |
+          chmod +x build_vendors.sh
+          ./build_vendors.sh ${{ matrix.config.target }}
 
       - name: Check Formatting (x86 only)
-        if: matrix.arch == 'linux-x86_64'
+        if: matrix.config.target == 'x86_64'
         run: |
-          find src include tests -name "*.h" -o -name "*.c" | xargs clang-format --dry-run --Werror
+          find src include tests -name "*.[ch]" | xargs clang-format -n --Werror
 
-      - name: Create Toolchain File (if needed)
-        if: matrix.toolchain_file_content != ''
-        run: |
-          echo "${{ matrix.toolchain_file_content }}" > toolchain.cmake
-      
       - name: Configure CMake
         run: |
-          CMAKE_ARGS=(
-            "-B build"
-            "-G Ninja"
-          )
-          if [[ "${{ matrix.arch }}" == "linux-x86_64" ]]; then
-            CMAKE_ARGS+=("-DCMAKE_BUILD_TYPE=Debug" "-DENABLE_COVERAGE=ON" "-DENABLE_CLANG_TIDY=ON")
-          else
-            CMAKE_ARGS+=("-DCMAKE_BUILD_TYPE=Release")
-          fi
-          if [[ -f "toolchain.cmake" ]]; then
-            CMAKE_ARGS+=("-DCMAKE_TOOLCHAIN_FILE=toolchain.cmake")
-          fi
-          cmake "${CMAKE_ARGS[@]}"
-
-      - name: Build Project
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            ${{ matrix.config.cmake_args }}
+          
+      - name: Build
         run: cmake --build build
 
-      - name: Run Unit Tests (x86 only)
-        if: matrix.arch == 'linux-x86_64'
+      - name: Run Unit Tests (Native)
+        if: matrix.config.run_tests && !matrix.config.use_qemu
         run: |
           cd build
           ctest --output-on-failure
 
+      - name: Run Unit Tests (QEMU)
+        if: matrix.config.run_tests && matrix.config.use_qemu
+        run: |
+          # For QEMU, we need to ensure the dynamic linker can find the libraries if shared, 
+          # but we are mostly using static libs. 
+          # However, the tests are executables.
+          cd build
+          # CTest can be told to use a wrapper
+          cmake -DUR_RUN_TESTS_WRAPPER="${{ matrix.config.qemu_exec }}" ..
+          # Alternatively, run them manually or set CTEST_CUSTOM_PRE_TEST/POST_TEST
+          # Simplest for this seed: run a few key ones or all via a small loop
+          for t in bin/test_*; do
+            echo "Running $t via QEMU..."
+            ${{ matrix.config.qemu_exec }} -L /usr/aarch64-linux-gnu/ "$t"
+          done
+
       - name: Generate Coverage Report (x86 only)
-        if: matrix.arch == 'linux-x86_64'
+        if: matrix.config.target == 'x86_64'
         run: |
           lcov --capture --directory build --output-file coverage.info
           lcov --remove coverage.info '/usr/*' '*/tests/*' '*/vendor/*' --output-file coverage_clean.info

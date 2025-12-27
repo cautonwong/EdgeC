@@ -18,16 +18,17 @@ typedef enum {
 
 /* ===== Request Priority ===== */
 typedef enum {
-    ARB_PRIO_LOW = 0,      /* 周期抄表 */
-    ARB_PRIO_NORMAL = 10, /* 主站点抄 */
-    ARB_PRIO_HIGH = 50,   /* 透传 */
-    ARB_PRIO_CRITICAL = 100 /* OTA */
+    ARB_PRIO_LOW = 0,      
+    ARB_PRIO_NORMAL = 10, 
+    ARB_PRIO_HIGH = 50,   
+    ARB_PRIO_CRITICAL = 100,
+    ARB_PRIO_EMERGENCY = 200 /* Added for Orchestrator */
 } arbiter_prio_t;
 
 /* ===== Request Mode ===== */
 typedef enum {
-    ARB_SHARED = 0,   /* 可被抢占 */
-    ARB_EXCLUSIVE     /* 不可并发（OTA） */
+    ARB_SHARED = 0,   
+    ARB_EXCLUSIVE     
 } arbiter_mode_t;
 
 typedef struct arbiter arbiter_t;

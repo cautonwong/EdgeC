@@ -2,8 +2,8 @@
 set(CJSON_UTILS_FOUND OFF)
 
 # The include directories used by cJSON
-set(CJSON_INCLUDE_DIRS "/home/cautonwong/rtos/C-EdegeX/.local/linux-x86_64/include")
-set(CJSON_INCLUDE_DIR "/home/cautonwong/rtos/C-EdegeX/.local/linux-x86_64/include")
+set(CJSON_INCLUDE_DIRS "/workspaces/edgeos/EdgeC/.local/linux-x86_64/include")
+set(CJSON_INCLUDE_DIR "/workspaces/edgeos/EdgeC/.local/linux-x86_64/include")
 
 get_filename_component(_dir "${CMAKE_CURRENT_LIST_FILE}" PATH)
 

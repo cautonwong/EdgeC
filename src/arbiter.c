@@ -3,8 +3,6 @@
 #include <string.h>
 #include <stdio.h>
 
-/* ===== Internal Structures ===== */
-
 typedef struct arb_req {
     arbiter_prio_t prio;
     arbiter_mode_t mode;

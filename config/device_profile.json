@@ -1,0 +1,31 @@
+{
+    "device_name": "IEMS_Meter_01",
+    "slave_id": 1,
+    "bus_id": 0,
+    "points": [
+        {
+            "tag_id": 1001,
+            "name": "PhaseA_Voltage",
+            "reg_addr": 1,
+            "reg_count": 1,
+            "scale": 0.1,
+            "offset": 0.0
+        },
+        {
+            "tag_id": 1002,
+            "name": "PhaseB_Voltage",
+            "reg_addr": 2,
+            "reg_count": 1,
+            "scale": 0.1,
+            "offset": 0.0
+        },
+        {
+            "tag_id": 1003,
+            "name": "Total_Active_Power",
+            "reg_addr": 10,
+            "reg_count": 2,
+            "scale": 1.0,
+            "offset": 0.0
+        }
+    ]
+}

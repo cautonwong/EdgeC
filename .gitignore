@@ -1,14 +1,17 @@
-# 1. 忽略所有编译目录
+# Build directories
 build/
 build_*/
+_deps/
 
-# 2. 忽略 vendor 目录下的临时构建文件
-vendor/*/build/
-vendor/*/out/
+# Local installation (dependencies)
+.local/
 
-# 3. [关键] 允许提交 .local 目录下的库文件
-!/.local/
-!*.a
-!*.so
-!*.h
-!*.cmake
+# IDE settings
+.vscode/
+.idea/
+
+# System files
+.DS_Store
+
+# Logs
+*.log

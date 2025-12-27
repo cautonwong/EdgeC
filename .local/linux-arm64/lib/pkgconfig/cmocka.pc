@@ -1,5 +1,0 @@
-Name: cmocka
-Description: The cmocka unit testing library
-Version: 1.1.5
-Libs: -L/home/builder/src/.local/linux-arm64/lib -lcmocka
-Cflags: -I/home/builder/src/.local/linux-arm64/include

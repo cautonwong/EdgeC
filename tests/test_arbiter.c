@@ -5,23 +5,19 @@
 #include <uv.h>
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
 
 #include "arbiter.h"
 #include "shmring.h"
 
-// Dummy global ring
 shm_ring_t *global_ring = NULL;
 
-// Context for the test
 typedef struct {
     uv_loop_t *loop;
     arbiter_t *arb;
     int granted_count;
-    char granted_order[10][20]; // To record the order of grants
+    char granted_order[10][20]; 
 } test_arbiter_ctx_t;
 
-// Wrapper for user data to pass to arbiter_request
 typedef struct {
     test_arbiter_ctx_t *test_ctx;
     const char *name;
@@ -38,20 +34,15 @@ static void on_grant_cb(arbiter_t *arb, arbiter_bus_t bus, void *user) {
     ctx->granted_order[ctx->granted_count][19] = '\0';
     ctx->granted_count++;
 
-    // Release the bus immediately
-    arbiter_release(arb, bus, req_data); // Pass the exact same pointer
+    arbiter_release(arb, bus, req_data);
 
-    // If all expected grants have happened, stop the loop
-    if (ctx->granted_count >= 3) { // Expecting 3 grants in this test
-        arbiter_destroy(arb); // This will stop the timer and close its handle
-        // uv_stop is NOT enough because the async handle from arbiter might still be pending close
-        // But arbiter_destroy closes the timer.
-        // We need to let the loop run to process closes.
+    if (ctx->granted_count >= 3) {
+        arbiter_destroy(arb);
     }
 }
 
 static void test_arbiter_scheduling(void **state) {
-    (void)state; // Unused
+    (void)state;
     test_arbiter_ctx_t ctx = {0};
     ctx.loop = uv_default_loop();
     ctx.arb = arbiter_create(ctx.loop);
@@ -60,7 +51,6 @@ static void test_arbiter_scheduling(void **state) {
     my_request_data_t transparent_data = { .test_ctx = &ctx, .name = "transparent" };
     my_request_data_t ota_data = { .test_ctx = &ctx, .name = "ota" };
 
-    /* Request 3 different priorities for the same bus */
     arbiter_request(ctx.arb, BUS_RS485_1,
         ARB_PRIO_LOW, ARB_SHARED, 0,
         on_grant_cb, &polling_data);
@@ -73,25 +63,20 @@ static void test_arbiter_scheduling(void **state) {
         ARB_PRIO_CRITICAL, ARB_EXCLUSIVE, 0,
         on_grant_cb, &ota_data);
 
-    // Run the loop until we decide to stop
-    // We can run in a loop with check
     int i;
     for (i=0; i<500; i++) {
         uv_run(ctx.loop, UV_RUN_NOWAIT);
         if (ctx.granted_count >= 3) break;
-        usleep(1000);
+        uv_sleep(1); // libuv sleep
     }
     
-    // Process final closes
     uv_run(ctx.loop, UV_RUN_DEFAULT);
 
-    // Verify assertions
     assert_int_equal(ctx.granted_count, 3);
-    assert_string_equal(ctx.granted_order[0], "ota");         // CRITICAL should be first
-    assert_string_equal(ctx.granted_order[1], "transparent"); // HIGH should be second
-    assert_string_equal(ctx.granted_order[2], "polling");     // LOW should be third
+    assert_string_equal(ctx.granted_order[0], "ota");         
+    assert_string_equal(ctx.granted_order[1], "transparent"); 
+    assert_string_equal(ctx.granted_order[2], "polling");     
 
-    // Ensure loop is clean
     uv_loop_close(ctx.loop);
 }
 

@@ -1,100 +1,64 @@
-#include <uv.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <signal.h>
-#include <unistd.h>
-
-#include "shmring.h"
-#include "algorithm_sum.h"
-#include "sqlite_service.h"
-#include "modbus_protocol.h"
+#include <getopt.h>
+#include "edge_service.h"
 #include "edge_version.h"
 
-// Global Context
-typedef struct {
-    uv_loop_t *loop;
-    shm_ring_t data_hub;
-    algo_sum_t algo_sum;
-    uv_signal_t sig_term;
-    uv_timer_t stats_timer;
-} app_ctx_t;
+// 产品入口声明 (通常应在各自头文件中)
+extern int run_iems_product(service_options_t *opts);
 
-static app_ctx_t g_ctx;
-
-// Required by modbus_protocol.c mock
-shm_ring_t *global_ring = NULL; 
-
-// --- Callbacks ---
-
-static void on_sql_init_done(int rc, void *arg) {
-    if (rc != 0) {
-        fprintf(stderr, "DB Init Failed: %d\n", rc);
-        exit(1);
-    }
-    printf("[Main] Database initialized (Async).\n");
+static void print_usage(const char *prog) {
+    printf("Usage: %s [options]\n", prog);
+    printf("Options:\n");
+    printf("  -c, --config <path>    Config file (default: config/device_profile.json)\n");
+    printf("  -m, --mode <type>      Mode: hems | iems | sg | evse | dcu\n");
+    printf("  -w, --web-port <port>  Web HMI port (default: 8080)\n");
+    printf("  -r, --rest-port <port> REST API port (default: 8081)\n");
+    printf("  -v, --version          Show version\n");
+    printf("  -h, --help             Show help\n");
 }
 
-static void on_stats_timer(uv_timer_t *handle) {
-    app_ctx_t *ctx = handle->data;
-    printf("[Main] Tick... Algo Sum: %.2f\n", ctx->algo_sum.sum);
-    
-    // Simulate triggering a Modbus read every tick
-    modbus_read_request(101);
-}
+int main(int argc, char **argv) {
+    service_options_t opts;
+    memset(&opts, 0, sizeof(opts));
 
-static void on_signal(uv_signal_t *handle, int signum) {
-    printf("\n[Main] Caught signal %d, shutting down...\n", signum);
-    uv_stop(handle->loop);
-}
+    // 默认值
+    strncpy(opts.config_path, "config/device_profile.json", 255);
+    strncpy(opts.mode, "iems", 31);
+    opts.web_port = 8080;
+    opts.rest_port = 8081;
 
-int main(void) {
-    printf("Starting EdgeOS Core %s...\n", edge_get_version());
+    static struct option long_options[] = {
+        {"config",    required_argument, 0, 'c'},
+        {"mode",      required_argument, 0, 'm'},
+        {"web-port",  required_argument, 0, 'w'},
+        {"rest-port", required_argument, 0, 'r'},
+        {"version",   no_argument,       0, 'v'},
+        {"help",      no_argument,       0, 'h'},
+        {0, 0, 0, 0}
+    };
 
-    g_ctx.loop = uv_default_loop();
-    global_ring = &g_ctx.data_hub; // Link global pointer for protocol mock
-
-    // 1. Initialize Shared Memory Ring
-    // Try to open existing first, or create new
-    if (shmring_open(&g_ctx.data_hub, "/edgeos_hub") != 0) {
-        printf("[Main] Creating new shm_ring...\n");
-        if (shmring_create(&g_ctx.data_hub, "/edgeos_hub", 128) != 0) {
-            fprintf(stderr, "Failed to create shm_ring\n");
-            return 1;
+    int opt;
+    while ((opt = getopt_long(argc, argv, "c:m:w:r:vh", long_options, NULL)) != -1) {
+        switch (opt) {
+            case 'c': strncpy(opts.config_path, optarg, 255); break;
+            case 'm': strncpy(opts.mode, optarg, 31); break;
+            case 'w': opts.web_port = atoi(optarg); break;
+            case 'r': opts.rest_port = atoi(optarg); break;
+            case 'v': printf("EdgeOS version %s\n", edge_get_version()); return 0;
+            case 'h': print_usage(argv[0]); return 0;
+            default: return 1;
         }
     }
 
-    // 2. Initialize SQLite (Async)
-    // We pass the loop because our new API requires it
-    sqlite_exec_async(g_ctx.loop, 
-        "CREATE TABLE IF NOT EXISTS logs (id INTEGER PRIMARY KEY, msg TEXT);", 
-        on_sql_init_done, NULL);
+    printf("[Main] Starting EdgeOS in %s mode...\n", opts.mode);
 
-    // 3. Initialize Algorithm
-    // It will wake up every 100ms to sum up data from shm_ring
-    algo_sum_init(&g_ctx.algo_sum, g_ctx.loop, &g_ctx.data_hub, 100);
-
-    // 4. Initialize Protocol
-    modbus_protocol_init(g_ctx.loop);
-
-    // 5. Setup Stats/Heartbeat Timer
-    uv_timer_init(g_ctx.loop, &g_ctx.stats_timer);
-    g_ctx.stats_timer.data = &g_ctx;
-    uv_timer_start(&g_ctx.stats_timer, on_stats_timer, 1000, 1000);
-
-    // 6. Setup Signal Handler
-    uv_signal_init(g_ctx.loop, &g_ctx.sig_term);
-    uv_signal_start(&g_ctx.sig_term, on_signal, SIGINT);
-
-    printf("[Main] Loop starting. Press Ctrl+C to exit.\n");
-    uv_run(g_ctx.loop, UV_RUN_DEFAULT);
-
-    // Cleanup
-    printf("[Main] Cleaning up...\n");
-    uv_loop_close(g_ctx.loop);
-    shmring_close(&g_ctx.data_hub);
-    // Don't unlink shm if we want persistence across restarts, but for dev we might:
-    shmring_destroy(&g_ctx.data_hub); 
-
-    return 0;
+    // 根据模式分发到不同产品逻辑
+    if (strcmp(opts.mode, "iems") == 0) {
+        return run_iems_product(&opts);
+    } else {
+        fprintf(stderr, "Mode '%s' not implemented yet.\n", opts.mode);
+        return 1;
+    }
 }

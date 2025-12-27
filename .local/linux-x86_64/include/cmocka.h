@@ -1,6 +1,6 @@
 /*
  * Copyright 2008 Google Inc.
- * Copyright 2014-2018 Andreas Schneider <asn@cryptomilk.org>
+ * Copyright 2014-2022 Andreas Schneider <asn@cryptomilk.org>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,6 +46,7 @@ int __stdcall IsDebuggerPresent();
  * @code
  * #include <stdarg.h>
  * #include <stddef.h>
+ * #include <stdint.h>
  * #include <setjmp.h>
  * #include <stdint.h>
  * @endcode
@@ -111,12 +112,16 @@ typedef uintmax_t LargestIntegralType;
 # define FloatPrintfFormat "%f"
 #endif /* FloatPrintfFormat */
 
+#ifndef DoublePrintfFormat
+# define DoublePrintfFormat "%f"
+#endif /* DoublePrintfFormat */
+
 /* Perform an unsigned cast to LargestIntegralType. */
 #define cast_to_largest_integral_type(value) \
     ((LargestIntegralType)(value))
 
 /* Smallest integral type capable of holding a pointer. */
-#if !defined(_UINTPTR_T) && !defined(_UINTPTR_T_DEFINED)
+#if !defined(_UINTPTR_T) && !defined(_UINTPTR_T_DEFINED) && !defined(HAVE_UINTPTR_T)
 # if defined(_WIN32)
     /* WIN32 is an ILP32 platform */
     typedef unsigned int uintptr_t;
@@ -168,6 +173,14 @@ cast_to_largest_integral_type(cast_to_pointer_integral_type(value))
 #define CMOCKA_DEPRECATED
 #endif
 
+#if defined(__GNUC__)
+#define CMOCKA_NORETURN __attribute__ ((noreturn))
+#elif defined(_MSC_VER)
+#define CMOCKA_NORETURN __declspec(noreturn)
+#else
+#define CMOCKA_NORETURN
+#endif
+
 #define WILL_RETURN_ALWAYS -1
 #define WILL_RETURN_ONCE -2
 
@@ -175,7 +188,7 @@ cast_to_largest_integral_type(cast_to_pointer_integral_type(value))
  * @defgroup cmocka_mock Mock Objects
  * @ingroup cmocka
  *
- * Mock objects mock objects are simulated objects that mimic the behavior of
+ * Mock objects are simulated objects that mimic the behavior of
  * real objects. Instead of calling the real objects, the tested object calls a
  * mock object that merely asserts that the correct methods were called, with
  * the expected parameters, in the correct order.
@@ -667,7 +680,7 @@ void expect_not_in_range_count(#function, #parameter, LargestIntegralType minimu
 
 #ifdef DOXYGEN
 /**
- * @brief Add an event to check if a parameter is the given value.
+ * @brief Add an event to check if a parameter is the given integer based value.
  *
  * The event is triggered by calling check_expected() in the mocked function.
  *
@@ -677,7 +690,10 @@ void expect_not_in_range_count(#function, #parameter, LargestIntegralType minimu
  *
  * @param[in]  value  The value to check.
  *
- * @see check_expected().
+ * @see check_expected()
+ * @see expect_string()
+ * @see expect_memory()
+ * @see expect_any()
  */
 void expect_value(#function, #parameter, LargestIntegralType value);
 #else
@@ -687,7 +703,8 @@ void expect_value(#function, #parameter, LargestIntegralType value);
 
 #ifdef DOXYGEN
 /**
- * @brief Add an event to repeatedly check if a parameter is the given value.
+ * @brief Add an event to repeatedly check if a parameter is the given integer
+ * based value.
  *
  * The event is triggered by calling check_expected() in the mocked function.
  *
@@ -702,6 +719,8 @@ void expect_value(#function, #parameter, LargestIntegralType value);
  *                    to -1 the value will always be returned.
  *
  * @see check_expected().
+ * @see expect_not_string()
+ * @see expect_not_memory()
  */
 void expect_value_count(#function, #parameter, LargestIntegralType value, size_t count);
 #else
@@ -1282,6 +1301,50 @@ void assert_float_not_equal(float a, float b, float epsilon);
 			__FILE__, __LINE__)
 #endif
 
+#ifdef DOXYGEN
+/**
+ * @brief Assert that the two given double are equal given an epsilon.
+ *
+ * The function prints an error message to standard error and terminates the
+ * test by calling fail() if the double are not equal (given an epsilon).
+ *
+ * @param[in]  a        The first double to compare.
+ *
+ * @param[in]  b        The double to compare against the first one.
+ *
+ * @param[in]  epsilon  The epsilon used as margin for double comparison.
+ */
+void assert_double_equal(double a, double b, double epsilon);
+#else
+#define assert_double_equal(a, b, epsilon) \
+	_assert_double_equal((double)a, \
+			(double)b, \
+			(double)epsilon, \
+			__FILE__, __LINE__)
+#endif
+
+#ifdef DOXYGEN
+/**
+ * @brief Assert that the two given double are not equal given an epsilon.
+ *
+ * The function prints an error message to standard error and terminates the
+ * test by calling fail() if the double are not equal (given an epsilon).
+ *
+ * @param[in]  a        The first double to compare.
+ *
+ * @param[in]  b        The double to compare against the first one.
+ *
+ * @param[in]  epsilon  The epsilon used as margin for double comparison.
+ */
+void assert_double_not_equal(double a, double b, double epsilon);
+#else
+#define assert_double_not_equal(a, b, epsilon) \
+	_assert_double_not_equal((float)a, \
+			(double)b, \
+			(double)epsilon, \
+			__FILE__, __LINE__)
+#endif
+
 
 #ifdef DOXYGEN
 /**
@@ -1297,8 +1360,7 @@ void assert_float_not_equal(float a, float b, float epsilon);
 void assert_string_equal(const char *a, const char *b);
 #else
 #define assert_string_equal(a, b) \
-    _assert_string_equal((const char*)(a), (const char*)(b), __FILE__, \
-                         __LINE__)
+    _assert_string_equal((a), (b), __FILE__, __LINE__)
 #endif
 
 #ifdef DOXYGEN
@@ -1315,8 +1377,7 @@ void assert_string_equal(const char *a, const char *b);
 void assert_string_not_equal(const char *a, const char *b);
 #else
 #define assert_string_not_equal(a, b) \
-    _assert_string_not_equal((const char*)(a), (const char*)(b), __FILE__, \
-                             __LINE__)
+    _assert_string_not_equal((a), (b), __FILE__, __LINE__)
 #endif
 
 #ifdef DOXYGEN
@@ -1473,7 +1534,10 @@ void assert_not_in_set(LargestIntegralType value, LargestIntegralType values[], 
  * created (e.g. expect_function_call()) than consumed with function_called().
  * There are provisions such as ignore_function_calls() which allow this
  * restriction to be circumvented in tests where mock calls for the code under
- * test are not the focus of the test.
+ * test are not the focus of the test. function_called() must be called from
+ * the same thread as expect_function_call(), and that thread must have been
+ * initialized for use by cmocka (see also the [Threading section of the main
+ * documentation page](index.html#main-threads)).
  *
  * The following example illustrates how a unit test instructs cmocka
  * to expect a function_called() from a particular mock,
@@ -1643,7 +1707,7 @@ void skip(void);
 void fail_msg(const char *msg, ...);
 #else
 #define fail_msg(msg, ...) do { \
-    print_error("ERROR: " msg "\n", ##__VA_ARGS__); \
+    cm_print_error("ERROR: " msg "\n", ##__VA_ARGS__); \
     fail(); \
 } while (0)
 #endif
@@ -1787,7 +1851,7 @@ static inline void _unit_test_dummy(void **state) {
  * @code
  * static int setup(void **state) {
  *      int *answer = malloc(sizeof(int));
- *      if (*answer == NULL) {
+ *      if (answer == NULL) {
  *          return -1;
  *      }
  *      *answer = 42;
@@ -1855,7 +1919,7 @@ int cmocka_run_group_tests(const struct CMUnitTest group_tests[],
  * @code
  * static int setup(void **state) {
  *      int *answer = malloc(sizeof(int));
- *      if (*answer == NULL) {
+ *      if (answer == NULL) {
  *          return -1;
  *      }
  *      *answer = 42;
@@ -2273,6 +2337,12 @@ void _assert_float_equal(const float a, const float n,
 void _assert_float_not_equal(const float a, const float n,
 		const float epsilon, const char* const file,
 		const int line);
+void _assert_double_equal(const double a, const double n,
+		const double epsilon, const char* const file,
+		const int line);
+void _assert_double_not_equal(const double a, const double n,
+		const double epsilon, const char* const file,
+		const int line);
 void _assert_int_equal(
     const LargestIntegralType a, const LargestIntegralType b,
     const char * const file, const int line);
@@ -2308,9 +2378,9 @@ void* _test_calloc(const size_t number_of_elements, const size_t size,
                    const char* file, const int line);
 void _test_free(void* const ptr, const char* file, const int line);
 
-void _fail(const char * const file, const int line);
+CMOCKA_NORETURN void _fail(const char * const file, const int line);
 
-void _skip(const char * const file, const int line);
+CMOCKA_NORETURN void _skip(const char * const file, const int line);
 
 int _run_test(
     const char * const function_name, const UnitTestFunction Function,
@@ -2333,6 +2403,7 @@ void print_message(const char* const format, ...) CMOCKA_PRINTF_ATTRIBUTE(1, 2);
 void print_error(const char* const format, ...) CMOCKA_PRINTF_ATTRIBUTE(1, 2);
 void vprint_message(const char* const format, va_list args) CMOCKA_PRINTF_ATTRIBUTE(1, 0);
 void vprint_error(const char* const format, va_list args) CMOCKA_PRINTF_ATTRIBUTE(1, 0);
+void cm_print_error(const char* const format, ...) CMOCKA_PRINTF_ATTRIBUTE(1, 2);
 
 enum cm_message_output {
     CM_OUTPUT_STDOUT,

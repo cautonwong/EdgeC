@@ -2,28 +2,45 @@
 #define EDGE_CONTEXT_H
 
 #include <uv.h>
+#include "shmring.h"
+#include "algorithm_sum.h"
+#include "persistence_mgr.h"
+#include "northbound_mgr.h"
+#include "sys_supervisor.h"
+#include "io_executor.h"
 #include "arbiter.h"
+#include "bus_orchestrator.h"
+#include "profile_loader.h"
 #include "datahub.h"
-// Other module headers will be included here as they are created/refactored
+#include "core/net_buf.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// Forward declarations for module types
-typedef struct algo_sum_s algo_sum_t;
-// Add other forward declarations as needed
-
 // The main application context struct
 typedef struct {
-    uv_loop_t loop;
+    uv_loop_t *loop;
     
-    // Module handles will be centralized here
+    // Core Services
     arbiter_t *arbiter;
     datahub_t data_hub;
+    algo_sum_t algo_sum;
+    persistence_mgr_t storage;
+    northbound_mgr_t cloud;
+    sys_supervisor_t supervisor;
     
-    // Example of an algorithm service handle
-    algo_sum_t *algorithm_sum;
+    // Memory Subsystem
+    net_buf_pool_t packet_pool; // For IO packets (small)
+    net_buf_pool_t blob_pool;   // For large blobs (optional)
+
+    // Configuration
+    device_config_t *config;
+    
+    // Timers & Handles
+    uv_timer_t poll_timer;
+    uv_signal_t sig_int;
+    uv_signal_t sig_term;
 
     // Flag to signal shutdown
     int shutting_down;
@@ -32,29 +49,16 @@ typedef struct {
 
 /**
  * @brief Initializes the master EdgeOS context.
- * 
- * This function initializes the main event loop and all core modules.
- * @param ctx The context object to initialize.
- * @return 0 on success, negative error code on failure.
  */
-int edge_ctx_init(edge_ctx_t *ctx);
+int edge_ctx_init(edge_ctx_t *ctx, const char *config_file);
 
 /**
  * @brief Starts the main event loop.
- * 
- * This function enters the main uv_run loop and will block until the
- * application is stopped.
- * @param ctx The application context.
- * @return 0 on success, negative error code on failure.
  */
 int edge_ctx_start(edge_ctx_t *ctx);
 
 /**
  * @brief Signals the application to stop and cleans up resources.
- * 
- * This function can be called from a signal handler or another thread
- * to gracefully shut down the application.
- * @param ctx The application context.
  */
 void edge_ctx_stop(edge_ctx_t *ctx);
 

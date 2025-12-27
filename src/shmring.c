@@ -1,4 +1,5 @@
 #include "shmring.h"
+#include <uv.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -16,22 +17,27 @@ int shmring_create(shm_ring_t *ring, const char *name, uint32_t slots)
 
     size_t size = sizeof(ShmRingHeader) + slots * sizeof(PipeMsg);
 
+    // shm_open is OS-native as libuv has no SHM support
     int fd = shm_open(name, O_CREAT | O_RDWR | O_EXCL, 0666);
     if (fd < 0) {
-        // Try opening to see if it exists, maybe unlink?
-        // For now, standard error behavior.
-        // perror("shm_open create"); 
         return -1;
     }
 
-    if (ftruncate(fd, size) != 0) {
+    uv_fs_t req;
+    if (uv_fs_ftruncate(NULL, &req, fd, (int64_t)size, NULL) != 0) {
+        uv_fs_req_cleanup(&req);
         close(fd);
         shm_unlink(name);
         return -1;
     }
+    uv_fs_req_cleanup(&req);
 
     void *mem = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    close(fd);
+    
+    // Close using libuv fs API
+    uv_fs_close(NULL, &req, fd, NULL);
+    uv_fs_req_cleanup(&req);
+
     if (mem == MAP_FAILED) {
         shm_unlink(name);
         return -1;
@@ -81,7 +87,11 @@ int shmring_open(shm_ring_t *ring, const char *name)
     size_t actual_size = sizeof(ShmRingHeader) + slots * sizeof(PipeMsg);
 
     void *mem = mmap(NULL, actual_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    close(fd);
+    
+    uv_fs_t req;
+    uv_fs_close(NULL, &req, fd, NULL);
+    uv_fs_req_cleanup(&req);
+
     if (mem == MAP_FAILED) {
         return -1;
     }
@@ -109,12 +119,17 @@ int shmring_destroy(shm_ring_t *ring)
     if (!ring || ring->name[0] == '\0') {
         return -1;
     }
+    char name_copy[256];
+    strncpy(name_copy, ring->name, 255);
+    name_copy[255] = '\0';
+    
     shmring_close(ring);
-    return shm_unlink(ring->name);
+    return shm_unlink(name_copy);
 }
 
 void shm_ring_write(shm_ring_t *ring, const PipeMsg *msg)
 {
+    // Start of update (odd sequence)
     atomic_fetch_add_explicit(&ring->hdr->seq, 1, memory_order_release);
 
     uint32_t idx = atomic_load_explicit(&ring->hdr->write_idx, memory_order_relaxed);
@@ -123,9 +138,10 @@ void shm_ring_write(shm_ring_t *ring, const PipeMsg *msg)
 
     atomic_store_explicit(&ring->hdr->write_idx, (idx + 1) % ring->hdr->slot_count, memory_order_relaxed);
     
-    // Increment total_writes strictly after data write
+    // Increment total_writes
     atomic_fetch_add_explicit(&ring->hdr->total_writes, 1, memory_order_relaxed);
 
+    // End of update (even sequence)
     atomic_fetch_add_explicit(&ring->hdr->seq, 1, memory_order_release);
 }
 
@@ -134,39 +150,32 @@ int shm_ring_read(shm_ring_t *ring, uint64_t *last_seq, PipeMsg *out)
     uint64_t total = atomic_load_explicit(&ring->hdr->total_writes, memory_order_acquire);
     
     if (*last_seq >= total) {
-        return -1; // Up to date
+        return -1; // No new data
     }
 
-    // Determine which message to read.
-    // Since this is a ring, we might have been overwritten if we are too slow.
     uint64_t target_seq = *last_seq;
     uint32_t slots = ring->hdr->slot_count;
     
     if (total - target_seq > slots) {
-        // We are too slow, jump to the oldest available data
-        target_seq = total - slots;
-        // Optionally notify user of dropped frames?
+        target_seq = total - slots; // Jump to oldest available
     }
 
-    // Calculate index for target_seq
-    // Since we start at 0, and total_writes increments after write, 
-    // the msg at 'total_writes=1' was written at index 0.
-    // So if total_writes is T, valid indices are (T-slots) to (T-1).
-    // The slot index for message #N (0-based) is N % slots.
-    uint32_t idx = target_seq % slots;
+    uint32_t idx = (uint32_t)(target_seq % slots);
 
-    // Use seqlock to read safely
     unsigned int seq1, seq2;
     do {
         seq1 = atomic_load_explicit(&ring->hdr->seq, memory_order_acquire);
-        if (seq1 & 1) continue; // Writer active
+        if (seq1 & 1) {
+            // Writer is active, briefly yield
+            // In libuv context, we don't have a direct yield, but we can spin slightly
+            continue; 
+        }
 
         *out = ring->slots[idx];
 
         seq2 = atomic_load_explicit(&ring->hdr->seq, memory_order_acquire);
     } while (seq1 != seq2);
 
-    // Update the caller's sequence
     *last_seq = target_seq + 1;
     return 0;
 }
