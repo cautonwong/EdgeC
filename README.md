@@ -88,6 +88,11 @@ if (v > 245) {
 *   **Zero Globals**：SDK 核心严禁使用 `static` 或全局变量，所有状态必须通过上下文句柄传递。
 *   **Thread Safety**：跨线程通信必须通过 `uv_async_send` 或 `shm_ring`。
 *   **Memory Discipline**：优先使用 `net_buf` 处理报文，确保引用计数正确归零。
+*   **Code Style**：项目强制使用 `clang-format`。推荐安装 `pre-commit` 钩子以实现提交时自动格式化：
+    ```bash
+    pip install pre-commit
+    pre-commit install
+    ```
 
 ---
 

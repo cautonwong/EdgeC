@@ -1,4 +1,5 @@
 #include "datahub.h"
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -9,7 +10,8 @@ static void on_async_notification(uv_async_t *handle) {
     }
 }
 
-int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slots, datahub_on_data_cb on_data, void *user_data) {
+int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slots,
+                 datahub_on_data_cb on_data, void *user_data) {
     if (!hub || !loop || !name) return -1;
 
     if (shmring_create(&hub->ring, name, slots) != 0) {
@@ -31,7 +33,7 @@ int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slo
 
 void datahub_destroy(datahub_t *hub) {
     if (!hub) return;
-    uv_close((uv_handle_t*)&hub->async_handle, NULL);
+    uv_close((uv_handle_t *)&hub->async_handle, NULL);
     shmring_close(&hub->ring);
     shmring_destroy(&hub->ring);
 }

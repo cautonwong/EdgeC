@@ -1,10 +1,10 @@
 #ifndef SHMRING_H
 #define SHMRING_H
 
-#include <stdint.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #define SHMRING_MAGIC 0x53484D52
 #define CACHELINE_SIZE 64
@@ -13,8 +13,8 @@
 enum {
     PIPEMSG_SCALAR_F64 = 1,
     PIPEMSG_SCALAR_I64 = 2,
-    PIPEMSG_REF_DMA    = 3, // Scenario 3: High-Perf Waveform (fd + offset)
-    PIPEMSG_EVENT      = 4  // Scenario 8/9: System events
+    PIPEMSG_REF_DMA = 3,  // Scenario 3: High-Perf Waveform (fd + offset)
+    PIPEMSG_EVENT = 4     // Scenario 8/9: System events
 };
 
 typedef struct {
@@ -24,10 +24,10 @@ typedef struct {
     uint16_t flags;
 
     union {
-        double   val_f;
-        int64_t  val_i;
+        double val_f;
+        int64_t val_i;
         struct {
-            int32_t  fd;      // dma-buf file descriptor
+            int32_t fd;  // dma-buf file descriptor
             uint32_t offset;
             uint32_t len;
         } ref;
@@ -37,7 +37,7 @@ typedef struct {
         } event;
     } payload;
 
-    uint8_t _pad[32]; 
+    uint8_t _pad[32];
 } PipeMsg;
 
 _Static_assert(sizeof(PipeMsg) == 64, "PipeMsg must be 64 bytes");
@@ -45,17 +45,17 @@ _Static_assert(sizeof(PipeMsg) == 64, "PipeMsg must be 64 bytes");
 typedef struct {
     uint32_t magic;
     uint32_t slot_count;
-    atomic_uint seq;        
-    atomic_uint write_idx;  
-    atomic_uint_fast64_t total_writes; 
-    uint8_t _pad[CACHELINE_SIZE - 24]; 
+    atomic_uint seq;
+    atomic_uint write_idx;
+    atomic_uint_fast64_t total_writes;
+    uint8_t _pad[CACHELINE_SIZE - 24];
 } ShmRingHeader;
 
 typedef struct {
     ShmRingHeader *hdr;
-    PipeMsg       *slots;
-    size_t         map_size;
-    char           name[256];
+    PipeMsg *slots;
+    size_t map_size;
+    char name[256];
 } ShmRing;
 
 typedef ShmRing shm_ring_t;

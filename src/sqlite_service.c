@@ -1,8 +1,9 @@
 #include "sqlite_service.h"
+
 #include <sqlite3.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
 typedef struct {
     uv_work_t req;
@@ -11,19 +12,19 @@ typedef struct {
     sql_cb_t cb;
     void *user;
     int rc;
-    int own_db; // flag to close db if we opened it
+    int own_db;  // flag to close db if we opened it
 } sql_ctx_t;
 
 static sqlite3 *g_db = NULL;
 
 static void sql_work(uv_work_t *req) {
     sql_ctx_t *c = (sql_ctx_t *)req->data;
-    
+
     // In a real production system, we might maintain a connection pool
-    // or a persistent connection per thread. 
+    // or a persistent connection per thread.
     // Here we strictly follow the user's pattern but try to reuse a global handle if initialized,
     // or open one ad-hoc (inefficient but safe for "snippet" logic).
-    
+
     sqlite3 *db_to_use = c->db;
     if (!db_to_use) {
         // Fallback or explicit open
@@ -56,21 +57,16 @@ static void sql_after(uv_work_t *req, int status) {
     free(c);
 }
 
-int sqlite_exec_async(
-    uv_loop_t *loop,
-    const char *sql,
-    sql_cb_t cb,
-    void *user
-) {
+int sqlite_exec_async(uv_loop_t *loop, const char *sql, sql_cb_t cb, void *user) {
     sql_ctx_t *c = calloc(1, sizeof(*c));
     if (!c) return -1;
 
     // For this example, we let the worker thread open the DB to be safe
-    // or use a thread-safe global handle. 
-    // User snippet showed opening inside the structure. 
+    // or use a thread-safe global handle.
+    // User snippet showed opening inside the structure.
     // We'll leave c->db NULL so work callback opens it.
-    c->db = NULL; 
-    
+    c->db = NULL;
+
     c->sql = strdup(sql);
     c->cb = cb;
     c->user = user;

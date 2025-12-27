@@ -2,6 +2,7 @@
 #define NORTHBOUND_MGR_H
 
 #include <uv.h>
+
 #include "shmring.h"
 #include "sqlite_writer.h"
 
@@ -12,20 +13,20 @@ struct rest_server_s;
 typedef struct {
     uv_loop_t loop;
     uv_thread_t thread;
-    
+
     // Core Links
     shm_ring_t *ring;
-    sqlite_writer_t *writer; // For control commands logging or settings
-    
+    sqlite_writer_t *writer;  // For control commands logging or settings
+
     // Sub-Servers
     struct web_server_s *web_srv;
     struct rest_server_s *rest_srv;
-    
+
     uv_async_t stop_async;
-    
+
     int web_port;
     int rest_port;
-    
+
     void *user_data;
     int running;
 } northbound_mgr_t;

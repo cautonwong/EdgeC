@@ -1,14 +1,15 @@
+#include <cmocka.h>
+#include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
-#include <setjmp.h>
-#include <sys/mman.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/wait.h>
-#include <string.h>
 #include <stdio.h>
-#include <cmocka.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <sys/wait.h>
+#include <unistd.h>
 #include <uv.h>
+
 #include "shmring.h"
 
 #define TEST_RING_NAME "/test_shmring_v2"
@@ -49,7 +50,7 @@ static void test_single_thread_read_write(void **state) {
 static void test_multi_process_concurrency(void **state) {
     (void)state;
     pid_t pid = fork();
-    
+
     if (pid == 0) {
         // 子进程：Writer
         shm_ring_t ring;
@@ -58,7 +59,7 @@ static void test_multi_process_concurrency(void **state) {
             PipeMsg msg = {0};
             msg.payload.val_i = i;
             shm_ring_write(&ring, &msg);
-            uv_sleep(1000); 
+            uv_sleep(1000);
         }
         shmring_close(&ring);
         exit(0);
@@ -68,14 +69,14 @@ static void test_multi_process_concurrency(void **state) {
         PipeMsg msg;
         uint64_t seq = 0;
         int count = 0;
-        
+
         for (int i = 0; i < 1000; i++) {
             if (shm_ring_read(ring, &seq, &msg) == 0) {
                 count++;
             }
-            uv_sleep(1000); 
+            uv_sleep(1000);
         }
-        
+
         int status;
         waitpid(pid, &status, 0);
         assert_true(count > 0);

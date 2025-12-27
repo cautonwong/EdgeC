@@ -1,14 +1,15 @@
+#include <cmocka.h>
+#include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
-#include <uv.h>
-#include "sqlite_service.h"
-#include <unistd.h>
 #include <stdio.h>
+#include <unistd.h>
+#include <uv.h>
+
+#include "sqlite_service.h"
 
 static void my_sql_cb(int rc, void *u) {
-    assert_int_equal(rc, 0); 
+    assert_int_equal(rc, 0);
     *(int *)u = 1;
 }
 
@@ -20,22 +21,18 @@ static void test_sql_insert(void **state) {
     unlink("test.db");
 
     int done = 0;
-    int ret = sqlite_exec_async(&loop,
-        "CREATE TABLE IF NOT EXISTS t(a INT);",
-        my_sql_cb,
-        &done
-    );
+    int ret = sqlite_exec_async(&loop, "CREATE TABLE IF NOT EXISTS t(a INT);", my_sql_cb, &done);
     assert_int_equal(ret, 0);
 
     int i;
-    for (i=0; i<200; i++) {
+    for (i = 0; i < 200; i++) {
         uv_run(&loop, UV_RUN_NOWAIT);
         if (done) break;
-        uv_sleep(2); // libuv sleep
+        uv_sleep(2);  // libuv sleep
     }
 
     assert_int_equal(done, 1);
-    
+
     uv_run(&loop, UV_RUN_DEFAULT);
     uv_loop_close(&loop);
 }

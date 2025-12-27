@@ -2,17 +2,18 @@
 #define EDGE_CONTEXT_H
 
 #include <uv.h>
-#include "shmring.h"
+
 #include "algorithm_sum.h"
-#include "persistence_mgr.h"
-#include "northbound_mgr.h"
-#include "sys_supervisor.h"
-#include "io_executor.h"
 #include "arbiter.h"
 #include "bus_orchestrator.h"
-#include "profile_loader.h"
-#include "datahub.h"
 #include "core/net_buf.h"
+#include "datahub.h"
+#include "io_executor.h"
+#include "northbound_mgr.h"
+#include "persistence_mgr.h"
+#include "profile_loader.h"
+#include "shmring.h"
+#include "sys_supervisor.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -21,7 +22,7 @@ extern "C" {
 // The main application context struct
 typedef struct {
     uv_loop_t *loop;
-    
+
     // Core Services
     arbiter_t *arbiter;
     datahub_t data_hub;
@@ -29,14 +30,14 @@ typedef struct {
     persistence_mgr_t storage;
     northbound_mgr_t cloud;
     sys_supervisor_t supervisor;
-    
+
     // Memory Subsystem
-    net_buf_pool_t packet_pool; // For IO packets (small)
-    net_buf_pool_t blob_pool;   // For large blobs (optional)
+    net_buf_pool_t packet_pool;  // For IO packets (small)
+    net_buf_pool_t blob_pool;    // For large blobs (optional)
 
     // Configuration
     device_config_t *config;
-    
+
     // Timers & Handles
     uv_timer_t poll_timer;
     uv_signal_t sig_int;
@@ -66,4 +67,4 @@ void edge_ctx_stop(edge_ctx_t *ctx);
 }
 #endif
 
-#endif // EDGE_CONTEXT_H
+#endif  // EDGE_CONTEXT_H

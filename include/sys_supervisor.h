@@ -2,6 +2,7 @@
 #define SYS_SUPERVISOR_H
 
 #include <uv.h>
+
 #include "shmring.h"
 
 typedef struct {

@@ -1,10 +1,11 @@
+#include <cmocka.h>
+#include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
 #include <uv.h>
-#include "services/js_engine.h"
+
 #include "edge_service.h"
+#include "services/js_engine.h"
 
 static void test_js_eval_basic(void **state) {
     (void)state;
@@ -19,7 +20,11 @@ static void test_js_eval_basic(void **state) {
     assert_int_equal(js_engine_eval(engine, "Log.info('Hello from JS');", "test.js"), 0);
 
     // Test Bridge API: DataHub
-    assert_int_equal(js_engine_eval(engine, "const v = DataHub.read(1001); if(v < 220) throw new Error('Bad Value');", "test.js"), 0);
+    assert_int_equal(
+        js_engine_eval(engine,
+                       "const v = DataHub.read(1001); if(v < 220) throw new Error('Bad Value');",
+                       "test.js"),
+        0);
 
     js_engine_destroy(engine);
 }
@@ -31,8 +36,9 @@ static void test_js_memory_limit(void **state) {
     assert_non_null(engine);
 
     // Attempt to allocate a large array to trigger OOM
-    const char *oom_script = "const a = []; for(let i=0; i<10000; i++) a.push(new Array(100).fill(1));";
-    
+    const char *oom_script =
+        "const a = []; for(let i=0; i<10000; i++) a.push(new Array(100).fill(1));";
+
     // This should fail due to memory limit
     int ret = js_engine_eval(engine, oom_script, "oom.js");
     assert_int_not_equal(ret, 0);

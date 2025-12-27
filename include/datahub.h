@@ -2,6 +2,7 @@
 #define DATAHUB_H
 
 #include <uv.h>
+
 #include "shmring.h"
 
 #ifdef __cplusplus
@@ -34,7 +35,8 @@ struct datahub_s {
  * @param user_data Custom data to be passed to the on_data callback.
  * @return 0 on success, or a negative error code.
  */
-int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slots, datahub_on_data_cb on_data, void *user_data);
+int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slots,
+                 datahub_on_data_cb on_data, void *user_data);
 
 /**
  * @brief Shuts down the DataHub and releases its resources.
@@ -45,7 +47,7 @@ void datahub_destroy(datahub_t *hub);
 
 /**
  * @brief Publishes a message to the DataHub.
- * 
+ *
  * This function writes a message to the shared memory ring buffer and
  * notifies the consumer's loop that new data is available.
  * This function is thread-safe.
@@ -60,4 +62,4 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg);
 }
 #endif
 
-#endif // DATAHUB_H
+#endif  // DATAHUB_H

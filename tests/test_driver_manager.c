@@ -1,8 +1,8 @@
+#include <cmocka.h>
+#include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
-#include <unistd.h> // For close
+#include <unistd.h>  // For close
 
 #include "driver_manager.h"
 #include "shmring.h"
@@ -11,10 +11,10 @@
 shm_ring_t *global_ring = NULL;
 
 static void test_driver_manager_lifecycle(void **state) {
-    (void)state; // Unused
+    (void)state;  // Unused
 
     // 1. Create the driver manager
-    driver_manager_t* dm = driver_manager_create();
+    driver_manager_t *dm = driver_manager_create();
     assert_non_null(dm);
 
     // 2. Get FD for a configured bus
@@ -25,7 +25,7 @@ static void test_driver_manager_lifecycle(void **state) {
     // 3. Get FD for another configured bus
     int fd2 = driver_manager_get_fd(dm, BUS_RS485_2);
     assert_true(fd2 >= 0);
-    assert_true(fd1 != fd2); // Ensure they are different descriptors
+    assert_true(fd1 != fd2);  // Ensure they are different descriptors
 
     // 4. Get FD for an unconfigured bus (should return -1)
     int fd_unconfigured = driver_manager_get_fd(dm, BUS_CAN);

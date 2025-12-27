@@ -1,12 +1,13 @@
+#include <cmocka.h>
+#include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
+
 #include "core/edge_context.h"
 
 // Test that the context can be initialized and shut down without crashing.
 static void test_edge_ctx_init_and_shutdown(void **state) {
-    (void)state; // Unused
+    (void)state;  // Unused
 
     edge_ctx_t ctx;
 

@@ -1,6 +1,7 @@
 #include "services/js_engine.h"
-#include <quickjs/quickjs.h>
+
 #include <quickjs/quickjs-libc.h>
+#include <quickjs/quickjs.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,24 +17,27 @@ struct js_engine_s {
 };
 
 // --- Helper: Get engine from context ---
-static js_engine_t* get_engine(JSContext *ctx) {
+static js_engine_t *get_engine(JSContext *ctx) {
     return (js_engine_t *)JS_GetRuntimeOpaque(JS_GetRuntime(ctx));
 }
 
 // --- JS Bindings: Logging ---
 static JSValue js_log_info(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
-    (void)this_val; (void)argc;
+    (void)this_val;
+    (void)argc;
     const char *str = JS_ToCString(ctx, argv[0]);
     if (str) {
-        printf("[JS-INFO] %s\n", str); // Corrected newline escape
+        printf("[JS-INFO] %s\n", str);  // Corrected newline escape
         JS_FreeCString(ctx, str);
     }
     return JS_UNDEFINED;
 }
 
 // --- JS Bindings: DataHub ---
-static JSValue js_datahub_read(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
-    (void)this_val; (void)argc;
+static JSValue js_datahub_read(JSContext *ctx, JSValueConst this_val, int argc,
+                               JSValueConst *argv) {
+    (void)this_val;
+    (void)argc;
     js_engine_t *engine = get_engine(ctx);
     (void)engine;
     uint32_t tag_id;
@@ -47,21 +51,19 @@ static JSValue js_datahub_read(JSContext *ctx, JSValueConst this_val, int argc, 
 }
 
 // --- JS Bindings: Arbiter ---
-static JSValue js_arbiter_control(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
-    (void)this_val; (void)argc;
+static JSValue js_arbiter_control(JSContext *ctx, JSValueConst this_val, int argc,
+                                  JSValueConst *argv) {
+    (void)this_val;
+    (void)argc;
     js_engine_t *engine = get_engine(ctx);
     uint32_t tag_id;
     double val;
-    
+
     if (JS_ToUint32(ctx, &tag_id, argv[0])) return JS_EXCEPTION;
     if (JS_ToFloat64(ctx, &val, argv[1])) return JS_EXCEPTION;
 
     // Bridge to Command Bridge
-    service_cmd_t cmd = {
-        .type = SVC_CMD_WRITE,
-        .tag_id = tag_id,
-        .value = val
-    };
+    service_cmd_t cmd = {.type = SVC_CMD_WRITE, .tag_id = tag_id, .value = val};
     service_post_cmd(engine->svc, &cmd);
 
     return JS_NewBool(ctx, true);
@@ -73,12 +75,12 @@ static int js_interrupt_handler(JSRuntime *rt, void *opaque) {
     js_engine_t *engine = (js_engine_t *)opaque;
     // Check if we exceeded 100ms (Simplified check)
     // In real app, use uv_hrtime() or similar
-    return engine->interrupted; 
+    return engine->interrupted;
 }
 
 // --- Engine Lifecycle ---
 
-js_engine_t* js_engine_create(service_t *svc, size_t mem_limit) {
+js_engine_t *js_engine_create(service_t *svc, size_t mem_limit) {
     js_engine_t *engine = calloc(1, sizeof(js_engine_t));
     if (!engine) return NULL;
 
@@ -102,20 +104,23 @@ js_engine_t* js_engine_create(service_t *svc, size_t mem_limit) {
     }
 
     // --- Inject EdgeOS API Object ---
-    JSValue global_obj = JS_GetGlobalObject(engine->ctx);    
+    JSValue global_obj = JS_GetGlobalObject(engine->ctx);
     // Log API
     JSValue log_obj = JS_NewObject(engine->ctx);
-    JS_SetPropertyStr(engine->ctx, log_obj, "info", JS_NewCFunction(engine->ctx, js_log_info, "info", 1));
+    JS_SetPropertyStr(engine->ctx, log_obj, "info",
+                      JS_NewCFunction(engine->ctx, js_log_info, "info", 1));
     JS_SetPropertyStr(engine->ctx, global_obj, "Log", log_obj);
 
     // DataHub API
     JSValue dh_obj = JS_NewObject(engine->ctx);
-    JS_SetPropertyStr(engine->ctx, dh_obj, "read", JS_NewCFunction(engine->ctx, js_datahub_read, "read", 1));
+    JS_SetPropertyStr(engine->ctx, dh_obj, "read",
+                      JS_NewCFunction(engine->ctx, js_datahub_read, "read", 1));
     JS_SetPropertyStr(engine->ctx, global_obj, "DataHub", dh_obj);
 
     // Arbiter API
     JSValue arb_obj = JS_NewObject(engine->ctx);
-    JS_SetPropertyStr(engine->ctx, arb_obj, "control", JS_NewCFunction(engine->ctx, js_arbiter_control, "control", 2));
+    JS_SetPropertyStr(engine->ctx, arb_obj, "control",
+                      JS_NewCFunction(engine->ctx, js_arbiter_control, "control", 2));
     JS_SetPropertyStr(engine->ctx, global_obj, "Arbiter", arb_obj);
 
     JS_FreeValue(engine->ctx, global_obj);
@@ -158,7 +163,7 @@ int js_engine_run_file(js_engine_t *engine, const char *file_path) {
     return ret;
 }
 
-uv_loop_t* js_engine_get_loop(js_engine_t *engine) {
+uv_loop_t *js_engine_get_loop(js_engine_t *engine) {
     return service_get_loop(engine->svc);
 }
 

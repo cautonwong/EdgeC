@@ -1,7 +1,8 @@
 #include "arbiter.h"
+
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
 typedef struct {
     char name[32];
@@ -65,13 +66,13 @@ static void try_schedule(arbiter_t *arb, bus_internal_t *bus) {
         if (owner->on_preempt) {
             owner->on_preempt(owner->user_preempt);
         }
-        
-        // Put owner back to waiters or discard? 
-        // For simple scheduling, we discard or re-enqueue. 
+
+        // Put owner back to waiters or discard?
+        // For simple scheduling, we discard or re-enqueue.
         // Docs suggest "preempted", so we move it back.
         bus->owner = NULL;
         enqueue_req(bus, owner);
-        
+
         // Grant to candidate
         bus->waiters = cand->next;
         cand->next = NULL;
@@ -85,22 +86,22 @@ static void arbiter_tick(uv_timer_t *t) {
 
     for (int i = 0; i < BUS_MAX; i++) {
         bus_internal_t *bus = &arb->buses[i];
-        
+
         // Check timeouts in waiters
         arbiter_req_t **p = &bus->waiters;
         while (*p) {
             if ((*p)->expire_at && (*p)->expire_at < now) {
                 arbiter_req_t *dead = *p;
                 *p = dead->next;
-                // Callback for timeout? 
+                // Callback for timeout?
                 if (dead->on_done) dead->on_done(dead->user_done);
-                // Note: user manages memory of req or we free it? 
+                // Note: user manages memory of req or we free it?
                 // In this implementation, req is provided by caller.
             } else {
                 p = &(*p)->next;
             }
         }
-        
+
         try_schedule(arb, bus);
     }
 }
@@ -108,7 +109,7 @@ static void arbiter_tick(uv_timer_t *t) {
 int arbiter_init(arbiter_t **out_arb, uv_loop_t *loop) {
     arbiter_t *arb = calloc(1, sizeof(struct arbiter));
     arb->loop = loop;
-    
+
     for (int i = 0; i < BUS_MAX; i++) {
         arb->buses[i].id = (arbiter_bus_t)i;
     }
@@ -116,7 +117,7 @@ int arbiter_init(arbiter_t **out_arb, uv_loop_t *loop) {
     uv_timer_init(loop, &arb->tick);
     arb->tick.data = arb;
     uv_timer_start(&arb->tick, arbiter_tick, 10, 10);
-    
+
     *out_arb = arb;
     return 0;
 }
@@ -127,9 +128,9 @@ static void on_arb_close(uv_handle_t *handle) {
 
 void arbiter_shutdown(arbiter_t *arb) {
     if (!arb) return;
-    if (!uv_is_closing((uv_handle_t*)&arb->tick)) {
+    if (!uv_is_closing((uv_handle_t *)&arb->tick)) {
         arb->tick.data = arb;
-        uv_close((uv_handle_t*)&arb->tick, on_arb_close);
+        uv_close((uv_handle_t *)&arb->tick, on_arb_close);
     }
 }
 
@@ -144,7 +145,7 @@ int arbiter_submit(arbiter_bus_handle_t bus_h, arbiter_req_t *req) {
     bus_internal_t *bus = (bus_internal_t *)bus_h;
     req->expire_at = req->timeout_ms ? (uv_now(uv_default_loop()) + req->timeout_ms) : 0;
     req->next = NULL;
-    
+
     enqueue_req(bus, req);
     return 0;
 }

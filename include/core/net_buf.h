@@ -10,9 +10,9 @@
 #ifndef EDGE_NET_BUF_H
 #define EDGE_NET_BUF_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdbool.h>
 #include <uv.h>
 
 #ifdef __cplusplus
@@ -94,7 +94,7 @@ typedef struct net_buf_pool {
 
     /** Backing storage memory block. */
     uint8_t *storage;
-    
+
     /** Flag to indicate if storage was dynamically allocated. */
     bool is_dynamic;
 } net_buf_pool_t;
@@ -107,15 +107,15 @@ typedef struct net_buf_pool {
  * @param size Size of the data payload for each buffer.
  * @param destroy_cb Optional callback invoked when a buffer is returned to the pool.
  * @param user_data User data passed to destroy_cb.
- * 
+ *
  * @return 0 on success, negative error code on failure.
  */
-int net_buf_pool_init(net_buf_pool_t *pool, uint16_t count, uint16_t size, 
+int net_buf_pool_init(net_buf_pool_t *pool, uint16_t count, uint16_t size,
                       void (*destroy_cb)(net_buf_t *buf), void *user_data);
 
 /**
  * @brief Destroy a network buffer pool.
- * 
+ *
  * Frees the backing storage and synchronization primitives.
  * CAUTION: Ensure all buffers are returned before calling this.
  *
@@ -128,7 +128,7 @@ void net_buf_pool_destroy(net_buf_pool_t *pool);
  *
  * @param pool The pool to allocate from.
  * @param timeout_ms Maximum time to wait for a buffer (0 for no wait, -1 for forever).
- * 
+ *
  * @return Pointer to the allocated buffer, or NULL if timeout occurred.
  */
 net_buf_t *net_buf_alloc(net_buf_pool_t *pool, int64_t timeout_ms);
@@ -139,14 +139,14 @@ net_buf_t *net_buf_alloc(net_buf_pool_t *pool, int64_t timeout_ms);
  * @param pool The pool to allocate from.
  * @param reserve Amount of headroom to reserve.
  * @param timeout_ms Maximum time to wait.
- * 
+ *
  * @return Pointer to the allocated buffer, or NULL.
  */
 net_buf_t *net_buf_alloc_with_data(net_buf_pool_t *pool, size_t reserve, int64_t timeout_ms);
 
 /**
  * @brief Get a reference to a buffer.
- * 
+ *
  * Increments the reference count.
  *
  * @param buf The buffer to reference.
@@ -156,7 +156,7 @@ net_buf_t *net_buf_ref(net_buf_t *buf);
 
 /**
  * @brief Release a buffer.
- * 
+ *
  * Decrements the reference count. If it reaches zero, the buffer is returned to the pool.
  * Recursively unreferences fragments if present.
  *
@@ -191,7 +191,7 @@ net_buf_t *net_buf_frag_del(net_buf_t *parent, net_buf_t *frag);
 
 /**
  * @brief Reserve headroom in the buffer.
- * 
+ *
  * Adjusts the data pointer to leave space at the beginning.
  * Must be called on an empty buffer.
  *
@@ -266,4 +266,4 @@ net_buf_t *net_buf_frag_last(net_buf_t *buf);
 }
 #endif
 
-#endif // EDGE_NET_BUF_H
+#endif  // EDGE_NET_BUF_H

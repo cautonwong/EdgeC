@@ -2,12 +2,13 @@
 #define EDGE_EVENT_H
 
 #include <stdint.h>
+
 #include "shmring.h"
 
 // 工业系统核心事件 ID
 typedef enum {
     SYS_EVENT_NONE = 0,
-    SYS_EVENT_TIME_CHANGED, // Scenario 8
+    SYS_EVENT_TIME_CHANGED,  // Scenario 8
     SYS_EVENT_BUS_FAULT,
     SYS_EVENT_APP_READY,
     SYS_EVENT_ALARM_CRITICAL,

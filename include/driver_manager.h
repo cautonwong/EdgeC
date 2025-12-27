@@ -1,7 +1,8 @@
 #pragma once
 
 #include <stdint.h>
-#include "arbiter.h" // For arbiter_bus_t
+
+#include "arbiter.h"  // For arbiter_bus_t
 
 #ifdef __cplusplus
 extern "C" {

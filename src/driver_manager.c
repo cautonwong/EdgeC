@@ -1,6 +1,7 @@
 #include "driver_manager.h"
-#include <stdlib.h>
+
 #include <stdio.h>
+#include <stdlib.h>
 #include <uv.h>
 
 struct driver_manager_s {
@@ -17,7 +18,7 @@ driver_manager_t* driver_manager_create(void) {
 
     // Use libuv synchronous FS API
     uv_fs_t req;
-    
+
     // RS485_1
     int fd1 = uv_fs_open(NULL, &req, "/dev/null", UV_FS_O_RDWR | UV_FS_O_NONBLOCK, 0, NULL);
     dm->fds[BUS_RS485_1] = fd1;

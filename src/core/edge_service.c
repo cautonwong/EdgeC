@@ -1,7 +1,8 @@
 #include "edge_service.h"
+
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <signal.h>
 #include <string.h>
 
 // 结构体定义隐藏在 .c 文件中，实现黑盒封装
@@ -10,17 +11,17 @@ struct service_s {
     service_options_t opts;
 
     // 组件指针
-    net_buf_pool_t    *pool;
-    arbiter_t         *arbiter;
-    datahub_t         *data_hub;
+    net_buf_pool_t *pool;
+    arbiter_t *arbiter;
+    datahub_t *data_hub;
     persistence_mgr_t *storage;
-    northbound_mgr_t  *cloud;
-    
+    northbound_mgr_t *cloud;
+
     // 指令桥接
-    uv_async_t        cmd_async;
-    uv_mutex_t        cmd_lock;
-    service_cmd_t     cmd_queue[16];
-    int               cmd_head, cmd_tail;
+    uv_async_t cmd_async;
+    uv_mutex_t cmd_lock;
+    service_cmd_t cmd_queue[16];
+    int cmd_head, cmd_tail;
 
     int shutting_down;
 };
@@ -53,7 +54,7 @@ static void on_cmd_async(uv_async_t *handle) {
     }
 }
 
-service_t* service_new(service_options_t *opts) {
+service_t *service_new(service_options_t *opts) {
     service_t *svc = calloc(1, sizeof(struct service_s));
     if (svc && opts) {
         svc->opts = *opts;
@@ -61,11 +62,11 @@ service_t* service_new(service_options_t *opts) {
     return svc;
 }
 
-uv_loop_t* service_get_loop(service_t *svc) {
+uv_loop_t *service_get_loop(service_t *svc) {
     return svc ? svc->loop : NULL;
 }
 
-shm_ring_t* service_get_ring(service_t *svc) {
+shm_ring_t *service_get_ring(service_t *svc) {
     return svc ? &svc->data_hub->ring : NULL;
 }
 
@@ -73,13 +74,8 @@ void service_set_loop(service_t *svc, uv_loop_t *loop) {
     if (svc) svc->loop = loop;
 }
 
-int service_run(service_t *svc, 
-                uv_loop_t *loop,
-                net_buf_pool_t *pool,
-                arbiter_t *arbiter,
-                datahub_t *hub,
-                persistence_mgr_t *storage,
-                northbound_mgr_t *cloud) {
+int service_run(service_t *svc, uv_loop_t *loop, net_buf_pool_t *pool, arbiter_t *arbiter,
+                datahub_t *hub, persistence_mgr_t *storage, northbound_mgr_t *cloud) {
     if (!svc || !loop) return -1;
 
     // 注入依赖
@@ -124,7 +120,7 @@ int service_post_cmd(service_t *svc, service_cmd_t *cmd) {
     return uv_async_send(&svc->cmd_async);
 }
 
-static void on_walk_close(uv_handle_t* handle, void* arg) {
+static void on_walk_close(uv_handle_t *handle, void *arg) {
     (void)arg;
     if (!uv_is_closing(handle)) {
         // 如果句柄有自己的自定义释放逻辑（如 malloc 分配的），应在各自的 close_cb 中处理
@@ -139,7 +135,7 @@ void service_delete(service_t *svc) {
     if (svc->loop) {
         // 关闭所有活跃句柄
         uv_walk(svc->loop, on_walk_close, NULL);
-        
+
         // 循环运行直到所有句柄被彻底释放
         int ret;
         do {
@@ -148,7 +144,7 @@ void service_delete(service_t *svc) {
                 uv_run(svc->loop, UV_RUN_ONCE);
             }
         } while (ret == UV_EBUSY);
-        
+
         svc->loop = NULL;
     }
 

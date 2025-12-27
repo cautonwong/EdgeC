@@ -1,16 +1,17 @@
+#include <cmocka.h>
+#include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
-#include <sys/mman.h>
-#include <uv.h>
-#include "datahub.h"
-#include "algorithm_sum.h"
-#include "persistence_mgr.h"
-#include "shmring.h"
-#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#include <uv.h>
+
+#include "algorithm_sum.h"
+#include "datahub.h"
+#include "persistence_mgr.h"
+#include "shmring.h"
 
 typedef struct {
     uv_loop_t *loop;
@@ -31,7 +32,7 @@ static void test_end_to_end_flow(void **state) {
     (void)state;
     integration_ctx_t ctx = {0};
     ctx.loop = uv_default_loop();
-    
+
     char ring_name[] = "/test_integration_hub";
     shm_unlink(ring_name);
 
@@ -46,20 +47,18 @@ static void test_end_to_end_flow(void **state) {
 
     // 4. Inject Data into DataHub
     for (int i = 0; i < 15; i++) {
-        PipeMsg msg = {
-            .type = PIPEMSG_SCALAR_F64,
-            .tag_id = 100,
-            .payload.val_f = 10.0,
-            .ts = uv_now(ctx.loop)
-        };
+        PipeMsg msg = {.type = PIPEMSG_SCALAR_F64,
+                       .tag_id = 100,
+                       .payload.val_f = 10.0,
+                       .ts = uv_now(ctx.loop)};
         datahub_publish(&ctx.data_hub, &msg);
-        
+
         // Manual bridge: In real app, something reads from hub and submits to algo.
         // For test, we read from hub and submit.
         PipeMsg out;
         uint64_t seq = (uint64_t)i;
         if (shm_ring_read(&ctx.data_hub.ring, &seq, &out) == 0) {
-            algo_sample_t sample = { .value = out.payload.val_f, .ts = out.ts };
+            algo_sample_t sample = {.value = out.payload.val_f, .ts = out.ts};
             algo_submit(ctx.algo, &sample);
         }
     }

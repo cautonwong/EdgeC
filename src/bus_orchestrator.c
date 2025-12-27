@@ -1,9 +1,10 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
+
 #include "arbiter.h"
-#include "io_executor.h"
 #include "edge_driver.h"
+#include "io_executor.h"
 #include "shmring.h"
 
 typedef struct {
@@ -20,14 +21,15 @@ typedef struct {
 
 static void on_io_complete(io_job_t *io_job, void *user_data) {
     job_context_t *ctx = (job_context_t *)user_data;
-    
+
     if (io_job->result == IO_RESULT_SUCCESS) {
         if (!ctx->is_write) {
             PipeMsg msg = {0};
             msg.tag_id = ctx->point->tag_id;
             msg.ts = uv_now(uv_default_loop());
-            
-            if (ctx->driver->parse_response(ctx->point, io_job->rx_buf, io_job->rx_len, &msg) == 0) {
+
+            if (ctx->driver->parse_response(ctx->point, io_job->rx_buf, io_job->rx_len, &msg) ==
+                0) {
                 shm_ring_write(ctx->ring, &msg);
             }
         } else {
@@ -51,9 +53,9 @@ static void on_bus_granted(void *user) {
     }
 }
 
-static int _request_submit(arbiter_t *arb, arbiter_bus_t bus, edge_driver_t *driver, 
-                          edge_point_config_t *point, uint32_t slave_id,
-                          shm_ring_t *ring, arbiter_prio_t prio, bool is_write) {
+static int _request_submit(arbiter_t *arb, arbiter_bus_t bus, edge_driver_t *driver,
+                           edge_point_config_t *point, uint32_t slave_id, shm_ring_t *ring,
+                           arbiter_prio_t prio, bool is_write) {
     job_context_t *ctx = calloc(1, sizeof(job_context_t));
     ctx->arbiter = arb;
     ctx->driver = driver;
@@ -63,7 +65,7 @@ static int _request_submit(arbiter_t *arb, arbiter_bus_t bus, edge_driver_t *dri
     ctx->is_write = is_write;
 
     // Register bus (simple mapping for now as per arbiter.c)
-    ctx->bus_h = arbiter_bus_register(arb, NULL); 
+    ctx->bus_h = arbiter_bus_register(arb, NULL);
 
     ctx->io_job = io_job_create((io_bus_id_t)bus, 32, 32);
     ctx->io_job->cb = on_io_complete;
@@ -84,13 +86,14 @@ static int _request_submit(arbiter_t *arb, arbiter_bus_t bus, edge_driver_t *dri
     return arbiter_submit(ctx->bus_h, &ctx->arb_req);
 }
 
-int edge_request_read(arbiter_t *arb, arbiter_bus_t bus, edge_driver_t *driver, 
-                     edge_point_config_t *point, uint32_t slave_id, shm_ring_t *ring) {
+int edge_request_read(arbiter_t *arb, arbiter_bus_t bus, edge_driver_t *driver,
+                      edge_point_config_t *point, uint32_t slave_id, shm_ring_t *ring) {
     return _request_submit(arb, bus, driver, point, slave_id, ring, ARB_PRIO_NORMAL, false);
 }
 
-int edge_request_write(arbiter_t *arb, arbiter_bus_t bus, edge_driver_t *driver, 
-                      edge_point_config_t *point, uint32_t slave_id, shm_ring_t *ring, bool emergency) {
+int edge_request_write(arbiter_t *arb, arbiter_bus_t bus, edge_driver_t *driver,
+                       edge_point_config_t *point, uint32_t slave_id, shm_ring_t *ring,
+                       bool emergency) {
     arbiter_prio_t prio = emergency ? ARB_PRIO_EMERGENCY : ARB_PRIO_HIGH;
     return _request_submit(arb, bus, driver, point, slave_id, ring, prio, true);
 }

@@ -1,11 +1,13 @@
 #include "northbound_mgr.h"
-#include "web_server.h"
-#include "rest_server.h"
-#include "edge_service.h"
-#include <stdlib.h>
-#include <stdio.h>
 
-static void on_walk_close(uv_handle_t* handle, void* arg) {
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "edge_service.h"
+#include "rest_server.h"
+#include "web_server.h"
+
+static void on_walk_close(uv_handle_t *handle, void *arg) {
     (void)arg;
     if (!uv_is_closing(handle)) {
         uv_close(handle, NULL);
@@ -19,23 +21,23 @@ static void on_north_stop(uv_async_t *handle) {
 
 static void north_thread_entry(void *arg) {
     northbound_mgr_t *mgr = (northbound_mgr_t *)arg;
-    service_t *svc = (service_t *)mgr->user_data; 
-    
+    service_t *svc = (service_t *)mgr->user_data;
+
     uv_loop_init(&mgr->loop);
     uv_async_init(&mgr->loop, &mgr->stop_async, on_north_stop);
     mgr->stop_async.data = mgr;
-    
+
     mgr->web_srv = web_server_create(&mgr->loop, mgr->web_port);
     mgr->rest_srv = rest_server_create(&mgr->loop, svc, mgr->rest_port);
-    
+
     printf("[Northbound] Stack running. UI:%d, API:%d\n", mgr->web_port, mgr->rest_port);
-    
+
     uv_run(&mgr->loop, UV_RUN_DEFAULT);
-    
+
     // Cleanup sequence
     web_server_destroy(mgr->web_srv);
     rest_server_destroy(mgr->rest_srv);
-    
+
     // 2. 强制清理 loop 上的所有残留句柄 (包括未完成的 TCP 连接)
     uv_walk(&mgr->loop, on_walk_close, NULL);
     while (uv_loop_close(&mgr->loop) == UV_EBUSY) {

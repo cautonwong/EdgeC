@@ -4,10 +4,11 @@
  */
 
 #include "core/net_buf.h"
+
+#include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include <assert.h>
 
 /* Helper to calculate the true size of a node including padding */
 static size_t get_node_size(uint16_t data_size) {
@@ -15,12 +16,12 @@ static size_t get_node_size(uint16_t data_size) {
     return (sizeof(net_buf_t) + data_size + 7) & (size_t)~7;
 }
 
-int net_buf_pool_init(net_buf_pool_t *pool, uint16_t count, uint16_t size, 
+int net_buf_pool_init(net_buf_pool_t *pool, uint16_t count, uint16_t size,
                       void (*destroy_cb)(net_buf_t *buf), void *user_data) {
     if (!pool || count == 0 || size == 0) return -1;
 
     memset(pool, 0, sizeof(*pool));
-    
+
     // Allocate contiguous memory block for all buffers
     size_t node_size = get_node_size(size);
     pool->storage = calloc(count, node_size);
@@ -38,7 +39,7 @@ int net_buf_pool_init(net_buf_pool_t *pool, uint16_t count, uint16_t size,
         free(pool->storage);
         return -1;
     }
-    
+
     if (uv_cond_init(&pool->cond) != 0) {
         uv_mutex_destroy(&pool->lock);
         free(pool->storage);
@@ -50,13 +51,13 @@ int net_buf_pool_init(net_buf_pool_t *pool, uint16_t count, uint16_t size,
 
 void net_buf_pool_destroy(net_buf_pool_t *pool) {
     if (!pool) return;
-    
+
     // Note: This does not verify if all buffers are returned.
     // It is the user's responsibility to ensure clean shutdown.
-    
+
     uv_mutex_destroy(&pool->lock);
     uv_cond_destroy(&pool->cond);
-    
+
     if (pool->is_dynamic && pool->storage) {
         free(pool->storage);
         pool->storage = NULL;
@@ -65,16 +66,16 @@ void net_buf_pool_destroy(net_buf_pool_t *pool) {
 
 static net_buf_t *pool_get_uninit(net_buf_pool_t *pool) {
     if (pool->uninit_count == 0) return NULL;
-    
+
     size_t node_size = get_node_size(pool->buf_size);
     size_t index = pool->buf_count - pool->uninit_count;
-    
+
     net_buf_t *buf = (net_buf_t *)(pool->storage + (index * node_size));
-    
+
     buf->pool = pool;
     buf->size = pool->buf_size;
-    buf->__buf_start[0] = 0; // Touch memory
-    
+    buf->__buf_start[0] = 0;  // Touch memory
+
     pool->uninit_count--;
     return buf;
 }
@@ -107,12 +108,12 @@ net_buf_t *net_buf_alloc(net_buf_pool_t *pool, int64_t timeout_ms) {
         } else {
             // libuv requires absolute time for timedwait
             // This is a simplification. For precise timeouts, we need uv_hrtime()
-            // Here we assume simple wait or fail if not supported well, 
+            // Here we assume simple wait or fail if not supported well,
             // but for portability, let's treat >0 as "wait at least once".
             // NOTE: Implementing precise relative timeout with pthreads cond is verbose.
             // For now, we use a simple wait if timeout > 0.
             // In production, map timeout_ms to absolute struct timespec.
-             uv_cond_wait(&pool->cond, &pool->lock);
+            uv_cond_wait(&pool->cond, &pool->lock);
         }
     }
 
@@ -147,11 +148,11 @@ net_buf_t *net_buf_alloc_with_data(net_buf_pool_t *pool, size_t reserve, int64_t
 net_buf_t *net_buf_ref(net_buf_t *buf) {
     if (buf) {
         // Atomic increment would be better for lock-free
-        // but since we rely on pool lock for free, 
+        // but since we rely on pool lock for free,
         // using simple increment assumes thread safety implies ownership
         // OR the user protects single buffer access.
         // For shared buffers, atomic is mandatory.
-        // Zephyr uses atomic_inc. We assume single-thread ownership transition 
+        // Zephyr uses atomic_inc. We assume single-thread ownership transition
         // or atomic primitives availability.
         // Let's use gcc builtin for safety.
         __sync_fetch_and_add(&buf->ref, 1);
@@ -176,7 +177,7 @@ void net_buf_unref(net_buf_t *buf) {
     buf->frags = NULL;
 
     struct net_buf_pool *pool = buf->pool;
-    
+
     if (pool->destroy_cb) {
         pool->destroy_cb(buf);
     }
@@ -190,12 +191,12 @@ void net_buf_unref(net_buf_t *buf) {
 
 void net_buf_frag_add(net_buf_t *head, net_buf_t *frag) {
     if (!head || !frag) return;
-    
+
     if (!head->frags) {
         head->frags = frag;
         return;
     }
-    
+
     net_buf_t *last = head->frags;
     while (last->next) {
         last = last->next;
@@ -211,37 +212,37 @@ void net_buf_frag_insert(net_buf_t *parent, net_buf_t *frag) {
 
 net_buf_t *net_buf_frag_del(net_buf_t *parent, net_buf_t *frag) {
     if (!parent || !frag) return NULL;
-    
+
     if (parent->frags == frag) {
         parent->frags = frag->next;
         frag->next = NULL;
         return frag;
     }
-    
+
     if (parent->next == frag) {
         parent->next = frag->next;
         frag->next = NULL;
         return frag;
     }
-    
+
     // Search in chain if not direct child
     net_buf_t *prev = parent->frags ? parent->frags : parent->next;
     while (prev && prev->next != frag) {
         prev = prev->next;
     }
-    
+
     if (prev) {
         prev->next = frag->next;
         frag->next = NULL;
         return frag;
     }
-    
+
     return NULL;
 }
 
 net_buf_t *net_buf_frag_last(net_buf_t *buf) {
     if (!buf->frags) return buf;
-    
+
     net_buf_t *cur = buf->frags;
     while (cur->next) {
         cur = cur->next;

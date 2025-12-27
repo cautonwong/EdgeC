@@ -1,11 +1,12 @@
+#include <cmocka.h>
+#include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
-#include <uv.h>
-#include "core/net_buf.h"
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
+#include <uv.h>
+
+#include "core/net_buf.h"
 
 // Mock destroy callback
 static int destroy_count = 0;
@@ -102,7 +103,7 @@ static void test_fragmentation(void **state) {
     // Insert frag_mid after frag1: head -> frag1 -> frag_mid -> frag2
     net_buf_t *frag_mid = net_buf_alloc(pool, 0);
     net_buf_frag_insert(frag1, frag_mid);
-    
+
     assert_ptr_equal(frag1->next, frag_mid);
     assert_ptr_equal(frag_mid->next, frag2);
 
@@ -111,13 +112,13 @@ static void test_fragmentation(void **state) {
     assert_ptr_equal(removed, frag1);
     assert_ptr_equal(head->frags, frag_mid);
     assert_ptr_equal(frag_mid->next, frag2);
-    
+
     // Cleanup removed frag
-    net_buf_unref(removed); // destroy_count -> 1
-    
+    net_buf_unref(removed);  // destroy_count -> 1
+
     // Cleanup head (recursively unrefs frag_mid and frag2)
-    net_buf_unref(head); // destroy_count -> 1+3 = 4
-    
+    net_buf_unref(head);  // destroy_count -> 1+3 = 4
+
     assert_int_equal(destroy_count, 4);
 }
 

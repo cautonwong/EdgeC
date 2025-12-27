@@ -42,13 +42,13 @@ unset(_expectedTargets)
 
 
 # The installation prefix configured by this project.
-set(_IMPORT_PREFIX "/root/.local/linux-aarch64")
+get_filename_component(_IMPORT_PREFIX "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
 
 # Create imported target cjson
 add_library(cjson STATIC IMPORTED)
 
 set_target_properties(cjson PROPERTIES
-  INTERFACE_INCLUDE_DIRECTORIES "/root/.local/linux-aarch64/include"
+  INTERFACE_INCLUDE_DIRECTORIES "${_IMPORT_PREFIX}/include"
   INTERFACE_LINK_LIBRARIES "m"
 )
 
@@ -76,7 +76,7 @@ but this file does not exist.  Possible reasons include:
 * The file was deleted, renamed, or moved to another location.
 * An install or uninstall procedure did not complete successfully.
 * The installation package was faulty and contained
-   \"${CMAKE_CURRENT_LIST_FILE}\"
+   \"${CMAKE_CURRENT_LIST_FILE}\" 
 but not all the files it references.
 ")
     endif()

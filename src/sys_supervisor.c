@@ -1,16 +1,19 @@
 #include "sys_supervisor.h"
-#include "edge_event.h"
+
+#include <errno.h>
+#include <stdio.h>
 #include <sys/timerfd.h>
 #include <unistd.h>
-#include <stdio.h>
-#include <errno.h>
+
+#include "edge_event.h"
 
 static void on_time_jump(uv_poll_t *handle, int status, int events) {
-    (void)status; (void)events;
+    (void)status;
+    (void)events;
     sys_supervisor_t *sv = (sys_supervisor_t *)handle->data;
-    
+
     uint64_t expirations;
-    uv_buf_t buf = uv_buf_init((char*)&expirations, sizeof(expirations));
+    uv_buf_t buf = uv_buf_init((char *)&expirations, sizeof(expirations));
     uv_fs_t read_req;
 
     // Use libuv fs API for reading from the timerfd
@@ -22,10 +25,10 @@ static void on_time_jump(uv_poll_t *handle, int status, int events) {
         if (read_req.result == -ECANCELED || errno == ECANCELED) {
             printf("[Supervisor] CRITICAL: System time jump detected! Notifying system...\n");
             edge_event_publish(sv->ring, SYS_EVENT_TIME_CHANGED, 0);
-            
+
             // Rearm the timerfd
             struct itimerspec new_value = {0};
-            new_value.it_value.tv_sec = 3600; 
+            new_value.it_value.tv_sec = 3600;
             timerfd_settime(sv->tfd, TFD_TIMER_ABSTIME | TFD_TIMER_CANCEL_ON_SET, &new_value, NULL);
         }
     }
@@ -40,7 +43,7 @@ int sys_supervisor_init(sys_supervisor_t *sv, uv_loop_t *loop, shm_ring_t *ring)
     if (sv->tfd < 0) return -1;
 
     struct itimerspec its = {0};
-    its.it_value.tv_sec = 3600; 
+    its.it_value.tv_sec = 3600;
     if (timerfd_settime(sv->tfd, TFD_TIMER_ABSTIME | TFD_TIMER_CANCEL_ON_SET, &its, NULL) != 0) {
         close(sv->tfd);
         return -1;
@@ -55,11 +58,11 @@ int sys_supervisor_init(sys_supervisor_t *sv, uv_loop_t *loop, shm_ring_t *ring)
 }
 
 void sys_supervisor_close(sys_supervisor_t *sv) {
-    if (!uv_is_closing((uv_handle_t*)&sv->tfd_poll)) {
+    if (!uv_is_closing((uv_handle_t *)&sv->tfd_poll)) {
         uv_poll_stop(&sv->tfd_poll);
-        uv_close((uv_handle_t*)&sv->tfd_poll, NULL);
+        uv_close((uv_handle_t *)&sv->tfd_poll, NULL);
     }
-    
+
     // Use libuv fs API for closing the fd
     uv_fs_t close_req;
     uv_fs_close(sv->loop, &close_req, sv->tfd, NULL);

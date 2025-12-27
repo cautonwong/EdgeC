@@ -2,13 +2,14 @@
 #define EDGE_SERVICE_H
 
 #include <uv.h>
-#include "core/net_buf.h"
+
 #include "arbiter.h"
+#include "core/net_buf.h"
 #include "datahub.h"
-#include "persistence_mgr.h"
 #include "northbound_mgr.h"
-#include "sys_supervisor.h"
+#include "persistence_mgr.h"
 #include "profile_loader.h"
+#include "sys_supervisor.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,7 +33,7 @@ typedef struct {
 /**
  * @brief 创建服务实例 (黑盒)
  */
-service_t* service_new(service_options_t *opts);
+service_t *service_new(service_options_t *opts);
 
 /**
  * @brief 注入事件循环 (用于在 run 之前初始化依赖 loop 的组件)
@@ -42,23 +43,18 @@ void service_set_loop(service_t *svc, uv_loop_t *loop);
 /**
  * @brief 获取服务容器的事件循环
  */
-uv_loop_t* service_get_loop(service_t *svc);
+uv_loop_t *service_get_loop(service_t *svc);
 
 /**
  * @brief 获取数据中枢的环形缓冲区指针
  */
-shm_ring_t* service_get_ring(service_t *svc);
+shm_ring_t *service_get_ring(service_t *svc);
 
 /**
  * @brief 启动服务容器并注入依赖 (黑盒模式)
  */
-int service_run(service_t *svc, 
-                uv_loop_t *loop,
-                net_buf_pool_t *pool,
-                arbiter_t *arbiter,
-                datahub_t *hub,
-                persistence_mgr_t *storage,
-                northbound_mgr_t *cloud);
+int service_run(service_t *svc, uv_loop_t *loop, net_buf_pool_t *pool, arbiter_t *arbiter,
+                datahub_t *hub, persistence_mgr_t *storage, northbound_mgr_t *cloud);
 
 /**
  * @brief 从外部（如 REST 线程）投递指令
@@ -73,8 +69,8 @@ typedef enum {
 typedef struct {
     service_cmd_type_t type;
     uint32_t tag_id;
-    double   value;
-    void     *data;
+    double value;
+    void *data;
 } service_cmd_t;
 
 int service_post_cmd(service_t *svc, service_cmd_t *cmd);
@@ -88,4 +84,4 @@ void service_delete(service_t *svc);
 }
 #endif
 
-#endif // EDGE_SERVICE_H
+#endif  // EDGE_SERVICE_H

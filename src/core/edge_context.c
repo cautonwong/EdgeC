@@ -1,4 +1,5 @@
 #include "core/edge_context.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,9 +11,8 @@ static void on_poll_timer(uv_timer_t *handle) {
     if (ctx->shutting_down) return;
 
     for (size_t i = 0; i < ctx->config->point_count; i++) {
-        edge_request_read(ctx->arbiter, (arbiter_bus_t)ctx->config->bus_id, 
-                         &modbus_rtu_driver, &ctx->config->points[i], 
-                         ctx->config->slave_id, &ctx->data_hub.ring);
+        edge_request_read(ctx->arbiter, (arbiter_bus_t)ctx->config->bus_id, &modbus_rtu_driver,
+                          &ctx->config->points[i], ctx->config->slave_id, &ctx->data_hub.ring);
     }
 }
 
@@ -23,7 +23,8 @@ static void on_signal(uv_signal_t *handle, int signum) {
 }
 
 static void on_hub_data(datahub_t *hub, void *user_data) {
-    (void)hub; (void)user_data;
+    (void)hub;
+    (void)user_data;
 }
 
 int edge_ctx_init(edge_ctx_t *ctx, const char *config_file) {
@@ -42,15 +43,15 @@ int edge_ctx_init(edge_ctx_t *ctx, const char *config_file) {
         return -1;
     }
 
-    shm_unlink("/edgeos_hub"); 
+    shm_unlink("/edgeos_hub");
     int r = datahub_init(&ctx->data_hub, ctx->loop, "/edgeos_hub", 128, on_hub_data, ctx);
     if (r != 0) return r;
 
     io_executor_init(ctx->loop);
     ctx->arbiter = arbiter_create(ctx->loop);
-    
+
     // Pass pools to services if needed, or services can access ctx via user_data if redesigned
-    // For now, services allocate their own buffers or use stack, 
+    // For now, services allocate their own buffers or use stack,
     // but future IO jobs should use &ctx->packet_pool.
 
     algo_sum_init(&ctx->algo_sum, ctx->loop, &ctx->data_hub.ring, 100);
@@ -80,7 +81,7 @@ int edge_ctx_start(edge_ctx_t *ctx) {
     return uv_run(ctx->loop, UV_RUN_DEFAULT);
 }
 
-static void on_walk_close(uv_handle_t* handle, void* arg) {
+static void on_walk_close(uv_handle_t *handle, void *arg) {
     (void)arg;
     if (!uv_is_closing(handle)) {
         uv_close(handle, NULL);
@@ -98,7 +99,7 @@ void edge_ctx_stop(edge_ctx_t *ctx) {
     persistence_mgr_close(&ctx->storage);
     sys_supervisor_close(&ctx->supervisor);
     datahub_destroy(&ctx->data_hub);
-    
+
     profile_free(ctx->config);
 
     // Cleanup Pools
@@ -109,6 +110,6 @@ void edge_ctx_stop(edge_ctx_t *ctx) {
     uv_signal_stop(&ctx->sig_term);
 
     uv_walk(ctx->loop, on_walk_close, NULL);
-    
+
     uv_run(ctx->loop, UV_RUN_DEFAULT);
 }

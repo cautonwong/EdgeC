@@ -1,7 +1,7 @@
 #pragma once
+#include <stdbool.h>
 #include <stdint.h>
 #include <uv.h>
-#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,18 +19,15 @@ typedef enum {
 
 /* ===== Request Priority ===== */
 typedef enum {
-    ARB_PRIO_LOW = 0,      
-    ARB_PRIO_NORMAL = 10, 
-    ARB_PRIO_HIGH = 50,   
+    ARB_PRIO_LOW = 0,
+    ARB_PRIO_NORMAL = 10,
+    ARB_PRIO_HIGH = 50,
     ARB_PRIO_CRITICAL = 100,
-    ARB_PRIO_EMERGENCY = 200 
+    ARB_PRIO_EMERGENCY = 200
 } arbiter_prio_t;
 
 /* ===== Request Mode ===== */
-typedef enum {
-    ARB_SHARED = 0,   
-    ARB_EXCLUSIVE     
-} arbiter_mode_t;
+typedef enum { ARB_SHARED = 0, ARB_EXCLUSIVE } arbiter_mode_t;
 
 typedef struct arbiter arbiter_t;
 typedef struct arb_req arbiter_req_t;
@@ -43,11 +40,11 @@ struct arb_req {
     arbiter_prio_t priority;
     arbiter_mode_t mode;
     uint64_t timeout_ms;
-    
-    arbiter_on_start_cb   on_start;
+
+    arbiter_on_start_cb on_start;
     arbiter_on_preempt_cb on_preempt;
-    arbiter_on_done_cb    on_done;
-    
+    arbiter_on_done_cb on_done;
+
     void *user_start;
     void *user_preempt;
     void *user_done;
@@ -58,11 +55,11 @@ struct arb_req {
 };
 
 /* ===== API ===== */
-int  arbiter_init(arbiter_t **arb, uv_loop_t *loop);
+int arbiter_init(arbiter_t **arb, uv_loop_t *loop);
 void arbiter_shutdown(arbiter_t *arb);
 
 /* Register a bus by name (placeholder for now) */
-typedef void* arbiter_bus_handle_t;
+typedef void *arbiter_bus_handle_t;
 arbiter_bus_handle_t arbiter_bus_register(arbiter_t *arb, const char *name);
 
 /* Submit a request */
