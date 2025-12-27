@@ -8,10 +8,7 @@
 
 extern shm_ring_t *global_ring; 
 
-typedef struct {
-    modbus_read_cb cb;
-    void *user;
-} modbus_ctx_t;
+
 
 static uv_loop_t *g_loop;
 
@@ -34,7 +31,7 @@ static void on_io_done(io_job_t *job, void *u) {
         msg.ts = uv_now(g_loop);
         shm_ring_write(global_ring, &msg);
     }
-    // io_job_free 会释放 job->user (即 modbus_ctx_t)
+    // io_job_free 会释放 job->user_data (即 modbus_ctx_t)
     io_job_free(job);
 }
 
@@ -68,13 +65,13 @@ io_job_t* modbus_protocol_create_read_job(
     modbus_ctx_t *ctx = malloc(sizeof(modbus_ctx_t));
     ctx->cb = cb;
     ctx->user = user;
-    job->user = ctx;
+    job->user_data = ctx;
 
     return job;
 }
 
 void modbus_protocol_handle_response(io_job_t *job) {
-    modbus_ctx_t *ctx = (modbus_ctx_t *)job->user;
+    modbus_ctx_t *ctx = (modbus_ctx_t *)job->user_data;
     if (ctx && ctx->cb) {
         if (job->result == IO_RESULT_SUCCESS) {
             uint16_t regs[1] = {200}; // Mock

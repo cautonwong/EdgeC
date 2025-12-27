@@ -115,8 +115,24 @@ static void perform_io(io_thread_ctx_t *ctx, io_job_t *job) {
     }
 }
 
+static void on_dummy_close(uv_handle_t *handle) {
+    (void)handle;
+}
+
 static void on_async_submit(uv_async_t *handle) {
     io_thread_ctx_t *ctx = (io_thread_ctx_t *)handle->data;
+
+    // Graceful shutdown signal
+    if (!ctx->running) {
+        if (ctx->is_listening && !uv_is_closing((uv_handle_t *)&ctx->poll_handle)) {
+            uv_close((uv_handle_t *)&ctx->poll_handle, on_dummy_close);
+        }
+        if (!uv_is_closing((uv_handle_t *)&ctx->async_submit)) {
+            uv_close((uv_handle_t *)&ctx->async_submit, on_dummy_close);
+        }
+        return;
+    }
+
     while (true) {
         io_job_t *job = NULL;
         uv_mutex_lock(&ctx->queue_lock);
@@ -148,8 +164,11 @@ static void io_thread_entry(void *arg) {
     
     ctx->running = true;
     uv_run(ctx->loop, UV_RUN_DEFAULT);
+    
+    // Cleanup after loop exits
     uv_loop_close(ctx->loop);
     free(ctx->loop);
+    ctx->loop = NULL;
     ctx->running = false;
 }
 
@@ -187,11 +206,25 @@ int io_executor_init(uv_loop_t *main_loop) {
 void io_executor_shutdown(void) {
     for (int i = 0; i < IO_BUS_MAX; i++) {
         io_thread_ctx_t *ctx = &g_threads[i];
+        if (ctx->running) {
+            ctx->running = false;
+            // Wake up the loop so it can check the flag and exit
+            uv_async_send(&ctx->async_submit); 
+            uv_thread_join(&ctx->thread_id);
+        }
+    }
+
+    for (int i = 0; i < IO_BUS_MAX; i++) {
+        io_thread_ctx_t *ctx = &g_threads[i];
         uv_mutex_destroy(&ctx->queue_lock);
         uv_mutex_destroy(&ctx->done_lock);
         if (!uv_is_closing((uv_handle_t*)&ctx->async_complete)) {
             uv_close((uv_handle_t*)&ctx->async_complete, NULL);
         }
+    }
+    // Final loop run to process close callbacks
+    if(g_main_loop) {
+        uv_run(g_main_loop, UV_RUN_NOWAIT);
     }
 }
 

@@ -42,13 +42,13 @@ unset(_expectedTargets)
 
 
 # The installation prefix configured by this project.
-set(_IMPORT_PREFIX "/root/.local/linux-x86_64")
+get_filename_component(_IMPORT_PREFIX "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
 
 # Create imported target cjson
 add_library(cjson STATIC IMPORTED)
 
 set_target_properties(cjson PROPERTIES
-  INTERFACE_INCLUDE_DIRECTORIES "/root/.local/linux-x86_64/include"
+  INTERFACE_INCLUDE_DIRECTORIES "${_IMPORT_PREFIX}/include"
   INTERFACE_LINK_LIBRARIES "m"
 )
 

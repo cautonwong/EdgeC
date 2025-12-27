@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <setjmp.h>
 #include <cmocka.h>
+#include <stdlib.h>
 #include <uv.h>
 #include "algorithm_sum.h"
 #include <unistd.h>

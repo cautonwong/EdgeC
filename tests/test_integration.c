@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <setjmp.h>
 #include <cmocka.h>
+#include <sys/mman.h>
 #include <uv.h>
 #include "datahub.h"
 #include "algorithm_sum.h"

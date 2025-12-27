@@ -169,10 +169,13 @@ void net_buf_unref(net_buf_t *buf) {
     }
 
     // Free fragments first
-    if (buf->frags) {
-        net_buf_unref(buf->frags);
-        buf->frags = NULL;
+    net_buf_t *frag = buf->frags;
+    while (frag) {
+        net_buf_t *next_frag = frag->next;
+        net_buf_unref(frag);
+        frag = next_frag;
     }
+    buf->frags = NULL;
 
     struct net_buf_pool *pool = buf->pool;
     
