@@ -8,12 +8,13 @@
 
 typedef struct {
     arbiter_t *arbiter;
-    arbiter_bus_t bus_id;
+    arbiter_bus_handle_t bus_h;
     edge_driver_t *driver;
     edge_point_config_t *point;
     uint32_t slave_id;
     shm_ring_t *ring;
     io_job_t *io_job;
+    arbiter_req_t arb_req;
     bool is_write;
 } job_context_t;
 
@@ -36,15 +37,15 @@ static void on_io_complete(io_job_t *io_job, void *user_data) {
         fprintf(stderr, "[Orchestrator] IO Job Failed (Result: %d)\n", io_job->result);
     }
 
-    arbiter_release(ctx->arbiter, ctx->bus_id, ctx);
+    arbiter_release(ctx->bus_h, &ctx->arb_req);
     io_job_free(io_job);
     free(ctx);
 }
 
-static void on_bus_granted(arbiter_t *arb, arbiter_bus_t bus, void *user) {
+static void on_bus_granted(void *user) {
     job_context_t *ctx = (job_context_t *)user;
     if (io_executor_submit(ctx->io_job) != 0) {
-        arbiter_release(arb, bus, ctx);
+        arbiter_release(ctx->bus_h, &ctx->arb_req);
         io_job_free(ctx->io_job);
         free(ctx);
     }
@@ -55,12 +56,14 @@ static int _request_submit(arbiter_t *arb, arbiter_bus_t bus, edge_driver_t *dri
                           shm_ring_t *ring, arbiter_prio_t prio, bool is_write) {
     job_context_t *ctx = calloc(1, sizeof(job_context_t));
     ctx->arbiter = arb;
-    ctx->bus_id = bus;
     ctx->driver = driver;
     ctx->point = point;
     ctx->slave_id = slave_id;
     ctx->ring = ring;
     ctx->is_write = is_write;
+
+    // Register bus (simple mapping for now as per arbiter.c)
+    ctx->bus_h = arbiter_bus_register(arb, NULL); 
 
     ctx->io_job = io_job_create((io_bus_id_t)bus, 32, 32);
     ctx->io_job->cb = on_io_complete;
@@ -72,7 +75,13 @@ static int _request_submit(arbiter_t *arb, arbiter_bus_t bus, edge_driver_t *dri
         return -1;
     }
 
-    return arbiter_request(arb, bus, prio, ARB_SHARED, 1000, on_bus_granted, ctx);
+    ctx->arb_req.priority = prio;
+    ctx->arb_req.mode = ARB_SHARED;
+    ctx->arb_req.timeout_ms = 1000;
+    ctx->arb_req.on_start = on_bus_granted;
+    ctx->arb_req.user_start = ctx;
+
+    return arbiter_submit(ctx->bus_h, &ctx->arb_req);
 }
 
 int edge_request_read(arbiter_t *arb, arbiter_bus_t bus, edge_driver_t *driver, 

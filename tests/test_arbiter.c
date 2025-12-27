@@ -2,87 +2,155 @@
 #include <stddef.h>
 #include <setjmp.h>
 #include <cmocka.h>
+
 #include <uv.h>
-#include <stdio.h>
-#include <string.h>
-
 #include "arbiter.h"
-#include "shmring.h"
 
-shm_ring_t *global_ring = NULL;
+/* ---------------- test context ---------------- */
 
 typedef struct {
-    uv_loop_t *loop;
+    uv_loop_t loop;
     arbiter_t *arb;
-    int granted_count;
-    char granted_order[10][20]; 
-} test_arbiter_ctx_t;
 
-typedef struct {
-    test_arbiter_ctx_t *test_ctx;
-    const char *name;
-} my_request_data_t;
+    int low_started;
+    int low_preempted;
+    int high_started;
+    int high_done;
 
-static void on_grant_cb(arbiter_t *arb, arbiter_bus_t bus, void *user) {
-    my_request_data_t *req_data = (my_request_data_t *)user;
-    test_arbiter_ctx_t *ctx = req_data->test_ctx;
-    const char *name = req_data->name;
+} test_ctx_t;
 
-    assert_non_null(ctx);
-    assert_true(ctx->granted_count < 10);
-    strncpy(ctx->granted_order[ctx->granted_count], name, 19);
-    ctx->granted_order[ctx->granted_count][19] = '\0';
-    ctx->granted_count++;
+/* ---------------- callbacks ---------------- */
 
-    arbiter_release(arb, bus, req_data);
-
-    if (ctx->granted_count >= 3) {
-        arbiter_destroy(arb);
-    }
+static void on_start(void *user)
+{
+    int *flag = (int *)user;
+    (*flag)++;
 }
 
-static void test_arbiter_scheduling(void **state) {
-    (void)state;
-    test_arbiter_ctx_t ctx = {0};
-    ctx.loop = uv_default_loop();
-    ctx.arb = arbiter_create(ctx.loop);
+static void on_preempt(void *user)
+{
+    int *flag = (int *)user;
+    (*flag)++;
+}
 
-    my_request_data_t polling_data = { .test_ctx = &ctx, .name = "polling" };
-    my_request_data_t transparent_data = { .test_ctx = &ctx, .name = "transparent" };
-    my_request_data_t ota_data = { .test_ctx = &ctx, .name = "ota" };
+static void on_done(void *user)
+{
+    int *flag = (int *)user;
+    (*flag)++;
+}
 
-    arbiter_request(ctx.arb, BUS_RS485_1,
-        ARB_PRIO_LOW, ARB_SHARED, 0,
-        on_grant_cb, &polling_data);
+/* ---------------- test case ---------------- */
 
-    arbiter_request(ctx.arb, BUS_RS485_1,
-        ARB_PRIO_HIGH, ARB_SHARED, 0,
-        on_grant_cb, &transparent_data);
+/*
+ * 验证：
+ *  - 低优先级先运行
+ *  - 高优先级到来后抢占
+ */
+static void test_arbiter_preempt(void **state)
+{
+    test_ctx_t *ctx = (test_ctx_t *)*state;
 
-    arbiter_request(ctx.arb, BUS_RS485_1,
-        ARB_PRIO_CRITICAL, ARB_EXCLUSIVE, 0,
-        on_grant_cb, &ota_data);
+    arbiter_bus_handle_t bus = arbiter_bus_register(ctx->arb, "RS485_1");
+    assert_non_null(bus);
 
-    int i;
-    for (i=0; i<500; i++) {
-        uv_run(ctx.loop, UV_RUN_NOWAIT);
-        if (ctx.granted_count >= 3) break;
-        uv_sleep(1); // libuv sleep
+    arbiter_req_t low = {
+        .priority = ARB_PRIO_LOW,
+        .on_start = on_start,
+        .on_preempt = on_preempt,
+        .on_done = on_done,
+        .user_start = &ctx->low_started,
+        .user_preempt = &ctx->low_preempted,
+        .user_done = NULL,
+    };
+
+    arbiter_req_t high = {
+        .priority = ARB_PRIO_HIGH,
+        .on_start = on_start,
+        .on_preempt = NULL,
+        .on_done = on_done,
+        .user_start = &ctx->high_started,
+        .user_done = &ctx->high_done,
+    };
+
+    arbiter_submit(bus, &low);
+
+    /* 让 loop 跑几圈，直到 low start. 
+       注意：arbiter 使用 timer(10ms) 驱动调度 */
+    for (int i=0; i<50; i++) {
+        uv_run(&ctx->loop, UV_RUN_NOWAIT);
+        if (ctx->low_started) break;
+        usleep(1000);
     }
     
-    uv_run(ctx.loop, UV_RUN_DEFAULT);
+    assert_int_equal(ctx->low_started, 1);
+    assert_int_equal(ctx->low_preempted, 0);
 
-    assert_int_equal(ctx.granted_count, 3);
-    assert_string_equal(ctx.granted_order[0], "ota");         
-    assert_string_equal(ctx.granted_order[1], "transparent"); 
-    assert_string_equal(ctx.granted_order[2], "polling");     
+    /* 提交高优先级 */
+    arbiter_submit(bus, &high);
 
-    uv_loop_close(ctx.loop);
+    /* 让 loop 跑，触发抢占 */
+    for (int i=0; i<100; i++) {
+        uv_run(&ctx->loop, UV_RUN_NOWAIT);
+        if (ctx->high_started) break;
+        usleep(1000);
+    }
+
+    /* 断言抢占发生 */
+    assert_int_equal(ctx->low_preempted, 1);
+    assert_int_equal(ctx->high_started, 1);
+    
+    /* 释放高优先级 */
+    arbiter_release(bus, &high);
+    assert_int_equal(ctx->high_done, 1);
 }
 
-int main(void) {
+/* ---------------- setup / teardown ---------------- */
+
+static int setup(void **state)
+{
+    test_ctx_t *ctx = calloc(1, sizeof(*ctx));
+    assert_non_null(ctx);
+
+    uv_loop_init(&ctx->loop);
+    arbiter_init(&ctx->arb, &ctx->loop);
+
+    *state = ctx;
+    return 0;
+}
+
+static void on_walk_close(uv_handle_t* handle, void* arg) {
+    (void)arg;
+    if (!uv_is_closing(handle)) {
+        uv_close(handle, NULL);
+    }
+}
+
+static int teardown(void **state)
+{
+    test_ctx_t *ctx = (test_ctx_t *)*state;
+
+    arbiter_shutdown(ctx->arb);
+    
+    // Close all remaining handles in the loop
+    uv_walk(&ctx->loop, on_walk_close, NULL);
+    uv_run(&ctx->loop, UV_RUN_DEFAULT);
+    
+    uv_loop_close(&ctx->loop);
+    free(ctx);
+
+    return 0;
+}
+
+/* ---------------- main ---------------- */
+
+int main(void)
+{
     const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_arbiter_scheduling),
+        cmocka_unit_test_setup_teardown(
+            test_arbiter_preempt,
+            setup,
+            teardown),
     };
+
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

@@ -58,7 +58,7 @@ static void test_multi_process_concurrency(void **state) {
             PipeMsg msg = {0};
             msg.payload.val_i = i;
             shm_ring_write(&ring, &msg);
-            uv_sleep(1); // 替换 usleep 为 libuv 的 uv_sleep
+            usleep(1000); 
         }
         shmring_close(&ring);
         exit(0);
@@ -73,7 +73,7 @@ static void test_multi_process_concurrency(void **state) {
             if (shm_ring_read(ring, &seq, &msg) == 0) {
                 count++;
             }
-            uv_sleep(1); // 替换 usleep 为 libuv 的 uv_sleep
+            usleep(1000); 
         }
         
         int status;

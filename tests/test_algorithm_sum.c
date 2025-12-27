@@ -45,7 +45,7 @@ static void test_algo_fusion_500(void **state) {
     for (int i = 0; i < 100; i++) {
         uv_run(tctx->loop, UV_RUN_NOWAIT);
         if (tctx->result_count > 0) break;
-        uv_sleep(10); // 10ms
+        usleep(10000); // 10ms
     }
     
     assert_int_equal(tctx->result_count, 1);
@@ -66,7 +66,7 @@ static void test_algo_auto_flush(void **state) {
     for (int i = 0; i < 100; i++) {
         uv_run(tctx->loop, UV_RUN_NOWAIT);
         if (tctx->result_count > 1) break; // Expect increment from previous test
-        uv_sleep(10);
+        usleep(10000);
     }
     
     // Note: Depends on whether we reused state. Setup/Teardown resets state.

@@ -100,6 +100,8 @@ add_library(edge_core_lib STATIC
     src/profile_loader.c
     src/datahub.c
     src/core/edge_service.c
+    src/services/js_engine.c
+    src/services/script_loader.c
     src/rest_server.c
     src/web_server.c
 )
@@ -109,6 +111,7 @@ target_link_libraries(edge_core_lib PUBLIC
     libuv::uv 
     SQLite::SQLite3
     Modbus::Modbus
+    QuickJS::QuickJS
     pthread dl rt m
 )
 

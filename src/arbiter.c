@@ -3,189 +3,153 @@
 #include <string.h>
 #include <stdio.h>
 
-typedef struct arb_req {
-    arbiter_prio_t prio;
-    arbiter_mode_t mode;
-    arbiter_cb cb;
-    void *user;
-    uint64_t expire_at;
-    struct arb_req *next;
-} arb_req_t;
-
 typedef struct {
-    arb_req_t *owner;     /* 当前持有者 */
-    arb_req_t *waiters;   /* 等待队列（按优先级） */
-} arb_bus_t;
+    char name[32];
+    arbiter_bus_t id;
+    arbiter_req_t *owner;
+    arbiter_req_t *waiters;
+} bus_internal_t;
 
 struct arbiter {
     uv_loop_t *loop;
     uv_timer_t tick;
-    arb_bus_t buses[BUS_MAX];
+    bus_internal_t buses[BUS_MAX];
+    int bus_count;
 };
-
-/* Context for async callback */
-typedef struct {
-    arbiter_cb cb;
-    arbiter_t *arb;
-    arbiter_bus_t bus_id;
-    void *user;
-} grant_ctx_t;
-
-/* ===== Helpers ===== */
 
 static uint64_t now_ms(uv_loop_t *loop) {
     return uv_now(loop);
 }
 
-static void enqueue_req(arb_bus_t *bus, arb_req_t *req) {
-    arb_req_t **p = &bus->waiters;
-    while (*p && (*p)->prio >= req->prio) {
+static void enqueue_req(bus_internal_t *bus, arbiter_req_t *req) {
+    arbiter_req_t **p = &bus->waiters;
+    // Keep sorted by priority (descending)
+    while (*p && (*p)->priority >= req->priority) {
         p = &(*p)->next;
     }
     req->next = *p;
     *p = req;
 }
 
-static void on_grant_async(uv_async_t *handle) {
-    grant_ctx_t *ctx = (grant_ctx_t *)handle->data;
-    if (ctx) {
-        if (ctx->cb) {
-            ctx->cb(ctx->arb, ctx->bus_id, ctx->user);
-        }
-        free(ctx);
-    }
-    uv_close((uv_handle_t*)handle, (uv_close_cb)free);
-}
-
-static void grant_bus(arbiter_t *arb, arbiter_bus_t bus_id, arb_req_t *req) {
-    arb_bus_t *bus = &arb->buses[bus_id];
+static void grant_bus(arbiter_t *arb, bus_internal_t *bus, arbiter_req_t *req) {
+    (void)arb;
     bus->owner = req;
-    req->next = NULL;
-
-    /* Prepare context for async callback */
-    grant_ctx_t *ctx = malloc(sizeof(grant_ctx_t));
-    ctx->cb = req->cb;
-    ctx->arb = arb;
-    ctx->bus_id = bus_id;
-    ctx->user = req->user;
-
-    uv_async_t *async = malloc(sizeof(*async));
-    async->data = ctx;
-    
-    uv_async_init(arb->loop, async, on_grant_async);
-    uv_async_send(async);
+    if (req->on_start) {
+        req->on_start(req->user_start);
+    }
 }
 
-/* ===== Core Arbitration ===== */
-
-static void try_schedule(arbiter_t *arb, arbiter_bus_t bus_id) {
-    arb_bus_t *bus = &arb->buses[bus_id];
-
-    if (!bus->waiters)
-        return;
+static void try_schedule(arbiter_t *arb, bus_internal_t *bus) {
+    if (!bus->waiters) return;
 
     if (!bus->owner) {
-        arb_req_t *req = bus->waiters;
+        arbiter_req_t *req = bus->waiters;
         bus->waiters = req->next;
-        grant_bus(arb, bus_id, req);
+        req->next = NULL;
+        grant_bus(arb, bus, req);
         return;
     }
 
-    /* 抢占逻辑 */
-    arb_req_t *owner = bus->owner;
-    arb_req_t *cand = bus->waiters;
+    // Preemption Logic
+    arbiter_req_t *owner = bus->owner;
+    arbiter_req_t *cand = bus->waiters;
 
-    if (owner->mode == ARB_EXCLUSIVE)
+    // Exclusive owners cannot be preempted easily unless EMERGENCY?
+    // For Phase 3, we respect EXCLUSIVE.
+    if (owner->mode == ARB_EXCLUSIVE && cand->priority < ARB_PRIO_EMERGENCY) {
         return;
+    }
 
-    if (cand->prio > owner->prio) {
-        /* 抢占 */
+    if (cand->priority > owner->priority) {
+        // Preempt!
+        if (owner->on_preempt) {
+            owner->on_preempt(owner->user_preempt);
+        }
+        
+        // Put owner back to waiters or discard? 
+        // For simple scheduling, we discard or re-enqueue. 
+        // Docs suggest "preempted", so we move it back.
         bus->owner = NULL;
         enqueue_req(bus, owner);
+        
+        // Grant to candidate
         bus->waiters = cand->next;
-        grant_bus(arb, bus_id, cand);
+        cand->next = NULL;
+        grant_bus(arb, bus, cand);
     }
 }
 
 static void arbiter_tick(uv_timer_t *t) {
-    arbiter_t *arb = t->data;
+    arbiter_t *arb = (arbiter_t *)t->data;
     uint64_t now = now_ms(arb->loop);
 
-    for (int i = 0; i < BUS_MAX; ++i) {
-        arb_bus_t *bus = &arb->buses[i];
-
-        /* timeout 检查 */
-        arb_req_t **p = &bus->waiters;
+    for (int i = 0; i < BUS_MAX; i++) {
+        bus_internal_t *bus = &arb->buses[i];
+        
+        // Check timeouts in waiters
+        arbiter_req_t **p = &bus->waiters;
         while (*p) {
             if ((*p)->expire_at && (*p)->expire_at < now) {
-                arb_req_t *dead = *p;
+                arbiter_req_t *dead = *p;
                 *p = dead->next;
-                free(dead);
-                continue;
+                // Callback for timeout? 
+                if (dead->on_done) dead->on_done(dead->user_done);
+                // Note: user manages memory of req or we free it? 
+                // In this implementation, req is provided by caller.
+            } else {
+                p = &(*p)->next;
             }
-            p = &(*p)->next;
         }
-
-        try_schedule(arb, (arbiter_bus_t)i);
+        
+        try_schedule(arb, bus);
     }
 }
 
-/* ===== Public API ===== */
-
-arbiter_t *arbiter_create(uv_loop_t *loop) {
-    arbiter_t *arb = calloc(1, sizeof(*arb));
+int arbiter_init(arbiter_t **out_arb, uv_loop_t *loop) {
+    arbiter_t *arb = calloc(1, sizeof(struct arbiter));
     arb->loop = loop;
+    
+    for (int i = 0; i < BUS_MAX; i++) {
+        arb->buses[i].id = (arbiter_bus_t)i;
+    }
 
     uv_timer_init(loop, &arb->tick);
     arb->tick.data = arb;
     uv_timer_start(&arb->tick, arbiter_tick, 10, 10);
-
-    return arb;
-}
-
-void arbiter_destroy(arbiter_t *arb) {
-    uv_timer_stop(&arb->tick);
-    uv_close((uv_handle_t*)&arb->tick, NULL);
-
-    for (int i = 0; i < BUS_MAX; ++i) {
-        arb_req_t *r = arb->buses[i].waiters;
-        while (r) {
-            arb_req_t *n = r->next;
-            free(r);
-            r = n;
-        }
-    }
-    free(arb);
-}
-
-int arbiter_request(
-    arbiter_t *arb,
-    arbiter_bus_t bus,
-    arbiter_prio_t prio,
-    arbiter_mode_t mode,
-    uint64_t timeout_ms,
-    arbiter_cb on_grant,
-    void *user
-) {
-    arb_req_t *req = calloc(1, sizeof(*req));
-    req->prio = prio;
-    req->mode = mode;
-    req->cb = on_grant;
-    req->user = user;
-    req->expire_at = timeout_ms ? now_ms(arb->loop) + timeout_ms : 0;
-
-    enqueue_req(&arb->buses[bus], req);
+    
+    *out_arb = arb;
     return 0;
 }
 
-void arbiter_release(
-    arbiter_t *arb,
-    arbiter_bus_t bus,
-    void *user
-) {
-    arb_bus_t *b = &arb->buses[bus];
-    if (b->owner && b->owner->user == user) {
-        free(b->owner);
-        b->owner = NULL;
+void arbiter_shutdown(arbiter_t *arb) {
+    if (!arb) return;
+    uv_timer_stop(&arb->tick);
+    // Cleanup remaining requests...
+    free(arb);
+}
+
+arbiter_bus_handle_t arbiter_bus_register(arbiter_t *arb, const char *name) {
+    // For MVP, just return the first available RS485_1
+    // In real app, look up by name
+    (void)name;
+    return (arbiter_bus_handle_t)&arb->buses[BUS_RS485_1];
+}
+
+int arbiter_submit(arbiter_bus_handle_t bus_h, arbiter_req_t *req) {
+    bus_internal_t *bus = (bus_internal_t *)bus_h;
+    req->expire_at = req->timeout_ms ? (uv_now(uv_default_loop()) + req->timeout_ms) : 0;
+    req->next = NULL;
+    
+    enqueue_req(bus, req);
+    return 0;
+}
+
+void arbiter_release(arbiter_bus_handle_t bus_h, arbiter_req_t *req) {
+    bus_internal_t *bus = (bus_internal_t *)bus_h;
+    if (bus->owner == req) {
+        if (req->on_done) {
+            req->on_done(req->user_done);
+        }
+        bus->owner = NULL;
     }
 }

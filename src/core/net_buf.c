@@ -168,7 +168,7 @@ void net_buf_unref(net_buf_t *buf) {
         return;
     }
 
-    // Free fragments first
+    // Free fragment chain if this was a head
     net_buf_t *frag = buf->frags;
     while (frag) {
         net_buf_t *next_frag = frag->next;
@@ -191,41 +191,53 @@ void net_buf_unref(net_buf_t *buf) {
 }
 
 void net_buf_frag_add(net_buf_t *head, net_buf_t *frag) {
+    if (!head || !frag) return;
+    
     if (!head->frags) {
         head->frags = frag;
         return;
     }
     
-    net_buf_t *prev = head->frags;
-    while (prev->next) {
-        prev = prev->next;
+    net_buf_t *last = head->frags;
+    while (last->next) {
+        last = last->next;
     }
-    prev->next = frag;
+    last->next = frag;
 }
 
 void net_buf_frag_insert(net_buf_t *parent, net_buf_t *frag) {
-    if (parent->frags) {
-        net_buf_frag_add(frag, parent->frags);
-    }
-    parent->frags = frag;
+    if (!parent || !frag) return;
+    frag->next = parent->next;
+    parent->next = frag;
 }
 
 net_buf_t *net_buf_frag_del(net_buf_t *parent, net_buf_t *frag) {
+    if (!parent || !frag) return NULL;
+    
     if (parent->frags == frag) {
         parent->frags = frag->next;
         frag->next = NULL;
         return frag;
     }
     
-    net_buf_t *cur = parent->frags;
-    while (cur) {
-        if (cur->next == frag) {
-            cur->next = frag->next;
-            frag->next = NULL;
-            return frag;
-        }
-        cur = cur->next;
+    if (parent->next == frag) {
+        parent->next = frag->next;
+        frag->next = NULL;
+        return frag;
     }
+    
+    // Search in chain if not direct child
+    net_buf_t *prev = parent->frags ? parent->frags : parent->next;
+    while (prev && prev->next != frag) {
+        prev = prev->next;
+    }
+    
+    if (prev) {
+        prev->next = frag->next;
+        frag->next = NULL;
+        return frag;
+    }
+    
     return NULL;
 }
 

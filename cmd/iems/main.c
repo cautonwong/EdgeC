@@ -3,6 +3,8 @@
 #include <string.h>
 #include <getopt.h>
 #include "edge_service.h"
+#include "services/js_engine.h"
+#include "services/script_loader.h"
 #include "edge_version.h"
 
 static void print_usage(const char *prog) {
@@ -42,7 +44,7 @@ int main(int argc, char **argv) {
     svc.pool = &pool;
     
     svc.config = profile_load(opts.config_path);
-    svc.arbiter = arbiter_create(svc.loop);
+    arbiter_init(&svc.arbiter, svc.loop);
     
     datahub_t hub;
     datahub_init(&hub, svc.loop, "/iems_hub", 512, NULL, &svc);
@@ -52,16 +54,32 @@ int main(int argc, char **argv) {
     persistence_mgr_init(&storage, svc.loop, &hub.ring, 1000);
     svc.storage = &storage;
     
+    // Northbound setup
     northbound_mgr_t cloud;
     northbound_mgr_init(&cloud, svc.loop, &hub.ring);
     svc.cloud = &cloud;
+    svc.cloud->web_port = opts.web_port;
+    svc.cloud->rest_port = opts.rest_port;
+    svc.cloud->user_data = &svc;
     northbound_mgr_start(svc.cloud);
+
+    // --- JS Scripting Service ---
+    js_engine_t *js_engine = js_engine_create(&svc, 2 * 1024 * 1024); // 2MB limit
+    
+    // --- Dynamic Script Loader ---
+    // Watch 'config/scripts' directory, run every 1000ms
+    system("mkdir -p config/scripts");
+    script_loader_t *loader = script_loader_create(js_engine, "config/scripts", 1000);
+    script_loader_start(loader);
 
     int ret = service_start(&svc);
 
+    // Cleanup
+    script_loader_destroy(loader);
+    js_engine_destroy(js_engine);
     northbound_mgr_stop(svc.cloud);
     persistence_mgr_close(&storage);
-    arbiter_destroy(svc.arbiter);
+    arbiter_shutdown(svc.arbiter);
     net_buf_pool_destroy(&pool);
     return ret;
 }

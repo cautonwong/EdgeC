@@ -24,6 +24,7 @@ typedef struct {
     int web_port;
     int rest_port;
     
+    void *user_data;
     int running;
 } northbound_mgr_t;
 

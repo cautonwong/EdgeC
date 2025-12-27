@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <uv.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,7 +23,7 @@ typedef enum {
     ARB_PRIO_NORMAL = 10, 
     ARB_PRIO_HIGH = 50,   
     ARB_PRIO_CRITICAL = 100,
-    ARB_PRIO_EMERGENCY = 200 /* Added for Orchestrator */
+    ARB_PRIO_EMERGENCY = 200 
 } arbiter_prio_t;
 
 /* ===== Request Mode ===== */
@@ -32,34 +33,43 @@ typedef enum {
 } arbiter_mode_t;
 
 typedef struct arbiter arbiter_t;
+typedef struct arb_req arbiter_req_t;
 
-typedef void (*arbiter_cb)(
-    arbiter_t *arb,
-    arbiter_bus_t bus,
-    void *user
-);
+typedef void (*arbiter_on_start_cb)(void *user);
+typedef void (*arbiter_on_preempt_cb)(void *user);
+typedef void (*arbiter_on_done_cb)(void *user);
+
+struct arb_req {
+    arbiter_prio_t priority;
+    arbiter_mode_t mode;
+    uint64_t timeout_ms;
+    
+    arbiter_on_start_cb   on_start;
+    arbiter_on_preempt_cb on_preempt;
+    arbiter_on_done_cb    on_done;
+    
+    void *user_start;
+    void *user_preempt;
+    void *user_done;
+
+    /* Internal */
+    uint64_t expire_at;
+    struct arb_req *next;
+};
 
 /* ===== API ===== */
-arbiter_t *arbiter_create(uv_loop_t *loop);
-void arbiter_destroy(arbiter_t *arb);
+int  arbiter_init(arbiter_t **arb, uv_loop_t *loop);
+void arbiter_shutdown(arbiter_t *arb);
 
-/* 请求总线（异步回调） */
-int arbiter_request(
-    arbiter_t *arb,
-    arbiter_bus_t bus,
-    arbiter_prio_t prio,
-    arbiter_mode_t mode,
-    uint64_t timeout_ms,
-    arbiter_cb on_grant,
-    void *user
-);
+/* Register a bus by name (placeholder for now) */
+typedef void* arbiter_bus_handle_t;
+arbiter_bus_handle_t arbiter_bus_register(arbiter_t *arb, const char *name);
 
-/* 主动释放 */
-void arbiter_release(
-    arbiter_t *arb,
-    arbiter_bus_t bus,
-    void *user
-);
+/* Submit a request */
+int arbiter_submit(arbiter_bus_handle_t bus_h, arbiter_req_t *req);
+
+/* Active Release */
+void arbiter_release(arbiter_bus_handle_t bus_h, arbiter_req_t *req);
 
 #ifdef __cplusplus
 }

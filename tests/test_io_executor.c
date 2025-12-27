@@ -2,67 +2,94 @@
 #include <stddef.h>
 #include <setjmp.h>
 #include <cmocka.h>
+
 #include <uv.h>
 #include "io_executor.h"
-#include <string.h>
-#include <stdlib.h>
+
+/* ---------------- test context ---------------- */
 
 typedef struct {
-    int done;
-    uv_timer_t *timeout_handle;
-} io_test_ctx_t;
+    uv_loop_t loop;
+    int work_count;
+    int done_count;
+} test_ctx_t;
 
-static void on_test_timeout(uv_timer_t *handle) {
-    (void)handle;
-    fail_msg("Test timed out");
-}
+/* ---------------- worker ---------------- */
 
-static void io_test_on_done(io_job_t *job, void *user) {
-    io_test_ctx_t *ctx = (io_test_ctx_t *)user;
-    ctx->done = 1;
-    // Success! Stop the timeout timer.
-    uv_timer_stop(ctx->timeout_handle);
+static void on_io_complete(io_job_t *job, void *user_data) {
+    test_ctx_t *ctx = (test_ctx_t *)user_data;
+    ctx->done_count++;
+    
+    // In real app, you'd check job->result
     io_job_free(job);
 }
 
-static void test_io_executor_basic(void **state) {
-    (void)state;
-    uv_loop_t *loop = uv_default_loop();
-    
-    assert_int_equal(io_executor_init(loop), 0);
+/* ---------------- test ---------------- */
 
-    // Setup timeout timer
-    uv_timer_t timeout_handle;
-    uv_timer_init(loop, &timeout_handle);
-    
-    io_test_ctx_t ctx = { .done = 0, .timeout_handle = &timeout_handle };
-    
-    // Create a job for RS485_1
-    io_job_t *job = io_job_create(IO_BUS_RS485_1, 8, 128);
-    assert_non_null(job);
-    
-    job->cb = io_test_on_done;
-    job->user_data = &ctx;
-    
-    assert_int_equal(io_executor_submit(job), 0);
+static void test_io_executor_parallel(void **state)
+{
+    test_ctx_t *ctx = (test_ctx_t *)*state;
 
-    // Start the timeout timer, if it fires, the test fails
-    uv_timer_start(&timeout_handle, on_test_timeout, 2000, 0); // 2 second timeout
+    const int N = 10;
+    for (int i = 0; i < N; i++) {
+        // Create a mock job (bus 0, tx 8, rx 8)
+        io_job_t *job = io_job_create(IO_BUS_RS485_1, 8, 8);
+        assert_non_null(job);
+        job->cb = on_io_complete;
+        job->user_data = ctx;
+        
+        if (io_executor_submit(job) == 0) {
+            ctx->work_count++;
+        }
+    }
 
-    // Run the loop until the job is done or it times out
-    uv_run(loop, UV_RUN_DEFAULT);
+    /* Run the loop until all jobs are done */
+    for (int i=0; i<100; i++) {
+        uv_run(&ctx->loop, UV_RUN_NOWAIT);
+        if (ctx->done_count >= N) break;
+        usleep(5000);
+    }
 
-    assert_int_equal(ctx.done, 1);
-    
-    io_executor_shutdown();
-
-    // The loop is already stopped, but run it once more to process close callbacks
-    uv_run(loop, UV_RUN_ONCE);
+    assert_int_equal(ctx->work_count, N);
+    assert_int_equal(ctx->done_count, N);
 }
 
-int main(void) {
+/* ---------------- setup / teardown ---------------- */
+
+static int setup(void **state)
+{
+    test_ctx_t *ctx = calloc(1, sizeof(*ctx));
+    assert_non_null(ctx);
+
+    uv_loop_init(&ctx->loop);
+    io_executor_init(&ctx->loop);
+
+    *state = ctx;
+    return 0;
+}
+
+static int teardown(void **state)
+{
+    test_ctx_t *ctx = (test_ctx_t *)*state;
+
+    io_executor_shutdown();
+    uv_run(&ctx->loop, UV_RUN_DEFAULT);
+    uv_loop_close(&ctx->loop);
+    free(ctx);
+
+    return 0;
+}
+
+/* ---------------- main ---------------- */
+
+int main(void)
+{
     const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_io_executor_basic),
+        cmocka_unit_test_setup_teardown(
+            test_io_executor_parallel,
+            setup,
+            teardown),
     };
+
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
