@@ -29,7 +29,7 @@ static void *producer_thread(void *arg)
         msg.payload.val_i = i;
         
         while (datahub_publish(&ctx->hub, &msg) != 0) {
-            usleep(1000);
+            uv_sleep(1000);
         }
     }
     return NULL;

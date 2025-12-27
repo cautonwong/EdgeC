@@ -12,11 +12,18 @@ static void on_walk_close(uv_handle_t* handle, void* arg) {
     }
 }
 
+static void on_north_stop(uv_async_t *handle) {
+    northbound_mgr_t *mgr = (northbound_mgr_t *)handle->data;
+    uv_stop(&mgr->loop);
+}
+
 static void north_thread_entry(void *arg) {
     northbound_mgr_t *mgr = (northbound_mgr_t *)arg;
     service_t *svc = (service_t *)mgr->user_data; 
     
     uv_loop_init(&mgr->loop);
+    uv_async_init(&mgr->loop, &mgr->stop_async, on_north_stop);
+    mgr->stop_async.data = mgr;
     
     mgr->web_srv = web_server_create(&mgr->loop, mgr->web_port);
     mgr->rest_srv = rest_server_create(&mgr->loop, svc, mgr->rest_port);
@@ -25,7 +32,7 @@ static void north_thread_entry(void *arg) {
     
     uv_run(&mgr->loop, UV_RUN_DEFAULT);
     
-    // 1. 发起关闭请求
+    // Cleanup sequence
     web_server_destroy(mgr->web_srv);
     rest_server_destroy(mgr->rest_srv);
     
@@ -35,9 +42,7 @@ static void north_thread_entry(void *arg) {
         uv_run(&mgr->loop, UV_RUN_ONCE);
     }
 
-    // 3. 此时 loop 已关闭，所有 close_cb 已处理，可以安全释放结构体内存
-    free(mgr->web_srv);
-    free(mgr->rest_srv);
+    // 3. 此时 loop 已关闭，所有 close_cb (包含 web_srv/rest_srv 的释放) 已处理
 }
 
 int northbound_mgr_init(northbound_mgr_t *mgr, uv_loop_t *main_loop, shm_ring_t *ring) {
@@ -48,7 +53,6 @@ int northbound_mgr_init(northbound_mgr_t *mgr, uv_loop_t *main_loop, shm_ring_t 
 }
 
 int northbound_mgr_start(northbound_mgr_t *mgr) {
-    // Note: App must set web_port, rest_port and user_data (svc) before calling this
     if (uv_thread_create(&mgr->thread, north_thread_entry, mgr) != 0) {
         return -1;
     }
@@ -56,5 +60,6 @@ int northbound_mgr_start(northbound_mgr_t *mgr) {
 }
 
 void northbound_mgr_stop(northbound_mgr_t *mgr) {
+    uv_async_send(&mgr->stop_async);
     uv_thread_join(&mgr->thread);
 }

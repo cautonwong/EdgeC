@@ -21,6 +21,8 @@ typedef struct {
     struct web_server_s *web_srv;
     struct rest_server_s *rest_srv;
     
+    uv_async_t stop_async;
+    
     int web_port;
     int rest_port;
     

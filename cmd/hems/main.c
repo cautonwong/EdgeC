@@ -10,9 +10,10 @@ int main(int argc, char **argv) {
     strncpy(opts.mode, "hems", 31);
 
     int opt;
-    while ((opt = getopt(argc, argv, "c:w:r:h")) != -1) {
+    while ((opt = getopt(argc, argv, "c:m:w:r:h")) != -1) {
         switch (opt) {
             case 'c': strncpy(opts.config_path, optarg, 255); break;
+            case 'm': strncpy(opts.mode, optarg, 31); break;
             case 'w': opts.web_port = atoi(optarg); break;
             case 'r': opts.rest_port = atoi(optarg); break;
             case 'h': printf("EdgeOS HEMS\n"); return 0;

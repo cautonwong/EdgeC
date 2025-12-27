@@ -22,23 +22,22 @@ static void worker_thread(void *arg) {
         
         if (!ctx->running) break;
         
-        // Process data
-        if (ctx->count > 0) {
-            double sum = 0.0;
-            for (size_t i = 0; i < ctx->count; i++) {
-                sum += ctx->samples[i].value;
-            }
-            
-            // Prepare result
-            async_msg_t *msg = malloc(sizeof(async_msg_t));
-            if (msg) {
-                msg->ctx = ctx;
-                msg->res.total_sum = sum;
-                msg->res.sample_count = (uint32_t)ctx->count;
-                msg->res.average = sum / ctx->count;
-                msg->res.compute_ts = uv_now(ctx->loop); // Approximate
-                
-                // Notify main loop
+                    // Process data
+                if (ctx->count > 0) {
+                    double sum = 0.0;
+                    for (size_t i = 0; i < ctx->count; i++) {
+                        sum += ctx->samples[i].value;
+                    }
+                    
+                    // Prepare result
+                    async_msg_t *msg = malloc(sizeof(async_msg_t));
+                    if (msg) {
+                        msg->ctx = ctx;
+                        msg->res.total_sum = sum;
+                        msg->res.sample_count = (uint32_t)ctx->count;
+                        msg->res.average = sum / (double)ctx->count;
+                        msg->res.compute_ts = uv_now(ctx->loop); // Approximate
+                        // Notify main loop
                 // Note: We're sending a pointer to malloc'd memory via the async handle's data.
                 // This is a simple producer-consumer for the result.
                 // For high frequency, a queue would be better to avoid overwriting `data` 
@@ -93,6 +92,7 @@ static void on_result_async(uv_async_t *handle) {
 }
 
 static void on_async_close(uv_handle_t *handle) {
+    (void)handle;
     // Do nothing, just close
 }
 

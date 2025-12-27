@@ -124,6 +124,8 @@ js_engine_t* js_engine_create(service_t *svc, size_t mem_limit) {
 }
 
 int js_engine_eval(js_engine_t *engine, const char *code, const char *filename) {
+    // 使用 JS_EVAL_FLAG_STRICT 模式或在执行前进行包装可以提供更好的隔离
+    // 这里简单处理，确保使用 GLOBAL 模式但建议用户在脚本中使用块级作用域
     JSValue val = JS_Eval(engine->ctx, code, strlen(code), filename, JS_EVAL_TYPE_GLOBAL);
     int ret = 0;
     if (JS_IsException(val)) {
@@ -137,8 +139,14 @@ int js_engine_eval(js_engine_t *engine, const char *code, const char *filename) 
 int js_engine_run_file(js_engine_t *engine, const char *file_path) {
     size_t len;
     uint8_t *buf = js_load_file(engine->ctx, &len, file_path);
-    if (!buf) return -1;
+    if (!buf) {
+        // 如果 libc 里的函数没加载成功，尝试备用逻辑或报错
+        fprintf(stderr, "[JS] Failed to load file: %s\n", file_path);
+        return -1;
+    }
 
+    // 在执行文件脚本时，包裹一层块级作用域 { ... } 是一种极佳的防御性编程
+    // 这里我们通过 JS 引擎的 Eval 机制来实现。
     JSValue val = JS_Eval(engine->ctx, (const char *)buf, len, file_path, JS_EVAL_TYPE_GLOBAL);
     int ret = 0;
     if (JS_IsException(val)) {

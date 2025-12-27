@@ -47,7 +47,7 @@ static void test_io_executor_parallel(void **state)
     for (int i=0; i<100; i++) {
         uv_run(&ctx->loop, UV_RUN_NOWAIT);
         if (ctx->done_count >= N) break;
-        usleep(5000);
+        uv_sleep(5000);
     }
 
     assert_int_equal(ctx->work_count, N);

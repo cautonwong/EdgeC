@@ -85,7 +85,6 @@ net_buf_t *net_buf_alloc(net_buf_pool_t *pool, int64_t timeout_ms) {
     uv_mutex_lock(&pool->lock);
 
     net_buf_t *buf = NULL;
-    int err = 0;
 
     // Wait loop
     while (true) {
@@ -102,7 +101,6 @@ net_buf_t *net_buf_alloc(net_buf_pool_t *pool, int64_t timeout_ms) {
 
         // 3. Wait
         if (timeout_ms == 0) {
-            err = -1; // No wait
             break;
         } else if (timeout_ms < 0) {
             uv_cond_wait(&pool->cond, &pool->lock);
@@ -260,7 +258,7 @@ void net_buf_reserve(net_buf_t *buf, size_t reserve) {
 void *net_buf_add(net_buf_t *buf, size_t len) {
     assert(net_buf_tailroom(buf) >= len);
     void *ptr = buf->data + buf->len;
-    buf->len += len;
+    buf->len = (uint16_t)(buf->len + len);
     return ptr;
 }
 
@@ -274,7 +272,7 @@ int net_buf_add_mem(net_buf_t *buf, const void *mem, size_t len) {
 void *net_buf_push(net_buf_t *buf, size_t len) {
     assert(net_buf_headroom(buf) >= len);
     buf->data -= len;
-    buf->len += len;
+    buf->len = (uint16_t)(buf->len + len);
     return buf->data;
 }
 
@@ -289,7 +287,7 @@ void *net_buf_pull(net_buf_t *buf, size_t len) {
     assert(buf->len >= len);
     void *ptr = buf->data;
     buf->data += len;
-    buf->len -= len;
+    buf->len = (uint16_t)(buf->len - len);
     return ptr;
 }
 

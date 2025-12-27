@@ -79,7 +79,7 @@ static void test_arbiter_preempt(void **state)
     for (int i=0; i<50; i++) {
         uv_run(&ctx->loop, UV_RUN_NOWAIT);
         if (ctx->low_started) break;
-        usleep(1000);
+        uv_sleep(1000);
     }
     
     assert_int_equal(ctx->low_started, 1);
@@ -92,7 +92,7 @@ static void test_arbiter_preempt(void **state)
     for (int i=0; i<100; i++) {
         uv_run(&ctx->loop, UV_RUN_NOWAIT);
         if (ctx->high_started) break;
-        usleep(1000);
+        uv_sleep(1000);
     }
 
     /* 断言抢占发生 */

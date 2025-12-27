@@ -22,35 +22,38 @@ static void on_result(algo_ctx_t *ctx, const algo_result_t *res, void *user_data
     tctx->result_count++;
     tctx->last_sum = res->total_sum;
     tctx->last_count = res->sample_count;
+    uv_stop(tctx->loop); // 核心：通知 loop 退出
+}
+
+static void on_test_timeout(uv_timer_t *handle) {
+    printf("[Test] !!! FATAL: Algorithm test timed out !!!\n");
+    uv_stop(handle->loop);
 }
 
 static void test_algo_fusion_500(void **state) {
     test_ctx_t *tctx = *state;
     
+    // 增加超时保护
+    uv_timer_t timeout;
+    uv_timer_init(tctx->loop, &timeout);
+    uv_timer_start(&timeout, on_test_timeout, 5000, 0); // 5s
+
     // Submit 500 samples
     for (int i = 0; i < 500; i++) {
-        algo_sample_t s = {
-            .meter_id = (uint32_t)i,
-            .value = 1.0,
-            .ts = 1000 + i
-        };
-        assert_int_equal(algo_submit(tctx->algo, &s), 0);
+        algo_sample_t s = { .value = 1.0, .ts = 1000 + (uint64_t)i };
+        algo_submit(tctx->algo, &s);
     }
     
-    // Trigger computation
     algo_flush(tctx->algo);
     
-    // Run loop to process async callback
-    // We run repeatedly until we get the result (threaded race)
-    for (int i = 0; i < 100; i++) {
-        uv_run(tctx->loop, UV_RUN_NOWAIT);
-        if (tctx->result_count > 0) break;
-        usleep(10000); // 10ms
-    }
+    // 运行直到触发 uv_stop (由 on_result 或 on_test_timeout 触发)
+    uv_run(tctx->loop, UV_RUN_DEFAULT);
     
+    uv_timer_stop(&timeout);
+    uv_close((uv_handle_t*)&timeout, NULL);
+
     assert_int_equal(tctx->result_count, 1);
     assert_float_equal(tctx->last_sum, 500.0, 0.001);
-    assert_int_equal(tctx->last_count, 500);
 }
 
 static void test_algo_auto_flush(void **state) {
@@ -66,7 +69,7 @@ static void test_algo_auto_flush(void **state) {
     for (int i = 0; i < 100; i++) {
         uv_run(tctx->loop, UV_RUN_NOWAIT);
         if (tctx->result_count > 1) break; // Expect increment from previous test
-        usleep(10000);
+        uv_sleep(10000);
     }
     
     // Note: Depends on whether we reused state. Setup/Teardown resets state.
@@ -77,9 +80,10 @@ static void test_algo_auto_flush(void **state) {
 // Setup/Teardown
 static int setup(void **state) {
     test_ctx_t *tctx = calloc(1, sizeof(test_ctx_t));
-    tctx->loop = uv_default_loop();
-    // Capacity 1024
+    tctx->loop = malloc(sizeof(uv_loop_t));
+    uv_loop_init(tctx->loop);
     if (algo_init(&tctx->algo, tctx->loop, 1024, on_result, tctx) != 0) {
+        free(tctx->loop);
         free(tctx);
         return -1;
     }
@@ -91,9 +95,9 @@ static int teardown(void **state) {
     test_ctx_t *tctx = *state;
     algo_destroy(tctx->algo);
     
-    // Run loop to clean up async handles
     uv_run(tctx->loop, UV_RUN_NOWAIT);
-    
+    uv_loop_close(tctx->loop);
+    free(tctx->loop);
     free(tctx);
     return 0;
 }

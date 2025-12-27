@@ -35,9 +35,19 @@ typedef struct {
 service_t* service_new(service_options_t *opts);
 
 /**
+ * @brief 注入事件循环 (用于在 run 之前初始化依赖 loop 的组件)
+ */
+void service_set_loop(service_t *svc, uv_loop_t *loop);
+
+/**
  * @brief 获取服务容器的事件循环
  */
 uv_loop_t* service_get_loop(service_t *svc);
+
+/**
+ * @brief 获取数据中枢的环形缓冲区指针
+ */
+shm_ring_t* service_get_ring(service_t *svc);
 
 /**
  * @brief 启动服务容器并注入依赖 (黑盒模式)

@@ -65,6 +65,14 @@ uv_loop_t* service_get_loop(service_t *svc) {
     return svc ? svc->loop : NULL;
 }
 
+shm_ring_t* service_get_ring(service_t *svc) {
+    return svc ? &svc->data_hub->ring : NULL;
+}
+
+void service_set_loop(service_t *svc, uv_loop_t *loop) {
+    if (svc) svc->loop = loop;
+}
+
 int service_run(service_t *svc, 
                 uv_loop_t *loop,
                 net_buf_pool_t *pool,
@@ -141,7 +149,6 @@ void service_delete(service_t *svc) {
             }
         } while (ret == UV_EBUSY);
         
-        free(svc->loop);
         svc->loop = NULL;
     }
 
