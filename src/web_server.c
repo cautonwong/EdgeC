@@ -116,14 +116,18 @@ static void on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
     if (buf->base) free(buf->base);
 }
 
+static void on_handle_free(uv_handle_t *h) {
+    free(h);
+}
+
 static void on_conn(uv_stream_t *server, int status) {
     if (status < 0) return; 
-    uv_tcp_t *client = malloc(sizeof(uv_tcp_t)); // Leak if not closed properly, simple MVP
+    uv_tcp_t *client = malloc(sizeof(uv_tcp_t)); 
     uv_tcp_init(server->loop, client);
     if (uv_accept(server, (uv_stream_t*)client) == 0) {
         uv_read_start((uv_stream_t*)client, on_alloc, on_read);
     } else {
-        uv_close((uv_handle_t*)client, (uv_close_cb)free);
+        uv_close((uv_handle_t*)client, on_handle_free);
     }
 }
 
@@ -146,7 +150,13 @@ web_server_t* web_server_create(uv_loop_t *loop, int port) {
 }
 
 void web_server_destroy(web_server_t *srv) {
+
     if (!srv) return;
-    uv_close((uv_handle_t*)&srv->server, NULL);
-    free(srv);
+
+    if (!uv_is_closing((uv_handle_t*)&srv->server)) {
+
+        uv_close((uv_handle_t*)&srv->server, NULL);
+
+    }
+
 }

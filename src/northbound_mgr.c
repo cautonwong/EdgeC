@@ -5,9 +5,16 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+static void on_walk_close(uv_handle_t* handle, void* arg) {
+    (void)arg;
+    if (!uv_is_closing(handle)) {
+        uv_close(handle, NULL);
+    }
+}
+
 static void north_thread_entry(void *arg) {
     northbound_mgr_t *mgr = (northbound_mgr_t *)arg;
-    service_t *svc = (service_t *)mgr->user_data; // We'll store svc here
+    service_t *svc = (service_t *)mgr->user_data; 
     
     uv_loop_init(&mgr->loop);
     
@@ -18,9 +25,19 @@ static void north_thread_entry(void *arg) {
     
     uv_run(&mgr->loop, UV_RUN_DEFAULT);
     
+    // 1. 发起关闭请求
     web_server_destroy(mgr->web_srv);
     rest_server_destroy(mgr->rest_srv);
-    uv_loop_close(&mgr->loop);
+    
+    // 2. 强制清理 loop 上的所有残留句柄 (包括未完成的 TCP 连接)
+    uv_walk(&mgr->loop, on_walk_close, NULL);
+    while (uv_loop_close(&mgr->loop) == UV_EBUSY) {
+        uv_run(&mgr->loop, UV_RUN_ONCE);
+    }
+
+    // 3. 此时 loop 已关闭，所有 close_cb 已处理，可以安全释放结构体内存
+    free(mgr->web_srv);
+    free(mgr->rest_srv);
 }
 
 int northbound_mgr_init(northbound_mgr_t *mgr, uv_loop_t *main_loop, shm_ring_t *ring) {

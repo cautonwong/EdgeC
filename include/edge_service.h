@@ -14,7 +14,45 @@
 extern "C" {
 #endif
 
-// Command Bridge types
+/**
+ * @brief 不透明的服务容器句柄
+ */
+typedef struct service_s service_t;
+
+/**
+ * @brief 命令行选项
+ */
+typedef struct {
+    char config_path[256];
+    char mode[32];
+    int web_port;
+    int rest_port;
+} service_options_t;
+
+/**
+ * @brief 创建服务实例 (黑盒)
+ */
+service_t* service_new(service_options_t *opts);
+
+/**
+ * @brief 获取服务容器的事件循环
+ */
+uv_loop_t* service_get_loop(service_t *svc);
+
+/**
+ * @brief 启动服务容器并注入依赖 (黑盒模式)
+ */
+int service_run(service_t *svc, 
+                uv_loop_t *loop,
+                net_buf_pool_t *pool,
+                arbiter_t *arbiter,
+                datahub_t *hub,
+                persistence_mgr_t *storage,
+                northbound_mgr_t *cloud);
+
+/**
+ * @brief 从外部（如 REST 线程）投递指令
+ */
 typedef enum {
     SVC_CMD_WRITE = 0,
     SVC_CMD_READ_ON_DEMAND,
@@ -29,56 +67,12 @@ typedef struct {
     void     *data;
 } service_cmd_t;
 
-// 命令行选项解析结果
-typedef struct {
-    char config_path[256];
-    char mode[32];
-    int web_port;
-    int rest_port;
-} service_options_t;
-
-// 大一统 Service 容器 (Runtime Container)
-typedef struct service_s {
-    uv_loop_t *loop;
-    service_options_t opts;
-
-    // 以下组件由具体的 App (二开者) 初始化后注入
-    net_buf_pool_t    *pool;
-    arbiter_t         *arbiter;
-    datahub_t         *data_hub;
-    persistence_mgr_t *storage;
-    northbound_mgr_t  *cloud;
-    sys_supervisor_t  *supervisor;
-    
-    device_config_t   *config;
-
-    // Command Bridge
-    uv_async_t        cmd_async;
-    uv_mutex_t        cmd_lock;
-    service_cmd_t     cmd_queue[16];
-    int               cmd_head, cmd_tail;
-
-    // 二开私有上下文
-    void *product_ctx;
-
-    // 状态标志
-    int shutting_down;
-} service_t;
-
-/**
- * @brief 启动服务容器
- */
-int service_start(service_t *svc);
-
-/**
- * @brief 停止服务容器
- */
-void service_stop(service_t *svc);
-
-/**
- * @brief 从其他线程发送指令到服务主循环
- */
 int service_post_cmd(service_t *svc, service_cmd_t *cmd);
+
+/**
+ * @brief 销毁服务实例
+ */
+void service_delete(service_t *svc);
 
 #ifdef __cplusplus
 }

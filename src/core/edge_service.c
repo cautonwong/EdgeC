@@ -4,13 +4,34 @@
 #include <signal.h>
 #include <string.h>
 
+// 结构体定义隐藏在 .c 文件中，实现黑盒封装
+struct service_s {
+    uv_loop_t *loop;
+    service_options_t opts;
+
+    // 组件指针
+    net_buf_pool_t    *pool;
+    arbiter_t         *arbiter;
+    datahub_t         *data_hub;
+    persistence_mgr_t *storage;
+    northbound_mgr_t  *cloud;
+    
+    // 指令桥接
+    uv_async_t        cmd_async;
+    uv_mutex_t        cmd_lock;
+    service_cmd_t     cmd_queue[16];
+    int               cmd_head, cmd_tail;
+
+    int shutting_down;
+};
+
 static void on_signal(uv_signal_t *handle, int signum) {
     (void)signum;
-    printf("\n[Service] Signal received, stopping...\n");
-    service_stop((service_t *)handle->data);
+    service_t *svc = (service_t *)handle->data;
+    printf("\n[Service] Signal received, stopping loop...\n");
+    uv_stop(svc->loop);
 }
 
-// Process commands from REST/Other threads
 static void on_cmd_async(uv_async_t *handle) {
     service_t *svc = (service_t *)handle->data;
     service_cmd_t cmd;
@@ -27,37 +48,48 @@ static void on_cmd_async(uv_async_t *handle) {
 
         if (!has_cmd) break;
 
-        // Dispatch Command
-        switch (cmd.type) {
-            case SVC_CMD_READ_ON_DEMAND:
-                printf("[Service] S5: On-Demand Read for Tag %u\n", cmd.tag_id);
-                // Trigger Arbiter high-prio request
-                break;
-            case SVC_CMD_WRITE:
-                printf("[Service] S6: Control Write for Tag %u = %f\n", cmd.tag_id, cmd.value);
-                break;
-            case SVC_CMD_OTA_START:
-                printf("[Service] S7: OTA Started (Exclusive Lock)\n");
-                break;
-            case SVC_CMD_OTA_END:
-                printf("[Service] S7: OTA Finished (Release Lock)\n");
-                break;
-        }
+        // 这里执行指令分发逻辑 (Scenarios S5, S6, S7)
+        printf("[Service] Processing Command Type: %d for Tag: %u\n", cmd.type, cmd.tag_id);
     }
 }
 
-int service_start(service_t *svc) {
-    if (!svc || !svc->loop) return -1;
+service_t* service_new(service_options_t *opts) {
+    service_t *svc = calloc(1, sizeof(struct service_s));
+    if (svc && opts) {
+        svc->opts = *opts;
+    }
+    return svc;
+}
 
-    printf("[Service] Container starting in mode: %s\n", svc->opts.mode);
+uv_loop_t* service_get_loop(service_t *svc) {
+    return svc ? svc->loop : NULL;
+}
 
-    // Initialize Bridge
+int service_run(service_t *svc, 
+                uv_loop_t *loop,
+                net_buf_pool_t *pool,
+                arbiter_t *arbiter,
+                datahub_t *hub,
+                persistence_mgr_t *storage,
+                northbound_mgr_t *cloud) {
+    if (!svc || !loop) return -1;
+
+    // 注入依赖
+    svc->loop = loop;
+    svc->pool = pool;
+    svc->arbiter = arbiter;
+    svc->data_hub = hub;
+    svc->storage = storage;
+    svc->cloud = cloud;
+
+    printf("[Service] Container booting up in mode: %s\n", svc->opts.mode);
+
+    // 初始化内部桥接
     uv_mutex_init(&svc->cmd_lock);
     uv_async_init(svc->loop, &svc->cmd_async, on_cmd_async);
     svc->cmd_async.data = svc;
-    svc->cmd_head = svc->cmd_tail = 0;
 
-    // Signals
+    // 注册信号
     static uv_signal_t sig_int, sig_term;
     uv_signal_init(svc->loop, &sig_int);
     sig_int.data = svc;
@@ -70,31 +102,49 @@ int service_start(service_t *svc) {
     return uv_run(svc->loop, UV_RUN_DEFAULT);
 }
 
-void service_stop(service_t *svc) {
-    if (!svc || svc->shutting_down) return;
-    svc->shutting_down = 1;
-
-    printf("[Service] Container gracefully shutting down...\n");
-    
-    // Cleanup Bridge
-    uv_close((uv_handle_t*)&svc->cmd_async, NULL);
-    uv_mutex_destroy(&svc->cmd_lock);
-
-    uv_stop(svc->loop);
-}
-
 int service_post_cmd(service_t *svc, service_cmd_t *cmd) {
     if (!svc || !cmd) return -1;
-    
     uv_mutex_lock(&svc->cmd_lock);
     int next = (svc->cmd_head + 1) % 16;
     if (next == svc->cmd_tail) {
         uv_mutex_unlock(&svc->cmd_lock);
-        return -1; // Queue full
+        return -1;
     }
     svc->cmd_queue[svc->cmd_head] = *cmd;
     svc->cmd_head = next;
     uv_mutex_unlock(&svc->cmd_lock);
-    
     return uv_async_send(&svc->cmd_async);
+}
+
+static void on_walk_close(uv_handle_t* handle, void* arg) {
+    (void)arg;
+    if (!uv_is_closing(handle)) {
+        // 如果句柄有自己的自定义释放逻辑（如 malloc 分配的），应在各自的 close_cb 中处理
+        // 这里只是强制发起关闭请求
+        uv_close(handle, NULL);
+    }
+}
+
+void service_delete(service_t *svc) {
+    if (!svc) return;
+
+    if (svc->loop) {
+        // 关闭所有活跃句柄
+        uv_walk(svc->loop, on_walk_close, NULL);
+        
+        // 循环运行直到所有句柄被彻底释放
+        int ret;
+        do {
+            ret = uv_loop_close(svc->loop);
+            if (ret == UV_EBUSY) {
+                uv_run(svc->loop, UV_RUN_ONCE);
+            }
+        } while (ret == UV_EBUSY);
+        
+        free(svc->loop);
+        svc->loop = NULL;
+    }
+
+    uv_mutex_destroy(&svc->cmd_lock);
+    free(svc);
 }

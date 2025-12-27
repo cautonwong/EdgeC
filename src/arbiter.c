@@ -121,11 +121,16 @@ int arbiter_init(arbiter_t **out_arb, uv_loop_t *loop) {
     return 0;
 }
 
+static void on_arb_close(uv_handle_t *handle) {
+    free(handle->data);
+}
+
 void arbiter_shutdown(arbiter_t *arb) {
     if (!arb) return;
-    uv_timer_stop(&arb->tick);
-    // Cleanup remaining requests...
-    free(arb);
+    if (!uv_is_closing((uv_handle_t*)&arb->tick)) {
+        arb->tick.data = arb;
+        uv_close((uv_handle_t*)&arb->tick, on_arb_close);
+    }
 }
 
 arbiter_bus_handle_t arbiter_bus_register(arbiter_t *arb, const char *name) {

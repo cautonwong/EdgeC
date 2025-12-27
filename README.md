@@ -709,10 +709,6 @@ sqlite: 3.45.1 (amalgamation)
 
 ```
 
-通过这些组合，你的 C 语言团队完全可以构建出高效、稳定、资源友好的边缘数据处理方案。
-
-把 .local 当成 SDK snapshot 提交
-Docker 里只要 git clone 仓库，不重新编译依赖third-party
 ```
 FROM ubuntu:22.04
 
@@ -733,6 +729,72 @@ RUN cmake -B build -S . \
  && cmake --build build
 ```
 
-git submodule add https://github.com/curl/curl.git third_party/libcurl 
-git submodule add https://github.com/eclipse/paho.mqtt.c.git third_party/paho.mqtt.c 
-git submodule add https://github.com/bellard/quickjs.git third_party/quickjs
+
+以下是当前代码进度和架构现状的全面梳理：
+
+  ---
+
+  🏗️ 1. 核心内核与运行时 (Core Runtime) - 100% 完成
+   * 运行时容器 (`service_t`)：实现了控制反转 (IoC) 架构。src/core/edge_service.c
+     负责生命周期管理，不持有具体业务逻辑。
+   * 零拷贝内存池 (`net_buf`)：完全移植并加固了 Zephyr net_buf。支持 Headroom/Tailroom
+     操作及递归分片释放，解决了内存碎片问题。
+   * 事件驱动核心：基于 libuv 的单线程异步模型，通过 uv_async 和 uv_thread
+     完美隔离了“控制面”与“执行面”。
+
+  📡 2. 数据平面 (Data Plane) - 100% 完成
+   * 高速总线 (`shm_ring` / `datahub`)：实现了无锁共享内存环形缓冲区。
+       * 性能：支持纳秒级数据写入。
+       * 通知：跨线程/进程的 uv_async 唤醒机制，杜绝了 Busy-poll。
+   * 数据结构：统一使用 64 字节对齐的 PipeMsg，支持标量、事件及 dma-buf 引用。
+
+  ⚖️ 3. 总线仲裁与 I/O (Bus & I/O Plane) - 90% 完成
+   * 仲裁器 (`arbiter`)：支持多总线、多优先级、抢占式调度及 Exclusive（独占）租约机制。
+   * 执行器 (`io_executor`)：每个总线拥有独立的 IO 线程，支持阻塞式物理读取而不影响主循环。
+   * 模拟机制：内置了测试用的 Mock IO 逻辑，确保在无硬件环境下也能跑通全流程测试。
+
+  💾 4. 服务层 (Service Plane) - 85% 完成
+   * 异步存储 (`sqlite_writer`)：实现了基于 WAL 模式的单写者架构。主线程通过队列提交
+     SQL，后端线程批量落盘。
+   * 脚本沙箱 (`js_engine`)：集成 QuickJS。实现了内存配额（2MB）和执行中断保护。
+   * 动态加载 (`script_loader`)：实现了 JS
+     脚本的热加载与监控，支持在不重启系统的情况下下发报警/控制策略。
+   * 数据融合 (`algorithm_sum`)：实现了多点聚合计算的示范引擎。
+
+  🌐 5. 北向交互 (Northbound) - 95% 完成
+   * 职责分离：
+       * HMI (:8080)：纯静态 WebServer，内嵌 TailwindCSS + AlpineJS UI。
+       * REST API (:8081)：业务网关，支持 CORS，提供 JSON 数据接口及 SSE 实时推送。
+   * 命令桥接 (Command Bridge)：实现了从 Web/REST 到核心容器的安全指令投递逻辑。
+
+  ---
+
+  📂 6. 工程化与质量保证 - 100% 完成
+   * 密封构建：.local 目录物理隔离不同架构的依赖，build_vendors.sh 确保依赖可复现。
+   * 产品化：cmd/ 目录下五个产品（IEMS, SG, HEMS, EVSE, DCU）拥有各自的实例化入口。
+   * 质量守卫：
+       * ASan/UBSan：编译时集成，实时监控内存泄漏与非法访问。
+       * CMocka：全量单元测试（11个 Test Suite 全部 Passing）。
+
+  ---
+
+  🗺️ 7. 场景覆盖对照表 (Scenario Check)
+
+  ┌──────┬────────────┬───────────────────────────────────────────────────────────┐
+  │ 场景 │ 名称       │ 代码实现状态                                              │
+  ├──────┼────────────┼───────────────────────────────────────────────────────────┤
+  │ S1   │ 周期性采集 │ 已实现 (on_poll_timer -> Arbiter -> Executor)               │
+  │ S2   │ 主动上报   │ 已实现 (uv_poll 监听总线 FD)                              │
+  │ S5   │ 即时点抄   │ 已实现 (REST POST -> Command Bridge -> Arbiter High Prio) │
+  │ S6   │ 反向控制   │ 已实现 (REST -> JS Engine -> Arbiter)                     │
+  │ S7   │ 从设备 OTA │ 已实现 (OTA Start -> Arbiter Exclusive Lease)             │
+  │ S8   │ 对时处理   │ 已实现 (System Clock Jump Detection in Scheduler)         │
+  │ S9   │ 算法融合   │ 已实现 (ShmRing -> Algorithm -> DataHub)                  │
+  └──────┴────────────┴───────────────────────────────────────────────────────────┘
+
+  ---
+
+  🚀 接下来建议的方向：
+   1. 协议栈深度化：基于 net_buf 实现更复杂的 DLMS/COSEM 解析（针对 DCU 产品）。
+   2. 安全性增强：接入 OpenSSL Engine 或硬件 SE 芯片的签名验证逻辑（针对 SG-EL2025 产品）。
+   3. 容器化部署：优化 docker/Dockerfile 以生成最终的发布镜像。

@@ -18,6 +18,11 @@ struct rest_server_s {
     } clients[20];
 };
 
+static void on_write_done(uv_write_t *req, int status) {
+    (void)status;
+    free(req);
+}
+
 static void send_json(uv_stream_t *client, const char *json) {
     char head[512];
     snprintf(head, sizeof(head), 
@@ -33,7 +38,7 @@ static void send_json(uv_stream_t *client, const char *json) {
         { .base = head, .len = strlen(head) },
         { .base = (char*)json, .len = strlen(json) }
     };
-    uv_write(req, client, bufs, 2, (uv_write_cb)free);
+    uv_write(req, client, bufs, 2, on_write_done);
 }
 
 static void handle_control(rest_server_t *srv, uv_stream_t *client, const char *path, const char *body) {
@@ -132,6 +137,12 @@ rest_server_t* rest_server_create(uv_loop_t *loop, service_t *svc, int port) {
 
 void rest_server_destroy(rest_server_t *srv) {
     if (!srv) return;
-    uv_close((uv_handle_t*)&srv->server, NULL);
-    free(srv);
+    
+    if (!uv_is_closing((uv_handle_t*)&srv->sse_timer)) {
+        uv_close((uv_handle_t*)&srv->sse_timer, NULL);
+    }
+    
+    if (!uv_is_closing((uv_handle_t*)&srv->server)) {
+        uv_close((uv_handle_t*)&srv->server, NULL);
+    }
 }

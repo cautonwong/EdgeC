@@ -7,13 +7,15 @@
 #include "services/script_loader.h"
 #include "edge_version.h"
 
+// IEMS 产品特定的业务上下文
+typedef struct {
+    service_t *svc;
+    double battery_soc;
+} iems_ctx_t;
+
 static void print_usage(const char *prog) {
     printf("EdgeOS IEMS Product Console\n");
     printf("Usage: %s [options]\n", prog);
-    printf("Options:\n");
-    printf("  -c, --config <path>    Config file\n");
-    printf("  -w, --web-port <port>  Web HMI port\n");
-    printf("  -r, --rest-port <port> REST API port\n");
 }
 
 int main(int argc, char **argv) {
@@ -32,54 +34,50 @@ int main(int argc, char **argv) {
         }
     }
 
-    service_t svc;
-    memset(&svc, 0, sizeof(svc));
-    svc.opts = opts;
-    svc.loop = uv_default_loop();
-
-    printf("[IEMS] Initializing components...\n");
+    // --- IEMS 产品组件装配 ---
+    iems_ctx_t *iems = calloc(1, sizeof(iems_ctx_t));
+    service_t *svc = service_new(&opts);
+    
+    uv_loop_t *loop = malloc(sizeof(uv_loop_t));
+    uv_loop_init(loop);
     
     net_buf_pool_t pool;
     net_buf_pool_init(&pool, 512, 512, NULL, NULL);
-    svc.pool = &pool;
-    
-    svc.config = profile_load(opts.config_path);
-    arbiter_init(&svc.arbiter, svc.loop);
-    
-    datahub_t hub;
-    datahub_init(&hub, svc.loop, "/iems_hub", 512, NULL, &svc);
-    svc.data_hub = &hub;
-    
-    persistence_mgr_t storage;
-    persistence_mgr_init(&storage, svc.loop, &hub.ring, 1000);
-    svc.storage = &storage;
-    
-    // Northbound setup
-    northbound_mgr_t cloud;
-    northbound_mgr_init(&cloud, svc.loop, &hub.ring);
-    svc.cloud = &cloud;
-    svc.cloud->web_port = opts.web_port;
-    svc.cloud->rest_port = opts.rest_port;
-    svc.cloud->user_data = &svc;
-    northbound_mgr_start(svc.cloud);
 
-    // --- JS Scripting Service ---
-    js_engine_t *js_engine = js_engine_create(&svc, 2 * 1024 * 1024); // 2MB limit
-    
-    // --- Dynamic Script Loader ---
-    // Watch 'config/scripts' directory, run every 1000ms
-    system("mkdir -p config/scripts");
+    arbiter_t *arbiter;
+    arbiter_init(&arbiter, loop);
+
+    datahub_t hub;
+    datahub_init(&hub, loop, "/iems_hub", 512, NULL, NULL);
+
+    persistence_mgr_t storage;
+    persistence_mgr_init(&storage, loop, &hub.ring, 1000);
+
+    northbound_mgr_t cloud;
+    northbound_mgr_init(&cloud, loop, &hub.ring);
+    cloud.web_port = opts.web_port;
+    cloud.rest_port = opts.rest_port;
+    cloud.user_data = svc; 
+    northbound_mgr_start(&cloud);
+
+    // JS 引擎也是产品级的需求，在 App 层开启
+    js_engine_t *js_engine = js_engine_create(svc, 2 * 1024 * 1024);
     script_loader_t *loader = script_loader_create(js_engine, "config/scripts", 1000);
     script_loader_start(loader);
 
-    int ret = service_start(&svc);
+    // 运行服务
+    int ret = service_run(svc, loop, &pool, arbiter, &hub, &storage, &cloud);
 
-    // Cleanup
+    // 清理
     script_loader_destroy(loader);
     js_engine_destroy(js_engine);
-    northbound_mgr_stop(svc.cloud);
+    northbound_mgr_stop(&cloud);
     persistence_mgr_close(&storage);
-    arbiter_shutdown(svc.arbiter);
+    arbiter_shutdown(arbiter);
     net_buf_pool_destroy(&pool);
+    service_delete(svc);
+    free(iems);
+    free(loop);
+
     return ret;
 }

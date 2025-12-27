@@ -9,6 +9,8 @@
 
 static void persistence_tick(uv_timer_t *t) {
     persistence_mgr_t *mgr = (persistence_mgr_t *)t->data;
+    if (!mgr || !mgr->ring || !mgr->writer) return;
+    
     PipeMsg msg;
     char *sql_buf = malloc(SQL_BUF_SIZE);
     if (!sql_buf) return;

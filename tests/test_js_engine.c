@@ -8,8 +8,8 @@
 
 static void test_js_eval_basic(void **state) {
     (void)state;
-    service_t svc = {0}; // Mock service
-    js_engine_t *engine = js_engine_create(&svc, 1024 * 1024);
+    // 使用 service_new 创建不透明句柄指针
+    js_engine_t *engine = js_engine_create(NULL, 1024 * 1024);
     assert_non_null(engine);
 
     // Test simple math
@@ -26,9 +26,8 @@ static void test_js_eval_basic(void **state) {
 
 static void test_js_memory_limit(void **state) {
     (void)state;
-    service_t svc = {0};
-    // Set a very low limit: 100KB
-    js_engine_t *engine = js_engine_create(&svc, 100 * 1024);
+    // 内存限制测试不需要真实的 svc 逻辑，传 NULL
+    js_engine_t *engine = js_engine_create(NULL, 100 * 1024);
     assert_non_null(engine);
 
     // Attempt to allocate a large array to trigger OOM

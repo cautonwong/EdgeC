@@ -147,6 +147,9 @@ void shm_ring_write(shm_ring_t *ring, const PipeMsg *msg)
 
 int shm_ring_read(shm_ring_t *ring, uint64_t *last_seq, PipeMsg *out)
 {
+    if (!ring || !ring->hdr || !last_seq || !out) {
+        return -1;
+    }
     uint64_t total = atomic_load_explicit(&ring->hdr->total_writes, memory_order_acquire);
     
     if (*last_seq >= total) {

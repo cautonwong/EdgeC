@@ -103,6 +103,7 @@ add_library(edge_core_lib STATIC
     src/services/js_engine.c
     src/services/script_loader.c
     src/rest_server.c
+
     src/web_server.c
 )
 

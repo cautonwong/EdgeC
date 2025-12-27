@@ -151,7 +151,7 @@ int js_engine_run_file(js_engine_t *engine, const char *file_path) {
 }
 
 uv_loop_t* js_engine_get_loop(js_engine_t *engine) {
-    return engine->svc->loop;
+    return service_get_loop(engine->svc);
 }
 
 void js_engine_destroy(js_engine_t *engine) {
