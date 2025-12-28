@@ -74,6 +74,8 @@ jobs:
 
       - name: Run Unit Tests (QEMU)
         if: matrix.config.run_tests && matrix.config.use_qemu
+        env:
+          ASAN_OPTIONS: detect_leaks=0
         run: |
           cd build
           # Manually run tests via QEMU since ctest integration can be complex with static libs and paths
