@@ -1,0 +1,14 @@
+{
+    "device_id": "VPP-ESS-001",
+    "device_name": "Virtual_Power_Plant_Node",
+    "tags": [
+        {"id": 1001, "name": "Grid_Power", "type": "float", "unit": "W", "desc": "电网功率"},
+        {"id": 1002, "name": "PV_Power", "type": "float", "unit": "W", "desc": "光伏功率"},
+        {"id": 2001, "name": "ESS_SoC", "type": "float", "unit": "%", "desc": "储能电量"},
+        {"id": 2002, "name": "ESS_Power_Cmd", "type": "float", "unit": "W", "desc": "储能控制功率"}
+    ],
+    "params": [
+        {"key": "max_charge_limit", "val": 5000.0, "desc": "最大充电功率限制"},
+        {"key": "min_soc_reserve", "val": 15.0, "desc": "预留最小SOC"}
+    ]
+}

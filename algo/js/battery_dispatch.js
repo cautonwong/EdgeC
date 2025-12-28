@@ -21,12 +21,9 @@ function getTargetPower() {
     return 0.0; // Standby
 }
 
-// 导出决策结果供 SDK 调度器读取
-const result = {
+// 在脚本末尾直接返回结果对象，避免使用全局 const 冲突
+({
     target_pwr: getTargetPower(),
     mode: "TOU_AUTO",
     timestamp: Date.now()
-};
-
-// 在我们的 SDK 引擎中，脚本最后一条表达式的结果将被返回
-result;
+});

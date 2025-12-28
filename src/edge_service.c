@@ -78,6 +78,14 @@ arbiter_t *service_get_arbiter(service_t *svc) {
     return svc ? svc->arbiter : NULL;
 }
 
+datahub_t *service_get_datahub(service_t *svc) {
+    return svc ? svc->data_hub : NULL;
+}
+
+persistence_mgr_t *service_get_storage(service_t *svc) {
+    return svc ? svc->storage : NULL;
+}
+
 void service_set_loop(service_t *svc, uv_loop_t *loop) {
     if (svc) svc->loop = loop;
 }

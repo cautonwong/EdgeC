@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "edge_common.h"
+#include "sqlite_service.h"
 
 // 参数类型
 typedef enum {
@@ -14,6 +15,8 @@ typedef enum {
 } param_type_t;
 
 // --- API ---
+
+void edge_param_init(sqlite_svc_t *svc);
 
 // 设置参数 (持久化并更新缓存)
 edge_status_t edge_param_set_float(const char *key, double val);

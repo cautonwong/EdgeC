@@ -12,127 +12,111 @@ struct js_engine_s {
     JSRuntime *rt;
     JSContext *ctx;
     size_t mem_limit;
-    uint64_t start_time;
-    bool interrupted;
 };
 
-// --- Helper: Get engine from context ---
-static js_engine_t *get_engine(JSContext *ctx) {
-    return (js_engine_t *)JS_GetRuntimeOpaque(JS_GetRuntime(ctx));
-}
-
-// --- JS Bindings: Logging ---
-static JSValue js_log_info(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+// --- JS Bindings: console.log ---
+static JSValue js_console_log(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
     (void)this_val;
-    (void)argc;
-    const char *str = JS_ToCString(ctx, argv[0]);
-    if (str) {
-        printf("[JS-INFO] %s\n", str);  // Corrected newline escape
-        JS_FreeCString(ctx, str);
+    for (int i = 0; i < argc; i++) {
+        const char *str = JS_ToCString(ctx, argv[i]);
+        if (str) {
+            printf("[JS] %s%s", str, (i == argc - 1) ? "" : " ");
+            JS_FreeCString(ctx, str);
+        }
     }
+    printf("\n");
     return JS_UNDEFINED;
 }
 
-// --- JS Bindings: DataHub ---
+// --- JS Bindings: DataHub.read(tag_id) ---
 static JSValue js_datahub_read(JSContext *ctx, JSValueConst this_val, int argc,
                                JSValueConst *argv) {
     (void)this_val;
-    (void)argc;
-    js_engine_t *engine = get_engine(ctx);
-    (void)engine;
+    js_engine_t *engine = JS_GetContextOpaque(ctx);
+    if (!engine || argc < 1) return JS_EXCEPTION;
+
     uint32_t tag_id;
-    if (JS_ToUint32(ctx, &tag_id, argv[0])) return JS_EXCEPTION;
+    JS_ToUint32(ctx, &tag_id, argv[0]);
 
-    // Simulate reading from shm_ring
-    // In real implementation: pipe_msg_t msg; shm_ring_read(engine->svc->data_hub->ring, ...)
-    // For now, return a mock value based on tag_id
-    double val = 220.0 + (tag_id % 10);
-    return JS_NewFloat64(ctx, val);
-}
+    datahub_t *hub = service_get_datahub(engine->svc);
+    if (!hub) return JS_NULL;
 
-// --- JS Bindings: Arbiter ---
-static JSValue js_arbiter_control(JSContext *ctx, JSValueConst this_val, int argc,
-                                  JSValueConst *argv) {
-    (void)this_val;
-    (void)argc;
-    js_engine_t *engine = get_engine(ctx);
-    uint32_t tag_id;
-    double val;
-
-    if (JS_ToUint32(ctx, &tag_id, argv[0])) return JS_EXCEPTION;
-    if (JS_ToFloat64(ctx, &val, argv[1])) return JS_EXCEPTION;
-
-    // Bridge to Command Bridge
-    if (engine->svc) {
-        service_cmd_t cmd = {.type = SVC_CMD_WRITE, .tag_id = tag_id, .value = val};
-        service_post_cmd(engine->svc, &cmd);
+    // 从 SHM 中读取最新数据
+    PipeMsg msg;
+    uint64_t seq = 0;  // 演示：总是尝试读取最新
+    if (shm_ring_read(&hub->ring, &seq, &msg) == 0) {
+        // 在全场景示例中，DataHub 应提供按 ID 查找的索引
+        // 这里仅作为演示逻辑
+        if (msg.tag_id == tag_id) {
+            return JS_NewFloat64(ctx, msg.payload.val.f);
+        }
     }
-
-    return JS_NewBool(ctx, true);
+    return JS_NULL;
 }
 
-// --- Interrupt Handler (Execution Timeout) ---
-static int js_interrupt_handler(JSRuntime *rt, void *opaque) {
-    (void)rt;
-    js_engine_t *engine = (js_engine_t *)opaque;
-    // Check if we exceeded 100ms (Simplified check)
-    // In real app, use uv_hrtime() or similar
-    return engine->interrupted;
+// --- JS Bindings: Arbiter.submit(tag_id, value) ---
+static JSValue js_arbiter_submit(JSContext *ctx, JSValueConst this_val, int argc,
+                                 JSValueConst *argv) {
+    (void)this_val;
+    js_engine_t *engine = JS_GetContextOpaque(ctx);
+    if (!engine || argc < 2) return JS_EXCEPTION;
+
+    uint32_t tag_id;
+    double value;
+    JS_ToUint32(ctx, &tag_id, argv[0]);
+    JS_ToFloat64(ctx, &value, argv[1]);
+
+    arbiter_t *arb = service_get_arbiter(engine->svc);
+    if (arb) {
+        cmd_msg_t cmd;
+        cmd_msg_init_write(&cmd, tag_id, value, CMD_PRIO_NORMAL);
+        arbiter_submit_cmd(arb, 0, &cmd);
+        return JS_TRUE;
+    }
+    return JS_FALSE;
 }
 
-// --- Engine Lifecycle ---
+// --- Lifecycle ---
 
 js_engine_t *js_engine_create(service_t *svc, size_t mem_limit) {
     js_engine_t *engine = calloc(1, sizeof(js_engine_t));
     if (!engine) return NULL;
 
     engine->svc = svc;
-    engine->mem_limit = mem_limit;
     engine->rt = JS_NewRuntime();
-    if (!engine->rt) {
-        free(engine);
-        return NULL;
-    }
-
-    JS_SetMemoryLimit(engine->rt, mem_limit);
-    JS_SetRuntimeOpaque(engine->rt, engine);
-    JS_SetInterruptHandler(engine->rt, js_interrupt_handler, engine);
-
     engine->ctx = JS_NewContext(engine->rt);
-    if (!engine->ctx) {
-        JS_FreeRuntime(engine->rt);
-        free(engine);
-        return NULL;
+    JS_SetContextOpaque(engine->ctx, engine);
+
+    if (mem_limit > 0) {
+        JS_SetMemoryLimit(engine->rt, mem_limit);
     }
 
-    // --- Inject EdgeOS API Object ---
     JSValue global_obj = JS_GetGlobalObject(engine->ctx);
-    // Log API
-    JSValue log_obj = JS_NewObject(engine->ctx);
-    JS_SetPropertyStr(engine->ctx, log_obj, "info",
-                      JS_NewCFunction(engine->ctx, js_log_info, "info", 1));
-    JS_SetPropertyStr(engine->ctx, global_obj, "Log", log_obj);
 
-    // DataHub API
-    JSValue dh_obj = JS_NewObject(engine->ctx);
-    JS_SetPropertyStr(engine->ctx, dh_obj, "read",
+    // 1. 注入 console.log
+    JSValue console = JS_NewObject(engine->ctx);
+    JS_SetPropertyStr(engine->ctx, console, "log",
+                      JS_NewCFunction(engine->ctx, js_console_log, "log", 1));
+    JS_SetPropertyStr(engine->ctx, global_obj, "console", console);
+
+    // 2. 注入 DataHub 对象
+    JSValue j_hub = JS_NewObject(engine->ctx);
+    JS_SetPropertyStr(engine->ctx, j_hub, "read",
                       JS_NewCFunction(engine->ctx, js_datahub_read, "read", 1));
-    JS_SetPropertyStr(engine->ctx, global_obj, "DataHub", dh_obj);
+    JS_SetPropertyStr(engine->ctx, global_obj, "DataHub", j_hub);
 
-    // Arbiter API
-    JSValue arb_obj = JS_NewObject(engine->ctx);
-    JS_SetPropertyStr(engine->ctx, arb_obj, "control",
-                      JS_NewCFunction(engine->ctx, js_arbiter_control, "control", 2));
-    JS_SetPropertyStr(engine->ctx, global_obj, "Arbiter", arb_obj);
+    // 3. 注入 Arbiter 对象
+    JSValue j_arb = JS_NewObject(engine->ctx);
+    JS_SetPropertyStr(engine->ctx, j_arb, "submit",
+                      JS_NewCFunction(engine->ctx, js_arbiter_submit, "submit", 2));
+    JS_SetPropertyStr(engine->ctx, global_obj, "Arbiter", j_arb);
 
     JS_FreeValue(engine->ctx, global_obj);
-
     return engine;
 }
 
 int js_engine_eval(js_engine_t *engine, const char *code, const char *filename) {
-    // 使用 JS_EVAL_FLAG_STRICT 模式或在执行前进行包装可以提供更好的隔离
-    // 这里简单处理，确保使用 GLOBAL 模式但建议用户在脚本中使用块级作用域
+    if (!engine || !code) return -1;
     JSValue val = JS_Eval(engine->ctx, code, strlen(code), filename, JS_EVAL_TYPE_GLOBAL);
     int ret = 0;
     if (JS_IsException(val)) {
@@ -144,16 +128,14 @@ int js_engine_eval(js_engine_t *engine, const char *code, const char *filename) 
 }
 
 int js_engine_run_file(js_engine_t *engine, const char *file_path) {
+    if (!engine || !file_path) return -1;
     size_t len;
     uint8_t *buf = js_load_file(engine->ctx, &len, file_path);
     if (!buf) {
-        // 如果 libc 里的函数没加载成功，尝试备用逻辑或报错
         fprintf(stderr, "[JS] Failed to load file: %s\n", file_path);
         return -1;
     }
 
-    // 在执行文件脚本时，包裹一层块级作用域 { ... } 是一种极佳的防御性编程
-    // 这里我们通过 JS 引擎的 Eval 机制来实现。
     JSValue val = JS_Eval(engine->ctx, (const char *)buf, len, file_path, JS_EVAL_TYPE_GLOBAL);
     int ret = 0;
     if (JS_IsException(val)) {
@@ -166,7 +148,7 @@ int js_engine_run_file(js_engine_t *engine, const char *file_path) {
 }
 
 uv_loop_t *js_engine_get_loop(js_engine_t *engine) {
-    return service_get_loop(engine->svc);
+    return engine ? service_get_loop(engine->svc) : NULL;
 }
 
 void js_engine_destroy(js_engine_t *engine) {

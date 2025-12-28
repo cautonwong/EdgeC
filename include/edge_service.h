@@ -56,6 +56,11 @@ shm_ring_t *service_get_shmring(service_t *svc);  // 别名，对齐 rest_server
 arbiter_t *service_get_arbiter(service_t *svc);
 
 /**
+ * @brief 获取数据中枢实例指针
+ */
+datahub_t *service_get_datahub(service_t *svc);
+
+/**
  * @brief 启动服务容器并注入依赖 (黑盒模式)
  */
 int service_run(service_t *svc, uv_loop_t *loop, net_buf_pool_t *pool, arbiter_t *arbiter,
