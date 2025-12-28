@@ -48,8 +48,8 @@ static int modbus_parse_response(edge_point_config_t *point, uint8_t *rx_buf, si
 
     // 简单解析第一个寄存器作为示例 (Float64 输出)
     uint16_t val = (uint16_t)((rx_buf[3] << 8) | rx_buf[4]);
-    out_msg->type = PIPE_SCALAR_F64;
-    out_msg->payload.val_f = (double)val * point->scale + point->offset;
+    out_msg->type = PIPEMSG_SCALAR_F64;
+    out_msg->payload.val.f = (double)val * point->scale + point->offset;
 
     return 0;
 }

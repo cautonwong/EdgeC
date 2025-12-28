@@ -5,238 +5,172 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "ws_proto.h"
+
+#define MAX_WS_CLIENTS 10
+
+typedef struct {
+    uv_tcp_t handle;
+    bool is_ws;
+    bool active;
+} rest_client_t;
+
 struct rest_server_s {
     uv_tcp_t server;
-    uv_timer_t sse_timer;
+    uv_timer_t sse_timer;  // 用于周期性广播实时数据
     service_t *svc;
-    uint64_t last_seq;
-
-    struct {
-        uv_tcp_t handle;
-        int active;
-        int is_sse;
-    } clients[20];
+    rest_client_t clients[MAX_WS_CLIENTS];
 };
+
+static void on_handle_close(uv_handle_t *h) {
+    rest_client_t *c = (rest_client_t *)h;
+    c->active = false;
+}
 
 static void on_write_done(uv_write_t *req, int status) {
     (void)status;
-    if (req->data) free(req->data);  // Free the packet if attached
+    if (req->data) free(req->data);
     free(req);
 }
 
-static void send_json(uv_stream_t *client, const char *json) {
-    char head[512];
-    snprintf(head, sizeof(head),
-             "HTTP/1.1 200 OK\r\n"
-             "Content-Type: application/json\r\n"
-             "Content-Length: %zu\r\n"
-             "Access-Control-Allow-Origin: *\r\n"
-             "Connection: keep-alive\r\n\r\n",
-             strlen(json));
+// --- WebSocket 广播实现 ---
+static void ws_broadcast(rest_server_t *srv, const char *json) {
+    uint8_t frame[2048];
+    size_t frame_len;
+    if (ws_build_frame(WS_OP_TEXT, (const uint8_t *)json, strlen(json), frame, &frame_len) != 0)
+        return;
+
+    for (int i = 0; i < MAX_WS_CLIENTS; i++) {
+        if (srv->clients[i].active && srv->clients[i].is_ws) {
+            uv_write_t *req = malloc(sizeof(uv_write_t));
+            uv_buf_t b = uv_buf_init(strdup((char *)frame), (unsigned int)frame_len);
+            req->data = b.base;
+            uv_write(req, (uv_stream_t *)&srv->clients[i].handle, &b, 1, on_write_done);
+        }
+    }
+}
+
+// --- 核心业务逻辑路由 (对齐 docs 11.2) ---
+static void handle_http_api(rest_server_t *srv, uv_stream_t *stream, const char *method,
+                            const char *path, const char *body) {
+    (void)srv;
+    (void)method;
+    (void)body;
+    char resp[1024];
+
+    if (strcmp(path, "/api/v1/live") == 0) {
+        snprintf(resp, sizeof(resp),
+                 "HTTP/1.1 200 OK\r\nContent-Type: "
+                 "application/json\r\nAccess-Control-Allow-Origin: *\r\n\r\n"
+                 "{\"status\":\"running\",\"trace_mode\":\"v3.1\"}");
+    } else {
+        snprintf(resp, sizeof(resp), "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
+    }
 
     uv_write_t *req = malloc(sizeof(uv_write_t));
-    uv_buf_t bufs[2] = {{.base = head, .len = strlen(head)},
-                        {.base = (char *)json, .len = strlen(json)}};
-    req->data = NULL;  // No dynamic body to free here
-    uv_write(req, client, bufs, 2, on_write_done);
+    uv_buf_t b = uv_buf_init(strdup(resp), (unsigned int)strlen(resp));
+    req->data = b.base;
+    uv_write(req, stream, &b, 1, on_write_done);
 }
 
-// --- New API Handlers ---
+static void on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf) {
+    rest_client_t *client = (rest_client_t *)stream;
+    rest_server_t *srv = (rest_server_t *)stream->data;
 
-static void handle_api_points(rest_server_t *srv, uv_stream_t *client) {
-    (void)srv;
-    cJSON *root = cJSON_CreateArray();
-    // 模拟从 srv->svc->config 读取测点
-    for (int i = 0; i < 5; i++) {
-        cJSON *p = cJSON_CreateObject();
-        cJSON_AddNumberToObject(p, "id", 1000 + i);
-        cJSON_AddStringToObject(p, "name", i == 0 ? "Grid_Voltage" : "Load_Power");
-        cJSON_AddStringToObject(p, "proto", "ModbusRTU");
-        cJSON_AddItemToArray(root, p);
-    }
-    char *s = cJSON_PrintUnformatted(root);
-    send_json(client, s);
-    free(s);
-    cJSON_Delete(root);
-}
+    if (nread < 0) {
+        uv_close((uv_handle_t *)stream, on_handle_close);
+    } else if (nread > 0) {
+        // 1. 简单的 WebSocket 握手检查
+        if (strstr(buf->base, "Upgrade: websocket")) {
+            char *key_start = strstr(buf->base, "Sec-WebSocket-Key: ");
+            if (key_start) {
+                char key[128], accept[128];
+                sscanf(key_start + 19, "%s", key);
+                ws_gen_accept_key(key, accept);
 
-static void handle_control(rest_server_t *srv, uv_stream_t *client, const char *path,
-                           const char *body) {
-    cJSON *root = NULL;
-    if (body) root = cJSON_Parse(body);
-    service_cmd_t cmd = {0};
+                char handshake[512];
+                snprintf(handshake, sizeof(handshake),
+                         "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: "
+                         "Upgrade\r\nSec-WebSocket-Accept: %s\r\n\r\n",
+                         accept);
 
-    if (strstr(path, "/write") && root) {
-        cmd.type = SVC_CMD_WRITE;
-        cmd.tag_id = (uint32_t)cJSON_GetObjectItem(root, "tag_id")->valueint;
-        cmd.value = cJSON_GetObjectItem(root, "value")->valuedouble;
-        service_post_cmd(srv->svc, &cmd);
-        send_json(client, "{\"status\":\"S6_ACCEPTED\"}");
-    } else if (strstr(path, "/ota/start")) {
-        cmd.type = SVC_CMD_OTA_START;
-        service_post_cmd(srv->svc, &cmd);
-        send_json(client, "{\"status\":\"S7_OTA_LOCK\"}");
-    } else {
-        send_json(client, "{\"status\":\"UNKNOWN_CMD\"}");
-    }
-    if (root) cJSON_Delete(root);
-}
-
-static void on_rest_close(uv_handle_t *handle) {
-    rest_server_t *srv = (rest_server_t *)handle->data;
-    for (int i = 0; i < 20; i++) {
-        if ((uv_tcp_t *)handle == &srv->clients[i].handle) {
-            srv->clients[i].active = 0;
-            srv->clients[i].is_sse = 0;
-            break;
-        }
-    }
-}
-
-static void on_rest_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
-    rest_server_t *srv = (rest_server_t *)client->data;
-    if (nread > 0) {
-        char *req = buf->base;
-        if (strncmp(req, "GET /api/v1/points", 18) == 0)
-            handle_api_points(srv, client);
-        else if (strncmp(req, "GET /events", 11) == 0) {
-            const char *sse_head =
-                "HTTP/1.1 200 OK\r\n"
-                "Content-Type: text/event-stream\r\n"
-                "Cache-Control: no-cache\r\n"
-                "Access-Control-Allow-Origin: *\r\n\r\n";
-            uv_write_t *w = malloc(sizeof(uv_write_t));
-            uv_buf_t b = uv_buf_init((char *)sse_head, (unsigned int)strlen(sse_head));
-            w->data = NULL;
-            uv_write(w, client, &b, 1, on_write_done);
-
-            for (int i = 0; i < 20; i++) {
-                if ((uv_tcp_t *)client == &srv->clients[i].handle) {
-                    srv->clients[i].is_sse = 1;
-                    break;
-                }
+                uv_write_t *req = malloc(sizeof(uv_write_t));
+                uv_buf_t b = uv_buf_init(strdup(handshake), (unsigned int)strlen(handshake));
+                req->data = b.base;
+                uv_write(req, stream, &b, 1, on_write_done);
+                client->is_ws = true;
+                printf("[REST] Client upgraded to WebSocket\n");
             }
-        } else if (strncmp(req, "POST /api/v1/control", 20) == 0) {
-            char path[64] = {0};
-            sscanf(req, "POST %s ", path);
-            char *body = strstr(req, "\r\n\r\n");
-            handle_control(srv, client, path, body ? body + 4 : NULL);
-        } else {
-            send_json(client, "{\"info\":\"EdgeOS REST v2.2\"}");
-        }
-    } else if (nread < 0) {
-        if (!uv_is_closing((uv_handle_t *)client)) {
-            uv_close((uv_handle_t *)client, on_rest_close);
+        } else if (!client->is_ws) {
+            // 2. 普通 REST API
+            char method[8], path[128];
+            sscanf(buf->base, "%s %s", method, path);
+            handle_http_api(srv, stream, method, path, NULL);
         }
     }
     if (buf->base) free(buf->base);
 }
 
-static void on_alloc(uv_handle_t *h, size_t size, uv_buf_t *buf) {
+static void on_alloc(uv_handle_t *h, size_t s, uv_buf_t *b) {
     (void)h;
-    buf->base = malloc(size);
-    buf->len = (unsigned int)size;
+    b->base = malloc(s);
+    b->len = (unsigned int)s;
 }
 
-static void on_conn(uv_stream_t *server, int status) {
+static void on_connection(uv_stream_t *server, int status) {
     if (status < 0) return;
     rest_server_t *srv = (rest_server_t *)server->data;
+
     int idx = -1;
-    for (int i = 0; i < 20; i++)
+    for (int i = 0; i < MAX_WS_CLIENTS; i++) {
         if (!srv->clients[i].active) {
             idx = i;
             break;
         }
+    }
     if (idx < 0) return;
-    uv_tcp_init(server->loop, &srv->clients[idx].handle);
-    srv->clients[idx].active = 1;
-    srv->clients[idx].handle.data = srv;
-    uv_accept(server, (uv_stream_t *)&srv->clients[idx].handle);
-    uv_read_start((uv_stream_t *)&srv->clients[idx].handle, on_alloc, on_rest_read);
+
+    rest_client_t *c = &srv->clients[idx];
+    uv_tcp_init(server->loop, &c->handle);
+    c->handle.data = srv;
+    c->active = true;
+    c->is_ws = false;
+
+    if (uv_accept(server, (uv_stream_t *)&c->handle) == 0) {
+        uv_read_start((uv_stream_t *)&c->handle, on_alloc, on_read);
+    } else {
+        c->active = false;
+        uv_close((uv_handle_t *)&c->handle, on_handle_close);
+    }
 }
 
-// --- SSE Broadcast (Data Push) ---
-static void on_tick(uv_timer_t *t) {
+static void on_broadcast_tick(uv_timer_t *t) {
     rest_server_t *srv = (rest_server_t *)t->data;
-
-    shm_ring_t *ring = service_get_ring(srv->svc);
-    PipeMsg msg;
-    double latest_val = 0;
-    bool has_data = false;
-
-    if (ring) {
-        while (shm_ring_read(ring, &srv->last_seq, &msg) == 0) {
-            if (msg.type == PIPEMSG_SCALAR_F64) {
-                latest_val = msg.payload.val_f;
-                has_data = true;
-            }
-        }
-    }
-
-    if (!has_data) {
-        latest_val = 220.0 + (rand() % 100) / 10.0;
-    }
-
-    // 构建一个包含多维度数据的模拟 JSON
-    char pkt[1024];
-    snprintf(
-        pkt, sizeof(pkt),
-        "data: "
-        "{\"type\":\"telemetry\",\"val\":%.2f,\"current\":%.2f,\"freq\":50.01,\"temp\":42.5}\n\n",
-        latest_val, latest_val / 20.0);
-
-    for (int i = 0; i < 20; i++) {
-        if (srv->clients[i].active && srv->clients[i].is_sse) {
-            uv_write_t *w = malloc(sizeof(uv_write_t));
-            uv_buf_t b = uv_buf_init(strdup(pkt), (unsigned int)strlen(pkt));
-            w->data = b.base;
-            uv_write(w, (uv_stream_t *)&srv->clients[i].handle, &b, 1, on_write_done);
-        }
-    }
+    // 模拟从 DataHub 获取数据并广播
+    ws_broadcast(srv, "{\"type\":\"telemetry\",\"tag\":1001,\"val\":220.5}");
 }
 
 rest_server_t *rest_server_create(uv_loop_t *loop, service_t *svc, int port) {
     rest_server_t *srv = calloc(1, sizeof(rest_server_t));
     srv->svc = svc;
-
     uv_tcp_init(loop, &srv->server);
     srv->server.data = srv;
 
     struct sockaddr_in addr;
     uv_ip4_addr("0.0.0.0", port, &addr);
-
-    int r = uv_tcp_bind(&srv->server, (const struct sockaddr *)&addr, 0);
-    if (r) {
-        fprintf(stderr, "[REST] Bind error port %d: %s\n", port, uv_strerror(r));
-        free(srv);
-        return NULL;
-    }
-
-    r = uv_listen((uv_stream_t *)&srv->server, 128, on_conn);
-    if (r) {
-        fprintf(stderr, "[REST] Listen error port %d: %s\n", port, uv_strerror(r));
-        free(srv);
-        return NULL;
-    }
+    uv_tcp_bind(&srv->server, (const struct sockaddr *)&addr, 0);
+    uv_listen((uv_stream_t *)&srv->server, 128, on_connection);
 
     uv_timer_init(loop, &srv->sse_timer);
     srv->sse_timer.data = srv;
-    uv_timer_start(&srv->sse_timer, on_tick, 500, 500);
+    uv_timer_start(&srv->sse_timer, on_broadcast_tick, 1000, 1000);
 
-    printf("[REST] API Server running at http://localhost:%d\n", port);
+    printf("[REST] Gateway running at http://localhost:%d\n", port);
     return srv;
 }
 
 void rest_server_destroy(rest_server_t *srv) {
     if (!srv) return;
-
-    if (!uv_is_closing((uv_handle_t *)&srv->sse_timer)) {
-        uv_close((uv_handle_t *)&srv->sse_timer, NULL);
-    }
-
-    // Close the server listener - the memory will be freed by uv_walk in northbound_mgr
-
-    if (!uv_is_closing((uv_handle_t *)&srv->server)) {
-        uv_close((uv_handle_t *)&srv->server, NULL);
-    }
+    uv_timer_stop(&srv->sse_timer);
+    uv_close((uv_handle_t *)&srv->server, (uv_close_cb)free);
 }

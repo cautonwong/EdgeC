@@ -122,7 +122,7 @@ void evse_fsm_tick(EvseContext *ctx) {
             ctx->state = EVSE_STATE_CHARGING;
             ocpp_send_start_transaction();
             break;
-            
+
         // ...
     }
 }

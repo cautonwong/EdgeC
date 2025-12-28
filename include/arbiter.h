@@ -1,4 +1,6 @@
-#pragma once
+#ifndef ARBITER_H
+#define ARBITER_H
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <uv.h>
@@ -17,57 +19,65 @@ typedef enum {
     BUS_MAX
 } arbiter_bus_t;
 
-/* ===== Request Priority ===== */
-typedef enum {
-    ARB_PRIO_LOW = 0,
-    ARB_PRIO_NORMAL = 10,
-    ARB_PRIO_HIGH = 50,
-    ARB_PRIO_CRITICAL = 100,
-    ARB_PRIO_EMERGENCY = 200
-} arbiter_prio_t;
+// --- 4.2.2 控制指令包 (CmdMsg) ---
+typedef enum { CMD_PRIO_EMERGENCY = 0, CMD_PRIO_HIGH = 1, CMD_PRIO_NORMAL = 2 } cmd_priority_t;
 
-/* ===== Request Mode ===== */
-typedef enum { ARB_SHARED = 0, ARB_EXCLUSIVE } arbiter_mode_t;
+typedef enum { CMD_ACTION_READ, CMD_ACTION_WRITE, CMD_ACTION_RAW, CMD_ACTION_OTA } cmd_action_t;
+
+typedef struct cmd_msg {
+    char req_id[32];
+    cmd_priority_t priority;
+    cmd_action_t action;
+
+    uint32_t tag_id;
+    double value;
+    void *params;
+
+    // Callbacks
+    void (*on_start)(void *user);
+    void (*on_preempt)(void *user);
+    void (*on_complete)(struct cmd_msg *msg, int status);
+    void *user_data;
+
+    /* 内部链表 */
+    struct cmd_msg *next;
+} cmd_msg_t;
 
 typedef struct arbiter arbiter_t;
-typedef struct arb_req arbiter_req_t;
 
-typedef void (*arbiter_on_start_cb)(void *user);
-typedef void (*arbiter_on_preempt_cb)(void *user);
-typedef void (*arbiter_on_done_cb)(void *user);
-
-struct arb_req {
-    arbiter_prio_t priority;
-    arbiter_mode_t mode;
-    uint64_t timeout_ms;
-
-    arbiter_on_start_cb on_start;
-    arbiter_on_preempt_cb on_preempt;
-    arbiter_on_done_cb on_done;
-
-    void *user_start;
-    void *user_preempt;
-    void *user_done;
-
-    /* Internal */
-    uint64_t expire_at;
-    struct arb_req *next;
-};
-
-/* ===== API ===== */
+/**
+ * @brief 初始化仲裁器
+ */
 int arbiter_init(arbiter_t **arb, uv_loop_t *loop);
+
+/**
+ * @brief 关闭仲裁器
+ */
 void arbiter_shutdown(arbiter_t *arb);
 
-/* Register a bus by name (placeholder for now) */
+/**
+ * @brief 注册总线句柄 (Opaque)
+ */
 typedef void *arbiter_bus_handle_t;
 arbiter_bus_handle_t arbiter_bus_register(arbiter_t *arb, const char *name);
 
-/* Submit a request */
-int arbiter_submit(arbiter_bus_handle_t bus_h, arbiter_req_t *req);
+/**
+ * @brief 提交指令 (S5/S6/S7 场景)
+ */
+int arbiter_submit_cmd(arbiter_t *arb, int bus_id, cmd_msg_t *cmd);
 
-/* Active Release */
-void arbiter_release(arbiter_bus_handle_t bus_h, arbiter_req_t *req);
+/**
+ * @brief 设置独占锁 (S7 OTA 场景)
+ */
+void arbiter_set_exclusive(arbiter_t *arb, int bus_id, bool exclusive);
+
+/**
+ * @brief 驱动层回调：任务完成
+ */
+void arbiter_on_io_done(arbiter_t *arb, int bus_id, cmd_msg_t *cmd);
 
 #ifdef __cplusplus
 }
 #endif
+
+#endif  // ARBITER_H

@@ -186,7 +186,7 @@ te_variable vars[] = { {"x", &raw_val} };
 te_expr *expr = te_compile(config_str, vars, 1, 0); // 编译 "x * 0.01"
 
 // 运行时：
-raw_val = modbus_read(); 
+raw_val = modbus_read();
 final_val = te_eval(expr); // 直接算出结果
 ```
 
@@ -268,12 +268,12 @@ int main(int argc, char *argv[]) {
 
     // 时刻 1: 正常
     temperature = 25.0; humidity = 60.0;
-    printf("T=%.1f, H=%.1f, Result=%.1f\n", temperature, humidity, te_eval(n)); 
+    printf("T=%.1f, H=%.1f, Result=%.1f\n", temperature, humidity, te_eval(n));
     // Output: Result=0.0
 
     // 时刻 2: 高温高湿
     temperature = 35.0; humidity = 90.0;
-    printf("T=%.1f, H=%.1f, Result=%.1f\n", temperature, humidity, te_eval(n)); 
+    printf("T=%.1f, H=%.1f, Result=%.1f\n", temperature, humidity, te_eval(n));
     // Output: Result=1.0 (Trigger Alarm!)
 
     // 6. 清理
@@ -413,7 +413,7 @@ VPP 结算不仅看你做了多少，还看你**本来打算做多少**。
 
 **方案 A：轻量级统计法 (推荐 C 嵌入式使用)**
 *   **算法：** **Holt-Winters (三次指数平滑)** 或 **相似日法**。
-*   **实现：** 
+*   **实现：**
     1.  每晚 00:00，从 SQLite 读取过去 30 天的历史负荷。
     2.  分类：将历史数据按“工作日/周末”分类。
     3.  计算：`Predict(t) = 0.6 * Load_Yesterday(t) + 0.3 * Load_LastWeek(t) + 0.1 * Avg(t)`。
@@ -610,23 +610,23 @@ typedef struct {
 
 void run_peak_shaving(EmsContext *ctx, float grid_limit_kw) {
     float current_grid = ctx->meter.grid_power;
-    
+
     // 1. 计算偏差 (Error)
     float error = current_grid - grid_limit_kw;
-    
+
     // 2. 如果 Grid > Limit (error > 0)，需要放电 (增加 PCS 放电功率)
     if (error > 0) {
         // 使用之前讨论过的 PID 算法
-        float adjust = pid_compute(&g_pid, 0, error, 0.1); 
-        
+        float adjust = pid_compute(&g_pid, 0, error, 0.1);
+
         // 3. 计算目标功率
         float target_pcs_power = ctx->pcs.active_power - adjust;
-        
+
         // 4. 安全边界检查 (非常重要！)
         if (target_pcs_power < -ctx->bms.max_discharge_power) {
             target_pcs_power = -ctx->bms.max_discharge_power;
         }
-        
+
         // 5. 下发指令 (SDK API)
         sdk_driver_write("pcs_01", "active_power_setpoint", target_pcs_power);
     }
@@ -643,19 +643,19 @@ typedef enum { STATE_IDLE, STATE_CHARGE_PV, STATE_DISCHARGE_LOAD } HemsState;
 void run_hems_logic(EmsContext *ctx) {
     float pv_gen = ctx->pv.power;
     float house_load = ctx->load.power;
-    
+
     switch (g_state) {
         case STATE_IDLE:
             if (pv_gen > house_load) g_state = STATE_CHARGE_PV;
             else if (pv_gen < house_load) g_state = STATE_DISCHARGE_LOAD;
             break;
-            
+
         case STATE_CHARGE_PV:
             // 设置 PCS 充电功率 = PV - Load
             float charge_p = pv_gen - house_load;
             sdk_driver_write("pcs", "power", charge_p);
             break;
-            
+
         // ...
     }
 }

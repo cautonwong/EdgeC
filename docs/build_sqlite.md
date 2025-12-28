@@ -86,10 +86,10 @@ install(TARGETS sqlite3_shell RUNTIME DESTINATION bin)
 build_sqlite() {
     ARCH=$1
     echo ">>> [SQLite3] Building for $ARCH..."
-    
+
     SOURCE_DIR="$PROJECT_ROOT/vendor/sqlite"
     BUILD_DIR="$SOURCE_DIR/build-$ARCH"
-    
+
     # 确定安装路径
     if [ "$ARCH" == "host" ]; then
         INST_DIR="$INSTALL_ROOT/linux-x86_64"
@@ -102,15 +102,15 @@ build_sqlite() {
     # 清理并创建构建目录
     rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR"
     cd "$BUILD_DIR"
-    
+
     # 执行 CMake
     cmake -DCMAKE_INSTALL_PREFIX="$INST_DIR" \
           -DCMAKE_BUILD_TYPE=Release \
           $OPTS ..
-          
+
     # 编译并安装
     make -j$(nproc) && make install
-    
+
     echo ">>> SQLite3 for [$ARCH] installed to $INST_DIR"
 }
 

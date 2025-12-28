@@ -40,11 +40,11 @@ static void test_single_thread_read_write(void **state) {
     uint64_t seq = 0;
 
     write_msg.tag_id = 101;
-    write_msg.payload.val_f = 99.9;
+    write_msg.payload.val.f = 99.9;
     shm_ring_write(ring, &write_msg);
 
     assert_int_equal(shm_ring_read(ring, &seq, &read_msg), 0);
-    assert_float_equal(read_msg.payload.val_f, 99.9, 0.001);
+    assert_float_equal(read_msg.payload.val.f, 99.9, 0.001);
 }
 
 static void test_multi_process_concurrency(void **state) {
@@ -59,7 +59,7 @@ static void test_multi_process_concurrency(void **state) {
         }
         for (int i = 0; i < TEST_WRITE_COUNT; i++) {
             PipeMsg msg = {0};
-            msg.payload.val_i = i;
+            msg.payload.val.i = i;
             shm_ring_write(&ring, &msg);
             usleep(1000);
         }

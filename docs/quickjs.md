@@ -89,7 +89,7 @@
     1     // 云端下发的规则脚本: rule_alarm.js
     2     const voltage = DataHub.read(1001); // 读取 DataHub 中的电压值
     3     const current = DataHub.read(1002);
-    4     
+    4
     5     if (voltage > 245 && current > 50) {
     6         // 触发告警事件，写入 DataHub
     7         DataHub.write(9001, "OVERVOLTAGE_ALARM", Severity.CRITICAL);
@@ -119,7 +119,7 @@
    2     const pA = DataHub.read("PhaseA_Power");
    3     const pB = DataHub.read("PhaseB_Power");
    4     const pC = DataHub.read("PhaseC_Power");
-   5     
+   5
    6     DataHub.publish("Total_Power", pA + pB + pC);
    * 工程实现：利用 libuv 的定时器，每 100ms 运行一次 JS 聚合脚本。
 
@@ -181,4 +181,4 @@
      SG-EL2025 这种复杂的电力融合终端是极具竞争力的特性。
 
   如果你决定开始集成，我可以帮你写一个 `edge_js_binding.c` 的模板，展示如何把 `DataHub`
-  的数据实时传给 QuickJS。  
+  的数据实时传给 QuickJS。

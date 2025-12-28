@@ -300,7 +300,7 @@
     int fd = open("/dev/watchdog", O_RDWR);
     int timeout = 10; // 10秒超时
     ioctl(fd, WDIOC_SETTIMEOUT, &timeout);
-    
+
     while(1) {
         // 核心检查：只有当主循环状态正常时才喂狗
         if (atomic_load(&system_status) == STATUS_OK) {
@@ -729,15 +729,15 @@ typedef struct {
 typedef struct {
     sqlite3 *db;
     uv_loop_t *loop;
-    
+
     // 双缓冲
     BatchBuffer *active_buf;
     BatchBuffer *flush_buf;
-    
+
     // 异步任务句柄
     uv_work_t work_req;
     uv_timer_t flush_timer;
-    
+
     int is_flushing; // 锁标志
 } DbContext;
 
@@ -753,12 +753,12 @@ static const char *SQL_INSERT = "INSERT INTO ts_data (ts, tag_id, val, quality) 
 static void _worker_flush_db(uv_work_t *req) {
     DbContext *ctx = (DbContext *)req->data;
     BatchBuffer *buf = ctx->flush_buf;
-    
+
     if (buf->count == 0) return;
 
     char *err_msg = 0;
     sqlite3_exec(ctx->db, "BEGIN TRANSACTION;", 0, 0, 0);
-    
+
     sqlite3_stmt *stmt;
     sqlite3_prepare_v2(ctx->db, SQL_INSERT, -1, &stmt, NULL);
 
@@ -768,14 +768,14 @@ static void _worker_flush_db(uv_work_t *req) {
         sqlite3_bind_int(stmt, 2, p->tag_id);
         sqlite3_bind_double(stmt, 3, p->val.f_val); // 演示只存 float
         sqlite3_bind_int(stmt, 4, p->quality);
-        
+
         sqlite3_step(stmt);
         sqlite3_reset(stmt);
     }
-    
+
     sqlite3_finalize(stmt);
     sqlite3_exec(ctx->db, "COMMIT;", 0, 0, 0);
-    
+
     // printf("[DB] Flushed %d records to disk.\n", buf->count);
 }
 
@@ -784,7 +784,7 @@ static void _worker_flush_db(uv_work_t *req) {
 // ---------------------------------------------------------
 static void _after_flush(uv_work_t *req, int status) {
     DbContext *ctx = (DbContext *)req->data;
-    
+
     // 清空已落盘的缓冲区
     ctx->flush_buf->count = 0;
     ctx->is_flushing = 0; // 解锁
@@ -808,7 +808,7 @@ static void _trigger_flush(DbContext *ctx) {
 
     // 标记正在写入
     ctx->is_flushing = 1;
-    
+
     // 提交给 libuv 线程池
     ctx->work_req.data = ctx;
     uv_queue_work(ctx->loop, &ctx->work_req, _worker_flush_db, _after_flush);
@@ -839,9 +839,9 @@ int db_sys_init(uv_loop_t *loop, const char *db_path) {
     // 关键优化配置 (WAL + NORMAL)
     sqlite3_exec(g_ctx.db, "PRAGMA journal_mode=WAL;", 0, 0, 0);
     sqlite3_exec(g_ctx.db, "PRAGMA synchronous=NORMAL;", 0, 0, 0);
-    
+
     // 建表 (WITHOUT ROWID 优化时序)
-    const char *sql_create = 
+    const char *sql_create =
         "CREATE TABLE IF NOT EXISTS ts_data ("
         "ts INTEGER, tag_id INTEGER, val REAL, quality INTEGER, "
         "PRIMARY KEY(ts, tag_id)) WITHOUT ROWID;";
@@ -856,7 +856,7 @@ int db_sys_init(uv_loop_t *loop, const char *db_path) {
 
 int db_insert_async(DataPoint *dp) {
     BatchBuffer *buf = g_ctx.active_buf;
-    
+
     // 写入内存
     buf->items[buf->count++] = *dp;
 
@@ -896,14 +896,14 @@ void on_sensor_sample(uv_timer_t *handle) {
     if (buf) {
         net_buf_add(buf, &dp, sizeof(DataPoint));
         // 这里可以把 buf 传给 MQTT 模块...
-        
+
         // 用完回收
         net_buf_unref(buf);
     }
 
     // 3. 写入数据库 (异步)
     db_insert_async(&dp);
-    
+
     // 每 100 次打印一下进度
     static int count = 0;
     if (++count % 100 == 0) {
@@ -926,7 +926,7 @@ int main() {
     uv_timer_start(&sensor_timer, on_sensor_sample, 0, 10); // 10ms 周期
 
     printf("Edge Core Running... (Press Ctrl+C to stop)\n");
-    
+
     // 4. 进入事件循环
     uv_run(loop, UV_RUN_DEFAULT);
 
@@ -953,15 +953,15 @@ find_library(SQLITE3_LIB sqlite3)
 include_directories(include)
 
 # 编译主程序
-add_executable(demo 
-    src/main.c 
-    src/core_mem.c 
+add_executable(demo
+    src/main.c
+    src/core_mem.c
     src/core_db.c
 )
 
-target_link_libraries(demo 
-    uv 
-    ${SQLITE3_LIB} 
+target_link_libraries(demo
+    uv
+    ${SQLITE3_LIB}
     pthread
 )
 ```
@@ -1037,17 +1037,17 @@ typedef void (*OnDataCb)(uint32_t tag_id, const DataPoint *dp, void *usr_data);
 typedef struct {
     // 初始化：传入 JSON 配置字符串，和数据回调函数
     DriverContext* (*init)(const char *json_config, OnDataCb cb, void *usr_data);
-    
+
     // 启动/停止
     int (*start)(DriverContext *ctx);
     int (*stop)(DriverContext *ctx);
-    
+
     // 触发一次轮询 (由 SDK 的定时器调度)
     int (*poll)(DriverContext *ctx);
-    
+
     // 写值 (下行控制)
     int (*write)(DriverContext *ctx, uint32_t tag_id, const DataPoint *val);
-    
+
     // 销毁
     void (*destroy)(DriverContext *ctx);
 } DriverOps;
@@ -1099,11 +1099,11 @@ typedef struct {
     char ip[32];
     int port;
     int slave_id;
-    
+
     // 测点列表
     int tag_count;
     TagInfo *tag_list; // 数组
-    
+
     // 优化后的读取块列表
     int block_count;
     ReadBlock *blocks; // 数组
@@ -1155,12 +1155,12 @@ static void rebuild_read_blocks(ModbusCtx *ctx) {
             // 1. 地址递增 (gap >= 0)
             // 2. 间隙没太离谱 (gap <= MAX_READ_GAP)
             // 3. 合并后总长度不超过 PDU 限制
-            if (gap >= 0 && gap <= MAX_READ_GAP && 
+            if (gap >= 0 && gap <= MAX_READ_GAP &&
                 (t->addr + reg_len - blk->start_addr) <= MAX_PDU_REGS) {
-                
+
                 // 可以合并！
                 need_new_block = 0;
-                
+
                 // 扩展块长度
                 int new_len = (t->addr + reg_len) - blk->start_addr;
                 blk->length = new_len;
@@ -1169,7 +1169,7 @@ static void rebuild_read_blocks(ModbusCtx *ctx) {
                 blk->tag_count++;
                 blk->tags = realloc(blk->tags, blk->tag_count * sizeof(TagInfo*));
                 blk->tags[blk->tag_count - 1] = t;
-                
+
                 // 记录偏移，方便解码时快速定位
                 t->offset_in_blk = t->addr - blk->start_addr;
             }
@@ -1187,8 +1187,8 @@ static void rebuild_read_blocks(ModbusCtx *ctx) {
             ctx->block_count++;
         }
     }
-    
-    printf("[Modbus] Optimized: %d tags -> %d blocks requests.\n", 
+
+    printf("[Modbus] Optimized: %d tags -> %d blocks requests.\n",
            ctx->tag_count, ctx->block_count);
 }
 
@@ -1211,7 +1211,7 @@ static void decode_and_submit(ModbusCtx *ctx, ReadBlock *blk, uint16_t *raw_buf)
     for (int i = 0; i < blk->tag_count; i++) {
         TagInfo *t = blk->tags[i];
         uint16_t *ptr = &raw_buf[t->offset_in_blk];
-        
+
         DataPoint dp;
         dp.ts = current_ts_ms(); // SDK common.h 中定义
         dp.tag_id = t->tag_id;
@@ -1240,10 +1240,10 @@ static DriverContext* my_init(const char *json_config, OnDataCb cb, void *usr_da
     ModbusCtx *ctx = calloc(1, sizeof(ModbusCtx));
     ctx->on_data = cb;
     ctx->usr_data = usr_data;
-    
+
     cJSON *root = cJSON_Parse(json_config);
     if (!root) return NULL;
-    
+
     // 1. 解析连接参数
     cJSON *conn = cJSON_GetObjectItem(root, "connection");
     strcpy(ctx->ip, cJSON_GetObjectItem(conn, "ip")->valuestring);
@@ -1261,17 +1261,17 @@ static DriverContext* my_init(const char *json_config, OnDataCb cb, void *usr_da
         t->tag_id = cJSON_GetObjectItem(item, "tag_id")->valueint;
         t->addr = cJSON_GetObjectItem(item, "addr")->valueint;
         char *type_str = cJSON_GetObjectItem(item, "type")->valuestring;
-        
+
         if (strcmp(type_str, "float") == 0) t->type = 2;
         else t->type = 0; // default uint16
-        
+
         cJSON *scale = cJSON_GetObjectItem(item, "scale");
         t->scale = scale ? scale->valuedouble : 1.0f;
     }
-    
+
     // 3. 执行聚合优化算法
     rebuild_read_blocks(ctx);
-    
+
     cJSON_Delete(root);
     return (DriverContext*)ctx;
 }
@@ -1281,10 +1281,10 @@ static int my_start(DriverContext *d) {
     // 创建 libmodbus 上下文 (TCP)
     ctx->mb = modbus_new_tcp(ctx->ip, ctx->port);
     modbus_set_slave(ctx->mb, ctx->slave_id);
-    
+
     // 设置超时 (非常重要)
     modbus_set_response_timeout(ctx->mb, 0, 500000); // 500ms
-    
+
     if (modbus_connect(ctx->mb) == -1) {
         fprintf(stderr, "[Modbus] Conn failed: %s\n", modbus_strerror(errno));
         ctx->is_connected = 0;
@@ -1309,18 +1309,18 @@ static int my_poll(DriverContext *d) {
     // 遍历所有优化后的块进行读取
     for (int i = 0; i < ctx->block_count; i++) {
         ReadBlock *blk = &ctx->blocks[i];
-        
+
         int rc = modbus_read_registers(ctx->mb, blk->start_addr, blk->length, read_buf);
         if (rc == -1) {
             fprintf(stderr, "[Modbus] Read Error at %d: %s\n", blk->start_addr, modbus_strerror(errno));
             // 如果连续失败，可以考虑标记 disconnect
             continue;
         }
-        
+
         // 解码并提交数据
         decode_and_submit(ctx, blk, read_buf);
     }
-    
+
     free(read_buf);
     return 0;
 }
@@ -1394,15 +1394,15 @@ target_link_libraries(modbus_drv ${MODBUS_LIB} ${CJSON_LIB})
     "slave_id": 1
   },
   "tags": [
-    { "tag_id": 101, "addr": 0, "type": "uint16", "scale": 0.1 }, 
+    { "tag_id": 101, "addr": 0, "type": "uint16", "scale": 0.1 },
     { "tag_id": 102, "addr": 1, "type": "uint16", "scale": 0.1 },
     { "tag_id": 103, "addr": 2, "type": "uint16", "scale": 1.0 },
-    
+
     // 中间跳过 3, 4 (Gap=2, < MAX_GAP, 应该会被合并)
-    
-    { "tag_id": 105, "addr": 5, "type": "float",  "scale": 1.0 }, 
+
+    { "tag_id": 105, "addr": 5, "type": "float",  "scale": 1.0 },
     // float 占 5,6 两个寄存器
-    
+
     // 跳过 100 个 (Gap=94, > MAX_GAP, 会新建一个 Block)
     { "tag_id": 200, "addr": 100, "type": "uint16", "scale": 1.0 }
   ]
@@ -1500,11 +1500,11 @@ struct Task {
     TaskCb cb;
     void *arg;
     int type; // 0=INTERVAL, 1=CRON
-    
+
     // Interval 专用
     uint64_t interval_ms;
     uv_timer_t uv_handle; // 只有 Interval 任务直接持有 uv_timer
-    
+
     // Cron 专用
     CronExpr cron;
     time_t next_run_ts;   // 下一次运行的绝对时间戳 (Wall Clock)
@@ -1513,10 +1513,10 @@ struct Task {
 
 typedef struct {
     uv_loop_t *loop;
-    
+
     // Cron 任务链表
     Task *cron_head;
-    
+
     // 核心组件：时钟跳变检测器
     uv_timer_t check_timer;
     struct timespec last_real_time;
@@ -1547,19 +1547,19 @@ void sched_add_cron(Scheduler *s, int id, const char *cron_str, TaskCb cb, void 
 static time_t _calc_next_run(CronExpr *expr, time_t now) {
     struct tm tm_now;
     localtime_r(&now, &tm_now);
-    
+
     // 简单逻辑：假设每天固定时间执行 (例如 23:30:00)
     // 实际应包含复杂的进位逻辑
     struct tm tm_next = tm_now;
     tm_next.tm_sec = (expr->second == -1) ? 0 : expr->second;
     tm_next.tm_min = (expr->minute == -1) ? 0 : expr->minute;
     tm_next.tm_hour = (expr->hour == -1) ? tm_now.tm_hour + 1 : expr->hour;
-    
+
     time_t next = mktime(&tm_next);
-    
+
     // 如果计算出的时间已经过去了，加一天
     if (next <= now) {
-        next += 24 * 3600; 
+        next += 24 * 3600;
     }
     return next;
 }
@@ -1578,7 +1578,7 @@ static void _parse_cron(const char *str, CronExpr *out) {
 static void _run_cron_task(Task *t, time_t now) {
     printf("[Sched] Running Cron Task ID=%d at %ld\n", t->id, now);
     if (t->cb) t->cb(t, t->arg);
-    
+
     // 重新计算下一次 (libev 思想：re-arm)
     t->next_run_ts = _calc_next_run(&t->cron, now);
     printf("[Sched] Task ID=%d re-scheduled to %ld\n", t->id, t->next_run_ts);
@@ -1588,17 +1588,17 @@ static void _run_cron_task(Task *t, time_t now) {
 // 用于驱动 Cron 任务，并检测时钟跳变
 static void _on_clock_check(uv_timer_t *handle) {
     Scheduler *s = (Scheduler *)handle->data;
-    
+
     struct timespec now_real;
     clock_gettime(CLOCK_REALTIME, &now_real);
     uint64_t now_mono = uv_now(s->loop); // 毫秒
-    
+
     // --- A. 检测时钟跳变 (Clock Jump Detection) ---
     // 逻辑：如果 (RealTime的变化量) 与 (Monotonic的变化量) 偏差超过 1秒
-    
+
     long diff_real = now_real.tv_sec - s->last_real_time.tv_sec;
     long diff_mono = (now_mono - s->last_mono_time) / 1000;
-    
+
     // 如果偏差 > 2秒 (考虑调度误差)，说明用户修改了系统时间
     if (abs(diff_real - diff_mono) > 2) {
         printf("[Sched] WARN: Clock Jump Detected! Adjusting schedule...\n");
@@ -1611,11 +1611,11 @@ static void _on_clock_check(uv_timer_t *handle) {
             curr = curr->next_cron;
         }
     }
-    
+
     // 更新快照
     s->last_real_time = now_real;
     s->last_mono_time = now_mono;
-    
+
     // --- B. 检查 Cron 任务是否到期 ---
     time_t current_ts = now_real.tv_sec;
     Task *curr = s->cron_head;
@@ -1635,16 +1635,16 @@ static void _on_clock_check(uv_timer_t *handle) {
 Scheduler* sched_create(uv_loop_t *loop) {
     Scheduler *s = calloc(1, sizeof(Scheduler));
     s->loop = loop;
-    
+
     // 初始化时钟检查器
     clock_gettime(CLOCK_REALTIME, &s->last_real_time);
     s->last_mono_time = uv_now(loop);
-    
+
     uv_timer_init(loop, &s->check_timer);
     s->check_timer.data = s;
     // 1秒心跳，兼顾精度与性能
     uv_timer_start(&s->check_timer, _on_clock_check, 1000, 1000);
-    
+
     return s;
 }
 
@@ -1656,13 +1656,13 @@ void sched_add_interval(Scheduler *s, int id, uint64_t ms, TaskCb cb, void *arg)
     t->interval_ms = ms;
     t->cb = cb;
     t->arg = arg;
-    
+
     // Interval 任务拥有独立的 uv_handle
     uv_timer_init(s->loop, &t->uv_handle);
     t->uv_handle.data = t;
-    
+
     // 这种 Callback 需要再包装一层以适配 uv_timer_cb，这里简写
-    // uv_timer_start(&t->uv_handle, (uv_timer_cb)cb, ms, ms); 
+    // uv_timer_start(&t->uv_handle, (uv_timer_cb)cb, ms, ms);
 }
 
 // 添加 Cron 任务
@@ -1672,15 +1672,15 @@ void sched_add_cron(Scheduler *s, int id, const char *cron_str, TaskCb cb, void 
     t->type = 1;
     t->cb = cb;
     t->arg = arg;
-    
+
     _parse_cron(cron_str, &t->cron);
-    
+
     // 立即计算第一次运行时间
     time_t now = time(NULL);
     t->next_run_ts = _calc_next_run(&t->cron, now);
-    
+
     printf("[Sched] Added Cron Task %d, Next Run: %ld\n", id, t->next_run_ts);
-    
+
     // 插入链表
     t->next_cron = s->cron_head;
     s->cron_head = t;
@@ -1767,10 +1767,10 @@ typedef struct {
     int id;
     int heap_index;      // 在堆中的索引 (用于快速删除)
     time_t next_run_ts;  // 下一次运行的绝对时间戳 (排序键)
-    
+
     // Cron 表达式
     char cron_expr[64];
-    
+
     TaskCb cb;
     void *arg;
 } CronTask;
@@ -1778,12 +1778,12 @@ typedef struct {
 typedef struct {
     uv_loop_t *loop;
     uv_timer_t check_timer; // 1秒心跳
-    
+
     // 最小堆 (数组)
     CronTask **heap;
     size_t capacity;
     size_t size;
-    
+
     // 时钟跳变检测
     time_t last_real_time;
 } Scheduler;
@@ -1814,7 +1814,7 @@ static void _swap(Scheduler *s, int i, int j) {
     CronTask *temp = s->heap[i];
     s->heap[i] = s->heap[j];
     s->heap[j] = temp;
-    
+
     // 更新索引记录
     s->heap[i]->heap_index = i;
     s->heap[j]->heap_index = j;
@@ -1837,11 +1837,11 @@ static void _heap_down(Scheduler *s, int idx) {
         int left = 2 * idx + 1;
         int right = 2 * idx + 2;
         int smallest = left;
-        
+
         if (right < s->size && s->heap[right]->next_run_ts < s->heap[left]->next_run_ts) {
             smallest = right;
         }
-        
+
         if (s->heap[idx]->next_run_ts > s->heap[smallest]->next_run_ts) {
             _swap(s, idx, smallest);
             idx = smallest;
@@ -1862,7 +1862,7 @@ static void _heap_push(Scheduler *s, CronTask *task) {
 static CronTask* _heap_pop(Scheduler *s) {
     if (s->size == 0) return NULL;
     CronTask *root = s->heap[0];
-    
+
     s->heap[0] = s->heap[s->size - 1];
     s->size--;
     if (s->size > 0) {
@@ -1889,12 +1889,12 @@ static time_t _calc_next(const char *expr, time_t now) {
 static void _on_tick(uv_timer_t *handle) {
     Scheduler *s = (Scheduler *)handle->data;
     time_t now = time(NULL);
-    
+
     // --- 时钟跳变检测 ---
     // 允许 2秒的误差 (NTP Slew 或 调度延迟)
     if (abs(now - s->last_real_time) > 2) {
         printf("[Sched] WARN: Clock jump detected! %ld -> %ld\n", s->last_real_time, now);
-        
+
         // 暴力重算所有任务 (因为 Heap 的排序全乱了)
         // 简单做法：清空堆，重新计算时间，重新插入
         // 这里为了演示，采用原地遍历更新 + 重新建堆 (O(N))
@@ -1913,15 +1913,15 @@ static void _on_tick(uv_timer_t *handle) {
     while (s->size > 0) {
         // Peek 堆顶
         CronTask *t = s->heap[0];
-        
+
         if (t->next_run_ts <= now) {
             // 到时间了！弹出并执行
             _heap_pop(s);
-            
+
             // 执行回调
             // printf("Exec Task %d at %ld\n", t->id, now);
             if (t->cb) t->cb(t->arg);
-            
+
             // 计算下一次，重新入堆
             time_t next = _calc_next(t->cron_expr, now);
             if (next > 0) {
@@ -1945,7 +1945,7 @@ int sched_init(Scheduler *s, uv_loop_t *loop, size_t max_tasks) {
     s->size = 0;
     s->heap = calloc(max_tasks, sizeof(CronTask*));
     s->last_real_time = time(NULL);
-    
+
     uv_timer_init(loop, &s->check_timer);
     s->check_timer.data = s;
     uv_timer_start(&s->check_timer, _on_tick, 1000, 1000);
@@ -1958,15 +1958,15 @@ int sched_add_cron(Scheduler *s, int id, const char *expr, TaskCb cb, void *arg)
     strncpy(t->cron_expr, expr, 63);
     t->cb = cb;
     t->arg = arg;
-    
+
     time_t now = time(NULL);
     t->next_run_ts = _calc_next(expr, now);
-    
+
     if (t->next_run_ts == 0) {
         free(t);
         return -1; // 表达式错误
     }
-    
+
     _heap_push(s, t);
     return 0;
 }
@@ -2018,26 +2018,26 @@ void mock_task_cb(void *arg) {
 static void test_cron_basic(void **state) {
     Scheduler s;
     sched_init(&s, NULL, 10); // Loop 传 NULL，因为我们手动调 tick
-    
+
     int run_count = 0;
     // 规则: 每分钟的第 30 秒执行 ("30 * * * * *")
     // 注意：ccronexpr 格式通常是 "秒 分 时 日 月 周"
     sched_add_cron(&s, 1, "30 * * * * *", mock_task_cb, &run_count);
-    
+
     // 1. 时间推进到 1700000029 (未到)
     g_mock_time = 1700000029;
     _on_tick(&s.check_timer);
     assert_int_equal(run_count, 0);
-    
+
     // 2. 时间推进到 1700000030 (到点!)
     g_mock_time = 1700000030;
     _on_tick(&s.check_timer);
     assert_int_equal(run_count, 1); // 应该执行一次
-    
+
     // 3. 时间推进到 1700000031 (已过)
     _on_tick(&s.check_timer);
     assert_int_equal(run_count, 1); // 不应重复执行
-    
+
     free(s.heap[0]); free(s.heap); // 简单清理
 }
 
@@ -2045,30 +2045,30 @@ static void test_cron_basic(void **state) {
 static void test_clock_jump_forward(void **state) {
     Scheduler s;
     sched_init(&s, NULL, 10);
-    
+
     int run_count = 0;
     // 规则: 每天 12:00:00 执行 ("0 0 12 * * *")
     sched_add_cron(&s, 1, "0 0 12 * * *", mock_task_cb, &run_count);
-    
+
     // 当前: 10:00:00
-    g_mock_time = 1700000000; 
-    
+    g_mock_time = 1700000000;
+
     // 突然跳变到: 13:00:00 (跳过了 12:00)
-    g_mock_time += 3 * 3600; 
-    
+    g_mock_time += 3 * 3600;
+
     // 触发 Tick
     _on_tick(&s.check_timer);
-    
+
     // 调度器应该检测到跳变，重算，发现 13:00 > 12:00 (本该执行的时间)
     // 注意：这里的逻辑取决于 _calc_next 是否处理了“错过”的情况
     // 如果标准逻辑是“错过不补”，则 count=0，next_run 变为明天的 12:00
     // 如果逻辑是“追赶”，则 count=1
     // 在我们的 V2 代码里，detect jump 后会 re-calc next run based on NOW.
     // 所以 next_run 会变成 明天 12:00。任务会被跳过 (Safety choice)。
-    
+
     // 验证 next_run_ts 是否更新到了未来
     assert_true(s.heap[0]->next_run_ts > g_mock_time);
-    
+
     free(s.heap[0]); free(s.heap);
 }
 
@@ -2076,17 +2076,17 @@ static void test_clock_jump_forward(void **state) {
 static void test_heap_order(void **state) {
     Scheduler s;
     sched_init(&s, NULL, 10);
-    
+
     // 添加两个任务
     // Task A: 第 30 秒
     sched_add_cron(&s, 1, "30 * * * * *", NULL, NULL);
     // Task B: 第 10 秒
     sched_add_cron(&s, 2, "10 * * * * *", NULL, NULL);
-    
+
     // 检查堆顶 (s.heap[0]) 应该是 Task B (10秒那个)
     // 假设 g_mock_time 是整分 00 秒
     assert_int_equal(s.heap[0]->id, 2);
-    
+
     free(s.heap[0]); free(s.heap[1]); free(s.heap);
 }
 
@@ -2190,16 +2190,16 @@ typedef struct {
 // 调度器上下文
 typedef struct {
     uv_loop_t *loop;
-    
+
     // 核心机制：timerfd
     int timer_fd;
     uv_poll_t poll_handle;
-    
+
     // 数据结构：最小堆
     CronTask **heap;
     size_t capacity;
     size_t size;
-    
+
     // 状态
     time_t last_run_time; // 防止 DST 回拨重复执行
 } Scheduler;
@@ -2307,7 +2307,7 @@ static void _rearm_timer(Scheduler *s) {
     // 关键 Flag: TFD_TIMER_CANCEL_ON_SET
     // 含义：如果有人修改了系统时间，timerfd 会被 Cancel 并触发可读事件
     int flags = TFD_TIMER_ABSTIME | TFD_TIMER_CANCEL_ON_SET;
-    
+
     if (timerfd_settime(s->timer_fd, flags, &new_val, NULL) == -1) {
         perror("timerfd_settime");
     }
@@ -2318,16 +2318,16 @@ static void _on_timer_event(uv_poll_t *handle, int status, int events) {
     Scheduler *s = (Scheduler *)handle->data;
     uint64_t exp;
     time_t now = time(NULL);
-    
+
     // 1. 读取 timerfd
     ssize_t sz = read(s->timer_fd, &exp, sizeof(uint64_t));
-    
+
     // 2. 判断是否是时钟跳变 (Clock Jump)
     if (sz != sizeof(uint64_t)) {
         // 如果 errno 是 ECANCELED (某些内核版本) 或者读不到数据
         // 说明触发了 TFD_TIMER_CANCEL_ON_SET
         printf("[Sched] CLOCK JUMP DETECTED! Re-calculating...\n");
-        
+
         // 暴力重算所有任务的 next_run
         // 提示：因为时间变了，所有任务的相对顺序可能没变，但绝对时间变了
         // 最稳妥的方法：清空堆，全部重算 next_run，重新建堆
@@ -2340,7 +2340,7 @@ static void _on_timer_event(uv_poll_t *handle, int status, int events) {
         for (int i = (s->size / 2) - 1; i >= 0; i--) {
             _heap_down(s, i);
         }
-        
+
     } else {
         // 3. 正常到期 (Timer Expired)
         // 循环执行所有 expire 的任务
@@ -2366,7 +2366,7 @@ static void _on_timer_event(uv_poll_t *handle, int status, int events) {
     }
 
     s->last_run_time = now;
-    
+
     // 4. 重新设置内核定时器，睡眠到下一个任务
     _rearm_timer(s);
 }
@@ -2398,7 +2398,7 @@ int sched_init(Scheduler *s, uv_loop_t *loop, size_t max_tasks) {
 int sched_add_cron(Scheduler *s, int id, const char *cron_str, SchedCb cb, void *arg) {
     const char *err = NULL;
     CronTask *t = calloc(1, sizeof(CronTask));
-    
+
     // 1. 解析 Cron (使用 ccronexpr)
     cron_parse_expr(cron_str, &t->expr, &err);
     if (err) {
@@ -2410,18 +2410,18 @@ int sched_add_cron(Scheduler *s, int id, const char *cron_str, SchedCb cb, void 
     t->id = id;
     t->cb = cb;
     t->arg = arg;
-    
+
     // 2. 计算第一次运行时间
     t->next_run = cron_next(&t->expr, time(NULL));
-    
+
     // 3. 入堆
     _heap_push(s, t);
-    
+
     // 4. 只有当新任务是堆顶时 (最早执行)，才需要更新 timerfd
     if (t->heap_idx == 0) {
         _rearm_timer(s);
     }
-    
+
     return 0;
 }
 
@@ -2469,14 +2469,14 @@ static void test_heap_order(void **state) {
 
     // 验证堆顶是最小的 (100)
     assert_int_equal(s.heap[0]->next_run, 100);
-    
+
     // Pop
     CronTask *p = _heap_pop(&s);
     assert_int_equal(p->next_run, 100);
-    
+
     // 新堆顶应该是 200
     assert_int_equal(s.heap[0]->next_run, 200);
-    
+
     free(s.heap);
 }
 
@@ -2486,17 +2486,17 @@ static void test_timerfd_setup(void **state) {
     Scheduler s;
     int ret = sched_init(&s, loop, 10);
     assert_int_equal(ret, 0);
-    
+
     // 添加一个任务
     sched_add_cron(&s, 1, "* * * * * *", my_task_cb, NULL); // 每秒
-    
+
     // 验证 timerfd 是否被设置
     struct itimerspec curr;
     timerfd_gettime(s.timer_fd, &curr);
-    
+
     // it_value.tv_sec 应该 > 0
     assert_true(curr.it_value.tv_sec > 0);
-    
+
     sched_destroy(&s);
 }
 

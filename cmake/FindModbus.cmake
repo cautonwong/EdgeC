@@ -23,13 +23,13 @@ find_package_handle_standard_args(Modbus DEFAULT_MSG
 if(MODBUS_FOUND)
     set(MODBUS_LIBRARIES ${MODBUS_LIBRARY})
     set(MODBUS_INCLUDE_DIRS ${MODBUS_INCLUDE_DIR})
-    
+
     if(NOT TARGET Modbus::Modbus)
         add_library(Modbus::Modbus UNKNOWN IMPORTED)
         set_target_properties(Modbus::Modbus PROPERTIES
             IMPORTED_LOCATION "${MODBUS_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${MODBUS_INCLUDE_DIR}")
-        
+
         # libmodbus requires linking against pthread on POSIX systems
         if(UNIX AND NOT APPLE)
             target_link_libraries(Modbus::Modbus INTERFACE Threads::Threads)

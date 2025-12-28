@@ -49,7 +49,7 @@ static void test_end_to_end_flow(void **state) {
     for (int i = 0; i < 15; i++) {
         PipeMsg msg = {.type = PIPEMSG_SCALAR_F64,
                        .tag_id = 100,
-                       .payload.val_f = 10.0,
+                       .payload = {.val = {.f = 10.0}},
                        .ts = uv_now(ctx.loop)};
         datahub_publish(&ctx.data_hub, &msg);
 
@@ -58,11 +58,10 @@ static void test_end_to_end_flow(void **state) {
         PipeMsg out;
         uint64_t seq = (uint64_t)i;
         if (shm_ring_read(&ctx.data_hub.ring, &seq, &out) == 0) {
-            algo_sample_t sample = {.value = out.payload.val_f, .ts = out.ts};
+            algo_sample_t sample = {.value = out.payload.val.f, .ts = out.ts};
             algo_submit(ctx.algo, &sample);
         }
     }
-
     // 5. Run loop and wait for result
     for (int i = 0; i < 200; i++) {
         uv_run(ctx.loop, UV_RUN_NOWAIT);

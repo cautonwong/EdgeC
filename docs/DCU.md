@@ -89,14 +89,14 @@ void on_read_request(gxServer *server, gxObject *obj, int attribute_index) {
     if (obj->objectType == GX_DLMS_OBJECT_TYPE_PROFILE_GENERIC) {
         // 1. 获取查询条件 (Buffer)
         buffer_struct *capture_buffer = &obj->buffer;
-        
+
         // 2. 从 SQLite 查询数据
         // 这通常是一个耗时操作，必须异步处理！
         // 在实际 SDK 中，这里应该挂起请求，扔给 Worker 线程，
         // 待查完后通过 server_send_response 发回。
-        
+
         DlmsDataRows *rows = db_query_profile(start_time, end_time);
-        
+
         // 3. 序列化为 DLMS 格式
         gx_server_send_rows(server, rows);
     }

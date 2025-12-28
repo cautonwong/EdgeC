@@ -101,7 +101,7 @@ int migrate_to_v2(sqlite3 *db) {
 // 迁移脚本 V2 -> V3: 创建报警表
 // ---------------------------------------------------------
 int migrate_to_v3(sqlite3 *db) {
-    const char *sql = "CREATE TABLE IF NOT EXISTS alarms (id INTEGER PRIMARY KEY...);"; 
+    const char *sql = "CREATE TABLE IF NOT EXISTS alarms (id INTEGER PRIMARY KEY...);";
     // ... (执行 SQL)
     return 0; // 简写
 }
@@ -139,10 +139,10 @@ int check_and_migrate(sqlite3 *db) {
     // 2. 依次执行迁移
     for (int v = current_ver + 1; v <= TARGET_VERSION; v++) {
         printf("Migrating to version %d...\n", v);
-        
+
         // 开启事务
         sqlite3_exec(db, "BEGIN TRANSACTION;", NULL, NULL, NULL);
-        
+
         if (migrations[v](db) != 0) {
             sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
             return -1; // 迁移失败，App 应该退出或报警
@@ -152,10 +152,10 @@ int check_and_migrate(sqlite3 *db) {
         char ver_sql[32];
         snprintf(ver_sql, sizeof(ver_sql), "PRAGMA user_version = %d;", v);
         sqlite3_exec(db, ver_sql, NULL, NULL, NULL);
-        
+
         sqlite3_exec(db, "COMMIT;", NULL, NULL, NULL);
     }
-    
+
     return 0;
 }
 ```
@@ -207,7 +207,7 @@ typedef struct {
     char name[32];
     te_expr *expr; // 编译后的表达式对象 (AST)
     // 动作列表 (简略)
-    // Action actions[MAX_ACTIONS]; 
+    // Action actions[MAX_ACTIONS];
 } Rule;
 
 // 全局上下文数据 (从 Redis/SharedMem/DataEngine 同步而来)
@@ -225,7 +225,7 @@ void rule_engine_init(Rule *rule, const char *condition_str) {
     int err;
     // 编译表达式 (只做一次，效率高)
     rule->expr = te_compile(condition_str, vars, 2, &err);
-    
+
     if (!rule->expr) {
         printf("Rule Parse Error at %d\n", err);
     }
@@ -375,31 +375,31 @@ void sqlite_svc_destroy(sqlite_svc_t *svc);
 // ============================================================================
 
 // HEMS: 状态快照 + 小时统计
-static const char *SCHEMA_HEMS = 
+static const char *SCHEMA_HEMS =
     "CREATE TABLE IF NOT EXISTS current_state (tag_id INTEGER PRIMARY KEY, val REAL, ts INTEGER);"
     "CREATE TABLE IF NOT EXISTS hourly_stats (hour_key INTEGER PRIMARY KEY, pv_gen REAL, load_use REAL);";
 
 // IEMS: 高频遥测 (WITHOUT ROWID 优化)
-static const char *SCHEMA_IEMS = 
+static const char *SCHEMA_IEMS =
     "CREATE TABLE IF NOT EXISTS telemetry ("
     "ts INTEGER, tag_id INTEGER, val REAL, quality INTEGER, "
     "PRIMARY KEY (ts, tag_id)) WITHOUT ROWID;";
 
 // EVSE: 订单与审计 (强一致性)
-static const char *SCHEMA_EVSE = 
+static const char *SCHEMA_EVSE =
     "CREATE TABLE IF NOT EXISTS orders ("
     "order_id TEXT PRIMARY KEY, card_no TEXT, start_ts INTEGER, end_ts INTEGER, kwh REAL, status INT);"
     "CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY, ts INTEGER, event TEXT, raw BLOB);";
 
 // SG-EL2025: 波形 BLOB + 遥测
-static const char *SCHEMA_SG = 
+static const char *SCHEMA_SG =
     "CREATE TABLE IF NOT EXISTS waveforms ("
     "event_id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER, type INT, payload BLOB);"
     "CREATE TABLE IF NOT EXISTS telemetry ("
     "ts INTEGER, tag_id INTEGER, val REAL, PRIMARY KEY(ts, tag_id));";
 
 // DCU: 基础档案 (数据表动态创建)
-static const char *SCHEMA_DCU = 
+static const char *SCHEMA_DCU =
     "CREATE TABLE IF NOT EXISTS meters (addr TEXT PRIMARY KEY, protocol INT);";
 
 // ============================================================================
@@ -416,7 +416,7 @@ struct sqlite_svc_s {
     sqlite3 *db;
     uv_loop_t *loop;
     sqlite_config_t config;
-    
+
     // --- 异步机制 (IEMS/SG/DCU) ---
     data_batch_t *active_buf;  // 前台写入
     data_batch_t *flush_buf;   // 后台刷盘
@@ -424,7 +424,7 @@ struct sqlite_svc_s {
     uv_work_t work_req;        // libuv 工作请求
     uv_timer_t flush_timer;    // 定时刷盘
     int is_flushing;           // 刷盘状态标记
-    
+
     // --- 辅助 ---
     char current_month_table[32]; // DCU 分表缓存
 };
@@ -435,7 +435,7 @@ struct sqlite_svc_s {
 
 static int _init_pragmas(sqlite3 *db, product_type_t type, int cache_kb) {
     char sql[128];
-    
+
     // 通用设置
     sqlite3_exec(db, "PRAGMA temp_store = MEMORY;", 0,0,0);
     snprintf(sql, sizeof(sql), "PRAGMA cache_size = -%d;", cache_kb); // 负数表示 KB
@@ -446,13 +446,13 @@ static int _init_pragmas(sqlite3 *db, product_type_t type, int cache_kb) {
             sqlite3_exec(db, "PRAGMA journal_mode = DELETE;", 0,0,0);
             sqlite3_exec(db, "PRAGMA synchronous = NORMAL;", 0,0,0);
             break;
-            
+
         case PROD_EVSE: // 安全第一，防丢数据
             sqlite3_exec(db, "PRAGMA journal_mode = DELETE;", 0,0,0); // 回滚日志比WAL更抗掉电损坏
             sqlite3_exec(db, "PRAGMA synchronous = FULL;", 0,0,0);    // 每次写都 fsync
             break;
-            
-        case PROD_IEMS: 
+
+        case PROD_IEMS:
         case PROD_SG_EL2025:
         case PROD_DCU: // 性能第一
             sqlite3_exec(db, "PRAGMA journal_mode = WAL;", 0,0,0);    // 并发读写
@@ -491,8 +491,8 @@ static void _get_shard_table(uint64_t ts, char *out_name) {
 // 确保分表存在 (DCU)
 static void _ensure_shard_exists(sqlite3 *db, const char *table_name) {
     char sql[256];
-    snprintf(sql, sizeof(sql), 
-        "CREATE TABLE IF NOT EXISTS %s (addr TEXT, tag_id INT, ts INT, val REAL);", 
+    snprintf(sql, sizeof(sql),
+        "CREATE TABLE IF NOT EXISTS %s (addr TEXT, tag_id INT, ts INT, val REAL);",
         table_name);
     sqlite3_exec(db, sql, 0,0,0);
 }
@@ -501,7 +501,7 @@ static void _ensure_shard_exists(sqlite3 *db, const char *table_name) {
 static void _worker_flush_cb(uv_work_t *req) {
     sqlite_svc_t *svc = (sqlite_svc_t*)req->data;
     data_batch_t *batch = svc->flush_buf;
-    
+
     if (batch->count == 0) return;
 
     char *err = NULL;
@@ -525,7 +525,7 @@ static void _worker_flush_cb(uv_work_t *req) {
         char sql[128];
         snprintf(sql, sizeof(sql), "INSERT INTO %s VALUES (?,?,?,?)", table_name);
         sqlite3_prepare_v2(svc->db, sql, -1, &stmt_dcu, NULL);
-    } 
+    }
     else if (svc->config.type == PROD_IEMS) {
         sqlite3_prepare_v2(svc->db, "INSERT INTO telemetry VALUES (?,?,?,?)", -1, &stmt_iems, NULL);
     }
@@ -536,7 +536,7 @@ static void _worker_flush_cb(uv_work_t *req) {
     // 批量执行
     for (int i=0; i<batch->count; i++) {
         PipeMsg *msg = &batch->buffer[i];
-        
+
         if (svc->config.type == PROD_IEMS && stmt_iems) {
             // IEMS: 纯标量
             sqlite3_bind_int64(stmt_iems, 1, msg->ts);
@@ -563,7 +563,7 @@ static void _worker_flush_cb(uv_work_t *req) {
             sqlite3_bind_blob(stmt_sg_blob, 3, msg->payload.ref.ptr, msg->payload.ref.len, SQLITE_STATIC);
             sqlite3_step(stmt_sg_blob);
             sqlite3_reset(stmt_sg_blob);
-            
+
             // 释放内存引用 (如果有的话)
             if (msg->payload.ref.free_cb) {
                 msg->payload.ref.free_cb(msg->payload.ref.ptr);
@@ -612,7 +612,7 @@ sqlite_svc_t* sqlite_svc_create(uv_loop_t *loop, sqlite_config_t *cfg) {
     sqlite_svc_t *svc = calloc(1, sizeof(sqlite_svc_t));
     svc->loop = loop;
     svc->config = *cfg;
-    
+
     // 1. 打开数据库
     if (sqlite3_open(cfg->db_path, &svc->db) != SQLITE_OK) {
         free(svc); return NULL;
@@ -626,7 +626,7 @@ sqlite_svc_t* sqlite_svc_create(uv_loop_t *loop, sqlite_config_t *cfg) {
     if (cfg->type == PROD_IEMS || cfg->type == PROD_SG_EL2025 || cfg->type == PROD_DCU) {
         svc->active_buf = calloc(1, sizeof(data_batch_t));
         svc->flush_buf  = calloc(1, sizeof(data_batch_t));
-        
+
         // 分配 buffer 内存 (假设 PipeMsg 不大，如果是 BLOB 仅存指针)
         svc->active_buf->buffer = malloc(sizeof(PipeMsg) * cfg->batch_size);
         svc->flush_buf->buffer  = malloc(sizeof(PipeMsg) * cfg->batch_size);
@@ -650,25 +650,25 @@ int sqlite_svc_insert(sqlite_svc_t *svc, const PipeMsg *msg) {
         if (svc->config.type == PROD_HEMS) {
             // HEMS: INSERT OR REPLACE INTO current_state ...
             char sql[128];
-            snprintf(sql, 128, "INSERT OR REPLACE INTO current_state VALUES (%d, %f, %lu)", 
+            snprintf(sql, 128, "INSERT OR REPLACE INTO current_state VALUES (%d, %f, %lu)",
                      msg->tag_id, msg->payload.scalar.f_val, msg->ts);
             return sqlite3_exec(svc->db, sql, 0,0,0);
         }
         // EVSE: 这里通常是 Transaction 逻辑，不走简单 insert
-        return 0; 
+        return 0;
     }
 
     // 场景 B: 异步批量写入 (IEMS / SG / DCU)
     // 写入 active_buf
     uv_mutex_lock(&svc->buf_lock);
     data_batch_t *buf = svc->active_buf;
-    
+
     if (buf->count < buf->capacity) {
         // 深拷贝 PipeMsg (如果是 BLOB，PipeMsg 里存的是指针，需要确保指针有效期或在此处 copy)
         // 建议：对于 SG-EL2025，Driver 分配的 dma-buf 在写入 SQLite 后才释放
         buf->buffer[buf->count++] = *msg;
     }
-    
+
     int full = (buf->count >= buf->capacity);
     uv_mutex_unlock(&svc->buf_lock);
 
@@ -829,7 +829,7 @@ struct sqlite_svc_s {
     sqlite3 *db;
     uv_loop_t *loop;
     sqlite_config_t config;
-    
+
     // 异步写入状态
     data_batch_t *active_buf;
     data_batch_t *flush_buf;
@@ -837,7 +837,7 @@ struct sqlite_svc_s {
     uv_work_t work_req;
     uv_timer_t flush_timer;
     int is_flushing;
-    
+
     // 状态保持
     char current_shard[64]; // 当前分表名缓存
     db_stats_t stats;
@@ -854,11 +854,11 @@ static void _ensure_shard_exists(sqlite_svc_t *svc, uint64_t ts) {
     // 只有当月份变化时才执行建表 SQL，减少开销
     if (strcmp(table_name, svc->current_shard) != 0) {
         char sql[256];
-        snprintf(sql, sizeof(sql), 
+        snprintf(sql, sizeof(sql),
             "CREATE TABLE IF NOT EXISTS %s ("
             "ts INTEGER, tag_id INTEGER, val REAL, quality INT, "
             "PRIMARY KEY(ts, tag_id)) WITHOUT ROWID;", table_name);
-        
+
         // 这里不使用 DB_CHECK，因为建表失败通常是致命的，需要上层知晓
         if (sqlite3_exec(svc->db, sql, 0, 0, 0) == SQLITE_OK) {
             strcpy(svc->current_shard, table_name);
@@ -870,7 +870,7 @@ static void _ensure_shard_exists(sqlite_svc_t *svc, uint64_t ts) {
 static void _worker_flush_cb(uv_work_t *req) {
     sqlite_svc_t *svc = (sqlite_svc_t*)req->data;
     data_batch_t *batch = svc->flush_buf;
-    
+
     if (batch->count == 0) return;
 
     sqlite3_stmt *stmt = NULL;
@@ -916,7 +916,7 @@ static void _worker_flush_cb(uv_work_t *req) {
             // 执行期间 DMA 缓冲区被硬件覆写的竞态风险。
             // 对于 IEMS/SG 的稳定性来说，这点拷贝开销值得。
             sqlite3_bind_blob(stmt, 3, msg->payload.ref.ptr, msg->payload.ref.len, SQLITE_TRANSIENT);
-            
+
             // 释放上游引用
             if (msg->payload.ref.free_cb) {
                 msg->payload.ref.free_cb(msg->payload.ref.ptr);
@@ -926,7 +926,7 @@ static void _worker_flush_cb(uv_work_t *req) {
         int rc = sqlite3_step(stmt);
         if (rc != SQLITE_DONE) {
             fprintf(stderr, "[DB] Insert row failed: %s\n", sqlite3_errmsg(svc->db));
-            err_cnt++; 
+            err_cnt++;
             // 策略：单行失败不回滚整个批次，继续尝试下一条
         }
         sqlite3_reset(stmt);
@@ -934,7 +934,7 @@ static void _worker_flush_cb(uv_work_t *req) {
 
     // 4. 提交事务
     DB_CHECK(sqlite3_exec(svc->db, "COMMIT;", 0,0,0), svc->db, err_cnt);
-    
+
     // 成功统计
     svc->stats.insert_ok += (batch->count - err_cnt);
     svc->stats.insert_fail += err_cnt;
@@ -955,14 +955,14 @@ error_rollback:
 // 主线程：Flush 完成回调
 static void _after_flush_cb(uv_work_t *req, int status) {
     sqlite_svc_t *svc = (sqlite_svc_t*)req->data;
-    
+
     // 简单监控
     if (svc->stats.insert_fail > 0) {
         // 这里可以触发系统级告警：Flash 可能满了或损坏
         // edge_alarm_raise(CTX, ALARM_STORAGE_FAIL);
     }
 
-    svc->flush_buf->count = 0; 
+    svc->flush_buf->count = 0;
     svc->is_flushing = 0;      // 解锁，允许下一次 Swap
 }
 
@@ -973,7 +973,7 @@ static void _trigger_flush(sqlite_svc_t *svc) {
         // 策略：打印警告，本次暂时不 Swap，让 active_buf 继续堆积
         // 如果 active_buf 也满了，insert 接口会报错丢弃
         fprintf(stderr, "[DB] WARN: Disk IO too slow, pipeline backpressure active!\n");
-        return; 
+        return;
     }
 
     if (svc->active_buf->count == 0) return;
@@ -1001,21 +1001,21 @@ int sqlite_svc_insert(sqlite_svc_t *svc, const PipeMsg *msg) {
     // Async Mode (IEMS / SG / DCU)
     uv_mutex_lock(&svc->buf_lock);
     data_batch_t *buf = svc->active_buf;
-    
+
     // 1. 容量检查
     if (buf->count >= buf->capacity) {
         uv_mutex_unlock(&svc->buf_lock);
         // 尝试立即触发 Flush
         _trigger_flush(svc);
-        
+
         // 再次检查，如果还是满（说明后台线程还没处理完），则丢弃
         // 工业原则：宁可丢最新数据，不能阻塞采集线程
         return -1; // ENOSPC
     }
-    
+
     // 2. 写入 Buffer
     buf->buffer[buf->count++] = *msg;
-    
+
     // 3. 阈值触发
     int should_flush = (buf->count >= svc->config.batch_size);
     uv_mutex_unlock(&svc->buf_lock);
@@ -1411,19 +1411,19 @@ v1.0 Frozen 必须在文件头声明：
 /*
  * sqlite_service.c
  * Version: v1.0 (Frozen)
- * 
+ *
  * EdgeOS Storage Subsystem Implementation
- * 
+ *
  * Storage ABI / Schema / Semantics are frozen.
  * Any change requires MAJOR version bump.
- * 
+ *
  * Validated Products:
  *   - HEMS (Lite)
  *   - IEMS (Async WAL)
  *   - SG-EL2025 (BLOB/Ref)
  *   - EVSE (ACID Transaction)
  *   - DCU (Sharding)
- * 
+ *
  * Dependencies:
  *   - libuv >= 1.44
  *   - sqlite3 >= 3.35 (json1, wal)
@@ -1475,14 +1475,14 @@ typedef struct {
     PipeMsg *buffer;
     int count;
     int capacity;
-    uint32_t batch_id; 
+    uint32_t batch_id;
 } data_batch_t;
 
 struct sqlite_svc_s {
     sqlite3 *db;
     uv_loop_t *loop;
     sqlite_config_t config;
-    
+
     // 异步写入状态
     data_batch_t *active_buf;
     data_batch_t *flush_buf;
@@ -1490,11 +1490,11 @@ struct sqlite_svc_s {
     uv_work_t work_req;
     uv_timer_t flush_timer;
     int is_flushing;
-    
+
     // 状态保持
     char current_shard[64];
     db_stats_t stats;
-    
+
     // 错误回调
     sqlite_err_cb err_cb;
 };
@@ -1507,7 +1507,7 @@ struct sqlite_svc_s {
  * [FROZEN] Contract:
  * 分表逻辑严禁使用系统时间 (localtime/time)。
  * 必须完全依赖上游传入的 Business Time (day_id/month_id)。
- * 
+ *
  * PipeMsg.ts 在 DCU 模式下被重新解释为 month_id (YYYYMM)
  */
 static void _get_shard_table(product_type_t type, uint64_t ts, char *out) {
@@ -1538,17 +1538,17 @@ static int _get_target_version(product_type_t type) {
 
 static const char* _get_init_schema(product_type_t type) {
     switch (type) {
-        case PROD_HEMS: return 
+        case PROD_HEMS: return
             "CREATE TABLE current_state (tag_id INT PRIMARY KEY, val REAL, ts INT);"
             "CREATE TABLE hourly_stats (hour_key INT PRIMARY KEY, pv REAL, load REAL);";
-        case PROD_IEMS: return 
+        case PROD_IEMS: return
             "CREATE TABLE telemetry (ts INT, tag_id INT, val REAL, q INT, PRIMARY KEY(ts, tag_id)) WITHOUT ROWID;";
-        case PROD_EVSE: return 
+        case PROD_EVSE: return
             "CREATE TABLE orders (id TEXT PRIMARY KEY, kwh REAL, status INT);"
             "CREATE TABLE audit (id INT PRIMARY KEY, ts INT, event TEXT);";
-        case PROD_SG_EL2025: return 
+        case PROD_SG_EL2025: return
             "CREATE TABLE waveforms (id INT PRIMARY KEY, ts INT, type INT, data BLOB);";
-        case PROD_DCU: return 
+        case PROD_DCU: return
             "CREATE TABLE meter_meta (addr TEXT PRIMARY KEY, protocol INT);";
         default: return "";
     }
@@ -1557,7 +1557,7 @@ static const char* _get_init_schema(product_type_t type) {
 static int _migrate_schema(sqlite3 *db, product_type_t type) {
     int cur_ver = 0;
     sqlite3_stmt *stmt;
-    
+
     // 1. 获取当前版本
     if (sqlite3_prepare_v2(db, "PRAGMA user_version;", -1, &stmt, NULL) == SQLITE_OK) {
         if (sqlite3_step(stmt) == SQLITE_ROW) {
@@ -1586,7 +1586,7 @@ static int _migrate_schema(sqlite3 *db, product_type_t type) {
     char sql[64];
     snprintf(sql, sizeof(sql), "PRAGMA user_version=%d;", target_ver);
     sqlite3_exec(db, sql, NULL, NULL, NULL);
-    
+
     return 0;
 }
 
@@ -1598,11 +1598,11 @@ static void _ensure_shard_exists(sqlite_svc_t *svc, const char *table_name) {
     if (strcmp(table_name, svc->current_shard) == 0) return;
 
     char sql[256];
-    snprintf(sql, sizeof(sql), 
+    snprintf(sql, sizeof(sql),
         "CREATE TABLE IF NOT EXISTS %s ("
         "ts INTEGER, tag_id INTEGER, val REAL, quality INT, "
         "PRIMARY KEY(ts, tag_id)) WITHOUT ROWID;", table_name);
-    
+
     if (sqlite3_exec(svc->db, sql, 0, 0, 0) == SQLITE_OK) {
         strcpy(svc->current_shard, table_name);
     }
@@ -1629,18 +1629,18 @@ static void _worker_flush_cb(uv_work_t *req) {
         // 假设 Batch 不跨月 (由 Scheduler 保证)
         _get_shard_table(PROD_DCU, batch->buffer[0].ts, table_name);
         _ensure_shard_exists(svc, table_name);
-        
+
         char sql[256];
         snprintf(sql, sizeof(sql), "INSERT INTO %s VALUES (?,?,?,?)", table_name);
         DB_CHECK(sqlite3_prepare_v2(svc->db, sql, -1, &stmt, NULL), svc, err_cnt);
-    } 
+    }
     else if (svc->config.type == PROD_SG_EL2025) {
-        DB_CHECK(sqlite3_prepare_v2(svc->db, 
+        DB_CHECK(sqlite3_prepare_v2(svc->db,
             "INSERT INTO waveforms (ts, type, data) VALUES (?,?,?)", -1, &stmt, NULL), svc, err_cnt);
     }
     else {
         // IEMS Standard
-        DB_CHECK(sqlite3_prepare_v2(svc->db, 
+        DB_CHECK(sqlite3_prepare_v2(svc->db,
             "INSERT INTO telemetry VALUES (?,?,?,?)", -1, &stmt, NULL), svc, err_cnt);
     }
 
@@ -1656,7 +1656,7 @@ static void _worker_flush_cb(uv_work_t *req) {
             // 必须使用 SQLITE_TRANSIENT，让 SQLite 内部拷贝副本
             // 防止 Worker 执行期间 DMA Buffer 被硬件改写
             sqlite3_bind_blob(stmt, 3, msg->payload.ref.ptr, msg->payload.ref.len, SQLITE_TRANSIENT);
-            
+
             // 释放上游引用 (Copy-on-Write 结束)
             if (msg->payload.ref.free_cb) {
                 msg->payload.ref.free_cb(msg->payload.ref.ptr);
@@ -1711,7 +1711,7 @@ sqlite_svc_t* sqlite_svc_create(uv_loop_t *loop, sqlite_config_t *cfg) {
     sqlite_svc_t *svc = calloc(1, sizeof(sqlite_svc_t));
     svc->loop = loop;
     svc->config = *cfg;
-    
+
     if (sqlite3_open(cfg->db_path, &svc->db) != SQLITE_OK) {
         free(svc); return NULL;
     }
@@ -1733,13 +1733,13 @@ sqlite_svc_t* sqlite_svc_create(uv_loop_t *loop, sqlite_config_t *cfg) {
         svc->active_buf->buffer = malloc(sizeof(PipeMsg) * cfg->batch_size);
         svc->flush_buf->buffer = malloc(sizeof(PipeMsg) * cfg->batch_size);
         svc->active_buf->capacity = cfg->batch_size;
-        
+
         uv_mutex_init(&svc->buf_lock);
         uv_timer_init(loop, &svc->flush_timer);
         svc->flush_timer.data = svc;
         uv_timer_start(&svc->flush_timer, (uv_timer_cb)_trigger_flush, cfg->flush_interval_ms, cfg->flush_interval_ms);
     }
-    
+
     return svc;
 }
 
@@ -1750,12 +1750,12 @@ void sqlite_svc_destroy(sqlite_svc_t *svc) {
     if (svc->config.type != PROD_HEMS && svc->config.type != PROD_EVSE) {
         uv_timer_stop(&svc->flush_timer);
         _trigger_flush(svc); // Last flush
-        
+
         // 简单的 Spin Wait，等待后台线程结束 (生产环境可用 uv_cond 或 状态机)
         while (svc->is_flushing) {
             uv_run(svc->loop, UV_RUN_ONCE);
         }
-        
+
         free(svc->active_buf->buffer);
         free(svc->flush_buf->buffer);
         free(svc->active_buf);
@@ -1779,21 +1779,21 @@ int sqlite_svc_insert(sqlite_svc_t *svc, const PipeMsg *msg) {
     // Async Mode
     uv_mutex_lock(&svc->buf_lock);
     data_batch_t *buf = svc->active_buf;
-    
+
     if (buf->count >= buf->capacity) {
         uv_mutex_unlock(&svc->buf_lock);
         _trigger_flush(svc); // Try flush
         return -1; // Backpressure drop
     }
-    
+
     // Deep Copy for BLOB (if needed) or Ref Copy
     buf->buffer[buf->count++] = *msg;
-    
+
     int full = (buf->count >= svc->config.batch_size);
     uv_mutex_unlock(&svc->buf_lock);
 
     if (full) _trigger_flush(svc);
-    
+
     return 0;
 }
 ```

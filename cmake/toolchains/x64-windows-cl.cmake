@@ -53,7 +53,7 @@ set(CMAKE_C_FLAGS "/wd4819" CACHE INTERNAL "c compiler flags")
 set(CMAKE_CXX_FLAGS "/wd4819 /EHsc" CACHE INTERNAL "cxx compiler flags")
 
 
-set(TOOLCHAIN_INCLUDEPATH 
+set(TOOLCHAIN_INCLUDEPATH
     "${BuildTools_ROOT}/${BuildTools_VERSION}/include"
     "${WindowsSDK_ROOT}/Include/${WindowsSDK_VERSION}/ucrt"
     "${WindowsSDK_ROOT}/Include/${WindowsSDK_VERSION}/shared"
@@ -62,7 +62,7 @@ set(TOOLCHAIN_INCLUDEPATH
     "${WindowsSDK_ROOT}/Include/${WindowsSDK_VERSION}/cppwinrt"
 )
 
-set(TOOLCHAIN_LIBRARYPATH 
+set(TOOLCHAIN_LIBRARYPATH
     "${BuildTools_ROOT}/${BuildTools_VERSION}/lib/${__target}"
     "${WindowsSDK_ROOT}/Lib/${WindowsSDK_VERSION}/ucrt/${__target}"
     "${WindowsSDK_ROOT}/Lib/${WindowsSDK_VERSION}/um/${__target}"

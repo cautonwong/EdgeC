@@ -21,13 +21,13 @@ find_package_handle_standard_args(CURL DEFAULT_MSG
 if(CURL_FOUND)
     set(CURL_LIBRARIES ${CURL_LIBRARY})
     set(CURL_INCLUDE_DIRS ${CURL_INCLUDE_DIR})
-    
+
     if(NOT TARGET CURL::libcurl)
         add_library(CURL::libcurl UNKNOWN IMPORTED)
         set_target_properties(CURL::libcurl PROPERTIES
             IMPORTED_LOCATION "${CURL_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${CURL_INCLUDE_DIR}")
-        
+
         if(UNIX)
             set_property(TARGET CURL::libcurl APPEND PROPERTY INTERFACE_LINK_LIBRARIES "ssl;crypto;z;pthread")
         endif()

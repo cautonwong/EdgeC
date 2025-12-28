@@ -185,12 +185,12 @@ static int sim_read(DeviceDriver *self, EdgeEvent *out_event) {
     // 模拟生成数据
     strncpy(out_event->device_name, self->name, 31);
     out_event->timestamp = (uint64_t)time(NULL);
-    
+
     out_event->reading.type = VAL_FLOAT;
     strcpy(out_event->reading.resource_name, "temperature");
     // 生成 20.0 - 30.0 之间的随机数
     out_event->reading.value.f_val = 20.0 + ((float)rand() / (float)(RAND_MAX)) * 10.0;
-    
+
     return 0; // Success
 }
 
@@ -210,11 +210,11 @@ static const DeviceVTable sim_vtable = {
 DeviceDriver* create_sim_device(const char* name) {
     DeviceDriver *dev = malloc(sizeof(DeviceDriver));
     if (!dev) return NULL;
-    
+
     strncpy(dev->name, name, 31);
     dev->vptr = &sim_vtable; // 绑定接口
     dev->priv_data = NULL;
-    
+
     return dev;
 }
 ```
@@ -240,11 +240,11 @@ typedef struct {
 void on_timer_tick(uv_timer_t *handle) {
     TaskContext *ctx = (TaskContext*)handle->data;
     EdgeEvent event;
-    
+
     if (DEVICE_READ(ctx->device, &event) == 0) {
-        printf("[Core] Got Event: Device=%s, Temp=%.2f\n", 
+        printf("[Core] Got Event: Device=%s, Temp=%.2f\n",
                event.device_name, event.reading.value.f_val);
-        
+
         // TODO: 在这里调用序列化 (cJSON) 并发送 MQTT
         // publish_to_cloud(&event);
     }
@@ -260,13 +260,13 @@ int main() {
     // 2. 设置 libuv 定时器 (每 2000ms 采集一次)
     uv_timer_t timer_req;
     TaskContext ctx = { .device = sensor1 };
-    
+
     uv_timer_init(loop, &timer_req);
     timer_req.data = &ctx; // 传递上下文
     uv_timer_start(&timer_req, on_timer_tick, 0, 2000);
 
     printf("EdgeX-C Agent Started. Press Ctrl+C to exit.\n");
-    
+
     // 3. 启动事件循环
     uv_run(loop, UV_RUN_DEFAULT);
 
@@ -301,12 +301,12 @@ static void test_sim_device_read(void **state) {
 
     DeviceDriver *dev = create_sim_device("TestDev");
     assert_non_null(dev);
-    
+
     assert_int_equal(DEVICE_INIT(dev), 0);
 
     EdgeEvent evt;
     int ret = DEVICE_READ(dev, &evt);
-    
+
     assert_int_equal(ret, 0);
     assert_string_equal(evt.device_name, "TestDev");
     assert_true(evt.reading.value.f_val >= 20.0); // 验证逻辑
@@ -447,7 +447,7 @@ void process_data(char *data) {
 未初始化的指针是随机值，一用就炸。
 ```c
 // ❌ 危险
-DeviceConfig conf; 
+DeviceConfig conf;
 // conf.name 指向哪里？只有天知道。
 
 // ✅ 安全
@@ -546,10 +546,10 @@ void signal_handler(int sig) {
 
     // 打印到 stderr (systemd 会记录到日志)
     fprintf(stderr, "Error: signal %d:\n", sig);
-    
+
     // 打印符号信息 (注意：生产环境可能需要 strip 符号，这里最好配合 addr2line)
     backtrace_symbols_fd(array, size, STDERR_FILENO);
-    
+
     // 恢复默认处理并退出
     signal(sig, SIG_DFL);
     exit(1);
@@ -559,7 +559,7 @@ int main() {
     // 注册信号处理
     signal(SIGSEGV, signal_handler); // 段错误
     signal(SIGABRT, signal_handler); // assert 失败
-    
+
     // ... 正常逻辑
 }
 ```
@@ -718,7 +718,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /work
 RUN git clone https://your.repo/project.git .
- 
+
 # 直接用仓库里的 .local
 ENV SDK_ROOT=/work/.local/linux-x86_64
 ENV CMAKE_PREFIX_PATH=$SDK_ROOT

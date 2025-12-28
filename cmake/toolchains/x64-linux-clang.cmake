@@ -67,10 +67,10 @@ set(CMAKE_CXX_FLAGS_RELWITHDEBINFO_INIT "-O2 -g")
 # if(USE_SANITIZERS)
 #     set(SANITIZER_FLAGS "-fsanitize=address,undefined,leak -fno-omit-frame-pointer")
 #     message(STATUS "Enabled Sanitizers: address, undefined, leak")
-# 
+#
 #     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SANITIZER_FLAGS}")
 #     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SANITIZER_FLAGS}")
-# 
+#
 #     # You may also need to set linker flags, but -fuse-ld=lld should handle most cases.
 #     # set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${SANITIZER_FLAGS}")
 # endif()

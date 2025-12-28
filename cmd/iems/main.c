@@ -91,9 +91,15 @@ int main(int argc, char **argv) {
         if (!ring) return;
 
         pipe_msg_t m = {.type = PIPEMSG_SCALAR_F64,
+
                         .tag_id = 1001,
-                        .payload.val_f = 220.0 + (rand() % 100) / 10.0,
-                        .ts = uv_now(service_get_loop(s))};
+
+                        .payload = {.val = {.f = 220.0 + (rand() % 100) / 10.0}},
+
+                        .ts = uv_now(service_get_loop(s))
+
+        };
+
         shm_ring_write(ring, &m);
     }
     dummy_producer.data = svc;

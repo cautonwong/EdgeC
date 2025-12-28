@@ -138,7 +138,7 @@ static void grant_bus(arbiter_t *arb, arbiter_bus_t bus_id, arb_req_t *req) {
     void *user = req->user;
 
     uv_async_t *async = malloc(sizeof(*async));
-    uv_async_init(arb->loop, async, 
+    uv_async_init(arb->loop, async,
         (uv_async_cb) (void *) (uintptr_t) ({
             void fn(uv_async_t *a) {
                 cb(arb, bus_id, user);

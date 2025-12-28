@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 
+#include "sched_time.h"
 #include "shmring.h"
 
 // 工业系统核心事件 ID
@@ -17,11 +18,12 @@ typedef enum {
 
 // 发布事件到 DataHub
 static inline void edge_event_publish(shm_ring_t *ring, edge_event_id_t eid, uint32_t param) {
-    PipeMsg msg = {0};
+    pipe_msg_t msg = {0};
+    msg.ts = (uint64_t)sched_wall_now();
     msg.type = PIPEMSG_EVENT;
     msg.payload.event.event_id = (uint32_t)eid;
     msg.payload.event.param = param;
-    msg.ts = uv_now(uv_default_loop());
+
     shm_ring_write(ring, &msg);
 }
 

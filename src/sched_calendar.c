@@ -10,7 +10,7 @@ wall_time_t calc_next_boundary(calendar_task_type_t type, wall_time_t now) {
     time_t sec = (time_t)(now / 1000);
     struct tm t;
     localtime_r(&sec, &t);
-    t.tm_isdst = -1; // Let mktime determine DST
+    t.tm_isdst = -1;  // Let mktime determine DST
 
     switch (type) {
         case CAL_TASK_MINUTE_FREEZE:

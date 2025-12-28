@@ -125,13 +125,22 @@ int shmring_destroy(shm_ring_t *ring) {
     return shm_unlink(name_copy);
 }
 
-void shm_ring_write(shm_ring_t *ring, const PipeMsg *msg) {
+void shm_ring_write(shm_ring_t *ring, const PipeMsg *msg)
+
+{
     // Start of update (odd sequence)
+
     atomic_fetch_add_explicit(&ring->hdr->seq, 1, memory_order_release);
 
     uint32_t idx = atomic_load_explicit(&ring->hdr->write_idx, memory_order_relaxed);
 
-    ring->slots[idx] = *msg;
+    // 拷贝并更新追踪状态
+
+    PipeMsg to_write = *msg;
+
+    to_write.state = TRACE_IN_SHM;
+
+    ring->slots[idx] = to_write;
 
     atomic_store_explicit(&ring->hdr->write_idx, (idx + 1) % ring->hdr->slot_count,
                           memory_order_relaxed);

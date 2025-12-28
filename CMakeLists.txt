@@ -74,6 +74,7 @@ add_library(edge_core_lib STATIC
     src/northbound_mgr.c
     src/web_server.c
     src/rest_server.c
+    src/ws_proto.c
     src/js_engine.c
     src/script_loader.c
     src/script_executor.c
@@ -88,9 +89,9 @@ add_library(edge_core_lib STATIC
     src/bus_orchestrator.c
 )
 
-target_link_libraries(edge_core_lib PUBLIC 
+target_link_libraries(edge_core_lib PUBLIC
     cJSON::cjson
-    libuv::uv 
+    libuv::uv
     SQLite::SQLite3
     Modbus::Modbus
     QuickJS::QuickJS

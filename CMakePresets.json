@@ -68,7 +68,7 @@
             }
         },
         {
-            // windows host using arm-none-eabi-gcc 
+            // windows host using arm-none-eabi-gcc
             "name": "windows-arm-none-eabi-base",
             "hidden": true,
             "inherits": [

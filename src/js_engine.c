@@ -63,8 +63,10 @@ static JSValue js_arbiter_control(JSContext *ctx, JSValueConst this_val, int arg
     if (JS_ToFloat64(ctx, &val, argv[1])) return JS_EXCEPTION;
 
     // Bridge to Command Bridge
-    service_cmd_t cmd = {.type = SVC_CMD_WRITE, .tag_id = tag_id, .value = val};
-    service_post_cmd(engine->svc, &cmd);
+    if (engine->svc) {
+        service_cmd_t cmd = {.type = SVC_CMD_WRITE, .tag_id = tag_id, .value = val};
+        service_post_cmd(engine->svc, &cmd);
+    }
 
     return JS_NewBool(ctx, true);
 }

@@ -66,9 +66,9 @@ typedef struct {
             int count;
         } batch;
     } payload;
-    
+
     // 侵入式链表节点 (用于 Pipeline Batch 处理)
-    uv__queue node; 
+    uv__queue node;
 } PipeMsg;
 ```
 
@@ -78,20 +78,20 @@ typedef struct {
 ```c
 typedef struct {
     uv__queue node;
-    
+
     char req_id[32];       // 追踪 ID
     int priority;          // 0=Emergency, 1=High, 2=Normal
-    
+
     // 动作与参数
     int action;            // READ / WRITE / RAW
     void *params;          // 参数对象 (需 deep copy)
-    
+
     // 异步回执上下文
     struct {
         int client_id;     // MQTT Client ID
         char topic[64];
     } reply_ctx;
-    
+
     // 完成回调
     void (*on_complete)(void *ctx, int status, void *data);
 } CmdMsg;
@@ -236,14 +236,14 @@ int shm_read(ShmRing *ring, uint32_t idx, PipeMsg *out) {
     do {
         seq1 = atomic_load(&ring->slots[idx].seq);
         if (seq1 & 1) { cpu_relax(); continue; } // 正在写
-        
+
         atomic_thread_fence(memory_order_acquire);
         *out = ring->slots[idx].msg; // 拷贝数据
         atomic_thread_fence(memory_order_acquire);
-        
+
         seq2 = atomic_load(&ring->slots[idx].seq);
     } while (seq1 != seq2 && retry-- > 0);
-    
+
     return (seq1 == seq2) ? 0 : -1; // -1 表示数据撕裂
 }
 ```
@@ -254,7 +254,7 @@ int shm_read(ShmRing *ring, uint32_t idx, PipeMsg *out) {
 void arbiter_schedule(edge_arbiter_t *arb) {
     // 1. 状态检查
     if (arb->driver->state != DRV_STATE_IDLE) return;
-    
+
     // 2. 独占检查
     if (arb->is_exclusive) {
         // 仅处理 OTA 相关的 Job
@@ -602,7 +602,7 @@ typedef enum {
     TRACE_PROCESSING   = 0x03, // Pipeline: 正在清洗/计算
     TRACE_STORED       = 0x04, // Storage: 已落盘 SQLite
     TRACE_EXPORTED     = 0x05, // Export: 已发送 MQTT
-    
+
     // 异常终止状态
     TRACE_DROP_BUSY    = 0x10, // Drop: 队列满
     TRACE_DROP_STALE   = 0x11, // Drop: 数据陈旧
@@ -839,13 +839,13 @@ typedef struct {
 // 路由表 (静态定义)
 static void handle_api_request(web_client_t *client, char *path, char *body) {
     char response[1024];
-    
+
     if (strncmp(path, "/api/system/status", 18) == 0) {
         // 调用内部 API 获取状态 JSON
-        snprintf(response, sizeof(response), 
+        snprintf(response, sizeof(response),
             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
             "{\"status\": \"running\", \"uptime\": 12345}");
-    } 
+    }
     else if (strncmp(path, "/api/device/control", 19) == 0) {
         // 处理 POST 控制指令
         // call_command_service(...)
@@ -862,7 +862,7 @@ static void handle_api_request(web_client_t *client, char *path, char *body) {
 // 核心读取回调
 void on_web_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf) {
     web_client_t *client = (web_client_t*)stream;
-    
+
     if (nread < 0) {
         uv_close((uv_handle_t*)stream, on_close_free);
         return;
@@ -892,7 +892,7 @@ void on_web_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf) {
     // 提取 Method 和 Path
     char method[8], path[128];
     sscanf(buf->base, "%s %s", method, path);
-    
+
     // 提取 Body (找到 \r\n\r\n)
     char *body = strstr(buf->base, "\r\n\r\n");
     if (body) body += 4;
@@ -904,13 +904,13 @@ void on_web_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf) {
 int web_server_init(edge_context_t *ctx, int port) {
     uv_tcp_t *server = malloc(sizeof(uv_tcp_t));
     uv_tcp_init(ctx->loop, server);
-    
+
     struct sockaddr_in addr;
     uv_ip4_addr("0.0.0.0", port, &addr);
-    
+
     uv_tcp_bind(server, (const struct sockaddr*)&addr, 0);
     uv_listen((uv_stream_t*)server, 128, on_new_connection);
-    
+
     return 0;
 }
 ```
@@ -935,7 +935,7 @@ int ws_handshake(web_client_t *client, const char *req) {
     char *key_start = strstr(req, "Sec-WebSocket-Key: ");
     if (!key_start) return -1;
     key_start += 19;
-    
+
     char key[128];
     sscanf(key_start, "%s", key); // 简单提取
 
@@ -957,7 +957,7 @@ int ws_handshake(web_client_t *client, const char *req) {
         "Connection: Upgrade\r\n"
         "Sec-WebSocket-Accept: %s\r\n\r\n",
         accept_key);
-    
+
     web_send_raw(client, resp, strlen(resp));
     free(accept_key);
     return 0;
@@ -1009,12 +1009,12 @@ Web UI 需要实时显示电压电流，怎么从 `shm_ring` 到 `WebSocket`？
 // 定时器回调 (例如 500ms 一次，UI 不需要 10ms 的刷新率)
 void on_ui_refresh_timer(uv_timer_t *handle) {
     edge_context_t *ctx = handle->data;
-    
+
     // 1. 从 DataHub 读最新快照 (Shadow)
     // 这里的 get_shadow_json 是从内存索引数组快速构建 JSON
     // { "meter_01": { "voltage": 220.5, "ts": ... } }
     char *json = datahub_get_shadow_json(ctx->data_hub);
-    
+
     // 2. 广播给所有 WebSocket 客户端
     if (json) {
         ws_broadcast_json(json);

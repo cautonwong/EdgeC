@@ -77,7 +77,7 @@ JSValue edge_dp_to_js(JSContext *ctx, const DataPoint *dp) {
     JSValue obj = JS_NewObject(ctx);
     JS_SetPropertyStr(ctx, obj, "tag", JS_NewInt32(ctx, dp->tag_id));
     JS_SetPropertyStr(ctx, obj, "ts", JS_NewBigInt64(ctx, dp->ts)); // JS BigInt
-    
+
     if (dp->type == DATA_TYPE_FLOAT) {
         JS_SetPropertyStr(ctx, obj, "val", JS_NewFloat64(ctx, dp->val.f_val));
     } else {
@@ -90,7 +90,7 @@ JSValue edge_dp_to_js(JSContext *ctx, const DataPoint *dp) {
 static JSValue js_edge_log(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
     const char *level = JS_ToCString(ctx, argv[0]);
     const char *msg = JS_ToCString(ctx, argv[1]);
-    
+
     // 调用 SDK 日志
     zlog_category_t *c = zlog_get_category("script");
     if (strcmp(level, "error") == 0) zlog_error(c, "%s", msg);
@@ -111,10 +111,10 @@ static JSValue js_edge_publish(JSContext *ctx, JSValueConst this_val, int argc, 
 void js_init_edge_api(JSContext *ctx) {
     JSValue global = JS_GetGlobalObject(ctx);
     JSValue edge = JS_NewObject(ctx);
-    
+
     JS_SetPropertyStr(ctx, edge, "log", JS_NewCFunction(ctx, js_edge_log, "log", 2));
     JS_SetPropertyStr(ctx, edge, "publish", JS_NewCFunction(ctx, js_edge_publish, "publish", 2));
-    
+
     JS_SetPropertyStr(ctx, global, "edge", edge);
     JS_FreeValue(ctx, global);
 }
@@ -139,7 +139,7 @@ export function onData(dp) {
     if (dp.tag === 1001) { // 电流 Tag
         if (dp.val > 10.0) {
             if (overCurrentStart === 0) overCurrentStart = dp.ts;
-            
+
             // 检查持续时间
             if (dp.ts - overCurrentStart > 5000) {
                 edge.log("warn", "Over Current Detected!");
@@ -163,14 +163,14 @@ void on_pipeline_data(edge_context_t *ctx, DataPoint *dp) {
     // 1. 获取全局函数 'onData'
     JSValue global = JS_GetGlobalObject(js_ctx);
     JSValue func = JS_GetPropertyStr(js_ctx, global, "onData");
-    
+
     // 2. 准备参数
     JSValue js_dp = edge_dp_to_js(js_ctx, dp);
-    
+
     // 3. 执行 JS 函数
     // 这是一个同步调用，耗时通常 < 50us (对于简单逻辑)
     JSValue ret = JS_Call(js_ctx, func, global, 1, &js_dp);
-    
+
     // 4. 处理返回值
     if (JS_IsObject(ret)) {
         JSValue action = JS_GetPropertyStr(js_ctx, ret, "action");
@@ -206,12 +206,12 @@ const WINDOW_SIZE = 60; // 60个点
 export function calculate(new_val) {
     buffer.push(new_val);
     if (buffer.length > WINDOW_SIZE) buffer.shift();
-    
+
     let sum = buffer.reduce((a, b) => a + b, 0);
     let avg = sum / buffer.length;
-    
+
     // 直接把计算结果推给总线，C代码不需要处理返回值
-    edge.publish("avg_power", avg); 
+    edge.publish("avg_power", avg);
 }
 ```
 
@@ -228,7 +228,7 @@ export function parse(hexString) {
     let str = hexToAscii(hexString); // 假设有工具函数
     let parts = str.split(",");
     let results = [];
-    
+
     parts.forEach(p => {
         let [key, val] = p.split(":");
         if (key === "PWR") {
@@ -256,7 +256,7 @@ JS_SetInterruptHandler(rt, js_interrupt_handler, ctx);
 // 中断检查函数 (会被 QuickJS 解释器频繁调用)
 static int js_interrupt_handler(JSRuntime *rt, void *opaque) {
     edge_context_t *ctx = (edge_context_t*)opaque;
-    
+
     // 检查是否超时 (例如脚本运行超过 10ms)
     if (current_ts_ms() - ctx->js_start_time > 10) {
         zlog_error(ctx->logger, "JS Script Timeout! Killing...");
@@ -284,11 +284,11 @@ if (JS_IsException(ret)) {
     JSValue exception = JS_GetException(js_ctx);
     const char *str = JS_ToCString(js_ctx, exception);
     zlog_error(ctx->logger, "JS Error: %s", str);
-    
+
     // 打印堆栈
     JSValue stack = JS_GetPropertyStr(js_ctx, exception, "stack");
     // ... print stack ...
-    
+
     JS_FreeValue(js_ctx, exception);
 }
 ```
@@ -776,11 +776,11 @@ typedef struct {
     uv_thread_t tid;
     uv_loop_t *loop;    // 专用的 loop
     JSRuntime *rt;
-    
+
     // 任务队列
     uv_mutex_t lock;
     struct list_head queues[3]; // 多级队列
-    
+
     // 统计
     uint64_t total_ops;
     uint64_t total_time_us;
@@ -841,16 +841,16 @@ return {
 // 安全地从 JS 对象提取指令
 int js_to_cmd(JSContext *ctx, JSValue val, CmdMsg *out_cmd) {
     if (!JS_IsObject(val)) return -1;
-    
+
     // 1. 提取 Intent
     JSValue j_intent = JS_GetPropertyStr(ctx, val, "intent");
     const char *intent = JS_ToCString(ctx, j_intent);
-    
+
     if (strcmp(intent, "publish") == 0) {
         // ... 解析 target 和 payload ...
         // [红线]：Payload 深度限制为 2 层，防止栈溢出
     }
-    
+
     JS_FreeValue(ctx, j_intent);
     // ...
 }
@@ -863,12 +863,12 @@ int js_to_cmd(JSContext *ctx, JSValue val, CmdMsg *out_cmd) {
 // 在创建 Context 时注入权限
 void init_js_context(ScriptContext *sc, int permissions) {
     JSValue global = JS_GetGlobalObject(sc->ctx);
-    
+
     // 只有拥有 PERM_NET 权限的脚本才能看到 'publish' 函数
     if (permissions & PERM_NET) {
         JS_SetPropertyStr(sc->ctx, global, "publish", ...);
     }
-    
+
     // 只有拥有 PERM_DB 权限的脚本才能看到 'query' 函数
     if (permissions & PERM_DB) {
         // ...
@@ -903,7 +903,7 @@ void on_script_error(script_stat_t *stat) {
     } else {
         stat->error_count = 1; // 重置
     }
-    
+
     // 1秒内错 5 次 -> 熔断
     if (stat->error_count > 5) {
         stat->disabled = true;
@@ -1260,21 +1260,21 @@ disabled scripts enter FROZEN state
 
 void script_executor_thread(void *arg) {
     ScriptExecutor *exec = (ScriptExecutor*)arg;
-    
+
     // [红线 1] 此 Loop 仅用于 uv_async (接收任务) 和 uv_timer (看门狗)
     // 严禁在此 Loop 上挂载 socket、file fd 或 pipe
     uv_loop_init(&exec->compute_loop);
-    
+
     // 初始化 QuickJS Runtime (单实例)
     exec->rt = JS_NewRuntime();
     // [红线 2] 必须设置内存上限，防止 JS 吃光系统内存
     JS_SetMemoryLimit(exec->rt, 1024 * 512); // 512KB per Runtime
-    
+
     // 运行主循环
     while (exec->running) {
         uv_run(&exec->compute_loop, UV_RUN_DEFAULT);
     }
-    
+
     JS_FreeRuntime(exec->rt);
 }
 ```
@@ -1352,7 +1352,7 @@ void execute_script_safe(script_ctx_t *sc) {
         if (now < sc->stat.frozen_until) return; // 还在冷却，跳过
         sc->stat.state = SCRIPT_STATE_PROBE;     // 时间到，进入探测
     }
-    
+
     if (sc->stat.state == SCRIPT_STATE_DISABLED) return;
 
     // 2. 执行脚本
@@ -1419,9 +1419,9 @@ export function onData(dp) {
         return {
             intent: "alarm",
             target: "voltage_high",
-            payload: { 
-                level: 1, 
-                msg: "Over Voltage: " + dp.val 
+            payload: {
+                level: 1,
+                msg: "Over Voltage: " + dp.val
             }
         };
     }
@@ -1445,7 +1445,3 @@ export function onData(dp) {
 3.  它明确了 **业务开发的规矩**（Schema 约束，资源红线）。
 
 请以此为标准，开始编码。
-
-
-
-

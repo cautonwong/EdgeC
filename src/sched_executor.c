@@ -80,15 +80,14 @@ void calendar_schedule(calendar_task_t *task) {
 
 static void on_timer_close(uv_handle_t *handle) {
     // 标记句柄已彻底关闭
-    handle->data = NULL; 
+    handle->data = NULL;
 }
 
 void calendar_cancel(calendar_task_t *task) {
     if (!task || !task->timer.data) return;
-    
+
     uv_timer_stop(&task->timer);
-    if (!uv_is_closing((uv_handle_t*)&task->timer)) {
-        uv_close((uv_handle_t*)&task->timer, on_timer_close);
+    if (!uv_is_closing((uv_handle_t *)&task->timer)) {
+        uv_close((uv_handle_t *)&task->timer, on_timer_close);
     }
 }
-

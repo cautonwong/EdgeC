@@ -26,8 +26,8 @@ static int modbus_rtu_parse_res(edge_point_config_t *point, uint8_t *rx_buf, siz
     (void)rx_buf;
     (void)rx_len;
     out_msg->tag_id = point->tag_id;
-    out_msg->type = PIPE_SCALAR_F64;
-    out_msg->payload.val_f = 123.45 * point->scale + point->offset;
+    out_msg->type = PIPEMSG_SCALAR_F64;
+    out_msg->payload.val.f = 123.45 * point->scale + point->offset;
     return 0;
 }
 

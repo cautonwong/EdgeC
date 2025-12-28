@@ -21,7 +21,7 @@ find_package_handle_standard_args(SQLite3 DEFAULT_MSG
 if(SQLITE3_FOUND)
     set(SQLITE3_LIBRARIES ${SQLITE3_LIBRARY})
     set(SQLITE3_INCLUDE_DIRS ${SQLITE3_INCLUDE_DIR})
-    
+
     if(NOT TARGET SQLite::SQLite3)
         add_library(SQLite::SQLite3 UNKNOWN IMPORTED)
         set_target_properties(SQLite::SQLite3 PROPERTIES

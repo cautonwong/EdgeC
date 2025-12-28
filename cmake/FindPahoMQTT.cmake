@@ -26,13 +26,13 @@ find_package_handle_standard_args(PahoMQTT DEFAULT_MSG
 if(PAHOMQTT_FOUND)
     set(PAHOMQTT_LIBRARIES ${PAHOMQTT_AS_LIBRARY})
     set(PAHOMQTT_INCLUDE_DIRS ${PAHOMQTT_INCLUDE_DIR})
-    
+
     if(NOT TARGET PahoMQTT::PahoMQTT)
         add_library(PahoMQTT::PahoMQTT UNKNOWN IMPORTED)
         set_target_properties(PahoMQTT::PahoMQTT PROPERTIES
             IMPORTED_LOCATION "${PAHOMQTT_AS_LIBRARY}"
             INTERFACE_INCLUDE_DIRECTORIES "${PAHOMQTT_INCLUDE_DIR}")
-        
+
         if(UNIX)
             set_property(TARGET PahoMQTT::PahoMQTT APPEND PROPERTY INTERFACE_LINK_LIBRARIES "pthread;dl")
         endif()

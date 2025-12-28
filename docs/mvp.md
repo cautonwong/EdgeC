@@ -61,7 +61,7 @@ include(Sanitizers)
 # 极其严格的告警，生产环境视为错误
 add_compile_options(
     -Wall -Wextra -Wshadow -Wformat=2 -Wunused -Wconversion
-    $<$<CONFIG:Release>:-Werror> 
+    $<$<CONFIG:Release>:-Werror>
 )
 
 # Debug 模式下开启 ASan (内存检测)
@@ -228,7 +228,7 @@ jobs:
   build-and-test:
     name: Build & Test (Linux)
     runs-on: ubuntu-22.04
-    
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -484,7 +484,7 @@ docker run --rm -it \
     -v "$PROJECT_ROOT":/home/builder/src \
     $IMAGE_NAME /bin/bash -c "
         mkdir -p $BUILD_DIR && cd $BUILD_DIR
-        
+
         if [ '$BUILD_TYPE' == 'arm' ]; then
             # 交叉编译配置
             cmake -DCMAKE_TOOLCHAIN_FILE=/home/builder/toolchains/aarch64-linux-gnu.cmake \
@@ -493,10 +493,10 @@ docker run --rm -it \
             # 本机编译配置 (带 ASan)
             cmake -DCMAKE_BUILD_TYPE=Debug ..
         fi
-        
+
         # 编译
         make -j\$(nproc)
-        
+
         # 如果是本机编译，运行测试
         if [ '$BUILD_TYPE' == 'x86' ]; then
             echo '[EdgeOS] Running Tests...'
@@ -679,19 +679,19 @@ TARGETS=("host" "arm64")
 build_cjson() {
     ARCH=$1
     echo ">>> Building cJSON for [$ARCH] ..."
-    
+
     SOURCE_DIR="$PROJECT_ROOT/vendor/cJSON"
     BUILD_DIR="$SOURCE_DIR/build-$ARCH"
     INSTALL_DIR="$INSTALL_ROOT/linux-$ARCH"
-    
+
     # 清理旧构建
     rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR"
-    
+
     cd "$BUILD_DIR"
-    
+
     # 基础 CMake 参数
     CMAKE_ARGS="-DCMAKE_INSTALL_PREFIX=$INSTALL_DIR -DENABLE_CJSON_TEST=OFF -DBUILD_SHARED_AND_STATIC_LIBS=ON -DCMAKE_BUILD_TYPE=Release"
-    
+
     # 针对架构的特殊处理
     if [ "$ARCH" == "aarch64" ]; then
         # 交叉编译参数 (复用 docker 里的工具链文件)
@@ -702,7 +702,7 @@ build_cjson() {
         # 重新生成 Makefile
         cmake $CMAKE_ARGS ..
     fi
-    
+
     # 如果是 ARM，再次配置确保 Toolchain 生效 (对于某些库需要分步)
     if [ "$ARCH" == "aarch64" ]; then
         cmake $CMAKE_ARGS ..
@@ -711,7 +711,7 @@ build_cjson() {
     # 编译并安装
     make -j$(nproc)
     make install
-    
+
     echo ">>> cJSON for [$ARCH] installed to $INSTALL_DIR"
 }
 
@@ -721,24 +721,24 @@ build_cjson() {
 build_libuv() {
     ARCH=$1
     echo ">>> Building libuv for [$ARCH] ..."
-    
+
     SOURCE_DIR="$PROJECT_ROOT/vendor/libuv"
     # libuv 推荐 out-of-tree build 但 autotools 比较麻烦，这里演示 CMake 方式
     BUILD_DIR="$SOURCE_DIR/build-$ARCH"
     INSTALL_DIR="$INSTALL_ROOT/linux-$ARCH"
-    
+
     # Host 修正
     if [ "$ARCH" == "host" ]; then INSTALL_DIR="$INSTALL_ROOT/linux-x86_64"; fi
 
     rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR"
     cd "$BUILD_DIR"
-    
+
     CMAKE_ARGS="-DCMAKE_INSTALL_PREFIX=$INSTALL_DIR -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release"
-    
+
     if [ "$ARCH" == "aarch64" ]; then
         CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_TOOLCHAIN_FILE=$PROJECT_ROOT/docker/toolchains/aarch64-linux-gnu.cmake"
     fi
-    
+
     cmake $CMAKE_ARGS ..
     make -j$(nproc)
     make install
@@ -759,15 +759,15 @@ for TARGET in "${TARGETS[@]}"; do
     else
         REAL_ARCH=$TARGET
     fi
-    
+
     echo "=========================================="
     echo " Building vendors for Target: $REAL_ARCH"
     echo "=========================================="
-    
+
     # 在这里添加所有需要的库
     build_cjson $TARGET
     build_libuv $TARGET
-    
+
     # 清理临时 build 目录 (减少 git status 干扰，虽然已被忽略)
     # rm -rf "$PROJECT_ROOT/vendor/*/build-$TARGET"
 done
@@ -797,7 +797,7 @@ project(EdgeOS_App VERSION 1.0.0 LANGUAGES C)
 # =========================================================
 if(CMAKE_CROSSCOMPILING)
     # 如果是交叉编译，CMAKE_SYSTEM_PROCESSOR 通常由 Toolchain 文件指定
-    set(TARGET_ARCH "linux-${CMAKE_SYSTEM_PROCESSOR}") 
+    set(TARGET_ARCH "linux-${CMAKE_SYSTEM_PROCESSOR}")
 else()
     # 如果是本机编译
     execute_process(COMMAND uname -m OUTPUT_VARIABLE HOST_ARCH OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -858,7 +858,7 @@ git submodule add https://github.com/libuv/libuv.git vendor/libuv
 
 # 2. 编译所有架构的库 (耗时操作)
 # 这一步会生成 .local/linux-x86_64 和 .local/linux-aarch64
-./build_vendors.sh 
+./build_vendors.sh
 
 # 3. 提交产物到 Git
 git add .local/

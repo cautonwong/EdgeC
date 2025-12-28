@@ -1,8 +1,9 @@
-#include "js_engine.h"
-#include "svc_script.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "js_engine.h"
+#include "svc_script.h"
 
 #define MAX_QUEUE_SIZE 128
 #define MAX_SCRIPTS 64
@@ -28,7 +29,6 @@ typedef struct {
 } script_task_t;
 
 struct script_exec_s {
-    uv_loop_t *main_loop;
     uv_thread_t tid;
     uv_loop_t compute_loop;
     uv_async_t task_async;
@@ -39,7 +39,7 @@ struct script_exec_s {
     int head, tail;
     script_stat_t scripts[MAX_SCRIPTS];
     int script_count;
-    bool running;
+    volatile bool running;
 };
 
 static script_stat_t *_get_script_stat(script_executor_t *exec, const char *id) {
@@ -84,6 +84,8 @@ static void _report_result(script_stat_t *stat, int ret) {
 
 static void _process_tasks(uv_async_t *handle) {
     script_executor_t *exec = (script_executor_t *)handle->data;
+    if (!exec || !exec->running) return;
+
     while (1) {
         script_task_t task;
         bool has_task = false;
@@ -95,16 +97,22 @@ static void _process_tasks(uv_async_t *handle) {
         }
         uv_mutex_unlock(&exec->lock);
         if (!has_task) break;
-        
-        // 1. 熔断检查
+
         script_stat_t *stat = _get_script_stat(exec, task.script_id);
-        if (!stat || !_check_can_run(stat)) {
-            continue;
-        }
+        if (!_check_can_run(stat)) continue;
+
         char path[128];
         snprintf(path, 128, "config/scripts/%s.js", task.script_id);
-        int ret = js_engine_run_file(exec->engine, path);
-        _report_result(stat, ret);
+
+        if (exec->engine) {
+            // Only run if the file exists to avoid spamming errors
+            FILE *f = fopen(path, "r");
+            if (f) {
+                fclose(f);
+                int ret = js_engine_run_file(exec->engine, path);
+                _report_result(stat, ret);
+            }
+        }
     }
 }
 
@@ -114,23 +122,42 @@ static void _on_stop_async(uv_async_t *handle) {
     uv_stop(&exec->compute_loop);
 }
 
+static void _on_handle_close(uv_handle_t *handle) {
+    (void)handle;
+}
+
 static void _executor_entry(void *arg) {
     script_executor_t *exec = (script_executor_t *)arg;
     uv_loop_init(&exec->compute_loop);
+
     exec->engine = js_engine_create(NULL, 512 * 1024);
+
     uv_async_init(&exec->compute_loop, &exec->task_async, _process_tasks);
     exec->task_async.data = exec;
+
     uv_async_init(&exec->compute_loop, &exec->stop_async, _on_stop_async);
     exec->stop_async.data = exec;
+
     uv_run(&exec->compute_loop, UV_RUN_DEFAULT);
-    js_engine_destroy(exec->engine);
+
+    if (exec->engine) {
+        js_engine_destroy(exec->engine);
+        exec->engine = NULL;
+    }
+
+    // Close async handles before loop close
+    uv_close((uv_handle_t *)&exec->task_async, _on_handle_close);
+    uv_close((uv_handle_t *)&exec->stop_async, _on_handle_close);
+
+    // Drain loop to finish close callbacks
+    uv_run(&exec->compute_loop, UV_RUN_DEFAULT);
     uv_loop_close(&exec->compute_loop);
 }
 
 script_executor_t *script_exec_create(uv_loop_t *main_loop) {
+    (void)main_loop;
     script_executor_t *exec = calloc(1, sizeof(script_executor_t));
     if (!exec) return NULL;
-    exec->main_loop = main_loop;
     uv_mutex_init(&exec->lock);
     exec->running = true;
     if (uv_thread_create(&exec->tid, _executor_entry, exec) != 0) {
@@ -143,7 +170,7 @@ script_executor_t *script_exec_create(uv_loop_t *main_loop) {
 
 int script_exec_post(script_executor_t *exec, const char *script_id, script_prio_t prio,
                      const PipeMsg *data) {
-    if (!exec->running) return -1;
+    if (!exec || !exec->running) return -1;
     uv_mutex_lock(&exec->lock);
     int next = (exec->head + 1) % MAX_QUEUE_SIZE;
     if (next == exec->tail) {
@@ -162,6 +189,7 @@ int script_exec_post(script_executor_t *exec, const char *script_id, script_prio
 
 void script_exec_destroy(script_executor_t *exec) {
     if (!exec) return;
+    exec->running = false;
     uv_async_send(&exec->stop_async);
     uv_thread_join(&exec->tid);
     uv_mutex_destroy(&exec->lock);

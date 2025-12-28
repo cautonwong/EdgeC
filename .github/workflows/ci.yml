@@ -10,7 +10,7 @@ jobs:
   build-and-test:
     name: ${{ matrix.config.name }}
     runs-on: ${{ matrix.config.os }}
-    
+
     strategy:
       fail-fast: false
       matrix:
@@ -62,7 +62,7 @@ jobs:
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
             ${{ matrix.config.cmake_args }}
-          
+
       - name: Build
         run: cmake --build build
 

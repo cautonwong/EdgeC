@@ -32,12 +32,12 @@ docker run --rm -it \
     -v "$PROJECT_ROOT":/home/builder/src \
     $IMAGE_NAME /bin/bash -c "
         set -e
-        
+
         echo \"[EdgeOS] Ensuring vendor libraries for $ARCH are built...\"
         ./build_vendors.sh $ARCH
 
         mkdir -p $BUILD_DIR && cd $BUILD_DIR
-        
+
         if [ '\''$ARCH'\' == 'arm64' ]; then
             # 交叉编译配置
             cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/aarch64-linux-gnu.cmake \
@@ -46,10 +46,10 @@ docker run --rm -it \
             # 本机编译配置 (带 ASan)
             cmake -DCMAKE_BUILD_TYPE=Debug ..
         fi
-        
+
         # 编译
         make -j$(nproc)
-        
+
         # 如果是本机编译，运行测试
         if [ '\''$ARCH'\' == 'x86_64' ]; then
             echo '[EdgeOS] Running Tests...'
