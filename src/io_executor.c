@@ -94,7 +94,7 @@ static void perform_io(io_thread_ctx_t *ctx, io_job_t *job) {
     int fd = ctx->bus_fd;
     // 如果 fd 无效（/dev/null 或模拟），直接模拟成功
     if (fd < 0 || ctx->bus_id >= IO_BUS_MAX) {
-        uv_sleep(10000);  // 模拟 10ms 延迟
+        usleep(10000);  // 模拟 10ms 延迟
         if (job->tx_buf && job->rx_buf && job->rx_cap >= 5) {
             // 模拟一个合法的 Modbus 响应：[ID, FC, ByteCnt, DataH, DataL, ...]
             job->rx_buf[0] = job->tx_buf[0];

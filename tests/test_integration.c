@@ -67,7 +67,7 @@ static void test_end_to_end_flow(void **state) {
     for (int i = 0; i < 200; i++) {
         uv_run(ctx.loop, UV_RUN_NOWAIT);
         if (ctx.result_received) break;
-        uv_sleep(5);
+        usleep(5000);
     }
 
     assert_int_equal(ctx.result_received, 1);
@@ -76,6 +76,28 @@ static void test_end_to_end_flow(void **state) {
     persistence_mgr_close(&ctx.storage);
     algo_destroy(ctx.algo);
     datahub_destroy(&ctx.data_hub);
+    
+    // Process close callbacks
+    uv_run(ctx.loop, UV_RUN_NOWAIT);
+    // Maybe run a few times or loop until empty?
+    // Since we don't have external events, NOWAIT should process pending closes.
+    // algo_destroy uses a thread join, then close.
+    // datahub_destroy uses uv_close.
+    // persistence uses uv_close.
+    // One tick should be enough for simple closes.
+    // But uv_close might defer?
+    // Let's use UV_RUN_DEFAULT but we need to ensure it stops.
+    // If all handles are closed, uv_run returns 0.
+    // But we need to make sure they ARE closed.
+    // uv_close sets CLOSING.
+    // uv_run processes them.
+    
+    // For robust cleanup in test:
+    while (uv_loop_close(ctx.loop) == UV_EBUSY) {
+        uv_run(ctx.loop, UV_RUN_ONCE);
+    }
+    
+    uv_run(ctx.loop, UV_RUN_NOWAIT); // Final sweep
 }
 
 int main(void) {

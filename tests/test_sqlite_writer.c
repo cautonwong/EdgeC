@@ -35,7 +35,7 @@ static void test_sqlite_wal_write(void **state) {
     uv_loop_t *loop = uv_default_loop();
     for (int i = 0; i < 200; i++) {
         uv_run(loop, UV_RUN_NOWAIT);
-        uv_sleep(5000);  // 5ms
+        usleep(5000);  // 5ms
     }
 
     // Verify results synchronously

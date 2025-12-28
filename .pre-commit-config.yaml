@@ -1,8 +1,7 @@
 # EdgeOS Pre-commit Configuration
-# 业界最佳实践：提交前自动格式化
 repos:
   - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: v16.0.6 # 使用较新的版本
+    rev: v16.0.6 
     hooks:
       - id: clang-format
         types_or: [c, header]

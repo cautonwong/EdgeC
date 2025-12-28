@@ -28,7 +28,7 @@ static void test_sql_insert(void **state) {
     for (i = 0; i < 200; i++) {
         uv_run(&loop, UV_RUN_NOWAIT);
         if (done) break;
-        uv_sleep(2);  // libuv sleep
+        usleep(2000);  // libuv sleep
     }
 
     assert_int_equal(done, 1);

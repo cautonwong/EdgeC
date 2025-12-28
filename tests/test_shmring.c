@@ -54,12 +54,14 @@ static void test_multi_process_concurrency(void **state) {
     if (pid == 0) {
         // 子进程：Writer
         shm_ring_t ring;
-        shmring_open(&ring, TEST_RING_NAME);
+        if (shmring_open(&ring, TEST_RING_NAME) != 0) {
+            exit(1);
+        }
         for (int i = 0; i < TEST_WRITE_COUNT; i++) {
             PipeMsg msg = {0};
             msg.payload.val_i = i;
             shm_ring_write(&ring, &msg);
-            uv_sleep(1000);
+            usleep(1000);
         }
         shmring_close(&ring);
         exit(0);
@@ -74,7 +76,7 @@ static void test_multi_process_concurrency(void **state) {
             if (shm_ring_read(ring, &seq, &msg) == 0) {
                 count++;
             }
-            uv_sleep(1000);
+            usleep(1000);
         }
 
         int status;
