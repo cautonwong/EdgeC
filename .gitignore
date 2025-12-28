@@ -15,9 +15,7 @@ _deps/
 *.log
 
 # Local installation (dependencies)
-!/.local/
 !*.a
 !*.so
 !*.h
 !*.cmake
-.local/
