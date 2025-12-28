@@ -6,6 +6,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "edge_common.h"
+
 #define SHMRING_MAGIC 0x53484D52
 #define CACHELINE_SIZE 64
 #define SHMRING_MAX_SLOTS 65536
@@ -67,6 +69,26 @@ typedef struct {
         } event;
     } payload;
 } PipeMsg;
+
+// --- Builder API (New) ---
+
+static inline void pipe_msg_init_scalar(PipeMsg *msg, uint32_t tag, double val, uint64_t ts) {
+    *msg = (PipeMsg){0};
+    msg->tag_id = tag;
+    msg->ts = ts;
+    msg->type = PIPEMSG_TYPE_SCALAR;
+    msg->payload.val.f = val;
+    msg->state = TRACE_CREATED;
+}
+
+static inline void pipe_msg_init_event(PipeMsg *msg, uint32_t eid, uint32_t param, uint64_t ts) {
+    *msg = (PipeMsg){0};
+    msg->ts = ts;
+    msg->type = PIPEMSG_TYPE_EVENT;
+    msg->payload.event.event_id = eid;
+    msg->payload.event.param = param;
+    msg->state = TRACE_CREATED;
+}
 
 _Static_assert(sizeof(PipeMsg) == 64, "PipeMsg must be 64 bytes");
 

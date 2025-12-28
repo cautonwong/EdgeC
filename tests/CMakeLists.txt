@@ -64,3 +64,8 @@ add_executable(test_scheduler test_scheduler.c ../tests/mock_time.c)
 target_include_directories(test_scheduler PRIVATE ../include)
 target_link_libraries(test_scheduler PRIVATE edge_core_lib cmocka::cmocka libuv::uv)
 add_test(NAME Scheduler COMMAND test_scheduler)
+
+# Test Fuzz DataHub
+add_executable(test_fuzz_datahub test_fuzz_datahub.c)
+target_link_libraries(test_fuzz_datahub PRIVATE edge_core_lib cmocka::cmocka)
+add_test(NAME FuzzDataHub COMMAND test_fuzz_datahub)

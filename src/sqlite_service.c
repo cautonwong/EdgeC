@@ -238,3 +238,36 @@ int sqlite_svc_begin_trans(sqlite_svc_t *svc) {
 int sqlite_svc_commit_trans(sqlite_svc_t *svc) {
     return sqlite3_exec(svc->db, "COMMIT;", 0, 0, 0);
 }
+
+int sqlite_svc_query(sqlite_svc_t *svc, uint64_t start_ts, uint64_t end_ts, sqlite_svc_query_cb cb,
+                     void *user_data) {
+    if (!svc || !svc->db || !cb) return -1;
+
+    const char *sql =
+        "SELECT ts, tag_id, val, q FROM telemetry WHERE ts >= ? AND ts <= ? ORDER BY ts ASC;";
+    sqlite3_stmt *stmt;
+
+    if (sqlite3_prepare_v2(svc->db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        return -1;
+    }
+
+    sqlite3_bind_int64(stmt, 1, (sqlite3_int64)start_ts);
+    sqlite3_bind_int64(stmt, 2, (sqlite3_int64)end_ts);
+
+    int rc;
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        PipeMsg msg = {0};
+        msg.ts = (uint64_t)sqlite3_column_int64(stmt, 0);
+        msg.tag_id = (uint32_t)sqlite3_column_int(stmt, 1);
+        msg.payload.val.f = sqlite3_column_double(stmt, 2);
+        msg.quality = (uint16_t)sqlite3_column_int(stmt, 3);
+        msg.type = PIPEMSG_TYPE_SCALAR;
+
+        if (cb(user_data, &msg) != 0) {
+            break;
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return (rc == SQLITE_DONE || rc == SQLITE_ROW) ? 0 : -1;
+}

@@ -33,6 +33,7 @@ struct script_exec_s {
     uv_loop_t compute_loop;
     uv_async_t task_async;
     uv_async_t stop_async;
+    uv_sem_t start_sem;
     js_engine_t *engine;
     uv_mutex_t lock;
     script_task_t queue[MAX_QUEUE_SIZE];
@@ -49,37 +50,11 @@ static script_stat_t *_get_script_stat(script_executor_t *exec, const char *id) 
     if (exec->script_count < MAX_SCRIPTS) {
         script_stat_t *s = &exec->scripts[exec->script_count++];
         strncpy(s->id, id, 31);
+        s->id[31] = '\0';
         s->state = SCRIPT_STATE_NORMAL;
         return s;
     }
     return NULL;
-}
-
-static bool _check_can_run(script_stat_t *stat) {
-    if (!stat) return true;
-    uint64_t now = uv_hrtime() / 1000000;
-    if (stat->state == SCRIPT_STATE_DISABLED) return false;
-    if (stat->state == SCRIPT_STATE_FROZEN) {
-        if (now < stat->frozen_until) return false;
-        stat->state = SCRIPT_STATE_PROBE;
-    }
-    return true;
-}
-
-static void _report_result(script_stat_t *stat, int ret) {
-    if (!stat) return;
-    if (ret == 0) {
-        if (stat->state == SCRIPT_STATE_PROBE) {
-            stat->state = SCRIPT_STATE_NORMAL;
-            stat->error_count = 0;
-        }
-    } else {
-        stat->error_count++;
-        if (stat->error_count > 5) {
-            stat->state = SCRIPT_STATE_FROZEN;
-            stat->frozen_until = (uv_hrtime() / 1000000) + 60000;
-        }
-    }
 }
 
 static void _process_tasks(uv_async_t *handle) {
@@ -99,18 +74,14 @@ static void _process_tasks(uv_async_t *handle) {
         if (!has_task) break;
 
         script_stat_t *stat = _get_script_stat(exec, task.script_id);
-        if (!_check_can_run(stat)) continue;
-
-        char path[128];
-        snprintf(path, 128, "config/scripts/%s.js", task.script_id);
-
-        if (exec->engine) {
-            // Only run if the file exists to avoid spamming errors
+        if (stat && exec->engine) {
+            char path[128];
+            snprintf(path, 128, "config/scripts/%s.js", task.script_id);
+            // 只有文件存在才执行，避免 SEGV
             FILE *f = fopen(path, "r");
             if (f) {
                 fclose(f);
-                int ret = js_engine_run_file(exec->engine, path);
-                _report_result(stat, ret);
+                js_engine_run_file(exec->engine, path);
             }
         }
     }
@@ -134,23 +105,24 @@ static void _executor_entry(void *arg) {
 
     uv_async_init(&exec->compute_loop, &exec->task_async, _process_tasks);
     exec->task_async.data = exec;
-
     uv_async_init(&exec->compute_loop, &exec->stop_async, _on_stop_async);
     exec->stop_async.data = exec;
 
+    uv_sem_post(&exec->start_sem);
     uv_run(&exec->compute_loop, UV_RUN_DEFAULT);
+
+    // --- 关键：排空逻辑 ---
+    uv_close((uv_handle_t *)&exec->task_async, _on_handle_close);
+    uv_close((uv_handle_t *)&exec->stop_async, _on_handle_close);
+
+    // 再次运行以处理 close 回调，此时引擎还是活的
+    uv_run(&exec->compute_loop, UV_RUN_NOWAIT);
 
     if (exec->engine) {
         js_engine_destroy(exec->engine);
         exec->engine = NULL;
     }
 
-    // Close async handles before loop close
-    uv_close((uv_handle_t *)&exec->task_async, _on_handle_close);
-    uv_close((uv_handle_t *)&exec->stop_async, _on_handle_close);
-
-    // Drain loop to finish close callbacks
-    uv_run(&exec->compute_loop, UV_RUN_DEFAULT);
     uv_loop_close(&exec->compute_loop);
 }
 
@@ -159,12 +131,11 @@ script_executor_t *script_exec_create(uv_loop_t *main_loop) {
     script_executor_t *exec = calloc(1, sizeof(script_executor_t));
     if (!exec) return NULL;
     uv_mutex_init(&exec->lock);
+    uv_sem_init(&exec->start_sem, 0);
     exec->running = true;
-    if (uv_thread_create(&exec->tid, _executor_entry, exec) != 0) {
-        uv_mutex_destroy(&exec->lock);
-        free(exec);
-        return NULL;
-    }
+    uv_thread_create(&exec->tid, _executor_entry, exec);
+    uv_sem_wait(&exec->start_sem);
+    uv_sem_destroy(&exec->start_sem);
     return exec;
 }
 
@@ -179,6 +150,7 @@ int script_exec_post(script_executor_t *exec, const char *script_id, script_prio
     }
     script_task_t *t = &exec->queue[exec->head];
     strncpy(t->script_id, script_id, 31);
+    t->script_id[31] = '\0';
     t->prio = prio;
     if (data) t->input = *data;
     exec->head = next;

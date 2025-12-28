@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include <uv.h>
 
+#include "edge_common.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -42,6 +44,24 @@ typedef struct cmd_msg {
     /* 内部链表 */
     struct cmd_msg *next;
 } cmd_msg_t;
+
+// --- Builder API (New) ---
+
+static inline void cmd_msg_init_write(cmd_msg_t *cmd, uint32_t tag, double val,
+                                      cmd_priority_t prio) {
+    *cmd = (cmd_msg_t){0};
+    cmd->action = CMD_ACTION_WRITE;
+    cmd->tag_id = tag;
+    cmd->value = val;
+    cmd->priority = prio;
+}
+
+static inline void cmd_msg_init_read(cmd_msg_t *cmd, uint32_t tag, cmd_priority_t prio) {
+    *cmd = (cmd_msg_t){0};
+    cmd->action = CMD_ACTION_READ;
+    cmd->tag_id = tag;
+    cmd->priority = prio;
+}
 
 typedef struct arbiter arbiter_t;
 

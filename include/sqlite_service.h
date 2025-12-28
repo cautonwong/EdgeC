@@ -6,28 +6,21 @@
 
 #include "shmring.h"  // For PipeMsg
 
-// 五大产品类型定义 (从文档对齐)
+// 存储策略定义
 typedef enum {
-    PROD_HEMS = 1,       // 家庭: 轻量, 覆盖写
-    PROD_IEMS = 2,       // 工业: 高并发, 异步批量
-    PROD_SG_EL2025 = 3,  // 融合: 混合, BLOB支持
-    PROD_EVSE = 4,       // 充电: 强一致性, 事务
-    PROD_DCU = 5         // 集中: 海量数据, 分表
-} product_type_t;
+    STRATEGY_LITE = 1,        // 覆盖写，省空间
+    STRATEGY_SERIES = 2,      // 时序存储，异步批量
+    STRATEGY_SHARDING = 3,    // 自动分表
+    STRATEGY_TRANSACTION = 4  // 强一致性事务
+} storage_strategy_t;
 
-// 存储服务上下文 (不透明句柄)
-typedef struct sqlite_svc_s sqlite_svc_t;
-
-// 错误回调
-typedef void (*sqlite_err_cb)(int code, const char *msg);
-
-// 配置参数
+// 存储服务配置
 typedef struct {
-    product_type_t type;
+    storage_strategy_t strategy;
     const char *db_path;
-    int cache_size_kb;      // Page Cache 大小
-    int batch_size;         // 异步批量提交阈值 (仅 IEMS/SG/DCU 有效)
-    int flush_interval_ms;  // 强制刷盘间隔
+    int cache_size_kb;
+    int batch_size;
+    int flush_interval_ms;
 } sqlite_config_t;
 
 // --- API ---
@@ -37,6 +30,19 @@ sqlite_svc_t *sqlite_svc_create(uv_loop_t *loop, sqlite_config_t *cfg);
 
 // 插入数据 (内部根据产品类型自动路由到 Sync 或 Async 通道)
 int sqlite_svc_insert(sqlite_svc_t *svc, const PipeMsg *msg);
+
+// 查询回调定义
+typedef int (*sqlite_svc_query_cb)(void *user_data, PipeMsg *msg);
+
+/**
+ * @brief 查询历史数据
+ * @param start_ts 起始时间戳 (ms)
+ * @param end_ts 结束时间戳 (ms)
+ * @param cb 每行数据的回调
+ * @param user_data 回调透传参数
+ */
+int sqlite_svc_query(sqlite_svc_t *svc, uint64_t start_ts, uint64_t end_ts, sqlite_svc_query_cb cb,
+                     void *user_data);
 
 // 事务控制 (EVSE 专用)
 int sqlite_svc_begin_trans(sqlite_svc_t *svc);

@@ -53,7 +53,9 @@ find_package(PahoMQTT REQUIRED)
 # ==============================================================================
 include(Sanitizers)
 include(CodeCoverage)
-add_compile_options(-Wall -Wextra -Wformat=2 -Wconversion)
+add_compile_options(-Wall -Wextra -Wformat=2 -Wconversion --coverage)
+add_link_options(--coverage)
+
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     enable_sanitizers(address undefined)
 endif()
@@ -83,6 +85,7 @@ add_library(edge_core_lib STATIC
     src/sched_time_source.c
     src/sched_calendar.c
     src/sched_executor.c
+    src/sched_libev.c
     src/driver_modbus.c
     src/modbus_rtu_driver.c
     src/profile_loader.c
@@ -115,7 +118,18 @@ add_product(evse cmd/evse)
 add_product(dcu cmd/dcu)
 
 # ==============================================================================
-# 7. Tests
+# 8. Installation
+# ==============================================================================
+install(TARGETS edge_core_lib DESTINATION lib)
+install(DIRECTORY include/ DESTINATION include/edgeos FILES_MATCHING PATTERN "*.h")
+
+# ==============================================================================
+# 9. Tests
 # ==============================================================================
 enable_testing()
 add_subdirectory(tests)
+
+# ==============================================================================
+# 10. Examples
+# ==============================================================================
+add_subdirectory(examples)
