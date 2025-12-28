@@ -8,6 +8,10 @@ add_executable(test_algorithm_sum test_algorithm_sum.c)
 target_link_libraries(test_algorithm_sum PRIVATE edge_core_lib cmocka::cmocka)
 add_test(NAME AlgorithmSum COMMAND test_algorithm_sum)
 
+add_executable(test_battery_algo test_battery_algo.c)
+target_link_libraries(test_battery_algo PRIVATE edge_core_lib cmocka::cmocka)
+add_test(NAME BatteryAlgo COMMAND test_battery_algo)
+
 # Test SQLite Service (The new one)
 add_executable(test_sqlite_service test_sqlite_service.c)
 target_link_libraries(test_sqlite_service PRIVATE edge_core_lib cmocka::cmocka)

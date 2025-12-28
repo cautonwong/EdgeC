@@ -3,8 +3,9 @@ project(vpp_demo)
 
 if(TARGET edge_core_lib)
     # In-tree build
+    include_directories(../../algo/include)
     add_executable(vpp_demo main.c)
-    target_link_libraries(vpp_demo PRIVATE edge_core_lib libuv::uv)
+    target_link_libraries(vpp_demo PRIVATE edge_core_lib libuv::uv QuickJS::QuickJS)
 else()
     # Standalone build
     find_library(EDGEOS_LIB edge_core_lib)

@@ -81,7 +81,7 @@ int main(int argc, char **argv) {
 
     // JS 引擎也是产品级的需求，在 App 层开启
     js_engine_t *js_engine = js_engine_create(svc, 2 * 1024 * 1024);
-    script_loader_t *loader = script_loader_create(js_engine, "algo/js", 1000);
+    script_loader_t *loader = script_loader_create(loop, js_engine, "algo/js", 1000);
     script_loader_start(loader);
 
     // --- S1 Scenario Simulator: Produce dummy data ---

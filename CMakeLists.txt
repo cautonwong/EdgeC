@@ -74,6 +74,7 @@ add_library(edge_core_lib STATIC
     src/sqlite_service.c
     src/persistence_mgr.c
     algo/native/algorithm_sum.c
+    algo/native/battery_strategy.c
     src/northbound_mgr.c
     src/web_server.c
     src/rest_server.c

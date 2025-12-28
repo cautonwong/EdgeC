@@ -9,6 +9,7 @@
 
 struct script_loader_s {
     js_engine_t *engine;
+    uv_loop_t *loop;
     char dir_path[256];
     uint64_t interval;
 
@@ -54,7 +55,6 @@ static void on_timer(uv_timer_t *handle) {
     script_loader_t *loader = (script_loader_t *)handle->data;
 
     for (int i = 0; i < loader->script_count; i++) {
-        // printf("[Loader] Executing %s...\n", loader->scripts[i]);
         js_engine_run_file(loader->engine, loader->scripts[i]);
     }
 }
@@ -68,26 +68,29 @@ static void on_fs_event(uv_fs_event_t *handle, const char *filename, int events,
     scan_scripts(loader);
 }
 
-script_loader_t *script_loader_create(js_engine_t *engine, const char *dir_path,
+script_loader_t *script_loader_create(uv_loop_t *loop, js_engine_t *engine, const char *dir_path,
                                       uint64_t interval_ms) {
+    if (!engine || !dir_path || !loop) return NULL;
+
     script_loader_t *loader = calloc(1, sizeof(script_loader_t));
     if (!loader) return NULL;
 
     loader->engine = engine;
+    loader->loop = loop;
     strncpy(loader->dir_path, dir_path, sizeof(loader->dir_path) - 1);
     loader->interval = interval_ms;
 
-    uv_loop_t *loop = js_engine_get_loop(engine);
-    uv_timer_init(loop, &loader->timer);
+    uv_timer_init(loader->loop, &loader->timer);
     loader->timer.data = loader;
 
-    uv_fs_event_init(loop, &loader->fs_event);
+    uv_fs_event_init(loader->loop, &loader->fs_event);
     loader->fs_event.data = loader;
 
     return loader;
 }
 
 int script_loader_start(script_loader_t *loader) {
+    if (!loader) return -1;
     // 1. Initial scan
     scan_scripts(loader);
 
@@ -98,10 +101,22 @@ int script_loader_start(script_loader_t *loader) {
     return uv_fs_event_start(&loader->fs_event, on_fs_event, loader->dir_path, 0);
 }
 
+static void on_close_cb(uv_handle_t *handle) {
+    (void)handle;
+}
+
 void script_loader_destroy(script_loader_t *loader) {
     if (!loader) return;
+
     uv_timer_stop(&loader->timer);
+    if (!uv_is_closing((uv_handle_t *)&loader->timer)) {
+        uv_close((uv_handle_t *)&loader->timer, on_close_cb);
+    }
+
     uv_fs_event_stop(&loader->fs_event);
+    if (!uv_is_closing((uv_handle_t *)&loader->fs_event)) {
+        uv_close((uv_handle_t *)&loader->fs_event, on_close_cb);
+    }
 
     for (int i = 0; i < loader->script_count; i++) {
         free(loader->scripts[i]);
