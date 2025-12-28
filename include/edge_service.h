@@ -48,6 +48,12 @@ uv_loop_t *service_get_loop(service_t *svc);
  * @brief 获取数据中枢的环形缓冲区指针
  */
 shm_ring_t *service_get_ring(service_t *svc);
+shm_ring_t *service_get_shmring(service_t *svc);  // 别名，对齐 rest_server.c
+
+/**
+ * @brief 获取仲裁器实例指针
+ */
+arbiter_t *service_get_arbiter(service_t *svc);
 
 /**
  * @brief 启动服务容器并注入依赖 (黑盒模式)

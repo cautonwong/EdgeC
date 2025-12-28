@@ -35,10 +35,13 @@ typedef struct {
 
 static void sha1_transform(uint32_t state[5], const uint8_t buffer[64]) {
     uint32_t a, b, c, d, e, i, w[80];
+
     for (i = 0; i < 16; i++) {
-        w[i] = (buffer[i * 4] << 24) | (buffer[i * 4 + 1] << 16) | (buffer[i * 4 + 2] << 8) |
-               buffer[i * 4 + 3];
+        w[i] = ((uint32_t)buffer[i * 4] << 24) | ((uint32_t)buffer[i * 4 + 1] << 16) |
+
+               ((uint32_t)buffer[i * 4 + 2] << 8) | (uint32_t)buffer[i * 4 + 3];
     }
+
     for (; i < 80; i++) w[i] = rol(w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16], 1);
     a = state[0];
     b = state[1];

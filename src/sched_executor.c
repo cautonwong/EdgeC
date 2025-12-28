@@ -74,7 +74,7 @@ void calendar_schedule(calendar_task_t *task) {
         task->timer.data = task;
     }
 
-    uv_timer_start(&task->timer, on_timer_fire, delta_ms, 0);
+    uv_timer_start(&task->timer, on_timer_fire, (uint64_t)delta_ms, 0);
     task->state = CAL_STATE_SCHEDULED;
 }
 

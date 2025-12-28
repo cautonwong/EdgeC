@@ -104,6 +104,31 @@ void arbiter_on_io_done(arbiter_t *arb, int bus_id, cmd_msg_t *cmd) {
     }
 }
 
+int arbiter_get_statuses(arbiter_t *arb, arbiter_bus_status_t *out_stats, int max_count) {
+    if (!arb || !out_stats) return 0;
+    int limit = (max_count < MAX_BUSES) ? max_count : MAX_BUSES;
+    for (int i = 0; i < limit; i++) {
+        out_stats[i].bus_id = i;
+        out_stats[i].is_busy = (arb->buses[i].owner != NULL);
+        out_stats[i].is_exclusive = arb->buses[i].is_exclusive;
+
+        int qlen = 0;
+        cmd_msg_t *curr = arb->buses[i].queue;
+        while (curr) {
+            qlen++;
+            curr = curr->next;
+        }
+        out_stats[i].queue_len = qlen;
+
+        if (arb->buses[i].owner) {
+            strncpy(out_stats[i].current_job_id, arb->buses[i].owner->req_id, 31);
+        } else {
+            strcpy(out_stats[i].current_job_id, "NONE");
+        }
+    }
+    return limit;
+}
+
 static void on_arb_close(uv_handle_t *h) {
     free(h->data);
 }

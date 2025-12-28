@@ -67,7 +67,15 @@ uv_loop_t *service_get_loop(service_t *svc) {
 }
 
 shm_ring_t *service_get_ring(service_t *svc) {
-    return svc ? &svc->data_hub->ring : NULL;
+    return (svc && svc->data_hub) ? &svc->data_hub->ring : NULL;
+}
+
+shm_ring_t *service_get_shmring(service_t *svc) {
+    return service_get_ring(svc);
+}
+
+arbiter_t *service_get_arbiter(service_t *svc) {
+    return svc ? svc->arbiter : NULL;
 }
 
 void service_set_loop(service_t *svc, uv_loop_t *loop) {
@@ -133,10 +141,13 @@ void service_delete(service_t *svc) {
     if (!svc) return;
 
     if (svc->loop) {
-        // 关闭所有活跃句柄
+        // 1. 发起所有句柄的关闭请求 (包括 cmd_async)
         uv_walk(svc->loop, on_walk_close, NULL);
 
-        // 循环运行直到所有句柄被彻底释放
+        // 2. 驱动一次 Loop 以处理所有 Close 回调
+        uv_run(svc->loop, UV_RUN_DEFAULT);
+
+        // 3. 循环运行直到 Loop 彻底释放
         int ret;
         do {
             ret = uv_loop_close(svc->loop);
@@ -144,8 +155,6 @@ void service_delete(service_t *svc) {
                 uv_run(svc->loop, UV_RUN_ONCE);
             }
         } while (ret == UV_EBUSY);
-
-        svc->loop = NULL;
     }
 
     uv_mutex_destroy(&svc->cmd_lock);

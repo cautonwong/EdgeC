@@ -1,21 +1,21 @@
+
+!*.a
+!*.cmake
+!*.h
+!*.so
 # Build directories
+# IDE settings
+# Local installation (dependencies)
+# Logs
+# System files
+*.db
+*.db-shm
+*.db-wal
+*.log
+.DS_Store
+.cache/
+.idea/
+.vscode/
+_deps/
 build/
 build_*/
-_deps/
-
-.cache/
-# IDE settings
-.vscode/
-.idea/
-
-# System files
-.DS_Store
-
-# Logs
-*.log
-
-# Local installation (dependencies)
-!*.a
-!*.so
-!*.h
-!*.cmake

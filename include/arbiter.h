@@ -61,6 +61,16 @@ void arbiter_shutdown(arbiter_t *arb);
 typedef void *arbiter_bus_handle_t;
 arbiter_bus_handle_t arbiter_bus_register(arbiter_t *arb, const char *name);
 
+typedef struct {
+    int bus_id;
+    bool is_busy;
+    bool is_exclusive;
+    int queue_len;
+    char current_job_id[32];
+} arbiter_bus_status_t;
+
+int arbiter_get_statuses(arbiter_t *arb, arbiter_bus_status_t *out_stats, int max_count);
+
 /**
  * @brief 提交指令 (S5/S6/S7 场景)
  */

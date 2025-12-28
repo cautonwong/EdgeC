@@ -1,5 +1,6 @@
 #include "web_server.h"
 
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,7 +20,7 @@ static void on_alloc(uv_handle_t *h, size_t s, uv_buf_t *b) {
 
 static void on_write_done(uv_write_t *req, int status) {
     (void)status;
-    if (req->data) free(req->data);  // 释放读取的文件内容缓存
+    if (req->data) free(req->data);
     free(req);
 }
 
@@ -29,8 +30,12 @@ static void on_handle_free(uv_handle_t *h) {
 
 static void on_read(uv_stream_t *c, ssize_t n, const uv_buf_t *b) {
     if (n > 0) {
-        // ... (File reading and sending logic remains the same)
+        // 1. 简单的请求解析：只处理 GET /
+        // 在 native 嵌入式 Web 网关中，我们默认对任何请求都返回 index.html
+        // 除非它明确请求了不存在的资源。浏览器通常会先请求 /。
+
         uv_fs_t open_req;
+        // 使用同步调用 (NULL 回调) 确保文件立即打开
         int fd = uv_fs_open(c->loop, &open_req, WEB_DOC_ROOT, O_RDONLY, 0, NULL);
         uv_fs_req_cleanup(&open_req);
 
@@ -46,34 +51,46 @@ static void on_read(uv_stream_t *c, ssize_t n, const uv_buf_t *b) {
             uv_fs_t read_req;
             uv_fs_read(c->loop, &read_req, fd, &content_buf, 1, 0, NULL);
             uv_fs_req_cleanup(&read_req);
-            uv_fs_close(c->loop, &open_req, fd, NULL);
-            uv_fs_req_cleanup(&open_req);
 
-            char head[256];
+            uv_fs_t close_req;
+            uv_fs_close(c->loop, &close_req, fd, NULL);
+            uv_fs_req_cleanup(&close_req);
+
+            // 构造标准 HTTP 响应
+            char head[512];
             snprintf(head, sizeof(head),
-                     "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: %zu\r\n"
-                     "Access-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n",
+                     "HTTP/1.1 200 OK\r\n"
+                     "Content-Type: text/html; charset=utf-8\r\n"
+                     "Content-Length: %zu\r\n"
+                     "Access-Control-Allow-Origin: *\r\n"
+                     "Connection: close\r\n\r\n",
                      size);
 
             uv_write_t *wr_req = (uv_write_t *)malloc(sizeof(uv_write_t));
-            uv_buf_t bufs[2] = {{.base = head, .len = (unsigned int)strlen(head)},
-                                {.base = content, .len = (unsigned int)size}};
-            wr_req->data = content;
-            uv_write(wr_req, c, bufs, 2, on_write_done);
+
+            // 我们需要把 Header 也拷贝出来，或者使用多个 buffer
+            size_t head_len = strlen(head);
+            char *full_payload = malloc(head_len + size);
+            memcpy(full_payload, head, head_len);
+            memcpy(full_payload + head_len, content, size);
+
+            uv_buf_t out_buf = uv_buf_init(full_payload, (unsigned int)(head_len + size));
+            wr_req->data = full_payload;  // 在 write_done 中释放
+
+            uv_write(wr_req, c, &out_buf, 1, on_write_done);
+            free(content);
         } else {
+            fprintf(stderr, "[WEB] Failed to open %s: %d\n", WEB_DOC_ROOT, fd);
             const char *not_found = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
             uv_write_t *wr_req = (uv_write_t *)malloc(sizeof(uv_write_t));
-            uv_buf_t buf = uv_buf_init((char *)not_found, (unsigned int)strlen(not_found));
-            wr_req->data = NULL;
+            uv_buf_t buf = uv_buf_init(strdup(not_found), (unsigned int)strlen(not_found));
+            wr_req->data = buf.base;
             uv_write(wr_req, c, &buf, 1, on_write_done);
         }
     } else if (n < 0) {
-        if (!uv_is_closing((uv_handle_t *)c)) {
-            uv_close((uv_handle_t *)c, on_handle_free);
-        }
+        uv_close((uv_handle_t *)c, on_handle_free);
     }
-    // 移除 if(b->base) free(b->base)，因为 libuv 内存应由 alloc_cb 分配并在这里统一处理
-    // 如果 b->base 是在 on_read 之前分配的，确实需要 free。
+
     if (b->base) free(b->base);
 }
 
@@ -98,7 +115,7 @@ web_server_t *web_server_create(uv_loop_t *l, int p) {
     if (r) {
         fprintf(stderr, "[WEB] Listen error port %d: %s\n", p, uv_strerror(r));
     } else {
-        printf("[WEB] HMI Professional UI running at http://localhost:%d\n", p);
+        printf("[WEB] Native HMI Gateway running at http://localhost:%d\n", p);
     }
     return srv;
 }
