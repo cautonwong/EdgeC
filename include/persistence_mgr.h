@@ -4,14 +4,19 @@
 #include <uv.h>
 
 #include "shmring.h"
-#include "sqlite_writer.h"
+#include "sqlite_service.h"
 
 typedef struct {
     shm_ring_t *ring;
+
     uv_timer_t timer;
+
     uint64_t last_seq;
+
     uv_loop_t *loop;
-    sqlite_writer_t *writer;
+
+    sqlite_svc_t *writer;
+
 } persistence_mgr_t;
 
 // 初始化持久化管理器

@@ -3,7 +3,7 @@
  * @brief Network Buffer Library Implementation (Ported from Zephyr RTOS)
  */
 
-#include "core/net_buf.h"
+#include "net_buf.h"
 
 #include <assert.h>
 #include <stdio.h>

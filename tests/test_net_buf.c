@@ -6,7 +6,7 @@
 #include <string.h>
 #include <uv.h>
 
-#include "core/net_buf.h"
+#include "net_buf.h"
 
 // Mock destroy callback
 static int destroy_count = 0;

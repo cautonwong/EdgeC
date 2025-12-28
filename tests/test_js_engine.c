@@ -5,7 +5,7 @@
 #include <uv.h>
 
 #include "edge_service.h"
-#include "services/js_engine.h"
+#include "js_engine.h"
 
 static void test_js_eval_basic(void **state) {
     (void)state;

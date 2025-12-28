@@ -4,12 +4,11 @@
 #include <uv.h>
 
 #include "arbiter.h"
-#include "core/net_buf.h"
 #include "datahub.h"
+#include "net_buf.h"
 #include "northbound_mgr.h"
 #include "persistence_mgr.h"
 #include "profile_loader.h"
-#include "sys_supervisor.h"
 
 #ifdef __cplusplus
 extern "C" {

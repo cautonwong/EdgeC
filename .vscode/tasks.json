@@ -2,25 +2,19 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "build (debug)",
+            "label": "Format Code",
             "type": "shell",
-            "command": "${workspaceFolder}/build.sh",
-            "args": [
-                "--preset",
-                "x64-debug"
-            ],
+            "command": "./scripts/format.sh",
+            "problemMatcher": []
+        },
+        {
+            "label": "Build All (Debug)",
+            "type": "shell",
+            "command": "cmake --build --preset x64-linux-gcc-base",
             "group": {
                 "kind": "build",
                 "isDefault": true
-            },
-            "presentation": {
-                "reveal": "silent",
-                "clear": true,
-                "panel": "shared"
-            },
-            "problemMatcher": [
-                "$gcc"
-            ]
+            }
         }
     ]
 }

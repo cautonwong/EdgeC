@@ -37,26 +37,26 @@ static void on_timer_close(uv_handle_t *handle) {
 
 static void test_algo_fusion_500(void **state) {
     test_ctx_t *tctx = *state;
-    
+
     // 增加超时保护 (Heap allocated to avoid stack-use-after-return)
     uv_timer_t *timeout = malloc(sizeof(uv_timer_t));
     uv_timer_init(tctx->loop, timeout);
-    timeout->data = tctx; 
-    uv_timer_start(timeout, on_test_timeout, 5000, 0); // 5s
+    timeout->data = tctx;
+    uv_timer_start(timeout, on_test_timeout, 5000, 0);  // 5s
 
     // Submit 500 samples
     for (int i = 0; i < 500; i++) {
-        algo_sample_t s = { .value = 1.0, .ts = 1000 + (uint64_t)i };
+        algo_sample_t s = {.value = 1.0, .ts = 1000 + (uint64_t)i};
         algo_submit(tctx->algo, &s);
     }
-    
+
     algo_flush(tctx->algo);
-    
+
     // 运行直到触发 uv_stop
     uv_run(tctx->loop, UV_RUN_DEFAULT);
-    
+
     uv_timer_stop(timeout);
-    uv_close((uv_handle_t*)timeout, on_timer_close);
+    uv_close((uv_handle_t *)timeout, on_timer_close);
 
     assert_int_equal(tctx->result_count, 1);
     assert_float_equal(tctx->last_sum, 500.0, 0.001);
@@ -68,7 +68,7 @@ static void test_algo_auto_flush(void **state) {
     // Timeout protection
     uv_timer_t *timeout = malloc(sizeof(uv_timer_t));
     uv_timer_init(tctx->loop, timeout);
-    uv_timer_start(timeout, on_test_timeout, 5000, 0); // 5s
+    uv_timer_start(timeout, on_test_timeout, 5000, 0);  // 5s
 
     // Submit capacity (1024) samples, should trigger auto-flush
     for (int i = 0; i < 1024; i++) {
@@ -79,9 +79,9 @@ static void test_algo_auto_flush(void **state) {
     // Wait for result
     // uv_run will return when uv_stop is called in on_result
     uv_run(tctx->loop, UV_RUN_DEFAULT);
-    
+
     uv_timer_stop(timeout);
-    uv_close((uv_handle_t*)timeout, on_timer_close);
+    uv_close((uv_handle_t *)timeout, on_timer_close);
 
     // Expect increment from 0 to 1 (since setup resets state)
     assert_int_equal(tctx->result_count, 1);
@@ -110,7 +110,7 @@ static int teardown(void **state) {
     while (uv_loop_close(tctx->loop) == UV_EBUSY) {
         uv_run(tctx->loop, UV_RUN_ONCE);
     }
-    
+
     free(tctx->loop);
     free(tctx);
     return 0;

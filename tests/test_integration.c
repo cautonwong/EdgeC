@@ -76,7 +76,7 @@ static void test_end_to_end_flow(void **state) {
     persistence_mgr_close(&ctx.storage);
     algo_destroy(ctx.algo);
     datahub_destroy(&ctx.data_hub);
-    
+
     // Process close callbacks
     uv_run(ctx.loop, UV_RUN_NOWAIT);
     // Maybe run a few times or loop until empty?
@@ -91,13 +91,13 @@ static void test_end_to_end_flow(void **state) {
     // But we need to make sure they ARE closed.
     // uv_close sets CLOSING.
     // uv_run processes them.
-    
+
     // For robust cleanup in test:
     while (uv_loop_close(ctx.loop) == UV_EBUSY) {
         uv_run(ctx.loop, UV_RUN_ONCE);
     }
-    
-    uv_run(ctx.loop, UV_RUN_NOWAIT); // Final sweep
+
+    uv_run(ctx.loop, UV_RUN_NOWAIT);  // Final sweep
 }
 
 int main(void) {

@@ -17,10 +17,7 @@
 #define QUEUE_H_
 
 #include <stddef.h>
-struct uv__queue {
-    struct uv__queue* next;
-    struct uv__queue* prev;
-};
+
 #define uv__queue_data(pointer, type, field) ((type*)((char*)(pointer)-offsetof(type, field)))
 
 #define uv__queue_foreach(q, h) for ((q) = (h)->next; (q) != (h); (q) = (q)->next)

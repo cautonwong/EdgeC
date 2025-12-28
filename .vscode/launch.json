@@ -2,11 +2,11 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Launch (Debug)",
+            "name": "(gdb) Launch IEMS",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/x64-debug/bin/sim_sensor_app",
-            "args": [],
+            "program": "${workspaceFolder}/build/iems",
+            "args": ["-m", "iems", "-w", "8080", "-r", "8081"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
@@ -18,9 +18,18 @@
                     "text": "-enable-pretty-printing",
                     "ignoreFailures": true
                 }
-            ],
-            "preLaunchTask": "build (debug)",
-            "miDebuggerPath": "/usr/bin/gdb"
+            ]
+        },
+        {
+            "name": "(gdb) Launch HEMS",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/hems",
+            "args": ["-m", "hems"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "MIMode": "gdb"
         }
     ]
 }

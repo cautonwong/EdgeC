@@ -4,19 +4,24 @@
 #include <uv.h>
 
 #include "shmring.h"
-#include "sqlite_writer.h"
+#include "sqlite_service.h"
 
 // Forward declarations
+
 struct web_server_s;
+
 struct rest_server_s;
 
 typedef struct {
     uv_loop_t loop;
+
     uv_thread_t thread;
 
     // Core Links
+
     shm_ring_t *ring;
-    sqlite_writer_t *writer;  // For control commands logging or settings
+
+    sqlite_svc_t *writer;  // For control commands logging or settings
 
     // Sub-Servers
     struct web_server_s *web_srv;

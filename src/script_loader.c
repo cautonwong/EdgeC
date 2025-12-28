@@ -1,4 +1,4 @@
-#include "services/script_loader.h"
+#include "script_loader.h"
 
 #include <dirent.h>
 #include <stdio.h>

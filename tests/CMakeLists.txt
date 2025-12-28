@@ -8,21 +8,20 @@ add_executable(test_algorithm_sum test_algorithm_sum.c)
 target_link_libraries(test_algorithm_sum PRIVATE edge_core_lib cmocka::cmocka)
 add_test(NAME AlgorithmSum COMMAND test_algorithm_sum)
 
-# Test SQLite
-add_executable(test_sqlite_writer test_sqlite_writer.c)
-target_link_libraries(test_sqlite_writer PRIVATE edge_core_lib cmocka::cmocka)
-add_test(NAME SQLiteWriter COMMAND test_sqlite_writer)
+# Test SQLite Service (The new one)
+add_executable(test_sqlite_service test_sqlite_service.c)
+target_link_libraries(test_sqlite_service PRIVATE edge_core_lib cmocka::cmocka)
+add_test(NAME SQLiteService COMMAND test_sqlite_service)
 
 # Test JS Engine
 add_executable(test_js_engine test_js_engine.c)
 target_link_libraries(test_js_engine PRIVATE edge_core_lib cmocka::cmocka)
 add_test(NAME JSEngine COMMAND test_js_engine)
 
-# Test Protocol
-add_executable(test_modbus_protocol test_modbus_protocol.c)
-target_link_libraries(test_modbus_protocol PRIVATE edge_core_lib cmocka::cmocka)
-target_link_options(test_modbus_protocol PRIVATE -Wl,--wrap=io_submit)
-add_test(NAME ModbusProtocol COMMAND test_modbus_protocol)
+# Test Script Executor
+add_executable(test_script_exec test_script_exec.c)
+target_link_libraries(test_script_exec PRIVATE edge_core_lib cmocka::cmocka)
+add_test(NAME ScriptExec COMMAND test_script_exec)
 
 # Test ShmRing
 add_executable(test_shmring test_shmring.c)
@@ -49,7 +48,7 @@ add_executable(test_io_executor test_io_executor.c)
 target_link_libraries(test_io_executor PRIVATE edge_core_lib cmocka::cmocka)
 add_test(NAME IOExecutor COMMAND test_io_executor)
 
-# Test Net Buf
+# Test NetBuf
 add_executable(test_net_buf test_net_buf.c)
 target_link_libraries(test_net_buf PRIVATE edge_core_lib cmocka::cmocka)
 add_test(NAME NetBuf COMMAND test_net_buf)
@@ -59,3 +58,9 @@ add_executable(test_integration test_integration.c)
 target_link_libraries(test_integration PRIVATE edge_core_lib cmocka::cmocka)
 target_link_options(test_integration PRIVATE -Wl,--wrap=io_submit)
 add_test(NAME Integration COMMAND test_integration)
+
+# Test Scheduler
+add_executable(test_scheduler test_scheduler.c ../tests/mock_time.c)
+target_include_directories(test_scheduler PRIVATE ../include)
+target_link_libraries(test_scheduler PRIVATE edge_core_lib cmocka::cmocka libuv::uv)
+add_test(NAME Scheduler COMMAND test_scheduler)

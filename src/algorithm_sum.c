@@ -1,9 +1,9 @@
 #include "algorithm_sum.h"
 
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stddef.h>
 
 // Internal structure to pass result to async callback
 typedef struct {
@@ -71,7 +71,7 @@ static void on_result_async(uv_async_t *handle) {
 static void on_async_close(uv_handle_t *handle) {
     // Retrieve ctx using pointer arithmetic (offsetof)
     algo_ctx_t *ctx = (algo_ctx_t *)((char *)handle - offsetof(algo_ctx_t, async_result));
-    
+
     uv_mutex_destroy(&ctx->lock);
     uv_cond_destroy(&ctx->cond);
     free(ctx->samples);

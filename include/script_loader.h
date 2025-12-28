@@ -3,7 +3,7 @@
 
 #include <uv.h>
 
-#include "services/js_engine.h"
+#include "js_engine.h"
 
 #ifdef __cplusplus
 extern "C" {

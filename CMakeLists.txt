@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(EdgeOS VERSION 0.1.0 LANGUAGES C)
+project(EdgeOS VERSION 1.0.0 LANGUAGES C)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -68,21 +68,23 @@ add_library(edge_core_lib STATIC
     src/arbiter.c
     src/io_executor.c
     src/driver_manager.c
-    src/sqlite_writer.c
+    src/sqlite_service.c
     src/persistence_mgr.c
     src/algorithm_sum.c
     src/northbound_mgr.c
     src/web_server.c
     src/rest_server.c
-    src/services/js_engine.c
-    src/services/script_loader.c
-    src/core/net_buf.c
-    src/core/edge_service.c
+    src/js_engine.c
+    src/script_loader.c
+    src/script_executor.c
+    src/net_buf.c
+    src/edge_service.c
+    src/sched_time_source.c
+    src/sched_calendar.c
+    src/sched_executor.c
     src/driver_modbus.c
-    src/modbus_protocol.c
     src/modbus_rtu_driver.c
     src/profile_loader.c
-    src/sys_supervisor.c
     src/bus_orchestrator.c
 )
 
@@ -95,7 +97,7 @@ target_link_libraries(edge_core_lib PUBLIC
     pthread dl rt m
 )
 
-target_include_directories(edge_core_lib PUBLIC include include/core include/services)
+target_include_directories(edge_core_lib PUBLIC include)
 
 # ==============================================================================
 # 6. Build Product Applications (From cmd/)
