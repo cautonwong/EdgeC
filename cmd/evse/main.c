@@ -47,8 +47,10 @@ int main(int argc, char **argv) {
     datahub_init(&hub, loop, "/evse_hub", 256, NULL, NULL);
 
     persistence_mgr_t storage;
-    sqlite_config_t db_cfg = {
-        .type = PROD_EVSE, .db_path = "edge_data.db", .batch_size = 1, .flush_interval_ms = 100};
+    sqlite_config_t db_cfg = {.strategy = STRATEGY_TRANSACTION,
+                              .db_path = "evse_orders.db",
+                              .batch_size = 1,
+                              .flush_interval_ms = 0};
     storage.writer = sqlite_svc_create(loop, &db_cfg);
     persistence_mgr_init(&storage, loop, &hub.ring, 1000);
 

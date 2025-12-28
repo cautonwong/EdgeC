@@ -65,6 +65,7 @@ endif()
 # ==============================================================================
 add_library(edge_core_lib STATIC
     src/edge_version.c
+    src/edge_params.c
     src/shmring.c
     src/datahub.c
     src/arbiter.c

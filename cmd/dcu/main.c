@@ -47,8 +47,10 @@ int main(int argc, char **argv) {
     datahub_init(&hub, loop, "/dcu_hub", 2048, NULL, NULL);
 
     persistence_mgr_t storage;
-    sqlite_config_t db_cfg = {
-        .type = PROD_DCU, .db_path = "edge_data.db", .batch_size = 500, .flush_interval_ms = 1000};
+    sqlite_config_t db_cfg = {.strategy = STRATEGY_SHARDING,
+                              .db_path = "dcu_archive.db",
+                              .batch_size = 500,
+                              .flush_interval_ms = 5000};
     storage.writer = sqlite_svc_create(loop, &db_cfg);
     persistence_mgr_init(&storage, loop, &hub.ring, 1000);
 

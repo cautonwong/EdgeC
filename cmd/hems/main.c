@@ -47,8 +47,10 @@ int main(int argc, char **argv) {
     datahub_init(&hub, loop, "/hems_hub", 128, NULL, NULL);
 
     persistence_mgr_t storage;
-    sqlite_config_t db_cfg = {
-        .type = PROD_HEMS, .db_path = "edge_data.db", .batch_size = 10, .flush_interval_ms = 2000};
+    sqlite_config_t db_cfg = {.strategy = STRATEGY_LITE,
+                              .db_path = "edge_data.db",
+                              .batch_size = 10,
+                              .flush_interval_ms = 2000};
     storage.writer = sqlite_svc_create(loop, &db_cfg);
     persistence_mgr_init(&storage, loop, &hub.ring, 2000);
 

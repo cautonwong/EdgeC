@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 
 #include "sched_time.h"
 
@@ -42,17 +43,17 @@ void calendar_schedule(calendar_task_t *task) {
     task->target_wall = next_wall;
     task->target_mono = sched_mono_now() + delta_ms;
 
-    // libuv 安全模式：确保同一个内存块不被重复 init
-    // 如果 handle 已激活或正在关闭，先 stop
-    if (uv_is_active((uv_handle_t *)&task->timer)) {
-        uv_timer_stop(&task->timer);
+    // libuv 安全模式
+    if (uv_is_closing((uv_handle_t *)&task->timer)) {
+        // 如果正在关闭，不能重新调度，除非等到 close 完成
+        return;
     }
 
-    // 只有在从未初始化时才进行 init
-    // 注意：libuv 没有直接判断是否 inited 的接口，我们通过 data 指针约定
     if (task->timer.data != task) {
         uv_timer_init(task->loop, &task->timer);
         task->timer.data = task;
+    } else if (uv_is_active((uv_handle_t *)&task->timer)) {
+        uv_timer_stop(&task->timer);
     }
 
     uv_timer_start(&task->timer, on_timer_fire, (uint64_t)delta_ms, 0);
@@ -61,8 +62,8 @@ void calendar_schedule(calendar_task_t *task) {
 
 void calendar_cancel(calendar_task_t *task) {
     if (task && task->timer.data == task) {
-        uv_timer_stop(&task->timer);
         if (!uv_is_closing((uv_handle_t *)&task->timer)) {
+            uv_timer_stop(&task->timer);
             uv_close((uv_handle_t *)&task->timer, on_timer_close);
         }
     }

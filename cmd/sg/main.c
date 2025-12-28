@@ -53,7 +53,7 @@ int main(int argc, char **argv) {
     datahub_init(&hub, loop, "/sg_hub", 1024, NULL, NULL);
 
     persistence_mgr_t storage;
-    sqlite_config_t db_cfg = {.type = PROD_SG_EL2025,
+    sqlite_config_t db_cfg = {.strategy = STRATEGY_SERIES,
                               .db_path = "edge_data.db",
                               .batch_size = 50,
                               .flush_interval_ms = 500};
