@@ -76,7 +76,7 @@ static void _process_tasks(uv_async_t *handle) {
         script_stat_t *stat = _get_script_stat(exec, task.script_id);
         if (stat && exec->engine) {
             char path[128];
-            snprintf(path, 128, "config/scripts/%s.js", task.script_id);
+            snprintf(path, 128, "algo/js/%s.js", task.script_id);
             // 只有文件存在才执行，避免 SEGV
             FILE *f = fopen(path, "r");
             if (f) {

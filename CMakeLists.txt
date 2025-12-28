@@ -73,7 +73,7 @@ add_library(edge_core_lib STATIC
     src/driver_manager.c
     src/sqlite_service.c
     src/persistence_mgr.c
-    src/algorithm_sum.c
+    algo/native/algorithm_sum.c
     src/northbound_mgr.c
     src/web_server.c
     src/rest_server.c
@@ -102,7 +102,7 @@ target_link_libraries(edge_core_lib PUBLIC
     pthread dl rt m
 )
 
-target_include_directories(edge_core_lib PUBLIC include)
+target_include_directories(edge_core_lib PUBLIC include algo/include)
 
 # ==============================================================================
 # 6. Build Product Applications (From cmd/)
