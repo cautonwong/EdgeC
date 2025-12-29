@@ -82,8 +82,8 @@ datahub_t *service_get_datahub(service_t *svc) {
     return svc ? svc->data_hub : NULL;
 }
 
-persistence_mgr_t *service_get_storage(service_t *svc) {
-    return svc ? svc->storage : NULL;
+sqlite_svc_t *service_get_storage(service_t *svc) {
+    return svc ? (sqlite_svc_t *)svc->storage : NULL;
 }
 
 void service_set_loop(service_t *svc, uv_loop_t *loop) {

@@ -5,18 +5,23 @@
 
 #include "stream_engine_priv.h"
 
-/**
- * @brief Logic to map JSON strings to stage factory functions.
- */
-static pipeline_stage_t *create_stage_by_type(const char *type, cJSON *config, void *context) {
+extern pipeline_stage_t *stage_filter_create(uint32_t tag_id);
+extern pipeline_stage_t *stage_accumulate_create(void);
+extern pipeline_stage_t *stage_sqlite_sink_create(sqlite_svc_t *db, const char *table);
+
+static pipeline_stage_t *build_stage(const char *type, cJSON *config, void *db_context) {
     if (strcmp(type, "filter") == 0) {
-        uint32_t tag = (uint32_t)cJSON_GetObjectItem(config, "tag_id")->valuedouble;
+        cJSON *item = cJSON_GetObjectItem(config, "tag_id");
+        uint32_t tag = (item) ? (uint32_t)item->valuedouble : 0;
         return stage_filter_create(tag);
-    } else if (strcmp(type, "accumulate") == 0) {
+    }
+    if (strcmp(type, "accumulate") == 0) {
         return stage_accumulate_create();
-    } else if (strcmp(type, "sqlite_sink") == 0) {
-        const char *table = cJSON_GetObjectItem(config, "table")->valuestring;
-        return stage_sqlite_sink_create((sqlite_svc_t *)context, table);
+    }
+    if (strcmp(type, "sqlite_sink") == 0) {
+        cJSON *item = cJSON_GetObjectItem(config, "table");
+        const char *table = (item) ? item->valuestring : "default_table";
+        return stage_sqlite_sink_create((sqlite_svc_t *)db_context, table);
     }
     return NULL;
 }
@@ -41,35 +46,35 @@ int stream_engine_load_config(stream_engine_t *engine, const char *json_path, vo
     if (!root) return -2;
 
     cJSON *pipelines = cJSON_GetObjectItem(root, "pipelines");
-    cJSON *pipeline;
-    cJSON_ArrayForEach(pipeline, pipelines) {
-        const char *id = cJSON_GetObjectItem(pipeline, "id")->valuestring;
-        uint32_t trigger = (uint32_t)cJSON_GetObjectItem(pipeline, "trigger_tag")->valuedouble;
+    cJSON *pipeline_json;
+    cJSON_ArrayForEach(pipeline_json, pipelines) {
+        cJSON *id_item = cJSON_GetObjectItem(pipeline_json, "id");
+        cJSON *trigger_item = cJSON_GetObjectItem(pipeline_json, "trigger_tag");
+
+        if (!id_item || !trigger_item) continue;
+
+        const char *id = id_item->valuestring;
+        uint32_t trigger = (uint32_t)trigger_item->valuedouble;
 
         pipeline_t *p = stream_engine_add_pipeline(engine, id, trigger);
         if (!p) continue;
 
-        cJSON *stages = cJSON_GetObjectItem(pipeline, "stages");
-        cJSON *stage;
-        cJSON_ArrayForEach(stage, stages) {
-            const char *type = cJSON_GetObjectItem(stage, "type")->valuestring;
-            cJSON *cfg = cJSON_GetObjectItem(stage, "config");
+        cJSON *stages_json = cJSON_GetObjectItem(pipeline_json, "stages");
+        cJSON *stage_json;
+        cJSON_ArrayForEach(stage_json, stages_json) {
+            cJSON *type_item = cJSON_GetObjectItem(stage_json, "type");
+            if (!type_item) continue;
 
-            pipeline_stage_t *s = create_stage_by_type(type, cfg, db_context);
+            const char *type = type_item->valuestring;
+            cJSON *cfg = cJSON_GetObjectItem(stage_json, "config");
+            pipeline_stage_t *s = build_stage(type, cfg, db_context);
             if (s) {
-                pipeline_add_stage(p, s->name, s->process, s->priv_state, s->cleanup);
-                // Note: Standard stages created via factories have their own cfg/state.
-                // We should ensure the engine's pipeline_add_stage handles this.
-                // Refactoring note: better if factory returns a struct, or we use a more unified
-                // 'add' API. For now, we free the 's' shell but keep state/cfg.
-                pipeline_stage_t *last = p->head;
-                while (last->next) last = last->next;
-                last->priv_cfg = s->priv_cfg;
+                pipeline_add_stage(p, s->name, s->process, s->priv_state, s->priv_cfg, s->cleanup);
+                printf("[Loader]   + Stage: %s added to Pipeline: %s\n", s->name, id);
                 free(s);
             }
         }
     }
-
     cJSON_Delete(root);
     return 0;
 }

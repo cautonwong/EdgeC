@@ -67,14 +67,20 @@ EdgeOS 摒弃了沉重的 Web 库，仅依赖 `libuv` 原生套接字：
 
 ---
 
-## 🛠️ 6. 开发规范
+## 📅 7. 路线图与待办事项 (TODO)
 
-*   **Hermetic Build**：依赖库预编译于 `.local/`，严禁格式化工具（clang-format）触碰此目录。
-*   **Zero Globals**：核心严禁使用全局变量，确保多实例共存。
-*   **Atomic Interaction**：跨线程状态交换强制使用 Seqlock 保护。
-*   **Commit Hooks**：
-    ```bash
-    pre-commit install  # 安装自动 clang-format 与 YAML 校验钩子
-    ```
+### 🚀 优先级 1：核心逻辑增强
+- [ ] **动态 Pipeline 引擎 (Full DSL)**：完善 `pipeline_loader`，支持通过 JSON 动态重构流处理逻辑。
+- [ ] **Lua 有状态算法引擎**：集成 Lua 运行时，支持具备闭包状态的高性能聚合计算。
+- [ ] **性能可观测性**：为 Pipeline 增加延迟（Latency）与吞吐量（TPS）的实时统计。
 
----
+### 🌐 优先级 2：北向契约完备性
+- [x] **REST Server 异步协议栈**：已实现基础 HTTP 响应。
+- [ ] **SQLite 历史点查 API**：实现 `/api/v1/data/freeze/` 系列接口，支持曲线与账本查询。
+- [ ] **SSE 事件主动推送**：实现基于 Server-Sent Events 的总线告警实时推送。
+- [ ] **Web UI 门户**：完成 Device Detail 与 Pipeline Visualizer 前端组件。
+
+### 🛡️ 优先级 3：工业硬化
+- [ ] **抗跳变极限压测**：编写 cmocka 脚本模拟 NTP 剧烈跳变下的冻结一致性。
+- [ ] **全链路零拷贝**：将跨线程数据交换全面切换为 `net_buf_t` 引用计数模式。
+- [ ] **IO Executor 物理隔离**：验证高频采样下的独立 Loop 稳定性。

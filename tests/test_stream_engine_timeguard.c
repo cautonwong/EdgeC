@@ -47,7 +47,7 @@ static void test_timeguard_anti_jump(void **state) {
 
     pipeline_t *p = stream_engine_add_pipeline(engine, "time_pipe", 0);
     timer_state_t *ts = calloc(1, sizeof(timer_state_t));
-    pipeline_add_stage(p, "timer_stage", mock_timer_proc, ts, free);
+    pipeline_add_stage(p, "timer_stage", mock_timer_proc, ts, NULL, free);
 
     // 1. Advance time 1 minute forward
     g_mock_mono_ms += 60000;

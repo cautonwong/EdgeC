@@ -15,9 +15,9 @@ struct pipeline_s {
     pipeline_state_t state;
 
     pipeline_stage_t *head;
+    pipeline_stage_t *tail;  // 新增 tail 指针
     pipeline_stage_t *resume_point;
     pipe_event_t current_event;
-
     pipe_event_t queue[MAX_PENDING_QUEUE];
     int q_head, q_tail;
 };

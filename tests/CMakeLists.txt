@@ -33,6 +33,10 @@ add_executable(test_stream_engine_timeguard test_stream_engine_timeguard.c)
 target_link_libraries(test_stream_engine_timeguard PRIVATE edge_core_lib cmocka::cmocka)
 add_test(NAME StreamEngineTimeGuard COMMAND test_stream_engine_timeguard)
 
+add_executable(test_pipeline_loader test_pipeline_loader.c)
+target_link_libraries(test_pipeline_loader PRIVATE edge_core_lib cmocka::cmocka)
+add_test(NAME PipelineLoader COMMAND test_pipeline_loader)
+
 # Test JS Engine
 add_executable(test_js_engine test_js_engine.c)
 target_link_libraries(test_js_engine PRIVATE edge_core_lib cmocka::cmocka)

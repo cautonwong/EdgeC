@@ -34,7 +34,7 @@ static void test_full_chain_data_flow(void **state) {
 
     pipeline_t *p = stream_engine_add_pipeline(engine, "vpp_agg", 1001);
     chain_mock_state_t *ms = calloc(1, sizeof(chain_mock_state_t));
-    pipeline_add_stage(p, "agg", mock_chain_proc, ms, free);
+    pipeline_add_stage(p, "agg", mock_chain_proc, ms, NULL, free);
 
     PipeMsg msg = {0};
     msg.tag_id = 1001;

@@ -41,7 +41,7 @@ static void test_engine_basic_flow(void **state) {
 
     pipeline_t *p = stream_engine_add_pipeline(engine, "test_pipe", 1001);
     mock_state_t *ms = calloc(1, sizeof(mock_state_t));
-    pipeline_add_stage(p, "mock_stage", mock_stage_proc, ms, mock_cleanup);
+    pipeline_add_stage(p, "mock_stage", mock_stage_proc, ms, NULL, mock_cleanup);
 
     pipe_event_t ev = {
         .type = EVT_DATA_POINT, .tag_id = 1001, .payload.val = 123.45, .calendar_ms = 1000000};
@@ -66,7 +66,7 @@ static void test_engine_time_tick(void **state) {
     pipeline_t *p = stream_engine_add_pipeline(engine, "timer_pipe", 0);
 
     mock_state_t *ms = calloc(1, sizeof(mock_state_t));
-    pipeline_add_stage(p, "timer_stage", mock_stage_proc, ms, mock_cleanup);
+    pipeline_add_stage(p, "timer_stage", mock_stage_proc, ms, NULL, mock_cleanup);
 
     pipe_event_t tick = {.type = EVT_TIME_PULSE,
                          .payload.tick_kind = 1,  // Minute

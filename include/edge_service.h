@@ -61,6 +61,11 @@ arbiter_t *service_get_arbiter(service_t *svc);
 datahub_t *service_get_datahub(service_t *svc);
 
 /**
+ * @brief 获取持久化存储服务句柄
+ */
+sqlite_svc_t *service_get_storage(service_t *svc);
+
+/**
  * @brief 启动服务容器并注入依赖 (黑盒模式)
  */
 int service_run(service_t *svc, uv_loop_t *loop, net_buf_pool_t *pool, arbiter_t *arbiter,

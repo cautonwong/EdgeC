@@ -40,8 +40,8 @@ static void test_pipeline_sequential_execution(void **state) {
     s1->next_ret = STAGE_OK;
     s2->next_ret = STAGE_OK;
 
-    pipeline_add_stage(p, "st1", industrial_mock_proc, s1, free);
-    pipeline_add_stage(p, "st2", industrial_mock_proc, s2, free);
+    pipeline_add_stage(p, "st1", industrial_mock_proc, s1, NULL, free);
+    pipeline_add_stage(p, "st2", industrial_mock_proc, s2, NULL, free);
 
     pipe_event_t ev = {.type = EVT_DATA_POINT, .tag_id = 1001};
     stream_engine_push_event(engine, &ev);
@@ -69,8 +69,8 @@ static void test_pipeline_async_suspension(void **state) {
     s1->next_ret = STAGE_ASYNC;
     s2->next_ret = STAGE_OK;
 
-    pipeline_add_stage(p, "st1", industrial_mock_proc, s1, free);
-    pipeline_add_stage(p, "st2", industrial_mock_proc, s2, free);
+    pipeline_add_stage(p, "st1", industrial_mock_proc, s1, NULL, free);
+    pipeline_add_stage(p, "st2", industrial_mock_proc, s2, NULL, free);
 
     // 1. Inject first event -> Suspends S1
     pipe_event_t ev1 = {.type = EVT_DATA_POINT, .tag_id = 1001, .payload.val = 1.0};

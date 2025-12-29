@@ -1,215 +1,90 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-[#030712]">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>EdgeOS Commander | Industrial HMI v3.1</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EdgeOS Web UI - Dashboard</title>
     <style>
-        body { font-family: 'Inter', sans-serif; }
-        .font-mono { font-family: 'JetBrains Mono', monospace; }
-        .glass-card { background: rgba(17, 24, 39, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
-        .sidebar-item-active { background: linear-gradient(90deg, rgba(14, 165, 233, 0.15) 0%, rgba(14, 165, 233, 0) 100%); border-left: 4px solid #0ea5e9; }
-        .trace-badge { font-size: 0.6rem; padding: 2px 6px; border-radius: 4px; font-weight: 800; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f4f7f6; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #ddd; padding-bottom: 10px; margin-bottom: 20px; }
+        .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .card { background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 20px; }
+        .card h2 { margin-top: 0; font-size: 1.2rem; color: #2c3e50; }
+        .status-ok { color: #27ae60; font-weight: bold; }
+        .value { font-size: 2rem; font-weight: bold; color: #2980b9; }
+        .unit { font-size: 1rem; color: #7f8c8d; }
+        .footer { margin-top: 40px; font-size: 0.8rem; color: #95a5a6; text-align: center; }
     </style>
 </head>
-<body class="h-full text-slate-300 overflow-hidden" x-data="app()">
-    <div class="flex h-full">
-        <!-- Sidebar -->
-        <aside class="w-72 bg-[#0b0f1a] flex flex-col border-r border-white/5 shadow-2xl z-20">
-            <div class="p-8">
-                <div class="flex items-center gap-3 mb-2">
-                    <div class="w-8 h-8 bg-sky-500 rounded-lg flex items-center justify-center shadow-[0_0_20px_rgba(14,165,233,0.4)]">
-                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                    </div>
-                    <span class="text-2xl font-extrabold tracking-tighter text-white">EDGE<span class="text-sky-500">OS</span></span>
-                </div>
-                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] ml-1">Native Gateway v3.1</p>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>EdgeOS <small style="font-weight: normal; font-size: 1rem;">| Observability Portal</small></h1>
+            <div id="system-status">System: <span class="status-ok">Connecting...</span></div>
+        </div>
+
+        <div class="card-grid">
+            <!-- System Health Card -->
+            <div class="card">
+                <h2>System Health</h2>
+                <p>Uptime: <span id="uptime" class="value">0</span> <span class="unit">sec</span></p>
+                <p>Status: <span id="health-status" class="status-ok">ONLINE</span></p>
             </div>
 
-            <nav class="flex-1 px-4 space-y-1 mt-4">
-                <template x-for="item in ['dashboard', 'topology', 'points', 'audit']">
-                    <button @click="tab = item"
-                        :class="tab === item ? 'sidebar-item-active text-white' : 'text-slate-500 hover:text-slate-300'"
-                        class="w-full flex items-center gap-4 px-6 py-4 rounded-xl transition-all group">
-                        <span class="text-sm font-semibold capitalize" x-text="item"></span>
-                    </button>
-                </template>
-            </nav>
-
-            <div class="p-6 border-t border-white/5">
-                <div class="flex items-center justify-between mb-2">
-                    <span class="text-[10px] font-bold text-slate-500">WS STATUS</span>
-                    <span class="text-[10px] font-bold" :class="connected ? 'text-emerald-500' : 'text-rose-500'" x-text="connected ? 'CONNECTED' : 'RECONNECTING...'"></span>
-                </div>
+            <!-- Realtime Telemetry Card -->
+            <div class="card">
+                <h2>Live Telemetry (Shadow Read)</h2>
+                <p>PV Power (Tag 1002):</p>
+                <div class="value" id="pv-power">0.0</div> <span class="unit">W</span>
+                <p style="font-size: 0.8rem; color: #bdc3c7;">Last Update: <span id="pv-ts">-</span></p>
             </div>
-        </aside>
 
-        <!-- Main -->
-        <main class="flex-1 flex flex-col relative bg-[#030712]">
-            <header class="h-20 flex items-center px-10 justify-between border-b border-white/5">
-                <h2 class="text-xl font-bold text-white capitalize" x-text="tab"></h2>
-                <div class="flex items-center gap-4">
-                    <span class="text-xs font-mono text-slate-500" x-text="serverTime"></span>
-                </div>
-            </header>
-
-            <div class="flex-1 overflow-auto p-10">
-                <!-- Tab: Dashboard -->
-                <div x-show="tab === 'dashboard'" class="space-y-8">
-                    <div class="grid grid-cols-4 gap-6">
-                        <div class="glass-card p-6 rounded-3xl">
-                            <div class="text-[10px] font-bold text-slate-500 uppercase mb-1">Live Voltage</div>
-                            <div class="text-3xl font-mono font-bold text-white"><span x-text="volt.toFixed(1)"></span> <small class="text-slate-600">V</small></div>
-                        </div>
-                        <div class="glass-card p-6 rounded-3xl">
-                            <div class="text-[10px] font-bold text-slate-500 uppercase mb-1">Latest Trace</div>
-                            <div x-html="getTraceBadge(lastTrace)"></div>
-                        </div>
-                    </div>
-                    <div class="glass-card p-8 rounded-[2rem] h-96">
-                        <canvas id="mainChart"></canvas>
-                    </div>
-                </div>
-
-                <!-- Tab: Topology (页面二落地) -->
-                <div x-show="tab === 'topology'" class="space-y-6">
-                    <div class="grid grid-cols-2 gap-6">
-                        <template x-for="bus in buses">
-                            <div class="glass-card p-6 rounded-2xl border-l-4" :class="bus.busy ? 'border-sky-500' : 'border-emerald-500'">
-                                <div class="flex justify-between items-center mb-4">
-                                    <span class="font-bold text-white" x-text="'Bus #' + bus.id"></span>
-                                    <span class="text-[10px] font-black px-2 py-1 rounded" :class="bus.busy ? 'bg-sky-500/20 text-sky-500' : 'bg-emerald-500/20 text-emerald-500'" x-text="bus.busy ? 'BUSY' : 'IDLE'"></span>
-                                </div>
-                                <div class="space-y-2 text-xs font-mono">
-                                    <div class="flex justify-between"><span>Exclusive:</span><span x-text="bus.exclusive"></span></div>
-                                    <div class="flex justify-between"><span>Queue:</span><span x-text="bus.queue"></span></div>
-                                    <div class="flex justify-between"><span>Current Job:</span><span class="text-sky-400" x-text="bus.job"></span></div>
-                                </div>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-
-                <!-- Tab: Points (补全缺失的页面) -->
-                <div x-show="tab === 'points'" class="glass-card rounded-[2rem] overflow-hidden border border-white/5">
-                    <table class="w-full text-left text-sm font-medium">
-                        <thead class="bg-white/[0.02] text-slate-500 uppercase text-[10px] font-black tracking-widest">
-                            <tr>
-                                <th class="p-6">ID</th>
-                                <th>Name</th>
-                                <th>Protocol</th>
-                                <th class="text-right p-6">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-white/5">
-                            <template x-for="p in points">
-                                <tr class="hover:bg-white/[0.01] transition-colors group">
-                                    <td class="p-6 font-mono text-sky-500" x-text="p.id"></td>
-                                    <td class="text-white" x-text="p.name"></td>
-                                    <td><span class="px-2 py-1 bg-slate-800 rounded text-[10px]" x-text="p.proto"></span></td>
-                                    <td class="text-right p-6 text-emerald-500 font-bold text-xs">ONLINE</td>
-                                </tr>
-                            </template>
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- Tab: Audit (页面五落地) -->
-                <div x-show="tab === 'audit'" class="glass-card rounded-2xl overflow-hidden">
-                    <table class="w-full text-left text-xs font-mono">
-                        <thead class="bg-white/5">
-                            <tr><th class="p-4">Time</th><th>Action</th><th>Target</th><th>Result</th></tr>
-                        </thead>
-                        <tbody>
-                            <template x-for="log in auditLogs">
-                                <tr class="border-t border-white/5"><td class="p-4" x-text="log.ts"></td><td x-text="log.act"></td><td x-text="log.target"></td><td x-text="log.res"></td></tr>
-                            </template>
-                        </tbody>
-                    </table>
-                </div>
+            <!-- Pipeline Monitoring -->
+            <div class="card">
+                <h2>Active Pipelines</h2>
+                <ul id="pipeline-list" style="padding-left: 20px; color: #34495e;">
+                    <li>VPP Strategy Engine</li>
+                    <li>Minute Energy Aggregator</li>
+                    <li>Safety Guard (Native)</li>
+                </ul>
             </div>
-        </main>
+        </div>
+
+        <div class="footer">
+            EdgeOS Industrial SDK v1.0.0 - Built with libuv & QuickJS
+        </div>
     </div>
 
     <script>
-        let chart = null;
-        function app() {
-            return {
-                tab: 'dashboard',
-                connected: false,
-                volt: 0,
-                lastTrace: 0,
-                buses: [],
-                points: [],
-                auditLogs: [],
-                serverTime: '--',
-                init() {
-                    this.initChart();
-                    this.connect();
-                    setInterval(() => {
-                        this.serverTime = new Date().toLocaleTimeString();
-                        this.refreshStats();
-                    }, 1000);
-                },
-                initChart() {
-                    const ctx = document.getElementById('mainChart').getContext('2d');
-                    chart = new Chart(ctx, {
-                        type: 'line',
-                        data: { labels: Array(20).fill(''), datasets: [{ label: 'V', data: Array(20).fill(0), borderColor: '#0ea5e9', tension: 0.4, fill: true, backgroundColor: 'rgba(14,165,233,0.1)' }] },
-                        options: { maintainAspectRatio: false, scales: { x: { display: false }, y: { grid: { color: 'rgba(255,255,255,0.05)' } } } }
-                    });
-                },
-                connect() {
-                    const ws = new WebSocket('ws://' + window.location.hostname + ':8081/ws');
-                    ws.onopen = () => this.connected = true;
-                    ws.onmessage = (e) => {
-                        const m = JSON.parse(e.data);
-                        if(m.type === 'telemetry') {
-                            this.volt = m.val; this.lastTrace = m.trace;
-                            chart.data.datasets[0].data.push(m.val); chart.data.datasets[0].data.shift();
-                            chart.update('none');
-                        }
-                    };
-                    ws.onclose = () => { this.connected = false; setTimeout(() => this.connect(), 2000); };
-                },
-                async refreshStats() {
-                    try {
-                        // 1. 总是刷新总线状态
-                        const r = await fetch('http://' + window.location.hostname + ':8081/api/v1/system/bus');
-                        if (r.ok) this.buses = await r.json();
+        const API_BASE = 'http://localhost:8081/api/v1';
 
-                        // 2. 根据当前 Tab 按需刷新
-                        if (this.tab === 'points') await this.fetchPoints();
-                        if (this.tab === 'audit') await this.refreshAudit();
-                    } catch(e) { console.error("Stats refresh failed", e); }
-                },
-                async refreshAudit() {
-                    try {
-                        const r = await fetch('http://' + window.location.hostname + ':8081/api/v1/audit');
-                        if (r.ok) this.auditLogs = await r.json();
-                    } catch(e) {}
-                },
-                async fetchPoints() {
-                    try {
-                        const r = await fetch('http://' + window.location.hostname + ':8081/api/v1/points');
-                        if (r.ok) this.points = await r.json();
-                    } catch(e) {}
-                },
-                getTraceBadge(s) {
-                    const map = {
-                        1: '<span class="trace-badge bg-slate-500 text-white">CREATED</span>',
-                        2: '<span class="trace-badge bg-blue-500 text-white">SHM_READY</span>',
-                        3: '<span class="trace-badge bg-amber-500 text-black">PROCESSING</span>',
-                        4: '<span class="trace-badge bg-emerald-500 text-white">STORED</span>',
-                        5: '<span class="trace-badge bg-purple-500 text-white">EXPORTED</span>'
-                    };
-                    return map[s] || '<span class="trace-badge bg-rose-500">DROPPED</span>';
+        async function updateDashboard() {
+            try {
+                // 1. Fetch System Health
+                const healthResp = await fetch(`${API_BASE}/system/health`);
+                const health = await healthResp.json();
+                document.getElementById('uptime').textContent = Math.round(health.uptime);
+                document.getElementById('health-status').textContent = health.status.toUpperCase();
+
+                // 2. Fetch PV Power (Tag 1002) - Shadow Read
+                const pvResp = await fetch(`${API_BASE}/data/latest/1002`);
+                const pv = await pvResp.json();
+                if (pv.value !== undefined) {
+                    document.getElementById('pv-power').textContent = pv.value.toFixed(1);
+                    document.getElementById('pv-ts').textContent = new Date(pv.ts).toLocaleTimeString();
                 }
+            } catch (e) {
+                console.error('Failed to sync with EdgeOS:', e);
+                document.getElementById('health-status').textContent = 'OFFLINE';
+                document.getElementById('health-status').className = '';
+                document.getElementById('health-status').style.color = '#e74c3c';
             }
         }
+
+        // 3秒刷新一次，体现非干扰点查特性
+        setInterval(updateDashboard, 3000);
+        updateDashboard();
     </script>
 </body>
 </html>
