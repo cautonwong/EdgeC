@@ -153,6 +153,10 @@ uv_loop_t *js_engine_get_loop(js_engine_t *engine) {
 
 void js_engine_destroy(js_engine_t *engine) {
     if (!engine) return;
+
+    // 强制执行一次 GC 以清理残留对象
+    JS_RunGC(engine->rt);
+
     JS_FreeContext(engine->ctx);
     JS_FreeRuntime(engine->rt);
     free(engine);
