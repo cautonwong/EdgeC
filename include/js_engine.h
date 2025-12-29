@@ -12,6 +12,7 @@ extern "C" {
 #endif
 
 typedef struct js_engine_s js_engine_t;
+struct JSContext;
 
 /**
  * @brief Initialize the QuickJS Scripting Service.
@@ -45,6 +46,11 @@ int js_engine_eval(js_engine_t *engine, const char *code, const char *filename);
  * @brief Get the libuv loop associated with the engine.
  */
 uv_loop_t *js_engine_get_loop(js_engine_t *engine);
+
+/**
+ * @brief Get the underlying JS context.
+ */
+struct JSContext *js_engine_get_context(js_engine_t *engine);
 
 /**
  * @brief Shutdown the JS engine and release resources.

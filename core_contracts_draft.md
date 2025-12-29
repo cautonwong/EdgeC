@@ -2591,3 +2591,799 @@ typedef struct {
 ---
 
 
+这是一个非常硬核且具有架构前瞻性的问题。
+
+我们先解决**技术实现（怎么生成）**，再深度剖析**架构演进（微服务兼容性）**。
+
+---
+
+### 第一部分：如何生成 Perfect Hash 和 Binary Search Table
+
+在嵌入式 C 中，为了极致性能（O(1) 或 O(logN)）且零内存分配，我们通常使用以下策略：
+
+1.  **TagID -> 属性**：直接使用 **Array Index**（数组索引），因为 TagID 是我们生成的连续枚举。
+2.  **字符串 Key（如 OBIS 码 "1.0.1.8.0.255"）-> TagID**：使用 **Perfect Hash（完美哈希）**。
+3.  **稀疏整数 Key（如 Modbus 地址 0x1000, 0x2005）-> TagID**：使用 **Binary Search（二分查找）**。
+
+#### 1. 工具选型：`gperf` (Perfect Hash 生成神器)
+
+`gperf` 是 GNU 的标准工具，它能针对**已知静态字符串集合**生成一个**无冲突**的哈希函数。
+
+**生成流程：**
+
+1.  **Python 生成器 (`gen_lookup.py`)** 读取 DSL，输出 `gperf` 格式文件：
+    ```text
+    /* meters.gperf */
+    %{
+    #include "tag_id_enum.h"
+    %}
+    struct dlms_map { const char *name; int id; };
+    %%
+    1.0.1.8.0.255, TAG_ACTIVE_ENERGY
+    1.0.32.7.0.255, TAG_VOLTAGE_A
+    1.0.52.7.0.255, TAG_VOLTAGE_B
+    %%
+    ```
+
+2.  **调用 `gperf` 生成 C 代码**：
+    ```bash
+    gperf -t -N lookup_obis meters.gperf > src/generated/obis_hash.c
+    ```
+
+3.  **生成的 C 代码效果**：
+    它会生成一个 `lookup_obis(const char *str, size_t len)` 函数，内部全是位运算和数组查表，速度极快（几十个 CPU 指令），**比 `strcmp` 还要快，且绝对无冲突**。
+
+#### 2. 工具选型：Python 生成 Binary Search Table
+
+对于 Modbus 地址这种稀疏整数，`gperf` 不适用。我们在 Python 里排好序，直接生成 C 代码。
+
+**Python 逻辑**：
+```python
+# 假设 tags 列表里包含了所有 Modbus 点位
+sorted_tags = sorted(tags, key=lambda x: x['modbus']['addr'])
+
+print("static const edge_modbus_entry_t g_modbus_table[] = {")
+for t in sorted_tags:
+    print(f"  {{ .addr = {t['modbus']['addr']}, .tag_id = {t['name']} }},")
+print("};")
+```
+
+**生成的 C 代码**：
+```c
+// src/generated/modbus_map.c
+const edge_modbus_entry_t g_modbus_table[] = {
+    { .addr = 0x1000, .tag_id = TAG_VOLTAGE },
+    { .addr = 0x2005, .tag_id = TAG_CURRENT },
+    // ... 必须是按 addr 排序的
+};
+
+// 使用标准库 bsearch 或手写二分
+tag_id_t lookup_modbus_tag(uint16_t addr) {
+    // 二分查找 O(log N)
+    int left = 0, right = COUNT - 1;
+    while (left <= right) {
+        int mid = left + (right - left) / 2;
+        if (g_modbus_table[mid].addr == addr) return g_modbus_table[mid].tag_id;
+        if (g_modbus_table[mid].addr < addr) left = mid + 1;
+        else right = mid - 1;
+    }
+    return TAG_INVALID;
+}
+```
+
+---
+
+### 第二部分：如果拆成 Microservices，这玩法废了吗？
+
+**结论：完全没有废，反而更稳健。但“分发方式”变了。**
+
+你担心的点可能是：*“静态生成是硬编码，微服务要求动态解耦，这两者是不是矛盾？”*
+
+其实，在工业级开发中，**Schema（数据契约）的静态化** 是系统稳定性的基石。
+
+#### 1. 为什么不废？（Schema as Code）
+
+即使你做微服务（比如 gRPC），你也需要定义 `.proto` 文件，然后用 `protoc` 生成 C++/Go 代码。
+**我们的 `tag_catalog.dts` 其实就是你的 `.proto` 文件。**
+
+*   **单体时代**：`dts` -> 生成 `.h/.c` -> 编译进同一个 `edge_app`。
+*   **微服务时代**：`dts` -> 生成 `libedge_metadata.so` (共享库) -> `Driver Service` 和 `Core Service` 分别链接它。
+
+**只要你的业务逻辑（Tag 定义）变了，无论你是单体还是微服务，两边的代码都需要感知这个变化。** 静态生成保证了**编译期的类型安全**，防止了“Driver 发了一个 TagID=500，Core 却以为 TagID=500 是电压”这种运行时灾难。
+
+#### 2. 微服务架构下的调整策略
+
+如果未来真拆成了微服务（例如 Driver 是一个独立进程，Core 是另一个），你有三种演进路线，**静态生成方案在其中两个路线中依然是核心**：
+
+**路线 A：共享契约库 (Shared Contract Lib) —— 推荐**
+*   **做法**：将生成的所有 `.h/.c` 编译成一个独立的动态库 `libedge_metadata.so`。
+*   **部署**：Driver 进程和 Core 进程都加载这个库。
+*   **通信**：Driver 发送数据时，直接传 `tag_id` (Int)。Core 收到 `tag_id`，调用库函数 `tag_unit(id)` 获取单位。
+*   **优点**：**性能最高**，无序列化开销。
+*   **缺点**：Driver 和 Core 版本必须一致（强耦合），否则 ID 会错位。
+
+**路线 B：元数据服务化 (Metadata Service) —— EdgeX 原生模式**
+*   **做法**：把 `tag_catalog` 的数据灌入 Redis/Consul 或一个独立的 Metadata Microservice。
+*   **流程**：Driver 启动时，调 API 拉取点表，构建内存 Map。
+*   **优点**：完全解耦，支持热更新。
+*   **缺点**：**启动慢**，架构复杂，内存占用高。对于 IEMS 这种强实时系统，每次查 Redis 是找死。
+
+**路线 C：自描述消息 (Self-Describing Message) —— 中间路线**
+*   **做法**：Driver 发送的数据不再是 `tag_id`，而是字符串 `"meter.voltage"`。
+*   **流程**：Core 收到字符串，使用 **Perfect Hash** (我们在上面生成的) 快速转为内部 ID。
+*   **优点**：解耦了 ID，两边版本不一致也能跑（只要字符串没变）。
+*   **缺点**：消息体变大，网络/IPC 带宽占用增加。
+
+---
+
+### 第三部分：针对你项目的终极建议
+
+鉴于你的项目包含 **IEMS (毫秒级控制)** 和 **SG-EL2025 (复杂计算)**：
+
+**请坚持“静态生成”路线！**
+
+不要为了所谓的“微服务纯洁性”去搞动态查表。在嵌入式工业控制中：
+1.  **确定性 > 灵活性**：我必须确切知道 ID=1001 就是电压，不能等 Redis 告诉我。
+2.  **性能 > 解耦**：`bsearch` 和 `perfect hash` 是纳秒级的，网络查询是毫秒级的。
+
+**未来的演进路径：**
+
+1.  **现在 (Monolith)**：
+    *   `python gen.py` -> `src/generated/` -> 编译进主程序。
+2.  **未来 (Microservice)**：
+    *   `python gen.py` -> `libedge_contracts.so` (包含枚举、Hash表、查找函数)。
+    *   `Driver Process` 链接该库，负责采集。
+    *   `Algo Process` 链接该库，负责计算。
+    *   **CI/CD 保证**：当 DSL 变更时，流水线自动重新编译这个 `.so` 并分发给所有微服务。
+
+**结论**：
+你提出的 **Perfect Hash + Binary Search** 方案，不仅现在可以用，哪怕以后拆成微服务，它依然是**高性能数据契约库**的核心实现方式。**这是一种“进可攻退可守”的架构决策。**
+
+这是一次**高质量、成熟度已经到“架构评审级别”**的回答。
+结论先行：**整体方向是对的，而且是“工程上能长期站得住”的方案**。
+但我会帮你做一次**严格的技术审核**：指出**完全正确的地方**、**需要修正或补充的点**、以及**在真正微服务化时必须加的“护栏”**。
+
+我会很直，不兜圈子。
+
+---
+
+## 一、总评结论（给你一个架构判断）
+
+> **结论：这套玩法在“工业微服务”里不仅不废，反而是主流正确解法之一。**
+>
+> 但前提是：
+> **你必须明确区分「控制平面（Control Plane）」和「数据平面（Data Plane）」**
+
+你的回答**在数据平面上是完全正确的**，
+但**在微服务语境下需要补一层 control-plane 设计说明**，否则容易被“微服务教条派”误伤。
+
+---
+
+## 二、第一部分技术审核：Perfect Hash / Binary Search
+
+### ✅ 这一部分：**完全正确，而且是工业最优解**
+
+#### 1️⃣ TagID → 属性 用数组索引
+
+✔ **100% 正确**
+
+这是**唯一正确做法**，原因你隐含但没点破，我帮你点破：
+
+* TagID 是 **你定义的 ABI**
+* 它就是一个 **稳定的 slot index**
+* 用数组 = cache line 友好 + 无分支
+
+任何改成 map / hash / string lookup 的，都是**自废武功**。
+
+---
+
+#### 2️⃣ OBIS → TagID 用 gperf
+
+✔ **正确且专业**
+
+补充两个你没写但默认成立的前提（重要）：
+
+* OBIS 字符串集合是 **静态且有限**
+* 查找发生在 **driver / parser 热路径**
+
+在这两个前提下：
+
+> gperf 是 C 世界里**唯一接近“编译期字典”的方案**
+
+⚠️ 小补充建议（不是否定）：
+
+* 在生成的接口层，**封装一层**：
+
+```c
+tag_id_t obis_to_tag(const char *obis);
+```
+
+不要让业务代码直接接触 `lookup_obis()`，
+这对未来替换实现（比如 SIMD trie）很重要。
+
+---
+
+#### 3️⃣ Modbus 稀疏地址 → Binary Search
+
+✔ 正确
+
+甚至你手写二分比 `bsearch()` 更好（可控、无函数指针）。
+
+📌 **工程建议（可选增强）**
+如果未来 Modbus 点位 > 2000：
+
+* 可以升级为 **二级索引（页表 + 二分）**
+* 但现在完全没必要
+
+---
+
+## 三、第二部分：微服务会不会把这套玩法“废掉”？
+
+### 你的结论是对的，但我会给它**更严谨的表达**
+
+你说：
+
+> Schema（数据契约）的静态化 是系统稳定性的基石
+
+这是**一句非常正确、但在微服务圈容易被误解的话**。
+
+我帮你“翻译”成架构语言：
+
+---
+
+## 四、真正的关键：Control Plane vs Data Plane
+
+### 你这套方案 **非常适合 Data Plane**
+
+| 层          | 特性          |
+| ---------- | ----------- |
+| Data Plane | 高频、强实时、不可抖动 |
+| 典型         | 驱动采集、控制、算法  |
+| 要求         | 确定性、零分配、低延迟 |
+
+👉 **Perfect Hash / Binary Search / 静态生成 = Data Plane 王道**
+
+---
+
+### 微服务“动态化”的需求，属于 Control Plane
+
+| Control Plane | 举例       |
+| ------------- | -------- |
+| 设备上线          | 新表型      |
+| 配置变更          | 点表、单位    |
+| 运维            | UI / API |
+
+⚠️ **问题不是你的方案不适合微服务**
+⚠️ 而是：**不能让 Control Plane 的需求污染 Data Plane**
+
+你的回答里其实已经隐含这一点，但我建议你**明确写出来**，否则别人容易误解。
+
+---
+
+## 五、对三条微服务路线的审核
+
+### 路线 A：共享契约库（Shared Contract Lib）
+
+✔ **对你这个项目来说，这是当前和中期的最优解**
+
+你说的“强耦合”不是缺点，而是：
+
+> **ABI-level coupling（这是工业控制系统的正确耦合）**
+
+⚠️ 我只补一个**必须加的护栏**：
+
+#### 👉 必须加入 **Contract Version & ABI Check**
+
+```c
+#define EDGE_CONTRACT_VERSION 0x010203
+
+uint32_t edge_contract_version(void);
+```
+
+Driver / Core 启动时校验：
+
+```c
+assert(edge_contract_version() == EXPECTED);
+```
+
+否则热更新时**会真的炸**。
+
+---
+
+### 路线 B：Metadata Service（EdgeX 模式）
+
+✔ 你的评价非常中肯
+✔ **这条路在 IEMS / 毫秒级控制里几乎不可接受**
+
+我补一句更狠的判断：
+
+> **Metadata Service 只能用于 Control Plane，不能用于 Data Plane**
+
+如果有人说“每次 lookup 去 Redis”——
+**直接否决，不需要讨论**。
+
+---
+
+### 路线 C：自描述消息（字符串）
+
+✔ 你给的定位非常准确：**中间路线**
+
+补充一个现实用法：
+
+* **跨团队 / 跨语言 / 跨公司接口**
+* 或 **云边接口**
+
+但 **绝不推荐在 shm / ring / realtime IPC 里用**
+
+---
+
+## 六、关于“静态生成 vs 微服务”的终极澄清（很重要）
+
+你现在的方案，本质上是：
+
+> **Schema as Code（而不是 Schema as Data）**
+
+这在以下系统里是**标准做法**：
+
+* Linux Kernel（syscall number）
+* CUDA Driver API
+* OPC UA 的 PubSub Fast Path
+* AUTOSAR Classic
+
+⚠️ 微服务并不等于“所有东西都动态”
+⚠️ 微服务 ≠ 反编译期
+
+---
+
+## 七、我给你的最终修订建议（让这份回答更“不可反驳”）
+
+### 你这份回答，我只建议加三点：
+
+### ✅ 1️⃣ 明确 Control Plane / Data Plane 分界
+
+一句话版本：
+
+> 静态生成的 tag / hash / table **只服务于 Data Plane**，
+> 微服务化的动态能力 **只存在于 Control Plane**。
+
+---
+
+### ✅ 2️⃣ 明确 ABI / Versioning 机制
+
+哪怕一句：
+
+> 所有微服务在启动时必须校验 edge_contract_version，一旦不一致立即 fail-fast。
+
+---
+
+### ✅ 3️⃣ 明确“不支持的场景”
+
+比如明确写：
+
+* 不支持 runtime 修改 tag_id
+* 不支持在 Data Plane 使用字符串 key
+* 不支持通过网络查询 tag 元数据
+
+这会让你的架构**边界极其清晰**。
+
+---
+
+## 八、最终结论（我替你“拍板”）
+
+> **你的方案是“现在可用、未来可演进”的正解**
+>
+> 它不是反微服务，
+> 它是**反不确定性**。
+
+好，这个问题**已经从“单项目设计”升级到“平台级工程治理”**了。
+我会按 **RFC 级别**给你一份**可以直接落地、支持五个产品 + 二开 + 未来微服务**的目录与契约设计。
+
+下面这份内容，你可以**原样作为《EdgeOS Contract & Lookup Architecture RFC》v1.0** 使用。
+
+---
+
+# EdgeOS Contract & Lookup Architecture RFC
+
+**Version:** 1.0 (Draft → Frozen)
+**Status:** Platform-Level Design
+**Scope:** Multi-Product / OEM / Secondary Development (二开)
+
+---
+
+## 一、设计目标（非功能性需求）
+
+我们先明确“为什么不能乱放代码”。
+
+### 1️⃣ 你现在面对的真实复杂度
+
+| 维度 | 现实情况                                  |
+| -- | ------------------------------------- |
+| 产品 | ≥5（HEMS / EVSE / IEMS / 融合终端 / 定制OEM） |
+| 协议 | DLMS / Modbus / CAN / 私有              |
+| 表型 | 多型号 / 多固件 / 多OBIS                     |
+| 二开 | 客户/集成商要加点、改点                          |
+| 未来 | 可能拆进程 / 微服务                           |
+
+👉 **唯一能稳住局面的方式：Contract First + Generated Code**
+
+---
+
+## 二、核心设计原则（请记住这 6 条）
+
+1. **Contract 是平台资产，不属于任何产品**
+2. **生成代码 ≠ 手写代码**
+3. **产品差异 ≠ Tag 差异**
+4. **二开只能“加”，不能“改核心”**
+5. **运行时绝不查字符串**
+6. **Data Plane 永远静态，Control Plane 可动态**
+
+---
+
+## 三、顶层仓库结构（Monorepo 推荐）
+
+```text
+edgeos/
+├── contracts/                # ★ 平台级数据契约（最核心）
+│   ├── schema/
+│   │   ├── tag_catalog.yaml  # 全平台 Tag 定义（唯一真源）
+│   │   ├── unit.yaml
+│   │   ├── data_type.yaml
+│   │
+│   ├── bindings/             # 协议绑定（逻辑映射）
+│   │   ├── dlms/
+│   │   │   ├── dlms_common.yaml
+│   │   │   ├── meter_model_A.yaml
+│   │   │   └── meter_model_B.yaml
+│   │   ├── modbus/
+│   │   ├── can/
+│   │
+│   ├── variants/             # ★ 产品/型号差异（非常重要）
+│   │   ├── hems.yaml
+│   │   ├── evse.yaml
+│   │   ├── iems.yaml
+│   │   ├── sg_el2025.yaml
+│   │   └── oem_xxx.yaml
+│   │
+│   ├── generated/            # 自动生成（不可手改）
+│   │   ├── include/
+│   │   │   ├── tag_id.h
+│   │   │   ├── tag_meta.h
+│   │   │   └── lookup.h
+│   │   └── src/
+│   │       ├── obis_hash.c
+│   │       ├── modbus_map.c
+│   │       └── tag_lookup.c
+│   │
+│   └── README.md              # Contract 设计说明
+│
+├── platform/                  # EdgeOS 核心平台（复用）
+│   ├── datahub/
+│   ├── shm_ring/
+│   ├── stream_engine/
+│   ├── scheduler/
+│   └── persistence/
+│
+├── products/                  # ★ 产品实现层（只组合、不造轮子）
+│   ├── hems/
+│   ├── evse/
+│   ├── iems/
+│   └── sg_el2025/
+│
+├── sdk/                       # 二开 SDK（最小、稳定）
+│   ├── include/
+│   └── examples/
+│
+├── tools/
+│   ├── gen_contract.py        # ★ 代码生成器
+│   ├── gen_gperf.py
+│   └── validate_schema.py
+│
+└── docs/
+    ├── EdgeOS_Contract_RFC.md
+    └── Secondary_Dev_Guide.md
+```
+
+---
+
+## 四、Contract 层详细拆解（最关键）
+
+### 4.1 tag_catalog.yaml（唯一真源）
+
+```yaml
+tags:
+  - name: active_energy_total
+    tag_id: 3001
+    type: float64
+    unit: kWh
+    semantic: energy.total
+    qos:
+      realtime: false
+      persist: true
+```
+
+📌 **规则：**
+
+* tag_id 永不复用
+* tag_id 跨产品稳定
+* 二开只能新增 tag，不能修改已有语义
+
+---
+
+### 4.2 bindings（协议 → Tag）
+
+```yaml
+# dlms/meter_model_A.yaml
+model: meter_A
+map:
+  - tag: active_energy_total
+    obis: "1-0:1.8.0"
+```
+
+> **一个 tag 可以对应多个 OBIS（通过 model 区分）**
+
+---
+
+### 4.3 variants（产品/型号裁剪）
+
+```yaml
+# variants/evse.yaml
+enable_tags:
+  - active_energy_total
+  - charging_current
+disable_tags:
+  - harmonic_3
+```
+
+📌 **这是二开的核心钩子**
+OEM 只能动这里，不碰 tag 定义。
+
+---
+
+## 五、生成代码结构（供 C / Microservice 共用）
+
+```text
+contracts/generated/
+├── include/
+│   ├── tag_id.h          # enum tag_id_t
+│   ├── tag_meta.h        # unit/type/qos
+│   └── lookup.h          # API
+└── src/
+    ├── obis_hash.c       # gperf
+    ├── modbus_map.c
+    └── tag_lookup.c
+```
+
+### 对外 API 示例
+
+```c
+tag_id_t tag_from_obis(const char *obis, meter_model_t model);
+const tag_meta_t* tag_meta(tag_id_t id);
+```
+
+---
+
+## 六、五个产品如何“各玩各的”但不乱？
+
+### 产品目录结构
+
+```text
+products/iems/
+├── config/
+│   ├── variant.yaml      # 指向 contracts/variants/iems.yaml
+│   └── pipelines.json
+├── drivers/
+├── algorithms/
+└── app_main.c
+```
+
+📌 产品层 **只做三件事**：
+
+1. 选择 variant
+2. 选择 pipeline
+3. 写业务算法
+
+---
+
+## 七、二开（Secondary Development）模式
+
+### OEM 能做什么？
+
+| 能            | 不能         |
+| ------------ | ---------- |
+| 新增 Tag       | 改 Tag 语义   |
+| 新增 variant   | 改已有 tag_id |
+| 新增协议 binding | 改核心 lookup |
+| 新增算法         | 改平台线程模型    |
+
+### OEM 工作流
+
+```text
+OEM/
+├── oem_variant.yaml
+├── oem_binding.yaml
+└── oem_algo.c
+```
+
+CI 自动合并 → 重新生成 → 校验 ABI
+
+---
+
+## 八、微服务演进兼容性（你最关心的）
+
+### 现在（单体）
+
+```text
+contracts/generated/*.c → 静态链接
+```
+
+### 未来（微服务）
+
+```text
+contracts/generated → libedge_contracts.so
+```
+
+所有服务 **共享同一 ABI**：
+
+```c
+uint32_t edge_contract_version(void);
+```
+
+---
+
+## 九、为什么这套结构“不会失控”
+
+| 风险     | 控制手段         |
+| ------ | ------------ |
+| tag 混乱 | 单一真源         |
+| OEM 乱改 | variant 限权   |
+| 产品分叉   | contracts 统一 |
+| 微服务漂移  | ABI 校验       |
+| 性能退化   | 静态 lookup    |
+
+---
+
+## 十、最终结论（我替你定调）
+
+> **这不是“目录结构设计”**
+>
+> 这是一个 **“工业级 Contract 治理体系”**
+
+它能同时满足：
+
+* 五个产品并行
+* OEM 二开
+* 高实时
+* 未来微服务
+
+---
+
+## 改成使用yaml了 ? 不使用hcs或dts?
+
+你提到的“改成使用 YAML 而不使用 HCS/DTS”，其实本质上是选择了不同的 **契约描述与生成方式**。我来梳理一下利弊、目录设计，以及针对多产品和二开的最佳实践。
+
+---
+
+## 1️⃣ EdgeOS Contract & Lookup 目标
+
+* **目标 1：静态生成 TagID、映射表和查找函数**
+  保证编译期类型安全和纳秒级查询性能。
+
+* **目标 2：支持多产品型号差异化**
+  每个产品的设备类型、协议、OBIS/Modbus/CanID 都可能不同。
+
+* **目标 3：支持二开（客户扩展）**
+  客户可以增加自定义点表，增加新协议，而不破坏原有基础。
+
+* **目标 4：保持微服务/多进程兼容**
+  Driver、Algo、Core 等模块可以共享生成的库或表。
+
+---
+
+## 2️⃣ DSL 选择：HCS/DTS vs YAML
+
+| 方案            | 优点                                     | 缺点                                    | 备注                |
+| ------------- | -------------------------------------- | ------------------------------------- | ----------------- |
+| **HCS / DTS** | 编译期生成宏、枚举，直接生成 C 代码，类型安全。可利用工具链做差异化。   | 学习曲线高，语法约束多；非嵌入式团队不熟悉；二开客户可能难上手。      | 适合强实时和嵌入式场景。      |
+| **YAML**      | 易读、易维护、支持动态生成 C/Go/Python 等代码，支持多产品继承。 | 编译期类型安全需要生成器保证；运行时解析慢（可避免，生成 C 代码即可）。 | 更适合多产品/二开/非嵌入式团队。 |
+
+**结论**：对于 EdgeOS 这种需要兼顾多产品和客户二开的项目，**YAML 更灵活且维护成本低**。
+我们可以通过 Python/Go 生成器，把 YAML → C 枚举 + Perfect Hash + Binary Search Table，实现静态查表和类型安全。
+
+---
+
+## 3️⃣ YAML 设计原则
+
+1. **多产品继承**
+
+   ```yaml
+   base:
+     tags:
+       - name: VOLTAGE_A
+         obis: "1-0:32.7.0"
+         modbus: { addr: 0x1000 }
+         unit: "V"
+
+   sg_el2025:
+     inherits: base
+     tags:
+       - name: HARMONIC_3
+         obis: "1-0:52.7.0"
+         unit: "%"
+
+   evse:
+     inherits: base
+     tags:
+       - name: CHARGE_CURRENT
+         modbus: { addr: 0x2001 }
+         unit: "A"
+   ```
+
+2. **二开扩展**
+   客户可以在 `custom_tags.yaml` 中增加 tag，生成器合并所有 YAML。
+
+3. **统一生成器**
+
+   * YAML → C 枚举 (`tag_id_t`)
+   * YAML → Perfect Hash (`OBIS / tag_name`)
+   * YAML → Binary Search (`Modbus / CANID`)
+   * YAML → Lookup 函数
+
+4. **查找函数示例**
+
+   ```c
+   tag_id_t lookup_tag_by_name(const char *name);
+   tag_id_t lookup_tag_by_obis(const char *obis);
+   tag_id_t lookup_tag_by_modbus(uint16_t addr);
+   ```
+
+---
+
+## 4️⃣ 推荐目录结构
+
+```
+edgeos-contract/
+├─ src/
+│  ├─ include/           # 公共头文件
+│  │  ├─ tag_catalog.h   # 枚举、结构定义
+│  ├─ generated/         # 自动生成的代码
+│  │  ├─ obis_hash.c
+│  │  ├─ modbus_map.c
+│  │  ├─ tag_lookup.h
+│  └─ lib/               # 生成库
+│     └─ libedge_contracts.a
+├─ yaml/
+│  ├─ base.yaml          # 基础 tag 表
+│  ├─ sg_el2025.yaml      # 产品差异化
+│  ├─ evse.yaml
+│  └─ custom_tags.yaml   # 二开扩展
+├─ tools/
+│  └─ gen_contract.py    # YAML -> C 生成器
+└─ README.md
+```
+
+---
+
+## 5️⃣ 多产品 / 二开流程
+
+1. **定义基础 tag_catalog.yaml**
+2. **各产品继承基础表，覆盖或新增差异 tag**
+3. **客户可提供 custom_tags.yaml 做二开**
+4. **运行生成器**
+
+   * 输出 `tag_id_t` 枚举
+   * 输出查找表/函数
+5. **编译生成库 libedge_contracts.a**
+6. **Driver / Core / Algo 链接此库，运行时直接查找**
+
+> 优势：单一源 YAML，多产品可复用，二开安全、不会破坏原有系统。
+
+---
+
+## ✅ 总结
+
+* 使用 **YAML** 替代 HCS/DTS，更适合多产品、二开和非嵌入式团队。
+* 静态生成 **枚举 + Perfect Hash + Binary Search Table**，保证高性能查找。
+* 目录结构清晰区分：基础 / 产品 / 二开 / 生成代码。
+* 对未来微服务拆分兼容：Driver 和 Core 都可链接同一个生成库，保持类型安全和 O(1) 查找。
+
+---

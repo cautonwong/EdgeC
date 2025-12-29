@@ -64,34 +64,48 @@ endif()
 # 5. Build Core Library (The Pure SDK)
 # ==============================================================================
 add_library(edge_core_lib STATIC
-    src/edge_version.c
-    src/edge_params.c
-    src/shmring.c
-    src/datahub.c
-    src/arbiter.c
-    src/io_executor.c
-    src/driver_manager.c
-    src/sqlite_service.c
-    src/persistence_mgr.c
+    # Core / Shared Components (Cross-loop)
+    src/core/edge_version.c
+    src/core/edge_params.c
+    src/core/shmring.c
+    src/core/datahub.c
+    src/core/net_buf.c
+    src/core/sqlite_service.c
+    src/core/persistence_mgr.c
+
+    # Main Loop (Control Plane)
+    src/main_loop/arbiter.c
+    src/main_loop/edge_service.c
+    src/main_loop/northbound_mgr.c
+    src/main_loop/web_server.c
+    src/main_loop/rest_server.c
+    src/main_loop/ws_proto.c
+    src/main_loop/sched_time_source.c
+    src/main_loop/sched_calendar.c
+    src/main_loop/sched_executor.c
+    src/main_loop/sched_libev.c
+    src/main_loop/bus_orchestrator.c
+
+    # Stream Engine (Computation Plane)
+    src/stream_engine/stream_engine.c
+    src/stream_engine/js_engine.c
+    src/stream_engine/script_loader.c
+    src/stream_engine/script_executor.c
+    src/stream_engine/aggregator.c
+    src/stream_engine/standard_stages.c
+    src/stream_engine/js_stage.c
+    src/stream_engine/pipeline_loader.c
+
+    # IO Executor (Execution Plane)
+    src/io_executor/io_executor.c
+    src/io_executor/driver_manager.c
+    src/io_executor/driver_modbus.c
+    src/io_executor/modbus_rtu_driver.c
+    src/io_executor/profile_loader.c
+
+    # External Logic Algorithms
     algo/native/algorithm_sum.c
     algo/native/battery_strategy.c
-    src/northbound_mgr.c
-    src/web_server.c
-    src/rest_server.c
-    src/ws_proto.c
-    src/js_engine.c
-    src/script_loader.c
-    src/script_executor.c
-    src/net_buf.c
-    src/edge_service.c
-    src/sched_time_source.c
-    src/sched_calendar.c
-    src/sched_executor.c
-    src/sched_libev.c
-    src/driver_modbus.c
-    src/modbus_rtu_driver.c
-    src/profile_loader.c
-    src/bus_orchestrator.c
 )
 
 target_link_libraries(edge_core_lib PUBLIC

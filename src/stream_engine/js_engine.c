@@ -151,6 +151,10 @@ uv_loop_t *js_engine_get_loop(js_engine_t *engine) {
     return engine ? service_get_loop(engine->svc) : NULL;
 }
 
+struct JSContext *js_engine_get_context(js_engine_t *engine) {
+    return engine ? engine->ctx : NULL;
+}
+
 void js_engine_destroy(js_engine_t *engine) {
     if (!engine) return;
 

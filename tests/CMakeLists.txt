@@ -17,6 +17,22 @@ add_executable(test_sqlite_service test_sqlite_service.c)
 target_link_libraries(test_sqlite_service PRIVATE edge_core_lib cmocka::cmocka)
 add_test(NAME SQLiteService COMMAND test_sqlite_service)
 
+add_executable(test_stream_engine test_stream_engine.c)
+target_link_libraries(test_stream_engine PRIVATE edge_core_lib cmocka::cmocka)
+add_test(NAME StreamEngine COMMAND test_stream_engine)
+
+add_executable(test_stream_engine_industrial test_stream_engine_industrial.c)
+target_link_libraries(test_stream_engine_industrial PRIVATE edge_core_lib cmocka::cmocka)
+add_test(NAME StreamEngineIndustrial COMMAND test_stream_engine_industrial)
+
+add_executable(test_sdk_full_chain test_sdk_full_chain.c)
+target_link_libraries(test_sdk_full_chain PRIVATE edge_core_lib cmocka::cmocka)
+add_test(NAME SDKFullChain COMMAND test_sdk_full_chain)
+
+add_executable(test_stream_engine_timeguard test_stream_engine_timeguard.c)
+target_link_libraries(test_stream_engine_timeguard PRIVATE edge_core_lib cmocka::cmocka)
+add_test(NAME StreamEngineTimeGuard COMMAND test_stream_engine_timeguard)
+
 # Test JS Engine
 add_executable(test_js_engine test_js_engine.c)
 target_link_libraries(test_js_engine PRIVATE edge_core_lib cmocka::cmocka)
