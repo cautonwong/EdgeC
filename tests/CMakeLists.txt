@@ -93,3 +93,8 @@ add_test(NAME Scheduler COMMAND test_scheduler)
 add_executable(test_fuzz_datahub test_fuzz_datahub.c)
 target_link_libraries(test_fuzz_datahub PRIVATE edge_core_lib cmocka::cmocka)
 add_test(NAME FuzzDataHub COMMAND test_fuzz_datahub)
+
+# Test Contracts
+add_executable(test_contracts test_contracts.c)
+target_link_libraries(test_contracts PRIVATE edge_core_lib cmocka::cmocka)
+add_test(NAME Contracts COMMAND test_contracts)
