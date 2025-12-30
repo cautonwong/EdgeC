@@ -9,7 +9,7 @@
 #include "edge_params.h"
 #include "edge_service.h"
 #include "sqlite_service.h"
-#include "edge_tag_id.h"
+#include "contracts.h"
 
 #define HTTP_RESPONSE_FMT                \
     "HTTP/1.1 200 OK\r\n"                \
@@ -49,27 +49,7 @@ static int on_sqlite_row(void *user_data, PipeMsg *msg) {
  * @brief 历史数据点查 API (对齐 web_ui_ia.md 3.3)
  * 场景：Web UI 查询历史曲线
  */
-static char *handle_history_query(service_t *svc, uint32_t tag_id, uint64_t start, uint64_t end) {
-    (void)tag_id; // This parameter is currently a stub for future query parsing
-    // 1. 获取持久化服务句柄
-    sqlite_svc_t *db = service_get_storage(svc);
-    if (!db) return strdup("{\"error\":\"storage_not_ready\"}");
 
-    // 2. 初始化 cJSON 容器
-    cJSON *root = cJSON_CreateObject();
-    cJSON *data = cJSON_AddArrayToObject(root, "data");
-    query_ctx_t q_ctx = {.array = data, .count = 0};
-
-    // 3. 执行物理查询 (对齐 History Path 红线)
-    sqlite_svc_query(db, start, end, on_sqlite_row, &q_ctx);
-
-    cJSON_AddNumberToObject(root, "count", q_ctx.count);
-    cJSON_AddStringToObject(root, "status", "success");
-
-    char *out = cJSON_PrintUnformatted(root);
-    cJSON_Delete(root);
-    return out;
-}
 
 static char *handle_system_health(service_t *svc) {
     cJSON *root = cJSON_CreateObject();
@@ -109,7 +89,10 @@ char *rest_dispatch(service_t *svc, const char *path) {
     // 路由 2: 历史曲线查询 (参数暂通过 QueryString 提取，此处演示核心分发)
     // 示例：/api/v1/data/query?tag=1001&start=0&end=...
     if (strncmp(path, "/api/v1/data/query", 18) == 0) {
-        return handle_history_query(svc, TAG_GRID_POWER, 0, (uint64_t)time(NULL) * 1000);
+        // TODO: This is a hardcoded test endpoint and should be removed.
+        // The tag to be queried should come from the request.
+        // return handle_history_query(svc, TAG_GRID_POWER, 0, (uint64_t)time(NULL) * 1000);
+        return strdup("{\"error\":\"not_found\"}");
     }
 
     return strdup("{\"error\":\"not_found\"}");

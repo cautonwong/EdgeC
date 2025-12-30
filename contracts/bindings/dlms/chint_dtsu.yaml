@@ -1,0 +1,13 @@
+model: "Chint_DTSU666"
+protocol: "DLMS"
+mappings:
+  - tag: VOLTAGE_PHASE_A
+    obis: "1.0.32.7.0.255"
+    class_id: 3
+    attr_id: 2
+    scaler: 0.1
+  - tag: ENERGY_ACTIVE_IMPORT
+    obis: "1.0.1.8.0.255"
+    class_id: 3
+    attr_id: 2
+    scaler: 1.0

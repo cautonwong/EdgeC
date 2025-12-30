@@ -8,7 +8,7 @@
 #include "datahub.h"
 #include "edge_service.h"
 #include "js_engine.h"
-#include "edge_tag_id.h"
+#include "contracts.h"
 
 // 这是一个 Hack，因为 service_t 是不透明的，为了在测试中手动注入 hub
 struct service_s {

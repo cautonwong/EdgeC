@@ -1,0 +1,15 @@
+model: "CATL_Rack_V1"
+protocol: "CAN"
+mappings:
+  - tag: BATTERY_SOC
+    can_id: 0x18FF50E5
+    start_bit: 0
+    length: 8
+    factor: 0.4
+    offset: 0
+  - tag: BATTERY_TEMP_MAX
+    can_id: 0x18FF50E5
+    start_bit: 16
+    length: 8
+    factor: 1.0
+    offset: -40

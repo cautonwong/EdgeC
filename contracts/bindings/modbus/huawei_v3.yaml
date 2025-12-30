@@ -1,0 +1,14 @@
+# Huawei V3 Inverter Modbus Map
+model: "Huawei_V3"
+protocol: "Modbus"
+mappings:
+  - tag: VOLTAGE_PHASE_A
+    addr: 30001
+    scale: 0.1
+  - tag: CURRENT_PHASE_A
+    addr: 30002
+    scale: 0.01
+  - tag: ENERGY_ACTIVE_IMPORT
+    addr: 40001
+    type: uint32
+    scale: 1.0

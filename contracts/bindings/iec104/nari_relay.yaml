@@ -1,0 +1,9 @@
+model: "Nari_PCS_9600"
+protocol: "IEC104"
+mappings:
+  - tag: SWITCH_RELAY_1
+    ioa: 2001
+    type_id: 45 # C_SC_NA_1 (单点命令)
+  - tag: CURRENT_PHASE_A
+    ioa: 16385
+    type_id: 36 # M_ME_TF_1 (短浮点)

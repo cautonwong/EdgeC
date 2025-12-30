@@ -8,7 +8,7 @@
 
 #include "datahub.h"
 #include "stream_engine.h"
-#include "edge_tag_id.h"
+#include "contracts.h"
 
 typedef struct {
     int data_points;

@@ -6,3 +6,13 @@ includes:
 enabled_tags:
   - GRID_POWER
   - VOLTAGE_PHASE_A
+tags:
+  - id: 9001
+    name: CUSTOM_TEMP_SENSOR
+    type: float
+    unit: C
+    attributes: { upload: true }
+    bindings:
+      - protocol: MODBUS
+        addr: 50001
+        scale: 0.1

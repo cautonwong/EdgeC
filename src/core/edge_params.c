@@ -22,14 +22,8 @@ typedef struct param_entry {
 static param_entry_t *g_cache = NULL;
 static sqlite_svc_t *g_db = NULL;
 
-static int edge_param_init(edge_param_t *param, const char *path) {
-    (void)param;
-    cJSON *root = load_json_from_file(path);
-    if (!root) return -1;
-    // const char *schema =
-    // cJSON_GetStringValue(cJSON_GetObjectItem(root,"schema"));
-    cJSON_Delete(root);
-    return 0;
+void edge_param_init(sqlite_svc_t *svc) {
+    g_db = svc;
 }
 static param_entry_t *find_in_cache(const char *key) {
     param_entry_t *curr = g_cache;

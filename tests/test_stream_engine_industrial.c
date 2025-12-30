@@ -8,7 +8,7 @@
 
 #include "datahub.h"
 #include "stream_engine.h"
-#include "edge_tag_id.h"
+#include "contracts.h"
 
 // --- Mocks ---
 

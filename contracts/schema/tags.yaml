@@ -1,14 +1,47 @@
-# Global Tag Dictionary
-# This file is the single source of truth for all semantic tags in the system.
 tags:
+  # === 电力遥测 (1000-1999) ===
   - id: 1001
-    name: GRID_POWER
-    type: float
-    unit: "W"
-    desc: "Grid power consumption or generation"
-
-  - id: 1002
     name: VOLTAGE_PHASE_A
     type: float
-    unit: "V"
-    desc: "Phase A Voltage"
+    unit: V
+    desc: "A相电压"
+
+  - id: 1002
+    name: CURRENT_PHASE_A
+    type: float
+    unit: A
+    desc: "A相电流"
+
+  - id: 1003
+    name: GRID_POWER
+    type: float
+    unit: W
+    desc: "电网功率"
+
+  # === 能量计量 (3000-3999) ===
+  - id: 3001
+    name: ENERGY_ACTIVE_IMPORT
+    type: double
+    unit: kWh
+    desc: "正向有功总电能"
+    attributes: { persist: true, upload: true }
+
+  # === 电池管理 (4000-4999) ===
+  - id: 4001
+    name: BATTERY_SOC
+    type: float
+    unit: "%"
+    desc: "电池剩余电量"
+  
+  - id: 4002
+    name: BATTERY_TEMP_MAX
+    type: float
+    unit: "C"
+    desc: "电芯最高温度"
+
+  # === 开关控制 (5000-5999) ===
+  - id: 5001
+    name: SWITCH_RELAY_1
+    type: int
+    desc: "1号继电器状态"
+    attributes: { rw: "w" }

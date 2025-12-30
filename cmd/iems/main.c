@@ -7,7 +7,7 @@
 #include "edge_version.h"
 #include "js_engine.h"
 #include "script_loader.h"
-#include "edge_tag_id.h"
+#include "contracts.h"
 
 // IEMS 产品特定的业务上下文
 typedef struct {

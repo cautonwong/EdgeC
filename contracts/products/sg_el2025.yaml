@@ -1,0 +1,9 @@
+product: "SG_Fusion_Terminal"
+includes:
+  - "contracts/bindings/dlms/chint_dtsu.yaml"
+  - "contracts/bindings/iec104/nari_relay.yaml"
+  - "contracts/bindings/can/catl_bms.yaml"
+overrides:
+  BATTERY_SOC:
+    upload: true
+    persist: false # 实时变化，只上报不存盘

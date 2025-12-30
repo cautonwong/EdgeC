@@ -9,7 +9,7 @@
 #include "datahub.h"
 #include "sqlite_service.h"
 #include "stream_engine.h"
-#include "edge_tag_id.h"
+#include "contracts.h"
 
 static void create_test_config(const char *path) {
     FILE *f = fopen(path, "w");

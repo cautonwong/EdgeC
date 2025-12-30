@@ -19,7 +19,7 @@ typedef struct {
     uint32_t count;
 } acc_state_t;
 
-stage_ret_t stage_accumulator(pipeline_stage_t *stage, pipe_event_t *ev) {
+static stage_ret_t stage_accumulator(pipeline_stage_t *stage, pipe_event_t *ev) {
     if (ev->type != EVT_DATA_POINT) return STAGE_OK;
     acc_state_t *state = (acc_state_t *)stage->priv_state;
     state->acc += ev->payload.val;
