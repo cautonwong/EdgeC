@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "contracts.h"
+#include "contracts.h"  // 引用生成的产品契约
 #include "edge_service.h"
 #include "edge_version.h"
 #include "js_engine.h"
@@ -48,11 +48,8 @@ int main(int argc, char **argv) {
         }
     }
 
-    // --- IEMS 产品组件装配 ---
     iems_ctx_t *iems = calloc(1, sizeof(iems_ctx_t));
     service_t *svc = service_new(&opts);
-
-    // [关键注入]：指定当前产品的审计契约路径 (对齐 Web UI 动态化要求)
     service_set_contract_path(svc, "products/iems/generated/contracts.yaml");
 
     uv_loop_t *loop = malloc(sizeof(uv_loop_t));
@@ -83,39 +80,31 @@ int main(int argc, char **argv) {
     cloud.user_data = svc;
     northbound_mgr_start(&cloud);
 
-    // JS 引擎也是产品级的需求，在 App 层开启
     js_engine_t *js_engine = js_engine_create(svc, 2 * 1024 * 1024);
     script_loader_t *loader = script_loader_create(loop, js_engine, "algo/js", 1000);
     script_loader_start(loader);
 
-    // --- S1 Scenario Simulator: Produce dummy data ---
+    // --- S1 Scenario Simulator ---
     uv_timer_t dummy_producer;
     uv_timer_init(loop, &dummy_producer);
+    dummy_producer.data = svc;
+
     void on_dummy_produce(uv_timer_t * t) {
         service_t *s = (service_t *)t->data;
         shm_ring_t *ring = service_get_ring(s);
         if (!ring) return;
 
+        // 核心验证：基于契约生成的枚举进行上报
         pipe_msg_t m = {.type = PIPEMSG_SCALAR_F64,
-
-                        .tag_id = TAG_GRID_POWER,
-
+                        .tag_id = TAG_GRID_POWER_TOTAL,
                         .payload = {.val = {.f = 220.0 + (rand() % 100) / 10.0}},
-
-                        .ts = uv_now(service_get_loop(s))
-
-        };
-
+                        .ts = uv_now(service_get_loop(s))};
         shm_ring_write(ring, &m);
     }
-    dummy_producer.data = svc;
-    // 延迟 100ms 启动，确保容器已 Ready
     uv_timer_start(&dummy_producer, on_dummy_produce, 100, 1000);
 
-    // 运行服务
     int ret = service_run(svc, loop, &pool, arbiter, &hub, &storage, &cloud);
 
-    // 清理
     script_loader_destroy(loader);
     js_engine_destroy(js_engine);
     northbound_mgr_stop(&cloud);

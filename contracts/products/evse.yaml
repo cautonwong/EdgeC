@@ -1,0 +1,7 @@
+product: "EdgeOS_EVSE_AC"
+includes:
+  - "contracts/bindings/dlms/generic_ess.yaml"
+enabled_tags:
+  - EV_CHARGE_POWER
+  - EV_CONNECTOR_STATUS
+  - EV_BATTERY_LEVEL

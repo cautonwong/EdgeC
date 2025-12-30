@@ -1,73 +1,25 @@
-#include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "contracts.h"  // 引用 DCU 特定的 contracts.h
 #include "edge_service.h"
 
 int main(int argc, char **argv) {
-    service_options_t opts = {.web_port = 8080, .rest_port = 8081};
-    strncpy(opts.config_path, "config/device_profile.json", 255);
-    strncpy(opts.mode, "dcu", 31);
+    (void)argc;
+    (void)argv;
+    printf("EdgeOS DCU Application Starting...\n");
 
-    int opt;
-    while ((opt = getopt(argc, argv, "c:m:w:r:h")) != -1) {
-        switch (opt) {
-            case 'c':
-                strncpy(opts.config_path, optarg, 255);
-                break;
-            case 'm':
-                strncpy(opts.mode, optarg, 31);
-                break;
-            case 'w':
-                opts.web_port = atoi(optarg);
-                break;
-            case 'r':
-                opts.rest_port = atoi(optarg);
-                break;
-            case 'h':
-                printf("EdgeOS DCU\n");
-                return 0;
-            default:
-                return 1;
-        }
-    }
+    // 验证契约生成
+#if IS_ENABLED(TAG_TRANSFORMER_OIL_TEMP_ENABLED)
+    printf("[Contract] Transformer Monitoring: ENABLED (TagID: %d)\n", TAG_TRANSFORMER_OIL_TEMP);
+#else
+    printf("[Contract] Transformer Monitoring: DISABLED\n");
+#endif
 
-    service_t *svc = service_new(&opts);
-    uv_loop_t *loop = malloc(sizeof(uv_loop_t));
-    uv_loop_init(loop);
+    // 模拟数据注入
+    printf("[Sim] Producing dummy data for Oil Temp...\n");
+    // 在真实应用中，此处会通过 edge_lookup_dlt698 或 Modbus 映射数据
 
-    net_buf_pool_t pool;
-    net_buf_pool_init(&pool, 2048, 512, NULL, NULL);  // 海量缓存
-
-    arbiter_t *arbiter;
-    arbiter_init(&arbiter, loop);
-
-    datahub_t hub;
-    datahub_init(&hub, loop, "/dcu_hub", 2048, NULL, NULL);
-
-    persistence_mgr_t storage;
-    sqlite_config_t db_cfg = {.strategy = STRATEGY_SHARDING,
-                              .db_path = "dcu_archive.db",
-                              .batch_size = 500,
-                              .flush_interval_ms = 5000};
-    storage.writer = sqlite_svc_create(loop, &db_cfg);
-    persistence_mgr_init(&storage, loop, &hub.ring, 1000);
-
-    northbound_mgr_t cloud;
-    northbound_mgr_init(&cloud, loop, &hub.ring);
-    cloud.web_port = opts.web_port;
-    cloud.rest_port = opts.rest_port;
-    cloud.user_data = svc;
-    northbound_mgr_start(&cloud);
-
-    int ret = service_run(svc, loop, &pool, arbiter, &hub, &storage, &cloud);
-
-    northbound_mgr_stop(&cloud);
-    persistence_mgr_close(&storage);
-    arbiter_shutdown(arbiter);
-    net_buf_pool_destroy(&pool);
-    service_delete(svc);
-    free(loop);
-    return ret;
+    return 0;
 }

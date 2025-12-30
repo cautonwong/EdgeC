@@ -26,7 +26,7 @@ static void create_test_config(const char *path) {
             "    }\n"
             "  ]\n"
             "}",
-            TAG_GRID_POWER);
+            TAG_GRID_POWER_TOTAL);
     fclose(f);
 }
 
@@ -52,7 +52,7 @@ static void test_loader_dynamic_build(void **state) {
     int ret = stream_engine_load_config(engine, config_path, &loader_ctx);
     assert_int_equal(ret, 0);
     pipe_event_t ev = {.type = EVT_DATA_POINT,
-                       .tag_id = TAG_GRID_POWER,
+                       .tag_id = TAG_GRID_POWER_TOTAL,
                        .payload.val = 100.0,
                        .calendar_ms = 123456};
     stream_engine_push_event(engine, &ev);

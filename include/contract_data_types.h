@@ -19,49 +19,59 @@ typedef uint32_t edge_tag_id_t;
  * @brief Tag 元数据结构 (L1 语义层)
  */
 typedef struct {
-    const char* name;  // 语义名称，如 "VOLTAGE_PHASE_A"
-    const char* unit;  // 单位，如 "V"
-    bool persist;      // 是否允许持久化到 SQLite
-    bool upload;       // 是否允许上送云端
+    const char* name;
+    const char* unit;
+    bool persist;
+    bool upload;
 } tag_meta_t;
 
 /**
  * @brief Modbus 协议映射项 (L2 物理层)
  */
 typedef struct {
-    uint16_t addr;     // 寄存器起始地址
-    edge_tag_id_t id;  // 映射的目标 TagID
-    float scale;       // 缩放系数 (读取值 * scale)
+    uint16_t addr;
+    edge_tag_id_t id;
+    float scale;
 } modbus_map_t;
 
 /**
  * @brief DLMS 协议映射项 (L2 物理层)
  */
 typedef struct {
-    const char* obis;  // OBIS 编码，如 "1.0.32.7.0.255"
-    edge_tag_id_t id;  // 映射的目标 TagID
-    float scaler;      // 缩放系数
+    const char* obis;
+    edge_tag_id_t id;
+    float scaler;
 } dlms_map_t;
 
 /**
  * @brief IEC104 协议映射项 (L2 物理层)
  */
 typedef struct {
-    int ioa;           // 信息对象地址
-    edge_tag_id_t id;  // 映射的目标 TagID
-    int type_id;       // ASDU 类型 ID
+    int ioa;
+    edge_tag_id_t id;
+    int type_id;
 } iec104_map_t;
 
 /**
  * @brief CAN 总线信号映射项 (L2 物理层)
  */
 typedef struct {
-    uint32_t can_id;   // 帧 ID
-    edge_tag_id_t id;  // 映射的目标 TagID
-    int start;         // 起始位
-    int len;           // 长度
-    float factor;      // 因子
-    float offset;      // 偏移量
+    uint32_t can_id;
+    edge_tag_id_t id;
+    int start;
+    int len;
+    float factor;
+    float offset;
 } can_map_t;
+
+// --- 外部契约接口声明 (由生成的 contracts.c 实现) ---
+extern const tag_meta_t g_tag_meta_table[];
+const tag_meta_t* edge_get_meta(edge_tag_id_t id);
+
+edge_tag_id_t edge_lookup_modbus(uint16_t reg, float* out_scale);
+edge_tag_id_t edge_lookup_dlms(const char* obis, float* out_scale);
+edge_tag_id_t edge_lookup_dlt645(const char* di, float* out_scale);
+edge_tag_id_t edge_lookup_dlt698(const char* oaid, float* out_scale);
+edge_tag_id_t edge_lookup_iec104(int ioa);
 
 #endif  // CONTRACT_DATA_TYPES_H

@@ -1,23 +1,29 @@
-cmake_minimum_required(VERSION 3.10)
-project(vpp_demo)
+# EdgeOS VPP Demo Build Script v2.0
+# ------------------------------------------------------------------------------
 
-if(TARGET edge_core_lib)
-    # In-tree build
-    include_directories(../../algo/include)
-    add_executable(vpp_demo main.c)
-    target_link_libraries(vpp_demo PRIVATE edge_core_lib libuv::uv QuickJS::QuickJS)
-else()
-    # Standalone build
-    find_library(EDGEOS_LIB edge_core_lib)
-    find_path(EDGEOS_INCLUDE_DIR NAMES edgeos/edge_service.h)
+set(PROD_NAME vpp_demo)
 
-    if (NOT EDGEOS_LIB OR NOT EDGEOS_INCLUDE_DIR)
-        message(FATAL_ERROR "EdgeOS SDK not found! Please run 'make install' first.")
-    endif()
+# 1. 契约生成
+edge_add_contract(
+    contract_${PROD_NAME}
+    "${CMAKE_CURRENT_SOURCE_DIR}/vpp_product.yaml"
+    ""
+)
 
-    find_package(libuv REQUIRED)
+# 2. 定义执行文件
+add_executable(${PROD_NAME} main.c)
 
-    add_executable(vpp_demo main.c)
-    target_include_directories(vpp_demo PRIVATE ${EDGEOS_INCLUDE_DIR}/..)
-    target_link_libraries(vpp_demo PRIVATE ${EDGEOS_LIB} libuv::uv)
-endif()
+# 3. 输出重定向 (沙箱化)
+set_target_properties(${PROD_NAME} PROPERTIES 
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/products/${PROD_NAME}/bin"
+)
+
+# 4. 链接依赖
+target_link_libraries(${PROD_NAME} PRIVATE 
+    edge_main_loop
+    edge_stream_engine
+    edge_io_executor
+    edge_algo
+    contract_${PROD_NAME}
+    pthread dl rt m
+)

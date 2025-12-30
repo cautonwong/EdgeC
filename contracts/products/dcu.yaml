@@ -1,0 +1,8 @@
+product: "EdgeOS_DCU_Standard"
+includes:
+  - "contracts/bindings/dlt698/dcu_interface.yaml"
+  - "contracts/bindings/modbus/acrel_p80.yaml"
+enabled_tags:
+  - GRID_FREQUENCY
+  - TRANSFORMER_OIL_TEMP
+  - BREAKER_STATUS

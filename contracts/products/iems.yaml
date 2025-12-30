@@ -4,8 +4,9 @@ includes:
   - "contracts/bindings/modbus/acrel_p80.yaml"
 
 enabled_tags:
-  - GRID_POWER
+  - GRID_POWER_TOTAL
   - GRID_FREQUENCY
   - VOLTAGE_PHASE_A
-  - BATTERY_SOC
+  - ENERGY_ACTIVE_IMPORT
+  - BATTERY_SOH
   - BATTERY_POWER

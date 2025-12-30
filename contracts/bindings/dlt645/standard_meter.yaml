@@ -1,0 +1,11 @@
+# DLT645-2007 Multi-function Meter Binding
+protocol: "DLT645"
+model: "Generic_Meter_2007"
+mappings:
+  - tag: VOLTAGE_PHASE_A
+    di: "02010100"  # 数据标识: A相电压
+    scaler: 0.1
+
+  - tag: ENERGY_ACTIVE_IMPORT
+    di: "00010000"  # 数据标识: (当前)正向有功总电能
+    scaler: 0.01

@@ -1,9 +1,8 @@
 #!/bin/bash
 # EdgeOS 精准格式化脚本
-# 仅针对自有代码执行 clang-format，自动跳过第三方目录
 
 # 1. 定义需要包含的目录
-INCLUDE_DIRS=("src" "include" "cmd" "tests" "algo")
+INCLUDE_DIRS=("src" "include" "cmd" "tests" "algo" "examples" "contracts")
 
 # 2. 遍历并执行格式化
 for dir in "${INCLUDE_DIRS[@]}"; do

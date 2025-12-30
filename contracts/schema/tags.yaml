@@ -5,50 +5,71 @@ tags:
     type: float
     unit: V
     desc: "A相电压"
-    attributes:
-      category: "Metrology"
-      ui: { group: "Grid_Params", min: 0, max: 500, precision: 1 }
-      northbound: { storage: "trend", push: "periodic" }
+    attributes: { category: "Metrology", ui: { group: "Grid", precision: 1 } }
 
   - id: 1002
     name: CURRENT_PHASE_A
     type: float
     unit: A
     desc: "A相电流"
-    attributes:
-      category: "Metrology"
-      ui: { group: "Grid_Params", min: 0, max: 100 }
-      northbound: { storage: "trend" }
+    attributes: { category: "Metrology" }
 
   - id: 1003
-    name: GRID_POWER
+    name: GRID_POWER_TOTAL
     type: float
-    unit: W
-    desc: "电网有功功率"
-    attributes:
-      category: "Metrology"
-      ui: { group: "Grid_Params" }
-      northbound: { push: "change", threshold: 10 }
+    unit: kW
+    desc: "总有功功率"
 
   - id: 1004
     name: GRID_FREQUENCY
     type: float
     unit: Hz
     desc: "系统频率"
-    attributes:
-      category: "Metrology"
-      ui: { group: "Grid_Params", min: 45, max: 55, precision: 2 }
 
-  # === 电池管理 (4000-4999) ===
-  - id: 4001
-    name: BATTERY_SOC
+  # === 能量计量 (3000-3999) ===
+  - id: 3001
+    name: ENERGY_ACTIVE_IMPORT
+    type: double
+    unit: kWh
+    desc: "正向有功总电能"
+    attributes: { persist: true, upload: true }
+
+  - id: 3002
+    name: ENERGY_ACTIVE_EXPORT
+    type: double
+    unit: kWh
+    desc: "反向有功总电能"
+
+  # === 充电桩专用 (6000-6999) ===
+  - id: 6001
+    name: EV_CHARGE_POWER
+    type: float
+    unit: kW
+    desc: "当前充电功率"
+    attributes: { category: "EVSE" }
+
+  - id: 6002
+    name: EV_BATTERY_LEVEL
     type: float
     unit: "%"
-    desc: "电池剩余电量"
-    attributes:
-      category: "Storage"
-      ui: { group: "Battery_Health", min: 0, max: 100, widget: "gauge" }
-      northbound: { storage: "trend", push: "periodic" }
+    desc: "车载电池电量"
+
+  - id: 6003
+    name: EV_CONNECTOR_STATUS
+    type: int
+    desc: "枪头状态 (0:未插, 1:已插, 2:充电中)"
+
+  # === 配电/DCU 专用 (7000-7999) ===
+  - id: 7001
+    name: TRANSFORMER_OIL_TEMP
+    type: float
+    unit: "C"
+    desc: "变压器油温"
+
+  - id: 7002
+    name: BREAKER_STATUS
+    type: int
+    desc: "断路器位置 (0:分, 1:合)"
 
   - id: 4002
     name: BATTERY_SOH

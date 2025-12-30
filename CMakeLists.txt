@@ -145,9 +145,11 @@ endforeach()
 # 6. Build Product Applications (Layer 2 - Decentralized)
 # ==============================================================================
 
-# 增加产品子目录，每个子目录通过 edge_add_contract 自主生成契约
 add_subdirectory(cmd/iems)
 add_subdirectory(cmd/sg)
+add_subdirectory(cmd/dcu)
+add_subdirectory(cmd/evse)
+add_subdirectory(cmd/hems)
 
 # ==============================================================================
 # 8. Installation
@@ -163,4 +165,4 @@ add_subdirectory(tests)
 # ==============================================================================
 # 10. Examples
 # ==============================================================================
-# add_subdirectory(examples)
+add_subdirectory(examples)

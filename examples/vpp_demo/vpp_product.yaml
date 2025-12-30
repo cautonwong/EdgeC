@@ -1,0 +1,9 @@
+product: "EdgeOS_VPP_Demo"
+includes:
+  - "contracts/bindings/modbus/acrel_p80.yaml"
+
+enabled_tags:
+  - GRID_POWER_TOTAL
+  - VOLTAGE_PHASE_A
+  - BATTERY_SOC
+  - ENERGY_ACTIVE_IMPORT

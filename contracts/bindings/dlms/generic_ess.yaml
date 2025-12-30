@@ -1,0 +1,11 @@
+# DLMS / COSEM Binding
+protocol: "DLMS"
+model: "BlueBook_Compatible"
+mappings:
+  - tag: CURRENT_PHASE_A
+    obis: "1.0.31.7.0.255"
+    scaler: 0.001
+
+  - tag: EV_CHARGE_POWER
+    obis: "1.0.66.7.0.255"
+    scaler: 1.0
