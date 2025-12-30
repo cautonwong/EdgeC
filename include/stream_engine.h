@@ -80,6 +80,11 @@ typedef struct {
 int stream_engine_load_config(stream_engine_t *engine, const char *json_path,
                               pipeline_loader_ctx_t *ctx);
 
+/**
+ * @brief 清空当前引擎中所有的流水线 (用于热重载场景)
+ */
+void stream_engine_clear_pipelines(stream_engine_t *engine);
+
 void stream_engine_destroy(stream_engine_t *engine);
 
 // --- Standard Stage Library ---
@@ -101,6 +106,16 @@ pipeline_stage_t *stage_accumulate_create(void);
  * @param table Target table name.
  */
 pipeline_stage_t *stage_sqlite_sink_create(sqlite_svc_t *db, const char *table);
+
+/**
+ * @brief Transform stage factory (y = ax + b).
+ */
+pipeline_stage_t *stage_transform_create(double alpha, double beta);
+
+/**
+ * @brief Filter range stage factory.
+ */
+pipeline_stage_t *stage_filter_range_create(double min, double max);
 
 /**
  * @brief JS Rule stage factory.

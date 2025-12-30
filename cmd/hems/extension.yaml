@@ -1,0 +1,19 @@
+product: "HEMS_HomeHub_Lite"
+includes:
+  - "contracts/bindings/dlt645/standard_meter.yaml"
+
+enabled_tags:
+  - VOLTAGE_PHASE_A
+  - GRID_POWER_TOTAL
+  - ENERGY_ACTIVE_IMPORT
+
+# 私有扩展：客厅温湿度传感器
+tags:
+  - id: 8001
+    name: LIVING_ROOM_HUMIDITY
+    type: float
+    unit: "%"
+    bindings:
+      - protocol: MODBUS
+        addr: 0x0300
+        scale: 1.0

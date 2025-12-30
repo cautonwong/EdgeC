@@ -7,7 +7,7 @@
 #include <uv.h>
 
 #include "arbiter.h"
-#include "contracts.h"  // 引用 VPP 专用契约
+#include "contracts.h"
 #include "datahub.h"
 #include "edge_params.h"
 #include "edge_service.h"
@@ -21,7 +21,7 @@ static sqlite_svc_t *db_svc;
 static datahub_t data_hub;
 static stream_engine_t *stream_engine;
 
-// --- 10Hz 高频数据模拟 (对齐契约) ---
+// --- 10Hz 高频数据模拟 ---
 static void simulator_tick(uv_timer_t *handle) {
     (void)handle;
     uint64_t now = (uint64_t)time(NULL) * 1000;
@@ -50,46 +50,51 @@ static void on_signal(uv_signal_t *handle, int signum) {
 
 int main(void) {
     printf("====================================================\n");
-    printf("   EdgeOS VPP Demo v2.0 (Contract-Aware Version)    \n");
-    printf("   Scenario: PV Aggregation & Safety Guarding       \n");
+    printf("   EdgeOS VPP Demo v2.1 (Best Practice)             \n");
     printf("====================================================\n");
 
     loop = uv_default_loop();
 
-    // 1. 底座初始化
-    datahub_init(&data_hub, loop, "vpp_bus_v3", 1024, NULL, NULL);
+    // 1. 初始化核心底座
+    datahub_init(&data_hub, loop, "vpp_bus_v4", 1024, NULL, NULL);
     sqlite_config_t db_cfg = {.strategy = STRATEGY_LITE, .db_path = "vpp_history.db"};
     db_svc = sqlite_svc_create(loop, &db_cfg);
 
-    // 2. 流引擎初始化 (Data Plane)
+    // 2. 初始化流引擎
     stream_engine = stream_engine_create(&data_hub, NULL);
 
-    // --- 核心演示：动态构建计算流水线 (对齐 v2.0 销毁接口) ---
-    // 目标：[防逆流过滤] -> [量纲缩放 W to kW] -> [数据库落库]
+    // --- 核心演示：如何正确地使用算子工厂注入 Pipeline ---
     pipeline_t *p1 =
-        stream_engine_add_pipeline(stream_engine, "pv_main_stats", TAG_GRID_POWER_TOTAL);
+        stream_engine_add_pipeline(stream_engine, "vpp_main_stats", TAG_GRID_POWER_TOTAL);
 
-    // Stage 1: 防逆流 (0 ~ 100000W 允许通过)
-    pipeline_add_stage(p1, "safety_guard", stage_filter_range_create(0.0, 100000.0), NULL, NULL,
-                       NULL, free);
+    // Stage 1: 防逆流过滤 (0~100000W)
+    pipeline_stage_t *s_filter = stage_filter_range_create(0.0, 100000.0);
+    pipeline_add_stage(p1, s_filter->name, s_filter->process, s_filter->priv_state,
+                       s_filter->cleanup_state, s_filter->priv_cfg, s_filter->cleanup_cfg);
+    free(s_filter);  // 属性已接管，释放壳对象
 
-    // Stage 2: 量纲转换
-    pipeline_add_stage(p1, "scaler", stage_transform_create(0.001, 0.0), NULL, NULL, NULL, free);
+    // Stage 2: 量纲转换 (W to kW)
+    pipeline_stage_t *s_scale = stage_transform_create(0.001, 0.0);
+    pipeline_add_stage(p1, s_scale->name, s_scale->process, s_scale->priv_state,
+                       s_scale->cleanup_state, s_scale->priv_cfg, s_scale->cleanup_cfg);
+    free(s_scale);
 
-    // Stage 3: 持久化
-    pipeline_add_stage(p1, "db_logger", stage_sqlite_sink_create(db_svc, "vpp_log"), NULL, NULL,
-                       NULL, free);
+    // Stage 3: 持久化记录
+    pipeline_stage_t *s_sink = stage_sqlite_sink_create(db_svc, "vpp_log");
+    pipeline_add_stage(p1, s_sink->name, s_sink->process, s_sink->priv_state, s_sink->cleanup_state,
+                       s_sink->priv_cfg, s_sink->cleanup_cfg);
+    free(s_sink);
 
     stream_engine_start(stream_engine);
 
-    // 3. 服务容器化 (Control Plane)
+    // 3. 开启北向服务
     service_options_t opts = {.mode = "VPP_DEMO", .web_port = 8080, .rest_port = 8081};
     svc = service_new(&opts);
     service_set_datahub(svc, &data_hub);
     service_set_storage(svc, db_svc);
     service_set_contract_path(svc, "products/vpp_demo/generated/contracts.yaml");
 
-    // 4. 定时器与信号
+    // 4. 高频模拟与信号处理
     uv_timer_t t_sim;
     uv_timer_init(loop, &t_sim);
     uv_timer_start(&t_sim, simulator_tick, 0, 100);
@@ -98,13 +103,12 @@ int main(void) {
     uv_signal_init(loop, &sig);
     uv_signal_start(&sig, on_signal, SIGINT);
 
-    printf("[VPP] System Ready.\n");
-    printf("[VPP] API Portal: http://localhost:8081/api/v1/contracts\n");
+    printf("[VPP] System Ready. All pipelines verified.\n");
 
     persistence_mgr_t storage = {.writer = db_svc};
     service_run(svc, loop, NULL, NULL, &data_hub, &storage, NULL);
 
-    // 5. 销毁逻辑
+    // 5. 彻底清理
     stream_engine_destroy(stream_engine);
     sqlite_svc_destroy(db_svc);
     datahub_destroy(&data_hub);

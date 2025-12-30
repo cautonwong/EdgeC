@@ -1,25 +1,30 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
-#include "contracts.h"  // 引用 DCU 特定的 contracts.h
+#include "contracts.h"
 #include "edge_service.h"
 
 int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
-    printf("EdgeOS DCU Application Starting...\n");
+    printf("--- EdgeOS DCU Application [契约化验证] ---\n");
 
-    // 验证契约生成
-#if IS_ENABLED(TAG_TRANSFORMER_OIL_TEMP_ENABLED)
-    printf("[Contract] Transformer Monitoring: ENABLED (TagID: %d)\n", TAG_TRANSFORMER_OIL_TEMP);
-#else
-    printf("[Contract] Transformer Monitoring: DISABLED\n");
-#endif
+    // 1. 验证特性门控
+    if (IS_ENABLED(TAG_GRID_FREQUENCY_ENABLED)) {
+        printf("[Contract] Frequency Monitoring: ACTIVE (ID: %d)\n", TAG_GRID_FREQUENCY);
+    }
 
-    // 模拟数据注入
-    printf("[Sim] Producing dummy data for Oil Temp...\n");
-    // 在真实应用中，此处会通过 edge_lookup_dlt698 或 Modbus 映射数据
+    // 2. 验证多协议查表：DLT698 OAID
+    float scale;
+    // 模拟从 DLT698 驱动获取频率数据 (OAID 定义在 dcu_interface.yaml)
+    edge_tag_id_t id = edge_lookup_dlt698("20010200", &scale);
+    printf("[Driver] DLT698 OAID '20010200' -> TagID: %d, Scale: %.2f\n", id, scale);
+
+    // 3. 验证本地扩展
+    if (IS_ENABLED(TAG_TRANSFORMER_ROOM_HUMIDITY_ENABLED)) {
+        printf("[Custom] Local Sensor Detected: Room Humidity (ID: %d)\n",
+               TAG_TRANSFORMER_ROOM_HUMIDITY);
+    }
 
     return 0;
 }

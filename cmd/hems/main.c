@@ -1,73 +1,25 @@
-#include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
+#include "contracts.h"
 #include "edge_service.h"
 
 int main(int argc, char **argv) {
-    service_options_t opts = {.web_port = 8080, .rest_port = 8081};
-    strncpy(opts.config_path, "config/device_profile.json", 255);
-    strncpy(opts.mode, "hems", 31);
+    (void)argc;
+    (void)argv;
+    printf("--- EdgeOS HEMS Gateway [契约化验证] ---\n");
 
-    int opt;
-    while ((opt = getopt(argc, argv, "c:m:w:r:h")) != -1) {
-        switch (opt) {
-            case 'c':
-                strncpy(opts.config_path, optarg, 255);
-                break;
-            case 'm':
-                strncpy(opts.mode, optarg, 31);
-                break;
-            case 'w':
-                opts.web_port = atoi(optarg);
-                break;
-            case 'r':
-                opts.rest_port = atoi(optarg);
-                break;
-            case 'h':
-                printf("EdgeOS HEMS\n");
-                return 0;
-            default:
-                return 1;
-        }
+    // 1. 验证 DLT645 DI 映射
+    float scale;
+    // 映射定义在 standard_meter.yaml (DI: 02010100 -> VOLTAGE_PHASE_A)
+    edge_tag_id_t id = edge_lookup_dlt645("02010100", &scale);
+    printf("[Driver] DLT645 DI '02010100' -> TagID: %d, Scale: %.2f\n", id, scale);
+
+    // 2. 验证本地环境传感器
+    if (IS_ENABLED(TAG_LIVING_ROOM_HUMIDITY_ENABLED)) {
+        printf("[Custom] Local Environment: Room Humidity (ID: %d) READY\n",
+               TAG_LIVING_ROOM_HUMIDITY);
     }
 
-    service_t *svc = service_new(&opts);
-    uv_loop_t *loop = malloc(sizeof(uv_loop_t));
-    uv_loop_init(loop);
-
-    net_buf_pool_t pool;
-    net_buf_pool_init(&pool, 128, 256, NULL, NULL);  // 极简资源
-
-    arbiter_t *arbiter;
-    arbiter_init(&arbiter, loop);
-
-    datahub_t hub;
-    datahub_init(&hub, loop, "/hems_hub", 128, NULL, NULL);
-
-    persistence_mgr_t storage;
-    sqlite_config_t db_cfg = {.strategy = STRATEGY_LITE,
-                              .db_path = "edge_data.db",
-                              .batch_size = 10,
-                              .flush_interval_ms = 2000};
-    storage.writer = sqlite_svc_create(loop, &db_cfg);
-    persistence_mgr_init(&storage, loop, &hub.ring, 2000);
-
-    northbound_mgr_t cloud;
-    northbound_mgr_init(&cloud, loop, &hub.ring);
-    cloud.web_port = opts.web_port;
-    cloud.rest_port = opts.rest_port;
-    cloud.user_data = svc;
-    northbound_mgr_start(&cloud);
-
-    int ret = service_run(svc, loop, &pool, arbiter, &hub, &storage, &cloud);
-
-    northbound_mgr_stop(&cloud);
-    persistence_mgr_close(&storage);
-    arbiter_shutdown(arbiter);
-    net_buf_pool_destroy(&pool);
-    service_delete(svc);
-    free(loop);
-    return ret;
+    return 0;
 }

@@ -39,7 +39,23 @@ add_edge_test(test_fuzz_datahub test_fuzz_datahub.c)
 
 # Special test cases with extra files or link options
 
+add_edge_test(test_contract_lookup test_contract_lookup.c)
+
+add_edge_test(test_datahub_shadow test_datahub_shadow.c)
+
+add_edge_test(test_standard_stages_math test_standard_stages_math.c)
+
+add_edge_test(test_pipeline_hot_reload test_pipeline_hot_reload.c)
+
+
+
 # test_scheduler is a special case: it provides a mock implementation of time functions.
+
+
+
+
+
+
 add_executable(test_scheduler
     test_scheduler.c
     mock_time.c

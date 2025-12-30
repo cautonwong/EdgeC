@@ -183,7 +183,9 @@ pipeline_t *stream_engine_add_pipeline(stream_engine_t *engine, const char *id,
 
 static void on_walk_close(uv_handle_t *h, void *arg) {
     (void)arg;
-    if (!uv_is_closing(h)) uv_close(h, NULL);
+    if (!uv_is_closing(h)) {
+        uv_close(h, NULL);
+    }
 }
 
 void stream_engine_destroy(stream_engine_t *engine) {
@@ -197,6 +199,15 @@ void stream_engine_destroy(stream_engine_t *engine) {
     }
 
     if (engine->loop) {
+        if (engine->timer_inited && !uv_is_closing((uv_handle_t *)&engine->time_guard)) {
+            uv_timer_stop(&engine->time_guard);
+            uv_close((uv_handle_t *)&engine->time_guard, on_walk_close);
+        }
+
+        if (engine->notify_inited && !uv_is_closing((uv_handle_t *)&engine->notify_handle)) {
+            uv_close((uv_handle_t *)&engine->notify_handle, on_walk_close);
+        }
+
         uv_walk(engine->loop, on_walk_close, NULL);
         while (uv_run(engine->loop, UV_RUN_ONCE))
             ;
@@ -208,7 +219,6 @@ void stream_engine_destroy(stream_engine_t *engine) {
         pipeline_stage_t *curr = p->head;
         while (curr) {
             pipeline_stage_t *next = curr->next;
-            // 物理回收：同时清理状态和配置
             if (curr->cleanup_state) curr->cleanup_state(curr->priv_state);
             if (curr->cleanup_cfg) curr->cleanup_cfg(curr->priv_cfg);
             free(curr);

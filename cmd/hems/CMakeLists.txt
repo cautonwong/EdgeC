@@ -1,5 +1,5 @@
 set(PROD_NAME hems)
-edge_add_contract(contract_${PROD_NAME} "${CMAKE_SOURCE_DIR}/contracts/products/${PROD_NAME}.yaml" "")
+edge_add_contract(contract_${PROD_NAME} "${CMAKE_SOURCE_DIR}/contracts/products/${PROD_NAME}.yaml" "${CMAKE_CURRENT_SOURCE_DIR}/extension.yaml")
 add_executable(${PROD_NAME} main.c)
 set_target_properties(${PROD_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/products/${PROD_NAME}/bin")
 target_link_libraries(${PROD_NAME} PRIVATE edge_main_loop edge_stream_engine edge_io_executor edge_algo contract_${PROD_NAME} pthread dl rt m)

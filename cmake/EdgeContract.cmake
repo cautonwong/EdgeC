@@ -25,14 +25,14 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
     set(OUT_H "${GEN_DIR}/contracts.h")
     set(OUT_YAML "${GEN_DIR}/contracts.yaml")
 
-    set(CMD_ARGS
-        "${Python3_EXECUTABLE}" "${TOOL_PATH}"
-        "--schema" "${SCHEMA_PATH}"
-        "--product" "${PRODUCT_YAML}"
-        "--out" "${GEN_DIR}"
-    )
-
-    if(NOT "${LOCAL_YAML}" STREQUAL "")
+        set(CMD_ARGS 
+            "${Python3_EXECUTABLE}" "${TOOL_PATH}"
+            "--schema" "${SCHEMA_PATH}"
+            "--product" "${PRODUCT_YAML}"
+            "--out" "${GEN_DIR}"
+            "--base" "${CMAKE_SOURCE_DIR}"
+        )
+        if(NOT "${LOCAL_YAML}" STREQUAL "")
         list(APPEND CMD_ARGS "--local" "${LOCAL_YAML}")
         set(LOCAL_DEP "${LOCAL_YAML}")
     endif()

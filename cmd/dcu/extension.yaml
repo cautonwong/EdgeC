@@ -1,0 +1,20 @@
+product: "DCU_Elite_v2"
+includes:
+  - "contracts/bindings/modbus/acrel_p80.yaml"
+
+# 启用配电核心测点
+enabled_tags:
+  - GRID_FREQUENCY
+  - TRANSFORMER_OIL_TEMP
+  - BREAKER_STATUS
+
+# 现场扩展：变压器室湿度
+tags:
+  - id: 7003
+    name: TRANSFORMER_ROOM_HUMIDITY
+    type: float
+    unit: "%"
+    bindings:
+      - protocol: MODBUS
+        addr: 0x0200
+        scale: 1.0

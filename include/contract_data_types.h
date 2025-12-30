@@ -5,9 +5,15 @@
 #include <stdint.h>
 
 /**
- * @brief 基础宏：用于编译时的功能裁剪
+ * @brief Zephyr-style IS_ENABLED Macro Machinery
+ * Allows for compile-time logic branching in C code.
  */
-#define IS_ENABLED(x) ((x) == 1)
+#define __ARG_PLACEHOLDER_1 0,
+#define __take_second_arg(__ignored, val, ...) val
+#define __is_defined(x) __is_defined2(x)
+#define __is_defined2(x) __take_second_arg(__ARG_PLACEHOLDER_##x 1, 0)
+
+#define IS_ENABLED(config_macro) __is_defined(config_macro)
 
 /**
  * @brief 抽象 TagID 类型
@@ -35,14 +41,16 @@ typedef struct {
 } modbus_map_t;
 
 /**
- * @brief DLMS 协议映射项 (L2 物理层)
+ * @brief DLMS 协议映射项 (增加编解码元数据)
  */
 typedef struct {
-    const char* obis;
-    edge_tag_id_t id;
-    float scaler;
+    const char* obis;   // OBIS 编码
+    edge_tag_id_t id;   // 映射的目标 TagID
+    uint16_t ic_id;     // Interface Class ID (如 3: Register)
+    uint8_t attr_id;    // Attribute ID (如 2: Value)
+    uint8_t data_type;  // DLMS 定义的数据类型编码
+    float scaler;       // 缩放系数
 } dlms_map_t;
-
 /**
  * @brief IEC104 协议映射项 (L2 物理层)
  */

@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -40,7 +41,7 @@ pipeline_stage_t *stage_transform_create(double alpha, double beta) {
     cfg->alpha = alpha;
     cfg->beta = beta;
     s->priv_cfg = cfg;
-    s->cleanup_cfg = free;  // 对齐 v2.0
+    s->cleanup_cfg = free;
     return s;
 }
 
@@ -51,8 +52,14 @@ typedef struct {
 } filter_range_cfg_t;
 stage_ret_t stage_filter_range_proc(pipeline_stage_t *stage, pipe_event_t *ev) {
     if (ev->type != EVT_DATA_POINT) return STAGE_OK;
+    double val = ev->payload.val;
     filter_range_cfg_t *cfg = (filter_range_cfg_t *)stage->priv_cfg;
-    return (ev->payload.val < cfg->min || ev->payload.val > cfg->max) ? STAGE_DROP : STAGE_OK;
+
+    // IEEE 754 防御：NaN 不满足任何比较条件，必须显式拦截
+    if (isnan(val) || val < cfg->min || val > cfg->max) {
+        return STAGE_DROP;
+    }
+    return STAGE_OK;
 }
 
 pipeline_stage_t *stage_filter_range_create(double min, double max) {

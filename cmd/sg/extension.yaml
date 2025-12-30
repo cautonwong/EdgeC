@@ -1,0 +1,20 @@
+product: "SG_Standard_Gateway"
+includes:
+  - "contracts/bindings/modbus/huawei_sun2000.yaml"
+  - "contracts/bindings/modbus/acrel_p80.yaml"
+
+enabled_tags:
+  - VOLTAGE_PHASE_A
+  - CURRENT_PHASE_A
+  - GRID_POWER_TOTAL
+
+# 私有扩展：网关 CPU 温度
+tags:
+  - id: 9901
+    name: GATEWAY_INTERNAL_TEMP
+    type: float
+    unit: "C"
+    bindings:
+      - protocol: MODBUS
+        addr: 0x9000
+        scale: 0.1

@@ -3,11 +3,11 @@
 
 set(PROD_NAME vpp_demo)
 
-# 1. 契约生成
+# 1. 契约生成 (示范：基于 IEMS 标准版进行本地扩展)
 edge_add_contract(
     contract_${PROD_NAME}
-    "${CMAKE_CURRENT_SOURCE_DIR}/vpp_product.yaml"
-    ""
+    "${CMAKE_SOURCE_DIR}/contracts/products/iems.yaml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/extension.yaml"
 )
 
 # 2. 定义执行文件

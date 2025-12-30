@@ -1,0 +1,20 @@
+product: "EVSE_SmartCharger_v1"
+includes:
+  - "contracts/bindings/dlms/generic_ess.yaml"
+
+enabled_tags:
+  - EV_CHARGE_POWER
+  - EV_CONNECTOR_STATUS
+  - EV_BATTERY_LEVEL
+  - VOLTAGE_PHASE_A
+
+# 私有报警扩展：枪头温度过高
+tags:
+  - id: 6004
+    name: EV_PLUG_OVERTEMP
+    type: int
+    desc: "插枪温度告警"
+    bindings:
+      - protocol: MODBUS
+        addr: 0x8001
+        scale: 1.0

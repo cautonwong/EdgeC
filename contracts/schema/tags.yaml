@@ -71,6 +71,13 @@ tags:
     type: int
     desc: "断路器位置 (0:分, 1:合)"
 
+  - id: 4001
+    name: BATTERY_SOC
+    type: float
+    unit: "%"
+    desc: "电池剩余电量"
+    attributes: { category: "Storage", ui: { widget: "gauge" } }
+
   - id: 4002
     name: BATTERY_SOH
     type: float

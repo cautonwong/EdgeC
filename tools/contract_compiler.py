@@ -15,7 +15,7 @@ def load_yaml(path):
         print(f"[ERROR] Failed to load {path}: {e}")
         sys.exit(1)
 
-def build_effective_contract(schema_path, product_path, local_path):
+def build_effective_contract(schema_path, product_path, local_path, base_path):
     schema_data = load_yaml(schema_path)
     all_tags_map = {t['name']: t for t in schema_data['tags']}
     if local_path:
@@ -25,8 +25,13 @@ def build_effective_contract(schema_path, product_path, local_path):
     prod_conf = load_yaml(product_path)
     if 'includes' in prod_conf:
         for inc_path in prod_conf['includes']:
-            if not os.path.exists(inc_path): continue
-            binding_data = load_yaml(inc_path)
+            real_path = inc_path
+            if not os.path.isabs(real_path) and base_path:
+                real_path = os.path.join(base_path, inc_path)
+            if not os.path.exists(real_path):
+                print(f"[ERROR] Binding file not found: {inc_path}")
+                sys.exit(1)
+            binding_data = load_yaml(real_path)
             proto = binding_data.get('protocol', 'UNKNOWN').upper()
             mapping_list = binding_data.get('mappings', binding_data.get('map', []))
             for m in mapping_list:
@@ -56,31 +61,25 @@ def build_effective_contract(schema_path, product_path, local_path):
             else: final_tag['attributes'][k] = v
         active_tags.append(final_tag)
     return {
-        "product_name": prod_conf.get('product', 'Unknown'),
+        "product_name": local_data.get('product', prod_conf.get('product', 'Unknown')) if local_data else prod_conf.get('product', 'Unknown'),
         "timestamp": str(datetime.datetime.now()),
         "active_tags": active_tags,
         "all_tags": list(all_tags_map.values())
     }
 
 def gen_header(contract, out_path):
-    print(f"--- Generating Header: {out_path}")
     active_tags = contract['active_tags']
     active_names_set = set(t['name'] for t in active_tags)
     with open(out_path, 'w') as f:
-        f.write("/* AUTO-GENERATED. DO NOT EDIT. */\n")
-        f.write("#ifndef EDGE_CONTRACTS_H\n#define EDGE_CONTRACTS_H\n\n")
-        f.write("#include \"contract_data_types.h\"\n\n")
+        f.write("/* AUTO-GENERATED. DO NOT EDIT. */\n#ifndef EDGE_CONTRACTS_H\n#define EDGE_CONTRACTS_H\n\n#include \"contract_data_types.h\"\n\n")
         for name in sorted([t['name'] for t in contract['all_tags']]):
             val = 1 if name in active_names_set else 0
             f.write(f"#define TAG_{name}_ENABLED {val}\n")
         f.write("\ntypedef enum {\n    TAG_INVALID = 0,\n")
-        for t in sorted(active_tags, key=lambda x: x['id']):
-            f.write(f"    TAG_{t['name']} = {t['id']},\n")
-        f.write("    TAG_MAX_ID\n} edge_tag_enum_t;\n\n")
-        f.write("#endif\n")
+        for t in sorted(active_tags, key=lambda x: x['id']): f.write(f"    TAG_{t['name']} = {t['id']},\n")
+        f.write("    TAG_MAX_ID\n} edge_tag_enum_t;\n\n#endif\n")
 
 def gen_source(contract, out_path):
-    print(f"--- Generating Source: {out_path}")
     active_tags = sorted(contract['active_tags'], key=lambda x: x['id'])
     proto_lists = {'MODBUS':[], 'DLMS':[], 'DLT645':[], 'DLT698':[], 'IEC104':[], 'CAN':[]}
     for t in active_tags:
@@ -96,41 +95,52 @@ def gen_source(contract, out_path):
             p = 'true' if t.get('attributes', {}).get('persist') else 'false'
             u = 'true' if t.get('attributes', {}).get('upload') else 'false'
             f.write(f"    [TAG_{t['name']}] = {{ \"{t['name']}\", \"{t.get('unit','')}\", {p}, {u} }},\n")
-        f.write("};\n\n")
-        f.write("const tag_meta_t* edge_get_meta(edge_tag_id_t id) {\n    if (id >= TAG_MAX_ID) return NULL;\n    return &g_tag_meta_table[id];\n}\n\n")
+        f.write("};\n\nconst tag_meta_t* edge_get_meta(edge_tag_id_t id) {\n    if (id >= TAG_MAX_ID) return NULL;\n    return &g_tag_meta_table[id];\n}\n\n")
 
         # Modbus
         m_list = sorted(proto_lists['MODBUS'], key=lambda x: x.get('addr', 0))
         f.write("static const modbus_map_t s_modbus_map[] = {\n")
         for m in m_list: f.write(f"    {{ {m['addr']}, TAG_{m['tag_name']}, {m.get('scale', 1.0)}f }},\n")
-        f.write("};\n")
-        f.write(f"static const int s_modbus_len = {len(m_list)};\n\n")
+        f.write("};\nstatic const int s_modbus_len = " + str(len(m_list)) + ";\n")
         f.write("edge_tag_id_t edge_lookup_modbus(uint16_t reg, float *out_scale) {\n")
-        f.write("    for(int i=0; i < s_modbus_len; i++) {\n")
-        f.write("        if(s_modbus_map[i].addr == reg) { if(out_scale) *out_scale = s_modbus_map[i].scale; return s_modbus_map[i].id; }\n")
-        f.write("    }\n    return 0;\n}\n\n")
+        f.write("    for(int i=0; i < s_modbus_len; i++) if(s_modbus_map[i].addr == reg) { if(out_scale) *out_scale = s_modbus_map[i].scale; return s_modbus_map[i].id; }\n")
+        f.write("    return 0;\n}\n\n")
 
         # DLMS
         d_list = proto_lists['DLMS']
         f.write("static const dlms_map_t s_dlms_map[] = {\n")
-        for d in d_list: f.write(f"    {{ \"{d.get('obis','')}\", TAG_{d['tag_name']}, {d.get('scaler', 1.0)}f }},\n")
-        f.write("};\n")
-        f.write(f"static const int s_dlms_len = {len(d_list)};\n\n")
+        for d in d_list: f.write(f"    {{ \"{d.get('obis','')}\", TAG_{d['tag_name']}, {d.get('ic', 3)}, {d.get('attr', 2)}, {d.get('type', 0)}, {d.get('scaler', 1.0)}f }},\n")
+        f.write("};\nstatic const int s_dlms_len = " + str(len(d_list)) + ";\n")
         f.write("edge_tag_id_t edge_lookup_dlms(const char* obis, float *out_scale) {\n")
-        f.write("    for(int i=0; i < s_dlms_len; i++) {\n")
-        f.write("        if(strcmp(s_dlms_map[i].obis, obis) == 0) { if(out_scale) *out_scale = s_dlms_map[i].scaler; return s_dlms_map[i].id; }\n")
-        f.write("    }\n    return 0;\n}\n\n")
+        f.write("    for(int i=0; i < s_dlms_len; i++) if(strcmp(s_dlms_map[i].obis, obis) == 0) { if(out_scale) *out_scale = s_dlms_map[i].scaler; return s_dlms_map[i].id; }\n")
+        f.write("    return 0;\n}\n\n")
 
-        f.write("edge_tag_id_t edge_lookup_dlt645(const char* di, float *out_scale) { (void)di; (void)out_scale; return 0; }\n")
-        f.write("edge_tag_id_t edge_lookup_dlt698(const char* oaid, float *out_scale) { (void)oaid; (void)out_scale; return 0; }\n")
+        # DLT645 (di -> obis member)
+        d645_list = proto_lists['DLT645']
+        f.write("static const dlms_map_t s_dlt645_map[] = {\n")
+        for d in d645_list: f.write(f"    {{ \"{d.get('di','')}\", TAG_{d['tag_name']}, 0, 0, 0, {d.get('scaler', 1.0)}f }},\n")
+        f.write("};\nstatic const int s_dlt645_len = " + str(len(d645_list)) + ";\n")
+        f.write("edge_tag_id_t edge_lookup_dlt645(const char* di, float *out_scale) {\n")
+        f.write("    for(int i=0; i < s_dlt645_len; i++) if(strcmp(s_dlt645_map[i].obis, di) == 0) { if(out_scale) *out_scale = s_dlt645_map[i].scaler; return s_dlt645_map[i].id; }\n")
+        f.write("    return 0;\n}\n\n")
+
+        # DLT698 (oaid -> obis member)
+        d698_list = proto_lists['DLT698']
+        f.write("static const dlms_map_t s_dlt698_map[] = {\n")
+        for d in d698_list: f.write(f"    {{ \"{d.get('oaid','')}\", TAG_{d['tag_name']}, 0, 0, 0, {d.get('scaler', 1.0)}f }},\n")
+        f.write("};\nstatic const int s_dlt698_len = " + str(len(d698_list)) + ";\n")
+        f.write("edge_tag_id_t edge_lookup_dlt698(const char* oaid, float *out_scale) {\n")
+        f.write("    for(int i=0; i < s_dlt698_len; i++) if(strcmp(s_dlt698_map[i].obis, oaid) == 0) { if(out_scale) *out_scale = s_dlt698_map[i].scaler; return s_dlt698_map[i].id; }\n")
+        f.write("    return 0;\n}\n\n")
+
         f.write("edge_tag_id_t edge_lookup_iec104(int ioa) { (void)ioa; return 0; }\n")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--schema', required=True); parser.add_argument('--product', required=True)
-    parser.add_argument('--local'); parser.add_argument('--out', required=True)
+    parser.add_argument('--local'); parser.add_argument('--out', required=True); parser.add_argument('--base')
     args = parser.parse_args()
-    contract = build_effective_contract(args.schema, args.product, args.local)
+    contract = build_effective_contract(args.schema, args.product, args.local, args.base)
     if not os.path.exists(args.out): os.makedirs(args.out)
     with open(os.path.join(args.out, "contracts.yaml"), 'w', encoding='utf-8') as f:
         yaml.dump({"product": contract['product_name'], "tags": contract['active_tags']}, f, sort_keys=False, allow_unicode=True)
