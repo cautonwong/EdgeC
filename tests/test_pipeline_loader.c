@@ -9,6 +9,7 @@
 #include "datahub.h"
 #include "sqlite_service.h"
 #include "stream_engine.h"
+#include "edge_tag_id.h"
 
 static void create_test_config(const char *path) {
     FILE *f = fopen(path, "w");
@@ -17,14 +18,14 @@ static void create_test_config(const char *path) {
             "  \"pipelines\": [\n"
             "    {\n"
             "      \"id\": \"test_json_pipe\",\n"
-            "      \"trigger_tag\": 1001,\n"
+            "      \"trigger_tag\": %d,\n"
             "      \"stages\": [\n"
             "        { \"type\": \"accumulate\", \"config\": {} },\n"
             "        { \"type\": \"sqlite_sink\", \"config\": { \"table\": \"test_table\" } }\n"
             "      ]\n"
             "    }\n"
             "  ]\n"
-            "}");
+            "}", TAG_GRID_POWER);
     fclose(f);
 }
 
@@ -49,7 +50,7 @@ static void test_loader_dynamic_build(void **state) {
     assert_int_equal(ret, 0);
 
     pipe_event_t ev = {
-        .type = EVT_DATA_POINT, .tag_id = 1001, .payload.val = 100.0, .calendar_ms = 123456};
+        .type = EVT_DATA_POINT, .tag_id = TAG_GRID_POWER, .payload.val = 100.0, .calendar_ms = 123456};
     stream_engine_push_event(engine, &ev);
 
     // 清理

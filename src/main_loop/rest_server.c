@@ -9,6 +9,7 @@
 #include "edge_params.h"
 #include "edge_service.h"
 #include "sqlite_service.h"
+#include "edge_tag_id.h"
 
 #define HTTP_RESPONSE_FMT                \
     "HTTP/1.1 200 OK\r\n"                \
@@ -107,7 +108,7 @@ char *rest_dispatch(service_t *svc, const char *path) {
     // 路由 2: 历史曲线查询 (参数暂通过 QueryString 提取，此处演示核心分发)
     // 示例：/api/v1/data/query?tag=1001&start=0&end=...
     if (strncmp(path, "/api/v1/data/query", 18) == 0) {
-        return handle_history_query(svc, 1001, 0, (uint64_t)time(NULL) * 1000);
+        return handle_history_query(svc, TAG_GRID_POWER, 0, (uint64_t)time(NULL) * 1000);
     }
 
     return strdup("{\"error\":\"not_found\"}");

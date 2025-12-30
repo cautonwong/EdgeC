@@ -1,0 +1,14 @@
+# Global Tag Dictionary
+# This file is the single source of truth for all semantic tags in the system.
+tags:
+  - id: 1001
+    name: GRID_POWER
+    type: float
+    unit: "W"
+    desc: "Grid power consumption or generation"
+
+  - id: 1002
+    name: VOLTAGE_PHASE_A
+    type: float
+    unit: "V"
+    desc: "Phase A Voltage"

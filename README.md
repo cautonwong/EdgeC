@@ -84,3 +84,45 @@ EdgeOS 摒弃了沉重的 Web 库，仅依赖 `libuv` 原生套接字：
 - [ ] **抗跳变极限压测**：编写 cmocka 脚本模拟 NTP 剧烈跳变下的冻结一致性。
 - [ ] **全链路零拷贝**：将跨线程数据交换全面切换为 `net_buf_t` 引用计数模式。
 - [ ] **IO Executor 物理隔离**：验证高频采样下的独立 Loop 稳定性。
+
+---
+
+## Stream Engine: Detailed TODOs (Dec 2025 Analysis)
+
+Based on a detailed comparison between the design documents (`stream_engine.md`) and the current implementation, here is a list of pending tasks to fully realize the intended architecture.
+
+### Partially Completed or Mismatched Features
+
+These features are functional but deviate from the design, primarily impacting efficiency and ease of use.
+
+*   **[ ] Refactor DataHub/Bus Integration:**
+    *   **Current:** The engine uses a "pump-and-filter" model, draining all messages from the shared memory bus and then filtering by `tag_id`.
+    *   **Target:** Implement a true topic-based subscription model where the engine only receives events for tags it is interested in, reducing CPU load.
+
+*   **[ ] Generalize Heavy Computation Offload:**
+    *   **Current:** The `STAGE_ASYNC` mechanism provides the necessary hook for offloading heavy tasks.
+    *   **Target:** Create a generic "worker stage" or helper function to simplify running heavy algorithms (like FFT) in libuv's worker pool without requiring each stage to re-implement the logic.
+
+### Not Implemented (TODO)
+
+These features are described in the design but are currently missing from the implementation.
+
+*   **[ ] Implement Standard Pipeline Stage Library:**
+    *   **Task:** The current loader only supports `accumulate` and `sqlite_sink`. A library of common, reusable stages is needed.
+    *   **Action Items:**
+        *   `stage_filter_by_value`
+        *   `stage_transform_scale_offset`
+        *   `stage_minute_freeze`
+        *   `stage_day_freeze`
+
+*   **[ ] Integrate Scripting Engines as Standard Stages:**
+    *   **Task:** Allow JS and Lua scripts to be used as native pipeline stages.
+    *   **Action Items:** Create `stage_js_rule_create` and `stage_lua_algo_create` and integrate them with the `pipeline_loader` to be configurable from JSON.
+
+*   **[ ] Enhance TimeGuard for Clock Jumps:**
+    *   **Task:** The current time-based event generation is not fully resilient to large, sudden system time changes (e.g., from NTP sync).
+    *   **Action Items:** Implement logic to detect clock jumps and re-synchronize the internal monotonic-to-calendar time offset.
+
+*   **[ ] Implement Graceful Shutdown with State Persistence:**
+    *   **Task:** The current shutdown process does not save the state of suspended or in-progress pipelines.
+    *   **Action Items:** Design and implement a mechanism to serialize the state of active pipelines to disk during shutdown and restore them on startup.

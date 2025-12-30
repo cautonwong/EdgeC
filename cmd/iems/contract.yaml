@@ -1,0 +1,9 @@
+# Product contract for the IEMS application
+product: "IEMS_Controller_V1"
+
+# List of semantic tags to be included in this product build.
+# The generator will use this list to create a tailored edge_tag_config.h
+# and to include only the necessary metadata.
+enabled_tags:
+  - GRID_POWER
+  - VOLTAGE_PHASE_A

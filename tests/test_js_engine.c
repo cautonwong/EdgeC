@@ -1,12 +1,14 @@
 #include <cmocka.h>
 #include <setjmp.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <stddef.h>
 #include <uv.h>
 
 #include "datahub.h"
 #include "edge_service.h"
 #include "js_engine.h"
+#include "edge_tag_id.h"
 
 // 这是一个 Hack，因为 service_t 是不透明的，为了在测试中手动注入 hub
 struct service_s {
@@ -32,7 +34,7 @@ static void test_js_eval_basic(void **state) {
 
     // 模拟注入一条数据
     PipeMsg msg;
-    pipe_msg_init_scalar(&msg, 1001, 230.5, 123456);
+    pipe_msg_init_scalar(&msg, TAG_GRID_POWER, 230.5, 123456);
     datahub_publish(&hub, &msg);
 
     // 3. 创建引擎
@@ -46,12 +48,11 @@ static void test_js_eval_basic(void **state) {
     assert_int_equal(js_engine_eval(engine, "console.log('Hello from JS');", "test.js"), 0);
 
     // Test Bridge API: DataHub (应该能读到 230.5)
-    assert_int_equal(
-        js_engine_eval(
-            engine,
-            "const v = DataHub.read(1001); if(v !== 230.5) throw new Error('Data mismatch: ' + v);",
-            "test.js"),
-        0);
+    char js_script[256];
+    snprintf(js_script, sizeof(js_script), 
+        "const v = DataHub.read(%d); if(v !== 230.5) throw new Error('Data mismatch: ' + v);", 
+        TAG_GRID_POWER);
+    assert_int_equal(js_engine_eval(engine, js_script, "test.js"), 0);
 
     js_engine_destroy(engine);
     datahub_destroy(&hub);

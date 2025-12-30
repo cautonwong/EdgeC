@@ -63,7 +63,32 @@ endif()
 # ==============================================================================
 # 5. Build Core Library (The Pure SDK)
 # ==============================================================================
+# Add a custom step to generate C code from the YAML contracts
+find_package(Python3 REQUIRED)
+set(PRODUCT_CONTRACT_IEMS ${CMAKE_CURRENT_SOURCE_DIR}/cmd/iems/contract.yaml)
+set(GENERATED_DIR_IEMS ${CMAKE_BINARY_DIR}/generated/iems)
+set(GENERATED_INCLUDE_DIR_IEMS ${GENERATED_DIR_IEMS}/include)
+set(GENERATED_SRC_DIR_IEMS ${GENERATED_DIR_IEMS}/src)
+set(GENERATED_TAG_META_SRC_IEMS ${GENERATED_SRC_DIR_IEMS}/tag_meta.c)
+
+add_custom_command(
+    OUTPUT ${GENERATED_TAG_META_SRC_IEMS}
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/contract_compiler.py ${PRODUCT_CONTRACT_IEMS} ${GENERATED_DIR_IEMS}
+    DEPENDS ${PRODUCT_CONTRACT_IEMS} ${CMAKE_CURRENT_SOURCE_DIR}/contracts/schema/tags.yaml ${CMAKE_CURRENT_SOURCE_DIR}/tools/contract_compiler.py
+    COMMENT "Generating contracts for iems"
+)
+
+add_custom_target(generate_contracts ALL
+    DEPENDS ${GENERATED_TAG_META_SRC_IEMS}
+)
+
+# Add the generated include directory to the global path
+include_directories(${GENERATED_INCLUDE_DIR_IEMS})
+
 add_library(edge_core_lib STATIC
+    # Generated Contract Code
+    ${GENERATED_TAG_META_SRC_IEMS}
+
     # Core / Shared Components (Cross-loop)
     src/core/edge_version.c
     src/core/edge_params.c
@@ -116,6 +141,9 @@ target_link_libraries(edge_core_lib PUBLIC
     QuickJS::QuickJS
     pthread dl rt m
 )
+
+# Make sure contracts are generated before the library is built
+add_dependencies(edge_core_lib generate_contracts)
 
 target_include_directories(edge_core_lib PUBLIC include algo/include)
 

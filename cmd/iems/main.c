@@ -7,6 +7,7 @@
 #include "edge_version.h"
 #include "js_engine.h"
 #include "script_loader.h"
+#include "edge_tag_id.h"
 
 // IEMS 产品特定的业务上下文
 typedef struct {
@@ -94,7 +95,7 @@ int main(int argc, char **argv) {
 
         pipe_msg_t m = {.type = PIPEMSG_SCALAR_F64,
 
-                        .tag_id = 1001,
+                        .tag_id = TAG_GRID_POWER,
 
                         .payload = {.val = {.f = 220.0 + (rand() % 100) / 10.0}},
 

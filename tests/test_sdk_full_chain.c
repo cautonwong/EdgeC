@@ -8,6 +8,7 @@
 
 #include "datahub.h"
 #include "stream_engine.h"
+#include "edge_tag_id.h"
 
 typedef struct {
     int data_points;
@@ -31,12 +32,12 @@ static void test_full_chain_data_flow(void **state) {
     assert_non_null(engine);
     stream_engine_start(engine);
 
-    pipeline_t *p = stream_engine_add_pipeline(engine, "vpp_agg", 1001);
+    pipeline_t *p = stream_engine_add_pipeline(engine, "vpp_agg", TAG_GRID_POWER);
     chain_mock_state_t *ms = calloc(1, sizeof(chain_mock_state_t));
     pipeline_add_stage(p, "agg", mock_chain_proc, ms, NULL, free);
 
     PipeMsg msg = {0};
-    msg.tag_id = 1001;
+    msg.tag_id = TAG_GRID_POWER;
     msg.payload.val.f = 500.0;
     msg.ts = 123456789;
 

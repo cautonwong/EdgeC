@@ -8,6 +8,7 @@
 
 #include "datahub.h"
 #include "stream_engine.h"
+#include "edge_tag_id.h"
 
 // --- Mock Stage ---
 typedef struct {
@@ -39,12 +40,12 @@ static void test_engine_basic_flow(void **state) {
     stream_engine_t *engine = stream_engine_create(&hub, NULL);
     assert_non_null(engine);
 
-    pipeline_t *p = stream_engine_add_pipeline(engine, "test_pipe", 1001);
+    pipeline_t *p = stream_engine_add_pipeline(engine, "test_pipe", TAG_GRID_POWER);
     mock_state_t *ms = calloc(1, sizeof(mock_state_t));
     pipeline_add_stage(p, "mock_stage", mock_stage_proc, ms, NULL, mock_cleanup);
 
     pipe_event_t ev = {
-        .type = EVT_DATA_POINT, .tag_id = 1001, .payload.val = 123.45, .calendar_ms = 1000000};
+        .type = EVT_DATA_POINT, .tag_id = TAG_GRID_POWER, .payload.val = 123.45, .calendar_ms = 1000000};
 
     // 工业级：直接注入数据并验证分发
     stream_engine_push_event(engine, &ev);

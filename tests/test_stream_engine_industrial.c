@@ -6,9 +6,9 @@
 #include <string.h>
 #include <uv.h>
 
-#include "../src/stream_engine/stream_engine_priv.h"
 #include "datahub.h"
 #include "stream_engine.h"
+#include "edge_tag_id.h"
 
 // --- Mocks ---
 
@@ -33,7 +33,7 @@ static void test_pipeline_sequential_execution(void **state) {
     datahub_init(&hub, loop, "ind_bus_seq_v2", 64, NULL, NULL);
 
     stream_engine_t *engine = stream_engine_create(&hub, NULL);
-    pipeline_t *p = stream_engine_add_pipeline(engine, "pipe1", 1001);
+    pipeline_t *p = stream_engine_add_pipeline(engine, "pipe1", TAG_GRID_POWER);
 
     mock_stage_state_t *s1 = calloc(1, sizeof(mock_stage_state_t));
     mock_stage_state_t *s2 = calloc(1, sizeof(mock_stage_state_t));
@@ -43,7 +43,7 @@ static void test_pipeline_sequential_execution(void **state) {
     pipeline_add_stage(p, "st1", industrial_mock_proc, s1, NULL, free);
     pipeline_add_stage(p, "st2", industrial_mock_proc, s2, NULL, free);
 
-    pipe_event_t ev = {.type = EVT_DATA_POINT, .tag_id = 1001};
+    pipe_event_t ev = {.type = EVT_DATA_POINT, .tag_id = TAG_GRID_POWER};
     stream_engine_push_event(engine, &ev);
 
     assert_int_equal(s1->calls, 1);
@@ -61,7 +61,7 @@ static void test_pipeline_async_suspension(void **state) {
     datahub_init(&hub, loop, "ind_bus_async_v2", 64, NULL, NULL);
 
     stream_engine_t *engine = stream_engine_create(&hub, NULL);
-    pipeline_t *p = stream_engine_add_pipeline(engine, "async_pipe", 1001);
+    pipeline_t *p = stream_engine_add_pipeline(engine, "async_pipe", TAG_GRID_POWER);
 
     mock_stage_state_t *s1 = calloc(1, sizeof(mock_stage_state_t));
     mock_stage_state_t *s2 = calloc(1, sizeof(mock_stage_state_t));
@@ -73,14 +73,14 @@ static void test_pipeline_async_suspension(void **state) {
     pipeline_add_stage(p, "st2", industrial_mock_proc, s2, NULL, free);
 
     // 1. Inject first event -> Suspends S1
-    pipe_event_t ev1 = {.type = EVT_DATA_POINT, .tag_id = 1001, .payload.val = 1.0};
+    pipe_event_t ev1 = {.type = EVT_DATA_POINT, .tag_id = TAG_GRID_POWER, .payload.val = 1.0};
     stream_engine_push_event(engine, &ev1);
 
     assert_int_equal(s1->calls, 1);
     assert_int_equal(s2->calls, 0);
 
     // 2. Inject second event -> Queues ev2
-    pipe_event_t ev2 = {.type = EVT_DATA_POINT, .tag_id = 1001, .payload.val = 2.0};
+    pipe_event_t ev2 = {.type = EVT_DATA_POINT, .tag_id = TAG_GRID_POWER, .payload.val = 2.0};
     stream_engine_push_event(engine, &ev2);
 
     // S1 should not be called again because pipeline is suspended
