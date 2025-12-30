@@ -65,6 +65,130 @@ edge_tag_id_t id = edge_lookup_modbus(0x0100, &scale);
 // id 会自动变为 1006 (TAG_CABINET_TEMP)
 ```
 
+### 2.3 全生命周期架构图 (v2.1)
+
+```mermaid
+graph TD
+    %% ========================================================
+    %% Layer 0: Raw Knowledge (原始知识与导入层)
+    %% ========================================================
+    subgraph Layer0["Layer 0: Raw Knowledge (原始知识与导入)"]
+        direction TB
+        
+        %% 来源
+        Vendor_Docs[("📑 厂商点表\n(Excel / CSV / PDF)")]
+        Industry_Std[("📕 行业标准\n(DLMS BlueBook / IEC61850)")]
+        Auto_Files[("🚗 汽车文件\n(CAN DBC / A2L)")]
+        
+        %% 工具
+        subgraph Toolchain["🧰 导入工具链 (Importers)"]
+            Py_Excel("🐍 import_excel.py")
+            Py_DBC("🐍 import_dbc.py")
+            AI_LLM("🤖 LLM Parser (PDF转译)")
+        end
+        
+        %% 人工输入
+        Architect(("👨‍💻 架构师/PM\n(领域定义)"))
+
+        Vendor_Docs --> Py_Excel
+        Vendor_Docs -.-> AI_LLM
+        Auto_Files --> Py_DBC
+        Industry_Std --> Py_Excel
+    end
+
+    %% ========================================================
+    %% Layer 1: Contract Source (YAML 定义层)
+    %% ========================================================
+    subgraph Layer1["Layer 1: Contract Source (YAML 契约层)"]
+        direction TB
+        
+        %% 接收 Layer 0 的输出
+        subgraph Bindings["协议绑定库 (Bindings)"]
+            DLMS_Bind["dlms/*.yaml\n(OBIS 映射)"]
+            Modbus_Bind["modbus/*.yaml\n(Reg 映射)"]
+            CAN_Bind["can/*.yaml\n(Signal 映射)"]
+        end
+        
+        subgraph OEM["二开定制 (OEM)"]
+            OEM_Map["custom_map.yaml"]
+        end
+        
+        %% 人工定义的
+        GlobalDefs[("🌍 tags.yaml\n(全平台语义定义)")]
+        ProductConfig["products/*.yaml\n(产品形态配置)"]
+    end
+
+    %% 连接 Layer 0 -> Layer 1
+    Py_Excel ==> Modbus_Bind & DLMS_Bind
+    Py_DBC ==> CAN_Bind
+    AI_LLM -.-> OEM_Map
+    
+    Architect ==> GlobalDefs
+    Architect ==> ProductConfig
+
+    %% ========================================================
+    %% Layer 2: The Compiler (编译与合并层)
+    %% ========================================================
+    subgraph Layer2["Layer 2: Contract Compiler (编译层)"]
+        direction TB
+        
+        GenScript("⚙️ contract_compiler.py")
+        Step_Merge["阶段 1: Merge & Resolve"]
+        EffectiveYAML[("✨ effective_contract.yaml\n(单一事实源/中间态)")]
+        Step_Gen["阶段 2: Code Generation"]
+
+        GlobalDefs --> GenScript
+        Bindings --> GenScript
+        ProductConfig --> GenScript
+        OEM --> GenScript
+        
+        GenScript --> Step_Merge --> EffectiveYAML --> Step_Gen
+    end
+
+    %% ========================================================
+    %% Layer 3: Generated Artifacts (静态产物层)
+    %% ========================================================
+    subgraph Layer3["Layer 3: Generated Artifacts (产物层)"]
+        direction TB
+        
+        Header_Config["edge_tag_config.h\n(裁剪宏 IS_ENABLED)"]
+        Header_ID["edge_tag_id.h\n(enum TagID)"]
+        
+        Src_Lookup["map_*.c\n(Perfect Hash / Binary Search)"]
+        Src_Meta["tag_meta.c\n(.rodata 元数据)"]
+        
+        LibFile[("📦 libedge_contracts.a")]
+        
+        Step_Gen --> Header_Config & Header_ID & Src_Lookup & Src_Meta
+        Src_Lookup & Src_Meta --> LibFile
+    end
+
+    %% ========================================================
+    %% Layer 4: Consumers (运行时消费层)
+    %% ========================================================
+    subgraph Layer4["Layer 4: Consumers (消费层)"]
+        
+        subgraph T1["T1: Driver (IO Executor)"]
+            Drv_Logic["驱动逻辑"]
+            Drv_Logic --"1.查表(Modbus/OBIS)"--> LibFile
+            Drv_Logic --"2.写入(TagID)"--> SHM[DataHub]
+            Header_Config -.-> Drv_Logic
+        end
+        
+        subgraph L2["L2: Core (Stream Engine)"]
+            Algo["Pipeline / Algo"]
+            Algo --"3.识别(TagID)"--> Header_ID
+            Header_Config -.-> Algo
+        end
+        
+        subgraph Docs["Docs & UI"]
+            Doc_Gen["生成 PDF/Excel"]
+            Web_UI["Web 配置页"]
+            EffectiveYAML -.-> Doc_Gen & Web_UI
+        end
+    end
+```
+
 ---
 
 ## 🛠️ 3. 开发与构建

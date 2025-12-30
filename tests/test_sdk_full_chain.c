@@ -34,7 +34,7 @@ static void test_full_chain_data_flow(void **state) {
 
     pipeline_t *p = stream_engine_add_pipeline(engine, "vpp_agg", 1001);
     chain_mock_state_t *ms = calloc(1, sizeof(chain_mock_state_t));
-    
+
     // 适配 v2.0：注入清理回调 (cleanup_state = free)
     pipeline_add_stage(p, "agg", mock_chain_proc, ms, free, NULL, NULL);
 
@@ -42,7 +42,7 @@ static void test_full_chain_data_flow(void **state) {
     msg.tag_id = 1001;
     msg.payload.val.f = 500.0;
     msg.ts = 123456789;
-    
+
     datahub_publish(&hub, &msg);
 
     // 驱动 Loop 处理异步信号
@@ -53,8 +53,9 @@ static void test_full_chain_data_flow(void **state) {
 
     stream_engine_destroy(engine);
     datahub_destroy(&hub);
-    
-    while(uv_run(loop, UV_RUN_NOWAIT));
+
+    while (uv_run(loop, UV_RUN_NOWAIT))
+        ;
 }
 
 int main(void) {

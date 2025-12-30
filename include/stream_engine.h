@@ -61,8 +61,7 @@ stream_engine_t *stream_engine_create(datahub_t *hub, engine_time_source_t *time
 pipeline_t *stream_engine_add_pipeline(stream_engine_t *engine, const char *id,
                                        uint32_t trigger_tag);
 void pipeline_add_stage(pipeline_t *p, const char *name, stage_proc_fn proc, void *init_state,
-                        void (*cleanup_state)(void *), void *init_cfg,
-                        void (*cleanup_cfg)(void *));
+                        void (*cleanup_state)(void *), void *init_cfg, void (*cleanup_cfg)(void *));
 void pipeline_resume(pipeline_t *p);
 
 int stream_engine_start(stream_engine_t *engine);

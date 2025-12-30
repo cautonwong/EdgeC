@@ -6,8 +6,8 @@
 #include <string.h>
 #include <uv.h>
 
-#include "stream_engine.h"
 #include "datahub.h"
+#include "stream_engine.h"
 
 typedef struct {
     int call_count;
@@ -35,7 +35,7 @@ static void test_engine_basic_flow(void **state) {
 
     stream_engine_t *engine = stream_engine_create(&hub, NULL);
     pipeline_t *p = stream_engine_add_pipeline(engine, "p1", 1001);
-    
+
     mock_stage_state_t *ms = calloc(1, sizeof(mock_stage_state_t));
     pipeline_add_stage(p, "mock_stage", mock_stage_proc, ms, mock_cleanup, NULL, NULL);
 
@@ -47,7 +47,8 @@ static void test_engine_basic_flow(void **state) {
 
     stream_engine_destroy(engine);
     datahub_destroy(&hub);
-    while (uv_run(loop, UV_RUN_NOWAIT));
+    while (uv_run(loop, UV_RUN_NOWAIT))
+        ;
 }
 
 int main(void) {

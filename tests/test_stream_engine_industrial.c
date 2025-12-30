@@ -6,8 +6,8 @@
 #include <string.h>
 #include <uv.h>
 
-#include "stream_engine.h"
 #include "datahub.h"
+#include "stream_engine.h"
 
 typedef struct {
     int calls;
@@ -32,7 +32,8 @@ static void test_pipeline_sequential_execution(void **state) {
 
     mock_stage_state_t *s1 = calloc(1, sizeof(mock_stage_state_t));
     mock_stage_state_t *s2 = calloc(1, sizeof(mock_stage_state_t));
-    s1->next_ret = STAGE_OK; s2->next_ret = STAGE_OK;
+    s1->next_ret = STAGE_OK;
+    s2->next_ret = STAGE_OK;
 
     pipeline_add_stage(p, "st1", industrial_mock_proc, s1, free, NULL, NULL);
     pipeline_add_stage(p, "st2", industrial_mock_proc, s2, free, NULL, NULL);
@@ -45,7 +46,8 @@ static void test_pipeline_sequential_execution(void **state) {
 
     stream_engine_destroy(engine);
     datahub_destroy(&hub);
-    while (uv_run(loop, UV_RUN_NOWAIT));
+    while (uv_run(loop, UV_RUN_NOWAIT))
+        ;
 }
 
 static void test_pipeline_async_suspension(void **state) {
@@ -59,7 +61,8 @@ static void test_pipeline_async_suspension(void **state) {
 
     mock_stage_state_t *s1 = calloc(1, sizeof(mock_stage_state_t));
     mock_stage_state_t *s2 = calloc(1, sizeof(mock_stage_state_t));
-    s1->next_ret = STAGE_ASYNC; s2->next_ret = STAGE_OK;
+    s1->next_ret = STAGE_ASYNC;
+    s2->next_ret = STAGE_OK;
 
     pipeline_add_stage(p, "st1", industrial_mock_proc, s1, free, NULL, NULL);
     pipeline_add_stage(p, "st2", industrial_mock_proc, s2, free, NULL, NULL);
@@ -67,16 +70,17 @@ static void test_pipeline_async_suspension(void **state) {
     pipe_event_t ev1 = {.type = EVT_DATA_POINT, .tag_id = 1001, .payload.val = 1.0};
     stream_engine_push_event(engine, &ev1);
     assert_int_equal(s1->calls, 1);
-    assert_int_equal(s2->calls, 0); 
+    assert_int_equal(s2->calls, 0);
 
-    s1->next_ret = STAGE_OK; 
+    s1->next_ret = STAGE_OK;
     pipeline_resume(p);
-    assert_int_equal(s1->calls, 1); // 恢复时从 resume_point (S2) 开始，不应重跑 S1
-    assert_int_equal(s2->calls, 1); 
+    assert_int_equal(s1->calls, 1);  // 恢复时从 resume_point (S2) 开始，不应重跑 S1
+    assert_int_equal(s2->calls, 1);
 
     stream_engine_destroy(engine);
     datahub_destroy(&hub);
-    while (uv_run(loop, UV_RUN_NOWAIT));
+    while (uv_run(loop, UV_RUN_NOWAIT))
+        ;
 }
 
 int main(void) {
