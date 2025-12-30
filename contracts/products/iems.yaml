@@ -1,6 +1,11 @@
-product: "Home_Gateway_Lite"
+product: "IEMS_Controller_V1"
 includes:
   - "contracts/bindings/modbus/huawei_sun2000.yaml"
-overrides:
-  VOLTAGE_PHASE_A:
-    upload: false # 节省流量
+  - "contracts/bindings/modbus/acrel_p80.yaml"
+
+enabled_tags:
+  - GRID_POWER
+  - GRID_FREQUENCY
+  - VOLTAGE_PHASE_A
+  - BATTERY_SOC
+  - BATTERY_POWER

@@ -1,0 +1,18 @@
+# Acrel P80 Smart Meter Binding
+protocol: "MODBUS"
+model: "Acrel_P80"
+mappings:
+  - tag: VOLTAGE_PHASE_A
+    addr: 0x0000
+    scale: 0.1
+    desc: "A相电压 (0.1V)"
+
+  - tag: GRID_FREQUENCY
+    addr: 0x0034
+    scale: 0.01
+    desc: "电网频率 (0.01Hz)"
+
+  - tag: GRID_POWER
+    addr: 0x000C
+    scale: 1.0
+    desc: "总有功功率 (1W)"

@@ -3,11 +3,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "contracts.h"
 #include "edge_service.h"
 #include "edge_version.h"
 #include "js_engine.h"
 #include "script_loader.h"
-#include "contracts.h"
 
 // IEMS 产品特定的业务上下文
 typedef struct {
@@ -51,6 +51,9 @@ int main(int argc, char **argv) {
     // --- IEMS 产品组件装配 ---
     iems_ctx_t *iems = calloc(1, sizeof(iems_ctx_t));
     service_t *svc = service_new(&opts);
+
+    // [关键注入]：指定当前产品的审计契约路径 (对齐 Web UI 动态化要求)
+    service_set_contract_path(svc, "products/iems/generated/contracts.yaml");
 
     uv_loop_t *loop = malloc(sizeof(uv_loop_t));
     uv_loop_init(loop);

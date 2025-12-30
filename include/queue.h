@@ -18,7 +18,7 @@
 
 #include <stddef.h>
 
-#define uv__queue_data(pointer, type, field) ((type*)((char*)(pointer) - offsetof(type, field)))
+#define uv__queue_data(pointer, type, field) ((type*)((char*)(pointer)-offsetof(type, field)))
 
 #define uv__queue_foreach(q, h) for ((q) = (h)->next; (q) != (h); (q) = (q)->next)
 

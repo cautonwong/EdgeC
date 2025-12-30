@@ -6,9 +6,9 @@
 #include <string.h>
 #include <uv.h>
 
+#include "contracts.h"
 #include "datahub.h"
 #include "stream_engine.h"
-#include "contracts.h"
 
 // --- Mock Stage ---
 typedef struct {
@@ -44,8 +44,10 @@ static void test_engine_basic_flow(void **state) {
     mock_state_t *ms = calloc(1, sizeof(mock_state_t));
     pipeline_add_stage(p, "mock_stage", mock_stage_proc, ms, NULL, mock_cleanup);
 
-    pipe_event_t ev = {
-        .type = EVT_DATA_POINT, .tag_id = TAG_GRID_POWER, .payload.val = 123.45, .calendar_ms = 1000000};
+    pipe_event_t ev = {.type = EVT_DATA_POINT,
+                       .tag_id = TAG_GRID_POWER,
+                       .payload.val = 123.45,
+                       .calendar_ms = 1000000};
 
     // 工业级：直接注入数据并验证分发
     stream_engine_push_event(engine, &ev);

@@ -38,10 +38,8 @@ service_t *service_new(service_options_t *opts);
  * @brief 注入事件循环 (用于在 run 之前初始化依赖 loop 的组件)
  */
 void service_set_loop(service_t *svc, uv_loop_t *loop);
-
-/**
- * @brief 获取服务容器的事件循环
- */
+void service_set_datahub(service_t *svc, datahub_t *hub);
+void service_set_storage(service_t *svc, sqlite_svc_t *storage);
 uv_loop_t *service_get_loop(service_t *svc);
 
 /**
@@ -66,29 +64,21 @@ datahub_t *service_get_datahub(service_t *svc);
 sqlite_svc_t *service_get_storage(service_t *svc);
 
 /**
+ * @brief 设置/获取当前产品的契约审计文件路径 (contracts.yaml)
+ */
+void service_set_contract_path(service_t *svc, const char *path);
+const char *service_get_contract_path(service_t *svc);
+
+/**
  * @brief 启动服务容器并注入依赖 (黑盒模式)
  */
 int service_run(service_t *svc, uv_loop_t *loop, net_buf_pool_t *pool, arbiter_t *arbiter,
                 datahub_t *hub, persistence_mgr_t *storage, northbound_mgr_t *cloud);
 
 /**
- * @brief 从外部（如 REST 线程）投递指令
+ * @brief 异步向主循环投递控制指令 (北向 -> 控制面)
  */
-typedef enum {
-    SVC_CMD_WRITE = 0,
-    SVC_CMD_READ_ON_DEMAND,
-    SVC_CMD_OTA_START,
-    SVC_CMD_OTA_END
-} service_cmd_type_t;
-
-typedef struct {
-    service_cmd_type_t type;
-    uint32_t tag_id;
-    double value;
-    void *data;
-} service_cmd_t;
-
-int service_post_cmd(service_t *svc, service_cmd_t *cmd);
+int service_post_cmd(service_t *svc, cmd_msg_t *cmd);
 
 /**
  * @brief 销毁服务实例

@@ -6,10 +6,10 @@
 #include <stdlib.h>
 #include <uv.h>
 
+#include "contracts.h"
 #include "datahub.h"
 #include "sqlite_service.h"
 #include "stream_engine.h"
-#include "contracts.h"
 
 static void create_test_config(const char *path) {
     FILE *f = fopen(path, "w");
@@ -25,7 +25,8 @@ static void create_test_config(const char *path) {
             "      ]\n"
             "    }\n"
             "  ]\n"
-            "}", TAG_GRID_POWER);
+            "}",
+            TAG_GRID_POWER);
     fclose(f);
 }
 
@@ -49,8 +50,10 @@ static void test_loader_dynamic_build(void **state) {
     int ret = stream_engine_load_config(engine, config_path, db);
     assert_int_equal(ret, 0);
 
-    pipe_event_t ev = {
-        .type = EVT_DATA_POINT, .tag_id = TAG_GRID_POWER, .payload.val = 100.0, .calendar_ms = 123456};
+    pipe_event_t ev = {.type = EVT_DATA_POINT,
+                       .tag_id = TAG_GRID_POWER,
+                       .payload.val = 100.0,
+                       .calendar_ms = 123456};
     stream_engine_push_event(engine, &ev);
 
     // 清理

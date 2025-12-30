@@ -6,9 +6,9 @@
 #include <unistd.h>
 #include <uv.h>
 
+#include "contracts.h"
 #include "datahub.h"
 #include "stream_engine.h"
-#include "contracts.h"
 
 typedef struct {
     int data_points;

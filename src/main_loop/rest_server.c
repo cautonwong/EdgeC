@@ -1,15 +1,16 @@
 #include "rest_server.h"
 
-#include <cjson/cJSON.h>
+#include <cJSON/cJSON.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
+#include "contract_data_types.h"
 #include "datahub.h"
 #include "edge_params.h"
 #include "edge_service.h"
 #include "sqlite_service.h"
-#include "contracts.h"
 
 #define HTTP_RESPONSE_FMT                \
     "HTTP/1.1 200 OK\r\n"                \
@@ -50,7 +51,6 @@ static int on_sqlite_row(void *user_data, PipeMsg *msg) {
  * 场景：Web UI 查询历史曲线
  */
 
-
 static char *handle_system_health(service_t *svc) {
     cJSON *root = cJSON_CreateObject();
     cJSON_AddStringToObject(root, "status", "ok");
@@ -77,10 +77,55 @@ static char *handle_data_latest(service_t *svc, uint32_t tag_id) {
     return out;
 }
 
+#include <unistd.h>
+
+/**
+
+ * @brief 下发当前产品的数据宪法 (对齐 UI 动态化要求)
+
+ */
+
+static char *handle_contracts_get(service_t *svc) {
+    const char *path = service_get_contract_path(svc);
+
+    if (!path || access(path, F_OK) != 0) {
+        return strdup("{\"error\":\"contract_not_found\"}");
+    }
+
+    // 原则 1：使用 libuv 同步读取简单文件 (此处简化，生产环境可用 uv_fs_read)
+
+    FILE *f = fopen(path, "r");
+
+    if (!f) return strdup("{\"error\":\"read_failed\"}");
+
+    fseek(f, 0, SEEK_END);
+
+    long len = ftell(f);
+
+    fseek(f, 0, SEEK_SET);
+
+    char *buf = malloc((size_t)len + 1);
+
+    fread(buf, 1, (size_t)len, f);
+
+    fclose(f);
+
+    buf[len] = '\0';
+
+    // 虽然是 YAML，但前端通常期望 JSON。这里我们可以通过 cJSON 转化，
+
+    // 或者直接告知前端获取的是 YAML 格式。为了极致体验，我们在此处下发原始文件。
+
+    return buf;
+}
+
 char *rest_dispatch(service_t *svc, const char *path) {
     if (strcmp(path, "/api/v1/system/health") == 0) return handle_system_health(svc);
 
-    // 路由 1: 实时影子点查
+    // [新增] 契约元数据接口
+
+    if (strcmp(path, "/api/v1/contracts") == 0) return handle_contracts_get(svc);
+
     if (strncmp(path, "/api/v1/data/latest/", 20) == 0) {
         uint32_t tag_id = (uint32_t)atoi(path + 20);
         return handle_data_latest(svc, tag_id);

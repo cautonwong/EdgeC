@@ -1,11 +1,15 @@
 product: "IEMS_Controller_V1"
+# 继承默认点表
 includes:
-  - "bindings/modbus_maps/default_device.yaml"
+  - "contracts/bindings/modbus_maps/default_device.yaml"
 
-# List of semantic tags to be included in this product build.
+# 启用核心测点
 enabled_tags:
   - GRID_POWER
   - VOLTAGE_PHASE_A
+  - GRID_FREQUENCY
+
+# 项目现场独有测点：9002 环境湿度
 tags:
   - id: 9001
     name: CUSTOM_TEMP_SENSOR
@@ -16,3 +20,12 @@ tags:
       - protocol: MODBUS
         addr: 50001
         scale: 0.1
+
+  - id: 9002
+    name: PROJECT_HUMIDITY
+    type: float
+    unit: "%"
+    bindings:
+      - protocol: MODBUS
+        addr: 50002
+        scale: 1.0

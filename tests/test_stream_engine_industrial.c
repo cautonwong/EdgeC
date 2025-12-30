@@ -6,9 +6,9 @@
 #include <string.h>
 #include <uv.h>
 
+#include "contracts.h"
 #include "datahub.h"
 #include "stream_engine.h"
-#include "contracts.h"
 
 // --- Mocks ---
 
