@@ -149,13 +149,15 @@ int stream_engine_start(stream_engine_t *engine) {
 }
 
 void pipeline_add_stage(pipeline_t *p, const char *name, stage_proc_fn proc, void *init_state,
-                        void *init_cfg, void (*cleanup)(void *)) {
+                        void (*cleanup_state)(void *), void *init_cfg,
+                        void (*cleanup_cfg)(void *)) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
     strncpy(s->name, name, 31);
     s->process = proc;
     s->priv_state = init_state;
+    s->cleanup_state = cleanup_state;
     s->priv_cfg = init_cfg;
-    s->cleanup = cleanup;
+    s->cleanup_cfg = cleanup_cfg;
     if (!p->head)
         p->head = p->tail = s;
     else {
@@ -206,7 +208,9 @@ void stream_engine_destroy(stream_engine_t *engine) {
         pipeline_stage_t *curr = p->head;
         while (curr) {
             pipeline_stage_t *next = curr->next;
-            if (curr->cleanup) curr->cleanup(curr->priv_state);
+            // 物理回收：同时清理状态和配置
+            if (curr->cleanup_state) curr->cleanup_state(curr->priv_state);
+            if (curr->cleanup_cfg) curr->cleanup_cfg(curr->priv_cfg);
             free(curr);
             curr = next;
         }

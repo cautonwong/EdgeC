@@ -47,7 +47,8 @@ struct pipeline_stage_s {
     stage_proc_fn process;
     void *priv_state;
     void *priv_cfg;
-    void (*cleanup)(void *state);
+    void (*cleanup_state)(void *state);
+    void (*cleanup_cfg)(void *cfg);
     struct pipeline_stage_s *next;
 };
 
@@ -60,15 +61,25 @@ stream_engine_t *stream_engine_create(datahub_t *hub, engine_time_source_t *time
 pipeline_t *stream_engine_add_pipeline(stream_engine_t *engine, const char *id,
                                        uint32_t trigger_tag);
 void pipeline_add_stage(pipeline_t *p, const char *name, stage_proc_fn proc, void *init_state,
-                        void *init_cfg, void (*cleanup)(void *));
+                        void (*cleanup_state)(void *), void *init_cfg,
+                        void (*cleanup_cfg)(void *));
 void pipeline_resume(pipeline_t *p);
 
 int stream_engine_start(stream_engine_t *engine);
 int stream_engine_push_event(stream_engine_t *engine, pipe_event_t *ev);
 /**
+ * @brief Context for loading pipelines, providing necessary service handles.
+ */
+typedef struct {
+    sqlite_svc_t *db;
+    js_engine_t *js_engine;
+} pipeline_loader_ctx_t;
+
+/**
  * @brief Load pipeline configurations from a JSON file.
  */
-int stream_engine_load_config(stream_engine_t *engine, const char *json_path, void *db_context);
+int stream_engine_load_config(stream_engine_t *engine, const char *json_path,
+                              pipeline_loader_ctx_t *ctx);
 
 void stream_engine_destroy(stream_engine_t *engine);
 

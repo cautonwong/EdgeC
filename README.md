@@ -21,11 +21,49 @@ EdgeOS 是一个专为 **工业物联网 (IIoT)**、**能源管理系统 (EMS)**
 
 ## 📜 2. 契约治理体系 (Contract Governance v2.0)
 
-EdgeOS 实现了真正的**软硬件解耦**与**数据驱动 UI**：
-*   **单一事实源 (SSoT)**：通过 `tags.yaml` 统一定义语义、量程、单位及 UI 展现元数据。
-*   **编译时解耦**：核心库（L1/L2）仅依赖静态类型定义，不绑定具体产品点表。
-*   **物理隔离沙箱**：每个产品（如 IEMS、SG）拥有独立的契约库与生成代码，互不干扰。
-*   **契约化驱动**：驱动层调用 `edge_lookup_modbus` 等 API 动态转换 TagID，实现 0 硬编码。
+EdgeOS 采用“契约驱动开发 (CDD)”模式，通过 YAML 定义系统的“数据宪法”，并自动生成高性能的 C 语言查表代码。
+
+### 2.1 契约三级模型
+| 层级 | 文件路径 | 职责描述 |
+| :--- | :--- | :--- |
+| **L1: 全局语义** | `contracts/schema/tags.yaml` | **定义“是什么”**。规定 TagID、名称、单位、类型及 UI 展现元数据。 |
+| **L2: 协议绑定** | `contracts/bindings/` | **定义“怎么拿”**。规定特定设备型号（如 Acrel_P80）的寄存器映射。 |
+| **L3: 产品定制** | `cmd/<prod>/extension.yaml` | **定义“我要谁”**。选择开启哪些功能，或定义项目现场私有测点。 |
+
+### 2.2 实战指南：新增一个“机柜温度”测点
+
+#### 第一步：在全局字典中定义语义 (`tags.yaml`)
+```yaml
+- id: 1006
+  name: CABINET_TEMP
+  type: float
+  unit: "C"
+  attributes:
+    ui: { group: "Environment", min: -20, max: 80, precision: 1 }
+    northbound: { storage: "trend" }
+```
+
+#### 第二步：在 Modbus 点表中绑定物理地址 (`bindings/modbus/xxx.yaml`)
+```yaml
+mappings:
+  - tag: CABINET_TEMP
+    addr: 0x0100  # 对应硬件 256 寄存器
+    scale: 0.1    # 原始值 255 -> 25.5 C
+```
+
+#### 第三步：在产品中启用该测点 (`extension.yaml`)
+```yaml
+enabled_tags:
+  - CABINET_TEMP
+```
+
+#### 第四步：在 C 语言驱动中引用 (自动感知)
+```c
+// 驱动层无需修改代码，编译后自动支持：
+float scale;
+edge_tag_id_t id = edge_lookup_modbus(0x0100, &scale); 
+// id 会自动变为 1006 (TAG_CABINET_TEMP)
+```
 
 ---
 

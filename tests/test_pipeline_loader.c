@@ -44,13 +44,14 @@ static void test_loader_dynamic_build(void **state) {
     assert_non_null(engine);
     stream_engine_start(engine);
 
-    const char *config_path = "tmp_pipeline.json";
-    create_test_config(config_path);
-
-    int ret = stream_engine_load_config(engine, config_path, db);
-    assert_int_equal(ret, 0);
-
-    pipe_event_t ev = {.type = EVT_DATA_POINT,
+        const char *config_path = "tmp_pipeline.json";
+        create_test_config(config_path);
+        
+        // 关键修正：使用 ctx 传递依赖
+        pipeline_loader_ctx_t loader_ctx = { .db = db, .js_engine = NULL };
+        int ret = stream_engine_load_config(engine, config_path, &loader_ctx);
+        assert_int_equal(ret, 0);
+        pipe_event_t ev = {.type = EVT_DATA_POINT,
                        .tag_id = TAG_GRID_POWER,
                        .payload.val = 100.0,
                        .calendar_ms = 123456};

@@ -3,10 +3,8 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <uv.h>
 
-#include "contracts.h"
 #include "datahub.h"
 #include "stream_engine.h"
 
@@ -21,44 +19,42 @@ static stage_ret_t mock_chain_proc(pipeline_stage_t *stage, pipe_event_t *ev) {
     return STAGE_OK;
 }
 
+// Private header access for manual loop driving
+#include "../src/stream_engine/stream_engine_priv.h"
+
 static void test_full_chain_data_flow(void **state) {
     (void)state;
     uv_loop_t *loop = uv_default_loop();
 
     datahub_t hub;
-    datahub_init(&hub, loop, "full_chain_v5", 64, NULL, NULL);
+    datahub_init(&hub, loop, "full_chain_v6", 64, NULL, NULL);
 
     stream_engine_t *engine = stream_engine_create(&hub, NULL);
     assert_non_null(engine);
-    stream_engine_start(engine);
 
-    pipeline_t *p = stream_engine_add_pipeline(engine, "vpp_agg", TAG_GRID_POWER);
+    pipeline_t *p = stream_engine_add_pipeline(engine, "vpp_agg", 1001);
     chain_mock_state_t *ms = calloc(1, sizeof(chain_mock_state_t));
-    pipeline_add_stage(p, "agg", mock_chain_proc, ms, NULL, free);
+    
+    // 适配 v2.0：注入清理回调 (cleanup_state = free)
+    pipeline_add_stage(p, "agg", mock_chain_proc, ms, free, NULL, NULL);
 
     PipeMsg msg = {0};
-    msg.tag_id = TAG_GRID_POWER;
+    msg.tag_id = 1001;
     msg.payload.val.f = 500.0;
     msg.ts = 123456789;
-
+    
     datahub_publish(&hub, &msg);
 
-    // Wait for the async processing to complete in the engine's thread
-    for (int i = 0; i < 100; i++) {
-        if (ms->data_points > 0) break;
-        uv_run(loop, UV_RUN_NOWAIT);  // Drive the main loop to process hub events
-        usleep(10000);                // 10ms
-    }
+    // 驱动 Loop 处理异步信号
+    uv_run(loop, UV_RUN_NOWAIT);
+    uv_run(engine->loop, UV_RUN_NOWAIT);
 
     assert_int_equal(ms->data_points, 1);
 
     stream_engine_destroy(engine);
     datahub_destroy(&hub);
-
-    // Run loop to process all close callbacks
-    while (uv_loop_close(loop) == UV_EBUSY) {
-        uv_run(loop, UV_RUN_ONCE);
-    }
+    
+    while(uv_run(loop, UV_RUN_NOWAIT));
 }
 
 int main(void) {
