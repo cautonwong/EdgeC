@@ -15,7 +15,7 @@ static void test_fuzz_read_write(void **state) {
     shm_ring_t ring;
     assert_int_equal(shmring_create(&ring, "fuzz_ring", 1024), 0);
 
-    srand(time(NULL));
+    srand((unsigned int)time(NULL));
     uint64_t last_seq = 0;
     PipeMsg w_msg, r_msg;
 

@@ -19,8 +19,6 @@
 
 static uv_loop_t *loop;
 static service_t *svc;
-static js_engine_t *js_engine;
-static script_loader_t *loader;
 static sqlite_svc_t *db_svc;
 static datahub_t data_hub;
 static stream_engine_t *stream_engine;

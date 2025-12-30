@@ -22,28 +22,15 @@ typedef struct param_entry {
 static param_entry_t *g_cache = NULL;
 static sqlite_svc_t *g_db = NULL;
 
-void edge_param_init(sqlite_svc_t *svc) {
-    g_db = svc;
-    // 自动创建符合 Web UI IA 规范的表结构
-    const char *schema =
-        "CREATE TABLE IF NOT EXISTS param_kv ("
-        "  key TEXT PRIMARY KEY,"
-        "  type INTEGER,"
-        "  value TEXT,"
-        "  updated_at INTEGER"
-        ");"
-        "CREATE TABLE IF NOT EXISTS param_audit ("
-        "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
-        "  key TEXT,"
-        "  old_val TEXT,"
-        "  new_val TEXT,"
-        "  ts INTEGER"
-        ");";
-
-    // 注意：这里应调用 sqlite_svc 执行 schema，目前 SDK 简化处理
-    printf("[EdgeParams] Schema initialized via SQLite Service.\n");
+static int edge_param_init(edge_param_t *param, const char *path) {
+    (void)param;
+    cJSON *root = load_json_from_file(path);
+    if (!root) return -1;
+    // const char *schema =
+    // cJSON_GetStringValue(cJSON_GetObjectItem(root,"schema"));
+    cJSON_Delete(root);
+    return 0;
 }
-
 static param_entry_t *find_in_cache(const char *key) {
     param_entry_t *curr = g_cache;
     while (curr) {

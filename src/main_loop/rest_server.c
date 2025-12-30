@@ -50,6 +50,7 @@ static int on_sqlite_row(void *user_data, PipeMsg *msg) {
  * 场景：Web UI 查询历史曲线
  */
 static char *handle_history_query(service_t *svc, uint32_t tag_id, uint64_t start, uint64_t end) {
+    (void)tag_id; // This parameter is currently a stub for future query parsing
     // 1. 获取持久化服务句柄
     sqlite_svc_t *db = service_get_storage(svc);
     if (!db) return strdup("{\"error\":\"storage_not_ready\"}");
@@ -117,6 +118,7 @@ char *rest_dispatch(service_t *svc, const char *path) {
 // --- libuv TCP stack implementation ... ---
 
 static void on_write(uv_write_t *req, int status) {
+    (void)status;
     free(req->data);
     free(req);
 }
@@ -130,7 +132,7 @@ static void on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
         char *json = rest_dispatch(srv->svc, path);
         size_t json_len = strlen(json);
         char *resp = malloc(json_len + 512);
-        size_t resp_len = sprintf(resp, HTTP_RESPONSE_FMT, json_len, json);
+        size_t resp_len = (size_t)sprintf(resp, HTTP_RESPONSE_FMT, json_len, json);
         uv_write_t *write_req = malloc(sizeof(uv_write_t));
         write_req->data = resp;
         uv_buf_t write_buf = uv_buf_init(resp, (unsigned int)resp_len);
@@ -142,6 +144,7 @@ static void on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
 }
 
 static void on_alloc(uv_handle_t *h, size_t suggested, uv_buf_t *buf) {
+    (void)h;
     buf->base = malloc(suggested);
     buf->len = suggested;
 }
