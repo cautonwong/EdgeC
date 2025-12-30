@@ -3,6 +3,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <uv.h>
 
 #include "io_executor.h"
@@ -43,14 +44,17 @@ static void test_io_executor_parallel(void **state) {
         }
     }
 
+    assert_int_equal(ctx->work_count, N);
+
     /* Run the loop until all jobs are done */
-    for (int i = 0; i < 100; i++) {
-        uv_run(&ctx->loop, UV_RUN_NOWAIT);
-        if (ctx->done_count >= N) break;
-        uv_sleep(5000);
+    while (ctx->done_count < N) {
+        // uv_run will return 0 if there are no more active handles.
+        // If we are still in the while loop, it means we are stuck.
+        if (uv_run(&ctx->loop, UV_RUN_ONCE) == 0 && ctx->done_count < N) {
+            break; 
+        }
     }
 
-    assert_int_equal(ctx->work_count, N);
     assert_int_equal(ctx->done_count, N);
 }
 
@@ -59,6 +63,9 @@ static void test_io_executor_parallel(void **state) {
 static int setup(void **state) {
     test_ctx_t *ctx = calloc(1, sizeof(*ctx));
     assert_non_null(ctx);
+    
+    ctx->work_count = 0;
+    ctx->done_count = 0;
 
     uv_loop_init(&ctx->loop);
     io_executor_init(&ctx->loop);
@@ -71,8 +78,10 @@ static int teardown(void **state) {
     test_ctx_t *ctx = (test_ctx_t *)*state;
 
     io_executor_shutdown();
-    uv_run(&ctx->loop, UV_RUN_DEFAULT);
-    uv_loop_close(&ctx->loop);
+    // Run the loop to ensure all close callbacks are processed
+    while (uv_loop_close(&ctx->loop) == UV_EBUSY) {
+        uv_run(&ctx->loop, UV_RUN_ONCE);
+    }
     free(ctx);
 
     return 0;

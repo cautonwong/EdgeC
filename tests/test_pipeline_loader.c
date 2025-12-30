@@ -39,6 +39,8 @@ static void test_loader_dynamic_build(void **state) {
     sqlite_svc_t *db = sqlite_svc_create(loop, &db_cfg);
 
     stream_engine_t *engine = stream_engine_create(&hub, NULL);
+    assert_non_null(engine);
+    stream_engine_start(engine);
 
     const char *config_path = "tmp_pipeline.json";
     create_test_config(config_path);

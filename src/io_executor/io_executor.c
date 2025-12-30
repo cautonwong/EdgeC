@@ -38,6 +38,7 @@ typedef struct {
     io_job_t *done_tail;
 
     bool running;
+    uv_sem_t ready_sem;
 } io_thread_ctx_t;
 
 static io_thread_ctx_t g_threads[IO_BUS_MAX];
@@ -172,6 +173,7 @@ static void io_thread_entry(void *arg) {
     }
 
     ctx->running = true;
+    uv_sem_post(&ctx->ready_sem); // Signal that thread is initialized
     uv_run(ctx->loop, UV_RUN_DEFAULT);
 
     // Cleanup after loop exits
@@ -207,9 +209,12 @@ int io_executor_init(uv_loop_t *main_loop) {
         ctx->done_head = ctx->done_tail = NULL;
         uv_mutex_init(&ctx->queue_lock);
         uv_mutex_init(&ctx->done_lock);
+        uv_sem_init(&ctx->ready_sem, 0);
         uv_async_init(main_loop, &ctx->async_complete, on_async_complete);
         ctx->async_complete.data = ctx;
         uv_thread_create(&ctx->thread_id, io_thread_entry, ctx);
+        uv_sem_wait(&ctx->ready_sem);
+        uv_sem_destroy(&ctx->ready_sem);
     }
     return 0;
 }

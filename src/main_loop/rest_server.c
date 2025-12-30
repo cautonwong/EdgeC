@@ -1,6 +1,6 @@
 #include "rest_server.h"
 
-#include <cJSON/cJSON.h>
+#include <cjson/cJSON.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

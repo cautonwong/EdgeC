@@ -3,6 +3,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <uv.h>
 
 #include "datahub.h"
@@ -19,9 +20,6 @@ static stage_ret_t mock_chain_proc(pipeline_stage_t *stage, pipe_event_t *ev) {
     return STAGE_OK;
 }
 
-// Private header access for manual loop driving
-#include "../src/stream_engine/stream_engine_priv.h"
-
 static void test_full_chain_data_flow(void **state) {
     (void)state;
     uv_loop_t *loop = uv_default_loop();
@@ -31,6 +29,7 @@ static void test_full_chain_data_flow(void **state) {
 
     stream_engine_t *engine = stream_engine_create(&hub, NULL);
     assert_non_null(engine);
+    stream_engine_start(engine);
 
     pipeline_t *p = stream_engine_add_pipeline(engine, "vpp_agg", 1001);
     chain_mock_state_t *ms = calloc(1, sizeof(chain_mock_state_t));
@@ -43,19 +42,22 @@ static void test_full_chain_data_flow(void **state) {
 
     datahub_publish(&hub, &msg);
 
-    // 1. Process async signal on the HUB's loop (default loop)
-    uv_run(loop, UV_RUN_NOWAIT);
-
-    // 2. IMPORTANT: Since we didn't start the engine thread,
-    // we must manually drive the engine's private loop to process the async notification
-    uv_run(engine->loop, UV_RUN_NOWAIT);
+    // Wait for the async processing to complete in the engine's thread
+    for (int i = 0; i < 100; i++) {
+        if (ms->data_points > 0) break;
+        uv_run(loop, UV_RUN_NOWAIT); // Drive the main loop to process hub events
+        usleep(10000); // 10ms
+    }
 
     assert_int_equal(ms->data_points, 1);
 
     stream_engine_destroy(engine);
     datahub_destroy(&hub);
 
-    uv_run(loop, UV_RUN_DEFAULT);
+    // Run loop to process all close callbacks
+    while(uv_loop_close(loop) == UV_EBUSY) {
+        uv_run(loop, UV_RUN_ONCE);
+    }
 }
 
 int main(void) {
