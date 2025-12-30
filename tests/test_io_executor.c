@@ -51,7 +51,7 @@ static void test_io_executor_parallel(void **state) {
         // uv_run will return 0 if there are no more active handles.
         // If we are still in the while loop, it means we are stuck.
         if (uv_run(&ctx->loop, UV_RUN_ONCE) == 0 && ctx->done_count < N) {
-            break; 
+            break;
         }
     }
 
@@ -63,7 +63,7 @@ static void test_io_executor_parallel(void **state) {
 static int setup(void **state) {
     test_ctx_t *ctx = calloc(1, sizeof(*ctx));
     assert_non_null(ctx);
-    
+
     ctx->work_count = 0;
     ctx->done_count = 0;
 

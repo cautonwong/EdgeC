@@ -45,8 +45,8 @@ static void test_full_chain_data_flow(void **state) {
     // Wait for the async processing to complete in the engine's thread
     for (int i = 0; i < 100; i++) {
         if (ms->data_points > 0) break;
-        uv_run(loop, UV_RUN_NOWAIT); // Drive the main loop to process hub events
-        usleep(10000); // 10ms
+        uv_run(loop, UV_RUN_NOWAIT);  // Drive the main loop to process hub events
+        usleep(10000);                // 10ms
     }
 
     assert_int_equal(ms->data_points, 1);
@@ -55,7 +55,7 @@ static void test_full_chain_data_flow(void **state) {
     datahub_destroy(&hub);
 
     // Run loop to process all close callbacks
-    while(uv_loop_close(loop) == UV_EBUSY) {
+    while (uv_loop_close(loop) == UV_EBUSY) {
         uv_run(loop, UV_RUN_ONCE);
     }
 }

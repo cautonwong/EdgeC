@@ -196,8 +196,7 @@ void stream_engine_destroy(stream_engine_t *engine) {
 
     if (engine->loop) {
         uv_walk(engine->loop, on_walk_close, NULL);
-        while (uv_run(engine->loop, UV_RUN_ONCE))
-            ;
+        while (uv_run(engine->loop, UV_RUN_ONCE));
         uv_loop_delete(engine->loop);
     }
     uv_mutex_destroy(&engine->pipe_mutex);

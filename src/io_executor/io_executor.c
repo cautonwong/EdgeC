@@ -173,7 +173,7 @@ static void io_thread_entry(void *arg) {
     }
 
     ctx->running = true;
-    uv_sem_post(&ctx->ready_sem); // Signal that thread is initialized
+    uv_sem_post(&ctx->ready_sem);  // Signal that thread is initialized
     uv_run(ctx->loop, UV_RUN_DEFAULT);
 
     // Cleanup after loop exits
