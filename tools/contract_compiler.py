@@ -83,13 +83,15 @@ def gen_header(contract, out_path):
     lines.append("const tag_meta_t* edge_get_meta(edge_tag_id_t id);")
     lines.append("edge_tag_id_t edge_lookup_modbus(uint16_t reg, float *out_scale);")
     lines.append("edge_tag_id_t edge_lookup_dlms(const char* obis, float *out_scale);")
+    lines.append("edge_tag_id_t edge_lookup_dlt698(const char* oaid, float *out_scale);")
+    lines.append("edge_tag_id_t edge_lookup_dlt645(const char* di, float *out_scale);")
     lines.append("edge_tag_id_t edge_lookup_iec104(int ioa);")
     lines.append("\n#endif")
     with open(out_path, 'w') as f: f.write("\n".join(lines) + "\n")
 
 def gen_source(contract, out_path):
     active_tags = sorted(contract['active_tags'], key=lambda x: x['id'])
-    proto_map = {'MODBUS':[], 'DLMS':[], 'IEC104':[], 'CAN':[]}
+    proto_map = {'MODBUS':[], 'DLMS':[], 'DLT698':[], 'DLT645':[], 'IEC104':[], 'CAN':[]}
     for t in active_tags:
         for b in t.get('bindings', []):
             b_merged = b.copy(); b_merged['tag_name'] = t['name']; b_merged['tag_id'] = t['id']
@@ -106,11 +108,12 @@ def gen_source(contract, out_path):
     for m in m_list: lines.append("    { %d, TAG_%s, %ff }," % (m['addr'], m['tag_name'], m.get('scale', 1.0)))
     lines.append("};\nstatic const int s_modbus_len = %d;" % len(m_list))
     lines.append("edge_tag_id_t edge_lookup_modbus(uint16_t reg, float *out_scale) { for(int i=0; i < s_modbus_len; i++) if(s_modbus_map[i].addr == reg) { if(out_scale) *out_scale=s_modbus_map[i].scale; return s_modbus_map[i].id; } return 0; }\n")
-    for p in ['DLMS']:
+    for p in ['DLMS', 'DLT698', 'DLT645']:
         d_list = proto_map[p]
         lines.append("static const dlms_map_t s_%s_map[] = {" % p.lower())
         for d in d_list:
-            lines.append("    { \"%s\", TAG_%s, 0, 0, 0, %ff }," % (d.get('obis',''), d['tag_name'], d.get('scaler', 1.0)))
+            key = d.get('obis', d.get('oaid', d.get('di', '')))
+            lines.append("    { \"%s\", TAG_%s, 0, 0, 0, %ff }," % (key, d['tag_name'], d.get('scaler', d.get('scale', 1.0))))
         lines.append("};\nstatic const int s_%s_len = %d;" % (p.lower(), len(d_list)))
         lines.append("edge_tag_id_t edge_lookup_%s(const char* key, float *out_scale) { for(int i=0; i < s_%s_len; i++) if(strcmp(s_%s_map[i].obis, key) == 0) { if(out_scale) *out_scale=s_%s_map[i].scaler; return s_%s_map[i].id; } return 0; }\n" % (p.lower(), p.lower(), p.lower(), p.lower(), p.lower()))
     lines.append("edge_tag_id_t edge_lookup_iec104(int ioa) { (void)ioa; return 0; }")

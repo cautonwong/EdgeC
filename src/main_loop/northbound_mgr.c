@@ -9,13 +9,16 @@
 #include "contract_data_types.h"
 #include "edge_log.h"
 #include "edge_service.h"
+#include "rest_server.h"
+#include "web_server.h"
 
 // --- 外部契约接口声明 (符合解耦架构 v2.0) ---
 
 extern const tag_meta_t *edge_get_meta(edge_tag_id_t id);
+extern char *rest_dispatch(service_t *svc, const char *path, const char *body);
 
-#include "rest_server.h"
-#include "web_server.h"
+// #include "rest_server.h"  <-- This was already here but maybe out of order or commented?
+// I see it was after the extern. Let's make it clean.
 
 // --- MQTT Context ---
 static MQTTAsync g_mqtt_client = NULL;
@@ -141,7 +144,9 @@ static void north_thread_entry(void *arg) {
     uv_async_init(&mgr->loop, &mgr->stop_async, on_north_stop);
     mgr->stop_async.data = mgr;
 
-    mgr->web_srv = web_server_create(&mgr->loop, mgr->web_port);
+    mgr->web_srv = web_server_create(&mgr->loop, mgr->web_port, mgr->web_root);
+    web_server_set_api_handler(mgr->web_srv, (web_api_handler_pt)rest_dispatch, svc);
+
     mgr->rest_srv = rest_server_create(&mgr->loop, svc, mgr->rest_port);
 
     printf("[Northbound] Stack running. UI:%d, API:%d, MQTT:Active\n", mgr->web_port,

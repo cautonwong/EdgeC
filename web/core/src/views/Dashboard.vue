@@ -87,10 +87,7 @@ function formatGroupName(name: string) {
 }
 
 onMounted(async () => {
-  // 1. 先加载“数据宪法”
-  await contractStore.loadContract();
-  
-  // 2. 启动状态轮询
+  // 启动状态轮询
   fetchHealth();
   timer = setInterval(fetchHealth, 3000);
 });

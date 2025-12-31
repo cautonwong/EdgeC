@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 #include "contracts.h"
+#include "edge_log.h"
 #include "edge_service.h"
 #include "js_engine.h"
 #include "script_loader.h"
@@ -50,6 +51,7 @@ int main(int argc, char **argv) {
     }
 
     service_t *svc = service_new(&opts);
+    edge_log_init("config/zlog.conf", false);
     service_set_contract_path(svc, "./build/products/iems/generated/contracts.yaml");
 
     uv_loop_t *loop = uv_default_loop();
@@ -75,6 +77,7 @@ int main(int argc, char **argv) {
     northbound_mgr_init(&cloud, loop, &hub.ring);
     cloud.web_port = opts.web_port;
     cloud.rest_port = opts.rest_port;
+    strncpy(cloud.web_root, "build/products/iems/www/index.html", sizeof(cloud.web_root) - 1);
     cloud.user_data = svc;
     northbound_mgr_start(&cloud);
 

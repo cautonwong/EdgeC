@@ -10,10 +10,9 @@
       <nav>
         <!-- 核心差异化：根据契约导航开关进行显隐控制 -->
         <router-link 
-          v-for="item in menuItems" 
+          v-for="item in visibleMenuItems" 
           :key="item.path" 
           :to="item.path" 
-          v-if="contractStore.isPageVisible(item.name as string)"
           class="nav-item"
         >
           <span class="icon">{{ item.meta?.icon }}</span>
@@ -47,20 +46,23 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue';
-import { coreRoutes } from '../router';
+import { getVisibleMenuItems } from '../router';
 import { useContractStore } from '../services/ContractLoader';
 import axios from 'axios';
 
 const contractStore = useContractStore();
-const menuItems = coreRoutes.filter(r => r.name);
+
+// 使用计算属性替代 v-for + v-if
+const visibleMenuItems = computed(() => getVisibleMenuItems());
+
 const uptime = ref(0);
 const isOnline = ref(false);
-let timer: number;
+let timer: any = null;
 
 const fetchStatus = async () => {
   try {
     const res = await axios.get('/api/v1/system/health');
-    uptime.value = Math.round(res.data.uptime);
+    uptime.value = Math.round(res.data.uptime || 0);
     isOnline.value = true;
   } catch (e) {
     isOnline.value = false;
@@ -75,13 +77,17 @@ function formatTime(sec: number) {
 }
 
 onMounted(async () => {
-  // 初始化阶段强制加载契约，实现菜单自愈
-  await contractStore.loadContract();
-  fetchStatus();
+  // 确保数据已加载
+  if (!contractStore.contract) {
+    await contractStore.loadContract();
+  }
+  await fetchStatus();
   timer = setInterval(fetchStatus, 5000);
 });
 
-onUnmounted(() => clearInterval(timer));
+onUnmounted(() => {
+  if (timer) clearInterval(timer);
+});
 </script>
 
 <style scoped>

@@ -1,9 +1,9 @@
 import { createRouter, createWebHashHistory, RouteRecordRaw } from 'vue-router';
 import AdminLayout from '../layouts/AdminLayout.vue';
+import { useContractStore } from '../services/ContractLoader';
 
 // 懒加载通用页面组件
 const Dashboard = () => import('../views/Dashboard.vue');
-// ... (之前已写) ...
 
 export const coreRoutes: RouteRecordRaw[] = [
   {
@@ -21,6 +21,23 @@ export const coreRoutes: RouteRecordRaw[] = [
     ]
   }
 ];
+
+export function getVisibleMenuItems() {
+  try {
+    const contractStore = useContractStore();
+    const root = coreRoutes.find(r => r.path === '/');
+    if (!root || !root.children) return [];
+    
+    return root.children
+      .filter(r => r.name)
+      .filter(r => contractStore.isPageVisible(r.name as string));
+  } catch (e) {
+    // If store is not yet available, return empty or all items as fallback
+    console.warn('Store not ready in getVisibleMenuItems', e);
+    const root = coreRoutes.find(r => r.path === '/');
+    return root?.children?.filter(r => r.name) || [];
+  }
+}
 
 export function createEdgeRouter(customRoutes: RouteRecordRaw[] = []) {
   return createRouter({

@@ -34,6 +34,7 @@ typedef struct {
 
     int web_port;
     int rest_port;
+    char web_root[256];
 
     void *user_data;
     int running;

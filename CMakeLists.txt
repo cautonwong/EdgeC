@@ -77,6 +77,12 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests) # Default for test
 # ==============================================================================
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(EdgeContract)
+include(WebBuild)
+
+# 4.1 Build Web UIs (if applicable)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/web/products/iems")
+    add_web_product(iems "${CMAKE_CURRENT_SOURCE_DIR}/web/products/iems")
+endif()
 
 # ==============================================================================
 # 5. Build Core Library (Decoupled Planes - Layer 1)

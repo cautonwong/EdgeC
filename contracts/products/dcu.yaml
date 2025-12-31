@@ -1,6 +1,7 @@
 product: "DCU_Standard_V1"
 includes:
   - "contracts/bindings/dlms/chint_dtsu.yaml"
+  - "contracts/bindings/dlt698/dcu_interface.yaml"
 
 enabled_tags:
   - GRID_FREQUENCY

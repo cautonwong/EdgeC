@@ -4,18 +4,33 @@
 !*.h
 !*.so
 # Build directories
+build/
+build_*/
+dist/
+
+# Web dependencies
+node_modules/
+.npm/
+
 # IDE settings
-# Local installation (dependencies)
+.idea/
+.vscode/
+.cache/
+.DS_Store
+
+# Local environment & Dependencies
+_deps/
+
 # Logs
-# System files
+*.log
+logs/
+
+# SQLite & Temp data
 *.db
 *.db-shm
 *.db-wal
-*.log
-.DS_Store
-.cache/
-.idea/
-.vscode/
-_deps/
-build/
-build_*/
+vpp_db.sqlite
+
+# Assets & Drafts
+image*.png
+*_draft.md

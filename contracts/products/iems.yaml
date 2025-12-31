@@ -2,6 +2,7 @@ product: "IEMS_Controller_V1"
 includes:
   - "contracts/bindings/modbus/huawei_sun2000.yaml"
   - "contracts/bindings/modbus/acrel_p80.yaml"
+  - "contracts/bindings/dlt645/standard_meter.yaml"
 
 # [新增] UI 差异化定义 (Descriptor)
 ui_config:
@@ -25,3 +26,4 @@ enabled_tags:
   - BATTERY_POWER
   - ROOM_HUMIDITY # 必须显式启用
   - PLUG_OVERTEMP  # 必须显式启用
+  - ENERGY_ACTIVE_IMPORT
