@@ -93,3 +93,13 @@ jobs:
           lcov --capture --directory build --output-file coverage.info
           lcov --remove coverage.info '/usr/*' '*/tests/*' '*/vendor/*' --output-file coverage_clean.info
           lcov --list coverage_clean.info
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: EdgeOS-Build-${{ matrix.config.target }}
+          path: |
+            build/products/
+            build/sdk/lib/
+            build/coverage_clean.info
+          if-no-files-found: warn
