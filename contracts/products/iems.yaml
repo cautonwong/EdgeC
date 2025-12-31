@@ -2,14 +2,12 @@ product: "IEMS_Controller_V1"
 includes:
   - "contracts/bindings/modbus/huawei_sun2000.yaml"
   - "contracts/bindings/modbus/acrel_p80.yaml"
-  - "contracts/bindings/dlt645/standard_meter.yaml"
-  - "contracts/bindings/dlt698/dcu_interface.yaml"
 
 enabled_tags:
-  - GRID_POWER_TOTAL
+  - GRID_POWER
   - GRID_FREQUENCY
   - VOLTAGE_PHASE_A
-  - ENERGY_ACTIVE_IMPORT
-  - BATTERY_SOH
+  - BATTERY_SOC
   - BATTERY_POWER
-  - BREAKER_STATUS
+  - ROOM_HUMIDITY # 必须显式启用
+  - PLUG_OVERTEMP  # 必须显式启用

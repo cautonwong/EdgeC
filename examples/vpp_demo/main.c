@@ -28,7 +28,7 @@ static void simulator_tick(uv_timer_t *handle) {
 
     // 模拟光伏并网功率 (TagID: GRID_POWER_TOTAL)
     PipeMsg m1;
-    pipe_msg_init_scalar(&m1, TAG_GRID_POWER_TOTAL, 1500.0 + (rand() % 1000), now);
+    pipe_msg_init_scalar(&m1, TAG_GRID_POWER, 1500.0 + (rand() % 1000), now);
     datahub_publish(&data_hub, &m1);
 
     // 模拟电池 SoC (TagID: BATTERY_SOC)
@@ -64,8 +64,7 @@ int main(void) {
     stream_engine = stream_engine_create(&data_hub, NULL);
 
     // --- 核心演示：如何正确地使用算子工厂注入 Pipeline ---
-    pipeline_t *p1 =
-        stream_engine_add_pipeline(stream_engine, "vpp_main_stats", TAG_GRID_POWER_TOTAL);
+    pipeline_t *p1 = stream_engine_add_pipeline(stream_engine, "vpp_main_stats", TAG_GRID_POWER);
 
     // Stage 1: 防逆流过滤 (0~100000W)
     pipeline_stage_t *s_filter = stage_filter_range_create(0.0, 100000.0);

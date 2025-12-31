@@ -1,7 +1,7 @@
-product: "EdgeOS_EVSE_AC"
+product: "EVSE_SmartCharger_V1"
 includes:
-  - "contracts/bindings/dlms/generic_ess.yaml"
+  - "contracts/bindings/dlms/chint_dtsu.yaml"
+
 enabled_tags:
   - EV_CHARGE_POWER
-  - EV_CONNECTOR_STATUS
-  - EV_BATTERY_LEVEL
+  - PLUG_OVERTEMP

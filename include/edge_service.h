@@ -63,11 +63,19 @@ datahub_t *service_get_datahub(service_t *svc);
  */
 sqlite_svc_t *service_get_storage(service_t *svc);
 
-/**
- * @brief 设置/获取当前产品的契约审计文件路径 (contracts.yaml)
- */
+// Forward declaration
+typedef struct device_profile_s device_profile_t;
+device_profile_t *service_get_devices(service_t *svc);
+
 void service_set_contract_path(service_t *svc, const char *path);
+
 const char *service_get_contract_path(service_t *svc);
+
+// Forward declaration
+typedef struct stream_engine_s stream_engine_t;
+
+void service_set_stream_engine(service_t *svc, stream_engine_t *engine);
+stream_engine_t *service_get_stream_engine(service_t *svc);
 
 /**
  * @brief 启动服务容器并注入依赖 (黑盒模式)

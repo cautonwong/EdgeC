@@ -11,21 +11,30 @@
 _Static_assert(sizeof(ShmRingHeader) == CACHELINE_SIZE,
                "ShmRingHeader must be one cache line size");
 
+#include <errno.h>
+
 int shmring_create(shm_ring_t *ring, const char *name, uint32_t slots) {
     if (!ring || !name || slots == 0 || slots > SHMRING_MAX_SLOTS) {
+        fprintf(stderr, "[ShmRing] Invalid parameters: slots=%u (max=%d)\n", slots,
+                SHMRING_MAX_SLOTS);
         return -1;
     }
 
     size_t size = sizeof(ShmRingHeader) + slots * sizeof(PipeMsg);
 
-    // shm_open is OS-native as libuv has no SHM support
+    // 工业级加固：先尝试删除旧的，防止 O_EXCL 导致 EEXIST 错误
+    shm_unlink(name);
+
     int fd = shm_open(name, O_CREAT | O_RDWR | O_EXCL, 0666);
     if (fd < 0) {
+        fprintf(stderr, "[ShmRing] shm_open failed for %s: %s\n", name, strerror(errno));
+        memset(ring, 0, sizeof(shm_ring_t));
         return -1;
     }
 
     uv_fs_t req;
     if (uv_fs_ftruncate(NULL, &req, fd, (int64_t)size, NULL) != 0) {
+        fprintf(stderr, "[ShmRing] ftruncate failed: %s\n", strerror(errno));
         uv_fs_req_cleanup(&req);
         close(fd);
         shm_unlink(name);

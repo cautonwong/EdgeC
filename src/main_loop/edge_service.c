@@ -17,6 +17,7 @@ struct service_s {
     arbiter_t *arbiter;
     northbound_mgr_t *cloud;
     net_buf_pool_t *pool;
+    struct stream_engine_s *stream_engine;  // [新增]
 
     // 命令处理队列 (异步控制面)
     uv_mutex_t cmd_lock;
@@ -80,6 +81,13 @@ arbiter_t *service_get_arbiter(service_t *svc) {
 }
 sqlite_svc_t *service_get_storage(service_t *svc) {
     return svc ? svc->storage : NULL;
+}
+
+void service_set_stream_engine(service_t *svc, struct stream_engine_s *engine) {
+    if (svc) svc->stream_engine = engine;
+}
+struct stream_engine_s *service_get_stream_engine(service_t *svc) {
+    return svc ? svc->stream_engine : NULL;
 }
 
 void service_set_contract_path(service_t *svc, const char *path) {

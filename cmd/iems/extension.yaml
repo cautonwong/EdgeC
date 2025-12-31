@@ -3,28 +3,18 @@ product: "IEMS_Controller_V1"
 includes:
   - "contracts/bindings/modbus_maps/default_device.yaml"
 
-# 启用核心测点
+# 启用全局标准测点
 enabled_tags:
   - GRID_POWER
   - VOLTAGE_PHASE_A
   - GRID_FREQUENCY
+  - BATTERY_SOC
+  - ROOM_HUMIDITY
 
-# 项目现场独有测点：9002 环境湿度
+# 项目现场独有硬件地址，但语义对齐全局 ROOM_HUMIDITY
 tags:
-  - id: 9001
-    name: CUSTOM_TEMP_SENSOR
-    type: float
-    unit: C
-    attributes: { upload: true }
-    bindings:
-      - protocol: MODBUS
-        addr: 50001
-        scale: 0.1
-
-  - id: 9002
-    name: PROJECT_HUMIDITY
-    type: float
-    unit: "%"
+  - id: 6001
+    name: ROOM_HUMIDITY
     bindings:
       - protocol: MODBUS
         addr: 50002

@@ -81,9 +81,20 @@ int stream_engine_load_config(stream_engine_t *engine, const char *json_path,
                               pipeline_loader_ctx_t *ctx);
 
 /**
- * @brief 清空当前引擎中所有的流水线 (用于热重载场景)
+ * @brief Clear all existing pipelines (for hot reload)
  */
 void stream_engine_clear_pipelines(stream_engine_t *engine);
+
+/**
+ * @brief Dump current pipelines status to JSON string.
+ * Caller must free the returned string.
+ */
+char *stream_engine_dump_json(stream_engine_t *engine);
+
+/**
+ * @brief 将当前引擎的所有 Pipeline 拓扑导出为 JSON 字符串
+ */
+char *stream_engine_dump_json(stream_engine_t *engine);
 
 void stream_engine_destroy(stream_engine_t *engine);
 

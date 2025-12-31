@@ -16,9 +16,8 @@ int main(int argc, char **argv) {
     printf("[Driver] DLT645 DI '02010100' -> TagID: %d, Scale: %.2f\n", id, scale);
 
     // 2. 验证本地环境传感器
-    if (IS_ENABLED(TAG_LIVING_ROOM_HUMIDITY_ENABLED)) {
-        printf("[Custom] Local Environment: Room Humidity (ID: %d) READY\n",
-               TAG_LIVING_ROOM_HUMIDITY);
+    if (IS_ENABLED(TAG_ROOM_HUMIDITY_ENABLED)) {
+        printf("[Custom] Local Environment: Room Humidity (ID: %d) READY\n", TAG_ROOM_HUMIDITY);
     }
 
     return 0;

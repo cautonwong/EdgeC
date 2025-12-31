@@ -214,9 +214,22 @@ build/
 ./build_and_run.sh  # 自动化生成契约代码、编译、静态检查并运行 19 个单元测试
 ```
 
+### 🌐 4.2 Web UI & REST API 实施进度 (对齐 web_ui_ia.md)
+
+| 模块 | 核心特性 | 后端 API | 前端 View | 状态 |
+| :--- | :--- | :--- | :--- | :--- |
+| **核心宪法** | 元数据驱动渲染 | `/api/v1/contracts` | `ContractStore` | ✅ 完成 |
+| **Dashboard** | 实时健康监测 | `/api/v1/system/health` | `Dashboard.vue` | ✅ 完成 |
+| **Pipelines** | 实时运行拓扑 | `/api/v1/pipelines` | `PipelineList.vue` | ✅ 完成 |
+| **数据分析** | 历史曲线/影子点查 | `/api/v1/data/query` | `DataCurves.vue` | ✅ 完成 |
+| **参数管理** | KV 参数双向读写 | `/api/v1/system/config` | `SystemConfig.vue` | ✅ 完成 |
+| **任务调度** | 时钟状态/任务清单 | `/api/v1/time/status` | `Scheduling.vue` | ⚠️ 部分完成 |
+| **设备管理** | 拓扑展现/通信统计 | `/api/v1/devices` | `DeviceList.vue` | ⚠️ 部分完成 |
+| **持久化** | 数据库指标监控 | `/api/v1/storage/status` | `Storage.vue` | ✅ 完成 |
+
 ---
 
-## 📅 4. 路线图与待办事项 (TODO)
+## 📅 5. 路线图与待办事项 (TODO)
 
 ### 🚀 核心功能
 - [x] **契约治理 v2.0**：实现类型与数据的物理隔离。

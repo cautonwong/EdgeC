@@ -3,7 +3,14 @@ includes:
   - "contracts/bindings/dlms/chint_dtsu.yaml"
   - "contracts/bindings/iec104/nari_relay.yaml"
   - "contracts/bindings/can/catl_bms.yaml"
+
+enabled_tags:
+  - GRID_POWER
+  - VOLTAGE_PHASE_A
+  - GATEWAY_INTERNAL_TEMP
+  - BATTERY_SOC
+
 overrides:
   BATTERY_SOC:
     upload: true
-    persist: false # 实时变化，只上报不存盘
+    persist: false

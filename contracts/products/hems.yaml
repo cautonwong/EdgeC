@@ -1,7 +1,7 @@
-product: "EdgeOS_HEMS_Gateway"
+product: "HEMS_Gateway_Lite"
 includes:
-  - "contracts/bindings/dlt645/standard_meter.yaml"
+  - "contracts/bindings/modbus/huawei_sun2000.yaml"
+
 enabled_tags:
   - VOLTAGE_PHASE_A
-  - GRID_POWER_TOTAL
-  - ENERGY_ACTIVE_IMPORT
+  - ROOM_HUMIDITY

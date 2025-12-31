@@ -22,11 +22,10 @@ static void test_modbus_mapping_logic(void **state) {
     assert_int_equal(id, TAG_VOLTAGE_PHASE_A);
     assert_float_equal(scale, 0.1f, 0.0001f);
 
-    // 2. 测试本地扩展点位 (IEMS 私有温感 - 50001)
-    // 映射定义在 iems/extension.yaml 中
-    id = edge_lookup_modbus(50001, &scale);
-    assert_int_equal(id, TAG_CUSTOM_TEMP_SENSOR);
-    assert_float_equal(scale, 0.1f, 0.0001f);
+    // 2. 验证产品私有测点查找 (ROOM_HUMIDITY 定义在 iems/extension.yaml)
+    id = edge_lookup_modbus(50002, &scale);
+    assert_int_equal(id, TAG_ROOM_HUMIDITY);
+    assert_float_equal(scale, 1.0, 0.001);
 
     // 3. 测试不存在的点位
     id = edge_lookup_modbus(0xFFFF, &scale);

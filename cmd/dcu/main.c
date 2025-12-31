@@ -21,9 +21,8 @@ int main(int argc, char **argv) {
     printf("[Driver] DLT698 OAID '20010200' -> TagID: %d, Scale: %.2f\n", id, scale);
 
     // 3. 验证本地扩展
-    if (IS_ENABLED(TAG_TRANSFORMER_ROOM_HUMIDITY_ENABLED)) {
-        printf("[Custom] Local Sensor Detected: Room Humidity (ID: %d)\n",
-               TAG_TRANSFORMER_ROOM_HUMIDITY);
+    if (IS_ENABLED(TAG_ROOM_HUMIDITY_ENABLED)) {
+        printf("[Custom] Local Sensor Detected: Room Humidity (ID: %d)\n", TAG_ROOM_HUMIDITY);
     }
 
     return 0;

@@ -1,0 +1,20 @@
+{
+  "pipelines": [
+    {
+      "id": "battery_monitor",
+      "trigger_tag": 4001,
+      "stages": [
+        { "type": "filter_range", "config": { "min": 0, "max": 100 } },
+        { "type": "accumulate", "config": {} }
+      ]
+    },
+    {
+      "id": "power_history_sink",
+      "trigger_tag": 1003,
+      "stages": [
+        { "type": "transform", "config": { "alpha": 1.0, "beta": 0.0 } },
+        { "type": "sqlite_sink", "config": { "table": "power_log" } }
+      ]
+    }
+  ]
+}

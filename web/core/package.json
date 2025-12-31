@@ -1,0 +1,17 @@
+{
+  "name": "@edgeos/web-core",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc"
+  },
+  "peerDependencies": {
+    "vue": "^3.3.0",
+    "pinia": "^2.1.0",
+    "vue-router": "^4.2.0",
+    "axios": "^1.4.0",
+    "js-yaml": "^4.1.0"
+  }
+}

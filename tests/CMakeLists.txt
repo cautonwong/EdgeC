@@ -36,6 +36,7 @@ add_edge_test(test_driver_manager test_driver_manager.c)
 add_edge_test(test_io_executor test_io_executor.c)
 add_edge_test(test_net_buf test_net_buf.c)
 add_edge_test(test_fuzz_datahub test_fuzz_datahub.c)
+add_edge_test(test_edge_log test_edge_log.c)
 
 # Special test cases with extra files or link options
 
@@ -71,4 +72,23 @@ target_link_libraries(test_scheduler PRIVATE
 add_test(NAME test_scheduler COMMAND test_scheduler)
 
 add_edge_test(test_integration test_integration.c)
+
+# [新增] MQTT 北向集成测试 (使用 Mock Paho)
+add_executable(test_northbound_mqtt 
+    test_northbound_mqtt.c
+    mock_mqtt.c
+    mock_servers.c
+    mock_service_deps.c
+    ../src/main_loop/northbound_mgr.c
+    ../src/main_loop/edge_service.c
+)
+target_include_directories(test_northbound_mqtt PRIVATE ../include ../algo/include)
+target_link_libraries(test_northbound_mqtt PRIVATE 
+    edge_core     # 已重命名为 edge_core
+    contract_iems # 需要契约查表
+    cmocka::cmocka
+    pthread dl rt m
+)
+# 注意：不链接 edge_main_loop，避免引入真实的 PahoMQTT
+add_test(NAME test_northbound_mqtt COMMAND test_northbound_mqtt)
 target_link_options(test_integration PRIVATE -Wl,--wrap=io_submit)

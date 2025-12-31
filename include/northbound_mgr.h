@@ -28,6 +28,9 @@ typedef struct {
     struct rest_server_s *rest_srv;
 
     uv_async_t stop_async;
+    uv_async_t data_async;
+    uv_timer_t poll_timer;
+    uint64_t last_seq;
 
     int web_port;
     int rest_port;

@@ -1,19 +1,9 @@
-product: "HEMS_HomeHub_Lite"
+product: "HEMS_Gateway_Lite"
+# DLT645 映射验证 (DI -> VOLTAGE_PHASE_A)
 includes:
-  - "contracts/bindings/dlt645/standard_meter.yaml"
+  - "contracts/bindings/modbus/huawei_sun2000.yaml"
 
+# 启用全局测点
 enabled_tags:
   - VOLTAGE_PHASE_A
-  - GRID_POWER_TOTAL
-  - ENERGY_ACTIVE_IMPORT
-
-# 私有扩展：客厅温湿度传感器
-tags:
-  - id: 8001
-    name: LIVING_ROOM_HUMIDITY
-    type: float
-    unit: "%"
-    bindings:
-      - protocol: MODBUS
-        addr: 0x0300
-        scale: 1.0
+  - ROOM_HUMIDITY

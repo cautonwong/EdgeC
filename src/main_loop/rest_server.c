@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "contract_data_types.h"
@@ -11,6 +12,7 @@
 #include "edge_params.h"
 #include "edge_service.h"
 #include "sqlite_service.h"
+#include "stream_engine.h"
 
 #define HTTP_RESPONSE_FMT                \
     "HTTP/1.1 200 OK\r\n"                \
@@ -28,12 +30,11 @@ struct rest_server_s {
     uv_tcp_t server;
 };
 
-// --- SQLite 查询回调封装 ---
+// --- SQL 回调 ---
 typedef struct {
     cJSON *array;
     int count;
 } query_ctx_t;
-
 static int on_sqlite_row(void *user_data, PipeMsg *msg) {
     query_ctx_t *ctx = (query_ctx_t *)user_data;
     cJSON *item = cJSON_CreateObject();
@@ -41,21 +42,120 @@ static int on_sqlite_row(void *user_data, PipeMsg *msg) {
     cJSON_AddNumberToObject(item, "val", msg->payload.val.f);
     cJSON_AddItemToArray(ctx->array, item);
     ctx->count++;
-    return 0;  // 继续下一行
+    return 0;
 }
 
-// --- REST Handlers ---
-
-/**
- * @brief 历史数据点查 API (对齐 web_ui_ia.md 3.3)
- * 场景：Web UI 查询历史曲线
- */
+// --- API Handlers ---
 
 static char *handle_system_health(service_t *svc) {
     cJSON *root = cJSON_CreateObject();
     cJSON_AddStringToObject(root, "status", "ok");
     cJSON_AddNumberToObject(root, "uptime", (double)uv_now(service_get_loop(svc)) / 1000);
 
+    cJSON *storage = cJSON_AddObjectToObject(root, "storage");
+    cJSON_AddNumberToObject(storage, "queue_depth", 0);
+
+    char *out = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    return out;
+}
+
+static char *handle_contracts_get(service_t *svc) {
+    const char *path = service_get_contract_path(svc);
+    if (!path || access(path, F_OK) != 0) return strdup("{\"error\":\"contract_not_found\"}");
+    FILE *f = fopen(path, "r");
+    if (!f) return strdup("{\"error\":\"read_failed\"}");
+    fseek(f, 0, SEEK_END);
+    long len = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    char *buf = malloc((size_t)len + 1);
+    fread(buf, 1, (size_t)len, f);
+    fclose(f);
+    buf[len] = '\0';
+    return buf;
+}
+
+static char *handle_pipelines_get(service_t *svc) {
+    stream_engine_t *engine = service_get_stream_engine(svc);
+    if (!engine) return strdup("{\"error\":\"engine_not_ready\"}");
+    return stream_engine_dump_json(engine);
+}
+
+static char *handle_devices_get(service_t *svc) {
+    (void)svc;
+    cJSON *root = cJSON_CreateArray();
+    const char *mock_ids[] = {"meter_01", "pcs_01", "bms_01"};
+    const char *mock_protos[] = {"Modbus_RTU", "Modbus_TCP", "CAN_Bus"};
+
+    for (int i = 0; i < 3; i++) {
+        cJSON *dev = cJSON_CreateObject();
+        cJSON_AddStringToObject(dev, "id", mock_ids[i]);
+        cJSON_AddStringToObject(dev, "protocol", mock_protos[i]);
+        cJSON_AddStringToObject(dev, "status", (i == 2) ? "offline" : "online");
+        cJSON_AddNumberToObject(dev, "last_active", (double)uv_now(service_get_loop(svc)));
+        cJSON_AddNumberToObject(dev, "errors", 0);
+        cJSON_AddItemToArray(root, dev);
+    }
+
+    char *out = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    return out;
+}
+
+static char *handle_params_list(service_t *svc) {
+    (void)svc;
+    cJSON *root = cJSON_CreateObject();
+    cJSON *params = cJSON_AddArrayToObject(root, "params");
+
+    // 工业级参数映射：从系统参数中心获取真实状态
+    // 此处列出几个核心业务参数作为示例
+    const char *keys[] = {"vpp_max_charge_w", "vpp_max_discharge_w", "grid_freq_threshold_hz"};
+    float defaults[] = {5000.0f, 5000.0f, 0.5f};
+
+    for (int i = 0; i < 3; i++) {
+        cJSON *p = cJSON_CreateObject();
+        cJSON_AddStringToObject(p, "key", keys[i]);
+        cJSON_AddNumberToObject(p, "value", edge_param_get_float(keys[i], defaults[i]));
+        cJSON_AddStringToObject(p, "type", "float");
+        cJSON_AddItemToArray(params, p);
+    }
+
+    char *out = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    return out;
+}
+
+static char *handle_config_post(service_t *svc, const char *body) {
+    (void)svc;
+    if (!body) return strdup("{\"error\":\"missing_body\"}");
+
+    cJSON *root = cJSON_Parse(body);
+    if (!root) return strdup("{\"error\":\"invalid_json\"}");
+
+    cJSON *key = cJSON_GetObjectItem(root, "key");
+    cJSON *val = cJSON_GetObjectItem(root, "value");
+
+    if (cJSON_IsString(key) && cJSON_IsNumber(val)) {
+        // 核心：执行带审计的参数设置
+        edge_param_set_float(key->valuestring, (float)val->valuedouble);
+        printf("[REST] Config updated: %s = %.3f\n", key->valuestring, val->valuedouble);
+        cJSON_Delete(root);
+        return strdup("{\"status\":\"ok\",\"message\":\"parameter_queued_for_update\"}");
+    }
+
+    cJSON_Delete(root);
+    return strdup("{\"error\":\"bad_request_schema\"}");
+}
+
+static char *handle_history_query(service_t *svc, uint32_t tag_id, uint64_t start, uint64_t end) {
+    (void)tag_id;
+    sqlite_svc_t *db = service_get_storage(svc);
+    if (!db) return strdup("{\"error\":\"storage_not_ready\"}");
+    cJSON *root = cJSON_CreateObject();
+    cJSON *data = cJSON_AddArrayToObject(root, "data");
+    query_ctx_t q_ctx = {.array = data, .count = 0};
+    sqlite_svc_query(db, start, end, on_sqlite_row, &q_ctx);
+    cJSON_AddNumberToObject(root, "count", q_ctx.count);
     char *out = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
     return out;
@@ -77,73 +177,40 @@ static char *handle_data_latest(service_t *svc, uint32_t tag_id) {
     return out;
 }
 
-#include <unistd.h>
+// --- Dispatcher ---
 
-/**
-
- * @brief 下发当前产品的数据宪法 (对齐 UI 动态化要求)
-
- */
-
-static char *handle_contracts_get(service_t *svc) {
-    const char *path = service_get_contract_path(svc);
-
-    if (!path || access(path, F_OK) != 0) {
-        return strdup("{\"error\":\"contract_not_found\"}");
-    }
-
-    // 原则 1：使用 libuv 同步读取简单文件 (此处简化，生产环境可用 uv_fs_read)
-
-    FILE *f = fopen(path, "r");
-
-    if (!f) return strdup("{\"error\":\"read_failed\"}");
-
-    fseek(f, 0, SEEK_END);
-
-    long len = ftell(f);
-
-    fseek(f, 0, SEEK_SET);
-
-    char *buf = malloc((size_t)len + 1);
-
-    fread(buf, 1, (size_t)len, f);
-
-    fclose(f);
-
-    buf[len] = '\0';
-
-    // 虽然是 YAML，但前端通常期望 JSON。这里我们可以通过 cJSON 转化，
-
-    // 或者直接告知前端获取的是 YAML 格式。为了极致体验，我们在此处下发原始文件。
-
-    return buf;
+static uint64_t get_query_param_uint(const char *path, const char *key, uint64_t default_val) {
+    char search_key[32];
+    snprintf(search_key, sizeof(search_key), "%s=", key);
+    char *p = strstr(path, search_key);
+    if (!p) return default_val;
+    return (uint64_t)atoll(p + strlen(search_key));
 }
 
-char *rest_dispatch(service_t *svc, const char *path) {
+char *rest_dispatch(service_t *svc, const char *path, const char *body) {
     if (strcmp(path, "/api/v1/system/health") == 0) return handle_system_health(svc);
-
-    // [新增] 契约元数据接口
-
     if (strcmp(path, "/api/v1/contracts") == 0) return handle_contracts_get(svc);
+    if (strcmp(path, "/api/v1/pipelines") == 0) return handle_pipelines_get(svc);
+    if (strcmp(path, "/api/v1/devices") == 0) return handle_devices_get(svc);
 
-    if (strncmp(path, "/api/v1/data/latest/", 20) == 0) {
-        uint32_t tag_id = (uint32_t)atoi(path + 20);
-        return handle_data_latest(svc, tag_id);
-    }
-
-    // 路由 2: 历史曲线查询 (参数暂通过 QueryString 提取，此处演示核心分发)
-    // 示例：/api/v1/data/query?tag=1001&start=0&end=...
     if (strncmp(path, "/api/v1/data/query", 18) == 0) {
-        // TODO: This is a hardcoded test endpoint and should be removed.
-        // The tag to be queried should come from the request.
-        // return handle_history_query(svc, TAG_GRID_POWER, 0, (uint64_t)time(NULL) * 1000);
-        return strdup("{\"error\":\"not_found\"}");
+        uint32_t tag_id = (uint32_t)get_query_param_uint(path, "tag", 1001);
+        uint64_t start = get_query_param_uint(path, "start", 0);
+        uint64_t end = get_query_param_uint(path, "end", (uint64_t)time(NULL) * 1000);
+        return handle_history_query(svc, tag_id, start, end);
     }
+
+    if (strcmp(path, "/api/v1/system/config") == 0) {
+        if (body) return handle_config_post(svc, body);
+        return handle_params_list(svc);
+    }
+    if (strncmp(path, "/api/v1/data/latest/", 20) == 0)
+        return handle_data_latest(svc, (uint32_t)atoi(path + 20));
 
     return strdup("{\"error\":\"not_found\"}");
 }
 
-// --- libuv TCP stack implementation ... ---
+// --- Network Stack ---
 
 static void on_write(uv_write_t *req, int status) {
     (void)status;
@@ -151,16 +218,25 @@ static void on_write(uv_write_t *req, int status) {
     free(req);
 }
 
+static void on_alloc(uv_handle_t *h, size_t suggested, uv_buf_t *buf) {
+    (void)h;
+    buf->base = malloc(suggested);
+    buf->len = suggested;
+}
+
 static void on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
     if (nread > 0) {
         rest_server_t *srv = client->data;
-        char path[128] = {0};
-        sscanf(buf->base, "GET %127s HTTP/1.1", path);
+        char path[128] = {0}, method[16] = {0};
+        sscanf(buf->base, "%15s %127s", method, path);
+        char *body = strstr(buf->base, "\r\n\r\n");
+        if (body) body += 4;
 
-        char *json = rest_dispatch(srv->svc, path);
+        char *json = rest_dispatch(srv->svc, path, body);
         size_t json_len = strlen(json);
         char *resp = malloc(json_len + 512);
         size_t resp_len = (size_t)sprintf(resp, HTTP_RESPONSE_FMT, json_len, json);
+
         uv_write_t *write_req = malloc(sizeof(uv_write_t));
         write_req->data = resp;
         uv_buf_t write_buf = uv_buf_init(resp, (unsigned int)resp_len);
@@ -169,12 +245,6 @@ static void on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
     }
     if (nread < 0) uv_close((uv_handle_t *)client, (uv_close_cb)free);
     if (buf->base) free(buf->base);
-}
-
-static void on_alloc(uv_handle_t *h, size_t suggested, uv_buf_t *buf) {
-    (void)h;
-    buf->base = malloc(suggested);
-    buf->len = suggested;
 }
 
 static void on_new_connection(uv_stream_t *server, int status) {

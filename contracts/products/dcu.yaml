@@ -1,8 +1,7 @@
-product: "EdgeOS_DCU_Standard"
+product: "DCU_Standard_V1"
 includes:
-  - "contracts/bindings/dlt698/dcu_interface.yaml"
-  - "contracts/bindings/modbus/acrel_p80.yaml"
+  - "contracts/bindings/dlms/chint_dtsu.yaml"
+
 enabled_tags:
   - GRID_FREQUENCY
-  - TRANSFORMER_OIL_TEMP
-  - BREAKER_STATUS
+  - ROOM_HUMIDITY

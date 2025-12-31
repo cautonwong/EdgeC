@@ -16,8 +16,8 @@ int main(int argc, char **argv) {
     printf("[Driver] DLMS OBIS '1.0.66.7.0.255' -> TagID: %d, Scale: %.2f\n", id, scale);
 
     // 2. 验证本地私有报警
-    if (IS_ENABLED(TAG_EV_PLUG_OVERTEMP_ENABLED)) {
-        printf("[Custom] Local Alarm Logic: Plug Overtemp (ID: %d) ACTIVE\n", TAG_EV_PLUG_OVERTEMP);
+    if (IS_ENABLED(TAG_PLUG_OVERTEMP_ENABLED)) {
+        printf("[Custom] Local Alarm Logic: Plug Overtemp (ID: %d) ACTIVE\n", TAG_PLUG_OVERTEMP);
     }
 
     return 0;

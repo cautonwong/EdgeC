@@ -181,11 +181,67 @@ pipeline_t *stream_engine_add_pipeline(stream_engine_t *engine, const char *id,
     return p;
 }
 
-static void on_walk_close(uv_handle_t *h, void *arg) {
-    (void)arg;
-    if (!uv_is_closing(h)) {
-        uv_close(h, NULL);
+void stream_engine_clear_pipelines(stream_engine_t *engine) {
+    if (!engine) return;
+
+    uv_mutex_lock(&engine->pipe_mutex);
+    for (int i = 0; i < engine->pipe_count; i++) {
+        pipeline_t *p = engine->pipelines[i];
+        pipeline_stage_t *curr = p->head;
+        while (curr) {
+            pipeline_stage_t *next = curr->next;
+            if (curr->cleanup_state) curr->cleanup_state(curr->priv_state);
+            if (curr->cleanup_cfg) curr->cleanup_cfg(curr->priv_cfg);
+            free(curr);
+            curr = next;
+        }
+        free(p);
+        engine->pipelines[i] = NULL;
     }
+    engine->pipe_count = 0;
+    uv_mutex_unlock(&engine->pipe_mutex);
+}
+
+#include <cJSON/cJSON.h>
+
+char *stream_engine_dump_json(stream_engine_t *engine) {
+    if (!engine) return NULL;
+
+    cJSON *root = cJSON_CreateArray();
+    uv_mutex_lock(&engine->pipe_mutex);
+
+    for (int i = 0; i < engine->pipe_count; i++) {
+        pipeline_t *p = engine->pipelines[i];
+        cJSON *pipe_json = cJSON_CreateObject();
+        cJSON_AddStringToObject(pipe_json, "id", p->id);
+        cJSON_AddNumberToObject(pipe_json, "trigger_tag", p->trigger_tag);
+
+        const char *status_str = "idle";
+        if (p->state == PIPE_RUNNING)
+            status_str = "running";
+        else if (p->state == PIPE_SUSPENDED)
+            status_str = "suspended";
+        cJSON_AddStringToObject(pipe_json, "status", status_str);
+
+        cJSON *stages_json = cJSON_AddArrayToObject(pipe_json, "stages");
+        pipeline_stage_t *curr = p->head;
+        while (curr) {
+            cJSON *s = cJSON_CreateObject();
+            cJSON_AddStringToObject(s, "name", curr->name);
+            cJSON_AddItemToArray(stages_json, s);
+            curr = curr->next;
+        }
+        cJSON_AddItemToArray(root, pipe_json);
+    }
+
+    uv_mutex_unlock(&engine->pipe_mutex);
+    char *out = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    return out;
+}
+
+static void on_handle_close(uv_handle_t *h) {
+    (void)h;
 }
 
 void stream_engine_destroy(stream_engine_t *engine) {
@@ -199,16 +255,17 @@ void stream_engine_destroy(stream_engine_t *engine) {
     }
 
     if (engine->loop) {
-        if (engine->timer_inited && !uv_is_closing((uv_handle_t *)&engine->time_guard)) {
+        // 先停定时器
+        if (engine->timer_inited) {
             uv_timer_stop(&engine->time_guard);
-            uv_close((uv_handle_t *)&engine->time_guard, on_walk_close);
+            uv_close((uv_handle_t *)&engine->time_guard, on_handle_close);
         }
 
-        if (engine->notify_inited && !uv_is_closing((uv_handle_t *)&engine->notify_handle)) {
-            uv_close((uv_handle_t *)&engine->notify_handle, on_walk_close);
+        if (engine->notify_inited) {
+            uv_close((uv_handle_t *)&engine->notify_handle, on_handle_close);
         }
 
-        uv_walk(engine->loop, on_walk_close, NULL);
+        // 彻底排空异步 close
         while (uv_run(engine->loop, UV_RUN_ONCE))
             ;
         uv_loop_delete(engine->loop);

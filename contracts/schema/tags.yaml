@@ -15,7 +15,7 @@ tags:
     attributes: { category: "Metrology" }
 
   - id: 1003
-    name: GRID_POWER_TOTAL
+    name: GRID_POWER
     type: float
     unit: kW
     desc: "总有功功率"
@@ -59,18 +59,25 @@ tags:
     type: int
     desc: "枪头状态 (0:未插, 1:已插, 2:充电中)"
 
-  # === 配电/DCU 专用 (7000-7999) ===
-  - id: 7001
-    name: TRANSFORMER_OIL_TEMP
+  # === 环境与安全 (8000-8999) ===
+  - id: 8001
+    name: ROOM_HUMIDITY
+    type: float
+    unit: "%"
+    desc: "环境湿度"
+
+  - id: 8002
+    name: PLUG_OVERTEMP
+    type: bool
+    desc: "插头过温告警"
+
+  - id: 8003
+    name: GATEWAY_INTERNAL_TEMP
     type: float
     unit: "C"
-    desc: "变压器油温"
+    desc: "网关内部温度"
 
-  - id: 7002
-    name: BREAKER_STATUS
-    type: int
-    desc: "断路器位置 (0:分, 1:合)"
-
+  # === 电池管理 (4000-4999) ===
   - id: 4001
     name: BATTERY_SOC
     type: float
@@ -96,3 +103,15 @@ tags:
     type: int
     desc: "1号继电器状态"
     attributes: { rw: "w" }
+
+  # === 配电专用 (7000-7999) ===
+  - id: 7001
+    name: TRANSFORMER_OIL_TEMP
+    type: float
+    unit: "C"
+    desc: "变压器油温"
+
+  - id: 7002
+    name: BREAKER_STATUS
+    type: int
+    desc: "断路器位置 (0:分, 1:合)"

@@ -7,3 +7,9 @@ enabled_tags:
   - VOLTAGE_PHASE_A
   - BATTERY_SOC
   - ENERGY_ACTIVE_IMPORT
+
+overrides:
+  GRID_POWER_TOTAL:
+    attributes: { upload: true, mqtt_push: "change" }
+  VOLTAGE_PHASE_A:
+    attributes: { upload: true }

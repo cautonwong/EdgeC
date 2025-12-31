@@ -49,6 +49,13 @@ find_package(CURL REQUIRED)
 find_package(PahoMQTT REQUIRED)
 
 # ==============================================================================
+# 2.1 ZLog Dependency
+# ==============================================================================
+find_library(ZLOG_LIB NAMES zlog PATHS "${LOCAL_ROOT}/lib" REQUIRED)
+include_directories("${LOCAL_ROOT}/include")
+message(STATUS "Found zlog: ${ZLOG_LIB}")
+
+# ==============================================================================
 # 3. Compiler & Output Options
 # ==============================================================================
 include(Sanitizers)
@@ -84,8 +91,9 @@ add_library(edge_core STATIC
     src/core/net_buf.c
     src/core/sqlite_service.c
     src/core/persistence_mgr.c
+    src/core/edge_log.c
 )
-target_link_libraries(edge_core PUBLIC cJSON::cjson libuv::uv SQLite::SQLite3)
+target_link_libraries(edge_core PUBLIC cJSON::cjson libuv::uv SQLite::SQLite3 ${ZLOG_LIB})
 
 # 5.2: The Control Plane (Main Loop)
 add_library(edge_main_loop STATIC
@@ -101,7 +109,7 @@ add_library(edge_main_loop STATIC
     src/main_loop/sched_libev.c
     src/main_loop/bus_orchestrator.c
 )
-target_link_libraries(edge_main_loop PUBLIC edge_core)
+target_link_libraries(edge_main_loop PUBLIC edge_core PahoMQTT::PahoMQTT)
 
 # 5.3: The Computation Plane (Stream Engine)
 add_library(edge_stream_engine STATIC
@@ -113,6 +121,7 @@ add_library(edge_stream_engine STATIC
     src/stream_engine/standard_stages.c
     src/stream_engine/js_stage.c
     src/stream_engine/pipeline_loader.c
+    src/stream_engine/stream_dump.c
 )
 # PUBLIC dependency on main_loop to resolve symbols like service_get_loop and arbiter_submit_cmd
 target_link_libraries(edge_stream_engine PUBLIC edge_main_loop QuickJS::QuickJS)
