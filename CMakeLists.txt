@@ -84,6 +84,12 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/web/products/iems")
     add_web_product(iems "${CMAKE_CURRENT_SOURCE_DIR}/web/products/iems")
 endif()
 
+# 4.2 Copy configuration to build directory for tests
+file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/config" DESTINATION "${CMAKE_BINARY_DIR}")
+file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/config" DESTINATION "${CMAKE_BINARY_DIR}/tests")
+file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/logs")
+file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/tests/logs")
+
 # ==============================================================================
 # 5. Build Core Library (Decoupled Planes - Layer 1)
 # ==============================================================================
