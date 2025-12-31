@@ -1,6 +1,6 @@
 # EdgeOS (EdgeC) - 工业级边缘计算核心运行时 SDK
 
-![EdgeOS CI Pipeline](https://github.com/edgeos/EdgeC/actions/workflows/ci.yml/badge.svg)
+![EdgeOS CI Pipeline](https://github.com/cautonwong/EdgeC/actions/workflows/ci.yml/badge.svg)
 
 EdgeOS 是一个专为 **工业物联网 (IIoT)**、**能源管理系统 (EMS)** 和 **智能电网融合终端** 打造的高性能、确定性、事件驱动型边缘计算 SDK。它采用 C11 标准构建，核心基于 `libuv` 事件循环，旨在 15 年以上的超长生命周期内提供稳如磐石的服务。
 
