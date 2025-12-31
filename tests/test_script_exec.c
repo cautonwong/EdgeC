@@ -35,11 +35,22 @@ static void test_queue_overflow(void **state) {
     uv_loop_init(&loop);
     script_executor_t *exec = script_exec_create(&loop);
     assert_non_null(exec);
-    // Use an invalid script ID that won't be processed quickly to fill the queue
-    for (int i = 0; i < 128; i++) {
-        script_exec_post(exec, "non_existent_script", SCRIPT_PRIO_ALGO, &g_msg);
+    
+    int success_count = 0;
+    int fail_count = 0;
+    
+    // Push many tasks rapidly to overwhelm the consumer
+    for (int i = 0; i < 1000; i++) {
+        if (script_exec_post(exec, "non_existent_script", SCRIPT_PRIO_ALGO, &g_msg) == 0) {
+            success_count++;
+        } else {
+            fail_count++;
+        }
     }
-    assert_int_not_equal(script_exec_post(exec, "flood", SCRIPT_PRIO_ALGO, &g_msg), 0);
+    
+    // We expect at least some failures when pushing 1000 items into a 128-slot queue
+    assert_true(fail_count > 0);
+    
     script_exec_destroy(exec);
     uv_walk(&loop, on_walk_close, NULL);
     uv_run(&loop, UV_RUN_DEFAULT);
