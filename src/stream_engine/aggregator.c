@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "edge_log.h"
 #include "stream_engine.h"
 
 typedef struct {
@@ -24,8 +25,8 @@ stage_ret_t stage_freeze_handler(pipeline_stage_t *stage, pipe_event_t *ev) {
     if (ev->type != EVT_TIME_PULSE || ev->payload.tick_kind != 1) return STAGE_OK;
     aggregator_state_t *state = (aggregator_state_t *)stage->priv_state;
     if (state->sample_count == 0) return STAGE_DROP;
-    printf("[Aggregator] MINUTE_FREEZE: Tag=%u, Val=%.3f, Samples=%u, TS=%lu\n", state->tag_id,
-           state->current_acc / state->sample_count, state->sample_count, ev->calendar_ms);
+    LOG_INFO(LOG_CAT_CORE, "MINUTE_FREEZE: Tag=%u, Val=%.3f, Samples=%u, TS=%lu", state->tag_id,
+             state->current_acc / state->sample_count, state->sample_count, ev->calendar_ms);
     state->current_acc = 0;
     state->sample_count = 0;
     return STAGE_OK;

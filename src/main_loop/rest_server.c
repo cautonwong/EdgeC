@@ -9,6 +9,7 @@
 
 #include "contract_data_types.h"
 #include "datahub.h"
+#include "edge_log.h"
 #include "edge_params.h"
 #include "edge_service.h"
 #include "sqlite_service.h"
@@ -138,7 +139,7 @@ static char *handle_config_post(service_t *svc, const char *body) {
     if (cJSON_IsString(key) && cJSON_IsNumber(val)) {
         // 核心：执行带审计的参数设置
         edge_param_set_float(key->valuestring, (float)val->valuedouble);
-        printf("[REST] Config updated: %s = %.3f\n", key->valuestring, val->valuedouble);
+        LOG_INFO(LOG_CAT_CORE, "Config updated: %s = %.3f", key->valuestring, val->valuedouble);
         cJSON_Delete(root);
         return strdup("{\"status\":\"ok\",\"message\":\"parameter_queued_for_update\"}");
     }

@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "contract_data_types.h"
+#include "edge_log.h"
 #include "edge_service.h"
 
 // --- 外部契约接口声明 (符合解耦架构 v2.0) ---
@@ -23,7 +24,7 @@ static bool g_mqtt_connected = false;
 static void on_connect(void *context, MQTTAsync_successData *response) {
     (void)context;
     (void)response;
-    printf("[MQTT] Connected to broker.\n");
+    LOG_INFO(LOG_CAT_CORE, "MQTT Connected to broker");
     g_mqtt_connected = true;
 }
 

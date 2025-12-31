@@ -6,6 +6,8 @@
 #include <string.h>
 #include <uv.h>
 
+#include "edge_log.h"
+
 #define WEB_DOC_ROOT "config/www/index.html"
 
 struct web_server_s {
@@ -30,12 +32,7 @@ static void on_handle_free(uv_handle_t *h) {
 
 static void on_read(uv_stream_t *c, ssize_t n, const uv_buf_t *b) {
     if (n > 0) {
-        // 1. 简单的请求解析：只处理 GET /
-        // 在 native 嵌入式 Web 网关中，我们默认对任何请求都返回 index.html
-        // 除非它明确请求了不存在的资源。浏览器通常会先请求 /。
-
         uv_fs_t open_req;
-        // 使用同步调用 (NULL 回调) 确保文件立即打开
         int fd = uv_fs_open(c->loop, &open_req, WEB_DOC_ROOT, O_RDONLY, 0, NULL);
         uv_fs_req_cleanup(&open_req);
 
@@ -56,7 +53,6 @@ static void on_read(uv_stream_t *c, ssize_t n, const uv_buf_t *b) {
             uv_fs_close(c->loop, &close_req, fd, NULL);
             uv_fs_req_cleanup(&close_req);
 
-            // 构造标准 HTTP 响应
             char head[512];
             snprintf(head, sizeof(head),
                      "HTTP/1.1 200 OK\r\n"
@@ -67,20 +63,17 @@ static void on_read(uv_stream_t *c, ssize_t n, const uv_buf_t *b) {
                      size);
 
             uv_write_t *wr_req = (uv_write_t *)malloc(sizeof(uv_write_t));
-
-            // 我们需要把 Header 也拷贝出来，或者使用多个 buffer
             size_t head_len = strlen(head);
             char *full_payload = malloc(head_len + size);
             memcpy(full_payload, head, head_len);
             memcpy(full_payload + head_len, content, size);
 
             uv_buf_t out_buf = uv_buf_init(full_payload, (unsigned int)(head_len + size));
-            wr_req->data = full_payload;  // 在 write_done 中释放
-
+            wr_req->data = full_payload;
             uv_write(wr_req, c, &out_buf, 1, on_write_done);
             free(content);
         } else {
-            fprintf(stderr, "[WEB] Failed to open %s: %d\n", WEB_DOC_ROOT, fd);
+            LOG_ERROR(LOG_CAT_CORE, "Failed to open %s: %d", WEB_DOC_ROOT, fd);
             const char *not_found = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
             uv_write_t *wr_req = (uv_write_t *)malloc(sizeof(uv_write_t));
             uv_buf_t buf = uv_buf_init(strdup(not_found), (unsigned int)strlen(not_found));
@@ -90,7 +83,6 @@ static void on_read(uv_stream_t *c, ssize_t n, const uv_buf_t *b) {
     } else if (n < 0) {
         uv_close((uv_handle_t *)c, on_handle_free);
     }
-
     if (b->base) free(b->base);
 }
 
@@ -113,9 +105,9 @@ web_server_t *web_server_create(uv_loop_t *l, int p) {
     uv_tcp_bind(&srv->server, (const struct sockaddr *)&a, 0);
     int r = uv_listen((uv_stream_t *)&srv->server, 128, on_conn);
     if (r) {
-        fprintf(stderr, "[WEB] Listen error port %d: %s\n", p, uv_strerror(r));
+        LOG_ERROR(LOG_CAT_CORE, "WEB Listen error port %d: %s", p, uv_strerror(r));
     } else {
-        printf("[WEB] Native HMI Gateway running at http://localhost:%d\n", p);
+        LOG_INFO(LOG_CAT_CORE, "Native HMI Gateway running at http://localhost:%d", p);
     }
     return srv;
 }

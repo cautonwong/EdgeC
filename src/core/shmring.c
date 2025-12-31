@@ -1,115 +1,89 @@
 #include "shmring.h"
 
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
 #include <uv.h>
 
-// Ensure the header struct is exactly one cache line
-_Static_assert(sizeof(ShmRingHeader) == CACHELINE_SIZE,
-               "ShmRingHeader must be one cache line size");
-
-#include <errno.h>
+#include "edge_log.h"
 
 int shmring_create(shm_ring_t *ring, const char *name, uint32_t slots) {
     if (!ring || !name || slots == 0 || slots > SHMRING_MAX_SLOTS) {
-        fprintf(stderr, "[ShmRing] Invalid parameters: slots=%u (max=%d)\n", slots,
-                SHMRING_MAX_SLOTS);
+        LOG_ERROR(LOG_CAT_BUS, "Invalid parameters for '%s': slots=%u", name ? name : "NULL",
+                  slots);
         return -1;
     }
 
     size_t size = sizeof(ShmRingHeader) + slots * sizeof(PipeMsg);
-
-    // 工业级加固：先尝试删除旧的，防止 O_EXCL 导致 EEXIST 错误
-    shm_unlink(name);
+    shm_unlink(name);  // 预清理旧资源
 
     int fd = shm_open(name, O_CREAT | O_RDWR | O_EXCL, 0666);
     if (fd < 0) {
-        fprintf(stderr, "[ShmRing] shm_open failed for %s: %s\n", name, strerror(errno));
-        memset(ring, 0, sizeof(shm_ring_t));
+        LOG_ERROR(LOG_CAT_BUS, "shm_open failed for %s: %s", name, strerror(errno));
         return -1;
     }
 
-    uv_fs_t req;
-    if (uv_fs_ftruncate(NULL, &req, fd, (int64_t)size, NULL) != 0) {
-        fprintf(stderr, "[ShmRing] ftruncate failed: %s\n", strerror(errno));
-        uv_fs_req_cleanup(&req);
+    if (ftruncate(fd, (off_t)size) < 0) {
+        LOG_ERROR(LOG_CAT_BUS, "ftruncate failed: %s", strerror(errno));
         close(fd);
-        shm_unlink(name);
-        return -1;
-    }
-    uv_fs_req_cleanup(&req);
-
-    void *mem = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-
-    // Close using libuv fs API
-    uv_fs_close(NULL, &req, fd, NULL);
-    uv_fs_req_cleanup(&req);
-
-    if (mem == MAP_FAILED) {
-        shm_unlink(name);
         return -1;
     }
 
-    ring->hdr = (ShmRingHeader *)mem;
-    ring->slots = (PipeMsg *)((uint8_t *)mem + sizeof(ShmRingHeader));
+    void *ptr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    close(fd);
+
+    if (ptr == MAP_FAILED) {
+        LOG_ERROR(LOG_CAT_BUS, "mmap failed: %s", strerror(errno));
+        return -1;
+    }
+
+    ring->hdr = (ShmRingHeader *)ptr;
+    ring->slots = (PipeMsg *)((uint8_t *)ptr + sizeof(ShmRingHeader));
     ring->map_size = size;
     strncpy(ring->name, name, sizeof(ring->name) - 1);
-    ring->name[sizeof(ring->name) - 1] = '\0';
 
+    // 初始化头部 (Principles 1: Atomic init)
     ring->hdr->magic = SHMRING_MAGIC;
     ring->hdr->slot_count = slots;
     atomic_init(&ring->hdr->seq, 0);
     atomic_init(&ring->hdr->write_idx, 0);
     atomic_init(&ring->hdr->total_writes, 0);
 
+    LOG_INFO(LOG_CAT_BUS, "SHM Ring '%s' created [Size: %zu bytes, Slots: %u]", name, size, slots);
     return 0;
 }
 
 int shmring_open(shm_ring_t *ring, const char *name) {
-    if (!ring || !name) {
-        return -1;
-    }
+    if (!ring || !name) return -1;
 
     int fd = shm_open(name, O_RDWR, 0666);
-    if (fd < 0) {
-        return -1;
-    }
+    if (fd < 0) return -1;
 
-    void *header_mem = mmap(NULL, sizeof(ShmRingHeader), PROT_READ, MAP_SHARED, fd, 0);
-    if (header_mem == MAP_FAILED) {
+    ShmRingHeader header;
+    if (read(fd, &header, sizeof(header)) != sizeof(header)) {
         close(fd);
         return -1;
     }
 
-    ShmRingHeader *hdr = (ShmRingHeader *)header_mem;
-    if (hdr->magic != SHMRING_MAGIC) {
-        munmap(header_mem, sizeof(ShmRingHeader));
+    if (header.magic != SHMRING_MAGIC) {
         close(fd);
         return -1;
     }
-    uint32_t slots = hdr->slot_count;
-    munmap(header_mem, sizeof(ShmRingHeader));
 
-    size_t actual_size = sizeof(ShmRingHeader) + slots * sizeof(PipeMsg);
+    size_t size = sizeof(ShmRingHeader) + header.slot_count * sizeof(PipeMsg);
+    void *ptr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    close(fd);
 
-    void *mem = mmap(NULL, actual_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (ptr == MAP_FAILED) return -1;
 
-    uv_fs_t req;
-    uv_fs_close(NULL, &req, fd, NULL);
-    uv_fs_req_cleanup(&req);
-
-    if (mem == MAP_FAILED) {
-        return -1;
-    }
-
-    ring->hdr = (ShmRingHeader *)mem;
-    ring->slots = (PipeMsg *)((uint8_t *)mem + sizeof(ShmRingHeader));
-    ring->map_size = actual_size;
+    ring->hdr = (ShmRingHeader *)ptr;
+    ring->slots = (PipeMsg *)((uint8_t *)ptr + sizeof(ShmRingHeader));
+    ring->map_size = size;
     strncpy(ring->name, name, sizeof(ring->name) - 1);
-    ring->name[sizeof(ring->name) - 1] = '\0';
 
     return 0;
 }
@@ -123,77 +97,46 @@ void shmring_close(shm_ring_t *ring) {
 }
 
 int shmring_destroy(shm_ring_t *ring) {
-    if (!ring || ring->name[0] == '\0') {
-        return -1;
-    }
-    char name_copy[256];
-    strncpy(name_copy, ring->name, 255);
-    name_copy[255] = '\0';
-
+    if (!ring) return -1;
+    char name[256];
+    strncpy(name, ring->name, 255);
     shmring_close(ring);
-    return shm_unlink(name_copy);
+    shm_unlink(name);
+    LOG_INFO(LOG_CAT_BUS, "SHM Ring '%s' destroyed", name);
+    return 0;
 }
 
-void shm_ring_write(shm_ring_t *ring, const PipeMsg *msg)
+void shm_ring_write(shm_ring_t *ring, const PipeMsg *msg) {
+    if (!ring || !ring->hdr || !msg) return;
 
-{
-    // Start of update (odd sequence)
+    // 获取当前写入位置并更新
+    uint32_t idx = atomic_fetch_add_explicit(&ring->hdr->write_idx, 1, memory_order_relaxed) %
+                   ring->hdr->slot_count;
 
+    // 拷贝消息并注入序列号
+    PipeMsg *target = &ring->slots[idx];
+    *target = *msg;
+
+    // 原子增加全局序列号，使读者感知新数据 (Release fence)
     atomic_fetch_add_explicit(&ring->hdr->seq, 1, memory_order_release);
-
-    uint32_t idx = atomic_load_explicit(&ring->hdr->write_idx, memory_order_relaxed);
-
-    // 拷贝并更新追踪状态
-
-    PipeMsg to_write = *msg;
-
-    to_write.state = TRACE_IN_SHM;
-
-    ring->slots[idx] = to_write;
-
-    atomic_store_explicit(&ring->hdr->write_idx, (idx + 1) % ring->hdr->slot_count,
-                          memory_order_relaxed);
-
-    // Increment total_writes
     atomic_fetch_add_explicit(&ring->hdr->total_writes, 1, memory_order_relaxed);
-
-    // End of update (even sequence)
-    atomic_fetch_add_explicit(&ring->hdr->seq, 1, memory_order_release);
 }
 
 int shm_ring_read(shm_ring_t *ring, uint64_t *last_seq, PipeMsg *out) {
-    if (!ring || !ring->hdr || !last_seq || !out) {
-        return -1;
-    }
-    uint64_t total = atomic_load_explicit(&ring->hdr->total_writes, memory_order_acquire);
+    if (!ring || !ring->hdr || !out) return -1;
 
-    if (*last_seq >= total) {
-        return -1;  // No new data
-    }
+    // 获取当前最新序列号 (Acquire fence)
+    uint64_t head = (uint64_t)atomic_load_explicit(&ring->hdr->seq, memory_order_acquire);
+    if (head <= *last_seq) return -1;
 
-    uint64_t target_seq = *last_seq;
-    uint32_t slots = ring->hdr->slot_count;
-
-    if (total - target_seq > slots) {
-        target_seq = total - slots;  // Jump to oldest available
+    // 追赶机制：如果落后太多，强制对齐到缓冲区末尾
+    if (head > *last_seq + ring->hdr->slot_count) {
+        *last_seq = head - ring->hdr->slot_count;
     }
 
-    uint32_t idx = (uint32_t)(target_seq % slots);
+    uint32_t idx = (uint32_t)((*last_seq) % ring->hdr->slot_count);
+    *out = ring->slots[idx];
+    (*last_seq)++;
 
-    unsigned int seq1, seq2;
-    do {
-        seq1 = atomic_load_explicit(&ring->hdr->seq, memory_order_acquire);
-        if (seq1 & 1) {
-            // Writer is active, briefly yield
-            // In libuv context, we don't have a direct yield, but we can spin slightly
-            continue;
-        }
-
-        *out = ring->slots[idx];
-
-        seq2 = atomic_load_explicit(&ring->hdr->seq, memory_order_acquire);
-    } while (seq1 != seq2);
-
-    *last_seq = target_seq + 1;
     return 0;
 }

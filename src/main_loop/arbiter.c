@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "edge_log.h"
+
 #define MAX_BUSES 8
 
 typedef struct {
@@ -45,7 +47,7 @@ static void arbiter_schedule(arbiter_t *arb, int bus_id) {
     job->next = NULL;
     bus->owner = job;
 
-    printf("[Arbiter] Starting Job %s on Bus %d\n", job->req_id, bus_id);
+    LOG_INFO(LOG_CAT_SCHED, "Starting Job %s on Bus %d", job->req_id, bus_id);
     if (job->on_start) {
         job->on_start(job->user_data);
     }

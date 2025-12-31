@@ -5,6 +5,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "edge_log.h"
 #include "sqlite_service.h"
 
 // 内部结构：映射 param_kv 表
@@ -79,7 +80,7 @@ double edge_param_get_float(const char *key, double default_val) {
 // 其余 Get/Set 逻辑类似 ...
 
 edge_status_t edge_param_load_all(void) {
-    printf("[EdgeParams] Loading all parameters from SQLite to memory cache...\n");
+    LOG_INFO(LOG_CAT_CORE, "Loading parameters from SQLite cache");
     // TODO: 执行 SELECT * FROM param_kv 并填充 g_cache
     return EDGE_OK;
 }

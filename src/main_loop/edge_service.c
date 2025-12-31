@@ -7,6 +7,7 @@
 
 #include "arbiter.h"
 #include "datahub.h"
+#include "edge_log.h"
 #include "sqlite_service.h"
 
 struct service_s {
@@ -109,7 +110,7 @@ int service_run(service_t *svc, uv_loop_t *loop, net_buf_pool_t *pool, arbiter_t
     svc->storage = (sqlite_svc_t *)storage->writer;
     svc->cloud = cloud;
 
-    printf("[Service] Container booting up in mode: %s\n", svc->opts.mode);
+    LOG_INFO(LOG_CAT_CORE, "Container booting up in mode: %s", svc->opts.mode);
     uv_async_init(svc->loop, &svc->cmd_async, on_cmd_async);
     svc->cmd_async.data = svc;
 

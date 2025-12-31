@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <uv.h>
 
+#include "edge_log.h"
+
 struct driver_manager_s {
     int fds[BUS_MAX];
 };
@@ -29,7 +31,7 @@ driver_manager_t* driver_manager_create(void) {
     dm->fds[BUS_RS485_2] = fd2;
     uv_fs_req_cleanup(&req);
 
-    printf("[DriverManager] Manager created using Libuv FS API.\n");
+    LOG_INFO(LOG_CAT_DRIVER, "Manager created using Libuv FS API");
     return dm;
 }
 
