@@ -146,6 +146,7 @@ int script_exec_post(script_executor_t *exec, const char *script_id, script_prio
     int next = (exec->head + 1) % MAX_QUEUE_SIZE;
     if (next == exec->tail) {
         uv_mutex_unlock(&exec->lock);
+        // printf("[ScriptExec] Queue overflow\n"); // Keep it silent but for debugging
         return -1;
     }
     script_task_t *t = &exec->queue[exec->head];
