@@ -3,6 +3,20 @@ includes:
   - "contracts/bindings/modbus/huawei_sun2000.yaml"
   - "contracts/bindings/modbus/acrel_p80.yaml"
 
+# [新增] UI 差异化定义 (Descriptor)
+ui_config:
+  branding:
+    title: "EdgeOS IEMS"
+    theme: "emerald" # 绿色调
+    logo: "/logos/iems.svg"
+  navigation:
+    dashboard: true
+    devices: true
+    data_curves: true
+    pipelines: true
+    battery_view: true # IEMS 独有页面
+    system_config: true
+
 enabled_tags:
   - GRID_POWER
   - GRID_FREQUENCY

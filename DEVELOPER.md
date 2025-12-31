@@ -71,120 +71,33 @@ EdgeOS 实现了基于事件驱动的异步日志系统，日志文件统一输�
 | `LOG_CAT_DRIVER` | `driver.log` | Modbus/DLMS 原始报文与映射逻辑。 |
 | `LOG_CAT_STORAGE` | `storage.log` | SQLite 写入性能、数据一致性。 |
 
-### 4.2 调试技巧
-*   **实时查看**：`tail -f logs/driver.log | grep "TAG_GRID_POWER"`
-*   **丢包监控**：定期调用 `edge_log_drop_count()`。如果该值增长，说明日志 IO 负载过高或缓冲区溢出。
-*   **FATAL 处理**：`LOG_FATAL` 会执行同步落盘并立即调用 `abort()`，产生的 core 文件是定位崩溃的第一现场。
+### 4.2 调试技巧与宏规范
 
----
-
-## 🛡️ 5. 质量红线
+EdgeOS 采用分级调试机制，严禁直接使用原始 `printf`。
 
 
 
-1.  **Libuv 优先**：禁止直接使用 `pthread` 或 `poll`，必须封装为 `uv_thread` 或 `uv_poll`。
+#### C 侧调试标准
 
-2.  **异步闭环**：所有 `STAGE_ASYNC` 必须匹配对应的 `pipeline_resume`。
+*   **LOG_DEBUG**: 仅在 `VERBOSE_LOGGING` 开启时输出，用于追踪总线报文细节。
 
-3.  **内存定力**：严禁在 `Stream Loop` 中使用 `malloc`，请优先使用 `NetBuf` 内存池。
+*   **LOG_INFO**: 用于记录状态迁移（如 Job Start/Complete）。
 
-
-
----
+*   **LOG_ERROR/FATAL**: 用于记录资源故障，FATAL 会触发同步落盘并 `abort()`。
 
 
 
-## 🏗️ 6. 二次开发标准动作 (Secondary Development)
+#### JS 侧调试标准
 
-
-
-EdgeOS 鼓励通过“增加插件”而非“修改内核”的方式进行扩展。
-
-
-
-### 6.1 开发一个新产品 (Creating a Product)
-
-假设你要开发一个名为 `my_gateway` 的产品：
-
-1.  **建立目录**：`mkdir -p cmd/my_gateway`。
-
-2.  **定义契约**：
-
-    *   在 `contracts/products/my_gateway.yaml` 中定义标准测点。
-
-    *   在 `cmd/my_gateway/extension.yaml` 中定义本地私有测点。
-
-3.  **编写入口**：参考 `cmd/iems/main.c` 编写 `main.c`，并注入 `service_set_contract_path`。
-
-4.  **注册构建**：在 `cmd/my_gateway/CMakeLists.txt` 中调用 `edge_add_contract`。
-
-
-
-### 6.2 开发算法算子 (Algo Development)
-
-
-
-#### 6.2.1 Native C 算子 (核心/高频)
-
-适用于高频采样（>100Hz）或需要极致性能的场景（如 FFT）。
-
-*   **编写代码**：在 `src/stream_engine/` 下新建源文件，实现 `stage_proc_fn` 接口。
-
-*   **状态管理**：使用 `stage->priv_state` 存储跨采样点的上下文。
-
-*   **注册**：在 `pipeline_loader.c` 的 `build_stage` 中增加映射。
-
-
-
-```c
-
-// 示例：简单限值告警算子
-
-stage_ret_t my_alarm_proc(pipeline_stage_t *stage, pipe_event_t *ev) {
-
-    double limit = *(double*)stage->priv_cfg;
-
-    if (ev->payload.val > limit) {
-
-        LOG_WARN(LOG_CAT_SCHED, "Threshold exceeded: %.2f", ev->payload.val);
-
-    }
-
-    return STAGE_OK;
-
-}
-
-```
-
-
-
-#### 6.2.2 JS 策略脚本 (业务/易变)
-
-适用于需要快速迭代、不希望重启进程的业务逻辑。
-
-*   **编写脚本**：在 `algo/js/` 目录下创建 `.js` 文件。
-
-*   **接口规范**：必须导出 `on_event(event, state)` 函数。
-
-*   **配置生效**：在 Pipeline JSON 配置中使用 `type: "js_rule"`。
-
-
+在算法脚本中，请遵循以下模式：
 
 ```javascript
 
-// 示例：削峰填谷策略
-
 export function on_event(event, state) {
 
-    if (event.tag === 1003 && event.val > 5000) {
+    if (params.debug_mode) {
 
-        state.overload_count = (state.overload_count || 0) + 1;
-
-        if (state.overload_count > 5) {
-
-            // 触发控制动作
-
-        }
+        console.log(`[DEBUG] Received Tag: ${event.tag} Val: ${event.val}`);
 
     }
 
@@ -194,20 +107,74 @@ export function on_event(event, state) {
 
 
 
-### 6.3 算法调试与验证
+---
 
 
 
-1.  **模拟数据注入**：在 `main.c` 中开启 `dummy_producer` 定时器，向 `datahub` 持续推送测试数据。
+## 🌐 5. Web UI 差异化开发规范
 
-2.  **实时日志观测**：
 
-    *   驱动层：`tail -f logs/driver.log`
 
-    *   计算层：`tail -f logs/core.log` (聚合与算子输出)
+### 5.1 路由枚举 (ROUTER_PATH)
 
-3.  **单元测试 (推荐)**：
+前端 Shell (`web/core`) 采用统一的路由定义，禁止在子产品中分叉：
 
-    *   在 `tests/` 下为你的 Algo 编写 cmocka 测试。
+```typescript
 
-    *   利用 `pipe_event_t` 的 Mock 注入，验证算法在“时光回溯”或“极速暴增”下的稳定性。
+enum ROUTER_PATH {
+
+  HOME = '/',
+
+  DASHBOARD = '/dashboard',
+
+  DEVICES = '/devices',
+
+  DATA_CURVES = '/data/curves',
+
+  PIPELINES = '/pipelines',
+
+  SYSTEM_CONFIG = '/system/config'
+
+}
+
+```
+
+
+
+### 5.2 差异化策略：Descriptor 驱动
+
+差异化开发遵循以下铁律：
+
+1.  **UI Shell 永远不分叉**：基础布局、Rest API 封装必须在 `web/core` 中完成。
+
+2.  **差异写在 YAML，不写在 JS**：通过后端下发的 `ui_config` 控制页面显隐。
+
+3.  **UI 只渲染，不决策**：前端禁止包含 `if (product === 'iems')` 逻辑，应查询 `contractStore.isPageVisible()`。
+
+
+
+---
+
+
+
+## 🛡️ 6. 质量红线与测试
+
+
+
+### 6.1 应用分类 (Application Types)
+
+*   **EVENT_DRIVEN**: 南向驱动与流引擎 Pipeline。
+
+*   **BACKEND**: REST Server 与持久化管理。
+
+*   **FULLSTACK**: 包含嵌入式 Web 门户的完整产品。
+
+
+
+### 6.2 单元测试模式
+
+所有核心功能必须通过 `tests/` 下的 cmocka 验证。
+
+*   **Mocking**: 优先使用 `-Wl,--wrap` 或 `engine_time_source_t` 指针注入。
+
+*   **Assertion**: 验证逻辑结果（如 `-1 != 0`）并确证资源 100% 回收。

@@ -24,6 +24,14 @@ export interface TagMeta {
 
 export interface Contract {
   product: string;
+  ui_config: {
+    branding: {
+      title: string;
+      theme: string;
+      logo: string;
+    };
+    navigation: Record<string, boolean>;
+  };
   generated_at: string;
   tags: TagMeta[];
 }
@@ -34,30 +42,29 @@ export const useContractStore = defineStore('contract', {
     loading: false,
     error: null as string | null,
     tagMap: new Map<number, TagMeta>(),
-    groups: new Map<string, TagMeta[]>() // UI Groups
+    groups: new Map<string, TagMeta[]>(),
+    nav: {} as Record<string, boolean> 
   }),
 
   actions: {
     async loadContract() {
       this.loading = true;
       try {
+        // 从后端统一获取“数据宪法”
         const response = await axios.get('/api/v1/contracts', { responseType: 'text' });
-        // 解析 YAML
         const data = yaml.load(response.data) as Contract;
         this.contract = data;
         
-        // 建立索引
+        // 提取 UI 描述符
+        this.nav = data.ui_config?.navigation || {};
+        
+        // 建立测点索引与分组
         this.tagMap.clear();
         this.groups.clear();
-        
         data.tags.forEach(tag => {
           this.tagMap.set(tag.id, tag);
-          
-          // UI 分组逻辑
           const groupName = tag.attributes?.ui?.group || 'Uncategorized';
-          if (!this.groups.has(groupName)) {
-            this.groups.set(groupName, []);
-          }
+          if (!this.groups.has(groupName)) this.groups.set(groupName, []);
           this.groups.get(groupName)?.push(tag);
         });
         
@@ -69,12 +76,9 @@ export const useContractStore = defineStore('contract', {
       }
     },
 
-    getTag(id: number) {
-      return this.tagMap.get(id);
-    },
-    
-    getGroup(name: string) {
-      return this.groups.get(name) || [];
+    isPageVisible(pageId: string): boolean {
+      // 默认显示，除非契约明确关闭
+      return this.nav[pageId] !== false;
     }
   }
 });

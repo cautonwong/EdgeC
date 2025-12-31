@@ -188,9 +188,36 @@ static uint64_t get_query_param_uint(const char *path, const char *key, uint64_t
     return (uint64_t)atoll(p + strlen(search_key));
 }
 
+/**
+ * @brief 下发 UI 描述符 (UI Descriptor)
+ */
+static char *handle_ui_descriptor_get(service_t *svc) {
+    const char *contract_path = service_get_contract_path(svc);
+    if (!contract_path) return strdup("{\"error\":\"no_path\"}");
+
+    // 假设描述符文件与契约 YAML 在同一目录 (products/<name>/generated/ui_descriptor.json)
+    char desc_path[256];
+    strncpy(desc_path, contract_path, sizeof(desc_path));
+    char *ext = strstr(desc_path, "contracts.yaml");
+    if (ext) strcpy(ext, "ui_descriptor.json");
+
+    if (access(desc_path, F_OK) != 0) return strdup("{\"error\":\"not_found\"}");
+
+    FILE *f = fopen(desc_path, "r");
+    fseek(f, 0, SEEK_END);
+    long len = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    char *buf = malloc((size_t)len + 1);
+    fread(buf, 1, (size_t)len, f);
+    fclose(f);
+    buf[len] = '\0';
+    return buf;
+}
+
 char *rest_dispatch(service_t *svc, const char *path, const char *body) {
     if (strcmp(path, "/api/v1/system/health") == 0) return handle_system_health(svc);
     if (strcmp(path, "/api/v1/contracts") == 0) return handle_contracts_get(svc);
+    if (strcmp(path, "/api/v1/ui/descriptor") == 0) return handle_ui_descriptor_get(svc);
     if (strcmp(path, "/api/v1/pipelines") == 0) return handle_pipelines_get(svc);
     if (strcmp(path, "/api/v1/devices") == 0) return handle_devices_get(svc);
 

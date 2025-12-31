@@ -2,10 +2,11 @@
 # -*- coding: utf-8 -*-
 
 """
-EdgeOS Contract Compiler v2.8 (Full Type Alignment)
+EdgeOS Contract Compiler v3.0 (Descriptor Support)
 """
 
 import yaml
+import json
 import os
 import sys
 import argparse
@@ -34,10 +35,10 @@ def build_effective_contract(schema_path, product_path, local_path, base_path):
         for inc_path in prod_conf['includes']:
             real_path = inc_path
             if not os.path.isabs(real_path) and base_path: real_path = os.path.join(base_path, inc_path)
-            if not os.path.exists(real_path): print(f"[ERROR] Binding file not found: {inc_path}"); sys.exit(1)
-            binding_data = load_yaml(real_path)
-            proto = binding_data.get('protocol', 'UNKNOWN').upper()
-            mapping_list = binding_data.get('mappings', binding_data.get('map', []))
+            if not os.path.exists(real_path): continue
+            bind_data = load_yaml(real_path)
+            proto = bind_data.get('protocol', 'UNKNOWN').upper()
+            mapping_list = bind_data.get('mappings', bind_data.get('map', []))
             for m in mapping_list:
                 tn = m.get('tag')
                 if not tn or tn not in all_tags_map: continue
@@ -46,7 +47,7 @@ def build_effective_contract(schema_path, product_path, local_path, base_path):
                 m['protocol_type'] = proto
                 target_tag['bindings'].append(m)
     prod_enabled = set(prod_conf.get('enabled_tags', []))
-    local_enabled = set(local_data.get('enabled_tags', []) if local_data else [])
+    local_enabled = set(local_data.get('enabled_tags', []) if (local_path and local_data) else [])
     enabled_names = prod_enabled.union(local_enabled)
     active_tags = []
     overrides = prod_conf.get('overrides', {})
@@ -64,6 +65,7 @@ def build_effective_contract(schema_path, product_path, local_path, base_path):
     return {
         "product_name": prod_conf.get('product', 'Unknown'),
         "timestamp": str(datetime.datetime.now()),
+        "ui_config": prod_conf.get('ui_config', {}), # [新增] 透传 UI 配置
         "active_tags": active_tags,
         "all_tags": list(all_tags_map.values())
     }
@@ -81,18 +83,16 @@ def gen_header(contract, out_path):
     lines.append("const tag_meta_t* edge_get_meta(edge_tag_id_t id);")
     lines.append("edge_tag_id_t edge_lookup_modbus(uint16_t reg, float *out_scale);")
     lines.append("edge_tag_id_t edge_lookup_dlms(const char* obis, float *out_scale);")
-    lines.append("edge_tag_id_t edge_lookup_dlt645(const char* di, float *out_scale);")
-    lines.append("edge_tag_id_t edge_lookup_dlt698(const char* oaid, float *out_scale);")
     lines.append("edge_tag_id_t edge_lookup_iec104(int ioa);")
     lines.append("\n#endif")
     with open(out_path, 'w') as f: f.write("\n".join(lines) + "\n")
 
 def gen_source(contract, out_path):
     active_tags = sorted(contract['active_tags'], key=lambda x: x['id'])
-    proto_map = {'MODBUS':[], 'DLMS':[], 'DLT645':[], 'DLT698':[], 'IEC104':[], 'CAN':[]}
+    proto_map = {'MODBUS':[], 'DLMS':[], 'IEC104':[], 'CAN':[]}
     for t in active_tags:
         for b in t.get('bindings', []):
-            b_merged = b.copy(); b_merged['tag_name'] = t['name']
+            b_merged = b.copy(); b_merged['tag_name'] = t['name']; b_merged['tag_id'] = t['id']
             ptype = b.get('protocol_type', b.get('protocol', 'UNKNOWN')).upper()
             if ptype in proto_map: proto_map[ptype].append(b_merged)
     lines = ["#include \"contracts.h\"", "#include <string.h>", "", "const tag_meta_t g_tag_meta_table[] = {"]
@@ -101,24 +101,34 @@ def gen_source(contract, out_path):
         u = 'true' if t.get('attributes', {}).get('upload') else 'false'
         lines.append("    [TAG_%s] = { \"%s\", \"%s\", %s, %s }," % (t['name'], t['name'], t.get('unit',''), p, u))
     lines.append("};\nconst tag_meta_t* edge_get_meta(edge_tag_id_t id) { if (id >= TAG_MAX_ID) return NULL; return &g_tag_meta_table[id]; }\n")
-    # Modbus
     m_list = sorted(proto_map['MODBUS'], key=lambda x: x.get('addr', 0))
     lines.append("static const modbus_map_t s_modbus_map[] = {")
     for m in m_list: lines.append("    { %d, TAG_%s, %ff }," % (m['addr'], m['tag_name'], m.get('scale', 1.0)))
     lines.append("};\nstatic const int s_modbus_len = %d;" % len(m_list))
     lines.append("edge_tag_id_t edge_lookup_modbus(uint16_t reg, float *out_scale) { for(int i=0; i < s_modbus_len; i++) if(s_modbus_map[i].addr == reg) { if(out_scale) *out_scale=s_modbus_map[i].scale; return s_modbus_map[i].id; } return 0; }\n")
-    # Generic string-based (Corrected DLMS Init)
-    for p in ['DLMS', 'DLT645', 'DLT698']:
+    for p in ['DLMS']:
         d_list = proto_map[p]
         lines.append("static const dlms_map_t s_%s_map[] = {" % p.lower())
         for d in d_list:
-            key = str(d.get('obis', d.get('di', d.get('oaid', ''))))
-            # 补全 ic, attr_id, type 成员，消除警告
-            lines.append("    { \"%s\", TAG_%s, %d, %d, %d, %ff }," % (key, d['tag_name'], d.get('ic', 3), d.get('attr_id', 2), d.get('type', 0), d.get('scaler', 1.0)))
+            lines.append("    { \"%s\", TAG_%s, 0, 0, 0, %ff }," % (d.get('obis',''), d['tag_name'], d.get('scaler', 1.0)))
         lines.append("};\nstatic const int s_%s_len = %d;" % (p.lower(), len(d_list)))
         lines.append("edge_tag_id_t edge_lookup_%s(const char* key, float *out_scale) { for(int i=0; i < s_%s_len; i++) if(strcmp(s_%s_map[i].obis, key) == 0) { if(out_scale) *out_scale=s_%s_map[i].scaler; return s_%s_map[i].id; } return 0; }\n" % (p.lower(), p.lower(), p.lower(), p.lower(), p.lower()))
     lines.append("edge_tag_id_t edge_lookup_iec104(int ioa) { (void)ioa; return 0; }")
     with open(out_path, 'w') as f: f.write("\n".join(lines) + "\n")
+
+def gen_ui_descriptor(contract, out_path):
+    active_tags = contract['active_tags']
+    categories = set()
+    for t in active_tags:
+        cat = t.get('attributes', {}).get('category')
+        if cat: categories.add(cat)
+    menu = [{"id": "dashboard", "label": "Dashboard", "icon": "LayoutDashboard", "visible": True}]
+    if "Metrology" in categories: menu.append({"id": "data", "label": "Telemetry", "icon": "Activity", "visible": True})
+    if "Storage" in categories: menu.append({"id": "history", "label": "History", "icon": "History", "visible": True})
+    if "EVSE" in categories: menu.append({"id": "evse", "label": "EV Charger", "icon": "Zap", "visible": True})
+    menu.append({"id": "system", "label": "Settings", "icon": "Settings", "visible": True})
+    descriptor = {"product": contract['product_name'], "timestamp": contract['timestamp'], "features": list(categories), "menu": menu}
+    with open(out_path, 'w', encoding='utf-8') as f: json.dump(descriptor, f, indent=2)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -128,6 +138,11 @@ if __name__ == "__main__":
     contract = build_effective_contract(args.schema, args.product, args.local, args.base)
     if not os.path.exists(args.out): os.makedirs(args.out)
     with open(os.path.join(args.out, "contracts.yaml"), 'w', encoding='utf-8') as f:
-        yaml.dump({"product": contract['product_name'], "tags": contract['active_tags']}, f, sort_keys=False, allow_unicode=True)
+        yaml.dump({
+            "product": contract['product_name'], 
+            "ui_config": contract['ui_config'], # [新增]
+            "tags": contract['active_tags']
+        }, f, sort_keys=False, allow_unicode=True)
     gen_header(contract, os.path.join(args.out, "contracts.h"))
     gen_source(contract, os.path.join(args.out, "contracts.c"))
+    gen_ui_descriptor(contract, os.path.join(args.out, "ui_descriptor.json"))

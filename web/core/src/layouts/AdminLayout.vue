@@ -1,10 +1,21 @@
 <template>
-  <div class="admin-layout">
+  <div class="admin-layout" :class="`theme-${contractStore.contract?.ui_config?.branding?.theme || 'default'}`">
     <!-- Sidebar -->
     <aside class="sidebar">
-      <div class="logo">EdgeOS</div>
+      <div class="logo">
+        <img v-if="contractStore.contract?.ui_config?.branding?.logo" 
+             :src="contractStore.contract.ui_config.branding.logo" class="h-8 w-8 inline-block mr-2" />
+        {{ contractStore.contract?.ui_config?.branding?.title || 'EdgeOS' }}
+      </div>
       <nav>
-        <router-link v-for="item in menuItems" :key="item.path" :to="item.path" class="nav-item">
+        <!-- 核心差异化：根据契约导航开关进行显隐控制 -->
+        <router-link 
+          v-for="item in menuItems" 
+          :key="item.path" 
+          :to="item.path" 
+          v-if="contractStore.isPageVisible(item.name as string)"
+          class="nav-item"
+        >
           <span class="icon">{{ item.meta?.icon }}</span>
           <span class="title">{{ item.meta?.title }}</span>
         </router-link>
@@ -14,10 +25,16 @@
     <!-- Main Content -->
     <main class="content">
       <header class="top-bar">
-        <div class="product-info">{{ contractStore.contract?.product || 'EdgeOS' }}</div>
+        <div class="product-info">
+          <span class="font-bold text-gray-700">{{ contractStore.contract?.product || 'EdgeOS Core' }}</span>
+          <span class="ml-2 text-xs text-gray-400 font-mono">v1.0.0</span>
+        </div>
         <div class="system-status">
-          <span class="uptime">Uptime: {{ uptime }}s</span>
-          <span class="indicator" :class="{ online: isOnline }"></span>
+          <span class="text-sm text-gray-500 mr-4">Uptime: {{ formatTime(uptime) }}</span>
+          <div class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" 
+               :class="isOnline ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'">
+            {{ isOnline ? 'CONNECTED' : 'OFFLINE' }}
+          </div>
         </div>
       </header>
       
@@ -29,7 +46,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { coreRoutes } from '../router';
 import { useContractStore } from '../services/ContractLoader';
 import axios from 'axios';
@@ -50,7 +67,16 @@ const fetchStatus = async () => {
   }
 };
 
-onMounted(() => {
+function formatTime(sec: number) {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  return `${h}:${m}:${s}`;
+}
+
+onMounted(async () => {
+  // 初始化阶段强制加载契约，实现菜单自愈
+  await contractStore.loadContract();
   fetchStatus();
   timer = setInterval(fetchStatus, 5000);
 });
@@ -59,17 +85,14 @@ onUnmounted(() => clearInterval(timer));
 </script>
 
 <style scoped>
-.admin-layout { display: flex; height: 100vh; width: 100vw; overflow: hidden; background: #f0f2f5; }
-.sidebar { width: 240px; background: #001529; color: white; display: flex; flex-direction: column; }
-.logo { height: 64px; line-height: 64px; text-align: center; font-size: 20px; font-weight: bold; background: #002140; }
-.nav-item { padding: 16px 24px; color: rgba(255,255,255,0.65); text-decoration: none; display: flex; align-items: center; }
-.nav-item:hover { color: white; background: #1890ff; }
-.nav-item.router-link-active { color: white; background: #1890ff; }
+.admin-layout { display: flex; height: 100vh; width: 100vw; overflow: hidden; background: #f8fafc; }
+.sidebar { width: 260px; background: #0f172a; color: white; display: flex; flex-direction: column; }
+.logo { height: 64px; line-height: 64px; text-align: center; font-size: 18px; font-weight: 800; background: #1e293b; border-bottom: 1px solid #334155; }
+.nav-item { padding: 14px 24px; color: #94a3b8; text-decoration: none; display: flex; align-items: center; transition: all 0.2s; }
+.nav-item:hover { color: white; background: #334155; }
+.nav-item.router-link-active { color: white; background: #3b82f6; font-weight: 600; }
 
 .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-.top-bar { height: 64px; background: white; padding: 0 24px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 4px rgba(0,21,41,0.08); }
+.top-bar { height: 64px; background: white; padding: 0 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; }
 .page-body { flex: 1; padding: 24px; overflow-y: auto; }
-
-.indicator { width: 10px; height: 10px; border-radius: 50%; background: #ccc; display: inline-block; margin-left: 8px; }
-.indicator.online { background: #52c41a; box-shadow: 0 0 8px #52c41a; }
 </style>
