@@ -18,6 +18,7 @@ typedef struct pipeline_stage_s pipeline_stage_t;
 // Forward declarations for external components
 typedef struct sqlite_svc_s sqlite_svc_t;
 typedef struct js_engine_s js_engine_t;
+typedef struct battery_limit_s battery_limit_t;
 
 // --- 时间源抽象：用于 cmocka 打桩测试抗跳变逻辑 ---
 typedef struct {
@@ -98,40 +99,17 @@ char *stream_engine_dump_json(stream_engine_t *engine);
 
 void stream_engine_destroy(stream_engine_t *engine);
 
-// --- Standard Stage Library ---
-
 /**
- * @brief Filter stage factory.
- * @param tag_id The tag to allow.
+ * @brief Standard Stage Library Factories
  */
 pipeline_stage_t *stage_filter_create(uint32_t tag_id);
-
-/**
- * @brief Accumulate stage factory (Energy/Sum).
- */
-pipeline_stage_t *stage_accumulate_create(void);
-
-/**
- * @brief SQLite Sink stage factory.
- * @param db The database handle.
- * @param table Target table name.
- */
-pipeline_stage_t *stage_sqlite_sink_create(sqlite_svc_t *db, const char *table);
-
-/**
- * @brief Transform stage factory (y = ax + b).
- */
-pipeline_stage_t *stage_transform_create(double alpha, double beta);
-
-/**
- * @brief Filter range stage factory.
- */
 pipeline_stage_t *stage_filter_range_create(double min, double max);
-
-/**
- * @brief JS Rule stage factory.
- */
+pipeline_stage_t *stage_transform_create(double alpha, double beta);
+pipeline_stage_t *stage_accumulate_create(void);
+pipeline_stage_t *stage_periodic_freeze_create(int kind);
+pipeline_stage_t *stage_sqlite_sink_create(sqlite_svc_t *db, const char *table);
 pipeline_stage_t *stage_js_rule_create(js_engine_t *engine, const char *script);
+pipeline_stage_t *stage_battery_guard_create(battery_limit_t *limits);
 
 #ifdef __cplusplus
 }

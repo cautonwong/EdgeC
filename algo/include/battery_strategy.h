@@ -18,11 +18,11 @@ typedef struct {
 /**
  * 电池安全约束
  */
-typedef struct {
-    float min_soc;            // 最小允许SOC (如 10.0)
-    float max_soc;            // 最大允许SOC (如 95.0)
-    float max_charge_pwr;     // 最大充电功率 (W)
-    float max_discharge_pwr;  // 最大放电功率 (W)
+typedef struct battery_limit_s {
+    float min_soc;
+    float max_soc;
+    float max_charge_pwr;
+    float max_discharge_pwr;
 } battery_limit_t;
 
 /**

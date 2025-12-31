@@ -1,74 +1,68 @@
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "battery_strategy.h"
 #include "sqlite_service.h"
 #include "stream_engine.h"
 
-// --- 1. Stage: Filter ---
-stage_ret_t stage_tag_filter_proc(pipeline_stage_t *stage, pipe_event_t *ev) {
+// --- 1. Stage: Tag Filter ---
+static stage_ret_t _tag_filter_proc(pipeline_stage_t *stage, pipe_event_t *ev) {
     if (ev->type != EVT_DATA_POINT) return STAGE_OK;
-    uint32_t target_tag = (uint32_t)(uintptr_t)stage->priv_cfg;
-    return (ev->tag_id == target_tag) ? STAGE_OK : STAGE_DROP;
+    uint32_t target = (uint32_t)(uintptr_t)stage->priv_cfg;
+    return (ev->tag_id == target) ? STAGE_OK : STAGE_DROP;
 }
 
 pipeline_stage_t *stage_filter_create(uint32_t tag_id) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
     strncpy(s->name, "filter", 31);
-    s->process = stage_tag_filter_proc;
+    s->process = _tag_filter_proc;
     s->priv_cfg = (void *)(uintptr_t)tag_id;
     return s;
 }
 
-// --- 2. Stage: Transform ---
+// --- 2. Stage: Filter Range ---
 typedef struct {
-    double alpha;
-    double beta;
-} transform_cfg_t;
-stage_ret_t stage_transform_proc(pipeline_stage_t *stage, pipe_event_t *ev) {
+    double min;
+    double max;
+} _range_cfg_t;
+static stage_ret_t _filter_range_proc(pipeline_stage_t *stage, pipe_event_t *ev) {
     if (ev->type != EVT_DATA_POINT) return STAGE_OK;
-    transform_cfg_t *cfg = (transform_cfg_t *)stage->priv_cfg;
-    ev->payload.val = ev->payload.val * cfg->alpha + cfg->beta;
+    _range_cfg_t *cfg = (_range_cfg_t *)stage->priv_cfg;
+    return (ev->payload.val < cfg->min || ev->payload.val > cfg->max) ? STAGE_DROP : STAGE_OK;
+}
+
+pipeline_stage_t *stage_filter_range_create(double min, double max) {
+    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    strncpy(s->name, "filter_range", 31);
+    s->process = _filter_range_proc;
+    _range_cfg_t *cfg = malloc(sizeof(_range_cfg_t));
+    cfg->min = min;
+    cfg->max = max;
+    s->priv_cfg = cfg;
+    s->cleanup_cfg = free;
+    return s;
+}
+
+// --- 3. Stage: Transform ---
+typedef struct {
+    double a;
+    double b;
+} _trans_cfg_t;
+static stage_ret_t _transform_proc(pipeline_stage_t *stage, pipe_event_t *ev) {
+    if (ev->type != EVT_DATA_POINT) return STAGE_OK;
+    _trans_cfg_t *cfg = (_trans_cfg_t *)stage->priv_cfg;
+    ev->payload.val = ev->payload.val * cfg->a + cfg->b;
     return STAGE_OK;
 }
 
 pipeline_stage_t *stage_transform_create(double alpha, double beta) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
     strncpy(s->name, "transform", 31);
-    s->process = stage_transform_proc;
-    transform_cfg_t *cfg = malloc(sizeof(transform_cfg_t));
-    cfg->alpha = alpha;
-    cfg->beta = beta;
-    s->priv_cfg = cfg;
-    s->cleanup_cfg = free;
-    return s;
-}
-
-// --- 3. Stage: Filter Range ---
-typedef struct {
-    double min;
-    double max;
-} filter_range_cfg_t;
-stage_ret_t stage_filter_range_proc(pipeline_stage_t *stage, pipe_event_t *ev) {
-    if (ev->type != EVT_DATA_POINT) return STAGE_OK;
-    double val = ev->payload.val;
-    filter_range_cfg_t *cfg = (filter_range_cfg_t *)stage->priv_cfg;
-
-    // IEEE 754 防御：NaN 不满足任何比较条件，必须显式拦截
-    if (isnan(val) || val < cfg->min || val > cfg->max) {
-        return STAGE_DROP;
-    }
-    return STAGE_OK;
-}
-
-pipeline_stage_t *stage_filter_range_create(double min, double max) {
-    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
-    strncpy(s->name, "filter_range", 31);
-    s->process = stage_filter_range_proc;
-    filter_range_cfg_t *cfg = malloc(sizeof(filter_range_cfg_t));
-    cfg->min = min;
-    cfg->max = max;
+    s->process = _transform_proc;
+    _trans_cfg_t *cfg = malloc(sizeof(_trans_cfg_t));
+    cfg->a = alpha;
+    cfg->b = beta;
     s->priv_cfg = cfg;
     s->cleanup_cfg = free;
     return s;
@@ -77,18 +71,18 @@ pipeline_stage_t *stage_filter_range_create(double min, double max) {
 // --- 4. Stage: Accumulate ---
 typedef struct {
     double acc;
-} acc_state_t;
-stage_ret_t stage_accumulator_proc(pipeline_stage_t *stage, pipe_event_t *ev) {
+} _acc_state_t;
+static stage_ret_t _acc_proc(pipeline_stage_t *stage, pipe_event_t *ev) {
     if (ev->type != EVT_DATA_POINT) return STAGE_OK;
-    ((acc_state_t *)stage->priv_state)->acc += ev->payload.val;
+    ((_acc_state_t *)stage->priv_state)->acc += ev->payload.val;
     return STAGE_OK;
 }
 
 pipeline_stage_t *stage_accumulate_create(void) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
     strncpy(s->name, "accumulate", 31);
-    s->process = stage_accumulator_proc;
-    s->priv_state = calloc(1, sizeof(acc_state_t));
+    s->process = _acc_proc;
+    s->priv_state = calloc(1, sizeof(_acc_state_t));
     s->cleanup_state = free;
     return s;
 }
@@ -97,45 +91,94 @@ pipeline_stage_t *stage_accumulate_create(void) {
 typedef struct {
     sqlite_svc_t *db;
     char table[64];
-} sink_cfg_t;
+} _sink_cfg_t;
 typedef struct {
     sqlite_svc_t *db;
     PipeMsg msg;
     uv_work_t req;
-} sink_work_t;
-static void sink_work_cb(uv_work_t *req) {
-    sqlite_svc_insert(((sink_work_t *)req->data)->db, &((sink_work_t *)req->data)->msg);
+} _sink_work_t;
+static void _sink_work_cb(uv_work_t *req) {
+    sqlite_svc_insert(((_sink_work_t *)req->data)->db, &((_sink_work_t *)req->data)->msg);
 }
-static void sink_after_cb(uv_work_t *req, int status) {
+static void _sink_after_cb(uv_work_t *req, int status) {
     (void)status;
     free(req->data);
 }
 
-stage_ret_t stage_sqlite_sink_proc(pipeline_stage_t *stage, pipe_event_t *ev) {
+static stage_ret_t _sink_proc(pipeline_stage_t *stage, pipe_event_t *ev) {
     if (ev->type != EVT_DATA_POINT) return STAGE_OK;
-    sink_cfg_t *cfg = (sink_cfg_t *)stage->priv_cfg;
+    _sink_cfg_t *cfg = (_sink_cfg_t *)stage->priv_cfg;
     if (!cfg || !cfg->db) return STAGE_OK;
-    sink_work_t *work = calloc(1, sizeof(sink_work_t));
+    _sink_work_t *work = calloc(1, sizeof(_sink_work_t));
     work->db = cfg->db;
     work->msg.tag_id = ev->tag_id;
     work->msg.payload.val.f = ev->payload.val;
     work->msg.ts = ev->calendar_ms;
     work->req.data = work;
-    uv_queue_work(uv_default_loop(), &work->req, sink_work_cb, sink_after_cb);
+    uv_queue_work(uv_default_loop(), &work->req, _sink_work_cb, _sink_after_cb);
     return STAGE_OK;
 }
 
-static void sink_cleanup(void *ptr) {
-    if (ptr) free(ptr);
-}
 pipeline_stage_t *stage_sqlite_sink_create(sqlite_svc_t *db, const char *table) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
     strncpy(s->name, "sqlite_sink", 31);
-    s->process = stage_sqlite_sink_proc;
-    sink_cfg_t *cfg = malloc(sizeof(sink_cfg_t));
+    s->process = _sink_proc;
+    _sink_cfg_t *cfg = malloc(sizeof(_sink_cfg_t));
     cfg->db = db;
     if (table) strncpy(cfg->table, table, 63);
     s->priv_cfg = cfg;
-    s->cleanup_cfg = sink_cleanup;
+    s->cleanup_cfg = free;
+    return s;
+}
+
+// --- 6. Stage: Periodic Freeze ---
+typedef struct {
+    double acc;
+    uint32_t count;
+    int kind;
+} _freeze_state_t;
+static stage_ret_t _freeze_proc(pipeline_stage_t *stage, pipe_event_t *ev) {
+    _freeze_state_t *s = (_freeze_state_t *)stage->priv_state;
+    if (ev->type == EVT_DATA_POINT) {
+        s->acc += ev->payload.val;
+        s->count++;
+        return STAGE_OK;
+    }
+    if (ev->type == EVT_TIME_PULSE && ev->payload.tick_kind == s->kind) {
+        ev->payload.val = (s->count > 0) ? (s->acc / s->count) : 0;
+        s->acc = 0;
+        s->count = 0;
+        return STAGE_OK;
+    }
+    return STAGE_DROP;
+}
+
+pipeline_stage_t *stage_periodic_freeze_create(int kind) {
+    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    strncpy(s->name, "periodic_freeze", 31);
+    s->process = _freeze_proc;
+    _freeze_state_t *fs = calloc(1, sizeof(_freeze_state_t));
+    fs->kind = kind;
+    s->priv_state = fs;
+    s->cleanup_state = free;
+    return s;
+}
+
+// --- 7. Stage: Battery Guard ---
+static stage_ret_t _batt_guard_proc(pipeline_stage_t *stage, pipe_event_t *ev) {
+    if (ev->type != EVT_DATA_POINT) return STAGE_OK;
+    battery_state_t *st = (battery_state_t *)stage->priv_state;
+    battery_limit_t *lm = (battery_limit_t *)stage->priv_cfg;
+    if (!st || !lm) return STAGE_OK;
+    ev->payload.val = (double)algo_battery_safety_clamp(st, lm, (float)ev->payload.val);
+    return STAGE_OK;
+}
+
+pipeline_stage_t *stage_battery_guard_create(battery_limit_t *limits) {
+    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    strncpy(s->name, "battery_guard", 31);
+    s->process = _batt_guard_proc;
+    s->priv_cfg = limits;
+    s->cleanup_cfg = free;
     return s;
 }

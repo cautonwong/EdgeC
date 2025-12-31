@@ -1,8 +1,9 @@
-#include <cjson/cJSON.h>
+#include <cJSON/cJSON.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "battery_strategy.h"
 #include "stream_engine_priv.h"
 
 extern pipeline_stage_t *stage_filter_create(uint32_t tag_id);
@@ -11,16 +12,27 @@ extern pipeline_stage_t *stage_sqlite_sink_create(sqlite_svc_t *db, const char *
 extern pipeline_stage_t *stage_transform_create(double alpha, double beta);
 extern pipeline_stage_t *stage_filter_range_create(double min, double max);
 extern pipeline_stage_t *stage_js_rule_create(js_engine_t *engine, const char *script_path);
+extern pipeline_stage_t *stage_periodic_freeze_create(int kind);
+extern pipeline_stage_t *stage_battery_guard_create(battery_limit_t *limits);
 
 static pipeline_stage_t *build_stage(const char *type, cJSON *config, pipeline_loader_ctx_t *ctx) {
     if (strcmp(type, "filter") == 0) {
         cJSON *item = cJSON_GetObjectItem(config, "tag_id");
         return stage_filter_create(item ? (uint32_t)item->valuedouble : 0);
     }
-    if (strcmp(type, "filter_range") == 0) {
-        double min = cJSON_GetObjectItem(config, "min")->valuedouble;
-        double max = cJSON_GetObjectItem(config, "max")->valuedouble;
-        return stage_filter_range_create(min, max);
+    if (strcmp(type, "periodic_freeze") == 0) {
+        cJSON *item = cJSON_GetObjectItem(config, "kind");
+        return stage_periodic_freeze_create(item ? (int)item->valuedouble : 1);
+    }
+    if (strcmp(type, "battery_guard") == 0) {
+        // 实际开发中，limits 通常从 edge_params 加载
+        battery_limit_t *limits = calloc(1, sizeof(battery_limit_t));
+        limits->max_soc = (float)cJSON_GetObjectItem(config, "max_soc")->valuedouble;
+        limits->min_soc = (float)cJSON_GetObjectItem(config, "min_soc")->valuedouble;
+        limits->max_charge_pwr = (float)cJSON_GetObjectItem(config, "max_charge_w")->valuedouble;
+        limits->max_discharge_pwr =
+            (float)cJSON_GetObjectItem(config, "max_discharge_w")->valuedouble;
+        return stage_battery_guard_create(limits);
     }
     if (strcmp(type, "transform") == 0) {
         double alpha = cJSON_GetObjectItem(config, "alpha")->valuedouble;
@@ -76,8 +88,6 @@ int stream_engine_load_config(stream_engine_t *engine, const char *json_path,
             cJSON *cfg_json = cJSON_GetObjectItem(s_json, "config");
             pipeline_stage_t *s = build_stage(type, cfg_json, ctx);
             if (s) {
-                // 原则 2：适配最新的双重清理 API，确保 priv_cfg 也能被正确回收
-                // 注意：Factory 返回的 s 本身也要在注入后释放壳对象
                 pipeline_add_stage(p, s->name, s->process, s->priv_state, s->cleanup_state,
                                    s->priv_cfg, s->cleanup_cfg);
                 free(s);
