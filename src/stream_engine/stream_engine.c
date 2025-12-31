@@ -202,7 +202,7 @@ void stream_engine_clear_pipelines(stream_engine_t *engine) {
     uv_mutex_unlock(&engine->pipe_mutex);
 }
 
-#include <cJSON/cJSON.h>
+#include <cjson/cJSON.h>
 
 char *stream_engine_dump_json(stream_engine_t *engine) {
     if (!engine) return NULL;
