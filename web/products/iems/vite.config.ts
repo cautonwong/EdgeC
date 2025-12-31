@@ -10,7 +10,8 @@ export default defineConfig({
       'vue': path.resolve(__dirname, 'node_modules/vue'),
       'pinia': path.resolve(__dirname, 'node_modules/pinia'),
       'vue-router': path.resolve(__dirname, 'node_modules/vue-router'),
-      'axios': path.resolve(__dirname, 'node_modules/axios')
+      'axios': path.resolve(__dirname, 'node_modules/axios'),
+      'js-yaml': path.resolve(__dirname, 'node_modules/js-yaml')
     }
   },
   server: {
