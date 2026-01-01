@@ -10,8 +10,6 @@
 #include "sqlite_service.h"
 #include "stream_engine.h"
 
-int stream_engine_push_event(stream_engine_t *engine, pipe_msg_t *ev);
-
 static void create_test_config(const char *path) {
     FILE *f = fopen(path, "w");
     fprintf(f,
@@ -57,7 +55,7 @@ static void test_loader_dynamic_build(void **state) {
     ev.payload.val.f = 100.0;
     ev.ts = 123456;
 
-    stream_engine_push_event(engine, &ev);
+    stream_engine_push(engine, &ev);
 
     unlink(config_path);
     stream_engine_destroy(engine);

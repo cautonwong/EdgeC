@@ -188,7 +188,9 @@ void edge_log_write(edge_log_level_t level, const char *cat, const char *file, i
             entry->level = level;
             entry->ts_ns = uv_hrtime();
             entry->cat_name = cat;  // 存入宏指针，不拷贝字符串
-            snprintf(entry->msg, sizeof(entry->msg), "%s", final_msg);
+            // 格式化并截断日志内容
+            snprintf(entry->msg, sizeof(entry->msg), "%.*s", (int)sizeof(entry->msg) - 1,
+                     final_msg);
             g_log_ctx.head = next_head;
             uv_cond_signal(&g_log_ctx.cond);
         } else {

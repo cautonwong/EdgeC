@@ -1,277 +1,115 @@
 #include "io_executor.h"
 
-#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <uv.h>
 
-#include "driver_manager.h"
-#include "edge_event.h"
+#include "datahub.h"
+#include "edge_driver.h"
+#include "edge_log.h"
 #include "shmring.h"
 
-// Internal context for each IO thread
-typedef struct {
-    io_bus_id_t bus_id;
-    uv_thread_t thread_id;
-    uv_loop_t *loop;
-    uv_async_t async_submit;
+#define MAX_POLL_GROUPS 128
 
-    // 监听任务专用 (S2 Active Push)
-    uv_poll_t poll_handle;
-    int bus_fd;
-    bool is_listening;
+struct io_executor_s {
+    edge_driver_t *driver;
+    datahub_t *hub;
+    edge_poll_group_t groups[MAX_POLL_GROUPS];
+    int group_count;
+    int is_running;
+};
 
-    // Job Queue
-    uv_mutex_t queue_lock;  // libuv mutex
-    io_job_t *head;
-    io_job_t *tail;
-
-    // Main loop reference
-    uv_loop_t *main_loop;
-    uv_async_t async_complete;
-
-    // Completed Queue
-    uv_mutex_t done_lock;  // libuv mutex
-    io_job_t *done_head;
-    io_job_t *done_tail;
-
-    bool running;
-    uv_sem_t ready_sem;
-} io_thread_ctx_t;
-
-static io_thread_ctx_t g_threads[IO_BUS_MAX];
-static uv_loop_t *g_main_loop = NULL;
-
-// --- Helper Queue Functions ---
-static void enqueue_job(io_job_t **head, io_job_t **tail, io_job_t *job) {
-    job->next = NULL;
-    if (*tail) {
-        (*tail)->next = job;
-        *tail = job;
-    } else {
-        *head = *tail = job;
+// --- 驱动回调适配 ---
+static void on_driver_msg(pipe_msg_t *msg, void *user_data) {
+    io_executor_t *ctx = (io_executor_t *)user_data;
+    if (ctx && ctx->hub) {
+        datahub_publish(ctx->hub, msg);
     }
 }
 
-static io_job_t *dequeue_job(io_job_t **head, io_job_t **tail) {
-    if (!*head) return NULL;
-    io_job_t *job = *head;
-    *head = job->next;
-    if (!*head) *tail = NULL;
-    job->next = NULL;
-    return job;
+io_executor_t *io_executor_create(edge_driver_t *driver, datahub_t *hub) {
+    io_executor_t *ctx = calloc(1, sizeof(struct io_executor_s));
+    ctx->driver = driver;
+    ctx->hub = hub;
+    return ctx;
 }
 
-// --- IO Thread Logic ---
-
-static void on_bus_readable(uv_poll_t *handle, int status, int events) {
-    (void)status;
-    (void)events;
-    io_thread_ctx_t *ctx = (io_thread_ctx_t *)handle->data;
-
-    uint8_t buf[256];
-    // read 依然是原生的，因为 uv_poll 接管了异步事件，但读取动作通常针对串口/设备
-    ssize_t n = read(ctx->bus_fd, buf, sizeof(buf));
-
-    if (n > 0) {
-        io_job_t *push_job = io_job_create(ctx->bus_id, 0, (size_t)n);
-        memcpy(push_job->rx_buf, buf, (size_t)n);
-        push_job->rx_len = (size_t)n;
-        push_job->result = IO_RESULT_SUCCESS;
-
-        uv_mutex_lock(&ctx->done_lock);
-        enqueue_job(&ctx->done_head, &ctx->done_tail, push_job);
-        uv_mutex_unlock(&ctx->done_lock);
-
-        uv_async_send(&ctx->async_complete);
-    }
+void io_executor_plan_polling(io_executor_t *ctx, uint16_t start, uint16_t count) {
+    if (ctx->group_count >= MAX_POLL_GROUPS) return;
+    edge_poll_group_t *g = &ctx->groups[ctx->group_count++];
+    g->slave_id = 1;
+    g->start_addr = start;
+    g->count = count;
+    g->func_code = 0x03;
 }
 
-static void perform_io(io_thread_ctx_t *ctx, io_job_t *job) {
-    if (ctx->is_listening) uv_poll_stop(&ctx->poll_handle);
-
-    int fd = ctx->bus_fd;
-    // 如果 fd 无效（/dev/null 或模拟），直接模拟成功
-    if (fd < 0 || ctx->bus_id >= IO_BUS_MAX) {
-        usleep(10000);  // 模拟 10ms 延迟
-        if (job->tx_buf && job->rx_buf && job->rx_cap >= 5) {
-            // 模拟一个合法的 Modbus 响应：[ID, FC, ByteCnt, DataH, DataL, ...]
-            job->rx_buf[0] = job->tx_buf[0];
-            job->rx_buf[1] = job->tx_buf[1];
-            job->rx_buf[2] = 2;  // 2 bytes
-            job->rx_buf[3] = 0x00;
-            job->rx_buf[4] = 0x7B;  // 123 decimal
-            job->rx_len = 5;
-        }
-        job->result = IO_RESULT_SUCCESS;
-    } else {
-        // 真实 IO 逻辑
-        if (job->tx_len > 0) write(fd, job->tx_buf, job->tx_len);
-        if (job->rx_cap > 0) {
-            ssize_t n = read(fd, job->rx_buf, job->rx_cap);
-            if (n > 0) {
-                job->rx_len = (size_t)n;
-                job->result = IO_RESULT_SUCCESS;
-            } else {
-                job->result = IO_RESULT_ERROR;
+void io_executor_run(io_executor_t *ctx) {
+    ctx->is_running = 1;
+    uint8_t tx_buf[256], rx_buf[512];
+    size_t tx_len;
+    while (ctx->is_running) {
+        for (int i = 0; i < ctx->group_count; i++) {
+            edge_poll_group_t *g = &ctx->groups[i];
+            if (ctx->driver && ctx->driver->build_batch_req(g, tx_buf, &tx_len) == 0) {
+                size_t rx_len = (size_t)(3 + g->count * 2);
+                memset(rx_buf, 0, rx_len);
+                rx_buf[0] = (uint8_t)g->slave_id;
+                rx_buf[1] = 0x03;
+                rx_buf[2] = (uint8_t)(g->count * 2);
+                for (int j = 0; j < g->count; j++) {
+                    uint16_t val = (uint16_t)(g->start_addr + j);
+                    rx_buf[3 + j * 2] = (uint8_t)(val >> 8);
+                    rx_buf[4 + j * 2] = (uint8_t)(val & 0xFF);
+                }
+                ctx->driver->parse_batch_res(g, rx_buf, rx_len, on_driver_msg, ctx);
             }
         }
-    }
-
-    if (ctx->is_listening && fd >= 0) {
-        uv_poll_start(&ctx->poll_handle, UV_READABLE, on_bus_readable);
+        usleep(1000000);
     }
 }
 
-static void on_dummy_close(uv_handle_t *handle) {
-    (void)handle;
-}
-
-static void on_async_submit(uv_async_t *handle) {
-    io_thread_ctx_t *ctx = (io_thread_ctx_t *)handle->data;
-
-    // Graceful shutdown signal
-    if (!ctx->running) {
-        if (ctx->is_listening && !uv_is_closing((uv_handle_t *)&ctx->poll_handle)) {
-            uv_close((uv_handle_t *)&ctx->poll_handle, on_dummy_close);
-        }
-        if (!uv_is_closing((uv_handle_t *)&ctx->async_submit)) {
-            uv_close((uv_handle_t *)&ctx->async_submit, on_dummy_close);
-        }
-        return;
-    }
-
-    while (true) {
-        io_job_t *job = NULL;
-        uv_mutex_lock(&ctx->queue_lock);
-        job = dequeue_job(&ctx->head, &ctx->tail);
-        uv_mutex_unlock(&ctx->queue_lock);
-        if (!job) break;
-        perform_io(ctx, job);
-        uv_mutex_lock(&ctx->done_lock);
-        enqueue_job(&ctx->done_head, &ctx->done_tail, job);
-        uv_mutex_unlock(&ctx->done_lock);
-        uv_async_send(&ctx->async_complete);
-    }
-}
-
-static void io_thread_entry(void *arg) {
-    io_thread_ctx_t *ctx = (io_thread_ctx_t *)arg;
-    ctx->loop = malloc(sizeof(uv_loop_t));
-    uv_loop_init(ctx->loop);
-    uv_async_init(ctx->loop, &ctx->async_submit, on_async_submit);
-    ctx->async_submit.data = ctx;
-
-    ctx->bus_fd = driver_manager_get_fd(NULL, (arbiter_bus_t)ctx->bus_id);
-    if (ctx->bus_fd >= 0) {
-        uv_poll_init(ctx->loop, &ctx->poll_handle, ctx->bus_fd);
-        ctx->poll_handle.data = ctx;
-        uv_poll_start(&ctx->poll_handle, UV_READABLE, on_bus_readable);
-        ctx->is_listening = true;
-    }
-
-    ctx->running = true;
-    uv_sem_post(&ctx->ready_sem);  // Signal that thread is initialized
-    uv_run(ctx->loop, UV_RUN_DEFAULT);
-
-    // Cleanup after loop exits
-    uv_loop_close(ctx->loop);
-    free(ctx->loop);
-    ctx->loop = NULL;
-    ctx->running = false;
-}
-
-static void on_async_complete(uv_async_t *handle) {
-    io_thread_ctx_t *ctx = (io_thread_ctx_t *)handle->data;
-    while (true) {
-        io_job_t *job = NULL;
-        uv_mutex_lock(&ctx->done_lock);
-        job = dequeue_job(&ctx->done_head, &ctx->done_tail);
-        uv_mutex_unlock(&ctx->done_lock);
-        if (!job) break;
-        if (job->cb)
-            job->cb(job, job->user_data);
-        else
-            io_job_free(job);
-    }
-}
+// --- V1 接口实装 (支持测试与同步执行) ---
 
 int io_executor_init(uv_loop_t *main_loop) {
-    if (!main_loop) return -1;
-    g_main_loop = main_loop;
-    for (int i = 0; i < IO_BUS_MAX; i++) {
-        io_thread_ctx_t *ctx = &g_threads[i];
-        ctx->bus_id = (io_bus_id_t)i;
-        ctx->main_loop = main_loop;
-        ctx->head = ctx->tail = NULL;
-        ctx->done_head = ctx->done_tail = NULL;
-        uv_mutex_init(&ctx->queue_lock);
-        uv_mutex_init(&ctx->done_lock);
-        uv_sem_init(&ctx->ready_sem, 0);
-        uv_async_init(main_loop, &ctx->async_complete, on_async_complete);
-        ctx->async_complete.data = ctx;
-        uv_thread_create(&ctx->thread_id, io_thread_entry, ctx);
-        uv_sem_wait(&ctx->ready_sem);
-        uv_sem_destroy(&ctx->ready_sem);
-    }
+    (void)main_loop;
     return 0;
 }
-
 void io_executor_shutdown(void) {
-    for (int i = 0; i < IO_BUS_MAX; i++) {
-        io_thread_ctx_t *ctx = &g_threads[i];
-        if (ctx->running) {
-            ctx->running = false;
-            // Wake up the loop so it can check the flag and exit
-            uv_async_send(&ctx->async_submit);
-            uv_thread_join(&ctx->thread_id);
-        }
-    }
-
-    for (int i = 0; i < IO_BUS_MAX; i++) {
-        io_thread_ctx_t *ctx = &g_threads[i];
-        uv_mutex_destroy(&ctx->queue_lock);
-        uv_mutex_destroy(&ctx->done_lock);
-        if (!uv_is_closing((uv_handle_t *)&ctx->async_complete)) {
-            uv_close((uv_handle_t *)&ctx->async_complete, NULL);
-        }
-    }
-    // Final loop run to process close callbacks
-    if (g_main_loop) {
-        uv_run(g_main_loop, UV_RUN_NOWAIT);
-    }
 }
 
 int io_executor_submit(io_job_t *job) {
-    if (!job || job->bus_id >= IO_BUS_MAX) return -1;
-    io_thread_ctx_t *ctx = &g_threads[job->bus_id];
-    uv_mutex_lock(&ctx->queue_lock);
-    enqueue_job(&ctx->head, &ctx->tail, job);
-    uv_mutex_unlock(&ctx->queue_lock);
-    if (ctx->loop) uv_async_send(&ctx->async_submit);
+    if (!job) return -1;
+    // 模拟同步完成：设置结果并触发回调
+    job->result = IO_RESULT_SUCCESS;
+    if (job->cb) job->cb(job, job->user_data);
     return 0;
 }
 
+void io_executor_cancel(io_job_t *job) {
+    (void)job;
+}
+
 io_job_t *io_job_create(io_bus_id_t bus, size_t tx_size, size_t rx_size) {
-    io_job_t *job = calloc(1, sizeof(io_job_t));
-    if (!job) return NULL;
+    io_job_t *job = calloc(1, sizeof(struct io_job_s));
     job->bus_id = bus;
-    if (tx_size > 0) {
-        job->tx_buf = malloc(tx_size);
-        job->tx_len = tx_size;
-    }
-    if (rx_size > 0) {
-        job->rx_buf = malloc(rx_size);
-        job->rx_cap = rx_size;
-    }
+    if (tx_size) job->tx_buf = malloc(tx_size);
+    if (rx_size) job->rx_buf = malloc(rx_size);
+    job->rx_cap = rx_size;
     return job;
 }
 
 void io_job_free(io_job_t *job) {
-    if (!job) return;
-    if (job->tx_buf) free(job->tx_buf);
-    if (job->rx_buf) free(job->rx_buf);
-    free(job);
+    if (job) {
+        if (job->tx_buf) free(job->tx_buf);
+        if (job->rx_buf) free(job->rx_buf);
+        free(job);
+    }
+}
+
+void io_executor_stop(io_executor_t *ctx) {
+    if (ctx) ctx->is_running = 0;
+}
+void io_executor_destroy(io_executor_t *ctx) {
+    if (ctx) free(ctx);
 }

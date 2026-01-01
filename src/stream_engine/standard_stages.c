@@ -68,6 +68,129 @@ pipeline_stage_t *stage_transform_create(double alpha, double beta) {
     return s;
 }
 
+// --- Stage: EMA (Exponential Moving Average) ---
+typedef struct {
+    double alpha;
+} _ema_cfg_t;
+typedef struct {
+    double last_val;
+    bool initialized;
+} _ema_state_t;
+
+static stage_ret_t _ema_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
+    if (ev->type != PIPEMSG_TYPE_SCALAR) return STAGE_OK;
+    _ema_cfg_t *cfg = (_ema_cfg_t *)stage->priv_cfg;
+    _ema_state_t *st = (_ema_state_t *)stage->priv_state;
+    if (!st->initialized) {
+        st->last_val = ev->payload.val.f;
+        st->initialized = true;
+    } else {
+        st->last_val = cfg->alpha * ev->payload.val.f + (1.0 - cfg->alpha) * st->last_val;
+    }
+    ev->payload.val.f = st->last_val;
+    return STAGE_OK;
+}
+
+pipeline_stage_t *stage_ema_create(double alpha) {
+    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    strncpy(s->name, "ema", 31);
+    s->process = _ema_proc;
+    _ema_cfg_t *cfg = malloc(sizeof(_ema_cfg_t));
+    cfg->alpha = alpha;
+    s->priv_cfg = cfg;
+    s->cleanup_cfg = free;
+    s->priv_state = calloc(1, sizeof(_ema_state_t));
+    s->cleanup_state = free;
+    return s;
+}
+
+// --- Stage: Clamp (Limit) ---
+typedef struct {
+    double min;
+    double max;
+} _clamp_cfg_t;
+static stage_ret_t _clamp_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
+    if (ev->type != PIPEMSG_TYPE_SCALAR) return STAGE_OK;
+    _clamp_cfg_t *cfg = (_clamp_cfg_t *)stage->priv_cfg;
+    if (ev->payload.val.f < cfg->min) ev->payload.val.f = cfg->min;
+    if (ev->payload.val.f > cfg->max) ev->payload.val.f = cfg->max;
+    return STAGE_OK;
+}
+
+pipeline_stage_t *stage_clamp_create(double min, double max) {
+    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+
+    strncpy(s->name, "clamp", 31);
+
+    s->process = _clamp_proc;
+
+    _clamp_cfg_t *cfg = malloc(sizeof(_clamp_cfg_t));
+
+    cfg->min = min;
+    cfg->max = max;
+
+    s->priv_cfg = cfg;
+
+    s->cleanup_cfg = free;
+
+    return s;
+}
+
+// --- Stage: Peak Shaving (Domain Logic) ---
+
+typedef struct {
+    double threshold;
+
+    uint32_t ctrl_tag;
+
+} _shave_cfg_t;
+
+static stage_ret_t _shave_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
+    if (ev->type != PIPEMSG_TYPE_SCALAR) return STAGE_OK;
+
+    _shave_cfg_t *cfg = (_shave_cfg_t *)stage->priv_cfg;
+
+    // 我们假设输入的 ev 是电网功率
+
+    double grid_pwr = ev->payload.val.f;
+
+    if (grid_pwr > cfg->threshold) {
+        // 需削峰：计算缺口，并修改消息为电池放电指令
+
+        double gap = grid_pwr - cfg->threshold;
+
+        ev->tag_id = cfg->ctrl_tag;
+
+        ev->payload.val.f = gap;  // 设置电池目标功率
+
+        return STAGE_OK;
+    }
+
+    // 如果没有超过阈值，当前的电网功率消息通常不需要继续向下游控制环节传递
+
+    return STAGE_DROP;
+}
+
+pipeline_stage_t *stage_peak_shaving_create(double threshold_w, uint32_t ctrl_tag) {
+    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+
+    strncpy(s->name, "peak_shave", 31);
+
+    s->process = _shave_proc;
+
+    _shave_cfg_t *cfg = malloc(sizeof(_shave_cfg_t));
+
+    cfg->threshold = threshold_w;
+
+    cfg->ctrl_tag = ctrl_tag;
+
+    s->priv_cfg = cfg;
+
+    s->cleanup_cfg = free;
+
+    return s;
+}
+
 // --- 4. Stage: Accumulate ---
 typedef struct {
     double acc;

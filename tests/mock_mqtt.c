@@ -57,7 +57,7 @@ int MQTTAsync_send(MQTTAsync handle, const char* destinationName, int payloadlen
 
     // Payload 可能是二进制，但我们只测试 JSON 字符串
     int copy_len = payloadlen < 511 ? payloadlen : 511;
-    memcpy(g_mock_mqtt_payload, payload, copy_len);
+    memcpy(g_mock_mqtt_payload, payload, (size_t)copy_len);
     g_mock_mqtt_payload[copy_len] = '\0';
 
     g_mock_mqtt_send_count++;

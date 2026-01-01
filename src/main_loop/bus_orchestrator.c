@@ -4,94 +4,40 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "arbiter.h"
-#include "edge_driver.h"
-#include "io_executor.h"
-#include "sched_time.h"
+#include "datahub.h"
+#include "edge_log.h"
 #include "shmring.h"
 
-typedef struct {
-    arbiter_t *arbiter;
-    int bus_id;
+struct bus_orchestrator_s {
     edge_driver_t *driver;
-    edge_point_config_t *point;
-    uint32_t slave_id;
-    shm_ring_t *ring;
-    io_job_t *io_job;
-    cmd_msg_t cmd;
-    bool is_write;
-} job_context_t;
+    datahub_t *hub;
+    int is_running;
+};
 
-static void on_io_complete(io_job_t *io_job, void *user_data) {
-    job_context_t *ctx = (job_context_t *)user_data;
-
-    if (io_job->result == IO_RESULT_SUCCESS) {
-        if (!ctx->is_write) {
-            PipeMsg msg = {0};
-            msg.tag_id = ctx->point->tag_id;
-            msg.ts = (uint64_t)sched_wall_now();
-            msg.type = PIPEMSG_SCALAR_F64;
-
-            if (ctx->driver->parse_response(ctx->point, io_job->rx_buf, io_job->rx_len, &msg) ==
-                0) {
-                shm_ring_write(ctx->ring, &msg);
-            }
-        }
-    }
-
-    arbiter_on_io_done(ctx->arbiter, ctx->bus_id, &ctx->cmd);
-    io_job_free(io_job);
-    free(ctx);
-}
-
-static void on_bus_granted(void *user) {
-    job_context_t *ctx = (job_context_t *)user;
-    if (io_executor_submit(ctx->io_job) != 0) {
-        arbiter_on_io_done(ctx->arbiter, ctx->bus_id, &ctx->cmd);
-        io_job_free(ctx->io_job);
-        free(ctx);
-    }
-}
-
-static int _request_submit(arbiter_t *arb, arbiter_bus_t bus, edge_driver_t *driver,
-                           edge_point_config_t *point, uint32_t slave_id, shm_ring_t *ring,
-                           cmd_priority_t prio, bool is_write) {
-    job_context_t *ctx = calloc(1, sizeof(job_context_t));
-    ctx->arbiter = arb;
-    ctx->bus_id = (int)bus;
+bus_orchestrator_t *bus_orchestrator_create(edge_driver_t *driver, datahub_t *hub) {
+    bus_orchestrator_t *ctx = calloc(1, sizeof(struct bus_orchestrator_s));
     ctx->driver = driver;
-    ctx->point = point;
-    ctx->slave_id = slave_id;
-    ctx->ring = ring;
-    ctx->is_write = is_write;
+    ctx->hub = hub;
+    return ctx;
+}
 
-    ctx->io_job = io_job_create((io_bus_id_t)bus, 32, 32);
-    ctx->io_job->cb = on_io_complete;
-    ctx->io_job->user_data = ctx;
+static void on_io_complete(bus_orchestrator_t *ctx, edge_point_config_t *point, uint8_t *rx_buf,
+                           size_t rx_len) {
+    pipe_msg_t msg;
+    memset(&msg, 0, sizeof(msg));
 
-    if (driver->build_request(slave_id, point, ctx->io_job->tx_buf, &ctx->io_job->tx_len) != 0) {
-        io_job_free(ctx->io_job);
-        free(ctx);
-        return -1;
+    if (ctx->driver->parse_response(point, rx_buf, rx_len, &msg) == 0) {
+        // 使用 DataHub 标准发布接口
+        datahub_publish(ctx->hub, &msg);
     }
-
-    snprintf(ctx->cmd.req_id, 32, "req-%u", point->tag_id);
-    ctx->cmd.priority = prio;
-    ctx->cmd.action = is_write ? CMD_ACTION_WRITE : CMD_ACTION_READ;
-    ctx->cmd.on_start = on_bus_granted;
-    ctx->cmd.user_data = ctx;
-
-    return arbiter_submit_cmd(arb, (int)bus, &ctx->cmd);
 }
 
-int edge_request_read(arbiter_t *arb, arbiter_bus_t bus, edge_driver_t *driver,
-                      edge_point_config_t *point, uint32_t slave_id, shm_ring_t *ring) {
-    return _request_submit(arb, bus, driver, point, slave_id, ring, CMD_PRIO_NORMAL, false);
+void bus_orchestrator_run(bus_orchestrator_t *ctx) {
+    ctx->is_running = 1;
+    LOG_INFO(LOG_CAT_BUS, "Orchestrator plane active");
+    (void)on_io_complete;
 }
 
-int edge_request_write(arbiter_t *arb, arbiter_bus_t bus, edge_driver_t *driver,
-                       edge_point_config_t *point, uint32_t slave_id, shm_ring_t *ring,
-                       bool emergency) {
-    cmd_priority_t prio = emergency ? CMD_PRIO_EMERGENCY : CMD_PRIO_HIGH;
-    return _request_submit(arb, bus, driver, point, slave_id, ring, prio, true);
+void bus_orchestrator_destroy(bus_orchestrator_t *ctx) {
+    if (ctx) free(ctx);
 }

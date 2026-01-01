@@ -1,29 +1,33 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "contract_data_types.h"
+#include "driver_manager.h"
 #include "edge_driver.h"
-#include "edge_log.h"
 
-// 引用生成的 CAN 映射表
-extern const can_map_t g_can_map[];
-extern const int g_can_map_len;
-
-static int can_process_frame(uint32_t can_id, const uint8_t *data, size_t len) {
-    (void)len;
-
-    // 工业 CAN 逻辑：单帧多测点提取
-    for (int i = 0; i < g_can_map_len; i++) {
-        if (g_can_map[i].can_id == can_id) {
-            // 提取逻辑：从 data[start] 长度 len 中根据 factor/offset 换算
-            // 这里演示 TagID 识别
-            LOG_DEBUG(LOG_CAT_DRIVER, "Identified Tag %u in Frame 0x%X", g_can_map[i].id, can_id);
-        }
-    }
+static int can_build_request(uint32_t slave_id, edge_point_config_t *point, uint8_t *tx_buf,
+                             size_t *tx_len) {
+    (void)slave_id;
+    (void)point;
+    (void)tx_buf;
+    (void)tx_len;
     return 0;
 }
 
-edge_driver_t can_bus_driver = {
-    .name = "CAN_Raw_ContractAware",
-    // CAN 驱动通常直接由 io_executor 调用 process_frame
-};
+static int can_parse_response(edge_point_config_t *point, uint8_t *rx_buf, size_t rx_len,
+                              PipeMsg *out_msg) {
+    (void)point;
+    (void)rx_buf;
+    (void)rx_len;
+    (void)out_msg;
+    return 0;
+}
+
+static edge_driver_t can_driver = {.name = "CAN",
+                                   .init = NULL,
+                                   .build_request = can_build_request,
+                                   .parse_response = can_parse_response,
+                                   .cleanup = NULL};
+
+void driver_can_init(void) {
+    driver_manager_register(&can_driver);
+}

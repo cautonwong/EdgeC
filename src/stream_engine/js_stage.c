@@ -27,17 +27,31 @@ static stage_ret_t js_stage_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
     JSValue global_obj = JS_GetGlobalObject(js_ctx);
     JSValue func = JS_GetPropertyStr(js_ctx, global_obj, "on_event");
 
+    stage_ret_t status = STAGE_OK;
     if (JS_IsFunction(js_ctx, func)) {
         JSValue args[2] = {j_ev, *ctx->persistent_state};
-        JSValue ret = JS_Call(js_ctx, func, global_obj, 2, args);
-        // TODO: 根据 ret 返回 STAGE_DROP
+        JSValue ret = JS_Call(js_ctx, func, JS_UNDEFINED, 2, args);
+
+        // 逻辑处理：
+        if (JS_IsBool(ret) && !JS_ToBool(js_ctx, ret)) {
+            status = STAGE_DROP;
+        } else if (JS_IsObject(ret)) {
+            // 如果返回新对象，尝试覆盖数据 (用于动态调参)
+            JSValue next_val = JS_GetPropertyStr(js_ctx, ret, "val");
+            if (JS_IsNumber(next_val)) {
+                double val;
+                JS_ToFloat64(js_ctx, &val, next_val);
+                ev->payload.val.f = val;
+            }
+            JS_FreeValue(js_ctx, next_val);
+        }
         JS_FreeValue(js_ctx, ret);
     }
 
     JS_FreeValue(js_ctx, func);
     JS_FreeValue(js_ctx, global_obj);
     JS_FreeValue(js_ctx, j_ev);
-    return STAGE_OK;
+    return status;
 }
 
 static void js_stage_cleanup(void *ptr) {

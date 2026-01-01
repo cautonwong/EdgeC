@@ -91,6 +91,11 @@ int stream_engine_load_config(stream_engine_t *engine, const char *json_path,
                               pipeline_loader_ctx_t *ctx);
 
 /**
+ * @brief 手动推送事件到引擎 (主要用于单元测试)
+ */
+void stream_engine_push(stream_engine_t *engine, pipe_msg_t *msg);
+
+/**
  * @brief 导出当前 Pipeline 状态为 JSON (用于 Web 展示)
  */
 char *stream_engine_dump_json(stream_engine_t *engine);
@@ -101,6 +106,9 @@ char *stream_engine_dump_json(stream_engine_t *engine);
 pipeline_stage_t *stage_filter_create(uint32_t tag_id);
 pipeline_stage_t *stage_filter_range_create(double min, double max);
 pipeline_stage_t *stage_transform_create(double alpha, double beta);
+pipeline_stage_t *stage_ema_create(double alpha);
+pipeline_stage_t *stage_clamp_create(double min, double max);
+pipeline_stage_t *stage_peak_shaving_create(double threshold_w, uint32_t ctrl_tag);
 pipeline_stage_t *stage_accumulate_create(void);
 pipeline_stage_t *stage_periodic_freeze_create(int kind);
 pipeline_stage_t *stage_sqlite_sink_create(sqlite_svc_t *db, const char *table);

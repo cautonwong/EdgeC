@@ -175,14 +175,26 @@ void edge_params_destroy(edge_params_t *ctx) {
 
 // 占位实现 int/string
 int64_t edge_param_get_int(edge_params_t *ctx, const char *key, int64_t def_val) {
+    (void)ctx;
+    (void)key;
+    (void)def_val;
     return def_val;
 }
 const char *edge_param_get_string(edge_params_t *ctx, const char *key, const char *def_val) {
+    (void)ctx;
+    (void)key;
+    (void)def_val;
     return def_val;
 }
 edge_status_t edge_param_set_int(edge_params_t *ctx, const char *key, int64_t val) {
+    (void)ctx;
+    (void)key;
+    (void)val;
     return EDGE_OK;
 }
 edge_status_t edge_param_set_string(edge_params_t *ctx, const char *key, const char *val) {
+    (void)ctx;
+    (void)key;
+    (void)val;
     return EDGE_OK;
 }

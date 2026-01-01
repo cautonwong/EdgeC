@@ -1,15 +1,14 @@
 #ifndef BUS_ORCHESTRATOR_H
 #define BUS_ORCHESTRATOR_H
 
-#include "arbiter.h"
+#include "datahub.h"
 #include "edge_driver.h"
-#include "shmring.h"
 
-int edge_request_read(arbiter_t *arb, arbiter_bus_t bus, edge_driver_t *driver,
-                      edge_point_config_t *point, uint32_t slave_id, shm_ring_t *ring);
+struct bus_orchestrator_s;
+typedef struct bus_orchestrator_s bus_orchestrator_t;
 
-int edge_request_write(arbiter_t *arb, arbiter_bus_t bus, edge_driver_t *driver,
-                       edge_point_config_t *point, uint32_t slave_id, shm_ring_t *ring,
-                       bool emergency);
+bus_orchestrator_t *bus_orchestrator_create(edge_driver_t *driver, datahub_t *hub);
+void bus_orchestrator_run(bus_orchestrator_t *ctx);
+void bus_orchestrator_destroy(bus_orchestrator_t *ctx);
 
 #endif

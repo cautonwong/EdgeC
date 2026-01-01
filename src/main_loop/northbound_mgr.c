@@ -53,7 +53,6 @@ static void mqtt_init_and_connect(const char *url, const char *client_id) {
 static void on_data_notify(uv_async_t *handle) {
     northbound_mgr_t *mgr = (northbound_mgr_t *)handle->data;
     shm_ring_t *ring = mgr->ring;
-    uint64_t seq = 0;  // TODO: 应该维护上次读取的 seq，避免重复
     // 简化：这里演示原理，实际应该在 mgr 中维护 read_seq
 
     // 我们需要一个非阻塞的读取循环。
@@ -100,12 +99,6 @@ static void on_walk_close(uv_handle_t *handle, void *arg) {
 static void on_north_stop(uv_async_t *handle) {
     northbound_mgr_t *mgr = (northbound_mgr_t *)handle->data;
     uv_stop(&mgr->loop);
-}
-
-static void datahub_cb(datahub_t *hub, void *user_data) {
-    (void)hub;
-    uv_async_t *async = (uv_async_t *)user_data;
-    uv_async_send(async);
 }
 
 static void north_thread_entry(void *arg) {

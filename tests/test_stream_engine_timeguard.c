@@ -24,8 +24,6 @@ typedef struct {
     int call_count;
 } timer_state_t;
 
-int stream_engine_push_event(stream_engine_t *engine, pipe_msg_t *ev);
-
 static stage_ret_t mock_timer_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
     (void)ev;
     timer_state_t *ts = (timer_state_t *)stage->priv_state;
@@ -50,7 +48,7 @@ static void test_timeguard_anti_jump(void **state) {
     tick.ts = g_mock_cal_ms;
     tick.payload.event.event_id = SYS_EVENT_TIME_CHANGED;
 
-    stream_engine_push_event(engine, &tick);
+    stream_engine_push(engine, &tick);
 
     // Check if pipeline reacted
     assert_int_equal(ts->call_count, 1);

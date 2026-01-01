@@ -1,4 +1,4 @@
-#include <cJSON/cJSON.h>
+#include <cjson/cJSON.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,6 +11,9 @@ extern pipeline_stage_t *stage_filter_create(uint32_t tag_id);
 extern pipeline_stage_t *stage_accumulate_create(void);
 extern pipeline_stage_t *stage_sqlite_sink_create(sqlite_svc_t *db, const char *table);
 extern pipeline_stage_t *stage_transform_create(double alpha, double beta);
+extern pipeline_stage_t *stage_ema_create(double alpha);
+extern pipeline_stage_t *stage_clamp_create(double min, double max);
+extern pipeline_stage_t *stage_peak_shaving_create(double threshold_w, uint32_t ctrl_tag);
 extern pipeline_stage_t *stage_filter_range_create(double min, double max);
 extern pipeline_stage_t *stage_js_rule_create(js_engine_t *engine, const char *script_path);
 extern pipeline_stage_t *stage_periodic_freeze_create(int kind);
@@ -52,6 +55,31 @@ static pipeline_stage_t *build_stage(const char *type, cJSON *config, pipeline_l
         double beta = cJSON_GetObjectItem(config, "beta")->valuedouble;
         return stage_transform_create(alpha, beta);
     }
+    if (strcmp(type, "ema") == 0) {
+        double alpha = cJSON_GetObjectItem(config, "alpha")
+                           ? cJSON_GetObjectItem(config, "alpha")->valuedouble
+                           : 0.5;
+        return stage_ema_create(alpha);
+    }
+    if (strcmp(type, "clamp") == 0) {
+        double min = cJSON_GetObjectItem(config, "min")
+                         ? cJSON_GetObjectItem(config, "min")->valuedouble
+                         : -1e9;
+        double max = cJSON_GetObjectItem(config, "max")
+                         ? cJSON_GetObjectItem(config, "max")->valuedouble
+                         : 1e9;
+        return stage_clamp_create(min, max);
+    }
+    if (strcmp(type, "peak_shave") == 0) {
+        double threshold = cJSON_GetObjectItem(config, "threshold")
+                               ? cJSON_GetObjectItem(config, "threshold")->valuedouble
+                               : 5000.0;
+        uint32_t ctrl_tag = cJSON_GetObjectItem(config, "ctrl_tag")
+                                ? (uint32_t)cJSON_GetObjectItem(config, "ctrl_tag")->valuedouble
+                                : 0;
+        return stage_peak_shaving_create(threshold, ctrl_tag);
+    }
+
     if (strcmp(type, "accumulate") == 0) {
         return stage_accumulate_create();
     }

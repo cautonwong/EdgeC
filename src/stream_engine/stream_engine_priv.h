@@ -1,15 +1,18 @@
 #ifndef STREAM_ENGINE_PRIV_H
 #define STREAM_ENGINE_PRIV_H
 
+#include <uv.h>
+
+#include "queue.h"
 #include "stream_engine.h"
 
 #define MAX_PENDING_QUEUE 256
-#define MAX_PIPELINES 32
 #define TIME_JUMP_THRESHOLD_MS 5000
 
 typedef enum { PIPE_IDLE, PIPE_RUNNING, PIPE_SUSPENDED } pipeline_state_t;
 
 struct pipeline_s {
+    struct uv__queue node;
     char id[64];
     uint32_t trigger_tag;
     pipeline_state_t state;
@@ -28,7 +31,7 @@ struct stream_engine_s {
     uv_thread_t thread;
     bool thread_started;
 
-    pipeline_t *pipelines[MAX_PIPELINES];
+    struct uv__queue pipelines;
     int pipe_count;
 
     uv_async_t notify_handle;
