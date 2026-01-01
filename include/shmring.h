@@ -36,6 +36,12 @@ enum {
 #define PIPEMSG_EVENT PIPEMSG_TYPE_EVENT
 
 typedef struct {
+    uint8_t priority;  /**< S18: Arbitration priority (0-255) */
+    uint8_t source_id; /**< S19: Source link identification */
+    uint8_t _res[5];   /**< Future expansion (e.g., security signatures) */
+} PipeMsgAttr;
+
+typedef struct {
     uint64_t ts;
     uint32_t tag_id;
     uint16_t type;
@@ -43,7 +49,7 @@ typedef struct {
     uint32_t src_dev_id;
     uint32_t drop_reason;
     uint8_t quality;
-    uint8_t _pad[7];
+    PipeMsgAttr attr; /**< Replacing former _pad[7] */
 
     union {
         struct {
@@ -79,6 +85,7 @@ static inline void pipe_msg_init_scalar(PipeMsg *msg, uint32_t tag, double val, 
     msg->type = PIPEMSG_TYPE_SCALAR;
     msg->payload.val.f = val;
     msg->state = TRACE_CREATED;
+    // attr already zeroed by compound literal
 }
 
 static inline void pipe_msg_init_event(PipeMsg *msg, uint32_t eid, uint32_t param, uint64_t ts) {
@@ -88,6 +95,7 @@ static inline void pipe_msg_init_event(PipeMsg *msg, uint32_t eid, uint32_t para
     msg->payload.event.event_id = eid;
     msg->payload.event.param = param;
     msg->state = TRACE_CREATED;
+    // attr already zeroed by compound literal
 }
 
 _Static_assert(sizeof(PipeMsg) == 64, "PipeMsg must be 64 bytes");

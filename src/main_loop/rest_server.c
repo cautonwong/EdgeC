@@ -222,12 +222,37 @@ static char *handle_ui_descriptor_get(service_t *svc) {
     return buf;
 }
 
+static char *handle_control_post(service_t *svc, const char *body) {
+    if (!body) return strdup("{\"error\":\"missing_body\"}");
+    cJSON *root = cJSON_Parse(body);
+    if (!root) return strdup("{\"error\":\"invalid_json\"}");
+
+    cJSON *tag = cJSON_GetObjectItem(root, "tag_id");
+    cJSON *val = cJSON_GetObjectItem(root, "value");
+
+    if (!tag || !val || !cJSON_IsNumber(tag) || !cJSON_IsNumber(val)) {
+        cJSON_Delete(root);
+        return strdup("{\"error\":\"invalid_parameters\"}");
+    }
+    cmd_msg_t cmd;
+    cmd_msg_init_write(&cmd, (uint32_t)tag->valuedouble, val->valuedouble, CMD_PRIO_NORMAL);
+
+    if (service_post_cmd(svc, &cmd) == 0) {
+        cJSON_Delete(root);
+        return strdup("{\"status\":\"ok\",\"message\":\"command_dispatched_to_arbiter\"}");
+    }
+
+    cJSON_Delete(root);
+    return strdup("{\"error\":\"failed_to_post_command\"}");
+}
+
 char *rest_dispatch(service_t *svc, const char *path, const char *body) {
     if (strcmp(path, "/api/v1/system/health") == 0) return handle_system_health(svc);
     if (strcmp(path, "/api/v1/contracts") == 0) return handle_contracts_get(svc);
     if (strcmp(path, "/api/v1/ui/descriptor") == 0) return handle_ui_descriptor_get(svc);
     if (strcmp(path, "/api/v1/pipelines") == 0) return handle_pipelines_get(svc);
     if (strcmp(path, "/api/v1/devices") == 0) return handle_devices_get(svc);
+    if (strcmp(path, "/api/v1/control") == 0 && body) return handle_control_post(svc, body);
 
     if (strncmp(path, "/api/v1/data/query", 18) == 0) {
         uint32_t tag_id = (uint32_t)get_query_param_uint(path, "tag", 1001);

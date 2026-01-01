@@ -21,8 +21,21 @@ typedef enum {
     BUS_MAX
 } arbiter_bus_t;
 
-// --- 4.2.2 控制指令包 (CmdMsg) ---
-typedef enum { CMD_PRIO_EMERGENCY = 0, CMD_PRIO_HIGH = 1, CMD_PRIO_NORMAL = 2 } cmd_priority_t;
+// --- S18: 统一优先级定义 (与 PipeMsgAttr 对齐) ---
+// 值越大优先级越高
+#define ARBITER_PRIO_LOW 10
+#define ARBITER_PRIO_NORMAL 50
+#define ARBITER_PRIO_HIGH 150
+#define ARBITER_PRIO_EMERGENCY 255
+
+typedef uint8_t cmd_priority_t;
+
+/* 向后兼容别名 */
+enum {
+    CMD_PRIO_EMERGENCY = ARBITER_PRIO_EMERGENCY,
+    CMD_PRIO_HIGH = ARBITER_PRIO_HIGH,
+    CMD_PRIO_NORMAL = ARBITER_PRIO_NORMAL
+};
 
 typedef enum { CMD_ACTION_READ, CMD_ACTION_WRITE, CMD_ACTION_RAW, CMD_ACTION_OTA } cmd_action_t;
 

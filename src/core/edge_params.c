@@ -107,7 +107,7 @@ edge_params_t *edge_params_create(sqlite_svc_t *svc) {
 
 // --- Float 接口 ---
 edge_status_t edge_param_set_float(edge_params_t *ctx, const char *key, double val) {
-    if (!ctx) return EDGE_ERR_INVALID_PARAM;
+    if (!ctx || !key) return EDGE_ERR_INVALID_PARAM;
     uv_rwlock_wrlock(&ctx->lock);
     int ret = update_cache_unsafe(ctx, key, PARAM_TYPE_FLOAT, &val);
     uv_rwlock_wrunlock(&ctx->lock);
@@ -125,7 +125,7 @@ edge_status_t edge_param_set_float(edge_params_t *ctx, const char *key, double v
 }
 
 double edge_param_get_float(edge_params_t *ctx, const char *key, double def_val) {
-    if (!ctx) return def_val;
+    if (!ctx || !key) return def_val;
     double res = def_val;
     uv_rwlock_rdlock(&ctx->lock);
     param_entry_t *e = find_entry_unsafe(ctx, key);
@@ -136,7 +136,7 @@ double edge_param_get_float(edge_params_t *ctx, const char *key, double def_val)
 
 // --- Int 接口 ---
 edge_status_t edge_param_set_int(edge_params_t *ctx, const char *key, int64_t val) {
-    if (!ctx) return EDGE_ERR_INVALID_PARAM;
+    if (!ctx || !key) return EDGE_ERR_INVALID_PARAM;
     uv_rwlock_wrlock(&ctx->lock);
     int ret = update_cache_unsafe(ctx, key, PARAM_TYPE_INT, &val);
     uv_rwlock_wrunlock(&ctx->lock);
@@ -154,7 +154,7 @@ edge_status_t edge_param_set_int(edge_params_t *ctx, const char *key, int64_t va
 }
 
 int64_t edge_param_get_int(edge_params_t *ctx, const char *key, int64_t def_val) {
-    if (!ctx) return def_val;
+    if (!ctx || !key) return def_val;
     int64_t res = def_val;
     uv_rwlock_rdlock(&ctx->lock);
     param_entry_t *e = find_entry_unsafe(ctx, key);
@@ -165,7 +165,7 @@ int64_t edge_param_get_int(edge_params_t *ctx, const char *key, int64_t def_val)
 
 // --- String 接口 ---
 edge_status_t edge_param_set_string(edge_params_t *ctx, const char *key, const char *val) {
-    if (!ctx || !val) return EDGE_ERR_INVALID_PARAM;
+    if (!ctx || !key || !val) return EDGE_ERR_INVALID_PARAM;
     uv_rwlock_wrlock(&ctx->lock);
     int ret = update_cache_unsafe(ctx, key, PARAM_TYPE_STRING, val);
     uv_rwlock_wrunlock(&ctx->lock);
@@ -183,7 +183,7 @@ edge_status_t edge_param_set_string(edge_params_t *ctx, const char *key, const c
 }
 
 const char *edge_param_get_string(edge_params_t *ctx, const char *key, const char *def_val) {
-    if (!ctx) return def_val;
+    if (!ctx || !key) return def_val;
     const char *res = def_val;
     uv_rwlock_rdlock(&ctx->lock);
     param_entry_t *e = find_entry_unsafe(ctx, key);
@@ -197,7 +197,6 @@ const char *edge_param_get_string(edge_params_t *ctx, const char *key, const cha
 edge_status_t edge_params_load_all(edge_params_t *ctx) {
     if (!ctx || !ctx->db) return EDGE_ERR_GENERIC;
     LOG_INFO(LOG_CAT_CORE, "Synchronizing memory parameters with persistence...");
-    // 实际生产中建议在 sqlite_service 增加同步迭代器，目前作为核心路径保留
     return EDGE_OK;
 }
 
