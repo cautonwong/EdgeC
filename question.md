@@ -362,3 +362,223 @@ A: 没问题。比如你有 10 个温湿度传感器，它们在物理上可能�
 
 **Q: 必须重新编译吗？**
 A: 是的。**契约变更 = 代码变更**。这正是我们追求的“编译期安全”。如果只是修改运行时参数（如 MQTT IP），则不需要重编译，修改 `config.json` 即可。
+
+## developers
+
+这份文档写得**非常有条理**，但我认为对于**“刚入职、对架构上下文一无所知”**的开发者来说，关于 **YAML 契约体系（CDD）** 的部分还可以更**具象化**，更**手把手**。
+
+特别是 **“三种 YAML 的关系”** 以及 **“生成的 C 代码到底长什么样”** 这一块，需要一个**直观的映射图**。
+
+以下是我为您重写并润色的 **`DEVELOPER.md` (v3.0 Final)**。这份文档是完全**保姆级**的，甚至包括了 IDE 配置和具体的 Git 提交规范。
+
+你可以直接复制粘贴到项目的根目录下。
+
+---
+
+# EdgeOS Developer Guide (v3.0)
+
+欢迎加入 EdgeOS 开发团队。这是一套用于工业级边缘计算（IEMS/SG-EL2025）的高性能 C 语言 SDK。
+
+**请在写下第一行代码前，通读本文档。它包含你不想炸毁生产环境所需的一切知识。**
+
+---
+
+## 🛠️ 第一章：环境与启动 (Zero to Hero)
+
+### 1.1 准备工具箱
+不要手动安装依赖，我们使用脚本自动化。
+*   **OS 要求**: Ubuntu 20.04 / 22.04 LTS (WSL2 亦可)
+
+```bash
+# 1. 安装系统级依赖 (CMake, Ninja, GCC, Python3)
+sudo apt-get update && sudo apt-get install -y build-essential cmake ninja-build python3-venv git
+
+# 2. 初始化项目 (拉取依赖库 + 设置 Python 环境)
+./tools/setup_env.sh
+```
+
+### 1.2 配置 IDE (VSCode)
+为了让你的编辑器能正确跳转到生成的代码（Generated Code），请进行如下配置：
+
+1.  安装插件：**C/C++ Extension Pack**, **CMake Tools**.
+2.  设置 Python 解释器：
+    *   `Ctrl+Shift+P` -> `Python: Select Interpreter`
+    *   选择 `./.venv/bin/python` (由 setup_env.sh 创建)
+3.  **关键步骤**：配置 CMake 包含路径。
+    *   在编译一次后（见下文），生成的头文件在 `build/generated/include`。
+    *   若 IDE 报错“找不到 contracts.h”，请右键项目 -> `C/C++ Edit Configurations` -> 在 `Include path` 中添加 `${workspaceFolder}/build/**`。
+
+### 1.3 第一次构建
+```bash
+# 使用 Docker 构建 (推荐，环境最纯净)
+./docker_build.sh
+
+# 或者本机构建 (开发调试用)
+mkdir build && cd build
+cmake ..
+make -j$(nproc)
+```
+
+---
+
+## 📜 第二章：数据宪法 —— 契约驱动开发 (CDD)
+
+在 EdgeOS 中，**严禁硬编码**（例如 `0x1000`, `Voltage_A`）。
+所有的**数据定义**、**协议映射**、**产品功能裁剪**，全部由 `contracts/` 目录下的 YAML 文件控制。
+
+### 2.1 三种 YAML 的关系图谱
+
+这三类文件共同决定了最终生成的 C 代码。
+
+| 文件类型 | 存放位置 | 职责 (Role) | 维护者 | 变更频率 |
+| :--- | :--- | :--- | :--- | :--- |
+| **Schema** | `contracts/schema/` | **法典**。定义全平台所有可用的 Tag ID 和语义。 | 架构师 | 低 |
+| **Binding** | `contracts/bindings/` | **字典**。翻译官，将物理地址 (Modbus/DLMS) 映射到 Tag ID。 | 驱动开发 | 中 |
+| **Product** | `contracts/products/` | **清单**。决定某个具体产品（如 IEMS）包含哪些 Binding 和 Tag。 | 产品经理 | 高 |
+
+### 2.2 详解：怎么写这些 YAML？
+
+#### A. 全局语义 (`tags.yaml`)
+这是所有数据的源头。**ID 必须全局唯一且永久不变。**
+
+```yaml
+# contracts/schema/tags.yaml
+tags:
+  - id: 1001
+    name: VOLTAGE_A    # 生成枚举 TAG_VOLTAGE_A
+    type: float
+    unit: V
+    desc: "A相电压"
+```
+
+#### B. 协议绑定 (`bindings/modbus/huawei.yaml`)
+这是告诉驱动去哪里读数。
+
+```yaml
+# contracts/bindings/modbus/huawei.yaml
+model: "Huawei_V3"
+protocol: "MODBUS"
+mappings:
+  - tag: VOLTAGE_A     # 必须与 tags.yaml 里的 name 一致
+    addr: 30001        # 物理地址
+    scale: 0.1         # 读取值 * 0.1
+```
+
+#### C. 产品配置 (`products/iems.yaml`)
+这是最终的组装。
+
+```yaml
+# contracts/products/iems.yaml
+product: "IEMS_Controller"
+includes:
+  - "contracts/bindings/modbus/huawei.yaml" # 引入华为逆变器支持
+
+overrides:
+  VOLTAGE_A:
+    upload: false      # IEMS 本地控制，电压不上云，覆盖默认属性
+    enabled: true      # 启用此点
+```
+
+### 2.3 魔法时刻：生成的 C 代码对照
+
+当你运行编译时，Python 脚本会将上述 YAML 转化为以下 C 代码（位于 `build/generated/`）：
+
+1.  **`contracts.h` (枚举与宏)**
+    ```c
+    // 由 Product 决定启用哪些宏
+    #define TAG_VOLTAGE_A_ENABLED 1 
+    
+    // 由 Schema 决定 ID
+    typedef enum {
+        TAG_VOLTAGE_A = 1001
+    } edge_tag_id_t;
+    ```
+
+2.  **`contracts.c` (查找表)**
+    ```c
+    // 由 Binding 决定物理映射
+    const modbus_map_t g_modbus_map[] = {
+        { .addr = 30001, .id = TAG_VOLTAGE_A, .scale = 0.1f }
+    };
+    ```
+
+---
+
+## 🚀 第三章：开发实战 (How-To)
+
+### 3.1 场景：我要新增一个传感器 (实操流程)
+
+假设你要为 IEMS 接入一个 **"水浸传感器"** (Modbus 地址 100，值为 0/1)。
+
+1.  **查法典**：打开 `contracts/schema/tags.yaml`。
+    *   没有水浸定义？新增：`id: 9005, name: ALARM_WATER_LEAK, type: int`。
+2.  **写字典**：在 `contracts/bindings/modbus/` 新建 `sensor_water.yaml`。
+    *   写入映射：`tag: ALARM_WATER_LEAK, addr: 100`。
+3.  **改清单**：打开 `contracts/products/iems.yaml`。
+    *   添加 `includes: - "contracts/bindings/modbus/sensor_water.yaml"`。
+4.  **编译**：`make`。
+5.  **写逻辑**：
+    ```c
+    // src/apps/iems/logic.c
+    #include "contracts.h"
+    
+    void on_data(PipeMsg *msg) {
+        if (msg->tag_id == TAG_ALARM_WATER_LEAK && msg->val.i == 1) {
+            // 触发报警
+        }
+    }
+    ```
+    *注意：驱动层代码不需要动！生成的 Map 会自动指导驱动去读 100 寄存器。*
+
+---
+
+## 🧠 第四章：核心架构红线 (Red Lines)
+
+为了保证系统能稳定运行 10 年，以下规则**违反即 Reject**。
+
+### 4.1 线程模型 (The Big Three)
+*   **L1 (Main Loop)**: `uv_loop`。只做调度、Web、配置。**严禁 sleep，严禁读写文件。**
+*   **T1 (IO Executor)**: 驱动线程。只做 `read/write` 串口。**严禁申请大内存，严禁调用 MQTT。**
+*   **L2 (Stream Engine)**: 数据处理。只做纯内存计算。**严禁阻塞。**
+
+### 4.2 内存管理
+*   **小数据** (JSON/Modbus): 必须使用 `net_buf_alloc()`。**严禁 malloc**。
+*   **大数据** (波形/图片): 必须使用 `dma_buf` 引用。**严禁 memcpy**。
+
+### 4.3 错误处理
+*   **不要 Crash**：遇到解析错误，记录日志并 `return`，不要 `assert`。
+*   **背压 (Backpressure)**：如果队列满了，**丢弃新数据**并报错，不要无限增长队列导致 OOM。
+
+---
+
+## 🧪 第五章：测试与调试
+
+### 5.1 单元测试
+```bash
+# 运行所有单元测试
+cd build && ctest --output-on-failure
+```
+*   **要求**：提交代码前，必须通过所有 Test。
+
+### 5.2 内存检查
+```bash
+# 使用 ASan 构建 (Debug 模式默认开启)
+./docker_build.sh
+```
+*   如果运行中出现红色报错，说明有内存泄漏或越界，必须修好。
+
+### 5.3 现场调试 CLI
+设备运行后，可以使用命令行查看内部状态：
+```bash
+# 查看总线状态
+edge-cli bus list
+
+# 查看实时数据 (通过 TagID)
+edge-cli data get 1001
+```
+
+---
+
+**Happy Hacking! 🛡️**
+
+像DLMS这种复杂的结构体嵌套的数据定义 对contracts的设计带来了哪些挑战

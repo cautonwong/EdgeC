@@ -1,0 +1,16 @@
+/* AUTO-GENERATED FOR SLAVE DEVICE */
+#ifndef SLAVE_DATA_H
+#define SLAVE_DATA_H
+#include <stdint.h>
+
+#pragma pack(push, 1)
+typedef struct {
+{{- range .ActiveTags }}
+    // Tag: {{ .Name }} (ID: {{ .ID }})
+    {{ $.CType .Type }} {{ lower .Name }};
+{{- end }}
+} slave_data_store_t;
+#pragma pack(pop)
+
+extern slave_data_store_t g_slave_data;
+#endif

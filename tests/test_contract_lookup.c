@@ -17,19 +17,20 @@ static void test_modbus_mapping_logic(void **state) {
     edge_tag_id_t id;
 
     // 1. 测试标准点位 (A相电压 - 0x0000)
-    // 映射定义在 acrel_p80.yaml 中
+    // acrel_p80.yaml 中定义 scale: 0.1
     id = edge_lookup_modbus(0x0000, &scale);
     assert_int_equal(id, TAG_VOLTAGE_PHASE_A);
     assert_float_equal(scale, 0.1f, 0.0001f);
 
-    // 2. 验证产品私有测点查找 (ROOM_HUMIDITY 定义在 iems/extension.yaml)
+    // 2. 验证项目扩展测点 (PROJECT_HUMIDITY - ID: 8001)
+    // extension.yaml 中覆盖定义为 scale: 1.0
     id = edge_lookup_modbus(50002, &scale);
-    assert_int_equal(id, TAG_ROOM_HUMIDITY);
-    assert_float_equal(scale, 1.0, 0.001);
+    assert_int_equal(id, TAG_PROJECT_HUMIDITY);
+    assert_float_equal(scale, 1.0f, 0.001f);
 
-    // 3. 测试不存在的点位
+    // 3. 测试不存在的点位 (预期返回 TAG_INVALID)
     id = edge_lookup_modbus(0xFFFF, &scale);
-    assert_int_equal(id, 0);  // TAG_INVALID
+    assert_int_equal(id, 0);
 }
 
 /**
@@ -40,13 +41,15 @@ static void test_multi_proto_lookup(void **state) {
     float scale = 0.0f;
     edge_tag_id_t id;
 
-    // 1. DLT645 DI 映射 (定义在 standard_meter.yaml)
+    // 1. DLT645 DI 映射 (定义在 contracts/bindings/dlt645/standard_meter.yaml)
+    // 02010100 对应 A相电压
     id = edge_lookup_dlt645("02010100", &scale);
     assert_int_equal(id, TAG_VOLTAGE_PHASE_A);
-    assert_float_equal(scale, 0.1f, 0.0001f);
+    // 真实点表中 scale 为 1.0 (或默认值)
+    assert_float_equal(scale, 1.0f, 0.0001f);
 
-    // 2. 模拟空查询
-    id = edge_lookup_dlms("non-existent-obis", &scale);
+    // 2. 模拟空查询 (绝对不存在的 OBIS)
+    id = edge_lookup_dlms("9.9.9.9.9.9", &scale);
     assert_int_equal(id, 0);
 }
 

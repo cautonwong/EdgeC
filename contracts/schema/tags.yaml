@@ -5,26 +5,39 @@ tags:
     type: float
     unit: V
     desc: "A相电压"
-    attributes: { category: "Metrology", ui: { group: "Grid", precision: 1 } }
+    attributes:
+      category: "Metrology"
+      ui: { group: "Grid_Params", min: 0, max: 500, precision: 1 }
+      northbound: { storage: "trend", push: "periodic" }
 
   - id: 1002
     name: CURRENT_PHASE_A
     type: float
     unit: A
     desc: "A相电流"
-    attributes: { category: "Metrology" }
+    attributes:
+      category: "Metrology"
+      ui: { group: "Grid_Params", min: 0, max: 100 }
+      northbound: { storage: "trend" }
 
   - id: 1003
     name: GRID_POWER
     type: float
-    unit: kW
-    desc: "总有功功率"
+    unit: W
+    desc: "电网有功功率"
+    attributes:
+      category: "Metrology"
+      ui: { group: "Grid_Params" }
+      northbound: { push: "change", threshold: 10 }
 
   - id: 1004
     name: GRID_FREQUENCY
     type: float
     unit: Hz
     desc: "系统频率"
+    attributes:
+      category: "Metrology"
+      ui: { group: "Grid_Params", min: 45, max: 55, precision: 2 }
 
   # === 能量计量 (3000-3999) ===
   - id: 3001
@@ -40,56 +53,16 @@ tags:
     unit: kWh
     desc: "反向有功总电能"
 
-  # === 充电桩专用 (6000-6999) ===
-  - id: 6001
-    name: EV_CHARGE_POWER
-    type: float
-    unit: kW
-    desc: "当前充电功率"
-    attributes: { category: "EVSE" }
-
-  - id: 6002
-    name: EV_BATTERY_LEVEL
-    type: float
-    unit: "%"
-    desc: "车载电池电量"
-
-  - id: 6003
-    name: EV_CONNECTOR_STATUS
-    type: int
-    desc: "枪头状态 (0:未插, 1:已插, 2:充电中)"
-
-  # === 环境与安全 (8000-8999) ===
-  - id: 8001
-    name: ROOM_HUMIDITY
-    type: float
-    unit: "%"
-    desc: "环境湿度"
-
-  - id: 8002
-    name: PLUG_OVERTEMP
-    type: bool
-    desc: "插头过温告警"
-
-  - id: 8003
-    name: GATEWAY_INTERNAL_TEMP
-    type: float
-    unit: "C"
-    desc: "网关内部温度"
-
   # === 电池管理 (4000-4999) ===
   - id: 4001
     name: BATTERY_SOC
     type: float
     unit: "%"
     desc: "电池剩余电量"
-    attributes: { category: "Storage", ui: { widget: "gauge" } }
-
-  - id: 4002
-    name: BATTERY_SOH
-    type: float
-    unit: "%"
-    desc: "电池健康度"
+    attributes:
+      category: "Storage"
+      ui: { group: "Battery_Health", min: 0, max: 100, widget: "gauge" }
+      northbound: { storage: "trend", push: "periodic" }
 
   - id: 4003
     name: BATTERY_POWER
@@ -97,21 +70,17 @@ tags:
     unit: W
     desc: "电池实时功率 (正充负放)"
 
-  # === 开关控制 (5000-5999) ===
-  - id: 5001
-    name: SWITCH_RELAY_1
-    type: int
-    desc: "1号继电器状态"
-    attributes: { rw: "w" }
-
-  # === 配电专用 (7000-7999) ===
-  - id: 7001
-    name: TRANSFORMER_OIL_TEMP
+  # === 环境与项目扩展 (8000-8999) ===
+  - id: 8001
+    name: PROJECT_HUMIDITY
     type: float
-    unit: "C"
-    desc: "变压器油温"
+    unit: "%"
+    desc: "项目现场环境湿度"
+    attributes:
+      ui: { group: "Environment", min: 0, max: 100 }
 
-  - id: 7002
-    name: BREAKER_STATUS
+  - id: 8002
+    name: PLUG_OVERTEMP
     type: int
-    desc: "断路器位置 (0:分, 1:合)"
+    desc: "插座过温报警"
+    attributes: { alert: true }

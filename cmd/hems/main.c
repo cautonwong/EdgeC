@@ -15,9 +15,10 @@ int main(int argc, char **argv) {
     edge_tag_id_t id = edge_lookup_dlt645("02010100", &scale);
     printf("[Driver] DLT645 DI '02010100' -> TagID: %d, Scale: %.2f\n", id, scale);
 
-    // 2. 验证本地环境传感器
-    if (IS_ENABLED(TAG_ROOM_HUMIDITY_ENABLED)) {
-        printf("[Custom] Local Environment: Room Humidity (ID: %d) READY\n", TAG_ROOM_HUMIDITY);
+    // 3. 验证本地契约扩展逻辑
+    if (IS_ENABLED(TAG_PROJECT_HUMIDITY_ENABLED)) {
+        printf("[Custom] Local Environment: Project Humidity (ID: %d) READY\n",
+               TAG_PROJECT_HUMIDITY);
     }
 
     return 0;

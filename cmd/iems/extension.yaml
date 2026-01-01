@@ -1,21 +1,30 @@
 product: "IEMS_Controller_V1"
-# 继承默认点表
+# 显式包含默认点表基类
 includes:
   - "contracts/bindings/modbus_maps/default_device.yaml"
 
-# 启用全局标准测点
+# 激活测点 (对齐 test_contract_lookup.c)
 enabled_tags:
   - GRID_POWER
   - VOLTAGE_PHASE_A
   - GRID_FREQUENCY
   - BATTERY_SOC
-  - ROOM_HUMIDITY
+  - PROJECT_HUMIDITY
 
-# 项目现场独有硬件地址，但语义对齐全局 ROOM_HUMIDITY
+# IEMS 专属物理映射覆盖 (最高优先级)
 tags:
-  - id: 6001
-    name: ROOM_HUMIDITY
+  - name: PROJECT_HUMIDITY
     bindings:
       - protocol: MODBUS
         addr: 50002
         scale: 1.0
+
+  - id: 9005
+    name: CUSTOM_TEMP_SENSOR
+    type: float
+    unit: C
+    attributes: { upload: true }
+    bindings:
+      - protocol: MODBUS
+        addr: 50001
+        scale: 0.1

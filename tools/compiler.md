@@ -1,476 +1,851 @@
-## 我们这个项目 如何为多端产品开发服务  除了边缘计算设备外  比如裸机或rtos(zephyr/rtems)等的从/子设备 而从设备是接入我们这个边缘设备的 那么我们这个monorepo项目能够一起构建出来全栈产品
+这是一个非常明智的决定。
 
-我明白了！这是一个非常关键的场景澄清。
+使用 Python 编写复杂的 Schema 解析和代码生成工具时，**弱类型**确实容易导致 `KeyError`, `AttributeError` 等运行时错误，且难以维护复杂的嵌套结构。
 
-原来你的意思是：**MCU/RTOS 设备是作为“从设备（Slave/Sub-device）”被挂载到 Linux 边缘网关（Master）下面的**，而不是说要在 MCU 上跑这套复杂的 EdgeOS SDK。
+改用 **Golang** 有以下巨大优势：
+1.  **强类型 (Struct tags)**：YAML 结构必须与 Go Struct 严格匹配，解析时自动校验，**在编译生成器时就能发现错误**。
+2.  **单文件分发**：编译成一个静态 Binary，丢进 CI/CD 容器或给同事用，无需配置 Python 环境。
+3.  **模板引擎强大**：Go 的 `text/template` 非常适合生成 C 代码。
 
-这种场景下，我们的 **“契约生成体系 (Contract System)”** 的价值不仅没有变小，反而**变得更大**了。
-
-这叫作 **“端到端的一致性工程 (End-to-End Consistency Engineering)”**。
+以下是使用 **Golang 重构的 Contract Compiler (v4.0)** 完整方案。
 
 ---
 
-### 一、 核心痛点：网关和从设备“打架”
+### 1. 工程目录结构
 
-在传统的开发模式中，网关开发组和嵌入式设备开发组是分开的：
-1.  **嵌入式组**：写固件，定义“0x1000 寄存器是电压”。
-2.  **网关组**：写驱动，代码里写死 `read(0x1000)`。
-3.  **联调现场**：嵌入式改了地址变成 0x1001，忘了通知网关组。**结果：网关读错数据，现场炸锅。**
+我们将工具独立为一个 Go 模块。
 
-### 二、 解决方案：一源双向生成 (One Source, Dual Generation)
+```text
+tools/contract-compiler/
+├── go.mod                # 依赖管理 (gopkg.in/yaml.v3)
+├── go.sum
+├── main.go               # 主逻辑
+├── model/                # 数据模型定义
+│   └── types.go
+└── templates/            # C 代码模板 (嵌入到 Go 二进制中)
+    ├── header.tmpl
+    └── source.tmpl
+```
 
-我们利用之前的 `contract_compiler.py`，**基于同一份 YAML，同时生成两端的代码**。
+### 2. 初始化 Go 模块
 
-*   **向左生成 (For Gateway)**：生成“怎么读”的查找表。
-*   **向右生成 (For Device)**：生成“怎么存”的数据结构和回调表。
+在 `tools/contract-compiler` 目录下执行：
 
-#### 架构图解
-
-```mermaid
-graph TD
-    %% 核心契约
-    YAML[("📄 device_model.yaml\n(定义: Reg 0x1000 = Voltage)")]
-
-    %% 编译器
-    Compiler("⚙️ contract_compiler.py")
-
-    YAML --> Compiler
-
-    %% 分支 1: 生成给 Linux 网关 (Master)
-    subgraph Gateway_Side ["Linux 网关 (Master)"]
-        direction TB
-        Master_Code["src/generated/map_modbus.c\n(查找表: Reg -> TagID)"]
-        Gateway_App["EdgeOS Driver\n(主动发起 Read)"]
-        Master_Code -.-> Gateway_App
-    end
-
-    %% 分支 2: 生成给 RTOS 从设备 (Slave)
-    subgraph Device_Side ["RTOS 设备 (Slave)"]
-        direction TB
-        Slave_Header["include/meter_data.h\n(struct MeterData)"]
-        Slave_Map["src/modbus_slave_map.c\n(Reg -> Struct Offset)"]
-        Device_FW["MCU Firmware\n(被动响应 Write)"]
-        
-        Slave_Header -.-> Device_FW
-        Slave_Map -.-> Device_FW
-    end
-
-    Compiler == "--target=linux" ==> Master_Code
-    Compiler == "--target=mcu" ==> Slave_Header & Slave_Map
-
-    %% 物理连接
-    Gateway_App <== "Modbus/CAN Bus" ==> Device_FW
+```bash
+go mod init contract-compiler
+go get gopkg.in/yaml.v3
 ```
 
 ---
 
-### 三、 深度实操：如何生成从设备代码？
+### 3. 数据模型定义 (`model/types.go`)
 
-假设我们定义了一个智能断路器 (`breaker.yaml`)。
+利用 Go 的 Struct Tag 严格定义 YAML 结构，彻底杜绝字段拼写错误。
 
-#### 1. 输入：契约定义 (`contracts/bindings/modbus/breaker.yaml`)
+```go
+package model
 
-```yaml
-model: "Smart_Breaker_V1"
-protocol: "MODBUS"
-mappings:
-  - tag: VOLTAGE_PHASE_A
-    addr: 100
-    type: uint16
-    scale: 0.1
-    access: r  # 只读
-    
-  - tag: SWITCH_STATUS
-    addr: 101
-    type: uint16
-    access: rw # 读写
-```
+// 1. 全局 Tag 定义 (Schema)
+type GlobalSchema struct {
+	Tags []TagDef `yaml:"tags"`
+}
 
-#### 2. 生成器逻辑增强
+type TagDef struct {
+	ID         uint32                 `yaml:"id"`
+	Name       string                 `yaml:"name"`
+	Type       string                 `yaml:"type"`
+	Unit       string                 `yaml:"unit"`
+	Desc       string                 `yaml:"desc"`
+	Attributes map[string]interface{} `yaml:"attributes"`
+	
+	// 运行时注入的字段 (不从 YAML 读)
+	Bindings   []Binding              `yaml:"bindings,omitempty"`
+	IsEnabled  bool                   `yaml:"-"`
+}
 
-我们需要在 `contract_compiler.py` 中增加生成 MCU 代码的逻辑。
+// 2. 协议绑定 (Binding)
+type BindingFile struct {
+	Model    string    `yaml:"model"`
+	Protocol string    `yaml:"protocol"`
+	Mappings []Binding `yaml:"mappings"`
+}
 
-**生成目标 A：数据结构 (`meter_data.h`)**
-这是 MCU 内存中存储真实数据的结构体。
+type Binding struct {
+	TagName      string  `yaml:"tag"` // 关联的 Tag Name
+	
+	// Modbus Specific
+	Addr         uint16  `yaml:"addr,omitempty"`
+	FuncCode     uint8   `yaml:"func,omitempty"`
+	Scale        float32 `yaml:"scale,omitempty"`
+	
+	// DLMS Specific
+	Obis         string  `yaml:"obis,omitempty"`
+	Scaler       float32 `yaml:"scaler,omitempty"`
+	
+	// IEC104 Specific
+	IOA          int     `yaml:"ioa,omitempty"`
+	TypeID       int     `yaml:"type_id,omitempty"`
+	
+	// 内部字段
+	ProtocolType string  `yaml:"protocol_type,omitempty"`
+}
 
-```c
-/* AUTO-GENERATED FOR MCU */
-#ifndef METER_DATA_H
-#define METER_DATA_H
-#include <stdint.h>
+// 3. 产品配置 (Product)
+type ProductConfig struct {
+	ProductName string                 `yaml:"product"`
+	Includes    []string               `yaml:"includes"`
+	Overrides   map[string]TagOverride `yaml:"overrides"`
+}
 
-// 紧凑对齐，节省 MCU RAM
-#pragma pack(push, 1)
-typedef struct {
-    uint16_t voltage_phase_a; // Addr: 100
-    uint16_t switch_status;   // Addr: 101
-} device_data_store_t;
-#pragma pack(pop)
+type TagOverride struct {
+	Enabled    *bool                  `yaml:"enabled"` // 指针用于判断字段是否存在
+	Attributes map[string]interface{} `yaml:",inline"` // 剩余字段混入
+}
 
-extern device_data_store_t g_dev_data;
-
-#endif
-```
-
-**生成目标 B：Modbus 从站映射表 (`modbus_slave_map.c`)**
-这是配合 **FreeModbus** 或 **TinyModbus** 协议栈使用的。
-
-```c
-#include "meter_data.h"
-
-// 定义寄存器处理的回调
-typedef enum { MB_REG_READ, MB_REG_WRITE } mb_mode_t;
-
-// 自动生成的处理函数
-int handle_holding_regs(int addr, int len, uint16_t *buf, mb_mode_t mode) {
-    int reg_idx = 0;
-    
-    // 遍历请求的寄存器范围
-    for (int i = 0; i < len; i++) {
-        int cur_addr = addr + i;
-        
-        switch (cur_addr) {
-            case 100: // VOLTAGE
-                if (mode == MB_REG_WRITE) return -1; // 只读保护
-                buf[i] = g_dev_data.voltage_phase_a;
-                break;
-                
-            case 101: // SWITCH
-                if (mode == MB_REG_WRITE) {
-                    g_dev_data.switch_status = buf[i];
-                    // 可选：触发硬件动作的回调
-                    // on_switch_status_change(buf[i]);
-                } else {
-                    buf[i] = g_dev_data.switch_status;
-                }
-                break;
-                
-            default:
-                return -2; // 非法地址
-        }
-    }
-    return 0; // Success
+// 4. 最终生效契约 (中间态)
+type EffectiveContract struct {
+	Product     string    `yaml:"product"`
+	GeneratedAt string    `yaml:"generated_at"`
+	Tags        []TagDef  `yaml:"tags"`
 }
 ```
 
 ---
 
-### 四、 这种模式对“多端开发”的巨大优势
+### 4. 主程序实现 (`main.go`)
 
-#### 1. 避免扯皮
-*   **以前**：网关读不到数据，怪从设备没发对；从设备说发了，怪网关读错了。
-*   **现在**：只要 YAML 没写错，两边的代码逻辑就是**数学上对应**的。如果有 bug，那是 YAML 定义的问题，改一处，两边重新编译即可。
+逻辑清晰：加载 -> 合并 -> 生成。
 
-#### 2. 快速模拟 (Digital Twin)
-在从设备硬件还没生产出来时，你可以在 **Linux PC** 上用这套生成的 Slave 代码跑一个 **“虚拟电表程序”**。
-*   网关开发人员不需要等硬件，直接连这个虚拟电表进行开发调试。
-*   这构成了 **CI/CD 自动化测试** 的基础（在 Jenkins 里跑虚拟网关+虚拟电表）。
+```go
+package main
 
-#### 3. 文档即代码
-*   YAML 文件本身就是最好的接口文档。你可以写个脚本把它转成 PDF 发给第三方集成商，告诉他们：“按这个协议对接”。
+import (
+	"contract-compiler/model"
+	"flag"
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"text/template"
+	"time"
 
----
+	"gopkg.in/yaml.v3"
+)
 
-### 五、 总结
+// CLI 参数
+var (
+	schemaPath  = flag.String("schema", "", "Path to tags.yaml")
+	productPath = flag.String("product", "", "Path to product.yaml")
+	localPath   = flag.String("local", "", "Path to extension.yaml (optional)")
+	outDir      = flag.String("out", "./generated", "Output directory")
+)
 
-对于 **“从设备接入”** 场景，我们的 SDK 策略是：
+func main() {
+	flag.Parse()
 
-1.  **核心 SDK**：运行在 Linux 网关上，负责**“读”**。
-2.  **契约工具链**：服务于**两端**。
-    *   给网关生成 **“Master 查找表”**。
-    *   给从设备生成 **“Slave 结构体与回调”**。
+	if *schemaPath == "" || *productPath == "" {
+		log.Fatal("Usage: contract-compiler -schema <path> -product <path> -out <dir>")
+	}
 
-这套体系能极大地降低 **联调成本**，保证整个物联网系统的 **数据定义一致性**。
+	// 1. 加载 Global Schema
+	globalTags := loadSchema(*schemaPath)
+	fmt.Printf("Loaded %d global tags.\n", len(globalTags))
 
-## 对contract_compiler.py的实现要求很高  每次增加协议  都要去定制  请你结合我们这个大项目的复杂需求  多端设备  多协议 好好设计这个compiler
+	// 2. 加载 Product Config
+	productConf := loadProduct(*productPath)
+	fmt.Printf("Building Product: %s\n", productConf.ProductName)
 
-这是一个非常深刻的工程痛点。如果 `contract_compiler.py` 里充斥着大量的 `if protocol == 'MODBUS' ... else if protocol == 'DLMS'`，那么随着协议增加，这个脚本会变成不可维护的“面条代码”。
+	// 3. 加载 Bindings (协议映射)
+	// Map: TagName -> []Binding
+	bindingMap := make(map[string][]model.Binding)
+	
+	// 解析 Includes 路径 (相对于 Product 文件或根目录)
+	// 这里假设简单的相对路径处理
+	rootDir := filepath.Dir(*productPath) + "/../../" // 回退到 contracts 根
+	
+	for _, inc := range productConf.Includes {
+		// 拼接完整路径
+		fullPath := filepath.Join(rootDir, inc)
+		bindings, proto := loadBindings(fullPath)
+		
+		for _, b := range bindings {
+			b.ProtocolType = proto
+			bindingMap[b.TagName] = append(bindingMap[b.TagName], b)
+		}
+	}
 
-为了满足 **“高要求、易扩展、多端生成”** 的目标，我们需要对编译器进行架构升级。
+	// 4. 合并逻辑 (Merge & Override)
+	effectiveTags := make([]model.TagDef, 0)
+	
+	// 按 ID 排序遍历
+	keys := make([]string, 0, len(globalTags))
+	for k := range globalTags { keys = append(keys, k) }
+	sort.Strings(keys)
 
-**核心策略**：**插件化架构 (Plugin Architecture) + 模板引擎 (Template Engine)**。
+	for _, name := range keys {
+		tag := globalTags[name]
+		
+		// 检查 Overrides
+		if ovr, ok := productConf.Overrides[name]; ok {
+			// 如果显式禁用
+			if ovr.Enabled != nil && !*ovr.Enabled {
+				continue
+			}
+			// 合并属性
+			if tag.Attributes == nil { tag.Attributes = make(map[string]interface{}) }
+			for k, v := range ovr.Attributes {
+				tag.Attributes[k] = v
+			}
+		}
+		
+		// 注入 Bindings
+		if bindings, ok := bindingMap[name]; ok {
+			tag.Bindings = bindings
+		}
+		
+		tag.IsEnabled = true
+		effectiveTags = append(effectiveTags, tag)
+	}
 
-1.  **逻辑解耦**：主程序只负责 YAML 的加载、合并和 ID 分配。具体的协议生成逻辑下沉到独立的 **Protocol Plugin** 中。
-2.  **视图分离**：不要在 Python 里拼接 C 代码字符串。使用 **Jinja2** 模板引擎，将 C 代码的结构与 Python 逻辑分离。
-3.  **多端适配**：每个插件必须同时实现 `generate_master` (网关查表) 和 `generate_slave` (设备数据结构) 两个接口。
+	// 5. 生成中间态 YAML
+	contract := model.EffectiveContract{
+		Product:     productConf.ProductName,
+		GeneratedAt: time.Now().Format(time.RFC3339),
+		Tags:        effectiveTags,
+	}
+	
+	saveYaml(filepath.Join(*outDir, "effective_contract.yaml"), contract)
 
----
+	// 6. 生成 C 代码
+	generateCCode(contract, *outDir)
+	
+	fmt.Println("✅ Build Success!")
+}
 
-# 🏗️ EdgeOS Contract Compiler v4.0 (Modular & Templated)
+// --- Helper Functions ---
 
-## 一、 编译器目录结构重构
+func loadSchema(path string) map[string]model.TagDef {
+	data, err := os.ReadFile(path)
+	if err != nil { log.Fatalf("Read schema failed: %v", err) }
+	
+	var schema model.GlobalSchema
+	if err := yaml.Unmarshal(data, &schema); err != nil {
+		log.Fatalf("Parse schema failed: %v", err)
+	}
+	
+	m := make(map[string]model.TagDef)
+	for _, t := range schema.Tags {
+		m[t.Name] = t
+	}
+	return m
+}
 
-我们将工具链模块化，使其成为一个 Python 包。
+func loadProduct(path string) model.ProductConfig {
+	data, err := os.ReadFile(path)
+	if err != nil { log.Fatalf("Read product failed: %v", err) }
+	
+	var cfg model.ProductConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		log.Fatalf("Parse product failed: %v", err)
+	}
+	return cfg
+}
 
-```text
-tools/contract_compiler/
-├── main.py                 # [入口] 负责参数解析、YAML合并、插件加载
-├── core/
-│   ├── loader.py           # YAML 加载与校验
-│   └── merger.py           # 三级合并逻辑 (Global -> Product -> Local)
-├── interfaces/
-│   └── generator.py        # 定义协议插件的基类 (Interface)
-├── plugins/                # [扩展点] 新增协议只需在这里加文件
-│   ├── __init__.py         # 自动注册插件
-│   ├── modbus.py           # Modbus 生成逻辑
-│   ├── dlms.py             # DLMS 生成逻辑
-│   └── can.py              # CAN 生成逻辑
-└── templates/              # [模板] C 代码模板 (Jinja2)
-    ├── master_header.h.j2  # 网关头文件
-    ├── master_source.c.j2  # 网关源文件 (查找表)
-    ├── slave_header.h.j2   # 从设备头文件 (结构体)
-    └── slave_source.c.j2   # 从设备源文件 (回调逻辑)
+func loadBindings(path string) ([]model.Binding, string) {
+	data, err := os.ReadFile(path)
+	// 容错：如果找不到，尝试直接路径
+	if err != nil {
+		data, err = os.ReadFile(path) // Retry
+		if err != nil {
+			log.Printf("WARN: Binding file not found: %s", path)
+			return nil, ""
+		}
+	}
+
+	var bf model.BindingFile
+	if err := yaml.Unmarshal(data, &bf); err != nil {
+		log.Fatalf("Parse binding %s failed: %v", path, err)
+	}
+	return bf.Mappings, bf.Protocol
+}
+
+func saveYaml(path string, v interface{}) {
+	f, err := os.Create(path)
+	if err != nil { log.Fatal(err) }
+	defer f.Close()
+	
+	enc := yaml.NewEncoder(f)
+	enc.SetIndent(2)
+	enc.Encode(v)
+}
 ```
 
 ---
 
-## 二、 核心代码实现
+### 5. 代码生成逻辑 (Embed Templates)
 
-### 1. 依赖准备
-```bash
-pip install pyyaml jinja2
-```
+为了保持单文件（方便复制），我们将模板作为**字符串常量**放在 Go 代码里。
 
-### 2. 定义插件接口 (`core/interface.py`)
+**`generator.go` (追加到 main 包)**
 
-所有协议生成器必须遵循此契约。
+```go
+package main
 
-```python
-from abc import ABC, abstractmethod
+import (
+	"contract-compiler/model"
+	"os"
+	"path/filepath"
+	"sort"
+	"text/template"
+)
 
-class ProtocolGenerator(ABC):
-    @property
-    @abstractmethod
-    def protocol_name(self):
-        """返回协议名称，如 'MODBUS', 'DLMS'"""
-        pass
+// 模板函数：分类获取不同协议的绑定
+func filterBindings(tags []model.TagDef, proto string) []struct {
+	Tag     model.TagDef
+	Binding model.Binding
+} {
+	var res []struct {
+		Tag     model.TagDef
+		Binding model.Binding
+	}
+	for _, t := range tags {
+		for _, b := range t.Bindings {
+			if b.ProtocolType == proto {
+				res = append(res, struct {
+					Tag     model.TagDef
+					Binding model.Binding
+				}{t, b})
+			}
+		}
+	}
+	// 默认排序：按地址或OBIS
+	sort.Slice(res, func(i, j int) bool {
+		if proto == "MODBUS" {
+			return res[i].Binding.Addr < res[j].Binding.Addr
+		}
+		if proto == "DLMS" {
+			return res[i].Binding.Obis < res[j].Binding.Obis
+		}
+		return res[i].Tag.ID < res[j].Tag.ID
+	})
+	return res
+}
 
-    @abstractmethod
-    def get_c_struct_def(self):
-        """返回该协议在 C 语言中的结构体定义字符串 (用于 contracts.h)"""
-        pass
+func generateCCode(contract model.EffectiveContract, outDir string) {
+	os.MkdirAll(outDir+"/include", 0755)
+	os.MkdirAll(outDir+"/src", 0755)
 
-    @abstractmethod
-    def prepare_master_data(self, bindings):
-        """
-        处理 Master 端数据 (如排序、建立索引)
-        :param bindings: 该协议下的所有绑定列表
-        :return: 传递给 Jinja2 模板的字典
-        """
-        pass
+	funcMap := template.FuncMap{
+		"filterProto": filterBindings,
+	}
 
-    @abstractmethod
-    def prepare_slave_data(self, bindings):
-        """
-        处理 Slave 端数据 (如内存布局计算)
-        :return: 传递给 Jinja2 模板的字典
-        """
-        pass
-```
+	// 1. 生成 Header (contracts.h)
+	tmplH, _ := template.New("header").Funcs(funcMap).Parse(headerTemplate)
+	fH, _ := os.Create(filepath.Join(outDir, "include/contracts.h"))
+	tmplH.Execute(fH, contract)
+	fH.Close()
 
-### 3. 实现 Modbus 插件 (`plugins/modbus.py`)
+	// 2. 生成 Source (contracts.c)
+	tmplC, _ := template.New("source").Funcs(funcMap).Parse(sourceTemplate)
+	fC, _ := os.Create(filepath.Join(outDir, "src/contracts.c"))
+	tmplC.Execute(fC, contract)
+	fC.Close()
+}
 
-注意：这里没有任何文件写入操作，只负责数据处理。
+// --- TEMPLATES ---
 
-```python
-from core.interface import ProtocolGenerator
+const headerTemplate = `
+/* AUTO-GENERATED BY GO COMPILER */
+#ifndef EDGE_CONTRACTS_H
+#define EDGE_CONTRACTS_H
 
-class ModbusGenerator(ProtocolGenerator):
-    @property
-    def protocol_name(self):
-        return "MODBUS"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>
 
-    def get_c_struct_def(self):
-        return """
-typedef struct {
-    uint16_t addr;
-    edge_tag_id_t id;
-    float scale;
-    uint8_t func_code;
-} modbus_map_t;
-"""
+// Feature Gates
+{{- range .Tags }}
+#define TAG_{{ .Name }}_ENABLED 1
+{{- end }}
+#define IS_ENABLED(x) ((x) == 1)
 
-    def prepare_master_data(self, bindings):
-        # Master 端需要二分查找，必须按地址排序
-        sorted_list = sorted(bindings, key=lambda x: x['addr'])
-        return {
-            "map_name": "g_modbus_map",
-            "entries": sorted_list,
-            "count": len(sorted_list)
-        }
+// Tag Enum
+typedef enum {
+    TAG_INVALID = 0,
+{{- range .Tags }}
+    TAG_{{ .Name }} = {{ .ID }},
+{{- end }}
+    TAG_MAX_ID
+} edge_tag_id_t;
 
-    def prepare_slave_data(self, bindings):
-        # Slave 端需要生成紧凑的结构体
-        # 按地址排序，计算 padding (可选)
-        sorted_list = sorted(bindings, key=lambda x: x['addr'])
-        return {
-            "struct_name": "modbus_data_store_t",
-            "registers": sorted_list
-        }
-```
+// Structures
+typedef struct { const char* name; const char* unit; bool persist; } tag_meta_t;
+typedef struct { uint16_t addr; edge_tag_id_t id; float scale; } modbus_map_t;
+typedef struct { const char* obis; edge_tag_id_t id; float scaler; } dlms_map_t;
 
-### 4. Jinja2 模板设计 (`templates/`)
+// API
+extern const tag_meta_t g_tag_meta_table[];
+edge_tag_id_t edge_lookup_modbus(uint16_t reg);
+edge_tag_id_t edge_lookup_dlms(const char* obis);
 
-使用模板让 C 代码可视化，易于修改。
+#endif
+`
 
-**`templates/master_source.c.j2` (网关端)**
-
-```c
+const sourceTemplate = `
 #include "contracts.h"
 #include <string.h>
 
-/* --- Common Metadata --- */
+// Metadata Table
 const tag_meta_t g_tag_meta_table[] = {
-{% for tag in tags %}
-    [TAG_{{ tag.name }}] = { "{{ tag.name }}", "{{ tag.unit }}", {{ tag.persist }} },
-{% endfor %}
+{{- range .Tags }}
+    [TAG_{{ .Name }}] = { "{{ .Name }}", "{{ .Unit }}", {{ if .Attributes.persist }}true{{else}}false{{end}} },
+{{- end }}
 };
 
-/* =========================================================
- * Protocol Lookups
- * ========================================================= */
-
-{% if modbus %}
-/* --- Modbus (Binary Search) --- */
-const modbus_map_t {{ modbus.map_name }}[] = {
-{% for item in modbus.entries %}
-    { {{ item.addr }}, TAG_{{ item.tag_name }}, {{ item.scale }}f, {{ item.func_code | default(3) }} },
-{% endfor %}
+// ---------------------------
+// Modbus Map (Sorted)
+// ---------------------------
+{{- $mb := filterProto .Tags "MODBUS" }}
+static const modbus_map_t s_modbus_map[] = {
+{{- range $mb }}
+    { {{ .Binding.Addr }}, TAG_{{ .Tag.Name }}, {{ .Binding.Scale }}f },
+{{- end }}
 };
-const int {{ modbus.map_name }}_len = {{ modbus.count }};
+static const int s_modbus_len = {{ len $mb }};
 
 edge_tag_id_t edge_lookup_modbus(uint16_t reg) {
-    int l = 0, r = {{ modbus.map_name }}_len - 1;
+    int l = 0, r = s_modbus_len - 1;
     while (l <= r) {
         int mid = l + (r - l) / 2;
-        if ({{ modbus.map_name }}[mid].addr == reg) return {{ modbus.map_name }}[mid].id;
-        if ({{ modbus.map_name }}[mid].addr < reg) l = mid + 1;
+        if (s_modbus_map[mid].addr == reg) return s_modbus_map[mid].id;
+        if (s_modbus_map[mid].addr < reg) l = mid + 1;
         else r = mid - 1;
     }
     return TAG_INVALID;
 }
-{% endif %}
 
-{% if dlms %}
-/* --- DLMS (Linear/Hash) --- */
-// ... 类似逻辑 ...
-{% endif %}
+// ---------------------------
+// DLMS Map (Linear Search for now)
+// ---------------------------
+{{- $dl := filterProto .Tags "DLMS" }}
+static const dlms_map_t s_dlms_map[] = {
+{{- range $dl }}
+    { "{{ .Binding.Obis }}", TAG_{{ .Tag.Name }}, {{ .Binding.Scaler }}f },
+{{- end }}
+};
+static const int s_dlms_len = {{ len $dl }};
+
+edge_tag_id_t edge_lookup_dlms(const char* obis) {
+    for(int i=0; i<s_dlms_len; i++) {
+        if(strcmp(s_dlms_map[i].obis, obis) == 0) return s_dlms_map[i].id;
+    }
+    return TAG_INVALID;
+}
+`
 ```
 
-**`templates/slave_header.h.j2` (RTOS 端)**
+---
+
+### 6. 使用指南
+
+#### 步骤 1：编译工具
+
+```bash
+cd tools/contract-compiler
+go build -o ../contract_compiler  # 编译二进制放到 tools 根目录
+```
+
+#### 步骤 2：在 CMake 中调用
+
+修改 `cmake/EdgeContract.cmake`，将原来的 `python3 ...` 替换为：
+
+```cmake
+add_custom_command(
+    OUTPUT "${OUT_HEADER}" "${OUT_SOURCE}"
+    COMMAND "${CMAKE_SOURCE_DIR}/tools/contract_compiler"
+            -schema "${SCHEMA_PATH}"
+            -product "${PRODUCT_YAML}"
+            -out "${GEN_DIR}"
+    DEPENDS ...
+)
+```
+
+### ✅ 方案评价
+
+1.  **鲁棒性**：Go 的 `yaml.Unmarshal` 会严格检查字段类型，如果 YAML 写错了（比如 `addr` 写成了字符串），生成器直接报错并指出行号，而不是生成错误的 C 代码。
+2.  **性能**：Go 二进制执行速度极快，且没有 Python 解释器启动开销，大型项目构建更快。
+3.  **零依赖发布**：你可以把编译好的 `contract_compiler` 二进制直接提交到 Git（或放在 Docker 镜像里），开发人员连 Python 都不用装。
+
+## yaml的合并逻辑  这么多种协议的支持? 将来如何扩展协议  这些问题你上面给的方案都有吗
+
+这是一个非常核心的架构拷问。
+
+如果 `contract_compiler` 只是简单地堆砌 `if (modbus) ... else if (can) ...`，那么当你未来要增加 **Zigbee** 或 **私有 RF 协议** 时，你就必须修改核心逻辑，这违反了 **开闭原则 (Open-Closed Principle)**。
+
+为了实现 **“对扩展开放，对修改关闭”**，并在 Golang 中优雅地处理多种协议的差异，我们需要采用 **接口（Interface） + 注册机制** 的设计模式。
+
+以下是 **EdgeOS Contract Compiler (Go Version)** 的终极设计方案。
+
+---
+
+### 1. 核心设计图：如何解耦协议？
+
+我们将编译器拆分为 **核心引擎 (Engine)** 和 **协议插件 (Plugins)**。
+
+```text
+[ YAML Files ]
+      |
+      v
++-----------------------+      +---------------------------+
+|   Core Engine (Main)  | <--> |   Protocol Interface      |
++-----------------------+      +---------------------------+
+| 1. 加载 Global Tags    |      ^           ^            ^
+| 2. 加载 Product Conf   |      |           |            |
+| 3. 合并逻辑 (Merge)    |   [Modbus]    [DLMS]       [CAN]
+| 4. 模板渲染 (Render)   |   (Plugin)    (Plugin)     (Plugin)
++-----------------------+
+```
+
+---
+
+### 2. 工程目录结构
+
+```text
+tools/contract-compiler/
+├── go.mod
+├── main.go                 # 入口
+├── core/
+│   ├── config.go           # 核心配置加载与合并逻辑
+│   ├── generator.go        # C 代码生成编排
+│   └── models.go           # 通用数据结构
+├── protocols/              # [扩展点] 所有协议逻辑都在这里
+│   ├── interface.go        # 定义协议接口
+│   ├── modbus.go           # Modbus 实现
+│   ├── dlms.go             # DLMS 实现
+│   └── iec104.go           # IEC104 实现
+└── templates/              # Go text/template 模板
+    ├── header.tmpl
+    └── source.tmpl
+```
+
+---
+
+### 3. 代码实现：协议接口化 (The Interface)
+
+这是解耦的关键。我们在 `protocols/interface.go` 中定义“一个协议需要做什么”。
+
+```go
+package protocols
+
+// 协议生成器接口
+type Generator interface {
+    // 1. 协议名称 (e.g. "MODBUS")
+    Name() string
+
+    // 2. C 语言结构体定义 (生成 contracts.h 中的 struct)
+    // e.g. "typedef struct { uint16_t addr; ... } modbus_map_t;"
+    GetCStruct() string
+
+    // 3. C 语言查找表生成 (生成 contracts.c 中的 const array)
+    // 输入: 该协议下的所有绑定列表
+    // 输出: C 代码片段 (数组定义 + 查找函数)
+    GenerateCCode(bindings []BindingObj) string
+}
+
+// 通用的绑定对象 (从 YAML 解析而来)
+type BindingObj struct {
+    TagName    string                 `yaml:"tag_name"`
+    TagID      uint32                 `yaml:"tag_id"`
+    Attributes map[string]interface{} `yaml:",inline"` // 捕获所有协议特定字段
+}
+```
+
+---
+
+### 4. 核心实现：合并逻辑 (Merge Logic)
+
+在 `core/config.go` 中，处理你关心的 **YAML 合并** 问题。
+
+**逻辑要点**：
+1.  **Global Schema** 是基准。
+2.  **Product Config** 决定启用/禁用。
+3.  **Bindings** 决定物理映射。
+4.  **Extension** (Local) 可以追加。
+
+```go
+package core
+
+import (
+	"contract-compiler/protocols"
+	"fmt"
+	"sort"
+    "gopkg.in/yaml.v3"
+)
+
+// 最终生效的契约对象
+type EffectiveContract struct {
+    Product       string
+    Tags          []TagDef
+    // 按协议分组的绑定列表: Map<ProtocolName, []Binding>
+    ProtocolBindings map[string][]protocols.BindingObj
+}
+
+func BuildEffectiveContract(schema GlobalSchema, product ProductConfig, localExt *LocalExt) *EffectiveContract {
+    contract := &EffectiveContract{
+        Product:          product.Name,
+        ProtocolBindings: make(map[string][]protocols.BindingObj),
+    }
+
+    // 1. 建立全量 Tag 索引
+    tagMap := make(map[string]TagDef)
+    for _, t := range schema.Tags { tagMap[t.Name] = t }
+    
+    // 2. 合并本地扩展 (如果存在)
+    if localExt != nil {
+        for _, t := range localExt.Tags { tagMap[t.Name] = t }
+    }
+
+    // 3. 处理绑定 (Bindings)
+    // 遍历 Product 包含的所有 binding 文件
+    for _, bindFile := range product.BindingFiles {
+        protoName := bindFile.Protocol // e.g. "MODBUS"
+        
+        for _, rawMapping := range bindFile.Mappings {
+            tagName := rawMapping["tag"].(string)
+            
+            // 只有在 Schema 中存在的 Tag 才有效
+            if tagDef, exists := tagMap[tagName]; exists {
+                // 构建绑定对象
+                binding := protocols.BindingObj{
+                    TagName:    tagName,
+                    TagID:      tagDef.ID,
+                    Attributes: rawMapping, // 保留原始 YAML 字段 (addr, scale...)
+                }
+                contract.ProtocolBindings[protoName] = append(contract.ProtocolBindings[protoName], binding)
+            }
+        }
+    }
+
+    // 4. 处理裁剪 (Overrides) 并生成最终 Tag 列表
+    for _, tag := range tagMap {
+        // 检查 Product Overrides (enabled/disabled)
+        if ovr, ok := product.Overrides[tag.Name]; ok {
+            if !ovr.Enabled { continue } // 被禁用
+            // 合并属性...
+        }
+        contract.Tags = append(contract.Tags, tag)
+    }
+    
+    // 排序，保证生成确定性
+    sort.Slice(contract.Tags, func(i, j int) bool { return contract.Tags[i].ID < contract.Tags[j].ID })
+
+    return contract
+}
+```
+
+---
+
+### 5. 协议插件实现：以 Modbus 为例
+
+在 `protocols/modbus.go` 中，我们实现具体的 C 代码生成逻辑。
+
+```go
+package protocols
+
+import (
+	"fmt"
+	"sort"
+	"strings"
+)
+
+type ModbusGen struct{}
+
+func (m *ModbusGen) Name() string { return "MODBUS" }
+
+func (m *ModbusGen) GetCStruct() string {
+	return `
+typedef struct {
+    uint16_t addr;
+    edge_tag_id_t id;
+    float scale;
+} modbus_map_t;`
+}
+
+func (m *ModbusGen) GenerateCCode(bindings []BindingObj) string {
+	// 1. 针对 Modbus 地址排序 (为了二分查找)
+	sort.Slice(bindings, func(i, j int) bool {
+		addrI := getInt(bindings[i].Attributes, "addr")
+		addrJ := getInt(bindings[j].Attributes, "addr")
+		return addrI < addrJ
+	})
+
+	var sb strings.Builder
+    
+    // 生成数组
+	sb.WriteString(fmt.Sprintf("// --- Modbus Map (Count: %d) ---\n", len(bindings)))
+	sb.WriteString("const modbus_map_t g_modbus_map[] = {\n")
+	
+	for _, b := range bindings {
+		addr := getInt(b.Attributes, "addr")
+		scale := getFloat(b.Attributes, "scale", 1.0)
+		sb.WriteString(fmt.Sprintf("    { %d, TAG_%s, %.2ff },\n", addr, b.TagName, scale))
+	}
+	sb.WriteString("};\n")
+    sb.WriteString(fmt.Sprintf("const int g_modbus_map_len = %d;\n\n", len(bindings)))
+
+    // 生成查找函数 (二分查找)
+    sb.WriteString(`
+edge_tag_id_t edge_lookup_modbus(uint16_t reg, float *out_scale) {
+    int l = 0, r = g_modbus_map_len - 1;
+    while (l <= r) {
+        int mid = l + (r - l) / 2;
+        if (g_modbus_map[mid].addr == reg) {
+            if (out_scale) *out_scale = g_modbus_map[mid].scale;
+            return g_modbus_map[mid].id;
+        }
+        if (g_modbus_map[mid].addr < reg) l = mid + 1;
+        else r = mid - 1;
+    }
+    return TAG_INVALID;
+}
+`)
+	return sb.String()
+}
+
+// 辅助函数：安全获取 Map 中的值
+func getInt(m map[string]interface{}, key string) int {
+    if v, ok := m[key]; ok {
+        if i, ok := v.(int); ok { return i }
+    }
+    return 0
+}
+```
+
+---
+
+### 6. 主程序入口 (`main.go`)
+
+将插件注册进去，利用 Go 的 template 生成最终文件。
+
+```go
+package main
+
+import (
+	"contract-compiler/core"
+	"contract-compiler/protocols"
+	"flag"
+	"os"
+	"text/template"
+)
+
+// 注册所有支持的协议
+var plugins = []protocols.Generator{
+	&protocols.ModbusGen{},
+	&protocols.DlmsGen{}, // 假设已实现
+    // &protocols.CanGen{},  // 将来要加 CAN，只需在这里注册
+}
+
+func main() {
+	// ... (解析参数 schemaPath, productPath 等) ...
+
+    // 1. 构建契约
+	contract := core.BuildEffectiveContract(schema, product, local)
+
+	// 2. 准备模板数据
+	type TplData struct {
+		Contract   *core.EffectiveContract
+		StructDefs []string
+		ImplCodes  []string
+	}
+	
+	data := TplData{Contract: contract}
+
+	// 3. 遍历插件，生成各协议代码
+	for _, p := range plugins {
+		// 检查当前产品是否用到了该协议
+		if bindings, ok := contract.ProtocolBindings[p.Name()]; ok && len(bindings) > 0 {
+			data.StructDefs = append(data.StructDefs, p.GetCStruct())
+			data.ImplCodes = append(data.ImplCodes, p.GenerateCCode(bindings))
+		}
+	}
+
+	// 4. 渲染 Header
+	renderTemplate("templates/header.tmpl", "contracts.h", data)
+	
+	// 5. 渲染 Source
+	renderTemplate("templates/source.tmpl", "contracts.c", data)
+}
+```
+
+---
+
+### 7. 模板文件示例
+
+**`templates/header.tmpl`**
 
 ```c
-/* AUTO-GENERATED FOR SLAVE DEVICE */
-#ifndef METER_DATA_H
-#define METER_DATA_H
+/* AUTO-GENERATED */
+#ifndef EDGE_CONTRACTS_H
+#define EDGE_CONTRACTS_H
+
 #include <stdint.h>
 
-#pragma pack(push, 1)
-typedef struct {
-{% for reg in modbus.registers %}
-    // Tag: {{ reg.tag_name }} (Addr: {{ reg.addr }})
-    {% if reg.type == 'float' %}
-    float val_{{ reg.tag_name | lower }};
-    {% else %}
-    uint16_t val_{{ reg.tag_name | lower }};
-    {% endif %}
-{% endfor %}
-} {{ modbus.struct_name }};
-#pragma pack(pop)
+// 1. Tag Enum
+typedef enum {
+    TAG_INVALID = 0,
+{{- range .Contract.Tags }}
+    TAG_{{ .Name }} = {{ .ID }},
+{{- end }}
+    TAG_MAX_ID
+} edge_tag_id_t;
 
-extern {{ modbus.struct_name }} g_device_data;
+// 2. Protocol Structs (由插件生成)
+{{- range .StructDefs }}
+{{ . }}
+{{- end }}
+
+// 3. API Declarations
+// ... (标准 API) ...
 
 #endif
 ```
 
----
+**`templates/source.tmpl`**
 
-### 5. 主编译器逻辑 (`main.py`)
+```c
+#include "contracts.h"
 
-将所有组件串联起来。
+// Metadata Table
+const tag_meta_t g_tag_meta_table[] = { ... };
 
-```python
-import os
-import argparse
-from jinja2 import Environment, FileSystemLoader
-from core.merger import load_and_merge  # 假设已实现之前的合并逻辑
-from plugins import load_plugins        # 动态加载 plugins 目录下的类
-
-def render(template_name, context, out_path):
-    env = Environment(loader=FileSystemLoader('templates'))
-    tmpl = env.get_template(template_name)
-    with open(out_path, 'w', encoding='utf-8') as f:
-        f.write(tmpl.render(context))
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--target', choices=['master', 'slave'], required=True)
-    parser.add_argument('--out', required=True)
-    # ... 其他参数 ...
-    args = parser.parse_args()
-
-    # 1. 加载并合并 YAML
-    contract = load_and_merge(args.schema, args.product, args.local)
-    
-    # 2. 加载插件
-    plugins = load_plugins() # 返回 {"MODBUS": ModbusGenerator(), ...}
-    
-    # 3. 按协议分组数据
-    protocol_data = {}
-    for binding in contract['bindings']:
-        proto = binding['protocol_type']
-        if proto in plugins:
-            if proto not in protocol_data: protocol_data[proto] = []
-            protocol_data[proto].append(binding)
-            
-    # 4. 准备模板上下文
-    context = {
-        "product": contract['product_name'],
-        "tags": contract['active_tags']
-    }
-    
-    # 让插件处理各自的数据
-    for proto, bindings in protocol_data.items():
-        plugin = plugins[proto]
-        if args.target == 'master':
-            context[proto.lower()] = plugin.prepare_master_data(bindings)
-            # 还需要收集 struct 定义
-            context.setdefault('struct_defs', []).append(plugin.get_c_struct_def())
-        else:
-            context[proto.lower()] = plugin.prepare_slave_data(bindings)
-
-    # 5. 渲染
-    if args.target == 'master':
-        render('master_header.h.j2', context, os.path.join(args.out, 'contracts.h'))
-        render('master_source.c.j2', context, os.path.join(args.out, 'contracts.c'))
-    else:
-        render('slave_header.h.j2', context, os.path.join(args.out, 'slave_data.h'))
-        render('slave_source.c.j2', context, os.path.join(args.out, 'slave_map.c'))
-
-if __name__ == "__main__":
-    main()
+// ---------------------------------------------------------
+// Protocol Implementations
+// ---------------------------------------------------------
+{{- range .ImplCodes }}
+{{ . }}
+{{- end }}
 ```
 
 ---
 
-## 三、 方案优势与扩展性
+### 🔄 回答你的问题：将来如何扩展？
 
-这个重构后的版本完美解决了你的顾虑：
+基于这套 Golang 架构：
 
-1.  **新增协议极其简单**：
-    *   如果要支持 **CAN**，只需在 `plugins/` 下新建 `can.py`，实现 `ProtocolGenerator` 接口。
-    *   在 `templates/` 中添加一段 CAN 的生成逻辑。
-    *   **主程序 `main.py` 不需要改动一行代码**。
+1.  **新增协议（比如 Zigbee）**：
+    *   **不需要** 修改 `main.go` 的核心逻辑。
+    *   **不需要** 修改 YAML 解析逻辑。
+    *   **只需要**：
+        1.  在 `protocols/` 下新建 `zigbee.go`，实现 `Generator` 接口。
+        2.  在 `main.go` 的 `plugins` 列表中注册它。
+        3.  编写 `bindings/zigbee/xxx.yaml`。
+    *   编译器会自动识别 YAML 中的 `protocol: ZIGBEE`，并调用你的新插件生成 C 代码。
 
-2.  **多端生成的隔离**：
-    *   Master 需要高效查找表（`map`）。
-    *   Slave 需要紧凑内存布局（`struct`）。
-    *   插件内部的 `prepare_master_data` 和 `prepare_slave_data` 方法将这两种逻辑物理分离，互不干扰。
+2.  **多端设备**：
+    *   在 `Generator` 接口中增加 `GenerateSlaveCode(bindings)` 方法。
+    *   在主程序中增加 `--target=slave` 参数。
+    *   插件根据 target 参数，决定是生成 Master 的查表代码，还是 Slave 的结构体代码。
 
-3.  **代码可读性大幅提升**：
-    *   C 代码的结构在 `j2` 模板中一目了然，不再被 Python 的字符串拼接逻辑掩盖。修改 C 代码格式只需要改模板。
-
-4.  **支持复杂逻辑**：
-    *   比如 DLMS 协议需要生成 Perfect Hash，你可以在 `dlms.py` 插件中调用 `gperf` 命令行，或者使用 Python 版的 perfect hash 算法生成查找表，然后传给模板。
-
-这就是一个**工业级 DSL 编译器**的标准形态。
+这套方案将 **“变化的”**（协议细节）封装在插件中，将 **“不变的”**（YAML 解析、合并、模板渲染）保留在核心引擎中，完美符合工业级软件的演进需求。

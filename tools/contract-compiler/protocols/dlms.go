@@ -1,0 +1,22 @@
+package protocols
+
+import (
+	"contract-compiler/model"
+)
+
+type DlmsHandler struct{}
+
+func (h *DlmsHandler) Name() string { return "DLMS" }
+func (h *DlmsHandler) Resolve(t model.TagDef, b model.Binding) ResolvedBinding {
+	return ResolvedBinding{
+		TagName:      t.Name,
+		TagID:        t.ID,
+		ProtocolType: "DLMS",
+		OBIS:         getStringCase(b.Attributes, "obis"),
+		Scale:        getFloat32Case(b.Attributes, "scaler", 1.0),
+	}
+}
+
+func init() {
+	Register(&DlmsHandler{})
+}

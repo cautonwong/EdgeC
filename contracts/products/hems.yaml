@@ -1,7 +1,7 @@
 product: "HEMS_Gateway_Lite"
 includes:
   - "contracts/bindings/modbus/huawei_sun2000.yaml"
-
 enabled_tags:
+  - GRID_POWER
   - VOLTAGE_PHASE_A
-  - ROOM_HUMIDITY
+  - PROJECT_HUMIDITY

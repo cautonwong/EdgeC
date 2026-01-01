@@ -1,0 +1,94 @@
+#include "contracts.h"
+#include <string.h>
+
+const tag_meta_t g_tag_meta_table[] = {
+{{- range .ActiveTags }}
+    [TAG_{{ .Name }}] = { 
+        .name = "{{ .Name }}", 
+        .unit = "{{ .Unit }}", 
+        .category = "{{ index .Attributes "category" }}",
+        .ui_group = "{{ $.GetUIAttr . "group" }}",
+        .min_val = {{ printf "%.1f" ($.GetUIAttr . "min" | default 0.0) }}f,
+        .max_val = {{ printf "%.1f" ($.GetUIAttr . "max" | default 0.0) }}f,
+        .persist = {{ if index .Attributes "persist" }}true{{else}}false{{end}}, 
+        .upload = {{ if index .Attributes "upload" }}true{{else}}false{{end}} 
+    },
+{{- end }}
+};
+
+const tag_meta_t* edge_get_meta(edge_tag_id_t id) {
+    if (id >= TAG_MAX_ID) return NULL;
+    return &g_tag_meta_table[id];
+}
+
+// --- Modbus ---
+{{- if .Modbus }}
+static const modbus_map_t s_modbus_map[] = {
+{{- range .Modbus }}
+    { {{ .Addr }}, TAG_{{ .TagName }}, {{ printf "%.1f" .Scale }}f },
+{{- end }}
+};
+edge_tag_id_t edge_lookup_modbus(uint16_t reg, float *s) {
+    int l = 0, r = {{ len .Modbus }} - 1;
+    while (l <= r) {
+        int mid = l + (r - l) / 2;
+        if (s_modbus_map[mid].addr == reg) { if(s)*s=s_modbus_map[mid].scale; return s_modbus_map[mid].id; }
+        if (s_modbus_map[mid].addr < reg) l = mid + 1; else r = mid - 1;
+    } return TAG_INVALID;
+}
+{{- else }}
+edge_tag_id_t edge_lookup_modbus(uint16_t r, float *s) { (void)r; (void)s; return TAG_INVALID; }
+{{- end }}
+
+// --- CAN ---
+{{- if .Can }}
+const can_map_t g_can_map[] = {
+{{- range .Can }}
+    { {{ printf "0x%X" .CanID }}, TAG_{{ .TagName }}, {{ .StartBit }}, {{ .Length }}, {{ printf "%.1f" .Factor }}f, {{ printf "%.1f" .Offset }}f },
+{{- end }}
+};
+const int g_can_map_len = {{ len .Can }};
+{{- else }}
+const can_map_t g_can_map[] = { {0} };
+const int g_can_map_len = 0;
+{{- end }}
+
+// --- DLT/DLMS/IEC ---
+{{- range $proto := list "DLMS" "DLT698" "DLT645" }}
+{{- $data := index $.PMap $proto }}
+edge_tag_id_t edge_lookup_{{ lower $proto }}(const char* o, float *s) {
+    {{- if $data }}
+    static const {{ lower $proto }}_map_t table[] = {
+    {{- range $data }}
+        { "{{ if eq $proto "DLMS" }}{{ .OBIS }}{{ else if eq $proto "DLT698" }}{{ .OAD }}{{ else }}{{ .DI }}{{ end }}", TAG_{{ .TagName }}, {{ printf "%.1f" .Scale }}f },
+    {{- end }}
+    };
+    for(int i=0; i<{{ len $data }}; i++) {
+        if(strcmp(table[i].{{ if eq $proto "DLMS" }}obis{{ else if eq $proto "DLT698" }}oad{{ else }}di{{ end }}, o) == 0) { if(s)*s=table[i].{{ if eq $proto "DLMS" }}scaler{{ else }}scale{{ end }}; return table[i].id; }
+    }
+    {{- else }}
+    (void)o; (void)s;
+    {{- end }}
+    return TAG_INVALID;
+}
+{{- end }}
+
+edge_tag_id_t edge_lookup_iec104(int ioa) {
+    {{- $ie := index .PMap "IEC104" }}
+    {{- if $ie }}
+    static const iec104_map_t table[] = {
+    {{- range $ie }}
+        { {{ .IOA }}, TAG_{{ .TagName }}, 0 },
+    {{- end }}
+    };
+    int l = 0, r = {{ len $ie }} - 1;
+    while(l <= r) {
+        int m = l + (r-l)/2;
+        if(table[m].ioa == ioa) return table[m].id;
+        if(table[m].ioa < ioa) l = m + 1; else r = m - 1;
+    }
+    {{- else }}
+    (void)ioa;
+    {{- end }}
+    return TAG_INVALID;
+}

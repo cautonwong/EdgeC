@@ -20,9 +20,9 @@ int main(int argc, char **argv) {
     edge_tag_id_t id = edge_lookup_dlt698("20010200", &scale);
     printf("[Driver] DLT698 OAID '20010200' -> TagID: %d, Scale: %.2f\n", id, scale);
 
-    // 3. 验证本地扩展
-    if (IS_ENABLED(TAG_ROOM_HUMIDITY_ENABLED)) {
-        printf("[Custom] Local Sensor Detected: Room Humidity (ID: %d)\n", TAG_ROOM_HUMIDITY);
+    // 3. 验证本地扩展测点感知
+    if (IS_ENABLED(TAG_PROJECT_HUMIDITY_ENABLED)) {
+        printf("[Custom] Local Sensor Detected: Project Humidity (ID: %d)\n", TAG_PROJECT_HUMIDITY);
     }
 
     return 0;

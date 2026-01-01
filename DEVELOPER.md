@@ -1,185 +1,196 @@
-# EdgeOS 开发者治理手册 (Industrial v2.0 - Frozen Edition)
+# EdgeOS 开发者治理手册 (Industrial v2.0 - 保姆级全量版)
 
-> **修订说明：** 本文档不是一份简单的 README 扩展，它是 EdgeOS 的“工程定力之基”。
-> 每一位参与本项目的开发者（包括核心库开发者与产品集成商）必须深刻理解并践行本手册定义的治理逻辑。
->
-> **核心价值观：** 物理隔离、契约驱动、ABI 稳定、环境零污染。
-
----
-
-## 一、 架构定力：四层逻辑平面的“物理生存空间”
-
-**结论先行：**
-**在 EdgeOS 中，平面的边界即是安全的红线。跨平面的非法耦合是导致系统在 10 年后变得不可维护的根源。**
-
-我们为什么放弃单体库，宁愿增加链接复杂度也要拆分出四个物理库？
-
-### 1.1 四层平面的深层治理逻辑
-
-| 平面名称 | 归属目录 | 库产物 | 稳定性 | 治理目的 |
-| :--- | :--- | :--- | :--- | :--- |
-| **Foundation (L0)** | `include/` | `*.h` | **永恒** | **数据宪法**。仅定义类型，作为 L1/L2 的公共契约，打破依赖环。 |
-| **Foundation (L1)** | `src/core/` | `libedge_core.a` | **极高** | **核心底座**。DataHub 总线、NetBuf。**严禁引用具体产品头文件**。 |
-| **Control Plane** | `src/main_loop/` | `libedge_main.a` | 中等 | **系统决策**。Arbiter 仲裁、Scheduler 调度。严禁运行 $O(N)$ 算法。 |
-| **Compute Plane** | `src/stream_engine/` | `libedge_stream.a` | 频繁 | **业务大脑**。Pipeline、JS/Lua。这是唯一允许处理业务语义的地方。 |
-| **Execution Plane** | `src/io_executor/` | `libedge_io.a` | 高 | **南向四肢**。物理驱动。必须保持**“契约盲”**，仅负责搬运。 |
-
-### 1.2 开发者避坑守则 (Red Lines)
-*   **严禁向上包含**：`src/core` 下的代码绝对不准出现 `#include "contracts.h"`。
-    *   *后果*：一旦包含，核心库就绑定到了具体产品（如 IEMS）上，无法再给 SG 或 EVSE 使用。
-*   **严禁直接调用驱动**：算法层（Compute Plane）禁止调用 `driver_modbus_send()`。
-    *   *后果*：这会导致业务逻辑与硬件强耦合。正确做法是写 DataHub 影子快照，由 Arbiter 自动分发。
-*   **禁阻塞 IO**：Control 和 Compute 平面禁止调用 `sleep()`、`recv()` 等阻塞函数。
-    *   *后果*：整个系统的心跳会因此停跳，导致分钟冻结丢失或 Watchdog 重启。
+> **修订说明：** 本文档是 EdgeOS 的“最高开发宪法”。它不仅回答“怎么做”，更通过底层逻辑拆解告诉你“为什么”。
+> 
+> **面向对象：** 
+> 1. **核心开发**：负责底层总线、引擎、协议栈重构。
+> 2. **产品集成商**：通过配置 YAML 和编写算法快速交付产品（IEMS/HEMS/DCU）。
+> 3. **从机开发者**：参考契约生成从机代码，实现网关与从机的数据对齐。
 
 ---
 
-## 二、 环境治理：Python 自动化引导 (Auto-Bootstrap)
+## 🛠️ 第一章：环境初始化 (Zero-to-Hero Setup)
 
-**结论先行：**
-**绝对不要（Never）将 `.venv` 虚拟环境目录提交至 Git 仓库。这不仅是体积问题，更是 100% 的不可用问题。**
+**准则：环境的一致性是系统稳定性的第一道防线。**
 
-### 2.1 为什么 `.venv` 是工程毒药？
-1.  **路径硬编码 (Hardcoded Paths)**：`bin/pip` 脚本首行会写死创建者的绝对路径（如 `/home/user/edgec/.venv/...`）。你拉取到本地后，路径不一致会导致 Python 报错 `bad interpreter`。
-2.  **二进制冲突 (Binary Incompatibility)**：虚拟环境里的 `PyYAML` 等库包含编译好的 C 扩展（.so）。你在 Linux x86 编译的库，换到 ARM 边缘网关上运行会直接段错误（Segmentation Fault）。
-3.  **脏产物堆积**：虚拟环境包含数千个无关的小文件，会让 `git status` 的响应时间从毫秒级退化到秒级。
-
-### 2.2 解决方案：一键式环境对齐 SOP
-新开发者进入项目后，唯一的标准动作是：
+### 1.1 系统基础环境 (Ubuntu 20.04/22.04)
+不要假设你的机器什么都有，先运行以下命令补全“手术工具”：
 ```bash
-# 1. 执行一键引导脚本
-bash tools/setup_env.sh
+sudo apt-get update
+sudo apt-get install -y \
+    build-essential cmake clang-format \
+    python3-pip python3-venv \
+    libsqlite3-dev libmodbus-dev \
+    gcc-aarch64-linux-gnu # 如果你需要进行 ARM 交叉编译
 ```
-该脚本会自动：
-*   探测系统 Python 版本。
-*   创建**本地专用**的 `.venv`。
-*   根据 `requirements.txt` 增量安装编译器依赖。
 
-### 2.3 IDE 高级适配 (VSCode/CLion)
-为了获得工业级的开发体验，你必须将 IDE 的 Python 解释器指向生成的虚拟环境：
-*   **路径**：`${PROJECT_ROOT}/.venv/bin/python`
-*   **价值**：设置正确后，你编辑 `tools/contract_compiler/` 目录下的 Python 插件时，IDE 才能正确识别 `ProtocolGenerator` 基类，并提供成员变量的智能补全。
+### 1.2 Python 环境治理 (遵循 question.md 规范)
+**⚠️ 红色禁区：严禁将 `.venv` 提交到仓库！**
+*   **为什么？** 虚拟环境包含绝对路径。如果你在 `/home/user/` 创建了环境，拉到另一台机器由于路径不同，`pip` 会直接报错 `bad interpreter`。此外，Linux 下编译的二进制包（.so）在其他平台无法运行。
+
+**正确操作流：**
+1. **执行自动化引导脚本**：
+   ```bash
+   # 在项目根目录下执行
+   bash tools/setup_env.sh
+   ```
+2. **检查成果**：此时根目录下会出现 `.venv` 文件夹（已被 `.gitignore` 自动忽略）。
+3. **IDE 对齐 (以 VSCode 为例)**：
+   *   按 `Ctrl+Shift+P` -> 输入 `Python: Select Interpreter`。
+   *   选择 `Enter interpreter path...`。
+   *   选择当前目录下的 `./.venv/bin/python`。
+   *   **价值**：这一步能确证你编辑 `tools/contract_compiler/` 插件时，IDE 能够识别所有类型，提供工业级的代码补全。
 
 ---
 
-## 三、 数据宪法：契约驱动开发 (CDD v2.0)
+## 🏗️ 第二章：架构定力 (Four Planes Architecture)
 
-**结论先行：**
-**“测点 (Tag)”是 EdgeOS 的唯一合法货币。代码中严禁出现寄存器物理地址。**
+**准则：平面的边界就是生存的底线。跨平面耦合 = 架构自杀。**
 
-### 3.1 为什么推行 CDD？
-在传统嵌入式项目中，网关开发组和从机设备组经常因为“寄存器 0x1000 到底是 A 相电压还是 B 相电压”而反复扯皮。EdgeOS 通过 **“单一事实源 (SSoT)”** 彻底解决了这个问题：YAML 契约即是真相。
+EdgeOS 物理拆分为四个库，每个库都有其不可侵犯的职责边界：
 
-### 3.2 测点（Tag）的全生命周期追踪
-假设我们要接入一个新的“电池簇单体最高电压”测点：
+### 2.1 四层逻辑平面拆解
+| 平面名称 | 归属目录 | 库产物 | 开发者约束 (The Red Lines) |
+| :--- | :--- | :--- | :--- |
+| **Foundation (L0)** | `include/` | `*.h` | **静态宪法**。只准定义结构体原型。**绝对禁止放入业务枚举！** |
+| **Foundation (L1)** | `src/core/` | `libedge_core.a` | **核心底座**。DataHub 总线、NetBuf。**严禁包含具体产品的 `contracts.h`**。核心只认 `tag_id` 整数。 |
+| **Control Plane** | `src/main_loop/` | `libedge_main.a` | **决策中枢**。Arbiter 仲裁器。严禁调用驱动的 `read/write` 原始函数。 |
+| **Compute Plane** | `src/stream_engine/`| `libedge_stream.a` | **业务大脑**。Pipeline FSM。**禁止做任何文件 IO 或阻塞通信**。 |
+| **Execution Plane** | `src/io_executor/` | `libedge_io.a` | **物理采集**。Modbus/DLMS 驱动。必须保持**“契约盲”**，仅通过符号查表。 |
 
-#### 第一步：在语义层确立含义 (`contracts/schema/tags.yaml`)
-在这里，我们赋予数据“灵魂”：
+---
+
+## 📜 第三章：契约治理体系 (Contract Governance v2.0)
+
+**准则：所有的测点都是“法定的”。代码中出现 0x1000 这种数字是二开者的耻辱。**
+
+### 3.1 什么是契约驱动开发 (CDD)？
+它是指网关（Master）和设备（Slave）公用一份 YAML 定义。改一处 YAML，两端代码自动对齐。
+
+### 3.2 增加一个新测点的保姆级 SOP
+假设你需要为一个 IEMS 项目增加“储能柜门禁状态”。
+
+#### 第一步：定义全局语义 (`contracts/schema/tags.yaml`)
+这是为了让全公司所有产品对这个点的定义达成共识。
 ```yaml
-- id: 4005
-  name: BATT_CELL_VOLT_MAX
-  type: float
-  unit: "V"
+- id: 5002
+  name: DOOR_STATUS
+  type: int
+  desc: "储能柜门禁开关状态"
   attributes:
-    category: "Battery"
-    ui: { group: "Cell_Status", min: 2.0, max: 4.5, precision: 3 } # 指导 UI 渲染
-    northbound: { storage: "trend", push: "change" } # 指导存储策略
+    category: "Security"
+    ui: { group: "Environment", widget: "status_light" } # 指导 UI 渲染为状态灯
 ```
 
-#### 第二步：在协议层绑定物理地址 (`contracts/bindings/modbus/catl_bms.yaml`)
-在这里，我们定义如何“抓取”数据：
+#### 第二步：绑定协议映射 (`contracts/bindings/modbus/xxx.yaml`)
+这是为了让驱动知道从哪个寄存器读取。
 ```yaml
 mappings:
-  - tag: BATT_CELL_VOLT_MAX
-    addr: 0x4010  # 物理寄存器地址
-    scale: 0.001  # 原始值 3200 -> 3.2V
+  - tag: DOOR_STATUS
+    addr: 0x0200  # 假设硬件在 512 寄存器上
+    scale: 1.0
 ```
 
-#### 第三步：在具体产品中激活功能 (`cmd/iems/extension.yaml`)
-在这里，我们进行功能裁剪：
+#### 第三步：在产品扩展中激活 (`cmd/iems/extension.yaml`)
 ```yaml
 enabled_tags:
-  - BATT_CELL_VOLT_MAX
+  - DOOR_STATUS
 ```
 
-#### 第四步：南向驱动自动感知 (The Magic)
-在 `modbus_rtu_driver.c` 中，驱动程序只写一次：
+#### 第四步：编译并观察产物
+执行 `./build_and_run.sh`。你会发现以下物理变化：
+1. **生成的头文件** (`build/products/iems/generated/contracts.h`)：
+   ```c
+   #define TAG_DOOR_STATUS_ENABLED 1
+   TAG_DOOR_STATUS = 5002,
+   ```
+2. **生成的查表代码** (`build/products/iems/generated/contracts.c`)：
+   ```c
+   static const modbus_map_t s_modbus_map[] = {
+       { 0x0200, TAG_DOOR_STATUS, 1.0f },
+       ...
+   };
+   ```
+
+---
+
+## 🧠 第四章：计算平面实战 (Pipeline & Stages)
+
+**准则：Pipeline 是顺序执行的。Stage 内部的内存必须“双向闭环”。**
+
+### 4.1 理解“双重清理”机制 (Double-Cleanup)
+为了达成工业级的内存零泄漏，每一个动态加载的 Stage 节点都持有两类数据：
+1. **`priv_cfg`**: 来自 JSON 配置的静态参数（如阈值、数据库路径）。
+2. **`priv_state`**: 运行时产生的中间状态（如累加器、滑动平均缓存）。
+
+**开发者守则：** 如果你在 Stage 工厂里 `malloc` 了内存，你必须在 `pipeline_add_stage` 时注入对应的 `cleanup_cfg` 或 `cleanup_state` 钩子。
+
+### 4.2 开发一个自定义 C 算子示例
 ```c
-// 驱动只认物理地址，通过编译器生成的查表 API 动态转换
-float scale;
-edge_tag_id_t id = edge_lookup_modbus(0x4010, &scale); 
-if (id != TAG_INVALID) {
-    // 此时 id 自动变为 4005 (TAG_BATT_CELL_VOLT_MAX)
-    // scale 自动变为 0.001
+// 1. 定义配置
+typedef struct { double max_temp; } my_cfg_t;
+
+// 2. 处理逻辑
+stage_ret_t my_temp_guard_proc(pipeline_stage_t *s, pipe_event_t *ev) {
+    my_cfg_t *cfg = (my_cfg_t*)s->priv_cfg;
+    if (ev->payload.val > cfg->max_temp) {
+        LOG_FATAL(LOG_CAT_CORE, "Temp too high! System Emergency Stop!");
+        return STAGE_DROP; // 拦截后续持久化或上送逻辑
+    }
+    return STAGE_OK;
 }
+
+// 3. 注入时确证清理
+pipeline_add_stage(p, "guard", my_temp_guard_proc, 
+                   NULL, NULL,           // 无运行状态
+                   cfg, free);           // 注入配置，并委托引擎使用 free 释放
 ```
-**结论：** 修改 YAML 点表定义，**SDK 核心源码 1 行都不用改**，仅需重新链接即可。
 
 ---
 
-## 四、 逻辑内核：流水线 (Pipeline) 高级工程学
+## 🌐 第五章：北向与可观测性
 
-**结论先行：**
-**Pipeline 是单线程、顺序执行的状态机。严禁在其中执行任何阻塞操作。**
+### 5.1 影子读取接口 (Shadow Read API)
+Web UI 展示实时数据时，禁止轮询 DataHub 的共享内存。
+*   **接口**：`GET /api/v1/data/latest/{id}`
+*   **原理**：它读取的是 DataHub 的影子缓存（Shadow Cache），这通过 `uv_rwlock_t` 实现了读写隔离，确证了 UI 查询绝不干扰实时采集的确定性。
 
-### 4.1 理解 Pipeline 的 FSM 状态
-每一条流水线在执行过程中都可能经历以下状态转换：
-1.  **IDLE**：等待 DataHub 的 `uv_async` 唤醒。
-2.  **RUNNING**：正在顺序执行 Stage 链。
-3.  **SUSPENDED**：遇到 `STAGE_ASYNC`（如写库、耗时算法），Pipeline 挂起并保存当前事件快照。
-4.  **RESUMING**：Worker 完成任务，回调 `pipeline_resume`，从中断点继续向后流转。
-
-### 4.2 开发自定义 C 算子 (Stage) 的工业级 SOP
-如果你需要开发一个复杂的 FF T 算法 Stage：
-
-1.  **定义私有上下文** (在头文件中定义，在 `.c` 中实现):
-    ```c
-    typedef struct { int fft_size; float *window; } fft_stage_cfg_t; // 配置
-    typedef struct { uint64_t last_calc_ts; } fft_stage_state_t;    // 运行状态
-    ```
-2.  **实现双重清理 (Double-Cleanup)**:
-    为了达成 0 泄漏目标，必须在 `pipeline_add_stage` 时注入两个回调：
-    *   `cleanup_state`: 释放计算缓存。
-    *   `cleanup_cfg`: 释放从 JSON 解析出来的配置。
-3.  **遵循 ASYNC 卸载原则**:
-    对于 FFT 这种耗时计算，禁止在 `process` 函数中直接运行。必须利用 `uv_queue_work` 卸载到 libuv Worker 线程池，并返回 `STAGE_ASYNC`。
+### 5.2 契约下发接口
+前端 HMI 开发者必须调用：
+*   **接口**：`GET /api/v1/contracts`
+*   **原理**：它返回合并后的 `contracts.yaml`。前端应根据此文件动态渲染测点名称、量程和分组，实现“一份代码适配百种产品”的动态 UI 定力。
 
 ---
 
-## 五、 构建系统：产品沙箱与资产保护
+## 🚀 第六章：构建产物资产管理 (Artifacts)
 
-**结论先行：**
-**`build/` 目录不是垃圾堆，而是按照“资产等级”物理隔离的产物沙箱。**
+**准则：build 目录不是垃圾堆，而是严格隔离的沙箱。**
 
-### 5.1 目录拓扑结构说明
-*   **`build/sdk/lib/`**：存放 `libedge_core.a`、`libedge_main.a` 等。这些是公司的**通用资产**，全场共用，编译一次。
-*   **`build/products/<name>/bin/`**：存放最终交付的二进制。
-*   **`build/products/<name>/generated/`**：存放由编译器根据产品 YAML 生成的专属 `contracts.c/h`。
-*   **`build/products/<name>/lib/`**：存放产品的专属点表库 `libcontract_xxx.a`。
+编译完成后，请通过以下路径寻找你的产物：
 
-### 5.2 为什么要把生成代码放在 `generated/` 目录下？
-因为 IEMS 产品的 1001 号点叫电压，SG 产品的 1001 号点可能叫电网频率。通过物理路径隔离，我们确证了：
-*   编译 IEMS 时，编译器包含路径指向 `iems/generated/`。
-*   编译 SG 时，指向 `sg/generated/`。
-**两者虽然文件名相同，但内涵完全不同，且互不干扰。**
-
----
-
-## 六、 质量红线：LSan 与 风格定力
-
-### 6.1 内存零泄漏 (The LSan Rule)
-EdgeOS 对内存泄漏采取**“零容忍”**政策。
-*   **测试要求**：每一个单元测试在执行完 `stream_engine_destroy` 后，必须配合 `while(uv_run(loop, UV_RUN_NOWAIT))` 来排空所有异步 `close_cb`。
-*   **CI 门控**：只要 LeakSanitizer 报告 1 字节的泄漏，该提交将被视为非法。
-
-### 6.2 代码格式定力 (The Handcrafted Style)
-我们移除了 `pre-commit` 这种“暴力全量格式化”工具，因为它会污染第三方库。
-*   **正确做法**：在提交 PR 前，**必须**运行：
-    ```bash
-    bash scripts/format.sh
-    ```
-*   **原理**：该脚本像手术刀一样，仅对 `src/`、`include/`、`cmd/` 等自有代码进行格式化，确证代码风格的统一性与纯净性。
+1. **`build/sdk/lib/`**:
+   *   `libedge_core.a`: 核心库。**请保护此文件**，它是所有平面的基石。
+   *   `libedge_main_loop.a`: 控制面库。
+2. **`build/products/<name>/bin/`**:
+   *   这里是最终交付的二进制文件（如 `iems`）。
+3. **`build/products/<name>/generated/`**:
+   *   这里是当前产品专属的查表代码。**调试时请优先查看 contracts.yaml 确认点表合并是否正确。**
+4. **`build/tests/`**:
+   *   存放所有的单元测试程序。
 
 ---
 
-> **致开发者：** 这里的每一行代码都将运行在偏远的电站或繁忙的工厂中。你的架构定力，就是 EdgeOS 的生命线。
+## 🛡️ 第七章：质量与提交红线 (The CI Gates)
+
+在执行 `git commit` 前，请务必进行自检：
+
+1. **精准格式化**：
+   运行 `bash scripts/format.sh`。不要试图手动调整缩进，让工具说话。
+2. **内存审计**：
+   运行 `./build_and_run.sh`。如果在控制台看到 `AddressSanitizer: 1 byte(s) leaked`，说明你的 Stage 销毁钩子没写对。**严禁带泄漏提交！**
+3. **解耦性检查**：
+   搜索你的代码，确认没有在 `src/core` 下包含任何具体产品的头文件。
+
+---
+
+> **结语：** EdgeOS 的架构定力来源于每一位开发者的克制。请记住，你写的不仅仅是 C 代码，而是未来 15 年工业现场的确定性保障。

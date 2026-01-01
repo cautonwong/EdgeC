@@ -1,8 +1,9 @@
 product: "DCU_Standard_V1"
 includes:
-  - "contracts/bindings/dlms/chint_dtsu.yaml"
-  - "contracts/bindings/dlt698/dcu_interface.yaml"
-
+  - "contracts/bindings/modbus/acrel_p80.yaml"
 enabled_tags:
+  - VOLTAGE_PHASE_A
+  - CURRENT_PHASE_A
+  - GRID_POWER
   - GRID_FREQUENCY
-  - ROOM_HUMIDITY
+  - PROJECT_HUMIDITY

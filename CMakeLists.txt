@@ -78,6 +78,10 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests) # Default for test
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(EdgeContract)
 include(WebBuild)
+include(BuildContractCompiler)
+
+# 构建编译器二进制 (Go) - 先于产品契约生成
+build_contract_compiler()
 
 # 4.1 Build Web UIs (if applicable)
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/web/products/iems")
