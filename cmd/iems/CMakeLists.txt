@@ -10,8 +10,9 @@ edge_add_contract(
     "${CMAKE_CURRENT_SOURCE_DIR}/extension.yaml"
 )
 
-# 2. 定义执行文件
+# 2. 定义执行文件与 Web UI
 add_executable(${PROD_NAME} main.c)
+add_web_product(${PROD_NAME} "${CMAKE_SOURCE_DIR}/web/products/${PROD_NAME}")
 
 # 3. 输出路径标准化
 set_target_properties(${PROD_NAME} PROPERTIES 

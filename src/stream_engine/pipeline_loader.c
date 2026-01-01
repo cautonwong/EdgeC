@@ -17,6 +17,7 @@ extern pipeline_stage_t *stage_peak_shaving_create(double threshold_w, uint32_t 
 extern pipeline_stage_t *stage_filter_range_create(double min, double max);
 extern pipeline_stage_t *stage_js_rule_create(js_engine_t *engine, const char *script_path);
 extern pipeline_stage_t *stage_periodic_freeze_create(int kind);
+extern pipeline_stage_t *stage_time_guard_create(void);
 extern pipeline_stage_t *stage_battery_guard_create(battery_limit_t *limits);
 
 // 辅助：从 JSON 或全局参数获取 double 值
@@ -36,6 +37,9 @@ static pipeline_stage_t *build_stage(const char *type, cJSON *config, pipeline_l
     if (strcmp(type, "periodic_freeze") == 0) {
         cJSON *item = cJSON_GetObjectItem(config, "kind");
         return stage_periodic_freeze_create(item ? (int)item->valuedouble : 1);
+    }
+    if (strcmp(type, "time_guard") == 0) {
+        return stage_time_guard_create();
     }
     if (strcmp(type, "battery_guard") == 0) {
         battery_limit_t *limits = calloc(1, sizeof(battery_limit_t));

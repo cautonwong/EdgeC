@@ -104,8 +104,3 @@ void stream_engine_push(stream_engine_t *engine, pipe_msg_t *msg) {
     }
     uv_mutex_unlock(&engine->pipe_mutex);
 }
-
-char *stream_engine_dump_json(stream_engine_t *engine) {
-    (void)engine;
-    return strdup("{}");
-}

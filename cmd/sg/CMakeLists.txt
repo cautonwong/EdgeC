@@ -9,6 +9,7 @@ edge_add_contract(contract_${PROD_NAME} "${CMAKE_SOURCE_DIR}/contracts/products/
 
 # 2. 定义执行文件 (源码在 cmd/sg/)
 add_executable(${PROD_NAME} main.c)
+add_web_product(${PROD_NAME} "${CMAKE_SOURCE_DIR}/web/products/${PROD_NAME}")
 
 # 3. 输出路径标准化
 set_target_properties(${PROD_NAME} PROPERTIES

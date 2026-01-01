@@ -58,6 +58,7 @@ message(STATUS "Found zlog: ${ZLOG_LIB}")
 # ==============================================================================
 # 3. Compiler & Output Options
 # ==============================================================================
+add_definitions(-D_DEFAULT_SOURCE)
 include(Sanitizers)
 include(CodeCoverage)
 add_compile_options(-Wall -Wextra -Wformat=2 -Wconversion --coverage)
@@ -82,11 +83,6 @@ include(BuildContractCompiler)
 
 # 构建编译器二进制 (Go) - 先于产品契约生成
 build_contract_compiler()
-
-# 4.1 Build Web UIs (if applicable)
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/web/products/iems")
-    add_web_product(iems "${CMAKE_CURRENT_SOURCE_DIR}/web/products/iems")
-endif()
 
 # 4.2 Copy configuration to build directory for tests
 file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/config" DESTINATION "${CMAKE_BINARY_DIR}")
@@ -158,6 +154,7 @@ target_link_libraries(edge_io_executor PUBLIC edge_core Modbus::Modbus)
 add_library(edge_algo STATIC
     algo/native/algorithm_sum.c
     algo/native/battery_strategy.c
+    algo/native/algo_peak_shaving.c
 )
 target_link_libraries(edge_algo PUBLIC edge_core)
 

@@ -63,10 +63,32 @@ static void test_clamp_bounds(void **state) {
     free(clamp);
 }
 
+// 3. 验证削峰填谷决策算子 (V2 - 调用核心算法平面)
+static void test_peak_shaving_v2(void **state) {
+    (void)state;
+    // 门限 5000W，控制 Tag 2001
+    pipeline_stage_t *shave = stage_peak_shaving_create(5000.0, 2001);
+    pipe_msg_t ev = {.type = PIPEMSG_TYPE_SCALAR, .tag_id = 1001, .payload.val.f = 6000.0};
+
+    // 执行削峰决策
+    stage_ret_t ret = shave->process(shave, &ev);
+
+    // 预期：允许通过，且 ID 变为 2001，值为 1000.0 (Gap)
+    assert_int_equal(ret, STAGE_OK);
+    assert_int_equal(ev.tag_id, 2001);
+    assert_float_equal(ev.payload.val.f, 1000.0, 0.001);
+
+    // 清理
+    if (shave->cleanup_state) shave->cleanup_state(shave->priv_state);
+    if (shave->cleanup_cfg) shave->cleanup_cfg(shave->priv_cfg);
+    free(shave);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_ema_smoothing),
         cmocka_unit_test(test_clamp_bounds),
+        cmocka_unit_test(test_peak_shaving_v2),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

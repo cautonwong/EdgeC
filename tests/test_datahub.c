@@ -24,8 +24,8 @@ static void *producer_thread(void *arg) {
 
     for (int i = 0; i < 100; i++) {
         pipe_msg_t msg = {0};
-        msg.type = PIPEMSG_SCALAR_I64;
-        msg.payload.val_i = i;
+        msg.type = PIPEMSG_TYPE_SCALAR;
+        msg.payload.val.i = (int64_t)i;
 
         while (datahub_publish(&ctx->hub, &msg) != 0) {
             uv_sleep(1000);
@@ -89,9 +89,12 @@ static int teardown(void **state) {
     test_ctx_t *ctx = (test_ctx_t *)*state;
 
     datahub_destroy(&ctx->hub);
-    uv_loop_close(&ctx->loop);
-    free(ctx);
 
+    // 彻底清理 loop 残留句柄，防止 uv_loop_init 导致的泄漏
+    uv_run(&ctx->loop, UV_RUN_DEFAULT);
+    uv_loop_close(&ctx->loop);
+
+    free(ctx);
     return 0;
 }
 

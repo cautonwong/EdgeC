@@ -111,6 +111,7 @@ pipeline_stage_t *stage_clamp_create(double min, double max);
 pipeline_stage_t *stage_peak_shaving_create(double threshold_w, uint32_t ctrl_tag);
 pipeline_stage_t *stage_accumulate_create(void);
 pipeline_stage_t *stage_periodic_freeze_create(int kind);
+pipeline_stage_t *stage_time_guard_create(void);
 pipeline_stage_t *stage_sqlite_sink_create(sqlite_svc_t *db, const char *table);
 pipeline_stage_t *stage_js_rule_create(js_engine_t *engine, const char *script);
 pipeline_stage_t *stage_battery_guard_create(battery_limit_t *limits);

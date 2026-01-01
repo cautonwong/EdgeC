@@ -1,6 +1,6 @@
 /**
  * @file net_buf.c
- * @brief Network Buffer Library Implementation (Ported from Zephyr RTOS)
+ * @brief Network Buffer Library Implementation (Faithful Zephyr Port)
  */
 
 #include "net_buf.h"
@@ -10,177 +10,153 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Helper to calculate the true size of a node including padding */
-static size_t get_node_size(uint16_t data_size) {
-    // Round up to 8 bytes for alignment
-    return (sizeof(net_buf_t) + data_size + 7) & (size_t)~7;
+/* --- 1. net_buf_simple Implementation --- */
+
+void net_buf_simple_init(struct net_buf_simple *buf, size_t reserve) {
+    buf->data = buf->__buf + reserve;
+    buf->len = 0;
 }
 
-int net_buf_pool_init(net_buf_pool_t *pool, uint16_t count, uint16_t size,
+void net_buf_simple_reset(struct net_buf_simple *buf) {
+    buf->len = 0;
+    buf->data = buf->__buf;
+}
+
+void *net_buf_simple_add(struct net_buf_simple *buf, size_t len) {
+    assert(net_buf_simple_tailroom(buf) >= len);
+    void *ptr = buf->data + buf->len;
+    buf->len += (uint16_t)len;
+    return ptr;
+}
+
+void *net_buf_simple_add_mem(struct net_buf_simple *buf, const void *mem, size_t len) {
+    void *ptr = net_buf_simple_add(buf, len);
+    if (mem && len > 0) memcpy(ptr, mem, len);
+    return ptr;
+}
+
+void *net_buf_simple_push(struct net_buf_simple *buf, size_t len) {
+    assert(net_buf_simple_headroom(buf) >= len);
+    buf->data -= len;
+    buf->len += (uint16_t)len;
+    return buf->data;
+}
+
+void *net_buf_simple_pull(struct net_buf_simple *buf, size_t len) {
+    assert(buf->len >= len);
+    void *ptr = buf->data;
+    buf->data += len;
+    buf->len -= (uint16_t)len;
+    return ptr;
+}
+
+void *net_buf_simple_pull_mem(struct net_buf_simple *buf, void *dst, size_t len) {
+    void *ptr = net_buf_simple_pull(buf, len);
+    if (dst && len > 0) memcpy(dst, ptr, len);
+    return ptr;
+}
+
+/* --- 2. Pool & Context Implementation --- */
+
+static size_t get_node_size(net_buf_pool_t *pool) {
+    return (sizeof(struct net_buf) + pool->user_data_size + pool->buf_size + 7) & (size_t)~7;
+}
+
+int net_buf_pool_init(net_buf_pool_t *pool, uint16_t count, uint16_t size, uint16_t user_data_size,
                       void (*destroy_cb)(net_buf_t *buf), void *user_data) {
     if (!pool || count == 0 || size == 0) return -1;
-
     memset(pool, 0, sizeof(*pool));
-
-    // Allocate contiguous memory block for all buffers
-    size_t node_size = get_node_size(size);
-    pool->storage = calloc(count, node_size);
-    if (!pool->storage) return -1;
-
     pool->buf_count = count;
     pool->buf_size = size;
     pool->uninit_count = count;
-    pool->is_dynamic = true;
-    pool->free_list = NULL;
+    pool->user_data_size = (user_data_size + 7) & (uint16_t)~7;
     pool->destroy_cb = destroy_cb;
     pool->user_data = user_data;
 
-    if (uv_mutex_init(&pool->lock) != 0) {
-        free(pool->storage);
-        return -1;
-    }
+    size_t total_size = (size_t)count * get_node_size(pool);
+    pool->storage = calloc(1, total_size);
+    if (!pool->storage) return -1;
 
-    if (uv_cond_init(&pool->cond) != 0) {
-        uv_mutex_destroy(&pool->lock);
-        free(pool->storage);
-        return -1;
-    }
-
+    uv_mutex_init(&pool->lock);
+    uv_cond_init(&pool->cond);
     return 0;
 }
 
 void net_buf_pool_destroy(net_buf_pool_t *pool) {
     if (!pool) return;
-
-    // Note: This does not verify if all buffers are returned.
-    // It is the user's responsibility to ensure clean shutdown.
-
     uv_mutex_destroy(&pool->lock);
     uv_cond_destroy(&pool->cond);
-
-    if (pool->is_dynamic && pool->storage) {
+    if (pool->storage) {
         free(pool->storage);
         pool->storage = NULL;
     }
 }
 
-static net_buf_t *pool_get_uninit(net_buf_pool_t *pool) {
-    if (pool->uninit_count == 0) return NULL;
+uint16_t net_buf_id(net_buf_t *buf) {
+    net_buf_pool_t *pool = buf->pool;
+    size_t offset = (size_t)((uint8_t *)buf - pool->storage);
+    return (uint16_t)(offset / get_node_size(pool));
+}
 
-    size_t node_size = get_node_size(pool->buf_size);
-    size_t index = pool->buf_count - pool->uninit_count;
-
-    net_buf_t *buf = (net_buf_t *)(pool->storage + (index * node_size));
-
-    buf->pool = pool;
-    buf->size = pool->buf_size;
-    buf->__buf_start[0] = 0;  // Touch memory
-
-    pool->uninit_count--;
-    return buf;
+net_buf_t *net_buf_pool_get(net_buf_pool_t *pool, uint16_t id) {
+    if (id >= pool->buf_count) return NULL;
+    return (net_buf_t *)(pool->storage + ((size_t)id * get_node_size(pool)));
 }
 
 net_buf_t *net_buf_alloc(net_buf_pool_t *pool, int64_t timeout_ms) {
     if (!pool) return NULL;
-
     uv_mutex_lock(&pool->lock);
-
     net_buf_t *buf = NULL;
-
-    // Wait loop
     while (true) {
-        // 1. Try free list
         if (pool->free_list) {
             buf = pool->free_list;
             pool->free_list = buf->next;
             break;
         }
-
-        // 2. Try uninitialized
-        buf = pool_get_uninit(pool);
-        if (buf) break;
-
-        // 3. Wait
-        if (timeout_ms == 0) {
+        if (pool->uninit_count > 0) {
+            buf = net_buf_pool_get(pool, (uint16_t)(pool->buf_count - pool->uninit_count));
+            buf->pool = pool;
+            buf->b.size = pool->buf_size;
+            buf->b.__buf = buf->__buf_start + pool->user_data_size;
+            pool->uninit_count--;
             break;
-        } else if (timeout_ms < 0) {
-            uv_cond_wait(&pool->cond, &pool->lock);
-        } else {
-            // libuv requires absolute time for timedwait
-            // This is a simplification. For precise timeouts, we need uv_hrtime()
-            // Here we assume simple wait or fail if not supported well,
-            // but for portability, let's treat >0 as "wait at least once".
-            // NOTE: Implementing precise relative timeout with pthreads cond is verbose.
-            // For now, we use a simple wait if timeout > 0.
-            // In production, map timeout_ms to absolute struct timespec.
-            uv_cond_wait(&pool->cond, &pool->lock);
         }
+        if (timeout_ms == 0) break;
+        uv_cond_wait(&pool->cond, &pool->lock);
+        if (timeout_ms > 0) break;
     }
-
     uv_mutex_unlock(&pool->lock);
-
     if (buf) {
         buf->ref = 1;
-        buf->len = 0;
-        buf->data = buf->__buf_start;
         buf->next = NULL;
         buf->frags = NULL;
+        buf->parent = NULL;
         buf->flags = 0;
-        buf->user_data = NULL;
-    }
-
-    return buf;
-}
-
-net_buf_t *net_buf_alloc_with_data(net_buf_pool_t *pool, size_t reserve, int64_t timeout_ms) {
-    net_buf_t *buf = net_buf_alloc(pool, timeout_ms);
-    if (buf) {
-        if (reserve <= buf->size) {
-            net_buf_reserve(buf, reserve);
-        } else {
-            net_buf_unref(buf);
-            return NULL;
-        }
+        net_buf_simple_init(&buf->b, 0);
     }
     return buf;
 }
 
 net_buf_t *net_buf_ref(net_buf_t *buf) {
-    if (buf) {
-        // Atomic increment would be better for lock-free
-        // but since we rely on pool lock for free,
-        // using simple increment assumes thread safety implies ownership
-        // OR the user protects single buffer access.
-        // For shared buffers, atomic is mandatory.
-        // Zephyr uses atomic_inc. We assume single-thread ownership transition
-        // or atomic primitives availability.
-        // Let's use gcc builtin for safety.
-        __sync_fetch_and_add(&buf->ref, 1);
-    }
+    if (buf) __sync_fetch_and_add(&buf->ref, 1);
     return buf;
 }
 
 void net_buf_unref(net_buf_t *buf) {
     if (!buf) return;
+    if (__sync_sub_and_fetch(&buf->ref, 1) > 0) return;
 
-    if (__sync_sub_and_fetch(&buf->ref, 1) > 0) {
-        return;
+    if (buf->frags) {
+        net_buf_unref(buf->frags);
+        buf->frags = NULL;
+    }
+    if (buf->parent) {
+        net_buf_unref(buf->parent);
+        buf->parent = NULL;
     }
 
-    // Free fragment chain if this was a head
-    net_buf_t *frag = buf->frags;
-    while (frag) {
-        net_buf_t *next_frag = frag->next;
-        net_buf_unref(frag);
-        frag = next_frag;
-    }
-    buf->frags = NULL;
-
-    struct net_buf_pool *pool = buf->pool;
-
-    if (pool->destroy_cb) {
-        pool->destroy_cb(buf);
-    }
+    net_buf_pool_t *pool = buf->pool;
+    if (pool->destroy_cb) pool->destroy_cb(buf);
 
     uv_mutex_lock(&pool->lock);
     buf->next = pool->free_list;
@@ -189,51 +165,39 @@ void net_buf_unref(net_buf_t *buf) {
     uv_mutex_unlock(&pool->lock);
 }
 
-void net_buf_frag_add(net_buf_t *head, net_buf_t *frag) {
-    if (!head || !frag) return;
-
-    if (!head->frags) {
-        head->frags = frag;
-        return;
-    }
-
-    net_buf_t *last = head->frags;
-    while (last->next) {
-        last = last->next;
-    }
-    last->next = frag;
+net_buf_t *net_buf_clone(net_buf_t *buf, int64_t timeout_ms) {
+    net_buf_t *clone = net_buf_alloc(buf->pool, timeout_ms);
+    if (!clone) return NULL;
+    clone->b = buf->b;
+    clone->parent = net_buf_ref(buf);
+    return clone;
 }
 
-void net_buf_frag_insert(net_buf_t *parent, net_buf_t *frag) {
-    if (!parent || !frag) return;
-    frag->next = parent->next;
-    parent->next = frag;
+void net_buf_frag_add(net_buf_t *head, net_buf_t *frag) {
+    if (!head || !frag) return;
+    net_buf_t *last = net_buf_frag_last(head);
+    last->frags = frag;
 }
 
 net_buf_t *net_buf_frag_del(net_buf_t *parent, net_buf_t *frag) {
     if (!parent || !frag) return NULL;
 
+    // 情况 1：目标正好是 parent 的直接分片
     if (parent->frags == frag) {
-        parent->frags = frag->next;
-        frag->next = NULL;
+        parent->frags = frag->frags;
+        frag->frags = NULL;
         return frag;
     }
 
-    if (parent->next == frag) {
-        parent->next = frag->next;
-        frag->next = NULL;
-        return frag;
-    }
-
-    // Search in chain if not direct child
-    net_buf_t *prev = parent->frags ? parent->frags : parent->next;
-    while (prev && prev->next != frag) {
-        prev = prev->next;
+    // 情况 2：在 parent 的分片链条中搜索前驱
+    net_buf_t *prev = parent->frags;
+    while (prev && prev->frags != frag) {
+        prev = prev->frags;
     }
 
     if (prev) {
-        prev->next = frag->next;
-        frag->next = NULL;
+        prev->frags = frag->frags;
+        frag->frags = NULL;
         return frag;
     }
 
@@ -241,61 +205,26 @@ net_buf_t *net_buf_frag_del(net_buf_t *parent, net_buf_t *frag) {
 }
 
 net_buf_t *net_buf_frag_last(net_buf_t *buf) {
-    if (!buf->frags) return buf;
+    net_buf_t *last = buf;
+    while (last->frags) last = last->frags;
+    return last;
+}
 
-    net_buf_t *cur = buf->frags;
-    while (cur->next) {
-        cur = cur->next;
+size_t net_buf_linearize(void *dst, size_t dst_len, net_buf_t *src, size_t offset, size_t len) {
+    size_t total = 0;
+    net_buf_t *frag = src;
+    while (frag && offset >= frag->b.len) {
+        offset -= frag->b.len;
+        frag = frag->frags;
     }
-    return cur;
-}
-
-void net_buf_reserve(net_buf_t *buf, size_t reserve) {
-    assert(buf->len == 0);
-    assert(reserve <= buf->size);
-    buf->data = buf->__buf_start + reserve;
-}
-
-void *net_buf_add(net_buf_t *buf, size_t len) {
-    assert(net_buf_tailroom(buf) >= len);
-    void *ptr = buf->data + buf->len;
-    buf->len = (uint16_t)(buf->len + len);
-    return ptr;
-}
-
-int net_buf_add_mem(net_buf_t *buf, const void *mem, size_t len) {
-    if (net_buf_tailroom(buf) < len) return -1;
-    void *ptr = net_buf_add(buf, len);
-    memcpy(ptr, mem, len);
-    return 0;
-}
-
-void *net_buf_push(net_buf_t *buf, size_t len) {
-    assert(net_buf_headroom(buf) >= len);
-    buf->data -= len;
-    buf->len = (uint16_t)(buf->len + len);
-    return buf->data;
-}
-
-int net_buf_push_mem(net_buf_t *buf, const void *mem, size_t len) {
-    if (net_buf_headroom(buf) < len) return -1;
-    void *ptr = net_buf_push(buf, len);
-    memcpy(ptr, mem, len);
-    return 0;
-}
-
-void *net_buf_pull(net_buf_t *buf, size_t len) {
-    assert(buf->len >= len);
-    void *ptr = buf->data;
-    buf->data += len;
-    buf->len = (uint16_t)(buf->len - len);
-    return ptr;
-}
-
-size_t net_buf_tailroom(const net_buf_t *buf) {
-    return buf->size - (size_t)(buf->data - buf->__buf_start) - buf->len;
-}
-
-size_t net_buf_headroom(const net_buf_t *buf) {
-    return (size_t)(buf->data - buf->__buf_start);
+    while (frag && total < len && total < dst_len) {
+        size_t to_copy = frag->b.len - offset;
+        if (to_copy > (len - total)) to_copy = len - total;
+        if (to_copy > (dst_len - total)) to_copy = dst_len - total;
+        memcpy((uint8_t *)dst + total, frag->b.data + offset, to_copy);
+        total += to_copy;
+        offset = 0;
+        frag = frag->frags;
+    }
+    return total;
 }
