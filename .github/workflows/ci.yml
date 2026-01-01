@@ -42,6 +42,15 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Setup Go Environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache-dependency-path: tools/contract-compiler/go.sum
+
+      - name: Fix Binary Permissions
+        run: chmod +x .local/linux-x86_64/bin/contract-compiler
+
       - name: Install Native Build Tools
         run: |
           sudo apt-get update
