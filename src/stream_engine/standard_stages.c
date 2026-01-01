@@ -7,8 +7,8 @@
 #include "stream_engine.h"
 
 // --- 1. Stage: Tag Filter ---
-static stage_ret_t _tag_filter_proc(pipeline_stage_t *stage, pipe_event_t *ev) {
-    if (ev->type != EVT_DATA_POINT) return STAGE_OK;
+static stage_ret_t _tag_filter_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
+    if (ev->type != PIPEMSG_TYPE_SCALAR) return STAGE_OK;
     uint32_t target = (uint32_t)(uintptr_t)stage->priv_cfg;
     return (ev->tag_id == target) ? STAGE_OK : STAGE_DROP;
 }
@@ -26,10 +26,10 @@ typedef struct {
     double min;
     double max;
 } _range_cfg_t;
-static stage_ret_t _filter_range_proc(pipeline_stage_t *stage, pipe_event_t *ev) {
-    if (ev->type != EVT_DATA_POINT) return STAGE_OK;
+static stage_ret_t _filter_range_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
+    if (ev->type != PIPEMSG_TYPE_SCALAR) return STAGE_OK;
     _range_cfg_t *cfg = (_range_cfg_t *)stage->priv_cfg;
-    return (ev->payload.val < cfg->min || ev->payload.val > cfg->max) ? STAGE_DROP : STAGE_OK;
+    return (ev->payload.val.f < cfg->min || ev->payload.val.f > cfg->max) ? STAGE_DROP : STAGE_OK;
 }
 
 pipeline_stage_t *stage_filter_range_create(double min, double max) {
@@ -49,10 +49,10 @@ typedef struct {
     double a;
     double b;
 } _trans_cfg_t;
-static stage_ret_t _transform_proc(pipeline_stage_t *stage, pipe_event_t *ev) {
-    if (ev->type != EVT_DATA_POINT) return STAGE_OK;
+static stage_ret_t _transform_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
+    if (ev->type != PIPEMSG_TYPE_SCALAR) return STAGE_OK;
     _trans_cfg_t *cfg = (_trans_cfg_t *)stage->priv_cfg;
-    ev->payload.val = ev->payload.val * cfg->a + cfg->b;
+    ev->payload.val.f = ev->payload.val.f * cfg->a + cfg->b;
     return STAGE_OK;
 }
 
@@ -72,9 +72,9 @@ pipeline_stage_t *stage_transform_create(double alpha, double beta) {
 typedef struct {
     double acc;
 } _acc_state_t;
-static stage_ret_t _acc_proc(pipeline_stage_t *stage, pipe_event_t *ev) {
-    if (ev->type != EVT_DATA_POINT) return STAGE_OK;
-    ((_acc_state_t *)stage->priv_state)->acc += ev->payload.val;
+static stage_ret_t _acc_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
+    if (ev->type != PIPEMSG_TYPE_SCALAR) return STAGE_OK;
+    ((_acc_state_t *)stage->priv_state)->acc += ev->payload.val.f;
     return STAGE_OK;
 }
 
@@ -105,15 +105,15 @@ static void _sink_after_cb(uv_work_t *req, int status) {
     free(req->data);
 }
 
-static stage_ret_t _sink_proc(pipeline_stage_t *stage, pipe_event_t *ev) {
-    if (ev->type != EVT_DATA_POINT) return STAGE_OK;
+static stage_ret_t _sink_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
+    if (ev->type != PIPEMSG_TYPE_SCALAR) return STAGE_OK;
     _sink_cfg_t *cfg = (_sink_cfg_t *)stage->priv_cfg;
     if (!cfg || !cfg->db) return STAGE_OK;
     _sink_work_t *work = calloc(1, sizeof(_sink_work_t));
     work->db = cfg->db;
     work->msg.tag_id = ev->tag_id;
-    work->msg.payload.val.f = ev->payload.val;
-    work->msg.ts = ev->calendar_ms;
+    work->msg.payload.val.f = ev->payload.val.f;
+    work->msg.ts = ev->ts;
     work->req.data = work;
     uv_queue_work(uv_default_loop(), &work->req, _sink_work_cb, _sink_after_cb);
     return STAGE_OK;
@@ -137,15 +137,16 @@ typedef struct {
     uint32_t count;
     int kind;
 } _freeze_state_t;
-static stage_ret_t _freeze_proc(pipeline_stage_t *stage, pipe_event_t *ev) {
+static stage_ret_t _freeze_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
     _freeze_state_t *s = (_freeze_state_t *)stage->priv_state;
-    if (ev->type == EVT_DATA_POINT) {
-        s->acc += ev->payload.val;
+    if (ev->type == PIPEMSG_TYPE_SCALAR) {
+        s->acc += ev->payload.val.f;
         s->count++;
         return STAGE_OK;
     }
-    if (ev->type == EVT_TIME_PULSE && ev->payload.tick_kind == s->kind) {
-        ev->payload.val = (s->count > 0) ? (s->acc / s->count) : 0;
+    if (ev->type == PIPEMSG_TYPE_EVENT && ev->payload.event.param == (uint32_t)s->kind) {
+        ev->type = PIPEMSG_TYPE_SCALAR;
+        ev->payload.val.f = (s->count > 0) ? (s->acc / s->count) : 0;
         s->acc = 0;
         s->count = 0;
         return STAGE_OK;
@@ -165,12 +166,12 @@ pipeline_stage_t *stage_periodic_freeze_create(int kind) {
 }
 
 // --- 7. Stage: Battery Guard ---
-static stage_ret_t _batt_guard_proc(pipeline_stage_t *stage, pipe_event_t *ev) {
-    if (ev->type != EVT_DATA_POINT) return STAGE_OK;
+static stage_ret_t _batt_guard_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
+    if (ev->type != PIPEMSG_TYPE_SCALAR) return STAGE_OK;
     battery_state_t *st = (battery_state_t *)stage->priv_state;
     battery_limit_t *lm = (battery_limit_t *)stage->priv_cfg;
     if (!st || !lm) return STAGE_OK;
-    ev->payload.val = (double)algo_battery_safety_clamp(st, lm, (float)ev->payload.val);
+    ev->payload.val.f = (double)algo_battery_safety_clamp(st, lm, (float)ev->payload.val.f);
     return STAGE_OK;
 }
 

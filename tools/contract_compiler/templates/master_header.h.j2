@@ -1,0 +1,35 @@
+/* AUTO-GENERATED. DO NOT EDIT. */
+/* Product: {{ product }} */
+/* Time:    {{ timestamp }} */
+
+#ifndef EDGE_CONTRACTS_H
+#define EDGE_CONTRACTS_H
+
+#include "contract_data_types.h"
+
+// [Section 1] Feature Gates
+{% for tag in all_tags | sort(attribute='name') -%}
+#define TAG_{{ tag.name }}_ENABLED {{ 1 if tag in active_tags else 0 }}
+{% endfor %}
+
+// [Section 2] Tag ID Enum
+typedef enum {
+    TAG_INVALID = 0,
+{% for tag in active_tags %}
+    TAG_{{ tag.name }} = {{ tag.id }},
+{% endfor %}
+    TAG_MAX_ID
+} edge_tag_enum_t;
+
+// [Section 3] Protocol Structs
+{% for s_def in struct_defs %}
+{{ s_def }}
+{% endfor %}
+
+// [Section 4] APIs
+const tag_meta_t* edge_get_meta(edge_tag_id_t id);
+edge_tag_id_t edge_lookup_modbus(uint16_t reg, float *out_scale);
+edge_tag_id_t edge_lookup_dlms(const char* obis, float *out_scale);
+edge_tag_id_t edge_lookup_iec104(int ioa);
+
+#endif

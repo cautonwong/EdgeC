@@ -1,9 +1,10 @@
-#include <cjson/cJSON.h>
+#include <cJSON/cJSON.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "battery_strategy.h"
+#include "edge_params.h"
 #include "stream_engine_priv.h"
 
 extern pipeline_stage_t *stage_filter_create(uint32_t tag_id);
@@ -15,6 +16,15 @@ extern pipeline_stage_t *stage_js_rule_create(js_engine_t *engine, const char *s
 extern pipeline_stage_t *stage_periodic_freeze_create(int kind);
 extern pipeline_stage_t *stage_battery_guard_create(battery_limit_t *limits);
 
+// 辅助：从 JSON 或全局参数获取 double 值
+static double get_cfg_double(cJSON *json, const char *key, edge_params_t *params,
+                             const char *param_key, double def_val) {
+    cJSON *item = cJSON_GetObjectItem(json, key);
+    if (item) return item->valuedouble;
+    if (params && param_key) return edge_param_get_float(params, param_key, def_val);
+    return def_val;
+}
+
 static pipeline_stage_t *build_stage(const char *type, cJSON *config, pipeline_loader_ctx_t *ctx) {
     if (strcmp(type, "filter") == 0) {
         cJSON *item = cJSON_GetObjectItem(config, "tag_id");
@@ -25,13 +35,16 @@ static pipeline_stage_t *build_stage(const char *type, cJSON *config, pipeline_l
         return stage_periodic_freeze_create(item ? (int)item->valuedouble : 1);
     }
     if (strcmp(type, "battery_guard") == 0) {
-        // 实际开发中，limits 通常从 edge_params 加载
         battery_limit_t *limits = calloc(1, sizeof(battery_limit_t));
-        limits->max_soc = (float)cJSON_GetObjectItem(config, "max_soc")->valuedouble;
-        limits->min_soc = (float)cJSON_GetObjectItem(config, "min_soc")->valuedouble;
-        limits->max_charge_pwr = (float)cJSON_GetObjectItem(config, "max_charge_w")->valuedouble;
-        limits->max_discharge_pwr =
-            (float)cJSON_GetObjectItem(config, "max_discharge_w")->valuedouble;
+        // 优先从 JSON 读取，缺省则从全局参数读取
+        limits->max_soc =
+            (float)get_cfg_double(config, "max_soc", ctx->params, "batt_max_soc", 95.0);
+        limits->min_soc =
+            (float)get_cfg_double(config, "min_soc", ctx->params, "batt_min_soc", 10.0);
+        limits->max_charge_pwr =
+            (float)get_cfg_double(config, "max_charge_w", ctx->params, "batt_max_charge", 5000.0);
+        limits->max_discharge_pwr = (float)get_cfg_double(config, "max_discharge_w", ctx->params,
+                                                          "batt_max_discharge", 5000.0);
         return stage_battery_guard_create(limits);
     }
     if (strcmp(type, "transform") == 0) {

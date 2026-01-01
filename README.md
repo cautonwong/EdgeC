@@ -195,7 +195,12 @@ graph TD
 
 ## 🛠️ 3. 开发与构建
 
-### 3.1 目录规范
+### 3.1 环境设置
+为了获得完整的 Python 智能提示并确保契约编译器运行正常，建议初始化本地环境：
+1. **一键配置**：运行 `bash tools/setup_env.sh`。
+2. **IDE 适配**：将解释器路径设为 `./.venv/bin/python`。
+
+### 3.2 目录规范
 *   `src/core/`: 跨 Loop 核心组件。
 *   `src/main_loop/`: 控制平面实现。
 *   `src/stream_engine/`: 计算平面实现。

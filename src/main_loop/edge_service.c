@@ -8,6 +8,7 @@
 #include "arbiter.h"
 #include "datahub.h"
 #include "edge_log.h"
+#include "edge_params.h"
 #include "sqlite_service.h"
 
 struct service_s {
@@ -15,15 +16,16 @@ struct service_s {
     service_options_t opts;
     datahub_t *data_hub;
     sqlite_svc_t *storage;
+    edge_params_t *params;  // [新增] 参数服务句柄
     arbiter_t *arbiter;
     northbound_mgr_t *cloud;
     net_buf_pool_t *pool;
-    struct stream_engine_s *stream_engine;  // [新增]
+    struct stream_engine_s *stream_engine;
 
     // 命令处理队列 (异步控制面)
     uv_mutex_t cmd_lock;
     uv_async_t cmd_async;
-    cmd_msg_t cmd_queue[16];  // 对齐权威类型
+    cmd_msg_t cmd_queue[16];
     int cmd_head;
     int cmd_tail;
 
@@ -64,13 +66,22 @@ void service_set_datahub(service_t *svc, datahub_t *hub) {
     if (svc) svc->data_hub = hub;
 }
 void service_set_storage(service_t *svc, sqlite_svc_t *storage) {
-    if (svc) svc->storage = storage;
+    if (svc) {
+        svc->storage = storage;
+        // 当获得存储句柄时，初始化参数服务
+        if (storage && !svc->params) {
+            svc->params = edge_params_create(storage);
+        }
+    }
 }
 uv_loop_t *service_get_loop(service_t *svc) {
     return svc ? svc->loop : NULL;
 }
 
 shm_ring_t *service_get_ring(service_t *svc) {
+    return (svc && svc->data_hub) ? &svc->data_hub->ring : NULL;
+}
+shm_ring_t *service_get_shmring(service_t *svc) {
     return (svc && svc->data_hub) ? &svc->data_hub->ring : NULL;
 }
 
@@ -82,6 +93,9 @@ arbiter_t *service_get_arbiter(service_t *svc) {
 }
 sqlite_svc_t *service_get_storage(service_t *svc) {
     return svc ? svc->storage : NULL;
+}
+edge_params_t *service_get_params(service_t *svc) {
+    return svc ? svc->params : NULL;
 }
 
 void service_set_stream_engine(service_t *svc, struct stream_engine_s *engine) {
@@ -108,6 +122,12 @@ int service_run(service_t *svc, uv_loop_t *loop, net_buf_pool_t *pool, arbiter_t
     svc->arbiter = arbiter;
     svc->data_hub = hub;
     svc->storage = (sqlite_svc_t *)storage->writer;
+
+    // 如果尚未创建 params (可能 set_storage 没被调用)，这里补救
+    if (svc->storage && !svc->params) {
+        svc->params = edge_params_create(svc->storage);
+    }
+
     svc->cloud = cloud;
 
     LOG_INFO(LOG_CAT_CORE, "Container booting up in mode: %s", svc->opts.mode);
@@ -133,6 +153,7 @@ int service_post_cmd(service_t *svc, cmd_msg_t *cmd) {
 void service_delete(service_t *svc) {
     if (!svc) return;
     if (svc->contract_path) free(svc->contract_path);
+    if (svc->params) edge_params_destroy(svc->params);  // 销毁参数服务
     uv_mutex_destroy(&svc->cmd_lock);
     free(svc);
 }

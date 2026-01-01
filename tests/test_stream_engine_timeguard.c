@@ -2,61 +2,66 @@
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <uv.h>
+#include <string.h>
 
 #include "datahub.h"
 #include "stream_engine.h"
 
-static uint64_t g_mock_mono_ms = 1000000;
-static uint64_t g_mock_cal_ms = 1735344000000;
-static uint64_t mock_get_mono(void) {
+// Mock Time Source
+static uint64_t g_mock_mono_ms = 1000;
+static uint64_t g_mock_cal_ms = 1678888000000;
+
+static uint64_t mock_mono(void) {
     return g_mock_mono_ms;
 }
-static uint64_t mock_get_cal(void) {
+static uint64_t mock_cal(void) {
     return g_mock_cal_ms;
 }
 
+// Mock State
 typedef struct {
-    int ticks;
+    int call_count;
 } timer_state_t;
-static stage_ret_t mock_timer_proc(pipeline_stage_t *stage, pipe_event_t *ev) {
-    if (ev->type == EVT_TIME_PULSE) {
-        ((timer_state_t *)stage->priv_state)->ticks++;
-    }
+
+int stream_engine_push_event(stream_engine_t *engine, pipe_msg_t *ev);
+
+static stage_ret_t mock_timer_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
+    (void)ev;
+    timer_state_t *ts = (timer_state_t *)stage->priv_state;
+    ts->call_count++;
     return STAGE_OK;
 }
 
 static void test_timeguard_anti_jump(void **state) {
     (void)state;
-    uv_loop_t *loop = uv_default_loop();
-    datahub_t hub;
-    datahub_init(&hub, loop, "tg_bus_v2", 64, NULL, NULL);
-    engine_time_source_t mock_src = {.get_monotonic_ms = mock_get_mono,
-                                     .get_calendar_ms = mock_get_cal};
+    datahub_t *hub = calloc(1, sizeof(datahub_t));
+    engine_time_source_t ts_mock = {mock_mono, mock_cal};
 
-    stream_engine_t *engine = stream_engine_create(&hub, &mock_src);
+    stream_engine_t *engine = stream_engine_create(hub, &ts_mock);
+
     pipeline_t *p = stream_engine_add_pipeline(engine, "time_pipe", 0);
     timer_state_t *ts = calloc(1, sizeof(timer_state_t));
-
-    // 适配 v2.0
     pipeline_add_stage(p, "timer_stage", mock_timer_proc, ts, free, NULL, NULL);
 
-    g_mock_mono_ms += 60000;
-    g_mock_cal_ms += 60000;
-    pipe_event_t tick = {
-        .type = EVT_TIME_PULSE, .calendar_ms = g_mock_cal_ms, .payload.tick_kind = 1};
+    // Simulate Time Tick Event
+    pipe_msg_t tick = {0};
+    tick.type = PIPEMSG_TYPE_EVENT;
+    tick.ts = g_mock_cal_ms;
+    tick.payload.event.event_id = SYS_EVENT_TIME_CHANGED;
+
     stream_engine_push_event(engine, &tick);
-    assert_int_equal(ts->ticks, 1);
+
+    // Check if pipeline reacted
+    assert_int_equal(ts->call_count, 1);
 
     stream_engine_destroy(engine);
-    datahub_destroy(&hub);
-    while (uv_run(loop, UV_RUN_NOWAIT))
-        ;
+    free(hub);
 }
 
 int main(void) {
-    const struct CMUnitTest tests[] = {cmocka_unit_test(test_timeguard_anti_jump)};
+    const struct CMUnitTest tests[] = {
+        cmocka_unit_test(test_timeguard_anti_jump),
+    };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

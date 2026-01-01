@@ -29,6 +29,16 @@ typedef struct {
     int capacity;
 } data_batch_t;
 
+// 通用执行任务上下文
+typedef struct {
+    sqlite_svc_t *svc;
+    char *sql;
+    sqlite_exec_cb cb;
+    void *user_data;
+    int status;
+    char *errmsg;
+} exec_task_t;
+
 struct sqlite_svc_s {
     sqlite3 *db;
     uv_loop_t *loop;
@@ -43,6 +53,7 @@ struct sqlite_svc_s {
     db_stats_t stats;
 };
 
+// ... (省略 _get_shard_table, _get_init_schema, _migrate_schema, _ensure_shard_exists 保持不变) ...
 static void _get_shard_table(uint64_t ts, char *out) {
     time_t sec = (time_t)(ts / 1000);
     struct tm t;
@@ -80,6 +91,51 @@ static void _ensure_shard_exists(sqlite_svc_t *svc, const char *table_name) {
              table_name);
     if (sqlite3_exec(svc->db, sql, 0, 0, 0) == SQLITE_OK) strcpy(svc->current_shard, table_name);
 }
+
+// --- 通用 SQL 执行逻辑 ---
+
+static void _exec_work_cb(uv_work_t *req) {
+    exec_task_t *task = (exec_task_t *)req->data;
+    // 在 Worker 线程中执行阻塞 SQL
+    task->status = sqlite3_exec(task->svc->db, task->sql, NULL, NULL, &task->errmsg);
+}
+
+static void _exec_after_cb(uv_work_t *req, int status) {
+    (void)status;
+    exec_task_t *task = (exec_task_t *)req->data;
+
+    if (task->cb) {
+        task->cb(task->user_data, task->status, task->errmsg ? &task->errmsg : NULL);
+    }
+
+    if (task->errmsg) sqlite3_free(task->errmsg);
+    free(task->sql);
+    free(task);
+    free(req);
+}
+
+int sqlite_svc_exec(sqlite_svc_t *svc, const char *sql, sqlite_exec_cb cb, void *user_data) {
+    if (!svc || !sql) return -1;
+
+    uv_work_t *req = malloc(sizeof(uv_work_t));
+    if (!req) return -1;
+
+    exec_task_t *task = calloc(1, sizeof(exec_task_t));
+    if (!task) {
+        free(req);
+        return -1;
+    }
+
+    task->svc = svc;
+    task->sql = strdup(sql);  // 必须拷贝，因为 sql 指针可能在异步执行前释放
+    task->cb = cb;
+    task->user_data = user_data;
+    req->data = task;
+
+    return uv_queue_work(svc->loop, req, _exec_work_cb, _exec_after_cb);
+}
+
+// ... (以下为原有 insert/query 逻辑，保持不变) ...
 
 static void _worker_flush_cb(uv_work_t *req) {
     sqlite_svc_t *svc = (sqlite_svc_t *)req->data;

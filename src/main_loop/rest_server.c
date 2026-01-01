@@ -104,19 +104,18 @@ static char *handle_devices_get(service_t *svc) {
 }
 
 static char *handle_params_list(service_t *svc) {
-    (void)svc;
     cJSON *root = cJSON_CreateObject();
     cJSON *params = cJSON_AddArrayToObject(root, "params");
+    edge_params_t *ctx = service_get_params(svc);  // 获取句柄
 
-    // 工业级参数映射：从系统参数中心获取真实状态
-    // 此处列出几个核心业务参数作为示例
     const char *keys[] = {"vpp_max_charge_w", "vpp_max_discharge_w", "grid_freq_threshold_hz"};
     float defaults[] = {5000.0f, 5000.0f, 0.5f};
 
     for (int i = 0; i < 3; i++) {
         cJSON *p = cJSON_CreateObject();
         cJSON_AddStringToObject(p, "key", keys[i]);
-        cJSON_AddNumberToObject(p, "value", edge_param_get_float(keys[i], defaults[i]));
+        // 使用新 API 获取值
+        cJSON_AddNumberToObject(p, "value", edge_param_get_float(ctx, keys[i], defaults[i]));
         cJSON_AddStringToObject(p, "type", "float");
         cJSON_AddItemToArray(params, p);
     }
@@ -127,7 +126,6 @@ static char *handle_params_list(service_t *svc) {
 }
 
 static char *handle_config_post(service_t *svc, const char *body) {
-    (void)svc;
     if (!body) return strdup("{\"error\":\"missing_body\"}");
 
     cJSON *root = cJSON_Parse(body);
@@ -137,11 +135,21 @@ static char *handle_config_post(service_t *svc, const char *body) {
     cJSON *val = cJSON_GetObjectItem(root, "value");
 
     if (cJSON_IsString(key) && cJSON_IsNumber(val)) {
-        // 核心：执行带审计的参数设置
-        edge_param_set_float(key->valuestring, (float)val->valuedouble);
-        LOG_INFO(LOG_CAT_CORE, "Config updated: %s = %.3f", key->valuestring, val->valuedouble);
-        cJSON_Delete(root);
-        return strdup("{\"status\":\"ok\",\"message\":\"parameter_queued_for_update\"}");
+        edge_params_t *ctx = service_get_params(svc);
+        if (!ctx) {
+            cJSON_Delete(root);
+            return strdup("{\"error\":\"params_service_unavailable\"}");
+        }
+
+        // 使用新 API 设置值
+        if (edge_param_set_float(ctx, key->valuestring, (float)val->valuedouble) == EDGE_OK) {
+            LOG_INFO(LOG_CAT_CORE, "Config updated: %s = %.3f", key->valuestring, val->valuedouble);
+            cJSON_Delete(root);
+            return strdup("{\"status\":\"ok\",\"message\":\"parameter_queued_for_update\"}");
+        } else {
+            cJSON_Delete(root);
+            return strdup("{\"error\":\"update_failed\"}");
+        }
     }
 
     cJSON_Delete(root);

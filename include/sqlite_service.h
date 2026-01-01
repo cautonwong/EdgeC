@@ -58,6 +58,16 @@ int sqlite_svc_query(sqlite_svc_t *svc, uint64_t start_ts, uint64_t end_ts, sqli
 int sqlite_svc_begin_trans(sqlite_svc_t *svc);
 int sqlite_svc_commit_trans(sqlite_svc_t *svc);
 
+// 通用 SQL 执行回调 (用于非时序数据，如配置参数)
+typedef void (*sqlite_exec_cb)(void *user_data, int status, char **errmsg);
+
+/**
+ * @brief 异步执行通用 SQL (DDL/DML)
+ * @param sql SQL 语句
+ * @param cb 执行完成回调
+ */
+int sqlite_svc_exec(sqlite_svc_t *svc, const char *sql, sqlite_exec_cb cb, void *user_data);
+
 // 销毁
 void sqlite_svc_destroy(sqlite_svc_t *svc);
 

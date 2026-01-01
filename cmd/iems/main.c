@@ -67,9 +67,13 @@ int main(int argc, char **argv) {
     service_set_stream_engine(svc, engine);
 
     // 加载真实的 Pipeline 逻辑
-    pipeline_loader_ctx_t l_ctx = {.db = NULL, .js_engine = NULL};  // 暂时传空
+    pipeline_loader_ctx_t l_ctx = {
+        .db = NULL,
+        .js_engine = NULL,
+        .params = service_get_params(svc)  // 注入参数服务
+    };
     stream_engine_load_config(engine, "config/iems_pipelines.json", &l_ctx);
-    stream_engine_start(engine);
+    // stream_engine_start 已被移除，create 时自动启动线程
 
     // --- 北向与模拟器 ---
     persistence_mgr_t storage = {0};

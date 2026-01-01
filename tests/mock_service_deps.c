@@ -18,13 +18,3 @@ int arbiter_submit_cmd(arbiter_t *arb, int bus_id, cmd_msg_t *cmd) {
     (void)cmd;
     return 0;
 }
-
-// Mock SQLite
-sqlite_svc_t *sqlite_svc_create(uv_loop_t *loop, sqlite_config_t *cfg) {
-    (void)loop;
-    (void)cfg;
-    return malloc(1);
-}
-void sqlite_svc_destroy(sqlite_svc_t *svc) {
-    free(svc);
-}

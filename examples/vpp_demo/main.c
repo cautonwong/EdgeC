@@ -84,8 +84,6 @@ int main(void) {
                        s_sink->priv_cfg, s_sink->cleanup_cfg);
     free(s_sink);
 
-    stream_engine_start(stream_engine);
-
     // 3. 开启北向服务
     service_options_t opts = {.mode = "VPP_DEMO", .web_port = 8080, .rest_port = 8081};
     svc = service_new(&opts);
