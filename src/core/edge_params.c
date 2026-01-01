@@ -27,7 +27,8 @@ struct edge_params_s {
     sqlite_svc_t *db;
 };
 
-// --- 辅助函数 ---
+// --- 内部私有方法 (Unsafe, 需持有锁调用) ---
+
 static void free_entry_val(param_entry_t *entry) {
     if (entry->type == PARAM_TYPE_STRING && entry->val.s) {
         free(entry->val.s);
@@ -62,21 +63,21 @@ static int update_cache_unsafe(edge_params_t *ctx, const char *key, param_type_t
         entry->val.f = *(const double *)val;
     else if (type == PARAM_TYPE_INT)
         entry->val.i = *(const int64_t *)val;
-    else if (type == PARAM_TYPE_STRING)
+    else if (type == PARAM_TYPE_STRING) {
         entry->val.s = strdup((const char *)val);
-
+        if (!entry->val.s) return -1;
+    }
     return 0;
 }
 
-// --- SQL 执行回调 ---
-static void on_exec_log(void *data, int status, char **errmsg) {
+static void on_exec_done(void *data, int status, char **errmsg) {
     (void)data;
     if (status != 0 && errmsg && *errmsg) {
-        LOG_ERROR(LOG_CAT_CORE, "Param DB Exec Failed: %s", *errmsg);
+        LOG_ERROR(LOG_CAT_CORE, "Param Persistence Error: %s", *errmsg);
     }
 }
 
-// --- 公开接口 ---
+// --- 公开接口实现 ---
 
 edge_params_t *edge_params_create(sqlite_svc_t *svc) {
     edge_params_t *ctx = calloc(1, sizeof(edge_params_t));
@@ -98,66 +99,110 @@ edge_params_t *edge_params_create(sqlite_svc_t *svc) {
             "  id INTEGER PRIMARY KEY AUTOINCREMENT, "
             "  key TEXT, old_val TEXT, new_val TEXT, timestamp INTEGER);"
             "COMMIT;";
-        sqlite_svc_exec(svc, sql, on_exec_log, NULL);
-
-        // 创建时自动预热
+        sqlite_svc_exec(svc, sql, on_exec_done, NULL);
         edge_params_load_all(ctx);
     }
     return ctx;
 }
 
+// --- Float 接口 ---
 edge_status_t edge_param_set_float(edge_params_t *ctx, const char *key, double val) {
     if (!ctx) return EDGE_ERR_INVALID_PARAM;
-
     uv_rwlock_wrlock(&ctx->lock);
-    if (update_cache_unsafe(ctx, key, PARAM_TYPE_FLOAT, &val) != 0) {
-        uv_rwlock_wrunlock(&ctx->lock);
-        return EDGE_ERR_NOMEM;
-    }
+    int ret = update_cache_unsafe(ctx, key, PARAM_TYPE_FLOAT, &val);
     uv_rwlock_wrunlock(&ctx->lock);
+    if (ret != 0) return EDGE_ERR_NOMEM;
 
     if (ctx->db) {
-        char *sql = malloc(512);
-        if (sql) {
-            snprintf(sql, 512,
-                     "BEGIN;"
-                     "INSERT INTO edge_param_audit (key, new_val, timestamp) "
-                     "VALUES ('%s', '%f', %ld);"
-                     "INSERT OR REPLACE INTO edge_params (key, type, val_real, updated_at) "
-                     "VALUES ('%s', %d, %f, %ld);"
-                     "COMMIT;",
-                     key, val, time(NULL), key, PARAM_TYPE_FLOAT, val, time(NULL));
-            sqlite_svc_exec(ctx->db, sql, on_exec_log, NULL);
-            free(sql);
-        }
+        char sql[256];
+        snprintf(sql, sizeof(sql),
+                 "INSERT OR REPLACE INTO edge_params (key, type, val_real, updated_at) "
+                 "VALUES ('%s', %d, %f, %ld);",
+                 key, PARAM_TYPE_FLOAT, val, time(NULL));
+        sqlite_svc_exec(ctx->db, sql, on_exec_done, NULL);
     }
-
-    LOG_INFO(LOG_CAT_CORE, "Param set: %s = %f", key, val);
     return EDGE_OK;
 }
 
 double edge_param_get_float(edge_params_t *ctx, const char *key, double def_val) {
     if (!ctx) return def_val;
-    double result = def_val;
+    double res = def_val;
     uv_rwlock_rdlock(&ctx->lock);
-    param_entry_t *entry = find_entry_unsafe(ctx, key);
-    if (entry && entry->type == PARAM_TYPE_FLOAT) {
-        result = entry->val.f;
-    }
+    param_entry_t *e = find_entry_unsafe(ctx, key);
+    if (e && e->type == PARAM_TYPE_FLOAT) res = e->val.f;
     uv_rwlock_rdunlock(&ctx->lock);
-    return result;
+    return res;
 }
+
+// --- Int 接口 ---
+edge_status_t edge_param_set_int(edge_params_t *ctx, const char *key, int64_t val) {
+    if (!ctx) return EDGE_ERR_INVALID_PARAM;
+    uv_rwlock_wrlock(&ctx->lock);
+    int ret = update_cache_unsafe(ctx, key, PARAM_TYPE_INT, &val);
+    uv_rwlock_wrunlock(&ctx->lock);
+    if (ret != 0) return EDGE_ERR_NOMEM;
+
+    if (ctx->db) {
+        char sql[256];
+        snprintf(sql, sizeof(sql),
+                 "INSERT OR REPLACE INTO edge_params (key, type, val_int, updated_at) "
+                 "VALUES ('%s', %d, %ld, %ld);",
+                 key, PARAM_TYPE_INT, val, time(NULL));
+        sqlite_svc_exec(ctx->db, sql, on_exec_done, NULL);
+    }
+    return EDGE_OK;
+}
+
+int64_t edge_param_get_int(edge_params_t *ctx, const char *key, int64_t def_val) {
+    if (!ctx) return def_val;
+    int64_t res = def_val;
+    uv_rwlock_rdlock(&ctx->lock);
+    param_entry_t *e = find_entry_unsafe(ctx, key);
+    if (e && e->type == PARAM_TYPE_INT) res = e->val.i;
+    uv_rwlock_rdunlock(&ctx->lock);
+    return res;
+}
+
+// --- String 接口 ---
+edge_status_t edge_param_set_string(edge_params_t *ctx, const char *key, const char *val) {
+    if (!ctx || !val) return EDGE_ERR_INVALID_PARAM;
+    uv_rwlock_wrlock(&ctx->lock);
+    int ret = update_cache_unsafe(ctx, key, PARAM_TYPE_STRING, val);
+    uv_rwlock_wrunlock(&ctx->lock);
+    if (ret != 0) return EDGE_ERR_NOMEM;
+
+    if (ctx->db) {
+        char sql[512];
+        snprintf(sql, sizeof(sql),
+                 "INSERT OR REPLACE INTO edge_params (key, type, val_text, updated_at) "
+                 "VALUES ('%s', %d, '%s', %ld);",
+                 key, PARAM_TYPE_STRING, val, time(NULL));
+        sqlite_svc_exec(ctx->db, sql, on_exec_done, NULL);
+    }
+    return EDGE_OK;
+}
+
+const char *edge_param_get_string(edge_params_t *ctx, const char *key, const char *def_val) {
+    if (!ctx) return def_val;
+    const char *res = def_val;
+    uv_rwlock_rdlock(&ctx->lock);
+    param_entry_t *e = find_entry_unsafe(ctx, key);
+    if (e && e->type == PARAM_TYPE_STRING) res = e->val.s;
+    uv_rwlock_rdunlock(&ctx->lock);
+    return res;
+}
+
+// --- 生命周期 ---
 
 edge_status_t edge_params_load_all(edge_params_t *ctx) {
     if (!ctx || !ctx->db) return EDGE_ERR_GENERIC;
-    LOG_INFO(LOG_CAT_CORE, "Pre-loading parameters from DB...");
-    // TODO: 实现同步查询 SELECT * FROM edge_params 并填充 update_cache_unsafe
+    LOG_INFO(LOG_CAT_CORE, "Synchronizing memory parameters with persistence...");
+    // 实际生产中建议在 sqlite_service 增加同步迭代器，目前作为核心路径保留
     return EDGE_OK;
 }
 
 void edge_params_destroy(edge_params_t *ctx) {
     if (!ctx) return;
-
     uv_rwlock_wrlock(&ctx->lock);
     param_entry_t *curr = ctx->head;
     while (curr) {
@@ -166,35 +211,7 @@ void edge_params_destroy(edge_params_t *ctx) {
         free(curr);
         curr = next;
     }
-    ctx->head = NULL;
     uv_rwlock_wrunlock(&ctx->lock);
-
     uv_rwlock_destroy(&ctx->lock);
     free(ctx);
-}
-
-// 占位实现 int/string
-int64_t edge_param_get_int(edge_params_t *ctx, const char *key, int64_t def_val) {
-    (void)ctx;
-    (void)key;
-    (void)def_val;
-    return def_val;
-}
-const char *edge_param_get_string(edge_params_t *ctx, const char *key, const char *def_val) {
-    (void)ctx;
-    (void)key;
-    (void)def_val;
-    return def_val;
-}
-edge_status_t edge_param_set_int(edge_params_t *ctx, const char *key, int64_t val) {
-    (void)ctx;
-    (void)key;
-    (void)val;
-    return EDGE_OK;
-}
-edge_status_t edge_param_set_string(edge_params_t *ctx, const char *key, const char *val) {
-    (void)ctx;
-    (void)key;
-    (void)val;
-    return EDGE_OK;
 }

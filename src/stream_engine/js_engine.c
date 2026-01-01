@@ -115,16 +115,13 @@ js_engine_t *js_engine_create(service_t *svc, size_t mem_limit) {
     return engine;
 }
 
-int js_engine_eval(js_engine_t *engine, const char *code, const char *filename) {
-    if (!engine || !code) return -1;
+JSValue js_engine_eval(js_engine_t *engine, const char *code, const char *filename) {
+    if (!engine || !code) return JS_EXCEPTION;
     JSValue val = JS_Eval(engine->ctx, code, strlen(code), filename, JS_EVAL_TYPE_GLOBAL);
-    int ret = 0;
     if (JS_IsException(val)) {
         js_std_dump_error(engine->ctx);
-        ret = -1;
     }
-    JS_FreeValue(engine->ctx, val);
-    return ret;
+    return val;
 }
 
 int js_engine_run_file(js_engine_t *engine, const char *file_path) {

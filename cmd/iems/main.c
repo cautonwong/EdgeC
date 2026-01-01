@@ -59,7 +59,7 @@ int main(int argc, char **argv) {
 
     // --- 数据总线 ---
     static datahub_t hub;
-    datahub_init(&hub, loop, "/iems_full_bus", 512, NULL, NULL);
+    datahub_init(&hub, loop, "/iems_full_bus", 512);
     service_set_datahub(svc, &hub);
 
     // --- 流引擎 ---

@@ -56,7 +56,7 @@ int main(void) {
     loop = uv_default_loop();
 
     // 1. 初始化核心底座
-    datahub_init(&data_hub, loop, "vpp_bus_v4", 1024, NULL, NULL);
+    datahub_init(&data_hub, loop, "vpp_bus_v4", 1024);
     sqlite_config_t db_cfg = {.strategy = STRATEGY_LITE, .db_path = "vpp_history.db"};
     db_svc = sqlite_svc_create(loop, &db_cfg);
 

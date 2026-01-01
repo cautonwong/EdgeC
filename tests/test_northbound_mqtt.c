@@ -42,7 +42,7 @@ static void test_mqtt_push_logic(void **state) {
     // 2. 准备 DataHub
     shm_unlink("mqtt_test_hub");  // 预清理
     datahub_t hub;
-    int ret = datahub_init(&hub, loop, "mqtt_test_hub", 64, NULL, NULL);
+    int ret = datahub_init(&hub, loop, "mqtt_test_hub", 64);
     assert_int_equal(ret, 0);
 
     // 3. 准备 Northbound Mgr
