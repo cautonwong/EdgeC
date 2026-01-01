@@ -1,4 +1,3 @@
-#define _DEFAULT_SOURCE
 #include <cmocka.h>
 #include <setjmp.h>
 #include <stdarg.h>
