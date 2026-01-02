@@ -1,6 +1,6 @@
 /**
  * @file stream_engine.c
- * @brief 流处理引擎核心实现 (支持 S17 逻辑熔断)
+ * @brief 流处理引擎核心实现 (支持 S8 多路订阅与 S17 逻辑熔断)
  */
 
 #include "stream_engine.h"
@@ -22,6 +22,8 @@ struct pipeline_s {
 
 struct stream_engine_s {
     datahub_t *hub;
+    uv_loop_t *loop;
+    uv_async_t async;
     engine_time_source_t *time_src;
     pipeline_t *pipelines;
     uint64_t seq;
@@ -30,7 +32,6 @@ struct stream_engine_s {
 static void _pipeline_process(pipeline_t *p, pipe_msg_t *msg) {
     pipeline_stage_t *s = p->head;
     while (s) {
-        // 如果算子已熔断，直接跳过
         if (s->health != STAGE_HEALTH_GOOD) {
             s = s->next;
             continue;
@@ -40,11 +41,9 @@ static void _pipeline_process(pipeline_t *p, pipe_msg_t *msg) {
         stage_ret_t ret = s->process(s, msg);
         uint64_t elapsed_us = (uv_hrtime() - start) / 1000;
 
-        // 更新统计
         s->last_proc_us = elapsed_us;
         s->total_events++;
 
-        // S17: 检查逻辑熔断
         if (s->circuit_breaker_us > 0 && elapsed_us > s->circuit_breaker_us) {
             s->health = STAGE_HEALTH_TIMEOUT;
             LOG_ERROR(LOG_CAT_SCHED,
@@ -61,10 +60,12 @@ static void _pipeline_process(pipeline_t *p, pipe_msg_t *msg) {
     }
 }
 
-static void _on_data(datahub_t *hub, void *user_data) {
-    stream_engine_t *engine = user_data;
+static void _on_data_async(uv_async_t *handle) {
+    stream_engine_t *engine = handle->data;
+    datahub_t *hub = engine->hub;
     pipe_msg_t msg;
 
+    // 从 SHM Ring 批量读取
     while (shm_ring_read(&hub->ring, &engine->seq, &msg) == 0) {
         pipeline_t *p = engine->pipelines;
         while (p) {
@@ -77,13 +78,59 @@ static void _on_data(datahub_t *hub, void *user_data) {
 }
 
 stream_engine_t *stream_engine_create(datahub_t *hub, engine_time_source_t *time_src) {
+    // 注意：此函数应在 Stream Loop 所在的线程调用
     stream_engine_t *engine = calloc(1, sizeof(stream_engine_t));
     engine->hub = hub;
+    engine->loop = hub->loop; // 默认使用 hub 的 loop，除非后续迁移
     engine->time_src = time_src;
 
-    datahub_subscribe(hub, _on_data, engine);
-    LOG_INFO(LOG_CAT_SCHED, "Stream Engine operational.");
+    uv_async_init(engine->loop, &engine->async, _on_data_async);
+    engine->async.data = engine;
+
+    // S8: 注册到数据中枢
+    datahub_add_listener(hub, &engine->async);
+
+    LOG_INFO(LOG_CAT_SCHED, "Stream Engine operational (L2 Loop).");
     return engine;
+}
+
+// 增加一个支持指定 Loop 的创建接口，便于物理隔离测试
+stream_engine_t *stream_engine_create_ex(datahub_t *hub, uv_loop_t *loop, engine_time_source_t *time_src) {
+    stream_engine_t *engine = calloc(1, sizeof(stream_engine_t));
+    engine->hub = hub;
+    engine->loop = loop;
+    engine->time_src = time_src;
+
+    uv_async_init(loop, &engine->async, _on_data_async);
+    engine->async.data = engine;
+
+    datahub_add_listener(hub, &engine->async);
+    return engine;
+}
+
+void stream_engine_destroy(stream_engine_t *engine) {
+    if (!engine) return;
+
+    datahub_remove_listener(engine->hub, &engine->async);
+    
+    if (!uv_is_closing((uv_handle_t *)&engine->async)) {
+        uv_close((uv_handle_t *)&engine->async, (uv_close_cb)free);
+    }
+
+    pipeline_t *p = engine->pipelines;
+    while (p) {
+        pipeline_t *next_p = p->next;
+        pipeline_stage_t *s = p->head;
+        while (s) {
+            pipeline_stage_t *next_s = s->next;
+            if (s->cleanup_state) s->cleanup_state(s->priv_state);
+            if (s->cleanup_cfg) s->cleanup_cfg(s->priv_cfg);
+            free(s);
+            s = next_s;
+        }
+        free(p);
+        p = next_p;
+    }
 }
 
 pipeline_stage_t *pipeline_add_stage(pipeline_t *p, const char *name, stage_proc_fn proc,
@@ -118,37 +165,12 @@ pipeline_t *stream_engine_add_pipeline(stream_engine_t *engine, const char *id,
     return p;
 }
 
-void stream_engine_destroy(stream_engine_t *engine) {
-    if (!engine) return;
-
-    // S8: 物理断开总线订阅
-    datahub_unsubscribe(engine->hub);
-
-    pipeline_t *p = engine->pipelines;
-    while (p) {
-        pipeline_t *next_p = p->next;
-        pipeline_stage_t *s = p->head;
-        while (s) {
-            pipeline_stage_t *next_s = s->next;
-            if (s->cleanup_state) s->cleanup_state(s->priv_state);
-            if (s->cleanup_cfg) s->cleanup_cfg(s->priv_cfg);
-            free(s);
-            s = next_s;
-        }
-        free(p);
-        p = next_p;
-    }
-    free(engine);
-}
-
 void stream_engine_push(stream_engine_t *engine, pipe_msg_t *msg) {
     pipeline_t *p = engine->pipelines;
-
     while (p) {
         if (p->trigger_tag == msg->tag_id || p->trigger_tag == 0) {
             _pipeline_process(p, msg);
         }
-
         p = p->next;
     }
 }

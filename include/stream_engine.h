@@ -65,6 +65,12 @@ typedef struct {
 } pipeline_loader_ctx_t;
 
 stream_engine_t *stream_engine_create(datahub_t *hub, engine_time_source_t *time_src);
+
+/**
+ * @brief 在指定 Loop 上创建流引擎 (用于物理隔离 L2 线程)
+ */
+stream_engine_t *stream_engine_create_ex(datahub_t *hub, uv_loop_t *loop,
+                                         engine_time_source_t *time_src);
 void stream_engine_destroy(stream_engine_t *engine);
 
 pipeline_t *stream_engine_add_pipeline(stream_engine_t *engine, const char *id,

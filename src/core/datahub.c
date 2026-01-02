@@ -1,19 +1,12 @@
 /**
  * @file datahub.c
- * @brief 核心数据中心实现 (支持 S13 影子模式)
+ * @brief 核心数据中心实现 (支持 S8 多路订阅与 S13 影子模式)
  */
 
 #include "datahub.h"
 
 #include <stdlib.h>
 #include <string.h>
-
-static void _on_async(uv_async_t *handle) {
-    datahub_t *hub = handle->data;
-    if (hub->on_data) {
-        hub->on_data(hub, hub->user_data);
-    }
-}
 
 int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slots) {
     memset(hub, 0, sizeof(*hub));
@@ -25,20 +18,17 @@ int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slo
         }
     }
 
-    uv_async_init(loop, &hub->async, _on_async);
-    hub->async.data = hub;
-
     // S13: 分配影子表内存
     hub->shadow_table = calloc(DATAHUB_MAX_TAGS, sizeof(pipe_msg_t));
     uv_mutex_init(&hub->shadow_lock);
 
+    hub->listener_count = 0;
     return 0;
 }
 
 void datahub_destroy(datahub_t *hub) {
     if (!hub) return;
 
-    uv_close((uv_handle_t *)&hub->async, NULL);
     shmring_close(&hub->ring);
 
     if (hub->shadow_table) {
@@ -61,8 +51,12 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
         uv_mutex_unlock(&hub->shadow_lock);
     }
 
-    // 3. 异步通知
-    uv_async_send(&hub->async);
+    // 3. S8: 多路异步通知 (扇出)
+    for (int i = 0; i < DATAHUB_MAX_LISTENERS; i++) {
+        if (hub->listeners[i]) {
+            uv_async_send(hub->listeners[i]);
+        }
+    }
     return 0;
 }
 
@@ -73,22 +67,41 @@ int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out) {
     *out = hub->shadow_table[tag_id];
     uv_mutex_unlock(&hub->shadow_lock);
 
-    // 如果时间戳为 0，说明该点位从未被更新过
     if (out->ts == 0) return -1;
-
     return 0;
 }
 
-void datahub_subscribe(datahub_t *hub, datahub_on_data_cb cb, void *user_data) {
-    hub->on_data = cb;
+int datahub_add_listener(datahub_t *hub, uv_async_t *async_handle) {
+    if (!hub || !async_handle) return -1;
+    
+    for (int i = 0; i < DATAHUB_MAX_LISTENERS; i++) {
+        if (hub->listeners[i] == NULL) {
+            hub->listeners[i] = async_handle;
+            hub->listener_count++;
+            return 0;
+        }
+    }
+    return -1; // 满额
+}
 
-    hub->user_data = user_data;
+void datahub_remove_listener(datahub_t *hub, uv_async_t *async_handle) {
+    if (!hub || !async_handle) return;
+    
+    for (int i = 0; i < DATAHUB_MAX_LISTENERS; i++) {
+        if (hub->listeners[i] == async_handle) {
+            hub->listeners[i] = NULL;
+            hub->listener_count--;
+            break;
+        }
+    }
+}
+
+// 兼容性接口：目前这些接口可能被旧测试使用，我们将其标记为过时或暂时空实现
+// 建议全面转向 datahub_add_listener
+void datahub_subscribe(datahub_t *hub, datahub_on_data_cb cb, void *user_data) {
+    (void)hub; (void)cb; (void)user_data;
 }
 
 void datahub_unsubscribe(datahub_t *hub) {
-    if (!hub) return;
-
-    hub->on_data = NULL;
-
-    hub->user_data = NULL;
+    (void)hub;
 }

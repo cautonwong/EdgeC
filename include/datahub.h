@@ -6,6 +6,7 @@
 #include "shmring.h"
 
 #define DATAHUB_MAX_TAGS 8192
+#define DATAHUB_MAX_LISTENERS 8
 
 typedef struct datahub_s datahub_t;
 
@@ -14,9 +15,10 @@ typedef void (*datahub_on_data_cb)(datahub_t *hub, void *user_data);
 struct datahub_s {
     uv_loop_t *loop;
     shm_ring_t ring;
-    uv_async_t async;
-    datahub_on_data_cb on_data;
-    void *user_data;
+
+    // S8: 多路通知机制 (支持 L1/L2/Northbound 并行消费)
+    uv_async_t *listeners[DATAHUB_MAX_LISTENERS];
+    int listener_count;
 
     // S13: 影子表物理空间
     pipe_msg_t *shadow_table;
@@ -45,7 +47,17 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg);
 int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out);
 
 /**
- * @brief 订阅通知
+ * @brief 注册异步通知句柄 (用于跨线程订阅)
+ */
+int datahub_add_listener(datahub_t *hub, uv_async_t *async_handle);
+
+/**
+ * @brief 移除异步通知句柄
+ */
+void datahub_remove_listener(datahub_t *hub, uv_async_t *async_handle);
+
+/**
+ * @brief [兼容接口] 订阅主循环通知
  */
 void datahub_subscribe(datahub_t *hub, datahub_on_data_cb cb, void *user_data);
 

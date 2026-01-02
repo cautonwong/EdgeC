@@ -155,7 +155,7 @@ static int dlt645_build_response(uint32_t slave_id, uint8_t ctrl_code, uint32_t 
     return 0;
 }
 
-static edge_driver_t dlt645_driver = {.name = "DLT645-2007",
+edge_driver_t dlt645_driver = {.name = "DLT645-2007",
                                       .init = dlt645_init,
                                       .build_batch_req = dlt645_build_batch_req,
                                       .parse_batch_res = dlt645_parse_batch_res,

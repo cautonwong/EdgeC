@@ -65,12 +65,14 @@ static const char *_get_init_schema(storage_strategy_t strategy) {
     switch (strategy) {
         case STRATEGY_LITE:
             return "CREATE TABLE IF NOT EXISTS current_state (tag_id INT PRIMARY KEY, val REAL, ts "
-                   "INT);";
+                   "INT);"
+                   "CREATE TABLE IF NOT EXISTS collection_policies (interval_ms INT, slave_id INT, start_addr INT, reg_count INT);";
         case STRATEGY_TRANSACTION:
             return "CREATE TABLE IF NOT EXISTS orders (id TEXT PRIMARY KEY, kwh REAL, status INT);";
         default:
             return "CREATE TABLE IF NOT EXISTS telemetry (ts INT, tag_id INT, val REAL, q INT, "
-                   "PRIMARY KEY(ts, tag_id)) WITHOUT ROWID;";
+                   "PRIMARY KEY(ts, tag_id)) WITHOUT ROWID;"
+                   "CREATE TABLE IF NOT EXISTS collection_policies (interval_ms INT, slave_id INT, start_addr INT, reg_count INT);";
     }
 }
 
@@ -347,4 +349,8 @@ int sqlite_svc_begin_trans(sqlite_svc_t *svc) {
 
 int sqlite_svc_commit_trans(sqlite_svc_t *svc) {
     return sqlite3_exec(svc->db, "COMMIT;", 0, 0, 0);
+}
+
+void *sqlite_svc_get_db_handle(sqlite_svc_t *svc) {
+    return svc ? svc->db : NULL;
 }

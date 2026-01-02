@@ -71,6 +71,11 @@ int sqlite_svc_exec(sqlite_svc_t *svc, const char *sql, sqlite_exec_cb cb, void 
 // 销毁
 void sqlite_svc_destroy(sqlite_svc_t *svc);
 
+/**
+ * @brief 获取原始 SQLite 句柄 (用于高级配置加载)
+ */
+void *sqlite_svc_get_db_handle(sqlite_svc_t *svc);
+
 #ifdef __cplusplus
 }
 #endif

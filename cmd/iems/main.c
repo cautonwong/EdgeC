@@ -10,13 +10,30 @@
 #include <uv.h>
 
 #include "arbiter.h"
+#include "bus_orchestrator.h"
 #include "datahub.h"
 #include "edge_log.h"
 #include "edge_service.h"
+#include "policy_syncer.h"
 #include "sqlite_service.h"
 #include "stream_engine.h"
 
 static service_t *g_svc = NULL;
+
+static void l2_thread_entry(void *arg) {
+    datahub_t *hub = (datahub_t *)arg;
+    uv_loop_t l2_loop;
+    uv_loop_init(&l2_loop);
+
+    LOG_INFO(LOG_CAT_SCHED, "L2 Stream Thread starting...");
+    stream_engine_t *engine = stream_engine_create_ex(hub, &l2_loop, NULL);
+
+    uv_run(&l2_loop, UV_RUN_DEFAULT);
+
+    stream_engine_destroy(engine);
+    uv_loop_close(&l2_loop);
+    LOG_INFO(LOG_CAT_SCHED, "L2 Stream Thread exiting.");
+}
 
 static void handle_sigpwr(int sig) {
     (void)sig;
@@ -31,7 +48,7 @@ int main(int argc, char **argv) {
     (void)argv;
 
     edge_log_init(NULL, false);
-    LOG_INFO(LOG_CAT_SCHED, "Initializing IEMS Controller...");
+    LOG_INFO(LOG_CAT_SCHED, "Initializing IEMS Controller [v3.1 Architecture]...");
 
     uv_loop_t *loop = uv_default_loop();
 
@@ -39,34 +56,45 @@ int main(int argc, char **argv) {
     datahub_t hub;
     datahub_init(&hub, loop, "iems_v1", 1024);
 
-    // [修正] 使用正确的时序策略枚举
     sqlite_config_t db_cfg = {.strategy = STRATEGY_SERIES, .db_path = "iems_data.db"};
     sqlite_svc_t *db = sqlite_svc_create(loop, &db_cfg);
 
     arbiter_t *arb;
     arbiter_init(&arb, loop);
 
-    // 2. 控制面 (Control Plane)
+    // 2. 执行面 (Execution Plane)
+    // 假设使用 DLT645 驱动 (演示)
+    extern edge_driver_t dlt645_driver;
+    bus_orchestrator_t *orch = bus_orchestrator_create(&dlt645_driver, &hub, arb);
+
+    // 3. 策略同步 (Scenario S1: SQLite Driven)
+    policy_syncer_run(db, orch);
+
+    // 4. 控制面 (Control Plane)
     service_options_t opts = {.mode = "PRODUCTION"};
     g_svc = service_new(&opts);
     service_set_datahub(g_svc, &hub);
     service_set_storage(g_svc, db);
     service_set_arbiter(g_svc, arb);
 
-    // 3. 计算平面 (Compute Plane)
-    stream_engine_t *engine = stream_engine_create(&hub, NULL);
-    service_set_stream_engine(g_svc, engine);
+    // 5. 启动 L2 计算平面线程 (Compute Plane Isolation)
+    uv_thread_t l2_thread;
+    uv_thread_create(&l2_thread, l2_thread_entry, &hub);
 
-    // 4. 注册 S14 掉电监听
+    // 6. 注册 S14 掉电监听
     signal(SIGPWR, handle_sigpwr);
     signal(SIGTERM, handle_sigpwr);
 
-    // 5. 启动系统
+    // 7. 启动系统 (L1 Loop)
     LOG_INFO(LOG_CAT_SCHED, "IEMS LIVE. Entering Loop...");
+    bus_orchestrator_run(orch);
     int ret = service_run(g_svc);
 
-    // 6. 物理清理
-    stream_engine_destroy(engine);
+    // 8. 物理清理
+    service_stop(g_svc);
+    uv_thread_join(&l2_thread);
+
+    bus_orchestrator_destroy(orch);
     arbiter_shutdown(arb);
     sqlite_svc_destroy(db);
     datahub_destroy(&hub);
