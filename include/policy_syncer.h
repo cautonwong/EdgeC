@@ -1,8 +1,8 @@
 #ifndef POLICY_SYNCER_H
 #define POLICY_SYNCER_H
 
-#include "sqlite_service.h"
 #include "bus_orchestrator.h"
+#include "sqlite_service.h"
 
 /**
  * @brief 从数据库加载采集策略并注入编排器

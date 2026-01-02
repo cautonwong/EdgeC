@@ -66,13 +66,15 @@ static const char *_get_init_schema(storage_strategy_t strategy) {
         case STRATEGY_LITE:
             return "CREATE TABLE IF NOT EXISTS current_state (tag_id INT PRIMARY KEY, val REAL, ts "
                    "INT);"
-                   "CREATE TABLE IF NOT EXISTS collection_policies (interval_ms INT, slave_id INT, start_addr INT, reg_count INT);";
+                   "CREATE TABLE IF NOT EXISTS collection_policies (interval_ms INT, slave_id INT, "
+                   "start_addr INT, reg_count INT);";
         case STRATEGY_TRANSACTION:
             return "CREATE TABLE IF NOT EXISTS orders (id TEXT PRIMARY KEY, kwh REAL, status INT);";
         default:
             return "CREATE TABLE IF NOT EXISTS telemetry (ts INT, tag_id INT, val REAL, q INT, "
                    "PRIMARY KEY(ts, tag_id)) WITHOUT ROWID;"
-                   "CREATE TABLE IF NOT EXISTS collection_policies (interval_ms INT, slave_id INT, start_addr INT, reg_count INT);";
+                   "CREATE TABLE IF NOT EXISTS collection_policies (interval_ms INT, slave_id INT, "
+                   "start_addr INT, reg_count INT);";
     }
 }
 
@@ -246,29 +248,40 @@ sqlite_svc_t *sqlite_svc_create(uv_loop_t *loop, sqlite_config_t *cfg) {
     return svc;
 }
 
+static void _on_db_timer_close(uv_handle_t *h) {
+    // Timer is embedded in sqlite_svc_t, so we don't free(h) here.
+    // The main structure will be freed by the user after loop drainage.
+}
+
 void sqlite_svc_destroy(sqlite_svc_t *svc) {
     if (!svc) return;
-    if (svc->config.strategy != STRATEGY_LITE && svc->config.strategy != STRATEGY_TRANSACTION) {
-        uv_timer_stop(&svc->flush_timer);
 
-        while (1) {
-            if (!svc->is_flushing) {
-                if (svc->active_buf->count > 0) {
-                    _trigger_flush(svc);
-                } else {
-                    break;
-                }
-            }
-            uv_run(svc->loop, UV_RUN_ONCE);
+    // [关键加固] 物理等待异步任务结束
+    while (svc->is_flushing) {
+        uv_run(svc->loop, UV_RUN_ONCE);
+    }
+
+    if (svc->config.strategy != STRATEGY_LITE && svc->config.strategy != STRATEGY_TRANSACTION) {
+        if (uv_is_active((uv_handle_t *)&svc->flush_timer)) {
+            uv_timer_stop(&svc->flush_timer);
+        }
+        if (!uv_is_closing((uv_handle_t *)&svc->flush_timer)) {
+            uv_close((uv_handle_t *)&svc->flush_timer, _on_db_timer_close);
         }
 
-        free(svc->active_buf->buffer);
-        free(svc->flush_buf->buffer);
-        free(svc->active_buf);
-        free(svc->flush_buf);
+        // We don't run the loop here. We free what we can and close DB.
+        // The buffers are freed below.
+        if (svc->active_buf) {
+            if (svc->active_buf->buffer) free(svc->active_buf->buffer);
+            free(svc->active_buf);
+        }
+        if (svc->flush_buf) {
+            if (svc->flush_buf->buffer) free(svc->flush_buf->buffer);
+            free(svc->flush_buf);
+        }
         uv_mutex_destroy(&svc->buf_lock);
     }
-    sqlite3_close(svc->db);
+    if (svc->db) sqlite3_close(svc->db);
     free(svc);
 }
 

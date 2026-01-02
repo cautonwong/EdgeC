@@ -98,6 +98,17 @@ static inline void pipe_msg_init_event(PipeMsg *msg, uint32_t eid, uint32_t para
     // attr already zeroed by compound literal
 }
 
+static inline void pipe_msg_init_ref(PipeMsg *msg, uint32_t tag, void *ptr, size_t len,
+                                     uint64_t ts) {
+    *msg = (PipeMsg){0};
+    msg->tag_id = tag;
+    msg->ts = ts;
+    msg->type = PIPEMSG_TYPE_REF;
+    msg->payload.ref.ptr = ptr;
+    msg->payload.ref.len = len;
+    msg->state = TRACE_CREATED;
+}
+
 _Static_assert(sizeof(PipeMsg) == 64, "PipeMsg must be 64 bytes");
 
 typedef struct {

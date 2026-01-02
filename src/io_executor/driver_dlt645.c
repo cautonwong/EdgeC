@@ -156,14 +156,14 @@ static int dlt645_build_response(uint32_t slave_id, uint8_t ctrl_code, uint32_t 
 }
 
 edge_driver_t dlt645_driver = {.name = "DLT645-2007",
-                                      .init = dlt645_init,
-                                      .build_batch_req = dlt645_build_batch_req,
-                                      .parse_batch_res = dlt645_parse_batch_res,
-                                      .build_request = NULL,
-                                      .parse_response = NULL,
-                                      .parse_request = dlt645_parse_request,
-                                      .build_response = dlt645_build_response,
-                                      .cleanup = NULL};
+                               .init = dlt645_init,
+                               .build_batch_req = dlt645_build_batch_req,
+                               .parse_batch_res = dlt645_parse_batch_res,
+                               .build_request = NULL,
+                               .parse_response = NULL,
+                               .parse_request = dlt645_parse_request,
+                               .build_response = dlt645_build_response,
+                               .cleanup = NULL};
 
 int dlt645_driver_register(void) {
     return driver_manager_register(&dlt645_driver);

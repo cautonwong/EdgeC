@@ -19,9 +19,12 @@ void net_buf_simple_init(struct net_buf_simple *buf, size_t reserve) {
 
 void net_buf_simple_init_with_data(struct net_buf_simple *buf, void *data, size_t size) {
     buf->__buf = (uint8_t *)data;
+
     buf->data = (uint8_t *)data;
+
     buf->size = (uint16_t)size;
-    buf->len = (uint16_t)size;
+
+    buf->len = (uint16_t)size;  // [物理还原] 包装已有数据时，长度即为数据大小
 }
 
 void net_buf_simple_reset(struct net_buf_simple *buf) {

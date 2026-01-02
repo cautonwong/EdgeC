@@ -56,6 +56,9 @@ static void test_arbiter_preempt(void **state) {
         usleep(1000);
     }
     assert_int_equal(ctx->high_started, 1);
+
+    // 3. 关键：清理状态，防止 teardown 访问已销毁的栈内存
+    arbiter_on_io_done(ctx->arb, 0, &high);
 }
 
 static int setup(void **state) {
@@ -68,11 +71,17 @@ static int setup(void **state) {
 
 static int teardown(void **state) {
     test_ctx_t *ctx = (test_ctx_t *)*state;
-    arbiter_shutdown(ctx->arb);
 
-    // 物理排干，确证 uv_close 回调执行
-    uv_run(&ctx->loop, UV_RUN_DEFAULT);
-    arbiter_destroy(ctx->arb);
+    if (ctx->arb) {
+        arbiter_destroy(ctx->arb);
+    }
+
+    // 彻底排干 Loop 中的所有关闭请求
+    int alive = 1;
+    while (alive) {
+        alive = uv_run(&ctx->loop, UV_RUN_ONCE);
+        if (alive == 0) break;
+    }
 
     uv_loop_close(&ctx->loop);
     free(ctx);

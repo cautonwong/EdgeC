@@ -64,7 +64,7 @@ static void _real_on_cmd_start(void *user_data) {
             // [模拟响应] 6.35 kWh
             // CS 计算: 68+78+56+34+12+00+00+68+91+08+33+33+33+33+68+39+33+33 = 0x04F4 -> F4
             uint8_t mock_rx[] = {0x68, 0x78, 0x56, 0x34, 0x12, 0x00, 0x00, 0x68, 0x91, 0x08,
-                                 0x33, 0x33, 0x33, 0x33, 0x68, 0x39, 0x33, 0x33, 0xF4, 0x16};
+                                 0x33, 0x33, 0x33, 0x33, 0x68, 0x39, 0x33, 0x33, 0x50, 0x16};
             if (ctx->driver->parse_batch_res)
                 ctx->driver->parse_batch_res(&task->group, mock_rx, sizeof(mock_rx), _on_driver_msg,
                                              ctx);
@@ -81,10 +81,13 @@ static void _real_on_poll_timer(uv_timer_t *handle) {
     poll_cmd_t *pcmd = calloc(1, sizeof(poll_cmd_t));
     pcmd->task = task;
     pcmd->base.priority = ARBITER_PRIO_HIGH;
+    pcmd->base.action = CMD_ACTION_POLL;
     pcmd->base.on_start = _real_on_cmd_start;
     pcmd->base.on_complete = _on_cmd_complete;
     pcmd->base.on_cleanup = _on_cmd_cleanup;
-    pcmd->base.user_data = pcmd;
+    pcmd->base.user_data = pcmd;  // 让回调拿到自己
+
+    snprintf(pcmd->base.req_id, sizeof(pcmd->base.req_id), "P-%d", task->group.slave_id);
 
     if (arbiter_submit_cmd(ctx->arb, 0, &pcmd->base) != 0) {
         free(pcmd);
@@ -131,9 +134,15 @@ void bus_orchestrator_destroy(bus_orchestrator_t *ctx) {
     while (t) {
         poll_task_t *next = t->next;
         uv_timer_stop(&t->timer);
-        if (!uv_is_closing((uv_handle_t *)&t->timer))
+        if (!uv_is_closing((uv_handle_t *)&t->timer)) {
+            t->timer.data = t;
             uv_close((uv_handle_t *)&t->timer, _on_task_timer_close);
+        } else {
+            // Should not happen normally if managed correctly
+            free(t);
+        }
         t = next;
     }
-    // Loop drainage happens externally in tests
+    ctx->tasks = NULL;
+    free(ctx);
 }

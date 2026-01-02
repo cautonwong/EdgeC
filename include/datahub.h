@@ -5,8 +5,8 @@
 
 #include "shmring.h"
 
-#define DATAHUB_MAX_TAGS 8192
-#define DATAHUB_MAX_LISTENERS 8
+#define DATAHUB_MAX_TAGS 16384
+#define DATAHUB_MAX_LISTENERS 16
 
 typedef struct datahub_s datahub_t;
 
@@ -23,6 +23,11 @@ struct datahub_s {
     // S13: 影子表物理空间
     pipe_msg_t *shadow_table;
     uv_mutex_t shadow_lock;
+
+    // [兼容性] 旧版单回调句柄
+    uv_async_t legacy_async;
+    datahub_on_data_cb legacy_cb;
+    void *legacy_user_data;
 };
 
 /**

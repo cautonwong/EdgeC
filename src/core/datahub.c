@@ -8,6 +8,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+static void _on_legacy_async(uv_async_t *handle) {
+    datahub_t *hub = handle->data;
+    if (hub->legacy_cb) {
+        hub->legacy_cb(hub, hub->legacy_user_data);
+    }
+}
+
 int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slots) {
     memset(hub, 0, sizeof(*hub));
     hub->loop = loop;
@@ -23,12 +30,18 @@ int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slo
     uv_mutex_init(&hub->shadow_lock);
 
     hub->listener_count = 0;
+
+    // 初始化旧版异步句柄
+    uv_async_init(loop, &hub->legacy_async, _on_legacy_async);
+    hub->legacy_async.data = hub;
+
     return 0;
 }
 
 void datahub_destroy(datahub_t *hub) {
     if (!hub) return;
 
+    uv_close((uv_handle_t *)&hub->legacy_async, NULL);
     shmring_close(&hub->ring);
 
     if (hub->shadow_table) {
@@ -57,6 +70,12 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
             uv_async_send(hub->listeners[i]);
         }
     }
+
+    // 4. [兼容性] 旧版异步通知
+    if (hub->legacy_cb) {
+        uv_async_send(&hub->legacy_async);
+    }
+
     return 0;
 }
 
@@ -73,7 +92,7 @@ int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out) {
 
 int datahub_add_listener(datahub_t *hub, uv_async_t *async_handle) {
     if (!hub || !async_handle) return -1;
-    
+
     for (int i = 0; i < DATAHUB_MAX_LISTENERS; i++) {
         if (hub->listeners[i] == NULL) {
             hub->listeners[i] = async_handle;
@@ -81,12 +100,12 @@ int datahub_add_listener(datahub_t *hub, uv_async_t *async_handle) {
             return 0;
         }
     }
-    return -1; // 满额
+    return -1;  // 满额
 }
 
 void datahub_remove_listener(datahub_t *hub, uv_async_t *async_handle) {
     if (!hub || !async_handle) return;
-    
+
     for (int i = 0; i < DATAHUB_MAX_LISTENERS; i++) {
         if (hub->listeners[i] == async_handle) {
             hub->listeners[i] = NULL;
@@ -96,12 +115,14 @@ void datahub_remove_listener(datahub_t *hub, uv_async_t *async_handle) {
     }
 }
 
-// 兼容性接口：目前这些接口可能被旧测试使用，我们将其标记为过时或暂时空实现
-// 建议全面转向 datahub_add_listener
 void datahub_subscribe(datahub_t *hub, datahub_on_data_cb cb, void *user_data) {
-    (void)hub; (void)cb; (void)user_data;
+    if (!hub) return;
+    hub->legacy_cb = cb;
+    hub->legacy_user_data = user_data;
 }
 
 void datahub_unsubscribe(datahub_t *hub) {
-    (void)hub;
+    if (!hub) return;
+    hub->legacy_cb = NULL;
+    hub->legacy_user_data = NULL;
 }

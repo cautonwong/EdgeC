@@ -40,9 +40,9 @@ enum {
 typedef enum {
     CMD_ACTION_READ,
     CMD_ACTION_WRITE,
-    CMD_ACTION_POLL,
     CMD_ACTION_RAW,
-    CMD_ACTION_OTA
+    CMD_ACTION_OTA,
+    CMD_ACTION_POLL
 } cmd_action_t;
 
 typedef struct cmd_msg {
@@ -128,6 +128,11 @@ void arbiter_set_exclusive(arbiter_t *arb, int bus_id, bool exclusive);
  * @brief 驱动层回调：任务完成
  */
 void arbiter_on_io_done(arbiter_t *arb, int bus_id, cmd_msg_t *cmd);
+
+/**
+ * @brief 销毁仲裁器并回收内存
+ */
+void arbiter_destroy(arbiter_t *arb);
 
 #ifdef __cplusplus
 }

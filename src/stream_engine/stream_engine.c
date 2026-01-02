@@ -81,7 +81,7 @@ stream_engine_t *stream_engine_create(datahub_t *hub, engine_time_source_t *time
     // 注意：此函数应在 Stream Loop 所在的线程调用
     stream_engine_t *engine = calloc(1, sizeof(stream_engine_t));
     engine->hub = hub;
-    engine->loop = hub->loop; // 默认使用 hub 的 loop，除非后续迁移
+    engine->loop = hub->loop;  // 默认使用 hub 的 loop，除非后续迁移
     engine->time_src = time_src;
 
     uv_async_init(engine->loop, &engine->async, _on_data_async);
@@ -95,7 +95,8 @@ stream_engine_t *stream_engine_create(datahub_t *hub, engine_time_source_t *time
 }
 
 // 增加一个支持指定 Loop 的创建接口，便于物理隔离测试
-stream_engine_t *stream_engine_create_ex(datahub_t *hub, uv_loop_t *loop, engine_time_source_t *time_src) {
+stream_engine_t *stream_engine_create_ex(datahub_t *hub, uv_loop_t *loop,
+                                         engine_time_source_t *time_src) {
     stream_engine_t *engine = calloc(1, sizeof(stream_engine_t));
     engine->hub = hub;
     engine->loop = loop;
@@ -108,15 +109,17 @@ stream_engine_t *stream_engine_create_ex(datahub_t *hub, uv_loop_t *loop, engine
     return engine;
 }
 
+static void _on_engine_close(uv_handle_t *handle) {
+    stream_engine_t *engine = handle->data;
+    free(engine);
+}
+
 void stream_engine_destroy(stream_engine_t *engine) {
     if (!engine) return;
 
     datahub_remove_listener(engine->hub, &engine->async);
-    
-    if (!uv_is_closing((uv_handle_t *)&engine->async)) {
-        uv_close((uv_handle_t *)&engine->async, (uv_close_cb)free);
-    }
 
+    // 1. 同步清理 Pipelines 和 Stages (这些是独立分配的内存，安全)
     pipeline_t *p = engine->pipelines;
     while (p) {
         pipeline_t *next_p = p->next;
@@ -130,6 +133,11 @@ void stream_engine_destroy(stream_engine_t *engine) {
         }
         free(p);
         p = next_p;
+    }
+
+    // 2. 异步关闭 Handle，并在回调中释放 engine 结构体自身
+    if (!uv_is_closing((uv_handle_t *)&engine->async)) {
+        uv_close((uv_handle_t *)&engine->async, _on_engine_close);
     }
 }
 

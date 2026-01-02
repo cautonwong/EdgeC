@@ -4,9 +4,11 @@
  */
 
 #include "arbiter.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 #include "edge_log.h"
 
 #define MAX_BUSES 8
@@ -28,7 +30,8 @@ struct arbiter {
 static void enqueue_cmd(bus_state_t *bus, cmd_msg_t *cmd) {
     cmd_msg_t **p = &bus->queue;
     while (*p && (*p)->priority >= cmd->priority) p = &(*p)->next;
-    cmd->next = *p; *p = cmd;
+    cmd->next = *p;
+    *p = cmd;
 }
 
 static void arbiter_schedule(arbiter_t *arb, int bus_id) {
@@ -93,28 +96,38 @@ int arbiter_get_statuses(arbiter_t *arb, arbiter_bus_status_t *out_stats, int ma
     return limit;
 }
 
-void arbiter_shutdown(arbiter_t *arb) {
-    if (!arb) return;
-    arb->is_shutting_down = true;
-    uv_timer_stop(&arb->tick);
+static void on_arbiter_close(uv_handle_t *handle) {
+    arbiter_t *arb = (arbiter_t *)handle->data;
+    free(arb);
 }
 
-void arbiter_destroy(arbiter_t *arb) {
-    if (!arb) return;
-    // 物理清理队列，由于是同步销毁，不触发业务回调，仅执行内存回收
+void arbiter_shutdown(arbiter_t *arb) {
+    if (!arb || arb->is_shutting_down) return;
+    arb->is_shutting_down = true;
+
+    // 清理所有总线的队列
     for (int i = 0; i < MAX_BUSES; i++) {
-        cmd_msg_t *curr = arb->buses[i].queue;
+        bus_state_t *bus = &arb->buses[i];
+        cmd_msg_t *curr = bus->queue;
         while (curr) {
             cmd_msg_t *next = curr->next;
+            if (curr->on_complete) curr->on_complete(curr, -1);
             if (curr->on_cleanup) curr->on_cleanup(curr);
             curr = next;
         }
-        if (arb->buses[i].owner && arb->buses[i].owner->on_cleanup) 
-            arb->buses[i].owner->on_cleanup(arb->buses[i].owner);
+        bus->queue = NULL;
+        if (bus->owner) {
+            if (bus->owner->on_complete) bus->owner->on_complete(bus->owner, -1);
+            if (bus->owner->on_cleanup) bus->owner->on_cleanup(bus->owner);
+            bus->owner = NULL;
+        }
     }
-    // 强制关闭 Handle
+
     if (!uv_is_closing((uv_handle_t *)&arb->tick)) {
-        uv_close((uv_handle_t *)&arb->tick, NULL);
+        uv_close((uv_handle_t *)&arb->tick, on_arbiter_close);
     }
-    free(arb);
+}
+
+void arbiter_destroy(arbiter_t *arb) {
+    arbiter_shutdown(arb);
 }
