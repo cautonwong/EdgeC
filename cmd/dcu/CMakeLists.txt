@@ -1,29 +1,30 @@
-# DCU Product Build Script (Contract v2.0)
-# ------------------------------------------------------------------------------
+# EdgeOS DCU 编译配置 (修正参数顺序版)
 
-set(PROD_NAME dcu)
-
-# 1. 契约生成
+# 签名: edge_add_contract(TARGET_NAME PRODUCT_YAML LOCAL_YAML)
 edge_add_contract(
-    contract_${PROD_NAME}
-    "${CMAKE_SOURCE_DIR}/contracts/products/${PROD_NAME}.yaml"
+    contract_dcu 
+    "${CMAKE_SOURCE_DIR}/contracts/products/dcu.yaml"
     ""
 )
 
-# 2. 定义执行文件
-add_executable(${PROD_NAME} main.c)
+add_executable(dcu main.c)
 
-# 3. 输出路径标准化
-set_target_properties(${PROD_NAME} PROPERTIES 
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/products/${PROD_NAME}/bin"
+# 输出路径标准化
+set_target_properties(dcu PROPERTIES 
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/products/dcu/bin"
 )
 
-# 4. 链接依赖
-target_link_libraries(${PROD_NAME} PRIVATE 
+target_include_directories(dcu PRIVATE 
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(dcu PRIVATE
     edge_main_loop
-    edge_stream_engine
     edge_io_executor
-    edge_algo
-    contract_${PROD_NAME}
+    edge_core
+    contract_dcu
     pthread dl rt m
 )
+
+# 安装路径
+install(TARGETS dcu DESTINATION products/dcu/bin)

@@ -119,6 +119,7 @@ add_library(edge_main_loop STATIC
     src/main_loop/sched_calendar.c
     src/main_loop/sched_executor.c
     src/main_loop/sched_libev.c
+    src/main_loop/dcu_inventory.c
     src/main_loop/bus_orchestrator.c
     src/main_loop/policy_syncer.c
 )

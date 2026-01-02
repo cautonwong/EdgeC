@@ -256,9 +256,26 @@ static void _on_db_timer_close(uv_handle_t *h) {
 void sqlite_svc_destroy(sqlite_svc_t *svc) {
     if (!svc) return;
 
-    // [关键加固] 物理等待异步任务结束
+    // [强制加固] 如果还有存量数据，立即触发最后一次同步 Flush
+    if (svc->active_buf && svc->active_buf->count > 0) {
+        _trigger_flush(svc);
+    }
+
+    // 物理等待异步任务结束
     while (svc->is_flushing) {
         uv_run(svc->loop, UV_RUN_ONCE);
+    }
+    // 1. 同步冲刷剩余的活跃缓存
+    if (svc->active_buf && svc->active_buf->count > 0) {
+        uv_mutex_lock(&svc->buf_lock);
+        data_batch_t *tmp = svc->active_buf;
+        svc->active_buf = svc->flush_buf;
+        svc->flush_buf = tmp;
+        uv_mutex_unlock(&svc->buf_lock);
+
+        uv_work_t sync_req;
+        sync_req.data = svc;
+        _worker_flush_cb(&sync_req);
     }
 
     if (svc->config.strategy != STRATEGY_LITE && svc->config.strategy != STRATEGY_TRANSACTION) {
@@ -269,8 +286,6 @@ void sqlite_svc_destroy(sqlite_svc_t *svc) {
             uv_close((uv_handle_t *)&svc->flush_timer, _on_db_timer_close);
         }
 
-        // We don't run the loop here. We free what we can and close DB.
-        // The buffers are freed below.
         if (svc->active_buf) {
             if (svc->active_buf->buffer) free(svc->active_buf->buffer);
             free(svc->active_buf);

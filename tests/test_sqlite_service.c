@@ -97,15 +97,20 @@ static void test_sharding(void **state) {
     sqlite_svc_insert(svc, &m1);
     sqlite_svc_insert(svc, &m2);
 
-    // 驱动 loop 以确保异步写入完成
-    // sqlite_svc_destroy 内部也会尝试 flush 并等待 is_flushing
+    // 关键修正：给异步任务执行的时间
+    for (int i = 0; i < 10; i++) uv_run(loop, UV_RUN_NOWAIT);
+
+    // sqlite_svc_destroy 内部现在会同步冲刷活跃缓存
     sqlite_svc_destroy(svc);
 
     sqlite3 *check_db = NULL;
     assert_int_equal(sqlite3_open_v2(db_path, &check_db, SQLITE_OPEN_READONLY, NULL), SQLITE_OK);
-    assert_int_equal(table_exists(check_db, "telemetry_202311"), 1);
-    assert_int_equal(table_exists(check_db, "telemetry_202312"), 1);
+    int t1_exists = table_exists(check_db, "telemetry_202311");
+    int t2_exists = table_exists(check_db, "telemetry_202312");
     sqlite3_close(check_db);
+
+    assert_int_equal(t1_exists, 1);
+    assert_int_equal(t2_exists, 1);
     unlink(db_path);
 }
 

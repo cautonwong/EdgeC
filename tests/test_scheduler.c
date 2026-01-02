@@ -31,8 +31,13 @@ static void on_walk_close(uv_handle_t *handle, void *arg) {
 
 static int teardown(void **state) {
     uv_loop_t *loop = (uv_loop_t *)*state;
+
     uv_walk(loop, on_walk_close, NULL);
-    while (uv_loop_close(loop) == UV_EBUSY) uv_run(loop, UV_RUN_ONCE);
+
+    // 受控排干：最多跑 10 轮
+    for (int i = 0; i < 10; i++) uv_run(loop, UV_RUN_NOWAIT);
+
+    uv_loop_close(loop);
     free(loop);
     return 0;
 }
@@ -52,23 +57,26 @@ static void test_calendar_alignments(void **state) {
 
 static void test_clock_forward(void **state) {
     uv_loop_t *loop = (uv_loop_t *)*state;
-    calendar_task_t task = {0};
-    task.type = CAL_TASK_HOUR_FREEZE;
-    task.loop = loop;
-    task.on_fire = on_fire;
+
+    calendar_task_t *task = calloc(1, sizeof(calendar_task_t));
+    task->type = CAL_TASK_HOUR_FREEZE;
+    task->loop = loop;
+    task->on_fire = on_fire;
 
     mock_set_time(1700000000000, 1000);
-    calendar_schedule(&task);
+    calendar_schedule(task);
 
-    mock_set_time(1700014401000, 2000);  // 进位了
-    calendar_schedule(&task);
+    mock_set_time(1700014401000, 2000);
+    calendar_schedule(task);
 
-    // 只要是未来的点即可，不测试 mktime 绝对值
-    assert_true(task.target_wall > 1700014401000);
-    calendar_cancel(&task);
+    assert_true(task->target_wall > 1700014401000);
 
-    // 关键：驱动 Loop 直到 Close 完成，防止 stack UAF
+    // 物理清理：手动触发 cancel (包含 close) 并释放内存
+    calendar_cancel(task);
+
+    // 给 close 回调执行的机会，然后释放堆内存
     uv_run(loop, UV_RUN_NOWAIT);
+    free(task);
 }
 
 int main(void) {
