@@ -2,18 +2,23 @@
 
 #include "sched_time.h"
 
-// Weak linkage allows overriding for tests without recompiling everything if using static libs
-// correctly, but for simple testing, we might just link a different object file. For now, standard
-// implementation.
+/**
+ * @file sched_time_source.c
+ * @brief 时间源物理实现 (支持 S10 挂钟对齐)
+ */
 
-wall_time_t sched_wall_now(void) {
+__attribute__((weak)) wall_time_t sched_wall_now(void) {
     struct timespec ts;
+
     clock_gettime(CLOCK_REALTIME, &ts);
-    return (wall_time_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+
+    return (wall_time_t)ts.tv_sec * 1000 + (wall_time_t)ts.tv_nsec / 1000000;
 }
 
-mono_time_t sched_mono_now(void) {
+__attribute__((weak)) mono_time_t sched_mono_now(void) {
     struct timespec ts;
+
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (mono_time_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+
+    return (mono_time_t)ts.tv_sec * 1000 + (mono_time_t)ts.tv_nsec / 1000000;
 }

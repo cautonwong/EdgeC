@@ -53,6 +53,7 @@ add_edge_test(test_stream_engine_timeguard test_stream_engine_timeguard.c)
 # 6. 系统集成测试 (Integration)
 add_edge_test(test_integration test_integration.c)
 add_edge_test(test_sdk_full_chain test_sdk_full_chain.c)
+add_edge_test(test_dcu test_dcu.c)
 
 # 特殊用例: test_scheduler (Mock Time)
 add_executable(test_scheduler test_scheduler.c mock_time.c)
