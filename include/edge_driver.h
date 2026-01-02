@@ -47,6 +47,12 @@ struct edge_driver_s {
     int (*parse_response)(edge_point_config_t *point, uint8_t *rx_buf, size_t rx_len,
                           pipe_msg_t *out_msg);
 
+    // 从站/服务端 API (新增)
+    int (*parse_request)(const uint8_t *rx_buf, size_t rx_len, uint32_t *out_slave_id,
+                         uint16_t *out_di);
+    int (*build_response)(uint32_t slave_id, uint8_t ctrl_code, uint32_t di, const pipe_msg_t *data,
+                          uint8_t *tx_buf, size_t *tx_len);
+
     void (*cleanup)(void *ctx);
 };
 

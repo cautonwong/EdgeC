@@ -14,6 +14,11 @@ void driver_manager_destroy(driver_manager_t* dm);
 // 物理总线 FD 管理
 int driver_manager_get_fd(driver_manager_t* dm, arbiter_bus_t bus);
 
+/**
+ * @brief [S11] 物理扫描指定总线
+ */
+char* driver_manager_scan_bus(driver_manager_t* dm, int bus_id);
+
 // 驱动程序注册管理 (全局静态)
 int driver_manager_init(void);
 int driver_manager_register(edge_driver_t* driver);

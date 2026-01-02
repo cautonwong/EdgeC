@@ -17,6 +17,13 @@ void net_buf_simple_init(struct net_buf_simple *buf, size_t reserve) {
     buf->len = 0;
 }
 
+void net_buf_simple_init_with_data(struct net_buf_simple *buf, void *data, size_t size) {
+    buf->__buf = (uint8_t *)data;
+    buf->data = (uint8_t *)data;
+    buf->size = (uint16_t)size;
+    buf->len = (uint16_t)size;
+}
+
 void net_buf_simple_reset(struct net_buf_simple *buf) {
     buf->len = 0;
     buf->data = buf->__buf;

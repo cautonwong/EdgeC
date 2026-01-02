@@ -22,18 +22,17 @@ static void on_start(void *user) {
 
 static void test_arbiter_preempt(void **state) {
     test_ctx_t *ctx = (test_ctx_t *)*state;
-    arbiter_bus_handle_t bus = arbiter_bus_register(ctx->arb, "RS485_1");
-    (void)bus;
 
-    cmd_msg_t low = {.req_id = "low-prio",
-                     .priority = CMD_PRIO_NORMAL,
-                     .on_start = on_start,
-                     .user_data = &ctx->low_started};
+    // 使用初始化宏确证 on_cleanup 等新成员被正确置 NULL
+    cmd_msg_t low;
+    cmd_msg_init_write(&low, 4001, 1.0, ARBITER_PRIO_LOW);
+    low.on_start = on_start;
+    low.user_data = &ctx->low_started;
 
-    cmd_msg_t high = {.req_id = "high-prio",
-                      .priority = CMD_PRIO_EMERGENCY,
-                      .on_start = on_start,
-                      .user_data = &ctx->high_started};
+    cmd_msg_t high;
+    cmd_msg_init_write(&high, 4001, 2.0, ARBITER_PRIO_EMERGENCY);
+    high.on_start = on_start;
+    high.user_data = &ctx->high_started;
 
     // 1. 提交低优先级
     arbiter_submit_cmd(ctx->arb, 0, &low);
@@ -45,7 +44,7 @@ static void test_arbiter_preempt(void **state) {
     }
     assert_int_equal(ctx->low_started, 1);
 
-    // 2. 提交高优先级 (在当前 owner 完成前，它会在队列等待，直到触发调度)
+    // 2. 提交高优先级
     arbiter_submit_cmd(ctx->arb, 0, &high);
 
     // 模拟低优先级完成
@@ -67,26 +66,18 @@ static int setup(void **state) {
     return 0;
 }
 
-static void on_walk_close(uv_handle_t *handle, void *arg) {
-    (void)arg;
-    if (!uv_is_closing(handle)) {
-        uv_close(handle, NULL);
-    }
-}
-
 static int teardown(void **state) {
     test_ctx_t *ctx = (test_ctx_t *)*state;
     arbiter_shutdown(ctx->arb);
 
-    uv_walk(&ctx->loop, on_walk_close, NULL);
-    while (uv_loop_close(&ctx->loop) == UV_EBUSY) {
-        uv_run(&ctx->loop, UV_RUN_ONCE);
-    }
+    // 物理排干，确证 uv_close 回调执行
+    uv_run(&ctx->loop, UV_RUN_DEFAULT);
+    arbiter_destroy(ctx->arb);
 
+    uv_loop_close(&ctx->loop);
     free(ctx);
     return 0;
 }
-
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_arbiter_preempt, setup, teardown),

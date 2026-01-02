@@ -73,6 +73,7 @@ static inline size_t net_buf_simple_headroom(struct net_buf_simple *buf) {
 }
 
 void net_buf_simple_init(struct net_buf_simple *buf, size_t reserve);
+void net_buf_simple_init_with_data(struct net_buf_simple *buf, void *data, size_t size);
 void *net_buf_simple_add(struct net_buf_simple *buf, size_t len);
 void *net_buf_simple_add_mem(struct net_buf_simple *buf, const void *mem, size_t len);
 void *net_buf_simple_push(struct net_buf_simple *buf, size_t len);
@@ -81,6 +82,10 @@ void *net_buf_simple_pull_mem(struct net_buf_simple *buf, void *dst, size_t len)
 void net_buf_simple_reset(struct net_buf_simple *buf);
 
 // Endian Helpers
+static inline void net_buf_simple_add_u8(struct net_buf_simple *buf, uint8_t val) {
+    *(uint8_t *)net_buf_simple_add(buf, 1) = val;
+}
+
 static inline void net_buf_simple_add_be64(struct net_buf_simple *buf, uint64_t val) {
     uint64_t v = htobe64(val);
     memcpy(net_buf_simple_add(buf, 8), &v, 8);
@@ -107,6 +112,9 @@ static inline uint32_t net_buf_simple_pull_le32(struct net_buf_simple *buf) {
     uint32_t v;
     memcpy(&v, net_buf_simple_pull(buf, 4), 4);
     return le32toh(v);
+}
+static inline uint8_t net_buf_simple_pull_u8(struct net_buf_simple *buf) {
+    return *(uint8_t *)net_buf_simple_pull(buf, 1);
 }
 
 /* --- 2. Full net_buf API --- */

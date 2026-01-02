@@ -84,3 +84,11 @@ void datahub_subscribe(datahub_t *hub, datahub_on_data_cb cb, void *user_data) {
 
     hub->user_data = user_data;
 }
+
+void datahub_unsubscribe(datahub_t *hub) {
+    if (!hub) return;
+
+    hub->on_data = NULL;
+
+    hub->user_data = NULL;
+}

@@ -147,6 +147,7 @@ add_library(edge_io_executor STATIC
     src/io_executor/driver_iec104.c
     src/io_executor/driver_can.c
     src/io_executor/profile_loader.c
+    src/io_executor/driver_dlt645.c
 )
 target_link_libraries(edge_io_executor PUBLIC edge_core Modbus::Modbus)
 

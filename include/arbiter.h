@@ -37,7 +37,13 @@ enum {
     CMD_PRIO_NORMAL = ARBITER_PRIO_NORMAL
 };
 
-typedef enum { CMD_ACTION_READ, CMD_ACTION_WRITE, CMD_ACTION_RAW, CMD_ACTION_OTA } cmd_action_t;
+typedef enum {
+    CMD_ACTION_READ,
+    CMD_ACTION_WRITE,
+    CMD_ACTION_POLL,
+    CMD_ACTION_RAW,
+    CMD_ACTION_OTA
+} cmd_action_t;
 
 typedef struct cmd_msg {
     char req_id[32];
@@ -48,10 +54,13 @@ typedef struct cmd_msg {
     double value;
     void *params;
 
+    uint32_t signature; /**< S20: Command security signature/fingerprint */
+
     // Callbacks
     void (*on_start)(void *user);
     void (*on_preempt)(void *user);
     void (*on_complete)(struct cmd_msg *msg, int status);
+    void (*on_cleanup)(struct cmd_msg *msg); /**< [新增] 用于物理释放 params 等私有数据 */
     void *user_data;
 
     /* 内部链表 */
@@ -87,6 +96,7 @@ int arbiter_init(arbiter_t **arb, uv_loop_t *loop);
  * @brief 关闭仲裁器
  */
 void arbiter_shutdown(arbiter_t *arb);
+void arbiter_destroy(arbiter_t *arb);
 
 /**
  * @brief 注册总线句柄 (Opaque)

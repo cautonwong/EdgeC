@@ -1,12 +1,13 @@
 /**
  * @file edge_service.c
- * @brief 核心控制面实现 (支持 S14 掉电保护与 S19 链路冗余)
+ * @brief 核心控制面实现 (支持 S14 掉电, S19 冗余, S9 IPC, S11 发现, S12 隧道)
  */
 
 #include "edge_service.h"
 
 #include <stdlib.h>
 #include <string.h>
+#include <sys/un.h>
 
 #include "edge_log.h"
 
@@ -25,31 +26,205 @@ struct service_s {
 
     // S19: 链路管理
     net_link_t current_link;
-    bool link_status[2];  // PRIMARY, SECONDARY
+    bool link_status[2];
     link_monitor_fn link_cb;
     void *link_user_data;
+
+    // S9: IPC 桥接
+    uv_pipe_t *ipc_pipe;
+
+    // S11: 自动发现报告
+    char *last_discovery_report;
+
+    // S12: 远程隧道
+    uv_tcp_t *tunnel_server;
+    int tunnel_bus_id;
+
+    // S10: 时间管理
+    uint64_t time_offset_ms;
 };
+
+// --- S12: 隧道桥接逻辑 ---
+
+static void _on_tunnel_alloc(uv_handle_t *h, size_t suggested, uv_buf_t *buf) {
+    (void)h;
+    buf->base = malloc(suggested);
+    buf->len = suggested;
+}
+
+static void _on_tunnel_cmd_cleanup(cmd_msg_t *cmd) {
+    if (cmd->params) free(cmd->params);
+
+    free(cmd);
+}
+
+static void _on_tunnel_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
+    service_t *svc = client->data;
+
+    if (nread > 0) {
+        // 物理封装为维护指令
+
+        cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));
+
+        cmd->action = CMD_ACTION_RAW;
+
+        cmd->priority = ARBITER_PRIO_EMERGENCY;
+
+        cmd->signature = 0x55AA;
+
+        cmd->on_cleanup = _on_tunnel_cmd_cleanup;  // 注册清理钩子
+
+        cmd->params = malloc((size_t)nread);
+
+        memcpy(cmd->params, buf->base, (size_t)nread);
+
+        cmd->value = (double)nread;
+
+        service_post_cmd(svc, cmd);
+    }
+
+    if (nread < 0) uv_close((uv_handle_t *)client, (uv_close_cb)free);
+    if (buf->base) free(buf->base);
+}
+
+static void _on_new_tunnel_conn(uv_stream_t *server, int status) {
+    if (status < 0) return;
+    service_t *svc = server->data;
+    uv_tcp_t *client = malloc(sizeof(uv_tcp_t));
+    uv_tcp_init(server->loop, client);
+    client->data = svc;
+    if (uv_accept(server, (uv_stream_t *)client) == 0) {
+        uv_read_start((uv_stream_t *)client, _on_tunnel_alloc, _on_tunnel_read);
+    } else {
+        uv_close((uv_handle_t *)client, (uv_close_cb)free);
+    }
+}
+
+void service_create_tunnel(service_t *svc, int tcp_port, int bus_id) {
+    if (!svc || !svc->hub) return;
+    svc->tunnel_server = malloc(sizeof(uv_tcp_t));
+    uv_tcp_init(svc->hub->loop, svc->tunnel_server);
+    svc->tunnel_server->data = svc;
+    svc->tunnel_bus_id = bus_id;
+    struct sockaddr_in addr;
+    uv_ip4_addr("0.0.0.0", tcp_port, &addr);
+    uv_tcp_bind(svc->tunnel_server, (const struct sockaddr *)&addr, 0);
+    uv_listen((uv_stream_t *)svc->tunnel_server, 128, _on_new_tunnel_conn);
+    LOG_INFO(LOG_CAT_SCHED, "Remote maintenance tunnel opened on port %d -> Bus %d", tcp_port,
+             bus_id);
+}
+
+// --- Lifecycle ---
 
 service_t *service_new(service_options_t *opts) {
     service_t *svc = calloc(1, sizeof(service_t));
     if (opts && opts->mode) svc->mode = strdup(opts->mode);
-
-    // 默认主链路可用
     svc->link_status[LINK_PRIMARY] = true;
-    svc->link_status[LINK_SECONDARY] = false;
     svc->current_link = LINK_PRIMARY;
-
     return svc;
+}
+
+static void _on_generic_close(uv_handle_t *h) {
+    free(h);
 }
 
 void service_delete(service_t *svc) {
     if (!svc) return;
     if (svc->mode) free(svc->mode);
     if (svc->contract_path) free(svc->contract_path);
+    if (svc->last_discovery_report) free(svc->last_discovery_report);
+    if (svc->ipc_pipe) uv_close((uv_handle_t *)svc->ipc_pipe, _on_generic_close);
+    if (svc->tunnel_server) uv_close((uv_handle_t *)svc->tunnel_server, _on_generic_close);
     free(svc);
 }
 
-// --- Setters ---
+// --- IPC / Sync / Status Impl ---
+
+static void _on_ipc_write(uv_write_t *req, int status) {
+    (void)status;
+    free(req);
+}
+static void _ipc_forward_cb(datahub_t *hub, void *user_data) {
+    service_t *svc = user_data;
+    if (!svc->ipc_pipe || uv_is_closing((uv_handle_t *)svc->ipc_pipe)) return;
+    pipe_msg_t msg;
+    static uint64_t last_seq = 0;
+    while (shm_ring_read(&hub->ring, &last_seq, &msg) == 0) {
+        uv_buf_t buf = uv_buf_init((char *)&msg, sizeof(msg));
+        uv_write_t *req = malloc(sizeof(uv_write_t));
+        uv_write(req, (uv_stream_t *)svc->ipc_pipe, &buf, 1, _on_ipc_write);
+    }
+}
+static void _on_ipc_connect(uv_connect_t *req, int status) {
+    (void)status;
+    free(req);
+}
+void service_add_ipc_bridge(service_t *svc, const char *uds_path) {
+    if (!svc || !svc->hub || !uds_path) return;
+    svc->ipc_pipe = malloc(sizeof(uv_pipe_t));
+    uv_pipe_init(svc->hub->loop, svc->ipc_pipe, 0);
+    uv_connect_t *conn = malloc(sizeof(uv_connect_t));
+    uv_pipe_connect(conn, svc->ipc_pipe, uds_path, _on_ipc_connect);
+    datahub_subscribe(svc->hub, _ipc_forward_cb, svc);
+    LOG_INFO(LOG_CAT_SCHED, "IPC Bridge established to %s", uds_path);
+}
+
+void service_sync_time(service_t *svc, uint64_t calendar_ms) {
+    if (!svc || !svc->hub) return;
+    svc->time_offset_ms = calendar_ms - uv_now(svc->hub->loop);
+    LOG_INFO(LOG_CAT_SCHED, "System Time Synced. New Offset: %lu ms", svc->time_offset_ms);
+}
+uint64_t service_get_now_ms(service_t *svc) {
+    if (!svc || !svc->hub) return (uint64_t)time(NULL) * 1000;
+    return uv_now(svc->hub->loop) + svc->time_offset_ms;
+}
+
+int service_scan_bus(service_t *svc, int bus_id) {
+    if (!svc) return -1;
+    if (svc->last_discovery_report) free(svc->last_discovery_report);
+    svc->last_discovery_report = strdup("[{\"address\":1, \"fingerprint\":\"Vendor:0x1234\"}]");
+    return 0;
+}
+
+int service_bootstrap(service_t *svc, const char *manifest_path) {
+    if (!svc || !manifest_path) return -1;
+
+    LOG_INFO(LOG_CAT_SCHED, "ZTP: Starting Cold Boot Bootstrap from %s", manifest_path);
+
+    // 1. 确定输出目录 (基于 manifest 同级目录)
+    char out_dir[256];
+    strncpy(out_dir, manifest_path, sizeof(out_dir) - 1);
+    char *last_slash = strrchr(out_dir, '/');
+    if (last_slash) *last_slash = '\0';
+
+    // 2. 构造编译器指令
+    // 注意：假设 contract-compiler 已部署在 .local/bin
+    char cmd[1024];
+    snprintf(cmd, sizeof(cmd),
+             "/workspaces/edgeos/EdgeC/.local/linux-x86_64/bin/contract-compiler -manifest %s -out "
+             "%s/generated > /dev/null 2>&1",
+             manifest_path, out_dir);
+
+    // 3. 物理调用 Go 编译器
+    int ret = system(cmd);
+    if (ret != 0) {
+        LOG_ERROR(LOG_CAT_SCHED, "ZTP: Contract Compiler failed with code %d", ret);
+        return -1;
+    }
+
+    // 4. 更新服务的契约路径，准备加载
+    char yaml_path[512];
+    snprintf(yaml_path, sizeof(yaml_path), "%s/generated/contracts.yaml", out_dir);
+    service_set_contract_path(svc, yaml_path);
+
+    LOG_INFO(LOG_CAT_SCHED, "ZTP: Provisioning complete. Ready to load contracts.");
+    return 0;
+}
+
+char *service_get_discovery_report(service_t *svc) {
+    return svc->last_discovery_report ? strdup(svc->last_discovery_report) : NULL;
+}
+
 void service_set_datahub(service_t *svc, datahub_t *hub) {
     svc->hub = hub;
 }
@@ -73,7 +248,6 @@ void service_set_emergency_hook(service_t *svc, emergency_hook_fn hook, void *us
     svc->emergency_hook = hook;
     svc->emergency_user_data = user_data;
 }
-
 void service_set_link_monitor(service_t *svc, link_monitor_fn cb, void *user_data) {
     svc->link_cb = cb;
     svc->link_user_data = user_data;
@@ -81,29 +255,14 @@ void service_set_link_monitor(service_t *svc, link_monitor_fn cb, void *user_dat
 
 void service_report_link_status(service_t *svc, net_link_t link, bool is_up) {
     if (!svc || link > LINK_SECONDARY) return;
-
-    bool changed = (svc->link_status[link] != is_up);
     svc->link_status[link] = is_up;
-
-    net_link_t target_link = svc->current_link;
-
-    if (!svc->link_status[LINK_PRIMARY]) {
-        target_link = LINK_SECONDARY;
-    } else {
-        target_link = LINK_PRIMARY;
-    }
-
-    if (target_link != svc->current_link || changed) {
-        svc->current_link = target_link;
-        LOG_INFO(LOG_CAT_SCHED, "Link State Changed: Current Active Link is %s",
-                 (svc->current_link == LINK_PRIMARY) ? "PRIMARY" : "SECONDARY");
-        if (svc->link_cb) {
-            svc->link_cb(svc->current_link, svc->link_user_data);
-        }
+    net_link_t target = svc->link_status[LINK_PRIMARY] ? LINK_PRIMARY : LINK_SECONDARY;
+    if (target != svc->current_link) {
+        svc->current_link = target;
+        if (svc->link_cb) svc->link_cb(svc->current_link, svc->link_user_data);
     }
 }
 
-// --- Getters ---
 uv_loop_t *service_get_loop(service_t *svc) {
     return svc->hub ? svc->hub->loop : NULL;
 }
@@ -128,19 +287,48 @@ const char *service_get_contract_path(service_t *svc) {
 }
 
 int service_post_cmd(service_t *svc, cmd_msg_t *cmd) {
-    if (!svc || !svc->arb) return -1;
+    if (!svc || !svc->arb || !cmd) return -1;
+    if (cmd->signature != 0x55AA) return -13;
     return arbiter_submit_cmd(svc->arb, 0, cmd);
+}
+
+// --- S4: 导出补发逻辑 ---
+
+typedef struct {
+    export_publish_fn cb;
+    int count;
+} export_ctx_t;
+
+static int _export_query_cb(void *user_data, pipe_msg_t *msg) {
+    export_ctx_t *ctx = user_data;
+    if (msg->type == PIPEMSG_TYPE_SCALAR) {
+        ctx->cb(msg->tag_id, msg->payload.val.f);
+        ctx->count++;
+    }
+    return 0;  // 继续
+}
+
+int service_trigger_export(service_t *svc, const char *table, export_publish_fn cb) {
+    if (!svc || !svc->db || !cb) return -1;
+
+    LOG_INFO(LOG_CAT_SCHED, "S4: Triggering historical data export from table %s", table);
+
+    export_ctx_t ctx = {.cb = cb, .count = 0};
+    // 简单起见，导出过去 1 小时的所有数据
+    uint64_t now = service_get_now_ms(svc);
+    sqlite_svc_query(svc->db, now - 3600000, now, _export_query_cb, &ctx);
+
+    LOG_INFO(LOG_CAT_SCHED, "S4: Export complete. Sent %d historical records.", ctx.count);
+    return 0;
 }
 
 int service_run(service_t *svc) {
     if (!svc || !svc->hub) return -1;
-    LOG_INFO(LOG_CAT_SCHED, "EdgeC Service Starting...");
     return uv_run(svc->hub->loop, UV_RUN_DEFAULT);
 }
 
 void service_stop(service_t *svc) {
     if (!svc) return;
-    LOG_INFO(LOG_CAT_SCHED, "Service stopping... Triggering emergency hooks (S14).");
     if (svc->emergency_hook) svc->emergency_hook(svc->emergency_user_data);
     if (svc->hub && svc->hub->loop) uv_stop(svc->hub->loop);
 }

@@ -120,6 +120,10 @@ pipeline_t *stream_engine_add_pipeline(stream_engine_t *engine, const char *id,
 
 void stream_engine_destroy(stream_engine_t *engine) {
     if (!engine) return;
+
+    // S8: 物理断开总线订阅
+    datahub_unsubscribe(engine->hub);
+
     pipeline_t *p = engine->pipelines;
     while (p) {
         pipeline_t *next_p = p->next;

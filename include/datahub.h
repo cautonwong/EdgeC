@@ -49,4 +49,9 @@ int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out);
  */
 void datahub_subscribe(datahub_t *hub, datahub_on_data_cb cb, void *user_data);
 
+/**
+ * @brief 退订通知 (S8: 用于平滑热更)
+ */
+void datahub_unsubscribe(datahub_t *hub);
+
 #endif

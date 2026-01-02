@@ -63,6 +63,49 @@ edge_params_t *service_get_params(service_t *svc);
 const char *service_get_contract_path(service_t *svc);
 
 int service_post_cmd(service_t *svc, cmd_msg_t *cmd);
+/**
+ * @brief [S9] 添加 IPC 桥接，将内部总线转发至外部 UDS 地址
+ */
+void service_add_ipc_bridge(service_t *svc, const char *uds_path);
+
+/**
+ * @brief [S11] 触发总线扫描发现设备
+ */
+int service_scan_bus(service_t *svc, int bus_id);
+
+/**
+ * @brief [S11] 获取最近一次扫描的发现报告 (JSON 格式)
+ */
+char *service_get_discovery_report(service_t *svc);
+
+/**
+ * @brief [S16] 冷启动自举：根据清单文件自动生成并加载契约
+ */
+int service_bootstrap(service_t *svc, const char *manifest_path);
+
+/**
+ * @brief [S10] 同步系统时间 (ms)
+ */
+void service_sync_time(service_t *svc, uint64_t calendar_ms);
+
+/**
+ * @brief [S10] 获取校准后的当前时间戳 (ms)
+ */
+uint64_t service_get_now_ms(service_t *svc);
+
+/**
+ * @brief [S12] 创建远程维护隧道 (TCP 端口映射到物理总线)
+ */
+void service_create_tunnel(service_t *svc, int tcp_port, int bus_id);
+
+/**
+ * @brief [S4] 触发历史数据导出补发 (断网续传逻辑)
+ * @param table 目标表名
+ * @param cb 发送回调 (通常封装为 MQTT Publish)
+ */
+typedef void (*export_publish_fn)(uint32_t tag, double val);
+int service_trigger_export(service_t *svc, const char *table, export_publish_fn cb);
+
 int service_run(service_t *svc);
 void service_stop(service_t *svc);
 
