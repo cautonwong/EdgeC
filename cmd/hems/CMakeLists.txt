@@ -7,7 +7,7 @@ set(PROD_NAME hems)
 edge_add_contract(
     contract_${PROD_NAME}
     "${CMAKE_SOURCE_DIR}/contracts/products/${PROD_NAME}.yaml"
-    ""
+    "${CMAKE_CURRENT_SOURCE_DIR}/extension.yaml"
 )
 
 # 2. 定义执行文件

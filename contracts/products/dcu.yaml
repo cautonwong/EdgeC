@@ -1,9 +1,12 @@
 product: "DCU_Standard_V1"
 includes:
   - "contracts/bindings/modbus/acrel_p80.yaml"
+  - "contracts/bindings/dlt645/standard_meter.yaml"
+  - "contracts/bindings/dlms/smart_meter.yaml"
+
 enabled_tags:
   - VOLTAGE_PHASE_A
   - CURRENT_PHASE_A
   - GRID_POWER
+  - ENERGY_ACTIVE_IMPORT
   - GRID_FREQUENCY
-  - PROJECT_HUMIDITY

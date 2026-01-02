@@ -8,12 +8,17 @@ type ModbusHandler struct{}
 
 func (h *ModbusHandler) Name() string { return "MODBUS" }
 func (h *ModbusHandler) Resolve(t model.TagDef, b model.Binding) ResolvedBinding {
+	addr := getUint16Case(b.Attributes, "addr")
+	if addr == 0 {
+		addr = getUint16Case(b.Attributes, "address")
+	}
+	
 	return ResolvedBinding{
 		TagName:      t.Name,
 		TagID:        t.ID,
 		ProtocolType: "MODBUS",
-		Addr:         getUint16Case(b.Attributes, "addr"),
-		Scale:        getFloat32Case(b.Attributes, "scale", 1.0),
+		Addr:         addr,
+		Scale:        getScaler(b.Attributes),
 	}
 }
 

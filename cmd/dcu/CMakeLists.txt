@@ -4,7 +4,7 @@
 edge_add_contract(
     contract_dcu 
     "${CMAKE_SOURCE_DIR}/contracts/products/dcu.yaml"
-    ""
+    "${CMAKE_CURRENT_SOURCE_DIR}/extension.yaml"
 )
 
 add_executable(dcu main.c)

@@ -1,30 +1,28 @@
 product: "IEMS_Controller_V1"
-# 显式包含默认点表基类
-includes:
-  - "contracts/bindings/modbus_maps/default_device.yaml"
-
-# 激活测点 (对齐 test_contract_lookup.c)
+# 激活本地扩展测点
 enabled_tags:
   - GRID_POWER
   - VOLTAGE_PHASE_A
   - GRID_FREQUENCY
+  - ENERGY_ACTIVE_IMPORT
   - BATTERY_SOC
-  - PROJECT_HUMIDITY
+  - BATTERY_POWER
 
-# IEMS 专属物理映射覆盖 (最高优先级)
 tags:
-  - name: PROJECT_HUMIDITY
+  - name: BATTERY_SOC
     bindings:
-      - protocol: MODBUS
-        addr: 50002
-        scale: 1.0
+      - protocol: CAN
+        can_id: 0x1801F456
+        start: 0
+        len: 8
+        factor: 0.4
+        offset: 0.0
+      - protocol: IEC104
+        ioa: 10001
+        type_id: 30 # M_ME_TF_1 (带短浮点数的测量值)
 
-  - id: 9005
-    name: CUSTOM_TEMP_SENSOR
-    type: float
-    unit: C
-    attributes: { upload: true }
+  - name: GRID_POWER
     bindings:
-      - protocol: MODBUS
-        addr: 50001
-        scale: 0.1
+      - protocol: IEC104
+        ioa: 20001
+        type_id: 30

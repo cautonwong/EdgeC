@@ -1,0 +1,15 @@
+# DLMS/COSEM Smart Meter Binding
+protocol: "DLMS"
+model: "Generic_DLMS_V1"
+mappings:
+  - tag: ENERGY_ACTIVE_IMPORT
+    obis: "1.0.1.8.0.255"
+    scaler: 1.0
+
+  - tag: ENERGY_ACTIVE_EXPORT
+    obis: "1.0.2.8.0.255"
+    scaler: 1.0
+
+  - tag: GRID_FREQUENCY
+    obis: "1.0.14.7.0.255"
+    scaler: 0.01

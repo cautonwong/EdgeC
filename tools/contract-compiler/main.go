@@ -28,9 +28,8 @@ type TplCtx struct {
 	ActiveTags []model.TagDef
 	AllTags    []model.TagDef
 	ActiveMap  map[string]bool
-	Modbus     []protocols.ResolvedBinding
-	Can        []protocols.ResolvedBinding
 	PMap       map[string][]protocols.ResolvedBinding
+	Hashes     map[string]core.ProtocolHashInfo
 	Product    string
 }
 
@@ -55,9 +54,6 @@ func (c TplCtx) CType(t string) string {
 	}
 }
 
-func lower(s string) string { return strings.ToLower(s) }
-func list(ss ...string) []string { return ss }
-
 func main() {
 	schema := flag.String("schema", "", "path to schema file")
 	product := flag.String("product", "", "path to product file")
@@ -68,19 +64,54 @@ func main() {
 	flag.Parse()
 
 	contract := core.BuildContract(*schema, *product, *local, *base)
-	activeMap := make(map[string]bool)
+	actMap := make(map[string]bool)
 	for _, t := range contract.ActiveTags {
-		activeMap[t.Name] = true
+		actMap[t.Name] = true
 	}
 	resolved := protocols.Resolve(contract.ActiveTags)
+
+	// 计算各协议的完美哈希
+	hashes := make(map[string]core.ProtocolHashInfo)
+	for proto, rbs := range resolved {
+		entries := make([]core.HashEntry, 0, len(rbs))
+		for _, rb := range rbs {
+			keyStr := ""
+			switch proto {
+			case "MODBUS": keyStr = fmt.Sprintf("%d", rb.Addr)
+			case "IEC104": keyStr = fmt.Sprintf("%d", rb.IOA)
+			case "DLT645": keyStr = rb.DI
+			case "DLT698": keyStr = rb.OAD
+			case "DLMS": keyStr = rb.OBIS
+			case "CAN": continue // CAN 暂不使用完美哈希
+			}
+		
+			rawKey := core.ParseProtocolKey(proto, keyStr)
+			if rawKey == 0 && proto != "MODBUS" { 
+				// Modbus Addr 0 是合法的，其它协议 0 通常是非法或占位
+				continue 
+			}
+
+			entries = append(entries, core.HashEntry{
+				RawKey: rawKey,
+				StrKey: keyStr,
+				TagID: rb.TagID,
+				TagName: rb.TagName,
+				Scale: rb.Scale,
+			})
+		}
+		if len(entries) > 0 {
+			hashes[proto] = core.GeneratePerfectHash(proto, entries)
+			fmt.Printf("[Compiler] Protocol %s: Generated hash for %d entries (IsPerfect: %v)\n", 
+				proto, len(entries), hashes[proto].IsPerfect)
+		}
+	}
 
 	ctx := TplCtx{
 		ActiveTags: contract.ActiveTags,
 		AllTags:    contract.AllTags,
-		ActiveMap:  activeMap,
-		Modbus:     resolved["MODBUS"],
-		Can:        resolved["CAN"],
+		ActiveMap:  actMap,
 		PMap:       resolved,
+		Hashes:     hashes,
 		Product:    contract.Product,
 	}
 
@@ -92,6 +123,10 @@ func main() {
 			if v == nil { return d }
 			return v
 		},
+		"hex": func(v uint64) string { return fmt.Sprintf("0x%X", v) },
+		"strings": func() interface{} { return strings.ToUpper }, // 简单包装以支持 strings.EqualFold 逻辑
+		"equalFold": strings.EqualFold,
+		"parseKey": core.ParseProtocolKey,
 	}
 
 	if *target == "master" {
@@ -102,7 +137,7 @@ func main() {
 	} else {
 		render("gen", filepath.Join(*out, "slave_data.h"), slaveHTpl, ctx, funcMap)
 	}
-	fmt.Printf("Go Build Success [%s]: %s\n", *target, contract.Product)
+	fmt.Printf("Go Build Success [%s]: %s (v4.5-PerfectHash-Secure)\n", *target, contract.Product)
 }
 
 func render(name, path, tpl string, ctx interface{}, fm template.FuncMap) {

@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include "bus_orchestrator.h"
+#include "contracts.h"
 #include "dcu_inventory.h"
 #include "driver_manager.h"
 #include "edge_log.h"
@@ -33,6 +34,13 @@ int main(int argc, char **argv) {
     printf("=== EdgeOS DCU Starting Up ===\n");
 
     edge_log_init(NULL, false);  // 先输出到控制台
+
+    // 0. 契约一致性自检 (工业级防护)
+    if (edge_contract_self_test() != 0) {
+        LOG_ERROR(LOG_CAT_CORE, "Contract Integrity Failed! Hardware bindings mismatch. Aborting.");
+        return EXIT_FAILURE;
+    }
+
     signal(SIGINT, handle_sigint);
 
     service_options_t opts = {.mode = "DCU_PROD_V1"};

@@ -1,0 +1,15 @@
+# IEC 60870-5-104 Substation Binding
+protocol: "IEC104"
+model: "Generic_104_RTU"
+mappings:
+  - tag: GRID_POWER
+    ioa: 16385
+    type_id: 36 # M_ME_TF_1
+
+  - tag: VOLTAGE_PHASE_A
+    ioa: 16386
+    type_id: 36
+
+  - tag: CURRENT_PHASE_A
+    ioa: 16387
+    type_id: 36

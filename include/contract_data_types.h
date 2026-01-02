@@ -5,9 +5,15 @@
 #include <stdint.h>
 
 /**
- * @brief 基础宏与类型定义 (Frozen Layer 0)
+ * @brief Zephyr-style IS_ENABLED Macro Machinery
+ * Allows for compile-time logic branching in C code.
  */
-#define IS_ENABLED(x) ((x) == 1)
+#define __ARG_PLACEHOLDER_1 0,
+#define __take_second_arg(__ignored, val, ...) val
+#define __is_defined(x) __is_defined2(x)
+#define __is_defined2(x) __take_second_arg(__ARG_PLACEHOLDER_##x 1, 0)
+
+#define IS_ENABLED(config_macro) __is_defined(config_macro)
 typedef uint32_t edge_tag_id_t;
 
 // --- 元数据结构 ---
@@ -22,12 +28,12 @@ typedef struct {
     bool upload;           // 是否上送
 } tag_meta_t;
 
-// --- 协议映射结构 (统一定义，解决编译依赖) ---
+// --- 协议映射结构 (统一步骤：使用 scaler 命名) ---
 
 typedef struct {
     uint16_t addr;
     edge_tag_id_t id;
-    float scale;
+    float scaler;
 } modbus_map_t;
 
 typedef struct {
@@ -44,14 +50,16 @@ typedef struct {
 
 typedef struct {
     const char* di;
+    uint32_t di_num;
     edge_tag_id_t id;
-    float scale;
+    float scaler;
 } dlt645_map_t;
 
 typedef struct {
     const char* oad;
+    uint32_t oad_num;
     edge_tag_id_t id;
-    float scale;
+    float scaler;
 } dlt698_map_t;
 
 typedef struct {

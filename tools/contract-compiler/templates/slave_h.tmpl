@@ -1,8 +1,24 @@
-/* AUTO-GENERATED FOR SLAVE DEVICE */
+/* AUTO-GENERATED FOR SLAVE DEVICE V4.5 */
 #ifndef SLAVE_DATA_H
 #define SLAVE_DATA_H
 #include <stdint.h>
+#include <stdbool.h>
 
+// [Section 1] Feature Gates
+{{- range .AllTags }}
+#define TAG_{{ .Name }}_ENABLED {{ if $.IsActive .Name }}1{{ else }}0{{ end }}
+{{- end }}
+
+// [Section 2] Tag ID Enum
+typedef enum {
+    TAG_INVALID = 0,
+{{- range .AllTags }}
+    TAG_{{ .Name }} = {{ .ID }},
+{{- end }}
+    TAG_MAX_ID
+} edge_tag_enum_t;
+
+// [Section 3] Slave Data Storage
 #pragma pack(push, 1)
 typedef struct {
 {{- range .ActiveTags }}
@@ -13,4 +29,5 @@ typedef struct {
 #pragma pack(pop)
 
 extern slave_data_store_t g_slave_data;
+
 #endif

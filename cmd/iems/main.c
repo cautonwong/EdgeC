@@ -7,10 +7,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <uv.h>
 
 #include "arbiter.h"
 #include "bus_orchestrator.h"
+#include "contracts.h"
 #include "datahub.h"
 #include "edge_log.h"
 #include "edge_service.h"
@@ -48,7 +50,14 @@ int main(int argc, char **argv) {
     (void)argv;
 
     edge_log_init(NULL, false);
-    LOG_INFO(LOG_CAT_SCHED, "Initializing IEMS Controller [v3.1 Architecture]...");
+
+    // 0. 契约一致性自检 (启动守门员)
+    if (edge_contract_self_test() != 0) {
+        LOG_ERROR(LOG_CAT_CORE, "Contract Self-test FAILED! Aborting.");
+        return EXIT_FAILURE;
+    }
+
+    LOG_INFO(LOG_CAT_SCHED, "Initializing IEMS Controller...");
 
     uv_loop_t *loop = uv_default_loop();
 

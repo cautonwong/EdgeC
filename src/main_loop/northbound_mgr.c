@@ -50,21 +50,30 @@ static void mqtt_init_and_connect(const char *url, const char *client_id) {
 }
 
 // --- DataHub Listener ---
-static void on_data_notify(uv_async_t *handle) {
-    northbound_mgr_t *mgr = (northbound_mgr_t *)handle->data;
+static void on_data_notify_impl(northbound_mgr_t *mgr) {
     shm_ring_t *ring = mgr->ring;
-    // 简化：这里演示原理，实际应该在 mgr 中维护 read_seq
-
-    // 我们需要一个非阻塞的读取循环。
-    // 由于 shm_ring 是为轮询设计的，这里我们假设 mgr->last_seq 已维护
     PipeMsg msg;
     while (shm_ring_read(ring, &mgr->last_seq, &msg) == 0) {
         // 1. 查契约
         const tag_meta_t *meta = edge_get_meta(msg.tag_id);
-        if (!meta) continue;
+        if (!meta) {
+            printf("[Northbound] No meta found for tag %d\n", msg.tag_id);
+            continue;
+        }
+
+        if (!meta->name) {
+            printf("[Northbound] Tag %d has meta but name is NULL\n", msg.tag_id);
+            continue;
+        }
 
         // 2. 检查上送标志
-        if (!meta->upload) continue;
+        if (!meta->upload) {
+            printf("[Northbound] Tag %s (%d) upload flag is false\n", meta->name, msg.tag_id);
+            continue;
+        }
+
+        printf("[Northbound] Pushing tag %s (%d) value %.2f to MQTT\n", meta->name, msg.tag_id,
+               msg.payload.val.f);
 
         // 3. 构造 JSON 并上送
         if (g_mqtt_connected) {
@@ -83,8 +92,18 @@ static void on_data_notify(uv_async_t *handle) {
 
             free(json_str);  // cJSON_Print 分配的内存
             cJSON_Delete(root);
+        } else {
+            printf("[Northbound] MQTT not connected, skipping push\n");
         }
     }
+}
+
+static void on_data_notify_async(uv_async_t *handle) {
+    on_data_notify_impl((northbound_mgr_t *)handle->data);
+}
+
+static void on_data_notify_timer(uv_timer_t *handle) {
+    on_data_notify_impl((northbound_mgr_t *)handle->data);
 }
 
 // --- Lifecycle ---
@@ -111,7 +130,7 @@ static void north_thread_entry(void *arg) {
     mqtt_init_and_connect("tcp://localhost:1883", "edgeos_gw");
 
     // 初始化 DataHub 监听
-    uv_async_init(&mgr->loop, &mgr->data_async, on_data_notify);
+    uv_async_init(&mgr->loop, &mgr->data_async, on_data_notify_async);
     mgr->data_async.data = mgr;
 
     // 注册到 DataHub (注意：DataHub 需要支持多 Listener，或者我们通过 service 层转发)
@@ -132,7 +151,7 @@ static void north_thread_entry(void *arg) {
     uv_timer_init(&mgr->loop, &mgr->poll_timer);
     mgr->poll_timer.data = mgr;
     // 100ms 轮询一次 SHM，作为临时方案
-    uv_timer_start(&mgr->poll_timer, (uv_timer_cb)on_data_notify, 100, 100);
+    uv_timer_start(&mgr->poll_timer, on_data_notify_timer, 100, 100);
 
     uv_async_init(&mgr->loop, &mgr->stop_async, on_north_stop);
     mgr->stop_async.data = mgr;

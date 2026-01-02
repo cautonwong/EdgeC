@@ -46,7 +46,7 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
     add_custom_command(
         OUTPUT "${OUT_C}" "${OUT_H}" "${OUT_YAML}"
         COMMAND "${COMPILER_BIN}" ${CMD_ARGS}
-        DEPENDS contract_compiler_bin "${SCHEMA_PATH}" "${PRODUCT_YAML}" ${LOCAL_DEP}
+        DEPENDS "${COMPILER_BIN}" "${SCHEMA_PATH}" "${PRODUCT_YAML}" ${LOCAL_DEP}
         COMMENT "[Contract] Generating native lookup tables for ${TARGET_NAME}"
         VERBATIM
     )

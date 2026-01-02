@@ -1,12 +1,12 @@
 #include <stdio.h>
-#include <stdlib.h>
 
 #include "contracts.h"
-#include "edge_service.h"
+#include "edge_log.h"
 
 int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
+    edge_contract_self_test();
     printf("--- EdgeOS EVSE App [契约化验证] ---\n");
 
     // 1. 验证 DLMS OBIS 映射

@@ -4,6 +4,7 @@ import (
 	"contract-compiler/model"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -47,6 +48,10 @@ func Resolve(tags []model.TagDef) map[string][]ResolvedBinding {
 
 // --- 鲁棒性辅助函数 (共享) ---
 
+func getScaler(m map[string]interface{}) float32 {
+	return getFloat32Case(m, "scaler", getFloat32Case(m, "scale", 1.0))
+}
+
 func getUint16Case(m map[string]interface{}, key string) uint16 {
 	v, ok := m[key]
 	if !ok { v, ok = m[strings.ToUpper(key)] }
@@ -55,6 +60,14 @@ func getUint16Case(m map[string]interface{}, key string) uint16 {
 		case int: return uint16(val)
 		case int32: return uint16(val)
 		case float64: return uint16(val)
+		case string:
+			// 处理 0x 十六进制字符串
+			if strings.HasPrefix(val, "0x") || strings.HasPrefix(val, "0X") {
+				res, _ := strconv.ParseUint(val[2:], 16, 16)
+				return uint16(res)
+			}
+			res, _ := strconv.Atoi(val)
+			return uint16(res)
 		}
 	}
 	return 0
@@ -74,6 +87,9 @@ func getFloat32Case(m map[string]interface{}, key string, def float32) float32 {
 		switch val := v.(type) {
 		case float64: return float32(val)
 		case int: return float32(val)
+		case string:
+			res, _ := strconv.ParseFloat(val, 32)
+			return float32(res)
 		}
 	}
 	return def
@@ -87,6 +103,13 @@ func getIntCase(m map[string]interface{}, key string) int {
 		case int: return val
 		case int32: return int(val)
 		case float64: return int(val)
+		case string:
+			if strings.HasPrefix(val, "0x") || strings.HasPrefix(val, "0X") {
+				res, _ := strconv.ParseInt(val[2:], 16, 32)
+				return int(res)
+			}
+			res, _ := strconv.Atoi(val)
+			return res
 		}
 	}
 	return 0

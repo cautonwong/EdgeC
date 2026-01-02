@@ -13,7 +13,7 @@ func (h *DlmsHandler) Resolve(t model.TagDef, b model.Binding) ResolvedBinding {
 		TagID:        t.ID,
 		ProtocolType: "DLMS",
 		OBIS:         getStringCase(b.Attributes, "obis"),
-		Scale:        getFloat32Case(b.Attributes, "scaler", 1.0),
+		Scale:        getScaler(b.Attributes),
 	}
 }
 

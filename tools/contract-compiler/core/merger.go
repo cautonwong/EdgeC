@@ -72,8 +72,8 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 				for _, t := range tags {
 					if tm, ok := t.(map[string]interface{}); ok {
 						if name, ok := tm["name"].(string); ok {
-							enabledSet[name] = true
-							mergeMap(rawTags, name, tm) // 现场定义覆盖库和产品
+							// 仅执行合并，不再强制 enabledSet[name] = true
+							mergeMap(rawTags, name, tm) 
 						}
 					}
 				}
@@ -105,7 +105,7 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 	validateProtocolOverlap(activeTags)
 
 	sort.Slice(activeTags, func(i, j int) bool { return activeTags[i].ID < activeTags[j].ID })
-	sort.Slice(allTags, func(i, j int) bool { return allTags[i].Name < allTags[j].Name })
+	sort.Slice(allTags, func(i, j int) bool { return allTags[i].ID < allTags[j].ID })
 
 	prodName := pc.ProductName
 	if prodName == "" {
@@ -137,7 +137,17 @@ func mergeMap(target map[string]map[string]interface{}, name string, tm map[stri
 			if newBs, ok := v.([]interface{}); ok {
 				for _, nb := range newBs {
 					if nbm, ok := nb.(map[string]interface{}); ok {
-						p, _ := nbm["protocol"].(string); injectBinding(target, name, p, nbm)
+						p, _ := nbm["protocol"].(string)
+						// 支持扁平结构：如果除了 protocol 外还有其它 key，则视为属性
+						attr := make(map[string]interface{})
+						if nestedAttr, ok := nbm["attributes"].(map[string]interface{}); ok {
+							attr = nestedAttr
+						} else {
+							for nk, nv := range nbm {
+								if nk != "protocol" && nk != "tag" { attr[nk] = nv }
+							}
+						}
+						injectBinding(target, name, p, attr)
 					}
 				}
 			}
@@ -148,7 +158,19 @@ func mergeMap(target map[string]map[string]interface{}, name string, tm map[stri
 func injectBinding(rawTags map[string]map[string]interface{}, tagName, proto string, attr map[string]interface{}) {
 	tag, ok := rawTags[tagName]; if !ok { return }
 	bindings, _ := tag["bindings"].([]interface{})
-	newB := map[string]interface{}{"protocol": proto, "attributes": attr}
+
+	// 语义归一化：将 scale 统一为 scaler, address 统一为 addr
+	normalizedAttr := make(map[string]interface{})
+	for k, v := range attr {
+		newK := k
+		switch strings.ToLower(k) {
+		case "scale": newK = "scaler"
+		case "address": newK = "addr"
+		}
+		normalizedAttr[newK] = v
+	}
+
+	newB := map[string]interface{}{"protocol": proto, "attributes": normalizedAttr}
 	found := false
 	for i, b := range bindings {
 		if bm, ok := b.(map[string]interface{}); ok {

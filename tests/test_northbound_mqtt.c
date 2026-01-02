@@ -21,10 +21,10 @@ extern void mock_mqtt_reset(void);
 // 创建临时契约文件 (YAML)
 static void create_test_contract(const char *path) {
     FILE *f = fopen(path, "w");
-    // 注意：这里的 TagID 1003 必须与测试发送的数据一致
-    // 且必须与链接的 contract_iems 中的定义一致 (IEMS 中 1003 是 GRID_POWER)
+    // 对齐测试注入的 3001 (ENERGY_ACTIVE_IMPORT)
     fprintf(f,
-            "product: TEST_MOCK\ntags:\n  - name: GRID_POWER\n    id: 1003\n    unit: W\n    "
+            "product: TEST_MOCK\ntags:\n  - name: ENERGY_ACTIVE_IMPORT\n    id: 3001\n    unit: "
+            "kWh\n    "
             "attributes:\n      upload: true\n");
     fclose(f);
 }

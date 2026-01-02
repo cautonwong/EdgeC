@@ -15,7 +15,7 @@ func (h *DltHandler) Resolve(t model.TagDef, b model.Binding) ResolvedBinding {
 		TagName:      t.Name,
 		TagID:        t.ID,
 		ProtocolType: strings.ToUpper(h.ProtoName),
-		Scale:        getFloat32Case(b.Attributes, "scale", 1.0),
+		Scale:        getScaler(b.Attributes),
 	}
 	if rb.ProtocolType == "DLT698" {
 		rb.OAD = getStringCase(b.Attributes, "oad")

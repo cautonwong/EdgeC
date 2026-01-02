@@ -5,13 +5,13 @@
 
 // [Section 1] Feature Gates
 {{- range .AllTags }}
-#define TAG_{{ .Name }}_ENABLED {{ if $.IsActive .Name }}1{{else}}0{{end}}
+#define TAG_{{ .Name }}_ENABLED {{ if $.IsActive .Name }}1{{ else }}0{{ end }}
 {{- end }}
 
 // [Section 2] Tag ID Enum
 typedef enum {
     TAG_INVALID = 0,
-{{- range .ActiveTags }}
+{{- range .AllTags }}
     TAG_{{ .Name }} = {{ .ID }},
 {{- end }}
     TAG_MAX_ID
@@ -24,6 +24,15 @@ edge_tag_id_t edge_lookup_dlms(const char* obis, float *out_scale);
 edge_tag_id_t edge_lookup_iec104(int ioa);
 edge_tag_id_t edge_lookup_dlt698(const char* oad, float *out_scale);
 edge_tag_id_t edge_lookup_dlt645(const char* di, float *out_scale);
+
+// 生产级数字接口 (O(1) Perfect Hash)
+edge_tag_id_t edge_lookup_dlt645_num(uint32_t di, float *out_scale);
+
+/**
+ * @brief 契约一致性自检 (启动时调用)
+ * @return 错误数量，0 表示成功
+ */
+int edge_contract_self_test(void);
 
 extern const can_map_t g_can_map[];
 extern const int g_can_map_len;

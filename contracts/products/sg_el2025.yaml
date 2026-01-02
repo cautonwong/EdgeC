@@ -1,16 +1,10 @@
-product: "SG_Fusion_Terminal"
+product: "SG_EL2025_GW"
 includes:
-  - "contracts/bindings/dlms/chint_dtsu.yaml"
-  - "contracts/bindings/iec104/nari_relay.yaml"
-  - "contracts/bindings/can/catl_bms.yaml"
+  - "contracts/bindings/iec104/substation.yaml"
+  - "contracts/bindings/modbus/acrel_p80.yaml"
 
 enabled_tags:
   - GRID_POWER
   - VOLTAGE_PHASE_A
-  - GATEWAY_INTERNAL_TEMP
-  - BATTERY_SOC
-
-overrides:
-  BATTERY_SOC:
-    upload: true
-    persist: false
+  - CURRENT_PHASE_A
+  - GRID_FREQUENCY

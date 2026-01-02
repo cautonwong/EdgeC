@@ -23,14 +23,15 @@ function(build_contract_compiler)
     message(STATUS "[Compiler] Setting up build for contract-compiler...")
 
     # 使用 add_custom_command 来追踪 Go 源码变化
-    # 获取 tools/contract-compiler 下所有的 .go 文件
+    # 获取 tools/contract-compiler 下所有的 .go 和 .tmpl 文件
     file(GLOB_RECURSE GO_SOURCES "${COMPILER_SRC_DIR}/*.go")
+    file(GLOB_RECURSE TPL_SOURCES "${COMPILER_SRC_DIR}/*.tmpl")
 
     add_custom_command(
         OUTPUT "${COMPILER_BIN_OUTPUT}"
         COMMAND ${GO_EXECUTABLE} build -o "${COMPILER_BIN_OUTPUT}" .
         WORKING_DIRECTORY "${COMPILER_SRC_DIR}"
-        DEPENDS ${GO_SOURCES} "${COMPILER_SRC_DIR}/go.mod"
+        DEPENDS ${GO_SOURCES} ${TPL_SOURCES} "${COMPILER_SRC_DIR}/go.mod"
         COMMENT "[Go] Building contract-compiler binary..."
         VERBATIM
     )

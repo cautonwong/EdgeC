@@ -2,61 +2,97 @@
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "contract_data_types.h"
-#include "contracts.h"  // 链接 iems 契约
+#include "contracts.h"
 
 /**
- * @brief 验证 Modbus 物理地址到业务语义的动态映射
+ * [Test 1] 深度验证 Modbus 查找 (Acrel P80)
  */
-static void test_modbus_mapping_logic(void **state) {
+static void test_lookup_modbus_advanced(void **state) {
     (void)state;
     float scale = 0.0f;
-    edge_tag_id_t id;
 
-    // 1. 测试标准点位 (A相电压 - 0x0000)
-    // acrel_p80.yaml 中定义 scale: 0.1
-    id = edge_lookup_modbus(0x0000, &scale);
-    assert_int_equal(id, TAG_VOLTAGE_PHASE_A);
+    // 验证 A相电压
+    assert_int_equal(edge_lookup_modbus(0x0000, &scale), TAG_VOLTAGE_PHASE_A);
     assert_float_equal(scale, 0.1f, 0.0001f);
 
-    // 2. 验证项目扩展测点 (PROJECT_HUMIDITY - ID: 8001)
-    // extension.yaml 中覆盖定义为 scale: 1.0
-    id = edge_lookup_modbus(50002, &scale);
-    assert_int_equal(id, TAG_PROJECT_HUMIDITY);
-    assert_float_equal(scale, 1.0f, 0.001f);
-
-    // 3. 测试不存在的点位 (预期返回 TAG_INVALID)
-    id = edge_lookup_modbus(0xFFFF, &scale);
-    assert_int_equal(id, 0);
+    // 验证 总有功功率
+    assert_int_equal(edge_lookup_modbus(0x000C, &scale), TAG_GRID_POWER);
+    assert_float_equal(scale, 1.0f, 0.0001f);
 }
 
 /**
- * @brief 验证多协议（DLMS/DLT645）查表定力
+ * [Test 2] 深度验证 DLT645 查找 (数字接口 & 字符串接口)
  */
-static void test_multi_proto_lookup(void **state) {
+static void test_lookup_dlt645_full(void **state) {
     (void)state;
     float scale = 0.0f;
-    edge_tag_id_t id;
 
-    // 1. DLT645 DI 映射 (定义在 contracts/bindings/dlt645/standard_meter.yaml)
-    // 02010100 对应 A相电压
-    id = edge_lookup_dlt645("02010100", &scale);
-    assert_int_equal(id, TAG_VOLTAGE_PHASE_A);
-    // 真实点表中 scale 为 1.0 (或默认值)
-    assert_float_equal(scale, 1.0f, 0.0001f);
+    // 1. 字符串接口 (DI: 00010000 -> 正向有功总电能)
+    assert_int_equal(edge_lookup_dlt645("00010000", &scale), TAG_ENERGY_ACTIVE_IMPORT);
+    assert_float_equal(scale, 0.01f, 0.0001f);
 
-    // 2. 模拟空查询 (绝对不存在的 OBIS)
-    id = edge_lookup_dlms("9.9.9.9.9.9", &scale);
-    assert_int_equal(id, 0);
+    // 2. 生产级数字接口 (DI_NUM: 0x00010000)
+    // 这一步直接走 Perfect Hash Mixer，性能最高
+    assert_int_equal(edge_lookup_dlt645_num(0x00010000, &scale), TAG_ENERGY_ACTIVE_IMPORT);
+    assert_float_equal(scale, 0.01f, 0.0001f);
+
+    // 3. 验证 A相电压 DI (02010100)
+    assert_int_equal(edge_lookup_dlt645_num(0x02010100, &scale), TAG_VOLTAGE_PHASE_A);
+    assert_float_equal(scale, 0.1f, 0.0001f);
+}
+
+/**
+ * [Test 3] 验证 CAN 静态映射表 (g_can_map)
+ */
+static void test_lookup_can_map(void **state) {
+    (void)state;
+    bool found = false;
+
+    // 查找电池 SOC 对应的 CAN 帧解析配置
+    for (int i = 0; i < g_can_map_len; i++) {
+        if (g_can_map[i].id == TAG_BATTERY_SOC) {
+            assert_int_equal(g_can_map[i].can_id, 0x1801F456);
+            assert_float_equal(g_can_map[i].factor, 0.4f, 0.0001f);
+            found = true;
+            break;
+        }
+    }
+    assert_true(found);
+}
+
+/**
+ * [Test 4] 验证 IEC104 IOA 查找
+ */
+static void test_lookup_iec104(void **state) {
+    (void)state;
+    // 验证本地扩展定义的 104 地址
+    assert_int_equal(edge_lookup_iec104(10001), TAG_BATTERY_SOC);
+    assert_int_equal(edge_lookup_iec104(20001), TAG_GRID_POWER);
+
+    // 非法 IOA
+    assert_int_equal(edge_lookup_iec104(99999), TAG_INVALID);
+}
+
+/**
+ * [Test 5] 验证编译器自检逻辑
+ */
+static void test_contract_self_consistency(void **state) {
+    (void)state;
+    // 该函数在 C 内部执行“闭环验证”，即从 YAML 地址出发，反查 Hash 表
+    assert_int_equal(edge_contract_self_test(), 0);
 }
 
 int main(void) {
     const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_modbus_mapping_logic),
-        cmocka_unit_test(test_multi_proto_lookup),
+        cmocka_unit_test(test_lookup_modbus_advanced),
+        cmocka_unit_test(test_lookup_dlt645_full),
+        cmocka_unit_test(test_lookup_can_map),
+        cmocka_unit_test(test_lookup_iec104),
+        cmocka_unit_test(test_contract_self_consistency),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
