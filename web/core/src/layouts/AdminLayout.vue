@@ -1,46 +1,80 @@
 <template>
-  <div class="admin-layout" :class="`theme-${contractStore.contract?.ui_config?.branding?.theme || 'default'}`">
+  <div class="flex h-screen w-screen overflow-hidden bg-slate-100 font-sans selection:bg-blue-100">
     <!-- Sidebar -->
-    <aside class="sidebar">
-      <div class="logo">
-        <img v-if="contractStore.contract?.ui_config?.branding?.logo" 
-             :src="contractStore.contract.ui_config.branding.logo" class="h-8 w-8 inline-block mr-2" />
-        {{ contractStore.contract?.ui_config?.branding?.title || 'EdgeOS' }}
+    <aside class="w-72 bg-slate-950 text-slate-400 flex flex-col shadow-2xl relative z-50">
+      <div class="p-8 flex items-center gap-4 bg-slate-900/50 backdrop-blur-md">
+        <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 ring-1 ring-white/20">
+          <span class="text-white font-black text-xl italic">E</span>
+        </div>
+        <div>
+          <div class="text-white font-black tracking-tight leading-tight uppercase">
+            {{ contractStore.contract?.ui_config?.branding?.title || 'EdgeOS' }}
+          </div>
+          <div class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Control Plane</div>
+        </div>
       </div>
-      <nav>
-        <!-- 核心差异化：根据契约导航开关进行显隐控制 -->
+
+      <nav class="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
         <router-link 
           v-for="item in visibleMenuItems" 
           :key="item.path" 
           :to="item.path" 
-          class="nav-item"
+          class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group hover:bg-slate-900 hover:text-white"
+          active-class="!bg-blue-600 !text-white shadow-xl shadow-blue-600/20"
         >
-          <span class="icon">{{ item.meta?.icon }}</span>
-          <span class="title">{{ item.meta?.title }}</span>
+          <span class="text-lg opacity-70 group-hover:scale-110 transition-transform">{{ item.meta?.icon }}</span>
+          <span class="text-sm font-semibold tracking-wide">{{ item.meta?.title }}</span>
         </router-link>
       </nav>
+
+      <div class="p-6 border-t border-slate-900">
+        <div class="p-4 bg-slate-900/50 rounded-2xl border border-slate-800">
+          <div class="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] mb-1">Node Status</div>
+          <div class="text-xs text-slate-400 font-mono flex items-center gap-2">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            Operational
+          </div>
+        </div>
+      </div>
     </aside>
 
-    <!-- Main Content -->
-    <main class="content">
-      <header class="top-bar">
-        <div class="product-info">
-          <span class="font-bold text-gray-700">{{ contractStore.contract?.product || 'EdgeOS Core' }}</span>
-          <span class="ml-2 text-xs text-gray-400 font-mono">v1.0.0</span>
+    <!-- Main -->
+    <div class="flex-1 flex flex-col min-w-0">
+      <header class="h-20 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-10 sticky top-0 z-40">
+        <div class="flex items-center gap-2 text-sm">
+          <span class="text-slate-400 font-medium">Nodes</span>
+          <span class="text-slate-300">/</span>
+          <span class="font-bold text-slate-800 uppercase tracking-tighter">{{ contractStore.contract?.product }}</span>
         </div>
-        <div class="system-status">
-          <span class="text-sm text-gray-500 mr-4">Uptime: {{ formatTime(uptime) }}</span>
-          <div class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" 
-               :class="isOnline ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'">
-            {{ isOnline ? 'CONNECTED' : 'OFFLINE' }}
+
+        <div class="flex items-center gap-8">
+          <div class="hidden md:flex gap-8 border-r border-slate-100 pr-8">
+            <div class="text-right">
+              <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">System Uptime</div>
+              <div class="text-sm font-bold text-slate-700 font-mono">{{ formatTime(uptime) }}</div>
+            </div>
+            <div class="text-right">
+              <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Real-time Link</div>
+              <div class="text-sm font-bold flex items-center gap-1.5 justify-end" :class="isOnline ? 'text-emerald-600' : 'text-rose-500'">
+                <span class="w-1 h-1 rounded-full bg-current"></span>
+                {{ isOnline ? 'CONNECTED' : 'DISCONNECTED' }}
+              </div>
+            </div>
+          </div>
+          <div class="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 font-bold text-xs cursor-pointer hover:bg-slate-200 transition-colors">
+            AD
           </div>
         </div>
       </header>
       
-      <div class="page-body">
-        <router-view></router-view>
-      </div>
-    </main>
+      <main class="flex-1 overflow-y-auto">
+        <router-view v-slot="{ Component }">
+          <transition name="fade" mode="out-in">
+            <component :is="Component" />
+          </transition>
+        </router-view>
+      </main>
+    </div>
   </div>
 </template>
 
@@ -51,10 +85,7 @@ import { useContractStore } from '../services/ContractLoader';
 import axios from 'axios';
 
 const contractStore = useContractStore();
-
-// 使用计算属性替代 v-for + v-if
 const visibleMenuItems = computed(() => getVisibleMenuItems());
-
 const uptime = ref(0);
 const isOnline = ref(false);
 let timer: any = null;
@@ -73,32 +104,13 @@ function formatTime(sec: number) {
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
   const s = sec % 60;
-  return `${h}:${m}:${s}`;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
 onMounted(async () => {
-  // 确保数据已加载
-  if (!contractStore.contract) {
-    await contractStore.loadContract();
-  }
-  await fetchStatus();
+  if (!contractStore.contract) await contractStore.loadContract();
+  fetchStatus();
   timer = setInterval(fetchStatus, 5000);
 });
-
-onUnmounted(() => {
-  if (timer) clearInterval(timer);
-});
+onUnmounted(() => timer && clearInterval(timer));
 </script>
-
-<style scoped>
-.admin-layout { display: flex; height: 100vh; width: 100vw; overflow: hidden; background: #f8fafc; }
-.sidebar { width: 260px; background: #0f172a; color: white; display: flex; flex-direction: column; }
-.logo { height: 64px; line-height: 64px; text-align: center; font-size: 18px; font-weight: 800; background: #1e293b; border-bottom: 1px solid #334155; }
-.nav-item { padding: 14px 24px; color: #94a3b8; text-decoration: none; display: flex; align-items: center; transition: all 0.2s; }
-.nav-item:hover { color: white; background: #334155; }
-.nav-item.router-link-active { color: white; background: #3b82f6; font-weight: 600; }
-
-.content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-.top-bar { height: 64px; background: white; padding: 0 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; }
-.page-body { flex: 1; padding: 24px; overflow-y: auto; }
-</style>

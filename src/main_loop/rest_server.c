@@ -46,6 +46,15 @@ static int on_sqlite_row(void *user_data, PipeMsg *msg) {
     return 0;
 }
 
+// --- Utils ---
+static uint64_t get_query_param_uint(const char *path, const char *key, uint64_t default_val) {
+    char search_key[32];
+    snprintf(search_key, sizeof(search_key), "%s=", key);
+    char *p = strstr(path, search_key);
+    if (!p) return default_val;
+    return (uint64_t)atoll(p + strlen(search_key));
+}
+
 // --- API Handlers ---
 
 static char *handle_system_health(service_t *svc) {
@@ -66,6 +75,28 @@ static char *handle_contracts_get(service_t *svc) {
     if (!path || access(path, F_OK) != 0) return strdup("{\"error\":\"contract_not_found\"}");
     FILE *f = fopen(path, "r");
     if (!f) return strdup("{\"error\":\"read_failed\"}");
+    fseek(f, 0, SEEK_END);
+    long len = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    char *buf = malloc((size_t)len + 1);
+    fread(buf, 1, (size_t)len, f);
+    fclose(f);
+    buf[len] = '\0';
+    return buf;
+}
+
+static char *handle_ui_descriptor_get(service_t *svc) {
+    const char *contract_path = service_get_contract_path(svc);
+    if (!contract_path) return strdup("{\"error\":\"no_path\"}");
+
+    char desc_path[256];
+    strncpy(desc_path, contract_path, sizeof(desc_path));
+    char *ext = strstr(desc_path, "contracts.yaml");
+    if (ext) strcpy(ext, "ui_descriptor.json");
+
+    if (access(desc_path, F_OK) != 0) return strdup("{\"error\":\"not_found\"}");
+
+    FILE *f = fopen(desc_path, "r");
     fseek(f, 0, SEEK_END);
     long len = ftell(f);
     fseek(f, 0, SEEK_SET);
@@ -106,7 +137,7 @@ static char *handle_devices_get(service_t *svc) {
 static char *handle_params_list(service_t *svc) {
     cJSON *root = cJSON_CreateObject();
     cJSON *params = cJSON_AddArrayToObject(root, "params");
-    edge_params_t *ctx = service_get_params(svc);  // 获取句柄
+    edge_params_t *ctx = service_get_params(svc);
 
     const char *keys[] = {"vpp_max_charge_w", "vpp_max_discharge_w", "grid_freq_threshold_hz"};
     float defaults[] = {5000.0f, 5000.0f, 0.5f};
@@ -114,7 +145,6 @@ static char *handle_params_list(service_t *svc) {
     for (int i = 0; i < 3; i++) {
         cJSON *p = cJSON_CreateObject();
         cJSON_AddStringToObject(p, "key", keys[i]);
-        // 使用新 API 获取值
         cJSON_AddNumberToObject(p, "value", edge_param_get_float(ctx, keys[i], defaults[i]));
         cJSON_AddStringToObject(p, "type", "float");
         cJSON_AddItemToArray(params, p);
@@ -127,7 +157,6 @@ static char *handle_params_list(service_t *svc) {
 
 static char *handle_config_post(service_t *svc, const char *body) {
     if (!body) return strdup("{\"error\":\"missing_body\"}");
-
     cJSON *root = cJSON_Parse(body);
     if (!root) return strdup("{\"error\":\"invalid_json\"}");
 
@@ -136,24 +165,36 @@ static char *handle_config_post(service_t *svc, const char *body) {
 
     if (cJSON_IsString(key) && cJSON_IsNumber(val)) {
         edge_params_t *ctx = service_get_params(svc);
-        if (!ctx) {
-            cJSON_Delete(root);
-            return strdup("{\"error\":\"params_service_unavailable\"}");
-        }
-
-        // 使用新 API 设置值
         if (edge_param_set_float(ctx, key->valuestring, (float)val->valuedouble) == EDGE_OK) {
-            LOG_INFO(LOG_CAT_CORE, "Config updated: %s = %.3f", key->valuestring, val->valuedouble);
             cJSON_Delete(root);
-            return strdup("{\"status\":\"ok\",\"message\":\"parameter_queued_for_update\"}");
-        } else {
-            cJSON_Delete(root);
-            return strdup("{\"error\":\"update_failed\"}");
+            return strdup("{\"status\":\"ok\"}");
         }
     }
-
     cJSON_Delete(root);
-    return strdup("{\"error\":\"bad_request_schema\"}");
+    return strdup("{\"error\":\"failed\"}");
+}
+
+static char *handle_control_post(service_t *svc, const char *body) {
+    if (!body) return strdup("{\"error\":\"missing_body\"}");
+    cJSON *root = cJSON_Parse(body);
+    if (!root) return strdup("{\"error\":\"invalid_json\"}");
+
+    cJSON *tag = cJSON_GetObjectItem(root, "tag_id");
+    cJSON *val = cJSON_GetObjectItem(root, "value");
+
+    if (!tag || !val || !cJSON_IsNumber(tag) || !cJSON_IsNumber(val)) {
+        cJSON_Delete(root);
+        return strdup("{\"error\":\"invalid_parameters\"}");
+    }
+    cmd_msg_t cmd;
+    cmd_msg_init_write(&cmd, (uint32_t)tag->valuedouble, val->valuedouble, CMD_PRIO_NORMAL);
+
+    if (service_post_cmd(svc, &cmd) == 0) {
+        cJSON_Delete(root);
+        return strdup("{\"status\":\"ok\"}");
+    }
+    cJSON_Delete(root);
+    return strdup("{\"error\":\"failed\"}");
 }
 
 static char *handle_history_query(service_t *svc, uint32_t tag_id, uint64_t start, uint64_t end) {
@@ -176,7 +217,11 @@ static char *handle_data_latest(service_t *svc, uint32_t tag_id) {
     cJSON *root = cJSON_CreateObject();
     if (datahub_read_shadow(hub, tag_id, &msg) == 0) {
         cJSON_AddNumberToObject(root, "tag_id", msg.tag_id);
-        cJSON_AddNumberToObject(root, "value", msg.payload.val.f);
+        if (msg.type == PIPEMSG_TYPE_SCALAR) {
+            cJSON_AddNumberToObject(root, "value", msg.payload.val.f);
+        } else {
+            cJSON_AddNumberToObject(root, "value", (double)msg.payload.val.i);
+        }
         cJSON_AddNumberToObject(root, "ts", (double)msg.ts);
     } else {
         cJSON_AddStringToObject(root, "status", "not_found");
@@ -186,73 +231,13 @@ static char *handle_data_latest(service_t *svc, uint32_t tag_id) {
     return out;
 }
 
-// --- Dispatcher ---
-
-static uint64_t get_query_param_uint(const char *path, const char *key, uint64_t default_val) {
-    char search_key[32];
-    snprintf(search_key, sizeof(search_key), "%s=", key);
-    char *p = strstr(path, search_key);
-    if (!p) return default_val;
-    return (uint64_t)atoll(p + strlen(search_key));
-}
-
-/**
- * @brief 下发 UI 描述符 (UI Descriptor)
- */
-static char *handle_ui_descriptor_get(service_t *svc) {
-    const char *contract_path = service_get_contract_path(svc);
-    if (!contract_path) return strdup("{\"error\":\"no_path\"}");
-
-    // 假设描述符文件与契约 YAML 在同一目录 (products/<name>/generated/ui_descriptor.json)
-    char desc_path[256];
-    strncpy(desc_path, contract_path, sizeof(desc_path));
-    char *ext = strstr(desc_path, "contracts.yaml");
-    if (ext) strcpy(ext, "ui_descriptor.json");
-
-    if (access(desc_path, F_OK) != 0) return strdup("{\"error\":\"not_found\"}");
-
-    FILE *f = fopen(desc_path, "r");
-    fseek(f, 0, SEEK_END);
-    long len = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    char *buf = malloc((size_t)len + 1);
-    fread(buf, 1, (size_t)len, f);
-    fclose(f);
-    buf[len] = '\0';
-    return buf;
-}
-
-static char *handle_control_post(service_t *svc, const char *body) {
-    if (!body) return strdup("{\"error\":\"missing_body\"}");
-    cJSON *root = cJSON_Parse(body);
-    if (!root) return strdup("{\"error\":\"invalid_json\"}");
-
-    cJSON *tag = cJSON_GetObjectItem(root, "tag_id");
-    cJSON *val = cJSON_GetObjectItem(root, "value");
-
-    if (!tag || !val || !cJSON_IsNumber(tag) || !cJSON_IsNumber(val)) {
-        cJSON_Delete(root);
-        return strdup("{\"error\":\"invalid_parameters\"}");
-    }
-    cmd_msg_t cmd;
-    cmd_msg_init_write(&cmd, (uint32_t)tag->valuedouble, val->valuedouble, CMD_PRIO_NORMAL);
-
-    if (service_post_cmd(svc, &cmd) == 0) {
-        cJSON_Delete(root);
-        return strdup("{\"status\":\"ok\",\"message\":\"command_dispatched_to_arbiter\"}");
-    }
-
-    cJSON_Delete(root);
-    return strdup("{\"error\":\"failed_to_post_command\"}");
-}
-
 char *rest_dispatch(service_t *svc, const char *path, const char *body) {
-    if (strcmp(path, "/api/v1/system/health") == 0) return handle_system_health(svc);
-    if (strcmp(path, "/api/v1/contracts") == 0) return handle_contracts_get(svc);
-    if (strcmp(path, "/api/v1/ui/descriptor") == 0) return handle_ui_descriptor_get(svc);
-    if (strcmp(path, "/api/v1/pipelines") == 0) return handle_pipelines_get(svc);
-    if (strcmp(path, "/api/v1/devices") == 0) return handle_devices_get(svc);
-    if (strcmp(path, "/api/v1/control") == 0 && body) return handle_control_post(svc, body);
+    if (strncmp(path, "/api/v1/system/health", 21) == 0) return handle_system_health(svc);
+    if (strncmp(path, "/api/v1/contracts", 17) == 0) return handle_contracts_get(svc);
+    if (strncmp(path, "/api/v1/ui/descriptor", 21) == 0) return handle_ui_descriptor_get(svc);
+    if (strncmp(path, "/api/v1/pipelines", 17) == 0) return handle_pipelines_get(svc);
+    if (strncmp(path, "/api/v1/devices", 15) == 0) return handle_devices_get(svc);
+    if (strncmp(path, "/api/v1/control", 15) == 0 && body) return handle_control_post(svc, body);
 
     if (strncmp(path, "/api/v1/data/query", 18) == 0) {
         uint32_t tag_id = (uint32_t)get_query_param_uint(path, "tag", 1001);
