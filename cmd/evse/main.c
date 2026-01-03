@@ -1,24 +1,24 @@
+#include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "contracts.h"
 #include "edge_log.h"
+#include "edge_service.h"
+
+static service_t *g_svc = NULL;
 
 int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
-    edge_contract_self_test();
-    printf("--- EdgeOS EVSE App [契约化验证] ---\n");
+    edge_log_init(NULL, false);
+    if (edge_contract_self_test() != 0) return 1;
 
-    // 1. 验证 DLMS OBIS 映射
-    float scale;
-    // 映射定义在 generic_ess.yaml (OBIS: 1.0.66.7.0.255 -> EV_CHARGE_POWER)
-    edge_tag_id_t id = edge_lookup_dlms("1.0.66.7.0.255", &scale);
-    printf("[Driver] DLMS OBIS '1.0.66.7.0.255' -> TagID: %d, Scale: %.2f\n", id, scale);
+    printf("--- EdgeOS EVSE Controller [Container Mode] ---\\n");
 
-    // 2. 验证本地私有报警
-    if (IS_ENABLED(TAG_PLUG_OVERTEMP_ENABLED)) {
-        printf("[Custom] Local Alarm Logic: Plug Overtemp (ID: %d) ACTIVE\n", TAG_PLUG_OVERTEMP);
-    }
+    service_options_t opts = {
+        .product_name = "evse_v1", .db_path = "evse.db", .web_port = 28080, .rest_port = 28081};
+    g_svc = service_new(&opts);
 
-    return 0;
+    return service_run(g_svc);
 }

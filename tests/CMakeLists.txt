@@ -6,11 +6,14 @@ macro(add_edge_test TEST_NAME)
     add_executable(${TEST_NAME} ${ARGN})
     target_include_directories(${TEST_NAME} PRIVATE ../include ../algo/include)
     target_link_libraries(${TEST_NAME} PRIVATE
+        -Wl,--start-group
+        edge_algo
         edge_main_loop
         edge_stream_engine
         edge_io_executor
-        edge_algo
-        contract_iems  # IEMS 契约作为测试默认底座
+        contract_iems
+        edge_core
+        -Wl,--end-group
         cmocka::cmocka
         pthread dl rt m
     )
@@ -35,6 +38,8 @@ add_edge_test(test_driver_manager test_driver_manager.c)
 add_edge_test(test_io_executor test_io_executor.c)
 add_edge_test(test_contract_lookup test_contract_lookup.c)
 add_edge_test(test_driver_dlt645 test_driver_dlt645.c ../src/io_executor/driver_dlt645.c)
+add_edge_test(test_driver_v3 test_driver_v3.c)
+add_edge_test(test_modbus_v3 test_modbus_v3.c)
 
 # 4. 流处理引擎测试 (Compute Plane)
 add_edge_test(test_stream_engine test_stream_engine.c)
@@ -59,9 +64,14 @@ add_edge_test(test_dcu test_dcu.c)
 add_executable(test_scheduler test_scheduler.c mock_time.c)
 target_include_directories(test_scheduler PRIVATE ../include ../algo/include)
 target_link_libraries(test_scheduler PRIVATE
+    -Wl,--start-group
+    edge_algo
     edge_main_loop
     edge_stream_engine
+    edge_io_executor
     contract_iems
+    edge_core
+    -Wl,--end-group
     cmocka::cmocka
     pthread dl rt m
 )
@@ -72,14 +82,17 @@ add_executable(test_northbound_mqtt
     test_northbound_mqtt.c
     mock_mqtt.c
     mock_servers.c
-    mock_service_deps.c
-    ../src/main_loop/northbound_mgr.c
-    ../src/main_loop/edge_service.c
 )
 target_include_directories(test_northbound_mqtt PRIVATE ../include ../algo/include)
 target_link_libraries(test_northbound_mqtt PRIVATE 
-    edge_core     
+    -Wl,--start-group
+    edge_algo
+    edge_main_loop
+    edge_stream_engine
+    edge_io_executor
     contract_iems
+    edge_core
+    -Wl,--end-group
     cmocka::cmocka
     pthread dl rt m
 )

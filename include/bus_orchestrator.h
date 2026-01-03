@@ -14,10 +14,13 @@ typedef struct bus_orchestrator_s bus_orchestrator_t;
 bus_orchestrator_t *bus_orchestrator_create(edge_driver_t *driver, datahub_t *hub, arbiter_t *arb);
 
 /**
- * @brief 添加周期性轮询任务
- * @param ctx 编排器实例
- * @param interval_ms 轮询周期 (毫秒)
- * @param group 轮询组配置 (包含 slave_id, start_addr 等)
+ * @brief 添加周期性轮询任务 (V3 有状态版)
+ */
+int bus_orchestrator_add_poll_v3(bus_orchestrator_t *ctx, const char *protocol, uint32_t device_id,
+                                 uint32_t tag_id, int interval_ms);
+
+/**
+ * @brief 添加周期性轮询任务 (V2 兼容版)
  */
 int bus_orchestrator_add_poll(bus_orchestrator_t *ctx, int interval_ms,
                               const edge_poll_group_t *group);

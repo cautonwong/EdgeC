@@ -51,7 +51,7 @@ device_config_t *profile_load(const char *path) {
         cfg->points[i].reg_addr = (uint32_t)cJSON_GetObjectItem(item, "addr")->valueint;
         cfg->points[i].reg_count = (uint16_t)cJSON_GetObjectItem(item, "len")->valueint;
         cfg->points[i].func_code = 0x03;
-        cfg->points[i].scale = cJSON_GetObjectItem(item, "scale")->valuedouble;
+        cfg->points[i].scaler = cJSON_GetObjectItem(item, "scale")->valuedouble;
         cfg->points[i].offset = cJSON_GetObjectItem(item, "offset")->valuedouble;
     }
 

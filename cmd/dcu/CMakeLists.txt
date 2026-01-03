@@ -20,7 +20,9 @@ target_include_directories(dcu PRIVATE
 
 target_link_libraries(dcu PRIVATE
     edge_main_loop
+    edge_stream_engine
     edge_io_executor
+    edge_algo
     edge_core
     contract_dcu
     pthread dl rt m

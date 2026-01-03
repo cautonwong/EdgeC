@@ -1,6 +1,6 @@
 /**
  * @file net_buf.c
- * @brief Network Buffer Library Implementation (Faithful Zephyr Port)
+ * @brief 工业级网络缓冲区实现 (V3.0 升维版)
  */
 
 #include "net_buf.h"
@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* --- 1. net_buf_simple Implementation --- */
+/* --- 1. net_buf_simple 实现 (保持极致轻量) --- */
 
 void net_buf_simple_init(struct net_buf_simple *buf, size_t reserve) {
     buf->data = buf->__buf + reserve;
@@ -19,12 +19,9 @@ void net_buf_simple_init(struct net_buf_simple *buf, size_t reserve) {
 
 void net_buf_simple_init_with_data(struct net_buf_simple *buf, void *data, size_t size) {
     buf->__buf = (uint8_t *)data;
-
     buf->data = (uint8_t *)data;
-
     buf->size = (uint16_t)size;
-
-    buf->len = (uint16_t)size;  // [物理还原] 包装已有数据时，长度即为数据大小
+    buf->len = (uint16_t)size;
 }
 
 void net_buf_simple_reset(struct net_buf_simple *buf) {
@@ -66,10 +63,18 @@ void *net_buf_simple_pull_mem(struct net_buf_simple *buf, void *dst, size_t len)
     return ptr;
 }
 
-/* --- 2. Pool & Context Implementation --- */
+/* --- 2. 增强型 Pool 实现 --- */
 
+/**
+ * 内存布局：[net_buf 结构体] [元数据 UserData] [物理载荷 __buf] (全 8 字节对齐)
+ */
 static size_t get_node_size(net_buf_pool_t *pool) {
-    return (sizeof(struct net_buf) + pool->user_data_size + pool->buf_size + 7) & (size_t)~7;
+    size_t sz = sizeof(struct net_buf);
+    sz += pool->user_data_size;
+    // 确保载荷起始地址对齐
+    sz = (sz + 7) & (size_t)~7;
+    sz += pool->buf_size;
+    return (sz + 7) & (size_t)~7;
 }
 
 int net_buf_pool_init(net_buf_pool_t *pool, uint16_t count, uint16_t size, uint16_t user_data_size,
@@ -127,20 +132,24 @@ net_buf_t *net_buf_alloc(net_buf_pool_t *pool, int64_t timeout_ms) {
             buf = net_buf_pool_get(pool, (uint16_t)(pool->buf_count - pool->uninit_count));
             buf->pool = pool;
             buf->b.size = pool->buf_size;
-            buf->b.__buf = buf->__buf_start + pool->user_data_size;
+            // 物理缓冲区位于 UserData 之后，且需重新计算对齐后的偏移
+            size_t payload_offset =
+                (sizeof(struct net_buf) + pool->user_data_size + 7) & (size_t)~7;
+            buf->b.__buf = (uint8_t *)buf + payload_offset;
             pool->uninit_count--;
             break;
         }
         if (timeout_ms == 0) break;
+        // 注意：此处简化处理，实际应根据 timeout_ms 决定等待时间
         uv_cond_wait(&pool->cond, &pool->lock);
         if (timeout_ms > 0) break;
     }
     uv_mutex_unlock(&pool->lock);
+
     if (buf) {
-        buf->ref = 1;
+        atomic_init(&buf->ref, 1);
         buf->next = NULL;
         buf->frags = NULL;
-        buf->parent = NULL;
         buf->flags = 0;
         net_buf_simple_init(&buf->b, 0);
     }
@@ -148,21 +157,20 @@ net_buf_t *net_buf_alloc(net_buf_pool_t *pool, int64_t timeout_ms) {
 }
 
 net_buf_t *net_buf_ref(net_buf_t *buf) {
-    if (buf) __sync_fetch_and_add(&buf->ref, 1);
+    if (buf) atomic_fetch_add_explicit(&buf->ref, 1, memory_order_relaxed);
     return buf;
 }
 
 void net_buf_unref(net_buf_t *buf) {
     if (!buf) return;
-    if (__sync_sub_and_fetch(&buf->ref, 1) > 0) return;
 
+    // 返回递减前的值，如果之前是 1，说明现在是 0，需要回收
+    if (atomic_fetch_sub_explicit(&buf->ref, 1, memory_order_acq_rel) != 1) return;
+
+    // 递归释放分片
     if (buf->frags) {
         net_buf_unref(buf->frags);
         buf->frags = NULL;
-    }
-    if (buf->parent) {
-        net_buf_unref(buf->parent);
-        buf->parent = NULL;
     }
 
     net_buf_pool_t *pool = buf->pool;
@@ -178,39 +186,39 @@ void net_buf_unref(net_buf_t *buf) {
 net_buf_t *net_buf_clone(net_buf_t *buf, int64_t timeout_ms) {
     net_buf_t *clone = net_buf_alloc(buf->pool, timeout_ms);
     if (!clone) return NULL;
-    clone->b = buf->b;
-    clone->parent = net_buf_ref(buf);
+
+    // 拷贝数据状态
+    clone->b.data = clone->b.__buf + net_buf_simple_headroom(&buf->b);
+    clone->b.len = buf->b.len;
+    memcpy(clone->b.data, buf->b.data, buf->b.len);
+
+    // 拷贝元数据
+    memcpy(clone->__user_data, buf->__user_data, buf->pool->user_data_size);
+
     return clone;
 }
 
 void net_buf_frag_add(net_buf_t *head, net_buf_t *frag) {
     if (!head || !frag) return;
-    net_buf_t *last = net_buf_frag_last(head);
+    net_buf_t *last = head;
+    while (last->frags) last = last->frags;
     last->frags = frag;
 }
 
 net_buf_t *net_buf_frag_del(net_buf_t *parent, net_buf_t *frag) {
     if (!parent || !frag) return NULL;
-
-    // 情况 1：目标正好是 parent 的直接分片
     if (parent->frags == frag) {
         parent->frags = frag->frags;
         frag->frags = NULL;
         return frag;
     }
-
-    // 情况 2：在 parent 的分片链条中搜索前驱
     net_buf_t *prev = parent->frags;
-    while (prev && prev->frags != frag) {
-        prev = prev->frags;
-    }
-
+    while (prev && prev->frags != frag) prev = prev->frags;
     if (prev) {
         prev->frags = frag->frags;
         frag->frags = NULL;
         return frag;
     }
-
     return NULL;
 }
 

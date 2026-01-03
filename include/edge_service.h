@@ -18,7 +18,14 @@ extern "C" {
 typedef struct service_s service_t;
 
 typedef struct {
-    const char *mode;
+    const char *product_name; /**< 产品名称，决定共享内存标识 */
+    const char *db_path;      /**< SQLite 数据库路径 (":memory:" for memory DB) */
+    uint32_t shm_slots;       /**< 共享内存槽位数量 */
+    int rest_port;            /**< REST API 端口 */
+    int web_port;             /**< Web UI 端口 */
+    bool async_log;           /**< 是否开启异步日志 */
+    const char *mode;         /**< 运行模式: PRODUCTION, DEBUG 等 */
+    uv_loop_t *external_loop; /**< 外部事件循环 (为 NULL 则使用默认循环) */
 } service_options_t;
 
 typedef void (*emergency_hook_fn)(void *user_data);

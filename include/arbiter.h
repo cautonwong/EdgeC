@@ -45,6 +45,8 @@ typedef enum {
     CMD_ACTION_POLL
 } cmd_action_t;
 
+#define ARBITER_DEFAULT_TIMEOUT_MS 1000
+
 typedef struct cmd_msg {
     char req_id[32];
     cmd_priority_t priority;
@@ -54,7 +56,8 @@ typedef struct cmd_msg {
     double value;
     void *params;
 
-    uint32_t signature; /**< S20: Command security signature/fingerprint */
+    uint32_t signature;  /**< S20: Command security signature/fingerprint */
+    uint32_t timeout_ms; /**< [补强] 任务执行超时时间 (0 表示使用默认值) */
 
     // Callbacks
     void (*on_start)(void *user);

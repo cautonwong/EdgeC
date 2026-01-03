@@ -1,6 +1,6 @@
 /**
  * @file net_buf.h
- * @brief Network Buffer Library (100% Faithful Zephyr RTOS Port)
+ * @brief 增强版工业网络缓冲区 (支持原子计数与内嵌元数据)
  */
 
 #ifndef EDGE_NET_BUF_H
@@ -8,6 +8,7 @@
 
 #include <assert.h>
 #include <endian.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -20,34 +21,43 @@ extern "C" {
 
 #define NET_BUF_ALIGN __attribute__((__aligned__(sizeof(void *))))
 
+/**
+ * @brief 基础数据容器 (POD)
+ */
 struct net_buf_simple {
-    uint8_t *data;
-    uint16_t len;
-    uint16_t size;
-    uint8_t *__buf;
-};
-
-struct net_buf_simple_state {
-    uint16_t offset;
-    uint16_t len;
+    uint8_t *data;  /**< 指向当前数据起始 */
+    uint16_t len;   /**< 当前有效数据长度 */
+    uint16_t size;  /**< 物理总容量 */
+    uint8_t *__buf; /**< 物理内存起始 */
 };
 
 struct net_buf_pool;
 
+/**
+ * @brief 工业级网络缓冲区结构体
+ */
 struct net_buf {
-    struct net_buf *frags;
-    struct net_buf *next;
-    struct net_buf *parent;
-    struct net_buf_pool *pool;
-    uint8_t ref;
-    uint8_t flags;
-    void *user_data;
-    struct net_buf_simple b;
-    uint8_t __buf_start[] NET_BUF_ALIGN;
+    struct net_buf *frags;     /**< 链式缓冲区支持 */
+    struct net_buf *next;      /**< 队列挂载支持 */
+    struct net_buf_pool *pool; /**< 所属内存池 */
+
+    atomic_uint ref; /**< [补强] 原子引用计数 (C11) */
+    uint8_t flags;   /**< 标志位 */
+
+    struct net_buf_simple b; /**< 数据视图 */
+
+    /**
+     * @brief [补强] 用户元数据区
+     * 紧跟在结构体后面，大小由 pool->user_data_size 决定
+     */
+    uint8_t __user_data[] NET_BUF_ALIGN;
 };
 
 typedef struct net_buf net_buf_t;
 
+/**
+ * @brief 缓冲区内存池
+ */
 typedef struct net_buf_pool {
     uv_mutex_t lock;
     uv_cond_t cond;
@@ -55,15 +65,18 @@ typedef struct net_buf_pool {
     uint16_t buf_count;
     uint16_t buf_size;
     uint16_t uninit_count;
-    uint16_t user_data_size;
+    uint16_t user_data_size; /**< 每个 buffer 附带的元数据大小 */
     void (*destroy_cb)(net_buf_t *buf);
     void *user_data;
     uint8_t *storage;
 } net_buf_pool_t;
 
-#define net_buf_user_data(buf) ((void *)((buf)->__buf_start))
+/**
+ * @brief 获取内嵌元数据指针
+ */
+#define net_buf_user_data(buf) ((void *)((buf)->__user_data))
 
-/* --- 1. net_buf_simple API --- */
+/* --- 1. net_buf_simple API (零分配解析逻辑) --- */
 
 static inline size_t net_buf_simple_tailroom(struct net_buf_simple *buf) {
     return (size_t)(buf->size - (buf->data - buf->__buf) - buf->len);
@@ -81,9 +94,43 @@ void *net_buf_simple_pull(struct net_buf_simple *buf, size_t len);
 void *net_buf_simple_pull_mem(struct net_buf_simple *buf, void *dst, size_t len);
 void net_buf_simple_reset(struct net_buf_simple *buf);
 
-// Endian Helpers
+// --- 补强：大端/小端双向操作接口 ---
+
 static inline void net_buf_simple_add_u8(struct net_buf_simple *buf, uint8_t val) {
     *(uint8_t *)net_buf_simple_add(buf, 1) = val;
+}
+static inline void net_buf_simple_push_u8(struct net_buf_simple *buf, uint8_t val) {
+    *(uint8_t *)net_buf_simple_push(buf, 1) = val;
+}
+
+static inline void net_buf_simple_add_be16(struct net_buf_simple *buf, uint16_t val) {
+    uint16_t v = htobe16(val);
+    memcpy(net_buf_simple_add(buf, 2), &v, 2);
+}
+static inline uint16_t net_buf_simple_pull_be16(struct net_buf_simple *buf) {
+    uint16_t v;
+    memcpy(&v, net_buf_simple_pull(buf, 2), 2);
+    return be16toh(v);
+}
+
+static inline void net_buf_simple_add_le16(struct net_buf_simple *buf, uint16_t val) {
+    uint16_t v = htole16(val);
+    memcpy(net_buf_simple_add(buf, 2), &v, 2);
+}
+static inline uint16_t net_buf_simple_pull_le16(struct net_buf_simple *buf) {
+    uint16_t v;
+    memcpy(&v, net_buf_simple_pull(buf, 2), 2);
+    return le16toh(v);
+}
+
+static inline void net_buf_simple_add_be32(struct net_buf_simple *buf, uint32_t val) {
+    uint32_t v = htobe32(val);
+    memcpy(net_buf_simple_add(buf, 4), &v, 4);
+}
+static inline uint32_t net_buf_simple_pull_be32(struct net_buf_simple *buf) {
+    uint32_t v;
+    memcpy(&v, net_buf_simple_pull(buf, 4), 4);
+    return be32toh(v);
 }
 
 static inline void net_buf_simple_add_be64(struct net_buf_simple *buf, uint64_t val) {
@@ -95,37 +142,22 @@ static inline uint64_t net_buf_simple_pull_be64(struct net_buf_simple *buf) {
     memcpy(&v, net_buf_simple_pull(buf, 8), 8);
     return be64toh(v);
 }
-static inline void net_buf_simple_add_be32(struct net_buf_simple *buf, uint32_t val) {
-    uint32_t v = htobe32(val);
-    memcpy(net_buf_simple_add(buf, 4), &v, 4);
-}
-static inline uint32_t net_buf_simple_pull_be32(struct net_buf_simple *buf) {
-    uint32_t v;
-    memcpy(&v, net_buf_simple_pull(buf, 4), 4);
-    return be32toh(v);
-}
-static inline void net_buf_simple_add_le32(struct net_buf_simple *buf, uint32_t val) {
-    uint32_t v = htole32(val);
-    memcpy(net_buf_simple_add(buf, 4), &v, 4);
-}
-static inline uint32_t net_buf_simple_pull_le32(struct net_buf_simple *buf) {
-    uint32_t v;
-    memcpy(&v, net_buf_simple_pull(buf, 4), 4);
-    return le32toh(v);
-}
+
 static inline uint8_t net_buf_simple_pull_u8(struct net_buf_simple *buf) {
     return *(uint8_t *)net_buf_simple_pull(buf, 1);
 }
 
-/* --- 2. Full net_buf API --- */
+/* --- 2. 完整 net_buf 声明周期 API --- */
 
 int net_buf_pool_init(net_buf_pool_t *pool, uint16_t count, uint16_t size, uint16_t user_data_size,
                       void (*destroy_cb)(net_buf_t *buf), void *user_data);
 void net_buf_pool_destroy(net_buf_pool_t *pool);
+
 net_buf_t *net_buf_alloc(net_buf_pool_t *pool, int64_t timeout_ms);
 net_buf_t *net_buf_ref(net_buf_t *buf);
 void net_buf_unref(net_buf_t *buf);
 net_buf_t *net_buf_clone(net_buf_t *buf, int64_t timeout_ms);
+
 uint16_t net_buf_id(net_buf_t *buf);
 net_buf_t *net_buf_pool_get(net_buf_pool_t *pool, uint16_t id);
 
@@ -145,6 +177,7 @@ static inline void *net_buf_pull(net_buf_t *buf, size_t len) {
 #define net_buf_tailroom(buf) net_buf_simple_tailroom(&(buf)->b)
 #define net_buf_headroom(buf) net_buf_simple_headroom(&(buf)->b)
 
+// --- 链式支持 ---
 void net_buf_frag_add(net_buf_t *head, net_buf_t *frag);
 net_buf_t *net_buf_frag_del(net_buf_t *parent, net_buf_t *frag);
 net_buf_t *net_buf_frag_last(net_buf_t *buf);

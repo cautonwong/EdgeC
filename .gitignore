@@ -21,8 +21,12 @@ node_modules/
 dist/
 .eslintcache
 
-# Local Dependency Root
-.local/
+# Local Dependency Root (Un-ignored for binary distribution)
+# .local/
+
+# Protocol Documentation
+*.doc
+*.DOC
 
 # Logs
 *.log

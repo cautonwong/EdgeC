@@ -296,7 +296,12 @@ void sqlite_svc_destroy(sqlite_svc_t *svc) {
         }
         uv_mutex_destroy(&svc->buf_lock);
     }
-    if (svc->db) sqlite3_close(svc->db);
+    if (svc->db) {
+        int rc = sqlite3_close(svc->db);
+        if (rc != SQLITE_OK) {
+            fprintf(stderr, "[SQLite] Failed to close DB: %d (%s)\n", rc, sqlite3_errmsg(svc->db));
+        }
+    }
     free(svc);
 }
 

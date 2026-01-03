@@ -38,7 +38,10 @@ static void _pipeline_process(pipeline_t *p, pipe_msg_t *msg) {
         }
 
         uint64_t start = uv_hrtime();
-        stage_ret_t ret = s->process(s, msg);
+        stage_ret_t ret = STAGE_OK;
+        if (s->process) {
+            ret = s->process(s, msg);
+        }
         uint64_t elapsed_us = (uv_hrtime() - start) / 1000;
 
         s->last_proc_us = elapsed_us;

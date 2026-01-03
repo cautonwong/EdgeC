@@ -25,4 +25,8 @@ int driver_manager_register(edge_driver_t* driver);
 edge_driver_t* driver_manager_find(const char* name);
 void driver_manager_fini(void);
 
+// --- V3 实例管理 ---
+edge_driver_ctx_t* driver_instance_create(const char* protocol_name, uint32_t device_id);
+void driver_instance_destroy(edge_driver_ctx_t* ctx, const char* protocol_name);
+
 #endif

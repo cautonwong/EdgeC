@@ -20,13 +20,15 @@ struct io_executor_s {
     int is_running;
 };
 
-// --- 驱动回调适配 ---
+// --- 驱动回调适配 (已迁移至 Orchestrator) ---
+#if 0
 static void on_driver_msg(pipe_msg_t *msg, void *user_data) {
     io_executor_t *ctx = (io_executor_t *)user_data;
     if (ctx && ctx->hub) {
         datahub_publish(ctx->hub, msg);
     }
 }
+#endif
 
 io_executor_t *io_executor_create(edge_driver_t *driver, datahub_t *hub) {
     io_executor_t *ctx = calloc(1, sizeof(struct io_executor_s));
@@ -45,28 +47,12 @@ void io_executor_plan_polling(io_executor_t *ctx, uint16_t start, uint16_t count
 }
 
 void io_executor_run(io_executor_t *ctx) {
+    if (!ctx) return;
     ctx->is_running = 1;
-    uint8_t tx_buf[256], rx_buf[512];
-    size_t tx_len;
-    while (ctx->is_running) {
-        for (int i = 0; i < ctx->group_count; i++) {
-            edge_poll_group_t *g = &ctx->groups[i];
-            if (ctx->driver && ctx->driver->build_batch_req(g, tx_buf, &tx_len) == 0) {
-                size_t rx_len = (size_t)(3 + g->count * 2);
-                memset(rx_buf, 0, rx_len);
-                rx_buf[0] = (uint8_t)g->slave_id;
-                rx_buf[1] = 0x03;
-                rx_buf[2] = (uint8_t)(g->count * 2);
-                for (int j = 0; j < g->count; j++) {
-                    uint16_t val = (uint16_t)(g->start_addr + j);
-                    rx_buf[3 + j * 2] = (uint8_t)(val >> 8);
-                    rx_buf[4 + j * 2] = (uint8_t)(val & 0xFF);
-                }
-                ctx->driver->parse_batch_res(g, rx_buf, rx_len, on_driver_msg, ctx);
-            }
-        }
-        usleep(1000000);
-    }
+    LOG_INFO(LOG_CAT_IO, "IO Executor Plane started (Event-driven mode)");
+
+    // 原有的 while(1) 循环极其低效且阻塞，现已移除。
+    // 在 V3 架构中，IO 的触发应由 Arbiter 在主 Loop 中通过 uv_poll 触发。
 }
 
 // --- V1 接口实装 (支持测试与同步执行) ---

@@ -77,7 +77,8 @@ static void handle_sigpwr(int sig) {
 }
 
 int main(int argc, char **argv) {
-    (void)argc; (void)argv;
+    (void)argc;
+    (void)argv;
     srand((unsigned int)time(NULL));
     edge_log_init(NULL, false);
 
@@ -90,15 +91,13 @@ int main(int argc, char **argv) {
     LOG_INFO(LOG_CAT_SCHED, "Initializing IEMS Controller [Service Container Mode]...");
 
     // 1. 利用容器自组装核心平面 (Foundation, Control, Northbound)
-    service_options_t opts = {
-        .product_name = "iems_v1",
-        .db_path = "iems_data.db",
-        .shm_slots = 1024,
-        .web_port = 8080,
-        .rest_port = 8081,
-        .mode = "PRODUCTION"
-    };
-    
+    service_options_t opts = {.product_name = "iems_v1",
+                              .db_path = "iems_data.db",
+                              .shm_slots = 1024,
+                              .web_port = 8080,
+                              .rest_port = 8081,
+                              .mode = "PRODUCTION"};
+
     g_svc = service_new(&opts);
     uv_loop_t *loop = service_get_loop(g_svc);
     datahub_t *hub = service_get_datahub(g_svc);
@@ -118,11 +117,9 @@ int main(int argc, char **argv) {
     policy_syncer_run(service_get_storage(g_svc), orch);
 
     // 5. 契约路径自适应探测
-    const char *contract_candidates[] = {
-        "../generated/contracts.yaml", 
-        "./build/products/iems/generated/contracts.yaml",
-        "./generated/contracts.yaml"
-    };
+    const char *contract_candidates[] = {"../generated/contracts.yaml",
+                                         "./build/products/iems/generated/contracts.yaml",
+                                         "./generated/contracts.yaml"};
     for (int i = 0; i < 3; i++) {
         if (access(contract_candidates[i], F_OK) == 0) {
             service_set_contract_path(g_svc, contract_candidates[i]);
