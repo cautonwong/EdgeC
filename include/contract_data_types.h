@@ -14,7 +14,8 @@
 #define __is_defined2(arg) __take_second_arg(arg 1, 0)
 #define __ARG_PLACEHOLDER_1 0,
 
-#define IS_ENABLED(config_macro) __is_defined(config_macro)
+// [补强] 自动补全后缀，提升开发体验
+#define IS_ENABLED(tag) __is_defined(tag##_ENABLED)
 typedef uint32_t edge_tag_id_t;
 
 // --- 元数据结构 ---
