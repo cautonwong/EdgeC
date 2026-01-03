@@ -28,5 +28,5 @@ target_link_libraries(dcu PRIVATE
     pthread dl rt m
 )
 
-# 安装路径
-install(TARGETS dcu DESTINATION products/dcu/bin)
+# 5. 安装配置
+install_edge_product(dcu)

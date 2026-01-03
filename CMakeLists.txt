@@ -84,6 +84,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests) # Default for test
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(EdgeContract)
 include(WebBuild)
+include(EdgeInstall) # [新增] 引入安装模块
 include(BuildContractCompiler)
 
 # 构建编译器二进制 (Go) - 先于产品契约生成
@@ -99,6 +100,27 @@ file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/tests/logs")
 # 5. Build Core Library (Decoupled Planes - Layer 1)
 # ==============================================================================
 
+# --- Versioning Injection ---
+set(EDGE_MAJOR 4)
+set(EDGE_MINOR 5)
+set(EDGE_PATCH 0)
+set(EDGE_VERSION_STR "${EDGE_MAJOR}.${EDGE_MINOR}.${EDGE_PATCH}")
+
+find_package(Git)
+if(GIT_FOUND)
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        OUTPUT_VARIABLE EDGE_GIT_HASH
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+else()
+    set(EDGE_GIT_HASH "unknown")
+endif()
+
+string(TIMESTAMP EDGE_BUILD_TIME "%Y-%m-%d %H:%M:%S")
+
 # 5.1: The Core Foundation (Shared / Cross-loop)
 add_library(edge_core STATIC
     src/core/edge_version.c
@@ -111,6 +133,15 @@ add_library(edge_core STATIC
     src/core/edge_log.c
 )
 target_link_libraries(edge_core PUBLIC cJSON::cjson libuv::uv SQLite::SQLite3 ${ZLOG_LIB})
+
+target_compile_definitions(edge_core PUBLIC
+    EDGE_VER_MAJOR=${EDGE_MAJOR}
+    EDGE_VER_MINOR=${EDGE_MINOR}
+    EDGE_VER_PATCH=${EDGE_PATCH}
+    EDGE_VER_STR="${EDGE_VERSION_STR}"
+    EDGE_GIT_HASH="${EDGE_GIT_HASH}"
+    EDGE_BUILD_TIME="${EDGE_BUILD_TIME}"
+)
 
 # 5.2: The Control Plane (Main Loop)
 add_library(edge_main_loop STATIC
@@ -193,38 +224,6 @@ install(DIRECTORY "${LOCAL_ROOT}/lib/"
         FILES_MATCHING 
         PATTERN "*.so*"
         PATTERN "*.a" EXCLUDE)
-
-# 8.2 产品组件定义 (支持 Web UI 自动关联)
-macro(install_edge_product PROD_NAME)
-    string(TOUPPER ${PROD_NAME} PROD_UPPER)
-    set(COMP_NAME "${PROD_UPPER}")
-    
-    install(TARGETS ${PROD_NAME} DESTINATION bin COMPONENT ${COMP_NAME})
-    
-    # 物理安装 Web 产物 (从构建目录直接拷贝)
-    if(IS_DIRECTORY "${CMAKE_BINARY_DIR}/products/${PROD_NAME}/www")
-        install(DIRECTORY "${CMAKE_BINARY_DIR}/products/${PROD_NAME}/www/" 
-                DESTINATION www/${PROD_NAME} 
-                COMPONENT ${COMP_NAME})
-    endif()
-
-    # 契约与配置
-    install(FILES "${CMAKE_BINARY_DIR}/products/${PROD_NAME}/generated/contracts.yaml" 
-            DESTINATION etc/${PROD_NAME} 
-            COMPONENT ${COMP_NAME}
-            OPTIONAL)
-    
-    install(DIRECTORY "${CMAKE_SOURCE_DIR}/config/${PROD_NAME}/" 
-            DESTINATION etc/${PROD_NAME} 
-            COMPONENT ${COMP_NAME}
-            OPTIONAL)
-endmacro()
-
-install_edge_product(iems)
-install_edge_product(dcu)
-install_edge_product(evse)
-install_edge_product(hems)
-install_edge_product(sg_el2025)
 
 # [核心补强] 开启 RPATH 相对路径搜索
 set(CMAKE_INSTALL_RPATH "$ORIGIN/../lib")

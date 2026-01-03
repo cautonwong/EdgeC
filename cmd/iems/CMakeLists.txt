@@ -29,4 +29,7 @@ target_link_libraries(${PROD_NAME} PRIVATE
     pthread dl rt m
 )
 
+# 5. 安装配置
+install_edge_product(${PROD_NAME})
+
 
