@@ -133,10 +133,11 @@ func main() {
 	if *target == "master" {
 		render("gen", filepath.Join(*out, "contracts.h"), masterHTpl, ctx, funcMap)
 		render("gen", filepath.Join(*out, "contracts.c"), masterCTpl, ctx, funcMap)
+		render("gen", filepath.Join(*out, "contracts_slave.h"), slaveHTpl, ctx, funcMap)
 		yData, _ := yaml.Marshal(contract)
 		os.WriteFile(filepath.Join(*out, "contracts.yaml"), yData, 0644)
 	} else {
-		render("gen", filepath.Join(*out, "slave_data.h"), slaveHTpl, ctx, funcMap)
+		render("gen", filepath.Join(*out, "contracts_slave.h"), slaveHTpl, ctx, funcMap)
 	}
 	fmt.Printf("Go Build Success [%s]: %s (v4.5-PerfectHash-Secure)\n", *target, contract.Product)
 }

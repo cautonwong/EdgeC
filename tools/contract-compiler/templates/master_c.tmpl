@@ -59,8 +59,11 @@ edge_tag_id_t edge_lookup_modbus(uint16_t reg, float *s) {
     {{- end }}
     return TAG_INVALID;
 }
+// Slave Alias
+edge_tag_id_t edge_slave_get_tag_by_modbus_addr(uint16_t r) { return edge_lookup_modbus(r, NULL); }
 {{- else }}
 edge_tag_id_t edge_lookup_modbus(uint16_t r, float *s) { (void)r; (void)s; return TAG_INVALID; }
+edge_tag_id_t edge_slave_get_tag_by_modbus_addr(uint16_t r) { (void)r; return TAG_INVALID; }
 {{- end }}
 
 // --- CAN ---
@@ -112,32 +115,15 @@ edge_tag_id_t edge_lookup_dlt645_num(uint32_t di, float *s) {
     {{- end }}
     return TAG_INVALID;
 }
+edge_tag_id_t edge_slave_get_tag_by_dlt645_di(uint32_t d) { return edge_lookup_dlt645_num(d, NULL); }
 {{- else }}
 edge_tag_id_t edge_lookup_dlt645(const char* d, float *s) { (void)d; (void)s; return TAG_INVALID; }
 edge_tag_id_t edge_lookup_dlt645_num(uint32_t di, float *s) { (void)di; (void)s; return TAG_INVALID; }
+edge_tag_id_t edge_slave_get_tag_by_dlt645_di(uint32_t d) { (void)d; return TAG_INVALID; }
 {{- end }}
 
 // --- DLMS ---
-{{- $dlms := index .Hashes "DLMS" }}
-{{- if $dlms.Keys }}
-static const dlms_map_t s_dlms_table[] = {
-{{- range $dlms.Keys }}
-    { "{{ .StrKey }}", {{ if ne .TagName "" }}TAG_{{ .TagName }}{{ else }}TAG_INVALID{{ end }}, {{ printf "%.6f" .Scale }}f },
-{{- end }}
-};
-edge_tag_id_t edge_lookup_dlms(const char* obis, float *s) {
-    if (!obis) return TAG_INVALID;
-    for (int i = 0; i < {{ len $dlms.Keys }}; i++) {
-        if (s_dlms_table[i].id != TAG_INVALID && strcmp(s_dlms_table[i].obis, obis) == 0) {
-            if (s) *s = s_dlms_table[i].scaler;
-            return s_dlms_table[i].id;
-        }
-    }
-    return TAG_INVALID;
-}
-{{- else }}
-edge_tag_id_t edge_lookup_dlms(const char* o, float *s) { (void)o; (void)s; return TAG_INVALID; }
-{{- end }}
+// ... (DLMS 暂时不支持 Slave 别名) ...
 
 // --- IEC104 ---
 {{- $iec := index .Hashes "IEC104" }}
@@ -159,8 +145,10 @@ edge_tag_id_t edge_lookup_iec104(int ioa) {
     {{- end }}
     return TAG_INVALID;
 }
+edge_tag_id_t edge_slave_get_tag_by_iec104_ioa(int ioa) { return edge_lookup_iec104(ioa); }
 {{- else }}
 edge_tag_id_t edge_lookup_iec104(int ioa) { (void)ioa; return TAG_INVALID; }
+edge_tag_id_t edge_slave_get_tag_by_iec104_ioa(int ioa) { (void)ioa; return TAG_INVALID; }
 {{- end }}
 
 // --- DLT698 ---
