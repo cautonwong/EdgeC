@@ -1,28 +1,35 @@
 <template>
-  <div class="p-4">
-    <h2 class="text-xl font-bold mb-4">System Configuration</h2>
-    
-    <div class="bg-white rounded shadow overflow-hidden">
-      <table class="w-full">
-        <thead class="bg-gray-50 text-left">
-          <tr>
-            <th class="p-3">Key</th>
-            <th class="p-3">Value</th>
-            <th class="p-3">Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="item in params" :key="item.key" class="border-b">
-            <td class="p-3 font-mono">{{ item.key }}</td>
-            <td class="p-3">
-              <input v-model="item.value" class="border rounded px-2 py-1 w-full" />
-            </td>
-            <td class="p-3">
-              <button @click="saveParam(item)" class="text-blue-600 hover:underline">Save</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+  <div class="p-8 lg:p-12 space-y-10 animate-in fade-in duration-500">
+    <div>
+      <h1 class="text-3xl font-black text-slate-800 tracking-tight italic">SYSTEM <span class="text-rose-600 not-italic">CONFIG</span></h1>
+      <p class="text-slate-400 text-sm font-medium mt-1 uppercase tracking-widest">Global Parameter Management</p>
+    </div>
+
+    <div class="grid grid-cols-1 gap-8">
+      <div class="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 p-10">
+        <div class="space-y-8">
+          <div v-for="param in parameters" :key="param.key" class="flex items-center justify-between group">
+            <div class="space-y-1">
+              <div class="text-xs font-black text-slate-400 uppercase tracking-widest">{{ param.key }}</div>
+              <div class="text-[10px] text-slate-300 font-mono italic">TYPE: {{ param.type }}</div>
+            </div>
+            
+            <div class="flex items-center gap-4">
+              <input 
+                v-model="param.pendingValue"
+                type="text" 
+                class="w-32 bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-right font-mono font-bold text-slate-700 outline-none focus:ring-2 focus:ring-rose-500/20"
+              />
+              <button 
+                @click="updateParam(param)"
+                class="px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all shadow-lg shadow-slate-900/10 active:scale-95"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -31,31 +38,33 @@
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
 
-const params = ref<any[]>([]);
+const parameters = ref<any[]>([]);
 
 const fetchParams = async () => {
   try {
     const res = await axios.get('/api/v1/system/config');
-    // 假设后端返回 { params: [{key: 'a', value: 1}] }
-    params.value = res.data.params || [];
+    parameters.value = (res.data.params || []).map((p: any) => ({
+      ...p,
+      pendingValue: p.value
+    }));
   } catch (e) {
-    // Mock for demo
-    params.value = [
-      { key: "max_charge_limit", value: 3000 },
-      { key: "grid_price_threshold", value: 0.8 }
+    parameters.value = [
+      { key: 'vpp_max_charge_w', value: 5000, type: 'float', pendingValue: 5000 },
+      { key: 'grid_freq_threshold_hz', value: 0.5, type: 'float', pendingValue: 0.5 }
     ];
   }
 };
 
-const saveParam = async (item: any) => {
+const updateParam = async (param: any) => {
   try {
     await axios.post('/api/v1/system/config', {
-      key: item.key,
-      value: parseFloat(item.value)
+      key: param.key,
+      value: parseFloat(param.pendingValue)
     });
-    alert('Config saved successfully');
+    alert(`Parameter ${param.key} queued for update.`);
+    fetchParams();
   } catch (e) {
-    alert('Failed to save config');
+    alert('Failed to update parameter');
   }
 };
 

@@ -1,5 +1,5 @@
 product: "IEMS_Controller_V1"
-# 激活本地扩展测点
+# 现场激活测点
 enabled_tags:
   - GRID_POWER
   - VOLTAGE_PHASE_A
@@ -9,7 +9,8 @@ enabled_tags:
   - BATTERY_POWER
 
 tags:
-  - name: BATTERY_SOC
+  - id: 4001
+    name: BATTERY_SOC
     bindings:
       - protocol: CAN
         can_id: 0x1801F456
@@ -19,9 +20,10 @@ tags:
         offset: 0.0
       - protocol: IEC104
         ioa: 10001
-        type_id: 30 # M_ME_TF_1 (带短浮点数的测量值)
+        type_id: 30
 
-  - name: GRID_POWER
+  - id: 1003
+    name: GRID_POWER
     bindings:
       - protocol: IEC104
         ioa: 20001

@@ -169,7 +169,29 @@ void edge_log_write(edge_log_level_t level, const char *cat, const char *file, i
     va_end(ap);
 
     char final_msg[MAX_LOG_MSG_LEN + 128];
-    snprintf(final_msg, sizeof(final_msg), "[%s:%d] %s", file, line, formatted_msg);
+    const char *color_code = "";
+    const char *reset_code = "\033[0m";
+
+    switch (level) {
+        case EDGE_LOG_DEBUG:
+            color_code = "\033[1;34m";
+            break;  // Blue
+        case EDGE_LOG_INFO:
+            color_code = "\033[1;32m";
+            break;  // Green
+        case EDGE_LOG_WARN:
+            color_code = "\033[1;33m";
+            break;  // Yellow
+        case EDGE_LOG_ERROR:
+            color_code = "\033[1;31m";
+            break;  // Red
+        case EDGE_LOG_FATAL:
+            color_code = "\033[1;35m";
+            break;  // Magenta
+    }
+
+    snprintf(final_msg, sizeof(final_msg), "%s[%s:%d] %s%s", color_code, file, line, formatted_msg,
+             reset_code);
 
     if (level == EDGE_LOG_FATAL) {
         log_to_backend(level, cat, final_msg);

@@ -16,29 +16,23 @@ export interface TagMeta {
       precision?: number;
       widget?: 'text' | 'gauge' | 'chart';
     };
-    northbound?: {
-      push?: 'change' | 'periodic';
-    };
   };
 }
 
 export interface Contract {
-  product: string;
+  product_name: string;
+  active_tags: TagMeta[];
+  all_tags: TagMeta[];
+  generated_at: string;
   ui_config: {
-    branding: {
-      title: string;
-      theme: string;
-      logo: string;
-    };
+    branding: { title: string; theme: string; logo: string };
     navigation: Record<string, boolean>;
   };
-  generated_at: string;
-  tags: TagMeta[];
 }
 
 export const useContractStore = defineStore('contract', {
   state: () => ({
-    contract: null as Contract | null,
+    contract: null as any | null,
     loading: false,
     error: null as string | null,
     tagMap: new Map<number, TagMeta>(),
@@ -49,36 +43,34 @@ export const useContractStore = defineStore('contract', {
   actions: {
     async loadContract() {
       this.loading = true;
+      console.log('[ContractLoader] Syncing with EdgeOS backend...');
       try {
-        // 从后端统一获取“数据宪法”
         const response = await axios.get('/api/v1/contracts', { responseType: 'text' });
-        const data = yaml.load(response.data) as Contract;
-        this.contract = data;
+        const rawData = yaml.load(response.data) as any;
+        console.log('[ContractLoader] Received payload:', rawData);
         
-        // 提取 UI 描述符
-        this.nav = data.ui_config?.navigation || {};
+        this.contract = rawData;
+        this.nav = rawData.ui_config?.navigation || {};
         
-        // 建立测点索引与分组
         this.tagMap.clear();
         this.groups.clear();
-        data.tags.forEach(tag => {
+
+        // 兼容性字段匹配：支持 active_tags 或 tags
+        const tags = rawData.active_tags || rawData.tags || [];
+        console.log('[ContractLoader] Found', tags.length, 'points to visualize');
+
+        tags.forEach((tag: TagMeta) => {
           this.tagMap.set(tag.id, tag);
-          const groupName = tag.attributes?.ui?.group || 'Uncategorized';
+          const groupName = tag.attributes?.ui?.group || 'Metrology';
           if (!this.groups.has(groupName)) this.groups.set(groupName, []);
           this.groups.get(groupName)?.push(tag);
         });
-        
       } catch (err) {
-        this.error = 'Failed to load contract: ' + err;
-        console.error(err);
+        console.error('[ContractLoader] FAILED:', err);
+        this.error = 'Contract sync failed';
       } finally {
         this.loading = false;
       }
-    },
-
-    isPageVisible(pageId: string): boolean {
-      // 默认显示，除非契约明确关闭
-      return this.nav[pageId] !== false;
     }
   }
 });

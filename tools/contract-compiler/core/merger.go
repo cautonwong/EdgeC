@@ -131,14 +131,19 @@ func loadYamlToRawMap(path, key string, target map[string]map[string]interface{}
 }
 
 func mergeMap(target map[string]map[string]interface{}, name string, tm map[string]interface{}) {
-	existing, ok := target[name]; if !ok { target[name] = tm; return }
+	existing, ok := target[name]
+	if !ok { 
+		target[name] = tm
+		return 
+	}
+	
 	for k, v := range tm {
 		if k == "bindings" {
 			if newBs, ok := v.([]interface{}); ok {
 				for _, nb := range newBs {
 					if nbm, ok := nb.(map[string]interface{}); ok {
 						p, _ := nbm["protocol"].(string)
-						// 支持扁平结构：如果除了 protocol 外还有其它 key，则视为属性
+						// 支持扁平结构
 						attr := make(map[string]interface{})
 						if nestedAttr, ok := nbm["attributes"].(map[string]interface{}); ok {
 							attr = nestedAttr
@@ -151,13 +156,19 @@ func mergeMap(target map[string]map[string]interface{}, name string, tm map[stri
 					}
 				}
 			}
-		} else { existing[k] = v }
+		} else { 
+			existing[k] = v 
+		}
 	}
 }
 
 func injectBinding(rawTags map[string]map[string]interface{}, tagName, proto string, attr map[string]interface{}) {
 	tag, ok := rawTags[tagName]; if !ok { return }
+	
 	bindings, _ := tag["bindings"].([]interface{})
+
+	// 协议名强制归一化 (大写)
+	upProto := strings.ToUpper(proto)
 
 	// 语义归一化：将 scale 统一为 scaler, address 统一为 addr
 	normalizedAttr := make(map[string]interface{})
@@ -170,11 +181,12 @@ func injectBinding(rawTags map[string]map[string]interface{}, tagName, proto str
 		normalizedAttr[newK] = v
 	}
 
-	newB := map[string]interface{}{"protocol": proto, "attributes": normalizedAttr}
+	newB := map[string]interface{}{"protocol": upProto, "attributes": normalizedAttr}
 	found := false
 	for i, b := range bindings {
 		if bm, ok := b.(map[string]interface{}); ok {
-			if strings.EqualFold(bm["protocol"].(string), proto) {
+			p, _ := bm["protocol"].(string)
+			if strings.EqualFold(p, upProto) {
 				bindings[i] = newB; found = true; break
 			}
 		}

@@ -74,6 +74,7 @@ func main() {
 	hashes := make(map[string]core.ProtocolHashInfo)
 	for proto, rbs := range resolved {
 		entries := make([]core.HashEntry, 0, len(rbs))
+		fmt.Printf("[Compiler] Protocol %s: Found %d bindings\n", proto, len(rbs))
 		for _, rb := range rbs {
 			keyStr := ""
 			switch proto {
@@ -86,8 +87,8 @@ func main() {
 			}
 		
 			rawKey := core.ParseProtocolKey(proto, keyStr)
-			if rawKey == 0 && proto != "MODBUS" { 
-				// Modbus Addr 0 是合法的，其它协议 0 通常是非法或占位
+			// 只有在真的没有地址的情况下才跳过
+			if rawKey == 0 && keyStr == "" {
 				continue 
 			}
 

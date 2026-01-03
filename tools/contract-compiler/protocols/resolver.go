@@ -31,8 +31,12 @@ func Resolve(tags []model.TagDef) map[string][]ResolvedBinding {
 	for _, t := range tags {
 		for _, b := range t.Bindings {
 			pt := strings.ToUpper(b.ProtocolType)
+			fmt.Printf("[Resolver] Tag: %s, Found Protocol: %s\n", t.Name, pt)
 			handler := GetHandler(pt)
-			if handler == nil { continue }
+			if handler == nil { 
+				fmt.Printf("[Resolver] WARNING: No handler for protocol %s\n", pt)
+				continue 
+			}
 
 			rb := handler.Resolve(t, b)
 			res[pt] = append(res[pt], rb)

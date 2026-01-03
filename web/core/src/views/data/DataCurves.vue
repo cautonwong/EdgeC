@@ -1,103 +1,87 @@
 <template>
-  <div class="p-4">
-    <div class="flex justify-between items-center mb-4">
-      <h2 class="text-xl font-bold">Data Analysis</h2>
-      <div class="space-x-2">
-        <select v-model="selectedTag" class="border p-1 rounded">
-          <option v-for="tag in trendTags" :key="tag.id" :value="tag.id">
-            {{ tag.name }} ({{ tag.unit }})
-          </option>
-        </select>
-        <button @click="fetchData" class="bg-blue-500 text-white px-3 py-1 rounded">Query</button>
+  <div class="p-8 lg:p-12 space-y-10 animate-in fade-in duration-500">
+    <div class="flex justify-between items-end">
+      <div>
+        <h1 class="text-3xl font-black text-slate-800 tracking-tight italic">DATA <span class="text-blue-600 not-italic">ANALYSIS</span></h1>
+        <p class="text-slate-400 text-sm font-medium mt-1 uppercase tracking-widest">High-Frequency Waveform Stream</p>
       </div>
+      <select v-model="selectedTagId" class="bg-white border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold text-slate-600 outline-none focus:ring-2 focus:ring-blue-500/20">
+        <option v-for="tag in contractStore.active_tags" :key="tag.id" :value="tag.id">
+          {{ tag.name }} (#{{ tag.id }})
+        </option>
+      </select>
     </div>
 
-    <div class="bg-white p-4 rounded shadow h-64 flex items-center justify-center border-2 border-dashed border-gray-200">
-      <div v-if="loading">Loading...</div>
-      <div v-else-if="chartData.length === 0" class="text-gray-400">No Data Available</div>
-      <div v-else class="w-full h-full relative">
-        <!-- 简易 SVG 折线图 -->
-        <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="w-full h-full">
-          <polyline
-            fill="none"
-            stroke="#3b82f6"
-            stroke-width="2"
-            :points="svgPoints"
-          />
-        </svg>
+    <!-- Real-time Chart Area -->
+    <div class="bg-slate-900 rounded-[3rem] p-10 shadow-2xl relative overflow-hidden border border-white/5">
+      <div class="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent pointer-events-none"></div>
+      
+      <div class="relative z-10 space-y-8">
+        <div class="flex justify-between items-center">
+          <div v-if="activeTag" class="space-y-1">
+            <h3 class="text-white font-black text-2xl tracking-tighter uppercase">{{ activeTag.name }}</h3>
+            <p class="text-slate-500 text-[10px] font-bold tracking-[0.2em] uppercase">{{ activeTag.desc }}</p>
+          </div>
+          <div class="text-right">
+            <div class="text-blue-400 text-4xl font-black font-mono tracking-tighter">{{ currentVal }}<span class="text-sm ml-2 opacity-50">{{ activeTag?.unit }}</span></div>
+          </div>
+        </div>
+
+        <!-- Mock Chart Visualization -->
+        <div class="h-64 w-full flex items-end gap-1 px-2 border-b border-white/10 pb-4">
+          <div 
+            v-for="(point, idx) in history" 
+            :key="idx"
+            class="flex-1 bg-gradient-to-t from-blue-600 to-indigo-400 rounded-t-sm transition-all duration-500"
+            :style="{ height: `${point.percent}%` }"
+          ></div>
+        </div>
+        
+        <div class="flex justify-between text-[10px] font-black text-slate-600 uppercase tracking-widest">
+          <span>T-60s</span>
+          <span>Buffer: Syncing</span>
+          <span>Real-time</span>
+        </div>
       </div>
-    </div>
-    
-    <div class="mt-4">
-      <h3 class="font-bold">Raw Data</h3>
-      <table class="w-full mt-2 text-sm">
-        <thead><tr class="text-left"><th>Time</th><th>Value</th></tr></thead>
-        <tbody>
-          <tr v-for="(row, i) in chartData.slice(0, 10)" :key="i" class="border-b">
-            <td>{{ new Date(row.ts).toLocaleString() }}</td>
-            <td>{{ row.val }}</td>
-          </tr>
-        </tbody>
-      </table>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { useContractStore } from '../../services/ContractLoader';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import axios from 'axios';
+import { useContractStore } from '../../services/ContractLoader';
 
-const store = useContractStore();
-const selectedTag = ref<number | null>(null);
-const chartData = ref<{ts: number, val: number}[]>([]);
-const loading = ref(false);
+const contractStore = useContractStore();
+const selectedTagId = ref<number>(1001);
+const currentVal = ref('0.00');
+const history = ref<any[]>([]);
+let timer: any;
 
-// 筛选出支持存储的 Tag
-const trendTags = computed(() => {
-  const list = [];
-  if (!store.tagMap) return [];
-  for (const tag of store.tagMap.values()) {
-    if (tag.attributes?.northbound?.storage === 'trend') {
-      list.push(tag);
-    }
-  }
-  return list;
-});
-
-const svgPoints = computed(() => {
-  if (chartData.value.length < 2) return '';
-  const maxVal = Math.max(...chartData.value.map(d => d.val));
-  const minVal = Math.min(...chartData.value.map(d => d.val));
-  const range = maxVal - minVal || 1;
-  
-  return chartData.value.map((d, i) => {
-    const x = (i / (chartData.value.length - 1)) * 100;
-    const y = 100 - ((d.val - minVal) / range) * 100;
-    return `${x},${y}`;
-  }).join(' ');
+const activeTag = computed(() => {
+  return Array.from(contractStore.tagMap.values()).find(t => t.id === selectedTagId.value);
 });
 
 const fetchData = async () => {
-  if (!selectedTag.value) return;
-  loading.value = true;
   try {
-    // 模拟时间范围：过去 1 小时
-    const end = Date.now();
-    const start = end - 3600 * 1000;
-    const res = await axios.get(`/api/v1/data/query`, {
-      params: { tag_id: selectedTag.value, start, end }
-    });
-    chartData.value = res.data.data || [];
-  } finally {
-    loading.value = false;
-  }
+    const res = await axios.get(`/api/v1/data/latest/${selectedTagId.value}`);
+    if (res.data.value !== undefined) {
+      currentVal.value = res.data.value.toFixed(2);
+      // 模拟曲线数据
+      const percent = Math.min(100, Math.max(10, (res.data.value % 100)));
+      history.value.push({ percent });
+      if (history.value.length > 60) history.value.shift();
+    }
+  } catch (e) {}
 };
 
-onMounted(async () => {
-  if (!store.contract) await store.loadContract();
-  if (trendTags.value.length > 0) {
-    selectedTag.value = trendTags.value[0].id;
-  }
+watch(selectedTagId, () => {
+  history.value = [];
+  fetchData();
 });
+
+onMounted(() => {
+  timer = setInterval(fetchData, 1000);
+});
+onUnmounted(() => clearInterval(timer));
 </script>

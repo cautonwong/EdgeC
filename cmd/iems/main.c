@@ -24,6 +24,39 @@
 static service_t *g_svc = NULL;
 static northbound_mgr_t g_north;
 
+// --- 模拟数据生成器 (确保 Web UI 有数可显) ---
+static void sim_data_tick(uv_timer_t *handle) {
+    datahub_t *hub = (datahub_t *)handle->data;
+    uint64_t now = (uint64_t)time(NULL) * 1000;
+    pipe_msg_t msg;
+
+    // 1. 模拟电压 (220V 左右波动)
+    pipe_msg_init_scalar(&msg, TAG_VOLTAGE_PHASE_A, 220.0 + (rand() % 100) / 10.0, now);
+    datahub_publish(hub, &msg);
+
+    // 2. 模拟电网功率 (波动较大)
+    pipe_msg_init_scalar(&msg, TAG_GRID_POWER, 1500.0 + (rand() % 500), now);
+    datahub_publish(hub, &msg);
+
+    // 3. 模拟累积电量 (持续增加)
+    static double energy = 1234.56;
+    energy += 0.01;
+    pipe_msg_init_scalar(&msg, TAG_ENERGY_ACTIVE_IMPORT, energy, now);
+    datahub_publish(hub, &msg);
+
+    // 4. 模拟电池 SOC
+    pipe_msg_init_scalar(&msg, TAG_BATTERY_SOC, 65.0 + (rand() % 5), now);
+    datahub_publish(hub, &msg);
+
+    // 5. 模拟系统频率 (50Hz 左右微小波动)
+    pipe_msg_init_scalar(&msg, TAG_GRID_FREQUENCY, 49.98 + (rand() % 4) * 0.01, now);
+    datahub_publish(hub, &msg);
+
+    // 6. 模拟电池实时功率 (正负波动，代表充放电)
+    pipe_msg_init_scalar(&msg, TAG_BATTERY_POWER, (double)((rand() % 2000) - 1000), now);
+    datahub_publish(hub, &msg);
+}
+
 static void l2_thread_entry(void *arg) {
     datahub_t *hub = (datahub_t *)arg;
     uv_loop_t l2_loop;
@@ -51,6 +84,7 @@ int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
 
+    srand((unsigned int)time(NULL));
     edge_log_init(NULL, false);
 
     // 0. 契约一致性自检 (启动守门员)
@@ -73,7 +107,13 @@ int main(int argc, char **argv) {
     arbiter_t *arb;
     arbiter_init(&arb, loop);
 
-    // 2. 执行面 (Execution Plane)
+    // 2. 启动数据模拟定时器 (1秒一次)
+    uv_timer_t sim_timer;
+    uv_timer_init(loop, &sim_timer);
+    sim_timer.data = &hub;
+    uv_timer_start(&sim_timer, sim_data_tick, 1000, 1000);
+
+    // 3. 执行面 (Execution Plane)
     extern edge_driver_t dlt645_driver;
     bus_orchestrator_t *orch = bus_orchestrator_create(&dlt645_driver, &hub, arb);
 
@@ -87,34 +127,36 @@ int main(int argc, char **argv) {
     service_set_storage(g_svc, db);
     service_set_arbiter(g_svc, arb);
 
-    // 5. 启动北向服务栈 (Web UI & REST API)
+    // 6. 启动北向服务栈 (Web UI & REST API)
     northbound_mgr_init(&g_north, loop, &hub.ring);
     g_north.web_port = 8080;
     g_north.rest_port = 8081;
     g_north.user_data = g_svc;
 
-    // 自适应 Web 根目录探测 (针对开发与部署场景)
-    const char *candidates[] = {
-        "../www",                     // 场景 A: 在 build/products/iems/bin 运行
-        "./build/products/iems/www",  // 场景 B: 在项目根目录运行 (您的场景)
-        "./www"                       // 场景 C: 直接在产品目录运行
-    };
+    // 自适应路径探测 (Web Assets & Contracts)
+    const char *web_candidates[] = {"../www", "./build/products/iems/www", "./www"};
+    const char *contract_candidates[] = {"../generated/contracts.yaml",
+                                         "./build/products/iems/generated/contracts.yaml",
+                                         "./generated/contracts.yaml"};
 
-    bool found = false;
+    // 探测 Web 目录
     for (int i = 0; i < 3; i++) {
         char test_path[512];
-        snprintf(test_path, sizeof(test_path), "%s/index.html", candidates[i]);
+        snprintf(test_path, sizeof(test_path), "%s/index.html", web_candidates[i]);
         if (access(test_path, F_OK) == 0) {
-            strncpy(g_north.web_root, candidates[i], sizeof(g_north.web_root) - 1);
+            strncpy(g_north.web_root, web_candidates[i], sizeof(g_north.web_root) - 1);
             LOG_INFO(LOG_CAT_CORE, "Web Assets found at: %s", g_north.web_root);
-            found = true;
             break;
         }
     }
 
-    if (!found) {
-        LOG_WARN(LOG_CAT_CORE, "Web Assets NOT FOUND. UI will be unavailable.");
-        strncpy(g_north.web_root, "./www", sizeof(g_north.web_root) - 1);
+    // 探测契约文件
+    for (int i = 0; i < 3; i++) {
+        if (access(contract_candidates[i], F_OK) == 0) {
+            service_set_contract_path(g_svc, contract_candidates[i]);
+            LOG_INFO(LOG_CAT_CORE, "Active Contract found at: %s", contract_candidates[i]);
+            break;
+        }
     }
 
     northbound_mgr_start(&g_north);
@@ -132,7 +174,8 @@ int main(int argc, char **argv) {
     bus_orchestrator_run(orch);
     int ret = service_run(g_svc);
 
-    // 9. 物理清理
+    // 10. 物理清理
+    uv_timer_stop(&sim_timer);
     northbound_mgr_stop(&g_north);
     service_stop(g_svc);
     uv_thread_join(&l2_thread);

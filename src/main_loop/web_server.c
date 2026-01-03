@@ -89,18 +89,33 @@ static void on_read(uv_stream_t *c, ssize_t n, const uv_buf_t *b) {
 
         // 2. 映射路径到物理文件
         char full_path[512];
-        // 去掉 doc_root 末尾的 index.html (如果是这种情况)
         char base_dir[256];
-        strncpy(base_dir, srv->doc_root, sizeof(base_dir) - 1);
-        char *last_slash = strrchr(base_dir, '/');
-        if (last_slash && strcmp(last_slash, "/index.html") == 0) {
-            *last_slash = '\0';
+
+        // 确保 doc_root 即使为空也能指向当前目录
+        if (strlen(srv->doc_root) == 0) {
+            strcpy(base_dir, ".");
+        } else {
+            strncpy(base_dir, srv->doc_root, sizeof(base_dir) - 1);
+            base_dir[sizeof(base_dir) - 1] = '\0';
         }
+
+        // 去掉末尾可能存在的 /index.html
+        char *idx_ptr = strstr(base_dir, "/index.html");
+        if (idx_ptr) *idx_ptr = '\0';
+
+        // 去掉末尾可能存在的单斜杠，统一拼接逻辑
+        size_t blen = strlen(base_dir);
+        if (blen > 0 && base_dir[blen - 1] == '/') base_dir[blen - 1] = '\0';
 
         if (strcmp(path, "/") == 0 || strlen(path) == 0) {
             snprintf(full_path, sizeof(full_path), "%s/index.html", base_dir);
         } else {
-            snprintf(full_path, sizeof(full_path), "%s%s", base_dir, path);
+            // 如果 path 开头没有 /，则补上
+            if (path[0] != '/') {
+                snprintf(full_path, sizeof(full_path), "%s/%s", base_dir, path);
+            } else {
+                snprintf(full_path, sizeof(full_path), "%s%s", base_dir, path);
+            }
         }
 
         uv_fs_t open_req;

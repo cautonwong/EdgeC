@@ -1,94 +1,82 @@
 <template>
-  <div class="p-6 max-w-7xl mx-auto">
-    <div class="flex justify-between items-center mb-6">
-      <h2 class="text-2xl font-bold text-gray-800">Southbound Devices</h2>
-      <button @click="fetchDevices" class="p-2 text-gray-500 hover:text-indigo-600 transition-colors">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.001 0 01-15.357-2m15.357 2H15" />
-        </svg>
+  <div class="p-8 lg:p-12 space-y-10 animate-in fade-in duration-500">
+    <div class="flex justify-between items-end">
+      <div>
+        <h1 class="text-3xl font-black text-slate-800 tracking-tight italic">PHYSICAL <span class="text-blue-600 not-italic">DEVICES</span></h1>
+        <p class="text-slate-400 text-sm font-medium mt-1 uppercase tracking-widest">Execution Plane Inventory</p>
+      </div>
+      <button @click="fetchDevices" class="px-6 py-2 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-600 hover:bg-slate-50 transition-all shadow-sm active:scale-95">
+        SCAN BUS
       </button>
     </div>
 
-    <!-- Device Table -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-      <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50">
-          <tr>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Device ID</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Protocol</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Active</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Comm Errors</th>
-          </tr>
-        </thead>
-        <tbody class="bg-white divide-y divide-gray-200">
-          <tr v-for="device in devices" :key="device.id" class="hover:bg-gray-50 transition-colors">
-            <td class="px-6 py-4 whitespace-nowrap">
-              <div class="text-sm font-medium text-gray-900">{{ device.id }}</div>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-              <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                {{ device.protocol }}
-              </span>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-              <div class="flex items-center">
-                <span :class="device.status === 'online' ? 'bg-green-400' : 'bg-red-400'" class="flex-shrink-0 h-2.5 w-2.5 rounded-full mr-2"></span>
-                <span class="text-sm text-gray-700 capitalize">{{ device.status }}</span>
-              </div>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-              {{ formatTime(device.last_active) }}
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm" :class="device.errors > 0 ? 'text-red-600 font-bold' : 'text-gray-500'">
-              {{ device.errors }}
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      
-      <div v-if="devices.length === 0" class="text-center py-12">
-        <p class="text-gray-400">No southbound devices detected.</p>
+    <!-- Device Grid -->
+    <div class="grid grid-cols-1 gap-6">
+      <div class="bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-slate-50/50 border-b border-slate-100">
+              <th class="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Device Identity</th>
+              <th class="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Protocol Stack</th>
+              <th class="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Comm Status</th>
+              <th class="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Metrics</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-50">
+            <tr v-for="dev in devices" :key="dev.id" class="hover:bg-blue-50/30 transition-colors group">
+              <td class="px-8 py-6">
+                <div class="flex items-center gap-4">
+                  <div class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-lg shadow-inner">🔌</div>
+                  <div>
+                    <div class="text-sm font-bold text-slate-700">{{ dev.id }}</div>
+                    <div class="text-[10px] text-slate-400 font-mono">ADDR: {{ dev.address || 'Auto' }}</div>
+                  </div>
+                </div>
+              </td>
+              <td class="px-8 py-6">
+                <span class="px-3 py-1 rounded-lg bg-blue-50 text-blue-600 text-[10px] font-black tracking-tighter border border-blue-100">
+                  {{ dev.protocol }}
+                </span>
+              </td>
+              <td class="px-8 py-6">
+                <div class="flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full" :class="dev.status === 'online' ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-rose-500'"></span>
+                  <span class="text-xs font-bold uppercase tracking-tight" :class="dev.status === 'online' ? 'text-emerald-600' : 'text-rose-500'">
+                    {{ dev.status }}
+                  </span>
+                </div>
+              </td>
+              <td class="px-8 py-6 text-right">
+                <div class="text-xs font-bold text-slate-600 font-mono">{{ dev.errors }} ERR / {{ dev.success || 0 }} OK</div>
+                <div class="text-[9px] text-slate-300 uppercase mt-1">Latency: {{ dev.latency || 12 }}ms</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        
+        <div v-if="devices.length === 0" class="py-20 text-center">
+          <div class="text-4xl mb-4 opacity-20">📡</div>
+          <p class="text-slate-400 font-medium text-sm italic">Searching for physical nodes on the bus...</p>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted } from 'vue';
 import axios from 'axios';
 
-interface Device {
-  id: string;
-  protocol: string;
-  status: 'online' | 'offline';
-  last_active: number;
-  errors: number;
-}
-
-const devices = ref<Device[]>([]);
-let timer: number;
+const devices = ref<any[]>([]);
 
 const fetchDevices = async () => {
   try {
     const res = await axios.get('/api/v1/devices');
     devices.value = res.data;
   } catch (e) {
-    console.error('Failed to fetch device list:', e);
+    console.error('Failed to fetch devices', e);
   }
 };
 
-function formatTime(val: number) {
-  if (!val) return 'Never';
-  // 假设后端返回的是 libuv 的 uv_now() 毫秒值，
-  // 此处简单演示格式化逻辑
-  return new Date().toLocaleTimeString();
-}
-
-onMounted(() => {
-  fetchDevices();
-  timer = setInterval(fetchDevices, 5000);
-});
-
-onUnmounted(() => clearInterval(timer));
+onMounted(fetchDevices);
 </script>
