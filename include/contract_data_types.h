@@ -8,10 +8,11 @@
  * @brief Zephyr-style IS_ENABLED Macro Machinery
  * Allows for compile-time logic branching in C code.
  */
-#define __ARG_PLACEHOLDER_1 0,
 #define __take_second_arg(__ignored, val, ...) val
-#define __is_defined(x) __is_defined2(x)
-#define __is_defined2(x) __take_second_arg(__ARG_PLACEHOLDER_##x 1, 0)
+#define __is_defined(x) __is_defined_expand(x)
+#define __is_defined_expand(x) __is_defined2(__ARG_PLACEHOLDER_##x)
+#define __is_defined2(arg) __take_second_arg(arg 1, 0)
+#define __ARG_PLACEHOLDER_1 0,
 
 #define IS_ENABLED(config_macro) __is_defined(config_macro)
 typedef uint32_t edge_tag_id_t;

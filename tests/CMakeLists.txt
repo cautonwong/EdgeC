@@ -22,6 +22,7 @@ endmacro()
 
 # 1. 核心框架测试 (Framework)
 add_edge_test(test_version test_version.c)
+add_edge_test(test_is_enabled test_is_enabled.c)
 add_edge_test(test_edge_log test_edge_log.c)
 add_edge_test(test_net_buf test_net_buf.c)
 add_edge_test(test_shmring test_shmring.c)
