@@ -249,6 +249,7 @@ sqlite_svc_t *sqlite_svc_create(uv_loop_t *loop, sqlite_config_t *cfg) {
 }
 
 static void _on_db_timer_close(uv_handle_t *h) {
+    (void)h;
     // Timer is embedded in sqlite_svc_t, so we don't free(h) here.
     // The main structure will be freed by the user after loop drainage.
 }

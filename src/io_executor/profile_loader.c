@@ -45,7 +45,7 @@ device_config_t *profile_load(const char *path) {
     cfg->points = calloc(cfg->point_count, sizeof(edge_point_config_t));
 
     for (size_t i = 0; i < cfg->point_count; i++) {
-        cJSON *item = cJSON_GetArrayItem(points, i);
+        cJSON *item = cJSON_GetArrayItem(points, (int)i);
         // 关键修复：填入新的高性能测点配置
         cfg->points[i].tag_id = (uint32_t)cJSON_GetObjectItem(item, "tag_id")->valueint;
         cfg->points[i].reg_addr = (uint32_t)cJSON_GetObjectItem(item, "addr")->valueint;

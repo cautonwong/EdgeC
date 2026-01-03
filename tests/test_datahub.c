@@ -4,6 +4,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <sys/mman.h>
 #include <unistd.h>
 #include <uv.h>
 

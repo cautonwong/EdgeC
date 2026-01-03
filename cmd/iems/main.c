@@ -120,18 +120,15 @@ int main(int argc, char **argv) {
     char app_root[512] = {0};
     edge_get_app_root(app_root, sizeof(app_root));
 
-    char r_web[512], r_contract[512];
+    char r_web[1024], r_contract[1024];
     snprintf(r_web, sizeof(r_web), "%s/www/iems", app_root);
     snprintf(r_contract, sizeof(r_contract), "%s/contracts/iems/contracts.yaml", app_root);
 
-    const char *web_candidates[] = {r_web, "./build/products/iems/www", "../www", "./www"};
     const char *contract_candidates[] = {
         r_contract, "./build/products/iems/generated/contracts.yaml", "../generated/contracts.yaml",
         "./generated/contracts.yaml"};
 
     // 探测 Web
-    datahub_t *hub_ptr =
-        service_get_datahub(g_svc);  // 临时用于获取北向句柄，实际上应该通过 service 设置
     // 注意：g_north 是在 edge_service 内部由 service_new 创建的，
     // 这里我们直接通过 service 接口设置属性 (如果 service 提供了接口)
     // 实际上我们在 edge_service.c 已经加了探测。

@@ -22,8 +22,8 @@ typedef struct {
 static inline void _pack_i_frame(struct net_buf_simple *b, uint16_t vs, uint16_t vr) {
     net_buf_simple_add_u8(b, 0x68);
     net_buf_simple_add_u8(b, 0);  // 长度占位
-    net_buf_simple_add_le16(b, vs << 1);
-    net_buf_simple_add_le16(b, vr << 1);
+    net_buf_simple_add_le16(b, (uint16_t)(vs << 1));
+    net_buf_simple_add_le16(b, (uint16_t)(vr << 1));
 }
 
 static int iec104_v3_on_init(edge_driver_ctx_t *ctx) {
@@ -55,6 +55,7 @@ static int iec104_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
     if (b->len < 6 || b->data[0] != 0x68) return -1;
 
     uint8_t apdu_len = b->data[1];
+    (void)apdu_len;
     uint8_t ctrl1 = b->data[2];
 
     // 1. 处理 I 帧 (数据交换)

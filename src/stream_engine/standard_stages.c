@@ -231,11 +231,14 @@ typedef struct {
     sqlite_svc_t *db;
     char table[64];
 } _sink_cfg_t;
+/*
 static void _sink_work(uv_work_t *req) {
     pipe_msg_t *m = req->data;  // 简化处理，实际应包含 DB 句柄
     // sqlite_svc_insert(db, m);
 }
+*/
 static stage_ret_t _sink_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
+    (void)s;
     if (ev->type != PIPEMSG_TYPE_SCALAR) return STAGE_OK;
     return STAGE_OK;
 }
