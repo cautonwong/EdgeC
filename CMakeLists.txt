@@ -20,7 +20,7 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 endif()
 
 set(LOCAL_ROOT "${CMAKE_SOURCE_DIR}/.local/${ARCH}")
-message(STATUS "Target Architecture: ${TARGET_ARCH}")
+message(STATUS "Target Architecture: ${ARCH}")
 message(STATUS "Local Dependency Root: ${LOCAL_ROOT}")
 
 list(APPEND CMAKE_PREFIX_PATH "${LOCAL_ROOT}")

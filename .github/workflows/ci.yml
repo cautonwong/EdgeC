@@ -49,7 +49,9 @@ jobs:
           cache-dependency-path: tools/contract-compiler/go.sum
 
       - name: Fix Binary Permissions
-        run: chmod +x .local/linux-x86_64/bin/contract-compiler
+        run: |
+          chmod +x .local/linux-x86_64/bin/contract-compiler || true
+          chmod +x .local/linux-aarch64/bin/contract-compiler || true
 
       - name: Install Native Build Tools
         run: |
@@ -85,6 +87,7 @@ jobs:
         if: matrix.config.run_tests && !matrix.config.use_qemu
         run: |
           cd build
+          export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${{ github.workspace }}/.local/linux-x86_64/lib
           ctest --output-on-failure
 
       - name: Run Unit Tests (QEMU)
@@ -93,12 +96,14 @@ jobs:
           ASAN_OPTIONS: detect_leaks=0
         run: |
           cd build
-          # Manually run tests via QEMU since ctest integration can be complex with static libs and paths
-          # We search for test binaries in the tests/ directory
+          # Manually run tests via QEMU
+          # We pass the local lib path to the guest LD_LIBRARY_PATH
           for t in tests/test_*; do
             if [ -x "$t" ]; then
               echo "Running $t via ${{ matrix.config.qemu_exec }}"...
-              ${{ matrix.config.qemu_exec }} -L /usr/aarch64-linux-gnu/ "$t"
+              ${{ matrix.config.qemu_exec }} -L /usr/aarch64-linux-gnu/ \
+                -E LD_LIBRARY_PATH=${{ github.workspace }}/.local/linux-aarch64/lib \
+                "$t"
             fi
           done
 
