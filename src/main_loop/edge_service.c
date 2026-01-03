@@ -136,6 +136,33 @@ service_t *service_new(service_options_t *opts) {
         svc->north->web_port = opts->web_port;
         svc->north->user_data = svc;
         svc->owns_north = true;
+
+        // [核心补强] 路径自适应探测
+        const char *web_candidates[] = {"./build/products/iems/www", "../www", "./www",
+                                        "/workspaces/edgeos/EdgeC/build/products/iems/www"};
+        for (int i = 0; i < 4; i++) {
+            char test_path[512];
+            snprintf(test_path, sizeof(test_path), "%s/index.html", web_candidates[i]);
+            if (access(test_path, F_OK) == 0) {
+                strncpy(svc->north->web_root, web_candidates[i], sizeof(svc->north->web_root) - 1);
+                LOG_INFO(LOG_CAT_CORE, "Service Container: Web Root set to %s",
+                         svc->north->web_root);
+                break;
+            }
+        }
+    }
+
+    // 契约路径自适应
+    const char *contract_candidates[] = {"./build/products/iems/generated/contracts.yaml",
+                                         "../generated/contracts.yaml",
+                                         "./generated/contracts.yaml"};
+    for (int i = 0; i < 3; i++) {
+        if (access(contract_candidates[i], F_OK) == 0) {
+            service_set_contract_path(svc, contract_candidates[i]);
+            LOG_INFO(LOG_CAT_CORE, "Service Container: Active Contract found at %s",
+                     svc->contract_path);
+            break;
+        }
     }
     svc->link_status[LINK_PRIMARY] = true;
     svc->current_link = LINK_PRIMARY;

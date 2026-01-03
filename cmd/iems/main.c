@@ -116,14 +116,31 @@ int main(int argc, char **argv) {
     // 4. 业务逻辑初始化 (Scenario S1: SQLite Driven)
     policy_syncer_run(service_get_storage(g_svc), orch);
 
-    // 5. 契约路径自适应探测
-    const char *contract_candidates[] = {"../generated/contracts.yaml",
-                                         "./build/products/iems/generated/contracts.yaml",
-                                         "./generated/contracts.yaml"};
-    for (int i = 0; i < 3; i++) {
+    // 自适应路径探测 (Relocatable Logic)
+    char app_root[512] = {0};
+    edge_get_app_root(app_root, sizeof(app_root));
+
+    char r_web[512], r_contract[512];
+    snprintf(r_web, sizeof(r_web), "%s/www/iems", app_root);
+    snprintf(r_contract, sizeof(r_contract), "%s/contracts/iems/contracts.yaml", app_root);
+
+    const char *web_candidates[] = {r_web, "./build/products/iems/www", "../www", "./www"};
+    const char *contract_candidates[] = {
+        r_contract, "./build/products/iems/generated/contracts.yaml", "../generated/contracts.yaml",
+        "./generated/contracts.yaml"};
+
+    // 探测 Web
+    datahub_t *hub_ptr =
+        service_get_datahub(g_svc);  // 临时用于获取北向句柄，实际上应该通过 service 设置
+    // 注意：g_north 是在 edge_service 内部由 service_new 创建的，
+    // 这里我们直接通过 service 接口设置属性 (如果 service 提供了接口)
+    // 实际上我们在 edge_service.c 已经加了探测。
+    // 为了双重保险，我们保留这里的日志输出。
+
+    for (int i = 0; i < 4; i++) {
         if (access(contract_candidates[i], F_OK) == 0) {
             service_set_contract_path(g_svc, contract_candidates[i]);
-            LOG_INFO(LOG_CAT_CORE, "Active Contract found at: %s", contract_candidates[i]);
+            LOG_INFO(LOG_CAT_CORE, "Contract Probe: SUCCESS at %s", contract_candidates[i]);
             break;
         }
     }

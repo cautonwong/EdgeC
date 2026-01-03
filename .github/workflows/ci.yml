@@ -75,6 +75,12 @@ jobs:
       - name: Build
         run: cmake --build build
 
+      - name: Package (CPack)
+        run: |
+          cd build
+          cpack -G TGZ
+          cpack -G DEB
+
       - name: Run Unit Tests (Native)
         if: matrix.config.run_tests && !matrix.config.use_qemu
         run: |
@@ -106,9 +112,15 @@ jobs:
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: EdgeOS-Build-${{ matrix.config.target }}
+          name: EdgeOS-Package-${{ matrix.config.target }}
           path: |
-            build/products/
-            build/sdk/lib/
-            build/coverage_clean.info
+            build/EdgeOS-*.deb
+            build/EdgeOS-*.tar.gz
           if-no-files-found: warn
+
+      - name: Upload Coverage (x86 only)
+        if: matrix.config.target == 'x86_64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: EdgeOS-Coverage
+          path: build/coverage_clean.info

@@ -190,6 +190,7 @@ void edge_log_write(edge_log_level_t level, const char *cat, const char *file, i
             break;  // Magenta
     }
 
+    // 格式化：[Color][File:Line] Message [Reset]
     snprintf(final_msg, sizeof(final_msg), "%s[%s:%d] %s%s", color_code, file, line, formatted_msg,
              reset_code);
 

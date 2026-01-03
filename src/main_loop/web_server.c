@@ -159,7 +159,11 @@ static void on_read(uv_stream_t *c, ssize_t n, const uv_buf_t *b) {
             uv_write(wr_req, c, &out_buf, 1, on_write_done);
             free(content);
         } else {
-            LOG_ERROR(LOG_CAT_CORE, "Failed to open %s (Requested: %s)", full_path, path);
+            char cwd[256];
+            if (getcwd(cwd, sizeof(cwd)) == NULL) strcpy(cwd, "unknown");
+            LOG_ERROR(LOG_CAT_CORE, "Failed to open %s (Requested: %s). CWD: %s", full_path, path,
+                      cwd);
+
             const char *not_found = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
             uv_write_t *wr_req = (uv_write_t *)malloc(sizeof(uv_write_t));
             uv_buf_t buf = uv_buf_init(strdup(not_found), (unsigned int)strlen(not_found));

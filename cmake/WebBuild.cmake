@@ -33,9 +33,9 @@ function(add_web_product PRODUCT_NAME WEB_SRC_DIR)
     # 2. 创建一个伪目标供产品二进制文件依赖
     add_custom_target(web_ui_${PRODUCT_NAME} ALL DEPENDS "${WEB_STAMP}")
 
-    # 3. 在安装时，将静态资源放入 config/www
-    # 注意：此处我们将其安装到产品私有的目录中，防止多产品冲突
+    # 3. 在安装时，将静态资源放入 www/<product>
+    string(TOUPPER ${PRODUCT_NAME} PROD_UPPER)
     install(DIRECTORY "${WEB_BUILD_DIR}/" 
-            DESTINATION "config/${PRODUCT_NAME}/www"
-            COMPONENT ${PRODUCT_NAME})
+            DESTINATION "www/${PRODUCT_NAME}"
+            COMPONENT "${PROD_UPPER}")
 endfunction()

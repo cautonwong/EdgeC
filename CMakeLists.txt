@@ -9,12 +9,17 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # 1. Architecture & Dependency Path
 # ==============================================================================
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
-    set(TARGET_ARCH "linux-aarch64")
+    set(ARCH "linux-aarch64")
 else()
-    set(TARGET_ARCH "linux-x86_64")
+    set(ARCH "linux-x86_64")
 endif()
 
-set(LOCAL_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.local/${TARGET_ARCH}")
+# [核心补强] 设置嵌入式最佳实践安装前缀
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+    set(CMAKE_INSTALL_PREFIX "/opt/edgeos" CACHE PATH "EdgeOS standard install prefix" FORCE)
+endif()
+
+set(LOCAL_ROOT "${CMAKE_SOURCE_DIR}/.local/${ARCH}")
 message(STATUS "Target Architecture: ${TARGET_ARCH}")
 message(STATUS "Local Dependency Root: ${LOCAL_ROOT}")
 
@@ -177,9 +182,72 @@ add_subdirectory(cmd/evse)
 add_subdirectory(cmd/hems)
 
 # ==============================================================================
-# 8. Installation
+# 8. Installation & Packaging (CPack V3.0)
 # ==============================================================================
-install(DIRECTORY include/ DESTINATION include/edgeos FILES_MATCHING PATTERN "*.h")
+
+# 8.1 基础库与公共配置 (Core)
+# 使用 USE_SOURCE_PERMISSIONS 保持执行权限，确保软链接不丢失
+install(DIRECTORY "${LOCAL_ROOT}/lib/" 
+        DESTINATION lib 
+        COMPONENT Core
+        FILES_MATCHING 
+        PATTERN "*.so*"
+        PATTERN "*.a" EXCLUDE)
+
+# 8.2 产品组件定义 (支持 Web UI 自动关联)
+macro(install_edge_product PROD_NAME)
+    string(TOUPPER ${PROD_NAME} PROD_UPPER)
+    set(COMP_NAME "${PROD_UPPER}")
+    
+    install(TARGETS ${PROD_NAME} DESTINATION bin COMPONENT ${COMP_NAME})
+    
+    # 物理安装 Web 产物 (从构建目录直接拷贝)
+    if(IS_DIRECTORY "${CMAKE_BINARY_DIR}/products/${PROD_NAME}/www")
+        install(DIRECTORY "${CMAKE_BINARY_DIR}/products/${PROD_NAME}/www/" 
+                DESTINATION www/${PROD_NAME} 
+                COMPONENT ${COMP_NAME})
+    endif()
+
+    # 契约与配置
+    install(FILES "${CMAKE_BINARY_DIR}/products/${PROD_NAME}/generated/contracts.yaml" 
+            DESTINATION etc/${PROD_NAME} 
+            COMPONENT ${COMP_NAME}
+            OPTIONAL)
+    
+    install(DIRECTORY "${CMAKE_SOURCE_DIR}/config/${PROD_NAME}/" 
+            DESTINATION etc/${PROD_NAME} 
+            COMPONENT ${COMP_NAME}
+            OPTIONAL)
+endmacro()
+
+install_edge_product(iems)
+install_edge_product(dcu)
+install_edge_product(evse)
+install_edge_product(hems)
+install_edge_product(sg_el2025)
+
+# [核心补强] 开启 RPATH 相对路径搜索
+set(CMAKE_INSTALL_RPATH "$ORIGIN/../lib")
+set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+
+# 8.4 CPack 全局配置
+set(CPACK_PACKAGE_NAME "EdgeOS")
+set(CPACK_PACKAGE_VENDOR "EdgeC")
+set(CPACK_PACKAGE_VERSION "1.0.0")
+set(CPACK_PACKAGE_CONTACT "edgeos-dev@edgec.io")
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "EdgeC Engineering Team")
+
+set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${ARCH}")
+
+set(CPACK_COMPONENTS_ALL Core IEMS DCU EVSE HEMS SG_EL2025)
+set(CPACK_ARCHIVE_COMPONENT_INSTALL ON)
+set(CPACK_DEB_COMPONENT_INSTALL ON)
+set(CPACK_GENERATOR "TGZ;DEB")
+
+# DEB 特有配置
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6, libuv1")
+
+include(CPack)
 
 # ==============================================================================
 # 9. Tests

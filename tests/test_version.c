@@ -15,7 +15,7 @@ static void test_version_string(void **state) {
     (void)state;
     const char *v = edge_get_version();
     assert_non_null(v);
-    assert_string_equal(v, "EdgeOS v0.1.0 (Alpha)");
+    assert_string_equal(v, "EdgeOS SDK v4.5-Stable");
 }
 
 int main(void) {

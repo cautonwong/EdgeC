@@ -4,6 +4,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include <stddef.h>
 
 // 统一状态码
 typedef enum {
@@ -60,5 +61,13 @@ static inline const char* edge_strerror(edge_status_t err) {
 #ifdef __cplusplus
 }
 #endif
+
+/**
+ * @brief 获取当前程序运行的根目录 (用于实现解压即用)
+ * @param out_path 缓冲区
+ * @param size 大小
+ * @return 0 成功
+ */
+int edge_get_app_root(char* out_path, size_t size);
 
 #endif  // EDGE_COMMON_H
