@@ -12,6 +12,7 @@
 #include "edge_log.h"
 #include "edge_params.h"
 #include "edge_service.h"
+#include "edge_version.h"
 #include "sqlite_service.h"
 #include "stream_engine.h"
 
@@ -61,6 +62,7 @@ static char *handle_system_health(service_t *svc) {
     cJSON *root = cJSON_CreateObject();
     cJSON_AddStringToObject(root, "status", "ok");
     cJSON_AddNumberToObject(root, "uptime", (double)uv_now(service_get_loop(svc)) / 1000);
+    cJSON_AddStringToObject(root, "version", edge_get_version());
 
     cJSON *storage = cJSON_AddObjectToObject(root, "storage");
     cJSON_AddNumberToObject(storage, "queue_depth", 0);
@@ -155,6 +157,50 @@ static char *handle_params_list(service_t *svc) {
     return out;
 }
 
+static char *handle_settings_get(service_t *svc, const char *path) {
+    sqlite_svc_t *db = service_get_storage(svc);
+    if (!db) return strdup("{\"error\":\"storage_not_ready\"}");
+
+    uint32_t tag_id = (uint32_t)get_query_param_uint(path, "tag", 0);
+    if (tag_id == 0) return strdup("{\"error\":\"missing_tag_id\"}");
+
+    // 目前简化处理，假设所有配置都是 double 类型
+    double val = -1.0;
+    int bytes = sqlite_svc_get_param(db, "IEMS", tag_id, &val, sizeof(val));
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddNumberToObject(root, "tag_id", tag_id);
+    if (bytes == sizeof(double)) {
+        cJSON_AddNumberToObject(root, "value", val);
+    } else {
+        cJSON_AddStringToObject(root, "status", "not_found_or_type_mismatch");
+    }
+
+    char *out = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    return out;
+}
+
+static char *handle_settings_post(service_t *svc, const char *body) {
+    if (!body) return strdup("{\"error\":\"missing_body\"}");
+    sqlite_svc_t *db = service_get_storage(svc);
+    cJSON *root = cJSON_Parse(body);
+    if (!root) return strdup("{\"error\":\"invalid_json\"}");
+
+    cJSON *tag = cJSON_GetObjectItem(root, "tag_id");
+    cJSON *val = cJSON_GetObjectItem(root, "value");
+
+    if (cJSON_IsNumber(tag) && cJSON_IsNumber(val)) {
+        double d_val = val->valuedouble;
+        if (sqlite_svc_set_param(db, "IEMS", (uint32_t)tag->valuedouble, &d_val, sizeof(d_val)) ==
+            0) {
+            cJSON_Delete(root);
+            return strdup("{\"status\":\"ok\"}");
+        }
+    }
+    cJSON_Delete(root);
+    return strdup("{\"error\":\"failed\"}");
+}
 static char *handle_config_post(service_t *svc, const char *body) {
     if (!body) return strdup("{\"error\":\"missing_body\"}");
     cJSON *root = cJSON_Parse(body);
@@ -187,7 +233,7 @@ static char *handle_control_post(service_t *svc, const char *body) {
         return strdup("{\"error\":\"invalid_parameters\"}");
     }
     cmd_msg_t cmd;
-    cmd_msg_init_write(&cmd, (uint32_t)tag->valuedouble, val->valuedouble, CMD_PRIO_NORMAL);
+    cmd_msg_init_write(&cmd, (uint32_t)tag->valuedouble, val->valuedouble, ARBITER_PRIO_NORMAL);
 
     if (service_post_cmd(svc, &cmd) == 0) {
         cJSON_Delete(root);
@@ -238,6 +284,10 @@ char *rest_dispatch(service_t *svc, const char *path, const char *body) {
     if (strncmp(path, "/api/v1/pipelines", 17) == 0) return handle_pipelines_get(svc);
     if (strncmp(path, "/api/v1/devices", 15) == 0) return handle_devices_get(svc);
     if (strncmp(path, "/api/v1/control", 15) == 0 && body) return handle_control_post(svc, body);
+    if (strncmp(path, "/api/v1/settings", 16) == 0) {
+        if (body) return handle_settings_post(svc, body);
+        return handle_settings_get(svc, path);
+    }
 
     if (strncmp(path, "/api/v1/data/query", 18) == 0) {
         uint32_t tag_id = (uint32_t)get_query_param_uint(path, "tag", 1001);
@@ -256,7 +306,7 @@ char *rest_dispatch(service_t *svc, const char *path, const char *body) {
     return strdup("{\"error\":\"not_found\"}");
 }
 
-// --- Network Stack ---
+// ... (省略 Network Stack 部分，保持不变) ...
 
 static void on_write(uv_write_t *req, int status) {
     (void)status;
@@ -267,7 +317,7 @@ static void on_write(uv_write_t *req, int status) {
 static void on_alloc(uv_handle_t *h, size_t suggested, uv_buf_t *buf) {
     (void)h;
     buf->base = malloc(suggested);
-    buf->len = suggested;
+    buf->len = (unsigned int)suggested;
 }
 
 static void on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {

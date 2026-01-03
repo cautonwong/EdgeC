@@ -84,3 +84,25 @@ tags:
     type: int
     desc: "插座过温报警"
     attributes: { alert: true }
+
+  # === 策略参数 (5000-5999) ===
+  - id: 5001
+    name: IEMS_BATTERY_MAX_SOC
+    type: float
+    unit: "%"
+    desc: "IEMS电池最高SOC限制"
+    attributes: { access: "RW", group: "Policy" }
+
+  - id: 5002
+    name: IEMS_BATTERY_MIN_SOC
+    type: float
+    unit: "%"
+    desc: "IEMS电池最低SOC限制"
+    attributes: { access: "RW", group: "Policy" }
+
+  - id: 5003
+    name: IEMS_GRID_LIMIT_W
+    type: float
+    unit: "W"
+    desc: "IEMS并网功率上限"
+    attributes: { access: "RW", group: "Policy" }

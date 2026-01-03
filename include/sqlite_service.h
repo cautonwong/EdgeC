@@ -72,6 +72,38 @@ int sqlite_svc_exec(sqlite_svc_t *svc, const char *sql, sqlite_exec_cb cb, void 
 void sqlite_svc_destroy(sqlite_svc_t *svc);
 
 /**
+
+ * @brief 设置产品/全局参数 (支持 BLOB)
+
+ * @param product 产品名 (如 "IEMS")
+
+ * @param tag_id 契约中定义的参数 TagID
+
+ * @param val 参数值指针 (可以是 double*, int*, string 等)
+
+ * @param len 数据长度
+
+ */
+
+int sqlite_svc_set_param(sqlite_svc_t *svc, const char *product, uint32_t tag_id, const void *val,
+                         size_t len);
+
+/**
+
+ * @brief 获取产品/全局参数
+
+ * @param buf 接收缓冲区
+
+ * @param buflen 缓冲区大小
+
+ * @return 实际读取的字节数，失败返回 -1
+
+ */
+
+int sqlite_svc_get_param(sqlite_svc_t *svc, const char *product, uint32_t tag_id, void *buf,
+                         size_t buflen);
+
+/**
  * @brief 获取原始 SQLite 句柄 (用于高级配置加载)
  */
 void *sqlite_svc_get_db_handle(sqlite_svc_t *svc);

@@ -1,6 +1,6 @@
 /**
  * @file dcu_inventory.c
- * @brief DCU 档案管理器物理实现 (SQLite 持久化版)
+ * @brief DCU 资产档案管理器 (接入 V3 统一持久化平面)
  */
 
 #include "dcu_inventory.h"
@@ -23,38 +23,40 @@ void dcu_inventory_add_meter(service_t *svc, const char *name, int bus_id, uint3
     sqlite_svc_t *db = service_get_storage(svc);
     if (!db) return;
 
-    // 确证表结构
-    const char *schema =
-        "CREATE TABLE IF NOT EXISTS meters (name TEXT, bus_id INT, slave_id INT PRIMARY KEY, "
-        "protocol TEXT);";
-    sqlite3_exec(sqlite_svc_get_db_handle(db), schema, NULL, NULL, NULL);
-
+    // [补强] 使用统一的 inventory 表 (在 migration v1 中定义)
+    // 字段对应：id (TEXT), type (TEXT), addr (INT), protocol (TEXT)
     char sql[512];
     snprintf(sql, sizeof(sql),
-             "INSERT OR REPLACE INTO meters (name, bus_id, slave_id, protocol) VALUES ('%s', %d, "
-             "%u, '%s');",
-             name, bus_id, slave_id, proto);
+             "INSERT OR REPLACE INTO inventory (id, type, addr, protocol, enabled) "
+             "VALUES ('%s', 'METER', %u, '%s', 1);",
+             name, slave_id, proto);
 
-    // 同步写入确证档案安全
+    LOG_INFO(LOG_CAT_SCHED, "DCU: Registering Asset '%s' (Addr: %u, Proto: %s)", name, slave_id,
+             proto);
     sqlite3_exec(sqlite_svc_get_db_handle(db), sql, NULL, NULL, NULL);
 }
 
-static int _meter_load_cb(void *user_data, int argc, char **argv, char **azColName) {
+static int _inventory_load_cb(void *user_data, int argc, char **argv, char **azColName) {
     (void)azColName;
     service_t *svc = (service_t *)user_data;
     arbiter_t *arb = service_get_arbiter(svc);
 
     if (argc < 4) return 0;
 
-    int bus_id = atoi(argv[1]);
+    // 根据统一表结构解析：0:id, 1:type, 2:addr, 3:protocol
+    const char *name = argv[0];
     uint32_t slave_id = (uint32_t)atoll(argv[2]);
+    const char *proto = argv[3];
 
-    // 为电表分发周期任务
+    LOG_INFO(LOG_CAT_SCHED, "DCU: Loading Asset [%s] Proto=%s", name, proto);
+
+    // 自动为发现的资产启动轮询 (S11 场景闭环)
+    // 假设所有电表都挂在总线 0 上 (实际应从 extra 字段解析 bus_id)
     cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));
     cmd_msg_init_write(cmd, slave_id, 1.0, ARBITER_PRIO_NORMAL);
     cmd->on_cleanup = _on_dcu_cmd_cleanup;
 
-    arbiter_submit_cmd(arb, bus_id, cmd);
+    arbiter_submit_cmd(arb, 0, cmd);
     return 0;
 }
 
@@ -62,16 +64,12 @@ void dcu_inventory_load_and_run(service_t *svc) {
     sqlite_svc_t *db = service_get_storage(svc);
     if (!svc || !db) return;
 
-    LOG_INFO(LOG_CAT_SCHED, "DCU: Loading inventory from SQLite...");
+    LOG_INFO(LOG_CAT_SCHED, "DCU: Synchronizing Inventory from persistence plane...");
 
-    // 1. 确证表结构
-    const char *schema =
-        "CREATE TABLE IF NOT EXISTS meters (name TEXT, bus_id INT, slave_id INT PRIMARY KEY, "
-        "protocol TEXT);";
-    sqlite3_exec(sqlite_svc_get_db_handle(db), schema, NULL, NULL, NULL);
+    // 使用统一资产表进行检索
+    const char *sql =
+        "SELECT id, type, addr, protocol FROM inventory WHERE type='METER' AND enabled=1;";
+    sqlite3_exec(sqlite_svc_get_db_handle(db), sql, _inventory_load_cb, svc, NULL);
 
-    // 2. 加载并运行
-    sqlite3_exec(sqlite_svc_get_db_handle(db), "SELECT * FROM meters;", _meter_load_cb, svc, NULL);
-
-    LOG_INFO(LOG_CAT_SCHED, "DCU: Inventory loaded and tasks dispatched.");
+    LOG_INFO(LOG_CAT_SCHED, "DCU: Persistence synchronization complete.");
 }

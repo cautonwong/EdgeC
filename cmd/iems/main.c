@@ -102,6 +102,19 @@ int main(int argc, char **argv) {
     uv_loop_t *loop = service_get_loop(g_svc);
     datahub_t *hub = service_get_datahub(g_svc);
     arbiter_t *arb = service_get_arbiter(g_svc);
+    sqlite_svc_t *db = service_get_storage(g_svc);
+
+    // [全场景补强] 初始化 IEMS 产品特定参数 (基于 TagID + BLOB)
+
+    double max_soc = 95.0, min_soc = 15.0, grid_limit = 5000.0;
+
+    sqlite_svc_set_param(db, "IEMS", 5001, &max_soc, sizeof(max_soc));
+
+    sqlite_svc_set_param(db, "IEMS", 5002, &min_soc, sizeof(min_soc));
+
+    sqlite_svc_set_param(db, "IEMS", 5003, &grid_limit, sizeof(grid_limit));
+
+    LOG_INFO(LOG_CAT_SCHED, "IEMS: Global parameters synchronized to BLOB persistent storage.");
 
     // 2. 启动数据模拟定时器 (1秒一次)
     uv_timer_t sim_timer;
