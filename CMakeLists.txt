@@ -211,6 +211,7 @@ add_subdirectory(cmd/sg)
 add_subdirectory(cmd/dcu)
 add_subdirectory(cmd/evse)
 add_subdirectory(cmd/hems)
+add_subdirectory(cmd/device_simulator)
 
 # ==============================================================================
 # 8. Installation & Packaging (CPack V3.0)

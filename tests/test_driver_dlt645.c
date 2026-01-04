@@ -41,6 +41,7 @@ static void test_dlt645_v3_cycle(void **state) {
     edge_driver_ctx_t *ctx = driver_instance_create("DLT645-2007", 123456789);
     assert_non_null(ctx);
     edge_driver_t *drv = driver_manager_find("DLT645-2007");
+    assert_non_null(drv);
 
     // 1. 编码请求 (读取 DI: 00010000)
     uint32_t tags[] = {0x00010000};
@@ -83,9 +84,87 @@ static void test_dlt645_v3_cycle(void **state) {
     net_buf_pool_destroy(&pool);
 }
 
+/**
+ * @brief 验证 DLT645 V3 写操作及响应 (自洽验证)
+ */
+static void test_dlt645_v3_write_cycle(void **state) {
+    (void)state;
+    edge_driver_ctx_t *master_ctx = driver_instance_create("DLT645-2007", 123456789);
+    edge_driver_ctx_t *slave_ctx = driver_instance_create("DLT645-2007", 123456789);
+    assert_non_null(master_ctx);
+    assert_non_null(slave_ctx);
+    edge_driver_t *drv = driver_manager_find("DLT645-2007");
+    assert_non_null(drv);
+    net_buf_pool_t pool;
+    net_buf_pool_init(&pool, 4, 256, 0, NULL, NULL);
+
+    // 1. Master 编码写请求 (DI: 04000102, Value: 1234)
+    uint32_t write_tags[] = {0x04000102, 1234};
+    net_buf_t *req = net_buf_alloc(&pool, 0);
+    int ret = drv->encode_request(master_ctx, write_tags, 2, req);
+    assert_int_equal(ret, 0);
+    assert_int_equal(req->b.data[8], 0x14); // 控制码
+
+    // 2. Slave 接收请求并生成响应
+    net_buf_t *resp = net_buf_alloc(&pool, 0);
+    ret = drv->handle_rx(slave_ctx, req, resp, NULL, NULL);
+    assert_int_equal(ret, 0);
+    assert_true(resp->b.len > 0);
+    assert_int_equal(resp->b.data[8], 0x94); // 写成功响应
+
+    // 3. Master 解码来自 Slave 的响应
+    pipe_msg_t msgs[1];
+    int count = 1; // reset to non-zero
+    ret = drv->decode_response(master_ctx, resp, msgs, &count);
+    assert_int_equal(ret, 0);
+    assert_int_equal(count, 0); // 写成功不产生消息
+
+    net_buf_unref(req);
+    net_buf_unref(resp);
+    driver_instance_destroy(master_ctx, "DLT645-2007");
+    driver_instance_destroy(slave_ctx, "DLT645-2007");
+    net_buf_pool_destroy(&pool);
+}
+
+/**
+ * @brief 验证 DLT645 错误帧处理
+ */
+static void test_dlt645_v3_error_response(void **state) {
+    (void)state;
+    edge_driver_ctx_t *ctx = driver_instance_create("DLT645-2007", 123456789);
+    assert_non_null(ctx);
+    edge_driver_t *drv = driver_manager_find("DLT645-2007");
+    assert_non_null(drv);
+    net_buf_pool_t pool;
+    net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL);
+
+    // 1. 模拟一个错误响应帧 (D1 = 读数据错)
+    uint8_t rx_raw[] = {0x68, 0x89, 0x67, 0x45, 0x23, 0x01, 0x00, 
+                        0x68, 0xD1, 0x02, 0x34, 0x33, 0x00, 0x16};
+    uint8_t cs = 0;
+    for(int i=0; i<12; i++) cs += rx_raw[i];
+    rx_raw[12] = cs;
+
+    net_buf_t *rx = net_buf_alloc(&pool, 0);
+    net_buf_simple_add_mem(&rx->b, rx_raw, sizeof(rx_raw));
+
+    // 2. 解码响应
+    pipe_msg_t msgs[1];
+    int count = 0;
+    int ret = drv->decode_response(ctx, rx, msgs, &count);
+    assert_int_equal(ret, -5); // 特定错误码
+    assert_int_equal(count, 0);
+
+    net_buf_unref(rx);
+    driver_instance_destroy(ctx, "DLT645-2007");
+    net_buf_pool_destroy(&pool);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_dlt645_v3_cycle, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_dlt645_v3_write_cycle, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_dlt645_v3_error_response, setup, teardown),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

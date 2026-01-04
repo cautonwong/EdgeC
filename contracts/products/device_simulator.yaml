@@ -1,0 +1,13 @@
+# Minimal contract definition for the Device Simulator product.
+# This file exists to allow the build system to generate an empty set of 
+# lookup functions, which are required to satisfy the linker when linking
+# against the protocol drivers.
+
+product_name: "DeviceSimulator"
+version: "1.0"
+
+# No specific tags are enabled for the base simulator.
+# The simulated data will be managed by the new sim_device module.
+# A dummy tag is included to force the code generator to create the init function.
+enabled_tags: 
+  - ENERGY_ACTIVE_IMPORT

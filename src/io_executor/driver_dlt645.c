@@ -12,7 +12,6 @@
 #include "edge_driver.h"
 #include "edge_log.h"
 #include "net_buf.h"
-#include "shmring.h"
 
 // 协议私有状态
 typedef struct {
@@ -78,15 +77,38 @@ static int dlt645_v3_encode_request(edge_driver_ctx_t *ctx, const uint32_t *tag_
     uint32_t di = tag_ids[0];
     priv->last_di = di;
 
+    // 公共帧头
     net_buf_simple_add_u8(b, 0x68);
     net_buf_simple_add_mem(b, priv->addr_bcd, 6);
     net_buf_simple_add_u8(b, 0x68);
-    net_buf_simple_add_u8(b, 0x11);  // 读数据
-    net_buf_simple_add_u8(b, 0x04);  // 长度
 
-    for (int i = 0; i < 4; i++) {
-        net_buf_simple_add_u8(b, (uint8_t)((di & 0xFF) + 0x33));
-        di >>= 8;
+    if (tag_count == 1) { // 读请求
+        net_buf_simple_add_u8(b, 0x11);  // 读数据
+        net_buf_simple_add_u8(b, 0x04);  // 长度
+        for (int i = 0; i < 4; i++) {
+            net_buf_simple_add_u8(b, (uint8_t)((di & 0xFF) + 0x33));
+            di >>= 8;
+        }
+    } else if (tag_count >= 2) { // 写请求
+        // 实际场景应根据 DI 判断数据类型和长度, 此处简化为2字节
+        uint8_t data_body_len = 2;
+        uint8_t total_data_len = 4 + 4 + 4 + data_body_len; // DI+PWD+OP+Data
+
+        net_buf_simple_add_u8(b, 0x14); // 写数据
+        net_buf_simple_add_u8(b, total_data_len);
+        
+        for (int i = 0; i < 4; i++) {
+            net_buf_simple_add_u8(b, (uint8_t)((di & 0xFF) + 0x33));
+            di >>= 8;
+        }
+        // 密码 + 操作员代码 (mock)
+        for (int i = 0; i < 8; i++) net_buf_simple_add_u8(b, 0x33);
+
+        uint32_t val_to_write = tag_ids[1];
+        uint8_t bcd_buf[2];
+        dlt645_double_to_bcd((double)val_to_write, bcd_buf, 2);
+        net_buf_simple_add_u8(b, bcd_buf[0] + 0x33);
+        net_buf_simple_add_u8(b, bcd_buf[1] + 0x33);
     }
 
     net_buf_simple_add_u8(b, dlt645_calc_cs(b->data, b->len));
@@ -101,6 +123,19 @@ static int dlt645_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, pipe
     while (b->len > 0 && b->data[0] == 0xFE) net_buf_simple_pull(b, 1);
     if (b->len < 12 || b->data[0] != 0x68) return -1;
     if (dlt645_calc_cs(b->data, b->len - 2) != b->data[b->len - 2]) return -2;
+
+    uint8_t ctrl = b->data[8];
+
+    // 处理异常响应帧
+    if (ctrl & 0x80 && ctrl != 0x91 && ctrl != 0x94) {
+        LOG_WARN("SIM", "DLT645 error response, ctrl=0x%02X", (unsigned int)ctrl);
+        return -5; // 返回特定错误码表示设备拒绝
+    }
+
+    if(ctrl == 0x94) { // 写成功响应
+        *msg_count = 0;
+        return 0;
+    }
 
     net_buf_simple_pull(b, 9);
     uint8_t data_len = net_buf_simple_pull_u8(b);
@@ -142,25 +177,31 @@ static int dlt645_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
     if (memcmp(b->data + 1, priv->addr_bcd, 6) != 0) return 0;  // 静默忽略
 
     uint8_t ctrl = b->data[8];
-    if (ctrl != 0x11) return -3;  // 仅支持读
-
-    // 3. 构建响应 (Slave 响应逻辑)
+    
+    // 3. 构建响应
     if (resp_out) {
         struct net_buf_simple *rb = &resp_out->b;
         net_buf_simple_add_u8(rb, 0x68);
         net_buf_simple_add_mem(rb, priv->addr_bcd, 6);
         net_buf_simple_add_u8(rb, 0x68);
-        net_buf_simple_add_u8(rb, 0x91);  // 读成功响应
 
-        // 模拟回复数据：220.0V -> DI: 02010100
-        net_buf_simple_add_u8(rb, 6);  // DI(4) + Data(2)
-        net_buf_simple_add_u8(rb, 0x00 + 0x33);
-        net_buf_simple_add_u8(rb, 0x01 + 0x33);
-        net_buf_simple_add_u8(rb, 0x01 + 0x33);
-        net_buf_simple_add_u8(rb, 0x02 + 0x33);
-
-        net_buf_simple_add_u8(rb, 0x00 + 0x33);
-        net_buf_simple_add_u8(rb, 0x22 + 0x33);
+        if (ctrl == 0x11) { // 响应读
+            net_buf_simple_add_u8(rb, 0x91);  // 读成功响应
+            // 模拟回复数据：220.0V -> DI: 02010100
+            net_buf_simple_add_u8(rb, 6);  // DI(4) + Data(2)
+            net_buf_simple_add_u8(rb, 0x00 + 0x33);
+            net_buf_simple_add_u8(rb, 0x01 + 0x33);
+            net_buf_simple_add_u8(rb, 0x01 + 0x33);
+            net_buf_simple_add_u8(rb, 0x02 + 0x33);
+            net_buf_simple_add_u8(rb, 0x00 + 0x33);
+            net_buf_simple_add_u8(rb, 0x22 + 0x33);
+        } else if (ctrl == 0x14) { // 响应写
+            net_buf_simple_add_u8(rb, 0x94); // 写成功响应
+            net_buf_simple_add_u8(rb, 0); // 无数据体
+        } else {
+             // 不支持的控制码
+             return -3;
+        }
 
         net_buf_simple_add_u8(rb, dlt645_calc_cs(rb->data, rb->len));
         net_buf_simple_add_u8(rb, 0x16);
