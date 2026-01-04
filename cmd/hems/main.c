@@ -70,7 +70,7 @@ int main(int argc, char **argv) {
         int fd = io_channel_open(io_port, 9600);
         if (fd >= 0) {
             bus_orchestrator_attach_fd(orch, 0, fd);
-            bus_orchestrator_add_poll_v3(orch, "ModbusRTU", 1, 1001, 1000);
+            bus_orchestrator_add_poll(orch, "ModbusRTU", 1, 1001, 1000);
         }
     }
 

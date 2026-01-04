@@ -8,22 +8,34 @@ extern "C" {
 #include <stdint.h>
 
 /**
- * @brief 工业标准 Modbus CRC16 计算
+ * @brief 工业标准 Modbus CRC16
  */
 static inline uint16_t edge_crc16_modbus(const uint8_t *buf, size_t len) {
     uint16_t crc = 0xFFFF;
     for (size_t i = 0; i < len; i++) {
         crc ^= (uint16_t)buf[i];
         for (int j = 0; j < 8; j++) {
-            if (crc & 0x0001) {
-                crc >>= 1;
-                crc ^= 0xA001;
-            } else {
-                crc >>= 1;
-            }
+            if (crc & 0x0001) { crc >>= 1; crc ^= 0xA001; }
+            else crc >>= 1;
         }
     }
     return crc;
+}
+
+/**
+ * @brief DLMS/HDLC 标准 CRC-CCITT (X.25)
+ */
+static inline uint16_t edge_crc16_ccitt(const uint8_t *buf, size_t len) {
+    uint16_t crc = 0xFFFF;
+    for (size_t i = 0; i < len; i++) {
+        uint8_t data = buf[i];
+        for (int j = 0; j < 8; j++) {
+            if ((crc ^ data) & 0x0001) crc = (uint16_t)((crc >> 1) ^ 0x8408);
+            else crc >>= 1;
+            data >>= 1;
+        }
+    }
+    return (uint16_t)(crc ^ 0xFFFF);
 }
 
 // 统一状态码
@@ -40,7 +52,6 @@ typedef enum {
     EDGE_ERR_OVERFLOW = -9
 } edge_status_t;
 
-// 通用宏
 #define EDGE_UNUSED(x) (void)(x)
 
 int edge_get_app_root(char* out_path, size_t size);
@@ -49,4 +60,4 @@ int edge_get_app_root(char* out_path, size_t size);
 }
 #endif
 
-#endif  // EDGE_COMMON_H
+#endif

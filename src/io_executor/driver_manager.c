@@ -1,79 +1,93 @@
-#include "driver_manager.h"
+/**
+ * @file driver_manager.c
+ * @brief 驱动工厂管理器 - 负责协议模板的生命周期与实例映射
+ */
 
-#include <stdio.h>
+#include "driver_manager.h"
 #include <stdlib.h>
 #include <string.h>
-
 #include "edge_log.h"
 
-// --- 全局驱动元数据表 ---
-static edge_driver_t* g_protocol_templates[32];
-static int g_template_count = 0;
+#define MAX_DRIVERS 32
+
+struct driver_manager_s {
+    edge_driver_t *drivers[MAX_DRIVERS];
+    int count;
+};
+
+static struct driver_manager_s *g_manager = NULL;
+
+// [驱动注册宏集]
+extern int modbus_rtu_driver_register(void);
+extern int dlt645_driver_register(void);
+extern int dlms_driver_register(void);
 
 int driver_manager_init(void) {
-    g_template_count = 0;
+    if (g_manager) return 0;
+    g_manager = calloc(1, sizeof(struct driver_manager_s));
+    if (!g_manager) return -1;
+    
+    // 自动注册核心驱动，实现“开箱即用”
+    modbus_rtu_driver_register();
+    dlt645_driver_register();
+    dlms_driver_register();
+    
     return 0;
 }
 
-int driver_manager_register(edge_driver_t* driver) {
-    if (!driver || g_template_count >= 32) return -1;
-    g_protocol_templates[g_template_count++] = driver;
-    LOG_INFO(LOG_CAT_DRIVER, "Registered Protocol Template: %s", driver->name);
+int driver_manager_register(edge_driver_t *driver) {
+    if (!g_manager || !driver) return -1;
+    if (g_manager->count >= MAX_DRIVERS) return -2;
+    
+    // 检查重复
+    for (int i = 0; i < g_manager->count; i++) {
+        if (strcmp(g_manager->drivers[i]->name, driver->name) == 0) return 0;
+    }
+    
+    g_manager->drivers[g_manager->count++] = driver;
+    LOG_INFO(LOG_CAT_IO, "Registered Protocol Template: %s", driver->name);
     return 0;
 }
 
-edge_driver_t* driver_manager_find(const char* name) {
-    for (int i = 0; i < g_template_count; i++) {
-        if (strcmp(g_protocol_templates[i]->name, name) == 0) return g_protocol_templates[i];
+edge_driver_t *driver_manager_find(const char *name) {
+    if (!g_manager || !name) return NULL;
+    for (int i = 0; i < g_manager->count; i++) {
+        if (strcmp(g_manager->drivers[i]->name, name) == 0) return g_manager->drivers[i];
     }
     return NULL;
 }
 
-// --- 运行时实例分配 (V3 核心) ---
-
-edge_driver_ctx_t* driver_instance_create(const char* protocol_name, uint32_t device_id) {
-    edge_driver_t* drv = driver_manager_find(protocol_name);
-    if (!drv) {
-        LOG_ERROR(LOG_CAT_DRIVER, "Cannot find protocol template for: %s", protocol_name);
+edge_driver_ctx_t *driver_instance_create(const char *protocol, uint32_t device_id) {
+    edge_driver_t *tmpl = driver_manager_find(protocol);
+    if (!tmpl) {
+        LOG_ERROR(LOG_CAT_IO, "Cannot find protocol template for: %s", protocol);
         return NULL;
     }
-
-    // 分配上下文包装器
-    edge_driver_ctx_t* ctx = calloc(1, sizeof(edge_driver_ctx_t));
-    ctx->driver = drv;  // [填充模板指针]
+    
+    edge_driver_ctx_t *ctx = calloc(1, sizeof(edge_driver_ctx_t));
+    ctx->driver = tmpl;
     ctx->device_id = device_id;
-
-    // 物理分配协议私有内存
-    if (drv->ctx_size > 0) {
-        ctx->priv = calloc(1, drv->ctx_size);
+    if (tmpl->ctx_size > 0) {
+        ctx->priv = calloc(1, tmpl->ctx_size);
     }
-
-    // 初始化协议状态
-    if (drv->on_init) {
-        if (drv->on_init(ctx) != 0) {
-            LOG_ERROR(LOG_CAT_DRIVER, "Failed to init protocol state for: %s", protocol_name);
-            free(ctx->priv);
-            free(ctx);
-            return NULL;
-        }
-    }
-
-    LOG_INFO(LOG_CAT_DRIVER, "Instantiated Protocol %s for Device %u", protocol_name, device_id);
+    
+    if (tmpl->on_init) tmpl->on_init(ctx);
+    
+    LOG_INFO(LOG_CAT_IO, "Instantiated Protocol %s for Device %u", protocol, device_id);
     return ctx;
 }
 
-void driver_instance_destroy(edge_driver_ctx_t* ctx, const char* protocol_name) {
+void driver_instance_destroy(edge_driver_ctx_t *ctx, const char *protocol) {
     if (!ctx) return;
-
-    edge_driver_t* drv = driver_manager_find(protocol_name);
-    if (drv && drv->on_cleanup) {
-        drv->on_cleanup(ctx);
-    }
-
+    edge_driver_t *tmpl = driver_manager_find(protocol);
+    if (tmpl && tmpl->on_cleanup) tmpl->on_cleanup(ctx);
     if (ctx->priv) free(ctx->priv);
     free(ctx);
 }
 
 void driver_manager_fini(void) {
-    g_template_count = 0;
+    if (g_manager) {
+        free(g_manager);
+        g_manager = NULL;
+    }
 }

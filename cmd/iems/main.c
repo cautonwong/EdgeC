@@ -95,16 +95,18 @@ int main(int argc, char **argv) {
     }
 
     extern int dlt645_driver_register(void);
+    extern int dlms_driver_register(void);
     driver_manager_init();
     dlt645_driver_register();
+    dlms_driver_register();
     bus_orchestrator_t *orch = bus_orchestrator_create(NULL, hub, arb);
 
     if (io_port) {
         int fd = io_channel_open(io_port, 9600);
         if (fd >= 0) {
             bus_orchestrator_attach_fd(orch, 0, fd);
-            // 冒烟测试：统一使用 DeviceID 1
-            bus_orchestrator_add_poll_v3(orch, "DLT645-2007", 1, 1001, 1000);
+            // 冒烟测试：统一使用 DLMS 验证全链路
+            bus_orchestrator_add_poll(orch, "DLMS", 1, 1001, 1000);
         }
     }
 

@@ -8,39 +8,16 @@
 #include "driver_manager.h"
 #include "edge_driver.h"
 #include "shmring.h"
+#include "edge_common.h"
 
-// --- Mock Contract ---
-uint32_t edge_lookup_modbus(uint16_t reg, float *scale) {
-    if (reg == 0x0100) {
-        *scale = 0.1f;
-        return 1001;
-    }
-    return 0;
-}
-
-// 重新定义 CRC 用于测试报文构造
-static uint16_t test_crc16(const uint8_t *buf, size_t len) {
-    uint16_t crc = 0xFFFF;
-    for (size_t i = 0; i < len; i++) {
-        crc ^= (uint16_t)buf[i];
-        for (int j = 0; j < 8; j++) {
-            if (crc & 0x0001) {
-                crc >>= 1;
-                crc ^= 0xA001;
-            } else {
-                crc >>= 1;
-            }
-        }
-    }
-    return crc;
-}
+// 移除局部 edge_lookup_modbus 声明，由 contract_iems 提供
 
 extern int modbus_rtu_driver_register(void);
 
 static int setup(void **state) {
     (void)state;
     driver_manager_init();
-    modbus_rtu_driver_register();
+    // 驱动管理器初始化时已经注册了核心驱动，此处无需重复注册
     return 0;
 }
 
@@ -52,22 +29,24 @@ static int teardown(void **state) {
 
 static void test_modbus_v3_master_cycle(void **state) {
     (void)state;
+    // 使用 DeviceID 1 (对齐 IEMS 冒烟标准)
     edge_driver_ctx_t *ctx = driver_instance_create("ModbusRTU", 1);
+    assert_non_null(ctx);
     edge_driver_t *drv = driver_manager_find("ModbusRTU");
+    assert_non_null(drv);
 
     net_buf_pool_t pool;
-    memset(&pool, 0, sizeof(pool));
     net_buf_pool_init(&pool, 4, 256, 0, NULL, NULL);
 
-    // 1. 请求编码
-    uint32_t tags[] = {0x0100};
+    // 1. 请求编码 (使用 IEMS 契约中存在的 0x0000 地址)
+    uint32_t tags[] = {1001}; // Tag 1001 -> Voltage
     net_buf_t *tx = net_buf_alloc(&pool, 0);
     int ret = drv->encode_request(ctx, tags, 1, tx);
     assert_int_equal(ret, 0);
 
-    // 2. 模拟响应 (Val: 2200)
+    // 2. 模拟响应 (Val: 2200 -> 220.0V)
     uint8_t rx_raw[7] = {0x01, 0x03, 0x02, 0x08, 0x98, 0x00, 0x00};
-    uint16_t crc = test_crc16(rx_raw, 5);
+    uint16_t crc = edge_crc16_modbus(rx_raw, 5);
     rx_raw[5] = (uint8_t)(crc & 0xFF);
     rx_raw[6] = (uint8_t)(crc >> 8);
 

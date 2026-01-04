@@ -77,7 +77,7 @@ int main(int argc, char **argv) {
         if (fd >= 0) {
             bus_orchestrator_attach_fd(orch, 0, fd);
             // 冒烟测试：统一读电压 (Tag 1001)
-            bus_orchestrator_add_poll_v3(orch, "ModbusRTU", 1, 1001, 1000);
+            bus_orchestrator_add_poll(orch, "ModbusRTU", 1, 1001, 1000);
         }
     }
 

@@ -1,0 +1,6 @@
+# DLMS Test Contract Definition
+product: "DLMS_Test_V1"
+includes:
+  - "contracts/bindings/dlms/generic_ess.yaml"
+enabled_tags: 
+  - BATTERY_SOC

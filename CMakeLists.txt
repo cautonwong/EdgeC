@@ -182,6 +182,9 @@ add_library(edge_io_executor STATIC
     src/io_executor/driver_manager.c
     src/io_executor/modbus_rtu_driver.c
     src/io_executor/driver_dlms.c
+    src/io_executor/dlms_codec.c
+    src/io_executor/dlms_hdlc.c
+    src/io_executor/dlms_cosem.c
     src/io_executor/driver_iec104.c
     src/io_executor/driver_can.c
     src/io_executor/profile_loader.c
