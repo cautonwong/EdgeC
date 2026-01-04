@@ -1,101 +1,85 @@
+/**
+ * @file io_executor.c
+ * @brief 执行平面 I/O 调度核心
+ */
+
 #include "io_executor.h"
 
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/un.h>
+#include <termios.h>
 #include <unistd.h>
 
 #include "datahub.h"
 #include "edge_driver.h"
 #include "edge_log.h"
-#include "shmring.h"
 
-#define MAX_POLL_GROUPS 128
+/**
+ * @brief 智能通道打开器 (V4.5 增强版)
+ */
+int io_channel_open(const char *path, int baud) {
+    if (!path) return -1;
 
-struct io_executor_s {
-    edge_driver_t *driver;
-    datahub_t *hub;
-    edge_poll_group_t groups[MAX_POLL_GROUPS];
-    int group_count;
-    int is_running;
-};
+    // 1. 串口处理
+    if (strstr(path, "/dev/") != NULL) {
+        int fd = open(path, O_RDWR | O_NOCTTY | O_NONBLOCK);
+        if (fd < 0) return -1;
 
-// --- 驱动回调适配 (已迁移至 Orchestrator) ---
-#if 0
-static void on_driver_msg(pipe_msg_t *msg, void *user_data) {
-    io_executor_t *ctx = (io_executor_t *)user_data;
-    if (ctx && ctx->hub) {
-        datahub_publish(ctx->hub, msg);
+        struct termios tio;
+        if (tcgetattr(fd, &tio) != 0) {
+            close(fd);
+            return -1;
+        }
+        cfsetospeed(&tio, baud == 115200 ? B115200 : B9600);
+        cfsetispeed(&tio, baud == 115200 ? B115200 : B9600);
+        tio.c_cflag = (tio.c_cflag & (unsigned int)~CSIZE) | CS8 | CLOCAL | CREAD;
+        tcsetattr(fd, TCSANOW, &tio);
+        return fd;
     }
+
+    // 2. UDS 仿真通道处理 (带重试逻辑)
+    struct stat st;
+    int max_retries = 10;
+    while (max_retries--) {
+        if (stat(path, &st) == 0 && S_ISSOCK(st.st_mode)) {
+            int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+            if (fd >= 0) {
+                struct sockaddr_un addr;
+                memset(&addr, 0, sizeof(addr));
+                addr.sun_family = AF_UNIX;
+                strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
+
+                if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == 0) {
+                    int flags = fcntl(fd, F_GETFL, 0);
+                    fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+                    LOG_INFO(LOG_CAT_IO, "Simulation Link Connected (UDS): %s", path);
+                    return fd;
+                }
+                close(fd);
+            }
+        }
+        usleep(200000);  // 等待 200ms
+    }
+
+    LOG_ERROR(LOG_CAT_IO, "Failed to connect to simulation channel after retries: %s", path);
+    return -1;
 }
-#endif
 
 io_executor_t *io_executor_create(edge_driver_t *driver, datahub_t *hub) {
-    io_executor_t *ctx = calloc(1, sizeof(struct io_executor_s));
-    ctx->driver = driver;
-    ctx->hub = hub;
-    return ctx;
-}
-
-void io_executor_plan_polling(io_executor_t *ctx, uint16_t start, uint16_t count) {
-    if (ctx->group_count >= MAX_POLL_GROUPS) return;
-    edge_poll_group_t *g = &ctx->groups[ctx->group_count++];
-    g->slave_id = 1;
-    g->start_addr = start;
-    g->count = count;
-    g->func_code = 0x03;
+    (void)driver;
+    (void)hub;
+    return NULL;  // Legacy V1 接口已废弃
 }
 
 void io_executor_run(io_executor_t *ctx) {
-    if (!ctx) return;
-    ctx->is_running = 1;
-    LOG_INFO(LOG_CAT_IO, "IO Executor Plane started (Event-driven mode)");
-
-    // 原有的 while(1) 循环极其低效且阻塞，现已移除。
-    // 在 V3 架构中，IO 的触发应由 Arbiter 在主 Loop 中通过 uv_poll 触发。
+    (void)ctx;
 }
 
-// --- V1 接口实装 (支持测试与同步执行) ---
-
-int io_executor_init(uv_loop_t *main_loop) {
-    (void)main_loop;
-    return 0;
-}
-void io_executor_shutdown(void) {
-}
-
-int io_executor_submit(io_job_t *job) {
-    if (!job) return -1;
-    // 模拟同步完成：设置结果并触发回调
-    job->result = IO_RESULT_SUCCESS;
-    if (job->cb) job->cb(job, job->user_data);
-    return 0;
-}
-
-void io_executor_cancel(io_job_t *job) {
-    (void)job;
-}
-
-io_job_t *io_job_create(io_bus_id_t bus, size_t tx_size, size_t rx_size) {
-    io_job_t *job = calloc(1, sizeof(struct io_job_s));
-    job->bus_id = bus;
-    if (tx_size) job->tx_buf = malloc(tx_size);
-    if (rx_size) job->rx_buf = malloc(rx_size);
-    job->rx_cap = rx_size;
-    return job;
-}
-
-void io_job_free(io_job_t *job) {
-    if (job) {
-        if (job->tx_buf) free(job->tx_buf);
-        if (job->rx_buf) free(job->rx_buf);
-        free(job);
-    }
-}
-
-void io_executor_stop(io_executor_t *ctx) {
-    if (ctx) ctx->is_running = 0;
-}
 void io_executor_destroy(io_executor_t *ctx) {
-    if (ctx) free(ctx);
+    (void)ctx;
 }

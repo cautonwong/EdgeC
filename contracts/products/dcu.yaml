@@ -1,12 +1,11 @@
+# DCU Standard Contract Definition
 product: "DCU_Standard_V1"
 includes:
   - "contracts/bindings/modbus/acrel_p80.yaml"
   - "contracts/bindings/dlt645/standard_meter.yaml"
-  - "contracts/bindings/dlms/smart_meter.yaml"
-
-enabled_tags:
-  - VOLTAGE_PHASE_A
+  - "contracts/bindings/dlms/generic_ess.yaml"
+enabled_tags: 
+  - VOLTAGE_PHASE_A  # Tag 1001
   - CURRENT_PHASE_A
   - GRID_POWER
-  - ENERGY_ACTIVE_IMPORT
-  - GRID_FREQUENCY
+  - ENERGY_ACTIVE_IMPORT # Tag 3001

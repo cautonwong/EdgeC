@@ -1,19 +1,8 @@
+# EVSE FastCharge Contract Definition
 product: "EVSE_FastCharge_V2"
 includes:
   - "contracts/bindings/modbus/acrel_p80.yaml"
-
-enabled_tags:
+enabled_tags: 
   - VOLTAGE_PHASE_A
   - CURRENT_PHASE_A
   - GRID_POWER
-  - BATTERY_SOC # 通过 CAN 模拟
-
-tags:
-  - name: BATTERY_SOC
-    bindings:
-      - protocol: CAN
-        can_id: 0x18F00101
-        start: 0
-        len: 16
-        factor: 0.1
-        offset: 0.0

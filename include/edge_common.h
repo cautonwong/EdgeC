@@ -5,6 +5,26 @@
 extern "C" {
 #endif
 #include <stddef.h>
+#include <stdint.h>
+
+/**
+ * @brief 工业标准 Modbus CRC16 计算
+ */
+static inline uint16_t edge_crc16_modbus(const uint8_t *buf, size_t len) {
+    uint16_t crc = 0xFFFF;
+    for (size_t i = 0; i < len; i++) {
+        crc ^= (uint16_t)buf[i];
+        for (int j = 0; j < 8; j++) {
+            if (crc & 0x0001) {
+                crc >>= 1;
+                crc ^= 0xA001;
+            } else {
+                crc >>= 1;
+            }
+        }
+    }
+    return crc;
+}
 
 // 统一状态码
 typedef enum {
@@ -20,54 +40,13 @@ typedef enum {
     EDGE_ERR_OVERFLOW = -9
 } edge_status_t;
 
-// 获取错误描述
-static inline const char* edge_strerror(edge_status_t err) {
-    switch (err) {
-        case EDGE_OK:
-            return "Success";
-        case EDGE_ERR_GENERIC:
-            return "Generic error";
-        case EDGE_ERR_INVALID_PARAM:
-            return "Invalid parameter";
-        case EDGE_ERR_NOMEM:
-            return "Out of memory";
-        case EDGE_ERR_TIMEOUT:
-            return "Operation timed out";
-        case EDGE_ERR_BUSY:
-            return "Resource busy";
-        case EDGE_ERR_NOT_FOUND:
-            return "Not found";
-        case EDGE_ERR_NOT_SUPPORTED:
-            return "Not supported";
-        case EDGE_ERR_IO:
-            return "I/O error";
-        case EDGE_ERR_OVERFLOW:
-            return "Buffer overflow";
-        default:
-            return "Unknown error";
-    }
-}
-
 // 通用宏
 #define EDGE_UNUSED(x) (void)(x)
-#define EDGE_SAFE_FREE(ptr) \
-    do {                    \
-        if (ptr) {          \
-            free(ptr);      \
-            ptr = NULL;     \
-        }                   \
-    } while (0)
+
+int edge_get_app_root(char* out_path, size_t size);
 
 #ifdef __cplusplus
 }
 #endif
-
-/**
- * @brief 获取当前程序运行的根目录 (用于实现解压即用)
- * @param out_path 缓冲区
- * @param size 大小
- * @return 0 成功
- */
-int edge_get_app_root(char* out_path, size_t size);
 
 #endif  // EDGE_COMMON_H

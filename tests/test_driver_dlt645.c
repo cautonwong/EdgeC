@@ -103,21 +103,21 @@ static void test_dlt645_v3_write_cycle(void **state) {
     net_buf_t *req = net_buf_alloc(&pool, 0);
     int ret = drv->encode_request(master_ctx, write_tags, 2, req);
     assert_int_equal(ret, 0);
-    assert_int_equal(req->b.data[8], 0x14); // 控制码
-
-    // 2. Slave 接收请求并生成响应
+    assert_int_equal(req->b.data[8], 0x14);  // 控制码
+    // 长度: 1+6+1+1+1 + (4+4+4+2) + 1+1 = 26 bytes
+    assert_int_equal(req->b.len, 26);
     net_buf_t *resp = net_buf_alloc(&pool, 0);
     ret = drv->handle_rx(slave_ctx, req, resp, NULL, NULL);
     assert_int_equal(ret, 0);
     assert_true(resp->b.len > 0);
-    assert_int_equal(resp->b.data[8], 0x94); // 写成功响应
+    assert_int_equal(resp->b.data[8], 0x94);  // 写成功响应
 
     // 3. Master 解码来自 Slave 的响应
     pipe_msg_t msgs[1];
-    int count = 1; // reset to non-zero
+    int count = 1;  // reset to non-zero
     ret = drv->decode_response(master_ctx, resp, msgs, &count);
     assert_int_equal(ret, 0);
-    assert_int_equal(count, 0); // 写成功不产生消息
+    assert_int_equal(count, 0);  // 写成功不产生消息
 
     net_buf_unref(req);
     net_buf_unref(resp);
@@ -139,10 +139,10 @@ static void test_dlt645_v3_error_response(void **state) {
     net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL);
 
     // 1. 模拟一个错误响应帧 (D1 = 读数据错)
-    uint8_t rx_raw[] = {0x68, 0x89, 0x67, 0x45, 0x23, 0x01, 0x00, 
+    uint8_t rx_raw[] = {0x68, 0x89, 0x67, 0x45, 0x23, 0x01, 0x00,
                         0x68, 0xD1, 0x02, 0x34, 0x33, 0x00, 0x16};
     uint8_t cs = 0;
-    for(int i=0; i<12; i++) cs += rx_raw[i];
+    for (int i = 0; i < 12; i++) cs += rx_raw[i];
     rx_raw[12] = cs;
 
     net_buf_t *rx = net_buf_alloc(&pool, 0);
@@ -152,7 +152,7 @@ static void test_dlt645_v3_error_response(void **state) {
     pipe_msg_t msgs[1];
     int count = 0;
     int ret = drv->decode_response(ctx, rx, msgs, &count);
-    assert_int_equal(ret, -5); // 特定错误码
+    assert_int_equal(ret, -5);  // 特定错误码
     assert_int_equal(count, 0);
 
     net_buf_unref(rx);

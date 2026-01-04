@@ -1,12 +1,23 @@
+# IEMS Controller Contract Definition
 product: "IEMS_Controller_V1"
 includes:
   - "contracts/bindings/modbus/acrel_p80.yaml"
   - "contracts/bindings/dlt645/standard_meter.yaml"
+  - "contracts/bindings/iec104/relay_station.yaml"
+  - "contracts/bindings/can/bms_j1939.yaml"
 
 enabled_tags:
-  - VOLTAGE_PHASE_A
-  - GRID_POWER
+  - tag: VOLTAGE_PHASE_A
+    attributes:
+      upload: true
+      persist: true
+  - tag: GRID_POWER
+    attributes:
+      upload: true
+  - tag: ENERGY_ACTIVE_IMPORT
+    attributes:
+      upload: true
+      persist: true
   - GRID_FREQUENCY
-  - ENERGY_ACTIVE_IMPORT
   - BATTERY_SOC
   - BATTERY_POWER

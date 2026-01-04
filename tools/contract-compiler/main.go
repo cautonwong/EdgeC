@@ -87,17 +87,19 @@ func main() {
 			}
 		
 			rawKey := core.ParseProtocolKey(proto, keyStr)
-			// 只有在真的没有地址的情况下才跳过
-			if rawKey == 0 && keyStr == "" {
+			// 修正：只要 keyStr 不为空，即便 rawKey 是 0 (Modbus 合法地址)，也应包含
+			if keyStr == "" {
 				continue 
 			}
 
 			entries = append(entries, core.HashEntry{
-				RawKey: rawKey,
-				StrKey: keyStr,
-				TagID: rb.TagID,
+				RawKey:  rawKey,
+				StrKey:  keyStr,
+				TagID:   rb.TagID,
 				TagName: rb.TagName,
-				Scale: rb.Scale,
+				Scale:   rb.Scale,
+				ByteLen: rb.ByteLen,
+				Access:  rb.Access,
 			})
 		}
 		if len(entries) > 0 {

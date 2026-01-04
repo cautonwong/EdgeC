@@ -1,7 +1,8 @@
+# HEMS Gateway Contract Definition
 product: "HEMS_Gateway_Lite"
 includes:
-  - "contracts/bindings/modbus/huawei_sun2000.yaml"
-enabled_tags:
-  - GRID_POWER
+  - "contracts/bindings/modbus/acrel_p80.yaml"
+enabled_tags: 
   - VOLTAGE_PHASE_A
-  - PROJECT_HUMIDITY
+  - GRID_POWER
+  - ENERGY_ACTIVE_IMPORT

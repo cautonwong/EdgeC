@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "driver_manager.h"
 #include "edge_log.h"
@@ -24,6 +25,7 @@ struct bus_orchestrator_s {
     uv_loop_t *loop;
     net_buf_pool_t pool; /**< 专用的报文内存池 */
     poll_task_t *tasks;
+    int bus_fds[8]; /**< 物理总线 FD 映射表 */
     int is_running;
 };
 
@@ -45,41 +47,49 @@ static void _on_v3_cmd_start(void *user_data) {
     bus_orchestrator_t *ctx = task->parent;
     edge_driver_ctx_t *drv = task->drv_ctx;
 
-    // 1. 从池中分配缓冲区 (V3 零拷贝)
+    // 1. 从池中分配缓冲区
     net_buf_t *tx_buf = net_buf_alloc(&ctx->pool, 0);
     if (!tx_buf) goto done;
 
     // 2. 协议组包
     if (drv->driver->encode_request(drv, &task->tag_id, 1, tx_buf) == 0) {
-        LOG_INFO(LOG_CAT_BUS, "[V3 Arbiter] Executing %s for Device %u", drv->driver->name,
+        LOG_INFO(LOG_CAT_BUS, "[V3 Arbiter] Dispatching %s to Device %u", drv->driver->name,
                  drv->device_id);
 
-        // [核心模拟] 物理收发
-        // 真实情况：调用 io_executor_submit 或 uv_write
-        // 此处模拟 DLT645 响应 (对齐 IEMS 契约中的 VOLTAGE_PHASE_A: 02010100)
-        // 68 ADDR(6) 68 91 08 (DI+33)(4) (Data+33)(4) CS 16
-        uint8_t mock_rx[] = {0x68, 0x78, 0x56, 0x34, 0x12, 0x00, 0x00, 0x68, 0x91, 0x08,
-                             0x35, 0x34, 0x34, 0x33, 0x68, 0x39, 0x33, 0x33, 0x00, 0x16};
+        // [核心改进] 执行真实物理 I/O (同步模拟版，后续可升级为 uv_poll 非阻塞)
+        // 这里的 FD 是在添加任务时关联的，对应真实的串口或仿真 Socket
+        int fd = ctx->bus_fds[0];  // 简化处理：假设所有任务走 Bus 0
+        if (fd >= 0) {
+            // 物理写
+            write(fd, tx_buf->b.data, tx_buf->b.len);
 
-        net_buf_t *rx_buf = net_buf_alloc(&ctx->pool, 0);
-        if (rx_buf) {
-            net_buf_simple_add_mem(&rx_buf->b, mock_rx, sizeof(mock_rx));
+            // 给模拟器一点时间响应
+            usleep(100000);  // 100ms 宽限期
 
-            // 3. 协议解析
-            pipe_msg_t msgs[16];
-            int count = 0;
-            if (drv->driver->decode_response(drv, rx_buf, msgs, &count) == 0) {
-                for (int i = 0; i < count; i++) {
-                    datahub_publish(ctx->hub, &msgs[i]);
+            net_buf_t *rx_buf = net_buf_alloc(&ctx->pool, 0);
+            if (rx_buf) {
+                ssize_t n = read(fd, rx_buf->b.data, rx_buf->b.size);
+                if (n > 0) {
+                    rx_buf->b.len = (uint16_t)n;
+                    LOG_INFO(LOG_CAT_BUS, "Received %ld bytes from device", (long)n);
+
+                    pipe_msg_t msgs[16];
+                    int count = 0;
+                    if (drv->driver->decode_response(drv, rx_buf, msgs, &count) == 0) {
+                        for (int i = 0; i < count; i++) {
+                            datahub_publish(ctx->hub, &msgs[i]);
+                        }
+                    } else {
+                        LOG_WARN(LOG_CAT_BUS, "Protocol decode FAILED for %s", drv->driver->name);
+                    }
                 }
+                net_buf_unref(rx_buf);
             }
-            net_buf_unref(rx_buf);
         }
     }
     net_buf_unref(tx_buf);
 
 done:
-    // 4. 通知 Arbiter 释放总线
     arbiter_on_io_done(ctx->arb, 0, &pcmd->base);
 }
 
@@ -102,16 +112,20 @@ static void _on_v3_poll_timer(uv_timer_t *handle) {
 
 bus_orchestrator_t *bus_orchestrator_create(edge_driver_t *drv_tpl, datahub_t *hub,
                                             arbiter_t *arb) {
-    (void)drv_tpl;  // V3 模式下，模板通过实例化传入，此参数保留用于兼容性或改为 NULL
+    (void)drv_tpl;
     bus_orchestrator_t *ctx = calloc(1, sizeof(struct bus_orchestrator_s));
     ctx->hub = hub;
     ctx->arb = arb;
     ctx->loop = hub->loop;
 
-    // 初始化编排器私有内存池 (16个 Buffer, 每个 512 字节)
-    net_buf_pool_init(&ctx->pool, 16, 512, 0, NULL, NULL);
+    for (int i = 0; i < 8; i++) ctx->bus_fds[i] = -1;
 
+    net_buf_pool_init(&ctx->pool, 16, 512, 0, NULL, NULL);
     return ctx;
+}
+
+void bus_orchestrator_attach_fd(bus_orchestrator_t *ctx, int bus_id, int fd) {
+    if (ctx && bus_id < 8) ctx->bus_fds[bus_id] = fd;
 }
 
 int bus_orchestrator_add_poll_v3(bus_orchestrator_t *ctx, const char *protocol, uint32_t device_id,

@@ -53,35 +53,10 @@ jobs:
           chmod +x .local/linux-x86_64/bin/contract-compiler || true
           chmod +x .local/linux-aarch64/bin/contract-compiler || true
 
-      - name: Install Native Build Tools
+      - name: Install Testing Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build clang-format lcov libssl-dev
-
-      - name: Install Cross-Compilation Tools
-        if: matrix.config.target == 'arm64'
-        run: |
-          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu qemu-user-static
-
-      - name: Check Formatting (x86 only)
-        if: matrix.config.target == 'x86_64'
-        run: |
-          find src include tests -name "*.[ch]" | xargs clang-format -n --Werror
-
-      - name: Configure CMake
-        run: |
-          cmake -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Debug \
-            ${{ matrix.config.cmake_args }}
-
-      - name: Build
-        run: cmake --build build
-
-      - name: Package (CPack)
-        run: |
-          cd build
-          cpack -G TGZ
-          cpack -G DEB
+          sudo apt-get install -y cmake ninja-build clang-format lcov libssl-dev valgrind jq
 
       - name: Run Unit Tests (Native)
         if: matrix.config.run_tests && !matrix.config.use_qemu
@@ -89,6 +64,23 @@ jobs:
           cd build
           export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${{ github.workspace }}/.local/linux-x86_64/lib
           ctest --output-on-failure
+
+      - name: Valgrind Deep Memory Check (x86 only)
+        if: matrix.config.target == 'x86_64'
+        run: |
+          export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${{ github.workspace }}/.local/linux-x86_64/lib
+          valgrind --leak-check=full --error-exitcode=1 ./build/tests/test_datahub
+          valgrind --leak-check=full --error-exitcode=1 ./build/tests/test_shmring
+
+      - name: Full Product Smoke Test (x86 only)
+        if: matrix.config.target == 'x86_64'
+        run: |
+          export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${{ github.workspace }}/.local/linux-x86_64/lib
+          ./scripts/smoke_test.sh iems
+          ./scripts/smoke_test.sh dcu
+          ./scripts/smoke_test.sh evse
+          ./scripts/smoke_test.sh sg
+          ./scripts/smoke_test.sh hems
 
       - name: Run Unit Tests (QEMU)
         if: matrix.config.run_tests && matrix.config.use_qemu

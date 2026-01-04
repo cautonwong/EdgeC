@@ -115,6 +115,7 @@ int service_trigger_export(service_t *svc, const char *table, export_publish_fn 
 
 int service_run(service_t *svc);
 void service_stop(service_t *svc);
+void service_enable_smoke_test(service_t *svc);
 
 #ifdef __cplusplus
 }

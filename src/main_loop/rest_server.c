@@ -62,7 +62,7 @@ static char *handle_system_health(service_t *svc) {
     cJSON *root = cJSON_CreateObject();
     cJSON_AddStringToObject(root, "status", "ok");
     cJSON_AddNumberToObject(root, "uptime", (double)uv_now(service_get_loop(svc)) / 1000);
-    cJSON_AddStringToObject(root, "version", edge_get_version());
+    cJSON_AddStringToObject(root, "version", (const char *)edge_get_version());
 
     cJSON *storage = cJSON_AddObjectToObject(root, "storage");
     cJSON_AddNumberToObject(storage, "queue_depth", 0);
@@ -369,7 +369,14 @@ rest_server_t *rest_server_create(uv_loop_t *loop, service_t *svc, int port) {
     return srv;
 }
 
+static void _on_rest_server_close(uv_handle_t *h) {
+    rest_server_t *srv = (rest_server_t *)h->data;
+    free(srv);
+}
+
 void rest_server_destroy(rest_server_t *srv) {
     if (!srv) return;
-    uv_close((uv_handle_t *)&srv->server, (uv_close_cb)free);
+    if (!uv_is_closing((uv_handle_t *)&srv->server)) {
+        uv_close((uv_handle_t *)&srv->server, _on_rest_server_close);
+    }
 }

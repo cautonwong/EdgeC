@@ -20,6 +20,8 @@ type HashEntry struct {
 	TagID    uint32
 	TagName  string
 	Scale    float32
+	ByteLen  uint16 // [补强]
+	Access   uint32 // [补强]
 }
 
 // ParseProtocolKey 将不同协议的标识符解析为统一的 uint64 键值
@@ -32,7 +34,6 @@ func ParseProtocolKey(proto, key string) uint64 {
 		v, _ := strconv.ParseUint(strings.ReplaceAll(key, "0x", ""), 16, 32)
 		return v
 	case "DLMS":
-		// OBIS: 1.0.1.8.0.255 -> 6字节组合为 uint64
 		parts := strings.Split(key, ".")
 		var res uint64
 		for i, p := range parts {
@@ -61,20 +62,16 @@ func GeneratePerfectHash(proto string, entries []HashEntry) ProtocolHashInfo {
 		return ProtocolHashInfo{}
 	}
 
-	// 0. 物理一致性预检
 	keyMap := make(map[uint64]string)
 	for _, e := range entries {
 		if other, exists := keyMap[e.RawKey]; exists && other != e.TagName {
-			panic(fmt.Sprintf("FATAL CONTRACT ERROR [%s]: Physical Key Collision! Address/DI '%d' is assigned to both '%s' and '%s'. Fix your YAMLs!", proto, e.RawKey, other, e.TagName))
+			panic(fmt.Sprintf("FATAL CONTRACT ERROR [%s]: Physical Key Collision! Address/DI '%d' is assigned to both '%s' and '%s'.", proto, e.RawKey, other, e.TagName))
 		}
 		keyMap[e.RawKey] = e.TagName
 	}
 
 	size := uint32(1)
-	for size < uint32(len(entries)) {
-		size <<= 1
-	}
-	// 适当增加初始 size 以减少搜索压力
+	for size < uint32(len(entries)) { size <<= 1 }
 	if size < 4 { size = 4 }
 
 	for attempt := 0; attempt < 8; attempt++ {
@@ -83,10 +80,7 @@ func GeneratePerfectHash(proto string, entries []HashEntry) ProtocolHashInfo {
 			collision := false
 			for _, e := range entries {
 				h := computeHash(e.RawKey, seed, size)
-				if occupied[h] {
-					collision = true
-					break
-				}
+				if occupied[h] { collision = true; break }
 				occupied[h] = true
 			}
 			if !collision {
