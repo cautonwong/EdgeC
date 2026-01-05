@@ -46,7 +46,13 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
+          cache: true
           cache-dependency-path: tools/contract-compiler/go.sum
+
+      - name: Ccache Setup
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ matrix.config.name }}
 
       - name: Fix Binary Permissions
         run: |
@@ -56,7 +62,14 @@ jobs:
       - name: Install Testing Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build clang-format lcov libssl-dev valgrind jq
+          sudo apt-get install -y cmake ninja-build clang-format clang-tidy lcov libssl-dev valgrind jq
+
+      - name: Static Analysis (x86_64 only)
+        if: matrix.config.target == 'x86_64'
+        run: |
+          mkdir -p build && cd build
+          cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache
+          run-clang-tidy -p . -j $(nproc) -header-filter='src/.*' -checks='-*,bugprone-*,cert-*,performance-*'
 
       - name: Run Unit Tests (Native)
         if: matrix.config.run_tests && !matrix.config.use_qemu

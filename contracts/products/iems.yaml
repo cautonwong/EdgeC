@@ -21,3 +21,14 @@ enabled_tags:
   - GRID_FREQUENCY
   - BATTERY_SOC
   - BATTERY_POWER
+
+configs:
+  - name: BUS_MAX_COUNT
+    value: 8
+    desc: "Maximum number of communication buses"
+  - name: NETBUF_POOL_SIZE
+    value: 16
+    desc: "Number of buffers in the global pool"
+  - name: NETBUF_BLOCK_SIZE
+    value: 2048
+    desc: "Size of each buffer block"

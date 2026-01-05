@@ -64,10 +64,14 @@ int handle_dlms_request(net_buf_t *in, net_buf_t *resp_out) {
 static void on_alloc(uv_handle_t *h, size_t suggested, uv_buf_t *buf) {
     (void)h; buf->base = malloc(suggested); buf->len = (unsigned int)suggested;
 }
-static void on_write_done(uv_write_t *req, int status) {
-    (void)status; free(req->data); free(req);
+static void _on_write_free_cb(uv_write_t *req, int status) {
+    (void)status;
+    free(req->data);
+    free(req);
 }
+
 static void on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf) {
+
     net_buf_pool_t *pool = (net_buf_pool_t *)stream->data;
     if (nread > 0) {
         net_buf_t *req = net_buf_alloc(pool, 0);
@@ -78,7 +82,7 @@ static void on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf) {
             uv_write_t *wr = malloc(sizeof(uv_write_t));
             char *copy = malloc(resp->b.len); memcpy(copy, resp->b.data, resp->b.len);
             uv_buf_t w_buf = uv_buf_init(copy, resp->b.len);
-            wr->data = copy; uv_write(wr, stream, &w_buf, 1, (uv_write_cb)free);
+            wr->data = copy; uv_write(wr, stream, &w_buf, 1, _on_write_free_cb);
         }
         net_buf_unref(req); net_buf_unref(resp);
     }

@@ -12,7 +12,8 @@ typedef struct bus_orchestrator_s bus_orchestrator_t;
 /**
  * @brief 创建总线编排器
  */
-bus_orchestrator_t *bus_orchestrator_create(edge_driver_t *drv_tpl, datahub_t *hub, arbiter_t *arb);
+bus_orchestrator_t *bus_orchestrator_create(datahub_t *hub, arbiter_t *arb, 
+                                            int max_buses, uint32_t pool_size, uint32_t buf_size);
 
 /**
  * @brief 绑定物理 FD 到总线 ID

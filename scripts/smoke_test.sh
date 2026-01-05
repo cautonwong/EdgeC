@@ -39,7 +39,19 @@ rm -f $VPORT $LOG_FILE *.db *.db-shm *.db-wal
 # 3. 启动模拟器 (双协议自动识别模式)
 $SIM --product $PRODUCT --port $VPORT --uds &
 SIM_PID=$!
-sleep 2
+
+# [确定性增强] 轮询等待模拟器 Socket 就绪，移除不可靠的 sleep
+echo "[WAIT] Waiting for simulator socket $VPORT..."
+for i in {1..50}; do
+    if [ -S "$VPORT" ]; then break; fi
+    sleep 0.1
+done
+
+if [ ! -S "$VPORT" ]; then
+    echo "[FAIL] Simulator failed to start socket in 5 seconds."
+    kill $SIM_PID 2>/dev/null
+    exit 1
+fi
 
 # 4. 运行产品 (Data-Driven Auto-Exit)
 echo "[APP] Running $PRODUCT with $DEF_PROTO (waiting for auto-exit)..."

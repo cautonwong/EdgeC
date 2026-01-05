@@ -23,61 +23,74 @@ typedef uint32_t edge_tag_id_t;
 
 // --- 测点元数据 (逻辑层面) ---
 typedef struct {
-    const char* name;      // "VOLTAGE_PHASE_A"
-    const char* unit;      // "V"
-    const char* category;  // "Metrology", "Storage", etc.
-    const char* ui_group;  // UI 分组名称
-    float min_val;         // 量程下限
-    float max_val;         // 量程上限
-    bool persist;          // 是否存库
-    bool upload;           // 是否上送
+    const char* name;      // 8
+    const char* unit;      // 8
+    const char* category;  // 8
+    const char* ui_group;  // 8
+    float min_val;         // 4
+    float max_val;         // 4
+    bool persist;          // 1
+    bool upload;           // 1
+    uint8_t reserved[2];   // 2 (Explicit padding for 4-byte alignment)
 } tag_meta_t;
 
 // --- 协议绑定结构 (物理层面 - V4.5 升维版) ---
 
 typedef struct {
-    uint16_t addr;
-    edge_tag_id_t id;
-    float scaler;
-    uint16_t length; /**< 数据字节数 */
-    uint32_t access; /**< 读写权限掩码 */
+    edge_tag_id_t id;   // 4
+    float scaler;       // 4
+    uint32_t access;    // 4
+    uint16_t addr;      // 2
+    uint16_t length;    // 2
 } modbus_map_t;
 
 typedef struct {
-    uint16_t class_id; /**< [新增] DLMS Class ID */
-    const char* obis;  /**< OBIS code string */
-    uint8_t attr_id;   /**< [新增] Attribute ID */
-    edge_tag_id_t id;
-    float scaler;
-    uint16_t length;
-    uint32_t access;
+    const char* obis;   // 8
+    uint64_t raw_key;   // 8 (Pre-calculated uint64 OBIS)
+    edge_tag_id_t id;   // 4
+    float scaler;       // 4
+    uint32_t access;    // 4
+    uint16_t class_id;  // 2
+    uint16_t length;    // 2
+    uint8_t attr_id;    // 1
+    uint8_t reserved[3];// 3
 } dlms_map_t;
 
 typedef struct {
-    int ioa;
-    edge_tag_id_t id;
-    int type_id;
-    uint16_t length;
-    uint32_t access;
+    edge_tag_id_t id;   // 4
+    int ioa;            // 4
+    int type_id;        // 4
+    uint32_t access;    // 4
+    uint16_t length;    // 2
+    uint16_t reserved;  // 2
 } iec104_map_t;
 
 typedef struct {
-    const char* di;
-    uint32_t di_num;
-    edge_tag_id_t id;
-    float scaler;
-    uint16_t length;
-    uint32_t access;
+    const char* di;     // 8
+    edge_tag_id_t id;   // 4
+    uint32_t di_num;    // 4
+    float scaler;       // 4
+    uint32_t access;    // 4
+    uint16_t length;    // 2
+    uint16_t reserved;  // 2
 } dlt645_map_t;
 
 typedef struct {
-    const char* oad;
-    uint32_t oad_num;
-    edge_tag_id_t id;
-    float scaler;
-    uint16_t length;
-    uint32_t access;
+    const char* oad;    // 8
+    edge_tag_id_t id;   // 4
+    uint32_t oad_num;   // 4
+    float scaler;       // 4
+    uint32_t access;    // 4
+    uint16_t length;    // 2
+    uint16_t reserved;  // 2
 } dlt698_map_t;
+
+// Static assertions to ensure memory layout sovereignty (C11)
+#if !defined(__cplusplus) && __STDC_VERSION__ >= 201112L
+_Static_assert(sizeof(modbus_map_t) == 16, "modbus_map_t size mismatch (padding detected)");
+_Static_assert(sizeof(iec104_map_t) == 20, "iec104_map_t size mismatch");
+_Static_assert(sizeof(dlt645_map_t) == 32, "dlt645_map_t size mismatch");
+#endif
 
 typedef struct {
     uint32_t can_id;

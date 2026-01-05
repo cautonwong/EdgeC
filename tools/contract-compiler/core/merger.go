@@ -44,7 +44,22 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 
 	// 3. Product Overrides (高优先级 - 覆盖库文件)
 	// 注意：在此阶段我们先处理 product.yaml 里的 enabled_tags
-	for _, n := range pc.EnabledTags { enabledSet[n] = true }
+	for _, item := range pc.EnabledTags {
+		switch v := item.(type) {
+		case string:
+			enabledSet[v] = true
+		case map[string]interface{}:
+			if name, ok := v["tag"].(string); ok {
+				enabledSet[name] = true
+				// 处理 tag 级别的属性覆盖 (如 upload, persist)
+				if tag, ok := rawTags[name]; ok {
+					if attrs, ok := v["attributes"].(map[string]interface{}); ok {
+						for ak, av := range attrs { tag[ak] = av }
+					}
+				}
+			}
+		}
+	}
 	
 	for name, ovr := range pc.Overrides {
 		if tag, ok := rawTags[name]; ok {
@@ -57,6 +72,9 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 			}
 		}
 	}
+
+	// 3.1 Initialize Configs from Product
+	effectiveConfigs := pc.Configs
 
 	// 4. Local Extension (最高优先级 - 现场真相)
 	if localPath != "" {
@@ -77,6 +95,23 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 						}
 					}
 				}
+			}
+			// 注入现场 Configs
+			if cfgRaw, ok := local["configs"].([]interface{}); ok {
+				var localConfigs []model.ConfigDef
+				for _, c := range cfgRaw {
+					if cm, ok := c.(map[string]interface{}); ok {
+						name, _ := cm["name"].(string)
+						if name != "" {
+							localConfigs = append(localConfigs, model.ConfigDef{
+								Name:  name,
+								Value: cm["value"],
+								Desc:  fmt.Sprintf("%v", cm["desc"]),
+							})
+						}
+					}
+				}
+				mergeConfigs(&effectiveConfigs, localConfigs)
 			}
 		}
 	}
@@ -114,7 +149,31 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 		if n, ok := raw["product"].(string); ok { prodName = n }
 	}
 
-	return &model.EffectiveContract{ Product: prodName, ActiveTags: activeTags, AllTags: allTags }
+	return &model.EffectiveContract{
+		Product:    prodName,
+		ActiveTags: activeTags,
+		AllTags:    allTags,
+		Configs:    effectiveConfigs,
+	}
+}
+
+func mergeConfigs(target *[]model.ConfigDef, source []model.ConfigDef) {
+	for _, s := range source {
+		found := false
+		for i, t := range *target {
+			if t.Name == s.Name {
+				(*target)[i].Value = s.Value
+				if s.Desc != "" {
+					(*target)[i].Desc = s.Desc
+				}
+				found = true
+				break
+			}
+		}
+		if !found {
+			*target = append(*target, s)
+		}
+	}
 }
 
 // 辅助函数保持逻辑一致
@@ -177,11 +236,17 @@ func injectBinding(rawTags map[string]map[string]interface{}, tagName, proto str
 		switch strings.ToLower(k) {
 		case "scale": newK = "scaler"
 		case "address": newK = "addr"
+		case "classid": newK = "class_id"
+		case "attrid": newK = "attr_id"
 		}
 		normalizedAttr[newK] = v
 	}
 
-	newB := map[string]interface{}{"protocol": upProto, "attributes": normalizedAttr}
+	newB := map[string]interface{}{
+		"tag":        tagName,
+		"protocol":   upProto,
+		"attributes": normalizedAttr,
+	}
 	found := false
 	for i, b := range bindings {
 		if bm, ok := b.(map[string]interface{}); ok {
@@ -197,11 +262,16 @@ func injectBinding(rawTags map[string]map[string]interface{}, tagName, proto str
 
 func validateProtocolOverlap(active []model.TagDef) {
 	mbAddrs := make(map[uint16]string)
+	dltAddrs := make(map[uint32]string)
+	iecAddrs := make(map[int]string)
+
 	for _, t := range active {
 		for _, b := range t.Bindings {
-			if strings.EqualFold(b.ProtocolType, "MODBUS") {
+			proto := strings.ToUpper(b.ProtocolType)
+			switch proto {
+			case "MODBUS":
 				if v, ok := b.Attributes["addr"]; ok {
-					var addr uint16
+					addr := uint16(0)
 					switch val := v.(type) {
 					case int: addr = uint16(val)
 					case float64: addr = uint16(val)
@@ -210,6 +280,29 @@ func validateProtocolOverlap(active []model.TagDef) {
 						panic(fmt.Sprintf("FATAL: Modbus Address Conflict at %d! Tags: '%s' and '%s'", addr, existing, t.Name))
 					}
 					mbAddrs[addr] = t.Name
+				}
+			case "DLT645", "DLT698":
+				key := "di"
+				if proto == "DLT698" { key = "oad" }
+				if v, ok := b.Attributes[key].(string); ok {
+					raw := ParseProtocolKey(proto, v)
+					u32 := uint32(raw)
+					if existing, conflict := dltAddrs[u32]; conflict {
+						panic(fmt.Sprintf("FATAL: %s Address Conflict at %s! Tags: '%s' and '%s'", proto, v, existing, t.Name))
+					}
+					dltAddrs[u32] = t.Name
+				}
+			case "IEC104":
+				if v, ok := b.Attributes["addr"]; ok {
+					ioa := 0
+					switch val := v.(type) {
+					case int: ioa = val
+					case float64: ioa = int(val)
+					}
+					if existing, conflict := iecAddrs[ioa]; conflict {
+						panic(fmt.Sprintf("FATAL: IEC104 IOA Conflict at %d! Tags: '%s' and '%s'", ioa, existing, t.Name))
+					}
+					iecAddrs[ioa] = t.Name
 				}
 			}
 		}

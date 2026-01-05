@@ -19,7 +19,8 @@ static void _on_dcu_cmd_cleanup(cmd_msg_t *cmd) {
 }
 
 void dcu_inventory_add_meter(service_t *svc, const char *name, int bus_id, uint32_t slave_id,
-                             const char *proto) {
+                             const char *protocol) {
+    (void)bus_id;
     sqlite_svc_t *db = service_get_storage(svc);
     if (!db) return;
 
@@ -29,10 +30,10 @@ void dcu_inventory_add_meter(service_t *svc, const char *name, int bus_id, uint3
     snprintf(sql, sizeof(sql),
              "INSERT OR REPLACE INTO inventory (id, type, addr, protocol, enabled) "
              "VALUES ('%s', 'METER', %u, '%s', 1);",
-             name, slave_id, proto);
+             name, slave_id, protocol);
 
     LOG_INFO(LOG_CAT_SCHED, "DCU: Registering Asset '%s' (Addr: %u, Proto: %s)", name, slave_id,
-             proto);
+             protocol);
     sqlite3_exec(sqlite_svc_get_db_handle(db), sql, NULL, NULL, NULL);
 }
 

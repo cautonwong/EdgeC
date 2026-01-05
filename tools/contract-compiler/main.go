@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
+	"hash/crc32"
 
 	"gopkg.in/yaml.v3"
 )
@@ -24,13 +25,21 @@ var masterCTpl string
 //go:embed templates/slave_h.tmpl
 var slaveHTpl string
 
+//go:embed templates/slave_c.tmpl
+var slaveCTpl string
+
+//go:embed templates/config_cmake.tmpl
+var configCmakeTpl string
+
 type TplCtx struct {
 	ActiveTags []model.TagDef
 	AllTags    []model.TagDef
 	ActiveMap  map[string]bool
 	PMap       map[string][]protocols.ResolvedBinding
 	Hashes     map[string]core.ProtocolHashInfo
+	Configs    []model.ConfigDef
 	Product    string
+	Signature  uint32
 }
 
 func (c TplCtx) IsActive(name string) bool { return c.ActiveMap[name] }
@@ -102,11 +111,21 @@ func main() {
 				Access:  rb.Access,
 			})
 		}
-		if len(entries) > 0 {
-			hashes[proto] = core.GeneratePerfectHash(proto, entries)
+	if len(entries) > 0 {
+			hInfo := core.GeneratePerfectHash(proto, entries)
+			if !hInfo.IsPerfect {
+				panic(fmt.Sprintf("[CRITICAL] Failed to generate Perfect Hash for %s after multiple expansions. This would lead to silent data loss.", proto))
+			}
+			hashes[proto] = hInfo
 			fmt.Printf("[Compiler] Protocol %s: Generated hash for %d entries (IsPerfect: %v)\n", 
 				proto, len(entries), hashes[proto].IsPerfect)
 		}
+	}
+
+	// 计算契约签名 (基于所有 ActiveTags 的 ID)
+	var sig uint32
+	for _, t := range contract.ActiveTags {
+		sig = crc32.Update(sig, crc32.IEEETable, []byte(fmt.Sprintf("%d", t.ID)))
 	}
 
 	ctx := TplCtx{
@@ -115,7 +134,9 @@ func main() {
 		ActiveMap:  actMap,
 		PMap:       resolved,
 		Hashes:     hashes,
+		Configs:    contract.Configs,
 		Product:    contract.Product,
+		Signature:  sig,
 	}
 
 	os.MkdirAll(*out, 0755)
@@ -136,6 +157,7 @@ func main() {
 		render("gen", filepath.Join(*out, "contracts.h"), masterHTpl, ctx, funcMap)
 		render("gen", filepath.Join(*out, "contracts.c"), masterCTpl, ctx, funcMap)
 		render("gen", filepath.Join(*out, "contracts_slave.h"), slaveHTpl, ctx, funcMap)
+		render("gen", filepath.Join(*out, "config.cmake"), configCmakeTpl, ctx, funcMap)
 		yData, _ := yaml.Marshal(contract)
 		os.WriteFile(filepath.Join(*out, "contracts.yaml"), yData, 0644)
 	} else {

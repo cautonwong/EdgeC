@@ -16,9 +16,10 @@ struct bus_orchestrator_s {
     arbiter_t *arb;
     uv_loop_t *loop;
     net_buf_pool_t pool;
-    int bus_fds[8];
-    uv_poll_t bus_polls[8];
-    poll_task_t *current_tasks[8];
+    int max_buses;
+    int *bus_fds;
+    uv_poll_t *bus_polls;
+    poll_task_t **current_tasks;
 };
 
 struct poll_task_s {
@@ -99,17 +100,22 @@ static void _on_v3_poll_timer(uv_timer_t *handle) {
     arbiter_submit_cmd(task->parent->arb, task->bus_id, &task->msg);
 }
 
-bus_orchestrator_t *bus_orchestrator_create(edge_driver_t *drv_tpl, datahub_t *hub, arbiter_t *arb) {
-    (void)drv_tpl;
+bus_orchestrator_t *bus_orchestrator_create(datahub_t *hub, arbiter_t *arb, 
+                                            int max_buses, uint32_t pool_size, uint32_t buf_size) {
     bus_orchestrator_t *ctx = calloc(1, sizeof(struct bus_orchestrator_s));
     ctx->hub = hub; ctx->arb = arb; ctx->loop = hub->loop;
-    for (int i = 0; i < 8; i++) ctx->bus_fds[i] = -1;
-    net_buf_pool_init(&ctx->pool, 16, 2048, 0, NULL, NULL);
+    ctx->max_buses = max_buses > 0 ? max_buses : 8;
+    ctx->bus_fds = malloc(sizeof(int) * (size_t)ctx->max_buses);
+    ctx->bus_polls = malloc(sizeof(uv_poll_t) * (size_t)ctx->max_buses);
+    ctx->current_tasks = calloc((size_t)ctx->max_buses, sizeof(poll_task_t *));
+
+    for (int i = 0; i < ctx->max_buses; i++) ctx->bus_fds[i] = -1;
+    net_buf_pool_init(&ctx->pool, (uint16_t)pool_size, (uint16_t)buf_size, 0, NULL, NULL);
     return ctx;
 }
 
 void bus_orchestrator_attach_fd(bus_orchestrator_t *ctx, int bus_id, int fd) {
-    if (ctx && bus_id < 8) {
+    if (ctx && bus_id < ctx->max_buses) {
         ctx->bus_fds[bus_id] = fd;
         int flags = fcntl(fd, F_GETFL, 0);
         fcntl(fd, F_SETFL, flags | O_NONBLOCK);
@@ -119,7 +125,7 @@ void bus_orchestrator_attach_fd(bus_orchestrator_t *ctx, int bus_id, int fd) {
 
 int bus_orchestrator_add_poll(bus_orchestrator_t *ctx, const char *protocol, uint32_t device_id, uint32_t tag_id, int interval_ms) {
     poll_task_t *task = calloc(1, sizeof(poll_task_t));
-    task->parent = ctx; task->tag_id = tag_id; task->bus_id = 0;
+    task->parent = ctx; task->tag_id = tag_id; task->bus_id = 0; // 默认使用第一条总线
     task->drv_ctx = driver_instance_create(protocol, device_id);
     if (!task->drv_ctx) { free(task); return -1; }
     strncpy(task->msg.req_id, "POLL_V3", sizeof(task->msg.req_id)-1);
@@ -136,4 +142,12 @@ int bus_orchestrator_add_poll(bus_orchestrator_t *ctx, const char *protocol, uin
 }
 
 void bus_orchestrator_run(bus_orchestrator_t *ctx) { (void)ctx; }
-void bus_orchestrator_destroy(bus_orchestrator_t *ctx) { if (ctx) { net_buf_pool_destroy(&ctx->pool); free(ctx); } }
+void bus_orchestrator_destroy(bus_orchestrator_t *ctx) { 
+    if (ctx) { 
+        net_buf_pool_destroy(&ctx->pool); 
+        free(ctx->bus_fds);
+        free(ctx->bus_polls);
+        free(ctx->current_tasks);
+        free(ctx); 
+    } 
+}

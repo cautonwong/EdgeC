@@ -8,11 +8,7 @@ LABEL description="Build environment for EdgeOS (x86_64 & aarch64)"
 # 避免 apt 安装时的交互提示
 ENV DEBIAN_FRONTEND=noninteractive
 
-# 1. 安装基础构建工具和依赖库
-# build-essential: GCC, Make 等
-# cmake, ninja-build: 构建系统
-# git: 版本控制
-# cppcheck, valgrind, clang-format: 质量工具
+# Phase 1: Heavy Dependencies (Stable)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
@@ -23,10 +19,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     cppcheck \
     valgrind \
     clang-format \
+    clang-tidy \
     lcov \
+    ccache \
+    golang \
+    curl \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. 安装交叉编译工具链 (针对 ARM64 边缘设备，如 RK3568, 树莓派)
+# Ccache configuration
+ENV CCACHE_DIR=/home/builder/.ccache
+ENV CCACHE_MAXSIZE=5G
+
+# Phase 2: Cross-compile Toolchains
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc-aarch64-linux-gnu \
     g++-aarch64-linux-gnu \

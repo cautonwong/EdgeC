@@ -99,7 +99,10 @@ int main(int argc, char **argv) {
     driver_manager_init();
     dlt645_driver_register();
     dlms_driver_register();
-    bus_orchestrator_t *orch = bus_orchestrator_create(NULL, hub, arb);
+    bus_orchestrator_t *orch = bus_orchestrator_create(hub, arb, 
+                                                      CONFIG_BUS_MAX_COUNT, 
+                                                      CONFIG_NETBUF_POOL_SIZE, 
+                                                      CONFIG_NETBUF_BLOCK_SIZE);
 
     if (io_port) {
         int fd = io_channel_open(io_port, 9600);

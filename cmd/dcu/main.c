@@ -71,7 +71,7 @@ int main(int argc, char **argv) {
     driver_manager_init();
     dlt645_driver_register();
     
-    bus_orchestrator_t *orch = bus_orchestrator_create(NULL, hub, arb);
+    bus_orchestrator_t *orch = bus_orchestrator_create(hub, arb, 8, 16, 2048);
 
     if (io_port) {
         int fd = io_channel_open(io_port, 9600);

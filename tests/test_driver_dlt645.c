@@ -98,8 +98,8 @@ static void test_dlt645_v3_write_cycle(void **state) {
     net_buf_pool_t pool;
     net_buf_pool_init(&pool, 4, 256, 0, NULL, NULL);
 
-    // 1. Master 编码写请求 (DI: 04000102, Value: 1234)
-    uint32_t write_tags[] = {0x04000102, 1234};
+    // 1. Master 编码写请求 (DI: 02010100, Value: 1234)
+    uint32_t write_tags[] = {0x02010100, 1234};
     net_buf_t *req = net_buf_alloc(&pool, 0);
     int ret = drv->encode_request(master_ctx, write_tags, 2, req);
     assert_int_equal(ret, 0);

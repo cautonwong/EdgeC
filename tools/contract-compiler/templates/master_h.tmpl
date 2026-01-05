@@ -3,6 +3,20 @@
 #define EDGE_CONTRACTS_H
 #include "contract_data_types.h"
 
+// [Section -1] Contract Metadata
+#define CONTRACT_SIGNATURE {{ printf "0x%08X" .Signature }}
+
+// [Section 0] Product Configurations (Kconfig Alternative)
+{{- range .Configs }}
+#define CONFIG_{{ .Name }} {{ .Value }}
+{{- $valStr := print .Value }}
+{{- if or (eq $valStr "1") (eq $valStr "true") }}
+#define CONFIG_{{ .Name }}_ENABLED 1
+{{- else }}
+#define CONFIG_{{ .Name }}_ENABLED 0
+{{- end }}
+{{- end }}
+
 // [Section 1] Feature Gates
 {{- range .AllTags }}
 #define TAG_{{ .Name }}_ENABLED {{ if $.IsActive .Name }}1{{ else }}0{{ end }}
