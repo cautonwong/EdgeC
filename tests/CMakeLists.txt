@@ -38,7 +38,7 @@ add_edge_test(test_sqlite_service test_sqlite_service.c)
 add_edge_test(test_driver_manager test_driver_manager.c)
 add_edge_test(test_io_executor test_io_executor.c)
 add_edge_test(test_contract_lookup test_contract_lookup.c)
-# add_edge_test(test_driver_dlt645 test_driver_dlt645.c)
+add_edge_test(test_driver_dlt645 test_driver_dlt645.c ../src/io_executor/driver_dlt645.c)
 add_edge_test(test_driver_v3 test_driver_v3.c)
 add_edge_test(test_modbus_v3 test_modbus_v3.c)
 

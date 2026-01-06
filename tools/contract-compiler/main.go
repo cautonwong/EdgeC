@@ -2,6 +2,7 @@ package main
 
 import (
 	"contract-compiler/core"
+	"contract-compiler/exporter"
 	"contract-compiler/model"
 	"contract-compiler/protocols"
 	_ "embed"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"text/template"
 	"hash/crc32"
+	"encoding/json"
 
 	"gopkg.in/yaml.v3"
 )
@@ -22,12 +24,6 @@ var masterHTpl string
 //go:embed templates/master_c.tmpl
 var masterCTpl string
 
-//go:embed templates/slave_h.tmpl
-var slaveHTpl string
-
-//go:embed templates/slave_c.tmpl
-var slaveCTpl string
-
 //go:embed templates/config_cmake.tmpl
 var configCmakeTpl string
 
@@ -37,96 +33,66 @@ type TplCtx struct {
 	ActiveMap  map[string]bool
 	PMap       map[string][]protocols.ResolvedBinding
 	Hashes     map[string]core.ProtocolHashInfo
+	TagHash    core.ProtocolHashInfo
 	Configs    []model.ConfigDef
+	Params     []model.ParamDef
+	Hardware   []model.HardwareDef
+	Pipelines  []model.PipelineDef
+	Policies   []model.PolicyDef
+	UI         model.UIDef
 	Product    string
 	Signature  uint32
 }
 
 func (c TplCtx) IsActive(name string) bool { return c.ActiveMap[name] }
-func (c TplCtx) GetUIAttr(t model.TagDef, key string) interface{} {
-	if ui, ok := t.Attributes["ui"].(map[string]interface{}); ok {
-		val := ui[key]
-		switch v := val.(type) {
-		case int: return float64(v)
-		case float64: return v
-		}
-		return val
-	}
-	return nil
-}
-func (c TplCtx) CType(t string) string {
-	switch t {
-	case "float": return "float"
-	case "double": return "double"
-	case "int": return "int32_t"
-	default: return "uint16_t"
-	}
-}
 
 func main() {
-	schema := flag.String("schema", "", "path to schema file")
-	product := flag.String("product", "", "path to product file")
-	local := flag.String("local", "", "path to local extension")
-	out := flag.String("out", "", "output directory")
-	base := flag.String("base", "", "project base directory")
-	target := flag.String("target", "master", "build target (master or slave)")
+	schema := flag.String("schema", "", "path")
+	product := flag.String("product", "", "path")
+	local := flag.String("local", "", "path")
+	out := flag.String("out", "", "path")
+	base := flag.String("base", "", "path")
+	target := flag.String("target", "master", "target")
 	flag.Parse()
 
 	contract := core.BuildContract(*schema, *product, *local, *base)
 	actMap := make(map[string]bool)
-	for _, t := range contract.ActiveTags {
-		actMap[t.Name] = true
-	}
+	for _, t := range contract.ActiveTags { actMap[t.Name] = true }
 	resolved := protocols.Resolve(contract.ActiveTags)
 
-	// 计算各协议的完美哈希
 	hashes := make(map[string]core.ProtocolHashInfo)
 	for proto, rbs := range resolved {
 		entries := make([]core.HashEntry, 0, len(rbs))
-		fmt.Printf("[Compiler] Protocol %s: Found %d bindings\n", proto, len(rbs))
 		for _, rb := range rbs {
 			keyStr := ""
 			switch proto {
 			case "MODBUS": keyStr = fmt.Sprintf("%d", rb.Addr)
-			case "IEC104": keyStr = fmt.Sprintf("%d", rb.IOA)
 			case "DLT645": keyStr = rb.DI
 			case "DLT698": keyStr = rb.OAD
-			case "DLMS": keyStr = rb.OBIS
-			case "CAN": continue // CAN 暂不使用完美哈希
+			case "IEC104": keyStr = fmt.Sprintf("%d", rb.IOA)
 			}
-		
-			rawKey := core.ParseProtocolKey(proto, keyStr)
-			// 修正：只要 keyStr 不为空，即便 rawKey 是 0 (Modbus 合法地址)，也应包含
-			if keyStr == "" {
-				continue 
-			}
-
+			if keyStr == "" { continue }
 			entries = append(entries, core.HashEntry{
-				RawKey:  rawKey,
-				StrKey:  keyStr,
-				TagID:   rb.TagID,
-				TagName: rb.TagName,
-				Scale:   rb.Scale,
-				ByteLen: rb.ByteLen,
-				Access:  rb.Access,
+				RawKey: core.ParseProtocolKey(proto, keyStr),
+				StrKey: keyStr, TagID: rb.TagID, TagName: rb.TagName, Scale: rb.Scale, ByteLen: rb.ByteLen, Access: rb.Access,
 			})
 		}
-	if len(entries) > 0 {
-			hInfo := core.GeneratePerfectHash(proto, entries)
-			if !hInfo.IsPerfect {
-				panic(fmt.Sprintf("[CRITICAL] Failed to generate Perfect Hash for %s after multiple expansions. This would lead to silent data loss.", proto))
-			}
-			hashes[proto] = hInfo
-			fmt.Printf("[Compiler] Protocol %s: Generated hash for %d entries (IsPerfect: %v)\n", 
-				proto, len(entries), hashes[proto].IsPerfect)
-		}
+		if len(entries) > 0 { hashes[proto] = core.GeneratePerfectHash(proto, entries) }
 	}
 
-	// 计算契约签名 (基于所有 ActiveTags 的 ID)
 	var sig uint32
-	for _, t := range contract.ActiveTags {
-		sig = crc32.Update(sig, crc32.IEEETable, []byte(fmt.Sprintf("%d", t.ID)))
+	for _, t := range contract.ActiveTags { sig = crc32.Update(sig, crc32.IEEETable, []byte(fmt.Sprintf("%d", t.ID))) }
+
+	// 5. 计算 TagID 到连续索引的完美哈希 (解决稀疏数组空间占用问题)
+	tagEntries := make([]core.HashEntry, 0, len(contract.ActiveTags))
+	for i, t := range contract.ActiveTags {
+		tagEntries = append(tagEntries, core.HashEntry{
+			RawKey:  uint64(t.ID),
+			TagName: t.Name,
+			TagID:   uint32(i), // 存储该 Tag 在 Dense Table 中的连续索引
+		})
 	}
+	tagHash := core.GeneratePerfectHash("TAG", tagEntries)
 
 	ctx := TplCtx{
 		ActiveTags: contract.ActiveTags,
@@ -134,45 +100,67 @@ func main() {
 		ActiveMap:  actMap,
 		PMap:       resolved,
 		Hashes:     hashes,
+		TagHash:    tagHash, // [新增] TagID 完美哈希元数据
 		Configs:    contract.Configs,
-		Product:    contract.Product,
-		Signature:  sig,
-	}
-
-	os.MkdirAll(*out, 0755)
-	funcMap := template.FuncMap{
-		"lower": strings.ToLower,
-		"list": func(ss ...string) []string { return ss },
-		"default": func(d interface{}, v interface{}) interface{} {
+				Params:      contract.Params,
+				Hardware:    contract.Hardware,
+				Pipelines:   contract.Pipelines,
+				Policies:    contract.Policies,
+				UI:          contract.UI,
+				Product:     contract.Product,
+				Signature:   sig,
+			}
+		
+			os.MkdirAll(*out, 0755)
+				fm := template.FuncMap{
+					"lower": strings.ToLower,
+					"equalFold": strings.EqualFold,
+					"hex": func(v uint32) string { return fmt.Sprintf("0x%08X", v) },
+							"marshal": func(v interface{}) string {
+								b, _ := json.Marshal(v)
+								return string(b)
+							},
+							"c_escape": func(s string) string {
+								s = strings.ReplaceAll(s, "\\", "\\\\")
+								s = strings.ReplaceAll(s, "\"", "\\\"")
+								return s
+							},
+					
+					"default": func(d, v interface{}) interface{} {
 			if v == nil { return d }
+			switch val := v.(type) {
+			case string: if val == "" { return d }
+			case int: if val == 0 { return d }
+			}
 			return v
 		},
-		"hex": func(v uint64) string { return fmt.Sprintf("0x%X", v) },
-		"strings": func() interface{} { return strings.ToUpper }, // 简单包装以支持 strings.EqualFold 逻辑
-		"equalFold": strings.EqualFold,
-		"parseKey": core.ParseProtocolKey,
+		"isTrue": func(v interface{}) bool {
+			if v == nil { return false }
+			switch val := v.(type) {
+			case bool: return val
+			case int: return val != 0
+			case string: return val == "1" || strings.ToLower(val) == "true"
+			}
+			return false
+		},
 	}
 
 	if *target == "master" {
-		render("gen", filepath.Join(*out, "contracts.h"), masterHTpl, ctx, funcMap)
-		render("gen", filepath.Join(*out, "contracts.c"), masterCTpl, ctx, funcMap)
-		render("gen", filepath.Join(*out, "contracts_slave.h"), slaveHTpl, ctx, funcMap)
-		render("gen", filepath.Join(*out, "config.cmake"), configCmakeTpl, ctx, funcMap)
-		yData, _ := yaml.Marshal(contract)
-		os.WriteFile(filepath.Join(*out, "contracts.yaml"), yData, 0644)
-	} else {
-		render("gen", filepath.Join(*out, "contracts_slave.h"), slaveHTpl, ctx, funcMap)
+		render("h", filepath.Join(*out, "contracts.h"), masterHTpl, ctx, fm)
+		render("c", filepath.Join(*out, "contracts.c"), masterCTpl, ctx, fm)
+		render("cmake", filepath.Join(*out, "config.cmake"), configCmakeTpl, ctx, fm)
+		y, _ := yaml.Marshal(contract)
+		os.WriteFile(filepath.Join(*out, "contracts.yaml"), y, 0644)
+
+		docExp := &exporter.DocExporter{}
+		docExp.Export(contract, resolved, *out)
 	}
-	fmt.Printf("Go Build Success [%s]: %s (v4.5-PerfectHash-Secure)\n", *target, contract.Product)
 }
 
 func render(name, path, tpl string, ctx interface{}, fm template.FuncMap) {
-	t := template.Must(template.New(name).Funcs(fm).Parse(tpl))
-	f, err := os.Create(path)
-	if err != nil {
-		fmt.Printf("Error creating file %s: %v\n", path, err)
-		return
-	}
+	t, err := template.New(name).Funcs(fm).Parse(tpl)
+	if err != nil { panic(err) }
+	f, _ := os.Create(path)
 	defer f.Close()
-	t.Execute(f, ctx)
+	if err := t.Execute(f, ctx); err != nil { panic(err) }
 }

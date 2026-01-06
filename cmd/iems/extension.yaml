@@ -1,4 +1,27 @@
 product: "IEMS_Controller_V1"
+
+# 现场特定配置 (Compile-time)
+configs:
+  - name: DLMS_HLS_SECURITY
+    value: 1
+  - name: DLMS_MAX_PDU
+    value: 1024
+
+# 运行期整定参数 (Site-specific tuning)
+parameters:
+  - name: ALGO_UOV_LIMIT
+    type: float
+    default: 260.0
+    min: 220.0
+    max: 300.0
+    desc: "Site-specific over-voltage threshold"
+  - name: ALGO_UOV_DELAY_S
+    type: int
+    default: 30
+    min: 3
+    max: 3600
+    desc: "Site-specific over-voltage delay"
+
 # 现场激活测点
 enabled_tags:
   - GRID_POWER

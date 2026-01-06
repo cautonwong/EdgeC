@@ -7,15 +7,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <time.h>
+#include <unistd.h>
 #include <uv.h>
 
+#include "bus_orchestrator.h"
 #include "contracts.h"
+#include "driver_manager.h"
 #include "edge_log.h"
 #include "edge_service.h"
-#include "driver_manager.h"
-#include "bus_orchestrator.h"
 
 static service_t *g_svc = NULL;
 
@@ -40,8 +40,10 @@ int main(int argc, char **argv) {
     bool smoke_mode = false;
 
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--port") == 0 && i + 1 < argc) io_port = argv[++i];
-        else if (strcmp(argv[i], "--smoke-test") == 0) smoke_mode = true;
+        if (strcmp(argv[i], "--port") == 0 && i + 1 < argc)
+            io_port = argv[++i];
+        else if (strcmp(argv[i], "--smoke-test") == 0)
+            smoke_mode = true;
     }
 
     if (edge_contract_self_test() != 0) return 1;
@@ -50,11 +52,7 @@ int main(int argc, char **argv) {
     signal(SIGINT, handle_sigint);
 
     service_options_t opts = {
-        .product_name = "hems_v1",
-        .db_path = "hems.db",
-        .rest_port = 28081,
-        .mode = "PRODUCTION"
-    };
+        .product_name = "hems_v1", .db_path = "hems.db", .rest_port = 28081, .mode = "PRODUCTION"};
     g_svc = service_new(&opts);
     if (smoke_mode) service_enable_smoke_test(g_svc);
 

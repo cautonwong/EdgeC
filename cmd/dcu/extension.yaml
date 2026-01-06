@@ -7,3 +7,49 @@ includes:
 enabled_tags:
   - GRID_FREQUENCY
   - ROOM_HUMIDITY
+
+# 运行期参数
+parameters:
+  - name: DCU_REPORT_INTERVAL
+    type: int
+    default: 60
+    min: 10
+    max: 3600
+    desc: "DCU 数据上送周期 (s)"
+
+# 硬件资源映射 (DTS-like)
+hardware:
+  - type: "UART"
+    id: 1
+    label: "RS485_COM1"
+    bus_ref: "METER_BUS"
+  - type: "GPIO"
+    id: 12
+    label: "SYS_LED"
+
+# 逻辑管线编排
+pipelines:
+  - id: "frequency_monitor"
+    trigger: "GRID_FREQUENCY"
+    stages:
+      - name: "filter"
+        type: "EMA"
+        alpha: 0.1
+      - name: "alarm"
+        type: "THRESHOLD"
+        min: 49.5
+        max: 50.5
+
+# 北向策略
+policies:
+  - name: "upload_grid_params"
+    type: "MQTT_PUSH"
+    interval: 5
+    tags: ["GRID_FREQUENCY"]
+
+# UI 展现蓝图
+ui:
+  layout: "grid"
+  dashboards:
+    - name: "Grid Monitor"
+      cards: ["GRID_FREQUENCY"]

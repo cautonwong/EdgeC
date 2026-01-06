@@ -305,7 +305,8 @@ int service_trigger_export(service_t *svc, const char *table, export_publish_fn 
 }
 
 static void _smoke_data_cb(datahub_t *hub, void *user_data) {
-    (void)hub; (void)user_data;
+    (void)hub;
+    (void)user_data;
     LOG_INFO(LOG_CAT_CORE, "Smoke Test SUCCESS: Data received! Hard-exiting process.");
     // 强制物理退出，解决多线程环境下优雅停机卡死的问题
     _exit(0);

@@ -3,23 +3,15 @@
 #define EDGE_CONTRACTS_H
 #include "contract_data_types.h"
 
-// [Section -1] Contract Metadata
-#define CONTRACT_SIGNATURE {{ printf "0x%08X" .Signature }}
-
-// [Section 0] Product Configurations (Kconfig Alternative)
-{{- range .Configs }}
-#define CONFIG_{{ .Name }} {{ .Value }}
-{{- $valStr := print .Value }}
-{{- if or (eq $valStr "1") (eq $valStr "true") }}
-#define CONFIG_{{ .Name }}_ENABLED 1
-{{- else }}
-#define CONFIG_{{ .Name }}_ENABLED 0
-{{- end }}
-{{- end }}
-
 // [Section 1] Feature Gates
 {{- range .AllTags }}
 #define TAG_{{ .Name }}_ENABLED {{ if $.IsActive .Name }}1{{ else }}0{{ end }}
+{{- end }}
+
+// [Section 1.5] Project Configs
+{{- range .Configs }}
+#define CONFIG_{{ .Name }} {{ .Value }}
+#define CONFIG_{{ .Name }}_ENABLED {{ if isTrue .Value }}1{{ else }}0{{ end }}
 {{- end }}
 
 // [Section 2] Tag ID Enum
@@ -31,37 +23,53 @@ typedef enum {
     TAG_MAX_ID
 } edge_tag_enum_t;
 
+// [Section 2.5] Parameter Enum Values
+enum {
+    PARAM_INVALID = 0,
+{{- range .Params }}
+    PARAM_{{ .Name }},
+{{- end }}
+    PARAM_MAX_ID
+};
+
+extern const edge_param_info_t g_param_metadata[];
+extern const int g_param_metadata_len;
+
+// [Section 2.6] Hardware DTS Metadata
+extern const hw_resource_info_t g_hw_resources[];
+extern const int g_hw_resources_len;
+
+// [Section 2.7] Stream Engine Pipeline Metadata
+extern const pipeline_info_t g_pipeline_metadata[];
+extern const int g_pipeline_metadata_len;
+
+// [Section 2.8] Policy Metadata
+extern const policy_info_t g_policy_metadata[];
+extern const int g_policy_metadata_len;
+
+// [Section 2.9] UI Blueprint Metadata
+extern const ui_info_t g_ui_metadata;
+
 // [Section 3] APIs
-
-// --- Modbus ---
+{{- $mb := index .Hashes "MODBUS" }}{{ if and $mb $mb.Keys }}
 edge_tag_id_t edge_lookup_modbus(uint16_t reg, float *scale);
-edge_tag_id_t edge_lookup_modbus_by_buf(const uint8_t *buf, float *scale);
-edge_tag_id_t edge_lookup_modbus_by_string(const char *str, float *scale);
 const modbus_map_t* edge_get_map_modbus(uint16_t reg);
+{{- end }}
 
-// --- DLT645 ---
+{{- $dlt := index .Hashes "DLT645" }}{{ if and $dlt $dlt.Keys }}
 edge_tag_id_t edge_lookup_dlt645(uint32_t di, float *scale);
-edge_tag_id_t edge_lookup_dlt645_by_buf(const uint8_t *buf, float *scale);
-edge_tag_id_t edge_lookup_dlt645_by_string(const char *str, float *scale);
 const dlt645_map_t* edge_get_map_dlt645(uint32_t di);
+{{- end }}
 
-// --- DLT698 ---
-edge_tag_id_t edge_lookup_dlt698(uint32_t oad, float *scale);
-edge_tag_id_t edge_lookup_dlt698_by_buf(const uint8_t *buf, float *scale);
-edge_tag_id_t edge_lookup_dlt698_by_string(const char *str, float *scale);
-const dlt698_map_t* edge_get_map_dlt698(uint32_t oad);
+{{- $dlms := index .PMap "DLMS" }}{{ if $dlms }}
+edge_tag_id_t edge_lookup_dlms(uint16_t c, const char* o, uint8_t a, float *s);
+{{- end }}
 
-// --- DLMS ---
-edge_tag_id_t edge_lookup_dlms(uint16_t classId, const char* obis, uint8_t attrId, float *scale);
-edge_tag_id_t edge_lookup_dlms_by_string(const char *str, float *scale);
-
-// --- IEC104 ---
+{{- $iec := index .Hashes "IEC104" }}{{ if and $iec $iec.Keys }}
 edge_tag_id_t edge_lookup_iec104(int ioa);
+{{- end }}
 
 const tag_meta_t* edge_get_meta(edge_tag_id_t id);
 int edge_contract_self_test(void);
-
-extern const can_map_t g_can_map[];
-extern const int g_can_map_len;
 
 #endif

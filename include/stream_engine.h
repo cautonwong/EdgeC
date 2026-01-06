@@ -5,7 +5,6 @@
 #include <uv.h>
 
 #include "datahub.h"
-#include "edge_event.h"
 #include "shmring.h"
 
 #ifdef __cplusplus

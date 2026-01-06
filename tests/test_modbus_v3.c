@@ -6,9 +6,9 @@
 #include <string.h>
 
 #include "driver_manager.h"
+#include "edge_common.h"
 #include "edge_driver.h"
 #include "shmring.h"
-#include "edge_common.h"
 
 // 移除局部 edge_lookup_modbus 声明，由 contract_iems 提供
 
@@ -39,7 +39,7 @@ static void test_modbus_v3_master_cycle(void **state) {
     net_buf_pool_init(&pool, 4, 256, 0, NULL, NULL);
 
     // 1. 请求编码 (使用 IEMS 契约中存在的 0x0000 地址)
-    uint32_t tags[] = {1001}; // Tag 1001 -> Voltage
+    uint32_t tags[] = {1001};  // Tag 1001 -> Voltage
     net_buf_t *tx = net_buf_alloc(&pool, 0);
     int ret = drv->encode_request(ctx, tags, 1, tx);
     assert_int_equal(ret, 0);

@@ -47,13 +47,12 @@ static void dlt645_encode_addr(uint64_t addr, uint8_t *out_bcd) {
     }
 }
 
-// [核心修正] 对齐 V4.5 契约接口
 extern uint32_t edge_lookup_dlt645(uint32_t di, float *out_scale);
 
 /* --- V3 Master 接口 --- */
 
 static int dlt645_v3_on_init(edge_driver_ctx_t *ctx) {
-    if(!ctx || !ctx->priv) return -1;
+    if (!ctx || !ctx->priv) return -1;
     dlt645_ctx_t *priv = (dlt645_ctx_t *)ctx->priv;
     dlt645_encode_addr((uint64_t)ctx->device_id, priv->addr_bcd);
     return 0;
@@ -74,8 +73,8 @@ static int dlt645_v3_encode_request(edge_driver_ctx_t *ctx, const uint32_t *tag_
     net_buf_simple_add_u8(b, 0x68);
     net_buf_simple_add_mem(b, priv->addr_bcd, 6);
     net_buf_simple_add_u8(b, 0x68);
-    net_buf_simple_add_u8(b, 0x11); // 读数据
-    net_buf_simple_add_u8(b, 0x04); // 长度
+    net_buf_simple_add_u8(b, 0x11);  // 读数据
+    net_buf_simple_add_u8(b, 0x04);  // 长度
 
     // DI 编码 (LE + 0x33)
     net_buf_simple_add_u8(b, (uint8_t)((di & 0xFF) + 0x33));
@@ -130,8 +129,12 @@ static int dlt645_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, pipe
 
 static int dlt645_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_out,
                                pipe_msg_t *async_msgs, int *async_count) {
-    (void)ctx; (void)in; (void)resp_out; (void)async_msgs; (void)async_count;
-    return 0; 
+    (void)ctx;
+    (void)in;
+    (void)resp_out;
+    (void)async_msgs;
+    (void)async_count;
+    return 0;
 }
 
 edge_driver_t dlt645_driver = {.name = "DLT645-2007",

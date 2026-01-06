@@ -7,17 +7,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <time.h>
+#include <unistd.h>
 #include <uv.h>
 
 #include "arbiter.h"
 #include "bus_orchestrator.h"
 #include "contracts.h"
 #include "datahub.h"
+#include "driver_manager.h"
 #include "edge_log.h"
 #include "edge_service.h"
-#include "driver_manager.h"
 
 static service_t *g_svc = NULL;
 
@@ -41,8 +41,10 @@ int main(int argc, char **argv) {
     bool smoke_mode = false;
 
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--port") == 0 && i + 1 < argc) io_port = argv[++i];
-        else if (strcmp(argv[i], "--smoke-test") == 0) smoke_mode = true;
+        if (strcmp(argv[i], "--port") == 0 && i + 1 < argc)
+            io_port = argv[++i];
+        else if (strcmp(argv[i], "--smoke-test") == 0)
+            smoke_mode = true;
     }
 
     if (edge_contract_self_test() != 0) return 1;
@@ -51,14 +53,10 @@ int main(int argc, char **argv) {
     signal(SIGINT, handle_sigint);
 
     service_options_t opts = {
-        .product_name = "evse_v1",
-        .db_path = "evse.db",
-        .rest_port = 28081,
-        .mode = "PRODUCTION"
-    };
+        .product_name = "evse_v1", .db_path = "evse.db", .rest_port = 28081, .mode = "PRODUCTION"};
     g_svc = service_new(&opts);
     if (smoke_mode) service_enable_smoke_test(g_svc);
-    
+
     uv_loop_t *loop = service_get_loop(g_svc);
     datahub_t *hub = service_get_datahub(g_svc);
     arbiter_t *arb = service_get_arbiter(g_svc);
@@ -68,7 +66,7 @@ int main(int argc, char **argv) {
     driver_manager_init();
     dlt645_driver_register();
     modbus_rtu_driver_register();
-    
+
     bus_orchestrator_t *orch = bus_orchestrator_create(hub, arb, 8, 16, 2048);
 
     if (io_port) {

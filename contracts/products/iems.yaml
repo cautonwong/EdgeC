@@ -6,6 +6,32 @@ includes:
   - "contracts/bindings/iec104/relay_station.yaml"
   - "contracts/bindings/can/bms_j1939.yaml"
 
+# 编译期配置 (KConfig Style)
+configs:
+  - name: DLMS_HLS_SECURITY
+    value: 1
+  - name: BUS_MAX_COUNT
+    value: 8
+  - name: NETBUF_POOL_SIZE
+    value: 16
+  - name: NETBUF_BLOCK_SIZE
+    value: 2048
+
+# 运行期整定参数 (Runtime Tunables)
+parameters:
+  - name: ALGO_UOV_LIMIT
+    type: float
+    default: 264.0
+    min: 220.0
+    max: 300.0
+    desc: "Over-voltage threshold"
+  - name: ALGO_UOV_DELAY_S
+    type: int
+    default: 60
+    min: 3
+    max: 3600
+    desc: "Over-voltage delay"
+
 enabled_tags:
   - tag: VOLTAGE_PHASE_A
     attributes:
@@ -21,14 +47,3 @@ enabled_tags:
   - GRID_FREQUENCY
   - BATTERY_SOC
   - BATTERY_POWER
-
-configs:
-  - name: BUS_MAX_COUNT
-    value: 8
-    desc: "Maximum number of communication buses"
-  - name: NETBUF_POOL_SIZE
-    value: 16
-    desc: "Number of buffers in the global pool"
-  - name: NETBUF_BLOCK_SIZE
-    value: 2048
-    desc: "Size of each buffer block"

@@ -82,7 +82,11 @@ int main(int argc, char **argv) {
                               .mode = "PRODUCTION"};
     g_svc = service_new(&opts);
     if (smoke_mode) service_enable_smoke_test(g_svc);
-    
+
+    // [专家级补强] 注入运行期整定参数元数据
+    edge_params_register_metadata(service_get_params(g_svc), g_param_metadata,
+                                  g_param_metadata_len);
+
     uv_loop_t *loop = service_get_loop(g_svc);
     datahub_t *hub = service_get_datahub(g_svc);
     arbiter_t *arb = service_get_arbiter(g_svc);
@@ -99,10 +103,8 @@ int main(int argc, char **argv) {
     driver_manager_init();
     dlt645_driver_register();
     dlms_driver_register();
-    bus_orchestrator_t *orch = bus_orchestrator_create(hub, arb, 
-                                                      CONFIG_BUS_MAX_COUNT, 
-                                                      CONFIG_NETBUF_POOL_SIZE, 
-                                                      CONFIG_NETBUF_BLOCK_SIZE);
+    bus_orchestrator_t *orch = bus_orchestrator_create(
+        hub, arb, CONFIG_BUS_MAX_COUNT, CONFIG_NETBUF_POOL_SIZE, CONFIG_NETBUF_BLOCK_SIZE);
 
     if (io_port) {
         int fd = io_channel_open(io_port, 9600);

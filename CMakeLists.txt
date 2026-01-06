@@ -14,15 +14,11 @@ else()
     set(ARCH "linux-x86_64")
 endif()
 
-# [核心补强] 设置嵌入式最佳实践安装前缀
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     set(CMAKE_INSTALL_PREFIX "/opt/edgeos" CACHE PATH "EdgeOS standard install prefix" FORCE)
 endif()
 
 set(LOCAL_ROOT "${CMAKE_SOURCE_DIR}/.local/${ARCH}")
-message(STATUS "Target Architecture: ${ARCH}")
-message(STATUS "Local Dependency Root: ${LOCAL_ROOT}")
-
 list(APPEND CMAKE_PREFIX_PATH "${LOCAL_ROOT}")
 include_directories("${LOCAL_ROOT}/include")
 link_directories("${LOCAL_ROOT}/lib")
@@ -31,34 +27,28 @@ link_directories("${LOCAL_ROOT}/lib")
 # 2. Dependency Discovery
 # ==============================================================================
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-
 find_package(cJSON REQUIRED)
-if(TARGET cjson AND NOT TARGET cJSON::cjson)
-    add_library(cJSON::cjson ALIAS cjson)
-endif()
-
-find_package(libuv REQUIRED)
-if(NOT TARGET libuv::uv)
-    if(TARGET uv_a)
-        add_library(libuv::uv ALIAS uv_a)
-    elseif(TARGET uv)
-        add_library(libuv::uv ALIAS uv)
+# Ensure cJSON::cjson target exists
+if(NOT TARGET cJSON::cjson)
+    if(TARGET cjson)
+        add_library(cJSON::cjson ALIAS cjson)
+    else()
+        add_library(cJSON::cjson UNKNOWN IMPORTED)
+        set_target_properties(cJSON::cjson PROPERTIES
+            INTERFACE_INCLUDE_DIRECTORIES "${CJSON_INCLUDE_DIRS}"
+            IMPORTED_LOCATION "${CJSON_LIBRARIES}"
+        )
     endif()
 endif()
 
+find_package(libuv REQUIRED)
 find_package(cmocka REQUIRED)
 find_package(SQLite3 REQUIRED)
 find_package(Modbus REQUIRED)
 find_package(QuickJS REQUIRED)
 find_package(CURL REQUIRED)
 find_package(PahoMQTT REQUIRED)
-
-# ==============================================================================
-# 2.1 ZLog Dependency
-# ==============================================================================
 find_library(ZLOG_LIB NAMES zlog PATHS "${LOCAL_ROOT}/lib" REQUIRED)
-include_directories("${LOCAL_ROOT}/include")
-message(STATUS "Found zlog: ${ZLOG_LIB}")
 
 # ==============================================================================
 # 3. Compiler & Output Options
@@ -73,55 +63,35 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     enable_sanitizers(address undefined)
 endif()
 
-# Define Global Output Paths
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/sdk/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/sdk/lib)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests) # Default for tests
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests)
 
 # ==============================================================================
-# 4. Build Custom Modules
+# 4. Custom Modules & Submodules
 # ==============================================================================
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(EdgeContract)
 include(WebBuild)
-include(EdgeInstall) # [新增] 引入安装模块
+include(EdgeInstall)
 include(BuildContractCompiler)
 
-# 构建编译器二进制 (Go) - 先于产品契约生成
 build_contract_compiler()
 
-# 4.2 Copy configuration to build directory for tests
-file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/config" DESTINATION "${CMAKE_BINARY_DIR}")
-file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/config" DESTINATION "${CMAKE_BINARY_DIR}/tests")
+# [规约内核层] 引入专家协议库
+add_subdirectory(libs/libedge-proto)
+
+file(COPY "${CMAKE_SOURCE_DIR}/config" DESTINATION "${CMAKE_BINARY_DIR}")
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/logs")
-file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/tests/logs")
 
 # ==============================================================================
-# 5. Build Core Library (Decoupled Planes - Layer 1)
+# 5. Build Core Library (Decoupled Planes)
 # ==============================================================================
 
-# --- Versioning Injection ---
 set(EDGE_MAJOR 4)
 set(EDGE_MINOR 5)
 set(EDGE_PATCH 0)
 set(EDGE_VERSION_STR "${EDGE_MAJOR}.${EDGE_MINOR}.${EDGE_PATCH}")
 
-find_package(Git)
-if(GIT_FOUND)
-    execute_process(
-        COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        OUTPUT_VARIABLE EDGE_GIT_HASH
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        ERROR_QUIET
-    )
-else()
-    set(EDGE_GIT_HASH "unknown")
-endif()
-
-string(TIMESTAMP EDGE_BUILD_TIME "%Y-%m-%d %H:%M:%S")
-
-# 5.1: The Core Foundation (Shared / Cross-loop)
 add_library(edge_core STATIC
     src/core/edge_version.c
     src/core/edge_params.c
@@ -134,16 +104,6 @@ add_library(edge_core STATIC
 )
 target_link_libraries(edge_core PUBLIC cJSON::cjson libuv::uv SQLite::SQLite3 ${ZLOG_LIB})
 
-target_compile_definitions(edge_core PUBLIC
-    EDGE_VER_MAJOR=${EDGE_MAJOR}
-    EDGE_VER_MINOR=${EDGE_MINOR}
-    EDGE_VER_PATCH=${EDGE_PATCH}
-    EDGE_VER_STR="${EDGE_VERSION_STR}"
-    EDGE_GIT_HASH="${EDGE_GIT_HASH}"
-    EDGE_BUILD_TIME="${EDGE_BUILD_TIME}"
-)
-
-# 5.2: The Control Plane (Main Loop)
 add_library(edge_main_loop STATIC
     src/main_loop/arbiter.c
     src/main_loop/edge_service.c
@@ -161,7 +121,6 @@ add_library(edge_main_loop STATIC
 )
 target_link_libraries(edge_main_loop PUBLIC edge_core PahoMQTT::PahoMQTT)
 
-# 5.3: The Computation Plane (Stream Engine)
 add_library(edge_stream_engine STATIC
     src/stream_engine/stream_engine.c
     src/stream_engine/js_engine.c
@@ -173,26 +132,22 @@ add_library(edge_stream_engine STATIC
     src/stream_engine/pipeline_loader.c
     src/stream_engine/stream_dump.c
 )
-# PUBLIC dependency on main_loop to resolve symbols like service_get_loop and arbiter_submit_cmd
 target_link_libraries(edge_stream_engine PUBLIC edge_main_loop QuickJS::QuickJS)
 
-# 5.4: The Execution Plane (IO Executor)
+# 5.4: IO Executor (基于专家库重塑)
 add_library(edge_io_executor STATIC
     src/io_executor/io_executor.c
     src/io_executor/driver_manager.c
     src/io_executor/modbus_rtu_driver.c
     src/io_executor/driver_dlms.c
-    src/io_executor/dlms_codec.c
-    src/io_executor/dlms_hdlc.c
-    src/io_executor/dlms_cosem.c
     src/io_executor/driver_iec104.c
     src/io_executor/driver_can.c
     src/io_executor/profile_loader.c
     src/io_executor/driver_dlt645.c
 )
-target_link_libraries(edge_io_executor PUBLIC edge_core Modbus::Modbus)
+# 链接 edge_proto 规约内核
+target_link_libraries(edge_io_executor PUBLIC edge_core edge_proto Modbus::Modbus)
 
-# 5.5: External Logic Algorithms (Stateless)
 add_library(edge_algo STATIC
     algo/native/algorithm_sum.c
     algo/native/battery_strategy.c
@@ -200,15 +155,13 @@ add_library(edge_algo STATIC
 )
 target_link_libraries(edge_algo PUBLIC edge_core)
 
-# Unified Interface include paths
 foreach(lib edge_core edge_main_loop edge_stream_engine edge_io_executor edge_algo)
     target_include_directories(${lib} PUBLIC include algo/include)
 endforeach()
 
 # ==============================================================================
-# 6. Build Product Applications (Layer 2 - Decentralized)
+# 6. Build Product Applications
 # ==============================================================================
-
 add_subdirectory(cmd/iems)
 add_subdirectory(cmd/sg)
 add_subdirectory(cmd/dcu)
@@ -216,49 +169,7 @@ add_subdirectory(cmd/evse)
 add_subdirectory(cmd/hems)
 add_subdirectory(cmd/device_simulator)
 
-# ==============================================================================
-# 8. Installation & Packaging (CPack V3.0)
-# ==============================================================================
-
-# 8.1 基础库与公共配置 (Core)
-# 使用 USE_SOURCE_PERMISSIONS 保持执行权限，确保软链接不丢失
-install(DIRECTORY "${LOCAL_ROOT}/lib/" 
-        DESTINATION lib 
-        COMPONENT Core
-        FILES_MATCHING 
-        PATTERN "*.so*"
-        PATTERN "*.a" EXCLUDE)
-
-# [核心补强] 开启 RPATH 相对路径搜索
-set(CMAKE_INSTALL_RPATH "$ORIGIN/../lib")
-set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-
-# 8.4 CPack 全局配置
-set(CPACK_PACKAGE_NAME "EdgeOS")
-set(CPACK_PACKAGE_VENDOR "EdgeC")
-set(CPACK_PACKAGE_VERSION "1.0.0")
-set(CPACK_PACKAGE_CONTACT "edgeos-dev@edgec.io")
-set(CPACK_DEBIAN_PACKAGE_MAINTAINER "EdgeC Engineering Team")
-
-set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${ARCH}")
-
-set(CPACK_COMPONENTS_ALL Core IEMS DCU EVSE HEMS SG_EL2025)
-set(CPACK_ARCHIVE_COMPONENT_INSTALL ON)
-set(CPACK_DEB_COMPONENT_INSTALL ON)
-set(CPACK_GENERATOR "TGZ;DEB")
-
-# DEB 特有配置
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6, libuv1")
-
 include(CPack)
-
-# ==============================================================================
-# 9. Tests
-# ==============================================================================
 enable_testing()
 add_subdirectory(tests)
-
-# ==============================================================================
-# 10. Examples
-# ==============================================================================
 add_subdirectory(examples)
