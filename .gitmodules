@@ -19,3 +19,5 @@
 [submodule "third_party/quickjs"]
 	path = third_party/quickjs
 	url = https://github.com/bellard/quickjs.git
+[submodule "libs/libedge-proto"]
+	path = libs/libedge-proto
