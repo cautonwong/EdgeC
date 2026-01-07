@@ -183,6 +183,32 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 		if enabledSet[name] { activeTags = append(activeTags, t) }
 	}
 
+	// [归一化] 将 Parameters 转换为虚拟 Tags 并分配 10000+ ID
+	paramBaseID := uint32(10000)
+	for i, p := range effectiveParams {
+		tagID := paramBaseID + uint32(i)
+		effectiveParams[i].ID = tagID // 回填到 Parameter 定义中
+
+		// 创建影子 Tag
+		pTag := model.TagDef{
+			ID:    tagID,
+			Name:  p.Name,
+			Type:  p.Type,
+			Unit:  p.Unit,
+			Desc:  p.Desc,
+			Attributes: map[string]interface{}{
+				"category": "Parameter",
+				"access":   "RW",
+				"persist":  true,
+				"min":      p.Min,
+				"max":      p.Max,
+			},
+			Bindings: p.Bindings,
+		}
+		activeTags = append(activeTags, pTag)
+		allTags = append(allTags, pTag)
+	}
+
 	sort.Slice(activeTags, func(i, j int) bool { return activeTags[i].ID < activeTags[j].ID })
 	sort.Slice(allTags, func(i, j int) bool { return allTags[i].ID < allTags[j].ID })
 	sort.Slice(effectiveConfigs, func(i, j int) bool { return effectiveConfigs[i].Name < effectiveConfigs[j].Name })

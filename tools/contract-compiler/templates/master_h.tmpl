@@ -23,27 +23,6 @@ extern const int g_policy_metadata_len;
 
 extern const ui_info_t g_ui_metadata;
 
-// [Section 3] APIs
-{{- $mb := index .Hashes "MODBUS" }}{{ if and $mb $mb.Keys }}
-edge_tag_id_t edge_lookup_modbus(uint32_t key, float *scale);
-const modbus_map_t* edge_get_map_modbus(uint32_t key);
-{{- end }}
-
-{{- $dlt := index .Hashes "DLT645" }}{{ if and $dlt $dlt.Keys }}
-edge_tag_id_t edge_lookup_dlt645(uint32_t key, float *scale);
-const dlt645_map_t* edge_get_map_dlt645(uint32_t key);
-{{- end }}
-
-{{- $dlms := index .PMap "DLMS" }}{{ if $dlms }}
-edge_tag_id_t edge_lookup_dlms(uint16_t c, const char* o, uint8_t a, float *s);
-{{- end }}
-
-{{- $iec := index .Hashes "IEC104" }}{{ if and $iec $iec.Keys }}
-edge_tag_id_t edge_lookup_iec104(uint32_t key, float *scale);
-const iec104_map_t* edge_get_map_iec104(uint32_t key);
-{{- end }}
-
-const edge_tag_meta_t* edge_get_meta(edge_tag_id_t tag_id);
-int edge_contract_self_test(void);
+{{ template "h_apis" . }}
 
 #endif

@@ -35,7 +35,7 @@ static void test_loader_dynamic_build(void **state) {
     uv_loop_init(loop);
 
     datahub_t hub;
-    datahub_init(&hub, loop, "loader_bus_v4", 64);
+    datahub_init(&hub, loop, "loader_bus_v4", 64, 1024, NULL);
 
     sqlite_config_t db_cfg = {.strategy = STRATEGY_LITE, .db_path = ":memory:"};
     sqlite_svc_t *db = sqlite_svc_create(loop, &db_cfg);

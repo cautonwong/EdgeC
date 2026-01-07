@@ -19,14 +19,15 @@ set_target_properties(${PROD_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/products/${PROD_NAME}/bin"
 )
 
-# 4. 链接依赖 - 引入 IO 执行器以支持高质量规约仿真
+# 4. 链接依赖
 target_link_libraries(${PROD_NAME} PRIVATE 
-    -Wl,--start-group
+    edge_algo
+    edge_stream_engine
     edge_io_executor
-    edge_core
+    edge_main_loop
     contract_${PROD_NAME}
-    -Wl,--end-group
-    uv pthread dl rt m
+    edge_common_interface
+    pthread dl rt m
 )
 
 # 5. 安装

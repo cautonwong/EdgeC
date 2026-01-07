@@ -2,8 +2,24 @@
 // [Parameters]
 const edge_param_info_t g_param_metadata[] = {
 {{- range .Params }}
-    { "{{ .Name }}", PARAM_TYPE_{{ .Type | upper }}, {{ if eq .Type "float" }}{.f={{ .Default }}}{{ else }}{.i={{ .Default }}}{{ end }}, {.f={{ .Min }}}, {.f={{ .Max }}}, {{ if .IsRebootRequired }}true{{ else }}false{{ end }} },
+    { 
+        .name = "{{ .Name }}", 
+        .type = PARAM_TYPE_{{ .Type | upper }}, 
+        .def_val = {{ if eq .Type "float" }}{.f={{ .Default | default 0 }}}{{ else }}{.i={{ .Default | default 0 }}}{{ end }}, 
+        .min_val = {.f={{ .Min | default 0 }}}, 
+        .max_val = {.f={{ .Max | default 0 }}}, 
+        .is_reboot_required = {{ if .IsRebootRequired }}true{{ else }}false{{ end }}
+    },
 {{- end }}
 };
 const int g_param_metadata_len = {{ len .Params }};
+
+/**
+ * @brief Get TagID for a specific Parameter ID
+ * Since Parameters are normalized as Tags (ID >= 10000)
+ */
+uint32_t edge_param_to_tag_id(int param_idx) {
+    if (param_idx < 0 || param_idx >= g_param_metadata_len) return 0;
+    return 10000 + (uint32_t)param_idx;
+}
 {{- end -}}

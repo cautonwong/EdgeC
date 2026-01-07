@@ -1,7 +1,18 @@
 {{- define "meta_ui" -}}
-// [UI Blueprint]
+// [UI & API Gateway Blueprint]
 const ui_info_t g_ui_metadata = {
-    "{{ .UI.Layout }}",
-    "{{ .UI.Dashboards | marshal | c_escape }}"
+    .layout = "{{ .UI.Layout }}",
+    .dashboards_json = "{{ .UI.Dashboards | marshal | c_escape }}"
 };
+
+/**
+ * Auto-generated API Routing Table
+ * Maps Tags to REST resources for the API Gateway
+ */
+const api_route_t g_api_routes[] = {
+{{- range .ActiveTags }}
+    { "/api/v1/tags/{{ .Name | lower }}", TAG_{{ .Name }}, "{{ index .Attributes "category" | default "generic" }}" },
+{{- end }}
+};
+const int g_api_routes_len = {{ len .ActiveTags }};
 {{- end -}}

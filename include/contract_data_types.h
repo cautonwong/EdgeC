@@ -108,7 +108,8 @@ typedef struct {
 typedef struct {
     const char *id;
     uint32_t trigger_tag;
-    const char *description;
+    const char *config_json;
+    int stage_count;
 } edge_pipeline_def_t;
 
 // --- 策略与北向策略 ---
@@ -118,10 +119,19 @@ typedef struct {
     const char *script;
 } edge_policy_def_t;
 
-// --- UI 展现元数据 ---
+// --- UI 展现与 API 网关元数据 ---
 typedef struct {
     const char *layout;
-    const char *dashboards;
+    const char *dashboards_json;
 } ui_info_t;
+
+typedef struct {
+    const char *path;
+    edge_tag_id_t tag_id;
+    const char *category;
+} api_route_t;
+
+const edge_param_info_t *edge_get_param_meta(edge_param_id_t id);
+uint32_t edge_param_to_tag_id(int param_idx);
 
 #endif

@@ -24,7 +24,7 @@ static void test_end_to_end_flow(void **state) {
     test_ctx_t ctx;
     ctx.loop = uv_default_loop();
 
-    datahub_init(&ctx.data_hub, ctx.loop, "test_integ", 128);
+    datahub_init(&ctx.data_hub, ctx.loop, "test_integ", 128, 1024, NULL);
     arbiter_init(&ctx.arbiter, ctx.loop);
     ctx.stream_engine = stream_engine_create(&ctx.data_hub, NULL);
 

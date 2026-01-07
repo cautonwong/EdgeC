@@ -24,7 +24,7 @@ static void test_pipeline_hot_reload_logic(void **state) {
     uv_loop_t *loop = malloc(sizeof(uv_loop_t));
     uv_loop_init(loop);
     datahub_t hub;
-    datahub_init(&hub, loop, "hot_reload_bus", 64);
+    datahub_init(&hub, loop, "hot_reload_bus", 64, 1024, NULL);
 
     stream_engine_t *engine = stream_engine_create(&hub, NULL);
     pipeline_t *p1 = stream_engine_add_pipeline(engine, "pipe_v1", 1001);

@@ -15,8 +15,16 @@ done
 echo "=== [1/3] Building Native (x86_64) ==="
 mkdir -p build
 cd build
-cmake .. -DCMAKE_BUILD_TYPE=Debug
-make -j$(nproc)
+
+# 自动选择生成器 (优先 Ninja)
+if command -v ninja >/dev/null 2>&1; then
+    GENERATOR="-GNinja"
+else
+    GENERATOR=""
+fi
+
+cmake .. $GENERATOR -DCMAKE_BUILD_TYPE=Debug
+cmake --build . -j$(nproc)
 
 # 设置本地库路径并运行测试
 LOCAL_ARCH="linux-x86_64"
@@ -26,7 +34,7 @@ ctest --output-on-failure
 # 2. 原生打包 (可选)
 if [ "$DO_PACKAGE" = true ]; then
     echo "=== [2/3] Packaging Native (x86_64) ==="
-    make package
+    cmake --build . --target package
 fi
 
 # 3. 交叉编译打包 (可选 - aarch64)
@@ -36,11 +44,10 @@ if [ "$DO_PACKAGE" = true ]; then
     mkdir -p build_arm64
     cd build_arm64
     
-    # 使用交叉编译工具链
-    cmake .. -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/aarch64-linux-gnu.cmake \
+    cmake .. $GENERATOR -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/aarch64-linux-gnu.cmake \
              -DCMAKE_BUILD_TYPE=Release
-    make -j$(nproc)
-    make package
+    cmake --build . -j$(nproc)
+    cmake --build . --target package
     echo "=== Multi-platform Packaging Complete ==="
 fi
 

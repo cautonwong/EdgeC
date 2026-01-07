@@ -21,12 +21,12 @@ void driver_manager_destroy(driver_manager_t *mgr);
 /**
  * @brief 注册协议模板到指定管理器
  */
-int driver_manager_register(driver_manager_t *mgr, edge_driver_t *driver);
+int driver_manager_register(driver_manager_t *mgr, const edge_driver_t *driver);
 
 /**
  * @brief 查找协议模板
  */
-edge_driver_t *driver_manager_find(driver_manager_t *mgr, const char *name);
+const edge_driver_t *driver_manager_find(driver_manager_t *mgr, const char *name);
 
 /**
  * @brief 实例化驱动上下文 (Stateful V3)

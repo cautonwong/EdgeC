@@ -1,7 +1,7 @@
 {{- define "h_apis" -}}
 // [Section 3] APIs
 {{- $mb := index .Hashes "MODBUS" }}{{ if and $mb $mb.Keys }}
-edge_tag_id_t edge_lookup_modbus(uint16_t reg, float *scale);
+edge_tag_id_t edge_lookup_modbus(uint32_t reg, float *scale);
 const modbus_map_t* edge_get_map_modbus(uint32_t key);
 {{- end }}
 
@@ -15,9 +15,13 @@ edge_tag_id_t edge_lookup_dlms(uint16_t c, const char* o, uint8_t a, float *s);
 {{- end }}
 
 {{- $iec := index .Hashes "IEC104" }}{{ if and $iec $iec.Keys }}
-edge_tag_id_t edge_lookup_iec104(int ioa);
+edge_tag_id_t edge_lookup_iec104(uint32_t ioa);
 {{- end }}
 
 const edge_tag_meta_t* edge_get_meta(edge_tag_id_t id);
+int edge_tag_get_compact_index(edge_tag_id_t tag_id);
+int edge_param_get_index(const char *name);
+uint32_t edge_param_to_tag_id(int param_idx);
+
 int edge_contract_self_test(void);
 {{- end -}}

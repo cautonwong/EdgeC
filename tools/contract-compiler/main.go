@@ -105,6 +105,17 @@ func main() {
 		Signature:  sig,
 	}
 
+	// [硬件资源冲突检测]
+	hwUsage := make(map[int]string)
+	for _, hw := range ctx.Hardware {
+		if hw.ID == 0 { continue }
+		if owner, exists := hwUsage[hw.ID]; exists {
+			fmt.Fprintf(os.Stderr, "[ERROR] Hardware Conflict: ID %d used by both '%s' and '%s'\n", hw.ID, owner, hw.Label)
+			os.Exit(1)
+		}
+		hwUsage[hw.ID] = hw.Label
+	}
+
 	os.MkdirAll(*out, 0755)
 	
 	fm := template.FuncMap{
@@ -113,6 +124,10 @@ func main() {
 		"hex": func(v uint32) string { return fmt.Sprintf("0x%08X", v) },
 		"marshal": func(v interface{}) string {
 			b, _ := json.Marshal(v)
+			return string(b)
+		},
+		"marshal_pretty": func(v interface{}) string {
+			b, _ := json.MarshalIndent(v, "", "  ")
 			return string(b)
 		},
 		"c_escape": func(s string) string {
@@ -174,6 +189,16 @@ func main() {
 		render("c", filepath.Join(*out, "contracts.c"), "templates/master_c.tmpl", ctx, fm)
 		render("cmake", filepath.Join(*out, "config.cmake"), "templates/config_cmake.tmpl", ctx, fm)
 		
+		// [新特性渲染]
+		render("ts", filepath.Join(*out, "tags_type.ts"), "templates/tags_ts.tmpl", ctx, fm)
+		render("fuzz", filepath.Join(*out, "test_fuzz_params.c"), "templates/test_fuzz_params.tmpl", ctx, fm)
+		
+		// [影子元数据/JSON Schema]
+		shadowFile := filepath.Join(*out, "shadow_schema.json")
+		shadowJSON, _ := json.MarshalIndent(contract, "", "  ")
+		os.WriteFile(shadowFile, shadowJSON, 0644)
+		fmt.Printf("[Compiler] Generated shadow metadata: %s\n", shadowFile)
+
 		y, _ := yaml.Marshal(contract)
 		os.WriteFile(filepath.Join(*out, "contracts.yaml"), y, 0644)
 

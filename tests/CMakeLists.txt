@@ -4,16 +4,14 @@ project(EdgeC_Tests)
 # 统一测试构建宏
 macro(add_edge_test TEST_NAME)
     add_executable(${TEST_NAME} ${ARGN})
-    target_include_directories(${TEST_NAME} PRIVATE ../include ../algo/include)
     target_link_libraries(${TEST_NAME} PRIVATE
-        -Wl,--start-group
         edge_algo
-        edge_main_loop
         edge_stream_engine
         edge_io_executor
+        edge_main_loop
         contract_iems
         edge_core
-        -Wl,--end-group
+        edge_common_interface
         cmocka::cmocka
         pthread dl rt m
     )
@@ -31,6 +29,7 @@ add_edge_test(test_arbiter test_arbiter.c)
 # 2. 数据总线测试 (Data Plane)
 add_edge_test(test_datahub test_datahub.c)
 add_edge_test(test_datahub_shadow test_datahub_shadow.c)
+add_edge_test(test_memfd_seals test_memfd_seals.c)
 add_edge_test(test_fuzz_datahub test_fuzz_datahub.c)
 add_edge_test(test_sqlite_service test_sqlite_service.c)
 
@@ -64,16 +63,14 @@ add_edge_test(test_dcu test_dcu.c)
 
 # 特殊用例: test_scheduler (Mock Time)
 add_executable(test_scheduler test_scheduler.c mock_time.c)
-target_include_directories(test_scheduler PRIVATE ../include ../algo/include)
 target_link_libraries(test_scheduler PRIVATE
-    -Wl,--start-group
     edge_algo
-    edge_main_loop
     edge_stream_engine
     edge_io_executor
+    edge_main_loop
     contract_iems
     edge_core
-    -Wl,--end-group
+    edge_common_interface
     cmocka::cmocka
     pthread dl rt m
 )
@@ -85,16 +82,14 @@ add_executable(test_northbound_mqtt
     mock_mqtt.c
     mock_servers.c
 )
-target_include_directories(test_northbound_mqtt PRIVATE ../include ../algo/include)
 target_link_libraries(test_northbound_mqtt PRIVATE 
-    -Wl,--start-group
     edge_algo
-    edge_main_loop
     edge_stream_engine
     edge_io_executor
+    edge_main_loop
     contract_iems
     edge_core
-    -Wl,--end-group
+    edge_common_interface
     cmocka::cmocka
     pthread dl rt m
 )

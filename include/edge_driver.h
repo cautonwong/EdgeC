@@ -53,11 +53,11 @@ typedef struct edge_driver_s edge_driver_t;
  * @brief 协议栈私有上下文 (由管理器自动分配)
  */
 typedef struct {
-    edge_driver_t *driver; /**< [新增] 指向驱动模板的指针 */
-    void *priv;            /**< 协议私有状态内存 */
-    protocol_role_t role;  /**< 当前运行角色 */
-    uint32_t device_id;    /**< 关联的物理设备 ID */
-    void *user_data;       /**< 用户自定义挂载 */
+    const edge_driver_t *driver; /**< [新增] 指向驱动模板的指针 */
+    void *priv;                  /**< 协议私有状态内存 */
+    protocol_role_t role;        /**< 当前运行角色 */
+    uint32_t device_id;          /**< 关联的物理设备 ID */
+    void *user_data;             /**< 用户自定义挂载 */
 } edge_driver_ctx_t;
 
 /**

@@ -29,12 +29,14 @@ type ParamDef struct {
 	Name    string      `yaml:"name"`
 	Type    string      `yaml:"type"`
 	Default interface{} `yaml:"default"`
-	Value   interface{} `yaml:"value"` // [新增] 用于覆盖 default
+	Value   interface{} `yaml:"value"` // 用于覆盖 default
 	Unit    string      `yaml:"unit"`
 	Min     float64     `yaml:"min"`
 	Max     float64     `yaml:"max"`
 	Desc    string      `yaml:"desc"`
 	IsRebootRequired bool `yaml:"is_reboot_required"`
+	ID      uint32      `yaml:"id"`       // [归一化] 参数即测点
+	Bindings []Binding  `yaml:"bindings"` // [归一化] 参数可绑定协议
 }
 
 type HardwareDef struct {

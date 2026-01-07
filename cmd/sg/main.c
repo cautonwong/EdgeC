@@ -28,7 +28,7 @@ int main(int argc, char **argv) {
     uv_loop_t *loop = uv_default_loop();
 
     datahub_t hub;
-    datahub_init(&hub, loop, "sg", 1024);
+    datahub_init(&hub, loop, "sg_el2025", 1024, g_tag_metadata_len, edge_tag_get_compact_index);
     sqlite_config_t db_conf = {.db_path = "sg.db", .strategy = STRATEGY_LITE};
     sqlite_svc_t *db = sqlite_svc_create(loop, &db_conf);
 

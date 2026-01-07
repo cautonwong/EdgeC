@@ -26,7 +26,8 @@ if(QUICKJS_FOUND)
         add_library(QuickJS::QuickJS UNKNOWN IMPORTED)
         set_target_properties(QuickJS::QuickJS PROPERTIES
             IMPORTED_LOCATION "${QUICKJS_LIBRARY}"
-            INTERFACE_INCLUDE_DIRECTORIES "${QUICKJS_INCLUDE_DIR}")
+            INTERFACE_INCLUDE_DIRECTORIES "${QUICKJS_INCLUDE_DIR}"
+            INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${QUICKJS_INCLUDE_DIR}")
 
         # QuickJS often needs libm and libdl
         if(UNIX)

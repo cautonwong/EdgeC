@@ -1,8 +1,21 @@
 {{- define "meta_pipelines" -}}
-// [Pipelines]
+// [Pipelines - Static Topology]
+{{- range .Pipelines }}
+/**
+ * Static Topology for Pipeline: {{ .ID }}
+ * Trigger: {{ .Trigger | default "Manual/Periodic" }}
+ * Stages Count: {{ len .Stages }}
+ */
+{{- end }}
+
 const edge_pipeline_def_t g_pipeline_metadata[] = {
 {{- range .Pipelines }}
-    { "{{ .ID }}", {{ if or (eq .Trigger "") (eq .Trigger "0") }}0{{ else }}TAG_{{ .Trigger }}{{ end }}, "{{ .Stages | marshal | c_escape }}" },
+    { 
+        .id = "{{ .ID }}", 
+        .trigger_tag = {{ if or (eq .Trigger "") (eq .Trigger "0") }}0{{ else }}TAG_{{ .Trigger }}{{ end }}, 
+        .config_json = "{{ .Stages | marshal | c_escape }}",
+        .stage_count = {{ len .Stages }}
+    },
 {{- end }}
 };
 const int g_pipeline_metadata_len = {{ len .Pipelines }};

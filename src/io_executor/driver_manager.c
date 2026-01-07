@@ -8,7 +8,7 @@
 #define MAX_DRIVERS 32
 
 struct driver_manager_s {
-    edge_driver_t *drivers[MAX_DRIVERS];
+    const edge_driver_t *drivers[MAX_DRIVERS];
     int count;
 };
 
@@ -21,7 +21,7 @@ void driver_manager_destroy(driver_manager_t *mgr) {
     if (mgr) free(mgr);
 }
 
-int driver_manager_register(driver_manager_t *mgr, edge_driver_t *driver) {
+int driver_manager_register(driver_manager_t *mgr, const edge_driver_t *driver) {
     if (!mgr || !driver) return -1;
     if (mgr->count >= MAX_DRIVERS) return -2;
 
@@ -34,7 +34,7 @@ int driver_manager_register(driver_manager_t *mgr, edge_driver_t *driver) {
     return 0;
 }
 
-edge_driver_t *driver_manager_find(driver_manager_t *mgr, const char *name) {
+const edge_driver_t *driver_manager_find(driver_manager_t *mgr, const char *name) {
     if (!mgr || !name) return NULL;
     for (int i = 0; i < mgr->count; i++) {
         if (strcmp(mgr->drivers[i]->name, name) == 0) return mgr->drivers[i];
@@ -44,7 +44,7 @@ edge_driver_t *driver_manager_find(driver_manager_t *mgr, const char *name) {
 
 edge_driver_ctx_t *driver_instance_create(driver_manager_t *mgr, const char *protocol,
                                           uint32_t device_id) {
-    edge_driver_t *tmpl = driver_manager_find(mgr, protocol);
+    const edge_driver_t *tmpl = driver_manager_find(mgr, protocol);
     if (!tmpl) return NULL;
 
     edge_driver_ctx_t *ctx = calloc(1, sizeof(edge_driver_ctx_t));

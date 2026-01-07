@@ -30,7 +30,7 @@ static void test_timeguard_anti_jump(void **state) {
     uv_loop_t *loop = malloc(sizeof(uv_loop_t));
     uv_loop_init(loop);
     datahub_t hub;
-    datahub_init(&hub, loop, "time_bus", 64);
+    datahub_init(&hub, loop, "time_bus", 64, 1024, NULL);
 
     engine_time_source_t ts_mock = {mock_mono, mock_cal};
     stream_engine_t *engine = stream_engine_create(&hub, &ts_mock);

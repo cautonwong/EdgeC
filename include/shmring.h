@@ -124,6 +124,7 @@ typedef struct {
     ShmRingHeader *hdr;
     PipeMsg *slots;
     size_t map_size;
+    int fd;  // [新增] 匿名内存 FD
     char name[256];
 } ShmRing;
 
@@ -131,10 +132,22 @@ typedef ShmRing shm_ring_t;
 typedef PipeMsg pipe_msg_t;
 
 int shmring_create(shm_ring_t *ring, const char *name, uint32_t slots);
+int shmring_init_from_fd(shm_ring_t *ring, int fd, size_t size);
+int shmring_get_fd(shm_ring_t *ring);
 int shmring_open(shm_ring_t *ring, const char *name);
 void shmring_close(shm_ring_t *ring);
 int shmring_destroy(shm_ring_t *ring);
 void shm_ring_write(shm_ring_t *ring, const PipeMsg *msg);
 int shm_ring_read(shm_ring_t *ring, uint64_t *last_seq, PipeMsg *out);
+
+/**
+ * @brief 通过 Unix Domain Socket 发送文件描述符 (用于 FD 分发中心)
+ */
+int edge_fd_send(int sock_fd, int fd_to_send);
+
+/**
+ * @brief 通过 Unix Domain Socket 接收文件描述符
+ */
+int edge_fd_recv(int sock_fd);
 
 #endif

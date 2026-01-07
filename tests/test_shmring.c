@@ -12,13 +12,13 @@
 
 #include "shmring.h"
 
-#define TEST_RING_NAME "/test_shmring_v2"
-#define TEST_SLOT_COUNT 256
+#define TEST_RING_NAME "test_memfd_bus"
+#define TEST_SLOT_COUNT 1024
 #define TEST_WRITE_COUNT 500
 
 static int setup(void **state) {
     shm_ring_t *ring = malloc(sizeof(shm_ring_t));
-    shm_unlink(TEST_RING_NAME);
+    // memfd_create 不需要 unlink
     if (shmring_create(ring, TEST_RING_NAME, TEST_SLOT_COUNT) != 0) {
         free(ring);
         return -1;
@@ -48,41 +48,55 @@ static void test_single_thread_read_write(void **state) {
 }
 
 static void test_multi_process_concurrency(void **state) {
-    (void)state;
+    shm_ring_t *ring_parent = (shm_ring_t *)*state;
+
     pid_t pid = fork();
 
     if (pid == 0) {
         // 子进程：Writer
-        shm_ring_t ring;
-        if (shmring_open(&ring, TEST_RING_NAME) != 0) {
-            exit(1);
-        }
+
+        // 直接利用继承的 ring_parent 指针即可，因为 mmap 是 MAP_SHARED
+
         for (int i = 0; i < TEST_WRITE_COUNT; i++) {
             PipeMsg msg = {0};
+
             msg.payload.val.i = i;
-            shm_ring_write(&ring, &msg);
-            usleep(1000);
+
+            shm_ring_write(ring_parent, &msg);
+
+            // 极高频模拟
+
+            if (i % 50 == 0) usleep(10);
         }
-        shmring_close(&ring);
+
         exit(0);
+
     } else {
         // 父进程：Reader
-        shm_ring_t *ring = (shm_ring_t *)*state;
+
         PipeMsg msg;
+
         uint64_t seq = 0;
+
         int count = 0;
 
-        for (int i = 0; i < 1000; i++) {
-            if (shm_ring_read(ring, &seq, &msg) == 0) {
+        int timeout_ms = 2000;  // 2秒超时
+
+        while (count < TEST_WRITE_COUNT && timeout_ms > 0) {
+            if (shm_ring_read(ring_parent, &seq, &msg) == 0) {
                 count++;
+
+            } else {
+                usleep(1000);
+
+                timeout_ms -= 1;
             }
-            usleep(1000);
         }
 
         int status;
         waitpid(pid, &status, 0);
-        assert_true(count > 0);
-        printf("[Test] Read %d items during concurrency\n", count);
+        assert_int_equal(count, TEST_WRITE_COUNT);
+        printf("[Test] Read all %d items via anonymous memfd successfully\n", count);
     }
 }
 

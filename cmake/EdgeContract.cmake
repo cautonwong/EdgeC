@@ -30,6 +30,7 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
     set(OUT_H "${GEN_DIR}/contracts.h")
     set(OUT_YAML "${GEN_DIR}/contracts.yaml")
     set(OUT_CMAKE "${GEN_DIR}/config.cmake")
+    set(OUT_TS "${GEN_DIR}/tags_type.ts")
 
     # 2. 构建命令参数
     set(CMD_ARGS 
@@ -44,12 +45,12 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
         set(LOCAL_DEP "${LOCAL_YAML}")
     endif()
 
-    # 定义自定义生成命令 (包含 YAML 和 CMake 产物)
+    # 定义自定义生成命令 (仅在构建目录生成)
     add_custom_command(
-        OUTPUT "${OUT_C}" "${OUT_H}" "${OUT_YAML}" "${OUT_CMAKE}"
+        OUTPUT "${OUT_C}" "${OUT_H}" "${OUT_YAML}" "${OUT_CMAKE}" "${OUT_TS}"
         COMMAND "${COMPILER_BIN}" ${CMD_ARGS}
         DEPENDS "${COMPILER_BIN}" "${SCHEMA_PATH}" "${PRODUCT_YAML}" ${LOCAL_DEP}
-        COMMENT "[Contract] Generating native lookup tables and config for ${TARGET_NAME}"
+        COMMENT "[Contract] Generating native lookup tables and TS types for ${TARGET_NAME}"
         VERBATIM
     )
 
@@ -61,15 +62,24 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
     endif()
 
     # 4. 创建静态库并精准控制其输出路径
-    add_library(${TARGET_NAME} STATIC "${OUT_C}")
-    set_target_properties(${TARGET_NAME} PROPERTIES 
-        ARCHIVE_OUTPUT_DIRECTORY "${LIB_DIR}"
+    add_library(${TARGET_NAME}_obj OBJECT "${OUT_C}")
+    set_target_properties(${TARGET_NAME}_obj PROPERTIES 
+        POSITION_INDEPENDENT_CODE ON
     )
-    
-    target_include_directories(${TARGET_NAME} 
-        PUBLIC 
+    target_include_directories(${TARGET_NAME}_obj PRIVATE 
         "${GEN_DIR}"
         "${CMAKE_SOURCE_DIR}/include"
     )
+
+    # 创建一个 INTERFACE 库供外部链接，自动传播头文件路径
+    add_library(${TARGET_NAME} INTERFACE)
+    target_sources(${TARGET_NAME} INTERFACE $<TARGET_OBJECTS:${TARGET_NAME}_obj>)
+    target_include_directories(${TARGET_NAME} INTERFACE 
+        "${GEN_DIR}"
+        "${CMAKE_SOURCE_DIR}/include"
+    )
+
+    # 如果有对应的 lib 需求，也可以保留静态库链接逻辑，但推荐使用 INTERFACE 传播
+    message(STATUS "[Contract] Target ${TARGET_NAME} created as INTERFACE with OBJECT sources")
 
 endfunction()

@@ -22,7 +22,7 @@ typedef struct {
 static int setup(void **state) {
     full_chain_ctx_t *ctx = calloc(1, sizeof(full_chain_ctx_t));
     ctx->loop = uv_default_loop();
-    datahub_init(&ctx->hub, ctx->loop, "tdd_full", 256);
+    datahub_init(&ctx->hub, ctx->loop, "tdd_full", 256, 1024, NULL);
     arbiter_init(&ctx->arb, ctx->loop);
     ctx->engine = stream_engine_create(&ctx->hub, NULL);
 

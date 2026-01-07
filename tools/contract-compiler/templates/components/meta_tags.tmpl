@@ -25,4 +25,13 @@ const edge_tag_meta_t* edge_get_meta(edge_tag_id_t tag_id) {
     const tag_map_t* m = edge_get_map_tag(tag_id);
     return m ? &g_tag_metadata[m->tag_id] : NULL;
 }
+
+/**
+ * @brief Map Global Tag ID to Compact Local Index (O(1))
+ * Returns -1 if tag not active in this product.
+ */
+int edge_tag_get_compact_index(edge_tag_id_t tag_id) {
+    const tag_map_t* m = edge_get_map_tag(tag_id);
+    return m ? (int)m->tag_id : -1;
+}
 {{- end -}}

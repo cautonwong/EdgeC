@@ -15,7 +15,7 @@ static void test_mqtt_push_logic(void **state) {
     (void)state;
     uv_loop_t *loop = uv_default_loop();
     datahub_t hub;
-    datahub_init(&hub, loop, "test_mqtt", 128);
+    datahub_init(&hub, loop, "test_mqtt", 128, 1024, NULL);
 
     arbiter_t *arb = NULL;
     arbiter_init(&arb, loop);

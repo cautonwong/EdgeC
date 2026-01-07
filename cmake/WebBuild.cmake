@@ -16,17 +16,21 @@ function(add_web_product PRODUCT_NAME WEB_SRC_DIR)
         "${WEB_SRC_DIR}/vite.config.ts"
     )
 
+    # 获取生成文件的路径
+    set(GEN_DIR "${CMAKE_BINARY_DIR}/products/${PRODUCT_NAME}/generated")
+
     # 1. 自动执行 npm install 和 build
+    # 通过环境变量传递生成目录，让 Vite 能够找到 tags_type.ts
     add_custom_command(
         OUTPUT "${WEB_STAMP}"
         COMMAND npm install
-        COMMAND npm run build
+        COMMAND ${CMAKE_COMMAND} -E env VITE_CONTRACT_GEN_DIR=${GEN_DIR} npm run build
         COMMAND ${CMAKE_COMMAND} -E make_directory "${WEB_BUILD_DIR}"
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${WEB_SRC_DIR}/dist" "${WEB_BUILD_DIR}"
         COMMAND ${CMAKE_COMMAND} -E touch "${WEB_STAMP}"
         WORKING_DIRECTORY "${WEB_SRC_DIR}"
-        DEPENDS ${WEB_DEPS}
-        COMMENT "Building Web UI for ${PRODUCT_NAME} (Tailwind-Enabled)..."
+        DEPENDS ${WEB_DEPS} "${GEN_DIR}/tags_type.ts"
+        COMMENT "Building Web UI for ${PRODUCT_NAME} (with generated contracts)..."
         VERBATIM
     )
 

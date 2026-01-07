@@ -26,7 +26,7 @@ static void test_pipeline_sequential_execution(void **state) {
     uv_loop_t *loop = malloc(sizeof(uv_loop_t));
     uv_loop_init(loop);
     datahub_t hub;
-    datahub_init(&hub, loop, "seq_bus", 64);
+    datahub_init(&hub, loop, "seq_bus", 64, 1024, NULL);
 
     stream_engine_t *engine = stream_engine_create(&hub, NULL);
     pipeline_t *p = stream_engine_add_pipeline(engine, "seq_pipe", 1001);
