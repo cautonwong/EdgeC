@@ -137,12 +137,12 @@ static int dlms_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, pipe_m
     return 0;
 }
 
-edge_driver_t dlms_driver = {.name = "DLMS",
-                             .ctx_size = sizeof(dlms_driver_ctx_t),
-                             .on_init = dlms_v3_on_init,
-                             .encode_request = dlms_v3_encode_request,
-                             .decode_response = dlms_v3_decode_response};
+const edge_driver_t dlms_driver = {.name = "DLMS",
+                                   .ctx_size = sizeof(dlms_driver_ctx_t),
+                                   .on_init = dlms_v3_on_init,
+                                   .encode_request = dlms_v3_encode_request,
+                                   .decode_response = dlms_v3_decode_response};
 
-int dlms_driver_register(void) {
-    return driver_manager_register(&dlms_driver);
+int dlms_driver_register(driver_manager_t *mgr) {
+    return driver_manager_register(mgr, &dlms_driver);
 }

@@ -1,32 +1,42 @@
 #ifndef DRIVER_MANAGER_H
 #define DRIVER_MANAGER_H
 
-#include "arbiter.h"
+#include <stdint.h>
+
 #include "edge_driver.h"
 
-struct driver_manager_s;
 typedef struct driver_manager_s driver_manager_t;
 
-// 生命周期管理
-driver_manager_t* driver_manager_create(void);
-void driver_manager_destroy(driver_manager_t* dm);
-
-// 物理总线 FD 管理
-int driver_manager_get_fd(driver_manager_t* dm, arbiter_bus_t bus);
+/**
+ * @brief 创建驱动管理器实例 (组合模式)
+ * 替代旧版的全局初始化
+ */
+driver_manager_t *driver_manager_create(void);
 
 /**
- * @brief [S11] 物理扫描指定总线
+ * @brief 销毁管理器
  */
-char* driver_manager_scan_bus(driver_manager_t* dm, int bus_id);
+void driver_manager_destroy(driver_manager_t *mgr);
 
-// 驱动程序注册管理 (全局静态)
-int driver_manager_init(void);
-int driver_manager_register(edge_driver_t* driver);
-edge_driver_t* driver_manager_find(const char* name);
-void driver_manager_fini(void);
+/**
+ * @brief 注册协议模板到指定管理器
+ */
+int driver_manager_register(driver_manager_t *mgr, edge_driver_t *driver);
 
-// --- V3 实例管理 ---
-edge_driver_ctx_t* driver_instance_create(const char* protocol_name, uint32_t device_id);
-void driver_instance_destroy(edge_driver_ctx_t* ctx, const char* protocol_name);
+/**
+ * @brief 查找协议模板
+ */
+edge_driver_t *driver_manager_find(driver_manager_t *mgr, const char *name);
+
+/**
+ * @brief 实例化驱动上下文 (Stateful V3)
+ */
+edge_driver_ctx_t *driver_instance_create(driver_manager_t *mgr, const char *protocol,
+                                          uint32_t device_id);
+
+/**
+ * @brief 销毁驱动实例
+ */
+void driver_instance_destroy(edge_driver_ctx_t *ctx, const char *protocol);
 
 #endif

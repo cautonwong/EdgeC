@@ -1,0 +1,9 @@
+{{- define "meta_params" -}}
+// [Parameters]
+const edge_param_info_t g_param_metadata[] = {
+{{- range .Params }}
+    { "{{ .Name }}", PARAM_TYPE_{{ .Type | upper }}, {{ if eq .Type "float" }}{.f={{ .Default }}}{{ else }}{.i={{ .Default }}}{{ end }}, {.f={{ .Min }}}, {.f={{ .Max }}}, {{ if .IsRebootRequired }}true{{ else }}false{{ end }} },
+{{- end }}
+};
+const int g_param_metadata_len = {{ len .Params }};
+{{- end -}}

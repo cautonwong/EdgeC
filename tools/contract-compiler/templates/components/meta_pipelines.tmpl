@@ -1,0 +1,9 @@
+{{- define "meta_pipelines" -}}
+// [Pipelines]
+const edge_pipeline_def_t g_pipeline_metadata[] = {
+{{- range .Pipelines }}
+    { "{{ .ID }}", {{ if or (eq .Trigger "") (eq .Trigger "0") }}0{{ else }}TAG_{{ .Trigger }}{{ end }}, "{{ .Stages | marshal | c_escape }}" },
+{{- end }}
+};
+const int g_pipeline_metadata_len = {{ len .Pipelines }};
+{{- end -}}

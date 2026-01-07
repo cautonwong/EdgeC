@@ -4,52 +4,45 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/mman.h>
-#include <unistd.h>
 #include <uv.h>
 
+#include "arbiter.h"
 #include "datahub.h"
 #include "edge_service.h"
 #include "stream_engine.h"
 
 typedef struct {
-    uv_loop_t *loop;
     datahub_t data_hub;
+    arbiter_t *arbiter;
     stream_engine_t *stream_engine;
     service_t *svc;
-} integration_ctx_t;
+    uv_loop_t *loop;
+} test_ctx_t;
 
 static void test_end_to_end_flow(void **state) {
     (void)state;
-    integration_ctx_t ctx;
-    ctx.loop = malloc(sizeof(uv_loop_t));
-    uv_loop_init(ctx.loop);
+    test_ctx_t ctx;
+    ctx.loop = uv_default_loop();
 
-    const char *ring_name = "/test_integration_bus";
-    shm_unlink(ring_name);
-
-    datahub_init(&ctx.data_hub, ctx.loop, ring_name, 64);
+    datahub_init(&ctx.data_hub, ctx.loop, "test_integ", 128);
+    arbiter_init(&ctx.arbiter, ctx.loop);
     ctx.stream_engine = stream_engine_create(&ctx.data_hub, NULL);
 
-    service_options_t opts = {.mode = "INTEGRATION_TEST"};
-    ctx.svc = service_new(&opts);
-    service_set_datahub(ctx.svc, &ctx.data_hub);
-    service_set_stream_engine(ctx.svc, ctx.stream_engine);
+    // 修正：注入所有核心组件
+    ctx.svc =
+        service_new(ctx.loop, &ctx.data_hub, ctx.arbiter, NULL, ctx.stream_engine, NULL, NULL);
+    assert_non_null(ctx.svc);
 
     pipe_msg_t msg;
-    pipe_msg_init_scalar(&msg, 1001, 123.45, 1678888000000);
+    pipe_msg_init_scalar(&msg, 1001, 25.5, uv_now(ctx.loop));
     datahub_publish(&ctx.data_hub, &msg);
 
     uv_run(ctx.loop, UV_RUN_NOWAIT);
 
-    stream_engine_destroy(ctx.stream_engine);
     service_delete(ctx.svc);
+    stream_engine_destroy(ctx.stream_engine);
+    arbiter_destroy(ctx.arbiter);
     datahub_destroy(&ctx.data_hub);
-
-    while (uv_loop_close(ctx.loop) == UV_EBUSY) {
-        uv_run(ctx.loop, UV_RUN_ONCE);
-    }
-    free(ctx.loop);
 }
 
 int main(void) {

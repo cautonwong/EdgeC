@@ -116,14 +116,14 @@ static int modbus_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
     return 0;
 }
 
-edge_driver_t modbus_rtu_driver = {.name = "ModbusRTU",
-                                   .ctx_size = sizeof(modbus_rtu_ctx_t),
-                                   .on_init = modbus_v3_on_init,
-                                   .encode_request = modbus_v3_encode_request,
-                                   .decode_response = modbus_v3_decode_response,
-                                   .handle_rx = modbus_v3_handle_rx,
-                                   .on_cleanup = NULL};
+const edge_driver_t modbus_rtu_driver = {.name = "ModbusRTU",
+                                         .ctx_size = sizeof(modbus_rtu_ctx_t),
+                                         .on_init = modbus_v3_on_init,
+                                         .encode_request = modbus_v3_encode_request,
+                                         .decode_response = modbus_v3_decode_response,
+                                         .handle_rx = modbus_v3_handle_rx,
+                                         .on_cleanup = NULL};
 
-int modbus_rtu_driver_register(void) {
-    return driver_manager_register(&modbus_rtu_driver);
+int modbus_rtu_driver_register(driver_manager_t *mgr) {
+    return driver_manager_register(mgr, &modbus_rtu_driver);
 }

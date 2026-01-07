@@ -1,6 +1,6 @@
 /**
  * @file edge_service.c
- * @brief 核心控制面实现 (终极稳健版)
+ * @brief 核心控制面实现 (依赖注入版)
  */
 
 #include "edge_service.h"
@@ -14,21 +14,15 @@
 #include "northbound_mgr.h"
 
 struct service_s {
-    datahub_t *hub;
+    uv_loop_t *loop;  // [注入] 外部 Loop
+    datahub_t *hub;   // [注入] 外部 DataHub
     sqlite_svc_t *db;
     stream_engine_t *engine;
     arbiter_t *arb;
     edge_params_t *params;
     northbound_mgr_t *north;
 
-    bool owns_hub;
-    bool owns_db;
-    bool owns_arb;
-    bool owns_engine;
-    bool owns_north;
-
     char *contract_path;
-    char *mode;
 
     emergency_hook_fn emergency_hook;
     void *emergency_user_data;
@@ -53,7 +47,89 @@ struct service_s {
     uint64_t time_offset_ms;
 };
 
-// --- 内部回调 ---
+// --- Lifecycle ---
+
+service_t *service_new(uv_loop_t *loop, datahub_t *hub, arbiter_t *arb, sqlite_svc_t *db,
+                       stream_engine_t *engine, edge_params_t *params, void *north) {
+    if (!loop || !hub || !arb) return NULL;
+
+    service_t *svc = calloc(1, sizeof(service_t));
+    svc->loop = loop;
+    svc->hub = hub;
+    svc->arb = arb;
+    svc->db = db;
+    svc->engine = engine;
+    svc->params = params;
+    svc->north = (northbound_mgr_t *)north;  // 允许为 NULL
+
+    // 初始化默认状态
+    svc->link_status[LINK_PRIMARY] = true;
+    svc->current_link = LINK_PRIMARY;
+
+    // 契约路径自适应
+    const char *contract_candidates[] = {"./build/products/iems/generated/contracts.yaml",
+                                         "../generated/contracts.yaml",
+                                         "./generated/contracts.yaml"};
+    for (int i = 0; i < 3; i++) {
+        if (access(contract_candidates[i], F_OK) == 0) {
+            service_set_contract_path(svc, contract_candidates[i]);
+            LOG_INFO(LOG_CAT_CORE, "Service Container: Active Contract found at %s",
+                     svc->contract_path);
+            break;
+        }
+    }
+
+    return svc;
+}
+
+void service_delete(service_t *svc) {
+    if (!svc) return;
+
+    // [所有权变更]：只清理 Service 自身创建的资源，不触碰注入的组件
+    if (svc->ipc_pipe && !uv_is_closing((uv_handle_t *)svc->ipc_pipe)) {
+        uv_close((uv_handle_t *)svc->ipc_pipe, (uv_close_cb)free);
+    }
+    if (svc->tunnel_server && !uv_is_closing((uv_handle_t *)svc->tunnel_server)) {
+        uv_close((uv_handle_t *)svc->tunnel_server, (uv_close_cb)free);
+    }
+    if (svc->contract_path) free(svc->contract_path);
+    if (svc->last_discovery_report) free(svc->last_discovery_report);
+
+    free(svc);
+}
+
+// --- IPC Impl ---
+
+static void _on_ipc_write(uv_write_t *req, int status) {
+    (void)status;
+    free(req);
+}
+static void _ipc_forward_cb(datahub_t *hub, void *user_data) {
+    (void)hub;
+    service_t *svc = user_data;
+    if (!svc->ipc_pipe || uv_is_closing((uv_handle_t *)svc->ipc_pipe)) return;
+    pipe_msg_t msg;
+    static uint64_t last_seq = 0;
+    while (shm_ring_read(&svc->hub->ring, &last_seq, &msg) == 0) {
+        uv_buf_t buf = uv_buf_init((char *)&msg, sizeof(msg));
+        uv_write_t *req = malloc(sizeof(uv_write_t));
+        uv_write(req, (uv_stream_t *)svc->ipc_pipe, &buf, 1, _on_ipc_write);
+    }
+}
+static void _on_ipc_connect(uv_connect_t *req, int status) {
+    (void)status;
+    free(req);
+}
+void service_add_ipc_bridge(service_t *svc, const char *uds_path) {
+    if (!svc || !svc->hub || !uds_path) return;
+    svc->ipc_pipe = malloc(sizeof(uv_pipe_t));
+    uv_pipe_init(svc->hub->loop, svc->ipc_pipe, 0);
+    uv_connect_t *conn = malloc(sizeof(uv_connect_t));
+    uv_pipe_connect(conn, svc->ipc_pipe, uds_path, _on_ipc_connect);
+    datahub_subscribe(svc->hub, _ipc_forward_cb, svc);
+}
+
+// --- Utils ---
 
 static void _on_tunnel_alloc(uv_handle_t *h, size_t suggested, uv_buf_t *buf) {
     (void)h;
@@ -108,159 +184,6 @@ void service_create_tunnel(service_t *svc, int tcp_port, int bus_id) {
     uv_listen((uv_stream_t *)svc->tunnel_server, 128, _on_new_tunnel_conn);
 }
 
-// --- Lifecycle ---
-
-service_t *service_new(service_options_t *opts) {
-    service_t *svc = calloc(1, sizeof(service_t));
-    if (!opts) return svc;
-    if (opts->mode) svc->mode = strdup(opts->mode);
-    uv_loop_t *loop = opts->external_loop ? opts->external_loop : uv_default_loop();
-    if (opts->product_name) {
-        svc->hub = calloc(1, sizeof(datahub_t));
-        if (datahub_init(svc->hub, loop, opts->product_name,
-                         opts->shm_slots > 0 ? opts->shm_slots : 1024) == 0) {
-            svc->owns_hub = true;
-        }
-    }
-    if (opts->db_path) {
-        sqlite_config_t db_cfg = {.strategy = STRATEGY_LITE, .db_path = opts->db_path};
-        svc->db = sqlite_svc_create(loop, &db_cfg);
-        svc->owns_db = true;
-    }
-    arbiter_init(&svc->arb, loop);
-    svc->owns_arb = true;
-    if (opts->rest_port > 0 && svc->hub) {
-        svc->north = calloc(1, sizeof(northbound_mgr_t));
-        northbound_mgr_init(svc->north, loop, &svc->hub->ring);
-        svc->north->rest_port = opts->rest_port;
-        svc->north->web_port = opts->web_port;
-        svc->north->user_data = svc;
-        svc->owns_north = true;
-
-        // [核心补强] 路径自适应探测
-        const char *web_candidates[] = {"./build/products/iems/www", "../www", "./www",
-                                        "/workspaces/edgeos/EdgeC/build/products/iems/www"};
-        for (int i = 0; i < 4; i++) {
-            char test_path[512];
-            snprintf(test_path, sizeof(test_path), "%s/index.html", web_candidates[i]);
-            if (access(test_path, F_OK) == 0) {
-                strncpy(svc->north->web_root, web_candidates[i], sizeof(svc->north->web_root) - 1);
-                LOG_INFO(LOG_CAT_CORE, "Service Container: Web Root set to %s",
-                         svc->north->web_root);
-                break;
-            }
-        }
-    }
-
-    // 契约路径自适应
-    const char *contract_candidates[] = {"./build/products/iems/generated/contracts.yaml",
-                                         "../generated/contracts.yaml",
-                                         "./generated/contracts.yaml"};
-    for (int i = 0; i < 3; i++) {
-        if (access(contract_candidates[i], F_OK) == 0) {
-            service_set_contract_path(svc, contract_candidates[i]);
-            LOG_INFO(LOG_CAT_CORE, "Service Container: Active Contract found at %s",
-                     svc->contract_path);
-            break;
-        }
-    }
-    svc->link_status[LINK_PRIMARY] = true;
-    svc->current_link = LINK_PRIMARY;
-    return svc;
-}
-
-void service_delete(service_t *svc) {
-    if (!svc) return;
-    if (svc->hub) datahub_unsubscribe(svc->hub);
-    if (svc->north && svc->owns_north) {
-        northbound_mgr_stop(svc->north);
-        free(svc->north);
-    }
-    if (svc->engine && svc->owns_engine) stream_engine_destroy(svc->engine);
-    if (svc->arb && svc->owns_arb) arbiter_destroy(svc->arb);
-    if (svc->db && svc->owns_db) sqlite_svc_destroy(svc->db);
-    if (svc->ipc_pipe && !uv_is_closing((uv_handle_t *)svc->ipc_pipe)) {
-        uv_close((uv_handle_t *)svc->ipc_pipe, (uv_close_cb)free);
-    }
-    if (svc->tunnel_server && !uv_is_closing((uv_handle_t *)svc->tunnel_server)) {
-        uv_close((uv_handle_t *)svc->tunnel_server, (uv_close_cb)free);
-    }
-    if (svc->hub && svc->owns_hub) {
-        datahub_destroy(svc->hub);
-        free(svc->hub);
-    }
-    if (svc->mode) free(svc->mode);
-    if (svc->contract_path) free(svc->contract_path);
-    if (svc->last_discovery_report) free(svc->last_discovery_report);
-    free(svc);
-}
-
-// --- Setters ---
-
-void service_set_datahub(service_t *svc, datahub_t *hub) {
-    if (svc->hub != hub) {
-        if (svc->hub && svc->owns_hub) {
-            datahub_destroy(svc->hub);
-            free(svc->hub);
-        }
-        svc->hub = hub;
-    }
-    svc->owns_hub = false;
-}
-void service_set_storage(service_t *svc, sqlite_svc_t *storage) {
-    if (svc->db != storage) {
-        if (svc->db && svc->owns_db) sqlite_svc_destroy(svc->db);
-        svc->db = storage;
-    }
-    svc->owns_db = false;
-}
-void service_set_stream_engine(service_t *svc, stream_engine_t *engine) {
-    if (svc->engine != engine) {
-        if (svc->engine && svc->owns_engine) stream_engine_destroy(svc->engine);
-        svc->engine = engine;
-    }
-    svc->owns_engine = false;
-}
-void service_set_arbiter(service_t *svc, arbiter_t *arb) {
-    if (svc->arb != arb) {
-        if (svc->arb && svc->owns_arb) arbiter_destroy(svc->arb);
-        svc->arb = arb;
-    }
-    svc->owns_arb = false;
-}
-
-// --- IPC Impl ---
-
-static void _on_ipc_write(uv_write_t *req, int status) {
-    (void)status;
-    free(req);
-}
-static void _ipc_forward_cb(datahub_t *hub, void *user_data) {
-    service_t *svc = user_data;
-    if (!svc->ipc_pipe || uv_is_closing((uv_handle_t *)svc->ipc_pipe)) return;
-    pipe_msg_t msg;
-    static uint64_t last_seq = 0;
-    while (shm_ring_read(&hub->ring, &last_seq, &msg) == 0) {
-        uv_buf_t buf = uv_buf_init((char *)&msg, sizeof(msg));
-        uv_write_t *req = malloc(sizeof(uv_write_t));
-        uv_write(req, (uv_stream_t *)svc->ipc_pipe, &buf, 1, _on_ipc_write);
-    }
-}
-static void _on_ipc_connect(uv_connect_t *req, int status) {
-    (void)status;
-    free(req);
-}
-void service_add_ipc_bridge(service_t *svc, const char *uds_path) {
-    if (!svc || !svc->hub || !uds_path) return;
-    svc->ipc_pipe = malloc(sizeof(uv_pipe_t));
-    uv_pipe_init(svc->hub->loop, svc->ipc_pipe, 0);
-    uv_connect_t *conn = malloc(sizeof(uv_connect_t));
-    uv_pipe_connect(conn, svc->ipc_pipe, uds_path, _on_ipc_connect);
-    datahub_subscribe(svc->hub, _ipc_forward_cb, svc);
-}
-
-// --- Utils ---
-
 void service_sync_time(service_t *svc, uint64_t calendar_ms) {
     if (!svc || !svc->hub) return;
     svc->time_offset_ms = calendar_ms - uv_now(svc->hub->loop);
@@ -308,7 +231,6 @@ static void _smoke_data_cb(datahub_t *hub, void *user_data) {
     (void)hub;
     (void)user_data;
     LOG_INFO(LOG_CAT_CORE, "Smoke Test SUCCESS: Data received! Hard-exiting process.");
-    // 强制物理退出，解决多线程环境下优雅停机卡死的问题
     _exit(0);
 }
 
@@ -330,9 +252,6 @@ void service_stop(service_t *svc) {
     if (svc->hub && svc->hub->loop) uv_stop(svc->hub->loop);
 }
 
-void service_set_params(service_t *svc, edge_params_t *params) {
-    svc->params = params;
-}
 void service_set_contract_path(service_t *svc, const char *path) {
     if (svc->contract_path) free(svc->contract_path);
     svc->contract_path = strdup(path);

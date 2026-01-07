@@ -97,7 +97,7 @@ static int dlt698_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, pipe
     return 0;
 }
 
-edge_driver_t dlt698_driver = {.name = "DLT698",
+const edge_driver_t dlt698_driver = {.name = "DLT698",
                                .ctx_size = sizeof(dlt698_ctx_t),
                                .on_init = dlt698_v3_on_init,
                                .encode_request = dlt698_v3_encode_request,

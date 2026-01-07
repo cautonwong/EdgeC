@@ -1,0 +1,12 @@
+{{- define "h_feature_gates" -}}
+// [Section 1] Feature Gates
+{{- range .AllTags }}
+#define TAG_{{ .Name }}_ENABLED {{ if $.IsActive .Name }}1{{ else }}0{{ end }}
+{{- end }}
+
+// [Section 1.5] Project Configs
+{{- range .Configs }}
+#define CONFIG_{{ .Name }} {{ .Value }}
+#define CONFIG_{{ .Name }}_ENABLED {{ if isTrue .Value }}1{{ else }}0{{ end }}
+{{- end }}
+{{- end -}}

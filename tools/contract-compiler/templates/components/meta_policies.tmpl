@@ -1,0 +1,9 @@
+{{- define "meta_policies" -}}
+// [Policies]
+const edge_policy_def_t g_policy_metadata[] = {
+{{- range .Policies }}
+    { "{{ .Name }}", "{{ index .Attributes "cron" | default "" }}", "{{ index .Attributes "script" | default "" | c_escape }}" },
+{{- end }}
+};
+const int g_policy_metadata_len = {{ len .Policies }};
+{{- end -}}

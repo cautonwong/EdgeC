@@ -86,11 +86,11 @@ static int iec104_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
     return 0;
 }
 
-edge_driver_t iec104_driver = {.name = "IEC104",
-                               .ctx_size = sizeof(iec104_ctx_t),
-                               .on_init = iec104_v3_on_init,
-                               .on_tick = iec104_v3_on_tick,
-                               .encode_request = NULL,  // 104 通常走突发和总召唤，不走轮询
-                               .decode_response = NULL,
-                               .handle_rx = iec104_v3_handle_rx,
-                               .on_cleanup = NULL};
+const edge_driver_t iec104_driver = {.name = "IEC104",
+                                     .ctx_size = sizeof(iec104_ctx_t),
+                                     .on_init = iec104_v3_on_init,
+                                     .on_tick = iec104_v3_on_tick,
+                                     .encode_request = NULL,  // 104 通常走突发和总召唤，不走轮询
+                                     .decode_response = NULL,
+                                     .handle_rx = iec104_v3_handle_rx,
+                                     .on_cleanup = NULL};

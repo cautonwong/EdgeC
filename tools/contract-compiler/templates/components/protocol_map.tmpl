@@ -1,0 +1,43 @@
+{{- define "protocol_map" -}}
+{{- /* Input: .Proto (string), .Map (HashInfo) */ -}}
+{{- $lowerProto := .Proto | lower -}}
+// --- {{ .Proto }} Protocol Mapping ---
+{{- if and .Map .Map.Keys }}
+// 1. 查找表 (按照 Hash 桶排序)
+static const {{ $lowerProto }}_map_t s_{{ $lowerProto }}_table[] = {
+{{- range .Map.Keys }}
+    {{- if ne .TagID 0 }}
+    { (uint32_t){{ .RawKey }}, TAG_{{ .TagName }}, {{ .Scale }}, {{ .ByteLen }}, {{ .Access }} }, // {{ .StrKey }}
+    {{- else }}
+    { 0, 0, 0, 0, 0 }, // Empty Slot
+    {{- end }}
+{{- end }}
+};
+
+// 2. 通用查找函数
+const {{ $lowerProto }}_map_t* edge_get_map_{{ $lowerProto }}(uint32_t key) {
+    if (sizeof(s_{{ $lowerProto }}_table) == 0) return NULL;
+    uint32_t h = _contract_hash_mix(key, {{ .Map.Seed }}, {{ .Map.TableSize }} - 1);
+    if (h >= {{ .Map.TableSize }}) return NULL; 
+    const {{ $lowerProto }}_map_t* entry = &s_{{ $lowerProto }}_table[h];
+    if (entry->key == key && entry->tag_id != 0) {
+        return entry;
+    }
+    return NULL;
+}
+
+// 3. 简易查表接口 (兼容驱动层)
+edge_tag_id_t edge_lookup_{{ $lowerProto }}(uint32_t key, float *scale) {
+    const {{ $lowerProto }}_map_t* m = edge_get_map_{{ $lowerProto }}(key);
+    if (m) {
+        if (scale) *scale = m->scaler;
+        return m->tag_id;
+    }
+    return 0;
+}
+{{- else }}
+// Stub for {{ .Proto }}
+const {{ $lowerProto }}_map_t* edge_get_map_{{ $lowerProto }}(uint32_t key) { (void)key; return NULL; }
+edge_tag_id_t edge_lookup_{{ $lowerProto }}(uint32_t key, float *scale) { (void)key; (void)scale; return 0; }
+{{- end }}
+{{- end -}}

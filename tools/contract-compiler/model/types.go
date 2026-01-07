@@ -34,6 +34,7 @@ type ParamDef struct {
 	Min     float64     `yaml:"min"`
 	Max     float64     `yaml:"max"`
 	Desc    string      `yaml:"desc"`
+	IsRebootRequired bool `yaml:"is_reboot_required"`
 }
 
 type HardwareDef struct {

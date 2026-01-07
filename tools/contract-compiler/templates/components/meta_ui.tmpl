@@ -1,0 +1,7 @@
+{{- define "meta_ui" -}}
+// [UI Blueprint]
+const ui_info_t g_ui_metadata = {
+    "{{ .UI.Layout }}",
+    "{{ .UI.Dashboards | marshal | c_escape }}"
+};
+{{- end -}}

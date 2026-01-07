@@ -27,7 +27,7 @@ static net_buf_t g_pool_large_bufs[POOL_LARGE_BUF_COUNT];
 static net_buf_t *g_pool_small_freelist[POOL_SMALL_BUF_COUNT];
 static net_buf_t *g_pool_large_freelist[POOL_LARGE_BUF_COUNT];
 
-static slab_pool_t g_pools[] = {
+static const slab_pool_t g_pools[] = {
     [0] = {.name = "small", .total_bufs = POOL_SMALL_BUF_COUNT},
     [1] = {.name = "large", .total_bufs = POOL_LARGE_BUF_COUNT},
 };

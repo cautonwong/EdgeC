@@ -137,14 +137,14 @@ static int dlt645_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
     return 0;
 }
 
-edge_driver_t dlt645_driver = {.name = "DLT645-2007",
-                               .ctx_size = sizeof(dlt645_ctx_t),
-                               .on_init = dlt645_v3_on_init,
-                               .encode_request = dlt645_v3_encode_request,
-                               .decode_response = dlt645_v3_decode_response,
-                               .handle_rx = dlt645_v3_handle_rx,
-                               .on_cleanup = NULL};
+const edge_driver_t dlt645_driver = {.name = "DLT645-2007",
+                                     .ctx_size = sizeof(dlt645_ctx_t),
+                                     .on_init = dlt645_v3_on_init,
+                                     .encode_request = dlt645_v3_encode_request,
+                                     .decode_response = dlt645_v3_decode_response,
+                                     .handle_rx = dlt645_v3_handle_rx,
+                                     .on_cleanup = NULL};
 
-int dlt645_driver_register(void) {
-    return driver_manager_register(&dlt645_driver);
+int dlt645_driver_register(driver_manager_t *mgr) {
+    return driver_manager_register(mgr, &dlt645_driver);
 }

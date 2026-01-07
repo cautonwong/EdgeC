@@ -17,17 +17,6 @@ extern "C" {
 
 typedef struct service_s service_t;
 
-typedef struct {
-    const char *product_name; /**< 产品名称，决定共享内存标识 */
-    const char *db_path;      /**< SQLite 数据库路径 (":memory:" for memory DB) */
-    uint32_t shm_slots;       /**< 共享内存槽位数量 */
-    int rest_port;            /**< REST API 端口 */
-    int web_port;             /**< Web UI 端口 */
-    bool async_log;           /**< 是否开启异步日志 */
-    const char *mode;         /**< 运行模式: PRODUCTION, DEBUG 等 */
-    uv_loop_t *external_loop; /**< 外部事件循环 (为 NULL 则使用默认循环) */
-} service_options_t;
-
 typedef void (*emergency_hook_fn)(void *user_data);
 
 // [S19] 链路定义
@@ -38,15 +27,22 @@ typedef enum {
 
 typedef void (*link_monitor_fn)(net_link_t new_link, void *user_data);
 
-service_t *service_new(service_options_t *opts);
+/**
+ * @brief 创建服务编排器 (组件组合模式)
+ * @param loop 外部传入的主循环
+ * @param hub 外部创建的 DataHub
+ * @param arb 外部创建的 Arbiter
+ * @param db 外部创建的 SQLite 服务 (可选)
+ * @param engine 外部创建的流引擎 (可选)
+ * @param params 外部创建的参数服务 (可选)
+ * @param north 外部创建的北向管理器 (可选)
+ */
+service_t *service_new(uv_loop_t *loop, datahub_t *hub, arbiter_t *arb, sqlite_svc_t *db,
+                       stream_engine_t *engine, edge_params_t *params, void *north);
+
 void service_delete(service_t *svc);
 
 // --- Setters ---
-void service_set_datahub(service_t *svc, datahub_t *hub);
-void service_set_storage(service_t *svc, sqlite_svc_t *storage);
-void service_set_stream_engine(service_t *svc, stream_engine_t *engine);
-void service_set_arbiter(service_t *svc, arbiter_t *arb);
-void service_set_params(service_t *svc, edge_params_t *params);
 void service_set_contract_path(service_t *svc, const char *path);
 void service_set_emergency_hook(service_t *svc, emergency_hook_fn hook, void *user_data);
 

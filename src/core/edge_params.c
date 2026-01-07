@@ -20,12 +20,9 @@ struct edge_params_s {
     int meta_count;
 };
 
-static edge_params_t *g_global_handle = NULL;
-
 edge_params_t *edge_params_create(sqlite_svc_t *db) {
     edge_params_t *ctx = calloc(1, sizeof(struct edge_params_s));
     ctx->db = db;
-    g_global_handle = ctx;
 
     // [Bootstrap] 确保数据库表存在
     const char *create_table_sql =
@@ -152,5 +149,4 @@ int edge_params_restore_single(edge_params_t *ctx, edge_param_id_t id) {
 
 void edge_params_destroy(edge_params_t *ctx) {
     if (ctx) free(ctx);
-    if (g_global_handle == ctx) g_global_handle = NULL;
 }

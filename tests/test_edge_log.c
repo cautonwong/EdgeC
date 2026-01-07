@@ -2,33 +2,24 @@
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
-#include <stdio.h>
-#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "edge_log.h"
 
-static void test_log_basic_sync(void **state) {
+static void test_log_basic_lifecycle(void **state) {
     (void)state;
-    // [补强] 尝试在多个可能路径下查找配置文件
-    if (access("config/zlog.conf", F_OK) != 0) {
-        if (access("../config/zlog.conf", F_OK) == 0) {
-            chdir("..");  // 回退到根目录以运行测试
-        }
-    }
-    int ret = edge_log_init(NULL, false);
-    assert_int_equal(ret, 0);
-    LOG_INFO(LOG_CAT_CORE, "Synchronous log test pass.");
-}
+    edge_log_t *logger = edge_log_create(NULL, true);
+    assert_non_null(logger);
 
-static void test_log_async_flow(void **state) {
-    (void)state;
-    LOG_DEBUG(LOG_CAT_CORE, "Asynchronous log flow triggered.");
+    edge_log_out(logger, LOG_CAT_CORE, 0, "Test Log Message");
+
+    edge_log_destroy(logger);
 }
 
 int main(void) {
     const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_log_basic_sync),
-        cmocka_unit_test(test_log_async_flow),
+        cmocka_unit_test(test_log_basic_lifecycle),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

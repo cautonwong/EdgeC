@@ -5,7 +5,7 @@ import (
 	"contract-compiler/exporter"
 	"contract-compiler/model"
 	"contract-compiler/protocols"
-	_ "embed"
+	"embed"
 	"flag"
 	"fmt"
 	"os"
@@ -14,18 +14,13 @@ import (
 	"text/template"
 	"hash/crc32"
 	"encoding/json"
+	"errors"
 
 	"gopkg.in/yaml.v3"
 )
 
-//go:embed templates/master_h.tmpl
-var masterHTpl string
-
-//go:embed templates/master_c.tmpl
-var masterCTpl string
-
-//go:embed templates/config_cmake.tmpl
-var configCmakeTpl string
+//go:embed templates
+var tplFS embed.FS
 
 type TplCtx struct {
 	ActiveTags []model.TagDef
@@ -83,13 +78,12 @@ func main() {
 	var sig uint32
 	for _, t := range contract.ActiveTags { sig = crc32.Update(sig, crc32.IEEETable, []byte(fmt.Sprintf("%d", t.ID))) }
 
-	// 5. 计算 TagID 到连续索引的完美哈希 (解决稀疏数组空间占用问题)
 	tagEntries := make([]core.HashEntry, 0, len(contract.ActiveTags))
 	for i, t := range contract.ActiveTags {
 		tagEntries = append(tagEntries, core.HashEntry{
 			RawKey:  uint64(t.ID),
 			TagName: t.Name,
-			TagID:   uint32(i), // 存储该 Tag 在 Dense Table 中的连续索引
+			TagID:   uint32(i),
 		})
 	}
 	tagHash := core.GeneratePerfectHash("TAG", tagEntries)
@@ -100,33 +94,62 @@ func main() {
 		ActiveMap:  actMap,
 		PMap:       resolved,
 		Hashes:     hashes,
-		TagHash:    tagHash, // [新增] TagID 完美哈希元数据
+		TagHash:    tagHash,
 		Configs:    contract.Configs,
-				Params:      contract.Params,
-				Hardware:    contract.Hardware,
-				Pipelines:   contract.Pipelines,
-				Policies:    contract.Policies,
-				UI:          contract.UI,
-				Product:     contract.Product,
-				Signature:   sig,
+		Params:     contract.Params,
+		Hardware:   contract.Hardware,
+		Pipelines:  contract.Pipelines,
+		Policies:   contract.Policies,
+		UI:         contract.UI,
+		Product:    contract.Product,
+		Signature:  sig,
+	}
+
+	os.MkdirAll(*out, 0755)
+	
+	fm := template.FuncMap{
+		"lower": strings.ToLower,
+		"equalFold": strings.EqualFold,
+		"hex": func(v uint32) string { return fmt.Sprintf("0x%08X", v) },
+		"marshal": func(v interface{}) string {
+			b, _ := json.Marshal(v)
+			return string(b)
+		},
+		"c_escape": func(s string) string {
+			// 使用 raw string 避免转义地狱
+			bs := `\`
+			escapedBs := `\\`
+			qs := `"`
+			escapedQs := `\"`
+			s = strings.ReplaceAll(s, bs, escapedBs)
+			s = strings.ReplaceAll(s, qs, escapedQs)
+			return s
+		},
+		"len": func(v interface{}) int {
+			if v == nil { return 0 }
+			switch val := v.(type) {
+			case []uint8: return len(val)
+			case []int: return len(val)
+			case []interface{}: return len(val)
+			case []model.TagDef: return len(val)
+			case []model.ParamDef: return len(val)
+			case []model.PipelineDef: return len(val)
+			case []model.PolicyDef: return len(val)
+			case []model.HardwareDef: return len(val)
 			}
-		
-			os.MkdirAll(*out, 0755)
-				fm := template.FuncMap{
-					"lower": strings.ToLower,
-					"equalFold": strings.EqualFold,
-					"hex": func(v uint32) string { return fmt.Sprintf("0x%08X", v) },
-							"marshal": func(v interface{}) string {
-								b, _ := json.Marshal(v)
-								return string(b)
-							},
-							"c_escape": func(s string) string {
-								s = strings.ReplaceAll(s, "\\", "\\\\")
-								s = strings.ReplaceAll(s, "\"", "\\\"")
-								return s
-							},
-					
-					"default": func(d, v interface{}) interface{} {
+			return 0
+		},
+		"dict": func(values ...interface{}) (map[string]interface{}, error) {
+			if len(values)%2 != 0 { return nil, errors.New("invalid dict call") }
+			dict := make(map[string]interface{}, len(values)/2)
+			for i := 0; i < len(values); i+=2 {
+				key, ok := values[i].(string)
+				if !ok { return nil, errors.New("dict keys must be strings") }
+				dict[key] = values[i+1]
+			}
+			return dict, nil
+		},
+		"default": func(d, v interface{}) interface{} {
 			if v == nil { return d }
 			switch val := v.(type) {
 			case string: if val == "" { return d }
@@ -143,12 +166,14 @@ func main() {
 			}
 			return false
 		},
+		"upper": strings.ToUpper,
 	}
 
 	if *target == "master" {
-		render("h", filepath.Join(*out, "contracts.h"), masterHTpl, ctx, fm)
-		render("c", filepath.Join(*out, "contracts.c"), masterCTpl, ctx, fm)
-		render("cmake", filepath.Join(*out, "config.cmake"), configCmakeTpl, ctx, fm)
+		render("h", filepath.Join(*out, "contracts.h"), "templates/master_h.tmpl", ctx, fm)
+		render("c", filepath.Join(*out, "contracts.c"), "templates/master_c.tmpl", ctx, fm)
+		render("cmake", filepath.Join(*out, "config.cmake"), "templates/config_cmake.tmpl", ctx, fm)
+		
 		y, _ := yaml.Marshal(contract)
 		os.WriteFile(filepath.Join(*out, "contracts.yaml"), y, 0644)
 
@@ -157,10 +182,21 @@ func main() {
 	}
 }
 
-func render(name, path, tpl string, ctx interface{}, fm template.FuncMap) {
-	t, err := template.New(name).Funcs(fm).Parse(tpl)
-	if err != nil { panic(err) }
-	f, _ := os.Create(path)
+func render(name, outPath, tplPath string, ctx interface{}, fm template.FuncMap) {
+	t := template.New(filepath.Base(tplPath)).Funcs(fm)
+	
+	// 加载 components
+	// 使用 glob pattern 匹配 templates/components 下的所有 .tmpl 文件
+	_, err := t.ParseFS(tplFS, "templates/components/*.tmpl")
+	if err != nil && !strings.Contains(err.Error(), "no files") {
+		panic(fmt.Errorf("ParseFS components: %v", err))
+	}
+
+	// 加载主入口
+	t, err = t.ParseFS(tplFS, tplPath)
+	if err != nil { panic(fmt.Errorf("ParseFS %s: %v", tplPath, err)) }
+
+	f, _ := os.Create(outPath)
 	defer f.Close()
-	if err := t.Execute(f, ctx); err != nil { panic(err) }
+	if err := t.Execute(f, ctx); err != nil { panic(fmt.Errorf("Execute %s: %v", tplPath, err)) }
 }

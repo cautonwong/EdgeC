@@ -1,0 +1,28 @@
+{{- define "meta_tags" -}}
+// --- 2. 核心元数据表 (Meta Tables) ---
+// [Tag Metadata]
+const edge_tag_meta_t g_tag_metadata[] = {
+{{- range .ActiveTags }}
+    { 
+        {{ .ID }}, 
+        "{{ .Name }}", 
+        "{{ .Type }}", 
+        "{{ .Unit }}", 
+        "{{ index .Attributes "category" | default "general" }}", 
+        {{ index .Attributes "min" | default -1000000 }}, 
+        {{ index .Attributes "max" | default 1000000 }}, 
+        {{ if index .Attributes "persist" }}true{{ else }}false{{ end }}, 
+        {{ if index .Attributes "upload" }}true{{ else }}false{{ end }} 
+    },
+{{- end }}
+};
+const uint32_t g_tag_metadata_len = {{ len .ActiveTags }};
+
+// [Tag Hash Lookup]
+{{ template "protocol_map" dict "Proto" "TAG" "Map" .TagHash }}
+
+const edge_tag_meta_t* edge_get_meta(edge_tag_id_t tag_id) {
+    const tag_map_t* m = edge_get_map_tag(tag_id);
+    return m ? &g_tag_metadata[m->tag_id] : NULL;
+}
+{{- end -}}
