@@ -83,8 +83,10 @@ set_target_properties(zlog::zlog PROPERTIES
 # ==============================================================================
 include(Sanitizers)
 include(CodeCoverage)
-add_compile_options(-Wall -Wextra -Wformat=2 -Wconversion --coverage)
-add_link_options(--coverage)
+
+# 移除全局选项，改为在 edge_common_interface 中传播
+# add_compile_options(-Wall -Wextra -Wformat=2 -Wconversion --coverage)
+# add_link_options(--coverage)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     enable_sanitizers(address undefined)
@@ -119,7 +121,7 @@ set(EDGE_MINOR 5)
 set(EDGE_PATCH 0)
 set(EDGE_VERSION_STR "${EDGE_MAJOR}.${EDGE_MINOR}.${EDGE_PATCH}")
 
-# 5.1 Base Interface for common includes
+# 5.1 Base Interface for common includes and flags
 add_library(edge_common_interface INTERFACE)
 target_include_directories(edge_common_interface INTERFACE 
     include 
@@ -127,9 +129,14 @@ target_include_directories(edge_common_interface INTERFACE
     SYSTEM "${LOCAL_ROOT}/include"
 )
 target_compile_definitions(edge_common_interface INTERFACE _DEFAULT_SOURCE)
+# 属性传播：将编译和链接选项封装在接口中
+target_compile_options(edge_common_interface INTERFACE 
+    -Wall -Wextra -Wformat=2 -Wconversion --coverage
+)
+target_link_options(edge_common_interface INTERFACE --coverage)
 
-# 使用 OBJECT 库来物理消除循环依赖
-add_library(edge_core_obj OBJECT
+# 5.2 核心平面 (Foundation L1 - 原子库)
+add_library(edge_core STATIC
     src/core/edge_version.c
     src/core/edge_params.c
     src/core/shmring.c
@@ -139,9 +146,40 @@ add_library(edge_core_obj OBJECT
     src/core/persistence_mgr.c
     src/core/edge_log.c
 )
-target_link_libraries(edge_core_obj PRIVATE edge_common_interface cJSON::cjson libuv::uv SQLite::SQLite3 zlog::zlog)
+target_link_libraries(edge_core PUBLIC edge_common_interface)
+target_link_libraries(edge_core PRIVATE cJSON::cjson libuv::uv SQLite::SQLite3 zlog::zlog)
 
-add_library(edge_main_loop_obj OBJECT
+# 5.3 计算平面 (Compute Plane)
+add_library(edge_stream_engine STATIC
+    src/stream_engine/stream_engine.c
+    src/stream_engine/js_engine.c
+    src/stream_engine/script_loader.c
+    src/stream_engine/script_executor.c
+    src/stream_engine/aggregator.c
+    src/stream_engine/standard_stages.c
+    src/stream_engine/js_stage.c
+    src/stream_engine/pipeline_loader.c
+    src/stream_engine/stream_dump.c
+)
+# 注意：由于代码中存在交叉引用，我们需要在链接时允许循环
+target_link_libraries(edge_stream_engine PUBLIC edge_core edge_algo)
+target_link_libraries(edge_stream_engine PRIVATE QuickJS::QuickJS)
+
+# 5.4 执行平面 (Execution Plane)
+add_library(edge_io_executor STATIC
+    src/io_executor/driver_manager.c
+    src/io_executor/profile_loader.c
+    src/io_executor/modbus_rtu_driver.c
+    src/io_executor/driver_dlt645.c
+    src/io_executor/driver_dlms.c
+    src/io_executor/engines/master_engine.c
+    src/io_executor/engines/slave_engine.c
+)
+target_link_libraries(edge_io_executor PUBLIC edge_core edge_protocols edge_platform)
+target_link_libraries(edge_io_executor PRIVATE Modbus::Modbus)
+
+# 5.5 控制平面 (Control Plane)
+add_library(edge_main_loop STATIC
     src/main_loop/arbiter.c
     src/main_loop/edge_service.c
     src/main_loop/northbound_mgr.c
@@ -156,68 +194,26 @@ add_library(edge_main_loop_obj OBJECT
     src/main_loop/bus_orchestrator.c
     src/main_loop/policy_syncer.c
 )
-target_link_libraries(edge_main_loop_obj PRIVATE edge_common_interface PahoMQTT::PahoMQTT)
+# main_loop 依赖 io_executor 和 stream_engine
+target_link_libraries(edge_main_loop PUBLIC edge_core edge_stream_engine edge_io_executor)
+target_link_libraries(edge_main_loop PRIVATE PahoMQTT::PahoMQTT)
 
-add_library(edge_stream_engine_obj OBJECT
-    src/stream_engine/stream_engine.c
-    src/stream_engine/js_engine.c
-    src/stream_engine/script_loader.c
-    src/stream_engine/script_executor.c
-    src/stream_engine/aggregator.c
-    src/stream_engine/standard_stages.c
-    src/stream_engine/js_stage.c
-    src/stream_engine/pipeline_loader.c
-    src/stream_engine/stream_dump.c
-)
-target_link_libraries(edge_stream_engine_obj PRIVATE edge_common_interface QuickJS::QuickJS)
+# 解决循环依赖：让 stream_engine 也能看到 main_loop 的符号
+target_link_libraries(edge_stream_engine PUBLIC edge_main_loop)
 
-add_library(edge_io_executor_obj OBJECT
-    src/io_executor/driver_manager.c
-    src/io_executor/profile_loader.c
-    src/io_executor/modbus_rtu_driver.c
-    src/io_executor/driver_dlt645.c
-    src/io_executor/driver_dlms.c
-    src/io_executor/engines/master_engine.c
-    src/io_executor/engines/slave_engine.c
-)
-target_link_libraries(edge_io_executor_obj PRIVATE edge_common_interface Modbus::Modbus)
-
-add_library(edge_algo_obj OBJECT
+# 5.6 算法库
+add_library(edge_algo STATIC
     algo/native/algorithm_sum.c
     algo/native/battery_strategy.c
     algo/native/algo_peak_shaving.c
 )
-target_link_libraries(edge_algo_obj PRIVATE edge_common_interface)
+target_link_libraries(edge_algo PUBLIC edge_common_interface)
 
-# 定义最终的组合静态库，用于分发和链接
-add_library(edge_sdk STATIC
-    $<TARGET_OBJECTS:edge_core_obj>
-    $<TARGET_OBJECTS:edge_main_loop_obj>
-    $<TARGET_OBJECTS:edge_stream_engine_obj>
-    $<TARGET_OBJECTS:edge_io_executor_obj>
-    $<TARGET_OBJECTS:edge_algo_obj>
-    $<TARGET_OBJECTS:edge_protocols_obj>
-    $<TARGET_OBJECTS:edge_platform_obj>
+# 定义最终的组合静态库 (接口库)
+add_library(edge_sdk INTERFACE)
+target_link_libraries(edge_sdk INTERFACE 
+    edge_main_loop 
 )
-# 传播依赖项
-target_link_libraries(edge_sdk PUBLIC 
-    edge_common_interface
-    cJSON::cjson 
-    libuv::uv 
-    SQLite::SQLite3 
-    zlog::zlog
-    PahoMQTT::PahoMQTT
-    QuickJS::QuickJS
-    Modbus::Modbus
-)
-
-# 为了向后兼容旧的 target 名称，定义 ALIAS
-add_library(edge_core ALIAS edge_sdk)
-add_library(edge_main_loop ALIAS edge_sdk)
-add_library(edge_stream_engine ALIAS edge_sdk)
-add_library(edge_io_executor ALIAS edge_sdk)
-add_library(edge_algo ALIAS edge_sdk)
-
 
 # ==============================================================================
 # 6. Build Product Applications

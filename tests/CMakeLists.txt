@@ -5,12 +5,12 @@ project(EdgeC_Tests)
 macro(add_edge_test TEST_NAME)
     add_executable(${TEST_NAME} ${ARGN})
     target_link_libraries(${TEST_NAME} PRIVATE
-        edge_algo
+        edge_main_loop
         edge_stream_engine
         edge_io_executor
-        edge_main_loop
-        contract_iems
+        edge_algo
         edge_core
+        contract_iems
         edge_common_interface
         cmocka::cmocka
         pthread dl rt m
@@ -65,12 +65,12 @@ add_edge_test(test_dcu test_dcu.c)
 # 特殊用例: test_scheduler (Mock Time)
 add_executable(test_scheduler test_scheduler.c mock_time.c)
 target_link_libraries(test_scheduler PRIVATE
-    edge_algo
+    edge_main_loop
     edge_stream_engine
     edge_io_executor
-    edge_main_loop
-    contract_iems
+    edge_algo
     edge_core
+    contract_iems
     edge_common_interface
     cmocka::cmocka
     pthread dl rt m
@@ -84,12 +84,12 @@ add_executable(test_northbound_mqtt
     mock_servers.c
 )
 target_link_libraries(test_northbound_mqtt PRIVATE 
-    edge_algo
+    edge_main_loop
     edge_stream_engine
     edge_io_executor
-    edge_main_loop
-    contract_iems
+    edge_algo
     edge_core
+    contract_iems
     edge_common_interface
     cmocka::cmocka
     pthread dl rt m

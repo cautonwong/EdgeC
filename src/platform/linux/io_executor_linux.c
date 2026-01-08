@@ -42,17 +42,24 @@ static void _on_uv_poll(uv_poll_t *handle, int status, int events) {
 
     if (events & UV_WRITABLE) {
         if (impl->pending_tx) {
-            impl->base.cb(&impl->base, IO_EVENT_TX_DONE, NULL, impl->base.user_data);
-            net_buf_unref(impl->pending_tx);
+            // 在回调之前解引用并清除，防止回调逻辑中再次访问
+            net_buf_t *buf = impl->pending_tx;
             impl->pending_tx = NULL;
-            uv_poll_stop(&impl->poll);
-            uv_poll_start(&impl->poll, UV_READABLE, _on_uv_poll);
+            impl->base.cb(&impl->base, IO_EVENT_TX_DONE, NULL, impl->base.user_data);
+            net_buf_unref(buf);
+
+            // 检查句柄是否在回调中被关闭
+            if (!uv_is_closing((uv_handle_t *)&impl->poll)) {
+                uv_poll_stop(&impl->poll);
+                uv_poll_start(&impl->poll, UV_READABLE, _on_uv_poll);
+            }
         }
     }
 }
 
 static int _linux_enable_read(io_handle_t *h, bool enable) {
     linux_io_handle_t *impl = (linux_io_handle_t *)h;
+    if (uv_is_closing((uv_handle_t *)&impl->poll)) return -EBADF;
     if (enable) {
         return uv_poll_start(&impl->poll, UV_READABLE, _on_uv_poll);
     } else {

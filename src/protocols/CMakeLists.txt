@@ -11,15 +11,7 @@ set(PROTO_SOURCES
     "${PROTO_DIR}/dlms/dlms_security.c"
 )
 
-# 使用 OBJECT 库模式
-add_library(edge_protocols_obj OBJECT ${PROTO_SOURCES})
-target_include_directories(edge_protocols_obj PRIVATE 
-    "${CMAKE_SOURCE_DIR}/include"
-    "${PROTO_DIR}"
-    "${LOCAL_ROOT}/include"
-)
-target_compile_definitions(edge_protocols_obj PRIVATE _DEFAULT_SOURCE)
-
-# 提供 INTERFACE 库
-add_library(edge_protocols INTERFACE)
-target_sources(edge_protocols INTERFACE $<TARGET_OBJECTS:edge_protocols_obj>)
+# 改为 STATIC 库
+add_library(edge_protocols STATIC ${PROTO_SOURCES})
+target_link_libraries(edge_protocols PUBLIC edge_common_interface)
+target_include_directories(edge_protocols PRIVATE "${PROTO_DIR}")
