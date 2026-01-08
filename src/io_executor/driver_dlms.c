@@ -69,9 +69,9 @@ static int dlms_v3_encode_request(edge_driver_ctx_t *ctx, const uint32_t *tag_id
         if (map) {
             priv->current_tag_id = tag_ids[0];
             net_buf_t *get_req = net_buf_alloc(out->pool, 0);
-            // 修正：obis 是 uint8_t 数组，此处需要转换或修改接口
+            // 修正：增加 access_params 参数 (传 NULL 表示 Normal GET)
             dlms_cosem_build_get_request(&priv->cosem, map->class_id, (const char *)map->obis,
-                                         map->attribute_index, get_req);
+                                         map->attribute_index, NULL, get_req);
             dlms_hdlc_send_iframe(&priv->hdlc, get_req, out);
             net_buf_unref(get_req);
         }
@@ -85,6 +85,7 @@ static int dlms_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, pipe_m
     dlms_driver_ctx_t *priv = (dlms_driver_ctx_t *)ctx->priv;
     net_buf_t *apdu = NULL;
 
+    // 1. HDLC 层重组 (处理 Segmentation)
     int ret = dlms_hdlc_depacketize(&priv->hdlc, &in->b, in->pool, &apdu);
     if (ret != 0 || !apdu) return (ret == 1) ? 1 : -1;
 
@@ -94,23 +95,23 @@ static int dlms_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, pipe_m
             priv->association_pending = false;
             LOG_INFO(LOG_CAT_IO, "DLMS: Associated.");
         }
-    } else if (tag == DLMS_SERVICE_GET_RESPONSE) {
-        dlms_variant_t var;
-        if (dlms_cosem_decode_get_response(&priv->cosem, &apdu->b, &var) == 0) {
-            const dlms_map_t *map = edge_lookup_dlms_by_tag(priv->current_tag_id);
-            float scale = map ? map->scaler : 1.0f;
+    } else {
+        // 2. COSEM 层语义化解析 (支持 Normal, Block Transfer, 和 Push)
+        const dlms_map_t *map = edge_lookup_dlms_by_tag(priv->current_tag_id);
+        if (!map) return -1;
 
-            double final_val = 0;
-            if (var.type == DLMS_TYPE_DOUBLE_LONG_UNSIGNED && var.length == 4) {
-                uint32_t val = (uint32_t)((var.payload[0] << 24) | (var.payload[1] << 16) |
-                                          (var.payload[2] << 8) | var.payload[3]);
-                final_val = (double)val;
-            } else if (var.type == DLMS_TYPE_LONG_UNSIGNED && var.length == 2) {
-                uint16_t val = (uint16_t)((var.payload[0] << 8) | var.payload[1]);
-                final_val = (double)val;
-            }
+        double val = 0;
+        int cosem_ret =
+            dlms_cosem_decode_response_semantic(&priv->cosem, &apdu->b, map->expected_type, &val);
 
-            pipe_msg_init_scalar(&out_msgs[0], priv->current_tag_id, final_val * (double)scale,
+        if (cosem_ret == 1) {
+            LOG_INFO(LOG_CAT_IO, "DLMS: Block Transfer in progress...");
+            net_buf_unref(apdu);
+            return 1;
+        }
+
+        if (cosem_ret == 0) {
+            pipe_msg_init_scalar(&out_msgs[0], priv->current_tag_id, val * (double)map->scaler,
                                  (uint64_t)time(NULL) * 1000);
             *msg_count = 1;
         }

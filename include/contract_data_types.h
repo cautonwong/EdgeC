@@ -76,6 +76,7 @@ typedef struct {
     edge_tag_id_t tag_id;
     float scaler;
     uint32_t access;
+    uint8_t expected_type;  // 对齐 dlms_data_type_t
 } dlms_map_t;
 
 typedef struct {

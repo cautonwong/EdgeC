@@ -9,6 +9,8 @@ set(PROTO_SOURCES
     "${PROTO_DIR}/dlms/dlms_gbt.c"
     "${PROTO_DIR}/dlms/dlms_hdlc.c"
     "${PROTO_DIR}/dlms/dlms_security.c"
+    "${PROTO_DIR}/dlt645/dlt645_codec.c"
+    "${PROTO_DIR}/modbus/modbus_codec.c"
 )
 
 # 改为 STATIC 库

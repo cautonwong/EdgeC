@@ -81,6 +81,12 @@ void dlms_encode_octet_string(dlms_encoder_t *enc, const uint8_t *data, size_t l
 void dlms_decoder_init(dlms_decoder_t *dec, struct net_buf_simple *buf);
 int dlms_decode_variant(dlms_decoder_t *dec, dlms_variant_t *out);
 
+/**
+ * @brief 语义化解码：将任意 DLMS 标量类型转换为双精度浮点数
+ * @return 0 成功, <0 类型不匹配或解析失败
+ */
+int dlms_decode_to_double(dlms_decoder_t *dec, uint8_t expected_type, double *out_val);
+
 /* --- Security APIs --- */
 int dlms_security_apply(net_buf_t *apdu, dlms_security_level_t level, uint32_t ic);
 int dlms_security_remove(net_buf_t *apdu, dlms_security_level_t *out_level);

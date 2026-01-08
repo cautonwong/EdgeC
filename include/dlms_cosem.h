@@ -39,10 +39,25 @@ void dlms_cosem_reset(dlms_cosem_ctx_t *ctx);
 int dlms_cosem_build_aarq(dlms_cosem_ctx_t *ctx, net_buf_t *out);
 int dlms_cosem_parse_aare(dlms_cosem_ctx_t *ctx, struct net_buf_simple *in);
 int dlms_cosem_build_get_request(dlms_cosem_ctx_t *ctx, uint16_t class_id, const char *obis,
-                                 uint8_t attr_id, net_buf_t *out);
+                                 uint8_t attr_id, net_buf_t *access_params, net_buf_t *out);
 int dlms_cosem_process_apdu(dlms_cosem_ctx_t *ctx, net_buf_t *apdu);
-int dlms_cosem_decode_get_response(dlms_cosem_ctx_t *ctx, struct net_buf_simple *apdu,
-                                   dlms_variant_t *out);
+int dlms_cosem_decode_response(dlms_cosem_ctx_t *ctx, struct net_buf_simple *apdu,
+                               dlms_variant_t *out);
+
+/**
+ * @brief 语义化响应解码：直接根据预期类型解析并返回数值
+ */
+int dlms_cosem_decode_response_semantic(dlms_cosem_ctx_t *ctx, struct net_buf_simple *apdu,
+                                        uint8_t expected_type, double *out_val);
 int dlms_cosem_build_get_next(dlms_cosem_ctx_t *ctx, net_buf_t *out);
+
+/**
+ * @brief 构造 Selective Access 描述符 (目前支持 Selector 1: Range Descriptor)
+ * @param start_time 起始时间 (DLMS DateTime 12字节格式)
+ * @param end_time   结束时间
+ * @param out        输出 buffer
+ */
+int dlms_cosem_encode_range_descriptor(const uint8_t *start_time, const uint8_t *end_time,
+                                       net_buf_t *out);
 
 #endif
