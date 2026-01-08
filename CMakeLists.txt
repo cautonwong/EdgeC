@@ -104,15 +104,15 @@ include(BuildContractCompiler)
 
 build_contract_compiler()
 
-# [规约内核层] 引入专家协议库
-add_subdirectory(libs/libedge-proto)
-
 file(COPY "${CMAKE_SOURCE_DIR}/config" DESTINATION "${CMAKE_BINARY_DIR}")
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/logs")
 
 # ==============================================================================
 # 5. Build Core Library (Decoupled Planes)
 # ==============================================================================
+
+add_subdirectory(src/protocols)
+add_subdirectory(src/platform)
 
 set(EDGE_MAJOR 4)
 set(EDGE_MINOR 5)
@@ -172,16 +172,15 @@ add_library(edge_stream_engine_obj OBJECT
 target_link_libraries(edge_stream_engine_obj PRIVATE edge_common_interface QuickJS::QuickJS)
 
 add_library(edge_io_executor_obj OBJECT
-    src/io_executor/io_executor.c
     src/io_executor/driver_manager.c
-    src/io_executor/modbus_rtu_driver.c
-    src/io_executor/driver_dlms.c
-    src/io_executor/driver_iec104.c
-    src/io_executor/driver_can.c
     src/io_executor/profile_loader.c
+    src/io_executor/modbus_rtu_driver.c
     src/io_executor/driver_dlt645.c
+    src/io_executor/driver_dlms.c
+    src/io_executor/engines/master_engine.c
+    src/io_executor/engines/slave_engine.c
 )
-target_link_libraries(edge_io_executor_obj PRIVATE edge_common_interface edge_proto Modbus::Modbus)
+target_link_libraries(edge_io_executor_obj PRIVATE edge_common_interface Modbus::Modbus)
 
 add_library(edge_algo_obj OBJECT
     algo/native/algorithm_sum.c
@@ -197,6 +196,8 @@ add_library(edge_sdk STATIC
     $<TARGET_OBJECTS:edge_stream_engine_obj>
     $<TARGET_OBJECTS:edge_io_executor_obj>
     $<TARGET_OBJECTS:edge_algo_obj>
+    $<TARGET_OBJECTS:edge_protocols_obj>
+    $<TARGET_OBJECTS:edge_platform_obj>
 )
 # 传播依赖项
 target_link_libraries(edge_sdk PUBLIC 
@@ -207,7 +208,6 @@ target_link_libraries(edge_sdk PUBLIC
     zlog::zlog
     PahoMQTT::PahoMQTT
     QuickJS::QuickJS
-    edge_proto
     Modbus::Modbus
 )
 

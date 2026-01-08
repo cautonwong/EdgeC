@@ -1,17 +1,14 @@
 #include "bus_orchestrator.h"
 
-#include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 #include "arbiter.h"
+#include "bus_engine.h"
 #include "driver_manager.h"
 #include "edge_log.h"
-
-typedef struct poll_task_s poll_task_t;
+#include "io_executor.h"
 
 struct bus_orchestrator_s {
     datahub_t *hub;
@@ -20,90 +17,52 @@ struct bus_orchestrator_s {
     uv_loop_t *loop;
     net_buf_pool_t pool;
     int max_buses;
-    int *bus_fds;
-    uv_poll_t *bus_polls;
-    poll_task_t **current_tasks;
+    io_handle_t **io_handles;
+    bus_engine_t **engines;
 };
 
-struct poll_task_s {
-    bus_orchestrator_t *parent;
-    edge_driver_ctx_t *drv_ctx;
-    uint32_t tag_id;
+// ---指挥链实现：Arbiter -> Orchestrator -> Engine ---
+
+typedef struct {
+    bus_orchestrator_t *orch;
     int bus_id;
-    uv_timer_t poll_timer;
-    uv_timer_t io_watchdog;
-    cmd_msg_t msg;
-};
+} orch_cmd_ctx_t;
 
-static void _release_bus(poll_task_t *task) {
-    if (!task) return;
-    uv_poll_stop(&task->parent->bus_polls[task->bus_id]);
-    uv_timer_stop(&task->io_watchdog);
-    task->parent->current_tasks[task->bus_id] = NULL;
-    arbiter_on_io_done(task->parent->arb, task->bus_id, &task->msg);
+/**
+ * @brief 被 Arbiter 调用，标志着一条指令开始在总线上执行
+ */
+static void _on_arbiter_cmd_start(void *user_data) {
+    orch_cmd_ctx_t *ctx = (orch_cmd_ctx_t *)user_data;
+    bus_orchestrator_t *orch = ctx->orch;
+    int bus_id = ctx->bus_id;
+
+    if (bus_id < orch->max_buses && orch->engines[bus_id]) {
+        bus_engine_t *eng = orch->engines[bus_id];
+        // 取出当前正在执行的原始命令 (在 context 之后紧跟)
+        cmd_msg_t *cmd = (cmd_msg_t *)(ctx + 1);
+        eng->run_command(eng, cmd);
+    }
 }
 
-static void _on_io_timeout(uv_timer_t *handle) {
-    poll_task_t *task = (poll_task_t *)handle->data;
-    LOG_WARN(LOG_CAT_BUS, "Bus %d: Task TIMEOUT. Releasing...", task->bus_id);
-    _release_bus(task);
+static void _on_arbiter_cmd_cleanup(cmd_msg_t *cmd) {
+    if (cmd->user_data) free(cmd->user_data);
 }
 
-static void _on_v3_poll_readable(uv_poll_t *handle, int status, int events) {
-    (void)events;
-    poll_task_t *task = (poll_task_t *)handle->data;
-    if (status < 0) {
-        _release_bus(task);
-        return;
-    }
+int bus_orchestrator_submit_cmd(bus_orchestrator_t *ctx, int bus_id, cmd_msg_t *cmd) {
+    if (!ctx || bus_id >= ctx->max_buses) return -1;
 
-    net_buf_t *rx_buf = net_buf_alloc(&task->parent->pool, 0);
-    if (!rx_buf) {
-        _release_bus(task);
-        return;
-    }
+    // 包装上下文，让 _on_arbiter_cmd_start 知道去哪找 Engine
+    orch_cmd_ctx_t *actx = malloc(sizeof(orch_cmd_ctx_t) + sizeof(cmd_msg_t));
+    actx->orch = ctx;
+    actx->bus_id = bus_id;
 
-    ssize_t n = read(task->parent->bus_fds[task->bus_id], rx_buf->b.data, rx_buf->b.size);
-    if (n > 0) {
-        rx_buf->b.len = (uint16_t)n;
-        pipe_msg_t out_msgs[4];
-        int count = 0;
-        int ret = task->drv_ctx->driver->decode_response(task->drv_ctx, rx_buf, out_msgs, &count);
-        if (ret == 0) {
-            for (int i = 0; i < count; i++) datahub_publish(task->parent->hub, &out_msgs[i]);
-            _release_bus(task);
-        } else if (ret < 0) {
-            _release_bus(task);
-        }
-    } else if (n < 0 && errno != EAGAIN) {
-        _release_bus(task);
-    }
-    net_buf_unref(rx_buf);
-}
+    cmd_msg_t *wrapped_cmd = (cmd_msg_t *)(actx + 1);
+    *wrapped_cmd = *cmd;
+    wrapped_cmd->on_start = _on_arbiter_cmd_start;
+    wrapped_cmd->on_cleanup = _on_arbiter_cmd_cleanup;
+    wrapped_cmd->user_data = actx;
 
-static void _on_v3_cmd_start(void *user_data) {
-    poll_task_t *task = (poll_task_t *)user_data;
-    bus_orchestrator_t *ctx = task->parent;
-    int bus_id = task->bus_id;
-    if (ctx->current_tasks[bus_id]) return;
-
-    net_buf_t *tx_buf = net_buf_alloc(&ctx->pool, 0);
-    if (task->drv_ctx->driver->encode_request(task->drv_ctx, &task->tag_id, 1, tx_buf) == 0 &&
-        tx_buf->b.len > 0) {
-        write(ctx->bus_fds[bus_id], tx_buf->b.data, tx_buf->b.len);
-        ctx->current_tasks[bus_id] = task;
-        ctx->bus_polls[bus_id].data = task;
-        uv_poll_start(&ctx->bus_polls[bus_id], UV_READABLE, _on_v3_poll_readable);
-        uv_timer_start(&task->io_watchdog, _on_io_timeout, 2000, 0);
-    } else {
-        arbiter_on_io_done(ctx->arb, bus_id, &task->msg);
-    }
-    net_buf_unref(tx_buf);
-}
-
-static void _on_v3_poll_timer(uv_timer_t *handle) {
-    poll_task_t *task = (poll_task_t *)handle->data;
-    arbiter_submit_cmd(task->parent->arb, task->bus_id, &task->msg);
+    return arbiter_submit_cmd(ctx->arb, bus_id, wrapped_cmd);
 }
 
 bus_orchestrator_t *bus_orchestrator_create(datahub_t *hub, arbiter_t *arb, driver_manager_t *mgr,
@@ -114,45 +73,50 @@ bus_orchestrator_t *bus_orchestrator_create(datahub_t *hub, arbiter_t *arb, driv
     ctx->drv_mgr = mgr;
     ctx->loop = hub->loop;
     ctx->max_buses = max_buses > 0 ? max_buses : 8;
-    ctx->bus_fds = malloc(sizeof(int) * (size_t)ctx->max_buses);
-    ctx->bus_polls = malloc(sizeof(uv_poll_t) * (size_t)ctx->max_buses);
-    ctx->current_tasks = calloc((size_t)ctx->max_buses, sizeof(poll_task_t *));
-    for (int i = 0; i < ctx->max_buses; i++) ctx->bus_fds[i] = -1;
+    ctx->io_handles = calloc((size_t)ctx->max_buses, sizeof(io_handle_t *));
+    ctx->engines = calloc((size_t)ctx->max_buses, sizeof(bus_engine_t *));
     net_buf_pool_init(&ctx->pool, (uint16_t)pool_size, (uint16_t)buf_size, 0, NULL, NULL);
     return ctx;
 }
 
-int bus_orchestrator_attach_fd(bus_orchestrator_t *ctx, int bus_id, int fd) {
+int bus_orchestrator_attach_io(bus_orchestrator_t *ctx, int bus_id, io_handle_t *io) {
     if (ctx && bus_id < ctx->max_buses) {
-        ctx->bus_fds[bus_id] = fd;
-        int flags = fcntl(fd, F_GETFL, 0);
-        fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-        uv_poll_init(ctx->loop, &ctx->bus_polls[bus_id], fd);
+        ctx->io_handles[bus_id] = io;
+        if (ctx->engines[bus_id]) {
+            ctx->engines[bus_id]->attach(ctx->engines[bus_id], io);
+        }
         return 0;
     }
     return -1;
 }
 
-int bus_orchestrator_add_poll(bus_orchestrator_t *ctx, const char *protocol, uint32_t device_id,
-                              uint32_t tag_id, int interval_ms) {
-    poll_task_t *task = calloc(1, sizeof(poll_task_t));
-    task->parent = ctx;
-    task->tag_id = tag_id;
-    task->bus_id = 0;
-    task->drv_ctx = driver_instance_create(ctx->drv_mgr, protocol, device_id);
-    if (!task->drv_ctx) {
-        free(task);
-        return -1;
+int bus_orchestrator_setup_master(bus_orchestrator_t *ctx, int bus_id, const char *protocol,
+                                  uint32_t device_id) {
+    if (!ctx || bus_id >= ctx->max_buses) return -1;
+
+    bus_engine_t *eng = engine_create_master(ctx->drv_mgr, protocol, device_id, ctx->loop, ctx->arb,
+                                             ctx->hub, &ctx->pool);
+    if (!eng) return -1;
+
+    ctx->engines[bus_id] = eng;
+    if (ctx->io_handles[bus_id]) {
+        eng->attach(eng, ctx->io_handles[bus_id]);
     }
-    task->msg.priority = ARBITER_PRIO_NORMAL;
-    task->msg.action = CMD_ACTION_POLL;
-    task->msg.on_start = _on_v3_cmd_start;
-    task->msg.user_data = task;
-    uv_timer_init(ctx->loop, &task->poll_timer);
-    task->poll_timer.data = task;
-    uv_timer_init(ctx->loop, &task->io_watchdog);
-    task->io_watchdog.data = task;
-    uv_timer_start(&task->poll_timer, _on_v3_poll_timer, 0, (uint64_t)interval_ms);
+    return 0;
+}
+
+int bus_orchestrator_setup_slave(bus_orchestrator_t *ctx, int bus_id, const char *protocol,
+                                 uint32_t device_id) {
+    if (!ctx || bus_id >= ctx->max_buses) return -1;
+
+    bus_engine_t *eng = engine_create_slave(ctx->drv_mgr, protocol, device_id, ctx->loop, ctx->arb,
+                                            ctx->hub, &ctx->pool);
+    if (!eng) return -1;
+
+    ctx->engines[bus_id] = eng;
+    if (ctx->io_handles[bus_id]) {
+        eng->attach(eng, ctx->io_handles[bus_id]);
+    }
     return 0;
 }
 
@@ -164,9 +128,18 @@ int bus_orchestrator_run(bus_orchestrator_t *ctx) {
 void bus_orchestrator_destroy(bus_orchestrator_t *ctx) {
     if (ctx) {
         net_buf_pool_destroy(&ctx->pool);
-        free(ctx->bus_fds);
-        free(ctx->bus_polls);
-        free(ctx->current_tasks);
+        if (ctx->io_handles) {
+            for (int i = 0; i < ctx->max_buses; i++) {
+                if (ctx->io_handles[i]) ctx->io_handles[i]->ops->destroy(ctx->io_handles[i]);
+            }
+            free(ctx->io_handles);
+        }
+        if (ctx->engines) {
+            for (int i = 0; i < ctx->max_buses; i++) {
+                if (ctx->engines[i]) ctx->engines[i]->detach(ctx->engines[i]);
+            }
+            free(ctx->engines);
+        }
         free(ctx);
     }
 }

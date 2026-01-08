@@ -70,6 +70,15 @@ typedef struct {
 } iec104_map_t;
 
 typedef struct {
+    uint8_t obis[6];
+    uint16_t class_id;
+    uint8_t attribute_index;
+    edge_tag_id_t tag_id;
+    float scaler;
+    uint32_t access;
+} dlms_map_t;
+
+typedef struct {
     uint32_t key;
     edge_tag_id_t tag_id;
     float scaler;

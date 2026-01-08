@@ -5,6 +5,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
@@ -29,6 +30,13 @@
 #ifndef F_SEAL_GROW
 #define F_SEAL_GROW 0x0004
 #endif
+
+// --- 外部路由接口声明 (Weak Symbol) ---
+// 默认行为：如果编译器没有生成路由表，则唤醒所有订阅者（回退到旧行为）
+__attribute__((weak)) bool edge_router_needs_wakeup(uint32_t tag_id) {
+    (void)tag_id;
+    return true;
+}
 
 static void _on_legacy_async(uv_async_t *handle) {
     datahub_t *hub = handle->data;
@@ -144,19 +152,21 @@ void datahub_destroy(datahub_t *hub) {
     uv_mutex_destroy(&hub->shadow_lock);
 }
 
+// --- 外部路由接口声明 ---
+extern bool edge_router_needs_wakeup(uint32_t tag_id);
+
 int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
     if (!hub || !msg) return -1;
 
     // 1. 物理写入共享内存 RingBuffer
     shm_ring_write(&hub->ring, msg);
 
-    // 2. 更新影子表
+    // 2. 更新影子表 (总是更新，确保快照最新)
     if (hub->shadow_table) {
         int idx = -1;
         if (hub->map_fn) {
             idx = hub->map_fn(msg->tag_id);
         } else {
-            // 回退逻辑：直接索引 (用于测试或未定义契约的情况)
             idx = (int)msg->tag_id;
         }
 
@@ -167,20 +177,23 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
         }
     }
 
-    // 3. 多路异步通知 (S8)
-    for (int i = 0; i < hub->listener_count; i++) {
-        if (hub->listeners[i]) {
-            uv_async_send(hub->listeners[i]);
+    // 3. 按需异步通知 (Phase 3 优化)
+    // 只有在契约中定义了 Pipeline Trigger 或 Watcher 的点才唤醒 L2 线程
+    if (edge_router_needs_wakeup(msg->tag_id)) {
+        for (int i = 0; i < hub->listener_count; i++) {
+            if (hub->listeners[i]) {
+                uv_async_send(hub->listeners[i]);
+            }
         }
-    }
 
-    // 4. 同步触发
-    if (hub->legacy_cb) {
-        hub->legacy_cb(hub, hub->legacy_user_data);
-    }
+        // 4. 同步触发
+        if (hub->legacy_cb) {
+            hub->legacy_cb(hub, hub->legacy_user_data);
+        }
 
-    if (!uv_is_closing((uv_handle_t *)&hub->legacy_async)) {
-        uv_async_send(&hub->legacy_async);
+        if (!uv_is_closing((uv_handle_t *)&hub->legacy_async)) {
+            uv_async_send(&hub->legacy_async);
+        }
     }
 
     return 0;

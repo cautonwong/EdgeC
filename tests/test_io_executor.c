@@ -4,37 +4,25 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <uv.h>
 
-// 声明新接口
-extern int io_channel_open(const char *path, int baud);
-
-/**
- * 验证 UDS 通道打开 (模拟模式)
- */
-static void test_io_channel_uds(void **state) {
-    (void)state;
-    const char *path = "/tmp/io_test.sock";
-    unlink(path);
-
-    // 此时文件不存在，应返回 -1 或 成功打开 (取决于 OS 行为，此处验证逻辑)
-    int fd = io_channel_open(path, 9600);
-    if (fd >= 0) close(fd);
-    unlink(path);
-}
+#include "io_executor.h"
 
 /**
- * 验证无效路径
+ * 验证物理通道创建 (Linux 适配层)
  */
-static void test_io_channel_invalid(void **state) {
+static void test_io_create_uart(void **state) {
     (void)state;
-    int fd = io_channel_open(NULL, 9600);
-    assert_int_equal(fd, -1);
+    uv_loop_t *loop = uv_default_loop();
+
+    // 我们无法在没有物理串口的情况下打开成功，但我们可以验证工厂函数的行为
+    io_handle_t *h = io_executor_create_uart(loop, "/dev/non_existent_tty", 9600, NULL);
+    assert_null(h);
 }
 
 int main(void) {
     const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_io_channel_uds),
-        cmocka_unit_test(test_io_channel_invalid),
+        cmocka_unit_test(test_io_create_uart),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

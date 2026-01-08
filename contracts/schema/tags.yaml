@@ -85,6 +85,47 @@ tags:
     desc: "插座过温报警"
     attributes: { alert: true }
 
+  # === DLMS 安全与管理 (9000-9999) ===
+  - id: 9001
+    name: DLMS_SAP_LIST
+    type: string
+    desc: "DLMS逻辑设备映射列表 (SAP Assignment)"
+    attributes:
+      category: "System"
+
+  - id: 9002
+    name: DLMS_AUTH_MECHANISM
+    type: int
+    desc: "认证机制 (Authentication Mechanism)"
+    attributes:
+      category: "Security"
+      access: "RW"
+
+  - id: 9003
+    name: DLMS_SECURITY_POLICY
+    type: int
+    desc: "安全策略 (Security Policy: 0-No, 1-Auth, 2-Encr, 3-Both)"
+    attributes:
+      category: "Security"
+      access: "RW"
+
+  - id: 9004
+    name: DLMS_SECURITY_SUITE
+    type: int
+    desc: "安全套件 (Security Suite)"
+    attributes:
+      category: "Security"
+      access: "RW"
+
+  - id: 9005
+    name: DLMS_REPLY_HLS
+    type: string
+    desc: "HLS认证响应操作 (Reply to HLS)"
+    attributes:
+      category: "Security"
+      access: "W"
+
+
   # === 策略参数 (5000-5999) ===
   - id: 5001
     name: IEMS_BATTERY_MAX_SOC

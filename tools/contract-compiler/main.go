@@ -37,6 +37,7 @@ type TplCtx struct {
 	UI         model.UIDef
 	Product    string
 	Signature  uint32
+	Router     core.RouterInfo
 }
 
 func (c TplCtx) IsActive(name string) bool { return c.ActiveMap[name] }
@@ -54,6 +55,9 @@ func main() {
 	actMap := make(map[string]bool)
 	for _, t := range contract.ActiveTags { actMap[t.Name] = true }
 	resolved := protocols.Resolve(contract.ActiveTags)
+
+	// --- Phase 3: 生成路由掩码 ---
+	routerInfo := core.GenerateRouterInfo(contract)
 
 	hashes := make(map[string]core.ProtocolHashInfo)
 	for proto, rbs := range resolved {
@@ -103,6 +107,7 @@ func main() {
 		UI:         contract.UI,
 		Product:    contract.Product,
 		Signature:  sig,
+		Router:     routerInfo,
 	}
 
 	// [硬件资源冲突检测]
@@ -192,6 +197,7 @@ func main() {
 		// [新特性渲染]
 		render("ts", filepath.Join(*out, "tags_type.ts"), "templates/tags_ts.tmpl", ctx, fm)
 		render("fuzz", filepath.Join(*out, "test_fuzz_params.c"), "templates/test_fuzz_params.tmpl", ctx, fm)
+		render("router", filepath.Join(*out, "edge_router_table.c"), "templates/edge_router_table.tmpl", ctx, fm)
 		
 		// [影子元数据/JSON Schema]
 		shadowFile := filepath.Join(*out, "shadow_schema.json")
