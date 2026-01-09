@@ -28,15 +28,7 @@ typedef struct {
     double offset;
 } edge_point_config_t;
 
-/**
- * @brief 轮询分组配置 (Legacy V2)
- */
-typedef struct {
-    uint16_t start_addr;
-    uint16_t count;
-    uint8_t func_code;
-    uint32_t slave_id;
-} edge_poll_group_t;
+typedef struct edge_driver_s edge_driver_t;
 
 /**
  * @brief 协议运行角色
@@ -47,13 +39,11 @@ typedef enum {
     PROTOCOL_ROLE_PUB_SUB /**< 发布/订阅：如 GOOSE/MQTT */
 } protocol_role_t;
 
-typedef struct edge_driver_s edge_driver_t;
-
 /**
  * @brief 协议栈私有上下文 (由管理器自动分配)
  */
 typedef struct {
-    const edge_driver_t *driver; /**< [新增] 指向驱动模板的指针 */
+    const edge_driver_t *driver; /**< 指向驱动模板的指针 */
     void *priv;                  /**< 协议私有状态内存 */
     protocol_role_t role;        /**< 当前运行角色 */
     uint32_t device_id;          /**< 关联的物理设备 ID */
@@ -68,8 +58,11 @@ struct edge_driver_s {
     size_t ctx_size;  /**< 协议栈需要的私有上下文大小 */
 
     // --- 1. 生命周期 ---
-    /** @brief 初始化协议栈内部状态 (如初始化序列号) */
+    /** @brief 初始化协议栈内部状态 */
     int (*on_init)(edge_driver_ctx_t *ctx);
+
+    /** @brief 销毁协议栈私有资源 */
+    void (*on_cleanup)(edge_driver_ctx_t *ctx);
 
     /** @brief 协议心跳处理 (用于维持长连接或处理超时) */
     int (*on_tick)(edge_driver_ctx_t *ctx, net_buf_t **out_tx);
@@ -77,37 +70,26 @@ struct edge_driver_s {
     // --- 2. 主站/客户端逻辑 (Master Plane) ---
     /**
      * @brief 构建物理请求包
-     * @param tags 需要读取的点位列表
-     * @param out 填充目标缓冲区
      */
     int (*encode_request)(edge_driver_ctx_t *ctx, const uint32_t *tag_ids, int tag_count,
                           net_buf_t *out);
 
     /**
      * @brief 解析主站收到的响应
-     * @param in 接收到的原始数据 (net_buf 支持链式)
-     * @param out_msgs 解析出的逻辑点位数据，用于注入 DataHub
+     * @return 0: 成功解析一帧; EDGE_ERR_INCOMPLETE: 数据不足; <0: 其他错误
      */
     int (*decode_response)(edge_driver_ctx_t *ctx, net_buf_t *in, pipe_msg_t *out_msgs,
-                           int *msg_count);
+                           int *msg_count, size_t *consumed);
 
-    // --- 3. 响应与突发处理 (Reactive Plane) ---
+    // --- 3. 从站/服务端逻辑 (Slave Plane) ---
     /**
-     * @brief 统一接收处理入口
-     * @param in 收到的原始字节
-     * @param resp_out 如果是作为 Slave，在此填充响应报文
-     * @param async_msgs 如果是收到突发数据 (Spontaneous)，在此填充点位数据
+     * @brief 处理被动请求并生成响应
      */
     int (*handle_rx)(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_out,
-                     pipe_msg_t *async_msgs, int *async_count);
-
-    /** @brief 资源回收 */
-    void (*on_cleanup)(edge_driver_ctx_t *ctx);
+                     pipe_msg_t *async_msgs, int *async_count, size_t *consumed);
 };
 
-typedef struct edge_driver_s edge_driver_t;
-
-#ifdef __cplusplus
+#ifdef __plusplus
 }
 #endif
 

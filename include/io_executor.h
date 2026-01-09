@@ -41,12 +41,20 @@ typedef struct {
     // net_buf_t 的引用计数由底层接管。
     int (*write_async)(io_handle_t *h, net_buf_t *buf);
 
-    // 物理配置。如 IO_CTL_SET_BAUD, IO_CTL_FLUSH 等。
+    // 物理配置。
     int (*ioctl)(io_handle_t *h, int cmd, void *arg);
 
     // 销毁资源
     void (*destroy)(io_handle_t *h);
 } io_ops_t;
+
+/* --- IOCTL Commands --- */
+#define IO_CTL_SET_BAUD 0x01
+#define IO_CTL_FLUSH 0x02
+
+typedef struct {
+    uint32_t baud;
+} edge_phy_params_t;
 
 // 公共基类：由平台适配层实例化
 struct io_handle_s {

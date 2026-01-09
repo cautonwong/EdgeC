@@ -151,9 +151,56 @@ net_buf_t *net_buf_alloc(net_buf_pool_t *pool, int64_t timeout_ms) {
         buf->next = NULL;
         buf->frags = NULL;
         buf->flags = 0;
+        buf->alloc_ts = uv_hrtime();
+        buf->last_owner = "unknown";
         net_buf_simple_init(&buf->b, 0);
     }
     return buf;
+}
+
+int net_buf_pool_audit(net_buf_pool_t *pool, uint64_t age_threshold_ms) {
+    if (!pool || !pool->storage) return 0;
+
+    int reclaimed = 0;
+    uint64_t now = uv_hrtime();
+    uint64_t threshold_ns = age_threshold_ms * 1000000;
+    size_t node_sz = get_node_size(pool);
+
+    uv_mutex_lock(&pool->lock);
+    for (uint16_t i = 0; i < pool->buf_count; i++) {
+        net_buf_t *buf = (net_buf_t *)(pool->storage + (size_t)i * node_sz);
+
+        // 检查是否正在使用 (ref > 0)
+        uint32_t ref = atomic_load_explicit(&buf->ref, memory_order_acquire);
+        if (ref > 0) {
+            uint64_t age = now - buf->alloc_ts;
+            if (age > threshold_ns) {
+                // 发现僵尸缓冲区！
+                fprintf(stderr,
+                        "[CRITICAL][NETBUF] Leak detected! ID: %u, Age: %lu ms, Owner: %s. FORCING "
+                        "RECLAIM.\n",
+                        i, (unsigned long)(age / 1000000),
+                        buf->last_owner ? buf->last_owner : "NULL");
+
+                // 强制回收逻辑
+                // 1. 重置引用计数为 0
+                atomic_store_explicit(&buf->ref, 0, memory_order_release);
+
+                // 2. 挂回空闲链表
+                buf->next = pool->free_list;
+                pool->free_list = buf;
+
+                reclaimed++;
+            }
+        }
+    }
+
+    if (reclaimed > 0) {
+        uv_cond_broadcast(&pool->cond);
+    }
+    uv_mutex_unlock(&pool->lock);
+
+    return reclaimed;
 }
 
 net_buf_t *net_buf_ref(net_buf_t *buf) {
@@ -245,4 +292,10 @@ size_t net_buf_linearize(void *dst, size_t dst_len, net_buf_t *src, size_t offse
         frag = frag->frags;
     }
     return total;
+}
+
+void *net_buf_append_bytes(net_buf_t *buf, const void *data, size_t len) {
+    if (!buf || !data || len == 0) return NULL;
+    if (net_buf_simple_tailroom(&buf->b) < len) return NULL;
+    return net_buf_simple_add_mem(&buf->b, data, len);
 }

@@ -44,6 +44,9 @@ struct net_buf {
     atomic_uint ref; /**< [补强] 原子引用计数 (C11) */
     uint8_t flags;   /**< 标志位 */
 
+    uint64_t alloc_ts;      /**< [Phase 4] 分配时间戳 (ns) */
+    const char *last_owner; /**< [Phase 4] 责任追踪标签 */
+
     struct net_buf_simple b; /**< 数据视图 */
 
     /**
@@ -153,10 +156,18 @@ int net_buf_pool_init(net_buf_pool_t *pool, uint16_t count, uint16_t size, uint1
                       void (*destroy_cb)(net_buf_t *buf), void *user_data);
 void net_buf_pool_destroy(net_buf_pool_t *pool);
 
+/**
+ * @brief 审计并强制回收长时间未释放的 buffer (泄漏看门狗)
+ * @param age_threshold_ms 存活时间阈值 (毫秒)
+ * @return 回收的数量
+ */
+int net_buf_pool_audit(net_buf_pool_t *pool, uint64_t age_threshold_ms);
+
 net_buf_t *net_buf_alloc(net_buf_pool_t *pool, int64_t timeout_ms);
 net_buf_t *net_buf_ref(net_buf_t *buf);
 void net_buf_unref(net_buf_t *buf);
 net_buf_t *net_buf_clone(net_buf_t *buf, int64_t timeout_ms);
+void *net_buf_append_bytes(net_buf_t *buf, const void *data, size_t len);
 
 uint16_t net_buf_id(net_buf_t *buf);
 net_buf_t *net_buf_pool_get(net_buf_pool_t *pool, uint16_t id);

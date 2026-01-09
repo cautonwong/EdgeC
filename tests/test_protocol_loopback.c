@@ -69,20 +69,49 @@ static int setup(void **state) {
     return 0;
 }
 
+static void on_walk_close(uv_handle_t *handle, void *arg) {
+    (void)arg;
+
+    if (!uv_is_closing(handle)) {
+        uv_close(handle, NULL);
+    }
+}
+
 static int teardown(void **state) {
     loopback_ctx_t *ctx = *state;
 
-    bus_orchestrator_destroy(ctx->orch);
-    arbiter_destroy(ctx->arb);
+    // 1. 业务层销毁
 
-    for (int i = 0; i < 20; i++) uv_run(&ctx->loop, UV_RUN_NOWAIT);
+    if (ctx->orch) bus_orchestrator_destroy(ctx->orch);
+
+    if (ctx->arb) arbiter_destroy(ctx->arb);
+
+    if (ctx->drv_mgr) driver_manager_destroy(ctx->drv_mgr);
+
+    // 2. 彻底排空所有 Handles
+
+    uv_walk(&ctx->loop, on_walk_close, NULL);
+
+    // 运行知道没有任何活跃或关闭中的 handle
+
+    while (uv_run(&ctx->loop, UV_RUN_ONCE)) {
+        // 继续运行直到 loop 干净
+    }
+
+    // 3. 静态资源回收
 
     datahub_destroy(&ctx->hub);
-    driver_manager_destroy(ctx->drv_mgr);
+
     net_buf_pool_destroy(&ctx->pool);
 
-    uv_loop_close(&ctx->loop);
+    int ret = uv_loop_close(&ctx->loop);
+
+    if (ret != 0) {
+        fprintf(stderr, "uv_loop_close failed: %s\n", uv_strerror(ret));
+    }
+
     free(ctx);
+
     return 0;
 }
 

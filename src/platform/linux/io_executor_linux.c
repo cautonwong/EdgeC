@@ -84,11 +84,37 @@ static int _linux_write_async(io_handle_t *h, net_buf_t *buf) {
     return 0;
 }
 
+static int _speed_to_baud(uint32_t speed) {
+    switch (speed) {
+        case 9600:
+            return B9600;
+        case 19200:
+            return B19200;
+        case 38400:
+            return B38400;
+        case 57600:
+            return B57600;
+        case 115200:
+            return B115200;
+        default:
+            return B115200;
+    }
+}
+
 static int _linux_ioctl(io_handle_t *h, int cmd, void *arg) {
     linux_io_handle_t *impl = (linux_io_handle_t *)h;
-    (void)arg;
-    (void)cmd;
-    return 0;
+    if (cmd == IO_CTL_SET_BAUD) {
+        uint32_t baud = *(uint32_t *)arg;
+        struct termios options;
+        if (tcgetattr(impl->fd, &options) != 0) return -errno;
+        int speed = _speed_to_baud(baud);
+        cfsetispeed(&options, speed);
+        cfsetospeed(&options, speed);
+        if (tcsetattr(impl->fd, TCSANOW, &options) != 0) return -errno;
+        LOG_INFO(LOG_CAT_IO, "IO: Baud rate switched to %u", baud);
+        return 0;
+    }
+    return -ENOTSUP;
 }
 
 static void _on_io_handle_close(uv_handle_t *handle) {

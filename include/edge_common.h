@@ -54,7 +54,8 @@ typedef enum {
     EDGE_ERR_NOT_FOUND = -6,
     EDGE_ERR_NOT_SUPPORTED = -7,
     EDGE_ERR_IO = -8,
-    EDGE_ERR_OVERFLOW = -9
+    EDGE_ERR_OVERFLOW = -9,
+    EDGE_ERR_INCOMPLETE = -10
 } edge_status_t;
 
 // [核心补强] 系统级事件 ID

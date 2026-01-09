@@ -6,6 +6,7 @@
 #include <uv.h>
 
 #include "edge_common.h"
+#include "io_executor.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -55,6 +56,7 @@ typedef struct cmd_msg {
     uint32_t tag_id;
     double value;
     void *params;
+    edge_phy_params_t *phy_params;
 
     uint32_t signature;  /**< S20: Command security signature/fingerprint */
     uint32_t timeout_ms; /**< [补强] 任务执行超时时间 (0 表示使用默认值) */

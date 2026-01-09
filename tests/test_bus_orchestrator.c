@@ -29,6 +29,10 @@ static void test_bus_orchestrator_dynamic_create(void **state) {
     bus_orchestrator_destroy(ctx);
     driver_manager_destroy(mgr);
     arbiter_destroy(arb);
+
+    // 关键：驱动 Loop 执行 destroy 中的 uv_close 回调
+    for (int i = 0; i < 10; i++) uv_run(loop, UV_RUN_NOWAIT);
+
     datahub_destroy(&hub);
 }
 

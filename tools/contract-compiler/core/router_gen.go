@@ -7,61 +7,56 @@ import (
 type RouterInfo struct {
 	TriggerMask []uint32
 	WatcherMask []uint32
-	MaxTagID    uint32
+	ActiveCount uint32
 }
 
 func GenerateRouterInfo(contract *model.EffectiveContract) RouterInfo {
-	var maxID uint32 = 0
-	for _, t := range contract.ActiveTags {
-		if t.ID > maxID {
-			maxID = t.ID
-		}
-	}
+	activeCount := uint32(len(contract.ActiveTags))
 
 	// 位图大小 (以 32 位为单位)
-	size := (maxID / 32) + 1
+	size := (activeCount / 32) + 1
 	info := RouterInfo{
 		TriggerMask: make([]uint32, size),
 		WatcherMask: make([]uint32, size),
-		MaxTagID:    maxID,
+		ActiveCount: activeCount,
 	}
 
-	// 辅助函数：根据名称找 ID
-	findID := func(name string) uint32 {
-		for _, t := range contract.ActiveTags {
+	// 辅助函数：根据名称找 Index
+	findIdx := func(name string) int {
+		for i, t := range contract.ActiveTags {
 			if t.Name == name {
-				return t.ID
+				return i
 			}
 		}
-		return 0
+		return -1
 	}
 
-	setBit := func(mask []uint32, id uint32) {
-		if id == 0 {
+	setBit := func(mask []uint32, idx int) {
+		if idx < 0 {
 			return
 		}
-		mask[id/32] |= (1 << (id % 32))
+		mask[idx/32] |= (1 << (uint32(idx) % 32))
 	}
 
 	// 1. 处理 Pipelines
 	for _, p := range contract.Pipelines {
 		// Trigger 是显式定义的
-		tid := findID(p.Trigger)
-		setBit(info.TriggerMask, tid)
+		idx := findIdx(p.Trigger)
+		setBit(info.TriggerMask, idx)
 
 		// 检查 Stages 中是否有被动引用的测点 (Watcher)
 		for _, s := range p.Stages {
 			for _, v := range s {
 				if str, ok := v.(string); ok {
-					if tid := findID(str); tid != 0 {
-						setBit(info.WatcherMask, tid)
+					if idx := findIdx(str); idx != -1 {
+						setBit(info.WatcherMask, idx)
 					}
 				}
 				if list, ok := v.([]interface{}); ok {
 					for _, item := range list {
 						if str, ok := item.(string); ok {
-							if tid := findID(str); tid != 0 {
-								setBit(info.WatcherMask, tid)
+							if idx := findIdx(str); idx != -1 {
+								setBit(info.WatcherMask, idx)
 							}
 						}
 					}
