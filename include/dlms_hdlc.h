@@ -25,7 +25,19 @@ typedef struct {
 
 void dlms_hdlc_reset(dlms_hdlc_manager_t *mgr);
 int dlms_hdlc_build_snrm(dlms_hdlc_manager_t *mgr, net_buf_t *out);
+int dlms_hdlc_build_disc(dlms_hdlc_manager_t *mgr, net_buf_t *out);
+int dlms_hdlc_build_rr(dlms_hdlc_manager_t *mgr, net_buf_t *out);
+
+/**
+ * @brief 发送 I 帧 (信息帧) - 涉及 N(S)/N(R) 维护
+ */
 int dlms_hdlc_send_iframe(dlms_hdlc_manager_t *mgr, net_buf_t *apdu, net_buf_t *out);
+
+/**
+ * @brief 发送 UI 帧 (无编号信息帧) - 用于公共客户端或简单广播
+ */
+int dlms_hdlc_send_ui_frame(dlms_hdlc_manager_t *mgr, net_buf_t *apdu, net_buf_t *out);
+
 int dlms_hdlc_handle_ack(dlms_hdlc_manager_t *mgr, uint8_t control_byte);
 int dlms_hdlc_packetize(dlms_hdlc_manager_t *mgr, net_buf_t *apdu, size_t offset, size_t mtu,
                         net_buf_t *out);

@@ -44,10 +44,12 @@ static int dlt645_v3_encode_request(edge_driver_ctx_t *ctx, const uint32_t *tag_
     return 0;
 }
 
-static int dlt645_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, pipe_msg_t *out_msgs,
-                                     int *msg_count, size_t *consumed) {
+static int dlt645_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_out,
+                                     pipe_msg_t *out_msgs, int *msg_count, size_t *consumed) {
     (void)ctx;
     (void)out_msgs;
+    (void)resp_out;
+
     struct net_buf_simple *b = &in->b;
     if (b->len < 12) return EDGE_ERR_INCOMPLETE;
     *consumed = b->len;
@@ -61,8 +63,41 @@ static int dlt645_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
     (void)resp_out;
     (void)async_msgs;
     (void)async_count;
-    if (in->b.len < 12) return EDGE_ERR_INCOMPLETE;
-    *consumed = in->b.len;
+
+    *consumed = 0;
+
+    struct net_buf_simple *b = &in->b;
+
+    // 1. 寻找起始符 0x68
+
+    size_t skip = 0;
+
+    while (skip < b->len && b->data[skip] != 0x68) skip++;
+
+    if (skip > 0) {
+        *consumed = skip;  // 消耗掉前导垃圾字节 (如 FE FE)
+
+        return 1;  // 让 Engine 重来
+    }
+
+    if (b->len < 12) return EDGE_ERR_INCOMPLETE;
+
+    // 2. 验证地址 (BCD)
+
+    dlt645_ctx_t *priv = (dlt645_ctx_t *)ctx->priv;
+
+    if (memcmp(&b->data[1], priv->addr_bcd, 6) != 0 &&
+
+        memcmp(&b->data[1], "\x99\x99\x99\x99\x99\x99", 6) != 0) {
+        *consumed = 1;  // 头部是 0x68 但地址不对，消耗 1 字节并继续搜
+
+        return 1;
+    }
+
+    // 简单对齐：目前先假设长度正确，实际应根据 L 域计算
+
+    *consumed = b->len;
+
     return 0;
 }
 

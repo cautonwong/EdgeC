@@ -7,12 +7,28 @@
 static const {{ $lowerProto }}_map_t s_{{ $lowerProto }}_table[] = {
 {{- range .Map.Keys }}
     {{- if ne .TagID 0 }}
-    { (uint32_t){{ .RawKey }}, TAG_{{ .TagName }}, {{ .Scale }}, {{ .ByteLen }}, {{ .Access }} }, // {{ .StrKey }}
+    {{- if or (eq $.Proto "IEC104") (eq $.Proto "IEC101") }}
+    { (uint32_t){{ .RawKey }}, TAG_{{ .TagName }}, {{ .Scale }}, {{ .IecType }}, {{ .Flags }}, {{ .DeadBand }}, {{ .GroupID }}, {{ .ByteLen }}, {{ .Access }} }, // {{ .StrKey }}
     {{- else }}
-    { 0, 0, 0, 0, 0 }, // Empty Slot
+    { (uint32_t){{ .RawKey }}, TAG_{{ .TagName }}, {{ .Scale }}, {{ .ByteLen }}, {{ .Access }} }, // {{ .StrKey }}
+    {{- end }}
+    {{- else }}
+    { 0 }, // Empty Slot
     {{- end }}
 {{- end }}
 };
+
+{{- if or (eq .Proto "IEC104") (eq .Proto "IEC101") }}
+// [GI 性能优化] 仅包含本协议点位的紧凑索引表
+static const {{ $lowerProto }}_map_t* const g_{{ $lowerProto }}_gi_list[] = {
+{{- range .Map.Keys }}
+    {{- if ne .TagID 0 }}
+    &s_{{ $lowerProto }}_table[{{ _contract_hash_mix (uint32 .RawKey) $.Map.Seed (uint32 (sub $.Map.TableSize 1)) }}],
+    {{- end }}
+{{- end }}
+};
+const uint32_t g_{{ $lowerProto }}_gi_len = {{ len .Map.Keys }};
+{{- end }}
 
 // 2. 通用查找函数
 const {{ $lowerProto }}_map_t* edge_get_map_{{ $lowerProto }}(uint32_t key) {
@@ -35,6 +51,32 @@ edge_tag_id_t edge_lookup_{{ $lowerProto }}(uint32_t key, float *scale) {
     }
     return 0;
 }
+
+// 4. 反向查找表 (按照 TagID 稠密索引排列)
+{{- if or (eq .Proto "IEC104") (eq .Proto "IEC101") }}
+static const {{ $lowerProto }}_map_t s_{{ $lowerProto }}_rev_table[] = {
+{{- range $i, $tag := .AllTags }}
+    {{- $binding := index $.PMap .Name }}
+    {{- $found := false }}
+    {{- range $binding }}
+        {{- if eq .ProtocolType $.Proto }}
+        { (uint32_t){{ .IOA }}, TAG_{{ .TagName }}, {{ .Scale }}, {{ .IecType }}, {{ .Flags }}, {{ .ByteLen }}, {{ .Access }} }, // TagID {{ .TagID }}
+        {{- $found = true }}
+        {{- end }}
+    {{- end }}
+    {{- if not $found }}
+    { 0 }, 
+    {{- end }}
+{{- end }}
+};
+
+const {{ $lowerProto }}_map_t* edge_get_map_{{ $lowerProto }}_by_tag(edge_tag_id_t tag_id) {
+    int idx = edge_tag_get_compact_index(tag_id);
+    if (idx < 0 || idx >= (int)(sizeof(s_{{ $lowerProto }}_rev_table)/sizeof(s_{{ $lowerProto }}_rev_table[0]))) return NULL;
+    const {{ $lowerProto }}_map_t* m = &s_{{ $lowerProto }}_rev_table[idx];
+    return (m->tag_id != 0) ? m : NULL;
+}
+{{- end }}
 {{- else }}
 // Stub for {{ .Proto }}
 const {{ $lowerProto }}_map_t* edge_get_map_{{ $lowerProto }}(uint32_t key) { (void)key; return NULL; }

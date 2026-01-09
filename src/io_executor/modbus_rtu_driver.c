@@ -65,8 +65,9 @@ static int modbus_v3_encode_request(edge_driver_ctx_t *ctx, const uint32_t *tag_
 }
 
 /* --- Master 模式: 解析响应 --- */
-static int modbus_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, pipe_msg_t *out_msgs,
-                                     int *msg_count, size_t *consumed) {
+static int modbus_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_out,
+                                     pipe_msg_t *out_msgs, int *msg_count, size_t *consumed) {
+    (void)resp_out;
     modbus_ctx_t *priv = (modbus_ctx_t *)ctx->priv;
     *consumed = 0;
 
@@ -134,7 +135,10 @@ static int modbus_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
     if (crc_calc != crc_rx) return -1;
 
     uint8_t sid = data[0];
-    if (sid != priv->slave_id && sid != 0x00) return 1;
+    if (sid != priv->slave_id && sid != 0x00) {
+        *consumed = 0;  // 不匹配，不消耗，让下一个协议尝试
+        return 1;
+    }
 
     uint16_t addr = (uint16_t)((data[2] << 8) | data[3]);
 

@@ -40,6 +40,11 @@ typedef enum {
 } protocol_role_t;
 
 /**
+ * @brief 映射查找函数原型
+ */
+typedef const void *(*edge_lookup_fn)(uint32_t key);
+
+/**
  * @brief 协议栈私有上下文 (由管理器自动分配)
  */
 typedef struct {
@@ -47,7 +52,12 @@ typedef struct {
     void *priv;                  /**< 协议私有状态内存 */
     protocol_role_t role;        /**< 当前运行角色 */
     uint32_t device_id;          /**< 关联的物理设备 ID */
-    void *user_data;             /**< 用户自定义挂载 */
+
+    // --- 动态注入的契约接口 (消除硬编码的关键) ---
+    edge_lookup_fn lookup_by_key; /**< 协议地址/KEY -> 映射元数据 (主站解析用) */
+    edge_lookup_fn lookup_by_tag; /**< TagID -> 映射元数据 (从站响应用) */
+
+    void *user_data; /**< 用户自定义挂载 (如 DataHub 句柄) */
 } edge_driver_ctx_t;
 
 /**
@@ -76,10 +86,15 @@ struct edge_driver_s {
 
     /**
      * @brief 解析主站收到的响应
-     * @return 0: 成功解析一帧; EDGE_ERR_INCOMPLETE: 数据不足; <0: 其他错误
+     * @param in 接收到的原始数据
+     * @param resp_out [out] [Phase 4] 如果需要回复确认帧(如RR)，在此填充
+     * @param out_msgs 填充解析后的点位数据
+     * @param msg_count [out] 点位数量
+     * @param consumed [out] 实际消耗的字节数
+     * @return 0: 成功解析出一帧; EDGE_ERR_INCOMPLETE: 数据不足; <0: 其他错误
      */
-    int (*decode_response)(edge_driver_ctx_t *ctx, net_buf_t *in, pipe_msg_t *out_msgs,
-                           int *msg_count, size_t *consumed);
+    int (*decode_response)(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_out,
+                           pipe_msg_t *out_msgs, int *msg_count, size_t *consumed);
 
     // --- 3. 从站/服务端逻辑 (Slave Plane) ---
     /**

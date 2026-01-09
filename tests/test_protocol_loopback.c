@@ -42,7 +42,8 @@ static int setup(void **state) {
     loopback_ctx_t *ctx = calloc(1, sizeof(loopback_ctx_t));
     uv_loop_init(&ctx->loop);
 
-    datahub_init(&ctx->hub, &ctx->loop, "/test_loopback", 64, 1024, NULL);
+    // 1. 初始化 DataHub (注入测试用元数据)
+    datahub_init(&ctx->hub, &ctx->loop, "/test_loopback", 64, 1024, NULL, 0, NULL);
     datahub_subscribe(&ctx->hub, on_data_received, ctx);
 
     arbiter_init(&ctx->arb, &ctx->loop);

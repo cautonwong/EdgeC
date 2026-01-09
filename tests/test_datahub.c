@@ -75,7 +75,7 @@ static int setup(void **state) {
     shm_unlink("/test_hub");
 
     // 增加返回值断言
-    if (datahub_init(&ctx->hub, &ctx->loop, "/test_hub", 128, 1024, NULL) != 0) {
+    if (datahub_init(&ctx->hub, &ctx->loop, "/test_hub", 128, 1024, NULL, 0, NULL) != 0) {
         fprintf(stderr, "[FATAL] datahub_init failed (check /dev/shm permissions?)\n");
         free(ctx);
         return -1;

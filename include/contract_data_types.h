@@ -65,9 +65,27 @@ typedef struct {
     uint32_t key;
     edge_tag_id_t tag_id;
     float scaler;
+    uint8_t type_id;   // [新增] ASDU TypeID
+    uint32_t flags;    // [新增] 行为掩码
+    float dead_band;   // [新增] 死区阈值
+    uint8_t group_id;  // [新增] 聚合组 ID
     uint16_t length;
     uint32_t access;
 } iec104_map_t;
+
+typedef struct {
+    uint32_t key;
+    edge_tag_id_t tag_id;
+    float scaler;
+    uint8_t type_id;   // [新增] ASDU TypeID
+    uint32_t flags;    // [新增] 行为掩码
+    float dead_band;   // [新增] 死区阈值
+    uint8_t group_id;  // [新增] 聚合组 ID
+    uint16_t length;
+    uint32_t access;
+} iec101_map_t;
+
+const iec101_map_t *edge_get_map_iec101_by_tag(edge_tag_id_t tag_id);
 
 typedef struct {
     uint8_t obis[6];

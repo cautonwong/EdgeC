@@ -19,6 +19,10 @@ type ResolvedBinding struct {
 	OAD          string
 	DI           string
 	IOA          int
+	IecType      uint8  // [新增] IEC 101/104 ASDU TypeID
+	Flags        uint32 // [新增] 行为掩码 (如 FLAG_SOE)
+	DeadBand     float32 // [新增] 死区阈值
+	GroupID      uint8   // [新增] 聚合组 ID
 	CanID        uint32
 	StartBit     int
 	Length       int    // 对于 CAN 指位宽，对于其他指字节数

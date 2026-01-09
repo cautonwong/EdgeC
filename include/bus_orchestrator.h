@@ -29,6 +29,12 @@ int bus_orchestrator_setup_slave(bus_orchestrator_t *ctx, int bus_id, const char
                                  uint32_t device_id);
 
 /**
+ * @brief 向已有的从站总线添加额外的协议支持 (多协议混跑)
+ */
+int bus_orchestrator_add_slave_protocol(bus_orchestrator_t *ctx, int bus_id, const char *protocol,
+                                        uint32_t device_id);
+
+/**
  * @brief 提交业务指令到仲裁器
  */
 int bus_orchestrator_submit_cmd(bus_orchestrator_t *ctx, int bus_id, cmd_msg_t *cmd);

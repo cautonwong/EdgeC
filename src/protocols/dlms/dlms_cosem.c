@@ -18,6 +18,7 @@ void dlms_cosem_reset(dlms_cosem_ctx_t *ctx) {
 }
 
 int dlms_cosem_build_aarq(dlms_cosem_ctx_t *ctx, net_buf_t *out) {
+    net_buf_reserve(out, DLMS_MAX_LINK_HEADER);
     dlms_encoder_t enc;
     dlms_encoder_init(&enc, &out->b);
     net_buf_simple_add_u8(enc.buf, (uint8_t)DLMS_SERVICE_AARQ);
@@ -60,6 +61,7 @@ int dlms_cosem_parse_aare(dlms_cosem_ctx_t *ctx, struct net_buf_simple *in) {
 int dlms_cosem_build_get_request(dlms_cosem_ctx_t *ctx, uint16_t class_id, const char *obis,
                                  uint8_t attr_id, net_buf_t *access_params, net_buf_t *out) {
     if (ctx->state != COSEM_STATE_ASSOCIATED) return -1;
+    net_buf_reserve(out, DLMS_MAX_LINK_HEADER);
     struct net_buf_simple *b = &out->b;
     net_buf_simple_add_u8(b, (uint8_t)DLMS_SERVICE_GET_REQUEST);
     net_buf_simple_add_u8(b, 0x01);  // Normal
@@ -174,6 +176,7 @@ int dlms_cosem_decode_response_semantic(dlms_cosem_ctx_t *ctx, struct net_buf_si
 }
 
 int dlms_cosem_build_get_next(dlms_cosem_ctx_t *ctx, net_buf_t *out) {
+    net_buf_reserve(out, DLMS_MAX_LINK_HEADER);
     struct net_buf_simple *b = &out->b;
     net_buf_simple_add_u8(b, (uint8_t)DLMS_SERVICE_GET_REQUEST);
     net_buf_simple_add_u8(b, 0x02);
@@ -204,5 +207,58 @@ int dlms_cosem_encode_range_descriptor(const uint8_t *start_time, const uint8_t 
     net_buf_simple_add_u8(enc.buf, 0);
     dlms_encode_end(&enc);
     dlms_encode_end(&enc);
+    return 0;
+}
+
+/* --- 从站逻辑 (Slave Role) --- */
+
+int dlms_cosem_parse_aarq(dlms_cosem_ctx_t *ctx, struct net_buf_simple *in) {
+    if (in->len < 1) return -1;
+    uint8_t tag = net_buf_simple_pull_u8(in);
+    if (tag != DLMS_SERVICE_AARQ) return -1;
+    ctx->state = COSEM_STATE_ASSOCIATED;
+    return 0;
+}
+
+int dlms_cosem_build_aare(dlms_cosem_ctx_t *ctx, net_buf_t *out) {
+    (void)ctx;
+    net_buf_reserve(out, DLMS_MAX_LINK_HEADER);
+    dlms_encoder_t enc;
+    dlms_encoder_init(&enc, &out->b);
+    net_buf_simple_add_u8(enc.buf, (uint8_t)DLMS_SERVICE_AARE);
+    dlms_encode_begin(&enc, DLMS_TYPE_STRUCTURE);
+    dlms_encode_u8(&enc, 0);  // result: success
+    dlms_encode_end(&enc);
+    return 0;
+}
+
+int dlms_cosem_parse_get_request(struct net_buf_simple *in, uint16_t *class_id, uint8_t *obis,
+                                 uint8_t *attr_id) {
+    if (in->len < 10) return -1;
+    uint8_t tag = net_buf_simple_pull_u8(in);
+    if (tag != DLMS_SERVICE_GET_REQUEST) return -1;
+    net_buf_simple_pull_u8(in);
+    net_buf_simple_pull_u8(in);
+    *class_id = net_buf_simple_pull_be16(in);
+    memcpy(obis, net_buf_simple_pull(in, 6), 6);
+    *attr_id = net_buf_simple_pull_u8(in);
+    return 0;
+}
+
+int dlms_cosem_build_get_response(dlms_cosem_ctx_t *ctx, dlms_data_type_t type, const void *val,
+                                  size_t val_len, net_buf_t *out) {
+    (void)ctx;
+    net_buf_reserve(out, DLMS_MAX_LINK_HEADER);
+    struct net_buf_simple *b = &out->b;
+    net_buf_simple_add_u8(b, (uint8_t)DLMS_SERVICE_GET_RESPONSE);
+    net_buf_simple_add_u8(b, 0x01);
+    net_buf_simple_add_u8(b, 0xC1);
+    net_buf_simple_add_u8(b, 0x00);
+    dlms_encoder_t enc;
+    dlms_encoder_init(&enc, b);
+    if (type == DLMS_TYPE_OCTET_STRING)
+        dlms_encode_octet_string(&enc, val, val_len);
+    else if (type == DLMS_TYPE_UINT16)
+        dlms_encode_u16(&enc, *(uint16_t *)val);
     return 0;
 }

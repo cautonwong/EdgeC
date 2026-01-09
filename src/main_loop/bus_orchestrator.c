@@ -121,18 +121,31 @@ int bus_orchestrator_setup_master(bus_orchestrator_t *ctx, int bus_id, const cha
 }
 
 int bus_orchestrator_setup_slave(bus_orchestrator_t *ctx, int bus_id, const char *protocol,
+
                                  uint32_t device_id) {
     if (!ctx || bus_id >= ctx->max_buses) return -1;
 
-    bus_engine_t *eng = engine_create_slave(ctx->drv_mgr, protocol, device_id, ctx->loop, ctx->arb,
-                                            ctx->hub, &ctx->pool);
+    bus_engine_t *eng = engine_create_slave(ctx->drv_mgr, protocol, device_id, ctx->loop,
+
+                                            ctx->arb, ctx->hub, &ctx->pool);
+
     if (!eng) return -1;
 
     ctx->engines[bus_id] = eng;
+
     if (ctx->io_handles[bus_id]) {
         eng->attach(eng, ctx->io_handles[bus_id]);
     }
+
     return 0;
+}
+
+int bus_orchestrator_add_slave_protocol(bus_orchestrator_t *ctx, int bus_id, const char *protocol,
+
+                                        uint32_t device_id) {
+    if (!ctx || bus_id >= ctx->max_buses || !ctx->engines[bus_id]) return -1;
+
+    return engine_slave_add_protocol(ctx->engines[bus_id], protocol, device_id);
 }
 
 int bus_orchestrator_run(bus_orchestrator_t *ctx) {

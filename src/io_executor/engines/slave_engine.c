@@ -5,14 +5,25 @@
 #include "driver_manager.h"
 #include "edge_log.h"
 
+#define MAX_SLAVE_PROTOCOLS 4
+
+typedef struct {
+    edge_driver_ctx_t *ctx;
+    char name[16];
+} slave_proto_slot_t;
+
 typedef struct {
     bus_engine_t base;
     uv_loop_t *loop;
     arbiter_t *arb;
     datahub_t *hub;
     net_buf_pool_t *pool;
-    edge_driver_ctx_t *drv_ctx;
-    char proto_name[32];
+    driver_manager_t *drv_mgr;
+
+    slave_proto_slot_t protocols[MAX_SLAVE_PROTOCOLS];
+    int proto_count;
+    int last_hit_idx;  // 粘性协议优化
+
     net_buf_t *rx_acc;
     io_handle_t *io;
     int bus_id;
@@ -29,36 +40,82 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
         net_buf_append_bytes(priv->rx_acc, rx->b.data, rx->b.len);
         net_buf_unref(rx);
 
+        // --- 核心算法：竞争解析 (Sniffing) ---
         while (priv->rx_acc->b.len > 0) {
-            net_buf_t *resp = net_buf_alloc(priv->pool, 0);
-            pipe_msg_t async_msgs[16];
-            int async_count = 0;
-            size_t consumed = 0;
+            bool processed = false;
+            size_t min_incomplete_len = 9999;
 
-            int rc = priv->drv_ctx->driver->handle_rx(priv->drv_ctx, priv->rx_acc, resp, async_msgs,
+            // 1. 尝试所有已注册的协议
+            for (int i = 0; i < priv->proto_count; i++) {
+                // 优化：优先尝试上次命中的协议 (last_hit_idx)
+                int idx = (i + priv->last_hit_idx) % priv->proto_count;
+                slave_proto_slot_t *slot = &priv->protocols[idx];
+
+                net_buf_t *resp = net_buf_alloc(priv->pool, 0);
+                pipe_msg_t async_msgs[16];
+                int async_count = 0;
+                size_t consumed = 0;
+
+                int rc = slot->ctx->driver->handle_rx(slot->ctx, priv->rx_acc, resp, async_msgs,
                                                       &async_count, &consumed);
 
-            if (rc == 0) {
-                if (resp->b.len > 0) priv->io->ops->write_async(priv->io, resp);
-                net_buf_unref(resp);
-                for (int i = 0; i < async_count; i++) datahub_publish(priv->hub, &async_msgs[i]);
-                if (consumed > 0)
-                    net_buf_pull(priv->rx_acc, consumed);
-                else
+                if (rc == 0) {
+                    // 命中协议！
+                    if (resp->b.len > 0) priv->io->ops->write_async(priv->io, resp);
+                    net_buf_unref(resp);
+
+                    for (int j = 0; j < async_count; j++)
+                        datahub_publish(priv->hub, &async_msgs[j]);
+
+                    if (consumed > 0) net_buf_pull(priv->rx_acc, consumed);
+                    priv->last_hit_idx = idx;
+                    processed = true;
                     break;
-            } else if (rc == EDGE_ERR_INCOMPLETE) {
-                net_buf_unref(resp);
-                break;
+                } else if (rc == EDGE_ERR_INCOMPLETE) {
+                    // 协议匹配但数据不足，记录状态继续等待
+                    net_buf_unref(resp);
+                    if (consumed < min_incomplete_len) min_incomplete_len = consumed;
+                    continue;
+                } else {
+                    // 协议不匹配
+                    net_buf_unref(resp);
+                    // 如果驱动明确告诉我们消耗了一些垃圾字节，执行剔除
+                    if (consumed > 0) {
+                        net_buf_pull(priv->rx_acc, consumed);
+                        processed = true;
+                        break;
+                    }
+                }
+            }
+
+            if (processed) continue;
+
+            // 2. 如果没有任何驱动能处理且也没有驱动认为“数据不足”
+            // 说明头部是彻底的噪音，剔除 1 字节并重试
+            if (min_incomplete_len == 9999) {
+                net_buf_pull(priv->rx_acc, 1);
             } else {
-                net_buf_unref(resp);
-                if (consumed > 0)
-                    net_buf_pull(priv->rx_acc, consumed);
-                else
-                    net_buf_simple_reset(&priv->rx_acc->b);
+                // 有驱动认为数据不足，停止解析等待下一次 RX
                 break;
             }
         }
     }
+}
+
+int engine_slave_add_protocol(bus_engine_t *self, const char *protocol, uint32_t device_id) {
+    slave_priv_t *priv = (slave_priv_t *)self->user_data;
+    if (priv->proto_count >= MAX_SLAVE_PROTOCOLS) return -1;
+
+    edge_driver_ctx_t *ctx = driver_instance_create(priv->drv_mgr, protocol, device_id);
+    if (!ctx) return -1;
+
+    ctx->role = PROTOCOL_ROLE_SLAVE;
+    priv->protocols[priv->proto_count].ctx = ctx;
+    strncpy(priv->protocols[priv->proto_count].name, protocol, 15);
+    priv->proto_count++;
+
+    LOG_INFO(LOG_CAT_BUS, "Slave Engine %d: Added Protocol '%s'", priv->bus_id, protocol);
+    return 0;
 }
 
 static void _slave_attach(bus_engine_t *self, io_handle_t *io) {
@@ -72,7 +129,11 @@ static void _slave_attach(bus_engine_t *self, io_handle_t *io) {
 static void _slave_detach(bus_engine_t *self) {
     slave_priv_t *priv = (slave_priv_t *)self->user_data;
     if (priv->io) priv->io->ops->enable_read(priv->io, false);
-    if (priv->drv_ctx) driver_instance_destroy(priv->drv_ctx, priv->proto_name);
+
+    for (int i = 0; i < priv->proto_count; i++) {
+        driver_instance_destroy(priv->protocols[i].ctx, priv->protocols[i].name);
+    }
+
     if (priv->rx_acc) net_buf_unref(priv->rx_acc);
     free(priv);
     free(self);
@@ -87,19 +148,19 @@ bus_engine_t *engine_create_slave(driver_manager_t *mgr, const char *protocol, u
     priv->arb = arb;
     priv->hub = hub;
     priv->pool = pool;
-    strncpy(priv->proto_name, protocol, 31);
+    priv->drv_mgr = mgr;
     priv->bus_id = (int)device_id;
+
     priv->rx_acc = net_buf_alloc(pool, 0);
     net_buf_simple_reset(&priv->rx_acc->b);
-    priv->drv_ctx = driver_instance_create(mgr, protocol, device_id);
-    if (!priv->drv_ctx) {
-        free(priv);
-        free(eng);
-        return NULL;
-    }
-    priv->drv_ctx->role = PROTOCOL_ROLE_SLAVE;
+
     eng->user_data = priv;
     eng->attach = _slave_attach;
     eng->detach = _slave_detach;
+
+    if (protocol && protocol[0] != '\0') {
+        engine_slave_add_protocol(eng, protocol, device_id);
+    }
+
     return eng;
 }

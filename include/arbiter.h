@@ -50,6 +50,7 @@ typedef enum {
 
 typedef struct cmd_msg {
     char req_id[32];
+    char protocol[16]; /**< [Phase 4] 目标协议名 (如 "ModbusRTU") */
     cmd_priority_t priority;
     cmd_action_t action;
 

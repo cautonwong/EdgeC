@@ -35,7 +35,16 @@ bus_engine_t *engine_create_master(driver_manager_t *mgr, const char *protocol, 
                                    net_buf_pool_t *pool);
 
 bus_engine_t *engine_create_slave(driver_manager_t *mgr, const char *protocol, uint32_t device_id,
+
                                   uv_loop_t *loop, arbiter_t *arb, datahub_t *hub,
                                   net_buf_pool_t *pool);
+
+/**
+
+ * @brief 向从站引擎添加额外的协议支持 (Phase 4: 多协议混跑)
+
+ */
+
+int engine_slave_add_protocol(bus_engine_t *self, const char *protocol, uint32_t device_id);
 
 #endif

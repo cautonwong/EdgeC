@@ -24,4 +24,25 @@ int edge_param_get_index(const char *name);
 uint32_t edge_param_to_tag_id(int param_idx);
 
 int edge_contract_self_test(void);
+
+
+
+{{- $iec104 := index .Hashes "IEC104" }}{{ if and $iec104 $iec104.Keys }}
+
+extern const iec104_map_t* const g_iec104_gi_list[];
+
+extern const uint32_t g_iec104_gi_len;
+
+{{- end }}
+
+
+
+{{- $iec101 := index .Hashes "IEC101" }}{{ if and $iec101 $iec101.Keys }}
+
+extern const iec101_map_t* const g_iec101_gi_list[];
+
+extern const uint32_t g_iec101_gi_len;
+
+{{- end }}
+
 {{- end -}}

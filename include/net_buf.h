@@ -136,6 +136,17 @@ static inline uint32_t net_buf_simple_pull_be32(struct net_buf_simple *buf) {
     return be32toh(v);
 }
 
+static inline void net_buf_simple_add_le32(struct net_buf_simple *buf, uint32_t val) {
+    uint32_t v = htole32(val);
+    memcpy(net_buf_simple_add(buf, 4), &v, 4);
+}
+
+static inline uint32_t net_buf_simple_pull_le32(struct net_buf_simple *buf) {
+    uint32_t v;
+    memcpy(&v, net_buf_simple_pull(buf, 4), 4);
+    return le32toh(v);
+}
+
 static inline void net_buf_simple_add_be64(struct net_buf_simple *buf, uint64_t val) {
     uint64_t v = htobe64(val);
     memcpy(net_buf_simple_add(buf, 8), &v, 8);

@@ -7,6 +7,10 @@
 #include "dlms_codec.h"
 #include "net_buf.h"
 
+// --- Phase 4: 架构解耦配置 ---
+// 为链路层(HDLC/Wrapper)预留的最大头部空隙
+#define DLMS_MAX_LINK_HEADER 16
+
 // --- Service Tags ---
 #define DLMS_SERVICE_AARQ 96
 #define DLMS_SERVICE_AARE 97
@@ -50,6 +54,14 @@ int dlms_cosem_decode_response(dlms_cosem_ctx_t *ctx, struct net_buf_simple *apd
 int dlms_cosem_decode_response_semantic(dlms_cosem_ctx_t *ctx, struct net_buf_simple *apdu,
                                         uint8_t expected_type, double *out_val);
 int dlms_cosem_build_get_next(dlms_cosem_ctx_t *ctx, net_buf_t *out);
+
+/* --- 从站逻辑 (Slave Role) --- */
+int dlms_cosem_parse_aarq(dlms_cosem_ctx_t *ctx, struct net_buf_simple *in);
+int dlms_cosem_build_aare(dlms_cosem_ctx_t *ctx, net_buf_t *out);
+int dlms_cosem_parse_get_request(struct net_buf_simple *in, uint16_t *class_id, uint8_t *obis,
+                                 uint8_t *attr_id);
+int dlms_cosem_build_get_response(dlms_cosem_ctx_t *ctx, dlms_data_type_t type, const void *val,
+                                  size_t val_len, net_buf_t *out);
 
 /**
  * @brief 构造 Selective Access 描述符 (目前支持 Selector 1: Range Descriptor)

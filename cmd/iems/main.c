@@ -52,7 +52,8 @@ int main(int argc, char **argv) {
 
     // 1.2 数据面 (Data Plane)
     datahub_t hub;
-    datahub_init(&hub, loop, "iems_v4.5", 1024, g_tag_metadata_len, edge_tag_get_compact_index);
+    datahub_init(&hub, loop, "iems_v4.5", 1024, g_tag_metadata_len, g_tag_metadata,
+                 g_tag_metadata_len, edge_tag_get_compact_index);
 
     // 1.3 存储面 (Storage Plane - 可随时替换实现)
     sqlite_config_t db_conf = {.db_path = "iems_main.db", .strategy = STRATEGY_LITE};

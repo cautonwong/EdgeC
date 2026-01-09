@@ -187,6 +187,30 @@ func main() {
 			return false
 		},
 		"upper": strings.ToUpper,
+		"uint32": func(v interface{}) uint32 {
+			switch val := v.(type) {
+			case int: return uint32(val)
+			case int32: return uint32(val)
+			case uint32: return val
+			}
+			return 0
+		},
+		"sub": func(a, b interface{}) int {
+			av := 0
+			switch v := a.(type) { case int: av = v; case int32: av = int(v); case uint32: av = int(v) }
+			bv := 0
+			switch v := b.(type) { case int: bv = v; case int32: bv = int(v); case uint32: bv = int(v) }
+			return av - bv
+		},
+		"_contract_hash_mix": func(key, seed, mask uint32) uint32 {
+			h := key ^ seed
+			h ^= h >> 16
+			h *= 0x85ebca6b
+			h ^= h >> 13
+			h *= 0xc2b2ae35
+			h ^= h >> 16
+			return h & mask
+		},
 	}
 
 	if *target == "master" {

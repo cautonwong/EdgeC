@@ -63,6 +63,51 @@ struct io_handle_s {
     void *user_data;
 };
 
+/* --- Phase 4: 多介质统一工厂 (The Multi-Polyhedron HAL) --- */
+
+typedef enum {
+    IO_TYPE_UART,       /**< RS485/RS232 */
+    IO_TYPE_CAN,        /**< SocketCAN */
+    IO_TYPE_TCP_CLIENT, /**< ModbusTCP / IEC104 */
+    IO_TYPE_UDP,        /**< CoAP / LwM2M */
+    IO_TYPE_UDS,        /**< Unix Domain Socket (仿真/容器) */
+    IO_TYPE_SHM_RING    /**< 共享内存 (核间通信) */
+} io_type_t;
+
+typedef struct {
+    io_type_t type;
+    union {
+        struct {
+            char dev[64];
+            uint32_t baud;
+        } uart;
+        struct {
+            char ifname[16];
+        } can;
+        struct {
+            char host[64];
+            uint16_t port;
+        } tcp;
+        struct {
+            char local_ip[64];
+            uint16_t local_port;
+            char remote_ip[64];
+            uint16_t remote_port;
+        } udp;
+        struct {
+            char path[128];
+        } uds;
+        struct {
+            char name[64];
+        } shm;
+    } params;
+} io_config_t;
+
+/**
+ * @brief 统一 IO 创建工厂
+ */
+io_handle_t *io_executor_create(uv_loop_t *loop, const io_config_t *cfg, net_buf_pool_t *pool);
+
 /* --- 平台适配层工厂 (具体实现在 src/platform) --- */
 
 /**
