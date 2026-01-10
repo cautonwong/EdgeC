@@ -1,0 +1,6 @@
+name: "Acrel P80 Standard Compliance"
+steps:
+  - t: 1
+    action: "inject"
+    tag: "VOLTAGE_PHASE_A"
+    value: 220.0

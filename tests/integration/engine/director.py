@@ -4,7 +4,7 @@ import os
 import signal
 import requests
 import random
-from contract_parser import ContractParser
+from .parser import ContractParser
 
 class OmnisDirector:
     def __init__(self, product="iems"):
@@ -35,7 +35,7 @@ class OmnisDirector:
         
         print(f"🎭 [Omnis] Starting Modbus Mimic...")
         self.log_mimic = open(f"omnis_mimic.log", "w")
-        self.process_mimic = subprocess.Popen(["python3", "tests/integration/mimic_modbus.py"], stdout=self.log_mimic, stderr=self.log_mimic, preexec_fn=os.setsid)
+        self.process_mimic = subprocess.Popen(["python3", "-m", "tests.integration.actors.modbus"], stdout=self.log_mimic, stderr=self.log_mimic, preexec_fn=os.setsid)
         
         time.sleep(2)
         return self.process_edgec.poll() is None

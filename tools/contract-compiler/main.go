@@ -256,6 +256,16 @@ func main() {
 		y, _ := yaml.Marshal(contract)
 		os.WriteFile(filepath.Join(*out, "contracts.yaml"), y, 0644)
 
+		// [Omnis Manifest Generation]
+		manifest := map[string]interface{}{
+			"product":   contract.Product,
+			"contract":  "contracts.yaml",
+			"scenarios": contract.Scenarios,
+		}
+		manifestJSON, _ := json.MarshalIndent(manifest, "", "  ")
+		os.WriteFile(filepath.Join(*out, "omnis_manifest.json"), manifestJSON, 0644)
+		fmt.Printf("[Compiler] Generated Omnis manifest: %s\n", filepath.Join(*out, "omnis_manifest.json"))
+
 		docExp := &exporter.DocExporter{}
 		docExp.Export(contract, resolved, *out)
 	}

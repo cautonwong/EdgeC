@@ -122,6 +122,8 @@ type EffectiveContract struct {
 
 	UI         UIDef         `yaml:"ui"`
 
+	Scenarios  []string      `yaml:"scenarios"`
+
 }
 
 

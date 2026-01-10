@@ -3,7 +3,7 @@ import os
 import time
 import struct
 import sys
-from contract_parser import ContractParser
+from ..engine.parser import ContractParser
 
 class ModbusMimic:
     def __init__(self, product="iems"):

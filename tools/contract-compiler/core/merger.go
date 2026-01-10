@@ -19,9 +19,17 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 	pData, _ := os.ReadFile(productPath)
 	yaml.Unmarshal(pData, &pc)
 	
+	var effectiveScenarios []string
 	for _, inc := range pc.Includes {
 		absPath := inc
 		if !filepath.IsAbs(inc) && baseDir != "" { absPath = filepath.Join(baseDir, inc) }
+		
+		// Discovery: same-named _scenarios.yaml
+		scenFile := strings.TrimSuffix(absPath, filepath.Ext(absPath)) + "_scenarios.yaml"
+		if _, err := os.Stat(scenFile); err == nil {
+			effectiveScenarios = append(effectiveScenarios, scenFile)
+		}
+
 		if bData, err := os.ReadFile(absPath); err == nil {
 			var raw map[string]interface{}
 			yaml.Unmarshal(bData, &raw)
@@ -174,6 +182,19 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 				pb, _ := yaml.Marshal(uiRaw)
 				yaml.Unmarshal(pb, &effectiveUI)
 			}
+
+			// Local Scenario Scanning
+			localDir := filepath.Dir(localPath)
+			scenDir := filepath.Join(localDir, "scenarios")
+			fmt.Printf("[Merger] Scanning scenarios in: %s\n", scenDir)
+			if _, err := os.Stat(scenDir); err == nil {
+				filepath.Walk(scenDir, func(path string, info os.FileInfo, err error) error {
+					if err == nil && !info.IsDir() && (strings.HasSuffix(path, ".yaml") || strings.HasSuffix(path, ".yml")) {
+						effectiveScenarios = append(effectiveScenarios, path)
+					}
+					return nil
+				})
+			}
 		}
 	}
 
@@ -239,6 +260,7 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 		Pipelines: effectivePipelines,
 		Policies: effectivePolicies,
 		UI: effectiveUI,
+		Scenarios: effectiveScenarios,
 	}
 }
 

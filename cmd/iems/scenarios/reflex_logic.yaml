@@ -1,0 +1,18 @@
+name: "Overvoltage Protection Loop"
+steps:
+  - t: 1
+    action: "inject"
+    hex: "01030200E6384A"
+    desc: "Normal Voltage 230V"
+  - t: 3
+    action: "inject"
+    hex: "010302010E384A"
+    desc: "Overvoltage 275V!"
+  - t: 4
+    action: "check_api"
+    tag: "VOLTAGE_PHASE_A"
+    expect: 275.0
+  - t: 5
+    action: "check_api"
+    tag: "PROJECT_HUMIDITY"
+    expect: 1.0
