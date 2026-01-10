@@ -64,6 +64,19 @@ static char *handle_system_health(service_t *svc) {
     cJSON_AddNumberToObject(root, "uptime", (double)uv_now(service_get_loop(svc)) / 1000);
     cJSON_AddStringToObject(root, "version", (const char *)edge_get_version());
 
+    // [Phase 9] 注入资源监控统计
+    datahub_t *hub = service_get_datahub(svc);
+    if (hub && hub->io_pool) {
+        net_buf_pool_stats_t stats;
+        net_buf_pool_audit(hub->io_pool, 0, &stats);
+
+        cJSON *pool = cJSON_AddObjectToObject(root, "net_buf_pool");
+        cJSON_AddNumberToObject(pool, "total", stats.total_count);
+        cJSON_AddNumberToObject(pool, "free", stats.free_count);
+        cJSON_AddNumberToObject(pool, "peak", stats.peak_usage);
+        cJSON_AddNumberToObject(pool, "leaked_reclaimed", stats.leaked_reclaimed);
+    }
+
     cJSON *storage = cJSON_AddObjectToObject(root, "storage");
     cJSON_AddNumberToObject(storage, "queue_depth", 0);
 

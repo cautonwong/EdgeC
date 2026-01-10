@@ -30,6 +30,19 @@ enabled_tags:
   - ENERGY_ACTIVE_IMPORT
   - BATTERY_SOC
   - BATTERY_POWER
+  - PROJECT_HUMIDITY
+
+# 逻辑管线编排 (S17: 闭环智能)
+pipelines:
+  - id: "overvoltage_protection"
+    trigger: "VOLTAGE_PHASE_A"
+    stages:
+      - name: "safety_check"
+        type: "REFLEX"
+        threshold: 260.0
+        greater_than: true
+        target_tag: 8001 # PROJECT_HUMIDITY (模拟动作)
+        protocol: "ModbusRTU"
 
 tags:
   - id: 4001
