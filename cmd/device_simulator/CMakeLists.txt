@@ -1,34 +1,18 @@
-# Device Simulator Product Build Script
-# ------------------------------------------------------------------------------
+# Device Simulator Build Script
+set(SIM_NAME device_simulator)
 
-set(PROD_NAME device_simulator)
+add_executable(${SIM_NAME} main.c)
 
-# 1. 契约生成
-edge_add_contract(
-    contract_${PROD_NAME}
-    "${CMAKE_SOURCE_DIR}/contracts/products/device_simulator.yaml"
-    ""
-)
-
-# 2. 定义执行文件
-add_executable(${PROD_NAME} main.c)
-add_dependencies(${PROD_NAME} contract_${PROD_NAME})
-
-# 3. 输出路径标准化
-set_target_properties(${PROD_NAME} PROPERTIES 
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/products/${PROD_NAME}/bin"
-)
-
-# 4. 链接依赖
-target_link_libraries(${PROD_NAME} PRIVATE 
-    edge_algo
-    edge_stream_engine
-    edge_io_executor
-    edge_main_loop
-    contract_${PROD_NAME}
+# 核心：链接规约库，这样模拟器就能生成真实合法的 Modbus/DLMS 报文
+target_link_libraries(${SIM_NAME} PRIVATE 
+    edge_protocols
+    edge_platform
+    edge_core
     edge_common_interface
+    libuv::uv
     pthread dl rt m
 )
 
-# 5. 安装
-install_edge_product(${PROD_NAME})
+set_target_properties(${SIM_NAME} PROPERTIES 
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/products/device_simulator/bin"
+)

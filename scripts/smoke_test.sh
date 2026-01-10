@@ -1,26 +1,35 @@
 #!/bin/bash
-# EdgeOS Product-Level Smoke Test
-# Usage: ./scripts/smoke_test.sh
+# EdgeOS Black-Box Integration Test
+# IEMS vs DeviceSimulator (The Battle of Omnis)
 
-BIN="./build/products/iems/bin/iems"
+IEMS="./build/products/iems/bin/iems"
+SIM="./build/products/device_simulator/bin/device_simulator"
+VBUS="/tmp/vbus0.sock"
 
-if [ ! -f "$BIN" ]; then
-    echo "[ERROR] IEMS binary not found. Please build the project first."
-    exit 1
-fi
+rm -f $VBUS iems.db*
 
-echo "--- Starting IEMS Smoke Test ---"
-# 设置本地动态库路径
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(pwd)/.local/linux-x86_64/lib
+echo "--- Starting Omnis Integration Battle ---"
 
-# 运行冒烟测试，设置 10s 的 shell 超时以防万一
-timeout 10s $BIN --smoke-test
-RET=$?
+# 1. 启动 IEMS 并将其置于后台
+# 在真实场景中，IEMS 会监听虚拟总线
+# 注意：目前 iems/main.c 还需要支持 UDS 监听，我马上改
+$IEMS &
+IEMS_PID=$!
 
-if [ $RET -eq 0 ]; then
-    echo "--- [PASS] IEMS Smoke Test Successful ---"
+sleep 1
+
+# 2. 启动模拟器运行剧本
+$SIM $VBUS
+SIM_RET=$?
+
+# 3. 清理并判定
+kill $IEMS_PID 2>/dev/null
+rm -f $VBUS
+
+if [ $SIM_RET -eq 0 ]; then
+    echo "--- [PASS] Omnis Integration Successful ---"
     exit 0
 else
-    echo "--- [FAIL] IEMS Smoke Test Failed with code $RET ---"
-    exit $RET
+    echo "--- [FAIL] Omnis Integration Failed ---"
+    exit 1
 fi
