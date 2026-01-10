@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <uv.h>
 
 #include "arbiter.h"
@@ -12,51 +13,63 @@
 #include "edge_log.h"
 #include "edge_params.h"
 #include "edge_service.h"
+#include "northbound_mgr.h"
 #include "sqlite_service.h"
 #include "stream_engine.h"
 
-static service_t *g_svc = NULL;
-static void on_sig(int s) {
-    (void)s;
-    if (g_svc) service_stop(g_svc);
+extern int modbus_driver_register(driver_manager_t *mgr);
+
+static service_t *g_running_svc = NULL;
+static void on_sigterm(int sig) {
+    (void)sig;
+    if (g_running_svc) service_stop(g_running_svc);
 }
 
 int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
-    edge_log_t *logger = edge_log_create(NULL, true);
     uv_loop_t *loop = uv_default_loop();
+    edge_log_t *logger = edge_log_create(NULL, true);
+
+    arbiter_t *arbiter = NULL;
+    arbiter_init(&arbiter, loop);
+    driver_manager_t *drv_mgr = driver_manager_create();
+    modbus_driver_register(drv_mgr);
 
     datahub_t hub;
     datahub_init(&hub, loop, "hems_v1", 1024, g_tag_metadata_len, g_tag_metadata,
-                 g_tag_metadata_len, edge_tag_get_compact_index, edge_router_needs_wakeup);
+                 g_tag_metadata_len, NULL, edge_tag_get_compact_index, edge_router_needs_wakeup);
+
+    bus_orchestrator_t *io_orch = bus_orchestrator_create(&hub, arbiter, drv_mgr, 8, 32, 2048);
+    hub.io_pool = bus_orchestrator_get_pool(io_orch);
+
     sqlite_config_t db_conf = {.db_path = "hems.db", .strategy = STRATEGY_LITE};
-    sqlite_svc_t *db = sqlite_svc_create(loop, &db_conf);
+    sqlite_svc_t *db_service = sqlite_svc_create(loop, &db_conf);
+    stream_engine_t *stream_engine = stream_engine_create(&hub, NULL);
+    edge_params_t *param_mgr = edge_params_create(db_service);
 
-    arbiter_t *arb = NULL;
-    arbiter_init(&arb, loop);
-    driver_manager_t *drv = driver_manager_create();
-    stream_engine_t *eng = stream_engine_create(&hub, NULL);
-    edge_params_t *p = edge_params_create(db);
-    edge_params_register_metadata(p, g_param_metadata, g_param_metadata_len);
+    northbound_mgr_t *north_mgr = calloc(1, sizeof(northbound_mgr_t));
+    northbound_mgr_init(north_mgr, loop, &hub.ring, "hems", db_service);
 
-    bus_orchestrator_t *orch = bus_orchestrator_create(&hub, arb, drv, 8, 16, 2048);
-    g_svc = service_new(loop, &hub, arb, db, eng, p, NULL);
+    service_t *svc =
+        service_new(loop, &hub, arbiter, db_service, stream_engine, param_mgr, north_mgr);
+    g_running_svc = svc;
+    north_mgr->user_data = svc;
 
-    signal(SIGTERM, on_sig);
-    bus_orchestrator_run(orch);
-    edge_log_out(logger, LOG_CAT_CORE, 0, "HEMS Started");
+    signal(SIGTERM, on_sigterm);
+    bus_orchestrator_run(io_orch);
+    int exit_code = service_run(svc);
 
-    int r = service_run(g_svc);
-
-    service_delete(g_svc);
-    bus_orchestrator_destroy(orch);
-    stream_engine_destroy(eng);
-    driver_manager_destroy(drv);
-    arbiter_destroy(arb);
-    edge_params_destroy(p);
-    sqlite_svc_destroy(db);
+    service_delete(svc);
+    northbound_mgr_stop(north_mgr);
+    free(north_mgr);
+    bus_orchestrator_destroy(io_orch);
+    stream_engine_destroy(stream_engine);
+    driver_manager_destroy(drv_mgr);
+    arbiter_destroy(arbiter);
+    edge_params_destroy(param_mgr);
+    sqlite_svc_destroy(db_service);
     datahub_destroy(&hub);
     edge_log_destroy(logger);
-    return r;
+    return exit_code;
 }

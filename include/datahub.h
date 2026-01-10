@@ -30,6 +30,7 @@ typedef bool (*datahub_wakeup_filter_cb)(uint32_t tag_id);
 struct datahub_s {
     uv_loop_t *loop;
     shm_ring_t ring;
+    struct net_buf_pool *io_pool;  // [Phase 4] 注入的 IO 内存池引用
 
     const edge_tag_meta_t *metadata_table;
     uint32_t metadata_count;
@@ -52,12 +53,14 @@ struct datahub_s {
 
 int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slots,
                  uint32_t shadow_capacity, const edge_tag_meta_t *metadata, uint32_t metadata_len,
-                 datahub_tag_map_cb map_fn, datahub_wakeup_filter_cb wakeup_fn);
+                 struct net_buf_pool *io_pool, datahub_tag_map_cb map_fn,
+                 datahub_wakeup_filter_cb wakeup_fn);
 
 int datahub_init_from_fd(datahub_t *hub, uv_loop_t *loop, int ring_fd, size_t ring_size,
                          int shadow_fd, size_t shadow_size, uint32_t compact_capacity,
                          const edge_tag_meta_t *metadata, uint32_t metadata_len,
-                         datahub_tag_map_cb map_fn, datahub_wakeup_filter_cb wakeup_fn);
+                         struct net_buf_pool *io_pool, datahub_tag_map_cb map_fn,
+                         datahub_wakeup_filter_cb wakeup_fn);
 
 void datahub_destroy(datahub_t *hub);
 int datahub_publish(datahub_t *hub, const pipe_msg_t *msg);

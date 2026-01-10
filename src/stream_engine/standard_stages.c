@@ -4,6 +4,7 @@
 
 #include "algo_peak_shaving.h"
 #include "battery_strategy.h"
+#include "edge_log.h"
 #include "sqlite_service.h"
 #include "stream_engine.h"
 
@@ -227,30 +228,58 @@ pipeline_stage_t *stage_time_guard_create(void) {
 }
 
 // --- 10. SQLite Sink ---
+
 typedef struct {
     sqlite_svc_t *db;
+
     char table[64];
+
 } _sink_cfg_t;
-/*
-static void _sink_work(uv_work_t *req) {
-    pipe_msg_t *m = req->data;  // 简化处理，实际应包含 DB 句柄
-    // sqlite_svc_insert(db, m);
-}
-*/
+
 static stage_ret_t _sink_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
-    (void)s;
     if (ev->type != PIPEMSG_TYPE_SCALAR) return STAGE_OK;
+
+    _sink_cfg_t *c = s->priv_cfg;
+
+    char sql[256];
+
+    snprintf(sql, sizeof(sql), "INSERT INTO %s (tag_id, value, ts) VALUES (%u, %f, %lu)",
+
+             c->table, ev->tag_id, ev->payload.val.f, ev->ts);
+
+    sqlite_svc_exec(c->db, sql, NULL, NULL);
+
     return STAGE_OK;
 }
+
 pipeline_stage_t *stage_sqlite_sink_create(sqlite_svc_t *db, const char *table) {
+    if (!db || !table) return NULL;
+
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+
     strncpy(s->name, "sqlite_sink", 31);
+
     s->process = _sink_proc;
+
     _sink_cfg_t *c = malloc(sizeof(_sink_cfg_t));
+
     c->db = db;
+
     strncpy(c->table, table, 63);
+
     s->priv_cfg = c;
+
     s->cleanup_cfg = free;
+
+    // 确保表存在
+
+    char sql[256];
+
+    snprintf(sql, sizeof(sql),
+             "CREATE TABLE IF NOT EXISTS %s (tag_id INTEGER, value REAL, ts INTEGER)", table);
+
+    sqlite_svc_exec(db, sql, NULL, NULL);
+
     return s;
 }
 
@@ -268,5 +297,147 @@ pipeline_stage_t *stage_battery_guard_create(battery_limit_t *limits) {
     s->process = _batt_proc;
     s->priv_cfg = limits;
     s->cleanup_cfg = free;
+    return s;
+}
+
+// --- 12. Reflex Logic (Sprint 3) ---
+#include "arbiter.h"
+#include "bus_orchestrator.h"
+
+typedef struct {
+    struct bus_orchestrator_s *orch;
+    uint32_t bus_id;
+    char proto[16];
+    uint32_t target_tag;
+    double threshold;
+    bool greater_than;
+} _reflex_cfg_t;
+
+static stage_ret_t _reflex_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
+    if (ev->type != PIPEMSG_TYPE_SCALAR) return STAGE_OK;
+    _reflex_cfg_t *c = s->priv_cfg;
+
+    bool triggered =
+        c->greater_than ? (ev->payload.val.f > c->threshold) : (ev->payload.val.f < c->threshold);
+
+    if (triggered) {
+        LOG_WARN(LOG_CAT_BUS, "Reflex: Threshold hit! Triggering Tag %u on Bus %d [%s]",
+                 c->target_tag, c->bus_id, c->proto);
+
+        cmd_msg_t cmd = {0};
+        cmd.action = CMD_ACTION_WRITE;
+        cmd.tag_id = c->target_tag;
+        cmd.value = 1.0;  // 默认触发动作
+        cmd.priority = ARBITER_PRIO_HIGH;
+        strncpy(cmd.protocol, c->proto, 15);
+        snprintf(cmd.req_id, sizeof(cmd.req_id), "REFLEX_%u", c->target_tag);
+
+        bus_orchestrator_submit_cmd(c->orch, (int)c->bus_id, &cmd);
+    }
+
+    return STAGE_OK;
+}
+
+pipeline_stage_t *stage_reflex_logic_create(struct bus_orchestrator_s *orch, uint32_t bus_id,
+                                            const char *proto, uint32_t target_tag,
+                                            double threshold, bool greater_than) {
+    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    strncpy(s->name, "reflex", 31);
+    s->process = _reflex_proc;
+    _reflex_cfg_t *c = calloc(1, sizeof(_reflex_cfg_t));
+    c->orch = orch;
+    c->bus_id = bus_id;
+    strncpy(c->proto, proto, 15);
+    c->target_tag = target_tag;
+    c->threshold = threshold;
+    c->greater_than = greater_than;
+    s->priv_cfg = c;
+    s->cleanup_cfg = free;
+    return s;
+}
+
+// --- 13. Moving Average (Sprint 3) ---
+typedef struct {
+    double *window;
+    uint32_t size;
+    uint32_t head;
+    uint32_t count;
+    double sum;
+} _ma_st_t;
+
+static void _ma_cleanup(void *p) {
+    _ma_st_t *st = p;
+    if (st->window) free(st->window);
+    free(st);
+}
+
+static stage_ret_t _ma_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
+    if (ev->type != PIPEMSG_TYPE_SCALAR) return STAGE_OK;
+    _ma_st_t *st = s->priv_state;
+
+    if (st->count < st->size) {
+        st->window[st->head] = ev->payload.val.f;
+        st->sum += ev->payload.val.f;
+        st->count++;
+    } else {
+        st->sum -= st->window[st->head];
+        st->window[st->head] = ev->payload.val.f;
+        st->sum += ev->payload.val.f;
+    }
+
+    st->head = (st->head + 1) % st->size;
+    ev->payload.val.f = st->sum / st->count;
+    return STAGE_OK;
+}
+
+pipeline_stage_t *stage_moving_average_create(uint32_t window_size) {
+    if (window_size == 0) window_size = 1;
+    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    strncpy(s->name, "moving_average", 31);
+    s->process = _ma_proc;
+    _ma_st_t *st = calloc(1, sizeof(_ma_st_t));
+    st->size = window_size;
+    st->window = calloc(window_size, sizeof(double));
+    s->priv_state = st;
+    s->cleanup_state = _ma_cleanup;
+    return s;
+}
+
+// --- 14. RBE (Report By Exception) (Sprint 3) ---
+typedef struct {
+    double threshold_pct;
+    double last_reported;
+    bool has_last;
+} _rbe_st_t;
+
+static stage_ret_t _rbe_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
+    if (ev->type != PIPEMSG_TYPE_SCALAR) return STAGE_OK;
+    _rbe_st_t *st = s->priv_state;
+
+    if (!st->has_last) {
+        st->last_reported = ev->payload.val.f;
+        st->has_last = true;
+        return STAGE_OK;
+    }
+
+    double diff = fabs(ev->payload.val.f - st->last_reported);
+    double threshold = fabs(st->last_reported * (st->threshold_pct / 100.0));
+
+    if (diff >= threshold) {
+        st->last_reported = ev->payload.val.f;
+        return STAGE_OK;
+    }
+
+    return STAGE_DROP;
+}
+
+pipeline_stage_t *stage_rbe_create(double threshold_pct) {
+    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    strncpy(s->name, "rbe", 31);
+    s->process = _rbe_proc;
+    _rbe_st_t *st = calloc(1, sizeof(_rbe_st_t));
+    st->threshold_pct = threshold_pct;
+    s->priv_state = st;
+    s->cleanup_state = free;
     return s;
 }

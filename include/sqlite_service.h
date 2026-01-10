@@ -28,9 +28,10 @@ typedef void (*sqlite_err_cb)(int code, const char *msg);
 typedef struct {
     storage_strategy_t strategy;
     const char *db_path;
-    int cache_size_kb;
     int batch_size;
     int flush_interval_ms;
+    int cache_size_kb;
+    uint32_t max_db_size_mb; /**< [Phase 9] 数据库最大容量 (MB)，超过则触发自动清理 */
 } sqlite_config_t;
 
 // --- API ---

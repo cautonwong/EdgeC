@@ -7,6 +7,11 @@
 #include <string.h>
 #include <time.h>
 
+#include "arbiter.h"
+#include "datahub.h"
+#include "edge_log.h"
+#include "edge_service.h"
+
 struct js_engine_s {
     service_t *svc;
     JSRuntime *rt;
@@ -28,30 +33,55 @@ static JSValue js_console_log(JSContext *ctx, JSValueConst this_val, int argc, J
     return JS_UNDEFINED;
 }
 
-// --- JS Bindings: DataHub.read(tag_id) ---
-static JSValue js_datahub_read(JSContext *ctx, JSValueConst this_val, int argc,
-                               JSValueConst *argv) {
+// --- JS Bindings: Arbiter.getStatuses() ---
+static JSValue js_arbiter_get_statuses(JSContext *ctx, JSValueConst this_val, int argc,
+                                       JSValueConst *argv) {
     (void)this_val;
+    (void)argc;
+    (void)argv;
     js_engine_t *engine = JS_GetContextOpaque(ctx);
-    if (!engine || argc < 1) return JS_EXCEPTION;
+    arbiter_t *arb = service_get_arbiter(engine->svc);
+    if (!arb) return JS_NULL;
 
-    uint32_t tag_id;
-    JS_ToUint32(ctx, &tag_id, argv[0]);
+    arbiter_bus_status_t stats[BUS_MAX];
+    int count = arbiter_get_statuses(arb, stats, BUS_MAX);
 
+    JSValue arr = JS_NewArray(ctx);
+    for (int i = 0; i < count; i++) {
+        JSValue obj = JS_NewObject(ctx);
+        JS_SetPropertyStr(ctx, obj, "bus_id", JS_NewInt32(ctx, stats[i].bus_id));
+        JS_SetPropertyStr(ctx, obj, "is_busy", JS_NewBool(ctx, stats[i].is_busy));
+        JS_SetPropertyStr(ctx, obj, "queue_len", JS_NewInt32(ctx, stats[i].queue_len));
+        JS_SetPropertyStr(ctx, obj, "current_job", JS_NewString(ctx, stats[i].current_job_id));
+        JS_SetPropertyUint32(ctx, arr, (uint32_t)i, obj);
+    }
+    return arr;
+}
+
+// --- JS Bindings: System.getPoolStats() ---
+static JSValue js_system_get_pool_stats(JSContext *ctx, JSValueConst this_val, int argc,
+                                        JSValueConst *argv) {
+    (void)this_val;
+    (void)argc;
+    (void)argv;
+    js_engine_t *engine = JS_GetContextOpaque(ctx);
     datahub_t *hub = service_get_datahub(engine->svc);
     if (!hub) return JS_NULL;
 
-    // 从 SHM 中读取最新数据
-    PipeMsg msg;
-    uint64_t seq = 0;  // 演示：总是尝试读取最新
-    if (shm_ring_read(&hub->ring, &seq, &msg) == 0) {
-        // 在全场景示例中，DataHub 应提供按 ID 查找的索引
-        // 这里仅作为演示逻辑
-        if (msg.tag_id == tag_id) {
-            return JS_NewFloat64(ctx, msg.payload.val.f);
-        }
+    net_buf_pool_stats_t stats;
+
+    if (hub->io_pool) {
+        net_buf_pool_audit(hub->io_pool, 0, &stats);  // 0 表示只审计不回收
+
+    } else {
+        memset(&stats, 0, sizeof(stats));
     }
-    return JS_NULL;
+
+    JSValue obj = JS_NewObject(ctx);
+    JS_SetPropertyStr(ctx, obj, "total", JS_NewUint32(ctx, stats.total_count));
+    JS_SetPropertyStr(ctx, obj, "free", JS_NewUint32(ctx, stats.free_count));
+    JS_SetPropertyStr(ctx, obj, "peak", JS_NewUint32(ctx, stats.peak_usage));
+    return obj;
 }
 
 // --- JS Bindings: Arbiter.submit(tag_id, value) ---
@@ -69,7 +99,8 @@ static JSValue js_arbiter_submit(JSContext *ctx, JSValueConst this_val, int argc
     arbiter_t *arb = service_get_arbiter(engine->svc);
     if (arb) {
         cmd_msg_t cmd;
-        cmd_msg_init_write(&cmd, tag_id, value, CMD_PRIO_NORMAL);
+        cmd_msg_init_write(&cmd, tag_id, value, ARBITER_PRIO_NORMAL);
+        // 实际上此处应由 Orchestrator 包装后再提交，此处为演示直接注入总线 0
         arbiter_submit_cmd(arb, 0, &cmd);
         return JS_TRUE;
     }
@@ -93,23 +124,25 @@ js_engine_t *js_engine_create(service_t *svc, size_t mem_limit) {
 
     JSValue global_obj = JS_GetGlobalObject(engine->ctx);
 
-    // 1. 注入 console.log
+    // 1. console
     JSValue console = JS_NewObject(engine->ctx);
     JS_SetPropertyStr(engine->ctx, console, "log",
                       JS_NewCFunction(engine->ctx, js_console_log, "log", 1));
     JS_SetPropertyStr(engine->ctx, global_obj, "console", console);
 
-    // 2. 注入 DataHub 对象
-    JSValue j_hub = JS_NewObject(engine->ctx);
-    JS_SetPropertyStr(engine->ctx, j_hub, "read",
-                      JS_NewCFunction(engine->ctx, js_datahub_read, "read", 1));
-    JS_SetPropertyStr(engine->ctx, global_obj, "DataHub", j_hub);
-
-    // 3. 注入 Arbiter 对象
-    JSValue j_arb = JS_NewObject(engine->ctx);
-    JS_SetPropertyStr(engine->ctx, j_arb, "submit",
+    // 2. Arbiter
+    JSValue arb = JS_NewObject(engine->ctx);
+    JS_SetPropertyStr(engine->ctx, arb, "submit",
                       JS_NewCFunction(engine->ctx, js_arbiter_submit, "submit", 2));
-    JS_SetPropertyStr(engine->ctx, global_obj, "Arbiter", j_arb);
+    JS_SetPropertyStr(engine->ctx, arb, "getStatuses",
+                      JS_NewCFunction(engine->ctx, js_arbiter_get_statuses, "getStatuses", 0));
+    JS_SetPropertyStr(engine->ctx, global_obj, "Arbiter", arb);
+
+    // 3. System
+    JSValue sys = JS_NewObject(engine->ctx);
+    JS_SetPropertyStr(engine->ctx, sys, "getPoolStats",
+                      JS_NewCFunction(engine->ctx, js_system_get_pool_stats, "getPoolStats", 0));
+    JS_SetPropertyStr(engine->ctx, global_obj, "System", sys);
 
     JS_FreeValue(engine->ctx, global_obj);
     return engine;
@@ -154,10 +187,7 @@ struct JSContext *js_engine_get_context(js_engine_t *engine) {
 
 void js_engine_destroy(js_engine_t *engine) {
     if (!engine) return;
-
-    // 强制执行一次 GC 以清理残留对象
     JS_RunGC(engine->rt);
-
     JS_FreeContext(engine->ctx);
     JS_FreeRuntime(engine->rt);
     free(engine);

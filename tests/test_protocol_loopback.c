@@ -48,7 +48,7 @@ static int setup(void **state) {
     uv_loop_init(&ctx->loop);
 
     // 1. 初始化 DataHub (注入测试用元数据)
-    datahub_init(&ctx->hub, &ctx->loop, "/test_loopback", 64, 1024, NULL, 0, NULL, NULL);
+    datahub_init(&ctx->hub, &ctx->loop, "/test_loopback", 64, 1024, NULL, 0, NULL, NULL, NULL);
     datahub_subscribe(&ctx->hub, on_data_received, ctx);
 
     arbiter_init(&ctx->arb, &ctx->loop);

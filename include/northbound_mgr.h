@@ -11,8 +11,11 @@ typedef struct {
     uv_loop_t loop;
     uv_thread_t thread;
     shm_ring_t *ring;
+    struct sqlite_svc_s *db; /**< [Phase 8] 数据库句柄，用于断线缓存 */
     uint64_t last_seq;
     int running;
+
+    char product_name[32]; /**< [Phase 8] 产品名称，用于动态 Topic 拼装 */
 
     // 配置项
     int rest_port;
@@ -35,7 +38,8 @@ typedef struct {
 /**
  * @brief 初始化北向管理器实例
  */
-int northbound_mgr_init(northbound_mgr_t *mgr, uv_loop_t *main_loop, shm_ring_t *ring);
+int northbound_mgr_init(northbound_mgr_t *mgr, uv_loop_t *main_loop, shm_ring_t *ring,
+                        const char *product_name, struct sqlite_svc_s *db);
 
 /**
  * @brief 启动独立服务线程

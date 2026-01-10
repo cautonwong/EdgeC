@@ -19,6 +19,9 @@ extern pipeline_stage_t *stage_js_rule_create(js_engine_t *engine, const char *s
 extern pipeline_stage_t *stage_periodic_freeze_create(int kind);
 extern pipeline_stage_t *stage_time_guard_create(void);
 extern pipeline_stage_t *stage_battery_guard_create(battery_limit_t *limits);
+extern pipeline_stage_t *stage_reflex_logic_create(struct bus_orchestrator_s *orch, uint32_t bus_id,
+                                                   const char *proto, uint32_t target_tag,
+                                                   double threshold, bool greater_than);
 
 // 辅助：从 JSON 或全局参数获取 double 值
 static double get_cfg_double(cJSON *json, const char *key, edge_params_t *params,
@@ -96,6 +99,14 @@ static pipeline_stage_t *build_stage(const char *type, cJSON *config, pipeline_l
         if (item && ctx->js_engine) {
             return stage_js_rule_create(ctx->js_engine, item->valuestring);
         }
+    }
+    if (strcmp(type, "reflex") == 0) {
+        uint32_t bus_id = (uint32_t)cJSON_GetObjectItem(config, "bus_id")->valuedouble;
+        const char *proto = cJSON_GetObjectItem(config, "protocol")->valuestring;
+        uint32_t target = (uint32_t)cJSON_GetObjectItem(config, "target_tag")->valuedouble;
+        double threshold = cJSON_GetObjectItem(config, "threshold")->valuedouble;
+        bool gt = cJSON_IsTrue(cJSON_GetObjectItem(config, "greater_than"));
+        return stage_reflex_logic_create(ctx->orch, bus_id, proto, target, threshold, gt);
     }
     return NULL;
 }

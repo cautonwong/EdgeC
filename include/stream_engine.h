@@ -61,6 +61,7 @@ typedef struct {
     sqlite_svc_t *db;
     js_engine_t *js_engine;
     edge_params_t *params;
+    struct bus_orchestrator_s *orch; /**< [新增] 用于指令触发 (Sprint 3) */
 } pipeline_loader_ctx_t;
 
 stream_engine_t *stream_engine_create(datahub_t *hub, engine_time_source_t *time_src);
@@ -102,6 +103,13 @@ pipeline_stage_t *stage_time_guard_create(void);
 pipeline_stage_t *stage_sqlite_sink_create(sqlite_svc_t *db, const char *table);
 pipeline_stage_t *stage_js_rule_create(js_engine_t *engine, const char *script);
 pipeline_stage_t *stage_battery_guard_create(battery_limit_t *limits);
+pipeline_stage_t *stage_reflex_logic_create(struct bus_orchestrator_s *orch, uint32_t bus_id,
+                                            const char *proto, uint32_t target_tag,
+                                            double threshold, bool greater_than);
+
+// --- Sprint 3: 工业级算法库扩展 ---
+pipeline_stage_t *stage_moving_average_create(uint32_t window_size);
+pipeline_stage_t *stage_rbe_create(double threshold_pct);
 
 #ifdef __cplusplus
 }

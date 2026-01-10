@@ -179,29 +179,58 @@ int bus_orchestrator_add_slave_protocol(bus_orchestrator_t *ctx, int bus_id, con
 
 int bus_orchestrator_run(bus_orchestrator_t *ctx) {
     if (!ctx) return -1;
+    // 启动每 10 秒一次的审计
     return uv_timer_start(&ctx->audit_timer, _on_pool_audit, 10000, 10000);
+}
+
+struct net_buf_pool *bus_orchestrator_get_pool(bus_orchestrator_t *ctx) {
+    return ctx ? &ctx->pool : NULL;
+}
+
+static void _on_bus_orch_close(uv_handle_t *handle) {
+    bus_orchestrator_t *ctx = (bus_orchestrator_t *)handle->data;
+
+    fprintf(stderr, "[DEBUG] BusOrchestrator: Final physical memory release.\n");
+
+    if (ctx->io_handles) free(ctx->io_handles);
+
+    if (ctx->engines) free(ctx->engines);
+
+    net_buf_pool_destroy(&ctx->pool);
+
+    free(ctx);
 }
 
 void bus_orchestrator_destroy(bus_orchestrator_t *ctx) {
     if (ctx) {
+        fprintf(stderr, "[DEBUG] BusOrchestrator: Initiating destruction...\n");
+
         uv_timer_stop(&ctx->audit_timer);
-        if (!uv_is_closing((uv_handle_t *)&ctx->audit_timer)) {
-            uv_close((uv_handle_t *)&ctx->audit_timer, NULL);
-        }
 
         if (ctx->engines) {
             for (int i = 0; i < ctx->max_buses; i++) {
-                if (ctx->engines[i]) ctx->engines[i]->detach(ctx->engines[i]);
+                if (ctx->engines[i]) {
+                    fprintf(stderr, "[DEBUG] BusOrchestrator: Detaching engine %d\n", i);
+
+                    ctx->engines[i]->detach(ctx->engines[i]);
+                }
             }
-            free(ctx->engines);
         }
+
         if (ctx->io_handles) {
             for (int i = 0; i < ctx->max_buses; i++) {
-                if (ctx->io_handles[i]) ctx->io_handles[i]->ops->destroy(ctx->io_handles[i]);
+                if (ctx->io_handles[i]) {
+                    fprintf(stderr, "[DEBUG] BusOrchestrator: Destroying IO handle %d\n", i);
+
+                    ctx->io_handles[i]->ops->destroy(ctx->io_handles[i]);
+                }
             }
-            free(ctx->io_handles);
         }
-        net_buf_pool_destroy(&ctx->pool);
-        free(ctx);
+
+        if (!uv_is_closing((uv_handle_t *)&ctx->audit_timer)) {
+            fprintf(stderr, "[DEBUG] BusOrchestrator: Closing audit timer handle...\n");
+
+            uv_close((uv_handle_t *)&ctx->audit_timer, _on_bus_orch_close);
+        }
     }
 }

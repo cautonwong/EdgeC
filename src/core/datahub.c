@@ -23,11 +23,13 @@ static void _on_legacy_async(uv_async_t *handle) {
 
 static int _datahub_post_init(datahub_t *hub, uv_loop_t *loop, uint32_t shadow_capacity,
                               const edge_tag_meta_t *metadata, uint32_t metadata_len,
-                              datahub_tag_map_cb map_fn, datahub_wakeup_filter_cb wakeup_fn) {
+                              struct net_buf_pool *io_pool, datahub_tag_map_cb map_fn,
+                              datahub_wakeup_filter_cb wakeup_fn) {
     hub->loop = loop;
     hub->shadow_capacity = shadow_capacity;
     hub->metadata_table = metadata;
     hub->metadata_count = metadata_len;
+    hub->io_pool = io_pool;
     hub->map_fn = map_fn;
     hub->wakeup_fn = wakeup_fn;
 
@@ -39,7 +41,8 @@ static int _datahub_post_init(datahub_t *hub, uv_loop_t *loop, uint32_t shadow_c
 
 int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slots,
                  uint32_t shadow_capacity, const edge_tag_meta_t *metadata, uint32_t metadata_len,
-                 datahub_tag_map_cb map_fn, datahub_wakeup_filter_cb wakeup_fn) {
+                 struct net_buf_pool *io_pool, datahub_tag_map_cb map_fn,
+                 datahub_wakeup_filter_cb wakeup_fn) {
     memset(hub, 0, sizeof(*hub));
 
     if (shmring_create(&hub->ring, name, slots) != 0) return -1;
@@ -57,14 +60,15 @@ int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slo
         }
     }
 
-    return _datahub_post_init(hub, loop, shadow_capacity, metadata, metadata_len, map_fn,
+    return _datahub_post_init(hub, loop, shadow_capacity, metadata, metadata_len, io_pool, map_fn,
                               wakeup_fn);
 }
 
 int datahub_init_from_fd(datahub_t *hub, uv_loop_t *loop, int ring_fd, size_t ring_size,
                          int shadow_fd, size_t shadow_size, uint32_t compact_capacity,
                          const edge_tag_meta_t *metadata, uint32_t metadata_len,
-                         datahub_tag_map_cb map_fn, datahub_wakeup_filter_cb wakeup_fn) {
+                         struct net_buf_pool *io_pool, datahub_tag_map_cb map_fn,
+                         datahub_wakeup_filter_cb wakeup_fn) {
     memset(hub, 0, sizeof(*hub));
 
     if (shmring_init_from_fd(&hub->ring, ring_fd, ring_size) != 0) {
@@ -78,7 +82,7 @@ int datahub_init_from_fd(datahub_t *hub, uv_loop_t *loop, int ring_fd, size_t ri
         hub->shadow_size = shadow_size;
     }
 
-    return _datahub_post_init(hub, loop, compact_capacity, metadata, metadata_len, map_fn,
+    return _datahub_post_init(hub, loop, compact_capacity, metadata, metadata_len, io_pool, map_fn,
                               wakeup_fn);
 }
 
@@ -108,7 +112,6 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
         }
     }
 
-    // [注入利用] 使用注入的唤醒判定函数
     bool needs_wakeup = true;
     if (hub->wakeup_fn) {
         needs_wakeup = hub->wakeup_fn(msg->tag_id);

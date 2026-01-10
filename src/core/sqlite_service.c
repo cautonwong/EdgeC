@@ -31,9 +31,35 @@ struct sqlite_svc_s {
     uv_mutex_t buf_lock;
     uv_work_t work_req;
     uv_timer_t flush_timer;
+    uv_timer_t gc_timer; /**< [Phase 9] 存储审计定时器 */
     int is_flushing;
     char current_shard[64];
 };
+
+// --- 存储空间审计 (Task 8) ---
+#include <sys/stat.h>
+
+static void _on_storage_gc(uv_timer_t *handle) {
+    sqlite_svc_t *svc = (sqlite_svc_t *)handle->data;
+    if (svc->config.max_db_size_mb == 0) return;
+
+    struct stat st;
+    if (stat(svc->config.db_path, &st) == 0) {
+        uint64_t size_mb = (uint64_t)st.st_size / (1024 * 1024);
+        if (size_mb > svc->config.max_db_size_mb) {
+            LOG_WARN(LOG_CAT_CORE, "DB: Size %lu MB exceeds limit %u MB. Triggering GC...",
+                     (unsigned long)size_mb, svc->config.max_db_size_mb);
+
+            // 简单策略：删除最早的 10% 数据
+            sqlite3_exec(svc->db,
+                         "DELETE FROM telemetry WHERE ts < (SELECT MIN(ts) + (MAX(ts)-MIN(ts))/10 "
+                         "FROM telemetry);",
+                         NULL, NULL, NULL);
+            // 释放空间
+            sqlite3_exec(svc->db, "PRAGMA incremental_vacuum;", NULL, NULL, NULL);
+        }
+    }
+}
 
 // --- 1. 内部工具 ---
 
@@ -198,6 +224,12 @@ sqlite_svc_t *sqlite_svc_create(uv_loop_t *loop, sqlite_config_t *cfg) {
         int interval = cfg->flush_interval_ms > 0 ? cfg->flush_interval_ms : 1000;
         uv_timer_start(&svc->flush_timer, _on_timer, (uint64_t)interval, (uint64_t)interval);
     }
+
+    // 初始化 GC 定时器 (每分钟检查一次)
+    uv_timer_init(loop, &svc->gc_timer);
+    svc->gc_timer.data = svc;
+    uv_timer_start(&svc->gc_timer, _on_storage_gc, 60000, 60000);
+
     return svc;
 }
 
@@ -295,6 +327,12 @@ int sqlite_svc_commit_trans(sqlite_svc_t *svc) {
 
 void sqlite_svc_destroy(sqlite_svc_t *svc) {
     if (!svc) return;
+
+    uv_timer_stop(&svc->gc_timer);
+    if (!uv_is_closing((uv_handle_t *)&svc->gc_timer)) {
+        uv_close((uv_handle_t *)&svc->gc_timer, NULL);
+    }
+
     if (svc->active_buf) {
         uv_timer_stop(&svc->flush_timer);
         while (svc->is_flushing) uv_run(svc->loop, UV_RUN_ONCE);
