@@ -37,13 +37,16 @@ enabled_tags:
     attributes:
       upload: true
       persist: true
+      poll_interval_ms: 5000
   - tag: GRID_POWER
     attributes:
       upload: true
+      poll_interval_ms: 1000
   - tag: ENERGY_ACTIVE_IMPORT
     attributes:
       upload: true
       persist: true
+      poll_interval_ms: 10000
   - GRID_FREQUENCY
   - BATTERY_SOC
   - BATTERY_POWER

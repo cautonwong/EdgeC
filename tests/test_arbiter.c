@@ -53,7 +53,7 @@ static void test_arbiter_preempt(void **state) {
     arbiter_submit_cmd(ctx->arb, 0, high);
 
     // 3. 模拟低优先级完成 (注意：由于注册了 cleanup，此命令会被物理 free)
-    arbiter_on_io_done(ctx->arb, 0, low);
+    arbiter_on_io_done(ctx->arb, 0, low, 0);
 
     for (int i = 0; i < 50; i++) {
         uv_run(&ctx->loop, UV_RUN_ONCE);
@@ -61,7 +61,7 @@ static void test_arbiter_preempt(void **state) {
     }
     assert_int_equal(ctx->started_flags[1], 1);
 
-    arbiter_on_io_done(ctx->arb, 0, high);
+    arbiter_on_io_done(ctx->arb, 0, high, 0);
 }
 
 static int setup(void **state) {

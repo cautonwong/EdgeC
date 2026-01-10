@@ -33,7 +33,8 @@ static void _master_on_timeout(uv_timer_t *handle) {
         LOG_WARN(LOG_CAT_BUS, "Bus %d Timeout on cmd %s [%s]", priv->bus_id,
                  priv->current_cmd->req_id, priv->current_proto);
         priv->io->ops->enable_read(priv->io, false);
-        if (priv->arb) arbiter_on_io_done(priv->arb, priv->bus_id, priv->current_cmd);
+        if (priv->arb)
+            arbiter_on_io_done(priv->arb, priv->bus_id, priv->current_cmd, CMD_STATUS_TIMEOUT);
         priv->current_cmd = NULL;
     }
 }
@@ -45,7 +46,7 @@ static void _master_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *u
 
     if (evt == IO_EVENT_ERROR) {
         if (priv->current_cmd) {
-            arbiter_on_io_done(priv->arb, priv->bus_id, priv->current_cmd);
+            arbiter_on_io_done(priv->arb, priv->bus_id, priv->current_cmd, CMD_STATUS_IO_ERROR);
             priv->current_cmd = NULL;
         }
         priv->io->ops->enable_read(priv->io, false);
@@ -94,7 +95,7 @@ static void _master_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *u
             uv_timer_stop(&priv->timer);
             priv->io->ops->enable_read(priv->io, false);
             if (priv->current_cmd) {
-                arbiter_on_io_done(priv->arb, priv->bus_id, priv->current_cmd);
+                arbiter_on_io_done(priv->arb, priv->bus_id, priv->current_cmd, CMD_STATUS_SUCCESS);
                 priv->current_cmd = NULL;
             }
         }
@@ -127,7 +128,7 @@ static void _master_run_command(bus_engine_t *self, cmd_msg_t *cmd) {
         if (!priv->drv_ctx) {
             LOG_ERROR(LOG_CAT_BUS, "Bus %d: Failed to load driver '%s'", priv->bus_id,
                       cmd->protocol);
-            arbiter_on_io_done(priv->arb, priv->bus_id, cmd);
+            arbiter_on_io_done(priv->arb, priv->bus_id, cmd, CMD_STATUS_PROTO_ERROR);
             return;
         }
         priv->drv_ctx->role = PROTOCOL_ROLE_MASTER;
@@ -160,7 +161,7 @@ static void _master_run_command(bus_engine_t *self, cmd_msg_t *cmd) {
         } else {
             net_buf_unref(tx);
             uv_timer_stop(&priv->timer);
-            arbiter_on_io_done(priv->arb, priv->bus_id, cmd);
+            arbiter_on_io_done(priv->arb, priv->bus_id, cmd, CMD_STATUS_PROTO_ERROR);
         }
     }
 }

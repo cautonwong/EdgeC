@@ -133,7 +133,14 @@ void arbiter_set_exclusive(arbiter_t *arb, int bus_id, bool exclusive);
 /**
  * @brief 驱动层回调：任务完成
  */
-void arbiter_on_io_done(arbiter_t *arb, int bus_id, cmd_msg_t *cmd);
+typedef enum {
+    CMD_STATUS_SUCCESS = 0,
+    CMD_STATUS_TIMEOUT = -1,
+    CMD_STATUS_IO_ERROR = -2,
+    CMD_STATUS_PROTO_ERROR = -3,
+} cmd_status_t;
+
+void arbiter_on_io_done(arbiter_t *arb, int bus_id, cmd_msg_t *msg, int status);
 
 /**
  * @brief 销毁仲裁器并回收内存

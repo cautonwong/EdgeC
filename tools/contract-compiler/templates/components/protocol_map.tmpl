@@ -58,7 +58,6 @@ edge_tag_id_t edge_lookup_{{ $lowerProto }}(uint32_t key, float *scale) {
 }
 
 // 4. 反向查找表 (按照 TagID 稠密索引排列)
-{{- if or (eq .Proto "IEC104") (eq .Proto "IEC101") (eq .Proto "DLMS") }}
 static const {{ $lowerProto }}_map_t s_{{ $lowerProto }}_rev_table[] = {
 {{- range $i, $tag := .AllTags }}
     {{- $binding := index $.PMap .Name }}
@@ -67,8 +66,10 @@ static const {{ $lowerProto }}_map_t s_{{ $lowerProto }}_rev_table[] = {
         {{- if eq .ProtocolType $.Proto }}
         {{- if eq $.Proto "DLMS" }}
         { { {{ range $j, $b := .OBIS }}{{ if $j }}, {{ end }}{{ $b }}{{ end }} }, {{ .ClassID }}, {{ .AttrID }}, TAG_{{ .TagName }}, {{ .Scale }}, {{ .Access }} }, // TagID {{ .TagID }}
+        {{- else if or (eq $.Proto "IEC104") (eq $.Proto "IEC101") }}
+        { (uint32_t){{ .IOA }}, TAG_{{ .TagName }}, {{ .Scale }}, {{ .IecType }}, {{ .Flags }}, {{ .DeadBand }}, {{ .GroupID }}, {{ .ByteLen }}, {{ .Access }} }, // TagID {{ .TagID }}
         {{- else }}
-        { (uint32_t){{ .IOA }}, TAG_{{ .TagName }}, {{ .Scale }}, {{ .IecType }}, {{ .Flags }}, {{ .ByteLen }}, {{ .Access }} }, // TagID {{ .TagID }}
+        { (uint32_t){{ .RawKey }}, TAG_{{ .TagName }}, {{ .Scale }}, {{ .ByteLen }}, {{ .Access }} }, // TagID {{ .TagID }}
         {{- end }}
         {{- $found = true }}
         {{- end }}
@@ -85,7 +86,6 @@ const {{ $lowerProto }}_map_t* edge_get_map_{{ $lowerProto }}_by_tag(edge_tag_id
     const {{ $lowerProto }}_map_t* m = &s_{{ $lowerProto }}_rev_table[idx];
     return (m->tag_id != 0) ? m : NULL;
 }
-{{- end }}
 {{- else }}
 // Stub for {{ .Proto }}
 const {{ $lowerProto }}_map_t* edge_get_map_{{ $lowerProto }}(uint32_t key) { (void)key; return NULL; }

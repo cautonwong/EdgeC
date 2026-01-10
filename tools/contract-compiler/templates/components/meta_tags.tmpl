@@ -12,7 +12,8 @@ const edge_tag_meta_t g_tag_metadata[] = {
         {{ index .Attributes "min" | default -1000000 }}, 
         {{ index .Attributes "max" | default 1000000 }}, 
         {{ if index .Attributes "persist" }}true{{ else }}false{{ end }}, 
-        {{ if index .Attributes "upload" }}true{{ else }}false{{ end }} 
+        {{ if index .Attributes "upload" }}true{{ else }}false{{ end }},
+        {{ index .Attributes "poll_interval_ms" | default 0 }}
     },
 {{- end }}
 };

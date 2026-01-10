@@ -37,6 +37,7 @@ typedef struct {
     double max;
     bool persist;
     bool upload;
+    uint32_t poll_interval_ms; /**< [Phase 4] 自动轮询周期 (0表示不自动轮询) */
 } edge_tag_meta_t;
 
 // --- 通用协议映射结构 (Phase 4 增强版) ---

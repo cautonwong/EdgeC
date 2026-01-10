@@ -90,7 +90,7 @@ int arbiter_submit_cmd(arbiter_t *arb, int bus_id, cmd_msg_t *cmd) {
     return 0;
 }
 
-void arbiter_on_io_done(arbiter_t *arb, int bus_id, cmd_msg_t *cmd) {
+void arbiter_on_io_done(arbiter_t *arb, int bus_id, cmd_msg_t *cmd, int status) {
     if (!arb || bus_id >= MAX_BUSES || !cmd) return;
 
     if (arb->buses[bus_id].owner == cmd) {
@@ -98,7 +98,7 @@ void arbiter_on_io_done(arbiter_t *arb, int bus_id, cmd_msg_t *cmd) {
         arb->buses[bus_id].owner = NULL;
 
         // 触发逻辑完成通知 (但不立即释放内存)
-        if (cmd->on_complete) cmd->on_complete(cmd, 0);
+        if (cmd->on_complete) cmd->on_complete(cmd, status);
 
         // [核心补强] 延迟释放：将任务放入僵尸列表，由 Arbiter 下一个 Tick 物理回收
         // 这避开了当前可能还在执行该任务逻辑的函数调用栈
