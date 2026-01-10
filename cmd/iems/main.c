@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 #include <time.h>
 #include <unistd.h>
 #include <uv.h>
@@ -23,14 +25,20 @@ extern int modbus_driver_register(driver_manager_t *mgr);
 static service_t *g_running_svc = NULL;
 static datahub_t *g_hub = NULL;
 static bus_orchestrator_t *g_io_orch = NULL;
-static arbiter_t *g_arb = NULL;
 static uv_timer_t *g_poll_timer = NULL;
 
+static void on_sigterm(int sig) {
+    (void)sig;
+    if (g_running_svc) service_stop(g_running_svc);
+}
+
 static void on_poll_timer(uv_timer_t *handle) {
+    (void)handle;
     if (!g_io_orch) return;
     cmd_msg_t cmd = {0};
     cmd_msg_init_read(&cmd, 1001, ARBITER_PRIO_NORMAL);
     strncpy(cmd.protocol, "ModbusRTU", 15);
+    snprintf(cmd.req_id, sizeof(cmd.req_id), "POLL_%lu", (unsigned long)time(NULL));
     bus_orchestrator_submit_cmd(g_io_orch, 0, &cmd);
 }
 
@@ -42,24 +50,24 @@ static void on_new_sim_conn(uv_stream_t *server, int status) {
     if (uv_accept(server, (uv_stream_t *)client) == 0) {
         int fd;
         uv_fileno((const uv_handle_t *)client, &fd);
-        io_handle_t *h = io_executor_create_from_fd(server->loop, fd, g_hub->io_pool);
+        // [关键] 必须设置为非阻塞
+        int flags = fcntl(fd, F_GETFL, 0);
+        fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 
+        io_handle_t *h = io_executor_create_from_fd(server->loop, fd, g_hub->io_pool);
         bus_orchestrator_setup_master(g_io_orch, 0, "ModbusRTU", 1, NULL);
         bus_orchestrator_attach_io(g_io_orch, 0, h);
+        h->ops->enable_read(h, true);
 
         if (!g_poll_timer) {
             g_poll_timer = malloc(sizeof(uv_timer_t));
             uv_timer_init(server->loop, g_poll_timer);
-            uv_timer_start(g_poll_timer, on_poll_timer, 100, 1000);
+            g_poll_timer->data = g_io_orch;
+            uv_timer_start(g_poll_timer, on_poll_timer, 100, 500);
         }
     } else {
         uv_close((uv_handle_t *)client, (uv_close_cb)free);
     }
-}
-
-static void on_sigterm(int sig) {
-    (void)sig;
-    if (g_running_svc) service_stop(g_running_svc);
 }
 
 int main(int argc, char **argv) {
@@ -70,20 +78,20 @@ int main(int argc, char **argv) {
 
     arbiter_t *arbiter = NULL;
     arbiter_init(&arbiter, loop);
-    g_arb = arbiter;
 
     driver_manager_t *drv_mgr = driver_manager_create();
     modbus_driver_register(drv_mgr);
 
     datahub_t hub;
-    datahub_init(&hub, loop, "iems_v4.5", 1024, g_tag_metadata_len, g_tag_metadata,
-                 g_tag_metadata_len, NULL, edge_tag_get_compact_index, edge_router_needs_wakeup);
+    datahub_init(&hub, loop, "iems_v4.5", 1024, 1024, g_tag_metadata, g_tag_metadata_len, NULL,
+                 edge_tag_get_compact_index, edge_router_needs_wakeup);
     g_hub = &hub;
 
     bus_orchestrator_t *io_orch = bus_orchestrator_create(&hub, arbiter, drv_mgr, 8, 32, 2048);
     hub.io_pool = bus_orchestrator_get_pool(io_orch);
     g_io_orch = io_orch;
 
+    // --- [Omnis] 异步 UDS 监听 ---
     uv_pipe_t vbus_server;
     uv_pipe_init(loop, &vbus_server, 0);
     unlink("/tmp/vbus0.sock");
@@ -111,7 +119,15 @@ int main(int argc, char **argv) {
     bus_orchestrator_run(io_orch);
     int exit_code = service_run(svc);
 
-    // 物理退出，不再执行容易导致递归崩溃的逻辑
-    fprintf(stderr, "[OMNIS] System exiting with code %d\n", exit_code);
+    service_delete(svc);
+    northbound_mgr_stop(north_mgr);
+    free(north_mgr);
+    bus_orchestrator_destroy(io_orch);
+    stream_engine_destroy(stream_engine);
+    driver_manager_destroy(drv_mgr);
+    arbiter_destroy(arbiter);
+    sqlite_svc_destroy(db_service);
+    datahub_destroy(&hub);
+    edge_log_destroy(logger);
     return exit_code;
 }

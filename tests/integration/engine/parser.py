@@ -12,8 +12,8 @@ class ContractParser:
         with open(generated_yaml_path, 'r') as f:
             self.data = yaml.safe_load(f)
             
-        self.tags = {t['name']: t for t in self.data.get('tags', [])}
-        self.id_map = {t['id']: t for t in self.data.get('tags', [])}
+        self.tags = {t['name']: t for t in self.data.get('active_tags', [])}
+        self.id_map = {t['id']: t for t in self.data.get('active_tags', [])}
 
     def get_tag(self, name):
         return self.tags.get(name)

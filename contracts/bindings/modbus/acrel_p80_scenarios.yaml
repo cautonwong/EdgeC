@@ -4,3 +4,7 @@ steps:
     action: "inject"
     tag: "VOLTAGE_PHASE_A"
     value: 220.0
+  - t: 2
+    action: "check_api"
+    tag: "VOLTAGE_PHASE_A"
+    expect: 220.0

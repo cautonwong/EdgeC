@@ -7,6 +7,7 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <termios.h>
 #include <unistd.h>
 #include <uv.h>
@@ -32,9 +33,8 @@ typedef struct {
     net_buf_t *pending_tx;
     io_type_t type;
 
-    // UDP 专用：目标地址
     struct sockaddr_in udp_dest;
-    net_buf_t *udp_rx_nb;  // 替代非法的 handle->extra
+    net_buf_t *udp_rx_nb;
 } linux_io_handle_t;
 
 /* --- 1. 基于 Poll (FD) 的通用处理 (UART, CAN, UDS) --- */
@@ -47,24 +47,45 @@ static void _on_uv_poll(uv_poll_t *handle, int status, int events) {
     }
 
     if (events & UV_READABLE) {
-        net_buf_t *rx = net_buf_alloc(impl->pool, 0);
-        if (rx) {
+        while (1) {
+            net_buf_t *rx = net_buf_alloc(impl->pool, 0);
+            if (!rx) break;
             ssize_t n = read(impl->fd, rx->b.data, rx->b.size);
             if (n > 0) {
                 rx->b.len = (uint16_t)n;
+                fprintf(stderr, "[IO] FD %d READ %zd bytes\n", impl->fd, n);
                 impl->base.cb(&impl->base, IO_EVENT_RX, rx, impl->base.user_data);
+                net_buf_unref(rx);
+            } else {
+                net_buf_unref(rx);
+                if (n == 0) {
+                    fprintf(stderr, "[IO] FD %d peer closed\n", impl->fd);
+                    impl->base.cb(&impl->base, IO_EVENT_ERROR, NULL, impl->base.user_data);
+                } else if (errno != EAGAIN && errno != EINTR) {
+                    fprintf(stderr, "[IO] FD %d read error: %s\n", impl->fd, strerror(errno));
+                    impl->base.cb(&impl->base, IO_EVENT_ERROR, NULL, impl->base.user_data);
+                }
+                break;
             }
-            net_buf_unref(rx);
         }
     }
 
     if (events & UV_WRITABLE) {
         if (impl->pending_tx) {
-            net_buf_t *buf = impl->pending_tx;
-            impl->pending_tx = NULL;
-            impl->base.cb(&impl->base, IO_EVENT_TX_DONE, NULL, impl->base.user_data);
-            net_buf_unref(buf);
-            uv_poll_start(&impl->handle.poll, UV_READABLE, _on_uv_poll);
+            ssize_t n = write(impl->fd, impl->pending_tx->b.data, impl->pending_tx->b.len);
+            if (n > 0) {
+                fprintf(stderr, "[IO] FD %d WRITE DONE\n", impl->fd);
+                net_buf_t *buf = impl->pending_tx;
+                impl->pending_tx = NULL;
+                uv_poll_start(handle, UV_READABLE, _on_uv_poll);
+                impl->base.cb(&impl->base, IO_EVENT_TX_DONE, NULL, impl->base.user_data);
+                net_buf_unref(buf);
+            } else if (errno != EAGAIN && errno != EINTR) {
+                fprintf(stderr, "[IO] FD %d write error: %s\n", impl->fd, strerror(errno));
+                impl->base.cb(&impl->base, IO_EVENT_ERROR, NULL, impl->base.user_data);
+            }
+        } else {
+            uv_poll_start(handle, UV_READABLE, _on_uv_poll);
         }
     }
 }
@@ -79,14 +100,30 @@ static int _poll_write_async(io_handle_t *h, net_buf_t *buf) {
     linux_io_handle_t *impl = (linux_io_handle_t *)h;
     if (impl->pending_tx) return -EBUSY;
     impl->pending_tx = net_buf_ref(buf);
-    ssize_t n = write(impl->fd, buf->b.data, buf->b.len);
-    if (n < 0 && errno != EAGAIN) {
-        net_buf_unref(impl->pending_tx);
-        impl->pending_tx = NULL;
-        return -errno;
+    return uv_poll_start(&impl->handle.poll, UV_READABLE | UV_WRITABLE, _on_uv_poll);
+}
+
+static int _poll_ioctl(io_handle_t *h, int cmd, void *arg) {
+    linux_io_handle_t *impl = (linux_io_handle_t *)h;
+    if (cmd == IO_CTL_SET_BAUD && impl->type == IO_TYPE_UART) {
+        uint32_t baud = *(uint32_t *)arg;
+        struct termios options;
+        tcgetattr(impl->fd, &options);
+        speed_t speed = B9600;
+        switch (baud) {
+            case 9600:
+                speed = B9600;
+                break;
+            case 115200:
+                speed = B115200;
+                break;
+        }
+        cfsetispeed(&options, speed);
+        cfsetospeed(&options, speed);
+        tcsetattr(impl->fd, TCSANOW, &options);
+        return 0;
     }
-    uv_poll_start(&impl->handle.poll, UV_READABLE | UV_WRITABLE, _on_uv_poll);
-    return 0;
+    return -1;
 }
 
 /* --- 2. 基于 UDP 的处理 --- */
@@ -142,8 +179,6 @@ static int _udp_write_async(io_handle_t *h, net_buf_t *buf) {
                        _on_udp_send_done);
 }
 
-/* --- 3. 统一工厂与配置 --- */
-
 static void _on_handle_close(uv_handle_t *handle) {
     linux_io_handle_t *impl = (linux_io_handle_t *)handle->data;
     if (impl->fd >= 0) close(impl->fd);
@@ -159,7 +194,7 @@ static void _linux_destroy(io_handle_t *h) {
 
 static const io_ops_t poll_ops = {.enable_read = _poll_enable_read,
                                   .write_async = _poll_write_async,
-                                  .ioctl = NULL,
+                                  .ioctl = _poll_ioctl,
                                   .destroy = _linux_destroy};
 static const io_ops_t udp_ops = {.enable_read = _udp_enable_read,
                                  .write_async = _udp_write_async,
@@ -171,7 +206,7 @@ io_handle_t *io_executor_create(uv_loop_t *loop, const io_config_t *cfg, net_buf
     impl->pool = pool;
     impl->type = cfg->type;
     impl->fd = -1;
-    impl->handle.poll.data = impl;  // 统一设置 data
+    impl->handle.poll.data = impl;
 
     switch (cfg->type) {
         case IO_TYPE_UART: {
@@ -185,17 +220,18 @@ io_handle_t *io_executor_create(uv_loop_t *loop, const io_config_t *cfg, net_buf
             uv_poll_init(loop, &impl->handle.poll, fd);
             break;
         }
-        case IO_TYPE_CAN: {
-            int fd = socket(PF_CAN, SOCK_RAW, CAN_RAW);
+        case IO_TYPE_UDS: {
+            int fd = socket(AF_UNIX, SOCK_STREAM, 0);
             if (fd < 0) {
                 free(impl);
                 return NULL;
             }
-            struct ifreq ifr;
-            strncpy(ifr.ifr_name, cfg->params.can.ifname, IFNAMSIZ - 1);
-            ioctl(fd, SIOCGIFINDEX, &ifr);
-            struct sockaddr_can addr = {.can_family = AF_CAN, .can_ifindex = ifr.ifr_ifindex};
-            if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+            struct sockaddr_un addr;
+            memset(&addr, 0, sizeof(addr));
+            addr.sun_family = AF_UNIX;
+            strncpy(addr.sun_path, cfg->params.uds.path, sizeof(addr.sun_path) - 1);
+            unlink(addr.sun_path);
+            if (bind(fd, (const struct sockaddr *)&addr, sizeof(addr)) < 0 || listen(fd, 5) < 0) {
                 close(fd);
                 free(impl);
                 return NULL;
@@ -212,11 +248,9 @@ io_handle_t *io_executor_create(uv_loop_t *loop, const io_config_t *cfg, net_buf
             inet_pton(AF_INET, cfg->params.udp.local_ip, &local_addr.sin_addr);
             local_addr.sin_port = htons(cfg->params.udp.local_port);
             uv_udp_bind(&impl->handle.udp, (const struct sockaddr *)&local_addr, 0);
-
             impl->udp_dest.sin_family = AF_INET;
             inet_pton(AF_INET, cfg->params.udp.remote_ip, &impl->udp_dest.sin_addr);
             impl->udp_dest.sin_port = htons(cfg->params.udp.remote_port);
-
             impl->base.ops = &udp_ops;
             break;
         }

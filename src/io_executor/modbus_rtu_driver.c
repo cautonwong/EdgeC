@@ -44,14 +44,31 @@ static int modbus_v3_encode_request(edge_driver_ctx_t *ctx, const uint32_t *tag_
     modbus_ctx_t *priv = (modbus_ctx_t *)ctx->priv;
     if (count == 0) return -1;
 
-    uint32_t addr = tag_ids[0];
-    priv->last_requested_tag = addr;
+    uint32_t tag_id = tag_ids[0];
+    uint16_t reg_addr = 0;
+    bool found = false;
+
+    // [核心修复] 使用契约反查物理地址
+    if (ctx->lookup_by_tag) {
+        const modbus_map_t *map = (const modbus_map_t *)ctx->lookup_by_tag(tag_id);
+        if (map) {
+            reg_addr = (uint16_t)map->key;
+            found = true;
+        }
+    }
+
+    if (!found) {
+        fprintf(stderr, "[ERROR][Modbus] Failed to find physical address for Tag %u\n", tag_id);
+        return -1;
+    }
+
+    priv->last_requested_tag = tag_id;
 
     uint8_t *p = net_buf_add(out, 8);
     p[0] = priv->slave_id;
     p[1] = 0x03;
-    p[2] = (uint8_t)((addr >> 8) & 0xFF);
-    p[3] = (uint8_t)(addr & 0xFF);
+    p[2] = (uint8_t)((reg_addr >> 8) & 0xFF);
+    p[3] = (uint8_t)(reg_addr & 0xFF);
     p[4] = 0x00;
     p[5] = 0x01;  // Count=1
 
@@ -59,6 +76,7 @@ static int modbus_v3_encode_request(edge_driver_ctx_t *ctx, const uint32_t *tag_
     p[6] = (uint8_t)(crc & 0xFF);
     p[7] = (uint8_t)(crc >> 8);
 
+    fprintf(stderr, "[DEBUG][Modbus] Encoded Request: Tag %u -> Reg %u\n", tag_id, reg_addr);
     return 0;
 }
 
@@ -68,6 +86,10 @@ static int modbus_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_
     (void)resp_out;
     modbus_ctx_t *priv = (modbus_ctx_t *)ctx->priv;
     *consumed = 0;
+
+    fprintf(stderr, "[MODBUS] Decoding Response (%u bytes): ", in->b.len);
+    for (uint16_t i = 0; i < in->b.len; i++) fprintf(stderr, "%02X ", in->b.data[i]);
+    fprintf(stderr, "\n");
 
     if (in->b.len < 5) return EDGE_ERR_INCOMPLETE;
 
@@ -88,16 +110,29 @@ static int modbus_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_
     if (in->b.len < expected_len) return EDGE_ERR_INCOMPLETE;
     *consumed = expected_len;
 
-    uint16_t crc_calc = _calc_crc(data, expected_len - 2);
+    uint16_t crc_calc = _calc_crc(data, (size_t)(expected_len - 2));
     uint16_t crc_rx = (uint16_t)(data[expected_len - 2] | (data[expected_len - 1] << 8));
-    if (crc_calc != crc_rx) return -1;
+    if (crc_calc != crc_rx) {
+        fprintf(stderr, "[ERROR][Modbus] CRC Mismatch! Calc: %04X, RX: %04X\n", crc_calc, crc_rx);
+        return -1;
+    }
 
     if (fc == 0x03) {
         uint16_t val = (uint16_t)((data[3] << 8) | data[4]);
         uint32_t tid = priv->last_requested_tag;
-        if (tid == 0) tid = 1001;
-        pipe_msg_init_scalar(&out_msgs[0], tid, (double)val, (uint64_t)time(NULL) * 1000);
+        float scale = 1.0f;
+
+        // [补强] 再次使用契约获取缩放系数
+        if (ctx->lookup_by_tag) {
+            const modbus_map_t *map = (const modbus_map_t *)ctx->lookup_by_tag(tid);
+            if (map) scale = map->scaler;
+        }
+
+        pipe_msg_init_scalar(&out_msgs[0], tid, (double)val * (double)scale,
+                             (uint64_t)time(NULL) * 1000);
         *msg_count = 1;
+        fprintf(stderr, "[DEBUG][Modbus] Decoded Response: Tag %u Val %f (Raw %u, Scale %f)\n", tid,
+                (double)val * (double)scale, val, (double)scale);
         return 0;
     }
 

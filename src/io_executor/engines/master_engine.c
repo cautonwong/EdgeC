@@ -112,7 +112,13 @@ static void _master_attach(bus_engine_t *self, io_handle_t *io) {
 
 static void _master_run_command(bus_engine_t *self, cmd_msg_t *cmd) {
     master_priv_t *priv = (master_priv_t *)self->user_data;
-    if (!priv->io) return;
+    if (!priv->io) {
+        fprintf(stderr, "[ENGINE] Bus %d error: IO not attached\n", priv->bus_id);
+        return;
+    }
+
+    fprintf(stderr, "[ENGINE] Bus %d executing command %s (Tag %u)\n", priv->bus_id, cmd->req_id,
+            cmd->tag_id);
 
     // --- 核心重整：多协议动态切换 (Context Switching) ---
     if (cmd->protocol[0] != '\0' && strcmp(cmd->protocol, priv->current_proto) != 0) {
@@ -156,7 +162,9 @@ static void _master_run_command(bus_engine_t *self, cmd_msg_t *cmd) {
         uint32_t tags[1] = {cmd->tag_id};
         if (priv->drv_ctx &&
             priv->drv_ctx->driver->encode_request(priv->drv_ctx, tags, 1, tx) == 0) {
-            fprintf(stderr, "[DEBUG][Node 3] MasterEngine sending %u bytes to IO\n", tx->b.len);
+            fprintf(stderr, "[DEBUG][Node 3] MasterEngine sending %u bytes: ", tx->b.len);
+            for (uint16_t i = 0; i < tx->b.len; i++) fprintf(stderr, "%02X ", tx->b.data[i]);
+            fprintf(stderr, "\n");
             priv->io->ops->enable_read(priv->io, true);
             priv->io->ops->write_async(priv->io, tx);
         } else {

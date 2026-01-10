@@ -109,6 +109,12 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
             uv_mutex_lock(&hub->shadow_lock);
             hub->shadow_table[idx] = *msg;
             uv_mutex_unlock(&hub->shadow_lock);
+            // fprintf(stderr, "[DEBUG][DataHub] Shadow updated for Tag %u at Index %d\n",
+            // msg->tag_id, idx);
+        } else {
+            fprintf(stderr,
+                    "[ERROR][DataHub] Shadow Index OUT OF BOUNDS for Tag %u (idx: %d, cap: %u)\n",
+                    msg->tag_id, idx, hub->shadow_capacity);
         }
     }
 
@@ -140,11 +146,22 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
 int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out) {
     if (!hub || !hub->shadow_table || !out) return -1;
     int idx = hub->map_fn ? hub->map_fn(tag_id) : (int)tag_id;
-    if (idx < 0 || (uint32_t)idx >= hub->shadow_capacity) return -1;
+    if (idx < 0 || (uint32_t)idx >= hub->shadow_capacity) {
+        fprintf(stderr, "[ERROR][DataHub] Shadow Read OUT OF BOUNDS for Tag %u (idx: %d)\n", tag_id,
+                idx);
+        return -1;
+    }
     uv_mutex_lock(&hub->shadow_lock);
     *out = hub->shadow_table[idx];
     uv_mutex_unlock(&hub->shadow_lock);
-    return (out->tag_id == tag_id) ? 0 : -1;
+
+    if (out->tag_id != tag_id) {
+        // fprintf(stderr, "[DEBUG][DataHub] Shadow Read MISMATCH for Tag %u: found ID %u at Index
+        // %d\n",
+        //         tag_id, out->tag_id, idx);
+        return -1;
+    }
+    return 0;
 }
 
 void datahub_subscribe(datahub_t *hub, datahub_on_data_cb cb, void *user_data) {
