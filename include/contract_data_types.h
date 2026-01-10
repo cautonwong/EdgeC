@@ -136,16 +136,33 @@ typedef struct {
     const char *label;
 } hw_resource_info_t;
 
-// --- 数据处理管道元数据 ---
+// --- 数据处理管道元数据 (S17: Logic Orchestration) ---
+typedef struct {
+    const char *name;
+    const char *type;
+    struct {
+        double f1, f2;  /**< 常用浮点参数 (如 alpha, threshold) */
+        uint32_t u1;    /**< 常用整型参数 (如 target_tag) */
+        const char *s1; /**< 字符串参数 (如 script path) */
+    } params;
+} edge_stage_def_t;
+
 typedef struct {
     const char *id;
-    const char *trigger;
+    uint32_t trigger_tag;
+    const edge_stage_def_t *stages;
+    uint32_t stage_count;
 } edge_pipeline_def_t;
 
 // --- 决策策略元数据 ---
 typedef struct {
     const char *name;
     const char *type;
+    struct {
+        uint32_t interval;
+        const uint32_t *tags;
+        uint32_t tag_count;
+    } params;
 } edge_policy_def_t;
 
 // --- UI 配置元数据 ---

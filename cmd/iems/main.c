@@ -63,6 +63,12 @@ int main(int argc, char **argv) {
         .db_path = "iems.db", .strategy = STRATEGY_LITE, .max_db_size_mb = 100};
     sqlite_svc_t *db_service = sqlite_svc_create(loop, &db_conf);
     stream_engine_t *stream_engine = stream_engine_create(&hub, NULL);
+
+    // [S17] 静态逻辑注入
+    pipeline_loader_ctx_t pl_ctx = {.db = db_service, .orch = io_orch};
+    stream_engine_load_static_metadata(stream_engine, g_pipeline_metadata, g_pipeline_metadata_len,
+                                       &pl_ctx);
+
     edge_params_t *param_mgr = edge_params_create(db_service);
 
     // 6. 北向

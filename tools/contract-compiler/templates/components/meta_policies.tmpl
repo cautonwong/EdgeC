@@ -1,8 +1,28 @@
 {{- define "meta_policies" -}}
-// [Policies]
+// [Policies - Parameters & Tags]
+{{- range .Policies }}
+{{- $tags := index .Attributes "tags" }}
+{{- if $tags }}
+static const uint32_t _policy_tags_{{ .Name }}[] = {
+    {{- range $tags }}
+    TAG_{{ . }},
+    {{- end }}
+};
+{{- end }}
+{{- end }}
+
+// [Policies - Global Metadata]
 const edge_policy_def_t g_policy_metadata[] = {
 {{- range .Policies }}
-    { "{{ .Name }}", "{{ index .Attributes "cron" | default "" }}", "{{ index .Attributes "script" | default "" | c_escape }}" },
+    { 
+        .name = "{{ .Name }}", 
+        .type = "{{ .Type }}",
+        .params = {
+            .interval = {{ index .Attributes "interval" | default 0 }},
+            .tags = {{ if index .Attributes "tags" }}_policy_tags_{{ .Name }}{{ else }}NULL{{ end }},
+            .tag_count = {{ if index .Attributes "tags" }}{{ len (index .Attributes "tags") }}{{ else }}0{{ end }}
+        }
+    },
 {{- end }}
 };
 const int g_policy_metadata_len = {{ len .Policies }};

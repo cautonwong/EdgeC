@@ -1,10 +1,30 @@
 {{- define "meta_pipelines" -}}
-// [Pipelines - Static Topology]
+// [Pipelines - Stage Definition Blocks]
+{{- range .Pipelines }}
+static const edge_stage_def_t _stages_{{ .ID }}[] = {
+    {{- range .Stages }}
+    {
+        .name = "{{ index . "name" }}",
+        .type = "{{ index . "type" }}",
+        .params = {
+            .f1 = {{ index . "alpha" | default (index . "min") | default 0.0 }},
+            .f2 = {{ index . "beta" | default (index . "max") | default (index . "threshold") | default 0.0 }},
+            .u1 = {{ index . "target_tag" | default 0 }},
+            .s1 = "{{ index . "script" | default "" }}"
+        }
+    },
+    {{- end }}
+};
+{{- end }}
+
+// [Pipelines - Global Metadata]
 const edge_pipeline_def_t g_pipeline_metadata[] = {
 {{- range .Pipelines }}
     { 
         .id = "{{ .ID }}", 
-        .trigger = "{{ .Trigger }}"
+        .trigger_tag = TAG_{{ .Trigger }},
+        .stages = _stages_{{ .ID }},
+        .stage_count = {{ len .Stages }}
     },
 {{- end }}
 };

@@ -80,6 +80,63 @@ static void _on_data_async(uv_async_t *handle) {
     }
 }
 
+// --- S17: 契约驱动静态装配 (Contract-Driven Assembly) ---
+
+static pipeline_stage_t *_create_stage_by_type(const edge_stage_def_t *def,
+                                               pipeline_loader_ctx_t *ctx) {
+    if (strcmp(def->type, "FILTER") == 0) return stage_filter_create((uint32_t)def->params.u1);
+    if (strcmp(def->type, "FILTER_RANGE") == 0)
+        return stage_filter_range_create(def->params.f1, def->params.f2);
+    if (strcmp(def->type, "TRANSFORM") == 0)
+        return stage_transform_create(def->params.f1, def->params.f2);
+    if (strcmp(def->type, "EMA") == 0) return stage_ema_create(def->params.f1);
+    if (strcmp(def->type, "CLAMP") == 0) return stage_clamp_create(def->params.f1, def->params.f2);
+    if (strcmp(def->type, "PEAK_SHAVE") == 0)
+        return stage_peak_shaving_create(def->params.f1, def->params.u1);
+    if (strcmp(def->type, "ACCUMULATE") == 0) return stage_accumulate_create();
+    if (strcmp(def->type, "FREEZE") == 0) return stage_periodic_freeze_create((int)def->params.u1);
+    if (strcmp(def->type, "TIME_GUARD") == 0) return stage_time_guard_create();
+    if (strcmp(def->type, "SQLITE_SINK") == 0 && ctx->db)
+        return stage_sqlite_sink_create(ctx->db, def->params.s1);
+    if (strcmp(def->type, "JS_RULE") == 0 && ctx->js_engine)
+        return stage_js_rule_create(ctx->js_engine, def->params.s1);
+    if (strcmp(def->type, "REFLEX") == 0 && ctx->orch) {
+        // 解码 REFLEX 参数：f1=threshold, f2=greater_than(0/1), u1=target_tag, s1=proto
+        return stage_reflex_logic_create(ctx->orch, 0, def->params.s1, def->params.u1,
+                                         def->params.f1, def->params.f2 > 0.5);
+    }
+    return NULL;
+}
+
+int stream_engine_load_static_metadata(stream_engine_t *engine, const edge_pipeline_def_t *metadata,
+                                       int count, pipeline_loader_ctx_t *ctx) {
+    if (!engine || !metadata) return -1;
+    LOG_INFO(LOG_CAT_SCHED, "StreamEngine: Assembling %d pipelines from static metadata.", count);
+
+    for (int i = 0; i < count; i++) {
+        const edge_pipeline_def_t *p_def = &metadata[i];
+        pipeline_t *p = stream_engine_add_pipeline(engine, p_def->id, p_def->trigger_tag);
+
+        for (uint32_t j = 0; j < p_def->stage_count; j++) {
+            const edge_stage_def_t *s_def = &p_def->stages[j];
+            pipeline_stage_t *stage = _create_stage_by_type(s_def, ctx);
+            if (stage) {
+                // 物理链接到 Pipeline
+                if (!p->head)
+                    p->head = p->tail = stage;
+                else {
+                    p->tail->next = stage;
+                    p->tail = stage;
+                }
+            } else {
+                LOG_WARN(LOG_CAT_SCHED, "StreamEngine: Failed to create stage '%s' of type '%s'",
+                         s_def->name, s_def->type);
+            }
+        }
+    }
+    return 0;
+}
+
 stream_engine_t *stream_engine_create(datahub_t *hub, engine_time_source_t *time_src) {
     // 注意：此函数应在 Stream Loop 所在的线程调用
     stream_engine_t *engine = calloc(1, sizeof(stream_engine_t));

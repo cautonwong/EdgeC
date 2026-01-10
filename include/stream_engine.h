@@ -82,6 +82,12 @@ pipeline_stage_t *pipeline_add_stage(pipeline_t *p, const char *name, stage_proc
 int stream_engine_load_config(stream_engine_t *engine, const char *json_path,
                               pipeline_loader_ctx_t *ctx);
 
+/**
+ * @brief [S17] 从注入的静态元数据装配逻辑管线
+ */
+int stream_engine_load_static_metadata(stream_engine_t *engine, const edge_pipeline_def_t *metadata,
+                                       int count, pipeline_loader_ctx_t *ctx);
+
 void stream_engine_push(stream_engine_t *engine, pipe_msg_t *msg);
 char *stream_engine_dump_json(stream_engine_t *engine);
 
