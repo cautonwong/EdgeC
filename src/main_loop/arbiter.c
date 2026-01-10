@@ -40,8 +40,9 @@ static void _arbiter_schedule(arbiter_t *arb, int bus_id) {
 
     bus->owner = job;
 
-    LOG_INFO(LOG_CAT_SCHED, "Arbiter: Dispatching Task %s (Prio %d) on Bus %d",
-             job->req_id[0] != '\0' ? job->req_id : "UNKNOWN", job->priority, bus_id);
+    LOG_INFO(LOG_CAT_SCHED, "Arbiter: Dispatching Task %s (Prio %d) on Bus %d [Queued: %lu ms]",
+             job->req_id[0] != '\0' ? job->req_id : "UNKNOWN", job->priority, bus_id,
+             (unsigned long)(uv_now(arb->tick.loop) - job->submit_ts));
 
     if (job->on_start) {
         job->on_start(job->user_data);
@@ -78,6 +79,8 @@ int arbiter_init(arbiter_t **arb_out, uv_loop_t *loop) {
 
 int arbiter_submit_cmd(arbiter_t *arb, int bus_id, cmd_msg_t *cmd) {
     if (!arb || arb->is_shutting_down || bus_id >= MAX_BUSES || !cmd) return -1;
+
+    cmd->submit_ts = uv_now(arb->tick.loop);
 
     // 按优先级插入队列
     cmd_msg_t **p = &arb->buses[bus_id].queue;

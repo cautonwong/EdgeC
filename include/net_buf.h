@@ -69,6 +69,7 @@ typedef struct net_buf_pool {
     uint16_t buf_size;
     uint16_t uninit_count;
     uint16_t user_data_size; /**< 每个 buffer 附带的元数据大小 */
+    uint16_t peak_usage;     /**< [Phase 6] 峰值使用量统计 */
     void (*destroy_cb)(net_buf_t *buf);
     void *user_data;
     uint8_t *storage;
@@ -168,11 +169,23 @@ int net_buf_pool_init(net_buf_pool_t *pool, uint16_t count, uint16_t size, uint1
 void net_buf_pool_destroy(net_buf_pool_t *pool);
 
 /**
+ * @brief 内存池审计统计数据
+ */
+typedef struct {
+    uint32_t total_count;
+    uint32_t free_count;
+    uint32_t leaked_reclaimed;
+    uint32_t peak_usage;
+} net_buf_pool_stats_t;
+
+/**
  * @brief 审计并强制回收长时间未释放的 buffer (泄漏看门狗)
  * @param age_threshold_ms 存活时间阈值 (毫秒)
+ * @param out_stats 输出统计信息 (可选)
  * @return 回收的数量
  */
-int net_buf_pool_audit(net_buf_pool_t *pool, uint64_t age_threshold_ms);
+int net_buf_pool_audit(net_buf_pool_t *pool, uint64_t age_threshold_ms,
+                       net_buf_pool_stats_t *out_stats);
 
 net_buf_t *net_buf_alloc(net_buf_pool_t *pool, int64_t timeout_ms);
 net_buf_t *net_buf_ref(net_buf_t *buf);

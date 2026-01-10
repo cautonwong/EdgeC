@@ -151,6 +151,15 @@ int main(int argc, char **argv) {
 
     bus_orchestrator_t *io_orch = bus_orchestrator_create(&hub, arbiter, drv_mgr, 8, 32, 2048);
 
+    // [Task 7] 注入监控点位
+    bus_orch_monitor_tags_t mtags = {
+        .tag_netbuf_total = TAG_SYS_NETBUF_TOTAL,
+        .tag_netbuf_free = TAG_SYS_NETBUF_FREE,
+        .tag_netbuf_peak = TAG_SYS_NETBUF_PEAK,
+        .tag_netbuf_leak = TAG_SYS_NETBUF_LEAK_RECLAIM,
+    };
+    bus_orchestrator_set_monitor_tags(io_orch, &mtags);
+
     // --- 总线配置 ---
     driver_contract_injection_t iec_inject = {0};
 #ifdef CONFIG_IEC104_ENABLED

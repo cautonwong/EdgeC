@@ -23,8 +23,18 @@ typedef struct {
     uint32_t meta_list_len;
 } driver_contract_injection_t;
 
+typedef struct {
+    uint32_t tag_netbuf_total;
+    uint32_t tag_netbuf_free;
+    uint32_t tag_netbuf_peak;
+    uint32_t tag_netbuf_leak;
+} bus_orch_monitor_tags_t;
+
 bus_orchestrator_t *bus_orchestrator_create(datahub_t *hub, arbiter_t *arb, driver_manager_t *mgr,
                                             int max_buses, uint32_t pool_size, uint32_t buf_size);
+
+void bus_orchestrator_set_monitor_tags(bus_orchestrator_t *ctx,
+                                       const bus_orch_monitor_tags_t *tags);
 
 int bus_orchestrator_attach_io(bus_orchestrator_t *ctx, int bus_id, io_handle_t *io);
 

@@ -69,6 +69,7 @@ func main() {
 			case "DLT645": keyStr = rb.DI
 			case "DLT698": keyStr = rb.OAD
 			case "IEC104": keyStr = fmt.Sprintf("%d", rb.IOA)
+			case "DLMS": keyStr = rb.OBIS
 			}
 			if keyStr == "" { continue }
 			entries = append(entries, core.HashEntry{

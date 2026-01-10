@@ -134,6 +134,30 @@ int iec_asdu_add_c_sc_na_1(net_buf_t *buf, uint32_t ioa, bool val, bool select,
     return 0;
 }
 
+int iec_asdu_add_c_dc_na_1(net_buf_t *buf, uint32_t ioa, uint8_t dcs, bool select,
+                           const iec_addr_config_t *conf) {
+    _encode_ioa(&buf->b, ioa, conf->ioa_len);
+    uint8_t dco = (uint8_t)(dcs & 0x03);
+    if (select) dco |= 0x80;
+    net_buf_simple_add_u8(&buf->b, dco);
+    return 0;
+}
+
+int iec_asdu_add_c_se_nc_1(net_buf_t *buf, uint32_t ioa, float val, uint8_t qos, bool select,
+                           const iec_addr_config_t *conf) {
+    _encode_ioa(&buf->b, ioa, conf->ioa_len);
+    union {
+        float f;
+        uint32_t u;
+    } u;
+    u.f = val;
+    net_buf_simple_add_le32(&buf->b, u.u);
+    uint8_t qlv = (uint8_t)(qos & 0x7F);
+    if (select) qlv |= 0x80;
+    net_buf_simple_add_u8(&buf->b, qlv);
+    return 0;
+}
+
 int iec_asdu_add_any(net_buf_t *buf, uint8_t type_id, uint32_t ioa, double val, uint64_t ts_ms,
                      uint32_t flags, iec_qds_t qds, const iec_addr_config_t *conf) {
     (void)flags;  // 暂时未用

@@ -154,11 +154,16 @@ net_buf_t *net_buf_alloc(net_buf_pool_t *pool, int64_t timeout_ms) {
         buf->alloc_ts = uv_hrtime();
         buf->last_owner = "unknown";
         net_buf_simple_init(&buf->b, 0);
+
+        // 更新峰值统计
+        uint16_t current_usage = (uint16_t)(pool->buf_count - pool->uninit_count);
+        if (current_usage > pool->peak_usage) pool->peak_usage = current_usage;
     }
     return buf;
 }
 
-int net_buf_pool_audit(net_buf_pool_t *pool, uint64_t age_threshold_ms) {
+int net_buf_pool_audit(net_buf_pool_t *pool, uint64_t age_threshold_ms,
+                       net_buf_pool_stats_t *out_stats) {
     if (!pool || !pool->storage) return 0;
 
     int reclaimed = 0;
@@ -167,37 +172,42 @@ int net_buf_pool_audit(net_buf_pool_t *pool, uint64_t age_threshold_ms) {
     size_t node_sz = get_node_size(pool);
 
     uv_mutex_lock(&pool->lock);
+
+    if (out_stats) {
+        out_stats->total_count = pool->buf_count;
+        out_stats->peak_usage = pool->peak_usage;
+        out_stats->free_count = 0;
+    }
+
     for (uint16_t i = 0; i < pool->buf_count; i++) {
         net_buf_t *buf = (net_buf_t *)(pool->storage + (size_t)i * node_sz);
 
-        // 检查是否正在使用 (ref > 0)
         uint32_t ref = atomic_load_explicit(&buf->ref, memory_order_acquire);
         if (ref > 0) {
             uint64_t age = now - buf->alloc_ts;
             if (age > threshold_ns) {
-                // 发现僵尸缓冲区！
                 fprintf(stderr,
                         "[CRITICAL][NETBUF] Leak detected! ID: %u, Age: %lu ms, Owner: %s. FORCING "
                         "RECLAIM.\n",
                         i, (unsigned long)(age / 1000000),
                         buf->last_owner ? buf->last_owner : "NULL");
 
-                // 强制回收逻辑
-                // 1. 重置引用计数为 0
                 atomic_store_explicit(&buf->ref, 0, memory_order_release);
-
-                // 2. 挂回空闲链表
                 buf->next = pool->free_list;
                 pool->free_list = buf;
-
                 reclaimed++;
             }
+        } else if (out_stats) {
+            out_stats->free_count++;
         }
     }
 
     if (reclaimed > 0) {
         uv_cond_broadcast(&pool->cond);
     }
+
+    if (out_stats) out_stats->leaked_reclaimed = (uint32_t)reclaimed;
+
     uv_mutex_unlock(&pool->lock);
 
     return reclaimed;

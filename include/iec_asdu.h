@@ -120,6 +120,18 @@ int iec_asdu_parse_m_me_nc_1(struct net_buf_simple *b, uint32_t *ioa, float *val
 int iec_asdu_add_c_ic_na_1(net_buf_t *buf, uint32_t ioa, uint8_t qoi,
                            const iec_addr_config_t *conf);
 
+/* C_SC_NA_1 (单命令) */
+int iec_asdu_add_c_sc_na_1(net_buf_t *buf, uint32_t ioa, bool val, bool select,
+                           const iec_addr_config_t *conf);
+
+/* C_DC_NA_1 (双命令) */
+int iec_asdu_add_c_dc_na_1(net_buf_t *buf, uint32_t ioa, uint8_t dcs, bool select,
+                           const iec_addr_config_t *conf);
+
+/* C_SE_NC_1 (设点命令, 短浮点数) */
+int iec_asdu_add_c_se_nc_1(net_buf_t *buf, uint32_t ioa, float val, uint8_t qos, bool select,
+                           const iec_addr_config_t *conf);
+
 /**
  * @brief 契约驱动的万能数据填充函数 (支持时标自动注入)
  */

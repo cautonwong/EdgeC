@@ -61,6 +61,7 @@ typedef struct cmd_msg {
 
     uint32_t signature;  /**< S20: Command security signature/fingerprint */
     uint32_t timeout_ms; /**< [补强] 任务执行超时时间 (0 表示使用默认值) */
+    uint64_t submit_ts;  /**< [Phase 6] 任务提交时间戳 (ms) */
 
     // Callbacks
     void (*on_start)(void *user);

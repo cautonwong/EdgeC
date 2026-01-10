@@ -125,7 +125,6 @@ tags:
       category: "Security"
       access: "W"
 
-
   # === 策略参数 (5000-5999) ===
   - id: 5001
     name: IEMS_BATTERY_MAX_SOC
@@ -147,3 +146,21 @@ tags:
     unit: "W"
     desc: "IEMS并网功率上限"
     attributes: { access: "RW", group: "Policy" }
+
+  # === 系统健康与监控 (11000-11999) ===
+  - id: 11001
+    name: SYS_NETBUF_TOTAL
+    type: int
+    desc: "总线缓冲区总量"
+  - id: 11002
+    name: SYS_NETBUF_FREE
+    type: int
+    desc: "总线当前可用缓冲区"
+  - id: 11003
+    name: SYS_NETBUF_PEAK
+    type: int
+    desc: "总线缓冲区使用峰值"
+  - id: 11004
+    name: SYS_NETBUF_LEAK_RECLAIM
+    type: int
+    desc: "累计强制回收的泄漏缓冲区数"

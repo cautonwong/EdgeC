@@ -20,14 +20,45 @@ struct bus_orchestrator_s {
     int max_buses;
     io_handle_t **io_handles;
     bus_engine_t **engines;
+    bus_orch_monitor_tags_t monitor_tags;  // [注入] 监控点位
 };
+
+void bus_orchestrator_set_monitor_tags(bus_orchestrator_t *ctx,
+                                       const bus_orch_monitor_tags_t *tags) {
+    if (ctx && tags) ctx->monitor_tags = *tags;
+}
 
 // --- 内存池看门狗 ---
 static void _on_pool_audit(uv_timer_t *handle) {
     bus_orchestrator_t *ctx = (bus_orchestrator_t *)handle->data;
-    int reclaimed = net_buf_pool_audit(&ctx->pool, 10000);
+    net_buf_pool_stats_t stats;
+    // 审计阈值：10秒 (即如果一个buffer被持有了10秒还未释放，视为泄漏)
+    int reclaimed = net_buf_pool_audit(&ctx->pool, 10000, &stats);
     if (reclaimed > 0) {
         LOG_WARN(LOG_CAT_BUS, "Orchestrator: Auto-reclaimed %d leaked buffers!", reclaimed);
+    }
+
+    // 发布统计数据到 DataHub (Phase 6 Task 7) - 仅当点位被注入时
+    if (ctx->monitor_tags.tag_netbuf_total > 0) {
+        pipe_msg_t msg = {0};
+        msg.type = PIPEMSG_TYPE_SCALAR;
+        msg.ts = uv_hrtime();
+
+        msg.tag_id = ctx->monitor_tags.tag_netbuf_total;
+        msg.payload.val.i = (int64_t)stats.total_count;
+        datahub_publish(ctx->hub, &msg);
+
+        msg.tag_id = ctx->monitor_tags.tag_netbuf_free;
+        msg.payload.val.i = (int64_t)stats.free_count;
+        datahub_publish(ctx->hub, &msg);
+
+        msg.tag_id = ctx->monitor_tags.tag_netbuf_peak;
+        msg.payload.val.i = (int64_t)stats.peak_usage;
+        datahub_publish(ctx->hub, &msg);
+
+        msg.tag_id = ctx->monitor_tags.tag_netbuf_leak;
+        msg.payload.val.i = (int64_t)stats.leaked_reclaimed;
+        datahub_publish(ctx->hub, &msg);
     }
 }
 
