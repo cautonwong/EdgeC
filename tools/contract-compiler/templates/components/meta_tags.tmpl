@@ -24,7 +24,8 @@ const uint32_t g_tag_metadata_len = {{ len .ActiveTags }};
 
 const edge_tag_meta_t* edge_get_meta(edge_tag_id_t tag_id) {
     const tag_map_t* m = edge_get_map_tag(tag_id);
-    return m ? &g_tag_metadata[m->tag_id] : NULL;
+    // 这里因为 tag_metadata 也是稠密的，直接用 dense_idx 索引
+    return m ? &g_tag_metadata[m->dense_idx] : NULL;
 }
 
 /**
@@ -33,6 +34,6 @@ const edge_tag_meta_t* edge_get_meta(edge_tag_id_t tag_id) {
  */
 int edge_tag_get_compact_index(edge_tag_id_t tag_id) {
     const tag_map_t* m = edge_get_map_tag(tag_id);
-    return m ? (int)m->tag_id : -1;
+    return m ? (int)m->dense_idx : -1;
 }
 {{- end -}}

@@ -27,7 +27,7 @@ static const uint32_t edge_router_watcher_mask[] = {
  */
 bool edge_router_needs_wakeup(uint32_t tag_id) {
     int compact_idx = edge_tag_get_compact_index(tag_id);
-    if (compact_idx < 0) return false;
+    if (compact_idx < 0 || compact_idx > {{ .Router.MaxActiveIndex }}) return false;
     
     uint32_t idx = (uint32_t)compact_idx / 32;
     uint32_t bit = 1U << ((uint32_t)compact_idx % 32);

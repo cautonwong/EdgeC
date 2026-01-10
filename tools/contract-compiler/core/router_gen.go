@@ -7,58 +7,47 @@ import (
 type RouterInfo struct {
 	TriggerMask []uint32
 	WatcherMask []uint32
-	ActiveCount uint32
+	MaxActiveIndex int
 }
 
 func GenerateRouterInfo(contract *model.EffectiveContract) RouterInfo {
-	activeCount := uint32(len(contract.ActiveTags))
+	// 基于 ActiveTags 的数量（稠密索引）来生成位图
+	count := len(contract.ActiveTags)
+	if count == 0 {
+		return RouterInfo{TriggerMask: []uint32{0}, WatcherMask: []uint32{0}}
+	}
 
-	// 位图大小 (以 32 位为单位)
-	size := (activeCount / 32) + 1
+	size := (count / 32) + 1
 	info := RouterInfo{
 		TriggerMask: make([]uint32, size),
 		WatcherMask: make([]uint32, size),
-		ActiveCount: activeCount,
+		MaxActiveIndex: count - 1,
 	}
 
-	// 辅助函数：根据名称找 Index
-	findIdx := func(name string) int {
-		for i, t := range contract.ActiveTags {
-			if t.Name == name {
-				return i
-			}
-		}
-		return -1
+	// 建立 TagName -> CompactIndex (0..N-1) 的映射
+	nameToIndex := make(map[string]int)
+	for i, t := range contract.ActiveTags {
+		nameToIndex[t.Name] = i
 	}
 
 	setBit := func(mask []uint32, idx int) {
-		if idx < 0 {
-			return
-		}
+		if idx < 0 { return }
 		mask[idx/32] |= (1 << (uint32(idx) % 32))
 	}
 
-	// 1. 处理 Pipelines
+	// 处理 Pipelines
 	for _, p := range contract.Pipelines {
-		// Trigger 是显式定义的
-		idx := findIdx(p.Trigger)
-		setBit(info.TriggerMask, idx)
+		if idx, ok := nameToIndex[p.Trigger]; ok {
+			setBit(info.TriggerMask, idx)
+		}
 
-		// 检查 Stages 中是否有被动引用的测点 (Watcher)
 		for _, s := range p.Stages {
-			for _, v := range s {
+			for k, v := range s {
+				// 识别 Watcher 测点 (这里可以根据业务需求扩展识别逻辑)
+				if k == "target_tag" { continue } // 排除输出点
 				if str, ok := v.(string); ok {
-					if idx := findIdx(str); idx != -1 {
+					if idx, ok := nameToIndex[str]; ok {
 						setBit(info.WatcherMask, idx)
-					}
-				}
-				if list, ok := v.([]interface{}); ok {
-					for _, item := range list {
-						if str, ok := item.(string); ok {
-							if idx := findIdx(str); idx != -1 {
-								setBit(info.WatcherMask, idx)
-							}
-						}
 					}
 				}
 			}

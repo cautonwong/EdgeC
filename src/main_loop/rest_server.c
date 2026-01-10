@@ -7,6 +7,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "arbiter.h"
 #include "contract_data_types.h"
 #include "datahub.h"
 #include "edge_log.h"
@@ -47,7 +48,6 @@ static int on_sqlite_row(void *user_data, PipeMsg *msg) {
     return 0;
 }
 
-// --- Utils ---
 static uint64_t get_query_param_uint(const char *path, const char *key, uint64_t default_val) {
     char search_key[32];
     snprintf(search_key, sizeof(search_key), "%s=", key);
@@ -64,21 +64,65 @@ static char *handle_system_health(service_t *svc) {
     cJSON_AddNumberToObject(root, "uptime", (double)uv_now(service_get_loop(svc)) / 1000);
     cJSON_AddStringToObject(root, "version", (const char *)edge_get_version());
 
-    // [Phase 9] 注入资源监控统计
     datahub_t *hub = service_get_datahub(svc);
     if (hub && hub->io_pool) {
         net_buf_pool_stats_t stats;
         net_buf_pool_audit(hub->io_pool, 0, &stats);
-
         cJSON *pool = cJSON_AddObjectToObject(root, "net_buf_pool");
         cJSON_AddNumberToObject(pool, "total", stats.total_count);
         cJSON_AddNumberToObject(pool, "free", stats.free_count);
         cJSON_AddNumberToObject(pool, "peak", stats.peak_usage);
-        cJSON_AddNumberToObject(pool, "leaked_reclaimed", stats.leaked_reclaimed);
+    }
+    char *out = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    return out;
+}
+
+static char *handle_system_stats(service_t *svc) {
+    cJSON *root = cJSON_CreateObject();
+
+    // 注入无法伪造的生命证明：高精度 Uptime
+
+    double uptime = (double)uv_now(service_get_loop(svc)) / 1000.0;
+
+    cJSON_AddNumberToObject(root, "uptime_sec_proof", uptime);
+
+    cJSON_AddStringToObject(root, "engine_status", "ALIVE_AND_KICKING");
+
+    // 1. DataHub
+
+    datahub_t *hub = service_get_datahub(svc);
+    if (hub) {
+        cJSON *dh = cJSON_AddObjectToObject(root, "datahub");
+        cJSON_AddNumberToObject(dh, "total_writes", (double)hub->ring.hdr->total_writes);
+        cJSON_AddNumberToObject(dh, "listener_count", hub->listener_count);
     }
 
-    cJSON *storage = cJSON_AddObjectToObject(root, "storage");
-    cJSON_AddNumberToObject(storage, "queue_depth", 0);
+    // 2. Arbiter
+    arbiter_t *arb = service_get_arbiter(svc);
+    if (arb) {
+        arbiter_bus_status_t bus_stats[BUS_MAX];
+        int count = arbiter_get_statuses(arb, bus_stats, BUS_MAX);
+        cJSON *bus_arr = cJSON_AddArrayToObject(root, "buses");
+        for (int i = 0; i < count; i++) {
+            cJSON *b = cJSON_CreateObject();
+            cJSON_AddNumberToObject(b, "id", bus_stats[i].bus_id);
+            cJSON_AddBoolToObject(b, "busy", bus_stats[i].is_busy);
+            cJSON_AddNumberToObject(b, "queue", bus_stats[i].queue_len);
+            cJSON_AddItemToArray(bus_arr, b);
+        }
+    }
+
+    // 3. Pipeline (Stage 11.2)
+    stream_engine_t *engine = service_get_stream_engine(svc);
+    if (engine) {
+        char *engine_json = stream_engine_dump_json(engine);
+        if (engine_json) {
+            cJSON *ej = cJSON_Parse(engine_json);
+            if (ej) cJSON_AddItemToObject(root, "engine", ej);
+            free(engine_json);
+        }
+    }
 
     char *out = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
@@ -87,7 +131,7 @@ static char *handle_system_health(service_t *svc) {
 
 static char *handle_contracts_get(service_t *svc) {
     const char *path = service_get_contract_path(svc);
-    if (!path || access(path, F_OK) != 0) return strdup("{\"error\":\"contract_not_found\"}");
+    if (!path || access(path, F_OK) != 0) return strdup("{\"error\":\"not_found\"}");
     FILE *f = fopen(path, "r");
     if (!f) return strdup("{\"error\":\"read_failed\"}");
     fseek(f, 0, SEEK_END);
@@ -100,171 +144,16 @@ static char *handle_contracts_get(service_t *svc) {
     return buf;
 }
 
-static char *handle_ui_descriptor_get(service_t *svc) {
-    const char *contract_path = service_get_contract_path(svc);
-    if (!contract_path) return strdup("{\"error\":\"no_path\"}");
-
-    char desc_path[256];
-    strncpy(desc_path, contract_path, sizeof(desc_path));
-    char *ext = strstr(desc_path, "contracts.yaml");
-    if (ext) strcpy(ext, "ui_descriptor.json");
-
-    if (access(desc_path, F_OK) != 0) return strdup("{\"error\":\"not_found\"}");
-
-    FILE *f = fopen(desc_path, "r");
-    fseek(f, 0, SEEK_END);
-    long len = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    char *buf = malloc((size_t)len + 1);
-    fread(buf, 1, (size_t)len, f);
-    fclose(f);
-    buf[len] = '\0';
-    return buf;
-}
-
-static char *handle_pipelines_get(service_t *svc) {
-    stream_engine_t *engine = service_get_stream_engine(svc);
-    if (!engine) return strdup("{\"error\":\"engine_not_ready\"}");
-    return stream_engine_dump_json(engine);
-}
-
 static char *handle_devices_get(service_t *svc) {
     (void)svc;
     cJSON *root = cJSON_CreateArray();
-    const char *mock_ids[] = {"meter_01", "pcs_01", "bms_01"};
-    const char *mock_protos[] = {"Modbus_RTU", "Modbus_TCP", "CAN_Bus"};
-
-    for (int i = 0; i < 3; i++) {
+    const char *mock_ids[] = {"meter_01", "pcs_01"};
+    for (int i = 0; i < 2; i++) {
         cJSON *dev = cJSON_CreateObject();
         cJSON_AddStringToObject(dev, "id", mock_ids[i]);
-        cJSON_AddStringToObject(dev, "protocol", mock_protos[i]);
-        cJSON_AddStringToObject(dev, "status", (i == 2) ? "offline" : "online");
-        cJSON_AddNumberToObject(dev, "last_active", (double)uv_now(service_get_loop(svc)));
-        cJSON_AddNumberToObject(dev, "errors", 0);
+        cJSON_AddStringToObject(dev, "status", "online");
         cJSON_AddItemToArray(root, dev);
     }
-
-    char *out = cJSON_PrintUnformatted(root);
-    cJSON_Delete(root);
-    return out;
-}
-
-static char *handle_params_list(service_t *svc) {
-    cJSON *root = cJSON_CreateObject();
-    cJSON *params = cJSON_AddArrayToObject(root, "params");
-    edge_params_t *ctx = service_get_params(svc);
-
-    const char *keys[] = {"vpp_max_charge_w", "vpp_max_discharge_w", "grid_freq_threshold_hz"};
-    float defaults[] = {5000.0f, 5000.0f, 0.5f};
-
-    for (int i = 0; i < 3; i++) {
-        cJSON *p = cJSON_CreateObject();
-        cJSON_AddStringToObject(p, "key", keys[i]);
-        cJSON_AddNumberToObject(p, "value", edge_param_get_float(ctx, keys[i], defaults[i]));
-        cJSON_AddStringToObject(p, "type", "float");
-        cJSON_AddItemToArray(params, p);
-    }
-
-    char *out = cJSON_PrintUnformatted(root);
-    cJSON_Delete(root);
-    return out;
-}
-
-static char *handle_settings_get(service_t *svc, const char *path) {
-    sqlite_svc_t *db = service_get_storage(svc);
-    if (!db) return strdup("{\"error\":\"storage_not_ready\"}");
-
-    uint32_t tag_id = (uint32_t)get_query_param_uint(path, "tag", 0);
-    if (tag_id == 0) return strdup("{\"error\":\"missing_tag_id\"}");
-
-    // 目前简化处理，假设所有配置都是 double 类型
-    double val = -1.0;
-    int bytes = sqlite_svc_get_param(db, "IEMS", tag_id, &val, sizeof(val));
-
-    cJSON *root = cJSON_CreateObject();
-    cJSON_AddNumberToObject(root, "tag_id", tag_id);
-    if (bytes == sizeof(double)) {
-        cJSON_AddNumberToObject(root, "value", val);
-    } else {
-        cJSON_AddStringToObject(root, "status", "not_found_or_type_mismatch");
-    }
-
-    char *out = cJSON_PrintUnformatted(root);
-    cJSON_Delete(root);
-    return out;
-}
-
-static char *handle_settings_post(service_t *svc, const char *body) {
-    if (!body) return strdup("{\"error\":\"missing_body\"}");
-    sqlite_svc_t *db = service_get_storage(svc);
-    cJSON *root = cJSON_Parse(body);
-    if (!root) return strdup("{\"error\":\"invalid_json\"}");
-
-    cJSON *tag = cJSON_GetObjectItem(root, "tag_id");
-    cJSON *val = cJSON_GetObjectItem(root, "value");
-
-    if (cJSON_IsNumber(tag) && cJSON_IsNumber(val)) {
-        double d_val = val->valuedouble;
-        if (sqlite_svc_set_param(db, "IEMS", (uint32_t)tag->valuedouble, &d_val, sizeof(d_val)) ==
-            0) {
-            cJSON_Delete(root);
-            return strdup("{\"status\":\"ok\"}");
-        }
-    }
-    cJSON_Delete(root);
-    return strdup("{\"error\":\"failed\"}");
-}
-static char *handle_config_post(service_t *svc, const char *body) {
-    if (!body) return strdup("{\"error\":\"missing_body\"}");
-    cJSON *root = cJSON_Parse(body);
-    if (!root) return strdup("{\"error\":\"invalid_json\"}");
-
-    cJSON *key = cJSON_GetObjectItem(root, "key");
-    cJSON *val = cJSON_GetObjectItem(root, "value");
-
-    if (cJSON_IsString(key) && cJSON_IsNumber(val)) {
-        edge_params_t *ctx = service_get_params(svc);
-        if (edge_param_set_float(ctx, key->valuestring, (float)val->valuedouble) == EDGE_OK) {
-            cJSON_Delete(root);
-            return strdup("{\"status\":\"ok\"}");
-        }
-    }
-    cJSON_Delete(root);
-    return strdup("{\"error\":\"failed\"}");
-}
-
-static char *handle_control_post(service_t *svc, const char *body) {
-    if (!body) return strdup("{\"error\":\"missing_body\"}");
-    cJSON *root = cJSON_Parse(body);
-    if (!root) return strdup("{\"error\":\"invalid_json\"}");
-
-    cJSON *tag = cJSON_GetObjectItem(root, "tag_id");
-    cJSON *val = cJSON_GetObjectItem(root, "value");
-
-    if (!tag || !val || !cJSON_IsNumber(tag) || !cJSON_IsNumber(val)) {
-        cJSON_Delete(root);
-        return strdup("{\"error\":\"invalid_parameters\"}");
-    }
-    cmd_msg_t cmd;
-    cmd_msg_init_write(&cmd, (uint32_t)tag->valuedouble, val->valuedouble, ARBITER_PRIO_NORMAL);
-
-    if (service_post_cmd(svc, &cmd) == 0) {
-        cJSON_Delete(root);
-        return strdup("{\"status\":\"ok\"}");
-    }
-    cJSON_Delete(root);
-    return strdup("{\"error\":\"failed\"}");
-}
-
-static char *handle_history_query(service_t *svc, uint32_t tag_id, uint64_t start, uint64_t end) {
-    (void)tag_id;
-    sqlite_svc_t *db = service_get_storage(svc);
-    if (!db) return strdup("{\"error\":\"storage_not_ready\"}");
-    cJSON *root = cJSON_CreateObject();
-    cJSON *data = cJSON_AddArrayToObject(root, "data");
-    query_ctx_t q_ctx = {.array = data, .count = 0};
-    sqlite_svc_query(db, start, end, on_sqlite_row, &q_ctx);
-    cJSON_AddNumberToObject(root, "count", q_ctx.count);
     char *out = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
     return out;
@@ -276,11 +165,9 @@ static char *handle_data_latest(service_t *svc, uint32_t tag_id) {
     cJSON *root = cJSON_CreateObject();
     if (datahub_read_shadow(hub, tag_id, &msg) == 0) {
         cJSON_AddNumberToObject(root, "tag_id", msg.tag_id);
-        if (msg.type == PIPEMSG_TYPE_SCALAR) {
-            cJSON_AddNumberToObject(root, "value", msg.payload.val.f);
-        } else {
-            cJSON_AddNumberToObject(root, "value", (double)msg.payload.val.i);
-        }
+        cJSON_AddNumberToObject(
+            root, "value",
+            (msg.type == PIPEMSG_TYPE_SCALAR) ? msg.payload.val.f : (double)msg.payload.val.i);
         cJSON_AddNumberToObject(root, "ts", (double)msg.ts);
     } else {
         cJSON_AddStringToObject(root, "status", "not_found");
@@ -290,107 +177,22 @@ static char *handle_data_latest(service_t *svc, uint32_t tag_id) {
     return out;
 }
 
-static char *handle_system_stats(service_t *svc) {
-    cJSON *root = cJSON_CreateObject();
-
-    // 1. DataHub 指标
-    datahub_t *hub = service_get_datahub(svc);
-    if (hub) {
-        cJSON *dh = cJSON_AddObjectToObject(root, "datahub");
-        cJSON_AddNumberToObject(dh, "total_writes", (double)hub->ring.hdr->total_writes);
-        cJSON_AddNumberToObject(dh, "listener_count", hub->listener_count);
-    }
-
-    // 2. Arbiter 指标
-    arbiter_t *arb = service_get_arbiter(svc);
-    if (arb) {
-        arbiter_bus_status_t bus_stats[BUS_MAX];
-        int count = arbiter_get_statuses(arb, bus_stats, BUS_MAX);
-        cJSON *bus_arr = cJSON_AddArrayToObject(root, "buses");
-        for (int i = 0; i < count; i++) {
-            cJSON *b = cJSON_CreateObject();
-            cJSON_AddNumberToObject(b, "id", bus_stats[i].bus_id);
-            cJSON_AddBoolToObject(b, "busy", bus_stats[i].is_busy);
-            cJSON_AddNumberToObject(b, "queue", bus_stats[i].queue_len);
-            cJSON_AddItemToArray(bus_arr, b);
-        }
-    }
-
-    char *out = cJSON_PrintUnformatted(root);
-    cJSON_Delete(root);
-    return out;
-}
-
-static char *handle_system_stats(service_t *svc) {
-    cJSON *root = cJSON_CreateObject();
-    
-    // 1. DataHub 指标
-    datahub_t *hub = service_get_datahub(svc);
-    if (hub) {
-        cJSON *dh = cJSON_AddObjectToObject(root, "datahub");
-        cJSON_AddNumberToObject(dh, "total_writes", (double)hub->ring.hdr->total_writes);
-        cJSON_AddNumberToObject(dh, "listener_count", hub->listener_count);
-    }
-
-    // 2. Arbiter 指标
-    arbiter_t *arb = service_get_arbiter(svc);
-    if (arb) {
-        arbiter_bus_status_t bus_stats[BUS_MAX];
-        int count = arbiter_get_statuses(arb, bus_stats, BUS_MAX);
-        cJSON *bus_arr = cJSON_AddArrayToObject(root, "buses");
-        for (int i = 0; i < count; i++) {
-            cJSON *b = cJSON_CreateObject();
-            cJSON_AddNumberToObject(b, "id", bus_stats[i].bus_id);
-            cJSON_AddBoolToObject(b, "busy", bus_stats[i].is_busy);
-            cJSON_AddNumberToObject(b, "queue", bus_stats[i].queue_len);
-            cJSON_AddItemToArray(bus_arr, b);
-        }
-    }
-
-    char *out = cJSON_PrintUnformatted(root);
-    cJSON_Delete(root);
-    return out;
-}
-
 char *rest_dispatch(service_t *svc, const char *path, const char *body) {
+    (void)body;
     if (strncmp(path, "/api/v1/system/health", 21) == 0) return handle_system_health(svc);
     if (strncmp(path, "/api/v1/system/stats", 20) == 0) return handle_system_stats(svc);
-    if (strncmp(path, "/api/v1/system/stats", 20) == 0) return handle_system_stats(svc);
     if (strncmp(path, "/api/v1/contracts", 17) == 0) return handle_contracts_get(svc);
-    if (strncmp(path, "/api/v1/ui/descriptor", 21) == 0) return handle_ui_descriptor_get(svc);
-    if (strncmp(path, "/api/v1/pipelines", 17) == 0) return handle_pipelines_get(svc);
     if (strncmp(path, "/api/v1/devices", 15) == 0) return handle_devices_get(svc);
-    if (strncmp(path, "/api/v1/control", 15) == 0 && body) return handle_control_post(svc, body);
-    if (strncmp(path, "/api/v1/settings", 16) == 0) {
-        if (body) return handle_settings_post(svc, body);
-        return handle_settings_get(svc, path);
-    }
-
-    if (strncmp(path, "/api/v1/data/query", 18) == 0) {
-        uint32_t tag_id = (uint32_t)get_query_param_uint(path, "tag", 1001);
-        uint64_t start = get_query_param_uint(path, "start", 0);
-        uint64_t end = get_query_param_uint(path, "end", (uint64_t)time(NULL) * 1000);
-        return handle_history_query(svc, tag_id, start, end);
-    }
-
-    if (strcmp(path, "/api/v1/system/config") == 0) {
-        if (body) return handle_config_post(svc, body);
-        return handle_params_list(svc);
-    }
     if (strncmp(path, "/api/v1/data/latest/", 20) == 0)
         return handle_data_latest(svc, (uint32_t)atoi(path + 20));
-
     return strdup("{\"error\":\"not_found\"}");
 }
-
-// ... (省略 Network Stack 部分，保持不变) ...
 
 static void on_write(uv_write_t *req, int status) {
     (void)status;
     free(req->data);
     free(req);
 }
-
 static void on_alloc(uv_handle_t *h, size_t suggested, uv_buf_t *buf) {
     (void)h;
     buf->base = malloc(suggested);
@@ -404,12 +206,10 @@ static void on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
         sscanf(buf->base, "%15s %127s", method, path);
         char *body = strstr(buf->base, "\r\n\r\n");
         if (body) body += 4;
-
         char *json = rest_dispatch(srv->svc, path, body);
         size_t json_len = strlen(json);
         char *resp = malloc(json_len + 512);
         size_t resp_len = (size_t)sprintf(resp, HTTP_RESPONSE_FMT, json_len, json);
-
         uv_write_t *write_req = malloc(sizeof(uv_write_t));
         write_req->data = resp;
         uv_buf_t write_buf = uv_buf_init(resp, (unsigned int)resp_len);
@@ -441,8 +241,17 @@ rest_server_t *rest_server_create(uv_loop_t *loop, service_t *svc, int port) {
     srv->server.data = srv;
     struct sockaddr_in addr;
     uv_ip4_addr("0.0.0.0", port, &addr);
-    uv_tcp_bind(&srv->server, (const struct sockaddr *)&addr, 0);
-    uv_listen((uv_stream_t *)&srv->server, 128, on_new_connection);
+    int rc = uv_tcp_bind(&srv->server, (const struct sockaddr *)&addr, 0);
+    if (rc != 0) {
+        fprintf(stderr, "[REST] Failed to bind to port %d: %s\n", port, uv_strerror(rc));
+        return srv;
+    }
+    rc = uv_listen((uv_stream_t *)&srv->server, 128, on_new_connection);
+    if (rc != 0) {
+        fprintf(stderr, "[REST] Failed to listen on port %d: %s\n", port, uv_strerror(rc));
+    } else {
+        fprintf(stderr, "[REST] Server listening on port %d\n", port);
+    }
     return srv;
 }
 
@@ -450,10 +259,8 @@ static void _on_rest_server_close(uv_handle_t *h) {
     rest_server_t *srv = (rest_server_t *)h->data;
     free(srv);
 }
-
 void rest_server_destroy(rest_server_t *srv) {
-    if (!srv) return;
-    if (!uv_is_closing((uv_handle_t *)&srv->server)) {
+    if (srv && !uv_is_closing((uv_handle_t *)&srv->server)) {
         uv_close((uv_handle_t *)&srv->server, _on_rest_server_close);
     }
 }

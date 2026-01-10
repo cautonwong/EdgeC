@@ -118,11 +118,21 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
     }
 
     if (needs_wakeup) {
+        fprintf(stderr, "[DEBUG][DataHub] Wakeup triggered for Tag %u. Listener count: %d\n",
+                msg->tag_id, hub->listener_count);
         for (int i = 0; i < hub->listener_count; i++) {
-            if (hub->listeners[i]) uv_async_send(hub->listeners[i]);
+            if (hub->listeners[i]) {
+                fprintf(stderr, "[DEBUG][DataHub] Sending async signal to listener %d (%p)\n", i,
+                        (void *)hub->listeners[i]);
+                uv_async_send(hub->listeners[i]);
+            }
         }
         if (hub->legacy_cb) hub->legacy_cb(hub, hub->legacy_user_data);
         if (!uv_is_closing((uv_handle_t *)&hub->legacy_async)) uv_async_send(&hub->legacy_async);
+    } else {
+        fprintf(stderr,
+                "[DEBUG][DataHub] Wakeup SKIPPED for Tag %u (router decided no subscribers)\n",
+                msg->tag_id);
     }
     return 0;
 }

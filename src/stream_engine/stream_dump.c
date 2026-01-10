@@ -21,7 +21,11 @@ char *stream_engine_dump_json(stream_engine_t *engine) {
         cJSON *stages = cJSON_CreateArray();
         pipeline_stage_t *curr = p->head;
         while (curr) {
-            cJSON_AddItemToArray(stages, cJSON_CreateString(curr->name));
+            cJSON *s_json = cJSON_CreateObject();
+            cJSON_AddStringToObject(s_json, "name", curr->name);
+            cJSON_AddNumberToObject(s_json, "total_events", (double)curr->total_events);
+            cJSON_AddNumberToObject(s_json, "last_proc_us", (double)curr->last_proc_us);
+            cJSON_AddItemToArray(stages, s_json);
             curr = curr->next;
         }
         cJSON_AddItemToObject(p_json, "stages", stages);

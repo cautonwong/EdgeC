@@ -59,6 +59,16 @@ func main() {
 	// --- Phase 3: 生成路由掩码 ---
 	routerInfo := core.GenerateRouterInfo(contract)
 
+	// 建立 TagName -> (GlobalID, DenseIndex) 的快速映射
+	type tagInfo struct {
+		GlobalID uint32
+		DenseIdx uint32
+	}
+	tagInfoMap := make(map[string]tagInfo)
+	for i, t := range contract.ActiveTags {
+		tagInfoMap[t.Name] = tagInfo{GlobalID: t.ID, DenseIdx: uint32(i)}
+	}
+
 	hashes := make(map[string]core.ProtocolHashInfo)
 	for proto, rbs := range resolved {
 		entries := make([]core.HashEntry, 0, len(rbs))
@@ -72,9 +82,20 @@ func main() {
 			case "DLMS": keyStr = rb.OBIS
 			}
 			if keyStr == "" { continue }
+			
+			info := tagInfoMap[rb.TagName]
+			
 			entries = append(entries, core.HashEntry{
-				RawKey: core.ParseProtocolKey(proto, keyStr),
-				StrKey: keyStr, TagID: rb.TagID, TagName: rb.TagName, Scale: rb.Scale, ByteLen: rb.ByteLen, Access: rb.Access,
+				RawKey:       core.ParseProtocolKey(proto, keyStr),
+				StrKey:       keyStr,
+				TagID:        info.GlobalID,
+				LogicalIndex: info.DenseIdx, // 记录逻辑稠密索引
+				TagName:      rb.TagName,
+				Scale:        rb.Scale,
+				ByteLen:      rb.ByteLen,
+				Access:       rb.Access,
+				IecType:      rb.IecType, Flags: rb.Flags, DeadBand: rb.DeadBand, GroupID: rb.GroupID,
+				OBIS: core.ParseOBIS(rb.OBIS), ClassID: rb.ClassID, AttrID: rb.AttrID,
 			})
 		}
 		if len(entries) > 0 { hashes[proto] = core.GeneratePerfectHash(proto, entries) }
@@ -86,9 +107,10 @@ func main() {
 	tagEntries := make([]core.HashEntry, 0, len(contract.ActiveTags))
 	for i, t := range contract.ActiveTags {
 		tagEntries = append(tagEntries, core.HashEntry{
-			RawKey:  uint64(t.ID),
-			TagName: t.Name,
-			TagID:   uint32(i),
+			RawKey:       uint64(t.ID),
+			TagName:      t.Name,
+			TagID:        t.ID,
+			LogicalIndex: uint32(i), // 显式记录
 		})
 	}
 	tagHash := core.GeneratePerfectHash("TAG", tagEntries)
@@ -157,6 +179,7 @@ func main() {
 			case []model.PipelineDef: return len(val)
 			case []model.PolicyDef: return len(val)
 			case []model.HardwareDef: return len(val)
+			case []map[string]interface{}: return len(val)
 			}
 			return 0
 		},

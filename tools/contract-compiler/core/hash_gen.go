@@ -15,14 +15,34 @@ type ProtocolHashInfo struct {
 }
 
 type HashEntry struct {
-	RawKey   uint64 // 原始数值键 (DI, OAD, Addr, etc.)
-	StrKey   string // 原始字符串键 (OBIS, etc.)
-	TagID    uint32
-	TagName  string
-	Scale    float32
-	ByteLen  uint16 // [补强]
-	Access   uint32 // [补强]
-	Index    uint32 // [新增] 在物理哈希表中的索引位
+	RawKey       uint64 // 原始数值键 (DI, OAD, Addr, etc.)
+	StrKey       string // 原始字符串键 (OBIS, etc.)
+	TagID        uint32
+	TagName      string
+	Scale        float32
+	ByteLen      uint16 
+	Access       uint32 
+	LogicalIndex uint32 // [修正] 稠密逻辑索引 (0..N-1)
+	IecType      uint8   
+	Flags        uint32  
+	DeadBand     float32 
+	GroupID      uint8   
+	OBIS         []uint8 
+	ClassID      uint16  
+	AttrID       uint8   
+}
+
+// ParseOBIS 将 "1.0.1.8.0.255" 格式转换为 6 字节数组
+func ParseOBIS(s string) []uint8 {
+	if s == "" { return make([]uint8, 6) }
+	parts := strings.Split(s, ".")
+	res := make([]uint8, 6)
+	for i, p := range parts {
+		if i >= 6 { break }
+		v, _ := strconv.Atoi(p)
+		res[i] = uint8(v)
+	}
+	return res
 }
 
 // ParseProtocolKey 将不同协议的标识符解析为统一的 uint64 键值
@@ -91,10 +111,15 @@ func GeneratePerfectHash(proto string, entries []HashEntry) ProtocolHashInfo {
 			}
 			if !collision {
 				table := make([]HashEntry, size)
+				if proto == "TAG" {
+					fmt.Printf("[HashGen] TAG Table Success! Size: %d, Seed: %d\n", size, seed)
+				}
 				for _, e := range entries {
 					h := computeHash(e.RawKey, seed, size)
-					e.Index = h
 					table[h] = e
+					if proto == "TAG" {
+						fmt.Printf("[HashGen] Mapping TagID %d to LogicalIndex %d at Bucket %d\n", e.RawKey, e.LogicalIndex, h)
+					}
 				}
 				return ProtocolHashInfo{Seed: seed, TableSize: size, Keys: table, IsPerfect: true}
 			}

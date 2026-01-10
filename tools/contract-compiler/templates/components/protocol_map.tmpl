@@ -4,13 +4,17 @@
 // --- {{ .Proto }} Protocol Mapping ---
 {{- if and .Map .Map.Keys }}
 // 1. 查找表 (按照 Hash 桶排序)
-static const {{ $lowerProto }}_map_t s_{{ $lowerProto }}_table[] = {
-{{- range .Map.Keys }}
+static const {{ $lowerProto }}_map_t s_{{$lowerProto}}_table[] = {
+{{- range $i, $entry := .Map.Keys }}
     {{- if ne .TagID 0 }}
     {{- if or (eq $.Proto "IEC104") (eq $.Proto "IEC101") }}
-    { (uint32_t){{ .RawKey }}, TAG_{{ .TagName }}, {{ .Scale }}, {{ .IecType }}, {{ .Flags }}, {{ .DeadBand }}, {{ .GroupID }}, {{ .ByteLen }}, {{ .Access }} }, // {{ .StrKey }}
+    { (uint32_t){{ .RawKey }}, {{ .TagID }}, {{ .LogicalIndex }}, {{ .Scale }}, {{ .IecType }}, {{ .Flags }}, {{ .DeadBand }}, {{ .GroupID }}, {{ .ByteLen }}, {{ .Access }} }, // {{ .StrKey }}
+    {{- else if eq $.Proto "DLMS" }}
+    { { {{ range $j, $b := .OBIS }}{{ if $j }}, {{ end }}{{ $b }}{{ end }} }, {{ .ClassID }}, {{ .AttrID }}, {{ .TagID }}, {{ .LogicalIndex }}, {{ .Scale }}, {{ .Access }} }, // {{ .StrKey }}
+    {{- else if eq $.Proto "TAG" }}
+    { (uint32_t){{ .RawKey }}, {{ .TagID }}, {{ .LogicalIndex }}, {{ .Scale }}, {{ .ByteLen }}, {{ .Access }} }, // {{ .StrKey }}
     {{- else }}
-    { (uint32_t){{ .RawKey }}, TAG_{{ .TagName }}, {{ .Scale }}, {{ .ByteLen }}, {{ .Access }} }, // {{ .StrKey }}
+    { (uint32_t){{ .RawKey }}, {{ .TagID }}, {{ .LogicalIndex }}, {{ .Scale }}, {{ .ByteLen }}, {{ .Access }} }, // {{ .StrKey }}
     {{- end }}
     {{- else }}
     { 0 }, // Empty Slot
@@ -65,11 +69,11 @@ static const {{ $lowerProto }}_map_t s_{{ $lowerProto }}_rev_table[] = {
     {{- range $binding }}
         {{- if eq .ProtocolType $.Proto }}
         {{- if eq $.Proto "DLMS" }}
-        { { {{ range $j, $b := .OBIS }}{{ if $j }}, {{ end }}{{ $b }}{{ end }} }, {{ .ClassID }}, {{ .AttrID }}, TAG_{{ .TagName }}, {{ .Scale }}, {{ .Access }} }, // TagID {{ .TagID }}
+        { { {{ range $j, $b := .OBIS }}{{ if $j }}, {{ end }}{{ $b }}{{ end }} }, {{ .ClassID }}, {{ .AttrID }}, {{ .TagID }}, {{ .LogicalIndex }}, {{ .Scale }}, {{ .Access }} }, // TagID {{ .TagID }}
         {{- else if or (eq $.Proto "IEC104") (eq $.Proto "IEC101") }}
-        { (uint32_t){{ .IOA }}, TAG_{{ .TagName }}, {{ .Scale }}, {{ .IecType }}, {{ .Flags }}, {{ .DeadBand }}, {{ .GroupID }}, {{ .ByteLen }}, {{ .Access }} }, // TagID {{ .TagID }}
+        { (uint32_t){{ .IOA }}, {{ .TagID }}, {{ .LogicalIndex }}, {{ .Scale }}, {{ .IecType }}, {{ .Flags }}, {{ .DeadBand }}, {{ .GroupID }}, {{ .ByteLen }}, {{ .Access }} }, // TagID {{ .TagID }}
         {{- else }}
-        { (uint32_t){{ .RawKey }}, TAG_{{ .TagName }}, {{ .Scale }}, {{ .ByteLen }}, {{ .Access }} }, // TagID {{ .TagID }}
+        { (uint32_t){{ .RawKey }}, {{ .TagID }}, {{ .LogicalIndex }}, {{ .Scale }}, {{ .ByteLen }}, {{ .Access }} }, // TagID {{ .TagID }}
         {{- end }}
         {{- $found = true }}
         {{- end }}

@@ -24,7 +24,7 @@ const edge_pipeline_def_t g_pipeline_metadata[] = {
         .id = "{{ .ID }}", 
         .trigger_tag = TAG_{{ .Trigger }},
         .stages = _stages_{{ .ID }},
-        .stage_count = {{ len .Stages }}
+        .stage_count = {{ if .Stages }}{{ len .Stages }}{{ else }}0{{ end }}
     },
 {{- end }}
 };

@@ -44,6 +44,7 @@ typedef struct {
 typedef struct {
     uint32_t key;
     edge_tag_id_t tag_id;
+    uint16_t dense_idx;  // [新增]
     float scaler;
     uint8_t type_id;  /**< ASDU TypeID */
     uint32_t flags;   /**< 行为标志位 (如 FLAG_SOE) */
@@ -56,6 +57,7 @@ typedef struct {
 typedef struct {
     uint32_t key;
     edge_tag_id_t tag_id;
+    uint16_t dense_idx;  // [新增]
     float scaler;
     uint8_t type_id;
     uint32_t flags;
@@ -76,6 +78,7 @@ typedef struct {
     uint16_t class_id;
     uint8_t attribute_index;
     edge_tag_id_t tag_id;
+    uint16_t dense_idx;  // [新增]
     float scaler;
     uint32_t access;
 } dlms_map_t;
@@ -83,6 +86,7 @@ typedef struct {
 typedef struct {
     uint32_t key;
     edge_tag_id_t tag_id;
+    uint16_t dense_idx;  // [新增]
     float scaler;
     uint16_t length;
     uint32_t access;
@@ -92,6 +96,7 @@ typedef struct {
 typedef struct {
     uint32_t key;
     edge_tag_id_t tag_id;
+    uint16_t dense_idx;  // [新增]
     float scaler;
     uint16_t length;
     uint32_t access;

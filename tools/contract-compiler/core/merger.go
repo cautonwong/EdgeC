@@ -36,7 +36,16 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 		}
 	}
 
-	for _, item := range pc.EnabledTags { if s, ok := item.(string); ok { enabledSet[s] = true } }
+	for i, item := range pc.EnabledTags {
+		fmt.Printf("[Merger] Checking EnabledTag[%d]: type=%T, val=%+v\n", i, item, item)
+		if s, ok := item.(string); ok {
+			enabledSet[s] = true
+		} else if m, ok := item.(map[string]interface{}); ok {
+			if tagName, ok := m["tag"].(string); ok {
+				enabledSet[tagName] = true
+			}
+		}
+	}
 
 	effectiveConfigs := pc.Configs
 	effectiveParams := pc.Params
@@ -180,7 +189,13 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 			usedIDs[t.ID] = name
 		}
 		allTags = append(allTags, t)
-		if enabledSet[name] { activeTags = append(activeTags, t) }
+		if enabledSet[name] { 
+			fmt.Printf("[Merger] FINAL: Enabling Tag: %s (ID: %d)\n", name, t.ID)
+			activeTags = append(activeTags, t) 
+		} else {
+			// Debug: why is it not enabled?
+			// fmt.Printf("[Merger] FINAL: Tag %s is NOT in enabledSet\n", name)
+		}
 	}
 
 	// [归一化] 将 Parameters 转换为虚拟 Tags 并分配 10000+ ID
