@@ -43,7 +43,8 @@ static void test_shadow_read_consistency(void **state) {
     (void)state;
     uv_loop_t *loop = uv_default_loop();
     datahub_t hub;
-    datahub_init(&hub, loop, "shadow_stress", 1024, 1024, NULL);
+    // 注入空元数据
+    datahub_init(&hub, loop, "shadow_stress", 1024, 1024, NULL, 0, NULL, NULL);
 
     stress_ctx_t ctx = {.hub = &hub, .stop = false, .write_count = 0};
     uv_thread_t producer;

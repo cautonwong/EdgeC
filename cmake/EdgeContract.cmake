@@ -26,6 +26,7 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
     set(LIB_DIR "${PROD_DIR}/lib")
     
     set(OUT_C "${GEN_DIR}/contracts.c")
+    set(OUT_ROUTER_C "${GEN_DIR}/edge_router_table.c")
     set(OUT_SLAVE_C "${GEN_DIR}/contracts_slave.c")
     set(OUT_H "${GEN_DIR}/contracts.h")
     set(OUT_YAML "${GEN_DIR}/contracts.yaml")
@@ -47,7 +48,7 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
 
     # 定义自定义生成命令 (仅在构建目录生成)
     add_custom_command(
-        OUTPUT "${OUT_C}" "${OUT_H}" "${OUT_YAML}" "${OUT_CMAKE}" "${OUT_TS}"
+        OUTPUT "${OUT_C}" "${OUT_H}" "${OUT_YAML}" "${OUT_CMAKE}" "${OUT_TS}" "${OUT_ROUTER_C}"
         COMMAND "${COMPILER_BIN}" ${CMD_ARGS}
         DEPENDS "${COMPILER_BIN}" "${SCHEMA_PATH}" "${PRODUCT_YAML}" ${LOCAL_DEP}
         COMMENT "[Contract] Generating native lookup tables and TS types for ${TARGET_NAME}"
@@ -62,7 +63,7 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
     endif()
 
     # 4. 创建静态库并精准控制其输出路径
-    add_library(${TARGET_NAME}_obj OBJECT "${OUT_C}")
+    add_library(${TARGET_NAME}_obj OBJECT "${OUT_C}" "${OUT_ROUTER_C}")
     set_target_properties(${TARGET_NAME}_obj PROPERTIES 
         POSITION_INDEPENDENT_CODE ON
     )

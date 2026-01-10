@@ -23,10 +23,9 @@ static stage_ret_t industrial_mock_proc(pipeline_stage_t *stage, pipe_msg_t *ev)
 
 static void test_pipeline_sequential_execution(void **state) {
     (void)state;
-    uv_loop_t *loop = malloc(sizeof(uv_loop_t));
-    uv_loop_init(loop);
+    uv_loop_t *loop = uv_default_loop();
     datahub_t hub;
-    datahub_init(&hub, loop, "seq_bus", 64, 1024, NULL);
+    datahub_init(&hub, loop, "seq_bus", 64, 1024, NULL, 0, NULL, NULL);
 
     stream_engine_t *engine = stream_engine_create(&hub, NULL);
     pipeline_t *p = stream_engine_add_pipeline(engine, "seq_pipe", 1001);
@@ -51,7 +50,6 @@ static void test_pipeline_sequential_execution(void **state) {
     while (uv_loop_close(loop) == UV_EBUSY) {
         uv_run(loop, UV_RUN_ONCE);
     }
-    free(loop);
 }
 
 int main(void) {

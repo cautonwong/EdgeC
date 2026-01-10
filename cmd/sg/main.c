@@ -27,8 +27,11 @@ int main(int argc, char **argv) {
     edge_log_t *logger = edge_log_create(NULL, true);
     uv_loop_t *loop = uv_default_loop();
 
+    // 1.2 数据面 (Data Plane)
     datahub_t hub;
-    datahub_init(&hub, loop, "sg_el2025", 1024, g_tag_metadata_len, edge_tag_get_compact_index);
+    // edge_router_needs_wakeup 由 edge_router_table.c 提供
+    datahub_init(&hub, loop, "sg_el2025", 1024, g_tag_metadata_len, g_tag_metadata,
+                 g_tag_metadata_len, edge_tag_get_compact_index, edge_router_needs_wakeup);
     sqlite_config_t db_conf = {.db_path = "sg.db", .strategy = STRATEGY_LITE};
     sqlite_svc_t *db = sqlite_svc_create(loop, &db_conf);
 

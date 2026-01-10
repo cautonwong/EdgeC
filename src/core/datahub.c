@@ -2,19 +2,17 @@
 #define _GNU_SOURCE
 #endif
 #include "datahub.h"
-#include "edge_log.h"
+
 #include <errno.h>
 #include <fcntl.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/mman.h>
 #include <sys/syscall.h>
 #include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
 
-__attribute__((weak)) bool edge_router_needs_wakeup(uint32_t tag_id) {
-    (void)tag_id;
-    return true;
-}
+#include "edge_log.h"
 
 static void _on_legacy_async(uv_async_t *handle) {
     datahub_t *hub = (datahub_t *)handle->data;
@@ -23,15 +21,26 @@ static void _on_legacy_async(uv_async_t *handle) {
     }
 }
 
-int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slots,
-                 uint32_t shadow_capacity, const edge_tag_meta_t *metadata, uint32_t metadata_len,
-                 datahub_tag_map_cb map_fn) {
-    memset(hub, 0, sizeof(*hub));
+static int _datahub_post_init(datahub_t *hub, uv_loop_t *loop, uint32_t shadow_capacity,
+                              const edge_tag_meta_t *metadata, uint32_t metadata_len,
+                              datahub_tag_map_cb map_fn, datahub_wakeup_filter_cb wakeup_fn) {
     hub->loop = loop;
     hub->shadow_capacity = shadow_capacity;
     hub->metadata_table = metadata;
     hub->metadata_count = metadata_len;
     hub->map_fn = map_fn;
+    hub->wakeup_fn = wakeup_fn;
+
+    uv_async_init(loop, &hub->legacy_async, _on_legacy_async);
+    hub->legacy_async.data = hub;
+    uv_mutex_init(&hub->shadow_lock);
+    return 0;
+}
+
+int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slots,
+                 uint32_t shadow_capacity, const edge_tag_meta_t *metadata, uint32_t metadata_len,
+                 datahub_tag_map_cb map_fn, datahub_wakeup_filter_cb wakeup_fn) {
+    memset(hub, 0, sizeof(*hub));
 
     if (shmring_create(&hub->ring, name, slots) != 0) return -1;
 
@@ -40,16 +49,37 @@ int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slo
         int fd = (int)syscall(SYS_memfd_create, "shadow_table", 0x0001U | 0x0002U);
         if (fd >= 0) {
             ftruncate(fd, (off_t)size);
+            // 应用密封位 (F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_SEAL)
+            fcntl(fd, 1033 /* F_ADD_SEALS */, 0x0002 | 0x0004 | 0x0001);
             hub->shadow_table = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
             hub->shadow_fd = fd;
             hub->shadow_size = size;
         }
     }
 
-    uv_async_init(loop, &hub->legacy_async, _on_legacy_async);
-    hub->legacy_async.data = hub;
-    uv_mutex_init(&hub->shadow_lock);
-    return 0;
+    return _datahub_post_init(hub, loop, shadow_capacity, metadata, metadata_len, map_fn,
+                              wakeup_fn);
+}
+
+int datahub_init_from_fd(datahub_t *hub, uv_loop_t *loop, int ring_fd, size_t ring_size,
+                         int shadow_fd, size_t shadow_size, uint32_t compact_capacity,
+                         const edge_tag_meta_t *metadata, uint32_t metadata_len,
+                         datahub_tag_map_cb map_fn, datahub_wakeup_filter_cb wakeup_fn) {
+    memset(hub, 0, sizeof(*hub));
+
+    if (shmring_init_from_fd(&hub->ring, ring_fd, ring_size) != 0) {
+        return -1;
+    }
+
+    if (shadow_fd >= 0 && compact_capacity > 0) {
+        hub->shadow_table =
+            mmap(NULL, shadow_size, PROT_READ | PROT_WRITE, MAP_SHARED, shadow_fd, 0);
+        hub->shadow_fd = shadow_fd;
+        hub->shadow_size = shadow_size;
+    }
+
+    return _datahub_post_init(hub, loop, compact_capacity, metadata, metadata_len, map_fn,
+                              wakeup_fn);
 }
 
 void datahub_destroy(datahub_t *hub) {
@@ -78,11 +108,18 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
         }
     }
 
-    if (edge_router_needs_wakeup(msg->tag_id)) {
+    // [注入利用] 使用注入的唤醒判定函数
+    bool needs_wakeup = true;
+    if (hub->wakeup_fn) {
+        needs_wakeup = hub->wakeup_fn(msg->tag_id);
+    }
+
+    if (needs_wakeup) {
         for (int i = 0; i < hub->listener_count; i++) {
             if (hub->listeners[i]) uv_async_send(hub->listeners[i]);
         }
-        if (hub->legacy_cb) uv_async_send(&hub->legacy_async);
+        if (hub->legacy_cb) hub->legacy_cb(hub, hub->legacy_user_data);
+        if (!uv_is_closing((uv_handle_t *)&hub->legacy_async)) uv_async_send(&hub->legacy_async);
     }
     return 0;
 }

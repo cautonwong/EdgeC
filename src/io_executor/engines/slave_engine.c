@@ -19,10 +19,11 @@ typedef struct {
     datahub_t *hub;
     net_buf_pool_t *pool;
     driver_manager_t *drv_mgr;
+    driver_contract_injection_t inject_data;  // Persist injection
 
     slave_proto_slot_t protocols[MAX_SLAVE_PROTOCOLS];
     int proto_count;
-    int last_hit_idx;  // 粘性协议优化
+    int last_hit_idx;
 
     net_buf_t *rx_acc;
     io_handle_t *io;
@@ -40,14 +41,11 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
         net_buf_append_bytes(priv->rx_acc, rx->b.data, rx->b.len);
         net_buf_unref(rx);
 
-        // --- 核心算法：竞争解析 (Sniffing) ---
         while (priv->rx_acc->b.len > 0) {
             bool processed = false;
             size_t min_incomplete_len = 9999;
 
-            // 1. 尝试所有已注册的协议
             for (int i = 0; i < priv->proto_count; i++) {
-                // 优化：优先尝试上次命中的协议 (last_hit_idx)
                 int idx = (i + priv->last_hit_idx) % priv->proto_count;
                 slave_proto_slot_t *slot = &priv->protocols[idx];
 
@@ -60,7 +58,6 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
                                                       &async_count, &consumed);
 
                 if (rc == 0) {
-                    // 命中协议！
                     if (resp->b.len > 0) priv->io->ops->write_async(priv->io, resp);
                     net_buf_unref(resp);
 
@@ -72,14 +69,11 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
                     processed = true;
                     break;
                 } else if (rc == EDGE_ERR_INCOMPLETE) {
-                    // 协议匹配但数据不足，记录状态继续等待
                     net_buf_unref(resp);
                     if (consumed < min_incomplete_len) min_incomplete_len = consumed;
                     continue;
                 } else {
-                    // 协议不匹配
                     net_buf_unref(resp);
-                    // 如果驱动明确告诉我们消耗了一些垃圾字节，执行剔除
                     if (consumed > 0) {
                         net_buf_pull(priv->rx_acc, consumed);
                         processed = true;
@@ -90,19 +84,17 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
 
             if (processed) continue;
 
-            // 2. 如果没有任何驱动能处理且也没有驱动认为“数据不足”
-            // 说明头部是彻底的噪音，剔除 1 字节并重试
             if (min_incomplete_len == 9999) {
                 net_buf_pull(priv->rx_acc, 1);
             } else {
-                // 有驱动认为数据不足，停止解析等待下一次 RX
                 break;
             }
         }
     }
 }
 
-int engine_slave_add_protocol(bus_engine_t *self, const char *protocol, uint32_t device_id) {
+int engine_slave_add_protocol(bus_engine_t *self, const char *protocol, uint32_t device_id,
+                              const driver_contract_injection_t *inject) {
     slave_priv_t *priv = (slave_priv_t *)self->user_data;
     if (priv->proto_count >= MAX_SLAVE_PROTOCOLS) return -1;
 
@@ -110,11 +102,26 @@ int engine_slave_add_protocol(bus_engine_t *self, const char *protocol, uint32_t
     if (!ctx) return -1;
 
     ctx->role = PROTOCOL_ROLE_SLAVE;
+    ctx->pool = priv->pool;  // [注入] 共享总线池
+
+    // [注入应用] 填充驱动上下文
+    if (inject) {
+        ctx->lookup_by_key = inject->lookup_by_key;
+        ctx->lookup_by_tag = inject->lookup_by_tag;
+        ctx->meta_list = inject->meta_list;
+        ctx->meta_list_len = inject->meta_list_len;
+    } else {
+        // Fallback or inheritance?
+        ctx->lookup_by_key = priv->inject_data.lookup_by_key;
+        ctx->lookup_by_tag = priv->inject_data.lookup_by_tag;
+        ctx->meta_list = priv->inject_data.meta_list;
+        ctx->meta_list_len = priv->inject_data.meta_list_len;
+    }
+
     priv->protocols[priv->proto_count].ctx = ctx;
     strncpy(priv->protocols[priv->proto_count].name, protocol, 15);
     priv->proto_count++;
 
-    LOG_INFO(LOG_CAT_BUS, "Slave Engine %d: Added Protocol '%s'", priv->bus_id, protocol);
     return 0;
 }
 
@@ -129,11 +136,9 @@ static void _slave_attach(bus_engine_t *self, io_handle_t *io) {
 static void _slave_detach(bus_engine_t *self) {
     slave_priv_t *priv = (slave_priv_t *)self->user_data;
     if (priv->io) priv->io->ops->enable_read(priv->io, false);
-
     for (int i = 0; i < priv->proto_count; i++) {
         driver_instance_destroy(priv->protocols[i].ctx, priv->protocols[i].name);
     }
-
     if (priv->rx_acc) net_buf_unref(priv->rx_acc);
     free(priv);
     free(self);
@@ -141,7 +146,7 @@ static void _slave_detach(bus_engine_t *self) {
 
 bus_engine_t *engine_create_slave(driver_manager_t *mgr, const char *protocol, uint32_t device_id,
                                   uv_loop_t *loop, arbiter_t *arb, datahub_t *hub,
-                                  net_buf_pool_t *pool) {
+                                  net_buf_pool_t *pool, const driver_contract_injection_t *inject) {
     bus_engine_t *eng = calloc(1, sizeof(bus_engine_t));
     slave_priv_t *priv = calloc(1, sizeof(slave_priv_t));
     priv->loop = loop;
@@ -150,6 +155,7 @@ bus_engine_t *engine_create_slave(driver_manager_t *mgr, const char *protocol, u
     priv->pool = pool;
     priv->drv_mgr = mgr;
     priv->bus_id = (int)device_id;
+    if (inject) priv->inject_data = *inject;
 
     priv->rx_acc = net_buf_alloc(pool, 0);
     net_buf_simple_reset(&priv->rx_acc->b);
@@ -159,7 +165,7 @@ bus_engine_t *engine_create_slave(driver_manager_t *mgr, const char *protocol, u
     eng->detach = _slave_detach;
 
     if (protocol && protocol[0] != '\0') {
-        engine_slave_add_protocol(eng, protocol, device_id);
+        engine_slave_add_protocol(eng, protocol, device_id, inject);
     }
 
     return eng;

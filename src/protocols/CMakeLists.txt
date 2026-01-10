@@ -10,6 +10,7 @@ set(PROTO_SOURCES
     "${PROTO_DIR}/dlms/dlms_hdlc.c"
     "${PROTO_DIR}/dlms/dlms_security.c"
     "${PROTO_DIR}/iec_common/iec_asdu_codec.c"
+    "${PROTO_DIR}/iec_common/iec_cp56time.c"
     "${PROTO_DIR}/iec104/iec104_apci.c"
     "${PROTO_DIR}/iec101/iec101_link.c"
 )

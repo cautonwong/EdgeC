@@ -21,10 +21,9 @@ static stage_ret_t probe_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
 
 static void test_pipeline_hot_reload_logic(void **state) {
     (void)state;
-    uv_loop_t *loop = malloc(sizeof(uv_loop_t));
-    uv_loop_init(loop);
+    uv_loop_t *loop = uv_default_loop();
     datahub_t hub;
-    datahub_init(&hub, loop, "hot_reload_bus", 64, 1024, NULL);
+    datahub_init(&hub, loop, "hot_reload_bus", 64, 1024, NULL, 0, NULL, NULL);
 
     stream_engine_t *engine = stream_engine_create(&hub, NULL);
     pipeline_t *p1 = stream_engine_add_pipeline(engine, "pipe_v1", 1001);
@@ -55,7 +54,6 @@ static void test_pipeline_hot_reload_logic(void **state) {
     while (uv_loop_close(loop) == UV_EBUSY) {
         uv_run(loop, UV_RUN_ONCE);
     }
-    free(loop);
 }
 
 int main(void) {

@@ -39,7 +39,8 @@ typedef struct {
  * @brief 构建固定长度帧 (0x10) - 用于请求与确认
  */
 int iec101_link_build_fixed(iec101_link_mgr_t *mgr, iec101_ctrl_t ctrl, net_buf_t *out);
-int iec101_link_build_variable(iec101_link_mgr_t *mgr, iec101_ctrl_t ctrl, net_buf_t *asdu, net_buf_t *out);
+int iec101_link_build_variable(iec101_link_mgr_t *mgr, iec101_ctrl_t ctrl, net_buf_t *asdu,
+                               net_buf_t *out);
 
 /**
  * @brief 构建可变长度帧 (0x68) - 承载 ASDU

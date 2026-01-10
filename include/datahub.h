@@ -2,6 +2,7 @@
 #define EDGE_DATAHUB_H
 
 #include <uv.h>
+
 #include "contract_data_types.h"
 #include "shmring.h"
 
@@ -21,6 +22,11 @@ typedef int (*datahub_tag_map_cb)(uint32_t tag_id);
  */
 typedef void (*datahub_on_data_cb)(datahub_t *hub, void *user_data);
 
+/**
+ * @brief 唤醒过滤回调 (Phase 3 优化)
+ */
+typedef bool (*datahub_wakeup_filter_cb)(uint32_t tag_id);
+
 struct datahub_s {
     uv_loop_t *loop;
     shm_ring_t ring;
@@ -33,6 +39,7 @@ struct datahub_s {
     size_t shadow_size;
     uint32_t shadow_capacity;
     datahub_tag_map_cb map_fn;
+    datahub_wakeup_filter_cb wakeup_fn;  // [注入] 唤醒过滤器
 
     datahub_on_data_cb legacy_cb;
     void *legacy_user_data;
@@ -45,7 +52,12 @@ struct datahub_s {
 
 int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slots,
                  uint32_t shadow_capacity, const edge_tag_meta_t *metadata, uint32_t metadata_len,
-                 datahub_tag_map_cb map_fn);
+                 datahub_tag_map_cb map_fn, datahub_wakeup_filter_cb wakeup_fn);
+
+int datahub_init_from_fd(datahub_t *hub, uv_loop_t *loop, int ring_fd, size_t ring_size,
+                         int shadow_fd, size_t shadow_size, uint32_t compact_capacity,
+                         const edge_tag_meta_t *metadata, uint32_t metadata_len,
+                         datahub_tag_map_cb map_fn, datahub_wakeup_filter_cb wakeup_fn);
 
 void datahub_destroy(datahub_t *hub);
 int datahub_publish(datahub_t *hub, const pipe_msg_t *msg);
@@ -60,7 +72,7 @@ static inline uint32_t datahub_get_metadata_count(datahub_t *hub) {
     return hub ? hub->metadata_count : 0;
 }
 
-static inline const edge_tag_meta_t* datahub_get_metadata_by_index(datahub_t *hub, uint32_t index) {
+static inline const edge_tag_meta_t *datahub_get_metadata_by_index(datahub_t *hub, uint32_t index) {
     if (hub && index < hub->metadata_count) return &hub->metadata_table[index];
     return NULL;
 }

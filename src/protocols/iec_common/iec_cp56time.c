@@ -6,12 +6,9 @@
 #include "iec_cp56time.h"
 
 #include <string.h>
-#include <uv.h>
+#include <time.h>
 
 void iec_cp56time_now(iec_cp56time_t *out) {
-    uint64_t now_ms = uv_hrtime() / 1000000;
-    // 注意：uv_hrtime 是单调时钟，此处应使用实时时钟
-    // 为了简化，我们使用标准 time()
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
     iec_cp56time_from_ms(out, (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000);
@@ -34,7 +31,6 @@ void iec_cp56time_from_ms(iec_cp56time_t *out, uint64_t ms) {
 
 uint64_t iec_cp56time_to_ms(const iec_cp56time_t *ts) {
     struct tm tm_info = {0};
-    tm_info.tm_sec = 0;  // msec 包含了秒和毫秒
     tm_info.tm_min = ts->min;
     tm_info.tm_hour = ts->hour;
     tm_info.tm_mday = ts->mday;

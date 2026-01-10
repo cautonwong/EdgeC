@@ -23,20 +23,62 @@ typedef uint32_t edge_param_id_t;
 #define ACCESS_WRITE 0x00000002
 #define ACCESS_NOTIFY 0x00000004
 
-// --- 测点元数据 (对齐 V4.5 业务逻辑) ---
+// --- 行为掩码定义 ---
+#define FLAG_SOE 0x00000001
+
+// --- 测点元数据 ---
 typedef struct {
     uint32_t id;
     const char *name;
     const char *type;
     const char *unit;
     const char *category;
-    float min_val;
-    float max_val;
+    double min;  // [修复] 统一为 min/max
+    double max;
     bool persist;
     bool upload;
 } edge_tag_meta_t;
 
-// --- 通用协议映射结构 ---
+// --- 通用协议映射结构 (Phase 4 增强版) ---
+typedef struct {
+    uint32_t key;
+    edge_tag_id_t tag_id;
+    float scaler;
+    uint8_t type_id;  /**< ASDU TypeID */
+    uint32_t flags;   /**< 行为标志位 (如 FLAG_SOE) */
+    float dead_band;  /**< 死区阈值 */
+    uint8_t group_id; /**< 总召唤分组 */
+    uint16_t length;
+    uint32_t access;
+} iec104_map_t;
+
+typedef struct {
+    uint32_t key;
+    edge_tag_id_t tag_id;
+    float scaler;
+    uint8_t type_id;
+    uint32_t flags;
+    float dead_band;
+    uint8_t group_id;
+    uint16_t length;
+    uint32_t access;
+} iec101_map_t;
+
+// --- 契约 Bundle 定义 (用于依赖注入) ---
+typedef struct {
+    const void *const *gi_list;
+    uint32_t gi_count;
+} iec_contract_bundle_t;
+
+typedef struct {
+    uint8_t obis[6];
+    uint16_t class_id;
+    uint8_t attribute_index;
+    edge_tag_id_t tag_id;
+    float scaler;
+    uint32_t access;
+} dlms_map_t;
+
 typedef struct {
     uint32_t key;
     edge_tag_id_t tag_id;
@@ -45,6 +87,7 @@ typedef struct {
     uint32_t access;
 } modbus_map_t;
 
+// [修复] 补全缺失的协议映射结构
 typedef struct {
     uint32_t key;
     edge_tag_id_t tag_id;
@@ -61,49 +104,8 @@ typedef struct {
     uint32_t access;
 } dlt698_map_t;
 
-typedef struct {
-    uint32_t key;
-    edge_tag_id_t tag_id;
-    float scaler;
-    uint8_t type_id;   // [新增] ASDU TypeID
-    uint32_t flags;    // [新增] 行为掩码
-    float dead_band;   // [新增] 死区阈值
-    uint8_t group_id;  // [新增] 聚合组 ID
-    uint16_t length;
-    uint32_t access;
-} iec104_map_t;
-
-typedef struct {
-    uint32_t key;
-    edge_tag_id_t tag_id;
-    float scaler;
-    uint8_t type_id;   // [新增] ASDU TypeID
-    uint32_t flags;    // [新增] 行为掩码
-    float dead_band;   // [新增] 死区阈值
-    uint8_t group_id;  // [新增] 聚合组 ID
-    uint16_t length;
-    uint32_t access;
-} iec101_map_t;
-
-const iec101_map_t *edge_get_map_iec101_by_tag(edge_tag_id_t tag_id);
-
-typedef struct {
-    uint8_t obis[6];
-    uint16_t class_id;
-    uint8_t attribute_index;
-    edge_tag_id_t tag_id;
-    float scaler;
-    uint32_t access;
-    uint8_t expected_type;  // 对齐 dlms_data_type_t
-} dlms_map_t;
-
-typedef struct {
-    uint32_t key;
-    edge_tag_id_t tag_id;
-    float scaler;
-    uint16_t length;
-    uint32_t access;
-} tag_map_t;
+// 向后兼容
+typedef modbus_map_t tag_map_t;
 
 // --- 运行期参数元数据 ---
 typedef enum { PARAM_TYPE_INT = 1, PARAM_TYPE_FLOAT = 2, PARAM_TYPE_STRING = 3 } edge_param_type_t;
@@ -118,48 +120,44 @@ typedef struct {
     const char *name;
     edge_param_type_t type;
     edge_param_value_t def_val;
-    edge_param_value_t min_val;
-    edge_param_value_t max_val;
-    bool is_reboot_required;
+    const char *unit;
+    double min;
+    double max;
+    const char *desc;
+    bool reboot_required;
+    uint32_t id;
 } edge_param_info_t;
 
-// --- 硬件 DTS 元数据 ---
+// --- 硬件资源元数据 ---
 typedef struct {
-    const char *label;
     const char *type;
     int id;
-    const char *bus_ref;
-    const char *attributes;
+    const char *label;
 } hw_resource_info_t;
 
-// --- 流引擎管线元数据 ---
+// --- 数据处理管道元数据 ---
 typedef struct {
     const char *id;
-    uint32_t trigger_tag;
-    const char *config_json;
-    int stage_count;
+    const char *trigger;
 } edge_pipeline_def_t;
 
-// --- 策略与北向策略 ---
+// --- 决策策略元数据 ---
 typedef struct {
     const char *name;
-    const char *cron;
-    const char *script;
+    const char *type;
 } edge_policy_def_t;
 
-// --- UI 展现与 API 网关元数据 ---
+// --- UI 配置元数据 ---
 typedef struct {
-    const char *layout;
-    const char *dashboards_json;
+    const char *theme;
+    // 移除未使用的 layout 等字段，或根据 meta_ui.tmpl 补全
 } ui_info_t;
 
+// --- API 路由元数据 ---
 typedef struct {
     const char *path;
     edge_tag_id_t tag_id;
-    const char *category;
+    const char *group;
 } api_route_t;
-
-const edge_param_info_t *edge_get_param_meta(edge_param_id_t id);
-uint32_t edge_param_to_tag_id(int param_idx);
 
 #endif

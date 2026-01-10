@@ -30,7 +30,7 @@ static void test_engine_basic_flow(void **state) {
     uv_loop_init(loop);
 
     datahub_t hub;
-    datahub_init(&hub, loop, "test_hub_v1", 10, 1024, NULL);
+    datahub_init(&hub, loop, "test_hub_v1", 10, 1024, NULL, 0, NULL, NULL);
 
     stream_engine_t *engine = stream_engine_create(&hub, NULL);
     pipeline_t *p = stream_engine_add_pipeline(engine, "test_pipe", 1001);

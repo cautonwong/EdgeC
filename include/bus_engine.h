@@ -10,6 +10,10 @@
 // Forward declaration
 typedef struct bus_engine_s bus_engine_t;
 typedef struct driver_manager_s driver_manager_t;
+struct driver_contract_injection_s;  // Opaque forward declaration is fine here or include
+                                     // bus_orchestrator.h
+
+#include "bus_orchestrator.h"  // For driver_contract_injection_t
 
 struct bus_engine_s {
     // 绑定物理层。Engine 在这里注册 io_callback。
@@ -21,6 +25,9 @@ struct bus_engine_s {
     // 执行指令
     void (*run_command)(bus_engine_t *self, cmd_msg_t *cmd);
 
+    // [新增] 注入协议契约
+    void (*inject)(bus_engine_t *self, const void *proto_contract);
+
     // 销毁
     void (*detach)(bus_engine_t *self);
 
@@ -29,15 +36,15 @@ struct bus_engine_s {
 };
 
 // Factory functions
-// [Updated] 注入必要的依赖：Loop, Arbiter, DataHub, Pool
+// [Updated] 注入必要的依赖：Loop, Arbiter, DataHub, Pool, Contract Injection
 bus_engine_t *engine_create_master(driver_manager_t *mgr, const char *protocol, uint32_t device_id,
                                    uv_loop_t *loop, arbiter_t *arb, datahub_t *hub,
-                                   net_buf_pool_t *pool);
+                                   net_buf_pool_t *pool, const driver_contract_injection_t *inject);
 
 bus_engine_t *engine_create_slave(driver_manager_t *mgr, const char *protocol, uint32_t device_id,
 
                                   uv_loop_t *loop, arbiter_t *arb, datahub_t *hub,
-                                  net_buf_pool_t *pool);
+                                  net_buf_pool_t *pool, const driver_contract_injection_t *inject);
 
 /**
 
@@ -45,6 +52,7 @@ bus_engine_t *engine_create_slave(driver_manager_t *mgr, const char *protocol, u
 
  */
 
-int engine_slave_add_protocol(bus_engine_t *self, const char *protocol, uint32_t device_id);
+int engine_slave_add_protocol(bus_engine_t *self, const char *protocol, uint32_t device_id,
+                              const driver_contract_injection_t *inject);
 
 #endif

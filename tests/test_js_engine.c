@@ -14,7 +14,7 @@ static void test_js_eval_basic(void **state) {
     (void)state;
     uv_loop_t *loop = uv_default_loop();
     datahub_t hub;
-    datahub_init(&hub, loop, "test_js", 64, 1024, NULL);
+    datahub_init(&hub, loop, "test_js", 64, 1024, NULL, 0, NULL, NULL);
 
     // 使用新版 service_new
     service_t *svc = service_new(loop, &hub, NULL, NULL, NULL, NULL, NULL);

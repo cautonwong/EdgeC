@@ -15,12 +15,6 @@
 #include "edge_driver.h"
 #include "edge_log.h"
 
-extern const dlms_map_t *edge_lookup_dlms_by_tag(uint32_t tag_id);
-__attribute__((weak)) const dlms_map_t *edge_lookup_dlms_by_tag(uint32_t tag_id) {
-    (void)tag_id;
-    return NULL;
-}
-
 typedef struct {
     dlms_hdlc_manager_t hdlc;
     dlms_cosem_ctx_t cosem;
@@ -59,8 +53,8 @@ static int dlms_v3_encode_request(edge_driver_ctx_t *ctx, const uint32_t *tag_id
         return 0;
     }
 
-    if (count > 0) {
-        const dlms_map_t *map = edge_lookup_dlms_by_tag(tag_ids[0]);
+    if (count > 0 && ctx->lookup_by_tag) {
+        const dlms_map_t *map = (const dlms_map_t *)ctx->lookup_by_tag(tag_ids[0]);
         if (map) {
             priv->current_tag_id = tag_ids[0];
             net_buf_t *apdu = net_buf_alloc(out->pool, 0);

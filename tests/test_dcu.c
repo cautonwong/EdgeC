@@ -24,7 +24,7 @@ static int setup(void **state) {
     uv_loop_t *loop = uv_default_loop();
 
     ctx->hub = calloc(1, sizeof(datahub_t));
-    datahub_init(ctx->hub, loop, "dcu_test", 128, 1024, NULL);
+    datahub_init(ctx->hub, loop, "dcu_test", 128, 1024, NULL, 0, NULL, NULL);
     arbiter_init(&ctx->arb, loop);
     sqlite_config_t db_conf = {.db_path = ":memory:", .strategy = STRATEGY_LITE};
     ctx->db = sqlite_svc_create(loop, &db_conf);

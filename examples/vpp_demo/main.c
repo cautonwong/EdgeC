@@ -29,7 +29,8 @@ int main(int argc, char **argv) {
     uv_loop_t *loop = uv_default_loop();
 
     datahub_t hub;
-    datahub_init(&hub, loop, "vpp_demo", 1024, g_tag_metadata_len, edge_tag_get_compact_index);
+    datahub_init(&hub, loop, "vpp_demo", 1024, g_tag_metadata_len, g_tag_metadata,
+                 g_tag_metadata_len, edge_tag_get_compact_index, edge_router_needs_wakeup);
 
     arbiter_t *arb = NULL;
     arbiter_init(&arb, loop);

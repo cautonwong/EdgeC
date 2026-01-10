@@ -15,7 +15,7 @@ static void test_bus_orchestrator_dynamic_create(void **state) {
     (void)state;
     uv_loop_t *loop = uv_default_loop();
     datahub_t hub;
-    datahub_init(&hub, loop, "test_bus", 64, 1024, NULL);
+    datahub_init(&hub, loop, "test_bus", 64, 1024, NULL, 0, NULL, NULL);
 
     arbiter_t *arb = NULL;
     arbiter_init(&arb, loop);

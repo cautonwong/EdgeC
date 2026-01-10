@@ -1,8 +1,7 @@
 {{- define "meta_ui" -}}
 // [UI & API Gateway Blueprint]
 const ui_info_t g_ui_metadata = {
-    .layout = "{{ .UI.Layout }}",
-    .dashboards_json = "{{ .UI.Dashboards | marshal | c_escape }}"
+    .theme = "{{ .UI.Theme }}"
 };
 
 /**

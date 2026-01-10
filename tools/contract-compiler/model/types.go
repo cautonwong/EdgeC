@@ -71,11 +71,7 @@ type PolicyDef struct {
 
 
 type UIDef struct {
-
-	Layout     string                 `yaml:"layout"`
-
-	Dashboards []map[string]interface{} `yaml:"dashboards"`
-
+	Theme string `yaml:"theme"`
 }
 
 

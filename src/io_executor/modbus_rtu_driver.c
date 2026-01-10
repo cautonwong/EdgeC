@@ -1,14 +1,12 @@
 #include <string.h>
 #include <time.h>
 
+#include "contract_data_types.h"
 #include "driver_manager.h"
 #include "edge_common.h"
 #include "edge_driver.h"
 #include "edge_log.h"
 #include "net_buf.h"
-
-// 引入生成的契约查找接口
-extern uint32_t edge_lookup_modbus(uint32_t addr, float *out_scale);
 
 typedef struct {
     uint8_t slave_id;
@@ -157,7 +155,14 @@ static int modbus_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
         uint16_t val = (uint16_t)((data[4] << 8) | data[5]);
         priv->local_regs[addr % 128] = val;
         float scale = 1.0f;
-        uint32_t tag_id = edge_lookup_modbus(addr, &scale);
+        uint32_t tag_id = 0;
+        if (ctx->lookup_by_key) {
+            const modbus_map_t *map = (const modbus_map_t *)ctx->lookup_by_key(addr);
+            if (map) {
+                tag_id = map->tag_id;
+                scale = map->scaler;
+            }
+        }
         if (tag_id != 0) {
             pipe_msg_init_scalar(&async_msgs[0], tag_id, (double)val * (double)scale,
                                  (uint64_t)time(NULL) * 1000);
@@ -169,13 +174,23 @@ static int modbus_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
     return 0;
 }
 
-edge_driver_t modbus_rtu_driver = {.name = "ModbusRTU",
-                                   .ctx_size = sizeof(modbus_ctx_t),
-                                   .on_init = modbus_v3_on_init,
-                                   .on_cleanup = NULL,
-                                   .encode_request = modbus_v3_encode_request,
-                                   .decode_response = modbus_v3_decode_response,
-                                   .handle_rx = modbus_v3_handle_rx};
+edge_driver_t modbus_rtu_driver = {
+
+    .name = "ModbusRTU",
+
+    .ctx_size = sizeof(modbus_ctx_t),
+
+    .on_init = modbus_v3_on_init,
+
+    .on_cleanup = NULL,
+
+    .encode_request = modbus_v3_encode_request,
+
+    .decode_response = modbus_v3_decode_response,
+
+    .handle_rx = modbus_v3_handle_rx
+
+};
 
 int modbus_driver_register(driver_manager_t *mgr) {
     return driver_manager_register(mgr, &modbus_rtu_driver);

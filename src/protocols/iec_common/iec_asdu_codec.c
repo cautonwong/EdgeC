@@ -4,9 +4,11 @@
  */
 
 #include <string.h>
+#include <time.h>
 
 #include "edge_log.h"
 #include "iec_asdu.h"
+#include "iec_cp56time.h"
 #include "net_buf.h"
 
 void iec_asdu_init(net_buf_t *buf, iec_type_id_t type, bool sq, uint8_t count, iec_cot_t cot,
@@ -17,10 +19,12 @@ void iec_asdu_init(net_buf_t *buf, iec_type_id_t type, bool sq, uint8_t count, i
     uint8_t vsq = count & 0x7F;
     if (sq) vsq |= 0x80;
     net_buf_simple_add_u8(b, vsq);
+
     if (conf->cot_len == 1)
         net_buf_simple_add_u8(b, (uint8_t)cot);
     else
         net_buf_simple_add_le16(b, (uint16_t)cot);
+
     if (conf->casdu_len == 1)
         net_buf_simple_add_u8(b, (uint8_t)(casdu & 0xFF));
     else
@@ -130,55 +134,34 @@ int iec_asdu_add_c_sc_na_1(net_buf_t *buf, uint32_t ioa, bool val, bool select,
     return 0;
 }
 
-#include "iec_cp56time.h"
-
 int iec_asdu_add_any(net_buf_t *buf, uint8_t type_id, uint32_t ioa, double val, uint64_t ts_ms,
                      uint32_t flags, iec_qds_t qds, const iec_addr_config_t *conf) {
-    // 检查是否需要注入 SOE 时标 (FLAG_SOE = 0x01)
-    bool use_soe = (flags & 0x01) != 0;
-
-    // 如果开启了 SOE，自动切换到带时标的 TypeID
-    if (use_soe) {
-        if (type_id == IEC_TYPE_M_SP_NA_1)
-            type_id = IEC_TYPE_M_SP_TB_1;
-        else if (type_id == IEC_TYPE_M_ME_NC_1)
-            type_id = IEC_TYPE_M_ME_TF_1;
-    }
-
-    struct net_buf_simple *b = &buf->b;
+    (void)flags;  // 暂时未用
     switch (type_id) {
         case IEC_TYPE_M_SP_NA_1:
             return iec_asdu_add_m_sp_na_1(buf, ioa, val > 0.5, qds, false, true, conf);
-
-        case IEC_TYPE_M_SP_TB_1: {
-            _encode_ioa(b, ioa, conf->ioa_len);
-            uint8_t siq = (val > 0.5) ? 0x01 : 0x00;
-            siq |= (uint8_t)(((*(uint8_t *)&qds) & 0x1F) << 4);
-            net_buf_simple_add_u8(b, siq);
-            iec_cp56time_t cp_ts;
-            iec_cp56time_from_ms(&cp_ts, ts_ms);
-            net_buf_simple_add_mem(b, &cp_ts, 7);
-            return 0;
-        }
-
         case IEC_TYPE_M_ME_NC_1:
             return iec_asdu_add_m_me_nc_1(buf, ioa, (float)val, qds, false, true, conf);
-
-        case IEC_TYPE_M_ME_TF_1: {
-            _encode_ioa(b, ioa, conf->ioa_len);
-            union {
-                float f;
-                uint32_t u;
-            } u;
-            u.f = (float)val;
-            net_buf_simple_add_le32(b, u.u);
-            net_buf_simple_add_u8(b, *(uint8_t *)&qds);
-            iec_cp56time_t cp_ts;
-            iec_cp56time_from_ms(&cp_ts, ts_ms);
-            net_buf_simple_add_mem(b, &cp_ts, 7);
+        case IEC_TYPE_M_SP_TB_1: {
+            iec_asdu_add_m_sp_na_1(buf, ioa, val > 0.5, qds, false, true, conf);
+            iec_cp56time_t ts;
+            if (ts_ms > 0)
+                iec_cp56time_from_ms(&ts, ts_ms);
+            else
+                iec_cp56time_now(&ts);
+            net_buf_simple_add_mem(&buf->b, &ts, 7);
             return 0;
         }
-
+        case IEC_TYPE_M_ME_TF_1: {
+            iec_asdu_add_m_me_nc_1(buf, ioa, (float)val, qds, false, true, conf);
+            iec_cp56time_t ts;
+            if (ts_ms > 0)
+                iec_cp56time_from_ms(&ts, ts_ms);
+            else
+                iec_cp56time_now(&ts);
+            net_buf_simple_add_mem(&buf->b, &ts, 7);
+            return 0;
+        }
         default:
             LOG_ERROR(LOG_CAT_IO, "IEC ASDU: Unsupported TypeID %d", type_id);
             return -1;

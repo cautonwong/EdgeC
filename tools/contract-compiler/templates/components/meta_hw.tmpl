@@ -2,7 +2,7 @@
 // [Hardware Resources]
 const hw_resource_info_t g_hw_resources[] = {
 {{- range .Hardware }}
-    { "{{ .Label }}", "{{ .Type }}", {{ .ID }}, "{{ index .Attributes "bus_ref" | default "" }}", "{{ .Attributes | marshal | c_escape }}" },
+    { .type = "{{ .Type }}", .id = {{ .ID }}, .label = "{{ .Label }}" },
 {{- end }}
 };
 const int g_hw_resources_len = {{ len .Hardware }};

@@ -5,14 +5,23 @@
 
 #include "arbiter.h"
 #include "datahub.h"
+#include "io_executor.h"
 
 // 前向声明驱动管理器，避免循环包含
 struct driver_manager_s;
 typedef struct driver_manager_s driver_manager_t;
 
-#include "io_executor.h"
-
 typedef struct bus_orchestrator_s bus_orchestrator_t;
+
+/**
+ * @brief 驱动契约注入包 (用于多协议动态绑定)
+ */
+typedef struct {
+    const void *(*lookup_by_key)(uint32_t key);
+    const void *(*lookup_by_tag)(uint32_t tag_id);
+    const void *const *meta_list;
+    uint32_t meta_list_len;
+} driver_contract_injection_t;
 
 bus_orchestrator_t *bus_orchestrator_create(datahub_t *hub, arbiter_t *arb, driver_manager_t *mgr,
                                             int max_buses, uint32_t pool_size, uint32_t buf_size);
@@ -20,19 +29,23 @@ bus_orchestrator_t *bus_orchestrator_create(datahub_t *hub, arbiter_t *arb, driv
 int bus_orchestrator_attach_io(bus_orchestrator_t *ctx, int bus_id, io_handle_t *io);
 
 /**
- * @brief 配置总线为 Master 模式
+ * @brief 配置总线为 Master 模式并注入契约
  */
 int bus_orchestrator_setup_master(bus_orchestrator_t *ctx, int bus_id, const char *protocol,
-                                  uint32_t device_id);
+                                  uint32_t device_id, const driver_contract_injection_t *inject);
 
+/**
+ * @brief 配置总线为 Slave 模式并注入契约
+ */
 int bus_orchestrator_setup_slave(bus_orchestrator_t *ctx, int bus_id, const char *protocol,
-                                 uint32_t device_id);
+                                 uint32_t device_id, const driver_contract_injection_t *inject);
 
 /**
  * @brief 向已有的从站总线添加额外的协议支持 (多协议混跑)
  */
 int bus_orchestrator_add_slave_protocol(bus_orchestrator_t *ctx, int bus_id, const char *protocol,
-                                        uint32_t device_id);
+                                        uint32_t device_id,
+                                        const driver_contract_injection_t *inject);
 
 /**
  * @brief 提交业务指令到仲裁器

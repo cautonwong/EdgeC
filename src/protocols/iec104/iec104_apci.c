@@ -21,7 +21,7 @@ static void _reclaim_acked_frames(iec104_apci_mgr_t *mgr, uint16_t nr) {
         current_nr = (uint16_t)((current_nr + 1) & 0x7FFF);
     }
     mgr->acked_nr = nr;
-    if (mgr->acked_nr == mgr->ns) mgr->t1_start_ts = 0; // 所有包已确认，停掉 t1
+    if (mgr->acked_nr == mgr->ns) mgr->t1_start_ts = 0;  // 所有包已确认，停掉 t1
 }
 
 void iec104_apci_init(iec104_apci_mgr_t *mgr) {

@@ -89,7 +89,7 @@ edge_status_t edge_param_set_float(edge_params_t *ctx, const char *key, double v
     if (!ctx || !key || !g_compact_cache) return EDGE_ERR_INVALID_PARAM;
     for (int i = 0; i < ctx->meta_count; i++) {
         if (strcmp(ctx->meta_table[i].name, key) == 0) {
-            if (val < ctx->meta_table[i].min_val.f || val > ctx->meta_table[i].max_val.f) {
+            if (val < ctx->meta_table[i].min || val > ctx->meta_table[i].max) {
                 return EDGE_ERR_INVALID_PARAM;
             }
             g_compact_cache[i].f = val;
