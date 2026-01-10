@@ -1,0 +1,9 @@
+{
+  "name": "Overvoltage Protection Loop",
+  "steps": [
+    { "t": 1, "action": "inject", "hex": "01030200E6384A", "desc": "Normal Voltage 230V" },
+    { "t": 3, "action": "inject", "hex": "010302010E384A", "desc": "Overvoltage 275V!" },
+    { "t": 4, "action": "check_rest", "tag": 1001, "expect": 275.0 },
+    { "t": 5, "action": "check_reflex", "tag": 8001, "expect": 1.0 }
+  ]
+}

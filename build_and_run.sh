@@ -9,9 +9,36 @@ for arg in "$@"; do
     fi
 done
 
+# ==============================================================================
+# 0. 开发环境初始化 (Python venv & Dependencies)
+# ==============================================================================
+echo "=== [0/3] Preparing Development Environment ==="
+
+if [ ! -d ".venv" ]; then
+    echo "[Python] Creating virtual environment..."
+    python3 -m venv .venv
+fi
+
+# 自动激活并安装依赖
+# 注意：在 Bash 脚本中 source 需要在当前进程生效，或者后续直接使用 .venv/bin/python
+export PATH="$(pwd)/.venv/bin:$PATH"
+
+if [ -f "requirements.txt" ]; then
+    echo "[Python] Installing/Updating dependencies..."
+    pip install -q --upgrade pip
+    pip install -q -r requirements.txt
+fi
+
+# 确保第三方二进制文件有执行权限
+chmod +x .local/linux-x86_64/bin/contract-compiler 2>/dev/null || true
+chmod +x .local/linux-aarch64/bin/contract-compiler 2>/dev/null || true
+
+# 代码格式化
 ./scripts/format.sh
 
+# ==============================================================================
 # 1. 本地原生构建与测试 (x86_64)
+# ==============================================================================
 echo "=== [1/3] Building Native (x86_64) ==="
 mkdir -p build
 cd build
@@ -31,13 +58,17 @@ LOCAL_ARCH="linux-x86_64"
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(pwd)/../.local/$LOCAL_ARCH/lib
 ctest --output-on-failure
 
+# ==============================================================================
 # 2. 原生打包 (可选)
+# ==============================================================================
 if [ "$DO_PACKAGE" = true ]; then
     echo "=== [2/3] Packaging Native (x86_64) ==="
     cmake --build . --target package
 fi
 
+# ==============================================================================
 # 3. 交叉编译打包 (可选 - aarch64)
+# ==============================================================================
 if [ "$DO_PACKAGE" = true ]; then
     echo "=== [3/3] Cross-Packaging (aarch64) ==="
     cd ..
@@ -51,8 +82,9 @@ if [ "$DO_PACKAGE" = true ]; then
     echo "=== Multi-platform Packaging Complete ==="
 fi
 
+# ==============================================================================
 # 4. 包验证 (对最近生成的产品包进行 ldd 检查)
-# 如果刚跑完交叉编译，目录在 build_arm64，需要回退
+# ==============================================================================
 if [[ "$PWD" == *"build_arm64"* ]]; then
     cd ../build
 fi

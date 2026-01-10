@@ -1,0 +1,6 @@
+pyyaml
+pyserial
+gurux-dlms
+pytest
+pytest-timeout
+requests

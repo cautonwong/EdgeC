@@ -8,7 +8,7 @@
 #include "web_server.h"
 
 typedef struct {
-    uv_loop_t loop;
+    uv_loop_t *loop; /**< [Phase 8] 指向私有事件循环 */
     uv_thread_t thread;
     shm_ring_t *ring;
     struct sqlite_svc_s *db; /**< [Phase 8] 数据库句柄，用于断线缓存 */
@@ -29,6 +29,7 @@ typedef struct {
     uv_async_t data_async;
     uv_async_t stop_async;
     uv_timer_t poll_timer;
+    uv_timer_t resync_timer; /**< [Phase 8] 续传监控定时器 */
 
     web_server_t *web_srv;
     rest_server_t *rest_srv;

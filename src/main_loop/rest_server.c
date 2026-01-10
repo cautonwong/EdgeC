@@ -290,8 +290,72 @@ static char *handle_data_latest(service_t *svc, uint32_t tag_id) {
     return out;
 }
 
+static char *handle_system_stats(service_t *svc) {
+    cJSON *root = cJSON_CreateObject();
+
+    // 1. DataHub 指标
+    datahub_t *hub = service_get_datahub(svc);
+    if (hub) {
+        cJSON *dh = cJSON_AddObjectToObject(root, "datahub");
+        cJSON_AddNumberToObject(dh, "total_writes", (double)hub->ring.hdr->total_writes);
+        cJSON_AddNumberToObject(dh, "listener_count", hub->listener_count);
+    }
+
+    // 2. Arbiter 指标
+    arbiter_t *arb = service_get_arbiter(svc);
+    if (arb) {
+        arbiter_bus_status_t bus_stats[BUS_MAX];
+        int count = arbiter_get_statuses(arb, bus_stats, BUS_MAX);
+        cJSON *bus_arr = cJSON_AddArrayToObject(root, "buses");
+        for (int i = 0; i < count; i++) {
+            cJSON *b = cJSON_CreateObject();
+            cJSON_AddNumberToObject(b, "id", bus_stats[i].bus_id);
+            cJSON_AddBoolToObject(b, "busy", bus_stats[i].is_busy);
+            cJSON_AddNumberToObject(b, "queue", bus_stats[i].queue_len);
+            cJSON_AddItemToArray(bus_arr, b);
+        }
+    }
+
+    char *out = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    return out;
+}
+
+static char *handle_system_stats(service_t *svc) {
+    cJSON *root = cJSON_CreateObject();
+    
+    // 1. DataHub 指标
+    datahub_t *hub = service_get_datahub(svc);
+    if (hub) {
+        cJSON *dh = cJSON_AddObjectToObject(root, "datahub");
+        cJSON_AddNumberToObject(dh, "total_writes", (double)hub->ring.hdr->total_writes);
+        cJSON_AddNumberToObject(dh, "listener_count", hub->listener_count);
+    }
+
+    // 2. Arbiter 指标
+    arbiter_t *arb = service_get_arbiter(svc);
+    if (arb) {
+        arbiter_bus_status_t bus_stats[BUS_MAX];
+        int count = arbiter_get_statuses(arb, bus_stats, BUS_MAX);
+        cJSON *bus_arr = cJSON_AddArrayToObject(root, "buses");
+        for (int i = 0; i < count; i++) {
+            cJSON *b = cJSON_CreateObject();
+            cJSON_AddNumberToObject(b, "id", bus_stats[i].bus_id);
+            cJSON_AddBoolToObject(b, "busy", bus_stats[i].is_busy);
+            cJSON_AddNumberToObject(b, "queue", bus_stats[i].queue_len);
+            cJSON_AddItemToArray(bus_arr, b);
+        }
+    }
+
+    char *out = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    return out;
+}
+
 char *rest_dispatch(service_t *svc, const char *path, const char *body) {
     if (strncmp(path, "/api/v1/system/health", 21) == 0) return handle_system_health(svc);
+    if (strncmp(path, "/api/v1/system/stats", 20) == 0) return handle_system_stats(svc);
+    if (strncmp(path, "/api/v1/system/stats", 20) == 0) return handle_system_stats(svc);
     if (strncmp(path, "/api/v1/contracts", 17) == 0) return handle_contracts_get(svc);
     if (strncmp(path, "/api/v1/ui/descriptor", 21) == 0) return handle_ui_descriptor_get(svc);
     if (strncmp(path, "/api/v1/pipelines", 17) == 0) return handle_pipelines_get(svc);
