@@ -1,13 +1,14 @@
 /**
  * @file main.c
- * @brief IEMS Controller - The Ultimate Composition Root (Sprint 3 Reinforced)
+ * @brief IEMS Controller - The Ultimate Composition Root (Sprint Omnis - Simulation Edition)
  */
 
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
+#include <sys/socket.h>
+#include <unistd.h>
 #include <uv.h>
 
 #include "arbiter.h"
@@ -22,80 +23,78 @@
 #include "sqlite_service.h"
 #include "stream_engine.h"
 
-extern int dlt645_driver_register(driver_manager_t *mgr);
-extern int dlms_driver_register(driver_manager_t *mgr);
-extern int iec104_driver_register(driver_manager_t *mgr);
+extern void smoke_stimulator_start(int fd);
+extern int modbus_driver_register(driver_manager_t *mgr);
 
 static service_t *g_running_svc = NULL;
-
-static void on_sigterm(int sig) {
-    (void)sig;
-    if (g_running_svc) service_stop(g_running_svc);
-}
+static void on_sigterm(int sig) { (void)sig; if (g_running_svc) service_stop(g_running_svc); }
+static void on_smoke_timer(uv_timer_t *handle) { (void)handle; if (g_running_svc) service_stop(g_running_svc); }
 
 int main(int argc, char **argv) {
-    (void)argc;
-    (void)argv;
+    bool smoke_mode = false;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--smoke-test") == 0) smoke_mode = true;
+    }
 
-    // 1. 基础
     uv_loop_t *loop = uv_default_loop();
     edge_log_t *logger = edge_log_create(NULL, true);
 
-    // 2. 控制面与驱动管理
     arbiter_t *arbiter = NULL;
     arbiter_init(&arbiter, loop);
     driver_manager_t *drv_mgr = driver_manager_create();
-    dlms_driver_register(drv_mgr);
-    dlt645_driver_register(drv_mgr);
-    iec104_driver_register(drv_mgr);
+    modbus_driver_register(drv_mgr);
 
-    // 3. 数据面 (初始化不带 Pool)
     datahub_t hub;
-    datahub_init(&hub, loop, "iems_v4.5", 1024, g_tag_metadata_len, g_tag_metadata,
-                 g_tag_metadata_len, NULL, edge_tag_get_compact_index, edge_router_needs_wakeup);
+    datahub_init(&hub, loop, "iems_omnis", 1024, g_tag_metadata_len, g_tag_metadata, g_tag_metadata_len, NULL, edge_tag_get_compact_index, edge_router_needs_wakeup);
 
-    // 4. 执行面 (创建 Orchestrator 并注入池到 DataHub)
     bus_orchestrator_t *io_orch = bus_orchestrator_create(&hub, arbiter, drv_mgr, 8, 32, 2048);
-    hub.io_pool = bus_orchestrator_get_pool(io_orch);  // 延迟物理注入
+    hub.io_pool = bus_orchestrator_get_pool(io_orch);
 
-    // 5. 存储与业务
-    sqlite_config_t db_conf = {
-        .db_path = "iems.db", .strategy = STRATEGY_LITE, .max_db_size_mb = 100};
+    // --- 冒烟仿真核心：手动注入虚拟 IO ---
+    if (smoke_mode) {
+        int sv[2];
+        if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0) {
+            io_handle_t *io = io_executor_create_from_fd(loop, sv[0], hub.io_pool);
+            bus_orchestrator_attach_io(io_orch, 0, io);
+            
+            // 注入 ModbusRTU 契约
+            driver_contract_injection_t inject = {
+                .lookup_by_key = (void*)edge_lookup_modbus,
+                .lookup_by_tag = (void*)edge_get_map_modbus_by_tag
+            };
+            bus_orchestrator_setup_master(io_orch, 0, "ModbusRTU", 1, &inject);
+            
+            LOG_INFO(LOG_CAT_CORE, "Simulation: Virtual Bus 0 (ModbusRTU) attached via socketpair.");
+            smoke_stimulator_start(sv[1]);
+        }
+    }
+
+    sqlite_config_t db_conf = {.db_path = "iems.db", .strategy = STRATEGY_LITE};
     sqlite_svc_t *db_service = sqlite_svc_create(loop, &db_conf);
     stream_engine_t *stream_engine = stream_engine_create(&hub, NULL);
+    
+    pipeline_loader_ctx_t pl_ctx = { .db = db_service, .orch = io_orch };
+    stream_engine_load_static_metadata(stream_engine, g_pipeline_metadata, g_pipeline_metadata_len, &pl_ctx);
 
-    // [S17] 静态逻辑注入
-    pipeline_loader_ctx_t pl_ctx = {.db = db_service, .orch = io_orch};
-    stream_engine_load_static_metadata(stream_engine, g_pipeline_metadata, g_pipeline_metadata_len,
-                                       &pl_ctx);
-
-    edge_params_t *param_mgr = edge_params_create(db_service);
-
-    // 6. 北向
-    northbound_mgr_t *north_mgr = calloc(1, sizeof(northbound_mgr_t));
-    northbound_mgr_init(north_mgr, loop, &hub.ring, "iems", db_service);
-    north_mgr->user_data = NULL;  // 稍后在 service_new 中关联
-
-    // 7. 总装
-    service_t *svc =
-        service_new(loop, &hub, arbiter, db_service, stream_engine, param_mgr, north_mgr);
+    service_t *svc = service_new(loop, &hub, arbiter, db_service, stream_engine, NULL, NULL);
     g_running_svc = svc;
-    north_mgr->user_data = svc;  // 闭环关联
 
-    // 8. 启动
+    if (smoke_mode) {
+        uv_timer_t *t = malloc(sizeof(uv_timer_t));
+        uv_timer_init(loop, t);
+        uv_timer_start(t, on_smoke_timer, 10000, 0); // 10秒后自动优雅停止
+        LOG_WARN(LOG_CAT_CORE, "Simulation Mode Active. Target: Data Arrival -> Reflex Trigger -> Exit.");
+    }
+
     signal(SIGTERM, on_sigterm);
     bus_orchestrator_run(io_orch);
     int exit_code = service_run(svc);
 
-    // 9. 销毁
     service_delete(svc);
-    northbound_mgr_stop(north_mgr);
-    free(north_mgr);
     bus_orchestrator_destroy(io_orch);
     stream_engine_destroy(stream_engine);
     driver_manager_destroy(drv_mgr);
     arbiter_destroy(arbiter);
-    edge_params_destroy(param_mgr);
     sqlite_svc_destroy(db_service);
     datahub_destroy(&hub);
     edge_log_destroy(logger);

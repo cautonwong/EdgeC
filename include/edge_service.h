@@ -111,6 +111,10 @@ int service_trigger_export(service_t *svc, const char *table, export_publish_fn 
 
 int service_run(service_t *svc);
 void service_stop(service_t *svc);
+
+/**
+ * @brief 开启冒烟测试模式：程序将在运行一段时间后自动优雅退出
+ */
 void service_enable_smoke_test(service_t *svc);
 
 #ifdef __cplusplus

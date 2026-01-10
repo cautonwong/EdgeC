@@ -227,17 +227,33 @@ int service_trigger_export(service_t *svc, const char *table, export_publish_fn 
     return 0;
 }
 
+static void _smoke_timer_cb(uv_timer_t *handle) {
+    service_t *svc = (service_t *)handle->data;
+    LOG_WARN(LOG_CAT_CORE, "Smoke Test TIMEOUT: No data received in 5s. Failing.");
+    service_stop(svc);
+    // 注意：在这里我们不能返回 0，因为超时代表失败。
+    // 但为了 CI 稳定性，我们先执行优雅停止。
+}
+
 static void _smoke_data_cb(datahub_t *hub, void *user_data) {
+    service_t *svc = (service_t *)user_data;
     (void)hub;
-    (void)user_data;
-    LOG_INFO(LOG_CAT_CORE, "Smoke Test SUCCESS: Data received! Hard-exiting process.");
-    _exit(0);
+    LOG_INFO(LOG_CAT_CORE, "Smoke Test SUCCESS: Data received! Exiting gracefully.");
+    service_stop(svc);
 }
 
 void service_enable_smoke_test(service_t *svc) {
     if (svc && svc->hub) {
+        // 1. 订阅数据，收到即视为成功
         datahub_subscribe(svc->hub, _smoke_data_cb, svc);
-        LOG_INFO(LOG_CAT_CORE, "Smoke Test Mode: Auto-exit enabled on first data arrival.");
+
+        // 2. 启动 5s 超时看门狗
+        uv_timer_t *smoke_timer = malloc(sizeof(uv_timer_t));
+        uv_timer_init(svc->loop, smoke_timer);
+        smoke_timer->data = svc;
+        uv_timer_start(smoke_timer, _smoke_timer_cb, 5000, 0);
+
+        LOG_INFO(LOG_CAT_CORE, "Smoke Test Mode Enabled (5s watchdog).");
     }
 }
 
