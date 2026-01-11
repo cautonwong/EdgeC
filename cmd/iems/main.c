@@ -35,26 +35,34 @@ static void on_sigterm(int sig) {
     if (g_running_svc) service_stop(g_running_svc);
 }
 
-static uint64_t g_last_poll_ms[128] = {0};
+static uint64_t g_last_poll_ms[1024] = {0}; // 支持更多点位
 
 static void on_poll_timer(uv_timer_t *handle) {
     if (!g_orch_ptr) return;
     uint64_t now_ms = uv_now(handle->loop);
     
     static uint64_t last_alive_print = 0;
-    if (now_ms - last_alive_print > 1000) {
-        fprintf(stderr, "[TRACE][Main] Timer Heartbeat: %lu ms, MetaLen: %u\n", 
-                (unsigned long)now_ms, (unsigned int)g_tag_metadata_len);
+    if (now_ms - last_alive_print > 5000) {
+        fprintf(stderr, "[INFO][Main] Poller alive. Active Tags: %u, Tag0: %u, Interval0: %u\n", 
+                (unsigned int)g_tag_metadata_len, (unsigned int)g_tag_metadata[0].id, (unsigned int)g_tag_metadata[0].poll_interval_ms);
         last_alive_print = now_ms;
+    }
 
-        // 强行提交 1001 和 8003
-        uint32_t tags_to_poll[] = {1001, 8003};
-        for(int i=0; i<2; i++) {
-            cmd_msg_t cmd = {0};
-            cmd_msg_init_read(&cmd, tags_to_poll[i], ARBITER_PRIO_NORMAL);
-            strncpy(cmd.protocol, "ModbusRTU", 15);
-            snprintf(cmd.req_id, sizeof(cmd.req_id), "F_%u", tags_to_poll[i]);
-            bus_orchestrator_submit_cmd(g_orch_ptr, TEST_BUS_ID, &cmd);
+    // 遍历契约定义的所有点位 (完全动态)
+    for (uint32_t i = 0; i < g_tag_metadata_len && i < 1024; i++) {
+        const edge_tag_meta_t *meta = &g_tag_metadata[i];
+        if (meta->poll_interval_ms > 0) {
+            // 检查是否到达该点位的轮询周期
+            if (now_ms - g_last_poll_ms[i] >= meta->poll_interval_ms) {
+                cmd_msg_t cmd = {0};
+                cmd_msg_init_read(&cmd, meta->id, ARBITER_PRIO_NORMAL);
+                strncpy(cmd.protocol, "ModbusRTU", 15);
+                snprintf(cmd.req_id, sizeof(cmd.req_id), "P_%u", meta->id);
+
+                if (bus_orchestrator_submit_cmd(g_orch_ptr, TEST_BUS_ID, &cmd) == 0) {
+                    g_last_poll_ms[i] = now_ms;
+                }
+            }
         }
     }
 }

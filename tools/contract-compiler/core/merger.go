@@ -89,17 +89,28 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 	// 1. 处理 Base Product 的包含
 	processIncludes(pc.Includes, baseDir, rawTags, &effectiveScenarios, seenFiles)
 
+	enabledAttr := make(map[string]map[string]interface{})
 	for _, item := range pc.EnabledTags {
 		if s, ok := item.(string); ok {
 			enabledSet[s] = true
 		} else if m, ok := item.(map[string]interface{}); ok {
 			if tagVal, exists := m["tag"]; exists {
-				if s, ok := tagVal.(string); ok { enabledSet[s] = true }
+				if s, ok := tagVal.(string); ok { 
+					enabledSet[s] = true 
+					if attr, ok := m["attributes"].(map[string]interface{}); ok {
+						enabledAttr[s] = attr
+					}
+				}
 			}
 		} else if m, ok := item.(map[interface{}]interface{}); ok {
 			for k, v := range m {
 				if ks, ok := k.(string); ok && ks == "tag" {
-					if vs, ok := v.(string); ok { enabledSet[vs] = true }
+					if vs, ok := v.(string); ok { 
+						enabledSet[vs] = true 
+						if attr, ok := m["attributes"].(map[string]interface{}); ok {
+							enabledAttr[vs] = attr
+						}
+					}
 				}
 			}
 		}
@@ -133,7 +144,12 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 					if s, ok := n.(string); ok {
 						enabledSet[s] = true
 					} else if m, ok := n.(map[string]interface{}); ok {
-						if tagName, ok := m["tag"].(string); ok { enabledSet[tagName] = true }
+						if tagName, ok := m["tag"].(string); ok { 
+							enabledSet[tagName] = true 
+							if attr, ok := m["attributes"].(map[string]interface{}); ok {
+								enabledAttr[tagName] = attr
+							}
+						}
 					}
 				}
 			}
@@ -268,6 +284,13 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 			if existing, conflict := usedIDs[t.ID]; conflict && existing != name { panic(fmt.Sprintf("ID Conflict! %d", t.ID)) }
 			usedIDs[t.ID] = name
 		}
+		
+		// [核心修复] 合并 YAML 中定义的属性
+		if attr, exists := enabledAttr[name]; exists {
+			if t.Attributes == nil { t.Attributes = make(map[string]interface{}) }
+			for k, v := range attr { t.Attributes[k] = v }
+		}
+
 		allTags = append(allTags, t)
 		if enabledSet[name] { 
 			activeTags = append(activeTags, t) 
