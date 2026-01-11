@@ -19,25 +19,16 @@ class OmnisObserver:
 
     def get_tag_value(self, tag_id):
         url = f"{self.base_url}/data/latest/{tag_id}"
-        # 内部重试机制：应对网络库与进程启动的时序差
-        for _ in range(5):
-            try:
-                resp = requests.get(url, timeout=2)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    if data.get("status") != "not_found":
-                        return data.get("value")
-                    else:
-                        # 数据还未采集到，继续重试
-                        time.sleep(0.5)
-                        continue
-                elif resp.status_code == 404:
-                    return None
-            except requests.exceptions.ConnectionError:
-                time.sleep(0.5)
-            except Exception as e:
-                print(f"DEBUG: API error: {e}")
-        return None
+        try:
+            resp = requests.get(url, timeout=2)
+            if resp.status_code == 200:
+                data = resp.json()
+                # 只有当 API 明确返回成功且有值时才返回数值
+                if "value" in data:
+                    return data["value"]
+        except:
+            pass
+        return None # 数据未就绪、404 或连接失败一律返回 None
 
     def check_db_value(self, tag_id, min_val=None, max_val=None, count=1):
         if not os.path.exists(self.db_path): return False
@@ -56,11 +47,12 @@ class OmnisObserver:
             return True
         except: return False
 
-    def wait_for_condition(self, check_func, timeout=10, interval=0.5):
+    def wait_for_condition(self, check_func, timeout=30, interval=0.5):
         start = time.time()
         while time.time() - start < timeout:
             try:
-                if check_func(): return True
+                res = check_func()
+                if res: return True
             except: pass
             time.sleep(interval)
         return False

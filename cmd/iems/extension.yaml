@@ -22,7 +22,7 @@ pipelines:
   - id: "overvoltage_protection"
     trigger: "VOLTAGE_PHASE_A"
     stages:
-      - type: "reflex"
-        params:
-          f1: 240.0
-          u1: 4003 # 触发电池反向压减
+      - type: "REFLEX"
+        min: 240.0        # -> f1 (threshold)
+        max: 1.0          # -> f2 (greater_than flag)
+        target_tag: 8001  # -> u1 (target_tag)

@@ -26,6 +26,10 @@ extern int modbus_driver_register(driver_manager_t *mgr);
 static service_t *g_running_svc = NULL;
 static datahub_t *g_hub_ptr = NULL;
 static bus_orchestrator_t *g_orch_ptr = NULL;
+static driver_contract_injection_t g_modbus_inject;
+
+// 使用合法的 Arbiter 总线 ID (匹配 Reflex 默认 Bus 0)
+#define TEST_BUS_ID 0
 
 static void on_sigterm(int sig) {
     (void)sig;
@@ -33,15 +37,19 @@ static void on_sigterm(int sig) {
 }
 
 static void on_poll_timer(uv_timer_t *handle) {
-    bus_orchestrator_t *orch = (bus_orchestrator_t *)handle->data;
+    (void)handle;
+    if (!g_orch_ptr) return;
     cmd_msg_t cmd = {0};
     cmd_msg_init_read(&cmd, 1001, ARBITER_PRIO_NORMAL);
     strncpy(cmd.protocol, "ModbusRTU", 15);
     snprintf(cmd.req_id, sizeof(cmd.req_id), "POLL_%lu", (unsigned long)time(NULL));
-    bus_orchestrator_submit_cmd(orch, 0, &cmd);
+
+    int rc = bus_orchestrator_submit_cmd(g_orch_ptr, TEST_BUS_ID, &cmd);
+    if (rc != 0) {
+        fprintf(stderr, "[ERROR][IEMS] Failed to submit POLL: %d\n", rc);
+    }
 }
 
-// Libuv 异步连接回调
 static void on_new_connection(uv_stream_t *server, int status) {
     if (status < 0) return;
     uv_pipe_t *client = malloc(sizeof(uv_pipe_t));
@@ -49,26 +57,13 @@ static void on_new_connection(uv_stream_t *server, int status) {
     if (uv_accept(server, (uv_stream_t *)client) == 0) {
         int fd;
         uv_fileno((const uv_handle_t *)client, &fd);
-
-        // 设置非阻塞
         int flags = fcntl(fd, F_GETFL, 0);
         fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 
         fprintf(stderr, "[OMNIS] Mimic connected on FD %d\n", fd);
         io_handle_t *h = io_executor_create_from_fd(server->loop, fd, g_hub_ptr->io_pool);
-
-        // [核心修复] 注入编译器生成的契约函数
-        driver_contract_injection_t modbus_inject = {
-            .lookup_by_key = (void *)edge_get_map_modbus,
-            .lookup_by_tag = (void *)edge_get_map_modbus_by_tag};
-        bus_orchestrator_setup_master(g_orch_ptr, 0, "ModbusRTU", 1, &modbus_inject);
-        bus_orchestrator_attach_io(g_orch_ptr, 0, h);
+        bus_orchestrator_attach_io(g_orch_ptr, TEST_BUS_ID, h);
         h->ops->enable_read(h, true);
-
-        uv_timer_t *timer = malloc(sizeof(uv_timer_t));
-        uv_timer_init(server->loop, timer);
-        timer->data = g_orch_ptr;
-        uv_timer_start(timer, on_poll_timer, 100, 500);
     } else {
         uv_close((uv_handle_t *)client, (uv_close_cb)free);
     }
@@ -86,6 +81,9 @@ int main(int argc, char **argv) {
     driver_manager_t *drv_mgr = driver_manager_create();
     modbus_driver_register(drv_mgr);
 
+    g_modbus_inject.lookup_by_key = (void *)edge_get_map_modbus;
+    g_modbus_inject.lookup_by_tag = (void *)edge_get_map_modbus_by_tag;
+
     datahub_t *hub = calloc(1, sizeof(datahub_t));
     datahub_init(hub, loop, "iems_v4.5", 1024, 1024, g_tag_metadata, g_tag_metadata_len, NULL,
                  edge_tag_get_compact_index, edge_router_needs_wakeup);
@@ -95,12 +93,13 @@ int main(int argc, char **argv) {
     hub->io_pool = bus_orchestrator_get_pool(io_orch);
     g_orch_ptr = io_orch;
 
-    // --- [Omnis] 异步 UDS 监听服务器 ---
-    uv_pipe_t vbus_server;
-    uv_pipe_init(loop, &vbus_server, 0);
+    bus_orchestrator_setup_master(io_orch, TEST_BUS_ID, "ModbusRTU", TEST_BUS_ID, &g_modbus_inject);
+
+    uv_pipe_t *vbus_server = malloc(sizeof(uv_pipe_t));
+    uv_pipe_init(loop, vbus_server, 0);
     unlink("/tmp/vbus0.sock");
-    uv_pipe_bind(&vbus_server, "/tmp/vbus0.sock");
-    uv_listen((uv_stream_t *)&vbus_server, 128, on_new_connection);
+    uv_pipe_bind(vbus_server, "/tmp/vbus0.sock");
+    uv_listen((uv_stream_t *)vbus_server, 128, on_new_connection);
 
     sqlite_config_t db_conf = {.db_path = "iems.db", .strategy = STRATEGY_LITE};
     sqlite_svc_t *db_service = sqlite_svc_create(loop, &db_conf);
@@ -120,10 +119,28 @@ int main(int argc, char **argv) {
     g_running_svc = svc;
     north_mgr->user_data = svc;
 
+    uv_timer_t *poll_timer = malloc(sizeof(uv_timer_t));
+    uv_timer_init(loop, poll_timer);
+    uv_timer_start(poll_timer, on_poll_timer, 100, 500);
+
+    uv_async_t *keepalive = malloc(sizeof(uv_async_t));
+    uv_async_init(loop, keepalive, NULL);
+
     signal(SIGTERM, on_sigterm);
     bus_orchestrator_run(io_orch);
-    northbound_mgr_start(north_mgr);
 
-    fprintf(stderr, "[OMNIS] System ready. Starting loop...\n");
-    return uv_run(loop, UV_RUN_DEFAULT);
+    fprintf(stderr, "[OMNIS] System Ready on TEST BUS %d. Main Loop Starting.\n", TEST_BUS_ID);
+    int exit_code = service_run(svc);
+
+    fprintf(stderr, "[OMNIS] System loop returned with %d. Cleaning up...\n", exit_code);
+
+    northbound_mgr_stop(north_mgr);
+    bus_orchestrator_destroy(io_orch);
+    service_delete(svc);
+    datahub_destroy(hub);
+
+    free(hub);
+    free(north_mgr);
+    edge_log_destroy(logger);
+    return exit_code;
 }

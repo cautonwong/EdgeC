@@ -77,6 +77,13 @@ int arbiter_init(arbiter_t **arb_out, uv_loop_t *loop) {
     return 0;
 }
 
+arbiter_bus_handle_t arbiter_bus_register(arbiter_t *arb, const char *name) {
+    (void)arb;
+    (void)name;
+    // 目前总线槽位是固定的，未来可实现动态分配
+    return (arbiter_bus_handle_t)name;
+}
+
 int arbiter_submit_cmd(arbiter_t *arb, int bus_id, cmd_msg_t *cmd) {
     if (!arb || arb->is_shutting_down || bus_id >= MAX_BUSES || !cmd) return -1;
 

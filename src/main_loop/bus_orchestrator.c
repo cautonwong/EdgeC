@@ -77,7 +77,12 @@ static void _on_arbiter_cmd_start(void *user_data) {
     if (bus_id < orch->max_buses && orch->engines[bus_id]) {
         bus_engine_t *eng = orch->engines[bus_id];
         cmd_msg_t *cmd = (cmd_msg_t *)(ctx + 1);
+        fprintf(stderr, "[DEBUG][Orchestrator] Dispatching Cmd %s to Engine on Bus %d\n",
+                cmd->req_id, bus_id);
         eng->run_command(eng, cmd);
+    } else {
+        fprintf(stderr, "[ERROR][Orchestrator] Cannot dispatch: Bus %d has no engine attached\n",
+                bus_id);
     }
 }
 
@@ -142,6 +147,8 @@ int bus_orchestrator_setup_master(bus_orchestrator_t *ctx, int bus_id, const cha
     if (!eng) return -1;
 
     ctx->engines[bus_id] = eng;
+    // [关键修复] 向 Arbiter 注册总线并获取令牌 (虽然目前令牌是 Opaque)
+    arbiter_bus_register(ctx->arb, protocol);
 
     if (ctx->io_handles[bus_id]) {
         eng->attach(eng, ctx->io_handles[bus_id]);
@@ -162,6 +169,7 @@ int bus_orchestrator_setup_slave(bus_orchestrator_t *ctx, int bus_id, const char
     if (!eng) return -1;
 
     ctx->engines[bus_id] = eng;
+    arbiter_bus_register(ctx->arb, protocol);
 
     if (ctx->io_handles[bus_id]) eng->attach(eng, ctx->io_handles[bus_id]);
 

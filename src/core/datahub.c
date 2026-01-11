@@ -108,8 +108,8 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
             uv_mutex_lock(&hub->shadow_lock);
             hub->shadow_table[idx] = *msg;
             uv_mutex_unlock(&hub->shadow_lock);
-            fprintf(stderr, "[DEBUG][DataHub@%p] Shadow update: Tag %u Val %f at Index %d\n",
-                    (void *)hub, msg->tag_id, msg->payload.val.f, idx);
+            fprintf(stderr, "[DEBUG][DataHub] Shadow Updated: Tag %u (Idx %d) Val %f\n", 
+                    msg->tag_id, idx, msg->payload.val.f);
         }
     }
 
@@ -138,9 +138,6 @@ int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out) {
     uv_mutex_unlock(&hub->shadow_lock);
 
     if (out->tag_id != tag_id) {
-        fprintf(stderr,
-                "[DEBUG][DataHub@%p] Shadow read MISMATCH for Tag %u: found ID %u at Index %d\n",
-                (void *)hub, tag_id, out->tag_id, idx);
         return -1;
     }
     return 0;
