@@ -54,6 +54,7 @@ static void _master_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *u
     }
 
     if (evt == IO_EVENT_RX && rx) {
+        fprintf(stderr, "[TRACE][MasterEngine] Received %u raw bytes from IO\n", rx->b.len);
         net_buf_append_bytes(priv->rx_acc, rx->b.data, rx->b.len);
         net_buf_unref(rx);
 
@@ -82,15 +83,18 @@ static void _master_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *u
                 }
                 frame_found = true;
                 if (consumed > 0) net_buf_pull(priv->rx_acc, consumed);
+                net_buf_unref(resp); // <--- 这里一定要释放
                 break;
             } else if (rc == EDGE_ERR_INCOMPLETE) {
                 if (consumed > 0) net_buf_pull(priv->rx_acc, consumed);
+                net_buf_unref(resp); // <--- 这里也要释放
                 break;
             } else {
                 if (consumed > 0)
                     net_buf_pull(priv->rx_acc, consumed);
                 else
                     net_buf_simple_reset(&priv->rx_acc->b);
+                net_buf_unref(resp); // <--- 这里更要释放
                 break;
             }
         }

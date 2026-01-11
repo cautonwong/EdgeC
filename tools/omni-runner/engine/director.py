@@ -1,12 +1,14 @@
 import subprocess
 import time
 import os
+import sys
 import signal
 import json
 import random
 import socket
 import shutil
 from .parser import ContractParser
+from .sniffer import VBusSniffer
 
 import requests
 from tenacity import retry, stop_after_delay, wait_fixed
@@ -46,6 +48,11 @@ class OmnisDirector:
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir, exist_ok=True)
 
+        # [隔离]
+        # 使用简短的 /tmp 路径避免 Unix Socket 108 字符长度限制
+        unique_id = f"{self.product_name}_{random.randint(1000, 9999)}"
+        self.vbus_path = f"/tmp/vbus_{unique_id}.sock"
+
     def _find_binary(self):
         for f in os.listdir(self.bin_dir):
             path = os.path.join(self.bin_dir, f)
@@ -64,11 +71,14 @@ class OmnisDirector:
 
     def start_edgec(self):
         print(f"🎬 [Director] Starting EdgeC. Logs: {self.log_dir}/edgec.log")
+        
         env = os.environ.copy()
         project_root = os.path.abspath(os.path.join(self.product_dir, "../../../.."))
         local_lib = os.path.join(project_root, ".local/linux-x86_64/lib")
         env["LD_LIBRARY_PATH"] = f"{local_lib}:{env.get('LD_LIBRARY_PATH', '')}"
         env["EDGE_REST_PORT"] = str(self.rest_port)
+        # 强制 EdgeC 使用隔离路径
+        env["OMNIS_VBUS_PATH"] = self.vbus_path
         
         if os.path.exists(self.db_path): os.remove(self.db_path)
 
@@ -98,13 +108,15 @@ class OmnisDirector:
         env["PYTHONPATH"] = f"{current_tool_dir}:{env.get('PYTHONPATH', '')}"
         env["OMNIS_PRODUCT"] = self.product_name
         env["OMNIS_CONTRACT_PATH"] = self.contract_path
+        # 强制 Actor 连接到隔离路径
+        env["OMNIS_VBUS_PATH"] = self.vbus_path
         
         # [关键改进] 显式指定控制端口文件，不再依赖 PID 猜测
         ctrl_path = os.path.join(self.log_dir, f"mimic_{protocol}.ctrl")
         env["OMNIS_ACTOR_CTRL"] = ctrl_path
 
         proc = subprocess.Popen(
-            ["python3", "-m", f"actors.{protocol.lower()}"],
+            [sys.executable, "-m", f"actors.{protocol.lower()}"],
             stdout=log_f, 
             stderr=log_f, 
             env=env,

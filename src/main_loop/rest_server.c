@@ -160,6 +160,7 @@ static char *handle_devices_get(service_t *svc) {
 }
 
 static char *handle_data_latest(service_t *svc, uint32_t tag_id) {
+    fprintf(stderr, "[TRACE][REST] Request for Tag %u\n", tag_id);
     datahub_t *hub = service_get_datahub(svc);
     PipeMsg msg;
     cJSON *root = cJSON_CreateObject();

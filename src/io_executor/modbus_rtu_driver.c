@@ -123,7 +123,7 @@ static int modbus_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_
     modbus_ctx_t *priv = (modbus_ctx_t *)ctx->priv;
     *consumed = 0;
 
-    fprintf(stderr, "[MODBUS] Decoding Response (%u bytes): ", in->b.len);
+    fprintf(stderr, "[TRACE][Modbus] Decoding HEX: ");
     for (uint16_t i = 0; i < in->b.len; i++) fprintf(stderr, "%02X ", in->b.data[i]);
     fprintf(stderr, "\n");
 

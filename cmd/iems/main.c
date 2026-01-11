@@ -28,7 +28,6 @@ static datahub_t *g_hub_ptr = NULL;
 static bus_orchestrator_t *g_orch_ptr = NULL;
 static driver_contract_injection_t g_modbus_inject;
 
-// 使用合法的 Arbiter 总线 ID (匹配 Reflex 默认 Bus 0)
 #define TEST_BUS_ID 0
 
 static void on_sigterm(int sig) {
@@ -36,17 +35,27 @@ static void on_sigterm(int sig) {
     if (g_running_svc) service_stop(g_running_svc);
 }
 
-static void on_poll_timer(uv_timer_t *handle) {
-    (void)handle;
-    if (!g_orch_ptr) return;
-    cmd_msg_t cmd = {0};
-    cmd_msg_init_read(&cmd, 1001, ARBITER_PRIO_NORMAL);
-    strncpy(cmd.protocol, "ModbusRTU", 15);
-    snprintf(cmd.req_id, sizeof(cmd.req_id), "POLL_%lu", (unsigned long)time(NULL));
+static uint64_t g_last_poll_ms[128] = {0};
 
-    int rc = bus_orchestrator_submit_cmd(g_orch_ptr, TEST_BUS_ID, &cmd);
-    if (rc != 0) {
-        fprintf(stderr, "[ERROR][IEMS] Failed to submit POLL: %d\n", rc);
+static void on_poll_timer(uv_timer_t *handle) {
+    if (!g_orch_ptr) return;
+    uint64_t now_ms = uv_now(handle->loop);
+    
+    static uint64_t last_alive_print = 0;
+    if (now_ms - last_alive_print > 1000) {
+        fprintf(stderr, "[TRACE][Main] Timer Heartbeat: %lu ms, MetaLen: %u\n", 
+                (unsigned long)now_ms, (unsigned int)g_tag_metadata_len);
+        last_alive_print = now_ms;
+
+        // 强行提交 1001 和 8003
+        uint32_t tags_to_poll[] = {1001, 8003};
+        for(int i=0; i<2; i++) {
+            cmd_msg_t cmd = {0};
+            cmd_msg_init_read(&cmd, tags_to_poll[i], ARBITER_PRIO_NORMAL);
+            strncpy(cmd.protocol, "ModbusRTU", 15);
+            snprintf(cmd.req_id, sizeof(cmd.req_id), "F_%u", tags_to_poll[i]);
+            bus_orchestrator_submit_cmd(g_orch_ptr, TEST_BUS_ID, &cmd);
+        }
     }
 }
 
@@ -57,10 +66,7 @@ static void on_new_connection(uv_stream_t *server, int status) {
     if (uv_accept(server, (uv_stream_t *)client) == 0) {
         int fd;
         uv_fileno((const uv_handle_t *)client, &fd);
-        int flags = fcntl(fd, F_GETFL, 0);
-        fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-
-        fprintf(stderr, "[OMNIS] Mimic connected on FD %d\n", fd);
+        fprintf(stderr, "[TRACE][Main] Mimic connected on FD %d\n", fd);
         io_handle_t *h = io_executor_create_from_fd(server->loop, fd, g_hub_ptr->io_pool);
         bus_orchestrator_attach_io(g_orch_ptr, TEST_BUS_ID, h);
         h->ops->enable_read(h, true);
@@ -95,10 +101,13 @@ int main(int argc, char **argv) {
 
     bus_orchestrator_setup_master(io_orch, TEST_BUS_ID, "ModbusRTU", TEST_BUS_ID, &g_modbus_inject);
 
+    char *vbus_path = getenv("OMNIS_VBUS_PATH");
+    if (!vbus_path) vbus_path = "/tmp/vbus0.sock";
+    
+    unlink(vbus_path);
     uv_pipe_t *vbus_server = malloc(sizeof(uv_pipe_t));
     uv_pipe_init(loop, vbus_server, 0);
-    unlink("/tmp/vbus0.sock");
-    uv_pipe_bind(vbus_server, "/tmp/vbus0.sock");
+    uv_pipe_bind(vbus_server, vbus_path);
     uv_listen((uv_stream_t *)vbus_server, 128, on_new_connection);
 
     sqlite_config_t db_conf = {.db_path = "iems.db", .strategy = STRATEGY_LITE};
@@ -111,9 +120,7 @@ int main(int argc, char **argv) {
 
     northbound_mgr_t *north_mgr = calloc(1, sizeof(northbound_mgr_t));
     northbound_mgr_init(north_mgr, loop, &hub->ring, "iems", db_service);
-
-    char *rest_port_env = getenv("EDGE_REST_PORT");
-    north_mgr->rest_port = rest_port_env ? atoi(rest_port_env) : 9091;
+    north_mgr->rest_port = getenv("EDGE_REST_PORT") ? atoi(getenv("EDGE_REST_PORT")) : 9091;
 
     service_t *svc = service_new(loop, hub, arbiter, db_service, stream_engine, NULL, north_mgr);
     g_running_svc = svc;
@@ -121,26 +128,17 @@ int main(int argc, char **argv) {
 
     uv_timer_t *poll_timer = malloc(sizeof(uv_timer_t));
     uv_timer_init(loop, poll_timer);
-    uv_timer_start(poll_timer, on_poll_timer, 100, 500);
-
-    uv_async_t *keepalive = malloc(sizeof(uv_async_t));
-    uv_async_init(loop, keepalive, NULL);
+    uv_timer_start(poll_timer, on_poll_timer, 100, 100);
 
     signal(SIGTERM, on_sigterm);
     bus_orchestrator_run(io_orch);
 
-    fprintf(stderr, "[OMNIS] System Ready on TEST BUS %d. Main Loop Starting.\n", TEST_BUS_ID);
+    fprintf(stderr, "[OMNIS] System Starting on Bus %d Path %s\n", TEST_BUS_ID, vbus_path);
     int exit_code = service_run(svc);
 
-    fprintf(stderr, "[OMNIS] System loop returned with %d. Cleaning up...\n", exit_code);
-
-    northbound_mgr_stop(north_mgr);
-    bus_orchestrator_destroy(io_orch);
     service_delete(svc);
     datahub_destroy(hub);
-
     free(hub);
-    free(north_mgr);
     edge_log_destroy(logger);
     return exit_code;
 }

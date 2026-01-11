@@ -16,7 +16,9 @@ enabled_tags:
   - BATTERY_SOC
   - BATTERY_POWER
   - PROJECT_HUMIDITY
-  - SOLAR_VOLTAGE
+  - tag: SOLAR_VOLTAGE
+    attributes:
+      poll_interval_ms: 1000
 
 parameters:
   - name: ALGO_UOV_LIMIT
