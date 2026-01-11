@@ -1,0 +1,9 @@
+# Solar Modular Feature
+protocol: "MODBUS"
+mappings:
+  - tag: SOLAR_VOLTAGE
+    addr: 0x0100
+    scale: 0.1
+
+scenarios:
+  - "scenarios/solar_test.yaml"

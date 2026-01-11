@@ -1,4 +1,7 @@
 # IEMS Extension for Sprint 4 (Omnis)
+includes:
+  - "features/solar_module.yaml"
+
 enabled_tags:
   - tag: VOLTAGE_PHASE_A
     attributes:
@@ -13,6 +16,7 @@ enabled_tags:
   - BATTERY_SOC
   - BATTERY_POWER
   - PROJECT_HUMIDITY
+  - SOLAR_VOLTAGE
 
 parameters:
   - name: ALGO_UOV_LIMIT

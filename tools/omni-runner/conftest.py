@@ -60,11 +60,11 @@ def pytest_generate_tests(metafunc):
 
 @pytest.fixture
 def run_env(scenario_context):
-    prod = scenario_context["product"]
-    scen = os.path.basename(scenario_context["scenario_path"]).replace(".yaml", "")
+    product_dir = scenario_context["product_dir"]
+    scen_name = os.path.basename(scenario_context["scenario_path"]).replace(".yaml", "")
     
-    base_results = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../build/test_results"))
-    case_dir = os.path.join(base_results, prod, scen)
+    # [镜像化布局] build/products/<prod>/test_reports/<scen>
+    case_dir = os.path.join(product_dir, "test_reports", scen_name)
     
     if os.path.exists(case_dir):
         shutil.rmtree(case_dir)
@@ -72,14 +72,32 @@ def run_env(scenario_context):
     
     return {
         "log_dir": case_dir,
-        "product_dir": scenario_context["product_dir"]
+        "product_dir": product_dir
     }
 
 @pytest.fixture
-def director(run_env, scenario_context):
+def director(run_env):
     d = OmnisDirector(run_env["product_dir"], log_dir=run_env["log_dir"])
     yield d
     d.stop_all()
+
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    # 获取测试结果
+    outcome = yield
+    report = outcome.get_result()
+    
+    if report.when == "call" and report.failed:
+        # 如果测试失败，尝试抓取 EdgeC 日志
+        if "director" in item.funcargs:
+            director = item.funcargs["director"]
+            log_path = os.path.join(director.log_dir, "edgec.log")
+            if os.path.exists(log_path):
+                with open(log_path, "r") as f:
+                    lines = f.readlines()
+                    # 只取最后 50 行
+                    tail = "".join(lines[-50:])
+                    print(f"\n--- [EdgeC LOG TAIL ON FAILURE] ---\n{tail}\n--- END LOG ---")
 
 @pytest.fixture
 def observer(director):

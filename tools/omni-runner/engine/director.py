@@ -8,18 +8,21 @@ import socket
 import shutil
 from .parser import ContractParser
 
+import requests
+from tenacity import retry, stop_after_delay, wait_fixed
+
 class OmnisDirector:
     def __init__(self, product_dir, log_dir=None):
         self.product_dir = os.path.abspath(product_dir)
+        # 兼容 shadow_schema.json
         manifest_path = os.path.join(self.product_dir, "generated/shadow_schema.json")
         
         with open(manifest_path, "r") as f:
             self.manifest = json.load(f)
             
-        self.product_name = self.manifest.get("Product")
+        self.product_name = self.manifest.get("Product", "unknown")
         # 直接使用同目录下的 contracts.yaml
         c_path = os.path.join(os.path.dirname(manifest_path), "contracts.yaml")
-
         if not os.path.isabs(c_path):
              c_path = os.path.join(self.product_dir, "generated", c_path)
         self.contract_path = c_path
@@ -33,10 +36,12 @@ class OmnisDirector:
         self.rest_port = random.randint(15000, 25000)
         self.db_path = f"{self.product_name}.db"
         
+        # [镜像化布局]
         if log_dir:
             self.log_dir = log_dir
         else:
-            self.log_dir = os.path.join(os.getcwd(), "build/omnis_logs", str(int(time.time())))
+            # 默认指向 build/products/<prod>/logs
+            self.log_dir = os.path.join(self.product_dir, "logs")
             
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir, exist_ok=True)
@@ -48,8 +53,17 @@ class OmnisDirector:
                 return path
         raise FileNotFoundError(f"No executable found in {self.bin_dir}")
 
+    @retry(stop=stop_after_delay(10), wait=wait_fixed(0.5))
+    def wait_until_ready(self):
+        url = f"http://127.0.0.1:{self.rest_port}/api/v1/system/health"
+        resp = requests.get(url, timeout=1)
+        if resp.status_code == 200:
+            print(f"✅ [Director] System ready at port {self.rest_port}")
+            return True
+        raise Exception("System not ready")
+
     def start_edgec(self):
-        print(f"🎬 [Director] Starting EdgeC on port {self.rest_port}. Logs: {self.log_dir}/edgec.log")
+        print(f"🎬 [Director] Starting EdgeC. Logs: {self.log_dir}/edgec.log")
         env = os.environ.copy()
         project_root = os.path.abspath(os.path.join(self.product_dir, "../../../.."))
         local_lib = os.path.join(project_root, ".local/linux-x86_64/lib")
@@ -67,8 +81,13 @@ class OmnisDirector:
             preexec_fn=os.setsid
         )
         
-        time.sleep(2)
-        return self.process_edgec.poll() is None
+        try:
+            self.wait_until_ready()
+            return True
+        except Exception as e:
+            print(f"❌ [Director] Startup timeout: {e}")
+            self.stop_all()
+            return False
 
     def spawn_actor(self, protocol):
         print(f"🎭 [Director] Spawning {protocol} Actor. Logs: {self.log_dir}/mimic_{protocol}.log")

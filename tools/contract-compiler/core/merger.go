@@ -10,6 +10,70 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// processIncludes 递归处理 YAML 包含逻辑
+// 它会合并协议绑定，发现场景文件，并处理嵌套的 includes
+func processIncludes(includePaths []string, baseDir string, rawTags map[string]map[string]interface{}, effectiveScenarios *[]string, seen map[string]bool) {
+	for _, inc := range includePaths {
+		absPath := inc
+		if !filepath.IsAbs(inc) && baseDir != "" {
+			absPath = filepath.Join(baseDir, inc)
+		}
+		
+		// 避免循环包含
+		if seen[absPath] { continue }
+		seen[absPath] = true
+
+		fmt.Printf("[Merger] Processing include: %s\n", absPath)
+
+		// 1. 场景自动发现: 同名的 _scenarios.yaml
+		scenFile := strings.TrimSuffix(absPath, filepath.Ext(absPath)) + "_scenarios.yaml"
+		if _, err := os.Stat(scenFile); err == nil {
+			*effectiveScenarios = append(*effectiveScenarios, scenFile)
+		}
+
+		// 2. 读取并解析被包含的文件
+		bData, err := os.ReadFile(absPath)
+		if err != nil {
+			fmt.Printf("[Merger] WARN: Failed to read include: %s\n", absPath)
+			continue
+		}
+
+		var raw map[string]interface{}
+		yaml.Unmarshal(bData, &raw)
+
+		// 3. 处理嵌套包含 (递归)
+		if nested, ok := raw["includes"].([]interface{}); ok {
+			var nestedStrings []string
+			for _, n := range nested {
+				if ns, ok := n.(string); ok { nestedStrings = append(nestedStrings, ns) }
+			}
+			// 递归调用，使用当前文件的目录作为新的 baseDir
+			processIncludes(nestedStrings, filepath.Dir(absPath), rawTags, effectiveScenarios, seen)
+		}
+
+		// 4. 合并协议映射
+		proto, _ := raw["protocol"].(string)
+		mList, _ := raw["mappings"].([]interface{})
+		if len(mList) == 0 { mList, _ = raw["map"].([]interface{}) }
+		for _, m := range mList {
+			if mm, ok := m.(map[string]interface{}); ok {
+				if tagName, ok := mm["tag"].(string); ok { injectBinding(rawTags, tagName, proto, mm) }
+			}
+		}
+		
+		// 5. [演习增强] 合并场景列表 (显式定义的场景)
+		if scenRaw, ok := raw["scenarios"].([]interface{}); ok {
+			for _, s := range scenRaw {
+				if ss, ok := s.(string); ok {
+					sAbs := ss
+					if !filepath.IsAbs(ss) { sAbs = filepath.Join(filepath.Dir(absPath), ss) }
+					*effectiveScenarios = append(*effectiveScenarios, sAbs)
+				}
+			}
+		}
+	}
+}
+
 func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.EffectiveContract {
 	rawTags := make(map[string]map[string]interface{})
 	enabledSet := make(map[string]bool)
@@ -20,40 +84,19 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 	yaml.Unmarshal(pData, &pc)
 	
 	var effectiveScenarios []string
-	for _, inc := range pc.Includes {
-		absPath := inc
-		if !filepath.IsAbs(inc) && baseDir != "" { absPath = filepath.Join(baseDir, inc) }
-		
-		// Discovery: same-named _scenarios.yaml
-		scenFile := strings.TrimSuffix(absPath, filepath.Ext(absPath)) + "_scenarios.yaml"
-		if _, err := os.Stat(scenFile); err == nil {
-			effectiveScenarios = append(effectiveScenarios, scenFile)
-		}
+	seenFiles := make(map[string]bool)
 
-		if bData, err := os.ReadFile(absPath); err == nil {
-			var raw map[string]interface{}
-			yaml.Unmarshal(bData, &raw)
-			proto, _ := raw["protocol"].(string)
-			mList, _ := raw["mappings"].([]interface{})
-			if len(mList) == 0 { mList, _ = raw["map"].([]interface{}) }
-			for _, m := range mList {
-				if mm, ok := m.(map[string]interface{}); ok {
-					if tagName, ok := mm["tag"].(string); ok { injectBinding(rawTags, tagName, proto, mm) }
-				}
-			}
-		}
-	}
+	// 1. 处理 Base Product 的包含
+	processIncludes(pc.Includes, baseDir, rawTags, &effectiveScenarios, seenFiles)
 
 	for _, item := range pc.EnabledTags {
 		if s, ok := item.(string); ok {
 			enabledSet[s] = true
 		} else if m, ok := item.(map[string]interface{}); ok {
-			// 尝试从 "tag" 键提取
 			if tagVal, exists := m["tag"]; exists {
 				if s, ok := tagVal.(string); ok { enabledSet[s] = true }
 			}
 		} else if m, ok := item.(map[interface{}]interface{}); ok {
-			// 处理可能的 interface{} 键 (yaml.v3 边缘情况)
 			for k, v := range m {
 				if ks, ok := k.(string); ok && ks == "tag" {
 					if vs, ok := v.(string); ok { enabledSet[vs] = true }
@@ -69,14 +112,23 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 	effectivePolicies := pc.Policies
 	effectiveUI := pc.UI
 
+	// 2. 处理 Local Extension
 	if localPath != "" {
 		if lData, err := os.ReadFile(localPath); err == nil {
 			var local map[string]interface{}
 			yaml.Unmarshal(lData, &local)
 			fmt.Printf("[Merger] Loading local extension: %s\n", localPath)
+
+			// [关键点] 同样支持 extension.yaml 里的 includes 递归解析
+			if inc, ok := local["includes"].([]interface{}); ok {
+				var incStrs []string
+				for _, i := range inc {
+					if s, ok := i.(string); ok { incStrs = append(incStrs, s) }
+				}
+				processIncludes(incStrs, filepath.Dir(localPath), rawTags, &effectiveScenarios, seenFiles)
+			}
+
 			if en, ok := local["enabled_tags"].([]interface{}); ok {
-				fmt.Printf("[Merger] Found %d enabled_tags in extension\n", len(en))
-				// [关键修复] 增量合并，不要覆盖
 				for _, n := range en {
 					if s, ok := n.(string); ok {
 						enabledSet[s] = true
@@ -85,90 +137,86 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 					}
 				}
 			}
-			            if cfgRaw, ok := local["configs"].([]interface{}); ok {
-			                fmt.Printf("[Merger] Found %d configs in extension\n", len(cfgRaw))
-			                var localConfigs []model.ConfigDef
-			                for _, c := range cfgRaw {
-			                    if cm, ok := c.(map[string]interface{}); ok {
-			                        name, _ := cm["name"].(string)
-			                        if name != "" { localConfigs = append(localConfigs, model.ConfigDef{Name: name, Value: cm["value"]}) }
-			                    }
-			                }
-			                mergeConfigs(&effectiveConfigs, localConfigs)
-			            }
-			            // [Override Rule] Merge Parameters (Runtime Tunables)
-			            if paramRaw, ok := local["parameters"].([]interface{}); ok {
-			                fmt.Printf("[Merger] Found %d parameters in extension\n", len(paramRaw))
-			                for _, p := range paramRaw {
-			                    if pm, ok := p.(map[string]interface{}); ok {
-			                        name, _ := pm["name"].(string)
-			                        found := false
-			                        for i, ep := range effectiveParams {
-			                            if ep.Name == name {
-			                                pb, _ := yaml.Marshal(pm)
-			                                yaml.Unmarshal(pb, &effectiveParams[i])
-			                                found = true; break
-			                            }
-			                        }
-			                        if !found {
-			                            var pd model.ParamDef
-			                            pb, _ := yaml.Marshal(pm)
-			                            yaml.Unmarshal(pb, &pd)
-			                            if pd.Default == nil && pd.Value != nil { pd.Default = pd.Value }
-			                            effectiveParams = append(effectiveParams, pd)
-			                        }
-			                    }
-			                }
-			            }
-			            // [Override Rule] Merge Hardware
-			            if hwRaw, ok := local["hardware"].([]interface{}); ok {
-			                fmt.Printf("[Merger] Found %d hardware resources in extension\n", len(hwRaw))
-			                for _, h := range hwRaw {
-			                    if hm, ok := h.(map[string]interface{}); ok {
-			                        label, _ := hm["label"].(string)
-			                        found := false
-			                        for i, eh := range effectiveHardware {
-			                            if eh.Label == label {
-			                                pb, _ := yaml.Marshal(hm)
-			                                yaml.Unmarshal(pb, &effectiveHardware[i])
-			                                found = true; break
-			                            }
-			                        }
-			                        if !found {
-			                            var hd model.HardwareDef
-			                            pb, _ := yaml.Marshal(hm)
-			                            yaml.Unmarshal(pb, &hd)
-			                            effectiveHardware = append(effectiveHardware, hd)
-			                        }
-			                    }
-			                }
-			            }
-			            // [Override Rule] Merge Pipelines
-			            if pipeRaw, ok := local["pipelines"].([]interface{}); ok {
-			                fmt.Printf("[Merger] Found %d pipelines in extension\n", len(pipeRaw))
-			                for _, p := range pipeRaw {
-			                    if pm, ok := p.(map[string]interface{}); ok {
-			                        id, _ := pm["id"].(string)
-			                        found := false
-			                        for i, ep := range effectivePipelines {
-			                            if ep.ID == id {
-			                                pb, _ := yaml.Marshal(pm)
-			                                yaml.Unmarshal(pb, &effectivePipelines[i])
-			                                found = true; break
-			                            }
-			                        }
-			                        if !found {
-			                            var pd model.PipelineDef
-			                            pb, _ := yaml.Marshal(pm)
-			                            yaml.Unmarshal(pb, &pd)
-			                            effectivePipelines = append(effectivePipelines, pd)
-			                        }
-			                    }
-			                }
-			            }
-			            // [Override Rule] Merge Policies			// [Override Rule] Merge Policies
+			if cfgRaw, ok := local["configs"].([]interface{}); ok {
+				var localConfigs []model.ConfigDef
+				for _, c := range cfgRaw {
+					if cm, ok := c.(map[string]interface{}); ok {
+						name, _ := cm["name"].(string)
+						if name != "" { localConfigs = append(localConfigs, model.ConfigDef{Name: name, Value: cm["value"]})
+						}
+					}
+				}
+				mergeConfigs(&effectiveConfigs, localConfigs)
+			}
+			// [Override Rule] Merge Parameters
+			if paramRaw, ok := local["parameters"].([]interface{}); ok {
+				for _, p := range paramRaw {
+					if pm, ok := p.(map[string]interface{}); ok {
+						name, _ := pm["name"].(string)
+						found := false
+						for i, ep := range effectiveParams {
+							if ep.Name == name {
+								pb, _ := yaml.Marshal(pm)
+								yaml.Unmarshal(pb, &effectiveParams[i])
+								found = true; break
+							}
+						}
+						if !found {
+							var pd model.ParamDef
+							pb, _ := yaml.Marshal(pm)
+							yaml.Unmarshal(pb, &pd)
+							if pd.Default == nil && pd.Value != nil { pd.Default = pd.Value }
+							effectiveParams = append(effectiveParams, pd)
+						}
+					}
+				}
+			}
+			// [Override Rule] Merge Hardware
+			if hwRaw, ok := local["hardware"].([]interface{}); ok {
+				for _, h := range hwRaw {
+					if hm, ok := h.(map[string]interface{}); ok {
+						label, _ := hm["label"].(string)
+						found := false
+						for i, eh := range effectiveHardware {
+							if eh.Label == label {
+								pb, _ := yaml.Marshal(hm)
+								yaml.Unmarshal(pb, &effectiveHardware[i])
+								found = true; break
+							}
+						}
+						if !found {
+							var hd model.HardwareDef
+							pb, _ := yaml.Marshal(hm)
+							yaml.Unmarshal(pb, &hd)
+							effectiveHardware = append(effectiveHardware, hd)
+						}
+					}
+				}
+			}
+			// [Override Rule] Merge Pipelines
+			if pipeRaw, ok := local["pipelines"].([]interface{}); ok {
+				for _, p := range pipeRaw {
+					if pm, ok := p.(map[string]interface{}); ok {
+						id, _ := pm["id"].(string)
+						found := false
+						for i, ep := range effectivePipelines {
+							if ep.ID == id {
+								pb, _ := yaml.Marshal(pm)
+								yaml.Unmarshal(pb, &effectivePipelines[i])
+								found = true; break
+							}
+						}
+						if !found {
+							var pd model.PipelineDef
+							pb, _ := yaml.Marshal(pm)
+							yaml.Unmarshal(pb, &pd)
+							effectivePipelines = append(effectivePipelines, pd)
+						}
+					}
+				}
+			}
+			// [Override Rule] Merge Policies
 			if polRaw, ok := local["policies"].([]interface{}); ok {
-				fmt.Printf("[Merger] Found %d policies in extension\n", len(polRaw))
 				for _, p := range polRaw {
 					if pm, ok := p.(map[string]interface{}); ok {
 						name, _ := pm["name"].(string)
@@ -191,7 +239,6 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 			}
 			// [Override Rule] Merge UI
 			if uiRaw, ok := local["ui"].(map[string]interface{}); ok {
-				fmt.Printf("[Merger] Found UI config in extension\n")
 				pb, _ := yaml.Marshal(uiRaw)
 				yaml.Unmarshal(pb, &effectiveUI)
 			}
@@ -199,7 +246,6 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 			// Local Scenario Scanning
 			localDir := filepath.Dir(localPath)
 			scenDir := filepath.Join(localDir, "scenarios")
-			fmt.Printf("[Merger] Scanning scenarios in: %s\n", scenDir)
 			if _, err := os.Stat(scenDir); err == nil {
 				filepath.Walk(scenDir, func(path string, info os.FileInfo, err error) error {
 					if err == nil && !info.IsDir() && (strings.HasSuffix(path, ".yaml") || strings.HasSuffix(path, ".yml")) {
@@ -224,21 +270,14 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 		}
 		allTags = append(allTags, t)
 		if enabledSet[name] { 
-			fmt.Printf("[Merger] FINAL: Enabling Tag: %s (ID: %d)\n", name, t.ID)
 			activeTags = append(activeTags, t) 
-		} else {
-			// Debug: why is it not enabled?
-			// fmt.Printf("[Merger] FINAL: Tag %s is NOT in enabledSet\n", name)
 		}
 	}
 
-	// [归一化] 将 Parameters 转换为虚拟 Tags 并分配 10000+ ID
 	paramBaseID := uint32(10000)
 	for i, p := range effectiveParams {
 		tagID := paramBaseID + uint32(i)
-		effectiveParams[i].ID = tagID // 回填到 Parameter 定义中
-
-		// 创建影子 Tag
+		effectiveParams[i].ID = tagID
 		pTag := model.TagDef{
 			ID:    tagID,
 			Name:  p.Name,
@@ -302,22 +341,19 @@ func injectBinding(rawTags map[string]map[string]interface{}, tagName, proto str
 	bindings, _ := tag["bindings"].([]interface{})
 	upProto := strings.ToUpper(proto)
 	
-	// [关键修复] 严格对齐 model.Binding 结构体
 	newB := make(map[string]interface{})
 	newB["protocol"] = upProto
 	newB["tag"] = tagName
 	
-	// 协议特定属性必须放在 attributes 嵌套中
 	normalizedAttr := make(map[string]interface{})
 	for k, v := range attr {
 		if k == "tag" { continue }
 		newK := k
-		// 统一映射 scale -> scaler, address -> addr 等别名 (如果需要)
 		switch strings.ToLower(k) {
 		case "scale": newK = "scaler"
 		case "address": newK = "addr"
 		}
-		normalizedAttr[newK] = v
+	normalizedAttr[newK] = v
 	}
 	newB["attributes"] = normalizedAttr
 	

@@ -79,6 +79,12 @@ tags:
     attributes:
       ui: { group: "Environment", min: 0, max: 100 }
 
+  - id: 8003
+    name: SOLAR_VOLTAGE
+    type: float
+    unit: "V"
+    desc: "光伏组串电压"
+
   - id: 8002
     name: PLUG_OVERTEMP
     type: int
