@@ -5,6 +5,7 @@ import signal
 import json
 import random
 import socket
+import shutil
 from tests.integration.engine.parser import ContractParser
 
 class OmnisDirector:
@@ -25,9 +26,13 @@ class OmnisDirector:
         self.process_edgec = None
         self.actors = []
         self.rest_port = random.randint(15000, 25000)
-        # 根据产品名确定 DB 路径
-        short_name = os.path.basename(os.path.dirname(self.product_dir))
-        self.db_path = f"{short_name}.db"
+        self.db_path = f"{os.path.basename(os.path.dirname(self.product_dir))}.db"
+        
+        # [日志管理中心]
+        self.run_id = f"{int(time.time())}_{self.rest_port}"
+        self.log_dir = os.path.join(os.getcwd(), "build/omnis_logs", self.run_id)
+        if os.path.exists(self.log_dir): shutil.rmtree(self.log_dir)
+        os.makedirs(self.log_dir, exist_ok=True)
 
     def _find_binary(self):
         for f in os.listdir(self.bin_dir):
@@ -37,7 +42,7 @@ class OmnisDirector:
         raise FileNotFoundError(f"No executable found in {self.bin_dir}")
 
     def start_edgec(self):
-        print(f"🎬 [Director] Starting EdgeC: {self.bin_path} on port {self.rest_port}...")
+        print(f"🎬 [Director] Starting EdgeC on port {self.rest_port}. Logs: {self.log_dir}/edgec.log")
         
         env = os.environ.copy()
         project_root = os.path.abspath(os.path.join(self.product_dir, "../../../.."))
@@ -47,20 +52,23 @@ class OmnisDirector:
         
         if os.path.exists(self.db_path): os.remove(self.db_path)
 
-        log_file = open(f"omnis_{self.product_name}.log", "w")
+        # 物理隔离的日志文件
+        self.log_edgec_f = open(os.path.join(self.log_dir, "edgec.log"), "w")
         self.process_edgec = subprocess.Popen(
             [self.bin_path], 
-            stdout=log_file, 
-            stderr=log_file, 
+            stdout=self.log_edgec_f, 
+            stderr=self.log_edgec_f, 
             env=env, 
             preexec_fn=os.setsid
         )
+        
+        # 等待 REST Server 启动
         time.sleep(2)
         return self.process_edgec.poll() is None
 
-    def spawn_actor(self, protocol, name=None):
-        print(f"🎭 [Director] Spawning {protocol} Actor...")
-        log_file = open(f"omnis_actor_{protocol}.log", "w")
+    def spawn_actor(self, protocol):
+        print(f"🎭 [Director] Spawning {protocol} Actor. Logs: {self.log_dir}/mimic_{protocol}.log")
+        log_f = open(os.path.join(self.log_dir, f"mimic_{protocol}.log"), "w")
         
         env = os.environ.copy()
         env["PYTHONPATH"] = "."
@@ -68,18 +76,18 @@ class OmnisDirector:
         
         proc = subprocess.Popen(
             ["python3", "-m", f"tests.integration.actors.{protocol.lower()}"],
-            stdout=log_file, 
-            stderr=log_file, 
+            stdout=log_f, 
+            stderr=log_f, 
             env=env,
             preexec_fn=os.setsid
         )
-        self.actors.append(proc)
+        self.actors.append((proc, log_f))
         time.sleep(1.5)
         return proc
 
     def inject_value(self, tag_name, value):
         cmd = {"action": "set", "tag": tag_name, "value": value}
-        for actor in self.actors:
+        for actor, _ in self.actors:
             ctrl_path = f"/tmp/mimic_modbus_{actor.pid}.ctrl"
             if os.path.exists(ctrl_path):
                 try:
@@ -92,18 +100,18 @@ class OmnisDirector:
                     print(f"❌ [Director] Injection failed: {e}")
 
     def stop_all(self):
-        print("🛑 [Director] Shutting down all processes...")
         if self.process_edgec:
             try:
                 os.killpg(os.getpgid(self.process_edgec.pid), signal.SIGTERM)
-                self.process_edgec.wait(timeout=5)
+                self.process_edgec.wait(timeout=2)
             except: pass
         
-        for actor in self.actors:
+        for actor, log_f in self.actors:
             try:
-                ctrl_path = f"/tmp/mimic_modbus_{actor.pid}.ctrl"
                 os.killpg(os.getpgid(actor.pid), signal.SIGTERM)
                 actor.wait(timeout=2)
-                if os.path.exists(ctrl_path): os.remove(ctrl_path)
+                log_f.close()
             except: pass
+        
+        if hasattr(self, 'log_edgec_f'): self.log_edgec_f.close()
         self.actors = []

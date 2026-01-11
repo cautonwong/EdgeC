@@ -44,13 +44,20 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 		}
 	}
 
-	for i, item := range pc.EnabledTags {
-		fmt.Printf("[Merger] Checking EnabledTag[%d]: type=%T, val=%+v\n", i, item, item)
+	for _, item := range pc.EnabledTags {
 		if s, ok := item.(string); ok {
 			enabledSet[s] = true
 		} else if m, ok := item.(map[string]interface{}); ok {
-			if tagName, ok := m["tag"].(string); ok {
-				enabledSet[tagName] = true
+			// 尝试从 "tag" 键提取
+			if tagVal, exists := m["tag"]; exists {
+				if s, ok := tagVal.(string); ok { enabledSet[s] = true }
+			}
+		} else if m, ok := item.(map[interface{}]interface{}); ok {
+			// 处理可能的 interface{} 键 (yaml.v3 边缘情况)
+			for k, v := range m {
+				if ks, ok := k.(string); ok && ks == "tag" {
+					if vs, ok := v.(string); ok { enabledSet[vs] = true }
+				}
 			}
 		}
 	}
@@ -69,8 +76,14 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 			fmt.Printf("[Merger] Loading local extension: %s\n", localPath)
 			if en, ok := local["enabled_tags"].([]interface{}); ok {
 				fmt.Printf("[Merger] Found %d enabled_tags in extension\n", len(en))
-				enabledSet = make(map[string]bool)
-				for _, n := range en { if s, ok := n.(string); ok { enabledSet[s] = true } }
+				// [关键修复] 增量合并，不要覆盖
+				for _, n := range en {
+					if s, ok := n.(string); ok {
+						enabledSet[s] = true
+					} else if m, ok := n.(map[string]interface{}); ok {
+						if tagName, ok := m["tag"].(string); ok { enabledSet[tagName] = true }
+					}
+				}
 			}
 			            if cfgRaw, ok := local["configs"].([]interface{}); ok {
 			                fmt.Printf("[Merger] Found %d configs in extension\n", len(cfgRaw))
@@ -288,15 +301,26 @@ func injectBinding(rawTags map[string]map[string]interface{}, tagName, proto str
 	tag, ok := rawTags[tagName]; if !ok { return }
 	bindings, _ := tag["bindings"].([]interface{})
 	upProto := strings.ToUpper(proto)
+	
+	// [关键修复] 严格对齐 model.Binding 结构体
+	newB := make(map[string]interface{})
+	newB["protocol"] = upProto
+	newB["tag"] = tagName
+	
+	// 协议特定属性必须放在 attributes 嵌套中
 	normalizedAttr := make(map[string]interface{})
 	for k, v := range attr {
+		if k == "tag" { continue }
 		newK := k
+		// 统一映射 scale -> scaler, address -> addr 等别名 (如果需要)
 		switch strings.ToLower(k) {
-		case "scale": newK = "scaler"; case "address": newK = "addr"
+		case "scale": newK = "scaler"
+		case "address": newK = "addr"
 		}
 		normalizedAttr[newK] = v
 	}
-	newB := map[string]interface{}{ "protocol": upProto, "attributes": normalizedAttr }
+	newB["attributes"] = normalizedAttr
+	
 	found := false
 	for i, b := range bindings {
 		if bm, ok := b.(map[string]interface{}); ok {

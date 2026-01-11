@@ -164,6 +164,8 @@ static char *handle_data_latest(service_t *svc, uint32_t tag_id) {
     PipeMsg msg;
     cJSON *root = cJSON_CreateObject();
     if (datahub_read_shadow(hub, tag_id, &msg) == 0) {
+        fprintf(stderr, "[REST] Read Shadow OK: Tag %u, Type %u, ValF %f, ValI %ld\n", msg.tag_id,
+                msg.type, msg.payload.val.f, (long)msg.payload.val.i);
         cJSON_AddNumberToObject(root, "tag_id", msg.tag_id);
         cJSON_AddNumberToObject(
             root, "value",
@@ -179,6 +181,10 @@ static char *handle_data_latest(service_t *svc, uint32_t tag_id) {
 
 char *rest_dispatch(service_t *svc, const char *path, const char *body) {
     (void)body;
+    if (!svc) {
+        fprintf(stderr, "[REST] ERROR: Dispatch called with NULL service context!\n");
+        return strdup("{\"error\":\"no_context\"}");
+    }
     if (strncmp(path, "/api/v1/system/health", 21) == 0) return handle_system_health(svc);
     if (strncmp(path, "/api/v1/system/stats", 20) == 0) return handle_system_stats(svc);
     if (strncmp(path, "/api/v1/contracts", 17) == 0) return handle_contracts_get(svc);

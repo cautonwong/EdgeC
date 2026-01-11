@@ -236,10 +236,10 @@ static void _smoke_timer_cb(uv_timer_t *handle) {
 }
 
 static void _smoke_data_cb(datahub_t *hub, void *user_data) {
-    service_t *svc = (service_t *)user_data;
     (void)hub;
-    LOG_INFO(LOG_CAT_CORE, "Smoke Test SUCCESS: Data received! Exiting gracefully.");
-    service_stop(svc);
+    (void)user_data;
+    // LOG_INFO(LOG_CAT_CORE, "Smoke Test SUCCESS: Data received! Exiting gracefully.");
+    // service_stop(svc); // 彻底注释掉，防止干扰集成演习
 }
 
 void service_enable_smoke_test(service_t *svc) {

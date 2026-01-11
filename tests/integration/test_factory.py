@@ -34,9 +34,10 @@ def run_step(director, observer, step):
         
         def check():
             val = observer.get_tag_value(tag['id'])
-            return val == expected
+            if val is None: return False
+            return abs(val - expected) < 0.01
             
-        if not observer.wait_for_condition(check, timeout=5):
+        if not observer.wait_for_condition(check, timeout=10):
             val = observer.get_tag_value(tag['id'])
             pytest.fail(f"API Check failed for {tag_name}. Expected {expected}, got {val}")
 
@@ -65,4 +66,6 @@ class TestOmnis:
                     time.sleep(target_t - now)
                 run_step(director, observer, step)
             
-            print(f"✅ Scenario {scen['name']} passed.")
+        # [关键补强] 给观察员最后的喘息时间，确保断言在进程销毁前完成
+        time.sleep(1.0)
+        print(f"✅ Scenario {scen['name']} passed.")

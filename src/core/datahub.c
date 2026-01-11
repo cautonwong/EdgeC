@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
@@ -52,11 +53,11 @@ int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slo
         int fd = (int)syscall(SYS_memfd_create, "shadow_table", 0x0001U | 0x0002U);
         if (fd >= 0) {
             ftruncate(fd, (off_t)size);
-            // 应用密封位 (F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_SEAL)
             fcntl(fd, 1033 /* F_ADD_SEALS */, 0x0002 | 0x0004 | 0x0001);
             hub->shadow_table = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
             hub->shadow_fd = fd;
             hub->shadow_size = size;
+            memset(hub->shadow_table, 0, size);  // 初始化清零
         }
     }
 
@@ -71,9 +72,7 @@ int datahub_init_from_fd(datahub_t *hub, uv_loop_t *loop, int ring_fd, size_t ri
                          datahub_wakeup_filter_cb wakeup_fn) {
     memset(hub, 0, sizeof(*hub));
 
-    if (shmring_init_from_fd(&hub->ring, ring_fd, ring_size) != 0) {
-        return -1;
-    }
+    if (shmring_init_from_fd(&hub->ring, ring_fd, ring_size) != 0) return -1;
 
     if (shadow_fd >= 0 && compact_capacity > 0) {
         hub->shadow_table =
@@ -109,12 +108,8 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
             uv_mutex_lock(&hub->shadow_lock);
             hub->shadow_table[idx] = *msg;
             uv_mutex_unlock(&hub->shadow_lock);
-            // fprintf(stderr, "[DEBUG][DataHub] Shadow updated for Tag %u at Index %d\n",
-            // msg->tag_id, idx);
-        } else {
-            fprintf(stderr,
-                    "[ERROR][DataHub] Shadow Index OUT OF BOUNDS for Tag %u (idx: %d, cap: %u)\n",
-                    msg->tag_id, idx, hub->shadow_capacity);
+            fprintf(stderr, "[DEBUG][DataHub@%p] Shadow update: Tag %u Val %f at Index %d\n",
+                    (void *)hub, msg->tag_id, msg->payload.val.f, idx);
         }
     }
 
@@ -124,21 +119,11 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
     }
 
     if (needs_wakeup) {
-        fprintf(stderr, "[DEBUG][DataHub] Wakeup triggered for Tag %u. Listener count: %d\n",
-                msg->tag_id, hub->listener_count);
         for (int i = 0; i < hub->listener_count; i++) {
-            if (hub->listeners[i]) {
-                fprintf(stderr, "[DEBUG][DataHub] Sending async signal to listener %d (%p)\n", i,
-                        (void *)hub->listeners[i]);
-                uv_async_send(hub->listeners[i]);
-            }
+            if (hub->listeners[i]) uv_async_send(hub->listeners[i]);
         }
         if (hub->legacy_cb) hub->legacy_cb(hub, hub->legacy_user_data);
         if (!uv_is_closing((uv_handle_t *)&hub->legacy_async)) uv_async_send(&hub->legacy_async);
-    } else {
-        fprintf(stderr,
-                "[DEBUG][DataHub] Wakeup SKIPPED for Tag %u (router decided no subscribers)\n",
-                msg->tag_id);
     }
     return 0;
 }
@@ -146,19 +131,16 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
 int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out) {
     if (!hub || !hub->shadow_table || !out) return -1;
     int idx = hub->map_fn ? hub->map_fn(tag_id) : (int)tag_id;
-    if (idx < 0 || (uint32_t)idx >= hub->shadow_capacity) {
-        fprintf(stderr, "[ERROR][DataHub] Shadow Read OUT OF BOUNDS for Tag %u (idx: %d)\n", tag_id,
-                idx);
-        return -1;
-    }
+    if (idx < 0 || (uint32_t)idx >= hub->shadow_capacity) return -1;
+
     uv_mutex_lock(&hub->shadow_lock);
     *out = hub->shadow_table[idx];
     uv_mutex_unlock(&hub->shadow_lock);
 
     if (out->tag_id != tag_id) {
-        // fprintf(stderr, "[DEBUG][DataHub] Shadow Read MISMATCH for Tag %u: found ID %u at Index
-        // %d\n",
-        //         tag_id, out->tag_id, idx);
+        fprintf(stderr,
+                "[DEBUG][DataHub@%p] Shadow read MISMATCH for Tag %u: found ID %u at Index %d\n",
+                (void *)hub, tag_id, out->tag_id, idx);
         return -1;
     }
     return 0;

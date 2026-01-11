@@ -8,10 +8,10 @@ import (
 
 // ProtocolHashInfo 存储生成 C 代码所需的哈希常数
 type ProtocolHashInfo struct {
-	Seed      uint32
+	Proto     string
 	TableSize uint32
-	Keys      []HashEntry
-	IsPerfect bool
+	Seed      uint32
+	Entries   []HashEntry
 }
 
 type HashEntry struct {
@@ -31,6 +31,8 @@ type HashEntry struct {
 	ClassID      uint16  
 	AttrID       uint8   
 }
+
+func (e HashEntry) IsEmpty() bool { return e.TagID == 0 }
 
 // ParseOBIS 将 "1.0.1.8.0.255" 格式转换为 6 字节数组
 func ParseOBIS(s string) []uint8 {
@@ -55,7 +57,6 @@ func ParseProtocolKey(proto, key string) uint64 {
 		v, _ := strconv.ParseUint(strings.ReplaceAll(key, "0x", ""), 16, 32)
 		return v
 	case "DLMS":
-		// 支持 OBIS (1.0.1.8.0.255) 或带 Attribute ID 的格式 (1.0.1.8.0.255:2)
 		cleanKey := key
 		if strings.Contains(key, ":") {
 			cleanKey = strings.Split(key, ":")[0]
@@ -121,10 +122,10 @@ func GeneratePerfectHash(proto string, entries []HashEntry) ProtocolHashInfo {
 						fmt.Printf("[HashGen] Mapping TagID %d to LogicalIndex %d at Bucket %d\n", e.RawKey, e.LogicalIndex, h)
 					}
 				}
-				return ProtocolHashInfo{Seed: seed, TableSize: size, Keys: table, IsPerfect: true}
+				return ProtocolHashInfo{Proto: proto, Seed: seed, TableSize: size, Entries: table}
 			}
 		}
 		size <<= 1
 	}
-	return ProtocolHashInfo{Seed: 0, TableSize: uint32(len(entries)), Keys: entries, IsPerfect: false}
+	return ProtocolHashInfo{Proto: proto, Seed: 0, TableSize: uint32(len(entries)), Entries: entries}
 }

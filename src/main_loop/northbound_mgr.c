@@ -34,6 +34,17 @@ static void north_thread_entry(void *arg) {
     northbound_mgr_t *mgr = (northbound_mgr_t *)arg;
     if (!mgr) return;
 
+    // 等待 user_data (svc) 注入，最长等待 1 秒
+    int retry = 0;
+    while (!mgr->user_data && retry++ < 10) {
+        usleep(100000);
+    }
+
+    if (!mgr->user_data) {
+        fprintf(stderr, "[NORTH] FATAL: Northbound thread started without service context!\n");
+        return;
+    }
+
     mgr->loop = malloc(sizeof(uv_loop_t));
     uv_loop_init(mgr->loop);
 

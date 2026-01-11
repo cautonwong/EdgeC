@@ -15,6 +15,7 @@ import (
 	"hash/crc32"
 	"encoding/json"
 	"errors"
+	"sort"
 
 	"gopkg.in/yaml.v3"
 )
@@ -27,6 +28,7 @@ type TplCtx struct {
 	AllTags    []model.TagDef
 	ActiveMap  map[string]bool
 	PMap       map[string][]protocols.ResolvedBinding
+	TagPMap    map[string][]protocols.ResolvedBinding
 	Hashes     map[string]core.ProtocolHashInfo
 	TagHash    core.ProtocolHashInfo
 	Configs    []model.ConfigDef
@@ -54,12 +56,16 @@ func main() {
 	contract := core.BuildContract(*schema, *product, *local, *base)
 	actMap := make(map[string]bool)
 	for _, t := range contract.ActiveTags { actMap[t.Name] = true }
+	
+	// 1. 协议解析
 	resolved := protocols.Resolve(contract.ActiveTags)
 
-	// --- Phase 3: 生成路由掩码 ---
-	routerInfo := core.GenerateRouterInfo(contract)
+	// 2. 强制排序 ActiveTags 确保索引稳定
+	sort.Slice(contract.ActiveTags, func(i, j int) bool {
+		return contract.ActiveTags[i].ID < contract.ActiveTags[j].ID
+	})
 
-	// 建立 TagName -> (GlobalID, DenseIndex) 的快速映射
+	// 3. 建立 TagName -> (GlobalID, DenseIndex) 映射
 	type tagInfo struct {
 		GlobalID uint32
 		DenseIdx uint32
@@ -69,6 +75,17 @@ func main() {
 		tagInfoMap[t.Name] = tagInfo{GlobalID: t.ID, DenseIdx: uint32(i)}
 	}
 
+	// 4. 建立 TagPMap (按点位索引) 供模板反查
+	tagPMap := make(map[string][]protocols.ResolvedBinding)
+	for _, rbs := range resolved {
+		for _, rb := range rbs {
+			info := tagInfoMap[rb.TagName]
+			rb.LogicalIndex = info.DenseIdx
+			tagPMap[rb.TagName] = append(tagPMap[rb.TagName], rb)
+		}
+	}
+
+	// 5. 生成协议哈希表
 	hashes := make(map[string]core.ProtocolHashInfo)
 	for proto, rbs := range resolved {
 		entries := make([]core.HashEntry, 0, len(rbs))
@@ -84,12 +101,11 @@ func main() {
 			if keyStr == "" { continue }
 			
 			info := tagInfoMap[rb.TagName]
-			
 			entries = append(entries, core.HashEntry{
 				RawKey:       core.ParseProtocolKey(proto, keyStr),
 				StrKey:       keyStr,
 				TagID:        info.GlobalID,
-				LogicalIndex: info.DenseIdx, // 记录逻辑稠密索引
+				LogicalIndex: info.DenseIdx,
 				TagName:      rb.TagName,
 				Scale:        rb.Scale,
 				ByteLen:      rb.ByteLen,
@@ -101,25 +117,29 @@ func main() {
 		if len(entries) > 0 { hashes[proto] = core.GeneratePerfectHash(proto, entries) }
 	}
 
-	var sig uint32
-	for _, t := range contract.ActiveTags { sig = crc32.Update(sig, crc32.IEEETable, []byte(fmt.Sprintf("%d", t.ID))) }
-
+	// 6. 生成全局 TAG 映射
 	tagEntries := make([]core.HashEntry, 0, len(contract.ActiveTags))
 	for i, t := range contract.ActiveTags {
 		tagEntries = append(tagEntries, core.HashEntry{
 			RawKey:       uint64(t.ID),
 			TagName:      t.Name,
 			TagID:        t.ID,
-			LogicalIndex: uint32(i), // 显式记录
+			LogicalIndex: uint32(i),
 		})
 	}
 	tagHash := core.GeneratePerfectHash("TAG", tagEntries)
+
+	var sig uint32
+	for _, t := range contract.ActiveTags { sig = crc32.Update(sig, crc32.IEEETable, []byte(fmt.Sprintf("%d", t.ID))) }
+
+	routerInfo := core.GenerateRouterInfo(contract)
 
 	ctx := TplCtx{
 		ActiveTags: contract.ActiveTags,
 		AllTags:    contract.AllTags,
 		ActiveMap:  actMap,
 		PMap:       resolved,
+		TagPMap:    tagPMap,
 		Hashes:     hashes,
 		TagHash:    tagHash,
 		Configs:    contract.Configs,
@@ -133,72 +153,21 @@ func main() {
 		Router:     routerInfo,
 	}
 
-	// [硬件资源冲突检测]
-	hwUsage := make(map[int]string)
-	for _, hw := range ctx.Hardware {
-		if hw.ID == 0 { continue }
-		if owner, exists := hwUsage[hw.ID]; exists {
-			fmt.Fprintf(os.Stderr, "[ERROR] Hardware Conflict: ID %d used by both '%s' and '%s'\n", hw.ID, owner, hw.Label)
-			os.Exit(1)
-		}
-		hwUsage[hw.ID] = hw.Label
-	}
-
 	os.MkdirAll(*out, 0755)
-	
 	fm := template.FuncMap{
-		"lower": strings.ToLower,
-		"equalFold": strings.EqualFold,
-		"hex": func(v uint32) string { return fmt.Sprintf("0x%08X", v) },
-		"marshal": func(v interface{}) string {
-			b, _ := json.Marshal(v)
-			return string(b)
-		},
-		"marshal_pretty": func(v interface{}) string {
-			b, _ := json.MarshalIndent(v, "", "  ")
-			return string(b)
-		},
-		"c_escape": func(s string) string {
-			// 使用 raw string 避免转义地狱
-			bs := `\`
-			escapedBs := `\\`
-			qs := `"`
-			escapedQs := `\"`
-			s = strings.ReplaceAll(s, bs, escapedBs)
-			s = strings.ReplaceAll(s, qs, escapedQs)
-			return s
-		},
-		"len": func(v interface{}) int {
-			if v == nil { return 0 }
-			switch val := v.(type) {
-			case []uint8: return len(val)
-			case []int: return len(val)
-			case []interface{}: return len(val)
-			case []model.TagDef: return len(val)
-			case []model.ParamDef: return len(val)
-			case []model.PipelineDef: return len(val)
-			case []model.PolicyDef: return len(val)
-			case []model.HardwareDef: return len(val)
-			case []map[string]interface{}: return len(val)
-			}
-			return 0
-		},
+		"lower": strings.ToLower, "upper": strings.ToUpper, "hex": func(v uint32) string { return fmt.Sprintf("0x%08X", v) },
 		"dict": func(values ...interface{}) (map[string]interface{}, error) {
 			if len(values)%2 != 0 { return nil, errors.New("invalid dict call") }
 			dict := make(map[string]interface{}, len(values)/2)
 			for i := 0; i < len(values); i+=2 {
-				key, ok := values[i].(string)
-				if !ok { return nil, errors.New("dict keys must be strings") }
+				key, ok := values[i].(string); if !ok { return nil, errors.New("keys must be strings") }
 				dict[key] = values[i+1]
 			}
 			return dict, nil
 		},
 		"default": func(d, v interface{}) interface{} {
 			if v == nil { return d }
-			switch val := v.(type) {
-			case string: if val == "" { return d }
-			case int: if val == 0 { return d }
-			}
+			if s, ok := v.(string); ok && s == "" { return d }
 			return v
 		},
 		"isTrue": func(v interface{}) bool {
@@ -210,7 +179,13 @@ func main() {
 			}
 			return false
 		},
-		"upper": strings.ToUpper,
+		"marshal": func(v interface{}) string { b, _ := json.Marshal(v); return string(b) },
+		"marshal_pretty": func(v interface{}) string { b, _ := json.MarshalIndent(v, "", "  "); return string(b) },
+		"c_escape": func(s string) string {
+			s = strings.ReplaceAll(s, `\\`, `\\\\`)
+			s = strings.ReplaceAll(s, `"`, `\\"`)
+			return s
+		},
 		"uint32": func(v interface{}) uint32 {
 			switch val := v.(type) {
 			case int: return uint32(val)
@@ -220,10 +195,8 @@ func main() {
 			return 0
 		},
 		"sub": func(a, b interface{}) int {
-			av := 0
-			switch v := a.(type) { case int: av = v; case int32: av = int(v); case uint32: av = int(v) }
-			bv := 0
-			switch v := b.(type) { case int: bv = v; case int32: bv = int(v); case uint32: bv = int(v) }
+			av := 0; switch v := a.(type) { case int: av = v; case int32: av = int(v); case uint32: av = int(v) }
+			bv := 0; switch v := b.(type) { case int: bv = v; case int32: bv = int(v); case uint32: bv = int(v) }
 			return av - bv
 		},
 		"_contract_hash_mix": func(key, seed, mask uint32) uint32 {
@@ -241,31 +214,14 @@ func main() {
 		render("h", filepath.Join(*out, "contracts.h"), "templates/master_h.tmpl", ctx, fm)
 		render("c", filepath.Join(*out, "contracts.c"), "templates/master_c.tmpl", ctx, fm)
 		render("cmake", filepath.Join(*out, "config.cmake"), "templates/config_cmake.tmpl", ctx, fm)
-		
-		// [新特性渲染]
 		render("ts", filepath.Join(*out, "tags_type.ts"), "templates/tags_ts.tmpl", ctx, fm)
 		render("fuzz", filepath.Join(*out, "test_fuzz_params.c"), "templates/test_fuzz_params.tmpl", ctx, fm)
 		render("router", filepath.Join(*out, "edge_router_table.c"), "templates/edge_router_table.tmpl", ctx, fm)
 		
-		// [影子元数据/JSON Schema]
-		shadowFile := filepath.Join(*out, "shadow_schema.json")
 		shadowJSON, _ := json.MarshalIndent(contract, "", "  ")
-		os.WriteFile(shadowFile, shadowJSON, 0644)
-		fmt.Printf("[Compiler] Generated shadow metadata: %s\n", shadowFile)
-
+		os.WriteFile(filepath.Join(*out, "shadow_schema.json"), shadowJSON, 0644)
 		y, _ := yaml.Marshal(contract)
 		os.WriteFile(filepath.Join(*out, "contracts.yaml"), y, 0644)
-
-		// [Omnis Manifest Generation]
-		manifest := map[string]interface{}{
-			"product":   contract.Product,
-			"contract":  "contracts.yaml",
-			"scenarios": contract.Scenarios,
-		}
-		manifestJSON, _ := json.MarshalIndent(manifest, "", "  ")
-		os.WriteFile(filepath.Join(*out, "omnis_manifest.json"), manifestJSON, 0644)
-		fmt.Printf("[Compiler] Generated Omnis manifest: %s\n", filepath.Join(*out, "omnis_manifest.json"))
-
 		docExp := &exporter.DocExporter{}
 		docExp.Export(contract, resolved, *out)
 	}
@@ -273,19 +229,11 @@ func main() {
 
 func render(name, outPath, tplPath string, ctx interface{}, fm template.FuncMap) {
 	t := template.New(filepath.Base(tplPath)).Funcs(fm)
-	
-	// 加载 components
-	// 使用 glob pattern 匹配 templates/components 下的所有 .tmpl 文件
 	_, err := t.ParseFS(tplFS, "templates/components/*.tmpl")
-	if err != nil && !strings.Contains(err.Error(), "no files") {
-		panic(fmt.Errorf("ParseFS components: %v", err))
-	}
-
-	// 加载主入口
+	if err != nil && !strings.Contains(err.Error(), "no files") { panic(err) }
 	t, err = t.ParseFS(tplFS, tplPath)
-	if err != nil { panic(fmt.Errorf("ParseFS %s: %v", tplPath, err)) }
-
+	if err != nil { panic(err) }
 	f, _ := os.Create(outPath)
 	defer f.Close()
-	if err := t.Execute(f, ctx); err != nil { panic(fmt.Errorf("Execute %s: %v", tplPath, err)) }
+	if err := t.Execute(f, ctx); err != nil { panic(err) }
 }

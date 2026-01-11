@@ -20,7 +20,7 @@ const edge_tag_meta_t g_tag_metadata[] = {
 const uint32_t g_tag_metadata_len = {{ len .ActiveTags }};
 
 // [Tag Hash Lookup]
-{{ template "protocol_map" dict "Proto" "TAG" "Map" .TagHash }}
+{{ template "protocol_map" dict "Proto" "TAG" "Map" .TagHash "Root" . }}
 
 const edge_tag_meta_t* edge_get_meta(edge_tag_id_t tag_id) {
     const tag_map_t* m = edge_get_map_tag(tag_id);

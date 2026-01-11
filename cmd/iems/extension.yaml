@@ -1,66 +1,28 @@
-product: "IEMS_Controller_V1"
-
-# 现场特定配置 (Compile-time)
-configs:
-  - name: DLMS_HLS_SECURITY
-    value: 1
-  - name: DLMS_MAX_PDU
-    value: 1024
-
-# 运行期整定参数 (Site-specific tuning)
-parameters:
-  - name: ALGO_UOV_LIMIT
-    type: float
-    default: 260.0
-    min: 220.0
-    max: 300.0
-    desc: "Site-specific over-voltage threshold"
-  - name: ALGO_UOV_DELAY_S
-    type: int
-    default: 30
-    min: 3
-    max: 3600
-    desc: "Site-specific over-voltage delay"
-
-# 现场激活测点
+# IEMS Extension for Sprint 4 (Omnis)
 enabled_tags:
-  - GRID_POWER
-  - VOLTAGE_PHASE_A
+  - tag: VOLTAGE_PHASE_A
+    attributes:
+      poll_interval_ms: 500  # [演习优化] 提高轮询频率
+  - tag: GRID_POWER
+    attributes:
+      poll_interval_ms: 500
+  - tag: ENERGY_ACTIVE_IMPORT
+    attributes:
+      poll_interval_ms: 500
   - GRID_FREQUENCY
-  - ENERGY_ACTIVE_IMPORT
   - BATTERY_SOC
   - BATTERY_POWER
   - PROJECT_HUMIDITY
 
-# 逻辑管线编排 (S17: 闭环智能)
+parameters:
+  - name: ALGO_UOV_LIMIT
+    value: 250.0  # 演习设定的阈值
+
 pipelines:
   - id: "overvoltage_protection"
     trigger: "VOLTAGE_PHASE_A"
     stages:
-      - name: "safety_check"
-        type: "REFLEX"
-        threshold: 260.0
-        greater_than: true
-        target_tag: 8001 # PROJECT_HUMIDITY (模拟动作)
-        protocol: "ModbusRTU"
-
-tags:
-  - id: 4001
-    name: BATTERY_SOC
-    bindings:
-      - protocol: CAN
-        can_id: 0x1801F456
-        start: 0
-        len: 8
-        factor: 0.4
-        offset: 0.0
-      - protocol: IEC104
-        ioa: 10001
-        type_id: 30
-
-  - id: 1003
-    name: GRID_POWER
-    bindings:
-      - protocol: IEC104
-        ioa: 20001
-        type_id: 30
+      - type: "reflex"
+        params:
+          f1: 240.0
+          u1: 4003 # 触发电池反向压减

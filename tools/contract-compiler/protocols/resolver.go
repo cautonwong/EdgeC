@@ -31,6 +31,7 @@ type ResolvedBinding struct {
 	Factor       float32
 	Offset       float32
 	Scale        float32
+	LogicalIndex uint32 // [新增] 稠密逻辑索引同步
 }
 
 func Resolve(tags []model.TagDef) map[string][]ResolvedBinding {
@@ -45,6 +46,9 @@ func Resolve(tags []model.TagDef) map[string][]ResolvedBinding {
 			}
 
 			rb := handler.Resolve(t, b)
+			rb.TagName = t.Name
+			rb.TagID = t.ID
+			rb.ProtocolType = pt
 
 			// --- 通用元数据注入 ---
 			rb.Access = getUint32Case(b.Attributes, "access", 0x01)
