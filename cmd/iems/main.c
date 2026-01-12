@@ -130,7 +130,10 @@ int main(int argc, char **argv) {
     northbound_mgr_init(north_mgr, loop, &hub->ring, "iems", db_service);
     north_mgr->rest_port = getenv("EDGE_REST_PORT") ? atoi(getenv("EDGE_REST_PORT")) : 9091;
 
-    service_t *svc = service_new(loop, hub, arbiter, db_service, stream_engine, NULL, north_mgr);
+    edge_params_t *param_mgr = edge_params_create(db_service, hub);
+    edge_params_register_metadata(param_mgr, g_param_metadata, g_param_metadata_len);
+
+    service_t *svc = service_new(loop, hub, arbiter, db_service, stream_engine, param_mgr, north_mgr);
     g_running_svc = svc;
     north_mgr->user_data = svc;
 

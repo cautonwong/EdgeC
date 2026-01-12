@@ -48,7 +48,8 @@ int main(int argc, char **argv) {
     sqlite_config_t db_conf = {.db_path = "dcu.db", .strategy = STRATEGY_LITE};
     sqlite_svc_t *db_service = sqlite_svc_create(loop, &db_conf);
     stream_engine_t *stream_engine = stream_engine_create(&hub, NULL);
-    edge_params_t *param_mgr = edge_params_create(db_service);
+    edge_params_t *param_mgr = edge_params_create(db_service, &hub);
+    edge_params_register_metadata(param_mgr, g_param_metadata, g_param_metadata_len);
 
     northbound_mgr_t *north_mgr = calloc(1, sizeof(northbound_mgr_t));
     northbound_mgr_init(north_mgr, loop, &hub.ring, "dcu", db_service);

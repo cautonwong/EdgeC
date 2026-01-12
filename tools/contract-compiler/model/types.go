@@ -84,6 +84,8 @@ type ProductConfig struct {
 
 	EnabledTags []interface{}          `yaml:"enabled_tags"`
 
+	DisabledTags []string             `yaml:"disabled_tags"`
+
 	Configs     []ConfigDef            `yaml:"configs"`
 
 	Params      []ParamDef             `yaml:"parameters"`

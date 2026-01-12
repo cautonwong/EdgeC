@@ -85,6 +85,11 @@ tags:
     unit: "V"
     desc: "光伏组串电压"
 
+  - id: 8004
+    name: SOLAR_RELAY
+    type: int
+    desc: "光伏并网继电器"
+
   - id: 8002
     name: PLUG_OVERTEMP
     type: int

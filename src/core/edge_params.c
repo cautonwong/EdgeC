@@ -8,7 +8,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <uv.h>
 
+#include "datahub.h"
 #include "edge_log.h"
 
 // 紧凑型缓存：仅存放当前产品激活的参数
@@ -17,13 +19,31 @@ static int g_compact_count = 0;
 
 struct edge_params_s {
     sqlite_svc_t *db;
+    datahub_t *hub;
     const edge_param_info_t *meta_table;
     int meta_count;
 };
 
-edge_params_t *edge_params_create(sqlite_svc_t *db) {
+static void _sync_to_datahub(edge_params_t *ctx, int idx) {
+    if (!ctx || !ctx->hub || !g_compact_cache || idx >= g_compact_count) return;
+    const edge_param_info_t *meta = &ctx->meta_table[idx];
+    pipe_msg_t msg = {0};
+    msg.ts = uv_hrtime();
+    msg.tag_id = meta->id;
+    if (meta->type == PARAM_TYPE_FLOAT) {
+        msg.type = PIPEMSG_TYPE_SCALAR;
+        msg.payload.val.f = g_compact_cache[idx].f;
+    } else {
+        msg.type = PIPEMSG_TYPE_SCALAR; // 统一用标量简化处理，或按需完善类型
+        msg.payload.val.i = g_compact_cache[idx].i;
+    }
+    datahub_publish(ctx->hub, &msg);
+}
+
+edge_params_t *edge_params_create(sqlite_svc_t *db, datahub_t *hub) {
     edge_params_t *ctx = calloc(1, sizeof(struct edge_params_s));
     ctx->db = db;
+    ctx->hub = hub;
 
     const char *create_table_sql =
         "CREATE TABLE IF NOT EXISTS system_params ("
@@ -35,6 +55,22 @@ edge_params_t *edge_params_create(sqlite_svc_t *db) {
     sqlite_svc_exec(db, create_table_sql, NULL, NULL);
 
     return ctx;
+}
+
+typedef struct {
+    edge_param_info_t m;
+    edge_param_value_t *v;
+} param_load_ctx_t;
+
+static void _on_param_load(void *user_data, int cols, char **vals) {
+    param_load_ctx_t *ctx = (param_load_ctx_t *)user_data;
+    if (cols >= 2 && vals[0] && vals[1]) {
+        if (ctx->m.type == PARAM_TYPE_FLOAT) {
+            ctx->v->f = atof(vals[0]);
+        } else {
+            ctx->v->i = atoll(vals[1]);
+        }
+    }
 }
 
 void edge_params_register_metadata(edge_params_t *ctx, const edge_param_info_t *table, int count) {
@@ -64,6 +100,19 @@ void edge_params_register_metadata(edge_params_t *ctx, const edge_param_info_t *
                      table[i].name, (long)table[i].def_val.i);
         }
         sqlite_svc_exec(ctx->db, insert_sql, NULL, NULL);
+    }
+
+    // [核心修复] 从数据库回读真实值 (覆盖默认值)
+    for (int i = 0; i < count; i++) {
+        char select_sql[256];
+        snprintf(select_sql, sizeof(select_sql),
+                 "SELECT val_float, val_int FROM system_params WHERE name='%s';", table[i].name);
+
+        param_load_ctx_t lctx = {.m = table[i], .v = &g_compact_cache[i]};
+        sqlite_svc_exec(ctx->db, select_sql, _on_param_load, &lctx);
+
+        // 同步到 DataHub Shadow
+        _sync_to_datahub(ctx, i);
     }
 }
 
@@ -97,6 +146,7 @@ edge_status_t edge_param_set_float(edge_params_t *ctx, const char *key, double v
             snprintf(sql, sizeof(sql), "UPDATE system_params SET val_float=%.4f WHERE name='%s';",
                      val, key);
             sqlite_svc_exec(ctx->db, sql, NULL, NULL);
+            _sync_to_datahub(ctx, i);
             return EDGE_OK;
         }
     }

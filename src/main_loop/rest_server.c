@@ -165,8 +165,6 @@ static char *handle_data_latest(service_t *svc, uint32_t tag_id) {
     PipeMsg msg;
     cJSON *root = cJSON_CreateObject();
     if (datahub_read_shadow(hub, tag_id, &msg) == 0) {
-        fprintf(stderr, "[REST] Read Shadow OK: Tag %u, Type %u, ValF %f, ValI %ld\n", msg.tag_id,
-                msg.type, msg.payload.val.f, (long)msg.payload.val.i);
         cJSON_AddNumberToObject(root, "tag_id", msg.tag_id);
         cJSON_AddNumberToObject(
             root, "value",

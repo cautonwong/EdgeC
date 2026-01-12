@@ -2,23 +2,11 @@
 includes:
   - "features/solar_module.yaml"
 
+disabled_tags:
+  - "GRID_POWER"
+
 enabled_tags:
   - tag: VOLTAGE_PHASE_A
-    attributes:
-      poll_interval_ms: 500  # [演习优化] 提高轮询频率
-  - tag: GRID_POWER
-    attributes:
-      poll_interval_ms: 500
-  - tag: ENERGY_ACTIVE_IMPORT
-    attributes:
-      poll_interval_ms: 500
-  - GRID_FREQUENCY
-  - BATTERY_SOC
-  - BATTERY_POWER
-  - PROJECT_HUMIDITY
-  - tag: SOLAR_VOLTAGE
-    attributes:
-      poll_interval_ms: 1000
 
 parameters:
   - name: ALGO_UOV_LIMIT

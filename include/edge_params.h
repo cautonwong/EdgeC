@@ -2,6 +2,7 @@
 #define EDGE_PARAMS_H
 
 #include "contract_data_types.h"
+#include "datahub.h"
 #include "edge_common.h"
 #include "sqlite_service.h"
 
@@ -15,7 +16,7 @@ typedef struct edge_params_s edge_params_t;
  * @brief 创建参数服务实例
  * 它会自动执行“元数据同步”流程：代码定义 <-> 数据库对齐
  */
-edge_params_t *edge_params_create(sqlite_svc_t *db);
+edge_params_t *edge_params_create(sqlite_svc_t *db, datahub_t *hub);
 
 /**
  * @brief 注册应用层的参数元数据 (解耦核心)

@@ -7,3 +7,12 @@ mappings:
 
 scenarios:
   - "scenarios/solar_test.yaml"
+  - "scenarios/composition_test.yaml"
+
+enabled_tags:
+  - tag: SOLAR_VOLTAGE
+    attributes:
+      poll_interval_ms: 1000
+  - tag: SOLAR_RELAY
+    attributes:
+      access: "RW"

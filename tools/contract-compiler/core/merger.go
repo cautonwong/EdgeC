@@ -12,7 +12,7 @@ import (
 
 // processIncludes 递归处理 YAML 包含逻辑
 // 它会合并协议绑定，发现场景文件，并处理嵌套的 includes
-func processIncludes(includePaths []string, baseDir string, rawTags map[string]map[string]interface{}, effectiveScenarios *[]string, seen map[string]bool) {
+func processIncludes(includePaths []string, baseDir string, rawTags map[string]map[string]interface{}, effectiveScenarios *[]string, enabledSet map[string]bool, enabledAttr map[string]map[string]interface{}, seen map[string]bool) {
 	for _, inc := range includePaths {
 		absPath := inc
 		if !filepath.IsAbs(inc) && baseDir != "" {
@@ -41,6 +41,24 @@ func processIncludes(includePaths []string, baseDir string, rawTags map[string]m
 		var raw map[string]interface{}
 		yaml.Unmarshal(bData, &raw)
 
+		// [核心增强] 模块自带的点位自动启用
+		if en, ok := raw["enabled_tags"].([]interface{}); ok {
+			for _, item := range en {
+				if s, ok := item.(string); ok {
+					enabledSet[s] = true
+				} else if m, ok := item.(map[string]interface{}); ok {
+					if tagVal, exists := m["tag"]; exists {
+						if s, ok := tagVal.(string); ok { 
+							enabledSet[s] = true 
+							if attr, ok := m["attributes"].(map[string]interface{}); ok {
+								enabledAttr[s] = attr
+							}
+						}
+					}
+				}
+			}
+		}
+
 		// 3. 处理嵌套包含 (递归)
 		if nested, ok := raw["includes"].([]interface{}); ok {
 			var nestedStrings []string
@@ -48,7 +66,7 @@ func processIncludes(includePaths []string, baseDir string, rawTags map[string]m
 				if ns, ok := n.(string); ok { nestedStrings = append(nestedStrings, ns) }
 			}
 			// 递归调用，使用当前文件的目录作为新的 baseDir
-			processIncludes(nestedStrings, filepath.Dir(absPath), rawTags, effectiveScenarios, seen)
+			processIncludes(nestedStrings, filepath.Dir(absPath), rawTags, effectiveScenarios, enabledSet, enabledAttr, seen)
 		}
 
 		// 4. 合并协议映射
@@ -85,11 +103,11 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 	
 	var effectiveScenarios []string
 	seenFiles := make(map[string]bool)
+	enabledAttr := make(map[string]map[string]interface{})
 
 	// 1. 处理 Base Product 的包含
-	processIncludes(pc.Includes, baseDir, rawTags, &effectiveScenarios, seenFiles)
+	processIncludes(pc.Includes, baseDir, rawTags, &effectiveScenarios, enabledSet, enabledAttr, seenFiles)
 
-	enabledAttr := make(map[string]map[string]interface{})
 	for _, item := range pc.EnabledTags {
 		if s, ok := item.(string); ok {
 			enabledSet[s] = true
@@ -107,7 +125,7 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 				if ks, ok := k.(string); ok && ks == "tag" {
 					if vs, ok := v.(string); ok { 
 						enabledSet[vs] = true 
-						if attr, ok := m["attributes"].(map[string]interface{}); ok {
+						if attr, ok := v.(map[string]interface{}); ok {
 							enabledAttr[vs] = attr
 						}
 					}
@@ -136,7 +154,7 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 				for _, i := range inc {
 					if s, ok := i.(string); ok { incStrs = append(incStrs, s) }
 				}
-				processIncludes(incStrs, filepath.Dir(localPath), rawTags, &effectiveScenarios, seenFiles)
+				processIncludes(incStrs, filepath.Dir(localPath), rawTags, &effectiveScenarios, enabledSet, enabledAttr, seenFiles)
 			}
 
 			if en, ok := local["enabled_tags"].([]interface{}); ok {
@@ -153,6 +171,16 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 					}
 				}
 			}
+
+			// [Mask Rule] 处理屏蔽逻辑
+			if dis, ok := local["disabled_tags"].([]interface{}); ok {
+				for _, n := range dis {
+					if s, ok := n.(string); ok {
+						fmt.Printf("[Merger] Masking Tag: %s\n", s)
+						delete(enabledSet, s)
+					}
+				}
+			}
 			if cfgRaw, ok := local["configs"].([]interface{}); ok {
 				var localConfigs []model.ConfigDef
 				for _, c := range cfgRaw {
@@ -164,29 +192,32 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 				}
 				mergeConfigs(&effectiveConfigs, localConfigs)
 			}
-			// [Override Rule] Merge Parameters
-			if paramRaw, ok := local["parameters"].([]interface{}); ok {
-				for _, p := range paramRaw {
-					if pm, ok := p.(map[string]interface{}); ok {
-						name, _ := pm["name"].(string)
-						found := false
-						for i, ep := range effectiveParams {
-							if ep.Name == name {
-								pb, _ := yaml.Marshal(pm)
-								yaml.Unmarshal(pb, &effectiveParams[i])
-								found = true; break
-							}
-						}
-						if !found {
-							var pd model.ParamDef
-							pb, _ := yaml.Marshal(pm)
-							yaml.Unmarshal(pb, &pd)
-							if pd.Default == nil && pd.Value != nil { pd.Default = pd.Value }
-							effectiveParams = append(effectiveParams, pd)
-						}
-					}
-				}
-			}
+						            // [Override Rule] Merge Parameters
+						            if paramRaw, ok := local["parameters"].([]interface{}); ok {
+						                for _, p := range paramRaw {
+						                    if pm, ok := p.(map[string]interface{}); ok {
+						                        name, _ := pm["name"].(string)
+						                        found := false
+						                        for i, ep := range effectiveParams {
+						                            if ep.Name == name {
+						                                pb, _ := yaml.Marshal(pm)
+						                                yaml.Unmarshal(pb, &effectiveParams[i])
+			                                            // [关键修复] 显式回填覆盖值到默认值字段
+			                                            if val, exists := pm["value"]; exists { effectiveParams[i].Default = val }
+						                                found = true; break
+						                            }
+						                        }
+						                        if !found {
+						                            var pd model.ParamDef
+						                            pb, _ := yaml.Marshal(pm)
+						                            yaml.Unmarshal(pb, &pd)
+						                            if pd.Default == nil && pd.Value != nil { pd.Default = pd.Value }
+						                            effectiveParams = append(effectiveParams, pd)
+						                        }
+						                    }
+						                }
+						            }
+			
 			// [Override Rule] Merge Hardware
 			if hwRaw, ok := local["hardware"].([]interface{}); ok {
 				for _, h := range hwRaw {
