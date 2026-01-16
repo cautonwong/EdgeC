@@ -46,7 +46,7 @@ int main(int argc, char **argv) {
     sqlite_config_t db_conf = {.db_path = "vpp.db", .strategy = STRATEGY_LITE};
     sqlite_svc_t *db_service = sqlite_svc_create(loop, &db_conf);
     stream_engine_t *stream_engine = stream_engine_create(&hub, NULL);
-    edge_params_t *param_mgr = edge_params_create(db_service);
+    edge_params_t *param_mgr = edge_params_create(db_service, &hub);
 
     northbound_mgr_t *north_mgr = calloc(1, sizeof(northbound_mgr_t));
     northbound_mgr_init(north_mgr, loop, &hub.ring, "vpp_demo", db_service);

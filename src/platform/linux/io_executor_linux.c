@@ -108,19 +108,32 @@ static int _poll_ioctl(io_handle_t *h, int cmd, void *arg) {
     if (cmd == IO_CTL_SET_BAUD && impl->type == IO_TYPE_UART) {
         uint32_t baud = *(uint32_t *)arg;
         struct termios options;
-        tcgetattr(impl->fd, &options);
+        if (tcgetattr(impl->fd, &options) != 0) return -errno;
         speed_t speed = B9600;
         switch (baud) {
             case 9600:
                 speed = B9600;
                 break;
+            case 19200:
+                speed = B19200;
+                break;
+            case 38400:
+                speed = B38400;
+                break;
+            case 57600:
+                speed = B57600;
+                break;
             case 115200:
                 speed = B115200;
+                break;
+            default:
+                speed = B9600;
                 break;
         }
         cfsetispeed(&options, speed);
         cfsetospeed(&options, speed);
-        tcsetattr(impl->fd, TCSANOW, &options);
+        if (tcsetattr(impl->fd, TCSANOW, &options) != 0) return -errno;
+        LOG_INFO(LOG_CAT_IO, "IO: Baud rate switched to %u", baud);
         return 0;
     }
     return -1;

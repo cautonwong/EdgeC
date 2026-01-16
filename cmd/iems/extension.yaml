@@ -1,22 +1,16 @@
-# IEMS Extension for Sprint 4 (Omnis)
-includes:
-  - "features/solar_module.yaml"
-
-disabled_tags:
-  - "GRID_POWER"
-
 enabled_tags:
   - tag: VOLTAGE_PHASE_A
+    attributes:
+      poll_interval_ms: 1000
 
-parameters:
-  - name: ALGO_UOV_LIMIT
-    value: 250.0  # 演习设定的阈值
-
-pipelines:
-  - id: "overvoltage_protection"
-    trigger: "VOLTAGE_PHASE_A"
-    stages:
-      - type: "REFLEX"
-        min: 240.0        # -> f1 (threshold)
-        max: 1.0          # -> f2 (greater_than flag)
-        target_tag: 8001  # -> u1 (target_tag)
+world:
+  topology:
+    - bus_id: 0
+      transport: {"type": "uds"}
+      devices:
+        - protocol: "ModbusRTU"
+          count: 2
+          start_address: 1 # 站号 1, 2
+  poll_tasks:
+    - tag: "VOLTAGE_PHASE_A"
+      interval_ms: 1000

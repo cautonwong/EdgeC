@@ -85,6 +85,12 @@ service_t *service_new(uv_loop_t *loop, datahub_t *hub, arbiter_t *arb, sqlite_s
 void service_delete(service_t *svc) {
     if (!svc) return;
 
+    // 1. 优先停止并清理北向管理器（因为它有独立线程）
+    if (svc->north) {
+        northbound_mgr_stop(svc->north);
+        // northbound_mgr_destroy(svc->north); // 如果有的话
+    }
+
     // [所有权变更]：只清理 Service 自身创建的资源，不触碰注入的组件
     if (svc->ipc_pipe && !uv_is_closing((uv_handle_t *)svc->ipc_pipe)) {
         uv_close((uv_handle_t *)svc->ipc_pipe, (uv_close_cb)free);

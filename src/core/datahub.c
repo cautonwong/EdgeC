@@ -15,6 +15,13 @@
 
 #include "edge_log.h"
 
+// --- 外部路由接口声明 (Weak Symbol) ---
+// 默认行为：如果编译器没有生成路由表，则唤醒所有订阅者（回退到旧行为）
+__attribute__((weak)) bool edge_router_needs_wakeup(int index) {
+    (void)index;
+    return true;
+}
+
 static void _on_legacy_async(uv_async_t *handle) {
     datahub_t *hub = (datahub_t *)handle->data;
     if (hub && hub->legacy_cb) {
@@ -100,22 +107,35 @@ void datahub_destroy(datahub_t *hub) {
 
 int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
     if (!hub || !msg) return -1;
-    shm_ring_write(&hub->ring, msg);
+
+    pipe_msg_t local_msg = *msg;
+
+    // Phase 4: 如果是引用类型，尝试校准本地指针 (针对同进程内转发)
+    if (local_msg.type == PIPEMSG_TYPE_REF) {
+        for (int i = 0; i < hub->ref_count; i++) {
+            if (hub->refs[i].tag_id == local_msg.tag_id) {
+                local_msg.payload.ref.ptr = hub->refs[i].ptr;
+                local_msg.payload.ref.fd = hub->refs[i].fd;
+                break;
+            }
+        }
+    }
+
+    shm_ring_write(&hub->ring, &local_msg);
 
     if (hub->shadow_table) {
-        int idx = hub->map_fn ? hub->map_fn(msg->tag_id) : (int)msg->tag_id;
+        int idx = hub->map_fn ? hub->map_fn(local_msg.tag_id) : (int)local_msg.tag_id;
         if (idx >= 0 && (uint32_t)idx < hub->shadow_capacity) {
             uv_mutex_lock(&hub->shadow_lock);
-            hub->shadow_table[idx] = *msg;
+            hub->shadow_table[idx] = local_msg;
             uv_mutex_unlock(&hub->shadow_lock);
-            fprintf(stderr, "[DEBUG][DataHub] Shadow Updated: Tag %u (Idx %d) Val %f\n", 
-                    msg->tag_id, idx, msg->payload.val.f);
         }
     }
 
     bool needs_wakeup = true;
     if (hub->wakeup_fn) {
-        needs_wakeup = hub->wakeup_fn(msg->tag_id);
+        int idx = hub->map_fn ? hub->map_fn(local_msg.tag_id) : (int)local_msg.tag_id;
+        needs_wakeup = hub->wakeup_fn(idx);
     }
 
     if (needs_wakeup) {
@@ -125,6 +145,29 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
         if (hub->legacy_cb) hub->legacy_cb(hub, hub->legacy_user_data);
         if (!uv_is_closing((uv_handle_t *)&hub->legacy_async)) uv_async_send(&hub->legacy_async);
     }
+    return 0;
+}
+
+int datahub_register_ref(datahub_t *hub, uint32_t tag_id, int fd, size_t len) {
+    if (!hub || fd < 0) return -1;
+
+    // 1. 建立本地映射
+    void *ptr = mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (ptr == MAP_FAILED) {
+        LOG_ERROR(LOG_CAT_BUS, "Failed to mmap ref FD %d for Tag %u: %s", fd, tag_id,
+                  strerror(errno));
+        return -1;
+    }
+
+    // 2. 存入注册表
+    uv_mutex_lock(&hub->shadow_lock);
+    if (hub->ref_count < 32) {
+        hub->refs[hub->ref_count++] =
+            (datahub_ref_t){.tag_id = tag_id, .fd = fd, .ptr = ptr, .len = len};
+    }
+    uv_mutex_unlock(&hub->shadow_lock);
+
+    LOG_INFO(LOG_CAT_BUS, "Registered local ref for Tag %u (FD %d -> Ptr %p)", tag_id, fd, ptr);
     return 0;
 }
 
@@ -140,6 +183,18 @@ int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out) {
     if (out->tag_id != tag_id) {
         return -1;
     }
+
+    // Phase 4: 跨进程指针修复
+    if (out->type == PIPEMSG_TYPE_REF) {
+        for (int i = 0; i < hub->ref_count; i++) {
+            if (hub->refs[i].tag_id == out->tag_id) {
+                out->payload.ref.ptr = hub->refs[i].ptr;
+                out->payload.ref.fd = hub->refs[i].fd;
+                break;
+            }
+        }
+    }
+
     return 0;
 }
 

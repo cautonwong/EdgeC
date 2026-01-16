@@ -25,7 +25,14 @@ typedef void (*datahub_on_data_cb)(datahub_t *hub, void *user_data);
 /**
  * @brief 唤醒过滤回调 (Phase 3 优化)
  */
-typedef bool (*datahub_wakeup_filter_cb)(uint32_t tag_id);
+typedef bool (*datahub_wakeup_filter_cb)(int index);
+
+typedef struct {
+    uint32_t tag_id;
+    int fd;
+    void *ptr;
+    size_t len;
+} datahub_ref_t;
 
 struct datahub_s {
     uv_loop_t *loop;
@@ -41,6 +48,9 @@ struct datahub_s {
     uint32_t shadow_capacity;
     datahub_tag_map_cb map_fn;
     datahub_wakeup_filter_cb wakeup_fn;  // [注入] 唤醒过滤器
+
+    datahub_ref_t refs[32];  // [新增] 引用注册表，支持32个并发大块数据流
+    int ref_count;
 
     datahub_on_data_cb legacy_cb;
     void *legacy_user_data;
@@ -64,6 +74,7 @@ int datahub_init_from_fd(datahub_t *hub, uv_loop_t *loop, int ring_fd, size_t ri
 
 void datahub_destroy(datahub_t *hub);
 int datahub_publish(datahub_t *hub, const pipe_msg_t *msg);
+int datahub_register_ref(datahub_t *hub, uint32_t tag_id, int fd, size_t len);
 int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out);
 void datahub_subscribe(datahub_t *hub, datahub_on_data_cb cb, void *user_data);
 

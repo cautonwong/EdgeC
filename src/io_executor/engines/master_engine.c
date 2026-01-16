@@ -77,24 +77,24 @@ static void _master_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *u
 
             if (rc == 0) {
                 for (int i = 0; i < count; i++) {
-                    fprintf(stderr, "[DEBUG][MasterEngine] Publishing Tag %u (Val %f) to DataHub\n", 
+                    fprintf(stderr, "[DEBUG][MasterEngine] Publishing Tag %u (Val %f) to DataHub\n",
                             msgs[i].tag_id, msgs[i].payload.val.f);
                     datahub_publish(priv->hub, &msgs[i]);
                 }
                 frame_found = true;
                 if (consumed > 0) net_buf_pull(priv->rx_acc, consumed);
-                net_buf_unref(resp); // <--- 这里一定要释放
+                net_buf_unref(resp);  // <--- 这里一定要释放
                 break;
             } else if (rc == EDGE_ERR_INCOMPLETE) {
                 if (consumed > 0) net_buf_pull(priv->rx_acc, consumed);
-                net_buf_unref(resp); // <--- 这里也要释放
+                net_buf_unref(resp);  // <--- 这里也要释放
                 break;
             } else {
                 if (consumed > 0)
                     net_buf_pull(priv->rx_acc, consumed);
                 else
                     net_buf_simple_reset(&priv->rx_acc->b);
-                net_buf_unref(resp); // <--- 这里更要释放
+                net_buf_unref(resp);  // <--- 这里更要释放
                 break;
             }
         }
@@ -122,8 +122,7 @@ static void _master_run_command(bus_engine_t *self, cmd_msg_t *cmd) {
     master_priv_t *priv = (master_priv_t *)self->user_data;
     if (!priv->io) {
         fprintf(stderr, "[ENGINE] Bus %d error: IO not attached\n", priv->bus_id);
-        if (priv->arb)
-            arbiter_on_io_done(priv->arb, priv->bus_id, cmd, CMD_STATUS_IO_ERROR);
+        if (priv->arb) arbiter_on_io_done(priv->arb, priv->bus_id, cmd, CMD_STATUS_IO_ERROR);
         return;
     }
 

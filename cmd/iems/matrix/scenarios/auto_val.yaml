@@ -1,0 +1,4 @@
+name: "Automatic Contract Validation"
+steps:
+  - t: 0
+    action: "matrix.auto_validate"

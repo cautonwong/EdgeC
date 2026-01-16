@@ -1,0 +1,31 @@
+{
+  "product": "{{ .Product }}",
+  "signature": "{{ printf "0x%08X" .Signature }}",
+  "tags": [
+    {{- range $i, $tag := .ActiveTags }}
+    {
+      "id": {{ $tag.ID }},
+      "name": "{{ $tag.Name }}",
+      "type": "{{ $tag.Type }}"
+    }{{ if lt $i (sub (len $.ActiveTags) 1) }},{{ end }}
+    {{- end }}
+  ],
+  "params": [
+    {{- range $i, $param := .Params }}
+    {
+      "id": {{ $param.ID }},
+      "name": "{{ $param.Name }}",
+      "type": "{{ $param.Type }}",
+      "default": {{ if eq $param.Type "string" }}"{{ $param.Default }}"{{ else }}{{ $param.Default }}{{ end }}
+    }{{ if lt $i (sub (len $.Params) 1) }},{{ end }}
+    {{- end }}
+  ],
+  "pipelines": [
+    {{- range $i, $pipe := .Pipelines }}
+    {
+      "id": "{{ $pipe.ID }}",
+      "trigger": "{{ $pipe.Trigger }}"
+    }{{ if lt $i (sub (len $.Pipelines) 1) }},{{ end }}
+    {{- end }}
+  ]
+}

@@ -1,0 +1,20 @@
+name: "Overvoltage Protection Loop"
+steps:
+  - t: 1
+    action: "inject"
+    tag: "VOLTAGE_PHASE_A"
+    value: 230.0
+    desc: "Normal Voltage 230V"
+  - t: 3
+    action: "inject"
+    tag: "VOLTAGE_PHASE_A"
+    value: 275.0
+    desc: "Overvoltage 275V!"
+  - t: 5
+    action: "check_api"
+    tag: "VOLTAGE_PHASE_A"
+    expect: 275.0
+  - t: 6
+    action: "check_api"
+    tag: "PROJECT_HUMIDITY"
+    expect: 1.0 # 预期触发反射动作

@@ -4,11 +4,8 @@
 #include <stddef.h>
 
 /**
- * @brief 编译器生成的精准路由位图 (Phase 3 spec - Dense Index Alignment)
+ * @brief 编译器生成的精准路由位图 (Phase 3 spec - Dense Index)
  */
-
-// 外部依赖：获取紧凑索引 (由 contracts.c 提供)
-extern int edge_tag_get_compact_index(uint32_t tag_id);
 
 static const uint32_t edge_router_trigger_mask[] = {
     {{- range $i, $val := .Router.TriggerMask }}
@@ -23,15 +20,13 @@ static const uint32_t edge_router_watcher_mask[] = {
 };
 
 /**
- * @brief 判断测点是否需要唤醒 L2 逻辑 (Pipeline/Policy)
+ * @brief 判断逻辑索引是否需要唤醒 L2 逻辑 (Pipeline/Policy)
  */
-bool edge_router_needs_wakeup(uint32_t tag_id) {
-    int compact_idx = edge_tag_get_compact_index(tag_id);
-    if (compact_idx < 0 || compact_idx > {{ .Router.MaxActiveIndex }}) return false;
+bool edge_router_needs_wakeup(int index) {
+    if (index < 0 || index > {{ .Router.MaxActiveIndex }}) return false;
     
-    uint32_t idx = (uint32_t)compact_idx / 32;
-    uint32_t bit = 1U << ((uint32_t)compact_idx % 32);
+    uint32_t idx = (uint32_t)index / 32;
+    uint32_t bit = 1U << ((uint32_t)index % 32);
     
-    // 只有在 Trigger 掩码或 Watcher 掩码中命中的点，才需要唤醒订阅者
     return (edge_router_trigger_mask[idx] & bit) || (edge_router_watcher_mask[idx] & bit);
 }

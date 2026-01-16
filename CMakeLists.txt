@@ -220,12 +220,7 @@ target_link_libraries(edge_sdk INTERFACE
 # ==============================================================================
 # 6. Build Product Applications
 # ==============================================================================
-add_subdirectory(cmd/iems)
-add_subdirectory(cmd/sg)
-add_subdirectory(cmd/dcu)
-add_subdirectory(cmd/evse)
-add_subdirectory(cmd/hems)
-add_subdirectory(cmd/device_simulator)
+add_subdirectory(cmd)
 
 include(CPack)
 enable_testing()

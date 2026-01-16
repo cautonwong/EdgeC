@@ -34,7 +34,7 @@ static void _sync_to_datahub(edge_params_t *ctx, int idx) {
         msg.type = PIPEMSG_TYPE_SCALAR;
         msg.payload.val.f = g_compact_cache[idx].f;
     } else {
-        msg.type = PIPEMSG_TYPE_SCALAR; // 统一用标量简化处理，或按需完善类型
+        msg.type = PIPEMSG_TYPE_SCALAR;  // 统一用标量简化处理，或按需完善类型
         msg.payload.val.i = g_compact_cache[idx].i;
     }
     datahub_publish(ctx->hub, &msg);

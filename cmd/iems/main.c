@@ -35,24 +35,23 @@ static void on_sigterm(int sig) {
     if (g_running_svc) service_stop(g_running_svc);
 }
 
-static uint64_t g_last_poll_ms[1024] = {0}; // 支持更多点位
+static uint64_t g_last_poll_ms[1024] = {0};
 
 static void on_poll_timer(uv_timer_t *handle) {
     if (!g_orch_ptr) return;
     uint64_t now_ms = uv_now(handle->loop);
-    
+
     static uint64_t last_alive_print = 0;
     if (now_ms - last_alive_print > 5000) {
-        fprintf(stderr, "[INFO][Main] Poller alive. Active Tags: %u, Tag0: %u, Interval0: %u\n", 
-                (unsigned int)g_tag_metadata_len, (unsigned int)g_tag_metadata[0].id, (unsigned int)g_tag_metadata[0].poll_interval_ms);
+        fprintf(stderr, "[INFO][Main] Poller alive. Active Tags: %u, Tag0: %u, Interval0: %u\n",
+                (unsigned int)g_tag_metadata_len, (unsigned int)g_tag_metadata[0].id,
+                (unsigned int)g_tag_metadata[0].poll_interval_ms);
         last_alive_print = now_ms;
     }
 
-    // 遍历契约定义的所有点位 (完全动态)
     for (uint32_t i = 0; i < g_tag_metadata_len && i < 1024; i++) {
         const edge_tag_meta_t *meta = &g_tag_metadata[i];
         if (meta->poll_interval_ms > 0) {
-            // 检查是否到达该点位的轮询周期
             if (now_ms - g_last_poll_ms[i] >= meta->poll_interval_ms) {
                 cmd_msg_t cmd = {0};
                 cmd_msg_init_read(&cmd, meta->id, ARBITER_PRIO_NORMAL);
@@ -67,20 +66,48 @@ static void on_poll_timer(uv_timer_t *handle) {
     }
 }
 
-static void on_new_connection(uv_stream_t *server, int status) {
-    if (status < 0) return;
-    uv_pipe_t *client = malloc(sizeof(uv_pipe_t));
-    uv_pipe_init(server->loop, client, 0);
-    if (uv_accept(server, (uv_stream_t *)client) == 0) {
-        int fd;
-        uv_fileno((const uv_handle_t *)client, &fd);
-        fprintf(stderr, "[TRACE][Main] Mimic connected on FD %d\n", fd);
-        io_handle_t *h = io_executor_create_from_fd(server->loop, fd, g_hub_ptr->io_pool);
-        bus_orchestrator_attach_io(g_orch_ptr, TEST_BUS_ID, h);
-        h->ops->enable_read(h, true);
-    } else {
-        uv_close((uv_handle_t *)client, (uv_close_cb)free);
+static void on_vbus_connect(uv_connect_t *req, int status);
+
+static void _try_vbus_connect(uv_timer_t *handle) {
+    uv_loop_t *loop = handle->loop;
+    char *vbus_path = getenv("OMNIS_VBUS_PATH");
+    if (!vbus_path) vbus_path = "/tmp/vbus0.sock";
+
+    // 检查文件是否存在
+    if (access(vbus_path, F_OK) != 0) {
+        return;
     }
+
+    fprintf(stderr, "[BOOT][Main] Attempting to connect to VBus: %s\n", vbus_path);
+    uv_pipe_t *vbus_client = malloc(sizeof(uv_pipe_t));
+    uv_pipe_init(loop, vbus_client, 0);
+    uv_connect_t *conn_req = malloc(sizeof(uv_connect_t));
+    conn_req->data = handle;  // 暂存定时器以便停止
+    uv_pipe_connect(conn_req, vbus_client, vbus_path, on_vbus_connect);
+}
+
+static void on_vbus_connect(uv_connect_t *req, int status) {
+    uv_timer_t *reconnect_timer = (uv_timer_t *)req->data;
+    if (status < 0) {
+        fprintf(stderr, "[ERROR][Main] VBus connection failed: %s. Will retry...\n",
+                uv_strerror(status));
+        uv_close((uv_handle_t *)req->handle, (uv_close_cb)free);
+        free(req);
+        return;
+    }
+
+    // 连接成功，停止重连定时器
+    uv_timer_stop(reconnect_timer);
+
+    uv_pipe_t *pipe = (uv_pipe_t *)req->handle;
+    int fd;
+    uv_fileno((const uv_handle_t *)pipe, &fd);
+    fprintf(stderr, "[TRACE][Main] Connected to VBus on FD %d\n", fd);
+
+    io_handle_t *h = io_executor_create_from_fd(pipe->loop, fd, g_hub_ptr->io_pool);
+    bus_orchestrator_attach_io(g_orch_ptr, TEST_BUS_ID, h);
+    h->ops->enable_read(h, true);
+    free(req);
 }
 
 int main(int argc, char **argv) {
@@ -109,16 +136,13 @@ int main(int argc, char **argv) {
 
     bus_orchestrator_setup_master(io_orch, TEST_BUS_ID, "ModbusRTU", TEST_BUS_ID, &g_modbus_inject);
 
-    char *vbus_path = getenv("OMNIS_VBUS_PATH");
-    if (!vbus_path) vbus_path = "/tmp/vbus0.sock";
-    
-    unlink(vbus_path);
-    uv_pipe_t *vbus_server = malloc(sizeof(uv_pipe_t));
-    uv_pipe_init(loop, vbus_server, 0);
-    uv_pipe_bind(vbus_server, vbus_path);
-    uv_listen((uv_stream_t *)vbus_server, 128, on_new_connection);
+    // 启动重连定时器替代单词连接
+    uv_timer_t *reconnect_timer = malloc(sizeof(uv_timer_t));
+    uv_timer_init(loop, reconnect_timer);
+    uv_timer_start(reconnect_timer, _try_vbus_connect, 100, 1000);
 
     sqlite_config_t db_conf = {.db_path = "iems.db", .strategy = STRATEGY_LITE};
+
     sqlite_svc_t *db_service = sqlite_svc_create(loop, &db_conf);
     stream_engine_t *stream_engine = stream_engine_create(hub, NULL);
 
@@ -133,7 +157,8 @@ int main(int argc, char **argv) {
     edge_params_t *param_mgr = edge_params_create(db_service, hub);
     edge_params_register_metadata(param_mgr, g_param_metadata, g_param_metadata_len);
 
-    service_t *svc = service_new(loop, hub, arbiter, db_service, stream_engine, param_mgr, north_mgr);
+    service_t *svc =
+        service_new(loop, hub, arbiter, db_service, stream_engine, param_mgr, north_mgr);
     g_running_svc = svc;
     north_mgr->user_data = svc;
 

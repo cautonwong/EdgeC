@@ -1,0 +1,11 @@
+name: "IEMS Overvoltage Protection E2E"
+include:
+  - "../../../../tools/matrix/lib/setups/basic_iems_site.yaml"
+steps:
+  - t: 2
+    action: "device.inject"
+    params: { device: "Bus0_Modbus_1", tag: "VOLTAGE_PHASE_A", value: 285.5 }
+    desc: "Simulate grid overvoltage surge"
+  - t: 3
+    action: "edgec.wait_for"
+    params: { tag: "VOLTAGE_PHASE_A", expect: 285.5, timeout: 15 }
