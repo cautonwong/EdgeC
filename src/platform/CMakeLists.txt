@@ -9,4 +9,4 @@ endif()
 
 # 改为 STATIC 库
 add_library(edge_platform STATIC ${PLATFORM_SOURCES})
-target_link_libraries(edge_platform PUBLIC edge_common_interface)
+target_link_libraries(edge_platform PUBLIC edge_common_interface CURL::libcurl)

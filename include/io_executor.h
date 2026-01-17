@@ -52,6 +52,11 @@ typedef struct {
 #define IO_CTL_SET_BAUD 0x01
 #define IO_CTL_FLUSH 0x02
 
+/* HTTP Specific */
+#define IO_CTL_HTTP_SET_URL 0x10
+#define IO_CTL_HTTP_SET_METHOD 0x11
+#define IO_CTL_HTTP_ADD_HEADER 0x12
+
 typedef struct {
     uint32_t baud;
 } edge_phy_params_t;
@@ -71,7 +76,8 @@ typedef enum {
     IO_TYPE_TCP_CLIENT, /**< ModbusTCP / IEC104 */
     IO_TYPE_UDP,        /**< CoAP / LwM2M */
     IO_TYPE_UDS,        /**< Unix Domain Socket (仿真/容器) */
-    IO_TYPE_SHM_RING    /**< 共享内存 (核间通信) */
+    IO_TYPE_SHM_RING,   /**< 共享内存 (核间通信) */
+    IO_TYPE_HTTP        /**< HTTP/REST Client (via libcurl) */
 } io_type_t;
 
 typedef struct {
@@ -100,6 +106,10 @@ typedef struct {
         struct {
             char name[64];
         } shm;
+        struct {
+            char url[256];
+            char method[16];  // GET, POST, etc.
+        } http;
     } params;
 } io_config_t;
 

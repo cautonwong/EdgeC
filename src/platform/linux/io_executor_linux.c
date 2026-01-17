@@ -1,6 +1,9 @@
 #include <arpa/inet.h>
+#include <curl/curl.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <linux/can.h>
+#include <linux/can/raw.h>
 #include <net/if.h>
 #include <netinet/in.h>
 #include <stdlib.h>
@@ -12,21 +15,33 @@
 #include <unistd.h>
 #include <uv.h>
 
-// SocketCAN headers
-#include <linux/can.h>
-#include <linux/can/raw.h>
-
 #include "edge_log.h"
 #include "io_executor.h"
 
-/* --- Linux 统一 IO Handle 内部实现 --- */
+/* --- 0. Libcurl Multi-Socket 集成 --- */
 
 typedef struct {
+    CURLM *multi;
+    uv_timer_t timer;
+    uv_loop_t *loop;
+} curl_multi_ctx_t;
+
+static curl_multi_ctx_t *g_curl_ctx = NULL;
+
+typedef struct {
+    uv_poll_t poll_handle;
+    curl_socket_t sockfd;
+} curl_poll_ctx_t;
+
+/* --- Linux 统一 IO Handle 内部实现 --- */
+
+typedef struct linux_io_handle_s {
     io_handle_t base;
     union {
         uv_poll_t poll;
         uv_tcp_t tcp;
         uv_udp_t udp;
+        CURL *curl;
     } handle;
     int fd;
     net_buf_pool_t *pool;
@@ -35,7 +50,98 @@ typedef struct {
 
     struct sockaddr_in udp_dest;
     net_buf_t *udp_rx_nb;
+
+    // HTTP 专用
+    net_buf_t *http_rx_nb;
+    struct curl_slist *http_hdrs;
 } linux_io_handle_t;
+
+static void _on_curl_timeout(uv_timer_t *handle) {
+    int running_handles;
+    curl_multi_socket_action(g_curl_ctx->multi, CURL_SOCKET_TIMEOUT, 0, &running_handles);
+}
+
+static int _curl_timer_cb(CURLM *multi, long timeout_ms, void *userp) {
+    curl_multi_ctx_t *ctx = (curl_multi_ctx_t *)userp;
+    if (timeout_ms < 0) {
+        uv_timer_stop(&ctx->timer);
+    } else {
+        if (timeout_ms == 0) timeout_ms = 1;
+        uv_timer_start(&ctx->timer, _on_curl_timeout, timeout_ms, 0);
+    }
+    return 0;
+}
+
+static void _on_curl_poll(uv_poll_t *handle, int status, int events) {
+    int running_handles;
+    int flags = 0;
+    curl_poll_ctx_t *poll_ctx = (curl_poll_ctx_t *)handle->data;
+
+    if (events & UV_READABLE) flags |= CURL_CSELECT_IN;
+    if (events & UV_WRITABLE) flags |= CURL_CSELECT_OUT;
+
+    curl_multi_socket_action(g_curl_ctx->multi, poll_ctx->sockfd, flags, &running_handles);
+
+    // 检查完成的句柄
+    CURLMsg *msg;
+    int msgs_left;
+    while ((msg = curl_multi_info_read(g_curl_ctx->multi, &msgs_left))) {
+        if (msg->msg == CURLMSG_DONE) {
+            CURL *easy = msg->easy_handle;
+            linux_io_handle_t *impl = NULL;
+            curl_easy_getinfo(easy, CURLINFO_PRIVATE, &impl);
+
+            if (impl) {
+                if (msg->data.result == CURLE_OK) {
+                    impl->base.cb(&impl->base, IO_EVENT_TX_DONE, NULL, impl->base.user_data);
+                } else {
+                    impl->base.cb(&impl->base, IO_EVENT_ERROR, (void *)(intptr_t)msg->data.result,
+                                  impl->base.user_data);
+                }
+                // 从 multi 移除但不由这里 destroy，由 io_handle_destroy 处理
+                curl_multi_remove_handle(g_curl_ctx->multi, easy);
+            }
+        }
+    }
+}
+
+static int _curl_socket_cb(CURL *easy, curl_socket_t s, int action, void *userp, void *socketp) {
+    curl_multi_ctx_t *ctx = (curl_multi_ctx_t *)userp;
+    curl_poll_ctx_t *poll_ctx = (curl_poll_ctx_t *)socketp;
+
+    if (action == CURL_POLL_IN || action == CURL_POLL_OUT || action == CURL_POLL_INOUT) {
+        if (!poll_ctx) {
+            poll_ctx = calloc(1, sizeof(curl_poll_ctx_t));
+            poll_ctx->sockfd = s;
+            uv_poll_init(ctx->loop, &poll_ctx->poll_handle, s);
+            poll_ctx->poll_handle.data = poll_ctx;
+            curl_multi_assign(ctx->multi, s, poll_ctx);
+        }
+        int events = 0;
+        if (action != CURL_POLL_OUT) events |= UV_READABLE;
+        if (action != CURL_POLL_IN) events |= UV_WRITABLE;
+        uv_poll_start(&poll_ctx->poll_handle, events, _on_curl_poll);
+    } else if (action == CURL_POLL_REMOVE) {
+        if (poll_ctx) {
+            uv_poll_stop(&poll_ctx->poll_handle);
+            uv_close((uv_handle_t *)&poll_ctx->poll_handle, (uv_close_cb)free);
+            curl_multi_assign(ctx->multi, s, NULL);
+        }
+    }
+    return 0;
+}
+
+static void _ensure_curl_init(uv_loop_t *loop) {
+    if (g_curl_ctx) return;
+    g_curl_ctx = calloc(1, sizeof(curl_multi_ctx_t));
+    g_curl_ctx->loop = loop;
+    g_curl_ctx->multi = curl_multi_init();
+    uv_timer_init(loop, &g_curl_ctx->timer);
+    curl_multi_setopt(g_curl_ctx->multi, CURLMOPT_SOCKETFUNCTION, _curl_socket_cb);
+    curl_multi_setopt(g_curl_ctx->multi, CURLMOPT_SOCKETDATA, g_curl_ctx);
+    curl_multi_setopt(g_curl_ctx->multi, CURLMOPT_TIMERFUNCTION, _curl_timer_cb);
+    curl_multi_setopt(g_curl_ctx->multi, CURLMOPT_TIMERDATA, g_curl_ctx);
+}
 
 /* --- 1. 基于 Poll (FD) 的通用处理 (UART, CAN, UDS) --- */
 
@@ -192,8 +298,87 @@ static int _udp_write_async(io_handle_t *h, net_buf_t *buf) {
                        _on_udp_send_done);
 }
 
+/* --- 3. 基于 HTTP (Libcurl) 的处理 --- */
+
+static size_t _on_curl_write(void *ptr, size_t size, size_t nmemb, void *userp) {
+    linux_io_handle_t *impl = (linux_io_handle_t *)userp;
+    size_t total = size * nmemb;
+
+    // 如果没有分配 rx_nb，则分配一个 (按需)
+    if (!impl->http_rx_nb) {
+        impl->http_rx_nb = net_buf_alloc(impl->pool, 0);
+    }
+
+    if (impl->http_rx_nb && net_buf_simple_tailroom(&impl->http_rx_nb->b) >= total) {
+        net_buf_simple_add_mem(&impl->http_rx_nb->b, ptr, total);
+        // 通知上层：收到数据片段
+        impl->base.cb(&impl->base, IO_EVENT_RX, impl->http_rx_nb, impl->base.user_data);
+    }
+
+    return total;
+}
+
+static int _http_enable_read(io_handle_t *h, bool enable) {
+    linux_io_handle_t *impl = (linux_io_handle_t *)h;
+    if (enable) {
+        curl_multi_add_handle(g_curl_ctx->multi, impl->handle.curl);
+    } else {
+        curl_multi_remove_handle(g_curl_ctx->multi, impl->handle.curl);
+    }
+    return 0;
+}
+
+static int _http_write_async(io_handle_t *h, net_buf_t *buf) {
+    linux_io_handle_t *impl = (linux_io_handle_t *)h;
+    // 如果有 Payload (POST/PUT)
+    if (buf && buf->b.len > 0) {
+        curl_easy_setopt(impl->handle.curl, CURLOPT_POSTFIELDS, buf->b.data);
+        curl_easy_setopt(impl->handle.curl, CURLOPT_POSTFIELDSIZE, (long)buf->b.len);
+    }
+    // 启动传输
+    curl_multi_add_handle(g_curl_ctx->multi, impl->handle.curl);
+    return 0;
+}
+
+static int _http_ioctl(io_handle_t *h, int cmd, void *arg) {
+    linux_io_handle_t *impl = (linux_io_handle_t *)h;
+    switch (cmd) {
+        case IO_CTL_HTTP_SET_URL:
+            curl_easy_setopt(impl->handle.curl, CURLOPT_URL, (const char *)arg);
+            break;
+        case IO_CTL_HTTP_SET_METHOD:
+            curl_easy_setopt(impl->handle.curl, CURLOPT_CUSTOMREQUEST, (const char *)arg);
+            break;
+        case IO_CTL_HTTP_ADD_HEADER:
+            impl->http_hdrs = curl_slist_append(impl->http_hdrs, (const char *)arg);
+            curl_easy_setopt(impl->handle.curl, CURLOPT_HTTPHEADER, impl->http_hdrs);
+            break;
+        default:
+            return -1;
+    }
+    return 0;
+}
+
+static void _http_destroy(io_handle_t *h) {
+    linux_io_handle_t *impl = (linux_io_handle_t *)h;
+    curl_multi_remove_handle(g_curl_ctx->multi, impl->handle.curl);
+    curl_easy_cleanup(impl->handle.curl);
+    if (impl->http_hdrs) curl_slist_free_all(impl->http_hdrs);
+    if (impl->http_rx_nb) net_buf_unref(impl->http_rx_nb);
+    free(impl);
+}
+
+static const io_ops_t http_ops = {.enable_read = _http_enable_read,
+                                  .write_async = _http_write_async,
+                                  .ioctl = _http_ioctl,
+                                  .destroy = _http_destroy};
+
 static void _on_handle_close(uv_handle_t *handle) {
     linux_io_handle_t *impl = (linux_io_handle_t *)handle->data;
+    if (impl->type == IO_TYPE_HTTP) {
+        // HTTP 的销毁通过 ops->destroy 直接完成
+        return;
+    }
     if (impl->fd >= 0) close(impl->fd);
     if (impl->pending_tx) net_buf_unref(impl->pending_tx);
     if (impl->udp_rx_nb) net_buf_unref(impl->udp_rx_nb);
@@ -202,6 +387,10 @@ static void _on_handle_close(uv_handle_t *handle) {
 
 static void _linux_destroy(io_handle_t *h) {
     linux_io_handle_t *impl = (linux_io_handle_t *)h;
+    if (impl->type == IO_TYPE_HTTP) {
+        _http_destroy(h);
+        return;
+    }
     uv_close((uv_handle_t *)&impl->handle, _on_handle_close);
 }
 
@@ -265,6 +454,24 @@ io_handle_t *io_executor_create(uv_loop_t *loop, const io_config_t *cfg, net_buf
             inet_pton(AF_INET, cfg->params.udp.remote_ip, &impl->udp_dest.sin_addr);
             impl->udp_dest.sin_port = htons(cfg->params.udp.remote_port);
             impl->base.ops = &udp_ops;
+            break;
+        }
+        case IO_TYPE_HTTP: {
+            _ensure_curl_init(loop);
+            impl->handle.curl = curl_easy_init();
+            if (!impl->handle.curl) {
+                free(impl);
+                return NULL;
+            }
+            curl_easy_setopt(impl->handle.curl, CURLOPT_URL, cfg->params.http.url);
+            if (strlen(cfg->params.http.method) > 0) {
+                curl_easy_setopt(impl->handle.curl, CURLOPT_CUSTOMREQUEST, cfg->params.http.method);
+            }
+            curl_easy_setopt(impl->handle.curl, CURLOPT_WRITEFUNCTION, _on_curl_write);
+            curl_easy_setopt(impl->handle.curl, CURLOPT_WRITEDATA, impl);
+            curl_easy_setopt(impl->handle.curl, CURLOPT_PRIVATE, impl);
+            curl_easy_setopt(impl->handle.curl, CURLOPT_FOLLOWLOCATION, 1L);
+            impl->base.ops = &http_ops;
             break;
         }
         default:

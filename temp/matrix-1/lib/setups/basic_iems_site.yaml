@@ -1,9 +1,0 @@
-name: "Basic IEMS Simulation Site"
-description: "Standard 485 Bus with one Modbus Meter"
-steps:
-  - t: 0
-    action: "device.inject"
-    params: { device: "Bus0_Modbus_1", tag: "VOLTAGE_PHASE_A", value: 230.0 }
-  - t: 0.1
-    action: "device.inject"
-    params: { device: "Bus0_Modbus_1", tag: "GRID_POWER", value: 5000.0 }

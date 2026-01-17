@@ -27,12 +27,53 @@ static service_t *g_running_svc = NULL;
 static datahub_t *g_hub_ptr = NULL;
 static bus_orchestrator_t *g_orch_ptr = NULL;
 static driver_contract_injection_t g_modbus_inject;
+static uv_timer_t g_http_timer;
 
 #define TEST_BUS_ID 0
+#define HTTP_POLL_INTERVAL_MS 2000
 
 static void on_sigterm(int sig) {
     (void)sig;
     if (g_running_svc) service_stop(g_running_svc);
+}
+
+static void on_http_request_complete(io_handle_t *h, io_event_t evt, void *data, void *user_data) {
+    (void)data;
+    (void)user_data;
+
+    if (evt == IO_EVENT_RX) {
+        net_buf_t *nb = (net_buf_t *)data;
+        fprintf(stderr, "[INFO][HTTP] Response received: %u bytes\n", nb->b.len);
+    } else if (evt == IO_EVENT_TX_DONE) {
+        fprintf(stderr, "[INFO][HTTP] Request finished. Scheduling next in %dms...\n",
+                HTTP_POLL_INTERVAL_MS);
+        h->ops->destroy(h);
+        // 关键：在完成回调中重新发起下一次计时
+        uv_timer_start(&g_http_timer, (uv_timer_cb)user_data, HTTP_POLL_INTERVAL_MS, 0);
+    } else if (evt == IO_EVENT_ERROR) {
+        fprintf(stderr, "[WARN][HTTP] Request failed. Retrying in %dms...\n",
+                HTTP_POLL_INTERVAL_MS);
+        h->ops->destroy(h);
+        uv_timer_start(&g_http_timer, (uv_timer_cb)user_data, HTTP_POLL_INTERVAL_MS, 0);
+    }
+}
+
+static void on_http_timer(uv_timer_t *handle) {
+    io_config_t cfg = {.type = IO_TYPE_HTTP};
+    // 访问自己的 REST API 验证自循环
+    snprintf(cfg.params.http.url, 255, "http://127.0.0.1:%d/api/v1/system/health",
+             getenv("EDGE_REST_PORT") ? atoi(getenv("EDGE_REST_PORT")) : 9091);
+    strncpy(cfg.params.http.method, "GET", 15);
+
+    io_handle_t *h = io_executor_create(handle->loop, &cfg, g_hub_ptr->io_pool);
+    if (h) {
+        h->cb = on_http_request_complete;
+        h->user_data = (void *)on_http_timer;  // 传递自己以便在回调中重新调度
+        h->ops->enable_read(h, true);
+    } else {
+        // 如果创建失败，也要确设计下一次尝试
+        uv_timer_start(&g_http_timer, on_http_timer, HTTP_POLL_INTERVAL_MS, 0);
+    }
 }
 
 static uint64_t g_last_poll_ms[1024] = {0};
@@ -166,8 +207,15 @@ int main(int argc, char **argv) {
     uv_timer_init(loop, poll_timer);
     uv_timer_start(poll_timer, on_poll_timer, 100, 100);
 
+    // 启动周期性 HTTP 请求
+    uv_timer_init(loop, &g_http_timer);
+    uv_timer_start(&g_http_timer, on_http_timer, 1000, 0);
+
     signal(SIGTERM, on_sigterm);
     bus_orchestrator_run(io_orch);
+
+    char *vbus_path = getenv("OMNIS_VBUS_PATH");
+    if (!vbus_path) vbus_path = "/tmp/vbus0.sock";
 
     fprintf(stderr, "[OMNIS] System Starting on Bus %d Path %s\n", TEST_BUS_ID, vbus_path);
     int exit_code = service_run(svc);
