@@ -11,7 +11,7 @@ edge_add_contract(
 )
 
 # 2. 定义执行文件与 Web UI
-add_executable(${PROD_NAME} main.c)
+add_executable(${PROD_NAME} main.c ../../src/stream_engine/dsp_stages.c)
 add_web_product(${PROD_NAME} "${CMAKE_SOURCE_DIR}/web/products/${PROD_NAME}")
 
 # 3. 输出路径标准化

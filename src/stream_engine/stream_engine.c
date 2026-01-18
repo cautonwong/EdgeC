@@ -122,6 +122,26 @@ int stream_engine_load_static_metadata(stream_engine_t *engine, const edge_pipel
     return 0;
 }
 
+pipeline_stage_t *pipeline_add_stage(pipeline_t *p, const char *name, stage_proc_fn proc,
+                                     void *priv_state, stage_cleanup_fn cleanup_state,
+                                     void *priv_cfg, stage_cleanup_fn cleanup_cfg) {
+    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    strncpy(s->name, name, 31);
+    s->process = proc;
+    s->priv_state = priv_state;
+    s->cleanup_state = cleanup_state;
+    s->priv_cfg = priv_cfg;
+    s->cleanup_cfg = cleanup_cfg;
+
+    if (!p->head) {
+        p->head = p->tail = s;
+    } else {
+        p->tail->next = s;
+        p->tail = s;
+    }
+    return s;
+}
+
 stream_engine_t *stream_engine_create(datahub_t *hub, engine_time_source_t *time_src) {
     stream_engine_t *engine = calloc(1, sizeof(stream_engine_t));
     engine->hub = hub;

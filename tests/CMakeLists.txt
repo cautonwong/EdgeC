@@ -101,3 +101,4 @@ add_test(NAME test_northbound_mqtt COMMAND test_northbound_mqtt)
 
 # 编译选项加固
 target_link_options(test_integration PRIVATE -Wl,--wrap=io_submit)
+add_edge_test(test_adc_dsp_local test_adc_dsp_local.c ../src/stream_engine/dsp_stages.c)
