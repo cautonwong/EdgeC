@@ -17,6 +17,7 @@
 #include "edge_params.h"
 #include "edge_service.h"
 #include "northbound_mgr.h"
+#include "sched_time.h"
 #include "sqlite_service.h"
 #include "stream_engine.h"
 
@@ -41,17 +42,9 @@ static void on_sigterm(int sig) {
 static void on_adc_receiver_cb(io_handle_t *h, io_event_t evt, void *data, void *user_data) {
     (void)h;
     (void)user_data;
-    if (evt == IO_EVENT_MSG && data) {
-        g_last_adc_fd = ((pipe_msg_t *)data)->payload.ref.fd;
-    } else if (evt == IO_EVENT_RX && data) {
-        if (g_se_ptr) {
-            pipe_msg_t trigger = {.type = PIPEMSG_TYPE_REF,
-                                  .tag_id = 12001,
-                                  .payload.ref.fd = g_last_adc_fd,
-                                  .payload.ref.len = 1600};
-            trigger.ts = uv_now(uv_default_loop());
-            stream_engine_push(g_se_ptr, &trigger);
-        }
+    if (evt == IO_EVENT_RX && data) {
+        // FIXME: ADC 逻辑需要适配统一 IO 接口
+        // 原本逻辑期望收到 pipe_msg_t，但 RX 目前返回 net_buf_t
         net_buf_unref((net_buf_t *)data);
     }
 }
@@ -108,19 +101,29 @@ static void _try_vbus_connect(uv_timer_t *handle) {
     uv_pipe_connect(conn_req, vbus_client, vbus_path, on_vbus_connect);
 }
 
-static uint64_t g_last_poll_ms[1024] = {0};
-static void on_poll_timer(uv_timer_t *handle) {
+// [Sched Callback] 分钟冻结
+static void on_minute_freeze(uv_periodic_t *handle) {
+    (void)handle;
+    wall_time_t now = sched_wall_now();
+    LOG_INFO(LOG_CAT_SCHED, "❄️ Minute Freeze Triggered at %lu (Aligned)", now);
+    // 实际业务：触发数据快照、存储
+}
+
+// [Sched Callback] 周期轮询
+static void on_periodic_poll(uv_periodic_t *handle) {
+    (void)handle;
     if (!g_orch_ptr) return;
-    uint64_t now_ms = uv_now(handle->loop);
+
+    // 简化逻辑：每次触发都扫描一遍需要轮询的点
+    // 生产环境应按频率分组，避免无效遍历
     for (uint32_t i = 0; i < g_tag_metadata_len && i < 1024; i++) {
         const edge_tag_meta_t *meta = &g_tag_metadata[i];
-        if (meta->id == 1001) continue;
-        if (meta->poll_interval_ms > 0 && (now_ms - g_last_poll_ms[i] >= meta->poll_interval_ms)) {
+        if (meta->id == 1001) continue;  // Skip voltage (example)
+        if (meta->poll_interval_ms > 0) {
             cmd_msg_t cmd = {0};
             cmd_msg_init_read(&cmd, meta->id, ARBITER_PRIO_NORMAL);
             strncpy(cmd.protocol, "ModbusRTU", 15);
-            if (bus_orchestrator_submit_cmd(g_orch_ptr, TEST_BUS_ID, &cmd) == 0)
-                g_last_poll_ms[i] = now_ms;
+            bus_orchestrator_submit_cmd(g_orch_ptr, TEST_BUS_ID, &cmd);
         }
     }
 }
@@ -175,9 +178,24 @@ int main(int argc, char **argv) {
     uv_timer_t *vt = malloc(sizeof(uv_timer_t));
     uv_timer_init(loop, vt);
     uv_timer_start(vt, _try_vbus_connect, 100, 1000);
-    uv_timer_t *pt = malloc(sizeof(uv_timer_t));
-    uv_timer_init(loop, pt);
-    uv_timer_start(pt, on_poll_timer, 100, 100);
+
+    // [Sched] 1. 分钟冻结任务 (00秒对齐)
+    static uv_periodic_t freeze_handle = {0};
+    freeze_handle.loop = loop;
+    freeze_handle.reschedule_cb = sched_policy_at_minute;
+    freeze_handle.offset_ms = 0;  // 0秒偏移
+    uv_periodic_start(&freeze_handle, on_minute_freeze);
+
+    // [Sched] 2. 周期轮询任务 (每5秒对齐)
+    static uv_periodic_t poll_handle = {0};
+    poll_handle.loop = loop;
+    poll_handle.interval_ms = 5000;
+    poll_handle.offset_ms = 0;
+    uv_periodic_start(&poll_handle, on_periodic_poll);
+
+    // [Sched] 启动时间跳变监控
+    extern void scheduler_init(uv_loop_t * loop);
+    scheduler_init(loop);
 
     signal(SIGTERM, on_sigterm);
     return service_run(svc);

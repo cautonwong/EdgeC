@@ -11,8 +11,8 @@
 void mock_set_time(wall_time_t w, mono_time_t m);
 
 static int fire_count = 0;
-static void on_fire(calendar_task_t *task) {
-    (void)task;
+static void on_periodic_cb(uv_periodic_t *handle) {
+    (void)handle;
     fire_count++;
 }
 
@@ -44,39 +44,39 @@ static int teardown(void **state) {
 
 static void test_calendar_alignments(void **state) {
     (void)state;
-    calendar_task_t t = {0};
+    uv_periodic_t t = {0};
     wall_time_t now = 1700043180000;  // 10:13:00 UTC
 
-    t.type = CAL_TASK_MINUTE_FREEZE;
-    assert_true(calc_next_boundary(&t, now) == now + 60000);
+    // 1. 测试整分对齐
+    t.reschedule_cb = sched_policy_at_minute;
+    t.offset_ms = 0;
+    assert_true(t.reschedule_cb(&t, now) == now + 60000);
 
-    t.type = CAL_TASK_PERIODIC_READ;
-    t.align_min = 15;
-    assert_true(calc_next_boundary(&t, now) == now + 120000);  // 10:15:00
+    // 2. 测试 15 分钟对齐
+    t.reschedule_cb = NULL;
+    t.interval_ms = 15 * 60 * 1000;
+    t.offset_ms = 1700006400000;                                  // 假设这是当天零点
+    assert_true(sched_policy_aligned(&t, now) == 1700043300000);  // 10:15:00
 }
 
 static void test_clock_forward(void **state) {
     uv_loop_t *loop = (uv_loop_t *)*state;
 
-    calendar_task_t *task = calloc(1, sizeof(calendar_task_t));
-    task->type = CAL_TASK_HOUR_FREEZE;
-    task->loop = loop;
-    task->on_fire = on_fire;
+    uv_periodic_t *handle = calloc(1, sizeof(uv_periodic_t));
+    handle->reschedule_cb = sched_policy_at_hour;
+    handle->loop = loop;
 
     mock_set_time(1700000000000, 1000);
-    calendar_schedule(task);
+    uv_periodic_start(handle, on_periodic_cb);
 
     mock_set_time(1700014401000, 2000);
-    calendar_schedule(task);
+    uv_periodic_start(handle, on_periodic_cb);
 
-    assert_true(task->target_wall > 1700014401000);
+    assert_true(handle->target_wall > 1700014401000);
 
-    // 物理清理：手动触发 cancel (包含 close) 并释放内存
-    calendar_cancel(task);
-
-    // 给 close 回调执行的机会，然后释放堆内存
+    uv_periodic_stop(handle);
     uv_run(loop, UV_RUN_NOWAIT);
-    free(task);
+    free(handle);
 }
 
 int main(void) {

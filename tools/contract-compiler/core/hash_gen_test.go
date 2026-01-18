@@ -21,18 +21,24 @@ func TestGeneratePerfectHash_Scaling(t *testing.T) {
 			}
 
 			info := GeneratePerfectHash("TEST", entries)
-			if !info.IsPerfect {
-				t.Errorf("Failed to find perfect hash for %d entries", n)
-			} else {
-				t.Logf("Success! Seed: %d, TableSize: %d", info.Seed, info.TableSize)
+			// check if we have a valid table (size >= n)
+			if info.TableSize < uint32(n) {
+				t.Errorf("Table too small: %d < %d", info.TableSize, n)
 			}
+			t.Logf("Success! Seed: %d, TableSize: %d", info.Seed, info.TableSize)
 
 			// 验证查找一致性
+			foundCount := 0
 			for _, e := range entries {
 				h := computeHash(e.RawKey, info.Seed, info.TableSize)
-				if info.Keys[h].TagID != e.TagID {
-					t.Errorf("Hash mismatch for %s at index %d", e.TagName, h)
+				if info.Entries[h].TagID != e.TagID {
+					t.Errorf("Hash mismatch for %s at index %d (Expected ID %d, Got %d)", e.TagName, h, e.TagID, info.Entries[h].TagID)
+				} else {
+					foundCount++
 				}
+			}
+			if foundCount != n {
+				t.Errorf("Expected %d found entries, got %d", n, foundCount)
 			}
 		})
 	}

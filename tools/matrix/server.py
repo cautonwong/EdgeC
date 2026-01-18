@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 import argparse
-from engine.orchestrator import MatrixOrchestrator
+from .engine.orchestrator import MatrixOrchestrator
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("Matrix.Server")
@@ -17,9 +17,13 @@ async def main():
     logger.info("Initializing Matrix Orchestrator...")
     orchestrator = MatrixOrchestrator(args.schema)
     
-    # 建立默认拓扑 (基于 iems 默认总线)
-    bus_paths = {0: "/tmp/vbus0.sock"}
-    orchestrator.build_topology(bus_paths)
+    # 自动构建拓扑 (优先使用 Manifest/World 配置)
+    if orchestrator.loader.world_config:
+        orchestrator.build_from_world()
+    else:
+        logger.warning("No topology found in schema, falling back to legacy defaults.")
+        bus_paths = {0: "/tmp/vbus0.sock"}
+        orchestrator.build_topology(bus_paths)
     
     # 启动交互式 API
     logger.info(f"Starting Interactive API on port {args.port}...")

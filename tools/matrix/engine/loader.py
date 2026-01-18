@@ -87,3 +87,7 @@ class SchemaLoader:
                     self.dlms_map[tid] = b
         
         logger.info(f"Successfully loaded {len(self.tags)} tags and {len(self.modbus_map)} modbus bindings.")
+        
+        if "topology" in data:
+            self.world_config = {"topology": data["topology"]}
+            logger.info(f"Loaded topology from schema with {len(data['topology'])} buses.")

@@ -32,6 +32,17 @@ parameters:
     max: 3600
     desc: "Over-voltage delay"
 
+hardware:
+  - type: bus
+    id: 0
+    label: "RS485_Virtual_Bus"
+    transport: uds
+    path: "/tmp/vbus0.sock"
+    devices:
+      - protocol: ModbusRTU
+        start_address: 1
+        count: 1
+
 enabled_tags:
   - tag: VOLTAGE_PHASE_A
     attributes:

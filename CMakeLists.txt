@@ -183,18 +183,16 @@ target_link_libraries(edge_io_executor PRIVATE Modbus::Modbus)
 # 5.5 控制平面 (Control Plane)
 add_library(edge_main_loop STATIC
     src/main_loop/arbiter.c
+    src/main_loop/bus_orchestrator.c
+    src/main_loop/dcu_inventory.c
     src/main_loop/edge_service.c
     src/main_loop/northbound_mgr.c
-    src/main_loop/web_server.c
-    src/main_loop/rest_server.c
-    src/main_loop/ws_proto.c
-    src/main_loop/sched_time_source.c
-    src/main_loop/sched_calendar.c
-    src/main_loop/sched_executor.c
-    src/main_loop/sched_libev.c
-    src/main_loop/dcu_inventory.c
-    src/main_loop/bus_orchestrator.c
     src/main_loop/policy_syncer.c
+    src/main_loop/rest_server.c
+    src/main_loop/sched_engine.c
+    src/main_loop/sched_port.c
+    src/main_loop/web_server.c
+    src/main_loop/ws_proto.c
 )
 # main_loop 依赖 io_executor 和 stream_engine
 target_link_libraries(edge_main_loop PUBLIC edge_core edge_stream_engine edge_io_executor)

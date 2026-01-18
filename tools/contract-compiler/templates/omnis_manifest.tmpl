@@ -6,7 +6,15 @@
     {
       "id": {{ $tag.ID }},
       "name": "{{ $tag.Name }}",
-      "type": "{{ $tag.Type }}"
+      "type": "{{ $tag.Type }}",
+      "bindings": [
+        {{- range $j, $b := $tag.Bindings }}
+        {
+          "protocol": "{{ $b.ProtocolType }}",
+          "attributes": {{ $b.Attributes | marshal }}
+        }{{ if lt $j (sub (len $tag.Bindings) 1) }},{{ end }}
+        {{- end }}
+      ]
     }{{ if lt $i (sub (len $.ActiveTags) 1) }},{{ end }}
     {{- end }}
   ],
@@ -26,6 +34,18 @@
       "id": "{{ $pipe.ID }}",
       "trigger": "{{ $pipe.Trigger }}"
     }{{ if lt $i (sub (len $.Pipelines) 1) }},{{ end }}
+    {{- end }}
+  ],
+  "topology": [
+    {{- range $i, $hw := .Hardware }}
+    {
+      "bus_id": {{ $hw.ID }},
+      "transport": {
+        "type": "{{ index $hw.Attributes "transport" }}",
+        "path": "{{ index $hw.Attributes "path" }}"
+      },
+      "devices": {{ index $hw.Attributes "devices" | marshal }}
+    }{{ if lt $i (sub (len $.Hardware) 1) }},{{ end }}
     {{- end }}
   ]
 }

@@ -5,6 +5,8 @@
 #include <time.h>
 #include <uv.h>
 
+#include "queue.h"
+
 /**
  * @file sched_time.h
  * @brief 调度平面公共头文件 (支持 DCU 周期对齐与 S10 守时)
@@ -13,56 +15,53 @@
 typedef uint64_t wall_time_t;
 typedef uint64_t mono_time_t;
 
-// [S13/S14] 任务类型定义
-typedef enum {
-    CAL_TASK_MINUTE_FREEZE = 1,
-    CAL_TASK_HOUR_FREEZE = 2,
-    CAL_TASK_DAY_FREEZE = 3,
-    CAL_TASK_PERIODIC_READ = 4
-} calendar_task_type_t;
+struct uv_periodic_s;
 
 /**
- * @brief 挂钟调度任务结构
+ * @brief 重排策略回调 (仿照 ev_periodic_reschedule_cb)
+ * @param handle 周期任务句柄
+ * @param now 当前挂钟时间 (ms)
+ * @return 下一次触发的挂钟时间 (ms)
  */
-typedef struct calendar_task_s {
+typedef wall_time_t (*uv_periodic_reschedule_cb)(struct uv_periodic_s *handle, wall_time_t now);
+
+/**
+ * @brief 任务触发回调
+ */
+typedef void (*uv_periodic_cb)(struct uv_periodic_s *handle);
+
+/**
+ * @brief 挂钟调度任务结构 (uv_periodic 风格)
+ */
+typedef struct uv_periodic_s {
     uv_timer_t timer;
-    calendar_task_type_t type;
-    uint32_t period_sec;
-    uint32_t offset_sec;
-    uint8_t align_min;  // 用于 15 分钟对齐等
+    struct uv__queue node;
 
-    wall_time_t target_wall;
+    // 核心参数 (Base + Interval)
+    wall_time_t offset_ms;    // 基础偏移 (ev_periodic: offset)
+    wall_time_t interval_ms;  // 周期间隔 (ev_periodic: interval)
 
-    void (*on_fire)(struct calendar_task_s *task);
-    void *user_data;
+    // 策略回调 (如果为 NULL，则使用默认的 interval 逻辑)
+    uv_periodic_reschedule_cb reschedule_cb;
 
-    uv_loop_t *loop;  // 物理绑定的 Loop
-} calendar_task_t;
+    wall_time_t target_wall;  // 运行时计算出的下一次目标
 
-// 物理接口声明
+    uv_periodic_cb cb;
+    void *data;
+
+    uv_loop_t *loop;
+} uv_periodic_t;
+
+// 标准策略实现 (预置算法)
+wall_time_t sched_policy_aligned(struct uv_periodic_s *handle, wall_time_t now);    // 通用对齐
+wall_time_t sched_policy_at_minute(struct uv_periodic_s *handle, wall_time_t now);  // 整分
+wall_time_t sched_policy_at_hour(struct uv_periodic_s *handle, wall_time_t now);    // 整时
+
+// 物理接口
 wall_time_t sched_wall_now(void);
 mono_time_t sched_mono_now(void);
-void calendar_schedule(calendar_task_t *task);
-void calendar_cancel(calendar_task_t *task);
-wall_time_t calc_next_boundary(calendar_task_t *task, wall_time_t now);
-
-/**
- * @brief 计算相对于 00:00:00 对齐的下一次触发时间 (ms)
- */
-static inline uint64_t sched_calc_next_align_ms(uint64_t now_ms, uint32_t period_sec,
-                                                uint32_t offset_sec) {
-    if (period_sec == 0) return now_ms;
-    uint64_t now_sec = now_ms / 1000;
-    time_t sec = (time_t)now_sec;
-    struct tm t;
-    gmtime_r(&sec, &t);
-    t.tm_hour = 0;
-    t.tm_min = 0;
-    t.tm_sec = 0;
-    uint64_t day_start_sec = (uint64_t)timegm(&t);
-    uint64_t elapsed = now_sec - day_start_sec;
-    uint64_t next_intervals = (elapsed - offset_sec) / period_sec + 1;
-    return (day_start_sec + offset_sec + (next_intervals * period_sec)) * 1000;
-}
+void uv_periodic_start(uv_periodic_t *handle, uv_periodic_cb cb);
+void uv_periodic_stop(uv_periodic_t *handle);
+void scheduler_reschedule_all(void);
 
 #endif

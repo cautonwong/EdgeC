@@ -84,5 +84,24 @@ class ModbusRTUProtocol:
             res.extend(self._compute_crc(res))
             logger.info(f"📤 [Matrix] Device {self.slave_id} responding: {res.hex(' ')}")
             return bytes(res)
+
+        # 处理 Write Single Register (06)
+        elif len(raw_data) >= 8 and raw_data[1] == 0x06:
+            addr = struct.unpack('>H', raw_data[2:4])[0]
+            raw_val = struct.unpack('>H', raw_data[4:6])[0] # Unsigned 16-bit
             
+            map_entry = self._addr_to_tag.get(addr)
+            if map_entry:
+                tid = map_entry["tag_id"]
+                scaler = map_entry["scaler"]
+                # Modbus Value -> Engineering Value
+                eng_val = raw_val * scaler
+                datastore.set(tid, eng_val)
+                logger.info(f"📝 [Matrix] Write Tag {tid} (Addr {addr}) = {eng_val} (Raw: {raw_val})")
+            else:
+                logger.warning(f"⚠️ [Matrix] Write to unknown address {addr}")
+
+            # 06 响应通常是回显请求
+            return raw_data
+
         return None
