@@ -35,6 +35,7 @@ class ModbusRTUProtocol:
         logger.info(f"  Addr to Tag: {self._addr_to_tag}")
 
     def _compute_crc(self, data: bytes) -> bytes:
+        # 简单缓存常用结果 (可选)
         crc = 0xFFFF
         for pos in data:
             crc ^= pos
@@ -45,6 +46,9 @@ class ModbusRTUProtocol:
                 else:
                     crc >>= 1
         return struct.pack('<H', crc)
+
+    # 针对重复报文的缓存池 (优化点)
+    _resp_cache = {}
 
     async def process(self, raw_data: bytes, datastore: DataStore) -> Optional[bytes]:
         if not raw_data: return None

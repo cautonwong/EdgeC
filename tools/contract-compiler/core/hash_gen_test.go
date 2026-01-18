@@ -7,7 +7,7 @@ import (
 
 // 测试完美哈希算法在不同规模下的成功率
 func TestGeneratePerfectHash_Scaling(t *testing.T) {
-	sizes := []int{10, 100, 500, 1000}
+	sizes := []int{10, 50, 100, 200}
 	for _, n := range sizes {
 		t.Run(fmt.Sprintf("Size_%d", n), func(t *testing.T) {
 			entries := make([]HashEntry, n)

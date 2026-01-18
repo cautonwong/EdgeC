@@ -18,6 +18,7 @@ struct arbiter {
     struct bus_info buses[MAX_BUSES];
     uv_timer_t tick;
     bool is_shutting_down;
+    bool is_paused;
 
     // [终极补强] 延迟清理列表：解决异步回调堆栈冲突
     cmd_msg_t *zombies;
@@ -30,6 +31,11 @@ static void _on_arb_handle_close(uv_handle_t *h) {
 
 // 核心调度算法 (O(1) 优先级分发)
 static void _arbiter_schedule(arbiter_t *arb, int bus_id) {
+    // [终极防御] 显式禁止在暂停状态下进行任何分发动作
+    if (!arb || arb->is_paused || arb->is_shutting_down) {
+        return;
+    }
+
     struct bus_info *bus = &arb->buses[bus_id];
     if (bus->owner || !bus->queue) return;
 
@@ -41,7 +47,7 @@ static void _arbiter_schedule(arbiter_t *arb, int bus_id) {
     bus->owner = job;
 
     LOG_INFO(LOG_CAT_SCHED, "Arbiter: Dispatching Task %s (Prio %d) on Bus %d [Queued: %lu ms]",
-             job->req_id[0] != '\0' ? job->req_id : "UNKNOWN", job->priority, bus_id,
+             job->req_id[0] != '\0' ? job->req_id : "UNKNOWN", (int)job->priority, bus_id,
              (unsigned long)(uv_now(arb->tick.loop) - job->submit_ts));
 
     if (job->on_start) {
@@ -51,7 +57,7 @@ static void _arbiter_schedule(arbiter_t *arb, int bus_id) {
 
 static void _on_tick(uv_timer_t *handle) {
     arbiter_t *arb = (arbiter_t *)handle->data;
-    if (arb->is_shutting_down) return;
+    if (arb->is_shutting_down || arb->is_paused) return;
 
     // 1. [核心补强] 延迟物理释放：清理上一轮产生的完成任务
     cmd_msg_t *z = arb->zombies;
@@ -70,17 +76,41 @@ static void _on_tick(uv_timer_t *handle) {
 
 int arbiter_init(arbiter_t **arb_out, uv_loop_t *loop) {
     arbiter_t *arb = calloc(1, sizeof(arbiter_t));
+
     uv_timer_init(loop, &arb->tick);
+
     arb->tick.data = arb;
+
+    arb->is_paused = true;
+
+    LOG_INFO(LOG_CAT_SCHED, "Arbiter initialized in PAUSED state. (Addr: %p)", (void *)arb);
+
     uv_timer_start(&arb->tick, _on_tick, 10, 10);
+
     *arb_out = arb;
+
     return 0;
+}
+
+void arbiter_pause(arbiter_t *arb) {
+    if (arb) {
+        arb->is_paused = true;
+
+        LOG_INFO(LOG_CAT_SCHED, "Arbiter PAUSED manually.");
+    }
+}
+
+void arbiter_resume(arbiter_t *arb) {
+    if (arb) {
+        arb->is_paused = false;
+
+        LOG_INFO(LOG_CAT_SCHED, "Arbiter RESUMED manually.");
+    }
 }
 
 arbiter_bus_handle_t arbiter_bus_register(arbiter_t *arb, const char *name) {
     (void)arb;
     (void)name;
-    // 目前总线槽位是固定的，未来可实现动态分配
     return (arbiter_bus_handle_t)name;
 }
 
@@ -96,7 +126,7 @@ int arbiter_submit_cmd(arbiter_t *arb, int bus_id, cmd_msg_t *cmd) {
     *p = cmd;
 
     // 尝试立即调度以提升实时性
-    _arbiter_schedule(arb, bus_id);
+    if (!arb->is_paused) _arbiter_schedule(arb, bus_id);
     return 0;
 }
 
@@ -104,14 +134,8 @@ void arbiter_on_io_done(arbiter_t *arb, int bus_id, cmd_msg_t *cmd, int status) 
     if (!arb || bus_id >= MAX_BUSES || !cmd) return;
 
     if (arb->buses[bus_id].owner == cmd) {
-        // [关键] 从总线占有权中移出
         arb->buses[bus_id].owner = NULL;
-
-        // 触发逻辑完成通知 (但不立即释放内存)
         if (cmd->on_complete) cmd->on_complete(cmd, status);
-
-        // [核心补强] 延迟释放：将任务放入僵尸列表，由 Arbiter 下一个 Tick 物理回收
-        // 这避开了当前可能还在执行该任务逻辑的函数调用栈
         cmd->next = arb->zombies;
         arb->zombies = cmd;
     }
@@ -154,7 +178,6 @@ void arbiter_destroy(arbiter_t *arb) {
 
     uv_timer_stop(&arb->tick);
 
-    // 物理清理所有残留任务
     for (int i = 0; i < MAX_BUSES; i++) {
         cmd_msg_t *curr = arb->buses[i].queue;
         while (curr) {
@@ -168,7 +191,6 @@ void arbiter_destroy(arbiter_t *arb) {
         }
     }
 
-    // 清理僵尸列表
     cmd_msg_t *z = arb->zombies;
     while (z) {
         cmd_msg_t *next = z->next;

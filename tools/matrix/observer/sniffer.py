@@ -18,26 +18,31 @@ class TrafficSniffer:
         self.text_log_path = os.path.join(log_dir, "vbus_traffic.log")
         self.log_f = open(self.text_log_path, "a")
 
-    def on_traffic(self, direction: str, data: bytes, meta: dict):
+    def on_traffic(self, direction: str, raw_data: bytes, metadata: dict):
         timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
-        bus_id = meta.get("bus", 0)
-        dev_info = f" | {meta['device']}" if "device" in meta else ""
+        bus_id = metadata.get("bus", 0)
+        device = metadata.get("device", "Master")
         
-        # 语义化初步解析 (如果是 Modbus)
-        summary = ""
-        if len(data) >= 3:
-            if data[1] == 0x03: summary = "[ReadHR]"
-            elif data[1] == 0x10: summary = "[WriteMult]"
-            
-        log_line = f"[{timestamp}] [Bus {bus_id}] {direction} | {data.hex(' ').upper()} {dev_info} {summary}\n"
+        hex_data = raw_data.hex(' ').upper()
         
-        self.log_f.write(log_line)
-        self.log_f.flush()
-        os.fsync(self.log_f.fileno()) # 强制系统级刷盘
+        # 增加简易协议识别 (Modbus 示例)
+        proto_hint = ""
+        if len(raw_data) >= 3:
+            unit_id = raw_data[0]
+            func_code = raw_data[1]
+            if func_code in [3, 4, 6, 16]:
+                proto_hint = f"[Modbus ID:{unit_id} FC:{func_code}]"
+
+        log_line = f"[{timestamp}] [Bus {bus_id}] {direction:>2} {device:<15} | {hex_data}  {proto_hint}"
         
-        # 如果是 TX (EdgeC发出的)，用青色打印到控制台；如果是 RX (Matrix回复的)，用绿色
-        color = "\033[96m" if direction == "TX" else "\033[92m"
-        print(f"{color}{log_line.strip()}\033[0m")
+        with open(self.log_path, "a") as f:
+            f.write(log_line + "\n")
+        
+        # 实时打印到控制台 (仅在调试模式)
+        if direction == "RX":
+            print(f"\033[94m{log_line}\033[0m") # 蓝色表示接收
+        else:
+            print(f"\033[92m{log_line}\033[0m") # 绿色表示发送
 
     def close(self):
         self.log_f.close()

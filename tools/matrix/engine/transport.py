@@ -24,6 +24,8 @@ class UDSTransport(BaseTransport):
         self.is_server = is_server
         self._server = None
         self._writer = None
+        self.latency_ms = 10 # 默认 10ms 延迟
+        self.failure_rate = 0.0 # 故障率 (0.0 - 1.0)
 
     async def start(self):
         if os.path.exists(self.path):
@@ -46,12 +48,27 @@ class UDSTransport(BaseTransport):
                 data = await reader.read(4096)
                 if not data:
                     break
+                
+                # [Chaos] 模拟丢包
+                import random
+                if random.random() < self.failure_rate:
+                    logger.warning(f"🔥 Chaos: Dropping RX packet ({len(data)} bytes)")
+                    continue
+
                 if self.on_received:
                     # 触发广播
                     responses = await self.on_received(data)
                     for resp in responses:
-                        # [时序仿真] 模拟真实串口的帧间间隙
-                        await asyncio.sleep(0.01)
+                        # [时序仿真] 动态延迟
+                        if self.latency_ms > 0:
+                            await asyncio.sleep(self.latency_ms / 1000.0)
+                        
+                        # [Chaos] 模拟损坏包
+                        if random.random() < self.failure_rate:
+                            resp = bytearray(resp)
+                            resp[0] ^= 0xFF # 翻转第一个字节
+                            logger.warning("🔥 Chaos: Corrupting TX response")
+
                         self._writer.write(resp)
                         await self._writer.drain()
         except Exception as e:

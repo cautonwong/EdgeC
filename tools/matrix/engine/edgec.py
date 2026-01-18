@@ -74,23 +74,61 @@ class MatrixEdgeC:
         except Exception as e:
             logger.error(f"DB Bootstrap Failed: {e}")
 
-    def start(self):
+    def start(self, cwd: str = None):
         import subprocess
         env = os.environ.copy()
-        # OMNIS_VBUS_PATH 留作后备，主要靠 OMNIS_VBUS_PATH_N
         env["OMNIS_VBUS_PATH"] = self.vbus_path
         env["EDGE_REST_PORT"] = str(self.rest_port)
-        project_root = os.path.abspath(os.getcwd())
+        project_root = cwd or os.path.abspath(os.getcwd())
         env["LD_LIBRARY_PATH"] = os.path.join(project_root, ".local/linux-x86_64/lib")
 
-        log_f = open("build/matrix_edgec.log", "w")
-        self.process = subprocess.Popen([self.bin_path], env=env, stdout=log_f, stderr=log_f, preexec_fn=os.setsid)
-        self._wait_ready()
+        log_path = os.path.join(project_root, "build/matrix_edgec.log")
+        log_f = open(log_path, "w")
+        
+        logger.info(f"🚀 Launching EdgeC: {self.bin_path} (Port: {self.rest_port})")
+        self.process = subprocess.Popen(
+            [self.bin_path], 
+            env=env, 
+            stdout=log_f, 
+            stderr=log_f, 
+            preexec_fn=os.setsid,
+            cwd=project_root # 确保 C 进程能找到 config/zlog.conf
+        )
+        try:
+            self._wait_ready()
+        except Exception as e:
+            # 如果启动失败，尝试读取最后几行日志
+            if os.path.exists(log_path):
+                with open(log_path, "r") as f:
+                    last_logs = f.readlines()[-10:]
+                    logger.error("--- Last EdgeC Logs ---")
+                    for line in last_logs: logger.error(line.strip())
+            raise RuntimeError(f"EdgeC failed to become ready at {self.rest_port}: {e}")
 
     @retry(stop=stop_after_delay(30), wait=wait_fixed(1))
     def _wait_ready(self):
+        # 0. 存活检查
+        if self.process:
+            poll_res = self.process.poll()
+            if poll_res is not None:
+                raise RuntimeError(f"EdgeC process exited immediately with code {poll_res}")
+
         url = f"http://127.0.0.1:{self.rest_port}/api/v1/system/health"
-        requests.get(url, timeout=1).raise_for_status()
+        
+        # 1. Socket 预检查 (探测端口是否监听)
+        import socket
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.5)
+            if s.connect_ex(('127.0.0.1', self.rest_port)) != 0:
+                raise ConnectionError(f"Port {self.rest_port} not listening yet.")
+
+        # 2. HTTP 业务就绪检查
+        try:
+            resp = requests.get(url, timeout=1)
+            resp.raise_for_status()
+            logger.info(f"🟢 EdgeC REST API is online (Port: {self.rest_port}).")
+        except Exception as e:
+            raise e
 
     def get_tag(self, tag_ref: Any, loader: 'SchemaLoader' = None):
         tag_id = tag_ref

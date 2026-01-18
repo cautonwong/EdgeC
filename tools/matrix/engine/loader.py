@@ -68,25 +68,25 @@ class SchemaLoader:
         for tag_obj in active_tags:
             tid = get_fuzzy(tag_obj, "id")
             tname = get_fuzzy(tag_obj, "name")
-            
-            if tid is None or tname is None:
-                continue
+            if tid is None or tname is None: continue
             
             self.tags[tid] = tag_obj
             self.name_to_id[tname] = tid
             
-            # 提取绑定
+            # 协议全量提取
             binds_list = get_fuzzy(tag_obj, "bindings") or []
             for b in binds_list:
-                # shadow_schema.json 里的键名是 ProtocolType 和 TagName
                 p = (get_fuzzy(b, "protocol_type") or get_fuzzy(b, "protocol") or "").upper()
                 if p in ["MODBUS", "MODBUSRTU"]:
                     self.modbus_map[tid] = b
-                    logger.info(f"  [Modbus] Found mapping for Tag {tname} (ID:{tid})")
                 elif p == "DLMS":
                     self.dlms_map[tid] = b
+                elif p == "IEC104":
+                    # 新增 IEC104 映射提取
+                    if not hasattr(self, 'iec104_map'): self.iec104_map = {}
+                    self.iec104_map[tid] = b
         
-        logger.info(f"Successfully loaded {len(self.tags)} tags and {len(self.modbus_map)} modbus bindings.")
+        logger.info(f"Successfully loaded {len(self.tags)} tags. (Modbus:{len(self.modbus_map)}, DLMS:{len(self.dlms_map)})")
         
         if "topology" in data:
             self.world_config = {"topology": data["topology"]}

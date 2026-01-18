@@ -68,6 +68,7 @@ static int setup(void **state) {
     test_ctx_t *ctx = calloc(1, sizeof(*ctx));
     uv_loop_init(&ctx->loop);
     arbiter_init(&ctx->arb, &ctx->loop);
+    arbiter_resume(ctx->arb);  // 新增：必须恢复调度才能进行测试
     *state = ctx;
     return 0;
 }

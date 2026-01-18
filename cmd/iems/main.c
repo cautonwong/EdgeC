@@ -28,7 +28,7 @@ extern void stream_engine_register_sim_pipeline(stream_engine_t *engine, datahub
 static service_t *g_running_svc = NULL;
 static datahub_t *g_hub_ptr = NULL;
 static bus_orchestrator_t *g_orch_ptr = NULL;
-static driver_contract_injection_t g_modbus_inject;
+static driver_contract_injection_t g_modbus_inject = {0};
 static stream_engine_t *g_se_ptr = NULL;
 static int g_last_adc_fd = -1;
 
@@ -39,13 +39,46 @@ static void on_sigterm(int sig) {
     if (g_running_svc) service_stop(g_running_svc);
 }
 
+// 物理级：处理通过 SCM_RIGHTS 传递的 memfd
+static int _one_shot_capture_fd(int sock_fd) {
+    char control[CMSG_SPACE(sizeof(int))];
+    char buf[1];
+    struct iovec iov = {.iov_base = buf, .iov_len = 1};
+    struct msghdr msg = {.msg_iov = &iov,
+                         .msg_iovlen = 1,
+                         .msg_control = control,
+                         .msg_controllen = sizeof(control)};
+
+    ssize_t n = recvmsg(sock_fd, &msg, 0);  // 阻塞读取，直到 Python 发来第一个包
+    if (n > 0) {
+        struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg);
+        if (cmsg && cmsg->cmsg_type == SCM_RIGHTS) {
+            int received_fd = *((int *)CMSG_DATA(cmsg));
+            // 回 ACK
+            uint8_t ack = 0x06;
+            send(sock_fd, &ack, 1, 0);
+            return received_fd;
+        }
+    }
+    return -1;
+}
+
+// [物理连接] ADC 模拟器回调
 static void on_adc_receiver_cb(io_handle_t *h, io_event_t evt, void *data, void *user_data) {
     (void)h;
     (void)user_data;
     if (evt == IO_EVENT_RX && data) {
-        // FIXME: ADC 逻辑需要适配统一 IO 接口
-        // 原本逻辑期望收到 pipe_msg_t，但 RX 目前返回 net_buf_t
-        net_buf_unref((net_buf_t *)data);
+        net_buf_t *nb = (net_buf_t *)data;
+        // 如果收到 \x01 (触发脉冲) 且 FD 已就绪
+        if (nb->b.len >= 1 && nb->b.data[0] == 0x01 && g_se_ptr && g_last_adc_fd != -1) {
+            pipe_msg_t trigger = {.type = PIPEMSG_TYPE_REF,
+                                  .tag_id = 12001,
+                                  .payload.ref.fd = g_last_adc_fd,
+                                  .payload.ref.len = 1600};
+            trigger.ts = uv_hrtime();
+            stream_engine_push(g_se_ptr, &trigger);
+        }
+        net_buf_unref(nb);
     }
 }
 
@@ -57,6 +90,14 @@ static void on_adc_connect(uv_connect_t *req, int status) {
     }
     int fd;
     uv_fileno((const uv_handle_t *)req->handle, &fd);
+
+    // 1. 同步抢夺 FD (此时 Libuv 还没接管读取)
+    g_last_adc_fd = _one_shot_capture_fd(fd);
+    if (g_last_adc_fd != -1) {
+        LOG_INFO(LOG_CAT_CORE, "✅ Evidence: Handshake Success. FD=%d", g_last_adc_fd);
+    }
+
+    // 2. 移交给 HAL 层进行异步触发脉冲监听
     io_handle_t *ah = io_executor_create_from_fd(req->handle->loop, fd, g_hub_ptr->io_pool);
     if (ah) {
         ah->cb = on_adc_receiver_cb;
@@ -73,6 +114,7 @@ static void _try_adc_connect(uv_timer_t *handle) {
     uv_pipe_connect(req, pipe, "/tmp/v_adc.sock", on_adc_connect);
 }
 
+// [物理连接] VBus
 static void on_vbus_connect(uv_connect_t *req, int status) {
     uv_timer_t *reconnect_timer = (uv_timer_t *)req->data;
     if (status < 0) {
@@ -101,44 +143,22 @@ static void _try_vbus_connect(uv_timer_t *handle) {
     uv_pipe_connect(conn_req, vbus_client, vbus_path, on_vbus_connect);
 }
 
-// [Sched Callback] 分钟冻结
-static void on_minute_freeze(uv_periodic_t *handle) {
-    (void)handle;
-    wall_time_t now = sched_wall_now();
-    LOG_INFO(LOG_CAT_SCHED, "❄️ Minute Freeze Triggered at %lu (Aligned)", now);
-    // 实际业务：触发数据快照、存储
-}
-
-// [Sched Callback] 周期轮询
-static void on_periodic_poll(uv_periodic_t *handle) {
-    (void)handle;
-    if (!g_orch_ptr) return;
-
-    // 简化逻辑：每次触发都扫描一遍需要轮询的点
-    // 生产环境应按频率分组，避免无效遍历
-    for (uint32_t i = 0; i < g_tag_metadata_len && i < 1024; i++) {
-        const edge_tag_meta_t *meta = &g_tag_metadata[i];
-        if (meta->id == 1001) continue;  // Skip voltage (example)
-        if (meta->poll_interval_ms > 0) {
-            cmd_msg_t cmd = {0};
-            cmd_msg_init_read(&cmd, meta->id, ARBITER_PRIO_NORMAL);
-            strncpy(cmd.protocol, "ModbusRTU", 15);
-            bus_orchestrator_submit_cmd(g_orch_ptr, TEST_BUS_ID, &cmd);
-        }
-    }
+static void on_boot_delayed(uv_timer_t *handle) {
+    service_t *svc = (service_t *)handle->data;
+    arbiter_resume(service_get_arbiter(svc));
+    LOG_INFO(LOG_CAT_CORE, "✅ Arbiter Resumed.");
 }
 
 int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
     uv_loop_t *loop = uv_default_loop();
-    printf("\n🚀 IEMS: UNIFIED PRODUCTION & SIMULATION\n");
+    printf("\n🚀 IEMS: HARNESS STARTUP\n");
 
     arbiter_t *arbiter = NULL;
     arbiter_init(&arbiter, loop);
     driver_manager_t *drv_mgr = driver_manager_create();
     modbus_driver_register(drv_mgr);
-
     g_modbus_inject.lookup_by_key = (void *)edge_get_map_modbus;
     g_modbus_inject.lookup_by_tag = (void *)edge_get_map_modbus_by_tag;
 
@@ -156,7 +176,6 @@ int main(int argc, char **argv) {
     sqlite_svc_t *db_service = sqlite_svc_create(loop, &db_conf);
     stream_engine_t *se = stream_engine_create(hub, NULL);
     g_se_ptr = se;
-
     pipeline_loader_ctx_t pl_ctx = {.db = db_service, .orch = io_orch};
     stream_engine_load_static_metadata(se, g_pipeline_metadata, g_pipeline_metadata_len, &pl_ctx);
     stream_engine_register_sim_pipeline(se, hub, 12001, 1001);
@@ -171,6 +190,7 @@ int main(int argc, char **argv) {
 
     service_t *svc = service_new(loop, hub, arbiter, db_service, se, param_mgr, north_mgr);
     g_running_svc = svc;
+    if (north_mgr) north_mgr->user_data = svc;
 
     uv_timer_t *at = malloc(sizeof(uv_timer_t));
     uv_timer_init(loop, at);
@@ -179,23 +199,10 @@ int main(int argc, char **argv) {
     uv_timer_init(loop, vt);
     uv_timer_start(vt, _try_vbus_connect, 100, 1000);
 
-    // [Sched] 1. 分钟冻结任务 (00秒对齐)
-    static uv_periodic_t freeze_handle = {0};
-    freeze_handle.loop = loop;
-    freeze_handle.reschedule_cb = sched_policy_at_minute;
-    freeze_handle.offset_ms = 0;  // 0秒偏移
-    uv_periodic_start(&freeze_handle, on_minute_freeze);
-
-    // [Sched] 2. 周期轮询任务 (每5秒对齐)
-    static uv_periodic_t poll_handle = {0};
-    poll_handle.loop = loop;
-    poll_handle.interval_ms = 5000;
-    poll_handle.offset_ms = 0;
-    uv_periodic_start(&poll_handle, on_periodic_poll);
-
-    // [Sched] 启动时间跳变监控
-    extern void scheduler_init(uv_loop_t * loop);
-    scheduler_init(loop);
+    static uv_timer_t boot_timer;
+    uv_timer_init(loop, &boot_timer);
+    boot_timer.data = svc;
+    uv_timer_start(&boot_timer, on_boot_delayed, 1500, 0);
 
     signal(SIGTERM, on_sigterm);
     return service_run(svc);

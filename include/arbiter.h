@@ -106,6 +106,12 @@ void arbiter_shutdown(arbiter_t *arb);
 void arbiter_destroy(arbiter_t *arb);
 
 /**
+ * @brief 暂停/恢复仲裁调度
+ */
+void arbiter_pause(arbiter_t *arb);
+void arbiter_resume(arbiter_t *arb);
+
+/**
  * @brief 注册总线句柄 (Opaque)
  */
 typedef void *arbiter_bus_handle_t;

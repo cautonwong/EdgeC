@@ -356,7 +356,7 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 	sort.Slice(effectiveConfigs, func(i, j int) bool { return effectiveConfigs[i].Name < effectiveConfigs[j].Name })
 	sort.Slice(effectiveParams, func(i, j int) bool { return effectiveParams[i].Name < effectiveParams[j].Name })
 
-	return &model.EffectiveContract{ 
+	contract := &model.EffectiveContract{ 
 		Product: pc.ProductName, 
 		ActiveTags: activeTags, 
 		AllTags: allTags, 
@@ -368,6 +368,36 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 		UI: effectiveUI,
 		Scenarios: effectiveScenarios,
 	}
+
+	// [质量增强] 静态校验流水线
+	validateContract(contract)
+
+	return contract
+}
+
+func validateContract(c *model.EffectiveContract) {
+	fmt.Printf("[Validator] Checking integrity for product: %s\n", c.Product)
+	idMap := make(map[uint32]string)
+	nameMap := make(map[string]uint32)
+
+	for _, t := range c.ActiveTags {
+		// 1. 唯一性校验
+		if oldName, exists := idMap[t.ID]; exists {
+			panic(fmt.Sprintf("❌ CONTRACT ERROR: Duplicate Tag ID %d found in '%s' and '%s'", t.ID, oldName, t.Name))
+		}
+		if oldID, exists := nameMap[t.Name]; exists {
+			panic(fmt.Sprintf("❌ CONTRACT ERROR: Duplicate Tag Name '%s' found with IDs %d and %d", t.Name, oldID, t.ID))
+		}
+		
+		// 2. 核心字段空检查
+		if t.Name == "" || t.Type == "" {
+			panic(fmt.Sprintf("❌ CONTRACT ERROR: Tag ID %d has empty name or type", t.ID))
+		}
+
+		idMap[t.ID] = t.Name
+		nameMap[t.Name] = t.ID
+	}
+	fmt.Printf("[Validator] OK: %d active tags verified.\n", len(c.ActiveTags))
 }
 
 func mergeConfigs(target *[]model.ConfigDef, source []model.ConfigDef) {

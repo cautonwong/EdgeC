@@ -57,20 +57,27 @@ class MatrixOrchestrator:
                     addr = start_addr + i
                     dev_name = f"Bus{bus_id}_{proto_name}_{addr}"
                     
-                    # 关键：从 loader 提取该协议的所有绑定点
+                    # 关键：根据协议动态选择 Actor
                     binds = {}
-                    if proto_name == "ModbusRTU":
-                        for tid, bind in self.loader.modbus_map.items():
-                            # 只要协议名匹配，就挂载到虚拟设备上
-                            binds[tid] = bind.get("attributes") or bind.get("Attributes") or bind
-
-                    device = BaseVDevice(dev_name, addr)
-                    if proto_name == "ModbusRTU":
-                        device.protocol = ModbusRTUProtocol(addr, binds)
+                    if proto_name in ["ModbusRTU", "Modbus"]:
+                        binds = self.loader.modbus_map
+                    elif proto_name == "DLMS":
+                        binds = self.loader.dlms_map
                     
-                    self.buses[bus_id].attach_device(device)
-                    self.devices[dev_name] = device
-                    logger.info(f"Auto-Initialized Device: {dev_name} (Address: {addr}) with {len(binds)} tags.")
+                    device = BaseVDevice(dev_name, addr)
+                    
+                    # 动态加载 Protocol Actor
+                    if proto_name in ["ModbusRTU", "Modbus"]:
+                        from ..actors.modbus import ModbusRTUProtocol
+                        device.protocol = ModbusRTUProtocol(addr, binds)
+                    elif proto_name == "DLMS":
+                        from ..actors.dlms import DLMSProtocol
+                        device.protocol = DLMSProtocol(addr, binds)
+                    
+                    if device.protocol:
+                        self.buses[bus_id].attach_device(device)
+                        self.devices[dev_name] = device
+                        logger.info(f"Auto-Initialized Device: {dev_name} (Addr: {addr})")
 
     def build_topology(self, bus_paths: dict):
         """

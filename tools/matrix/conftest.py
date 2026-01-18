@@ -48,19 +48,22 @@ class MatrixContext:
 
 @pytest_asyncio.fixture # Changed to pytest_asyncio.fixture
 async def matrix(request):
+    # 获取项目根目录 (假设 conftest.py 在 tools/matrix/)
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+    
     # 自动识别产品名称
     product_name = os.environ.get("MATRIX_PRODUCT", "iems")
-    schema_path = f"build/products/{product_name}/generated/shadow_schema.json"
-    bin_path = f"build/products/{product_name}/bin/{product_name}"
+    schema_path = os.path.join(project_root, f"build/products/{product_name}/generated/shadow_schema.json")
+    bin_path = os.path.join(project_root, f"build/products/{product_name}/bin/{product_name}")
     
     # 建立隔离的测试报告目录
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     case_name = request.node.name
-    report_dir = f"build/products/{product_name}/matrix_reports/{timestamp}/{case_name}"
+    report_dir = os.path.join(project_root, f"build/products/{product_name}/matrix_reports/{timestamp}/{case_name}")
     os.makedirs(report_dir, exist_ok=True)
 
     # 1. 启动仿真矩阵 (优先从 extension 加载)
-    ext_path = f"cmd/{product_name}/extension.yaml"
+    ext_path = os.path.join(project_root, f"cmd/{product_name}/extension.yaml")
     orch = MatrixOrchestrator(schema_path, log_dir=report_dir)
     from tools.matrix.engine.loader import SchemaLoader
     orch.loader = SchemaLoader(schema_path, ext_path)
@@ -72,34 +75,20 @@ async def matrix(request):
 
     # 2. 启动 EdgeC
     rest_port = random.randint(20000, 30000)
-    db_path = f"{product_name}.db"
-    edgec = MatrixEdgeC(bin_path, "/tmp/dummy", rest_port, db_path=db_path)
+    db_path = os.path.join(project_root, f"{product_name}.db")
     
-    # 覆盖 EdgeC 的 start 逻辑以支持多总线环境变量
-    def start_with_multibus():
-        env = os.environ.copy()
-        # 兼容单总线默认变量
-        if 0 in orch.buses:
-            env["OMNIS_VBUS_PATH"] = orch.buses[0].transport.path
-            
-        for bid, bus in orch.buses.items():
-            if isinstance(bus.transport, UDSTransport):
-                env[f"OMNIS_VBUS_PATH_{bid}"] = bus.transport.path
-        
-        import subprocess
-        project_root = os.path.abspath(os.getcwd())
-        env["LD_LIBRARY_PATH"] = os.path.join(project_root, ".local/linux-x86_64/lib")
-        env["EDGE_REST_PORT"] = str(edgec.rest_port)
-        
-        log_f = open("build/matrix_edgec.log", "w")
-        edgec.process = subprocess.Popen([edgec.bin_path], env=env, stdout=log_f, stderr=log_f, preexec_fn=os.setsid)
-        edgec._wait_ready()
+    # 确定 VBus 路径
+    vbus_path = "/tmp/vbus0.sock"
+    if 0 in orch.buses:
+        vbus_path = orch.buses[0].transport.path
 
-    edgec.start = start_with_multibus
+    edgec = MatrixEdgeC(bin_path, vbus_path, rest_port, db_path=db_path)
     
     # 环境自举
     edgec.bootstrap_environment(orch.loader)
-    edgec.start()
+    
+    # 启动进程 (传入 project_root 确保 CWD 正确)
+    edgec.start(cwd=project_root)
     
     ctx = MatrixContext(orch, edgec)
     yield ctx
@@ -110,8 +99,9 @@ async def matrix(request):
     try: await matrix_task
     except asyncio.CancelledError: pass
     
-    if os.path.exists("build/matrix_edgec.log"):
-        shutil.move("build/matrix_edgec.log", os.path.join(report_dir, "edgec.log"))
+    edgec_log_tmp = os.path.join(project_root, "build/matrix_edgec.log")
+    if os.path.exists(edgec_log_tmp):
+        shutil.move(edgec_log_tmp, os.path.join(report_dir, "edgec.log"))
     
     with open(os.path.join(report_dir, "index.html"), "w") as f:
         f.write(f"<html><body><h1>Case: {case_name}</h1>")
