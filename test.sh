@@ -5,11 +5,11 @@ set -e
 # Omnis Runner: Unified Test & Simulation Environment
 # ==============================================================================
 
-# 1. Load shared environment
+# 1. 加载共享环境
 source "$(dirname "$0")/scripts/setup_env.sh"
 
 # 默认参数
-MODE="test" # 默认为 test 模式
+MODE="test" 
 PRODUCT="iems"
 LOG_DIR="$PROJECT_ROOT/build/testing_logs"
 
@@ -22,7 +22,6 @@ usage() {
     exit 1
 }
 
-# 解析参数
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --test) MODE="test" ;;
@@ -36,92 +35,53 @@ done
 
 mkdir -p "$LOG_DIR"
 
-# 检查二进制文件
-BIN_PATH="$PROJECT_ROOT/build/products/$PRODUCT/bin/$PRODUCT"
-if [ ! -f "$BIN_PATH" ]; then
-    echo "⚠️ Warning: Binary not found at $BIN_PATH."
-    echo ">> Attempting to build $PRODUCT first..."
-    ./build.sh
-fi
-
 if [ "$MODE" == "test" ]; then
     echo "=========================================================="
     echo "🚀 MODE: TEST (Automated Full Chain Verification)"
     echo "=========================================================="
     
-    echo ">> [1/4] Running C Unit Tests (ctest)..."
+    # 1. 运行 C 单元测试
+    echo ">> [1/4] Running C Unit Tests..."
     cd "$PROJECT_ROOT/build"
     ctest --output-on-failure -j$(nproc)
 
-    echo ""
+    # 2. 运行 Go 编译器测试
     echo ">> [2/4] Running Go Compiler Tests..."
     cd "$PROJECT_ROOT/tools/contract-compiler"
     go test ./...
 
+    # 3. 运行 Python 业务测试
     echo ""
-    echo ">> [3/4] Running Python Component Tests..."
-    cd "$PROJECT_ROOT/tools/matrix"
-    pytest -v --tb=short tests/test_core.py tests/test_modbus.py tests/test_cli.py
+    echo ">> [3/4] Running Business Integration Tests for $PRODUCT..."
+    cd "$PROJECT_ROOT"
+    export MATRIX_PRODUCT="$PRODUCT"
+    # 核心：使用 -p no:xdist 显式禁止并行，保护物理 UDS 路径
+    "$ENV_PYTHON" -m pytest -v --tb=short -p no:xdist "cmd/$PRODUCT/matrix"
 
+    # 4. 运行 SDD 算法验证
     echo ""
     echo ">> [4/4] Running SDD Algorithm Verifier..."
-    export MATRIX_PRODUCT="$PRODUCT"
-    if ! pytest -v --tb=short tests/test_sdd_rms.py; then
-        echo "❌ SDD Test Failed. Dumping EdgeC Evidence Logs..."
-        # Note: Pytest matrix fixture logs are in build/products/$PRODUCT/matrix_reports/...
-        # But we also have build/matrix_edgec.log as a temp
-        tail -n 100 "$PROJECT_ROOT/build/matrix_edgec.log" 2>/dev/null || true
-        exit 1
-    fi
+    "$ENV_PYTHON" -m pytest -v --tb=short "tools/matrix/tests/test_sdd_rms.py"
 
     echo ""
-    echo "✅ All Verification Tiers Passed Successfully!"
+    echo "✅ All Verification Tiers Passed!"
 
 else
+    # SERVER 模式逻辑保持不变...
     echo "=========================================================="
-    echo "🌐 MODE: SERVER (Persistent Simulation Environment)"
+    echo "🌐 MODE: SERVER"
     echo "=========================================================="
-    echo "Product: $PRODUCT"
-    echo "Log Directory: $LOG_DIR"
-    echo "----------------------------------------------------------"
-
-    # 1. 启动 Matrix Server (仿真引擎)
-    echo ">> Starting Matrix Simulation Server..."
     export MATRIX_PRODUCT="$PRODUCT"
     python3 -m tools.matrix.server --schema "$PROJECT_ROOT/build/products/$PRODUCT/generated/omnis_manifest.json" > "$LOG_DIR/matrix_server.log" 2>&1 &
     MATRIX_PID=$!
-
-    # 2. 等待总线就绪
     sleep 2
-
-    # 3. 启动 EdgeC 实例
-    echo ">> Starting EdgeC Instance ($PRODUCT)..."
     export EDGE_REST_PORT=9091
     export OMNIS_VBUS_PATH="/tmp/vbus0.sock"
-    "$BIN_PATH" > "$LOG_DIR/edgec.log" 2>&1 &
+    "$PROJECT_ROOT/build/products/$PRODUCT/bin/$PRODUCT" > "$LOG_DIR/edgec.log" 2>&1 &
     EDGEC_PID=$!
-
-    echo "----------------------------------------------------------"
-    echo "📡 Simulation Active!"
-    echo "🔗 REST API: http://127.0.0.1:9091"
-    echo "📁 Logs: $LOG_DIR"
-    echo "⌨️ Press Ctrl+C to stop all services."
-    echo "----------------------------------------------------------"
-
-    # 4. 自动拉起交互式外壳 (Matrix CLI)
     echo ">> Launching Matrix-CLI Console..."
-    # Ensure it's reachable from PROJECT_ROOT
     python3 "$PROJECT_ROOT/tools/matrix/matrix_cli.py" 127.0.0.1 9999
-
-    # 清理函数
-    cleanup() {
-        echo ""
-        echo "🛑 Shutting down..."
-        kill $EDGEC_PID 2>/dev/null || true
-        kill $MATRIX_PID 2>/dev/null || true
-        exit 0
-    }
+    cleanup() { kill $EDGEC_PID $MATRIX_PID 2>/dev/null || true; exit 0; }
     trap cleanup SIGINT SIGTERM
-
     wait
 fi

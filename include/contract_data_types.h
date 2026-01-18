@@ -71,6 +71,11 @@ typedef struct {
 typedef struct {
     const void *const *gi_list;
     uint32_t gi_count;
+} iec104_contract_t;
+
+typedef struct {
+    const void *const *gi_list;
+    uint32_t gi_count;
 } iec_contract_bundle_t;
 
 typedef struct {

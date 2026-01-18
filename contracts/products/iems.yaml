@@ -3,8 +3,24 @@ product: "IEMS_Controller_V1"
 includes:
   - "contracts/bindings/modbus/acrel_p80.yaml"
   - "contracts/bindings/dlt645/standard_meter.yaml"
-  - "contracts/bindings/iec104/relay_station.yaml"
-  - "contracts/bindings/can/bms_j1939.yaml"
+  - "cmd/iems/features/solar_module.yaml"
+  - "contracts/bindings/iec104/substation.yaml"
+  - "contracts/bindings/can/catl_bms.yaml"
+
+# 统一协议名覆盖 (针对旧版 binding 文件)
+overrides:
+  VOLTAGE_PHASE_A:
+    bindings:
+      - protocol: ModbusRTU
+        attributes: { addr: 0, scaler: 0.1, slave_id: 1 }
+  GRID_POWER:
+    bindings:
+      - protocol: ModbusRTU
+        attributes: { addr: 12, scaler: 1, slave_id: 1 }
+  SOLAR_VOLTAGE:
+    bindings:
+      - protocol: ModbusRTU
+        attributes: { addr: 256, scaler: 0.1, slave_id: 1 }
 
 # 编译期配置 (KConfig Style)
 configs:

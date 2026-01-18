@@ -18,7 +18,7 @@ const dlms_map_t* edge_get_map_dlms_by_tag(edge_tag_id_t tag_id);
 {{- end }}
 
 {{- $iec := index .Hashes "IEC104" }}{{ if and $iec $iec.Entries }}
-edge_tag_id_t edge_lookup_iec104(uint32_t ioa);
+edge_tag_id_t edge_lookup_iec104(uint32_t ioa, float *scale);
 {{- end }}
 
 const edge_tag_meta_t* edge_get_meta(edge_tag_id_t id);

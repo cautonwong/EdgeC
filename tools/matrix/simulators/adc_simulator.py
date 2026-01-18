@@ -79,3 +79,6 @@ class SignalFactory:
     def close(self):
         if self.mmap_obj: self.mmap_obj.close()
         if self.fd != -1: os.close(self.fd)
+
+# [兼容性补强] 允许旧代码继续引用 ADCSimulator
+ADCSimulator = SignalFactory

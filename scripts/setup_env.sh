@@ -10,17 +10,16 @@ if [ ! -d "$PROJECT_ROOT/.venv" ]; then
     python3 -m venv "$PROJECT_ROOT/.venv"
 fi
 
-# Activate venv
-export PATH="$PROJECT_ROOT/.venv/bin:$PATH"
+# 显式解释器路径
+ENV_PYTHON="$PROJECT_ROOT/.venv/bin/python3"
+export ENV_PYTHON
 
 # 2. Dependencies
 if [ -f "$PROJECT_ROOT/requirements.txt" ]; then
-    # Use a flag to avoid slow pip checks every time
-    if [ ! -f "$PROJECT_ROOT/.venv/.deps_installed" ] || [ "$PROJECT_ROOT/requirements.txt" -nt "$PROJECT_ROOT/.venv/.deps_installed" ]; then
-        echo "[Env] Installing/Updating Python dependencies..."
-        pip install -q --upgrade pip
-        pip install -q -r "$PROJECT_ROOT/requirements.txt"
-        touch "$PROJECT_ROOT/.venv/.deps_installed"
+    if ! "$ENV_PYTHON" -c "import numpy" 2>/dev/null; then
+        echo "[Env] Dependency 'numpy' missing. Installing..."
+        "$ENV_PYTHON" -m pip install -q --upgrade pip
+        "$ENV_PYTHON" -m pip install -q -r "$PROJECT_ROOT/requirements.txt"
     fi
 fi
 

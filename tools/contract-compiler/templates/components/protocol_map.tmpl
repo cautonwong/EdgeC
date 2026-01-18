@@ -58,7 +58,7 @@ static const {{ $lowerProto }}_map_t s_{{ $lowerProto }}_rev_table[] = {
         {{- if eq $curProto "DLMS" }}
         { { {{ range $j, $b := .OBIS }}{{ if $j }}, {{ end }}{{ $b }}{{ end }} }, {{ .ClassID }}, {{ .AttrID }}, {{ .TagID }}, (uint16_t){{ .LogicalIndex }}, {{ .Scale }}, {{ .Access }} }, // {{ $tag.Name }}
         {{- else if or (eq $curProto "IEC104") (eq $curProto "IEC101") }}
-        { (uint32_t){{ .RawKey }}, {{ .TagID }}, (uint16_t){{ .LogicalIndex }}, {{ .Scale }}, {{ .IecType }}, {{ .Flags }}, {{ .DeadBand }}, {{ .GroupID }}, {{ .ByteLen }}, {{ .Access }} }, // {{ $tag.Name }}
+        { (uint32_t){{ .IOA }}, {{ .TagID }}, (uint16_t){{ .LogicalIndex }}, {{ .Scale }}, {{ .IecType }}, {{ .Flags }}, {{ .DeadBand }}, {{ .GroupID }}, {{ .ByteLen }}, {{ .Access }} }, // {{ $tag.Name }}
         {{- else }}
         { (uint32_t){{ .Addr }}, {{ .TagID }}, (uint16_t){{ .LogicalIndex }}, {{ .Scale }}, {{ .ByteLen }}, {{ .Access }} }, // {{ $tag.Name }}
         {{- end }}
