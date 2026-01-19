@@ -2,66 +2,62 @@
 #define SCHED_TIME_H
 
 #include <stdint.h>
-#include <time.h>
 #include <uv.h>
 
-#include "queue.h"
+typedef struct uv_periodic_s uv_periodic_t;
 
 /**
- * @file sched_time.h
- * @brief 调度平面公共头文件 (支持 DCU 周期对齐与 S10 守时)
+ * @brief 模仿 libev 的重新调度回调
+ * @param handle
+ * @param now 当前系统绝对时间戳 (秒)
+ * @return 下一次触发的绝对时间戳 (秒)
  */
-
-typedef uint64_t wall_time_t;
-typedef uint64_t mono_time_t;
-
-struct uv_periodic_s;
+typedef double (*uv_periodic_reschedule_cb)(uv_periodic_t *handle, double now);
 
 /**
- * @brief 重排策略回调 (仿照 ev_periodic_reschedule_cb)
- * @param handle 周期任务句柄
- * @param now 当前挂钟时间 (ms)
- * @return 下一次触发的挂钟时间 (ms)
+ * @brief 业务触发回调
  */
-typedef wall_time_t (*uv_periodic_reschedule_cb)(struct uv_periodic_s *handle, wall_time_t now);
+typedef void (*uv_periodic_cb)(uv_periodic_t *handle);
+
+struct uv_periodic_s {
+    uv_timer_t timer; /**< 内部利用 libuv timer 实现 */
+
+    uv_periodic_cb cb; /**< 业务逻辑 */
+
+    uv_periodic_reschedule_cb reschedule_cb; /**< 模仿 libev 的策略回调 */
+
+    double offset_ms; /**< 初始偏移量 (ms) */
+
+    double interval_ms; /**< 固定周期 (ms) */
+
+    double target_wall; /**< 目标挂钟时间点 (ms) */
+
+    void *data; /**< 用户上下文 */
+};
 
 /**
- * @brief 任务触发回调
+ * @brief 初始化周期性调度器
  */
-typedef void (*uv_periodic_cb)(struct uv_periodic_s *handle);
+void uv_periodic_init(uv_loop_t *loop, uv_periodic_t *handle);
 
 /**
- * @brief 挂钟调度任务结构 (uv_periodic 风格)
+ * @brief 模仿 libev 的 ev_periodic_set
  */
-typedef struct uv_periodic_s {
-    uv_timer_t timer;
-    struct uv__queue node;
+void uv_periodic_set(uv_periodic_t *handle, double offset, double interval,
+                     uv_periodic_reschedule_cb resched_cb);
 
-    // 核心参数 (Base + Interval)
-    wall_time_t offset_ms;    // 基础偏移 (ev_periodic: offset)
-    wall_time_t interval_ms;  // 周期间隔 (ev_periodic: interval)
-
-    // 策略回调 (如果为 NULL，则使用默认的 interval 逻辑)
-    uv_periodic_reschedule_cb reschedule_cb;
-
-    wall_time_t target_wall;  // 运行时计算出的下一次目标
-
-    uv_periodic_cb cb;
-    void *data;
-
-    uv_loop_t *loop;
-} uv_periodic_t;
-
-// 标准策略实现 (预置算法)
-wall_time_t sched_policy_aligned(struct uv_periodic_s *handle, wall_time_t now);    // 通用对齐
-wall_time_t sched_policy_at_minute(struct uv_periodic_s *handle, wall_time_t now);  // 整分
-wall_time_t sched_policy_at_hour(struct uv_periodic_s *handle, wall_time_t now);    // 整时
-
-// 物理接口
-wall_time_t sched_wall_now(void);
-mono_time_t sched_mono_now(void);
+/**
+ * @brief 启动调度
+ */
 void uv_periodic_start(uv_periodic_t *handle, uv_periodic_cb cb);
+
+/**
+ * @brief 停止调度
+ */
 void uv_periodic_stop(uv_periodic_t *handle);
-void scheduler_reschedule_all(void);
+
+/* --- 标准策略库 (模仿 libev 常见模式) --- */
+double sched_policy_at_minute(uv_periodic_t *handle, double now);
+double sched_policy_at_hour(uv_periodic_t *handle, double now);
 
 #endif

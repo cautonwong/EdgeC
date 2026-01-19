@@ -58,6 +58,20 @@ typedef enum {
     EDGE_ERR_INCOMPLETE = -10
 } edge_status_t;
 
+typedef uint32_t edge_tag_id_t;
+typedef int64_t wall_time_t;  /**< Unix Wall Time in Milliseconds */
+typedef uint64_t mono_time_t; /**< Monotonic Time in Milliseconds */
+
+/**
+ * @brief 物理层通用参数 (UART/CAN 等)
+ */
+typedef struct {
+    uint32_t baud;
+    uint8_t data_bits;
+    uint8_t stop_bits;
+    char parity;
+} edge_phy_params_t;
+
 // [核心补强] 系统级事件 ID
 typedef enum {
     SYS_EVENT_BOOT = 1,

@@ -4,6 +4,8 @@
     "cmake.copyCompileCommands": "${workspaceFolder}/build/compile_commands.json",
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
     "C_Cpp.intelliSenseEngine": "disabled", // 推荐使用 clangd
+    "clangd.enable": true,
+    "clangd.path": "clangd",
     "clangd.arguments": [
         "--compile-commands-dir=${workspaceFolder}/build",
         "--background-index",

@@ -2,8 +2,8 @@
 #define IO_EXECUTOR_H
 
 #include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
+#include <uv.h>
 
 #include "net_buf.h"
 
@@ -11,74 +11,47 @@
 extern "C" {
 #endif
 
-/* --- Phase 0: 抽象 IO 接口 (The Un-collapse) --- */
+/* --- IO 抽象接口定义 --- */
 
-// 句柄定义：对上层完全不透明，禁止上层访问 fd
-typedef struct io_handle_s io_handle_t;
-
-// 事件定义：上层只关心业务相关的状态转换
 typedef enum {
-    IO_EVENT_RX,       // 物理层收到数据 (预读或就绪通知)
-    IO_EVENT_TX_DONE,  // 异步发送完成
-    IO_EVENT_ERROR     // 物理链路错误 (断线、校验错误等)
+    IO_EVENT_RX,      /**< 收到原始数据 / MQTT 消息 */
+    IO_EVENT_TX_DONE, /**< 异步发送完成 / MQTT 发布成功 */
+    IO_EVENT_ERROR,   /**< 物理层链路错误 */
 } io_event_t;
 
-/**
- * @brief IO 回调函数
- * @param h 触发事件的句柄
- * @param evt 事件类型
- * @param evt_data 事件关联数据 (例如 RX 事件对应的 net_buf_t*)
- * @param user_data 绑定的用户数据 (通常是 Engine 实例)
- */
-typedef void (*io_callback_t)(io_handle_t *h, io_event_t evt, void *evt_data, void *user_data);
+typedef enum {
+    IO_TYPE_UART,
+    IO_TYPE_UDS,
+    IO_TYPE_UDP,
+    IO_TYPE_HTTP,
+    IO_TYPE_MQTT, /**< [新增] MQTT IO 类型 */
+    IO_TYPE_CUSTOM
+} io_type_t;
 
-// 核心操作集 (虚函数表)
+// 控制指令定义
+#define IO_CTL_SET_BAUD 1
+#define IO_CTL_HTTP_SET_URL 10
+#define IO_CTL_HTTP_SET_METHOD 11
+#define IO_CTL_HTTP_ADD_HEADER 12
+
+// MQTT 专用控制指令
+#define IO_CTL_MQTT_SET_TOPIC 20
+#define IO_CTL_MQTT_SUBSCRIBE 21
+
+typedef struct io_handle_s io_handle_t;
+
 typedef struct {
-    // 开启/关闭监听。对于串口是开启接收中断/Poll；对于 TCP 是 socket read。
     int (*enable_read)(io_handle_t *h, bool enable);
-
-    // 异步发送。要求底层处理 buffering，直到发完触发 TX_DONE。
-    // net_buf_t 的引用计数由底层接管。
     int (*write_async)(io_handle_t *h, net_buf_t *buf);
-
-    // 物理配置。
     int (*ioctl)(io_handle_t *h, int cmd, void *arg);
-
-    // 销毁资源
     void (*destroy)(io_handle_t *h);
 } io_ops_t;
 
-/* --- IOCTL Commands --- */
-#define IO_CTL_SET_BAUD 0x01
-#define IO_CTL_FLUSH 0x02
-
-/* HTTP Specific */
-#define IO_CTL_HTTP_SET_URL 0x10
-#define IO_CTL_HTTP_SET_METHOD 0x11
-#define IO_CTL_HTTP_ADD_HEADER 0x12
-
-typedef struct {
-    uint32_t baud;
-} edge_phy_params_t;
-
-// 公共基类：由平台适配层实例化
 struct io_handle_s {
     const io_ops_t *ops;
-    io_callback_t cb;
+    void (*cb)(io_handle_t *h, io_event_t evt, void *payload, void *user_data);
     void *user_data;
 };
-
-/* --- Phase 4: 多介质统一工厂 (The Multi-Polyhedron HAL) --- */
-
-typedef enum {
-    IO_TYPE_UART,       /**< RS485/RS232 */
-    IO_TYPE_CAN,        /**< SocketCAN */
-    IO_TYPE_TCP_CLIENT, /**< ModbusTCP / IEC104 */
-    IO_TYPE_UDP,        /**< CoAP / LwM2M */
-    IO_TYPE_UDS,        /**< Unix Domain Socket (仿真/容器) */
-    IO_TYPE_SHM_RING,   /**< 共享内存 (核间通信) */
-    IO_TYPE_HTTP        /**< HTTP/REST Client (via libcurl) */
-} io_type_t;
 
 typedef struct {
     io_type_t type;
@@ -88,60 +61,29 @@ typedef struct {
             uint32_t baud;
         } uart;
         struct {
-            char ifname[16];
-        } can;
-        struct {
-            char host[64];
-            uint16_t port;
-        } tcp;
-        struct {
-            char local_ip[64];
-            uint16_t local_port;
-            char remote_ip[64];
-            uint16_t remote_port;
-        } udp;
-        struct {
             char path[128];
         } uds;
         struct {
-            char name[64];
-        } shm;
+            char local_ip[32];
+            uint16_t local_port;
+            char remote_ip[32];
+            uint16_t remote_port;
+        } udp;
         struct {
             char url[256];
-            char method[16];  // GET, POST, etc.
+            char method[16];
         } http;
+        struct {
+            char broker[128];
+            char client_id[64];
+            char topic[128];
+        } mqtt;
     } params;
 } io_config_t;
 
-/**
- * @brief 统一 IO 创建工厂
- */
 io_handle_t *io_executor_create(uv_loop_t *loop, const io_config_t *cfg, net_buf_pool_t *pool);
-
-/* --- 平台适配层工厂 (具体实现在 src/platform) --- */
-
-/**
- * @brief 从现有文件描述符创建 IO 句柄 (用于环回测试或高级集成)
- */
 io_handle_t *io_executor_create_from_fd(uv_loop_t *loop, int fd, net_buf_pool_t *pool);
-
-#ifdef __linux__
-#include <uv.h>
-/**
- * @brief 创建基于 Linux Libuv Poll 的 UART 句柄
- */
-io_handle_t *io_executor_create_uart(uv_loop_t *loop, const char *dev_path, uint32_t baud,
-                                     net_buf_pool_t *pool);
-
-/**
- * @brief 创建基于 Linux Unix Domain Socket 的仿真句柄 (用于重构后的仿真测试)
- */
-io_handle_t *io_executor_create_uds(uv_loop_t *loop, const char *sock_path);
-#endif
-
-/* --- 遗留兼容层 (逐步弃用) --- */
-// 为保证现有代码能编译，暂时保留部分旧结构，待 Phase 1 完成后清理
-typedef enum { IO_BUS_RS485_1 = 0, IO_BUS_RS485_2, IO_BUS_CAN_1, IO_BUS_MAX } io_bus_id_t;
+void io_executor_http_request(uv_loop_t *loop, const char *url, const char *method);
 
 #ifdef __cplusplus
 }

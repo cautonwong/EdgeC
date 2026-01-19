@@ -1,13 +1,10 @@
 #include <time.h>
+#include <uv.h>
 
+#include "edge_common.h"
 #include "sched_time.h"
 
-/**
- * @file sched_port.c
- * @brief 时间源物理实现 (支持 S10 挂钟对齐)
- * 使用 weak 符号方便测试 Mock
- */
-
+// 默认弱实现：通过 clock_gettime 获取挂钟和单调时间
 __attribute__((weak)) wall_time_t sched_wall_now(void) {
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
