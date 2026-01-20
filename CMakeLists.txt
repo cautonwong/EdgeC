@@ -115,6 +115,7 @@ file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/logs")
 
 add_subdirectory(src/protocols)
 add_subdirectory(src/platform)
+add_subdirectory(src/ui)
 
 set(EDGE_MAJOR 4)
 set(EDGE_MINOR 5)

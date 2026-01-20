@@ -26,7 +26,7 @@ if command -v ninja >/dev/null 2>&1; then
     GENERATOR="-GNinja"
 fi
 
-cmake .. $GENERATOR -DCMAKE_BUILD_TYPE=Debug
+cmake .. $GENERATOR -DCMAKE_BUILD_TYPE=Debug -DENABLE_UI=ON
 cmake --build . -j$(nproc)
 
 # 设置运行环境并执行 C 单元测试

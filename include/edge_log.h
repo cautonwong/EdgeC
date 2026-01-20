@@ -9,6 +9,7 @@ typedef enum {
     LOG_CAT_IO,
     LOG_CAT_BUS,
     LOG_CAT_SCHED,
+    LOG_CAT_UI,
     LOG_CAT_MAX
 } edge_log_cat_t;
 
@@ -32,6 +33,7 @@ void edge_log_out(edge_log_t *logger, edge_log_cat_t cat, int level, const char 
 // 为了兼容现有代码的宏定义 (会使用主实例)
 #define LOG_INFO(cat, fmt, ...) printf("[INFO][" #cat "] " fmt "\n", ##__VA_ARGS__)
 #define LOG_WARN(cat, fmt, ...) printf("[WARN][" #cat "] " fmt "\n", ##__VA_ARGS__)
-#define LOG_ERROR(cat, fmt, ...) printf("[ERR][" #cat "] " fmt "\n", ##__VA_ARGS__)
+#define LOG_ERROR(cat, fmt, ...) fprintf(stderr, "[ERR][" #cat "] " fmt "\n", ##__VA_ARGS__)
+#define LOG_FATAL(cat, fmt, ...) fprintf(stderr, "[FATAL][" #cat "] " fmt "\n", ##__VA_ARGS__)
 
 #endif
