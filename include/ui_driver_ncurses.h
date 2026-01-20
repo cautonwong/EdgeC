@@ -5,4 +5,4 @@ void ui_driver_ncurses_init(void);
 void ui_driver_ncurses_teardown(void);
 void ui_driver_ncurses_draw_text(int y, int x, const char* text);
 
-#endif // UI_DRIVER_NCURSES_H
+#endif  // UI_DRIVER_NCURSES_H

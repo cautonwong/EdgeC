@@ -1,45 +1,72 @@
-#include "datahub.h"
-#include "edge_ui.h"
-#include "edge_log.h"
-#include <unistd.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
 
-int main(int argc, char *argv[]) {
-    (void)argc;
-    (void)argv;
+#include "datahub.h"
+#include "edge_log.h"
+#include "edge_ui.h"
 
-    // In a real scenario, the UI process would need to discover and
-    // attach to the existing datahub's shared memory.
-    // This requires a discovery mechanism (e.g., a well-known unix socket path)
-    // to get the file descriptor for the shmring.
-    // For this implementation, we will assume a simplified scenario
-    // where we can initialize a new datahub for demonstration.
-    // The architecture proposal correctly implies linking against edge_core
-    // to act as a client to the main datahub.
+// 注入编译器生成的契约元数据和路由算法
+extern const edge_tag_meta_t g_tag_metadata[];
+extern const uint32_t g_tag_metadata_len;
+extern int edge_tag_get_compact_index(uint32_t tag_id);
 
-    printf("Starting UI Companion Process...\n");
-    printf("NOTE: This is a simplified entry point.\n");
-    printf("A real implementation needs to connect to the main process's datahub.\n");
+static int fetch_fds_from_server(const char *path, int *ring_fd, int *shadow_fd) {
+    int sock = socket(AF_UNIX, SOCK_STREAM, 0);
+    struct sockaddr_un addr = {.sun_family = AF_UNIX};
+    strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
 
-    uv_loop_t *loop = uv_default_loop();
-
-    // Placeholder: A real client would get the FD from the main process
-    // and use datahub_init_from_fd().
-    datahub_t hub;
-    datahub_init(&hub, loop, "ui_bus", 1024, 0, NULL, 0, NULL, NULL, NULL);
-
-    ui_service_t *ui = ui_service_create(&hub);
-    if (!ui) {
-        LOG_FATAL(LOG_CAT_UI, "Failed to create UI service.");
+    if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        close(sock);
         return -1;
     }
 
-    ui_service_run(ui);
+    *ring_fd = edge_fd_recv(sock);
+    *shadow_fd = edge_fd_recv(sock);
 
-    ui_service_destroy(ui);
-    datahub_destroy(&hub);
+    close(sock);
+    return (*ring_fd >= 0) ? 0 : -1;
+}
 
-    printf("UI Companion Process terminated.\n");
+int main(int argc, char *argv[]) {
+    const char *bus_name = "iems";
+    if (argc > 1) bus_name = argv[1];
+
+    char sock_path[128];
+    snprintf(sock_path, sizeof(sock_path), "/tmp/%s_ui.sock", bus_name);
+
+    int ring_fd = -1;
+    int shadow_fd = -1;
+
+    if (fetch_fds_from_server(sock_path, &ring_fd, &shadow_fd) != 0) {
+        fprintf(stderr, "FATAL: Could not connect to DataHub server at %s\n", sock_path);
+        return -1;
+    }
+
+    uv_loop_t *loop = uv_default_loop();
+    datahub_t *hub = calloc(1, sizeof(datahub_t));
+
+    // 关键修正：注入编译器生成的 map_fn (edge_tag_get_compact_index)
+    // 这样 datahub_read_shadow 才能正确找到紧凑排列的索引
+    datahub_init_from_fd(hub, loop, ring_fd, 1024 * 64, shadow_fd,
+                         g_tag_metadata_len * sizeof(pipe_msg_t), g_tag_metadata_len,
+                         g_tag_metadata, g_tag_metadata_len, NULL, edge_tag_get_compact_index,
+                         NULL);
+
+    printf("UI Dashboard Connected. Shadow Capacity: %u tags\n", hub->shadow_capacity);
+
+    ui_service_t *ui = ui_service_create(hub);
+    if (ui) {
+        ui_service_run(ui);
+        ui_service_destroy(ui);
+    }
+
+    datahub_destroy(hub);
+    free(hub);
 
     return 0;
 }

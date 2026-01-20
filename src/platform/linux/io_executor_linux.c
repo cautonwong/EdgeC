@@ -355,39 +355,106 @@ static const io_ops_t http_ops = {.enable_read = _http_enable_read,
                                   .ioctl = _http_ioctl,
                                   .destroy = _http_destroy};
 
-/* --- 4. 基于 MQTT (Paho/Custom) 的处理 (借鉴 Libcurl 模式) --- */
+/* --- 4. 基于 MQTT (Paho Async) 的处理 --- */
+
+#include "MQTTAsync.h"
+
+typedef struct {
+    MQTTAsync client;
+    bool connected;
+    char current_topic[128];
+    linux_io_handle_t *impl;
+} mqtt_ctx_t;
+
+static void _on_mqtt_connect_success(void *context, MQTTAsync_successData *response) {
+    mqtt_ctx_t *ctx = (mqtt_ctx_t *)context;
+    ctx->connected = true;
+    LOG_INFO(LOG_CAT_CORE, "MQTT Connected to Broker: %s", (char *)response->alt.connect.serverURI);
+    ctx->impl->base.cb(&ctx->impl->base, IO_EVENT_TX_DONE, NULL, ctx->impl->base.user_data);
+}
+
+static void _on_mqtt_connect_failure(void *context, MQTTAsync_failureData *response) {
+    mqtt_ctx_t *ctx = (mqtt_ctx_t *)context;
+    LOG_ERROR(LOG_CAT_CORE, "MQTT Connection Failed, code: %d", response ? response->code : -1);
+    ctx->impl->base.cb(&ctx->impl->base, IO_EVENT_ERROR, NULL, ctx->impl->base.user_data);
+}
+
+static int _on_mqtt_msg_arrived(void *context, char *topicName, int topicLen,
+                                MQTTAsync_message *message) {
+    mqtt_ctx_t *ctx = (mqtt_ctx_t *)context;
+    net_buf_t *nb = net_buf_alloc(ctx->impl->pool, 0);
+    if (nb) {
+        net_buf_append_bytes(nb, (uint8_t *)message->payload, message->payloadlen);
+        ctx->impl->base.cb(&ctx->impl->base, IO_EVENT_RX, nb, ctx->impl->base.user_data);
+        net_buf_unref(nb);
+    }
+    MQTTAsync_freeMessage(&message);
+    MQTTAsync_free(topicName);
+    return 1;
+}
 
 static void _on_mqtt_poll(uv_poll_t *handle, int status, int events) {
     (void)events;
     linux_io_handle_t *impl = (linux_io_handle_t *)handle->data;
     if (status < 0) {
         impl->base.cb(&impl->base, IO_EVENT_ERROR, NULL, impl->base.user_data);
-        return;
     }
-    // 逻辑占位：此处驱动 MQTT 状态机
 }
 
 static int _mqtt_enable_read(io_handle_t *h, bool enable) {
     linux_io_handle_t *impl = (linux_io_handle_t *)h;
-    if (enable) return uv_poll_start(&impl->handle.poll, UV_READABLE, _on_mqtt_poll);
-    return uv_poll_stop(&impl->handle.poll);
+    mqtt_ctx_t *ctx = (mqtt_ctx_t *)impl->handle.poll.data;
+    if (enable && !ctx->connected) {
+        MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
+        conn_opts.onSuccess = _on_mqtt_connect_success;
+        conn_opts.onFailure = _on_mqtt_connect_failure;
+        conn_opts.context = ctx;
+        conn_opts.cleansession = 1;
+        return MQTTAsync_connect(ctx->client, &conn_opts);
+    }
+    return 0;
 }
 
 static int _mqtt_write_async(io_handle_t *h, net_buf_t *buf) {
-    (void)buf;
     linux_io_handle_t *impl = (linux_io_handle_t *)h;
-    return uv_poll_start(&impl->handle.poll, UV_READABLE | UV_WRITABLE, _on_mqtt_poll);
+    mqtt_ctx_t *ctx = (mqtt_ctx_t *)impl->handle.poll.data;
+    if (!ctx->connected) return -ENOTCONN;
+
+    MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
+    opts.context = ctx;
+    int rc = MQTTAsync_send(ctx->client, ctx->current_topic, buf->b.len, buf->b.data, 1, 0, &opts);
+    return (rc == MQTTASYNC_SUCCESS) ? 0 : -1;
+}
+
+static int _mqtt_ioctl(io_handle_t *h, int cmd, void *arg) {
+    linux_io_handle_t *impl = (linux_io_handle_t *)h;
+    mqtt_ctx_t *ctx = (mqtt_ctx_t *)impl->handle.poll.data;
+    switch (cmd) {
+        case IO_CTL_MQTT_SET_TOPIC:
+            strncpy(ctx->current_topic, (const char *)arg, 127);
+            return 0;
+        case IO_CTL_MQTT_SUBSCRIBE:
+            return MQTTAsync_subscribe(ctx->client, (const char *)arg, 1, NULL);
+        default:
+            return -1;
+    }
 }
 
 static void _mqtt_destroy(io_handle_t *h) {
     linux_io_handle_t *impl = (linux_io_handle_t *)h;
-    uv_poll_stop(&impl->handle.poll);
+    mqtt_ctx_t *ctx = (mqtt_ctx_t *)impl->handle.poll.data;
+    if (ctx->client) {
+        MQTTAsync_disconnectOptions disc_opts = MQTTAsync_disconnectOptions_initializer;
+        MQTTAsync_disconnect(ctx->client, &disc_opts);
+        MQTTAsync_destroy(&ctx->client);
+    }
+    free(ctx);
     free(impl);
 }
 
 static const io_ops_t mqtt_ops = {.enable_read = _mqtt_enable_read,
                                   .write_async = _mqtt_write_async,
-                                  .ioctl = NULL,
+                                  .ioctl = _mqtt_ioctl,
                                   .destroy = _mqtt_destroy};
 
 /* --- 5. 统一入口与销毁 --- */
@@ -464,6 +531,19 @@ io_handle_t *io_executor_create(uv_loop_t *loop, const io_config_t *cfg, net_buf
             break;
         }
         case IO_TYPE_MQTT: {
+            mqtt_ctx_t *mctx = calloc(1, sizeof(mqtt_ctx_t));
+            mctx->impl = impl;
+            int rc =
+                MQTTAsync_create(&mctx->client, cfg->params.mqtt.broker, cfg->params.mqtt.client_id,
+                                 MQTTCLIENT_PERSISTENCE_NONE, NULL);
+            if (rc != MQTTASYNC_SUCCESS) {
+                free(mctx);
+                free(impl);
+                return NULL;
+            }
+            MQTTAsync_setCallbacks(mctx->client, mctx, NULL, _on_mqtt_msg_arrived, NULL);
+            strncpy(mctx->current_topic, cfg->params.mqtt.topic, 127);
+            impl->handle.poll.data = mctx;
             impl->base.ops = &mqtt_ops;
             break;
         }

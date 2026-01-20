@@ -144,6 +144,19 @@ static void on_http_report_trigger(uv_periodic_t *handle) {
     io_executor_http_request(uv_default_loop(), "https://httpbin.org/get", "GET");
 }
 
+static void on_mqtt_event_cb(io_handle_t *h, io_event_t evt, void *payload, void *user_data) {
+    (void)h;
+    (void)user_data;
+    if (evt == IO_EVENT_RX) {
+        net_buf_t *nb = (net_buf_t *)payload;
+        LOG_INFO(LOG_CAT_CORE, "📡 [MQTT RX] Payload: %.*s", nb->b.len, (char *)nb->b.data);
+    } else if (evt == IO_EVENT_TX_DONE) {
+        LOG_INFO(LOG_CAT_CORE, "📡 [MQTT TX] Publication Successful.");
+    } else if (evt == IO_EVENT_ERROR) {
+        LOG_ERROR(LOG_CAT_CORE, "📡 [MQTT ERROR] Link or Protocol Fault.");
+    }
+}
+
 // 3.4 MQTT 10秒周期同步
 static void on_mqtt_sync_trigger(uv_periodic_t *handle) {
     (void)handle;
@@ -152,8 +165,20 @@ static void on_mqtt_sync_trigger(uv_periodic_t *handle) {
     char payload[] = "{\"status\": \"online\", \"ver\": \"4.5\"}";
     net_buf_t *nb = net_buf_alloc(bus_orchestrator_get_pool(g_orch_ptr), 0);
     if (nb) {
-        net_buf_append_bytes(nb, (uint8_t *)payload, sizeof(payload));
+        net_buf_append_bytes(nb, (uint8_t *)payload, (uint16_t)strlen(payload));
         g_mqtt_h->ops->write_async(g_mqtt_h, nb);
+        net_buf_unref(nb);
+    }
+}
+
+// 3.5 仿真注入：让 UI 动起来
+static void on_sim_data_injection(uv_timer_t *handle) {
+    datahub_t *hub = (datahub_t *)handle->data;
+    for (uint32_t i = 0; i < g_tag_metadata_len; i++) {
+        pipe_msg_t msg;
+        pipe_msg_init_scalar(&msg, g_tag_metadata[i].id, 220.0 + (rand() % 100) / 10.0,
+                             uv_hrtime());
+        datahub_publish(hub, &msg);
     }
 }
 
@@ -161,6 +186,12 @@ static void on_mqtt_sync_trigger(uv_periodic_t *handle) {
 static void on_boot_delayed(uv_timer_t *handle) {
     service_t *svc = (service_t *)handle->data;
     uv_loop_t *loop = handle->loop;
+
+    // 启动仿真注入
+    static uv_timer_t sim_timer;
+    uv_timer_init(loop, &sim_timer);
+    sim_timer.data = g_hub_ptr;
+    uv_timer_start(&sim_timer, on_sim_data_injection, 500, 1000);
 
     // 组装所有周期性任务
     static uv_periodic_t poll_h;
@@ -186,6 +217,29 @@ static void on_boot_delayed(uv_timer_t *handle) {
 
     arbiter_resume(service_get_arbiter(svc));
     LOG_INFO(LOG_CAT_CORE, "✅ IEMS Orchestration Complete. System Online.");
+}
+
+// --- 2.5 发现机制：FD 分发服务端 ---
+static void on_ui_discovery_connect(uv_stream_t *server, int status) {
+    if (status < 0) return;
+    uv_pipe_t *client = malloc(sizeof(uv_pipe_t));
+    uv_pipe_init(server->loop, client, 0);
+    if (uv_accept(server, (uv_stream_t *)client) == 0) {
+        int client_fd;
+        uv_fileno((const uv_handle_t *)client, &client_fd);
+        // 发送 DataHub 的 Ring FD 和 Shadow FD
+        edge_fd_send(client_fd, shmring_get_fd(&g_hub_ptr->ring));
+        edge_fd_send(client_fd, g_hub_ptr->shadow_fd);
+    }
+    uv_close((uv_handle_t *)client, (uv_close_cb)free);
+}
+
+static void _setup_discovery_service(uv_loop_t *loop) {
+    unlink("/tmp/iems_ui.sock");
+    uv_pipe_t *server = malloc(sizeof(uv_pipe_t));
+    uv_pipe_init(loop, server, 0);
+    uv_pipe_bind(server, "/tmp/iems_ui.sock");
+    uv_listen((uv_stream_t *)server, 10, on_ui_discovery_connect);
 }
 
 int main(int argc, char **argv) {
@@ -231,6 +285,8 @@ int main(int argc, char **argv) {
     g_running_svc = svc;
     if (north_mgr) north_mgr->user_data = svc;
 
+    _setup_discovery_service(loop);
+
     // 5. 创建仿真与演示 IO 句柄
     uv_timer_t *at = malloc(sizeof(uv_timer_t));
     uv_timer_init(loop, at);
@@ -241,7 +297,14 @@ int main(int argc, char **argv) {
 
     io_config_t mqtt_cfg = {.type = IO_TYPE_MQTT};
     strncpy(mqtt_cfg.params.mqtt.broker, "tcp://broker.hivemq.com:1883", 127);
+    strncpy(mqtt_cfg.params.mqtt.client_id, "edgec_iems_node", 63);
+    strncpy(mqtt_cfg.params.mqtt.topic, "v1/devices/iems/telemetry", 127);
+
     g_mqtt_h = io_executor_create(loop, &mqtt_cfg, bus_orchestrator_get_pool(io_orch));
+    if (g_mqtt_h) {
+        g_mqtt_h->cb = on_mqtt_event_cb;
+        g_mqtt_h->ops->enable_read(g_mqtt_h, true);
+    }
 
     // 6. 启动引导
     static uv_timer_t boot_timer;

@@ -1,13 +1,14 @@
-#include "edge_ui.h"
-#include "edge_log.h"
 #include <stdlib.h>
 #include <unistd.h>
+
+#include "edge_log.h"
+#include "edge_ui.h"
 
 #ifdef UI_DRIVER_NCURSES
 #include "ui_driver_ncurses.h"
 #endif
 
-ui_service_t* ui_service_create(datahub_t *hub) {
+ui_service_t *ui_service_create(datahub_t *hub) {
     ui_service_t *service = calloc(1, sizeof(ui_service_t));
     if (!service) {
         return NULL;
@@ -15,12 +16,16 @@ ui_service_t* ui_service_create(datahub_t *hub) {
     service->hub = hub;
     service->running = false;
     service->stack_top = -1;
-    
+
 #ifdef UI_DRIVER_NCURSES
-    ui_driver_ncurses_init();
-#else
-    LOG_WARN(LOG_CAT_UI, "No UI driver specified!");
+    service->hal = ui_hal_ncurses_create();
 #endif
+
+    if (service->hal && service->hal->init) {
+        service->hal->init(service->hal);
+    } else {
+        LOG_WARN(LOG_CAT_UI, "No UI HAL driver initialized!");
+    }
 
     return service;
 }
@@ -30,9 +35,11 @@ void ui_service_destroy(ui_service_t *service) {
         return;
     }
 
-#ifdef UI_DRIVER_NCURSES
-    ui_driver_ncurses_teardown();
-#endif
+    if (service->hal) {
+        if (service->hal->destroy) service->hal->destroy(service->hal);
+        free(service->hal->priv);
+        free(service->hal);
+    }
 
     free(service);
 }
@@ -41,8 +48,7 @@ void ui_service_run(ui_service_t *service) {
     if (!service) {
         return;
     }
-    
-    // Call the product-specific initializer if it exists
+
     if (ui_product_init) {
         ui_product_init(service);
     }
@@ -51,22 +57,34 @@ void ui_service_run(ui_service_t *service) {
         LOG_ERROR(LOG_CAT_UI, "No pages registered. UI cannot start.");
         return;
     }
-    
+
     service->running = true;
-    
-    ui_page_t *current_page = service->page_stack[service->stack_top];
-    if (current_page->on_enter) {
-        current_page->on_enter(current_page, service);
-    }
 
     while (service->running) {
+        ui_page_t *current_page = service->page_stack[service->stack_top];
+
+        // 1. 处理输入
+        if (service->hal && service->hal->get_key) {
+            int key = service->hal->get_key(service->hal);
+            if (key != -1 && current_page->on_input) {
+                current_page->on_input(current_page, service, key);
+            }
+        }
+
+        // 2. 渲染绘制
+        if (service->hal && service->hal->clear) {
+            service->hal->clear(service->hal);
+        }
+
         if (current_page->on_draw) {
             current_page->on_draw(current_page, service);
         }
 
-        // A real implementation would use select() or poll() on stdin
-        // and the datahub's notification fd. This is a simplification.
-        usleep(1000 * 100); // 100ms
+        if (service->hal && service->hal->refresh) {
+            service->hal->refresh(service->hal);
+        }
+
+        usleep(50 * 1000);  // 提高刷新率到 20Hz 增强按键响应
     }
 }
 
@@ -81,7 +99,7 @@ void ui_service_push_page(ui_service_t *service, ui_page_t *page) {
         LOG_ERROR(LOG_CAT_UI, "Cannot push page, stack is full.");
         return;
     }
-    
+
     service->stack_top++;
     service->page_stack[service->stack_top] = page;
 }
@@ -91,7 +109,7 @@ void ui_service_pop_page(ui_service_t *service) {
         LOG_ERROR(LOG_CAT_UI, "Cannot pop page, stack is empty.");
         return;
     }
-    
+
     service->stack_top--;
 }
 

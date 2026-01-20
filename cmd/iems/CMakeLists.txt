@@ -37,21 +37,19 @@ install_edge_product(${PROD_NAME})
 if(ENABLE_UI)
     message(STATUS "[${PROD_NAME}] Building CLI-UI Companion Process...")
 
-    # Collect product-specific UI source files from the /products directory
-    file(GLOB PROD_UI_SRCS "${CMAKE_SOURCE_DIR}/products/${PROD_NAME}/ui_config/*.c")
-
     # Define the CLI process target
     add_executable(${PROD_NAME}-cli
         ${CMAKE_SOURCE_DIR}/src/ui/core/cli_main_entry.c # Common UI entry point
-        ${PROD_UI_SRCS}                                  # Product-specific UI pages
+        ui_dashboard.c                                  # Product-specific UI pages
     )
 
-    # Link dependencies (only data and UI framework, no business logic)
+    # Link dependencies
+    find_package(PahoMQTT REQUIRED) # Ensure MQTT lib is found
     target_link_libraries(${PROD_NAME}-cli PRIVATE
-        edge_ui_framework      # The new UI framework
-        contract_${PROD_NAME}  # Contract for TagIDs
-        edge_core              # For DataHub client access
-        ncurses                # The UI driver library
+        edge_ui_framework
+        contract_${PROD_NAME}
+        edge_core
+        ncurses
     )
     
     # Add compile definition for the driver
