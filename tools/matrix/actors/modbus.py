@@ -1,111 +1,95 @@
-import logging
+#!/usr/bin/env python3
+import socket
+import os
+import time
 import struct
-from typing import Optional
-from ..engine.model import DataStore
+import argparse
 
-logger = logging.getLogger("Matrix.Modbus")
-
-class ModbusRTUProtocol:
-    def __init__(self, slave_id: int, bindings: dict):
-        self.slave_id = slave_id
-        self.bindings = bindings
-        self._tag_to_addr = {}
-        self._addr_to_tag = {}
-        self._setup_mappings()
-
-    def _setup_mappings(self):
-        for tag_id, bind in self.bindings.items():
-            # 兼容嵌套结构
-            attrs = bind.get("Attributes") or bind.get("attributes") or bind
-            addr = attrs.get("Addr") or attrs.get("addr")
-            if addr is not None:
-                if isinstance(addr, str) and addr.startswith("0x"):
-                    addr = int(addr, 16)
-                elif isinstance(addr, str):
-                    addr = int(addr)
-                
-                scaler = attrs.get("Scaler") or attrs.get("scaler") or attrs.get("Scale") or attrs.get("scale") or 1.0
-                
-                self._tag_to_addr[tag_id] = {"addr": addr, "scaler": scaler}
-                self._addr_to_tag[addr] = {"tag_id": tag_id, "scaler": scaler}
-
-        logger.info(f"Modbus Mappings for Slave {self.slave_id}:")
-        logger.info(f"  Bindings: {self.bindings}")
-        logger.info(f"  Tag to Addr: {self._tag_to_addr}")
-        logger.info(f"  Addr to Tag: {self._addr_to_tag}")
-
-    def _compute_crc(self, data: bytes) -> bytes:
-        # 简单缓存常用结果 (可选)
-        crc = 0xFFFF
-        for pos in data:
-            crc ^= pos
-            for _ in range(8):
-                if (crc & 1) != 0:
-                    crc >>= 1
-                    crc ^= 0xA001
-                else:
-                    crc >>= 1
-        return struct.pack('<H', crc)
-
-    # 针对重复报文的缓存池 (优化点)
-    _resp_cache = {}
-
-    async def process(self, raw_data: bytes, datastore: DataStore) -> Optional[bytes]:
-        if not raw_data: return None
-        
-        # 物理层：站号过滤
-        unit_id = raw_data[0]
-        if unit_id != self.slave_id and unit_id != 0:
-            return None
-
-        # 仅处理 Read Holding Registers (03)
-        if len(raw_data) >= 8 and raw_data[1] == 0x03:
-            start_addr = struct.unpack('>H', raw_data[2:4])[0]
-            count = struct.unpack('>H', raw_data[4:6])[0]
-            
-            logger.info(f"Datastore content: {datastore._data}")
-            payload = bytearray()
-            for i in range(count):
-                addr = start_addr + i
-                map_entry = self._addr_to_tag.get(addr) # Get the entire map entry
-                
-                val = 0
-                scaler = 1.0
-                tid = None
-                
-                if map_entry:
-                    tid = map_entry["tag_id"]
-                    scaler = map_entry["scaler"]
-                    val = datastore.get(tid, 0)
-                
-                logger.info(f"Modbus Process: tid={tid}, val={val}, scaler={scaler}, val/scaler={val/scaler if scaler else 'NaN'}")
-                raw_val = int(round(val / scaler))
-                logger.info(f"Modbus Process: raw_val={raw_val}")
-                payload.extend(struct.pack('>H', raw_val & 0xFFFF))
-            
-            res = bytearray([self.slave_id, 0x03, len(payload)])
-            res.extend(payload)
-            res.extend(self._compute_crc(res))
-            logger.info(f"📤 [Matrix] Device {self.slave_id} responding: {res.hex(' ')}")
-            return bytes(res)
-
-        # 处理 Write Single Register (06)
-        elif len(raw_data) >= 8 and raw_data[1] == 0x06:
-            addr = struct.unpack('>H', raw_data[2:4])[0]
-            raw_val = struct.unpack('>H', raw_data[4:6])[0] # Unsigned 16-bit
-            
-            map_entry = self._addr_to_tag.get(addr)
-            if map_entry:
-                tid = map_entry["tag_id"]
-                scaler = map_entry["scaler"]
-                # Modbus Value -> Engineering Value
-                eng_val = raw_val * scaler
-                datastore.set(tid, eng_val)
-                logger.info(f"📝 [Matrix] Write Tag {tid} (Addr {addr}) = {eng_val} (Raw: {raw_val})")
+def crc16(data: bytes):
+    crc = 0xFFFF
+    for pos in data:
+        crc ^= pos
+        for i in range(8):
+            if (crc & 1) != 0:
+                crc >>= 1
+                crc ^= 0xA001
             else:
-                logger.warning(f"⚠️ [Matrix] Write to unknown address {addr}")
+                crc >>= 1
+    return crc
 
-            # 06 响应通常是回显请求
-            return raw_data
+class ModbusSlaveActor:
+    def __init__(self, socket_path, slave_id=1):
+        self.socket_path = socket_path
+        self.slave_id = slave_id
+        self.registers = {0: 2200, 1: 500} 
 
-        return None
+    def run(self):
+        if os.path.exists(self.socket_path):
+            try: os.unlink(self.socket_path)
+            except: pass
+            
+        server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        server.bind(self.socket_path)
+        server.listen(5)
+        
+        print(f"📠 [Modbus Sniffer] Listening on {self.socket_path} (Slave ID: {self.slave_id})")
+
+        while True:
+            conn, _ = server.accept()
+            # print("  [Modbus] New Connection Accepted.")
+            try:
+                while True:
+                    data = conn.recv(1024)
+                    if not data: break
+                    
+                    # --- 强制打印收到的数据 ---
+                    print(f"  📥 RX ({len(data)} bytes): {data.hex().upper()}")
+                    
+                    if len(data) < 6: continue
+                    if data[0] != self.slave_id:
+                        print(f"  ⚠️  ID Mismatch: expected {self.slave_id}, got {data[0]}")
+                        continue
+                    
+                    func = data[1]
+                    if func == 0x03:
+                        addr = struct.unpack(">H", data[2:4])[0]
+                        num = struct.unpack(">H", data[4:6])[0]
+                        print(f"  🔍 Request: Read Holding Registers at {addr}, count {num}")
+                        
+                        body = bytearray([self.slave_id, func, num * 2])
+                        for i in range(num):
+                            val = self.registers.get(addr + i, 0)
+                            body.extend(struct.pack(">H", val))
+                        
+                        crc_val = crc16(body)
+                        response = body + struct.pack("<H", crc_val)
+                        conn.send(response)
+                        print(f"  📤 TX: {response.hex().upper()}")
+                    
+                    # 动态跳变
+                    self.registers[0] = 2200 + (int(time.time() * 5) % 20)
+                    self.registers[1] = 500 + (int(time.time() * 5) % 50)
+                    self._check_control_commands()
+            except Exception as e:
+                print(f"  ❌ Actor Error: {e}")
+            finally:
+                conn.close()
+
+    def _check_control_commands(self):
+        ctrl_file = f"/tmp/matrix_ctrl_slave_{self.slave_id}.tmp"
+        if os.path.exists(ctrl_file):
+            try:
+                with open(ctrl_file, "r") as f:
+                    cmd = f.read().strip()
+                    if ":" in cmd:
+                        key, val = cmd.split(":")
+                        if "voltage" in key.lower(): self.registers[0] = int(float(val) * 10)
+                os.remove(ctrl_file)
+            except: pass
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--socket", default="/tmp/vbus0.sock")
+    parser.add_argument("--id", type=int, default=1)
+    args = parser.parse_args()
+    ModbusSlaveActor(args.socket, args.id).run()

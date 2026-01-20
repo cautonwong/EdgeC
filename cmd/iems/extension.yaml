@@ -3,14 +3,7 @@ enabled_tags:
     attributes:
       poll_interval_ms: 1000
 
-world:
-  topology:
-    - bus_id: 0
-      transport: {"type": "uds"}
-      devices:
-        - protocol: "ModbusRTU"
-          count: 2
-          start_address: 1 # 站号 1, 2
-  poll_tasks:
-    - tag: "VOLTAGE_PHASE_A"
-      interval_ms: 1000
+# world 字段已迁移至同目录下的 world.yaml
+poll_tasks:
+  - tag: "VOLTAGE_PHASE_A"
+    interval_ms: 1000

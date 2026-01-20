@@ -1,185 +1,66 @@
-import logging
-import asyncio
-import json
 import os
-import requests
-from typing import Dict, Optional, Any
-from .loader import SchemaLoader
-from .model import VBus, BaseVDevice
-from .transport import UDSTransport, TCPTransport
-from ..actors.modbus import ModbusRTUProtocol
-from ..observer.sniffer import TrafficSniffer
-
-logger = logging.getLogger("Matrix.Orchestrator")
+import subprocess
+import time
+from .loader import WorldLoader
+from .edgec import MatrixEdgeC
 
 class MatrixOrchestrator:
-    def __init__(self, schema_path: str, log_dir: str = "build/matrix_logs"):
-        os.makedirs(log_dir, exist_ok=True)
-        self.loader = SchemaLoader(schema_path)
-        self.buses: Dict[int, VBus] = {}
-        self.devices: Dict[str, BaseVDevice] = {}
-        self.sniffer = TrafficSniffer(log_dir)
-        self._interactive_server = None
-        self.edge_url = "http://127.0.0.1:9091"
+    def __init__(self, product: str, world_file: str):
+        self.product = product
+        self.loader = WorldLoader(world_file)
+        self.instance_env = {}
+        self.active_simulators = []
+        self.actor_registry = {} 
+        self.active_buses = set() # 记录已启动服务的总线
 
-    def get_device(self, name: str) -> Optional[BaseVDevice]:
-        return self.devices.get(name)
+    def provision_world(self, instance_id: str):
+        buses = self.loader.get_instance_buses(instance_id)
+        print(f"🌍 Provisioning physical world for {instance_id}...")
 
-    def build_from_world(self):
+        for bus in buses:
+            bus_type = bus.get('type')
+            os_dev = self.loader.resolve_os_dev(bus.get('os_dev'))
+
+            if bus_type == "SERIAL" and "vbus" in os_dev:
+                print(f"  [Bus] Virtual Serial Bus at {os_dev}")
+                self.instance_env["OMNIS_VBUS_PATH"] = os_dev
+                
+                # 关键修复：每个 Socket 只启动一个 Actor
+                if os_dev not in self.active_buses:
+                    # 获取该总线上第一个设备的地址作为主模拟对象
+                    topo = bus.get('topology', [])
+                    slave_id = topo[0].get('address', 1) if topo else 1
+                    self._launch_modbus_actor(os_dev, slave_id)
+                    self.active_buses.add(os_dev)
+
+            elif bus_type == "MEMORY_BUS":
+                # 模拟高频采样总线
+                print(f"  [Bus] Preparing Memory Bus (memfd) for ADC")
+                adc_sock = "/tmp/v_adc_sim.sock"
+                self.instance_env["OMNIS_ADC_PATH"] = adc_sock
+                self._launch_adc_simulator(adc_sock)
+
+    def _launch_modbus_actor(self, sock_path, slave_id):
+        actor_path = "tools/matrix/actors/modbus.py"
+        if os.path.exists(actor_path):
+            proc = subprocess.Popen(["python3", actor_path, "--socket", sock_path, "--id", str(slave_id)])
+            self.active_simulators.append(proc)
+            print(f"  [Actor] Modbus Slave {slave_id} launched at {sock_path}")
+
+    def _launch_adc_simulator(self, sock_path):
         """
-        根据 world_config 自动构建拓扑 (Sprint 4 特性)
+        启动 ADC 模拟器进程
         """
-        if not self.loader.world_config:
-            logger.warning("No world_config found, building empty topology.")
-            return
+        sim_path = "tools/matrix/simulators/adc_simulator.py"
+        if os.path.exists(sim_path):
+            proc = subprocess.Popen(["python3", sim_path, "--socket", sock_path])
+            self.active_simulators.append(proc)
+            print(f"  [Sim] ADC Simulator launched (PID: {proc.pid})")
 
-        topology = self.loader.world_config.get("topology", [])
-        for bus_item in topology:
-            bus_id = bus_item.get("bus_id", 0)
-            transport_cfg = bus_item.get("transport", {"type": "uds"})
-            
-            if transport_cfg["type"] == "uds":
-                path = transport_cfg.get("path", f"/tmp/vbus{bus_id}.sock")
-                transport = UDSTransport(path)
-            else:
-                continue
+    def get_env(self):
+        return self.instance_env
 
-            if bus_id not in self.buses:
-                self.buses[bus_id] = VBus(bus_id, transport)
-                self.buses[bus_id].add_observer(self.sniffer.on_traffic)
-
-            for dev_item in bus_item.get("devices", []):
-                proto_name = dev_item.get("protocol")
-                count = dev_item.get("count", 1)
-                start_addr = dev_item.get("start_address", 1)
-
-                for i in range(count):
-                    addr = start_addr + i
-                    dev_name = f"Bus{bus_id}_{proto_name}_{addr}"
-                    
-                    # 关键：根据协议动态选择 Actor
-                    binds = {}
-                    if proto_name in ["ModbusRTU", "Modbus"]:
-                        binds = self.loader.modbus_map
-                    elif proto_name == "DLMS":
-                        binds = self.loader.dlms_map
-                    
-                    device = BaseVDevice(dev_name, addr)
-                    
-                    # 动态加载 Protocol Actor
-                    if proto_name in ["ModbusRTU", "Modbus"]:
-                        from ..actors.modbus import ModbusRTUProtocol
-                        device.protocol = ModbusRTUProtocol(addr, binds)
-                    elif proto_name == "DLMS":
-                        from ..actors.dlms import DLMSProtocol
-                        device.protocol = DLMSProtocol(addr, binds)
-                    
-                    if device.protocol:
-                        self.buses[bus_id].attach_device(device)
-                        self.devices[dev_name] = device
-                        logger.info(f"Auto-Initialized Device: {dev_name} (Addr: {addr})")
-
-    def build_topology(self, bus_paths: dict):
-        """
-        根据契约动态构建拓扑。
-        """
-        device_groups = {}
-        # 支持多协议提取
-        modbus_items = self.loader.modbus_map.items()
-        
-        logger.info(f"Building topology. Modbus map size: {len(modbus_items)}")
-        
-        for tid, bind in modbus_items:
-            # 兼容性提取：如果没有 bus_id，默认为 0
-            bus_id = bind.get("Attributes", {}).get("bus_id", 0)
-            slave_id = bind.get("Attributes", {}).get("slave_id", 1)
-            
-            key = (bus_id, "ModbusRTU", slave_id)
-            if key not in device_groups: device_groups[key] = {}
-            device_groups[key][tid] = bind
-
-        logger.info(f"Grouped into {len(device_groups)} virtual devices.")
-
-        for (bus_id, proto_type, addr), binds in device_groups.items():
-            if bus_id not in self.buses:
-                path = bus_paths.get(bus_id, f"/tmp/vbus{bus_id}.sock")
-                logger.info(f"Creating VBus {bus_id} on transport {path}")
-                transport = UDSTransport(path)
-                self.buses[bus_id] = VBus(bus_id, transport)
-                self.buses[bus_id].add_observer(self.sniffer.on_traffic)
-            
-            dev_name = f"Bus{bus_id}_{proto_type}_{addr}"
-            device = BaseVDevice(dev_name, addr)
-            device.protocol = ModbusRTUProtocol(addr, binds)
-            self.buses[bus_id].attach_device(device)
-            self.devices[dev_name] = device
-            logger.info(f"Initialized Device: {dev_name} with {len(binds)} tag bindings.")
-
-    async def start_interactive_api(self, port: int = 9999):
-        try:
-            # 关键修复：允许端口重用，避免 TIME_WAIT 导致的启动失败
-            server = await asyncio.start_server(self._handle_interactive, '0.0.0.0', port, reuse_address=True)
-            self._interactive_server = server
-            logger.info(f"Interactive API enabled on 0.0.0.0:{port}")
-        except Exception as e:
-            logger.error(f"Failed to start Interactive API: {e}")
-            raise
-
-    async def _handle_interactive(self, reader, writer):
-        peer = writer.get_extra_info('peername')
-        logger.info(f"New connection: {peer}")
-        
-        while True:
-            try:
-                data = await reader.read(1024)
-                if not data: break
-                
-                cmd_line = data.decode().strip()
-                if not cmd_line: continue
-                
-                parts = cmd_line.split()
-                cmd = parts[0].upper()
-                
-                if cmd == "SET" and len(parts) >= 4:
-                    dev_name, tag_ref, val = parts[1], parts[2], parts[3]
-                    device = self.devices.get(dev_name)
-                    if device:
-                        try:
-                            tag_id = int(tag_ref)
-                        except: tag_id = tag_ref
-                        device.inject(tag_id, float(val), self.loader)
-                        writer.write(f"OK: Set {tag_ref}={val}\n".encode())
-                    else:
-                        writer.write(f"ERR: Device {dev_name} unknown\n".encode())
-                
-                elif cmd == "MONITOR" and len(parts) >= 2:
-                    tag_id = parts[1]
-                    try:
-                        # 内部穿透查询 EdgeOS 的 DataHub
-                        resp = requests.get(f"{self.edge_url}/api/v1/data/latest/{tag_id}", timeout=0.5)
-                        writer.write((resp.text + "\n").encode())
-                    except Exception as e:
-                        writer.write(f"ERR: EdgeOS unreachable: {e}\n".encode())
-
-                elif cmd == "LIST":
-                    writer.write((json.dumps({"devices": list(self.devices.keys())}) + "\n").encode())
-                
-                elif cmd == "STATUS" and len(parts) >= 2:
-                    dev_name = parts[1]
-                    device = self.devices.get(dev_name)
-                    if device:
-                        writer.write((json.dumps({"device": dev_name, "datastore": device.protocol.datastore}) + "\n").encode())
-                
-                await writer.drain()
-            except Exception as e:
-                logger.error(f"API Error: {e}")
-                break
-        writer.close()
-
-    async def run(self):
-        tasks = [bus.start() for bus in self.buses.values()]
-        if self._interactive_server:
-            # 使用 asyncio.Future 保持运行而不阻塞其它任务
-            await asyncio.gather(*tasks)
-        else:
-            await asyncio.gather(*tasks)
+    def shutdown(self):
+        print("🛑 Shutting down Matrix environment...")
+        for proc in self.active_simulators:
+            proc.terminate()

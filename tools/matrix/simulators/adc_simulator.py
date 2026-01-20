@@ -1,84 +1,81 @@
-import numpy as np
-import mmap
+#!/usr/bin/env python3
 import os
-import logging
-from typing import Dict, List, Optional
+import sys
+import time
+import math
+import mmap
+import socket
+import struct
+import array
 
-logger = logging.getLogger("Matrix.SignalFactory")
+# 使用 Linux 特有的 memfd_create (通过 ctypes 调用)
+import ctypes
+libc = ctypes.CDLL("libc.so.6")
+SYS_memfd_create = 319 # x86_64
 
-class SignalFactory:
-    """
-    高频信号工况工厂：利用 NumPy 模拟复杂的电网物理特性。
-    支持：多频谐波、电压暂态（Sags/Swells）、频率漂移、非平稳噪声。
-    """
-    def __init__(self, sample_rate: int = 4000, frame_size: int = 400):
-        self.sample_rate = sample_rate
-        self.frame_size = frame_size
-        self.fd = -1
-        self.mmap_obj = None
-        self.t_base = np.linspace(0, frame_size / sample_rate, frame_size, endpoint=False)
-        self._current_time_offset = 0.0
+def create_memfd(name, size):
+    fd = libc.syscall(SYS_memfd_create, name, 1) # MFD_ALLOW_SEALING
+    if fd < 0:
+        raise OSError("memfd_create failed")
+    os.ftruncate(fd, size)
+    return fd
 
-    def create_memfd(self, name: str = "v_adc_shm"):
-        """创建匿名内存文件，用于零拷贝跨进程共享"""
-        self.fd = os.memfd_create(name)
-        size = self.frame_size * 4  # float32
-        os.ftruncate(self.fd, size)
-        # MAP_SHARED 确保 Python 的写入对 C 进程可见
-        self.mmap_obj = mmap.mmap(self.fd, size, flags=mmap.MAP_SHARED, prot=mmap.PROT_WRITE)
-        logger.info(f"🚀 SignalFactory: Created memfd '{name}' ({size} bytes)")
-        return self.fd
+def send_fd(sock, fd):
+    # 使用 socket.sendmsg 发送文件描述符 (SCM_RIGHTS)
+    sock.sendmsg([b"\x01"], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, struct.pack("i", fd))])
 
-    def compose_wave(self, 
-                     freq: float = 50.0, 
-                     amp: float = 220.0, 
-                     harmonics: Optional[Dict[int, float]] = None,
-                     transient: Optional[Dict] = None,
-                     noise_std: float = 0.0) -> np.ndarray:
-        """
-        合成一组复杂的工况数据。
-        :param freq: 基波频率 (Hz)
-        :param amp: 基波幅值 (V)
-        :param harmonics: 谐波字典 {阶数: 幅值比例}, 如 {3: 0.05} 表示5%的三次谐波
-        :param transient: 暂态配置, 如 {'type': 'sag', 'factor': 0.7} 
-        :param noise_std: 噪声标准差
-        """
-        t = self.t_base + self._current_time_offset
-        
-        # 1. 生成基波
-        actual_amp = amp
-        if transient:
-            if transient.get('type') == 'sag':
-                actual_amp *= transient.get('factor', 0.8)
-            elif transient.get('type') == 'swell':
-                actual_amp *= transient.get('factor', 1.2)
-        
-        signal = actual_amp * np.sqrt(2) * np.sin(2 * np.pi * freq * t)
+def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--socket", default="/tmp/v_adc_sim.sock")
+    args = parser.parse_args()
 
-        # 2. 叠加谐波
-        if harmonics:
-            for order, ratio in harmonics.items():
-                signal += (actual_amp * ratio * np.sqrt(2)) * np.sin(2 * np.pi * (freq * order) * t)
+    # 1. 准备共享内存 (1600 个点, 假设每个点是 float32)
+    sample_count = 1600
+    mem_size = sample_count * 4
+    fd = create_memfd("adc_waveform", mem_size)
+    
+    # 映射内存以便写入
+    buf = mmap.mmap(fd, mem_size, mmap.MAP_SHARED, mmap.PROT_WRITE)
 
-        # 3. 注入白噪声
-        if noise_std > 0:
-            signal += np.random.normal(0, noise_std, self.frame_size)
+    # 2. 准备 UDS 服务端
+    if os.path.exists(args.socket): os.unlink(args.socket)
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server.bind(args.socket)
+    server.listen(1)
 
-        # 4. 写入共享内存 (原子性写入)
-        data_bytes = signal.astype(np.float32).tobytes()
-        os.pwrite(self.fd, data_bytes, 0)
-        
-        # 更新时间偏移，确保波形连续
-        self._current_time_offset += (self.frame_size / self.sample_rate)
-        return signal
+    print(f"📡 ADC Simulator: Generating sine wave in memfd, waiting for EdgeOS at {args.socket}...")
 
-    def get_ground_truth_rms(self, signal: np.ndarray) -> float:
-        """计算该帧的理论真值 RMS (用于比对)"""
-        return float(np.sqrt(np.mean(np.square(signal))))
+    phase = 0.0
+    while True:
+        try:
+            # 等待 EdgeOS 连接
+            conn, _ = server.accept()
+            print("  [ADC] EdgeOS connected. Sending memfd handle...")
+            
+            # 发送 FD
+            send_fd(conn, fd)
+            time.sleep(0.1) # 给予内核处理 SCM_RIGHTS 的时间
+            
+            # 持续更新波形
+            while True:
+                # 生成 50Hz 正弦波
+                for i in range(sample_count):
+                    val = 220.0 * math.sin(phase + (2 * math.pi * 50.0 * i / 12800.0))
+                    struct.pack_into("f", buf, i * 4, val)
+                
+                phase += 0.1 # 模拟相位变化
+                
+                # 通知 EdgeOS (发送一个字节脉冲)
+                try:
+                    conn.send(b"\x01")
+                except:
+                    break
+                    
+                time.sleep(0.02) # 50Hz 刷新
+        except Exception as e:
+            print(f"  [ADC] Connection lost: {e}")
+            time.sleep(1)
 
-    def close(self):
-        if self.mmap_obj: self.mmap_obj.close()
-        if self.fd != -1: os.close(self.fd)
-
-# [兼容性补强] 允许旧代码继续引用 ADCSimulator
-ADCSimulator = SignalFactory
+if __name__ == "__main__":
+    main()

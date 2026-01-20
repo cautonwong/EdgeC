@@ -20,6 +20,7 @@ static void _ncurses_init(ui_hal_t *hal) {
     init_pair(UI_COLOR_GREEN, COLOR_GREEN, COLOR_BLACK);
     init_pair(UI_COLOR_BLUE, COLOR_BLUE, COLOR_BLACK);
     init_pair(UI_COLOR_YELLOW, COLOR_YELLOW, COLOR_BLACK);
+    init_pair(UI_COLOR_CYAN, COLOR_CYAN, COLOR_BLACK);
     priv->win = stdscr;
 }
 

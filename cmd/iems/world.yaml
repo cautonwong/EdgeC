@@ -1,0 +1,31 @@
+apiVersion: v3
+description: "IEMS 产品默认物理拓扑"
+
+edge_instances:
+  - id: "iems_node_1"
+    model: "IEMS_V4"
+    buses:
+      # 南向 RS485 总线 (模拟器通过 UDS 映射)
+      - id: "rs485_vbus"
+        type: "SERIAL"
+        os_dev: "UDS:/tmp/vbus0.sock" 
+        role: "MASTER"
+        topology:
+          - dev_id: "meter_sim_1"
+            profile: "standard_meter"
+            protocol: "MODBUS_RTU"
+            address: 1
+          - dev_id: "meter_sim_2"
+            profile: "standard_meter"
+            protocol: "MODBUS_RTU"
+            address: 2
+
+      # 高频 ADC 采样总线
+      - id: "adc_stream"
+        type: "MEMORY_BUS"
+        os_dev: "memfd:adc_raw"
+        role: "SLAVE"
+        topology:
+          - dev_id: "adc_chip_sim"
+            type: "WAVEFORM_GEN"
+            sample_rate: 12800

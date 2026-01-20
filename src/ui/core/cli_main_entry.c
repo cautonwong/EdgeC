@@ -1,3 +1,5 @@
+#include <errno.h>
+#include <locale.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,12 +12,11 @@
 #include "edge_log.h"
 #include "edge_ui.h"
 
-// 注入编译器生成的契约元数据和路由算法
 extern const edge_tag_meta_t g_tag_metadata[];
 extern const uint32_t g_tag_metadata_len;
 extern int edge_tag_get_compact_index(uint32_t tag_id);
 
-static int fetch_fds_from_server(const char *path, int *ring_fd, int *shadow_fd) {
+static int fetch_fds(const char *path, int *rfd, int *sfd) {
     int sock = socket(AF_UNIX, SOCK_STREAM, 0);
     struct sockaddr_un addr = {.sun_family = AF_UNIX};
     strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
@@ -25,40 +26,53 @@ static int fetch_fds_from_server(const char *path, int *ring_fd, int *shadow_fd)
         return -1;
     }
 
-    *ring_fd = edge_fd_recv(sock);
-    *shadow_fd = edge_fd_recv(sock);
+    printf(" [UI] Connected to discovery socket. Receiving FDs...\n");
+    *rfd = edge_fd_recv(sock);
+    *sfd = edge_fd_recv(sock);
+    printf(" [UI] Recv FDs -> Ring: %d, Shadow: %d\n", *rfd, *sfd);
 
     close(sock);
-    return (*ring_fd >= 0) ? 0 : -1;
+    return (*rfd >= 0) ? 0 : -1;
 }
 
 int main(int argc, char *argv[]) {
+    setlocale(LC_ALL, "");
     const char *bus_name = "iems";
-    if (argc > 1) bus_name = argv[1];
-
     char sock_path[128];
     snprintf(sock_path, sizeof(sock_path), "/tmp/%s_ui.sock", bus_name);
 
-    int ring_fd = -1;
-    int shadow_fd = -1;
+    printf("\n--- IEMS UI DASHBOARD STARTUP ---\n");
+    printf(" [1/3] Searching for DataHub [%s] at %s\n", bus_name, sock_path);
 
-    if (fetch_fds_from_server(sock_path, &ring_fd, &shadow_fd) != 0) {
-        fprintf(stderr, "FATAL: Could not connect to DataHub server at %s\n", sock_path);
+    int rfd = -1, sfd = -1;
+    int retry = 0;
+    while (rfd < 0 && retry < 20) {
+        if (fetch_fds(sock_path, &rfd, &sfd) != 0) {
+            printf("  ... still waiting for engine (try %d)\n", ++retry);
+            usleep(500000);
+            continue;
+        }
+        break;
+    }
+
+    if (rfd < 0) {
+        fprintf(stderr, " ❌ FATAL: Discovery failed after 10s. Is the engine alive?\n");
         return -1;
     }
 
+    printf(" [2/3] Initializing Local DataHub Client...\n");
     uv_loop_t *loop = uv_default_loop();
     datahub_t *hub = calloc(1, sizeof(datahub_t));
 
-    // 关键修正：注入编译器生成的 map_fn (edge_tag_get_compact_index)
-    // 这样 datahub_read_shadow 才能正确找到紧凑排列的索引
-    datahub_init_from_fd(hub, loop, ring_fd, 1024 * 64, shadow_fd,
-                         g_tag_metadata_len * sizeof(pipe_msg_t), g_tag_metadata_len,
-                         g_tag_metadata, g_tag_metadata_len, NULL, edge_tag_get_compact_index,
-                         NULL);
+    if (datahub_init_from_fd(hub, loop, rfd, 1024 * 64, sfd,
+                             g_tag_metadata_len * sizeof(pipe_msg_t), g_tag_metadata_len,
+                             g_tag_metadata, g_tag_metadata_len, NULL, edge_tag_get_compact_index,
+                             NULL) != 0) {
+        fprintf(stderr, " ❌ FATAL: DataHub init failed.\n");
+        return -1;
+    }
 
-    printf("UI Dashboard Connected. Shadow Capacity: %u tags\n", hub->shadow_capacity);
-
+    printf(" [3/3] Launching TUI Framework...\n");
     ui_service_t *ui = ui_service_create(hub);
     if (ui) {
         ui_service_run(ui);
@@ -67,6 +81,5 @@ int main(int argc, char *argv[]) {
 
     datahub_destroy(hub);
     free(hub);
-
     return 0;
 }

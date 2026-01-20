@@ -32,6 +32,7 @@ struct ui_hal_s {
 #define UI_COLOR_GREEN 2
 #define UI_COLOR_BLUE 3
 #define UI_COLOR_YELLOW 4
+#define UI_COLOR_CYAN 5
 
 // Page function pointers
 typedef void (*ui_page_on_enter)(ui_page_t *page, ui_service_t *service);
