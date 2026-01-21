@@ -7,6 +7,7 @@
 
 #include "edge_common.h"
 #include "io_executor.h"
+#include "edge_request.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -49,6 +50,7 @@ typedef enum {
 #define ARBITER_DEFAULT_TIMEOUT_MS 1000
 
 typedef struct cmd_msg {
+    struct edge_req_s *req; /**< [Request Model] The request object carrying scene-specific logic */
     char req_id[32];
     char protocol[16]; /**< [Phase 4] 目标协议名 (如 "ModbusRTU") */
     cmd_priority_t priority;

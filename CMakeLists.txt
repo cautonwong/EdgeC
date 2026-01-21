@@ -177,6 +177,11 @@ add_library(edge_io_executor STATIC
     src/io_executor/driver_iec101.c
     src/io_executor/engines/master_engine.c
     src/io_executor/engines/slave_engine.c
+    src/io_executor/requests/req_driver_legacy.c
+    src/io_executor/requests/req_raw_io.c
+)
+target_include_directories(edge_io_executor PUBLIC
+    src/io_executor/requests
 )
 target_link_libraries(edge_io_executor PUBLIC edge_core edge_protocols edge_platform)
 target_link_libraries(edge_io_executor PRIVATE Modbus::Modbus)

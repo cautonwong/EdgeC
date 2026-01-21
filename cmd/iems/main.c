@@ -15,6 +15,7 @@
 #include "edgeos.h"
 #include "northbound_mgr.h"
 #include "sqlite_service.h"
+#include "req_driver_legacy.h"
 
 // 外部驱动注册
 extern int modbus_driver_register(driver_manager_t *mgr);
@@ -22,6 +23,7 @@ extern int modbus_driver_register(driver_manager_t *mgr);
 static service_t *g_running_svc = NULL;
 static datahub_t *g_hub_ptr = NULL;
 static bus_orchestrator_t *g_orch_ptr = NULL;
+static driver_manager_t *g_drv_mgr = NULL;
 
 // [核心] 手动构造针对 IEMS 的契约注入包
 static const driver_contract_injection_t iems_modbus_injection = {
@@ -32,23 +34,19 @@ static const driver_contract_injection_t iems_modbus_injection = {
 
 // --- 1. 回调函数定义 ---
 
-static void on_poll_complete(cmd_msg_t *cmd, int status) {
-    if (status != CMD_STATUS_SUCCESS) return;
+static void on_poll_complete(int status, const pipe_msg_t *result) {
+    if (status != CMD_STATUS_SUCCESS || !result) return;
+    
     float scale = 1.0f;
-    edge_tag_id_t tid = 0;
-    if (strcmp(cmd->protocol, "ModbusRTU") == 0) {
-        tid = edge_lookup_modbus((uint32_t)cmd->tag_id, &scale);
-    }
+    // The result->tag_id is the physical tag_id, look up the logical one for publishing
+    edge_tag_id_t tid = edge_lookup_modbus(result->tag_id, &scale);
+
     if (tid != 0) {
         pipe_msg_t msg;
-        pipe_msg_init_scalar(&msg, tid, cmd->value * (double)scale, uv_hrtime());
+        // The value from the driver is already scaled, but the contract gives us the final logical tag
+        pipe_msg_init_scalar(&msg, tid, result->payload.val.f, uv_hrtime());
         datahub_publish(g_hub_ptr, &msg);
     }
-}
-
-static void on_cmd_cleanup(cmd_msg_t *cmd) {
-    if (cmd->phy_params) free(cmd->phy_params);
-    free(cmd);
 }
 
 static int _task_query_cb(void *user_data, int argc, char **argv, char **cols) {
@@ -60,14 +58,14 @@ static int _task_query_cb(void *user_data, int argc, char **argv, char **cols) {
     uint32_t physical_reg = (uint32_t)atoi(argv[2]);
     const char *proto = argv[3];
 
+    // Create the specific request object for the legacy driver path
+    edge_req_t *req = req_legacy_driver_create(g_drv_mgr, proto, physical_reg, on_poll_complete);
+
+    // Create the command message and attach the request
     cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));
-    strncpy(cmd->protocol, proto, 15);
-    cmd->action = CMD_ACTION_READ;
+    cmd->req = req;
     cmd->priority = ARBITER_PRIO_NORMAL;
-    cmd->tag_id = physical_reg;
-    cmd->on_complete = on_poll_complete;
-    cmd->on_cleanup = on_cmd_cleanup;
-    cmd->signature = 0x55AA;
+    // The request's teardown function will handle all cleanup
 
     bus_orchestrator_submit_cmd(orch, bus_id, cmd);
     return 0;
@@ -141,14 +139,14 @@ int main(int argc, char **argv) {
 
     arbiter_t *arbiter = NULL;
     arbiter_init(&arbiter, loop);
-    driver_manager_t *drv_mgr = driver_manager_create();
-    modbus_driver_register(drv_mgr);
+    g_drv_mgr = driver_manager_create();
+    modbus_driver_register(g_drv_mgr);
     datahub_t *hub = calloc(1, sizeof(datahub_t));
     datahub_init(hub, loop, "iems", 1024, 1024, g_tag_metadata, g_tag_metadata_len, NULL,
                  edge_tag_get_compact_index, edge_router_needs_wakeup);
     g_hub_ptr = hub;
 
-    bus_orchestrator_t *io_orch = bus_orchestrator_create(hub, arbiter, drv_mgr, 8, 32, 2048);
+    bus_orchestrator_t *io_orch = bus_orchestrator_create(hub, arbiter, g_drv_mgr, 8, 32, 2048);
     g_orch_ptr = io_orch;
     hub->io_pool = bus_orchestrator_get_pool(io_orch);
 
