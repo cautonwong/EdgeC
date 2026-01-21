@@ -179,6 +179,7 @@ add_library(edge_io_executor STATIC
     src/io_executor/engines/slave_engine.c
     src/io_executor/requests/req_driver_legacy.c
     src/io_executor/requests/req_raw_io.c
+    src/io_executor/edge_api.c
 )
 target_include_directories(edge_io_executor PUBLIC
     src/io_executor/requests

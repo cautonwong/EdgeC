@@ -8,14 +8,9 @@
 #include <unistd.h>
 #include <uv.h>
 
-#include "bus_orchestrator.h"
-#include "contracts.h"
-#include "driver_manager.h"
-#include "edge_params.h"
-#include "edgeos.h"
+#include "edge_api.h"
 #include "northbound_mgr.h"
 #include "sqlite_service.h"
-#include "req_driver_legacy.h"
 
 // 外部驱动注册
 extern int modbus_driver_register(driver_manager_t *mgr);
@@ -51,23 +46,16 @@ static void on_poll_complete(int status, const pipe_msg_t *result) {
 
 static int _task_query_cb(void *user_data, int argc, char **argv, char **cols) {
     (void)cols;
-    bus_orchestrator_t *orch = (bus_orchestrator_t *)user_data;
+    (void)user_data;
     if (argc < 4) return 0;
 
     int bus_id = atoi(argv[0]);
     uint32_t physical_reg = (uint32_t)atoi(argv[2]);
     const char *proto = argv[3];
 
-    // Create the specific request object for the legacy driver path
-    edge_req_t *req = req_legacy_driver_create(g_drv_mgr, proto, physical_reg, on_poll_complete);
+    // Use the new high-level API to submit the read request
+    edge_api_read_tag(bus_id, proto, physical_reg, on_poll_complete);
 
-    // Create the command message and attach the request
-    cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));
-    cmd->req = req;
-    cmd->priority = ARBITER_PRIO_NORMAL;
-    // The request's teardown function will handle all cleanup
-
-    bus_orchestrator_submit_cmd(orch, bus_id, cmd);
     return 0;
 }
 
@@ -79,7 +67,8 @@ static void iems_scheduler_tick(uv_periodic_t *handle) {
     const char *sql =
         "SELECT t.bus_id, i.addr, t.tag_id, i.protocol "
         "FROM poll_tasks t JOIN inventory i ON t.device_id = i.id WHERE i.enabled = 1;";
-    sqlite3_exec(raw_db, sql, _task_query_cb, g_orch_ptr, NULL);
+    // user_data is no longer needed for the callback
+    sqlite3_exec(raw_db, sql, _task_query_cb, NULL, NULL);
 }
 
 static void on_vbus_connect(uv_connect_t *req, int status) {
@@ -149,6 +138,9 @@ int main(int argc, char **argv) {
     bus_orchestrator_t *io_orch = bus_orchestrator_create(hub, arbiter, g_drv_mgr, 8, 32, 2048);
     g_orch_ptr = io_orch;
     hub->io_pool = bus_orchestrator_get_pool(io_orch);
+
+    // Initialize the new high-level API
+    edge_api_init(g_orch_ptr, g_drv_mgr);
 
     // 使用本地定义的注入包
     bus_orchestrator_setup_master(io_orch, 0, "ModbusRTU", 1, &iems_modbus_injection);
