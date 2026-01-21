@@ -37,8 +37,12 @@ void *net_buf_simple_add(struct net_buf_simple *buf, size_t len) {
 }
 
 void *net_buf_simple_add_mem(struct net_buf_simple *buf, const void *mem, size_t len) {
+    if (!buf || !mem || len == 0) return NULL;
+    // 预检空间，防止触发后续 assert 导致的 ASan 报错
+    if (net_buf_simple_tailroom(buf) < len) return NULL;
+
     void *ptr = net_buf_simple_add(buf, len);
-    if (mem && len > 0) memcpy(ptr, mem, len);
+    if (ptr) memcpy(ptr, mem, len);
     return ptr;
 }
 

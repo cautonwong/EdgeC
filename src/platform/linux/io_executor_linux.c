@@ -179,13 +179,16 @@ static void _on_uv_poll(uv_poll_t *handle, int status, int events) {
             if (n > 0) {
                 net_buf_t *buf = impl->pending_tx;
                 impl->pending_tx = NULL;
+                // 恢复只读监听
                 uv_poll_start(handle, UV_READABLE, _on_uv_poll);
                 impl->base.cb(&impl->base, IO_EVENT_TX_DONE, NULL, impl->base.user_data);
+                // [关键] 发送完成，释放引用
                 net_buf_unref(buf);
             } else if (errno != EAGAIN && errno != EINTR) {
                 impl->base.cb(&impl->base, IO_EVENT_ERROR, NULL, impl->base.user_data);
             }
         } else {
+            // 没有待发数据，退回只读模式
             uv_poll_start(handle, UV_READABLE, _on_uv_poll);
         }
     }

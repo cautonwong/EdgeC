@@ -8,67 +8,76 @@
 #include <unistd.h>
 #include <uv.h>
 
+#include "contracts.h"
 #include "edge_api.h"
 #include "northbound_mgr.h"
+#include "queue.h"
+#include "sched_time.h"
 #include "sqlite_service.h"
 
-// 外部驱动注册
 extern int modbus_driver_register(driver_manager_t *mgr);
 
 static service_t *g_running_svc = NULL;
 static datahub_t *g_hub_ptr = NULL;
 static bus_orchestrator_t *g_orch_ptr = NULL;
 static driver_manager_t *g_drv_mgr = NULL;
+static uv_timer_t *g_vbus_timer = NULL;
 
-// [核心] 手动构造针对 IEMS 的契约注入包
+typedef struct {
+    int bus_id;
+    uint32_t slave_id;
+    uint32_t tag_id;
+    char protocol[16];
+    uint32_t interval_ms;
+    uint64_t last_run_ms;
+    struct uv__queue node;
+} iems_poll_task_t;
+
+static struct uv__queue g_poll_task_head;
+
 static const driver_contract_injection_t iems_modbus_injection = {
     .lookup_by_key = (const void *(*)(uint32_t))edge_get_map_modbus,
     .lookup_by_tag = (const void *(*)(uint32_t))edge_get_map_modbus_by_tag,
     .meta_list = NULL,
     .meta_list_len = 0};
 
-// --- 1. 回调函数定义 ---
-
 static void on_poll_complete(int status, const pipe_msg_t *result) {
-    if (status != CMD_STATUS_SUCCESS || !result) return;
-    
-    float scale = 1.0f;
-    // The result->tag_id is the physical tag_id, look up the logical one for publishing
-    edge_tag_id_t tid = edge_lookup_modbus(result->tag_id, &scale);
-
-    if (tid != 0) {
-        pipe_msg_t msg;
-        // The value from the driver is already scaled, but the contract gives us the final logical tag
-        pipe_msg_init_scalar(&msg, tid, result->payload.val.f, uv_hrtime());
-        datahub_publish(g_hub_ptr, &msg);
-    }
-}
-
-static int _task_query_cb(void *user_data, int argc, char **argv, char **cols) {
-    (void)cols;
-    (void)user_data;
-    if (argc < 4) return 0;
-
-    int bus_id = atoi(argv[0]);
-    uint32_t physical_reg = (uint32_t)atoi(argv[2]);
-    const char *proto = argv[3];
-
-    // Use the new high-level API to submit the read request
-    edge_api_read_tag(bus_id, proto, physical_reg, on_poll_complete);
-
-    return 0;
+    if (status != 0 || !result) return;
+    datahub_publish(g_hub_ptr, result);
 }
 
 static void iems_scheduler_tick(uv_periodic_t *handle) {
-    (void)handle;
-    sqlite_svc_t *db = service_get_storage(g_running_svc);
-    sqlite3 *raw_db = (sqlite3 *)sqlite_svc_get_db_handle(db);
-    if (!raw_db) return;
-    const char *sql =
-        "SELECT t.bus_id, i.addr, t.tag_id, i.protocol "
-        "FROM poll_tasks t JOIN inventory i ON t.device_id = i.id WHERE i.enabled = 1;";
-    // user_data is no longer needed for the callback
-    sqlite3_exec(raw_db, sql, _task_query_cb, NULL, NULL);
+    uint64_t now = uv_now(handle->timer.loop);
+    struct uv__queue *q;
+    static int tick_count = 0;
+    if (++tick_count % 10 == 0) {
+        printf(" 💓 [Scheduler] Alive at %lu\n", now);
+        fflush(stdout);
+    }
+
+    uv__queue_foreach(q, &g_poll_task_head) {
+        iems_poll_task_t *task = uv__queue_data(q, iems_poll_task_t, node);
+        if (now - task->last_run_ms >= (uint64_t)task->interval_ms) {
+            edge_api_read_tag(task->bus_id, task->protocol, task->slave_id, task->tag_id,
+                              (void *)edge_get_map_modbus_by_tag, (void *)edge_get_map_modbus,
+                              on_poll_complete);
+            task->last_run_ms = now;
+        }
+    }
+}
+
+static int _load_tasks_cb(void *user_data, int argc, char **argv, char **cols) {
+    (void)user_data;
+    (void)cols;
+    if (argc < 4) return 0;
+    iems_poll_task_t *task = calloc(1, sizeof(iems_poll_task_t));
+    task->bus_id = atoi(argv[0]);
+    task->slave_id = (uint32_t)atoi(argv[1]);
+    task->tag_id = (uint32_t)atoi(argv[2]);
+    strncpy(task->protocol, argv[3], 15);
+    task->interval_ms = 1000;
+    uv__queue_insert_tail(&g_poll_task_head, &task->node);
+    return 0;
 }
 
 static void on_vbus_connect(uv_connect_t *req, int status) {
@@ -77,12 +86,14 @@ static void on_vbus_connect(uv_connect_t *req, int status) {
         free(req);
         return;
     }
+    if (g_vbus_timer) uv_timer_stop(g_vbus_timer);
     int fd;
     uv_fileno((const uv_handle_t *)req->handle, &fd);
     io_handle_t *h = io_executor_create_from_fd(req->handle->loop, fd, g_hub_ptr->io_pool);
     bus_orchestrator_attach_io(g_orch_ptr, 0, h);
     h->ops->enable_read(h, true);
-    printf(" 🔗 [Omnis] VBUS Online.\n");
+    printf(" ✅ [VBUS] Physical line connected to Bus 0.\n");
+    fflush(stdout);
     free(req);
 }
 
@@ -93,6 +104,70 @@ static void _try_vbus_connect(uv_timer_t *handle) {
     uv_pipe_init(handle->loop, pipe, 0);
     uv_connect_t *req = malloc(sizeof(uv_connect_t));
     uv_pipe_connect(req, pipe, path, on_vbus_connect);
+}
+
+static void on_boot_delayed(uv_timer_t *handle) {
+    service_t *svc = (service_t *)handle->data;
+    sqlite_svc_t *db = service_get_storage(svc);
+    sqlite3 *raw_db = (sqlite3 *)sqlite_svc_get_db_handle(db);
+
+    if (!raw_db) {
+        uv_timer_start(handle, on_boot_delayed, 500, 0);
+        return;
+    }
+
+    // [整改核心] 显式创建表结构，防止 no such table 错误
+    const char *schema =
+        "CREATE TABLE IF NOT EXISTS inventory (id TEXT PRIMARY KEY, type TEXT, addr INT, protocol "
+        "TEXT, enabled INT);"
+        "CREATE TABLE IF NOT EXISTS poll_tasks (id INTEGER PRIMARY KEY, device_id TEXT, tag_id "
+        "INT, interval_ms INT, bus_id INT);";
+
+    char *err = NULL;
+    sqlite3_exec(raw_db, schema, NULL, NULL, &err);
+    if (err) {
+        printf(" ❌ [DB] Schema Error: %s\n", err);
+        sqlite3_free(err);
+    }
+
+    // 注入演示数据
+    sqlite3_exec(raw_db, "DELETE FROM inventory; DELETE FROM poll_tasks;", NULL, NULL, NULL);
+    sqlite3_exec(raw_db, "INSERT INTO inventory VALUES ('M1', 'Meter', 1, 'ModbusRTU', 1);", NULL,
+                 NULL, NULL);
+    sqlite3_exec(raw_db,
+                 "INSERT INTO poll_tasks (device_id, tag_id, interval_ms, bus_id) VALUES ('M1', "
+                 "1001, 1000, 0);",
+                 NULL, NULL, NULL);
+    sqlite3_exec(raw_db,
+                 "INSERT INTO poll_tasks (device_id, tag_id, interval_ms, bus_id) VALUES ('M1', "
+                 "1003, 1000, 0);",
+                 NULL, NULL, NULL);
+    sqlite3_exec(raw_db,
+                 "INSERT INTO poll_tasks (device_id, tag_id, interval_ms, bus_id) VALUES ('M1', "
+                 "1004, 1000, 0);",
+                 NULL, NULL, NULL);
+
+    // 加载到内存镜像
+    uv__queue_init(&g_poll_task_head);
+    const char *sql =
+        "SELECT t.bus_id, i.addr, t.tag_id, i.protocol FROM poll_tasks t "
+        "JOIN inventory i ON t.device_id = i.id WHERE i.enabled = 1;";
+    sqlite3_exec(raw_db, sql, _load_tasks_cb, NULL, NULL);
+
+    int count = 0;
+    struct uv__queue *q;
+    uv__queue_foreach(q, &g_poll_task_head) count++;
+    printf(" ✅ [IEMS] Boot: Memory Scheduler Ready. Tasks Active: %d\n", count);
+
+    static uv_periodic_t sched_h;
+    uv_periodic_init(handle->loop, &sched_h);
+    uv_periodic_set(&sched_h, 0, 100.0, NULL);
+    uv_periodic_start(&sched_h, iems_scheduler_tick);
+
+    bus_orchestrator_run(g_orch_ptr);
+    arbiter_resume(service_get_arbiter(svc));
+    printf(" 🚀 [IEMS] ONLINE. Dispatching packets.\n");
+    fflush(stdout);
 }
 
 static void on_ui_connect(uv_stream_t *server, int status) {
@@ -108,23 +183,14 @@ static void on_ui_connect(uv_stream_t *server, int status) {
     uv_close((uv_handle_t *)client, (uv_close_cb)free);
 }
 
-static void on_boot_delayed(uv_timer_t *handle) {
-    service_t *svc = (service_t *)handle->data;
-    static uv_periodic_t sched_h;
-    uv_periodic_init(handle->loop, &sched_h);
-    uv_periodic_set(&sched_h, 0, 1000.0, NULL);
-    uv_periodic_start(&sched_h, iems_scheduler_tick);
-    arbiter_resume(service_get_arbiter(svc));
-    printf(" 🚀 [IEMS] Omnis Runner Active.\n");
-}
-
 int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
     uv_loop_t *loop = uv_default_loop();
     printf(
-        "\n--- EdgeOS IEMS (Omnis Sprint 4) ---\
+        "\n--- EdgeOS IEMS (Omnis Stable v4.6) ---\
 ");
+    fflush(stdout);
 
     arbiter_t *arbiter = NULL;
     arbiter_init(&arbiter, loop);
@@ -135,36 +201,18 @@ int main(int argc, char **argv) {
                  edge_tag_get_compact_index, edge_router_needs_wakeup);
     g_hub_ptr = hub;
 
-    bus_orchestrator_t *io_orch = bus_orchestrator_create(hub, arbiter, g_drv_mgr, 8, 32, 2048);
-    g_orch_ptr = io_orch;
-    hub->io_pool = bus_orchestrator_get_pool(io_orch);
-
-    // Initialize the new high-level API
+    g_orch_ptr = bus_orchestrator_create(hub, arbiter, g_drv_mgr, 8, 32, 2048);
+    hub->io_pool = bus_orchestrator_get_pool(g_orch_ptr);
     edge_api_init(g_orch_ptr, g_drv_mgr);
-
-    // 使用本地定义的注入包
-    bus_orchestrator_setup_master(io_orch, 0, "ModbusRTU", 1, &iems_modbus_injection);
+    // [修正] 将总线 0 的 device_id 设为 0，与 BusID 严格一致
+    bus_orchestrator_setup_master(g_orch_ptr, 0, "ModbusRTU", 0, &iems_modbus_injection);
 
     sqlite_config_t db_conf = {.db_path = "iems.db", .strategy = STRATEGY_LITE};
     sqlite_svc_t *db_service = sqlite_svc_create(loop, &db_conf);
 
-    sqlite3 *raw_db = (sqlite3 *)sqlite_svc_get_db_handle(db_service);
-    if (raw_db) {
-        sqlite3_exec(raw_db, "DELETE FROM inventory; DELETE FROM poll_tasks;", NULL, NULL, NULL);
-        sqlite3_exec(raw_db, "INSERT INTO inventory VALUES ('M1', 'Meter', 1, 'ModbusRTU', 1);",
-                     NULL, NULL, NULL);
-        sqlite3_exec(raw_db,
-                     "INSERT INTO poll_tasks (device_id, tag_id, interval_ms, bus_id) VALUES "
-                     "('M1', 0, 1000, 0);",
-                     NULL, NULL, NULL);
-    }
-
     stream_engine_t *se = stream_engine_create(hub, NULL);
-    northbound_mgr_t *north = calloc(1, sizeof(northbound_mgr_t));
-    northbound_mgr_init(north, loop, &hub->ring, "iems", db_service);
-    service_t *svc = service_new(loop, hub, arbiter, db_service, se, NULL, north);
+    service_t *svc = service_new(loop, hub, arbiter, db_service, se, NULL, NULL);
     g_running_svc = svc;
-    north->user_data = svc;
 
     unlink("/tmp/iems_ui.sock");
     uv_pipe_t *ui_srv = malloc(sizeof(uv_pipe_t));
@@ -172,14 +220,13 @@ int main(int argc, char **argv) {
     uv_pipe_bind(ui_srv, "/tmp/iems_ui.sock");
     uv_listen((uv_stream_t *)ui_srv, 10, on_ui_connect);
 
-    uv_timer_t *vt = malloc(sizeof(uv_timer_t));
-    uv_timer_init(loop, vt);
-    uv_timer_start(vt, _try_vbus_connect, 100, 1000);
+    g_vbus_timer = malloc(sizeof(uv_timer_t));
+    uv_timer_init(loop, g_vbus_timer);
+    uv_timer_start(g_vbus_timer, _try_vbus_connect, 100, 1000);
 
     static uv_timer_t boot_t;
     uv_timer_init(loop, &boot_t);
     boot_t.data = svc;
-    uv_timer_start(&boot_t, on_boot_delayed, 500, 0);
-
+    uv_timer_start(&boot_t, on_boot_delayed, 800, 0);
     return service_run(svc);
 }

@@ -1,4 +1,8 @@
-#include <ncurses.h>
+#ifndef _XOPEN_SOURCE_EXTENDED
+#define _XOPEN_SOURCE_EXTENDED
+#endif
+#include <locale.h>
+#include <ncursesw/ncurses.h>  // 显式引用宽字符版头文件
 #include <stdlib.h>
 
 #include "edge_ui.h"
@@ -8,6 +12,7 @@ typedef struct {
 } ncurses_priv_t;
 
 static void _ncurses_init(ui_hal_t *hal) {
+    setlocale(LC_ALL, "");  // 驱动层也强制设置
     ncurses_priv_t *priv = (ncurses_priv_t *)hal->priv;
     initscr();
     cbreak();
@@ -32,7 +37,8 @@ static void _ncurses_clear(ui_hal_t *hal) {
 static void _ncurses_draw_text(ui_hal_t *hal, int x, int y, const char *str, int color) {
     (void)hal;
     if (color > 0) attron(COLOR_PAIR(color));
-    mvprintw(y, x, "%s", str);
+    // 使用 mvaddstr，它在 ncursesw 中会自动处理 UTF-8
+    mvaddstr(y, x, str);
     if (color > 0) attroff(COLOR_PAIR(color));
 }
 
@@ -73,7 +79,7 @@ static void _ncurses_destroy(ui_hal_t *hal) {
 
 ui_hal_t *ui_hal_ncurses_create(void) {
     ui_hal_t *hal = calloc(1, sizeof(ui_hal_t));
-    hal->name = "ncurses_simulator";
+    hal->name = "ncurses_w_simulator";
     hal->init = _ncurses_init;
     hal->clear = _ncurses_clear;
     hal->draw_text = _ncurses_draw_text;

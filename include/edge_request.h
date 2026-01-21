@@ -6,9 +6,9 @@
 typedef struct edge_req_s edge_req_t;
 
 // 状态码
-#define REQ_STATUS_DONE     0
+#define REQ_STATUS_DONE 0
 #define REQ_STATUS_CONTINUE 1
-#define REQ_STATUS_ERROR    -1
+#define REQ_STATUS_ERROR -1
 
 typedef struct {
     // 初始化资源 (如加载驱动)
@@ -17,8 +17,8 @@ typedef struct {
     // 编码：返回 0 表示有数据要发，<0 表示错误
     int (*encode)(edge_req_t *req, net_buf_t *buf);
 
-    // 解码：返回 DONE/CONTINUE/ERROR
-    int (*decode)(edge_req_t *req, net_buf_t *buf);
+    // 解码：返回 DONE/CONTINUE/ERROR, 并通过 consumed 返回消耗字节数
+    int (*decode)(edge_req_t *req, net_buf_t *buf, size_t *consumed);
 
     // 清理
     void (*teardown)(edge_req_t *req);
@@ -29,8 +29,8 @@ typedef struct {
 
 struct edge_req_s {
     const request_ops_t *ops;
-    void *priv_data; // 场景私有数据
-    void *user_cb;   // 用户回调
+    void *priv_data;  // 场景私有数据
+    void *user_cb;    // 用户回调
     uint32_t timeout;
 };
 

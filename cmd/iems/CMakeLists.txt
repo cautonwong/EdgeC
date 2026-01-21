@@ -49,7 +49,7 @@ if(ENABLE_UI)
         edge_ui_framework
         contract_${PROD_NAME}
         edge_core
-        ncurses
+        ncursesw
     )
     
     # Add compile definition for the driver

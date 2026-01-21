@@ -21,7 +21,10 @@ class ModbusSlaveActor:
     def __init__(self, socket_path, slave_id=1):
         self.socket_path = socket_path
         self.slave_id = slave_id
-        self.registers = {0: 2200, 1: 500} 
+        # 寄存器 0: 电压 (Tag 1001)
+        # 寄存器 12: 功率 (Tag 1003)
+        # 寄存器 52: 频率 (Tag 1004)
+        self.registers = {0: 2200, 12: 5000, 52: 5000} 
 
     def run(self):
         if os.path.exists(self.socket_path):
@@ -32,29 +35,20 @@ class ModbusSlaveActor:
         server.bind(self.socket_path)
         server.listen(5)
         
-        print(f"📠 [Modbus Sniffer] Listening on {self.socket_path} (Slave ID: {self.slave_id})")
+        print(f"📠 Modbus Actor (Contract Aligned) ID: {self.slave_id} at {self.socket_path}")
 
         while True:
             conn, _ = server.accept()
-            # print("  [Modbus] New Connection Accepted.")
             try:
                 while True:
                     data = conn.recv(1024)
                     if not data: break
-                    
-                    # --- 强制打印收到的数据 ---
-                    print(f"  📥 RX ({len(data)} bytes): {data.hex().upper()}")
-                    
-                    if len(data) < 6: continue
-                    if data[0] != self.slave_id:
-                        print(f"  ⚠️  ID Mismatch: expected {self.slave_id}, got {data[0]}")
-                        continue
+                    if len(data) < 6 or data[0] != self.slave_id: continue
                     
                     func = data[1]
                     if func == 0x03:
                         addr = struct.unpack(">H", data[2:4])[0]
                         num = struct.unpack(">H", data[4:6])[0]
-                        print(f"  🔍 Request: Read Holding Registers at {addr}, count {num}")
                         
                         body = bytearray([self.slave_id, func, num * 2])
                         for i in range(num):
@@ -62,18 +56,15 @@ class ModbusSlaveActor:
                             body.extend(struct.pack(">H", val))
                         
                         crc_val = crc16(body)
-                        response = body + struct.pack("<H", crc_val)
-                        conn.send(response)
-                        print(f"  📤 TX: {response.hex().upper()}")
+                        conn.send(body + struct.pack("<H", crc_val))
                     
-                    # 动态跳变
-                    self.registers[0] = 2200 + (int(time.time() * 5) % 20)
-                    self.registers[1] = 500 + (int(time.time() * 5) % 50)
+                    # 模拟动态跳变
+                    self.registers[0] = 2200 + (int(time.time() * 5) % 30)
+                    self.registers[12] = 5000 + (int(time.time() * 5) % 200)
+                    self.registers[52] = 4995 + (int(time.time() * 2) % 10)
                     self._check_control_commands()
-            except Exception as e:
-                print(f"  ❌ Actor Error: {e}")
-            finally:
-                conn.close()
+            except Exception: pass
+            finally: conn.close()
 
     def _check_control_commands(self):
         ctrl_file = f"/tmp/matrix_ctrl_slave_{self.slave_id}.tmp"

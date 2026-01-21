@@ -37,9 +37,13 @@ static void _arbiter_schedule(arbiter_t *arb, int bus_id) {
     }
 
     struct bus_info *bus = &arb->buses[bus_id];
-    if (bus->owner || !bus->queue) return;
+    if (bus->owner) {
+        // printf(" ⏳ [Arbiter] Bus %d Busy (Owner: %s)\n", bus_id, bus->owner->req_id);
+        return;
+    }
+    if (!bus->queue) return;
 
-    // 摘取队列头 (已经是最高优先级)
+    // 摘取队列头
     cmd_msg_t *job = bus->queue;
     bus->queue = job->next;
     job->next = NULL;
