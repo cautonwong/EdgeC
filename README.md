@@ -17,7 +17,7 @@ EdgeOS 是一个专为 **工业物联网 (IIoT)**、**能源管理系统 (EMS)**
 | **Foundation (L1)** | `libedge_core.a` | **核心底座**。包含 DataHub (总线)、NetBuf (内存池)、Params (参数中心)。 |
 | **Control Plane** | `libedge_main_loop.a` | **决策中枢**。Arbiter (仲裁器)、Scheduler (调度器)、REST Server。 |
 | **Compute Plane** | `libedge_stream_engine.a` | **计算引擎**。Stream Engine、Pipeline 调度、有状态 JS/Lua 算法。 |
-| **Execution Plane** | `libedge_io_executor.a` | **南向执行**。IO Executor、契约化协议驱动 (Modbus/DLMS/CAN)。 |
+| **Execution Plane** | `libedge_io_executor.a` | **南向执行**。基于 **Request 模型** 的场景化调度核心，解耦协议逻辑与 I/O 链路。 |
 
 ---
 
@@ -25,12 +25,13 @@ EdgeOS 是一个专为 **工业物联网 (IIoT)**、**能源管理系统 (EMS)**
 
 EdgeOS 采用“契约驱动开发 (CDD)”模式，通过 YAML 定义系统的“数据宪法”，并自动生成高性能的 C 语言查表代码。
 
-### 2.1 契约三级模型
+### 2.1 契约四级模型 (Sprint 4 Omnis)
 | 层级 | 文件路径 | 职责描述 |
 | :--- | :--- | :--- |
 | **L1: 全局语义** | `contracts/schema/tags.yaml` | **定义“是什么”**。规定 TagID、名称、单位、类型及 UI 展现元数据。 |
-| **L2: 协议绑定** | `contracts/bindings/` | **定义“怎么拿”**。规定特定设备型号（如 Acrel_P80）的寄存器映射。 |
-| **L3: 产品定制** | `cmd/<prod>/extension.yaml` | **定义“我要谁”**。选择开启哪些功能，或定义项目现场私有测点。 |
+| **L2: 协议绑定** | `contracts/bindings/` | **定义“怎么拿”**。规定特定设备型号（如 Chint_DTSU666）的寄存器映射。 |
+| **L3: 产品定制** | `cmd/<prod>/extension.yaml` | **定义“我要谁”**。配置功能裁剪及产品特有的逻辑扩展。 |
+| **L4: 物理拓扑** | `cmd/<prod>/world.yaml` | **定义“在哪跑”**。描述真实/仿真环境的总线连接、设备地址及硬件模拟参数。 |
 
 ### 2.2 实战指南：新增一个“机柜温度”测点
 
@@ -218,10 +219,29 @@ build/
 
 ### 3.3 快速编译与测试
 ```bash
-./build_and_run.sh  # 自动化生成契约代码、编译、静态检查并运行 19 个单元测试
+./build.sh          # 自动化生成契约代码、编译、并运行全量单元测试
+./test.sh --omnis   # [推荐] 启动全链路仿真测试，包含 Matrix Server、内核引擎及交互式 UI
 ```
 
-### 🌐 4.2 Web UI & REST API 实施进度 (对齐 web_ui_ia.md)
+## 🚀 4. 核心演进 (Omnis Sprint 4 Highlights)
+
+### 4.1 Request 模型场景化架构
+`MasterEngine` 已进化为纯粹的任务调度器，通过 `edge_req_t` 接口支持多种业务场景：
+*   **Legacy Driver**: 兼容现有的契约化驱动，支持 Modbus/DLMS 周期性抄读。
+*   **Raw I/O**: 支持透传原始字节流，专为混沌工程和非标协议调试设计。
+*   **无状态调度**: 引擎不再硬编码驱动逻辑，符号在运行时由 `main.c` 动态注入。
+
+### 4.2 高性能内存调度器
+为了支撑 10kHz 级采样与大规模采集并存：
+*   **内存镜像队列**: 弃用 `uv_periodic` 中的同步 SQL 查询，改用 `queue.h` 实现的内存镜像任务链表。
+*   **零抖动触发**: 调度分辨率达 100ms，任务检索耗时从毫秒级降至微秒级，保障了 DSP 算法的实时性。
+
+### 4.3 交互式 TUI 仿真终端
+`iems-cli` 伴生进程提供了基于 `ncursesw` 的 LCD 模拟界面：
+*   **硬件无关 HAL**: 支持从仿真环境平滑迁移至真实工业串口屏。
+*   **多页交互**: 提供实时仪表盘、测点清单、告警监测，支持 UTF-8 工业图标显示。
+
+### 🌐 4.4 Web UI & REST API 实施进度 (对齐 web_ui_ia.md)
 
 | 模块 | 核心特性 | 后端 API | 前端 View | 状态 |
 | :--- | :--- | :--- | :--- | :--- |
@@ -240,9 +260,10 @@ build/
 
 ### 🚀 核心功能
 - [x] **契约治理 v2.0**：实现类型与数据的物理隔离。
-- [x] **分层解耦架构**：完成四个逻辑平面的库拆分。
-- [x] **契约化驱动**：Modbus 驱动实现 0 硬编码转换。
-- [ ] **Lua 有状态算法引擎**：集成 Lua 运行时支持闭包状态计算。
+- [x] **Request 场景模型**：实现 MasterEngine 与业务逻辑的彻底解耦。
+- [x] **高性能调度**：基于内存镜像的任务队列，消除 SQL 轮询抖动。
+- [x] **UI HAL 架构**：支持 Unicode 图标的交互式 LCD 模拟器。
+- [ ] **Lua/QuickJS 动态算法引擎**：支持有状态算法的在线热加载。
 
 ### 🌐 北向交互
 - [x] **元数据下发接口**：`/api/v1/contracts` 接口已实装。
