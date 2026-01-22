@@ -27,6 +27,7 @@ static void _master_on_timeout(uv_timer_t *handle) {
     if (priv->current_cmd) {
         LOG_WARN(LOG_CAT_BUS, "Bus %d: Transaction Timeout [%s]", priv->bus_id,
                  priv->current_cmd->req_id);
+        priv->io->ops->ioctl(priv->io, IO_CTL_FLUSH, NULL);
         priv->io->ops->enable_read(priv->io, false);
         if (priv->current_cmd->req && priv->current_cmd->req->ops->on_finish)
             priv->current_cmd->req->ops->on_finish(priv->current_cmd->req, CMD_STATUS_TIMEOUT);
@@ -52,12 +53,17 @@ static void _process_req_result(master_priv_t *priv, int rc) {
         net_buf_t *tx = net_buf_alloc(priv->pool, 0);
         if (tx && priv->current_cmd->req->ops->encode(priv->current_cmd->req, tx) == 0) {
             priv->io->ops->write_async(priv->io, tx);
-            // 注意：不要在此处 unref，所有权已交给 io_executor
-        } else if (tx)
+            // [修复] 释放 alloc 产生的初始引用，IO 层已通过 ref 持有该 buffer
             net_buf_unref(tx);
+        } else {
+            if (tx) net_buf_unref(tx);
+            _process_req_result(priv, REQ_STATUS_ERROR);
+            return;
+        }
         uv_timer_start(&priv->timer, _master_on_timeout, ARBITER_DEFAULT_TIMEOUT_MS, 0);
     } else {
         uv_timer_stop(&priv->timer);
+        priv->io->ops->ioctl(priv->io, IO_CTL_FLUSH, NULL);
         priv->io->ops->enable_read(priv->io, false);
         if (priv->current_cmd->req && priv->current_cmd->req->ops->on_finish)
             priv->current_cmd->req->ops->on_finish(priv->current_cmd->req, CMD_STATUS_PROTO_ERROR);
@@ -69,7 +75,10 @@ static void _process_req_result(master_priv_t *priv, int rc) {
 static void _master_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *user_data) {
     (void)h;
     master_priv_t *priv = (master_priv_t *)user_data;
-    if (!priv || !priv->current_cmd || !priv->current_cmd->req) return;
+    if (!priv || !priv->current_cmd || !priv->current_cmd->req) {
+        if (evt == IO_EVENT_RX && payload) net_buf_unref((net_buf_t *)payload);
+        return;
+    }
 
     if (evt == IO_EVENT_ERROR) {
         _process_req_result(priv, REQ_STATUS_ERROR);
@@ -99,6 +108,8 @@ static void _master_run_command(bus_engine_t *self, cmd_msg_t *cmd) {
         return;
     }
     priv->current_cmd = cmd;
+
+    // [增强] 每次运行新命令前强制清空累积缓冲区，防止旧响应干扰
     net_buf_simple_reset(&priv->rx_acc);
 
     if (cmd->req->ops->setup && cmd->req->ops->setup(cmd->req, priv) != 0) {
@@ -106,16 +117,22 @@ static void _master_run_command(bus_engine_t *self, cmd_msg_t *cmd) {
         return;
     }
 
-    uv_timer_start(&priv->timer, _master_on_timeout, ARBITER_DEFAULT_TIMEOUT_MS, 0);
     net_buf_t *tx = net_buf_alloc(priv->pool, 0);
-    if (tx) {
-        if (cmd->req->ops->encode(cmd->req, tx) == 0 && tx->b.len > 0) {
-            priv->io->ops->enable_read(priv->io, true);
-            priv->io->ops->write_async(priv->io, tx);
-            // 关键：一旦提交写，所有权移交给 IO 引擎
-        } else {
-            net_buf_unref(tx);
-        }
+    if (!tx) {
+        LOG_ERROR(LOG_CAT_BUS, "Bus %d: Pool Depleted (OOM)", priv->bus_id);
+        arbiter_on_io_done(priv->arb, priv->bus_id, cmd, CMD_STATUS_IO_ERROR);
+        return;
+    }
+
+    if (cmd->req->ops->encode(cmd->req, tx) == 0 && tx->b.len > 0) {
+        uv_timer_start(&priv->timer, _master_on_timeout, ARBITER_DEFAULT_TIMEOUT_MS, 0);
+        priv->io->ops->enable_read(priv->io, true);
+        priv->io->ops->write_async(priv->io, tx);
+        // [修复] 释放初始引用，防止内存池耗尽
+        net_buf_unref(tx);
+    } else {
+        net_buf_unref(tx);
+        arbiter_on_io_done(priv->arb, priv->bus_id, cmd, CMD_STATUS_PROTO_ERROR);
     }
 }
 

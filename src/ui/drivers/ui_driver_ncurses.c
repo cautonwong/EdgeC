@@ -34,7 +34,7 @@ static void _ncurses_clear(ui_hal_t *hal) {
     erase();
 }
 
-static void _ncurses_draw_text(ui_hal_t *hal, int x, int y, const char *str, int color) {
+static void _ncurses_draw_text(ui_hal_t *hal, int y, int x, const char *str, int color) {
     (void)hal;
     if (color > 0) attron(COLOR_PAIR(color));
     // 使用 mvaddstr，它在 ncursesw 中会自动处理 UTF-8
@@ -42,13 +42,13 @@ static void _ncurses_draw_text(ui_hal_t *hal, int x, int y, const char *str, int
     if (color > 0) attroff(COLOR_PAIR(color));
 }
 
-static void _ncurses_draw_pixel(ui_hal_t *hal, int x, int y, int color) {
+static void _ncurses_draw_pixel(ui_hal_t *hal, int y, int x, int color) {
     (void)hal;
     (void)color;
     mvaddch(y, x, '*');
 }
 
-static void _ncurses_draw_box(ui_hal_t *hal, int x, int y, int w, int h) {
+static void _ncurses_draw_box(ui_hal_t *hal, int y, int x, int h, int w) {
     (void)hal;
     attron(A_BOLD);
     mvhline(y, x, 0, w);

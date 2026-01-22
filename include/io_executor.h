@@ -30,6 +30,7 @@ typedef enum {
 
 // 控制指令定义
 #define IO_CTL_SET_BAUD 1
+#define IO_CTL_FLUSH 2
 #define IO_CTL_HTTP_SET_URL 10
 #define IO_CTL_HTTP_SET_METHOD 11
 #define IO_CTL_HTTP_ADD_HEADER 12

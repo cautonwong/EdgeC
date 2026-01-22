@@ -209,6 +209,14 @@ static int _poll_write_async(io_handle_t *h, net_buf_t *buf) {
 
 static int _poll_ioctl(io_handle_t *h, int cmd, void *arg) {
     linux_io_handle_t *impl = (linux_io_handle_t *)h;
+    if (cmd == IO_CTL_FLUSH) {
+        if (impl->pending_tx) {
+            fprintf(stderr, "[IO] Forced FLUSH: Releasing pending TX buf\n");
+            net_buf_unref(impl->pending_tx);
+            impl->pending_tx = NULL;
+        }
+        return 0;
+    }    
     if (cmd == IO_CTL_SET_BAUD && impl->type == IO_TYPE_UART) {
         uint32_t baud = *(uint32_t *)arg;
         struct termios options;
