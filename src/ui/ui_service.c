@@ -6,7 +6,7 @@
 
 // [UI-01] New timer callback for asynchronous refresh
 static void _ui_on_refresh(uv_timer_t *handle) {
-    ui_service_t *service = (ui_service_t*)handle->data;
+    ui_service_t *service = (ui_service_t *)handle->data;
     if (!service->running || service->stack_top < 0) {
         return;
     }
@@ -18,12 +18,12 @@ static void _ui_on_refresh(uv_timer_t *handle) {
         int key = service->hal->hal_get_key(service->hal);
         if (key != -1) {
             // Global key handling for ESC to pop a page
-            if (key == 27) { // 27 is the ASCII code for Escape
+            if (key == 27) {  // 27 is the ASCII code for Escape
                 ui_service_pop_page(service);
                 // If stack becomes empty after pop, stop the service
                 if (service->stack_top < 0) {
                     ui_service_stop(service);
-                    return; // Stop processing this frame
+                    return;  // Stop processing this frame
                 }
             } else if (current_page->on_input) {
                 // Page-specific input
@@ -53,8 +53,8 @@ ui_service_t *ui_service_create(datahub_t *hub) {
         return NULL;
     }
     service->hub = hub;
-    service->loop = hub->loop; // Get loop from hub
-    service->hal = NULL;      // HAL will be injected by product_init
+    service->loop = hub->loop;  // Get loop from hub
+    service->hal = NULL;        // HAL will be injected by product_init
     service->running = false;
     service->stack_top = -1;
 
@@ -70,8 +70,8 @@ void ui_service_destroy(ui_service_t *service) {
         return;
     }
 
-    if (!uv_is_closing((uv_handle_t*)&service->refresh_timer)) {
-        uv_close((uv_handle_t*)&service->refresh_timer, NULL);
+    if (!uv_is_closing((uv_handle_t *)&service->refresh_timer)) {
+        uv_close((uv_handle_t *)&service->refresh_timer, NULL);
     }
 
     if (service->hal) {
@@ -99,7 +99,7 @@ void ui_service_run(ui_service_t *service) {
         LOG_ERROR(LOG_CAT_UI, "ui_product_init did not inject a HAL driver. UI cannot start.");
         return;
     }
-    
+
     // Initialize the newly injected driver.
     if (service->hal->hal_init) {
         service->hal->hal_init(service->hal);
@@ -120,6 +120,10 @@ void ui_service_stop(ui_service_t *service) {
     if (service && service->running) {
         service->running = false;
         uv_timer_stop(&service->refresh_timer);
+        // [整改] 强制停止 libuv 循环，确保 uv_run 立即返回
+        if (service->loop) {
+            uv_stop(service->loop);
+        }
     }
 }
 
@@ -131,12 +135,13 @@ void ui_service_push_page(ui_service_t *service, ui_page_t *page) {
     }
 
     if (service->stack_top >= 0 && service->page_stack[service->stack_top]->on_exit) {
-        service->page_stack[service->stack_top]->on_exit(service->page_stack[service->stack_top], service);
+        service->page_stack[service->stack_top]->on_exit(service->page_stack[service->stack_top],
+                                                         service);
     }
 
     service->stack_top++;
     service->page_stack[service->stack_top] = page;
-    
+
     if (page && page->on_enter) {
         page->on_enter(page, service);
     }
@@ -148,13 +153,15 @@ void ui_service_pop_page(ui_service_t *service) {
     }
 
     if (service->page_stack[service->stack_top]->on_exit) {
-        service->page_stack[service->stack_top]->on_exit(service->page_stack[service->stack_top], service);
+        service->page_stack[service->stack_top]->on_exit(service->page_stack[service->stack_top],
+                                                         service);
     }
 
     service->stack_top--;
 
     if (service->stack_top >= 0 && service->page_stack[service->stack_top]->on_enter) {
-        service->page_stack[service->stack_top]->on_enter(service->page_stack[service->stack_top], service);
+        service->page_stack[service->stack_top]->on_enter(service->page_stack[service->stack_top],
+                                                          service);
     }
 }
 

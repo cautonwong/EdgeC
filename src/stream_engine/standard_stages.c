@@ -237,7 +237,7 @@ typedef struct {
 // Context for the background work request
 typedef struct {
     uv_work_t req;
-    pipeline_t *pipeline; // To resume it later
+    pipeline_t *pipeline;  // To resume it later
     sqlite_svc_t *db;
     char *sql;
 } _sink_work_ctx_t;
@@ -266,9 +266,9 @@ static stage_ret_t _sink_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
 
     _sink_work_ctx_t *work_ctx = malloc(sizeof(_sink_work_ctx_t));
     work_ctx->req.data = work_ctx;
-    work_ctx->pipeline = s->pipeline; // The stage now knows its parent pipeline
+    work_ctx->pipeline = s->pipeline;  // The stage now knows its parent pipeline
     work_ctx->db = c->db;
-    
+
     char sql_buf[256];
     snprintf(sql_buf, sizeof(sql_buf), "INSERT INTO %s (tag_id, value, ts) VALUES (%u, %f, %lu)",
              c->table, ev->tag_id, ev->payload.val.f, ev->ts);

@@ -1,4 +1,3 @@
-#include "contracts.h"
 #include <fcntl.h>
 #include <sqlite3.h>
 #include <stdio.h>
@@ -9,6 +8,7 @@
 #include <unistd.h>
 #include <uv.h>
 
+#include "contracts.h"
 #include "edge_api.h"
 #include "js_engine.h"
 #include "northbound_mgr.h"
@@ -42,31 +42,19 @@ static const driver_contract_injection_t iems_modbus_injection = {
     .meta_list = NULL,
     .meta_list_len = 0};
 
+/**
+ * @brief 指令完成回调：此时 result->tag_id 已经是逻辑 ID（驱动层已转换）
+ */
 static void on_poll_complete(int status, const pipe_msg_t *result) {
     if (status != 0 || !result) return;
 
-    // The result->tag_id from the legacy request is the PHYSICAL tag (e.g. modbus register).
-    // We must look up the LOGICAL tag id to publish to the rest of the system.
-    float scale = 1.0f;
-    edge_tag_id_t logical_tid = edge_lookup_modbus(result->tag_id, &scale);
-
-    if (logical_tid != 0) {
-        pipe_msg_t msg_to_publish;
-        // The driver already applied its own scaling, so we just use the final value.
-        // We create a new message with the correct LOGICAL tag id.
-        pipe_msg_init_scalar(&msg_to_publish, logical_tid, result->payload.val.f, uv_hrtime());
-        datahub_publish(g_hub_ptr, &msg_to_publish);
-    }
+    // 直接发布驱动返回的已缩放、已映射逻辑 ID 的数据
+    datahub_publish(g_hub_ptr, result);
 }
 
 static void iems_scheduler_tick(uv_periodic_t *handle) {
     uint64_t now = uv_now(handle->timer.loop);
     struct uv__queue *q;
-    static int tick_count = 0;
-    if (++tick_count % 10 == 0) {
-        printf(" 💓 [Scheduler] Alive at %lu\n", now);
-        fflush(stdout);
-    }
 
     uv__queue_foreach(q, &g_poll_task_head) {
         iems_poll_task_t *task = uv__queue_data(q, iems_poll_task_t, node);
@@ -122,7 +110,7 @@ static void _try_vbus_connect(uv_timer_t *handle) {
 static int _check_db_empty_cb(void *user_data, int argc, char **argv, char **cols) {
     (void)cols;
     if (argc > 0 && argv[0]) {
-        int *count = (int*)user_data;
+        int *count = (int *)user_data;
         *count = atoi(argv[0]);
     }
     return 0;
@@ -151,27 +139,30 @@ static void on_boot_delayed(uv_timer_t *handle) {
         sqlite3_free(err);
     }
 
-    // [SYS-05] Check if DB is empty and provision with defaults if so
     int inventory_count = 0;
-    sqlite3_exec(raw_db, "SELECT COUNT(*) FROM inventory;", _check_db_empty_cb, &inventory_count, &err);
+    sqlite3_exec(raw_db, "SELECT COUNT(*) FROM inventory;", _check_db_empty_cb, &inventory_count,
+                 &err);
     if (inventory_count == 0) {
-        printf(" ℹ️ [DB] Empty inventory detected, provisioning with factory defaults...\n");
+        printf(" ℹ️ [DB] Provisioning factory defaults...\n");
         char sql_buf[256];
         for (int i = 0; i < g_default_hardware_topology_len; i++) {
             const edge_device_t *dev = &g_default_hardware_topology[i];
-            snprintf(sql_buf, sizeof(sql_buf), 
-                     "INSERT INTO inventory (id, type, addr, protocol, enabled) VALUES ('DEV_%d_%s_%d', 'default', %d, '%s', 1);",
-                     dev->bus_id, dev->protocol_name, dev->address, dev->address, dev->protocol_name);
+            snprintf(sql_buf, sizeof(sql_buf),
+                     "INSERT INTO inventory (id, type, addr, protocol, enabled) VALUES "
+                     "('DEV_%d_%s_%d', 'default', %d, '%s', 1);",
+                     dev->bus_id, dev->protocol_name, dev->address, dev->address,
+                     dev->protocol_name);
             sqlite3_exec(raw_db, sql_buf, NULL, NULL, &err);
-            if (err) {
-                 printf(" ❌ [DB] Default insert error: %s\n", err);
-                 sqlite3_free(err);
-                 err = NULL;
-            }
+
+            // 默认添加一个 1s 采集任务
+            snprintf(sql_buf, sizeof(sql_buf),
+                     "INSERT INTO poll_tasks (device_id, tag_id, interval_ms, bus_id) VALUES "
+                     "('DEV_%d_%s_%d', 1001, 1000, %d);",
+                     dev->bus_id, dev->protocol_name, dev->address, dev->bus_id);
+            sqlite3_exec(raw_db, sql_buf, NULL, NULL, &err);
         }
     }
-    
-    // Load tasks from the (now populated) database into the in-memory scheduler
+
     uv__queue_init(&g_poll_task_head);
     const char *sql =
         "SELECT t.bus_id, i.addr, t.tag_id, i.protocol, t.interval_ms FROM poll_tasks t "
@@ -211,9 +202,7 @@ int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
     uv_loop_t *loop = uv_default_loop();
-    printf(
-        "\n--- EdgeOS IEMS (Omnis Stable v4.6) ---\
-");
+    printf("\n--- EdgeOS IEMS (Omnis Stable v4.6) ---\n");
     fflush(stdout);
 
     arbiter_t *arbiter = NULL;
@@ -228,7 +217,6 @@ int main(int argc, char **argv) {
     g_orch_ptr = bus_orchestrator_create(hub, arbiter, g_drv_mgr, 8, 32, 2048);
     hub->io_pool = bus_orchestrator_get_pool(g_orch_ptr);
     edge_api_init(g_orch_ptr, g_drv_mgr);
-    // [修正] 将总线 0 的 device_id 设为 0，与 BusID 严格一致
     bus_orchestrator_setup_master(g_orch_ptr, 0, "ModbusRTU", 0, &iems_modbus_injection);
 
     sqlite_config_t db_conf = {.db_path = "iems.db", .strategy = STRATEGY_LITE};
@@ -238,14 +226,9 @@ int main(int argc, char **argv) {
     service_t *svc = service_new(loop, hub, arbiter, db_service, se, NULL, NULL);
     g_running_svc = svc;
 
-    // Load pipelines from JSON config now that all services are available
     js_engine_t *js_engine = js_engine_create(svc, 1024 * 1024);
     pipeline_loader_ctx_t loader_ctx = {
-        .db = db_service,
-        .js_engine = js_engine,
-        .orch = g_orch_ptr,
-        .params = NULL
-    };
+        .db = db_service, .js_engine = js_engine, .orch = g_orch_ptr, .params = NULL};
     stream_engine_load_config(se, "config/iems_pipelines.json", &loader_ctx);
 
     unlink(EDGE_UI_SOCKET_PATH);

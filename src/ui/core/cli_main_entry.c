@@ -8,11 +8,10 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+#include "contracts.h"
 #include "datahub.h"
 #include "edge_log.h"
 #include "edge_ui.h"
-#include "contracts.h"
-#include "contracts.h"
 
 extern const edge_tag_meta_t g_tag_metadata[];
 extern const uint32_t g_tag_metadata_len;

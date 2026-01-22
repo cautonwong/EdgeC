@@ -1,109 +1,109 @@
-构建架构方案：
+通过对全量代码的深度解构，我为您制定了 Sprint 4 "Omnis" (万物一体)
+架构落地的最优执行方案。
 
-  ---
+核心哲学：环境跟着契约走 (The Environment Follows the Contract)
+我们要彻底废弃 world.yaml，将 “程序逻辑” 与 “物理/模拟环境” 统一在 extension.yaml 中。
 
-  1. 架构目标：差异化定制与统一输出
+---
 
-  我们面临的挑战是：
-   * 产品 A (IEMS)：需要 CLI UI（调试用），可能还需要本地 HDMI 屏幕 UI。
-   * 产品 B (DCU)：只需要 CLI UI。
-   * 产品 C (Sensor)：完全不需要 UI。
+🚀 Sprint 4 "Omnis" 详尽 Backlog (研发任务清单)
 
-  解决方案：“产品级 UI 描述文件” + “CMake 动态注入”。
+第一阶段：契约编译器 (Contract Compiler) 升维
+目标：让编译器具备解析硬件拓扑和处理管线的能力，生成“自初始化”元数据。
 
-  ---
+┌────┬────┬────────────────────────────────────────────────┬────────────┬──────────────
+──┐
+│ 任务 │ 模块 │ 任务描述 │ 涉及文件 │ 交付物
+│
+├────┼────┼────────────────────────────────────────────────┼────────────┼──────────────
+──┤
+│ ** │ ** │ 在 Go 模型中定义 HardwareDef 和 PipelineDef... │ `model/... │
+  强类型数据结构 │
+  │ ** │ ** │ 增强合并逻辑：允许 extension.yaml 完全覆盖...  │ `core/m... │ 唯一的
+`Eff... │
+  │ ** │ ** │ 编写 meta_hw.tmpl 和 meta_pipelines.tmpl，生...  │ `templa... │
+`g_hw_manifes... │
+  │ ** │ ** │ 升级 omnis_manifest.tmpl，导出包含 `simulat... │ templates/ │
+`omnis_mani... │
+└────┴────┴────────────────────────────────────────────────┴────────────┴──────────────
+──┘
 
-  2. 目录结构调整
+第二阶段：Matrix 仿真矩阵 (Matrix Server) 自动化
+目标：让仿真服务器成为契约的“执行者”，不再需要手动配置世界。
 
-    1 /home/EdgeC/
-    2 ├── src/
-    3 │   ├── ui/                 # [核心] UI 框架 (Page, Stack, Event)
-    4 │   │   ├── drivers/        # [驱动] ncurses, ssd1306, framebuffer
-    5 ├── products/               # [产品定义]
-    6 │   ├── iems/
-    7 │   │   ├── ui_config/      # [新增] 该产品的 UI 定制
-    8 │   │   │   ├── dashboard.c # 定制页面
-    9 │   │   │   └── ui_conf.cmake # 定制构建参数
-   10 │   │   ├── CMakeLists.txt  # 产品主构建
+┌─────┬──────┬────────────────────────────────────────────────┬─────────────┬──────────
+─┐
+│ 任务 │ 模块 │ 任务描述 │ 涉及文件 │ 交付物
+│
+├─────┼──────┼────────────────────────────────────────────────┼─────────────┼──────────
+─┤
+│ **M │ \*... │ 移除对 world.yaml 的依赖，改为解析编译器生... │ `engine/... │ 契约化...
+│
+│ **M │ Orch │ 实现根据 simulation 字段自动拉起对应的 `act... │ `engine/... │ 自动化...
+│
+│ \*_M │ _... │ 统一 UDS 路径管理：根据契约中的 `profiles.s... │ `engine/... │ 物理链...
+│
+└─────┴──────┴────────────────────────────────────────────────┴─────────────┴──────────
+─┘
 
-  ---
+第三阶段：内核零代码启动 (Core Zero-Code Boot)
+目标：简化 main.c，实现基于元数据的自动初始化。
 
-  3. CMake 构建逻辑深度解构
+┌─────┬────┬─────────────────────────────────────────────────┬───────────┬─────────────
+─┐
+│ 任务 │ 模块 │ 任务描述 │ 涉及文件 │ 交付物
+│
+├─────┼────┼─────────────────────────────────────────────────┼───────────┼─────────────
+─┤
+│ **C │ ** │ 遍历 g_hw_manifest：自动调用 `bus_orchestrator_s... │ `cmd/i... │ < 100
+行... │
+│ **C │ ** │ 实现 stream_engine_load_from_contract()，代替 JS... │ `src/s... │
+  编译期确...  │
+  │ **C │ ** │ [核心] 实现多模态电能积分算子，支持 `GRID_PO... │ `src/s... │ `ENERGY_I...
+│
+└─────┴────┴─────────────────────────────────────────────────┴───────────┴─────────────
+─┘
 
-  A. 在 cmd/iems/CMakeLists.txt 中集成 UI
+---
 
-  我们不需要独立的脚本，而是利用 add_executable 的灵活性。
+📋 关键 Schema 设计 ( extension.yaml 示例)
 
-    1 # cmd/iems/CMakeLists.txt
-    2 
-    3 set(PROD_NAME iems)
-    4 
-    5 # 1. 检查是否开启 CLI-UI
-    6 # 这个变量可以在 cmake 命令行通过 -DENABLE_UI=ON 传入
-    7 if(ENABLE_UI)
-    8     message(STATUS "[${PROD_NAME}] Building CLI-UI Companion Process...")
-    9 
-   10     # 2. 收集产品特有的 UI 源码
-   11     file(GLOB PROD_UI_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/*.c")
-   12 
-   13     # 3. 定义 CLI 进程目标
-   14     add_executable(${PROD_NAME}-cli
-   15         ${CMAKE_SOURCE_DIR}/src/ui/core/cli_main_entry.c # 通用入口
-   16         ${PROD_UI_SRCS}                                  # 产品定制页面
-   17     )
-   18 
-   19     # 4. 链接依赖 (只链接数据和 UI 框架，不链接业务)
-   20     target_link_libraries(${PROD_NAME}-cli PRIVATE
-   21         edge_ui_framework      # 框架
-   22         contract_${PROD_NAME}  # 契约 (TagID)
-   23         edge_core              # DataHub Client
-   24         ncurses
-   25     )
-   26 
-   27     # 5. [关键点] 统一输出目录
-   28     # 确保 iems-cli 和 iems 在同一个 bin 目录下
-   29     set_target_properties(${PROD_NAME}-cli PROPERTIES
-   30         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/products/${PROD_NAME}/bin"
-   31     )
-   32 
-   33     # 6. 安装规则
-   34     install(TARGETS ${PROD_NAME}-cli DESTINATION bin)
-   35 endif()
+    1 # cmd/iems/extension.yaml 终极形态
+    2 hardware:
+    3   - id: 0
+    4     type: "BUS_SERIAL"
+    5     label: "Main_Bus"
+    6     profiles:
+    7       simulation: { os_dev: "UDS:/tmp/vbus0.sock" } # Matrix 看这里
+    8       production: { os_dev: "/dev/ttyS1" }         # C 内核看这里
+    9     topology:
 
-  ---
+10 - dev_id: "METER_1"
+11 address: 1
+12 protocol: "ModbusRTU"
+13 simulation: { actor: "modbus_actor", init: { 1001: 220.0 } } # 仿真参数
+14
+15 pipelines:
+16 - id: "energy_logic"
+17 triggers: [ {tag: "GRID_POWER"}, {event: "SYS_POWER_OFF"} ]
+18 stages:
+19 - type: "ENERGY_INTEGRATOR"
+20 config: { ctx_tag: "ENERGY_STATE_BLOB" } # 状态锚点：ctx 即测点
+21 - type: "SQLITE_SINK"
+22 config: { table: "billing" }
 
-  4. 如何处理差异化需求？
+🎯 为什么这么做最优？
 
-  场景 1：不同产品有不同的页面
-   * 实现：每个产品目录下都有 src/ui/，里面放着 page_dashboard.c, page_settings.c。
-   * CMake：add_executable 会自动编译该目录下的文件。
-   * 代码：cli_main_entry.c（通用入口）定义一个 weak 函数 ui_product_init(svc)。
-       * 在产品的 page_dashboard.c 里实现这个函数，把自己的页面 push 进栈。
+1.  对于 Matrix (Python 侧)：
+    它变成了一个透明的“硬件映射层”。只要契约里说 Bus 0
+    是模拟的，它就拉起模拟器。它不再关心业务逻辑，只关心如何喂数据。
+2.  对于内核 (C 侧)：
+    main.c 变成了一个纯粹的“服务容器”。启动逻辑从 main.c 转移到了编译器。如果你在 YAML
+    里加了一根总线，编译器会自动生成初始化代码，内核无需改动。
+3.  对于电能模块 ( ctx 共享场景)：
+    通过 ENERGY_STATE_BLOB 将上下文提升为测点，利用 DataHub
+    现有的“脏数据检查”和“发布订阅”机制，完美解决了多源触发下的数据一致性问题。
 
-  场景 2：不同产品用不同的驱动
-   * IEMS：用 ncurses。
-   * HMI：用 framebuffer。
-   * 实现：在产品的 CMakeLists.txt 里定义宏：
-   1     target_compile_definitions(${PROD_NAME}-cli PRIVATE UI_DRIVER_NCURSES)
-      框架层 ui_service.c 根据宏来决定初始化哪个驱动。
-
-  ---
-
-  5. 最终的交付形态
-
-  当你运行 ./build.sh（或者 cmake --build .）后，build/products/iems/bin/ 目录下会出现两个文件：
-
-   1. `iems`：守护进程，负责采集、控制、上云。
-   2. `iems-cli`：UI 进程，负责给人看。
-
-  使用体验：
-   * 部署时，把这俩都拷走。
-   * 平时只运行 iems。
-   * 调试时，SSH 进去输入 iems-cli，界面瞬间弹出，连接到正在运行的 iems，显示实时数据。退出 iems-cli，iems 毫发无损。
-
-  总结
-   1. CMake 脚本：是的，直接写在 CMakeLists.txt 里是正解，利用 RUNTIME_OUTPUT_DIRECTORY 强行统一输出路径。
-   2. 差异化：通过“通用框架 + 产品侧注入源码/宏”的方式解决。
-   3. 统一目录：这是标准做法，方便打包（CPack）和部署。
-
-  这套方案既满足了“多产品差异”，又保持了架构的“统一与整洁”。
+下一步行动建议：
+如果您认可这个 Backlog，我建议从 CC-01 (编译器模型更新) 开始，这是整个 Omnis
+架构的“数据宪法”。您准备好了吗？

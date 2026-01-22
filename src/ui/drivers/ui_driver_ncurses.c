@@ -2,7 +2,7 @@
 #define _XOPEN_SOURCE_EXTENDED
 #endif
 #include <locale.h>
-#include <ncursesw/ncurses.h>  // 显式引用宽字符版头文件
+#include <ncursesw/ncurses.h>
 #include <stdlib.h>
 
 #include "edge_ui.h"
@@ -12,7 +12,7 @@ typedef struct {
 } ncurses_priv_t;
 
 static void _ncurses_init(ui_hal_t *hal) {
-    setlocale(LC_ALL, "");  // 驱动层也强制设置
+    setlocale(LC_ALL, "");
     ncurses_priv_t *priv = (ncurses_priv_t *)hal->priv;
     initscr();
     cbreak();
@@ -37,7 +37,6 @@ static void _ncurses_clear(ui_hal_t *hal) {
 static void _ncurses_draw_text(ui_hal_t *hal, int y, int x, const char *str, int color) {
     (void)hal;
     if (color > 0) attron(COLOR_PAIR(color));
-    // 使用 mvaddstr，它在 ncursesw 中会自动处理 UTF-8
     mvaddstr(y, x, str);
     if (color > 0) attroff(COLOR_PAIR(color));
 }
@@ -51,10 +50,12 @@ static void _ncurses_draw_pixel(ui_hal_t *hal, int y, int x, int color) {
 static void _ncurses_draw_box(ui_hal_t *hal, int y, int x, int h, int w) {
     (void)hal;
     attron(A_BOLD);
-    mvhline(y, x, 0, w);
-    mvhline(y + h, x, 0, w);
-    mvvline(y, x, 0, h);
-    mvvline(y, x + w, 0, h);
+    // 使用明确的 ncurses 线条字符
+    mvhline(y, x + 1, ACS_HLINE, w - 1);
+    mvhline(y + h, x + 1, ACS_HLINE, w - 1);
+    mvvline(y + 1, x, ACS_VLINE, h - 1);
+    mvvline(y + 1, x + w, ACS_VLINE, h - 1);
+
     mvaddch(y, x, ACS_ULCORNER);
     mvaddch(y, x + w, ACS_URCORNER);
     mvaddch(y + h, x, ACS_LLCORNER);

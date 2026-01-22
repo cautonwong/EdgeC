@@ -9,18 +9,14 @@
 #define MAX_PENDING_QUEUE 256
 #define TIME_JUMP_THRESHOLD_MS 5000
 
-typedef enum { 
-    PIPE_STATE_IDLE, 
-    PIPE_STATE_RUNNING, 
-    PIPE_STATE_SUSPENDED 
-} pipeline_state_t;
+typedef enum { PIPE_STATE_IDLE, PIPE_STATE_RUNNING, PIPE_STATE_SUSPENDED } pipeline_state_t;
 
 struct pipeline_s {
     struct uv__queue node;
     char id[64];
     uint32_t trigger_tag;
     pipeline_state_t state;
-    struct stream_engine_s *engine; // Back-pointer to parent engine
+    struct stream_engine_s *engine;  // Back-pointer to parent engine
 
     pipeline_stage_t *head;
     pipeline_stage_t *tail;
@@ -28,7 +24,7 @@ struct pipeline_s {
     // [SE-04] Fields for resumable state machine
     pipeline_stage_t *resume_point;
     pipe_msg_t current_event;
-    
+
     // [SE-05] Fields for back-pressure queue
     pipe_msg_t queue[MAX_PENDING_QUEUE];
     int q_head, q_tail;

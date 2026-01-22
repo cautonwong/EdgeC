@@ -47,7 +47,7 @@ static void _pipeline_process(pipeline_t *p, pipe_msg_t *msg) {
             p->state = PIPE_STATE_SUSPENDED;
             p->resume_point = s;
             p->current_event = *msg;
-            break; // Pause processing
+            break;  // Pause processing
         }
         if (ret == STAGE_DROP) break;
         if (ret == STAGE_ERROR) {
@@ -74,13 +74,13 @@ static void _on_data_async(uv_async_t *handle) {
         uv__queue_foreach(q, &engine->pipelines) {
             pipeline_t *p = uv__queue_data(q, pipeline_t, node);
             if (p->trigger_tag == msg.tag_id || p->trigger_tag == 0) {
-                
                 // [SE-05] Back-pressure logic
                 if (p->state == PIPE_STATE_SUSPENDED) {
                     int next_head = (p->q_head + 1) % MAX_PENDING_QUEUE;
                     if (next_head == p->q_tail) {
                         // Queue is full, drop oldest message to make space
-                        LOG_WARN(LOG_CAT_SCHED, "Pipeline '%s' queue overflow. Dropping oldest event.", p->id);
+                        LOG_WARN(LOG_CAT_SCHED,
+                                 "Pipeline '%s' queue overflow. Dropping oldest event.", p->id);
                         p->q_tail = (p->q_tail + 1) % MAX_PENDING_QUEUE;
                     }
                     p->queue[p->q_head] = msg;
@@ -116,7 +116,7 @@ static void _stream_engine_thread_entry(void *arg) {
         return;
     }
     uv_loop_init(compute_loop);
-    engine->loop = compute_loop; 
+    engine->loop = compute_loop;
 
     uv_async_init(compute_loop, &engine->notify_handle, _on_data_async);
     engine->notify_handle.data = engine;
@@ -133,7 +133,7 @@ static void _stream_engine_thread_entry(void *arg) {
     // Cleanup phase after uv_stop() is called
     uv_close((uv_handle_t *)&engine->notify_handle, _on_compute_loop_handle_close);
     uv_close((uv_handle_t *)&engine->stop_async, _on_compute_loop_handle_close);
-    
+
     // This second run processes the close callbacks
     uv_run(compute_loop, UV_RUN_NOWAIT);
 
@@ -202,7 +202,7 @@ pipeline_stage_t *pipeline_add_stage(pipeline_t *p, const char *name, stage_proc
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
     strncpy(s->name, name, 31);
     s->loop = p->engine->loop;
-    s->pipeline = p; // Set the back-pointer to the parent pipeline
+    s->pipeline = p;  // Set the back-pointer to the parent pipeline
     s->process = proc;
     s->priv_state = priv_state;
     s->cleanup_state = cleanup_state;
@@ -303,7 +303,7 @@ pipeline_t *stream_engine_add_pipeline(stream_engine_t *engine, const char *id,
     pipeline_t *p = calloc(1, sizeof(pipeline_t));
     strncpy(p->id, id, 63);
     p->trigger_tag = trigger_tag;
-    p->engine = engine; // Set the back-pointer
+    p->engine = engine;  // Set the back-pointer
 
     uv_mutex_lock(&engine->pipe_mutex);
     uv__queue_insert_tail(&engine->pipelines, &p->node);
@@ -330,10 +330,10 @@ void stream_engine_resume(pipeline_t *p) {
     }
 
     p->state = PIPE_STATE_RUNNING;
-    
+
     // Resume processing from the stage *after* the one that suspended
     pipeline_stage_t *s = p->resume_point ? p->resume_point->next : NULL;
-    
+
     while (s) {
         // (This loop is a duplicate of the one in _pipeline_process, could be refactored)
         if (s->health != STAGE_HEALTH_GOOD) {
@@ -344,7 +344,7 @@ void stream_engine_resume(pipeline_t *p) {
         uint64_t start = uv_hrtime();
         stage_ret_t ret = s->process(s, &p->current_event);
         uint64_t elapsed_us = (uv_hrtime() - start) / 1000;
-        
+
         s->last_proc_us = elapsed_us;
         s->total_events++;
 
@@ -352,7 +352,7 @@ void stream_engine_resume(pipeline_t *p) {
             p->state = PIPE_STATE_SUSPENDED;
             p->resume_point = s;
             // current_event is already set
-            return; // Suspended again, exit
+            return;  // Suspended again, exit
         }
         if (ret == STAGE_DROP || ret == STAGE_ERROR) {
             break;
@@ -368,13 +368,13 @@ void stream_engine_resume(pipeline_t *p) {
     while (p->q_head != p->q_tail) {
         pipe_msg_t queued_msg = p->queue[p->q_tail];
         p->q_tail = (p->q_tail + 1) % MAX_PENDING_QUEUE;
-        
+
         // Run the entire pipeline for the queued message.
         // If it suspends, the loop will terminate and the state will be correctly set.
         _pipeline_process(p, &queued_msg);
 
         if (p->state == PIPE_STATE_SUSPENDED) {
-            break; // A queued message caused a new suspension.
+            break;  // A queued message caused a new suspension.
         }
     }
 }
