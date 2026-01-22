@@ -6,11 +6,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <uv.h>
 
 #include "arbiter.h"
 #include "datahub.h"
 #include "edge_log.h"
 #include "edge_service.h"
+
+#define JS_EXEC_TIMEOUT_MS 10
 
 struct js_engine_s {
     service_t *svc;
@@ -18,6 +21,18 @@ struct js_engine_s {
     JSContext *ctx;
     size_t mem_limit;
 };
+
+// --- [SE-02] Interrupt Handler for Fuel Safety ---
+static int js_interrupt_handler(JSRuntime *rt, void *opaque) {
+    uint64_t *start_time = (uint64_t *)opaque;
+    uint64_t now = uv_hrtime() / 1000000; // milliseconds
+    if (now - *start_time > JS_EXEC_TIMEOUT_MS) {
+        LOG_WARN(LOG_CAT_SCHED, "JS script execution timed out (> %dms), terminating.", JS_EXEC_TIMEOUT_MS);
+        return 1; // Terminate
+    }
+    return 0;
+}
+
 
 // --- JS Bindings: console.log ---
 static JSValue js_console_log(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
@@ -118,8 +133,11 @@ js_engine_t *js_engine_create(service_t *svc, size_t mem_limit) {
     engine->ctx = JS_NewContext(engine->rt);
     JS_SetContextOpaque(engine->ctx, engine);
 
+    // [SE-03] Enforce memory limit
     if (mem_limit > 0) {
         JS_SetMemoryLimit(engine->rt, mem_limit);
+    } else {
+        JS_SetMemoryLimit(engine->rt, 1024 * 1024); // Default 1MB
     }
 
     JSValue global_obj = JS_GetGlobalObject(engine->ctx);
@@ -150,7 +168,14 @@ js_engine_t *js_engine_create(service_t *svc, size_t mem_limit) {
 
 JSValue js_engine_eval(js_engine_t *engine, const char *code, const char *filename) {
     if (!engine || !code) return JS_EXCEPTION;
+
+    uint64_t start_time = uv_hrtime() / 1000000;
+    JS_SetInterruptHandler(engine->rt, js_interrupt_handler, &start_time);
+
     JSValue val = JS_Eval(engine->ctx, code, strlen(code), filename, JS_EVAL_TYPE_GLOBAL);
+
+    JS_SetInterruptHandler(engine->rt, NULL, NULL); // Disable handler
+
     if (JS_IsException(val)) {
         js_std_dump_error(engine->ctx);
     }
@@ -166,7 +191,13 @@ int js_engine_run_file(js_engine_t *engine, const char *file_path) {
         return -1;
     }
 
+    uint64_t start_time = uv_hrtime() / 1000000;
+    JS_SetInterruptHandler(engine->rt, js_interrupt_handler, &start_time);
+
     JSValue val = JS_Eval(engine->ctx, (const char *)buf, len, file_path, JS_EVAL_TYPE_GLOBAL);
+    
+    JS_SetInterruptHandler(engine->rt, NULL, NULL); // Disable handler
+
     int ret = 0;
     if (JS_IsException(val)) {
         js_std_dump_error(engine->ctx);

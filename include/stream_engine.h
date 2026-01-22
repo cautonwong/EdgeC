@@ -38,6 +38,8 @@ typedef void (*stage_cleanup_fn)(void *priv_data);
 
 struct pipeline_stage_s {
     char name[32];
+    uv_loop_t *loop; // Loop for scheduling async work
+    struct pipeline_s *pipeline; // Back-pointer to parent
     stage_proc_fn process;
     void *priv_state;
     void *priv_cfg;
@@ -47,6 +49,7 @@ struct pipeline_stage_s {
     // [新增] S17: 运行统计
     stage_health_t health;
     uint64_t last_proc_us;       /**< 上次处理耗时 (微秒) */
+    uint64_t avg_proc_us;        /**< 平均处理耗时 (微秒) */
     uint64_t total_events;       /**< 处理总数 */
     uint64_t total_errors;       /**< 错误总数 */
     uint64_t circuit_breaker_us; /**< 触发熔断的阈值 (0 表示不熔断) */
@@ -92,6 +95,13 @@ void stream_engine_push(stream_engine_t *engine, pipe_msg_t *msg);
 char *stream_engine_dump_json(stream_engine_t *engine);
 
 /**
+ * @brief [SE-06] Resumes a suspended pipeline.
+ * This is called by an asynchronous stage's callback when its long-running task is complete.
+ * @param p The pipeline to resume.
+ */
+void stream_engine_resume(pipeline_t *p);
+
+/**
  * @brief [S17] 获取指定算子的健康状态
  */
 stage_health_t pipeline_stage_get_health(pipeline_stage_t *stage);
@@ -107,7 +117,7 @@ pipeline_stage_t *stage_accumulate_create(void);
 pipeline_stage_t *stage_periodic_freeze_create(int kind);
 pipeline_stage_t *stage_time_guard_create(void);
 pipeline_stage_t *stage_sqlite_sink_create(sqlite_svc_t *db, const char *table);
-pipeline_stage_t *stage_js_rule_create(js_engine_t *engine, const char *script);
+pipeline_stage_t *stage_js_rule_create(js_engine_t *engine, const char *script_path, bool is_async);
 pipeline_stage_t *stage_battery_guard_create(battery_limit_t *limits);
 pipeline_stage_t *stage_reflex_logic_create(struct bus_orchestrator_s *orch, uint32_t bus_id,
                                             const char *proto, uint32_t target_tag,

@@ -155,7 +155,6 @@ add_library(edge_stream_engine STATIC
     src/stream_engine/stream_engine.c
     src/stream_engine/js_engine.c
     src/stream_engine/script_loader.c
-    src/stream_engine/script_executor.c
     src/stream_engine/aggregator.c
     src/stream_engine/standard_stages.c
     src/stream_engine/js_stage.c

@@ -175,3 +175,7 @@ tags:
     name: SYS_NETBUF_LEAK_RECLAIM
     type: int
     desc: "累计强制回收的泄漏缓冲区数"
+  - id: 11005
+    name: SYS_PIPE_QUEUE_DEPTH
+    type: int
+    desc: "流处理引擎中单个 Pipeline 的积压事件数"

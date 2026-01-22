@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <wchar.h>
 
 #include "edge_log.h"
 #include "edge_ui.h"
@@ -68,7 +69,17 @@ static void draw_frame(ui_hal_t *hal, const char *title) {
     for (int i = 0; i < g_category_count; i++) {
         snprintf(buf, sizeof(buf), "[F%d]%s ", i + 1, g_categories[i].name);
         hal->hal_draw_text(hal, 20, x_offset, buf, (i == g_current_category_idx) ? UI_COLOR_YELLOW : UI_COLOR_BLUE);
-        x_offset += (int)strlen(buf);
+        
+        // Correctly calculate screen width for multi-byte characters
+        size_t len_bytes = strlen(buf);
+        wchar_t wbuf[len_bytes + 1];
+        mbstowcs(wbuf, buf, len_bytes + 1);
+        int width = wcswidth(wbuf, len_bytes);
+        if (width > 0) {
+            x_offset += width;
+        } else {
+            x_offset += (int)len_bytes; // Fallback
+        }
     }
     hal->hal_draw_text(hal, 20, x_offset, "[Q]uit", UI_COLOR_BLUE);
     hal->hal_refresh(hal);
