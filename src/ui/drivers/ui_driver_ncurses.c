@@ -80,14 +80,14 @@ static void _ncurses_destroy(ui_hal_t *hal) {
 ui_hal_t *ui_hal_ncurses_create(void) {
     ui_hal_t *hal = calloc(1, sizeof(ui_hal_t));
     hal->name = "ncurses_w_simulator";
-    hal->init = _ncurses_init;
-    hal->clear = _ncurses_clear;
-    hal->draw_text = _ncurses_draw_text;
-    hal->draw_pixel = _ncurses_draw_pixel;
-    hal->draw_box = _ncurses_draw_box;
-    hal->get_key = _ncurses_get_key;
-    hal->refresh = _ncurses_refresh;
-    hal->destroy = _ncurses_destroy;
+    hal->hal_init = _ncurses_init;
+    hal->hal_clear = _ncurses_clear;
+    hal->hal_draw_text = _ncurses_draw_text;
+    hal->hal_draw_pixel = _ncurses_draw_pixel;
+    hal->hal_draw_box = _ncurses_draw_box;
+    hal->hal_get_key = _ncurses_get_key;
+    hal->hal_refresh = _ncurses_refresh;
+    hal->hal_destroy = _ncurses_destroy;
     hal->priv = calloc(1, sizeof(ncurses_priv_t));
     return hal;
 }

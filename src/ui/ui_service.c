@@ -14,8 +14,8 @@ static void _ui_on_refresh(uv_timer_t *handle) {
     ui_page_t *current_page = service->page_stack[service->stack_top];
 
     // 1. Process input
-    if (service->hal && service->hal->get_key) {
-        int key = service->hal->get_key(service->hal);
+    if (service->hal && service->hal->hal_get_key) {
+        int key = service->hal->hal_get_key(service->hal);
         if (key != -1) {
             // Global key handling for ESC to pop a page
             if (key == 27) { // 27 is the ASCII code for Escape
@@ -33,16 +33,16 @@ static void _ui_on_refresh(uv_timer_t *handle) {
     }
 
     // 2. Render
-    if (service->hal && service->hal->clear) {
-        service->hal->clear(service->hal);
+    if (service->hal && service->hal->hal_clear) {
+        service->hal->hal_clear(service->hal);
     }
 
     if (current_page && current_page->on_draw) {
         current_page->on_draw(current_page, service);
     }
 
-    if (service->hal && service->hal->refresh) {
-        service->hal->refresh(service->hal);
+    if (service->hal && service->hal->hal_refresh) {
+        service->hal->hal_refresh(service->hal);
     }
 }
 
@@ -75,7 +75,7 @@ void ui_service_destroy(ui_service_t *service) {
     }
 
     if (service->hal) {
-        if (service->hal->destroy) service->hal->destroy(service->hal);
+        if (service->hal->hal_destroy) service->hal->hal_destroy(service->hal);
         if (service->hal->priv) free(service->hal->priv);
         free(service->hal);
     }
@@ -101,8 +101,8 @@ void ui_service_run(ui_service_t *service) {
     }
     
     // Initialize the newly injected driver.
-    if (service->hal->init) {
-        service->hal->init(service->hal);
+    if (service->hal->hal_init) {
+        service->hal->hal_init(service->hal);
     }
 
     if (service->stack_top < 0) {
@@ -113,6 +113,7 @@ void ui_service_run(ui_service_t *service) {
     service->running = true;
     // Start the asynchronous refresh loop (20Hz).
     uv_timer_start(&service->refresh_timer, _ui_on_refresh, 50, 50);
+    uv_run(service->loop, UV_RUN_DEFAULT);
 }
 
 void ui_service_stop(ui_service_t *service) {

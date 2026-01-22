@@ -5,6 +5,12 @@
 #include "contract_data_types.h"
 
 {{ template "h_feature_gates" . }}
+
+// [Section 1.7] Environment DNA
+#define EDGE_SHM_BUS_NAME "{{ .Product }}"
+#define EDGE_UI_SOCKET_PATH "/tmp/{{ .Product }}_ui.sock"
+#define EDGE_VBUS_PATH "/tmp/{{ .Product }}_vbus0.sock"
+
 {{ template "h_enums" . }}
 
 extern const edge_tag_meta_t g_tag_metadata[];
@@ -23,6 +29,16 @@ extern const edge_policy_def_t g_policy_metadata[];
 extern const int g_policy_metadata_len;
 
 extern const ui_info_t g_ui_metadata;
+
+// [Section 4] Default Topology
+typedef struct {
+    int bus_id;
+    const char* protocol_name;
+    uint32_t address;
+} edge_device_t;
+
+extern const edge_device_t g_default_hardware_topology[];
+extern const int g_default_hardware_topology_len;
 
 bool edge_router_needs_wakeup(int index);
 

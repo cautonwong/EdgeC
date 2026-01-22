@@ -18,31 +18,32 @@ class MatrixEdgeC:
         self.process = None
 
     def bootstrap_environment(self, loader: 'SchemaLoader'):
-        logger.info(f"Bootstrapping DB sandbox: {self.db_path}")
+        logger.info(f"Bootstrapping DB sandbox from master contract: {self.db_path}")
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
-            # 1. 强制创建并清理表
+            # 1. Force-create schema
             cursor.execute("DROP TABLE IF EXISTS inventory")
             cursor.execute("CREATE TABLE inventory (id TEXT PRIMARY KEY, type TEXT, addr INT, protocol TEXT, enabled INT DEFAULT 1)")
             
             cursor.execute("DROP TABLE IF EXISTS poll_tasks")
             cursor.execute("CREATE TABLE poll_tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, device_id TEXT, tag_id INT, interval_ms INT, bus_id INT)")
             
-            # 2. 注入拓扑
-            topology = loader.world_config.get("topology", [])
-            poll_tasks_cfg = loader.world_config.get("poll_tasks", [])
+            # 2. Inject topology and poll tasks from the master contract schema
+            hardware_cfg = loader.schema.get("hardware", [])
+            poll_tasks_cfg = loader.schema.get("poll_tasks", [])
 
-            for bus_cfg in topology:
-                bus_id = bus_cfg.get("bus_id", 0)
-                devices_on_bus = bus_cfg.get("devices", []) # Devices for this specific bus
+            for bus_cfg in hardware_cfg:
+                bus_id = bus_cfg.get("id", 0)
+                # The 'devices' list is part of the inlined attributes
+                devices_on_bus = bus_cfg.get("attributes", {}).get("devices", [])
 
                 for dev_cfg in devices_on_bus:
                     count = dev_cfg.get("count", 1)
                     proto = dev_cfg.get("protocol", "ModbusRTU")
-                    if proto == "Modbus": proto = "ModbusRTU"
-                    start_addr = dev_cfg.get("start_address", 1)
+                    if proto == "Modbus": proto = "ModbusRTU" # Alias for consistency
+                    start_addr = dev_cfg.get("start_address", dev_cfg.get("address", 1))
                     
                     for i in range(count):
                         addr = start_addr + i
@@ -52,16 +53,18 @@ class MatrixEdgeC:
                             (dev_id, "Simulator", addr, proto, 1)
                         )
                         
+                        # Create polling tasks for this device
                         for task in poll_tasks_cfg:
                             tag_name = task.get("tag")
-                            tag_id = loader.name_to_id.get(tag_name, tag_name)
-                            interval = task.get("interval_ms", 1000)
-                            cursor.execute(
-                                "INSERT INTO poll_tasks (device_id, tag_id, interval_ms, bus_id) VALUES (?, ?, ?, ?)",
-                                (dev_id, tag_id, interval, bus_id)
-                            )
+                            tag_id = loader.name_to_id.get(tag_name)
+                            if tag_id:
+                                interval = task.get("interval_ms", 1000)
+                                cursor.execute(
+                                    "INSERT INTO poll_tasks (device_id, tag_id, interval_ms, bus_id) VALUES (?, ?, ?, ?)",
+                                    (dev_id, tag_id, interval, bus_id)
+                                )
             
-            # 3. 注入契约 Hash (存入通用参数表)
+            # 3. Inject contract hash for runtime verification
             if hasattr(loader, 'schema') and loader.schema:
                 schema_str = json.dumps(loader.schema, sort_keys=True)
                 chash = hashlib.md5(schema_str.encode()).hexdigest()
@@ -70,9 +73,9 @@ class MatrixEdgeC:
             
             conn.commit()
             conn.close()
-            logger.info("DB Bootstrap Success.")
+            logger.info("DB Bootstrap from master contract successful.")
         except Exception as e:
-            logger.error(f"DB Bootstrap Failed: {e}")
+            logger.error(f"DB Bootstrap Failed: {e}", exc_info=True)
 
     def start(self, cwd: str = None):
         import subprocess

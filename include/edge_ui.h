@@ -16,14 +16,14 @@ typedef struct ui_hal_s ui_hal_t;
  */
 struct ui_hal_s {
     const char *name;
-    void (*init)(ui_hal_t *hal);
-    void (*clear)(ui_hal_t *hal);
-    void (*draw_text)(ui_hal_t *hal, int x, int y, const char *str, int color);
-    void (*draw_pixel)(ui_hal_t *hal, int x, int y, int color);
-    void (*draw_box)(ui_hal_t *hal, int x, int y, int w, int h);
-    int (*get_key)(ui_hal_t *hal);
-    void (*refresh)(ui_hal_t *hal);
-    void (*destroy)(ui_hal_t *hal);
+    void (*hal_init)(ui_hal_t *hal);
+    void (*hal_clear)(ui_hal_t *hal);
+    void (*hal_draw_text)(ui_hal_t *hal, int x, int y, const char *str, int color);
+    void (*hal_draw_pixel)(ui_hal_t *hal, int x, int y, int color);
+    void (*hal_draw_box)(ui_hal_t *hal, int x, int y, int w, int h);
+    int (*hal_get_key)(ui_hal_t *hal);
+    void (*hal_refresh)(ui_hal_t *hal);
+    void (*hal_destroy)(ui_hal_t *hal);
     void *priv;
 };
 
