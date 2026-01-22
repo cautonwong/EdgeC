@@ -38,8 +38,8 @@ typedef void (*stage_cleanup_fn)(void *priv_data);
 
 struct pipeline_stage_s {
     char name[32];
-    uv_loop_t *loop; // Loop for scheduling async work
-    struct pipeline_s *pipeline; // Back-pointer to parent
+    uv_loop_t *loop;              // Loop for scheduling async work
+    struct pipeline_s *pipeline;  // Back-pointer to parent
     stage_proc_fn process;
     void *priv_state;
     void *priv_cfg;

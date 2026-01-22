@@ -4,17 +4,25 @@
 static const edge_stage_def_t _stages_{{ .ID }}[] = {
     {{- range .Stages }}
     {
-        .name = "{{ index . "name" }}",
+        .name = "{{ index . "name" | default "stage" }}",
         .type = "{{ index . "type" }}",
         .params = {
             .f1 = {{ index . "alpha" | default (index . "min") | default 0.0 }},
             .f2 = {{ index . "beta" | default (index . "max") | default (index . "threshold") | default 0.0 }},
-            .u1 = {{ index . "target_tag" | default 0 }},
-            .s1 = "{{ index . "script" | default "" }}"
+            .u1 = {{ index . "target_tag" | default (index . "state_tag") | default (index . "bus_id") | default 0 }},
+            .s1 = "{{ index . "script" | default (index . "protocol") | default "" }}"
         }
     },
     {{- end }}
 };
+
+{{- if .Triggers }}
+static const uint32_t _triggers_{{ .ID }}[] = {
+    {{- range .Triggers }}
+    TAG_{{ index . "tag" | default (index . "event") }},
+    {{- end }}
+};
+{{- end }}
 {{- end }}
 
 // [Pipelines - Global Metadata]
@@ -22,7 +30,9 @@ const edge_pipeline_def_t g_pipeline_metadata[] = {
 {{- range .Pipelines }}
     { 
         .id = "{{ .ID }}", 
-        .trigger_tag = TAG_{{ .Trigger }},
+        .trigger_tag = {{ if .Trigger }}TAG_{{ .Trigger }}{{ else }}0{{ end }},
+        .extra_triggers = {{ if .Triggers }}_triggers_{{ .ID }}{{ else }}NULL{{ end }},
+        .extra_trigger_count = {{ if .Triggers }}{{ len .Triggers }}{{ else }}0{{ end }},
         .stages = _stages_{{ .ID }},
         .stage_count = {{ if .Stages }}{{ len .Stages }}{{ else }}0{{ end }}
     },

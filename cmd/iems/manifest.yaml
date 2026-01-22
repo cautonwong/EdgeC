@@ -1,0 +1,51 @@
+# [Omnis] IEMS 产品清单 (Standard Assembler V4.8)
+# ------------------------------------------------------------------------------
+
+product: "IEMS_Controller_V4"
+
+# 1. 乐高拼装：只包含原子模块，不包含带硬件的产品原型，防止 Bus 重复
+include:
+  - "contracts/bindings/modbus/acrel_p80.yaml"
+  - "contracts/bindings/dlt645/standard_meter.yaml"
+  - "contracts/bindings/can/catl_bms.yaml"
+  - "cmd/iems/features/solar_module.yaml"
+
+# 2. 自然覆盖
+mappings:
+  - tag: VOLTAGE_PHASE_A
+    addr: 0 
+    scaler: 0.1
+
+enabled_tags:
+  - tag: ENERGY_ACTIVE_IMPORT
+    attributes: { poll_interval_ms: 5000 }
+  - tag: GRID_POWER
+    attributes: { poll_interval_ms: 1000 }
+  - tag: VOLTAGE_PHASE_A
+    attributes: { poll_interval_ms: 5000 }
+
+# 3. 硬件拓扑：唯一的总线定义
+hardware:
+  - id: 0
+    type: "BUS_SERIAL"
+    label: "RS485_Bus_0"
+    profiles:
+      simulation: { os_dev: "UDS:.local/tmp/vbus0.sock" }
+      production: { os_dev: "/dev/ttyS1", params: "9600,8,N,1" }
+    topology:
+      - dev_id: "MAIN_METER"
+        address: 1
+        protocol: "ModbusRTU"
+        simulation: 
+          actor: "modbus_actor"
+          init: { 1001: 220.0 }
+
+# 4. 数据管线
+pipelines:
+  - id: "energy_manager"
+    trigger: "GRID_POWER"
+    stages:
+      - type: "energy_integrator"
+        config: { state_tag: 3001 }
+      - type: "sqlite_sink"
+        config: { table: "energy_history" }

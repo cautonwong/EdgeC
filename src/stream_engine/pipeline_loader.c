@@ -31,7 +31,13 @@ static double get_cfg_double(cJSON *json, const char *key, edge_params_t *params
     return def_val;
 }
 
+extern pipeline_stage_t *stage_energy_integrator_create(uint32_t state_tag_id);
+
 static pipeline_stage_t *build_stage(const char *type, cJSON *config, pipeline_loader_ctx_t *ctx) {
+    if (strcmp(type, "energy_integrator") == 0) {
+        cJSON *item = cJSON_GetObjectItem(config, "state_tag");
+        return stage_energy_integrator_create(item ? (uint32_t)item->valuedouble : 0);
+    }
     if (strcmp(type, "filter") == 0) {
         cJSON *item = cJSON_GetObjectItem(config, "tag_id");
         return stage_filter_create(item ? (uint32_t)item->valuedouble : 0);

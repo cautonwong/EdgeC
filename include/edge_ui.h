@@ -54,7 +54,7 @@ struct ui_page_s {
 struct ui_service_s {
     bool running;
     datahub_t *hub;
-    uv_loop_t *loop; // Need to store the loop for the timer
+    uv_loop_t *loop;  // Need to store the loop for the timer
     ui_hal_t *hal;
     uv_timer_t refresh_timer;
     ui_page_t *page_stack[8];

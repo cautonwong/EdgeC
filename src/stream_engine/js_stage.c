@@ -14,7 +14,6 @@ typedef struct {
     bool is_async;
 } js_stage_ctx_t;
 
-
 // --- Synchronous execution path ---
 static stage_ret_t run_js_sync(pipeline_stage_t *stage, pipe_msg_t *ev) {
     js_stage_ctx_t *ctx = (js_stage_ctx_t *)stage->priv_cfg;
@@ -63,9 +62,9 @@ typedef struct {
 
 static void js_work_cb(uv_work_t *req) {
     js_work_ctx_t *work = req->data;
-    
+
     // Create a temporary, isolated JS runtime and context for this thread
-    js_engine_t *temp_engine = js_engine_create(NULL, 1024 * 1024); // 1MB limit
+    js_engine_t *temp_engine = js_engine_create(NULL, 1024 * 1024);  // 1MB limit
     if (!temp_engine) return;
 
     // This is a simplified execution, it does not have the full context (e.g. persistent_state)
@@ -82,7 +81,6 @@ static void js_after_work_cb(uv_work_t *req, int status) {
     free(work);
 }
 
-
 // --- Main stage process function ---
 static stage_ret_t js_stage_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
     if (ev->type != PIPEMSG_TYPE_SCALAR) return STAGE_OK;
@@ -97,7 +95,7 @@ static stage_ret_t js_stage_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
         work_ctx->pipeline = stage->pipeline;
         work_ctx->event = *ev;
         strncpy(work_ctx->script_path, ctx->script_path, 127);
-        
+
         uv_queue_work(stage->loop, &work_ctx->req, js_work_cb, js_after_work_cb);
         return STAGE_ASYNC;
     }
@@ -112,7 +110,8 @@ static void js_stage_cleanup(void *ptr) {
     free(ctx);
 }
 
-pipeline_stage_t *stage_js_rule_create(js_engine_t *engine, const char *script_path, bool is_async) {
+pipeline_stage_t *stage_js_rule_create(js_engine_t *engine, const char *script_path,
+                                       bool is_async) {
     if (!engine) return NULL;
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
     strncpy(s->name, "js_rule", 31);

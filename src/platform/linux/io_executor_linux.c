@@ -216,7 +216,7 @@ static int _poll_ioctl(io_handle_t *h, int cmd, void *arg) {
             impl->pending_tx = NULL;
         }
         return 0;
-    }    
+    }
     if (cmd == IO_CTL_SET_BAUD && impl->type == IO_TYPE_UART) {
         uint32_t baud = *(uint32_t *)arg;
         struct termios options;
