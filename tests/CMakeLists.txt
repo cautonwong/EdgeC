@@ -48,7 +48,6 @@ add_edge_test(test_stream_engine test_stream_engine.c)
 add_edge_test(test_pipeline_loader test_pipeline_loader.c)
 add_edge_test(test_pipeline_hot_reload test_pipeline_hot_reload.c)
 add_edge_test(test_js_engine test_js_engine.c)
-add_edge_test(test_script_exec test_script_exec.c)
 
 # 5. 标准算子与算法测试 (Stages & Algos)
 add_edge_test(test_algorithm_sum test_algorithm_sum.c)

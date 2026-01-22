@@ -12,10 +12,9 @@
 #define DEFAULT_CIRCUIT_BREAKER_US 50000
 
 static void _pipeline_process(pipeline_t *p, pipe_msg_t *msg) {
-    fprintf(stderr, "[DEBUG][StreamEngine] Processing Pipeline: %s\n", p->id);
+    p->state = PIPE_STATE_RUNNING;
     pipeline_stage_t *s = p->head;
     while (s) {
-        fprintf(stderr, "[DEBUG][StreamEngine] Executing Stage: %s\n", s->name);
         if (s->health != STAGE_HEALTH_GOOD) {
             s = s->next;
             continue;
@@ -30,6 +29,12 @@ static void _pipeline_process(pipeline_t *p, pipe_msg_t *msg) {
 
         s->last_proc_us = elapsed_us;
         s->total_events++;
+        // [SE-10] Update average processing time (EMA)
+        if (s->avg_proc_us == 0) {
+            s->avg_proc_us = elapsed_us;
+        } else {
+            s->avg_proc_us = (s->avg_proc_us * 9 + elapsed_us) / 10;
+        }
 
         if (s->circuit_breaker_us > 0 && elapsed_us > s->circuit_breaker_us) {
             s->health = STAGE_HEALTH_TIMEOUT;
@@ -38,6 +43,12 @@ static void _pipeline_process(pipeline_t *p, pipe_msg_t *msg) {
                       p->id, elapsed_us);
         }
 
+        if (ret == STAGE_ASYNC) {
+            p->state = PIPE_STATE_SUSPENDED;
+            p->resume_point = s;
+            p->current_event = *msg;
+            break; // Pause processing
+        }
         if (ret == STAGE_DROP) break;
         if (ret == STAGE_ERROR) {
             s->total_errors++;
@@ -45,27 +56,90 @@ static void _pipeline_process(pipeline_t *p, pipe_msg_t *msg) {
         }
         s = s->next;
     }
+    // If we reached the end without suspending, the pipeline is idle again
+    if (p->state == PIPE_STATE_RUNNING) {
+        p->state = PIPE_STATE_IDLE;
+    }
 }
 
+// This function now runs on the dedicated compute thread
 static void _on_data_async(uv_async_t *handle) {
     stream_engine_t *engine = handle->data;
     datahub_t *hub = engine->hub;
     pipe_msg_t msg;
 
-    fprintf(stderr, "[DEBUG][StreamEngine] Async signal received!\n");
     uv_mutex_lock(&engine->pipe_mutex);
     while (shm_ring_read(&hub->ring, &engine->bus_read_seq, &msg) == 0) {
-        fprintf(stderr, "[DEBUG][StreamEngine] Read Tag %u from ring.\n", msg.tag_id);
         struct uv__queue *q;
         uv__queue_foreach(q, &engine->pipelines) {
             pipeline_t *p = uv__queue_data(q, pipeline_t, node);
             if (p->trigger_tag == msg.tag_id || p->trigger_tag == 0) {
-                fprintf(stderr, "[DEBUG][StreamEngine] Matching Pipeline found: %s\n", p->id);
-                _pipeline_process(p, &msg);
+                
+                // [SE-05] Back-pressure logic
+                if (p->state == PIPE_STATE_SUSPENDED) {
+                    int next_head = (p->q_head + 1) % MAX_PENDING_QUEUE;
+                    if (next_head == p->q_tail) {
+                        // Queue is full, drop oldest message to make space
+                        LOG_WARN(LOG_CAT_SCHED, "Pipeline '%s' queue overflow. Dropping oldest event.", p->id);
+                        p->q_tail = (p->q_tail + 1) % MAX_PENDING_QUEUE;
+                    }
+                    p->queue[p->q_head] = msg;
+                    p->q_head = next_head;
+                } else {
+                    _pipeline_process(p, &msg);
+                }
             }
         }
     }
     uv_mutex_unlock(&engine->pipe_mutex);
+}
+
+static void _on_stop_async(uv_async_t *handle) {
+    stream_engine_t *engine = (stream_engine_t *)handle->data;
+    if (engine) {
+        uv_stop(engine->loop);
+    }
+}
+
+static void _on_compute_loop_handle_close(uv_handle_t *handle) {
+    (void)handle;
+}
+
+// The new compute thread's main function
+static void _stream_engine_thread_entry(void *arg) {
+    stream_engine_t *engine = (stream_engine_t *)arg;
+
+    uv_loop_t *compute_loop = malloc(sizeof(uv_loop_t));
+    if (!compute_loop) {
+        engine->thread_started = false;
+        uv_sem_post(&engine->start_sem);
+        return;
+    }
+    uv_loop_init(compute_loop);
+    engine->loop = compute_loop; 
+
+    uv_async_init(compute_loop, &engine->notify_handle, _on_data_async);
+    engine->notify_handle.data = engine;
+    engine->notify_inited = true;
+
+    uv_async_init(compute_loop, &engine->stop_async, _on_stop_async);
+    engine->stop_async.data = engine;
+
+    engine->thread_started = true;
+    uv_sem_post(&engine->start_sem);
+
+    uv_run(compute_loop, UV_RUN_DEFAULT);
+
+    // Cleanup phase after uv_stop() is called
+    uv_close((uv_handle_t *)&engine->notify_handle, _on_compute_loop_handle_close);
+    uv_close((uv_handle_t *)&engine->stop_async, _on_compute_loop_handle_close);
+    
+    // This second run processes the close callbacks
+    uv_run(compute_loop, UV_RUN_NOWAIT);
+
+    uv_loop_close(compute_loop);
+    free(compute_loop);
+    engine->loop = NULL;
 }
 
 static pipeline_stage_t *_create_stage_by_type(const edge_stage_def_t *def,
@@ -85,7 +159,7 @@ static pipeline_stage_t *_create_stage_by_type(const edge_stage_def_t *def,
     if (strcmp(def->type, "SQLITE_SINK") == 0 && ctx->db)
         return stage_sqlite_sink_create(ctx->db, def->params.s1);
     if (strcmp(def->type, "JS_RULE") == 0 && ctx->js_engine)
-        return stage_js_rule_create(ctx->js_engine, def->params.s1);
+        return stage_js_rule_create(ctx->js_engine, def->params.s1, false);
     if (strcmp(def->type, "REFLEX") == 0 && ctx->orch) {
         return stage_reflex_logic_create(ctx->orch, 0, def->params.s1, (uint32_t)def->params.u1,
                                          def->params.f1, def->params.f2 > 0.5);
@@ -127,6 +201,8 @@ pipeline_stage_t *pipeline_add_stage(pipeline_t *p, const char *name, stage_proc
                                      void *priv_cfg, stage_cleanup_fn cleanup_cfg) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
     strncpy(s->name, name, 31);
+    s->loop = p->engine->loop;
+    s->pipeline = p; // Set the back-pointer to the parent pipeline
     s->process = proc;
     s->priv_state = priv_state;
     s->cleanup_state = cleanup_state;
@@ -145,47 +221,61 @@ pipeline_stage_t *pipeline_add_stage(pipeline_t *p, const char *name, stage_proc
 stream_engine_t *stream_engine_create(datahub_t *hub, engine_time_source_t *time_src) {
     stream_engine_t *engine = calloc(1, sizeof(stream_engine_t));
     engine->hub = hub;
-    engine->loop = hub->loop;
     if (time_src) engine->time_src = *time_src;
 
-    uv__queue_init(&engine->pipelines);
     uv_mutex_init(&engine->pipe_mutex);
-    uv_async_init(engine->loop, &engine->notify_handle, _on_data_async);
-    engine->notify_handle.data = engine;
-    engine->notify_inited = true;
+    uv__queue_init(&engine->pipelines);
+    uv_sem_init(&engine->start_sem, 0);
 
+    if (uv_thread_create(&engine->thread, _stream_engine_thread_entry, engine) != 0) {
+        LOG_ERROR(LOG_CAT_CORE, "Failed to create stream engine compute thread");
+        uv_mutex_destroy(&engine->pipe_mutex);
+        uv_sem_destroy(&engine->start_sem);
+        free(engine);
+        return NULL;
+    }
+
+    // Wait for the thread to signal that its loop and handles are initialized
+    uv_sem_wait(&engine->start_sem);
+    uv_sem_destroy(&engine->start_sem);
+
+    if (!engine->thread_started) {
+        LOG_ERROR(LOG_CAT_CORE, "Stream engine compute thread failed to initialize");
+        uv_thread_join(&engine->thread);
+        uv_mutex_destroy(&engine->pipe_mutex);
+        free(engine);
+        return NULL;
+    }
+
+    // Now that the handle is initialized on the compute thread, we can register it
+    // with the datahub, which operates on the main thread.
     datahub_add_listener(hub, &engine->notify_handle);
     return engine;
 }
 
 stream_engine_t *stream_engine_create_ex(datahub_t *hub, uv_loop_t *loop,
                                          engine_time_source_t *time_src) {
-    stream_engine_t *engine = calloc(1, sizeof(stream_engine_t));
-    engine->hub = hub;
-    engine->loop = loop;
-    if (time_src) engine->time_src = *time_src;
-
-    uv__queue_init(&engine->pipelines);
-    uv_mutex_init(&engine->pipe_mutex);
-    uv_async_init(loop, &engine->notify_handle, _on_data_async);
-    engine->notify_handle.data = engine;
-    engine->notify_inited = true;
-
-    datahub_add_listener(hub, &engine->notify_handle);
-    return engine;
-}
-
-static void _on_engine_close(uv_handle_t *handle) {
-    stream_engine_t *engine = handle->data;
-    uv_mutex_destroy(&engine->pipe_mutex);
-    free(engine);
+    // This function is now deprecated as the loop is self-contained.
+    // We'll keep it for API compatibility but it will ignore the passed loop.
+    (void)loop;
+    return stream_engine_create(hub, time_src);
 }
 
 void stream_engine_destroy(stream_engine_t *engine) {
     if (!engine) return;
 
-    datahub_remove_listener(engine->hub, &engine->notify_handle);
+    if (engine->thread_started) {
+        // 1. Unregister from datahub to stop new events
+        datahub_remove_listener(engine->hub, &engine->notify_handle);
 
+        // 2. Signal the compute loop to stop
+        uv_async_send(&engine->stop_async);
+
+        // 3. Wait for the thread to fully exit and clean up its loop
+        uv_thread_join(&engine->thread);
+    }
+
+    // 4. Now that the thread is gone, clean up the shared resources
     uv_mutex_lock(&engine->pipe_mutex);
     while (!uv__queue_empty(&engine->pipelines)) {
         struct uv__queue *q = uv__queue_head(&engine->pipelines);
@@ -203,13 +293,9 @@ void stream_engine_destroy(stream_engine_t *engine) {
         free(p);
     }
     uv_mutex_unlock(&engine->pipe_mutex);
+    uv_mutex_destroy(&engine->pipe_mutex);
 
-    if (engine->notify_inited && !uv_is_closing((uv_handle_t *)&engine->notify_handle)) {
-        uv_close((uv_handle_t *)&engine->notify_handle, _on_engine_close);
-    } else {
-        uv_mutex_destroy(&engine->pipe_mutex);
-        free(engine);
-    }
+    free(engine);
 }
 
 pipeline_t *stream_engine_add_pipeline(stream_engine_t *engine, const char *id,
@@ -217,6 +303,7 @@ pipeline_t *stream_engine_add_pipeline(stream_engine_t *engine, const char *id,
     pipeline_t *p = calloc(1, sizeof(pipeline_t));
     strncpy(p->id, id, 63);
     p->trigger_tag = trigger_tag;
+    p->engine = engine; // Set the back-pointer
 
     uv_mutex_lock(&engine->pipe_mutex);
     uv__queue_insert_tail(&engine->pipelines, &p->node);
@@ -224,6 +311,72 @@ pipeline_t *stream_engine_add_pipeline(stream_engine_t *engine, const char *id,
     uv_mutex_unlock(&engine->pipe_mutex);
 
     return p;
+}
+
+void stream_engine_resume(pipeline_t *p) {
+    if (!p || p->state != PIPE_STATE_SUSPENDED) {
+        return;
+    }
+
+    // [SE-11] Queue Depth Monitoring
+    int depth = (p->q_head - p->q_tail + MAX_PENDING_QUEUE) % MAX_PENDING_QUEUE;
+    if (depth > 0) {
+        pipe_msg_t q_msg;
+        // NOTE: We assume 11005 is the ID for SYS_PIPE_QUEUE_DEPTH from contracts.
+        pipe_msg_init_scalar(&q_msg, 11005, (double)depth, uv_hrtime());
+        // It's safe to publish directly, as this function runs on the compute thread
+        // which has access to the engine and its datahub.
+        datahub_publish(p->engine->hub, &q_msg);
+    }
+
+    p->state = PIPE_STATE_RUNNING;
+    
+    // Resume processing from the stage *after* the one that suspended
+    pipeline_stage_t *s = p->resume_point ? p->resume_point->next : NULL;
+    
+    while (s) {
+        // (This loop is a duplicate of the one in _pipeline_process, could be refactored)
+        if (s->health != STAGE_HEALTH_GOOD) {
+            s = s->next;
+            continue;
+        }
+
+        uint64_t start = uv_hrtime();
+        stage_ret_t ret = s->process(s, &p->current_event);
+        uint64_t elapsed_us = (uv_hrtime() - start) / 1000;
+        
+        s->last_proc_us = elapsed_us;
+        s->total_events++;
+
+        if (ret == STAGE_ASYNC) {
+            p->state = PIPE_STATE_SUSPENDED;
+            p->resume_point = s;
+            // current_event is already set
+            return; // Suspended again, exit
+        }
+        if (ret == STAGE_DROP || ret == STAGE_ERROR) {
+            break;
+        }
+        s = s->next;
+    }
+
+    // Original event finished, set pipeline to idle
+    p->state = PIPE_STATE_IDLE;
+    p->resume_point = NULL;
+
+    // [SE-06] Catch-up logic: process the back-pressure queue
+    while (p->q_head != p->q_tail) {
+        pipe_msg_t queued_msg = p->queue[p->q_tail];
+        p->q_tail = (p->q_tail + 1) % MAX_PENDING_QUEUE;
+        
+        // Run the entire pipeline for the queued message.
+        // If it suspends, the loop will terminate and the state will be correctly set.
+        _pipeline_process(p, &queued_msg);
+
+        if (p->state == PIPE_STATE_SUSPENDED) {
+            break; // A queued message caused a new suspension.
+        }
+    }
 }
 
 void stream_engine_push(stream_engine_t *engine, pipe_msg_t *msg) {

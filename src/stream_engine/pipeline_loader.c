@@ -15,7 +15,6 @@ extern pipeline_stage_t *stage_ema_create(double alpha);
 extern pipeline_stage_t *stage_clamp_create(double min, double max);
 extern pipeline_stage_t *stage_peak_shaving_create(double threshold_w, uint32_t ctrl_tag);
 extern pipeline_stage_t *stage_filter_range_create(double min, double max);
-extern pipeline_stage_t *stage_js_rule_create(js_engine_t *engine, const char *script_path);
 extern pipeline_stage_t *stage_periodic_freeze_create(int kind);
 extern pipeline_stage_t *stage_time_guard_create(void);
 extern pipeline_stage_t *stage_battery_guard_create(battery_limit_t *limits);
@@ -97,7 +96,8 @@ static pipeline_stage_t *build_stage(const char *type, cJSON *config, pipeline_l
     if (strcmp(type, "js_rule") == 0) {
         cJSON *item = cJSON_GetObjectItem(config, "script_path");
         if (item && ctx->js_engine) {
-            return stage_js_rule_create(ctx->js_engine, item->valuestring);
+            bool is_async = cJSON_IsTrue(cJSON_GetObjectItem(config, "async"));
+            return stage_js_rule_create(ctx->js_engine, item->valuestring, is_async);
         }
     }
     if (strcmp(type, "reflex") == 0) {

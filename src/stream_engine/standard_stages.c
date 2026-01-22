@@ -227,57 +227,77 @@ pipeline_stage_t *stage_time_guard_create(void) {
     return s;
 }
 
-// --- 10. SQLite Sink ---
+// --- 10. SQLite Sink (Asynchronous) ---
 
 typedef struct {
     sqlite_svc_t *db;
-
     char table[64];
-
 } _sink_cfg_t;
+
+// Context for the background work request
+typedef struct {
+    uv_work_t req;
+    pipeline_t *pipeline; // To resume it later
+    sqlite_svc_t *db;
+    char *sql;
+} _sink_work_ctx_t;
+
+// This runs on a background worker thread
+static void _sink_work_cb(uv_work_t *req) {
+    _sink_work_ctx_t *ctx = req->data;
+    sqlite_svc_exec(ctx->db, ctx->sql, NULL, NULL);
+}
+
+// This runs on the compute thread's loop after the work is done
+static void _sink_after_work_cb(uv_work_t *req, int status) {
+    (void)status;
+    _sink_work_ctx_t *ctx = req->data;
+    // Resume the pipeline that was paused
+    stream_engine_resume(ctx->pipeline);
+    // Cleanup
+    free(ctx->sql);
+    free(ctx);
+}
 
 static stage_ret_t _sink_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
     if (ev->type != PIPEMSG_TYPE_SCALAR) return STAGE_OK;
 
     _sink_cfg_t *c = s->priv_cfg;
 
-    char sql[256];
-
-    snprintf(sql, sizeof(sql), "INSERT INTO %s (tag_id, value, ts) VALUES (%u, %f, %lu)",
-
+    _sink_work_ctx_t *work_ctx = malloc(sizeof(_sink_work_ctx_t));
+    work_ctx->req.data = work_ctx;
+    work_ctx->pipeline = s->pipeline; // The stage now knows its parent pipeline
+    work_ctx->db = c->db;
+    
+    char sql_buf[256];
+    snprintf(sql_buf, sizeof(sql_buf), "INSERT INTO %s (tag_id, value, ts) VALUES (%u, %f, %lu)",
              c->table, ev->tag_id, ev->payload.val.f, ev->ts);
+    work_ctx->sql = strdup(sql_buf);
 
-    sqlite_svc_exec(c->db, sql, NULL, NULL);
+    // Queue the work to run on a background thread
+    uv_queue_work(s->loop, &work_ctx->req, _sink_work_cb, _sink_after_work_cb);
 
-    return STAGE_OK;
+    // Pause this pipeline until the work is done
+    return STAGE_ASYNC;
 }
 
 pipeline_stage_t *stage_sqlite_sink_create(sqlite_svc_t *db, const char *table) {
     if (!db || !table) return NULL;
 
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
-
     strncpy(s->name, "sqlite_sink", 31);
-
     s->process = _sink_proc;
 
     _sink_cfg_t *c = malloc(sizeof(_sink_cfg_t));
-
     c->db = db;
-
     strncpy(c->table, table, 63);
-
     s->priv_cfg = c;
-
     s->cleanup_cfg = free;
 
-    // 确保表存在
-
+    // Ensure the table exists
     char sql[256];
-
     snprintf(sql, sizeof(sql),
              "CREATE TABLE IF NOT EXISTS %s (tag_id INTEGER, value REAL, ts INTEGER)", table);
-
     sqlite_svc_exec(db, sql, NULL, NULL);
 
     return s;
