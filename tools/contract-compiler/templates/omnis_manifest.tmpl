@@ -32,19 +32,28 @@
     {{- range $i, $pipe := .Pipelines }}
     {
       "id": "{{ $pipe.ID }}",
-      "trigger": "{{ $pipe.Trigger }}"
+      "trigger": "{{ $pipe.Trigger }}",
+      "triggers": {{ $pipe.Triggers | marshal }}
     }{{ if lt $i (sub (len $.Pipelines) 1) }},{{ end }}
     {{- end }}
   ],
-  "topology": [
+  "hardware": [
     {{- range $i, $hw := .Hardware }}
     {
-      "bus_id": {{ $hw.ID }},
-      "transport": {
-        "type": "{{ index $hw.Attributes "transport" }}",
-        "path": "{{ index $hw.Attributes "path" }}"
-      },
-      "devices": {{ index $hw.Attributes "devices" | marshal }}
+      "id": {{ $hw.ID }},
+      "type": "{{ $hw.Type }}",
+      "label": "{{ $hw.Label }}",
+      "profiles": {{ $hw.Profiles | marshal }},
+      "topology": [
+        {{- range $j, $dev := $hw.Topology }}
+        {
+          "dev_id": "{{ $dev.DeviceID }}",
+          "address": {{ $dev.Address }},
+          "protocol": "{{ $dev.Protocol }}",
+          "simulation": {{ $dev.Simulation | marshal }}
+        }{{ if lt $j (sub (len $hw.Topology) 1) }},{{ end }}
+        {{- end }}
+      ]
     }{{ if lt $i (sub (len $.Hardware) 1) }},{{ end }}
     {{- end }}
   ]

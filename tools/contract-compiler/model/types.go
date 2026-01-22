@@ -1,19 +1,19 @@
 package model
 
 type TagDef struct {
-	ID         uint32                 `yaml:"id"`
-	Name       string                 `yaml:"name"`
-	Type       string                 `yaml:"type"`
-	Unit       string                 `yaml:"unit"`
-	Desc       string                 `yaml:"desc"`
-	Attributes map[string]interface{} `yaml:"attributes"`
-	Bindings   []Binding              `yaml:"bindings"`
+	ID         uint32                 `json:"id" yaml:"id"`
+	Name       string                 `json:"name" yaml:"name"`
+	Type       string                 `json:"type" yaml:"type"`
+	Unit       string                 `json:"unit" yaml:"unit"`
+	Desc       string                 `json:"desc" yaml:"desc"`
+	Attributes map[string]interface{} `json:"attributes" yaml:"attributes"`
+	Bindings   []Binding              `json:"bindings" yaml:"bindings"`
 }
 
 type Binding struct {
-	TagName      string                 `yaml:"tag"`
-	ProtocolType string                 `yaml:"protocol"`
-	Attributes   map[string]interface{} `yaml:"attributes"`
+	TagName      string                 `json:"tag" yaml:"tag"`
+	ProtocolType string                 `json:"protocol" yaml:"protocol"`
+	Attributes   map[string]interface{} `json:"attributes" yaml:"attributes"`
 }
 
 type GlobalSchema struct {
@@ -21,111 +21,87 @@ type GlobalSchema struct {
 }
 
 type ConfigDef struct {
-	Name  string      `yaml:"name"`
-	Value interface{} `yaml:"value"`
+	Name  string      `json:"name" yaml:"name"`
+	Value interface{} `json:"value" yaml:"value"`
 }
 
 type ParamDef struct {
-	Name    string      `yaml:"name"`
-	Type    string      `yaml:"type"`
-	Default interface{} `yaml:"default"`
-	Value   interface{} `yaml:"value"` // 用于覆盖 default
-	Unit    string      `yaml:"unit"`
-	Min     float64     `yaml:"min"`
-	Max     float64     `yaml:"max"`
-	Desc    string      `yaml:"desc"`
-	IsRebootRequired bool `yaml:"is_reboot_required"`
-	ID      uint32      `yaml:"id"`       // [归一化] 参数即测点
-	Bindings []Binding  `yaml:"bindings"` // [归一化] 参数可绑定协议
+	Name             string    `json:"name" yaml:"name"`
+	Type             string    `json:"type" yaml:"type"`
+	Default          interface{} `json:"default" yaml:"default"`
+	Value            interface{} `json:"value" yaml:"value"`
+	Unit             string    `json:"unit" yaml:"unit"`
+	Min              float64   `json:"min" yaml:"min"`
+	Max              float64   `json:"max" yaml:"max"`
+	Desc             string    `json:"desc" yaml:"desc"`
+	IsRebootRequired bool      `json:"is_reboot_required" yaml:"is_reboot_required"`
+	ID               uint32    `json:"id" yaml:"id"`
+	Bindings         []Binding `json:"bindings" yaml:"bindings"`
 }
 
 type HardwareDef struct {
-	Type       string                 `yaml:"type"`
-	ID         int                    `yaml:"id"`
-	Label      string                 `yaml:"label"`
-	Attributes map[string]interface{} `yaml:",inline"`
+	Type       string                 `json:"type" yaml:"type"`
+	ID         int                    `json:"id" yaml:"id"`
+	Label      string                 `json:"label" yaml:"label"`
+	Profiles   map[string]HardwareProfile `json:"profiles" yaml:"profiles"`
+	Topology   []DeviceInstance       `json:"topology" yaml:"topology"`
+	Attributes map[string]interface{} `json:"attributes,omitempty" yaml:",inline"`
+}
+
+type HardwareProfile struct {
+	OSDev  string `json:"os_dev" yaml:"os_dev"`
+	Params string `json:"params" yaml:"params"`
+}
+
+type DeviceInstance struct {
+	DeviceID   string                 `json:"dev_id" yaml:"dev_id"`
+	Address    uint32                 `json:"address" yaml:"address"`
+	Protocol   string                 `json:"protocol" yaml:"protocol"`
+	Simulation map[string]interface{} `json:"simulation" yaml:"simulation"`
 }
 
 type PipelineDef struct {
-
-	ID      string                 `yaml:"id"`
-
-	Trigger string                 `yaml:"trigger"`
-
-	Stages  []map[string]interface{} `yaml:"stages"`
-
+	ID       string                   `json:"id" yaml:"id"`
+	Trigger  string                   `json:"trigger" yaml:"trigger"`
+	Triggers []map[string]interface{} `json:"triggers" yaml:"triggers"`
+	Stages   []map[string]interface{} `json:"stages" yaml:"stages"`
 }
-
-
 
 type PolicyDef struct {
-
-	Name       string                 `yaml:"name"`
-
-	Type       string                 `yaml:"type"`
-
+	Name       string                 `json:"name" yaml:"name"`
+	Type       string                 `json:"type" yaml:"type"`
 	Attributes map[string]interface{} `yaml:",inline"`
-
 }
-
-
 
 type UIDef struct {
-	Theme string `yaml:"theme"`
+	Theme string `json:"theme" yaml:"theme"`
 }
-
-
 
 type ProductConfig struct {
-
-	ProductName string                 `yaml:"product"`
-
-	Includes    []string               `yaml:"includes"`
-
-	EnabledTags []interface{}          `yaml:"enabled_tags"`
-
-	DisabledTags []string             `yaml:"disabled_tags"`
-
-	Configs     []ConfigDef            `yaml:"configs"`
-
-	Params      []ParamDef             `yaml:"parameters"`
-
-	Hardware    []HardwareDef          `yaml:"hardware"`
-
-	Pipelines   []PipelineDef          `yaml:"pipelines"`
-
-	Policies    []PolicyDef            `yaml:"policies"`
-
-	UI          UIDef                  `yaml:"ui"`
-
-	Overrides   map[string]TagDef      `yaml:"overrides"`
-
+	ProductName  string            `yaml:"product"`
+	Protocol     string            `yaml:"protocol"`
+	Includes     []string          `yaml:"includes"`
+	Include      []string          `yaml:"include"`
+	EnabledTags  []interface{}     `yaml:"enabled_tags"`
+	DisabledTags []string         `yaml:"disabled_tags"`
+	Configs      []ConfigDef       `yaml:"configs"`
+	Params       []ParamDef        `yaml:"parameters"`
+	Hardware     []HardwareDef     `yaml:"hardware"`
+	Pipelines    []PipelineDef     `yaml:"pipelines"`
+	Policies     []PolicyDef       `yaml:"policies"`
+	UI           UIDef             `yaml:"ui"`
+	Mappings     []interface{}     `yaml:"mappings"`
 }
-
-
 
 type EffectiveContract struct {
-
-	Product    string        `yaml:"product_name"`
-
-	ActiveTags []TagDef      `yaml:"active_tags"`
-
-	AllTags    []TagDef    `yaml:"all_tags"`
-
-	Configs    []ConfigDef   `yaml:"configs"`
-
-	Params     []ParamDef    `yaml:"parameters"`
-
-	Hardware   []HardwareDef `yaml:"hardware"`
-
-	Pipelines  []PipelineDef `yaml:"pipelines"`
-
-	Policies   []PolicyDef   `yaml:"policies"`
-
-	UI         UIDef         `yaml:"ui"`
-
-	Scenarios  []string      `yaml:"scenarios"`
-
+	Product    string        `json:"product_name" yaml:"product_name"`
+	ActiveTags []TagDef      `json:"active_tags" yaml:"active_tags"`
+	AllTags    []TagDef      `json:"all_tags" yaml:"all_tags"`
+	Configs    []ConfigDef   `json:"configs" yaml:"configs"`
+	Params     []ParamDef    `json:"parameters" yaml:"parameters"`
+	Hardware   []HardwareDef `json:"hardware" yaml:"hardware"`
+	Pipelines  []PipelineDef `json:"pipelines" yaml:"pipelines"`
+	Policies   []PolicyDef   `json:"policies" yaml:"policies"`
+	UI         UIDef         `json:"ui" yaml:"ui"`
+	Scenarios  []string      `json:"scenarios" yaml:"scenarios"`
 }
-
-

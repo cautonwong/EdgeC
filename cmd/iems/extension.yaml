@@ -1,9 +1,0 @@
-enabled_tags:
-  - tag: VOLTAGE_PHASE_A
-    attributes:
-      poll_interval_ms: 1000
-
-# world 字段已迁移至同目录下的 world.yaml
-poll_tasks:
-  - tag: "VOLTAGE_PHASE_A"
-    interval_ms: 1000

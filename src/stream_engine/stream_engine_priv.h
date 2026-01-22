@@ -15,8 +15,10 @@ struct pipeline_s {
     struct uv__queue node;
     char id[64];
     uint32_t trigger_tag;
+    uint32_t *extra_triggers;      // [Omnis 扩展]
+    uint32_t extra_trigger_count;  // [Omnis 扩展]
     pipeline_state_t state;
-    struct stream_engine_s *engine;  // Back-pointer to parent engine
+    struct stream_engine_s *engine;  // Set the back-pointer to parent engine
 
     pipeline_stage_t *head;
     pipeline_stage_t *tail;

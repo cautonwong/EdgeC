@@ -179,7 +179,15 @@ func main() {
 			}
 			return false
 		},
-		"marshal": func(v interface{}) string { b, _ := json.Marshal(v); return string(b) },
+		"marshal": func(v interface{}) string {
+			if v == nil { return "{}" }
+			b, err := json.Marshal(v)
+			if err != nil || len(b) == 0 { return "{}" }
+			// 避免产生空白或非法 JSON
+			s := string(b)
+			if s == "" || s == "null" { return "{}" }
+			return s
+		},
 		"marshal_pretty": func(v interface{}) string { b, _ := json.MarshalIndent(v, "", "  "); return string(b) },
 		"c_escape": func(s string) string {
 			s = strings.ReplaceAll(s, `\\`, `\\\\`)

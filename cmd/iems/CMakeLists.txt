@@ -3,11 +3,11 @@
 
 set(PROD_NAME iems)
 
-# 1. 契约生成 (产品自治：指定自己的 YAML 和扩展)
+# 1. 契约生成 (产品自治：指定自己的清单 YAML)
 edge_add_contract(
     contract_${PROD_NAME}
     "${CMAKE_SOURCE_DIR}/contracts/products/iems.yaml"
-    "${CMAKE_CURRENT_SOURCE_DIR}/extension.yaml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/manifest.yaml"
 )
 
 # 2. 定义执行文件与 Web UI

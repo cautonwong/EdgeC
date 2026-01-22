@@ -160,6 +160,8 @@ typedef struct {
 typedef struct {
     const char *id;
     uint32_t trigger_tag;
+    const uint32_t *extra_triggers; /**< [Omnis] 额外触发点位列表 */
+    uint32_t extra_trigger_count;
     const edge_stage_def_t *stages;
     uint32_t stage_count;
 } edge_pipeline_def_t;

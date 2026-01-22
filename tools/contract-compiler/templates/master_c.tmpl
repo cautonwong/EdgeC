@@ -28,6 +28,9 @@ static inline uint32_t _contract_hash_mix(uint32_t key, uint32_t seed, uint32_t 
 const edge_device_t g_default_hardware_topology[] = {
 {{- range .Hardware }}
     {{- $bus_id := .ID }}
+    {{- range $dev := .Topology }}
+    { .bus_id = {{ $bus_id }}, .protocol_name = "{{ $dev.Protocol }}", .address = {{ $dev.Address }} },
+    {{- end }}
     {{- range $dev := .Attributes.devices }}
     { .bus_id = {{ $bus_id }}, .protocol_name = "{{ index $dev "protocol" }}", .address = {{ index $dev "address" | default (index $dev "start_address") }} },
     {{- end }}
