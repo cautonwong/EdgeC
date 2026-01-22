@@ -1,3 +1,4 @@
+#include "contracts.h"
 #include <fcntl.h>
 #include <sqlite3.h>
 #include <stdio.h>
@@ -8,7 +9,6 @@
 #include <unistd.h>
 #include <uv.h>
 
-#include "contracts.h"
 #include "edge_api.h"
 #include "northbound_mgr.h"
 #include "queue.h"
@@ -69,13 +69,13 @@ static void iems_scheduler_tick(uv_periodic_t *handle) {
 static int _load_tasks_cb(void *user_data, int argc, char **argv, char **cols) {
     (void)user_data;
     (void)cols;
-    if (argc < 4) return 0;
+    if (argc < 5) return 0;
     iems_poll_task_t *task = calloc(1, sizeof(iems_poll_task_t));
     task->bus_id = atoi(argv[0]);
     task->slave_id = (uint32_t)atoi(argv[1]);
     task->tag_id = (uint32_t)atoi(argv[2]);
     strncpy(task->protocol, argv[3], 15);
-    task->interval_ms = 1000;
+    task->interval_ms = (uint32_t)atoi(argv[4]);
     uv__queue_insert_tail(&g_poll_task_head, &task->node);
     return 0;
 }
@@ -98,12 +98,21 @@ static void on_vbus_connect(uv_connect_t *req, int status) {
 }
 
 static void _try_vbus_connect(uv_timer_t *handle) {
-    char *path = getenv("OMNIS_VBUS_PATH") ?: "/tmp/vbus0.sock";
+    char *path = getenv("OMNIS_VBUS_PATH") ?: EDGE_VBUS_PATH;
     if (access(path, F_OK) != 0) return;
     uv_pipe_t *pipe = malloc(sizeof(uv_pipe_t));
     uv_pipe_init(handle->loop, pipe, 0);
     uv_connect_t *req = malloc(sizeof(uv_connect_t));
     uv_pipe_connect(req, pipe, path, on_vbus_connect);
+}
+
+static int _check_db_empty_cb(void *user_data, int argc, char **argv, char **cols) {
+    (void)cols;
+    if (argc > 0 && argv[0]) {
+        int *count = (int*)user_data;
+        *count = atoi(argv[0]);
+    }
+    return 0;
 }
 
 static void on_boot_delayed(uv_timer_t *handle) {
@@ -116,7 +125,6 @@ static void on_boot_delayed(uv_timer_t *handle) {
         return;
     }
 
-    // [整改核心] 显式创建表结构，防止 no such table 错误
     const char *schema =
         "CREATE TABLE IF NOT EXISTS inventory (id TEXT PRIMARY KEY, type TEXT, addr INT, protocol "
         "TEXT, enabled INT);"
@@ -130,27 +138,30 @@ static void on_boot_delayed(uv_timer_t *handle) {
         sqlite3_free(err);
     }
 
-    // 注入演示数据
-    sqlite3_exec(raw_db, "DELETE FROM inventory; DELETE FROM poll_tasks;", NULL, NULL, NULL);
-    sqlite3_exec(raw_db, "INSERT INTO inventory VALUES ('M1', 'Meter', 1, 'ModbusRTU', 1);", NULL,
-                 NULL, NULL);
-    sqlite3_exec(raw_db,
-                 "INSERT INTO poll_tasks (device_id, tag_id, interval_ms, bus_id) VALUES ('M1', "
-                 "1001, 1000, 0);",
-                 NULL, NULL, NULL);
-    sqlite3_exec(raw_db,
-                 "INSERT INTO poll_tasks (device_id, tag_id, interval_ms, bus_id) VALUES ('M1', "
-                 "1003, 1000, 0);",
-                 NULL, NULL, NULL);
-    sqlite3_exec(raw_db,
-                 "INSERT INTO poll_tasks (device_id, tag_id, interval_ms, bus_id) VALUES ('M1', "
-                 "1004, 1000, 0);",
-                 NULL, NULL, NULL);
-
-    // 加载到内存镜像
+    // [SYS-05] Check if DB is empty and provision with defaults if so
+    int inventory_count = 0;
+    sqlite3_exec(raw_db, "SELECT COUNT(*) FROM inventory;", _check_db_empty_cb, &inventory_count, &err);
+    if (inventory_count == 0) {
+        printf(" ℹ️ [DB] Empty inventory detected, provisioning with factory defaults...\n");
+        char sql_buf[256];
+        for (int i = 0; i < g_default_hardware_topology_len; i++) {
+            const edge_device_t *dev = &g_default_hardware_topology[i];
+            snprintf(sql_buf, sizeof(sql_buf), 
+                     "INSERT INTO inventory (id, type, addr, protocol, enabled) VALUES ('DEV_%d_%s_%d', 'default', %d, '%s', 1);",
+                     dev->bus_id, dev->protocol_name, dev->address, dev->address, dev->protocol_name);
+            sqlite3_exec(raw_db, sql_buf, NULL, NULL, &err);
+            if (err) {
+                 printf(" ❌ [DB] Default insert error: %s\n", err);
+                 sqlite3_free(err);
+                 err = NULL;
+            }
+        }
+    }
+    
+    // Load tasks from the (now populated) database into the in-memory scheduler
     uv__queue_init(&g_poll_task_head);
     const char *sql =
-        "SELECT t.bus_id, i.addr, t.tag_id, i.protocol FROM poll_tasks t "
+        "SELECT t.bus_id, i.addr, t.tag_id, i.protocol, t.interval_ms FROM poll_tasks t "
         "JOIN inventory i ON t.device_id = i.id WHERE i.enabled = 1;";
     sqlite3_exec(raw_db, sql, _load_tasks_cb, NULL, NULL);
 
@@ -197,7 +208,7 @@ int main(int argc, char **argv) {
     g_drv_mgr = driver_manager_create();
     modbus_driver_register(g_drv_mgr);
     datahub_t *hub = calloc(1, sizeof(datahub_t));
-    datahub_init(hub, loop, "iems", 1024, 1024, g_tag_metadata, g_tag_metadata_len, NULL,
+    datahub_init(hub, loop, EDGE_SHM_BUS_NAME, 1024, 1024, g_tag_metadata, g_tag_metadata_len, NULL,
                  edge_tag_get_compact_index, edge_router_needs_wakeup);
     g_hub_ptr = hub;
 
@@ -214,10 +225,10 @@ int main(int argc, char **argv) {
     service_t *svc = service_new(loop, hub, arbiter, db_service, se, NULL, NULL);
     g_running_svc = svc;
 
-    unlink("/tmp/iems_ui.sock");
+    unlink(EDGE_UI_SOCKET_PATH);
     uv_pipe_t *ui_srv = malloc(sizeof(uv_pipe_t));
     uv_pipe_init(loop, ui_srv, 0);
-    uv_pipe_bind(ui_srv, "/tmp/iems_ui.sock");
+    uv_pipe_bind(ui_srv, EDGE_UI_SOCKET_PATH);
     uv_listen((uv_stream_t *)ui_srv, 10, on_ui_connect);
 
     g_vbus_timer = malloc(sizeof(uv_timer_t));

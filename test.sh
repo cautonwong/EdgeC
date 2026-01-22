@@ -60,7 +60,7 @@ stop_all
 
 # 2. 启动 Matrix Server (物理世界模拟器)
 echo ">> [1/3] Launching Matrix Server (World: cmd/$PRODUCT/world.yaml)..."
-python3 tools/matrix/server.py --product "$PRODUCT" > build/matrix_server.log 2>&1 &
+.venv/bin/python3 tools/matrix/server.py --product "$PRODUCT" > build/matrix_server.log 2>&1 &
 sleep 3
 
 # 3. 启动 EdgeC 主引擎 (带入虚拟路径)

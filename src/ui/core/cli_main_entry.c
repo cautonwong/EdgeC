@@ -11,6 +11,8 @@
 #include "datahub.h"
 #include "edge_log.h"
 #include "edge_ui.h"
+#include "contracts.h"
+#include "contracts.h"
 
 extern const edge_tag_meta_t g_tag_metadata[];
 extern const uint32_t g_tag_metadata_len;
@@ -37,17 +39,14 @@ static int fetch_fds(const char *path, int *rfd, int *sfd) {
 
 int main(int argc, char *argv[]) {
     setlocale(LC_ALL, "");
-    const char *bus_name = "iems";
-    char sock_path[128];
-    snprintf(sock_path, sizeof(sock_path), "/tmp/%s_ui.sock", bus_name);
 
     printf("\n--- IEMS UI DASHBOARD STARTUP ---\n");
-    printf(" [1/3] Searching for DataHub [%s] at %s\n", bus_name, sock_path);
+    printf(" [1/3] Searching for DataHub [%s] at %s\n", EDGE_SHM_BUS_NAME, EDGE_UI_SOCKET_PATH);
 
     int rfd = -1, sfd = -1;
     int retry = 0;
     while (rfd < 0 && retry < 20) {
-        if (fetch_fds(sock_path, &rfd, &sfd) != 0) {
+        if (fetch_fds(EDGE_UI_SOCKET_PATH, &rfd, &sfd) != 0) {
             printf("  ... still waiting for engine (try %d)\n", ++retry);
             usleep(500000);
             continue;
