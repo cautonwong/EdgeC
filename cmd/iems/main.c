@@ -10,6 +10,7 @@
 #include <uv.h>
 
 #include "edge_api.h"
+#include "js_engine.h"
 #include "northbound_mgr.h"
 #include "queue.h"
 #include "sched_time.h"
@@ -43,7 +44,19 @@ static const driver_contract_injection_t iems_modbus_injection = {
 
 static void on_poll_complete(int status, const pipe_msg_t *result) {
     if (status != 0 || !result) return;
-    datahub_publish(g_hub_ptr, result);
+
+    // The result->tag_id from the legacy request is the PHYSICAL tag (e.g. modbus register).
+    // We must look up the LOGICAL tag id to publish to the rest of the system.
+    float scale = 1.0f;
+    edge_tag_id_t logical_tid = edge_lookup_modbus(result->tag_id, &scale);
+
+    if (logical_tid != 0) {
+        pipe_msg_t msg_to_publish;
+        // The driver already applied its own scaling, so we just use the final value.
+        // We create a new message with the correct LOGICAL tag id.
+        pipe_msg_init_scalar(&msg_to_publish, logical_tid, result->payload.val.f, uv_hrtime());
+        datahub_publish(g_hub_ptr, &msg_to_publish);
+    }
 }
 
 static void iems_scheduler_tick(uv_periodic_t *handle) {
@@ -224,6 +237,16 @@ int main(int argc, char **argv) {
     stream_engine_t *se = stream_engine_create(hub, NULL);
     service_t *svc = service_new(loop, hub, arbiter, db_service, se, NULL, NULL);
     g_running_svc = svc;
+
+    // Load pipelines from JSON config now that all services are available
+    js_engine_t *js_engine = js_engine_create(svc, 1024 * 1024);
+    pipeline_loader_ctx_t loader_ctx = {
+        .db = db_service,
+        .js_engine = js_engine,
+        .orch = g_orch_ptr,
+        .params = NULL
+    };
+    stream_engine_load_config(se, "config/iems_pipelines.json", &loader_ctx);
 
     unlink(EDGE_UI_SOCKET_PATH);
     uv_pipe_t *ui_srv = malloc(sizeof(uv_pipe_t));
