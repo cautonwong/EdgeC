@@ -2,6 +2,7 @@
 #define EDGE_UI_H
 
 #include <stdbool.h>
+#include <uv.h>
 
 #include "datahub.h"
 
@@ -53,7 +54,9 @@ struct ui_page_s {
 struct ui_service_s {
     bool running;
     datahub_t *hub;
+    uv_loop_t *loop; // Need to store the loop for the timer
     ui_hal_t *hal;
+    uv_timer_t refresh_timer;
     ui_page_t *page_stack[8];
     int stack_top;
 };
