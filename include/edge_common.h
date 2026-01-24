@@ -7,6 +7,8 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
+#include "contract_data_types.h"
+
 /**
  * @brief 工业标准 Modbus CRC16
  */
@@ -58,7 +60,6 @@ typedef enum {
     EDGE_ERR_INCOMPLETE = -10
 } edge_status_t;
 
-typedef uint32_t edge_tag_id_t;
 typedef int64_t wall_time_t;  /**< Unix Wall Time in Milliseconds */
 typedef uint64_t mono_time_t; /**< Monotonic Time in Milliseconds */
 

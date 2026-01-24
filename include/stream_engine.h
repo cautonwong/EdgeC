@@ -102,6 +102,11 @@ char *stream_engine_dump_json(stream_engine_t *engine);
 void stream_engine_resume(pipeline_t *p);
 
 /**
+ * @brief 获取流引擎的异步通知句柄
+ */
+uv_async_t *stream_engine_get_notify_handle(stream_engine_t *engine);
+
+/**
  * @brief [S17] 获取指定算子的健康状态
  */
 stage_health_t pipeline_stage_get_health(pipeline_stage_t *stage);
@@ -121,7 +126,7 @@ pipeline_stage_t *stage_js_rule_create(js_engine_t *engine, const char *script_p
 pipeline_stage_t *stage_battery_guard_create(battery_limit_t *limits);
 pipeline_stage_t *stage_reflex_logic_create(struct bus_orchestrator_s *orch, uint32_t bus_id,
                                             const char *proto, uint32_t target_tag,
-                                            double threshold, bool greater_than);
+                                            double threshold, bool greater_than, double action_val);
 
 // --- Sprint 3: 工业级算法库扩展 ---
 pipeline_stage_t *stage_moving_average_create(uint32_t window_size);

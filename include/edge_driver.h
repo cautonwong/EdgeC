@@ -87,6 +87,11 @@ struct edge_driver_s {
                           net_buf_t *out);
 
     /**
+     * @brief 构建写操作请求包
+     */
+    int (*encode_write)(edge_driver_ctx_t *ctx, uint32_t tag_id, double value, net_buf_t *out);
+
+    /**
      * @brief 解析主站收到的响应
      */
     int (*decode_response)(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_out,

@@ -166,8 +166,19 @@ add_library(edge_stream_engine STATIC
 target_link_libraries(edge_stream_engine PUBLIC edge_core edge_algo)
 target_link_libraries(edge_stream_engine PRIVATE QuickJS::QuickJS)
 
-# 5.4 执行平面 (Execution Plane)
-add_library(edge_io_executor STATIC
+# 5.4 控制与执行平面 (Control & Execution Plane)
+add_library(edge_main_loop STATIC
+    src/main_loop/arbiter.c
+    src/main_loop/bus_orchestrator.c
+    src/main_loop/dcu_inventory.c
+    src/main_loop/edge_service.c
+    src/main_loop/northbound_mgr.c
+    src/main_loop/policy_syncer.c
+    src/main_loop/rest_server.c
+    src/main_loop/sched_engine.c
+    src/main_loop/sched_port.c
+    src/main_loop/web_server.c
+    src/main_loop/ws_proto.c
     src/io_executor/driver_manager.c
     src/io_executor/profile_loader.c
     src/io_executor/modbus_rtu_driver.c
@@ -181,34 +192,16 @@ add_library(edge_io_executor STATIC
     src/io_executor/requests/req_raw_io.c
     src/io_executor/edge_api.c
 )
-target_include_directories(edge_io_executor PUBLIC
+target_include_directories(edge_main_loop PUBLIC
     src/io_executor/requests
 )
-target_link_libraries(edge_io_executor PUBLIC edge_core edge_protocols edge_platform)
-target_link_libraries(edge_io_executor PRIVATE Modbus::Modbus)
-
-# 5.5 控制平面 (Control Plane)
-add_library(edge_main_loop STATIC
-    src/main_loop/arbiter.c
-    src/main_loop/bus_orchestrator.c
-    src/main_loop/dcu_inventory.c
-    src/main_loop/edge_service.c
-    src/main_loop/northbound_mgr.c
-    src/main_loop/policy_syncer.c
-    src/main_loop/rest_server.c
-    src/main_loop/sched_engine.c
-    src/main_loop/sched_port.c
-    src/main_loop/web_server.c
-    src/main_loop/ws_proto.c
-)
-# main_loop 依赖 io_executor 和 stream_engine
-target_link_libraries(edge_main_loop PUBLIC edge_core edge_stream_engine edge_io_executor)
-target_link_libraries(edge_main_loop PRIVATE PahoMQTT::PahoMQTT)
+target_link_libraries(edge_main_loop PUBLIC edge_core edge_stream_engine edge_protocols edge_platform)
+target_link_libraries(edge_main_loop PRIVATE Modbus::Modbus PahoMQTT::PahoMQTT CURL::libcurl)
 
 # 解决循环依赖：让 stream_engine 也能看到 main_loop 的符号
 target_link_libraries(edge_stream_engine PUBLIC edge_main_loop)
 
-# 5.6 算法库
+# 5.5 算法库
 add_library(edge_algo STATIC
     algo/native/algorithm_sum.c
     algo/native/battery_strategy.c

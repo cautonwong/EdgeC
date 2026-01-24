@@ -125,12 +125,26 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 	effectiveConfigs := pc.Configs
 	effectivePolicies := pc.Policies
 	effectiveUI := pc.UI
+	effectiveConnectivity := pc.Connectivity
+	effectiveDevices := pc.Devices
+
 	if localPath != "" {
 		lData, _ := os.ReadFile(localPath)
 		var manifest map[string]interface{}
 		yaml.Unmarshal(lData, &manifest)
 		var mStruct model.ProductConfig
 		yaml.Unmarshal(lData, &mStruct)
+
+		// 合并 Connectivity (路)
+		if mStruct.Connectivity != nil {
+			effectiveConnectivity = mStruct.Connectivity
+		}
+
+		// 合并 Devices (车)
+		if mStruct.Devices != nil {
+			effectiveDevices = mStruct.Devices
+		}
+
 		if en, ok := manifest["enabled_tags"].([]interface{}); ok {
 			for _, item := range en {
 				if s, ok := item.(string); ok {
@@ -259,6 +273,7 @@ func BuildContract(schemaPath, productPath, localPath, baseDir string) *model.Ef
 	return &model.EffectiveContract{
 		Product: pc.ProductName, ActiveTags: activeTags, AllTags: allTags,
 		Configs: effectiveConfigs, Params: effectiveParams, Hardware: effectiveHardware,
+		Connectivity: effectiveConnectivity, Devices: effectiveDevices,
 		Pipelines: effectivePipelines, Policies: effectivePolicies, UI: effectiveUI, Scenarios: effectiveScenarios,
 	}
 }

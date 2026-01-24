@@ -125,13 +125,26 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
 
     if (hub->shadow_table) {
         int idx = hub->map_fn ? hub->map_fn(local_msg.tag_id) : (int)local_msg.tag_id;
+
         if (idx >= 0 && (uint32_t)idx < hub->shadow_capacity) {
             uv_mutex_lock(&hub->shadow_lock);
+
             hub->shadow_table[idx] = local_msg;
+
             uv_mutex_unlock(&hub->shadow_lock);
+
+            if (local_msg.tag_id > 0) {
+                LOG_INFO(LOG_CAT_BUS, "[TRACE-DH] Publish Tag %u to Shadow[%d] Val=%.2f",
+
+                         local_msg.tag_id, idx, local_msg.payload.val.f);
+            }
+
+        } else {
+            LOG_ERROR(LOG_CAT_BUS, "[TRACE-DH] ERROR: Tag %u map to invalid idx %d",
+
+                      local_msg.tag_id, idx);
         }
     }
-
     bool needs_wakeup = true;
     if (hub->wakeup_fn) {
         int idx = hub->map_fn ? hub->map_fn(local_msg.tag_id) : (int)local_msg.tag_id;
@@ -140,7 +153,9 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
 
     if (needs_wakeup) {
         for (int i = 0; i < hub->listener_count; i++) {
-            if (hub->listeners[i]) uv_async_send(hub->listeners[i]);
+            if (hub->listeners[i]) {
+                uv_async_send(hub->listeners[i]);
+            }
         }
         if (hub->legacy_cb) hub->legacy_cb(hub, hub->legacy_user_data);
         if (!uv_is_closing((uv_handle_t *)&hub->legacy_async)) uv_async_send(&hub->legacy_async);
@@ -181,6 +196,12 @@ int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out) {
     uv_mutex_unlock(&hub->shadow_lock);
 
     if (out->tag_id != tag_id) {
+        if (tag_id == 1001 || tag_id == 8004) {
+            LOG_WARN(LOG_CAT_BUS, "[TRACE-DH] Read Shadow Mismatch: Req %u but found %u at idx %d",
+
+                     tag_id, out->tag_id, idx);
+        }
+
         return -1;
     }
 

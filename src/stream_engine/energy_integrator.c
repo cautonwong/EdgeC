@@ -37,8 +37,15 @@ static stage_ret_t _energy_integrator_proc(pipeline_stage_t *s, pipe_msg_t *msg)
         double dt_s = (double)(msg->ts - ctx->last_calc_ts) / 1e9;
         if (dt_s > 0 && dt_s < 10.0) {  // 过滤跳变异常
             double energy_Ws = (ctx->last_power_W + msg->payload.val.f) / 2.0 * dt_s;
-            ctx->accumulated_kWh += energy_Ws / 3600000.0;
+            double increment_kWh = energy_Ws / 3600000.0;  // Calculate increment in kWh
+            ctx->accumulated_kWh += increment_kWh;
             ctx->is_dirty = true;
+
+            // [Trace] 显式打印积分进度
+            if (msg->payload.val.f != 0.0) {
+                printf("\033[34m[STAGE-INTEGRATOR] Power:%.2f W -> Total:%.6f kWh (+%.6f)\033[0m\n",
+                       msg->payload.val.f, ctx->accumulated_kWh, increment_kWh);
+            }
         }
 
         ctx->last_calc_ts = msg->ts;

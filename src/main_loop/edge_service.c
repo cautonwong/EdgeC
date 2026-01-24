@@ -62,6 +62,11 @@ service_t *service_new(uv_loop_t *loop, datahub_t *hub, arbiter_t *arb, sqlite_s
     svc->params = params;
     svc->north = (northbound_mgr_t *)north;  // 允许为 NULL
 
+    // [Fix] 注入北向上下文，解除北向线程的自旋等待
+    if (svc->north) {
+        svc->north->user_data = svc;
+    }
+
     // 初始化默认状态
     svc->link_status[LINK_PRIMARY] = true;
     svc->current_link = LINK_PRIMARY;

@@ -2,27 +2,100 @@
 
 #include <MQTTAsync.h>
 #include <cjson/cJSON.h>
+#include <curl/curl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "contract_data_types.h"
 #include "edge_log.h"
 #include "edge_service.h"
 
-extern char *rest_dispatch(service_t *svc, const char *path, const char *body);
+extern char *rest_dispatch(service_t *svc, const char *method, const char *path, const char *body);
+
+// [Matrix] 简单的 HTTP POST 实现，用于回传数据给仿真服务器
+static void _push_to_matrix(uint32_t tag_id, double val, uint64_t ts) {
+    CURL *curl;
+    CURLcode res;
+
+    curl = curl_easy_init();
+    if (curl) {
+        // 获取 Matrix Server 地址，默认为 localhost:50051
+        const char *srv = getenv("OMNIS_SERVER");
+        char url[128];
+        snprintf(url, sizeof(url), "http://%s/api/v1/monitor", srv ? srv : "localhost:50051");
+
+        // 构造 JSON Payload
+        char body[128];
+        snprintf(body, sizeof(body), "{\"tag_id\": %u, \"value\": %f, \"ts\": %lu}", tag_id, val,
+                 ts);
+
+        struct curl_slist *headers = NULL;
+        headers = curl_slist_append(headers, "Content-Type: application/json");
+
+        curl_easy_setopt(curl, CURLOPT_URL, url);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body);
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 200L);  // 快速超时，避免阻塞
+
+        // 执行请求
+        res = curl_easy_perform(curl);
+        if (res != CURLE_OK) {
+            // 仅在调试时打印连接错误，防止刷屏
+            // fprintf(stderr, "[NORTH-ERR] Matrix Push Failed: %s\n", curl_easy_strerror(res));
+        } else {
+            printf("\033[95m[NORTH] ☁️  Push to Matrix: Tag=%u Val=%.2f\033[0m\n", tag_id, val);
+        }
+
+        curl_slist_free_all(headers);
+        curl_easy_cleanup(curl);
+    }
+}
 
 static void on_data_notify_timer(uv_timer_t *handle) {
     northbound_mgr_t *mgr = (northbound_mgr_t *)handle->data;
+
     if (!mgr || !mgr->user_data) return;
 
     service_t *svc = (service_t *)mgr->user_data;
+
     datahub_t *hub = service_get_datahub(svc);
+
     if (!hub) return;
 
     PipeMsg msg;
+
+    int count = 0;
+
     while (shm_ring_read(mgr->ring, &mgr->last_seq, &msg) == 0) {
-        // Observability metrics collection
+        if (msg.type == PIPEMSG_TYPE_SCALAR) {
+            // 1. 打印日志 (Traceability)
+
+            printf("[NORTH] 📥 DataHub RX: Tag=%u Val=%.4f TS=%lu\n",
+
+                   msg.tag_id, msg.payload.val.f, msg.ts);
+
+            // 2. 推送给 Matrix (Connectivity)
+
+            _push_to_matrix(msg.tag_id, msg.payload.val.f, msg.ts);
+
+            count++;
+        }
+    }
+
+    // [Trace] 北向心跳：每秒打印一次，确认为存活
+
+    static uint64_t last_beat = 0;
+
+    uint64_t now = uv_now(handle->loop);
+
+    if (now - last_beat >= 1000) {
+        printf("\033[35m[NORTH] Running. Ring Seq Cursor: %lu\033[0m\n", mgr->last_seq);
+
+        fflush(stdout);
+
+        last_beat = now;
     }
 }
 
@@ -34,6 +107,16 @@ static void north_thread_entry(void *arg) {
     northbound_mgr_t *mgr = (northbound_mgr_t *)arg;
     if (!mgr) return;
 
+    // [System-level Trace] 使用无缓冲 write 直接写 stderr
+    const char *msg = "\n\033[33m>>> NORTHBOUND THREAD STARTING <<<\033[0m\n";
+    write(2, msg, strlen(msg));
+
+    // 强制 stdout 无缓冲
+    setvbuf(stdout, NULL, _IONBF, 0);
+
+    printf("\033[33m[NORTH-BOOT] Thread Entry Point Reached.\033[0m\n");
+    fflush(stdout);
+
     // 等待 user_data (svc) 注入，最长等待 1 秒
     int retry = 0;
     while (!mgr->user_data && retry++ < 10) {
@@ -44,6 +127,9 @@ static void north_thread_entry(void *arg) {
         fprintf(stderr, "[NORTH] FATAL: Northbound thread started without service context!\n");
         return;
     }
+
+    // [Init] 全局初始化 CURL (线程安全)
+    curl_global_init(CURL_GLOBAL_ALL);
 
     mgr->loop = malloc(sizeof(uv_loop_t));
     uv_loop_init(mgr->loop);
@@ -60,6 +146,8 @@ static void north_thread_entry(void *arg) {
         mgr->rest_srv = rest_server_create(mgr->loop, (service_t *)mgr->user_data, mgr->rest_port);
     }
 
+    // 启动北向事件循环
+    printf("[NORTH] Thread started. Polling DataHub ring...\n");
     uv_run(mgr->loop, UV_RUN_DEFAULT);
 
     if (mgr->rest_srv) rest_server_destroy(mgr->rest_srv);
@@ -67,6 +155,9 @@ static void north_thread_entry(void *arg) {
     uv_loop_close(mgr->loop);
     free(mgr->loop);
     mgr->loop = NULL;
+
+    // [Cleanup] 清理 CURL
+    curl_global_cleanup();
 }
 
 int northbound_mgr_init(northbound_mgr_t *mgr, uv_loop_t *main_loop, shm_ring_t *ring,

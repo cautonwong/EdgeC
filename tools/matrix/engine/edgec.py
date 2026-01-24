@@ -1,9 +1,11 @@
 import sqlite3
 import json
-import hashlib
 import logging
 import os
 import requests
+import signal
+import atexit
+import time
 from typing import Any
 from tenacity import retry, stop_after_delay, wait_fixed
 
@@ -16,138 +18,105 @@ class MatrixEdgeC:
         self.rest_port = rest_port
         self.db_path = db_path or f"{os.path.basename(bin_path)}.db"
         self.process = None
+        atexit.register(self.stop)
 
     def bootstrap_environment(self, loader: 'SchemaLoader'):
-        logger.info(f"Bootstrapping DB sandbox from master contract: {self.db_path}")
+        """同步数据库资产"""
+        logger.info(f"Bootstrapping DB sandbox at {self.db_path}")
+        if os.path.exists(self.db_path): os.remove(self.db_path)
+        
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-            
-            # 1. Force-create schema
-            cursor.execute("DROP TABLE IF EXISTS inventory")
-            cursor.execute("CREATE TABLE inventory (id TEXT PRIMARY KEY, type TEXT, addr INT, protocol TEXT, enabled INT DEFAULT 1)")
-            
-            cursor.execute("DROP TABLE IF EXISTS poll_tasks")
+            cursor.execute("CREATE TABLE inventory (id TEXT PRIMARY KEY, type TEXT, addr INT, protocol TEXT, model TEXT, extra_config TEXT, enabled INT DEFAULT 1)")
             cursor.execute("CREATE TABLE poll_tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, device_id TEXT, tag_id INT, interval_ms INT, bus_id INT)")
+            cursor.execute("CREATE TABLE matrix_meta (key TEXT PRIMARY KEY, val TEXT)")
             
-            # 2. Inject topology and poll tasks from the master contract schema
-            hardware_cfg = loader.schema.get("hardware", [])
-            poll_tasks_cfg = loader.schema.get("poll_tasks", [])
+            new_devices = loader.data.get("devices", [])
+            tags_cfg = loader.data.get("tags", [])
+            for dev in new_devices:
+                extra_json = json.dumps(dev.get("config", {}))
+                cursor.execute("INSERT INTO inventory VALUES (?, ?, ?, ?, ?, ?, ?)",
+                             (dev["id"], "Simulator", dev["address"], dev["protocol"], dev["model"], extra_json, 1))
+                
+                # 协议归一化：ModbusRTU/TCP -> MODBUS
+                dev_proto = dev["protocol"].upper()
+                if "MODBUS" in dev_proto: dev_proto = "MODBUS"
 
-            for bus_cfg in hardware_cfg:
-                bus_id = bus_cfg.get("id", 0)
-                # The 'devices' list is part of the inlined attributes
-                devices_on_bus = bus_cfg.get("attributes", {}).get("devices", [])
-
-                for dev_cfg in devices_on_bus:
-                    count = dev_cfg.get("count", 1)
-                    proto = dev_cfg.get("protocol", "ModbusRTU")
-                    if proto == "Modbus": proto = "ModbusRTU" # Alias for consistency
-                    start_addr = dev_cfg.get("start_address", dev_cfg.get("address", 1))
-                    
-                    for i in range(count):
-                        addr = start_addr + i
-                        dev_id = f"DEV_{bus_id}_{proto}_{addr}"
-                        cursor.execute(
-                            "INSERT INTO inventory (id, type, addr, protocol, enabled) VALUES (?, ?, ?, ?, ?)",
-                            (dev_id, "Simulator", addr, proto, 1)
-                        )
-                        
-                        # Create polling tasks for this device
-                        for task in poll_tasks_cfg:
-                            tag_name = task.get("tag")
-                            tag_id = loader.name_to_id.get(tag_name)
-                            if tag_id:
-                                interval = task.get("interval_ms", 1000)
-                                cursor.execute(
-                                    "INSERT INTO poll_tasks (device_id, tag_id, interval_ms, bus_id) VALUES (?, ?, ?, ?)",
-                                    (dev_id, tag_id, interval, bus_id)
-                                )
+                for tag in tags_cfg:
+                    for b in tag.get("bindings", []):
+                        tag_proto = b["protocol"].upper()
+                        if tag_proto == dev_proto:
+                            cursor.execute("INSERT INTO poll_tasks (device_id, tag_id, interval_ms, bus_id) VALUES (?, ?, ?, ?)",
+                                         (dev["id"], tag["id"], 1000, dev["bus_id"]))
             
-            # 3. Inject contract hash for runtime verification
-            if hasattr(loader, 'schema') and loader.schema:
-                schema_str = json.dumps(loader.schema, sort_keys=True)
-                chash = hashlib.md5(schema_str.encode()).hexdigest()
-                cursor.execute("CREATE TABLE IF NOT EXISTS edge_settings (product TEXT, tag_id INT, val BLOB, PRIMARY KEY(product, tag_id))")
-                cursor.execute("INSERT OR REPLACE INTO edge_settings (product, tag_id, val) VALUES (?, ?, ?)", ("GLOBAL", 9999, chash))
-            
+            cursor.execute("INSERT INTO matrix_meta VALUES ('is_ready', '1')")
             conn.commit()
             conn.close()
-            logger.info("DB Bootstrap from master contract successful.")
+            logger.info("DB Bootstrap: Committed.")
         except Exception as e:
-            logger.error(f"DB Bootstrap Failed: {e}", exc_info=True)
+            logger.error(f"DB Bootstrap Failed: {e}")
 
     def start(self, cwd: str = None):
         import subprocess
         env = os.environ.copy()
-        env["OMNIS_VBUS_PATH"] = self.vbus_path
+        
+        # 透传所有 OMNIS_BUS_* 环境变量给子进程
+        for k, v in os.environ.items():
+            if k.startswith("OMNIS_BUS_"):
+                env[k] = v
+
         env["EDGE_REST_PORT"] = str(self.rest_port)
+        env["EDGE_DB_PATH"] = self.db_path
+        if "EDGE_SHM_NAME" in os.environ: env["EDGE_SHM_NAME"] = os.environ["EDGE_SHM_NAME"]
+        
+        # ASAN 优化：崩溃时立刻退出，不等待交互
+        env["ASAN_OPTIONS"] = "detect_leaks=0:abort_on_error=1:log_path=stdout"
+        
         project_root = cwd or os.path.abspath(os.getcwd())
         env["LD_LIBRARY_PATH"] = os.path.join(project_root, ".local/linux-x86_64/lib")
 
         log_path = os.path.join(project_root, "build/matrix_edgec.log")
-        log_f = open(log_path, "w")
-        
-        logger.info(f"🚀 Launching EdgeC: {self.bin_path} (Port: {self.rest_port})")
+        # [整改] 使用追加模式，防止多用例覆盖日志
+        self.log_file = open(log_path, "a")
+
+        logger.info(f"🚀 Launching EdgeC (Port: {self.rest_port})")
+        # 移除 stdout/stderr 映射，直接定向到文件，防止管道阻塞
         self.process = subprocess.Popen(
-            [self.bin_path], 
-            env=env, 
-            stdout=log_f, 
-            stderr=log_f, 
-            preexec_fn=os.setsid,
-            cwd=project_root # 确保 C 进程能找到 config/zlog.conf
+            [self.bin_path], env=env, stdout=self.log_file, stderr=self.log_file, cwd=project_root
         )
         try:
             self._wait_ready()
         except Exception as e:
-            # 如果启动失败，尝试读取最后几行日志
-            if os.path.exists(log_path):
-                with open(log_path, "r") as f:
-                    last_logs = f.readlines()[-10:]
-                    logger.error("--- Last EdgeC Logs ---")
-                    for line in last_logs: logger.error(line.strip())
-            raise RuntimeError(f"EdgeC failed to become ready at {self.rest_port}: {e}")
+            self.log_file.flush()
+            self.stop()
+            raise RuntimeError(f"EdgeC failed to start: {e}")
 
-    @retry(stop=stop_after_delay(30), wait=wait_fixed(1))
+    @retry(stop=stop_after_delay(20), wait=wait_fixed(1))
     def _wait_ready(self):
-        # 0. 存活检查
-        if self.process:
-            poll_res = self.process.poll()
-            if poll_res is not None:
-                raise RuntimeError(f"EdgeC process exited immediately with code {poll_res}")
-
+        if self.process.poll() is not None: raise RuntimeError("Process exited")
         url = f"http://127.0.0.1:{self.rest_port}/api/v1/system/health"
-        
-        # 1. Socket 预检查 (探测端口是否监听)
-        import socket
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(0.5)
-            if s.connect_ex(('127.0.0.1', self.rest_port)) != 0:
-                raise ConnectionError(f"Port {self.rest_port} not listening yet.")
-
-        # 2. HTTP 业务就绪检查
         try:
-            resp = requests.get(url, timeout=1)
+            resp = requests.get(url, timeout=0.5)
             resp.raise_for_status()
-            logger.info(f"🟢 EdgeC REST API is online (Port: {self.rest_port}).")
-        except Exception as e:
-            raise e
-
-    def get_tag(self, tag_ref: Any, loader: 'SchemaLoader' = None):
-        tag_id = tag_ref
-        if isinstance(tag_ref, str) and loader:
-            tag_id = loader.name_to_id.get(tag_ref, tag_ref)
-        url = f"http://127.0.0.1:{self.rest_port}/api/v1/data/latest/{tag_id}"
-        try:
-            resp = requests.get(url, timeout=1)
-            if resp.status_code == 200:
-                return resp.json().get("value")
-        except: return None
-        return None
+            logger.info("🟢 EdgeC REST API is online.")
+        except:
+            raise ConnectionError("REST Offline")
 
     def stop(self):
         if self.process:
-            import signal
-            try: os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
-            except: pass
-            self.process.wait(timeout=5)
+            try:
+                self.process.terminate()
+                self.process.wait(timeout=2)
+            except:
+                try: self.process.kill()
+                except: pass
+            self.process = None
+        if hasattr(self, 'log_file'): self.log_file.close()
+
+    def get_tag(self, tag_id: int):
+        url = f"http://127.0.0.1:{self.rest_port}/api/v1/data/latest/{tag_id}"
+        try:
+            resp = requests.get(url, timeout=0.5)
+            return resp.json().get("value") if resp.status_code == 200 else None
+        except: return None

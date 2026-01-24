@@ -39,6 +39,28 @@ type ParamDef struct {
 	Bindings         []Binding `json:"bindings" yaml:"bindings"`
 }
 
+// ConnectivityDef 定义逻辑总线资源
+type ConnectivityDef struct {
+	ID         int                    `json:"id" yaml:"id"`
+	Label      string                 `json:"label" yaml:"label"`
+	Category   string                 `json:"category" yaml:"category"`
+	Type       string                 `json:"type" yaml:"type"`
+	Config     map[string]interface{} `json:"config" yaml:"config"`
+	Simulation map[string]interface{} `json:"simulation" yaml:"simulation"`
+}
+
+// DeviceAttachment 定义业务资产挂载
+type DeviceAttachment struct {
+	ID         string                 `json:"id" yaml:"id"`
+	BusID      int                    `json:"bus_id" yaml:"bus_id"`
+	Protocol   string                 `json:"protocol" yaml:"protocol"`
+	Address    interface{}            `json:"address" yaml:"address"`
+	Model      string                 `json:"model" yaml:"model"`
+	Config     map[string]interface{} `json:"config" yaml:"config"`
+	Simulation map[string]interface{} `json:"simulation" yaml:"simulation"`
+}
+
+// [Legacy] 为了向后兼容保留原有定义
 type HardwareDef struct {
 	Type       string                 `json:"type" yaml:"type"`
 	ID         int                    `json:"id" yaml:"id"`
@@ -78,30 +100,34 @@ type UIDef struct {
 }
 
 type ProductConfig struct {
-	ProductName  string            `yaml:"product"`
-	Protocol     string            `yaml:"protocol"`
-	Includes     []string          `yaml:"includes"`
-	Include      []string          `yaml:"include"`
-	EnabledTags  []interface{}     `yaml:"enabled_tags"`
-	DisabledTags []string         `yaml:"disabled_tags"`
-	Configs      []ConfigDef       `yaml:"configs"`
-	Params       []ParamDef        `yaml:"parameters"`
-	Hardware     []HardwareDef     `yaml:"hardware"`
-	Pipelines    []PipelineDef     `yaml:"pipelines"`
-	Policies     []PolicyDef       `yaml:"policies"`
-	UI           UIDef             `yaml:"ui"`
-	Mappings     []interface{}     `yaml:"mappings"`
+	ProductName  string             `yaml:"product"`
+	Protocol     string             `yaml:"protocol"`
+	Includes     []string           `yaml:"includes"`
+	Include      []string           `yaml:"include"`
+	EnabledTags  []interface{}      `yaml:"enabled_tags"`
+	DisabledTags []string           `yaml:"disabled_tags"`
+	Configs      []ConfigDef        `yaml:"configs"`
+	Params       []ParamDef         `yaml:"parameters"`
+	Connectivity []ConnectivityDef  `yaml:"connectivity"`
+	Devices      []DeviceAttachment `yaml:"devices"`
+	Hardware     []HardwareDef      `yaml:"hardware"`
+	Pipelines    []PipelineDef      `yaml:"pipelines"`
+	Policies     []PolicyDef        `yaml:"policies"`
+	UI           UIDef              `yaml:"ui"`
+	Mappings     []interface{}      `yaml:"mappings"`
 }
 
 type EffectiveContract struct {
-	Product    string        `json:"product_name" yaml:"product_name"`
-	ActiveTags []TagDef      `json:"active_tags" yaml:"active_tags"`
-	AllTags    []TagDef      `json:"all_tags" yaml:"all_tags"`
-	Configs    []ConfigDef   `json:"configs" yaml:"configs"`
-	Params     []ParamDef    `json:"parameters" yaml:"parameters"`
-	Hardware   []HardwareDef `json:"hardware" yaml:"hardware"`
-	Pipelines  []PipelineDef `json:"pipelines" yaml:"pipelines"`
-	Policies   []PolicyDef   `json:"policies" yaml:"policies"`
-	UI         UIDef         `json:"ui" yaml:"ui"`
-	Scenarios  []string      `json:"scenarios" yaml:"scenarios"`
+	Product      string             `json:"product_name" yaml:"product_name"`
+	ActiveTags   []TagDef           `json:"active_tags" yaml:"active_tags"`
+	AllTags      []TagDef           `json:"all_tags" yaml:"all_tags"`
+	Configs      []ConfigDef        `json:"configs" yaml:"configs"`
+	Params       []ParamDef         `json:"parameters" yaml:"parameters"`
+	Connectivity []ConnectivityDef  `json:"connectivity" yaml:"connectivity"`
+	Devices      []DeviceAttachment `json:"devices" yaml:"devices"`
+	Hardware     []HardwareDef      `json:"hardware" yaml:"hardware"`
+	Pipelines    []PipelineDef      `json:"pipelines" yaml:"pipelines"`
+	Policies     []PolicyDef        `json:"policies" yaml:"policies"`
+	UI           UIDef              `json:"ui" yaml:"ui"`
+	Scenarios    []string           `json:"scenarios" yaml:"scenarios"`
 }

@@ -43,7 +43,6 @@ static int modbus_v3_encode_request(edge_driver_ctx_t *ctx, const uint32_t *tag_
     if (count == 0) return -1;
     uint32_t tag_id = tag_ids[0];
     uint16_t reg_addr = 0;
-    float scale = 1.0f;
 
     if (ctx->lookup_by_tag) {
         const modbus_map_t *map = (const modbus_map_t *)ctx->lookup_by_tag(tag_id);
@@ -68,6 +67,39 @@ static int modbus_v3_encode_request(edge_driver_ctx_t *ctx, const uint32_t *tag_
     return 0;
 }
 
+static int modbus_v3_encode_write(edge_driver_ctx_t *ctx, uint32_t tag_id, double value,
+                                  net_buf_t *out) {
+    modbus_ctx_t *priv = (modbus_ctx_t *)ctx->priv;
+    uint16_t reg_addr = 0;
+    float scale = 1.0f;
+
+    if (ctx->lookup_by_tag) {
+        const modbus_map_t *map = (const modbus_map_t *)ctx->lookup_by_tag(tag_id);
+        if (map) {
+            reg_addr = (uint16_t)map->key;
+            scale = map->scaler;
+        } else
+            return -1;
+    } else
+        return -1;
+
+    uint16_t raw_val = (uint16_t)(value / (double)scale);
+    priv->last_requested_tag = tag_id;
+
+    uint8_t *p = net_buf_add(out, 8);
+    p[0] = priv->slave_id;
+    p[1] = 0x06;  // Write Single Register
+    p[2] = (uint8_t)(reg_addr >> 8);
+    p[3] = (uint8_t)(reg_addr & 0xFF);
+    p[4] = (uint8_t)(raw_val >> 8);
+    p[5] = (uint8_t)(raw_val & 0xFF);
+
+    uint16_t crc = _calc_crc(p, 6);
+    p[6] = (uint8_t)(crc & 0xFF);
+    p[7] = (uint8_t)(crc >> 8);
+    return 0;
+}
+
 static int modbus_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_out,
                                      pipe_msg_t *out_msgs, int *msg_count, size_t *consumed) {
     (void)resp_out;
@@ -76,15 +108,60 @@ static int modbus_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_
     uint8_t *data = in->b.data;
     if (data[0] != priv->slave_id) return -1;
 
-    size_t expected = 3 + (size_t)data[2] + 2;
+    size_t expected = 0;
+    uint8_t func = data[1];
+
+    if (func == 0x03) {
+        // Read Holding Registers Response: SlaveID(1) + Func(1) + ByteCount(1) + Data(2*N) + CRC(2)
+
+        // Since we only request 1 register (N=1), ByteCount must be 2.
+
+        if (in->b.len < 3) return EDGE_ERR_INCOMPLETE;
+
+        if (data[2] == 0x00 && in->b.len >= 8) {
+            // [Omnis Special] This is almost certainly a mirrored REQUEST, not a RESPONSE.
+
+            // In a request for addr 0, data[2] is the high byte of addr (0).
+
+            // In a response for 1 register, data[2] is ByteCount (2).
+
+            *consumed = 8;
+
+            return EDGE_ERR_INCOMPLETE;
+        }
+
+        if (data[2] != 2) {
+            // Malformed or different register count response
+
+            return -1;
+        }
+
+        expected = 3 + 2 + 2;  // 7 bytes
+
+    } else if (func == 0x06) {
+        // Write Single Register Response: mirrors the request (8 bytes)
+
+        expected = 8;
+
+    } else if (func == 0x83) {
+        // Exception Response: SlaveID(1) + ErrorFunc(1) + ErrorCode(1) + CRC(2)
+        expected = 5;
+    } else {
+        // Unsupported function code or garbage
+        return -1;
+    }
+
     if (in->b.len < expected) return EDGE_ERR_INCOMPLETE;
     *consumed = expected;
 
     uint16_t crc_calc = _calc_crc(data, expected - 2);
     uint16_t crc_rx = (uint16_t)(data[expected - 2] | (data[expected - 1] << 8));
-    if (crc_calc != crc_rx) return -1;
+    if (crc_calc != crc_rx) {
+        printf("[MODBUS-ERR] CRC Fail! Calc=0x%04X Rx=0x%04X\n", crc_calc, crc_rx);
+        return -1;
+    }
 
-    if (data[1] == 0x03) {
+    if (func == 0x03) {
         uint16_t val = (uint16_t)((data[3] << 8) | data[4]);
         float scale = 1.0f;
         if (ctx->lookup_by_tag) {
@@ -92,12 +169,16 @@ static int modbus_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_
                 (const modbus_map_t *)ctx->lookup_by_tag(priv->last_requested_tag);
             if (map) scale = map->scaler;
         }
-        pipe_msg_init_scalar(&out_msgs[0], priv->last_requested_tag, (double)val * (double)scale,
-                             uv_hrtime());
+        double final_val = (double)val * (double)scale;
+
+        // [Trace] 关键节点日志
+        printf("\033[96m[MODBUS] 📥 RX: Tag=%u Raw=0x%04X Val=%.2f\033[0m\n",
+               priv->last_requested_tag, val, final_val);
+
+        pipe_msg_init_scalar(&out_msgs[0], priv->last_requested_tag, final_val, uv_hrtime());
         *msg_count = 1;
-        // printf(" [Modbus] RX Tag %u = %.2f\n", priv->last_requested_tag, (double)val *
-        // (double)scale);
-        return 0;
+    } else {
+        printf("[MODBUS-ERR] Exception Response: 0x%02X, ErrorCode: 0x%02X\n", func, data[2]);
     }
     return 0;
 }
@@ -107,6 +188,7 @@ edge_driver_t modbus_rtu_driver = {.name = "ModbusRTU",
                                    .on_init = modbus_v3_on_init,
                                    .on_cleanup = NULL,
                                    .encode_request = modbus_v3_encode_request,
+                                   .encode_write = modbus_v3_encode_write,
                                    .decode_response = modbus_v3_decode_response,
                                    .handle_rx = NULL};
 

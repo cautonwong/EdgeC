@@ -23,7 +23,7 @@ set_target_properties(${PROD_NAME} PROPERTIES
 target_link_libraries(${PROD_NAME} PRIVATE 
     edge_algo
     edge_stream_engine
-    edge_io_executor
+    edge_main_loop
     edge_main_loop
     contract_${PROD_NAME}
     edge_common_interface

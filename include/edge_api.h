@@ -23,7 +23,21 @@ void edge_api_init(bus_orchestrator_t *orch, driver_manager_t *drv_mgr);
  * @return 0 on success, -1 on failure.
  */
 int edge_api_read_tag(int bus_id, const char *protocol, uint32_t slave_id, uint32_t physical_tag_id,
-                      void *lookup_by_tag, void *lookup_by_key, legacy_on_complete_cb cb);
+                      legacy_on_complete_cb cb);
+
+/**
+ * @brief Submits a high-level request to write a single tag value.
+ *
+ * @param bus_id The target bus ID.
+ * @param protocol The protocol to use.
+ * @param slave_id The device address on the bus.
+ * @param physical_tag_id The tag ID to write.
+ * @param value The value to write.
+ * @param cb The callback to invoke when done.
+ * @return 0 on success, -1 on failure.
+ */
+int edge_api_write_tag(int bus_id, const char *protocol, uint32_t slave_id,
+                       uint32_t physical_tag_id, double value, legacy_on_complete_cb cb);
 
 /**
  * @brief Submits a raw I/O passthrough request.

@@ -27,6 +27,7 @@ dist/
 # Protocol Documentation
 *.doc
 *.DOC
+*.o
 
 # Logs
 *.log

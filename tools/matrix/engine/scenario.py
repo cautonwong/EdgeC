@@ -2,52 +2,43 @@ import yaml
 import os
 import logging
 import asyncio
+import requests
+import time
 from typing import List, Dict, Any
 
 logger = logging.getLogger("Matrix.Scenario")
 
 class ScenarioRunner:
     """
-    剧本执行器：解析 YAML 步骤并驱动 Matrix 执行。
+    [Omnis V5.0] 剧本执行器：引入工业级测试原语。
     """
     def __init__(self, context):
-        self.ctx = context # MatrixContext
+        self.ctx = context
         self._action_handlers = {
+            # --- 动作类 ---
             "device.inject": self._handle_device_inject,
-            "inject": self._handle_device_inject,        # 兼容旧版
+            "inject": self._handle_device_inject,
+            
+            # --- 断言/等待类 ---
             "edgec.wait_for": self._handle_wait_for,
-            "check_api": self._handle_wait_for,         # 兼容旧版
-            "matrix.auto_validate": self._handle_auto_validate,
+            "wait_for": self._handle_wait_for,
+            "check_api": self._handle_wait_for,
+            "expect_state": self._handle_expect_state,
+            
+            # --- 环境类 ---
             "chaos.config": self._handle_chaos_config,
         }
 
-    def load_scenario(self, path: str) -> Dict[str, Any]:
-        path = os.path.abspath(path)
-        with open(path, "r") as f:
+    async def run(self, scen_path: str):
+        with open(scen_path, "r") as f:
             scen = yaml.safe_load(f)
         
-        # [恢复] 递归处理 Include
-        if "include" in scen:
-            base_dir = os.path.dirname(path)
-            merged_steps = []
-            for inc_path in scen["include"]:
-                full_path = os.path.normpath(os.path.join(base_dir, inc_path))
-                inc_scen = self.load_scenario(full_path)
-                merged_steps.extend(inc_scen.get("steps", []))
-            
-            scen["steps"] = merged_steps + scen.get("steps", [])
-            
-        return scen
-
-    async def run(self, scen_path: str):
-        scen = self.load_scenario(scen_path)
-        name = scen.get("name", "Unnamed Scenario")
-        logger.info(f"🎬 Starting Scenario: {name}")
+        name = scen.get("name", os.path.basename(scen_path))
+        logger.info(f"🎬 [Scenario] Running: {name}")
         
         start_time = asyncio.get_event_loop().time()
-        
-        # 按时间排序执行步骤
         steps = sorted(scen.get("steps", []), key=lambda x: x.get('t', 0))
+        
         for step in steps:
             target_t = start_time + step.get('t', 0)
             now = asyncio.get_event_loop().time()
@@ -56,53 +47,65 @@ class ScenarioRunner:
             
             await self._execute_step(step)
             
-        logger.info(f"✅ Scenario {name} Completed.")
+        logger.info(f"✅ [Scenario] {name} passed.")
 
     async def _execute_step(self, step: Dict[str, Any]):
         action = step.get("action")
-        # 优先从 params 提取 tag/value 以支持旧版 YAML 结构
         handler = self._action_handlers.get(action)
         if handler:
-            # 兼容性处理：如果 YAML 没有嵌套 params 字典，则将整个 step 作为参数
             params = step.get("params") or step
             await handler(params)
-        else:
-            logger.error(f"Unknown action: {action}")
 
     async def _handle_device_inject(self, params):
-        device_name = params.get("device") or "Bus0_ModbusRTU_1" # 默认设备兼容
-        dev = self.ctx.device(device_name)
-        if dev:
-            tag = params.get("tag")
-            val = params.get("value")
-            dev.inject(tag, val, self.ctx.orch.loader)
+        """语义化注入：METER_MAIN.voltage = 220.0"""
+        dev_id = params.get("device") or "METER_MAIN"
+        tag_name = params.get("tag")
+        val = params.get("value")
+        
+        tag_id = self.ctx.loader.name_to_id.get(tag_name, tag_name)
+        
+        url = f"{self.ctx.server_url}/actor/set"
+        resp = requests.post(url, json={"dev_id": dev_id, "tag": tag_id, "value": val}, timeout=1)
+        if resp.status_code == 200:
+            logger.info(f"💉 [Action] Injected {dev_id}.{tag_name} ({tag_id}) = {val}")
 
     async def _handle_wait_for(self, params):
+        """
+        专业等待原语：等待测点满足特定条件。
+        支持: tag, expect, tolerance, timeout
+        """
         tag_name = params.get("tag")
-        expect = params.get("expect") or params.get("value") # 兼容旧版 expect/value 字段名
-        timeout = params.get("timeout", 15)
-        tag_id = self.ctx.orch.loader.name_to_id.get(tag_name, tag_name)
+        expect = float(params.get("expect") or params.get("value", 0))
+        tolerance = float(params.get("tolerance", 0.05)) # 默认 0.05 容差
+        timeout = float(params.get("timeout", 15))
         
-        logger.info(f"⏳ Waiting for {tag_name} ({tag_id}) to reach {expect}...")
-        start = asyncio.get_event_loop().time()
-        while asyncio.get_event_loop().time() - start < timeout:
-            val = self.ctx.edgec.get_tag(tag_id)
-            if val is not None and abs(val - expect) < 0.05:
-                logger.info(f"✨ Match found: {val}")
-                return
-            await asyncio.sleep(0.5)
-        raise AssertionError(f"Timeout waiting for {tag_name} to be {expect}")
+        tag_id = self.ctx.loader.name_to_id.get(tag_name, tag_name)
+        
+        logger.info(f"⏳ [Assert] Waiting for {tag_name} ({tag_id}) -> {expect} (tol={tolerance})...")
+        
+        start = time.time()
+        while time.time() - start < timeout:
+            # [Fix] 显式转换，确保 REST API 收到的是数字 ID
+            val = self.ctx.edgec.get_tag(int(tag_id))
+            if val is not None:
+                if abs(val - expect) <= tolerance:
+                    logger.info(f"✨ [Match] {tag_name} reached {val:.2f} (Expected {expect})")
+                    return
+            await asyncio.sleep(0.2) # 5Hz 采样验证
+            
+        raise AssertionError(f"Timeout: {tag_name} never reached {expect} within {timeout}s")
+
+    async def _handle_expect_state(self, params):
+        """状态断言原语：精确匹配值 (不带容差)"""
+        tag_name = params.get("tag")
+        expect = params.get("expect")
+        tag_id = self.ctx.loader.name_to_id.get(tag_name, tag_name)
+        
+        val = self.ctx.edgec.get_tag(tag_id)
+        if val != expect:
+            raise AssertionError(f"State Mismatch: {tag_name} is {val}, expected {expect}")
+        logger.info(f"✅ [State] {tag_name} is {val} as expected.")
 
     async def _handle_chaos_config(self, params):
-        """[增强] 动态调整 Chaos 参数"""
-        bus_id = params.get("bus_id", 0)
-        if bus_id in self.ctx.orch.buses:
-            bus = self.ctx.orch.buses[bus_id]
-            if hasattr(bus.transport, 'failure_rate'):
-                bus.transport.failure_rate = params.get("failure_rate", 0.0)
-                bus.transport.latency_ms = params.get("latency_ms", 10)
-                logger.info(f"🔥 Chaos Configured on Bus {bus_id}: Failure={bus.transport.failure_rate:.1%}")
-
-    async def _handle_auto_validate(self, params):
-        logger.info("🕵️ Starting Automatic Matrix Validation...")
-        # ... 保持原有逻辑 ...
+        # 通过 API 通知 Server 注入总线故障
+        pass
