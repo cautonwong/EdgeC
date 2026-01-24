@@ -70,6 +70,9 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
     target_include_directories(${TARGET_NAME}_obj PRIVATE 
         "${GEN_DIR}"
         "${CMAKE_SOURCE_DIR}/include"
+        "${libuv_INCLUDE_DIRS}"
+        "${LIBUV_INCLUDE_DIRS}"
+        "${LibUV_INCLUDE_DIRS}"
     )
 
     # 创建一个 INTERFACE 库供外部链接，自动传播头文件路径
@@ -78,6 +81,9 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
     target_include_directories(${TARGET_NAME} INTERFACE 
         "${GEN_DIR}"
         "${CMAKE_SOURCE_DIR}/include"
+        "${libuv_INCLUDE_DIRS}"
+        "${LIBUV_INCLUDE_DIRS}"
+        "${LibUV_INCLUDE_DIRS}"
     )
 
     # 如果有对应的 lib 需求，也可以保留静态库链接逻辑，但推荐使用 INTERFACE 传播

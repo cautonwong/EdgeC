@@ -19,4 +19,6 @@ rest_server_t *rest_server_create(uv_loop_t *loop, service_t *svc, int port);
 
 void rest_server_destroy(rest_server_t *srv);
 
+void rest_server_enable_write(bool enable);
+
 #endif

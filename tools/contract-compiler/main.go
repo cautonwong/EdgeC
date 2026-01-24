@@ -24,22 +24,24 @@ import (
 var tplFS embed.FS
 
 type TplCtx struct {
-	ActiveTags []model.TagDef
-	AllTags    []model.TagDef
-	ActiveMap  map[string]bool
-	PMap       map[string][]protocols.ResolvedBinding
-	TagPMap    map[string][]protocols.ResolvedBinding
-	Hashes     map[string]core.ProtocolHashInfo
-	TagHash    core.ProtocolHashInfo
-	Configs    []model.ConfigDef
-	Params     []model.ParamDef
-	Hardware   []model.HardwareDef
-	Pipelines  []model.PipelineDef
-	Policies   []model.PolicyDef
-	UI         model.UIDef
-	Product    string
-	Signature  uint32
-	Router     core.RouterInfo
+	ActiveTags   []model.TagDef
+	AllTags      []model.TagDef
+	ActiveMap    map[string]bool
+	PMap         map[string][]protocols.ResolvedBinding
+	TagPMap      map[string][]protocols.ResolvedBinding
+	Hashes       map[string]core.ProtocolHashInfo
+	TagHash      core.ProtocolHashInfo
+	Configs      []model.ConfigDef
+	Params       []model.ParamDef
+	Connectivity []model.ConnectivityDef
+	Devices      []model.DeviceAttachment
+	Hardware     []model.HardwareDef
+	Pipelines    []model.PipelineDef
+	Policies     []model.PolicyDef
+	UI           model.UIDef
+	Product      string
+	Signature    uint32
+	Router       core.RouterInfo
 }
 
 func (c TplCtx) IsActive(name string) bool { return c.ActiveMap[name] }
@@ -135,22 +137,24 @@ func main() {
 	routerInfo := core.GenerateRouterInfo(contract)
 
 	ctx := TplCtx{
-		ActiveTags: contract.ActiveTags,
-		AllTags:    contract.AllTags,
-		ActiveMap:  actMap,
-		PMap:       resolved,
-		TagPMap:    tagPMap,
-		Hashes:     hashes,
-		TagHash:    tagHash,
-		Configs:    contract.Configs,
-		Params:     contract.Params,
-		Hardware:   contract.Hardware,
-		Pipelines:  contract.Pipelines,
-		Policies:   contract.Policies,
-		UI:         contract.UI,
-		Product:    contract.Product,
-		Signature:  sig,
-		Router:     routerInfo,
+		ActiveTags:   contract.ActiveTags,
+		AllTags:      contract.AllTags,
+		ActiveMap:    actMap,
+		PMap:         resolved,
+		TagPMap:      tagPMap,
+		Hashes:       hashes,
+		TagHash:      tagHash,
+		Configs:      contract.Configs,
+		Params:       contract.Params,
+		Connectivity: contract.Connectivity,
+		Devices:      contract.Devices,
+		Hardware:     contract.Hardware,
+		Pipelines:    contract.Pipelines,
+		Policies:     contract.Policies,
+		UI:           contract.UI,
+		Product:      contract.Product,
+		Signature:    sig,
+		Router:       routerInfo,
 	}
 
 	os.MkdirAll(*out, 0755)

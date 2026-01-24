@@ -10,19 +10,37 @@
 
 #include "contracts.h"
 #include "edge_api.h"
-#include "js_engine.h"
+#include "edge_service.h"
 #include "northbound_mgr.h"
 #include "queue.h"
+#include "rest_server.h"
 #include "sched_time.h"
 #include "sqlite_service.h"
+#include "stream_engine.h"
 
-extern int modbus_driver_register(driver_manager_t *mgr);
+#define MAX_VBUS 32
 
-static datahub_t *g_hub = NULL;
-static bus_orchestrator_t *g_orch = NULL;
-static stream_engine_t *g_se = NULL;
-static arbiter_t *g_arbiter = NULL;
-static bool g_bus_online[8] = {false};
+typedef enum {
+    BUS_STATE_DISCONNECTED = 0,
+    BUS_STATE_CONNECTING,
+    BUS_STATE_CONNECTED
+} bus_conn_state_t;
+
+typedef struct {
+    service_t *svc;
+    datahub_t *hub;
+    bus_orchestrator_t *orch;
+    driver_manager_t *drv_mgr;
+    stream_engine_t *stream_eng;
+    northbound_mgr_t *north;
+    sqlite_svc_t *db_service;
+    char *db_path;
+} iems_app_t;
+
+static iems_app_t g_app = {0};
+static struct uv__queue g_poll_task_head;
+static bool g_assets_loaded = false;
+static bus_conn_state_t g_bus_state[MAX_VBUS] = {BUS_STATE_DISCONNECTED};
 
 typedef struct {
     int bus_id;
@@ -32,75 +50,13 @@ typedef struct {
     uint32_t interval_ms;
     uint64_t last_run_ms;
     struct uv__queue node;
-} omnis_poll_task_t;
-
-static struct uv__queue g_tasks;
+} iems_poll_task_t;
 
 static void on_poll_complete(int status, const pipe_msg_t *result) {
     if (status == 0 && result) {
-        datahub_publish(g_hub, result);
-    }
-}
-
-static void omnis_scheduler_tick(uv_periodic_t *handle) {
-    uint64_t now = uv_now(handle->timer.loop);
-    struct uv__queue *q;
-    uv__queue_foreach(q, &g_tasks) {
-        omnis_poll_task_t *t = uv__queue_data(q, omnis_poll_task_t, node);
-        if (g_bus_online[t->bus_id % 8] && (now - t->last_run_ms >= (uint64_t)t->interval_ms)) {
-            edge_api_read_tag(t->bus_id, t->protocol, t->slave_id, t->tag_id,
-                              (void *)edge_get_map_modbus_by_tag, (void *)edge_get_map_modbus,
-                              on_poll_complete);
-            t->last_run_ms = now;
-        }
-    }
-}
-
-static void on_vbus_connect(uv_connect_t *req, int status) {
-    int bus_id = (int)(intptr_t)req->data;
-    if (status < 0) {
-        uv_close((uv_handle_t *)req->handle, (uv_close_cb)free);
-        free(req);
-        return;
-    }
-    int fd;
-    uv_fileno((const uv_handle_t *)req->handle, &fd);
-    io_handle_t *h = io_executor_create_from_fd(req->handle->loop, fd, g_hub->io_pool);
-    bus_orchestrator_attach_io(g_orch, bus_id, h);
-    h->ops->enable_read(h, true);
-    g_bus_online[bus_id % 8] = true;
-    printf(" 💥 [Omnis] Bus %d CONNECTED! Data flowing...\n", bus_id);
-    fflush(stdout);
-    free(req);
-}
-
-static void _try_connect_buses(uv_timer_t *handle) {
-    static int retry_count = 0;
-    for (int i = 0; i < g_hw_resources_len; i++) {
-        const hw_resource_info_t *hw = &g_hw_resources[i];
-        if (g_bus_online[hw->id % 8]) continue;
-
-        char *path = getenv("OMNIS_VBUS_PATH");
-        if (!path) path = "/tmp/vbus0.sock";
-
-        printf(" 📡 [Omnis] Probing Matrix at: [%s]\n", path);
-        if (access(path, F_OK) != 0) {
-            if (++retry_count % 10 == 0) {
-                printf(" ⏳ [Bus %d] Path [%s] not found on disk yet. (Matrix warming up?)\n",
-                       hw->id, path);
-                fflush(stdout);
-            }
-            continue;
-        }
-
-        printf(" 📡 [Bus %d] Found Matrix at '%s'. Connecting...\n", hw->id, path);
-        fflush(stdout);
-
-        uv_pipe_t *pipe = malloc(sizeof(uv_pipe_t));
-        uv_pipe_init(handle->loop, pipe, 0);
-        uv_connect_t *req = malloc(sizeof(uv_connect_t));
-        req->data = (void *)(intptr_t)hw->id;
-        uv_pipe_connect(req, pipe, path, on_vbus_connect);
+        printf("\033[92m[IEMS-DATA] Polled: Tag=%u Val=%.2f -> Publishing to DataHub\033[0m\n",
+               result->tag_id, result->payload.val.f);
+        datahub_publish(g_app.hub, result);
     }
 }
 
@@ -111,82 +67,277 @@ static void on_ui_connect(uv_stream_t *server, int status) {
     if (uv_accept(server, (uv_stream_t *)client) == 0) {
         int cfd;
         uv_fileno((const uv_handle_t *)client, &cfd);
-        edge_fd_send(cfd, shmring_get_fd(&g_hub->ring));
-        edge_fd_send(cfd, g_hub->shadow_fd);
+        edge_fd_send(cfd, shmring_get_fd(&g_app.hub->ring));
+        edge_fd_send(cfd, g_app.hub->shadow_fd);
     }
     uv_close((uv_handle_t *)client, (uv_close_cb)free);
 }
 
+static void iems_scheduler_tick(uv_periodic_t *handle) {
+    if (!g_assets_loaded) return;
+    uint64_t now = uv_now(handle->timer.loop);
+    struct uv__queue *q;
+    uv__queue_foreach(q, &g_poll_task_head) {
+        iems_poll_task_t *task = uv__queue_data(q, iems_poll_task_t, node);
+        if (now - task->last_run_ms >= (uint64_t)task->interval_ms) {
+            if (g_bus_state[task->bus_id % MAX_VBUS] == BUS_STATE_CONNECTED) {
+                edge_api_read_tag(task->bus_id, task->protocol, task->slave_id, task->tag_id,
+                                  on_poll_complete);
+            }
+            task->last_run_ms = now;
+        }
+    }
+}
+
+static int _load_tasks_cb(void *user_data, int argc, char **argv, char **cols) {
+    (void)user_data;
+    (void)cols;
+    if (argc < 4) return 0;
+    int bus_id = argv[0] ? atoi(argv[0]) : 0;
+    uint32_t slave_id = argv[1] ? (uint32_t)atoi(argv[1]) : 1;
+    uint32_t tag_id = argv[2] ? (uint32_t)atoi(argv[2]) : 0;
+    const char *proto = argv[3] ? argv[3] : "ModbusRTU";
+
+    // 查重：防止重复加载
+    struct uv__queue *q;
+    uv__queue_foreach(q, &g_poll_task_head) {
+        iems_poll_task_t *existing = uv__queue_data(q, iems_poll_task_t, node);
+        if (existing->bus_id == bus_id && existing->tag_id == tag_id) return 0;
+    }
+
+    iems_poll_task_t *task = calloc(1, sizeof(iems_poll_task_t));
+    task->bus_id = bus_id;
+    task->slave_id = slave_id;
+    task->tag_id = tag_id;
+    strncpy(task->protocol, proto, 15);
+
+    // 从契约元数据获取轮询间隔
+    task->interval_ms = 1000;
+    for (uint32_t i = 0; i < g_tag_metadata_len; i++) {
+        if (g_tag_metadata[i].id == tag_id) {
+            if (g_tag_metadata[i].poll_interval_ms > 0) {
+                task->interval_ms = g_tag_metadata[i].poll_interval_ms;
+            }
+            break;
+        }
+    }
+
+    uv__queue_insert_tail(&g_poll_task_head, &task->node);
+    printf("\033[93m[IEMS-LOAD] Task: Bus=%d, Slave=%u, Tag=%u, Proto=%s, Interval=%u ms\033[0m\n",
+           task->bus_id, task->slave_id, task->tag_id, task->protocol, task->interval_ms);
+    return 0;
+}
+
+static void iems_load_tasks_timer_cb(uv_timer_t *handle) {
+    sqlite3 *raw_db = NULL;
+    if (sqlite3_open_v2(g_app.db_path, &raw_db, SQLITE_OPEN_READONLY, NULL) != SQLITE_OK) {
+        if (raw_db) sqlite3_close(raw_db);
+        return;
+    }
+
+    const char *check_sql = "SELECT val FROM matrix_meta WHERE key='is_ready';";
+    sqlite3_stmt *stmt;
+    bool ready = false;
+    if (sqlite3_prepare_v2(raw_db, check_sql, -1, &stmt, NULL) == SQLITE_OK) {
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+            if (strcmp((const char *)sqlite3_column_text(stmt, 0), "1") == 0) ready = true;
+        }
+        sqlite3_finalize(stmt);
+    }
+
+    if (ready) {
+        const char *sql =
+            "SELECT t.bus_id, i.addr, t.tag_id, i.protocol FROM poll_tasks t "
+            "INNER JOIN inventory i ON t.device_id = i.id;";
+        char *err = NULL;
+        if (sqlite3_exec(raw_db, sql, _load_tasks_cb, NULL, &err) == SQLITE_OK) {
+            int count = 0;
+            struct uv__queue *q;
+            uv__queue_foreach(q, &g_poll_task_head) count++;
+            if (count > 0) {
+                printf("\033[32m[IEMS-INIT] %d tasks loaded from DB. Polling active.\033[0m\n",
+                       count);
+                g_assets_loaded = true;
+                uv_timer_stop(handle);
+                uv_close((uv_handle_t *)handle, (uv_close_cb)free);
+            }
+        } else {
+            printf("[IEMS-ERROR] SQL Load Error: %s\n", err);
+            if (err) sqlite3_free(err);
+        }
+    }
+    sqlite3_close(raw_db);
+}
+
+static void on_vbus_connect(uv_connect_t *req, int status) {
+    int bus_id = (int)(intptr_t)req->data;
+    if (status < 0) {
+        printf("\033[31m[IEMS-INIT] VBUS %d Connect Failed: %s\033[0m\n", bus_id,
+               uv_strerror(status));
+        uv_close((uv_handle_t *)req->handle, (uv_close_cb)free);
+        g_bus_state[bus_id % MAX_VBUS] = BUS_STATE_DISCONNECTED;
+        free(req);
+        return;
+    }
+    int fd;
+    uv_fileno((const uv_handle_t *)req->handle, &fd);
+    printf("\033[32m[IEMS-INIT] VBUS %d Handshake Success (FD:%d)\033[0m\n", bus_id, fd);
+
+    io_handle_t *h = io_executor_create_from_fd(req->handle->loop, fd, g_app.hub->io_pool);
+    if (h) {
+        bus_orchestrator_attach_io(g_app.orch, bus_id, h);
+        if (h->ops && h->ops->enable_read) h->ops->enable_read(h, true);
+        g_bus_state[bus_id % MAX_VBUS] = BUS_STATE_CONNECTED;
+    } else {
+        g_bus_state[bus_id % MAX_VBUS] = BUS_STATE_DISCONNECTED;
+    }
+    free(req);
+}
+
+static void _try_connect_buses(uv_timer_t *handle) {
+    for (int i = 0; i < g_connectivity_configs_len; i++) {
+        const edge_connectivity_t *c = &g_connectivity_configs[i];
+        if (strcmp(c->category, "SOUTHBOUND") != 0) continue;
+
+        int bus_idx = c->id % MAX_VBUS;
+        if (g_bus_state[bus_idx] != BUS_STATE_DISCONNECTED) continue;
+
+        const char *path = edge_resolve_bus_path(c->id);
+        if (path && access(path, F_OK) == 0) {
+            printf("[IEMS-INIT] Attempting to connect VBUS %d -> %s\n", c->id, path);
+            uv_pipe_t *pipe = malloc(sizeof(uv_pipe_t));
+            uv_pipe_init(handle->loop, pipe, 0);
+            uv_connect_t *req = malloc(sizeof(uv_connect_t));
+            req->data = (void *)(intptr_t)c->id;
+            g_bus_state[c->id % MAX_VBUS] = BUS_STATE_CONNECTING;
+            uv_pipe_connect(req, pipe, path, on_vbus_connect);
+        }
+    }
+}
+
+static void iems_shutdown(uv_loop_t *loop) {
+    printf("\n🛑 [IEMS] Shutdown initiated...\n");
+    if (g_app.svc) service_delete(g_app.svc);
+    if (g_app.stream_eng) stream_engine_destroy(g_app.stream_eng);
+    if (g_app.north) {
+        northbound_mgr_stop(g_app.north);
+        free(g_app.north);
+    }
+    if (g_app.db_service) sqlite_svc_destroy(g_app.db_service);
+    if (g_app.orch) bus_orchestrator_destroy(g_app.orch);
+    if (g_app.drv_mgr) driver_manager_destroy(g_app.drv_mgr);
+    if (g_app.hub) {
+        datahub_destroy(g_app.hub);
+        free(g_app.hub);
+    }
+    if (g_app.db_path) free(g_app.db_path);
+
+    struct uv__queue *q;
+    while (!uv__queue_empty(&g_poll_task_head)) {
+        q = uv__queue_head(&g_poll_task_head);
+        iems_poll_task_t *task = uv__queue_data(q, iems_poll_task_t, node);
+        uv__queue_remove(q);
+        free(task);
+    }
+    printf("✨ [IEMS] Resources cleaned. Goodbye.\n");
+}
+
+static void on_signal_exit(uv_signal_t *handle, int signum) {
+    printf("\n🛑 [IEMS] Termination Signal %d Received.\n", signum);
+    uv_stop(handle->loop);
+}
+
 int main(int argc, char **argv) {
+    (void)argc;
+    (void)argv;
+    setvbuf(stdout, NULL, _IONBF, 0);
+    setvbuf(stderr, NULL, _IONBF, 0);
     uv_loop_t *loop = uv_default_loop();
-    printf("\n--- EdgeOS Omnis Core (Trace V4.8) ---\n");
-    fflush(stdout);
+    uv__queue_init(&g_poll_task_head);
 
-    arbiter_init(&g_arbiter, loop);
-    g_hub = calloc(1, sizeof(datahub_t));
-    datahub_init(g_hub, loop, EDGE_SHM_BUS_NAME, 1024, 1024, g_tag_metadata, g_tag_metadata_len,
-                 NULL, edge_tag_get_compact_index, NULL);
+    static uv_signal_t s1, s2;
+    uv_signal_init(loop, &s1);
+    uv_signal_start(&s1, on_signal_exit, SIGINT);
+    uv_signal_init(loop, &s2);
+    uv_signal_start(&s2, on_signal_exit, SIGTERM);
 
-    sqlite_config_t db_conf = {.db_path = "iems.db", .strategy = STRATEGY_LITE};
-    sqlite_svc_t *db_svc = sqlite_svc_create(loop, &db_conf);
-    js_engine_t *js_eng = js_engine_create(NULL, 1024 * 1024);
+    printf("\n--- EdgeOS IEMS Omnis Edition ---\n");
 
-    driver_manager_t *drv_mgr = driver_manager_create();
-    modbus_driver_register(drv_mgr);
-    g_orch = bus_orchestrator_create(g_hub, g_arbiter, drv_mgr, 8, 32, 2048);
-    g_hub->io_pool = bus_orchestrator_get_pool(g_orch);
-    edge_api_init(g_orch, drv_mgr);
+    arbiter_t *arbiter = NULL;
+    arbiter_init(&arbiter, loop);
+    g_app.drv_mgr = driver_manager_create();
+    modbus_driver_register(g_app.drv_mgr);
 
-    printf("\n🔎 [Asset Audit] Contract DNA discovered:\n");
-    uv__queue_init(&g_tasks);
-    for (int i = 0; i < g_hw_resources_len; i++) {
-        const hw_resource_info_t *hw = &g_hw_resources[i];
-        printf(" ├── Bus[%d]: %s\n", hw->id, hw->label);
-        bus_orchestrator_setup_master(g_orch, hw->id, "ModbusRTU", (uint32_t)hw->id, NULL);
-        for (int j = 0; j < g_default_hardware_topology_len; j++) {
-            const edge_device_t *dev = &g_default_hardware_topology[j];
-            if (dev->bus_id != hw->id) continue;
-            printf(" │   └── Dev:%u [%s]\n", dev->address, dev->protocol_name);
-            for (uint32_t k = 0; k < g_tag_metadata_len; k++) {
-                if (g_tag_metadata[k].poll_interval_ms > 0) {
-                    omnis_poll_task_t *t = calloc(1, sizeof(omnis_poll_task_t));
-                    t->bus_id = dev->bus_id;
-                    t->slave_id = dev->address;
-                    t->tag_id = g_tag_metadata[k].id;
-                    t->interval_ms = g_tag_metadata[k].poll_interval_ms;
-                    strncpy(t->protocol, dev->protocol_name, 15);
-                    uv__queue_insert_tail(&g_tasks, &t->node);
-                    printf(" │       • TagID %u (%ums)\n", t->tag_id, t->interval_ms);
-                }
+    const char *shm_name = getenv("EDGE_SHM_NAME") ? getenv("EDGE_SHM_NAME") : EDGE_SHM_BUS_NAME;
+    g_app.hub = calloc(1, sizeof(datahub_t));
+    datahub_init(g_app.hub, loop, shm_name, 4096, 1024, g_tag_metadata, g_tag_metadata_len, NULL,
+                 edge_tag_get_compact_index, edge_router_needs_wakeup);
+
+    g_app.orch = bus_orchestrator_create(g_app.hub, arbiter, g_app.drv_mgr, 8, 32, 2048);
+    g_app.hub->io_pool = bus_orchestrator_get_pool(g_app.orch);
+    edge_api_init(g_app.orch, g_app.drv_mgr);
+
+    for (int i = 0; i < g_connectivity_configs_len; i++) {
+        if (strcmp(g_connectivity_configs[i].category, "SOUTHBOUND") == 0) {
+            const driver_contract_injection_t *inj = edge_model_find("ModbusRTU");
+            if (inj) {
+                bus_orchestrator_setup_master(g_app.orch, g_connectivity_configs[i].id, "ModbusRTU",
+                                              (uint32_t)g_connectivity_configs[i].id, inj);
+                printf("[IEMS-INIT] Bus %d initialized with Contract 'ModbusRTU'\n",
+                       g_connectivity_configs[i].id);
             }
         }
     }
-    printf("🔎 [Audit Summary] All tasks scheduled.\n\n");
-    fflush(stdout);
 
-    g_se = stream_engine_create(g_hub, NULL);
-    pipeline_loader_ctx_t lctx = {.db = db_svc, .js_engine = js_eng, .orch = g_orch};
-    stream_engine_load_static_metadata(g_se, g_pipeline_metadata, g_pipeline_metadata_len, &lctx);
+    const char *db_env = getenv("EDGE_DB_PATH");
+    g_app.db_path = strdup(db_env ? db_env : "iems.db");
+    printf("[IEMS-INIT] Connecting to Matrix DB: %s\n", g_app.db_path);
+
+    sqlite_config_t db_conf = {.db_path = g_app.db_path, .strategy = STRATEGY_LITE};
+    g_app.db_service = sqlite_svc_create(loop, &db_conf);
+
+    g_app.stream_eng = stream_engine_create(g_app.hub, NULL);
+    pipeline_loader_ctx_t loader_ctx = {.db = g_app.db_service, .orch = g_app.orch};
+    if (g_pipeline_metadata_len > 0) {
+        printf("[IEMS-INIT] Loading %d pipelines from contract...\n", g_pipeline_metadata_len);
+        stream_engine_load_static_metadata(g_app.stream_eng, g_pipeline_metadata,
+                                           g_pipeline_metadata_len, &loader_ctx);
+    }
+    datahub_add_listener(g_app.hub, stream_engine_get_notify_handle(g_app.stream_eng));
+
+    g_app.north = calloc(1, sizeof(northbound_mgr_t));
+    northbound_mgr_init(g_app.north, loop, &g_app.hub->ring, "IEMS_V4", g_app.db_service);
+    printf("[IEMS-INIT] Northbound Manager configured at %p\n", (void *)g_app.north);
+
+    g_app.svc = service_new(loop, g_app.hub, arbiter, g_app.db_service, g_app.stream_eng, NULL,
+                            g_app.north);
+    int rest_port = getenv("EDGE_REST_PORT") ? atoi(getenv("EDGE_REST_PORT")) : 9091;
+    rest_server_create(loop, g_app.svc, rest_port);
+    rest_server_enable_write(true);
 
     unlink(EDGE_UI_SOCKET_PATH);
     uv_pipe_t *ui_srv = malloc(sizeof(uv_pipe_t));
     uv_pipe_init(loop, ui_srv, 0);
-    if (uv_pipe_bind(ui_srv, EDGE_UI_SOCKET_PATH) == 0)
+    if (uv_pipe_bind(ui_srv, EDGE_UI_SOCKET_PATH) == 0) {
         uv_listen((uv_stream_t *)ui_srv, 10, on_ui_connect);
+        printf("[IEMS-INIT] UI Discovery Socket ACTIVE at %s\n", EDGE_UI_SOCKET_PATH);
+    }
 
-    static uv_timer_t conn_timer;
-    uv_timer_init(loop, &conn_timer);
+    uv_timer_t *st = malloc(sizeof(uv_timer_t));
+    uv_timer_init(loop, st);
+    uv_timer_start(st, iems_load_tasks_timer_cb, 50, 200);
 
-    uv_timer_start(&conn_timer, _try_connect_buses, 100, 500);  // 100ms 启动，500ms 探测频率
+    static uv_timer_t vt;
+    uv_timer_init(loop, &vt);
+    uv_timer_start(&vt, _try_connect_buses, 100, 1000);
 
     static uv_periodic_t sched_h;
     uv_periodic_init(loop, &sched_h);
     uv_periodic_set(&sched_h, 0, 100.0, NULL);
-    uv_periodic_start(&sched_h, omnis_scheduler_tick);
+    uv_periodic_start(&sched_h, iems_scheduler_tick);
 
-    bus_orchestrator_run(g_orch);
-    arbiter_resume(g_arbiter);
-    printf(" 🚀 [OMNIS] SYSTEM ONLINE. Heartbeat pulsing.\n");
-    fflush(stdout);
-    return uv_run(loop, UV_RUN_DEFAULT);
+    arbiter_resume(arbiter);
+    int ret = service_run(g_app.svc);
+    iems_shutdown(loop);
+    return ret;
 }

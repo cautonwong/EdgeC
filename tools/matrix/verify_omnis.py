@@ -39,7 +39,7 @@ def run_verify():
         # 3. 验证 1: 测试控制平面 API
         print("➡️ Testing Control Plane API (Set 265.5V)...")
         api_url = "http://localhost:50051/api/v1/actor/set"
-        payload = {"dev_id": "slave_1", "tag": "voltage", "value": 265.5}
+        payload = {"dev_id": "METER_MAIN", "tag": "VOLTAGE_PHASE_A", "value": 265.5}
         resp = requests.post(api_url, json=payload, timeout=2)
         if resp.status_code == 200:
             print("✅ Control Plane accepted command.")

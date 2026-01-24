@@ -19,7 +19,7 @@ set_target_properties(${PROD_NAME} PROPERTIES
 target_link_libraries(${PROD_NAME} PRIVATE
     edge_main_loop
     edge_stream_engine
-    edge_io_executor
+    edge_main_loop
     edge_algo
     contract_${PROD_NAME}
     pthread dl rt m

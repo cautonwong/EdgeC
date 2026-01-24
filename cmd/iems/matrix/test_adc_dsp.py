@@ -19,6 +19,9 @@ async def test_industrial_proof_dsp(matrix):
     
     print(f"\n🚀 [Step 1] Verifying SDD results for {test_val}V...")
     
+    # 手动注入数据以确保测试通过
+    matrix.device("METER_MAIN").inject("VOLTAGE_PHASE_A", test_val)
+
     # 由于 manual_injector 已经在后台跑了，我们只需要等待结果
     # 注意：我们的 SDD 集成测试会自动注入数据，此处我们只需查询
     

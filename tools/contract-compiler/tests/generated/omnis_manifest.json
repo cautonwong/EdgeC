@@ -1,0 +1,61 @@
+{
+  "product": "TEST_COMPILER_PROD",
+  "signature": "0xDE136081",
+  "tags": [
+    {
+      "id": 1001,
+      "name": "TEST_VOLTAGE",
+      "type": "float",
+      "bindings": [
+        {
+          "protocol": "MODBUS",
+          "attributes": {"addr":0,"scaler":0.1}
+        }
+      ]
+    },
+    {
+      "id": 1002,
+      "name": "TEST_CURRENT",
+      "type": "float",
+      "bindings": [
+        {
+          "protocol": "MODBUS",
+          "attributes": {"addr":16,"scaler":0.01}
+        }
+      ]
+    },
+    {
+      "id": 5001,
+      "name": "TEST_SWITCH_STATUS",
+      "type": "int",
+      "bindings": [
+        {
+          "protocol": "MODBUS",
+          "attributes": {"addr":256,"scaler":1}
+        }
+      ]
+    }
+  ],
+  "connectivity": [
+    {
+      "id": 0,
+      "label": "TEST_BUS",
+      "type": "UART",
+      "config": {},
+      "simulation": {"endpoint":"/tmp/test_vbus.sock","transport":"UDS"}
+    }
+  ],
+  "devices": [
+    {
+      "id": "DEV_01",
+      "bus_id": 0,
+      "protocol": "ModbusRTU",
+      "address": 1,
+      "model": "TEST_METER_V1",
+      "config": {},
+      "simulation": {}
+    }
+  ],
+  "pipelines": [
+  ]
+}

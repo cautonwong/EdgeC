@@ -1,15 +1,13 @@
 #ifndef DRIVER_MANAGER_H
 #define DRIVER_MANAGER_H
 
-#include <stdint.h>
-
+#include "contract_data_types.h"
 #include "edge_driver.h"
 
 typedef struct driver_manager_s driver_manager_t;
 
 /**
  * @brief 创建驱动管理器实例 (组合模式)
- * 替代旧版的全局初始化
  */
 driver_manager_t *driver_manager_create(void);
 
@@ -27,6 +25,11 @@ int driver_manager_register(driver_manager_t *mgr, const edge_driver_t *driver);
  * @brief 查找协议模板
  */
 const edge_driver_t *driver_manager_find(driver_manager_t *mgr, const char *name);
+
+/**
+ * @brief 查找模型对应的契约注入包
+ */
+const driver_contract_injection_t *edge_model_find(const char *name);
 
 /**
  * @brief 实例化驱动上下文 (Stateful V3)

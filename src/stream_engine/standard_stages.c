@@ -331,6 +331,7 @@ typedef struct {
     uint32_t target_tag;
     double threshold;
     bool greater_than;
+    double action_value;
 } _reflex_cfg_t;
 
 static stage_ret_t _reflex_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
@@ -347,7 +348,7 @@ static stage_ret_t _reflex_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
         cmd_msg_t cmd = {0};
         cmd.action = CMD_ACTION_WRITE;
         cmd.tag_id = c->target_tag;
-        cmd.value = 1.0;  // 默认触发动作
+        cmd.value = c->action_value;
         cmd.priority = ARBITER_PRIO_HIGH;
         strncpy(cmd.protocol, c->proto, 15);
         snprintf(cmd.req_id, sizeof(cmd.req_id), "REFLEX_%u", c->target_tag);
@@ -360,7 +361,8 @@ static stage_ret_t _reflex_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
 
 pipeline_stage_t *stage_reflex_logic_create(struct bus_orchestrator_s *orch, uint32_t bus_id,
                                             const char *proto, uint32_t target_tag,
-                                            double threshold, bool greater_than) {
+                                            double threshold, bool greater_than,
+                                            double action_val) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
     strncpy(s->name, "reflex", 31);
     s->process = _reflex_proc;
@@ -371,6 +373,7 @@ pipeline_stage_t *stage_reflex_logic_create(struct bus_orchestrator_s *orch, uin
     c->target_tag = target_tag;
     c->threshold = threshold;
     c->greater_than = greater_than;
+    c->action_value = action_val;
     s->priv_cfg = c;
     s->cleanup_cfg = free;
     return s;

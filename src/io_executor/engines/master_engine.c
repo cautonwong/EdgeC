@@ -108,11 +108,23 @@ static void _master_run_command(bus_engine_t *self, cmd_msg_t *cmd) {
         return;
     }
     priv->current_cmd = cmd;
-
-    // [增强] 每次运行新命令前强制清空累积缓冲区，防止旧响应干扰
     net_buf_simple_reset(&priv->rx_acc);
 
-    if (cmd->req->ops->setup && cmd->req->ops->setup(cmd->req, priv) != 0) {
+    if (!cmd->req || !cmd->req->ops) {
+        printf(" ❌ [MasterEngine] ERROR: Null Request or Ops on Bus %d\n", priv->bus_id);
+        _process_req_result(priv, REQ_STATUS_ERROR);
+        return;
+    }
+
+    if (!cmd->req->ops->setup || !cmd->req->ops->encode || !cmd->req->ops->decode) {
+        printf(" ❌ [MasterEngine] ERROR: Incomplete Ops (S:%p, E:%p, D:%p) on Bus %d\n",
+               cmd->req->ops->setup, cmd->req->ops->encode, cmd->req->ops->decode, priv->bus_id);
+        _process_req_result(priv, REQ_STATUS_ERROR);
+        return;
+    }
+
+    if (cmd->req->ops->setup(cmd->req, priv) != 0) {
+        LOG_ERROR(LOG_CAT_BUS, "Bus %d: Request Setup Failed", priv->bus_id);
         _process_req_result(priv, REQ_STATUS_ERROR);
         return;
     }

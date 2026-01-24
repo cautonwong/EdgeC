@@ -1,46 +1,47 @@
-# [Omnis] IEMS 产品清单 (Standard Assembler V4.8)
+# [Omnis] IEMS 产品清单 (Standard Assembler V5.0)
 # ------------------------------------------------------------------------------
 
 product: "IEMS_Controller_V4"
 
-# 1. 乐高拼装：只包含原子模块，不包含带硬件的产品原型，防止 Bus 重复
+# 1. 物理/逻辑通道定义 (The Channels - OS 层资源)
+connectivity:
+  - id: 0
+    label: "RS485_Main"
+    category: "SOUTHBOUND"
+    type: "UART"
+    config: { path: "/dev/ttyS1", baud: 9600 }
+    simulation: { transport: "UDS", endpoint: "UDS:/tmp/vbus0.sock" }
+
+  - id: 200
+    label: "HighSpeed_ADC"
+    category: "INTERNAL"
+    type: "MEM_RING"
+    config: { shm_name: "adc_raw", size: 1024 }
+    simulation: { transport: "MEMFD", control_sock: "/tmp/v_adc.sock" }
+
+# 2. 设备挂载定义 (Device Attachments - 业务层资产)
+devices:
+  - id: "METER_MAIN"
+    bus_id: 0
+    protocol: "ModbusRTU"
+    address: 1
+    model: "Acrel_P80" # 关联 contracts/bindings/modbus/acrel_p80.yaml
+
+# 3. 乐高拼装：包含原子点表模板
 include:
   - "contracts/bindings/modbus/acrel_p80.yaml"
   - "contracts/bindings/dlt645/standard_meter.yaml"
   - "contracts/bindings/can/catl_bms.yaml"
   - "cmd/iems/features/solar_module.yaml"
 
-# 2. 自然覆盖
-mappings:
-  - tag: VOLTAGE_PHASE_A
-    addr: 0 
-    scaler: 0.1
-
+# 4. 运行期测点策略
 enabled_tags:
-  - tag: ENERGY_ACTIVE_IMPORT
-    attributes: { poll_interval_ms: 5000 }
   - tag: GRID_POWER
-    attributes: { poll_interval_ms: 1000 }
+    attributes: { poll_interval_ms: 500 }
   - tag: VOLTAGE_PHASE_A
-    attributes: { poll_interval_ms: 5000 }
+    attributes: { poll_interval_ms: 500 }
 
-# 3. 硬件拓扑：唯一的总线定义
-hardware:
-  - id: 0
-    type: "BUS_SERIAL"
-    label: "RS485_Bus_0"
-    profiles:
-      simulation: { os_dev: "UDS:.local/tmp/vbus0.sock" }
-      production: { os_dev: "/dev/ttyS1", params: "9600,8,N,1" }
-    topology:
-      - dev_id: "MAIN_METER"
-        address: 1
-        protocol: "ModbusRTU"
-        simulation: 
-          actor: "modbus_actor"
-          init: { 1001: 220.0 }
-
-# 4. 数据管线
+# 5. 数据管线
 pipelines:
   - id: "energy_manager"
     trigger: "GRID_POWER"
@@ -49,3 +50,15 @@ pipelines:
         config: { state_tag: 3001 }
       - type: "sqlite_sink"
         config: { table: "energy_history" }
+
+  - id: "overvoltage_protection"
+    trigger: "VOLTAGE_PHASE_A"
+    stages:
+      - type: "REFLEX"
+        config:
+          bus_id: 0
+          protocol: "ModbusRTU"
+          target_tag: 8004 # SOLAR_RELAY
+          threshold: 264.0
+          greater_than: true
+          action_value: 0.0 # Open relay

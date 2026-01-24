@@ -3,14 +3,16 @@
 {{- range .Pipelines }}
 static const edge_stage_def_t _stages_{{ .ID }}[] = {
     {{- range .Stages }}
+    {{- $cfg := index . "config" | default . -}}
     {
         .name = "{{ index . "name" | default "stage" }}",
         .type = "{{ index . "type" }}",
         .params = {
-            .f1 = {{ index . "alpha" | default (index . "min") | default 0.0 }},
-            .f2 = {{ index . "beta" | default (index . "max") | default (index . "threshold") | default 0.0 }},
-            .u1 = {{ index . "target_tag" | default (index . "state_tag") | default (index . "bus_id") | default 0 }},
-            .s1 = "{{ index . "script" | default (index . "protocol") | default "" }}"
+            .f1 = {{ index $cfg "threshold" | default (index $cfg "alpha") | default (index $cfg "min") | default 0.0 }},
+            .f2 = {{ if index $cfg "greater_than" }}1.0{{ else }}{{ index $cfg "beta" | default (index $cfg "max") | default 0.0 }}{{ end }},
+            .f3 = {{ index $cfg "action_value" | default (index $cfg "action_val") | default 0.0 }},
+            .u1 = {{ index $cfg "target_tag" | default (index $cfg "state_tag") | default (index $cfg "bus_id") | default 0 }},
+            .s1 = "{{ index $cfg "protocol" | default (index $cfg "script") | default "" }}"
         }
     },
     {{- end }}

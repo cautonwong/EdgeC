@@ -14,7 +14,7 @@ async def test_iems_modbus_e2e_flow(matrix):
     
     print(f"\n🚀 [Step 1] Injecting {test_value}V into virtual device...")
     # 通过 Matrix 仿真器注入物理信号
-    matrix.device("Bus0_ModbusRTU_1").inject(tag_name, test_value, matrix.orch.loader)
+    matrix.device("METER_MAIN").inject(tag_name, test_value, matrix.loader)
     
     print(f"⏳ [Step 2] Waiting for IEMS to poll and update DataHub...")
     # wait_for 内部会自动调用 REST API 轮询 C 程序的实时数据
@@ -41,7 +41,7 @@ async def test_iems_multi_tag_consistency(matrix):
     }
     
     print("\n🚀 [Step 1] Injecting multiple values...")
-    dev = matrix.device("Bus0_ModbusRTU_1")
+    dev = matrix.device("METER_MAIN")
     for name, val in data_map.items():
         dev.inject(name, val, matrix.orch.loader)
         

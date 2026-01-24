@@ -7,12 +7,12 @@ import json
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from threading import Thread
 
-# 确保路径包含 tools/matrix
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
 sys.path.insert(0, PROJECT_ROOT)
 
 try:
     from tools.matrix.engine.orchestrator import MatrixOrchestrator
+    from tools.matrix.engine.edgec import MatrixEdgeC
 except ImportError as e:
     print(f"FATAL: Import failed: {e}")
     sys.exit(1)
@@ -20,50 +20,76 @@ except ImportError as e:
 class MatrixAPIHandler(BaseHTTPRequestHandler):
     orch_instance = None
 
+    def do_GET(self):
+        """处理查询指令: ls devices, ls buses"""
+        if self.path == "/api/v1/devices":
+            devs = [d["id"] for d in self.orch_instance.loader.devices]
+            self._send_json({"devices": devs})
+        elif self.path == "/api/v1/connectivity":
+            conns = [{"id": c["id"], "label": c["label"]} for c in self.orch_instance.loader.connectivity]
+            self._send_json({"buses": conns})
+        else:
+            self.send_response(404)
+            self.end_headers()
+
     def do_POST(self):
-        # 保持原有 API 逻辑，增强对 orch_instance 的调用
-        pass
+        """处理控制指令: set <id> <tag> <val>"""
+        content_length = int(self.headers.get('Content-Length', 0))
+        post_data = self.rfile.read(content_length)
+        try:
+            payload = json.loads(post_data)
+            if self.path == "/api/v1/actor/set":
+                dev_id = payload.get("dev_id")
+                tag = payload.get("tag")
+                val = payload.get("value")
+                
+                # 调用编排器更新模拟器状态
+                if self.orch_instance.update_device_tag(dev_id, tag, val):
+                    self._send_json({"status": "ok"})
+                else:
+                    self.send_response(404)
+                    self.end_headers()
+        except Exception as e:
+            self.send_response(500)
+            self.end_headers()
+            print(f"API Error: {e}")
+
+    def _send_json(self, data):
+        self.send_response(200)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps(data).encode())
 
 def main():
-    parser = argparse.ArgumentParser(description="Omnis Matrix Logic Host")
-    parser.add_argument("--product", required=True, help="Product name (e.g. iems)")
-    parser.add_argument("--manifest", help="Path to omnis_manifest.json")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--product", required=True)
+    parser.add_argument("--manifest")
     args = parser.parse_args()
     
-    # [Omnis] 唯一事实源：自动定位编译器生成的清单
     manifest_file = args.manifest or f"build/products/{args.product}/generated/omnis_manifest.json"
-    
     if not os.path.exists(manifest_file):
-        print(f"❌ FATAL: Manifest not found at {manifest_file}. Did you run build.sh?")
+        print(f"❌ FATAL: Manifest not found: {manifest_file}")
         sys.exit(1)
 
     print(f"🎬 Omnis Matrix Host starting for {args.product}...")
-    print(f"📜 Loading Truth from: {manifest_file}")
-    
     try:
-        # 1. 初始化编排器
         orch = MatrixOrchestrator(manifest_file)
         MatrixAPIHandler.orch_instance = orch
-        
-        # 2. 供给资源 (创建 UDS, 拉起 Actors)
         orch.provision_world()
         
-        # 3. 启动控制平面
-        def run_server():
-            server = HTTPServer(('0.0.0.0', 50051), MatrixAPIHandler)
-            print("📡 Control Plane (REST) listening on 50051")
-            server.serve_forever()
-            
-        t = Thread(target=run_server, daemon=True)
-        t.start()
+        db_path = os.path.join(os.getcwd(), f"{args.product}.db")
+        bootstrapper = MatrixEdgeC(bin_path="", vbus_path="", rest_port=0, db_path=db_path)
+        bootstrapper.bootstrap_environment(orch.loader)
         
-        print("🚀 Matrix is FULLY OPERATIONAL and Contract-Aligned.")
-        sys.stdout.flush()
-
-        while True:
-            time.sleep(1)
+        print("\n🚀 Matrix is UP. Environment variables for EdgeOS:")
+        for k, v in orch.get_env().items(): print(f"  export {k}={v}")
+        
+        server = HTTPServer(('0.0.0.0', 50051), MatrixAPIHandler)
+        print("\n📡 Control Plane (REST) online at 50051")
+        Thread(target=server.serve_forever, daemon=True).start()
+        
+        while True: time.sleep(1)
     except KeyboardInterrupt:
-        print("\n🛑 Shutting down...")
         orch.shutdown()
     except Exception as e:
         print(f"💥 Server Error: {e}")

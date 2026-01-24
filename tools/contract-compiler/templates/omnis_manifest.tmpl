@@ -18,14 +18,28 @@
     }{{ if lt $i (sub (len $.ActiveTags) 1) }},{{ end }}
     {{- end }}
   ],
-  "params": [
-    {{- range $i, $param := .Params }}
+  "connectivity": [
+    {{- range $i, $conn := .Connectivity }}
     {
-      "id": {{ $param.ID }},
-      "name": "{{ $param.Name }}",
-      "type": "{{ $param.Type }}",
-      "default": {{ if eq $param.Type "string" }}"{{ $param.Default }}"{{ else }}{{ $param.Default }}{{ end }}
-    }{{ if lt $i (sub (len $.Params) 1) }},{{ end }}
+      "id": {{ $conn.ID }},
+      "label": "{{ $conn.Label }}",
+      "type": "{{ $conn.Type }}",
+      "config": {{ $conn.Config | marshal }},
+      "simulation": {{ $conn.Simulation | marshal }}
+    }{{ if lt $i (sub (len $.Connectivity) 1) }},{{ end }}
+    {{- end }}
+  ],
+  "devices": [
+    {{- range $i, $dev := .Devices }}
+    {
+      "id": "{{ $dev.ID }}",
+      "bus_id": {{ $dev.BusID }},
+      "protocol": "{{ $dev.Protocol }}",
+      "address": {{ $dev.Address | marshal }},
+      "model": "{{ $dev.Model }}",
+      "config": {{ $dev.Config | marshal }},
+      "simulation": {{ $dev.Simulation | marshal }}
+    }{{ if lt $i (sub (len $.Devices) 1) }},{{ end }}
     {{- end }}
   ],
   "pipelines": [
@@ -33,28 +47,17 @@
     {
       "id": "{{ $pipe.ID }}",
       "trigger": "{{ $pipe.Trigger }}",
-      "triggers": {{ $pipe.Triggers | marshal }}
-    }{{ if lt $i (sub (len $.Pipelines) 1) }},{{ end }}
-    {{- end }}
-  ],
-  "hardware": [
-    {{- range $i, $hw := .Hardware }}
-    {
-      "id": {{ $hw.ID }},
-      "type": "{{ $hw.Type }}",
-      "label": "{{ $hw.Label }}",
-      "profiles": {{ $hw.Profiles | marshal }},
-      "topology": [
-        {{- range $j, $dev := $hw.Topology }}
+      "triggers": {{ $pipe.Triggers | marshal }},
+      "stages": [
+        {{- range $j, $stage := $pipe.Stages }}
         {
-          "dev_id": "{{ $dev.DeviceID }}",
-          "address": {{ $dev.Address }},
-          "protocol": "{{ $dev.Protocol }}",
-          "simulation": {{ $dev.Simulation | marshal }}
-        }{{ if lt $j (sub (len $hw.Topology) 1) }},{{ end }}
+          "name": "{{ index $stage "name" | default "stage" }}",
+          "type": "{{ index $stage "type" }}",
+          "config": {{ $stage | marshal }}
+        }{{ if lt $j (sub (len $pipe.Stages) 1) }},{{ end }}
         {{- end }}
       ]
-    }{{ if lt $i (sub (len $.Hardware) 1) }},{{ end }}
+    }{{ if lt $i (sub (len $.Pipelines) 1) }},{{ end }}
     {{- end }}
   ]
 }

@@ -7,7 +7,7 @@ macro(add_edge_test TEST_NAME)
     target_link_libraries(${TEST_NAME} PRIVATE
         edge_main_loop
         edge_stream_engine
-        edge_io_executor
+        edge_main_loop
         edge_algo
         edge_core
         contract_iems
@@ -69,7 +69,7 @@ add_executable(test_scheduler test_scheduler.c mock_time.c)
 target_link_libraries(test_scheduler PRIVATE
     edge_main_loop
     edge_stream_engine
-    edge_io_executor
+    edge_main_loop
     edge_algo
     edge_core
     contract_iems
@@ -88,7 +88,7 @@ add_executable(test_northbound_mqtt
 target_link_libraries(test_northbound_mqtt PRIVATE 
     edge_main_loop
     edge_stream_engine
-    edge_io_executor
+    edge_main_loop
     edge_algo
     edge_core
     contract_iems

@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "arbiter.h"
+#include "contract_data_types.h"
 #include "datahub.h"
 #include "io_executor.h"
 
@@ -12,16 +13,6 @@ struct driver_manager_s;
 typedef struct driver_manager_s driver_manager_t;
 
 typedef struct bus_orchestrator_s bus_orchestrator_t;
-
-/**
- * @brief 驱动契约注入包 (用于多协议动态绑定)
- */
-typedef struct {
-    const void *(*lookup_by_key)(uint32_t key);
-    const void *(*lookup_by_tag)(uint32_t tag_id);
-    const void *const *meta_list;
-    uint32_t meta_list_len;
-} driver_contract_injection_t;
 
 typedef struct {
     uint32_t tag_netbuf_total;

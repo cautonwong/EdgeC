@@ -85,6 +85,11 @@ static void _ensure_shard_exists(sqlite_svc_t *svc, const char *table_name) {
 // --- 2. 模式迁移 (Migration) ---
 
 static int _db_run_migration(sqlite_svc_t *svc, int current_ver) {
+    // [终极防御] 仿真模式下，即便版本号不对，也禁止迁移
+    if (getenv("EDGE_DB_PATH")) {
+        LOG_INFO(LOG_CAT_CORE, "DB: Matrix Sandbox mode. Migration blocked.");
+        return 0;
+    }
     char *err = NULL;
     int ret = 0;
     LOG_INFO(LOG_CAT_CORE, "DB: Current version %d, migrating to %d", current_ver,

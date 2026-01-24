@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "edge_driver.h"
 #include "edge_log.h"
 
 #define MAX_DRIVERS 32

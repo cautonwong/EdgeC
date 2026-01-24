@@ -159,18 +159,28 @@ static char *handle_devices_get(service_t *svc) {
     return out;
 }
 
+static bool g_rest_write_enabled = false;
+
+void rest_server_enable_write(bool enable) {
+    g_rest_write_enabled = enable;
+}
+
 static char *handle_data_latest(service_t *svc, uint32_t tag_id) {
-    fprintf(stderr, "[TRACE][REST] Request for Tag %u\n", tag_id);
     datahub_t *hub = service_get_datahub(svc);
     PipeMsg msg;
     cJSON *root = cJSON_CreateObject();
-    if (datahub_read_shadow(hub, tag_id, &msg) == 0) {
+    int rc = datahub_read_shadow(hub, tag_id, &msg);
+    if (rc == 0) {
+        LOG_INFO(LOG_CAT_CORE, "[TRACE-REST] Req Tag %u -> Found in Shadow: Tag %u, Val %.2f",
+                 tag_id, msg.tag_id, msg.payload.val.f);
         cJSON_AddNumberToObject(root, "tag_id", msg.tag_id);
         cJSON_AddNumberToObject(
             root, "value",
             (msg.type == PIPEMSG_TYPE_SCALAR) ? msg.payload.val.f : (double)msg.payload.val.i);
         cJSON_AddNumberToObject(root, "ts", (double)msg.ts);
     } else {
+        LOG_WARN(LOG_CAT_CORE, "[TRACE-REST] Req Tag %u -> NOT FOUND in Shadow (rc=%d)", tag_id,
+                 rc);
         cJSON_AddStringToObject(root, "status", "not_found");
     }
     char *out = cJSON_PrintUnformatted(root);
@@ -178,12 +188,51 @@ static char *handle_data_latest(service_t *svc, uint32_t tag_id) {
     return out;
 }
 
-char *rest_dispatch(service_t *svc, const char *path, const char *body) {
-    (void)body;
+#include "edge_api.h"
+
+static char *handle_data_write(service_t *svc, const char *body) {
+    if (!g_rest_write_enabled)
+        return strdup("{\"status\":\"error\",\"reason\":\"write_disabled\"}");
+
+    cJSON *root = cJSON_Parse(body);
+    if (!root) return strdup("{\"status\":\"error\",\"reason\":\"invalid_json\"}");
+
+    cJSON *dev_item = cJSON_GetObjectItem(root, "dev_id");
+    cJSON *tag_item = cJSON_GetObjectItem(root, "tag");
+    cJSON *val_item = cJSON_GetObjectItem(root, "value");
+
+    if (!dev_item || !tag_item || !val_item) {
+        cJSON_Delete(root);
+        return strdup("{\"status\":\"error\",\"reason\":\"missing_fields\"}");
+    }
+
+    // [Omnis] 简化实现：默认使用总线 0 和 ModbusRTU
+    // 实际生产中应从 inventory 查找 dev_id 对应的 bus 和 protocol
+    uint32_t tag_id = 0;
+    if (cJSON_IsNumber(tag_item)) {
+        tag_id = (uint32_t)tag_item->valuedouble;
+    } else if (cJSON_IsString(tag_item)) {
+        tag_id = (uint32_t)atoi(tag_item->valuestring);
+    }
+
+    double val = val_item->valuedouble;
+
+    edge_api_write_tag(0, "ModbusRTU", 1, tag_id, val, NULL);
+
+    cJSON_Delete(root);
+    return strdup("{\"status\":\"ok\"}");
+}
+
+char *rest_dispatch(service_t *svc, const char *method, const char *path, const char *body) {
     if (!svc) {
         fprintf(stderr, "[REST] ERROR: Dispatch called with NULL service context!\n");
         return strdup("{\"error\":\"no_context\"}");
     }
+
+    if (strcmp(method, "POST") == 0) {
+        if (strncmp(path, "/api/v1/actor/set", 17) == 0) return handle_data_write(svc, body);
+    }
+
     if (strncmp(path, "/api/v1/system/health", 21) == 0) return handle_system_health(svc);
     if (strncmp(path, "/api/v1/system/stats", 20) == 0) return handle_system_stats(svc);
     if (strncmp(path, "/api/v1/contracts", 17) == 0) return handle_contracts_get(svc);
@@ -211,7 +260,7 @@ static void on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
         sscanf(buf->base, "%15s %127s", method, path);
         char *body = strstr(buf->base, "\r\n\r\n");
         if (body) body += 4;
-        char *json = rest_dispatch(srv->svc, path, body);
+        char *json = rest_dispatch(srv->svc, method, path, body);
         size_t json_len = strlen(json);
         char *resp = malloc(json_len + 512);
         size_t resp_len = (size_t)sprintf(resp, HTTP_RESPONSE_FMT, json_len, json);
