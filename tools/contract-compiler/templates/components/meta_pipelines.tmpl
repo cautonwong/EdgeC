@@ -32,7 +32,7 @@ const edge_pipeline_def_t g_pipeline_metadata[] = {
 {{- range .Pipelines }}
     { 
         .id = "{{ .ID }}", 
-        .trigger_tag = {{ if .Trigger }}TAG_{{ .Trigger }}{{ else }}0{{ end }},
+        .trigger_tag = {{ if .Trigger }}{{ if is_digit .Trigger }}{{ .Trigger }}{{ else }}TAG_{{ .Trigger }}{{ end }}{{ else }}0{{ end }},
         .extra_triggers = {{ if .Triggers }}_triggers_{{ .ID }}{{ else }}NULL{{ end }},
         .extra_trigger_count = {{ if .Triggers }}{{ len .Triggers }}{{ else }}0{{ end }},
         .stages = _stages_{{ .ID }},

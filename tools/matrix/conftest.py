@@ -47,6 +47,17 @@ class MatrixContext:
     def device(self, dev_id):
         return VDeviceProxy(dev_id, self.server_url, self.loader)
 
+    def adc_control(self, target: str, params: dict):
+        """发送控制指令给 ADC 模拟器"""
+        import socket
+        import json
+        ctrl_path = "/tmp/matrix_adc_ctrl.sock"
+        if os.path.exists(ctrl_path):
+            with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as s:
+                payload = json.dumps({"target": target, "params": params}).encode()
+                s.sendto(payload, ctrl_path)
+                print(f"  [Matrix] Sent ADC Control: {target} -> {params}")
+
     def get_val(self, tag_name):
         tag_id = tag_name
         if self.loader and tag_name in self.loader.name_to_id:

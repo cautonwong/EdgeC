@@ -108,7 +108,13 @@ void datahub_destroy(datahub_t *hub) {
 int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
     if (!hub || !msg) return -1;
 
+    // printf("[DH-PUBLISH] Tag: %u, Type: %u\n", msg->tag_id, msg->type);
+
     pipe_msg_t local_msg = *msg;
+
+    if (local_msg.type == PIPEMSG_TYPE_REF) {
+        printf("\033[35m[DH-DEBUG] Publishing TYPE_REF Tag %u\033[0m\n", local_msg.tag_id);
+    }
 
     // Phase 4: 如果是引用类型，尝试校准本地指针 (针对同进程内转发)
     if (local_msg.type == PIPEMSG_TYPE_REF) {
@@ -134,9 +140,13 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
             uv_mutex_unlock(&hub->shadow_lock);
 
             if (local_msg.tag_id > 0) {
-                LOG_INFO(LOG_CAT_BUS, "[TRACE-DH] Publish Tag %u to Shadow[%d] Val=%.2f",
-
-                         local_msg.tag_id, idx, local_msg.payload.val.f);
+                if (local_msg.type == PIPEMSG_TYPE_REF) {
+                    LOG_INFO(LOG_CAT_BUS, "[TRACE-DH] Publish TYPE_REF Tag %u to Shadow[%d]",
+                             local_msg.tag_id, idx);
+                } else {
+                    LOG_INFO(LOG_CAT_BUS, "[TRACE-DH] Publish Tag %u to Shadow[%d] Val=%.2f",
+                             local_msg.tag_id, idx, local_msg.payload.val.f);
+                }
             }
 
         } else {
