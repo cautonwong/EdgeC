@@ -60,6 +60,19 @@ static void on_poll_complete(int status, const pipe_msg_t *result) {
     }
 }
 
+static void on_ui_connect(uv_stream_t *server, int status) {
+    if (status < 0) return;
+    uv_pipe_t *client = malloc(sizeof(uv_pipe_t));
+    uv_pipe_init(server->loop, client, 0);
+    if (uv_accept(server, (uv_stream_t *)client) == 0) {
+        int cfd;
+        uv_fileno((const uv_handle_t *)client, &cfd);
+        edge_fd_send(cfd, shmring_get_fd(&g_app.hub->ring));
+        edge_fd_send(cfd, g_app.hub->shadow_fd);
+    }
+    uv_close((uv_handle_t *)client, (uv_close_cb)free);
+}
+
 static void iems_scheduler_tick(uv_periodic_t *handle) {
     if (!g_assets_loaded) return;
     uint64_t now = uv_now(handle->timer.loop);
@@ -301,6 +314,14 @@ int main(int argc, char **argv) {
     int rest_port = getenv("EDGE_REST_PORT") ? atoi(getenv("EDGE_REST_PORT")) : 9091;
     rest_server_create(loop, g_app.svc, rest_port);
     rest_server_enable_write(true);
+
+    unlink(EDGE_UI_SOCKET_PATH);
+    uv_pipe_t *ui_srv = malloc(sizeof(uv_pipe_t));
+    uv_pipe_init(loop, ui_srv, 0);
+    if (uv_pipe_bind(ui_srv, EDGE_UI_SOCKET_PATH) == 0) {
+        uv_listen((uv_stream_t *)ui_srv, 10, on_ui_connect);
+        printf("[IEMS-INIT] UI Discovery Socket ACTIVE at %s\n", EDGE_UI_SOCKET_PATH);
+    }
 
     uv_timer_t *st = malloc(sizeof(uv_timer_t));
     uv_timer_init(loop, st);

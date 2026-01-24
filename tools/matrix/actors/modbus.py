@@ -25,6 +25,7 @@ class ModbusSlaveActor:
         self.dev_id = dev_id
         self.registers = {}
         self.tag_to_reg = {}
+        self.tag_name_to_id = {}
         self.tag_scalers = {}
         self.ctrl_file = f"/tmp/matrix_ctrl_{dev_id}.tmp"
         
@@ -37,6 +38,7 @@ class ModbusSlaveActor:
             with open(path, 'r') as f:
                 data = json.load(f)
                 for tag in data.get("tags", []):
+                    self.tag_name_to_id[tag["name"]] = tag["id"]
                     for b in tag.get("bindings", []):
                         if "MODBUS" in b["protocol"].upper():
                             attr = b["attributes"]
@@ -72,15 +74,23 @@ class ModbusSlaveActor:
                 for line in lines:
                     line = line.strip()
                     if ":" in line:
-                        tag_name, val_str = line.split(":")
+                        tag_key, val_str = line.split(":")
                         try:
                             val = float(val_str)
-                            for tid, reg in self.tag_to_reg.items():
-                                if str(tid) == tag_name:
-                                    scaler = self.tag_scalers.get(tid, 1.0)
-                                    self.registers[reg] = int(val / scaler)
-                                    print(f"  🎯 [Actor] Injected Tag {tid} (Reg {reg}) -> {val} (Raw: {self.registers[reg]})")
-                        except: pass
+                            # 解析 Tag: 可能是 ID 字符串，也可能是 Name
+                            tag_id = None
+                            if tag_key.isdigit():
+                                tag_id = int(tag_key)
+                            elif tag_key in self.tag_name_to_id:
+                                tag_id = self.tag_name_to_id[tag_key]
+                            
+                            if tag_id is not None and tag_id in self.tag_to_reg:
+                                reg = self.tag_to_reg[tag_id]
+                                scaler = self.tag_scalers.get(tag_id, 1.0)
+                                self.registers[reg] = int(val / scaler)
+                                print(f"  🎯 [Actor] Injected {tag_key} (ID:{tag_id}, Reg {reg}) -> {val} (Raw: {self.registers[reg]})")
+                        except Exception as e:
+                            print(f"  ⚠️ [Actor] Injection Parse Error: {e}")
             except: pass
 
     def run(self):

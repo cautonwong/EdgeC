@@ -61,4 +61,35 @@ extern const edge_model_map_t g_model_registry[];
 extern const int g_model_registry_len;
 const driver_contract_injection_t *edge_model_find(const char *name);
 
+// --- Protocol Lookup APIs ---
+{{- if .Hashes.MODBUS }}
+edge_tag_id_t edge_lookup_modbus(uint32_t key, float* scale);
+const modbus_map_t* edge_get_map_modbus(uint32_t key);
+const modbus_map_t* edge_get_map_modbus_by_tag(edge_tag_id_t tag_id);
+{{- end }}
+
+{{- if .Hashes.DLT645 }}
+edge_tag_id_t edge_lookup_dlt645(uint32_t key, float* scale);
+const dlt645_map_t* edge_get_map_dlt645(uint32_t key);
+const dlt645_map_t* edge_get_map_dlt645_by_tag(edge_tag_id_t tag_id);
+{{- end }}
+
+{{- if .Hashes.IEC104 }}
+edge_tag_id_t edge_lookup_iec104(uint32_t key, float* scale);
+const iec104_map_t* edge_get_map_iec104(uint32_t key);
+const iec104_map_t* edge_get_map_iec104_by_tag(edge_tag_id_t tag_id);
+{{- end }}
+
+{{- if .Hashes.IEC101 }}
+edge_tag_id_t edge_lookup_iec101(uint32_t key, float* scale);
+const iec101_map_t* edge_get_map_iec101(uint32_t key);
+const iec101_map_t* edge_get_map_iec101_by_tag(edge_tag_id_t tag_id);
+{{- end }}
+
+{{- if .Hashes.DLMS }}
+edge_tag_id_t edge_lookup_dlms(const uint8_t obis[6], uint16_t class_id, uint8_t attr_index, float* scale);
+const dlms_map_t* edge_get_map_dlms(const uint8_t obis[6], uint16_t class_id, uint8_t attr_index);
+const dlms_map_t* edge_get_map_dlms_by_tag(edge_tag_id_t tag_id);
+{{- end }}
+
 #endif

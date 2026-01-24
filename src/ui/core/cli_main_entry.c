@@ -62,10 +62,26 @@ int main(int argc, char *argv[]) {
     uv_loop_t *loop = uv_default_loop();
     datahub_t *hub = calloc(1, sizeof(datahub_t));
 
-    if (datahub_init_from_fd(hub, loop, rfd, 1024 * 64, sfd,
-                             g_tag_metadata_len * sizeof(pipe_msg_t), g_tag_metadata_len,
-                             g_tag_metadata, g_tag_metadata_len, NULL, edge_tag_get_compact_index,
-                             NULL) != 0) {
+    // [Fix] 动态探测 Ring 大小：先映射 Header
+    size_t header_sz = (sizeof(ShmRingHeader) + 4095) & ~4095UL;
+    void *tmp_ptr = mmap(NULL, header_sz, PROT_READ, MAP_SHARED, rfd, 0);
+    size_t actual_ring_size = 1024 * 64;  // Default fallback
+    if (tmp_ptr != MAP_FAILED) {
+        ShmRingHeader *h = (ShmRingHeader *)tmp_ptr;
+        if (h->magic == SHMRING_MAGIC) {
+            actual_ring_size = sizeof(ShmRingHeader) + h->slot_count * sizeof(PipeMsg);
+            actual_ring_size = (actual_ring_size + 4095) & ~4095UL;
+        }
+        munmap(tmp_ptr, header_sz);
+    }
+
+    // [Fix] 动态探测 Shadow 大小
+    size_t actual_shadow_size = lseek(sfd, 0, SEEK_END);
+    uint32_t actual_shadow_capacity = (uint32_t)(actual_shadow_size / sizeof(PipeMsg));
+
+    if (datahub_init_from_fd(hub, loop, rfd, actual_ring_size, sfd, actual_shadow_size,
+                             actual_shadow_capacity, g_tag_metadata, g_tag_metadata_len, NULL,
+                             edge_tag_get_compact_index, NULL) != 0) {
         fprintf(stderr, " ❌ FATAL: DataHub init failed.\n");
         return -1;
     }
