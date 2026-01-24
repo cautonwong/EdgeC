@@ -160,6 +160,9 @@ func main() {
 	os.MkdirAll(*out, 0755)
 	fm := template.FuncMap{
 		"lower": strings.ToLower, "upper": strings.ToUpper, "hex": func(v uint32) string { return fmt.Sprintf("0x%08X", v) },
+		"is_digit": func(s string) bool {
+			return strings.TrimSpace(s) != "" && !strings.ContainsFunc(s, func(r rune) bool { return r < '0' || r > '9' })
+		},
 		"dict": func(values ...interface{}) (map[string]interface{}, error) {
 			if len(values)%2 != 0 { return nil, errors.New("invalid dict call") }
 			dict := make(map[string]interface{}, len(values)/2)

@@ -9,6 +9,33 @@
 #include "edge_log.h"
 #include "stream_engine_priv.h"
 
+// --- Stage Factory Declarations ---
+extern pipeline_stage_t *stage_filter_create(uint32_t tag_id);
+extern pipeline_stage_t *stage_filter_range_create(double min, double max);
+extern pipeline_stage_t *stage_transform_create(double alpha, double beta);
+extern pipeline_stage_t *stage_ema_create(double alpha);
+extern pipeline_stage_t *stage_clamp_create(double min, double max);
+extern pipeline_stage_t *stage_peak_shaving_create(double threshold_w, uint32_t ctrl_tag);
+extern pipeline_stage_t *stage_accumulate_create(void);
+extern pipeline_stage_t *stage_periodic_freeze_create(int kind);
+extern pipeline_stage_t *stage_time_guard_create(void);
+extern pipeline_stage_t *stage_sqlite_sink_create(sqlite_svc_t *db, const char *table);
+extern pipeline_stage_t *stage_js_rule_create(js_engine_t *engine, const char *script_path,
+                                              bool is_async);
+extern pipeline_stage_t *stage_battery_guard_create(battery_limit_t *limits);
+extern pipeline_stage_t *stage_reflex_logic_create(struct bus_orchestrator_s *orch, uint32_t bus_id,
+                                                   const char *proto, uint32_t target_tag,
+                                                   double threshold, bool greater_than,
+                                                   double action_val);
+extern pipeline_stage_t *stage_moving_average_create(uint32_t window_size);
+extern pipeline_stage_t *stage_rbe_create(double threshold_pct);
+extern pipeline_stage_t *stage_energy_integrator_create(uint32_t state_tag_id);
+extern pipeline_stage_t *stage_dsp_rms_create(uint32_t output_tag_id);
+
+typedef struct {
+    uint64_t last_seq;
+} stream_sub_ctx_t;
+
 #define DEFAULT_CIRCUIT_BREAKER_US 50000
 
 static void _pipeline_process(pipeline_t *p, pipe_msg_t *msg) {
@@ -142,6 +169,7 @@ static pipeline_stage_t *_create_stage_by_type(const edge_stage_def_t *def,
                                                pipeline_loader_ctx_t *ctx) {
     if (strcmp(def->type, "energy_integrator") == 0)
         return stage_energy_integrator_create((uint32_t)def->params.u1);
+    if (strcmp(def->type, "dsp_rms") == 0) return stage_dsp_rms_create((uint32_t)def->params.u1);
     if (strcmp(def->type, "FILTER") == 0) return stage_filter_create((uint32_t)def->params.u1);
     if (strcmp(def->type, "FILTER_RANGE") == 0)
         return stage_filter_range_create(def->params.f1, def->params.f2);
@@ -329,7 +357,14 @@ void stream_engine_push(stream_engine_t *engine, pipe_msg_t *msg) {
     struct uv__queue *q;
     uv__queue_foreach(q, &engine->pipelines) {
         pipeline_t *p = uv__queue_data(q, pipeline_t, node);
-        if (_is_pipeline_triggered(p, msg->tag_id)) _pipeline_process(p, msg);
+        bool matched = _is_pipeline_triggered(p, msg->tag_id);
+        if (matched) {
+            if (msg->type == PIPEMSG_TYPE_REF) {
+                printf("\033[32m[STREAM-MATCH] Pipeline '%s' triggered by TYPE_REF Tag %u\033[0m\n",
+                       p->id, msg->tag_id);
+            }
+            _pipeline_process(p, msg);
+        }
     }
     uv_mutex_unlock(&engine->pipe_mutex);
 }

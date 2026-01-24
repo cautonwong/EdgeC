@@ -39,6 +39,20 @@ tags:
       category: "Metrology"
       ui: { group: "Grid_Params", min: 45, max: 55, precision: 2 }
 
+  - id: 2001
+    name: ADC_RAW_DATA
+    type: float
+    unit: "V"
+    desc: "ADC原始采样序列"
+    attributes: { category: "Metrology" }
+
+  - id: 2002
+    name: ADC_VOLTAGE_RMS
+    type: float
+    unit: "V"
+    desc: "ADC计算出的电压有效值"
+    attributes: { category: "Metrology" }
+
   # === 能量计量 (3000-3999) ===
   - id: 3001
     name: ENERGY_ACTIVE_IMPORT

@@ -215,6 +215,59 @@ static void _try_connect_buses(uv_timer_t *handle) {
     }
 }
 
+extern void adc_driver_handle_connection(int sock_fd, datahub_t *hub);
+
+typedef struct {
+    int fd;
+    datahub_t *hub;
+} adc_thread_ctx_t;
+
+static void _adc_thread_entry(void *arg) {
+    adc_thread_ctx_t *ctx = (adc_thread_ctx_t *)arg;
+    adc_driver_handle_connection(ctx->fd, ctx->hub);
+    free(ctx);
+}
+
+static void on_adc_connect(uv_connect_t *req, int status) {
+    if (status < 0) {
+        free(req);
+        return;
+    }
+    printf(
+        "\033[32m[IEMS-INIT] Internal High-Speed Channel Connected. Launching ADC "
+        "Thread...\033[0m\n");
+
+    int fd;
+    uv_fileno((const uv_handle_t *)req->handle, &fd);
+
+    // [Sprint 5] 异步化：在独立线程处理高频流，避免主循环拥塞
+    adc_thread_ctx_t *ctx = malloc(sizeof(adc_thread_ctx_t));
+    ctx->fd = dup(fd);  // DUP 以脱离 libuv 生命周期管理
+    ctx->hub = g_app.hub;
+
+    uv_thread_t tid;
+    uv_thread_create(&tid, _adc_thread_entry, ctx);
+
+    // 关闭 libuv 层面的句柄，不影响已 DUP 的 FD
+    uv_close((uv_handle_t *)req->handle, (uv_close_cb)free);
+    free(req);
+}
+
+static void _try_connect_internal_buses(uv_timer_t *handle) {
+    for (int i = 0; i < g_connectivity_configs_len; i++) {
+        const edge_connectivity_t *c = &g_connectivity_configs[i];
+        if (strcmp(c->category, "INTERNAL") != 0) continue;
+
+        const char *path = edge_resolve_bus_path(c->id);
+        if (path && access(path, F_OK) == 0) {
+            uv_pipe_t *pipe = malloc(sizeof(uv_pipe_t));
+            uv_pipe_init(handle->loop, pipe, 1);  // 启用 FD 传递支持
+            uv_connect_t *req = malloc(sizeof(uv_connect_t));
+            uv_pipe_connect(req, pipe, path, on_adc_connect);
+        }
+    }
+}
+
 static void iems_shutdown(uv_loop_t *loop) {
     printf("\n🛑 [IEMS] Shutdown initiated...\n");
     if (g_app.svc) service_delete(g_app.svc);
@@ -330,6 +383,10 @@ int main(int argc, char **argv) {
     static uv_timer_t vt;
     uv_timer_init(loop, &vt);
     uv_timer_start(&vt, _try_connect_buses, 100, 1000);
+
+    static uv_timer_t it;
+    uv_timer_init(loop, &it);
+    uv_timer_start(&it, _try_connect_internal_buses, 100, 1000);
 
     static uv_periodic_t sched_h;
     uv_periodic_init(loop, &sched_h);

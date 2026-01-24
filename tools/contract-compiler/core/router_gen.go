@@ -39,11 +39,13 @@ func GenerateRouterInfo(contract *model.EffectiveContract) RouterInfo {
 	// 处理 Pipelines
 	for _, p := range contract.Pipelines {
 		if idx, ok := nameToIndex[p.Trigger]; ok {
+			fmt.Printf("[RouterGen] Pipeline '%s' trigger '%s' -> Index %d\n", p.ID, p.Trigger, idx)
 			setBit(info.TriggerMask, idx)
 		} else if p.Trigger != "" {
 			// 兜底：尝试按 ID 匹配 (如果 Trigger 存的是 ID 字符串)
 			for i, t := range contract.ActiveTags {
 				if fmt.Sprintf("%d", t.ID) == p.Trigger {
+					fmt.Printf("[RouterGen] Pipeline '%s' trigger ID '%s' -> Index %d\n", p.ID, p.Trigger, i)
 					setBit(info.TriggerMask, i)
 					break
 				}
@@ -57,6 +59,7 @@ func GenerateRouterInfo(contract *model.EffectiveContract) RouterInfo {
 				trigName, _ = trig["event"].(string)
 			}
 			if idx, ok := nameToIndex[trigName]; ok {
+				fmt.Printf("[RouterGen] Pipeline '%s' extra trigger '%s' -> Index %d\n", p.ID, trigName, idx)
 				setBit(info.TriggerMask, idx)
 			}
 		}

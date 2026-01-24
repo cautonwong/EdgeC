@@ -40,6 +40,8 @@ enabled_tags:
     attributes: { poll_interval_ms: 500 }
   - tag: VOLTAGE_PHASE_A
     attributes: { poll_interval_ms: 500 }
+  - tag: ADC_RAW_DATA
+  - tag: ADC_VOLTAGE_RMS
 
 # 5. 数据管线
 pipelines:
@@ -52,7 +54,7 @@ pipelines:
         config: { table: "energy_history" }
 
   - id: "overvoltage_protection"
-    trigger: "VOLTAGE_PHASE_A"
+    trigger: "ADC_VOLTAGE_RMS"
     stages:
       - type: "REFLEX"
         config:
@@ -62,3 +64,10 @@ pipelines:
           threshold: 264.0
           greater_than: true
           action_value: 0.0 # Open relay
+
+  - id: "dsp_processor"
+    trigger: "ADC_RAW_DATA"
+    stages:
+      - type: "dsp_rms"
+        config:
+          state_tag: 2002 # Output to ADC_VOLTAGE_RMS
