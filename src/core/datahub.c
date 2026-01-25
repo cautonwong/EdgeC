@@ -146,9 +146,17 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
     }
 
     if (needs_wakeup) {
-        for (int i = 0; i < hub->listener_count; i++) {
-            if (hub->listeners[i]) {
-                uv_async_send(hub->listeners[i]);
+        uv_mutex_lock(&hub->shadow_lock);
+        int l_count = hub->listener_count;
+        uv_async_t *l_copy[16];
+        if (l_count > 0) {
+            memcpy(l_copy, hub->listeners, sizeof(uv_async_t *) * (size_t)l_count);
+        }
+        uv_mutex_unlock(&hub->shadow_lock);
+
+        for (int i = 0; i < l_count; i++) {
+            if (l_copy[i]) {
+                uv_async_send(l_copy[i]);
             }
         }
         if (hub->legacy_cb) hub->legacy_cb(hub, hub->legacy_user_data);
