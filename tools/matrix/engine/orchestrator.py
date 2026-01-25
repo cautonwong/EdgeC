@@ -107,7 +107,9 @@ class MatrixOrchestrator:
         init_data = sim_cfg.get("init", {})
         
         # 名字兼容性处理
-        actor_name = actor_type.split('_')[0].lower()
+        actor_name = actor_type.replace('_actor', '').lower()
+        if actor_name == "supervisor": actor_name = "master_requester"
+        
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         actor_script = os.path.join(base_dir, "actors", f"{actor_name}.py")
         print(f"    🔍 Checking Actor Script: {actor_script}")
@@ -115,11 +117,18 @@ class MatrixOrchestrator:
         if os.path.exists(actor_script):
             env = os.environ.copy()
             env["MATRIX_INIT_DATA"] = json.dumps(init_data)
-            # 使用 sys.executable 确保与 Server 使用相同的 Python 解释器 (.venv)
+            
+            # 构造基础参数
+            cmd_args = [sys.executable, actor_script, "--socket", sock_path, "--id", str(slave_id), 
+                        "--dev_id", dev_info["id"], "--manifest", self.loader.manifest_path]
+            
+            # 如果是请求者模式，额外加上 server url 供其上报观测值
+            if "requester" in actor_name or "supervisor" in actor_name:
+                server_url = f"http://localhost:50051/api/v1"
+                cmd_args.extend(["--server", server_url])
+
             proc = subprocess.Popen(
-                [sys.executable, actor_script, "--socket", sock_path, "--id", str(slave_id), 
-                 "--dev_id", dev_info["id"], "--manifest", self.loader.manifest_path],
-                env=env, stdout=sys.stdout, stderr=sys.stderr, cwd=os.getcwd()
+                cmd_args, env=env, stdout=sys.stdout, stderr=sys.stderr, cwd=os.getcwd()
             )
             self.active_simulators.append(proc)
             print(f"    🚀 [Actor] {actor_name} (ID:{slave_id}) attached to Bus at {sock_path}")

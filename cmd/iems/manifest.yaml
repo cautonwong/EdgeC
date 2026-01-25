@@ -12,6 +12,13 @@ connectivity:
     config: { path: "/dev/ttyS1", baud: 9600 }
     simulation: { transport: "UDS", endpoint: "UDS:/tmp/vbus0.sock" }
 
+  - id: 10
+    label: "Modbus_Slave_Export"
+    category: "NORTHBOUND"
+    type: "UART"
+    config: { path: "/dev/ttyS2", baud: 9600 }
+    simulation: { transport: "UDS", endpoint: "UDS:/tmp/north_link.sock" }
+
   - id: 200
     label: "HighSpeed_ADC"
     category: "INTERNAL"
@@ -26,6 +33,13 @@ devices:
     protocol: "ModbusRTU"
     address: 1
     model: "Acrel_P80" # 关联 contracts/bindings/modbus/acrel_p80.yaml
+
+  - id: "SUPERVISOR_SCADA"
+    bus_id: 10
+    protocol: "ModbusRTU"
+    address: 1
+    model: "Acrel_P80" # 复用点位定义用于读取
+    simulation: { actor: "supervisor" }
 
 # 3. 乐高拼装：包含原子点表模板
 include:

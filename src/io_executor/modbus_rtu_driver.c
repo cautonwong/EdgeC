@@ -3,6 +3,7 @@
 #include <time.h>
 
 #include "contract_data_types.h"
+#include "datahub.h"
 #include "driver_manager.h"
 #include "edge_common.h"
 #include "edge_driver.h"
@@ -183,6 +184,69 @@ static int modbus_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_
     return 0;
 }
 
+static int modbus_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_out,
+                               pipe_msg_t *out_msgs, int *msg_count, size_t *consumed) {
+    (void)out_msgs;
+    (void)msg_count;
+    modbus_ctx_t *priv = (modbus_ctx_t *)ctx->priv;
+
+    if (in->b.len < 8) return EDGE_ERR_INCOMPLETE;
+    uint8_t *data = in->b.data;
+
+    // 1. 验证 Slave ID
+    if (data[0] != priv->slave_id) return -1;
+
+    // 2. 校验 CRC
+    uint16_t crc_rx = (uint16_t)(data[6] | (data[7] << 8));
+    if (_calc_crc(data, 6) != crc_rx) return -1;
+
+    *consumed = 8;
+    uint8_t func = data[1];
+    uint16_t addr = (uint16_t)((data[2] << 8) | data[3]);
+    uint16_t count = (uint16_t)((data[4] << 8) | data[5]);
+
+    if (func == 0x03) {
+        // Read Holding Registers
+        if (count > 32) return -1;  // 限制单次长度
+
+        uint8_t *p = net_buf_add(resp_out, 3 + (size_t)count * 2 + 2);
+        p[0] = priv->slave_id;
+        p[1] = 0x03;
+        p[2] = (uint8_t)(count * 2);
+
+        for (uint16_t i = 0; i < count; i++) {
+            uint32_t tag_id = 0;
+            float scale = 1.0f;
+            if (ctx->lookup_by_key) {
+                tag_id = (uint32_t)(uintptr_t)ctx->lookup_by_key(addr + i);
+                const modbus_map_t *map = (const modbus_map_t *)ctx->lookup_by_tag(tag_id);
+                if (map) scale = map->scaler;
+            }
+
+            uint16_t reg_val = 0;
+            if (tag_id > 0 && ctx->user_data) {
+                datahub_t *hub = (datahub_t *)ctx->user_data;
+                pipe_msg_t shadow;
+                if (datahub_read_shadow(hub, tag_id, &shadow) == 0) {
+                    double val = (shadow.type == PIPEMSG_TYPE_SCALAR)
+                                     ? shadow.payload.val.f
+                                     : (double)shadow.payload.val.i;
+                    reg_val = (uint16_t)(val / (double)scale);
+                }
+            }
+            p[3 + i * 2] = (uint8_t)(reg_val >> 8);
+            p[4 + i * 2] = (uint8_t)(reg_val & 0xFF);
+        }
+
+        uint16_t crc_tx = _calc_crc(p, 3 + (size_t)count * 2);
+        p[3 + count * 2] = (uint8_t)(crc_tx & 0xFF);
+        p[4 + count * 2] = (uint8_t)(crc_tx >> 8);
+        return 0;
+    }
+
+    return -1;
+}
+
 edge_driver_t modbus_rtu_driver = {.name = "ModbusRTU",
                                    .ctx_size = sizeof(modbus_ctx_t),
                                    .on_init = modbus_v3_on_init,
@@ -190,7 +254,7 @@ edge_driver_t modbus_rtu_driver = {.name = "ModbusRTU",
                                    .encode_request = modbus_v3_encode_request,
                                    .encode_write = modbus_v3_encode_write,
                                    .decode_response = modbus_v3_decode_response,
-                                   .handle_rx = NULL};
+                                   .handle_rx = modbus_v3_handle_rx};
 
 int modbus_driver_register(driver_manager_t *mgr) {
     return driver_manager_register(mgr, &modbus_rtu_driver);

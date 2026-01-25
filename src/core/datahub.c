@@ -108,14 +108,9 @@ void datahub_destroy(datahub_t *hub) {
 int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
     if (!hub || !msg) return -1;
 
-    // printf("[DH-PUBLISH] Tag: %u, Type: %u\n", msg->tag_id, msg->type);
-
     pipe_msg_t local_msg = *msg;
 
-    if (local_msg.type == PIPEMSG_TYPE_REF) {
-        printf("\033[35m[DH-DEBUG] Publishing TYPE_REF Tag %u\033[0m\n", local_msg.tag_id);
-    }
-
+    uv_mutex_lock(&hub->shadow_lock);
     // Phase 4: 如果是引用类型，尝试校准本地指针 (针对同进程内转发)
     if (local_msg.type == PIPEMSG_TYPE_REF) {
         for (int i = 0; i < hub->ref_count; i++) {
@@ -126,6 +121,7 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
             }
         }
     }
+    uv_mutex_unlock(&hub->shadow_lock);
 
     shm_ring_write(&hub->ring, &local_msg);
 
@@ -133,10 +129,9 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
         int idx = hub->map_fn ? hub->map_fn(local_msg.tag_id) : (int)local_msg.tag_id;
 
         if (idx >= 0 && (uint32_t)idx < hub->shadow_capacity) {
+            // [Critical] 仅保护内存写操作，极速释放
             uv_mutex_lock(&hub->shadow_lock);
-
             hub->shadow_table[idx] = local_msg;
-
             uv_mutex_unlock(&hub->shadow_lock);
 
             if (local_msg.tag_id > 0) {
@@ -162,6 +157,8 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
     }
 
     if (needs_wakeup) {
+        // [Fix] 移除此处的锁。uv_async_send 是线程安全的，且 listener 数组在初始化后很少变动。
+        // 即使有竞争，也是极其罕见的配置变更时刻，不应为了 0.01% 的边缘情况牺牲 99.99% 的高频性能。
         for (int i = 0; i < hub->listener_count; i++) {
             if (hub->listeners[i]) {
                 uv_async_send(hub->listeners[i]);
@@ -203,27 +200,23 @@ int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out) {
 
     uv_mutex_lock(&hub->shadow_lock);
     *out = hub->shadow_table[idx];
+
+    if (out->tag_id == tag_id) {
+        // Phase 4: 跨进程指针修复
+        if (out->type == PIPEMSG_TYPE_REF) {
+            for (int i = 0; i < hub->ref_count; i++) {
+                if (hub->refs[i].tag_id == out->tag_id) {
+                    out->payload.ref.ptr = hub->refs[i].ptr;
+                    out->payload.ref.fd = hub->refs[i].fd;
+                    break;
+                }
+            }
+        }
+    }
     uv_mutex_unlock(&hub->shadow_lock);
 
     if (out->tag_id != tag_id) {
-        if (tag_id == 1001 || tag_id == 8004) {
-            LOG_WARN(LOG_CAT_BUS, "[TRACE-DH] Read Shadow Mismatch: Req %u but found %u at idx %d",
-
-                     tag_id, out->tag_id, idx);
-        }
-
         return -1;
-    }
-
-    // Phase 4: 跨进程指针修复
-    if (out->type == PIPEMSG_TYPE_REF) {
-        for (int i = 0; i < hub->ref_count; i++) {
-            if (hub->refs[i].tag_id == out->tag_id) {
-                out->payload.ref.ptr = hub->refs[i].ptr;
-                out->payload.ref.fd = hub->refs[i].fd;
-                break;
-            }
-        }
     }
 
     return 0;
@@ -231,22 +224,32 @@ int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out) {
 
 void datahub_subscribe(datahub_t *hub, datahub_on_data_cb cb, void *user_data) {
     if (!hub) return;
+    uv_mutex_lock(&hub->shadow_lock);
     hub->legacy_cb = cb;
     hub->legacy_user_data = user_data;
+    uv_mutex_unlock(&hub->shadow_lock);
 }
 
 int datahub_add_listener(datahub_t *hub, uv_async_t *async_handle) {
-    if (hub->listener_count >= 16) return -1;
+    uv_mutex_lock(&hub->shadow_lock);
+    if (hub->listener_count >= 16) {
+        uv_mutex_unlock(&hub->shadow_lock);
+        return -1;
+    }
     hub->listeners[hub->listener_count++] = async_handle;
+    uv_mutex_unlock(&hub->shadow_lock);
     return 0;
 }
 
 int datahub_remove_listener(datahub_t *hub, uv_async_t *async_handle) {
+    uv_mutex_lock(&hub->shadow_lock);
     for (int i = 0; i < hub->listener_count; i++) {
         if (hub->listeners[i] == async_handle) {
             hub->listeners[i] = hub->listeners[--hub->listener_count];
+            uv_mutex_unlock(&hub->shadow_lock);
             return 0;
         }
     }
+    uv_mutex_unlock(&hub->shadow_lock);
     return -1;
 }

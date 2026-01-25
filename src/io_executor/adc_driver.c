@@ -24,27 +24,37 @@ typedef struct {
 /**
  * @brief 处理来自 Python 仿真器的高频数据流 (Task 5.6)
  */
+/**
+ * @brief 处理来自 Python 仿真器的高频数据流 (Task 5.6)
+ */
 void adc_driver_handle_connection(int sock_fd, datahub_t *hub) {
     adc_client_ctx_t ctx = {0};
     for (int i = 0; i < MAX_ADC_BUFFERS; i++) ctx.fds[i] = -1;
 
-    // 1. 握手：读取元数据 (阻塞读)
+    // 设置为非阻塞，防止线程忙等
+    int flags = fcntl(sock_fd, F_GETFL, 0);
+    fcntl(sock_fd, F_SETFL, flags | O_NONBLOCK);
+
+    // 1. 握手：读取元数据
     struct {
         uint32_t block_size;
         uint32_t buffer_count;
     } meta;
 
-    if (read(sock_fd, &meta, sizeof(meta)) != sizeof(meta)) {
-        LOG_ERROR(LOG_CAT_BUS, "ADC Driver: Handshake failed");
-        close(sock_fd);
-        return;
+    int retry = 0;
+    while (read(sock_fd, &meta, sizeof(meta)) != sizeof(meta)) {
+        if (++retry > 1000) {
+            close(sock_fd);
+            return;
+        }
+        usleep(1000);
     }
 
     ctx.block_size = meta.block_size;
     ctx.buffer_count = (int)meta.buffer_count;
     printf("[ADC-DRV] Handshake: BlockSize=%zu, Buffers=%d\n", ctx.block_size, ctx.buffer_count);
 
-    // 2. 接收循环 (阻塞读)
+    // 2. 接收循环
     while (1) {
         PipeMsg header_msg;
         struct msghdr msg = {0};
@@ -59,8 +69,15 @@ void adc_driver_handle_connection(int sock_fd, datahub_t *hub) {
         msg.msg_controllen = sizeof(control);
 
         ssize_t n = recvmsg(sock_fd, &msg, 0);
-        if (n <= 0) {
-            LOG_WARN(LOG_CAT_BUS, "ADC Driver: Stream closed or error (%s)", strerror(errno));
+        if (n < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                usleep(500);  // 1kHz 采样间隔让步
+                continue;
+            }
+            LOG_WARN(LOG_CAT_BUS, "ADC Driver: Recv error (%s)", strerror(errno));
+            break;
+        } else if (n == 0) {
+            LOG_INFO(LOG_CAT_BUS, "ADC Driver: Python simulator closed connection.");
             break;
         }
 
@@ -69,7 +86,7 @@ void adc_driver_handle_connection(int sock_fd, datahub_t *hub) {
         if (cmsg && cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_RIGHTS) {
             int received_fd = *((int *)CMSG_DATA(cmsg));
 
-            // 我们从 64 字节消息的最末尾 4 字节读取 buf_idx
+            // 我们通过 header_msg 最后的 4 字节负载传递 buffer_idx
             int32_t buf_idx = 0;
             memcpy(&buf_idx, ((uint8_t *)&header_msg) + 60, 4);
             buf_idx %= MAX_ADC_BUFFERS;

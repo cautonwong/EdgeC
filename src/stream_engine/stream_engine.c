@@ -42,6 +42,7 @@ static void _pipeline_process(pipeline_t *p, pipe_msg_t *msg) {
     // [Trace] 关键执行节点日志
     printf("\033[94m[STREAM] ⚙️  Processing Pipeline '%s' (Trigger: %u Val:%.2f)\033[0m\n",
            p->id, msg->tag_id, msg->payload.val.f);
+    fflush(stdout);
 
     p->state = PIPE_STATE_RUNNING;
     pipeline_stage_t *s = p->head;
@@ -55,6 +56,10 @@ static void _pipeline_process(pipeline_t *p, pipe_msg_t *msg) {
         stage_ret_t ret = STAGE_OK;
         if (s->process) {
             ret = s->process(s, msg);
+        } else {
+            // [Defensive] Skip if process fn is missing
+            s = s->next;
+            continue;
         }
         uint64_t elapsed_us = (uv_hrtime() - start) / 1000;
 
@@ -92,9 +97,14 @@ static void _pipeline_process(pipeline_t *p, pipe_msg_t *msg) {
 }
 
 static bool _is_pipeline_triggered(pipeline_t *p, uint32_t tag_id) {
+    if (!p) return false;
     if (p->trigger_tag == 0 || p->trigger_tag == tag_id) return true;
-    for (uint32_t i = 0; i < p->extra_trigger_count; i++) {
-        if (p->extra_triggers[i] == tag_id) return true;
+
+    // [Fix] Defensive check for extra_triggers
+    if (p->extra_trigger_count > 0 && p->extra_triggers) {
+        for (uint32_t i = 0; i < p->extra_trigger_count; i++) {
+            if (p->extra_triggers[i] == tag_id) return true;
+        }
     }
     return false;
 }
@@ -113,9 +123,17 @@ static void _on_data_async(uv_async_t *handle) {
     while (shm_ring_read(&hub->ring, &engine->bus_read_seq, &msg) == 0) {
         read_count++;
         printf("[STREAM-TRACE] Read Tag %u from Ring.\n", msg.tag_id);
+        fflush(stdout);  // Force flush to ensure log is seen before any crash
+
         struct uv__queue *q;
         uv__queue_foreach(q, &engine->pipelines) {
             pipeline_t *p = uv__queue_data(q, pipeline_t, node);
+            if (!p) continue;  // [Defensive] Skip invalid pipeline pointers
+
+            // [Debug] Validate pipeline pointer
+            // printf("[STREAM-DEBUG] Checking Pipeline %p (ID: %s)\n", p, p->id);
+            // fflush(stdout);
+
             if (_is_pipeline_triggered(p, msg.tag_id)) {
                 if (p->state == PIPE_STATE_SUSPENDED) {
                     // ... 队列处理 ...
@@ -244,10 +262,26 @@ pipeline_stage_t *pipeline_add_stage(pipeline_t *p, const char *name, stage_proc
     return s;
 }
 
+static uint64_t _default_get_monotonic_ms(void) {
+    return uv_hrtime() / 1000000;
+}
+
+static uint64_t _default_get_calendar_ms(void) {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (uint64_t)tv.tv_sec * 1000 + (uint64_t)tv.tv_usec / 1000;
+}
+
 stream_engine_t *stream_engine_create(datahub_t *hub, engine_time_source_t *time_src) {
     stream_engine_t *engine = calloc(1, sizeof(stream_engine_t));
     engine->hub = hub;
-    if (time_src) engine->time_src = *time_src;
+    if (time_src) {
+        engine->time_src = *time_src;
+    } else {
+        // [Fix] Provide default time source to prevent PC=0 crashes
+        engine->time_src.get_monotonic_ms = _default_get_monotonic_ms;
+        engine->time_src.get_calendar_ms = _default_get_calendar_ms;
+    }
 
     // [Fix] 跳过历史数据：初始化 Seq 为当前 DataHub 的最新序号
     if (hub) {
@@ -359,6 +393,7 @@ void stream_engine_push(stream_engine_t *engine, pipe_msg_t *msg) {
         pipeline_t *p = uv__queue_data(q, pipeline_t, node);
         bool matched = _is_pipeline_triggered(p, msg->tag_id);
         if (matched) {
+            printf("[STREAM-DEBUG] Pipeline '%s' triggered by Tag %u\n", p->id, msg->tag_id);
             if (msg->type == PIPEMSG_TYPE_REF) {
                 printf("\033[32m[STREAM-MATCH] Pipeline '%s' triggered by TYPE_REF Tag %u\033[0m\n",
                        p->id, msg->tag_id);

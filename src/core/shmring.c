@@ -159,6 +159,9 @@ void shm_ring_write(shm_ring_t *ring, const PipeMsg *msg) {
     // 物理写入 (DMA 友好型内存)
     ring->slots[idx] = *msg;
 
+    // 内存屏障：确保数据先落盘，再更新序号让消费者可见
+    atomic_thread_fence(memory_order_release);
+
     // 屏障确保存储可见性
     atomic_fetch_add_explicit(&ring->hdr->seq, 1, memory_order_release);
     atomic_fetch_add_explicit(&ring->hdr->total_writes, 1, memory_order_relaxed);

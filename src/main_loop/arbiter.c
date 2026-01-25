@@ -19,6 +19,7 @@ struct arbiter {
     uv_timer_t tick;
     bool is_shutting_down;
     bool is_paused;
+    uv_mutex_t lock;  // [Nexus] 核心锁：保护调度队列
 
     // [终极补强] 延迟清理列表：解决异步回调堆栈冲突
     cmd_msg_t *zombies;
@@ -26,6 +27,7 @@ struct arbiter {
 
 static void _on_arb_handle_close(uv_handle_t *h) {
     arbiter_t *arb = h->data;
+    uv_mutex_destroy(&arb->lock);
     free(arb);
 }
 
@@ -38,7 +40,6 @@ static void _arbiter_schedule(arbiter_t *arb, int bus_id) {
 
     struct bus_info *bus = &arb->buses[bus_id];
     if (bus->owner) {
-        // printf(" ⏳ [Arbiter] Bus %d Busy (Owner: %s)\n", bus_id, bus->owner->req_id);
         return;
     }
     if (!bus->queue) return;
@@ -63,6 +64,7 @@ static void _on_tick(uv_timer_t *handle) {
     arbiter_t *arb = (arbiter_t *)handle->data;
     if (arb->is_shutting_down || arb->is_paused) return;
 
+    uv_mutex_lock(&arb->lock);
     // 1. [核心补强] 延迟物理释放：清理上一轮产生的完成任务
     cmd_msg_t *z = arb->zombies;
     arb->zombies = NULL;
@@ -76,11 +78,13 @@ static void _on_tick(uv_timer_t *handle) {
     for (int i = 0; i < MAX_BUSES; i++) {
         _arbiter_schedule(arb, i);
     }
+    uv_mutex_unlock(&arb->lock);
 }
 
 int arbiter_init(arbiter_t **arb_out, uv_loop_t *loop) {
     arbiter_t *arb = calloc(1, sizeof(arbiter_t));
 
+    uv_mutex_init(&arb->lock);
     uv_timer_init(loop, &arb->tick);
 
     arb->tick.data = arb;
@@ -98,7 +102,9 @@ int arbiter_init(arbiter_t **arb_out, uv_loop_t *loop) {
 
 void arbiter_pause(arbiter_t *arb) {
     if (arb) {
+        uv_mutex_lock(&arb->lock);
         arb->is_paused = true;
+        uv_mutex_unlock(&arb->lock);
 
         LOG_INFO(LOG_CAT_SCHED, "Arbiter PAUSED manually.");
     }
@@ -106,7 +112,9 @@ void arbiter_pause(arbiter_t *arb) {
 
 void arbiter_resume(arbiter_t *arb) {
     if (arb) {
+        uv_mutex_lock(&arb->lock);
         arb->is_paused = false;
+        uv_mutex_unlock(&arb->lock);
 
         LOG_INFO(LOG_CAT_SCHED, "Arbiter RESUMED manually.");
     }
@@ -121,6 +129,7 @@ arbiter_bus_handle_t arbiter_bus_register(arbiter_t *arb, const char *name) {
 int arbiter_submit_cmd(arbiter_t *arb, int bus_id, cmd_msg_t *cmd) {
     if (!arb || arb->is_shutting_down || bus_id >= MAX_BUSES || !cmd) return -1;
 
+    uv_mutex_lock(&arb->lock);
     cmd->submit_ts = uv_now(arb->tick.loop);
 
     // 按优先级插入队列
@@ -131,26 +140,35 @@ int arbiter_submit_cmd(arbiter_t *arb, int bus_id, cmd_msg_t *cmd) {
 
     // 尝试立即调度以提升实时性
     if (!arb->is_paused) _arbiter_schedule(arb, bus_id);
+    uv_mutex_unlock(&arb->lock);
     return 0;
 }
 
 void arbiter_on_io_done(arbiter_t *arb, int bus_id, cmd_msg_t *cmd, int status) {
     if (!arb || bus_id >= MAX_BUSES || !cmd) return;
 
+    uv_mutex_lock(&arb->lock);
     if (arb->buses[bus_id].owner == cmd) {
+        printf("[ARB-DEBUG] Task %s DONE on Bus %d (Status: %d)\n", cmd->req_id, bus_id, status);
         arb->buses[bus_id].owner = NULL;
         if (cmd->on_complete) cmd->on_complete(cmd, status);
         cmd->next = arb->zombies;
         arb->zombies = cmd;
     }
+    uv_mutex_unlock(&arb->lock);
 }
 
 void arbiter_set_exclusive(arbiter_t *arb, int bus_id, bool exclusive) {
-    if (arb && bus_id < MAX_BUSES) arb->buses[bus_id].is_exclusive = exclusive;
+    if (arb && bus_id < MAX_BUSES) {
+        uv_mutex_lock(&arb->lock);
+        arb->buses[bus_id].is_exclusive = exclusive;
+        uv_mutex_unlock(&arb->lock);
+    }
 }
 
 int arbiter_get_statuses(arbiter_t *arb, arbiter_bus_status_t *out_stats, int max_count) {
     if (!arb || !out_stats) return -1;
+    uv_mutex_lock(&arb->lock);
     int count = (max_count < MAX_BUSES) ? max_count : MAX_BUSES;
     for (int i = 0; i < count; i++) {
         out_stats[i].bus_id = i;
@@ -169,6 +187,7 @@ int arbiter_get_statuses(arbiter_t *arb, arbiter_bus_status_t *out_stats, int ma
             out_stats[i].current_job_id[0] = '\0';
         }
     }
+    uv_mutex_unlock(&arb->lock);
     return count;
 }
 
@@ -178,6 +197,7 @@ void arbiter_shutdown(arbiter_t *arb) {
 
 void arbiter_destroy(arbiter_t *arb) {
     if (!arb || arb->is_shutting_down) return;
+    uv_mutex_lock(&arb->lock);
     arb->is_shutting_down = true;
 
     uv_timer_stop(&arb->tick);
@@ -201,6 +221,7 @@ void arbiter_destroy(arbiter_t *arb) {
         if (z->on_cleanup) z->on_cleanup(z);
         z = next;
     }
+    uv_mutex_unlock(&arb->lock);
 
     if (!uv_is_closing((uv_handle_t *)&arb->tick)) {
         uv_close((uv_handle_t *)&arb->tick, _on_arb_handle_close);

@@ -1,3 +1,4 @@
+#include <curl/curl.h>
 #include <fcntl.h>
 #include <sqlite3.h>
 #include <stdio.h>
@@ -197,7 +198,8 @@ static void on_vbus_connect(uv_connect_t *req, int status) {
 static void _try_connect_buses(uv_timer_t *handle) {
     for (int i = 0; i < g_connectivity_configs_len; i++) {
         const edge_connectivity_t *c = &g_connectivity_configs[i];
-        if (strcmp(c->category, "SOUTHBOUND") != 0) continue;
+        if (strcmp(c->category, "SOUTHBOUND") != 0 && strcmp(c->category, "NORTHBOUND") != 0)
+            continue;
 
         int bus_idx = c->id % MAX_VBUS;
         if (g_bus_state[bus_idx] != BUS_STATE_DISCONNECTED) continue;
@@ -300,11 +302,10 @@ static void on_signal_exit(uv_signal_t *handle, int signum) {
     uv_stop(handle->loop);
 }
 
-int main(int argc, char **argv) {
-    (void)argc;
-    (void)argv;
-    setvbuf(stdout, NULL, _IONBF, 0);
-    setvbuf(stderr, NULL, _IONBF, 0);
+int main(int argc, char *argv[]) {
+    // 0. 全局初始化 (必须在主线程且启动任何子线程前)
+    curl_global_init(CURL_GLOBAL_ALL);
+
     uv_loop_t *loop = uv_default_loop();
     uv__queue_init(&g_poll_task_head);
 
@@ -331,14 +332,16 @@ int main(int argc, char **argv) {
     edge_api_init(g_app.orch, g_app.drv_mgr);
 
     for (int i = 0; i < g_connectivity_configs_len; i++) {
-        if (strcmp(g_connectivity_configs[i].category, "SOUTHBOUND") == 0) {
-            const driver_contract_injection_t *inj = edge_model_find("ModbusRTU");
-            if (inj) {
-                bus_orchestrator_setup_master(g_app.orch, g_connectivity_configs[i].id, "ModbusRTU",
-                                              (uint32_t)g_connectivity_configs[i].id, inj);
-                printf("[IEMS-INIT] Bus %d initialized with Contract 'ModbusRTU'\n",
-                       g_connectivity_configs[i].id);
-            }
+        const edge_connectivity_t *c = &g_connectivity_configs[i];
+        const driver_contract_injection_t *inj = edge_model_find("ModbusRTU");
+        if (!inj) continue;
+
+        if (strcmp(c->category, "SOUTHBOUND") == 0) {
+            bus_orchestrator_setup_master(g_app.orch, c->id, "ModbusRTU", (uint32_t)c->id, inj);
+            printf("[IEMS-INIT] Bus %d initialized as MASTER (Contract 'ModbusRTU')\n", c->id);
+        } else if (strcmp(c->category, "NORTHBOUND") == 0) {
+            bus_orchestrator_setup_slave(g_app.orch, c->id, "ModbusRTU", (uint32_t)c->id, inj);
+            printf("[IEMS-INIT] Bus %d initialized as SLAVE (Contract 'ModbusRTU')\n", c->id);
         }
     }
 
@@ -349,14 +352,11 @@ int main(int argc, char **argv) {
     sqlite_config_t db_conf = {.db_path = g_app.db_path, .strategy = STRATEGY_LITE};
     g_app.db_service = sqlite_svc_create(loop, &db_conf);
 
+    // 4. [Calculus] 计算平面：挂载 Stream Engine 并注入 DataHub 通知
     g_app.stream_eng = stream_engine_create(g_app.hub, NULL);
-    pipeline_loader_ctx_t loader_ctx = {.db = g_app.db_service, .orch = g_app.orch};
-    if (g_pipeline_metadata_len > 0) {
-        printf("[IEMS-INIT] Loading %d pipelines from contract...\n", g_pipeline_metadata_len);
-        stream_engine_load_static_metadata(g_app.stream_eng, g_pipeline_metadata,
-                                           g_pipeline_metadata_len, &loader_ctx);
-    }
-    datahub_add_listener(g_app.hub, stream_engine_get_notify_handle(g_app.stream_eng));
+    // stream_engine_start(g_app.stream_eng); // [Fix] create 内部已经启动了线程
+
+    // 5. [Orchestration] 编排与主循环配置
 
     g_app.north = calloc(1, sizeof(northbound_mgr_t));
     northbound_mgr_init(g_app.north, loop, &g_app.hub->ring, "IEMS_V4", g_app.db_service);

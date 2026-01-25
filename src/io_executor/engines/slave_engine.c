@@ -102,7 +102,8 @@ int engine_slave_add_protocol(bus_engine_t *self, const char *protocol, uint32_t
     if (!ctx) return -1;
 
     ctx->role = PROTOCOL_ROLE_SLAVE;
-    ctx->pool = priv->pool;  // [注入] 共享总线池
+    ctx->pool = priv->pool;      // [注入] 共享总线池
+    ctx->user_data = priv->hub;  // [注入] 打通影子表访问路径
 
     // [注入应用] 填充驱动上下文
     if (inject) {
