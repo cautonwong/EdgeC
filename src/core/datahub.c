@@ -55,6 +55,12 @@ int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slo
 
     if (shmring_create(&hub->ring, name, slots) != 0) return -1;
 
+    // [Defense] 防止传入的弱符号地址为 NULL (未正确链接路由表)
+    datahub_wakeup_filter_cb actual_wakeup = NULL;
+    if (wakeup_fn != (void *)0) {
+        actual_wakeup = wakeup_fn;
+    }
+
     if (shadow_capacity > 0) {
         size_t size = shadow_capacity * sizeof(pipe_msg_t);
         int fd = (int)syscall(SYS_memfd_create, "shadow_table", 0x0001U | 0x0002U);
@@ -69,7 +75,7 @@ int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slo
     }
 
     return _datahub_post_init(hub, loop, shadow_capacity, metadata, metadata_len, io_pool, map_fn,
-                              wakeup_fn);
+                              actual_wakeup);
 }
 
 int datahub_init_from_fd(datahub_t *hub, uv_loop_t *loop, int ring_fd, size_t ring_size,
@@ -110,7 +116,6 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
 
     pipe_msg_t local_msg = *msg;
 
-    uv_mutex_lock(&hub->shadow_lock);
     // Phase 4: 如果是引用类型，尝试校准本地指针 (针对同进程内转发)
     if (local_msg.type == PIPEMSG_TYPE_REF) {
         for (int i = 0; i < hub->ref_count; i++) {
@@ -121,44 +126,26 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
             }
         }
     }
-    uv_mutex_unlock(&hub->shadow_lock);
 
     shm_ring_write(&hub->ring, &local_msg);
 
     if (hub->shadow_table) {
-        int idx = hub->map_fn ? hub->map_fn(local_msg.tag_id) : (int)local_msg.tag_id;
+        int idx = (hub->map_fn) ? hub->map_fn(local_msg.tag_id) : (int)local_msg.tag_id;
 
         if (idx >= 0 && (uint32_t)idx < hub->shadow_capacity) {
-            // [Critical] 仅保护内存写操作，极速释放
             uv_mutex_lock(&hub->shadow_lock);
             hub->shadow_table[idx] = local_msg;
             uv_mutex_unlock(&hub->shadow_lock);
-
-            if (local_msg.tag_id > 0) {
-                if (local_msg.type == PIPEMSG_TYPE_REF) {
-                    LOG_INFO(LOG_CAT_BUS, "[TRACE-DH] Publish TYPE_REF Tag %u to Shadow[%d]",
-                             local_msg.tag_id, idx);
-                } else {
-                    LOG_INFO(LOG_CAT_BUS, "[TRACE-DH] Publish Tag %u to Shadow[%d] Val=%.2f",
-                             local_msg.tag_id, idx, local_msg.payload.val.f);
-                }
-            }
-
-        } else {
-            LOG_ERROR(LOG_CAT_BUS, "[TRACE-DH] ERROR: Tag %u map to invalid idx %d",
-
-                      local_msg.tag_id, idx);
         }
     }
+
     bool needs_wakeup = true;
     if (hub->wakeup_fn) {
-        int idx = hub->map_fn ? hub->map_fn(local_msg.tag_id) : (int)local_msg.tag_id;
+        int idx = (hub->map_fn) ? hub->map_fn(local_msg.tag_id) : (int)local_msg.tag_id;
         needs_wakeup = hub->wakeup_fn(idx);
     }
 
     if (needs_wakeup) {
-        // [Fix] 移除此处的锁。uv_async_send 是线程安全的，且 listener 数组在初始化后很少变动。
-        // 即使有竞争，也是极其罕见的配置变更时刻，不应为了 0.01% 的边缘情况牺牲 99.99% 的高频性能。
         for (int i = 0; i < hub->listener_count; i++) {
             if (hub->listeners[i]) {
                 uv_async_send(hub->listeners[i]);
@@ -169,7 +156,6 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
     }
     return 0;
 }
-
 int datahub_register_ref(datahub_t *hub, uint32_t tag_id, int fd, size_t len) {
     if (!hub || fd < 0) return -1;
 

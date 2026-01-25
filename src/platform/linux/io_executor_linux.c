@@ -139,10 +139,25 @@ static void _ensure_curl_init(uv_loop_t *loop) {
     g_curl_ctx->loop = loop;
     g_curl_ctx->multi = curl_multi_init();
     uv_timer_init(loop, &g_curl_ctx->timer);
+    g_curl_ctx->timer.data = g_curl_ctx;
     curl_multi_setopt(g_curl_ctx->multi, CURLMOPT_SOCKETFUNCTION, _curl_socket_cb);
     curl_multi_setopt(g_curl_ctx->multi, CURLMOPT_SOCKETDATA, g_curl_ctx);
     curl_multi_setopt(g_curl_ctx->multi, CURLMOPT_TIMERFUNCTION, _curl_timer_cb);
     curl_multi_setopt(g_curl_ctx->multi, CURLMOPT_TIMERDATA, g_curl_ctx);
+}
+
+static void _on_curl_ctx_close(uv_handle_t *handle) {
+    free(handle->data);
+}
+
+void io_executor_cleanup(void) {
+    if (g_curl_ctx) {
+        uv_timer_stop(&g_curl_ctx->timer);
+        curl_multi_cleanup(g_curl_ctx->multi);
+        g_curl_ctx->multi = NULL;
+        uv_close((uv_handle_t *)&g_curl_ctx->timer, _on_curl_ctx_close);
+        g_curl_ctx = NULL;
+    }
 }
 
 /* --- 1. 基于 Poll (FD) 的通用处理 (UART, CAN, UDS) --- */

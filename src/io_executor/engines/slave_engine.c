@@ -38,6 +38,10 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
     if (evt == IO_EVENT_ERROR) return;
 
     if (evt == IO_EVENT_RX && rx) {
+        // [Debug] 打印原始报文便于诊断
+        printf("\033[35m[IEMS-SLAVE] Received %u bytes on Bus %d\033[0m\n", rx->b.len,
+               priv->bus_id);
+
         net_buf_append_bytes(priv->rx_acc, rx->b.data, rx->b.len);
         net_buf_unref(rx);
 
@@ -58,7 +62,13 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
                                                       &async_count, &consumed);
 
                 if (rc == 0) {
-                    if (resp->b.len > 0) priv->io->ops->write_async(priv->io, resp);
+                    if (resp->b.len > 0) {
+                        // [Sprint 6] 显式回发响应
+                        priv->io->ops->write_async(priv->io, resp);
+                        printf(
+                            "\033[35m[IEMS-SLAVE] Replied to Master on Bus %d (%zu bytes)\033[0m\n",
+                            priv->bus_id, resp->b.len);
+                    }
                     net_buf_unref(resp);
 
                     for (int j = 0; j < async_count; j++)

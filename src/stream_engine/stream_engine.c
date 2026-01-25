@@ -1,10 +1,11 @@
 /**
  * @file stream_engine.c
- * @brief 流处理引擎核心实现 (契约驱动与多源触发增强版)
+ * @brief 流处理引擎核心实现 - 彻底修复生命周期与所有权
  */
 
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
 
 #include "edge_log.h"
 #include "stream_engine_priv.h"
@@ -32,18 +33,18 @@ extern pipeline_stage_t *stage_rbe_create(double threshold_pct);
 extern pipeline_stage_t *stage_energy_integrator_create(uint32_t state_tag_id);
 extern pipeline_stage_t *stage_dsp_rms_create(uint32_t output_tag_id);
 
-typedef struct {
-    uint64_t last_seq;
-} stream_sub_ctx_t;
+// --- 内部时间源默认实现 ---
+static uint64_t _default_get_monotonic_ms(void) {
+    return uv_hrtime() / 1000000;
+}
 
-#define DEFAULT_CIRCUIT_BREAKER_US 50000
+static uint64_t _default_get_calendar_ms(void) {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (uint64_t)tv.tv_sec * 1000 + (uint64_t)tv.tv_usec / 1000;
+}
 
 static void _pipeline_process(pipeline_t *p, pipe_msg_t *msg) {
-    // [Trace] 关键执行节点日志
-    printf("\033[94m[STREAM] ⚙️  Processing Pipeline '%s' (Trigger: %u Val:%.2f)\033[0m\n",
-           p->id, msg->tag_id, msg->payload.val.f);
-    fflush(stdout);
-
     p->state = PIPE_STATE_RUNNING;
     pipeline_stage_t *s = p->head;
     while (s) {
@@ -57,7 +58,6 @@ static void _pipeline_process(pipeline_t *p, pipe_msg_t *msg) {
         if (s->process) {
             ret = s->process(s, msg);
         } else {
-            // [Defensive] Skip if process fn is missing
             s = s->next;
             continue;
         }
@@ -71,37 +71,22 @@ static void _pipeline_process(pipeline_t *p, pipe_msg_t *msg) {
             s->avg_proc_us = (s->avg_proc_us * 9 + elapsed_us) / 10;
         }
 
-        if (s->circuit_breaker_us > 0 && elapsed_us > s->circuit_breaker_us) {
-            s->health = STAGE_HEALTH_TIMEOUT;
-            LOG_ERROR(LOG_CAT_SCHED,
-                      "Stage '%s' in Pipeline '%s' CIRCUIT BROKEN! (Elapsed: %lu us)", s->name,
-                      p->id, elapsed_us);
-        }
-
         if (ret == STAGE_ASYNC) {
             p->state = PIPE_STATE_SUSPENDED;
             p->resume_point = s;
             p->current_event = *msg;
             break;
         }
-        if (ret == STAGE_DROP) break;
-        if (ret == STAGE_ERROR) {
-            s->total_errors++;
-            break;
-        }
+        if (ret == STAGE_DROP || ret == STAGE_ERROR) break;
         s = s->next;
     }
-    if (p->state == PIPE_STATE_RUNNING) {
-        p->state = PIPE_STATE_IDLE;
-    }
+    if (p->state == PIPE_STATE_RUNNING) p->state = PIPE_STATE_IDLE;
 }
 
 static bool _is_pipeline_triggered(pipeline_t *p, uint32_t tag_id) {
     if (!p) return false;
     if (p->trigger_tag == 0 || p->trigger_tag == tag_id) return true;
-
-    // [Fix] Defensive check for extra_triggers
-    if (p->extra_trigger_count > 0 && p->extra_triggers) {
+    if (p->extra_triggers) {
         for (uint32_t i = 0; i < p->extra_trigger_count; i++) {
             if (p->extra_triggers[i] == tag_id) return true;
         }
@@ -114,32 +99,13 @@ static void _on_data_async(uv_async_t *handle) {
     datahub_t *hub = engine->hub;
     pipe_msg_t msg;
 
-    // [Trace] 确定通知是否送达
-    printf("\033[34m[STREAM-ASYNC] Wakeup received. Seq Cursor: %lu\033[0m\n",
-           engine->bus_read_seq);
-
     uv_mutex_lock(&engine->pipe_mutex);
-    int read_count = 0;
     while (shm_ring_read(&hub->ring, &engine->bus_read_seq, &msg) == 0) {
-        read_count++;
-        printf("[STREAM-TRACE] Read Tag %u from Ring.\n", msg.tag_id);
-        fflush(stdout);  // Force flush to ensure log is seen before any crash
-
         struct uv__queue *q;
         uv__queue_foreach(q, &engine->pipelines) {
             pipeline_t *p = uv__queue_data(q, pipeline_t, node);
-            if (!p) continue;  // [Defensive] Skip invalid pipeline pointers
-
-            // [Debug] Validate pipeline pointer
-            // printf("[STREAM-DEBUG] Checking Pipeline %p (ID: %s)\n", p, p->id);
-            // fflush(stdout);
-
             if (_is_pipeline_triggered(p, msg.tag_id)) {
-                if (p->state == PIPE_STATE_SUSPENDED) {
-                    // ... 队列处理 ...
-                } else {
-                    _pipeline_process(p, &msg);
-                }
+                _pipeline_process(p, &msg);
             }
         }
     }
@@ -147,41 +113,41 @@ static void _on_data_async(uv_async_t *handle) {
 }
 
 static void _on_stop_async(uv_async_t *handle) {
-    stream_engine_t *engine = (stream_engine_t *)handle->data;
-    if (engine) uv_stop(engine->loop);
+    uv_stop(handle->loop);
 }
 
-static void _on_compute_loop_handle_close(uv_handle_t *handle) {
+static void _on_handle_close(uv_handle_t *handle) {
     (void)handle;
 }
 
 static void _stream_engine_thread_entry(void *arg) {
     stream_engine_t *engine = (stream_engine_t *)arg;
     uv_loop_t *compute_loop = malloc(sizeof(uv_loop_t));
-    if (!compute_loop) {
-        engine->thread_started = false;
-        uv_sem_post(&engine->start_sem);
-        return;
-    }
     uv_loop_init(compute_loop);
     engine->loop = compute_loop;
+
     uv_async_init(compute_loop, &engine->notify_handle, _on_data_async);
     engine->notify_handle.data = engine;
     engine->notify_inited = true;
+
     uv_async_init(compute_loop, &engine->stop_async, _on_stop_async);
     engine->stop_async.data = engine;
+
     engine->thread_started = true;
     uv_sem_post(&engine->start_sem);
+
     uv_run(compute_loop, UV_RUN_DEFAULT);
-    uv_close((uv_handle_t *)&engine->notify_handle, _on_compute_loop_handle_close);
-    uv_close((uv_handle_t *)&engine->stop_async, _on_compute_loop_handle_close);
-    uv_run(compute_loop, UV_RUN_NOWAIT);
+
+    // 彻底清理 Loop 上的句柄，防止内存泄漏 (LeakSanitizer 修复)
+    uv_walk(compute_loop, (uv_walk_cb)uv_close, _on_handle_close);
+    while (uv_run(compute_loop, UV_RUN_ONCE))
+        ;
+
     uv_loop_close(compute_loop);
     free(compute_loop);
     engine->loop = NULL;
+    engine->notify_inited = false;
 }
-
-extern pipeline_stage_t *stage_energy_integrator_create(uint32_t state_tag_id);
 
 static pipeline_stage_t *_create_stage_by_type(const edge_stage_def_t *def,
                                                pipeline_loader_ctx_t *ctx) {
@@ -220,7 +186,6 @@ int stream_engine_load_static_metadata(stream_engine_t *engine, const edge_pipel
         const edge_pipeline_def_t *p_def = &metadata[i];
         pipeline_t *p = stream_engine_add_pipeline(engine, p_def->id, p_def->trigger_tag);
 
-        // [Omnis] 加载额外触发点位
         if (p_def->extra_trigger_count > 0) {
             p->extra_triggers = calloc(p_def->extra_trigger_count, sizeof(uint32_t));
             memcpy(p->extra_triggers, p_def->extra_triggers,
@@ -262,67 +227,57 @@ pipeline_stage_t *pipeline_add_stage(pipeline_t *p, const char *name, stage_proc
     return s;
 }
 
-static uint64_t _default_get_monotonic_ms(void) {
-    return uv_hrtime() / 1000000;
-}
-
-static uint64_t _default_get_calendar_ms(void) {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return (uint64_t)tv.tv_sec * 1000 + (uint64_t)tv.tv_usec / 1000;
-}
-
-stream_engine_t *stream_engine_create(datahub_t *hub, engine_time_source_t *time_src) {
+stream_engine_t *stream_engine_create_ex(datahub_t *hub, uv_loop_t *loop,
+                                         struct bus_orchestrator_s *orch) {
+    (void)loop;
+    (void)orch;
     stream_engine_t *engine = calloc(1, sizeof(stream_engine_t));
     engine->hub = hub;
-    if (time_src) {
-        engine->time_src = *time_src;
-    } else {
-        // [Fix] Provide default time source to prevent PC=0 crashes
-        engine->time_src.get_monotonic_ms = _default_get_monotonic_ms;
-        engine->time_src.get_calendar_ms = _default_get_calendar_ms;
-    }
+    engine->time_src.get_monotonic_ms = _default_get_monotonic_ms;
+    engine->time_src.get_calendar_ms = _default_get_calendar_ms;
 
-    // [Fix] 跳过历史数据：初始化 Seq 为当前 DataHub 的最新序号
     if (hub) {
         engine->bus_read_seq =
             (uint64_t)atomic_load_explicit(&hub->ring.hdr->seq, memory_order_acquire);
-        printf("[STREAM-INIT] Synced to Ring Seq: %lu\n", engine->bus_read_seq);
     }
 
     uv_mutex_init(&engine->pipe_mutex);
     uv__queue_init(&engine->pipelines);
     uv_sem_init(&engine->start_sem, 0);
-    if (uv_thread_create(&engine->thread, _stream_engine_thread_entry, engine) != 0) {
-        uv_mutex_destroy(&engine->pipe_mutex);
-        uv_sem_destroy(&engine->start_sem);
-        free(engine);
-        return NULL;
-    }
-    uv_sem_wait(&engine->start_sem);
-    uv_sem_destroy(&engine->start_sem);
-    if (!engine->thread_started) {
-        uv_thread_join(&engine->thread);
-        uv_mutex_destroy(&engine->pipe_mutex);
-        free(engine);
-        return NULL;
-    }
-    datahub_add_listener(hub, &engine->notify_handle);
     return engine;
+}
+
+stream_engine_t *stream_engine_create(datahub_t *hub, uv_loop_t *loop,
+                                      struct bus_orchestrator_s *orch) {
+    return stream_engine_create_ex(hub, loop, orch);
+}
+
+void stream_engine_start(stream_engine_t *engine) {
+    if (!engine || engine->thread_started) return;
+    uv_thread_create(&engine->thread, _stream_engine_thread_entry, engine);
+    uv_sem_wait(&engine->start_sem);
+    if (engine->notify_inited) {
+        datahub_add_listener(engine->hub, &engine->notify_handle);
+    }
 }
 
 void stream_engine_destroy(stream_engine_t *engine) {
     if (!engine) return;
     if (engine->thread_started) {
-        datahub_remove_listener(engine->hub, &engine->notify_handle);
+        if (engine->notify_inited) {
+            datahub_remove_listener(engine->hub, &engine->notify_handle);
+        }
         uv_async_send(&engine->stop_async);
         uv_thread_join(&engine->thread);
+        engine->thread_started = false;
     }
+
     uv_mutex_lock(&engine->pipe_mutex);
     while (!uv__queue_empty(&engine->pipelines)) {
         struct uv__queue *q = uv__queue_head(&engine->pipelines);
         pipeline_t *p = uv__queue_data(q, pipeline_t, node);
         uv__queue_remove(q);
+
         pipeline_stage_t *s = p->head;
         while (s) {
             pipeline_stage_t *next_s = s->next;
@@ -331,10 +286,11 @@ void stream_engine_destroy(stream_engine_t *engine) {
             free(s);
             s = next_s;
         }
-        if (p->extra_triggers) free(p->extra_triggers);  // [Omnis] 释放扩展触发器
+        if (p->extra_triggers) free(p->extra_triggers);
         free(p);
     }
     uv_mutex_unlock(&engine->pipe_mutex);
+
     uv_mutex_destroy(&engine->pipe_mutex);
     free(engine);
 }
@@ -347,19 +303,12 @@ pipeline_t *stream_engine_add_pipeline(stream_engine_t *engine, const char *id,
     p->engine = engine;
     uv_mutex_lock(&engine->pipe_mutex);
     uv__queue_insert_tail(&engine->pipelines, &p->node);
-    engine->pipe_count++;
     uv_mutex_unlock(&engine->pipe_mutex);
     return p;
 }
 
 void stream_engine_resume(pipeline_t *p) {
     if (!p || p->state != PIPE_STATE_SUSPENDED) return;
-    int depth = (p->q_head - p->q_tail + MAX_PENDING_QUEUE) % MAX_PENDING_QUEUE;
-    if (depth > 0) {
-        pipe_msg_t q_msg;
-        pipe_msg_init_scalar(&q_msg, 11005, (double)depth, uv_hrtime());
-        datahub_publish(p->engine->hub, &q_msg);
-    }
     p->state = PIPE_STATE_RUNNING;
     pipeline_stage_t *s = p->resume_point ? p->resume_point->next : NULL;
     while (s) {
@@ -378,12 +327,10 @@ void stream_engine_resume(pipeline_t *p) {
     }
     p->state = PIPE_STATE_IDLE;
     p->resume_point = NULL;
-    while (p->q_head != p->q_tail) {
-        pipe_msg_t queued_msg = p->queue[p->q_tail];
-        p->q_tail = (p->q_tail + 1) % MAX_PENDING_QUEUE;
-        _pipeline_process(p, &queued_msg);
-        if (p->state == PIPE_STATE_SUSPENDED) break;
-    }
+}
+
+stage_health_t pipeline_stage_get_health(pipeline_stage_t *stage) {
+    return stage ? stage->health : STAGE_HEALTH_GOOD;
 }
 
 void stream_engine_push(stream_engine_t *engine, pipe_msg_t *msg) {
@@ -391,21 +338,11 @@ void stream_engine_push(stream_engine_t *engine, pipe_msg_t *msg) {
     struct uv__queue *q;
     uv__queue_foreach(q, &engine->pipelines) {
         pipeline_t *p = uv__queue_data(q, pipeline_t, node);
-        bool matched = _is_pipeline_triggered(p, msg->tag_id);
-        if (matched) {
-            printf("[STREAM-DEBUG] Pipeline '%s' triggered by Tag %u\n", p->id, msg->tag_id);
-            if (msg->type == PIPEMSG_TYPE_REF) {
-                printf("\033[32m[STREAM-MATCH] Pipeline '%s' triggered by TYPE_REF Tag %u\033[0m\n",
-                       p->id, msg->tag_id);
-            }
+        if (_is_pipeline_triggered(p, msg->tag_id)) {
             _pipeline_process(p, msg);
         }
     }
     uv_mutex_unlock(&engine->pipe_mutex);
-}
-
-stage_health_t pipeline_stage_get_health(pipeline_stage_t *stage) {
-    return stage ? stage->health : STAGE_HEALTH_GOOD;
 }
 
 uv_async_t *stream_engine_get_notify_handle(stream_engine_t *engine) {

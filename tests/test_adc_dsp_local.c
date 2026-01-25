@@ -21,7 +21,7 @@ static void test_adc_dsp_full_chain(void **state) {
     // 即使不传元数据，Ring Buffer 也能工作
     datahub_t hub;
     datahub_init(&hub, loop, "test", 128, 128, NULL, 0, NULL, NULL, NULL);
-    stream_engine_t *se = stream_engine_create(&hub, NULL);
+    stream_engine_t *se = stream_engine_create(&hub, uv_default_loop(), NULL);
 
     printf("[STEP 2] Registering Simulation Pipeline (Trigger=12001, Target=1001)...\n");
     stream_engine_register_sim_pipeline(se, &hub, 12001, 1001);

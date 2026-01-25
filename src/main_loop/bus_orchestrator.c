@@ -87,7 +87,12 @@ static void _on_arbiter_cmd_start(void *user_data) {
 }
 
 static void _on_arbiter_cmd_cleanup(cmd_msg_t *cmd) {
-    if (cmd->user_data) free(cmd->user_data);
+    if (!cmd) return;
+    // 指令包装在 actx 之后，通过 user_data 反向定位
+    orch_cmd_ctx_t *actx = (orch_cmd_ctx_t *)cmd->user_data;
+    if (actx) {
+        free(actx);
+    }
 }
 
 int bus_orchestrator_submit_cmd(bus_orchestrator_t *ctx, int bus_id, cmd_msg_t *cmd) {
@@ -103,7 +108,12 @@ int bus_orchestrator_submit_cmd(bus_orchestrator_t *ctx, int bus_id, cmd_msg_t *
     wrapped_cmd->on_cleanup = _on_arbiter_cmd_cleanup;
     wrapped_cmd->user_data = actx;
 
-    return arbiter_submit_cmd(ctx->arb, bus_id, wrapped_cmd);
+    int rc = arbiter_submit_cmd(ctx->arb, bus_id, wrapped_cmd);
+    if (rc != 0) {
+        // [Fix] 如果提交失败（通常是因为系统正在关闭），必须立即清理 actx 以防泄漏
+        free(actx);
+    }
+    return rc;
 }
 
 bus_orchestrator_t *bus_orchestrator_create(datahub_t *hub, arbiter_t *arb, driver_manager_t *mgr,

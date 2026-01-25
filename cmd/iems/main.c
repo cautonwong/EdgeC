@@ -286,6 +286,7 @@ static void iems_shutdown(uv_loop_t *loop) {
         free(g_app.hub);
     }
     if (g_app.db_path) free(g_app.db_path);
+    curl_global_cleanup();
 
     struct uv__queue *q;
     while (!uv__queue_empty(&g_poll_task_head)) {
@@ -353,8 +354,23 @@ int main(int argc, char *argv[]) {
     g_app.db_service = sqlite_svc_create(loop, &db_conf);
 
     // 4. [Calculus] 计算平面：挂载 Stream Engine 并注入 DataHub 通知
-    g_app.stream_eng = stream_engine_create(g_app.hub, NULL);
-    // stream_engine_start(g_app.stream_eng); // [Fix] create 内部已经启动了线程
+
+    g_app.stream_eng = stream_engine_create(g_app.hub, loop, g_app.orch);
+
+    pipeline_loader_ctx_t loader_ctx = {
+
+        .db = g_app.db_service,
+
+        .orch = g_app.orch,
+
+        .params = NULL
+
+    };
+
+    stream_engine_load_static_metadata(g_app.stream_eng, g_pipeline_metadata,
+                                       g_pipeline_metadata_len, &loader_ctx);
+
+    stream_engine_start(g_app.stream_eng);
 
     // 5. [Orchestration] 编排与主循环配置
 

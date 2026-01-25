@@ -31,18 +31,20 @@ static void _on_arb_handle_close(uv_handle_t *h) {
     free(arb);
 }
 
-// 核心调度算法 (O(1) 优先级分发)
-static void _arbiter_schedule(arbiter_t *arb, int bus_id) {
-    // [终极防御] 显式禁止在暂停状态下进行任何分发动作
+/**
+ * @brief 核心调度逻辑 (内部版本，必须在持锁状态下调用)
+ * @return 返回需要立即启动的任务，若无则返回 NULL
+ */
+static cmd_msg_t *_arbiter_schedule_internal(arbiter_t *arb, int bus_id) {
     if (!arb || arb->is_paused || arb->is_shutting_down) {
-        return;
+        return NULL;
     }
 
     struct bus_info *bus = &arb->buses[bus_id];
     if (bus->owner) {
-        return;
+        return NULL;
     }
-    if (!bus->queue) return;
+    if (!bus->queue) return NULL;
 
     // 摘取队列头
     cmd_msg_t *job = bus->queue;
@@ -55,14 +57,15 @@ static void _arbiter_schedule(arbiter_t *arb, int bus_id) {
              job->req_id[0] != '\0' ? job->req_id : "UNKNOWN", (int)job->priority, bus_id,
              (unsigned long)(uv_now(arb->tick.loop) - job->submit_ts));
 
-    if (job->on_start) {
-        job->on_start(job->user_data);
-    }
+    return job;
 }
 
 static void _on_tick(uv_timer_t *handle) {
     arbiter_t *arb = (arbiter_t *)handle->data;
     if (arb->is_shutting_down || arb->is_paused) return;
+
+    cmd_msg_t *dispatched[MAX_BUSES];
+    int count = 0;
 
     uv_mutex_lock(&arb->lock);
     // 1. [核心补强] 延迟物理释放：清理上一轮产生的完成任务
@@ -74,11 +77,19 @@ static void _on_tick(uv_timer_t *handle) {
         z = next;
     }
 
-    // 2. 执行常规调度
+    // 2. 执行常规调度 (仅标记，不触发)
     for (int i = 0; i < MAX_BUSES; i++) {
-        _arbiter_schedule(arb, i);
+        cmd_msg_t *job = _arbiter_schedule_internal(arb, i);
+        if (job) dispatched[count++] = job;
     }
     uv_mutex_unlock(&arb->lock);
+
+    // 3. 在锁外触发任务启动，彻底规避重入死锁
+    for (int i = 0; i < count; i++) {
+        if (dispatched[i]->on_start) {
+            dispatched[i]->on_start(dispatched[i]->user_data);
+        }
+    }
 }
 
 int arbiter_init(arbiter_t **arb_out, uv_loop_t *loop) {
@@ -127,8 +138,12 @@ arbiter_bus_handle_t arbiter_bus_register(arbiter_t *arb, const char *name) {
 }
 
 int arbiter_submit_cmd(arbiter_t *arb, int bus_id, cmd_msg_t *cmd) {
-    if (!arb || arb->is_shutting_down || bus_id >= MAX_BUSES || !cmd) return -1;
+    if (!arb || arb->is_shutting_down || bus_id >= MAX_BUSES || !cmd) {
+        if (cmd && cmd->on_cleanup) cmd->on_cleanup(cmd);
+        return -1;
+    }
 
+    cmd_msg_t *dispatched = NULL;
     uv_mutex_lock(&arb->lock);
     cmd->submit_ts = uv_now(arb->tick.loop);
 
@@ -139,8 +154,13 @@ int arbiter_submit_cmd(arbiter_t *arb, int bus_id, cmd_msg_t *cmd) {
     *p = cmd;
 
     // 尝试立即调度以提升实时性
-    if (!arb->is_paused) _arbiter_schedule(arb, bus_id);
+    if (!arb->is_paused) dispatched = _arbiter_schedule_internal(arb, bus_id);
     uv_mutex_unlock(&arb->lock);
+
+    if (dispatched && dispatched->on_start) {
+        dispatched->on_start(dispatched->user_data);
+    }
+
     return 0;
 }
 
@@ -149,7 +169,6 @@ void arbiter_on_io_done(arbiter_t *arb, int bus_id, cmd_msg_t *cmd, int status) 
 
     uv_mutex_lock(&arb->lock);
     if (arb->buses[bus_id].owner == cmd) {
-        printf("[ARB-DEBUG] Task %s DONE on Bus %d (Status: %d)\n", cmd->req_id, bus_id, status);
         arb->buses[bus_id].owner = NULL;
         if (cmd->on_complete) cmd->on_complete(cmd, status);
         cmd->next = arb->zombies;
@@ -212,10 +231,12 @@ void arbiter_destroy(arbiter_t *arb) {
         if (arb->buses[i].owner) {
             if (arb->buses[i].owner->on_cleanup)
                 arb->buses[i].owner->on_cleanup(arb->buses[i].owner);
+            arb->buses[i].owner = NULL;
         }
     }
 
     cmd_msg_t *z = arb->zombies;
+    arb->zombies = NULL;
     while (z) {
         cmd_msg_t *next = z->next;
         if (z->on_cleanup) z->on_cleanup(z);
