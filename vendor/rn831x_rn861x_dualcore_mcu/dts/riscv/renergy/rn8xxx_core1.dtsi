@@ -1,0 +1,40 @@
+#include <renergy/rn8xxx.dtsi>
+#include <dt-bindings/soc/renergy_rn8xxx.h>
+
+&soc {
+	/* --- System & Config (Core 1 View) --- */
+	scu: syscon@b0018000 { reg = <SCU_CORE1_BASE 0x1000>; };
+	aos: trigger@a0088000 { reg = <AOS_CORE1_BASE 0x1000>; };
+	mailbox: mailbox@b000c000 { reg = <MAILBOX_CORE1_BASE 0x1000>; interrupts = <IRQ_MAILBOX 1>; };
+	hsem: hsem@b0084000 { reg = <HSEM_BASE 0x400>; };
+
+	/* --- Security Suite --- */
+	sea: crypto@b0008000 { reg = <SEA_CORE1_BASE 0x1000>; interrupts = <IRQ_SEA 1>; };
+	aes: crypto@b0014000 { reg = <AES_CORE1_BASE 0x1000>; interrupts = <IRQ_AES 1>; };
+	keystore: keystore@b000a000 { reg = <KEYSTORE_CORE1_BASE 0x1000>; };
+
+	/* --- Communication Interface --- */
+	uart0: uart@a0000000 { reg = <UART0_CORE1_BASE 0x4000>; interrupts = <IRQ_UART0 1>; };
+	uart1: uart@a0004000 { reg = <UART1_CORE1_BASE 0x4000>; interrupts = <IRQ_UART1 1>; };
+	uart2: uart@a0008000 { reg = <UART2_CORE1_BASE 0x4000>; interrupts = <IRQ_UART2 1>; };
+	uart3: uart@a000c000 { reg = <UART3_CORE1_BASE 0x4000>; interrupts = <IRQ_UART3 1>; };
+	uart4: uart@a0010000 { reg = <UART4_CORE1_BASE 0x4000>; interrupts = <IRQ_UART4 1>; };
+	uart5: uart@a0014000 { reg = <UART5_CORE1_BASE 0x4000>; interrupts = <IRQ_UART5 1>; };
+	uart6: uart@a0018000 { reg = <UART6_CORE1_BASE 0x4000>; interrupts = <IRQ_UART6 1>; };
+	uart7: uart@a001c000 { reg = <UART7_CORE1_BASE 0x4000>; interrupts = <IRQ_UART7 1>; };
+
+	spi0: spi@a0038000 { reg = <SPI0_CORE1_BASE 0x4000>; interrupts = <IRQ_SPI0 1>; };
+	spi1: spi@a003c000 { reg = <SPI1_CORE1_BASE 0x4000>; interrupts = <IRQ_SPI1 1>; };
+
+	i2c0: i2c@a0050000 { reg = <I2C0_CORE1_BASE 0x4000>; interrupts = <IRQ_I2C0 1>; };
+	i2c1: i2c@a0054000 { reg = <I2C1_CORE1_BASE 0x4000>; interrupts = <IRQ_I2C1 1>; };
+
+	/* --- Analog & DSP --- */
+	adc0: adc@a0094000 { reg = <ADC0_CORE1_BASE 0x4000>; interrupts = <IRQ_ADC0 1>; };
+	dsp: dsp@a006c000 { reg = <DSP_CORE1_BASE 0x4000>; };
+	rtc: rtc@a00b4000 { reg = <RTC_CORE1_BASE 0x1000>; interrupts = <IRQ_RTC 1>; };
+
+	/* --- GPIO --- */
+	gpioa: gpio@b0080000 { reg = <GPIOA_BASE 0x400>; };
+	gpiob: gpio@b0080400 { reg = <GPIOB_BASE 0x400>; };
+};

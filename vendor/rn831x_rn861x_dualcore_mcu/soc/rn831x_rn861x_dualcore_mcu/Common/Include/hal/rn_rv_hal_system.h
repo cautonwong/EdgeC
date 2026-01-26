@@ -1,0 +1,1264 @@
+/**
+ ******************************************************************************
+ * @file   rn_rv_hal_system.h
+ * @author Renergy Software Team
+ * @brief  Header file of SYSTEM HAL module.
+ *
+ ******************************************************************************
+ * @attention
+ *
+ * Copyright (c) 2025, Renergy Technology Inc.
+ * All rights reserved.
+ *
+ ******************************************************************************
+ */
+
+/* Define to prevent recursive inclusion ------------------------------------*/
+#ifndef __RN_RV_HAL_SYSTEM_H
+#define __RN_RV_HAL_SYSTEM_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* Includes -----------------------------------------------------------------*/
+#include "rn_rv_hal_def.h"
+#include "rn_rv_ll_system_core0.h"
+#include "rn_rv_ll_system_core1.h"
+
+/** @addtogroup RN_HAL_Driver
+ * @{
+ */
+
+/** @addtogroup SYSTEM
+ * @{
+ */
+
+/* Exported types -----------------------------------------------------------*/
+/** @defgroup SYSTEM_Exported_Types SYSTEM Exported Types
+ * @{
+ */
+
+/**
+ * @brief  HAL SYSTEM Clock Mode definition
+ */
+typedef enum __attribute__((__packed__))
+{
+    HAL_SYSTEM_CLKMODE_LOSC      = 0x00U,           /*!< set system main clock is LOSC           */
+    HAL_SYSTEM_CLKMODE_RCL_32K   = 0x01U,           /*!< set system main clock is RCL32K         */
+    HAL_SYSTEM_CLKMODE_RC_1M8    = 0x02U,           /*!< set system main clock is RC 1.8432MHz   */
+    HAL_SYSTEM_CLKMODE_RC_59M    = 0x03U,           /*!< set system main clock is RC 58.9824Mhz  */
+    HAL_SYSTEM_CLKMODE_PLL_7M4   = 0x04U,           /*!< set system main clock is PLL 7.3728MHz  */
+    HAL_SYSTEM_CLKMODE_PLL_14M7  = 0x05U,           /*!< set system main clock is PLL 14.7456Mhz */
+    HAL_SYSTEM_CLKMODE_PLL_29M5  = 0x06U,           /*!< set system main clock is PLL 29.4912Mhz */
+    HAL_SYSTEM_CLKMODE_PLL_59M   = 0x07U,           /*!< set system main clock is PLL 58.9824Mhz */
+    HAL_SYSTEM_CLKMODE_HOSC_7M4  = 0x08U,           /*!< set system main clock is HOSC 7.3728MHz */
+    HAL_SYSTEM_CLKMODE_HOSC_14M7 = 0x09U,           /*!< set system main clock is HOSC 14.7456Mhz */
+    HAL_SYSTEM_CLKMODE_HOSC_29M5 = 0x0AU,           /*!< set system main clock is HOSC 29.4912Mhz */
+    HAL_SYSTEM_CLKMODE_END
+} HAL_SYSTEM_ClockModeTypeDef;
+
+/**
+ * @brief  HAL SYSTEM Clock Source Division definition
+ */
+typedef enum __attribute__((__packed__))
+{
+    HAL_SYSTEM_SRCDIV_1  = 0x00U,
+    HAL_SYSTEM_SRCDIV_2  = 0x01U,
+    HAL_SYSTEM_SRCDIV_4  = 0x02U,
+    HAL_SYSTEM_SRCDIV_8  = 0x03U,
+    HAL_SYSTEM_SRCDIV_16 = 0x04U,
+    HAL_SYSTEM_SRCDIV_32 = 0x05U,
+    HAL_SYSTEM_SRCDIV_END
+} HAL_SYSTEM_SourceDivTypeDef;
+
+/**
+ * @brief  HAL SYSTEM Core Division definition
+ */
+typedef enum __attribute__((__packed__))
+{
+    HAL_SYSTEM_COREDIV_CORE1_1_CORE0_1 = 0x00U,             /*!< CORE1 no division, CORE0 no division */
+    HAL_SYSTEM_COREDIV_CORE1_1_CORE0_2 = 0x01U,             /*!< CORE1 no division, CORE0 divided by 2 */
+    HAL_SYSTEM_COREDIV_CORE1_1_CORE0_4 = 0x02U,             /*!< CORE1 no division, CORE0 divided by 4 */
+    HAL_SYSTEM_COREDIV_CORE1_1_CORE0_8 = 0x03U,             /*!< CORE1 no division, CORE0 divided by 8 */
+    HAL_SYSTEM_COREDIV_CORE1_2_CORE0_2 = 0x05U,             /*!< CORE1 divided by 2, CORE0 divided by 2 */
+    HAL_SYSTEM_COREDIV_CORE1_2_CORE0_4 = 0x06U,             /*!< CORE1 divided by 2, CORE0 divided by 4 */
+    HAL_SYSTEM_COREDIV_CORE1_2_CORE0_8 = 0x07U,             /*!< CORE1 divided by 2, CORE0 divided by 8 */
+    HAL_SYSTEM_COREDIV_CORE1_4_CORE0_4 = 0x0AU,             /*!< CORE1 divided by 4, CORE0 divided by 4 */
+    HAL_SYSTEM_COREDIV_CORE1_4_CORE0_8 = 0x0BU,             /*!< CORE1 divided by 4, CORE0 divided by 8 */
+    HAL_SYSTEM_COREDIV_CORE1_8_CORE0_8 = 0x0FU,             /*!< CORE1 divided by 8, CORE0 divided by 8 */
+    HAL_SYSTEM_COREDIV_END
+} HAL_SYSTEM_CoreDivTypeDef;
+
+/**
+ * @brief  HAL PLL Clock switch definition
+ */
+typedef enum __attribute__((__packed__))
+{
+    HAL_SYSTEM_PLL_ON                = 0x00U,      /*!< PLL activation  */
+    HAL_SYSTEM_PLL_OFF               = 0x01U,      /*!< PLL deactivation */
+    HAL_SYSTEM_PLL_END
+} HAL_SYSTEM_PLLSwitchTypeDef;
+
+/**
+ * @brief  HAL System Clock definition
+ */
+typedef enum __attribute__((__packed__))
+{
+    HAL_SYSTEM_CLK_CORE0            = 0x00U,      /*!< Core0 main clock */
+    HAL_SYSTEM_CLK_CORE1            = 0x01U,      /*!< Core1 main clock */
+    HAL_SYSTEM_CLK_FLASH            = 0x02U       /*!< Flash main clock */
+} HAL_SYSTEM_SysClockTypeDef;
+
+/**
+ * @}
+ */
+
+/* Exported constants -------------------------------------------------------*/
+/** @defgroup SYSTEM_Exported_Constants SYSTEM Exported Constants
+ * @{
+ */
+
+/** @defgroup SYSTEM_CORE0_Interrupt Interrupts and Flags
+ * @{
+ */
+#define SYSTEM_CAL_IT_OV                    (SYSTEM_CORE0_CLK_CAL_CTRL_CAL_OV_IE)     /*!< Calibration Overflow Interrupt     */
+#define SYSTEM_CAL_IT_DONE                  (SYSTEM_CORE0_CLK_CAL_CTRL_CAL_DONE_IE)   /*!< Calibration Complete Interrupt     */
+
+#define SYSTEM_CAL_IF_OV                    ((uint8_t)SYSTEM_CORE0_CLK_CAL_STA_CAL_OV)         /*!< Calibration Overflow Interrupt flag */
+#define SYSTEM_CAL_IF_DONE                  ((uint8_t)SYSTEM_CORE0_CLK_CAL_STA_CAL_DONE)       /*!< Calibration Complete Interrupt flag */
+/**
+ * @}
+ */
+
+/** @defgroup SYSTEM_MSK_POS MASK and POS
+ * @{
+ */
+#define SYSTEM_SYS_PSW1                       (SYSTEM_CORE0_SYS_PSW1_SYS_PSW1)
+#define SYSTEM_PMOD0_CKE_WDT_POS              (SYSTEM_CORE0_PMOD0_CKE_WDT_POS)
+#define SYSTEM_PMOD0_CKE_MAILBOX_POS          (SYSTEM_CORE0_PMOD0_CKE_MAILBOX_POS)
+#define SYSTEM_PMOD0_CKE_AOS_POS              (SYSTEM_CORE0_PMOD0_CKE_AOS_POS)
+#define SYSTEM_PMOD0_CKE_SCU_POS              (SYSTEM_CORE0_PMOD0_CKE_SCU_POS)
+#define SYSTEM_PMOD0_CKE_GIC_POS              (SYSTEM_CORE0_PMOD0_CKE_GIC_POS)
+#define SYSTEM_PMOD0_CKE_UART38K_POS          (SYSTEM_CORE0_PMOD0_CKE_UART38K_POS)
+#define SYSTEM_PMOD0_CKE_GPIO_POS             (SYSTEM_CORE0_PMOD0_CKE_GPIO_POS)
+
+#define SYSTEM_KBI0_CKE_KBI00_POS             (SYSTEM_CORE0_KBI0_CKE_KBI00_POS)
+#define SYSTEM_KBI0_CKE_KBI01_POS             (SYSTEM_CORE0_KBI0_CKE_KBI01_POS)
+#define SYSTEM_KBI0_CKE_KBI02_POS             (SYSTEM_CORE0_KBI0_CKE_KBI02_POS)
+#define SYSTEM_KBI0_CKE_KBI03_POS             (SYSTEM_CORE0_KBI0_CKE_KBI03_POS)
+#define SYSTEM_KBI0_CKE_KBI04_POS             (SYSTEM_CORE0_KBI0_CKE_KBI04_POS)
+#define SYSTEM_KBI0_CKE_KBI05_POS             (SYSTEM_CORE0_KBI0_CKE_KBI05_POS)
+#define SYSTEM_KBI0_CKE_KBI06_POS             (SYSTEM_CORE0_KBI0_CKE_KBI06_POS)
+#define SYSTEM_KBI0_CKE_KBI07_POS             (SYSTEM_CORE0_KBI0_CKE_KBI07_POS)
+#define SYSTEM_KBI0_CKE_KBI08_POS             (SYSTEM_CORE0_KBI0_CKE_KBI08_POS)
+#define SYSTEM_KBI0_CKE_KBI09_POS             (SYSTEM_CORE0_KBI0_CKE_KBI09_POS)
+#define SYSTEM_KBI0_CKE_KBI010_POS            (SYSTEM_CORE0_KBI0_CKE_KBI010_POS)
+#define SYSTEM_KBI0_CKE_KBI011_POS            (SYSTEM_CORE0_KBI0_CKE_KBI011_POS)
+#define SYSTEM_KBI0_CKE_KBI012_POS            (SYSTEM_CORE0_KBI0_CKE_KBI012_POS)
+#define SYSTEM_KBI0_CKE_KBI013_POS            (SYSTEM_CORE0_KBI0_CKE_KBI013_POS)
+#define SYSTEM_KBI0_CKE_KBI014_POS            (SYSTEM_CORE0_KBI0_CKE_KBI014_POS)
+#define SYSTEM_KBI0_CKE_KBI015_POS            (SYSTEM_CORE0_KBI0_CKE_KBI015_POS)
+#define SYSTEM_KBI0_CKE_KBIC0_POS             (SYSTEM_CORE0_KBI0_CKE_KBIC0_POS)
+
+#define SYSTEM_KBI1_CKE_KBI10_POS             (SYSTEM_CORE0_KBI1_CKE_KBI10_POS)
+#define SYSTEM_KBI1_CKE_KBI11_POS             (SYSTEM_CORE0_KBI1_CKE_KBI11_POS)
+#define SYSTEM_KBI1_CKE_KBI12_POS             (SYSTEM_CORE0_KBI1_CKE_KBI12_POS)
+#define SYSTEM_KBI1_CKE_KBI13_POS             (SYSTEM_CORE0_KBI1_CKE_KBI13_POS)
+#define SYSTEM_KBI1_CKE_KBI14_POS             (SYSTEM_CORE0_KBI1_CKE_KBI14_POS)
+#define SYSTEM_KBI1_CKE_KBI15_POS             (SYSTEM_CORE0_KBI1_CKE_KBI15_POS)
+#define SYSTEM_KBI1_CKE_KBI16_POS             (SYSTEM_CORE0_KBI1_CKE_KBI16_POS)
+#define SYSTEM_KBI1_CKE_KBI17_POS             (SYSTEM_CORE0_KBI1_CKE_KBI17_POS)
+#define SYSTEM_KBI1_CKE_KBI18_POS             (SYSTEM_CORE0_KBI1_CKE_KBI18_POS)
+#define SYSTEM_KBI1_CKE_KBI19_POS             (SYSTEM_CORE0_KBI1_CKE_KBI19_POS)
+#define SYSTEM_KBI1_CKE_KBI110_POS            (SYSTEM_CORE0_KBI1_CKE_KBI110_POS)
+#define SYSTEM_KBI1_CKE_KBI111_POS            (SYSTEM_CORE0_KBI1_CKE_KBI111_POS)
+#define SYSTEM_KBI1_CKE_KBI112_POS            (SYSTEM_CORE0_KBI1_CKE_KBI112_POS)
+#define SYSTEM_KBI1_CKE_KBI113_POS            (SYSTEM_CORE0_KBI1_CKE_KBI113_POS)
+#define SYSTEM_KBI1_CKE_KBI114_POS            (SYSTEM_CORE0_KBI1_CKE_KBI114_POS)
+#define SYSTEM_KBI1_CKE_KBI115_POS            (SYSTEM_CORE0_KBI1_CKE_KBI115_POS)
+#define SYSTEM_KBI1_CKE_KBIC1_POS             (SYSTEM_CORE0_KBI1_CKE_KBIC1_POS)
+
+#define SYSTEM_MOD0_CKE_UART0_POS             (SYSTEM_CORE0_MOD0_CKE_UART0_POS)
+#define SYSTEM_MOD0_CKE_UART1_POS             (SYSTEM_CORE0_MOD0_CKE_UART1_POS)
+#define SYSTEM_MOD0_CKE_UART2_POS             (SYSTEM_CORE0_MOD0_CKE_UART2_POS)
+#define SYSTEM_MOD0_CKE_UART3_POS             (SYSTEM_CORE0_MOD0_CKE_UART3_POS)
+#define SYSTEM_MOD0_CKE_UART4_POS             (SYSTEM_CORE0_MOD0_CKE_UART4_POS)
+#define SYSTEM_MOD0_CKE_UART5_POS             (SYSTEM_CORE0_MOD0_CKE_UART5_POS)
+#define SYSTEM_MOD0_CKE_UART6_POS             (SYSTEM_CORE0_MOD0_CKE_UART6_POS)
+#define SYSTEM_MOD0_CKE_UART7_POS             (SYSTEM_CORE0_MOD0_CKE_UART7_POS)
+#define SYSTEM_MOD0_CKE_LPUART_POS            (SYSTEM_CORE0_MOD0_CKE_LPUART_POS)
+#define SYSTEM_MOD0_CKE_USART0_POS            (SYSTEM_CORE0_MOD0_CKE_USART0_POS)
+#define SYSTEM_MOD0_CKE_USART1_POS            (SYSTEM_CORE0_MOD0_CKE_USART1_POS)
+#define SYSTEM_MOD0_CKE_ISO78160_POS          (SYSTEM_CORE0_MOD0_CKE_ISO78160_POS)
+#define SYSTEM_MOD0_CKE_ISO78161_POS          (SYSTEM_CORE0_MOD0_CKE_ISO78161_POS)
+#define SYSTEM_MOD0_CKE_SPI0_POS              (SYSTEM_CORE0_MOD0_CKE_SPI0_POS)
+#define SYSTEM_MOD0_CKE_SPI1_POS              (SYSTEM_CORE0_MOD0_CKE_SPI1_POS)
+#define SYSTEM_MOD0_CKE_SPI2_POS              (SYSTEM_CORE0_MOD0_CKE_SPI2_POS)
+#define SYSTEM_MOD0_CKE_SPI3_POS              (SYSTEM_CORE0_MOD0_CKE_SPI3_POS)
+#define SYSTEM_MOD0_CKE_I2C0_POS              (SYSTEM_CORE0_MOD0_CKE_I2C0_POS)
+#define SYSTEM_MOD0_CKE_I2C1_POS              (SYSTEM_CORE0_MOD0_CKE_I2C1_POS)
+#define SYSTEM_MOD0_CKE_IOCNT_POS             (SYSTEM_CORE0_MOD0_CKE_IOCNT_POS)
+#define SYSTEM_MOD0_CKE_LCD_POS               (SYSTEM_CORE0_MOD0_CKE_LCD_POS)
+#define SYSTEM_MOD0_CKE_DSP_POS               (SYSTEM_CORE0_MOD0_CKE_DSP_POS)
+#define SYSTEM_MOD0_CKE_M2M_POS               (SYSTEM_CORE0_MOD0_CKE_M2M_POS)
+#define SYSTEM_MOD0_CKE_D2F_POS               (SYSTEM_CORE0_MOD0_CKE_D2F_POS)
+#define SYSTEM_MOD0_CKE_ADC0_POS              (SYSTEM_CORE0_MOD0_CKE_ADC0_POS)
+#define SYSTEM_MOD0_CKE_DAC_POS               (SYSTEM_CORE0_MOD0_CKE_DAC_POS)
+#define SYSTEM_MOD0_CKE_TC0_POS               (SYSTEM_CORE0_MOD0_CKE_TC0_POS)
+#define SYSTEM_MOD0_CKE_TC1_POS               (SYSTEM_CORE0_MOD0_CKE_TC1_POS)
+
+#define SYSTEM_MOD1_CKE_SIMPTC0_POS           (SYSTEM_CORE0_MOD1_CKE_SIMPTC0_POS)
+#define SYSTEM_MOD1_CKE_SIMPTC1_POS           (SYSTEM_CORE0_MOD1_CKE_SIMPTC1_POS)
+#define SYSTEM_MOD1_CKE_SIMPTC2_POS           (SYSTEM_CORE0_MOD1_CKE_SIMPTC2_POS)
+#define SYSTEM_MOD1_CKE_SIMPTC3_POS           (SYSTEM_CORE0_MOD1_CKE_SIMPTC3_POS)
+#define SYSTEM_MOD1_CKE_ANA_POS               (SYSTEM_CORE0_MOD1_CKE_RS_VDD_POS)
+#define SYSTEM_MOD1_CKE_LSRX_POS              (SYSTEM_CORE0_MOD1_CKE_LSRX_POS)
+#define SYSTEM_MOD1_CKE_LVDCMP_POS            (SYSTEM_CORE0_MOD1_CKE_LVDCMP_POS)
+#define SYSTEM_MOD1_CKE_CRC0_POS              (SYSTEM_CORE0_MOD1_CKE_CRC0_POS)
+
+#define SYSTEM_MOD2_CKE_QSPI0_POS             (SYSTEM_CORE0_MOD2_CKE_QSPI0_POS)
+#define SYSTEM_MOD2_CKE_QSPI1_POS             (SYSTEM_CORE0_MOD2_CKE_QSPI1_POS)
+#define SYSTEM_MOD2_CKE_SEA_BUS_POS           (SYSTEM_CORE0_MOD2_CKE_SEA_BUS_POS)
+#define SYSTEM_MOD2_CKE_SEA_PKE_POS           (SYSTEM_CORE0_MOD2_CKE_SEA_PKE_POS)
+#define SYSTEM_MOD2_CKE_SEA_AES_POS           (SYSTEM_CORE0_MOD2_CKE_SEA_AES_POS)
+#define SYSTEM_MOD2_CKE_SEA_TRNG_POS          (SYSTEM_CORE0_MOD2_CKE_SEA_TRNG_POS)
+#define SYSTEM_MOD2_CKE_SEA_SHA_POS           (SYSTEM_CORE0_MOD2_CKE_SEA_SHA_POS)
+#define SYSTEM_MOD2_CKE_KEY_STORE_POS         (SYSTEM_CORE0_MOD2_CKE_KEY_STORE_POS)
+#define SYSTEM_MOD2_CKE_AES_POS               (SYSTEM_CORE0_MOD2_CKE_AES_POS)
+
+#define SYSTEM_BOI_RST_POS                    (SYSTEM_CORE0_BOI_RST_CTRL_BOI_VBAT_RST_IE_POS)
+
+#define SYSTEM_PMOD0_RST_MAILBOX              (SYSTEM_CORE0_PMOD0_RST_MAILBOX)
+#define SYSTEM_PMOD0_RST_AOS                  (SYSTEM_CORE0_PMOD0_RST_AOS)
+#define SYSTEM_MOD0_RST_UART0                 (SYSTEM_CORE0_MOD0_RST_UART0)
+#define SYSTEM_MOD0_RST_UART1                 (SYSTEM_CORE0_MOD0_RST_UART1)
+#define SYSTEM_MOD0_RST_UART2                 (SYSTEM_CORE0_MOD0_RST_UART2)
+#define SYSTEM_MOD0_RST_UART3                 (SYSTEM_CORE0_MOD0_RST_UART3)
+#define SYSTEM_MOD0_RST_UART4                 (SYSTEM_CORE0_MOD0_RST_UART4)
+#define SYSTEM_MOD0_RST_UART5                 (SYSTEM_CORE0_MOD0_RST_UART5)
+#define SYSTEM_MOD0_RST_UART6                 (SYSTEM_CORE0_MOD0_RST_UART6)
+#define SYSTEM_MOD0_RST_UART7                 (SYSTEM_CORE0_MOD0_RST_UART7)
+#define SYSTEM_MOD0_RST_LPUART                (SYSTEM_CORE0_MOD0_RST_LPUART)
+#define SYSTEM_MOD0_RST_USART0                (SYSTEM_CORE0_MOD0_RST_USART0)
+#define SYSTEM_MOD0_RST_USART1                (SYSTEM_CORE0_MOD0_RST_USART1)
+#define SYSTEM_MOD0_RST_ISO78160              (SYSTEM_CORE0_MOD0_RST_ISO78160)
+#define SYSTEM_MOD0_RST_ISO78161              (SYSTEM_CORE0_MOD0_RST_ISO78161)
+#define SYSTEM_MOD0_RST_SPI0                  (SYSTEM_CORE0_MOD0_RST_SPI0)
+#define SYSTEM_MOD0_RST_SPI1                  (SYSTEM_CORE0_MOD0_RST_SPI1)
+#define SYSTEM_MOD0_RST_SPI2                  (SYSTEM_CORE0_MOD0_RST_SPI2)
+#define SYSTEM_MOD0_RST_SPI3                  (SYSTEM_CORE0_MOD0_RST_SPI3)
+#define SYSTEM_MOD0_RST_I2C0                  (SYSTEM_CORE0_MOD0_RST_I2C0)
+#define SYSTEM_MOD0_RST_I2C1                  (SYSTEM_CORE0_MOD0_RST_I2C1)
+#define SYSTEM_MOD0_RST_IOCNT                 (SYSTEM_CORE0_MOD0_RST_IOCNT)
+#define SYSTEM_MOD0_RST_LCD                   (SYSTEM_CORE0_MOD0_RST_LCD)
+#define SYSTEM_MOD0_RST_DSP                   (SYSTEM_CORE0_MOD0_RST_DSP)
+#define SYSTEM_MOD0_RST_M2M                   (SYSTEM_CORE0_MOD0_RST_M2M)
+#define SYSTEM_MOD0_RST_D2F                   (SYSTEM_CORE0_MOD0_RST_D2F)
+#define SYSTEM_MOD0_RST_ADC0                  (SYSTEM_CORE0_MOD0_RST_ADC0)
+#define SYSTEM_MOD0_RST_DAC                   (SYSTEM_CORE0_MOD0_RST_DAC)
+#define SYSTEM_MOD0_RST_TC0                   (SYSTEM_CORE0_MOD0_RST_TC0)
+#define SYSTEM_MOD0_RST_TC1                   (SYSTEM_CORE0_MOD0_RST_TC1)
+
+#define SYSTEM_MOD1_RST_SIMPTC0               (SYSTEM_CORE0_MOD1_RST_SIMPTC0)
+#define SYSTEM_MOD1_RST_SIMPTC1               (SYSTEM_CORE0_MOD1_RST_SIMPTC1)
+#define SYSTEM_MOD1_RST_SIMPTC2               (SYSTEM_CORE0_MOD1_RST_SIMPTC2)
+#define SYSTEM_MOD1_RST_SIMPTC3               (SYSTEM_CORE0_MOD1_RST_SIMPTC3)
+#define SYSTEM_MOD1_RST_RTC_SARADC            (SYSTEM_CORE0_MOD1_RST_RS_VDD)
+#define SYSTEM_MOD1_RST_LSRX                  (SYSTEM_CORE0_MOD1_RST_LSRX)
+#define SYSTEM_MOD1_RST_KBI0                  (SYSTEM_CORE0_MOD1_RST_KBI0)
+#define SYSTEM_MOD1_RST_KBI1                  (SYSTEM_CORE0_MOD1_RST_KBI1)
+#define SYSTEM_MOD1_RST_LVDCMP                (SYSTEM_CORE0_MOD1_RST_LVDCMP)
+#define SYSTEM_MOD1_RST_CRC0                  (SYSTEM_CORE0_MOD1_RST_CRC0)
+
+#define SYSTEM_MOD2_RST_QSPI0                 (SYSTEM_CORE0_MOD2_RST_QSPI0)
+#define SYSTEM_MOD2_RST_QSPI1                 (SYSTEM_CORE0_MOD2_RST_QSPI1)
+#define SYSTEM_MOD2_RST_SEA                   (SYSTEM_CORE0_MOD2_RST_SEA)
+#define SYSTEM_MOD2_RST_AES                   (SYSTEM_CORE0_MOD2_RST_AES)
+/**
+ * @}
+ */
+
+
+/**
+ * @}
+ */
+/* Exported macros ----------------------------------------------------------*/
+/** @defgroup SYSTEM_Exported_Macros SYSTEM Exported Macros
+ * @{
+ */
+
+/** @defgroup SYSTEM_PSW_UNLOCK_LOCK PSW Unlock and Lock
+ *  @brief  Unlock or Lock the SYSTEM PSW, and get status.
+ *  @note   After reset, the System registers (used for registers write access)
+ *         are Locked and the application software has to Unlock this PSW register before
+ *         write them.
+ * @{
+ */
+#define __HAL_SYSTEM_PSW_UNLOCK()           (SYSTEM->SYS_PSW1 = 0x82U)
+
+#define __HAL_SYSTEM_PSW_LOCK()             (SYSTEM->SYS_PSW1 = 0x00U)
+
+#define __HAL_SYSTEM_PSW_IS_UNLOCKED()      ((SYSTEM->SYS_PSW1 & (SYSTEM_SYS_PSW1)) == 0x82U)
+#define __HAL_SYSTEM_PSW_IS_LOCKD()         ((SYSTEM->SYS_PSW1 & (SYSTEM_SYS_PSW1)) != 0x82U)
+/**
+ * @}
+ */
+
+/** @defgroup SYSTEM_PMOD0_Clock_Enable_Disable PMOD0 Clock Enable Disable
+ *  @brief  Enable or disable the PMOD0 peripheral clock.
+ *  @note   After reset, the peripheral clock (used for registers read/write access)
+ *         is disabled and the application software has to enable this clock before
+ *         using it.
+ * @{
+ */
+#ifdef CORE0
+#define __HAL_SYSTEM_PMOD0_CLK_ENABLE_ALL() (SYSTEM->PMOD0_CKE = 0x7F1FU)
+#endif
+#ifdef CORE1
+#define __HAL_SYSTEM_PMOD0_CLK_ENABLE_ALL() (SYSTEM->PMOD0_CKE = 0x1F1FU)
+#endif
+#define __HAL_SYSTEM_WDT_CLK_ENABLE()       (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE0_PMOD0_CKE_WDT_POS) = ENABLE)
+#define __HAL_SYSTEM_MAILBOX_CLK_ENABLE()   (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_PMOD0_CKE_MAILBOX_POS) = ENABLE)
+#define __HAL_SYSTEM_AOS_CLK_ENABLE()       (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_PMOD0_CKE_AOS_POS) = ENABLE)
+#define __HAL_SYSTEM_SCU_CLK_ENABLE()       (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_PMOD0_CKE_SCU_POS) = ENABLE)
+#define __HAL_SYSTEM_GIC_CLK_ENABLE()       (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_PMOD0_CKE_GIC_POS) = ENABLE)
+#ifdef CORE0
+#define __HAL_SYSTEM_GDMA00_CLK_ENABLE()    (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE0_PMOD0_CKE_GDMA00_POS) = ENABLE)
+#define __HAL_SYSTEM_GDMA01_CLK_ENABLE()    (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE0_PMOD0_CKE_GDMA01_POS) = ENABLE)
+#endif
+#ifdef CORE1
+#define __HAL_SYSTEM_GDMA10_CLK_ENABLE()    (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE1_PMOD0_CKE_GDMA10_POS) = ENABLE)
+#define __HAL_SYSTEM_GDMA11_CLK_ENABLE()    (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE1_PMOD0_CKE_GDMA11_POS) = ENABLE)
+#endif
+#define __HAL_SYSTEM_UART38K_CLK_ENABLE()   (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_PMOD0_CKE_UART38K_POS) = ENABLE)
+#define __HAL_SYSTEM_GPIO_CLK_ENABLE()      (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_PMOD0_CKE_GPIO_POS) = ENABLE)
+#ifdef CORE0
+#define __HAL_SYSTEM_LCSS_CLK_ENABLE()      (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE0_PMOD0_CKE_LCSS_POS) = ENABLE)
+#define __HAL_SYSTEM_CRC1_CLK_ENABLE()      (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE0_PMOD0_CKE_CRC1_POS) = ENABLE)
+#endif
+#ifdef CORE1
+#define __HAL_SYSTEM_HSEM_CLK_ENABLE()      (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE1_PMOD0_CKE_HSEM_POS) = ENABLE)
+#endif
+
+#define __HAL_SYSTEM_PMOD0_CLK_DISABLE_ALL() (SYSTEM->PMOD0_CKE = 0x0000U)
+#define __HAL_SYSTEM_WDT_CLK_DISABLE()      (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_PMOD0_CKE_WDT_POS) = DISABLE)
+#define __HAL_SYSTEM_MAILBOX_CLK_DISABLE()  (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_PMOD0_CKE_MAILBOX_POS) = DISABLE)
+#define __HAL_SYSTEM_AOS_CLK_DISABLE()      (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_PMOD0_CKE_AOS_POS) = DISABLE)
+#define __HAL_SYSTEM_SCU_CLK_DISABLE()      (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_PMOD0_CKE_SCU_POS) = DISABLE)
+#define __HAL_SYSTEM_GIC_CLK_DISABLE()      (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_PMOD0_CKE_GIC_POS) = DISABLE)
+#ifdef CORE0
+#define __HAL_SYSTEM_GDMA00_CLK_DISABLE()   (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE0_PMOD0_CKE_GDMA00_POS) = DISABLE)
+#define __HAL_SYSTEM_GDMA01_CLK_DISABLE()   (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE0_PMOD0_CKE_GDMA01_POS) = DISABLE)
+#endif
+#ifdef CORE1
+#define __HAL_SYSTEM_GDMA10_CLK_DISABLE()   (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE1_PMOD0_CKE_GDMA10_POS) = DISABLE)
+#define __HAL_SYSTEM_GDMA11_CLK_DISABLE()   (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE1_PMOD0_CKE_GDMA11_POS) = DISABLE)
+#endif
+#define __HAL_SYSTEM_UART38K_CLK_DISABLE()  (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_PMOD0_CKE_UART38K_POS) = DISABLE)
+#define __HAL_SYSTEM_GPIO_CLK_DISABLE()     (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_PMOD0_CKE_GPIO_POS) = DISABLE)
+#ifdef CORE0
+#define __HAL_SYSTEM_LCSS_CLK_DISABLE()     (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE0_PMOD0_CKE_LCSS_POS) = DISABLE)
+#define __HAL_SYSTEM_CRC1_CLK_DISABLE()     (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE0_PMOD0_CKE_CRC1_POS) = DISABLE)
+#endif
+#ifdef CORE1
+#define __HAL_SYSTEM_HSEM_CLK_DISABLE()      (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE1_PMOD0_CKE_HSEM_POS) = DISABLE)
+#endif
+/**
+ * @}
+ */
+
+/** @defgroup SYSTEM_PMOD0_Peripheral_Clock_Enable_Disable_Status PMOD0 Peripheral Clock Enable Disable Status
+ *  @brief  Get the enable or disable status of the PMOD0 peripheral clock.
+ *  @note   After reset, the peripheral clock (used for registers read/write access)
+ *         is disabled and the application software has to enable this clock before
+ *         using it.
+ * @{
+ */
+#define __HAL_SYSTEM_WDT_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_PMOD0_CKE_WDT_POS) != RESET)
+#define __HAL_SYSTEM_WDT_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_PMOD0_CKE_WDT_POS) == RESET)
+
+#define __HAL_SYSTEM_MAILBOX_IS_CLK_ENABLED()      (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_PMOD0_CKE_MAILBOX_POS) != RESET)
+#define __HAL_SYSTEM_MAILBOX_IS_CLK_DISABLED()     (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_PMOD0_CKE_MAILBOX_POS) == RESET)
+
+#define __HAL_SYSTEM_AOS_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_PMOD0_CKE_AOS_POS) != RESET)
+#define __HAL_SYSTEM_AOS_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_PMOD0_CKE_AOS_POS) == RESET)
+
+#define __HAL_SYSTEM_SCU_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_PMOD0_CKE_SCU_POS) != RESET)
+#define __HAL_SYSTEM_SCU_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_PMOD0_CKE_SCU_POS) == RESET)
+
+#define __HAL_SYSTEM_GIC_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_PMOD0_CKE_GIC_POS) != RESET)
+#define __HAL_SYSTEM_GIC_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_PMOD0_CKE_GIC_POS) == RESET)
+#ifdef CORE0
+#define __HAL_SYSTEM_GDMA00_IS_CLK_ENABLED()       (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE0_PMOD0_CKE_GDMA00_POS) != RESET)
+#define __HAL_SYSTEM_GDMA00_IS_CLK_DISABLED()      (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE0_PMOD0_CKE_GDMA00_POS) == RESET)
+
+#define __HAL_SYSTEM_GDMA01_IS_CLK_ENABLED()       (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE0_PMOD0_CKE_GDMA01_POS) != RESET)
+#define __HAL_SYSTEM_GDMA01_IS_CLK_DISABLED()      (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE0_PMOD0_CKE_GDMA01_POS) == RESET)
+#endif
+#ifdef CORE1
+#define __HAL_SYSTEM_GDMA10_IS_CLK_ENABLED()       (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE1_PMOD0_CKE_GDMA10_POS) != RESET)
+#define __HAL_SYSTEM_GDMA10_IS_CLK_DISABLED()      (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE1_PMOD0_CKE_GDMA10_POS) == RESET)
+
+#define __HAL_SYSTEM_GDMA11_IS_CLK_ENABLED()       (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE1_PMOD0_CKE_GDMA11_POS) != RESET)
+#define __HAL_SYSTEM_GDMA11_IS_CLK_DISABLED()      (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE1_PMOD0_CKE_GDMA11_POS) == RESET)
+#endif
+#define __HAL_SYSTEM_UART38K_IS_CLK_ENABLED()      (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_PMOD0_CKE_UART38K_POS) != RESET)
+#define __HAL_SYSTEM_UART38K_IS_CLK_DISABLED()     (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_PMOD0_CKE_UART38K_POS) == RESET)
+
+#define __HAL_SYSTEM_GPIO_IS_CLK_ENABLED()         (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_PMOD0_CKE_GPIO_POS) != RESET)
+#define __HAL_SYSTEM_GPIO_IS_CLK_DISABLED()        (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_PMOD0_CKE_GPIO_POS) == RESET)
+
+#ifdef CORE0
+#define __HAL_SYSTEM_LCSS_IS_CLK_ENABLED()         (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE0_PMOD0_CKE_LCSS_POS) != RESET)
+#define __HAL_SYSTEM_LCSS_IS_CLK_DISABLED()        (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE0_PMOD0_CKE_LCSS_POS) == RESET)
+
+#define __HAL_SYSTEM_CRC1_IS_CLK_ENABLED()         (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE0_PMOD0_CKE_CRC1_POS) != RESET)
+#define __HAL_SYSTEM_CRC1_IS_CLK_DISABLED()        (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE0_PMOD0_CKE_CRC1_POS) == RESET)
+#endif
+#ifdef CORE1
+#define __HAL_SYSTEM_HSEM_IS_CLK_ENABLED()         (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE1_PMOD0_CKE_HSEM_POS) != RESET)
+#define __HAL_SYSTEM_HSEM_IS_CLK_DISABLED()        (*(__IO uint32_t *) SYSTEM_PMOD0_CKE_BB(SYSTEM_CORE1_PMOD0_CKE_HSEM_POS) == RESET)
+#endif
+/**
+ * @}
+ */
+
+/** @defgroup SYSTEM_KBI0_KBI1_Clock_Enable_Disable KBI0 and KBI1 Clock Enable Disable
+ *  @brief  Enable or disable the KBI0 and KBI1 peripheral clock.
+ *  @note   After reset, the peripheral clock (used for registers read/write access)
+ *         is disabled and the application software has to enable this clock before
+ *         using it.
+ * @{
+ */
+#define __HAL_SYSTEM_KBI0CHANNEL_CLK_ENABLE_ALL()  (SYSTEM->KBI0_CKE |= 0xFFFFU)
+#define __HAL_SYSTEM_KBIC0_CLK_ENABLE()            (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBIC0_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI0_0_CLK_ENABLE()           (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI00_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI0_1_CLK_ENABLE()           (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI01_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI0_2_CLK_ENABLE()           (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI02_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI0_3_CLK_ENABLE()           (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI03_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI0_4_CLK_ENABLE()           (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI04_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI0_5_CLK_ENABLE()           (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI05_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI0_6_CLK_ENABLE()           (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI06_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI0_7_CLK_ENABLE()           (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI07_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI0_8_CLK_ENABLE()           (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI08_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI0_9_CLK_ENABLE()           (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI09_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI0_10_CLK_ENABLE()          (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI010_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI0_11_CLK_ENABLE()          (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI011_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI0_12_CLK_ENABLE()          (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI012_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI0_13_CLK_ENABLE()          (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI013_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI0_14_CLK_ENABLE()          (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI014_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI0_15_CLK_ENABLE()          (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI015_POS) = ENABLE)
+
+#define __HAL_SYSTEM_KBI0CHANNEL_CLK_DISABLE_ALL() (SYSTEM->KBI0_CKE &= ~(0xFFFFU))
+#define __HAL_SYSTEM_KBIC0_CLK_DISABLE()           (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBIC0_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI0_0_CLK_DISABLE()          (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI00_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI0_1_CLK_DISABLE()          (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI01_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI0_2_CLK_DISABLE()          (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI02_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI0_3_CLK_DISABLE()          (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI03_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI0_4_CLK_DISABLE()          (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI04_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI0_5_CLK_DISABLE()          (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI05_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI0_6_CLK_DISABLE()          (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI06_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI0_7_CLK_DISABLE()          (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI07_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI0_8_CLK_DISABLE()          (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI08_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI0_9_CLK_DISABLE()          (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI09_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI0_10_CLK_DISABLE()         (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI010_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI0_11_CLK_DISABLE()         (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI011_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI0_12_CLK_DISABLE()         (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI012_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI0_13_CLK_DISABLE()         (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI013_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI0_14_CLK_DISABLE()         (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI014_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI0_15_CLK_DISABLE()         (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI015_POS) = DISABLE)
+
+#define __HAL_SYSTEM_KBI1CHANNEL_CLK_ENABLE_ALL()  (SYSTEM->KBI1_CKE |= 0xFFFFU)
+#define __HAL_SYSTEM_KBIC1_CLK_ENABLE()            (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBIC1_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI1_0_CLK_ENABLE()           (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI10_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI1_1_CLK_ENABLE()           (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI11_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI1_2_CLK_ENABLE()           (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI12_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI1_3_CLK_ENABLE()           (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI13_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI1_4_CLK_ENABLE()           (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI14_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI1_5_CLK_ENABLE()           (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI15_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI1_6_CLK_ENABLE()           (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI16_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI1_7_CLK_ENABLE()           (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI17_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI1_8_CLK_ENABLE()           (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI18_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI1_9_CLK_ENABLE()           (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI19_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI1_10_CLK_ENABLE()          (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI110_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI1_11_CLK_ENABLE()          (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI111_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI1_12_CLK_ENABLE()          (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI112_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI1_13_CLK_ENABLE()          (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI113_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI1_14_CLK_ENABLE()          (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI114_POS) = ENABLE)
+#define __HAL_SYSTEM_KBI1_15_CLK_ENABLE()          (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI115_POS) = ENABLE)
+
+#define __HAL_SYSTEM_KBI1CHANNEL_CLK_DISABLE_ALL() (SYSTEM->KBI1_CKE &= ~(0xFFFFU))
+#define __HAL_SYSTEM_KBIC1_CLK_DISABLE()           (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBIC1_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI1_0_CLK_DISABLE()          (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI10_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI1_1_CLK_DISABLE()          (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI11_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI1_2_CLK_DISABLE()          (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI12_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI1_3_CLK_DISABLE()          (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI13_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI1_4_CLK_DISABLE()          (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI14_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI1_5_CLK_DISABLE()          (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI15_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI1_6_CLK_DISABLE()          (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI16_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI1_7_CLK_DISABLE()          (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI17_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI1_8_CLK_DISABLE()          (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI18_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI1_9_CLK_DISABLE()          (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI19_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI1_10_CLK_DISABLE()         (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI110_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI1_11_CLK_DISABLE()         (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI111_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI1_12_CLK_DISABLE()         (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI112_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI1_13_CLK_DISABLE()         (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI113_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI1_14_CLK_DISABLE()         (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI114_POS) = DISABLE)
+#define __HAL_SYSTEM_KBI1_15_CLK_DISABLE()         (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI115_POS) = DISABLE)
+/**
+ * @}
+ */
+
+/** @defgroup SYSTEM_KBI0_KBI1_Peripheral_Clock_Enable_Disable_Status KBI0 and KBI1 Peripheral Clock Enable Disable Status
+ *  @brief  Get the enable or disable status of the KBI0 and KBI1 peripheral clock.
+ *  @note   After reset, the peripheral clock (used for registers read/write access)
+ *         is disabled and the application software has to enable this clock before
+ *         using it.
+ * @{
+ */
+#define __HAL_SYSTEM_KBIC0_IS_CLK_ENABLED()           (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBIC0_POS)) != RESET)
+#define __HAL_SYSTEM_KBIC0_IS_CLK_DISABLED()          (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBIC0_POS)) == RESET)
+#define __HAL_SYSTEM_KBI0_0_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI00_POS) != RESET)
+#define __HAL_SYSTEM_KBI0_0_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI00_POS) == RESET)
+#define __HAL_SYSTEM_KBI0_1_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI01_POS) != RESET)
+#define __HAL_SYSTEM_KBI0_1_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI01_POS) == RESET)
+#define __HAL_SYSTEM_KBI0_2_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI02_POS) != RESET)
+#define __HAL_SYSTEM_KBI0_2_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI02_POS) == RESET)
+#define __HAL_SYSTEM_KBI0_3_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI03_POS) != RESET)
+#define __HAL_SYSTEM_KBI0_3_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI03_POS) == RESET)
+#define __HAL_SYSTEM_KBI0_4_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI04_POS) != RESET)
+#define __HAL_SYSTEM_KBI0_4_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI04_POS) == RESET)
+#define __HAL_SYSTEM_KBI0_5_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI05_POS) != RESET)
+#define __HAL_SYSTEM_KBI0_5_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI05_POS) == RESET)
+#define __HAL_SYSTEM_KBI0_6_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI06_POS) != RESET)
+#define __HAL_SYSTEM_KBI0_6_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI06_POS) == RESET)
+#define __HAL_SYSTEM_KBI0_7_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI07_POS) != RESET)
+#define __HAL_SYSTEM_KBI0_7_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI07_POS) == RESET)
+#define __HAL_SYSTEM_KBI0_8_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI08_POS) != RESET)
+#define __HAL_SYSTEM_KBI0_8_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI08_POS) == RESET)
+#define __HAL_SYSTEM_KBI0_9_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI09_POS) != RESET)
+#define __HAL_SYSTEM_KBI0_9_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI09_POS) == RESET)
+#define __HAL_SYSTEM_KBI0_10_IS_CLK_ENABLED()         (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI010_POS) != RESET)
+#define __HAL_SYSTEM_KBI0_10_IS_CLK_DISABLED()        (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI010_POS) == RESET)
+#define __HAL_SYSTEM_KBI0_11_IS_CLK_ENABLED()         (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI011_POS) != RESET)
+#define __HAL_SYSTEM_KBI0_11_IS_CLK_DISABLED()        (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI011_POS) == RESET)
+#define __HAL_SYSTEM_KBI0_12_IS_CLK_ENABLED()         (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI012_POS) != RESET)
+#define __HAL_SYSTEM_KBI0_12_IS_CLK_DISABLED()        (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI012_POS) == RESET)
+#define __HAL_SYSTEM_KBI0_13_IS_CLK_ENABLED()         (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI013_POS) != RESET)
+#define __HAL_SYSTEM_KBI0_13_IS_CLK_DISABLED()        (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI013_POS) == RESET)
+#define __HAL_SYSTEM_KBI0_14_IS_CLK_ENABLED()         (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI014_POS) != RESET)
+#define __HAL_SYSTEM_KBI0_14_IS_CLK_DISABLED()        (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI014_POS) == RESET)
+#define __HAL_SYSTEM_KBI0_15_IS_CLK_ENABLED()         (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI015_POS) != RESET)
+#define __HAL_SYSTEM_KBI0_15_IS_CLK_DISABLED()        (*(__IO uint32_t *) SYSTEM_KBI0_CKE_BB(SYSTEM_KBI0_CKE_KBI015_POS) == RESET)
+
+#define __HAL_SYSTEM_KBIC1_IS_CLK_ENABLED()           (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBIC1_POS) != RESET)
+#define __HAL_SYSTEM_KBIC1_IS_CLK_DISABLED()          (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBIC1_POS) == RESET)
+#define __HAL_SYSTEM_KBI1_0_IS_CLK_ENABLED()          (__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI10_POS) != RESET)
+#define __HAL_SYSTEM_KBI1_0_IS_CLK_DISABLED()         (__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI10_POS) == RESET)
+#define __HAL_SYSTEM_KBI1_1_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI11_POS) != RESET)
+#define __HAL_SYSTEM_KBI1_1_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI11_POS) == RESET)
+#define __HAL_SYSTEM_KBI1_2_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI12_POS) != RESET)
+#define __HAL_SYSTEM_KBI1_2_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI12_POS) == RESET)
+#define __HAL_SYSTEM_KBI1_3_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI13_POS) != RESET)
+#define __HAL_SYSTEM_KBI1_3_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI13_POS) == RESET)
+#define __HAL_SYSTEM_KBI1_4_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI14_POS) != RESET)
+#define __HAL_SYSTEM_KBI1_4_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI14_POS) == RESET)
+#define __HAL_SYSTEM_KBI1_5_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI15_POS) != RESET)
+#define __HAL_SYSTEM_KBI1_5_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI15_POS) == RESET)
+#define __HAL_SYSTEM_KBI1_6_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI16_POS) != RESET)
+#define __HAL_SYSTEM_KBI1_6_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI16_POS) == RESET)
+#define __HAL_SYSTEM_KBI1_7_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI17_POS) != RESET)
+#define __HAL_SYSTEM_KBI1_7_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI17_POS) == RESET)
+#define __HAL_SYSTEM_KBI1_8_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI18_POS) != RESET)
+#define __HAL_SYSTEM_KBI1_8_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI18_POS) == RESET)
+#define __HAL_SYSTEM_KBI1_9_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI19_POS) != RESET)
+#define __HAL_SYSTEM_KBI1_9_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI19_POS) == RESET)
+#define __HAL_SYSTEM_KBI1_10_IS_CLK_ENABLED()         (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI110_POS) != RESET)
+#define __HAL_SYSTEM_KBI1_10_IS_CLK_DISABLED()        (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI110_POS) == RESET)
+#define __HAL_SYSTEM_KBI1_11_IS_CLK_ENABLED()         (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI111_POS) != RESET)
+#define __HAL_SYSTEM_KBI1_11_IS_CLK_DISABLED()        (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI111_POS) == RESET)
+#define __HAL_SYSTEM_KBI1_12_IS_CLK_ENABLED()         (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI112_POS) != RESET)
+#define __HAL_SYSTEM_KBI1_12_IS_CLK_DISABLED()        (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI112_POS) == RESET)
+#define __HAL_SYSTEM_KBI1_13_IS_CLK_ENABLED()         (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI113_POS) != RESET)
+#define __HAL_SYSTEM_KBI1_13_IS_CLK_DISABLED()        (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI113_POS) == RESET)
+#define __HAL_SYSTEM_KBI1_14_IS_CLK_ENABLED()         (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI114_POS) != RESET)
+#define __HAL_SYSTEM_KBI1_14_IS_CLK_DISABLED()        (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI114_POS) == RESET)
+#define __HAL_SYSTEM_KBI1_15_IS_CLK_ENABLED()         (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI115_POS) != RESET)
+#define __HAL_SYSTEM_KBI1_15_IS_CLK_DISABLED()        (*(__IO uint32_t *) SYSTEM_KBI1_CKE_BB(SYSTEM_KBI1_CKE_KBI115_POS) == RESET)
+/**
+ * @}
+ */
+
+/** @defgroup SYSTEM_MOD0_Clock_Enable_Disable MOD0 Clock Enable Disable
+ *  @brief  Enable or disable the MOD0 peripheral clock.
+ *  @note   After reset, the peripheral clock (used for registers read/write access)
+ *         is disabled and the application software has to enable this clock before
+ *         using it.
+ * @{
+ */
+#define __HAL_SYSTEM_MOD0_CLK_ENABLE_ALL()      (SYSTEM->MOD0_CKE = 0x3F77FFFFU)
+#define __HAL_SYSTEM_UART0_CLK_ENABLE()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART0_POS) = ENABLE)
+#define __HAL_SYSTEM_UART1_CLK_ENABLE()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART1_POS) = ENABLE)
+#define __HAL_SYSTEM_UART2_CLK_ENABLE()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART2_POS) = ENABLE)
+#define __HAL_SYSTEM_UART3_CLK_ENABLE()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART3_POS) = ENABLE)
+#define __HAL_SYSTEM_UART4_CLK_ENABLE()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART4_POS) = ENABLE)
+#define __HAL_SYSTEM_UART5_CLK_ENABLE()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART5_POS) = ENABLE)
+#define __HAL_SYSTEM_UART6_CLK_ENABLE()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART6_POS) = ENABLE)
+#define __HAL_SYSTEM_UART7_CLK_ENABLE()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART7_POS) = ENABLE)
+#define __HAL_SYSTEM_LPUART_CLK_ENABLE()        (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_LPUART_POS) = ENABLE)
+#define __HAL_SYSTEM_USART0_CLK_ENABLE()        (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_USART0_POS) = ENABLE)
+#define __HAL_SYSTEM_USART1_CLK_ENABLE()        (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_USART1_POS) = ENABLE)
+#define __HAL_SYSTEM_ISO78160_CLK_ENABLE()      (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_ISO78160_POS) = ENABLE)
+#define __HAL_SYSTEM_ISO78161_CLK_ENABLE()      (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_ISO78161_POS) = ENABLE)
+#define __HAL_SYSTEM_SPI0_CLK_ENABLE()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_SPI0_POS) = ENABLE)
+#define __HAL_SYSTEM_SPI1_CLK_ENABLE()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_SPI1_POS) = ENABLE)
+#define __HAL_SYSTEM_SPI2_CLK_ENABLE()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_SPI2_POS) = ENABLE)
+#define __HAL_SYSTEM_SPI3_CLK_ENABLE()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_SPI3_POS) = ENABLE)
+#define __HAL_SYSTEM_I2C0_CLK_ENABLE()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_I2C0_POS) = ENABLE)
+#define __HAL_SYSTEM_I2C1_CLK_ENABLE()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_I2C1_POS) = ENABLE)
+#define __HAL_SYSTEM_IOCNT_CLK_ENABLE()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_IOCNT_POS) = ENABLE)
+#define __HAL_SYSTEM_LCD_CLK_ENABLE()           (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_LCD_POS) = ENABLE)
+#define __HAL_SYSTEM_DSP_CLK_ENABLE()           (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_DSP_POS) = ENABLE)
+#define __HAL_SYSTEM_M2M_CLK_ENABLE()           (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_M2M_POS) = ENABLE)
+#define __HAL_SYSTEM_D2F_CLK_ENABLE()           (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_D2F_POS) = ENABLE)
+#define __HAL_SYSTEM_ADC0_CLK_ENABLE()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_ADC0_POS) = ENABLE)
+#define __HAL_SYSTEM_DAC_CLK_ENABLE()           (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_DAC_POS) = ENABLE)
+#define __HAL_SYSTEM_TC0_CLK_ENABLE()           (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_TC0_POS) = ENABLE)
+#define __HAL_SYSTEM_TC1_CLK_ENABLE()           (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_TC1_POS) = ENABLE)
+
+#define __HAL_SYSTEM_MOD0_CLK_DISABLE_ALL()     (SYSTEM->MOD0_CKE = 0x00000000U)
+#define __HAL_SYSTEM_UART0_CLK_DISABLE()        (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART0_POS) = DISABLE)
+#define __HAL_SYSTEM_UART1_CLK_DISABLE()        (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART1_POS) = DISABLE)
+#define __HAL_SYSTEM_UART2_CLK_DISABLE()        (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART2_POS) = DISABLE)
+#define __HAL_SYSTEM_UART3_CLK_DISABLE()        (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART3_POS) = DISABLE)
+#define __HAL_SYSTEM_UART4_CLK_DISABLE()        (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART4_POS) = DISABLE)
+#define __HAL_SYSTEM_UART5_CLK_DISABLE()        (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART5_POS) = DISABLE)
+#define __HAL_SYSTEM_UART6_CLK_DISABLE()        (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART6_POS) = DISABLE)
+#define __HAL_SYSTEM_UART7_CLK_DISABLE()        (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART7_POS) = DISABLE)
+#define __HAL_SYSTEM_LPUART_CLK_DISABLE()       (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_LPUART_POS) = DISABLE)
+#define __HAL_SYSTEM_USART0_CLK_DISABLE()       (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_USART0_POS) = DISABLE)
+#define __HAL_SYSTEM_USART1_CLK_DISABLE()       (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_USART1_POS) = DISABLE)
+#define __HAL_SYSTEM_ISO78160_CLK_DISABLE()     (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_ISO78160_POS) = DISABLE)
+#define __HAL_SYSTEM_ISO78161_CLK_DISABLE()     (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_ISO78161_POS) = DISABLE)
+#define __HAL_SYSTEM_SPI0_CLK_DISABLE()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_SPI0_POS) = DISABLE)
+#define __HAL_SYSTEM_SPI1_CLK_DISABLE()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_SPI1_POS) = DISABLE)
+#define __HAL_SYSTEM_SPI2_CLK_DISABLE()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_SPI2_POS) = DISABLE)
+#define __HAL_SYSTEM_SPI3_CLK_DISABLE()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_SPI3_POS) = DISABLE)
+#define __HAL_SYSTEM_I2C0_CLK_DISABLE()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_I2C0_POS) = DISABLE)
+#define __HAL_SYSTEM_I2C1_CLK_DISABLE()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_I2C1_POS) = DISABLE)
+
+#define __HAL_SYSTEM_IOCNT_CLK_DISABLE()        (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_IOCNT_POS) = DISABLE)
+#define __HAL_SYSTEM_LCD_CLK_DISABLE()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_LCD_POS) = DISABLE)
+#define __HAL_SYSTEM_DSP_CLK_DISABLE()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_DSP_POS) = DISABLE)
+#define __HAL_SYSTEM_M2M_CLK_DISABLE()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_M2M_POS) = DISABLE)
+#define __HAL_SYSTEM_D2F_CLK_DISABLE()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_D2F_POS) = DISABLE)
+#define __HAL_SYSTEM_ADC0_CLK_DISABLE()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_ADC0_POS) = DISABLE)
+#define __HAL_SYSTEM_DAC_CLK_DISABLE()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_DAC_POS) = DISABLE)
+#define __HAL_SYSTEM_TC0_CLK_DISABLE()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_TC0_POS) = DISABLE)
+#define __HAL_SYSTEM_TC1_CLK_DISABLE()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_TC1_POS) = DISABLE)
+
+/**
+ * @}
+ */
+
+/** @defgroup SYSTEM_MOD0_Peripheral_Clock_Enable_Disable_Status MOD0 Peripheral Clock Enable Disable Status
+ *  @brief  Get the enable or disable status of the MOD0 peripheral clock.
+ *  @note   After reset, the peripheral clock (used for registers read/write access)
+ *         is disabled and the application software has to enable this clock before
+ *         using it.
+ * @{
+ */
+#define __HAL_SYSTEM_UART0_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART0_POS) != RESET)
+#define __HAL_SYSTEM_UART0_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART0_POS) == RESET)
+#define __HAL_SYSTEM_UART1_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART1_POS) != RESET)
+#define __HAL_SYSTEM_UART1_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART1_POS) == RESET)
+#define __HAL_SYSTEM_UART2_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART2_POS) != RESET)
+#define __HAL_SYSTEM_UART2_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART2_POS) == RESET)
+#define __HAL_SYSTEM_UART3_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART3_POS) != RESET)
+#define __HAL_SYSTEM_UART3_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART3_POS) == RESET)
+#define __HAL_SYSTEM_UART4_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART4_POS) != RESET)
+#define __HAL_SYSTEM_UART4_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART4_POS) == RESET)
+#define __HAL_SYSTEM_UART5_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART5_POS) != RESET)
+#define __HAL_SYSTEM_UART5_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART5_POS) == RESET)
+#define __HAL_SYSTEM_UART6_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART6_POS) != RESET)
+#define __HAL_SYSTEM_UART6_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART6_POS) == RESET)
+#define __HAL_SYSTEM_UART7_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART7_POS) != RESET)
+#define __HAL_SYSTEM_UART7_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_UART7_POS) == RESET)
+#define __HAL_SYSTEM_LPUART_IS_CLK_ENABLED()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_LPUART_POS) != RESET)
+#define __HAL_SYSTEM_LPUART_IS_CLK_DISABLED()        (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_LPUART_POS) == RESET)
+#define __HAL_SYSTEM_USART0_IS_CLK_ENABLED()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_USART0_POS) != RESET)
+#define __HAL_SYSTEM_USART0_IS_CLK_DISABLED()        (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_USART0_POS) == RESET)
+#define __HAL_SYSTEM_USART1_IS_CLK_ENABLED()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_USART1_POS) != RESET)
+#define __HAL_SYSTEM_USART1_IS_CLK_DISABLED()        (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_USART1_POS) == RESET)
+#define __HAL_SYSTEM_ISO78160_IS_CLK_ENABLED()       (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_ISO78160_POS) != RESET)
+#define __HAL_SYSTEM_ISO78160_IS_CLK_DISABLED()      (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_ISO78160_POS) == RESET)
+#define __HAL_SYSTEM_ISO78161_IS_CLK_ENABLED()       (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_ISO78161_POS) != RESET)
+#define __HAL_SYSTEM_ISO78161_IS_CLK_DISABLED()      (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_ISO78161_POS) == RESET)
+
+#define __HAL_SYSTEM_SPI0_IS_CLK_ENABLED()           (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_SPI0_POS) != RESET)
+#define __HAL_SYSTEM_SPI0_IS_CLK_DISABLED()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_SPI0_POS) == RESET)
+#define __HAL_SYSTEM_SPI1_IS_CLK_ENABLED()           (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_SPI1_POS) != RESET)
+#define __HAL_SYSTEM_SPI1_IS_CLK_DISABLED()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_SPI1_POS) == RESET)
+#define __HAL_SYSTEM_SPI2_IS_CLK_ENABLED()           (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_SPI2_POS) != RESET)
+#define __HAL_SYSTEM_SPI2_IS_CLK_DISABLED()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_SPI2_POS) == RESET)
+#define __HAL_SYSTEM_SPI3_IS_CLK_ENABLED()           (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_SPI3_POS) != RESET)
+#define __HAL_SYSTEM_SPI3_IS_CLK_DISABLED()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_SPI3_POS) == RESET)
+#define __HAL_SYSTEM_I2C0_IS_CLK_ENABLED()           (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_I2C0_POS) != RESET)
+#define __HAL_SYSTEM_I2C0_IS_CLK_DISABLED()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_I2C0_POS) == RESET)
+#define __HAL_SYSTEM_I2C1_IS_CLK_ENABLED()           (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_I2C1_POS) != RESET)
+#define __HAL_SYSTEM_I2C1_IS_CLK_DISABLED()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_I2C1_POS) == RESET)
+#define __HAL_SYSTEM_IOCNT_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_IOCNT_POS) != RESET)
+#define __HAL_SYSTEM_IOCNT_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_IOCNT_POS) == RESET)
+#define __HAL_SYSTEM_LCD_IS_CLK_ENABLED()            (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_LCD_POS) != RESET)
+#define __HAL_SYSTEM_LCD_IS_CLK_DISABLED()           (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_LCD_POS) == RESET)
+#define __HAL_SYSTEM_DSP_IS_CLK_ENABLED()            (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_DSP_POS) != RESET)
+#define __HAL_SYSTEM_DSP_IS_CLK_DISABLED()           (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_DSP_POS) == RESET)
+#define __HAL_SYSTEM_M2M_IS_CLK_ENABLED()            (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_M2M_POS) != RESET)
+#define __HAL_SYSTEM_M2M_IS_CLK_DISABLED()           (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_M2M_POS) == RESET)
+#define __HAL_SYSTEM_D2F_IS_CLK_ENABLED()            (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_D2F_POS) != RESET)
+#define __HAL_SYSTEM_D2F_IS_CLK_DISABLED()           (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_D2F_POS) == RESET)
+#define __HAL_SYSTEM_ADC0_IS_CLK_ENABLED()           (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_ADC0_POS) != RESET)
+#define __HAL_SYSTEM_ADC0_IS_CLK_DISABLED()          (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_ADC0_POS) == RESET)
+#define __HAL_SYSTEM_DAC_IS_CLK_ENABLED()            (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_DAC_POS) != RESET)
+#define __HAL_SYSTEM_DAC_IS_CLK_DISABLED()           (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_DAC_POS) == RESET)
+#define __HAL_SYSTEM_TC0_IS_CLK_ENABLED()            (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_TC0_POS) != RESET)
+#define __HAL_SYSTEM_TC0_IS_CLK_DISABLED()           (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_TC0_POS) == RESET)
+#define __HAL_SYSTEM_TC1_IS_CLK_ENABLED()            (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_TC1_POS) != RESET)
+#define __HAL_SYSTEM_TC1_IS_CLK_DISABLED()           (*(__IO uint32_t *) SYSTEM_MOD0_CKE_BB(SYSTEM_MOD0_CKE_TC1_POS) == RESET)
+/**
+ * @}
+ */
+
+/** @defgroup SYSTEM_MOD1_Clock_Enable_Disable MOD1 Clock Enable Disable
+ *  @brief  Enable or disable the MOD1 peripheral clock.
+ *  @note   After reset, the peripheral clock (used for registers read/write access)
+ *         is disabled and the application software has to enable this clock before
+ *         using it.
+ * @{
+ */
+#define __HAL_SYSTEM_MOD1_CLK_ENABLE_ALL()           (SYSTEM->MOD1_CKE = 0x65FU)
+#define __HAL_SYSTEM_SIMPTC0_CLK_ENABLE()            (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_SIMPTC0_POS) = ENABLE)
+#define __HAL_SYSTEM_SIMPTC1_CLK_ENABLE()            (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_SIMPTC1_POS) = ENABLE)
+#define __HAL_SYSTEM_SIMPTC2_CLK_ENABLE()            (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_SIMPTC2_POS) = ENABLE)
+#define __HAL_SYSTEM_SIMPTC3_CLK_ENABLE()            (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_SIMPTC3_POS) = ENABLE)
+#define __HAL_SYSTEM_ANA_CLK_ENABLE()                (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_ANA_POS) = ENABLE)
+#define __HAL_SYSTEM_LSRX_CLK_ENABLE()               (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_LSRX_POS) = ENABLE)
+#define __HAL_SYSTEM_LVDCMP_CLK_ENABLE()             (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_LVDCMP_POS) = ENABLE)
+#define __HAL_SYSTEM_CRC0_CLK_ENABLE()               (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_CRC0_POS) = ENABLE)
+
+#define __HAL_SYSTEM_MOD1_CLK_DISABLE_ALL()          (SYSTEM->MOD1_CKE = 0x0000U)
+#define __HAL_SYSTEM_SIMPTC0_CLK_DISABLE()           (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_SIMPTC0_POS) = DISABLE)
+#define __HAL_SYSTEM_SIMPTC1_CLK_DISABLE()           (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_SIMPTC1_POS) = DISABLE)
+#define __HAL_SYSTEM_SIMPTC2_CLK_DISABLE()           (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_SIMPTC2_POS) = DISABLE)
+#define __HAL_SYSTEM_SIMPTC3_CLK_DISABLE()           (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_SIMPTC3_POS) = DISABLE)
+#define __HAL_SYSTEM_ANA_CLK_DISABLE()               (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_ANA_POS) = DISABLE)
+#define __HAL_SYSTEM_LSRX_CLK_DISABLE()              (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_LSRX_POS) = DISABLE)
+#define __HAL_SYSTEM_LVDCMP_CLK_DISABLE()            (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_LVDCMP_POS) = DISABLE)
+#define __HAL_SYSTEM_CRC0_CLK_DISABLE()              (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_CRC0_POS) = DISABLE)
+
+/**
+ * @}
+ */
+
+/** @defgroup SYSTEM_MOD1_Peripheral_Clock_Enable_Disable_Status MOD1 Peripheral Clock Enable Disable Status
+ *  @brief  Get the enable or disable status of the MOD1 peripheral clock.
+ *  @note   After reset, the peripheral clock (used for registers read/write access)
+ *         is disabled and the application software has to enable this clock before
+ *         using it.
+ * @{
+ */
+#define __HAL_SYSTEM_SIMPTC0_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_SIMPTC0_POS) != RESET)
+#define __HAL_SYSTEM_SIMPTC0_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_SIMPTC0_POS) == RESET)
+#define __HAL_SYSTEM_SIMPTC1_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_SIMPTC1_POS) != RESET)
+#define __HAL_SYSTEM_SIMPTC1_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_SIMPTC1_POS) == RESET)
+#define __HAL_SYSTEM_SIMPTC2_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_SIMPTC2_POS) != RESET)
+#define __HAL_SYSTEM_SIMPTC2_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_SIMPTC2_POS) == RESET)
+#define __HAL_SYSTEM_SIMPTC3_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_SIMPTC3_POS) != RESET)
+#define __HAL_SYSTEM_SIMPTC3_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_SIMPTC3_POS) == RESET)
+#define __HAL_SYSTEM_ANA_IS_CLK_ENABLED()              (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_ANA_POS) != RESET)
+#define __HAL_SYSTEM_ANA_IS_CLK_DISABLED()             (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_ANA_POS) == RESET)
+#define __HAL_SYSTEM_LSRX_IS_CLK_ENABLED()             (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_LSRX_POS) != RESET)
+#define __HAL_SYSTEM_LSRX_IS_CLK_DISABLED()            (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_LSRX_POS) == RESET)
+#define __HAL_SYSTEM_LVDCMP_IS_CLK_ENABLED()           (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_LVDCMP_POS) != RESET)
+#define __HAL_SYSTEM_LVDCMP_IS_CLK_DISABLED()          (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_LVDCMP_POS) == RESET)
+#define __HAL_SYSTEM_CRC0_IS_CLK_ENABLED()             (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_CRC0_POS) != RESET)
+#define __HAL_SYSTEM_CRC0_IS_CLK_DISABLED()            (*(__IO uint32_t *) SYSTEM_MOD1_CKE_BB(SYSTEM_MOD1_CKE_CRC0_POS) == RESET)
+/**
+ * @}
+ */
+
+/** @defgroup SYSTEM_MOD2_Clock_Enable_Disable MOD2 Clock Enable Disable
+ *  @brief  Enable or disable the MOD2 peripheral clock.
+ *  @note   After reset, the peripheral clock (used for registers read/write access)
+ *         is disabled and the application software has to enable this clock before
+ *         using it.
+ * @{
+ */
+#define __HAL_SYSTEM_MOD2_CLK_ENABLE_ALL()             (SYSTEM->MOD2_CKE = 0x1FFU)
+#define __HAL_SYSTEM_QSPI0_CLK_ENABLE()                (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_QSPI0_POS) = ENABLE)
+#define __HAL_SYSTEM_QSPI1_CLK_ENABLE()                (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_QSPI1_POS) = ENABLE)
+#define __HAL_SYSTEM_SEA_BUS_CLK_ENABLE()              (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_SEA_BUS_POS) = ENABLE)
+#define __HAL_SYSTEM_SEA_PKE_CLK_ENABLE()              (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_SEA_PKE_POS) = ENABLE)
+#define __HAL_SYSTEM_SEA_AES_CLK_ENABLE()              (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_SEA_AES_POS) = ENABLE)
+#define __HAL_SYSTEM_SEA_TRNG_CLK_ENABLE()             (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_SEA_TRNG_POS) = ENABLE)
+#define __HAL_SYSTEM_SEA_SHA_CLK_ENABLE()              (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_SEA_SHA_POS) = ENABLE)
+#define __HAL_SYSTEM_KEY_STORE_CLK_ENABLE()            (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_KEY_STORE_POS) = ENABLE)
+#define __HAL_SYSTEM_AES_CLK_ENABLE()                  (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_AES_POS) = ENABLE)
+
+#define __HAL_SYSTEM_MOD2_CLK_DISABLE_ALL()            (SYSTEM->MOD2_CKE = 0x0000U)
+#define __HAL_SYSTEM_QSPI0_CLK_DISABLE()               (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_QSPI0_POS) = DISABLE)
+#define __HAL_SYSTEM_QSPI1_CLK_DISABLE()               (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_QSPI1_POS) = DISABLE)
+#define __HAL_SYSTEM_SEA_BUS_CLK_DISABLE()             (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_SEA_BUS_POS) = DISABLE)
+#define __HAL_SYSTEM_SEA_PKE_CLK_DISABLE()             (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_SEA_PKE_POS) = DISABLE)
+#define __HAL_SYSTEM_SEA_AES_CLK_DISABLE()             (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_SEA_AES_POS) = DISABLE)
+#define __HAL_SYSTEM_SEA_TRNG_CLK_DISABLE()            (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_SEA_TRNG_POS) = DISABLE)
+#define __HAL_SYSTEM_SEA_SHA_CLK_DISABLE()             (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_SEA_SHA_POS) = DISABLE)
+#define __HAL_SYSTEM_KEY_STORE_CLK_DISABLE()           (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_KEY_STORE_POS) = DISABLE)
+#define __HAL_SYSTEM_AES_CLK_DISABLE()                 (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_AES_POS) = DISABLE)
+
+/**
+ * @}
+ */
+
+/** @defgroup SYSTEM_MOD2_Peripheral_Clock_Enable_Disable_Status MOD2 Peripheral Clock Enable Disable Status
+ * @brief  Get the enable or disable status of the MOD2 peripheral clock.
+ * @note   After reset, the peripheral clock (used for registers read/write access)
+ *         is disabled and the application software has to enable this clock before
+ *         using it.
+ * @{
+ */
+#define __HAL_SYSTEM_QSPI0_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_QSPI0_POS) != RESET)
+#define __HAL_SYSTEM_QSPI0_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_QSPI0_POS) == RESET)
+#define __HAL_SYSTEM_QSPI1_IS_CLK_ENABLED()          (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_QSPI1_POS) != RESET)
+#define __HAL_SYSTEM_QSPI1_IS_CLK_DISABLED()         (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_QSPI1_POS) == RESET)
+#define __HAL_SYSTEM_SEA_BUS_IS_CLK_ENABLED()        (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_SEA_BUS_POS) != RESET)
+#define __HAL_SYSTEM_SEA_BUS_IS_CLK_DISABLED()       (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_SEA_BUS_POS) == RESET)
+#define __HAL_SYSTEM_SEA_PKE_IS_CLK_ENABLED()        (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_SEA_PKE_POS) != RESET)
+#define __HAL_SYSTEM_SEA_PKE_IS_CLK_DISABLED()       (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_SEA_PKE_POS) == RESET)
+#define __HAL_SYSTEM_SEA_AES_IS_CLK_ENABLED()        (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_SEA_AES_POS) != RESET)
+#define __HAL_SYSTEM_SEA_AES_IS_CLK_DISABLED()       (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_SEA_AES_POS) == RESET)
+#define __HAL_SYSTEM_SEA_TRNG_IS_CLK_ENABLED()       (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_SEA_TRNG_POS) != RESET)
+#define __HAL_SYSTEM_SEA_TRNG_IS_CLK_DISABLED()      (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_SEA_TRNG_POS) == RESET)
+#define __HAL_SYSTEM_SEA_SHA_IS_CLK_ENABLED()        (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_SEA_SHA_POS) != RESET)
+#define __HAL_SYSTEM_SEA_SHA_IS_CLK_DISABLED()       (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_SEA_SHA_POS) == RESET)
+#define __HAL_SYSTEM_KEY_STORE_IS_CLK_ENABLED()      (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_KEY_STORE_POS) != RESET)
+#define __HAL_SYSTEM_KEY_STORE_IS_CLK_DISABLED()     (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_KEY_STORE_POS) == RESET)
+#define __HAL_SYSTEM_AES_IS_CLK_ENABLED()            (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_AES_POS) != RESET)
+#define __HAL_SYSTEM_AES_IS_CLK_DISABLED()           (*(__IO uint32_t *) SYSTEM_MOD2_CKE_BB(SYSTEM_MOD2_CKE_AES_POS) == RESET)
+/**
+ * @}
+ */
+
+/** @defgroup SYSTEM_PMOD0_Force_Release_Reset PMOD0 Force Release Reset
+ *  @brief  Force or release PMOD0 peripheral reset.
+ * @{
+ */
+ /* SYSTEM_PMOD0_FORCE_RESET */
+#define __HAL_SYSTEM_PMOD0_FORCE_RESET()       (SYSTEM->PMOD0_RST = 0x7FU)
+#define __HAL_SYSTEM_MAILBOX_FORCE_RESET()     (SYSTEM->PMOD0_RST |= (SYSTEM_PMOD0_RST_MAILBOX))
+#define __HAL_SYSTEM_AOS_FORCE_RESET()         (SYSTEM->PMOD0_RST |= (SYSTEM_PMOD0_RST_AOS))
+#ifdef CORE0
+#define __HAL_SYSTEM_GDMA00_FORCE_RESET()      (SYSTEM->PMOD0_RST |= (SYSTEM_CORE0_PMOD0_RST_GDMA00))
+#define __HAL_SYSTEM_GDMA01_FORCE_RESET()      (SYSTEM->PMOD0_RST |= (SYSTEM_CORE0_PMOD0_RST_GDMA01))
+#define __HAL_SYSTEM_GPIO_FORCE_RESET()        (SYSTEM->PMOD0_RST |= (SYSTEM_CORE0_PMOD0_RST_GPIO))
+#define __HAL_SYSTEM_CRC1_FORCE_RESET()        (SYSTEM->PMOD0_RST |= (SYSTEM_CORE0_PMOD0_RST_CRC1))
+#endif
+#ifdef CORE1
+#define __HAL_SYSTEM_GDMA10_FORCE_RESET()      (SYSTEM->PMOD0_RST |= (SYSTEM_CORE1_PMOD0_RST_GDMA10))
+#define __HAL_SYSTEM_GDMA11_FORCE_RESET()      (SYSTEM->PMOD0_RST |= (SYSTEM_CORE1_PMOD0_RST_GDMA11))
+#define __HAL_SYSTEM_HSEM_FORCE_RESET()        (SYSTEM->PMOD0_RST |= (SYSTEM_CORE1_PMOD0_RST_HSEM))
+#endif
+
+ /* SYSTEM_PMOD0_RELEASE_RESET */
+#define __HAL_SYSTEM_PMOD0_RELEASE_RESET()     (SYSTEM->PMOD0_RST = 0x00)
+#define __HAL_SYSTEM_MAILBOX_RELEASE_RESET()   (SYSTEM->PMOD0_RST &= ~(SYSTEM_PMOD0_RST_MAILBOX))
+#define __HAL_SYSTEM_AOS_RELEASE_RESET()       (SYSTEM->PMOD0_RST &= ~(SYSTEM_PMOD0_RST_AOS))
+#ifdef CORE0
+#define __HAL_SYSTEM_GDMA00_RELEASE_RESET()    (SYSTEM->PMOD0_RST &= ~(SYSTEM_CORE0_PMOD0_RST_GDMA00))
+#define __HAL_SYSTEM_GDMA01_RELEASE_RESET()    (SYSTEM->PMOD0_RST &= ~(SYSTEM_CORE0_PMOD0_RST_GDMA01))
+#define __HAL_SYSTEM_GPIO_RELEASE_RESET()      (SYSTEM->PMOD0_RST &= ~(SYSTEM_CORE0_PMOD0_RST_GPIO))
+#define __HAL_SYSTEM_CRC1_RELEASE_RESET()      (SYSTEM->PMOD0_RST &= ~(SYSTEM_CORE0_PMOD0_RST_CRC1))
+#endif
+#ifdef CORE1
+#define __HAL_SYSTEM_GDMA10_RELEASE_RESET()    (SYSTEM->PMOD0_RST &= ~(SYSTEM_CORE1_PMOD0_RST_GDMA10))
+#define __HAL_SYSTEM_GDMA11_RELEASE_RESET()    (SYSTEM->PMOD0_RST &= ~(SYSTEM_CORE1_PMOD0_RST_GDMA11))
+#define __HAL_SYSTEM_HSEM_RELEASE_RESET()      (SYSTEM->PMOD0_RST &= ~(SYSTEM_CORE1_PMOD0_RST_HSEM))
+#endif
+/**
+ * @}
+ */
+
+/** @defgroup SYSTEM_MOD0_Force_Release_Reset MOD0 Force Release Reset
+ *  @brief  Force or release MOD0 peripheral reset.
+ * @{
+ */
+/* SYSTEM_PMOD0_FORCE_RESET */
+#define __HAL_SYSTEM_MOD0_FORCE_RESET()           (SYSTEM->MOD0_RST = 0x3F77FFFFU)
+#define __HAL_SYSTEM_UART0_FORCE_RESET()          (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_UART0))
+#define __HAL_SYSTEM_UART1_FORCE_RESET()          (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_UART1))
+#define __HAL_SYSTEM_UART2_FORCE_RESET()          (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_UART2))
+#define __HAL_SYSTEM_UART3_FORCE_RESET()          (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_UART3))
+#define __HAL_SYSTEM_UART4_FORCE_RESET()          (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_UART4))
+#define __HAL_SYSTEM_UART5_FORCE_RESET()          (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_UART5))
+#define __HAL_SYSTEM_UART6_FORCE_RESET()          (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_UART6))
+#define __HAL_SYSTEM_UART7_FORCE_RESET()          (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_UART7))
+#define __HAL_SYSTEM_LPUART_FORCE_RESET()         (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_LPUART))
+#define __HAL_SYSTEM_USART0_FORCE_RESET()         (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_USART0))
+#define __HAL_SYSTEM_USART1_FORCE_RESET()         (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_USART1))
+#define __HAL_SYSTEM_ISO78160_FORCE_RESET()       (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_ISO78160))
+#define __HAL_SYSTEM_ISO78161_FORCE_RESET()       (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_ISO78161))
+#define __HAL_SYSTEM_SPI0_FORCE_RESET()           (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_SPI0))
+#define __HAL_SYSTEM_SPI1_FORCE_RESET()           (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_SPI1))
+#define __HAL_SYSTEM_SPI2_FORCE_RESET()           (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_SPI2))
+#define __HAL_SYSTEM_SPI3_FORCE_RESET()           (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_SPI3))
+#define __HAL_SYSTEM_I2C0_FORCE_RESET()           (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_I2C0))
+#define __HAL_SYSTEM_I2C1_FORCE_RESET()           (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_I2C1))
+#define __HAL_SYSTEM_IOCNT_FORCE_RESET()          (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_IOCNT))
+#define __HAL_SYSTEM_LCD_FORCE_RESET()            (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_LCD))
+#define __HAL_SYSTEM_DSP_FORCE_RESET()            (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_DSP))
+#define __HAL_SYSTEM_M2M_FORCE_RESET()            (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_M2M))
+#define __HAL_SYSTEM_D2F_FORCE_RESET()            (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_D2F))
+#define __HAL_SYSTEM_ADC0_FORCE_RESET()           (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_ADC0))
+#define __HAL_SYSTEM_DAC_FORCE_RESET()            (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_DAC))
+#define __HAL_SYSTEM_TC0_FORCE_RESET()            (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_TC0))
+#define __HAL_SYSTEM_TC1_FORCE_RESET()            (SYSTEM->MOD0_RST |= (SYSTEM_MOD0_RST_TC1))
+
+ /* SYSTEM_PMOD0_RELEASE_RESET */
+#define __HAL_SYSTEM_MOD0_RELEASE_RESET()         (SYSTEM->MOD0_RST = 0x00)
+#define __HAL_SYSTEM_UART0_RELEASE_RESET()        (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_UART0))
+#define __HAL_SYSTEM_UART1_RELEASE_RESET()        (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_UART1))
+#define __HAL_SYSTEM_UART2_RELEASE_RESET()        (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_UART2))
+#define __HAL_SYSTEM_UART3_RELEASE_RESET()        (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_UART3))
+#define __HAL_SYSTEM_UART4_RELEASE_RESET()        (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_UART4))
+#define __HAL_SYSTEM_UART5_RELEASE_RESET()        (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_UART5))
+#define __HAL_SYSTEM_UART6_RELEASE_RESET()        (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_UART6))
+#define __HAL_SYSTEM_UART7_RELEASE_RESET()        (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_UART7))
+#define __HAL_SYSTEM_LPUART_RELEASE_RESET()       (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_LPUART))
+#define __HAL_SYSTEM_USART0_RELEASE_RESET()       (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_USART0))
+#define __HAL_SYSTEM_USART1_RELEASE_RESET()       (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_USART1))
+#define __HAL_SYSTEM_ISO78160_RELEASE_RESET()     (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_ISO78160))
+#define __HAL_SYSTEM_ISO78161_RELEASE_RESET()     (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_ISO78161))
+#define __HAL_SYSTEM_SPI0_RELEASE_RESET()         (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_SPI0))
+#define __HAL_SYSTEM_SPI1_RELEASE_RESET()         (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_SPI1))
+#define __HAL_SYSTEM_SPI2_RELEASE_RESET()         (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_SPI2))
+#define __HAL_SYSTEM_SPI3_RELEASE_RESET()         (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_SPI3))
+#define __HAL_SYSTEM_I2C0_RELEASE_RESET()         (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_I2C0))
+#define __HAL_SYSTEM_I2C1_RELEASE_RESET()         (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_I2C1))
+#define __HAL_SYSTEM_IOCNT_RELEASE_RESET()        (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_IOCNT))
+#define __HAL_SYSTEM_LCD_RELEASE_RESET()          (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_LCD))
+#define __HAL_SYSTEM_DSP_RELEASE_RESET()          (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_DSP))
+#define __HAL_SYSTEM_M2M_RELEASE_RESET()          (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_M2M))
+#define __HAL_SYSTEM_D2F_RELEASE_RESET()          (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_D2F))
+#define __HAL_SYSTEM_ADC0_RELEASE_RESET()         (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_ADC0))
+#define __HAL_SYSTEM_DAC_RELEASE_RESET()          (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_DAC))
+#define __HAL_SYSTEM_TC0_RELEASE_RESET()          (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_TC0))
+#define __HAL_SYSTEM_TC1_RELEASE_RESET()          (SYSTEM->MOD0_RST &= ~(SYSTEM_MOD0_RST_TC1))
+
+/**
+ * @}
+ */
+
+
+/** @defgroup SYSTEM_MOD1_Force_Release_Reset MOD1 Force Release Reset
+ * @brief  Force or release MOD1 peripheral reset.
+ * @{
+ */
+#define __HAL_SYSTEM_MOD1_FORCE_RESET()           (SYSTEM->MOD1_RST = 0x7DFU)
+#define __HAL_SYSTEM_SIMPTC0_FORCE_RESET()        (SYSTEM->MOD1_RST |= (SYSTEM_MOD1_RST_SIMPTC0))
+#define __HAL_SYSTEM_SIMPTC1_FORCE_RESET()        (SYSTEM->MOD1_RST |= (SYSTEM_MOD1_RST_SIMPTC1))
+#define __HAL_SYSTEM_SIMPTC2_FORCE_RESET()        (SYSTEM->MOD1_RST |= (SYSTEM_MOD1_RST_SIMPTC2))
+#define __HAL_SYSTEM_SIMPTC3_FORCE_RESET()        (SYSTEM->MOD1_RST |= (SYSTEM_MOD1_RST_SIMPTC3))
+#define __HAL_SYSTEM_RTC_SARADC_FORCE_RESET()     (SYSTEM->MOD1_RST |= (SYSTEM_MOD1_RST_RTC_SARADC))
+#define __HAL_SYSTEM_LSRX_FORCE_RESET()           (SYSTEM->MOD1_RST |= (SYSTEM_MOD1_RST_LSRX))
+#define __HAL_SYSTEM_KBI0_FORCE_RESET()           (SYSTEM->MOD1_RST |= (SYSTEM_MOD1_RST_KBI0))
+#define __HAL_SYSTEM_KBI1_FORCE_RESET()           (SYSTEM->MOD1_RST |= (SYSTEM_MOD1_RST_KBI1))
+#define __HAL_SYSTEM_LVDCMP_FORCE_RESET()         (SYSTEM->MOD1_RST |= (SYSTEM_MOD1_RST_LVDCMP))
+#define __HAL_SYSTEM_CRC0_FORCE_RESET()           (SYSTEM->MOD1_RST |= (SYSTEM_MOD1_RST_CRC0))
+
+#define __HAL_SYSTEM_MOD1_RELEASE_RESET()         (SYSTEM->MOD1_RST = 0x00)
+#define __HAL_SYSTEM_SIMPTC0_RELEASE_RESET()      (SYSTEM->MOD1_RST &= ~(SYSTEM_MOD1_RST_SIMPTC0))
+#define __HAL_SYSTEM_SIMPTC1_RELEASE_RESET()      (SYSTEM->MOD1_RST &= ~(SYSTEM_MOD1_RST_SIMPTC1))
+#define __HAL_SYSTEM_SIMPTC2_RELEASE_RESET()      (SYSTEM->MOD1_RST &= ~(SYSTEM_MOD1_RST_SIMPTC2))
+#define __HAL_SYSTEM_SIMPTC3_RELEASE_RESET()      (SYSTEM->MOD1_RST &= ~(SYSTEM_MOD1_RST_SIMPTC3))
+#define __HAL_SYSTEM_RTC_SARADC_RELEASE_RESET()   (SYSTEM->MOD1_RST &= ~(SYSTEM_MOD1_RST_RTC_SARADC))
+#define __HAL_SYSTEM_LSRX_RELEASE_RESET()         (SYSTEM->MOD1_RST &= ~(SYSTEM_MOD1_RST_LSRX))
+#define __HAL_SYSTEM_KBI0_RELEASE_RESET()         (SYSTEM->MOD1_RST &= ~(SYSTEM_MOD1_RST_KBI0))
+#define __HAL_SYSTEM_KBI1_RELEASE_RESET()         (SYSTEM->MOD1_RST &= ~(SYSTEM_MOD1_RST_KBI1))
+#define __HAL_SYSTEM_LVDCMP_RELEASE_RESET()       (SYSTEM->MOD1_RST &= ~(SYSTEM_MOD1_RST_LVDCMP))
+#define __HAL_SYSTEM_CRC0_RELEASE_RESET()         (SYSTEM->MOD1_RST &= ~(SYSTEM_MOD1_RST_CRC0))
+/**
+ * @}
+ */
+
+/** @defgroup SYSTEM_MOD2_Force_Release_Reset MOD2 Force Release Reset
+ * @brief  Force or release MOD2 peripheral reset.
+ * @{
+ */
+#define __HAL_SYSTEM_MOD2_FORCE_RESET()           (SYSTEM->MOD2_RST = 0x107U)
+#define __HAL_SYSTEM_QSPI0_FORCE_RESET()          (SYSTEM->MOD2_RST |= (SYSTEM_MOD2_RST_QSPI0))
+#define __HAL_SYSTEM_QSPI1_FORCE_RESET()          (SYSTEM->MOD2_RST |= (SYSTEM_MOD2_RST_QSPI1))
+#define __HAL_SYSTEM_SEA_FORCE_RESET()            (SYSTEM->MOD2_RST |= (SYSTEM_MOD2_RST_SEA))
+#define __HAL_SYSTEM_AES_FORCE_RESET()            (SYSTEM->MOD2_RST |= (SYSTEM_MOD2_RST_AES))
+
+#define __HAL_SYSTEM_MOD2_RELEASE_RESET()         (SYSTEM->MOD2_RST = 0x00)
+#define __HAL_SYSTEM_QSPI0_RELEASE_RESET()        (SYSTEM->MOD2_RST &= ~(SYSTEM_MOD2_RST_QSPI0))
+#define __HAL_SYSTEM_QSPI1_RELEASE_RESET()        (SYSTEM->MOD2_RST &= ~(SYSTEM_MOD2_RST_QSPI1))
+#define __HAL_SYSTEM_SEA_RELEASE_RESET()          (SYSTEM->MOD2_RST &= ~(SYSTEM_MOD2_RST_SEA))
+#define __HAL_SYSTEM_AES_RELEASE_RESET()          (SYSTEM->MOD2_RST &= ~(SYSTEM_MOD2_RST_AES))
+/**
+ * @}
+ */
+
+#ifdef CORE0
+/** @defgroup SYSTEM_CORE1_Force_Release_Reset CORE1 Force Release Reset
+ * @brief  Force or release MOD2 peripheral reset.
+ * @{
+ */
+#define __HAL_SYSTEM_CORE1_FORCE_RESET()         do { \
+                                                      SYSTEM->SYS_PSW1 = 0x82U; \
+                                                      SYSTEM->RST_STOP_CTRL = 0x87A3U; \
+                                                      SYSTEM->SYS_PSW1 = 0x00U; \
+                                                  } while(0U)
+
+#define __HAL_SYSTEM_CORE1_RELEASE_RESET()        do { \
+                                                      SYSTEM->SYS_PSW1 = 0x82U; \
+                                                      SYSTEM->CORE1_CKE = 0x0000U; \
+                                                      SYSTEM->RST_STOP_CTRL = 0x0000U; \
+                                                      SYSTEM->SYS_PSW1 = 0x00U; \
+                                                  } while(0U)
+/**
+ * @}
+ */
+ #endif
+
+/** @defgroup SYSTEM_Flags_Interrupts_Management Flags Interrupts Management
+ *  @brief macros to manage the specified SYSTEM Flags and interrupts.
+ * @{
+ */
+/** @brief Enable SYSTEM Calibration interrupt.
+ *  @param  __INTERRUPT__ specifies the SYSTEM Calibration interrupt sources to be enabled.
+ *          This parameter can be any combination of the following values:
+ *            @arg @ref SYSTEM_CAL_IT_OV   Calibration Overflow interrupt
+ *            @arg @ref SYSTEM_CAL_IT_DONE Calibration Complete interrupt
+ */
+#define __HAL_SYSTEM_CAL_ENABLE_IT(__INTERRUPT__) (*(__IO uint32_t *) SYSTEM_CAL_CTRL_ADDRESS |= (__INTERRUPT__))
+
+/** @brief Disable SYSTEM Calibration interrupt.
+ *  @param  __INTERRUPT__ specifies the SYSTEM Calibration interrupt sources to be disabled.
+ *          This parameter can be any combination of the following values:
+ *            @arg @ref SYSTEM_CAL_IT_OV   Calibration Overflow interrupt
+ *            @arg @ref SYSTEM_CAL_IT_DONE Calibration Complete interrupt
+ */
+#define __HAL_SYSTEM_CAL_DISABLE_IT(__INTERRUPT__) (*(__IO uint32_t *) SYSTEM_CAL_CTRL_ADDRESS &= (uint32_t)(~(__INTERRUPT__)))
+
+/** @brief Clear the SYSTEM Calibration's interrupt pending bits.
+ *  @param  __INTERRUPT__ specifies the interrupt pending bit to clear.
+ *          This parameter can be any combination of the following values:
+ *            @arg @ref SYSTEM_CAL_IF_OV   Calibration Overflow interrupt
+ *            @arg @ref SYSTEM_CAL_IF_DONE Calibration Complete interrupt
+ */
+#define __HAL_SYSTEM_CAL_CLEAR_IT(__INTERRUPT__) (*(__IO uint8_t *) SYSTEM_CAL_STA_ADDRESS = (__INTERRUPT__))
+
+/** @brief Check the SYSTEM's interrupt has occurred or not.
+ *  @param  __INTERRUPT__ specifies the SYSTEM interrupt source to check.
+ *          This parameter can be one of the following values:
+ *            @arg @ref SYSTEM_CAL_IF_OV   Calibration Overflow interrupt
+ *            @arg @ref SYSTEM_CAL_IF_DONE Calibration Complete interrupt
+ *  @retval The new state of __INTERRUPT__ (TRUE or FALSE).
+ */
+#define __HAL_SYSTEM_CAL_GET_IT(__INTERRUPT__) ((*(__IO uint8_t *) SYSTEM_CAL_STA_ADDRESS & (__INTERRUPT__)) == (__INTERRUPT__))
+
+/** @brief Enable SYSTEM BOI_RST interrupt.
+ */
+#define __HAL_SYSTEM_BOI_RST_ENABLE_IT()       (*(__IO uint32_t *) SYSTEM_BOI_RST_CTRL_BB(SYSTEM_BOI_RST_POS) = ENABLE)
+
+/** @brief Disable SYSTEM BOI_RST interrupt.
+ */
+#define __HAL_SYSTEM_BOI_RST_DISABLE_IT()      (*(__IO uint32_t *) SYSTEM_BOI_RST_CTRL_BB(SYSTEM_BOI_RST_POS) = DISABLE)
+
+/**
+ * @}
+ */
+
+
+/**
+ * @}
+ */
+
+/* Exported functions -------------------------------------------------------*/
+/** @addtogroup SYSTEM_Exported_Functions SYSTEM Exported Functions
+ * @{
+ */
+
+/** @addtogroup SYSTEM_Exported_Functions_Group1
+ * @{
+ */
+
+/* Clock Mode and Frequency Config functions **********************************************/
+HAL_StatusTypeDef HAL_SYSTEM_ClockModeConfig(HAL_SYSTEM_ClockModeTypeDef ClockMode, HAL_SYSTEM_SourceDivTypeDef SourceDivison, HAL_SYSTEM_CoreDivTypeDef CoreDivison);
+HAL_StatusTypeDef HAL_SYSTEM_FastClockModeConfig(HAL_SYSTEM_ClockModeTypeDef ClockMode);
+HAL_StatusTypeDef HAL_SYSTEM_SetCoreDivision(HAL_SYSTEM_CoreDivTypeDef CoreDivison);
+HAL_StatusTypeDef HAL_SYSTEM_PLLConfig(HAL_SYSTEM_ClockModeTypeDef PLLFrequency, HAL_SYSTEM_PLLSwitchTypeDef PLLState);
+uint32_t          HAL_SYSTEM_GetSysClockFreq(HAL_SYSTEM_SysClockTypeDef SysClock);
+
+/* SYSTEM IRQ handler */
+void              HAL_SYSTEM_CORE0_IRQHandler(void);
+void              HAL_SYSTEM_CORE1_IRQHandler(void);
+/* User Callbacks in non blocking mode (IT mode) */
+void              HAL_SYSTEM_CalibrationOVCallback(void);
+void              HAL_SYSTEM_CalibrationDONECallback(void);
+
+/* CORE1 RESET IRQHandler and Callbacks **************************************/
+void              HAL_SYSTEM_CORE1_RESET_IRQHandler(void);
+void              HAL_SYSTEM_Core1ResetCallback(void);
+/**
+ * @}
+ */
+
+/** @addtogroup SYSTEM_Exported_Functions_Group2
+ * @{
+ */
+
+/* System Option configuration Check functions ***********************************************/
+HAL_StatusTypeDef HAL_SYSTEM_OptionConfigCheck(void);
+
+/**
+ * @}
+ */
+
+/** @addtogroup SYSTEM_Exported_Functions_Group3
+ * @{
+ */
+
+/* RTCDota operation functions ***********************************************/
+HAL_StatusTypeDef HAL_SYSTEM_SetRTCDota(uint16_t RTCDota);
+uint16_t          HAL_SYSTEM_GetRTCDota(void);
+
+/**
+ * @}
+ */
+
+/**
+ * @}
+ */
+
+/* Private types ------------------------------------------------------------*/
+/** @defgroup SYSTEM_Private_Types SYSTEM Private Types
+ * @{
+ */
+
+/**
+ * @}
+ */
+
+/* Private variables --------------------------------------------------------*/
+/** @defgroup SYSTEM_Private_Variables SYSTEM Private Variables
+ * @{
+ */
+
+/**
+ * @}
+ */
+
+/* Private constants --------------------------------------------------------*/
+/** @defgroup SYSTEM_Private_Constants SYSTEM Private Constants
+ * @{
+ */
+/** @defgroup SYSTEM_Register_Offset Register offsets
+ * @{
+ */
+#ifdef CORE0
+#define SYSTEM_BASE                  (SYSTEM_CORE0_BASE)
+#define APB_PERIPH_BASE              (0x20000000UL)          /*!< APB_Peripheral base address in the alias region   */
+#define APB_PERIPH_BB_BASE           (0x22000000UL)          /*!< APB_Peripheral base address in the bit-band region */
+#endif
+#ifdef CORE1
+#define SYSTEM_BASE                  (SYSTEM_CORE1_BASE)
+#define APB_PERIPH_BASE              (0xA0000000UL)          /*!< APB_Peripheral base address in the alias region   */
+#define APB_PERIPH_BB_BASE           (0xA2000000UL)          /*!< APB_Peripheral base address in the bit-band region */
+#endif
+
+#define SYSTEM_OFFSET                (SYSTEM_BASE - APB_PERIPH_BASE)
+#define SYSTEM_CLK_CAL_CTRL_OFFSET   0x0200U
+#define SYSTEM_CLK_CAL_STA_OFFSET    0x020CU
+
+#define SYSTEM_PMOD0_CKE_OFFSET      0x012CU
+#define SYSTEM_KBI0_CKE_OFFSET       0x0134U
+#define SYSTEM_KBI1_CKE_OFFSET       0x0138U
+#define SYSTEM_MOD0_CKE_OFFSET       0x013CU
+#define SYSTEM_MOD1_CKE_OFFSET       0x0140U
+#define SYSTEM_MOD2_CKE_OFFSET       0x0144U
+#define SYSTEM_BOI_RST_CTRL_OFFSET   0x0318U
+
+/**
+ * @}
+ */
+
+/** @defgroup SYSTEM_BitAddress_AliasRegion BitAddress AliasRegion
+ * @brief SYSTEM registers bit address in the alias region
+ * @{
+ */
+#define SYSTEM_PMOD0_CKE_OFFSET_BB                  (SYSTEM_OFFSET + SYSTEM_PMOD0_CKE_OFFSET)
+#define SYSTEM_KBI0_CKE_OFFSET_BB                   (SYSTEM_OFFSET + SYSTEM_KBI0_CKE_OFFSET)
+#define SYSTEM_KBI1_CKE_OFFSET_BB                   (SYSTEM_OFFSET + SYSTEM_KBI1_CKE_OFFSET)
+#define SYSTEM_MOD0_CKE_OFFSET_BB                   (SYSTEM_OFFSET + SYSTEM_MOD0_CKE_OFFSET)
+#define SYSTEM_MOD1_CKE_OFFSET_BB                   (SYSTEM_OFFSET + SYSTEM_MOD1_CKE_OFFSET)
+#define SYSTEM_MOD2_CKE_OFFSET_BB                   (SYSTEM_OFFSET + SYSTEM_MOD2_CKE_OFFSET)
+#define SYSTEM_BOI_RST_CTRL_OFFSET_BB               (SYSTEM_OFFSET + SYSTEM_BOI_RST_CTRL_OFFSET)
+
+/* Alias word address of PMOD0_CKE bits */
+#define SYSTEM_PMOD0_CKE_BB(__BIT_NUMBER)           ((uint32_t)(APB_PERIPH_BB_BASE + (SYSTEM_PMOD0_CKE_OFFSET_BB * 32U) + (__BIT_NUMBER * 4U)))
+#define SYSTEM_KBI0_CKE_BB(__BIT_NUMBER)            ((uint32_t)(APB_PERIPH_BB_BASE + (SYSTEM_KBI0_CKE_OFFSET_BB * 32U) + (__BIT_NUMBER * 4U)))
+#define SYSTEM_KBI1_CKE_BB(__BIT_NUMBER)            ((uint32_t)(APB_PERIPH_BB_BASE + (SYSTEM_KBI1_CKE_OFFSET_BB * 32U) + (__BIT_NUMBER * 4U)))
+#define SYSTEM_MOD0_CKE_BB(__BIT_NUMBER)            ((uint32_t)(APB_PERIPH_BB_BASE + (SYSTEM_MOD0_CKE_OFFSET_BB * 32U) + (__BIT_NUMBER * 4U)))
+#define SYSTEM_MOD1_CKE_BB(__BIT_NUMBER)            ((uint32_t)(APB_PERIPH_BB_BASE + (SYSTEM_MOD1_CKE_OFFSET_BB * 32U) + (__BIT_NUMBER * 4U)))
+#define SYSTEM_MOD2_CKE_BB(__BIT_NUMBER)            ((uint32_t)(APB_PERIPH_BB_BASE + (SYSTEM_MOD2_CKE_OFFSET_BB * 32U) + (__BIT_NUMBER * 4U)))
+#define SYSTEM_BOI_RST_CTRL_BB(__BIT_NUMBER)        ((uint32_t)(APB_PERIPH_BB_BASE + (SYSTEM_BOI_RST_CTRL_OFFSET_BB * 32U) + (__BIT_NUMBER * 4U)))
+
+/**
+ * @}
+ */
+
+/* CLK_CAL_CTRL register base address */
+#define SYSTEM_CAL_CTRL_ADDRESS          ((uint32_t)(SYSTEM_BASE + SYSTEM_CLK_CAL_CTRL_OFFSET))
+
+/* CLK_CAL_STA register base address */
+#define SYSTEM_CAL_STA_ADDRESS           ((uint32_t)(SYSTEM_BASE + SYSTEM_CLK_CAL_STA_OFFSET))
+
+
+/**
+ * @}
+ */
+
+/* Private Macros -----------------------------------------------------------*/
+/** @defgroup SYSTEM_Private_Macros SYSTEM Private Macros
+ * @{
+ */
+
+/**
+ * @}
+ */
+
+/* Private functions --------------------------------------------------------*/
+/** @defgroup SYSTEM_Private_Functions SYSTEM Private Functions
+ * @{
+ */
+
+/**
+ * @}
+ */
+
+/**
+ * @}
+ */
+
+/**
+ * @}
+ */
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* __RN_RV_HAL_SYSTEM_H */

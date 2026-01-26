@@ -1,0 +1,12 @@
+/* See LICENSE of license details. */
+#include "rn831x_rn861x_mcu.h"
+#include <errno.h>
+
+#undef errno
+extern int errno;
+
+__WEAK int _execve(char* name, char** argv, char** env)
+{
+    errno = ENOMEM;
+    return -1;
+}

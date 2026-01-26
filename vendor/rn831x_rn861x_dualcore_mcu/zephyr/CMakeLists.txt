@@ -1,0 +1,2 @@
+add_subdirectory_ifdef(CONFIG_SOC_FAMILY_RENERGY soc/riscv/renergy_rn8xxx)
+add_subdirectory_ifdef(CONFIG_SOC_FAMILY_RENERGY drivers)

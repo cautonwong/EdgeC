@@ -1,0 +1,31 @@
+description: Renergy RN8xxx System Control Unit (SCU)
+compatible: "renergy,rn8xxx-scu"
+include: [base.yaml]
+properties:
+    reg:
+      required: true
+---
+description: Renergy RN8xxx Always-On System (AOS)
+compatible: "renergy,rn8xxx-aos"
+include: [base.yaml]
+properties:
+    reg:
+      required: true
+---
+description: Renergy RN8xxx Secure Engine Accelerator (SEA)
+compatible: "renergy,rn8xxx-sea"
+include: [base.yaml]
+properties:
+    reg:
+      required: true
+    interrupts:
+      required: true
+---
+description: Renergy RN8xxx Inter-Processor Mailbox (IPM)
+compatible: "renergy,rn8xxx-mailbox"
+include: [base.yaml]
+properties:
+    reg:
+      required: true
+    interrupts:
+      required: true
