@@ -54,45 +54,84 @@ class MasterRequesterActor:
         if tag_id not in self.tag_mappings: return
         addr = self.tag_mappings[tag_id]
         
-        # 构造 Modbus 03 请求: [ID, Func, Addr_H, Addr_L, Num_H, Num_L, CRC_L, CRC_H]
+        # 构造 Modbus 03 请求
         req = struct.pack(">BBHH", self.slave_id, 0x03, addr, 1)
         req += struct.pack("<H", crc16(req))
         
         try:
             conn.sendall(req)
-            resp = conn.recv(1024)
-            if len(resp) >= 7 and resp[0] == self.slave_id and resp[1] == 0x03:
-                byte_count = resp[2]
-                raw_val = struct.unpack(">H", resp[3:3+byte_count])[0]
-                actual_val = raw_val * self.tag_scalers.get(tag_id, 1.0)
-                self.latest_data[tag_id] = actual_val
+            
+            # [Nexus Fix] 更加鲁棒的接收解析
+            start_recv = time.time()
+            rx_buf = b''
+            while time.time() - start_recv < 2.0:
+                try:
+                    chunk = conn.recv(1024)
+                    if not chunk: break
+                    rx_buf += chunk
+                except socket.timeout:
+                    continue
                 
-                # 同步回 Matrix Server 供观察
-                self._report_to_server(tag_id, actual_val)
-                # print(f"  [Requester] Polled Tag {tag_id} -> {actual_val}")
+                # 寻找可能的 Modbus 响应头 [ID, Func, ByteCount]
+                # 响应长度对于 1 个寄存器通常是 7 字节: ID(1)+FC(1)+BC(1)+Data(2)+CRC(2)
+                found_valid_frame = False
+                while len(rx_buf) >= 7:
+                    if rx_buf[0] == self.slave_id and rx_buf[1] == 0x03:
+                        byte_count = rx_buf[2]
+                        expected_len = 3 + byte_count + 2
+                        if len(rx_buf) >= expected_len:
+                            # 提取数据
+                            payload = rx_buf[3:3+byte_count]
+                            raw_val = struct.unpack(">H", payload)[0]
+                            actual_val = raw_val * self.tag_scalers.get(tag_id, 1.0)
+                            
+                            self.latest_data[tag_id] = actual_val
+                            print(f"  👁️  [Requester] Observed Tag {tag_id} = {actual_val}")
+                            self._report_to_server(tag_id, actual_val)
+                            
+                            # 移出已处理部分
+                            rx_buf = rx_buf[expected_len:]
+                            found_valid_frame = True
+                            break 
+                        else: break # 等待更多数据
+                    else:
+                        rx_buf = rx_buf[1:] # 错位搜索
+                
+                if found_valid_frame:
+                    return # 处理成功，跳出 outer while
+                
         except Exception as e:
-            pass
+            print(f"  ⚠️ [Requester] Error during request: {e}")
 
     def _report_to_server(self, tag_id, value):
         try:
             payload = {"dev_id": self.dev_id, "tag": tag_id, "value": value, "role": "supervisor"}
-            # 注意：此处 endpoint 需与 server.py 配合
-            requests.post(f"{self.server_url}/observer/record", json=payload, timeout=0.1)
-        except: pass
+            # [Nexus Fix] Increase timeout to 1.0s to ensure reporting succeeds under load
+            requests.post(f"{self.server_url}/observer/record", json=payload, timeout=1.0)
+        except:
+            pass
 
     def run(self):
         print(f"🕵️  [Requester {self.dev_id}] Starting Supervisor Loop at {self.socket_path}...")
         while True:
             try:
-                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
-                    conn.connect(self.socket_path)
-                    conn.settimeout(1.0)
-                    while True:
-                        for tid in self.tag_mappings.keys():
-                            self._request_tag(conn, tid)
-                            time.sleep(0.2) # 控制主站轮询频率
+                conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                conn.connect(self.socket_path)
+                conn.settimeout(1.0)
+                print(f"  ✅ [Requester] Connected to Virtual Bus.")
+                
+                # [Nexus Fix] 等待总线稳定
+                time.sleep(1.0)
+                
+                while True:
+                    for tid in list(self.tag_mappings.keys()):
+                        self._request_tag(conn, tid)
+                        time.sleep(0.5) 
             except Exception as e:
                 time.sleep(1)
+            finally:
+                try: conn.close()
+                except: pass
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

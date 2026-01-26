@@ -80,18 +80,21 @@ class MatrixOrchestrator:
                         try:
                             data = s.recv(4096)
                             if data:
-                                # [Debug Log] 打印转发详情
-                                # hex_data = data.hex(' ').upper()
-                                # print(f"  [Relay] Bus {bus_id}: FD {s.fileno()} -> {len(data)} bytes")
+                                # [Nexus] Debug log to confirm data is flowing through the relay
+                                hex_data = " ".join(f"{b:02X}" for b in data)
+                                print(f"  [Relay] Bus {bus_id}: Forwarding {len(data)} bytes from FD {s.fileno()}: {hex_data}")
                                 
-                                for c in clients:
+                                for c in list(clients): # Use list() to iterate safely
                                     if c is not s:
                                         try:
                                             c.sendall(data)
-                                        except:
+                                        except Exception as e:
+                                            print(f"  [Relay] Send failed to FD {c.fileno()}: {e}")
                                             if c in clients: clients.remove(c)
+                                            try: c.close()
+                                            except: pass
                             else:
-                                print(f"  [Relay] Bus {bus_id}: FD {s.fileno()} closed.")
+                                print(f"  [Relay] Bus {bus_id}: FD {s.fileno()} closed (EOF).")
                                 if s in clients: clients.remove(s)
                                 s.close()
                         except Exception as e:

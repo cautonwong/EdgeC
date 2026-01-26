@@ -23,6 +23,8 @@ typedef enum {
     BUS_MAX
 } arbiter_bus_t;
 
+#define ARBITER_MAX_BUSES 256
+
 // --- S18: 统一优先级定义 (与 PipeMsgAttr 对齐) ---
 // 值越大优先级越高
 #define ARBITER_PRIO_LOW 10

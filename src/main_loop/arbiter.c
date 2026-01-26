@@ -6,7 +6,7 @@
 
 #include "edge_log.h"
 
-#define MAX_BUSES BUS_MAX
+#define MAX_BUSES ARBITER_MAX_BUSES
 
 struct bus_info {
     cmd_msg_t *owner;
@@ -27,8 +27,10 @@ struct arbiter {
 
 static void _on_arb_handle_close(uv_handle_t *h) {
     arbiter_t *arb = h->data;
-    uv_mutex_destroy(&arb->lock);
-    free(arb);
+    if (arb) {
+        uv_mutex_destroy(&arb->lock);
+        free(arb);
+    }
 }
 
 /**
@@ -40,11 +42,12 @@ static cmd_msg_t *_arbiter_schedule_internal(arbiter_t *arb, int bus_id) {
         return NULL;
     }
 
+    if (bus_id < 0 || bus_id >= MAX_BUSES) return NULL;
+
     struct bus_info *bus = &arb->buses[bus_id];
-    if (bus->owner) {
+    if (bus->owner || !bus->queue) {
         return NULL;
     }
-    if (!bus->queue) return NULL;
 
     // 摘取队列头
     cmd_msg_t *job = bus->queue;
@@ -62,52 +65,51 @@ static cmd_msg_t *_arbiter_schedule_internal(arbiter_t *arb, int bus_id) {
 
 static void _on_tick(uv_timer_t *handle) {
     arbiter_t *arb = (arbiter_t *)handle->data;
-    if (arb->is_shutting_down || arb->is_paused) return;
+    if (!arb || arb->is_shutting_down || arb->is_paused) return;
 
-    cmd_msg_t *dispatched[MAX_BUSES];
-    int count = 0;
-
+    // 1. 延迟清理列表 (在锁外清理，减少锁持有时间)
     uv_mutex_lock(&arb->lock);
-    // 1. [核心补强] 延迟物理释放：清理上一轮产生的完成任务
     cmd_msg_t *z = arb->zombies;
     arb->zombies = NULL;
+    uv_mutex_unlock(&arb->lock);
+
     while (z) {
         cmd_msg_t *next = z->next;
         if (z->on_cleanup) z->on_cleanup(z);
         z = next;
     }
 
-    // 2. 执行常规调度 (仅标记，不触发)
+    // 2. 逐个总线调度 (锁内摘取，锁外启动)
     for (int i = 0; i < MAX_BUSES; i++) {
-        cmd_msg_t *job = _arbiter_schedule_internal(arb, i);
-        if (job) dispatched[count++] = job;
-    }
-    uv_mutex_unlock(&arb->lock);
+        cmd_msg_t *job = NULL;
+        uv_mutex_lock(&arb->lock);
+        job = _arbiter_schedule_internal(arb, i);
+        uv_mutex_unlock(&arb->lock);
 
-    // 3. 在锁外触发任务启动，彻底规避重入死锁
-    for (int i = 0; i < count; i++) {
-        if (dispatched[i]->on_start) {
-            dispatched[i]->on_start(dispatched[i]->user_data);
+        if (job) {
+            if (job->on_start) {
+                job->on_start(job->user_data);
+            }
         }
     }
 }
 
 int arbiter_init(arbiter_t **arb_out, uv_loop_t *loop) {
+    if (!arb_out || !loop) return -1;
     arbiter_t *arb = calloc(1, sizeof(arbiter_t));
+    if (!arb) return -1;
 
     uv_mutex_init(&arb->lock);
     uv_timer_init(loop, &arb->tick);
 
     arb->tick.data = arb;
-
     arb->is_paused = true;
 
     LOG_INFO(LOG_CAT_SCHED, "Arbiter initialized in PAUSED state. (Addr: %p)", (void *)arb);
 
-    uv_timer_start(&arb->tick, _on_tick, 10, 10);
+    uv_timer_start(&arb->tick, _on_tick, 5, 5);
 
     *arb_out = arb;
-
     return 0;
 }
 
@@ -116,7 +118,6 @@ void arbiter_pause(arbiter_t *arb) {
         uv_mutex_lock(&arb->lock);
         arb->is_paused = true;
         uv_mutex_unlock(&arb->lock);
-
         LOG_INFO(LOG_CAT_SCHED, "Arbiter PAUSED manually.");
     }
 }
@@ -126,24 +127,22 @@ void arbiter_resume(arbiter_t *arb) {
         uv_mutex_lock(&arb->lock);
         arb->is_paused = false;
         uv_mutex_unlock(&arb->lock);
-
         LOG_INFO(LOG_CAT_SCHED, "Arbiter RESUMED manually.");
     }
 }
 
 arbiter_bus_handle_t arbiter_bus_register(arbiter_t *arb, const char *name) {
     (void)arb;
-    (void)name;
     return (arbiter_bus_handle_t)name;
 }
 
 int arbiter_submit_cmd(arbiter_t *arb, int bus_id, cmd_msg_t *cmd) {
-    if (!arb || arb->is_shutting_down || bus_id >= MAX_BUSES || !cmd) {
+    if (!arb || arb->is_shutting_down || bus_id < 0 || bus_id >= MAX_BUSES || !cmd) {
         if (cmd && cmd->on_cleanup) cmd->on_cleanup(cmd);
         return -1;
     }
 
-    cmd_msg_t *dispatched = NULL;
+    cmd_msg_t *job = NULL;
     uv_mutex_lock(&arb->lock);
     cmd->submit_ts = uv_now(arb->tick.loop);
 
@@ -153,19 +152,19 @@ int arbiter_submit_cmd(arbiter_t *arb, int bus_id, cmd_msg_t *cmd) {
     cmd->next = *p;
     *p = cmd;
 
-    // 尝试立即调度以提升实时性
-    if (!arb->is_paused) dispatched = _arbiter_schedule_internal(arb, bus_id);
+    // 尝试立即调度
+    job = _arbiter_schedule_internal(arb, bus_id);
     uv_mutex_unlock(&arb->lock);
 
-    if (dispatched && dispatched->on_start) {
-        dispatched->on_start(dispatched->user_data);
+    if (job && job->on_start) {
+        job->on_start(job->user_data);
     }
 
     return 0;
 }
 
 void arbiter_on_io_done(arbiter_t *arb, int bus_id, cmd_msg_t *cmd, int status) {
-    if (!arb || bus_id >= MAX_BUSES || !cmd) return;
+    if (!arb || bus_id < 0 || bus_id >= MAX_BUSES || !cmd) return;
 
     uv_mutex_lock(&arb->lock);
     if (arb->buses[bus_id].owner == cmd) {
@@ -178,7 +177,7 @@ void arbiter_on_io_done(arbiter_t *arb, int bus_id, cmd_msg_t *cmd, int status) 
 }
 
 void arbiter_set_exclusive(arbiter_t *arb, int bus_id, bool exclusive) {
-    if (arb && bus_id < MAX_BUSES) {
+    if (arb && bus_id >= 0 && bus_id < MAX_BUSES) {
         uv_mutex_lock(&arb->lock);
         arb->buses[bus_id].is_exclusive = exclusive;
         uv_mutex_unlock(&arb->lock);
@@ -210,15 +209,11 @@ int arbiter_get_statuses(arbiter_t *arb, arbiter_bus_status_t *out_stats, int ma
     return count;
 }
 
-void arbiter_shutdown(arbiter_t *arb) {
-    arbiter_destroy(arb);
-}
-
 void arbiter_destroy(arbiter_t *arb) {
     if (!arb || arb->is_shutting_down) return;
+
     uv_mutex_lock(&arb->lock);
     arb->is_shutting_down = true;
-
     uv_timer_stop(&arb->tick);
 
     for (int i = 0; i < MAX_BUSES; i++) {
@@ -247,4 +242,8 @@ void arbiter_destroy(arbiter_t *arb) {
     if (!uv_is_closing((uv_handle_t *)&arb->tick)) {
         uv_close((uv_handle_t *)&arb->tick, _on_arb_handle_close);
     }
+}
+
+void arbiter_shutdown(arbiter_t *arb) {
+    arbiter_destroy(arb);
 }

@@ -10,7 +10,6 @@ build/
 
 # Python Virtual Environment
 .venv/
-venv/
 ENV/
 __pycache__/
 *.py[cod]
@@ -42,3 +41,4 @@ vpp_db.sqlite
 # Assets & Drafts
 image*.png
 *_draft.md
+vendor/

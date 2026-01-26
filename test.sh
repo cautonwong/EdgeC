@@ -74,17 +74,12 @@ run_omnis() {
         MAX_RETRY=$((MAX_RETRY-1))
     done
 
-    # 2. 注入环境变量并启动 IEMS
+    # 2. 注入环境变量 (用于 VBus 路径透传)
     eval $(grep "export OMNIS_BUS_" matrix_server.log | sed 's/  //g')
-    export EDGE_DB_PATH="$PROJECT_ROOT/iems.db"
+    export OMNIS_PRODUCT=$PROD
     
-    echo -e "${P}🚀 Step [2/3]: Launching EdgeC Core ($PROD)...${NC}"
-    ./build/products/$PROD/bin/$PROD > iems_run.log 2>&1 &
-    IEMS_PID=$!
-    sleep 3
-
-    # 3. 执行自动化场景验收
-    echo -e "${P}🧪 Step [3/3]: Running Automated Scenarios...${NC}"
+    # 3. 执行自动化场景验收 (由 pytest 内部拉起隔离的 EdgeC)
+    echo -e "${P}🧪 Step [2/2]: Running Automated Scenarios...${NC}"
     $ENV_PYTHON tools/matrix/matrix_test.py --product $PROD
     
     TEST_RES=$?
@@ -92,8 +87,8 @@ run_omnis() {
         echo -e "${G}✨ OMNIS INTEGRATION TEST PASSED!${NC}"
     else
         echo -e "${R}❌ OMNIS INTEGRATION TEST FAILED!${NC}"
-        echo -e "${Y}--- [Tail of iems_run.log] ---${NC}"
-        tail -n 20 iems_run.log
+        echo -e "${Y}--- [Tail of matrix_edgec.log] ---${NC}"
+        tail -n 20 build/matrix_edgec.log
     fi
     
     stop_all

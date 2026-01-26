@@ -94,22 +94,25 @@ class ModbusSlaveActor:
             except: pass
 
     def run(self):
+        import select
         print(f"📠 [Actor {self.dev_id}] Ready at {self.socket_path}...")
         while True:
             try:
                 conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                 conn.connect(self.socket_path)
-                conn.settimeout(0.5)
+                conn.setblocking(False)
                 
                 while True:
                     self._check_external_commands()
+                    
+                    readable, _, _ = select.select([conn], [], [], 0.1)
+                    if not readable:
+                        continue
+
                     try:
                         data = conn.recv(1024)
                         if not data: break
                         
-                        # [Debug Log]
-                        # print(f"  [Actor {self.dev_id}] RX: {data.hex(' ').upper()}")
-
                         if len(data) < 6 or data[0] != self.slave_id: continue
                         
                         func = data[1]
@@ -132,8 +135,9 @@ class ModbusSlaveActor:
                             # Echo request as response
                             resp = data[:6] + struct.pack("<H", crc16(data[:6]))
                             conn.sendall(resp)
-                    except socket.timeout:
-                        continue
+                    except Exception as e:
+                        print(f"  ⚠️ [Actor] Connection Error: {e}")
+                        break
             except Exception as e:
                 time.sleep(1)
             finally:

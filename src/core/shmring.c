@@ -38,12 +38,10 @@ int shmring_create(shm_ring_t *ring, const char *name, uint32_t slots) {
     }
 
     // 1. 物理计算：Page 对齐
-    size_t size = sizeof(ShmRingHeader) + slots * sizeof(PipeMsg);
+    size_t size = sizeof(ShmRingHeader) + (size_t)slots * sizeof(PipeMsg);
     size = (size + 4095) & ~4095UL;
 
     // 2. 创建匿名内存 (memfd)
-    // 优势：不会在 /dev/shm 下产生可见文件，通过 FD 继承，极高安全性
-    // 如果 name 为空，使用默认名
     const char *mem_name = name ? name : "edge_bus";
     int fd = (int)syscall(SYS_memfd_create, mem_name, MFD_CLOEXEC | MFD_ALLOW_SEALING);
     if (fd < 0) {
@@ -58,8 +56,6 @@ int shmring_create(shm_ring_t *ring, const char *name, uint32_t slots) {
     }
 
     // 3. 内核级密封 (Sealing)
-    // 锁定内存大小，防止在高频读写时被意外或恶意 truncate
-    // F_SEAL_SEAL 确保密封位本身以后也无法被修改
     fcntl(fd, F_ADD_SEALS, F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_SEAL);
 
     // 4. 建立映射
@@ -102,8 +98,7 @@ int shmring_init_from_fd(shm_ring_t *ring, int fd, size_t size) {
         return -1;
     }
 
-    ring->fd = fd;  // 注意：这里只是引用 FD，关闭时是否 close 取决于策略，通常由 caller 负责或在
-                    // close 时 close 一次
+    ring->fd = fd;
     ring->hdr = (ShmRingHeader *)ptr;
     ring->slots = (PipeMsg *)((uint8_t *)ptr + sizeof(ShmRingHeader));
     ring->map_size = size;
@@ -123,8 +118,6 @@ int shmring_get_fd(shm_ring_t *ring) {
 }
 
 int shmring_open(shm_ring_t *ring, const char *name) {
-    // 匿名内存不支持通过名称打开。
-    // 如果在同一个进程内为了兼容性，可以暂时保留，但跨进程必须使用 FD
     (void)ring;
     (void)name;
     LOG_WARN(LOG_CAT_BUS, "shmring_open is deprecated for anonymous memfd");
@@ -158,9 +151,6 @@ void shm_ring_write(shm_ring_t *ring, const PipeMsg *msg) {
 
     // 物理写入 (DMA 友好型内存)
     ring->slots[idx] = *msg;
-
-    // 内存屏障：确保数据先落盘，再更新序号让消费者可见
-    atomic_thread_fence(memory_order_release);
 
     // 屏障确保存储可见性
     atomic_fetch_add_explicit(&ring->hdr->seq, 1, memory_order_release);

@@ -29,6 +29,8 @@ class MatrixAPIHandler(BaseHTTPRequestHandler):
         elif self.path == "/api/v1/connectivity":
             conns = [{"id": c["id"], "label": c["label"]} for c in self.orch_instance.loader.connectivity]
             self._send_json({"buses": conns})
+        elif self.path == "/api/v1/observer/all":
+            self._send_json({"keys": list(self.observer_data.keys())})
         elif self.path.startswith("/api/v1/observer/latest/"):
             # Format: /api/v1/observer/latest/SUPERVISOR_01/1001
             parts = self.path.split('/')
@@ -66,6 +68,7 @@ class MatrixAPIHandler(BaseHTTPRequestHandler):
                 val = payload.get("value")
                 key = f"{dev_id}:{tag_id}"
                 self.observer_data[key] = val
+                print(f"👁️  [Observer] Recorded {key} = {val}")
                 self._send_json({"status": "ok"})
         except Exception as e:
             self.send_response(500)

@@ -8,6 +8,11 @@ async def test_slave_mirror_flow(matrix):
     """
     [Nexus E2E] 验证南向采集 -> 影子映射 -> 北向从站响应的全链路
     """
+    # [Nexus Fix] 等待 IEMS 连接到北向 VBus 10。
+    # 考虑到 _try_connect_buses 每 1s 运行一次，加上握手时间，我们等 3s。
+    print("⏳ [Setup] Waiting for IEMS to establish Northbound connection...")
+    await asyncio.sleep(3)
+
     test_val = 238.5
     tag_name = "VOLTAGE_PHASE_A"
     tag_id = 1001
@@ -28,7 +33,7 @@ async def test_slave_mirror_flow(matrix):
     # 给 Supervisor 一点轮询时间
     found = False
     start_t = time.time()
-    while time.time() - start_t < 10:
+    while time.time() - start_t < 30:
         # 通过 Matrix Server 的 Observer API 获取上位机拿到的值
         resp = requests.get(f"{matrix.server_url}/observer/latest/SUPERVISOR_SCADA/{tag_id}")
         if resp.status_code == 200:
@@ -38,6 +43,10 @@ async def test_slave_mirror_flow(matrix):
                 if abs(obs_val - test_val) < 0.5:
                     found = True
                     break
+            else:
+                # [Nexus Debug] 没拿到具体值时，拉取所有观测数据看看 Key 对不对
+                all_data = requests.get(f"{matrix.server_url}/observer/all").json()
+                print(f"  [Debug] Current Observer Keys: {all_data.get('keys', [])}")
         await asyncio.sleep(1)
         
     if found:

@@ -12,6 +12,7 @@
 #include "contracts.h"
 #include "edge_api.h"
 #include "edge_service.h"
+#include "modbus_codec.h"  // 确保包含驱动相关的头文件
 #include "northbound_mgr.h"
 #include "queue.h"
 #include "rest_server.h"
@@ -30,6 +31,7 @@ typedef enum {
 typedef struct {
     service_t *svc;
     datahub_t *hub;
+    arbiter_t *arb;
     bus_orchestrator_t *orch;
     driver_manager_t *drv_mgr;
     stream_engine_t *stream_eng;
@@ -42,6 +44,15 @@ static iems_app_t g_app = {0};
 static struct uv__queue g_poll_task_head;
 static bool g_assets_loaded = false;
 static bus_conn_state_t g_bus_state[MAX_VBUS] = {BUS_STATE_DISCONNECTED};
+
+static uv_timer_t *g_timer_load_tasks = NULL;
+static uv_timer_t *g_timer_vbus = NULL;
+static uv_timer_t *g_timer_internal = NULL;
+static uv_periodic_t *g_periodic_sched = NULL;
+
+volatile bool g_adc_running = false;
+static uv_thread_t g_adc_tid;
+static int g_adc_sock_fd = -1;
 
 typedef struct {
     int bus_id;
@@ -81,9 +92,26 @@ static void iems_scheduler_tick(uv_periodic_t *handle) {
     uv__queue_foreach(q, &g_poll_task_head) {
         iems_poll_task_t *task = uv__queue_data(q, iems_poll_task_t, node);
         if (now - task->last_run_ms >= (uint64_t)task->interval_ms) {
-            if (g_bus_state[task->bus_id % MAX_VBUS] == BUS_STATE_CONNECTED) {
-                edge_api_read_tag(task->bus_id, task->protocol, task->slave_id, task->tag_id,
-                                  on_poll_complete);
+            // [Nexus Fix] 只有南向总线才执行主动轮询。
+            // 北向总线作为从站，不应主动发起请求，否则会干扰被动接收逻辑。
+            bool is_southbound = false;
+            for (int i = 0; i < g_connectivity_configs_len; i++) {
+                if (g_connectivity_configs[i].id == task->bus_id &&
+                    strcmp(g_connectivity_configs[i].category, "SOUTHBOUND") == 0) {
+                    is_southbound = true;
+                    break;
+                }
+            }
+
+            if (is_southbound) {
+                if (g_bus_state[task->bus_id % MAX_VBUS] == BUS_STATE_CONNECTED) {
+                    edge_api_read_tag(task->bus_id, task->protocol, task->slave_id, task->tag_id,
+                                      on_poll_complete);
+                }
+            } else {
+                // [Nexus Debug]
+                printf("[IEMS-SCHED] Skipping Polling for Task on Northbound/Internal Bus %d\n",
+                       task->bus_id);
             }
             task->last_run_ms = now;
         }
@@ -172,26 +200,63 @@ static void iems_load_tasks_timer_cb(uv_timer_t *handle) {
 
 static void on_vbus_connect(uv_connect_t *req, int status) {
     int bus_id = (int)(intptr_t)req->data;
+    int bus_idx = bus_id % MAX_VBUS;
+
     if (status < 0) {
         printf("\033[31m[IEMS-INIT] VBUS %d Connect Failed: %s\033[0m\n", bus_id,
+
                uv_strerror(status));
+
         uv_close((uv_handle_t *)req->handle, (uv_close_cb)free);
-        g_bus_state[bus_id % MAX_VBUS] = BUS_STATE_DISCONNECTED;
+
+        g_bus_state[bus_idx] = BUS_STATE_DISCONNECTED;
+
+        printf("[IEMS-BUS] Bus %d state set to DISCONNECTED due to status < 0\n", bus_id);
+
         free(req);
+
         return;
     }
-    int fd;
-    uv_fileno((const uv_handle_t *)req->handle, &fd);
-    printf("\033[32m[IEMS-INIT] VBUS %d Handshake Success (FD:%d)\033[0m\n", bus_id, fd);
 
-    io_handle_t *h = io_executor_create_from_fd(req->handle->loop, fd, g_app.hub->io_pool);
+    int fd;
+
+    uv_fileno((const uv_handle_t *)req->handle, &fd);
+
+    // [Nexus] 详细日志追踪连接建立
+
+    int dup_fd = dup(fd);
+
+    printf(
+        "\033[32m[IEMS-BUS] VBUS %d Handshake Success. Original FD:%d, Dup FD:%d, "
+        "LoopMatch:%d\033[0m\n",
+
+        bus_id, fd, dup_fd, (req->handle->loop == g_app.hub->loop));
+
+    io_handle_t *h = io_executor_create_from_fd(req->handle->loop, dup_fd, g_app.hub->io_pool);
+
     if (h) {
         bus_orchestrator_attach_io(g_app.orch, bus_id, h);
+
         if (h->ops && h->ops->enable_read) h->ops->enable_read(h, true);
-        g_bus_state[bus_id % MAX_VBUS] = BUS_STATE_CONNECTED;
+
+        g_bus_state[bus_idx] = BUS_STATE_CONNECTED;
+
+        printf("[IEMS-BUS] VBUS %d attached to Orchestrator (FD:%d).\n", bus_id, dup_fd);
+
     } else {
-        g_bus_state[bus_id % MAX_VBUS] = BUS_STATE_DISCONNECTED;
+        printf("\033[31m[IEMS-BUS] VBUS %d FAILED to create IO Handle!\033[0m\n", bus_id);
+
+        close(dup_fd);
+
+        g_bus_state[bus_idx] = BUS_STATE_DISCONNECTED;
+
+        printf("[IEMS-BUS] Bus %d state set to DISCONNECTED due to handle failure\n", bus_id);
     }
+
+    // [Nexus] 停止 libuv 层面的读取，但暂不销毁句柄以防 FD 状态抖动
+
+    uv_read_stop((uv_stream_t *)req->handle);
+
     free(req);
 }
 
@@ -205,6 +270,9 @@ static void _try_connect_buses(uv_timer_t *handle) {
         if (g_bus_state[bus_idx] != BUS_STATE_DISCONNECTED) continue;
 
         const char *path = edge_resolve_bus_path(c->id);
+        if (path) {
+            printf("[IEMS-BUS] Bus %d path resolved to: %s\n", c->id, path);
+        }
         if (path && access(path, F_OK) == 0) {
             printf("[IEMS-INIT] Attempting to connect VBUS %d -> %s\n", c->id, path);
             uv_pipe_t *pipe = malloc(sizeof(uv_pipe_t));
@@ -226,7 +294,9 @@ typedef struct {
 
 static void _adc_thread_entry(void *arg) {
     adc_thread_ctx_t *ctx = (adc_thread_ctx_t *)arg;
+    g_adc_running = true;
     adc_driver_handle_connection(ctx->fd, ctx->hub);
+    g_adc_running = false;
     free(ctx);
 }
 
@@ -241,14 +311,14 @@ static void on_adc_connect(uv_connect_t *req, int status) {
 
     int fd;
     uv_fileno((const uv_handle_t *)req->handle, &fd);
+    g_adc_sock_fd = fd;
 
     // [Sprint 5] 异步化：在独立线程处理高频流，避免主循环拥塞
     adc_thread_ctx_t *ctx = malloc(sizeof(adc_thread_ctx_t));
     ctx->fd = dup(fd);  // DUP 以脱离 libuv 生命周期管理
     ctx->hub = g_app.hub;
 
-    uv_thread_t tid;
-    uv_thread_create(&tid, _adc_thread_entry, ctx);
+    uv_thread_create(&g_adc_tid, _adc_thread_entry, ctx);
 
     // 关闭 libuv 层面的句柄，不影响已 DUP 的 FD
     uv_close((uv_handle_t *)req->handle, (uv_close_cb)free);
@@ -270,21 +340,74 @@ static void _try_connect_internal_buses(uv_timer_t *handle) {
     }
 }
 
+static void _on_timer_close(uv_handle_t *handle) {
+    if (handle == (uv_handle_t *)g_timer_load_tasks) {
+        // g_timer_load_tasks 是 malloc 分配的
+        free(handle);
+        g_timer_load_tasks = NULL;
+    }
+}
+
 static void iems_shutdown(uv_loop_t *loop) {
     printf("\n🛑 [IEMS] Shutdown initiated...\n");
-    if (g_app.svc) service_delete(g_app.svc);
-    if (g_app.stream_eng) stream_engine_destroy(g_app.stream_eng);
-    if (g_app.north) {
-        northbound_mgr_stop(g_app.north);
-        free(g_app.north);
+
+    // 0. 停止所有定时器和周期性任务，防止 Use-After-Free
+    if (g_timer_load_tasks && !uv_is_closing((uv_handle_t *)g_timer_load_tasks)) {
+        uv_timer_stop(g_timer_load_tasks);
+        uv_close((uv_handle_t *)g_timer_load_tasks, _on_timer_close);
     }
+    if (g_timer_vbus && !uv_is_closing((uv_handle_t *)g_timer_vbus)) {
+        uv_timer_stop(g_timer_vbus);
+        uv_close((uv_handle_t *)g_timer_vbus, NULL);
+    }
+    if (g_timer_internal && !uv_is_closing((uv_handle_t *)g_timer_internal)) {
+        uv_timer_stop(g_timer_internal);
+        uv_close((uv_handle_t *)g_timer_internal, NULL);
+    }
+    if (g_periodic_sched && !uv_is_closing((uv_handle_t *)g_periodic_sched)) {
+        uv_periodic_stop(g_periodic_sched);
+        uv_close((uv_handle_t *)g_periodic_sched, NULL);
+    }
+
+    // 运行一轮以执行 close callbacks
+    uv_run(loop, UV_RUN_NOWAIT);
+
+    // 1. 停止并回收高频采集线程
+    if (g_adc_running) {
+        g_adc_running = false;
+        if (g_adc_sock_fd >= 0) {
+            shutdown(g_adc_sock_fd, SHUT_RDWR);
+        }
+        uv_thread_join(&g_adc_tid);
+    }
+
+    // 2. 停止并回收流处理引擎线程
+    if (g_app.stream_eng) {
+        stream_engine_destroy(g_app.stream_eng);
+        g_app.stream_eng = NULL;
+    }
+
+    // 3. 删除业务容器 (内部同步停止北向线程)
+    if (g_app.svc) {
+        service_delete(g_app.svc);
+        g_app.svc = NULL;
+    }
+
+    // 4. 清理数据库和编排组件
     if (g_app.db_service) sqlite_svc_destroy(g_app.db_service);
     if (g_app.orch) bus_orchestrator_destroy(g_app.orch);
+    if (g_app.arb) arbiter_destroy(g_app.arb);
     if (g_app.drv_mgr) driver_manager_destroy(g_app.drv_mgr);
+
+    // 5. 最后清理 DataHub
     if (g_app.hub) {
         datahub_destroy(g_app.hub);
+        // 给 uv_close 一个机会执行 (虽然 main loop 已停，但内存回收前做一次 drain 是安全的)
+        uv_run(loop, UV_RUN_NOWAIT);
         free(g_app.hub);
+        g_app.hub = NULL;
     }
+
     if (g_app.db_path) free(g_app.db_path);
     curl_global_cleanup();
 
@@ -320,29 +443,53 @@ int main(int argc, char *argv[]) {
 
     arbiter_t *arbiter = NULL;
     arbiter_init(&arbiter, loop);
+    g_app.arb = arbiter;
     g_app.drv_mgr = driver_manager_create();
     modbus_driver_register(g_app.drv_mgr);
 
     const char *shm_name = getenv("EDGE_SHM_NAME") ? getenv("EDGE_SHM_NAME") : EDGE_SHM_BUS_NAME;
     g_app.hub = calloc(1, sizeof(datahub_t));
-    datahub_init(g_app.hub, loop, shm_name, 4096, 1024, g_tag_metadata, g_tag_metadata_len, NULL,
-                 edge_tag_get_compact_index, edge_router_needs_wakeup);
 
-    g_app.orch = bus_orchestrator_create(g_app.hub, arbiter, g_app.drv_mgr, 8, 32, 2048);
+    datahub_wakeup_filter_cb wakeup_fn = NULL;
+    if (edge_router_needs_wakeup != (void *)0) {
+        wakeup_fn = edge_router_needs_wakeup;
+    }
+
+    datahub_init(g_app.hub, loop, shm_name, 4096, 1024, g_tag_metadata, g_tag_metadata_len, NULL,
+                 edge_tag_get_compact_index, wakeup_fn);
+
+    // [Nexus] 增大到 256，防止 Bus 10/200 内存越界踩坏 Arbiter 对象
+    // 同时增大 net_buf 池子到 256，支持高频采样积压
+    g_app.orch = bus_orchestrator_create(g_app.hub, arbiter, g_app.drv_mgr, 256, 256, 2048);
     g_app.hub->io_pool = bus_orchestrator_get_pool(g_app.orch);
     edge_api_init(g_app.orch, g_app.drv_mgr);
 
+    printf("\n[DEBUG] Connectivity Config Table:\n");
     for (int i = 0; i < g_connectivity_configs_len; i++) {
-        const edge_connectivity_t *c = &g_connectivity_configs[i];
-        const driver_contract_injection_t *inj = edge_model_find("ModbusRTU");
-        if (!inj) continue;
+        printf("  - Bus %d: Category=%s, Type=%s, Sim=%s\n", g_connectivity_configs[i].id,
+               g_connectivity_configs[i].category, g_connectivity_configs[i].type,
+               g_connectivity_configs[i].simulation_path);
+    }
 
-        if (strcmp(c->category, "SOUTHBOUND") == 0) {
-            bus_orchestrator_setup_master(g_app.orch, c->id, "ModbusRTU", (uint32_t)c->id, inj);
-            printf("[IEMS-INIT] Bus %d initialized as MASTER (Contract 'ModbusRTU')\n", c->id);
-        } else if (strcmp(c->category, "NORTHBOUND") == 0) {
-            bus_orchestrator_setup_slave(g_app.orch, c->id, "ModbusRTU", (uint32_t)c->id, inj);
-            printf("[IEMS-INIT] Bus %d initialized as SLAVE (Contract 'ModbusRTU')\n", c->id);
+    for (int i = 0; i < g_connectivity_configs_len; i++) {
+        const edge_connectivity_t *conn = &g_connectivity_configs[i];
+        if (strcmp(conn->category, "SOUTHBOUND") == 0) {
+            const driver_contract_injection_t *inj = edge_model_find("ModbusRTU");
+            if (inj) {
+                bus_orchestrator_setup_master(g_app.orch, conn->id, "ModbusRTU", (uint32_t)conn->id,
+                                              inj);
+                printf("[IEMS-INIT] Bus %d initialized with Contract 'ModbusRTU'\n", conn->id);
+            }
+        } else if (strcmp(conn->category, "NORTHBOUND") == 0) {
+            const driver_contract_injection_t *inj = edge_model_find("ModbusRTU");
+            if (inj) {
+                // [Nexus] 北向从站强制使用 ID 1 以对齐上位机模拟器
+                bus_orchestrator_setup_slave(g_app.orch, conn->id, "ModbusRTU", 1, inj);
+                printf(
+                    "\033[35m[IEMS-INIT] Northbound Bus %d initialized as SLAVE (ModbusRTU, "
+                    "ID:1)\033[0m\n",
+                    conn->id);
+            }
         }
     }
 
@@ -353,9 +500,8 @@ int main(int argc, char *argv[]) {
     sqlite_config_t db_conf = {.db_path = g_app.db_path, .strategy = STRATEGY_LITE};
     g_app.db_service = sqlite_svc_create(loop, &db_conf);
 
-    // 4. [Calculus] 计算平面：挂载 Stream Engine 并注入 DataHub 通知
-
-    g_app.stream_eng = stream_engine_create(g_app.hub, loop, g_app.orch);
+    // 4. [Calculus] 计算平面：挂载 Stream Engine (使用内部独立线程处理计算)
+    g_app.stream_eng = stream_engine_create(g_app.hub, NULL, g_app.orch);
 
     pipeline_loader_ctx_t loader_ctx = {
 
@@ -394,18 +540,22 @@ int main(int argc, char *argv[]) {
 
     uv_timer_t *st = malloc(sizeof(uv_timer_t));
     uv_timer_init(loop, st);
+    g_timer_load_tasks = st;
     uv_timer_start(st, iems_load_tasks_timer_cb, 50, 200);
 
     static uv_timer_t vt;
     uv_timer_init(loop, &vt);
+    g_timer_vbus = &vt;
     uv_timer_start(&vt, _try_connect_buses, 100, 1000);
 
     static uv_timer_t it;
     uv_timer_init(loop, &it);
+    g_timer_internal = &it;
     uv_timer_start(&it, _try_connect_internal_buses, 100, 1000);
 
     static uv_periodic_t sched_h;
     uv_periodic_init(loop, &sched_h);
+    g_periodic_sched = &sched_h;
     uv_periodic_set(&sched_h, 0, 100.0, NULL);
     uv_periodic_start(&sched_h, iems_scheduler_tick);
 

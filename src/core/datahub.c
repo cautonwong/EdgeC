@@ -113,6 +113,9 @@ void datahub_destroy(datahub_t *hub) {
 
 int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
     if (!hub || !msg) return -1;
+    if (hub->ring.hdr == NULL) {
+        return -1;
+    }
 
     pipe_msg_t local_msg = *msg;
 
@@ -140,7 +143,7 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
     }
 
     bool needs_wakeup = true;
-    if (hub->wakeup_fn) {
+    if (hub->wakeup_fn != (void *)0) {
         int idx = (hub->map_fn) ? hub->map_fn(local_msg.tag_id) : (int)local_msg.tag_id;
         needs_wakeup = hub->wakeup_fn(idx);
     }
@@ -148,6 +151,7 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
     if (needs_wakeup) {
         uv_mutex_lock(&hub->shadow_lock);
         int l_count = hub->listener_count;
+        if (l_count > 16) l_count = 16;
         uv_async_t *l_copy[16];
         if (l_count > 0) {
             memcpy(l_copy, hub->listeners, sizeof(uv_async_t *) * (size_t)l_count);
@@ -156,7 +160,9 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
 
         for (int i = 0; i < l_count; i++) {
             if (l_copy[i]) {
-                uv_async_send(l_copy[i]);
+                if (!uv_is_closing((uv_handle_t *)l_copy[i])) {
+                    uv_async_send(l_copy[i]);
+                }
             }
         }
         if (hub->legacy_cb) hub->legacy_cb(hub, hub->legacy_user_data);
@@ -166,6 +172,7 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
 }
 int datahub_register_ref(datahub_t *hub, uint32_t tag_id, int fd, size_t len) {
     if (!hub || fd < 0) return -1;
+    if (hub->ring.hdr == NULL) return -1;
 
     // 1. 建立本地映射
     void *ptr = mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);

@@ -35,19 +35,36 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
     slave_priv_t *priv = (slave_priv_t *)user_data;
     net_buf_t *rx = (net_buf_t *)payload;
 
-    if (evt == IO_EVENT_ERROR) return;
+    if (evt == IO_EVENT_ERROR) {
+        printf("\033[31m[IEMS-SLAVE] IO ERROR on Bus %d\033[0m\n", priv->bus_id);
+        return;
+    }
 
     if (evt == IO_EVENT_RX && rx) {
-        // [Debug] 打印原始报文便于诊断
-        printf("\033[35m[IEMS-SLAVE] Received %u bytes on Bus %d\033[0m\n", rx->b.len,
-               priv->bus_id);
+        // [Nexus] 内存空间预检与归位：如果当前缓冲区为空，重置指针到头部
+
+        if (priv->rx_acc->b.len == 0) {
+            net_buf_simple_reset(&priv->rx_acc->b);
+        }
+
+        // [Nexus] 防止脏数据无限积压
+
+        if (priv->rx_acc->b.len > 1024) {
+            LOG_WARN(LOG_CAT_BUS, "Slave Bus %d: Accumulator overflow, clearing buffer",
+                     priv->bus_id);
+
+            net_buf_simple_reset(&priv->rx_acc->b);
+        }
 
         net_buf_append_bytes(priv->rx_acc, rx->b.data, rx->b.len);
+
         net_buf_unref(rx);
+
+        // 尝试解析
 
         while (priv->rx_acc->b.len > 0) {
             bool processed = false;
-            size_t min_incomplete_len = 9999;
+            size_t initial_len = priv->rx_acc->b.len;
 
             for (int i = 0; i < priv->proto_count; i++) {
                 int idx = (i + priv->last_hit_idx) % priv->proto_count;
@@ -63,11 +80,9 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
 
                 if (rc == 0) {
                     if (resp->b.len > 0) {
-                        // [Sprint 6] 显式回发响应
+                        printf("\033[32m[IEMS-SLAVE] Sending Response: %u bytes\033[0m\n",
+                               (uint32_t)resp->b.len);
                         priv->io->ops->write_async(priv->io, resp);
-                        printf(
-                            "\033[35m[IEMS-SLAVE] Replied to Master on Bus %d (%zu bytes)\033[0m\n",
-                            priv->bus_id, resp->b.len);
                     }
                     net_buf_unref(resp);
 
@@ -78,13 +93,11 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
                     priv->last_hit_idx = idx;
                     processed = true;
                     break;
-                } else if (rc == EDGE_ERR_INCOMPLETE) {
-                    net_buf_unref(resp);
-                    if (consumed < min_incomplete_len) min_incomplete_len = consumed;
-                    continue;
                 } else {
                     net_buf_unref(resp);
-                    if (consumed > 0) {
+                    if (rc == EDGE_ERR_INCOMPLETE) {
+                        continue;
+                    } else if (consumed > 0) {
                         net_buf_pull(priv->rx_acc, consumed);
                         processed = true;
                         break;
@@ -92,13 +105,17 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
                 }
             }
 
-            if (processed) continue;
-
-            if (min_incomplete_len == 9999) {
-                net_buf_pull(priv->rx_acc, 1);
-            } else {
+            if (!processed) {
+                // [Nexus Fix] 核心：滑动窗口逻辑
+                // 如果当前长度足够判定为一个完整报文（比如 Modbus 的 8 字节）但仍未匹配
+                // 或者尝试了所有协议都无法识别头部，则弹出 1 字节，防止死锁
+                if (priv->rx_acc->b.len >= 8) {
+                    net_buf_pull(priv->rx_acc, 1);
+                    continue;  // 继续尝试解析下一个字节开头的报文
+                }
                 break;
             }
+            if (priv->rx_acc->b.len >= initial_len) break;
         }
     }
 }
@@ -109,7 +126,13 @@ int engine_slave_add_protocol(bus_engine_t *self, const char *protocol, uint32_t
     if (priv->proto_count >= MAX_SLAVE_PROTOCOLS) return -1;
 
     edge_driver_ctx_t *ctx = driver_instance_create(priv->drv_mgr, protocol, device_id);
-    if (!ctx) return -1;
+    if (!ctx) {
+        printf("\033[31m[SLAVE-INIT] Failed to create driver instance for %s\033[0m\n", protocol);
+        return -1;
+    }
+
+    printf("\033[32m[SLAVE-INIT] Protocol %s added to Bus %d (SlaveID: %u)\033[0m\n", protocol,
+           priv->bus_id, device_id);
 
     ctx->role = PROTOCOL_ROLE_SLAVE;
     ctx->pool = priv->pool;      // [注入] 共享总线池
@@ -155,9 +178,16 @@ static void _slave_detach(bus_engine_t *self) {
     free(self);
 }
 
-bus_engine_t *engine_create_slave(driver_manager_t *mgr, const char *protocol, uint32_t device_id,
-                                  uv_loop_t *loop, arbiter_t *arb, datahub_t *hub,
-                                  net_buf_pool_t *pool, const driver_contract_injection_t *inject) {
+static void _slave_run_command(bus_engine_t *self, cmd_msg_t *cmd) {
+    slave_priv_t *priv = (slave_priv_t *)self->user_data;
+    // Slave 模式目前不通过仲裁器主动发起指令，如果收到，直接报错/忽略
+    arbiter_on_io_done(priv->arb, priv->bus_id, cmd, CMD_STATUS_IO_ERROR);
+}
+
+bus_engine_t *engine_create_slave(driver_manager_t *mgr, int bus_id, const char *protocol,
+                                  uint32_t device_id, uv_loop_t *loop, arbiter_t *arb,
+                                  datahub_t *hub, net_buf_pool_t *pool,
+                                  const driver_contract_injection_t *inject) {
     bus_engine_t *eng = calloc(1, sizeof(bus_engine_t));
     slave_priv_t *priv = calloc(1, sizeof(slave_priv_t));
     priv->loop = loop;
@@ -165,7 +195,7 @@ bus_engine_t *engine_create_slave(driver_manager_t *mgr, const char *protocol, u
     priv->hub = hub;
     priv->pool = pool;
     priv->drv_mgr = mgr;
-    priv->bus_id = (int)device_id;
+    priv->bus_id = bus_id;
     if (inject) priv->inject_data = *inject;
 
     priv->rx_acc = net_buf_alloc(pool, 0);
@@ -174,6 +204,7 @@ bus_engine_t *engine_create_slave(driver_manager_t *mgr, const char *protocol, u
     eng->user_data = priv;
     eng->attach = _slave_attach;
     eng->detach = _slave_detach;
+    eng->run_command = _slave_run_command;
 
     if (protocol && protocol[0] != '\0') {
         engine_slave_add_protocol(eng, protocol, device_id, inject);

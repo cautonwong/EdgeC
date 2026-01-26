@@ -7,6 +7,7 @@
 #include "edge_log.h"
 #include "sqlite_service.h"
 #include "stream_engine.h"
+#include "stream_engine_priv.h"
 
 // --- 1. Filter ---
 static stage_ret_t _filter_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
@@ -275,7 +276,7 @@ static stage_ret_t _sink_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
     work_ctx->sql = strdup(sql_buf);
 
     // Queue the work to run on a background thread
-    uv_queue_work(s->loop, &work_ctx->req, _sink_work_cb, _sink_after_work_cb);
+    uv_queue_work(s->pipeline->engine->loop, &work_ctx->req, _sink_work_cb, _sink_after_work_cb);
 
     // Pause this pipeline until the work is done
     return STAGE_ASYNC;

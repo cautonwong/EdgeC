@@ -192,6 +192,11 @@ static void _on_uv_poll(uv_poll_t *handle, int status, int events) {
         if (impl->pending_tx) {
             ssize_t n = write(impl->fd, impl->pending_tx->b.data, impl->pending_tx->b.len);
             if (n > 0) {
+                // [Nexus Debug]
+                printf("[IO-TX] FD:%d Sent %zd bytes: ", impl->fd, n);
+                for (ssize_t i = 0; i < n; i++) printf("%02X ", impl->pending_tx->b.data[i]);
+                printf("\n");
+
                 net_buf_t *buf = impl->pending_tx;
                 impl->pending_tx = NULL;
                 // 恢复只读监听
@@ -369,7 +374,9 @@ static int _http_ioctl(io_handle_t *h, int cmd, void *arg) {
 
 static void _http_destroy(io_handle_t *h) {
     linux_io_handle_t *impl = (linux_io_handle_t *)h;
-    curl_multi_remove_handle(g_curl_ctx->multi, impl->handle.curl);
+    if (g_curl_ctx && g_curl_ctx->multi) {
+        curl_multi_remove_handle(g_curl_ctx->multi, impl->handle.curl);
+    }
     curl_easy_cleanup(impl->handle.curl);
     if (impl->http_hdrs) curl_slist_free_all(impl->http_hdrs);
     if (impl->http_rx_nb) net_buf_unref(impl->http_rx_nb);
@@ -584,12 +591,23 @@ io_handle_t *io_executor_create_from_fd(uv_loop_t *loop, int fd, net_buf_pool_t 
     if (fd < 0) return NULL;
 
     linux_io_handle_t *impl = calloc(1, sizeof(linux_io_handle_t));
+    if (!impl) return NULL;
 
     impl->fd = fd;
     impl->pool = pool;
     impl->base.ops = &poll_ops;
 
-    uv_poll_init(loop, &impl->handle.poll, fd);
+    int rc = uv_poll_init(loop, &impl->handle.poll, fd);
+
+    if (rc < 0) {
+        LOG_ERROR(LOG_CAT_IO, "io_executor: Failed to init poll handle for FD %d: %s (%d)",
+
+                  fd, uv_strerror(rc), rc);
+
+        free(impl);
+
+        return NULL;
+    }
     impl->handle.poll.data = impl;
 
     return &impl->base;

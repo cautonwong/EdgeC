@@ -56,8 +56,12 @@ static void _pipeline_process(pipeline_t *p, pipe_msg_t *msg) {
         uint64_t start = uv_hrtime();
         stage_ret_t ret = STAGE_OK;
         if (s->process) {
+            // write(2, "STG:", 4);
+            // write(2, s->name, strlen(s->name));
+            // write(2, "\n", 1);
             ret = s->process(s, msg);
         } else {
+            fprintf(stderr, "[STREAM-WARN] Stage %s has NULL process callback!\n", s->name);
             s = s->next;
             continue;
         }
@@ -168,6 +172,8 @@ static pipeline_stage_t *_create_stage_by_type(const edge_stage_def_t *def,
     if (strcmp(def->type, "TIME_GUARD") == 0) return stage_time_guard_create();
     if (strcmp(def->type, "SQLITE_SINK") == 0 && ctx->db)
         return stage_sqlite_sink_create(ctx->db, def->params.s1);
+    if (strcmp(def->type, "sqlite_sink") == 0 && ctx->db)
+        return stage_sqlite_sink_create(ctx->db, def->params.s1);
     if (strcmp(def->type, "JS_RULE") == 0 && ctx->js_engine)
         return stage_js_rule_create(ctx->js_engine, def->params.s1, false);
     if (strcmp(def->type, "REFLEX") == 0 && ctx->orch)
@@ -211,7 +217,6 @@ pipeline_stage_t *pipeline_add_stage(pipeline_t *p, const char *name, stage_proc
                                      void *priv_cfg, stage_cleanup_fn cleanup_cfg) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
     strncpy(s->name, name, 31);
-    s->loop = p->engine->loop;
     s->pipeline = p;
     s->process = proc;
     s->priv_state = priv_state;
@@ -334,6 +339,7 @@ stage_health_t pipeline_stage_get_health(pipeline_stage_t *stage) {
 }
 
 void stream_engine_push(stream_engine_t *engine, pipe_msg_t *msg) {
+    if (!engine || !engine->hub) return;
     uv_mutex_lock(&engine->pipe_mutex);
     struct uv__queue *q;
     uv__queue_foreach(q, &engine->pipelines) {

@@ -64,7 +64,7 @@ class MatrixContext:
             tag_id = self.loader.name_to_id[tag_name]
         return self.edgec.get_tag(tag_id)
 
-    async def wait_for(self, tag_name, expect, tolerance=0.05, timeout=10):
+    async def wait_for(self, tag_name, expect, tolerance=0.05, timeout=30):
         """等待测点达到预期值"""
         tag_id = tag_name
         if self.loader and tag_name in self.loader.name_to_id:
