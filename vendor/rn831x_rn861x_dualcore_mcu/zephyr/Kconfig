@@ -1,2 +1,0 @@
-osource "soc/riscv/renergy_rn8xxx/Kconfig.soc"
-osource "drivers/Kconfig"

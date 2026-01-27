@@ -1,7 +1,0 @@
-add_subdirectory_ifdef(CONFIG_CLOCK_CONTROL_RENERGY clock_control)
-add_subdirectory_ifdef(CONFIG_RESET_RENERGY reset)
-add_subdirectory_ifdef(CONFIG_GPIO_RENERGY gpio)
-add_subdirectory_ifdef(CONFIG_UART_RENERGY serial)
-add_subdirectory_ifdef(CONFIG_IPM_RENERGY ipm)
-add_subdirectory_ifdef(CONFIG_ADC_RENERGY adc)
-add_subdirectory_ifdef(CONFIG_PINCTRL_RENERGY pinctrl)
