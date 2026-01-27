@@ -1,0 +1,76 @@
+# [Omnis] IEMS V5 Product Definition (The Persona)
+product: "IEMS_Controller_V5"
+
+# 1. 语义层继承 (Semantic Inheritance)
+include:
+  - "contracts/schema/domains/power.yaml"
+  - "contracts/schema/domains/signal.yaml"
+  - "contracts/schema/domains/energy.yaml"
+  - "contracts/schema/domains/battery.yaml"
+  - "contracts/schema/domains/policy.yaml"
+  - "contracts/schema/domains/environment.yaml"
+  - "contracts/schema/domains/security.yaml"
+  - "contracts/schema/domains/system.yaml"
+  - "contracts/bindings/modbus/acrel_p80.yaml"
+  - "contracts/bindings/dlt645/standard_meter.yaml"
+  - "contracts/bindings/iec104/substation.yaml"
+  - "contracts/bindings/can/catl_bms.yaml"
+  - "cmd/iems/features/solar_module.yaml"
+
+# 2. 默认行为注入 (Default Behaviors)
+defaults:
+  - match: "traits:metrology"
+    attributes:
+      poll_interval_ms: 1000
+      ui: { group: "Grid_Params" }
+  
+  - match: "traits:billing"
+    attributes:
+      persist: true
+      upload: true
+      poll_interval_ms: 10000
+
+# 3. 行为定制 (Behavioral Overrides)
+tags:
+  - id: 1001 # VOLTAGE_PHASE_A
+    attributes:
+      ui: { group: "Grid_Params", min: 0, max: 500, precision: 1 }
+      northbound: { storage: "trend", push: "periodic" }
+
+  - id: 1003 # GRID_POWER
+    attributes:
+      northbound: { push: "change", threshold: 10 }
+
+  - id: 4001 # BATTERY_SOC
+    attributes:
+      ui: { group: "Battery_Health", min: 0, max: 100, widget: "gauge" }
+      northbound: { storage: "trend", push: "periodic" }
+
+# 4. 核心业务管线 (Core Pipelines)
+pipelines:
+  - id: "energy_manager"
+    trigger: "GRID_POWER"
+    stages:
+      - type: "energy_integrator"
+        config: { state_tag: 3001 }
+      - type: "sqlite_sink"
+        config: { table: "energy_history" }
+
+  - id: "overvoltage_protection"
+    trigger: "ADC_VOLTAGE_RMS"
+    stages:
+      - type: "REFLEX"
+        config:
+          bus_id: 0
+          protocol: "ModbusRTU"
+          target_tag: 8004 # SOLAR_RELAY
+          threshold: 264.0
+          greater_than: true
+          action_value: 0.0 # Open relay
+
+  - id: "dsp_processor"
+    trigger: "ADC_RAW_DATA"
+    stages:
+      - type: "dsp_rms"
+        config:
+          state_tag: 2002 # Output to ADC_VOLTAGE_RMS

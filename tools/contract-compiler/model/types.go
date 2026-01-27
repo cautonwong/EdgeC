@@ -6,6 +6,7 @@ type TagDef struct {
 	Type       string                 `json:"type" yaml:"type"`
 	Unit       string                 `json:"unit" yaml:"unit"`
 	Desc       string                 `json:"desc" yaml:"desc"`
+	Traits     []string               `json:"traits" yaml:"traits"`
 	Attributes map[string]interface{} `json:"attributes" yaml:"attributes"`
 	Bindings   []Binding              `json:"bindings" yaml:"bindings"`
 }
@@ -99,11 +100,18 @@ type UIDef struct {
 	Theme string `json:"theme" yaml:"theme"`
 }
 
+type DefaultRule struct {
+	Match      string                 `yaml:"match"`
+	Attributes map[string]interface{} `yaml:"attributes"`
+}
+
 type ProductConfig struct {
 	ProductName  string             `yaml:"product"`
 	Protocol     string             `yaml:"protocol"`
 	Includes     []string           `yaml:"includes"`
 	Include      []string           `yaml:"include"`
+	Defaults     []DefaultRule      `yaml:"defaults"`
+	Tags         []interface{}      `yaml:"tags"` // For tag overrides
 	EnabledTags  []interface{}      `yaml:"enabled_tags"`
 	DisabledTags []string           `yaml:"disabled_tags"`
 	Configs      []ConfigDef        `yaml:"configs"`

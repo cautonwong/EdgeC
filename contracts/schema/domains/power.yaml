@@ -1,0 +1,29 @@
+tags:
+  # === 电力遥测 (1000-1999) ===
+  - id: 1001
+    name: VOLTAGE_PHASE_A
+    type: float
+    unit: V
+    desc: "A相电压"
+    traits: [ "metrology", "realtime" ]
+
+  - id: 1002
+    name: CURRENT_PHASE_A
+    type: float
+    unit: A
+    desc: "A相电流"
+    traits: [ "metrology", "realtime" ]
+
+  - id: 1003
+    name: GRID_POWER
+    type: float
+    unit: W
+    desc: "电网有功功率"
+    traits: [ "metrology", "realtime" ]
+
+  - id: 1004
+    name: GRID_FREQUENCY
+    type: float
+    unit: Hz
+    desc: "系统频率"
+    traits: [ "metrology", "realtime" ]

@@ -1,0 +1,31 @@
+tags:
+  # === DLMS 安全与管理 (9000-9999) ===
+  - id: 9001
+    name: DLMS_SAP_LIST
+    type: string
+    desc: "DLMS逻辑设备映射列表"
+    traits: [ "config", "complex" ]
+
+  - id: 9002
+    name: DLMS_AUTH_MECHANISM
+    type: int
+    desc: "认证机制"
+    traits: [ "security", "writable" ]
+
+  - id: 9003
+    name: DLMS_SECURITY_POLICY
+    type: int
+    desc: "安全策略"
+    traits: [ "security", "writable" ]
+
+  - id: 9004
+    name: DLMS_SECURITY_SUITE
+    type: int
+    desc: "安全套件"
+    traits: [ "security", "writable" ]
+
+  - id: 9005
+    name: DLMS_REPLY_HLS
+    type: string
+    desc: "HLS认证响应操作"
+    traits: [ "security", "action" ]

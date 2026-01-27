@@ -1,0 +1,27 @@
+tags:
+  # === 环境与项目扩展 (8000-8999) ===
+  - id: 8001
+    name: PROJECT_HUMIDITY
+    type: float
+    unit: "%"
+    desc: "项目现场环境湿度"
+    traits: [ "sensor" ]
+
+  - id: 8003
+    name: SOLAR_VOLTAGE
+    type: float
+    unit: "V"
+    desc: "光伏组串电压"
+    traits: [ "metrology" ]
+
+  - id: 8004
+    name: SOLAR_RELAY
+    type: int
+    desc: "光伏并网继电器"
+    traits: [ "control" ]
+
+  - id: 8002
+    name: PLUG_OVERTEMP
+    type: int
+    desc: "插座过温报警"
+    traits: [ "alarm" ]

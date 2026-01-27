@@ -1,0 +1,15 @@
+tags:
+  # === 信号采集 (2000-2999) ===
+  - id: 2001
+    name: ADC_RAW_DATA
+    type: float
+    unit: "V"
+    desc: "ADC原始采样序列"
+    traits: [ "waveform", "high_freq" ]
+
+  - id: 2002
+    name: ADC_VOLTAGE_RMS
+    type: float
+    unit: "V"
+    desc: "ADC计算出的电压有效值"
+    traits: [ "metrology" ]
