@@ -36,80 +36,90 @@ class MasterRequesterActor:
         self._load_mappings(manifest_path)
 
     def _load_mappings(self, path):
+        print(f"  [Requester] Loading mappings from {path}")
         try:
             with open(path, 'r') as f:
                 data = json.load(f)
                 for tag in data.get("tags", []):
+                    # 记录名字到 ID 的映射，方便调试
+                    tag_id = tag["id"]
                     for b in tag.get("bindings", []):
                         if "MODBUS" in b["protocol"].upper():
                             attr = b["attributes"]
                             addr = attr.get("addr")
                             if addr is not None:
-                                self.tag_mappings[tag["id"]] = addr
-                                self.tag_scalers[tag["id"]] = float(attr.get("scaler", 1.0))
+                                self.tag_mappings[tag_id] = addr
+                                self.tag_scalers[tag_id] = float(attr.get("scaler", 1.0))
+                                print(f"    - Mapped Tag {tag_id} ({tag['name']}) -> Addr {addr}, Scale {self.tag_scalers[tag_id]}")
         except Exception as e:
-            print(f"  [Requester] Error loading mappings: {e}")
+            print(f"  [Requester] Error loading mappings from {path}: {e}")
+            if "tags" not in str(e): # 如果是 JSON 解析错误
+                print(f"  [Requester] Hint: Manifest must be JSON, not YAML.")
 
     def _request_tag(self, conn, tag_id):
         if tag_id not in self.tag_mappings: return
         addr = self.tag_mappings[tag_id]
         
+        # [Nexus Fix] 移除危险的非阻塞 drain，改为设置超时直接发送
+        conn.setblocking(True)
+        conn.settimeout(1.0)
+
         # 构造 Modbus 03 请求
         req = struct.pack(">BBHH", self.slave_id, 0x03, addr, 1)
         req += struct.pack("<H", crc16(req))
         
         try:
             conn.sendall(req)
+            # print(f"  📤 [Requester] Sent request for Tag {tag_id} (Addr {addr})")
             
-            # [Nexus Fix] 更加鲁棒的接收解析
             start_recv = time.time()
             rx_buf = b''
-            while time.time() - start_recv < 2.0:
+            while time.time() - start_recv < 1.0: # [Nexus Fix] 缩短超时，加快轮询效率
                 try:
                     chunk = conn.recv(1024)
                     if not chunk: break
+                    print(f"  📥 [Requester] Received {len(chunk)} bytes: {chunk.hex()}")
                     rx_buf += chunk
                 except socket.timeout:
                     continue
                 
-                # 寻找可能的 Modbus 响应头 [ID, Func, ByteCount]
-                # 响应长度对于 1 个寄存器通常是 7 字节: ID(1)+FC(1)+BC(1)+Data(2)+CRC(2)
-                found_valid_frame = False
+                # 寻找匹配的响应：ID(1) + FC(1) + ByteCount(1) + Data(2) + CRC(2) = 7 bytes
                 while len(rx_buf) >= 7:
                     if rx_buf[0] == self.slave_id and rx_buf[1] == 0x03:
                         byte_count = rx_buf[2]
                         expected_len = 3 + byte_count + 2
                         if len(rx_buf) >= expected_len:
-                            # 提取数据
                             payload = rx_buf[3:3+byte_count]
-                            raw_val = struct.unpack(">H", payload)[0]
-                            actual_val = raw_val * self.tag_scalers.get(tag_id, 1.0)
-                            
-                            self.latest_data[tag_id] = actual_val
-                            print(f"  👁️  [Requester] Observed Tag {tag_id} = {actual_val}")
-                            self._report_to_server(tag_id, actual_val)
-                            
-                            # 移出已处理部分
+                            try:
+                                if len(payload) >= 2:
+                                    raw_val = struct.unpack(">H", payload[:2])[0]
+                                    actual_val = raw_val * self.tag_scalers.get(tag_id, 1.0)
+                                    
+                                    self.latest_data[tag_id] = actual_val
+                                    # print(f"  👁️  [Requester] Observed Tag {tag_id} = {actual_val}")
+                                    self._report_to_server(tag_id, actual_val)
+                                    return # 成功，退出该 Tag 处理
+                            except Exception as pe:
+                                print(f"  ⚠️ [Requester] Parse Error: {pe}")
                             rx_buf = rx_buf[expected_len:]
-                            found_valid_frame = True
-                            break 
-                        else: break # 等待更多数据
+                        else: break # 数据不足
                     else:
-                        rx_buf = rx_buf[1:] # 错位搜索
-                
-                if found_valid_frame:
-                    return # 处理成功，跳出 outer while
+                        rx_buf = rx_buf[1:] # 错位
                 
         except Exception as e:
-            print(f"  ⚠️ [Requester] Error during request: {e}")
+            print(f"  ⚠️ [Requester] Error during request Tag {tag_id}: {e}")
 
     def _report_to_server(self, tag_id, value):
         try:
-            payload = {"dev_id": self.dev_id, "tag": tag_id, "value": value, "role": "supervisor"}
-            # [Nexus Fix] Increase timeout to 1.0s to ensure reporting succeeds under load
-            requests.post(f"{self.server_url}/observer/record", json=payload, timeout=1.0)
-        except:
-            pass
+            # [Nexus Fix] 确保 tag_id 以字符串形式上报，对齐 server.py 的 key 逻辑
+            payload = {"dev_id": self.dev_id, "tag": str(tag_id), "value": value, "role": "supervisor"}
+            resp = requests.post(f"{self.server_url}/observer/record", json=payload, timeout=1.0)
+            if resp.status_code == 200:
+                print(f"  ✅ [Requester] Reported Tag {tag_id} to server.")
+            else:
+                print(f"  ❌ [Requester] Failed to report Tag {tag_id}: HTTP {resp.status_code}")
+        except Exception as e:
+            print(f"  ⚠️ [Requester] Report Error: {e}")
 
     def run(self):
         print(f"🕵️  [Requester {self.dev_id}] Starting Supervisor Loop at {self.socket_path}...")
@@ -123,7 +133,12 @@ class MasterRequesterActor:
                 # [Nexus Fix] 等待总线稳定
                 time.sleep(1.0)
                 
+                loop_count = 0
                 while True:
+                    loop_count += 1
+                    if loop_count % 10 == 0:
+                        print(f"  💓 [Requester] Polling Loop Active (Iteration {loop_count})")
+                    
                     for tid in list(self.tag_mappings.keys()):
                         self._request_tag(conn, tid)
                         time.sleep(0.5) 

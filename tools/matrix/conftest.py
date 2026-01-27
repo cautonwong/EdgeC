@@ -118,6 +118,12 @@ async def matrix(matrix_env, tmp_path):
     # 注入 VBus 路径
     vbus_path = os.environ.get("OMNIS_BUS_0_DEV", "/tmp/vbus0.sock")
     
+    # [Nexus] 清理全局观察者数据，防止测试干扰
+    try:
+        requests.post(f"{base_url}/observer/reset", timeout=1)
+    except:
+        pass
+
     edgec = MatrixEdgeC(bin_path, vbus_path, rest_port, db_path=db_path)
     edgec.bootstrap_environment(loader)
     

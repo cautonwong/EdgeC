@@ -26,11 +26,11 @@
                     "ignoreFailures": true
                 }
             ]
-        },        
+        },
         {
             "name": "(gdb) Launch VPP",
             "type": "cppdbg",
-            "request": "launch",
+            "request": "attach",
             "program": "${workspaceFolder}/build/products/iems/bin/iems",
             "args": [
                 "-m",
@@ -57,7 +57,7 @@
             "name": "(gdb) Launch IEMS",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/iems",
+            "program": "${workspaceFolder}/build/products/iems/bin/iems",
             "args": [
                 "-m",
                 "iems",

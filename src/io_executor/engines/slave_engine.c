@@ -36,11 +36,14 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
     net_buf_t *rx = (net_buf_t *)payload;
 
     if (evt == IO_EVENT_ERROR) {
-        printf("\033[31m[IEMS-SLAVE] IO ERROR on Bus %d\033[0m\n", priv->bus_id);
+        printf("\033[31m[IEMS-SLAVE] IO ERROR on Bus %d: %s\033[0m\n", priv->bus_id, strerror(errno));
         return;
     }
 
     if (evt == IO_EVENT_RX && rx) {
+        // [Nexus Debug] 明确打印接收日志
+        printf("\033[33m[IEMS-SLAVE] Bus %d RX: %u bytes\033[0m\n", priv->bus_id, (uint32_t)rx->b.len);
+
         // [Nexus] 内存空间预检与归位：如果当前缓冲区为空，重置指针到头部
 
         if (priv->rx_acc->b.len == 0) {
@@ -60,63 +63,119 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
 
         net_buf_unref(rx);
 
-        // 尝试解析
+                // 尝试解析
 
-        while (priv->rx_acc->b.len > 0) {
-            bool processed = false;
-            size_t initial_len = priv->rx_acc->b.len;
+                while (priv->rx_acc->b.len > 0) {
 
-            for (int i = 0; i < priv->proto_count; i++) {
-                int idx = (i + priv->last_hit_idx) % priv->proto_count;
-                slave_proto_slot_t *slot = &priv->protocols[idx];
+                    bool processed = false;
 
-                net_buf_t *resp = net_buf_alloc(priv->pool, 0);
-                pipe_msg_t async_msgs[16];
-                int async_count = 0;
-                size_t consumed = 0;
+                    bool any_incomplete = false;
 
-                int rc = slot->ctx->driver->handle_rx(slot->ctx, priv->rx_acc, resp, async_msgs,
-                                                      &async_count, &consumed);
+                    size_t initial_len = priv->rx_acc->b.len;
 
-                if (rc == 0) {
-                    if (resp->b.len > 0) {
-                        printf("\033[32m[IEMS-SLAVE] Sending Response: %u bytes\033[0m\n",
-                               (uint32_t)resp->b.len);
-                        priv->io->ops->write_async(priv->io, resp);
+        
+
+                    for (int i = 0; i < priv->proto_count; i++) {
+
+                        int idx = (i + priv->last_hit_idx) % priv->proto_count;
+
+                        slave_proto_slot_t *slot = &priv->protocols[idx];
+
+        
+
+                        net_buf_t *resp = net_buf_alloc(priv->pool, 0);
+
+                        pipe_msg_t async_msgs[16];
+
+                        int async_count = 0;
+
+                        size_t consumed = 0;
+
+        
+
+                        int rc = slot->ctx->driver->handle_rx(slot->ctx, priv->rx_acc, resp, async_msgs,
+
+                                                              &async_count, &consumed);
+
+        
+
+                        if (rc == 0) {
+
+                            if (resp->b.len > 0) {
+
+                                printf("\033[32m[IEMS-SLAVE] Sending Response: %u bytes\033[0m\n",
+
+                                       (uint32_t)resp->b.len);
+
+                                priv->io->ops->write_async(priv->io, resp);
+
+                            }
+
+                            net_buf_unref(resp);
+
+        
+
+                            for (int j = 0; j < async_count; j++)
+
+                                datahub_publish(priv->hub, &async_msgs[j]);
+
+        
+
+                            if (consumed > 0) net_buf_pull(priv->rx_acc, consumed);
+
+                            priv->last_hit_idx = idx;
+
+                            processed = true;
+
+                            break;
+
+                        } else {
+
+                            net_buf_unref(resp);
+
+                            if (rc == EDGE_ERR_INCOMPLETE) {
+
+                                any_incomplete = true;
+
+                                continue;
+
+                            } else if (consumed > 0) {
+
+                                net_buf_pull(priv->rx_acc, consumed);
+
+                                processed = true;
+
+                                break;
+
+                            }
+
+                        }
+
                     }
-                    net_buf_unref(resp);
 
-                    for (int j = 0; j < async_count; j++)
-                        datahub_publish(priv->hub, &async_msgs[j]);
+        
 
-                    if (consumed > 0) net_buf_pull(priv->rx_acc, consumed);
-                    priv->last_hit_idx = idx;
-                    processed = true;
-                    break;
-                } else {
-                    net_buf_unref(resp);
-                    if (rc == EDGE_ERR_INCOMPLETE) {
-                        continue;
-                    } else if (consumed > 0) {
-                        net_buf_pull(priv->rx_acc, consumed);
-                        processed = true;
-                        break;
+                    if (!processed) {
+
+                        // [Nexus Fix] 更加稳健的滑动窗口：
+
+                        // 如果没有任何协议匹配，且没有任何协议报告“报文未收全”，说明头部确实是垃圾数据
+
+                        if (!any_incomplete && priv->rx_acc->b.len > 0) {
+
+                            net_buf_pull(priv->rx_acc, 1);
+
+                            continue;
+
+                        }
+
+                        break; // 等待更多数据
+
                     }
-                }
-            }
 
-            if (!processed) {
-                // [Nexus Fix] 核心：滑动窗口逻辑
-                // 如果当前长度足够判定为一个完整报文（比如 Modbus 的 8 字节）但仍未匹配
-                // 或者尝试了所有协议都无法识别头部，则弹出 1 字节，防止死锁
-                if (priv->rx_acc->b.len >= 8) {
-                    net_buf_pull(priv->rx_acc, 1);
-                    continue;  // 继续尝试解析下一个字节开头的报文
+                    if (priv->rx_acc->b.len >= initial_len) break;
+
                 }
-                break;
-            }
-            if (priv->rx_acc->b.len >= initial_len) break;
-        }
     }
 }
 

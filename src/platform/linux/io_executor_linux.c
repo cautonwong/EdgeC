@@ -192,23 +192,18 @@ static void _on_uv_poll(uv_poll_t *handle, int status, int events) {
         if (impl->pending_tx) {
             ssize_t n = write(impl->fd, impl->pending_tx->b.data, impl->pending_tx->b.len);
             if (n > 0) {
-                // [Nexus Debug]
-                printf("[IO-TX] FD:%d Sent %zd bytes: ", impl->fd, n);
-                for (ssize_t i = 0; i < n; i++) printf("%02X ", impl->pending_tx->b.data[i]);
-                printf("\n");
-
+                fprintf(stderr, "[IO-TX] FD:%d Sent %zd bytes SUCCESS\n", impl->fd, n);
                 net_buf_t *buf = impl->pending_tx;
                 impl->pending_tx = NULL;
                 // 恢复只读监听
                 uv_poll_start(handle, UV_READABLE, _on_uv_poll);
                 impl->base.cb(&impl->base, IO_EVENT_TX_DONE, NULL, impl->base.user_data);
-                // [关键] 发送完成，释放引用
                 net_buf_unref(buf);
-            } else if (errno != EAGAIN && errno != EINTR) {
+            } else if (n < 0 && errno != EAGAIN && errno != EINTR) {
+                fprintf(stderr, "[IO-TX-ERR] FD:%d Write Failed: %s\n", impl->fd, strerror(errno));
                 impl->base.cb(&impl->base, IO_EVENT_ERROR, NULL, impl->base.user_data);
             }
         } else {
-            // 没有待发数据，退回只读模式
             uv_poll_start(handle, UV_READABLE, _on_uv_poll);
         }
     }

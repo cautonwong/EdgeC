@@ -34,8 +34,9 @@ class MatrixAPIHandler(BaseHTTPRequestHandler):
         elif self.path.startswith("/api/v1/observer/latest/"):
             # Format: /api/v1/observer/latest/SUPERVISOR_01/1001
             parts = self.path.split('/')
-            if len(parts) >= 6:
-                key = f"{parts[4]}:{parts[5]}"
+            if len(parts) >= 7:
+                # [Nexus Fix] 修正索引：0:/, 1:api, 2:v1, 3:observer, 4:latest, 5:dev_id, 6:tag_id
+                key = f"{parts[5]}:{parts[6]}"
                 val = self.observer_data.get(key)
                 self._send_json({"value": val})
             else:
@@ -50,7 +51,7 @@ class MatrixAPIHandler(BaseHTTPRequestHandler):
         content_length = int(self.headers.get('Content-Length', 0))
         post_data = self.rfile.read(content_length)
         try:
-            payload = json.loads(post_data)
+            payload = json.loads(post_data) if post_data else {}
             if self.path == "/api/v1/actor/set":
                 dev_id = payload.get("dev_id")
                 tag = payload.get("tag")
@@ -69,6 +70,10 @@ class MatrixAPIHandler(BaseHTTPRequestHandler):
                 key = f"{dev_id}:{tag_id}"
                 self.observer_data[key] = val
                 print(f"👁️  [Observer] Recorded {key} = {val}")
+                self._send_json({"status": "ok"})
+            elif self.path == "/api/v1/observer/reset":
+                self.observer_data.clear()
+                print(f"🧹 [Observer] Data Cleared.")
                 self._send_json({"status": "ok"})
         except Exception as e:
             self.send_response(500)
