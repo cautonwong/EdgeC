@@ -1,0 +1,15 @@
+tags:
+  # === 电池管理 (4000-4999) ===
+  - id: 4001
+    name: BATTERY_SOC
+    type: float
+    unit: "%"
+    desc: "电池剩余电量"
+    traits: [ "status", "critical" ]
+
+  - id: 4003
+    name: BATTERY_POWER
+    type: float
+    unit: W
+    desc: "电池实时功率"
+    traits: [ "metrology" ]

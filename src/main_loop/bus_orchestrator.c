@@ -79,7 +79,13 @@ static void _on_arbiter_cmd_start(void *user_data) {
         cmd_msg_t *cmd = (cmd_msg_t *)(ctx + 1);
         fprintf(stderr, "[DEBUG][Orchestrator] Dispatching Cmd %s to Engine on Bus %d\n",
                 cmd->req_id, bus_id);
-        eng->run_command(eng, cmd);
+        if (eng->run_command) {
+            eng->run_command(eng, cmd);
+        } else {
+            fprintf(stderr,
+                    "[ERROR][Orchestrator] Engine on Bus %d has no run_command implementation\n",
+                    bus_id);
+        }
     } else {
         fprintf(stderr, "[ERROR][Orchestrator] Cannot dispatch: Bus %d has no engine attached\n",
                 bus_id);
@@ -87,7 +93,12 @@ static void _on_arbiter_cmd_start(void *user_data) {
 }
 
 static void _on_arbiter_cmd_cleanup(cmd_msg_t *cmd) {
-    if (cmd->user_data) free(cmd->user_data);
+    if (!cmd) return;
+    // 指令包装在 actx 之后，通过 user_data 反向定位
+    orch_cmd_ctx_t *actx = (orch_cmd_ctx_t *)cmd->user_data;
+    if (actx) {
+        free(actx);
+    }
 }
 
 int bus_orchestrator_submit_cmd(bus_orchestrator_t *ctx, int bus_id, cmd_msg_t *cmd) {
@@ -103,7 +114,12 @@ int bus_orchestrator_submit_cmd(bus_orchestrator_t *ctx, int bus_id, cmd_msg_t *
     wrapped_cmd->on_cleanup = _on_arbiter_cmd_cleanup;
     wrapped_cmd->user_data = actx;
 
-    return arbiter_submit_cmd(ctx->arb, bus_id, wrapped_cmd);
+    int rc = arbiter_submit_cmd(ctx->arb, bus_id, wrapped_cmd);
+    if (rc != 0) {
+        // [Fix] 如果提交失败（通常是因为系统正在关闭），必须立即清理 actx 以防泄漏
+        free(actx);
+    }
+    return rc;
 }
 
 bus_orchestrator_t *bus_orchestrator_create(datahub_t *hub, arbiter_t *arb, driver_manager_t *mgr,
@@ -113,7 +129,8 @@ bus_orchestrator_t *bus_orchestrator_create(datahub_t *hub, arbiter_t *arb, driv
     ctx->arb = arb;
     ctx->drv_mgr = mgr;
     ctx->loop = hub->loop;
-    ctx->max_buses = max_buses > 0 ? max_buses : 8;
+    // [Nexus] 统一支持到 256 条总线，防止 Matrix 仿真 ID 溢出
+    ctx->max_buses = (max_buses > 0 && max_buses <= 256) ? max_buses : 256;
     ctx->io_handles = calloc((size_t)ctx->max_buses, sizeof(io_handle_t *));
     ctx->engines = calloc((size_t)ctx->max_buses, sizeof(bus_engine_t *));
     net_buf_pool_init(&ctx->pool, (uint16_t)pool_size, (uint16_t)buf_size, 0, NULL, NULL);
@@ -136,12 +153,10 @@ int bus_orchestrator_attach_io(bus_orchestrator_t *ctx, int bus_id, io_handle_t 
 }
 
 int bus_orchestrator_setup_master(bus_orchestrator_t *ctx, int bus_id, const char *protocol,
-
                                   uint32_t device_id, const driver_contract_injection_t *inject) {
     if (!ctx || bus_id >= ctx->max_buses) return -1;
 
-    bus_engine_t *eng = engine_create_master(ctx->drv_mgr, protocol, device_id, ctx->loop,
-
+    bus_engine_t *eng = engine_create_master(ctx->drv_mgr, bus_id, protocol, device_id, ctx->loop,
                                              ctx->arb, ctx->hub, &ctx->pool, inject);
 
     if (!eng) return -1;
@@ -158,12 +173,10 @@ int bus_orchestrator_setup_master(bus_orchestrator_t *ctx, int bus_id, const cha
 }
 
 int bus_orchestrator_setup_slave(bus_orchestrator_t *ctx, int bus_id, const char *protocol,
-
                                  uint32_t device_id, const driver_contract_injection_t *inject) {
     if (!ctx || bus_id >= ctx->max_buses) return -1;
 
-    bus_engine_t *eng = engine_create_slave(ctx->drv_mgr, protocol, device_id, ctx->loop,
-
+    bus_engine_t *eng = engine_create_slave(ctx->drv_mgr, bus_id, protocol, device_id, ctx->loop,
                                             ctx->arb, ctx->hub, &ctx->pool, inject);
 
     if (!eng) return -1;

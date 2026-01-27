@@ -139,10 +139,25 @@ static void _ensure_curl_init(uv_loop_t *loop) {
     g_curl_ctx->loop = loop;
     g_curl_ctx->multi = curl_multi_init();
     uv_timer_init(loop, &g_curl_ctx->timer);
+    g_curl_ctx->timer.data = g_curl_ctx;
     curl_multi_setopt(g_curl_ctx->multi, CURLMOPT_SOCKETFUNCTION, _curl_socket_cb);
     curl_multi_setopt(g_curl_ctx->multi, CURLMOPT_SOCKETDATA, g_curl_ctx);
     curl_multi_setopt(g_curl_ctx->multi, CURLMOPT_TIMERFUNCTION, _curl_timer_cb);
     curl_multi_setopt(g_curl_ctx->multi, CURLMOPT_TIMERDATA, g_curl_ctx);
+}
+
+static void _on_curl_ctx_close(uv_handle_t *handle) {
+    free(handle->data);
+}
+
+void io_executor_cleanup(void) {
+    if (g_curl_ctx) {
+        uv_timer_stop(&g_curl_ctx->timer);
+        curl_multi_cleanup(g_curl_ctx->multi);
+        g_curl_ctx->multi = NULL;
+        uv_close((uv_handle_t *)&g_curl_ctx->timer, _on_curl_ctx_close);
+        g_curl_ctx = NULL;
+    }
 }
 
 /* --- 1. 基于 Poll (FD) 的通用处理 (UART, CAN, UDS) --- */
@@ -177,18 +192,18 @@ static void _on_uv_poll(uv_poll_t *handle, int status, int events) {
         if (impl->pending_tx) {
             ssize_t n = write(impl->fd, impl->pending_tx->b.data, impl->pending_tx->b.len);
             if (n > 0) {
+                fprintf(stderr, "[IO-TX] FD:%d Sent %zd bytes SUCCESS\n", impl->fd, n);
                 net_buf_t *buf = impl->pending_tx;
                 impl->pending_tx = NULL;
                 // 恢复只读监听
                 uv_poll_start(handle, UV_READABLE, _on_uv_poll);
                 impl->base.cb(&impl->base, IO_EVENT_TX_DONE, NULL, impl->base.user_data);
-                // [关键] 发送完成，释放引用
                 net_buf_unref(buf);
-            } else if (errno != EAGAIN && errno != EINTR) {
+            } else if (n < 0 && errno != EAGAIN && errno != EINTR) {
+                fprintf(stderr, "[IO-TX-ERR] FD:%d Write Failed: %s\n", impl->fd, strerror(errno));
                 impl->base.cb(&impl->base, IO_EVENT_ERROR, NULL, impl->base.user_data);
             }
         } else {
-            // 没有待发数据，退回只读模式
             uv_poll_start(handle, UV_READABLE, _on_uv_poll);
         }
     }
@@ -354,7 +369,9 @@ static int _http_ioctl(io_handle_t *h, int cmd, void *arg) {
 
 static void _http_destroy(io_handle_t *h) {
     linux_io_handle_t *impl = (linux_io_handle_t *)h;
-    curl_multi_remove_handle(g_curl_ctx->multi, impl->handle.curl);
+    if (g_curl_ctx && g_curl_ctx->multi) {
+        curl_multi_remove_handle(g_curl_ctx->multi, impl->handle.curl);
+    }
     curl_easy_cleanup(impl->handle.curl);
     if (impl->http_hdrs) curl_slist_free_all(impl->http_hdrs);
     if (impl->http_rx_nb) net_buf_unref(impl->http_rx_nb);
@@ -569,12 +586,23 @@ io_handle_t *io_executor_create_from_fd(uv_loop_t *loop, int fd, net_buf_pool_t 
     if (fd < 0) return NULL;
 
     linux_io_handle_t *impl = calloc(1, sizeof(linux_io_handle_t));
+    if (!impl) return NULL;
 
     impl->fd = fd;
     impl->pool = pool;
     impl->base.ops = &poll_ops;
 
-    uv_poll_init(loop, &impl->handle.poll, fd);
+    int rc = uv_poll_init(loop, &impl->handle.poll, fd);
+
+    if (rc < 0) {
+        LOG_ERROR(LOG_CAT_IO, "io_executor: Failed to init poll handle for FD %d: %s (%d)",
+
+                  fd, uv_strerror(rc), rc);
+
+        free(impl);
+
+        return NULL;
+    }
     impl->handle.poll.data = impl;
 
     return &impl->base;

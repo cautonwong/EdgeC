@@ -233,6 +233,7 @@ func main() {
 		render("fuzz", filepath.Join(*out, "test_fuzz_params.c"), "templates/test_fuzz_params.tmpl", ctx, fm)
 		render("router", filepath.Join(*out, "edge_router_table.c"), "templates/edge_router_table.tmpl", ctx, fm)
 		render("manifest", filepath.Join(*out, "omnis_manifest.json"), "templates/omnis_manifest.tmpl", ctx, fm)
+		render("sql", filepath.Join(*out, "init.sql"), "templates/sql_ddl.tmpl", ctx, fm)
 		
 		shadowJSON, _ := json.MarshalIndent(contract, "", "  ")
 		os.WriteFile(filepath.Join(*out, "shadow_schema.json"), shadowJSON, 0644)

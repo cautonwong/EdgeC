@@ -88,7 +88,8 @@ int dlms_decode_variant(dlms_decoder_t *dec, dlms_variant_t *out);
 int dlms_decode_to_double(dlms_decoder_t *dec, uint8_t expected_type, double *out_val);
 
 /* --- Security APIs --- */
-int dlms_security_apply(net_buf_t *apdu, dlms_security_level_t level, uint32_t ic);
-int dlms_security_remove(net_buf_t *apdu, dlms_security_level_t *out_level);
+int dlms_security_apply(net_buf_t *apdu, dlms_security_level_t level, uint32_t ic,
+                        const uint8_t *key);
+int dlms_security_remove(net_buf_t *apdu, dlms_security_level_t *out_level, const uint8_t *key);
 
 #endif

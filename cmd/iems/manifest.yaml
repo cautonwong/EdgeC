@@ -1,7 +1,6 @@
-# [Omnis] IEMS 产品清单 (Standard Assembler V5.0)
+# [Omnis] IEMS Deployment Manifest (Site Specific)
 # ------------------------------------------------------------------------------
-
-product: "IEMS_Controller_V4"
+# 这是一个纯部署清单。核心业务逻辑请参考 contracts/products/iems_v5.yaml
 
 # 1. 物理/逻辑通道定义 (The Channels - OS 层资源)
 connectivity:
@@ -25,49 +24,11 @@ devices:
     bus_id: 0
     protocol: "ModbusRTU"
     address: 1
-    model: "Acrel_P80" # 关联 contracts/bindings/modbus/acrel_p80.yaml
+    model: "Acrel_P80" 
 
-# 3. 乐高拼装：包含原子点表模板
-include:
-  - "contracts/bindings/modbus/acrel_p80.yaml"
-  - "contracts/bindings/dlt645/standard_meter.yaml"
-  - "contracts/bindings/can/catl_bms.yaml"
-  - "cmd/iems/features/solar_module.yaml"
-
-# 4. 运行期测点策略
-enabled_tags:
-  - tag: GRID_POWER
-    attributes: { poll_interval_ms: 500 }
-  - tag: VOLTAGE_PHASE_A
-    attributes: { poll_interval_ms: 500 }
-  - tag: ADC_RAW_DATA
-  - tag: ADC_VOLTAGE_RMS
-
-# 5. 数据管线
-pipelines:
-  - id: "energy_manager"
-    trigger: "GRID_POWER"
-    stages:
-      - type: "energy_integrator"
-        config: { state_tag: 3001 }
-      - type: "sqlite_sink"
-        config: { table: "energy_history" }
-
-  - id: "overvoltage_protection"
-    trigger: "ADC_VOLTAGE_RMS"
-    stages:
-      - type: "REFLEX"
-        config:
-          bus_id: 0
-          protocol: "ModbusRTU"
-          target_tag: 8004 # SOLAR_RELAY
-          threshold: 264.0
-          greater_than: true
-          action_value: 0.0 # Open relay
-
-  - id: "dsp_processor"
-    trigger: "ADC_RAW_DATA"
-    stages:
-      - type: "dsp_rms"
-        config:
-          state_tag: 2002 # Output to ADC_VOLTAGE_RMS
+# 3. 现场微调 (Site Overrides)
+# 仅在此处修改特定于该站点的参数，例如过压保护阈值
+tags:
+  - id: 5003 # IEMS_GRID_LIMIT_W
+    attributes:
+      default: 6000.0 # 现场变压器容量限制

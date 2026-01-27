@@ -1,0 +1,34 @@
+menuconfig CLOCK_CONTROL_RENERGY
+	bool "Renergy RN8xxx Clock Control"
+	default y if SOC_FAMILY_RENERGY
+	depends on CLOCK_CONTROL
+	select RENERGY_USE_FULL_LL_DRIVER
+
+config RESET_RENERGY
+	bool "Renergy RN8xxx Reset Control"
+	default y if SOC_FAMILY_RENERGY
+	depends on RESET
+
+config GPIO_RENERGY
+	bool "Renergy RN8xxx GPIO"
+	default y if SOC_FAMILY_RENERGY
+	depends on GPIO
+
+config UART_RENERGY
+	bool "Renergy RN8xxx UART"
+	default y if SOC_FAMILY_RENERGY
+	depends on SERIAL
+
+config IPM_RENERGY
+	bool "Renergy RN8xxx IPM (Mailbox)"
+	default y if SOC_FAMILY_RENERGY
+	depends on IPM
+
+config ADC_RENERGY
+	bool "Renergy RN8xxx ADC"
+	default y if SOC_FAMILY_RENERGY
+	depends on ADC
+
+config RENERGY_USE_FULL_LL_DRIVER
+	bool
+	default y if SOC_FAMILY_RENERGY

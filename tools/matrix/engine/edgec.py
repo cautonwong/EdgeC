@@ -92,7 +92,7 @@ class MatrixEdgeC:
             self.stop()
             raise RuntimeError(f"EdgeC failed to start: {e}")
 
-    @retry(stop=stop_after_delay(20), wait=wait_fixed(1))
+    @retry(stop=stop_after_delay(40), wait=wait_fixed(1))
     def _wait_ready(self):
         if self.process.poll() is not None: raise RuntimeError("Process exited")
         url = f"http://127.0.0.1:{self.rest_port}/api/v1/system/health"

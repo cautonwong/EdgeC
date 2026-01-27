@@ -83,6 +83,7 @@ typedef struct {
 } io_config_t;
 
 io_handle_t *io_executor_create(uv_loop_t *loop, const io_config_t *cfg, net_buf_pool_t *pool);
+void io_executor_cleanup(void);
 io_handle_t *io_executor_create_from_fd(uv_loop_t *loop, int fd, net_buf_pool_t *pool);
 void io_executor_http_request(uv_loop_t *loop, const char *url, const char *method);
 

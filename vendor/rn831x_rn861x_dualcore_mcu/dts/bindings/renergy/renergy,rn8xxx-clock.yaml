@@ -1,0 +1,10 @@
+description: Renergy RN8xxx Clock Control (SCU)
+compatible: "renergy,rn8xxx-clock"
+include: [clock-control.yaml, base.yaml]
+properties:
+    reg:
+      required: true
+    label:
+      required: true
+    "#clock-cells":
+      const: 1

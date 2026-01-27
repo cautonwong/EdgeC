@@ -67,14 +67,17 @@ typedef struct {
     struct bus_orchestrator_s *orch; /**< [新增] 用于指令触发 (Sprint 3) */
 } pipeline_loader_ctx_t;
 
-stream_engine_t *stream_engine_create(datahub_t *hub, engine_time_source_t *time_src);
+stream_engine_t *stream_engine_create(datahub_t *hub, uv_loop_t *loop,
+                                      struct bus_orchestrator_s *orch);
 
 /**
  * @brief 在指定 Loop 上创建流引擎 (用于物理隔离 L2 线程)
  */
 stream_engine_t *stream_engine_create_ex(datahub_t *hub, uv_loop_t *loop,
-                                         engine_time_source_t *time_src);
+                                         struct bus_orchestrator_s *orch);
 void stream_engine_destroy(stream_engine_t *engine);
+
+void stream_engine_start(stream_engine_t *engine);
 
 pipeline_t *stream_engine_add_pipeline(stream_engine_t *engine, const char *id,
                                        uint32_t trigger_tag);

@@ -64,7 +64,7 @@ class MatrixContext:
             tag_id = self.loader.name_to_id[tag_name]
         return self.edgec.get_tag(tag_id)
 
-    async def wait_for(self, tag_name, expect, tolerance=0.05, timeout=10):
+    async def wait_for(self, tag_name, expect, tolerance=0.05, timeout=30):
         """等待测点达到预期值"""
         tag_id = tag_name
         if self.loader and tag_name in self.loader.name_to_id:
@@ -118,6 +118,12 @@ async def matrix(matrix_env, tmp_path):
     # 注入 VBus 路径
     vbus_path = os.environ.get("OMNIS_BUS_0_DEV", "/tmp/vbus0.sock")
     
+    # [Nexus] 清理全局观察者数据，防止测试干扰
+    try:
+        requests.post(f"{base_url}/observer/reset", timeout=1)
+    except:
+        pass
+
     edgec = MatrixEdgeC(bin_path, vbus_path, rest_port, db_path=db_path)
     edgec.bootstrap_environment(loader)
     

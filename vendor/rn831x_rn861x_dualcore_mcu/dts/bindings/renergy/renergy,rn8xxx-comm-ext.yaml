@@ -1,0 +1,26 @@
+description: Renergy RN8xxx QSPI controller
+compatible: "renergy,rn8xxx-qspi"
+include: [base.yaml]
+properties:
+    reg:
+      required: true
+    interrupts:
+      required: true
+---
+description: Renergy RN8xxx CAN controller
+compatible: "renergy,rn8xxx-can"
+include: [can-controller.yaml, base.yaml]
+properties:
+    reg:
+      required: true
+    interrupts:
+      required: true
+---
+description: Renergy RN8xxx ISO7816 Smart Card interface
+compatible: "renergy,rn8xxx-iso7816"
+include: [base.yaml]
+properties:
+    reg:
+      required: true
+    interrupts:
+      required: true

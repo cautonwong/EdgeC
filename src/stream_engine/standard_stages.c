@@ -7,6 +7,7 @@
 #include "edge_log.h"
 #include "sqlite_service.h"
 #include "stream_engine.h"
+#include "stream_engine_priv.h"
 
 // --- 1. Filter ---
 static stage_ret_t _filter_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
@@ -275,7 +276,7 @@ static stage_ret_t _sink_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
     work_ctx->sql = strdup(sql_buf);
 
     // Queue the work to run on a background thread
-    uv_queue_work(s->loop, &work_ctx->req, _sink_work_cb, _sink_after_work_cb);
+    uv_queue_work(s->pipeline->engine->loop, &work_ctx->req, _sink_work_cb, _sink_after_work_cb);
 
     // Pause this pipeline until the work is done
     return STAGE_ASYNC;
@@ -343,14 +344,25 @@ static stage_ret_t _reflex_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
 
     if (triggered) {
         LOG_WARN(LOG_CAT_BUS, "Reflex: Threshold hit! Triggering Tag %u on Bus %d [%s]",
-                 c->target_tag, c->bus_id, c->proto);
+
+                 c->target_tag, (int)c->bus_id, c->proto);
+
+        // [Fix] 回归栈分配。Orchestrator 内部会执行 malloc + 拷贝，
+
+        // 外部不需要申请堆内存，否则会导致第一级指针泄漏。
 
         cmd_msg_t cmd = {0};
+
         cmd.action = CMD_ACTION_WRITE;
+
         cmd.tag_id = c->target_tag;
+
         cmd.value = c->action_value;
+
         cmd.priority = ARBITER_PRIO_HIGH;
+
         strncpy(cmd.protocol, c->proto, 15);
+
         snprintf(cmd.req_id, sizeof(cmd.req_id), "REFLEX_%u", c->target_tag);
 
         bus_orchestrator_submit_cmd(c->orch, (int)c->bus_id, &cmd);

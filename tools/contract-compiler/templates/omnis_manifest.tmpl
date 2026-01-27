@@ -53,7 +53,7 @@
         {
           "name": "{{ index $stage "name" | default "stage" }}",
           "type": "{{ index $stage "type" }}",
-          "config": {{ $stage | marshal }}
+          "config": {{ index $stage "config" | marshal }}
         }{{ if lt $j (sub (len $pipe.Stages) 1) }},{{ end }}
         {{- end }}
       ]

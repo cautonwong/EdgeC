@@ -104,7 +104,7 @@ static void _master_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *u
 static void _master_run_command(bus_engine_t *self, cmd_msg_t *cmd) {
     master_priv_t *priv = (master_priv_t *)self->user_data;
     if (!priv || !priv->io || !cmd->req) {
-        arbiter_on_io_done(priv->arb, 0, cmd, CMD_STATUS_IO_ERROR);
+        arbiter_on_io_done(priv->arb, priv->bus_id, cmd, CMD_STATUS_IO_ERROR);
         return;
     }
     priv->current_cmd = cmd;
@@ -162,20 +162,21 @@ static void _master_detach(bus_engine_t *self) {
     free(self);
 }
 
-bus_engine_t *engine_create_master(driver_manager_t *mgr, const char *protocol, uint32_t device_id,
-                                   uv_loop_t *loop, arbiter_t *arb, datahub_t *hub,
-                                   net_buf_pool_t *pool,
+bus_engine_t *engine_create_master(driver_manager_t *mgr, int bus_id, const char *protocol,
+                                   uint32_t device_id, uv_loop_t *loop, arbiter_t *arb,
+                                   datahub_t *hub, net_buf_pool_t *pool,
                                    const driver_contract_injection_t *inject) {
     (void)mgr;
     (void)protocol;
     (void)hub;
     (void)inject;
+    (void)device_id;
     bus_engine_t *eng = calloc(1, sizeof(bus_engine_t));
     master_priv_t *priv = calloc(1, sizeof(master_priv_t));
     priv->loop = loop;
     priv->arb = arb;
     priv->pool = pool;
-    priv->bus_id = (int)device_id;
+    priv->bus_id = bus_id;
     priv->rx_acc.data = priv->rx_static_data;
     priv->rx_acc.__buf = priv->rx_static_data;
     priv->rx_acc.size = 4096;

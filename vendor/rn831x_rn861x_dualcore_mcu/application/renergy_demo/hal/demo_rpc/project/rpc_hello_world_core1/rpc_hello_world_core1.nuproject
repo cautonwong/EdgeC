@@ -1,0 +1,17 @@
+SDK_CONFIG: 
+   Debug: 
+      core: N300
+      extra_asmflags: 
+      archext: 
+      extra_cxxflags: 
+      cmodel: medlow
+      extra_commonflags: -DCORE1 -DUSE_FULL_LL_DRIVER
+      abi: ilp32
+      arch: rv32imac
+      toolchain: gnu
+      extra_cflags: 
+      extra_ldflags: -Wl,--check-sections -Wl,--no-warn-rwx-segments  -u errno
+NPK_PACKS: 
+-  owner: nuclei
+   name: sdk-nuclei_sdk
+   version: 0.8.1

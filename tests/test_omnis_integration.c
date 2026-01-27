@@ -46,7 +46,7 @@ static int setup(void **state) {
                  NULL);
     arbiter_init(&ctx->arb, &ctx->loop);
     ctx->orch = bus_orchestrator_create(&ctx->hub, ctx->arb, NULL, 8, 16, 256);
-    ctx->engine = stream_engine_create(&ctx->hub, NULL);
+    ctx->engine = stream_engine_create(&ctx->hub, uv_default_loop(), NULL);
 
     uv_timer_init(&ctx->loop, &ctx->timeout);
     ctx->timeout.data = ctx;
@@ -80,28 +80,19 @@ static int teardown(void **state) {
     uv_timer_stop(&ctx->timeout);
 
     // 1. 业务销毁
-
-    stream_engine_destroy(ctx->engine);
-
+    if (ctx->engine) stream_engine_destroy(ctx->engine);
     bus_orchestrator_destroy(ctx->orch);
-
     arbiter_destroy(ctx->arb);
-
     datahub_destroy(&ctx->hub);
-
     net_buf_pool_destroy(&ctx->pool);
 
     // 2. 彻底排空 Loop
-
     uv_walk(&ctx->loop, on_force_close, NULL);
-
     while (uv_run(&ctx->loop, UV_RUN_ONCE))
         ;
-
     uv_loop_close(&ctx->loop);
 
     free(ctx);
-
     return 0;
 }
 
@@ -113,7 +104,15 @@ static void test_omnis_basic_assembly(void **state) {
     pipe_msg_init_scalar(&msg, 1001, 265.0, uv_now(&ctx->loop));
     stream_engine_push(ctx->engine, &msg);
 
-    uv_run(&ctx->loop, UV_RUN_NOWAIT);
+    // [Fix] 显式运行几轮 Loop，给异步 Reflex 算子处理并释放堆内存的时间
+    for (int i = 0; i < 5; i++) {
+        uv_run(&ctx->loop, UV_RUN_NOWAIT);
+        usleep(10000);
+    }
+
+    // [New Fix] 在测试函数结束前销毁引擎，确保计算线程停止
+    stream_engine_destroy(ctx->engine);
+    ctx->engine = NULL;
 }
 
 int main(void) {

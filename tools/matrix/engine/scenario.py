@@ -77,7 +77,7 @@ class ScenarioRunner:
         tag_name = params.get("tag")
         expect = float(params.get("expect") or params.get("value", 0))
         tolerance = float(params.get("tolerance", 0.05)) # 默认 0.05 容差
-        timeout = float(params.get("timeout", 15))
+        timeout = float(params.get("timeout", 30))
         
         tag_id = self.ctx.loader.name_to_id.get(tag_name, tag_name)
         

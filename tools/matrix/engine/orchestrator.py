@@ -80,18 +80,24 @@ class MatrixOrchestrator:
                         try:
                             data = s.recv(4096)
                             if data:
-                                # [Debug Log] 打印转发详情
-                                # hex_data = data.hex(' ').upper()
-                                # print(f"  [Relay] Bus {bus_id}: FD {s.fileno()} -> {len(data)} bytes")
+                                # [Nexus] Debug log to confirm data is flowing through the relay
+                                hex_data = " ".join(f"{b:02X}" for b in data)
+                                print(f"  [Relay] Bus {bus_id}: Forwarding {len(data)} bytes from FD {s.fileno()}: {hex_data}")
                                 
-                                for c in clients:
+                                for c in list(clients): # Use list() to iterate safely
                                     if c is not s:
                                         try:
-                                            c.sendall(data)
-                                        except:
+                                            # [Nexus Fix] 改为非阻塞发送，防止 Relay 线程卡死
+                                            c.send(data)
+                                        except (BlockingIOError, InterruptedError):
+                                            pass 
+                                        except Exception as e:
+                                            print(f"  [Relay] Send failed to FD {c.fileno()}: {e}")
                                             if c in clients: clients.remove(c)
+                                            try: c.close()
+                                            except: pass
                             else:
-                                print(f"  [Relay] Bus {bus_id}: FD {s.fileno()} closed.")
+                                print(f"  [Relay] Bus {bus_id}: FD {s.fileno()} closed (EOF).")
                                 if s in clients: clients.remove(s)
                                 s.close()
                         except Exception as e:
@@ -102,34 +108,57 @@ class MatrixOrchestrator:
 
     def _launch_actor(self, sock_path, dev_info):
         sim_cfg = dev_info.get("simulation") or {}
-        actor_type = sim_cfg.get("actor", "modbus_actor")
+        actor_type = sim_cfg.get("actor", "modbus")
         slave_id = dev_info.get("address") or 1
         init_data = sim_cfg.get("init", {})
         
-        # 名字兼容性处理
-        actor_name = actor_type.split('_')[0].lower()
+        # 名字归一化：支持 modbus, modbus_actor, supervisor 等
+        raw_name = actor_type.replace('_actor', '').lower()
+        if raw_name == "supervisor":
+            actor_name = "master_requester"
+        else:
+            actor_name = raw_name
+        
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         actor_script = os.path.join(base_dir, "actors", f"{actor_name}.py")
-        print(f"    🔍 Checking Actor Script: {actor_script}")
+        
+        if not os.path.exists(actor_script):
+            # 尝试回退到 modbus.py (通用从站模拟器)
+            actor_script = os.path.join(base_dir, "actors", "modbus.py")
+
+        print(f"    🚀 [Orch] Launching {actor_name} script: {actor_script}")
         
         if os.path.exists(actor_script):
             env = os.environ.copy()
             env["MATRIX_INIT_DATA"] = json.dumps(init_data)
-            # 使用 sys.executable 确保与 Server 使用相同的 Python 解释器 (.venv)
+            
+            # 构造基础参数
+            cmd_args = [sys.executable, "-u", actor_script, "--socket", sock_path, "--id", str(slave_id), 
+                        "--dev_id", dev_info["id"], "--manifest", self.loader.manifest_path]
+            
+            # 如果是请求者模式，额外加上 server url 供其上报观测值
+            if actor_name == "master_requester":
+                # [Nexus Fix] 仅传入 Base URL，由 Actor 内部拼接完整的 API 路径
+                server_url = f"http://localhost:50051"
+                cmd_args.extend(["--server", server_url])
+
+            print(f"    [Orch] CMD: {' '.join(cmd_args)}")
             proc = subprocess.Popen(
-                [sys.executable, actor_script, "--socket", sock_path, "--id", str(slave_id), 
-                 "--dev_id", dev_info["id"], "--manifest", self.loader.manifest_path],
-                env=env, stdout=sys.stdout, stderr=sys.stderr, cwd=os.getcwd()
+                cmd_args, env=env, stdout=sys.stdout, stderr=sys.stderr, cwd=os.getcwd()
             )
             self.active_simulators.append(proc)
-            print(f"    🚀 [Actor] {actor_name} (ID:{slave_id}) attached to Bus at {sock_path}")
+            print(f"    ✅ [Actor] {actor_name} (ID:{slave_id}) attached to Bus at {sock_path}")
 
     def _launch_adc_simulator(self, sock_path):
         """启动高频采样模拟器"""
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         sim_script = os.path.join(base_dir, "simulators", "adc_simulator.py")
         if os.path.exists(sim_script):
-            proc = subprocess.Popen(["python3", sim_script, "--socket", sock_path])
+            # [Nexus Fix] 使用 sys.executable 以确保使用 .venv 中的 numpy 等依赖
+            proc = subprocess.Popen(
+                [sys.executable, "-u", sim_script, "--socket", sock_path],
+                stdout=sys.stdout, stderr=sys.stderr, cwd=os.getcwd()
+            )
             self.active_simulators.append(proc)
             print(f"    🚀 [Sim] ADC Waveform Generator launched at {sock_path}")
 

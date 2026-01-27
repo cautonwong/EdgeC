@@ -1,0 +1,45 @@
+description: Renergy RN8xxx GPIO Node
+compatible: "renergy,rn8xxx-gpio"
+include: [gpio-controller.yaml, base.yaml]
+properties:
+    reg:
+      required: true
+    interrupts:
+      required: true
+    gpio-controller:
+      required: true
+    "#gpio-cells":
+      const: 2
+    ngpios:
+      required: true
+      type: int
+      description: Number of pins on this port (usually 16)
+---
+description: Renergy RN8xxx SPI Controller
+compatible: "renergy,rn8xxx-spi"
+include: [spi-controller.yaml, base.yaml]
+properties:
+    reg:
+      required: true
+    interrupts:
+      required: true
+---
+description: Renergy RN8xxx I2C Controller
+compatible: "renergy,rn8xxx-i2c"
+include: [i2c-controller.yaml, base.yaml]
+properties:
+    reg:
+      required: true
+    interrupts:
+      required: true
+---
+description: Renergy RN8xxx ADC Controller
+compatible: "renergy,rn8xxx-adc"
+include: [adc-controller.yaml, base.yaml]
+properties:
+    reg:
+      required: true
+    interrupts:
+      required: true
+    "#adc-cells":
+      const: 1

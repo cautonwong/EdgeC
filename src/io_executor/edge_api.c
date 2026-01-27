@@ -34,6 +34,10 @@ int edge_api_read_tag(int bus_id, const char *protocol, uint32_t slave_id, uint3
         return -1;
     }
 
+    // [Nexus Debug]
+    printf("[API-POLL] Submitting Read for Tag %u on Bus %d (Proto: %s)\n", physical_tag_id, bus_id,
+           protocol);
+
     edge_req_t *req = req_legacy_driver_create(g_drv_mgr, protocol, slave_id, CMD_ACTION_READ,
                                                physical_tag_id, 0.0, (void *)inject->lookup_by_tag,
                                                (void *)inject->lookup_by_key, cb);

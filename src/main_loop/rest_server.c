@@ -101,8 +101,8 @@ static char *handle_system_stats(service_t *svc) {
     // 2. Arbiter
     arbiter_t *arb = service_get_arbiter(svc);
     if (arb) {
-        arbiter_bus_status_t bus_stats[BUS_MAX];
-        int count = arbiter_get_statuses(arb, bus_stats, BUS_MAX);
+        arbiter_bus_status_t bus_stats[32];  // 限制上报点位数量，防止栈溢出
+        int count = arbiter_get_statuses(arb, bus_stats, 32);
         cJSON *bus_arr = cJSON_AddArrayToObject(root, "buses");
         for (int i = 0; i < count; i++) {
             cJSON *b = cJSON_CreateObject();

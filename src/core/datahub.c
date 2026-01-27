@@ -55,6 +55,12 @@ int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slo
 
     if (shmring_create(&hub->ring, name, slots) != 0) return -1;
 
+    // [Defense] 防止传入的弱符号地址为 NULL (未正确链接路由表)
+    datahub_wakeup_filter_cb actual_wakeup = NULL;
+    if (wakeup_fn != (void *)0) {
+        actual_wakeup = wakeup_fn;
+    }
+
     if (shadow_capacity > 0) {
         size_t size = shadow_capacity * sizeof(pipe_msg_t);
         int fd = (int)syscall(SYS_memfd_create, "shadow_table", 0x0001U | 0x0002U);
@@ -69,7 +75,7 @@ int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slo
     }
 
     return _datahub_post_init(hub, loop, shadow_capacity, metadata, metadata_len, io_pool, map_fn,
-                              wakeup_fn);
+                              actual_wakeup);
 }
 
 int datahub_init_from_fd(datahub_t *hub, uv_loop_t *loop, int ring_fd, size_t ring_size,
@@ -107,14 +113,11 @@ void datahub_destroy(datahub_t *hub) {
 
 int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
     if (!hub || !msg) return -1;
-
-    // printf("[DH-PUBLISH] Tag: %u, Type: %u\n", msg->tag_id, msg->type);
+    if (hub->ring.hdr == NULL) {
+        return -1;
+    }
 
     pipe_msg_t local_msg = *msg;
-
-    if (local_msg.type == PIPEMSG_TYPE_REF) {
-        printf("\033[35m[DH-DEBUG] Publishing TYPE_REF Tag %u\033[0m\n", local_msg.tag_id);
-    }
 
     // Phase 4: 如果是引用类型，尝试校准本地指针 (针对同进程内转发)
     if (local_msg.type == PIPEMSG_TYPE_REF) {
@@ -130,41 +133,36 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
     shm_ring_write(&hub->ring, &local_msg);
 
     if (hub->shadow_table) {
-        int idx = hub->map_fn ? hub->map_fn(local_msg.tag_id) : (int)local_msg.tag_id;
+        int idx = (hub->map_fn) ? hub->map_fn(local_msg.tag_id) : (int)local_msg.tag_id;
 
         if (idx >= 0 && (uint32_t)idx < hub->shadow_capacity) {
             uv_mutex_lock(&hub->shadow_lock);
-
             hub->shadow_table[idx] = local_msg;
-
             uv_mutex_unlock(&hub->shadow_lock);
-
-            if (local_msg.tag_id > 0) {
-                if (local_msg.type == PIPEMSG_TYPE_REF) {
-                    LOG_INFO(LOG_CAT_BUS, "[TRACE-DH] Publish TYPE_REF Tag %u to Shadow[%d]",
-                             local_msg.tag_id, idx);
-                } else {
-                    LOG_INFO(LOG_CAT_BUS, "[TRACE-DH] Publish Tag %u to Shadow[%d] Val=%.2f",
-                             local_msg.tag_id, idx, local_msg.payload.val.f);
-                }
-            }
-
-        } else {
-            LOG_ERROR(LOG_CAT_BUS, "[TRACE-DH] ERROR: Tag %u map to invalid idx %d",
-
-                      local_msg.tag_id, idx);
         }
     }
+
     bool needs_wakeup = true;
-    if (hub->wakeup_fn) {
-        int idx = hub->map_fn ? hub->map_fn(local_msg.tag_id) : (int)local_msg.tag_id;
+    if (hub->wakeup_fn != (void *)0) {
+        int idx = (hub->map_fn) ? hub->map_fn(local_msg.tag_id) : (int)local_msg.tag_id;
         needs_wakeup = hub->wakeup_fn(idx);
     }
 
     if (needs_wakeup) {
-        for (int i = 0; i < hub->listener_count; i++) {
-            if (hub->listeners[i]) {
-                uv_async_send(hub->listeners[i]);
+        uv_mutex_lock(&hub->shadow_lock);
+        int l_count = hub->listener_count;
+        if (l_count > 16) l_count = 16;
+        uv_async_t *l_copy[16];
+        if (l_count > 0) {
+            memcpy(l_copy, hub->listeners, sizeof(uv_async_t *) * (size_t)l_count);
+        }
+        uv_mutex_unlock(&hub->shadow_lock);
+
+        for (int i = 0; i < l_count; i++) {
+            if (l_copy[i]) {
+                if (!uv_is_closing((uv_handle_t *)l_copy[i])) {
+                    uv_async_send(l_copy[i]);
+                }
             }
         }
         if (hub->legacy_cb) hub->legacy_cb(hub, hub->legacy_user_data);
@@ -172,9 +170,9 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
     }
     return 0;
 }
-
 int datahub_register_ref(datahub_t *hub, uint32_t tag_id, int fd, size_t len) {
     if (!hub || fd < 0) return -1;
+    if (hub->ring.hdr == NULL) return -1;
 
     // 1. 建立本地映射
     void *ptr = mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
@@ -203,27 +201,23 @@ int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out) {
 
     uv_mutex_lock(&hub->shadow_lock);
     *out = hub->shadow_table[idx];
+
+    if (out->tag_id == tag_id) {
+        // Phase 4: 跨进程指针修复
+        if (out->type == PIPEMSG_TYPE_REF) {
+            for (int i = 0; i < hub->ref_count; i++) {
+                if (hub->refs[i].tag_id == out->tag_id) {
+                    out->payload.ref.ptr = hub->refs[i].ptr;
+                    out->payload.ref.fd = hub->refs[i].fd;
+                    break;
+                }
+            }
+        }
+    }
     uv_mutex_unlock(&hub->shadow_lock);
 
     if (out->tag_id != tag_id) {
-        if (tag_id == 1001 || tag_id == 8004) {
-            LOG_WARN(LOG_CAT_BUS, "[TRACE-DH] Read Shadow Mismatch: Req %u but found %u at idx %d",
-
-                     tag_id, out->tag_id, idx);
-        }
-
         return -1;
-    }
-
-    // Phase 4: 跨进程指针修复
-    if (out->type == PIPEMSG_TYPE_REF) {
-        for (int i = 0; i < hub->ref_count; i++) {
-            if (hub->refs[i].tag_id == out->tag_id) {
-                out->payload.ref.ptr = hub->refs[i].ptr;
-                out->payload.ref.fd = hub->refs[i].fd;
-                break;
-            }
-        }
     }
 
     return 0;
@@ -231,22 +225,32 @@ int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out) {
 
 void datahub_subscribe(datahub_t *hub, datahub_on_data_cb cb, void *user_data) {
     if (!hub) return;
+    uv_mutex_lock(&hub->shadow_lock);
     hub->legacy_cb = cb;
     hub->legacy_user_data = user_data;
+    uv_mutex_unlock(&hub->shadow_lock);
 }
 
 int datahub_add_listener(datahub_t *hub, uv_async_t *async_handle) {
-    if (hub->listener_count >= 16) return -1;
+    uv_mutex_lock(&hub->shadow_lock);
+    if (hub->listener_count >= 16) {
+        uv_mutex_unlock(&hub->shadow_lock);
+        return -1;
+    }
     hub->listeners[hub->listener_count++] = async_handle;
+    uv_mutex_unlock(&hub->shadow_lock);
     return 0;
 }
 
 int datahub_remove_listener(datahub_t *hub, uv_async_t *async_handle) {
+    uv_mutex_lock(&hub->shadow_lock);
     for (int i = 0; i < hub->listener_count; i++) {
         if (hub->listeners[i] == async_handle) {
             hub->listeners[i] = hub->listeners[--hub->listener_count];
+            uv_mutex_unlock(&hub->shadow_lock);
             return 0;
         }
     }
+    uv_mutex_unlock(&hub->shadow_lock);
     return -1;
 }

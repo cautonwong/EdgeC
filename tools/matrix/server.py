@@ -19,25 +19,39 @@ except ImportError as e:
 
 class MatrixAPIHandler(BaseHTTPRequestHandler):
     orch_instance = None
+    observer_data = {} # { "dev_id:tag_id": value }
 
     def do_GET(self):
-        """处理查询指令: ls devices, ls buses"""
+        """处理查询指令: ls devices, ls buses, get observed val"""
         if self.path == "/api/v1/devices":
             devs = [d["id"] for d in self.orch_instance.loader.devices]
             self._send_json({"devices": devs})
         elif self.path == "/api/v1/connectivity":
             conns = [{"id": c["id"], "label": c["label"]} for c in self.orch_instance.loader.connectivity]
             self._send_json({"buses": conns})
+        elif self.path == "/api/v1/observer/all":
+            self._send_json({"keys": list(self.observer_data.keys())})
+        elif self.path.startswith("/api/v1/observer/latest/"):
+            # Format: /api/v1/observer/latest/SUPERVISOR_01/1001
+            parts = self.path.split('/')
+            if len(parts) >= 7:
+                # [Nexus Fix] 修正索引：0:/, 1:api, 2:v1, 3:observer, 4:latest, 5:dev_id, 6:tag_id
+                key = f"{parts[5]}:{parts[6]}"
+                val = self.observer_data.get(key)
+                self._send_json({"value": val})
+            else:
+                self.send_response(400)
+                self.end_headers()
         else:
             self.send_response(404)
             self.end_headers()
 
     def do_POST(self):
-        """处理控制指令: set <id> <tag> <val>"""
+        """处理控制指令与观测上报"""
         content_length = int(self.headers.get('Content-Length', 0))
         post_data = self.rfile.read(content_length)
         try:
-            payload = json.loads(post_data)
+            payload = json.loads(post_data) if post_data else {}
             if self.path == "/api/v1/actor/set":
                 dev_id = payload.get("dev_id")
                 tag = payload.get("tag")
@@ -49,6 +63,18 @@ class MatrixAPIHandler(BaseHTTPRequestHandler):
                 else:
                     self.send_response(404)
                     self.end_headers()
+            elif self.path == "/api/v1/observer/record":
+                dev_id = payload.get("dev_id")
+                tag_id = str(payload.get("tag"))
+                val = payload.get("value")
+                key = f"{dev_id}:{tag_id}"
+                self.observer_data[key] = val
+                print(f"👁️  [Observer] Recorded {key} = {val}")
+                self._send_json({"status": "ok"})
+            elif self.path == "/api/v1/observer/reset":
+                self.observer_data.clear()
+                print(f"🧹 [Observer] Data Cleared.")
+                self._send_json({"status": "ok"})
         except Exception as e:
             self.send_response(500)
             self.end_headers()
