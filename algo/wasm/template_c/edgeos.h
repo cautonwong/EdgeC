@@ -24,4 +24,8 @@ __attribute__((import_module("env"), import_name("ext_log"))) extern void ext_lo
 #define LOG_WARN 2
 #define LOG_ERROR 3
 
+<<<<<<< HEAD
 #endif
+    =======
+#endif
+    >>>>>>> a3c8592 (feat(wasm): integrate WebAssembly (WAMR) runtime and compute stage)
