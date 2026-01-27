@@ -69,6 +69,13 @@ endif()
 find_package(SQLite3 REQUIRED)
 find_package(Modbus REQUIRED)
 find_package(QuickJS REQUIRED)
+
+option(ENABLE_WASM "Enable WebAssembly runtime support" ON)
+if(ENABLE_WASM)
+    find_package(WAMR REQUIRED)
+    message(STATUS "WebAssembly support enabled (WAMR)")
+endif()
+
 find_package(CURL REQUIRED)
 find_package(PahoMQTT REQUIRED)
 find_library(ZLOG_LIB NAMES zlog PATHS "${LOCAL_ROOT}/lib" REQUIRED)
@@ -160,12 +167,20 @@ add_library(edge_stream_engine STATIC
     src/stream_engine/energy_integrator.c
     src/stream_engine/stage_dsp_rms.c
     src/stream_engine/js_stage.c
+    src/stream_engine/stage_wasm.c
+    src/stream_engine/wasm_runtime/wasm_mgr.c
     src/stream_engine/pipeline_loader.c
     src/stream_engine/stream_dump.c
 )
+target_include_directories(edge_stream_engine PRIVATE src/stream_engine/wasm_runtime)
 # 注意：由于代码中存在交叉引用，我们需要在链接时允许循环
 target_link_libraries(edge_stream_engine PUBLIC edge_core edge_algo)
 target_link_libraries(edge_stream_engine PRIVATE QuickJS::QuickJS)
+
+if(ENABLE_WASM)
+    target_link_libraries(edge_stream_engine PRIVATE WAMR::WAMR)
+    target_compile_definitions(edge_stream_engine PRIVATE ENABLE_WASM)
+endif()
 
 # 5.4 控制与执行平面 (Control & Execution Plane)
 add_library(edge_main_loop STATIC

@@ -1,6 +1,7 @@
 #ifndef EDGE_DATAHUB_H
 #define EDGE_DATAHUB_H
 
+#include <stdatomic.h>
 #include <uv.h>
 
 #include "contract_data_types.h"
@@ -43,6 +44,7 @@ struct datahub_s {
     uint32_t metadata_count;
 
     pipe_msg_t *shadow_table;
+    atomic_uint *shadow_seq;  // [新增] 用于实现每槽位的 Sequence Lock
     int shadow_fd;
     size_t shadow_size;
     uint32_t shadow_capacity;
@@ -50,14 +52,14 @@ struct datahub_s {
     datahub_wakeup_filter_cb wakeup_fn;  // [注入] 唤醒过滤器
 
     datahub_ref_t refs[32];  // [新增] 引用注册表，支持32个并发大块数据流
-    int ref_count;
+    atomic_int ref_count;    // [优化] 改为原子类型
 
     datahub_on_data_cb legacy_cb;
     void *legacy_user_data;
     uv_async_t legacy_async;
 
     uv_async_t *listeners[16];
-    int listener_count;
+    atomic_int listener_count;  // [优化] 改为原子类型
     uv_mutex_t shadow_lock;
 };
 

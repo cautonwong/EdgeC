@@ -221,8 +221,10 @@ static int modbus_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
     uint16_t addr = (uint16_t)((data[2] << 8) | data[3]);
     uint16_t count = (uint16_t)((data[4] << 8) | data[5]);
 
-    printf("\033[35m[MODBUS-SLAVE] Request Validated: Func=%d, Addr=%u, Count=%d (SlaveID:%d)\033[0m\n", 
-           func, addr, count, data[0]);
+    printf(
+        "\033[35m[MODBUS-SLAVE] Request Validated: Func=%d, Addr=%u, Count=%d "
+        "(SlaveID:%d)\033[0m\n",
+        func, addr, count, data[0]);
 
     if (func == 0x03) {
         // Read Holding Registers

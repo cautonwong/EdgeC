@@ -112,6 +112,12 @@ static pipeline_stage_t *build_stage(const char *type, cJSON *config, pipeline_l
             return stage_js_rule_create(ctx->js_engine, item->valuestring, is_async);
         }
     }
+    if (strcmp(type, "wasm_executor") == 0) {
+        cJSON *wasm_path = cJSON_GetObjectItem(config, "module");
+        cJSON *entry = cJSON_GetObjectItem(config, "entry");
+        return stage_wasm_create(wasm_path ? wasm_path->valuestring : NULL,
+                                 entry ? entry->valuestring : "on_event");
+    }
     if (strcmp(type, "reflex") == 0) {
         uint32_t bus_id = (uint32_t)cJSON_GetObjectItem(config, "bus_id")->valuedouble;
         const char *proto = cJSON_GetObjectItem(config, "protocol")->valuestring;

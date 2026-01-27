@@ -58,6 +58,7 @@ static void test_adc_dsp_full_chain(void **state) {
     munmap(ptr, 4096);
     close(fd);
     stream_engine_destroy(se);
+    datahub_destroy(&hub);
 }
 
 int main(void) {

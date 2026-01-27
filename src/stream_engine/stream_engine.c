@@ -9,6 +9,7 @@
 
 #include "edge_log.h"
 #include "stream_engine_priv.h"
+#include "wasm_mgr.h"
 
 // --- Stage Factory Declarations ---
 extern pipeline_stage_t *stage_filter_create(uint32_t tag_id);
@@ -249,6 +250,11 @@ stream_engine_t *stream_engine_create_ex(datahub_t *hub, uv_loop_t *loop,
     uv_mutex_init(&engine->pipe_mutex);
     uv__queue_init(&engine->pipelines);
     uv_sem_init(&engine->start_sem, 0);
+
+#ifdef ENABLE_WASM
+    wasm_mgr_init(hub);
+#endif
+
     return engine;
 }
 
@@ -297,6 +303,11 @@ void stream_engine_destroy(stream_engine_t *engine) {
     uv_mutex_unlock(&engine->pipe_mutex);
 
     uv_mutex_destroy(&engine->pipe_mutex);
+
+#ifdef ENABLE_WASM
+    wasm_mgr_cleanup();
+#endif
+
     free(engine);
 }
 

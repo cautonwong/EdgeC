@@ -36,13 +36,15 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
     net_buf_t *rx = (net_buf_t *)payload;
 
     if (evt == IO_EVENT_ERROR) {
-        printf("\033[31m[IEMS-SLAVE] IO ERROR on Bus %d: %s\033[0m\n", priv->bus_id, strerror(errno));
+        printf("\033[31m[IEMS-SLAVE] IO ERROR on Bus %d: %s\033[0m\n", priv->bus_id,
+               strerror(errno));
         return;
     }
 
     if (evt == IO_EVENT_RX && rx) {
         // [Nexus Debug] 明确打印接收日志
-        printf("\033[33m[IEMS-SLAVE] Bus %d RX: %u bytes\033[0m\n", priv->bus_id, (uint32_t)rx->b.len);
+        printf("\033[33m[IEMS-SLAVE] Bus %d RX: %u bytes\033[0m\n", priv->bus_id,
+               (uint32_t)rx->b.len);
 
         // [Nexus] 内存空间预检与归位：如果当前缓冲区为空，重置指针到头部
 
@@ -63,119 +65,89 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
 
         net_buf_unref(rx);
 
-                // 尝试解析
+        // 尝试解析
 
-                while (priv->rx_acc->b.len > 0) {
+        while (priv->rx_acc->b.len > 0) {
+            bool processed = false;
 
-                    bool processed = false;
+            bool any_incomplete = false;
 
-                    bool any_incomplete = false;
+            size_t initial_len = priv->rx_acc->b.len;
 
-                    size_t initial_len = priv->rx_acc->b.len;
+            for (int i = 0; i < priv->proto_count; i++) {
+                int idx = (i + priv->last_hit_idx) % priv->proto_count;
 
-        
+                slave_proto_slot_t *slot = &priv->protocols[idx];
 
-                    for (int i = 0; i < priv->proto_count; i++) {
+                net_buf_t *resp = net_buf_alloc(priv->pool, 0);
 
-                        int idx = (i + priv->last_hit_idx) % priv->proto_count;
+                pipe_msg_t async_msgs[16];
 
-                        slave_proto_slot_t *slot = &priv->protocols[idx];
+                int async_count = 0;
 
-        
+                size_t consumed = 0;
 
-                        net_buf_t *resp = net_buf_alloc(priv->pool, 0);
+                int rc = slot->ctx->driver->handle_rx(slot->ctx, priv->rx_acc, resp, async_msgs,
 
-                        pipe_msg_t async_msgs[16];
+                                                      &async_count, &consumed);
 
-                        int async_count = 0;
+                if (rc == 0) {
+                    if (resp->b.len > 0) {
+                        printf("\033[32m[IEMS-SLAVE] Sending Response: %u bytes\033[0m\n",
 
-                        size_t consumed = 0;
+                               (uint32_t)resp->b.len);
 
-        
-
-                        int rc = slot->ctx->driver->handle_rx(slot->ctx, priv->rx_acc, resp, async_msgs,
-
-                                                              &async_count, &consumed);
-
-        
-
-                        if (rc == 0) {
-
-                            if (resp->b.len > 0) {
-
-                                printf("\033[32m[IEMS-SLAVE] Sending Response: %u bytes\033[0m\n",
-
-                                       (uint32_t)resp->b.len);
-
-                                priv->io->ops->write_async(priv->io, resp);
-
-                            }
-
-                            net_buf_unref(resp);
-
-        
-
-                            for (int j = 0; j < async_count; j++)
-
-                                datahub_publish(priv->hub, &async_msgs[j]);
-
-        
-
-                            if (consumed > 0) net_buf_pull(priv->rx_acc, consumed);
-
-                            priv->last_hit_idx = idx;
-
-                            processed = true;
-
-                            break;
-
-                        } else {
-
-                            net_buf_unref(resp);
-
-                            if (rc == EDGE_ERR_INCOMPLETE) {
-
-                                any_incomplete = true;
-
-                                continue;
-
-                            } else if (consumed > 0) {
-
-                                net_buf_pull(priv->rx_acc, consumed);
-
-                                processed = true;
-
-                                break;
-
-                            }
-
-                        }
-
+                        priv->io->ops->write_async(priv->io, resp);
                     }
 
-        
+                    net_buf_unref(resp);
 
-                    if (!processed) {
+                    for (int j = 0; j < async_count; j++)
 
-                        // [Nexus Fix] 更加稳健的滑动窗口：
+                        datahub_publish(priv->hub, &async_msgs[j]);
 
-                        // 如果没有任何协议匹配，且没有任何协议报告“报文未收全”，说明头部确实是垃圾数据
+                    if (consumed > 0) net_buf_pull(priv->rx_acc, consumed);
 
-                        if (!any_incomplete && priv->rx_acc->b.len > 0) {
+                    priv->last_hit_idx = idx;
 
-                            net_buf_pull(priv->rx_acc, 1);
+                    processed = true;
 
-                            continue;
+                    break;
 
-                        }
+                } else {
+                    net_buf_unref(resp);
 
-                        break; // 等待更多数据
+                    if (rc == EDGE_ERR_INCOMPLETE) {
+                        any_incomplete = true;
 
+                        continue;
+
+                    } else if (consumed > 0) {
+                        net_buf_pull(priv->rx_acc, consumed);
+
+                        processed = true;
+
+                        break;
                     }
-
-                    if (priv->rx_acc->b.len >= initial_len) break;
-
                 }
+            }
+
+            if (!processed) {
+                // [Nexus Fix] 更加稳健的滑动窗口：
+
+                // 如果没有任何协议匹配，且没有任何协议报告“报文未收全”，说明头部确实是垃圾数据
+
+                if (!any_incomplete && priv->rx_acc->b.len > 0) {
+                    net_buf_pull(priv->rx_acc, 1);
+
+                    continue;
+                }
+
+                break;  // 等待更多数据
+            }
+
+            if (priv->rx_acc->b.len >= initial_len) break;
+        }
     }
 }
 

@@ -126,6 +126,7 @@ pipeline_stage_t *stage_periodic_freeze_create(int kind);
 pipeline_stage_t *stage_time_guard_create(void);
 pipeline_stage_t *stage_sqlite_sink_create(sqlite_svc_t *db, const char *table);
 pipeline_stage_t *stage_js_rule_create(js_engine_t *engine, const char *script_path, bool is_async);
+pipeline_stage_t *stage_wasm_create(const char *wasm_path, const char *entry_func);
 pipeline_stage_t *stage_battery_guard_create(battery_limit_t *limits);
 pipeline_stage_t *stage_reflex_logic_create(struct bus_orchestrator_s *orch, uint32_t bus_id,
                                             const char *proto, uint32_t target_tag,
