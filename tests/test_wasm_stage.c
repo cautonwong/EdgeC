@@ -23,7 +23,7 @@ static void test_wasm_full_chain(void **state) {
     assert_int_equal(rc, 0);
 
     // 2. 创建流引擎
-    stream_engine_t *se = stream_engine_create(&hub, loop, NULL);
+    stream_engine_t *se = stream_engine_create(&hub, loop, NULL, NULL);
     assert_non_null(se);
 
     // 3. 注册 WASM Pipeline
