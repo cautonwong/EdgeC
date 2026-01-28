@@ -1,3 +1,6 @@
+#include <curl/curl.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <sqlite3.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -5,10 +8,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
-#include <errno.h>
-#include <fcntl.h>
 #include <uv.h>
-#include <curl/curl.h>
 
 #include "contracts.h"
 #include "edge_api.h"
@@ -203,7 +203,7 @@ static void _try_connect_buses(uv_timer_t *handle) {
         if (path && access(path, F_OK) == 0) {
             g_bus_state[bus_idx] = BUS_STATE_CONNECTING;
             printf("[IEMS-INIT] Direct connecting VBUS %d -> %s\n", c->id, path);
-            
+
             int fd = socket(AF_UNIX, SOCK_STREAM, 0);
             if (fd < 0) {
                 g_bus_state[bus_idx] = BUS_STATE_DISCONNECTED;
@@ -213,14 +213,14 @@ static void _try_connect_buses(uv_timer_t *handle) {
             struct sockaddr_un addr;
             memset(&addr, 0, sizeof(addr));
             addr.sun_family = AF_UNIX;
-            strncpy(addr.sun_path, path, sizeof(addr.sun_path)-1);
+            strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
 
             if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == 0) {
                 int flags = fcntl(fd, F_GETFL, 0);
                 fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 
                 printf("\033[32m[IEMS-BUS] VBUS %d Connection SUCCESS (FD:%d)\033[0m\n", c->id, fd);
-                
+
                 io_handle_t *h = io_executor_create_from_fd(handle->loop, fd, g_app.hub->io_pool);
                 if (h) {
                     bus_orchestrator_attach_io(g_app.orch, c->id, h);
@@ -267,14 +267,15 @@ static void _try_connect_internal_buses(uv_timer_t *handle) {
             struct sockaddr_un addr;
             memset(&addr, 0, sizeof(addr));
             addr.sun_family = AF_UNIX;
-            strncpy(addr.sun_path, path, sizeof(addr.sun_path)-1);
+            strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
 
             if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == 0) {
-                printf("\033[32m[IEMS-INIT] Internal High-Speed Channel Connected (FD:%d)\033[0m\n", fd);
+                printf("\033[32m[IEMS-INIT] Internal High-Speed Channel Connected (FD:%d)\033[0m\n",
+                       fd);
                 adc_thread_ctx_t *ctx = malloc(sizeof(adc_thread_ctx_t));
                 ctx->fd = fd;
                 ctx->hub = g_app.hub;
-                g_adc_running = true; // [Nexus Fix] 启动前立即标记，防止竞态
+                g_adc_running = true;  // [Nexus Fix] 启动前立即标记，防止竞态
                 uv_thread_create(&g_adc_tid, _adc_thread_entry, ctx);
             } else {
                 close(fd);
@@ -358,7 +359,8 @@ static void on_signal_exit(uv_signal_t *handle, int signum) {
 }
 
 int main(int argc, char *argv[]) {
-    (void)argc; (void)argv;
+    (void)argc;
+    (void)argv;
     curl_global_init(CURL_GLOBAL_ALL);
 
     uv_loop_t *loop = uv_default_loop();
@@ -414,12 +416,10 @@ int main(int argc, char *argv[]) {
     sqlite_config_t db_conf = {.db_path = g_app.db_path, .strategy = STRATEGY_LITE};
     g_app.db_service = sqlite_svc_create(loop, &db_conf);
 
-    g_app.stream_eng = stream_engine_create(g_app.hub, NULL, g_app.orch, edge_stage_factory_get_registry());
-    pipeline_loader_ctx_t loader_ctx = {
-        .db = g_app.db_service,
-        .orch = g_app.orch,
-        .params = NULL
-    };
+    g_app.stream_eng =
+        stream_engine_create(g_app.hub, NULL, g_app.orch, edge_stage_factory_get_registry());
+    pipeline_loader_ctx_t loader_ctx = {.db = g_app.db_service, .orch = g_app.orch, .params = NULL};
+
     stream_engine_load_static_metadata(g_app.stream_eng, g_pipeline_metadata,
                                        g_pipeline_metadata_len, &loader_ctx);
     stream_engine_start(g_app.stream_eng);

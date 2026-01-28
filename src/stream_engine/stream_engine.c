@@ -153,8 +153,7 @@ static void _stream_engine_thread_entry(void *arg) {
     engine->notify_inited = false;
 }
 
-static pipeline_stage_t *_create_stage_by_type(stream_engine_t *engine,
-                                               const edge_stage_def_t *def,
+static pipeline_stage_t *_create_stage_by_type(stream_engine_t *engine, const edge_stage_def_t *def,
                                                pipeline_loader_ctx_t *ctx) {
     const edge_stage_factory_entry_t *reg = engine->registry;
     printf("[STREAM-DEBUG] Finding factory for type: '%s' (RegAddr: %p)\n", def->type, (void *)reg);
