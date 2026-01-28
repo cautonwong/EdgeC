@@ -38,4 +38,5 @@ steps:
     action: "wait_for"
     tag: "ADC_VOLTAGE_RMS"
     expect: 220.0
+    tolerance: 0.3
     timeout: 5

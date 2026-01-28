@@ -47,6 +47,22 @@ static int _datahub_post_init(datahub_t *hub, uv_loop_t *loop, uint32_t shadow_c
     uv_async_init(loop, &hub->legacy_async, _on_legacy_async);
     hub->legacy_async.data = hub;
     uv_mutex_init(&hub->shadow_lock);
+
+    // [Aetheris Fix] 从元数据回填契约默认值，解决“睁眼全是0”的问题
+    if (hub->shadow_table && metadata && metadata_len > 0) {
+        for (uint32_t i = 0; i < metadata_len; i++) {
+            const edge_tag_meta_t *m = &metadata[i];
+            int idx = (map_fn) ? map_fn(m->id) : (int)m->id;
+            if (idx >= 0 && (uint32_t)idx < shadow_capacity) {
+                pipe_msg_t *slot = &hub->shadow_table[idx];
+                // 仅当槽位未被占用时初始化 (防止 init_from_fd 冲突)
+                if (slot->tag_id == 0) {
+                    pipe_msg_init_scalar(slot, m->id, m->default_value, uv_hrtime());
+                }
+            }
+        }
+    }
+
     return 0;
 }
 
