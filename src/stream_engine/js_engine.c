@@ -122,6 +122,29 @@ static JSValue js_arbiter_submit(JSContext *ctx, JSValueConst this_val, int argc
     return JS_FALSE;
 }
 
+// --- JS Bindings: Northbound.publish(tag_id, value) ---
+static JSValue js_northbound_publish(JSContext *ctx, JSValueConst this_val, int argc,
+                                     JSValueConst *argv) {
+    (void)this_val;
+    js_engine_t *engine = JS_GetContextOpaque(ctx);
+    if (!engine || argc < 2) return JS_EXCEPTION;
+
+    uint32_t tag_id;
+    double value;
+    JS_ToUint32(ctx, &tag_id, argv[0]);
+    JS_ToFloat64(ctx, &value, argv[1]);
+
+    // [AET-3.1] 通过 DataHub 广播，北向管理器会自动捕获并外发
+    datahub_t *hub = service_get_datahub(engine->svc);
+    if (hub) {
+        pipe_msg_t msg = {0};
+        pipe_msg_init_scalar(&msg, tag_id, value, (uint64_t)time(NULL) * 1000);
+        datahub_publish(hub, &msg);
+        return JS_TRUE;
+    }
+    return JS_FALSE;
+}
+
 // --- Lifecycle ---
 
 js_engine_t *js_engine_create(service_t *svc, size_t mem_limit) {
@@ -161,6 +184,12 @@ js_engine_t *js_engine_create(service_t *svc, size_t mem_limit) {
     JS_SetPropertyStr(engine->ctx, sys, "getPoolStats",
                       JS_NewCFunction(engine->ctx, js_system_get_pool_stats, "getPoolStats", 0));
     JS_SetPropertyStr(engine->ctx, global_obj, "System", sys);
+
+    // 4. Northbound (AET-3.1)
+    JSValue nb = JS_NewObject(engine->ctx);
+    JS_SetPropertyStr(engine->ctx, nb, "publish",
+                      JS_NewCFunction(engine->ctx, js_northbound_publish, "publish", 2));
+    JS_SetPropertyStr(engine->ctx, global_obj, "Northbound", nb);
 
     JS_FreeValue(engine->ctx, global_obj);
     return engine;

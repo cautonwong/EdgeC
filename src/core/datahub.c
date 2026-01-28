@@ -44,6 +44,22 @@ static int _datahub_post_init(datahub_t *hub, uv_loop_t *loop, uint32_t shadow_c
     uv_async_init(loop, &hub->legacy_async, _on_legacy_async);
     hub->legacy_async.data = hub;
     uv_mutex_init(&hub->shadow_lock);
+
+    // [Aetheris Fix] 从元数据回填契约默认值，解决“睁眼全是0”的问题
+    if (hub->shadow_table && metadata && metadata_len > 0) {
+        for (uint32_t i = 0; i < metadata_len; i++) {
+            const edge_tag_meta_t *m = &metadata[i];
+            int idx = (map_fn) ? map_fn(m->id) : (int)m->id;
+            if (idx >= 0 && (uint32_t)idx < shadow_capacity) {
+                pipe_msg_t *slot = &hub->shadow_table[idx];
+                // 仅当槽位未被占用时初始化 (防止 init_from_fd 冲突)
+                if (slot->tag_id == 0) {
+                    pipe_msg_init_scalar(slot, m->id, m->default_value, uv_hrtime());
+                }
+            }
+        }
+    }
+
     return 0;
 }
 
@@ -109,6 +125,36 @@ void datahub_destroy(datahub_t *hub) {
         if (hub->shadow_fd >= 0) close(hub->shadow_fd);
     }
     uv_mutex_destroy(&hub->shadow_lock);
+}
+
+int datahub_save_snapshot(datahub_t *hub, const char *path) {
+    if (!hub || !hub->shadow_table || !path) return -1;
+
+    FILE *f = fopen(path, "wb");
+    if (!f) return -1;
+
+    uv_mutex_lock(&hub->shadow_lock);
+    size_t written = fwrite(hub->shadow_table, sizeof(pipe_msg_t), hub->shadow_capacity, f);
+    uv_mutex_unlock(&hub->shadow_lock);
+
+    fclose(f);
+    LOG_INFO(LOG_CAT_BUS, "DataHub: Snapshot saved to %s (%zu slots)", path, written);
+    return (written == hub->shadow_capacity) ? 0 : -1;
+}
+
+int datahub_load_snapshot(datahub_t *hub, const char *path) {
+    if (!hub || !hub->shadow_table || !path) return -1;
+
+    FILE *f = fopen(path, "rb");
+    if (!f) return -1;
+
+    uv_mutex_lock(&hub->shadow_lock);
+    size_t read = fread(hub->shadow_table, sizeof(pipe_msg_t), hub->shadow_capacity, f);
+    uv_mutex_unlock(&hub->shadow_lock);
+
+    fclose(f);
+    LOG_INFO(LOG_CAT_BUS, "DataHub: Snapshot loaded from %s (%zu slots)", path, read);
+    return (read == hub->shadow_capacity) ? 0 : -1;
 }
 
 int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {

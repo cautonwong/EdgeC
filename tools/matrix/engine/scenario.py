@@ -76,8 +76,12 @@ class ScenarioRunner:
         """
         tag_name = params.get("tag")
         expect = float(params.get("expect") or params.get("value", 0))
-        tolerance = float(params.get("tolerance", 0.05)) # 默认 0.05 容差
-        timeout = float(params.get("timeout", 30))
+        # [Nexus Fix] 更加健壮的参数优先级处理
+        tolerance = 0.05
+        if "tolerance" in params and params["tolerance"] is not None:
+            tolerance = float(params["tolerance"])
+        
+        timeout = float(params.get("timeout") or 30)
         
         tag_id = self.ctx.loader.name_to_id.get(tag_name, tag_name)
         

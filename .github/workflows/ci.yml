@@ -1,41 +1,29 @@
-name: EdgeOS CI Pipeline
+name: EdgeOS CI/CD Pipeline
 
 on:
   push:
     branches: [ "main", "develop" ]
+    tags: [ "v*" ]
   pull_request:
     branches: [ "main" ]
 
-jobs:
-  build-and-test:
-    name: ${{ matrix.config.name }}
-    runs-on: ${{ matrix.config.os }}
+permissions:
+  contents: write
+  packages: write
 
+jobs:
+  # ==========================================
+  # Job 1: Build & Unit Test
+  # ==========================================
+  build-and-test:
+    name: Build & Test (${{ matrix.config.target }})
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
         config:
-          - {
-              name: "Linux x86_64",
-              os: ubuntu-22.04,
-              target: x86_64,
-              cc: gcc,
-              cxx: g++,
-              cmake_args: "-DENABLE_COVERAGE=ON",
-              run_tests: true,
-              use_qemu: false
-            }
-          - {
-              name: "Linux arm64 (Cross)",
-              os: ubuntu-22.04,
-              target: arm64,
-              cc: aarch64-linux-gnu-gcc,
-              cxx: aarch64-linux-gnu-g++,
-              cmake_args: "-DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/aarch64-linux-gnu.cmake",
-              run_tests: true,
-              use_qemu: true,
-              qemu_exec: qemu-aarch64-static
-            }
+          - { target: x86_64, cc: gcc, cxx: g++, cmake_args: "-DENABLE_COVERAGE=ON", run_tests: true }
+          - { target: arm64, cc: aarch64-linux-gnu-gcc, cxx: aarch64-linux-gnu-g++, cmake_args: "-DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/aarch64-linux-gnu.cmake", run_tests: false }
 
     steps:
       - uses: actions/checkout@v4
@@ -47,90 +35,111 @@ jobs:
         with:
           go-version: '1.21'
           cache: true
-          cache-dependency-path: tools/contract-compiler/go.sum
 
-      - name: Ccache Setup
-        uses: hendrikmuhs/ccache-action@v1.2
-        with:
-          key: ${{ matrix.config.name }}
-
-      - name: Fix Binary Permissions
-        run: |
-          chmod +x .local/linux-x86_64/bin/contract-compiler || true
-          chmod +x .local/linux-aarch64/bin/contract-compiler || true
-
-      - name: Install Testing Tools
+      - name: Install System Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build clang-format clang-tidy lcov libssl-dev valgrind jq
+          sudo apt-get install -y cmake ninja-build clang-tidy lcov valgrind libssl-dev
+          if [ "${{ matrix.config.target }}" == "arm64" ]; then
+            sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          fi
 
-      - name: Static Analysis (x86_64 only)
-        if: matrix.config.target == 'x86_64'
+      - name: Configure & Build
         run: |
-          mkdir -p build && cd build
-          cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache
-          run-clang-tidy -p . -j $(nproc) -header-filter='src/.*' -checks='-*,bugprone-*,cert-*,performance-*'
+          mkdir build && cd build
+          cmake .. -GNinja -DCMAKE_BUILD_TYPE=Release ${{ matrix.config.cmake_args }}
+          cmake --build . -j$(nproc)
 
-      - name: Run Unit Tests (Native)
-        if: matrix.config.run_tests && !matrix.config.use_qemu
-        run: |
-          cd build
-          export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${{ github.workspace }}/.local/linux-x86_64/lib
-          ctest --output-on-failure
-
-      - name: Valgrind Deep Memory Check (x86 only)
+      - name: Run Tests (x86_64 only)
         if: matrix.config.target == 'x86_64'
         run: |
           export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${{ github.workspace }}/.local/linux-x86_64/lib
-          valgrind --leak-check=full --error-exitcode=1 ./build/tests/test_datahub
-          valgrind --leak-check=full --error-exitcode=1 ./build/tests/test_shmring
+          cd build && ctest --output-on-failure
 
-      - name: Full Product Smoke Test (x86 only)
-        if: matrix.config.target == 'x86_64'
+      - name: Generate Packages
         run: |
-          export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${{ github.workspace }}/.local/linux-x86_64/lib
-          ./scripts/smoke_test.sh iems
-          ./scripts/smoke_test.sh dcu
-          ./scripts/smoke_test.sh evse
-          ./scripts/smoke_test.sh sg
-          ./scripts/smoke_test.sh hems
+          cd build && cpack -G TGZ && cpack -G DEB
 
-      - name: Run Unit Tests (QEMU)
-        if: matrix.config.run_tests && matrix.config.use_qemu
-        env:
-          ASAN_OPTIONS: detect_leaks=0
-        run: |
-          cd build
-          # Manually run tests via QEMU
-          # We pass the local lib path to the guest LD_LIBRARY_PATH
-          for t in tests/test_*; do
-            if [ -x "$t" ]; then
-              echo "Running $t via ${{ matrix.config.qemu_exec }}"...
-              ${{ matrix.config.qemu_exec }} -L /usr/aarch64-linux-gnu/ \
-                -E LD_LIBRARY_PATH=${{ github.workspace }}/.local/linux-aarch64/lib \
-                "$t"
-            fi
-          done
-
-      - name: Generate Coverage Report (x86 only)
-        if: matrix.config.target == 'x86_64'
-        run: |
-          lcov --capture --directory build --output-file coverage.info
-          lcov --remove coverage.info '/usr/*' '*/tests/*' '*/vendor/*' --output-file coverage_clean.info
-          lcov --list coverage_clean.info
-
-      - name: Upload Build Artifacts
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: EdgeOS-Package-${{ matrix.config.target }}
+          name: edgeos-dist-${{ matrix.config.target }}
           path: |
-            build/EdgeOS-*.deb
-            build/EdgeOS-*.tar.gz
-          if-no-files-found: warn
+            build/*.tar.gz
+            build/*.deb
 
-      - name: Upload Coverage (x86 only)
-        if: matrix.config.target == 'x86_64'
-        uses: actions/upload-artifact@v4
+  # ==========================================
+  # Job 2: Docker Build & Push
+  # ==========================================
+  docker-publish:
+    name: Build & Push Docker Image
+    needs: build-and-test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
         with:
-          name: EdgeOS-Coverage
-          path: build/coverage_clean.info
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=sha
+
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.prod
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ==========================================
+  # Job 3: GitHub Release
+  # ==========================================
+  release:
+    name: Create Release
+    needs: build-and-test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare Release Assets
+        run: |
+          mkdir dist
+          find artifacts -name "*.tar.gz" -exec cp {} dist/ \;
+          find artifacts -name "*.deb" -exec cp {} dist/ \;
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

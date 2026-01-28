@@ -56,6 +56,11 @@ int bus_orchestrator_submit_cmd(bus_orchestrator_t *ctx, int bus_id, cmd_msg_t *
 int bus_orchestrator_run(bus_orchestrator_t *ctx);
 
 /**
+ * @brief [Aetheris] 触发编排器重载配置
+ */
+void bus_orchestrator_trigger_reload(bus_orchestrator_t *ctx);
+
+/**
  * @brief 获取总线管理的内存池 (用于注入 DataHub 监控)
  */
 struct net_buf_pool *bus_orchestrator_get_pool(bus_orchestrator_t *ctx);

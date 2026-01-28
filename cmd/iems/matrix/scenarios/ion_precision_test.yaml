@@ -1,0 +1,42 @@
+name: "ION-PRC-001: 工业级电压暂态响应与精度验证"
+desc: "验证系统在 4kHz 采样率下，对电压骤降 (Sag) 的检测速度与 RMS 计算精度"
+
+steps:
+  - t: 0.0
+    action: "adc.set_param"
+    target: "grid"
+    params: { amp: 311.12, freq: 50.0 } # 220V RMS
+  
+  - t: 1.0
+    action: "adc.verify_rms"
+    expected_rms: 220.0
+    tolerance: 0.002
+
+  - t: 2.0
+    action: "adc.inject_fault"
+    type: "sag"
+    ratio: 0.7 # 降低到 70% (154V RMS)
+    duration_ms: 1000
+
+  - t: 2.2 # 在故障发生后 200ms 进行检查
+    action: "adc.verify_rms"
+    expected_rms: 154.0
+    tolerance: 0.005
+
+  - t: 4.0
+    action: "adc.set_param"
+    target: "harmonics"
+    params: { orders: { 3: 0.05, 5: 0.02 } } # 注入 5% 三次谐波
+  
+  - t: 5.0
+    action: "adc.verify_rms"
+    # 含有谐波的总有效值应略微上升: sqrt(220^2 + (220*0.05)^2 + (220*0.02)^2) ≈ 220.297
+    expected_rms: 220.297
+    tolerance: 0.005
+
+  - t: 7.0
+    action: "wait_for"
+    tag: "ADC_VOLTAGE_RMS"
+    expect: 220.0
+    tolerance: 0.3
+    timeout: 5

@@ -78,6 +78,16 @@ int datahub_register_ref(datahub_t *hub, uint32_t tag_id, int fd, size_t len);
 int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out);
 void datahub_subscribe(datahub_t *hub, datahub_on_data_cb cb, void *user_data);
 
+/**
+ * @brief [Aetheris] 持久化快照：将影子表存入磁盘
+ */
+int datahub_save_snapshot(datahub_t *hub, const char *path);
+
+/**
+ * @brief [Aetheris] 加载快照：从磁盘恢复影子表状态
+ */
+int datahub_load_snapshot(datahub_t *hub, const char *path);
+
 // 监听器管理 (由 StreamEngine 等使用)
 int datahub_add_listener(datahub_t *hub, uv_async_t *async_handle);
 int datahub_remove_listener(datahub_t *hub, uv_async_t *async_handle);

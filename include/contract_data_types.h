@@ -30,6 +30,7 @@ typedef struct {
     bool persist;
     bool upload;
     uint32_t poll_interval_ms;
+    double default_value; /**< [Aetheris] 契约定义的默认值 */
 } edge_tag_meta_t;
 
 // --- 物理通道配置 ---

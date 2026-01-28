@@ -16,3 +16,17 @@ int policy_syncer_run(sqlite_svc_t *db, bus_orchestrator_t *orch) {
 
     return 0;
 }
+
+int policy_syncer_apply_delta(bus_orchestrator_t *orch, const char *payload, size_t len) {
+    if (!orch || !payload || len == 0) return -1;
+
+    LOG_INFO(LOG_CAT_NB, "Policy Syncer: Applying delta (len=%zu)", len);
+
+    // [Aetheris] 这里应解析 JSON 并更新 Bus Orchestrator 中的采集任务
+    // 示例：更新 Modbus 扫描周期或添加新设备
+
+    // 1. 触发编排器重载
+    bus_orchestrator_trigger_reload(orch);
+
+    return 0;
+}
