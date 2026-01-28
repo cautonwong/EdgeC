@@ -5,6 +5,7 @@ import logging
 import socket
 import json
 import requests
+import time
 import numpy as np
 from typing import Dict, Any, List
 from tools.matrix.engine.scenario import ScenarioRunner
@@ -64,30 +65,41 @@ class IonScenarioRunner(ScenarioRunner):
         # 2. 等待故障结束
         await asyncio.sleep(duration)
         
-        # 3. 恢复正常
+        # 3. 恢复正常 (重置 active 且重置 factor 为 1.0)
         self._send_adc_cmd("transient", {"active": False, "factor": 1.0})
         logger.info(f"🛡️ [Fault] {fault_type} recovered.")
 
     async def _handle_adc_verify_rms(self, params):
         """
         [ION-3.2] 自动化精度校验。
-        它会计算模拟器当前的“理论有效值”并与 EdgeC 的实时输出对比。
+        它会等待 EdgeC 计算出符合预期的有效值。
         """
         tag_id = 2002 # ADC_VOLTAGE_RMS (from tags.yaml)
         expected_amp = float(params.get("expected_rms", 220.0))
+        tolerance = float(params.get("tolerance", 0.01))
+        timeout = 5.0
         
-        logger.info(f"🧐 [Verify] Comparing EdgeC RMS (Tag {tag_id}) against reference...")
+        logger.info(f"🧐 [Verify] Waiting for EdgeC RMS (Tag {tag_id}) -> {expected_amp} (tol={tolerance})...")
         
-        # 尝试从 EdgeC 获取最新的计算结果 (通过 REST API)
-        try:
-            # 假设 context 中有获取数据的接口
+        start = time.time()
+        success = False
+        last_val = 0.0
+        while time.time() - start < timeout:
             val = self.ctx.edgec.get_tag(tag_id)
             if val is not None:
-                self.rms_verifier.verify(val, expected_amp)
-            else:
-                logger.warning("⚠️ Could not fetch RMS result from EdgeC")
-        except Exception as e:
-            logger.error(f"❌ Verification error: {e}")
+                last_val = val
+                error = abs(val - expected_amp)
+                rel_error = error / expected_amp if expected_amp != 0 else error
+                if rel_error <= tolerance:
+                    success = True
+                    break
+            await asyncio.sleep(0.2)
+
+        if success:
+            logger.info(f"✅ [RMS-Pass] Value: {last_val:.2f}, Error: {abs(last_val-expected_amp)/expected_amp:.2%}")
+        else:
+            logger.error(f"❌ [RMS-Fail] Timeout! Last Value: {last_val:.2f}, Expected: {expected_amp}, Error: {abs(last_val-expected_amp)/expected_amp:.2%}")
+            raise AssertionError(f"RMS Verification Failed: {last_val} != {expected_amp}")
 
 # 集成脚本启动器
 if __name__ == "__main__":

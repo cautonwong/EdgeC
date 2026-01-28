@@ -11,7 +11,7 @@ import array
 from typing import List, Dict, Optional
 
 # ==============================================================================
-# [Omnis] Sprint 5: Ion - 工业级 ADC 仿真引擎 (Compatibility Version)
+# [Omnis] Sprint 5: Ion - 工业级 ADC 仿真引擎 (Full-Featured Compatibility Version)
 # ==============================================================================
 
 class WaveComponent:
@@ -28,6 +28,7 @@ class WaveComponent:
                 curr = getattr(self, k)
                 if isinstance(curr, float): val = float(v)
                 elif isinstance(curr, int): val = int(v)
+                elif isinstance(curr, bool): val = bool(v)
                 else: val = v
                 setattr(self, k, val)
                 print(f"  [ADC-SIM] Updated {self.name}.{k} = {val}")
@@ -51,6 +52,16 @@ class HarmonicDisturb(WaveComponent):
         if self.ratio <= 0: return np.zeros_like(t_vec)
         h_amp = self.base_amp * self.ratio
         return h_amp * np.sin(2 * np.pi * (self.base_freq * self.order) * t_vec)
+
+class TransientComponent(WaveComponent):
+    """用于模拟骤降/骤升的乘法算子"""
+    def __init__(self, name="transient"):
+        super().__init__(name)
+        self.active = False
+        self.factor = 1.0
+    def generate(self, t_vec):
+        if not self.active: return np.ones_like(t_vec)
+        return np.full_like(t_vec, self.factor)
 
 class NoiseSource(WaveComponent):
     def __init__(self, name="noise", level=0.0):
@@ -84,10 +95,11 @@ class AdcSimulator:
         
         self._setup_memfds()
         
-        # 兼容旧测试的组件命名
+        # 初始化组件集
         self.add_component(SineSource("grid"))
         self.add_component(HarmonicDisturb("h3", order=3))
         self.add_component(HarmonicDisturb("h5", order=5))
+        self.add_component(TransientComponent("transient"))
         self.add_component(NoiseSource("noise"))
 
     def _setup_memfds(self):
@@ -96,7 +108,7 @@ class AdcSimulator:
         MFD_ALLOW_SEALING = 0x0002
         import mmap
         
-        self.buffer_size = self.block_size * 4 # 1 Channel
+        self.buffer_size = self.block_size * 4 # 1 Channel (float32)
         
         for i in range(self.num_buffers):
             name = f"adc_v_{i}".encode()
@@ -115,10 +127,15 @@ class AdcSimulator:
         t_end = t_start + (self.block_size / self.sample_rate)
         t_vec = np.linspace(t_start, t_end, self.block_size, endpoint=False)
         
+        # 1. 基础合成
         out = np.zeros(self.block_size, dtype=np.float32)
-        for comp in self.components.values():
-            if comp.enabled:
-                out += comp.generate(t_vec).astype(np.float32)
+        for name in ["grid", "h3", "h5", "noise"]:
+            if self.components[name].enabled:
+                out += self.components[name].generate(t_vec).astype(np.float32)
+        
+        # 2. 暂态叠加 (乘法)
+        if self.components["transient"].enabled:
+            out *= self.components["transient"].generate(t_vec).astype(np.float32)
         
         self.buffers[buf_idx].seek(0)
         self.buffers[buf_idx].write(out.tobytes())
@@ -130,6 +147,7 @@ class AdcSimulator:
         
         with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as s:
             s.bind(ctrl_path)
+            print(f"🎮 ADC Command Listener ready at {ctrl_path}")
             while self.running:
                 try:
                     data, _ = s.recvfrom(2048)
@@ -137,7 +155,8 @@ class AdcSimulator:
                     target = cmd.get("target")
                     if target in self.components:
                         self.components[target].update_params(cmd.get("params", {}))
-                except: pass
+                except Exception as e:
+                    print(f"⚠️ ADC Cmd Error: {e}")
 
     def run(self, socket_path="/tmp/v_adc.sock"):
         threading.Thread(target=self._command_listener, daemon=True).start()
@@ -151,7 +170,7 @@ class AdcSimulator:
             while self.running:
                 try:
                     conn, _ = srv.accept()
-                    # 简化握手
+                    # 握手头
                     conn.sendall(struct.pack("<II", self.block_size, self.num_buffers))
                     
                     buf_idx = 0
