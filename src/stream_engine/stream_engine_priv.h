@@ -53,6 +53,8 @@ struct stream_engine_s {
 
     bool notify_inited;
     bool timer_inited;
+
+    const edge_stage_factory_entry_t *registry;
 };
 
 #endif

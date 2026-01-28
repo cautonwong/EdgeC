@@ -26,7 +26,7 @@ static void test_end_to_end_flow(void **state) {
 
     datahub_init(&ctx.data_hub, ctx.loop, "test_integ", 128, 1024, NULL, 0, NULL, NULL, NULL);
     arbiter_init(&ctx.arbiter, ctx.loop);
-    ctx.stream_engine = stream_engine_create(&ctx.data_hub, uv_default_loop(), NULL);
+    ctx.stream_engine = stream_engine_create(&ctx.data_hub, uv_default_loop(), NULL, NULL);
 
     // 修正：注入所有核心组件
     ctx.svc =

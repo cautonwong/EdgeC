@@ -106,6 +106,20 @@ typedef struct {
     const char *theme;
 } ui_info_t;
 
+// --- 流处理引擎基础类型前置声明 ---
+struct pipeline_stage_s;
+struct pipeline_loader_ctx_s;
+typedef struct pipeline_stage_s pipeline_stage_t;
+typedef struct pipeline_loader_ctx_s pipeline_loader_ctx_t;
+
+// --- 算子工厂注册表基础类型 ---
+typedef pipeline_stage_t* (*stage_factory_fn)(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+
+typedef struct {
+    const char *type;
+    stage_factory_fn factory;
+} edge_stage_factory_entry_t;
+
 // --- API 路由表项 ---
 typedef struct {
     const char *path;

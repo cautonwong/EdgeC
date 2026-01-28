@@ -476,3 +476,78 @@ pipeline_stage_t *stage_rbe_create(double threshold_pct) {
     s->cleanup_state = free;
     return s;
 }
+
+// --- V2 Factories ---
+
+pipeline_stage_t *stage_filter_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
+    (void)ctx;
+    return stage_filter_create((uint32_t)def->params.u1);
+}
+
+pipeline_stage_t *stage_filter_range_create_v2(const edge_stage_def_t *def,
+                                               pipeline_loader_ctx_t *ctx) {
+    (void)ctx;
+    return stage_filter_range_create(def->params.f1, def->params.f2);
+}
+
+pipeline_stage_t *stage_transform_create_v2(const edge_stage_def_t *def,
+                                            pipeline_loader_ctx_t *ctx) {
+    (void)ctx;
+    return stage_transform_create(def->params.f1, def->params.f2);
+}
+
+pipeline_stage_t *stage_ema_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
+    (void)ctx;
+    return stage_ema_create(def->params.f1);
+}
+
+pipeline_stage_t *stage_clamp_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
+    (void)ctx;
+    return stage_clamp_create(def->params.f1, def->params.f2);
+}
+
+pipeline_stage_t *stage_peak_shave_create_v2(const edge_stage_def_t *def,
+                                             pipeline_loader_ctx_t *ctx) {
+    (void)ctx;
+    return stage_peak_shaving_create(def->params.f1, (uint32_t)def->params.u1);
+}
+
+pipeline_stage_t *stage_accumulate_create_v2(const edge_stage_def_t *def,
+                                             pipeline_loader_ctx_t *ctx) {
+    (void)ctx;
+    (void)def;
+    return stage_accumulate_create();
+}
+
+pipeline_stage_t *stage_freeze_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
+    (void)ctx;
+    return stage_periodic_freeze_create((int)def->params.u1);
+}
+
+pipeline_stage_t *stage_time_guard_create_v2(const edge_stage_def_t *def,
+                                             pipeline_loader_ctx_t *ctx) {
+    (void)ctx;
+    (void)def;
+    return stage_time_guard_create();
+}
+
+pipeline_stage_t *stage_sqlite_sink_create_v2(const edge_stage_def_t *def,
+                                              pipeline_loader_ctx_t *ctx) {
+    return stage_sqlite_sink_create(ctx->db, def->params.s1);
+}
+
+pipeline_stage_t *stage_reflex_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
+    return stage_reflex_logic_create(ctx->orch, 0, def->params.s1, (uint32_t)def->params.u1,
+                                     def->params.f1, def->params.f2 > 0.5, def->params.f3);
+}
+
+pipeline_stage_t *stage_moving_average_create_v2(const edge_stage_def_t *def,
+                                                 pipeline_loader_ctx_t *ctx) {
+    (void)ctx;
+    return stage_moving_average_create((uint32_t)def->params.u1);
+}
+
+pipeline_stage_t *stage_rbe_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
+    (void)ctx;
+    return stage_rbe_create(def->params.f1);
+}

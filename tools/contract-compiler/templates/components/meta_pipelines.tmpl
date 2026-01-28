@@ -1,4 +1,20 @@
 {{- define "meta_pipelines" -}}
+// [Pipelines - Stage Factory Registry]
+{{- range .UsedStages }}
+extern __attribute__((weak)) pipeline_stage_t* stage_{{ lower . }}_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+{{- end }}
+
+const edge_stage_factory_entry_t g_stage_factory_registry[] = {
+{{- range .UsedStages }}
+    { "{{ lower . }}", stage_{{ lower . }}_create_v2 },
+{{- end }}
+    { 0, 0 }
+};
+
+const edge_stage_factory_entry_t* edge_stage_factory_get_registry(void) {
+    return g_stage_factory_registry;
+}
+
 // [Pipelines - Stage Definition Blocks]
 {{- range .Pipelines }}
 static const edge_stage_def_t _stages_{{ .ID }}[] = {

@@ -414,7 +414,7 @@ int main(int argc, char *argv[]) {
     sqlite_config_t db_conf = {.db_path = g_app.db_path, .strategy = STRATEGY_LITE};
     g_app.db_service = sqlite_svc_create(loop, &db_conf);
 
-    g_app.stream_eng = stream_engine_create(g_app.hub, NULL, g_app.orch);
+    g_app.stream_eng = stream_engine_create(g_app.hub, NULL, g_app.orch, edge_stage_factory_get_registry());
     pipeline_loader_ctx_t loader_ctx = {
         .db = g_app.db_service,
         .orch = g_app.orch,

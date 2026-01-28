@@ -61,6 +61,8 @@ extern const edge_model_map_t g_model_registry[];
 extern const int g_model_registry_len;
 const driver_contract_injection_t *edge_model_find(const char *name);
 
+const edge_stage_factory_entry_t* edge_stage_factory_get_registry(void);
+
 // --- Protocol Lookup APIs ---
 {{- if .Hashes.MODBUS }}
 edge_tag_id_t edge_lookup_modbus(uint32_t key, float* scale);
