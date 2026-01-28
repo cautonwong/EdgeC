@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <uv.h>
 
+#include "contract_data_types.h"
 #include "datahub.h"
 #include "shmring.h"
 
@@ -31,7 +32,7 @@ typedef enum {
     STAGE_HEALTH_DISABLED = 3    // 被手动禁用
 } stage_health_t;
 
-typedef struct pipeline_stage_s pipeline_stage_t;
+// struct pipeline_stage_s 定义见下文
 
 typedef stage_ret_t (*stage_proc_fn)(pipeline_stage_t *stage, pipe_msg_t *ev);
 typedef void (*stage_cleanup_fn)(void *priv_data);
@@ -60,21 +61,24 @@ struct pipeline_stage_s {
 typedef struct stream_engine_s stream_engine_t;
 typedef struct pipeline_s pipeline_t;
 
-typedef struct {
+// pipeline_loader_ctx_t 的定义必须匹配 contract_data_types.h 中的前置声明
+struct pipeline_loader_ctx_s {
     sqlite_svc_t *db;
     js_engine_t *js_engine;
     edge_params_t *params;
     struct bus_orchestrator_s *orch; /**< [新增] 用于指令触发 (Sprint 3) */
-} pipeline_loader_ctx_t;
+};
 
 stream_engine_t *stream_engine_create(datahub_t *hub, uv_loop_t *loop,
-                                      struct bus_orchestrator_s *orch);
+                                      struct bus_orchestrator_s *orch,
+                                      const edge_stage_factory_entry_t *registry);
 
 /**
  * @brief 在指定 Loop 上创建流引擎 (用于物理隔离 L2 线程)
  */
 stream_engine_t *stream_engine_create_ex(datahub_t *hub, uv_loop_t *loop,
-                                         struct bus_orchestrator_s *orch);
+                                         struct bus_orchestrator_s *orch,
+                                         const edge_stage_factory_entry_t *registry);
 void stream_engine_destroy(stream_engine_t *engine);
 
 void stream_engine_start(stream_engine_t *engine);

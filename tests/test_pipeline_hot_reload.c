@@ -15,7 +15,7 @@ static void test_pipeline_hot_reload_logic(void **state) {
     // 适配新签名
     datahub_init(&hub, uv_default_loop(), "test_reload_bus", 64, 1024, NULL, 0, NULL, NULL, NULL);
 
-    stream_engine_t *engine = stream_engine_create(&hub, uv_default_loop(), NULL);
+    stream_engine_t *engine = stream_engine_create(&hub, uv_default_loop(), NULL, NULL);
     stream_engine_start(engine);
     assert_non_null(engine);
 

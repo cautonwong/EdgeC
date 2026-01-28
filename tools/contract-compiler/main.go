@@ -37,6 +37,7 @@ type TplCtx struct {
 	Devices      []model.DeviceAttachment
 	Hardware     []model.HardwareDef
 	Pipelines    []model.PipelineDef
+	UsedStages   []string // [NEW] Unique stage types used in this contract
 	Policies     []model.PolicyDef
 	UI           model.UIDef
 	Product      string
@@ -59,6 +60,29 @@ func main() {
 	actMap := make(map[string]bool)
 	for _, t := range contract.ActiveTags { actMap[t.Name] = true }
 	
+	// --- [NEW] Collect Unique Stage Types (Robust Version) ---
+	stageMap := make(map[string]bool)
+	for _, p := range contract.Pipelines {
+		for _, s := range p.Stages {
+			// 尝试从顶层拿 type
+			if t, ok := s["type"].(string); ok && t != "" {
+				stageMap[strings.ToLower(t)] = true
+			} else if cfg, ok := s["config"].(map[string]interface{}); ok {
+				// 尝试从 config 内部拿 type (兼容某些畸形结构)
+				if t, ok := cfg["type"].(string); ok && t != "" {
+					stageMap[strings.ToLower(t)] = true
+				}
+			}
+		}
+	}
+	usedStages := make([]string, 0, len(stageMap))
+	for s := range stageMap { 
+		usedStages = append(usedStages, s)
+		fmt.Printf("[Compiler] Detected used stage: %s\n", s)
+	}
+	sort.Strings(usedStages)
+	// ----------------------------------------
+
 	// 1. 协议解析
 	resolved := protocols.Resolve(contract.ActiveTags)
 
@@ -150,6 +174,7 @@ func main() {
 		Devices:      contract.Devices,
 		Hardware:     contract.Hardware,
 		Pipelines:    contract.Pipelines,
+		UsedStages:   usedStages,
 		Policies:     contract.Policies,
 		UI:           contract.UI,
 		Product:      contract.Product,

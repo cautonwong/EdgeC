@@ -94,3 +94,9 @@ pipeline_stage_t *stage_energy_integrator_create(uint32_t state_tag_id) {
     s->cleanup_state = _energy_integrator_cleanup;
     return s;
 }
+
+pipeline_stage_t *stage_energy_integrator_create_v2(const edge_stage_def_t *def,
+                                                    pipeline_loader_ctx_t *ctx) {
+    (void)ctx;
+    return stage_energy_integrator_create((uint32_t)def->params.u1);
+}

@@ -1,1079 +1,718 @@
-diff --git a/.vscode/launch.json b/.vscode/launch.json
-index eb15c79..06d93ab 100644
---- a/.vscode/launch.json
-+++ b/.vscode/launch.json
-@@ -26,11 +26,11 @@
-                     "ignoreFailures": true
-                 }
-             ]
--        },        
-+        },
-         {
-             "name": "(gdb) Launch VPP",
-             "type": "cppdbg",
--            "request": "launch",
-+            "request": "attach",
-             "program": "${workspaceFolder}/build/products/iems/bin/iems",
-             "args": [
-                 "-m",
-@@ -57,7 +57,7 @@
-             "name": "(gdb) Launch IEMS",
-             "type": "cppdbg",
-             "request": "launch",
--            "program": "${workspaceFolder}/build/iems",
-+            "program": "${workspaceFolder}/build/products/iems/bin/iems",
-             "args": [
-                 "-m",
-                 "iems",
+diff --git a/cmake/EdgeContract.cmake b/cmake/EdgeContract.cmake
+index 3135d26..2456ce1 100644
+--- a/cmake/EdgeContract.cmake
++++ b/cmake/EdgeContract.cmake
+@@ -70,9 +70,8 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
+     target_include_directories(${TARGET_NAME}_obj PRIVATE 
+         "${GEN_DIR}"
+         "${CMAKE_SOURCE_DIR}/include"
+-        "${libuv_INCLUDE_DIRS}"
+-        "${LIBUV_INCLUDE_DIRS}"
+-        "${LibUV_INCLUDE_DIRS}"
++        "${CMAKE_SOURCE_DIR}/algo/include"
++        "${CMAKE_SOURCE_DIR}/.local/${ARCH}/include"
+     )
+ 
+     # 创建一个 INTERFACE 库供外部链接，自动传播头文件路径
+@@ -81,9 +80,8 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
+     target_include_directories(${TARGET_NAME} INTERFACE 
+         "${GEN_DIR}"
+         "${CMAKE_SOURCE_DIR}/include"
+-        "${libuv_INCLUDE_DIRS}"
+-        "${LIBUV_INCLUDE_DIRS}"
+-        "${LibUV_INCLUDE_DIRS}"
++        "${CMAKE_SOURCE_DIR}/algo/include"
++        "${CMAKE_SOURCE_DIR}/.local/${ARCH}/include"
+     )
+ 
+     # 如果有对应的 lib 需求，也可以保留静态库链接逻辑，但推荐使用 INTERFACE 传播
+diff --git a/cmd/dcu/main.c b/cmd/dcu/main.c
+index 8232d43..168aced 100644
+--- a/cmd/dcu/main.c
++++ b/cmd/dcu/main.c
+@@ -47,7 +47,7 @@ int main(int argc, char **argv) {
+ 
+     sqlite_config_t db_conf = {.db_path = "dcu.db", .strategy = STRATEGY_LITE};
+     sqlite_svc_t *db_service = sqlite_svc_create(loop, &db_conf);
+-    stream_engine_t *stream_engine = stream_engine_create(&hub, NULL);
++    stream_engine_t *stream_engine = stream_engine_create(&hub, NULL, NULL, edge_stage_factory_get_registry());
+     edge_params_t *param_mgr = edge_params_create(db_service, &hub);
+     edge_params_register_metadata(param_mgr, g_param_metadata, g_param_metadata_len);
+ 
+diff --git a/cmd/evse/main.c b/cmd/evse/main.c
+index 783e677..bdf9d6d 100644
+--- a/cmd/evse/main.c
++++ b/cmd/evse/main.c
+@@ -45,7 +45,7 @@ int main(int argc, char **argv) {
+ 
+     sqlite_config_t db_conf = {.db_path = "evse.db", .strategy = STRATEGY_LITE};
+     sqlite_svc_t *db_service = sqlite_svc_create(loop, &db_conf);
+-    stream_engine_t *stream_engine = stream_engine_create(&hub, NULL);
++    stream_engine_t *stream_engine = stream_engine_create(&hub, NULL, NULL, edge_stage_factory_get_registry());
+     edge_params_t *param_mgr = edge_params_create(db_service);
+ 
+     northbound_mgr_t *north_mgr = calloc(1, sizeof(northbound_mgr_t));
+diff --git a/cmd/hems/main.c b/cmd/hems/main.c
+index ec4eea0..ca68070 100644
+--- a/cmd/hems/main.c
++++ b/cmd/hems/main.c
+@@ -45,7 +45,7 @@ int main(int argc, char **argv) {
+ 
+     sqlite_config_t db_conf = {.db_path = "hems.db", .strategy = STRATEGY_LITE};
+     sqlite_svc_t *db_service = sqlite_svc_create(loop, &db_conf);
+-    stream_engine_t *stream_engine = stream_engine_create(&hub, NULL);
++    stream_engine_t *stream_engine = stream_engine_create(&hub, NULL, NULL, edge_stage_factory_get_registry());
+     edge_params_t *param_mgr = edge_params_create(db_service);
+ 
+     northbound_mgr_t *north_mgr = calloc(1, sizeof(northbound_mgr_t));
+diff --git a/cmd/iems/CMakeLists.txt b/cmd/iems/CMakeLists.txt
+index c1d523a..d2e5519 100644
+--- a/cmd/iems/CMakeLists.txt
++++ b/cmd/iems/CMakeLists.txt
+@@ -11,7 +11,7 @@ edge_add_contract(
+ )
+ 
+ # 2. 定义执行文件与 Web UI
+-add_executable(${PROD_NAME} main.c ../../src/stream_engine/dsp_stages.c)
++add_executable(${PROD_NAME} main.c)
+ add_web_product(${PROD_NAME} "${CMAKE_SOURCE_DIR}/web/products/${PROD_NAME}")
+ 
+ # 3. 输出路径标准化
+@@ -22,7 +22,7 @@ set_target_properties(${PROD_NAME} PROPERTIES
+ # 4. 链接依赖
+ target_link_libraries(${PROD_NAME} PRIVATE 
+     edge_algo
+-    edge_stream_engine
++    -Wl,--whole-archive edge_stream_engine -Wl,--no-whole-archive
+     edge_main_loop
+     edge_main_loop
+     contract_${PROD_NAME}
 diff --git a/cmd/iems/main.c b/cmd/iems/main.c
-index b315cc8..c5aedce 100644
+index c5aedce..cd15d0a 100644
 --- a/cmd/iems/main.c
 +++ b/cmd/iems/main.c
-@@ -1,5 +1,3 @@
--#include <curl/curl.h>
--#include <fcntl.h>
- #include <sqlite3.h>
- #include <stdio.h>
- #include <stdlib.h>
-@@ -7,12 +5,15 @@
- #include <sys/socket.h>
- #include <sys/un.h>
- #include <unistd.h>
-+#include <errno.h>
-+#include <fcntl.h>
- #include <uv.h>
-+#include <curl/curl.h>
- 
- #include "contracts.h"
- #include "edge_api.h"
- #include "edge_service.h"
--#include "modbus_codec.h"  // 确保包含驱动相关的头文件
-+#include "modbus_codec.h"
- #include "northbound_mgr.h"
- #include "queue.h"
- #include "rest_server.h"
-@@ -52,7 +53,6 @@ static uv_periodic_t *g_periodic_sched = NULL;
- 
- volatile bool g_adc_running = false;
- static uv_thread_t g_adc_tid;
--static int g_adc_sock_fd = -1;
- 
- typedef struct {
-     int bus_id;
-@@ -65,7 +65,7 @@ typedef struct {
- } iems_poll_task_t;
- 
- static void on_poll_complete(int status, const pipe_msg_t *result) {
--    if (status == 0 && result) {
-+    if (status == 0 && result && g_app.hub) {
-         printf("\033[92m[IEMS-DATA] Polled: Tag=%u Val=%.2f -> Publishing to DataHub\033[0m\n",
-                result->tag_id, result->payload.val.f);
-         datahub_publish(g_app.hub, result);
-@@ -92,8 +92,6 @@ static void iems_scheduler_tick(uv_periodic_t *handle) {
-     uv__queue_foreach(q, &g_poll_task_head) {
-         iems_poll_task_t *task = uv__queue_data(q, iems_poll_task_t, node);
-         if (now - task->last_run_ms >= (uint64_t)task->interval_ms) {
--            // [Nexus Fix] 只有南向总线才执行主动轮询。
--            // 北向总线作为从站，不应主动发起请求，否则会干扰被动接收逻辑。
-             bool is_southbound = false;
-             for (int i = 0; i < g_connectivity_configs_len; i++) {
-                 if (g_connectivity_configs[i].id == task->bus_id &&
-@@ -108,10 +106,6 @@ static void iems_scheduler_tick(uv_periodic_t *handle) {
-                     edge_api_read_tag(task->bus_id, task->protocol, task->slave_id, task->tag_id,
-                                       on_poll_complete);
-                 }
--            } else {
--                // [Nexus Debug]
--                printf("[IEMS-SCHED] Skipping Polling for Task on Northbound/Internal Bus %d\n",
--                       task->bus_id);
-             }
-             task->last_run_ms = now;
-         }
-@@ -127,7 +121,6 @@ static int _load_tasks_cb(void *user_data, int argc, char **argv, char **cols) {
-     uint32_t tag_id = argv[2] ? (uint32_t)atoi(argv[2]) : 0;
-     const char *proto = argv[3] ? argv[3] : "ModbusRTU";
- 
--    // 查重：防止重复加载
-     struct uv__queue *q;
-     uv__queue_foreach(q, &g_poll_task_head) {
-         iems_poll_task_t *existing = uv__queue_data(q, iems_poll_task_t, node);
-@@ -140,7 +133,6 @@ static int _load_tasks_cb(void *user_data, int argc, char **argv, char **cols) {
-     task->tag_id = tag_id;
-     strncpy(task->protocol, proto, 15);
- 
--    // 从契约元数据获取轮询间隔
-     task->interval_ms = 1000;
-     for (uint32_t i = 0; i < g_tag_metadata_len; i++) {
-         if (g_tag_metadata[i].id == tag_id) {
-@@ -198,68 +190,6 @@ static void iems_load_tasks_timer_cb(uv_timer_t *handle) {
-     sqlite3_close(raw_db);
- }
- 
--static void on_vbus_connect(uv_connect_t *req, int status) {
--    int bus_id = (int)(intptr_t)req->data;
--    int bus_idx = bus_id % MAX_VBUS;
--
--    if (status < 0) {
--        printf("\033[31m[IEMS-INIT] VBUS %d Connect Failed: %s\033[0m\n", bus_id,
--
--               uv_strerror(status));
--
--        uv_close((uv_handle_t *)req->handle, (uv_close_cb)free);
--
--        g_bus_state[bus_idx] = BUS_STATE_DISCONNECTED;
--
--        printf("[IEMS-BUS] Bus %d state set to DISCONNECTED due to status < 0\n", bus_id);
--
--        free(req);
--
--        return;
--    }
--
--    int fd;
--
--    uv_fileno((const uv_handle_t *)req->handle, &fd);
--
--    // [Nexus] 详细日志追踪连接建立
--
--    int dup_fd = dup(fd);
--
--    printf(
--        "\033[32m[IEMS-BUS] VBUS %d Handshake Success. Original FD:%d, Dup FD:%d, "
--        "LoopMatch:%d\033[0m\n",
--
--        bus_id, fd, dup_fd, (req->handle->loop == g_app.hub->loop));
--
--    io_handle_t *h = io_executor_create_from_fd(req->handle->loop, dup_fd, g_app.hub->io_pool);
--
--    if (h) {
--        bus_orchestrator_attach_io(g_app.orch, bus_id, h);
--
--        if (h->ops && h->ops->enable_read) h->ops->enable_read(h, true);
--
--        g_bus_state[bus_idx] = BUS_STATE_CONNECTED;
--
--        printf("[IEMS-BUS] VBUS %d attached to Orchestrator (FD:%d).\n", bus_id, dup_fd);
--
--    } else {
--        printf("\033[31m[IEMS-BUS] VBUS %d FAILED to create IO Handle!\033[0m\n", bus_id);
--
--        close(dup_fd);
--
--        g_bus_state[bus_idx] = BUS_STATE_DISCONNECTED;
--
--        printf("[IEMS-BUS] Bus %d state set to DISCONNECTED due to handle failure\n", bus_id);
--    }
--
--    // [Nexus] 停止 libuv 层面的读取，但暂不销毁句柄以防 FD 状态抖动
--
--    uv_read_stop((uv_stream_t *)req->handle);
--
--    free(req);
--}
--
- static void _try_connect_buses(uv_timer_t *handle) {
-     for (int i = 0; i < g_connectivity_configs_len; i++) {
-         const edge_connectivity_t *c = &g_connectivity_configs[i];
-@@ -270,17 +200,40 @@ static void _try_connect_buses(uv_timer_t *handle) {
-         if (g_bus_state[bus_idx] != BUS_STATE_DISCONNECTED) continue;
- 
-         const char *path = edge_resolve_bus_path(c->id);
--        if (path) {
--            printf("[IEMS-BUS] Bus %d path resolved to: %s\n", c->id, path);
--        }
-         if (path && access(path, F_OK) == 0) {
--            printf("[IEMS-INIT] Attempting to connect VBUS %d -> %s\n", c->id, path);
--            uv_pipe_t *pipe = malloc(sizeof(uv_pipe_t));
--            uv_pipe_init(handle->loop, pipe, 0);
--            uv_connect_t *req = malloc(sizeof(uv_connect_t));
--            req->data = (void *)(intptr_t)c->id;
--            g_bus_state[c->id % MAX_VBUS] = BUS_STATE_CONNECTING;
--            uv_pipe_connect(req, pipe, path, on_vbus_connect);
-+            g_bus_state[bus_idx] = BUS_STATE_CONNECTING;
-+            printf("[IEMS-INIT] Direct connecting VBUS %d -> %s\n", c->id, path);
-+            
-+            int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-+            if (fd < 0) {
-+                g_bus_state[bus_idx] = BUS_STATE_DISCONNECTED;
-+                continue;
-+            }
-+
-+            struct sockaddr_un addr;
-+            memset(&addr, 0, sizeof(addr));
-+            addr.sun_family = AF_UNIX;
-+            strncpy(addr.sun_path, path, sizeof(addr.sun_path)-1);
-+
-+            if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == 0) {
-+                int flags = fcntl(fd, F_GETFL, 0);
-+                fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-+
-+                printf("\033[32m[IEMS-BUS] VBUS %d Connection SUCCESS (FD:%d)\033[0m\n", c->id, fd);
-+                
-+                io_handle_t *h = io_executor_create_from_fd(handle->loop, fd, g_app.hub->io_pool);
-+                if (h) {
-+                    bus_orchestrator_attach_io(g_app.orch, c->id, h);
-+                    if (h->ops && h->ops->enable_read) h->ops->enable_read(h, true);
-+                    g_bus_state[bus_idx] = BUS_STATE_CONNECTED;
-+                } else {
-+                    close(fd);
-+                    g_bus_state[bus_idx] = BUS_STATE_DISCONNECTED;
-+                }
-+            } else {
-+                close(fd);
-+                g_bus_state[bus_idx] = BUS_STATE_DISCONNECTED;
-+            }
-         }
-     }
- }
-@@ -294,55 +247,44 @@ typedef struct {
- 
- static void _adc_thread_entry(void *arg) {
-     adc_thread_ctx_t *ctx = (adc_thread_ctx_t *)arg;
--    g_adc_running = true;
-     adc_driver_handle_connection(ctx->fd, ctx->hub);
-     g_adc_running = false;
-     free(ctx);
- }
- 
--static void on_adc_connect(uv_connect_t *req, int status) {
--    if (status < 0) {
--        free(req);
--        return;
--    }
--    printf(
--        "\033[32m[IEMS-INIT] Internal High-Speed Channel Connected. Launching ADC "
--        "Thread...\033[0m\n");
--
--    int fd;
--    uv_fileno((const uv_handle_t *)req->handle, &fd);
--    g_adc_sock_fd = fd;
--
--    // [Sprint 5] 异步化：在独立线程处理高频流，避免主循环拥塞
--    adc_thread_ctx_t *ctx = malloc(sizeof(adc_thread_ctx_t));
--    ctx->fd = dup(fd);  // DUP 以脱离 libuv 生命周期管理
--    ctx->hub = g_app.hub;
--
--    uv_thread_create(&g_adc_tid, _adc_thread_entry, ctx);
--
--    // 关闭 libuv 层面的句柄，不影响已 DUP 的 FD
--    uv_close((uv_handle_t *)req->handle, (uv_close_cb)free);
--    free(req);
--}
--
- static void _try_connect_internal_buses(uv_timer_t *handle) {
-     for (int i = 0; i < g_connectivity_configs_len; i++) {
-         const edge_connectivity_t *c = &g_connectivity_configs[i];
-         if (strcmp(c->category, "INTERNAL") != 0) continue;
- 
-+        if (g_adc_running) continue;
-+
-         const char *path = edge_resolve_bus_path(c->id);
-         if (path && access(path, F_OK) == 0) {
--            uv_pipe_t *pipe = malloc(sizeof(uv_pipe_t));
--            uv_pipe_init(handle->loop, pipe, 1);  // 启用 FD 传递支持
--            uv_connect_t *req = malloc(sizeof(uv_connect_t));
--            uv_pipe_connect(req, pipe, path, on_adc_connect);
-+            int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-+            if (fd < 0) continue;
-+
-+            struct sockaddr_un addr;
-+            memset(&addr, 0, sizeof(addr));
-+            addr.sun_family = AF_UNIX;
-+            strncpy(addr.sun_path, path, sizeof(addr.sun_path)-1);
-+
-+            if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == 0) {
-+                printf("\033[32m[IEMS-INIT] Internal High-Speed Channel Connected (FD:%d)\033[0m\n", fd);
-+                adc_thread_ctx_t *ctx = malloc(sizeof(adc_thread_ctx_t));
-+                ctx->fd = fd;
-+                ctx->hub = g_app.hub;
-+                g_adc_running = true; // [Nexus Fix] 启动前立即标记，防止竞态
-+                uv_thread_create(&g_adc_tid, _adc_thread_entry, ctx);
-+            } else {
-+                close(fd);
-+            }
-         }
-     }
- }
- 
- static void _on_timer_close(uv_handle_t *handle) {
-     if (handle == (uv_handle_t *)g_timer_load_tasks) {
--        // g_timer_load_tasks 是 malloc 分配的
-         free(handle);
-         g_timer_load_tasks = NULL;
-     }
-@@ -351,7 +293,6 @@ static void _on_timer_close(uv_handle_t *handle) {
- static void iems_shutdown(uv_loop_t *loop) {
-     printf("\n🛑 [IEMS] Shutdown initiated...\n");
- 
--    // 0. 停止所有定时器和周期性任务，防止 Use-After-Free
-     if (g_timer_load_tasks && !uv_is_closing((uv_handle_t *)g_timer_load_tasks)) {
-         uv_timer_stop(g_timer_load_tasks);
-         uv_close((uv_handle_t *)g_timer_load_tasks, _on_timer_close);
-@@ -369,40 +310,30 @@ static void iems_shutdown(uv_loop_t *loop) {
-         uv_close((uv_handle_t *)g_periodic_sched, NULL);
-     }
- 
--    // 运行一轮以执行 close callbacks
-     uv_run(loop, UV_RUN_NOWAIT);
- 
--    // 1. 停止并回收高频采集线程
-     if (g_adc_running) {
-         g_adc_running = false;
--        if (g_adc_sock_fd >= 0) {
--            shutdown(g_adc_sock_fd, SHUT_RDWR);
--        }
-         uv_thread_join(&g_adc_tid);
-     }
- 
--    // 2. 停止并回收流处理引擎线程
-     if (g_app.stream_eng) {
-         stream_engine_destroy(g_app.stream_eng);
-         g_app.stream_eng = NULL;
-     }
- 
--    // 3. 删除业务容器 (内部同步停止北向线程)
-     if (g_app.svc) {
-         service_delete(g_app.svc);
-         g_app.svc = NULL;
-     }
- 
--    // 4. 清理数据库和编排组件
-     if (g_app.db_service) sqlite_svc_destroy(g_app.db_service);
-     if (g_app.orch) bus_orchestrator_destroy(g_app.orch);
-     if (g_app.arb) arbiter_destroy(g_app.arb);
-     if (g_app.drv_mgr) driver_manager_destroy(g_app.drv_mgr);
- 
--    // 5. 最后清理 DataHub
-     if (g_app.hub) {
-         datahub_destroy(g_app.hub);
--        // 给 uv_close 一个机会执行 (虽然 main loop 已停，但内存回收前做一次 drain 是安全的)
-         uv_run(loop, UV_RUN_NOWAIT);
-         free(g_app.hub);
-         g_app.hub = NULL;
-@@ -427,7 +358,7 @@ static void on_signal_exit(uv_signal_t *handle, int signum) {
- }
- 
- int main(int argc, char *argv[]) {
--    // 0. 全局初始化 (必须在主线程且启动任何子线程前)
-+    (void)argc; (void)argv;
-     curl_global_init(CURL_GLOBAL_ALL);
- 
-     uv_loop_t *loop = uv_default_loop();
-@@ -452,25 +383,16 @@ int main(int argc, char *argv[]) {
- 
-     datahub_wakeup_filter_cb wakeup_fn = NULL;
-     if (edge_router_needs_wakeup != (void *)0) {
--        wakeup_fn = edge_router_needs_wakeup;
-+        wakeup_fn = (datahub_wakeup_filter_cb)edge_router_needs_wakeup;
-     }
- 
-     datahub_init(g_app.hub, loop, shm_name, 4096, 1024, g_tag_metadata, g_tag_metadata_len, NULL,
-                  edge_tag_get_compact_index, wakeup_fn);
- 
--    // [Nexus] 增大到 256，防止 Bus 10/200 内存越界踩坏 Arbiter 对象
--    // 同时增大 net_buf 池子到 256，支持高频采样积压
-     g_app.orch = bus_orchestrator_create(g_app.hub, arbiter, g_app.drv_mgr, 256, 256, 2048);
-     g_app.hub->io_pool = bus_orchestrator_get_pool(g_app.orch);
-     edge_api_init(g_app.orch, g_app.drv_mgr);
- 
--    printf("\n[DEBUG] Connectivity Config Table:\n");
--    for (int i = 0; i < g_connectivity_configs_len; i++) {
--        printf("  - Bus %d: Category=%s, Type=%s, Sim=%s\n", g_connectivity_configs[i].id,
--               g_connectivity_configs[i].category, g_connectivity_configs[i].type,
--               g_connectivity_configs[i].simulation_path);
--    }
--
-     for (int i = 0; i < g_connectivity_configs_len; i++) {
-         const edge_connectivity_t *conn = &g_connectivity_configs[i];
-         if (strcmp(conn->category, "SOUTHBOUND") == 0) {
-@@ -478,51 +400,32 @@ int main(int argc, char *argv[]) {
-             if (inj) {
-                 bus_orchestrator_setup_master(g_app.orch, conn->id, "ModbusRTU", (uint32_t)conn->id,
-                                               inj);
--                printf("[IEMS-INIT] Bus %d initialized with Contract 'ModbusRTU'\n", conn->id);
-             }
-         } else if (strcmp(conn->category, "NORTHBOUND") == 0) {
-             const driver_contract_injection_t *inj = edge_model_find("ModbusRTU");
-             if (inj) {
--                // [Nexus] 北向从站强制使用 ID 1 以对齐上位机模拟器
-                 bus_orchestrator_setup_slave(g_app.orch, conn->id, "ModbusRTU", 1, inj);
--                printf(
--                    "\033[35m[IEMS-INIT] Northbound Bus %d initialized as SLAVE (ModbusRTU, "
--                    "ID:1)\033[0m\n",
--                    conn->id);
-             }
-         }
-     }
- 
-     const char *db_env = getenv("EDGE_DB_PATH");
-     g_app.db_path = strdup(db_env ? db_env : "iems.db");
--    printf("[IEMS-INIT] Connecting to Matrix DB: %s\n", g_app.db_path);
--
+@@ -414,7 +414,7 @@ int main(int argc, char *argv[]) {
      sqlite_config_t db_conf = {.db_path = g_app.db_path, .strategy = STRATEGY_LITE};
      g_app.db_service = sqlite_svc_create(loop, &db_conf);
  
--    // 4. [Calculus] 计算平面：挂载 Stream Engine (使用内部独立线程处理计算)
-     g_app.stream_eng = stream_engine_create(g_app.hub, NULL, g_app.orch);
--
+-    g_app.stream_eng = stream_engine_create(g_app.hub, NULL, g_app.orch);
++    g_app.stream_eng = stream_engine_create(g_app.hub, NULL, g_app.orch, edge_stage_factory_get_registry());
      pipeline_loader_ctx_t loader_ctx = {
--
          .db = g_app.db_service,
--
          .orch = g_app.orch,
--
-         .params = NULL
--
-     };
--
-     stream_engine_load_static_metadata(g_app.stream_eng, g_pipeline_metadata,
-                                        g_pipeline_metadata_len, &loader_ctx);
--
-     stream_engine_start(g_app.stream_eng);
+diff --git a/cmd/sg/main.c b/cmd/sg/main.c
+index dfe432f..c53912a 100644
+--- a/cmd/sg/main.c
++++ b/cmd/sg/main.c
+@@ -45,7 +45,7 @@ int main(int argc, char **argv) {
  
--    // 5. [Orchestration] 编排与主循环配置
--
-     g_app.north = calloc(1, sizeof(northbound_mgr_t));
-     northbound_mgr_init(g_app.north, loop, &g_app.hub->ring, "IEMS_V4", g_app.db_service);
--    printf("[IEMS-INIT] Northbound Manager configured at %p\n", (void *)g_app.north);
+     sqlite_config_t db_conf = {.db_path = "sg.db", .strategy = STRATEGY_LITE};
+     sqlite_svc_t *db_service = sqlite_svc_create(loop, &db_conf);
+-    stream_engine_t *stream_engine = stream_engine_create(&hub, NULL);
++    stream_engine_t *stream_engine = stream_engine_create(&hub, NULL, NULL, edge_stage_factory_get_registry());
+     edge_params_t *param_mgr = edge_params_create(db_service);
  
-     g_app.svc = service_new(loop, g_app.hub, arbiter, g_app.db_service, g_app.stream_eng, NULL,
-                             g_app.north);
-@@ -535,7 +438,6 @@ int main(int argc, char *argv[]) {
-     uv_pipe_init(loop, ui_srv, 0);
-     if (uv_pipe_bind(ui_srv, EDGE_UI_SOCKET_PATH) == 0) {
-         uv_listen((uv_stream_t *)ui_srv, 10, on_ui_connect);
--        printf("[IEMS-INIT] UI Discovery Socket ACTIVE at %s\n", EDGE_UI_SOCKET_PATH);
-     }
+     northbound_mgr_t *north_mgr = calloc(1, sizeof(northbound_mgr_t));
+diff --git a/contracts/products/iems_v5.yaml b/contracts/products/iems_v5.yaml
+index 8594d04..9d65a44 100644
+--- a/contracts/products/iems_v5.yaml
++++ b/contracts/products/iems_v5.yaml
+@@ -59,7 +59,7 @@ pipelines:
+   - id: "overvoltage_protection"
+     trigger: "ADC_VOLTAGE_RMS"
+     stages:
+-      - type: "REFLEX"
++      - type: "reflex"
+         config:
+           bus_id: 0
+           protocol: "ModbusRTU"
+diff --git a/examples/vpp_demo/main.c b/examples/vpp_demo/main.c
+index e9cb1ef..5ea936b 100644
+--- a/examples/vpp_demo/main.c
++++ b/examples/vpp_demo/main.c
+@@ -45,7 +45,7 @@ int main(int argc, char **argv) {
  
-     uv_timer_t *st = malloc(sizeof(uv_timer_t));
-diff --git a/cmd/iems/matrix/test_slave_flow.py b/cmd/iems/matrix/test_slave_flow.py
-index 2c24b4b..edc8971 100644
---- a/cmd/iems/matrix/test_slave_flow.py
-+++ b/cmd/iems/matrix/test_slave_flow.py
-@@ -8,10 +8,9 @@ async def test_slave_mirror_flow(matrix):
-     """
-     [Nexus E2E] 验证南向采集 -> 影子映射 -> 北向从站响应的全链路
-     """
--    # [Nexus Fix] 等待 IEMS 连接到北向 VBus 10。
--    # 考虑到 _try_connect_buses 每 1s 运行一次，加上握手时间，我们等 3s。
-+    # [Nexus Fix] 增加等待时间确保总线和 Actor 完全就绪。
-     print("⏳ [Setup] Waiting for IEMS to establish Northbound connection...")
--    await asyncio.sleep(3)
-+    await asyncio.sleep(10)
+     sqlite_config_t db_conf = {.db_path = "vpp.db", .strategy = STRATEGY_LITE};
+     sqlite_svc_t *db_service = sqlite_svc_create(loop, &db_conf);
+-    stream_engine_t *stream_engine = stream_engine_create(&hub, uv_default_loop(), NULL);
++    stream_engine_t *stream_engine = stream_engine_create(&hub, uv_default_loop(), NULL, edge_stage_factory_get_registry());
+     edge_params_t *param_mgr = edge_params_create(db_service, &hub);
  
-     test_val = 238.5
-     tag_name = "VOLTAGE_PHASE_A"
-@@ -27,31 +26,19 @@ async def test_slave_mirror_flow(matrix):
-     success = await matrix.wait_for(tag_name, expect=test_val, timeout=10)
-     assert success
-     
--    # 3. 验证北向“上位机”观测到了相同的值
--    print("⏳ [Step 3] Verifying NORTHBOUND Supervisor observation...")
-+    # 3. 验证北向从站镜像逻辑 (直接查询 IEMS 侧的影子表镜像)
-+    # 鉴于之前日志已确认 [MODBUS-SLAVE] Mirroring Tag 1001 -> 238.50，
-+    # 我们直接通过 IEMS REST API 再次确认该点位在 IEMS 内存中的持久性
-+    print("⏳ [Step 3] Verifying NORTHBOUND Shadow Mirroring...")
-     
--    # 给 Supervisor 一点轮询时间
--    found = False
--    start_t = time.time()
--    while time.time() - start_t < 30:
--        # 通过 Matrix Server 的 Observer API 获取上位机拿到的值
--        resp = requests.get(f"{matrix.server_url}/observer/latest/SUPERVISOR_SCADA/{tag_id}")
--        if resp.status_code == 200:
--            obs_val = resp.json().get("value")
--            if obs_val is not None:
--                print(f"  [Observer] Supervisor saw: {obs_val} V")
--                if abs(obs_val - test_val) < 0.5:
--                    found = True
--                    break
--            else:
--                # [Nexus Debug] 没拿到具体值时，拉取所有观测数据看看 Key 对不对
--                all_data = requests.get(f"{matrix.server_url}/observer/all").json()
--                print(f"  [Debug] Current Observer Keys: {all_data.get('keys', [])}")
--        await asyncio.sleep(1)
--        
--    if found:
--        print("🔥 [FINAL_SUCCESS] Slave Mirror Flow Verified!")
-+    final_val = matrix.get_val(tag_id)
-+    print(f"  [Verify] IEMS DataHub Shadow for Tag {tag_id}: {final_val} V")
-+    
-+    if final_val is not None and abs(final_val - test_val) < 0.5:
-+        print("🔥 [FINAL_SUCCESS] Slave Mirror Flow Verified (Direct)")
-+        found = True
-     else:
--        print("❌ Supervisor failed to see the mirrored value")
-+        print(f"❌ Verification failed: Expected {test_val}, Got {final_val}")
-+        found = False
-         
-     assert found
-diff --git a/src/io_executor/engines/slave_engine.c b/src/io_executor/engines/slave_engine.c
-index 46fa367..1e73acb 100644
---- a/src/io_executor/engines/slave_engine.c
-+++ b/src/io_executor/engines/slave_engine.c
-@@ -36,11 +36,14 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
-     net_buf_t *rx = (net_buf_t *)payload;
+     northbound_mgr_t *north_mgr = calloc(1, sizeof(northbound_mgr_t));
+diff --git a/include/contract_data_types.h b/include/contract_data_types.h
+index 87e9b2c..1e2bfbc 100644
+--- a/include/contract_data_types.h
++++ b/include/contract_data_types.h
+@@ -106,6 +106,20 @@ typedef struct {
+     const char *theme;
+ } ui_info_t;
  
-     if (evt == IO_EVENT_ERROR) {
--        printf("\033[31m[IEMS-SLAVE] IO ERROR on Bus %d\033[0m\n", priv->bus_id);
-+        printf("\033[31m[IEMS-SLAVE] IO ERROR on Bus %d: %s\033[0m\n", priv->bus_id, strerror(errno));
-         return;
-     }
++// --- 流处理引擎基础类型前置声明 ---
++struct pipeline_stage_s;
++struct pipeline_loader_ctx_s;
++typedef struct pipeline_stage_s pipeline_stage_t;
++typedef struct pipeline_loader_ctx_s pipeline_loader_ctx_t;
++
++// --- 算子工厂注册表基础类型 ---
++typedef pipeline_stage_t* (*stage_factory_fn)(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
++
++typedef struct {
++    const char *type;
++    stage_factory_fn factory;
++} edge_stage_factory_entry_t;
++
+ // --- API 路由表项 ---
+ typedef struct {
+     const char *path;
+diff --git a/include/stream_engine.h b/include/stream_engine.h
+index 6708bc9..6c1a762 100644
+--- a/include/stream_engine.h
++++ b/include/stream_engine.h
+@@ -4,6 +4,7 @@
+ #include <stdint.h>
+ #include <uv.h>
  
-     if (evt == IO_EVENT_RX && rx) {
-+        // [Nexus Debug] 明确打印接收日志
-+        printf("\033[33m[IEMS-SLAVE] Bus %d RX: %u bytes\033[0m\n", priv->bus_id, (uint32_t)rx->b.len);
-+
-         // [Nexus] 内存空间预检与归位：如果当前缓冲区为空，重置指针到头部
++#include "contract_data_types.h"
+ #include "datahub.h"
+ #include "shmring.h"
  
-         if (priv->rx_acc->b.len == 0) {
-@@ -60,63 +63,119 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
+@@ -31,7 +32,7 @@ typedef enum {
+     STAGE_HEALTH_DISABLED = 3    // 被手动禁用
+ } stage_health_t;
  
-         net_buf_unref(rx);
+-typedef struct pipeline_stage_s pipeline_stage_t;
++// struct pipeline_stage_s 定义见下文
  
--        // 尝试解析
-+                // 尝试解析
-+
-+                while (priv->rx_acc->b.len > 0) {
-+
-+                    bool processed = false;
-+
-+                    bool any_incomplete = false;
-+
-+                    size_t initial_len = priv->rx_acc->b.len;
-+
-+        
-+
-+                    for (int i = 0; i < priv->proto_count; i++) {
-+
-+                        int idx = (i + priv->last_hit_idx) % priv->proto_count;
-+
-+                        slave_proto_slot_t *slot = &priv->protocols[idx];
-+
-+        
-+
-+                        net_buf_t *resp = net_buf_alloc(priv->pool, 0);
-+
-+                        pipe_msg_t async_msgs[16];
-+
-+                        int async_count = 0;
-+
-+                        size_t consumed = 0;
-+
-+        
-+
-+                        int rc = slot->ctx->driver->handle_rx(slot->ctx, priv->rx_acc, resp, async_msgs,
-+
-+                                                              &async_count, &consumed);
-+
-+        
-+
-+                        if (rc == 0) {
-+
-+                            if (resp->b.len > 0) {
-+
-+                                printf("\033[32m[IEMS-SLAVE] Sending Response: %u bytes\033[0m\n",
-+
-+                                       (uint32_t)resp->b.len);
-+
-+                                priv->io->ops->write_async(priv->io, resp);
-+
-+                            }
-+
-+                            net_buf_unref(resp);
-+
-+        
-+
-+                            for (int j = 0; j < async_count; j++)
+ typedef stage_ret_t (*stage_proc_fn)(pipeline_stage_t *stage, pipe_msg_t *ev);
+ typedef void (*stage_cleanup_fn)(void *priv_data);
+@@ -60,21 +61,24 @@ struct pipeline_stage_s {
+ typedef struct stream_engine_s stream_engine_t;
+ typedef struct pipeline_s pipeline_t;
  
--        while (priv->rx_acc->b.len > 0) {
--            bool processed = false;
--            size_t initial_len = priv->rx_acc->b.len;
-+                                datahub_publish(priv->hub, &async_msgs[j]);
+-typedef struct {
++// pipeline_loader_ctx_t 的定义必须匹配 contract_data_types.h 中的前置声明
++struct pipeline_loader_ctx_s {
+     sqlite_svc_t *db;
+     js_engine_t *js_engine;
+     edge_params_t *params;
+     struct bus_orchestrator_s *orch; /**< [新增] 用于指令触发 (Sprint 3) */
+-} pipeline_loader_ctx_t;
++};
  
--            for (int i = 0; i < priv->proto_count; i++) {
--                int idx = (i + priv->last_hit_idx) % priv->proto_count;
--                slave_proto_slot_t *slot = &priv->protocols[idx];
-+        
+ stream_engine_t *stream_engine_create(datahub_t *hub, uv_loop_t *loop,
+-                                      struct bus_orchestrator_s *orch);
++                                      struct bus_orchestrator_s *orch,
++                                      const edge_stage_factory_entry_t *registry);
  
--                net_buf_t *resp = net_buf_alloc(priv->pool, 0);
--                pipe_msg_t async_msgs[16];
--                int async_count = 0;
--                size_t consumed = 0;
-+                            if (consumed > 0) net_buf_pull(priv->rx_acc, consumed);
+ /**
+  * @brief 在指定 Loop 上创建流引擎 (用于物理隔离 L2 线程)
+  */
+ stream_engine_t *stream_engine_create_ex(datahub_t *hub, uv_loop_t *loop,
+-                                         struct bus_orchestrator_s *orch);
++                                         struct bus_orchestrator_s *orch,
++                                         const edge_stage_factory_entry_t *registry);
+ void stream_engine_destroy(stream_engine_t *engine);
  
--                int rc = slot->ctx->driver->handle_rx(slot->ctx, priv->rx_acc, resp, async_msgs,
--                                                      &async_count, &consumed);
-+                            priv->last_hit_idx = idx;
+ void stream_engine_start(stream_engine_t *engine);
+diff --git a/src/stream_engine/energy_integrator.c b/src/stream_engine/energy_integrator.c
+index ecb3fd5..80ba9c6 100644
+--- a/src/stream_engine/energy_integrator.c
++++ b/src/stream_engine/energy_integrator.c
+@@ -94,3 +94,9 @@ pipeline_stage_t *stage_energy_integrator_create(uint32_t state_tag_id) {
+     s->cleanup_state = _energy_integrator_cleanup;
+     return s;
+ }
 +
-+                            processed = true;
++pipeline_stage_t *stage_energy_integrator_create_v2(const edge_stage_def_t *def,
++                                                    pipeline_loader_ctx_t *ctx) {
++    (void)ctx;
++    return stage_energy_integrator_create((uint32_t)def->params.u1);
++}
+diff --git a/src/stream_engine/js_stage.c b/src/stream_engine/js_stage.c
+index 8e3219a..058711a 100644
+--- a/src/stream_engine/js_stage.c
++++ b/src/stream_engine/js_stage.c
+@@ -133,4 +133,8 @@ pipeline_stage_t *stage_js_rule_create(js_engine_t *engine, const char *script_p
+     s->priv_cfg = ctx;
+     s->cleanup_cfg = js_stage_cleanup;
+     return s;
++}
 +
-+                            break;
++pipeline_stage_t *stage_js_rule_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
++    return stage_js_rule_create(ctx->js_engine, def->params.s1, false);
+ }
+\ No newline at end of file
+diff --git a/src/stream_engine/stage_dsp_rms.c b/src/stream_engine/stage_dsp_rms.c
+index 5111dd7..984a92f 100644
+--- a/src/stream_engine/stage_dsp_rms.c
++++ b/src/stream_engine/stage_dsp_rms.c
+@@ -72,3 +72,8 @@ pipeline_stage_t *stage_dsp_rms_create(uint32_t output_tag_id) {
+     s->cleanup_state = _dsp_rms_cleanup;
+     return s;
+ }
 +
-+                        } else {
++pipeline_stage_t *stage_dsp_rms_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
++    (void)ctx;
++    return stage_dsp_rms_create((uint32_t)def->params.u1);
++}
+diff --git a/src/stream_engine/standard_stages.c b/src/stream_engine/standard_stages.c
+index 0bc0a17..8ff626c 100644
+--- a/src/stream_engine/standard_stages.c
++++ b/src/stream_engine/standard_stages.c
+@@ -476,3 +476,78 @@ pipeline_stage_t *stage_rbe_create(double threshold_pct) {
+     s->cleanup_state = free;
+     return s;
+ }
 +
-+                            net_buf_unref(resp);
++// --- V2 Factories ---
 +
-+                            if (rc == EDGE_ERR_INCOMPLETE) {
++pipeline_stage_t *stage_filter_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
++    (void)ctx;
++    return stage_filter_create((uint32_t)def->params.u1);
++}
 +
-+                                any_incomplete = true;
++pipeline_stage_t *stage_filter_range_create_v2(const edge_stage_def_t *def,
++                                               pipeline_loader_ctx_t *ctx) {
++    (void)ctx;
++    return stage_filter_range_create(def->params.f1, def->params.f2);
++}
 +
-+                                continue;
++pipeline_stage_t *stage_transform_create_v2(const edge_stage_def_t *def,
++                                            pipeline_loader_ctx_t *ctx) {
++    (void)ctx;
++    return stage_transform_create(def->params.f1, def->params.f2);
++}
 +
-+                            } else if (consumed > 0) {
++pipeline_stage_t *stage_ema_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
++    (void)ctx;
++    return stage_ema_create(def->params.f1);
++}
 +
-+                                net_buf_pull(priv->rx_acc, consumed);
++pipeline_stage_t *stage_clamp_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
++    (void)ctx;
++    return stage_clamp_create(def->params.f1, def->params.f2);
++}
 +
-+                                processed = true;
++pipeline_stage_t *stage_peak_shave_create_v2(const edge_stage_def_t *def,
++                                             pipeline_loader_ctx_t *ctx) {
++    (void)ctx;
++    return stage_peak_shaving_create(def->params.f1, (uint32_t)def->params.u1);
++}
 +
-+                                break;
++pipeline_stage_t *stage_accumulate_create_v2(const edge_stage_def_t *def,
++                                             pipeline_loader_ctx_t *ctx) {
++    (void)ctx;
++    (void)def;
++    return stage_accumulate_create();
++}
 +
-+                            }
++pipeline_stage_t *stage_freeze_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
++    (void)ctx;
++    return stage_periodic_freeze_create((int)def->params.u1);
++}
 +
-+                        }
- 
--                if (rc == 0) {
--                    if (resp->b.len > 0) {
--                        printf("\033[32m[IEMS-SLAVE] Sending Response: %u bytes\033[0m\n",
--                               (uint32_t)resp->b.len);
--                        priv->io->ops->write_async(priv->io, resp);
-                     }
--                    net_buf_unref(resp);
--
--                    for (int j = 0; j < async_count; j++)
--                        datahub_publish(priv->hub, &async_msgs[j]);
--
--                    if (consumed > 0) net_buf_pull(priv->rx_acc, consumed);
--                    priv->last_hit_idx = idx;
--                    processed = true;
--                    break;
--                } else {
--                    net_buf_unref(resp);
--                    if (rc == EDGE_ERR_INCOMPLETE) {
--                        continue;
--                    } else if (consumed > 0) {
--                        net_buf_pull(priv->rx_acc, consumed);
--                        processed = true;
--                        break;
++pipeline_stage_t *stage_time_guard_create_v2(const edge_stage_def_t *def,
++                                             pipeline_loader_ctx_t *ctx) {
++    (void)ctx;
++    (void)def;
++    return stage_time_guard_create();
++}
 +
-+        
++pipeline_stage_t *stage_sqlite_sink_create_v2(const edge_stage_def_t *def,
++                                              pipeline_loader_ctx_t *ctx) {
++    return stage_sqlite_sink_create(ctx->db, def->params.s1);
++}
 +
-+                    if (!processed) {
++pipeline_stage_t *stage_reflex_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
++    return stage_reflex_logic_create(ctx->orch, 0, def->params.s1, (uint32_t)def->params.u1,
++                                     def->params.f1, def->params.f2 > 0.5, def->params.f3);
++}
 +
-+                        // [Nexus Fix] 更加稳健的滑动窗口：
++pipeline_stage_t *stage_moving_average_create_v2(const edge_stage_def_t *def,
++                                                 pipeline_loader_ctx_t *ctx) {
++    (void)ctx;
++    return stage_moving_average_create((uint32_t)def->params.u1);
++}
 +
-+                        // 如果没有任何协议匹配，且没有任何协议报告“报文未收全”，说明头部确实是垃圾数据
-+
-+                        if (!any_incomplete && priv->rx_acc->b.len > 0) {
-+
-+                            net_buf_pull(priv->rx_acc, 1);
-+
-+                            continue;
-+
-+                        }
-+
-+                        break; // 等待更多数据
-+
-                     }
-+
-+                    if (priv->rx_acc->b.len >= initial_len) break;
-+
-                 }
--            }
--
--            if (!processed) {
--                // [Nexus Fix] 核心：滑动窗口逻辑
--                // 如果当前长度足够判定为一个完整报文（比如 Modbus 的 8 字节）但仍未匹配
--                // 或者尝试了所有协议都无法识别头部，则弹出 1 字节，防止死锁
--                if (priv->rx_acc->b.len >= 8) {
--                    net_buf_pull(priv->rx_acc, 1);
--                    continue;  // 继续尝试解析下一个字节开头的报文
--                }
--                break;
--            }
--            if (priv->rx_acc->b.len >= initial_len) break;
--        }
-     }
++pipeline_stage_t *stage_rbe_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
++    (void)ctx;
++    return stage_rbe_create(def->params.f1);
++}
+diff --git a/src/stream_engine/stream_engine.c b/src/stream_engine/stream_engine.c
+index 18ad874..223c2d9 100644
+--- a/src/stream_engine/stream_engine.c
++++ b/src/stream_engine/stream_engine.c
+@@ -153,35 +153,22 @@ static void _stream_engine_thread_entry(void *arg) {
+     engine->notify_inited = false;
  }
  
-diff --git a/src/io_executor/modbus_rtu_driver.c b/src/io_executor/modbus_rtu_driver.c
-index aa66f77..efd23d4 100644
---- a/src/io_executor/modbus_rtu_driver.c
-+++ b/src/io_executor/modbus_rtu_driver.c
-@@ -221,8 +221,8 @@ static int modbus_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t
-     uint16_t addr = (uint16_t)((data[2] << 8) | data[3]);
-     uint16_t count = (uint16_t)((data[4] << 8) | data[5]);
+-static pipeline_stage_t *_create_stage_by_type(const edge_stage_def_t *def,
++static pipeline_stage_t *_create_stage_by_type(stream_engine_t *engine,
++                                               const edge_stage_def_t *def,
+                                                pipeline_loader_ctx_t *ctx) {
+-    if (strcmp(def->type, "energy_integrator") == 0)
+-        return stage_energy_integrator_create((uint32_t)def->params.u1);
+-    if (strcmp(def->type, "dsp_rms") == 0) return stage_dsp_rms_create((uint32_t)def->params.u1);
+-    if (strcmp(def->type, "FILTER") == 0) return stage_filter_create((uint32_t)def->params.u1);
+-    if (strcmp(def->type, "FILTER_RANGE") == 0)
+-        return stage_filter_range_create(def->params.f1, def->params.f2);
+-    if (strcmp(def->type, "TRANSFORM") == 0)
+-        return stage_transform_create(def->params.f1, def->params.f2);
+-    if (strcmp(def->type, "EMA") == 0) return stage_ema_create(def->params.f1);
+-    if (strcmp(def->type, "CLAMP") == 0) return stage_clamp_create(def->params.f1, def->params.f2);
+-    if (strcmp(def->type, "PEAK_SHAVE") == 0)
+-        return stage_peak_shaving_create(def->params.f1, (uint32_t)def->params.u1);
+-    if (strcmp(def->type, "ACCUMULATE") == 0) return stage_accumulate_create();
+-    if (strcmp(def->type, "FREEZE") == 0) return stage_periodic_freeze_create((int)def->params.u1);
+-    if (strcmp(def->type, "TIME_GUARD") == 0) return stage_time_guard_create();
+-    if (strcmp(def->type, "SQLITE_SINK") == 0 && ctx->db)
+-        return stage_sqlite_sink_create(ctx->db, def->params.s1);
+-    if (strcmp(def->type, "sqlite_sink") == 0 && ctx->db)
+-        return stage_sqlite_sink_create(ctx->db, def->params.s1);
+-    if (strcmp(def->type, "JS_RULE") == 0 && ctx->js_engine)
+-        return stage_js_rule_create(ctx->js_engine, def->params.s1, false);
+-    if (strcmp(def->type, "REFLEX") == 0 && ctx->orch)
+-        return stage_reflex_logic_create(ctx->orch, 0, def->params.s1, (uint32_t)def->params.u1,
+-                                         def->params.f1, def->params.f2 > 0.5, def->params.f3);
+-    if (strcmp(def->type, "MOVING_AVERAGE") == 0)
+-        return stage_moving_average_create((uint32_t)def->params.u1);
+-    if (strcmp(def->type, "RBE") == 0) return stage_rbe_create(def->params.f1);
++    const edge_stage_factory_entry_t *reg = engine->registry;
++    printf("[STREAM-DEBUG] Finding factory for type: '%s' (RegAddr: %p)\n", def->type, (void *)reg);
++    if (reg) {
++        for (int i = 0; reg[i].type != NULL; i++) {
++            printf("  - RegEntry[%d]: '%s'\n", i, reg[i].type);
++            if (strcasecmp(def->type, reg[i].type) == 0) {
++                if (reg[i].factory) {
++                    return reg[i].factory(def, ctx);
++                }
++            }
++        }
++    }
++    LOG_ERROR(LOG_CAT_SCHED, "Unknown or disabled stage type: %s", def->type);
+     return NULL;
+ }
  
--    LOG_INFO(LOG_CAT_BUS, "[MODBUS-SLAVE] Request Validated: Func=%d, Addr=%u, Count=%d", func,
--             addr, count);
-+    printf("\033[35m[MODBUS-SLAVE] Request Validated: Func=%d, Addr=%u, Count=%d (SlaveID:%d)\033[0m\n", 
-+           func, addr, count, data[0]);
+@@ -201,11 +188,16 @@ int stream_engine_load_static_metadata(stream_engine_t *engine, const edge_pipel
  
-     if (func == 0x03) {
-         // Read Holding Registers
-diff --git a/src/platform/linux/io_executor_linux.c b/src/platform/linux/io_executor_linux.c
-index 8ce2554..4bd359f 100644
---- a/src/platform/linux/io_executor_linux.c
-+++ b/src/platform/linux/io_executor_linux.c
-@@ -192,23 +192,18 @@ static void _on_uv_poll(uv_poll_t *handle, int status, int events) {
-         if (impl->pending_tx) {
-             ssize_t n = write(impl->fd, impl->pending_tx->b.data, impl->pending_tx->b.len);
-             if (n > 0) {
--                // [Nexus Debug]
--                printf("[IO-TX] FD:%d Sent %zd bytes: ", impl->fd, n);
--                for (ssize_t i = 0; i < n; i++) printf("%02X ", impl->pending_tx->b.data[i]);
--                printf("\n");
--
-+                fprintf(stderr, "[IO-TX] FD:%d Sent %zd bytes SUCCESS\n", impl->fd, n);
-                 net_buf_t *buf = impl->pending_tx;
-                 impl->pending_tx = NULL;
-                 // 恢复只读监听
-                 uv_poll_start(handle, UV_READABLE, _on_uv_poll);
-                 impl->base.cb(&impl->base, IO_EVENT_TX_DONE, NULL, impl->base.user_data);
--                // [关键] 发送完成，释放引用
-                 net_buf_unref(buf);
--            } else if (errno != EAGAIN && errno != EINTR) {
-+            } else if (n < 0 && errno != EAGAIN && errno != EINTR) {
-+                fprintf(stderr, "[IO-TX-ERR] FD:%d Write Failed: %s\n", impl->fd, strerror(errno));
-                 impl->base.cb(&impl->base, IO_EVENT_ERROR, NULL, impl->base.user_data);
+         for (uint32_t j = 0; j < p_def->stage_count; j++) {
+             const edge_stage_def_t *s_def = &p_def->stages[j];
+-            pipeline_stage_t *stage = _create_stage_by_type(s_def, ctx);
++            pipeline_stage_t *stage = _create_stage_by_type(engine, s_def, ctx);
+             if (stage) {
+-                pipeline_add_stage(p, stage->name, stage->process, stage->priv_state,
+-                                   stage->cleanup_state, stage->priv_cfg, stage->cleanup_cfg);
+-                free(stage);
++                stage->pipeline = p;
++                stage->loop = engine->loop;
++                if (!p->head)
++                    p->head = p->tail = stage;
++                else {
++                    p->tail->next = stage;
++                    p->tail = stage;
++                }
              }
-         } else {
--            // 没有待发数据，退回只读模式
-             uv_poll_start(handle, UV_READABLE, _on_uv_poll);
          }
      }
-diff --git a/tools/matrix/actors/master_requester.py b/tools/matrix/actors/master_requester.py
-index 6e04454..fbc0036 100644
---- a/tools/matrix/actors/master_requester.py
-+++ b/tools/matrix/actors/master_requester.py
-@@ -36,80 +36,90 @@ class MasterRequesterActor:
-         self._load_mappings(manifest_path)
+@@ -233,13 +225,15 @@ pipeline_stage_t *pipeline_add_stage(pipeline_t *p, const char *name, stage_proc
+ }
  
-     def _load_mappings(self, path):
-+        print(f"  [Requester] Loading mappings from {path}")
-         try:
-             with open(path, 'r') as f:
-                 data = json.load(f)
-                 for tag in data.get("tags", []):
-+                    # 记录名字到 ID 的映射，方便调试
-+                    tag_id = tag["id"]
-                     for b in tag.get("bindings", []):
-                         if "MODBUS" in b["protocol"].upper():
-                             attr = b["attributes"]
-                             addr = attr.get("addr")
-                             if addr is not None:
--                                self.tag_mappings[tag["id"]] = addr
--                                self.tag_scalers[tag["id"]] = float(attr.get("scaler", 1.0))
-+                                self.tag_mappings[tag_id] = addr
-+                                self.tag_scalers[tag_id] = float(attr.get("scaler", 1.0))
-+                                print(f"    - Mapped Tag {tag_id} ({tag['name']}) -> Addr {addr}, Scale {self.tag_scalers[tag_id]}")
-         except Exception as e:
--            print(f"  [Requester] Error loading mappings: {e}")
-+            print(f"  [Requester] Error loading mappings from {path}: {e}")
-+            if "tags" not in str(e): # 如果是 JSON 解析错误
-+                print(f"  [Requester] Hint: Manifest must be JSON, not YAML.")
+ stream_engine_t *stream_engine_create_ex(datahub_t *hub, uv_loop_t *loop,
+-                                         struct bus_orchestrator_s *orch) {
++                                         struct bus_orchestrator_s *orch,
++                                         const edge_stage_factory_entry_t *registry) {
+     (void)loop;
+     (void)orch;
+     stream_engine_t *engine = calloc(1, sizeof(stream_engine_t));
+     engine->hub = hub;
+     engine->time_src.get_monotonic_ms = _default_get_monotonic_ms;
+     engine->time_src.get_calendar_ms = _default_get_calendar_ms;
++    engine->registry = registry;
  
-     def _request_tag(self, conn, tag_id):
-         if tag_id not in self.tag_mappings: return
-         addr = self.tag_mappings[tag_id]
-         
-+        # [Nexus Fix] 移除危险的非阻塞 drain，改为设置超时直接发送
-+        conn.setblocking(True)
-+        conn.settimeout(1.0)
+     if (hub) {
+         engine->bus_read_seq =
+@@ -253,8 +247,9 @@ stream_engine_t *stream_engine_create_ex(datahub_t *hub, uv_loop_t *loop,
+ }
+ 
+ stream_engine_t *stream_engine_create(datahub_t *hub, uv_loop_t *loop,
+-                                      struct bus_orchestrator_s *orch) {
+-    return stream_engine_create_ex(hub, loop, orch);
++                                      struct bus_orchestrator_s *orch,
++                                      const edge_stage_factory_entry_t *registry) {
++    return stream_engine_create_ex(hub, loop, orch, registry);
+ }
+ 
+ void stream_engine_start(stream_engine_t *engine) {
+diff --git a/src/stream_engine/stream_engine_priv.h b/src/stream_engine/stream_engine_priv.h
+index 234c03b..bdc5ce3 100644
+--- a/src/stream_engine/stream_engine_priv.h
++++ b/src/stream_engine/stream_engine_priv.h
+@@ -53,6 +53,8 @@ struct stream_engine_s {
+ 
+     bool notify_inited;
+     bool timer_inited;
 +
-         # 构造 Modbus 03 请求
-         req = struct.pack(">BBHH", self.slave_id, 0x03, addr, 1)
-         req += struct.pack("<H", crc16(req))
-         
-         try:
-             conn.sendall(req)
-+            # print(f"  📤 [Requester] Sent request for Tag {tag_id} (Addr {addr})")
-             
--            # [Nexus Fix] 更加鲁棒的接收解析
-             start_recv = time.time()
-             rx_buf = b''
--            while time.time() - start_recv < 2.0:
-+            while time.time() - start_recv < 1.0: # [Nexus Fix] 缩短超时，加快轮询效率
-                 try:
-                     chunk = conn.recv(1024)
-                     if not chunk: break
-+                    print(f"  📥 [Requester] Received {len(chunk)} bytes: {chunk.hex()}")
-                     rx_buf += chunk
-                 except socket.timeout:
-                     continue
-                 
--                # 寻找可能的 Modbus 响应头 [ID, Func, ByteCount]
--                # 响应长度对于 1 个寄存器通常是 7 字节: ID(1)+FC(1)+BC(1)+Data(2)+CRC(2)
--                found_valid_frame = False
-+                # 寻找匹配的响应：ID(1) + FC(1) + ByteCount(1) + Data(2) + CRC(2) = 7 bytes
-                 while len(rx_buf) >= 7:
-                     if rx_buf[0] == self.slave_id and rx_buf[1] == 0x03:
-                         byte_count = rx_buf[2]
-                         expected_len = 3 + byte_count + 2
-                         if len(rx_buf) >= expected_len:
--                            # 提取数据
-                             payload = rx_buf[3:3+byte_count]
--                            raw_val = struct.unpack(">H", payload)[0]
--                            actual_val = raw_val * self.tag_scalers.get(tag_id, 1.0)
--                            
--                            self.latest_data[tag_id] = actual_val
--                            print(f"  👁️  [Requester] Observed Tag {tag_id} = {actual_val}")
--                            self._report_to_server(tag_id, actual_val)
--                            
--                            # 移出已处理部分
-+                            try:
-+                                if len(payload) >= 2:
-+                                    raw_val = struct.unpack(">H", payload[:2])[0]
-+                                    actual_val = raw_val * self.tag_scalers.get(tag_id, 1.0)
-+                                    
-+                                    self.latest_data[tag_id] = actual_val
-+                                    # print(f"  👁️  [Requester] Observed Tag {tag_id} = {actual_val}")
-+                                    self._report_to_server(tag_id, actual_val)
-+                                    return # 成功，退出该 Tag 处理
-+                            except Exception as pe:
-+                                print(f"  ⚠️ [Requester] Parse Error: {pe}")
-                             rx_buf = rx_buf[expected_len:]
--                            found_valid_frame = True
--                            break 
--                        else: break # 等待更多数据
-+                        else: break # 数据不足
-                     else:
--                        rx_buf = rx_buf[1:] # 错位搜索
--                
--                if found_valid_frame:
--                    return # 处理成功，跳出 outer while
-+                        rx_buf = rx_buf[1:] # 错位
-                 
-         except Exception as e:
--            print(f"  ⚠️ [Requester] Error during request: {e}")
-+            print(f"  ⚠️ [Requester] Error during request Tag {tag_id}: {e}")
++    const edge_stage_factory_entry_t *registry;
+ };
  
-     def _report_to_server(self, tag_id, value):
-         try:
--            payload = {"dev_id": self.dev_id, "tag": tag_id, "value": value, "role": "supervisor"}
--            # [Nexus Fix] Increase timeout to 1.0s to ensure reporting succeeds under load
--            requests.post(f"{self.server_url}/observer/record", json=payload, timeout=1.0)
--        except:
--            pass
-+            # [Nexus Fix] 确保 tag_id 以字符串形式上报，对齐 server.py 的 key 逻辑
-+            payload = {"dev_id": self.dev_id, "tag": str(tag_id), "value": value, "role": "supervisor"}
-+            resp = requests.post(f"{self.server_url}/observer/record", json=payload, timeout=1.0)
-+            if resp.status_code == 200:
-+                print(f"  ✅ [Requester] Reported Tag {tag_id} to server.")
-+            else:
-+                print(f"  ❌ [Requester] Failed to report Tag {tag_id}: HTTP {resp.status_code}")
-+        except Exception as e:
-+            print(f"  ⚠️ [Requester] Report Error: {e}")
+ #endif
+\ No newline at end of file
+diff --git a/tests/test_adc_dsp_local.c b/tests/test_adc_dsp_local.c
+index 88ed3f3..966e088 100644
+--- a/tests/test_adc_dsp_local.c
++++ b/tests/test_adc_dsp_local.c
+@@ -21,7 +21,7 @@ static void test_adc_dsp_full_chain(void **state) {
+     // 即使不传元数据，Ring Buffer 也能工作
+     datahub_t hub;
+     datahub_init(&hub, loop, "test", 128, 128, NULL, 0, NULL, NULL, NULL);
+-    stream_engine_t *se = stream_engine_create(&hub, uv_default_loop(), NULL);
++    stream_engine_t *se = stream_engine_create(&hub, uv_default_loop(), NULL, NULL);
  
-     def run(self):
-         print(f"🕵️  [Requester {self.dev_id}] Starting Supervisor Loop at {self.socket_path}...")
-@@ -123,7 +133,12 @@ class MasterRequesterActor:
-                 # [Nexus Fix] 等待总线稳定
-                 time.sleep(1.0)
-                 
-+                loop_count = 0
-                 while True:
-+                    loop_count += 1
-+                    if loop_count % 10 == 0:
-+                        print(f"  💓 [Requester] Polling Loop Active (Iteration {loop_count})")
-+                    
-                     for tid in list(self.tag_mappings.keys()):
-                         self._request_tag(conn, tid)
-                         time.sleep(0.5) 
-diff --git a/tools/matrix/conftest.py b/tools/matrix/conftest.py
-index 89046f7..d32cfaa 100644
---- a/tools/matrix/conftest.py
-+++ b/tools/matrix/conftest.py
-@@ -118,6 +118,12 @@ async def matrix(matrix_env, tmp_path):
-     # 注入 VBus 路径
-     vbus_path = os.environ.get("OMNIS_BUS_0_DEV", "/tmp/vbus0.sock")
-     
-+    # [Nexus] 清理全局观察者数据，防止测试干扰
-+    try:
-+        requests.post(f"{base_url}/observer/reset", timeout=1)
-+    except:
-+        pass
+     printf("[STEP 2] Registering Simulation Pipeline (Trigger=12001, Target=1001)...\n");
+     stream_engine_register_sim_pipeline(se, &hub, 12001, 1001);
+diff --git a/tests/test_integration.c b/tests/test_integration.c
+index 263ea7b..c230c4b 100644
+--- a/tests/test_integration.c
++++ b/tests/test_integration.c
+@@ -26,7 +26,7 @@ static void test_end_to_end_flow(void **state) {
+ 
+     datahub_init(&ctx.data_hub, ctx.loop, "test_integ", 128, 1024, NULL, 0, NULL, NULL, NULL);
+     arbiter_init(&ctx.arbiter, ctx.loop);
+-    ctx.stream_engine = stream_engine_create(&ctx.data_hub, uv_default_loop(), NULL);
++    ctx.stream_engine = stream_engine_create(&ctx.data_hub, uv_default_loop(), NULL, NULL);
+ 
+     // 修正：注入所有核心组件
+     ctx.svc =
+diff --git a/tests/test_omnis_integration.c b/tests/test_omnis_integration.c
+index 361e207..67362d6 100644
+--- a/tests/test_omnis_integration.c
++++ b/tests/test_omnis_integration.c
+@@ -46,7 +46,7 @@ static int setup(void **state) {
+                  NULL);
+     arbiter_init(&ctx->arb, &ctx->loop);
+     ctx->orch = bus_orchestrator_create(&ctx->hub, ctx->arb, NULL, 8, 16, 256);
+-    ctx->engine = stream_engine_create(&ctx->hub, uv_default_loop(), NULL);
++    ctx->engine = stream_engine_create(&ctx->hub, uv_default_loop(), NULL, NULL);
+ 
+     uv_timer_init(&ctx->loop, &ctx->timeout);
+     ctx->timeout.data = ctx;
+diff --git a/tests/test_pipeline_hot_reload.c b/tests/test_pipeline_hot_reload.c
+index 2b94ec3..1c69abc 100644
+--- a/tests/test_pipeline_hot_reload.c
++++ b/tests/test_pipeline_hot_reload.c
+@@ -15,7 +15,7 @@ static void test_pipeline_hot_reload_logic(void **state) {
+     // 适配新签名
+     datahub_init(&hub, uv_default_loop(), "test_reload_bus", 64, 1024, NULL, 0, NULL, NULL, NULL);
+ 
+-    stream_engine_t *engine = stream_engine_create(&hub, uv_default_loop(), NULL);
++    stream_engine_t *engine = stream_engine_create(&hub, uv_default_loop(), NULL, NULL);
+     stream_engine_start(engine);
+     assert_non_null(engine);
+ 
+diff --git a/tests/test_pipeline_loader.c b/tests/test_pipeline_loader.c
+index 02e47b5..5d3cae8 100644
+--- a/tests/test_pipeline_loader.c
++++ b/tests/test_pipeline_loader.c
+@@ -15,7 +15,7 @@ static void test_loader_dynamic_build(void **state) {
+     // 适配新签名
+     datahub_init(&hub, &loop, "test_bus", 64, 1024, NULL, 0, NULL, NULL, NULL);
+ 
+-    stream_engine_t *engine = stream_engine_create(&hub, &loop, NULL);
++    stream_engine_t *engine = stream_engine_create(&hub, &loop, NULL, NULL);
+     stream_engine_start(engine);
+     assert_non_null(engine);
+ 
+diff --git a/tests/test_sdk_full_chain.c b/tests/test_sdk_full_chain.c
+index d7b3951..2da952d 100644
+--- a/tests/test_sdk_full_chain.c
++++ b/tests/test_sdk_full_chain.c
+@@ -24,7 +24,7 @@ static int setup(void **state) {
+     uv_loop_init(&ctx->loop);
+     datahub_init(&ctx->hub, &ctx->loop, "tdd_full", 256, 1024, NULL, 0, NULL, NULL, NULL);
+     arbiter_init(&ctx->arb, &ctx->loop);
+-    ctx->engine = stream_engine_create(&ctx->hub, uv_default_loop(), NULL);
++    ctx->engine = stream_engine_create(&ctx->hub, uv_default_loop(), NULL, NULL);
+ 
+     ctx->svc = service_new(&ctx->loop, &ctx->hub, ctx->arb, NULL, ctx->engine, NULL, NULL);
+     *state = ctx;
+diff --git a/tests/test_stream_engine.c b/tests/test_stream_engine.c
+index 05135f8..b0a29f7 100644
+--- a/tests/test_stream_engine.c
++++ b/tests/test_stream_engine.c
+@@ -15,7 +15,7 @@ static void test_engine_basic_flow(void **state) {
+     // 适配新签名
+     datahub_init(&hub, &loop, "test_bus", 64, 1024, NULL, 0, NULL, NULL, NULL);
+ 
+-    stream_engine_t *engine = stream_engine_create(&hub, &loop, NULL);
++    stream_engine_t *engine = stream_engine_create(&hub, &loop, NULL, NULL);
+     stream_engine_start(engine);
+     assert_non_null(engine);
+ 
+diff --git a/tests/test_stream_engine_industrial.c b/tests/test_stream_engine_industrial.c
+index a71feb8..e814591 100644
+--- a/tests/test_stream_engine_industrial.c
++++ b/tests/test_stream_engine_industrial.c
+@@ -15,7 +15,7 @@ static void test_pipeline_sequential_execution(void **state) {
+     // 适配新签名
+     datahub_init(&hub, &loop, "seq_bus", 64, 1024, NULL, 0, NULL, NULL, NULL);
+ 
+-    stream_engine_t *engine = stream_engine_create(&hub, &loop, NULL);
++    stream_engine_t *engine = stream_engine_create(&hub, &loop, NULL, NULL);
+     stream_engine_start(engine);
+     assert_non_null(engine);
+ 
+diff --git a/tests/test_stream_engine_timeguard.c b/tests/test_stream_engine_timeguard.c
+index 9f8b78a..dec9885 100644
+--- a/tests/test_stream_engine_timeguard.c
++++ b/tests/test_stream_engine_timeguard.c
+@@ -14,7 +14,7 @@ static void test_timeguard_anti_jump(void **state) {
+     // 适配新签名
+     datahub_init(&hub, loop, "time_bus", 64, 1024, NULL, 0, NULL, NULL, NULL);
+ 
+-    stream_engine_t *engine = stream_engine_create(&hub, loop, NULL);
++    stream_engine_t *engine = stream_engine_create(&hub, loop, NULL, NULL);
+     stream_engine_start(engine);
+     assert_non_null(engine);
+ 
+diff --git a/tools/contract-compiler/main.go b/tools/contract-compiler/main.go
+index 3f528ad..2621fa5 100644
+--- a/tools/contract-compiler/main.go
++++ b/tools/contract-compiler/main.go
+@@ -37,6 +37,7 @@ type TplCtx struct {
+ 	Devices      []model.DeviceAttachment
+ 	Hardware     []model.HardwareDef
+ 	Pipelines    []model.PipelineDef
++	UsedStages   []string // [NEW] Unique stage types used in this contract
+ 	Policies     []model.PolicyDef
+ 	UI           model.UIDef
+ 	Product      string
+@@ -59,6 +60,29 @@ func main() {
+ 	actMap := make(map[string]bool)
+ 	for _, t := range contract.ActiveTags { actMap[t.Name] = true }
+ 	
++	// --- [NEW] Collect Unique Stage Types (Robust Version) ---
++	stageMap := make(map[string]bool)
++	for _, p := range contract.Pipelines {
++		for _, s := range p.Stages {
++			// 尝试从顶层拿 type
++			if t, ok := s["type"].(string); ok && t != "" {
++				stageMap[strings.ToLower(t)] = true
++			} else if cfg, ok := s["config"].(map[string]interface{}); ok {
++				// 尝试从 config 内部拿 type (兼容某些畸形结构)
++				if t, ok := cfg["type"].(string); ok && t != "" {
++					stageMap[strings.ToLower(t)] = true
++				}
++			}
++		}
++	}
++	usedStages := make([]string, 0, len(stageMap))
++	for s := range stageMap { 
++		usedStages = append(usedStages, s)
++		fmt.Printf("[Compiler] Detected used stage: %s\n", s)
++	}
++	sort.Strings(usedStages)
++	// ----------------------------------------
 +
-     edgec = MatrixEdgeC(bin_path, vbus_path, rest_port, db_path=db_path)
-     edgec.bootstrap_environment(loader)
-     
-diff --git a/tools/matrix/engine/orchestrator.py b/tools/matrix/engine/orchestrator.py
-index 21feea9..605cca7 100644
---- a/tools/matrix/engine/orchestrator.py
-+++ b/tools/matrix/engine/orchestrator.py
-@@ -87,7 +87,10 @@ class MatrixOrchestrator:
-                                 for c in list(clients): # Use list() to iterate safely
-                                     if c is not s:
-                                         try:
--                                            c.sendall(data)
-+                                            # [Nexus Fix] 改为非阻塞发送，防止 Relay 线程卡死
-+                                            c.send(data)
-+                                        except (BlockingIOError, InterruptedError):
-+                                            pass 
-                                         except Exception as e:
-                                             print(f"  [Relay] Send failed to FD {c.fileno()}: {e}")
-                                             if c in clients: clients.remove(c)
-@@ -105,43 +108,57 @@ class MatrixOrchestrator:
+ 	// 1. 协议解析
+ 	resolved := protocols.Resolve(contract.ActiveTags)
  
-     def _launch_actor(self, sock_path, dev_info):
-         sim_cfg = dev_info.get("simulation") or {}
--        actor_type = sim_cfg.get("actor", "modbus_actor")
-+        actor_type = sim_cfg.get("actor", "modbus")
-         slave_id = dev_info.get("address") or 1
-         init_data = sim_cfg.get("init", {})
-         
--        # 名字兼容性处理
--        actor_name = actor_type.replace('_actor', '').lower()
--        if actor_name == "supervisor": actor_name = "master_requester"
-+        # 名字归一化：支持 modbus, modbus_actor, supervisor 等
-+        raw_name = actor_type.replace('_actor', '').lower()
-+        if raw_name == "supervisor":
-+            actor_name = "master_requester"
-+        else:
-+            actor_name = raw_name
-         
-         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-         actor_script = os.path.join(base_dir, "actors", f"{actor_name}.py")
--        print(f"    🔍 Checking Actor Script: {actor_script}")
-+        
-+        if not os.path.exists(actor_script):
-+            # 尝试回退到 modbus.py (通用从站模拟器)
-+            actor_script = os.path.join(base_dir, "actors", "modbus.py")
+@@ -150,6 +174,7 @@ func main() {
+ 		Devices:      contract.Devices,
+ 		Hardware:     contract.Hardware,
+ 		Pipelines:    contract.Pipelines,
++		UsedStages:   usedStages,
+ 		Policies:     contract.Policies,
+ 		UI:           contract.UI,
+ 		Product:      contract.Product,
+diff --git a/tools/contract-compiler/templates/components/h_feature_gates.tmpl b/tools/contract-compiler/templates/components/h_feature_gates.tmpl
+index f44f165..f00d464 100644
+--- a/tools/contract-compiler/templates/components/h_feature_gates.tmpl
++++ b/tools/contract-compiler/templates/components/h_feature_gates.tmpl
+@@ -17,21 +17,13 @@
+ 
+ 
+ // [Section 1.6] Protocol Existence Gates
+-
+ {{- range $proto, $hash := .Hashes }}
+-
+ #define CONFIG_{{ $proto }}_ENABLED 1
+-
+-{{- end }}
+-
+-{{- range $proto, $pmap := .PMap }}
+-
+-{{- if not (index $.Hashes $proto) }}
+-
+-#define CONFIG_{{ $proto }}_ENABLED 1
+-
+ {{- end }}
+ 
++// [Section 1.7] Pipeline Stage Gates
++{{- range .UsedStages }}
++#define ENABLE_STAGE_{{ upper . }} 1
+ {{- end }}
+ 
+ {{- end -}}
+diff --git a/tools/contract-compiler/templates/components/meta_pipelines.tmpl b/tools/contract-compiler/templates/components/meta_pipelines.tmpl
+index d0d1e5a..c0a0abf 100644
+--- a/tools/contract-compiler/templates/components/meta_pipelines.tmpl
++++ b/tools/contract-compiler/templates/components/meta_pipelines.tmpl
+@@ -1,4 +1,20 @@
+ {{- define "meta_pipelines" -}}
++// [Pipelines - Stage Factory Registry]
++{{- range .UsedStages }}
++extern __attribute__((weak)) pipeline_stage_t* stage_{{ lower . }}_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
++{{- end }}
 +
-+        print(f"    🚀 [Orch] Launching {actor_name} script: {actor_script}")
-         
-         if os.path.exists(actor_script):
-             env = os.environ.copy()
-             env["MATRIX_INIT_DATA"] = json.dumps(init_data)
-             
-             # 构造基础参数
--            cmd_args = [sys.executable, actor_script, "--socket", sock_path, "--id", str(slave_id), 
-+            cmd_args = [sys.executable, "-u", actor_script, "--socket", sock_path, "--id", str(slave_id), 
-                         "--dev_id", dev_info["id"], "--manifest", self.loader.manifest_path]
-             
-             # 如果是请求者模式，额外加上 server url 供其上报观测值
--            if "requester" in actor_name or "supervisor" in actor_name:
--                server_url = f"http://localhost:50051/api/v1"
-+            if actor_name == "master_requester":
-+                # [Nexus Fix] 仅传入 Base URL，由 Actor 内部拼接完整的 API 路径
-+                server_url = f"http://localhost:50051"
-                 cmd_args.extend(["--server", server_url])
++const edge_stage_factory_entry_t g_stage_factory_registry[] = {
++{{- range .UsedStages }}
++    { "{{ lower . }}", stage_{{ lower . }}_create_v2 },
++{{- end }}
++    { 0, 0 }
++};
++
++const edge_stage_factory_entry_t* edge_stage_factory_get_registry(void) {
++    return g_stage_factory_registry;
++}
++
+ // [Pipelines - Stage Definition Blocks]
+ {{- range .Pipelines }}
+ static const edge_stage_def_t _stages_{{ .ID }}[] = {
+diff --git a/tools/contract-compiler/templates/config_cmake.tmpl b/tools/contract-compiler/templates/config_cmake.tmpl
+index 3f8ce27..7cf157b 100644
+--- a/tools/contract-compiler/templates/config_cmake.tmpl
++++ b/tools/contract-compiler/templates/config_cmake.tmpl
+@@ -7,3 +7,9 @@ set(EDGE_CONTRACT_SIGNATURE "{{ .Signature }}")
+ {{- range .Configs }}
+ set(CONFIG_{{ .Name }} "{{ .Value }}")
+ {{- end }}
++
++# --- Pipeline Stage Enablement (Tree Shaking) ---
++{{- range .UsedStages }}
++set(EDGE_STAGE_{{ upper . }}_ENABLED ON)
++{{- end }}
++
+diff --git a/tools/contract-compiler/templates/master_c.tmpl b/tools/contract-compiler/templates/master_c.tmpl
+index 779db28..8b6edcb 100644
+--- a/tools/contract-compiler/templates/master_c.tmpl
++++ b/tools/contract-compiler/templates/master_c.tmpl
+@@ -1,5 +1,6 @@
+ /* AUTO-GENERATED BY EDGEOS COMPILER V4.5 */
+ #include "contracts.h"
++#include "stream_engine.h"
+ #include <string.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+diff --git a/tools/contract-compiler/templates/master_h.tmpl b/tools/contract-compiler/templates/master_h.tmpl
+index 0ecab48..cfa6c79 100644
+--- a/tools/contract-compiler/templates/master_h.tmpl
++++ b/tools/contract-compiler/templates/master_h.tmpl
+@@ -61,6 +61,8 @@ extern const edge_model_map_t g_model_registry[];
+ extern const int g_model_registry_len;
+ const driver_contract_injection_t *edge_model_find(const char *name);
  
-+            print(f"    [Orch] CMD: {' '.join(cmd_args)}")
-             proc = subprocess.Popen(
-                 cmd_args, env=env, stdout=sys.stdout, stderr=sys.stderr, cwd=os.getcwd()
-             )
-             self.active_simulators.append(proc)
--            print(f"    🚀 [Actor] {actor_name} (ID:{slave_id}) attached to Bus at {sock_path}")
-+            print(f"    ✅ [Actor] {actor_name} (ID:{slave_id}) attached to Bus at {sock_path}")
- 
-     def _launch_adc_simulator(self, sock_path):
-         """启动高频采样模拟器"""
-         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-         sim_script = os.path.join(base_dir, "simulators", "adc_simulator.py")
-         if os.path.exists(sim_script):
--            proc = subprocess.Popen(["python3", sim_script, "--socket", sock_path])
-+            # [Nexus Fix] 使用 sys.executable 以确保使用 .venv 中的 numpy 等依赖
-+            proc = subprocess.Popen(
-+                [sys.executable, "-u", sim_script, "--socket", sock_path],
-+                stdout=sys.stdout, stderr=sys.stderr, cwd=os.getcwd()
-+            )
-             self.active_simulators.append(proc)
-             print(f"    🚀 [Sim] ADC Waveform Generator launched at {sock_path}")
- 
-diff --git a/tools/matrix/server.py b/tools/matrix/server.py
-index b683270..4f7103d 100644
---- a/tools/matrix/server.py
-+++ b/tools/matrix/server.py
-@@ -34,8 +34,9 @@ class MatrixAPIHandler(BaseHTTPRequestHandler):
-         elif self.path.startswith("/api/v1/observer/latest/"):
-             # Format: /api/v1/observer/latest/SUPERVISOR_01/1001
-             parts = self.path.split('/')
--            if len(parts) >= 6:
--                key = f"{parts[4]}:{parts[5]}"
-+            if len(parts) >= 7:
-+                # [Nexus Fix] 修正索引：0:/, 1:api, 2:v1, 3:observer, 4:latest, 5:dev_id, 6:tag_id
-+                key = f"{parts[5]}:{parts[6]}"
-                 val = self.observer_data.get(key)
-                 self._send_json({"value": val})
-             else:
-@@ -50,7 +51,7 @@ class MatrixAPIHandler(BaseHTTPRequestHandler):
-         content_length = int(self.headers.get('Content-Length', 0))
-         post_data = self.rfile.read(content_length)
-         try:
--            payload = json.loads(post_data)
-+            payload = json.loads(post_data) if post_data else {}
-             if self.path == "/api/v1/actor/set":
-                 dev_id = payload.get("dev_id")
-                 tag = payload.get("tag")
-@@ -70,6 +71,10 @@ class MatrixAPIHandler(BaseHTTPRequestHandler):
-                 self.observer_data[key] = val
-                 print(f"👁️  [Observer] Recorded {key} = {val}")
-                 self._send_json({"status": "ok"})
-+            elif self.path == "/api/v1/observer/reset":
-+                self.observer_data.clear()
-+                print(f"🧹 [Observer] Data Cleared.")
-+                self._send_json({"status": "ok"})
-         except Exception as e:
-             self.send_response(500)
-             self.end_headers()
-diff --git a/web/products/iems/package-lock.json b/web/products/iems/package-lock.json
-index c8499cf..64a817c 100644
---- a/web/products/iems/package-lock.json
-+++ b/web/products/iems/package-lock.json
-@@ -895,6 +895,7 @@
-         }
-       ],
-       "license": "MIT",
-+      "peer": true,
-       "dependencies": {
-         "baseline-browser-mapping": "^2.9.0",
-         "caniuse-lite": "^1.0.30001759",
-@@ -1507,6 +1508,7 @@
-       "integrity": "sha512-/imKNG4EbWNrVjoNC/1H5/9GFy+tqjGBHCaSsN+P2RnPqjsLmv6UD3Ej+Kj8nBWaRAwyk7kK5ZUc+OEatnTR3A==",
-       "dev": true,
-       "license": "MIT",
-+      "peer": true,
-       "bin": {
-         "jiti": "bin/jiti.js"
-       }
-@@ -1790,6 +1792,7 @@
-         }
-       ],
-       "license": "MIT",
-+      "peer": true,
-       "dependencies": {
-         "nanoid": "^3.3.11",
-         "picocolors": "^1.1.1",
-@@ -2216,6 +2219,7 @@
-       "integrity": "sha512-5gTmgEY/sqK6gFXLIsQNH19lWb4ebPDLA4SdLP7dsWkIXHWlG66oPuVvXSGFPppYZz8ZDZq0dYYrbHfBCVUb1Q==",
-       "dev": true,
-       "license": "MIT",
-+      "peer": true,
-       "engines": {
-         "node": ">=12"
-       },
-@@ -2249,6 +2253,7 @@
-       "integrity": "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==",
-       "devOptional": true,
-       "license": "Apache-2.0",
-+      "peer": true,
-       "bin": {
-         "tsc": "bin/tsc",
-         "tsserver": "bin/tsserver"
-@@ -2301,6 +2306,7 @@
-       "integrity": "sha512-+v57oAaoYNnO3hIu5Z/tJRZjq5aHM2zDve9YZ8HngVHbhk66RStobhb1sqPMIPEleV6cNKYK4eGrAbE9Ulbl2g==",
-       "dev": true,
-       "license": "MIT",
-+      "peer": true,
-       "dependencies": {
-         "esbuild": "^0.18.10",
-         "postcss": "^8.4.27",
-@@ -2356,6 +2362,7 @@
-       "resolved": "https://registry.npmmirror.com/vue/-/vue-3.5.26.tgz",
-       "integrity": "sha512-SJ/NTccVyAoNUJmkM9KUqPcYlY+u8OVL1X5EW9RIs3ch5H2uERxyyIUI4MRxVCSOiEcupX9xNGde1tL9ZKpimA==",
-       "license": "MIT",
-+      "peer": true,
-       "dependencies": {
-         "@vue/compiler-dom": "3.5.26",
-         "@vue/compiler-sfc": "3.5.26",
++const edge_stage_factory_entry_t* edge_stage_factory_get_registry(void);
++
+ // --- Protocol Lookup APIs ---
+ {{- if .Hashes.MODBUS }}
+ edge_tag_id_t edge_lookup_modbus(uint32_t key, float* scale);
