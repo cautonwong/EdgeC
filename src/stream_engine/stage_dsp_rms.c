@@ -27,7 +27,8 @@ static stage_ret_t _dsp_rms_proc(pipeline_stage_t *s, pipe_msg_t *msg) {
     printf("\033[33m[DSP-DEBUG] RMS Proc Triggered for Tag %u\033[0m\n", msg->tag_id);
 
     float *samples = (float *)msg->payload.ref.ptr;
-    size_t count = msg->payload.ref.len;
+    size_t byte_count = msg->payload.ref.len;
+    size_t count = byte_count / sizeof(float);
 
     if (!samples || count == 0) return STAGE_DROP;
 

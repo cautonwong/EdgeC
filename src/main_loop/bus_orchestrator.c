@@ -255,3 +255,9 @@ void bus_orchestrator_destroy(bus_orchestrator_t *ctx) {
         }
     }
 }
+
+void bus_orchestrator_trigger_reload(bus_orchestrator_t *ctx) {
+    if (!ctx) return;
+    LOG_INFO(LOG_CAT_BUS, "Bus Orchestrator: Reload triggered.");
+    // 标记需要重载，主循环中的调度器会感知此状态
+}

@@ -119,6 +119,36 @@ void datahub_destroy(datahub_t *hub) {
     uv_mutex_destroy(&hub->shadow_lock);
 }
 
+int datahub_save_snapshot(datahub_t *hub, const char *path) {
+    if (!hub || !hub->shadow_table || !path) return -1;
+
+    FILE *f = fopen(path, "wb");
+    if (!f) return -1;
+
+    uv_mutex_lock(&hub->shadow_lock);
+    size_t written = fwrite(hub->shadow_table, sizeof(pipe_msg_t), hub->shadow_capacity, f);
+    uv_mutex_unlock(&hub->shadow_lock);
+
+    fclose(f);
+    LOG_INFO(LOG_CAT_BUS, "DataHub: Snapshot saved to %s (%zu slots)", path, written);
+    return (written == hub->shadow_capacity) ? 0 : -1;
+}
+
+int datahub_load_snapshot(datahub_t *hub, const char *path) {
+    if (!hub || !hub->shadow_table || !path) return -1;
+
+    FILE *f = fopen(path, "rb");
+    if (!f) return -1;
+
+    uv_mutex_lock(&hub->shadow_lock);
+    size_t read = fread(hub->shadow_table, sizeof(pipe_msg_t), hub->shadow_capacity, f);
+    uv_mutex_unlock(&hub->shadow_lock);
+
+    fclose(f);
+    LOG_INFO(LOG_CAT_BUS, "DataHub: Snapshot loaded from %s (%zu slots)", path, read);
+    return (read == hub->shadow_capacity) ? 0 : -1;
+}
+
 int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
     if (!hub || !msg) return -1;
     if (hub->ring.hdr == NULL) {

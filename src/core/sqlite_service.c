@@ -50,11 +50,30 @@ static void _on_storage_gc(uv_timer_t *handle) {
             LOG_WARN(LOG_CAT_CORE, "DB: Size %lu MB exceeds limit %u MB. Triggering GC...",
                      (unsigned long)size_mb, svc->config.max_db_size_mb);
 
-            // 简单策略：删除最早的 10% 数据
-            sqlite3_exec(svc->db,
-                         "DELETE FROM telemetry WHERE ts < (SELECT MIN(ts) + (MAX(ts)-MIN(ts))/10 "
-                         "FROM telemetry);",
-                         NULL, NULL, NULL);
+            if (svc->config.strategy == STRATEGY_SHARDING) {
+                // [AET-2.2] 分表策略：删除最旧的一张表 (telemetry_YYYYMM)
+                sqlite3_stmt *stmt;
+                const char *sql =
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE "
+                    "'telemetry_%%' ORDER BY name ASC LIMIT 1;";
+                if (sqlite3_prepare_v2(svc->db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+                    if (sqlite3_step(stmt) == SQLITE_ROW) {
+                        const char *old_table = (const char *)sqlite3_column_text(stmt, 0);
+                        char drop_sql[128];
+                        snprintf(drop_sql, sizeof(drop_sql), "DROP TABLE %s;", old_table);
+                        sqlite3_exec(svc->db, drop_sql, NULL, NULL, NULL);
+                        LOG_INFO(LOG_CAT_CORE, "DB GC: Dropped oldest shard %s", old_table);
+                    }
+                    sqlite3_finalize(stmt);
+                }
+            } else {
+                // 简单策略：删除最早的 10% 数据
+                sqlite3_exec(
+                    svc->db,
+                    "DELETE FROM telemetry WHERE ts < (SELECT MIN(ts) + (MAX(ts)-MIN(ts))/10 "
+                    "FROM telemetry);",
+                    NULL, NULL, NULL);
+            }
             // 释放空间
             sqlite3_exec(svc->db, "PRAGMA incremental_vacuum;", NULL, NULL, NULL);
         }
@@ -156,6 +175,11 @@ static void _worker_flush_cb(uv_work_t *req) {
     if (!batch || batch->count == 0) return;
 
     sqlite3_exec(svc->db, "BEGIN IMMEDIATE;", 0, 0, 0);
+
+    // [AET-2.1 Optimization] 预编译语句在循环外定义，减少解析开销
+    sqlite3_stmt *stmt = NULL;
+    const char *current_table = NULL;
+
     for (int i = 0; i < batch->count; i++) {
         PipeMsg *msg = &batch->buffer[i];
         const char *table = "telemetry";
@@ -165,18 +189,27 @@ static void _worker_flush_cb(uv_work_t *req) {
             _ensure_shard_exists(svc, shard_name);
             table = shard_name;
         }
-        sqlite3_stmt *stmt;
-        char sql[128];
-        snprintf(sql, sizeof(sql), "INSERT OR REPLACE INTO %s VALUES (?,?,?,?)", table);
-        if (sqlite3_prepare_v2(svc->db, sql, -1, &stmt, NULL) == SQLITE_OK) {
-            sqlite3_bind_int64(stmt, 1, (sqlite3_int64)msg->ts);
-            sqlite3_bind_int(stmt, 2, (int)msg->tag_id);
-            sqlite3_bind_double(stmt, 3, msg->payload.val.f);
-            sqlite3_bind_int(stmt, 4, (int)msg->quality);
-            sqlite3_step(stmt);
-            sqlite3_finalize(stmt);
+
+        if (current_table == NULL || strcmp(table, current_table) != 0) {
+            if (stmt) sqlite3_finalize(stmt);
+            char sql[128];
+            snprintf(sql, sizeof(sql), "INSERT OR REPLACE INTO %s VALUES (?,?,?,?)", table);
+            if (sqlite3_prepare_v2(svc->db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+                continue;
+            }
+            current_table = table;
         }
+
+        sqlite3_bind_int64(stmt, 1, (sqlite3_int64)msg->ts);
+        sqlite3_bind_int(stmt, 2, (int)msg->tag_id);
+        sqlite3_bind_double(stmt, 3, msg->payload.val.f);
+        sqlite3_bind_int(stmt, 4, (int)msg->quality);
+
+        sqlite3_step(stmt);
+        sqlite3_reset(stmt);  // [AET-2.1] 重置语句以便复用
     }
+
+    if (stmt) sqlite3_finalize(stmt);
     sqlite3_exec(svc->db, "COMMIT;", 0, 0, 0);
 }
 
