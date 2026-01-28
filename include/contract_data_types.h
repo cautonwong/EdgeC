@@ -114,7 +114,6 @@ typedef struct pipeline_stage_s pipeline_stage_t;
 typedef struct pipeline_loader_ctx_s pipeline_loader_ctx_t;
 
 // --- 算子工厂注册表基础类型 ---
-
 typedef pipeline_stage_t *(*stage_factory_fn)(const edge_stage_def_t *def,
                                               pipeline_loader_ctx_t *ctx);
 

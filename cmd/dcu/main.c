@@ -47,7 +47,6 @@ int main(int argc, char **argv) {
 
     sqlite_config_t db_conf = {.db_path = "dcu.db", .strategy = STRATEGY_LITE};
     sqlite_svc_t *db_service = sqlite_svc_create(loop, &db_conf);
-
     stream_engine_t *stream_engine =
         stream_engine_create(&hub, NULL, NULL, edge_stage_factory_get_registry());
     edge_params_t *param_mgr = edge_params_create(db_service, &hub);
