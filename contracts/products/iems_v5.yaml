@@ -59,7 +59,7 @@ pipelines:
   - id: "overvoltage_protection"
     trigger: "ADC_VOLTAGE_RMS"
     stages:
-      - type: "REFLEX"
+      - type: "reflex"
         config:
           bus_id: 0
           protocol: "ModbusRTU"

@@ -17,21 +17,13 @@
 
 
 // [Section 1.6] Protocol Existence Gates
-
 {{- range $proto, $hash := .Hashes }}
-
 #define CONFIG_{{ $proto }}_ENABLED 1
-
 {{- end }}
 
-{{- range $proto, $pmap := .PMap }}
-
-{{- if not (index $.Hashes $proto) }}
-
-#define CONFIG_{{ $proto }}_ENABLED 1
-
-{{- end }}
-
+// [Section 1.7] Pipeline Stage Gates
+{{- range .UsedStages }}
+#define ENABLE_STAGE_{{ upper . }} 1
 {{- end }}
 
 {{- end -}}

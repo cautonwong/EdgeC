@@ -7,3 +7,9 @@ set(EDGE_CONTRACT_SIGNATURE "{{ .Signature }}")
 {{- range .Configs }}
 set(CONFIG_{{ .Name }} "{{ .Value }}")
 {{- end }}
+
+# --- Pipeline Stage Enablement (Tree Shaking) ---
+{{- range .UsedStages }}
+set(EDGE_STAGE_{{ upper . }}_ENABLED ON)
+{{- end }}
+

@@ -154,35 +154,22 @@ static void _stream_engine_thread_entry(void *arg) {
     engine->notify_inited = false;
 }
 
-static pipeline_stage_t *_create_stage_by_type(const edge_stage_def_t *def,
+static pipeline_stage_t *_create_stage_by_type(stream_engine_t *engine,
+                                               const edge_stage_def_t *def,
                                                pipeline_loader_ctx_t *ctx) {
-    if (strcmp(def->type, "energy_integrator") == 0)
-        return stage_energy_integrator_create((uint32_t)def->params.u1);
-    if (strcmp(def->type, "dsp_rms") == 0) return stage_dsp_rms_create((uint32_t)def->params.u1);
-    if (strcmp(def->type, "FILTER") == 0) return stage_filter_create((uint32_t)def->params.u1);
-    if (strcmp(def->type, "FILTER_RANGE") == 0)
-        return stage_filter_range_create(def->params.f1, def->params.f2);
-    if (strcmp(def->type, "TRANSFORM") == 0)
-        return stage_transform_create(def->params.f1, def->params.f2);
-    if (strcmp(def->type, "EMA") == 0) return stage_ema_create(def->params.f1);
-    if (strcmp(def->type, "CLAMP") == 0) return stage_clamp_create(def->params.f1, def->params.f2);
-    if (strcmp(def->type, "PEAK_SHAVE") == 0)
-        return stage_peak_shaving_create(def->params.f1, (uint32_t)def->params.u1);
-    if (strcmp(def->type, "ACCUMULATE") == 0) return stage_accumulate_create();
-    if (strcmp(def->type, "FREEZE") == 0) return stage_periodic_freeze_create((int)def->params.u1);
-    if (strcmp(def->type, "TIME_GUARD") == 0) return stage_time_guard_create();
-    if (strcmp(def->type, "SQLITE_SINK") == 0 && ctx->db)
-        return stage_sqlite_sink_create(ctx->db, def->params.s1);
-    if (strcmp(def->type, "sqlite_sink") == 0 && ctx->db)
-        return stage_sqlite_sink_create(ctx->db, def->params.s1);
-    if (strcmp(def->type, "JS_RULE") == 0 && ctx->js_engine)
-        return stage_js_rule_create(ctx->js_engine, def->params.s1, false);
-    if (strcmp(def->type, "REFLEX") == 0 && ctx->orch)
-        return stage_reflex_logic_create(ctx->orch, 0, def->params.s1, (uint32_t)def->params.u1,
-                                         def->params.f1, def->params.f2 > 0.5, def->params.f3);
-    if (strcmp(def->type, "MOVING_AVERAGE") == 0)
-        return stage_moving_average_create((uint32_t)def->params.u1);
-    if (strcmp(def->type, "RBE") == 0) return stage_rbe_create(def->params.f1);
+    const edge_stage_factory_entry_t *reg = engine->registry;
+    printf("[STREAM-DEBUG] Finding factory for type: '%s' (RegAddr: %p)\n", def->type, (void *)reg);
+    if (reg) {
+        for (int i = 0; reg[i].type != NULL; i++) {
+            printf("  - RegEntry[%d]: '%s'\n", i, reg[i].type);
+            if (strcasecmp(def->type, reg[i].type) == 0) {
+                if (reg[i].factory) {
+                    return reg[i].factory(def, ctx);
+                }
+            }
+        }
+    }
+    LOG_ERROR(LOG_CAT_SCHED, "Unknown or disabled stage type: %s", def->type);
     return NULL;
 }
 
@@ -202,11 +189,16 @@ int stream_engine_load_static_metadata(stream_engine_t *engine, const edge_pipel
 
         for (uint32_t j = 0; j < p_def->stage_count; j++) {
             const edge_stage_def_t *s_def = &p_def->stages[j];
-            pipeline_stage_t *stage = _create_stage_by_type(s_def, ctx);
+            pipeline_stage_t *stage = _create_stage_by_type(engine, s_def, ctx);
             if (stage) {
-                pipeline_add_stage(p, stage->name, stage->process, stage->priv_state,
-                                   stage->cleanup_state, stage->priv_cfg, stage->cleanup_cfg);
-                free(stage);
+                stage->pipeline = p;
+                stage->loop = engine->loop;
+                if (!p->head)
+                    p->head = p->tail = stage;
+                else {
+                    p->tail->next = stage;
+                    p->tail = stage;
+                }
             }
         }
     }
@@ -234,13 +226,15 @@ pipeline_stage_t *pipeline_add_stage(pipeline_t *p, const char *name, stage_proc
 }
 
 stream_engine_t *stream_engine_create_ex(datahub_t *hub, uv_loop_t *loop,
-                                         struct bus_orchestrator_s *orch) {
+                                         struct bus_orchestrator_s *orch,
+                                         const edge_stage_factory_entry_t *registry) {
     (void)loop;
     (void)orch;
     stream_engine_t *engine = calloc(1, sizeof(stream_engine_t));
     engine->hub = hub;
     engine->time_src.get_monotonic_ms = _default_get_monotonic_ms;
     engine->time_src.get_calendar_ms = _default_get_calendar_ms;
+    engine->registry = registry;
 
     if (hub) {
         engine->bus_read_seq =
@@ -259,8 +253,9 @@ stream_engine_t *stream_engine_create_ex(datahub_t *hub, uv_loop_t *loop,
 }
 
 stream_engine_t *stream_engine_create(datahub_t *hub, uv_loop_t *loop,
-                                      struct bus_orchestrator_s *orch) {
-    return stream_engine_create_ex(hub, loop, orch);
+                                      struct bus_orchestrator_s *orch,
+                                      const edge_stage_factory_entry_t *registry) {
+    return stream_engine_create_ex(hub, loop, orch, registry);
 }
 
 void stream_engine_start(stream_engine_t *engine) {

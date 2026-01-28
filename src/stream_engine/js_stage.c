@@ -134,3 +134,7 @@ pipeline_stage_t *stage_js_rule_create(js_engine_t *engine, const char *script_p
     s->cleanup_cfg = js_stage_cleanup;
     return s;
 }
+
+pipeline_stage_t *stage_js_rule_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
+    return stage_js_rule_create(ctx->js_engine, def->params.s1, false);
+}

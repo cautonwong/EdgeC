@@ -72,3 +72,8 @@ pipeline_stage_t *stage_dsp_rms_create(uint32_t output_tag_id) {
     s->cleanup_state = _dsp_rms_cleanup;
     return s;
 }
+
+pipeline_stage_t *stage_dsp_rms_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
+    (void)ctx;
+    return stage_dsp_rms_create((uint32_t)def->params.u1);
+}
