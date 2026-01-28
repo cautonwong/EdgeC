@@ -7,10 +7,14 @@ import time
 import signal
 import json
 import threading
-from typing import List, Dict
+import array
+from typing import List, Dict, Optional
+
+# ==============================================================================
+# [Omnis] Sprint 5: Ion - 工业级 ADC 仿真引擎 (Compatibility Version)
+# ==============================================================================
 
 class WaveComponent:
-    """可配置的波形组件"""
     def __init__(self, name: str):
         self.name = name
         self.enabled = True
@@ -21,27 +25,32 @@ class WaveComponent:
     def update_params(self, params: dict):
         for k, v in params.items():
             if hasattr(self, k):
-                setattr(self, k, float(v))
-                print(f"  [ADC-SIM] Updated {self.name}.{k} = {v}")
+                curr = getattr(self, k)
+                if isinstance(curr, float): val = float(v)
+                elif isinstance(curr, int): val = int(v)
+                else: val = v
+                setattr(self, k, val)
+                print(f"  [ADC-SIM] Updated {self.name}.{k} = {val}")
 
 class SineSource(WaveComponent):
-    def __init__(self, name="base_sine", freq=50.0, amp=311.0, phase=0.0):
+    def __init__(self, name="grid", freq=50.0, amp=311.12):
         super().__init__(name)
         self.freq = freq
         self.amp = amp
-        self.phase = phase
     def generate(self, t_vec):
-        return self.amp * np.sin(2 * np.pi * self.freq * t_vec + self.phase)
+        return self.amp * np.sin(2 * np.pi * self.freq * t_vec)
 
 class HarmonicDisturb(WaveComponent):
-    def __init__(self, name="harmonic", order=3, ratio=0.0):
+    def __init__(self, name, order, ratio=0.0):
         super().__init__(name)
         self.order = order
         self.ratio = ratio
         self.base_freq = 50.0
+        self.base_amp = 311.12
     def generate(self, t_vec):
         if self.ratio <= 0: return np.zeros_like(t_vec)
-        return (311.0 * self.ratio) * np.sin(2 * np.pi * (self.base_freq * self.order) * t_vec)
+        h_amp = self.base_amp * self.ratio
+        return h_amp * np.sin(2 * np.pi * (self.base_freq * self.order) * t_vec)
 
 class NoiseSource(WaveComponent):
     def __init__(self, name="noise", level=0.0):
@@ -51,11 +60,19 @@ class NoiseSource(WaveComponent):
         if self.level <= 0: return np.zeros_like(t_vec)
         return np.random.normal(0, self.level, len(t_vec))
 
+class PipeMsgPacker:
+    HEADER_FORMAT = "<QIHHI I B 7s" 
+    PAYLOAD_REF_FORMAT = "<Q i Q Q"
+    
+    @staticmethod
+    def pack_ref(tag_id: int, fd: int, length: int, ts_ns: int):
+        header = struct.pack(PipeMsgPacker.HEADER_FORMAT,
+                             ts_ns, tag_id, 2, 1, 0, 0, 1, b'\x00'*7)
+        payload = struct.pack(PipeMsgPacker.PAYLOAD_REF_FORMAT, 0, fd, length, 0)
+        return header + payload
+
 class AdcSimulator:
-    """
-    [Omnis] Sprint 5: Ion - 工业级 ADC 仿真引擎
-    """
-    def __init__(self, sample_rate=100000, block_size=1000):
+    def __init__(self, sample_rate=4000, block_size=400):
         self.sample_rate = sample_rate
         self.block_size = block_size
         self.num_buffers = 8
@@ -67,11 +84,11 @@ class AdcSimulator:
         
         self._setup_memfds()
         
-        # 默认初始化组件
+        # 兼容旧测试的组件命名
         self.add_component(SineSource("grid"))
         self.add_component(HarmonicDisturb("h3", order=3))
         self.add_component(HarmonicDisturb("h5", order=5))
-        self.add_component(NoiseSource("white_noise"))
+        self.add_component(NoiseSource("noise"))
 
     def _setup_memfds(self):
         import ctypes
@@ -79,14 +96,16 @@ class AdcSimulator:
         MFD_ALLOW_SEALING = 0x0002
         import mmap
         
+        self.buffer_size = self.block_size * 4 # 1 Channel
+        
         for i in range(self.num_buffers):
             name = f"adc_v_{i}".encode()
             fd = libc.memfd_create(name, MFD_ALLOW_SEALING)
-            os.ftruncate(fd, self.block_size * 4)
+            os.ftruncate(fd, self.buffer_size)
             self.buffer_fds.append(fd)
-            buf = mmap.mmap(fd, self.block_size * 4, mmap.MAP_SHARED, mmap.PROT_WRITE)
+            buf = mmap.mmap(fd, self.buffer_size, mmap.MAP_SHARED, mmap.PROT_WRITE)
             self.buffers.append(buf)
-        print(f"✅ ADC Simulator: {self.num_buffers} buffers ready (BlockSize: {self.block_size})")
+        print(f"✅ ADC Simulator Ready: {self.num_buffers} buffers (Size: {self.block_size} floats)")
 
     def add_component(self, comp: WaveComponent):
         self.components[comp.name] = comp
@@ -106,18 +125,15 @@ class AdcSimulator:
         self.current_t = t_end
 
     def _command_listener(self):
-        """监听控制指令以动态修改波形参数"""
         ctrl_path = "/tmp/matrix_adc_ctrl.sock"
         if os.path.exists(ctrl_path): os.remove(ctrl_path)
         
         with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as s:
             s.bind(ctrl_path)
-            print(f"🎮 ADC Command Listener ready at {ctrl_path}")
             while self.running:
                 try:
-                    data, _ = s.recvfrom(1024)
+                    data, _ = s.recvfrom(2048)
                     cmd = json.loads(data.decode())
-                    # e.g. {"target": "grid", "params": {"freq": 49.5}}
                     target = cmd.get("target")
                     if target in self.components:
                         self.components[target].update_params(cmd.get("params", {}))
@@ -133,43 +149,39 @@ class AdcSimulator:
             print(f"📡 ADC Stream Server ready at {socket_path}")
             
             while self.running:
-                conn, _ = srv.accept()
-                print("🔗 EdgeOS Handshake: Transferring Buffer Metadata...")
                 try:
-                    # 1. 握手：发送所有 FD 和基本信息
-                    # 先发个头信息告知 BlockSize 和 BufferCount
+                    conn, _ = srv.accept()
+                    # 简化握手
                     conn.sendall(struct.pack("<II", self.block_size, self.num_buffers))
                     
-                    # 2. 循环发送数据通知
                     buf_idx = 0
                     while self.running:
+                        start_tick = time.perf_counter()
                         self.update_block(buf_idx)
                         
-                        # 发送 TYPE_REF 消息 (64 bytes)
-                        # [TS(8), TagID(4), Type(2), State(2), ... Payload(FD)]
-                        # 注意：真正的 PipeMsg 发送需要对齐 C 结构体
                         ts_ns = int(time.time() * 1e9)
-                        # Tag 2001: ADC_RAW_DATA
-                        msg_header = struct.pack("<QIHHI", ts_ns, 2001, 2, 1, 0)
-                        padding = b'\x00' * (64 - len(msg_header) - 4) # 预留 4 字节给 FD 占位
+                        msg = PipeMsgPacker.pack_ref(2001, self.buffer_fds[buf_idx], self.buffer_size, ts_ns)
                         
-                        import array
                         fds = array.array("i", [self.buffer_fds[buf_idx]])
-                        conn.sendmsg([msg_header + padding + struct.pack("<i", buf_idx)], 
-                                     [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fds)])
+                        conn.sendmsg([msg], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fds)])
                         
-                        # 控制流速
-                        time.sleep(self.block_size / self.sample_rate)
+                        elapsed = time.perf_counter() - start_tick
+                        sleep_time = (self.block_size / self.sample_rate) - elapsed
+                        if sleep_time > 0:
+                            time.sleep(sleep_time)
+                        
                         buf_idx = (buf_idx + 1) % self.num_buffers
                 except Exception as e:
                     print(f"❌ Stream disconnected: {e}")
+                    if not self.running: break
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--socket", default="/tmp/v_adc.sock")
-    parser.add_argument("--rate", type=int, default=100000)
+    parser.add_argument("--rate", type=int, default=4000)
+    parser.add_argument("--block", type=int, default=400)
     args = parser.parse_args()
     
-    sim = AdcSimulator(sample_rate=args.rate, block_size=1000)
+    sim = AdcSimulator(sample_rate=args.rate, block_size=args.block)
     sim.run(args.socket)

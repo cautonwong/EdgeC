@@ -5,6 +5,13 @@
 
 typedef struct edge_req_s edge_req_t;
 
+// [Aetheris] 北向请求专用结构 (指令下发/参数同步)
+typedef struct {
+    uint32_t tag_id;
+    void *payload;
+    size_t len;
+} edge_nb_req_t;
+
 // 状态码
 #define REQ_STATUS_DONE 0
 #define REQ_STATUS_CONTINUE 1
