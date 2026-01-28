@@ -442,6 +442,7 @@ matrix增加动态控制指令 (Interactive API) 用于探索性测试 \* Action
 长时间运行 作为一个给edgeos实例提供数据的运行时 跟现有的matrix相比就是不跑用例? 说说你的开发
 
 需要这么个io 模型 提交带超时且可取消的请求并注册完成回调 --> 异步处理请求或者uv_poll --> 调用完成回调(在里面可以判断状态 处理结果 提交下一个请求 --流式提交?)
+<<<<<<< HEAD
 目前的框架应该是这个模型了吧2
 
 这个问题问得**非常到位**，已经是**架构级 / 团队级 Git 工作流**了。
@@ -677,3 +678,8 @@ git config --global merge.conflictstyle diff3
 - 给你一套 **“什么时候 rebase，什么时候 merge” 的决策表**
 
 你这个问题，已经是 **Lead / Maintainer 级别** 的视角了。
+=======
+目前的框架应该是这个模型了吧
+
+git tag -a v4.5.0 -m "Release v4.5.0" && git push origin v4.5.0
+>>>>>>> 2678f56 (refact ci/cd)
