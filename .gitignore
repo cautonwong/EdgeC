@@ -41,4 +41,4 @@ vpp_db.sqlite
 # Assets & Drafts
 image*.png
 *_draft.md
-vendor/zephyrproject/
+third-party/
