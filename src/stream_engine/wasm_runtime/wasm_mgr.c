@@ -21,7 +21,6 @@ static int wasm_host_read(wasm_exec_env_t exec_env, uint32_t tag_id, uint32_t ou
     if (datahub_read_shadow(g_hub, tag_id, &msg) == 0) {
         if (msg.type == PIPEMSG_TYPE_SCALAR) {
             *host_ptr = msg.payload.val.f;
-<<<<<<< HEAD
             return 0;
         }
     }
@@ -37,27 +36,10 @@ static int wasm_host_publish(wasm_exec_env_t exec_env, uint32_t tag_id, double v
 }
 
 static void wasm_host_log(wasm_exec_env_t exec_env, uint32_t level, uint32_t msg_ptr_wasm) {
-=======
-            return true;
-        }
-    }
-    return false;
-}
-
-static bool ext_datahub_publish_wrapper(wasm_exec_env_t exec_env, uint32_t tag_id, double value) {
-    if (!g_hub) return false;
-    pipe_msg_t msg;
-    pipe_msg_init_scalar(&msg, tag_id, value, uv_hrtime());
-    return datahub_publish(g_hub, &msg) == 0;
-}
-
-static void ext_log_wrapper(wasm_exec_env_t exec_env, int level, uint32_t msg_ptr_wasm) {
->>>>>>> a3c8592 (feat(wasm): integrate WebAssembly (WAMR) runtime and compute stage)
     wasm_module_inst_t inst = wasm_runtime_get_module_inst(exec_env);
     const char *host_msg = (const char *)wasm_runtime_addr_app_to_native(inst, msg_ptr_wasm);
     if (!host_msg) return;
 
-<<<<<<< HEAD
     if (level == 0)
         LOG_INFO(LOG_CAT_CORE, "[WASM] %s", host_msg);
     else if (level == 1)
@@ -71,23 +53,6 @@ static void ext_log_wrapper(wasm_exec_env_t exec_env, int level, uint32_t msg_pt
 static NativeSymbol native_symbols[] = {{"ext_datahub_read", wasm_host_read, NULL, NULL},
                                         {"ext_datahub_publish", wasm_host_publish, NULL, NULL},
                                         {"ext_log", wasm_host_log, NULL, NULL}};
-=======
-    if (level == 0)
-        LOG_INFO(LOG_CAT_CORE, "[WASM] %s", host_msg);
-    else if (level == 1)
-        LOG_INFO(LOG_CAT_CORE, "[WASM] %s", host_msg);
-    else if (level == 2)
-        LOG_WARN(LOG_CAT_CORE, "[WASM] %s", host_msg);
-    else
-        LOG_ERROR(LOG_CAT_CORE, "[WASM] %s", host_msg);
-}
-
-// 采用更宽松的签名定义
-static NativeSymbol native_symbols[] = {
-    {"ext_datahub_read", ext_datahub_read_wrapper, "(ii)i", NULL},
-    {"ext_datahub_publish", ext_datahub_publish_wrapper, "(id)i", NULL},
-    {"ext_log", ext_log_wrapper, "(ii)v", NULL}};
->>>>>>> a3c8592 (feat(wasm): integrate WebAssembly (WAMR) runtime and compute stage)
 
 // --- Runtime Management ---
 
@@ -112,7 +77,6 @@ int wasm_mgr_init(datahub_t *hub) {
     memset(&init_args, 0, sizeof(RuntimeInitArgs));
     init_args.mem_alloc_type = Alloc_With_System_Allocator;
 
-<<<<<<< HEAD
     // Register natives via InitArgs for WAMR 2.x compatibility
     init_args.native_module_name = "env";
     init_args.native_symbols = native_symbols;
@@ -121,14 +85,6 @@ int wasm_mgr_init(datahub_t *hub) {
     if (!wasm_runtime_full_init(&init_args)) return -1;
 
     LOG_INFO(LOG_CAT_CORE, "WASM: Runtime initialized");
-=======
-    if (!wasm_runtime_full_init(&init_args)) return -1;
-
-    // 尝试不带命名空间的前缀注册，或者明确使用 "env"
-    if (!wasm_runtime_register_natives("env", native_symbols, 3)) {
-        return -1;
-    }
->>>>>>> a3c8592 (feat(wasm): integrate WebAssembly (WAMR) runtime and compute stage)
     return 0;
 }
 
@@ -144,7 +100,6 @@ static char *read_file_to_buffer(const char *path, uint32_t *size) {
     *size = (uint32_t)ftell(f);
     fseek(f, 0, SEEK_SET);
     char *buf = malloc(*size);
-<<<<<<< HEAD
     if (!buf) {
         fclose(f);
         return NULL;
@@ -154,13 +109,6 @@ static char *read_file_to_buffer(const char *path, uint32_t *size) {
         fclose(f);
         return NULL;
     }
-=======
-    if (fread(buf, 1, *size, f) != *size) {
-        free(buf);
-        fclose(f);
-        return NULL;
-    }
->>>>>>> a3c8592 (feat(wasm): integrate WebAssembly (WAMR) runtime and compute stage)
     fclose(f);
     return buf;
 }
@@ -170,7 +118,6 @@ int wasm_mgr_exec(const char *path, const char *func_name, pipe_msg_t *msg) {
     if (strcmp(g_last_path, path) != 0) {
         wasm_mgr_cleanup_module();
         uint32_t wasm_size;
-<<<<<<< HEAD
         g_wasm_buf = (uint8_t *)read_file_to_buffer(path, &wasm_size);
         if (!g_wasm_buf) return -1;
         char error_buf[128];
@@ -189,41 +136,16 @@ int wasm_mgr_exec(const char *path, const char *func_name, pipe_msg_t *msg) {
             free(g_wasm_buf);
             return -1;
         }
-=======
-        g_wasm_buf = (uint8_t *)read_file_to_buffer(path, &wasm_size);
-        if (!g_wasm_buf) return -1;
-        char error_buf[128];
-        g_module = wasm_runtime_load(g_wasm_buf, wasm_size, error_buf, sizeof(error_buf));
-        if (!g_module) {
-            free(g_wasm_buf);
-            g_wasm_buf = NULL;
-            return -1;
-        }
-        g_inst =
-            wasm_runtime_instantiate(g_module, 64 * 1024, 64 * 1024, error_buf, sizeof(error_buf));
-        if (!g_inst) {
-            wasm_runtime_unload(g_module);
-            free(g_wasm_buf);
-            return -1;
-        }
->>>>>>> a3c8592 (feat(wasm): integrate WebAssembly (WAMR) runtime and compute stage)
         strncpy(g_last_path, path, 127);
     }
 
     wasm_exec_env_t exec_env = wasm_runtime_create_exec_env(g_inst, 64 * 1024);
     if (!exec_env) return -1;
     wasm_function_inst_t func = wasm_runtime_lookup_function(g_inst, func_name);
-<<<<<<< HEAD
     if (!func) {
         wasm_runtime_destroy_exec_env(exec_env);
         return -1;
     }
-=======
-    if (!func) {
-        wasm_runtime_destroy_exec_env(exec_env);
-        return -1;
-    }
->>>>>>> a3c8592 (feat(wasm): integrate WebAssembly (WAMR) runtime and compute stage)
 
     if (!wasm_runtime_call_wasm(exec_env, func, 0, NULL)) {
         wasm_runtime_destroy_exec_env(exec_env);
@@ -231,8 +153,4 @@ int wasm_mgr_exec(const char *path, const char *func_name, pipe_msg_t *msg) {
     }
     wasm_runtime_destroy_exec_env(exec_env);
     return 0;
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> a3c8592 (feat(wasm): integrate WebAssembly (WAMR) runtime and compute stage)

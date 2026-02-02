@@ -26,6 +26,8 @@ __attribute__((import_module("env"), import_name("ext_log"))) extern void ext_lo
 
 <<<<<<< HEAD
 #endif
-    =======
+    == == ==
+    =
 #endif
-    >>>>>>> a3c8592 (feat(wasm): integrate WebAssembly (WAMR) runtime and compute stage)
+        >>>>>>> a3c8592(feat(wasm)
+                        : integrate WebAssembly(WAMR) runtime and compute stage)

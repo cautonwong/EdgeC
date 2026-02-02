@@ -51,7 +51,6 @@ static void test_wasm_full_chain(void **state) {
                        ws->cleanup_cfg);
     free(ws);
 
-<<<<<<< HEAD
     // 4. 注入触发数据 (Tag 1001 = 245.5V)
     pipe_msg_t msg;
     pipe_msg_init_scalar(&msg, 1001, 245.5, uv_hrtime());
@@ -59,13 +58,6 @@ static void test_wasm_full_chain(void **state) {
     // 重要：必须先发布到 Hub，因为 WASM 是通过 ext_datahub_read (shadow table) 读取的
     datahub_publish(&hub, &msg);
     // 直接推送到引擎
-=======
-    // 4. 注入触发数据 (Tag 1001 = 245.5V, 预期会触发 9999 号点位警告)
-    pipe_msg_t msg;
-    pipe_msg_init_scalar(&msg, 1001, 245.5, uv_hrtime());
-
-    // 直接推送到引擎 (绕过异步线程以方便同步断言)
->>>>>>> a3c8592 (feat(wasm): integrate WebAssembly (WAMR) runtime and compute stage)
     stream_engine_push(se, &msg);
 
     // 5. 验证结果 (Tag 9999 应该被 WASM 设为 1.0)
@@ -75,14 +67,9 @@ static void test_wasm_full_chain(void **state) {
     assert_float_equal(result.payload.val.f, 1.0, 0.001);
     printf("🔥 [SUCCESS] WASM calculated: Tag 9999 = %.2f\n", result.payload.val.f);
 
-<<<<<<< HEAD
     // 6. 再次注入低电压 (Tag 1001 = 220.0V)
     pipe_msg_init_scalar(&msg, 1001, 220.0, uv_hrtime());
     datahub_publish(&hub, &msg);
-=======
-    // 6. 再次注入低电压 (Tag 1001 = 220.0V, 预期 9999 变为 0.0)
-    pipe_msg_init_scalar(&msg, 1001, 220.0, uv_hrtime());
->>>>>>> a3c8592 (feat(wasm): integrate WebAssembly (WAMR) runtime and compute stage)
     stream_engine_push(se, &msg);
 
     rc = datahub_read_shadow(&hub, 9999, &result);
