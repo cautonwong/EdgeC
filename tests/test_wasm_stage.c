@@ -18,8 +18,8 @@ static void test_wasm_full_chain(void **state) {
     uv_loop_t *loop = uv_default_loop();
     datahub_t hub;
 
-    // 1. 初始化 DataHub (128 槽位，1024 影子表)
-    int rc = datahub_init(&hub, loop, "wasm_test", 128, 1024, NULL, 0, NULL, NULL, NULL);
+    // 1. 初始化 DataHub (128 槽位，10000 影子表以容纳 9999 号点位)
+    int rc = datahub_init(&hub, loop, "wasm_test", 128, 10000, NULL, 0, NULL, NULL, NULL);
     assert_int_equal(rc, 0);
 
     // 2. 创建流引擎
@@ -51,11 +51,13 @@ static void test_wasm_full_chain(void **state) {
                        ws->cleanup_cfg);
     free(ws);
 
-    // 4. 注入触发数据 (Tag 1001 = 245.5V, 预期会触发 9999 号点位警告)
+    // 4. 注入触发数据 (Tag 1001 = 245.5V)
     pipe_msg_t msg;
     pipe_msg_init_scalar(&msg, 1001, 245.5, uv_hrtime());
 
-    // 直接推送到引擎 (绕过异步线程以方便同步断言)
+    // 重要：必须先发布到 Hub，因为 WASM 是通过 ext_datahub_read (shadow table) 读取的
+    datahub_publish(&hub, &msg);
+    // 直接推送到引擎
     stream_engine_push(se, &msg);
 
     // 5. 验证结果 (Tag 9999 应该被 WASM 设为 1.0)
@@ -65,8 +67,9 @@ static void test_wasm_full_chain(void **state) {
     assert_float_equal(result.payload.val.f, 1.0, 0.001);
     printf("🔥 [SUCCESS] WASM calculated: Tag 9999 = %.2f\n", result.payload.val.f);
 
-    // 6. 再次注入低电压 (Tag 1001 = 220.0V, 预期 9999 变为 0.0)
+    // 6. 再次注入低电压 (Tag 1001 = 220.0V)
     pipe_msg_init_scalar(&msg, 1001, 220.0, uv_hrtime());
+    datahub_publish(&hub, &msg);
     stream_engine_push(se, &msg);
 
     rc = datahub_read_shadow(&hub, 9999, &result);
