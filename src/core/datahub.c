@@ -41,6 +41,9 @@ static int _datahub_post_init(datahub_t *hub, uv_loop_t *loop, uint32_t shadow_c
     hub->map_fn = map_fn;
     hub->wakeup_fn = wakeup_fn;
 
+    atomic_init(&hub->ref_count, 0);
+    atomic_init(&hub->listener_count, 0);
+
     uv_async_init(loop, &hub->legacy_async, _on_legacy_async);
     hub->legacy_async.data = hub;
     uv_mutex_init(&hub->shadow_lock);
@@ -87,6 +90,9 @@ int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slo
             hub->shadow_fd = fd;
             hub->shadow_size = size;
             memset(hub->shadow_table, 0, size);  // 初始化清零
+
+            // 分配 Sequence 计数器空间
+            hub->shadow_seq = calloc(shadow_capacity, sizeof(atomic_uint));
         }
     }
 
@@ -108,6 +114,7 @@ int datahub_init_from_fd(datahub_t *hub, uv_loop_t *loop, int ring_fd, size_t ri
             mmap(NULL, shadow_size, PROT_READ | PROT_WRITE, MAP_SHARED, shadow_fd, 0);
         hub->shadow_fd = shadow_fd;
         hub->shadow_size = shadow_size;
+        hub->shadow_seq = calloc(compact_capacity, sizeof(atomic_uint));
     }
 
     return _datahub_post_init(hub, loop, compact_capacity, metadata, metadata_len, io_pool, map_fn,
@@ -124,6 +131,7 @@ void datahub_destroy(datahub_t *hub) {
         munmap(hub->shadow_table, hub->shadow_size);
         if (hub->shadow_fd >= 0) close(hub->shadow_fd);
     }
+    if (hub->shadow_seq) free(hub->shadow_seq);
     uv_mutex_destroy(&hub->shadow_lock);
 }
 
@@ -167,7 +175,8 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
 
     // Phase 4: 如果是引用类型，尝试校准本地指针 (针对同进程内转发)
     if (local_msg.type == PIPEMSG_TYPE_REF) {
-        for (int i = 0; i < hub->ref_count; i++) {
+        int r_count = atomic_load_explicit(&hub->ref_count, memory_order_relaxed);
+        for (int i = 0; i < r_count; i++) {
             if (hub->refs[i].tag_id == local_msg.tag_id) {
                 local_msg.payload.ref.ptr = hub->refs[i].ptr;
                 local_msg.payload.ref.fd = hub->refs[i].fd;
@@ -178,13 +187,16 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
 
     shm_ring_write(&hub->ring, &local_msg);
 
-    if (hub->shadow_table) {
+    if (hub->shadow_table && hub->shadow_seq) {
         int idx = (hub->map_fn) ? hub->map_fn(local_msg.tag_id) : (int)local_msg.tag_id;
 
         if (idx >= 0 && (uint32_t)idx < hub->shadow_capacity) {
-            uv_mutex_lock(&hub->shadow_lock);
+            // [Seqlock] 写入端：增加序列号 (变为奇数) -> 写入 -> 增加序列号 (变为偶数)
+            atomic_fetch_add_explicit(&hub->shadow_seq[idx], 1, memory_order_relaxed);
+            atomic_thread_fence(memory_order_release);
             hub->shadow_table[idx] = local_msg;
-            uv_mutex_unlock(&hub->shadow_lock);
+            atomic_thread_fence(memory_order_release);
+            atomic_fetch_add_explicit(&hub->shadow_seq[idx], 1, memory_order_relaxed);
         }
     }
 
@@ -195,20 +207,15 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
     }
 
     if (needs_wakeup) {
-        uv_mutex_lock(&hub->shadow_lock);
-        int l_count = hub->listener_count;
+        int l_count = atomic_load_explicit(&hub->listener_count, memory_order_acquire);
         if (l_count > 16) l_count = 16;
-        uv_async_t *l_copy[16];
-        if (l_count > 0) {
-            memcpy(l_copy, hub->listeners, sizeof(uv_async_t *) * (size_t)l_count);
-        }
-        uv_mutex_unlock(&hub->shadow_lock);
 
+        // 此处不需要锁，因为我们通过原子 load 确保了计数的一致性
+        // 虽然 listeners 数组项可能在极短时间内变化，但在 libuv 闭环中异步发送是安全的
         for (int i = 0; i < l_count; i++) {
-            if (l_copy[i]) {
-                if (!uv_is_closing((uv_handle_t *)l_copy[i])) {
-                    uv_async_send(l_copy[i]);
-                }
+            uv_async_t *l = hub->listeners[i];
+            if (l && !uv_is_closing((uv_handle_t *)l)) {
+                uv_async_send(l);
             }
         }
         if (hub->legacy_cb) hub->legacy_cb(hub, hub->legacy_user_data);
@@ -216,6 +223,7 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
     }
     return 0;
 }
+
 int datahub_register_ref(datahub_t *hub, uint32_t tag_id, int fd, size_t len) {
     if (!hub || fd < 0) return -1;
     if (hub->ring.hdr == NULL) return -1;
@@ -228,11 +236,12 @@ int datahub_register_ref(datahub_t *hub, uint32_t tag_id, int fd, size_t len) {
         return -1;
     }
 
-    // 2. 存入注册表
+    // 2. 存入注册表 (慢速路径，保持互斥)
     uv_mutex_lock(&hub->shadow_lock);
-    if (hub->ref_count < 32) {
-        hub->refs[hub->ref_count++] =
-            (datahub_ref_t){.tag_id = tag_id, .fd = fd, .ptr = ptr, .len = len};
+    int count = atomic_load_explicit(&hub->ref_count, memory_order_relaxed);
+    if (count < 32) {
+        hub->refs[count] = (datahub_ref_t){.tag_id = tag_id, .fd = fd, .ptr = ptr, .len = len};
+        atomic_fetch_add_explicit(&hub->ref_count, 1, memory_order_release);
     }
     uv_mutex_unlock(&hub->shadow_lock);
 
@@ -245,22 +254,27 @@ int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out) {
     int idx = hub->map_fn ? hub->map_fn(tag_id) : (int)tag_id;
     if (idx < 0 || (uint32_t)idx >= hub->shadow_capacity) return -1;
 
-    uv_mutex_lock(&hub->shadow_lock);
-    *out = hub->shadow_table[idx];
+    // [Seqlock] 读取端：循环直到序列号为偶数且读取前后一致
+    unsigned int s1, s2;
+    do {
+        s1 = atomic_load_explicit(&hub->shadow_seq[idx], memory_order_acquire);
+        atomic_thread_fence(memory_order_acquire);
+        *out = hub->shadow_table[idx];
+        atomic_thread_fence(memory_order_acquire);
+        s2 = atomic_load_explicit(&hub->shadow_seq[idx], memory_order_acquire);
+    } while (s1 != s2 || (s1 & 1));
 
     if (out->tag_id == tag_id) {
         // Phase 4: 跨进程指针修复
-        if (out->type == PIPEMSG_TYPE_REF) {
-            for (int i = 0; i < hub->ref_count; i++) {
-                if (hub->refs[i].tag_id == out->tag_id) {
-                    out->payload.ref.ptr = hub->refs[i].ptr;
-                    out->payload.ref.fd = hub->refs[i].fd;
-                    break;
-                }
+        int r_count = atomic_load_explicit(&hub->ref_count, memory_order_relaxed);
+        for (int i = 0; i < r_count; i++) {
+            if (hub->refs[i].tag_id == out->tag_id) {
+                out->payload.ref.ptr = hub->refs[i].ptr;
+                out->payload.ref.fd = hub->refs[i].fd;
+                break;
             }
         }
     }
-    uv_mutex_unlock(&hub->shadow_lock);
 
     if (out->tag_id != tag_id) {
         return -1;
@@ -279,20 +293,25 @@ void datahub_subscribe(datahub_t *hub, datahub_on_data_cb cb, void *user_data) {
 
 int datahub_add_listener(datahub_t *hub, uv_async_t *async_handle) {
     uv_mutex_lock(&hub->shadow_lock);
-    if (hub->listener_count >= 16) {
+    int count = atomic_load_explicit(&hub->listener_count, memory_order_relaxed);
+    if (count >= 16) {
         uv_mutex_unlock(&hub->shadow_lock);
         return -1;
     }
-    hub->listeners[hub->listener_count++] = async_handle;
+    hub->listeners[count] = async_handle;
+    atomic_fetch_add_explicit(&hub->listener_count, 1, memory_order_release);
     uv_mutex_unlock(&hub->shadow_lock);
     return 0;
 }
 
 int datahub_remove_listener(datahub_t *hub, uv_async_t *async_handle) {
     uv_mutex_lock(&hub->shadow_lock);
-    for (int i = 0; i < hub->listener_count; i++) {
+    int count = atomic_load_explicit(&hub->listener_count, memory_order_relaxed);
+    for (int i = 0; i < count; i++) {
         if (hub->listeners[i] == async_handle) {
-            hub->listeners[i] = hub->listeners[--hub->listener_count];
+            // 用最后一个覆盖当前，并减少计数
+            hub->listeners[i] = hub->listeners[count - 1];
+            atomic_fetch_sub_explicit(&hub->listener_count, 1, memory_order_release);
             uv_mutex_unlock(&hub->shadow_lock);
             return 0;
         }
