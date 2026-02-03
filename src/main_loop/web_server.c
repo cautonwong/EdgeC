@@ -172,7 +172,9 @@ static void on_read(uv_stream_t *c, ssize_t n, const uv_buf_t *b) {
             uv_write(wr_req, c, &buf, 1, on_write_done);
         }
     } else if (n < 0) {
-        uv_close((uv_handle_t *)c, on_handle_free);
+        if (!uv_is_closing((uv_handle_t *)c)) {
+            uv_close((uv_handle_t *)c, on_handle_free);
+        }
     }
     if (b->base) free(b->base);
 }

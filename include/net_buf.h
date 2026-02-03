@@ -44,6 +44,8 @@ struct net_buf {
     atomic_uint ref; /**< [补强] 原子引用计数 (C11) */
     uint8_t flags;   /**< 标志位 */
 
+#define NET_BUF_FLAG_PERSISTENT 0x01 /**< [Nexus] 长效缓冲区，绕过审计回收 */
+
     uint64_t alloc_ts;      /**< [Phase 4] 分配时间戳 (ns) */
     const char *last_owner; /**< [Phase 4] 责任追踪标签 */
 

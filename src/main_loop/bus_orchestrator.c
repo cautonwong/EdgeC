@@ -226,7 +226,9 @@ void bus_orchestrator_destroy(bus_orchestrator_t *ctx) {
     if (ctx) {
         fprintf(stderr, "[DEBUG] BusOrchestrator: Initiating destruction...\n");
 
-        uv_timer_stop(&ctx->audit_timer);
+        if (!uv_is_closing((uv_handle_t *)&ctx->audit_timer)) {
+            uv_timer_stop(&ctx->audit_timer);
+        }
 
         if (ctx->engines) {
             for (int i = 0; i < ctx->max_buses; i++) {

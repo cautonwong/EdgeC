@@ -46,9 +46,13 @@ def main():
         target_file = os.path.join(PROJECT_ROOT, f"cmd/{args.product}/matrix/test_scenarios.py")
         pytest_cmd = [target_file, "-v", "-s"] + args.pytest_args
     else:
-        # 全量模式
-        target_dir = os.path.join(PROJECT_ROOT, f"cmd/{args.product}/matrix")
-        pytest_cmd = [target_dir, "-v", "-s"] + args.pytest_args
+        # [Nexus Fix] 如果用户指定了具体的测试文件，就不要再把整个目录加进去了
+        if args.pytest_args:
+            pytest_cmd = ["-v", "-s"] + args.pytest_args
+        else:
+            target_dir = os.path.join(PROJECT_ROOT, f"cmd/{args.product}/matrix")
+            pytest_cmd = [target_dir, "-v", "-s"]
+
 
     print(f"\033[94m" + "="*60)
     print(f"🚀 Omnis Test Runner: Orchestrating for {args.product}")

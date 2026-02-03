@@ -212,11 +212,12 @@ add_library(edge_main_loop STATIC
 target_include_directories(edge_main_loop PUBLIC
     src/io_executor/requests
 )
+# Main Loop 依赖计算平面和基础原子库
 target_link_libraries(edge_main_loop PUBLIC edge_core edge_stream_engine edge_protocols edge_platform)
 target_link_libraries(edge_main_loop PRIVATE Modbus::Modbus PahoMQTT::PahoMQTT CURL::libcurl)
 
-# 解决循环依赖：让 stream_engine 也能看到 main_loop 的符号
-target_link_libraries(edge_stream_engine PUBLIC edge_main_loop)
+# 移除原来的 edge_stream_engine PUBLIC edge_main_loop 循环依赖
+
 
 # 5.5 算法库
 add_library(edge_algo STATIC
@@ -228,9 +229,27 @@ target_link_libraries(edge_algo PUBLIC edge_common_interface)
 
 # 定义最终的组合静态库 (接口库)
 add_library(edge_sdk INTERFACE)
-target_link_libraries(edge_sdk INTERFACE 
-    edge_main_loop 
-)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_libraries(edge_sdk INTERFACE 
+        -Wl,--start-group
+        edge_main_loop 
+        -Wl,--whole-archive edge_stream_engine -Wl,--no-whole-archive
+        edge_protocols
+        edge_platform
+        edge_algo
+        edge_core
+        -Wl,--end-group
+    )
+else()
+    target_link_libraries(edge_sdk INTERFACE 
+        edge_main_loop 
+        edge_stream_engine
+        edge_protocols
+        edge_platform
+        edge_algo
+        edge_core
+    )
+endif()
 
 # ==============================================================================
 # 6. Build Product Applications

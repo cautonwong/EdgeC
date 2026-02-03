@@ -69,7 +69,7 @@ class MatrixAPIHandler(BaseHTTPRequestHandler):
                 val = payload.get("value")
                 key = f"{dev_id}:{tag_id}"
                 self.observer_data[key] = val
-                print(f"👁️  [Observer] Recorded {key} = {val}")
+                print(f"👁️  [Observer] Recorded {key} = {val} from {self.client_address}")
                 self._send_json({"status": "ok"})
             elif self.path == "/api/v1/observer/reset":
                 self.observer_data.clear()

@@ -125,6 +125,13 @@ static void _on_handle_close(uv_handle_t *handle) {
     (void)handle;
 }
 
+static void _safe_close(uv_handle_t *handle, void *arg) {
+    (void)arg;
+    if (!uv_is_closing(handle)) {
+        uv_close(handle, _on_handle_close);
+    }
+}
+
 static void _stream_engine_thread_entry(void *arg) {
     stream_engine_t *engine = (stream_engine_t *)arg;
     uv_loop_t *compute_loop = malloc(sizeof(uv_loop_t));
@@ -144,7 +151,7 @@ static void _stream_engine_thread_entry(void *arg) {
     uv_run(compute_loop, UV_RUN_DEFAULT);
 
     // 彻底清理 Loop 上的句柄，防止内存泄漏 (LeakSanitizer 修复)
-    uv_walk(compute_loop, (uv_walk_cb)uv_close, _on_handle_close);
+    uv_walk(compute_loop, _safe_close, NULL);
     while (uv_run(compute_loop, UV_RUN_ONCE))
         ;
 

@@ -65,6 +65,31 @@ class MatrixContext:
             tag_id = self.loader.name_to_id[tag_name]
         return self.edgec.get_tag(tag_id)
 
+    def get_observed_val(self, dev_id, tag_name):
+        """从 Matrix Server 观测中心获取数据"""
+        tag_id = tag_name
+        if self.loader and tag_name in self.loader.name_to_id:
+            tag_id = self.loader.name_to_id[tag_name]
+        
+        url = f"{self.server_url}/observer/latest/{dev_id}/{tag_id}"
+        try:
+            resp = requests.get(url, timeout=1)
+            if resp.status_code == 200:
+                return resp.json().get("value")
+        except: pass
+        return None
+
+    async def wait_for_observed(self, dev_id, tag_name, expect, tolerance=0.05, timeout=30):
+        """等待观测中心数据达到预期值"""
+        start = datetime.now()
+        while (datetime.now() - start).total_seconds() < timeout:
+            val = self.get_observed_val(dev_id, tag_name)
+            if val is not None:
+                if abs(float(val) - float(expect)) <= tolerance:
+                    return True
+            await asyncio.sleep(1)
+        return False
+
     async def wait_for(self, tag_name, expect, tolerance=0.05, timeout=30):
         """等待测点达到预期值"""
         tag_id = tag_name

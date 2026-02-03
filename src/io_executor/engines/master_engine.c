@@ -155,10 +155,17 @@ static void _master_attach(bus_engine_t *self, io_handle_t *io) {
     io->user_data = priv;
 }
 
+static void _master_close_cb(uv_handle_t *handle) {
+    master_priv_t *priv = (master_priv_t *)handle->data;
+    free(priv);
+}
+
 static void _master_detach(bus_engine_t *self) {
     master_priv_t *priv = (master_priv_t *)self->user_data;
-    uv_timer_stop(&priv->timer);
-    free(priv);
+    if (!uv_is_closing((uv_handle_t *)&priv->timer)) {
+        uv_timer_stop(&priv->timer);
+        uv_close((uv_handle_t *)&priv->timer, _master_close_cb);
+    }
     free(self);
 }
 

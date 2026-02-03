@@ -21,10 +21,7 @@ set_target_properties(${PROD_NAME} PROPERTIES
 
 # 4. 链接依赖
 target_link_libraries(${PROD_NAME} PRIVATE 
-    edge_algo
-    -Wl,--whole-archive edge_stream_engine -Wl,--no-whole-archive
-    edge_main_loop
-    edge_main_loop
+    edge_sdk
     contract_${PROD_NAME}
     edge_common_interface
     pthread dl rt m

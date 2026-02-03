@@ -190,6 +190,11 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
     if (hub->shadow_table && hub->shadow_seq) {
         int idx = (hub->map_fn) ? hub->map_fn(local_msg.tag_id) : (int)local_msg.tag_id;
 
+        if (local_msg.tag_id == 1001) {
+            printf("\033[34m[DH-DEBUG] Tag 1001 Publish -> ShadowIdx: %d, Val: %.2f\033[0m\n", idx,
+                   local_msg.payload.val.f);
+        }
+
         if (idx >= 0 && (uint32_t)idx < hub->shadow_capacity) {
             // [Seqlock] 写入端：增加序列号 (变为奇数) -> 写入 -> 增加序列号 (变为偶数)
             atomic_fetch_add_explicit(&hub->shadow_seq[idx], 1, memory_order_relaxed);
@@ -277,6 +282,11 @@ int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out) {
     }
 
     if (out->tag_id != tag_id) {
+        if (tag_id == 1001) {
+            fprintf(stderr,
+                    "[DH-ERROR] Shadow mismatch for Tag 1001: Expected 1001, Found %u at Idx %d\n",
+                    out->tag_id, idx);
+        }
         return -1;
     }
 

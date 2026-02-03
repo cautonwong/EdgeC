@@ -18,6 +18,13 @@ connectivity:
     config: { shm_name: "adc_raw", size: 1024 }
     simulation: { transport: "MEMFD", control_sock: "/tmp/v_adc.sock" }
 
+  - id: 10
+    label: "Northbound_SCADA"
+    category: "NORTHBOUND"
+    type: "UART"
+    config: { path: "/dev/ttyS2", baud: 115200 }
+    simulation: { transport: "NONE", endpoint: "/tmp/iems_north_slave.sock" }
+
 # 2. 设备挂载定义 (Device Attachments - 业务层资产)
 devices:
   - id: "METER_MAIN"
@@ -26,6 +33,12 @@ devices:
     address: 1
     model: "Acrel_P80" 
 
+  - id: "SCADA_MASTER"
+    bus_id: 10
+    protocol: "ModbusRTU"
+    address: 1
+    model: "Acrel_P80" 
+    simulation: { actor: "supervisor" }
 # 3. 现场微调 (Site Overrides)
 # 仅在此处修改特定于该站点的参数，例如过压保护阈值
 tags:

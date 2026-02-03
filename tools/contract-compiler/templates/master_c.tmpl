@@ -49,7 +49,7 @@ const char* edge_resolve_bus_path(int bus_id) {
     for (int i = 0; i < g_connectivity_configs_len; i++) {
         if (g_connectivity_configs[i].id == bus_id) {
             const char* sim = g_connectivity_configs[i].simulation_path;
-            if (sim && sim[0] != '\0' && access(sim, F_OK) == 0) return sim;
+            if (sim && sim[0] != '\0') return sim;
             return g_connectivity_configs[i].production_path;
         }
     }
