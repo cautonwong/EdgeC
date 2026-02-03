@@ -2,6 +2,7 @@ import pytest
 import asyncio
 import socket
 import struct
+import os
 
 def calculate_crc(data):
     crc = 0xFFFF
@@ -22,16 +23,15 @@ async def test_slave_mirror_flow(matrix):
     1. 注入南向数据 -> 2. IEMS 采集并快照 -> 3. 外部 Master 通过 Modbus 请求北向口 -> 4. 验证响应字节
     """
     print("\n⏳ [Setup] Waiting for IEMS Northbound to initialize...")
-    # [Nexus] 使用唯一的、非冲突的路径
-    uds_path = "/tmp/iems_north_slave.sock"
+    # [Nexus Fix] 优先从环境变量获取路径，与 Matrix Server 对齐
+    uds_path = os.environ.get("OMNIS_BUS_10_DEV", "/tmp/iems_north_slave.sock")
     
     # 等待文件出现
-    import os
     for _ in range(10):
         if os.path.exists(uds_path): break
         await asyncio.sleep(1)
     
-    assert os.path.exists(uds_path), "IEMS failed to create Northbound socket"
+    assert os.path.exists(uds_path), f"IEMS failed to create Northbound socket at {uds_path}"
 
     test_val = 238.5
     tag_name = "VOLTAGE_PHASE_A"
@@ -55,12 +55,12 @@ async def test_slave_mirror_flow(matrix):
     
     for attempt in range(5):
         try:
-            await asyncio.sleep(1.0) # 增加等待时间，确保 IEMS 已经进入 uv_run
+            await asyncio.sleep(1.0) 
             reader, writer = await asyncio.open_unix_connection(uds_path)
             writer.write(req)
             await writer.drain()
             
-            resp = await asyncio.wait_for(reader.read(1024), timeout=10) # 增加响应超时到 10 秒
+            resp = await asyncio.wait_for(reader.read(1024), timeout=10) 
             print(f"  [Attempt {attempt+1}] Received Raw: {resp.hex().upper()}")
             writer.close()
             await writer.wait_closed()
@@ -75,9 +75,7 @@ async def test_slave_mirror_flow(matrix):
             else:
                 print(f"  [Attempt {attempt+1}] Response mismatch or short: {resp.hex()}")
         except Exception as e:
-            import traceback
             print(f"  [Attempt {attempt+1}] Connection failed: {type(e).__name__}: {e}")
-            # traceback.print_exc()
         
         await asyncio.sleep(2)
         

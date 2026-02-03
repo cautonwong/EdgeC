@@ -93,6 +93,7 @@ static void _master_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *u
 
         size_t consumed = 0;
         net_buf_t wrap = {0};
+        wrap.pool = priv->pool;  // [Nexus Fix] 关联内存池，允许驱动进行 clone/alloc
         memcpy(&wrap.b, &priv->rx_acc, sizeof(struct net_buf_simple));
 
         int rc = priv->current_cmd->req->ops->decode(priv->current_cmd->req, &wrap, &consumed);

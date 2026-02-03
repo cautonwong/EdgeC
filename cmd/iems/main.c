@@ -400,19 +400,33 @@ int main(int argc, char *argv[]) {
 
     for (int i = 0; i < g_connectivity_configs_len; i++) {
         const edge_connectivity_t *c = &g_connectivity_configs[i];
+
         if (strcmp(c->category, "NORTHBOUND") == 0) {
-            const char *path = edge_resolve_bus_path(c->id);
+            char env_key[32];
+
+            snprintf(env_key, sizeof(env_key), "OMNIS_BUS_%d_DEV", c->id);
+
+            const char *path = getenv(env_key);
+
+            if (!path) path = "/tmp/iems_north_slave.sock";  // [Nexus Fix] 统一测试路径
+
             if (path) {
                 uv_pipe_t *srv = malloc(sizeof(uv_pipe_t));
                 uv_pipe_init(loop, srv, 0);
                 unlink(path);
+
                 if (uv_pipe_bind(srv, path) == 0 &&
                     uv_listen((uv_stream_t *)srv, 128, _on_north_connect) == 0) {
                     north_accept_ctx_t *ctx = malloc(sizeof(north_accept_ctx_t));
+
                     ctx->bus_id = c->id;
                     ctx->bus_idx = c->id % MAX_VBUS;
                     srv->data = ctx;
+
                     g_bus_state[ctx->bus_idx] = BUS_STATE_LISTENING;
+
+                    printf("\033[32m[IEMS-INIT] Northbound Slave LISTENING at %s\033[0m\n", path);
+
                 } else
                     uv_close((uv_handle_t *)srv, (uv_close_cb)free);
             }
