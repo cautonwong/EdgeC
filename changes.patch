@@ -1,394 +1,51 @@
 diff --git a/cmd/iems/main.c b/cmd/iems/main.c
-index 9483b54..153ffba 100644
+index 153ffba..979365a 100644
 --- a/cmd/iems/main.c
 +++ b/cmd/iems/main.c
-@@ -400,19 +400,33 @@ int main(int argc, char *argv[]) {
- 
-     for (int i = 0; i < g_connectivity_configs_len; i++) {
-         const edge_connectivity_t *c = &g_connectivity_configs[i];
-+
-         if (strcmp(c->category, "NORTHBOUND") == 0) {
--            const char *path = edge_resolve_bus_path(c->id);
-+            char env_key[32];
-+
-+            snprintf(env_key, sizeof(env_key), "OMNIS_BUS_%d_DEV", c->id);
-+
-+            const char *path = getenv(env_key);
-+
-+            if (!path) path = "/tmp/iems_north_slave.sock";  // [Nexus Fix] 统一测试路径
-+
-             if (path) {
-                 uv_pipe_t *srv = malloc(sizeof(uv_pipe_t));
-                 uv_pipe_init(loop, srv, 0);
-                 unlink(path);
-+
-                 if (uv_pipe_bind(srv, path) == 0 &&
-                     uv_listen((uv_stream_t *)srv, 128, _on_north_connect) == 0) {
-                     north_accept_ctx_t *ctx = malloc(sizeof(north_accept_ctx_t));
-+
-                     ctx->bus_id = c->id;
-                     ctx->bus_idx = c->id % MAX_VBUS;
-                     srv->data = ctx;
-+
-                     g_bus_state[ctx->bus_idx] = BUS_STATE_LISTENING;
-+
-+                    printf("\033[32m[IEMS-INIT] Northbound Slave LISTENING at %s\033[0m\n", path);
-+
-                 } else
-                     uv_close((uv_handle_t *)srv, (uv_close_cb)free);
-             }
-diff --git a/cmd/iems/matrix/test_raw_io.py b/cmd/iems/matrix/test_raw_io.py
-new file mode 100644
-index 0000000..e0ee541
---- /dev/null
-+++ b/cmd/iems/matrix/test_raw_io.py
-@@ -0,0 +1,81 @@
-+import pytest
-+import asyncio
-+import requests
-+import socket
-+import os
-+
-+@pytest.mark.asyncio
-+async def test_raw_io_loopback(matrix):
-+    """
-+    [Sprint 6] Raw I/O Passthrough Verification:
-+    1. Send hex 'DEADBEEF' via REST -> 2. Matrix captures and echoes 'CAFEBABE' -> 3. Verify via REST
-+    """
-+    bus_id = 0
-+    tx_payload_hex = "DEADBEEF"
-+    rx_echo_hex = "CAFEBABE"
-+    
-+    # 注入 VBus 路径 (从环境变量获取，与 Matrix Server 对齐)
-+    vbus_path = os.environ.get(f"OMNIS_BUS_{bus_id}_DEV", f"/tmp/vbus{bus_id}.sock")
-+    assert os.path.exists(vbus_path), f"Virtual bus socket {vbus_path} not found"
-+
-+    print(f"\n🚀 [Step 1] Connecting to Virtual Bus {bus_id} at {vbus_path}...")
-+    
-+    # 使用 asyncio 打开 Unix 域套接字连接
-+    reader, writer = await asyncio.open_unix_connection(vbus_path)
-+
-+    async def mock_device_echo():
-+        try:
-+            print(f"📡 [Mock Device] Waiting for request...")
-+            while True:
-+                # 持续读取直到发现 DEADBEEF
-+                data = await asyncio.wait_for(reader.read(1024), timeout=10.0)
-+                if not data: break
-+                
-+                hex_recv = data.hex().upper()
-+                print(f"📥 [Mock Device] Received Raw: {hex_recv}")
-+                
-+                if tx_payload_hex in hex_recv:
-+                    print(f"📤 [Mock Device] MATCH! Sending Echo: {rx_echo_hex}")
-+                    writer.write(bytes.fromhex(rx_echo_hex))
-+                    await writer.drain()
-+                    break
-+        except Exception as e:
-+            print(f"❌ [Mock Device] Error: {e}")
-+        finally:
-+            writer.close()
-+            await writer.wait_closed()
-+
-+    # 启动后台模拟设备任务
-+    echo_task = asyncio.create_task(mock_device_echo())
-+
-+    # 2. Submit Raw IO request via IEMS REST API
-+    print(f"🚀 [Step 2] Submitting Raw IO to IEMS: {tx_payload_hex}")
-+    api_url = f"http://localhost:{matrix.edgec.rest_port}/api/v1/io/raw"
-+    
-+    # 注意：requests 是同步的，在 asyncio 中建议使用 httpx 或跑在 run_in_executor
-+    # 但由于这是测试，且量小，直接用 requests 简单处理
-+    loop = asyncio.get_event_loop()
-+    resp = await loop.run_in_executor(None, lambda: requests.post(api_url, json={
-+        "bus_id": bus_id,
-+        "payload": tx_payload_hex
-+    }))
-+    assert resp.status_code == 200
-+    
-+    # 3. Wait for the echo task to complete
-+    await echo_task
-+    
-+    # 4. Verify received data via IEMS REST API
-+    print("🚀 [Step 4] Verifying Result via IEMS REST...")
-+    latest_url = f"http://localhost:{matrix.edgec.rest_port}/api/v1/io/raw/latest"
-+    
-+    success = False
-+    for _ in range(10):
-+        resp = await loop.run_in_executor(None, lambda: requests.get(latest_url))
-+        data = resp.json()
-+        if data.get("payload") == rx_echo_hex:
-+            print(f"✅ [SUCCESS] IEMS captured the echo: {rx_echo_hex}")
-+            success = True
-+            break
-+        await asyncio.sleep(0.5)
-+        
-+    assert success, f"IEMS failed to capture echo. Last state: {resp.text}"
-diff --git a/cmd/iems/matrix/test_slave_flow.py b/cmd/iems/matrix/test_slave_flow.py
-index 296a5e4..0f8b23f 100644
---- a/cmd/iems/matrix/test_slave_flow.py
-+++ b/cmd/iems/matrix/test_slave_flow.py
-@@ -2,6 +2,7 @@ import pytest
- import asyncio
- import socket
- import struct
-+import os
- 
- def calculate_crc(data):
-     crc = 0xFFFF
-@@ -22,16 +23,15 @@ async def test_slave_mirror_flow(matrix):
-     1. 注入南向数据 -> 2. IEMS 采集并快照 -> 3. 外部 Master 通过 Modbus 请求北向口 -> 4. 验证响应字节
-     """
-     print("\n⏳ [Setup] Waiting for IEMS Northbound to initialize...")
--    # [Nexus] 使用唯一的、非冲突的路径
--    uds_path = "/tmp/iems_north_slave.sock"
-+    # [Nexus Fix] 优先从环境变量获取路径，与 Matrix Server 对齐
-+    uds_path = os.environ.get("OMNIS_BUS_10_DEV", "/tmp/iems_north_slave.sock")
-     
-     # 等待文件出现
--    import os
-     for _ in range(10):
-         if os.path.exists(uds_path): break
-         await asyncio.sleep(1)
-     
--    assert os.path.exists(uds_path), "IEMS failed to create Northbound socket"
-+    assert os.path.exists(uds_path), f"IEMS failed to create Northbound socket at {uds_path}"
- 
-     test_val = 238.5
-     tag_name = "VOLTAGE_PHASE_A"
-@@ -55,12 +55,12 @@ async def test_slave_mirror_flow(matrix):
-     
-     for attempt in range(5):
-         try:
--            await asyncio.sleep(1.0) # 增加等待时间，确保 IEMS 已经进入 uv_run
-+            await asyncio.sleep(1.0) 
-             reader, writer = await asyncio.open_unix_connection(uds_path)
-             writer.write(req)
-             await writer.drain()
-             
--            resp = await asyncio.wait_for(reader.read(1024), timeout=10) # 增加响应超时到 10 秒
-+            resp = await asyncio.wait_for(reader.read(1024), timeout=10) 
-             print(f"  [Attempt {attempt+1}] Received Raw: {resp.hex().upper()}")
-             writer.close()
-             await writer.wait_closed()
-@@ -75,10 +75,8 @@ async def test_slave_mirror_flow(matrix):
-             else:
-                 print(f"  [Attempt {attempt+1}] Response mismatch or short: {resp.hex()}")
-         except Exception as e:
--            import traceback
-             print(f"  [Attempt {attempt+1}] Connection failed: {type(e).__name__}: {e}")
--            # traceback.print_exc()
-         
-         await asyncio.sleep(2)
-         
--    pytest.fail("Failed to get correct Slave response after retries")
-\ No newline at end of file
-+    pytest.fail("Failed to get correct Slave response after retries")
-diff --git a/src/io_executor/edge_api.c b/src/io_executor/edge_api.c
-index 21fd1bc..4fe83ab 100644
---- a/src/io_executor/edge_api.c
-+++ b/src/io_executor/edge_api.c
-@@ -73,5 +73,25 @@ int edge_api_write_tag(int bus_id, const char *protocol, uint32_t slave_id,
-     cmd->on_cleanup = _on_api_cmd_cleanup;
-     snprintf(cmd->req_id, sizeof(cmd->req_id), "WRITE_%u", physical_tag_id);
- 
-+    return bus_orchestrator_submit_cmd(g_orch, bus_id, cmd);
-+}
-+
-+int edge_api_raw_io(int bus_id, net_buf_t *tx_buf, raw_io_on_complete_cb cb) {
-+    if (!g_orch) {
-+        if (tx_buf) net_buf_unref(tx_buf);
-+        return -1;
-+    }
-+
-+    edge_req_t *req = req_raw_io_create(tx_buf, cb);
-+    if (tx_buf) net_buf_unref(tx_buf);  // req_raw_io_create internally refs it
-+    if (!req) return -1;
-+
-+    cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));
-+    cmd->req = req;
-+    cmd->priority = ARBITER_PRIO_HIGH;  // Raw IO usually needs fast path
-+    cmd->signature = 0x55AA;
-+    cmd->on_cleanup = _on_api_cmd_cleanup;
-+    strncpy(cmd->req_id, "RAW_IO", sizeof(cmd->req_id) - 1);
-+
-     return bus_orchestrator_submit_cmd(g_orch, bus_id, cmd);
- }
-\ No newline at end of file
-diff --git a/src/io_executor/engines/master_engine.c b/src/io_executor/engines/master_engine.c
-index 35dc3b2..d243ff9 100644
---- a/src/io_executor/engines/master_engine.c
-+++ b/src/io_executor/engines/master_engine.c
-@@ -93,6 +93,7 @@ static void _master_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *u
- 
-         size_t consumed = 0;
-         net_buf_t wrap = {0};
-+        wrap.pool = priv->pool;  // [Nexus Fix] 关联内存池，允许驱动进行 clone/alloc
-         memcpy(&wrap.b, &priv->rx_acc, sizeof(struct net_buf_simple));
- 
-         int rc = priv->current_cmd->req->ops->decode(priv->current_cmd->req, &wrap, &consumed);
-diff --git a/src/io_executor/requests/req_raw_io.c b/src/io_executor/requests/req_raw_io.c
-index 70a9bd2..aac396a 100644
---- a/src/io_executor/requests/req_raw_io.c
-+++ b/src/io_executor/requests/req_raw_io.c
-@@ -1,13 +1,21 @@
- #include "req_raw_io.h"
- 
-+#include <stdio.h>
- #include <stdlib.h>
- #include <string.h>
- 
- typedef struct {
-     net_buf_t *tx_buf;
-+    net_buf_t *rx_buf;
-     raw_io_on_complete_cb cb;
- } raw_req_ctx_t;
- 
-+static int raw_setup(edge_req_t *req, void *ctx) {
-+    (void)req;
-+    (void)ctx;
-+    return 0;  // 无需额外初始化
-+}
-+
- static int raw_encode(edge_req_t *req, net_buf_t *buf) {
-     raw_req_ctx_t *ctx = (raw_req_ctx_t *)req->priv_data;
-     if (!ctx->tx_buf) return REQ_STATUS_ERROR;
-@@ -16,26 +24,37 @@ static int raw_encode(edge_req_t *req, net_buf_t *buf) {
+@@ -281,6 +281,34 @@ static void _on_task_close(uv_handle_t *handle) {
+     free(task);
  }
  
- static int raw_decode(edge_req_t *req, net_buf_t *buf, size_t *consumed) {
--    (void)req;
-+    raw_req_ctx_t *ctx = (raw_req_ctx_t *)req->priv_data;
-+
-+    // 捕获所有收到的数据
-+    if (buf->b.len > 0) {
-+        if (ctx->rx_buf) net_buf_unref(ctx->rx_buf);
-+        // 使用 clone 复制一份数据，避免底层缓冲区被回收影响上层
-+        ctx->rx_buf = net_buf_clone(buf, 0);
-+    }
-+
-     *consumed = buf->b.len;
-     return REQ_STATUS_DONE;
- }
- 
- static void raw_finish(edge_req_t *req, int status) {
-     raw_req_ctx_t *ctx = (raw_req_ctx_t *)req->priv_data;
--    if (ctx->cb) ctx->cb(status, NULL);
-+    if (ctx->cb) {
-+        ctx->cb(status, ctx->rx_buf);
-+    }
- }
- 
- static void raw_teardown(edge_req_t *req) {
-     raw_req_ctx_t *ctx = (raw_req_ctx_t *)req->priv_data;
-     if (ctx) {
-         if (ctx->tx_buf) net_buf_unref(ctx->tx_buf);
-+        if (ctx->rx_buf) net_buf_unref(ctx->rx_buf);
-         free(ctx);
-     }
-     free(req);
- }
- 
--static const request_ops_t raw_ops = {.setup = NULL,
-+static const request_ops_t raw_ops = {.setup = raw_setup,
-                                       .encode = raw_encode,
-                                       .decode = raw_decode,
-                                       .teardown = raw_teardown,
-@@ -45,8 +64,9 @@ edge_req_t *req_raw_io_create(net_buf_t *tx_buf, raw_io_on_complete_cb cb) {
-     edge_req_t *req = calloc(1, sizeof(edge_req_t));
-     raw_req_ctx_t *ctx = calloc(1, sizeof(raw_req_ctx_t));
-     ctx->tx_buf = net_buf_ref(tx_buf);
-+    ctx->rx_buf = NULL;
-     ctx->cb = cb;
-     req->ops = &raw_ops;
-     req->priv_data = ctx;
-     return req;
--}
-\ No newline at end of file
-+}
-diff --git a/src/main_loop/rest_server.c b/src/main_loop/rest_server.c
-index 89b3d6a..c360fdb 100644
---- a/src/main_loop/rest_server.c
-+++ b/src/main_loop/rest_server.c
-@@ -223,6 +223,66 @@ static char *handle_data_write(service_t *svc, const char *body) {
-     return strdup("{\"status\":\"ok\"}");
- }
- 
-+static uint8_t g_last_raw_rx[1024];
-+static size_t g_last_raw_rx_len = 0;
-+
-+static void on_raw_io_complete(int status, net_buf_t *rx_buf) {
++// [Nexus] 背景原始 IO 心跳回调
++static void _on_background_raw_io_done(int status, net_buf_t *rx_buf) {
 +    if (status == 0 && rx_buf) {
-+        g_last_raw_rx_len = rx_buf->b.len > 1024 ? 1024 : rx_buf->b.len;
-+        memcpy(g_last_raw_rx, rx_buf->b.data, g_last_raw_rx_len);
-+        printf("[REST-DEBUG] Captured Raw RX: %zu bytes\n", g_last_raw_rx_len);
-+    }
-+}
-+
-+static char *handle_io_raw(service_t *svc, const char *body) {
-+    cJSON *root = cJSON_Parse(body);
-+    if (!root) return strdup("{\"status\":\"error\",\"reason\":\"invalid_json\"}");
-+
-+    cJSON *bus_item = cJSON_GetObjectItem(root, "bus_id");
-+    cJSON *payload_item = cJSON_GetObjectItem(root, "payload");
-+
-+    if (!bus_item || !payload_item) {
-+        cJSON_Delete(root);
-+        return strdup("{\"status\":\"error\",\"reason\":\"missing_fields\"}");
-+    }
-+
-+    int bus_id = bus_item->valueint;
-+    const char *hex = payload_item->valuestring;
-+    size_t hex_len = strlen(hex);
-+
-+    datahub_t *hub = service_get_datahub(svc);
-+    net_buf_t *tx = net_buf_alloc(hub->io_pool, 0);
-+
-+    for (size_t i = 0; i < hex_len; i += 2) {
-+        unsigned int b;
-+        sscanf(hex + i, "%02x", &b);
-+        net_buf_simple_add_u8(&tx->b, (uint8_t)b);
-+    }
-+
-+    g_last_raw_rx_len = 0;  // Clear previous
-+    edge_api_raw_io(bus_id, tx, on_raw_io_complete);
-+
-+    cJSON_Delete(root);
-+    return strdup("{\"status\":\"ok\"}");
-+}
-+
-+static char *handle_io_raw_latest(void) {
-+    cJSON *root = cJSON_CreateObject();
-+    if (g_last_raw_rx_len > 0) {
-+        char *hex = malloc(g_last_raw_rx_len * 2 + 1);
-+        for (size_t i = 0; i < g_last_raw_rx_len; i++) {
-+            sprintf(hex + i * 2, "%02X", g_last_raw_rx[i]);
++        printf("\033[34m[RAW-HB] Heartbeat Success! Received %u bytes: ", (uint32_t)rx_buf->b.len);
++        for (uint16_t i = 0; i < rx_buf->b.len; i++) {
++            printf("%02X ", rx_buf->b.data[i]);
 +        }
-+        cJSON_AddStringToObject(root, "payload", hex);
-+        free(hex);
++        printf("\033[0m\n");
 +    } else {
-+        cJSON_AddStringToObject(root, "payload", "");
++        printf("\033[31m[RAW-HB] Heartbeat Failed or Timeout (status=%d)\033[0m\n", status);
 +    }
-+    char *out = cJSON_PrintUnformatted(root);
-+    cJSON_Delete(root);
-+    return out;
++    fflush(stdout);
 +}
 +
- char *rest_dispatch(service_t *svc, const char *method, const char *path, const char *body) {
-     if (!svc) {
-         fprintf(stderr, "[REST] ERROR: Dispatch called with NULL service context!\n");
-@@ -231,12 +291,14 @@ char *rest_dispatch(service_t *svc, const char *method, const char *path, const
++// [Nexus] 背景原始 IO 定时器触发
++static void _background_raw_io_tick(uv_timer_t *handle) {
++    (void)handle;
++    // 构造一个标准的 Modbus RTU 读请求: 01 03 00 00 00 01 84 0A
++    uint8_t raw_modbus[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0A};
++
++    net_buf_t *tx = net_buf_alloc(g_app.hub->io_pool, 0);
++    if (tx) {
++        net_buf_append_bytes(tx, raw_modbus, sizeof(raw_modbus));
++        printf("\033[34m[RAW-HB] Sending Background Raw IO Request (Bus 0)...\033[0m\n");
++        edge_api_raw_io(0, tx, _on_background_raw_io_done);
++    }
++}
++
+ static void iems_shutdown(uv_loop_t *loop) {
+     if (g_timer_load_tasks) {
+         uv_timer_stop(g_timer_load_tasks);
+@@ -388,6 +416,11 @@ int main(int argc, char *argv[]) {
+     g_timer_internal = &it;
+     uv_timer_start(&it, _try_connect_internal_buses, 100, 1000);
  
-     if (strcmp(method, "POST") == 0) {
-         if (strncmp(path, "/api/v1/actor/set", 17) == 0) return handle_data_write(svc, body);
-+        if (strncmp(path, "/api/v1/io/raw", 14) == 0) return handle_io_raw(svc, body);
-     }
- 
-     if (strncmp(path, "/api/v1/system/health", 21) == 0) return handle_system_health(svc);
-     if (strncmp(path, "/api/v1/system/stats", 20) == 0) return handle_system_stats(svc);
-     if (strncmp(path, "/api/v1/contracts", 17) == 0) return handle_contracts_get(svc);
-     if (strncmp(path, "/api/v1/devices", 15) == 0) return handle_devices_get(svc);
-+    if (strncmp(path, "/api/v1/io/raw/latest", 21) == 0) return handle_io_raw_latest();
-     if (strncmp(path, "/api/v1/data/latest/", 20) == 0)
-         return handle_data_latest(svc, (uint32_t)atoi(path + 20));
-     return strdup("{\"error\":\"not_found\"}");
++    // [Nexus] 启动背景原始 IO 心跳定时器 (5秒一次)
++    static uv_timer_t raw_hb_t;
++    uv_timer_init(loop, &raw_hb_t);
++    uv_timer_start(&raw_hb_t, _background_raw_io_tick, 2000, 5000);
++
+     // [Nexus Fix] 使用宏定义路径，确保契约一致性
+     const char *ui_path = EDGE_UI_SOCKET_PATH;
+     uv_pipe_t *ui_srv = malloc(sizeof(uv_pipe_t));
