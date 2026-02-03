@@ -41,4 +41,7 @@ vpp_db.sqlite
 # Assets & Drafts
 image*.png
 *_draft.md
-third-party/
+third-party/.west
+third-party/modules
+third-party/tools
+
