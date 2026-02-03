@@ -388,6 +388,16 @@ int main(int argc, char *argv[]) {
     g_timer_internal = &it;
     uv_timer_start(&it, _try_connect_internal_buses, 100, 1000);
 
+    // [Nexus Fix] 使用宏定义路径，确保契约一致性
+    const char *ui_path = EDGE_UI_SOCKET_PATH;
+    uv_pipe_t *ui_srv = malloc(sizeof(uv_pipe_t));
+    uv_pipe_init(loop, ui_srv, 0);
+    unlink(ui_path);
+    if (uv_pipe_bind(ui_srv, ui_path) == 0) {
+        uv_listen((uv_stream_t *)ui_srv, 128, on_ui_connect);
+        printf("\033[32m[IEMS-INIT] UI Companion Socket listening at %s\033[0m\n", ui_path);
+    }
+
     for (int i = 0; i < g_connectivity_configs_len; i++) {
         const edge_connectivity_t *c = &g_connectivity_configs[i];
         if (strcmp(c->category, "NORTHBOUND") == 0) {
