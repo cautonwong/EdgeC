@@ -41,4 +41,8 @@ vpp_db.sqlite
 # Assets & Drafts
 image*.png
 *_draft.md
+<<<<<<< HEAD
+third-party/
+=======
 vendor/zephyrproject/
+>>>>>>> a3c8592 (feat(wasm): integrate WebAssembly (WAMR) runtime and compute stage)

@@ -38,8 +38,8 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 # Clang-Tidy Integration
 find_program(CLANG_TIDY_EXE NAMES "clang-tidy")
 if(CLANG_TIDY_EXE)
-    set(CMAKE_C_CLANG_TIDY ${CLANG_TIDY_EXE})
-    message(STATUS "Clang-Tidy enabled")
+    # set(CMAKE_C_CLANG_TIDY ${CLANG_TIDY_EXE})
+    message(STATUS "Clang-Tidy found but disabled for now")
 endif()
 
 find_package(cJSON REQUIRED)
