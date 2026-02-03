@@ -46,7 +46,7 @@ static int setup(void **state) {
                  NULL);
     arbiter_init(&ctx->arb, &ctx->loop);
     ctx->orch = bus_orchestrator_create(&ctx->hub, ctx->arb, NULL, 8, 16, 256);
-    ctx->engine = stream_engine_create(&ctx->hub, uv_default_loop(), NULL);
+    ctx->engine = stream_engine_create(&ctx->hub, uv_default_loop(), NULL, NULL);
 
     uv_timer_init(&ctx->loop, &ctx->timeout);
     ctx->timeout.data = ctx;

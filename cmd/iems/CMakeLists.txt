@@ -11,7 +11,7 @@ edge_add_contract(
 )
 
 # 2. 定义执行文件与 Web UI
-add_executable(${PROD_NAME} main.c ../../src/stream_engine/dsp_stages.c)
+add_executable(${PROD_NAME} main.c)
 add_web_product(${PROD_NAME} "${CMAKE_SOURCE_DIR}/web/products/${PROD_NAME}")
 
 # 3. 输出路径标准化
@@ -22,7 +22,7 @@ set_target_properties(${PROD_NAME} PROPERTIES
 # 4. 链接依赖
 target_link_libraries(${PROD_NAME} PRIVATE 
     edge_algo
-    edge_stream_engine
+    -Wl,--whole-archive edge_stream_engine -Wl,--no-whole-archive
     edge_main_loop
     edge_main_loop
     contract_${PROD_NAME}

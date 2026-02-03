@@ -10,4 +10,9 @@
  */
 int policy_syncer_run(sqlite_svc_t *db, bus_orchestrator_t *orch);
 
+/**
+ * @brief [Aetheris] 动态应用北向配置增量 (JSON/YAML)
+ */
+int policy_syncer_apply_delta(bus_orchestrator_t *orch, const char *payload, size_t len);
+
 #endif

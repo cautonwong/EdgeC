@@ -53,34 +53,38 @@ static void _push_to_matrix(uint32_t tag_id, double val, uint64_t ts) {
     }
 }
 
+static void _push_to_mqtt(northbound_mgr_t *mgr, uint32_t tag_id, double val, uint64_t ts) {
+    if (!mgr || !mgr->mqtt_connected) {
+        // [AET-2.3] 断网补传：如果 MQTT 未连接，写入本地 SQLite
+        if (mgr->db) {
+            PipeMsg msg = {0};
+            msg.ts = ts;
+            msg.tag_id = tag_id;
+            msg.payload.val.f = val;
+            msg.quality = 1;
+            sqlite_svc_insert(mgr->db, &msg);
+        }
+        return;
+    }
+
+    // MQTT 实际发送逻辑 (调用 Paho MQTT)
+    // char topic[128];
+    // snprintf(topic, sizeof(topic), "edge/%s/shadow/%u", mgr->product_name, tag_id);
+    // MQTTAsync_sendMessage(mgr->mqtt_client, topic, ...);
+}
+
 static void on_data_notify_timer(uv_timer_t *handle) {
     northbound_mgr_t *mgr = (northbound_mgr_t *)handle->data;
-
     if (!mgr || !mgr->user_data) return;
 
-    service_t *svc = (service_t *)mgr->user_data;
-
-    datahub_t *hub = service_get_datahub(svc);
-
-    if (!hub) return;
-
     PipeMsg msg;
-
-    int count = 0;
-
     while (shm_ring_read(mgr->ring, &mgr->last_seq, &msg) == 0) {
         if (msg.type == PIPEMSG_TYPE_SCALAR) {
-            // 1. 打印日志 (Traceability)
+            // [AET-1.2] 云端影子同步
+            _push_to_mqtt(mgr, msg.tag_id, msg.payload.val.f, msg.ts);
 
-            printf("[NORTH] 📥 DataHub RX: Tag=%u Val=%.4f TS=%lu\n",
-
-                   msg.tag_id, msg.payload.val.f, msg.ts);
-
-            // 2. 推送给 Matrix (Connectivity)
-
+            // [Matrix] 仿真回传
             _push_to_matrix(msg.tag_id, msg.payload.val.f, msg.ts);
-
-            count++;
         }
     }
 
@@ -97,6 +101,34 @@ static void on_data_notify_timer(uv_timer_t *handle) {
 
         last_beat = now;
     }
+}
+
+static void _on_req_notify(uv_async_t *handle) {
+    northbound_mgr_t *mgr = (northbound_mgr_t *)handle->data;
+    struct uv__queue *q;
+
+    uv_mutex_lock(&mgr->req_lock);
+    while (!uv__queue_empty(&mgr->req_queue)) {
+        q = uv__queue_head(&mgr->req_queue);
+        nb_req_entry_t *entry = uv__queue_data(q, nb_req_entry_t, node);
+        uv__queue_remove(q);
+        uv_mutex_unlock(&mgr->req_lock);
+
+        LOG_INFO(LOG_CAT_NB, "Processing NB Request (Tag: %u)",
+                 ((edge_nb_req_t *)entry->req->priv_data)->tag_id);
+        // 调度给 IO Executor 或内部状态机
+        // [Aetheris] 这里是 AET-1.1 的核心：将 NB 指令转化为内部 Request
+        if (entry->req->ops && entry->req->ops->setup) {
+            entry->req->ops->setup(entry->req, mgr->user_data);
+        }
+
+        free(entry->req->priv_data);
+        free(entry->req);
+        free(entry);
+
+        uv_mutex_lock(&mgr->req_lock);
+    }
+    uv_mutex_unlock(&mgr->req_lock);
 }
 
 static void on_north_stop(uv_async_t *handle) {
@@ -142,6 +174,9 @@ static void north_thread_entry(void *arg) {
     uv_async_init(mgr->loop, &mgr->stop_async, on_north_stop);
     mgr->stop_async.data = mgr;
 
+    uv_async_init(mgr->loop, &mgr->req_async, _on_req_notify);
+    mgr->req_async.data = mgr;
+
     if (mgr->rest_port > 0 && mgr->user_data) {
         mgr->rest_srv = rest_server_create(mgr->loop, (service_t *)mgr->user_data, mgr->rest_port);
     }
@@ -167,9 +202,12 @@ int northbound_mgr_init(northbound_mgr_t *mgr, uv_loop_t *main_loop, shm_ring_t 
     mgr->ring = ring;
     mgr->db = db;
     strncpy(mgr->product_name, product_name, sizeof(mgr->product_name) - 1);
+
+    uv__queue_init(&mgr->req_queue);
+    uv_mutex_init(&mgr->req_lock);
+
     return 0;
 }
-
 int northbound_mgr_start(northbound_mgr_t *mgr) {
     if (!mgr || mgr->loop) return -1;
     return uv_thread_create(&mgr->thread, north_thread_entry, mgr);

@@ -11,6 +11,7 @@ import shutil
 from tools.matrix.engine.orchestrator import MatrixOrchestrator
 from tools.matrix.engine.edgec import MatrixEdgeC
 from tools.matrix.engine.scenario import ScenarioRunner
+from tools.matrix.engine.scenario_engine import IonScenarioRunner
 from tools.matrix.engine.loader import SchemaLoader
 
 class VDeviceProxy:
@@ -40,7 +41,7 @@ class MatrixContext:
         self.loader = loader
         self.edgec = edgec
         self.server_url = server_url
-        self.runner = ScenarioRunner(self)
+        self.runner = IonScenarioRunner(self)
         # 模拟 orch 属性供测试用例使用
         self.orch = self
 
