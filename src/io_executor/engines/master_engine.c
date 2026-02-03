@@ -93,6 +93,7 @@ static void _master_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *u
 
         size_t consumed = 0;
         net_buf_t wrap = {0};
+        wrap.pool = priv->pool;  // [Nexus Fix] 关联内存池，允许驱动进行 clone/alloc
         memcpy(&wrap.b, &priv->rx_acc, sizeof(struct net_buf_simple));
 
         int rc = priv->current_cmd->req->ops->decode(priv->current_cmd->req, &wrap, &consumed);
@@ -155,10 +156,17 @@ static void _master_attach(bus_engine_t *self, io_handle_t *io) {
     io->user_data = priv;
 }
 
+static void _master_close_cb(uv_handle_t *handle) {
+    master_priv_t *priv = (master_priv_t *)handle->data;
+    free(priv);
+}
+
 static void _master_detach(bus_engine_t *self) {
     master_priv_t *priv = (master_priv_t *)self->user_data;
-    uv_timer_stop(&priv->timer);
-    free(priv);
+    if (!uv_is_closing((uv_handle_t *)&priv->timer)) {
+        uv_timer_stop(&priv->timer);
+        uv_close((uv_handle_t *)&priv->timer, _master_close_cb);
+    }
     free(self);
 }
 

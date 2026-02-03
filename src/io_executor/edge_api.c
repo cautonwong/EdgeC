@@ -75,3 +75,23 @@ int edge_api_write_tag(int bus_id, const char *protocol, uint32_t slave_id,
 
     return bus_orchestrator_submit_cmd(g_orch, bus_id, cmd);
 }
+
+int edge_api_raw_io(int bus_id, net_buf_t *tx_buf, raw_io_on_complete_cb cb) {
+    if (!g_orch) {
+        if (tx_buf) net_buf_unref(tx_buf);
+        return -1;
+    }
+
+    edge_req_t *req = req_raw_io_create(tx_buf, cb);
+    if (tx_buf) net_buf_unref(tx_buf);  // req_raw_io_create internally refs it
+    if (!req) return -1;
+
+    cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));
+    cmd->req = req;
+    cmd->priority = ARBITER_PRIO_HIGH;  // Raw IO usually needs fast path
+    cmd->signature = 0x55AA;
+    cmd->on_cleanup = _on_api_cmd_cleanup;
+    strncpy(cmd->req_id, "RAW_IO", sizeof(cmd->req_id) - 1);
+
+    return bus_orchestrator_submit_cmd(g_orch, bus_id, cmd);
+}

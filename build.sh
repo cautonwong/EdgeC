@@ -29,9 +29,7 @@ fi
 cmake .. $GENERATOR -DCMAKE_BUILD_TYPE=Debug -DENABLE_UI=ON
 cmake --build . -j$(nproc)
 
-# 设置运行环境并执行 C 单元测试
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(pwd)/../.local/linux-x86_64/lib
-ctest --output-on-failure -j$(nproc)
+# [Nexus] Removed automatic ctest execution from build.sh to allow isolated integration testing.
 
 # ==============================================================================
 # 2. 原生打包 (可选)

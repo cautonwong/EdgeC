@@ -10,6 +10,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "edge_log.h"
+
 /* --- 1. net_buf_simple 实现 (保持极致轻量) --- */
 
 void net_buf_simple_init(struct net_buf_simple *buf, size_t reserve) {
@@ -188,26 +190,21 @@ int net_buf_pool_audit(net_buf_pool_t *pool, uint64_t age_threshold_ms,
 
         uint32_t ref = atomic_load_explicit(&buf->ref, memory_order_acquire);
         if (ref > 0) {
+            // [Nexus] 如果标记为长效，直接跳过审计
+            if (buf->flags & NET_BUF_FLAG_PERSISTENT) continue;
+
             uint64_t age = now - buf->alloc_ts;
             if (age > threshold_ns) {
-                fprintf(stderr,
-                        "[CRITICAL][NETBUF] Leak detected! ID: %u, Age: %lu ms, Owner: %s. FORCING "
-                        "RECLAIM.\n",
-                        i, (unsigned long)(age / 1000000),
-                        buf->last_owner ? buf->last_owner : "NULL");
-
-                atomic_store_explicit(&buf->ref, 0, memory_order_release);
-                buf->next = pool->free_list;
-                pool->free_list = buf;
-                reclaimed++;
+                // [Nexus] 只告警，不强制回收仍在被引用的 Buffer
+                // 强制回收正在被引用的内存是 UAF 崩溃的根源
+                LOG_WARN(LOG_CAT_CORE,
+                         "Long-lived NetBuf detected: ID %u, Age %lu ms, Ref %u, Owner %s", i,
+                         (unsigned long)(age / 1000000), ref,
+                         buf->last_owner ? buf->last_owner : "unknown");
             }
         } else if (out_stats) {
             out_stats->free_count++;
         }
-    }
-
-    if (reclaimed > 0) {
-        uv_cond_broadcast(&pool->cond);
     }
 
     if (out_stats) out_stats->leaked_reclaimed = (uint32_t)reclaimed;

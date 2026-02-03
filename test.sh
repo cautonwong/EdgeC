@@ -5,11 +5,11 @@ set -e
 # EdgeOS 集成测试与全链路演习指挥中心 (Omnis Edition)
 # ==============================================================================
 
+# Load shared environment
+source "$(dirname "$0")/scripts/setup_env.sh"
+
 PROD="iems"
-PROJECT_ROOT=$(pwd)
-export PYTHONPATH=$PROJECT_ROOT
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PROJECT_ROOT/.local/linux-x86_64/lib
-ENV_PYTHON=".venv/bin/python3"
+# ENV_PYTHON is already set by setup_env.sh
 
 # 颜色定义
 G='\033[32m' # Green
@@ -25,6 +25,7 @@ show_help() {
     echo -e "${B}Options:${NC}"
     echo "  (none)          运行标准 C 语言单元测试 (cmocka)"
     echo "  --omnis         运行全链路自动化集成测试 (Matrix Plane)"
+    echo "  --only <test>   只运行特定的测试文件或用例 (例如: cmd/iems/matrix/test_slave_flow.py)"
     echo "  --help          显示此帮助信息"
     echo ""
     echo -e "${B}Interactive Debugging Tools (演习与调试工具):${NC}"
@@ -46,8 +47,9 @@ show_help() {
 
 stop_all() {
     echo -e "${Y}  🧹 Nuclear Cleanup...${NC}"
-    pkill -9 -f "$PROD" || true
-    pkill -9 -f "tools/matrix" || true
+    # 仅杀掉 iems 二进制程序，不杀掉包含 iems 字符串的脚本路径
+    pkill -9 "^iems$" || true
+    pkill -9 -f "tools/matrix/server.py" || true
     pkill -9 -f "actors/" || true
     rm -rf /tmp/vbus*.sock /tmp/v_adc*.sock /tmp/iems*.sock
     rm -rf /dev/shm/matrix_shm_* || true
@@ -80,7 +82,7 @@ run_omnis() {
     
     # 3. 执行自动化场景验收 (由 pytest 内部拉起隔离的 EdgeC)
     echo -e "${P}🧪 Step [2/2]: Running Automated Scenarios...${NC}"
-    $ENV_PYTHON tools/matrix/matrix_test.py --product $PROD
+    $ENV_PYTHON tools/matrix/matrix_test.py --product $PROD $PYTEST_ARGS
     
     TEST_RES=$?
     if [ $TEST_RES -eq 0 ]; then
@@ -98,6 +100,15 @@ run_omnis() {
 # 命令分发
 case "$1" in
     --omnis)
+        run_omnis
+        ;;
+    --only)
+        if [ -z "$2" ]; then
+            echo -e "${R}Error: --only requires a test file or pattern.${NC}"
+            exit 1
+        fi
+        # 暂时借用 run_omnis 的逻辑，但通过环境变量传递 pytest 过滤
+        export PYTEST_ARGS="$2"
         run_omnis
         ;;
     --help)

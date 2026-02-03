@@ -109,6 +109,11 @@ class MatrixOrchestrator:
     def _launch_actor(self, sock_path, dev_info):
         sim_cfg = dev_info.get("simulation") or {}
         actor_type = sim_cfg.get("actor", "modbus")
+        
+        if actor_type == "none":
+            print(f"    [Orch] Device {dev_info['id']} has actor='none', skipping actor launch.")
+            return
+
         slave_id = dev_info.get("address") or 1
         init_data = sim_cfg.get("init", {})
         
@@ -138,8 +143,8 @@ class MatrixOrchestrator:
             
             # 如果是请求者模式，额外加上 server url 供其上报观测值
             if actor_name == "master_requester":
-                # [Nexus Fix] 仅传入 Base URL，由 Actor 内部拼接完整的 API 路径
-                server_url = f"http://localhost:50051"
+                # [Nexus Fix] 传入完整的 API Base URL
+                server_url = f"http://localhost:50051/api/v1"
                 cmd_args.extend(["--server", server_url])
 
             print(f"    [Orch] CMD: {' '.join(cmd_args)}")

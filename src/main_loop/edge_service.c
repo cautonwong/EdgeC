@@ -166,7 +166,11 @@ static void _on_tunnel_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *
         cmd->value = (double)nread;
         service_post_cmd(svc, cmd);
     }
-    if (nread < 0) uv_close((uv_handle_t *)client, (uv_close_cb)free);
+    if (nread < 0) {
+        if (!uv_is_closing((uv_handle_t *)client)) {
+            uv_close((uv_handle_t *)client, (uv_close_cb)free);
+        }
+    }
     if (buf->base) free(buf->base);
 }
 

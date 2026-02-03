@@ -223,6 +223,66 @@ static char *handle_data_write(service_t *svc, const char *body) {
     return strdup("{\"status\":\"ok\"}");
 }
 
+static uint8_t g_last_raw_rx[1024];
+static size_t g_last_raw_rx_len = 0;
+
+static void on_raw_io_complete(int status, net_buf_t *rx_buf) {
+    if (status == 0 && rx_buf) {
+        g_last_raw_rx_len = rx_buf->b.len > 1024 ? 1024 : rx_buf->b.len;
+        memcpy(g_last_raw_rx, rx_buf->b.data, g_last_raw_rx_len);
+        printf("[REST-DEBUG] Captured Raw RX: %zu bytes\n", g_last_raw_rx_len);
+    }
+}
+
+static char *handle_io_raw(service_t *svc, const char *body) {
+    cJSON *root = cJSON_Parse(body);
+    if (!root) return strdup("{\"status\":\"error\",\"reason\":\"invalid_json\"}");
+
+    cJSON *bus_item = cJSON_GetObjectItem(root, "bus_id");
+    cJSON *payload_item = cJSON_GetObjectItem(root, "payload");
+
+    if (!bus_item || !payload_item) {
+        cJSON_Delete(root);
+        return strdup("{\"status\":\"error\",\"reason\":\"missing_fields\"}");
+    }
+
+    int bus_id = bus_item->valueint;
+    const char *hex = payload_item->valuestring;
+    size_t hex_len = strlen(hex);
+
+    datahub_t *hub = service_get_datahub(svc);
+    net_buf_t *tx = net_buf_alloc(hub->io_pool, 0);
+
+    for (size_t i = 0; i < hex_len; i += 2) {
+        unsigned int b;
+        sscanf(hex + i, "%02x", &b);
+        net_buf_simple_add_u8(&tx->b, (uint8_t)b);
+    }
+
+    g_last_raw_rx_len = 0;  // Clear previous
+    edge_api_raw_io(bus_id, tx, on_raw_io_complete);
+
+    cJSON_Delete(root);
+    return strdup("{\"status\":\"ok\"}");
+}
+
+static char *handle_io_raw_latest(void) {
+    cJSON *root = cJSON_CreateObject();
+    if (g_last_raw_rx_len > 0) {
+        char *hex = malloc(g_last_raw_rx_len * 2 + 1);
+        for (size_t i = 0; i < g_last_raw_rx_len; i++) {
+            sprintf(hex + i * 2, "%02X", g_last_raw_rx[i]);
+        }
+        cJSON_AddStringToObject(root, "payload", hex);
+        free(hex);
+    } else {
+        cJSON_AddStringToObject(root, "payload", "");
+    }
+    char *out = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    return out;
+}
+
 char *rest_dispatch(service_t *svc, const char *method, const char *path, const char *body) {
     if (!svc) {
         fprintf(stderr, "[REST] ERROR: Dispatch called with NULL service context!\n");
@@ -231,12 +291,14 @@ char *rest_dispatch(service_t *svc, const char *method, const char *path, const 
 
     if (strcmp(method, "POST") == 0) {
         if (strncmp(path, "/api/v1/actor/set", 17) == 0) return handle_data_write(svc, body);
+        if (strncmp(path, "/api/v1/io/raw", 14) == 0) return handle_io_raw(svc, body);
     }
 
     if (strncmp(path, "/api/v1/system/health", 21) == 0) return handle_system_health(svc);
     if (strncmp(path, "/api/v1/system/stats", 20) == 0) return handle_system_stats(svc);
     if (strncmp(path, "/api/v1/contracts", 17) == 0) return handle_contracts_get(svc);
     if (strncmp(path, "/api/v1/devices", 15) == 0) return handle_devices_get(svc);
+    if (strncmp(path, "/api/v1/io/raw/latest", 21) == 0) return handle_io_raw_latest();
     if (strncmp(path, "/api/v1/data/latest/", 20) == 0)
         return handle_data_latest(svc, (uint32_t)atoi(path + 20));
     return strdup("{\"error\":\"not_found\"}");
@@ -270,7 +332,11 @@ static void on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
         uv_write(write_req, client, &write_buf, 1, on_write);
         free(json);
     }
-    if (nread < 0) uv_close((uv_handle_t *)client, (uv_close_cb)free);
+    if (nread < 0) {
+        if (!uv_is_closing((uv_handle_t *)client)) {
+            uv_close((uv_handle_t *)client, (uv_close_cb)free);
+        }
+    }
     if (buf->base) free(buf->base);
 }
 
