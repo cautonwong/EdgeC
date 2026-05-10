@@ -40,6 +40,14 @@ int control_lqr_solve(const edge_matrix_t *A, const edge_matrix_t *B,
                       edge_matrix_t *K);
 
 /**
+ * @brief Hildreth 过程求解二次规划 (QP) - 适用于小规模多约束 MPC
+ * 极小化: 1/2 x' Q x + c' x  满足: A x <= b
+ */
+int control_qp_solve_hildreth(const edge_matrix_t *Q, const edge_matrix_t *c,
+                               const edge_matrix_t *A, const edge_matrix_t *b,
+                               edge_matrix_t *x);
+
+/**
  * @brief 状态观测器 (Luenberger Observer)
  * x_hat_dot = A*x_hat + B*u + L*(y - C*x_hat)
  */
