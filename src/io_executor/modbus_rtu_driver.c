@@ -140,6 +140,8 @@ int modbus_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_o
             uint16_t rv = 0;
             const modbus_map_t *map = NULL;
             uint32_t cur_addr = (uint32_t)(addr + i);
+            
+            // [Nexus] Construct 64-bit Composite Key for multi-instance support
             uint64_t composite_key = ((uint64_t)priv->slave_id << 32) | cur_addr;
 
             if (ctx->lookup_by_key) {
