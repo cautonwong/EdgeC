@@ -211,6 +211,10 @@ static inline void *net_buf_pull(net_buf_t *buf, size_t len) {
     return net_buf_simple_pull(&buf->b, len);
 }
 
+static inline void net_buf_reset(net_buf_t *buf) {
+    net_buf_simple_reset(&buf->b);
+}
+
 #define net_buf_tailroom(buf) net_buf_simple_tailroom(&(buf)->b)
 #define net_buf_headroom(buf) net_buf_simple_headroom(&(buf)->b)
 

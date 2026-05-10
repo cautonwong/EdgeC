@@ -22,19 +22,27 @@ int dlms_cosem_build_aarq(dlms_cosem_ctx_t *ctx, net_buf_t *out) {
     dlms_encoder_t enc;
     dlms_encoder_init(&enc, &out->b);
     net_buf_simple_add_u8(enc.buf, (uint8_t)DLMS_SERVICE_AARQ);
-    dlms_encode_begin(&enc, DLMS_TYPE_STRUCTURE);
+    
+    // [Aetheris] 构造符合 BlueBook 标准的 AARQ
+    // 应用上下文: LN without ciphering
     uint8_t app_ctx[] = {0x60, 0x85, 0x74, 0x05, 0x08, 0x01, 0x01};
     dlms_encode_octet_string(&enc, app_ctx, sizeof(app_ctx));
+    
+    // User Information: xDLMS InitiatRequest
     dlms_encode_begin(&enc, DLMS_TYPE_OCTET_STRING);
-    net_buf_simple_add_u8(enc.buf, 0x01);
-    net_buf_simple_add_u8(enc.buf, 0x00);
-    net_buf_simple_add_u8(enc.buf, 0x00);
-    net_buf_simple_add_u8(enc.buf, 0x06);
-    uint8_t conf[] = {0x5F, 0x1F, 0x04, 0x00, 0x00, 0x7E, 0x1F, 0x04};
-    net_buf_simple_add_mem(enc.buf, conf, sizeof(conf));
-    net_buf_simple_add_be16(enc.buf, 1024);
+    net_buf_simple_add_u8(enc.buf, 0x01); // tag: initiateRequest
+    net_buf_simple_add_u8(enc.buf, 0x00); // dedicated-key: none
+    net_buf_simple_add_u8(enc.buf, 0x00); // response-allowed: false
+    net_buf_simple_add_u8(enc.buf, 0x06); // proposed-quality-of-service: none
+    net_buf_simple_add_u8(enc.buf, 0x5F); // proposed-dlms-version-number: 6
+    
+    // Proposed conformance (GET, SET, ACTION, etc)
+    uint8_t conformance[] = {0x1F, 0x04, 0x00}; // 举例：支持基本读写
+    net_buf_simple_add_mem(enc.buf, conformance, sizeof(conformance));
+    
+    net_buf_simple_add_be16(enc.buf, 1024); // client-max-receive-pdu-size
     dlms_encode_end(&enc);
-    dlms_encode_end(&enc);
+    
     ctx->state = COSEM_STATE_ASSOCIATING;
     return 0;
 }

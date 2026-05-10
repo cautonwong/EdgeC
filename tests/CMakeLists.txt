@@ -47,6 +47,7 @@ add_edge_test(test_js_engine test_js_engine.c)
 add_edge_test(test_wasm_stage test_wasm_stage.c)
 
 # 5. 标准算子与算法测试 (Stages & Algos)
+add_edge_test(test_linalg test_linalg.c)
 add_edge_test(test_algorithm_sum test_algorithm_sum.c)
 add_edge_test(test_battery_algo test_battery_algo.c)
 add_edge_test(test_standard_stages_math test_standard_stages_math.c)

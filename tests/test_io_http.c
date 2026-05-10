@@ -25,14 +25,14 @@ static void on_http_event(io_handle_t *h, io_event_t evt, void *data, void *user
             char buf[65] = {0};
             size_t to_copy = nb->b.len > 64 ? 64 : nb->b.len;
             memcpy(buf, nb->b.data, to_copy);
-            printf("[Test] HTTP RX Data (%%u bytes): %%s\n", (uint32_t)nb->b.len, buf);
+            printf("[Test] HTTP RX Data (%u bytes): %s\n", (uint32_t)nb->b.len, buf);
         }
     } else if (evt == IO_EVENT_TX_DONE) {
         g_tx_done = true;
         printf("[Test] HTTP Request Completed Successfully.\n");
     } else if (evt == IO_EVENT_ERROR) {
         g_tx_done = true;  // Mark done on error to exit loop
-        printf("[Test] HTTP Request Failed with error code: %%ld\n", (intptr_t)data);
+        printf("[Test] HTTP Request Failed with error code: %ld\n", (intptr_t)data);
     }
 }
 
