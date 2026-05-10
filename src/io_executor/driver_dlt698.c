@@ -1,6 +1,6 @@
 /**
  * @file driver_dlt698.c
- * @brief 面向对象规约 DLT698.45 协议栈实现 (V3.0)
+ * @brief 面向对象规约 DLT698.45 驱动 (Codec 分离 + 有状态会话)
  */
 
 #include <stdint.h>
@@ -8,103 +8,103 @@
 #include <string.h>
 #include <time.h>
 
+#include "dlt698_codec.h"
 #include "driver_manager.h"
 #include "edge_driver.h"
 #include "edge_log.h"
 #include "net_buf.h"
-#include "shmring.h"
 
 typedef struct {
-    uint16_t server_addr; /**< 从站逻辑地址 */
-    uint16_t client_addr; /**< 主站地址 (通常 0x10) */
-    uint16_t seq;
+    dlt698_addr_t sa;
+    uint8_t piid;
+    uint32_t last_oad;
+    bool connected;
 } dlt698_ctx_t;
 
-// --- 基础工具 (FCS16 计算) ---
-static uint16_t dlt698_pppfcs16(uint16_t fcs, uint8_t *cp, int len) {
-    static const uint16_t fcstab[256] = {0x0000, 0x1189, 0x2312, 0x329b, 0x4624, 0x57ad,
-                                         0x6536, 0x74bf, 0x8c48, 0x9dc1, 0xaf5a, 0xbed3,
-                                         0xca6c, 0xdbe5, 0xe97e, 0xf8f7};  // 简化版表格，仅做演示
-    while (len--) fcs = (uint16_t)((fcs >> 8) ^ fcstab[(fcs ^ *cp++) & 0xff]);
-    return fcs;
-}
-
-extern uint32_t edge_lookup_dlt698_num(uint32_t oad, float *scaler);
-
-/* --- V3 Master 接口 --- */
-
-static int dlt698_v3_on_init(edge_driver_ctx_t *ctx) {
+static int dlt698_v4_on_init(edge_driver_ctx_t *ctx) {
     dlt698_ctx_t *priv = (dlt698_ctx_t *)ctx->priv;
-    priv->server_addr = (uint16_t)ctx->device_id;
-    priv->client_addr = 0x10;
+    memset(priv, 0, sizeof(dlt698_ctx_t));
+    
+    // 从 device_id 恢复 BCD 地址
+    dlt645_u64_to_bcd_addr(ctx->device_id, priv->sa.addr);
+    priv->sa.len = 6;
+    priv->sa.type = 0; // Single
+    priv->piid = 0;
     return 0;
 }
 
-static int dlt698_v3_encode_request(edge_driver_ctx_t *ctx, const uint32_t *tag_ids, int tag_count,
+static int dlt698_v4_encode_request(edge_driver_ctx_t *ctx, const uint32_t *tag_ids, int count,
                                     net_buf_t *out) {
-    if (tag_count == 0) return -1;
     dlt698_ctx_t *priv = (dlt698_ctx_t *)ctx->priv;
-    struct net_buf_simple *b = &out->b;
+    if (count == 0) return -1;
 
-    // 构建 GET-Request (Normal) 报文
-    net_buf_simple_add_u8(b, 0x68);
-    net_buf_simple_add_le16(b, 0);   // 长度占位
-    net_buf_simple_add_u8(b, 0x43);  // 控制域
-    net_buf_simple_add_le16(b, priv->server_addr);
-    net_buf_simple_add_u8(b, (uint8_t)priv->client_addr);
-    net_buf_simple_add_le16(b, 0);  // HCS 占位
+    const modbus_map_t *map = NULL; // 698 也复用 key 结构存储 OAD
+    if (ctx->lookup_by_tag) {
+        map = (const modbus_map_t *)ctx->lookup_by_tag(tag_ids[0]);
+    }
+    if (!map) return -1;
 
-    // APDU: GET.Request.Normal
-    net_buf_simple_add_u8(b, 0x05);
-    net_buf_simple_add_u8(b, 0x01);
-    net_buf_simple_add_u8(b, ++priv->seq);
+    priv->last_oad = (uint32_t)map->key;
+    return dlt698_encode_get_request(&priv->sa, ++priv->piid, priv->last_oad, out);
+}
 
-    // OAD (Object Attribute Descriptor)
-    uint32_t oad = tag_ids[0];
-    net_buf_simple_add_be32(b, oad);
+static int dlt698_v4_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_out,
+                                     pipe_msg_t *out_msgs, int *msg_count, size_t *consumed) {
+    (void)resp_out;
+    dlt698_ctx_t *priv = (dlt698_ctx_t *)ctx->priv;
+    
+    dlt698_addr_t sa_rx;
+    uint8_t svc, piid;
+    uint8_t *payload;
+    size_t payload_len;
 
-    // 填充长度与校验 (此处简化模拟)
-    b->data[1] = (uint8_t)(b->len + 2);
-    net_buf_simple_add_le16(b, 0xAAAA);  // 模拟 FCS
+    int ret = dlt698_decode_frame(&in->b, &sa_rx, &svc, &piid, &payload, &payload_len);
+    if (ret == 1) return EDGE_ERR_INCOMPLETE;
+    if (ret < 0) {
+        *consumed = 1;
+        return -1;
+    }
+
+    // 计算消耗 (简单近似：到 payload + len + 2(FCS) + 1(16))
+    *consumed = (size_t)(payload + payload_len + 3 - in->b.data);
+
+    if (svc == DLT698_SVC_GET_RES && payload_len >= 4) {
+        // [Aetheris] 解析 OAD 后的数据 (假设为简单数值类型)
+        // 实际上 698 的数据解析非常复杂，涉及 Data 类型的嵌套递归
+        // 此处先打通链路，后续可通过 dlms_decoder 风格重构 698_decoder
+        uint32_t oad_rx = (uint32_t)((payload[0] << 24) | (payload[1] << 16) | (payload[2] << 8) | payload[3]);
+        if (oad_rx == priv->last_oad) {
+            float scaler = 1.0f;
+            uint32_t tid = 0;
+            if (ctx->lookup_by_key) {
+                const modbus_map_t *map = (const modbus_map_t *)ctx->lookup_by_key(oad_rx);
+                if (map) {
+                    tid = map->tag_id;
+                    scaler = map->scaler;
+                }
+            }
+            
+            if (tid != 0 && payload_len >= 6) {
+                // 简化：取 OAD 之后的前2字节作为数值 (如 long-unsigned)
+                uint16_t raw_val = (uint16_t)((payload[4] << 8) | payload[5]);
+                pipe_msg_init_scalar(&out_msgs[0], tid, (double)raw_val * scaler, uv_hrtime());
+                *msg_count = 1;
+            }
+        }
+    }
+
     return 0;
 }
 
-static int dlt698_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, pipe_msg_t *out_msgs,
-                                     int *msg_count) {
-    struct net_buf_simple *b = &in->b;
-    if (b->len < 12 || b->data[0] != 0x68) return -1;
+edge_driver_t dlt698_driver = {
+    .name = "DLT698",
+    .ctx_size = sizeof(dlt698_ctx_t),
+    .on_init = dlt698_v4_on_init,
+    .encode_request = dlt698_v4_encode_request,
+    .decode_response = dlt698_v4_decode_response,
+    .handle_rx = NULL,
+};
 
-    // 跳转到 APDU 载荷
-    net_buf_simple_pull(b, 9);  // Skip 68, LEN, CTRL, ADDR, HCS
-
-    uint8_t service_tag = net_buf_simple_pull_u8(b);
-    if (service_tag != 0x85) return -2;  // 必须是 GET-Response
-
-    net_buf_simple_pull_u8(b);  // Result type
-    net_buf_simple_pull_u8(b);  // PIID
-
-    uint32_t oad = net_buf_simple_pull_be32(b);
-    float scaler = 1.0f;
-    uint32_t tid = edge_lookup_dlt698_num(oad, &scaler);
-    if (tid == 0) return -3;
-
-    // 解析数据 (假设为 Double-Long-Unsigned)
-    uint16_t raw_val = net_buf_simple_pull_be16(b);
-
-    pipe_msg_init_scalar(&out_msgs[0], tid, (double)raw_val * (double)scaler,
-                         (uint64_t)time(NULL) * 1000);
-    *msg_count = 1;
-    return 0;
-}
-
-const edge_driver_t dlt698_driver = {.name = "DLT698",
-                                     .ctx_size = sizeof(dlt698_ctx_t),
-                                     .on_init = dlt698_v3_on_init,
-                                     .encode_request = dlt698_v3_encode_request,
-                                     .decode_response = dlt698_v3_decode_response,
-                                     .handle_rx = NULL,
-                                     .on_cleanup = NULL};
-
-int dlt698_driver_register(void) {
-    return driver_manager_register(&dlt698_driver);
+int dlt698_driver_register(driver_manager_t *mgr) {
+    return driver_manager_register(mgr, &dlt698_driver);
 }

@@ -165,6 +165,8 @@ add_library(edge_stream_engine STATIC
     src/stream_engine/script_loader.c
     src/stream_engine/aggregator.c
     src/stream_engine/standard_stages.c
+    src/stream_engine/stage_linear_system.c
+    src/stream_engine/stage_iir_filter.c
     src/stream_engine/energy_integrator.c
     src/stream_engine/stage_dsp_rms.c
     src/stream_engine/js_stage.c
@@ -222,12 +224,31 @@ target_link_libraries(edge_main_loop PRIVATE Modbus::Modbus PahoMQTT::PahoMQTT C
 
 
 # 5.5 算法库
+find_package(GSL QUIET)
+if(GSL_FOUND)
+    message(STATUS "[Nexus] GSL found, enabling accelerated math")
+    set(MATH_IMPL algo/native/math/linalg_gsl.c)
+    set(MATH_DEFS USE_GSL)
+else()
+    message(STATUS "[Nexus] GSL not found, using built-in math")
+    set(MATH_IMPL algo/native/math/linalg_builtin.c)
+    set(MATH_DEFS USE_BUILTIN_MATH)
+endif()
+
 add_library(edge_algo STATIC
     algo/native/algorithm_sum.c
     algo/native/battery_strategy.c
     algo/native/algo_peak_shaving.c
+    algo/native/math/windowing.c
+    algo/native/math/dsp_algo.c
+    algo/native/math/control_algo.c
+    ${MATH_IMPL}
 )
 target_link_libraries(edge_algo PUBLIC edge_common_interface)
+if(GSL_FOUND)
+    target_link_libraries(edge_algo PRIVATE GSL::gsl GSL::gslcblas)
+endif()
+target_compile_definitions(edge_algo PRIVATE ${MATH_DEFS})
 
 # 定义最终的组合静态库 (接口库)
 add_library(edge_sdk INTERFACE)

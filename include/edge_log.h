@@ -1,8 +1,9 @@
 #ifndef EDGE_LOG_H
-#define NORTH_LOG_H
+#define EDGE_LOG_H
 
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 typedef enum {
     LOG_CAT_CORE = 0,

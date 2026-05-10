@@ -7,6 +7,7 @@
 #include "driver_manager.h"
 #include "edge_common.h"
 #include "edge_driver.h"
+#include "edge_log.h"
 #include "modbus_codec.h"
 #include "net_buf.h"
 
@@ -14,21 +15,6 @@ typedef struct {
     uint32_t slave_id;
     uint32_t last_requested_tag;
 } modbus_ctx_t;
-
-static uint16_t _calc_crc(uint8_t *buf, int len) {
-    uint16_t crc = 0xFFFF;
-    for (int pos = 0; pos < len; pos++) {
-        crc ^= (uint16_t)buf[pos];
-        for (int i = 8; i != 0; i--) {
-            if ((crc & 0x0001) != 0) {
-                crc >>= 1;
-                crc ^= 0xA001;
-            } else
-                crc >>= 1;
-        }
-    }
-    return crc;
-}
 
 static int modbus_v3_on_init(edge_driver_ctx_t *ctx) {
     modbus_ctx_t *priv = calloc(1, sizeof(modbus_ctx_t));
@@ -60,20 +46,8 @@ static int modbus_v3_encode_request(edge_driver_ctx_t *ctx, const uint32_t *tag_
     }
     if (!map) return -1;
 
-    uint8_t *p = net_buf_add(out, 8);
-    p[0] = (uint8_t)priv->slave_id;
-    p[1] = 0x03;
-    
-    // [Nexus] Use low 32-bit of composite key for physical address
-    uint32_t addr = (uint32_t)map->key;
-    p[2] = (uint8_t)(addr >> 8);
-    p[3] = (uint8_t)(addr & 0xFF);
-    p[4] = (uint8_t)(map->length >> 8);
-    p[5] = (uint8_t)(map->length & 0xFF);
-    uint16_t crc = _calc_crc(p, 6);
-    p[6] = (uint8_t)(crc & 0xFF);
-    p[7] = (uint8_t)(crc >> 8);
-    return 0;
+    uint8_t fc = MODBUS_FC_READ_HOLDING_REGS;
+    return modbus_rtu_encode_read((uint8_t)priv->slave_id, fc, (uint16_t)map->key, (uint16_t)map->length, out);
 }
 
 static int modbus_v3_encode_write(edge_driver_ctx_t *ctx, uint32_t tag_id, double val,
@@ -87,41 +61,34 @@ static int modbus_v3_encode_write(edge_driver_ctx_t *ctx, uint32_t tag_id, doubl
     if (!map) return -1;
 
     uint16_t raw_val = (uint16_t)(val / (map->scaler ? map->scaler : 1.0));
-    uint8_t *p = net_buf_add(out, 8);
-    p[0] = (uint8_t)priv->slave_id;
-    p[1] = 0x06;
-    
-    uint32_t addr = (uint32_t)map->key;
-    p[2] = (uint8_t)(addr >> 8);
-    p[3] = (uint8_t)(addr & 0xFF);
-    p[4] = (uint8_t)(raw_val >> 8);
-    p[5] = (uint8_t)(raw_val & 0xFF);
-    uint16_t crc = _calc_crc(p, 6);
-    p[6] = (uint8_t)(crc & 0xFF);
-    p[7] = (uint8_t)(crc >> 8);
-    return 0;
+    return modbus_rtu_encode_write_single((uint8_t)priv->slave_id, (uint16_t)map->key, raw_val, out);
 }
 
 static int modbus_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_out,
                                      pipe_msg_t *out_msgs, int *msg_count, size_t *consumed) {
     (void)resp_out;
     modbus_ctx_t *priv = (modbus_ctx_t *)ctx->priv;
-    if (in->b.len < 5) return EDGE_ERR_INCOMPLETE;
-
-    uint8_t *data = in->b.data;
-    uint8_t func = data[1];
-    size_t expected = (func == 0x03 || func == 0x04) ? (size_t)(5 + data[2]) : 8;
-    if (in->b.len < expected) return EDGE_ERR_INCOMPLETE;
-
-    uint16_t crc_rx = (uint16_t)(data[expected - 2] | (data[expected - 1] << 8));
-    if (_calc_crc(data, (int)expected - 2) != crc_rx) {
+    
+    uint8_t slave_id, fc;
+    uint8_t *data;
+    size_t data_len;
+    
+    int ret = modbus_rtu_decode_frame(&in->b, &slave_id, &fc, &data, &data_len);
+    if (ret == 1) return EDGE_ERR_INCOMPLETE;
+    if (ret < 0) {
         *consumed = 1;
         return -1;
     }
 
-    *consumed = expected;
-    if (func == 0x03 || func == 0x04) {
-        uint16_t val = (uint16_t)((data[3] << 8) | data[4]);
+    *consumed = (size_t)(data + data_len + 2 - in->b.data);
+    
+    if (fc & 0x80) {
+        LOG_ERROR(IO, "Modbus Slave %u Exception: 0x%02X", slave_id, data[0]);
+        return -2;
+    }
+
+    if (fc == MODBUS_FC_READ_HOLDING_REGS || fc == MODBUS_FC_READ_INPUT_REGS) {
+        uint16_t val = (uint16_t)((data[0] << 8) | data[1]);
         double scale = 1.0;
         if (ctx->lookup_by_tag) {
             typedef const modbus_map_t *(*lookup_fn_t)(uint32_t);
@@ -141,31 +108,34 @@ int modbus_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_o
                         pipe_msg_t *async_msgs, int *async_count, size_t *consumed) {
     (void)async_msgs;
     (void)async_count;
-    if (!in || in->b.len < 8) return EDGE_ERR_INCOMPLETE;
-
+    
     modbus_ctx_t *priv = (modbus_ctx_t *)ctx->priv;
-    uint8_t *data = in->b.data;
-
-    if (data[0] != priv->slave_id) {
+    uint8_t slave_id, fc;
+    uint8_t *data;
+    size_t data_len;
+    
+    int ret = modbus_rtu_decode_frame(&in->b, &slave_id, &fc, &data, &data_len);
+    if (ret == 1) return EDGE_ERR_INCOMPLETE;
+    if (ret < 0) {
         *consumed = 1;
         return -1;
     }
-    uint16_t crc_rx = (uint16_t)(data[6] | (data[7] << 8));
-    if (_calc_crc(data, 6) != crc_rx) {
-        *consumed = 1;
+
+    *consumed = (size_t)(data + data_len + 2 - in->b.data);
+
+    if (slave_id != priv->slave_id) {
         return -1;
     }
 
-    *consumed = 8;
-    uint8_t func = data[1];
-    uint16_t addr = (uint16_t)((data[2] << 8) | data[3]);
-    uint16_t count = (uint16_t)((data[4] << 8) | data[5]);
+    if (fc == MODBUS_FC_READ_HOLDING_REGS || fc == MODBUS_FC_READ_INPUT_REGS) {
+        uint16_t addr = (uint16_t)((data[0] << 8) | data[1]);
+        uint16_t count = (uint16_t)((data[2] << 8) | data[3]);
 
-    if (func == 0x03 || func == 0x04) {
         uint8_t *p = net_buf_add(resp_out, 3 + (size_t)count * 2 + 2);
         p[0] = (uint8_t)priv->slave_id;
-        p[1] = func;
+        p[1] = fc;
         p[2] = (uint8_t)(count * 2);
+        
         for (uint16_t i = 0; i < count; i++) {
             uint16_t rv = 0;
             const modbus_map_t *map = NULL;
@@ -178,16 +148,6 @@ int modbus_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_o
                 typedef const modbus_map_t *(*lookup_fn_t)(uint64_t);
                 map = ((lookup_fn_t)ctx->lookup_by_key)(composite_key);
             }
-            
-            if (!map && ctx->meta_list) {
-                for (uint32_t m = 0; m < ctx->meta_list_len; m++) {
-                    const modbus_map_t *m_e = (const modbus_map_t *)ctx->meta_list + m;
-                    if (m_e->key == composite_key) {
-                        map = m_e;
-                        break;
-                    }
-                }
-            }
 
             if (map && ctx->user_data) {
                 pipe_msg_t shadow;
@@ -198,12 +158,14 @@ int modbus_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_o
             p[3 + i * 2] = (uint8_t)(rv >> 8);
             p[4 + i * 2] = (uint8_t)(rv & 0xFF);
         }
-        uint16_t crc_tx = _calc_crc(p, 3 + count * 2);
+        uint16_t crc_tx = modbus_calculate_crc(p, 3 + (size_t)count * 2);
         p[3 + count * 2] = (uint8_t)(crc_tx & 0xFF);
         p[4 + count * 2] = (uint8_t)(crc_tx >> 8);
         return 0;
     }
-    return -1;
+    
+    modbus_rtu_encode_exception((uint8_t)priv->slave_id, fc, MODBUS_EX_ILLEGAL_FUNCTION, resp_out);
+    return 0;
 }
 
 edge_driver_t modbus_rtu_driver = {.name = "ModbusRTU",
