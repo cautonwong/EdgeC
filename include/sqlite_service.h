@@ -5,6 +5,7 @@
 #include <uv.h>
 
 #include "shmring.h"  // For PipeMsg
+#include "contract_data_types.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,6 +39,13 @@ typedef struct {
 
 // 创建并初始化服务 (包含自动迁移、Pragma 调优)
 sqlite_svc_t *sqlite_svc_create(uv_loop_t *loop, sqlite_config_t *cfg);
+
+/**
+ * @brief [Nexus] 从契约初始化数据库 (自动建表、注入初始配置)
+ * @param svc 数据库服务实例
+ * @param contract 契约句柄
+ */
+int sqlite_svc_init_from_contract(sqlite_svc_t *svc, const edge_contract_t *contract);
 
 // 插入数据 (内部根据策略自动路由)
 int sqlite_svc_insert(sqlite_svc_t *svc, const PipeMsg *msg);
@@ -73,34 +81,21 @@ int sqlite_svc_exec(sqlite_svc_t *svc, const char *sql, sqlite_exec_cb cb, void 
 void sqlite_svc_destroy(sqlite_svc_t *svc);
 
 /**
-
  * @brief 设置产品/全局参数 (支持 BLOB)
-
  * @param product 产品名 (如 "IEMS")
-
  * @param tag_id 契约中定义的参数 TagID
-
  * @param val 参数值指针 (可以是 double*, int*, string 等)
-
  * @param len 数据长度
-
  */
-
 int sqlite_svc_set_param(sqlite_svc_t *svc, const char *product, uint32_t tag_id, const void *val,
                          size_t len);
 
 /**
-
  * @brief 获取产品/全局参数
-
  * @param buf 接收缓冲区
-
  * @param buflen 缓冲区大小
-
  * @return 实际读取的字节数，失败返回 -1
-
  */
-
 int sqlite_svc_get_param(sqlite_svc_t *svc, const char *product, uint32_t tag_id, void *buf,
                          size_t buflen);
 

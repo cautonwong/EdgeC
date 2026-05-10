@@ -7,7 +7,6 @@
 
 #include "edge_common.h"
 #include "edge_request.h"
-#include "io_executor.h"
 
 #ifdef __cplusplus
 extern "C" {

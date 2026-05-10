@@ -11,6 +11,7 @@
 #include <uv.h>
 
 #include "contracts.h"
+#include "contract_registry.h"
 #include "edge_api.h"
 #include "edge_service.h"
 #include "modbus_codec.h"
@@ -87,10 +88,13 @@ static void on_poll_task_trigger(uv_periodic_t *handle) {
     iems_poll_task_t *task = (iems_poll_task_t *)handle->data;
     if (!g_assets_loaded) return;
 
+    const edge_contract_t *contract = contract_get_active();
+    if (!contract) return;
+
     bool is_southbound = false;
-    for (int i = 0; i < g_connectivity_configs_len; i++) {
-        if (g_connectivity_configs[i].id == task->bus_id &&
-            strcmp(g_connectivity_configs[i].category, "SOUTHBOUND") == 0) {
+    for (uint32_t i = 0; i < contract->connectivity_count; i++) {
+        if (contract->connectivity[i].id == task->bus_id &&
+            strcmp(contract->connectivity[i].category, "SOUTHBOUND") == 0) {
             is_southbound = true;
             break;
         }
@@ -125,12 +129,12 @@ static int _load_tasks_cb(void *user_data, int argc, char **argv, char **cols) {
     task->tag_id = tag_id;
     strncpy(task->protocol, proto, 15);
     task->interval_ms = 1000;
-    for (uint32_t i = 0; i < g_tag_metadata_len; i++) {
-        if (g_tag_metadata[i].id == tag_id && g_tag_metadata[i].poll_interval_ms > 0) {
-            task->interval_ms = g_tag_metadata[i].poll_interval_ms;
-            break;
-        }
+    
+    const edge_tag_meta_t *meta = contract_tag_get_meta(tag_id);
+    if (meta && meta->poll_interval_ms > 0) {
+        task->interval_ms = meta->poll_interval_ms;
     }
+
     uv__queue_insert_tail(&g_poll_task_head, &task->node);
     uv_periodic_init(uv_default_loop(), &task->scheduler);
     task->scheduler.data = task;
@@ -204,8 +208,11 @@ static void _on_north_connect(uv_stream_t *server, int status) {
 }
 
 static void _try_connect_buses(uv_timer_t *handle) {
-    for (int i = 0; i < g_connectivity_configs_len; i++) {
-        const edge_connectivity_t *c = &g_connectivity_configs[i];
+    const edge_contract_t *contract = contract_get_active();
+    if (!contract) return;
+
+    for (uint32_t i = 0; i < contract->connectivity_count; i++) {
+        const edge_connectivity_t *c = &contract->connectivity[i];
         int bus_idx = c->id % MAX_VBUS;
         if (g_bus_state[bus_idx] != BUS_STATE_DISCONNECTED) continue;
         const char *path = edge_resolve_bus_path(c->id);
@@ -243,8 +250,11 @@ static void _adc_thread_entry(void *arg) {
     free(ctx);
 }
 static void _try_connect_internal_buses(uv_timer_t *handle) {
-    for (int i = 0; i < g_connectivity_configs_len; i++) {
-        const edge_connectivity_t *c = &g_connectivity_configs[i];
+    const edge_contract_t *contract = contract_get_active();
+    if (!contract) return;
+
+    for (uint32_t i = 0; i < contract->connectivity_count; i++) {
+        const edge_connectivity_t *c = &contract->connectivity[i];
         if (strcmp(c->category, "INTERNAL") != 0 || g_adc_running) continue;
         const char *path = edge_resolve_bus_path(c->id);
         if (path && access(path, F_OK) == 0) {
@@ -363,20 +373,29 @@ int main(int argc, char *argv[]) {
     uv_signal_start(&s1, on_signal_exit, SIGINT);
     uv_signal_init(loop, &s2);
     uv_signal_start(&s2, on_signal_exit, SIGTERM);
+
+    // --- [Deepening] Global Contract Registration ---
+    contract_register(&g_contract_manifest);
+    const edge_contract_t *contract = contract_get_active();
+
     g_app.arb = NULL;
     arbiter_init(&g_app.arb, loop);
     g_app.drv_mgr = driver_manager_create();
     modbus_driver_register(g_app.drv_mgr);
+    
     const char *shm_name = getenv("EDGE_SHM_NAME") ? getenv("EDGE_SHM_NAME") : EDGE_SHM_BUS_NAME;
     g_app.hub = calloc(1, sizeof(datahub_t));
-    datahub_init(g_app.hub, loop, shm_name, 4096, 1024, g_tag_metadata, g_tag_metadata_len, NULL,
+    datahub_init(g_app.hub, loop, shm_name, 4096, 1024, contract->tags, contract->tag_count, NULL,
                  edge_tag_get_compact_index, NULL);
+
     g_app.orch = bus_orchestrator_create(g_app.hub, g_app.arb, g_app.drv_mgr, 256, 256, 2048);
     g_app.hub->io_pool = bus_orchestrator_get_pool(g_app.orch);
     edge_api_init(g_app.orch, g_app.drv_mgr);
-    for (int i = 0; i < g_connectivity_configs_len; i++) {
-        const edge_connectivity_t *conn = &g_connectivity_configs[i];
-        const driver_contract_injection_t *inj = edge_model_find("ModbusRTU");
+
+    for (uint32_t i = 0; i < contract->connectivity_count; i++) {
+        const edge_connectivity_t *conn = &contract->connectivity[i];
+        const driver_contract_injection_t *inj = contract_model_find("ModbusRTU");
+        
         if (strcmp(conn->category, "SOUTHBOUND") == 0) {
             if (inj)
                 bus_orchestrator_setup_master(g_app.orch, conn->id, "ModbusRTU", (uint32_t)conn->id,
@@ -392,8 +411,8 @@ int main(int argc, char *argv[]) {
     g_app.stream_eng =
         stream_engine_create(g_app.hub, NULL, g_app.orch, edge_stage_factory_get_registry());
     pipeline_loader_ctx_t loader_ctx = {.db = g_app.db_service, .orch = g_app.orch, .params = NULL};
-    stream_engine_load_static_metadata(g_app.stream_eng, g_pipeline_metadata,
-                                       g_pipeline_metadata_len, &loader_ctx);
+    stream_engine_load_static_metadata(g_app.stream_eng, contract->pipelines,
+                                       contract->pipeline_count, &loader_ctx);
     stream_engine_start(g_app.stream_eng);
     g_app.north = calloc(1, sizeof(northbound_mgr_t));
     northbound_mgr_init(g_app.north, loop, &g_app.hub->ring, "IEMS_V4", g_app.db_service);
@@ -431,8 +450,8 @@ int main(int argc, char *argv[]) {
         printf("\033[32m[IEMS-INIT] UI Companion Socket listening at %s\033[0m\n", ui_path);
     }
 
-    for (int i = 0; i < g_connectivity_configs_len; i++) {
-        const edge_connectivity_t *c = &g_connectivity_configs[i];
+    for (uint32_t i = 0; i < contract->connectivity_count; i++) {
+        const edge_connectivity_t *c = &contract->connectivity[i];
 
         if (strcmp(c->category, "NORTHBOUND") == 0) {
             char env_key[32];

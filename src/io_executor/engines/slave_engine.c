@@ -1,9 +1,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "arbiter.h"
 #include "bus_engine.h"
 #include "driver_manager.h"
 #include "edge_log.h"
+#include "io_executor.h"
 
 #define MAX_SLAVE_PROTOCOLS 4
 

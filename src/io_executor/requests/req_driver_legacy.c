@@ -7,13 +7,22 @@
 #include "arbiter.h"
 #include "bus_engine.h"
 #include "edge_driver.h"
+#include "session_manager.h"
 
+// [Deepening] 镜像 MasterEngine 的私有结构，用于访问 SessionManager
 typedef struct {
     bus_engine_t base;
     uv_loop_t *loop;
     arbiter_t *arb;
     struct net_buf_pool *pool;
-} master_engine_minimal_t;
+    io_handle_t *io;
+    uv_timer_t timer;
+    cmd_msg_t *current_cmd;
+    uint8_t rx_static_data[4096];
+    struct net_buf_simple rx_acc;
+    int bus_id;
+    session_manager_t *session_mgr;
+} master_engine_view_t;
 
 typedef struct {
     driver_manager_t *dm;
@@ -31,10 +40,13 @@ typedef struct {
 
 static int legacy_setup(edge_req_t *req, void *engine_ctx) {
     legacy_req_ctx_t *ctx = (legacy_req_ctx_t *)req->priv_data;
-    master_engine_minimal_t *master = (master_engine_minimal_t *)engine_ctx;
+    master_engine_view_t *master = (master_engine_view_t *)engine_ctx;
+
+    // [Deepening] 从 SessionManager 获取持久化会话，而不是每次创建
     if (!ctx->drv_ctx) {
-        ctx->drv_ctx = driver_instance_create(ctx->dm, ctx->protocol, ctx->slave_id);
+        ctx->drv_ctx = session_manager_get(master->session_mgr, ctx->protocol, ctx->slave_id);
         if (ctx->drv_ctx) {
+            // 注入契约查找函数 (如果是第一次创建)
             ctx->drv_ctx->lookup_by_tag = (const void *(*)(uint32_t))ctx->lookup_by_tag;
             ctx->drv_ctx->lookup_by_key = (const void *(*)(uint32_t))ctx->lookup_by_key;
             ctx->drv_ctx->pool = master->pool;
@@ -48,6 +60,10 @@ static int legacy_encode(edge_req_t *req, net_buf_t *buf) {
     if (!ctx->drv_ctx || !ctx->drv_ctx->driver) {
         return REQ_STATUS_ERROR;
     }
+
+    // [Deepening] 检查协议是否就绪 (例如 DLMS 是否已完成握手)
+    // 如果协议有 is_ready 检查且返回 false，由驱动内部的 encode_request 处理握手逻辑
+    // SessionManager 的持久化使得驱动可以记住握手状态
 
     if (ctx->action == CMD_ACTION_WRITE) {
         if (!ctx->drv_ctx->driver->encode_write) return REQ_STATUS_ERROR;
@@ -65,29 +81,22 @@ static int legacy_decode(edge_req_t *req, net_buf_t *buf, size_t *consumed) {
     }
     int msg_count = 0;
 
-    // 强制清理输出消息结构
     memset(&ctx->result_msg, 0, sizeof(pipe_msg_t));
 
     int rc = ctx->drv_ctx->driver->decode_response(ctx->drv_ctx, buf, NULL, &ctx->result_msg,
                                                    &msg_count, consumed);
 
-    // [补强] 严格校验：确保解码出的 TagID 与请求一致
     if (rc == 0 && msg_count > 0) {
         if (ctx->result_msg.tag_id == ctx->tag_id) {
-            printf(" 📥 [IO-RX] Decoded Tag %u: Val=%.2f\n", ctx->result_msg.tag_id,
-                   ctx->result_msg.payload.val.f);
-            fflush(stdout);
             return REQ_STATUS_DONE;
         } else {
-            // 虽然成功解码但不是我们要的点位，丢弃并继续（可能是之前的残留数据）
             return EDGE_ERR_INCOMPLETE;
         }
     }
 
     if (rc == EDGE_ERR_INCOMPLETE) return EDGE_ERR_INCOMPLETE;
-
-    // 协议错误或其他非正常结束
     if (rc != 0) return REQ_STATUS_ERROR;
+    
     return (msg_count > 0 || (ctx->action == CMD_ACTION_WRITE && rc == 0)) ? REQ_STATUS_DONE
                                                                            : REQ_STATUS_ERROR;
 }
@@ -103,7 +112,7 @@ static void legacy_finish(edge_req_t *req, int status) {
 static void legacy_teardown(edge_req_t *req) {
     legacy_req_ctx_t *ctx = (legacy_req_ctx_t *)req->priv_data;
     if (ctx) {
-        if (ctx->drv_ctx) driver_instance_destroy(ctx->drv_ctx, ctx->protocol);
+        // [Deepening] 不再销毁 drv_ctx，它由 SessionManager 持久化管理
         free(ctx);
     }
     free(req);

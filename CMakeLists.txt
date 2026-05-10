@@ -153,6 +153,7 @@ add_library(edge_core STATIC
     src/core/sqlite_service.c
     src/core/persistence_mgr.c
     src/core/edge_log.c
+    src/core/contract_registry.c
 )
 target_link_libraries(edge_core PUBLIC edge_common_interface)
 target_link_libraries(edge_core PRIVATE cJSON::cjson libuv::uv SQLite::SQLite3 zlog::zlog)
@@ -196,6 +197,7 @@ add_library(edge_main_loop STATIC
     src/main_loop/web_server.c
     src/main_loop/ws_proto.c
     src/io_executor/driver_manager.c
+    src/io_executor/session_manager.c
     src/io_executor/profile_loader.c
     src/io_executor/modbus_rtu_driver.c
     src/io_executor/adc_driver.c

@@ -63,8 +63,11 @@ static int modbus_v3_encode_request(edge_driver_ctx_t *ctx, const uint32_t *tag_
     uint8_t *p = net_buf_add(out, 8);
     p[0] = (uint8_t)priv->slave_id;
     p[1] = 0x03;
-    p[2] = (uint8_t)(map->key >> 8);
-    p[3] = (uint8_t)(map->key & 0xFF);
+    
+    // [Nexus] Use low 32-bit of composite key for physical address
+    uint32_t addr = (uint32_t)map->key;
+    p[2] = (uint8_t)(addr >> 8);
+    p[3] = (uint8_t)(addr & 0xFF);
     p[4] = (uint8_t)(map->length >> 8);
     p[5] = (uint8_t)(map->length & 0xFF);
     uint16_t crc = _calc_crc(p, 6);
@@ -87,8 +90,10 @@ static int modbus_v3_encode_write(edge_driver_ctx_t *ctx, uint32_t tag_id, doubl
     uint8_t *p = net_buf_add(out, 8);
     p[0] = (uint8_t)priv->slave_id;
     p[1] = 0x06;
-    p[2] = (uint8_t)(map->key >> 8);
-    p[3] = (uint8_t)(map->key & 0xFF);
+    
+    uint32_t addr = (uint32_t)map->key;
+    p[2] = (uint8_t)(addr >> 8);
+    p[3] = (uint8_t)(addr & 0xFF);
     p[4] = (uint8_t)(raw_val >> 8);
     p[5] = (uint8_t)(raw_val & 0xFF);
     uint16_t crc = _calc_crc(p, 6);
@@ -165,16 +170,19 @@ int modbus_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_o
             uint16_t rv = 0;
             const modbus_map_t *map = NULL;
             uint32_t cur_addr = (uint32_t)(addr + i);
+            
+            // [Nexus] Construct 64-bit Composite Key for multi-instance support
+            uint64_t composite_key = ((uint64_t)priv->slave_id << 32) | cur_addr;
 
-            // [Nexus Fix] 增强查找逻辑：优先哈希查找，其次列表遍历
             if (ctx->lookup_by_key) {
-                typedef const modbus_map_t *(*lookup_fn_t)(uint32_t);
-                map = ((lookup_fn_t)ctx->lookup_by_key)(cur_addr);
+                typedef const modbus_map_t *(*lookup_fn_t)(uint64_t);
+                map = ((lookup_fn_t)ctx->lookup_by_key)(composite_key);
             }
+            
             if (!map && ctx->meta_list) {
                 for (uint32_t m = 0; m < ctx->meta_list_len; m++) {
                     const modbus_map_t *m_e = (const modbus_map_t *)ctx->meta_list + m;
-                    if (m_e->key == cur_addr) {
+                    if (m_e->key == composite_key) {
                         map = m_e;
                         break;
                     }

@@ -1,0 +1,59 @@
+# IEMS Semantic Contract (V5)
+product: "IEMS_Controller_V5"
+
+# 1. 定义设备蓝图 (Model Library)
+models:
+  - name: "Acrel_P80_Meter"
+    protocol: "ModbusRTU"
+    version: "v1.0"
+    points:
+      - name: "Ua"
+        category: "TELEMETRY"
+        address: 0
+        type: "uint16"
+        scale: 0.1
+        unit: "V"
+      - name: "Ia"
+        category: "TELEMETRY"
+        address: 8
+        type: "uint16"
+        scale: 0.01
+        unit: "A"
+      - name: "Status"
+        category: "STATE"
+        address: 16
+        type: "uint16"
+        bits: "0-1"
+        attrs: { desc: "Breaker Status" }
+
+# 2. 物理总线配置 (Connectivity)
+connectivity:
+  - id: 0
+    label: "Main_RS485"
+    category: "SOUTHBOUND"
+    type: "uds"
+    config: { path: "/tmp/vbus0.sock" }
+
+# 3. 部署设备实例 (Instances)
+instances:
+  - name: "Incomer_Meter"
+    model: "Acrel_P80_Meter"
+    bus_id: 0
+    address: 1
+    bindings:
+      - point: "Ua"
+        tag_id: 1001
+      - point: "Ia"
+        tag_id: 1002
+      - point: "Status"
+        tag_id: 1010
+
+  - name: "Solar_Meter"
+    model: "Acrel_P80_Meter"
+    bus_id: 0
+    address: 2
+    bindings:
+      - point: "Ua"
+        tag_id: 2001
+      - point: "Ia"
+        tag_id: 2002
