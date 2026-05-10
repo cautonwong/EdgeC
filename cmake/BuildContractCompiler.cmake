@@ -9,7 +9,7 @@ endif()
 
 # @brief 构建 Go 版契约编译器
 function(build_contract_compiler)
-    set(COMPILER_SRC_DIR "${CMAKE_SOURCE_DIR}/tools/contract-compiler")
+    set(COMPILER_SRC_DIR "${CMAKE_SOURCE_DIR}/tools/contract-compiler-v2")
     
     # 确定架构路径
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
@@ -20,19 +20,17 @@ function(build_contract_compiler)
 
     set(COMPILER_BIN_OUTPUT "${CMAKE_SOURCE_DIR}/.local/${ARCH}/bin/contract-compiler")
 
-    message(STATUS "[Compiler] Setting up build for contract-compiler...")
+    message(STATUS "[Compiler] Setting up build for contract-compiler-v2...")
 
     # 使用 add_custom_command 来追踪 Go 源码变化
-    # 获取 tools/contract-compiler 下所有的 .go 和 .tmpl 文件
     file(GLOB_RECURSE GO_SOURCES "${COMPILER_SRC_DIR}/*.go")
-    file(GLOB_RECURSE TPL_SOURCES "${COMPILER_SRC_DIR}/*.tmpl")
 
     add_custom_command(
         OUTPUT "${COMPILER_BIN_OUTPUT}"
-        COMMAND ${GO_EXECUTABLE} build -o "${COMPILER_BIN_OUTPUT}" .
+        COMMAND ${GO_EXECUTABLE} build -o "${COMPILER_BIN_OUTPUT}" cmd/main.go
         WORKING_DIRECTORY "${COMPILER_SRC_DIR}"
-        DEPENDS ${GO_SOURCES} ${TPL_SOURCES} "${COMPILER_SRC_DIR}/go.mod"
-        COMMENT "[Go] Building contract-compiler binary..."
+        DEPENDS ${GO_SOURCES} "${COMPILER_SRC_DIR}/go.mod"
+        COMMENT "[Go] Building contract-compiler-v2 binary..."
         VERBATIM
     )
 

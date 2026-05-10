@@ -31,11 +31,12 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
     set(OUT_H "${GEN_DIR}/contracts.h")
     set(OUT_YAML "${GEN_DIR}/contracts.yaml")
     set(OUT_CMAKE "${GEN_DIR}/config.cmake")
+    set(OUT_JSON "${GEN_DIR}/omnis_manifest.json")
     set(OUT_TS "${GEN_DIR}/tags_type.ts")
+    set(OUT_SQL "${GEN_DIR}/init.sql")
 
     # 2. 构建命令参数
     set(CMD_ARGS 
-        "--schema" "${SCHEMA_PATH}"
         "--product" "${PRODUCT_YAML}"
         "--out" "${GEN_DIR}"
         "--base" "${CMAKE_SOURCE_DIR}"
@@ -48,10 +49,10 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
 
     # 定义自定义生成命令 (仅在构建目录生成)
     add_custom_command(
-        OUTPUT "${OUT_C}" "${OUT_H}" "${OUT_YAML}" "${OUT_CMAKE}" "${OUT_TS}" "${OUT_ROUTER_C}"
+        OUTPUT "${OUT_C}" "${OUT_H}" "${OUT_YAML}" "${OUT_CMAKE}" "${OUT_JSON}" "${OUT_TS}" "${OUT_SQL}" "${OUT_SLAVE_C}" "${OUT_ROUTER_C}"
         COMMAND "${COMPILER_BIN}" ${CMD_ARGS}
-        DEPENDS "${COMPILER_BIN}" "${SCHEMA_PATH}" "${PRODUCT_YAML}" ${LOCAL_DEP}
-        COMMENT "[Contract] Generating native lookup tables and TS types for ${TARGET_NAME}"
+        DEPENDS "${COMPILER_BIN}" "${PRODUCT_YAML}" ${LOCAL_DEP}
+        COMMENT "[Contract] Generating native lookup tables via V2 for ${TARGET_NAME}"
         VERBATIM
     )
 
@@ -63,7 +64,7 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
     endif()
 
     # 4. 创建静态库并精准控制其输出路径
-    add_library(${TARGET_NAME}_obj OBJECT "${OUT_C}" "${OUT_ROUTER_C}")
+    add_library(${TARGET_NAME}_obj OBJECT "${OUT_C}")
     set_target_properties(${TARGET_NAME}_obj PROPERTIES 
         POSITION_INDEPENDENT_CODE ON
     )

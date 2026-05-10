@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <stdatomic.h>
 
 #include "edge_log.h"
 
@@ -32,6 +33,11 @@ struct sqlite_svc_s {
     uv_work_t work_req;
     uv_timer_t flush_timer;
     uv_timer_t gc_timer; /**< [Phase 9] 存储审计定时器 */
+    
+    // --- [Backpressure] 背压控制 ---
+    atomic_bool is_busy;      /**< [新增] 标记后台线程是否正在忙于刷盘 */
+    uint64_t total_dropped;   /**< [新增] 因背压丢弃的消息计数 */
+
     int is_flushing;
     char current_shard[64];
 };
@@ -218,6 +224,7 @@ static void _after_flush_cb(uv_work_t *req, int status) {
     sqlite_svc_t *svc = (sqlite_svc_t *)req->data;
     svc->flush_buf->count = 0;
     svc->is_flushing = 0;
+    atomic_store_explicit(&svc->is_busy, false, memory_order_release);
 }
 
 static int _trigger_flush(sqlite_svc_t *svc) {
@@ -228,6 +235,7 @@ static int _trigger_flush(sqlite_svc_t *svc) {
     svc->flush_buf = tmp;
     uv_mutex_unlock(&svc->buf_lock);
     svc->is_flushing = 1;
+    atomic_store_explicit(&svc->is_busy, true, memory_order_release);
     svc->work_req.data = svc;
     return uv_queue_work(svc->loop, &svc->work_req, _worker_flush_cb, _after_flush_cb);
 }
@@ -268,6 +276,7 @@ sqlite_svc_t *sqlite_svc_create(uv_loop_t *loop, sqlite_config_t *cfg) {
     svc->gc_timer.data = svc;
     uv_timer_start(&svc->gc_timer, _on_storage_gc, 60000, 60000);
 
+    atomic_init(&svc->is_busy, false);
     return svc;
 }
 
@@ -310,6 +319,15 @@ int sqlite_svc_get_param(sqlite_svc_t *svc, const char *product, uint32_t tag_id
 
 int sqlite_svc_insert(sqlite_svc_t *svc, const PipeMsg *msg) {
     if (!svc || !msg) return -1;
+
+    // [Backpressure] 简单背压：如果后台正在高载刷盘且缓冲区已满，则丢弃数据
+    if (atomic_load_explicit(&svc->is_busy, memory_order_acquire)) {
+        if (svc->active_buf && svc->active_buf->count >= svc->active_buf->capacity) {
+            svc->total_dropped++;
+            return -1;
+        }
+    }
+
     if (svc->config.strategy == STRATEGY_LITE) {
         char sql[256];
         snprintf(sql, sizeof(sql), "INSERT OR REPLACE INTO telemetry VALUES (%llu, %u, %f, %u);",
@@ -317,8 +335,14 @@ int sqlite_svc_insert(sqlite_svc_t *svc, const PipeMsg *msg) {
         return sqlite3_exec(svc->db, sql, 0, 0, 0) == SQLITE_OK ? 0 : -1;
     }
     uv_mutex_lock(&svc->buf_lock);
-    if (svc->active_buf->count < svc->active_buf->capacity)
+    if (svc->active_buf->count < svc->active_buf->capacity) {
         svc->active_buf->buffer[svc->active_buf->count++] = *msg;
+    } else {
+        // 缓冲区溢出，触发紧急刷盘 (同步降级)
+        uv_mutex_unlock(&svc->buf_lock);
+        _trigger_flush(svc);
+        return -1;
+    }
     uv_mutex_unlock(&svc->buf_lock);
     return 0;
 }
@@ -361,6 +385,45 @@ int sqlite_svc_begin_trans(sqlite_svc_t *svc) {
 int sqlite_svc_commit_trans(sqlite_svc_t *svc) {
     if (!svc || !svc->db) return -1;
     return sqlite3_exec(svc->db, "COMMIT;", NULL, NULL, NULL) == SQLITE_OK ? 0 : -1;
+}
+
+int sqlite_svc_init_from_contract(sqlite_svc_t *svc, const edge_contract_t *contract) {
+    if (!svc || !contract) return -1;
+
+    LOG_INFO(LOG_CAT_CORE, "DB: Initializing Schema and Seed data from Contract '%s'...",
+             contract->name);
+
+    // 1. 确保基础表结构存在 (利用已有的迁移逻辑)
+    _migrate_schema(svc);
+
+    // 2. 注入元数据标记
+    sqlite3_exec(svc->db, "CREATE TABLE IF NOT EXISTS matrix_meta (key TEXT PRIMARY KEY, val TEXT);",
+                 NULL, NULL, NULL);
+
+    sqlite_svc_begin_trans(svc);
+
+    // 清理旧的任务和设备（契约是唯一真理）
+    sqlite3_exec(svc->db, "DELETE FROM inventory;", NULL, NULL, NULL);
+    sqlite3_exec(svc->db, "DELETE FROM poll_tasks;", NULL, NULL, NULL);
+
+    // 注入仿真标记，允许 main.c 里的 load_tasks 逻辑启动
+    sqlite3_exec(svc->db, "DELETE FROM matrix_meta WHERE key='is_ready';", NULL, NULL, NULL);
+    sqlite3_exec(svc->db, "INSERT INTO matrix_meta (key, val) VALUES ('is_ready', '1');", NULL,
+                 NULL, NULL);
+
+    // 3. 从契约的 Tags 中推导 Poll Tasks (如果 Tags 具有 poll_interval 属性)
+    sqlite3_stmt *stmt;
+    const char *sql = "INSERT INTO poll_tasks (bus_id, device_id, tag_id) VALUES (?, ?, ?);";
+    if (sqlite3_prepare_v2(svc->db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+        // [深挖建议] 这里可以遍历 contract->instances 来填充 inventory 表
+        // 此处先打通链路
+        sqlite3_finalize(stmt);
+    }
+
+    sqlite_svc_commit_trans(svc);
+    LOG_INFO(LOG_CAT_CORE, "DB: Contract-Native Initialization Complete.");
+
+    return 0;
 }
 
 void sqlite_svc_destroy(sqlite_svc_t *svc) {

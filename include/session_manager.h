@@ -1,0 +1,45 @@
+#ifndef SESSION_MANAGER_H
+#define SESSION_MANAGER_H
+
+#include "edge_driver.h"
+#include "driver_manager.h"
+
+typedef struct session_manager_s session_manager_t;
+
+/**
+ * @brief 创建会话管理器
+ * @param mgr 驱动管理器 (用于获取驱动模板)
+ * @param max_sessions 最大持久化会话数
+ */
+session_manager_t *session_manager_create(driver_manager_t *mgr, int max_sessions);
+
+/**
+ * @brief 销毁管理器并释放所有会话
+ */
+void session_manager_destroy(session_manager_t *sm);
+
+/**
+ * @brief 获取或创建持久化会话
+ * @param sm 管理器实例
+ * @param protocol 协议名称 (如 "DLMS")
+ * @param device_id 物理设备 ID
+ * @return 驱动上下文指针，失败返回 NULL
+ */
+edge_driver_ctx_t *session_manager_get(session_manager_t *sm, const char *protocol, uint32_t device_id);
+
+/**
+ * @brief 会话心跳维护 (应由 MasterEngine 定期调用)
+ * @param sm 管理器实例
+ * @param bus_id 关联的总线 ID (用于日志)
+ * @param out_txs 传出缓冲区数组 (由驱动生成的自发报文，如心跳)
+ * @param max_txs 数组大小
+ * @return 实际生成的报文数
+ */
+int session_manager_tick(session_manager_t *sm, int bus_id, net_buf_t **out_txs, int max_txs);
+
+/**
+ * @brief 强制关闭并回收特定会话
+ */
+void session_manager_close(session_manager_t *sm, const char *protocol, uint32_t device_id);
+
+#endif

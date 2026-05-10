@@ -11,6 +11,7 @@ add_library(edge_sdk STATIC
     core/sqlite_service.c
     core/persistence_mgr.c
     core/edge_log.c
+    core/contract_registry.c
 
     # Stream Engine
     stream_engine/stream_engine.c

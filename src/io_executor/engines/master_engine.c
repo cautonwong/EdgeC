@@ -6,6 +6,8 @@
 #include "bus_engine.h"
 #include "edge_log.h"
 #include "edge_request.h"
+#include "io_executor.h"
+#include "session_manager.h"
 
 typedef struct {
     bus_engine_t base;
@@ -20,10 +22,13 @@ typedef struct {
     struct net_buf_simple rx_acc;
 
     int bus_id;
+    session_manager_t *session_mgr;
 } master_priv_t;
 
 static void _master_on_timeout(uv_timer_t *handle) {
     master_priv_t *priv = (master_priv_t *)handle->data;
+    
+    // 1. 处理指令超时
     if (priv->current_cmd) {
         LOG_WARN(LOG_CAT_BUS, "Bus %d: Transaction Timeout [%s]", priv->bus_id,
                  priv->current_cmd->req_id);
@@ -34,11 +39,23 @@ static void _master_on_timeout(uv_timer_t *handle) {
         arbiter_on_io_done(priv->arb, priv->bus_id, priv->current_cmd, CMD_STATUS_TIMEOUT);
         priv->current_cmd = NULL;
     }
+
+    // 2. 执行协议心跳 (Idle Heartbeat)
+    net_buf_t *heartbeats[8];
+    int count = session_manager_tick(priv->session_mgr, priv->bus_id, heartbeats, 8);
+    for (int i = 0; i < count; i++) {
+        priv->io->ops->write_async(priv->io, heartbeats[i]);
+        net_buf_unref(heartbeats[i]);
+    }
+
+    // 3. 重新调度定时器进行下一次心跳检查 (保持心跳活性)
+    uv_timer_start(&priv->timer, _master_on_timeout, ARBITER_DEFAULT_TIMEOUT_MS, 0);
 }
 
 static void _process_req_result(master_priv_t *priv, int rc) {
     if (rc == REQ_STATUS_DONE) {
-        uv_timer_stop(&priv->timer);
+        // [Session Fix] 任务完成，停止任务定时器，但心跳定时器应持续运行
+        // uv_timer_stop(&priv->timer); 
         priv->io->ops->enable_read(priv->io, false);
         if (priv->current_cmd->req && priv->current_cmd->req->ops->on_finish)
             priv->current_cmd->req->ops->on_finish(priv->current_cmd->req, CMD_STATUS_SUCCESS);
@@ -53,16 +70,13 @@ static void _process_req_result(master_priv_t *priv, int rc) {
         net_buf_t *tx = net_buf_alloc(priv->pool, 0);
         if (tx && priv->current_cmd->req->ops->encode(priv->current_cmd->req, tx) == 0) {
             priv->io->ops->write_async(priv->io, tx);
-            // [修复] 释放 alloc 产生的初始引用，IO 层已通过 ref 持有该 buffer
             net_buf_unref(tx);
         } else {
             if (tx) net_buf_unref(tx);
             _process_req_result(priv, REQ_STATUS_ERROR);
             return;
         }
-        uv_timer_start(&priv->timer, _master_on_timeout, ARBITER_DEFAULT_TIMEOUT_MS, 0);
     } else {
-        uv_timer_stop(&priv->timer);
         priv->io->ops->ioctl(priv->io, IO_CTL_FLUSH, NULL);
         priv->io->ops->enable_read(priv->io, false);
         if (priv->current_cmd->req && priv->current_cmd->req->ops->on_finish)
@@ -75,13 +89,13 @@ static void _process_req_result(master_priv_t *priv, int rc) {
 static void _master_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *user_data) {
     (void)h;
     master_priv_t *priv = (master_priv_t *)user_data;
-    if (!priv || !priv->current_cmd || !priv->current_cmd->req) {
+    if (!priv) {
         if (evt == IO_EVENT_RX && payload) net_buf_unref((net_buf_t *)payload);
         return;
     }
 
     if (evt == IO_EVENT_ERROR) {
-        _process_req_result(priv, REQ_STATUS_ERROR);
+        if (priv->current_cmd) _process_req_result(priv, REQ_STATUS_ERROR);
         return;
     }
 
@@ -91,14 +105,20 @@ static void _master_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *u
         net_buf_simple_add_mem(&priv->rx_acc, rx->b.data, rx->b.len);
         net_buf_unref(rx);
 
-        size_t consumed = 0;
-        net_buf_t wrap = {0};
-        wrap.pool = priv->pool;  // [Nexus Fix] 关联内存池，允许驱动进行 clone/alloc
-        memcpy(&wrap.b, &priv->rx_acc, sizeof(struct net_buf_simple));
+        // 如果当前没有在跑指令，可能是自发上报数据 (如 IEC104 GI/Event)
+        // 此处需要一个 Session 分发逻辑处理 Unsolicited Messages
+        // TODO: Session Manager Dispatch for RX
 
-        int rc = priv->current_cmd->req->ops->decode(priv->current_cmd->req, &wrap, &consumed);
-        if (consumed > 0) net_buf_simple_pull(&priv->rx_acc, consumed);
-        if (rc != EDGE_ERR_INCOMPLETE) _process_req_result(priv, rc);
+        if (priv->current_cmd && priv->current_cmd->req) {
+            size_t consumed = 0;
+            net_buf_t wrap = {0};
+            wrap.pool = priv->pool;
+            memcpy(&wrap.b, &priv->rx_acc, sizeof(struct net_buf_simple));
+
+            int rc = priv->current_cmd->req->ops->decode(priv->current_cmd->req, &wrap, &consumed);
+            if (consumed > 0) net_buf_simple_pull(&priv->rx_acc, consumed);
+            if (rc != EDGE_ERR_INCOMPLETE) _process_req_result(priv, rc);
+        }
     }
 }
 
@@ -111,15 +131,7 @@ static void _master_run_command(bus_engine_t *self, cmd_msg_t *cmd) {
     priv->current_cmd = cmd;
     net_buf_simple_reset(&priv->rx_acc);
 
-    if (!cmd->req || !cmd->req->ops) {
-        printf(" ❌ [MasterEngine] ERROR: Null Request or Ops on Bus %d\n", priv->bus_id);
-        _process_req_result(priv, REQ_STATUS_ERROR);
-        return;
-    }
-
-    if (!cmd->req->ops->setup || !cmd->req->ops->encode || !cmd->req->ops->decode) {
-        printf(" ❌ [MasterEngine] ERROR: Incomplete Ops (S:%p, E:%p, D:%p) on Bus %d\n",
-               cmd->req->ops->setup, cmd->req->ops->encode, cmd->req->ops->decode, priv->bus_id);
+    if (!cmd->req->ops || !cmd->req->ops->setup || !cmd->req->ops->encode || !cmd->req->ops->decode) {
         _process_req_result(priv, REQ_STATUS_ERROR);
         return;
     }
@@ -132,16 +144,13 @@ static void _master_run_command(bus_engine_t *self, cmd_msg_t *cmd) {
 
     net_buf_t *tx = net_buf_alloc(priv->pool, 0);
     if (!tx) {
-        LOG_ERROR(LOG_CAT_BUS, "Bus %d: Pool Depleted (OOM)", priv->bus_id);
         arbiter_on_io_done(priv->arb, priv->bus_id, cmd, CMD_STATUS_IO_ERROR);
         return;
     }
 
     if (cmd->req->ops->encode(cmd->req, tx) == 0 && tx->b.len > 0) {
-        uv_timer_start(&priv->timer, _master_on_timeout, ARBITER_DEFAULT_TIMEOUT_MS, 0);
         priv->io->ops->enable_read(priv->io, true);
         priv->io->ops->write_async(priv->io, tx);
-        // [修复] 释放初始引用，防止内存池耗尽
         net_buf_unref(tx);
     } else {
         net_buf_unref(tx);
@@ -158,6 +167,7 @@ static void _master_attach(bus_engine_t *self, io_handle_t *io) {
 
 static void _master_close_cb(uv_handle_t *handle) {
     master_priv_t *priv = (master_priv_t *)handle->data;
+    if (priv->session_mgr) session_manager_destroy(priv->session_mgr);
     free(priv);
 }
 
@@ -174,7 +184,6 @@ bus_engine_t *engine_create_master(driver_manager_t *mgr, int bus_id, const char
                                    uint32_t device_id, uv_loop_t *loop, arbiter_t *arb,
                                    datahub_t *hub, net_buf_pool_t *pool,
                                    const driver_contract_injection_t *inject) {
-    (void)mgr;
     (void)protocol;
     (void)hub;
     (void)inject;
@@ -189,11 +198,20 @@ bus_engine_t *engine_create_master(driver_manager_t *mgr, int bus_id, const char
     priv->rx_acc.__buf = priv->rx_static_data;
     priv->rx_acc.size = 4096;
     priv->rx_acc.len = 0;
+    
+    // 初始化持久化会话管理器 (最大支持 32 个会话)
+    priv->session_mgr = session_manager_create(mgr, 32);
+
     uv_timer_init(loop, &priv->timer);
     priv->timer.data = priv;
+    
+    // 启动背景心跳轮询 (1000ms 周期)
+    uv_timer_start(&priv->timer, _master_on_timeout, 1000, 1000);
+
     eng->user_data = priv;
     eng->attach = _master_attach;
     eng->run_command = _master_run_command;
     eng->detach = _master_detach;
     return eng;
 }
+

@@ -2,18 +2,16 @@
 #define EDGE_BUS_ENGINE_H
 
 #include <uv.h>
+#include "contract_data_types.h"
+#include "net_buf.h"
 
-#include "arbiter.h"
-#include "datahub.h"  // 引入 DataHub 定义
-#include "io_executor.h"
-
-// Forward declaration
+// --- Forward Declarations (Decoupling Planes) ---
 typedef struct bus_engine_s bus_engine_t;
+typedef struct arbiter arbiter_t;
+typedef struct cmd_msg cmd_msg_t;
+typedef struct io_handle_s io_handle_t;
 typedef struct driver_manager_s driver_manager_t;
-struct driver_contract_injection_s;  // Opaque forward declaration is fine here or include
-                                     // bus_orchestrator.h
-
-#include "bus_orchestrator.h"  // For driver_contract_injection_t
+typedef struct datahub_s datahub_t;
 
 struct bus_engine_s {
     // 绑定物理层。Engine 在这里注册 io_callback。
@@ -48,11 +46,8 @@ bus_engine_t *engine_create_slave(driver_manager_t *mgr, int bus_id, const char 
                                   const driver_contract_injection_t *inject);
 
 /**
-
  * @brief 向从站引擎添加额外的协议支持 (Phase 4: 多协议混跑)
-
  */
-
 int engine_slave_add_protocol(bus_engine_t *self, const char *protocol, uint32_t device_id,
                               const driver_contract_injection_t *inject);
 

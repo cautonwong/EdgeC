@@ -43,13 +43,6 @@ typedef struct {
     const char *production_path;
 } edge_connectivity_t;
 
-// --- 硬件资源 ---
-typedef struct {
-    const char *type;
-    int id;
-    const char *label;
-} hw_resource_info_t;
-
 // --- 运行期参数元数据 ---
 typedef enum { PARAM_TYPE_INT = 1, PARAM_TYPE_FLOAT = 2, PARAM_TYPE_STRING = 3 } edge_param_type_t;
 
@@ -80,6 +73,7 @@ typedef struct {
         uint32_t u1;
         const char *s1;
     } params;
+    int next_indices[4]; /**< [Topology] 下级算子索引 (-1 表示无，0 表示数组下一项) */
 } edge_stage_def_t;
 
 typedef struct {
@@ -139,11 +133,35 @@ typedef struct {
 
 // --- 模型注册项 ---
 typedef struct {
-    const char *model_name;
+    const char *name;
     const driver_contract_injection_t *injection;
-} edge_model_map_t;
+} edge_model_info_t;
 
-// --- 协议映射结构 ---
+// --- [Nexus] 统一契约句柄 ---
+typedef struct {
+    const char *name;
+    const char *version;
+
+    // 元数据资源
+    const edge_tag_meta_t *tags;
+    uint32_t tag_count;
+
+    const edge_connectivity_t *connectivity;
+    uint32_t connectivity_count;
+
+    const edge_pipeline_def_t *pipelines;
+    uint32_t pipeline_count;
+
+    const edge_model_info_t *models;
+    uint32_t model_count;
+
+    const edge_stage_factory_entry_t *stages;
+    const api_route_t *api_routes;
+    uint32_t api_route_count;
+
+} edge_contract_t;
+
+// --- 协议映射结构 (由编译器生成并满足 driver_contract_injection_t) ---
 typedef struct {
     uint32_t key;
     edge_tag_id_t tag_id;
@@ -201,3 +219,4 @@ typedef struct {
 typedef modbus_map_t tag_map_t;
 
 #endif
+

@@ -1,6 +1,6 @@
 /**
  * @file stream_engine.c
- * @brief 流处理引擎核心实现 - 彻底修复生命周期与所有权
+ * @brief 流处理引擎核心实现 - 徹底实现拓扑图计算模型与状态检查点
  */
 
 #include <stdlib.h>
@@ -9,6 +9,7 @@
 
 #include "edge_log.h"
 #include "stream_engine_priv.h"
+#include "sqlite_service.h"
 #include "wasm_mgr.h"
 
 // --- Stage Factory Declarations ---
@@ -50,20 +51,16 @@ static void _pipeline_process(pipeline_t *p, pipe_msg_t *msg) {
     pipeline_stage_t *s = p->head;
     while (s) {
         if (s->health != STAGE_HEALTH_GOOD) {
-            s = s->next;
+            s = s->next[0];
             continue;
         }
 
         uint64_t start = uv_hrtime();
         stage_ret_t ret = STAGE_OK;
         if (s->process) {
-            // write(2, "STG:", 4);
-            // write(2, s->name, strlen(s->name));
-            // write(2, "\n", 1);
             ret = s->process(s, msg);
         } else {
-            fprintf(stderr, "[STREAM-WARN] Stage %s has NULL process callback!\n", s->name);
-            s = s->next;
+            s = s->next[0];
             continue;
         }
         uint64_t elapsed_us = (uv_hrtime() - start) / 1000;
@@ -82,8 +79,14 @@ static void _pipeline_process(pipeline_t *p, pipe_msg_t *msg) {
             p->current_event = *msg;
             break;
         }
+        
         if (ret == STAGE_DROP || ret == STAGE_ERROR) break;
-        s = s->next;
+
+        if (ret >= STAGE_BRANCH_0 && ret <= STAGE_BRANCH_3) {
+            s = s->next[ret - STAGE_BRANCH_0];
+        } else {
+            s = s->next[0];
+        }
     }
     if (p->state == PIPE_STATE_RUNNING) p->state = PIPE_STATE_IDLE;
 }
@@ -150,7 +153,6 @@ static void _stream_engine_thread_entry(void *arg) {
 
     uv_run(compute_loop, UV_RUN_DEFAULT);
 
-    // 彻底清理 Loop 上的句柄，防止内存泄漏 (LeakSanitizer 修复)
     uv_walk(compute_loop, _safe_close, NULL);
     while (uv_run(compute_loop, UV_RUN_ONCE))
         ;
@@ -164,10 +166,8 @@ static void _stream_engine_thread_entry(void *arg) {
 static pipeline_stage_t *_create_stage_by_type(stream_engine_t *engine, const edge_stage_def_t *def,
                                                pipeline_loader_ctx_t *ctx) {
     const edge_stage_factory_entry_t *reg = engine->registry;
-    printf("[STREAM-DEBUG] Finding factory for type: '%s' (RegAddr: %p)\n", def->type, (void *)reg);
     if (reg) {
         for (int i = 0; reg[i].type != NULL; i++) {
-            printf("  - RegEntry[%d]: '%s'\n", i, reg[i].type);
             if (strcasecmp(def->type, reg[i].type) == 0) {
                 if (reg[i].factory) {
                     return reg[i].factory(def, ctx);
@@ -193,20 +193,29 @@ int stream_engine_load_static_metadata(stream_engine_t *engine, const edge_pipel
             p->extra_trigger_count = p_def->extra_trigger_count;
         }
 
+        pipeline_stage_t **stages = calloc(p_def->stage_count, sizeof(pipeline_stage_t *));
         for (uint32_t j = 0; j < p_def->stage_count; j++) {
+            stages[j] = _create_stage_by_type(engine, &p_def->stages[j], ctx);
+            if (stages[j]) {
+                stages[j]->pipeline = p;
+                stages[j]->loop = engine->loop;
+                if (!p->head) p->head = stages[j];
+            }
+        }
+
+        for (uint32_t j = 0; j < p_def->stage_count; j++) {
+            if (!stages[j]) continue;
             const edge_stage_def_t *s_def = &p_def->stages[j];
-            pipeline_stage_t *stage = _create_stage_by_type(engine, s_def, ctx);
-            if (stage) {
-                stage->pipeline = p;
-                stage->loop = engine->loop;
-                if (!p->head)
-                    p->head = p->tail = stage;
-                else {
-                    p->tail->next = stage;
-                    p->tail = stage;
+            for (int k = 0; k < 4; k++) {
+                int next_idx = s_def->next_indices[k];
+                if (next_idx >= 0 && (uint32_t)next_idx < p_def->stage_count) {
+                    stages[j]->next[k] = stages[next_idx];
+                } else if (k == 0 && j + 1 < p_def->stage_count) {
+                    stages[j]->next[k] = stages[j + 1];
                 }
             }
         }
+        free(stages);
     }
     return 0;
 }
@@ -223,10 +232,11 @@ pipeline_stage_t *pipeline_add_stage(pipeline_t *p, const char *name, stage_proc
     s->priv_cfg = priv_cfg;
     s->cleanup_cfg = cleanup_cfg;
     if (!p->head)
-        p->head = p->tail = s;
+        p->head = s;
     else {
-        p->tail->next = s;
-        p->tail = s;
+        pipeline_stage_t *last = p->head;
+        while(last->next[0]) last = last->next[0];
+        last->next[0] = s;
     }
     return s;
 }
@@ -292,7 +302,7 @@ void stream_engine_destroy(stream_engine_t *engine) {
 
         pipeline_stage_t *s = p->head;
         while (s) {
-            pipeline_stage_t *next_s = s->next;
+            pipeline_stage_t *next_s = s->next[0];
             if (s->cleanup_state) s->cleanup_state(s->priv_state);
             if (s->cleanup_cfg) s->cleanup_cfg(s->priv_cfg);
             free(s);
@@ -327,10 +337,10 @@ pipeline_t *stream_engine_add_pipeline(stream_engine_t *engine, const char *id,
 void stream_engine_resume(pipeline_t *p) {
     if (!p || p->state != PIPE_STATE_SUSPENDED) return;
     p->state = PIPE_STATE_RUNNING;
-    pipeline_stage_t *s = p->resume_point ? p->resume_point->next : NULL;
+    pipeline_stage_t *s = p->resume_point ? p->resume_point->next[0] : NULL;
     while (s) {
         if (s->health != STAGE_HEALTH_GOOD) {
-            s = s->next;
+            s = s->next[0];
             continue;
         }
         stage_ret_t ret = s->process(s, &p->current_event);
@@ -340,10 +350,67 @@ void stream_engine_resume(pipeline_t *p) {
             return;
         }
         if (ret == STAGE_DROP || ret == STAGE_ERROR) break;
-        s = s->next;
+        
+        if (ret >= STAGE_BRANCH_0 && ret <= STAGE_BRANCH_3) {
+            s = s->next[ret - STAGE_BRANCH_0];
+        } else {
+            s = s->next[0];
+        }
     }
     p->state = PIPE_STATE_IDLE;
     p->resume_point = NULL;
+}
+
+int stream_engine_checkpoint_save(stream_engine_t *engine, sqlite_svc_t *db) {
+    if (!engine || !db) return -1;
+    uv_mutex_lock(&engine->pipe_mutex);
+    struct uv__queue *q;
+    uint8_t state_buf[512];
+    uv__queue_foreach(q, &engine->pipelines) {
+        pipeline_t *p = uv__queue_data(q, pipeline_t, node);
+        pipeline_stage_t *s = p->head;
+        int stage_idx = 0;
+        while (s) {
+            if (s->save_state) {
+                int len = s->save_state(s, state_buf, sizeof(state_buf));
+                if (len > 0) {
+                    char product_key[128];
+                    snprintf(product_key, sizeof(product_key), "STATE:%s", p->id);
+                    sqlite_svc_set_param(db, product_key, (uint32_t)stage_idx, state_buf, (size_t)len);
+                }
+            }
+            s = s->next[0];
+            stage_idx++;
+        }
+    }
+    uv_mutex_unlock(&engine->pipe_mutex);
+    return 0;
+}
+
+int stream_engine_checkpoint_restore(stream_engine_t *engine, sqlite_svc_t *db) {
+    if (!engine || !db) return -1;
+    uv_mutex_lock(&engine->pipe_mutex);
+    struct uv__queue *q;
+    uint8_t state_buf[512];
+    uv__queue_foreach(q, &engine->pipelines) {
+        pipeline_t *p = uv__queue_data(q, pipeline_t, node);
+        pipeline_stage_t *s = p->head;
+        int stage_idx = 0;
+        while (s) {
+            if (s->load_state) {
+                char product_key[128];
+                snprintf(product_key, sizeof(product_key), "STATE:%s", p->id);
+                int len = sqlite_svc_get_param(db, product_key, (uint32_t)stage_idx, state_buf, sizeof(state_buf));
+                if (len > 0) {
+                    s->load_state(s, state_buf, (size_t)len);
+                }
+            }
+            s = s->next[0];
+            stage_idx++;
+        }
+    }
+    uv_mutex_unlock(&engine->pipe_mutex);
+    return 0;
 }
 
 stage_health_t pipeline_stage_get_health(pipeline_stage_t *stage) {

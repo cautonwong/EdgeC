@@ -51,6 +51,12 @@ struct datahub_s {
     datahub_tag_map_cb map_fn;
     datahub_wakeup_filter_cb wakeup_fn;  // [注入] 唤醒过滤器
 
+    // --- [Batch Wakeup] 优化 ---
+    uv_async_t *listeners[16];
+    atomic_int listener_count;
+    uv_check_t batch_check;     /**< [新增] 用于在本轮 Loop 结束前合并通知 */
+    atomic_bool batch_pending;  /**< [新增] 标记是否有待处理的批次 */
+
     datahub_ref_t refs[32];  // [新增] 引用注册表，支持32个并发大块数据流
     atomic_int ref_count;    // [优化] 改为原子类型
 
@@ -58,8 +64,6 @@ struct datahub_s {
     void *legacy_user_data;
     uv_async_t legacy_async;
 
-    uv_async_t *listeners[16];
-    atomic_int listener_count;  // [优化] 改为原子类型
     uv_mutex_t shadow_lock;
 };
 
@@ -67,6 +71,16 @@ int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slo
                  uint32_t shadow_capacity, const edge_tag_meta_t *metadata, uint32_t metadata_len,
                  struct net_buf_pool *io_pool, datahub_tag_map_cb map_fn,
                  datahub_wakeup_filter_cb wakeup_fn);
+
+/**
+ * @brief [Nexus] 从契约自动初始化 DataHub
+ * @param hub DataHub 实例
+ * @param loop libuv 事件循环
+ * @param contract 契约句柄
+ * @param io_pool IO 内存池引用
+ */
+int datahub_init_from_contract(datahub_t *hub, uv_loop_t *loop, const edge_contract_t *contract,
+                               struct net_buf_pool *io_pool);
 
 int datahub_init_from_fd(datahub_t *hub, uv_loop_t *loop, int ring_fd, size_t ring_size,
                          int shadow_fd, size_t shadow_size, uint32_t compact_capacity,

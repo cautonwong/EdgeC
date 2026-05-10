@@ -40,7 +40,7 @@ typedef enum {
 } protocol_role_t;
 
 /**
- * @brief 协议栈私有上下文 (由管理器自动分配)
+ * @brief 协议栈私有上下文 (由管理器自动分配，支持持久化 Session)
  */
 typedef struct {
     const edge_driver_t *driver; /**< 指向驱动模板的指针 */
@@ -50,9 +50,14 @@ typedef struct {
     void *user_data;             /**< 用户自定义挂载 (通常是 DataHub) */
     net_buf_pool_t *pool; /**< [新增] 关联的内存池 (用于 on_tick 等自主分配) */
 
+    // --- 状态管理 (Session Lifecycle) ---
+    uint64_t last_activity_ts; /**< 上次收到或发送数据的时间戳 (ms) */
+    int session_state;         /**< 协议特定的会话状态码 */
+    uint32_t flags;            /**< 协议运行标志位 */
+
     // --- 契约注入 (Phase 4: 依赖注入模式) ---
     /** @brief 根据协议地址查找元数据 (注入的哈希查找函数) */
-    const void *(*lookup_by_key)(uint32_t key);
+    const void *(*lookup_by_key)(uint64_t key);
     /** @brief 根据 TagID 查找协议地址映射 (注入的哈希查找函数) */
     const void *(*lookup_by_tag)(uint32_t tag_id);
 
@@ -63,7 +68,7 @@ typedef struct {
 } edge_driver_ctx_t;
 
 /**
- * @brief 协议驱动元模型
+ * @brief 协议驱动元模型 (V4.0 状态机版)
  */
 struct edge_driver_s {
     const char *name; /**< 协议名称，如 "IEC104" */
@@ -76,7 +81,10 @@ struct edge_driver_s {
     /** @brief 销毁协议栈私有资源 */
     void (*on_cleanup)(edge_driver_ctx_t *ctx);
 
-    /** @brief 协议心跳处理 (用于维持长连接或处理超时) */
+    /** @brief 检查协议是否已就绪 (如 DLMS 是否已完成 AARQ 关联) */
+    bool (*is_ready)(edge_driver_ctx_t *ctx);
+
+    /** @brief 协议心跳处理 (用于维持长连接、处理重连或超时) */
     int (*on_tick)(edge_driver_ctx_t *ctx, net_buf_t **out_tx);
 
     // --- 2. 主站/客户端逻辑 (Master Plane) ---

@@ -22,7 +22,20 @@ typedef struct {
     uint64_t (*get_calendar_ms)(void);
 } engine_time_source_t;
 
-typedef enum { STAGE_OK = 0, STAGE_DROP = 1, STAGE_ASYNC = 2, STAGE_ERROR = -1 } stage_ret_t;
+typedef enum { 
+    STAGE_OK = 0,      /**< 继续执行主分支 (next[0]) */
+    STAGE_DROP = 1,    /**< 丢弃数据，终止当前流 */
+    STAGE_ASYNC = 2,   /**< 异步挂起，等待 resume */
+    STAGE_ERROR = -1,  /**< 逻辑错误，终止当前流 */
+    
+    // --- [Topology] 分支控制 ---
+    STAGE_BRANCH_0 = 10, /**< 执行分支 0 */
+    STAGE_BRANCH_1 = 11, /**< 执行分支 1 */
+    STAGE_BRANCH_2 = 12, /**< 执行分支 2 */
+    STAGE_BRANCH_3 = 13  /**< 执行分支 3 */
+} stage_ret_t;
+
+#define STAGE_NEXT(n) (STAGE_BRANCH_0 + (n))
 
 // [新增] S17: Stage 健康状态
 typedef enum {
@@ -32,10 +45,22 @@ typedef enum {
     STAGE_HEALTH_DISABLED = 3    // 被手动禁用
 } stage_health_t;
 
-// struct pipeline_stage_s 定义见下文
-
+typedef struct pipeline_stage_s pipeline_stage_t;
 typedef stage_ret_t (*stage_proc_fn)(pipeline_stage_t *stage, pipe_msg_t *ev);
 typedef void (*stage_cleanup_fn)(void *priv_data);
+
+/**
+ * @brief [Checkpointing] 状态序列化回调
+ * @param buf 输出缓冲区
+ * @param max_len 缓冲区大小
+ * @return 实际写入长度，失败返回 -1
+ */
+typedef int (*stage_save_state_fn)(pipeline_stage_t *stage, void *buf, size_t max_len);
+
+/**
+ * @brief [Checkpointing] 状态恢复回调
+ */
+typedef int (*stage_load_state_fn)(pipeline_stage_t *stage, const void *buf, size_t len);
 
 struct pipeline_stage_s {
     char name[32];
@@ -47,6 +72,10 @@ struct pipeline_stage_s {
     stage_cleanup_fn cleanup_state;
     stage_cleanup_fn cleanup_cfg;
 
+    // --- [Checkpointing] 状态持久化接口 ---
+    stage_save_state_fn save_state;
+    stage_load_state_fn load_state;
+
     // [新增] S17: 运行统计
     stage_health_t health;
     uint64_t last_proc_us;       /**< 上次处理耗时 (微秒) */
@@ -55,7 +84,8 @@ struct pipeline_stage_s {
     uint64_t total_errors;       /**< 错误总数 */
     uint64_t circuit_breaker_us; /**< 触发熔断的阈值 (0 表示不熔断) */
 
-    struct pipeline_stage_s *next;
+    // --- [Topology] 拓扑连接 ---
+    struct pipeline_stage_s *next[4]; /**< 支持最多 4 路分支输出 (next[0] 为默认主路) */
 };
 
 typedef struct stream_engine_s stream_engine_t;
