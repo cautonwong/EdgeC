@@ -84,6 +84,11 @@ int edge_matrix_copy(edge_matrix_t *dst, const edge_matrix_t *src);
 int edge_matrix_inv(const edge_matrix_t *m, edge_matrix_t *res);
 
 /**
+ * @brief Cholesky 分解: A = L * L^T (A 必须是正定矩阵)
+ */
+int edge_matrix_cholesky(const edge_matrix_t *a, edge_matrix_t *l);
+
+/**
  * @brief QR 分解: A = Q * R
  */
 int edge_matrix_qr(const edge_matrix_t *a, edge_matrix_t *q, edge_matrix_t *r);

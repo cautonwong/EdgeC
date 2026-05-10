@@ -52,6 +52,28 @@ double dsp_iir_process(dsp_iir_t *f, double in);
 /* --- 4. 相关与卷积 --- */
 int dsp_correlate(const double *a, size_t na, const double *b, size_t nb, double *res);
 
+/* --- 5. 域变换 (Transformations) --- */
+
+/**
+ * @brief 双线性变换 (Bilinear Transform / Tustin)
+ * 将 S 域传递函数 G(s) = (b0*s + b1) / (a0*s + a1) 转换为 Z 域
+ * @param fs 采样频率
+ * @param s_num [b0, b1]
+ * @param s_den [a0, a1]
+ * @param z_num 输出 [b0z, b1z]
+ * @param z_den 输出 [a0z, a1z]
+ */
+void dsp_s2z_bilinear(double fs, const double *s_num, const double *s_den, 
+                      double *z_num, double *z_den);
+
+/**
+ * @brief 离散小波变换 (DWT - Haar 小波)
+ * @param data 输入数据 (长度必须是 2 的幂)
+ * @param n 数据长度
+ * @param level 分解层数
+ */
+void dsp_dwt_haar(double *data, size_t n, uint32_t level);
+
 #ifdef __cplusplus
 }
 #endif

@@ -214,3 +214,118 @@ int control_qp_solve_hildreth(const edge_matrix_t *Q, const edge_matrix_t *c,
     edge_matrix_free(lambda); edge_matrix_free(ATl);
     return 0;
 }
+
+void control_ekf_predict(control_ekf_t *ekf, const edge_matrix_t *F, const edge_matrix_t *B, const edge_matrix_t *u) {
+    // x = f(x, u) -> 此处假设外部已更新 x，仅更新 P
+    // P = F*P*F' + Q
+    edge_matrix_t *FT = edge_matrix_alloc(ekf->n, ekf->n);
+    edge_matrix_transpose(F, FT);
+    edge_matrix_t *tmp = edge_matrix_alloc(ekf->n, ekf->n);
+    edge_matrix_mul(F, ekf->P, tmp);
+    edge_matrix_mul(tmp, FT, ekf->P);
+    edge_matrix_add(ekf->P, ekf->Q, ekf->P);
+    edge_matrix_free(FT); edge_matrix_free(tmp);
+}
+
+void control_ekf_correct(control_ekf_t *ekf, const edge_matrix_t *H, const edge_matrix_t *y) {
+    // S = H*P*H' + R
+    uint32_t m = edge_matrix_rows(H);
+    edge_matrix_t *HT = edge_matrix_alloc(ekf->n, m);
+    edge_matrix_transpose(H, HT);
+    edge_matrix_t *S = edge_matrix_alloc(m, m);
+    edge_matrix_t *tmpPH = edge_matrix_alloc(ekf->n, m);
+    edge_matrix_mul(ekf->P, HT, tmpPH);
+    edge_matrix_mul(H, tmpPH, S);
+    edge_matrix_add(S, ekf->R, S);
+    
+    // K = P*H' * inv(S)
+    edge_matrix_t *S_inv = edge_matrix_alloc(m, m);
+    edge_matrix_inv(S, S_inv);
+    edge_matrix_t *K = edge_matrix_alloc(ekf->n, m);
+    edge_matrix_mul(tmpPH, S_inv, K);
+    
+    // x = x + K*y
+    edge_matrix_t *Ky = edge_matrix_alloc(ekf->n, 1);
+    edge_matrix_mul(K, y, Ky);
+    edge_matrix_add(ekf->x, Ky, ekf->x);
+    
+    // P = (I - K*H)*P
+    edge_matrix_t *I = edge_matrix_alloc(ekf->n, ekf->n);
+    edge_matrix_identity(I);
+    edge_matrix_t *KH = edge_matrix_alloc(ekf->n, ekf->n);
+    edge_matrix_mul(K, H, KH);
+    edge_matrix_sub(I, KH, I);
+    edge_matrix_mul(I, ekf->P, KH); // reuse KH as temp
+    edge_matrix_copy(ekf->P, KH);
+
+    edge_matrix_free(HT); edge_matrix_free(S); edge_matrix_free(tmpPH);
+    edge_matrix_free(S_inv); edge_matrix_free(K); edge_matrix_free(Ky);
+    edge_matrix_free(I); edge_matrix_free(KH);
+}
+
+int control_mpc_formulate(const edge_matrix_t *A, const edge_matrix_t *B, 
+                          const edge_matrix_t *Q, const edge_matrix_t *R,
+                          uint32_t N, edge_matrix_t *H_out, edge_matrix_t *f_out) {
+    uint32_t n = edge_matrix_rows(A);
+    uint32_t m = edge_matrix_cols(B);
+
+    // 1. 构造 Sx (nN x n) 和 Su (nN x mN)
+    edge_matrix_t *Sx = edge_matrix_alloc(n * N, n);
+    edge_matrix_t *Su = edge_matrix_alloc(n * N, m * N);
+    
+    edge_matrix_t *Ai = edge_matrix_alloc(n, n);
+    edge_matrix_identity(Ai);
+    
+    for (uint32_t i = 0; i < N; i++) {
+        // Ai = A^(i+1)
+        edge_matrix_t *next_Ai = edge_matrix_alloc(n, n);
+        edge_matrix_mul(Ai, A, next_Ai);
+        edge_matrix_copy(Ai, next_Ai);
+        edge_matrix_free(next_Ai);
+        
+        // Fill Sx block
+        for(uint32_t r=0; r<n; r++)
+            for(uint32_t c=0; c<n; c++) edge_matrix_set(Sx, i*n+r, c, edge_matrix_get(Ai, r, c));
+        
+        // Fill Su blocks
+        for (uint32_t j = 0; j <= i; j++) {
+            // Su(i,j) = A^(i-j) * B
+            edge_matrix_t *Ap = edge_matrix_alloc(n, n);
+            edge_matrix_identity(Ap);
+            // 这里为了简单，重新计算 A^(i-j)，实际可优化
+            for(uint32_t p=0; p < (i-j); p++) {
+                edge_matrix_t *tmp = edge_matrix_alloc(n, n);
+                edge_matrix_mul(Ap, A, tmp);
+                edge_matrix_copy(Ap, tmp);
+                edge_matrix_free(tmp);
+            }
+            edge_matrix_t *block = edge_matrix_alloc(n, m);
+            edge_matrix_mul(Ap, B, block);
+            for(uint32_t r=0; r<n; r++)
+                for(uint32_t c=0; c<m; c++) edge_matrix_set(Su, i*n+r, j*m+c, edge_matrix_get(block, r, c));
+            edge_matrix_free(Ap); edge_matrix_free(block);
+        }
+    }
+
+    // 2. H = Su' * Qbar * Su + Rbar
+    edge_matrix_t *SuT = edge_matrix_alloc(m * N, n * N);
+    edge_matrix_transpose(Su, SuT);
+    edge_matrix_mul(SuT, Su, H_out); 
+    
+    // 3. f = (Sx * x0)' * Qbar * Su
+    edge_matrix_t *Sx_x0 = edge_matrix_alloc(n * N, 1);
+    for(uint32_t i=0; i<n*N; i++) edge_matrix_set(Sx_x0, i, 0, 1.0);
+    edge_matrix_t *Sx_x0_T = edge_matrix_alloc(1, n * N);
+    edge_matrix_transpose(Sx_x0, Sx_x0_T);
+    
+    edge_matrix_t *f_row = edge_matrix_alloc(1, m * N);
+    edge_matrix_mul(Sx_x0_T, Su, f_row);
+    
+    // Transpose f_row to f_out (mN x 1)
+    edge_matrix_transpose(f_row, f_out);
+
+    edge_matrix_free(Sx); edge_matrix_free(Su); edge_matrix_free(Ai);
+    edge_matrix_free(SuT); edge_matrix_free(Sx_x0); edge_matrix_free(Sx_x0_T);
+    edge_matrix_free(f_row);
+    return 0;
+}

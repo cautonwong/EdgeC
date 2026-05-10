@@ -137,6 +137,19 @@ int edge_matrix_inv(const edge_matrix_t *m, edge_matrix_t *res) {
     return ret;
 }
 
+int edge_matrix_cholesky(const edge_matrix_t *a, edge_matrix_t *l) {
+    if (a->g->size1 != a->g->size2) return -1;
+    gsl_matrix_memcpy(l->g, a->g);
+    int ret = gsl_linalg_cholesky_decomp1(l->g);
+    // GSL computes in-place, keeping only lower triangle. Zero out upper triangle.
+    for(size_t i=0; i<l->g->size1; i++) {
+        for(size_t j=i+1; j<l->g->size2; j++) {
+            gsl_matrix_set(l->g, i, j, 0.0);
+        }
+    }
+    return ret;
+}
+
 int edge_matrix_qr(const edge_matrix_t *a, edge_matrix_t *q, edge_matrix_t *r) {
     size_t m = a->g->size1;
     size_t n = a->g->size2;

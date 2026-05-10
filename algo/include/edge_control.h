@@ -58,6 +58,35 @@ typedef struct {
 
 void control_observer_update(control_observer_t *obs, const edge_matrix_t *u, double y, double dt);
 
+/**
+ * @brief 扩展卡尔曼滤波 (EKF)
+ */
+typedef struct {
+    edge_matrix_t *x; // 状态向量
+    edge_matrix_t *P; // 协方差矩阵
+    edge_matrix_t *Q; // 过程噪声
+    edge_matrix_t *R; // 测量噪声
+    uint32_t n;       // 状态维度
+} control_ekf_t;
+
+/**
+ * @brief EKF 预测步 (传入雅可比矩阵 F)
+ */
+void control_ekf_predict(control_ekf_t *ekf, const edge_matrix_t *F, const edge_matrix_t *B, const edge_matrix_t *u);
+
+/**
+ * @brief EKF 校正步 (传入雅可比矩阵 H 和残差 y)
+ */
+void control_ekf_correct(control_ekf_t *ekf, const edge_matrix_t *H, const edge_matrix_t *y);
+
+/**
+ * @brief MPC 问题转化器
+ * 将状态空间 A, B 展开为预测时域 N 步的 QP 矩阵 H 和 f
+ */
+int control_mpc_formulate(const edge_matrix_t *A, const edge_matrix_t *B, 
+                          const edge_matrix_t *Q, const edge_matrix_t *R,
+                          uint32_t N, edge_matrix_t *H_out, edge_matrix_t *f_out);
+
 #ifdef __cplusplus
 }
 #endif

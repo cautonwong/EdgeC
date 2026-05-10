@@ -53,9 +53,6 @@ int dsp_fft2d_c2c(double *data, size_t rows, size_t cols, bool forward) {
     }
 
     // 2. 对每一列做 1D FFT
-    // 利用 GSL 的 stride 参数。第 j 列的元素索引为 j, j + cols, j + 2*cols ...
-    // 在 double 数组中，复数元素的起始位置为 2*j, 2*(j + cols), 2*(j + 2*cols) ...
-    // 因此 stride = 2 * cols (单位为 double)
     for(size_t j=0; j<cols; j++) {
         double *col_ptr = &data[j * 2];
         if (forward)
@@ -65,6 +62,63 @@ int dsp_fft2d_c2c(double *data, size_t rows, size_t cols, bool forward) {
     }
     
     return 0;
+}
+
+int dsp_correlate(const double *a, size_t na, const double *b, size_t nb, double *res) {
+    if (!a || !b || !res) return -1;
+    // 结果长度 na + nb - 1
+    for (size_t i = 0; i < na + nb - 1; i++) {
+        res[i] = 0;
+        for (size_t j = 0; j < nb; j++) {
+            if (i >= j && (i - j) < na) {
+                res[i] += a[i - j] * b[j];
+            }
+        }
+    }
+    return 0;
+}
+
+void dsp_s2z_bilinear(double fs, const double *s_num, const double *s_den, 
+                      double *z_num, double *z_den) {
+    double T = 1.0 / fs;
+    double K = 2.0 / T;
+
+    // G(s) = (b0*s + b1) / (a0*s + a1)
+    // Substitute s = K*(z-1)/(z+1)
+    // G(z) = (b0*K*(z-1) + b1*(z+1)) / (a0*K*(z-1) + a1*(z+1))
+    // G(z) = ((b0*K+b1)*z + (b1-b0*K)) / ((a0*K+a1)*z + (a1-a0*K))
+    
+    double b0 = s_num[0], b1 = s_num[1];
+    double a0 = s_den[0], a1 = s_den[1];
+
+    z_num[0] = b0 * K + b1;
+    z_num[1] = b1 - b0 * K;
+    z_den[0] = a0 * K + a1;
+    z_den[1] = a1 - a0 * K;
+
+    // Normalize so den[0] = 1.0
+    double norm = z_den[0];
+    z_num[0] /= norm; z_num[1] /= norm;
+    z_den[0] /= norm; z_den[1] /= norm;
+}
+
+void dsp_dwt_haar(double *data, size_t n, uint32_t level) {
+    if (n < 2 || level == 0) return;
+    double *tmp = malloc(n * sizeof(double));
+    size_t current_n = n;
+
+    for (uint32_t L = 0; L < level && current_n >= 2; L++) {
+        size_t half = current_n / 2;
+        for (size_t i = 0; i < half; i++) {
+            double a = data[2 * i];
+            double b = data[2 * i + 1];
+            tmp[i] = (a + b) / sqrt(2.0);        // 近似分量 (Average)
+            tmp[half + i] = (a - b) / sqrt(2.0); // 细节分量 (Difference)
+        }
+        memcpy(data, tmp, current_n * sizeof(double));
+        current_n = half; // 递归分解近似分量
+    }
+    free(tmp);
 }
 
 struct dsp_iir_s {
