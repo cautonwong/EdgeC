@@ -14,6 +14,7 @@
 #include "edge_common.h"
 #include "edge_driver.h"
 #include "edge_log.h"
+#include "datahub.h"
 
 typedef enum {
     DLMS_SESSION_IDLE,
@@ -184,8 +185,52 @@ static int dlms_v4_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *r
     } else if (tag == DLMS_SERVICE_GET_REQUEST) {
         uint16_t cid; uint8_t obis[6], attr;
         dlms_cosem_parse_get_request(&apdu_in->b, &cid, obis, &attr);
-        uint16_t mock_val = 2305;
-        dlms_cosem_build_get_response(&priv->cosem, DLMS_TYPE_UINT16, &mock_val, 2, apdu_out);
+        
+        double val = 0;
+        bool found = false;
+        if (ctx->lookup_by_key) {
+            uint64_t key = 0;
+            for(int i=0; i<6; i++) key = (key << 8) | obis[i];
+            const dlms_map_t *map = (const dlms_map_t *)ctx->lookup_by_key(key);
+            if (map && ctx->user_data) {
+                pipe_msg_t shadow;
+                if (datahub_read_shadow((datahub_t *)ctx->user_data, map->tag_id, &shadow) == 0) {
+                    val = shadow.payload.val.f;
+                    found = true;
+                }
+            }
+        }
+
+        if (found) {
+            uint16_t rv = (uint16_t)val;
+            dlms_cosem_build_get_response(&priv->cosem, DLMS_TYPE_UINT16, &rv, 2, apdu_out);
+        } else {
+            uint16_t rv = 0;
+            dlms_cosem_build_get_response(&priv->cosem, DLMS_TYPE_UINT16, &rv, 2, apdu_out);
+        }
+    } else if (tag == DLMS_SERVICE_SET_REQUEST) {
+        /* [从站] 处理 SET 请求: 解析 OBIS + 值, 发布到 DataHub */
+        uint16_t cid; uint8_t obis[6], attr;
+        dlms_cosem_parse_get_request(&apdu_in->b, &cid, obis, &attr);
+
+        if (ctx->lookup_by_key) {
+            uint64_t key = 0;
+            for (int i = 0; i < 6; i++) key = (key << 8) | obis[i];
+            const dlms_map_t *map = (const dlms_map_t *)ctx->lookup_by_key(key);
+            if (map && ctx->user_data) {
+                /* 从 SET 数据中提取值 (简化: 跳过类型和长度, 取前2字节) */
+                if (apdu_in->b.len > 6) {
+                    uint16_t raw = (uint16_t)((uint8_t)apdu_in->b.data[5] << 8
+                                              | (uint8_t)apdu_in->b.data[6]);
+                    double scaled = (double)raw / map->scaler;
+                    pipe_msg_t am;
+                    pipe_msg_init_scalar(&am, map->tag_id, scaled, uv_hrtime());
+                    datahub_publish((datahub_t *)ctx->user_data, &am);
+                }
+            }
+        }
+        /* SET 响应 (简化: 直接镜像) */
+        dlms_cosem_build_get_response(&priv->cosem, DLMS_TYPE_UINT16, NULL, 0, apdu_out);
     }
 
     if (apdu_out->b.len > 0) {

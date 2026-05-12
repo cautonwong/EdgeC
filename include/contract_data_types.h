@@ -125,9 +125,9 @@ typedef struct {
 
 // --- 驱动契约注入包 ---
 typedef struct {
-    const void *(*lookup_by_key)(uint32_t key);
+    const void *(*lookup_by_key)(uint64_t key);
     const void *(*lookup_by_tag)(uint32_t tag_id);
-    const void *const *meta_list;
+    const void *meta_list;
     uint32_t meta_list_len;
 } driver_contract_injection_t;
 

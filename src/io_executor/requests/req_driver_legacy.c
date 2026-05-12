@@ -48,7 +48,7 @@ static int legacy_setup(edge_req_t *req, void *engine_ctx) {
         if (ctx->drv_ctx) {
             // 注入契约查找函数 (如果是第一次创建)
             ctx->drv_ctx->lookup_by_tag = (const void *(*)(uint32_t))ctx->lookup_by_tag;
-            ctx->drv_ctx->lookup_by_key = (const void *(*)(uint32_t))ctx->lookup_by_key;
+            ctx->drv_ctx->lookup_by_key = (const void *(*)(uint64_t))ctx->lookup_by_key;
             ctx->drv_ctx->pool = master->pool;
         }
     }

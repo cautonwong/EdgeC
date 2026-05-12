@@ -106,9 +106,6 @@ static int modbus_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_
 
 int modbus_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_out,
                         pipe_msg_t *async_msgs, int *async_count, size_t *consumed) {
-    (void)async_msgs;
-    (void)async_count;
-    
     modbus_ctx_t *priv = (modbus_ctx_t *)ctx->priv;
     uint8_t slave_id, fc;
     uint8_t *data;
@@ -140,8 +137,6 @@ int modbus_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_o
             uint16_t rv = 0;
             const modbus_map_t *map = NULL;
             uint32_t cur_addr = (uint32_t)(addr + i);
-            
-            // [Nexus] Construct 64-bit Composite Key for multi-instance support
             uint64_t composite_key = ((uint64_t)priv->slave_id << 32) | cur_addr;
 
             if (ctx->lookup_by_key) {
@@ -161,6 +156,56 @@ int modbus_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_o
         uint16_t crc_tx = modbus_calculate_crc(p, 3 + (size_t)count * 2);
         p[3 + count * 2] = (uint8_t)(crc_tx & 0xFF);
         p[4 + count * 2] = (uint8_t)(crc_tx >> 8);
+        return 0;
+    } else if (fc == MODBUS_FC_WRITE_SINGLE_REG) {
+        uint16_t addr = (uint16_t)((data[0] << 8) | data[1]);
+        uint16_t val = (uint16_t)((data[2] << 8) | data[3]);
+        
+        uint64_t composite_key = ((uint64_t)priv->slave_id << 32) | addr;
+        const modbus_map_t *map = NULL;
+        if (ctx->lookup_by_key) {
+            typedef const modbus_map_t *(*lookup_fn_t)(uint64_t);
+            map = ((lookup_fn_t)ctx->lookup_by_key)(composite_key);
+        }
+        
+        if (map && ctx->user_data) {
+            double v = (double)val * (map->scaler ? map->scaler : 1.0);
+            pipe_msg_init_scalar(&async_msgs[0], map->tag_id, v, uv_hrtime());
+            *async_count = 1;
+        }
+        
+        uint8_t *p = net_buf_add(resp_out, 8);
+        memcpy(p, in->b.data, 6);
+        uint16_t crc_tx = modbus_calculate_crc(p, 6);
+        p[6] = (uint8_t)(crc_tx & 0xFF);
+        p[7] = (uint8_t)(crc_tx >> 8);
+        return 0;
+    } else if (fc == MODBUS_FC_WRITE_MULTIPLE_REGS) {
+        uint16_t addr = (uint16_t)((data[0] << 8) | data[1]);
+        uint16_t count = (uint16_t)((data[2] << 8) | data[3]);
+        uint8_t byte_count = data[4];
+        
+        if (data_len < (size_t)(5 + byte_count)) return -2;
+
+        for (uint16_t i = 0; i < count; i++) {
+            uint16_t val = (uint16_t)((data[5 + i*2] << 8) | data[5 + i*2 + 1]);
+            uint64_t composite_key = ((uint64_t)priv->slave_id << 32) | (addr + i);
+            const modbus_map_t *map = NULL;
+            if (ctx->lookup_by_key) {
+                typedef const modbus_map_t *(*lookup_fn_t)(uint64_t);
+                map = ((lookup_fn_t)ctx->lookup_by_key)(composite_key);
+            }
+            if (map && ctx->user_data && *async_count < 16) {
+                double v = (double)val * (map->scaler ? map->scaler : 1.0);
+                pipe_msg_init_scalar(&async_msgs[(*async_count)++], map->tag_id, v, uv_hrtime());
+            }
+        }
+
+        uint8_t *p = net_buf_add(resp_out, 8);
+        memcpy(p, in->b.data, 6); // 响应格式与请求前6字节相同
+        uint16_t crc_tx = modbus_calculate_crc(p, 6);
+        p[6] = (uint8_t)(crc_tx & 0xFF);
+        p[7] = (uint8_t)(crc_tx >> 8);
         return 0;
     }
     

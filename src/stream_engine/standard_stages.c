@@ -551,3 +551,59 @@ pipeline_stage_t *stage_rbe_create_v2(const edge_stage_def_t *def, pipeline_load
     (void)ctx;
     return stage_rbe_create(def->params.f1);
 }
+
+extern pipeline_stage_t *stage_aggregator_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+extern pipeline_stage_t *stage_linear_system_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+
+__attribute__((weak)) pipeline_stage_t *stage_aggregator_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
+    (void)def; (void)ctx;
+    return NULL;
+}
+
+__attribute__((weak)) pipeline_stage_t *stage_linear_system_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
+    (void)def; (void)ctx;
+    return NULL;
+}
+
+pipeline_stage_t *stage_transfer_fn_create(const edge_stage_def_t *def);
+__attribute__((weak)) pipeline_stage_t *stage_tf_s2z_create_v2(const edge_stage_def_t *def,
+                                                               pipeline_loader_ctx_t *ctx) {
+    (void)ctx;
+    return stage_transfer_fn_create(def);
+}
+
+pipeline_stage_t *stage_iir_filter_create(uint32_t order, const double *b, const double *a);
+
+pipeline_stage_t *stage_iir_filter_create_v2(const edge_stage_def_t *def,
+                                             pipeline_loader_ctx_t *ctx) {
+    (void)ctx;
+    // 假设 def 提供了阶数和系数，此处为了演示简化
+    double b[] = {1.0, 0.5};
+    double a[] = {1.0, -0.2};
+    return stage_iir_filter_create(1, b, a);
+}
+
+static const edge_stage_factory_entry_t g_standard_stages[] = {
+    {"aggregator", stage_aggregator_create_v2},
+    {"linear_system", stage_linear_system_create_v2},
+    {"tf_s2z", stage_tf_s2z_create_v2},
+    {"iir_filter", stage_iir_filter_create_v2},
+    {"filter", stage_filter_create_v2},
+    {"filter_range", stage_filter_range_create_v2},
+    {"transform", stage_transform_create_v2},
+    {"ema", stage_ema_create_v2},
+    {"clamp", stage_clamp_create_v2},
+    {"peak_shave", stage_peak_shave_create_v2},
+    {"accumulate", stage_accumulate_create_v2},
+    {"freeze", stage_freeze_create_v2},
+    {"time_guard", stage_time_guard_create_v2},
+    {"sqlite_sink", stage_sqlite_sink_create_v2},
+    {"reflex", stage_reflex_create_v2},
+    {"moving_average", stage_moving_average_create_v2},
+    {"rbe", stage_rbe_create_v2},
+    {NULL, NULL}
+};
+
+__attribute__((weak)) const edge_stage_factory_entry_t *edge_stage_factory_get_registry(void) {
+    return g_standard_stages;
+}

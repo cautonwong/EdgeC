@@ -41,6 +41,28 @@ static int iec101_v3_on_init(edge_driver_ctx_t *ctx) {
     return 0;
 }
 
+static int iec101_v3_on_tick(edge_driver_ctx_t *ctx, net_buf_t **out_tx) {
+    iec101_ctx_t *priv = (iec101_ctx_t *)ctx->priv;
+
+    if (ctx->role == PROTOCOL_ROLE_MASTER && out_tx) {
+        /* 主站: 周期性请求链路状态 */
+        iec101_ctrl_t req_ctrl = {.prm = 1, .func = 9}; /* 请求链路状态 */
+        *out_tx = net_buf_alloc(ctx->pool, 0);
+        iec101_link_build_fixed(&priv->link, req_ctrl, *out_tx);
+        return 0;
+    }
+
+    if (ctx->role == PROTOCOL_ROLE_SLAVE) {
+        /* 从站自发上送 (通过 on_tick 输出给引擎发送) */
+        for (uint32_t i = 0; i < ctx->meta_list_len; i++) {
+            const iec101_map_t *map = (const iec101_map_t *)ctx->meta_list + i;
+            if (map->tag_id == 0) continue;
+            (void)map;
+        }
+    }
+    return -1;
+}
+
 static int _process_asdu(edge_driver_ctx_t *ctx, struct net_buf_simple *b, pipe_msg_t *out_msgs,
                          int *msg_count) {
     iec101_ctx_t *priv = (iec101_ctx_t *)ctx->priv;
@@ -171,9 +193,12 @@ static int iec101_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
         if (iec_asdu_parse_header(b, &type, &sq, &count, &cot, &casdu, &priv->addr_conf) == 0) {
             if (type == IEC_TYPE_C_IC_NA_1) {
                 // [注入利用] 响应总召唤
-                // 使用注入的 ctx->meta_list (通用 void* 数组，强转为 iec101_map_t)
+                // 使用注入的 ctx->meta_list (指向 iec101_map_t 数组)
+                const iec101_map_t *maps = (const iec101_map_t *)ctx->meta_list;
                 for (uint32_t i = 0; i < ctx->meta_list_len; i++) {
-                    const iec101_map_t *map = (const iec101_map_t *)ctx->meta_list[i];
+                    const iec101_map_t *map = maps + i;
+                    if (map->tag_id == 0) continue;
+
                     pipe_msg_t vm;
                     if (datahub_read_shadow(priv->hub, map->tag_id, &vm) == 0) {
                         net_buf_t *df = net_buf_alloc(in->pool, 0);
@@ -195,9 +220,61 @@ static int iec101_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
     return 0;
 }
 
+/**
+ * @brief [主站] 构建 IEC101 读/写请求 ASDU 负载
+ * 注: IEC101 链路帧封装由引擎层完成
+ */
+static int iec101_v3_encode_request(edge_driver_ctx_t *ctx, const uint32_t *tag_ids,
+                                     int tag_count, net_buf_t *out) {
+    iec101_ctx_t *priv = (iec101_ctx_t *)ctx->priv;
+    if (tag_count == 0 || !ctx->meta_list) return -1;
+
+    for (uint32_t i = 0; i < ctx->meta_list_len; i++) {
+        const iec101_map_t *map = (const iec101_map_t *)ctx->meta_list + i;
+        if (map->tag_id != tag_ids[0]) continue;
+
+        iec_asdu_init(out, (iec_type_id_t)map->type_id, false, 1, IEC_COT_REQ,
+                      priv->casdu, &priv->addr_conf);
+        iec_asdu_add_any(out, (uint8_t)map->type_id, map->key, 0, 0,
+                         map->flags, (iec_qds_t){0}, &priv->addr_conf);
+        return 0;
+    }
+    return -1;
+}
+
+/**
+ * @brief [主站] 构建 IEC101 写请求 ASDU 负载
+ */
+static int iec101_v3_encode_write(edge_driver_ctx_t *ctx, uint32_t tag_id,
+                                   double value, net_buf_t *out) {
+    iec101_ctx_t *priv = (iec101_ctx_t *)ctx->priv;
+    if (!ctx->meta_list) return -1;
+
+    for (uint32_t i = 0; i < ctx->meta_list_len; i++) {
+        const iec101_map_t *map = (const iec101_map_t *)ctx->meta_list + i;
+        if (map->tag_id != tag_id) continue;
+
+        iec_type_id_t tid = (iec_type_id_t)map->type_id;
+        iec_asdu_init(out, tid, false, 1, IEC_COT_ACT, priv->casdu, &priv->addr_conf);
+
+        if (tid == IEC_TYPE_C_SC_NA_1)
+            iec_asdu_add_c_sc_na_1(out, map->key, (value > 0), false, &priv->addr_conf);
+        else if (tid == IEC_TYPE_C_SE_NC_1)
+            iec_asdu_add_c_se_nc_1(out, map->key, (float)value, 0, false, &priv->addr_conf);
+        else
+            iec_asdu_add_any(out, (uint8_t)map->type_id, map->key, value, 0,
+                             map->flags, (iec_qds_t){0}, &priv->addr_conf);
+        return 0;
+    }
+    return -1;
+}
+
 edge_driver_t iec101_driver = {.name = "IEC101",
                                .ctx_size = sizeof(iec101_ctx_t),
                                .on_init = iec101_v3_on_init,
+                               .on_tick = iec101_v3_on_tick,
+                               .encode_request = iec101_v3_encode_request,
+                               .encode_write = iec101_v3_encode_write,
                                .decode_response = iec101_v3_decode_response,
                                .handle_rx = iec101_v3_handle_rx};
 

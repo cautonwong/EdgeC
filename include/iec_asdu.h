@@ -132,6 +132,8 @@ int iec_asdu_add_c_dc_na_1(net_buf_t *buf, uint32_t ioa, uint8_t dcs, bool selec
 int iec_asdu_add_c_se_nc_1(net_buf_t *buf, uint32_t ioa, float val, uint8_t qos, bool select,
                            const iec_addr_config_t *conf);
 
+int iec_asdu_parse_c_sc_na_1(struct net_buf_simple *b, uint32_t *ioa, uint8_t *scs, const iec_addr_config_t *conf);
+
 /**
  * @brief 契约驱动的万能数据填充函数 (支持时标自动注入)
  */

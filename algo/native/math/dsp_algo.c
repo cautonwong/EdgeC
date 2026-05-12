@@ -1,13 +1,14 @@
 /**
  * @file dsp_algo.c
- * @brief 工业级信号处理实现 (GSL 加速版)
- * 完成了 2D FFT、IIR 滤波与通用窗函数。
+ * @brief 工业级信号处理实现 (内置纯C + 可选GSL加速)
  */
 
 #include "edge_dsp.h"
+#ifdef USE_GSL
 #include <gsl/gsl_fft_real.h>
 #include <gsl/gsl_fft_halfcomplex.h>
 #include <gsl/gsl_fft_complex.h>
+#endif
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
@@ -26,16 +27,23 @@ void dsp_window_generate(dsp_window_type_t type, double *out, size_t n) {
     }
 }
 
+#ifdef USE_GSL
 int dsp_fft_r2c(double *data, size_t n) {
     gsl_fft_real_wavetable *real = gsl_fft_real_wavetable_alloc(n);
     gsl_fft_real_workspace *work = gsl_fft_real_workspace_alloc(n);
-    
+
     gsl_fft_real_transform(data, 1, n, real, work);
-    
+
     gsl_fft_real_wavetable_free(real);
     gsl_fft_real_workspace_free(work);
     return 0;
 }
+#else
+int dsp_fft_r2c(double *data, size_t n) {
+    (void)data; (void)n;
+    return -1; /* FFT requires GSL */
+}
+#endif
 
 /**
  * @brief 2D 复数 FFT 完整实现

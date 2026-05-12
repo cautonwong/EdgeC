@@ -7,9 +7,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#ifdef USE_GSL
 #include <gsl/gsl_eigen.h>
 #include <gsl/gsl_linalg.h>
 #include <gsl/gsl_blas.h>
+#endif
 
 void control_pid_init(pid_adv_t *pid, double p, double i, double d) {
     memset(pid, 0, sizeof(pid_adv_t));
@@ -79,9 +81,10 @@ void control_observer_update(control_observer_t *obs, const edge_matrix_t *u, do
     edge_matrix_free(ax); edge_matrix_free(bu); edge_matrix_free(le);
 }
 
-int control_lqr_solve(const edge_matrix_t *A, const edge_matrix_t *B, 
-                      const edge_matrix_t *Q, const edge_matrix_t *R, 
+int control_lqr_solve(const edge_matrix_t *A, const edge_matrix_t *B,
+                      const edge_matrix_t *Q, const edge_matrix_t *R,
                       edge_matrix_t *K) {
+#ifdef USE_GSL
     uint32_t n = edge_matrix_rows(A);
     uint32_t m = edge_matrix_cols(B);
 
@@ -93,12 +96,10 @@ int control_lqr_solve(const edge_matrix_t *A, const edge_matrix_t *B,
 
     // 2. 构造 Hamiltonian 矩阵 H (2n x 2n)
     gsl_matrix *H = gsl_matrix_calloc(2 * n, 2 * n);
-    
-    // H11 = A
+
     for(uint32_t i=0; i<n; i++)
         for(uint32_t j=0; j<n; j++) gsl_matrix_set(H, i, j, edge_matrix_get(A, i, j));
-    
-    // H12 = -B * R_inv * B'
+
     edge_matrix_t *BT = edge_matrix_alloc(m, n);
     edge_matrix_transpose(B, BT);
     edge_matrix_t *BRB = edge_matrix_alloc(n, n);
@@ -107,12 +108,10 @@ int control_lqr_solve(const edge_matrix_t *A, const edge_matrix_t *B,
     edge_matrix_mul(B, tmp_BR, BRB);
     for(uint32_t i=0; i<n; i++)
         for(uint32_t j=0; j<n; j++) gsl_matrix_set(H, i, j + n, -edge_matrix_get(BRB, i, j));
-    
-    // H21 = -Q
+
     for(uint32_t i=0; i<n; i++)
         for(uint32_t j=0; j<n; j++) gsl_matrix_set(H, i + n, j, -edge_matrix_get(Q, i, j));
 
-    // H22 = -A'
     edge_matrix_t *AT = edge_matrix_alloc(n, n);
     edge_matrix_transpose(A, AT);
     for(uint32_t i=0; i<n; i++)
@@ -161,13 +160,16 @@ int control_lqr_solve(const edge_matrix_t *A, const edge_matrix_t *B,
     // 6. K = R_inv * B' * P
     edge_matrix_mul(tmp_BR, P, K);
 
-    // 清理
     gsl_eigen_nonsymmv_free(w); gsl_vector_complex_free(eval); gsl_matrix_complex_free(evec);
     gsl_matrix_complex_free(V_stable); gsl_matrix_free(H);
     edge_matrix_free(R_inv); edge_matrix_free(BT); edge_matrix_free(BRB); edge_matrix_free(tmp_BR);
     edge_matrix_free(AT); edge_matrix_free(V11); edge_matrix_free(V21); edge_matrix_free(V11_inv); edge_matrix_free(P);
 
     return 0;
+#else
+    (void)A; (void)B; (void)Q; (void)R; (void)K;
+    return -1; /* LQR requires GSL for eigenvalue decomposition */
+#endif
 }
 
 int control_qp_solve_hildreth(const edge_matrix_t *Q, const edge_matrix_t *c,

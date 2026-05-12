@@ -6,6 +6,8 @@
 #include "driver_manager.h"
 #include "edge_log.h"
 #include "io_executor.h"
+#include "session_manager.h"
+#include "datahub.h"
 
 #define MAX_SLAVE_PROTOCOLS 4
 
@@ -21,7 +23,8 @@ typedef struct {
     datahub_t *hub;
     net_buf_pool_t *pool;
     driver_manager_t *drv_mgr;
-    driver_contract_injection_t inject_data;
+    session_manager_t *session_mgr;
+    uv_timer_t timer;
 
     slave_proto_slot_t protocols[MAX_SLAVE_PROTOCOLS];
     int proto_count;
@@ -31,6 +34,18 @@ typedef struct {
     io_handle_t *io;
     int bus_id;
 } slave_priv_t;
+
+static void _slave_on_timer(uv_timer_t *handle) {
+    slave_priv_t *priv = (slave_priv_t *)handle->data;
+    if (!priv->io) return;
+
+    net_buf_t *txs[8];
+    int count = session_manager_tick(priv->session_mgr, priv->bus_id, txs, 8);
+    for (int i = 0; i < count; i++) {
+        priv->io->ops->write_async(priv->io, txs[i]);
+        net_buf_unref(txs[i]);
+    }
+}
 
 static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *user_data) {
     (void)h;
@@ -43,24 +58,17 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
     }
 
     if (evt == IO_EVENT_RX && rx) {
-        size_t rx_len = rx->b.len;
-        if (net_buf_simple_tailroom(&priv->rx_acc->b) < rx_len) {
-            size_t current_len = priv->rx_acc->b.len;
-            if (net_buf_simple_headroom(&priv->rx_acc->b) +
-                    net_buf_simple_tailroom(&priv->rx_acc->b) >=
-                rx_len) {
-                memmove(priv->rx_acc->b.__buf, priv->rx_acc->b.data, current_len);
+        if (net_buf_simple_tailroom(&priv->rx_acc->b) < rx->b.len) {
+            size_t head = net_buf_simple_headroom(&priv->rx_acc->b);
+            if (head + net_buf_simple_tailroom(&priv->rx_acc->b) >= rx->b.len) {
+                // Shift data to front to reclaim space
+                memmove(priv->rx_acc->b.__buf, priv->rx_acc->b.data, priv->rx_acc->b.len);
                 priv->rx_acc->b.data = priv->rx_acc->b.__buf;
-                priv->rx_acc->b.len = (uint16_t)current_len;
             } else {
                 net_buf_simple_reset(&priv->rx_acc->b);
             }
         }
-
-        if (net_buf_simple_tailroom(&priv->rx_acc->b) >= rx_len) {
-            memcpy(priv->rx_acc->b.data + priv->rx_acc->b.len, rx->b.data, rx_len);
-            priv->rx_acc->b.len = (uint16_t)(priv->rx_acc->b.len + rx_len);
-        }
+        net_buf_simple_add_mem(&priv->rx_acc->b, rx->b.data, rx->b.len);
         net_buf_unref(rx);
 
         while (priv->rx_acc->b.len > 0) {
@@ -90,14 +98,14 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
                     for (int j = 0; j < async_count; j++)
                         datahub_publish(priv->hub, &async_msgs[j]);
 
-                    if (consumed > 0) net_buf_pull(priv->rx_acc, consumed);
+                    if (consumed > 0) net_buf_simple_pull(&priv->rx_acc->b, consumed);
                     priv->last_hit_idx = idx;
                     processed = true;
                     break;
                 } else {
                     net_buf_unref(resp);
                     if (consumed > 0) {
-                        net_buf_pull(priv->rx_acc, consumed);
+                        net_buf_simple_pull(&priv->rx_acc->b, consumed);
                         processed = true;
                         break;
                     }
@@ -106,7 +114,7 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
 
             if (!processed) {
                 if (priv->rx_acc->b.len == initial_len) {
-                    net_buf_pull(priv->rx_acc, 1);
+                    net_buf_simple_pull(&priv->rx_acc->b, 1);
                 } else {
                     break;
                 }
@@ -119,7 +127,8 @@ int engine_slave_add_protocol(bus_engine_t *self, const char *protocol, uint32_t
                               const driver_contract_injection_t *inject) {
     slave_priv_t *priv = (slave_priv_t *)self->user_data;
     if (priv->proto_count >= MAX_SLAVE_PROTOCOLS) return -1;
-    edge_driver_ctx_t *ctx = driver_instance_create(priv->drv_mgr, protocol, device_id);
+    
+    edge_driver_ctx_t *ctx = session_manager_get(priv->session_mgr, protocol, device_id);
     if (!ctx) return -1;
 
     ctx->role = PROTOCOL_ROLE_SLAVE;
@@ -146,16 +155,23 @@ static void _slave_attach(bus_engine_t *self, io_handle_t *io) {
     io->user_data = priv;
     if (priv->rx_acc) net_buf_simple_reset(&priv->rx_acc->b);
     io->ops->enable_read(io, true);
+    uv_timer_start(&priv->timer, _slave_on_timer, 1000, 1000);
+}
+
+static void _slave_close_cb(uv_handle_t *handle) {
+    slave_priv_t *priv = (slave_priv_t *)handle->data;
+    if (priv->session_mgr) session_manager_destroy(priv->session_mgr);
+    if (priv->rx_acc) net_buf_unref(priv->rx_acc);
+    free(priv);
 }
 
 static void _slave_detach(bus_engine_t *self) {
     slave_priv_t *priv = (slave_priv_t *)self->user_data;
     if (priv->io) priv->io->ops->enable_read(priv->io, false);
-    for (int i = 0; i < priv->proto_count; i++) {
-        driver_instance_destroy(priv->protocols[i].ctx, priv->protocols[i].name);
+    if (!uv_is_closing((uv_handle_t *)&priv->timer)) {
+        uv_timer_stop(&priv->timer);
+        uv_close((uv_handle_t *)&priv->timer, _slave_close_cb);
     }
-    if (priv->rx_acc) net_buf_unref(priv->rx_acc);
-    free(priv);
     free(self);
 }
 
@@ -176,7 +192,11 @@ bus_engine_t *engine_create_slave(driver_manager_t *mgr, int bus_id, const char 
     priv->pool = pool;
     priv->drv_mgr = mgr;
     priv->bus_id = bus_id;
-    if (inject) priv->inject_data = *inject;
+    
+    priv->session_mgr = session_manager_create(mgr, 8);
+    uv_timer_init(loop, &priv->timer);
+    priv->timer.data = priv;
+
     priv->rx_acc = net_buf_alloc(pool, 0);
     if (priv->rx_acc) {
         priv->rx_acc->last_owner = "Slave_RX_Acc";

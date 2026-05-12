@@ -199,7 +199,7 @@ func (b *CBackend) emitSource(contract *ir.ContractIR) error {
 		if !isKnownProtocol(proto) { continue }
 		lp := strings.ToLower(proto)
 		if lp == "modbusrtu" { lp = "modbus" }
-		fmt.Fprintf(f, "static const driver_contract_injection_t inj_%s = { (const void *(*)(uint32_t))edge_get_map_%s, (const void *(*)(uint32_t))edge_get_map_%s_by_tag, NULL, 0 };\n", lp, lp, lp)
+		fmt.Fprintf(f, "static const driver_contract_injection_t inj_%s = { (const void *(*)(uint64_t))edge_get_map_%s, (const void *(*)(uint32_t))edge_get_map_%s_by_tag, s_%s_rev_table, %d };\n", lp, lp, lp, lp, len(contract.Tags))
 	}
 	fmt.Fprintln(f, "const edge_model_info_t g_model_metadata[] = {")
 	for _, m := range contract.Models {

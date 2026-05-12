@@ -209,3 +209,18 @@ int iec_asdu_parse_header(struct net_buf_simple *b, iec_type_id_t *type, bool *s
         *casdu = net_buf_simple_pull_le16(b);
     return 0;
 }
+
+int iec_asdu_parse_c_sc_na_1(struct net_buf_simple *b, uint32_t *ioa, uint8_t *scs, const iec_addr_config_t *conf) {
+    if (b->len < (size_t)(conf->ioa_len + 1)) return -1;
+    if (conf->ioa_len == 1) {
+        *ioa = net_buf_simple_pull_u8(b);
+    } else if (conf->ioa_len == 2) {
+        *ioa = net_buf_simple_pull_le16(b);
+    } else {
+        uint32_t addr = net_buf_simple_pull_le16(b);
+        addr |= ((uint32_t)net_buf_simple_pull_u8(b)) << 16;
+        *ioa = addr;
+    }
+    *scs = net_buf_simple_pull_u8(b);
+    return 0;
+}

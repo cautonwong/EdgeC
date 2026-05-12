@@ -46,6 +46,38 @@ int modbus_rtu_encode_exception(uint8_t slave_id, uint8_t fc, uint8_t ex_code, n
 int modbus_rtu_decode_frame(struct net_buf_simple *in, uint8_t *slave_id, uint8_t *fc, 
                             uint8_t **data_out, size_t *data_len);
 
+/* --- Modbus TCP / MBAP --- */
+
+#define MODBUS_TCP_HEADER_LEN 7  /* Transaction ID(2) + Protocol ID(2) + Length(2) + Unit ID(1) */
+#define MODBUS_TCP_PROTOCOL_ID 0x0000
+
+/**
+ * @brief 构建 Modbus TCP MBAP 头 (不含 CRC, 由 TCP 保证)
+ * @param tid 事务标识符 (Transaction ID)
+ * @param slave_id 单元标识符 (Unit ID)
+ * @param pdu_len PDU 长度 (功能码 + 数据)
+ */
+int modbus_tcp_encode_mbap(uint16_t tid, uint8_t slave_id, uint16_t pdu_len, net_buf_t *out);
+
+/**
+ * @brief 解析 Modbus TCP MBAP 头
+ * @return 0 成功, 1 数据不足, -1 格式错
+ */
+int modbus_tcp_decode_mbap(struct net_buf_simple *in, uint16_t *tid, uint8_t *slave_id, size_t *pdu_len);
+
+/**
+ * @brief Modbus TCP 响应编码 (MBAP + PDU, 无 CRC)
+ */
+int modbus_tcp_encode_read(uint16_t tid, uint8_t slave_id, uint8_t fc, uint16_t addr, uint16_t quantity, net_buf_t *out);
+int modbus_tcp_encode_write_single(uint16_t tid, uint8_t slave_id, uint16_t addr, uint16_t value, net_buf_t *out);
+int modbus_tcp_encode_exception(uint16_t tid, uint8_t slave_id, uint8_t fc, uint8_t ex_code, net_buf_t *out);
+
+/**
+ * @brief Modbus TCP 响应编码 (仅用于从站应答)
+ */
+int modbus_tcp_encode_read_resp(uint16_t tid, uint8_t slave_id, const uint8_t *data, size_t data_len, net_buf_t *out);
+int modbus_tcp_encode_write_resp(uint16_t tid, uint8_t slave_id, uint16_t addr, uint16_t value, net_buf_t *out);
+
 #ifdef __cplusplus
 }
 #endif

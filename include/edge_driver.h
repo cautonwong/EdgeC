@@ -62,7 +62,7 @@ typedef struct {
     const void *(*lookup_by_tag)(uint32_t tag_id);
 
     /** @brief 协议特有的紧凑列表 (如 g_iec104_gi_list) */
-    const void *const *meta_list;
+    const void *meta_list;
     uint32_t meta_list_len;
 
 } edge_driver_ctx_t;

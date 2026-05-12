@@ -166,6 +166,7 @@ add_library(edge_stream_engine STATIC
     src/stream_engine/aggregator.c
     src/stream_engine/standard_stages.c
     src/stream_engine/stage_linear_system.c
+    src/stream_engine/stage_transfer_function.c
     src/stream_engine/stage_iir_filter.c
     src/stream_engine/energy_integrator.c
     src/stream_engine/stage_dsp_rms.c
@@ -202,6 +203,7 @@ add_library(edge_main_loop STATIC
     src/io_executor/session_manager.c
     src/io_executor/profile_loader.c
     src/io_executor/modbus_rtu_driver.c
+    src/io_executor/modbus_tcp_driver.c
     src/io_executor/adc_driver.c
     src/io_executor/driver_dlt645.c
     src/io_executor/driver_dlms.c

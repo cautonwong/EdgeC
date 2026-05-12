@@ -96,13 +96,65 @@ static int dlt698_v4_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_
     return 0;
 }
 
+static int dlt698_v4_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_out,
+                             pipe_msg_t *async_msgs, int *async_count, size_t *consumed) {
+    (void)async_msgs; (void)async_count;
+    dlt698_ctx_t *priv = (dlt698_ctx_t *)ctx->priv;
+    dlt698_addr_t sa_rx;
+    uint8_t svc, piid;
+    uint8_t *payload;
+    size_t payload_len;
+
+    int ret = dlt698_decode_frame(&in->b, &sa_rx, &svc, &piid, &payload, &payload_len);
+    if (ret == 1) return EDGE_ERR_INCOMPLETE;
+    if (ret < 0) {
+        *consumed = 1;
+        return -1;
+    }
+    *consumed = (size_t)(payload + payload_len + 3 - in->b.data);
+
+    // 验证地址
+    if (sa_rx.len != priv->sa.len || memcmp(sa_rx.addr, priv->sa.addr, sa_rx.len) != 0) {
+        return -1; 
+    }
+
+    if (svc == DLT698_SVC_GET_REQ && payload_len >= 4) {
+        uint32_t oad = (uint32_t)((payload[0] << 24) | (payload[1] << 16) | (payload[2] << 8) | payload[3]);
+        double val = 0;
+        bool found = false;
+
+        if (ctx->lookup_by_key) {
+            const modbus_map_t *map = (const modbus_map_t *)ctx->lookup_by_key(oad);
+            if (map && ctx->user_data) {
+                pipe_msg_t shadow;
+                if (datahub_read_shadow((datahub_t *)ctx->user_data, map->tag_id, &shadow) == 0) {
+                    val = shadow.payload.val.f / (map->scaler ? map->scaler : 1.0);
+                    found = true;
+                }
+            }
+        }
+
+        if (found) {
+            // 简单实现：仅返回 2 字节 long-unsigned (uint16)
+            uint16_t rv = (uint16_t)val;
+            uint8_t data[2] = {(uint8_t)(rv >> 8), (uint8_t)(rv & 0xFF)};
+            dlt698_encode_get_response(&priv->sa, piid, oad, data, 2, resp_out);
+        } else {
+            // 这里的错误响应逻辑可以后续补强
+        }
+        return 0;
+    }
+
+    return -1;
+}
+
 edge_driver_t dlt698_driver = {
     .name = "DLT698",
     .ctx_size = sizeof(dlt698_ctx_t),
     .on_init = dlt698_v4_on_init,
     .encode_request = dlt698_v4_encode_request,
     .decode_response = dlt698_v4_decode_response,
-    .handle_rx = NULL,
+    .handle_rx = dlt698_v4_handle_rx,
 };
 
 int dlt698_driver_register(driver_manager_t *mgr) {

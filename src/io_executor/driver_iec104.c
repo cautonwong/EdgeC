@@ -73,7 +73,30 @@ static int iec104_v4_on_tick(edge_driver_ctx_t *ctx, net_buf_t **out_tx) {
 
     // 3. [从站] 变化自发上报 (Spontaneous)
     if (ctx->role == PROTOCOL_ROLE_SLAVE && priv->apci.state == IEC104_STATE_CONNECTED) {
-        // ... 此处逻辑与 V3 类似，但可以结合 Contract 注入更优雅地处理 ...
+        for (uint32_t i = 0; i < ctx->meta_list_len; i++) {
+            const iec104_map_t *map = (const iec104_map_t *)ctx->meta_list + i;
+            if (map->tag_id == 0) continue;
+
+            pipe_msg_t vm;
+            if (datahub_read_shadow(priv->hub, map->tag_id, &vm) == 0) {
+                // 简单的死区判断
+                if (fabs(vm.payload.val.f - priv->last_values[i]) > (double)map->dead_band) {
+                    if (*out_tx == NULL) *out_tx = net_buf_alloc(ctx->pool, 0);
+                    
+                    net_buf_t *df = net_buf_alloc(ctx->pool, 0);
+                    iec_asdu_init(df, (iec_type_id_t)map->type_id, false, 1, IEC_COT_SPONT,
+                                  priv->casdu, &IEC_ADDR_CONF_104);
+                    iec_asdu_add_any(df, map->type_id, map->key,
+                                     vm.payload.val.f / (double)map->scaler, 0, map->flags,
+                                     (iec_qds_t){0}, &IEC_ADDR_CONF_104);
+                    iec104_apci_wrap_i(&priv->apci, df);
+                    net_buf_simple_add_mem(&(*out_tx)->b, df->b.data, df->b.len);
+                    net_buf_unref(df);
+                    
+                    priv->last_values[i] = vm.payload.val.f;
+                }
+            }
+        }
     }
 
     // 4. APCI 状态机心跳 (t1, t2, t3)
@@ -141,6 +164,8 @@ static int iec104_v4_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
                 // 2. 遍历注入的元数据批量上送
                 for (uint32_t i = 0; i < ctx->meta_list_len; i++) {
                     const iec104_map_t *map = (const iec104_map_t *)ctx->meta_list + i;
+                    if (map->tag_id == 0) continue;
+
                     pipe_msg_t vm;
                     if (datahub_read_shadow(priv->hub, map->tag_id, &vm) == 0) {
                         net_buf_t *df = net_buf_alloc(in->pool, 0);
@@ -162,10 +187,99 @@ static int iec104_v4_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
                 iec104_apci_wrap_i(&priv->apci, term);
                 net_buf_simple_add_mem(&resp_out->b, term->b.data, term->b.len);
                 net_buf_unref(term);
+            } else if (type == IEC_TYPE_C_SC_NA_1 || type == IEC_TYPE_C_DC_NA_1) {
+                // [从站] 接收遥控指令
+                uint32_t ioa = 0;
+                uint8_t scs = 0;
+                if (iec_asdu_parse_c_sc_na_1(b, &ioa, &scs, &IEC_ADDR_CONF_104) == 0) {
+                    // 1. 发送镜像确认 (ACT CON)
+                    net_buf_t *con = net_buf_alloc(in->pool, 0);
+                    iec_asdu_init(con, type, false, 1, IEC_COT_ACT_CON, casdu, &IEC_ADDR_CONF_104);
+                    net_buf_simple_add_u8(&con->b, ioa & 0xFF);
+                    net_buf_simple_add_u8(&con->b, (ioa >> 8) & 0xFF);
+                    net_buf_simple_add_u8(&con->b, (ioa >> 16) & 0xFF);
+                    net_buf_simple_add_u8(&con->b, scs);
+                    iec104_apci_wrap_i(&priv->apci, con);
+                    net_buf_simple_add_mem(&resp_out->b, con->b.data, con->b.len);
+                    net_buf_unref(con);
+
+                    // 2. 通过 DataHub 下发控制指令
+                    if (ctx->lookup_by_key) {
+                        const iec104_map_t *map = (const iec104_map_t *)ctx->lookup_by_key(ioa);
+                        if (map) {
+                            pipe_msg_t cmd_msg;
+                            pipe_msg_init_scalar(&cmd_msg, map->tag_id, (double)(scs & 0x01), uv_hrtime());
+                            // Since PIPEMSG_TYPE_CMD doesn't exist, just use SCALAR for now
+                            // The bus orchestrator usually handles commands, but if DataHub needs to route it:
+                            datahub_publish(priv->hub, &cmd_msg);
+                        }
+                    }
+                }
             }
         }
     }
+
     return 0;
+}
+
+/**
+ * @brief [主站] 构建 IEC104 读请求 (遥测/遥信/总召唤)
+ * 使用注入的 meta_list 查找对应测点的 type_id 和 IOA
+ */
+static int iec104_v4_encode_request(edge_driver_ctx_t *ctx, const uint32_t *tag_ids,
+                                     int tag_count, net_buf_t *out) {
+    iec104_ctx_t *priv = (iec104_ctx_t *)ctx->priv;
+    if (tag_count == 0 || !ctx->meta_list) return -1;
+
+    for (uint32_t i = 0; i < ctx->meta_list_len; i++) {
+        const iec104_map_t *map = (const iec104_map_t *)ctx->meta_list + i;
+        if (map->tag_id != tag_ids[0]) continue;
+
+        iec_asdu_init(out, (iec_type_id_t)map->type_id, false, 1, IEC_COT_REQ,
+                      priv->casdu, &IEC_ADDR_CONF_104);
+
+        if ((iec_type_id_t)map->type_id == IEC_TYPE_C_IC_NA_1) {
+            iec_asdu_add_c_ic_na_1(out, map->key, 20, &IEC_ADDR_CONF_104);
+        } else {
+            iec_asdu_add_any(out, (uint8_t)map->type_id, map->key, 0, 0,
+                             map->flags, (iec_qds_t){0}, &IEC_ADDR_CONF_104);
+        }
+        iec104_apci_wrap_i(&priv->apci, out);
+        return 0;
+    }
+    return -1;
+}
+
+/**
+ * @brief [主站] 构建 IEC104 写请求 (遥控/遥调)
+ */
+static int iec104_v4_encode_write(edge_driver_ctx_t *ctx, uint32_t tag_id,
+                                   double value, net_buf_t *out) {
+    iec104_ctx_t *priv = (iec104_ctx_t *)ctx->priv;
+    if (!ctx->meta_list) return -1;
+
+    for (uint32_t i = 0; i < ctx->meta_list_len; i++) {
+        const iec104_map_t *map = (const iec104_map_t *)ctx->meta_list + i;
+        if (map->tag_id != tag_id) continue;
+
+        iec_type_id_t tid = (iec_type_id_t)map->type_id;
+        iec_asdu_init(out, tid, false, 1, IEC_COT_ACT, priv->casdu, &IEC_ADDR_CONF_104);
+
+        if (tid == IEC_TYPE_C_SC_NA_1) {
+            iec_asdu_add_c_sc_na_1(out, map->key, (value > 0), false, &IEC_ADDR_CONF_104);
+        } else if (tid == IEC_TYPE_C_DC_NA_1) {
+            iec_asdu_add_c_dc_na_1(out, map->key, (uint8_t)(value > 0 ? 1 : 0), false,
+                                    &IEC_ADDR_CONF_104);
+        } else if (tid == IEC_TYPE_C_SE_NC_1) {
+            iec_asdu_add_c_se_nc_1(out, map->key, (float)value, 0, false, &IEC_ADDR_CONF_104);
+        } else {
+            iec_asdu_add_any(out, (uint8_t)map->type_id, map->key, value, 0,
+                             map->flags, (iec_qds_t){0}, &IEC_ADDR_CONF_104);
+        }
+        iec104_apci_wrap_i(&priv->apci, out);
+        return 0;
+    }
+    return -1;
 }
 
 edge_driver_t iec104_driver = {
@@ -174,7 +288,9 @@ edge_driver_t iec104_driver = {
     .on_init = iec104_v4_on_init,
     .on_cleanup = iec104_v4_on_cleanup,
     .on_tick = iec104_v4_on_tick,
-    .decode_response = iec104_v4_handle_rx, // 两端逻辑高度对称
+    .encode_request = iec104_v4_encode_request,
+    .encode_write = iec104_v4_encode_write,
+    .decode_response = iec104_v4_handle_rx,
     .handle_rx = iec104_v4_handle_rx,
 };
 

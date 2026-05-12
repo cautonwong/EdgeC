@@ -382,6 +382,7 @@ int main(int argc, char *argv[]) {
     arbiter_init(&g_app.arb, loop);
     g_app.drv_mgr = driver_manager_create();
     modbus_driver_register(g_app.drv_mgr);
+    modbus_tcp_driver_register(g_app.drv_mgr);
     
     const char *shm_name = getenv("EDGE_SHM_NAME") ? getenv("EDGE_SHM_NAME") : EDGE_SHM_BUS_NAME;
     g_app.hub = calloc(1, sizeof(datahub_t));
