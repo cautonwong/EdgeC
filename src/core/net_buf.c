@@ -1,86 +1,31 @@
 /**
  * @file net_buf.c
- * @brief 工业级网络缓冲区实现 (V3.0 升维版)
+ * @brief 增强版工业网络缓冲区 (支持原子计数与内嵌元数据)
  */
 
 #include "net_buf.h"
-
-#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
 #include "edge_log.h"
 
-/* --- 1. net_buf_simple 实现 (保持极致轻量) --- */
-
-void net_buf_simple_init(struct net_buf_simple *buf, size_t reserve) {
-    buf->data = buf->__buf + reserve;
-    buf->len = 0;
-}
-
-void net_buf_simple_init_with_data(struct net_buf_simple *buf, void *data, size_t size) {
-    buf->__buf = (uint8_t *)data;
-    buf->data = (uint8_t *)data;
-    buf->size = (uint16_t)size;
-    buf->len = (uint16_t)size;
-}
-
-void net_buf_simple_reset(struct net_buf_simple *buf) {
-    buf->len = 0;
-    buf->data = buf->__buf;
-}
-
-void *net_buf_simple_add(struct net_buf_simple *buf, size_t len) {
-    assert(net_buf_simple_tailroom(buf) >= len);
-    void *ptr = buf->data + buf->len;
-    buf->len += (uint16_t)len;
-    return ptr;
-}
-
-void *net_buf_simple_add_mem(struct net_buf_simple *buf, const void *mem, size_t len) {
-    if (!buf || !mem || len == 0) return NULL;
-    // 预检空间，防止触发后续 assert 导致的 ASan 报错
-    if (net_buf_simple_tailroom(buf) < len) return NULL;
-
-    void *ptr = net_buf_simple_add(buf, len);
-    if (ptr) memcpy(ptr, mem, len);
-    return ptr;
-}
-
-void *net_buf_simple_push(struct net_buf_simple *buf, size_t len) {
-    assert(net_buf_simple_headroom(buf) >= len);
-    buf->data -= len;
-    buf->len += (uint16_t)len;
-    return buf->data;
-}
-
-void *net_buf_simple_pull(struct net_buf_simple *buf, size_t len) {
-    assert(buf->len >= len);
-    void *ptr = buf->data;
-    buf->data += len;
-    buf->len -= (uint16_t)len;
-    return ptr;
-}
-
-void *net_buf_simple_pull_mem(struct net_buf_simple *buf, void *dst, size_t len) {
-    void *ptr = net_buf_simple_pull(buf, len);
-    if (dst && len > 0) memcpy(dst, ptr, len);
-    return ptr;
-}
-
-/* --- 2. 增强型 Pool 实现 --- */
-
-/**
- * 内存布局：[net_buf 结构体] [元数据 UserData] [物理载荷 __buf] (全 8 字节对齐)
- */
 static size_t get_node_size(net_buf_pool_t *pool) {
     size_t sz = sizeof(struct net_buf);
-    sz += pool->user_data_size;
-    // 确保载荷起始地址对齐
     sz = (sz + 7) & (size_t)~7;
     sz += pool->buf_size;
     return (sz + 7) & (size_t)~7;
+}
+
+net_buf_pool_t *net_buf_pool_new(uint32_t count, uint16_t size, uint16_t user_data_size) {
+    net_buf_pool_t *pool = calloc(1, sizeof(net_buf_pool_t));
+    if (!pool) return NULL;
+    if (net_buf_pool_init(pool, (uint16_t)count, size, user_data_size, NULL, NULL) != 0) {
+        free(pool);
+        return NULL;
+    }
+    pool->flags |= NET_BUF_POOL_HEAP;
+    LOG_INFO(LOG_CAT_CORE, "NetBufPool %p: Created (Refs: 1)", (void *)pool);
+    return pool;
 }
 
 int net_buf_pool_init(net_buf_pool_t *pool, uint16_t count, uint16_t size, uint16_t user_data_size,
@@ -93,6 +38,7 @@ int net_buf_pool_init(net_buf_pool_t *pool, uint16_t count, uint16_t size, uint1
     pool->user_data_size = (user_data_size + 7) & (uint16_t)~7;
     pool->destroy_cb = destroy_cb;
     pool->user_data = user_data;
+    atomic_init(&pool->ref_count, 1);
 
     size_t total_size = (size_t)count * get_node_size(pool);
     pool->storage = calloc(1, total_size);
@@ -103,7 +49,14 @@ int net_buf_pool_init(net_buf_pool_t *pool, uint16_t count, uint16_t size, uint1
     return 0;
 }
 
-void net_buf_pool_destroy(net_buf_pool_t *pool) {
+void net_buf_pool_ref(net_buf_pool_t *pool) {
+    if (pool) {
+        int refs = atomic_fetch_add(&pool->ref_count, 1);
+        LOG_INFO(LOG_CAT_CORE, "NetBufPool %p: Ref (%d -> %d)", (void *)pool, refs, refs + 1);
+    }
+}
+
+static void _net_buf_pool_destroy_internal(net_buf_pool_t *pool) {
     if (!pool) return;
     uv_mutex_destroy(&pool->lock);
     uv_cond_destroy(&pool->cond);
@@ -111,6 +64,21 @@ void net_buf_pool_destroy(net_buf_pool_t *pool) {
         free(pool->storage);
         pool->storage = NULL;
     }
+}
+
+void net_buf_pool_unref(net_buf_pool_t *pool) {
+    if (!pool) return;
+    int refs = atomic_fetch_sub(&pool->ref_count, 1);
+    LOG_INFO(LOG_CAT_CORE, "NetBufPool %p: Unref (%d -> %d)", (void *)pool, refs, refs - 1);
+    if (refs == 1) {
+        bool is_heap = (pool->flags & NET_BUF_POOL_HEAP);
+        _net_buf_pool_destroy_internal(pool);
+        if (is_heap) free(pool);
+    }
+}
+
+void net_buf_pool_destroy(net_buf_pool_t *pool) {
+    net_buf_pool_unref(pool);
 }
 
 uint16_t net_buf_id(net_buf_t *buf) {
@@ -138,15 +106,12 @@ net_buf_t *net_buf_alloc(net_buf_pool_t *pool, int64_t timeout_ms) {
             buf = net_buf_pool_get(pool, (uint16_t)(pool->buf_count - pool->uninit_count));
             buf->pool = pool;
             buf->b.size = pool->buf_size;
-            // 物理缓冲区位于 UserData 之后，且需重新计算对齐后的偏移
-            size_t payload_offset =
-                (sizeof(struct net_buf) + pool->user_data_size + 7) & (size_t)~7;
+            size_t payload_offset = (sizeof(struct net_buf) + pool->user_data_size + 7) & (size_t)~7;
             buf->b.__buf = (uint8_t *)buf + payload_offset;
             pool->uninit_count--;
             break;
         }
         if (timeout_ms == 0) break;
-        // 注意：此处简化处理，实际应根据 timeout_ms 决定等待时间
         uv_cond_wait(&pool->cond, &pool->lock);
         if (timeout_ms > 0) break;
     }
@@ -160,58 +125,12 @@ net_buf_t *net_buf_alloc(net_buf_pool_t *pool, int64_t timeout_ms) {
         buf->alloc_ts = uv_hrtime();
         buf->last_owner = "unknown";
         net_buf_simple_init(&buf->b, 0);
+        net_buf_pool_ref(pool);
 
-        // 更新峰值统计
         uint16_t current_usage = (uint16_t)(pool->buf_count - pool->uninit_count);
         if (current_usage > pool->peak_usage) pool->peak_usage = current_usage;
     }
     return buf;
-}
-
-int net_buf_pool_audit(net_buf_pool_t *pool, uint64_t age_threshold_ms,
-                       net_buf_pool_stats_t *out_stats) {
-    if (!pool || !pool->storage) return 0;
-
-    int reclaimed = 0;
-    uint64_t now = uv_hrtime();
-    uint64_t threshold_ns = age_threshold_ms * 1000000;
-    size_t node_sz = get_node_size(pool);
-
-    uv_mutex_lock(&pool->lock);
-
-    if (out_stats) {
-        out_stats->total_count = pool->buf_count;
-        out_stats->peak_usage = pool->peak_usage;
-        out_stats->free_count = 0;
-    }
-
-    for (uint16_t i = 0; i < pool->buf_count; i++) {
-        net_buf_t *buf = (net_buf_t *)(pool->storage + (size_t)i * node_sz);
-
-        uint32_t ref = atomic_load_explicit(&buf->ref, memory_order_acquire);
-        if (ref > 0) {
-            // [Nexus] 如果标记为长效，直接跳过审计
-            if (buf->flags & NET_BUF_FLAG_PERSISTENT) continue;
-
-            uint64_t age = now - buf->alloc_ts;
-            if (age > threshold_ns) {
-                // [Nexus] 只告警，不强制回收仍在被引用的 Buffer
-                // 强制回收正在被引用的内存是 UAF 崩溃的根源
-                LOG_WARN(LOG_CAT_CORE,
-                         "Long-lived NetBuf detected: ID %u, Age %lu ms, Ref %u, Owner %s", i,
-                         (unsigned long)(age / 1000000), ref,
-                         buf->last_owner ? buf->last_owner : "unknown");
-            }
-        } else if (out_stats) {
-            out_stats->free_count++;
-        }
-    }
-
-    if (out_stats) out_stats->leaked_reclaimed = (uint32_t)reclaimed;
-
-    uv_mutex_unlock(&pool->lock);
-
-    return reclaimed;
 }
 
 net_buf_t *net_buf_ref(net_buf_t *buf) {
@@ -221,11 +140,8 @@ net_buf_t *net_buf_ref(net_buf_t *buf) {
 
 void net_buf_unref(net_buf_t *buf) {
     if (!buf) return;
-
-    // 返回递减前的值，如果之前是 1，说明现在是 0，需要回收
     if (atomic_fetch_sub_explicit(&buf->ref, 1, memory_order_acq_rel) != 1) return;
 
-    // 递归释放分片
     if (buf->frags) {
         net_buf_unref(buf->frags);
         buf->frags = NULL;
@@ -239,74 +155,80 @@ void net_buf_unref(net_buf_t *buf) {
     pool->free_list = buf;
     uv_cond_signal(&pool->cond);
     uv_mutex_unlock(&pool->lock);
+    net_buf_pool_unref(pool);
 }
 
 net_buf_t *net_buf_clone(net_buf_t *buf, int64_t timeout_ms) {
     net_buf_t *clone = net_buf_alloc(buf->pool, timeout_ms);
     if (!clone) return NULL;
-
-    // 拷贝数据状态
-    clone->b.data = clone->b.__buf + net_buf_simple_headroom(&buf->b);
-    clone->b.len = buf->b.len;
-    memcpy(clone->b.data, buf->b.data, buf->b.len);
-
-    // 拷贝元数据
-    memcpy(clone->__user_data, buf->__user_data, buf->pool->user_data_size);
-
+    net_buf_simple_add_mem(&clone->b, buf->b.data, buf->b.len);
     return clone;
 }
 
-void net_buf_frag_add(net_buf_t *head, net_buf_t *frag) {
-    if (!head || !frag) return;
-    net_buf_t *last = head;
-    while (last->frags) last = last->frags;
-    last->frags = frag;
+void net_buf_simple_init(struct net_buf_simple *buf, size_t reserve) {
+    buf->data = buf->__buf + reserve;
+    buf->len = 0;
 }
 
-net_buf_t *net_buf_frag_del(net_buf_t *parent, net_buf_t *frag) {
-    if (!parent || !frag) return NULL;
-    if (parent->frags == frag) {
-        parent->frags = frag->frags;
-        frag->frags = NULL;
-        return frag;
-    }
-    net_buf_t *prev = parent->frags;
-    while (prev && prev->frags != frag) prev = prev->frags;
-    if (prev) {
-        prev->frags = frag->frags;
-        frag->frags = NULL;
-        return frag;
-    }
-    return NULL;
+void net_buf_simple_reset(struct net_buf_simple *buf) {
+    buf->data = buf->__buf;
+    buf->len = 0;
 }
 
-net_buf_t *net_buf_frag_last(net_buf_t *buf) {
-    net_buf_t *last = buf;
-    while (last->frags) last = last->frags;
-    return last;
+void *net_buf_simple_add(struct net_buf_simple *buf, size_t len) {
+    void *ptr = buf->data + buf->len;
+    buf->len = (uint16_t)(buf->len + len);
+    return ptr;
 }
 
-size_t net_buf_linearize(void *dst, size_t dst_len, net_buf_t *src, size_t offset, size_t len) {
-    size_t total = 0;
-    net_buf_t *frag = src;
-    while (frag && offset >= frag->b.len) {
-        offset -= frag->b.len;
-        frag = frag->frags;
-    }
-    while (frag && total < len && total < dst_len) {
-        size_t to_copy = frag->b.len - offset;
-        if (to_copy > (len - total)) to_copy = len - total;
-        if (to_copy > (dst_len - total)) to_copy = dst_len - total;
-        memcpy((uint8_t *)dst + total, frag->b.data + offset, to_copy);
-        total += to_copy;
-        offset = 0;
-        frag = frag->frags;
-    }
-    return total;
+void *net_buf_simple_add_mem(struct net_buf_simple *buf, const void *mem, size_t len) {
+    return memcpy(net_buf_simple_add(buf, len), mem, len);
+}
+
+void *net_buf_simple_pull(struct net_buf_simple *buf, size_t len) {
+    void *ptr = buf->data;
+    buf->data += len;
+    buf->len = (uint16_t)(buf->len - len);
+    return ptr;
+}
+
+void *net_buf_simple_push(struct net_buf_simple *buf, size_t len) {
+    buf->data -= len;
+    buf->len = (uint16_t)(buf->len + len);
+    return buf->data;
 }
 
 void *net_buf_append_bytes(net_buf_t *buf, const void *data, size_t len) {
-    if (!buf || !data || len == 0) return NULL;
-    if (net_buf_simple_tailroom(&buf->b) < len) return NULL;
     return net_buf_simple_add_mem(&buf->b, data, len);
+}
+
+int net_buf_pool_audit(net_buf_pool_t *pool, uint64_t threshold_ms, net_buf_pool_stats_t *out_stats) {
+    if (!pool) return 0;
+    int reclaimed = 0;
+    uint64_t now = uv_hrtime();
+    uint64_t threshold_ns = threshold_ms * 1000000;
+
+    uv_mutex_lock(&pool->lock);
+    if (out_stats) {
+        out_stats->total_count = pool->buf_count;
+        out_stats->peak_usage = pool->peak_usage;
+        out_stats->free_count = 0;
+    }
+
+    size_t node_sz = get_node_size(pool);
+    for (uint16_t i = 0; i < pool->buf_count; i++) {
+        net_buf_t *buf = (net_buf_t *)(pool->storage + (size_t)i * node_sz);
+        uint32_t ref = atomic_load_explicit(&buf->ref, memory_order_acquire);
+        if (ref > 0) {
+            if (buf->flags & 0x01 /* PERSISTENT */) continue;
+            uint64_t age = now - buf->alloc_ts;
+            if (age > threshold_ns) {
+                LOG_WARN(LOG_CAT_CORE, "Long-lived NetBuf: ID %u, Age %lu ms, Owner %s", i, (unsigned long)(age / 1000000), buf->last_owner);
+            }
+        } else if (out_stats) {
+            out_stats->free_count++;
+        }
+    }
+    uv_mutex_unlock(&pool->lock);
+    return reclaimed;
 }

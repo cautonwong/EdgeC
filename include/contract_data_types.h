@@ -72,6 +72,7 @@ typedef struct {
         double f1, f2, f3;
         uint32_t u1;
         const char *s1;
+        uint32_t u2, u3;
     } params;
     int next_indices[4]; /**< [Topology] 下级算子索引 (-1 表示无，0 表示数组下一项) */
 } edge_stage_def_t;

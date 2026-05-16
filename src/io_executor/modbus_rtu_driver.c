@@ -148,6 +148,10 @@ int modbus_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_o
                 pipe_msg_t shadow;
                 if (datahub_read_shadow((datahub_t *)ctx->user_data, map->tag_id, &shadow) == 0) {
                     rv = (uint16_t)(shadow.payload.val.f / (map->scaler ? map->scaler : 1.0f));
+                    LOG_INFO(LOG_CAT_IO, "Modbus Slave: Read Tag %u (Shadow: %.2f) -> Raw %u (Scale: %.4f)", 
+                             map->tag_id, shadow.payload.val.f, rv, (double)map->scaler);
+                } else {
+                    LOG_WARN(LOG_CAT_IO, "Modbus Slave: Failed to read shadow for Tag %u", map->tag_id);
                 }
             }
             p[3 + i * 2] = (uint8_t)(rv >> 8);

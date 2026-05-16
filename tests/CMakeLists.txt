@@ -25,6 +25,7 @@ add_edge_test(test_arbiter test_arbiter.c)
 # 2. 数据总线测试 (Data Plane)
 add_edge_test(test_datahub test_datahub.c)
 add_edge_test(test_datahub_shadow test_datahub_shadow.c)
+add_edge_test(test_passthrough test_passthrough.c)
 add_edge_test(test_memfd_seals test_memfd_seals.c)
 add_edge_test(test_fuzz_datahub test_fuzz_datahub.c)
 add_edge_test(test_sqlite_service test_sqlite_service.c)
@@ -53,6 +54,8 @@ add_edge_test(test_sqlite_injection test_sqlite_injection.c)
 add_edge_test(test_linalg test_linalg.c)
 add_edge_test(test_algorithm_sum test_algorithm_sum.c)
 add_edge_test(test_battery_algo test_battery_algo.c)
+add_edge_test(test_ekf_soc test_ekf_soc.c)
+add_edge_test(test_mpc_dispatcher test_mpc_dispatcher.c)
 add_edge_test(test_standard_stages_math test_standard_stages_math.c)
 add_edge_test(test_stream_engine_industrial test_stream_engine_industrial.c)
 add_edge_test(test_stream_engine_timeguard test_stream_engine_timeguard.c)
@@ -91,6 +94,16 @@ target_link_libraries(test_northbound_mqtt PRIVATE
     pthread dl rt m
 )
 add_test(NAME test_northbound_mqtt COMMAND test_northbound_mqtt)
+
+add_executable(test_iems_full_stack test_iems_full_stack.c)
+target_link_libraries(test_iems_full_stack PRIVATE 
+    edge_sdk
+    contract_iems
+    edge_common_interface
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_iems_full_stack COMMAND test_iems_full_stack)
 
 # 编译选项加固
 target_link_options(test_integration PRIVATE -Wl,--wrap=io_submit)

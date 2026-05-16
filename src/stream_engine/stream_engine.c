@@ -117,7 +117,15 @@ static void _on_data_async(uv_async_t *handle) {
         uv__queue_foreach(q, &engine->pipelines) {
             pipeline_t *p = uv__queue_data(q, pipeline_t, node);
             if (_is_pipeline_triggered(p, msg.tag_id)) {
-                _pipeline_process(p, &msg);
+                pipe_msg_t result = msg;
+                _pipeline_process(p, &result);
+                // [Nexus] Automatically publish result back to DataHub if changed OR different tag
+                if (p->state == PIPE_STATE_IDLE) {
+                    if (result.tag_id != msg.tag_id || result.payload.val.f != msg.payload.val.f) {
+                         LOG_INFO(LOG_CAT_CORE, "StreamEngine: Publishing result for Tag %u (Val: %.2f)", result.tag_id, result.payload.val.f);
+                         datahub_publish(engine->hub, &result);
+                    }
+                }
             }
         }
     }
@@ -307,8 +315,12 @@ void stream_engine_destroy(stream_engine_t *engine) {
         pipeline_stage_t *s = p->head;
         while (s) {
             pipeline_stage_t *next_s = s->next[0];
+            // [Nexus] Avoid double free if stages are shared or chain is corrupted
+            if (s->health == 99) break; // Use health=99 as "already freed" marker for this slice
+            
             if (s->cleanup_state) s->cleanup_state(s->priv_state);
             if (s->cleanup_cfg) s->cleanup_cfg(s->priv_cfg);
+            s->health = 99;
             free(s);
             s = next_s;
         }

@@ -343,6 +343,7 @@ void control_ekf_correct(control_ekf_t *ekf, const edge_matrix_t *H, const edge_
 
 int control_mpc_formulate(const edge_matrix_t *A, const edge_matrix_t *B, 
                           const edge_matrix_t *Q, const edge_matrix_t *R,
+                          const edge_matrix_t *x0,
                           uint32_t N, edge_matrix_t *H_out, edge_matrix_t *f_out) {
     uint32_t n = edge_matrix_rows(A);
     uint32_t m = edge_matrix_cols(B);
@@ -388,22 +389,55 @@ int control_mpc_formulate(const edge_matrix_t *A, const edge_matrix_t *B,
     // 2. H = Su' * Qbar * Su + Rbar
     edge_matrix_t *SuT = edge_matrix_alloc(m * N, n * N);
     edge_matrix_transpose(Su, SuT);
-    edge_matrix_mul(SuT, Su, H_out); 
+    
+    edge_matrix_t *QSu = edge_matrix_alloc(n * N, m * N);
+    for (uint32_t i = 0; i < N; i++) {
+        for (uint32_t k = 0; k < m * N; k++) {
+            for (uint32_t r = 0; r < n; r++) {
+                double sum = 0;
+                for (uint32_t j = 0; j < n; j++) {
+                    sum += edge_matrix_get(Q, r, j) * edge_matrix_get(Su, i * n + j, k);
+                }
+                edge_matrix_set(QSu, i * n + r, k, sum);
+            }
+        }
+    }
+    edge_matrix_mul(SuT, QSu, H_out); 
+
+    // Add Rbar to H_out
+    for (uint32_t i = 0; i < N; i++) {
+        for (uint32_t r = 0; r < m; r++) {
+            for (uint32_t c = 0; c < m; c++) {
+                double val = edge_matrix_get(H_out, i * m + r, i * m + c);
+                val += edge_matrix_get(R, r, c);
+                edge_matrix_set(H_out, i * m + r, i * m + c, val);
+            }
+        }
+    }
     
     // 3. f = (Sx * x0)' * Qbar * Su
     edge_matrix_t *Sx_x0 = edge_matrix_alloc(n * N, 1);
-    for(uint32_t i=0; i<n*N; i++) edge_matrix_set(Sx_x0, i, 0, 1.0);
-    edge_matrix_t *Sx_x0_T = edge_matrix_alloc(1, n * N);
-    edge_matrix_transpose(Sx_x0, Sx_x0_T);
+    edge_matrix_mul(Sx, x0, Sx_x0);
+    
+    edge_matrix_t *Sx_x0_Q = edge_matrix_alloc(1, n * N);
+    for (uint32_t i = 0; i < N; i++) {
+        for (uint32_t r = 0; r < n; r++) {
+            double sum = 0;
+            for (uint32_t j = 0; j < n; j++) {
+                sum += edge_matrix_get(Sx_x0, i * n + j, 0) * edge_matrix_get(Q, j, r);
+            }
+            edge_matrix_set(Sx_x0_Q, 0, i * n + r, sum);
+        }
+    }
     
     edge_matrix_t *f_row = edge_matrix_alloc(1, m * N);
-    edge_matrix_mul(Sx_x0_T, Su, f_row);
+    edge_matrix_mul(Sx_x0_Q, Su, f_row);
     
     // Transpose f_row to f_out (mN x 1)
     edge_matrix_transpose(f_row, f_out);
 
     edge_matrix_free(Sx); edge_matrix_free(Su); edge_matrix_free(Ai);
-    edge_matrix_free(SuT); edge_matrix_free(Sx_x0); edge_matrix_free(Sx_x0_T);
-    edge_matrix_free(f_row);
+    edge_matrix_free(SuT); edge_matrix_free(QSu); edge_matrix_free(Sx_x0); 
+    edge_matrix_free(Sx_x0_Q); edge_matrix_free(f_row);
     return 0;
 }

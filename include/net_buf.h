@@ -75,7 +75,13 @@ typedef struct net_buf_pool {
     void (*destroy_cb)(net_buf_t *buf);
     void *user_data;
     uint8_t *storage;
+    atomic_int ref_count;    /**< [Nexus] 引用计数 */
+    uint32_t flags;          /**< [Nexus] 池属性标记 */
 } net_buf_pool_t;
+
+#define NET_BUF_POOL_HEAP  0x01  /**< 池结构体本身在堆上 */
+void net_buf_pool_ref(net_buf_pool_t *pool);
+void net_buf_pool_unref(net_buf_pool_t *pool);
 
 /**
  * @brief 获取内嵌元数据指针
@@ -166,6 +172,7 @@ static inline uint8_t net_buf_simple_pull_u8(struct net_buf_simple *buf) {
 
 /* --- 2. 完整 net_buf 声明周期 API --- */
 
+net_buf_pool_t *net_buf_pool_new(uint32_t count, uint16_t size, uint16_t user_data_size);
 int net_buf_pool_init(net_buf_pool_t *pool, uint16_t count, uint16_t size, uint16_t user_data_size,
                       void (*destroy_cb)(net_buf_t *buf), void *user_data);
 void net_buf_pool_destroy(net_buf_pool_t *pool);

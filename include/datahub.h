@@ -108,9 +108,7 @@ int datahub_load_snapshot(datahub_t *hub, const char *path);
 int datahub_add_listener(datahub_t *hub, uv_async_t *async_handle);
 int datahub_remove_listener(datahub_t *hub, uv_async_t *async_handle);
 
-static inline uint32_t datahub_get_metadata_count(datahub_t *hub) {
-    return hub ? hub->metadata_count : 0;
-}
+uint32_t datahub_get_metadata_count(datahub_t *hub);
 
 static inline const edge_tag_meta_t *datahub_get_metadata_by_index(datahub_t *hub, uint32_t index) {
     if (hub && index < hub->metadata_count) return &hub->metadata_table[index];

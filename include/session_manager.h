@@ -42,4 +42,10 @@ int session_manager_tick(session_manager_t *sm, int bus_id, net_buf_t **out_txs,
  */
 void session_manager_close(session_manager_t *sm, const char *protocol, uint32_t device_id);
 
+int session_manager_add_session(session_manager_t *sm, const char *protocol, uint32_t device_id,
+                                const driver_contract_injection_t *inject, void *user_data);
+
+int session_manager_handle_rx(session_manager_t *sm, net_buf_t *rx, net_buf_t *resp_out,
+                              pipe_msg_t *async_msgs, int *async_count, size_t *consumed);
+
 #endif

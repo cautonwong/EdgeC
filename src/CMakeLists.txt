@@ -21,6 +21,7 @@ add_library(edge_sdk STATIC
     stream_engine/standard_stages.c
     stream_engine/energy_integrator.c
     stream_engine/stage_dsp_rms.c
+    stream_engine/stage_ekf_soc.c
     stream_engine/js_stage.c
     stream_engine/pipeline_loader.c
     stream_engine/stream_dump.c

@@ -46,6 +46,12 @@ tags:
       ui: { group: "Battery_Health", min: 0, max: 100, widget: "gauge" }
       northbound: { storage: "trend", push: "periodic" }
 
+  - id: 4003 # BATTERY_POWER
+    attributes:
+      bindings:
+        - { protocol: "ModbusRTU", reg: 15, type: "holding", scaler: 0.01 }
+        - { protocol: "IEC104", ioa: 16388, type: "measured_float" }
+
 # 4. 核心业务管线 (Core Pipelines)
 pipelines:
   - id: "energy_manager"

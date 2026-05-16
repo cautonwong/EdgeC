@@ -171,6 +171,8 @@ add_library(edge_stream_engine STATIC
     src/stream_engine/stage_advanced_pid.c
     src/stream_engine/energy_integrator.c
     src/stream_engine/stage_dsp_rms.c
+    src/stream_engine/stage_ekf_soc.c
+    src/stream_engine/stage_mpc_dispatcher.c
     src/stream_engine/js_stage.c
     src/stream_engine/stage_wasm.c
     src/stream_engine/wasm_runtime/wasm_mgr.c
@@ -200,6 +202,7 @@ add_library(edge_main_loop STATIC
     src/main_loop/sched_port.c
     src/main_loop/web_server.c
     src/main_loop/ws_proto.c
+    src/main_loop/passthrough_mgr.c
     src/io_executor/driver_manager.c
     src/io_executor/session_manager.c
     src/io_executor/profile_loader.c

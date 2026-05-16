@@ -45,7 +45,7 @@ static cmd_msg_t *_arbiter_schedule_internal(arbiter_t *arb, int bus_id) {
     if (bus_id < 0 || bus_id >= MAX_BUSES) return NULL;
 
     struct bus_info *bus = &arb->buses[bus_id];
-    if (bus->owner || !bus->queue) {
+    if (bus->owner || bus->is_exclusive || !bus->queue) {
         return NULL;
     }
 

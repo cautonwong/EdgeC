@@ -21,7 +21,7 @@ session_manager_t *session_manager_create(driver_manager_t *mgr, int max_session
     session_manager_t *sm = calloc(1, sizeof(session_manager_t));
     sm->driver_mgr = mgr;
     sm->max_sessions = max_sessions;
-    sm->sessions = calloc(max_sessions, sizeof(session_entry_t));
+    sm->sessions = calloc((size_t)max_sessions, sizeof(session_entry_t));
     return sm;
 }
 
@@ -38,8 +38,6 @@ void session_manager_destroy(session_manager_t *sm) {
 
 edge_driver_ctx_t *session_manager_get(session_manager_t *sm, const char *protocol, uint32_t device_id) {
     if (!sm || !protocol) return NULL;
-
-    // 1. 查找现有会话
     for (int i = 0; i < sm->max_sessions; i++) {
         if (sm->sessions[i].in_use && 
             sm->sessions[i].device_id == device_id &&
@@ -47,29 +45,59 @@ edge_driver_ctx_t *session_manager_get(session_manager_t *sm, const char *protoc
             return sm->sessions[i].ctx;
         }
     }
+    return NULL;
+}
 
-    // 2. 创建新会话
+int session_manager_add_session(session_manager_t *sm, const char *protocol, uint32_t device_id,
+                                const driver_contract_injection_t *inject, void *user_data) {
+    if (!sm || !protocol) return -1;
     for (int i = 0; i < sm->max_sessions; i++) {
         if (!sm->sessions[i].in_use) {
             edge_driver_ctx_t *ctx = driver_instance_create(sm->driver_mgr, protocol, device_id);
-            if (!ctx) return NULL;
-
+            if (!ctx) return -1;
+            
+            ctx->user_data = user_data;
+            if (inject) {
+                ctx->meta_list = inject->meta_list;
+                ctx->meta_list_len = inject->meta_list_len;
+                ctx->lookup_by_key = inject->lookup_by_key;
+                ctx->lookup_by_tag = inject->lookup_by_tag;
+            }
+            ctx->role = PROTOCOL_ROLE_SLAVE;
+            
             sm->sessions[i].ctx = ctx;
             strncpy(sm->sessions[i].protocol, protocol, 15);
             sm->sessions[i].device_id = device_id;
             sm->sessions[i].in_use = true;
             sm->current_count++;
-            
             LOG_INFO(LOG_CAT_IO, "Session Created: %s:%u (Total: %d)", protocol, device_id, sm->current_count);
-            return ctx;
+            return 0;
         }
     }
+    return -1;
+}
 
-    LOG_ERROR(LOG_CAT_IO, "Session Manager Pool Exhausted (%d)", sm->max_sessions);
-    return NULL;
+int session_manager_handle_rx(session_manager_t *sm, net_buf_t *rx, net_buf_t *resp_out,
+                              pipe_msg_t *async_msgs, int *async_count, size_t *consumed) {
+    if (!sm) return -1;
+    *async_count = 0;
+    *consumed = 0;
+    
+    // Simple dispatcher: try all active sessions
+    for (int i = 0; i < sm->max_sessions; i++) {
+        if (sm->sessions[i].in_use) {
+            edge_driver_ctx_t *ctx = sm->sessions[i].ctx;
+            if (ctx->driver && ctx->driver->handle_rx) {
+                int rc = ctx->driver->handle_rx(ctx, rx, resp_out, async_msgs, async_count, consumed);
+                if (rc != EDGE_ERR_INCOMPLETE) return rc;
+            }
+        }
+    }
+    return EDGE_ERR_INCOMPLETE;
 }
 
 int session_manager_tick(session_manager_t *sm, int bus_id, net_buf_t **out_txs, int max_txs) {
+    (void)bus_id;
     if (!sm) return 0;
     int tx_count = 0;
     for (int i = 0; i < sm->max_sessions && tx_count < max_txs; i++) {
@@ -92,7 +120,6 @@ void session_manager_close(session_manager_t *sm, const char *protocol, uint32_t
         if (sm->sessions[i].in_use && 
             sm->sessions[i].device_id == device_id &&
             strcmp(sm->sessions[i].protocol, protocol) == 0) {
-            
             driver_instance_destroy(sm->sessions[i].ctx, sm->sessions[i].protocol);
             sm->sessions[i].in_use = false;
             sm->current_count--;

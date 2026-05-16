@@ -670,8 +670,13 @@ pipeline_stage_t *stage_advanced_pid_create_v2(const edge_stage_def_t *def, pipe
     return stage_advanced_pid_create(def->params.f1, def->params.f2, def->params.f3, setpoint, out_min, out_max, (uint32_t)def->params.u1);
 }
 
+pipeline_stage_t *stage_ekf_soc_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_mpc_dispatcher_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+
 static const edge_stage_factory_entry_t g_standard_stages[] = {
     {"advanced_pid", stage_advanced_pid_create_v2},
+    {"ekf_soc", stage_ekf_soc_create_v2},
+    {"mpc_dispatch", stage_mpc_dispatcher_create_v2},
     {"kalman", stage_kf_create_v2},
     {"foc", stage_foc_create_v2},
     {"fir_filter", stage_fir_filter_create_v2},

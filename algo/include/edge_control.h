@@ -100,6 +100,7 @@ void control_ekf_correct(control_ekf_t *ekf, const edge_matrix_t *H, const edge_
  */
 int control_mpc_formulate(const edge_matrix_t *A, const edge_matrix_t *B, 
                           const edge_matrix_t *Q, const edge_matrix_t *R,
+                          const edge_matrix_t *x0,
                           uint32_t N, edge_matrix_t *H_out, edge_matrix_t *f_out);
 
 #ifdef __cplusplus
