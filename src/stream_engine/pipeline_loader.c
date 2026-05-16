@@ -69,8 +69,10 @@ static pipeline_stage_t *build_stage(const char *type, cJSON *config, pipeline_l
         return stage_battery_guard_create(limits);
     }
     if (strcmp(type, "transform") == 0) {
-        double alpha = cJSON_GetObjectItem(config, "alpha")->valuedouble;
-        double beta = cJSON_GetObjectItem(config, "beta")->valuedouble;
+        cJSON *alpha_obj = cJSON_GetObjectItem(config, "alpha");
+        cJSON *beta_obj = cJSON_GetObjectItem(config, "beta");
+        double alpha = alpha_obj ? alpha_obj->valuedouble : 1.0;
+        double beta = beta_obj ? beta_obj->valuedouble : 0.0;
         return stage_transform_create(alpha, beta);
     }
     if (strcmp(type, "ema") == 0) {

@@ -652,11 +652,12 @@ pipeline_stage_t *stage_iir_filter_create(uint32_t order, const double *b, const
 
 pipeline_stage_t *stage_iir_filter_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
     (void)ctx;
-    uint32_t order = def->params.u1;
-    if (order == 0 || order > 10) return NULL;
-    double b[] = {1.0, 0.5};
-    double a[] = {1.0, -0.2};
-    return stage_iir_filter_create(1, b, a);
+    // [Fix C6] 移除硬编码，使用传入参数 f1=b0, f2=b1, f3=a1
+    uint32_t order = (uint32_t)def->params.u1;
+    if (order != 1) return NULL; // 目前仅支持 1 阶通过此接口
+    double b[] = {def->params.f1, def->params.f2};
+    double a[] = {1.0, def->params.f3};
+    return stage_iir_filter_create(order, b, a);
 }
 
 static const edge_stage_factory_entry_t g_standard_stages[] = {
