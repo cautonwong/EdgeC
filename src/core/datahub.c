@@ -198,8 +198,7 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
             atomic_fetch_add_explicit(&hub->shadow_seq[idx], 1, memory_order_relaxed);
             atomic_thread_fence(memory_order_release);
             hub->shadow_table[idx] = local_msg;
-            atomic_thread_fence(memory_order_release);
-            atomic_fetch_add_explicit(&hub->shadow_seq[idx], 1, memory_order_relaxed);
+            atomic_fetch_add_explicit(&hub->shadow_seq[idx], 1, memory_order_release);
         }
     }
 

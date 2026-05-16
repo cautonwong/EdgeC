@@ -108,7 +108,11 @@ static void _on_data_async(uv_async_t *handle) {
     pipe_msg_t msg;
 
     uv_mutex_lock(&engine->pipe_mutex);
-    while (shm_ring_read(&hub->ring, &engine->bus_read_seq, &msg) == 0) {
+    int rc;
+    while ((rc = shm_ring_read(&hub->ring, &engine->bus_read_seq, &msg)) >= 0) {
+        if (rc > 0) {
+            LOG_WARN(LOG_CAT_CORE, "StreamEngine: ShmRing dropped %d messages", rc);
+        }
         struct uv__queue *q;
         uv__queue_foreach(q, &engine->pipelines) {
             pipeline_t *p = uv__queue_data(q, pipeline_t, node);

@@ -171,7 +171,9 @@ int stream_engine_load_config(stream_engine_t *engine, const char *json_path,
         cJSON *stages_json = cJSON_GetObjectItem(p_json, "stages");
         cJSON *s_json;
         cJSON_ArrayForEach(s_json, stages_json) {
-            const char *type = cJSON_GetObjectItem(s_json, "type")->valuestring;
+            cJSON *type_item = cJSON_GetObjectItem(s_json, "type");
+            const char *type = type_item ? type_item->valuestring : NULL;
+            if (!type) continue;
             cJSON *cfg_json = cJSON_GetObjectItem(s_json, "config");
             pipeline_stage_t *s = build_stage(type, cfg_json, ctx);
             if (s) {
