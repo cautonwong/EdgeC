@@ -56,6 +56,7 @@ add_edge_test(test_battery_algo test_battery_algo.c)
 add_edge_test(test_standard_stages_math test_standard_stages_math.c)
 add_edge_test(test_stream_engine_industrial test_stream_engine_industrial.c)
 add_edge_test(test_stream_engine_timeguard test_stream_engine_timeguard.c)
+add_edge_test(test_proc_filter_pid test_proc_filter_pid.c)
 
 # 6. 系统集成测试 (Integration)
 add_edge_test(test_integration test_integration.c)

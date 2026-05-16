@@ -168,6 +168,7 @@ add_library(edge_stream_engine STATIC
     src/stream_engine/stage_linear_system.c
     src/stream_engine/stage_transfer_function.c
     src/stream_engine/stage_iir_filter.c
+    src/stream_engine/stage_advanced_pid.c
     src/stream_engine/energy_integrator.c
     src/stream_engine/stage_dsp_rms.c
     src/stream_engine/js_stage.c

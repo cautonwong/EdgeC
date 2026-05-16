@@ -660,7 +660,18 @@ pipeline_stage_t *stage_iir_filter_create_v2(const edge_stage_def_t *def, pipeli
     return stage_iir_filter_create(order, b, a);
 }
 
+pipeline_stage_t *stage_advanced_pid_create(double kp, double ki, double kd, double setpoint, double out_min, double out_max, uint32_t out_tag);
+
+pipeline_stage_t *stage_advanced_pid_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
+    (void)ctx;
+    double setpoint = def->params.s1 ? atof(def->params.s1) : 50.0;
+    double out_min = -100.0;
+    double out_max = 100.0;
+    return stage_advanced_pid_create(def->params.f1, def->params.f2, def->params.f3, setpoint, out_min, out_max, (uint32_t)def->params.u1);
+}
+
 static const edge_stage_factory_entry_t g_standard_stages[] = {
+    {"advanced_pid", stage_advanced_pid_create_v2},
     {"kalman", stage_kf_create_v2},
     {"foc", stage_foc_create_v2},
     {"fir_filter", stage_fir_filter_create_v2},
