@@ -217,6 +217,82 @@ int control_qp_solve_hildreth(const edge_matrix_t *Q, const edge_matrix_t *c,
     return 0;
 }
 
+void control_kf_init(control_kf_t *kf, uint32_t n, uint32_t m) {
+    kf->x = edge_matrix_alloc(n, 1);
+    kf->P = edge_matrix_alloc(n, n);
+    kf->Q = edge_matrix_alloc(n, n);
+    kf->R = edge_matrix_alloc(m, m);
+    kf->K = edge_matrix_alloc(n, m);
+}
+
+void control_kf_predict(control_kf_t *kf, const edge_matrix_t *F, const edge_matrix_t *B, const edge_matrix_t *u) {
+    // 1. x = F*x + B*u
+    uint32_t n = edge_matrix_rows(F);
+    edge_matrix_t *new_x = edge_matrix_alloc(n, 1);
+    edge_matrix_mul(F, kf->x, new_x);
+    if (B && u) {
+        edge_matrix_t *Bu = edge_matrix_alloc(n, 1);
+        edge_matrix_mul(B, u, Bu);
+        edge_matrix_add(new_x, Bu, new_x);
+        edge_matrix_free(Bu);
+    }
+    edge_matrix_copy(kf->x, new_x);
+    edge_matrix_free(new_x);
+
+    // 2. P = F*P*F' + Q
+    edge_matrix_t *FT = edge_matrix_alloc(n, n);
+    edge_matrix_transpose(F, FT);
+    edge_matrix_t *FP = edge_matrix_alloc(n, n);
+    edge_matrix_mul(F, kf->P, FP);
+    edge_matrix_mul(FP, FT, kf->P);
+    edge_matrix_add(kf->P, kf->Q, kf->P);
+    
+    edge_matrix_free(FT); edge_matrix_free(FP);
+}
+
+void control_kf_correct(control_kf_t *kf, const edge_matrix_t *H, const edge_matrix_t *z) {
+    uint32_t n = edge_matrix_rows(kf->P);
+    uint32_t m = edge_matrix_rows(H);
+
+    // 1. y = z - H*x
+    edge_matrix_t *y = edge_matrix_alloc(m, 1);
+    edge_matrix_mul(H, kf->x, y);
+    edge_matrix_sub(z, y, y);
+
+    // 2. S = H*P*H' + R
+    edge_matrix_t *HT = edge_matrix_alloc(n, m);
+    edge_matrix_transpose(H, HT);
+    edge_matrix_t *PHt = edge_matrix_alloc(n, m);
+    edge_matrix_mul(kf->P, HT, PHt);
+    edge_matrix_t *S = edge_matrix_alloc(m, m);
+    edge_matrix_mul(H, PHt, S);
+    edge_matrix_add(S, kf->R, S);
+
+    // 3. K = P*H' * inv(S)
+    edge_matrix_t *Sinv = edge_matrix_alloc(m, m);
+    edge_matrix_inv(S, Sinv);
+    edge_matrix_mul(PHt, Sinv, kf->K);
+
+    // 4. x = x + K*y
+    edge_matrix_t *Ky = edge_matrix_alloc(n, 1);
+    edge_matrix_mul(kf->K, y, Ky);
+    edge_matrix_add(kf->x, Ky, kf->x);
+
+    // 5. P = (I - K*H) * P
+    edge_matrix_t *I = edge_matrix_alloc(n, n);
+    edge_matrix_identity(I);
+    edge_matrix_t *KH = edge_matrix_alloc(n, n);
+    edge_matrix_mul(kf->K, H, KH);
+    edge_matrix_sub(I, KH, I);
+    edge_matrix_t *newP = edge_matrix_alloc(n, n);
+    edge_matrix_mul(I, kf->P, newP);
+    edge_matrix_copy(kf->P, newP);
+
+    edge_matrix_free(y); edge_matrix_free(HT); edge_matrix_free(PHt);
+    edge_matrix_free(S); edge_matrix_free(Sinv); edge_matrix_free(Ky);
+    edge_matrix_free(I); edge_matrix_free(KH); edge_matrix_free(newP);
+}
+
 void control_ekf_predict(control_ekf_t *ekf, const edge_matrix_t *F, const edge_matrix_t *B, const edge_matrix_t *u) {
     // x = f(x, u) -> 此处假设外部已更新 x，仅更新 P
     // P = F*P*F' + Q

@@ -33,7 +33,8 @@ typedef struct {
 } dlms_driver_ctx_t;
 
 static int dlms_v4_on_init(edge_driver_ctx_t *ctx) {
-    dlms_driver_ctx_t *priv = (dlms_driver_ctx_t *)ctx->priv;
+    dlms_driver_ctx_t *priv = EDGE_DRIVER_GET_PRIV(dlms_driver_ctx_t, ctx, "DLMS");
+    if (!priv) return -1;
     memset(priv, 0, sizeof(dlms_driver_ctx_t));
     
     priv->hdlc.client_addr = 0x01;
@@ -46,7 +47,8 @@ static int dlms_v4_on_init(edge_driver_ctx_t *ctx) {
 }
 
 static int dlms_v4_on_tick(edge_driver_ctx_t *ctx, net_buf_t **out_tx) {
-    dlms_driver_ctx_t *priv = (dlms_driver_ctx_t *)ctx->priv;
+    dlms_driver_ctx_t *priv = EDGE_DRIVER_GET_PRIV(dlms_driver_ctx_t, ctx, "DLMS");
+    if (!priv) return -1;
     uint64_t now = uv_hrtime() / 1000000;
 
     switch (priv->session_state) {
@@ -96,14 +98,15 @@ static int dlms_v4_on_tick(edge_driver_ctx_t *ctx, net_buf_t **out_tx) {
 }
 
 static bool dlms_v4_is_ready(edge_driver_ctx_t *ctx) {
-    dlms_driver_ctx_t *priv = (dlms_driver_ctx_t *)ctx->priv;
+    dlms_driver_ctx_t *priv = EDGE_DRIVER_GET_PRIV(dlms_driver_ctx_t, ctx, "DLMS");
+    if (!priv) return false;
     return priv->session_state == DLMS_SESSION_READY;
 }
 
 static int dlms_v4_encode_request(edge_driver_ctx_t *ctx, const uint32_t *tag_ids, int count,
                                   net_buf_t *out) {
-    dlms_driver_ctx_t *priv = (dlms_driver_ctx_t *)ctx->priv;
-    if (priv->session_state != DLMS_SESSION_READY) return -1;
+    dlms_driver_ctx_t *priv = EDGE_DRIVER_GET_PRIV(dlms_driver_ctx_t, ctx, "DLMS");
+    if (!priv || priv->session_state != DLMS_SESSION_READY) return -1;
 
     if (count > 0 && ctx->lookup_by_tag) {
         const dlms_map_t *map = (const dlms_map_t *)ctx->lookup_by_tag(tag_ids[0]);
@@ -125,7 +128,8 @@ static int dlms_v4_encode_request(edge_driver_ctx_t *ctx, const uint32_t *tag_id
 
 static int dlms_v4_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_out,
                                    pipe_msg_t *out_msgs, int *msg_count, size_t *consumed) {
-    dlms_driver_ctx_t *priv = (dlms_driver_ctx_t *)ctx->priv;
+    dlms_driver_ctx_t *priv = EDGE_DRIVER_GET_PRIV(dlms_driver_ctx_t, ctx, "DLMS");
+    if (!priv) return -1;
     struct net_buf_simple *b = &in->b;
     *consumed = 0;
 
@@ -162,7 +166,8 @@ static int dlms_v4_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_bu
 static int dlms_v4_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_out,
                              pipe_msg_t *async_msgs, int *async_count, size_t *consumed) {
     (void)async_msgs; (void)async_count;
-    dlms_driver_ctx_t *priv = (dlms_driver_ctx_t *)ctx->priv;
+    dlms_driver_ctx_t *priv = EDGE_DRIVER_GET_PRIV(dlms_driver_ctx_t, ctx, "DLMS");
+    if (!priv) return -1;
     struct net_buf_simple *b = &in->b;
     *consumed = 0;
 
@@ -186,6 +191,15 @@ static int dlms_v4_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *r
         uint16_t cid; uint8_t obis[6], attr;
         dlms_cosem_parse_get_request(&apdu_in->b, &cid, obis, &attr);
         
+        // [Security Enforcement] 示例：如果 OBIS 第一字节为 1 (Privileged), 必须加密
+        if (obis[0] == 1 && priv->cosem.security_level < DLMS_SEC_AUTHENTICATED) {
+            LOG_WARN(LOG_CAT_IO, "DLMS: Security Violation - Unauthenticated access to privileged OBIS %d.%d...", obis[0], obis[1]);
+            // 返回 Access Error (简化：直接不返回成功包，或者构建错误响应)
+            net_buf_unref(apdu_in);
+            net_buf_unref(apdu_out);
+            return -1; // Trigger error
+        }
+
         double val = 0;
         bool found = false;
         if (ctx->lookup_by_key) {

@@ -113,6 +113,30 @@ struct edge_driver_s {
                      pipe_msg_t *async_msgs, int *async_count, size_t *consumed);
 };
 
+/**
+ * @brief 类型安全的私有上下文转换宏 (解决 C5 UB 风险)
+ * 检查 ctx->driver->name 是否与期望的 protocol_name 匹配，匹配才返回 ctx->priv，否则返回 NULL
+ */
+static inline void *edge_driver_get_priv_safe(edge_driver_ctx_t *ctx, const char *protocol_name) {
+    if (!ctx || !ctx->driver || !ctx->driver->name || !protocol_name) {
+        return NULL;
+    }
+    // 允许忽略大小写或精确匹配，这里用精确匹配
+    const char *dname = ctx->driver->name;
+    // 假设 name 比较短，简单对比
+    int i = 0;
+    while (dname[i] && protocol_name[i] && dname[i] == protocol_name[i]) {
+        i++;
+    }
+    if (dname[i] == '\0' && protocol_name[i] == '\0') {
+        return ctx->priv;
+    }
+    return NULL;
+}
+
+#define EDGE_DRIVER_GET_PRIV(type, ctx, name_str) \
+    ((type *)edge_driver_get_priv_safe((ctx), (name_str)))
+
 #ifdef __cplusplus
 }
 #endif

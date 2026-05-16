@@ -61,6 +61,9 @@ void driver_instance_destroy(edge_driver_ctx_t *ctx, const char *protocol) {
     (void)protocol;
     if (!ctx) return;
     if (ctx->driver && ctx->driver->on_cleanup) ctx->driver->on_cleanup(ctx);
-    if (ctx->priv) free(ctx->priv);
+    if (ctx->priv) {
+        free(ctx->priv);
+        ctx->priv = NULL;
+    }
     free(ctx);
 }

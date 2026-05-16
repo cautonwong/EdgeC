@@ -156,6 +156,7 @@ int arbiter_submit_cmd(arbiter_t *arb, int bus_id, cmd_msg_t *cmd) {
     job = _arbiter_schedule_internal(arb, bus_id);
     uv_mutex_unlock(&arb->lock);
 
+    // [Sprint 1] 修复 C4：在锁外执行回调，防止死锁
     if (job && job->on_start) {
         job->on_start(job->user_data);
     }

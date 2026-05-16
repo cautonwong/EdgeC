@@ -59,6 +59,21 @@ typedef struct {
 void control_observer_update(control_observer_t *obs, const edge_matrix_t *u, double y, double dt);
 
 /**
+ * @brief 标准线性卡尔曼滤波 (KF)
+ */
+typedef struct {
+    edge_matrix_t *x; // 状态向量
+    edge_matrix_t *P; // 协方差
+    edge_matrix_t *Q; // 过程噪声
+    edge_matrix_t *R; // 测量噪声
+    edge_matrix_t *K; // 卡尔曼增益
+} control_kf_t;
+
+void control_kf_init(control_kf_t *kf, uint32_t n, uint32_t m);
+void control_kf_predict(control_kf_t *kf, const edge_matrix_t *F, const edge_matrix_t *B, const edge_matrix_t *u);
+void control_kf_correct(control_kf_t *kf, const edge_matrix_t *H, const edge_matrix_t *z);
+
+/**
  * @brief 扩展卡尔曼滤波 (EKF)
  */
 typedef struct {

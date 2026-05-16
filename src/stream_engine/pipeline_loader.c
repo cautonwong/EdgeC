@@ -119,11 +119,18 @@ static pipeline_stage_t *build_stage(const char *type, cJSON *config, pipeline_l
                                  entry ? entry->valuestring : "on_event");
     }
     if (strcmp(type, "reflex") == 0) {
-        uint32_t bus_id = (uint32_t)cJSON_GetObjectItem(config, "bus_id")->valuedouble;
-        const char *proto = cJSON_GetObjectItem(config, "protocol")->valuestring;
-        uint32_t target = (uint32_t)cJSON_GetObjectItem(config, "target_tag")->valuedouble;
-        double threshold = cJSON_GetObjectItem(config, "threshold")->valuedouble;
-        bool gt = cJSON_IsTrue(cJSON_GetObjectItem(config, "greater_than"));
+        cJSON *bus_id_obj = cJSON_GetObjectItem(config, "bus_id");
+        cJSON *proto_obj = cJSON_GetObjectItem(config, "protocol");
+        cJSON *target_obj = cJSON_GetObjectItem(config, "target_tag");
+        cJSON *thresh_obj = cJSON_GetObjectItem(config, "threshold");
+        cJSON *gt_obj = cJSON_GetObjectItem(config, "greater_than");
+        
+        uint32_t bus_id = bus_id_obj ? (uint32_t)bus_id_obj->valuedouble : 0;
+        const char *proto = proto_obj ? proto_obj->valuestring : "";
+        uint32_t target = target_obj ? (uint32_t)target_obj->valuedouble : 0;
+        double threshold = thresh_obj ? thresh_obj->valuedouble : 0.0;
+        bool gt = gt_obj ? cJSON_IsTrue(gt_obj) : false;
+        
         double action_val = cJSON_GetObjectItem(config, "action_value")
                                 ? cJSON_GetObjectItem(config, "action_value")->valuedouble
                                 : 1.0;

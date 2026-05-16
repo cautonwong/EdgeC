@@ -116,8 +116,9 @@ typedef struct {
     uint32_t slot_count;
     atomic_uint seq;
     atomic_uint write_idx;
+    atomic_uint drop_count; // [Sprint 1] 丢包计数器
     atomic_uint_fast64_t total_writes;
-    uint8_t _pad[CACHELINE_SIZE - 24];
+    uint8_t _pad[CACHELINE_SIZE - 32];
 } ShmRingHeader;
 
 typedef struct {

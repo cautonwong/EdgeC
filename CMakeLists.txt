@@ -244,8 +244,9 @@ add_library(edge_algo STATIC
     algo/native/math/windowing.c
     algo/native/math/dsp_algo.c
     algo/native/math/control_algo.c
+    algo/native/math/motor_algo.c
     algo/native/math/radar_algo.c
-    ${MATH_IMPL}
+    algo/native/math/linalg_gsl.c
 )
 target_link_libraries(edge_algo PUBLIC edge_common_interface)
 if(GSL_FOUND)

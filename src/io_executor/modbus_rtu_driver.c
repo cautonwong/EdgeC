@@ -17,17 +17,17 @@ typedef struct {
 } modbus_ctx_t;
 
 static int modbus_v3_on_init(edge_driver_ctx_t *ctx) {
-    modbus_ctx_t *priv = calloc(1, sizeof(modbus_ctx_t));
-    priv->slave_id = ctx->device_id;
-    ctx->priv = priv;
+    if (ctx && ctx->priv) {
+        modbus_ctx_t *priv = (modbus_ctx_t *)ctx->priv;
+        priv->slave_id = ctx->device_id;
+    }
     return 0;
 }
 
 static void modbus_v3_on_cleanup(edge_driver_ctx_t *ctx) {
-    if (ctx && ctx->priv) {
-        free(ctx->priv);
-        ctx->priv = NULL;
-    }
+    // The memory is freed by driver_instance_destroy, so we don't free it here
+    // unless we allocated dynamic structures inside priv.
+    (void)ctx;
 }
 
 // --- MASTER PLANE ---

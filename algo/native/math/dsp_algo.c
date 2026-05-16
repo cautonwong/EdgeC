@@ -39,9 +39,67 @@ int dsp_fft_r2c(double *data, size_t n) {
     return 0;
 }
 #else
+// 纯 C Radix-2 FFT 后备实现
+static void bit_reverse_copy(double *data, size_t n) {
+    size_t j = 0;
+    for (size_t i = 0; i < n - 1; i++) {
+        if (i < j) {
+            double temp_re = data[2 * i];
+            double temp_im = data[2 * i + 1];
+            data[2 * i] = data[2 * j];
+            data[2 * i + 1] = data[2 * j + 1];
+            data[2 * j] = temp_re;
+            data[2 * j + 1] = temp_im;
+        }
+        size_t k = n >> 1;
+        while (k <= j) {
+            j -= k;
+            k >>= 1;
+        }
+        j += k;
+    }
+}
+
 int dsp_fft_r2c(double *data, size_t n) {
-    (void)data; (void)n;
-    return -1; /* FFT requires GSL */
+    if (!data || n == 0 || (n & (n - 1)) != 0) return -1; // n 必须是 2 的幂
+
+    // 将长度为 n 的实数数组 (前 n 个元素存放实数，由于数组长为 2n)
+    // 扩展为长度为 n 的复数数组 (交替的实部/虚部)
+    for (size_t i = n; i > 0; i--) {
+        data[2 * (i - 1)] = data[i - 1]; // 实部
+        data[2 * (i - 1) + 1] = 0.0;     // 虚部
+    }
+
+    bit_reverse_copy(data, n);
+
+    for (size_t s = 1; s <= (size_t)log2(n); s++) {
+        size_t m = 1 << s;
+        double theta = -2.0 * M_PI / m;
+        double w_re = cos(theta);
+        double w_im = sin(theta);
+
+        for (size_t k = 0; k < n; k += m) {
+            double w_k_re = 1.0;
+            double w_k_im = 0.0;
+            for (size_t j = 0; j < m / 2; j++) {
+                double t_re = w_k_re * data[2 * (k + j + m / 2)] - w_k_im * data[2 * (k + j + m / 2) + 1];
+                double t_im = w_k_re * data[2 * (k + j + m / 2) + 1] + w_k_im * data[2 * (k + j + m / 2)];
+                double u_re = data[2 * (k + j)];
+                double u_im = data[2 * (k + j) + 1];
+                
+                data[2 * (k + j)] = u_re + t_re;
+                data[2 * (k + j) + 1] = u_im + t_im;
+                data[2 * (k + j + m / 2)] = u_re - t_re;
+                data[2 * (k + j + m / 2) + 1] = u_im - t_im;
+
+                double next_w_k_re = w_k_re * w_re - w_k_im * w_im;
+                double next_w_k_im = w_k_re * w_im + w_k_im * w_re;
+                w_k_re = next_w_k_re;
+                w_k_im = next_w_k_im;
+            }
+        }
+    }
+    return 0;
 }
 #endif
 
@@ -127,6 +185,45 @@ void dsp_dwt_haar(double *data, size_t n, uint32_t level) {
         current_n = half; // 递归分解近似分量
     }
     free(tmp);
+}
+
+struct dsp_fir_s {
+    double *taps;
+    double *delay_line;
+    size_t num_taps;
+    size_t head;
+};
+
+dsp_fir_t* dsp_fir_create(const double *taps, size_t num_taps) {
+    if (!taps || num_taps == 0) return NULL;
+    dsp_fir_t *f = malloc(sizeof(dsp_fir_t));
+    f->num_taps = num_taps;
+    f->taps = malloc(num_taps * sizeof(double));
+    f->delay_line = calloc(num_taps, sizeof(double));
+    f->head = 0;
+    memcpy(f->taps, taps, num_taps * sizeof(double));
+    return f;
+}
+
+double dsp_fir_process(dsp_fir_t *f, double in) {
+    if (!f) return 0.0;
+    f->delay_line[f->head] = in;
+    double out = 0.0;
+    size_t idx = f->head;
+    for (size_t i = 0; i < f->num_taps; i++) {
+        out += f->taps[i] * f->delay_line[idx];
+        idx = (idx > 0) ? (idx - 1) : (f->num_taps - 1);
+    }
+    f->head = (f->head + 1) % f->num_taps;
+    return out;
+}
+
+void dsp_fir_free(dsp_fir_t *f) {
+    if (f) {
+        free(f->taps);
+        free(f->delay_line);
+        free(f);
+    }
 }
 
 struct dsp_iir_s {

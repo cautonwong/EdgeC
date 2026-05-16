@@ -165,6 +165,8 @@ int shm_ring_read(shm_ring_t *ring, uint64_t *last_seq, PipeMsg *out) {
 
     // 自动追赶逻辑
     if (head > *last_seq + ring->hdr->slot_count) {
+        uint64_t drops = head - (*last_seq + ring->hdr->slot_count);
+        atomic_fetch_add_explicit(&ring->hdr->drop_count, (uint32_t)drops, memory_order_relaxed);
         *last_seq = head - ring->hdr->slot_count;
     }
 

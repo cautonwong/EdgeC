@@ -221,9 +221,22 @@ int dlms_cosem_encode_range_descriptor(const uint8_t *start_time, const uint8_t 
 /* --- 从站逻辑 (Slave Role) --- */
 
 int dlms_cosem_parse_aarq(dlms_cosem_ctx_t *ctx, struct net_buf_simple *in) {
-    if (in->len < 1) return -1;
+    if (in->len < 8) return -1;
     uint8_t tag = net_buf_simple_pull_u8(in);
     if (tag != DLMS_SERVICE_AARQ) return -1;
+    
+    // 简化的 AARQ 解析，查找 Application Context
+    // 预期：[0xA1] [len] [0x06] [len] [OID]
+    // 正常的 OID 长度为 7
+    uint8_t *p = in->data;
+    for (int i = 0; i <= (int)in->len - 7; i++) {
+        if (p[i] == 0x60 && p[i+1] == 0x85 && p[i+2] == 0x74 && p[i+3] == 0x05 && p[i+4] == 0x08 && p[i+5] == 0x01) {
+            if (p[i+6] == 0x01) ctx->security_level = DLMS_SEC_NONE;
+            else if (p[i+6] == 0x02) ctx->security_level = DLMS_SEC_AUTHENTICATED_ENCRYPTED;
+            break;
+        }
+    }
+
     ctx->state = COSEM_STATE_ASSOCIATED;
     return 0;
 }

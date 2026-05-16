@@ -240,9 +240,7 @@ int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out) {
     unsigned int s1, s2;
     do {
         s1 = atomic_load_explicit(&hub->shadow_seq[idx], memory_order_acquire);
-        atomic_thread_fence(memory_order_acquire);
         *out = hub->shadow_table[idx];
-        atomic_thread_fence(memory_order_acquire);
         s2 = atomic_load_explicit(&hub->shadow_seq[idx], memory_order_acquire);
     } while (s1 != s2 || (s1 & 1));
 

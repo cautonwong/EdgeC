@@ -28,6 +28,7 @@ typedef enum {
 
 typedef struct {
     dlms_cosem_state_t state;
+    dlms_security_level_t security_level;
     uint16_t max_pdu_send;
     struct {
         bool active;
