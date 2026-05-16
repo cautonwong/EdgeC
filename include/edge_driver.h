@@ -42,7 +42,7 @@ typedef enum {
 /**
  * @brief 协议栈私有上下文 (由管理器自动分配，支持持久化 Session)
  */
-typedef struct {
+typedef struct edge_driver_ctx_s {
     const edge_driver_t *driver; /**< 指向驱动模板的指针 */
     void *priv;                  /**< 协议私有状态内存 */
     protocol_role_t role;        /**< 当前运行角色 */

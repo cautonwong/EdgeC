@@ -36,6 +36,7 @@ typedef struct {
     char product_name[64];
     bool mqtt_connected;
     void *mqtt_client;
+    struct edge_driver_ctx_s *nb_driver; /**< [Nexus] 北向协议驱动上下文 */
     struct sqlite_svc_s *db;
 
     struct uv__queue req_queue; /**< [Aetheris] 北向请求队列 */
@@ -49,6 +50,7 @@ typedef struct {
 
     web_server_t *web_srv;
     rest_server_t *rest_srv;
+    struct driver_manager_s *drv_mgr; /**< [Nexus] 私有驱动管理器 */
 } northbound_mgr_t;
 
 int northbound_mgr_init(northbound_mgr_t *mgr, uv_loop_t *main_loop, shm_ring_t *ring,
@@ -56,6 +58,7 @@ int northbound_mgr_init(northbound_mgr_t *mgr, uv_loop_t *main_loop, shm_ring_t 
 
 int northbound_mgr_start(northbound_mgr_t *mgr);
 void northbound_mgr_stop(northbound_mgr_t *mgr);
+void northbound_mgr_destroy(northbound_mgr_t *mgr);
 
 #ifdef __cplusplus
 }

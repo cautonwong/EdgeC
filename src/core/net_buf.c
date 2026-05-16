@@ -170,6 +170,13 @@ void net_buf_simple_init(struct net_buf_simple *buf, size_t reserve) {
     buf->len = 0;
 }
 
+void net_buf_simple_init_with_data(struct net_buf_simple *buf, void *data, size_t size) {
+    buf->__buf = (uint8_t *)data;
+    buf->data = (uint8_t *)data;
+    buf->size = (uint16_t)size;
+    buf->len = 0; // [Nexus] 初始化为空，用于写入
+}
+
 void net_buf_simple_reset(struct net_buf_simple *buf) {
     buf->data = buf->__buf;
     buf->len = 0;

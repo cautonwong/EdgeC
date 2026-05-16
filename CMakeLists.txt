@@ -213,6 +213,7 @@ add_library(edge_main_loop STATIC
     src/io_executor/driver_dlms.c
     src/io_executor/driver_iec104.c
     src/io_executor/driver_iec101.c
+    src/io_executor/driver_sparkplug_b.c
     src/io_executor/engines/master_engine.c
     src/io_executor/engines/slave_engine.c
     src/io_executor/requests/req_driver_legacy.c

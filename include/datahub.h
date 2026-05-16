@@ -115,6 +115,13 @@ static inline const edge_tag_meta_t *datahub_get_metadata_by_index(datahub_t *hu
     return NULL;
 }
 
+static inline const edge_tag_meta_t *datahub_get_metadata_by_tag(datahub_t *hub, uint32_t tag_id) {
+    if (!hub) return NULL;
+    int idx = hub->map_fn ? hub->map_fn(tag_id) : (int)tag_id;
+    if (idx < 0) return NULL;
+    return datahub_get_metadata_by_index(hub, (uint32_t)idx);
+}
+
 #ifdef __cplusplus
 }
 #endif
