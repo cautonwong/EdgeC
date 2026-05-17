@@ -124,7 +124,11 @@ net_buf_t *net_buf_alloc(net_buf_pool_t *pool, int64_t timeout_ms) {
         buf->flags = 0;
         buf->alloc_ts = uv_hrtime();
         buf->last_owner = "unknown";
-        net_buf_simple_init(&buf->b, 0);
+        
+        // [Nexus] 为协议栈预留 64 字节头部空间，防止 net_buf_push 覆盖 net_buf 结构体
+        net_buf_simple_init(&buf->b, 64);
+        
+        buf->pool = pool;
         net_buf_pool_ref(pool);
 
         uint16_t current_usage = (uint16_t)(pool->buf_count - pool->uninit_count);
@@ -148,6 +152,11 @@ void net_buf_unref(net_buf_t *buf) {
     }
 
     net_buf_pool_t *pool = buf->pool;
+    if (!pool || ((uintptr_t)pool & 7)) {
+        LOG_ERROR(LOG_CAT_CORE, "net_buf: Attempted to unref buffer %p with invalid pool pointer %p!", (void *)buf, (void *)pool);
+        return;
+    }
+    
     if (pool->destroy_cb) pool->destroy_cb(buf);
 
     uv_mutex_lock(&pool->lock);
@@ -193,6 +202,7 @@ void *net_buf_simple_add_mem(struct net_buf_simple *buf, const void *mem, size_t
 }
 
 void *net_buf_simple_pull(struct net_buf_simple *buf, size_t len) {
+    if (!buf || len > buf->len) return NULL;
     void *ptr = buf->data;
     buf->data += len;
     buf->len = (uint16_t)(buf->len - len);
@@ -200,6 +210,7 @@ void *net_buf_simple_pull(struct net_buf_simple *buf, size_t len) {
 }
 
 void *net_buf_simple_push(struct net_buf_simple *buf, size_t len) {
+    if (!buf || (buf->data - len < buf->__buf)) return NULL;
     buf->data -= len;
     buf->len = (uint16_t)(buf->len + len);
     return buf->data;

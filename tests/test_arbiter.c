@@ -19,9 +19,9 @@ static void on_start(void *user) {
     (*flag) = 1;
 }
 
-// 物理回收指令
+// 物理回收指令 (Arbiter 已经负责 free(cmd)，此处仅用于清理内部数据)
 static void on_cleanup(cmd_msg_t *cmd) {
-    if (cmd) free(cmd);
+    (void)cmd;
 }
 
 static void test_arbiter_preempt(void **state) {

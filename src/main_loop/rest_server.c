@@ -283,6 +283,32 @@ static char *handle_io_raw_latest(void) {
     return out;
 }
 
+static char *handle_buffer_snapshot(service_t *svc) {
+    (void)svc;
+    // A placeholder for high-frequency vibration data buffer.
+    // In a real system, this would fetch from a DMA ring buffer or circular array.
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "status", "ok");
+    cJSON_AddStringToObject(root, "description", "High-frequency vibration snapshot (Mock)");
+    cJSON *data_arr = cJSON_CreateArray();
+    for (int i = 0; i < 100; i++) {
+        cJSON_AddItemToArray(data_arr, cJSON_CreateNumber((double)i * 0.1));
+    }
+    cJSON_AddItemToObject(root, "data", data_arr);
+    char *out = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    return out;
+}
+
+static char *handle_stream_topology(service_t *svc) {
+    stream_engine_t *engine = service_get_stream_engine(svc);
+    if (engine) {
+        char *json = stream_engine_dump_json(engine);
+        if (json) return json;
+    }
+    return strdup("{\"error\":\"engine_not_ready\"}");
+}
+
 char *rest_dispatch(service_t *svc, const char *method, const char *path, const char *body) {
     if (!svc) {
         fprintf(stderr, "[REST] ERROR: Dispatch called with NULL service context!\n");
@@ -299,6 +325,8 @@ char *rest_dispatch(service_t *svc, const char *method, const char *path, const 
     if (strncmp(path, "/api/v1/contracts", 17) == 0) return handle_contracts_get(svc);
     if (strncmp(path, "/api/v1/devices", 15) == 0) return handle_devices_get(svc);
     if (strncmp(path, "/api/v1/io/raw/latest", 21) == 0) return handle_io_raw_latest();
+    if (strncmp(path, "/api/v1/stream/topology", 23) == 0) return handle_stream_topology(svc);
+    if (strncmp(path, "/api/v1/stream/snapshot", 23) == 0) return handle_buffer_snapshot(svc);
     if (strncmp(path, "/api/v1/data/latest/", 20) == 0)
         return handle_data_latest(svc, (uint32_t)atoi(path + 20));
     return strdup("{\"error\":\"not_found\"}");

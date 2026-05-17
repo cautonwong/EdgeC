@@ -14,6 +14,7 @@
 #include "driver_manager.h"
 #include "edge_driver.h"
 #include "sparkplug_b.h"
+#include "snf_manager.h"
 
 extern int sparkplug_b_driver_register(driver_manager_t *mgr);
 typedef struct {
@@ -26,59 +27,12 @@ typedef struct {
 
 extern char *rest_dispatch(service_t *svc, const char *method, const char *path, const char *body);
 
-// [Matrix] 简单的 HTTP POST 实现，用于回传数据给仿真服务器
-static void _push_to_matrix(uint32_t tag_id, double val, uint64_t ts) {
-    CURL *curl;
-    CURLcode res;
+static int _push_to_mqtt_direct(northbound_mgr_t *mgr, uint32_t tag_id, double val, uint64_t ts) {
+    if (!mgr || !mgr->mqtt_connected || !mgr->nb_driver) return -1;
 
-    curl = curl_easy_init();
-    if (curl) {
-        // 获取 Matrix Server 地址，默认为 localhost:50051
-        const char *srv = getenv("OMNIS_SERVER");
-        char url[128];
-        snprintf(url, sizeof(url), "http://%s/api/v1/monitor", srv ? srv : "localhost:50051");
-
-        // 构造 JSON Payload
-        char body[128];
-        snprintf(body, sizeof(body), "{\"tag_id\": %u, \"value\": %f, \"ts\": %lu}", tag_id, val,
-                 ts);
-
-        struct curl_slist *headers = NULL;
-        headers = curl_slist_append(headers, "Content-Type: application/json");
-
-        curl_easy_setopt(curl, CURLOPT_URL, url);
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body);
-        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-        curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 200L);  // 快速超时，避免阻塞
-
-        // 执行请求
-        res = curl_easy_perform(curl);
-        if (res == CURLE_OK) {
-            printf("\033[95m[NORTH] ☁️  Push to Matrix: Tag=%u Val=%.2f\033[0m\n", tag_id, val);
-        }
-
-        curl_slist_free_all(headers);
-        curl_easy_cleanup(curl);
-    }
-}
-
-static void _push_to_mqtt(northbound_mgr_t *mgr, uint32_t tag_id, double val, uint64_t ts) {
-    if (!mgr || !mgr->mqtt_connected || !mgr->nb_driver) {
-        // [AET-2.3] 断网补传：如果 MQTT 未连接，写入本地 SQLite
-        if (mgr->db) {
-            PipeMsg msg = {0};
-            msg.ts = ts;
-            msg.tag_id = tag_id;
-            msg.payload.val.f = val;
-            msg.quality = 1;
-            sqlite_svc_insert(mgr->db, &msg);
-        }
-        return;
-    }
-
-    // [Nexus] 使用 Sparkplug B 驱动进行编码
     edge_driver_ctx_t *ctx = (edge_driver_ctx_t *)mgr->nb_driver;
     net_buf_t *nb = net_buf_alloc(ctx->pool, 0);
+    int rc = -1;
     if (nb) {
         if (ctx->driver->encode_write(ctx, tag_id, val, nb) == 0) {
             spb_ctx_t *spb = (spb_ctx_t *)ctx->priv;
@@ -92,10 +46,66 @@ static void _push_to_mqtt(northbound_mgr_t *mgr, uint32_t tag_id, double val, ui
             pubmsg.retained = 0;
 
             MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
-            MQTTAsync_sendMessage(mgr->mqtt_client, topic, &pubmsg, &opts);
-            LOG_DEBUG(LOG_CAT_NB, "Sparkplug B: Published NDATA to %s", topic);
+            if (MQTTAsync_sendMessage(mgr->mqtt_client, topic, &pubmsg, &opts) == MQTTASYNC_SUCCESS) {
+                rc = 0;
+            }
         }
         net_buf_unref(nb);
+    }
+    return rc;
+}
+
+static void _push_to_mqtt(northbound_mgr_t *mgr, uint32_t tag_id, double val, uint64_t ts) {
+    if (!mgr) return;
+
+    if (mgr->mqtt_connected) {
+        if (_push_to_mqtt_direct(mgr, tag_id, val, ts) == 0) return;
+    }
+
+    // [SnF] If offline or publish failed, buffer to SQLite
+    if (mgr->snf) {
+        PipeMsg msg = {0};
+        msg.ts = ts;
+        msg.tag_id = tag_id;
+        msg.payload.val.f = val;
+        msg.type = PIPEMSG_TYPE_SCALAR;
+        snf_manager_buffer_data(mgr->snf, &msg);
+    }
+}
+
+static int _snf_publish_wrapper(void *user_data, const PipeMsg *msg) {
+    return _push_to_mqtt_direct((northbound_mgr_t *)user_data, msg->tag_id, msg->payload.val.f, msg->ts);
+}
+
+// [Matrix] 简单的 HTTP POST 实现，用于回传数据给仿真服务器
+static void _push_to_matrix(uint32_t tag_id, double val, uint64_t ts) {
+    CURL *curl;
+    CURLcode res;
+
+    curl = curl_easy_init();
+    if (curl) {
+        const char *srv = getenv("OMNIS_SERVER");
+        char url[128];
+        snprintf(url, sizeof(url), "http://%s/api/v1/monitor", srv ? srv : "localhost:50051");
+
+        char body[128];
+        snprintf(body, sizeof(body), "{\"tag_id\": %u, \"value\": %f, \"ts\": %lu}", tag_id, val, ts);
+
+        struct curl_slist *headers = NULL;
+        headers = curl_slist_append(headers, "Content-Type: application/json");
+
+        curl_easy_setopt(curl, CURLOPT_URL, url);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body);
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 200L);
+
+        res = curl_easy_perform(curl);
+        if (res == CURLE_OK) {
+            // printf("[NORTH] Push to Matrix: Tag=%u Val=%.2f\n", tag_id, val);
+        }
+
+        curl_slist_free_all(headers);
+        curl_easy_cleanup(curl);
     }
 }
 
@@ -103,7 +113,6 @@ static void on_data_notify_timer(uv_timer_t *handle) {
     northbound_mgr_t *mgr = (northbound_mgr_t *)handle->data;
     if (!mgr || !mgr->user_data) return;
 
-    // [Nexus] 处理驱动 Tick (用于 NBIRTH 等)
     if (mgr->mqtt_connected && mgr->nb_driver) {
         edge_driver_ctx_t *ctx = (edge_driver_ctx_t *)mgr->nb_driver;
         if (ctx->driver->on_tick) {
@@ -134,20 +143,11 @@ static void on_data_notify_timer(uv_timer_t *handle) {
             _push_to_matrix(msg.tag_id, msg.payload.val.f, msg.ts);
         }
     }
-
-    static uint64_t last_beat = 0;
-    uint64_t now = uv_now(handle->loop);
-    if (now - last_beat >= 1000) {
-        printf("\033[35m[NORTH] Running. Ring Seq Cursor: %lu\033[0m\n", mgr->last_seq);
-        fflush(stdout);
-        last_beat = now;
-    }
 }
 
 static void _on_req_notify(uv_async_t *handle) {
     northbound_mgr_t *mgr = (northbound_mgr_t *)handle->data;
     struct uv__queue *q;
-
     uv_mutex_lock(&mgr->req_lock);
     while (!uv__queue_empty(&mgr->req_queue)) {
         q = uv__queue_head(&mgr->req_queue);
@@ -155,8 +155,6 @@ static void _on_req_notify(uv_async_t *handle) {
         uv__queue_remove(q);
         uv_mutex_unlock(&mgr->req_lock);
 
-        LOG_INFO(LOG_CAT_NB, "Processing NB Request (Tag: %u)",
-                 ((edge_nb_req_t *)entry->req->priv_data)->tag_id);
         if (entry->req->ops && entry->req->ops->setup) {
             entry->req->ops->setup(entry->req, mgr->user_data);
         }
@@ -178,12 +176,14 @@ static void _on_mqtt_connect_success(void *context, MQTTAsync_successData *respo
     (void)response;
     northbound_mgr_t *mgr = (northbound_mgr_t *)context;
     mgr->mqtt_connected = true;
+    if (mgr->snf) snf_manager_set_online(mgr->snf, true);
     LOG_INFO(LOG_CAT_NB, "Sparkplug B: Connected to MQTT Broker.");
 }
 
 static void _on_mqtt_connect_failure(void *context, MQTTAsync_failureData *response) {
     northbound_mgr_t *mgr = (northbound_mgr_t *)context;
     mgr->mqtt_connected = false;
+    if (mgr->snf) snf_manager_set_online(mgr->snf, false);
     LOG_ERROR(LOG_CAT_NB, "Sparkplug B: Failed to connect to MQTT Broker (Code: %d).", response ? response->code : -1);
 }
 
@@ -191,28 +191,9 @@ static void north_thread_entry(void *arg) {
     northbound_mgr_t *mgr = (northbound_mgr_t *)arg;
     if (!mgr) return;
 
-    const char *msg = "\n\033[33m>>> NORTHBOUND THREAD STARTING <<<\033[0m\n";
-    write(2, msg, strlen(msg));
-    setvbuf(stdout, NULL, _IONBF, 0);
-
-    printf("\033[33m[NORTH-BOOT] Thread Entry Point Reached.\033[0m\n");
-    fflush(stdout);
-
-    int retry = 0;
-    while (!mgr->user_data && retry++ < 10) {
-        usleep(100000);
-    }
-
-    if (!mgr->user_data) {
-        fprintf(stderr, "[NORTH] FATAL: Northbound thread started without service context!\n");
-        return;
-    }
-
     if (mgr->nb_driver) {
         ((edge_driver_ctx_t *)mgr->nb_driver)->user_data = service_get_datahub((service_t *)mgr->user_data);
     }
-
-    curl_global_init(CURL_GLOBAL_ALL);
 
     mgr->loop = malloc(sizeof(uv_loop_t));
     uv_loop_init(mgr->loop);
@@ -244,13 +225,26 @@ static void north_thread_entry(void *arg) {
     uv_async_init(mgr->loop, &mgr->req_async, _on_req_notify);
     mgr->req_async.data = mgr;
 
+    // [SnF] Initialize Store-and-Forward
+    if (mgr->db) {
+        snf_config_t snf_cfg = {
+            .db = mgr->db,
+            .loop = mgr->loop,
+            .publish_fn = _snf_publish_wrapper,
+            .user_data = mgr,
+            .sync_batch_size = 50,
+            .sync_interval_ms = 5000
+        };
+        mgr->snf = snf_manager_create(&snf_cfg);
+    }
+
     if (mgr->rest_port > 0 && mgr->user_data) {
         mgr->rest_srv = rest_server_create(mgr->loop, (service_t *)mgr->user_data, mgr->rest_port);
     }
 
-    printf("[NORTH] Thread started. Polling DataHub ring...\n");
     uv_run(mgr->loop, UV_RUN_DEFAULT);
 
+    if (mgr->snf) snf_manager_destroy(mgr->snf);
     if (mgr->rest_srv) rest_server_destroy(mgr->rest_srv);
 
     if (mgr->mqtt_client) {
@@ -262,9 +256,8 @@ static void north_thread_entry(void *arg) {
     uv_loop_close(mgr->loop);
     free(mgr->loop);
     mgr->loop = NULL;
-
-    curl_global_cleanup();
 }
+
 int northbound_mgr_init(northbound_mgr_t *mgr, uv_loop_t *main_loop, shm_ring_t *ring,
                         const char *product_name, struct sqlite_svc_s *db) {
     (void)main_loop;
@@ -276,7 +269,6 @@ int northbound_mgr_init(northbound_mgr_t *mgr, uv_loop_t *main_loop, shm_ring_t 
     uv__queue_init(&mgr->req_queue);
     uv_mutex_init(&mgr->req_lock);
 
-    // [Nexus] 初始化北向驱动
     mgr->drv_mgr = driver_manager_create();
     sparkplug_b_driver_register(mgr->drv_mgr);
     mgr->nb_driver = driver_instance_create(mgr->drv_mgr, "SparkplugB", 1);
@@ -287,6 +279,7 @@ int northbound_mgr_init(northbound_mgr_t *mgr, uv_loop_t *main_loop, shm_ring_t 
 
     return 0;
 }
+
 int northbound_mgr_start(northbound_mgr_t *mgr) {
     if (!mgr || mgr->loop) return -1;
     return uv_thread_create(&mgr->thread, north_thread_entry, mgr);

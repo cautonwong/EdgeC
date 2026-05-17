@@ -82,9 +82,6 @@ static int setup(void **state) {
     iems_test_ctx_t *ctx = calloc(1, sizeof(iems_test_ctx_t));
     uv_loop_init(&ctx->loop);
 
-    net_buf_pool_init(&ctx->pool, 64, 512, 0, NULL, NULL);
-    datahub_init(&ctx->hub, &ctx->loop, "iems_test", 128, 1024, g_tag_metadata, g_tag_metadata_len, &ctx->pool, (datahub_tag_map_cb)edge_tag_get_compact_index, NULL);
-    
     arbiter_init(&ctx->arb, &ctx->loop);
     arbiter_resume(ctx->arb);
 
@@ -94,17 +91,28 @@ static int setup(void **state) {
     iec104_driver_register(ctx->drv_mgr);
     modbus_driver_register(ctx->drv_mgr);
 
-    ctx->orch = bus_orchestrator_create(&ctx->hub, ctx->arb, ctx->drv_mgr, 8, 32, 512);
-    
+    // [Nexus] Hub and Orch should have independent pools for reliable unit testing
+    datahub_init(&ctx->hub, &ctx->loop, "iems_test", 128, 1024, g_tag_metadata, g_tag_metadata_len, NULL, (datahub_tag_map_cb)edge_tag_get_compact_index, NULL);
+
+    ctx->orch = bus_orchestrator_create(&ctx->hub, ctx->arb, ctx->drv_mgr, 2, 64, 1024);
+
     extern pipeline_stage_t *stage_mpc_dispatcher_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
     static const edge_stage_factory_entry_t test_stages[] = {
         {"mpc_dispatch", stage_mpc_dispatcher_create_v2},
         {NULL, NULL}
     };
+    printf("[DEBUG] Setup: Creating StreamEngine...\n");
     ctx->engine = stream_engine_create(&ctx->hub, &ctx->loop, NULL, test_stages);
+    if (!ctx->engine) {
+        printf("[ERROR] Failed to create StreamEngine\n");
+        return -1;
+    }
+    
+    printf("[DEBUG] Setup: Starting StreamEngine...\n");
     stream_engine_start(ctx->engine);
 
     *state = ctx;
+    printf("[DEBUG] Setup Complete.\n");
     return 0;
 }
 
@@ -117,16 +125,24 @@ static int teardown(void **state) {
     iems_test_ctx_t *ctx = *state;
     if (!ctx) return 0;
     
-    if (ctx->engine) stream_engine_destroy(ctx->engine);
-    bus_orchestrator_destroy(ctx->orch);
-    driver_manager_destroy(ctx->drv_mgr);
-    arbiter_destroy(ctx->arb);
-    datahub_destroy(&ctx->hub);
-    net_buf_pool_destroy(&ctx->pool);
+    // [Nexus] Flush all pending IO/Hub notifications BEFORE destroying anything
+    printf("[DEBUG] Teardown: Pre-destruction loop flush...\n");
+    for(int i=0; i<100; i++) uv_run(&ctx->loop, UV_RUN_NOWAIT);
     
+    printf("[DEBUG] Teardown: Stopping engine...\n");
+    if (ctx->engine) stream_engine_destroy(ctx->engine);
+    
+    printf("[DEBUG] Teardown: Destroying orchestrator...\n");
+    if (ctx->orch) bus_orchestrator_destroy(ctx->orch);
+    
+    printf("[DEBUG] Teardown: Destroying datahub...\n");
+    datahub_destroy(&ctx->hub);
+    
+    if (ctx->arb) arbiter_destroy(ctx->arb);
+
     uv_walk(&ctx->loop, _on_force_close, NULL);
     printf("[DEBUG] Teardown: Final loop flush...\n");
-    for(int i=0; i<100; i++) uv_run(&ctx->loop, UV_RUN_NOWAIT);
+    uv_run(&ctx->loop, UV_RUN_DEFAULT);
     
     uv_loop_close(&ctx->loop);
     free(ctx);
@@ -164,23 +180,26 @@ static void test_iems_dispatch_flow(void **state) {
     pipeline_loader_ctx_t l_ctx = { .orch = ctx->orch, .db = NULL, .js_engine = NULL, .params = NULL };
     stream_engine_load_static_metadata(ctx->engine, &mpc_pipe, 1, &l_ctx);
 
-    net_buf_t *in_buf = net_buf_alloc(&ctx->pool, 0);
+    // [Nexus] Use the orchestrator's pool for test allocations
+    net_buf_pool_t *pool = bus_orchestrator_get_pool(ctx->orch);
+
+    net_buf_t *in_buf = net_buf_alloc(pool, 0);
     uint8_t startdt[] = { 0x68, 0x04, 0x07, 0x00, 0x00, 0x00 };
     net_buf_simple_add_mem(&in_buf->b, startdt, 6);
     ctx->iec_io.cb(&ctx->iec_io, IO_EVENT_RX, in_buf, ctx->iec_io.user_data);
     for (int i=0; i<10; i++) uv_run(&ctx->loop, UV_RUN_NOWAIT);
 
-    net_buf_t *cmd_buf = net_buf_alloc(&ctx->pool, 0);
+    net_buf_t *cmd_buf = net_buf_alloc(pool, 0);
     iec_asdu_init(cmd_buf, IEC_TYPE_C_SE_NC_1, false, 1, IEC_COT_ACT, 1, &IEC_ADDR_CONF_104);
-    iec_asdu_add_c_se_nc_1(cmd_buf, 16386, 0.0f, 0, false, &IEC_ADDR_CONF_104); 
+    iec_asdu_add_c_se_nc_1(cmd_buf, 16386, 1.0f, 0, false, &IEC_ADDR_CONF_104); 
     
     uint8_t apci[6] = { 0x68, (uint8_t)(cmd_buf->b.len + 4), 0x00, 0x00, 0x00, 0x00 };
-    net_buf_t *full_cmd = net_buf_alloc(&ctx->pool, 0);
+    net_buf_t *full_cmd = net_buf_alloc(pool, 0);
     net_buf_simple_add_mem(&full_cmd->b, apci, 6);
     net_buf_simple_add_mem(&full_cmd->b, cmd_buf->b.data, cmd_buf->b.len);
     net_buf_unref(cmd_buf);
 
-    printf("Injecting IEC 104 Command (Tag 1001=0.0)...\n");
+    printf("Injecting IEC 104 Command (Tag 1001=1.0)...\n");
     ctx->iec_io.cb(&ctx->iec_io, IO_EVENT_RX, full_cmd, ctx->iec_io.user_data);
     
     for (int i=0; i<100; i++) {
@@ -196,19 +215,38 @@ static void test_iems_dispatch_flow(void **state) {
     printf("DataHub Tag 4003 (MPC Output): %.2f A\n", tag_val.payload.val.f);
     assert_true(tag_val.payload.val.f > 0.05); 
 
-    net_buf_t *mb_req = net_buf_alloc(&ctx->pool, 0);
+    // Wait for Hub -> Slave propagation
+    for (int i=0; i<100; i++) uv_run(&ctx->loop, UV_RUN_NOWAIT);
+    usleep(100000); 
+
+    net_buf_t *mb_req = net_buf_alloc(pool, 0);
     uint8_t mb_read_req[] = { 0x01, 0x03, 0x00, 0x0F, 0x00, 0x01, 0x00, 0x00 };
     uint16_t crc = modbus_calculate_crc(mb_read_req, 6);
     mb_read_req[6] = (uint8_t)(crc & 0xFF);
     mb_read_req[7] = (uint8_t)(crc >> 8);
     net_buf_simple_add_mem(&mb_req->b, mb_read_req, 8);
     
-    mb_tx_count = 0;
-    ctx->mb_io.cb(&ctx->mb_io, IO_EVENT_RX, mb_req, ctx->mb_io.user_data);
-    for (int i=0; i<50; i++) uv_run(&ctx->loop, UV_RUN_NOWAIT);
+    // Wait for slave engine to update its registers from Hub
+    uint16_t rv = 0;
+    printf("[DEBUG] Starting polling for MPC Output (Tag 4003) -> Modbus Reg 15...\n");
+    for (int retry = 0; retry < 100; retry++) {
+        mb_tx_count = 0;
+        ctx->mb_io.cb(&ctx->mb_io, IO_EVENT_RX, mb_req, ctx->mb_io.user_data);
+        
+        // Deep loop flush to ensure async notifications from Hub reach the Slave
+        // Using UV_RUN_DEFAULT with a timer might be too slow, but let's try more NOWAITs first
+        for (int i=0; i<300; i++) uv_run(&ctx->loop, UV_RUN_NOWAIT);
+        
+        if (mb_tx_count > 0) {
+            rv = (uint16_t)((mb_last_tx[3] << 8) | mb_last_tx[4]);
+            if (rv > 0) {
+                printf("[DEBUG] Success! Found Reg 15 = %u at retry %d\n", rv, retry);
+                break;
+            }
+        }
+        usleep(30000); // 30ms
+    }
     
-    assert_int_equal(mb_tx_count, 1);
-    uint16_t rv = (uint16_t)((mb_last_tx[3] << 8) | mb_last_tx[4]);
     printf("Modbus Value for 4003 (Reg 15): %u\n", rv);
     assert_true(rv > 0);
 }

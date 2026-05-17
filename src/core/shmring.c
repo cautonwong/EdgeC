@@ -32,15 +32,27 @@
 #define F_SEAL_GROW 0x0004
 #endif
 
+#include "edge_os_port.h"
+
 int shmring_create(shm_ring_t *ring, const char *name, uint32_t slots) {
     if (!ring || slots == 0 || slots > SHMRING_MAX_SLOTS) {
         return -1;
     }
 
-    // 1. 物理计算：Page 对齐
     size_t size = sizeof(ShmRingHeader) + (size_t)slots * sizeof(PipeMsg);
     size = (size + 4095) & ~4095UL;
 
+#ifdef __ZEPHYR__
+    ring->hdr = (ShmRingHeader *)EDGE_CALLOC(1, size);
+    if (!ring->hdr) {
+        LOG_ERROR(LOG_CAT_BUS, "Failed to allocate Zephyr memory for shm_ring");
+        return -1;
+    }
+    ring->fd = -1;
+    ring->slots = (PipeMsg *)((uint8_t *)ring->hdr + sizeof(ShmRingHeader));
+    ring->map_size = size;
+    LOG_INFO(LOG_CAT_BUS, "Zephyr Static Ring created (Size: %zu Bytes)", size);
+#else
     // 2. 创建匿名内存 (memfd)
     const char *mem_name = name ? name : "edge_bus";
     int fd = (int)syscall(SYS_memfd_create, mem_name, MFD_CLOEXEC | MFD_ALLOW_SEALING);
@@ -70,6 +82,9 @@ int shmring_create(shm_ring_t *ring, const char *name, uint32_t slots) {
     ring->hdr = (ShmRingHeader *)ptr;
     ring->slots = (PipeMsg *)((uint8_t *)ptr + sizeof(ShmRingHeader));
     ring->map_size = size;
+    LOG_INFO(LOG_CAT_BUS, "Sealed memfd Ring created (FD: %d, Size: %zu KB)", fd, size / 1024);
+#endif
+
     if (name) {
         strncpy(ring->name, name, sizeof(ring->name) - 1);
     } else {
@@ -83,7 +98,6 @@ int shmring_create(shm_ring_t *ring, const char *name, uint32_t slots) {
     atomic_store_explicit(&ring->hdr->write_idx, 0, memory_order_relaxed);
     atomic_store_explicit(&ring->hdr->total_writes, 0, memory_order_relaxed);
 
-    LOG_INFO(LOG_CAT_BUS, "Sealed memfd Ring created (FD: %d, Size: %zu KB)", fd, size / 1024);
     return 0;
 }
 

@@ -7,6 +7,7 @@
 #include "session_manager.h"
 #include "arbiter.h"
 #include "io_executor.h"
+#include "edge_guard.h"
 
 #define MAX_PROTO_PER_BUS 4
 
@@ -57,6 +58,15 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
                 }
                 
                 for (int i=0; i<async_count; i++) {
+                    // --- Edge-Guard: Deep Packet Inspection ---
+                    if (async_msgs[i].type == PIPEMSG_TYPE_SCALAR) {
+                        dpi_result_t res = dpi_validate_telemetry(async_msgs[i].tag_id, async_msgs[i].payload.val.f);
+                        if (res != DPI_PASS) {
+                            LOG_WARN(LOG_CAT_CORE, "SlaveEngine: Telemetry for Tag %u BLOCKED by Edge-Guard (Reason: %d)", 
+                                     async_msgs[i].tag_id, (int)res);
+                            continue; // Skip publishing
+                        }
+                    }
                     datahub_publish(priv->hub, &async_msgs[i]);
                 }
             }

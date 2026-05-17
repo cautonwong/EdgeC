@@ -88,7 +88,7 @@ void demo_control_advanced() {
     edge_matrix_t *f_mpc = edge_matrix_alloc(2, 1); // m*N x 1
     edge_matrix_t *A = edge_matrix_alloc(2, 2); edge_matrix_identity(A);
     edge_matrix_t *B = edge_matrix_alloc(2, 1); edge_matrix_set(B, 1, 0, 1.0);
-    control_mpc_formulate(A, B, NULL, NULL, 2, H_mpc, f_mpc);
+    control_mpc_formulate(A, B, NULL, NULL, NULL, 2, H_mpc, f_mpc);
     printf("  - MPC Batch Formulation: 生成 %dx%d 维 QP 问题。\n", edge_matrix_rows(H_mpc), edge_matrix_cols(H_mpc));
 
     edge_matrix_free(ekf.x); edge_matrix_free(ekf.P); edge_matrix_free(ekf.Q); edge_matrix_free(ekf.R);

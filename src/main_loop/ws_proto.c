@@ -142,12 +142,32 @@ int ws_build_frame(ws_opcode_t opcode, const uint8_t *payload, size_t len, uint8
         out_frame[3] = (uint8_t)(len & 0xFF);
         head_len = 4;
     } else {
-        return -1;  // 暂不支持超大包
+        out_frame[1] = 127;
+        for (int i = 0; i < 8; i++) {
+            out_frame[2 + i] = (uint8_t)((((uint64_t)len) >> (56 - i * 8)) & 0xFF);
+        }
+        head_len = 10;
     }
 
     if (payload && len > 0) {
         memcpy(out_frame + head_len, payload, len);
     }
     *out_len = (size_t)head_len + len;
+    return 0;
+}
+
+int ws_serialize_double_array(uint32_t tag_id, const double *arr, uint32_t count, uint8_t *out_buf, size_t *out_len) {
+    if (!arr || !out_buf || !out_len) return -1;
+    
+    ws_bin_header_t hdr;
+    hdr.tag_id = tag_id;
+    hdr.element_count = count;
+    hdr.data_type = 0x01; // Double
+    
+    size_t payload_size = count * sizeof(double);
+    memcpy(out_buf, &hdr, sizeof(ws_bin_header_t));
+    memcpy(out_buf + sizeof(ws_bin_header_t), arr, payload_size);
+    
+    *out_len = sizeof(ws_bin_header_t) + payload_size;
     return 0;
 }

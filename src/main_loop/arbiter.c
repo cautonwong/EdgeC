@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "edge_log.h"
+#include "edge_guard.h"
 
 #define MAX_BUSES ARBITER_MAX_BUSES
 
@@ -76,6 +77,7 @@ static void _on_tick(uv_timer_t *handle) {
     while (z) {
         cmd_msg_t *next = z->next;
         if (z->on_cleanup) z->on_cleanup(z);
+        free(z); // [Nexus] Fix leak
         z = next;
     }
 
@@ -139,6 +141,7 @@ arbiter_bus_handle_t arbiter_bus_register(arbiter_t *arb, const char *name) {
 int arbiter_submit_cmd(arbiter_t *arb, int bus_id, cmd_msg_t *cmd) {
     if (!arb || arb->is_shutting_down || bus_id < 0 || bus_id >= MAX_BUSES || !cmd) {
         if (cmd && cmd->on_cleanup) cmd->on_cleanup(cmd);
+        if (cmd) free(cmd); // [Nexus] Ensure cleanup
         return -1;
     }
 
@@ -222,11 +225,15 @@ void arbiter_destroy(arbiter_t *arb) {
         while (curr) {
             cmd_msg_t *next = curr->next;
             if (curr->on_cleanup) curr->on_cleanup(curr);
+            free(curr); // [Nexus] Fix leak
             curr = next;
         }
+        arb->buses[i].queue = NULL;
+
         if (arb->buses[i].owner) {
             if (arb->buses[i].owner->on_cleanup)
                 arb->buses[i].owner->on_cleanup(arb->buses[i].owner);
+            free(arb->buses[i].owner); // [Nexus] Fix leak
             arb->buses[i].owner = NULL;
         }
     }
@@ -236,6 +243,7 @@ void arbiter_destroy(arbiter_t *arb) {
     while (z) {
         cmd_msg_t *next = z->next;
         if (z->on_cleanup) z->on_cleanup(z);
+        free(z); // [Nexus] Fix leak
         z = next;
     }
     uv_mutex_unlock(&arb->lock);

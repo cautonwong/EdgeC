@@ -129,14 +129,68 @@ set(EDGE_MINOR 5)
 set(EDGE_PATCH 0)
 set(EDGE_VERSION_STR "${EDGE_MAJOR}.${EDGE_MINOR}.${EDGE_PATCH}")
 
-# 5.1 Base Interface for common includes and flags
+# --- Kconfig Configuration System ---
+set(DOTCONFIG_FILE "${CMAKE_BINARY_DIR}/.config")
+set(AUTOCONF_HEADER "${CMAKE_BINARY_DIR}/autoconf.h")
+
+# Default to IEMS if no specific application config is provided
+if(NOT CONF_FILE)
+    set(CONF_FILE "${CMAKE_CURRENT_SOURCE_DIR}/cmd/iems/prj.conf")
+endif()
+message(STATUS "Using Kconfig configuration from: ${CONF_FILE}")
+
+# Execute Kconfig processor
+execute_process(
+    COMMAND ${CMAKE_COMMAND} -E env KCONFIG_CONFIG=${DOTCONFIG_FILE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin/python3 ${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin/defconfig
+            --kconfig ${CMAKE_CURRENT_SOURCE_DIR}/Kconfig
+            ${CONF_FILE}
+    RESULT_VARIABLE kconfig_res
+)
+
+if(NOT kconfig_res EQUAL 0)
+    message(FATAL_ERROR "Kconfig defconfig failed: ${kconfig_res}")
+endif()
+
+execute_process(
+    COMMAND ${CMAKE_COMMAND} -E env KCONFIG_CONFIG=${DOTCONFIG_FILE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin/python3 ${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin/genconfig
+            --header-path ${AUTOCONF_HEADER}
+            ${CMAKE_CURRENT_SOURCE_DIR}/Kconfig
+    RESULT_VARIABLE kconfig_res
+)
+
+if(NOT kconfig_res EQUAL 0)
+    message(FATAL_ERROR "Kconfig genconfig failed: ${kconfig_res}")
+endif()
+
+# Load CONFIG_ variables into CMake scope and interface
 add_library(edge_common_interface INTERFACE)
+
+file(STRINGS "${DOTCONFIG_FILE}" CONFIG_LINES REGEX "^CONFIG_")
+foreach(line ${CONFIG_LINES})
+    if(line MATCHES "^([^=]+)=(.*)$")
+        set(CONF_KEY ${CMAKE_MATCH_1})
+        set(CONF_VAL ${CMAKE_MATCH_2})
+        
+        # If value is a string (wrapped in quotes), keep the quotes for C
+        if(CONF_VAL MATCHES "^\".*\"$")
+            target_compile_definitions(edge_common_interface INTERFACE ${CONF_KEY}=${CONF_VAL})
+        else()
+            target_compile_definitions(edge_common_interface INTERFACE ${CONF_KEY}=${CONF_VAL})
+        endif()
+    endif()
+endforeach()
+
 target_include_directories(edge_common_interface INTERFACE 
     include 
     algo/include
+    "${CMAKE_BINARY_DIR}" # Access autoconf.h
     SYSTEM "${LOCAL_ROOT}/include"
 )
-target_compile_definitions(edge_common_interface INTERFACE _DEFAULT_SOURCE)
+target_compile_definitions(edge_common_interface INTERFACE 
+    _DEFAULT_SOURCE
+)
 # 属性传播：将编译和链接选项封装在接口中
 target_compile_options(edge_common_interface INTERFACE 
     -Wall -Wextra -Wformat=2 -Wconversion --coverage
@@ -147,8 +201,12 @@ target_link_options(edge_common_interface INTERFACE --coverage)
 add_library(edge_core STATIC
     src/core/edge_version.c
     src/core/edge_params.c
+    src/core/license_engine.c
     src/core/shmring.c
+    src/core/edge_guard_dpi.c
+    src/core/secure_syslog_exporter.c
     src/core/datahub.c
+    src/core/edge_os_zephyr.c
     src/core/net_buf.c
     src/core/sqlite_service.c
     src/core/persistence_mgr.c
@@ -173,6 +231,20 @@ add_library(edge_stream_engine STATIC
     src/stream_engine/stage_dsp_rms.c
     src/stream_engine/stage_ekf_soc.c
     src/stream_engine/stage_mpc_dispatcher.c
+    src/stream_engine/stage_foc_core.c
+    src/stream_engine/stage_wavelet_anomaly.c
+    src/stream_engine/stage_kinematics.c
+    src/stream_engine/stage_sensor_fusion.c
+    src/stream_engine/stage_tinyml_wasm.c
+    src/stream_engine/stage_notch_filter.c
+    src/stream_engine/stage_ecg_anomaly.c
+    src/stream_engine/stage_ahrs_quaternion.c
+    src/stream_engine/stage_vibration_features.c
+    src/stream_engine/stage_rul_prediction.c
+    src/stream_engine/stage_radar_tracker.c
+    src/stream_engine/stage_vpp_logger.c
+    src/stream_engine/stage_compactor.c
+    src/stream_engine/stage_anomaly_baseline.c
     src/stream_engine/js_stage.c
     src/stream_engine/stage_wasm.c
     src/stream_engine/wasm_runtime/wasm_mgr.c
@@ -203,6 +275,10 @@ add_library(edge_main_loop STATIC
     src/main_loop/web_server.c
     src/main_loop/ws_proto.c
     src/main_loop/passthrough_mgr.c
+    src/main_loop/dcu_dynamic_poller.c
+    src/main_loop/protocol_bridge.c
+    src/main_loop/cloud_sync_service.c
+    src/main_loop/snf_manager.c
     src/io_executor/driver_manager.c
     src/io_executor/session_manager.c
     src/io_executor/profile_loader.c
@@ -214,6 +290,9 @@ add_library(edge_main_loop STATIC
     src/io_executor/driver_iec104.c
     src/io_executor/driver_iec101.c
     src/io_executor/driver_sparkplug_b.c
+    src/io_executor/driver_cia402.c
+    src/io_executor/driver_hl7_fhir.c
+    src/io_executor/driver_ccsds.c
     src/io_executor/engines/master_engine.c
     src/io_executor/engines/slave_engine.c
     src/io_executor/requests/req_driver_legacy.c
@@ -251,6 +330,7 @@ add_library(edge_algo STATIC
     algo/native/math/control_algo.c
     algo/native/math/motor_algo.c
     algo/native/math/radar_algo.c
+    algo/native/math/quat_math.c
     algo/native/math/linalg_gsl.c
 )
 target_link_libraries(edge_algo PUBLIC edge_common_interface)

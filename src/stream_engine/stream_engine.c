@@ -269,7 +269,7 @@ stream_engine_t *stream_engine_create_ex(datahub_t *hub, uv_loop_t *loop,
             (uint64_t)atomic_load_explicit(&hub->ring.hdr->seq, memory_order_acquire);
     }
 
-    uv_mutex_init(&engine->pipe_mutex);
+    uv_mutex_init_recursive(&engine->pipe_mutex);
     uv__queue_init(&engine->pipelines);
     uv_sem_init(&engine->start_sem, 0);
 

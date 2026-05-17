@@ -126,6 +126,30 @@ int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slo
                               actual_wakeup);
 }
 
+int datahub_init_from_fd(datahub_t *hub, uv_loop_t *loop, int ring_fd, size_t ring_size,
+                         int shadow_fd, size_t shadow_size, uint32_t compact_capacity,
+                         const edge_tag_meta_t *metadata, uint32_t metadata_len,
+                         struct net_buf_pool *io_pool, datahub_tag_map_cb map_fn,
+                         datahub_wakeup_filter_cb wakeup_fn) {
+    memset(hub, 0, sizeof(*hub));
+    if (shmring_init_from_fd(&hub->ring, ring_fd, ring_size) != 0) return -1;
+
+    if (shadow_fd >= 0 && compact_capacity > 0) {
+        // [Nexus] CLI 工具只读映射影子表
+        hub->shadow_table = mmap(NULL, shadow_size, PROT_READ, MAP_SHARED, shadow_fd, 0);
+        if (hub->shadow_table != MAP_FAILED) {
+            hub->shadow_fd = shadow_fd;
+            hub->shadow_size = shadow_size;
+            hub->shadow_capacity = compact_capacity;
+            hub->shadow_seq = calloc(compact_capacity, sizeof(atomic_uint));
+        } else {
+            hub->shadow_table = NULL;
+        }
+    }
+
+    return _datahub_post_init(hub, loop, compact_capacity, metadata, metadata_len, io_pool, map_fn, wakeup_fn);
+}
+
 void datahub_destroy(datahub_t *hub) {
     if (!hub) return;
     if (!uv_is_closing((uv_handle_t *)&hub->batch_check)) {

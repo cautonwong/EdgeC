@@ -30,14 +30,19 @@ void bus_orchestrator_set_monitor_tags(bus_orchestrator_t *ctx,
     if (ctx && tags) ctx->monitor_tags = *tags;
 }
 
+static void _bus_orch_ref(bus_orchestrator_t *ctx) {
+    if (ctx) atomic_fetch_add_explicit(&ctx->ref_count, 1, memory_order_relaxed);
+}
+
 static void _bus_orch_unref(bus_orchestrator_t *ctx) {
-    if (atomic_fetch_sub(&ctx->ref_count, 1) == 1) {
-        fprintf(stderr, "[DEBUG] BusOrchestrator: Final physical memory release.\n");
-        if (ctx->io_handles) free(ctx->io_handles);
-        if (ctx->engines) free(ctx->engines);
-        if (ctx->pool) net_buf_pool_unref(ctx->pool);
-        free(ctx);
-    }
+    if (!ctx) return;
+    if (atomic_fetch_sub_explicit(&ctx->ref_count, 1, memory_order_acq_rel) != 1) return;
+
+    fprintf(stderr, "[DEBUG] BusOrchestrator: Final physical memory release.\n");
+    if (ctx->pool) net_buf_pool_unref(ctx->pool);
+    if (ctx->io_handles) free(ctx->io_handles);
+    if (ctx->engines) free(ctx->engines);
+    free(ctx);
 }
 
 static void _on_bus_orch_close(uv_handle_t *handle) {
@@ -164,10 +169,10 @@ void bus_orchestrator_destroy(bus_orchestrator_t *ctx) {
     if (!ctx) return;
     fprintf(stderr, "[DEBUG] BusOrchestrator: Initiating destruction...\n");
 
+    // Close all engines and IO handles first
     if (ctx->engines) {
         for (int i = 0; i < ctx->max_buses; i++) {
             if (ctx->engines[i]) {
-                fprintf(stderr, "[DEBUG] BusOrchestrator: Detaching engine %d\n", i);
                 ctx->engines[i]->detach(ctx->engines[i]);
                 ctx->engines[i] = NULL;
             }
@@ -177,7 +182,6 @@ void bus_orchestrator_destroy(bus_orchestrator_t *ctx) {
     if (ctx->io_handles) {
         for (int i = 0; i < ctx->max_buses; i++) {
             if (ctx->io_handles[i]) {
-                fprintf(stderr, "[DEBUG] BusOrchestrator: Destroying IO handle %d\n", i);
                 if (ctx->io_handles[i]->ops && ctx->io_handles[i]->ops->destroy) {
                     ctx->io_handles[i]->ops->destroy(ctx->io_handles[i]);
                 }
@@ -186,7 +190,6 @@ void bus_orchestrator_destroy(bus_orchestrator_t *ctx) {
     }
 
     if (!uv_is_closing((uv_handle_t *)&ctx->audit_timer)) {
-        fprintf(stderr, "[DEBUG] BusOrchestrator: Closing audit timer handle...\n");
         uv_close((uv_handle_t *)&ctx->audit_timer, _on_bus_orch_close);
     } else {
         _bus_orch_unref(ctx);

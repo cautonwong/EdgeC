@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.10)
 project(EdgeC_Tests)
 
+include_directories(
+    .
+    ../src/stream_engine/wasm_runtime
+)
+
 # 统一测试构建宏
 macro(add_edge_test TEST_NAME)
     add_executable(${TEST_NAME} ${ARGN})
@@ -57,6 +62,29 @@ add_edge_test(test_battery_algo test_battery_algo.c)
 add_edge_test(test_ekf_soc test_ekf_soc.c)
 add_edge_test(test_mpc_dispatcher test_mpc_dispatcher.c)
 add_edge_test(test_sparkplug_b test_sparkplug_b.c)
+add_edge_test(test_cia402 test_cia402.c)
+add_edge_test(test_foc_latency test_foc_latency.c)
+add_edge_test(test_wavelet_anomaly test_wavelet_anomaly.c)
+add_edge_test(test_kinematics test_kinematics.c)
+add_edge_test(test_dcu_poller test_dcu_poller.c)
+add_edge_test(test_protocol_bridge test_protocol_bridge.c)
+add_edge_test(test_wasm_secure test_wasm_secure.c)
+add_edge_test(test_sensor_fusion test_sensor_fusion.c)
+add_edge_test(test_tinyml_overhead test_tinyml_overhead.c)
+add_edge_test(test_notch_filter test_notch_filter.c)
+add_edge_test(test_ecg_anomaly test_ecg_anomaly.c)
+add_edge_test(test_vibration_features test_vibration_features.c)
+add_edge_test(test_vibra_sense_rul test_vibra_sense_rul.c)
+add_edge_test(test_radar_tracker test_radar_tracker.c)
+add_edge_test(test_ahrs_quaternion test_ahrs_quaternion.c)
+add_edge_test(test_os_port test_os_port.c)
+add_edge_test(test_license_engine test_license_engine.c)
+add_edge_test(test_ws_binary test_ws_binary.c)
+add_edge_test(test_edge_guard test_edge_guard.c)
+add_edge_test(test_snf_resilience test_snf_resilience.c)
+add_edge_test(test_ccsds_driver test_ccsds_driver.c)
+add_edge_test(test_hl7_fhir test_hl7_fhir.c)
+add_edge_test(test_pid_antiwindup test_pid_antiwindup.c)
 add_edge_test(test_standard_stages_math test_standard_stages_math.c)
 add_edge_test(test_stream_engine_industrial test_stream_engine_industrial.c)
 add_edge_test(test_stream_engine_timeguard test_stream_engine_timeguard.c)
@@ -94,6 +122,7 @@ target_link_libraries(test_northbound_mqtt PRIVATE
     cmocka::cmocka
     pthread dl rt m
 )
+target_link_options(test_northbound_mqtt PRIVATE "-Wl,--allow-multiple-definition")
 add_test(NAME test_northbound_mqtt COMMAND test_northbound_mqtt)
 
 add_executable(test_iems_full_stack test_iems_full_stack.c)

@@ -133,6 +133,23 @@ int edge_matrix_eigenvalues(const edge_matrix_t *m, double *res_re, double *res_
  */
 int edge_matrix_scale(edge_matrix_t *m, double scale);
 
+/* --- 6. 四元数与姿态 (Quaternion Math) --- */
+
+/**
+ * @brief 四元数乘法: res = q1 * q2 (q1, q2 必须是 4x1 矩阵，格式 [w, x, y, z])
+ */
+int edge_matrix_quat_mul(const edge_matrix_t *q1, const edge_matrix_t *q2, edge_matrix_t *res);
+
+/**
+ * @brief 四元数归一化: 确保 q 的模长为 1
+ */
+int edge_matrix_quat_normalize(edge_matrix_t *q);
+
+/**
+ * @brief 四元数转旋转矩阵: q (4x1) -> rot (3x3)
+ */
+int edge_matrix_quat_to_rot(const edge_matrix_t *q, edge_matrix_t *rot);
+
 #ifdef __cplusplus
 }
 #endif

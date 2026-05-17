@@ -670,13 +670,71 @@ pipeline_stage_t *stage_advanced_pid_create_v2(const edge_stage_def_t *def, pipe
     return stage_advanced_pid_create(def->params.f1, def->params.f2, def->params.f3, setpoint, out_min, out_max, (uint32_t)def->params.u1);
 }
 
+#include "autoconf.h"
+#include "edge_license.h"
+
+pipeline_stage_t *stage_advanced_pid_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_kf_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_foc_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_fir_filter_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_battery_guard_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+
+#if defined(CONFIG_EDGEC_ALGO_LINALG)
 pipeline_stage_t *stage_ekf_soc_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
 pipeline_stage_t *stage_mpc_dispatcher_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_kinematics_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_sensor_fusion_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+#endif
+
+#if defined(CONFIG_EDGEC_ALGO_DSP)
+pipeline_stage_t *stage_notch_filter_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_ecg_anomaly_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+#endif
+
+#if defined(CONFIG_EDGEC_ALGO_AHRS)
+pipeline_stage_t *stage_ahrs_quaternion_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+#endif
+
+#if defined(CONFIG_EDGEC_ALGO_VIBRA)
+pipeline_stage_t *stage_rul_prediction_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_radar_tracker_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_vpp_logger_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_compactor_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_anomaly_baseline_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+
+#endif
+
+#if defined(CONFIG_EDGEC_WASM)
+pipeline_stage_t *stage_wasm_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_tinyml_wasm_create(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+#endif
 
 static const edge_stage_factory_entry_t g_standard_stages[] = {
     {"advanced_pid", stage_advanced_pid_create_v2},
+#if defined(CONFIG_EDGEC_ALGO_LINALG)
     {"ekf_soc", stage_ekf_soc_create_v2},
     {"mpc_dispatch", stage_mpc_dispatcher_create_v2},
+    {"kinematics", stage_kinematics_create_v2},
+    {"sensor_fusion", stage_sensor_fusion_create_v2},
+#endif
+#if defined(CONFIG_EDGEC_ALGO_DSP)
+    {"notch_filter", stage_notch_filter_create_v2},
+    {"ecg_anomaly", stage_ecg_anomaly_create_v2},
+#endif
+#if defined(CONFIG_EDGEC_ALGO_AHRS)
+    {"ahrs_quaternion", stage_ahrs_quaternion_create_v2},
+#endif
+#if defined(CONFIG_EDGEC_ALGO_VIBRA)
+    {"rul_prediction", stage_rul_prediction_create_v2},
+    {"radar_tracker", stage_radar_tracker_create_v2},
+    {"vpp_logger", stage_vpp_logger_create_v2},
+    {"compactor", stage_compactor_create_v2},
+    {"anomaly_baseline", stage_anomaly_baseline_create_v2},
+#endif
+#if defined(CONFIG_EDGEC_WASM)
+    {"wasm", stage_wasm_create_v2},
+    {"tinyml_wasm", stage_tinyml_wasm_create},
+#endif
     {"kalman", stage_kf_create_v2},
     {"foc", stage_foc_create_v2},
     {"fir_filter", stage_fir_filter_create_v2},

@@ -1,0 +1,86 @@
+mainmenu "EdgeC Industrial SDK Configuration"
+
+menu "System Architecture"
+    config EDGEC_TIER
+        string "SDK Tier Level"
+        default "ENTERPRISE"
+        help
+          Basic | Professional | Enterprise. This controls the default feature set.
+endmenu
+
+menu "Framework Hardening"
+    config EDGEC_HARDENING
+        bool "Enable Security Hardening"
+        default y
+        help
+          Enable stack protection, canary checks, and defensive pointer validation.
+
+    config EDGEC_RECURSIVE_MUTEX
+        bool "Use Recursive Mutexes for Pipelines"
+        default y
+        help
+          Allows feedback loops in StreamEngine without deadlocking.
+endmenu
+
+menu "Algorithm Lexicon (Linalg & DSP)"
+    config EDGEC_ALGO_LINALG
+        bool "Enable Linear Algebra Module (GSL/Builtin)"
+        default y
+
+    config EDGEC_ALGO_DSP
+        bool "Enable Digital Signal Processing Module"
+        default y
+
+    config EDGEC_ALGO_AHRS
+        bool "Enable AHRS Quaternion Solver"
+        depends on EDGEC_ALGO_LINALG
+        default y
+
+    config EDGEC_ALGO_VIBRA
+        bool "Enable Vibra-Sense (RMS, Kurtosis, RUL)"
+        depends on EDGEC_ALGO_DSP && EDGEC_ALGO_LINALG
+        default y
+endmenu
+
+menu "Security Suite (Edge-Guard)"
+    config EDGEC_SECURITY_DPI
+        bool "Enable Deep Packet Inspection Firewall"
+        default y
+
+    config EDGEC_SECURITY_SIGNED_LOGS
+        bool "Enable Cryptographically Signed Audit Logs"
+        default y
+endmenu
+
+menu "Execution Plane & App Ecosystem"
+    config EDGEC_WASM
+        bool "Enable Secure WASM Runtime (WAMR)"
+        default y
+
+    config EDGEC_WASM_WATCHDOG
+        bool "Enable Preemptive WASM Watchdog"
+        depends on EDGEC_WASM
+        default y
+
+    config EDGEC_JS_ENGINE
+        bool "Enable QuickJS Embedded Logic"
+        default n
+endmenu
+
+menu "Industrial Protocols"
+    config EDGEC_PROTO_MODBUS
+        bool "Modbus RTU/TCP"
+        default y
+
+    config EDGEC_PROTO_IEC104
+        bool "IEC 60870-5-104"
+        default y
+
+    config EDGEC_PROTO_SPARKPLUG_B
+        bool "MQTT Sparkplug B"
+        default y
+
+    config EDGEC_PROTO_CCSDS
+        bool "CCSDS Space Packet Telemetry"
+        default n
+endmenu

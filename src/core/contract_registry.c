@@ -29,7 +29,7 @@ const driver_contract_injection_t *contract_model_find(const char *name) {
     return NULL;
 }
 
-const edge_tag_meta_t *contract_tag_get_meta(edge_tag_id_t id) {
+__attribute__((weak)) const edge_tag_meta_t *contract_tag_get_meta(edge_tag_id_t id) {
     if (!g_active_contract) return NULL;
     
     // 此处可以优化为哈希查找，暂时使用线性查找

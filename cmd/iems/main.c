@@ -21,6 +21,12 @@
 #include "sched_time.h"
 #include "sqlite_service.h"
 #include "stream_engine.h"
+#include "edge_license.h"
+
+extern int modbus_driver_register(driver_manager_t *mgr);
+extern int modbus_tcp_driver_register(driver_manager_t *mgr);
+extern int iec104_driver_register(driver_manager_t *mgr);
+extern int sparkplug_b_driver_register(driver_manager_t *mgr);
 
 #define MAX_VBUS 32
 
@@ -365,6 +371,15 @@ static void on_signal_exit(uv_signal_t *handle, int signum) {
 int main(int argc, char *argv[]) {
     (void)argc;
     (void)argv;
+    
+    // --- SDK Tiering & License Engine ---
+    // In production, the key would be loaded from a secure element or environment
+    const char *lic_key = getenv("EDGEC_LICENSE_KEY");
+    if (license_engine_init(lic_key ? lic_key : "ENT-EVAL-KEY") < 0) {
+        fprintf(stderr, "FATAL: License verification failed. Boot aborted.\n");
+        return -1;
+    }
+    
     curl_global_init(CURL_GLOBAL_ALL);
     uv_loop_t *loop = uv_default_loop();
     uv__queue_init(&g_poll_task_head);

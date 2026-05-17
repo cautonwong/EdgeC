@@ -98,6 +98,16 @@ static inline void pipe_msg_init_event(PipeMsg *msg, uint32_t eid, uint32_t para
     // attr already zeroed by compound literal
 }
 
+static inline void pipe_msg_init_batch(PipeMsg *msg, uint32_t tag, void *ptr, uint32_t count, uint64_t ts) {
+    *msg = (PipeMsg){0};
+    msg->tag_id = tag;
+    msg->ts = ts;
+    msg->type = PIPEMSG_TYPE_BATCH;
+    msg->payload.batch.ptr = ptr;
+    msg->payload.batch.count = (int)count;
+    msg->state = TRACE_CREATED;
+}
+
 static inline void pipe_msg_init_ref(PipeMsg *msg, uint32_t tag, void *ptr, size_t len,
                                      uint64_t ts) {
     *msg = (PipeMsg){0};

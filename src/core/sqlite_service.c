@@ -99,7 +99,7 @@ static void _ensure_shard_exists(sqlite_svc_t *svc, const char *table_name) {
     if (strcmp(table_name, svc->current_shard) == 0) return;
     char sql[256];
     snprintf(sql, sizeof(sql),
-             "CREATE TABLE IF NOT EXISTS %s (ts INT, tag_id INT, val REAL, q INT, PRIMARY KEY(ts, "
+             "CREATE TABLE IF NOT EXISTS %s (ts INT, tag_id INT, val REAL, q INT, synced INT DEFAULT 0, PRIMARY KEY(ts, "
              "tag_id)) WITHOUT ROWID;",
              table_name);
     if (sqlite3_exec(svc->db, sql, 0, 0, 0) == SQLITE_OK) {
@@ -124,7 +124,7 @@ static int _db_run_migration(sqlite_svc_t *svc, int current_ver) {
         case 0:
             ret |= sqlite3_exec(svc->db,
                                 "CREATE TABLE IF NOT EXISTS telemetry (ts INT, tag_id INT, val "
-                                "REAL, q INT, PRIMARY KEY(ts, tag_id)) WITHOUT ROWID;"
+                                "REAL, q INT, synced INT DEFAULT 0, PRIMARY KEY(ts, tag_id)) WITHOUT ROWID;"
                                 "CREATE TABLE IF NOT EXISTS inventory (id TEXT PRIMARY KEY, type "
                                 "TEXT, addr INT, protocol TEXT, enabled INT DEFAULT 1);",
                                 NULL, NULL, &err);
@@ -198,8 +198,8 @@ static void _worker_flush_cb(uv_work_t *req) {
 
         if (current_table == NULL || strcmp(table, current_table) != 0) {
             if (stmt) sqlite3_finalize(stmt);
-            char sql[128];
-            snprintf(sql, sizeof(sql), "INSERT OR REPLACE INTO %s VALUES (?,?,?,?)", table);
+            char sql[256];
+            snprintf(sql, sizeof(sql), "INSERT OR REPLACE INTO %s (ts, tag_id, val, q) VALUES (?,?,?,?)", table);
             if (sqlite3_prepare_v2(svc->db, sql, -1, &stmt, NULL) != SQLITE_OK) {
                 continue;
             }
@@ -330,7 +330,7 @@ int sqlite_svc_insert(sqlite_svc_t *svc, const PipeMsg *msg) {
 
     if (svc->config.strategy == STRATEGY_LITE) {
         char sql[256];
-        snprintf(sql, sizeof(sql), "INSERT OR REPLACE INTO telemetry VALUES (%llu, %u, %f, %u);",
+        snprintf(sql, sizeof(sql), "INSERT OR REPLACE INTO telemetry (ts, tag_id, val, q) VALUES (%llu, %u, %f, %u);",
                  (unsigned long long)msg->ts, msg->tag_id, msg->payload.val.f, msg->quality);
         return sqlite3_exec(svc->db, sql, 0, 0, 0) == SQLITE_OK ? 0 : -1;
     }

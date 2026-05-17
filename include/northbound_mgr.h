@@ -51,6 +51,7 @@ typedef struct {
     web_server_t *web_srv;
     rest_server_t *rest_srv;
     struct driver_manager_s *drv_mgr; /**< [Nexus] 私有驱动管理器 */
+    struct snf_manager_s *snf;        /**< [Nexus] Store-and-Forward 管理器 */
 } northbound_mgr_t;
 
 int northbound_mgr_init(northbound_mgr_t *mgr, uv_loop_t *main_loop, shm_ring_t *ring,
