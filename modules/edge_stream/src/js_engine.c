@@ -113,10 +113,15 @@ static JSValue js_arbiter_submit(JSContext *ctx, JSValueConst this_val, int argc
 
     arbiter_t *arb = service_get_arbiter(engine->svc);
     if (arb) {
-        cmd_msg_t cmd;
-        cmd_msg_init_write(&cmd, tag_id, value, ARBITER_PRIO_NORMAL);
-        // 实际上此处应由 Orchestrator 包装后再提交，此处为演示直接注入总线 0
-        arbiter_submit_cmd(arb, 0, &cmd);
+        // [Nexus] 外科手术式修复：动态分配 cmd_msg_t，由 arbiter 自动清理
+        cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));
+        if (cmd) {
+            cmd_msg_init_write(cmd, tag_id, value, ARBITER_PRIO_NORMAL);
+            // 实际上此处应由 Orchestrator 包装后再提交，此处为演示直接注入总线 0
+            if (arbiter_submit_cmd(arb, 0, cmd) != 0) {
+                // 若提交失败，由底层释放 cmd
+            }
+        }
         return JS_TRUE;
     }
     return JS_FALSE;

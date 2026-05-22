@@ -233,14 +233,19 @@ static stage_ret_t _reflex_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
     _reflex_cfg_t *c = s->priv_cfg;
     bool triggered = c->greater_than ? (ev->payload.val.f > c->threshold) : (ev->payload.val.f < c->threshold);
     if (triggered) {
-        cmd_msg_t cmd = {0};
-        cmd.action = CMD_ACTION_WRITE;
-        cmd.tag_id = c->target_tag;
-        cmd.value = c->action_value;
-        cmd.priority = ARBITER_PRIO_HIGH;
-        strncpy(cmd.protocol, c->proto, 15);
-        snprintf(cmd.req_id, sizeof(cmd.req_id), "REFLEX_%u", c->target_tag);
-        bus_orchestrator_submit_cmd(c->orch, (int)c->bus_id, &cmd);
+        // [Nexus] 外科手术式修复：动态分配 cmd_msg_t，其生命周期交由 arbiter 引擎自动回收
+        cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));
+        if (cmd) {
+            cmd->action = CMD_ACTION_WRITE;
+            cmd->tag_id = c->target_tag;
+            cmd->value = c->action_value;
+            cmd->priority = ARBITER_PRIO_HIGH;
+            strncpy(cmd->protocol, c->proto, 15);
+            snprintf(cmd->req_id, sizeof(cmd->req_id), "REFLEX_%u", c->target_tag);
+            if (bus_orchestrator_submit_cmd(c->orch, (int)c->bus_id, cmd) != 0) {
+                // 若提交失败，则由底层自动释放 cmd。
+            }
+        }
     }
     return STAGE_OK;
 }

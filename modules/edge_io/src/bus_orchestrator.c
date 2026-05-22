@@ -159,6 +159,13 @@ static void _engine_cmd_proxy_on_start(void *user) {
     }
 }
 
+static void _engine_cmd_proxy_on_cleanup(struct cmd_msg *cmd) {
+    if (cmd && cmd->user_data) {
+        free(cmd->user_data);
+        cmd->user_data = NULL;
+    }
+}
+
 int bus_orchestrator_submit_cmd(bus_orchestrator_t *ctx, int bus_id, cmd_msg_t *cmd) {
     if (!ctx || bus_id >= ctx->max_buses || !cmd) return -1;
 
@@ -170,6 +177,7 @@ int bus_orchestrator_submit_cmd(bus_orchestrator_t *ctx, int bus_id, cmd_msg_t *
             proxy->cmd = cmd;
             cmd->user_data = proxy;
             cmd->on_start = _engine_cmd_proxy_on_start;
+            cmd->on_cleanup = _engine_cmd_proxy_on_cleanup;
         }
     }
 
