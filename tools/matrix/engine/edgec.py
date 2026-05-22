@@ -44,7 +44,8 @@ class MatrixEdgeC:
                 if "MODBUS" in dev_proto: dev_proto = "MODBUS"
 
                 for tag in tags_cfg:
-                    for b in tag.get("bindings", []):
+                    bindings = tag.get("bindings") or []
+                    for b in bindings:
                         tag_proto = b["protocol"].upper()
                         if tag_proto == dev_proto:
                             cursor.execute("INSERT INTO poll_tasks (device_id, tag_id, interval_ms, bus_id) VALUES (?, ?, ?, ?)",

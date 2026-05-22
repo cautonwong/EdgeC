@@ -7,9 +7,12 @@
 
 #include "edge_request.h"
 #include "queue.h"
-#include "rest_server.h"
 #include "shmring.h"
-#include "web_server.h"
+
+struct web_server_s;
+typedef struct web_server_s web_server_t;
+struct rest_server_s;
+typedef struct rest_server_s rest_server_t;
 
 #ifdef __cplusplus
 extern "C" {

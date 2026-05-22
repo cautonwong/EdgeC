@@ -202,13 +202,34 @@ func (b *CBackend) emitSource(contract *ir.ContractIR) error {
 		fmt.Fprintf(f, "static const driver_contract_injection_t inj_%s = { (const void *(*)(uint64_t))edge_get_map_%s, (const void *(*)(uint32_t))edge_get_map_%s_by_tag, s_%s_rev_table, %d };\n", lp, lp, lp, lp, len(contract.Tags))
 	}
 	fmt.Fprintln(f, "const edge_model_info_t g_model_metadata[] = {")
+	writtenCount := 0
 	for _, m := range contract.Models {
+		if !isKnownProtocol(m.Protocol) { continue }
 		lp := strings.ToLower(m.Protocol)
 		if lp == "modbusrtu" { lp = "modbus" }
 		fmt.Fprintf(f, "    { \"%s\", &inj_%s },\n", m.Name, lp)
+		writtenCount++
+
+		// Also register the protocol names to ensure that edge_model_find(protocol) succeeds.
+		fmt.Fprintf(f, "    { \"%s\", &inj_%s },\n", m.Protocol, lp)
+		writtenCount++
+		if lp == "modbus" {
+			fmt.Fprintf(f, "    { \"ModbusRTU\", &inj_%s },\n", lp)
+			fmt.Fprintf(f, "    { \"ModbusTCP\", &inj_%s },\n", lp)
+			writtenCount += 2
+		} else if lp == "dlt645" {
+			fmt.Fprintf(f, "    { \"DLT645\", &inj_%s },\n", lp)
+			writtenCount++
+		} else if lp == "iec104" {
+			fmt.Fprintf(f, "    { \"IEC104\", &inj_%s },\n", lp)
+			writtenCount++
+		} else if lp == "can" {
+			fmt.Fprintf(f, "    { \"CAN\", &inj_%s },\n", lp)
+			writtenCount++
+		}
 	}
 	fmt.Fprintln(f, "};")
-	fmt.Fprintf(f, "const uint32_t g_model_metadata_len = %d;\n\n", len(contract.Models))
+	fmt.Fprintf(f, "const uint32_t g_model_metadata_len = %d;\n\n", writtenCount)
 
 	// 8. API Routes
 	fmt.Fprintln(f, "const api_route_t g_api_routes[] = {")

@@ -45,7 +45,7 @@ class ModbusSlaveActor:
                             addr = attr.get("addr")
                             if addr is not None:
                                 self.tag_to_reg[tag["id"]] = addr
-                                self.tag_scalers[tag["id"]] = float(attr.get("scaler", 1.0))
+                                self.tag_scalers[tag["id"]] = float(attr.get("scale") or attr.get("scaler") or 1.0)
                                 self.registers[addr] = 0
         except Exception as e:
             print(f"Error loading mappings: {e}")

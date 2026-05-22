@@ -219,22 +219,21 @@ static void test_iems_dispatch_flow(void **state) {
     for (int i=0; i<100; i++) uv_run(&ctx->loop, UV_RUN_NOWAIT);
     usleep(100000); 
 
-    net_buf_t *mb_req = net_buf_alloc(pool, 0);
-    uint8_t mb_read_req[] = { 0x01, 0x03, 0x00, 0x0F, 0x00, 0x01, 0x00, 0x00 };
-    uint16_t crc = modbus_calculate_crc(mb_read_req, 6);
-    mb_read_req[6] = (uint8_t)(crc & 0xFF);
-    mb_read_req[7] = (uint8_t)(crc >> 8);
-    net_buf_simple_add_mem(&mb_req->b, mb_read_req, 8);
-    
     // Wait for slave engine to update its registers from Hub
     uint16_t rv = 0;
     printf("[DEBUG] Starting polling for MPC Output (Tag 4003) -> Modbus Reg 15...\n");
     for (int retry = 0; retry < 100; retry++) {
+        net_buf_t *mb_req = net_buf_alloc(pool, 0);
+        uint8_t mb_read_req[] = { 0x01, 0x03, 0x00, 0x0F, 0x00, 0x01, 0x00, 0x00 };
+        uint16_t crc = modbus_calculate_crc(mb_read_req, 6);
+        mb_read_req[6] = (uint8_t)(crc & 0xFF);
+        mb_read_req[7] = (uint8_t)(crc >> 8);
+        net_buf_simple_add_mem(&mb_req->b, mb_read_req, 8);
+
         mb_tx_count = 0;
         ctx->mb_io.cb(&ctx->mb_io, IO_EVENT_RX, mb_req, ctx->mb_io.user_data);
         
         // Deep loop flush to ensure async notifications from Hub reach the Slave
-        // Using UV_RUN_DEFAULT with a timer might be too slow, but let's try more NOWAITs first
         for (int i=0; i<300; i++) uv_run(&ctx->loop, UV_RUN_NOWAIT);
         
         if (mb_tx_count > 0) {

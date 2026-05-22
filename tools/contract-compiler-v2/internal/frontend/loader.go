@@ -131,6 +131,43 @@ func (l *Loader) processIncludes(raw map[string]interface{}, ast *ContractAST) {
 			l.upsertBinding(ast, tagName, proto, mm)
 		}
 	}
+
+	// [Nexus Model Auto-extraction] Support single-file Model extraction from flat Binding structure
+	if modelName, ok := raw["model"].(string); ok && proto != "" {
+		node := &ModelNode{
+			Name:     modelName,
+			Protocol: proto,
+			Version:  getString(raw, "version"),
+		}
+		for _, m := range mappings {
+			if mm, ok := m.(map[string]interface{}); ok {
+				pnode := &PointNode{
+					Name:     getString(mm, "tag"),
+					Type:     getString(mm, "type"),
+					Unit:     getString(mm, "unit"),
+					Category: getString(mm, "category"),
+					Bits:     getString(mm, "bits"),
+				}
+				if addr, ok := mm["addr"].(int); ok { pnode.Address = uint32(addr) }
+				if scale, ok := mm["scale"].(float64); ok { pnode.Scale = scale }
+				if attrs, ok := mm["attributes"].(map[string]interface{}); ok {
+					pnode.Attrs = attrs
+				}
+				node.Points = append(node.Points, pnode)
+			}
+		}
+		// Avoid duplicates
+		exists := false
+		for _, exm := range ast.Models {
+			if exm.Name == modelName {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			ast.Models = append(ast.Models, node)
+		}
+	}
 }
 
 func (l *Loader) loadInclude(path string, ast *ContractAST) {

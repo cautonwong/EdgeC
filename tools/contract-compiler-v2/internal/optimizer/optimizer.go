@@ -152,7 +152,7 @@ func (o *Optimizer) Optimize(ast *frontend.ContractAST) (*ir.ContractIR, error) 
 			if gt, ok := cfg["greater_than"].(bool); ok && gt { st.F2 = 1.0 } else { st.F2 = getFloat64(cfg, "beta", getFloat64(cfg, "max", 0.0)) }
 			st.F3 = getFloat64(cfg, "action_value", getFloat64(cfg, "action_val", 0.0))
 			st.U1 = uint32(getUint64(cfg, "target_tag", getUint64(cfg, "state_tag", getUint64(cfg, "bus_id", 0))))
-			st.S1 = getString(cfg, "protocol", getString(cfg, "script", ""))
+			st.S1 = getString(cfg, "protocol", getString(cfg, "script", getString(cfg, "table", "")))
 			
 			// Resolve branches to indices
 			if len(s.Branches) > 0 {

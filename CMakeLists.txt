@@ -1,110 +1,95 @@
-cmake_minimum_required(VERSION 3.15)
-project(EdgeOS VERSION 1.0.0 LANGUAGES C)
+cmake_minimum_required(VERSION 3.16)
+project(EdgeC C)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # ==============================================================================
-# 0. Build Acceleration (ccache)
+# 1. Environment & Path Configuration
 # ==============================================================================
-find_program(CCACHE_PROGRAM ccache)
-if(CCACHE_PROGRAM)
-    set(CMAKE_C_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
-    message(STATUS "ccache enabled for C compiler")
-endif()
-
-# ==============================================================================
-# 1. Architecture & Dependency Path
-# ==============================================================================
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
-    set(ARCH "linux-aarch64")
-else()
-    set(ARCH "linux-x86_64")
-endif()
-
-if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-    set(CMAKE_INSTALL_PREFIX "/opt/edgeos" CACHE PATH "EdgeOS standard install prefix" FORCE)
-endif()
-
-set(LOCAL_ROOT "${CMAKE_SOURCE_DIR}/.local/${ARCH}")
+set(LOCAL_ROOT "${CMAKE_SOURCE_DIR}/.local/${CMAKE_HOST_SYSTEM_NAME}-${CMAKE_HOST_SYSTEM_PROCESSOR}")
 list(APPEND CMAKE_PREFIX_PATH "${LOCAL_ROOT}")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
 # ==============================================================================
-# 2. Dependency Discovery
+# 2. Find Dependencies
 # ==============================================================================
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-
-# Clang-Tidy Integration
-find_program(CLANG_TIDY_EXE NAMES "clang-tidy")
-if(CLANG_TIDY_EXE)
-    # set(CMAKE_C_CLANG_TIDY ${CLANG_TIDY_EXE})
-    message(STATUS "Clang-Tidy found but disabled for now")
-endif()
-
-find_package(cJSON REQUIRED)
-# Ensure cJSON::cjson target exists
-if(NOT TARGET cJSON::cjson)
-    if(TARGET cjson)
-        add_library(cJSON::cjson ALIAS cjson)
-    else()
-        add_library(cJSON::cjson UNKNOWN IMPORTED)
-        set_target_properties(cJSON::cjson PROPERTIES
-            INTERFACE_INCLUDE_DIRECTORIES "${CJSON_INCLUDE_DIRS}"
-            IMPORTED_LOCATION "${CJSON_LIBRARIES}"
-        )
-    endif()
-endif()
-
 find_package(libuv REQUIRED)
-find_package(cmocka REQUIRED)
-if(NOT TARGET cmocka::cmocka)
-    add_library(cmocka::cmocka UNKNOWN IMPORTED)
-    set_target_properties(cmocka::cmocka PROPERTIES
-        INTERFACE_INCLUDE_DIRECTORIES "${LOCAL_ROOT}/include"
-        IMPORTED_LOCATION "${LOCAL_ROOT}/lib/libcmocka.a"
-    )
-endif()
-
+find_package(cJSON REQUIRED)
 find_package(SQLite3 REQUIRED)
-find_package(Modbus REQUIRED)
+find_package(zlog REQUIRED)
+find_package(PahoMQTT REQUIRED)
+find_package(CURL REQUIRED)
 find_package(QuickJS REQUIRED)
+find_package(iwasm REQUIRED)
+find_package(cmocka REQUIRED)
 
-option(ENABLE_WASM "Enable WebAssembly runtime support" ON)
-if(ENABLE_WASM)
-    find_package(WAMR REQUIRED)
-    message(STATUS "WebAssembly support enabled (WAMR)")
+# ==============================================================================
+# 3. Kconfig Configuration System
+# ==============================================================================
+set(DOTCONFIG_FILE "${CMAKE_BINARY_DIR}/.config")
+set(AUTOCONF_HEADER "${CMAKE_BINARY_DIR}/autoconf.h")
+
+if(NOT CONF_FILE)
+    set(CONF_FILE "${CMAKE_CURRENT_SOURCE_DIR}/cmd/iems/prj.conf")
 endif()
 
-find_package(CURL REQUIRED)
-find_package(PahoMQTT REQUIRED)
-find_library(ZLOG_LIB NAMES zlog PATHS "${LOCAL_ROOT}/lib" REQUIRED)
-add_library(zlog::zlog UNKNOWN IMPORTED)
-set_target_properties(zlog::zlog PROPERTIES
-    INTERFACE_INCLUDE_DIRECTORIES "${LOCAL_ROOT}/include"
-    IMPORTED_LOCATION "${ZLOG_LIB}"
+execute_process(
+    COMMAND ${CMAKE_COMMAND} -E env KCONFIG_CONFIG=${DOTCONFIG_FILE} srctree=${CMAKE_CURRENT_SOURCE_DIR}
+            ${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin/python3 ${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin/defconfig
+            --kconfig ${CMAKE_CURRENT_SOURCE_DIR}/Kconfig
+            ${CONF_FILE}
+    RESULT_VARIABLE kconfig_res
 )
 
+execute_process(
+    COMMAND ${CMAKE_COMMAND} -E env KCONFIG_CONFIG=${DOTCONFIG_FILE} srctree=${CMAKE_CURRENT_SOURCE_DIR}
+            ${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin/python3 ${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin/genconfig
+            --header-path ${AUTOCONF_HEADER}
+            ${CMAKE_CURRENT_SOURCE_DIR}/Kconfig
+)
+
+# Parse .config for CMake usage
+file(STRINGS "${DOTCONFIG_FILE}" CONFIG_LINES)
+foreach(line ${CONFIG_LINES})
+    if(line MATCHES "^CONFIG_([^=]+)=(.*)$")
+        set(CONF_KEY "CONFIG_${CMAKE_MATCH_1}")
+        set(CONF_VAL ${CMAKE_MATCH_2})
+        if(CONF_VAL STREQUAL "y")
+            set(${CONF_KEY} ON)
+            add_definitions(-D${CONF_KEY})
+        else()
+            set(${CONF_KEY} ${CONF_VAL})
+            add_definitions(-D${CONF_KEY}=${CONF_VAL})
+        endif()
+    endif()
+endforeach()
+
 # ==============================================================================
-# 3. Compiler & Output Options
+# 4. Common Build Options (Interface Target)
 # ==============================================================================
-include(Sanitizers)
-include(CodeCoverage)
-
-# 移除全局选项，改为在 edge_common_interface 中传播
-# add_compile_options(-Wall -Wextra -Wformat=2 -Wconversion --coverage)
-# add_link_options(--coverage)
-
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    enable_sanitizers(address undefined)
-endif()
-
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/sdk/lib)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/sdk/lib)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests)
+add_library(edge_common_interface INTERFACE)
+target_include_directories(edge_common_interface INTERFACE 
+    include 
+    "${CMAKE_BINARY_DIR}"
+    SYSTEM "${LOCAL_ROOT}/include"
+)
+target_compile_definitions(edge_common_interface INTERFACE _DEFAULT_SOURCE)
+target_compile_options(edge_common_interface INTERFACE -Wall -Wextra -Wformat=2 -Wconversion --coverage)
+target_link_options(edge_common_interface INTERFACE --coverage)
 
 # ==============================================================================
-# 4. Custom Modules & Submodules
+# 5. Modular Packages
+# ==============================================================================
+add_subdirectory(modules/edge_core)
+add_subdirectory(modules/edge_algo)
+add_subdirectory(modules/edge_protocol)
+add_subdirectory(modules/edge_io)
+add_subdirectory(modules/edge_security)
+add_subdirectory(modules/edge_stream)
+
+# ==============================================================================
+# 6. Applications & Tests
 # ==============================================================================
 include(EdgeContract)
 include(WebBuild)
@@ -113,262 +98,9 @@ include(BuildContractCompiler)
 
 build_contract_compiler()
 
-file(COPY "${CMAKE_SOURCE_DIR}/config" DESTINATION "${CMAKE_BINARY_DIR}")
-file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/logs")
-
-# ==============================================================================
-# 5. Build Core Library (Decoupled Planes)
-# ==============================================================================
-
-add_subdirectory(src/protocols)
-add_subdirectory(src/platform)
-add_subdirectory(src/ui)
-
-set(EDGE_MAJOR 4)
-set(EDGE_MINOR 5)
-set(EDGE_PATCH 0)
-set(EDGE_VERSION_STR "${EDGE_MAJOR}.${EDGE_MINOR}.${EDGE_PATCH}")
-
-# --- Kconfig Configuration System ---
-set(DOTCONFIG_FILE "${CMAKE_BINARY_DIR}/.config")
-set(AUTOCONF_HEADER "${CMAKE_BINARY_DIR}/autoconf.h")
-
-# Default to IEMS if no specific application config is provided
-if(NOT CONF_FILE)
-    set(CONF_FILE "${CMAKE_CURRENT_SOURCE_DIR}/cmd/iems/prj.conf")
-endif()
-message(STATUS "Using Kconfig configuration from: ${CONF_FILE}")
-
-# Execute Kconfig processor
-execute_process(
-    COMMAND ${CMAKE_COMMAND} -E env KCONFIG_CONFIG=${DOTCONFIG_FILE}
-            ${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin/python3 ${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin/defconfig
-            --kconfig ${CMAKE_CURRENT_SOURCE_DIR}/Kconfig
-            ${CONF_FILE}
-    RESULT_VARIABLE kconfig_res
-)
-
-if(NOT kconfig_res EQUAL 0)
-    message(FATAL_ERROR "Kconfig defconfig failed: ${kconfig_res}")
-endif()
-
-execute_process(
-    COMMAND ${CMAKE_COMMAND} -E env KCONFIG_CONFIG=${DOTCONFIG_FILE}
-            ${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin/python3 ${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin/genconfig
-            --header-path ${AUTOCONF_HEADER}
-            ${CMAKE_CURRENT_SOURCE_DIR}/Kconfig
-    RESULT_VARIABLE kconfig_res
-)
-
-if(NOT kconfig_res EQUAL 0)
-    message(FATAL_ERROR "Kconfig genconfig failed: ${kconfig_res}")
-endif()
-
-# Load CONFIG_ variables into CMake scope and interface
-add_library(edge_common_interface INTERFACE)
-
-file(STRINGS "${DOTCONFIG_FILE}" CONFIG_LINES REGEX "^CONFIG_")
-foreach(line ${CONFIG_LINES})
-    if(line MATCHES "^([^=]+)=(.*)$")
-        set(CONF_KEY ${CMAKE_MATCH_1})
-        set(CONF_VAL ${CMAKE_MATCH_2})
-        
-        # If value is a string (wrapped in quotes), keep the quotes for C
-        if(CONF_VAL MATCHES "^\".*\"$")
-            target_compile_definitions(edge_common_interface INTERFACE ${CONF_KEY}=${CONF_VAL})
-        else()
-            target_compile_definitions(edge_common_interface INTERFACE ${CONF_KEY}=${CONF_VAL})
-        endif()
-    endif()
-endforeach()
-
-target_include_directories(edge_common_interface INTERFACE 
-    include 
-    algo/include
-    "${CMAKE_BINARY_DIR}" # Access autoconf.h
-    SYSTEM "${LOCAL_ROOT}/include"
-)
-target_compile_definitions(edge_common_interface INTERFACE 
-    _DEFAULT_SOURCE
-)
-# 属性传播：将编译和链接选项封装在接口中
-target_compile_options(edge_common_interface INTERFACE 
-    -Wall -Wextra -Wformat=2 -Wconversion --coverage
-)
-target_link_options(edge_common_interface INTERFACE --coverage)
-
-# 5.2 核心平面 (Foundation L1 - 原子库)
-add_library(edge_core STATIC
-    src/core/edge_version.c
-    src/core/edge_params.c
-    src/core/license_engine.c
-    src/core/shmring.c
-    src/core/edge_guard_dpi.c
-    src/core/secure_syslog_exporter.c
-    src/core/datahub.c
-    src/core/edge_os_zephyr.c
-    src/core/net_buf.c
-    src/core/sqlite_service.c
-    src/core/persistence_mgr.c
-    src/core/edge_log.c
-    src/core/contract_registry.c
-)
-target_link_libraries(edge_core PUBLIC edge_common_interface)
-target_link_libraries(edge_core PRIVATE cJSON::cjson libuv::uv SQLite::SQLite3 zlog::zlog)
-
-# 5.3 计算平面 (Compute Plane)
-add_library(edge_stream_engine STATIC
-    src/stream_engine/stream_engine.c
-    src/stream_engine/js_engine.c
-    src/stream_engine/script_loader.c
-    src/stream_engine/aggregator.c
-    src/stream_engine/standard_stages.c
-    src/stream_engine/stage_linear_system.c
-    src/stream_engine/stage_transfer_function.c
-    src/stream_engine/stage_iir_filter.c
-    src/stream_engine/stage_advanced_pid.c
-    src/stream_engine/energy_integrator.c
-    src/stream_engine/stage_dsp_rms.c
-    src/stream_engine/stage_ekf_soc.c
-    src/stream_engine/stage_mpc_dispatcher.c
-    src/stream_engine/stage_foc_core.c
-    src/stream_engine/stage_wavelet_anomaly.c
-    src/stream_engine/stage_kinematics.c
-    src/stream_engine/stage_sensor_fusion.c
-    src/stream_engine/stage_tinyml_wasm.c
-    src/stream_engine/stage_notch_filter.c
-    src/stream_engine/stage_ecg_anomaly.c
-    src/stream_engine/stage_ahrs_quaternion.c
-    src/stream_engine/stage_vibration_features.c
-    src/stream_engine/stage_rul_prediction.c
-    src/stream_engine/stage_radar_tracker.c
-    src/stream_engine/stage_vpp_logger.c
-    src/stream_engine/stage_compactor.c
-    src/stream_engine/stage_anomaly_baseline.c
-    src/stream_engine/js_stage.c
-    src/stream_engine/stage_wasm.c
-    src/stream_engine/wasm_runtime/wasm_mgr.c
-    src/stream_engine/pipeline_loader.c
-    src/stream_engine/stream_dump.c
-)
-target_include_directories(edge_stream_engine PRIVATE src/stream_engine/wasm_runtime)
-# 注意：由于代码中存在交叉引用，我们需要在链接时允许循环
-target_link_libraries(edge_stream_engine PUBLIC edge_core edge_algo)
-target_link_libraries(edge_stream_engine PRIVATE QuickJS::QuickJS)
-
-if(ENABLE_WASM)
-    target_link_libraries(edge_stream_engine PRIVATE WAMR::WAMR)
-    target_compile_definitions(edge_stream_engine PRIVATE ENABLE_WASM)
-endif()
-
-# 5.4 控制与执行平面 (Control & Execution Plane)
-add_library(edge_main_loop STATIC
-    src/main_loop/arbiter.c
-    src/main_loop/bus_orchestrator.c
-    src/main_loop/dcu_inventory.c
-    src/main_loop/edge_service.c
-    src/main_loop/northbound_mgr.c
-    src/main_loop/policy_syncer.c
-    src/main_loop/rest_server.c
-    src/main_loop/sched_engine.c
-    src/main_loop/sched_port.c
-    src/main_loop/web_server.c
-    src/main_loop/ws_proto.c
-    src/main_loop/passthrough_mgr.c
-    src/main_loop/dcu_dynamic_poller.c
-    src/main_loop/protocol_bridge.c
-    src/main_loop/cloud_sync_service.c
-    src/main_loop/snf_manager.c
-    src/io_executor/driver_manager.c
-    src/io_executor/session_manager.c
-    src/io_executor/profile_loader.c
-    src/io_executor/modbus_rtu_driver.c
-    src/io_executor/modbus_tcp_driver.c
-    src/io_executor/adc_driver.c
-    src/io_executor/driver_dlt645.c
-    src/io_executor/driver_dlms.c
-    src/io_executor/driver_iec104.c
-    src/io_executor/driver_iec101.c
-    src/io_executor/driver_sparkplug_b.c
-    src/io_executor/driver_cia402.c
-    src/io_executor/driver_hl7_fhir.c
-    src/io_executor/driver_ccsds.c
-    src/io_executor/engines/master_engine.c
-    src/io_executor/engines/slave_engine.c
-    src/io_executor/requests/req_driver_legacy.c
-    src/io_executor/requests/req_raw_io.c
-    src/io_executor/edge_api.c
-)
-target_include_directories(edge_main_loop PUBLIC
-    src/io_executor/requests
-)
-# Main Loop 依赖计算平面和基础原子库
-target_link_libraries(edge_main_loop PUBLIC edge_core edge_stream_engine edge_protocols edge_platform)
-target_link_libraries(edge_main_loop PRIVATE Modbus::Modbus PahoMQTT::PahoMQTT CURL::libcurl)
-
-# 移除原来的 edge_stream_engine PUBLIC edge_main_loop 循环依赖
-
-
-# 5.5 算法库
-find_package(GSL QUIET)
-if(GSL_FOUND)
-    message(STATUS "[Nexus] GSL found, enabling accelerated math")
-    set(MATH_IMPL algo/native/math/linalg_gsl.c)
-    set(MATH_DEFS USE_GSL)
-else()
-    message(STATUS "[Nexus] GSL not found, using built-in math")
-    set(MATH_IMPL algo/native/math/linalg_builtin.c)
-    set(MATH_DEFS USE_BUILTIN_MATH)
-endif()
-
-add_library(edge_algo STATIC
-    algo/native/algorithm_sum.c
-    algo/native/battery_strategy.c
-    algo/native/algo_peak_shaving.c
-    algo/native/math/windowing.c
-    algo/native/math/dsp_algo.c
-    algo/native/math/control_algo.c
-    algo/native/math/motor_algo.c
-    algo/native/math/radar_algo.c
-    algo/native/math/quat_math.c
-    algo/native/math/linalg_gsl.c
-)
-target_link_libraries(edge_algo PUBLIC edge_common_interface)
-if(GSL_FOUND)
-    target_link_libraries(edge_algo PRIVATE GSL::gsl GSL::gslcblas)
-endif()
-target_compile_definitions(edge_algo PRIVATE ${MATH_DEFS})
-
-# 定义最终的组合静态库 (接口库)
-add_library(edge_sdk INTERFACE)
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    target_link_libraries(edge_sdk INTERFACE 
-        -Wl,--start-group
-        edge_main_loop 
-        -Wl,--whole-archive edge_stream_engine -Wl,--no-whole-archive
-        edge_protocols
-        edge_platform
-        edge_algo
-        edge_core
-        -Wl,--end-group
-    )
-else()
-    target_link_libraries(edge_sdk INTERFACE 
-        edge_main_loop 
-        edge_stream_engine
-        edge_protocols
-        edge_platform
-        edge_algo
-        edge_core
-    )
-endif()
-
-# ==============================================================================
-# 6. Build Product Applications
-# ==============================================================================
-add_subdirectory(cmd)
-
-include(CPack)
+add_subdirectory(cmd/iems)
+add_subdirectory(cmd/nexus_lab)
 enable_testing()
 add_subdirectory(tests)
-add_subdirectory(examples)
+
+# Helper for test registration

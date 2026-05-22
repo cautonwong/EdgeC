@@ -68,9 +68,12 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
     set_target_properties(${TARGET_NAME}_obj PROPERTIES 
         POSITION_INDEPENDENT_CODE ON
     )
-    # 显式关联基础接口，确保继承头文件路径和编译选项
+    # 显式关联基础接口，确保继承头文件路径和编译选项 (以接地气的中文添加注释)
     target_link_libraries(${TARGET_NAME}_obj PRIVATE edge_common_interface)
-    target_include_directories(${TARGET_NAME}_obj PRIVATE "${GEN_DIR}")
+    target_include_directories(${TARGET_NAME}_obj PRIVATE 
+        "${GEN_DIR}"
+        "${CMAKE_SOURCE_DIR}/modules/edge_core/include"
+    )
 
     # 创建一个 INTERFACE 库供外部链接，自动传播头文件路径
     add_library(${TARGET_NAME} INTERFACE)

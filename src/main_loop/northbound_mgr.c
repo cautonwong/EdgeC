@@ -1,4 +1,6 @@
 #include "northbound_mgr.h"
+#include "rest_server.h"
+#include "web_server.h"
 
 #include <MQTTAsync.h>
 #include <cjson/cJSON.h>

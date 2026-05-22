@@ -1,16 +1,18 @@
 cmake_minimum_required(VERSION 3.10)
 project(EdgeC_Tests)
 
-include_directories(
-    .
-    ../src/stream_engine/wasm_runtime
-)
-
 # 统一测试构建宏
 macro(add_edge_test TEST_NAME)
     add_executable(${TEST_NAME} ${ARGN})
     target_link_libraries(${TEST_NAME} PRIVATE
-        edge_sdk
+        -Wl,--start-group
+        edge_io
+        edge_stream
+        edge_security
+        edge_core
+        edge_protocol
+        edge_algo
+        -Wl,--end-group
         contract_iems
         edge_common_interface
         cmocka::cmocka
@@ -41,7 +43,7 @@ add_edge_test(test_dlms_security_validation test_dlms_security_validation.c)
 add_edge_test(test_driver_manager test_driver_manager.c)
 add_edge_test(test_io_executor test_io_executor.c)
 add_edge_test(test_contract_lookup test_contract_lookup.c)
-add_edge_test(test_driver_dlt645 test_driver_dlt645.c ../src/io_executor/driver_dlt645.c)
+add_edge_test(test_driver_dlt645 test_driver_dlt645.c)
 add_edge_test(test_driver_v3 test_driver_v3.c)
 add_edge_test(test_modbus_v3 test_modbus_v3.c)
 add_edge_test(test_io_http test_io_http.c)
@@ -95,13 +97,19 @@ add_edge_test(test_integration test_integration.c)
 add_edge_test(test_sdk_full_chain test_sdk_full_chain.c)
 add_edge_test(test_bus_orchestrator test_bus_orchestrator.c)
 add_edge_test(test_omnis_integration test_omnis_integration.c)
-# add_edge_test(test_protocol_loopback test_protocol_loopback.c)
 add_edge_test(test_dcu test_dcu.c)
 
 # 特殊用例: test_scheduler (Mock Time)
 add_executable(test_scheduler test_scheduler.c mock_time.c)
 target_link_libraries(test_scheduler PRIVATE
-    edge_sdk
+    -Wl,--start-group
+    edge_io
+    edge_stream
+    edge_security
+    edge_core
+    edge_protocol
+    edge_algo
+    -Wl,--end-group
     contract_iems
     edge_common_interface
     cmocka::cmocka
@@ -116,7 +124,14 @@ add_executable(test_northbound_mqtt
     mock_servers.c
 )
 target_link_libraries(test_northbound_mqtt PRIVATE 
-    edge_sdk
+    -Wl,--start-group
+    edge_io
+    edge_stream
+    edge_security
+    edge_core
+    edge_protocol
+    edge_algo
+    -Wl,--end-group
     contract_iems
     edge_common_interface
     cmocka::cmocka
@@ -125,16 +140,8 @@ target_link_libraries(test_northbound_mqtt PRIVATE
 target_link_options(test_northbound_mqtt PRIVATE "-Wl,--allow-multiple-definition")
 add_test(NAME test_northbound_mqtt COMMAND test_northbound_mqtt)
 
-add_executable(test_iems_full_stack test_iems_full_stack.c)
-target_link_libraries(test_iems_full_stack PRIVATE 
-    edge_sdk
-    contract_iems
-    edge_common_interface
-    cmocka::cmocka
-    pthread dl rt m
-)
-add_test(NAME test_iems_full_stack COMMAND test_iems_full_stack)
+add_edge_test(test_iems_full_stack test_iems_full_stack.c)
 
 # 编译选项加固
 target_link_options(test_integration PRIVATE -Wl,--wrap=io_submit)
-add_edge_test(test_adc_dsp_local test_adc_dsp_local.c ../src/stream_engine/dsp_stages.c)
+add_edge_test(test_adc_dsp_local test_adc_dsp_local.c)

@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <uv.h>
 
-#include "../src/stream_engine/stream_engine_priv.h"
+#include "stream_engine_priv.h"
 #include "stream_engine.h"
 
 static void test_pipeline_hot_reload_logic(void **state) {
