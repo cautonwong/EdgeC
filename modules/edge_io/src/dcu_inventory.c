@@ -54,6 +54,7 @@ int dcu_inventory_add(dcu_inventory_t *inv, const char *addr, const char *proto,
     m->channel_id = channel;
     m->is_online = true;   // 新增时初始置为在线状态 (ACTIVE)
     m->fail_count = 0;     // 超时计数清零
+    m->last_poll_time_s = 0; // 上一次抄表时间戳初始化为0
     
     inv->count++;
     

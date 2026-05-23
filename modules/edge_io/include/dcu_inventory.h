@@ -18,6 +18,7 @@ typedef struct {
     uint8_t channel_id;          // 关联的物理通道/串口 ID
     bool is_online;              // 状态：true 表示 ACTIVE, false 表示 SUSPENDED (熔断离线)
     uint8_t fail_count;          // 连续抄表超时失败计数器，达到 3 时触发静默熔断
+    uint32_t last_poll_time_s;   // 上一次被调度抄读的挂钟时间戳 (秒)
 } production_meter_t;
 
 /**
