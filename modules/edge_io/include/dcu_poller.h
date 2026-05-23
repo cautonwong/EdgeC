@@ -26,6 +26,12 @@ typedef struct {
     dcu_scheme_t schemes[MAX_SCHEMES];
     uint16_t scheme_count;
     pthread_mutex_t lock;             // 线程安全锁
+    
+    // 模拟运行期变量 (Task 4)
+    void *sim_timer_ptr;              // 避免在公共头文件里引入 uv_timer_t，防止冲突
+    void *hub_ptr;
+    void *inventory_ptr;
+    bool sim_running;
 } dcu_poller_t;
 
 /**
@@ -71,5 +77,9 @@ int dcu_poller_generate_queue(dcu_poller_t *poller, uint32_t scheme_id, dcu_inve
  * @brief 释放资源与销毁调度引擎
  */
 void dcu_poller_destroy(dcu_poller_t *poller);
+
+/* --- 动态高频采集数据生产模拟器 API (Task 4) --- */
+int dcu_poller_start_simulation(dcu_poller_t *poller, dcu_inventory_t *inventory, void *hub_ptr, void *loop_ptr);
+void dcu_poller_stop_simulation(dcu_poller_t *poller);
 
 #endif // DCU_POLLER_H

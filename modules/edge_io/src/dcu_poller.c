@@ -132,3 +132,115 @@ void dcu_poller_destroy(dcu_poller_t *poller) {
     if (!poller) return;
     pthread_mutex_destroy(&poller->lock);
 }
+
+/* ==============================================================================
+ * 动态高频采集数据生产模拟器实现 (Task 4)
+ * ============================================================================== */
+
+#include <uv.h>
+#include "datahub.h"
+
+// 统计模拟抄表触发次数的全局计数器 (供 CTest 断言)
+uint32_t g_simulated_count = 0;
+
+static void _sim_timer_cb(uv_timer_t *timer) {
+    dcu_poller_t *poller = (dcu_poller_t *)timer->data;
+    if (!poller || !poller->sim_running) return;
+
+    dcu_inventory_t *inv = (dcu_inventory_t *)poller->inventory_ptr;
+    datahub_t *hub = (datahub_t *)poller->hub_ptr;
+    if (!inv || !hub) return;
+
+    // 1. 生成物理串行轮询队列 (自动跳过 SUSPENDED 熔断电表)
+    dcu_poll_queue_t queue;
+    // 这里我们使用方案1 (Task 4 中注册的 10ms 定时采样方案)
+    if (dcu_poller_generate_queue(poller, 1, inv, &queue) != 0) {
+        return;
+    }
+
+    // 2. 串行模拟读取电参量并发布 DataHub (以接地气的中文添加注释)
+    for (uint16_t i = 0; i < queue.count; i++) {
+        dcu_poll_entry_t *entry = &queue.entries[i];
+        
+        for (uint16_t j = 0; j < entry->oad_count; j++) {
+            double sim_value = 0.0;
+            uint32_t oad = entry->oads[j];
+            
+            // 依据不同 OAD 类型模拟合理的物理数值
+            if (oad == 0x20000200 || oad == 0x20000300) {
+                // 模拟 220V 左右的单相电压
+                sim_value = 220.0 + ((double)(rand() % 10) - 5.0) * 0.1;
+            } else if (oad == 0x20010200 || oad == 0x20010300) {
+                // 模拟 5A 左右的电流
+                sim_value = 5.0 + ((double)(rand() % 10) - 5.0) * 0.05;
+            } else if (oad == 0x20040200 || oad == 0x20040400) {
+                // 有功功率 P = U * I
+                sim_value = 1100.0 + ((double)(rand() % 100) - 50.0) * 0.5;
+            } else if (oad == 0x00100200 || oad == 0x00100100) {
+                // 累计正向有功电能量 (随时间单调递增，模拟累加)
+                static double s_accumulated_energy = 12543.21;
+                s_accumulated_energy += 0.001; 
+                sim_value = s_accumulated_energy;
+            } else {
+                sim_value = 1.0;
+            }
+            
+            // 3. 构建 DataHub 总线消息并发布
+            pipe_msg_t msg;
+            memset(&msg, 0, sizeof(pipe_msg_t));
+            msg.tag_id = oad; // 将 OAD 映射为 tag_id 发布
+            msg.type = PIPEMSG_TYPE_SCALAR;
+            msg.payload.val.f = (float)sim_value;
+            
+            datahub_publish(hub, &msg);
+            g_simulated_count++; // 递增全局生产计数器
+        }
+    }
+}
+
+/**
+ * @brief 启动高频动态数采物理模拟器 (Timer 循环)
+ */
+int dcu_poller_start_simulation(dcu_poller_t *poller, dcu_inventory_t *inventory, void *hub_ptr, void *loop_ptr) {
+    if (!poller || !inventory || !hub_ptr || !loop_ptr) return -1;
+    
+    pthread_mutex_lock(&poller->lock);
+    
+    poller->inventory_ptr = inventory;
+    poller->hub_ptr = hub_ptr;
+    poller->sim_running = true;
+    
+    // 初始化并启动 uv_timer_t 模拟时钟触发
+    uv_timer_t *timer = malloc(sizeof(uv_timer_t));
+    uv_timer_init((uv_loop_t *)loop_ptr, timer);
+    timer->data = poller;
+    
+    // 以 10ms 周期高频触发数据模拟产生与发布
+    uv_timer_start(timer, _sim_timer_cb, 10, 10);
+    
+    poller->sim_timer_ptr = timer;
+    g_simulated_count = 0; // 计数器复位
+    
+    pthread_mutex_unlock(&poller->lock);
+    return 0;
+}
+
+/**
+ * @brief 关闭模拟器并清理资源
+ */
+void dcu_poller_stop_simulation(dcu_poller_t *poller) {
+    if (!poller || !poller->sim_running) return;
+    
+    pthread_mutex_lock(&poller->lock);
+    
+    poller->sim_running = false;
+    uv_timer_t *timer = (uv_timer_t *)poller->sim_timer_ptr;
+    if (timer) {
+        uv_timer_stop(timer);
+        // 执行异步 close 释放 timer 物理句柄
+        uv_close((uv_handle_t *)timer, (uv_close_cb)free);
+        poller->sim_timer_ptr = NULL;
+    }
+    
+    pthread_mutex_unlock(&poller->lock);
+}
