@@ -1,61 +1,89 @@
-#include <cmocka.h>
-#include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
-#include <stdlib.h>
+#include <setjmp.h>
+#include <stdint.h>
+#include <cmocka.h>
 #include <string.h>
-#include <stdio.h>
-#include <uv.h>
-#include <sqlite3.h>
+#include "dcu_inventory.h"
+#include "dcu_poller.h"
 
-#include "dcu_dynamic_poller.h"
-#include "sqlite_service.h"
-#include "bus_orchestrator.h"
-
-static void test_dcu_poller_loading(void **state) {
+// 1. 验证轮询方案添加与解析
+static void test_scheme_add(void **state) {
     (void)state;
-    uv_loop_t *loop = uv_default_loop();
-    
-    // 1. Setup SQLite
-    sqlite_config_t cfg = {
-        .strategy = STRATEGY_TRANSACTION,
-        .db_path = ":memory:", // In-memory for test
-        .batch_size = 1,
-        .flush_interval_ms = 100
-    };
-    sqlite_svc_t *db = sqlite_svc_create(loop, &cfg);
-    assert_non_null(db);
+    dcu_poller_t poller;
+    int ret = dcu_poller_init(&poller);
+    assert_int_equal(ret, 0);
+    assert_int_equal(poller.scheme_count, 0);
 
-    // 2. Create table and mock data
-    sqlite3 *raw_db = (sqlite3 *)sqlite_svc_get_db_handle(db);
-    char *err = NULL;
-    int rc = sqlite3_exec(raw_db, 
-        "CREATE TABLE meters (id INTEGER PRIMARY KEY, protocol TEXT, address TEXT, interval_sec INTEGER, channel_id INTEGER, active INTEGER);"
-        "INSERT INTO meters VALUES (1, 'DLT645', '123456789012', 5, 0, 1);"
-        "INSERT INTO meters VALUES (2, 'DLT698', 'AAAAAAAAAAAA', 10, 1, 1);"
-        "INSERT INTO meters VALUES (3, 'Modbus', '1', 60, 0, 0);", // Inactive
-        NULL, NULL, &err);
-    assert_int_equal(rc, SQLITE_OK);
+    // 注册方案1 (5秒快速遥测，OAD列表：20000200 电压, 20010200 电流)
+    uint32_t oads[2] = {0x20000200, 0x20010200};
+    ret = dcu_poller_add_scheme(&poller, 1, 5, oads, 2);
+    assert_int_equal(ret, 0);
+    assert_int_equal(poller.scheme_count, 1);
 
-    // 3. Setup Poller
-    dcu_dynamic_poller_t *poller = dcu_dynamic_poller_create(loop, NULL, db);
-    assert_non_null(poller);
+    dcu_scheme_t *s = dcu_poller_get_scheme(&poller, 1);
+    assert_non_null(s);
+    assert_int_equal(s->scheme_id, 1);
+    assert_int_equal(s->interval_s, 5);
+    assert_int_equal(s->oad_count, 2);
+    assert_int_equal(s->oads[0], 0x20000200);
+    assert_int_equal(s->oads[1], 0x20010200);
 
-    // 4. Test Reload
-    assert_int_equal(dcu_dynamic_poller_reload(poller), 0);
+    dcu_poller_destroy(&poller);
+}
+
+// 2. 验证 RS485 半双工总线上的串行队列生成及熔断跳过 (Queue Skip)
+static void test_queue_generation_and_skip(void **state) {
+    (void)state;
+    dcu_inventory_t inv;
+    dcu_poller_t poller;
+
+    dcu_inventory_init(&inv);
+    dcu_poller_init(&poller);
+
+    // 1. 注册 3 台电表
+    dcu_inventory_add(&inv, "10000001", "dlt698", 9600, 1);
+    dcu_inventory_add(&inv, "10000002", "dlt698", 9600, 1);
+    dcu_inventory_add(&inv, "10000003", "dlt698", 9600, 1);
+
+    // 2. 注册周期方案 (10s, 抄读 OAD 20000200)
+    uint32_t oads[1] = {0x20000200};
+    dcu_poller_add_scheme(&poller, 2, 10, oads, 1);
+
+    // 3. 生成串行执行队列 (所有表都处于在线 ACTIVE 状态)
+    dcu_poll_queue_t queue;
+    int ret = dcu_poller_generate_queue(&poller, 2, &inv, &queue);
     
-    // Should have 2 active meters
-    // I need a way to check poller->meter_count, but it's opaque.
-    // For this test, I'll assume success if reload returns 0.
+    assert_int_equal(ret, 0);
+    assert_int_equal(queue.count, 3); // 3台在线，队列长度必须为 3
+    assert_string_equal(queue.entries[0].meter_address, "10000001");
+    assert_string_equal(queue.entries[1].meter_address, "10000002");
+    assert_string_equal(queue.entries[2].meter_address, "10000003");
+    assert_int_equal(queue.entries[0].oad_count, 1);
+    assert_int_equal(queue.entries[0].oads[0], 0x20000200);
+
+    // 4. 模拟表2熔断 (is_online = false, 进入 SUSPENDED 状态)
+    production_meter_t *m2 = dcu_inventory_get(&inv, "10000002");
+    assert_non_null(m2);
+    m2->is_online = false;
+
+    // 5. 重新为方案2生成物理串行轮询队列 -> 表2必须被完美跳过
+    memset(&queue, 0, sizeof(dcu_poll_queue_t));
+    ret = dcu_poller_generate_queue(&poller, 2, &inv, &queue);
     
-    // Cleanup
-    dcu_dynamic_poller_destroy(poller);
-    sqlite_svc_destroy(db);
+    assert_int_equal(ret, 0);
+    assert_int_equal(queue.count, 2); // 只有表1和表3，表2被跳过，长度为 2
+    assert_string_equal(queue.entries[0].meter_address, "10000001");
+    assert_string_equal(queue.entries[1].meter_address, "10000003"); // 表3被前移
+
+    dcu_poller_destroy(&poller);
+    dcu_inventory_destroy(&inv);
 }
 
 int main(void) {
     const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_dcu_poller_loading),
+        cmocka_unit_test(test_scheme_add),
+        cmocka_unit_test(test_queue_generation_and_skip),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
