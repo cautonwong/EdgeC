@@ -11,6 +11,7 @@ add_library(edge_io STATIC
     src/dcu_dynamic_poller.c
     src/dcu_inventory.c
     src/dcu_poller.c
+    src/dcu_storage.c
     src/protocol_bridge.c
     src/cloud_sync_service.c
     src/rest_server.c
