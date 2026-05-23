@@ -147,3 +147,133 @@ int dlt698_decode_frame(struct net_buf_simple *in, dlt698_addr_t *sa, uint8_t *s
 
     return 0;
 }
+
+/* ==============================================================================
+ * A-XDR 基础数据类型编解码实现 (TDD Task 1)
+ * ============================================================================== */
+
+/**
+ * @brief 编码 long-unsigned (Tag 18) 无符号双字节 (16位)
+ */
+int dlt698_encode_long_unsigned(uint8_t *buf, uint16_t len, uint16_t *offset, uint16_t val) {
+    // 边界安全检验：确保缓冲区和偏移指针有效，且空间足够写入 3 字节 (1字节 tag + 2字节数据)
+    if (!buf || !offset || *offset + 3 > len) {
+        return -1;
+    }
+    
+    buf[(*offset)++] = 18;  // 写入 long-unsigned 类型标识 Tag = 18
+    buf[(*offset)++] = (uint8_t)((val >> 8) & 0xFF);  // 高字节大端序写入
+    buf[(*offset)++] = (uint8_t)(val & 0xFF);         // 低字节大端序写入
+    
+    return 0;
+}
+
+/**
+ * @brief 解码 long-unsigned (Tag 18)
+ */
+int dlt698_decode_long_unsigned(const uint8_t *buf, uint16_t len, uint16_t *offset, uint16_t *val) {
+    // 边界安全检验：确保解码数据不溢出
+    if (!buf || !offset || !val || *offset + 3 > len) {
+        return -1;
+    }
+    
+    // 类型校验
+    if (buf[*offset] != 18) {
+        return -2; // 类型 Tag 匹配错误
+    }
+    (*offset)++; // 跳过 Tag 字节
+    
+    // 大端序拼装数据
+    *val = (uint16_t)((buf[*offset] << 8) | buf[*offset + 1]);
+    *offset += 2;
+    
+    return 0;
+}
+
+/**
+ * @brief 编码 double-long (Tag 5) 有符号四字节 (32位)
+ */
+int dlt698_encode_double_long(uint8_t *buf, uint16_t len, uint16_t *offset, int32_t val) {
+    // 边界安全检验：确保写入 5 字节 (1字节 tag + 4字节数据) 不溢出
+    if (!buf || !offset || *offset + 5 > len) {
+        return -1;
+    }
+    
+    buf[(*offset)++] = 5;  // 写入 double-long 类型标识 Tag = 5
+    buf[(*offset)++] = (uint8_t)((val >> 24) & 0xFF); // 大端序高字节
+    buf[(*offset)++] = (uint8_t)((val >> 16) & 0xFF);
+    buf[(*offset)++] = (uint8_t)((val >> 8) & 0xFF);
+    buf[(*offset)++] = (uint8_t)(val & 0xFF);
+    
+    return 0;
+}
+
+/**
+ * @brief 解码 double-long (Tag 5)
+ */
+int dlt698_decode_double_long(const uint8_t *buf, uint16_t len, uint16_t *offset, int32_t *val) {
+    if (!buf || !offset || !val || *offset + 5 > len) {
+        return -1;
+    }
+    
+    if (buf[*offset] != 5) {
+        return -2; // 类型 Tag 不匹配
+    }
+    (*offset)++;
+    
+    // 大端序还原 32 位有符号数
+    *val = (int32_t)((buf[*offset] << 24) | 
+                     (buf[*offset + 1] << 16) | 
+                     (buf[*offset + 2] << 8) | 
+                     buf[*offset + 3]);
+    *offset += 4;
+    
+    return 0;
+}
+
+/**
+ * @brief 编码 date_time_s (Tag 28) 7字节高精度时间格式
+ */
+int dlt698_encode_date_time_s(uint8_t *buf, uint16_t len, uint16_t *offset, uint16_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t min, uint8_t sec) {
+    // 边界安全检验：确保能容纳 8 字节 (1字节 tag + 7字节值)
+    if (!buf || !offset || *offset + 8 > len) {
+        return -1;
+    }
+    
+    buf[(*offset)++] = 28; // 写入 date_time_s 类型标识 Tag = 28
+    buf[(*offset)++] = (uint8_t)((year >> 8) & 0xFF); // 年 (高字节)
+    buf[(*offset)++] = (uint8_t)(year & 0xFF);        // 年 (低字节)
+    buf[(*offset)++] = month;                         // 月
+    buf[(*offset)++] = day;                           // 日
+    buf[(*offset)++] = hour;                          // 时
+    buf[(*offset)++] = min;                           // 分
+    buf[(*offset)++] = sec;                           // 秒
+    
+    return 0;
+}
+
+/**
+ * @brief 解码 date_time_s (Tag 28)
+ */
+int dlt698_decode_date_time_s(const uint8_t *buf, uint16_t len, uint16_t *offset, uint16_t *year, uint8_t *month, uint8_t *day, uint8_t *hour, uint8_t *min, uint8_t *sec) {
+    if (!buf || !offset || !year || !month || !day || !hour || !min || !sec || *offset + 8 > len) {
+        return -1;
+    }
+    
+    if (buf[*offset] != 28) {
+        return -2; // 类型 Tag 匹配错误
+    }
+    (*offset)++;
+    
+    // 解析时间数据
+    *year = (uint16_t)((buf[*offset] << 8) | buf[*offset + 1]);
+    *month = buf[*offset + 2];
+    *day   = buf[*offset + 3];
+    *hour  = buf[*offset + 4];
+    *min   = buf[*offset + 5];
+    *sec   = buf[*offset + 6];
+    *offset += 7;
+    
+    return 0;
+}
+

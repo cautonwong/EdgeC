@@ -28,6 +28,7 @@ add_edge_test(test_edge_log test_edge_log.c)
 add_edge_test(test_net_buf test_net_buf.c)
 add_edge_test(test_shmring test_shmring.c)
 add_edge_test(test_arbiter test_arbiter.c)
+add_edge_test(test_dlt698_axdr test_dlt698_axdr.c)
 
 # 2. 数据总线测试 (Data Plane)
 add_edge_test(test_datahub test_datahub.c)
