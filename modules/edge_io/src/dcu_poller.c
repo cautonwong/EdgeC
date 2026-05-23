@@ -1,6 +1,7 @@
 #include "dcu_poller.h"
 #include <string.h>
 #include <stdlib.h>
+#include "sched_time.h"
 
 /**
  * @brief 初始化轮询调度引擎 (以接地气的中文添加注释)
@@ -143,8 +144,8 @@ void dcu_poller_destroy(dcu_poller_t *poller) {
 // 统计模拟抄表触发次数的全局计数器 (供 CTest 断言)
 uint32_t g_simulated_count = 0;
 
-static void _sim_timer_cb(uv_timer_t *timer) {
-    dcu_poller_t *poller = (dcu_poller_t *)timer->data;
+static void _sim_periodic_cb(uv_periodic_t *handle) {
+    dcu_poller_t *poller = (dcu_poller_t *)handle->data;
     if (!poller || !poller->sim_running) return;
 
     dcu_inventory_t *inv = (dcu_inventory_t *)poller->inventory_ptr;
@@ -153,7 +154,7 @@ static void _sim_timer_cb(uv_timer_t *timer) {
 
     // 1. 生成物理串行轮询队列 (自动跳过 SUSPENDED 熔断电表)
     dcu_poll_queue_t queue;
-    // 这里我们使用方案1 (Task 4 中注册的 10ms 定时采样方案)
+    // 这里我们使用方案1 (Task 4 中注册 of 10ms 定时采样方案)
     if (dcu_poller_generate_queue(poller, 1, inv, &queue) != 0) {
         return;
     }
@@ -199,7 +200,7 @@ static void _sim_timer_cb(uv_timer_t *timer) {
 }
 
 /**
- * @brief 启动高频动态数采物理模拟器 (Timer 循环)
+ * @brief 启动高频动态数采物理模拟器 (使用 high-precision uv_periodic_t 对齐循环)
  */
 int dcu_poller_start_simulation(dcu_poller_t *poller, dcu_inventory_t *inventory, void *hub_ptr, void *loop_ptr) {
     if (!poller || !inventory || !hub_ptr || !loop_ptr) return -1;
@@ -210,15 +211,18 @@ int dcu_poller_start_simulation(dcu_poller_t *poller, dcu_inventory_t *inventory
     poller->hub_ptr = hub_ptr;
     poller->sim_running = true;
     
-    // 初始化并启动 uv_timer_t 模拟时钟触发
-    uv_timer_t *timer = malloc(sizeof(uv_timer_t));
-    uv_timer_init((uv_loop_t *)loop_ptr, timer);
-    timer->data = poller;
+    // 【高精度对齐 MTT】：分配并初始化 uv_periodic_t 周期对齐调度结构
+    uv_periodic_t *periodic = malloc(sizeof(uv_periodic_t));
+    uv_periodic_init((uv_loop_t *)loop_ptr, periodic);
+    periodic->data = poller;
     
-    // 以 10ms 周期高频触发数据模拟产生与发布
-    uv_timer_start(timer, _sim_timer_cb, 10, 10);
+    // 以 10.0 ms 为绝对时间对齐步长设置周期调度策略 (offset = 0.0 ms, interval = 10.0 ms)
+    uv_periodic_set(periodic, 0.0, 10.0, NULL);
     
-    poller->sim_timer_ptr = timer;
+    // 启动周期对齐调度引擎
+    uv_periodic_start(periodic, _sim_periodic_cb);
+    
+    poller->sim_timer_ptr = periodic;
     g_simulated_count = 0; // 计数器复位
     
     pthread_mutex_unlock(&poller->lock);
@@ -226,7 +230,7 @@ int dcu_poller_start_simulation(dcu_poller_t *poller, dcu_inventory_t *inventory
 }
 
 /**
- * @brief 关闭模拟器并清理资源
+ * @brief 关闭模拟器并清理资源 (配合 uv_periodic_stop 释放底层句柄)
  */
 void dcu_poller_stop_simulation(dcu_poller_t *poller) {
     if (!poller || !poller->sim_running) return;
@@ -234,11 +238,11 @@ void dcu_poller_stop_simulation(dcu_poller_t *poller) {
     pthread_mutex_lock(&poller->lock);
     
     poller->sim_running = false;
-    uv_timer_t *timer = (uv_timer_t *)poller->sim_timer_ptr;
-    if (timer) {
-        uv_timer_stop(timer);
-        // 执行异步 close 释放 timer 物理句柄
-        uv_close((uv_handle_t *)timer, (uv_close_cb)free);
+    uv_periodic_t *periodic = (uv_periodic_t *)poller->sim_timer_ptr;
+    if (periodic) {
+        uv_periodic_stop(periodic);
+        // 执行异步 close 释放 periodic 内部的 timer 句柄，并在系统回调中安全 free 物理内存
+        uv_close((uv_handle_t *)&periodic->timer, (uv_close_cb)free);
         poller->sim_timer_ptr = NULL;
     }
     

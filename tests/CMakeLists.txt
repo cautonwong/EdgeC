@@ -32,6 +32,7 @@ add_edge_test(test_dlt698_axdr test_dlt698_axdr.c)
 add_edge_test(test_dcu_inventory test_dcu_inventory.c)
 add_edge_test(test_dcu_polling_loop test_dcu_polling_loop.c)
 add_edge_test(test_dcu_storage test_dcu_storage.c)
+add_edge_test(test_dcu_integration test_dcu_integration.c)
 
 # 2. 数据总线测试 (Data Plane)
 add_edge_test(test_datahub test_datahub.c)
