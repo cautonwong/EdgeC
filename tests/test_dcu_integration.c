@@ -9,6 +9,7 @@
 #include "dcu_inventory.h"
 #include "dcu_poller.h"
 #include "dcu_storage.h"
+#include "dcu_router.h"
 
 // 全局集成测试主体
 static void test_dcu_full_pipeline_integration(void **state) {
@@ -31,11 +32,13 @@ static void test_dcu_full_pipeline_integration(void **state) {
     dcu_inventory_add(&inv, "20000001", "dlt698", 9600, 1);
     dcu_inventory_add(&inv, "20000002", "dlt698", 9600, 1);
 
-    // 4. 初始化 poller 并注册 10ms 快速遥测方案
+    // 4. 初始化 poller 并注册定时任务与普通采集方案
     dcu_poller_t poller;
     dcu_poller_init(&poller);
-    uint32_t oads[2] = {0x20000200, 0x20010200}; // 电压 + 电流
-    dcu_poller_add_scheme(&poller, 1, 10, oads, 2);
+    uint32_t oads[2] = {OAD_VOLTAGE, OAD_CURRENT}; // 电压 + 电流
+    dcu_poller_add_scheme(&poller, 1, 0, oads, 2);
+    dcu_poller_add_task(&poller, 1, 10, 1);
+
 
     // 5. 启动数采模拟生产器并直推 DataHub
     ret = dcu_poller_start_simulation(&poller, &inv, &hub, loop);
@@ -52,8 +55,8 @@ static void test_dcu_full_pipeline_integration(void **state) {
         uv_run(loop, UV_RUN_ONCE);
         
         // 模拟消费端：取出最新模拟量存入双缓冲
-        dcu_storage_write_telemetry(&storage, "20000001", "20000200", 220.5);
-        dcu_storage_write_telemetry(&storage, "20000002", "20010200", 4.95);
+        dcu_storage_write_telemetry(&storage, "20000001", OAD_VOLTAGE, 220.5);
+        dcu_storage_write_telemetry(&storage, "20000002", OAD_CURRENT, 4.95);
     }
 
     // 7. 模拟物理掉电 SIGTERM 中断，强行 Flush 刷盘

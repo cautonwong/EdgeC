@@ -1,0 +1,18 @@
+# modules/edge_stream/Kconfig
+
+menu "Edge_Stream (Reactive Engine)"
+
+config EDGEC_WASM
+    bool "Enable Secure WASM Runtime (WAMR)"
+    default y
+
+config EDGEC_WASM_WATCHDOG
+    bool "Enable Preemptive WASM Watchdog"
+    depends on EDGEC_WASM
+    default y
+
+config EDGEC_JS_ENGINE
+    bool "Enable QuickJS Embedded Logic"
+    default y
+
+endmenu

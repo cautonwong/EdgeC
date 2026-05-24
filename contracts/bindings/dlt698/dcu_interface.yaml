@@ -1,10 +1,11 @@
 # DLT698.45 Object-Oriented Protocol Binding
 protocol: "DLT698"
-model: "Advanced_DCU_Interface"
+model: "DLT698"
 mappings:
   - tag: GRID_FREQUENCY
-    oaid: "20010200" # 对象标识: 频率
-    scaler: 0.01
+    oad: 0x20010200 # 对象标识: 频率
+    scale: 0.01
 
-  - tag: BREAKER_STATUS
-    oaid: "40010200" # 对象标识: 状态量-开关
+  - tag: VOLTAGE_PHASE_A
+    oad: 0x20000200
+    scale: 0.1

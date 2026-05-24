@@ -1,0 +1,25 @@
+# modules/edge_protocol/Kconfig
+
+menu "Edge_Protocol (Industrial Stack)"
+
+config EDGEC_PROTO_MODBUS
+    bool "Modbus RTU/TCP"
+    default y
+
+config EDGEC_PROTO_IEC104
+    bool "IEC 60870-5-104"
+    default y
+
+config EDGEC_PROTO_SPARKPLUG_B
+    bool "MQTT Sparkplug B"
+    default y
+
+config EDGEC_PROTO_CCSDS
+    bool "CCSDS Space Packet Telemetry"
+    default y
+
+config EDGEC_PROTO_DLMS
+    bool "DLMS/COSEM (IEC 62056)"
+    default y
+
+endmenu

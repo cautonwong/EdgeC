@@ -1,0 +1,13 @@
+# modules/edge_security/Kconfig
+
+menu "Edge_Security (Industrial Hardening)"
+
+config EDGEC_SECURITY_DPI
+    bool "Enable Deep Packet Inspection Firewall"
+    default y
+
+config EDGEC_SECURITY_SIGNED_LOGS
+    bool "Enable Cryptographically Signed Audit Logs"
+    default y
+
+endmenu

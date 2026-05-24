@@ -70,10 +70,8 @@ static int dlt698_v4_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_
     // 计算消耗 (简单近似：到 payload + len + 2(FCS) + 1(16))
     *consumed = (size_t)(payload + payload_len + 3 - in->b.data);
 
-    if (svc == DLT698_SVC_GET_RES && payload_len >= 4) {
-        // [Aetheris] 解析 OAD 后的数据 (假设为简单数值类型)
-        // 实际上 698 的数据解析非常复杂，涉及 Data 类型的嵌套递归
-        // 此处先打通链路，后续可通过 dlms_decoder 风格重构 698_decoder
+    if (svc == DLT698_SVC_GET_RES && payload_len >= 5) {
+        // [Aetheris] 解析 OAD 后的数据 (使用 A-XDR 编解码引擎)
         uint32_t oad_rx = (uint32_t)((payload[0] << 24) | (payload[1] << 16) | (payload[2] << 8) | payload[3]);
         if (oad_rx == priv->last_oad) {
             float scaler = 1.0f;
@@ -86,11 +84,28 @@ static int dlt698_v4_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_
                 }
             }
             
-            if (tid != 0 && payload_len >= 6) {
-                // 简化：取 OAD 之后的前2字节作为数值 (如 long-unsigned)
-                uint16_t raw_val = (uint16_t)((payload[4] << 8) | payload[5]);
-                pipe_msg_init_scalar(&out_msgs[0], tid, (double)raw_val * scaler, uv_hrtime());
-                *msg_count = 1;
+            if (tid != 0) {
+                uint16_t offset = 4;
+                double val = 0.0;
+                int decode_ret = -1;
+
+                // 探测 A-XDR 类型并选择解码器
+                uint8_t type_tag = payload[offset];
+                if (type_tag == 18) { // long-unsigned
+                    uint16_t u16_val;
+                    decode_ret = dlt698_decode_long_unsigned(payload, (uint16_t)payload_len, &offset, &u16_val);
+                    val = (double)u16_val;
+                } else if (type_tag == 5) { // double-long
+                    int32_t i32_val;
+                    decode_ret = dlt698_decode_double_long(payload, (uint16_t)payload_len, &offset, &i32_val);
+                    val = (double)i32_val;
+                }
+
+                if (decode_ret == 0) {
+                    pipe_msg_init_scalar(&out_msgs[0], tid, val * (double)scaler, uv_hrtime());
+                    *msg_count = 1;
+                    LOG_DEBUG(LOG_CAT_IO, "DLT698: Decoded OAD %08X -> Val %.3f", oad_rx, val * (double)scaler);
+                }
             }
         }
     }

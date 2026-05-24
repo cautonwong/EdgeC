@@ -1,0 +1,23 @@
+# modules/edge_core/Kconfig
+
+menu "Edge_Core (QtCore Style Foundation)"
+
+config EDGEC_HARDENING
+    bool "Enable Security Hardening"
+    default y
+    help
+      Enable stack protection, canary checks, and defensive pointer validation.
+
+config EDGEC_RECURSIVE_MUTEX
+    bool "Use Recursive Mutexes for Pipelines"
+    default y
+    help
+      Allows feedback loops in StreamEngine without deadlocking.
+
+config EDGEC_NETBUF_HEADROOM
+    int "Default NetBuf Headroom"
+    default 64
+    help
+      Reserved bytes for protocol headers to avoid reallocs.
+
+endmenu

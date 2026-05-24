@@ -33,6 +33,12 @@ add_edge_test(test_dcu_inventory test_dcu_inventory.c)
 add_edge_test(test_dcu_polling_loop test_dcu_polling_loop.c)
 add_edge_test(test_dcu_storage test_dcu_storage.c)
 add_edge_test(test_dcu_integration test_dcu_integration.c)
+add_edge_test(test_dcu_router test_dcu_router.c)
+add_edge_test(test_dcu_advanced_modules test_dcu_advanced_modules.c)
+
+
+
+
 
 # 2. 数据总线测试 (Data Plane)
 add_edge_test(test_datahub test_datahub.c)
@@ -150,3 +156,14 @@ add_edge_test(test_iems_full_stack test_iems_full_stack.c)
 # 编译选项加固
 target_link_options(test_integration PRIVATE -Wl,--wrap=io_submit)
 add_edge_test(test_adc_dsp_local test_adc_dsp_local.c)
+
+# 追加链接集中器自治库，以彻底消除 undefined reference to dcu_*
+target_link_libraries(test_dcu_inventory PRIVATE dcu_app_lib)
+target_link_libraries(test_dcu_polling_loop PRIVATE dcu_app_lib)
+target_link_libraries(test_dcu_storage PRIVATE dcu_app_lib)
+target_link_libraries(test_dcu_integration PRIVATE dcu_app_lib)
+target_link_libraries(test_dcu_router PRIVATE dcu_app_lib)
+target_link_libraries(test_dcu_poller PRIVATE dcu_app_lib)
+target_link_libraries(test_dcu PRIVATE dcu_app_lib)
+target_link_libraries(test_dcu_advanced_modules PRIVATE dcu_app_lib)
+

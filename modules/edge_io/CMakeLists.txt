@@ -8,10 +8,6 @@ add_library(edge_io STATIC
     src/bus_orchestrator.c
     src/driver_manager.c
     src/passthrough_mgr.c
-    src/dcu_dynamic_poller.c
-    src/dcu_inventory.c
-    src/dcu_poller.c
-    src/dcu_storage.c
     src/protocol_bridge.c
     src/cloud_sync_service.c
     src/rest_server.c
@@ -26,6 +22,7 @@ add_library(edge_io STATIC
     src/adc_driver.c
     src/modbus_rtu_driver.c
     src/modbus_tcp_driver.c
+    src/driver_dlt698.c
     ${ENGINE_SOURCES}
     ${REQUEST_SOURCES}
     ${DRIVER_SOURCES}
@@ -40,4 +37,5 @@ target_include_directories(edge_io PUBLIC include src/requests)
 target_include_directories(edge_io PRIVATE src/engines)
 target_link_libraries(edge_io PUBLIC edge_core edge_protocol edge_stream edge_security)
 target_link_libraries(edge_io PRIVATE libuv::uv_a SQLite::SQLite3 cjson PahoMQTT::PahoMQTT CURL::libcurl)
+
 

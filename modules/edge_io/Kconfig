@@ -1,0 +1,15 @@
+# modules/edge_io/Kconfig
+
+menu "Edge_IO (Storage & Connectivity)"
+
+config EDGEC_SNF
+    bool "Enable Store-and-Forward (SnF)"
+    default y
+    help
+      Buffering data to SQLite when MQTT is offline.
+
+config EDGEC_PERSISTENCE
+    bool "Enable Periodic Persistence"
+    default y
+
+endmenu

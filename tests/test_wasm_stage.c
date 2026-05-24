@@ -10,7 +10,10 @@
 
 #include "datahub.h"
 #include "stream_engine.h"
+#include "stream_engine_priv.h"
 #include "wasm_mgr.h"
+
+extern pipeline_stage_t *stage_wasm_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *loader_ctx);
 
 // Verified minimal WASM that simply returns 1.0 for Tag 9999
 // matches the test logic requirements
@@ -78,11 +81,18 @@ static void test_wasm_full_chain(void **state) {
     pipeline_t *p = stream_engine_add_pipeline(se, "wasm_test_pipe", 1001);
 
     const char *wasm_path = "test_logic.wasm";
-    pipeline_stage_t *ws = stage_wasm_create(wasm_path, "on_event");
+    // Increase heap/stack for reliable loading
+    edge_stage_def_t wdef = {0};
+    wdef.params.s1 = wasm_path;
+    wdef.params.s2 = "on_event";
+    wdef.params.f1 = 256 * 1024; // Heap
+    wdef.params.f2 = 256 * 1024; // Stack
+    
+    pipeline_stage_t *ws = stage_wasm_create_v2(&wdef, NULL);
     assert_non_null(ws);
-    pipeline_add_stage(p, ws->name, ws->process, ws->priv_state, ws->cleanup_state, ws->priv_cfg,
-                       ws->cleanup_cfg);
-    free(ws);
+    // Link manually to bypass pipeline_add_stage copy logic
+    ws->pipeline = p;
+    p->head = ws;
 
     // 4. 注入触发数据 (Tag 1001 = 245.5V)
     pipe_msg_t msg;

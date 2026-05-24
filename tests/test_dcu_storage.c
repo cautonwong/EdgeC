@@ -6,6 +6,7 @@
 #include <string.h>
 #include <uv.h>
 #include "dcu_storage.h"
+#include "dcu_router.h"
 
 // 1. 验证双缓冲与批量事务落盘 (Flash 寿命保障)
 static void test_storage_buffering(void **state) {
@@ -18,11 +19,11 @@ static void test_storage_buffering(void **state) {
     assert_int_equal(ret, 0);
     
     // 写入 5 条最新实时遥测数据
-    dcu_storage_write_telemetry(&storage, "10000001", "20000200", 220.4);
-    dcu_storage_write_telemetry(&storage, "10000001", "20010200", 5.02);
-    dcu_storage_write_telemetry(&storage, "10000002", "20000200", 221.1);
-    dcu_storage_write_telemetry(&storage, "10000002", "20010200", 4.98);
-    dcu_storage_write_telemetry(&storage, "10000003", "20000200", 219.8);
+    dcu_storage_write_telemetry(&storage, "10000001", OAD_VOLTAGE, 220.4);
+    dcu_storage_write_telemetry(&storage, "10000001", OAD_CURRENT, 5.02);
+    dcu_storage_write_telemetry(&storage, "10000002", OAD_VOLTAGE, 221.1);
+    dcu_storage_write_telemetry(&storage, "10000002", OAD_CURRENT, 4.98);
+    dcu_storage_write_telemetry(&storage, "10000003", OAD_VOLTAGE, 219.8);
     
     // 未进行 flush 刷写前，由于双缓冲保护，临时数据库中记录行数应当为 0
     sqlite3_stmt *stmt;
@@ -58,19 +59,19 @@ static void test_storage_freeze_rsd_query(void **state) {
     
     dcu_storage_init(&storage, loop, ":memory:");
     
-    // 模拟写入一系列日冻结数据快照 (OAD 50040200)
+    // 模拟写入一系列日冻结数据快照 (OAD_DAILY_FREEZE)
     // 昨天 (时间戳 100000)，正向有功电量快照为 12543.10
-    dcu_storage_write_freeze(&storage, "10000001", "50040200", 100000, "00100200", 12543.10);
+    dcu_storage_write_freeze(&storage, "10000001", OAD_DAILY_FREEZE, 100000, OAD_ACTIVE_ENERGY, 12543.10);
     // 今天 (时间戳 200000)，正向有功电量快照为 12544.15
-    dcu_storage_write_freeze(&storage, "10000001", "50040200", 200000, "00100200", 12544.15);
+    dcu_storage_write_freeze(&storage, "10000001", OAD_DAILY_FREEZE, 200000, OAD_ACTIVE_ENERGY, 12544.15);
     // 明天 (时间戳 300000)，正向有功电量快照为 12545.20
-    dcu_storage_write_freeze(&storage, "10000001", "50040200", 300000, "00100200", 12545.20);
+    dcu_storage_write_freeze(&storage, "10000001", OAD_DAILY_FREEZE, 300000, OAD_ACTIVE_ENERGY, 12545.20);
     
     // 执行 RSD 范围段过滤检索 (模拟北向 GET-Request-Record，只查昨天到今天的区间：100000 到 250000)
     dcu_freeze_record_t results[10];
     uint16_t out_count = 0;
     
-    int ret = dcu_storage_query_freeze(&storage, "10000001", "50040200", 100000, 250000, results, 10, &out_count);
+    int ret = dcu_storage_query_freeze(&storage, "10000001", OAD_DAILY_FREEZE, 100000, 250000, results, 10, &out_count);
     assert_int_equal(ret, 0);
     
     // 断言结果：应当只筛选出昨天和今天的 2 条记录，明天的被自动过滤
@@ -78,7 +79,7 @@ static void test_storage_freeze_rsd_query(void **state) {
     
     assert_string_equal(results[0].meter_address, "10000001");
     assert_int_equal(results[0].freeze_time, 100000);
-    assert_string_equal(results[0].source_oad, "00100200");
+    assert_int_equal(results[0].source_oad, OAD_ACTIVE_ENERGY);
     assert_double_equal(results[0].frozen_value, 12543.10, 0.01);
     
     assert_int_equal(results[1].freeze_time, 200000);

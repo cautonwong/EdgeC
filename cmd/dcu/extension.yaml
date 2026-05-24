@@ -1,7 +1,8 @@
 product: "DCU_Standard_V1"
 # DLT698 查表验证
 includes:
-  - "contracts/bindings/dlms/chint_dtsu.yaml"
+  # - "contracts/bindings/dlms/chint_dtsu.yaml"
+  - "contracts/bindings/dlt698_full_oads.yaml"
 
 # 启用全局测点
 enabled_tags:

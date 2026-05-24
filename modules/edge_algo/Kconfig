@@ -1,0 +1,23 @@
+# modules/edge_algo/Kconfig
+
+menu "Edge_Algo (Algorithm Lexicon)"
+
+config EDGEC_ALGO_LINALG
+    bool "Enable Linear Algebra Module (GSL/Builtin)"
+    default y
+
+config EDGEC_ALGO_DSP
+    bool "Enable Digital Signal Processing Module"
+    default y
+
+config EDGEC_ALGO_AHRS
+    bool "Enable AHRS Quaternion Solver"
+    depends on EDGEC_ALGO_LINALG
+    default y
+
+config EDGEC_ALGO_VIBRA
+    bool "Enable Vibra-Sense (RMS, Kurtosis, RUL)"
+    depends on EDGEC_ALGO_DSP && EDGEC_ALGO_LINALG
+    default y
+
+endmenu
