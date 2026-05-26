@@ -72,6 +72,63 @@ int dlt698_decode_frame(struct net_buf_simple *in, dlt698_addr_t *sa, uint8_t *s
                         uint8_t *piid, uint8_t **payload_out, size_t *payload_len);
 
 /* --- A-XDR 基础数据类型编解码 (TDD Task 1) --- */
+
+/**
+ * @brief DLT698.45 抽象数据类型标识 (Data Tags)
+ */
+typedef enum {
+    DLT698_TAG_NULL = 0,
+    DLT698_TAG_ARRAY = 1,
+    DLT698_TAG_STRUCTURE = 2,
+    DLT698_TAG_DOUBLE_LONG = 5,
+    DLT698_TAG_DOUBLE_LONG_UNSIGNED = 6,
+    DLT698_TAG_OCTET_STRING = 9,
+    DLT698_TAG_VISIBLE_STRING = 10,
+    DLT698_TAG_INTEGER = 15,
+    DLT698_TAG_LONG = 16,
+    DLT698_TAG_UNSIGNED = 17,
+    DLT698_TAG_LONG_UNSIGNED = 18,
+    DLT698_TAG_LONG64 = 20,
+    DLT698_TAG_LONG64_UNSIGNED = 21,
+    DLT698_TAG_ENUM = 22,
+    DLT698_TAG_FLOAT32 = 23,
+    DLT698_TAG_FLOAT64 = 24,
+    DLT698_TAG_DATE_TIME_S = 28
+} dlt698_data_tag_t;
+
+/**
+ * @brief 抽象数据容器 (用于递归解析)
+ */
+typedef struct dlt698_data_s {
+    dlt698_data_tag_t tag;
+    union {
+        uint8_t u8;
+        int8_t i8;
+        uint16_t u16;
+        int16_t i16;
+        uint32_t u32;
+        int32_t i32;
+        uint64_t u64;
+        int64_t i64;
+        float f32;
+        double f64;
+        struct {
+            uint8_t *ptr;
+            size_t len;
+        } str;
+        struct {
+            struct dlt698_data_s *items;
+            uint16_t count;
+        } container;
+    } val;
+} dlt698_data_t;
+
+/**
+ * @brief 通用 A-XDR 递归解码器
+ */
+int dlt698_decode_data(const uint8_t *buf, uint16_t len, uint16_t *offset, dlt698_data_t *res);
+void dlt698_free_data(dlt698_data_t *data);
+
 int dlt698_encode_long_unsigned(uint8_t *buf, uint16_t len, uint16_t *offset, uint16_t val);
 int dlt698_decode_long_unsigned(const uint8_t *buf, uint16_t len, uint16_t *offset, uint16_t *val);
 

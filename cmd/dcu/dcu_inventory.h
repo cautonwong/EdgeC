@@ -56,6 +56,11 @@ int dcu_inventory_remove(dcu_inventory_t *inv, const char *addr);
 production_meter_t* dcu_inventory_get(dcu_inventory_t *inv, const char *addr);
 
 /**
+ * @brief 从 SQLite 数据库加载表计档案
+ */
+int dcu_inventory_load_from_db(dcu_inventory_t *inv, const char *db_path);
+
+/**
  * @brief 释放资源与销毁容器
  */
 void dcu_inventory_destroy(dcu_inventory_t *inv);

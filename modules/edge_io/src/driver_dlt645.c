@@ -170,7 +170,7 @@ static int dlt645_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
     return -1;
 }
 
-edge_driver_t dlt645_driver = {.name = "DLT645-2007",
+edge_driver_t dlt645_driver = {.name = "DLT645",
                                .ctx_size = sizeof(dlt645_ctx_t),
                                .on_init = dlt645_v3_on_init,
                                .encode_request = dlt645_v3_encode_request,

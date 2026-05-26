@@ -309,20 +309,25 @@ func (o *Optimizer) parseKey(proto string, attr map[string]interface{}) uint64 {
 	
 	// Composite Key Support: (DeviceAddr << 32) | RegAddr
 	deviceAddr := getUint64(attr, "device_address", 0)
-	regAddr := getUint64(attr, "addr", getUint64(attr, "address", getUint64(attr, "ioa", 0)))
+	
+	var regAddr uint64
+	if p == "DLT645" || p == "DLT698" {
+		// DLT 系列可能使用 oad, di, addr 等字段，且可能是字符串或数字
+		regAddr = getUint64(attr, "oad", getUint64(attr, "di", getUint64(attr, "addr", 0)))
+	} else {
+		regAddr = getUint64(attr, "addr", getUint64(attr, "address", getUint64(attr, "ioa", 0)))
+	}
 	
 	compositeKey := (deviceAddr << 32) | regAddr
 
 	switch p {
 	case "MODBUS", "IEC104", "MODBUSRTU": 
-		// If multiple instances exist, use composite key to prevent collisions in lookup engine
 		if deviceAddr != 0 { return compositeKey }
 		return regAddr
 	case "DLT645", "DLT698":
-		s := getString(attr, "di", getString(attr, "oad", "0"))
-		v, _ := strconv.ParseUint(strings.ReplaceAll(s, "0x", ""), 16, 64)
-		if deviceAddr != 0 { return (deviceAddr << 32) | v }
-		return v
+		// [Nexus] Ensure OAD/DI is never 0 unless explicitly defined
+		if deviceAddr != 0 { return (deviceAddr << 32) | regAddr }
+		return regAddr
 	case "CAN": return getUint64(attr, "can_id", 0)
 	default: return 0
 	}
@@ -339,7 +344,12 @@ func getUint64(m map[string]interface{}, key string, def uint64) uint64 {
 		case uint64: return val
 		case float64: return uint64(val)
 		case string:
-			res, _ := strconv.ParseUint(strings.ReplaceAll(val, "0x", ""), 16, 64)
+			clean := strings.ReplaceAll(val, "0x", "")
+			res, err := strconv.ParseUint(clean, 16, 64)
+			if err != nil {
+				// Try decimal if hex fails
+				res, _ = strconv.ParseUint(clean, 10, 64)
+			}
 			return res
 		}
 	}

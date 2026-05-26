@@ -120,6 +120,43 @@ production_meter_t* dcu_inventory_get(dcu_inventory_t *inv, const char *addr) {
 /**
  * @brief 资源回收与销毁容器
  */
+#include <sqlite3.h>
+#include <stdio.h>
+#include "contract_registry.h"
+
+int dcu_inventory_load_from_db(dcu_inventory_t *inv, const char *db_path) {
+    sqlite3 *db;
+    if (sqlite3_open(db_path, &db) != SQLITE_OK) return -1;
+
+    // 检查表是否存在，不存在则创建 (演示用)
+    const char *init_sql = "CREATE TABLE IF NOT EXISTS meter_inventory ("
+                           "address TEXT PRIMARY KEY, protocol TEXT, baud INTEGER, channel INTEGER);";
+    sqlite3_exec(db, init_sql, NULL, NULL, NULL);
+
+    const char *sql = "SELECT address, protocol, baud, channel FROM meter_inventory;";
+    sqlite3_stmt *stmt;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        sqlite3_close(db);
+        return -2;
+    }
+
+    int loaded = 0;
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        const char *addr = (const char *)sqlite3_column_text(stmt, 0);
+        const char *proto = (const char *)sqlite3_column_text(stmt, 1);
+        int baud = sqlite3_column_int(stmt, 2);
+        int chan = sqlite3_column_int(stmt, 3);
+        
+        const driver_contract_injection_t *inj = edge_model_find(proto);
+        dcu_inventory_add(inv, addr, proto, (uint32_t)baud, (uint8_t)chan, inj);
+        loaded++;
+    }
+
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+    return loaded;
+}
+
 void dcu_inventory_destroy(dcu_inventory_t *inv) {
     if (!inv) return;
     pthread_mutex_destroy(&inv->lock);

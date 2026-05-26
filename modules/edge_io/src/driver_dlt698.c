@@ -71,7 +71,7 @@ static int dlt698_v4_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_
     *consumed = (size_t)(payload + payload_len + 3 - in->b.data);
 
     if (svc == DLT698_SVC_GET_RES && payload_len >= 5) {
-        // [Aetheris] 解析 OAD 后的数据 (使用 A-XDR 编解码引擎)
+        // [Aetheris] 解析 OAD 后的数据 (使用通用递归解码引擎)
         uint32_t oad_rx = (uint32_t)((payload[0] << 24) | (payload[1] << 16) | (payload[2] << 8) | payload[3]);
         if (oad_rx == priv->last_oad) {
             float scaler = 1.0f;
@@ -86,25 +86,28 @@ static int dlt698_v4_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_
             
             if (tid != 0) {
                 uint16_t offset = 4;
-                double val = 0.0;
-                int decode_ret = -1;
+                dlt698_data_t res_data;
+                if (dlt698_decode_data(payload, (uint16_t)payload_len, &offset, &res_data) == 0) {
+                    double val = 0.0;
+                    bool supported = true;
 
-                // 探测 A-XDR 类型并选择解码器
-                uint8_t type_tag = payload[offset];
-                if (type_tag == 18) { // long-unsigned
-                    uint16_t u16_val;
-                    decode_ret = dlt698_decode_long_unsigned(payload, (uint16_t)payload_len, &offset, &u16_val);
-                    val = (double)u16_val;
-                } else if (type_tag == 5) { // double-long
-                    int32_t i32_val;
-                    decode_ret = dlt698_decode_double_long(payload, (uint16_t)payload_len, &offset, &i32_val);
-                    val = (double)i32_val;
-                }
+                    // 将抽象 A-XDR 数据类型转为 DataHub 标量
+                    switch (res_data.tag) {
+                        case DLT698_TAG_UNSIGNED: val = (double)res_data.val.u8; break;
+                        case DLT698_TAG_LONG_UNSIGNED: val = (double)res_data.val.u16; break;
+                        case DLT698_TAG_DOUBLE_LONG_UNSIGNED: val = (double)res_data.val.u32; break;
+                        case DLT698_TAG_INTEGER: val = (double)res_data.val.i8; break;
+                        case DLT698_TAG_LONG: val = (double)res_data.val.i16; break;
+                        case DLT698_TAG_DOUBLE_LONG: val = (double)res_data.val.i32; break;
+                        default: supported = false; break;
+                    }
 
-                if (decode_ret == 0) {
-                    pipe_msg_init_scalar(&out_msgs[0], tid, val * (double)scaler, uv_hrtime());
-                    *msg_count = 1;
-                    LOG_DEBUG(LOG_CAT_IO, "DLT698: Decoded OAD %08X -> Val %.3f", oad_rx, val * (double)scaler);
+                    if (supported) {
+                        pipe_msg_init_scalar(&out_msgs[0], tid, val * (double)scaler, uv_hrtime());
+                        *msg_count = 1;
+                        LOG_DEBUG(LOG_CAT_IO, "DLT698: Decoded OAD %08X (Tag %d) -> Val %.3f", oad_rx, res_data.tag, val * (double)scaler);
+                    }
+                    dlt698_free_data(&res_data);
                 }
             }
         }

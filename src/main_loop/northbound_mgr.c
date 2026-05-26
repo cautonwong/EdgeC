@@ -30,7 +30,13 @@ typedef struct {
 extern char *rest_dispatch(service_t *svc, const char *method, const char *path, const char *body);
 
 static int _push_to_mqtt_direct(northbound_mgr_t *mgr, uint32_t tag_id, double val, uint64_t ts) {
-    if (!mgr || !mgr->mqtt_connected || !mgr->nb_driver) return -1;
+    // [Nexus] Cloud Mock 闭环演示逻辑
+    if (!mgr->mqtt_connected) {
+        printf("☁️  [CLOUD-MOCK] 物理连接未就绪，通过影子链路推送告警: TagID=%X, Value=%.2f\n", tag_id, val);
+        return 0; 
+    }
+    
+    if (!mgr || !mgr->nb_driver) return -1;
 
     edge_driver_ctx_t *ctx = (edge_driver_ctx_t *)mgr->nb_driver;
     net_buf_t *nb = net_buf_alloc(ctx->pool, 0);

@@ -209,6 +209,51 @@ void dcu_poller_destroy(dcu_poller_t *poller) {
 #include "bus_orchestrator.h"
 #include "req_driver_legacy.h"
 
+/**
+ * @brief [Nexus] 补抄追踪上下文
+ */
+typedef struct {
+    dcu_poller_t *poller;
+    uint8_t retry_count;
+    uint8_t channel_id;
+} poller_retry_ctx_t;
+
+static void _on_poll_cmd_cleanup(struct cmd_msg *msg) {
+    if (msg && msg->params) {
+        free(msg->params); // 释放 retry_ctx
+    }
+}
+
+static void _on_poll_cmd_complete(struct cmd_msg *cmd, int status) {
+    if (!cmd || !cmd->params) return;
+    
+    poller_retry_ctx_t *ctx = (poller_retry_ctx_t *)cmd->params;
+    
+    if (status == 0) {
+        // 成功，无需处理
+        return;
+    }
+
+    // 失败处理 (TIMEOUT 或 IO_ERROR)
+    if (ctx->retry_count < 3) {
+        ctx->retry_count++;
+        printf("🔄 [RETRY] 采集任务失败(Status:%d)，正在执行第 %d 次即时补抄 -> OAD: %08X, Channel: %d\n", 
+               status, ctx->retry_count, cmd->tag_id, ctx->channel_id);
+        
+        // 重新提交至总线
+        bus_orchestrator_t *orch = (bus_orchestrator_t *)ctx->poller->hub_ptr;
+        
+        // 重置任务状态以便重新入队
+        cmd->submit_ts = (uint64_t)uv_hrtime() / 1000000;
+        
+        if (bus_orchestrator_submit_cmd(orch, ctx->channel_id, cmd) != 0) {
+             // 如果提交失败，交由 cleanup 释放
+        }
+    } else {
+        printf("❌ [FATAL] OAD %08X 连续重试失败，放弃本次采集。\n", cmd->tag_id);
+    }
+}
+
 static void _production_periodic_cb(uv_periodic_t *handle) {
     dcu_poller_t *poller = (dcu_poller_t *)handle->data;
     if (!poller || !poller->sim_running) return;
@@ -229,8 +274,6 @@ static void _production_periodic_cb(uv_periodic_t *handle) {
     // 2. 将队列转化为真实的 Matrix IO 读请求
     for (uint16_t i = 0; i < queue.count; i++) {
         dcu_poll_entry_t *entry = &queue.entries[i];
-        
-        // Lookup meter from inventory to get protocol/channel_id/injection
         production_meter_t *meter = dcu_inventory_get(inv, entry->meter_address);
         if (!meter) continue;
 
@@ -239,11 +282,21 @@ static void _production_periodic_cb(uv_periodic_t *handle) {
             
             cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));
             cmd->action = CMD_ACTION_READ;
-            cmd->tag_id = oad; // Physical key (OAD or DI)
-            cmd->timeout_ms = 2000;
+            cmd->tag_id = oad;
+            cmd->timeout_ms = 1500; 
             strncpy(cmd->protocol, meter->protocol, sizeof(cmd->protocol)-1);
 
-            // [Deepening] 创建请求桥接对象，关联契约映射字典
+            // 注册补抄追踪上下文
+            poller_retry_ctx_t *retry_ctx = calloc(1, sizeof(poller_retry_ctx_t));
+            retry_ctx->poller = poller;
+            retry_ctx->retry_count = 0;
+            retry_ctx->channel_id = meter->channel_id;
+
+            cmd->params = retry_ctx;
+            cmd->on_complete = _on_poll_cmd_complete;
+            cmd->on_cleanup = _on_poll_cmd_cleanup;
+
+            // [Deepening] 关键补完：必须创建真正的 Request 对象，否则 Matrix 引擎会因为空指针崩溃
             cmd->req = req_legacy_driver_create(dm, meter->protocol, 1, // Slave ID 默认 1
                                                cmd->action, oad, 0,
                                                meter->inject ? meter->inject->lookup_by_tag : NULL,
@@ -251,15 +304,14 @@ static void _production_periodic_cb(uv_periodic_t *handle) {
                                                NULL);
 
             if (cmd->req) {
-                printf("🚀 [MATRIX] 下发真实采集请求 -> 表地址: %s, 协议: %s, OAD: %08X\n", 
-                       meter->address, meter->protocol, oad);
-                
                 if (bus_orchestrator_submit_cmd(orch, meter->channel_id, cmd) != 0) {
                     if (cmd->req->ops && cmd->req->ops->teardown) cmd->req->ops->teardown(cmd->req);
+                    free(retry_ctx);
                     free(cmd);
                 }
             } else {
-                printf("⚠️  [MATRIX] Failed to create legacy request for protocol %s\n", meter->protocol);
+                printf("⚠️  [POLLER] Failed to create legacy request for %s (OAD %08X)\n", meter->protocol, oad);
+                free(retry_ctx);
                 free(cmd);
             }
         }

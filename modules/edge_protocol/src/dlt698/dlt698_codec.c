@@ -1,5 +1,7 @@
 #include "dlt698_codec.h"
 #include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 // --- DLT698 FCS16 Table ---
 static const uint16_t DLT698_FCS_TAB[256] = {
@@ -153,8 +155,117 @@ int dlt698_decode_frame(struct net_buf_simple *in, dlt698_addr_t *sa, uint8_t *s
  * ============================================================================== */
 
 /**
- * @brief 编码 long-unsigned (Tag 18) 无符号双字节 (16位)
+ * @brief 释放递归分配的 A-XDR 数据资源
  */
+void dlt698_free_data(dlt698_data_t *data) {
+    if (!data) return;
+    if (data->tag == DLT698_TAG_OCTET_STRING || data->tag == DLT698_TAG_VISIBLE_STRING) {
+        if (data->val.str.ptr) free(data->val.str.ptr);
+    } else if (data->tag == DLT698_TAG_ARRAY || data->tag == DLT698_TAG_STRUCTURE) {
+        if (data->val.container.items) {
+            for (uint16_t i = 0; i < data->val.container.count; i++) {
+                dlt698_free_data(&data->val.container.items[i]);
+            }
+            free(data->val.container.items);
+        }
+    }
+}
+
+/**
+ * @brief 通用 A-XDR 递归解码器实现 (核心逻辑)
+ */
+int dlt698_decode_data(const uint8_t *buf, uint16_t len, uint16_t *offset, dlt698_data_t *res) {
+    if (!buf || !offset || !res || *offset >= len) return -1;
+
+    res->tag = (dlt698_data_tag_t)buf[(*offset)++];
+
+    switch (res->tag) {
+        case DLT698_TAG_NULL:
+            return 0;
+
+        case DLT698_TAG_ARRAY:
+        case DLT698_TAG_STRUCTURE: {
+            uint8_t count = buf[(*offset)++];
+            res->val.container.count = count;
+            if (count > 0) {
+                res->val.container.items = calloc(count, sizeof(dlt698_data_t));
+                for (uint8_t i = 0; i < count; i++) {
+                    int rc = dlt698_decode_data(buf, len, offset, &res->val.container.items[i]);
+                    if (rc != 0) return rc;
+                }
+            }
+            return 0;
+        }
+
+        case DLT698_TAG_DOUBLE_LONG: // int32
+            if (*offset + 4 > len) return -1;
+            res->val.i32 = (int32_t)((buf[*offset] << 24) | (buf[*offset+1] << 16) | 
+                                     (buf[*offset+2] << 8) | buf[*offset+3]);
+            *offset += 4;
+            return 0;
+
+        case DLT698_TAG_DOUBLE_LONG_UNSIGNED: // uint32
+            if (*offset + 4 > len) return -1;
+            res->val.u32 = (uint32_t)((buf[*offset] << 24) | (buf[*offset+1] << 16) | 
+                                      (buf[*offset+2] << 8) | buf[*offset+3]);
+            *offset += 4;
+            return 0;
+
+        case DLT698_TAG_OCTET_STRING:
+        case DLT698_TAG_VISIBLE_STRING: {
+            uint8_t slen = buf[(*offset)++];
+            if (*offset + slen > len) return -1;
+            res->val.str.len = slen;
+            res->val.str.ptr = malloc(slen + 1);
+            memcpy(res->val.str.ptr, &buf[*offset], slen);
+            res->val.str.ptr[slen] = '\0';
+            *offset += slen;
+            return 0;
+        }
+
+        case DLT698_TAG_INTEGER: // int8
+            res->val.i8 = (int8_t)buf[(*offset)++];
+            return 0;
+
+        case DLT698_TAG_UNSIGNED: // uint8
+            res->val.u8 = buf[(*offset)++];
+            return 0;
+
+        case DLT698_TAG_LONG: // int16
+            if (*offset + 2 > len) return -1;
+            res->val.i16 = (int16_t)((buf[*offset] << 8) | buf[*offset+1]);
+            *offset += 2;
+            return 0;
+
+        case DLT698_TAG_LONG_UNSIGNED: // uint16
+            if (*offset + 2 > len) return -1;
+            res->val.u16 = (uint16_t)((buf[*offset] << 8) | buf[*offset+1]);
+            *offset += 2;
+            return 0;
+
+        case DLT698_TAG_ENUM:
+            res->val.u8 = buf[(*offset)++];
+            return 0;
+
+        case DLT698_TAG_DATE_TIME_S: {
+            if (*offset + 7 > len) return -1;
+            // 简单存储为原始字节或进一步解析
+            res->val.str.len = 7;
+            res->val.str.ptr = malloc(7);
+            memcpy(res->val.str.ptr, &buf[*offset], 7);
+            *offset += 7;
+            return 0;
+        }
+
+        default:
+            // 暂不支持的类型
+            return -2;
+    }
+}
+
+/**
+ * @brief 编码 long-unsigned (Tag 18) 无符号双字节 (16位)
+...
 int dlt698_encode_long_unsigned(uint8_t *buf, uint16_t len, uint16_t *offset, uint16_t val) {
     // 边界安全检验：确保缓冲区和偏移指针有效，且空间足够写入 3 字节 (1字节 tag + 2字节数据)
     if (!buf || !offset || *offset + 3 > len) {
