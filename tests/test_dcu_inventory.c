@@ -17,7 +17,7 @@ static void test_inventory_add_remove(void **state) {
     assert_int_equal(inv.count, 0);
     
     // 添加电表表1 (TSA: 10000001, 协议: dlt698, 波特率: 9600, 通道: 1)
-    ret = dcu_inventory_add(&inv, "10000001", "dlt698", 9600, 1);
+    ret = dcu_inventory_add(&inv, "10000001", "dlt698", 9600, 1, NULL);
     assert_int_equal(ret, 0);
     assert_int_equal(inv.count, 1);
     
@@ -32,11 +32,11 @@ static void test_inventory_add_remove(void **state) {
     assert_int_equal(m->fail_count, 0); // 超时计数初始为 0
     
     // 重复添加同一只表应该报错，保障唯一性
-    ret = dcu_inventory_add(&inv, "10000001", "dlt698", 9600, 1);
+    ret = dcu_inventory_add(&inv, "10000001", "dlt698", 9600, 1, NULL);
     assert_int_not_equal(ret, 0);
     
     // 添加表2
-    ret = dcu_inventory_add(&inv, "10000002", "dlt645", 2400, 2);
+    ret = dcu_inventory_add(&inv, "10000002", "dlt645", 2400, 2, NULL);
     assert_int_equal(ret, 0);
     assert_int_equal(inv.count, 2);
     
@@ -59,7 +59,7 @@ static void test_inventory_circuit_breaker(void **state) {
     dcu_inventory_init(&inv);
     
     // 注册表计
-    dcu_inventory_add(&inv, "10000003", "dlt698", 9600, 1);
+    dcu_inventory_add(&inv, "10000003", "dlt698", 9600, 1, NULL);
     production_meter_t *m = dcu_inventory_get(&inv, "10000003");
     assert_non_null(m);
     assert_true(m->is_online);

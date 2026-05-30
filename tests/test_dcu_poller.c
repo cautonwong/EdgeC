@@ -50,9 +50,9 @@ static void test_queue_generation_and_ti_alignment(void **state) {
     dcu_poller_init(&poller);
 
     // 1. 注册 3 台电表档案
-    dcu_inventory_add(&inv, "10000001", "dlt698", 9600, 1);
-    dcu_inventory_add(&inv, "10000002", "dlt698", 9600, 1);
-    dcu_inventory_add(&inv, "10000003", "dlt698", 9600, 1);
+    dcu_inventory_add(&inv, "10000001", "dlt698", 9600, 1, NULL);
+    dcu_inventory_add(&inv, "10000002", "dlt698", 9600, 1, NULL);
+    dcu_inventory_add(&inv, "10000003", "dlt698", 9600, 1, NULL);
 
     // 2. 注册周期采集方案 2 (CSD: OAD_VOLTAGE) 与任务 10 (TI = 10s)
     uint32_t csds[1] = {OAD_VOLTAGE};

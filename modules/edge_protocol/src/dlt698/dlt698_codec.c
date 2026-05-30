@@ -265,7 +265,7 @@ int dlt698_decode_data(const uint8_t *buf, uint16_t len, uint16_t *offset, dlt69
 
 /**
  * @brief 编码 long-unsigned (Tag 18) 无符号双字节 (16位)
-...
+ */
 int dlt698_encode_long_unsigned(uint8_t *buf, uint16_t len, uint16_t *offset, uint16_t val) {
     // 边界安全检验：确保缓冲区和偏移指针有效，且空间足够写入 3 字节 (1字节 tag + 2字节数据)
     if (!buf || !offset || *offset + 3 > len) {

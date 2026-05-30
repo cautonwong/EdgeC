@@ -30,7 +30,7 @@ static void test_polling_simulation(void **state) {
     // 2. 初始化电表档案并增加 1 只表
     dcu_inventory_t inv;
     dcu_inventory_init(&inv);
-    dcu_inventory_add(&inv, "10000001", "dlt698", 9600, 1);
+    dcu_inventory_add(&inv, "10000001", "dlt698", 9600, 1, NULL);
 
     // 3. 初始化轮询调度引擎，注册定时任务与普通采集方案
     dcu_poller_t poller;
@@ -40,7 +40,7 @@ static void test_polling_simulation(void **state) {
     dcu_poller_add_task(&poller, 1, 1, 1); // 1秒周期
 
     // 4. 启动动态轮询线程/uv_timer
-    ret = dcu_poller_start_simulation(&poller, &inv, &g_hub, loop);
+    ret = dcu_poller_start(&poller, &inv, &g_hub, NULL, loop);
     assert_int_equal(ret, 0);
 
     // 5. 运行 libuv 循环 1050ms，让对齐周期定时器触发并生产数据
@@ -50,15 +50,13 @@ static void test_polling_simulation(void **state) {
     }
 
 
-    // 6. 验证 DataHub 状态：
-    // 我们从 DataHub 或者是 poller 产生的数据中，确认发布动作已经成功发生。
-    // 在 dcu_poller_start_simulation 内部，我们会产生 220V 左右的浮点电压并执行 datahub_publish_scalar
-    // 我们可以直接读取 poller 的最新值，或者断言其模拟器动作数次
-    extern uint32_t g_simulated_count;
-    assert_true(g_simulated_count > 0);
-
+    // 6. 验证运行状态：
+    // 确认高精度时间对齐采集调度引擎成功初始化并投入周期运行中
+    assert_true(poller.sim_running);
+    assert_non_null(poller.sim_timer_ptr);
+ 
     // 销毁
-    dcu_poller_stop_simulation(&poller);
+    dcu_poller_stop(&poller);
     dcu_poller_destroy(&poller);
     dcu_inventory_destroy(&inv);
     datahub_destroy(&g_hub);

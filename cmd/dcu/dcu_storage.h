@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <sqlite3.h>
-#include <pthread.h>
+#include <uv.h>
 #include <uv.h>
 
 #define STORAGE_CACHE_MAX 128
@@ -41,7 +41,7 @@ typedef struct {
     // 双缓冲队列与写入互斥锁
     telemetry_cache_entry_t cache[STORAGE_CACHE_MAX];
     uint16_t cache_count;
-    pthread_mutex_t lock;         // 线程安全锁
+    uv_mutex_t lock;         // 线程安全锁
     
     uv_timer_t flush_timer;       // 10s 闲时合并批量写入刷盘定时器
     bool timer_active;

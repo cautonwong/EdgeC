@@ -24,14 +24,14 @@ int dcu_storage_init(dcu_storage_t *storage, uv_loop_t *loop, const char *db_pat
     memset(storage->cache, 0, sizeof(storage->cache));
 
     // 1. 初始化线程互斥锁
-    if (pthread_mutex_init(&storage->lock, NULL) != 0) {
+    if (uv_mutex_init(&storage->lock) != 0) {
         return -2;
     }
 
     // 2. 打开 SQLite 数据库句柄
     int ret = sqlite3_open(db_path, &storage->db);
     if (ret != SQLITE_OK) {
-        pthread_mutex_destroy(&storage->lock);
+        uv_mutex_destroy(&storage->lock);
         return -3;
     }
 
@@ -91,7 +91,7 @@ int dcu_storage_init(dcu_storage_t *storage, uv_loop_t *loop, const char *db_pat
 int dcu_storage_write_telemetry(dcu_storage_t *storage, const char *addr, uint32_t oad, double value) {
     if (!storage || !addr) return -1;
 
-    pthread_mutex_lock(&storage->lock);
+    uv_mutex_lock(&storage->lock);
 
     // 1. 缓冲区安全写入
     telemetry_cache_entry_t *entry = &storage->cache[storage->cache_count];
@@ -105,11 +105,11 @@ int dcu_storage_write_telemetry(dcu_storage_t *storage, const char *addr, uint32
 
     // 2. 满额主动触发刷盘 (内存溢出安全防线)
     if (storage->cache_count >= STORAGE_CACHE_MAX) {
-        pthread_mutex_unlock(&storage->lock);
+        uv_mutex_unlock(&storage->lock);
         return dcu_storage_flush(storage);
     }
 
-    pthread_mutex_unlock(&storage->lock);
+    uv_mutex_unlock(&storage->lock);
     return 0;
 }
 
@@ -119,7 +119,7 @@ int dcu_storage_write_telemetry(dcu_storage_t *storage, const char *addr, uint32
 int dcu_storage_write_freeze(dcu_storage_t *storage, const char *addr, uint32_t freeze_oad, uint64_t freeze_time, uint32_t src_oad, double value) {
     if (!storage || !addr) return -1;
 
-    pthread_mutex_lock(&storage->lock);
+    uv_mutex_lock(&storage->lock);
 
     // 采用带参数的安全防注入 SQL 执行
     sqlite3_stmt *stmt;
@@ -129,7 +129,7 @@ int dcu_storage_write_freeze(dcu_storage_t *storage, const char *addr, uint32_t 
     
     int ret = sqlite3_prepare_v2(storage->db, insert_sql, -1, &stmt, NULL);
     if (ret != SQLITE_OK) {
-        pthread_mutex_unlock(&storage->lock);
+        uv_mutex_unlock(&storage->lock);
         return -2;
     }
 
@@ -142,7 +142,7 @@ int dcu_storage_write_freeze(dcu_storage_t *storage, const char *addr, uint32_t 
     ret = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
 
-    pthread_mutex_unlock(&storage->lock);
+    uv_mutex_unlock(&storage->lock);
     return (ret == SQLITE_DONE) ? 0 : -3;
 }
 
@@ -152,9 +152,9 @@ int dcu_storage_write_freeze(dcu_storage_t *storage, const char *addr, uint32_t 
 int dcu_storage_flush(dcu_storage_t *storage) {
     if (!storage) return -1;
 
-    pthread_mutex_lock(&storage->lock);
+    uv_mutex_lock(&storage->lock);
     if (storage->cache_count == 0) {
-        pthread_mutex_unlock(&storage->lock);
+        uv_mutex_unlock(&storage->lock);
         return 0; // 无数据可刷
     }
 
@@ -168,7 +168,7 @@ int dcu_storage_flush(dcu_storage_t *storage) {
     int ret = sqlite3_prepare_v2(storage->db, upsert_sql, -1, &stmt, NULL);
     if (ret != SQLITE_OK) {
         sqlite3_exec(storage->db, "ROLLBACK;", NULL, NULL, NULL);
-        pthread_mutex_unlock(&storage->lock);
+        uv_mutex_unlock(&storage->lock);
         return -2;
     }
 
@@ -192,7 +192,7 @@ int dcu_storage_flush(dcu_storage_t *storage) {
     // 重置双缓冲指针
     storage->cache_count = 0;
 
-    pthread_mutex_unlock(&storage->lock);
+    uv_mutex_unlock(&storage->lock);
     return 0;
 }
 
@@ -202,7 +202,7 @@ int dcu_storage_flush(dcu_storage_t *storage) {
 int dcu_storage_query_freeze(dcu_storage_t *storage, const char *addr, uint32_t freeze_oad, uint64_t start_time, uint64_t end_time, dcu_freeze_record_t *out_records, uint16_t max_records, uint16_t *out_count) {
     if (!storage || !addr || !out_records || !out_count) return -1;
 
-    pthread_mutex_lock(&storage->lock);
+    uv_mutex_lock(&storage->lock);
     *out_count = 0;
 
     // 利用我们在建表时声明 of 复合索引 idx_freeze_query 高速过滤
@@ -215,7 +215,7 @@ int dcu_storage_query_freeze(dcu_storage_t *storage, const char *addr, uint32_t 
     
     int ret = sqlite3_prepare_v2(storage->db, query_sql, -1, &stmt, NULL);
     if (ret != SQLITE_OK) {
-        pthread_mutex_unlock(&storage->lock);
+        uv_mutex_unlock(&storage->lock);
         return -2;
     }
 
@@ -242,7 +242,7 @@ int dcu_storage_query_freeze(dcu_storage_t *storage, const char *addr, uint32_t 
     }
 
     sqlite3_finalize(stmt);
-    pthread_mutex_unlock(&storage->lock);
+    uv_mutex_unlock(&storage->lock);
     return 0;
 }
 
@@ -252,7 +252,7 @@ int dcu_storage_query_freeze(dcu_storage_t *storage, const char *addr, uint32_t 
 void dcu_storage_destroy(dcu_storage_t *storage) {
     if (!storage) return;
 
-    pthread_mutex_lock(&storage->lock);
+    uv_mutex_lock(&storage->lock);
     
     // 关闭定时器
     if (storage->timer_active) {
@@ -261,10 +261,10 @@ void dcu_storage_destroy(dcu_storage_t *storage) {
     }
 
     // 强行对残余数据执行同步刷盘，避免丢失
-    pthread_mutex_unlock(&storage->lock); // 临时解开以防死锁，flush内部会自己重新加锁
+    uv_mutex_unlock(&storage->lock); // 临时解开以防死锁，flush内部会自己重新加锁
     dcu_storage_flush(storage);
     
-    pthread_mutex_lock(&storage->lock);
+    uv_mutex_lock(&storage->lock);
     
     // 关闭 SQLite 连接
     if (storage->db) {
@@ -272,6 +272,6 @@ void dcu_storage_destroy(dcu_storage_t *storage) {
         storage->db = NULL;
     }
 
-    pthread_mutex_unlock(&storage->lock);
-    pthread_mutex_destroy(&storage->lock);
+    uv_mutex_unlock(&storage->lock);
+    uv_mutex_destroy(&storage->lock);
 }

@@ -13,7 +13,7 @@ void dcu_discovery_init(dcu_discovery_t *disc) {
     disc->count = 0;
     memset(disc->discovered_tsas, 0, sizeof(disc->discovered_tsas));
     
-    pthread_mutex_init(&disc->lock, NULL);
+    uv_mutex_init(&disc->lock);
 }
 
 /**
@@ -24,11 +24,11 @@ void dcu_discovery_init(dcu_discovery_t *disc) {
 int dcu_discovery_start(dcu_discovery_t *disc, uint32_t duration_sec) {
     if (!disc) return -1;
     
-    pthread_mutex_lock(&disc->lock);
+    uv_mutex_lock(&disc->lock);
     
     // 如果已经在搜表中，静默返回成功，防止重复触发导致冲突
     if (disc->status == DISCOVERY_STATUS_SCANNING) {
-        pthread_mutex_unlock(&disc->lock);
+        uv_mutex_unlock(&disc->lock);
         return 0;
     }
     
@@ -36,7 +36,7 @@ int dcu_discovery_start(dcu_discovery_t *disc, uint32_t duration_sec) {
     disc->count = 0;
     memset(disc->discovered_tsas, 0, sizeof(disc->discovered_tsas));
     
-    pthread_mutex_unlock(&disc->lock);
+    uv_mutex_unlock(&disc->lock);
     
     printf("📡 [DISCOVERY] 搜表物理动作已激活！启动下行 RS485 广播扫描，持续 %u 秒...\n", duration_sec);
     return 0;
@@ -49,9 +49,9 @@ int dcu_discovery_start(dcu_discovery_t *disc, uint32_t duration_sec) {
 void dcu_discovery_tick_simulate(dcu_discovery_t *disc) {
     if (!disc) return;
     
-    pthread_mutex_lock(&disc->lock);
+    uv_mutex_lock(&disc->lock);
     if (disc->status != DISCOVERY_STATUS_SCANNING) {
-        pthread_mutex_unlock(&disc->lock);
+        uv_mutex_unlock(&disc->lock);
         return;
     }
     
@@ -70,7 +70,7 @@ void dcu_discovery_tick_simulate(dcu_discovery_t *disc) {
     // 模拟扫描瞬间完成，状态转换为 COMPLETED，生成 6003 结果集供召测
     disc->status = DISCOVERY_STATUS_COMPLETED;
     
-    pthread_mutex_unlock(&disc->lock);
+    uv_mutex_unlock(&disc->lock);
     printf("📡 [DISCOVERY] 物理扫表过程已顺利完成，生成 6003 搜表结果，等待北向同步。\n");
 }
 
@@ -79,5 +79,5 @@ void dcu_discovery_tick_simulate(dcu_discovery_t *disc) {
  */
 void dcu_discovery_destroy(dcu_discovery_t *disc) {
     if (!disc) return;
-    pthread_mutex_destroy(&disc->lock);
+    uv_mutex_destroy(&disc->lock);
 }

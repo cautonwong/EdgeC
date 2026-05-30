@@ -9,27 +9,9 @@
 #define MAX_SCHEMES 16
 #define MAX_SCHEME_OADS 32
 #define MAX_QUEUE_ENTRIES 128
+#define DCU_MAX_CHANNELS  32
 
-/**
- * @brief DL/T 698.45 任务配置单元 (OI 6013)
- */
-typedef struct {
-    uint32_t task_id;                 // 任务编号 (Cron / TI ID)
-    uint32_t interval_s;              // 执行频率 TI (单位：秒，如 15分钟 = 900秒)
-    uint32_t scheme_id;               // 方案编号 (对应 6015 普通采集方案)
-    uint64_t last_run_time;           // 上一次被触发执行的绝对时间戳 (秒)
-    bool is_active;                   // 任务当前是否有效使能
-} dcu_task_unit_t;
-
-/**
- * @brief DL/T 698.45 普通采集方案 (OI 6015)
- */
-typedef struct {
-    uint32_t scheme_id;               // 方案编号
-    uint8_t capture_mode;             // 采集方式 (0:当前数据, 1:时标间隔)
-    uint32_t csd_list[MAX_SCHEME_OADS]; // 记录列选择 CSD OAD 数组 (要抄读的数据，如 0x20000200)
-    uint16_t csd_count;               // CSD 数量
-} dcu_scheme_t;
+#include "queue.h"
 
 /**
  * @brief DL/T 698.45 采集任务监控单元 (OI 6035)
@@ -43,7 +25,56 @@ typedef struct {
 } dcu_task_monitor_t;
 
 /**
- * @brief 集中器定时抄表调度大脑
+ * @brief DL/T 698.45 普通采集方案 (OI 6015)
+ */
+typedef struct {
+    uint32_t scheme_id;               // 方案编号
+    uint8_t capture_mode;             // 采集方式 (0:当前数据, 1:按冻结时标, 2:按时标间隔, 3:补抄)
+    
+    // [PRD Alignment] 6015 附加属性: 电能表集合 MS
+    uint8_t ms_type;                  // MS 类型 (0:全体, 1:指定组, 2:指定多块表)
+    char ms_addrs[8][MAX_ADDR_LEN];   // 如果是指定多块表，此数组生效
+    uint8_t ms_count;                 // 指定表的数量
+
+    uint32_t csd_list[MAX_SCHEME_OADS]; // 记录列选择 array CSD (要抄读的数据，如 0x20000200)
+    uint16_t csd_count;               // CSD 数量
+} dcu_scheme_t;
+
+/**
+ * @brief DL/T 698.45 任务配置单元 (OI 6013) - 升级为 Handle 风格
+ */
+typedef struct {
+    uint32_t task_id;                 
+    uint32_t interval_s;              
+    uint8_t scheme_type;              
+    uint32_t scheme_id;               
+    uint8_t run_time_window[4];       
+    uint8_t priority;                 
+
+    uint64_t last_run_time;           
+    bool is_active;                   
+    
+    // [Nexus-Pro] 运行期状态追踪
+    uint16_t cursor_meter_idx;        // 扫描游标
+    uint16_t active_cmds;             // 该任务当前在飞的包数量
+    dcu_task_monitor_t monitor;       // 实时 6035 监控
+    struct uv__queue node;            // 挂载到执行队列
+} dcu_task_unit_t;
+
+/**
+ * @brief 补抄追踪条目 (用于 RETRY_QUEUE)
+ */
+typedef struct {
+    char meter_address[MAX_ADDR_LEN];
+    uint32_t oad;
+    uint8_t retry_count;
+    uint8_t channel_id;
+    uint32_t task_id;
+    struct uv__queue node;
+} dcu_retry_item_t;
+
+/**
+ * @brief 集中器定时抄表调度大脑 (异步泵送引擎)
  */
 typedef struct {
     dcu_task_unit_t tasks[MAX_TASKS];
@@ -52,14 +83,17 @@ typedef struct {
     dcu_scheme_t schemes[MAX_SCHEMES];
     uint16_t scheme_count;
     
-    dcu_task_monitor_t monitors[MAX_TASKS]; // 抄表监控缓存
-    pthread_mutex_t lock;             // 线程安全互斥锁
+    // [Nexus-Pro] 调度链表
+    struct uv__queue active_tasks;    // 正在执行扫描的任务
+    struct uv__queue retry_queues[DCU_MAX_CHANNELS]; // 每个通道专属的重试优先队列
+    uint8_t in_flight_per_chan[DCU_MAX_CHANNELS];    // 通道背压计数器
     
-    // 模拟运行期底座变量
-    void *sim_timer_ptr;              // 挂接 uv_periodic_t 对齐定时器
+    uv_mutex_t lock;             
+    
+    void *sim_timer_ptr;              
     void *hub_ptr;
     void *inventory_ptr;
-    void *drv_mgr_ptr;                // [新增] 挂接驱动管理器
+    void *drv_mgr_ptr;                
     bool sim_running;
 } dcu_poller_t;
 

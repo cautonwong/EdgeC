@@ -138,6 +138,7 @@ int dlt698_decode_double_long(const uint8_t *buf, uint16_t len, uint16_t *offset
 int dlt698_encode_date_time_s(uint8_t *buf, uint16_t len, uint16_t *offset, uint16_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t min, uint8_t sec);
 int dlt698_decode_date_time_s(const uint8_t *buf, uint16_t len, uint16_t *offset, uint16_t *year, uint8_t *month, uint8_t *day, uint8_t *hour, uint8_t *min, uint8_t *sec);
 
+int dlt698_encode_get_response(const dlt698_addr_t *sa, uint8_t piid, uint32_t oad, const uint8_t *data, size_t dlen, net_buf_t *out);
 
 #ifdef __cplusplus
 }

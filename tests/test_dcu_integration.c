@@ -29,8 +29,8 @@ static void test_dcu_full_pipeline_integration(void **state) {
     // 3. 初始化档案并增加 2 只表 (TSA: 20000001, 20000002)
     dcu_inventory_t inv;
     dcu_inventory_init(&inv);
-    dcu_inventory_add(&inv, "20000001", "dlt698", 9600, 1);
-    dcu_inventory_add(&inv, "20000002", "dlt698", 9600, 1);
+    dcu_inventory_add(&inv, "20000001", "dlt698", 9600, 1, NULL);
+    dcu_inventory_add(&inv, "20000002", "dlt698", 9600, 1, NULL);
 
     // 4. 初始化 poller 并注册定时任务与普通采集方案
     dcu_poller_t poller;
@@ -41,7 +41,7 @@ static void test_dcu_full_pipeline_integration(void **state) {
 
 
     // 5. 启动数采模拟生产器并直推 DataHub
-    ret = dcu_poller_start_simulation(&poller, &inv, &hub, loop);
+    ret = dcu_poller_start(&poller, &inv, &hub, NULL, loop);
     assert_int_equal(ret, 0);
 
     // 6. 数据总线消费链路搭建：
@@ -74,7 +74,7 @@ static void test_dcu_full_pipeline_integration(void **state) {
     sqlite3_finalize(stmt);
 
     // 9. 回收所有资源
-    dcu_poller_stop_simulation(&poller);
+    dcu_poller_stop(&poller);
     dcu_poller_destroy(&poller);
     dcu_inventory_destroy(&inv);
     datahub_destroy(&hub);

@@ -35,13 +35,13 @@ static int group_teardown(void **state) {
 
 static int test_setup(void **state) {
     test_state_t *ts = *state;
-    ts->ctx = driver_instance_create(ts->mgr, "DLT645-2007", 123456789);
+    ts->ctx = driver_instance_create(ts->mgr, "DLT645", 123456789);
     return 0;
 }
 
 static int test_teardown(void **state) {
     test_state_t *ts = *state;
-    driver_instance_destroy(ts->ctx, "DLT645-2007");
+    driver_instance_destroy(ts->ctx, "DLT645");
     return 0;
 }
 

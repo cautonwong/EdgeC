@@ -6,6 +6,7 @@
 #include <string.h>
 #include <uv.h>
 #include <time.h>
+#include <stdlib.h>
 
 #include "dcu_inventory.h"
 #include "dcu_poller.h"

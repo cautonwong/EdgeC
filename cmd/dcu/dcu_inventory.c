@@ -12,7 +12,7 @@ int dcu_inventory_init(dcu_inventory_t *inv) {
     memset(inv->meters, 0, sizeof(inv->meters));
     
     // 初始化互斥锁，确保线程安全
-    if (pthread_mutex_init(&inv->lock, NULL) != 0) {
+    if (uv_mutex_init(&inv->lock) != 0) {
         return -2;
     }
     
@@ -25,19 +25,19 @@ int dcu_inventory_init(dcu_inventory_t *inv) {
 int dcu_inventory_add(dcu_inventory_t *inv, const char *addr, const char *proto, uint32_t baud, uint8_t channel, const driver_contract_injection_t *inject) {
     if (!inv || !addr || !proto) return -1;
     
-    pthread_mutex_lock(&inv->lock);
+    uv_mutex_lock(&inv->lock);
     
     // 1. 去重校验，确保不能有重复的 TSA 地址
     for (uint16_t i = 0; i < inv->count; i++) {
         if (strcmp(inv->meters[i].address, addr) == 0) {
-            pthread_mutex_unlock(&inv->lock);
+            uv_mutex_unlock(&inv->lock);
             return -2; // 档案已存在
         }
     }
     
     // 2. 容量检查
     if (inv->count >= MAX_METERS) {
-        pthread_mutex_unlock(&inv->lock);
+        uv_mutex_unlock(&inv->lock);
         return -3; // 容器已满
     }
     
@@ -59,7 +59,7 @@ int dcu_inventory_add(dcu_inventory_t *inv, const char *addr, const char *proto,
     
     inv->count++;
     
-    pthread_mutex_unlock(&inv->lock);
+    uv_mutex_unlock(&inv->lock);
     return 0;
 }
 
@@ -69,7 +69,7 @@ int dcu_inventory_add(dcu_inventory_t *inv, const char *addr, const char *proto,
 int dcu_inventory_remove(dcu_inventory_t *inv, const char *addr) {
     if (!inv || !addr) return -1;
     
-    pthread_mutex_lock(&inv->lock);
+    uv_mutex_lock(&inv->lock);
     
     int index = -1;
     for (uint16_t i = 0; i < inv->count; i++) {
@@ -80,7 +80,7 @@ int dcu_inventory_remove(dcu_inventory_t *inv, const char *addr) {
     }
     
     if (index == -1) {
-        pthread_mutex_unlock(&inv->lock);
+        uv_mutex_unlock(&inv->lock);
         return -2; // 没找到该表计
     }
     
@@ -93,7 +93,7 @@ int dcu_inventory_remove(dcu_inventory_t *inv, const char *addr) {
     memset(&inv->meters[inv->count - 1], 0, sizeof(production_meter_t));
     inv->count--;
     
-    pthread_mutex_unlock(&inv->lock);
+    uv_mutex_unlock(&inv->lock);
     return 0;
 }
 
@@ -103,7 +103,7 @@ int dcu_inventory_remove(dcu_inventory_t *inv, const char *addr) {
 production_meter_t* dcu_inventory_get(dcu_inventory_t *inv, const char *addr) {
     if (!inv || !addr) return NULL;
     
-    pthread_mutex_lock(&inv->lock);
+    uv_mutex_lock(&inv->lock);
     
     production_meter_t *found = NULL;
     for (uint16_t i = 0; i < inv->count; i++) {
@@ -113,7 +113,7 @@ production_meter_t* dcu_inventory_get(dcu_inventory_t *inv, const char *addr) {
         }
     }
     
-    pthread_mutex_unlock(&inv->lock);
+    uv_mutex_unlock(&inv->lock);
     return found;
 }
 
@@ -159,5 +159,5 @@ int dcu_inventory_load_from_db(dcu_inventory_t *inv, const char *db_path) {
 
 void dcu_inventory_destroy(dcu_inventory_t *inv) {
     if (!inv) return;
-    pthread_mutex_destroy(&inv->lock);
+    uv_mutex_destroy(&inv->lock);
 }

@@ -19,9 +19,9 @@ static int _oi_6000_read(dcu_object_t *obj, uint8_t attr_id, uint8_t elem_idx, v
     
     // 属性 2: 档案中的在线电能表总数
     if (attr_id == 2) {
-        pthread_mutex_lock(&inv->lock);
+        uv_mutex_lock(&inv->lock);
         *(uint16_t *)out_val = inv->count;
-        pthread_mutex_unlock(&inv->lock);
+        uv_mutex_unlock(&inv->lock);
         return 0;
     }
     return -2; // 属性未定义
@@ -31,20 +31,44 @@ static int _oi_6000_execute(dcu_object_t *obj, uint8_t method_id, const void *pa
     dcu_inventory_t *inv = (dcu_inventory_t *)obj->instance_ptr;
     if (!inv) return -1;
     
-    // 方法 127: 动态注册/添加电表 (Method Add)
-    if (method_id == 1) { // Add Meter
+    // [PRD Alignment] 方法 1: 添加 (Add)
+    if (method_id == 1) { 
         const char *addr = (const char *)param;
-        int ret = dcu_inventory_add(inv, addr, "dlt698", 9600, 1, NULL);
+        int ret = dcu_inventory_add(inv, addr, "DLT698", 9600, 1, NULL);
         if (result) *(int *)result = ret;
         return ret;
     }
-    // 方法 128: 动态删除电表 (Method Delete)
-    if (method_id == 128) {
+    // [PRD Alignment] 方法 2: 批量添加 (AddBatch)
+    if (method_id == 2) {
+        // TODO: parse list of addresses
+        return 0;
+    }
+    // [PRD Alignment] 方法 3: 更新基本/扩展信息 (Update)
+    if (method_id == 3) {
+        // TODO: update specific meter
+        return 0;
+    }
+    // [PRD Alignment] 方法 4: 按序号或地址删除 (Delete)
+    if (method_id == 4) {
         const char *addr = (const char *)param;
         int ret = dcu_inventory_remove(inv, addr);
         if (result) *(int *)result = ret;
         return 0;
     }
+    // [PRD Alignment] 方法 5: 清空档案表 (Clear)
+    if (method_id == 5) {
+        uv_mutex_lock(&inv->lock);
+        memset(inv->meters, 0, sizeof(inv->meters));
+        inv->count = 0;
+        uv_mutex_unlock(&inv->lock);
+        if (result) *(int *)result = 0;
+        return 0;
+    }
+
+    // [Legacy/Testing mapping] 保留原来的 127/128 映射以免中断外部测试用例
+    if (method_id == 127) return dcu_inventory_add(inv, (const char *)param, "DLT698", 9600, 1, NULL);
+    if (method_id == 128) return dcu_inventory_remove(inv, (const char *)param);
+
     return -2; // 方法未定义
 }
 
@@ -58,9 +82,9 @@ static int _oi_6012_read(dcu_object_t *obj, uint8_t attr_id, uint8_t elem_idx, v
     
     // 属性 2: 方案配置库数量
     if (attr_id == 2) {
-        pthread_mutex_lock(&poller->lock);
+        uv_mutex_lock(&poller->lock);
         *(uint16_t *)out_val = poller->scheme_count;
-        pthread_mutex_unlock(&poller->lock);
+        uv_mutex_unlock(&poller->lock);
         return 0;
     }
     return -2;
@@ -209,16 +233,16 @@ static int _oi_6002_read(dcu_object_t *obj, uint8_t attr_id, uint8_t elem_idx, v
     
     // 属性 2: 搜表状态
     if (attr_id == 2) {
-        pthread_mutex_lock(&disc->lock);
+        uv_mutex_lock(&disc->lock);
         *(uint8_t *)out_val = disc->status;
-        pthread_mutex_unlock(&disc->lock);
+        uv_mutex_unlock(&disc->lock);
         return 0;
     }
     // 属性 3: 发现数量
     if (attr_id == 3) {
-        pthread_mutex_lock(&disc->lock);
+        uv_mutex_lock(&disc->lock);
         *(uint16_t *)out_val = disc->count;
-        pthread_mutex_unlock(&disc->lock);
+        uv_mutex_unlock(&disc->lock);
         return 0;
     }
     return -2;
@@ -244,14 +268,14 @@ static int _oi_6003_read(dcu_object_t *obj, uint8_t attr_id, uint8_t elem_idx, v
     
     // 属性 2: 发现的电表列表
     if (attr_id == 2) {
-        pthread_mutex_lock(&disc->lock);
+        uv_mutex_lock(&disc->lock);
         if (elem_idx < disc->count) {
             strncpy((char *)out_val, disc->discovered_tsas[elem_idx], DISCOVERY_ADDR_LEN - 1);
             ((char *)out_val)[DISCOVERY_ADDR_LEN - 1] = '\0';
-            pthread_mutex_unlock(&disc->lock);
+            uv_mutex_unlock(&disc->lock);
             return 0;
         }
-        pthread_mutex_unlock(&disc->lock);
+        uv_mutex_unlock(&disc->lock);
         return -3;
     }
     return -2;

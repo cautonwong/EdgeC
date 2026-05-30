@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <pthread.h>
+#include <uv.h>
 
 #define MAX_DISCOVERED_METERS 16
 #define DISCOVERY_ADDR_LEN 32
@@ -21,7 +21,7 @@ typedef struct {
     uint8_t status;                                          // 当前搜表状态 (discovery_status_t)
     char discovered_tsas[MAX_DISCOVERED_METERS][DISCOVERY_ADDR_LEN]; // 发现的未登记电表 TSA 物理地址数组
     uint16_t count;                                          // 搜出的新表数量
-    pthread_mutex_t lock;                                    // 线程安全互斥锁
+    uv_mutex_t lock;                                    // 线程安全互斥锁
 } dcu_discovery_t;
 
 /**

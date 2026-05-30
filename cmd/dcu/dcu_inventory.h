@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <pthread.h>
+#include <uv.h>
 
 #define MAX_METERS 256
 #define MAX_ADDR_LEN 32
@@ -11,17 +11,25 @@
 #include "contract_data_types.h"
 
 /**
- * @brief 工业生产级电能表档案实体
+ * @brief 工业生产级电能表档案实体 (对应 OI 6001 采集档案配置单元)
  */
 typedef struct {
     char address[MAX_ADDR_LEN];  // 电能表通信地址 (TSA)
     char protocol[16];           // 通信协议类型 (dlt698, dlt645 等)
     uint32_t baud_rate;          // 串口波特率
     uint8_t channel_id;          // 关联的物理通道/串口 ID
+    
+    // [PRD Alignment] 6001 附加属性
+    uint8_t wiring_mode;         // 接线方式
+    char collector_addr[16];     // 采集器地址
+    char asset_no[32];           // 资产号
+    uint32_t pt_ratio;           // PT变比
+    uint32_t ct_ratio;           // CT变比
+
     bool is_online;              // 状态：true 表示 ACTIVE, false 表示 SUSPENDED (熔断离线)
     uint8_t fail_count;          // 连续抄表超时失败计数器，达到 3 时触发静默熔断
     uint32_t last_poll_time_s;   // 上一次被调度抄读的挂钟时间戳 (秒)
-    const driver_contract_injection_t *inject; // [新增] 关联的契约注入字典
+    const driver_contract_injection_t *inject; // 关联的契约注入字典
 } production_meter_t;
 
 /**
@@ -30,7 +38,7 @@ typedef struct {
 typedef struct {
     production_meter_t meters[MAX_METERS];
     uint16_t count;
-    pthread_mutex_t lock;        // 互斥安全锁
+    uv_mutex_t lock;        // 互斥安全锁
 } dcu_inventory_t;
 
 /* --- 生产级 API 函数原型声明 --- */

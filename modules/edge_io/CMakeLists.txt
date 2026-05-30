@@ -4,7 +4,7 @@ file(GLOB ENGINE_SOURCES src/engines/*.c)
 file(GLOB REQUEST_SOURCES src/requests/*.c)
 file(GLOB DRIVER_SOURCES src/driver_*.c)
 
-add_library(edge_io STATIC
+set(IO_SOURCES
     src/bus_orchestrator.c
     src/driver_manager.c
     src/passthrough_mgr.c
@@ -13,8 +13,6 @@ add_library(edge_io STATIC
     src/rest_server.c
     src/web_server.c
     src/ws_proto.c
-    src/persistence_mgr.c
-    src/snf_manager.c
     src/profile_loader.c
     src/session_manager.c
     # 命名不符合 driver_*.c 模式，需要显式列出 (以接地气的中文添加注释)
@@ -31,6 +29,20 @@ add_library(edge_io STATIC
     ${CMAKE_SOURCE_DIR}/src/main_loop/sched_engine.c
     ${CMAKE_SOURCE_DIR}/src/main_loop/sched_port.c
     ${CMAKE_SOURCE_DIR}/src/platform/linux/io_executor_linux.c
+)
+
+# 根据 Kconfig 条件加载 Store-and-Forward (SnF) 断线缓存与可靠传输机制 (以接地气的中文添加注释)
+if(CONFIG_EDGEC_SNF)
+    list(APPEND IO_SOURCES src/snf_manager.c)
+endif()
+
+# 根据 Kconfig 条件加载 Periodic Persistence 定时周期性持久化同步服务
+if(CONFIG_EDGEC_PERSISTENCE)
+    list(APPEND IO_SOURCES src/persistence_mgr.c)
+endif()
+
+add_library(edge_io STATIC
+    ${IO_SOURCES}
 )
 
 target_include_directories(edge_io PUBLIC include src/requests)
