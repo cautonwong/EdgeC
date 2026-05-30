@@ -124,6 +124,15 @@ typedef struct {
     const char *category;
 } api_route_t;
 
+typedef struct {
+    uint64_t key;
+    uint32_t tag_id;
+    uint16_t dense_idx;
+    float    scaler;
+    uint8_t  byte_len;
+    uint8_t  access;
+} dlt698_map_t;
+
 // --- 驱动契约注入包 ---
 typedef struct {
     const void *(*lookup_by_key)(uint64_t key);

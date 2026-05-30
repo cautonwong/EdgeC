@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include <uv.h>
 
-#define MAX_METERS 256
+#define MAX_METERS 4096
 #define MAX_ADDR_LEN 32
 
 #include "contract_data_types.h"

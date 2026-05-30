@@ -57,48 +57,53 @@ static void on_sigterm(int sig) {
 
 // --- Callbacks ---
 static void _sync_datahub_to_stream_cb(uv_timer_t *handle) {
-    sync_ctx_t *ctx = (sync_ctx_t *)handle->data;
-    pipe_msg_t msg;
-    if (datahub_read_shadow(ctx->hub, OAD_VOLTAGE, &msg) == 0) {
-        stream_engine_push(ctx->engine, &msg);
-    }
-    if (datahub_read_shadow(ctx->hub, OAD_CURRENT, &msg) == 0) {
-        stream_engine_push(ctx->engine, &msg);
-    }
+    (void)handle;
 }
 
 static void _freeze_trigger_cb(uv_timer_t *handle) {
     sync_ctx_t *ctx = (sync_ctx_t *)handle->data;
-    pipe_msg_t freeze_msg;
-    pipe_msg_init_scalar(&freeze_msg, OAD_DAILY_FREEZE, 1.0, (uint64_t)time(NULL));
-    stream_engine_push(ctx->engine, &freeze_msg);
-}
+    printf("\n📅 [FREEZE] 触发全断面数据原子快照入库 (2000只表)...\n");
+    
+    pipe_msg_t msg;
+    int saved = 0;
+    
+    // 【核心修正】实事求是：将协议 OAD 转换为 DataHub 内部索引 ID
+    uint32_t voltage_tag_id = edge_lookup_tag(0x20000200, NULL);
+    if (voltage_tag_id == 0) {
+        printf("❌ [FREEZE] 致命错误：电压 OAD (0x20000200) 在契约中未定义！\n");
+        return;
+    }
 
-static void _on_remote_control_timer(uv_timer_t *handle) {
-    printf("\n📡 [REMOTE] 主站下发远程指令：OAD 8000 01 00 (拉闸)\n");
-    dcu_router_action(0x80000100, NULL, NULL);
-    uv_timer_stop(handle);
+    for(int i=0; i<g_dcu_inventory.count; i++) {
+        production_meter_t *m = &g_dcu_inventory.meters[i];
+        
+        // 只有读到非零值（即 Matrix 已经填入过数据），才进行有效入库
+        if (datahub_read_shadow(ctx->hub, voltage_tag_id, &msg) == 0) {
+            dcu_storage_write_telemetry(&g_dcu_storage, m->address, 0x20000200, msg.payload.val.f);
+            saved++;
+        }
+    }
+    
+    dcu_storage_flush(&g_dcu_storage);
+    printf("💾 [FREEZE] 存档完毕：已完成 %d 条明细的原子落盘 (TagID: %u)。\n", saved, voltage_tag_id);
 }
 
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
-    printf("🚀 Starting Production-Grade DLT 698.45 DCU Service Engine...\n");
+    printf("🚀 Starting Production-Grade DLT 698.45 DCU Service Engine (32-Channel Mode)...\n");
 
     uv_loop_t *loop = uv_default_loop();
 
-    // 【1】首先加载契约字典，它是所有路由映射的基础
+    // 【1】加载契约
     extern const edge_contract_t g_contract_manifest;
     contract_register(&g_contract_manifest);
 
-    // 【2】基础服务与驱动初始化
-    int ret = dcu_storage_init(&g_dcu_storage, loop, "dcu_runtime.db");
-    if (ret != 0) {
-        printf("[FATAL] SQLite storage initialization failed!\n");
-        return -1;
-    }
+    // 【2】持久化存储
+    dcu_storage_init(&g_dcu_storage, loop, "dcu_runtime.db");
 
+    // 【3】总线初始化
     datahub_t hub;
-    datahub_init(&hub, loop, "dcu_production_bus", 1024, g_tag_metadata_len, g_tag_metadata, g_tag_metadata_len,
+    datahub_init(&hub, loop, "dcu_production_bus", 4096, g_tag_metadata_len, g_tag_metadata, g_tag_metadata_len,
                  NULL, edge_tag_get_compact_index, edge_router_needs_wakeup);
 
     arbiter_t *arbiter_ctx = NULL;
@@ -112,64 +117,47 @@ int main(int argc, char **argv) {
     driver_manager_register(drv_mgr, &dlt645_driver);
     driver_manager_register(drv_mgr, &dlt698_driver);
 
-    bus_orchestrator_t *io_orch = bus_orchestrator_create(&hub, arbiter_ctx, drv_mgr, 8, 32, 2048);
+    bus_orchestrator_t *io_orch = bus_orchestrator_create(&hub, arbiter_ctx, drv_mgr, DCU_MAX_CHANNELS, 256, 4096);
     hub.io_pool = bus_orchestrator_get_pool(io_orch);
     arbiter_resume(arbiter_ctx);
 
-    // 【3】物理信道绑定与契约注入
-    const char *uds_path = "/tmp/rs485_1.sock";
-    int uds_fd = -1;
-    struct sockaddr_un uds_addr;
-    if ((uds_fd = socket(AF_UNIX, SOCK_STREAM, 0)) >= 0) {
-        memset(&uds_addr, 0, sizeof(uds_addr));
-        uds_addr.sun_family = AF_UNIX;
-        strncpy(uds_addr.sun_path, uds_path, sizeof(uds_addr.sun_path) - 1);
-        if (connect(uds_fd, (struct sockaddr *)&uds_addr, sizeof(uds_addr)) >= 0) {
-            printf("🔗 [MATRIX] Connected to physical simulator at %s\n", uds_path);
-        } else {
-            close(uds_fd); uds_fd = 1; 
-        }
-    }
-    io_handle_t *rs485_1 = io_executor_create_from_fd(loop, uds_fd, hub.io_pool);
-    bus_orchestrator_attach_io(io_orch, 1, rs485_1);
-
-    // 核心：基于规约名称获取模型注入包
+    // 【4】物理信道动态绑定 (利用修复后的编译器后端)
     const driver_contract_injection_t *inj_modbus = edge_model_find("ModbusRTU");
     const driver_contract_injection_t *inj_dlt645 = edge_model_find("DLT645");
     const driver_contract_injection_t *inj_dlt698 = edge_model_find("DLT698");
     if (!inj_dlt698) inj_dlt698 = inj_dlt645;
 
-    bus_orchestrator_setup_master(io_orch, 1, "ModbusRTU", 1, inj_modbus);
-    bus_orchestrator_setup_master(io_orch, 1, "DLT645", 1, inj_dlt645);
-    bus_orchestrator_setup_master(io_orch, 1, "DLT698", 1, inj_dlt698);
+    for (int i = 1; i <= 32; i++) {
+        char uds_path[64];
+        snprintf(uds_path, sizeof(uds_path), "/tmp/rs485_%d.sock", i);
+        int uds_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+        struct sockaddr_un uds_addr;
+        memset(&uds_addr, 0, sizeof(uds_addr));
+        uds_addr.sun_family = AF_UNIX;
+        strncpy(uds_addr.sun_path, uds_path, sizeof(uds_addr.sun_path) - 1);
+        
+        if (connect(uds_fd, (struct sockaddr *)&uds_addr, sizeof(uds_addr)) >= 0) {
+            io_handle_t *handle = io_executor_create_from_fd(loop, uds_fd, hub.io_pool);
+            bus_orchestrator_attach_io(io_orch, i, handle);
+        } else {
+            io_handle_t *handle = io_executor_create_from_fd(loop, 1, hub.io_pool);
+            bus_orchestrator_attach_io(io_orch, i, handle);
+        }
 
-    // 【4】业务模块初始化
-    dcu_inventory_init(&g_dcu_inventory);
-    dcu_inventory_load_from_db(&g_dcu_inventory, "dcu_runtime.db");
-    if (g_dcu_inventory.count == 0) {
-        dcu_inventory_add(&g_dcu_inventory, "10000001", "DLT645", 9600, 1, inj_dlt645);
-        dcu_inventory_add(&g_dcu_inventory, "10000002", "ModbusRTU", 9600, 1, inj_modbus);
-        dcu_inventory_add(&g_dcu_inventory, "10000003", "DLT698", 9600, 1, inj_dlt698);
+        if (inj_modbus) bus_orchestrator_setup_master(io_orch, i, "ModbusRTU", 1, inj_modbus);
+        if (inj_dlt645) bus_orchestrator_setup_master(io_orch, i, "DLT645", 1, inj_dlt645);
+        if (inj_dlt698) bus_orchestrator_setup_master(io_orch, i, "DLT698", 1, inj_dlt698);
     }
-// 5. 初始化业务模块 (任务与方案)
-dcu_poller_init(&g_dcu_poller);
 
-// 方案1: 6015 普通采集方案 (抄读电压电流)
-uint32_t oads[2] = {OAD_VOLTAGE, OAD_CURRENT};
-dcu_poller_add_scheme(&g_dcu_poller, 1, 0, oads, 2);
-dcu_poller_add_task(&g_dcu_poller, 1, 5, 1);
+    // 【5】业务模块初始化
+    dcu_inventory_init(&g_dcu_inventory);
+    int loaded = dcu_inventory_load_from_db(&g_dcu_inventory, "dcu_runtime.db");
+    printf("✅ [INVENTORY] Grid loaded: %d meters.\n", loaded);
 
-// 方案2: 6017 事件采集方案 (演示多态分流)
-g_dcu_poller.schemes[g_dcu_poller.scheme_count].scheme_id = 2;
-g_dcu_poller.schemes[g_dcu_poller.scheme_count].type = SCHEME_TYPE_EVENT;
-g_dcu_poller.scheme_count++;
-dcu_poller_add_task(&g_dcu_poller, 2, 7, 2);
-
-// 方案3: 7011 脚本方案 (演示多态分流)
-g_dcu_poller.schemes[g_dcu_poller.scheme_count].scheme_id = 3;
-g_dcu_poller.schemes[g_dcu_poller.scheme_count].type = SCHEME_TYPE_SCRIPT;
-g_dcu_poller.scheme_count++;
-dcu_poller_add_task(&g_dcu_poller, 3, 9, 3);
+    dcu_poller_init(&g_dcu_poller);
+    uint32_t oads[2] = {0x20000200, 0x20010200};
+    dcu_poller_add_scheme(&g_dcu_poller, 1, 0, oads, 2);
+    dcu_poller_add_task(&g_dcu_poller, 1, 60, 1);
 
     dcu_security_init(&g_dcu_esam);
     dcu_discovery_init(&g_dcu_discovery);
@@ -179,7 +167,7 @@ dcu_poller_add_task(&g_dcu_poller, 3, 9, 3);
     dcu_router_init_ex(&g_dcu_inventory, &g_dcu_poller, &g_dcu_storage, 
                       &g_dcu_esam, &g_dcu_discovery, &g_dcu_evt_3000, &g_dcu_evt_3005);
 
-    // 【5】微内核服务编排
+    // 【6】服务挂接
     sqlite_config_t db_conf = {.db_path = "dcu_runtime.db", .strategy = STRATEGY_LITE};
     sqlite_svc_t *db_service = sqlite_svc_create(loop, &db_conf);
     stream_engine_t *stream_engine = stream_engine_create(&hub, NULL, NULL, edge_stage_factory_get_registry());
@@ -190,17 +178,7 @@ dcu_poller_add_task(&g_dcu_poller, 3, 9, 3);
     service_t *svc = service_new(loop, &hub, arbiter_ctx, db_service, stream_engine, param_mgr, north_mgr);
     g_running_svc = svc;
 
-    pipeline_t *evt_pipeline = stream_engine_add_pipeline(stream_engine, "EVENT_PIPELINE", 0);
-    pipeline_stage_t *mon_stage = stage_event_monitor_create(&g_dcu_evt_3000, &g_dcu_evt_3005);
-    pipeline_add_stage(evt_pipeline, mon_stage->name, mon_stage->process, mon_stage->priv_state, mon_stage->cleanup_state, NULL, NULL);
-    free(mon_stage);
-
-    pipeline_t *freeze_pipeline = stream_engine_add_pipeline(stream_engine, "FREEZE_PIPELINE", 0);
-    pipeline_stage_t *freeze_stage = stage_periodic_freeze_create_ex(&g_dcu_storage, &hub);
-    pipeline_add_stage(freeze_pipeline, freeze_stage->name, freeze_stage->process, freeze_stage->priv_state, freeze_stage->cleanup_state, NULL, NULL);
-    free(freeze_stage);
-
-    // 【6】启动运行
+    // 【7】运行
     signal(SIGTERM, on_sigterm); signal(SIGINT, on_sigterm);
     dcu_poller_start(&g_dcu_poller, &g_dcu_inventory, io_orch, drv_mgr, loop);
 
@@ -213,14 +191,6 @@ dcu_poller_add_task(&g_dcu_poller, 3, 9, 3);
     g_freeze_trigger_timer.data = &g_sync_ctx;
     uv_timer_start(&g_freeze_trigger_timer, _freeze_trigger_cb, 5000, 5000);
 
-    uv_timer_t control_timer;
-    uv_timer_init(loop, &control_timer);
-    uv_timer_start(&control_timer, _on_remote_control_timer, 10000, 0);
-
     bus_orchestrator_run(io_orch);
-    int exit_code = service_run(svc);
-
-    dcu_poller_stop(&g_dcu_poller);
-    dcu_storage_destroy(&g_dcu_storage);
-    return exit_code;
+    return service_run(svc);
 }

@@ -123,17 +123,21 @@ production_meter_t* dcu_inventory_get(dcu_inventory_t *inv, const char *addr) {
 #include <sqlite3.h>
 #include <stdio.h>
 #include "contract_registry.h"
+#include "sqlite_service.h"
 
 int dcu_inventory_load_from_db(dcu_inventory_t *inv, const char *db_path) {
     sqlite3 *db;
     if (sqlite3_open(db_path, &db) != SQLITE_OK) return -1;
 
-    // 检查表是否存在，不存在则创建 (演示用)
+    // [Professional Schema] 对齐 PRD 6001 完整字段
     const char *init_sql = "CREATE TABLE IF NOT EXISTS meter_inventory ("
-                           "address TEXT PRIMARY KEY, protocol TEXT, baud INTEGER, channel INTEGER);";
+                           "address TEXT PRIMARY KEY, protocol TEXT, baud INTEGER, channel INTEGER, "
+                           "wiring_mode INTEGER, collector_addr TEXT, asset_no TEXT, "
+                           "pt_ratio INTEGER, ct_ratio INTEGER);";
     sqlite3_exec(db, init_sql, NULL, NULL, NULL);
 
-    const char *sql = "SELECT address, protocol, baud, channel FROM meter_inventory;";
+    const char *sql = "SELECT address, protocol, baud, channel, wiring_mode, collector_addr, asset_no, pt_ratio, ct_ratio "
+                      "FROM meter_inventory;";
     sqlite3_stmt *stmt;
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
         sqlite3_close(db);
@@ -147,8 +151,28 @@ int dcu_inventory_load_from_db(dcu_inventory_t *inv, const char *db_path) {
         int baud = sqlite3_column_int(stmt, 2);
         int chan = sqlite3_column_int(stmt, 3);
         
+        // 自动查找契约注入点
         const driver_contract_injection_t *inj = edge_model_find(proto);
-        dcu_inventory_add(inv, addr, proto, (uint32_t)baud, (uint8_t)chan, inj);
+        
+        // 线程安全地添加到内存容器
+        uv_mutex_lock(&inv->lock);
+        if (inv->count < MAX_METERS) {
+            production_meter_t *m = &inv->meters[inv->count++];
+            strncpy(m->address, addr, MAX_ADDR_LEN - 1);
+            strncpy(m->protocol, proto, 15);
+            m->baud_rate = (uint32_t)baud;
+            m->channel_id = (uint8_t)chan;
+            m->inject = inj;
+            m->is_online = true;
+
+            // [PRD 补完]
+            m->wiring_mode = (uint8_t)sqlite3_column_int(stmt, 4);
+            strncpy(m->collector_addr, (const char*)sqlite3_column_text(stmt, 5), 15);
+            strncpy(m->asset_no, (const char*)sqlite3_column_text(stmt, 6), 31);
+            m->pt_ratio = (uint32_t)sqlite3_column_int(stmt, 7);
+            m->ct_ratio = (uint32_t)sqlite3_column_int(stmt, 8);
+        }
+        uv_mutex_unlock(&inv->lock);
         loaded++;
     }
 

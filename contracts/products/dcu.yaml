@@ -1,36 +1,22 @@
-# DCU Standard Contract Definition (Updated for 698.45 OAD Alignment)
+# DCU Standard Contract Definition (Definitive Pro Version)
 product: "DCU_Standard_V1"
 
-# 1. 语义层继承 (Semantic Inheritance)
+# 1. 语义层继承
 include:
   - "contracts/schema/domains/power.yaml"
   - "contracts/schema/domains/energy.yaml"
   - "contracts/bindings/modbus/acrel_p80.yaml"
   - "contracts/bindings/dlt645/standard_meter.yaml"
-  - "contracts/bindings/dlt698/dcu_interface.yaml"
-  # - "contracts/bindings/dlt698_full_oads.yaml"
+  - "contracts/bindings/dlt698/dcu_interface.yaml" # 引入 698 绑定
 
-# 2. 行为定制 (使用 OAD 作为 TagID 确保 698.45 影子总线对齐)
+# 2. 行为定制 (OAD 映射)
 tags:
-  - id: 0x20000200 # VOLTAGE_PHASE_A (OAD 20000200)
+  - id: 0x20000200 
     name: VOLTAGE_PHASE_A
     attributes: { persist: true }
-  - id: 0x20010200 # CURRENT_PHASE_A (OAD 20010200)
+  - id: 0x20010200 
     name: CURRENT_PHASE_A
     attributes: { persist: true }
-  - id: 0x00100200 # ENERGY_ACTIVE_IMPORT (OAD 00100200)
+  - id: 0x00100200 
     name: ENERGY_ACTIVE_IMPORT
     attributes: { persist: true }
-  - id: 1003 # GRID_POWER (保留逻辑 ID，也可改为 OAD)
-    name: GRID_POWER
-    attributes: { persist: true }
-
-# 3. 核心业务管线 (698.45 影子逻辑)
-pipelines:
-  - id: "periodic_freeze"
-    trigger: "0x50040200" # OAD_DAILY_FREEZE
-    stages:
-      - type: "time_guard"
-        config: { interval_ms: 1000 }
-      - type: "sqlite_sink"
-        config: { table: "dcu_telemetry_latest" }

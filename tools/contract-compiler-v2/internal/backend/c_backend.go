@@ -93,7 +93,6 @@ func (b *CBackend) emitHeader(contract *ir.ContractIR) error {
 	fmt.Fprintln(f, "const tag_map_t* edge_get_map_tag(edge_tag_id_t tag_id);")
 
 	for proto := range contract.LookupEngines {
-		if !isKnownProtocol(proto) { continue }
 		lp := strings.ToLower(proto)
 		if lp == "modbusrtu" { lp = "modbus" }
 		fmt.Fprintf(f, "edge_tag_id_t edge_lookup_%s(uint64_t key, float* scale);\n", lp)
@@ -189,14 +188,12 @@ func (b *CBackend) emitSource(contract *ir.ContractIR) error {
 
 	// 6. Protocol Lookup Tables
 	for proto, engine := range contract.LookupEngines {
-		if !isKnownProtocol(proto) { continue }
 		b.emitProtocolTable(f, engine, contract.ReverseMaps[proto], len(contract.Tags))
 	}
 	b.emitTagImplementation(f, contract)
 
 	// 7. Semantic Model Registry
 	for proto := range contract.LookupEngines {
-		if !isKnownProtocol(proto) { continue }
 		lp := strings.ToLower(proto)
 		if lp == "modbusrtu" { lp = "modbus" }
 		fmt.Fprintf(f, "static const driver_contract_injection_t inj_%s = { (const void *(*)(uint64_t))edge_get_map_%s, (const void *(*)(uint32_t))edge_get_map_%s_by_tag, s_%s_rev_table, %d };\n", lp, lp, lp, lp, len(contract.Tags))
@@ -204,7 +201,6 @@ func (b *CBackend) emitSource(contract *ir.ContractIR) error {
 	fmt.Fprintln(f, "const edge_model_info_t g_model_metadata[] = {")
 	writtenCount := 0
 	for _, m := range contract.Models {
-		if !isKnownProtocol(m.Protocol) { continue }
 		lp := strings.ToLower(m.Protocol)
 		if lp == "modbusrtu" { lp = "modbus" }
 		fmt.Fprintf(f, "    { \"%s\", &inj_%s },\n", m.Name, lp)
@@ -219,6 +215,9 @@ func (b *CBackend) emitSource(contract *ir.ContractIR) error {
 			writtenCount += 2
 		} else if lp == "dlt645" {
 			fmt.Fprintf(f, "    { \"DLT645\", &inj_%s },\n", lp)
+			writtenCount++
+		} else if lp == "dlt698" {
+			fmt.Fprintf(f, "    { \"DLT698\", &inj_%s },\n", lp)
 			writtenCount++
 		} else if lp == "iec104" {
 			fmt.Fprintf(f, "    { \"IEC104\", &inj_%s },\n", lp)
