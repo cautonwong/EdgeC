@@ -25,19 +25,65 @@ typedef struct {
 } dcu_task_monitor_t;
 
 /**
- * @brief DL/T 698.45 普通采集方案 (OI 6015)
+ * @brief DL/T 698.45 方案类型枚举
+ */
+typedef enum {
+    SCHEME_TYPE_NORMAL      = 1, // 对应 6015: 普通采集方案
+    SCHEME_TYPE_EVENT       = 2, // 对应 6017: 事件采集方案
+    SCHEME_TYPE_TRANSPARENT = 3, // 对应 6019: 透明方案
+    SCHEME_TYPE_REPORT      = 4, // 对应 601D: 上报方案
+    SCHEME_TYPE_SCRIPT      = 5  // 对应 7011: 脚本方案
+} dcu_scheme_type_t;
+
+/**
+ * @brief 方案存储联合体结构
  */
 typedef struct {
-    uint32_t scheme_id;               // 方案编号
-    uint8_t capture_mode;             // 采集方式 (0:当前数据, 1:按冻结时标, 2:按时标间隔, 3:补抄)
+    uint32_t scheme_id;
+    dcu_scheme_type_t type;
     
-    // [PRD Alignment] 6015 附加属性: 电能表集合 MS
-    uint8_t ms_type;                  // MS 类型 (0:全体, 1:指定组, 2:指定多块表)
-    char ms_addrs[8][MAX_ADDR_LEN];   // 如果是指定多块表，此数组生效
-    uint8_t ms_count;                 // 指定表的数量
+    union {
+        // --- 1. 普通采集方案 (6015) ---
+        struct {
+            uint8_t capture_mode;
+            uint8_t ms_type;
+            char ms_addrs[8][MAX_ADDR_LEN];
+            uint8_t ms_count;
+            uint32_t csd_list[MAX_SCHEME_OADS];
+            uint16_t csd_count;
+        } normal;
+        
+        // --- 2. 事件采集方案 (6017) ---
+        struct {
+            uint8_t capture_type;   // 0:周期主动查, 1:通知查全体, 2:通知查指定
+            uint8_t ms_type;
+            char ms_addrs[8][MAX_ADDR_LEN];
+            uint8_t ms_count;
+            bool report_flag;       // 是否需立即上报
+            uint32_t storage_depth;
+        } event;
 
-    uint32_t csd_list[MAX_SCHEME_OADS]; // 记录列选择 array CSD (要抄读的数据，如 0x20000200)
-    uint16_t csd_count;               // CSD 数量
+        // --- 3. 透明方案 (6019) ---
+        struct {
+            uint32_t storage_depth;
+            uint8_t pdu_buffer[128]; // 简化的原始报文存储区
+            uint16_t pdu_len;
+        } transparent;
+
+        // --- 4. 上报方案 (601D) ---
+        struct {
+            uint32_t channel_oad;    // 上报通道 (例如指向某个以太网端口)
+            uint32_t timeout_s;      // 响应超时
+            uint8_t max_retries;     // 最大重试次数
+            uint8_t report_type;     // 0: OAD对象数据, 1: RecordData记录数据
+            uint32_t target_oad;     // 待上报的数据源
+        } report;
+
+        // --- 5. 脚本方案 (7011) ---
+        struct {
+            uint32_t script_id;      // 指向 7011 内部的具体逻辑
+        } script;
+    } data;
 } dcu_scheme_t;
 
 /**

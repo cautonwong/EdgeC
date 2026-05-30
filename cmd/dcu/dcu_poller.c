@@ -94,19 +94,46 @@ void dcu_poller_pump(dcu_poller_t *poller, uint8_t channel_id) {
             // 对齐 PRD 规则：通道匹配且必须在线（熔断隔离）
             if (m->channel_id != channel_id || !m->is_online) continue;
             
-            // 匹配方案与 MS 集合
+            // 匹配方案与多态分发逻辑
             dcu_scheme_t *s = dcu_poller_get_scheme(poller, task->scheme_id);
-            if (s && s->ms_type == 2) {
+            if (!s) continue;
+            
+            // ==========================================================
+            // [Nexus-Pro] 协议级方案分流控制 (Scheme Dispatcher)
+            // ==========================================================
+            if (s->type != SCHEME_TYPE_NORMAL) {
+                // TODO: 实现其余四种方案的实体逻辑。为了防止阻塞正常流程，目前打日志跳过。
+                if (task->cursor_meter_idx == 1) { // 仅首次打印避免刷屏
+                    switch (s->type) {
+                        case SCHEME_TYPE_EVENT:
+                            printf("🚨 [DISPATCH] 方案 %u (类型 2:事件采集) 被触发，准备收集下挂设备告警记录...\n", s->scheme_id); break;
+                        case SCHEME_TYPE_TRANSPARENT:
+                            printf("🕶️  [DISPATCH] 方案 %u (类型 3:透明方案) 被触发，透传 PDU 将绕过解析器直接下发...\n", s->scheme_id); break;
+                        case SCHEME_TYPE_REPORT:
+                            printf("☁️  [DISPATCH] 方案 %u (类型 4:主动上报) 被触发，数据打包推送至北向 Broker...\n", s->scheme_id); break;
+                        case SCHEME_TYPE_SCRIPT:
+                            printf("📜 [DISPATCH] 方案 %u (类型 5:脚本方案) 被触发，即将唤醒内嵌执行环境...\n", s->scheme_id); break;
+                        default: break;
+                    }
+                }
+                found_meter = true; // 假装完成，推进任务
+                break;
+            }
+
+            // 此时确定为 SCHEME_TYPE_NORMAL，使用 s->data.normal 结构
+            if (s->data.normal.ms_type == 2) {
                 bool matched = false;
-                for(int a=0; a<s->ms_count; a++) if(strcmp(m->address, s->ms_addrs[a])==0) {matched=true; break;}
+                for(int a=0; a<s->data.normal.ms_count; a++) {
+                    if(strcmp(m->address, s->data.normal.ms_addrs[a])==0) {matched=true; break;}
+                }
                 if(!matched) continue;
             }
 
             // 构造全新任务 Transaction
-            for (int j = 0; j < s->csd_count; j++) {
+            for (int j = 0; j < s->data.normal.csd_count; j++) {
                 cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));
                 cmd->action = CMD_ACTION_READ;
-                cmd->tag_id = s->csd_list[j];
+                cmd->tag_id = s->data.normal.csd_list[j];
                 cmd->priority = ARBITER_PRIO_NORMAL;
                 cmd->timeout_ms = 1500;
                 strncpy(cmd->protocol, m->protocol, 15);
@@ -261,8 +288,12 @@ int dcu_poller_add_scheme(dcu_poller_t *poller, uint32_t scheme_id, uint8_t mode
     if (!poller || poller->scheme_count >= MAX_SCHEMES) return -1;
     uv_mutex_lock(&poller->lock);
     dcu_scheme_t *s = &poller->schemes[poller->scheme_count++];
-    s->scheme_id = scheme_id; s->capture_mode = mode; s->csd_count = csd_count;
-    memcpy(s->csd_list, csds, sizeof(uint32_t) * csd_count);
+    s->scheme_id = scheme_id; 
+    s->type = SCHEME_TYPE_NORMAL;
+    s->data.normal.capture_mode = mode; 
+    s->data.normal.csd_count = csd_count;
+    s->data.normal.ms_type = 0; // 默认全体
+    memcpy(s->data.normal.csd_list, csds, sizeof(uint32_t) * csd_count);
     uv_mutex_unlock(&poller->lock);
     return 0;
 }

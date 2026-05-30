@@ -151,11 +151,25 @@ int main(int argc, char **argv) {
         dcu_inventory_add(&g_dcu_inventory, "10000002", "ModbusRTU", 9600, 1, inj_modbus);
         dcu_inventory_add(&g_dcu_inventory, "10000003", "DLT698", 9600, 1, inj_dlt698);
     }
+// 5. 初始化业务模块 (任务与方案)
+dcu_poller_init(&g_dcu_poller);
 
-    dcu_poller_init(&g_dcu_poller);
-    uint32_t oads[2] = {OAD_VOLTAGE, OAD_CURRENT};
-    dcu_poller_add_scheme(&g_dcu_poller, 1, 0, oads, 2);
-    dcu_poller_add_task(&g_dcu_poller, 1, 5, 1);
+// 方案1: 6015 普通采集方案 (抄读电压电流)
+uint32_t oads[2] = {OAD_VOLTAGE, OAD_CURRENT};
+dcu_poller_add_scheme(&g_dcu_poller, 1, 0, oads, 2);
+dcu_poller_add_task(&g_dcu_poller, 1, 5, 1);
+
+// 方案2: 6017 事件采集方案 (演示多态分流)
+g_dcu_poller.schemes[g_dcu_poller.scheme_count].scheme_id = 2;
+g_dcu_poller.schemes[g_dcu_poller.scheme_count].type = SCHEME_TYPE_EVENT;
+g_dcu_poller.scheme_count++;
+dcu_poller_add_task(&g_dcu_poller, 2, 7, 2);
+
+// 方案3: 7011 脚本方案 (演示多态分流)
+g_dcu_poller.schemes[g_dcu_poller.scheme_count].scheme_id = 3;
+g_dcu_poller.schemes[g_dcu_poller.scheme_count].type = SCHEME_TYPE_SCRIPT;
+g_dcu_poller.scheme_count++;
+dcu_poller_add_task(&g_dcu_poller, 3, 9, 3);
 
     dcu_security_init(&g_dcu_esam);
     dcu_discovery_init(&g_dcu_discovery);

@@ -95,11 +95,12 @@ static int _oi_6012_execute(dcu_object_t *obj, uint8_t method_id, const void *pa
     if (!poller) return -1;
     
     // 方法 127: 动态添加采集调度方案 (Method Add Scheme)
-    if (method_id == 127) {
+    if (method_id == 1) { // Add Task
         const dcu_scheme_t *s = (const dcu_scheme_t *)param;
-        int ret = dcu_poller_add_scheme(poller, s->scheme_id, s->capture_mode, s->csd_list, s->csd_count);
+        if (s->type != SCHEME_TYPE_NORMAL) return -1; // Only support routing NORMAL schemes through this legacy path
+        int ret = dcu_poller_add_scheme(poller, s->scheme_id, s->data.normal.capture_mode, s->data.normal.csd_list, s->data.normal.csd_count);
         if (result) *(int *)result = ret;
-        return 0;
+        return ret;
     }
     return -2;
 }
