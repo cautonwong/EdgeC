@@ -6,7 +6,7 @@ set(PROD_NAME dcu)
 edge_add_contract(
     contract_${PROD_NAME} 
     "${CMAKE_SOURCE_DIR}/contracts/products/dcu.yaml"
-    "${CMAKE_CURRENT_SOURCE_DIR}/extension.yaml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/manifest.yaml"
 )
 
 # 1. 声明集中器专属业务自治静态库

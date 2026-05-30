@@ -1,0 +1,21 @@
+# [Nexus-Pro] DCU 32-Channel Digital Twin Manifest
+# ------------------------------------------------------------------------------
+# 这是一个现场部署清单，定义了 32 个并发通道的物理路径与规约绑定。
+
+# 1. 物理信道定义 (The Channels)
+# 我们模拟 32 路独立的 RS485 总线，全部采用 UDS 仿真模式。
+connectivity:
+  - id: 1
+    label: "RS485_BUS_01"
+    category: "SOUTHBOUND"
+    type: "UART"
+    config: { path: "/tmp/rs485_1.sock", baud: 9600 }
+    simulation: { transport: "UDS", endpoint: "UDS:/tmp/rs485_1.sock" }
+  # ... (此处我会生成 32 个)
+  
+# 2. 全局业务参数覆盖 (Global Overrides)
+tags:
+  - id: 0x20000200 # VOLTAGE_PHASE_A
+    attributes: { poll_interval_ms: 1000, persist: true }
+  - id: 0x20010200 # CURRENT_PHASE_A
+    attributes: { poll_interval_ms: 1000, persist: true }

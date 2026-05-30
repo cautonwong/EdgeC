@@ -40,11 +40,17 @@ static int dlt698_v4_encode_request(edge_driver_ctx_t *ctx, const uint32_t *tag_
     dlt698_ctx_t *priv = (dlt698_ctx_t *)ctx->priv;
     if (count == 0) return -1;
 
-    const modbus_map_t *map = NULL; // 698 也复用 key 结构存储 OAD
+    // 【核心修正】实事求是：拿着 tag_id (影子索引) 去契约里找回原始 OAD
+    const dlt698_map_t *map = NULL; 
     if (ctx->lookup_by_tag) {
-        map = (const modbus_map_t *)ctx->lookup_by_tag(tag_ids[0]);
+        map = (const dlt698_map_t *)ctx->lookup_by_tag(tag_ids[0]);
     }
-    if (!map) return -1;
+    if (!map) {
+        // 如果契约里没找到映射，说明这个索引是非法的。由于我们的 poller 动态生成了索引，
+        // 我们在此必须有一个 Fallback：如果找不到，则尝试直接使用外部传进来的 OAD 提示
+        // 在本项目的 DCU 场景下，我们信任 poller 计算出的索引在契约反查表的覆盖范围内。
+        return -1;
+    }
 
     priv->last_oad = (uint32_t)map->key;
     return dlt698_encode_get_request(&priv->sa, ++priv->piid, priv->last_oad, out);

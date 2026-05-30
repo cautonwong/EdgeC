@@ -58,6 +58,7 @@ typedef struct cmd_msg {
     cmd_action_t action;
 
     uint32_t tag_id;
+    uint32_t device_id; // [Nexus-Pro] 实例 ID，支撑 2000 只表
     double value;
     void *params;
     edge_phy_params_t *phy_params;
