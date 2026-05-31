@@ -186,10 +186,16 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
     shm_ring_write(&hub->ring, &local_msg);
 
     if (hub->shadow_table && hub->shadow_seq) {
-        int idx = (hub->map_fn) ? hub->map_fn(local_msg.tag_id) : (int)local_msg.tag_id;
-        LOG_INFO(LOG_CAT_BUS, "DataHub: Publish Tag %u -> Index %d on Hub %p", local_msg.tag_id, idx, (void *)hub);
+        int idx = -1;
+        if (hub->map_fn_v2) {
+            idx = hub->map_fn_v2(local_msg.tag_id, local_msg.device_id);
+        } else {
+            idx = (hub->map_fn) ? hub->map_fn(local_msg.tag_id) : (int)local_msg.tag_id;
+        }
+
         if (idx >= 0 && (uint32_t)idx < hub->shadow_capacity) {
-            LOG_INFO(LOG_CAT_BUS, "DataHub: Updating Shadow Index %d with Val %.2f", idx, local_msg.payload.val.f);
+            printf("💎 [DATAHUB] Publish Index %d <- %.2f (Tag: %u, Dev: %u)\n", 
+                   idx, local_msg.payload.val.f, local_msg.tag_id, local_msg.device_id);
             atomic_fetch_add_explicit(&hub->shadow_seq[idx], 1, memory_order_relaxed);
             atomic_thread_fence(memory_order_release);
             hub->shadow_table[idx] = local_msg;
@@ -234,6 +240,19 @@ int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out) {
         }
     }
     return (out->tag_id == tag_id) ? 0 : -1;
+}
+
+int datahub_read_shadow_idx(datahub_t *hub, uint32_t idx, pipe_msg_t *out) {
+    if (!hub || !hub->shadow_table || !out || idx >= hub->shadow_capacity) return -1;
+
+    unsigned int s1, s2;
+    do {
+        s1 = atomic_load_explicit(&hub->shadow_seq[idx], memory_order_acquire);
+        *out = hub->shadow_table[idx];
+        s2 = atomic_load_explicit(&hub->shadow_seq[idx], memory_order_acquire);
+    } while (s1 != s2 || (s1 & 1));
+
+    return 0;
 }
 
 int datahub_register_ref(datahub_t *hub, uint32_t tag_id, int fd, size_t len) {

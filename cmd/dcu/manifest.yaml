@@ -1,21 +1,330 @@
-# [Nexus-Pro] DCU 32-Channel Digital Twin Manifest
-# ------------------------------------------------------------------------------
-# 这是一个现场部署清单，定义了 32 个并发通道的物理路径与规约绑定。
-
-# 1. 物理信道定义 (The Channels)
-# 我们模拟 32 路独立的 RS485 总线，全部采用 UDS 仿真模式。
 connectivity:
-  - id: 1
-    label: "RS485_BUS_01"
-    category: "SOUTHBOUND"
-    type: "UART"
-    config: { path: "/tmp/rs485_1.sock", baud: 9600 }
-    simulation: { transport: "UDS", endpoint: "UDS:/tmp/rs485_1.sock" }
-  # ... (此处我会生成 32 个)
-  
-# 2. 全局业务参数覆盖 (Global Overrides)
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_1.sock
+  id: 1
+  label: RS485_BUS_01
+  simulation:
+    endpoint: UDS:/tmp/rs485_1.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_2.sock
+  id: 2
+  label: RS485_BUS_02
+  simulation:
+    endpoint: UDS:/tmp/rs485_2.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_3.sock
+  id: 3
+  label: RS485_BUS_03
+  simulation:
+    endpoint: UDS:/tmp/rs485_3.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_4.sock
+  id: 4
+  label: RS485_BUS_04
+  simulation:
+    endpoint: UDS:/tmp/rs485_4.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_5.sock
+  id: 5
+  label: RS485_BUS_05
+  simulation:
+    endpoint: UDS:/tmp/rs485_5.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_6.sock
+  id: 6
+  label: RS485_BUS_06
+  simulation:
+    endpoint: UDS:/tmp/rs485_6.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_7.sock
+  id: 7
+  label: RS485_BUS_07
+  simulation:
+    endpoint: UDS:/tmp/rs485_7.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_8.sock
+  id: 8
+  label: RS485_BUS_08
+  simulation:
+    endpoint: UDS:/tmp/rs485_8.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_9.sock
+  id: 9
+  label: RS485_BUS_09
+  simulation:
+    endpoint: UDS:/tmp/rs485_9.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_10.sock
+  id: 10
+  label: RS485_BUS_10
+  simulation:
+    endpoint: UDS:/tmp/rs485_10.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_11.sock
+  id: 11
+  label: RS485_BUS_11
+  simulation:
+    endpoint: UDS:/tmp/rs485_11.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_12.sock
+  id: 12
+  label: RS485_BUS_12
+  simulation:
+    endpoint: UDS:/tmp/rs485_12.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_13.sock
+  id: 13
+  label: RS485_BUS_13
+  simulation:
+    endpoint: UDS:/tmp/rs485_13.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_14.sock
+  id: 14
+  label: RS485_BUS_14
+  simulation:
+    endpoint: UDS:/tmp/rs485_14.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_15.sock
+  id: 15
+  label: RS485_BUS_15
+  simulation:
+    endpoint: UDS:/tmp/rs485_15.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_16.sock
+  id: 16
+  label: RS485_BUS_16
+  simulation:
+    endpoint: UDS:/tmp/rs485_16.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_17.sock
+  id: 17
+  label: RS485_BUS_17
+  simulation:
+    endpoint: UDS:/tmp/rs485_17.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_18.sock
+  id: 18
+  label: RS485_BUS_18
+  simulation:
+    endpoint: UDS:/tmp/rs485_18.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_19.sock
+  id: 19
+  label: RS485_BUS_19
+  simulation:
+    endpoint: UDS:/tmp/rs485_19.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_20.sock
+  id: 20
+  label: RS485_BUS_20
+  simulation:
+    endpoint: UDS:/tmp/rs485_20.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_21.sock
+  id: 21
+  label: RS485_BUS_21
+  simulation:
+    endpoint: UDS:/tmp/rs485_21.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_22.sock
+  id: 22
+  label: RS485_BUS_22
+  simulation:
+    endpoint: UDS:/tmp/rs485_22.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_23.sock
+  id: 23
+  label: RS485_BUS_23
+  simulation:
+    endpoint: UDS:/tmp/rs485_23.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_24.sock
+  id: 24
+  label: RS485_BUS_24
+  simulation:
+    endpoint: UDS:/tmp/rs485_24.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_25.sock
+  id: 25
+  label: RS485_BUS_25
+  simulation:
+    endpoint: UDS:/tmp/rs485_25.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_26.sock
+  id: 26
+  label: RS485_BUS_26
+  simulation:
+    endpoint: UDS:/tmp/rs485_26.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_27.sock
+  id: 27
+  label: RS485_BUS_27
+  simulation:
+    endpoint: UDS:/tmp/rs485_27.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_28.sock
+  id: 28
+  label: RS485_BUS_28
+  simulation:
+    endpoint: UDS:/tmp/rs485_28.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_29.sock
+  id: 29
+  label: RS485_BUS_29
+  simulation:
+    endpoint: UDS:/tmp/rs485_29.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_30.sock
+  id: 30
+  label: RS485_BUS_30
+  simulation:
+    endpoint: UDS:/tmp/rs485_30.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_31.sock
+  id: 31
+  label: RS485_BUS_31
+  simulation:
+    endpoint: UDS:/tmp/rs485_31.sock
+    transport: UDS
+  type: UART
+- category: SOUTHBOUND
+  config:
+    baud: 9600
+    path: /tmp/rs485_32.sock
+  id: 32
+  label: RS485_BUS_32
+  simulation:
+    endpoint: UDS:/tmp/rs485_32.sock
+    transport: UDS
+  type: UART
 tags:
-  - id: 0x20000200 # VOLTAGE_PHASE_A
-    attributes: { poll_interval_ms: 1000, persist: true }
-  - id: 0x20010200 # CURRENT_PHASE_A
-    attributes: { poll_interval_ms: 1000, persist: true }
+- attributes:
+    persist: true
+    poll_interval_ms: 1000
+  id: 536871424
+- attributes:
+    persist: true
+    poll_interval_ms: 1000
+  id: 536936960

@@ -110,8 +110,10 @@ static int dlt698_v4_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_
 
                     if (supported) {
                         pipe_msg_init_scalar(&out_msgs[0], tid, val * (double)scaler, uv_hrtime());
+                        out_msgs[0].device_id = ctx->device_id; // 【关键】注入实例 ID
                         *msg_count = 1;
-                        LOG_DEBUG(LOG_CAT_IO, "DLT698: Decoded OAD %08X (Tag %d) -> Val %.3f", oad_rx, res_data.tag, val * (double)scaler);
+                        LOG_DEBUG(LOG_CAT_IO, "DLT698: Decoded OAD %08X -> Tag %u, Device %u, Val %.3f", 
+                                  oad_rx, tid, ctx->device_id, val * (double)scaler);
                     }
                     dlt698_free_data(&res_data);
                 }
@@ -174,7 +176,7 @@ static int dlt698_v4_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
     return -1;
 }
 
-edge_driver_t dlt698_driver = {
+const edge_driver_t dlt698_driver = {
     .name = "DLT698",
     .ctx_size = sizeof(dlt698_ctx_t),
     .on_init = dlt698_v4_on_init,

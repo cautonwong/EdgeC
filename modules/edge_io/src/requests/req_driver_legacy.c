@@ -33,6 +33,7 @@ typedef struct {
     uint32_t tag_id;
     double value;
     legacy_on_complete_cb on_complete;
+    void *user_data;
     pipe_msg_t result_msg;
     void *lookup_by_tag;
     void *lookup_by_key;
@@ -120,7 +121,8 @@ static void legacy_finish(edge_req_t *req, int status) {
     legacy_req_ctx_t *ctx = (legacy_req_ctx_t *)req->priv_data;
     if (ctx->on_complete) {
         ctx->on_complete(status,
-                         (status == 0 && ctx->action == CMD_ACTION_READ) ? &ctx->result_msg : NULL);
+                         (status == 0 && ctx->action == CMD_ACTION_READ) ? &ctx->result_msg : NULL,
+                         ctx->user_data);
     }
 }
 
@@ -144,7 +146,7 @@ static const request_ops_t legacy_ops = {
 edge_req_t *req_legacy_driver_create(driver_manager_t *dm, const char *protocol, uint32_t slave_id,
                                      cmd_action_t action, uint32_t tag_id, double value,
                                      void *lookup_by_tag, void *lookup_by_key,
-                                     legacy_on_complete_cb user_cb) {
+                                     legacy_on_complete_cb user_cb, void *user_data) {
     edge_req_t *req = calloc(1, sizeof(edge_req_t));
     legacy_req_ctx_t *ctx = calloc(1, sizeof(legacy_req_ctx_t));
     ctx->dm = dm;
@@ -156,6 +158,7 @@ edge_req_t *req_legacy_driver_create(driver_manager_t *dm, const char *protocol,
     ctx->lookup_by_key = lookup_by_key;
     strncpy(ctx->protocol, protocol, 15);
     ctx->on_complete = user_cb;
+    ctx->user_data = user_data;
     req->ops = &legacy_ops;
     req->priv_data = ctx;
     return req;

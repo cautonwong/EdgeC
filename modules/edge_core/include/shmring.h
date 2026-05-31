@@ -44,12 +44,12 @@ typedef struct {
 typedef struct {
     uint64_t ts;
     uint32_t tag_id;
+    uint32_t device_id; // [Nexus-Pro] 统一实例 ID 命名
     uint16_t type;
     uint16_t state;
-    uint32_t src_dev_id;
     uint32_t drop_reason;
     uint8_t quality;
-    PipeMsgAttr attr; /**< Replacing former _pad[7] */
+    PipeMsgAttr attr; 
 
     union {
         struct {

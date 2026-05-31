@@ -11,6 +11,11 @@
 extern "C" {
 #endif
 
+/**
+ * @brief 测点映射回调 (支持实例寻址)
+ */
+typedef int (*datahub_tag_map_cb_v2)(uint32_t tag_id, uint32_t device_id);
+
 typedef struct datahub_s datahub_t;
 
 /**
@@ -49,6 +54,7 @@ struct datahub_s {
     size_t shadow_size;
     uint32_t shadow_capacity;
     datahub_tag_map_cb map_fn;
+    datahub_tag_map_cb_v2 map_fn_v2; // [Nexus-Pro] 支持实例感知的寻址
     datahub_wakeup_filter_cb wakeup_fn;  // [注入] 唤醒过滤器
 
     // --- [Batch Wakeup] 优化 ---
@@ -92,6 +98,7 @@ void datahub_destroy(datahub_t *hub);
 int datahub_publish(datahub_t *hub, const pipe_msg_t *msg);
 int datahub_register_ref(datahub_t *hub, uint32_t tag_id, int fd, size_t len);
 int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out);
+int datahub_read_shadow_idx(datahub_t *hub, uint32_t idx, pipe_msg_t *out);
 void datahub_subscribe(datahub_t *hub, datahub_on_data_cb cb, void *user_data);
 
 /**

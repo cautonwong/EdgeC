@@ -16,21 +16,13 @@ const edge_contract_t *contract_get_active(void) {
 }
 
 const driver_contract_injection_t *contract_model_find(const char *name) {
-    if (!g_active_contract) {
-        printf("[DEBUG-CONTRACT] contract_model_find: g_active_contract is NULL when looking for '%s'!\n", name ? name : "NULL");
-        return NULL;
-    }
-    if (!name) return NULL;
+    if (!g_active_contract || !name) return NULL;
 
-    printf("[DEBUG-CONTRACT] contract_model_find: looking for '%s', model_count=%u\n", name, g_active_contract->model_count);
     for (uint32_t i = 0; i < g_active_contract->model_count; i++) {
-        printf("[DEBUG-CONTRACT]   model[%u] name='%s'\n", i, g_active_contract->models[i].name ? g_active_contract->models[i].name : "NULL");
         if (strcasecmp(g_active_contract->models[i].name, name) == 0) {
             return g_active_contract->models[i].injection;
         }
     }
-
-    printf("[DEBUG-CONTRACT] contract_model_find: '%s' NOT FOUND!\n", name);
     return NULL;
 }
 

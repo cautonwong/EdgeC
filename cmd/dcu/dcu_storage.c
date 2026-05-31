@@ -70,11 +70,25 @@ int dcu_storage_init(dcu_storage_t *storage, uv_loop_t *loop, const char *db_pat
         ");";
     sqlite3_exec(storage->db, create_freeze_sql, NULL, NULL, NULL);
 
+    // 【证据链核心】原子化建表：全断面原始遥测记录表，确保 220.88V 有迹可循
+    const char *create_telemetry_sql = 
+        "CREATE TABLE IF NOT EXISTS telemetry ("
+        "  timestamp INTEGER NOT NULL,"
+        "  tag_id INTEGER NOT NULL,"
+        "  value REAL NOT NULL,"
+        "  device_id INTEGER,"
+        "  quality INTEGER"
+        ");";
+    sqlite3_exec(storage->db, create_telemetry_sql, NULL, NULL, NULL);
+
     // 5. 【高性能 RSD 过滤索引】创建高性能物理索引，彻底消灭全表扫描，保障北向高速检索
     const char *create_index_sql = 
         "CREATE INDEX IF NOT EXISTS idx_freeze_query "
         "ON dcu_freeze_history (meter_address, freeze_oad, freeze_time);";
     sqlite3_exec(storage->db, create_index_sql, NULL, NULL, NULL);
+
+    // 追加 telemetry 索引，加速证据提取
+    sqlite3_exec(storage->db, "CREATE INDEX IF NOT EXISTS idx_telemetry_val ON telemetry(value);", NULL, NULL, NULL);
 
     // 6. 初始化并挂接闲时 10 秒合并落盘定时器 (libuv)
     uv_timer_init(loop, &storage->flush_timer);
@@ -164,27 +178,44 @@ int dcu_storage_flush(dcu_storage_t *storage) {
     sqlite3_stmt *stmt;
     const char *upsert_sql = "INSERT OR REPLACE INTO dcu_telemetry_latest "
                              "(meter_address, oad, value, updated_at) VALUES (?, ?, ?, ?);";
-    
-    int ret = sqlite3_prepare_v2(storage->db, upsert_sql, -1, &stmt, NULL);
-    if (ret != SQLITE_OK) {
+    const char *hist_sql = "INSERT INTO telemetry (timestamp, tag_id, value, device_id, quality) VALUES (?, ?, ?, ?, ?);";
+
+    sqlite3_stmt *stmt_up, *stmt_hist;
+    if (sqlite3_prepare_v2(storage->db, upsert_sql, -1, &stmt_up, NULL) != SQLITE_OK) {
         sqlite3_exec(storage->db, "ROLLBACK;", NULL, NULL, NULL);
         uv_mutex_unlock(&storage->lock);
         return -2;
     }
+    if (sqlite3_prepare_v2(storage->db, hist_sql, -1, &stmt_hist, NULL) != SQLITE_OK) {
+        sqlite3_finalize(stmt_up);
+        sqlite3_exec(storage->db, "ROLLBACK;", NULL, NULL, NULL);
+        uv_mutex_unlock(&storage->lock);
+        return -3;
+    }
 
     for (uint16_t i = 0; i < storage->cache_count; i++) {
         telemetry_cache_entry_t *entry = &storage->cache[i];
-        
-        sqlite3_bind_text(stmt, 1, entry->meter_address, -1, SQLITE_TRANSIENT);
-        sqlite3_bind_int64(stmt, 2, (sqlite3_int64)entry->oad);
-        sqlite3_bind_double(stmt, 3, entry->value);
-        sqlite3_bind_int64(stmt, 4, (sqlite3_int64)entry->ts);
-        
-        sqlite3_step(stmt);
-        sqlite3_reset(stmt); // 重置以便复用编译好的 AST
+
+        // 写最新表
+        sqlite3_bind_text(stmt_up, 1, entry->meter_address, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int64(stmt_up, 2, (sqlite3_int64)entry->oad);
+        sqlite3_bind_double(stmt_up, 3, entry->value);
+        sqlite3_bind_int64(stmt_up, 4, (sqlite3_int64)entry->ts);
+        sqlite3_step(stmt_up);
+        sqlite3_reset(stmt_up);
+
+        // 写历史表
+        sqlite3_bind_int64(stmt_hist, 1, (sqlite3_int64)entry->ts);
+        sqlite3_bind_int64(stmt_hist, 2, (sqlite3_int64)entry->oad);
+        sqlite3_bind_double(stmt_hist, 3, entry->value);
+        sqlite3_bind_int64(stmt_hist, 4, 0); // 暂时填 0
+        sqlite3_bind_int(stmt_hist, 5, 0);
+        sqlite3_step(stmt_hist);
+        sqlite3_reset(stmt_hist);
     }
 
-    sqlite3_finalize(stmt);
+    sqlite3_finalize(stmt_up);
+    sqlite3_finalize(stmt_hist);
     
     // 2. 统一提交，原子化写入
     sqlite3_exec(storage->db, "COMMIT;", NULL, NULL, NULL);

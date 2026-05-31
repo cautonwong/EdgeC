@@ -151,24 +151,38 @@ int dcu_inventory_load_from_db(dcu_inventory_t *inv, const char *db_path) {
         int baud = sqlite3_column_int(stmt, 2);
         int chan = sqlite3_column_int(stmt, 3);
         
-        // 自动查找契约注入点
-        const driver_contract_injection_t *inj = edge_model_find(proto);
+        // 自动查找契约注入点 (使用 contract_model_find 以避免隐式声明截断指针)
+        const driver_contract_injection_t *inj = contract_model_find(proto);
         
         // 线程安全地添加到内存容器
         uv_mutex_lock(&inv->lock);
         if (inv->count < MAX_METERS) {
             production_meter_t *m = &inv->meters[inv->count++];
             strncpy(m->address, addr, MAX_ADDR_LEN - 1);
+            m->address[MAX_ADDR_LEN - 1] = '\0';
+            
             strncpy(m->protocol, proto, 15);
+            m->protocol[15] = '\0';
+            
             m->baud_rate = (uint32_t)baud;
             m->channel_id = (uint8_t)chan;
             m->inject = inj;
             m->is_online = true;
 
-            // [PRD 补完]
+            // [PRD 补完] 严防数据库空值
             m->wiring_mode = (uint8_t)sqlite3_column_int(stmt, 4);
-            strncpy(m->collector_addr, (const char*)sqlite3_column_text(stmt, 5), 15);
-            strncpy(m->asset_no, (const char*)sqlite3_column_text(stmt, 6), 31);
+            const char *c_addr = (const char*)sqlite3_column_text(stmt, 5);
+            if (c_addr) {
+                strncpy(m->collector_addr, c_addr, 15);
+                m->collector_addr[15] = '\0';
+            }
+            
+            const char *a_no = (const char*)sqlite3_column_text(stmt, 6);
+            if (a_no) {
+                strncpy(m->asset_no, a_no, 31);
+                m->asset_no[31] = '\0';
+            }
+            
             m->pt_ratio = (uint32_t)sqlite3_column_int(stmt, 7);
             m->ct_ratio = (uint32_t)sqlite3_column_int(stmt, 8);
         }

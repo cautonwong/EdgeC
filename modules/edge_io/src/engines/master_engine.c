@@ -2,61 +2,57 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "arbiter.h"
-#include "bus_engine.h"
+#include "engine_priv_internal.h"
 #include "edge_log.h"
 #include "edge_request.h"
 #include "io_executor.h"
 #include "session_manager.h"
 
-typedef struct {
-    bus_engine_t base;
-    uv_loop_t *loop;
-    arbiter_t *arb;
-    net_buf_pool_t *pool;
-    io_handle_t *io;
-    uv_timer_t timer;
-    cmd_msg_t *current_cmd;
-
-    uint8_t rx_static_data[4096];
-    struct net_buf_simple rx_acc;
-
-    int bus_id;
-    session_manager_t *session_mgr;
-} master_priv_t;
-
+/**
+ * @brief 事务超时处理
+ */
 static void _master_on_timeout(uv_timer_t *handle) {
     master_priv_t *priv = (master_priv_t *)handle->data;
     if (priv->current_cmd) {
+        cmd_msg_t *timed_out_cmd = priv->current_cmd;
         LOG_WARN(LOG_CAT_BUS, "Bus %d: Transaction Timeout [%s]", priv->bus_id,
-                 priv->current_cmd->req_id);
+                 timed_out_cmd->req_id);
+        
         priv->io->ops->ioctl(priv->io, IO_CTL_FLUSH, NULL);
         priv->io->ops->enable_read(priv->io, false);
-        if (priv->current_cmd->req && priv->current_cmd->req->ops->on_finish)
-            priv->current_cmd->req->ops->on_finish(priv->current_cmd->req, CMD_STATUS_TIMEOUT);
-        arbiter_on_io_done(priv->arb, priv->bus_id, priv->current_cmd, CMD_STATUS_TIMEOUT);
-        priv->current_cmd = NULL;
+        
+        if (timed_out_cmd->req && timed_out_cmd->req->ops->on_finish)
+            timed_out_cmd->req->ops->on_finish(timed_out_cmd->req, CMD_STATUS_TIMEOUT);
+        
+        arbiter_on_io_done(priv->arb, priv->bus_id, timed_out_cmd, CMD_STATUS_TIMEOUT);
+        
+        if (priv->current_cmd == timed_out_cmd) {
+            priv->current_cmd = NULL;
+        }
     }
-    net_buf_t *heartbeats[8];
-    int count = session_manager_tick(priv->session_mgr, priv->bus_id, heartbeats, 8);
-    for (int i = 0; i < count; i++) {
-        priv->io->ops->write_async(priv->io, heartbeats[i]);
-        net_buf_unref(heartbeats[i]);
-    }
-    uv_timer_start(&priv->timer, _master_on_timeout, ARBITER_DEFAULT_TIMEOUT_MS, 0);
 }
 
+/**
+ * @brief 驱动执行结果处理引擎
+ */
 static void _process_req_result(master_priv_t *priv, int rc) {
-    printf("[MASTER-DEBUG] _process_req_result: rc=%d\n", rc);
+    cmd_msg_t *cmd = priv->current_cmd;
+    if (!cmd) return;
+
+    // 严谨停止超时计时器
+    uv_timer_stop(&priv->timer);
+
     if (rc == REQ_STATUS_DONE) {
         priv->io->ops->enable_read(priv->io, false);
-        if (priv->current_cmd->req && priv->current_cmd->req->ops->on_finish)
-            priv->current_cmd->req->ops->on_finish(priv->current_cmd->req, CMD_STATUS_SUCCESS);
-        arbiter_on_io_done(priv->arb, priv->bus_id, priv->current_cmd, CMD_STATUS_SUCCESS);
-        priv->current_cmd = NULL;
+        if (cmd->req && cmd->req->ops->on_finish)
+            cmd->req->ops->on_finish(cmd->req, CMD_STATUS_SUCCESS);
+        arbiter_on_io_done(priv->arb, priv->bus_id, cmd, CMD_STATUS_SUCCESS);
+        if (priv->current_cmd == cmd) priv->current_cmd = NULL;
     } else if (rc == REQ_STATUS_CONTINUE) {
         net_buf_t *tx = net_buf_alloc(priv->pool, 0);
-        if (tx && priv->current_cmd->req->ops->encode(priv->current_cmd->req, tx) == 0) {
+        if (tx && cmd->req->ops->encode(cmd->req, tx) == 0) {
+            // 续展超时计时
+            uv_timer_start(&priv->timer, _master_on_timeout, cmd->timeout_ms, 0);
             priv->io->ops->write_async(priv->io, tx);
             net_buf_unref(tx);
         } else {
@@ -66,38 +62,42 @@ static void _process_req_result(master_priv_t *priv, int rc) {
     } else {
         priv->io->ops->ioctl(priv->io, IO_CTL_FLUSH, NULL);
         priv->io->ops->enable_read(priv->io, false);
-        if (priv->current_cmd->req && priv->current_cmd->req->ops->on_finish)
-            priv->current_cmd->req->ops->on_finish(priv->current_cmd->req, CMD_STATUS_PROTO_ERROR);
-        arbiter_on_io_done(priv->arb, priv->bus_id, priv->current_cmd, CMD_STATUS_PROTO_ERROR);
-        priv->current_cmd = NULL;
+        if (cmd->req && cmd->req->ops->on_finish)
+            cmd->req->ops->on_finish(cmd->req, CMD_STATUS_PROTO_ERROR);
+        arbiter_on_io_done(priv->arb, priv->bus_id, cmd, CMD_STATUS_PROTO_ERROR);
+        if (priv->current_cmd == cmd) priv->current_cmd = NULL;
     }
 }
 
 static void _master_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *user_data) {
     (void)h;
     master_priv_t *priv = (master_priv_t *)user_data;
-    printf("[MASTER-DEBUG] _master_io_cb: evt=%d, payload=%p\n", evt, payload);
     if (!priv) {
         if (evt == IO_EVENT_RX && payload) net_buf_unref((net_buf_t *)payload);
         return;
     }
+
     if (evt == IO_EVENT_ERROR) {
         if (priv->current_cmd) _process_req_result(priv, REQ_STATUS_ERROR);
         return;
     }
+
     if (evt == IO_EVENT_RX && payload) {
         net_buf_t *rx = (net_buf_t *)payload;
-        printf("[MASTER-DEBUG] _master_io_cb received rx len=%d\n", (int)rx->b.len);
-        if (net_buf_simple_tailroom(&priv->rx_acc) < rx->b.len) net_buf_simple_reset(&priv->rx_acc);
+        if (net_buf_simple_tailroom(&priv->rx_acc) < rx->b.len) {
+            LOG_WARN(LOG_CAT_BUS, "Bus %d: RX Accumulator Overflow, resetting...", priv->bus_id);
+            net_buf_simple_reset(&priv->rx_acc);
+        }
         net_buf_simple_add_mem(&priv->rx_acc, rx->b.data, rx->b.len);
         net_buf_unref(rx);
+
         if (priv->current_cmd && priv->current_cmd->req) {
             size_t consumed = 0;
             net_buf_t wrap = {0};
             wrap.pool = priv->pool;
             memcpy(&wrap.b, &priv->rx_acc, sizeof(struct net_buf_simple));
+            
             int rc = priv->current_cmd->req->ops->decode(priv->current_cmd->req, &wrap, &consumed);
-            printf("[MASTER-DEBUG] decode returned rc=%d, consumed=%d\n", rc, (int)consumed);
             if (consumed > 0) net_buf_simple_pull(&priv->rx_acc, consumed);
             if (rc != EDGE_ERR_INCOMPLETE) _process_req_result(priv, rc);
         }
@@ -106,40 +106,40 @@ static void _master_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *u
 
 static void _master_run_command(bus_engine_t *self, cmd_msg_t *cmd) {
     master_priv_t *priv = (master_priv_t *)self->user_data;
-    printf("[MASTER-DEBUG] _master_run_command: cmd=%s, priv=%p, priv->io=%p\n", 
-           cmd ? cmd->req_id : "NULL", (void *)priv, priv ? priv->io : NULL);
     if (!priv || !priv->io || !cmd->req) {
-        printf("[MASTER-DEBUG] _master_run_command FAILED check. IO error. priv=%p, io=%p, req=%p\n",
-               (void *)priv, priv ? priv->io : NULL, cmd ? cmd->req : NULL);
-        arbiter_on_io_done(priv->arb, priv->bus_id, cmd, CMD_STATUS_IO_ERROR);
+        LOG_ERROR(LOG_CAT_BUS, "Bus %d: Run command failed - IO/Request NULL", priv ? priv->bus_id : -1);
+        arbiter_on_io_done(priv ? priv->arb : NULL, priv ? priv->bus_id : -1, cmd, CMD_STATUS_IO_ERROR);
         return;
     }
+
     priv->current_cmd = cmd;
     net_buf_simple_reset(&priv->rx_acc);
+
     if (!cmd->req->ops || !cmd->req->ops->setup || !cmd->req->ops->encode || !cmd->req->ops->decode) {
-        printf("[MASTER-DEBUG] _master_run_command FAILED: ops missing.\n");
+        LOG_ERROR(LOG_CAT_BUS, "Bus %d: Request ops missing", priv->bus_id);
         _process_req_result(priv, REQ_STATUS_ERROR);
         return;
     }
+
     if (cmd->req->ops->setup(cmd->req, priv) != 0) {
-        printf("[MASTER-DEBUG] _master_run_command FAILED: setup error.\n");
         _process_req_result(priv, REQ_STATUS_ERROR);
         return;
     }
+
     net_buf_t *tx = net_buf_alloc(priv->pool, 0);
     if (!tx) {
-        printf("[MASTER-DEBUG] _master_run_command FAILED: net_buf_alloc failed.\n");
         arbiter_on_io_done(priv->arb, priv->bus_id, cmd, CMD_STATUS_IO_ERROR);
         return;
     }
+
     if (cmd->req->ops->encode(cmd->req, tx) == 0 && tx->b.len > 0) {
-        printf("[MASTER-DEBUG] _master_run_command SUCCESS: writing %d bytes async.\n", (int)tx->b.len);
+        // [Safety] 启动原子级单次超时
+        uv_timer_start(&priv->timer, _master_on_timeout, cmd->timeout_ms, 0);
         priv->io->ops->enable_read(priv->io, true);
         priv->io->ops->write_async(priv->io, tx);
         net_buf_unref(tx);
     } else {
-        printf("[MASTER-DEBUG] _master_run_command FAILED: encode error.\n");
-        net_buf_unref(tx);
+        if (tx) net_buf_unref(tx);
         arbiter_on_io_done(priv->arb, priv->bus_id, cmd, CMD_STATUS_PROTO_ERROR);
     }
 }
@@ -149,6 +149,7 @@ static void _master_attach(bus_engine_t *self, io_handle_t *io) {
     priv->io = io;
     io->cb = _master_io_cb;
     io->user_data = priv;
+    LOG_INFO(LOG_CAT_BUS, "Bus %d: Physical I/O attached (Type: %d)", priv->bus_id, io->ops ? 0 : -1);
 }
 
 static void _master_close_cb(uv_handle_t *handle) {
@@ -183,10 +184,10 @@ bus_engine_t *engine_create_master(driver_manager_t *mgr, int bus_id, const char
     priv->rx_acc.__buf = priv->rx_static_data;
     priv->rx_acc.size = 4096;
     priv->rx_acc.len = 0;
-    priv->session_mgr = session_manager_create(mgr, 32);
+    priv->session_mgr = session_manager_create(mgr, 128); // [Professional] 提升通道设备容量，支持 2000 只表均匀分布
     uv_timer_init(loop, &priv->timer);
     priv->timer.data = priv;
-    uv_timer_start(&priv->timer, _master_on_timeout, 1000, 1000);
+    
     eng->user_data = priv;
     eng->attach = _master_attach;
     eng->run_command = _master_run_command;

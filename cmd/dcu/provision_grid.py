@@ -33,13 +33,14 @@ def provision_grid():
         address = f"{10000000 + i}"
         
         # 协议比例：70% DLT698, 30% DLT645
-        protocol = "DLT698" if random.random() < 0.7 else "DLT645"
+        # 均匀分配到 32 个通道 (0..31)
+        channel = (i - 1) % 32
         
-        # 波特率比例：90% 9600, 10% 2400
-        baud = 9600 if random.random() < 0.9 else 2400
+        # 规约按通道分配，严禁混用 (0-21: 698, 22-31: 645)
+        protocol = "DLT698" if channel < 22 else "DLT645"
         
-        # 均匀分配到 32 个通道 (1..32)
-        channel = ((i - 1) % 32) + 1
+        # 波特率统一 9600 (工业标准)
+        baud = 9600
         
         # 工业元数据随机生成
         wiring_mode = random.choice([1, 3]) # 单相或三相
