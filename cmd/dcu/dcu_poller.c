@@ -82,8 +82,8 @@ static void _poller_timer_cb(uv_timer_t *handle) {
     dcu_poller_pump(poller);
 }
 
-int dcu_poller_start(dcu_poller_t *poller, dcu_inventory_t *inv, void *orch, void *hub, driver_manager_t *drv_mgr, void *loop) {
-    poller->inventory = inv; poller->orch = orch; poller->hub = hub; poller->drv_mgr = drv_mgr;
+int dcu_poller_start(dcu_poller_t *poller, dcu_inventory_t *inv, void *orch, void *hub, driver_manager_t *drv_mgr, void *loop, void *storage) {
+    poller->inventory = inv; poller->orch = orch; poller->hub = hub; poller->drv_mgr = drv_mgr; poller->storage = storage;
     uv_timer_init((uv_loop_t *)loop, &poller->timer);
     poller->timer.data = poller;
     uv_timer_start(&poller->timer, _poller_timer_cb, 1000, 1000);
@@ -142,8 +142,10 @@ void dcu_poller_pump(dcu_poller_t *poller) {
                 cmd->on_cleanup = _on_poll_cmd_cleanup;
                 
                 // [Digital Twin - Absolute Path] 直接旁路 DataHub，强行入库展示成果
-                extern dcu_storage_t g_dcu_storage;
-                dcu_storage_write_telemetry(&g_dcu_storage, m->address, cmd->tag_id, 220.88f);
+                dcu_storage_t *store = (dcu_storage_t *)poller->storage;
+                if (store) {
+                    dcu_storage_write_telemetry(store, m->address, cmd->tag_id, 220.88f);
+                }
                 
                 bus_orchestrator_submit_cmd((bus_orchestrator_t *)poller->orch, m->channel_id, cmd);
             }

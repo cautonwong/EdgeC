@@ -76,6 +76,7 @@ typedef struct {
     void *inventory;  // 【补全】
     void *orch;       // 【补全】
     void *drv_mgr;    // 【补全】
+    void *storage;    // [Added] 持久化平面
 } dcu_poller_t;
 
 int dcu_poller_init(dcu_poller_t *poller);
@@ -83,7 +84,7 @@ int dcu_poller_add_task(dcu_poller_t *poller, uint32_t task_id, uint32_t interva
 int dcu_poller_add_scheme(dcu_poller_t *poller, uint32_t scheme_id, uint8_t mode, const uint32_t *csds, uint16_t csd_count);
 dcu_scheme_t* dcu_poller_get_scheme(dcu_poller_t *poller, uint32_t scheme_id);
 void dcu_poller_pump(dcu_poller_t *poller);
-int dcu_poller_start(dcu_poller_t *poller, dcu_inventory_t *inventory, void *orch_ptr, void *hub_ptr, driver_manager_t *drv_mgr, void *loop_ptr);
+int dcu_poller_start(dcu_poller_t *poller, dcu_inventory_t *inventory, void *orch_ptr, void *hub_ptr, driver_manager_t *drv_mgr, void *loop_ptr, void *storage_ptr);
 void dcu_poller_stop(dcu_poller_t *poller);
 
 #endif

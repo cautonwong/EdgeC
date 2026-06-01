@@ -140,7 +140,7 @@ int main(int argc, char **argv) {
     g_running_svc = svc;
 
     signal(SIGTERM, on_sigterm); signal(SIGINT, on_sigterm);
-    dcu_poller_start(&g_dcu_poller, &g_dcu_inventory, io_orch, &hub, drv_mgr, loop);
+    dcu_poller_start(&g_dcu_poller, &g_dcu_inventory, io_orch, &hub, drv_mgr, loop, &g_dcu_storage);
 
     uv_timer_init(loop, &g_freeze_trigger_timer);
     g_freeze_trigger_timer.data = &g_sync_ctx;
