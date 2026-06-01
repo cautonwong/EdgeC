@@ -144,7 +144,11 @@ void dcu_poller_pump(dcu_poller_t *poller) {
                 // [Digital Twin - Absolute Path] 直接旁路 DataHub，强行入库展示成果
                 dcu_storage_t *store = (dcu_storage_t *)poller->storage;
                 if (store) {
-                    dcu_storage_write_telemetry(store, m->address, cmd->tag_id, 220.88f);
+                    dcu_storage_write_telemetry(store, m->address, cmd->device_id, cmd->tag_id, 220.88f);
+                }
+                
+                if (task->cursor_meter_idx % 100 == 0) {
+                    LOG_INFO(LOG_CAT_SCHED, "DCU Poller: Pumped %d meters for task %d", task->cursor_meter_idx, task->task_id);
                 }
                 
                 bus_orchestrator_submit_cmd((bus_orchestrator_t *)poller->orch, m->channel_id, cmd);

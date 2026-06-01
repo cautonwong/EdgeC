@@ -65,7 +65,7 @@ static void _freeze_trigger_cb(uv_timer_t *handle) {
     for(int i = 0; i < g_dcu_inventory.count; i++) {
         int shadow_idx = dcu_tag_map_fn(0x20000200, (uint32_t)i);
         if (datahub_read_shadow_idx(ctx->hub, (uint32_t)shadow_idx, &msg) == 0) {
-            dcu_storage_write_telemetry(&g_dcu_storage, g_dcu_inventory.meters[i].address, 0x20000200, (float)msg.payload.val.f);
+            dcu_storage_write_telemetry(&g_dcu_storage, g_dcu_inventory.meters[i].address, (uint32_t)i, 0x20000200, (float)msg.payload.val.f);
             saved++;
         }
     }

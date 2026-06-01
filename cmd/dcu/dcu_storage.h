@@ -18,6 +18,7 @@ typedef struct {
     uint32_t oad;
     double value;
     uint64_t ts;
+    uint32_t device_id; // [Added] 实例标识
 } telemetry_cache_entry_t;
 
 /**
@@ -57,7 +58,7 @@ int dcu_storage_init(dcu_storage_t *storage, uv_loop_t *loop, const char *db_pat
 /**
  * @brief 写入实时遥测数据进入内存缓冲队列 (双缓冲 Flash 保护)
  */
-int dcu_storage_write_telemetry(dcu_storage_t *storage, const char *addr, uint32_t oad, double value);
+int dcu_storage_write_telemetry(dcu_storage_t *storage, const char *addr, uint32_t device_id, uint32_t oad, double value);
 
 /**
  * @brief 直接写入历史断面日冻结/月冻结快照数据 (Class 9)

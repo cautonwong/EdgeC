@@ -2,6 +2,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
+#include "edge_log.h"
+#include "contract_registry.h"
 
 /**
  * @brief 定时批量事务合并刷写回调 (libuv timer 驱动)
@@ -102,7 +105,7 @@ int dcu_storage_init(dcu_storage_t *storage, uv_loop_t *loop, const char *db_pat
 /**
  * @brief 写入实时遥测数据进内存缓冲区 (双缓冲策略，满额时强制触发事务刷盘)
  */
-int dcu_storage_write_telemetry(dcu_storage_t *storage, const char *addr, uint32_t oad, double value) {
+int dcu_storage_write_telemetry(dcu_storage_t *storage, const char *addr, uint32_t device_id, uint32_t oad, double value) {
     if (!storage || !addr) return -1;
 
     uv_mutex_lock(&storage->lock);
@@ -114,6 +117,7 @@ int dcu_storage_write_telemetry(dcu_storage_t *storage, const char *addr, uint32
     entry->oad = oad;
     entry->value = value;
     entry->ts = (uint64_t)time(NULL);
+    entry->device_id = device_id; // [Fix] 存储 ID
 
     storage->cache_count++;
 
@@ -175,7 +179,6 @@ int dcu_storage_flush(dcu_storage_t *storage) {
     // 1. 【生产级掉电保障】通过 TRANSACTION 合并，将 Flash 擦除磨损率缩减到 1/N 
     sqlite3_exec(storage->db, "BEGIN IMMEDIATE TRANSACTION;", NULL, NULL, NULL);
 
-    sqlite3_stmt *stmt;
     const char *upsert_sql = "INSERT OR REPLACE INTO dcu_telemetry_latest "
                              "(meter_address, oad, value, updated_at) VALUES (?, ?, ?, ?);";
     const char *hist_sql = "INSERT INTO telemetry (timestamp, tag_id, value, device_id, quality) VALUES (?, ?, ?, ?, ?);";
@@ -208,9 +211,12 @@ int dcu_storage_flush(dcu_storage_t *storage) {
         sqlite3_bind_int64(stmt_hist, 1, (sqlite3_int64)entry->ts);
         sqlite3_bind_int64(stmt_hist, 2, (sqlite3_int64)entry->oad);
         sqlite3_bind_double(stmt_hist, 3, entry->value);
-        sqlite3_bind_int64(stmt_hist, 4, 0); // 暂时填 0
+        sqlite3_bind_int64(stmt_hist, 4, (sqlite3_int64)entry->device_id); // [Fix] 绑定真实 ID
         sqlite3_bind_int(stmt_hist, 5, 0);
-        sqlite3_step(stmt_hist);
+        
+        if (sqlite3_step(stmt_hist) != SQLITE_DONE) {
+            LOG_ERROR(LOG_CAT_BUS, "DCU Storage: Telemetry insert failed: %s", sqlite3_errmsg(storage->db));
+        }
         sqlite3_reset(stmt_hist);
     }
 
@@ -218,9 +224,11 @@ int dcu_storage_flush(dcu_storage_t *storage) {
     sqlite3_finalize(stmt_hist);
     
     // 2. 统一提交，原子化写入
-    sqlite3_exec(storage->db, "COMMIT;", NULL, NULL, NULL);
+    if (sqlite3_exec(storage->db, "COMMIT;", NULL, NULL, NULL) != SQLITE_OK) {
+        LOG_ERROR(LOG_CAT_BUS, "DCU Storage: COMMIT failed: %s", sqlite3_errmsg(storage->db));
+    }
 
-    // 重置双缓冲指针
+    // [Safety] 无论成功失败，重置双缓冲指针，防止内存溢出挂死
     storage->cache_count = 0;
 
     uv_mutex_unlock(&storage->lock);
