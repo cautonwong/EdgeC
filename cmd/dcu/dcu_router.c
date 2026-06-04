@@ -8,6 +8,54 @@
 // 全局静态对象字典注册表
 static dcu_object_t g_obj_dictionary[MAX_DICT_SIZE];
 static uint16_t g_obj_count = 0;
+static datahub_t *g_router_hub = NULL;
+
+int dcu_tag_map_fn(uint32_t tag_id, uint32_t device_id) {
+    uint32_t offset = 0;
+    // 映射规则对齐：电压 OAD (0x20000200) -> Offset 0, 累计电量 OAD (0x00100200) -> Offset 1
+    if (tag_id == 0x20000200 || tag_id == 1004) offset = 0;
+    else if (tag_id == 0x00100200) offset = 1;
+    else if (tag_id == 0x20010200) offset = 2; // 电流
+    else return -1;
+    return (int)(device_id * 10 + offset);
+}
+
+/**
+ * @brief [Generic Snapshot Engine] 核心实现
+ */
+int dcu_obj_snapshot(uint16_t oi, uint32_t device_id, pipe_msg_t *out_msgs, int max_count) {
+    if (!g_router_hub || !out_msgs || max_count <= 0) return 0;
+
+    dcu_object_t *obj = NULL;
+    for (uint16_t i = 0; i < g_obj_count; i++) {
+        if (g_obj_dictionary[i].oi == oi) {
+            obj = &g_obj_dictionary[i];
+            break;
+        }
+    }
+    if (!obj) return 0;
+
+    int captured = 0;
+
+    // 💡 处理 Class 7 事件类抓拍
+    if (obj->class_id == IC_EVENT) {
+        dcu_event_obj_t *evt = (dcu_event_obj_t *)obj->instance_ptr;
+        for (int i = 0; i < evt->snapshot_count && captured < max_count; i++) {
+            uint32_t oad = evt->snapshot_oads[i];
+            // 利用 2D 矩阵寻址从 DataHub 提取真实物理值
+            int shadow_idx = dcu_tag_map_fn(oad, device_id);
+            if (shadow_idx >= 0 && datahub_read_shadow_idx(g_router_hub, (uint32_t)shadow_idx, &out_msgs[captured]) == 0) {
+                captured++;
+            }
+        }
+    }
+    // 💡 处理 Class 9 冻结类抓拍 (待后续扩展 Attr 3 结构)
+    else if (obj->class_id == IC_RECORD) {
+        // 目前先返回空，后续对接 Attr 3 结构体数组
+    }
+
+    return captured;
+}
 
 // ==============================================================================
 // 1. OI 0x6000 采集档案配置表 (Class 10) 虚函数具体实现
@@ -157,12 +205,28 @@ static int _oi_5004_read(dcu_object_t *obj, uint8_t attr_id, uint8_t elem_idx, v
 // ==============================================================================
 static int _oi_8000_execute(dcu_object_t *obj, uint8_t method_id, const void *param, void *result) {
     (void)obj;
-    (void)param;
+    if (!param) return -1;
     
-    // 方法 1: 继电器跳合闸动作执行 (模拟拉闸 GPIO 输出)
+    uint32_t device_id = (uint32_t)(uintptr_t)param;
+    uint8_t action = result ? *(uint8_t *)result : 1; // Default to 1 (Trip)
+    
+    // 方法 1: 继电器跳合闸动作执行
     if (method_id == 1) {
-        printf("\n⚡ [LOAD CONTROL] ACTION 8000: 接收到拉闸指令！驱动底层继电器动作完成。\n");
-        if (result) *(int *)result = 0;
+        printf("⚡ [LOAD CONTROL] ACTION 8000: Dev %u 执行继电器动作 %d (1:跳闸, 0:合闸)\n", device_id, action);
+        
+        // 1. 同步反馈到数据总线
+        pipe_msg_t msg;
+        pipe_msg_init_scalar(&msg, 0x80000100, (double)action, uv_hrtime());
+        msg.device_id = device_id;
+        datahub_publish(g_router_hub, &msg);
+        
+        // 2. 写入存储 (最新状态)
+        extern dcu_inventory_t g_dcu_inventory;
+        extern dcu_storage_t g_dcu_storage;
+        if (device_id < g_dcu_inventory.count) {
+            dcu_storage_write_telemetry(&g_dcu_storage, g_dcu_inventory.meters[device_id].address, device_id, 0x80000100, (double)action);
+        }
+        
         return 0;
     }
     return -2;
@@ -299,7 +363,11 @@ static int _oi_event_read(dcu_object_t *obj, uint8_t attr_id, uint8_t elem_idx, 
     }
     // 属性 3: 关联对象属性表
     if (attr_id == 3) {
-        *(uint32_t *)out_val = evt->snapshot_oad;
+        if (elem_idx < evt->snapshot_count) {
+            *(uint32_t *)out_val = evt->snapshot_oads[elem_idx];
+        } else {
+            *(uint32_t *)out_val = evt->snapshot_oads[0];
+        }
         return 0;
     }
     // 属性 4: 当前记录数
@@ -385,9 +453,10 @@ static int _oi_event_execute(dcu_object_t *obj, uint8_t method_id, const void *p
 
 int dcu_router_init_ex(dcu_inventory_t *inv, dcu_poller_t *poller, dcu_storage_t *storage,
                       dcu_esam_t *esam, dcu_discovery_t *discovery,
-                      dcu_event_obj_t *evt_3000, dcu_event_obj_t *evt_3005) {
+                      dcu_event_obj_t *evt_3000, dcu_event_obj_t *evt_3005, datahub_t *hub) {
     g_obj_count = 0;
     memset(g_obj_dictionary, 0, sizeof(g_obj_dictionary));
+    g_router_hub = hub; // [Binding] 绑定数据总线
     
     // 1. 注册 0x6000 (档案配置单例)
     dcu_object_t *obj_6000 = &g_obj_dictionary[g_obj_count++];
@@ -485,7 +554,7 @@ int dcu_router_init_ex(dcu_inventory_t *inv, dcu_poller_t *poller, dcu_storage_t
 }
 
 int dcu_router_init(dcu_inventory_t *inv, dcu_poller_t *poller, dcu_storage_t *storage) {
-    return dcu_router_init_ex(inv, poller, storage, NULL, NULL, NULL, NULL);
+    return dcu_router_init_ex(inv, poller, storage, NULL, NULL, NULL, NULL, NULL);
 }
 
 static dcu_object_t* _lookup_object(uint16_t oi) {

@@ -61,9 +61,12 @@ int bus_orchestrator_attach_io(bus_orchestrator_t *ctx, int bus_id, io_handle_t 
     if (!ctx || bus_id < 0 || bus_id >= ctx->max_buses || !io) return -1;
     ctx->io_handles[bus_id] = io;
     if (ctx->engines[bus_id] && ctx->engines[bus_id]->attach) {
+        printf("🔗 [ORCHESTRATOR] Bus %d: Attaching IO %p to Engine %p\n", bus_id, (void*)io, (void*)ctx->engines[bus_id]);
         ctx->engines[bus_id]->attach(ctx->engines[bus_id], io);
+        return 0;
     }
-    return 0;
+    LOG_ERROR(LOG_CAT_BUS, "Bus %d: Failed to attach IO - Engine NOT FOUND", bus_id);
+    return -2;
 }
 
 int bus_orchestrator_setup_master(bus_orchestrator_t *ctx, int bus_id, const char *protocol,

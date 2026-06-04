@@ -16,8 +16,9 @@ pipeline_stage_t *stage_event_monitor_create(dcu_event_obj_t *evt_3000, dcu_even
  * @param evt_3000 失压事件对象内存指针 (用于将快照塞入事件记录表)
  * @param evt_3005 过流事件对象内存指针
  * @param hub DataHub 总线底座 (用于抓取其它 OAD 的实时快照值)
+ * @param storage SQLite 集中器存储服务句柄
  */
-pipeline_stage_t *stage_event_logger_create(dcu_event_obj_t *evt_3000, dcu_event_obj_t *evt_3005, datahub_t *hub);
+pipeline_stage_t *stage_event_logger_create(dcu_event_obj_t *evt_3000, dcu_event_obj_t *evt_3005, datahub_t *hub, dcu_storage_t *storage);
 
 /**
  * @brief 创建日冻结定期快照算子 (stage_periodic_freeze)

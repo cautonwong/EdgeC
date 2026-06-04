@@ -22,18 +22,32 @@
 #include "dcu_inventory.h"
 #include "dcu_poller.h"
 #include "dcu_storage.h"
+#include "dcu_router.h"
+#include "dcu_event_monitor.h"
+#include "stream_engine.h"
 #include "sqlite_service.h"
 
-// --- Global Contexts (Exported for Poller Fast-Track) ---
+// --- Global Contexts ---
 dcu_inventory_t g_dcu_inventory;
 dcu_poller_t g_dcu_poller;
 dcu_storage_t g_dcu_storage;
 
+static dcu_event_obj_t g_evt_3000;
+static dcu_event_obj_t g_evt_3005;
+
 static service_t *g_running_svc = NULL;
+void *g_running_se = NULL; // Exported for poller
 static uv_timer_t g_freeze_trigger_timer;
+static uv_timer_t g_poller_timer; // [Added] Poller Loop
+
+static void _poller_timer_cb(uv_timer_t *handle) {
+    (void)handle;
+    dcu_poller_pump(&g_dcu_poller);
+}
 
 typedef struct {
     datahub_t *hub;
+    stream_engine_t *se;
 } sync_ctx_t;
 
 static sync_ctx_t g_sync_ctx;
@@ -42,20 +56,21 @@ static sync_ctx_t g_sync_ctx;
 int northbound_mgr_start(void *mgr) { (void)mgr; return 0; }
 void northbound_mgr_stop(void *mgr) { (void)mgr; }
 
-static void on_sigterm(int sig) {
-    (void)sig;
-    LOG_INFO(LOG_CAT_SCHED, "DCU: Received termination signal, flushing data...");
+static void on_sig_async(uv_signal_t *handle, int sig) {
+    (void)handle; (void)sig;
+    LOG_INFO(LOG_CAT_SCHED, "DCU: Received termination signal via libuv, flushing data...");
     dcu_storage_flush(&g_dcu_storage);
     if (g_running_svc) service_stop(g_running_svc);
 }
 
-// 影子映射：物理矩阵映射 (Index = MeterIdx * 10 + Offset)
-static int dcu_tag_map_fn(uint32_t tag_id, uint32_t device_id) {
-    uint32_t offset = 0;
-    if (tag_id == 0x20000200 || tag_id == 1004) offset = 0;
-    else return -1;
-    return (int)(device_id * 10 + offset);
+static void on_safety_timeout(uv_timer_t *handle) {
+    (void)handle;
+    LOG_INFO(LOG_CAT_SCHED, "🏁 [SAFETY] Timeout reached, initiating clean shutdown...");
+    dcu_storage_flush(&g_dcu_storage);
+    if (g_running_svc) service_stop(g_running_svc);
 }
+
+static int g_test_cycles = 0;
 
 static void _freeze_trigger_cb(uv_timer_t *handle) {
     sync_ctx_t *ctx = (sync_ctx_t *)handle->data;
@@ -72,22 +87,98 @@ static void _freeze_trigger_cb(uv_timer_t *handle) {
     if (saved > 0) {
         dcu_storage_flush(&g_dcu_storage);
         LOG_INFO(LOG_CAT_SCHED, "✅ [STORAGE] SUCCESS! Captured %d meters truth data.", saved);
+        printf("💓 [HEARTBEAT] Marathon Cycle %d Completed. Database Flushed.\n", g_test_cycles + 1);
+        
+        // 💡 [Industrial Fix] 开启大事务保护 5xxx 冻结管线的高频批量写入，防止 SQLite 疯狂分配/释放 heap 导致 C 库崩溃
+        sqlite3_exec(g_dcu_storage.db, "BEGIN IMMEDIATE TRANSACTION;", NULL, NULL, NULL);
+
+        for (int i = 0; i < g_dcu_inventory.count; i++) {
+            pipe_msg_t trigger;
+            memset(&trigger, 0, sizeof(pipe_msg_t));
+            trigger.tag_id = OAD_DAILY_FREEZE;
+            trigger.type = PIPEMSG_TYPE_SCALAR;
+            trigger.device_id = (uint32_t)i;
+            trigger.ts = (uint64_t)time(NULL);
+            if (ctx->se) stream_engine_push(ctx->se, &trigger);
+            
+            // 💡 [8xxx Protocol Verification] 随机触发跳闸控制，验证控制闭环
+            if (i > 0 && i % 200 == 0) {
+                uint32_t relay_omd = (0x8000U << 16) | 0x0100;
+                uint8_t action = (g_test_cycles % 2 == 0) ? 1 : 0; // 0/2 cycle Trip, 1 cycle Restore
+                printf("🎛️ [RELAY] Dev %d: Triggering Action %d (OI 8000 Attr 1)\n", i, action);
+                dcu_router_action(relay_omd, (void*)(uintptr_t)i, &action);
+            }
+        }
+
+        sqlite3_exec(g_dcu_storage.db, "COMMIT;", NULL, NULL, NULL);
+    }
+    
+    if (++g_test_cycles >= 3) {
+        LOG_INFO(LOG_CAT_SCHED, "🏁 [TEST] Marathon Completed. Self-terminating...");
+        on_safety_timeout(NULL);
     }
 }
 
+static uv_timer_t g_control_test_timer;
+
+static void _control_test_cb(uv_timer_t *handle) {
+    (void)handle;
+    LOG_INFO(LOG_CAT_BUS, "🏁 [TEST] Triggering Remote Control ACTION (8000) for Meter 10000001...");
+    uint32_t omd = (0x8000U << 16) | 0x0100;
+    dcu_router_action(omd, NULL, NULL);
+}
+
 int main(int argc, char **argv) {
+    setvbuf(stdout, NULL, _IONBF, 0);
     (void)argc; (void)argv;
-    LOG_INFO(LOG_CAT_SCHED, "🚀 Starting EdgeC DCU (Series 6xxx) - Zero-Blocking Performance Mode");
+    
+    // [Industrial Truth Mandate] 彻底禁用 SQLite 内部互斥锁。
+    // 在单线程 libuv 反应堆模型中，这是保障极致稳定、杜绝 glibc 断言崩溃的最后底牌。
+    sqlite3_config(SQLITE_CONFIG_SINGLETHREAD);
+
+    LOG_INFO(LOG_CAT_SCHED, "🚀 Starting EdgeC DCU (Series 6xxx) - Digital Twin Marathon");
 
     uv_loop_t *loop = uv_default_loop();
     extern const edge_contract_t g_contract_manifest;
     contract_register(&g_contract_manifest);
 
-    dcu_storage_init(&g_dcu_storage, loop, "dcu_runtime.db");
+    dcu_inventory_init(&g_dcu_inventory);
     
+    const char *db_abs_path = "/workspaces/edgeos/EdgeC/build/products/dcu/bin/dcu_runtime.db";
+    if (dcu_storage_init(&g_dcu_storage, loop, db_abs_path) != 0) {
+        LOG_ERROR(LOG_CAT_SCHED, "❌ FATAL: Failed to initialize storage.");
+        return -1;
+    }
+
+    int loaded = dcu_inventory_load_from_db(&g_dcu_inventory, db_abs_path);
+    if (loaded < 0 || g_dcu_inventory.count == 0) {
+        LOG_ERROR(LOG_CAT_SCHED, "❌ FATAL: Failed to load meters (Count: %d).", g_dcu_inventory.count);
+        return -2;
+    }
+    LOG_INFO(LOG_CAT_SCHED, "📖 [ARCHIVE] Loaded %d meters from Digital Twin database.", g_dcu_inventory.count);
+
     datahub_t hub;
     datahub_init(&hub, loop, "dcu_production_bus", 32768, 32768, NULL, 0, NULL, NULL, NULL);
     hub.map_fn_v2 = dcu_tag_map_fn; 
+
+    memset(&g_evt_3000, 0, sizeof(dcu_event_obj_t));
+    g_evt_3000.oi = OI_VOLTAGE_DROP;
+    g_evt_3000.threshold = 176.0f;
+    g_evt_3000.delay_s = 0; 
+    g_evt_3000.is_enabled = true;
+    g_evt_3000.snapshot_count = 2;
+    g_evt_3000.snapshot_oads[0] = OAD_VOLTAGE;
+    g_evt_3000.snapshot_oads[1] = OAD_ACTIVE_ENERGY;
+
+    memset(&g_evt_3005, 0, sizeof(dcu_event_obj_t));
+    g_evt_3005.oi = OI_OVER_CURRENT;
+    g_evt_3005.threshold = 5.0f; 
+    g_evt_3005.delay_s = 0;
+    g_evt_3005.is_enabled = true;
+    g_evt_3005.snapshot_count = 1;
+    g_evt_3005.snapshot_oads[0] = OAD_CURRENT;
+
+    dcu_router_init_ex(&g_dcu_inventory, &g_dcu_poller, &g_dcu_storage, NULL, NULL, &g_evt_3000, &g_evt_3005, &hub);
 
     arbiter_t *arbiter_ctx = NULL;
     arbiter_init(&arbiter_ctx, loop);
@@ -102,22 +193,14 @@ int main(int argc, char **argv) {
     hub.io_pool = bus_orchestrator_get_pool(io_orch);
     arbiter_resume(arbiter_ctx);
 
-    const driver_contract_injection_t *inj_dlt698 = contract_model_find("DLT698");
-    const driver_contract_injection_t *inj_dlt645 = contract_model_find("DLT645");
-
-    // 建立 32 个物理通道 (0..31)
     for (int i = 0; i < 32; i++) {
         char path[64]; snprintf(path, sizeof(path), "/tmp/rs485_%d.sock", i);
-        const driver_contract_injection_t *inj = (i < 22) ? inj_dlt698 : inj_dlt645;
         const char *proto = (i < 22) ? "DLT698" : "DLT645";
-
+        const driver_contract_injection_t *inj = contract_model_find(proto);
         if (inj) bus_orchestrator_setup_master(io_orch, i, proto, 0, inj);
-
         struct sockaddr_un addr; memset(&addr, 0, sizeof(addr));
         addr.sun_family = AF_UNIX; strncpy(addr.sun_path, path, sizeof(addr.sun_path)-1);
-        
         int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-        // [Zero-Blocking] 严禁在主线程使用 sleep，只尝试一次，连不上就让它去
         if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) >= 0) {
             int flags = fcntl(fd, F_GETFL, 0);
             fcntl(fd, F_SETFL, flags | O_NONBLOCK);
@@ -128,9 +211,6 @@ int main(int argc, char **argv) {
         }
     }
 
-    dcu_inventory_init(&g_dcu_inventory);
-    dcu_inventory_load_from_db(&g_dcu_inventory, "dcu_runtime.db");
-
     dcu_poller_init(&g_dcu_poller);
     uint32_t oads[1] = {0x20000200}; 
     dcu_poller_add_scheme(&g_dcu_poller, 1, 0, oads, 1);
@@ -139,14 +219,46 @@ int main(int argc, char **argv) {
     service_t *svc = service_new(loop, &hub, arbiter_ctx, NULL, NULL, NULL, NULL);
     g_running_svc = svc;
 
-    signal(SIGTERM, on_sigterm); signal(SIGINT, on_sigterm);
+    // [Safe Signals]
+    static uv_signal_t sig_term, sig_int;
+    uv_signal_init(loop, &sig_term);
+    uv_signal_start(&sig_term, on_sig_async, SIGTERM);
+    uv_signal_init(loop, &sig_int);
+    uv_signal_start(&sig_int, on_sig_async, SIGINT);
+
     dcu_poller_start(&g_dcu_poller, &g_dcu_inventory, io_orch, &hub, drv_mgr, loop, &g_dcu_storage);
+
+    stream_engine_t *se = stream_engine_create(&hub, loop, (struct bus_orchestrator_s *)io_orch, NULL);
+    g_running_se = se;
+    pipeline_t *evt_pipe = stream_engine_add_pipeline(se, "EVENT_PIPELINE", 0);
+    pipeline_stage_t *m_stage = stage_event_monitor_create(&g_evt_3000, &g_evt_3005);
+    pipeline_add_stage(evt_pipe, m_stage->name, m_stage->process, m_stage->priv_state, m_stage->cleanup_state, NULL, NULL);
+    free(m_stage);
+    pipeline_stage_t *l_stage = stage_event_logger_create(&g_evt_3000, &g_evt_3005, &hub, &g_dcu_storage);
+    pipeline_add_stage(evt_pipe, l_stage->name, l_stage->process, l_stage->priv_state, l_stage->cleanup_state, NULL, NULL);
+    free(l_stage);
+
+    pipeline_t *frz_pipe = stream_engine_add_pipeline(se, "FREEZE_PIPELINE", 0);
+    pipeline_stage_t *f_stage = stage_periodic_freeze_create_ex(&g_dcu_storage, &hub);
+    pipeline_add_stage(frz_pipe, f_stage->name, f_stage->process, f_stage->priv_state, f_stage->cleanup_state, NULL, NULL);
+    free(f_stage);
 
     uv_timer_init(loop, &g_freeze_trigger_timer);
     g_freeze_trigger_timer.data = &g_sync_ctx;
     g_sync_ctx.hub = &hub;
-    // 5 秒后启动采集
+    g_sync_ctx.se = se;
     uv_timer_start(&g_freeze_trigger_timer, _freeze_trigger_cb, 5000, 5000);
+
+    // [Industrial Loop] 启动业务采集轮询定时器
+    uv_timer_init(loop, &g_poller_timer);
+    uv_timer_start(&g_poller_timer, _poller_timer_cb, 1000, 5000);
+
+    uv_timer_init(loop, &g_control_test_timer);
+    uv_timer_start(&g_control_test_timer, _control_test_cb, 30000, 0);
+
+    static uv_timer_t safety_timer;
+    uv_timer_init(loop, &safety_timer);
+    uv_timer_start(&safety_timer, on_safety_timeout, 60000, 0);
 
     bus_orchestrator_run(io_orch);
     return service_run(svc);

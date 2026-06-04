@@ -5,6 +5,7 @@
 #include <time.h>
 #include "edge_log.h"
 #include "stream_engine_priv.h"
+#include "dcu_inventory.h"
 
 // ==============================================================================
 // 1. 失压与过流流式监控判定算子 (stage_event_monitor) 实现
@@ -13,110 +14,102 @@ typedef struct {
     dcu_event_obj_t *evt_3000;
     dcu_event_obj_t *evt_3005;
     
-    // 失压判定状态机临时变量
-    uint64_t v_overlimit_start_ts; // 首次检测到低于阈值的秒级时间戳
-    bool v_event_triggered;        // 告警事件是否已经发生
+    // [Industrial Scaling] 为 4096 只表提供独立的状态机
+    uint64_t v_overlimit_start_ts[MAX_METERS];
+    bool v_event_triggered[MAX_METERS];
     
-    // 过流判定状态机临时变量
-    uint64_t c_overlimit_start_ts; // 首次检测到高于阈值的秒级时间戳
-    bool c_event_triggered;        // 告警事件是否已经发生
+    uint64_t c_overlimit_start_ts[MAX_METERS];
+    bool c_event_triggered[MAX_METERS];
 } monitor_stage_ctx_t;
 
 static stage_ret_t _monitor_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
     monitor_stage_ctx_t *ctx = (monitor_stage_ctx_t *)stage->priv_state;
-    if (!ctx) return STAGE_DROP;
+    if (!ctx || ev->device_id >= MAX_METERS) return STAGE_DROP;
     
-    uint64_t now_s = ev->ts;
+    uint64_t now_ns = ev->ts; // 核心：这是纳秒 (uv_hrtime)
+    uint32_t dev = ev->device_id;
     
     // 💡 1. 拦截电压实时刷新事件 (OAD_VOLTAGE) -> 失压判定
     if (ev->type == PIPEMSG_TYPE_SCALAR && (ev->tag_id == OAD_VOLTAGE || ev->tag_id == 0x20000300)) {
         dcu_event_obj_t *evt = ctx->evt_3000;
         if (evt && evt->is_enabled) {
-            float voltage = ev->payload.val.f;
+            float voltage = (float)ev->payload.val.f;
             
             if (voltage < evt->threshold) {
-                // 越限：电压低于失压判定门限 (例如 176.0V)
-                if (ctx->v_overlimit_start_ts == 0) {
-                    ctx->v_overlimit_start_ts = now_s; // 记录越限起始时刻
-                } else if (!ctx->v_event_triggered && (now_s - ctx->v_overlimit_start_ts >= evt->delay_s)) {
-                    // 持续时间达标 (5 秒)，且事件未触发 -> 触发失压告警！
-                    ctx->v_event_triggered = true;
+                if (ctx->v_overlimit_start_ts[dev] == 0) {
+                    ctx->v_overlimit_start_ts[dev] = now_ns;
+                    if (dev % 100 == 0) printf("⚠️ [MONITOR] Dev %u: Voltage %.1fV < %.1fV. Starting %us countdown...\n", dev, voltage, evt->threshold, evt->delay_s);
+                } else if (!ctx->v_event_triggered[dev] && (now_ns - ctx->v_overlimit_start_ts[dev] >= (uint64_t)evt->delay_s * 1000000000ULL)) {
+                    ctx->v_event_triggered[dev] = true;
                     
-                    // 向下游流式发送事件消息数据包
-                    pipe_msg_t event_msg;
-                    memset(&event_msg, 0, sizeof(pipe_msg_t));
-                    event_msg.tag_id = OI_VOLTAGE_DROP; // 标准失压事件 OI
-                    event_msg.type = PIPEMSG_TYPE_EVENT;
-                    event_msg.ts = now_s;
-                    event_msg.payload.val.f = voltage; // 携带当前电压快照值
+                    extern dcu_inventory_t g_dcu_inventory;
+                    const char *addr = (dev < g_dcu_inventory.count) ? g_dcu_inventory.meters[dev].address : "Unknown";
                     
-                    printf("🚨 [STREAM] 电压流式判定：检测到电压 %.1fV 越限达 %u秒 触发, 发送失压事件 OID: %04X\n", 
-                           voltage, (unsigned int)evt->delay_s, OI_VOLTAGE_DROP);
-                    stream_engine_push(stage->pipeline->engine, &event_msg);
-                }
-            } else {
-                // 恢复：电压恢复到门限以上
-                if (ctx->v_event_triggered) {
-                    ctx->v_event_triggered = false;
-                    
-                    // 流式发送失压恢复消息 (恢复标记为 -voltage 代表事件恢复)
                     pipe_msg_t event_msg;
                     memset(&event_msg, 0, sizeof(pipe_msg_t));
                     event_msg.tag_id = OI_VOLTAGE_DROP;
                     event_msg.type = PIPEMSG_TYPE_EVENT;
-                    event_msg.ts = now_s;
-                    event_msg.payload.val.f = -voltage; // 负数代表事件恢复
+                    event_msg.ts = now_ns;
+                    event_msg.device_id = dev; 
+                    event_msg.payload.val.f = voltage;
                     
-                    printf("💚 [STREAM] 电压流式判定：检测到电压已恢复为 %.1fV，发布失压消除事件！\n", voltage);
+                    printf("🚨🚨🚨 [ALARM TRIGGER] Dev %u (TSA: %s) Voltage %.1fV below threshold! Writing to DB...\n", dev, addr, voltage);
                     stream_engine_push(stage->pipeline->engine, &event_msg);
                 }
-                ctx->v_overlimit_start_ts = 0; // 重置起算时间
+            } else {
+                if (ctx->v_event_triggered[dev]) {
+                    ctx->v_event_triggered[dev] = false;
+                    pipe_msg_t event_msg;
+                    memset(&event_msg, 0, sizeof(pipe_msg_t));
+                    event_msg.tag_id = OI_VOLTAGE_DROP;
+                    event_msg.type = PIPEMSG_TYPE_EVENT;
+                    event_msg.ts = now_ns;
+                    event_msg.device_id = dev;
+                    event_msg.payload.val.f = -voltage;
+                    printf("💚 [RECOVER] Dev %u: Voltage Restored to %.1fV.\n", dev, voltage);
+                    stream_engine_push(stage->pipeline->engine, &event_msg);
+                }
+                ctx->v_overlimit_start_ts[dev] = 0;
             }
         }
-        return STAGE_OK; // 继续向下游传递电压标量
+        return STAGE_OK;
     }
     
     // 💡 2. 拦截电流实时刷新事件 (OAD_CURRENT) -> 过流判定
     if (ev->type == PIPEMSG_TYPE_SCALAR && (ev->tag_id == OAD_CURRENT || ev->tag_id == 0x20010300)) {
         dcu_event_obj_t *evt = ctx->evt_3005;
         if (evt && evt->is_enabled) {
-            float current = ev->payload.val.f;
+            float current = (float)ev->payload.val.f;
             
             if (current > evt->threshold) {
-                // 越限：电流高于过流门限 (例如 5.0A)
-                if (ctx->c_overlimit_start_ts == 0) {
-                    ctx->c_overlimit_start_ts = now_s;
-                } else if (!ctx->c_event_triggered && (now_s - ctx->c_overlimit_start_ts >= evt->delay_s)) {
-                    // 持续时间达标 (3 秒)，且未触发 -> 触发过流告警！
-                    ctx->c_event_triggered = true;
-                    
-                    pipe_msg_t event_msg;
-                    memset(&event_msg, 0, sizeof(pipe_msg_t));
-                    event_msg.tag_id = OI_OVER_CURRENT; // 标准过流事件 OI
-                    event_msg.type = PIPEMSG_TYPE_EVENT;
-                    event_msg.ts = now_s;
-                    event_msg.payload.val.f = current;
-                    
-                    printf("🚨 [STREAM] 电流流式判定：检测到电流 %.2fA 越限达 %u秒 触发, 发送过流事件 OID: %04X\n", 
-                           current, (unsigned int)evt->delay_s, OI_OVER_CURRENT);
-                    stream_engine_push(stage->pipeline->engine, &event_msg);
-                }
-            } else {
-                // 恢复
-                if (ctx->c_event_triggered) {
-                    ctx->c_event_triggered = false;
+                if (ctx->c_overlimit_start_ts[dev] == 0) {
+                    ctx->c_overlimit_start_ts[dev] = now_ns;
+                } else if (!ctx->c_event_triggered[dev] && (now_ns - ctx->c_overlimit_start_ts[dev] >= (uint64_t)evt->delay_s * 1000000000ULL)) {
+                    ctx->c_event_triggered[dev] = true;
                     
                     pipe_msg_t event_msg;
                     memset(&event_msg, 0, sizeof(pipe_msg_t));
                     event_msg.tag_id = OI_OVER_CURRENT;
                     event_msg.type = PIPEMSG_TYPE_EVENT;
-                    event_msg.ts = now_s;
-                    event_msg.payload.val.f = -current;
+                    event_msg.ts = now_ns;
+                    event_msg.device_id = dev;
+                    event_msg.payload.val.f = current;
                     
-                    printf("💚 [STREAM] 电流流式判定：检测到电流已降为 %.2fA，发布过流消除事件！\n", current);
                     stream_engine_push(stage->pipeline->engine, &event_msg);
                 }
-                ctx->c_overlimit_start_ts = 0;
+            } else {
+                if (ctx->c_event_triggered[dev]) {
+                    ctx->c_event_triggered[dev] = false;
+                    pipe_msg_t event_msg;
+                    memset(&event_msg, 0, sizeof(pipe_msg_t));
+                    event_msg.tag_id = OI_OVER_CURRENT;
+                    event_msg.type = PIPEMSG_TYPE_EVENT;
+                    event_msg.ts = now_ns;
+                    event_msg.device_id = dev;
+                    event_msg.payload.val.f = -current;
+                    stream_engine_push(stage->pipeline->engine, &event_msg);
+                }
+                ctx->c_overlimit_start_ts[dev] = 0;
             }
         }
         return STAGE_OK;
@@ -135,10 +128,6 @@ pipeline_stage_t *stage_event_monitor_create(dcu_event_obj_t *evt_3000, dcu_even
     
     ctx->evt_3000 = evt_3000;
     ctx->evt_3005 = evt_3005;
-    ctx->v_overlimit_start_ts = 0;
-    ctx->v_event_triggered = false;
-    ctx->c_overlimit_start_ts = 0;
-    ctx->c_event_triggered = false;
     
     strncpy(s->name, "EVT_MONITOR", 31);
     s->process = _monitor_proc;
@@ -154,6 +143,7 @@ typedef struct {
     dcu_event_obj_t *evt_3000;
     dcu_event_obj_t *evt_3005;
     datahub_t *hub;
+    dcu_storage_t *storage; // [Added] 持久化句柄
 } logger_stage_ctx_t;
 
 static stage_ret_t _logger_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
@@ -167,7 +157,7 @@ static stage_ret_t _logger_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
         else if (ev->tag_id == OI_OVER_CURRENT) evt = ctx->evt_3005;
         
         if (evt && evt->is_enabled) {
-            float val = ev->payload.val.f;
+            float val = (float)ev->payload.val.f;
             bool is_recover = (val < 0.0f);
             float actual_val = is_recover ? -val : val;
             
@@ -186,14 +176,28 @@ static stage_ret_t _logger_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
                 new_rec->start_time = ev->ts;
                 new_rec->end_time = 0;
                 evt->last_start_time = ev->ts; // 更新最近发生时标
-                printf("📝 [SNAPSHOT] 事件记录 %04X 成功生成！已抓取 %s 快照: %.2f，记录落盘。\n", 
-                       evt->oi, (evt->oi == OI_VOLTAGE_DROP) ? "电压" : "电流", actual_val);
+
+                // 【Generic Snapshot Engine】根据 Attr 3 抓拍现场数据
+                pipe_msg_t snapshots[8];
+                int captured = dcu_obj_snapshot(evt->oi, ev->device_id, snapshots, 8);
+                
+                // 💡 物理落盘：记录到事件历史表 (Class 7 Attr 2 落地)
+                extern dcu_inventory_t g_dcu_inventory;
+                const char *addr = (ev->device_id < g_dcu_inventory.count) ? g_dcu_inventory.meters[ev->device_id].address : "Unknown";
+                dcu_storage_write_event(ctx->storage, addr, evt->oi, ev->ts, 0, actual_val);
+                
+                printf("📝 [SNAPSHOT] 事件 %04X 触发 (表: %s)！抓取 %d 项关联快照并入库。\n", 
+                       evt->oi, addr, captured);
             } else {
                 new_rec->start_time = evt->last_start_time;
                 new_rec->end_time = ev->ts;
                 evt->last_end_time = ev->ts;  // 更新最近恢复时标
-                printf("📝 [SNAPSHOT] 事件恢复 %04X 成功写入！消除时标: %llu，记录更新。\n", 
-                       evt->oi, (unsigned long long)ev->ts);
+
+                extern dcu_inventory_t g_dcu_inventory;
+                const char *addr = (ev->device_id < g_dcu_inventory.count) ? g_dcu_inventory.meters[ev->device_id].address : "Unknown";
+                dcu_storage_write_event(ctx->storage, addr, evt->oi, evt->last_start_time, ev->ts, actual_val);
+
+                printf("📝 [SNAPSHOT] 事件 %04X 恢复 (表: %s)！记录更新。\n", evt->oi, addr);
             }
             
             if (evt->record_count < MAX_EVENT_RECORDS) {
@@ -216,13 +220,14 @@ static void _logger_cleanup(void *priv) {
     if (priv) free(priv);
 }
 
-pipeline_stage_t *stage_event_logger_create(dcu_event_obj_t *evt_3000, dcu_event_obj_t *evt_3005, datahub_t *hub) {
+pipeline_stage_t *stage_event_logger_create(dcu_event_obj_t *evt_3000, dcu_event_obj_t *evt_3005, datahub_t *hub, dcu_storage_t *storage) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
     logger_stage_ctx_t *ctx = calloc(1, sizeof(logger_stage_ctx_t));
     
     ctx->evt_3000 = evt_3000;
     ctx->evt_3005 = evt_3005;
     ctx->hub = hub;
+    ctx->storage = storage;
     
     strncpy(s->name, "EVT_LOGGER", 31);
     s->process = _logger_proc;
@@ -241,38 +246,40 @@ typedef struct {
 
 static stage_ret_t _freeze_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
     freeze_stage_ctx_t *ctx = (freeze_stage_ctx_t *)stage->priv_state;
-    if (!ctx) return STAGE_DROP;
+    if (!ctx || ev->device_id >= MAX_METERS) return STAGE_DROP;
     
     // 定时触发标签：匹配标准日冻结定时触发 OAD (OAD_DAILY_FREEZE)
     if (ev->tag_id == OAD_DAILY_FREEZE) {
-        printf("\n📅 [FREEZE] 零点定期日冻结触发！瞬间抓取 DataHub Shadow 缓存全断面电参量快照...\n");
-        
-        double active_energy = 12543.22;
-        double voltage = 220.5;
-        double current = 4.95;
-        
+        uint32_t dev = ev->device_id;
+        extern dcu_inventory_t g_dcu_inventory;
+        if (dev >= g_dcu_inventory.count) return STAGE_DROP;
+        const char *addr = g_dcu_inventory.meters[dev].address;
+
+        // 💡 [2D Matrix Snapshot] 瞬间抓取 DataHub Shadow 缓存全断面电参量快照
+        double active_energy = 0.0, voltage = 0.0, current = 0.0;
         pipe_msg_t shadow_msg;
-        if (datahub_read_shadow(ctx->hub, OAD_ACTIVE_ENERGY, &shadow_msg) == 0) {
+        
+        // 抓拍电能 (Offset 1)
+        int idx = dcu_tag_map_fn(OAD_ACTIVE_ENERGY, dev);
+        if (idx >= 0 && datahub_read_shadow_idx(ctx->hub, (uint32_t)idx, &shadow_msg) == 0) {
             active_energy = shadow_msg.payload.val.f;
         }
-        if (datahub_read_shadow(ctx->hub, OAD_VOLTAGE, &shadow_msg) == 0) {
+        // 抓拍电压 (Offset 0)
+        idx = dcu_tag_map_fn(OAD_VOLTAGE, dev);
+        if (idx >= 0 && datahub_read_shadow_idx(ctx->hub, (uint32_t)idx, &shadow_msg) == 0) {
             voltage = shadow_msg.payload.val.f;
         }
-        if (datahub_read_shadow(ctx->hub, OAD_CURRENT, &shadow_msg) == 0) {
+        // 抓拍电流 (Offset 2)
+        idx = dcu_tag_map_fn(0x20010200, dev);
+        if (idx >= 0 && datahub_read_shadow_idx(ctx->hub, (uint32_t)idx, &shadow_msg) == 0) {
             current = shadow_msg.payload.val.f;
         }
         
-        // 将数据原子性写入日冻结历史表 (OAD_DAILY_FREEZE)
         uint64_t freeze_ts = ev->ts;
+        dcu_storage_write_freeze(ctx->storage, addr, OAD_DAILY_FREEZE, freeze_ts, OAD_ACTIVE_ENERGY, active_energy);
+        dcu_storage_write_freeze(ctx->storage, addr, OAD_DAILY_FREEZE, freeze_ts, OAD_VOLTAGE, voltage);
+        dcu_storage_write_freeze(ctx->storage, addr, OAD_DAILY_FREEZE, freeze_ts, 0x20010200, current);
         
-        // 冻结累计有功电能
-        dcu_storage_write_freeze(ctx->storage, "10000001", OAD_DAILY_FREEZE, freeze_ts, OAD_ACTIVE_ENERGY, active_energy);
-        // 冻结电压
-        dcu_storage_write_freeze(ctx->storage, "10000001", OAD_DAILY_FREEZE, freeze_ts, OAD_VOLTAGE, voltage);
-        // 冻结电流
-        dcu_storage_write_freeze(ctx->storage, "10000001", OAD_DAILY_FREEZE, freeze_ts, OAD_CURRENT, current);
-        
-        printf("💾 [FREEZE] 日冻结快照已在 SQLite 中原子落盘 (TSA: 10000001, OAD: %08X, 冻结时标: %llu)。\n", OAD_DAILY_FREEZE, (unsigned long long)freeze_ts);
         return STAGE_DROP;
     }
     

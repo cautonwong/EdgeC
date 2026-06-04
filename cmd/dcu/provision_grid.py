@@ -1,66 +1,51 @@
 import sqlite3
-import random
 import os
+import sys
 
-DB_PATH = "/workspaces/edgeos/EdgeC/build/products/dcu/bin/dcu_runtime.db"
+# 设置默认电表数量
+NUM_METERS = 2000
+NUM_CHANNELS = 32
 
-def provision_grid():
+db_path = "/workspaces/edgeos/EdgeC/build/products/dcu/bin/dcu_runtime.db"
+
+def provision():
     # 确保目录存在
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
     
-    conn = sqlite3.connect(DB_PATH)
+    # 强制清理旧库及其 WAL 缓存
+    for f in [db_path, db_path + "-wal", db_path + "-shm"]:
+        if os.path.exists(f):
+            os.remove(f)
+
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-    
-    # 1. 创建符合专业架构的表
-    cursor.execute("DROP TABLE IF EXISTS meter_inventory;")
+
+    # 档案表
     cursor.execute("""
-        CREATE TABLE meter_inventory (
-            address TEXT PRIMARY KEY, 
-            protocol TEXT, 
-            baud INTEGER, 
-            channel INTEGER,
-            wiring_mode INTEGER,
-            collector_addr TEXT,
-            asset_no TEXT,
-            pt_ratio INTEGER,
-            ct_ratio INTEGER
-        );
+    CREATE TABLE meter_inventory (
+        address TEXT PRIMARY KEY, protocol TEXT, baud INTEGER, channel INTEGER, 
+        wiring_mode INTEGER, collector_addr TEXT, asset_no TEXT, pt_ratio INTEGER, ct_ratio INTEGER
+    )
     """)
 
-    # 2. 批量生成 2000 只表
     meters = []
-    for i in range(1, 2001):
-        address = f"{10000000 + i}"
-        
-        # 协议比例：70% DLT698, 30% DLT645
-        # 均匀分配到 32 个通道 (0..31)
-        channel = (i - 1) % 32
-        
-        # 规约按通道分配，严禁混用 (0-21: 698, 22-31: 645)
-        protocol = "DLT698" if channel < 22 else "DLT645"
-        
-        # 波特率统一 9600 (工业标准)
-        baud = 9600
-        
-        # 工业元数据随机生成
-        wiring_mode = random.choice([1, 3]) # 单相或三相
-        collector_addr = f"{20000000 + channel}"
-        asset_no = f"ASN-{i:05d}"
-        pt_ratio = random.choice([1, 10, 100])
-        ct_ratio = random.choice([1, 20, 50, 200])
-        
-        meters.append((address, protocol, baud, channel, wiring_mode, collector_addr, asset_no, pt_ratio, ct_ratio))
+    for i in range(1, NUM_METERS + 1):
+        addr = f"{10000000 + i}"
+        channel = (i - 1) % NUM_CHANNELS
+        proto = "DLT698" if channel < 22 else "DLT645"
+        meters.append((addr, proto, 2400, channel, 1, "123456789012", addr, 1, 1))
 
-    # 3. 事务性入库
     cursor.executemany("INSERT INTO meter_inventory VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", meters)
+    
+    # 业务表
+    cursor.execute("CREATE TABLE IF NOT EXISTS telemetry (timestamp INTEGER, tag_id INTEGER, value REAL, device_id INTEGER, quality INTEGER)")
+    cursor.execute("CREATE TABLE IF NOT EXISTS event_history (meter_address TEXT, oi INTEGER, start_time INTEGER, end_time INTEGER, snapshot_value REAL, PRIMARY KEY (meter_address, oi, start_time))")
+    cursor.execute("CREATE TABLE IF NOT EXISTS dcu_freeze_history (meter_address TEXT, freeze_oad INTEGER, freeze_time INTEGER, source_oad INTEGER, frozen_value REAL, PRIMARY KEY (meter_address, freeze_oad, freeze_time, source_oad))")
+
     conn.commit()
-    
-    print(f"📊 [PROVISION] 成功注入 2000 只电能表数字孪生档案！")
-    print(f"   - 通道数量: 32 (每通道约 {2000//32} 只)")
-    print(f"   - 规约分布: DLT698 (70%), DLT645 (30%)")
-    print(f"   - 数据库路径: {DB_PATH}")
-    
     conn.close()
 
+    print(f"📊 [PROVISION] 成功注入 {NUM_METERS} 只电能表数字孪生档案！")
+
 if __name__ == "__main__":
-    provision_grid()
+    provision()

@@ -60,6 +60,7 @@ typedef struct {
     uint8_t scheme_type;              
     uint32_t scheme_id;               
     uint16_t cursor_meter_idx;        
+    uint64_t last_run_time;           // [Added] 上次执行时间戳 (秒)
     dcu_task_monitor_t monitor;       
 } dcu_task_unit_t;
 

@@ -46,6 +46,8 @@ typedef struct {
     
     uv_timer_t flush_timer;       // 10s 闲时合并批量写入刷盘定时器
     bool timer_active;
+    
+    sqlite3_stmt *stmt_freeze;    // [Optimization] 预编译的冻结写入语句，避免 6000 次高频释放
 } dcu_storage_t;
 
 /* --- 生产级 API 函数原型声明 --- */
@@ -64,6 +66,11 @@ int dcu_storage_write_telemetry(dcu_storage_t *storage, const char *addr, uint32
  * @brief 直接写入历史断面日冻结/月冻结快照数据 (Class 9)
  */
 int dcu_storage_write_freeze(dcu_storage_t *storage, const char *addr, uint32_t freeze_oad, uint64_t freeze_time, uint32_t src_oad, double value);
+
+/**
+ * @brief 写入 3xxx 异常事件记录 (Class 7)
+ */
+int dcu_storage_write_event(dcu_storage_t *storage, const char *addr, uint16_t oi, uint64_t start_time, uint64_t end_time, float snapshot_val);
 
 /**
  * @brief 强制强行刷盘：将内存缓冲区的所有数据在单个批量事务内落盘

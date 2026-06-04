@@ -8,6 +8,7 @@
 #include "dcu_storage.h"
 #include "dcu_security.h"
 #include "dcu_discovery.h"
+#include "datahub.h"
 
 // ==============================================================================
 // 698 协议接口类 (Interface Class ID) 与标准 OI 定义
@@ -64,7 +65,8 @@ typedef struct {
     uint16_t oi;                                     // 事件对象 OID (如 OI_VOLTAGE_DROP)
     dcu_event_record_t records[MAX_EVENT_RECORDS];   // 倒序排列的事件记录表 (属性 2)
     uint16_t record_count;                           // 当前记录条数 (属性 4)
-    uint32_t snapshot_oad;                           // 关联抓取的快照 OAD (属性 3)
+    uint32_t snapshot_oads[8];                       // [Align Attr 3] 关联抓取的快照 OAD 列表
+    uint8_t snapshot_count;                          // 快照列表长度
     float threshold;                                 // 判定门限值 (属性 6 配置参数)
     uint32_t delay_s;                                // 判定触发延时时间 (秒)
     uint8_t report_flag;                             // 上报标识 (属性 8)
@@ -90,11 +92,17 @@ struct dcu_object_s {
 /* --- 生产级 API 函数原型声明 --- */
 
 /**
+ * @brief 影子映射：物理矩阵映射 (Index = MeterIdx * 10 + Offset)
+ * 用于将 698 OAD 或物理测点映射到 DataHub 影子寄存器槽位
+ */
+int dcu_tag_map_fn(uint32_t tag_id, uint32_t device_id);
+
+/**
  * @brief 初始化 DCU 核心对象字典与路由调度中心，注册所有标准 OI 对象
  */
 int dcu_router_init_ex(dcu_inventory_t *inv, dcu_poller_t *poller, dcu_storage_t *storage,
                       dcu_esam_t *esam, dcu_discovery_t *discovery,
-                      dcu_event_obj_t *evt_3000, dcu_event_obj_t *evt_3005);
+                      dcu_event_obj_t *evt_3000, dcu_event_obj_t *evt_3005, datahub_t *hub);
 
 /**
  * @brief 传统初始化桥接接口 (兼容旧测试)
@@ -115,6 +123,17 @@ int dcu_router_set_attr(uint32_t oad, const void *in_val);
  * @brief ACTION 方法调用分发：根据 OMD 物理指针执行特定的动作函数 (如注册、拉闸、鉴权)
  */
 int dcu_router_action(uint32_t omd, const void *param, void *result);
+
+/**
+ * @brief [Generic Snapshot Engine] 根据 OI 的 Attr 3 (关联对象属性表) 自动从 DataHub 抓取断面数据
+ * 
+ * @param oi 对象标识
+ * @param device_id 设备实例 ID (用于 2D 矩阵寻址)
+ * @param out_msgs 存储抓取结果的数组
+ * @param max_count 数组容量
+ * @return 实际抓取的条数
+ */
+int dcu_obj_snapshot(uint16_t oi, uint32_t device_id, pipe_msg_t *out_msgs, int max_count);
 
 /**
  * @brief 释放路由器与对象字典所有分配的资源

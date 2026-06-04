@@ -107,7 +107,6 @@ static void _on_data_async(uv_async_t *handle) {
     datahub_t *hub = engine->hub;
     pipe_msg_t msg;
 
-    uv_mutex_lock(&engine->pipe_mutex);
     int rc;
     while ((rc = shm_ring_read(&hub->ring, &engine->bus_read_seq, &msg)) >= 0) {
         if (rc > 0) {
@@ -129,7 +128,6 @@ static void _on_data_async(uv_async_t *handle) {
             }
         }
     }
-    uv_mutex_unlock(&engine->pipe_mutex);
 }
 
 static void _on_stop_async(uv_async_t *handle) {
@@ -269,7 +267,6 @@ stream_engine_t *stream_engine_create_ex(datahub_t *hub, uv_loop_t *loop,
             (uint64_t)atomic_load_explicit(&hub->ring.hdr->seq, memory_order_acquire);
     }
 
-    uv_mutex_init_recursive(&engine->pipe_mutex);
     uv__queue_init(&engine->pipelines);
     uv_sem_init(&engine->start_sem, 0);
 
@@ -306,7 +303,6 @@ void stream_engine_destroy(stream_engine_t *engine) {
         engine->thread_started = false;
     }
 
-    uv_mutex_lock(&engine->pipe_mutex);
     while (!uv__queue_empty(&engine->pipelines)) {
         struct uv__queue *q = uv__queue_head(&engine->pipelines);
         pipeline_t *p = uv__queue_data(q, pipeline_t, node);
@@ -327,9 +323,7 @@ void stream_engine_destroy(stream_engine_t *engine) {
         if (p->extra_triggers) free(p->extra_triggers);
         free(p);
     }
-    uv_mutex_unlock(&engine->pipe_mutex);
 
-    uv_mutex_destroy(&engine->pipe_mutex);
 
 #if defined(CONFIG_EDGEC_WASM)
     wasm_mgr_cleanup();
@@ -344,9 +338,7 @@ pipeline_t *stream_engine_add_pipeline(stream_engine_t *engine, const char *id,
     strncpy(p->id, id, 63);
     p->trigger_tag = trigger_tag;
     p->engine = engine;
-    uv_mutex_lock(&engine->pipe_mutex);
     uv__queue_insert_tail(&engine->pipelines, &p->node);
-    uv_mutex_unlock(&engine->pipe_mutex);
     return p;
 }
 
@@ -379,7 +371,6 @@ void stream_engine_resume(pipeline_t *p) {
 
 int stream_engine_checkpoint_save(stream_engine_t *engine, sqlite_svc_t *db) {
     if (!engine || !db) return -1;
-    uv_mutex_lock(&engine->pipe_mutex);
     struct uv__queue *q;
     uint8_t state_buf[512];
     uv__queue_foreach(q, &engine->pipelines) {
@@ -399,13 +390,11 @@ int stream_engine_checkpoint_save(stream_engine_t *engine, sqlite_svc_t *db) {
             stage_idx++;
         }
     }
-    uv_mutex_unlock(&engine->pipe_mutex);
     return 0;
 }
 
 int stream_engine_checkpoint_restore(stream_engine_t *engine, sqlite_svc_t *db) {
     if (!engine || !db) return -1;
-    uv_mutex_lock(&engine->pipe_mutex);
     struct uv__queue *q;
     uint8_t state_buf[512];
     uv__queue_foreach(q, &engine->pipelines) {
@@ -425,7 +414,6 @@ int stream_engine_checkpoint_restore(stream_engine_t *engine, sqlite_svc_t *db) 
             stage_idx++;
         }
     }
-    uv_mutex_unlock(&engine->pipe_mutex);
     return 0;
 }
 
@@ -435,7 +423,6 @@ stage_health_t pipeline_stage_get_health(pipeline_stage_t *stage) {
 
 void stream_engine_push(stream_engine_t *engine, pipe_msg_t *msg) {
     if (!engine || !engine->hub) return;
-    uv_mutex_lock(&engine->pipe_mutex);
     struct uv__queue *q;
     uv__queue_foreach(q, &engine->pipelines) {
         pipeline_t *p = uv__queue_data(q, pipeline_t, node);
@@ -443,7 +430,6 @@ void stream_engine_push(stream_engine_t *engine, pipe_msg_t *msg) {
             _pipeline_process(p, msg);
         }
     }
-    uv_mutex_unlock(&engine->pipe_mutex);
 }
 
 uv_async_t *stream_engine_get_notify_handle(stream_engine_t *engine) {
