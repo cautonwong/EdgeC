@@ -194,8 +194,6 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
         }
 
         if (idx >= 0 && (uint32_t)idx < hub->shadow_capacity) {
-            printf("💎 [DATAHUB] Publish Index %d <- %.2f (Tag: %u, Dev: %u)\n", 
-                   idx, local_msg.payload.val.f, local_msg.tag_id, local_msg.device_id);
             atomic_fetch_add_explicit(&hub->shadow_seq[idx], 1, memory_order_relaxed);
             atomic_thread_fence(memory_order_release);
             hub->shadow_table[idx] = local_msg;

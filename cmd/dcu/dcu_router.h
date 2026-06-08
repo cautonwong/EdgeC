@@ -75,6 +75,19 @@ typedef struct {
     uint64_t last_end_time;                          // 最近恢复时间
 } dcu_event_obj_t;
 
+// === [Consumer-Defined Interfaces] ===
+typedef struct {
+    void *ctx;
+    int (*record_telemetry)(void *ctx, const char *meter_addr, uint32_t meter_idx, uint32_t tag_id, double val);
+    int (*count_freezes)(void *ctx, uint16_t *out_count);
+} router_sink_ops_t;
+
+typedef struct {
+    void *ctx;
+    int (*publish_realtime)(void *ctx, uint32_t tag_id, uint32_t meter_idx, double val, uint64_t timestamp_ns);
+    int (*read_shadow_idx)(void *ctx, uint32_t idx, void *out_msg);
+} router_bus_ops_t;
+
 // 通用 OI 实例虚拟方法表结构体
 typedef struct dcu_object_s dcu_object_t;
 
@@ -100,9 +113,9 @@ int dcu_tag_map_fn(uint32_t tag_id, uint32_t device_id);
 /**
  * @brief 初始化 DCU 核心对象字典与路由调度中心，注册所有标准 OI 对象
  */
-int dcu_router_init_ex(dcu_inventory_t *inv, dcu_poller_t *poller, dcu_storage_t *storage,
+int dcu_router_init_ex(dcu_inventory_t *inv, dcu_poller_t *poller, router_sink_ops_t sink_ops,
                       dcu_esam_t *esam, dcu_discovery_t *discovery,
-                      dcu_event_obj_t *evt_3000, dcu_event_obj_t *evt_3005, datahub_t *hub);
+                      dcu_event_obj_t *evt_3000, dcu_event_obj_t *evt_3005, router_bus_ops_t bus_ops);
 
 /**
  * @brief 传统初始化桥接接口 (兼容旧测试)

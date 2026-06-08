@@ -64,28 +64,53 @@ typedef struct {
     dcu_task_monitor_t monitor;       
 } dcu_task_unit_t;
 
+// === [Consumer-Defined Interfaces] ===
+// 1. 数据持久化接口
+typedef struct {
+    void *ctx;
+    int (*record_telemetry)(void *ctx, const char *meter_addr, uint32_t meter_idx, uint32_t tag_id, double val);
+    int (*commit_batch)(void *ctx);
+} poller_sink_ops_t;
+
+// 2. 实时数据总线接口
+typedef struct {
+    void *ctx;
+    int (*publish_realtime)(void *ctx, uint32_t tag_id, uint32_t meter_idx, double val, uint64_t timestamp_ns);
+    int (*push_event)(void *ctx, uint32_t tag_id, uint32_t meter_idx, double val, uint64_t timestamp_ns);
+} poller_bus_ops_t;
+
+// 3. IO 调度接口
+typedef struct {
+    void *ctx;
+    int (*dispatch_command)(void *ctx, uint8_t channel_id, void *cmd_msg);
+} poller_io_ops_t;
+
 typedef struct {
     dcu_task_unit_t tasks[MAX_TASKS];
     uint16_t task_count;
     dcu_scheme_t schemes[MAX_SCHEMES];
     uint16_t scheme_count;
     
-    uv_timer_t timer; // 【补全】
+    uv_timer_t timer; 
     uv_mutex_t lock;
-    
-    void *hub;        // 【补全】
-    void *inventory;  // 【补全】
-    void *orch;       // 【补全】
-    void *drv_mgr;    // 【补全】
-    void *storage;    // [Added] 持久化平面
+
+    // [New] 契约接口
+    poller_sink_ops_t sink_ops;
+    poller_bus_ops_t  bus_ops;
+    poller_io_ops_t   io_ops;
 } dcu_poller_t;
 
 int dcu_poller_init(dcu_poller_t *poller);
 int dcu_poller_add_task(dcu_poller_t *poller, uint32_t task_id, uint32_t interval_s, uint32_t scheme_id);
 int dcu_poller_add_scheme(dcu_poller_t *poller, uint32_t scheme_id, uint8_t mode, const uint32_t *csds, uint16_t csd_count);
 dcu_scheme_t* dcu_poller_get_scheme(dcu_poller_t *poller, uint32_t scheme_id);
-void dcu_poller_pump(dcu_poller_t *poller);
-int dcu_poller_start(dcu_poller_t *poller, dcu_inventory_t *inventory, void *orch_ptr, void *hub_ptr, driver_manager_t *drv_mgr, void *loop_ptr, void *storage_ptr);
+int dcu_poller_start(dcu_poller_t *poller, 
+                     poller_io_ops_t io_ops, 
+                     poller_bus_ops_t bus_ops, 
+                     poller_sink_ops_t sink_ops);
+
+void dcu_poller_pump(dcu_poller_t *poller, dcu_inventory_t *inv);
+
 void dcu_poller_stop(dcu_poller_t *poller);
 
 #endif

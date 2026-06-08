@@ -143,7 +143,7 @@ typedef struct {
     dcu_event_obj_t *evt_3000;
     dcu_event_obj_t *evt_3005;
     datahub_t *hub;
-    dcu_storage_t *storage; // [Added] 持久化句柄
+    event_sink_ops_t sink_ops;
 } logger_stage_ctx_t;
 
 static stage_ret_t _logger_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
@@ -184,7 +184,10 @@ static stage_ret_t _logger_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
                 // 💡 物理落盘：记录到事件历史表 (Class 7 Attr 2 落地)
                 extern dcu_inventory_t g_dcu_inventory;
                 const char *addr = (ev->device_id < g_dcu_inventory.count) ? g_dcu_inventory.meters[ev->device_id].address : "Unknown";
-                dcu_storage_write_event(ctx->storage, addr, evt->oi, ev->ts, 0, actual_val);
+                
+                if (ctx->sink_ops.archive_event) {
+                    ctx->sink_ops.archive_event(ctx->sink_ops.ctx, addr, evt->oi, ev->ts, 0, actual_val);
+                }
                 
                 printf("📝 [SNAPSHOT] 事件 %04X 触发 (表: %s)！抓取 %d 项关联快照并入库。\n", 
                        evt->oi, addr, captured);
@@ -195,7 +198,10 @@ static stage_ret_t _logger_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
 
                 extern dcu_inventory_t g_dcu_inventory;
                 const char *addr = (ev->device_id < g_dcu_inventory.count) ? g_dcu_inventory.meters[ev->device_id].address : "Unknown";
-                dcu_storage_write_event(ctx->storage, addr, evt->oi, evt->last_start_time, ev->ts, actual_val);
+                
+                if (ctx->sink_ops.archive_event) {
+                    ctx->sink_ops.archive_event(ctx->sink_ops.ctx, addr, evt->oi, evt->last_start_time, ev->ts, actual_val);
+                }
 
                 printf("📝 [SNAPSHOT] 事件 %04X 恢复 (表: %s)！记录更新。\n", evt->oi, addr);
             }
@@ -220,14 +226,15 @@ static void _logger_cleanup(void *priv) {
     if (priv) free(priv);
 }
 
-pipeline_stage_t *stage_event_logger_create(dcu_event_obj_t *evt_3000, dcu_event_obj_t *evt_3005, datahub_t *hub, dcu_storage_t *storage) {
+pipeline_stage_t *stage_event_logger_create(dcu_event_obj_t *evt_3000, dcu_event_obj_t *evt_3005, datahub_t *hub, void *legacy_storage, event_sink_ops_t sink_ops) {
+    (void)legacy_storage;
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
     logger_stage_ctx_t *ctx = calloc(1, sizeof(logger_stage_ctx_t));
     
     ctx->evt_3000 = evt_3000;
     ctx->evt_3005 = evt_3005;
     ctx->hub = hub;
-    ctx->storage = storage;
+    ctx->sink_ops = sink_ops;
     
     strncpy(s->name, "EVT_LOGGER", 31);
     s->process = _logger_proc;
@@ -240,8 +247,8 @@ pipeline_stage_t *stage_event_logger_create(dcu_event_obj_t *evt_3000, dcu_event
 // 3. 日冻结定期快照算子 (stage_periodic_freeze) 实现
 // ==============================================================================
 typedef struct {
-    dcu_storage_t *storage;
     datahub_t *hub;
+    event_sink_ops_t sink_ops;
 } freeze_stage_ctx_t;
 
 static stage_ret_t _freeze_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
@@ -276,9 +283,11 @@ static stage_ret_t _freeze_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
         }
         
         uint64_t freeze_ts = ev->ts;
-        dcu_storage_write_freeze(ctx->storage, addr, OAD_DAILY_FREEZE, freeze_ts, OAD_ACTIVE_ENERGY, active_energy);
-        dcu_storage_write_freeze(ctx->storage, addr, OAD_DAILY_FREEZE, freeze_ts, OAD_VOLTAGE, voltage);
-        dcu_storage_write_freeze(ctx->storage, addr, OAD_DAILY_FREEZE, freeze_ts, 0x20010200, current);
+        if (ctx->sink_ops.archive_freeze) {
+            ctx->sink_ops.archive_freeze(ctx->sink_ops.ctx, addr, OAD_DAILY_FREEZE, freeze_ts, OAD_ACTIVE_ENERGY, active_energy);
+            ctx->sink_ops.archive_freeze(ctx->sink_ops.ctx, addr, OAD_DAILY_FREEZE, freeze_ts, OAD_VOLTAGE, voltage);
+            ctx->sink_ops.archive_freeze(ctx->sink_ops.ctx, addr, OAD_DAILY_FREEZE, freeze_ts, 0x20010200, current);
+        }
         
         return STAGE_DROP;
     }
@@ -290,12 +299,13 @@ static void _freeze_cleanup(void *priv) {
     if (priv) free(priv);
 }
 
-pipeline_stage_t *stage_periodic_freeze_create_ex(dcu_storage_t *storage, datahub_t *hub) {
+pipeline_stage_t *stage_periodic_freeze_create_ex(void *legacy_storage, datahub_t *hub, event_sink_ops_t sink_ops) {
+    (void)legacy_storage;
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
     freeze_stage_ctx_t *ctx = calloc(1, sizeof(freeze_stage_ctx_t));
     
-    ctx->storage = storage;
     ctx->hub = hub;
+    ctx->sink_ops = sink_ops;
     
     strncpy(s->name, "PER_FREEZE", 31);
     s->process = _freeze_proc;

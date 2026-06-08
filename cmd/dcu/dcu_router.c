@@ -8,7 +8,8 @@
 // 全局静态对象字典注册表
 static dcu_object_t g_obj_dictionary[MAX_DICT_SIZE];
 static uint16_t g_obj_count = 0;
-static datahub_t *g_router_hub = NULL;
+static router_bus_ops_t g_router_bus_ops;
+static router_sink_ops_t g_router_sink_ops;
 
 int dcu_tag_map_fn(uint32_t tag_id, uint32_t device_id) {
     uint32_t offset = 0;
@@ -24,7 +25,7 @@ int dcu_tag_map_fn(uint32_t tag_id, uint32_t device_id) {
  * @brief [Generic Snapshot Engine] 核心实现
  */
 int dcu_obj_snapshot(uint16_t oi, uint32_t device_id, pipe_msg_t *out_msgs, int max_count) {
-    if (!g_router_hub || !out_msgs || max_count <= 0) return 0;
+    if (!g_router_bus_ops.read_shadow_idx || !out_msgs || max_count <= 0) return 0;
 
     dcu_object_t *obj = NULL;
     for (uint16_t i = 0; i < g_obj_count; i++) {
@@ -44,7 +45,7 @@ int dcu_obj_snapshot(uint16_t oi, uint32_t device_id, pipe_msg_t *out_msgs, int 
             uint32_t oad = evt->snapshot_oads[i];
             // 利用 2D 矩阵寻址从 DataHub 提取真实物理值
             int shadow_idx = dcu_tag_map_fn(oad, device_id);
-            if (shadow_idx >= 0 && datahub_read_shadow_idx(g_router_hub, (uint32_t)shadow_idx, &out_msgs[captured]) == 0) {
+            if (shadow_idx >= 0 && g_router_bus_ops.read_shadow_idx(g_router_bus_ops.ctx, (uint32_t)shadow_idx, &out_msgs[captured]) == 0) {
                 captured++;
             }
         }
@@ -178,24 +179,18 @@ static int _oi_variable_read(dcu_object_t *obj, uint8_t attr_id, uint8_t elem_id
 // 4. OI 0x5004 日冻结记录表 (Class 9) 虚函数实现
 // ==============================================================================
 static int _oi_5004_read(dcu_object_t *obj, uint8_t attr_id, uint8_t elem_idx, void *out_val) {
+    (void)obj;
     (void)elem_idx;
-    dcu_storage_t *storage = (dcu_storage_t *)obj->instance_ptr;
-    if (!storage || !out_val) return -1;
+    if (!out_val) return -1;
     
     // 属性 2: 获取历史日冻结数据记录总数
     if (attr_id == 2) {
-        sqlite3_stmt *stmt;
-        int ret = sqlite3_prepare_v2(storage->db, "SELECT count(*) FROM dcu_freeze_history", -1, &stmt, NULL);
-        if (ret != SQLITE_OK) return -3;
-        
-        ret = sqlite3_step(stmt);
-        if (ret == SQLITE_ROW) {
-            *(uint16_t *)out_val = (uint16_t)sqlite3_column_int(stmt, 0);
+        if (g_router_sink_ops.count_freezes) {
+            return g_router_sink_ops.count_freezes(g_router_sink_ops.ctx, (uint16_t *)out_val);
         } else {
             *(uint16_t *)out_val = 0;
+            return 0;
         }
-        sqlite3_finalize(stmt);
-        return 0;
     }
     return -2;
 }
@@ -215,16 +210,16 @@ static int _oi_8000_execute(dcu_object_t *obj, uint8_t method_id, const void *pa
         printf("⚡ [LOAD CONTROL] ACTION 8000: Dev %u 执行继电器动作 %d (1:跳闸, 0:合闸)\n", device_id, action);
         
         // 1. 同步反馈到数据总线
-        pipe_msg_t msg;
-        pipe_msg_init_scalar(&msg, 0x80000100, (double)action, uv_hrtime());
-        msg.device_id = device_id;
-        datahub_publish(g_router_hub, &msg);
+        if (g_router_bus_ops.publish_realtime) {
+            g_router_bus_ops.publish_realtime(g_router_bus_ops.ctx, 0x80000100, device_id, (double)action, uv_hrtime());
+        }
         
         // 2. 写入存储 (最新状态)
         extern dcu_inventory_t g_dcu_inventory;
-        extern dcu_storage_t g_dcu_storage;
         if (device_id < g_dcu_inventory.count) {
-            dcu_storage_write_telemetry(&g_dcu_storage, g_dcu_inventory.meters[device_id].address, device_id, 0x80000100, (double)action);
+            if (g_router_sink_ops.record_telemetry) {
+                g_router_sink_ops.record_telemetry(g_router_sink_ops.ctx, g_dcu_inventory.meters[device_id].address, device_id, 0x80000100, (double)action);
+            }
         }
         
         return 0;
@@ -451,12 +446,13 @@ static int _oi_event_execute(dcu_object_t *obj, uint8_t method_id, const void *p
 // 路由器与字典分发模块主 API 实现
 // ==============================================================================
 
-int dcu_router_init_ex(dcu_inventory_t *inv, dcu_poller_t *poller, dcu_storage_t *storage,
+int dcu_router_init_ex(dcu_inventory_t *inv, dcu_poller_t *poller, router_sink_ops_t sink_ops,
                       dcu_esam_t *esam, dcu_discovery_t *discovery,
-                      dcu_event_obj_t *evt_3000, dcu_event_obj_t *evt_3005, datahub_t *hub) {
+                      dcu_event_obj_t *evt_3000, dcu_event_obj_t *evt_3005, router_bus_ops_t bus_ops) {
     g_obj_count = 0;
     memset(g_obj_dictionary, 0, sizeof(g_obj_dictionary));
-    g_router_hub = hub; // [Binding] 绑定数据总线
+    g_router_sink_ops = sink_ops;
+    g_router_bus_ops = bus_ops;
     
     // 1. 注册 0x6000 (档案配置单例)
     dcu_object_t *obj_6000 = &g_obj_dictionary[g_obj_count++];
@@ -485,11 +481,11 @@ int dcu_router_init_ex(dcu_inventory_t *inv, dcu_poller_t *poller, dcu_storage_t
     obj_2001->class_id = IC_VARIABLE;
     obj_2001->read_attr = _oi_variable_read;
     
-    // 4. 注册 0x5004 (日冻结归档单例)
+    // 4. 注册 0x5004 (日冻结记录单例)
     dcu_object_t *obj_5004 = &g_obj_dictionary[g_obj_count++];
     obj_5004->oi = (uint16_t)((OAD_DAILY_FREEZE >> 16) & 0xFFFF);
     obj_5004->class_id = IC_RECORD;
-    obj_5004->instance_ptr = storage;
+    obj_5004->instance_ptr = NULL; // Decoupled
     obj_5004->read_attr = _oi_5004_read;
     
     // 5. 注册 0x8000 (远程负荷拉闸动作单例)
@@ -554,7 +550,10 @@ int dcu_router_init_ex(dcu_inventory_t *inv, dcu_poller_t *poller, dcu_storage_t
 }
 
 int dcu_router_init(dcu_inventory_t *inv, dcu_poller_t *poller, dcu_storage_t *storage) {
-    return dcu_router_init_ex(inv, poller, storage, NULL, NULL, NULL, NULL, NULL);
+    (void)storage;
+    router_sink_ops_t dummy_sink = {0};
+    router_bus_ops_t dummy_bus = {0};
+    return dcu_router_init_ex(inv, poller, dummy_sink, NULL, NULL, NULL, NULL, dummy_bus);
 }
 
 static dcu_object_t* _lookup_object(uint16_t oi) {

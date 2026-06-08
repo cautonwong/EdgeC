@@ -82,6 +82,8 @@ int dcu_storage_flush(dcu_storage_t *storage);
  */
 int dcu_storage_query_freeze(dcu_storage_t *storage, const char *addr, uint32_t freeze_oad, uint64_t start_time, uint64_t end_time, dcu_freeze_record_t *out_records, uint16_t max_records, uint16_t *out_count);
 
+int dcu_storage_count_freezes(dcu_storage_t *storage, uint16_t *out_count);
+
 /**
  * @brief 销毁存储服务，干净释放互斥锁并关闭 SQLite 指针
  */

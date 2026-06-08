@@ -179,6 +179,21 @@ int dcu_storage_query_freeze(dcu_storage_t *storage, const char *addr, uint32_t 
     return 0;
 }
 
+int dcu_storage_count_freezes(dcu_storage_t *storage, uint16_t *out_count) {
+    if (!storage || !out_count) return -1;
+    sqlite3_stmt *stmt;
+    int ret = sqlite3_prepare_v2(storage->db, "SELECT count(*) FROM dcu_freeze_history", -1, &stmt, NULL);
+    if (ret != SQLITE_OK) return -3;
+    
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        *out_count = (uint16_t)sqlite3_column_int(stmt, 0);
+    } else {
+        *out_count = 0;
+    }
+    sqlite3_finalize(stmt);
+    return 0;
+}
+
 void dcu_storage_destroy(dcu_storage_t *storage) {
     if (!storage) return;
     if (storage->timer_active) { uv_timer_stop(&storage->flush_timer); storage->timer_active = false; }

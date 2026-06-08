@@ -42,7 +42,7 @@ static uv_timer_t g_poller_timer; // [Added] Poller Loop
 
 static void _poller_timer_cb(uv_timer_t *handle) {
     (void)handle;
-    dcu_poller_pump(&g_dcu_poller);
+    dcu_poller_pump(&g_dcu_poller, &g_dcu_inventory);
 }
 
 typedef struct {
@@ -128,6 +128,43 @@ static void _control_test_cb(uv_timer_t *handle) {
     dcu_router_action(omd, NULL, NULL);
 }
 
+// === [Consumer-Driven Interfaces] Wrappers ===
+static int _poller_publish_realtime(void *ctx, uint32_t tag_id, uint32_t meter_idx, double val, uint64_t timestamp_ns) {
+    datahub_t *hub = (datahub_t *)ctx;
+    if (!hub) return -1;
+    pipe_msg_t bus_msg;
+    pipe_msg_init_scalar(&bus_msg, tag_id, val, timestamp_ns);
+    bus_msg.device_id = meter_idx;
+    return datahub_publish(hub, &bus_msg);
+}
+
+static int _poller_push_event(void *ctx, uint32_t tag_id, uint32_t meter_idx, double val, uint64_t timestamp_ns) {
+    (void)ctx;
+    extern void *g_running_se;
+    if (!g_running_se) return -1;
+    pipe_msg_t bus_msg;
+    pipe_msg_init_scalar(&bus_msg, tag_id, val, timestamp_ns);
+    bus_msg.device_id = meter_idx;
+    stream_engine_push((stream_engine_t *)g_running_se, &bus_msg);
+    return 0;
+}
+
+static int _event_archive_event(void *ctx, const char *addr, uint16_t event_code, uint64_t start_time, uint64_t end_time, float snapshot_val) {
+    return dcu_storage_write_event((dcu_storage_t *)ctx, addr, event_code, start_time, end_time, snapshot_val);
+}
+
+static int _event_archive_freeze(void *ctx, const char *addr, uint32_t freeze_oad, uint64_t freeze_time, uint32_t src_oad, double value) {
+    return dcu_storage_write_freeze((dcu_storage_t *)ctx, addr, freeze_oad, freeze_time, src_oad, value);
+}
+
+static int _router_count_freezes(void *ctx, uint16_t *out_count) {
+    return dcu_storage_count_freezes((dcu_storage_t *)ctx, out_count);
+}
+
+static int _router_read_shadow(void *ctx, uint32_t idx, void *out_msg) {
+    return datahub_read_shadow_idx((datahub_t *)ctx, idx, (pipe_msg_t *)out_msg);
+}
+
 int main(int argc, char **argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
     (void)argc; (void)argv;
@@ -178,7 +215,19 @@ int main(int argc, char **argv) {
     g_evt_3005.snapshot_count = 1;
     g_evt_3005.snapshot_oads[0] = OAD_CURRENT;
 
-    dcu_router_init_ex(&g_dcu_inventory, &g_dcu_poller, &g_dcu_storage, NULL, NULL, &g_evt_3000, &g_evt_3005, &hub);
+    router_sink_ops_t router_sink = {
+        .ctx = &g_dcu_storage,
+        .record_telemetry = (void*)dcu_storage_write_telemetry,
+        .count_freezes = _router_count_freezes
+    };
+    
+    router_bus_ops_t router_bus = {
+        .ctx = &hub,
+        .publish_realtime = _poller_publish_realtime,
+        .read_shadow_idx = _router_read_shadow
+    };
+
+    dcu_router_init_ex(&g_dcu_inventory, &g_dcu_poller, router_sink, NULL, NULL, &g_evt_3000, &g_evt_3005, router_bus);
 
     arbiter_t *arbiter_ctx = NULL;
     arbiter_init(&arbiter_ctx, loop);
@@ -226,20 +275,41 @@ int main(int argc, char **argv) {
     uv_signal_init(loop, &sig_int);
     uv_signal_start(&sig_int, on_sig_async, SIGINT);
 
-    dcu_poller_start(&g_dcu_poller, &g_dcu_inventory, io_orch, &hub, drv_mgr, loop, &g_dcu_storage);
+    // === [Consumer-Driven Interfaces] Injecting Dependencies into Poller ===
+    poller_sink_ops_t poller_sink = {
+        .ctx = &g_dcu_storage,
+        .record_telemetry = (void*)dcu_storage_write_telemetry,
+        .commit_batch = (void*)dcu_storage_flush
+    };
+    poller_bus_ops_t poller_bus = {
+        .ctx = &hub,
+        .publish_realtime = _poller_publish_realtime,
+        .push_event = _poller_push_event
+    };
+
+    dcu_poller_start(&g_dcu_poller, 
+                     (poller_io_ops_t){0}, // We skip IO ops for now since we are in bypass mode
+                     poller_bus, 
+                     poller_sink);
 
     stream_engine_t *se = stream_engine_create(&hub, loop, (struct bus_orchestrator_s *)io_orch, NULL);
     g_running_se = se;
+    event_sink_ops_t event_sink = {
+        .ctx = &g_dcu_storage,
+        .archive_event = _event_archive_event,
+        .archive_freeze = _event_archive_freeze
+    };
+
     pipeline_t *evt_pipe = stream_engine_add_pipeline(se, "EVENT_PIPELINE", 0);
     pipeline_stage_t *m_stage = stage_event_monitor_create(&g_evt_3000, &g_evt_3005);
     pipeline_add_stage(evt_pipe, m_stage->name, m_stage->process, m_stage->priv_state, m_stage->cleanup_state, NULL, NULL);
     free(m_stage);
-    pipeline_stage_t *l_stage = stage_event_logger_create(&g_evt_3000, &g_evt_3005, &hub, &g_dcu_storage);
+    pipeline_stage_t *l_stage = stage_event_logger_create(&g_evt_3000, &g_evt_3005, &hub, &g_dcu_storage, event_sink);
     pipeline_add_stage(evt_pipe, l_stage->name, l_stage->process, l_stage->priv_state, l_stage->cleanup_state, NULL, NULL);
     free(l_stage);
 
     pipeline_t *frz_pipe = stream_engine_add_pipeline(se, "FREEZE_PIPELINE", 0);
-    pipeline_stage_t *f_stage = stage_periodic_freeze_create_ex(&g_dcu_storage, &hub);
+    pipeline_stage_t *f_stage = stage_periodic_freeze_create_ex(&g_dcu_storage, &hub, event_sink);
     pipeline_add_stage(frz_pipe, f_stage->name, f_stage->process, f_stage->priv_state, f_stage->cleanup_state, NULL, NULL);
     free(f_stage);
 
