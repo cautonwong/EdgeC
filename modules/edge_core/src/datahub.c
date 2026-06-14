@@ -5,6 +5,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include "edge_log.h"
 
@@ -21,6 +22,7 @@ int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slo
                  datahub_wakeup_filter_cb wakeup_fn) {
     if (!hub) return -1;
     memset(hub, 0, sizeof(datahub_t));
+    hub->wal_fd = -1;
     hub->loop = loop;
     hub->io_pool = io_pool;
     hub->metadata_table = metadata;
@@ -60,6 +62,10 @@ void datahub_destroy(datahub_t *hub) {
     if (!uv_is_closing((uv_handle_t *)&hub->legacy_async)) {
         uv_close((uv_handle_t *)&hub->legacy_async, NULL);
     }
+    if (hub->wal_fd >= 0) {
+        close(hub->wal_fd);
+        hub->wal_fd = -1;
+    }
 }
 
 int datahub_write_shadow_idx(datahub_t *hub, int idx, const pipe_msg_t *msg) {
@@ -67,6 +73,14 @@ int datahub_write_shadow_idx(datahub_t *hub, int idx, const pipe_msg_t *msg) {
     
     uv_mutex_lock(&hub->shadow_lock);
     hub->shadow_table[idx] = *msg;
+    
+    // 💡 [WAL] Write to Write-Ahead Log if enabled
+    if (hub->wal_fd >= 0) {
+        // Error ignored intentionally in fast path; robust systems might log once
+        if (write(hub->wal_fd, msg, sizeof(pipe_msg_t)) != sizeof(pipe_msg_t)) {
+            // Write failed, but we shouldn't block memory update
+        }
+    }
     uv_mutex_unlock(&hub->shadow_lock);
     
     if (hub->legacy_cb) {
@@ -187,6 +201,52 @@ int datahub_load_snapshot(datahub_t *hub, const char *path) {
     uv_mutex_unlock(&hub->shadow_lock);
     fclose(fp);
     return (nread == hub->shadow_capacity) ? 0 : -1;
+}
+
+int datahub_enable_wal(datahub_t *hub, const char *path) {
+    if (!hub || !path) return -1;
+    if (hub->wal_fd >= 0) close(hub->wal_fd);
+    strncpy(hub->wal_path, path, sizeof(hub->wal_path) - 1);
+    
+    // Open for append, create if not exist
+    hub->wal_fd = open(path, O_WRONLY | O_APPEND | O_CREAT, 0644);
+    if (hub->wal_fd < 0) {
+        printf("[DataHub] Failed to open WAL file: %s\n", path);
+        return -1;
+    }
+    printf("[DataHub] WAL enabled: %s\n", path);
+    return 0;
+}
+
+int datahub_replay_wal(datahub_t *hub) {
+    if (!hub || hub->wal_path[0] == '\0') return -1;
+    
+    int fd = open(hub->wal_path, O_RDONLY);
+    if (fd < 0) {
+        printf("[DataHub] No existing WAL file to replay: %s\n", hub->wal_path);
+        return 0; // Not an error if file doesn't exist yet
+    }
+    
+    pipe_msg_t msg;
+    int replayed_count = 0;
+    while (read(fd, &msg, sizeof(pipe_msg_t)) == sizeof(pipe_msg_t)) {
+        int idx = -1;
+        if (hub->map_fn_v2) {
+            idx = hub->map_fn_v2(msg.tag_id, msg.device_id);
+        } else if (hub->map_fn) {
+            idx = hub->map_fn(msg.tag_id);
+        }
+        if (idx < 0) idx = (int)msg.tag_id;
+        
+        if (idx >= 0 && idx < (int)hub->shadow_capacity) {
+            hub->shadow_table[idx] = msg;
+            replayed_count++;
+        }
+    }
+    
+    close(fd);
+    printf("[DataHub] WAL replayed successfully, loaded %d events\n", replayed_count);
+    return 0;
 }
 
 int datahub_init_from_contract(datahub_t *hub, uv_loop_t *loop, const edge_contract_t *contract,

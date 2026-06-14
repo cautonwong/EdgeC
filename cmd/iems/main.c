@@ -10,24 +10,24 @@
 #include <unistd.h>
 #include <uv.h>
 
-#include "contracts.h"
 #include "contract_registry.h"
+#include "contracts.h"
 #include "edge_api.h"
+#include "edge_license.h"
 #include "edge_service.h"
 #include "modbus_codec.h"
-#include "northbound_mgr.h"
 #include "mqtt_producer.h"
+#include "northbound_mgr.h"
 #include "queue.h"
 #include "rest_server.h"
 #include "sched_time.h"
 #include "sqlite_service.h"
 #include "stream_engine.h"
-#include "edge_license.h"
 
-extern int modbus_driver_register(driver_manager_t *mgr);
-extern int modbus_tcp_driver_register(driver_manager_t *mgr);
-extern int iec104_driver_register(driver_manager_t *mgr);
-extern int sparkplug_b_driver_register(driver_manager_t *mgr);
+extern int modbus_driver_register(driver_manager_t* mgr);
+extern int modbus_tcp_driver_register(driver_manager_t* mgr);
+extern int iec104_driver_register(driver_manager_t* mgr);
+extern int sparkplug_b_driver_register(driver_manager_t* mgr);
 
 #define MAX_VBUS 32
 
@@ -39,15 +39,15 @@ typedef enum {
 } bus_conn_state_t;
 
 typedef struct {
-    service_t *svc;
-    datahub_t *hub;
-    arbiter_t *arb;
-    bus_orchestrator_t *orch;
-    driver_manager_t *drv_mgr;
-    stream_engine_t *stream_eng;
-    northbound_mgr_t *north;
-    sqlite_svc_t *db_service;
-    char *db_path;
+    service_t* svc;
+    datahub_t* hub;
+    arbiter_t* arb;
+    bus_orchestrator_t* orch;
+    driver_manager_t* drv_mgr;
+    stream_engine_t* stream_eng;
+    northbound_mgr_t* north;
+    sqlite_svc_t* db_service;
+    char* db_path;
 } iems_app_t;
 
 static iems_app_t g_app = {0};
@@ -55,9 +55,9 @@ static struct uv__queue g_poll_task_head;
 static bool g_assets_loaded = false;
 static bus_conn_state_t g_bus_state[MAX_VBUS] = {BUS_STATE_DISCONNECTED};
 
-static uv_timer_t *g_timer_load_tasks = NULL;
-static uv_timer_t *g_timer_vbus = NULL;
-static uv_timer_t *g_timer_internal = NULL;
+static uv_timer_t* g_timer_load_tasks = NULL;
+static uv_timer_t* g_timer_vbus = NULL;
+static uv_timer_t* g_timer_internal = NULL;
 
 volatile bool g_adc_running = false;
 static uv_thread_t g_adc_tid;
@@ -66,15 +66,15 @@ typedef struct {
     int bus_id;
     uint32_t slave_id;
     uint32_t tag_id;
-    int dense_idx; // 💡 [Nexus Physical-Path] 物理坑位索引
+    int dense_idx;  // 💡 [Nexus Physical-Path] 物理坑位索引
     char protocol[16];
     uint32_t interval_ms;
     uv_periodic_t scheduler;
     struct uv__queue node;
 } iems_poll_task_t;
 
-static void on_poll_complete(int status, const pipe_msg_t *result, void *user_data) {
-    iems_poll_task_t *task = (iems_poll_task_t *)user_data;
+static void on_poll_complete(int status, const pipe_msg_t* result, void* user_data) {
+    iems_poll_task_t* task = (iems_poll_task_t*)user_data;
     if (status == 0 && result && task && g_app.hub) {
         // 💡 [Nexus Physical-Path] 强行绕过查找，直接物理入库！
         datahub_write_shadow_idx(g_app.hub, task->dense_idx, result);
@@ -82,31 +82,31 @@ static void on_poll_complete(int status, const pipe_msg_t *result, void *user_da
 }
 
 // [Consumer-Driven Adapter] 包装底层总线控制下发指令，传递给计算算子
-static int _iems_stream_submit_control(void *ctx, int bus_id, uint32_t tag_id, double value, const char *proto) {
+static int _iems_stream_submit_control(void* ctx, int bus_id, uint32_t tag_id, double value,
+                                       const char* proto) {
     (void)ctx;
     // 💡 [Nexus Fix] 废除裸提 NULL req 命令，走规范控制写入通道 (南向默认 slave_id 为 1)
     return edge_api_write_tag(bus_id, proto, 1, tag_id, value, NULL, NULL);
 }
 
-
-static void on_ui_connect(uv_stream_t *server, int status) {
+static void on_ui_connect(uv_stream_t* server, int status) {
     if (status < 0) return;
-    uv_pipe_t *client = malloc(sizeof(uv_pipe_t));
+    uv_pipe_t* client = malloc(sizeof(uv_pipe_t));
     uv_pipe_init(server->loop, client, 0);
-    if (uv_accept(server, (uv_stream_t *)client) == 0) {
+    if (uv_accept(server, (uv_stream_t*)client) == 0) {
         int cfd;
-        uv_fileno((const uv_handle_t *)client, &cfd);
+        uv_fileno((const uv_handle_t*)client, &cfd);
         edge_fd_send(cfd, shmring_get_fd(&g_app.hub->ring));
         edge_fd_send(cfd, g_app.hub->shadow_fd);
     }
-    uv_close((uv_handle_t *)client, (uv_close_cb)free);
+    uv_close((uv_handle_t*)client, (uv_close_cb)free);
 }
 
-static void on_poll_task_trigger(uv_periodic_t *handle) {
-    iems_poll_task_t *task = (iems_poll_task_t *)handle->data;
+static void on_poll_task_trigger(uv_periodic_t* handle) {
+    iems_poll_task_t* task = (iems_poll_task_t*)handle->data;
     if (!g_assets_loaded) return;
 
-    const edge_contract_t *contract = contract_get_active();
+    const edge_contract_t* contract = contract_get_active();
     if (!contract) return;
 
     bool is_southbound = false;
@@ -127,44 +127,45 @@ static void on_poll_task_trigger(uv_periodic_t *handle) {
     }
 }
 
-static int _load_tasks_cb(void *user_data, int argc, char **argv, char **cols) {
+static int _load_tasks_cb(void* user_data, int argc, char** argv, char** cols) {
     (void)user_data;
     (void)cols;
     if (argc < 4) return 0;
     int bus_id = argv[0] ? atoi(argv[0]) : 0;
     uint32_t slave_id = argv[1] ? (uint32_t)atoi(argv[1]) : 1;
-    if (slave_id == 0) slave_id = 1; // 💡 [Nexus Fix] fallback to 1 for NULL/invalid addr
+    if (slave_id == 0) slave_id = 1;  // 💡 [Nexus Fix] fallback to 1 for NULL/invalid addr
     uint32_t tag_id = argv[2] ? (uint32_t)atoi(argv[2]) : 0;
     // 💡 [Nexus Final Fix] 协议名归一化。
     // 强制使用全局唯一的 MODBUS 标识符，消除 ModbusRTU/ModbusTCP 带来的查找歧义。
-    const char *proto = "MODBUS";
+    const char* proto = "MODBUS";
 
     // 💡 [Nexus Final Fix] 封杀北向虚假轮询。Bus 10 仅供镜像，不准自发读写。
     if (bus_id == 10) return 0;
 
-    struct uv__queue *q;
+    struct uv__queue* q;
     uv__queue_foreach(q, &g_poll_task_head) {
-        iems_poll_task_t *existing = uv__queue_data(q, iems_poll_task_t, node);
+        iems_poll_task_t* existing = uv__queue_data(q, iems_poll_task_t, node);
         // 💡 [Nexus Fix] 只有当总线、从站地址和标签 ID 完全一致时才视为重复
-        if (existing->bus_id == bus_id && 
-            existing->slave_id == slave_id && 
-            existing->tag_id == tag_id) return 0;
+        if (existing->bus_id == bus_id && existing->slave_id == slave_id &&
+            existing->tag_id == tag_id)
+            return 0;
     }
 
-    iems_poll_task_t *task = calloc(1, sizeof(iems_poll_task_t));
+    iems_poll_task_t* task = calloc(1, sizeof(iems_poll_task_t));
     task->bus_id = bus_id;
     task->slave_id = slave_id;
     task->tag_id = tag_id;
-    task->dense_idx = edge_tag_get_compact_index(tag_id); // 💡 [Nexus Physical-Path] 预填物理坑位
+    task->dense_idx = edge_tag_get_compact_index(tag_id);  // 💡 [Nexus Physical-Path] 预填物理坑位
     strncpy(task->protocol, proto, 15);
     task->interval_ms = 1000;
-    
-    const edge_tag_meta_t *meta = contract_tag_get_meta(tag_id);
+
+    const edge_tag_meta_t* meta = contract_tag_get_meta(tag_id);
     if (meta && meta->poll_interval_ms > 0) {
         task->interval_ms = meta->poll_interval_ms;
     }
-    
-    printf("📝 [POLL REGISTER] Tag: %u, Bus: %d, Protocol: %s, Interval: %d\n", tag_id, bus_id, proto, task->interval_ms);
+
+    printf("📝 [POLL REGISTER] Tag: %u, Bus: %d, Protocol: %s, Interval: %d\n", tag_id, bus_id,
+           proto, task->interval_ms);
 
     uv__queue_insert_tail(&g_poll_task_head, &task->node);
     uv_periodic_init(uv_default_loop(), &task->scheduler);
@@ -174,34 +175,34 @@ static int _load_tasks_cb(void *user_data, int argc, char **argv, char **cols) {
     return 0;
 }
 
-static void iems_load_tasks_timer_cb(uv_timer_t *handle) {
-    sqlite3 *raw_db = NULL;
+static void iems_load_tasks_timer_cb(uv_timer_t* handle) {
+    sqlite3* raw_db = NULL;
     if (sqlite3_open_v2(g_app.db_path, &raw_db, SQLITE_OPEN_READONLY, NULL) != SQLITE_OK) {
         if (raw_db) sqlite3_close(raw_db);
         return;
     }
-    const char *check_sql = "SELECT val FROM matrix_meta WHERE key='is_ready';";
-    sqlite3_stmt *stmt;
+    const char* check_sql = "SELECT val FROM matrix_meta WHERE key='is_ready';";
+    sqlite3_stmt* stmt;
     bool ready = false;
     if (sqlite3_prepare_v2(raw_db, check_sql, -1, &stmt, NULL) == SQLITE_OK) {
         if (sqlite3_step(stmt) == SQLITE_ROW &&
-            strcmp((const char *)sqlite3_column_text(stmt, 0), "1") == 0)
+            strcmp((const char*)sqlite3_column_text(stmt, 0), "1") == 0)
             ready = true;
         sqlite3_finalize(stmt);
     }
     if (ready) {
-        const char *sql =
+        const char* sql =
             "SELECT t.bus_id, i.addr, t.tag_id, i.protocol FROM poll_tasks t INNER JOIN inventory "
             "i ON t.device_id = i.id;";
-        char *err = NULL;
+        char* err = NULL;
         if (sqlite3_exec(raw_db, sql, _load_tasks_cb, NULL, &err) == SQLITE_OK) {
             int count = 0;
-            struct uv__queue *q;
+            struct uv__queue* q;
             uv__queue_foreach(q, &g_poll_task_head) count++;
             if (count > 0) {
                 g_assets_loaded = true;
                 uv_timer_stop(handle);
-                uv_close((uv_handle_t *)handle, (uv_close_cb)free);
+                uv_close((uv_handle_t*)handle, (uv_close_cb)free);
                 g_timer_load_tasks = NULL;
             }
         } else if (err)
@@ -215,19 +216,19 @@ typedef struct {
     int bus_idx;
 } north_accept_ctx_t;
 
-static void _on_north_connect(uv_stream_t *server, int status) {
+static void _on_north_connect(uv_stream_t* server, int status) {
     if (status < 0) return;
-    north_accept_ctx_t *ctx = server->data;
-    uv_pipe_t *client = malloc(sizeof(uv_pipe_t));
+    north_accept_ctx_t* ctx = server->data;
+    uv_pipe_t* client = malloc(sizeof(uv_pipe_t));
     uv_pipe_init(server->loop, client, 0);
-    if (uv_accept(server, (uv_stream_t *)client) == 0) {
+    if (uv_accept(server, (uv_stream_t*)client) == 0) {
         int fd;
-        uv_fileno((const uv_handle_t *)client, &fd);
+        uv_fileno((const uv_handle_t*)client, &fd);
         int new_fd = dup(fd);
         if (new_fd >= 0) {
             int flags = fcntl(new_fd, F_GETFL, 0);
             fcntl(new_fd, F_SETFL, flags | O_NONBLOCK);
-            io_handle_t *h = io_executor_create_from_fd(server->loop, new_fd, g_app.hub->io_pool);
+            io_handle_t* h = io_executor_create_from_fd(server->loop, new_fd, g_app.hub->io_pool);
             if (h) {
                 bus_orchestrator_attach_io(g_app.orch, ctx->bus_id, h);
                 if (h->ops && h->ops->enable_read) h->ops->enable_read(h, true);
@@ -235,30 +236,30 @@ static void _on_north_connect(uv_stream_t *server, int status) {
                 close(new_fd);
         }
     }
-    uv_close((uv_handle_t *)client, (uv_close_cb)free);
+    uv_close((uv_handle_t*)client, (uv_close_cb)free);
 }
 
-static void _try_connect_buses(uv_timer_t *handle) {
-    const edge_contract_t *contract = contract_get_active();
+static void _try_connect_buses(uv_timer_t* handle) {
+    const edge_contract_t* contract = contract_get_active();
     if (!contract) return;
 
     for (uint32_t i = 0; i < contract->connectivity_count; i++) {
-        const edge_connectivity_t *c = &contract->connectivity[i];
+        const edge_connectivity_t* c = &contract->connectivity[i];
         // 💡 [Nexus Fix] 只有 0-9 号总线支持这种动态 UDS 连接方式
         if (c->id >= MAX_VBUS) continue;
-        
+
         int bus_idx = (int)c->id;
         if (g_bus_state[bus_idx] != BUS_STATE_DISCONNECTED) continue;
 
         char env_key[32];
         snprintf(env_key, sizeof(env_key), "OMNIS_BUS_%d_DEV", bus_idx);
-        const char *env_path = getenv(env_key);
-        const char *path = env_path ? env_path : edge_resolve_bus_path(c->id);
-        
+        const char* env_path = getenv(env_key);
+        const char* path = env_path ? env_path : edge_resolve_bus_path(c->id);
+
         if (!path) continue;
 
         // 💡 [Omnis Final Fix] 暴力打通虚拟总线链路
-        const char *search_paths[3];
+        const char* search_paths[3];
         search_paths[0] = env_path;
         search_paths[1] = path;
         char fallback_path[64];
@@ -266,26 +267,28 @@ static void _try_connect_buses(uv_timer_t *handle) {
         search_paths[2] = fallback_path;
 
         for (int p_idx = 0; p_idx < 3; p_idx++) {
-            const char *cur_path = search_paths[p_idx];
+            const char* cur_path = search_paths[p_idx];
             if (!cur_path || cur_path[0] == '\0') continue;
-            
+
             int fd = socket(AF_UNIX, SOCK_STREAM, 0);
             if (fd < 0) continue;
-            
+
             struct sockaddr_un addr;
             memset(&addr, 0, sizeof(addr));
             addr.sun_family = AF_UNIX;
             strncpy(addr.sun_path, cur_path, sizeof(addr.sun_path) - 1);
-            
-            if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == 0) {
-                io_handle_t *h = io_executor_create_from_fd(handle->loop, fd, g_app.hub->io_pool);
+
+            if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) == 0) {
+                io_handle_t* h = io_executor_create_from_fd(handle->loop, fd, g_app.hub->io_pool);
                 if (h) {
                     bus_orchestrator_attach_io(g_app.orch, c->id, h);
                     if (h->ops && h->ops->enable_read) h->ops->enable_read(h, true);
                     g_bus_state[bus_idx] = BUS_STATE_CONNECTED;
-                    printf("\033[32m[PHYSICS-SUCCESS] Bus %d CONNECTED via PATH: %s\033[0m\n", bus_idx, cur_path);
-                    break; 
-                } else close(fd);
+                    printf("\033[32m[PHYSICS-SUCCESS] Bus %d CONNECTED via PATH: %s\033[0m\n",
+                           bus_idx, cur_path);
+                    break;
+                } else
+                    close(fd);
             } else {
                 close(fd);
             }
@@ -293,33 +296,33 @@ static void _try_connect_buses(uv_timer_t *handle) {
     }
 }
 
-extern void adc_driver_handle_connection(int sock_fd, datahub_t *hub);
+extern void adc_driver_handle_connection(int sock_fd, datahub_t* hub);
 typedef struct {
     int fd;
-    datahub_t *hub;
+    datahub_t* hub;
 } adc_thread_ctx_t;
-static void _adc_thread_entry(void *arg) {
-    adc_thread_ctx_t *ctx = (adc_thread_ctx_t *)arg;
+static void _adc_thread_entry(void* arg) {
+    adc_thread_ctx_t* ctx = (adc_thread_ctx_t*)arg;
     adc_driver_handle_connection(ctx->fd, ctx->hub);
     g_adc_running = false;
     free(ctx);
 }
-static void _try_connect_internal_buses(uv_timer_t *handle) {
-    const edge_contract_t *contract = contract_get_active();
+static void _try_connect_internal_buses(uv_timer_t* handle) {
+    const edge_contract_t* contract = contract_get_active();
     if (!contract) return;
 
     for (uint32_t i = 0; i < contract->connectivity_count; i++) {
-        const edge_connectivity_t *c = &contract->connectivity[i];
+        const edge_connectivity_t* c = &contract->connectivity[i];
         if (strcmp(c->category, "INTERNAL") != 0 || g_adc_running) continue;
-        const char *path = edge_resolve_bus_path(c->id);
+        const char* path = edge_resolve_bus_path(c->id);
         if (path && access(path, F_OK) == 0) {
             int fd = socket(AF_UNIX, SOCK_STREAM, 0);
             struct sockaddr_un addr;
             memset(&addr, 0, sizeof(addr));
             addr.sun_family = AF_UNIX;
             strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
-            if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == 0) {
-                adc_thread_ctx_t *ctx = malloc(sizeof(adc_thread_ctx_t));
+            if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) == 0) {
+                adc_thread_ctx_t* ctx = malloc(sizeof(adc_thread_ctx_t));
                 ctx->fd = fd;
                 ctx->hub = g_app.hub;
                 g_adc_running = true;
@@ -330,7 +333,7 @@ static void _try_connect_internal_buses(uv_timer_t *handle) {
     }
 }
 
-static void _monitor_shadow_tick(uv_timer_t *handle) {
+static void _monitor_shadow_tick(uv_timer_t* handle) {
     (void)handle;
     if (g_app.hub && g_app.hub->shadow_table) {
         pipe_msg_t msg;
@@ -340,14 +343,14 @@ static void _monitor_shadow_tick(uv_timer_t *handle) {
     }
 }
 
-static void _on_task_close(uv_handle_t *handle) {
-    uv_periodic_t *periodic = (uv_periodic_t *)handle->data;
-    iems_poll_task_t *task = (iems_poll_task_t *)periodic->data;
+static void _on_task_close(uv_handle_t* handle) {
+    uv_periodic_t* periodic = (uv_periodic_t*)handle->data;
+    iems_poll_task_t* task = (iems_poll_task_t*)periodic->data;
     free(task);
 }
 
 // [Nexus] 背景原始 IO 心跳回调
-static void _on_background_raw_io_done(int status, net_buf_t *rx_buf) {
+static void _on_background_raw_io_done(int status, net_buf_t* rx_buf) {
     if (status == 0 && rx_buf) {
         printf("\033[34m[RAW-HB] Heartbeat Success! Received %u bytes: ", (uint32_t)rx_buf->b.len);
         for (uint16_t i = 0; i < rx_buf->b.len; i++) {
@@ -361,12 +364,12 @@ static void _on_background_raw_io_done(int status, net_buf_t *rx_buf) {
 }
 
 // [Nexus] 背景原始 IO 定时器触发
-static void _background_raw_io_tick(uv_timer_t *handle) {
+static void _background_raw_io_tick(uv_timer_t* handle) {
     (void)handle;
     // 构造一个标准的 Modbus RTU 读请求: 01 03 00 00 00 01 84 0A
     uint8_t raw_modbus[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0A};
 
-    net_buf_t *tx = net_buf_alloc(g_app.hub->io_pool, 0);
+    net_buf_t* tx = net_buf_alloc(g_app.hub->io_pool, 0);
     if (tx) {
         net_buf_append_bytes(tx, raw_modbus, sizeof(raw_modbus));
         printf("\033[34m[RAW-HB] Sending Background Raw IO Request (Bus 0)...\033[0m\n");
@@ -374,25 +377,25 @@ static void _background_raw_io_tick(uv_timer_t *handle) {
     }
 }
 
-static void iems_shutdown(uv_loop_t *loop) {
+static void iems_shutdown(uv_loop_t* loop) {
     if (g_timer_load_tasks) {
         uv_timer_stop(g_timer_load_tasks);
-        uv_close((uv_handle_t *)g_timer_load_tasks, (uv_close_cb)free);
+        uv_close((uv_handle_t*)g_timer_load_tasks, (uv_close_cb)free);
     }
     if (g_timer_vbus) {
         uv_timer_stop(g_timer_vbus);
-        uv_close((uv_handle_t *)g_timer_vbus, NULL);
+        uv_close((uv_handle_t*)g_timer_vbus, NULL);
     }
     if (g_timer_internal) {
         uv_timer_stop(g_timer_internal);
-        uv_close((uv_handle_t *)g_timer_internal, NULL);
+        uv_close((uv_handle_t*)g_timer_internal, NULL);
     }
     while (!uv__queue_empty(&g_poll_task_head)) {
-        struct uv__queue *q = uv__queue_head(&g_poll_task_head);
-        iems_poll_task_t *task = uv__queue_data(q, iems_poll_task_t, node);
+        struct uv__queue* q = uv__queue_head(&g_poll_task_head);
+        iems_poll_task_t* task = uv__queue_data(q, iems_poll_task_t, node);
         uv__queue_remove(q);
         uv_periodic_stop(&task->scheduler);
-        uv_close((uv_handle_t *)&task->scheduler.timer, _on_task_close);
+        uv_close((uv_handle_t*)&task->scheduler.timer, _on_task_close);
     }
     uv_run(loop, UV_RUN_NOWAIT);
     if (g_adc_running) {
@@ -413,24 +416,24 @@ static void iems_shutdown(uv_loop_t *loop) {
     curl_global_cleanup();
 }
 
-static void on_signal_exit(uv_signal_t *handle, int signum) {
+static void on_signal_exit(uv_signal_t* handle, int signum) {
     uv_stop(handle->loop);
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
     (void)argc;
     (void)argv;
-    
+
     // --- SDK Tiering & License Engine ---
     // In production, the key would be loaded from a secure element or environment
-    const char *lic_key = getenv("EDGEC_LICENSE_KEY");
+    const char* lic_key = getenv("EDGEC_LICENSE_KEY");
     if (license_engine_init(lic_key ? lic_key : "ENT-EVAL-KEY") < 0) {
         fprintf(stderr, "FATAL: License verification failed. Boot aborted.\n");
         return -1;
     }
-    
+
     curl_global_init(CURL_GLOBAL_ALL);
-    uv_loop_t *loop = uv_default_loop();
+    uv_loop_t* loop = uv_default_loop();
     uv__queue_init(&g_poll_task_head);
     static uv_signal_t s1, s2;
     uv_signal_init(loop, &s1);
@@ -440,27 +443,33 @@ int main(int argc, char *argv[]) {
 
     // --- [Deepening] Global Contract Registration ---
     contract_register(&g_contract_manifest);
-    const edge_contract_t *contract = contract_get_active();
+    const edge_contract_t* contract = contract_get_active();
 
     g_app.arb = NULL;
     arbiter_init(&g_app.arb, loop);
     g_app.drv_mgr = driver_manager_create();
     modbus_driver_register(g_app.drv_mgr);
     modbus_tcp_driver_register(g_app.drv_mgr);
-    
-    const char *shm_name = getenv("EDGE_SHM_NAME") ? getenv("EDGE_SHM_NAME") : EDGE_SHM_BUS_NAME;
+
+    const char* shm_name = getenv("EDGE_SHM_NAME") ? getenv("EDGE_SHM_NAME") : EDGE_SHM_BUS_NAME;
     g_app.hub = calloc(1, sizeof(datahub_t));
     datahub_init(g_app.hub, loop, shm_name, 4096, 1024, contract->tags, contract->tag_count, NULL,
                  edge_tag_get_compact_index, NULL);
+
+    // 💡 [WAL] 开启 Write-Ahead Log 持久化并重放历史数据
+    const char* wal_path =
+        getenv("EDGE_WAL_PATH") ? getenv("EDGE_WAL_PATH") : "/tmp/edgeos_wal.log";
+    datahub_enable_wal(g_app.hub, wal_path);
+    datahub_replay_wal(g_app.hub);
 
     g_app.orch = bus_orchestrator_create(g_app.hub, g_app.arb, g_app.drv_mgr, 256, 256, 2048);
     g_app.hub->io_pool = bus_orchestrator_get_pool(g_app.orch);
     edge_api_init(g_app.orch, g_app.drv_mgr);
 
     for (uint32_t i = 0; i < contract->connectivity_count; i++) {
-        const edge_connectivity_t *conn = &contract->connectivity[i];
-        const driver_contract_injection_t *inj = contract_model_find("ModbusRTU");
-        
+        const edge_connectivity_t* conn = &contract->connectivity[i];
+        const driver_contract_injection_t* inj = contract_model_find("ModbusRTU");
+
         if (strcmp(conn->category, "SOUTHBOUND") == 0) {
             if (inj)
                 bus_orchestrator_setup_master(g_app.orch, conn->id, "ModbusRTU", (uint32_t)conn->id,
@@ -469,27 +478,28 @@ int main(int argc, char *argv[]) {
             if (inj) bus_orchestrator_setup_slave(g_app.orch, conn->id, "ModbusRTU", 1, inj);
         }
     }
-    const char *db_env = getenv("EDGE_DB_PATH");
+    const char* db_env = getenv("EDGE_DB_PATH");
     g_app.db_path = strdup(db_env ? db_env : "iems.db");
     sqlite_config_t db_conf = {.db_path = g_app.db_path, .strategy = STRATEGY_LITE};
     g_app.db_service = sqlite_svc_create(loop, &db_conf);
     g_app.stream_eng =
         stream_engine_create(g_app.hub, NULL, g_app.orch, edge_stage_factory_get_registry());
-    pipeline_loader_ctx_t loader_ctx = {.db = g_app.db_service, 
-                                        .control_ops = { .ctx = g_app.orch, .submit_control = _iems_stream_submit_control }, 
-                                        .params = NULL};
+    pipeline_loader_ctx_t loader_ctx = {
+        .db = g_app.db_service,
+        .control_ops = {.ctx = g_app.orch, .submit_control = _iems_stream_submit_control},
+        .params = NULL};
     stream_engine_load_static_metadata(g_app.stream_eng, contract->pipelines,
                                        contract->pipeline_count, &loader_ctx);
     stream_engine_start(g_app.stream_eng);
     g_app.north = calloc(1, sizeof(northbound_mgr_t));
-    
+
     // 💡 [Golang 原则] 物理实现注入：业务层不知道 MQTT，只拿到一个 transport ops
-    const char *mqtt_url = getenv("MQTT_BROKER");
+    const char* mqtt_url = getenv("MQTT_BROKER");
     if (!mqtt_url) mqtt_url = "tcp://localhost:1883";
     nb_transport_ops_t transport = mqtt_producer_create(mqtt_url, "IEMS_EDGE_NODE");
-    
+
     northbound_mgr_init_ex(g_app.north, &g_app.hub->ring, "IEMS_V4", g_app.db_service, transport);
-    
+
     g_app.svc = service_new(loop, g_app.hub, g_app.arb, g_app.db_service, g_app.stream_eng, NULL,
                             g_app.north);
     int rest_port = getenv("EDGE_REST_PORT") ? atoi(getenv("EDGE_REST_PORT")) : 9091;
@@ -515,35 +525,35 @@ int main(int argc, char *argv[]) {
     uv_timer_start(&raw_hb_t, _background_raw_io_tick, 2000, 5000);
 
     // [Nexus Fix] 使用宏定义路径，确保契约一致性
-    const char *ui_path = EDGE_UI_SOCKET_PATH;
-    uv_pipe_t *ui_srv = malloc(sizeof(uv_pipe_t));
+    const char* ui_path = EDGE_UI_SOCKET_PATH;
+    uv_pipe_t* ui_srv = malloc(sizeof(uv_pipe_t));
     uv_pipe_init(loop, ui_srv, 0);
     unlink(ui_path);
     if (uv_pipe_bind(ui_srv, ui_path) == 0) {
-        uv_listen((uv_stream_t *)ui_srv, 128, on_ui_connect);
+        uv_listen((uv_stream_t*)ui_srv, 128, on_ui_connect);
         printf("\033[32m[IEMS-INIT] UI Companion Socket listening at %s\033[0m\n", ui_path);
     }
 
     for (uint32_t i = 0; i < contract->connectivity_count; i++) {
-        const edge_connectivity_t *c = &contract->connectivity[i];
+        const edge_connectivity_t* c = &contract->connectivity[i];
 
         if (strcmp(c->category, "NORTHBOUND") == 0) {
             char env_key[32];
 
             snprintf(env_key, sizeof(env_key), "OMNIS_BUS_%d_DEV", c->id);
 
-            const char *path = getenv(env_key);
+            const char* path = getenv(env_key);
 
             if (!path) path = "/tmp/iems_north_slave.sock";  // [Nexus Fix] 统一测试路径
 
             if (path) {
-                uv_pipe_t *srv = malloc(sizeof(uv_pipe_t));
+                uv_pipe_t* srv = malloc(sizeof(uv_pipe_t));
                 uv_pipe_init(loop, srv, 0);
                 unlink(path);
 
                 if (uv_pipe_bind(srv, path) == 0 &&
-                    uv_listen((uv_stream_t *)srv, 128, _on_north_connect) == 0) {
-                    north_accept_ctx_t *ctx = malloc(sizeof(north_accept_ctx_t));
+                    uv_listen((uv_stream_t*)srv, 128, _on_north_connect) == 0) {
+                    north_accept_ctx_t* ctx = malloc(sizeof(north_accept_ctx_t));
 
                     ctx->bus_id = c->id;
                     ctx->bus_idx = c->id % MAX_VBUS;
@@ -554,7 +564,7 @@ int main(int argc, char *argv[]) {
                     printf("\033[32m[IEMS-INIT] Northbound Slave LISTENING at %s\033[0m\n", path);
 
                 } else
-                    uv_close((uv_handle_t *)srv, (uv_close_cb)free);
+                    uv_close((uv_handle_t*)srv, (uv_close_cb)free);
             }
         }
     }

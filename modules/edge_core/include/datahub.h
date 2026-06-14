@@ -71,6 +71,10 @@ struct datahub_s {
     uv_async_t legacy_async;
 
     uv_mutex_t shadow_lock;
+
+    // --- [WAL] Write-Ahead Log ---
+    int wal_fd;
+    char wal_path[256];
 };
 
 int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slots,
@@ -111,6 +115,16 @@ int datahub_save_snapshot(datahub_t *hub, const char *path);
  * @brief [Aetheris] 加载快照：从磁盘恢复影子表状态
  */
 int datahub_load_snapshot(datahub_t *hub, const char *path);
+
+/**
+ * @brief [WAL] 开启 Write-Ahead Log 持久化
+ */
+int datahub_enable_wal(datahub_t *hub, const char *path);
+
+/**
+ * @brief [WAL] 重放 WAL 日志，恢复影子表状态
+ */
+int datahub_replay_wal(datahub_t *hub);
 
 // 监听器管理 (由 StreamEngine 等使用)
 int datahub_add_listener(datahub_t *hub, uv_async_t *async_handle);
