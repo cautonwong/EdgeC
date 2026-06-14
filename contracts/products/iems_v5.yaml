@@ -80,3 +80,18 @@ pipelines:
       - type: "dsp_rms"
         config:
           state_tag: 2002 # Output to ADC_VOLTAGE_RMS
+
+  - id: "island_mpc_protection"
+    trigger: "GRID_POWER" # 监控并网功率
+    stages:
+      - type: "timeguard"
+        config:
+          timeout_ms: 180000 # 3次 * 60秒心跳 = 180000ms（这里可短一点便于测试，比如 3000ms）
+          fallback_tag: 9001 # 写入 ISLAND_MODE
+      - type: "mpc_dispatch"
+        config:
+          soc_tag: 4001
+          out_pcs_tag: 8005 # 逆变器降额调节或者切断
+          dt: 1.0
+          capacity_ah: 100.0
+          target_soc: 50.0
