@@ -75,6 +75,11 @@ struct datahub_s {
     // --- [WAL] Write-Ahead Log ---
     int wal_fd;
     char wal_path[256];
+    
+    // --- [Compaction] Snapshot Compaction ---
+    uv_timer_t compaction_timer;
+    char snapshot_path[256];
+    int compaction_active;
 };
 
 int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slots,
@@ -125,6 +130,16 @@ int datahub_enable_wal(datahub_t *hub, const char *path);
  * @brief [WAL] 重放 WAL 日志，恢复影子表状态
  */
 int datahub_replay_wal(datahub_t *hub);
+
+/**
+ * @brief [Compaction] 开启定时压实：定期 Dump 快照并清空 WAL
+ */
+int datahub_start_compaction(datahub_t *hub, uint64_t interval_ms, const char *snapshot_path);
+
+/**
+ * @brief [Compaction] 手动执行一次快照压实
+ */
+int datahub_compact_now(datahub_t *hub);
 
 // 监听器管理 (由 StreamEngine 等使用)
 int datahub_add_listener(datahub_t *hub, uv_async_t *async_handle);

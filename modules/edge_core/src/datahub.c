@@ -23,6 +23,7 @@ int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slo
     if (!hub) return -1;
     memset(hub, 0, sizeof(datahub_t));
     hub->wal_fd = -1;
+    hub->compaction_active = 0;
     hub->loop = loop;
     hub->io_pool = io_pool;
     hub->metadata_table = metadata;
@@ -65,6 +66,9 @@ void datahub_destroy(datahub_t *hub) {
     if (hub->wal_fd >= 0) {
         close(hub->wal_fd);
         hub->wal_fd = -1;
+    }
+    if (hub->compaction_active && !uv_is_closing((uv_handle_t *)&hub->compaction_timer)) {
+        uv_close((uv_handle_t *)&hub->compaction_timer, NULL);
     }
 }
 
@@ -246,6 +250,47 @@ int datahub_replay_wal(datahub_t *hub) {
     
     close(fd);
     printf("[DataHub] WAL replayed successfully, loaded %d events\n", replayed_count);
+    return 0;
+}
+
+int datahub_compact_now(datahub_t *hub) {
+    if (!hub || hub->snapshot_path[0] == '\0') return -1;
+    
+    // 1. Save memory table to full snapshot
+    if (datahub_save_snapshot(hub, hub->snapshot_path) != 0) {
+        printf("[DataHub] Compaction failed to save snapshot.\n");
+        return -1;
+    }
+    
+    // 2. Truncate WAL file
+    if (hub->wal_fd >= 0 && hub->wal_path[0] != '\0') {
+        uv_mutex_lock(&hub->shadow_lock);
+        close(hub->wal_fd);
+        // O_TRUNC will wipe the file, rolling it over safely since we have the snapshot
+        hub->wal_fd = open(hub->wal_path, O_WRONLY | O_TRUNC | O_CREAT, 0644);
+        uv_mutex_unlock(&hub->shadow_lock);
+        printf("[DataHub] WAL compacted and truncated.\n");
+    }
+    return 0;
+}
+
+static void _compaction_timer_cb(uv_timer_t *handle) {
+    datahub_t *hub = (datahub_t *)handle->data;
+    datahub_compact_now(hub);
+}
+
+int datahub_start_compaction(datahub_t *hub, uint64_t interval_ms, const char *snapshot_path) {
+    if (!hub || !snapshot_path || !hub->loop) return -1;
+    
+    strncpy(hub->snapshot_path, snapshot_path, sizeof(hub->snapshot_path) - 1);
+    
+    uv_timer_init(hub->loop, &hub->compaction_timer);
+    hub->compaction_timer.data = hub;
+    hub->compaction_active = 1;
+    
+    uv_timer_start(&hub->compaction_timer, _compaction_timer_cb, interval_ms, interval_ms);
+    printf("[DataHub] Compaction scheduled every %llu ms (Snapshot Path: %s)\n", 
+           (unsigned long long)interval_ms, snapshot_path);
     return 0;
 }
 

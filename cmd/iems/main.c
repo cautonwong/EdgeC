@@ -457,10 +457,17 @@ int main(int argc, char* argv[]) {
                  edge_tag_get_compact_index, NULL);
 
     // 💡 [WAL] 开启 Write-Ahead Log 持久化并重放历史数据
-    const char* wal_path =
-        getenv("EDGE_WAL_PATH") ? getenv("EDGE_WAL_PATH") : "/tmp/edgeos_wal.log";
+    const char *wal_path = getenv("EDGE_WAL_PATH") ? getenv("EDGE_WAL_PATH") : "/tmp/edgeos_wal.log";
+    const char *snap_path = getenv("EDGE_SNAP_PATH") ? getenv("EDGE_SNAP_PATH") : "/tmp/edgeos_snapshot.bin";
+    
+    // 💡 [Compaction] 先加载快照（如果存在），然后重放 WAL 残余日志
+    datahub_load_snapshot(g_app.hub, snap_path);
+    
     datahub_enable_wal(g_app.hub, wal_path);
     datahub_replay_wal(g_app.hub);
+    
+    // 启动压实调度：每 5 分钟 (300,000ms) 将内存落盘并截断 WAL
+    datahub_start_compaction(g_app.hub, 300000, snap_path);
 
     g_app.orch = bus_orchestrator_create(g_app.hub, g_app.arb, g_app.drv_mgr, 256, 256, 2048);
     g_app.hub->io_pool = bus_orchestrator_get_pool(g_app.orch);
