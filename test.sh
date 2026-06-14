@@ -82,6 +82,22 @@ run_coverage() {
     cd ..
 }
 
+run_asan() {
+    echo -e "${B}🔍 Step [1/1]: Building and Running with AddressSanitizer (ASAN)...${NC}"
+    cd build
+    # Force clean CMake cache to avoid CMake Re-running loop
+    rm -f CMakeCache.txt
+    cmake -DENABLE_ASAN=ON -DCOVERAGE=OFF ..
+    ninja
+    
+    echo -e "${P}🧪 Running tests with ASAN...${NC}"
+    ASAN_OPTIONS=detect_leaks=1 ctest --output-on-failure
+    
+    echo -e "${G}✨ ASAN memory sweep completed cleanly!${NC}"
+    cd ..
+}
+
+
 run_omnis() {
     echo -e "${P}🚀 Step [1/3]: Launching Matrix Plane...${NC}"
     stop_all
@@ -137,6 +153,9 @@ case "$1" in
         ;;
     --coverage)
         run_coverage
+        ;;
+    --asan)
+        run_asan
         ;;
     "")
         run_unit_tests

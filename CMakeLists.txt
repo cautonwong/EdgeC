@@ -83,6 +83,20 @@ if(COVERAGE)
     target_link_options(edge_common_interface INTERFACE --coverage)
 endif()
 
+option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
+option(ENABLE_TSAN "Enable ThreadSanitizer" OFF)
+
+if(ENABLE_ASAN)
+    target_compile_options(edge_common_interface INTERFACE -fsanitize=address -fno-omit-frame-pointer)
+    target_link_options(edge_common_interface INTERFACE -fsanitize=address)
+endif()
+
+if(ENABLE_TSAN)
+    target_compile_options(edge_common_interface INTERFACE -fsanitize=thread)
+    target_link_options(edge_common_interface INTERFACE -fsanitize=thread)
+endif()
+
+
 # ==============================================================================
 # 5. Modular Packages
 # ==============================================================================
