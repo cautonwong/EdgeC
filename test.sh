@@ -71,12 +71,12 @@ run_coverage() {
     echo -e "${P}📊 Step [2/2]: Generating Coverage Report...${NC}"
     mkdir -p coverage
     if command -v gcovr >/dev/null 2>&1; then
-        gcovr -r ../ --html --html-details -o coverage/index.html -e '../tests/.*' -e '../third-party/.*'
+        gcovr -r ../ --html --html-details -o coverage/index.html -e '../tests/.*' -e '../third-party/.*' --gcov-ignore-parse-errors=negative_hits.warn
         echo -e "${G}✨ Coverage report generated at build/coverage/index.html${NC}"
     else
         echo -e "${Y}⚠️ gcovr not installed. Trying to install via pip...${NC}"
         pip install gcovr
-        gcovr -r ../ --html --html-details -o coverage/index.html -e '../tests/.*' -e '../third-party/.*'
+        gcovr -r ../ --html --html-details -o coverage/index.html -e '../tests/.*' -e '../third-party/.*' --gcov-ignore-parse-errors=negative_hits.warn
         echo -e "${G}✨ Coverage report generated at build/coverage/index.html${NC}"
     fi
     cd ..
