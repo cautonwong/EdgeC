@@ -309,6 +309,66 @@ static char *handle_stream_topology(service_t *svc) {
     return strdup("{\"error\":\"engine_not_ready\"}");
 }
 
+static char *handle_apps_upload(service_t *svc, const char *body) {
+    cJSON *root = cJSON_Parse(body);
+    if (!root) return strdup("{\"status\":\"error\",\"reason\":\"invalid_json\"}");
+
+    cJSON *name_item = cJSON_GetObjectItem(root, "name");
+    cJSON *trigger_item = cJSON_GetObjectItem(root, "trigger_tag");
+    cJSON *entry_item = cJSON_GetObjectItem(root, "entry_func");
+    cJSON *payload_item = cJSON_GetObjectItem(root, "payload_hex");
+
+    if (!name_item || !trigger_item || !entry_item || !payload_item) {
+        cJSON_Delete(root);
+        return strdup("{\"status\":\"error\",\"reason\":\"missing_fields\"}");
+    }
+
+    const char *name = name_item->valuestring;
+    uint32_t trigger_tag = (uint32_t)trigger_item->valueint;
+    const char *entry_func = entry_item->valuestring;
+    const char *hex = payload_item->valuestring;
+    size_t hex_len = strlen(hex);
+
+    char wasm_path[128];
+    snprintf(wasm_path, sizeof(wasm_path), "/tmp/%s.wasm", name);
+    FILE *f = fopen(wasm_path, "wb");
+    if (f) {
+        for (size_t i = 0; i < hex_len; i += 2) {
+            unsigned int b;
+            sscanf(hex + i, "%02x", &b);
+            fputc(b, f);
+        }
+        fclose(f);
+    } else {
+        cJSON_Delete(root);
+        return strdup("{\"status\":\"error\",\"reason\":\"file_io\"}");
+    }
+
+    stream_engine_t *engine = service_get_stream_engine(svc);
+    if (!engine) {
+        cJSON_Delete(root);
+        return strdup("{\"status\":\"error\",\"reason\":\"no_engine\"}");
+    }
+
+    pipeline_t *p = stream_engine_add_pipeline(engine, name, trigger_tag);
+    if (!p) {
+        cJSON_Delete(root);
+        return strdup("{\"status\":\"error\",\"reason\":\"pipeline_creation_failed\"}");
+    }
+
+    pipeline_stage_t *st = stage_wasm_create(wasm_path, entry_func);
+    if (!st) {
+        cJSON_Delete(root);
+        return strdup("{\"status\":\"error\",\"reason\":\"stage_creation_failed\"}");
+    }
+
+    pipeline_add_stage(p, st->name, st->process, st->priv_state, st->cleanup_state, st->priv_cfg, st->cleanup_cfg);
+    free(st);
+
+    cJSON_Delete(root);
+    return strdup("{\"status\":\"ok\"}");
+}
+
 char *rest_dispatch(service_t *svc, const char *method, const char *path, const char *body) {
     if (!svc) {
         fprintf(stderr, "[REST] ERROR: Dispatch called with NULL service context!\n");
@@ -318,6 +378,7 @@ char *rest_dispatch(service_t *svc, const char *method, const char *path, const 
     if (strcmp(method, "POST") == 0) {
         if (strncmp(path, "/api/v1/actor/set", 17) == 0) return handle_data_write(svc, body);
         if (strncmp(path, "/api/v1/io/raw", 14) == 0) return handle_io_raw(svc, body);
+        if (strncmp(path, "/api/v1/apps/upload", 19) == 0) return handle_apps_upload(svc, body);
     }
 
     if (strncmp(path, "/api/v1/system/health", 21) == 0) return handle_system_health(svc);

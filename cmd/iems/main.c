@@ -23,6 +23,7 @@
 #include "sched_time.h"
 #include "sqlite_service.h"
 #include "stream_engine.h"
+#include "wasm_mgr.h"
 
 extern int modbus_driver_register(driver_manager_t* mgr);
 extern int modbus_tcp_driver_register(driver_manager_t* mgr);
@@ -403,6 +404,7 @@ static void iems_shutdown(uv_loop_t* loop) {
         uv_thread_join(&g_adc_tid);
     }
     if (g_app.stream_eng) stream_engine_destroy(g_app.stream_eng);
+    wasm_mgr_cleanup();
     if (g_app.svc) service_delete(g_app.svc);
     if (g_app.db_service) sqlite_svc_destroy(g_app.db_service);
     if (g_app.orch) bus_orchestrator_destroy(g_app.orch);
@@ -498,6 +500,10 @@ int main(int argc, char* argv[]) {
     stream_engine_load_static_metadata(g_app.stream_eng, contract->pipelines,
                                        contract->pipeline_count, &loader_ctx);
     stream_engine_start(g_app.stream_eng);
+
+    // 💡 [WASM Micro-Runtime] 初始化 WAMR 引擎并导出 Host API
+    wasm_mgr_init(g_app.hub);
+
     g_app.north = calloc(1, sizeof(northbound_mgr_t));
 
     // 💡 [Golang 原则] 物理实现注入：业务层不知道 MQTT，只拿到一个 transport ops
