@@ -75,8 +75,13 @@ target_include_directories(edge_common_interface INTERFACE
     SYSTEM "${LOCAL_ROOT}/include"
 )
 target_compile_definitions(edge_common_interface INTERFACE _DEFAULT_SOURCE)
-target_compile_options(edge_common_interface INTERFACE -Wall -Wextra -Wformat=2 -Wconversion --coverage)
-target_link_options(edge_common_interface INTERFACE --coverage)
+option(COVERAGE "Enable code coverage reporting" OFF)
+
+target_compile_options(edge_common_interface INTERFACE -Wall -Wextra -Wformat=2 -Wconversion)
+if(COVERAGE)
+    target_compile_options(edge_common_interface INTERFACE --coverage)
+    target_link_options(edge_common_interface INTERFACE --coverage)
+endif()
 
 # ==============================================================================
 # 5. Modular Packages

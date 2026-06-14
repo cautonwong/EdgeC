@@ -61,6 +61,27 @@ run_unit_tests() {
     cd build && ctest --output-on-failure
 }
 
+run_coverage() {
+    echo -e "${B}🔍 Step [1/2]: Building and Running with Coverage...${NC}"
+    cd build
+    cmake -DCOVERAGE=ON ..
+    ninja
+    ctest --output-on-failure
+    
+    echo -e "${P}📊 Step [2/2]: Generating Coverage Report...${NC}"
+    mkdir -p coverage
+    if command -v gcovr >/dev/null 2>&1; then
+        gcovr -r ../ --html --html-details -o coverage/index.html -e '../tests/.*' -e '../third-party/.*'
+        echo -e "${G}✨ Coverage report generated at build/coverage/index.html${NC}"
+    else
+        echo -e "${Y}⚠️ gcovr not installed. Trying to install via pip...${NC}"
+        pip install gcovr
+        gcovr -r ../ --html --html-details -o coverage/index.html -e '../tests/.*' -e '../third-party/.*'
+        echo -e "${G}✨ Coverage report generated at build/coverage/index.html${NC}"
+    fi
+    cd ..
+}
+
 run_omnis() {
     echo -e "${P}🚀 Step [1/3]: Launching Matrix Plane...${NC}"
     stop_all
@@ -113,6 +134,9 @@ case "$1" in
         ;;
     --help)
         show_help
+        ;;
+    --coverage)
+        run_coverage
         ;;
     "")
         run_unit_tests
