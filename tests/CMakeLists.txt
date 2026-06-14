@@ -57,6 +57,7 @@ add_edge_test(test_contract_lookup test_contract_lookup.c)
 add_edge_test(test_driver_dlt645 test_driver_dlt645.c)
 add_edge_test(test_driver_v3 test_driver_v3.c)
 add_edge_test(test_modbus_v3 test_modbus_v3.c)
+add_edge_test(test_fuzz_modbus test_fuzz_modbus.c)
 add_edge_test(test_io_http test_io_http.c)
 target_link_libraries(test_io_http PRIVATE CURL::libcurl)
 
