@@ -46,6 +46,13 @@ int modbus_rtu_encode_exception(uint8_t slave_id, uint8_t fc, uint8_t ex_code, n
 int modbus_rtu_decode_frame(struct net_buf_simple *in, uint8_t *slave_id, uint8_t *fc, 
                             uint8_t **data_out, size_t *data_len);
 
+/**
+ * @brief 解析 RTU 请求帧并验证 CRC (从站使用)
+ * @return 0 成功, 1 数据不足, -1 CRC 错误, -2 格式错误
+ */
+int modbus_rtu_decode_req_frame(struct net_buf_simple *in, uint8_t *slave_id, uint8_t *fc, 
+                                uint8_t **data_out, size_t *data_len);
+
 /* --- Modbus TCP / MBAP --- */
 
 #define MODBUS_TCP_HEADER_LEN 7  /* Transaction ID(2) + Protocol ID(2) + Length(2) + Unit ID(1) */

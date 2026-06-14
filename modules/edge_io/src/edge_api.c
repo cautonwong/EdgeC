@@ -24,7 +24,7 @@ static void _on_api_cmd_cleanup(cmd_msg_t *cmd) {
 }
 
 int edge_api_read_tag(int bus_id, const char *protocol, uint32_t slave_id, uint32_t physical_tag_id,
-                      legacy_on_complete_cb cb) {
+                      legacy_on_complete_cb cb, void *user_data) {
     if (!g_orch) return -1;
 
     const driver_contract_injection_t *inject = edge_model_find(protocol);
@@ -40,38 +40,42 @@ int edge_api_read_tag(int bus_id, const char *protocol, uint32_t slave_id, uint3
 
     edge_req_t *req = req_legacy_driver_create(g_drv_mgr, protocol, slave_id, CMD_ACTION_READ,
                                                physical_tag_id, 0.0, (void *)inject->lookup_by_tag,
-                                               (void *)inject->lookup_by_key, cb, NULL);
+                                               (void *)inject->lookup_by_key, cb, user_data);
     if (!req) return -1;
 
     cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));
     cmd->req = req;
     cmd->priority = ARBITER_PRIO_NORMAL;
     cmd->signature = 0x55AA;
+    cmd->timeout_ms = 2000; // 💡 [Nexus Fix] 修复 0 毫秒立刻导致超时取消的问题
     cmd->on_cleanup = _on_api_cmd_cleanup;
-    snprintf(cmd->req_id, sizeof(cmd->req_id), "TAG_%u", physical_tag_id);
+    strncpy(cmd->req_id, "LEGACY_READ", sizeof(cmd->req_id) - 1);
 
     return bus_orchestrator_submit_cmd(g_orch, bus_id, cmd);
 }
 
 int edge_api_write_tag(int bus_id, const char *protocol, uint32_t slave_id,
-                       uint32_t physical_tag_id, double value, legacy_on_complete_cb cb) {
+                       uint32_t physical_tag_id, double value, legacy_on_complete_cb cb, void *user_data) {
     if (!g_orch) return -1;
 
     const driver_contract_injection_t *inject = edge_model_find(protocol);
     if (!inject) {
+        printf("[API-ERROR] No contract for '%s'. Check g_model_registry!\n", protocol);
         return -1;
     }
 
-    edge_req_t *req = req_legacy_driver_create(
-        g_drv_mgr, protocol, slave_id, CMD_ACTION_WRITE, physical_tag_id, value,
-        (void *)inject->lookup_by_tag, (void *)inject->lookup_by_key, cb, NULL);
+    edge_req_t *req = req_legacy_driver_create(g_drv_mgr, protocol, slave_id, CMD_ACTION_WRITE,
+                                               physical_tag_id, value, (void *)inject->lookup_by_tag,
+                                               (void *)inject->lookup_by_key, cb, user_data);
     if (!req) return -1;
 
     cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));
     cmd->req = req;
+    cmd->priority = ARBITER_PRIO_HIGH;
     cmd->signature = 0x55AA;
+    cmd->timeout_ms = 2000; // 💡 [Nexus Fix] 修复 0 毫秒立刻导致超时取消的问题
     cmd->on_cleanup = _on_api_cmd_cleanup;
-    snprintf(cmd->req_id, sizeof(cmd->req_id), "WRITE_%u", physical_tag_id);
+    strncpy(cmd->req_id, "LEGACY_WRITE", sizeof(cmd->req_id) - 1);
 
     return bus_orchestrator_submit_cmd(g_orch, bus_id, cmd);
 }
@@ -88,7 +92,9 @@ int edge_api_raw_io(int bus_id, net_buf_t *tx_buf, raw_io_on_complete_cb cb) {
 
     cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));
     cmd->req = req;
+    cmd->action = CMD_ACTION_RAW;
     cmd->priority = ARBITER_PRIO_HIGH;  // Raw IO usually needs fast path
+    cmd->timeout_ms = ARBITER_DEFAULT_TIMEOUT_MS;
     cmd->signature = 0x55AA;
     cmd->on_cleanup = _on_api_cmd_cleanup;
     strncpy(cmd->req_id, "RAW_IO", sizeof(cmd->req_id) - 1);

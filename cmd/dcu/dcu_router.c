@@ -24,8 +24,9 @@ int dcu_tag_map_fn(uint32_t tag_id, uint32_t device_id) {
 /**
  * @brief [Generic Snapshot Engine] 核心实现
  */
-int dcu_obj_snapshot(uint16_t oi, uint32_t device_id, pipe_msg_t *out_msgs, int max_count) {
-    if (!g_router_bus_ops.read_shadow_idx || !out_msgs || max_count <= 0) return 0;
+int dcu_obj_snapshot(uint16_t oi, uint32_t device_id, void *out_msgs, int max_count) {
+    uint8_t *p_out = (uint8_t *)out_msgs;
+    if (!g_router_bus_ops.read_shadow_idx || !p_out || max_count <= 0) return 0;
 
     dcu_object_t *obj = NULL;
     for (uint16_t i = 0; i < g_obj_count; i++) {
@@ -45,8 +46,11 @@ int dcu_obj_snapshot(uint16_t oi, uint32_t device_id, pipe_msg_t *out_msgs, int 
             uint32_t oad = evt->snapshot_oads[i];
             // 利用 2D 矩阵寻址从 DataHub 提取真实物理值
             int shadow_idx = dcu_tag_map_fn(oad, device_id);
-            if (shadow_idx >= 0 && g_router_bus_ops.read_shadow_idx(g_router_bus_ops.ctx, (uint32_t)shadow_idx, &out_msgs[captured]) == 0) {
-                captured++;
+            if (shadow_idx >= 0) {
+                void *dest = p_out + (captured * g_router_bus_ops.msg_size);
+                if (g_router_bus_ops.read_shadow_idx(g_router_bus_ops.ctx, (uint32_t)shadow_idx, dest) == 0) {
+                    captured++;
+                }
             }
         }
     }
@@ -115,8 +119,16 @@ static int _oi_6000_execute(dcu_object_t *obj, uint8_t method_id, const void *pa
     }
 
     // [Legacy/Testing mapping] 保留原来的 127/128 映射以免中断外部测试用例
-    if (method_id == 127) return dcu_inventory_add(inv, (const char *)param, "DLT698", 9600, 1, NULL);
-    if (method_id == 128) return dcu_inventory_remove(inv, (const char *)param);
+    if (method_id == 127) {
+        int ret = dcu_inventory_add(inv, (const char *)param, "DLT698", 9600, 1, NULL);
+        if (result) *(int *)result = ret;
+        return ret;
+    }
+    if (method_id == 128) {
+        int ret = dcu_inventory_remove(inv, (const char *)param);
+        if (result) *(int *)result = ret;
+        return ret;
+    }
 
     return -2; // 方法未定义
 }
@@ -200,9 +212,8 @@ static int _oi_5004_read(dcu_object_t *obj, uint8_t attr_id, uint8_t elem_idx, v
 // ==============================================================================
 static int _oi_8000_execute(dcu_object_t *obj, uint8_t method_id, const void *param, void *result) {
     (void)obj;
-    if (!param) return -1;
     
-    uint32_t device_id = (uint32_t)(uintptr_t)param;
+    uint32_t device_id = param ? (uint32_t)(uintptr_t)param : 0;
     uint8_t action = result ? *(uint8_t *)result : 1; // Default to 1 (Trip)
     
     // 方法 1: 继电器跳合闸动作执行
@@ -222,6 +233,7 @@ static int _oi_8000_execute(dcu_object_t *obj, uint8_t method_id, const void *pa
             }
         }
         
+        if (result) *(int *)result = 0;
         return 0;
     }
     return -2;
@@ -549,7 +561,7 @@ int dcu_router_init_ex(dcu_inventory_t *inv, dcu_poller_t *poller, router_sink_o
     return 0;
 }
 
-int dcu_router_init(dcu_inventory_t *inv, dcu_poller_t *poller, dcu_storage_t *storage) {
+int dcu_router_init(dcu_inventory_t *inv, dcu_poller_t *poller, void *storage) {
     (void)storage;
     router_sink_ops_t dummy_sink = {0};
     router_bus_ops_t dummy_bus = {0};

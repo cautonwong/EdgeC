@@ -113,7 +113,7 @@ func (o *Optimizer) Optimize(ast *frontend.ContractAST) (*ir.ContractIR, error) 
 			p := strings.ToUpper(b.Protocol)
 			key := o.parseKey(p, b.Attributes)
 			scaler := o.getScaler(b.Attributes)
-			length := uint16(getUint64(b.Attributes, "length", 2))
+			length := uint16(getUint64(b.Attributes, "length", 1))
 			access := uint32(getUint64(b.Attributes, "access", 1))
 
 			slot := ir.HashSlot{
@@ -285,9 +285,11 @@ func (o *Optimizer) expandSemanticModel(ast *frontend.ContractAST) {
 			for k, v := range point.Attrs { target.Attributes[k] = v }
 
 			// Protocol Binding (Master Plane context)
+			length := uint16(getUint64(point.Attrs, "length", 1))
 			attr := map[string]interface{}{
-				"addr": point.Address,
-				"type": point.Type,
+			        "addr": point.Address,
+			        "type": point.Type,
+			        "length": length, // 💡 [Omnis Fix] 透传物理长度
 			}
 			if point.Bits != "" { attr["bits"] = point.Bits }
 			if point.Scale != 0 { attr["scaler"] = point.Scale }

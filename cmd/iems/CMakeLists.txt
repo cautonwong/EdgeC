@@ -9,7 +9,7 @@ edge_add_contract(
     "${CMAKE_CURRENT_SOURCE_DIR}/manifest.yaml"
 )
 
-add_executable(iems main.c)
+add_executable(iems main.c mqtt_producer.c)
 set_target_properties(iems PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/products/iems/bin"
 )

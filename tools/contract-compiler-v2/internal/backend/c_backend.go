@@ -211,15 +211,22 @@ func (b *CBackend) emitSource(contract *ir.ContractIR) error {
 		writtenCount++
 		if lp == "modbus" {
 			fmt.Fprintf(f, "    { \"ModbusRTU\", &inj_%s },\n", lp)
+			fmt.Fprintf(f, "    { \"MODBUSRTU\", &inj_%s },\n", lp)
 			fmt.Fprintf(f, "    { \"ModbusTCP\", &inj_%s },\n", lp)
-			writtenCount += 2
+			fmt.Fprintf(f, "    { \"MODBUSTCP\", &inj_%s },\n", lp)
+			writtenCount += 4
 		} else if lp == "dlt645" {
 			fmt.Fprintf(f, "    { \"DLT645\", &inj_%s },\n", lp)
 			writtenCount++
 		} else if lp == "dlt698" {
 			fmt.Fprintf(f, "    { \"DLT698\", &inj_%s },\n", lp)
 			writtenCount++
-		} else if lp == "iec104" {
+		}
+		// 💡 [Omnis Fix] 增加协议名的大写镜像注册，防止 C 语言大小写敏感导致的查找失败
+		fmt.Fprintf(f, "    { \"%s\", &inj_%s },\n", strings.ToUpper(m.Protocol), lp)
+		writtenCount++
+		
+		if lp == "iec104" {
 			fmt.Fprintf(f, "    { \"IEC104\", &inj_%s },\n", lp)
 			writtenCount++
 		} else if lp == "can" {
@@ -280,9 +287,10 @@ func (b *CBackend) emitTagImplementation(f *os.File, contract *ir.ContractIR) {
 	if contract.TagEngine != nil {
 		for _, slot := range contract.TagEngine.Slots {
 			if slot.TagID == 0 {
-				fmt.Fprintln(f, "    { 0 },")
+			    fmt.Fprintln(f, "    { 0 },")
 			} else {
-				fmt.Fprintf(f, "    { (uint32_t)%d, %d, (uint16_t)%d, 1.0f, 2, 1 },\n", slot.Key, slot.TagID, slot.LogicalIndex)
+			    fmt.Fprintf(f, "    { (uint64_t)%d, %d, (uint16_t)%d, %ff, %d, %d },\n", 
+			        slot.Key, slot.TagID, slot.LogicalIndex, slot.Scale, slot.ByteLen, slot.Access)
 			}
 		}
 	} else {

@@ -217,7 +217,7 @@ static char *handle_data_write(service_t *svc, const char *body) {
 
     double val = val_item->valuedouble;
 
-    edge_api_write_tag(0, "ModbusRTU", 1, tag_id, val, NULL);
+    edge_api_write_tag(0, "ModbusRTU", 1, tag_id, val, NULL, NULL);
 
     cJSON_Delete(root);
     return strdup("{\"status\":\"ok\"}");

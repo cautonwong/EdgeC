@@ -9,13 +9,13 @@ async def test_iems_modbus_e2e_flow(matrix):
     """
     正式集成测试：验证从仿真器注入到 C 端 DataHub 的全链路数据流
     """
-    test_value = 245.5
-    tag_name = "VOLTAGE_PHASE_A"
-    
-    print(f"\n🚀 [Step 1] Injecting {test_value}V into virtual device...")
+    test_value = 50.02
+    tag_name = "GRID_FREQUENCY"
+
+    print(f"\n🚀 [Step 1] Injecting {test_value}Hz into virtual device...")
     # 通过 Matrix 仿真器注入物理信号
     matrix.device("METER_MAIN").inject(tag_name, test_value, matrix.loader)
-    
+
     print(f"⏳ [Step 2] Waiting for IEMS to poll and update DataHub...")
     # wait_for 内部会自动调用 REST API 轮询 C 程序的实时数据
     success = await matrix.wait_for(tag_name, expect=test_value, timeout=10)
@@ -47,5 +47,11 @@ async def test_iems_multi_tag_consistency(matrix):
         
     print("⏳ [Step 2] Verifying all tags in IEMS...")
     for name, val in data_map.items():
-        assert await matrix.wait_for(name, expect=val, timeout=10)
+        success = await matrix.wait_for(name, expect=val, timeout=10)
+        if not success:
+            actual = matrix.get_val(name)
+            print(f"❌ Tag {name} failed: Expected {val}, Got {actual}")
+            assert False
+        else:
+            print(f"✅ Tag {name} verified: {val}")
         print(f"✅ Tag {name} verified: {val}")

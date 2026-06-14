@@ -16,6 +16,7 @@
 #include "edge_service.h"
 #include "modbus_codec.h"
 #include "northbound_mgr.h"
+#include "mqtt_producer.h"
 #include "queue.h"
 #include "rest_server.h"
 #include "sched_time.h"
@@ -65,17 +66,28 @@ typedef struct {
     int bus_id;
     uint32_t slave_id;
     uint32_t tag_id;
+    int dense_idx; // 💡 [Nexus Physical-Path] 物理坑位索引
     char protocol[16];
     uint32_t interval_ms;
     uv_periodic_t scheduler;
     struct uv__queue node;
 } iems_poll_task_t;
 
-static void on_poll_complete(int status, const pipe_msg_t *result) {
-    if (status == 0 && result && g_app.hub) {
-        datahub_publish(g_app.hub, result);
+static void on_poll_complete(int status, const pipe_msg_t *result, void *user_data) {
+    iems_poll_task_t *task = (iems_poll_task_t *)user_data;
+    if (status == 0 && result && task && g_app.hub) {
+        // 💡 [Nexus Physical-Path] 强行绕过查找，直接物理入库！
+        datahub_write_shadow_idx(g_app.hub, task->dense_idx, result);
     }
 }
+
+// [Consumer-Driven Adapter] 包装底层总线控制下发指令，传递给计算算子
+static int _iems_stream_submit_control(void *ctx, int bus_id, uint32_t tag_id, double value, const char *proto) {
+    (void)ctx;
+    // 💡 [Nexus Fix] 废除裸提 NULL req 命令，走规范控制写入通道 (南向默认 slave_id 为 1)
+    return edge_api_write_tag(bus_id, proto, 1, tag_id, value, NULL, NULL);
+}
+
 
 static void on_ui_connect(uv_stream_t *server, int status) {
     if (status < 0) return;
@@ -107,9 +119,10 @@ static void on_poll_task_trigger(uv_periodic_t *handle) {
     }
 
     if (is_southbound) {
-        if (g_bus_state[task->bus_id % MAX_VBUS] == BUS_STATE_CONNECTED) {
+        // 💡 [Nexus Fix] 废除不安全的取模，直接用物理 ID 索引
+        if (task->bus_id < MAX_VBUS && g_bus_state[task->bus_id] == BUS_STATE_CONNECTED) {
             edge_api_read_tag(task->bus_id, task->protocol, task->slave_id, task->tag_id,
-                              on_poll_complete);
+                              on_poll_complete, task);
         }
     }
 }
@@ -120,19 +133,29 @@ static int _load_tasks_cb(void *user_data, int argc, char **argv, char **cols) {
     if (argc < 4) return 0;
     int bus_id = argv[0] ? atoi(argv[0]) : 0;
     uint32_t slave_id = argv[1] ? (uint32_t)atoi(argv[1]) : 1;
+    if (slave_id == 0) slave_id = 1; // 💡 [Nexus Fix] fallback to 1 for NULL/invalid addr
     uint32_t tag_id = argv[2] ? (uint32_t)atoi(argv[2]) : 0;
-    const char *proto = argv[3] ? argv[3] : "ModbusRTU";
+    // 💡 [Nexus Final Fix] 协议名归一化。
+    // 强制使用全局唯一的 MODBUS 标识符，消除 ModbusRTU/ModbusTCP 带来的查找歧义。
+    const char *proto = "MODBUS";
+
+    // 💡 [Nexus Final Fix] 封杀北向虚假轮询。Bus 10 仅供镜像，不准自发读写。
+    if (bus_id == 10) return 0;
 
     struct uv__queue *q;
     uv__queue_foreach(q, &g_poll_task_head) {
         iems_poll_task_t *existing = uv__queue_data(q, iems_poll_task_t, node);
-        if (existing->bus_id == bus_id && existing->tag_id == tag_id) return 0;
+        // 💡 [Nexus Fix] 只有当总线、从站地址和标签 ID 完全一致时才视为重复
+        if (existing->bus_id == bus_id && 
+            existing->slave_id == slave_id && 
+            existing->tag_id == tag_id) return 0;
     }
 
     iems_poll_task_t *task = calloc(1, sizeof(iems_poll_task_t));
     task->bus_id = bus_id;
     task->slave_id = slave_id;
     task->tag_id = tag_id;
+    task->dense_idx = edge_tag_get_compact_index(tag_id); // 💡 [Nexus Physical-Path] 预填物理坑位
     strncpy(task->protocol, proto, 15);
     task->interval_ms = 1000;
     
@@ -140,6 +163,8 @@ static int _load_tasks_cb(void *user_data, int argc, char **argv, char **cols) {
     if (meta && meta->poll_interval_ms > 0) {
         task->interval_ms = meta->poll_interval_ms;
     }
+    
+    printf("📝 [POLL REGISTER] Tag: %u, Bus: %d, Protocol: %s, Interval: %d\n", tag_id, bus_id, proto, task->interval_ms);
 
     uv__queue_insert_tail(&g_poll_task_head, &task->node);
     uv_periodic_init(uv_default_loop(), &task->scheduler);
@@ -219,27 +244,51 @@ static void _try_connect_buses(uv_timer_t *handle) {
 
     for (uint32_t i = 0; i < contract->connectivity_count; i++) {
         const edge_connectivity_t *c = &contract->connectivity[i];
-        int bus_idx = c->id % MAX_VBUS;
+        // 💡 [Nexus Fix] 只有 0-9 号总线支持这种动态 UDS 连接方式
+        if (c->id >= MAX_VBUS) continue;
+        
+        int bus_idx = (int)c->id;
         if (g_bus_state[bus_idx] != BUS_STATE_DISCONNECTED) continue;
-        const char *path = edge_resolve_bus_path(c->id);
+
+        char env_key[32];
+        snprintf(env_key, sizeof(env_key), "OMNIS_BUS_%d_DEV", bus_idx);
+        const char *env_path = getenv(env_key);
+        const char *path = env_path ? env_path : edge_resolve_bus_path(c->id);
+        
         if (!path) continue;
-        if (strcmp(c->category, "SOUTHBOUND") == 0 && access(path, F_OK) == 0) {
+
+        // 💡 [Omnis Final Fix] 暴力打通虚拟总线链路
+        const char *search_paths[3];
+        search_paths[0] = env_path;
+        search_paths[1] = path;
+        char fallback_path[64];
+        snprintf(fallback_path, sizeof(fallback_path), "/tmp/vbus%d.sock", bus_idx);
+        search_paths[2] = fallback_path;
+
+        for (int p_idx = 0; p_idx < 3; p_idx++) {
+            const char *cur_path = search_paths[p_idx];
+            if (!cur_path || cur_path[0] == '\0') continue;
+            
             int fd = socket(AF_UNIX, SOCK_STREAM, 0);
             if (fd < 0) continue;
+            
             struct sockaddr_un addr;
             memset(&addr, 0, sizeof(addr));
             addr.sun_family = AF_UNIX;
-            strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
+            strncpy(addr.sun_path, cur_path, sizeof(addr.sun_path) - 1);
+            
             if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == 0) {
                 io_handle_t *h = io_executor_create_from_fd(handle->loop, fd, g_app.hub->io_pool);
                 if (h) {
                     bus_orchestrator_attach_io(g_app.orch, c->id, h);
                     if (h->ops && h->ops->enable_read) h->ops->enable_read(h, true);
                     g_bus_state[bus_idx] = BUS_STATE_CONNECTED;
-                } else
-                    close(fd);
-            } else
+                    printf("\033[32m[PHYSICS-SUCCESS] Bus %d CONNECTED via PATH: %s\033[0m\n", bus_idx, cur_path);
+                    break; 
+                } else close(fd);
+            } else {
                 close(fd);
+            }
         }
     }
 }
@@ -426,12 +475,21 @@ int main(int argc, char *argv[]) {
     g_app.db_service = sqlite_svc_create(loop, &db_conf);
     g_app.stream_eng =
         stream_engine_create(g_app.hub, NULL, g_app.orch, edge_stage_factory_get_registry());
-    pipeline_loader_ctx_t loader_ctx = {.db = g_app.db_service, .orch = g_app.orch, .params = NULL};
+    pipeline_loader_ctx_t loader_ctx = {.db = g_app.db_service, 
+                                        .control_ops = { .ctx = g_app.orch, .submit_control = _iems_stream_submit_control }, 
+                                        .params = NULL};
     stream_engine_load_static_metadata(g_app.stream_eng, contract->pipelines,
                                        contract->pipeline_count, &loader_ctx);
     stream_engine_start(g_app.stream_eng);
     g_app.north = calloc(1, sizeof(northbound_mgr_t));
-    northbound_mgr_init(g_app.north, loop, &g_app.hub->ring, "IEMS_V4", g_app.db_service);
+    
+    // 💡 [Golang 原则] 物理实现注入：业务层不知道 MQTT，只拿到一个 transport ops
+    const char *mqtt_url = getenv("MQTT_BROKER");
+    if (!mqtt_url) mqtt_url = "tcp://localhost:1883";
+    nb_transport_ops_t transport = mqtt_producer_create(mqtt_url, "IEMS_EDGE_NODE");
+    
+    northbound_mgr_init_ex(g_app.north, &g_app.hub->ring, "IEMS_V4", g_app.db_service, transport);
+    
     g_app.svc = service_new(loop, g_app.hub, g_app.arb, g_app.db_service, g_app.stream_eng, NULL,
                             g_app.north);
     int rest_port = getenv("EDGE_REST_PORT") ? atoi(getenv("EDGE_REST_PORT")) : 9091;

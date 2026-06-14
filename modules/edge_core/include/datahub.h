@@ -96,6 +96,7 @@ int datahub_init_from_fd(datahub_t *hub, uv_loop_t *loop, int ring_fd, size_t ri
 
 void datahub_destroy(datahub_t *hub);
 int datahub_publish(datahub_t *hub, const pipe_msg_t *msg);
+int datahub_write_shadow_idx(datahub_t *hub, int idx, const pipe_msg_t *msg);
 int datahub_register_ref(datahub_t *hub, uint32_t tag_id, int fd, size_t len);
 int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out);
 int datahub_read_shadow_idx(datahub_t *hub, uint32_t idx, pipe_msg_t *out);
@@ -124,7 +125,13 @@ static inline const edge_tag_meta_t *datahub_get_metadata_by_index(datahub_t *hu
 
 static inline const edge_tag_meta_t *datahub_get_metadata_by_tag(datahub_t *hub, uint32_t tag_id) {
     if (!hub) return NULL;
-    int idx = hub->map_fn ? hub->map_fn(tag_id) : (int)tag_id;
+    int idx = -1;
+    if (hub->map_fn_v2) {
+        idx = hub->map_fn_v2(tag_id, 0);
+    } else if (hub->map_fn) {
+        idx = hub->map_fn(tag_id);
+    }
+    if (idx < 0) idx = (int)tag_id;
     if (idx < 0) return NULL;
     return datahub_get_metadata_by_index(hub, (uint32_t)idx);
 }

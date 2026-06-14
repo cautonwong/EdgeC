@@ -99,6 +99,8 @@ static int legacy_decode(edge_req_t *req, net_buf_t *buf, size_t *consumed) {
 
     memset(&ctx->result_msg, 0, sizeof(pipe_msg_t));
 
+    ctx->drv_ctx->session_state = (int)ctx->tag_id;
+
     int rc = ctx->drv_ctx->driver->decode_response(ctx->drv_ctx, buf, NULL, &ctx->result_msg,
                                                    &msg_count, consumed);
 

@@ -20,6 +20,7 @@ static void _master_on_timeout(uv_timer_t *handle) {
         
         priv->io->ops->ioctl(priv->io, IO_CTL_FLUSH, NULL);
         priv->io->ops->enable_read(priv->io, false);
+        net_buf_simple_reset(&priv->rx_acc);
         
         if (timed_out_cmd->req && timed_out_cmd->req->ops->on_finish)
             timed_out_cmd->req->ops->on_finish(timed_out_cmd->req, CMD_STATUS_TIMEOUT);
@@ -62,6 +63,7 @@ static void _process_req_result(master_priv_t *priv, int rc) {
     } else {
         priv->io->ops->ioctl(priv->io, IO_CTL_FLUSH, NULL);
         priv->io->ops->enable_read(priv->io, false);
+        net_buf_simple_reset(&priv->rx_acc);
         if (cmd->req && cmd->req->ops->on_finish)
             cmd->req->ops->on_finish(cmd->req, CMD_STATUS_PROTO_ERROR);
         arbiter_on_io_done(priv->arb, priv->bus_id, cmd, CMD_STATUS_PROTO_ERROR);
@@ -91,15 +93,23 @@ static void _master_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *u
         net_buf_simple_add_mem(&priv->rx_acc, rx->b.data, rx->b.len);
         net_buf_unref(rx);
 
-        if (priv->current_cmd && priv->current_cmd->req) {
+        while (priv->current_cmd && priv->current_cmd->req && priv->rx_acc.len > 0) {
             size_t consumed = 0;
             net_buf_t wrap = {0};
             wrap.pool = priv->pool;
             memcpy(&wrap.b, &priv->rx_acc, sizeof(struct net_buf_simple));
             
             int rc = priv->current_cmd->req->ops->decode(priv->current_cmd->req, &wrap, &consumed);
-            if (consumed > 0) net_buf_simple_pull(&priv->rx_acc, consumed);
-            if (rc != EDGE_ERR_INCOMPLETE) _process_req_result(priv, rc);
+            if (consumed > 0) {
+                net_buf_simple_pull(&priv->rx_acc, consumed);
+            }
+            if (rc != EDGE_ERR_INCOMPLETE) {
+                _process_req_result(priv, rc);
+                break;
+            }
+            if (consumed == 0) {
+                break;
+            }
         }
     }
 }
@@ -114,6 +124,9 @@ static void _master_run_command(bus_engine_t *self, cmd_msg_t *cmd) {
 
     priv->current_cmd = cmd;
     net_buf_simple_reset(&priv->rx_acc);
+    if (priv->io && priv->io->ops && priv->io->ops->ioctl) {
+        priv->io->ops->ioctl(priv->io, IO_CTL_FLUSH, NULL);
+    }
 
     if (!cmd->req->ops || !cmd->req->ops->setup || !cmd->req->ops->encode || !cmd->req->ops->decode) {
         LOG_ERROR(LOG_CAT_BUS, "Bus %d: Request ops missing", priv->bus_id);

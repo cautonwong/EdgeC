@@ -59,6 +59,12 @@ int modbus_rtu_decode_frame(struct net_buf_simple *in, uint8_t *slave_id, uint8_
     uint8_t func = p[1];
     size_t frame_len = 0;
 
+    fprintf(stderr, "🔍 [MODBUS_DECODE] Len: %zu, Dump: ", in->len);
+    for(size_t i=0; i<in->len && i<16; i++) {
+        fprintf(stderr, "%02X ", p[i]);
+    }
+    fprintf(stderr, "\n");
+    fflush(stderr);
     if (func & 0x80) {
         frame_len = 5; // Exception frame
     } else {
@@ -68,74 +74,58 @@ int modbus_rtu_decode_frame(struct net_buf_simple *in, uint8_t *slave_id, uint8_
             case MODBUS_FC_READ_HOLDING_REGS:
             case MODBUS_FC_READ_INPUT_REGS:
                 /* 
-                 * 【双端兼容自适应解码】
-                 * 1. 优先尝试 8 字节固定长度（符合标准请求帧格式）。若在 8 字节下 CRC 校验成功，则帧长定为 8。
-                 * 2. 否则，如果缓冲区长度足够响应帧，且在响应帧长度 (p[2] + 5) 下 CRC 校验成功，则帧长定为 p[2] + 5。
-                 * 3. 否则，默认设定帧长为 8，交由后续通用 CRC 校验逻辑处理。
+                 * 仅接受从站响应帧格式：[ID][FC][ByteCount][Data...][CRC]
                  */
-                if (in->len >= 8) {
-                    uint16_t crc_calc = modbus_calculate_crc(p, 6);
-                    uint16_t crc_rx = (uint16_t)(p[6] | (p[7] << 8));
-                    if (crc_calc == crc_rx) {
-                        frame_len = 8;
-                        break;
-                    }
-                }
                 if (in->len >= 3) {
                     size_t resp_len = (size_t)(p[2] + 5);
-                    if (in->len >= resp_len) {
-                        uint16_t crc_calc = modbus_calculate_crc(p, resp_len - 2);
-                        uint16_t crc_rx = (uint16_t)(p[resp_len - 2] | (p[resp_len - 1] << 8));
-                        if (crc_calc == crc_rx) {
-                            frame_len = resp_len;
-                            break;
-                        }
+                    if (in->len < resp_len) {
+                        return 1; // Incomplete
                     }
+                    uint16_t crc_calc = modbus_calculate_crc(p, resp_len - 2);
+                    uint16_t crc_rx = (uint16_t)(p[resp_len - 2] | (p[resp_len - 1] << 8));
+                    if (crc_calc == crc_rx) {
+                        frame_len = resp_len;
+                    } else {
+                        // CRC mismatch indicates garbage header, trigger sliding window
+                        fprintf(stderr, "❌ [MODBUS_CRC] Resp Len: %zu, Calc: %04X, RX: %04X, trigger sliding\n", resp_len, crc_calc, crc_rx);
+                        fflush(stderr);
+                        return -1;
+                    }
+                } else {
+                    return 1; // Incomplete
                 }
-                frame_len = 8;
                 break;
+
             case MODBUS_FC_WRITE_SINGLE_COIL:
             case MODBUS_FC_WRITE_SINGLE_REG:
-                frame_len = 8;
-                break;
+            case MODBUS_FC_WRITE_MULTIPLE_COILS:
             case MODBUS_FC_WRITE_MULTIPLE_REGS:
-                /* 
-                 * 【双端兼容自适应解码】
-                 * 1. 优先尝试 8 字节固定长度（符合写多个寄存器的响应帧格式）。若在 8 字节下 CRC 校验成功，则帧长定为 8。
-                 * 2. 否则，如果缓冲区长度足够请求帧，且在请求帧长度 (p[6] + 9) 下 CRC 校验成功，则帧长定为 p[6] + 9。
-                 * 3. 否则，默认设定帧长为 8，交由后续通用 CRC 校验逻辑处理。
-                 */
                 if (in->len >= 8) {
                     uint16_t crc_calc = modbus_calculate_crc(p, 6);
                     uint16_t crc_rx = (uint16_t)(p[6] | (p[7] << 8));
                     if (crc_calc == crc_rx) {
                         frame_len = 8;
-                        break;
+                    } else {
+                        return -1; // Garbage
                     }
+                } else {
+                    return 1; // Incomplete
                 }
-                if (in->len >= 7) {
-                    size_t req_len = (size_t)(p[6] + 9);
-                    if (in->len >= req_len) {
-                        uint16_t crc_calc = modbus_calculate_crc(p, req_len - 2);
-                        uint16_t crc_rx = (uint16_t)(p[req_len - 2] | (p[req_len - 1] << 8));
-                        if (crc_calc == crc_rx) {
-                            frame_len = req_len;
-                            break;
-                        }
-                    }
-                }
-                frame_len = 8;
                 break;
+                
             default:
-                return -2; // Unknown function code
+                return -2; // Unknown function code, garbage
         }
     }
 
-    if (in->len < frame_len) return 1;
+    if (frame_len == 0 || in->len < frame_len) return 1;
 
     uint16_t crc_calc = modbus_calculate_crc(p, frame_len - 2);
     uint16_t crc_rx = (uint16_t)(p[frame_len - 2] | (p[frame_len - 1] << 8));
-    if (crc_calc != crc_rx) return -1;
+    if (crc_calc != crc_rx) {
+        fprintf(stderr, "❌ [MODBUS_GLOBAL_CRC] Len: %zu, Calc: %04X, RX: %04X\n", frame_len, crc_calc, crc_rx);
+        return -1;
+    }
 
     *slave_id = p[0];
     *fc = func;
@@ -148,6 +138,48 @@ int modbus_rtu_decode_frame(struct net_buf_simple *in, uint8_t *slave_id, uint8_
         *data_len = frame_len - 4; // Skip ID, FC and CRC
     }
 
+    return 0;
+}
+
+int modbus_rtu_decode_req_frame(struct net_buf_simple *in, uint8_t *slave_id, uint8_t *fc, 
+                                uint8_t **data_out, size_t *data_len) {
+    if (in->len < 4) return 1;
+
+    uint8_t *p = in->data;
+    uint8_t func = p[1];
+    size_t frame_len = 0;
+
+    switch (func) {
+        case MODBUS_FC_READ_HOLDING_REGS:
+        case MODBUS_FC_READ_INPUT_REGS:
+        case MODBUS_FC_WRITE_SINGLE_REG:
+            frame_len = 8;
+            break;
+        case MODBUS_FC_WRITE_MULTIPLE_REGS:
+            if (in->len >= 7) {
+                uint8_t byte_count = p[6];
+                frame_len = 7 + (size_t)byte_count + 2;
+            } else {
+                return 1;
+            }
+            break;
+        default:
+            return -2;
+    }
+
+    if (in->len < frame_len) return 1;
+
+    uint16_t crc_calc = modbus_calculate_crc(p, frame_len - 2);
+    uint16_t crc_rx = (uint16_t)(p[frame_len - 2] | (p[frame_len - 1] << 8));
+    if (crc_calc != crc_rx) {
+        fprintf(stderr, "❌ [MODBUS_REQ_CRC] Len: %zu, Calc: %04X, RX: %04X\n", frame_len, crc_calc, crc_rx);
+        return -1;
+    }
+
+    *slave_id = p[0];
+    *fc = p[1];
+    *data_out = p + 2;
+    *data_len = frame_len - 4;
     return 0;
 }
 

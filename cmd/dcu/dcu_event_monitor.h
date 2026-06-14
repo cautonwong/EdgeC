@@ -21,11 +21,11 @@ pipeline_stage_t *stage_event_monitor_create(dcu_event_obj_t *evt_3000, dcu_even
 /**
  * @brief 创建事件快照追加与主动上报算子 (stage_event_logger)
  */
-pipeline_stage_t *stage_event_logger_create(dcu_event_obj_t *evt_3000, dcu_event_obj_t *evt_3005, datahub_t *hub, void *legacy_storage, event_sink_ops_t sink_ops);
+pipeline_stage_t *stage_event_logger_create(dcu_event_obj_t *evt_3000, dcu_event_obj_t *evt_3005, datahub_t *hub, event_sink_ops_t sink_ops);
 
 /**
  * @brief 创建日冻结定期快照算子 (stage_periodic_freeze)
  */
-pipeline_stage_t *stage_periodic_freeze_create_ex(void *legacy_storage, datahub_t *hub, event_sink_ops_t sink_ops);
+pipeline_stage_t *stage_periodic_freeze_create_ex(datahub_t *hub, event_sink_ops_t sink_ops);
 
 #endif // DCU_EVENT_MONITOR_H

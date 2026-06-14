@@ -19,11 +19,11 @@ static void test_storage_buffering(void **state) {
     assert_int_equal(ret, 0);
     
     // 写入 5 条最新实时遥测数据
-    dcu_storage_write_telemetry(&storage, "10000001", OAD_VOLTAGE, 220.4);
-    dcu_storage_write_telemetry(&storage, "10000001", OAD_CURRENT, 5.02);
-    dcu_storage_write_telemetry(&storage, "10000002", OAD_VOLTAGE, 221.1);
-    dcu_storage_write_telemetry(&storage, "10000002", OAD_CURRENT, 4.98);
-    dcu_storage_write_telemetry(&storage, "10000003", OAD_VOLTAGE, 219.8);
+    dcu_storage_write_telemetry(&storage, "10000001", 1, OAD_VOLTAGE, 220.4);
+    dcu_storage_write_telemetry(&storage, "10000001", 1, OAD_CURRENT, 5.02);
+    dcu_storage_write_telemetry(&storage, "10000002", 2, OAD_VOLTAGE, 221.1);
+    dcu_storage_write_telemetry(&storage, "10000002", 2, OAD_CURRENT, 4.98);
+    dcu_storage_write_telemetry(&storage, "10000003", 3, OAD_VOLTAGE, 219.8);
     
     // 未进行 flush 刷写前，由于双缓冲保护，临时数据库中记录行数应当为 0
     sqlite3_stmt *stmt;

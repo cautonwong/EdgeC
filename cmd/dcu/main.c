@@ -223,6 +223,7 @@ int main(int argc, char **argv) {
     
     router_bus_ops_t router_bus = {
         .ctx = &hub,
+        .msg_size = sizeof(pipe_msg_t),
         .publish_realtime = _poller_publish_realtime,
         .read_shadow_idx = _router_read_shadow
     };
@@ -304,12 +305,12 @@ int main(int argc, char **argv) {
     pipeline_stage_t *m_stage = stage_event_monitor_create(&g_evt_3000, &g_evt_3005);
     pipeline_add_stage(evt_pipe, m_stage->name, m_stage->process, m_stage->priv_state, m_stage->cleanup_state, NULL, NULL);
     free(m_stage);
-    pipeline_stage_t *l_stage = stage_event_logger_create(&g_evt_3000, &g_evt_3005, &hub, &g_dcu_storage, event_sink);
+    pipeline_stage_t *l_stage = stage_event_logger_create(&g_evt_3000, &g_evt_3005, &hub, event_sink);
     pipeline_add_stage(evt_pipe, l_stage->name, l_stage->process, l_stage->priv_state, l_stage->cleanup_state, NULL, NULL);
     free(l_stage);
 
     pipeline_t *frz_pipe = stream_engine_add_pipeline(se, "FREEZE_PIPELINE", 0);
-    pipeline_stage_t *f_stage = stage_periodic_freeze_create_ex(&g_dcu_storage, &hub, event_sink);
+    pipeline_stage_t *f_stage = stage_periodic_freeze_create_ex(&hub, event_sink);
     pipeline_add_stage(frz_pipe, f_stage->name, f_stage->process, f_stage->priv_state, f_stage->cleanup_state, NULL, NULL);
     free(f_stage);
 

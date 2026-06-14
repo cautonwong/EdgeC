@@ -40,7 +40,24 @@ void arbiter_pause(arbiter_t *arb) {
 }
 
 void arbiter_resume(arbiter_t *arb) {
-    uv_mutex_lock(&arb->lock); arb->paused = false; uv_mutex_unlock(&arb->lock);
+    if (!arb) return;
+    uv_mutex_lock(&arb->lock);
+    arb->paused = false;
+    
+    // 💡 [MTT 补强] 恢复时主动扫描所有总线，触发积压任务，防止“只开闸不放水”
+    for (int i = 0; i < ARBITER_MAX_BUSES; i++) {
+        if (!arb->buses[i].owner && arb->buses[i].queue) {
+            arb->buses[i].owner = arb->buses[i].queue;
+            arb->buses[i].queue = arb->buses[i].queue->next;
+            cmd_msg_t *job = arb->buses[i].owner;
+            
+            // 释放锁后再回调，防止递归死锁
+            uv_mutex_unlock(&arb->lock);
+            if (job->on_start) job->on_start(job);
+            uv_mutex_lock(&arb->lock);
+        }
+    }
+    uv_mutex_unlock(&arb->lock);
 }
 
 void *arbiter_bus_register(arbiter_t *arb, const char *name) {
@@ -48,12 +65,15 @@ void *arbiter_bus_register(arbiter_t *arb, const char *name) {
 }
 
 int arbiter_submit_cmd(arbiter_t *arb, int bus_id, cmd_msg_t *cmd) {
-    if (!arb || bus_id < 0 || bus_id >= ARBITER_MAX_BUSES) return -1;
+    if (!arb || bus_id < 0 || bus_id >= ARBITER_MAX_BUSES || !cmd) return -1;
+    
     uv_mutex_lock(&arb->lock);
+    // 1. 优先级插入队列 (Stable Sort)
     cmd_msg_t **p = &arb->buses[bus_id].queue;
     while (*p && (*p)->priority >= cmd->priority) p = &(*p)->next;
     cmd->next = *p; *p = cmd;
     
+    // 2. 如果未暂停且总线空闲，立刻触发
     if (!arb->paused && !arb->buses[bus_id].owner) {
         arb->buses[bus_id].owner = arb->buses[bus_id].queue;
         arb->buses[bus_id].queue = arb->buses[bus_id].queue->next;

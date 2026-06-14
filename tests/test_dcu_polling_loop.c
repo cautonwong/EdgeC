@@ -11,17 +11,23 @@
 #include "dcu_router.h"
 
 static datahub_t g_hub;
+static int received_publish_count = 0;
+static double last_received_val = 0.0;
 
-// DataHub 唤醒/刷新回调，当总线数据发布时被触发
-static void on_datahub_wakeup(datahub_t *hub, void *user_data) {
-    (void)hub;
-    (void)user_data;
+static int _test_poller_publish(void *ctx, uint32_t tag_id, uint32_t meter_idx, double val, uint64_t timestamp_ns) {
+    (void)ctx; (void)tag_id; (void)meter_idx; (void)timestamp_ns;
+    received_publish_count++;
+    last_received_val = val;
+    return 0;
 }
 
 // 模拟抄表物理收发并推向 DataHub 
 static void test_polling_simulation(void **state) {
     (void)state;
     uv_loop_t *loop = uv_default_loop();
+
+    received_publish_count = 0;
+    last_received_val = 0.0;
 
     // 1. 初始化 DataHub，作为总线载体
     int ret = datahub_init(&g_hub, loop, "dcu_bus", 128, 0, NULL, 0, NULL, NULL, NULL);
@@ -37,27 +43,28 @@ static void test_polling_simulation(void **state) {
     dcu_poller_init(&poller);
     uint32_t oads[1] = {OAD_VOLTAGE}; // 电压 OAD
     dcu_poller_add_scheme(&poller, 1, 0, oads, 1);
-    dcu_poller_add_task(&poller, 1, 1, 1); // 1秒周期
+    dcu_poller_add_task(&poller, 1, 0, 1); // 0秒周期，确保立即执行
 
-    // 4. 启动动态轮询线程/uv_timer
-    ret = dcu_poller_start(&poller, &inv, &g_hub, NULL, loop);
+    poller_sink_ops_t poller_sink = {0};
+    poller_bus_ops_t poller_bus = {
+        .ctx = NULL,
+        .publish_realtime = _test_poller_publish,
+        .push_event = NULL
+    };
+
+    // 4. 启动动态轮询调度
+    ret = dcu_poller_start(&poller, (poller_io_ops_t){0}, poller_bus, poller_sink);
     assert_int_equal(ret, 0);
 
-    // 5. 运行 libuv 循环 1050ms，让对齐周期定时器触发并生产数据
-    uint64_t start_ms = uv_now(loop);
-    while (uv_now(loop) - start_ms < 1050) {
-        uv_run(loop, UV_RUN_ONCE);
-    }
+    // 5. 调用数采数据泵，驱动一次模拟抄表
+    dcu_poller_pump(&poller, &inv);
 
-
-    // 6. 验证运行状态：
-    // 确认高精度时间对齐采集调度引擎成功初始化并投入周期运行中
-    assert_true(poller.sim_running);
-    assert_non_null(poller.sim_timer_ptr);
+    // 6. 验证运行状态：确认通过契约接口向 DataHub 成功推送了数据
+    assert_int_equal(received_publish_count, 1);
+    assert_float_equal(last_received_val, 220.88f, 0.01f);
  
     // 销毁
     dcu_poller_stop(&poller);
-    dcu_poller_destroy(&poller);
     dcu_inventory_destroy(&inv);
     datahub_destroy(&g_hub);
 }

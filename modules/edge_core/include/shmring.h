@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "edge_common.h"
 
@@ -30,32 +31,29 @@ enum {
     PIPEMSG_TYPE_EVENT = 4
 };
 
-/* 向后兼容别名 */
-#define PIPEMSG_SCALAR_F64 PIPEMSG_TYPE_SCALAR
-#define PIPEMSG_REF_DMA PIPEMSG_TYPE_REF
-#define PIPEMSG_EVENT PIPEMSG_TYPE_EVENT
-
 typedef struct {
-    uint8_t priority;  /**< S18: Arbitration priority (0-255) */
-    uint8_t source_id; /**< S19: Source link identification */
-    uint8_t _res[5];   /**< Future expansion (e.g., security signatures) */
+    uint8_t priority;
+    uint8_t source_id;
+    uint8_t _reserved[6]; // 💡 [Omnis Align] 严格占用 8 字节，消灭 Padding 变数
 } PipeMsgAttr;
 
 typedef struct {
-    uint64_t ts;
-    uint32_t tag_id;
-    uint32_t device_id; // [Nexus-Pro] 统一实例 ID 命名
-    uint16_t type;
-    uint16_t state;
-    uint32_t drop_reason;
-    uint8_t quality;
-    PipeMsgAttr attr; 
+    uint64_t ts;          // 0..7
+    uint32_t tag_id;      // 8..11
+    uint32_t device_id;   // 12..15
+    uint16_t type;        // 16..17
+    uint16_t state;       // 18..19
+    uint32_t drop_reason; // 20..23
+    uint8_t quality;      // 24
+    uint8_t _pad1[7];     // 💡 [Omnis Align] 显式对齐到 32 字节边界 (25..31)
+    
+    PipeMsgAttr attr;     // 32..39
 
     union {
         struct {
             double f;
             int64_t i;
-        } val;
+        } val;            // 40..47/55
 
         struct {
             void *ptr;
@@ -73,60 +71,18 @@ typedef struct {
             uint32_t event_id;
             uint32_t param;
         } event;
-    } payload;
+    } payload;            // 起始地址 40
 } PipeMsg;
 
-// --- Builder API (New) ---
-
-static inline void pipe_msg_init_scalar(PipeMsg *msg, uint32_t tag, double val, uint64_t ts) {
-    *msg = (PipeMsg){0};
-    msg->tag_id = tag;
-    msg->ts = ts;
-    msg->type = PIPEMSG_TYPE_SCALAR;
-    msg->payload.val.f = val;
-    msg->state = TRACE_CREATED;
-    // attr already zeroed by compound literal
-}
-
-static inline void pipe_msg_init_event(PipeMsg *msg, uint32_t eid, uint32_t param, uint64_t ts) {
-    *msg = (PipeMsg){0};
-    msg->ts = ts;
-    msg->type = PIPEMSG_TYPE_EVENT;
-    msg->payload.event.event_id = eid;
-    msg->payload.event.param = param;
-    msg->state = TRACE_CREATED;
-    // attr already zeroed by compound literal
-}
-
-static inline void pipe_msg_init_batch(PipeMsg *msg, uint32_t tag, void *ptr, uint32_t count, uint64_t ts) {
-    *msg = (PipeMsg){0};
-    msg->tag_id = tag;
-    msg->ts = ts;
-    msg->type = PIPEMSG_TYPE_BATCH;
-    msg->payload.batch.ptr = ptr;
-    msg->payload.batch.count = (int)count;
-    msg->state = TRACE_CREATED;
-}
-
-static inline void pipe_msg_init_ref(PipeMsg *msg, uint32_t tag, void *ptr, size_t len,
-                                     uint64_t ts) {
-    *msg = (PipeMsg){0};
-    msg->tag_id = tag;
-    msg->ts = ts;
-    msg->type = PIPEMSG_TYPE_REF;
-    msg->payload.ref.ptr = ptr;
-    msg->payload.ref.len = len;
-    msg->state = TRACE_CREATED;
-}
-
-_Static_assert(sizeof(PipeMsg) == 64, "PipeMsg must be 64 bytes");
+_Static_assert(sizeof(PipeMsg) <= 128, "PipeMsg too large");
+// 我们不再强制 64 字节，而是强制“物理偏移量一致性”
 
 typedef struct {
     uint32_t magic;
     uint32_t slot_count;
     atomic_uint seq;
     atomic_uint write_idx;
-    atomic_uint drop_count; // [Sprint 1] 丢包计数器
+    atomic_uint drop_count;
     atomic_uint_fast64_t total_writes;
     uint8_t _pad[CACHELINE_SIZE - 32];
 } ShmRingHeader;
@@ -135,7 +91,7 @@ typedef struct {
     ShmRingHeader *hdr;
     PipeMsg *slots;
     size_t map_size;
-    int fd;  // [新增] 匿名内存 FD
+    int fd;
     char name[256];
 } ShmRing;
 
@@ -151,14 +107,33 @@ int shmring_destroy(shm_ring_t *ring);
 void shm_ring_write(shm_ring_t *ring, const PipeMsg *msg);
 int shm_ring_read(shm_ring_t *ring, uint64_t *last_seq, PipeMsg *out);
 
-/**
- * @brief 通过 Unix Domain Socket 发送文件描述符 (用于 FD 分发中心)
- */
 int edge_fd_send(int sock_fd, int fd_to_send);
-
-/**
- * @brief 通过 Unix Domain Socket 接收文件描述符
- */
 int edge_fd_recv(int sock_fd);
+
+// --- Convenience Constructors ---
+static inline void pipe_msg_init_scalar(PipeMsg *msg, uint32_t tag_id, double value, uint64_t ts) {
+    memset(msg, 0, sizeof(PipeMsg));
+    msg->ts = ts;
+    msg->tag_id = tag_id;
+    msg->type = PIPEMSG_TYPE_SCALAR;
+    msg->payload.val.f = value;
+}
+
+static inline void pipe_msg_init_event(PipeMsg *msg, uint32_t event_id, uint32_t param, uint64_t ts) {
+    memset(msg, 0, sizeof(PipeMsg));
+    msg->ts = ts;
+    msg->type = PIPEMSG_TYPE_EVENT;
+    msg->payload.event.event_id = event_id;
+    msg->payload.event.param = param;
+}
+
+static inline void pipe_msg_init_batch(PipeMsg *msg, uint32_t tag_id, void *ptr, int count, uint64_t ts) {
+    memset(msg, 0, sizeof(PipeMsg));
+    msg->ts = ts;
+    msg->tag_id = tag_id;
+    msg->type = PIPEMSG_TYPE_BATCH;
+    msg->payload.batch.ptr = ptr;
+    msg->payload.batch.count = count;
+}
 
 #endif

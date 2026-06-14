@@ -173,7 +173,7 @@ typedef struct {
 
 // --- 协议映射结构 (由编译器生成并满足 driver_contract_injection_t) ---
 typedef struct {
-    uint32_t key;
+    uint64_t key;
     edge_tag_id_t tag_id;
     uint16_t dense_idx;
     float scaler;
@@ -182,7 +182,7 @@ typedef struct {
 } modbus_map_t;
 
 typedef struct {
-    uint32_t key;
+    uint64_t key;
     edge_tag_id_t tag_id;
     uint16_t dense_idx;
     float scaler;
@@ -191,7 +191,7 @@ typedef struct {
 } dlt645_map_t;
 
 typedef struct {
-    uint32_t key;
+    uint64_t key;
     edge_tag_id_t tag_id;
     uint16_t dense_idx;
     float scaler;
@@ -204,7 +204,7 @@ typedef struct {
 } iec104_map_t;
 
 typedef struct {
-    uint32_t key;
+    uint64_t key;
     edge_tag_id_t tag_id;
     uint16_t dense_idx;
     float scaler;
@@ -225,6 +225,15 @@ typedef struct {
     float scaler;
     uint32_t access;
 } dlms_map_t;
+
+typedef struct {
+    uint64_t key;
+    edge_tag_id_t tag_id;
+    uint16_t dense_idx;
+    float scaler;
+    uint16_t length;
+    uint32_t access;
+} can_map_t;
 
 typedef modbus_map_t tag_map_t;
 

@@ -170,22 +170,22 @@ static void _on_uv_poll(uv_poll_t *handle, int status, int events) {
     }
 
     if (events & UV_READABLE) {
-        while (1) {
-            net_buf_t *rx = net_buf_alloc(impl->pool, 0);
-            if (!rx) break;
-            ssize_t n = read(impl->fd, rx->b.data, rx->b.size);
-            if (n > 0) {
-                rx->b.len = (uint16_t)n;
-                impl->base.cb(&impl->base, IO_EVENT_RX, rx, impl->base.user_data);
-                net_buf_unref(rx);
-            } else {
-                net_buf_unref(rx);
-                if (n == 0 || (errno != EAGAIN && errno != EINTR)) {
-                    impl->base.cb(&impl->base, IO_EVENT_ERROR, NULL, impl->base.user_data);
+        uint8_t buf[256];
+        ssize_t ret;
+        do {
+            ret = recv(impl->fd, buf, sizeof(buf), MSG_DONTWAIT);
+            if (ret > 0) {
+                net_buf_t *nb = net_buf_alloc(impl->pool, ret);
+                if (nb) {
+                    memcpy(nb->b.data, buf, ret);
+                    nb->b.len = (uint16_t)ret;
+                    if (impl->base.cb) impl->base.cb(&impl->base, IO_EVENT_RX, nb, impl->base.user_data);
+                    net_buf_unref(nb);
                 }
-                break;
+            } else if (ret == 0 || (ret < 0 && errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)) {
+                if (impl->base.cb) impl->base.cb(&impl->base, IO_EVENT_ERROR, NULL, impl->base.user_data);
             }
-        }
+        } while (ret > 0);
     }
 
     if (events & UV_WRITABLE) {
@@ -230,6 +230,12 @@ static int _poll_ioctl(io_handle_t *h, int cmd, void *arg) {
             net_buf_unref(impl->pending_tx);
             impl->pending_tx = NULL;
         }
+        // Drain OS RX buffer non-blockingly to prevent sequence mismatch from delayed responses
+        uint8_t trash[256];
+        ssize_t ret;
+        do {
+            ret = recv(impl->fd, trash, sizeof(trash), MSG_DONTWAIT);
+        } while (ret > 0);
         return 0;
     }
     if (cmd == IO_CTL_SET_BAUD && impl->type == IO_TYPE_UART) {

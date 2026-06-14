@@ -55,7 +55,7 @@ typedef struct cmd_msg {
     uint32_t timeout_ms;
     uint64_t submit_ts;
 
-    void (*on_start)(void *user);
+    void (*on_start)(struct cmd_msg *msg);
     void (*on_complete)(struct cmd_msg *msg, int status);
     void (*on_cleanup)(struct cmd_msg *msg); // 恢复清理回调
     struct cmd_msg *next;

@@ -26,11 +26,12 @@ static void test_dcu_full_pipeline_integration(void **state) {
     ret = datahub_init(&hub, loop, "dcu_integration_bus", 128, 0, NULL, 0, NULL, NULL, NULL);
     assert_int_equal(ret, 0);
 
+dcu_inventory_t g_dcu_inventory;
+
     // 3. 初始化档案并增加 2 只表 (TSA: 20000001, 20000002)
-    dcu_inventory_t inv;
-    dcu_inventory_init(&inv);
-    dcu_inventory_add(&inv, "20000001", "dlt698", 9600, 1, NULL);
-    dcu_inventory_add(&inv, "20000002", "dlt698", 9600, 1, NULL);
+    dcu_inventory_init(&g_dcu_inventory);
+    dcu_inventory_add(&g_dcu_inventory, "20000001", "dlt698", 9600, 1, NULL);
+    dcu_inventory_add(&g_dcu_inventory, "20000002", "dlt698", 9600, 1, NULL);
 
     // 4. 初始化 poller 并注册定时任务与普通采集方案
     dcu_poller_t poller;
@@ -40,8 +41,19 @@ static void test_dcu_full_pipeline_integration(void **state) {
     dcu_poller_add_task(&poller, 1, 10, 1);
 
 
+    poller_sink_ops_t poller_sink = {
+        .ctx = &storage,
+        .record_telemetry = (void*)dcu_storage_write_telemetry,
+        .commit_batch = (void*)dcu_storage_flush
+    };
+    poller_bus_ops_t poller_bus = {
+        .ctx = &hub,
+        .publish_realtime = NULL,
+        .push_event = NULL
+    };
+
     // 5. 启动数采模拟生产器并直推 DataHub
-    ret = dcu_poller_start(&poller, &inv, &hub, NULL, loop);
+    ret = dcu_poller_start(&poller, (poller_io_ops_t){0}, poller_bus, poller_sink);
     assert_int_equal(ret, 0);
 
     // 6. 数据总线消费链路搭建：
@@ -55,8 +67,8 @@ static void test_dcu_full_pipeline_integration(void **state) {
         uv_run(loop, UV_RUN_ONCE);
         
         // 模拟消费端：取出最新模拟量存入双缓冲
-        dcu_storage_write_telemetry(&storage, "20000001", OAD_VOLTAGE, 220.5);
-        dcu_storage_write_telemetry(&storage, "20000002", OAD_CURRENT, 4.95);
+        dcu_storage_write_telemetry(&storage, "20000001", 1, OAD_VOLTAGE, 220.5);
+        dcu_storage_write_telemetry(&storage, "20000002", 2, OAD_CURRENT, 4.95);
     }
 
     // 7. 模拟物理掉电 SIGTERM 中断，强行 Flush 刷盘
@@ -75,8 +87,7 @@ static void test_dcu_full_pipeline_integration(void **state) {
 
     // 9. 回收所有资源
     dcu_poller_stop(&poller);
-    dcu_poller_destroy(&poller);
-    dcu_inventory_destroy(&inv);
+    dcu_inventory_destroy(&g_dcu_inventory);
     datahub_destroy(&hub);
     dcu_storage_destroy(&storage);
 }

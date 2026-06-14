@@ -15,8 +15,10 @@ typedef struct {
 } test_ctx_t;
 
 static void on_start(void *user) {
-    int *flag = (int *)user;
-    (*flag) = 1;
+    if (!user) return;
+    cmd_msg_t *cmd = (cmd_msg_t *)user;
+    int *flag = (int *)cmd->user_data;
+    if (flag) (*flag) = 1;
 }
 
 // 物理回收指令 (Arbiter 已经负责 free(cmd)，此处仅用于清理内部数据)

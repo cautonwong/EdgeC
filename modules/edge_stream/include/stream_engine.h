@@ -91,23 +91,30 @@ struct pipeline_stage_s {
 typedef struct stream_engine_s stream_engine_t;
 typedef struct pipeline_s pipeline_t;
 
+// [Consumer-Defined Control Interface] 解耦底层总线模块
+typedef int (*stream_control_cb)(void *ctx, int bus_id, uint32_t tag_id, double value, const char *proto);
+typedef struct {
+    void *ctx;
+    stream_control_cb submit_control;
+} stream_control_ops_t;
+
 // pipeline_loader_ctx_t 的定义必须匹配 contract_data_types.h 中的前置声明
 struct pipeline_loader_ctx_s {
     sqlite_svc_t *db;
     js_engine_t *js_engine;
     edge_params_t *params;
-    struct bus_orchestrator_s *orch; /**< [新增] 用于指令触发 (Sprint 3) */
+    stream_control_ops_t control_ops; /**< [IoC] 用于指令触发，消费者定义的接口 */
 };
 
 stream_engine_t *stream_engine_create(datahub_t *hub, uv_loop_t *loop,
-                                      struct bus_orchestrator_s *orch,
+                                      void *orch,
                                       const edge_stage_factory_entry_t *registry);
 
 /**
  * @brief 在指定 Loop 上创建流引擎 (用于物理隔离 L2 线程)
  */
 stream_engine_t *stream_engine_create_ex(datahub_t *hub, uv_loop_t *loop,
-                                         struct bus_orchestrator_s *orch,
+                                         void *orch,
                                          const edge_stage_factory_entry_t *registry);
 void stream_engine_destroy(stream_engine_t *engine);
 
@@ -162,7 +169,7 @@ pipeline_stage_t *stage_sqlite_sink_create(sqlite_svc_t *db, const char *table);
 pipeline_stage_t *stage_js_rule_create(js_engine_t *engine, const char *script_path, bool is_async);
 pipeline_stage_t *stage_wasm_create(const char *wasm_path, const char *entry_func);
 pipeline_stage_t *stage_battery_guard_create(battery_limit_t *limits);
-pipeline_stage_t *stage_reflex_logic_create(struct bus_orchestrator_s *orch, uint32_t bus_id,
+pipeline_stage_t *stage_reflex_logic_create(stream_control_ops_t control_ops, uint32_t bus_id,
                                             const char *proto, uint32_t target_tag,
                                             double threshold, bool greater_than, double action_val);
 

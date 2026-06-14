@@ -14,10 +14,6 @@
 #include "edge_motor.h"
 #include "arbiter.h"
 
-// Forward declaration to break circular dependency with edge_io
-struct bus_orchestrator_s;
-extern int bus_orchestrator_submit_cmd(struct bus_orchestrator_s *ctx, int bus_id, cmd_msg_t *cmd);
-
 // --- Private Config Structs ---
 
 typedef struct {
@@ -70,7 +66,7 @@ typedef struct {
 } _sink_work_ctx_t;
 
 typedef struct {
-    struct bus_orchestrator_s *orch;
+    stream_control_ops_t control_ops;
     uint32_t bus_id;
     char proto[16];
     uint32_t target_tag;
@@ -167,7 +163,7 @@ static stage_ret_t _freeze_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
         return STAGE_OK;
     }
     if (ev->type == PIPEMSG_TYPE_EVENT && ev->payload.event.param == (uint32_t)st->kind) {
-        ev->type = PIPEMSG_SCALAR_F64;
+        ev->type = PIPEMSG_TYPE_SCALAR;
         ev->payload.val.f = (st->n > 0) ? (st->acc / st->n) : 0;
         st->acc = 0;
         st->n = 0;
@@ -233,18 +229,8 @@ static stage_ret_t _reflex_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
     _reflex_cfg_t *c = s->priv_cfg;
     bool triggered = c->greater_than ? (ev->payload.val.f > c->threshold) : (ev->payload.val.f < c->threshold);
     if (triggered) {
-        // [Nexus] 外科手术式修复：动态分配 cmd_msg_t，其生命周期交由 arbiter 引擎自动回收
-        cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));
-        if (cmd) {
-            cmd->action = CMD_ACTION_WRITE;
-            cmd->tag_id = c->target_tag;
-            cmd->value = c->action_value;
-            cmd->priority = ARBITER_PRIO_HIGH;
-            strncpy(cmd->protocol, c->proto, 15);
-            snprintf(cmd->req_id, sizeof(cmd->req_id), "REFLEX_%u", c->target_tag);
-            if (bus_orchestrator_submit_cmd(c->orch, (int)c->bus_id, cmd) != 0) {
-                // 若提交失败，则由底层自动释放 cmd。
-            }
+        if (c->control_ops.submit_control) {
+            c->control_ops.submit_control(c->control_ops.ctx, (int)c->bus_id, c->target_tag, c->action_value, c->proto);
         }
     }
     return STAGE_OK;
@@ -471,12 +457,12 @@ pipeline_stage_t *stage_sqlite_sink_create_v2(const edge_stage_def_t *def, pipel
 }
 
 pipeline_stage_t *stage_reflex_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
-    if (!ctx->orch) return NULL;
+    if (!ctx->control_ops.submit_control) return NULL;
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
     strncpy(s->name, "reflex", 31);
     s->process = _reflex_proc;
     _reflex_cfg_t *c = calloc(1, sizeof(_reflex_cfg_t));
-    c->orch = ctx->orch;
+    c->control_ops = ctx->control_ops;
     c->bus_id = 0;
     if (def->params.s1) strncpy(c->proto, def->params.s1, 15);
     c->target_tag = (uint32_t)def->params.u1;
@@ -624,8 +610,8 @@ pipeline_stage_t *stage_sqlite_sink_create(sqlite_svc_t *db, const char *table) 
     return stage_sqlite_sink_create_v2(&def, &ctx);
 }
 
-pipeline_stage_t *stage_reflex_logic_create(struct bus_orchestrator_s *orch, uint32_t bus_id, const char *proto, uint32_t target_tag, double threshold, bool greater_than, double action_val) {
-    pipeline_loader_ctx_t ctx = {0}; ctx.orch = orch;
+pipeline_stage_t *stage_reflex_logic_create(stream_control_ops_t control_ops, uint32_t bus_id, const char *proto, uint32_t target_tag, double threshold, bool greater_than, double action_val) {
+    pipeline_loader_ctx_t ctx = {0}; ctx.control_ops = control_ops;
     edge_stage_def_t def = {0}; def.params.s1 = proto; def.params.u1 = target_tag; def.params.f1 = threshold; def.params.f2 = greater_than ? 1.0 : 0.0; def.params.f3 = action_val;
     (void)bus_id;
     return stage_reflex_create_v2(&def, &ctx);

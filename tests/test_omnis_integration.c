@@ -37,6 +37,22 @@ static void on_timeout(uv_timer_t *handle) {
     uv_stop(&ctx->loop);
 }
 
+static int _test_stream_submit_control(void *ctx, int bus_id, uint32_t tag_id, double value, const char *proto) {
+    struct bus_orchestrator_s *orch = (struct bus_orchestrator_s *)ctx;
+    if (!orch) return -1;
+    extern int bus_orchestrator_submit_cmd(struct bus_orchestrator_s *ctx, int bus_id, cmd_msg_t *cmd);
+    cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));
+    if (!cmd) return -1;
+    cmd->action = CMD_ACTION_WRITE;
+    cmd->tag_id = tag_id;
+    cmd->value = value;
+    cmd->priority = ARBITER_PRIO_HIGH;
+    strncpy(cmd->protocol, proto, 15);
+    snprintf(cmd->req_id, sizeof(cmd->req_id), "REFLEX_%u", tag_id);
+    bus_orchestrator_submit_cmd(orch, bus_id, cmd);
+    return 0;
+}
+
 static int setup(void **state) {
     omnis_test_ctx_t *ctx = calloc(1, sizeof(omnis_test_ctx_t));
     uv_loop_init(&ctx->loop);
@@ -59,7 +75,7 @@ static int setup(void **state) {
     static const edge_pipeline_def_t pipelines[] = {
         {.id = "safety_loop", .trigger_tag = 1001, .stages = stages, .stage_count = 1}};
 
-    pipeline_loader_ctx_t l_ctx = {.orch = ctx->orch};
+    pipeline_loader_ctx_t l_ctx = { .control_ops = { .ctx = ctx->orch, .submit_control = _test_stream_submit_control } };
     stream_engine_load_static_metadata(ctx->engine, pipelines, 1, &l_ctx);
 
     *state = ctx;

@@ -112,5 +112,6 @@ int dcu_poller_start(dcu_poller_t *poller,
 void dcu_poller_pump(dcu_poller_t *poller, dcu_inventory_t *inv);
 
 void dcu_poller_stop(dcu_poller_t *poller);
+void dcu_poller_destroy(dcu_poller_t *poller);
 
 #endif

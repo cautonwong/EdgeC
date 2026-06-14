@@ -140,3 +140,7 @@ dcu_scheme_t* dcu_poller_get_scheme(dcu_poller_t *poller, uint32_t scheme_id) {
 void dcu_poller_destroy(dcu_poller_t *poller) {
     (void)poller;
 }
+
+void dcu_poller_stop(dcu_poller_t *poller) {
+    (void)poller;
+}

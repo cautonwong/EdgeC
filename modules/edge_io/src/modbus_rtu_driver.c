@@ -67,7 +67,7 @@ static int modbus_v3_encode_write(edge_driver_ctx_t *ctx, uint32_t tag_id, doubl
 static int modbus_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_out,
                                      pipe_msg_t *out_msgs, int *msg_count, size_t *consumed) {
     (void)resp_out;
-    modbus_ctx_t *priv = (modbus_ctx_t *)ctx->priv;
+    (void)ctx;
     
     uint8_t slave_id, fc;
     uint8_t *data;
@@ -77,7 +77,7 @@ static int modbus_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_
     if (ret == 1) return EDGE_ERR_INCOMPLETE;
     if (ret < 0) {
         *consumed = 1;
-        return -1;
+        return EDGE_ERR_INCOMPLETE;
     }
 
     *consumed = (size_t)(data + data_len + 2 - in->b.data);
@@ -89,17 +89,44 @@ static int modbus_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_
 
     if (fc == MODBUS_FC_READ_HOLDING_REGS || fc == MODBUS_FC_READ_INPUT_REGS) {
         /*
-         * 【避坑提醒】decode_frame 返回的 data 指针指向的是 p[2]（即 Byte Count 字节）。
-         * 因此，data[0] 实际为 Byte Count 字段的值，真正的寄存器高低字节分别存储在 data[1] 和 data[2] 中。
+         * 【物理闭环】根据契约定义的长短动态解析字节。
+         * data[0] 是从站返回的 Byte Count。
          */
-        uint16_t val = (uint16_t)((data[1] << 8) | data[2]);
-        double scale = 1.0;
+        modbus_ctx_t *priv = (modbus_ctx_t *)ctx->priv;
+        uint32_t tag_id = priv->last_requested_tag;
+        const modbus_map_t *map = NULL;
         if (ctx->lookup_by_tag) {
             typedef const modbus_map_t *(*lookup_fn_t)(uint32_t);
-            const modbus_map_t *map = ((lookup_fn_t)ctx->lookup_by_tag)(priv->last_requested_tag);
-            if (map) scale = (double)map->scaler;
+            map = ((lookup_fn_t)ctx->lookup_by_tag)(tag_id);
         }
-        pipe_msg_init_scalar(&out_msgs[0], priv->last_requested_tag, (double)val * scale,
+
+        if (map) {
+            printf("🔍 [MAP-AUDIT] Tag: %u, MapPtr: %p, MapTag: %u, MapLen: %u, MapScale: %f\n",
+                   tag_id, (void*)map, map->tag_id, map->length, map->scaler);
+        } else {
+            printf("⚠️ [MAP-AUDIT] NO MAP FOUND for Tag: %u\n", tag_id);
+        }
+
+        double val_double = 0;
+        double scale = map ? (double)map->scaler : 1.0;
+        int reg_count = map ? map->length : 1;
+        int byte_count = (int)data[0];
+
+        if (reg_count == 2 && byte_count >= 4) {
+            // 💡 [32-bit ABCD] 物理合包：data[1,2] 是高16位，data[3,4] 是低16位
+            uint32_t high = (uint32_t)((data[1] << 8) | data[2]);
+            uint32_t low = (uint32_t)((data[3] << 8) | data[4]);
+            uint32_t v32 = (high << 16) | low;
+            val_double = (double)v32;
+            printf("  [32-BIT] Tag: %u, High16: 0x%04X, Low16: 0x%04X, Combined: %u\n", 
+                   tag_id, high, low, v32);
+        } else if (byte_count >= 2) {
+            // 💡 [16-bit] 正常 2 字节解析
+            uint16_t v16 = (uint16_t)((data[1] << 8) | data[2]);
+            val_double = (double)v16;
+        }
+
+        pipe_msg_init_scalar(&out_msgs[0], tag_id, val_double * scale,
                              uv_hrtime());
         *msg_count = 1;
     }
@@ -115,7 +142,7 @@ int modbus_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_o
     uint8_t *data;
     size_t data_len;
     
-    int ret = modbus_rtu_decode_frame(&in->b, &slave_id, &fc, &data, &data_len);
+    int ret = modbus_rtu_decode_req_frame(&in->b, &slave_id, &fc, &data, &data_len);
     if (ret == 1) return EDGE_ERR_INCOMPLETE;
     if (ret < 0) {
         *consumed = 1;

@@ -2,7 +2,6 @@
 #include "rest_server.h"
 #include "web_server.h"
 
-#include <MQTTAsync.h>
 #include <cjson/cJSON.h>
 #include <curl/curl.h>
 #include <stdio.h>
@@ -18,6 +17,37 @@
 #include "sparkplug_b.h"
 #include "snf_manager.h"
 
+#ifndef uv__queue_data
+#define uv__queue_data(q, type, link) \
+    (type *) ((char *) q - offsetof(type, link))
+#endif
+
+#ifndef uv__queue_empty
+#define uv__queue_empty(q) \
+    ((q) == (q)->next)
+#endif
+
+#ifndef uv__queue_head
+#define uv__queue_head(q) \
+    ((q)->next)
+#endif
+
+#ifndef uv__queue_remove
+#define uv__queue_remove(p) \
+    do { \
+        (p)->next->prev = (p)->prev; \
+        (p)->prev->next = (p)->next; \
+    } while (0)
+#endif
+
+#ifndef uv__queue_init
+#define uv__queue_init(q) \
+    do { \
+        (q)->next = (q); \
+        (q)->prev = (q); \
+    } while (0)
+#endif
+
 extern int sparkplug_b_driver_register(driver_manager_t *mgr);
 typedef struct {
     char group_id[64];
@@ -29,9 +59,8 @@ typedef struct {
 
 extern char *rest_dispatch(service_t *svc, const char *method, const char *path, const char *body);
 
-static int _push_to_mqtt_direct(northbound_mgr_t *mgr, uint32_t tag_id, double val, uint64_t ts) {
-    // [Nexus] Cloud Mock 闭环演示逻辑
-    if (!mgr->mqtt_connected) {
+static int _push_to_transport_direct(northbound_mgr_t *mgr, uint32_t tag_id, double val, uint64_t ts) {
+    if (!mgr->transport.is_connected || !mgr->transport.is_connected(mgr->transport.ctx)) {
         printf("☁️  [CLOUD-MOCK] 物理连接未就绪，通过影子链路推送告警: TagID=%X, Value=%.2f\n", tag_id, val);
         return 0; 
     }
@@ -47,15 +76,10 @@ static int _push_to_mqtt_direct(northbound_mgr_t *mgr, uint32_t tag_id, double v
             char topic[256];
             snprintf(topic, sizeof(topic), "spBv1.0/%s/NDATA/%s", spb->group_id, spb->edge_node_id);
             
-            MQTTAsync_message pubmsg = MQTTAsync_message_initializer;
-            pubmsg.payload = nb->b.data;
-            pubmsg.payloadlen = (int)nb->b.len;
-            pubmsg.qos = 1;
-            pubmsg.retained = 0;
-
-            MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
-            if (MQTTAsync_sendMessage(mgr->mqtt_client, topic, &pubmsg, &opts) == MQTTASYNC_SUCCESS) {
-                rc = 0;
+            if (mgr->transport.publish) {
+                if (mgr->transport.publish(mgr->transport.ctx, topic, nb->b.data, nb->b.len) == 0) {
+                    rc = 0;
+                }
             }
         }
         net_buf_unref(nb);
@@ -63,11 +87,11 @@ static int _push_to_mqtt_direct(northbound_mgr_t *mgr, uint32_t tag_id, double v
     return rc;
 }
 
-static void _push_to_mqtt(northbound_mgr_t *mgr, uint32_t tag_id, double val, uint64_t ts) {
+static void _push_to_transport(northbound_mgr_t *mgr, uint32_t tag_id, double val, uint64_t ts) {
     if (!mgr) return;
 
-    if (mgr->mqtt_connected) {
-        if (_push_to_mqtt_direct(mgr, tag_id, val, ts) == 0) return;
+    if (mgr->transport.is_connected && mgr->transport.is_connected(mgr->transport.ctx)) {
+        if (_push_to_transport_direct(mgr, tag_id, val, ts) == 0) return;
     }
 
     // [SnF] If offline or publish failed, buffer to SQLite
@@ -82,46 +106,20 @@ static void _push_to_mqtt(northbound_mgr_t *mgr, uint32_t tag_id, double val, ui
 }
 
 static int _snf_publish_wrapper(void *user_data, const PipeMsg *msg) {
-    return _push_to_mqtt_direct((northbound_mgr_t *)user_data, msg->tag_id, msg->payload.val.f, msg->ts);
+    return _push_to_transport_direct((northbound_mgr_t *)user_data, msg->tag_id, msg->payload.val.f, msg->ts);
 }
 
-// [Matrix] 简单的 HTTP POST 实现，用于回传数据给仿真服务器
-static void _push_to_matrix(uint32_t tag_id, double val, uint64_t ts) {
-    CURL *curl;
-    CURLcode res;
-
-    curl = curl_easy_init();
-    if (curl) {
-        const char *srv = getenv("OMNIS_SERVER");
-        char url[128];
-        snprintf(url, sizeof(url), "http://%s/api/v1/monitor", srv ? srv : "localhost:50051");
-
-        char body[128];
-        snprintf(body, sizeof(body), "{\"tag_id\": %u, \"value\": %f, \"ts\": %lu}", tag_id, val, ts);
-
-        struct curl_slist *headers = NULL;
-        headers = curl_slist_append(headers, "Content-Type: application/json");
-
-        curl_easy_setopt(curl, CURLOPT_URL, url);
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body);
-        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-        curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 200L);
-
-        res = curl_easy_perform(curl);
-        if (res == CURLE_OK) {
-            // printf("[NORTH] Push to Matrix: Tag=%u Val=%.2f\n", tag_id, val);
-        }
-
-        curl_slist_free_all(headers);
-        curl_easy_cleanup(curl);
-    }
-}
 
 static void on_data_notify_timer(uv_timer_t *handle) {
     northbound_mgr_t *mgr = (northbound_mgr_t *)handle->data;
     if (!mgr || !mgr->user_data) return;
 
-    if (mgr->mqtt_connected && mgr->nb_driver) {
+    bool is_online = mgr->transport.is_connected && mgr->transport.is_connected(mgr->transport.ctx);
+    if (mgr->snf) {
+        snf_manager_set_online(mgr->snf, is_online);
+    }
+
+    if (is_online && mgr->nb_driver) {
         edge_driver_ctx_t *ctx = (edge_driver_ctx_t *)mgr->nb_driver;
         if (ctx->driver->on_tick) {
             net_buf_t *tick_buf = NULL;
@@ -130,14 +128,9 @@ static void on_data_notify_timer(uv_timer_t *handle) {
                  char topic[256];
                  snprintf(topic, sizeof(topic), "spBv1.0/%s/NBIRTH/%s", spb->group_id, spb->edge_node_id);
                  
-                 MQTTAsync_message pubmsg = MQTTAsync_message_initializer;
-                 pubmsg.payload = tick_buf->b.data;
-                 pubmsg.payloadlen = (int)tick_buf->b.len;
-                 pubmsg.qos = 1;
-                 pubmsg.retained = 0;
-
-                 MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
-                 MQTTAsync_sendMessage(mgr->mqtt_client, topic, &pubmsg, &opts);
+                 if (mgr->transport.publish) {
+                     mgr->transport.publish(mgr->transport.ctx, topic, tick_buf->b.data, tick_buf->b.len);
+                 }
                  LOG_INFO(LOG_CAT_NB, "Sparkplug B: Published NBIRTH to %s", topic);
                  net_buf_unref(tick_buf);
             }
@@ -147,8 +140,7 @@ static void on_data_notify_timer(uv_timer_t *handle) {
     PipeMsg msg;
     while (shm_ring_read(mgr->ring, &mgr->last_seq, &msg) == 0) {
         if (msg.type == PIPEMSG_TYPE_SCALAR) {
-            _push_to_mqtt(mgr, msg.tag_id, msg.payload.val.f, msg.ts);
-            _push_to_matrix(msg.tag_id, msg.payload.val.f, msg.ts);
+            _push_to_transport(mgr, msg.tag_id, msg.payload.val.f, msg.ts);
         }
     }
 }
@@ -180,21 +172,6 @@ static void on_north_stop(uv_async_t *handle) {
     uv_stop(handle->loop);
 }
 
-static void _on_mqtt_connect_success(void *context, MQTTAsync_successData *response) {
-    (void)response;
-    northbound_mgr_t *mgr = (northbound_mgr_t *)context;
-    mgr->mqtt_connected = true;
-    if (mgr->snf) snf_manager_set_online(mgr->snf, true);
-    LOG_INFO(LOG_CAT_NB, "Sparkplug B: Connected to MQTT Broker.");
-}
-
-static void _on_mqtt_connect_failure(void *context, MQTTAsync_failureData *response) {
-    northbound_mgr_t *mgr = (northbound_mgr_t *)context;
-    mgr->mqtt_connected = false;
-    if (mgr->snf) snf_manager_set_online(mgr->snf, false);
-    LOG_ERROR(LOG_CAT_NB, "Sparkplug B: Failed to connect to MQTT Broker (Code: %d).", response ? response->code : -1);
-}
-
 static void north_thread_entry(void *arg) {
     northbound_mgr_t *mgr = (northbound_mgr_t *)arg;
     if (!mgr) return;
@@ -205,23 +182,6 @@ static void north_thread_entry(void *arg) {
 
     mgr->loop = malloc(sizeof(uv_loop_t));
     uv_loop_init(mgr->loop);
-
-    const char *mqtt_url = getenv("MQTT_BROKER");
-    if (!mqtt_url) mqtt_url = "tcp://localhost:1883";
-    
-    MQTTAsync_create((MQTTAsync *)&mgr->mqtt_client, mqtt_url, mgr->product_name, MQTTCLIENT_PERSISTENCE_NONE, NULL);
-    
-    MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
-    conn_opts.keepAliveInterval = 20;
-    conn_opts.cleansession = 1;
-    conn_opts.onSuccess = _on_mqtt_connect_success;
-    conn_opts.onFailure = _on_mqtt_connect_failure;
-    conn_opts.context = mgr;
-    conn_opts.automaticReconnect = 1;
-
-    if (MQTTAsync_connect(mgr->mqtt_client, &conn_opts) != MQTTASYNC_SUCCESS) {
-        LOG_ERROR(LOG_CAT_NB, "Sparkplug B: Failed to start MQTT connect process.");
-    }
 
     uv_timer_init(mgr->loop, &mgr->poll_timer);
     mgr->poll_timer.data = mgr;
@@ -255,24 +215,19 @@ static void north_thread_entry(void *arg) {
     if (mgr->snf) snf_manager_destroy(mgr->snf);
     if (mgr->rest_srv) rest_server_destroy(mgr->rest_srv);
 
-    if (mgr->mqtt_client) {
-        MQTTAsync_disconnect(mgr->mqtt_client, NULL);
-        MQTTAsync_destroy((MQTTAsync *)&mgr->mqtt_client);
-        mgr->mqtt_client = NULL;
-    }
-
     uv_loop_close(mgr->loop);
     free(mgr->loop);
     mgr->loop = NULL;
 }
 
-int northbound_mgr_init(northbound_mgr_t *mgr, uv_loop_t *main_loop, shm_ring_t *ring,
-                        const char *product_name, struct sqlite_svc_s *db) {
-    (void)main_loop;
+int northbound_mgr_init_ex(northbound_mgr_t *mgr, shm_ring_t *ring, 
+                          const char *product_name, struct sqlite_svc_s *db,
+                          nb_transport_ops_t transport) {
     memset(mgr, 0, sizeof(*mgr));
     mgr->ring = ring;
     mgr->db = db;
     strncpy(mgr->product_name, product_name, sizeof(mgr->product_name) - 1);
+    mgr->transport = transport;
 
     uv__queue_init(&mgr->req_queue);
     uv_mutex_init(&mgr->req_lock);

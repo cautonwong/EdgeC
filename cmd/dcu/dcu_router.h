@@ -5,10 +5,8 @@
 #include <stdbool.h>
 #include "dcu_inventory.h"
 #include "dcu_poller.h"
-#include "dcu_storage.h"
 #include "dcu_security.h"
 #include "dcu_discovery.h"
-#include "datahub.h"
 
 // ==============================================================================
 // 698 协议接口类 (Interface Class ID) 与标准 OI 定义
@@ -84,6 +82,7 @@ typedef struct {
 
 typedef struct {
     void *ctx;
+    size_t msg_size;
     int (*publish_realtime)(void *ctx, uint32_t tag_id, uint32_t meter_idx, double val, uint64_t timestamp_ns);
     int (*read_shadow_idx)(void *ctx, uint32_t idx, void *out_msg);
 } router_bus_ops_t;
@@ -120,7 +119,7 @@ int dcu_router_init_ex(dcu_inventory_t *inv, dcu_poller_t *poller, router_sink_o
 /**
  * @brief 传统初始化桥接接口 (兼容旧测试)
  */
-int dcu_router_init(dcu_inventory_t *inv, dcu_poller_t *poller, dcu_storage_t *storage);
+int dcu_router_init(dcu_inventory_t *inv, dcu_poller_t *poller, void *storage);
 
 /**
  * @brief GET 属性路由调度：根据 OAD 指针调用特定对象的成员变量读取
@@ -146,7 +145,7 @@ int dcu_router_action(uint32_t omd, const void *param, void *result);
  * @param max_count 数组容量
  * @return 实际抓取的条数
  */
-int dcu_obj_snapshot(uint16_t oi, uint32_t device_id, pipe_msg_t *out_msgs, int max_count);
+int dcu_obj_snapshot(uint16_t oi, uint32_t device_id, void *out_msgs, int max_count);
 
 /**
  * @brief 释放路由器与对象字典所有分配的资源

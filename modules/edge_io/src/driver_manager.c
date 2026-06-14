@@ -40,6 +40,11 @@ const edge_driver_t *driver_manager_find(driver_manager_t *mgr, const char *name
     for (int i = 0; i < mgr->count; i++) {
         if (strcmp(mgr->drivers[i]->name, name) == 0) return mgr->drivers[i];
     }
+    if (strcmp(name, "MODBUS") == 0 || strcmp(name, "Modbus") == 0) {
+        for (int i = 0; i < mgr->count; i++) {
+            if (strcmp(mgr->drivers[i]->name, "ModbusRTU") == 0) return mgr->drivers[i];
+        }
+    }
     return NULL;
 }
 

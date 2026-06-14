@@ -14,6 +14,7 @@ mappings:
 
   - tag: GRID_POWER
     addr: 0x000C
+    length: 2
     scale: 1.0
     desc: "总有功功率 (1W)"
 

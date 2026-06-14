@@ -59,14 +59,21 @@ bus_orchestrator_t *bus_orchestrator_create(datahub_t *hub, arbiter_t *arb, driv
 
 int bus_orchestrator_attach_io(bus_orchestrator_t *ctx, int bus_id, io_handle_t *io) {
     if (!ctx || bus_id < 0 || bus_id >= ctx->max_buses || !io) return -1;
+    
+    // 💡 [Nexus Fix] 记录 IO 句柄，即使 Engine 还没准备好
     ctx->io_handles[bus_id] = io;
-    if (ctx->engines[bus_id] && ctx->engines[bus_id]->attach) {
-        printf("🔗 [ORCHESTRATOR] Bus %d: Attaching IO %p to Engine %p\n", bus_id, (void*)io, (void*)ctx->engines[bus_id]);
-        ctx->engines[bus_id]->attach(ctx->engines[bus_id], io);
-        return 0;
+    
+    if (ctx->engines[bus_id]) {
+        if (ctx->engines[bus_id]->attach) {
+            printf("🔗 [ORCHESTRATOR] Bus %d: Early-Attached IO %p to Engine %p\n", 
+                   bus_id, (void*)io, (void*)ctx->engines[bus_id]);
+            ctx->engines[bus_id]->attach(ctx->engines[bus_id], io);
+        }
+    } else {
+        printf("⏳ [ORCHESTRATOR] Bus %d: IO %p registered, waiting for Engine...\n", 
+               bus_id, (void*)io);
     }
-    LOG_ERROR(LOG_CAT_BUS, "Bus %d: Failed to attach IO - Engine NOT FOUND", bus_id);
-    return -2;
+    return 0;
 }
 
 int bus_orchestrator_setup_master(bus_orchestrator_t *ctx, int bus_id, const char *protocol,
@@ -79,6 +86,25 @@ int bus_orchestrator_setup_master(bus_orchestrator_t *ctx, int bus_id, const cha
     arbiter_bus_register(ctx->arb, protocol);
     if (ctx->io_handles[bus_id]) eng->attach(eng, ctx->io_handles[bus_id]);
     return 0;
+}
+
+int bus_orchestrator_setup_slave(bus_orchestrator_t *ctx, int bus_id, const char *protocol,
+                                 uint32_t device_id, const driver_contract_injection_t *inject) {
+    if (!ctx || bus_id < 0 || bus_id >= ctx->max_buses) return -1;
+    bus_engine_t *eng = engine_create_slave(ctx->drv_mgr, bus_id, protocol, device_id, ctx->loop, ctx->arb, ctx->hub, ctx->pool, inject);
+    if (!eng) return -1;
+
+    ctx->engines[bus_id] = eng;
+    arbiter_bus_register(ctx->arb, protocol);
+    if (ctx->io_handles[bus_id]) eng->attach(eng, ctx->io_handles[bus_id]);
+    return 0;
+}
+
+io_handle_t *bus_orchestrator_get_io(bus_orchestrator_t *ctx, int bus_id) {
+    if (ctx && bus_id >= 0 && bus_id < ctx->max_buses) {
+        return ctx->io_handles[bus_id];
+    }
+    return NULL;
 }
 
 int bus_orchestrator_submit_cmd(bus_orchestrator_t *ctx, int bus_id, cmd_msg_t *cmd) {

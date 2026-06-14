@@ -34,9 +34,9 @@ class MasterRequesterActor:
         try:
             with open(path, 'r') as f:
                 data = json.load(f)
-                for tag in data.get("tags", []):
+                for tag in (data.get("tags") or []):
                     tag_id = tag["id"]
-                    for b in tag.get("bindings", []):
+                    for b in (tag.get("bindings") or []):
                         if "MODBUS" in b["protocol"].upper():
                             attr = b["attributes"]
                             addr = attr.get("addr")

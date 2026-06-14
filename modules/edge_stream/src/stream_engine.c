@@ -26,7 +26,7 @@ extern pipeline_stage_t *stage_sqlite_sink_create(sqlite_svc_t *db, const char *
 extern pipeline_stage_t *stage_js_rule_create(js_engine_t *engine, const char *script_path,
                                               bool is_async);
 extern pipeline_stage_t *stage_battery_guard_create(battery_limit_t *limits);
-extern pipeline_stage_t *stage_reflex_logic_create(struct bus_orchestrator_s *orch, uint32_t bus_id,
+extern pipeline_stage_t *stage_reflex_logic_create(stream_control_ops_t control_ops, uint32_t bus_id,
                                                    const char *proto, uint32_t target_tag,
                                                    double threshold, bool greater_than,
                                                    double action_val);
@@ -252,7 +252,7 @@ pipeline_stage_t *pipeline_add_stage(pipeline_t *p, const char *name, stage_proc
 }
 
 stream_engine_t *stream_engine_create_ex(datahub_t *hub, uv_loop_t *loop,
-                                         struct bus_orchestrator_s *orch,
+                                         void *orch,
                                          const edge_stage_factory_entry_t *registry) {
     (void)loop;
     (void)orch;
@@ -278,7 +278,7 @@ stream_engine_t *stream_engine_create_ex(datahub_t *hub, uv_loop_t *loop,
 }
 
 stream_engine_t *stream_engine_create(datahub_t *hub, uv_loop_t *loop,
-                                      struct bus_orchestrator_s *orch,
+                                      void *orch,
                                       const edge_stage_factory_entry_t *registry) {
     return stream_engine_create_ex(hub, loop, orch, registry);
 }

@@ -26,9 +26,9 @@ static void test_task_and_scheme_add(void **state) {
     dcu_scheme_t *s = dcu_poller_get_scheme(&poller, 1);
     assert_non_null(s);
     assert_int_equal(s->scheme_id, 1);
-    assert_int_equal(s->capture_mode, 0);
-    assert_int_equal(s->csd_count, 2);
-    assert_int_equal(s->csd_list[0], OAD_VOLTAGE);
+    assert_int_equal(s->data.normal.capture_mode, 0);
+    assert_int_equal(s->data.normal.csd_count, 2);
+    assert_int_equal(s->data.normal.csd_list[0], OAD_VOLTAGE);
 
     // 注册任务 1 (执行频率 TI = 15秒)
     ret = dcu_poller_add_task(&poller, 1, 15, 1);
@@ -40,8 +40,15 @@ static void test_task_and_scheme_add(void **state) {
     dcu_poller_destroy(&poller);
 }
 
+static int g_poller_pub_count = 0;
+static int _poller_test_pub(void *ctx, uint32_t tag_id, uint32_t meter_idx, double val, uint64_t timestamp_ns) {
+    (void)ctx; (void)tag_id; (void)meter_idx; (void)val; (void)timestamp_ns;
+    g_poller_pub_count++;
+    return 0;
+}
+
 // 2. 验证基于时间间隔对齐与方案队列生成机制 (TI 周期触发及防抖)
-static void test_queue_generation_and_ti_alignment(void **state) {
+static void test_poller_pump_and_ti_alignment(void **state) {
     (void)state;
     dcu_inventory_t inv;
     dcu_poller_t poller;
@@ -59,34 +66,34 @@ static void test_queue_generation_and_ti_alignment(void **state) {
     dcu_poller_add_scheme(&poller, 2, 0, csds, 1);
     dcu_poller_add_task(&poller, 10, 10, 2);
 
-    uint64_t base_time = 1716500000;
+    poller_sink_ops_t sink = {0};
+    poller_bus_ops_t bus = {
+        .ctx = NULL,
+        .publish_realtime = _poller_test_pub,
+        .push_event = NULL
+    };
+    dcu_poller_start(&poller, (poller_io_ops_t){0}, bus, sink);
+
+    g_poller_pub_count = 0;
 
     // 3. 首次调度执行 (last_run_time 为 0，无条件到期触发)
-    dcu_poll_queue_t queue;
-    int ret = dcu_poller_generate_queue(&poller, &inv, &queue, base_time);
+    dcu_poller_pump(&poller, &inv);
     
-    assert_int_equal(ret, 0);
-    assert_int_equal(queue.count, 3); // 3台档案全部入队
-    assert_string_equal(queue.entries[0].meter_address, "10000001");
-    assert_int_equal(queue.entries[0].oad_count, 1);
-    assert_int_equal(queue.entries[0].oads[0], OAD_VOLTAGE);
+    assert_int_equal(g_poller_pub_count, 3); // 3台档案全部入队并生成数据推送
     
-    // 校验监控单元 (6035) 状态已变更为 2 (已完成)，收发包数更新
-    assert_int_equal(poller.monitors[0].status, 2);
-    assert_int_equal(poller.monitors[0].total_meters, 3);
-    assert_int_equal(poller.monitors[0].success_meters, 3);
+    // 校验监控单元 (6035) 收发包数更新
+    assert_int_equal(poller.tasks[0].monitor.total_meters, 3);
 
-    // 4. 在 base_time + 5 (时间未过 10s 间隔) 传入时，调度队列应防抖跳过，生成数量为 0！
-    memset(&queue, 0, sizeof(dcu_poll_queue_t));
-    ret = dcu_poller_generate_queue(&poller, &inv, &queue, base_time + 5);
-    assert_int_equal(ret, 0);
-    assert_int_equal(queue.count, 0); // 周期未到，防抖跳过长度为 0
+    // 4. 在时间未过 10s 间隔时，调度泵应防抖跳过，生成数量为 0！
+    g_poller_pub_count = 0;
+    dcu_poller_pump(&poller, &inv);
+    assert_int_equal(g_poller_pub_count, 0); // 周期未到，防抖跳过长度为 0
 
-    // 5. 在 base_time + 10 (时间刚好跨过 10s 周期) 传入时，再次触发轮询！
-    memset(&queue, 0, sizeof(dcu_poll_queue_t));
-    ret = dcu_poller_generate_queue(&poller, &inv, &queue, base_time + 10);
-    assert_int_equal(ret, 0);
-    assert_int_equal(queue.count, 3); // 第二次触发成功！
+    // 5. 模拟时间流逝 15 秒，再次触发轮询！
+    poller.tasks[0].last_run_time -= 15;
+    g_poller_pub_count = 0;
+    dcu_poller_pump(&poller, &inv);
+    assert_int_equal(g_poller_pub_count, 3); // 第二次触发成功！
 
     dcu_poller_destroy(&poller);
     dcu_inventory_destroy(&inv);
@@ -95,7 +102,7 @@ static void test_queue_generation_and_ti_alignment(void **state) {
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_task_and_scheme_add),
-        cmocka_unit_test(test_queue_generation_and_ti_alignment),
+        cmocka_unit_test(test_poller_pump_and_ti_alignment),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

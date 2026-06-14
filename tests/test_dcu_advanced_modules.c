@@ -17,18 +17,41 @@
 #include "dcu_event_monitor.h"
 #include "stream_engine.h"
 
+static int _mock_count_freezes(void *ctx, uint16_t *out_count) {
+    return dcu_storage_count_freezes((dcu_storage_t *)ctx, out_count);
+}
+
+static int _mock_read_shadow(void *ctx, uint32_t idx, void *out_msg) {
+    return datahub_read_shadow_idx((datahub_t *)ctx, idx, (pipe_msg_t *)out_msg);
+}
+
+static int _mock_publish_realtime(void *ctx, uint32_t tag_id, uint32_t meter_idx, double val, uint64_t timestamp_ns) {
+    (void)ctx; (void)tag_id; (void)meter_idx; (void)val; (void)timestamp_ns;
+    return 0;
+}
+
+static int _test_archive_event(void *ctx, const char *addr, uint16_t event_code, uint64_t start_time, uint64_t end_time, float snapshot_val) {
+    return dcu_storage_write_event((dcu_storage_t *)ctx, addr, event_code, start_time, end_time, snapshot_val);
+}
+
+static int _test_archive_freeze(void *ctx, const char *addr, uint32_t freeze_oad, uint64_t freeze_time, uint32_t src_oad, double value) {
+    return dcu_storage_write_freeze((dcu_storage_t *)ctx, addr, freeze_oad, freeze_time, src_oad, value);
+}
+
+dcu_inventory_t g_dcu_inventory;
+
 /**
  * @brief 集中器高级模块单元测试：ESAM 鉴权、搜表、流式事件判定与冻结落盘
  */
 static void test_dcu_advanced_features_dispatch(void **state) {
     (void)state;
     uv_loop_t *loop = uv_default_loop();
-    
+
     // ==============================================================================
     // 1. 初始化底座及专属业务模块单例
     // ==============================================================================
-    dcu_inventory_t inv;
-    dcu_inventory_init(&inv);
+    dcu_inventory_init(&g_dcu_inventory);
+    dcu_inventory_add(&g_dcu_inventory, "10000001", "DLT698", 9600, 1, NULL);
     
     dcu_poller_t poller;
     dcu_poller_init(&poller);
@@ -36,6 +59,10 @@ static void test_dcu_advanced_features_dispatch(void **state) {
     dcu_storage_t storage;
     int ret = dcu_storage_init(&storage, loop, ":memory:"); // 使用内存数据库测试，秒开秒关
     assert_int_equal(ret, 0);
+
+    datahub_t hub;
+    datahub_init(&hub, loop, "dcu_test_bus", 1024, 1024, NULL, 0, NULL, NULL, NULL);
+    hub.map_fn_v2 = dcu_tag_map_fn;
     
     dcu_esam_t esam;
     dcu_security_init(&esam);
@@ -47,7 +74,8 @@ static void test_dcu_advanced_features_dispatch(void **state) {
     evt_3000.oi = OI_VOLTAGE_DROP;
     evt_3000.record_count = 0;
     memset(evt_3000.records, 0, sizeof(evt_3000.records));
-    evt_3000.snapshot_oad = OAD_VOLTAGE;
+    evt_3000.snapshot_count = 1;
+    evt_3000.snapshot_oads[0] = OAD_VOLTAGE;
     evt_3000.threshold = 176.0f;
     evt_3000.delay_s = 5;
     evt_3000.report_flag = 1;
@@ -59,7 +87,8 @@ static void test_dcu_advanced_features_dispatch(void **state) {
     evt_3005.oi = OI_OVER_CURRENT;
     evt_3005.record_count = 0;
     memset(evt_3005.records, 0, sizeof(evt_3005.records));
-    evt_3005.snapshot_oad = OAD_CURRENT;
+    evt_3005.snapshot_count = 1;
+    evt_3005.snapshot_oads[0] = OAD_CURRENT;
     evt_3005.threshold = 5.0f;
     evt_3005.delay_s = 3;
     evt_3005.report_flag = 1;
@@ -67,8 +96,21 @@ static void test_dcu_advanced_features_dispatch(void **state) {
     evt_3005.last_start_time = 0;
     evt_3005.last_end_time = 0;
     
+    router_sink_ops_t router_sink = {
+        .ctx = &storage,
+        .record_telemetry = (void*)dcu_storage_write_telemetry,
+        .count_freezes = _mock_count_freezes
+    };
+    
+    router_bus_ops_t router_bus = {
+        .ctx = &hub,
+        .msg_size = sizeof(pipe_msg_t),
+        .publish_realtime = _mock_publish_realtime,
+        .read_shadow_idx = _mock_read_shadow
+    };
+
     // 2. 初始化核心对象字典契约路由器
-    ret = dcu_router_init_ex(&inv, &poller, &storage, &esam, &discovery, &evt_3000, &evt_3005);
+    ret = dcu_router_init_ex(&g_dcu_inventory, &poller, router_sink, &esam, &discovery, &evt_3000, &evt_3005, router_bus);
     assert_int_equal(ret, 0);
     
     // ==============================================================================
@@ -156,8 +198,7 @@ static void test_dcu_advanced_features_dispatch(void **state) {
     // ==============================================================================
     // 5. 验证流式失压与过流事件监控管线 (Class 7 Event Monitor & Logger Pipeline)
     // ==============================================================================
-    datahub_t hub;
-    datahub_init(&hub, loop, "dcu_test_bus", 1024, 0, NULL, 0, NULL, NULL, NULL);
+    // (hub已在上方初始化)
     
     stream_engine_t *stream_engine = stream_engine_create(&hub, loop, NULL, NULL);
     pipeline_t *evt_pipeline = stream_engine_add_pipeline(stream_engine, "TEST_EVT_PIPELINE", 0);
@@ -167,11 +208,16 @@ static void test_dcu_advanced_features_dispatch(void **state) {
     pipeline_add_stage(evt_pipeline, mon_stage->name, mon_stage->process, mon_stage->priv_state, mon_stage->cleanup_state, NULL, NULL);
     free(mon_stage);
     
-    pipeline_stage_t *log_stage = stage_event_logger_create(&evt_3000, &evt_3005, &hub);
+    event_sink_ops_t event_sink = {
+        .ctx = &storage,
+        .archive_event = _test_archive_event,
+        .archive_freeze = _test_archive_freeze
+    };
+    pipeline_stage_t *log_stage = stage_event_logger_create(&evt_3000, &evt_3005, &hub, event_sink);
     pipeline_add_stage(evt_pipeline, log_stage->name, log_stage->process, log_stage->priv_state, log_stage->cleanup_state, NULL, NULL);
     free(log_stage);
     
-    uint64_t base_ts = 1716500000;
+    uint64_t base_ts = 1716500000ULL * 1000000000ULL;
     
     // 💡 A. 注入 220V 电压标量，一切应正常，无失压记录产生
     pipe_msg_t scalar_msg;
@@ -186,10 +232,20 @@ static void test_dcu_advanced_features_dispatch(void **state) {
     
     // 💡 B. 电压骤降为 150V (<176.0V 阈值)
     // 模拟高频越限持续时间 1s -> 2s -> 3s -> 4s -> 5s (失压延时 5 秒触发)
-    for (int i = 0; i < 6; i++) {
-        scalar_msg.ts = base_ts + (uint64_t)i;
+    for (int i = 0; i <= 6; i++) {
+        scalar_msg.ts = base_ts + (uint64_t)i * 1000000000ULL;
         scalar_msg.payload.val.f = 150.0f;
         stream_engine_push(stream_engine, &scalar_msg);
+        
+        // 💡 物理驱动：强制运行主循环以处理异步 Pipeline 任务
+        uv_run(loop, UV_RUN_NOWAIT);
+    }
+    
+    // 给异步线程一点点时间处理
+    for (int i = 0; i < 50; i++) {
+        uv_run(loop, UV_RUN_NOWAIT);
+        if (evt_3000.record_count > 0) break;
+        usleep(1000);
     }
     
     // 断言第 5 秒及以后应在失压对象中生成首条失压事件记录！
@@ -201,10 +257,10 @@ static void test_dcu_advanced_features_dispatch(void **state) {
     assert_int_equal(first_evt_rec.index, 1);
     assert_float_equal(first_evt_rec.snapshot_value, 150.0f, 0.01f); // 快照电压 150V
     assert_true(first_evt_rec.is_active); // 事件处于发生状态
-    assert_int_equal(first_evt_rec.start_time, base_ts + 5); // 触发点正确
+    assert_int_equal(first_evt_rec.start_time, base_ts + 5ULL * 1000000000ULL); // 触发点正确
     
     // 💡 C. 注入电压恢复 220.5V 标量，失压事件应消除
-    scalar_msg.ts = base_ts + 10;
+    scalar_msg.ts = base_ts + 10ULL * 1000000000ULL;
     scalar_msg.payload.val.f = 220.5f;
     stream_engine_push(stream_engine, &scalar_msg);
     
@@ -212,13 +268,13 @@ static void test_dcu_advanced_features_dispatch(void **state) {
     ret = dcu_router_get_attr(((uint32_t)OI_VOLTAGE_DROP << 16) | 0x0200, &first_evt_rec);
     assert_int_equal(ret, 0);
     assert_false(first_evt_rec.is_active); // 状态成功变更为恢复 (false)
-    assert_int_equal(first_evt_rec.end_time, base_ts + 10); // 消除时标正确
+    assert_int_equal(first_evt_rec.end_time, base_ts + 10ULL * 1000000000ULL); // 消除时标正确
     
     // ==============================================================================
     // 6. 验证日冻结管线与 SQLite RSD 持久化 (Class 9 Freezing & Query)
     // ==============================================================================
     pipeline_t *freeze_pipeline = stream_engine_add_pipeline(stream_engine, "TEST_FREEZE_PIPELINE", 0);
-    pipeline_stage_t *freeze_stage = stage_periodic_freeze_create_ex(&storage, &hub);
+    pipeline_stage_t *freeze_stage = stage_periodic_freeze_create_ex(&hub, event_sink);
     pipeline_add_stage(freeze_pipeline, freeze_stage->name, freeze_stage->process, freeze_stage->priv_state, freeze_stage->cleanup_state, NULL, NULL);
     free(freeze_stage);
     
@@ -247,7 +303,7 @@ static void test_dcu_advanced_features_dispatch(void **state) {
     // 模拟北向发起 RSD 选择性历史召测 (GET.Record 时间区间内检索)
     dcu_freeze_record_t query_results[5];
     uint16_t query_count = 0;
-    ret = dcu_storage_query_freeze(&storage, "10000001", OAD_DAILY_FREEZE, base_ts - 10, base_ts + 10, query_results, 5, &query_count);
+    ret = dcu_storage_query_freeze(&storage, "10000001", OAD_DAILY_FREEZE, base_ts - 10ULL * 1000000000ULL, base_ts + 10ULL * 1000000000ULL, query_results, 5, &query_count);
     assert_int_equal(ret, 0);
     assert_int_equal(query_count, 3); // 成功过滤查询出 3 条历史断面纪录
     
@@ -270,8 +326,7 @@ static void test_dcu_advanced_features_dispatch(void **state) {
     dcu_discovery_destroy(&discovery);
     dcu_router_destroy();
     dcu_storage_destroy(&storage);
-    dcu_poller_destroy(&poller);
-    dcu_inventory_destroy(&inv);
+    dcu_inventory_destroy(&g_dcu_inventory);
 }
 
 int main(void) {

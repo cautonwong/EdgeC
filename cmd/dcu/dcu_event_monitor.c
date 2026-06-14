@@ -226,8 +226,7 @@ static void _logger_cleanup(void *priv) {
     if (priv) free(priv);
 }
 
-pipeline_stage_t *stage_event_logger_create(dcu_event_obj_t *evt_3000, dcu_event_obj_t *evt_3005, datahub_t *hub, void *legacy_storage, event_sink_ops_t sink_ops) {
-    (void)legacy_storage;
+pipeline_stage_t *stage_event_logger_create(dcu_event_obj_t *evt_3000, dcu_event_obj_t *evt_3005, datahub_t *hub, event_sink_ops_t sink_ops) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
     logger_stage_ctx_t *ctx = calloc(1, sizeof(logger_stage_ctx_t));
     
@@ -299,8 +298,7 @@ static void _freeze_cleanup(void *priv) {
     if (priv) free(priv);
 }
 
-pipeline_stage_t *stage_periodic_freeze_create_ex(void *legacy_storage, datahub_t *hub, event_sink_ops_t sink_ops) {
-    (void)legacy_storage;
+pipeline_stage_t *stage_periodic_freeze_create_ex(datahub_t *hub, event_sink_ops_t sink_ops) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
     freeze_stage_ctx_t *ctx = calloc(1, sizeof(freeze_stage_ctx_t));
     

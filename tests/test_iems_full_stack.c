@@ -177,7 +177,7 @@ static void test_iems_dispatch_flow(void **state) {
     edge_pipeline_def_t mpc_pipe = {
         .id = "mpc_logic", .trigger_tag = 1001, .stages = stages, .stage_count = 1
     };
-    pipeline_loader_ctx_t l_ctx = { .orch = ctx->orch, .db = NULL, .js_engine = NULL, .params = NULL };
+    pipeline_loader_ctx_t l_ctx = { .db = NULL, .js_engine = NULL, .params = NULL };
     stream_engine_load_static_metadata(ctx->engine, &mpc_pipe, 1, &l_ctx);
 
     // [Nexus] Use the orchestrator's pool for test allocations
