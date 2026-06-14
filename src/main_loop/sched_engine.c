@@ -10,8 +10,8 @@ static double _get_now_ms(void) {
     return (double)tv.tv_sec * 1000.0 + (double)tv.tv_usec / 1000.0;
 }
 
-static void _uv_periodic_internal_cb(uv_timer_t *timer) {
-    uv_periodic_t *handle = (uv_periodic_t *)timer->data;
+static void _uv_periodic_internal_cb(uv_timer_t* timer) {
+    uv_periodic_t* handle = (uv_periodic_t*)timer->data;
 
     // 1. 先执行业务逻辑
     if (handle->cb) handle->cb(handle);
@@ -38,7 +38,7 @@ static void _uv_periodic_internal_cb(uv_timer_t *timer) {
     uv_timer_start(&handle->timer, _uv_periodic_internal_cb, timeout_ms, 0);
 }
 
-void uv_periodic_init(uv_loop_t *loop, uv_periodic_t *handle) {
+void uv_periodic_init(uv_loop_t* loop, uv_periodic_t* handle) {
     uv_timer_init(loop, &handle->timer);
     handle->timer.data = handle;
     handle->reschedule_cb = NULL;
@@ -47,14 +47,14 @@ void uv_periodic_init(uv_loop_t *loop, uv_periodic_t *handle) {
     handle->target_wall = 0;
 }
 
-void uv_periodic_set(uv_periodic_t *handle, double offset_ms, double interval_ms,
+void uv_periodic_set(uv_periodic_t* handle, double offset_ms, double interval_ms,
                      uv_periodic_reschedule_cb resched_cb) {
     handle->offset_ms = offset_ms;
     handle->interval_ms = interval_ms;
     handle->reschedule_cb = resched_cb;
 }
 
-void uv_periodic_start(uv_periodic_t *handle, uv_periodic_cb cb) {
+void uv_periodic_start(uv_periodic_t* handle, uv_periodic_cb cb) {
     handle->cb = cb;
     double now = _get_now_ms();
     handle->target_wall = now + handle->offset_ms;
@@ -64,7 +64,7 @@ void uv_periodic_start(uv_periodic_t *handle, uv_periodic_cb cb) {
     uv_timer_start(&handle->timer, _uv_periodic_internal_cb, timeout_ms, 0);
 }
 
-void uv_periodic_stop(uv_periodic_t *handle) {
+void uv_periodic_stop(uv_periodic_t* handle) {
     uv_timer_stop(&handle->timer);
 }
 
@@ -86,19 +86,19 @@ static double _calculate_next_align(double now_ms, double baseline_offset_sec,
     return (anchor + periods * interval_sec) * 1000.0;
 }
 
-double sched_policy_14h_from_000030(uv_periodic_t *handle, double now_ms) {
+double sched_policy_14h_from_000030(uv_periodic_t* handle, double now_ms) {
     (void)handle;
     return _calculate_next_align(now_ms, 30.0, 14.0 * 3600.0);
 }
 
 // 示例策略：对齐到分钟 (输入 ms, 输出 ms)
-double sched_policy_at_minute(uv_periodic_t *handle, double now_ms) {
+double sched_policy_at_minute(uv_periodic_t* handle, double now_ms) {
     (void)handle;
     double now_sec = now_ms / 1000.0;
     return (floor(now_sec / 60.0) * 60.0 + 60.0) * 1000.0;
 }
 
-double sched_policy_at_hour(uv_periodic_t *handle, double now_ms) {
+double sched_policy_at_hour(uv_periodic_t* handle, double now_ms) {
     (void)handle;
     double now_sec = now_ms / 1000.0;
     return (floor(now_sec / 3600.0) * 3600.0 + 3600.0) * 1000.0;

@@ -7,16 +7,16 @@
 
 #include "edge_license.h"
 
-static void test_license_basic_tier(void **state) {
+static void test_license_basic_tier(void** state) {
     (void)state;
     // Test basic tier validation
     int rc = license_engine_init("BASIC-KEY-123");
-    // Since CMake currently builds with EDGEC_TIER_ENTERPRISE by default, 
+    // Since CMake currently builds with EDGEC_TIER_ENTERPRISE by default,
     // a BASIC key should FAIL validation for an ENTERPRISE binary.
     assert_int_equal(rc, -1);
 }
 
-static void test_license_enterprise_tier(void **state) {
+static void test_license_enterprise_tier(void** state) {
     (void)state;
     // Test enterprise tier validation
     int rc = license_engine_init("ENT-EVAL-KEY");

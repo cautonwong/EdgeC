@@ -11,7 +11,7 @@
 
 #include "datahub.h"
 
-static void test_memfd_sealing_logic(void **state) {
+static void test_memfd_sealing_logic(void** state) {
     (void)state;
     uv_loop_t loop;
     uv_loop_init(&loop);
@@ -26,8 +26,7 @@ static void test_memfd_sealing_logic(void **state) {
     assert_true(seals & F_SEAL_GROW);
 
     datahub_destroy(&hub);
-    while (uv_run(&loop, UV_RUN_NOWAIT))
-        ;
+    while (uv_run(&loop, UV_RUN_NOWAIT));
     uv_loop_close(&loop);
 }
 

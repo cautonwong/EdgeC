@@ -5,7 +5,7 @@
 #include "bus_orchestrator.h"
 #include "edge_log.h"
 
-int policy_syncer_run(sqlite_svc_t *db, bus_orchestrator_t *orch) {
+int policy_syncer_run(sqlite_svc_t* db, bus_orchestrator_t* orch) {
     if (!db || !orch) return -1;
 
     LOG_INFO(LOG_CAT_CORE, "Policy Syncer: Initializing policies...");
@@ -17,7 +17,7 @@ int policy_syncer_run(sqlite_svc_t *db, bus_orchestrator_t *orch) {
     return 0;
 }
 
-int policy_syncer_apply_delta(bus_orchestrator_t *orch, const char *payload, size_t len) {
+int policy_syncer_apply_delta(bus_orchestrator_t* orch, const char* payload, size_t len) {
     if (!orch || !payload || len == 0) return -1;
 
     LOG_INFO(LOG_CAT_NB, "Policy Syncer: Applying delta (len=%zu)", len);

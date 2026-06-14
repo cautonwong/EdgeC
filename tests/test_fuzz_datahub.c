@@ -10,7 +10,7 @@
 
 #define FUZZ_ITERATIONS 100000
 
-static void test_fuzz_read_write(void **state) {
+static void test_fuzz_read_write(void** state) {
     (void)state;
     shm_ring_t ring;
     assert_int_equal(shmring_create(&ring, "fuzz_ring", 1024), 0);

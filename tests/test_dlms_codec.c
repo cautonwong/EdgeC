@@ -8,11 +8,11 @@
 #include "dlms_codec.h"
 #include "net_buf.h"
 
-static void test_dlms_encode_nested_structure(void **state) {
+static void test_dlms_encode_nested_structure(void** state) {
     (void)state;
     net_buf_pool_t pool;
     net_buf_pool_init(&pool, 1, 1024, 0, NULL, NULL);
-    net_buf_t *buf = net_buf_alloc(&pool, 0);
+    net_buf_t* buf = net_buf_alloc(&pool, 0);
 
     dlms_encoder_t enc;
     dlms_encoder_init(&enc, &buf->b);
@@ -38,11 +38,11 @@ static void test_dlms_encode_nested_structure(void **state) {
     net_buf_pool_destroy(&pool);
 }
 
-static void test_dlms_encode_large_octet_string(void **state) {
+static void test_dlms_encode_large_octet_string(void** state) {
     (void)state;
     net_buf_pool_t pool;
     net_buf_pool_init(&pool, 1, 1024, 0, NULL, NULL);
-    net_buf_t *buf = net_buf_alloc(&pool, 0);
+    net_buf_t* buf = net_buf_alloc(&pool, 0);
 
     dlms_encoder_t enc;
     dlms_encoder_init(&enc, &buf->b);

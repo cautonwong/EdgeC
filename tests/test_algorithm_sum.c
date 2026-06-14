@@ -10,36 +10,36 @@
 
 // Test Context
 typedef struct {
-    uv_loop_t *loop;
-    algo_ctx_t *algo;
+    uv_loop_t* loop;
+    algo_ctx_t* algo;
     int result_count;
     double last_sum;
     uint32_t last_count;
 } test_ctx_t;
 
-static void on_result(algo_ctx_t *ctx, const algo_result_t *res, void *user_data) {
+static void on_result(algo_ctx_t* ctx, const algo_result_t* res, void* user_data) {
     (void)ctx;
-    test_ctx_t *tctx = (test_ctx_t *)user_data;
+    test_ctx_t* tctx = (test_ctx_t*)user_data;
     tctx->result_count++;
     tctx->last_sum = res->total_sum;
     tctx->last_count = res->sample_count;
     uv_stop(tctx->loop);  // 核心：通知 loop 退出
 }
 
-static void on_test_timeout(uv_timer_t *handle) {
+static void on_test_timeout(uv_timer_t* handle) {
     printf("[Test] !!! FATAL: Algorithm test timed out !!!\n");
     uv_stop(handle->loop);
 }
 
-static void on_timer_close(uv_handle_t *handle) {
+static void on_timer_close(uv_handle_t* handle) {
     free(handle);
 }
 
-static void test_algo_fusion_500(void **state) {
-    test_ctx_t *tctx = *state;
+static void test_algo_fusion_500(void** state) {
+    test_ctx_t* tctx = *state;
 
     // 增加超时保护 (Heap allocated to avoid stack-use-after-return)
-    uv_timer_t *timeout = malloc(sizeof(uv_timer_t));
+    uv_timer_t* timeout = malloc(sizeof(uv_timer_t));
     uv_timer_init(tctx->loop, timeout);
     timeout->data = tctx;
     uv_timer_start(timeout, on_test_timeout, 5000, 0);  // 5s
@@ -56,17 +56,17 @@ static void test_algo_fusion_500(void **state) {
     uv_run(tctx->loop, UV_RUN_DEFAULT);
 
     uv_timer_stop(timeout);
-    uv_close((uv_handle_t *)timeout, on_timer_close);
+    uv_close((uv_handle_t*)timeout, on_timer_close);
 
     assert_int_equal(tctx->result_count, 1);
     assert_float_equal(tctx->last_sum, 500.0, 0.001);
 }
 
-static void test_algo_auto_flush(void **state) {
-    test_ctx_t *tctx = *state;
+static void test_algo_auto_flush(void** state) {
+    test_ctx_t* tctx = *state;
 
     // Timeout protection
-    uv_timer_t *timeout = malloc(sizeof(uv_timer_t));
+    uv_timer_t* timeout = malloc(sizeof(uv_timer_t));
     uv_timer_init(tctx->loop, timeout);
     uv_timer_start(timeout, on_test_timeout, 5000, 0);  // 5s
 
@@ -81,7 +81,7 @@ static void test_algo_auto_flush(void **state) {
     uv_run(tctx->loop, UV_RUN_DEFAULT);
 
     uv_timer_stop(timeout);
-    uv_close((uv_handle_t *)timeout, on_timer_close);
+    uv_close((uv_handle_t*)timeout, on_timer_close);
 
     // Expect increment from 0 to 1 (since setup resets state)
     assert_int_equal(tctx->result_count, 1);
@@ -89,8 +89,8 @@ static void test_algo_auto_flush(void **state) {
 }
 
 // Setup/Teardown
-static int setup(void **state) {
-    test_ctx_t *tctx = calloc(1, sizeof(test_ctx_t));
+static int setup(void** state) {
+    test_ctx_t* tctx = calloc(1, sizeof(test_ctx_t));
     tctx->loop = malloc(sizeof(uv_loop_t));
     uv_loop_init(tctx->loop);
     if (algo_init(&tctx->algo, tctx->loop, 1024, on_result, tctx) != 0) {
@@ -102,8 +102,8 @@ static int setup(void **state) {
     return 0;
 }
 
-static int teardown(void **state) {
-    test_ctx_t *tctx = *state;
+static int teardown(void** state) {
+    test_ctx_t* tctx = *state;
     algo_destroy(tctx->algo);
 
     // Run loop to process closes until empty

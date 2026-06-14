@@ -5,17 +5,17 @@
 #include <stdlib.h>
 #include <uv.h>
 
-#include "stream_engine_priv.h"
 #include "stream_engine.h"
+#include "stream_engine_priv.h"
 
-static void test_pipeline_hot_reload_logic(void **state) {
+static void test_pipeline_hot_reload_logic(void** state) {
     (void)state;
-    uv_loop_t *loop = uv_default_loop();
+    uv_loop_t* loop = uv_default_loop();
     datahub_t hub;
     // 适配新签名
     datahub_init(&hub, uv_default_loop(), "test_reload_bus", 64, 1024, NULL, 0, NULL, NULL, NULL);
 
-    stream_engine_t *engine = stream_engine_create(&hub, uv_default_loop(), NULL, NULL);
+    stream_engine_t* engine = stream_engine_create(&hub, uv_default_loop(), NULL, NULL);
     stream_engine_start(engine);
     assert_non_null(engine);
 

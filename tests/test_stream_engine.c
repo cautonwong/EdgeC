@@ -7,7 +7,7 @@
 
 #include "stream_engine.h"
 
-static void test_engine_basic_flow(void **state) {
+static void test_engine_basic_flow(void** state) {
     (void)state;
     uv_loop_t loop;
     uv_loop_init(&loop);
@@ -15,14 +15,13 @@ static void test_engine_basic_flow(void **state) {
     // 适配新签名
     datahub_init(&hub, &loop, "test_bus", 64, 1024, NULL, 0, NULL, NULL, NULL);
 
-    stream_engine_t *engine = stream_engine_create(&hub, &loop, NULL, NULL);
+    stream_engine_t* engine = stream_engine_create(&hub, &loop, NULL, NULL);
     stream_engine_start(engine);
     assert_non_null(engine);
 
     stream_engine_destroy(engine);
     datahub_destroy(&hub);
-    while (uv_run(&loop, UV_RUN_NOWAIT))
-        ;
+    while (uv_run(&loop, UV_RUN_NOWAIT));
     uv_loop_close(&loop);
 }
 

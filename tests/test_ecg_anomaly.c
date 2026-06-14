@@ -1,22 +1,23 @@
 #include <cmocka.h>
+#include <math.h>
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include <math.h>
 
 #include "stream_engine.h"
 
 // Forward declaration
-pipeline_stage_t *stage_ecg_anomaly_create(size_t buffer_size, uint32_t level, double threshold, uint32_t alarm_tag);
+pipeline_stage_t* stage_ecg_anomaly_create(size_t buffer_size, uint32_t level, double threshold,
+                                           uint32_t alarm_tag);
 
-static void test_ecg_anomaly_detection(void **state) {
+static void test_ecg_anomaly_detection(void** state) {
     (void)state;
-    
+
     // Create stage: Window 256, Level 2 DWT, Threshold 150.0, Alarm Tag 9999
-    pipeline_stage_t *stage = stage_ecg_anomaly_create(256, 2, 150.0, 9999);
+    pipeline_stage_t* stage = stage_ecg_anomaly_create(256, 2, 150.0, 9999);
     assert_non_null(stage);
 
     pipe_msg_t ev = {0};
@@ -27,7 +28,7 @@ static void test_ecg_anomaly_detection(void **state) {
 
     // 1. Push clean baseline ECG approximation (sine wave low frequency)
     for (int i = 0; i < 256; i++) {
-        ev.payload.val.f = 5.0 * sin(2.0 * M_PI * i / 64.0); 
+        ev.payload.val.f = 5.0 * sin(2.0 * M_PI * i / 64.0);
         if (stage->process(stage, &ev) == STAGE_OK) {
             if (ev.type == PIPEMSG_TYPE_EVENT) alarm_count++;
         }
@@ -50,11 +51,11 @@ static void test_ecg_anomaly_detection(void **state) {
                 alarm_count++;
                 assert_int_equal(ev.tag_id, 9999);
                 // Payload param is (energy)
-                assert_true(ev.payload.event.param > 150); 
+                assert_true(ev.payload.event.param > 150);
             }
         }
     }
-    
+
     // Should have detected the anomaly
     assert_true(alarm_count > 0);
 

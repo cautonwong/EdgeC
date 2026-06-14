@@ -13,7 +13,7 @@
 #define MAX_TAGS_PER_CATEGORY 32
 
 typedef struct {
-    const char *name;
+    const char* name;
     uint32_t tag_indices[MAX_TAGS_PER_CATEGORY];
     int tag_count;
 } ui_category_t;
@@ -22,7 +22,7 @@ static ui_category_t g_categories[MAX_CATEGORIES];
 static int g_category_count = 0;
 static int g_current_category_idx = 0;
 
-static int get_or_create_category(const char *name) {
+static int get_or_create_category(const char* name) {
     for (int i = 0; i < g_category_count; i++) {
         if (strcmp(g_categories[i].name, name) == 0) return i;
     }
@@ -37,11 +37,11 @@ static int get_or_create_category(const char *name) {
 static void _ui_discover_categories() {
     g_category_count = 0;
     for (uint32_t i = 0; i < g_tag_metadata_len; i++) {
-        const edge_tag_meta_t *meta = &g_tag_metadata[i];
-        const char *category_name = meta->category ? meta->category : "General";
+        const edge_tag_meta_t* meta = &g_tag_metadata[i];
+        const char* category_name = meta->category ? meta->category : "General";
         int cat_idx = get_or_create_category(category_name);
         if (cat_idx != -1) {
-            ui_category_t *cat = &g_categories[cat_idx];
+            ui_category_t* cat = &g_categories[cat_idx];
             if (cat->tag_count < MAX_TAGS_PER_CATEGORY) {
                 cat->tag_indices[cat->tag_count++] = i;
             }
@@ -49,7 +49,7 @@ static void _ui_discover_categories() {
     }
 }
 
-static void draw_frame(ui_hal_t *hal, const char *title) {
+static void draw_frame(ui_hal_t* hal, const char* title) {
     hal->hal_clear(hal);
     hal->hal_draw_box(hal, 0, 0, 22, 78);
 
@@ -74,13 +74,13 @@ static void draw_frame(ui_hal_t *hal, const char *title) {
     hal->hal_draw_text(hal, 19, 65, "[Q]uit", UI_COLOR_RED);
 }
 
-static void render_category_page(ui_hal_t *hal, datahub_t *hub) {
+static void render_category_page(ui_hal_t* hal, datahub_t* hub) {
     if (g_category_count == 0) {
         draw_frame(hal, "No Data");
         return;
     }
 
-    ui_category_t *current_cat = &g_categories[g_current_category_idx];
+    ui_category_t* current_cat = &g_categories[g_current_category_idx];
     draw_frame(hal, current_cat->name);
 
     int y_pos = 2;
@@ -93,7 +93,7 @@ static void render_category_page(ui_hal_t *hal, datahub_t *hub) {
 
     for (int i = 0; i < current_cat->tag_count && y_pos < 18; i++) {
         uint32_t meta_idx = current_cat->tag_indices[i];
-        const edge_tag_meta_t *meta = &g_tag_metadata[meta_idx];
+        const edge_tag_meta_t* meta = &g_tag_metadata[meta_idx];
 
         pipe_msg_t msg = {0};
         double val = 0.0;
@@ -104,11 +104,11 @@ static void render_category_page(ui_hal_t *hal, datahub_t *hub) {
         // 获取物理绑定信息 (体现契约驱动)
         char binding_info[16] = "N/A";
         // 注意：这里需要确保 contracts.h 中这些函数被导出
-        const modbus_map_t *mb = edge_get_map_modbus_by_tag(meta->id);
+        const modbus_map_t* mb = edge_get_map_modbus_by_tag(meta->id);
         if (mb) {
             snprintf(binding_info, sizeof(binding_info), "MB:0x%04X", mb->key);
         } else {
-            const dlt645_map_t *dlt = edge_get_map_dlt645_by_tag(meta->id);
+            const dlt645_map_t* dlt = edge_get_map_dlt645_by_tag(meta->id);
             if (dlt) snprintf(binding_info, sizeof(binding_info), "DLT:%08X", dlt->key);
         }
 
@@ -121,12 +121,12 @@ static void render_category_page(ui_hal_t *hal, datahub_t *hub) {
     hal->hal_refresh(hal);
 }
 
-static void dashboard_on_draw(ui_page_t *page, ui_service_t *service) {
+static void dashboard_on_draw(ui_page_t* page, ui_service_t* service) {
     (void)page;
     if (service->hal) render_category_page(service->hal, service->hub);
 }
 
-static void dashboard_on_input(ui_page_t *page, ui_service_t *service, int key) {
+static void dashboard_on_input(ui_page_t* page, ui_service_t* service, int key) {
     (void)page;
     if (key >= '1' && key <= ('0' + g_category_count)) {
         g_current_category_idx = key - '1';
@@ -141,7 +141,7 @@ static ui_page_t g_dashboard_page = {
     .on_input = dashboard_on_input,
 };
 
-void ui_product_init(ui_service_t *service) {
+void ui_product_init(ui_service_t* service) {
     _ui_discover_categories();
     service->hal = ui_hal_ncurses_create();
     ui_service_push_page(service, &g_dashboard_page);

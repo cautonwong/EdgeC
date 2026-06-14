@@ -19,18 +19,18 @@ typedef struct script_loader_s script_loader_t;
  * @param interval_ms Execution interval for the loaded scripts.
  * @return script_loader_t* Pointer to the loader instance.
  */
-script_loader_t *script_loader_create(uv_loop_t *loop, js_engine_t *engine, const char *dir_path,
+script_loader_t* script_loader_create(uv_loop_t* loop, js_engine_t* engine, const char* dir_path,
                                       uint64_t interval_ms);
 
 /**
  * @brief Start watching and executing scripts.
  */
-int script_loader_start(script_loader_t *loader);
+int script_loader_start(script_loader_t* loader);
 
 /**
  * @brief Shutdown the loader.
  */
-void script_loader_destroy(script_loader_t *loader);
+void script_loader_destroy(script_loader_t* loader);
 
 #ifdef __cplusplus
 }

@@ -17,12 +17,12 @@ extern const edge_tag_meta_t g_tag_metadata[];
 extern const uint32_t g_tag_metadata_len;
 extern int edge_tag_get_compact_index(uint32_t tag_id);
 
-static int fetch_fds(const char *path, int *rfd, int *sfd) {
+static int fetch_fds(const char* path, int* rfd, int* sfd) {
     int sock = socket(AF_UNIX, SOCK_STREAM, 0);
     struct sockaddr_un addr = {.sun_family = AF_UNIX};
     strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
 
-    if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+    if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
         close(sock);
         return -1;
     }
@@ -36,7 +36,7 @@ static int fetch_fds(const char *path, int *rfd, int *sfd) {
     return (*rfd >= 0) ? 0 : -1;
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
     setlocale(LC_ALL, "");
 
     printf("\n--- IEMS UI DASHBOARD STARTUP ---\n");
@@ -59,15 +59,15 @@ int main(int argc, char *argv[]) {
     }
 
     printf(" [2/3] Initializing Local DataHub Client...\n");
-    uv_loop_t *loop = uv_default_loop();
-    datahub_t *hub = calloc(1, sizeof(datahub_t));
+    uv_loop_t* loop = uv_default_loop();
+    datahub_t* hub = calloc(1, sizeof(datahub_t));
 
     // [Fix] 动态探测 Ring 大小：先映射 Header
     size_t header_sz = (sizeof(ShmRingHeader) + 4095) & ~4095UL;
-    void *tmp_ptr = mmap(NULL, header_sz, PROT_READ, MAP_SHARED, rfd, 0);
+    void* tmp_ptr = mmap(NULL, header_sz, PROT_READ, MAP_SHARED, rfd, 0);
     size_t actual_ring_size = 1024 * 64;  // Default fallback
     if (tmp_ptr != MAP_FAILED) {
-        ShmRingHeader *h = (ShmRingHeader *)tmp_ptr;
+        ShmRingHeader* h = (ShmRingHeader*)tmp_ptr;
         if (h->magic == SHMRING_MAGIC) {
             actual_ring_size = sizeof(ShmRingHeader) + h->slot_count * sizeof(PipeMsg);
             actual_ring_size = (actual_ring_size + 4095) & ~4095UL;
@@ -87,7 +87,7 @@ int main(int argc, char *argv[]) {
     }
 
     printf(" [3/3] Launching TUI Framework...\n");
-    ui_service_t *ui = ui_service_create(hub);
+    ui_service_t* ui = ui_service_create(hub);
     if (ui) {
         ui_service_run(ui);
         ui_service_destroy(ui);

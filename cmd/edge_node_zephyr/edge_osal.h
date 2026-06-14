@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 /* --- 容器检索宏 (抹平 CONTAINER_OF 差异) --- */
-#define edge_container_of(ptr, type, member) ((type*)((char*)(ptr)-offsetof(type, member)))
+#define edge_container_of(ptr, type, member) ((type*)((char*)(ptr) - offsetof(type, member)))
 
 /* --- 类型抽象 --- */
 typedef struct edge_mutex_s* edge_mutex_t;

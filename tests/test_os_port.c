@@ -2,31 +2,31 @@
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
 #include "edge_os_port.h"
 
-static void dummy_thread_entry(void *arg) {
-    int *counter = (int *)arg;
+static void dummy_thread_entry(void* arg) {
+    int* counter = (int*)arg;
     (*counter)++;
 }
 
-static void test_os_port_abstraction(void **state) {
+static void test_os_port_abstraction(void** state) {
     (void)state;
 
     // 1. Test Memory Abstraction
-    void *ptr = EDGE_MALLOC(1024);
+    void* ptr = EDGE_MALLOC(1024);
     assert_non_null(ptr);
     memset(ptr, 0xAA, 1024);
     EDGE_FREE(ptr);
 
-    void *ptr_c = EDGE_CALLOC(10, 128);
+    void* ptr_c = EDGE_CALLOC(10, 128);
     assert_non_null(ptr_c);
     // Should be zeroed
     for (int i = 0; i < 1280; i++) {
-        assert_int_equal(((uint8_t *)ptr_c)[i], 0);
+        assert_int_equal(((uint8_t*)ptr_c)[i], 0);
     }
     EDGE_FREE(ptr_c);
 

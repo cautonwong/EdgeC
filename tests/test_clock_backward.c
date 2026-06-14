@@ -11,12 +11,12 @@ void mock_set_time(wall_time_t w, mono_time_t m);
 
 static int fire_count = 0;
 
-static void on_fire(calendar_task_t *task) {
+static void on_fire(calendar_task_t* task) {
     (void)task;
     fire_count++;
 }
 
-static void test_clock_backward_no_double_fire(void **state) {
+static void test_clock_backward_no_double_fire(void** state) {
     (void)state;
     uv_loop_t loop;
     uv_loop_init(&loop);
@@ -81,8 +81,8 @@ static void test_clock_backward_no_double_fire(void **state) {
     assert_int_equal(task.state, CAL_STATE_DONE);  // State shouldn't change to SCHEDULED
 
     // Cleanup
-    if (!uv_is_closing((uv_handle_t *)&task.timer)) {
-        uv_close((uv_handle_t *)&task.timer, NULL);
+    if (!uv_is_closing((uv_handle_t*)&task.timer)) {
+        uv_close((uv_handle_t*)&task.timer, NULL);
     }
     uv_run(&loop, UV_RUN_DEFAULT);
     uv_loop_close(&loop);

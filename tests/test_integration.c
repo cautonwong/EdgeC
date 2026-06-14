@@ -13,13 +13,13 @@
 
 typedef struct {
     datahub_t data_hub;
-    arbiter_t *arbiter;
-    stream_engine_t *stream_engine;
-    service_t *svc;
-    uv_loop_t *loop;
+    arbiter_t* arbiter;
+    stream_engine_t* stream_engine;
+    service_t* svc;
+    uv_loop_t* loop;
 } test_ctx_t;
 
-static void test_end_to_end_flow(void **state) {
+static void test_end_to_end_flow(void** state) {
     (void)state;
     test_ctx_t ctx;
     ctx.loop = uv_default_loop();

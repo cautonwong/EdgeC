@@ -7,9 +7,9 @@
 
 #include "edge_log.h"
 
-static void test_log_basic_lifecycle(void **state) {
+static void test_log_basic_lifecycle(void** state) {
     (void)state;
-    edge_log_t *logger = edge_log_create(NULL, true);
+    edge_log_t* logger = edge_log_create(NULL, true);
     assert_non_null(logger);
 
     edge_log_out(logger, LOG_CAT_CORE, 0, "Test Log Message");

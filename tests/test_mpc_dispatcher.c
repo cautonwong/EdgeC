@@ -1,22 +1,23 @@
 #include <cmocka.h>
+#include <math.h>
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
-#include <stdio.h>
 
 #include "stream_engine.h"
 
 // Forward declaration
-pipeline_stage_t *stage_mpc_dispatcher_create(uint32_t soc_tag, uint32_t out_pcs_tag, double dt, double capacity_ah, double target_soc);
+pipeline_stage_t* stage_mpc_dispatcher_create(uint32_t soc_tag, uint32_t out_pcs_tag, double dt,
+                                              double capacity_ah, double target_soc);
 
-static void test_mpc_dispatcher_logic(void **state) {
+static void test_mpc_dispatcher_logic(void** state) {
     (void)state;
     // SOC Tag: 1001, PCS Out Tag: 2001
     // dt=1s, Capacity=100Ah, Target SOC=50%
-    pipeline_stage_t *mpc = stage_mpc_dispatcher_create(1001, 2001, 1.0, 100.0, 50.0);
+    pipeline_stage_t* mpc = stage_mpc_dispatcher_create(1001, 2001, 1.0, 100.0, 50.0);
     assert_non_null(mpc);
 
     pipe_msg_t ev = {0};

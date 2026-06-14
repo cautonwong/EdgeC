@@ -1,48 +1,48 @@
 #include <cmocka.h>
+#include <math.h>
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include <math.h>
 
-#include "stream_engine.h"
 #include "edge_linalg.h"
+#include "stream_engine.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
 
 // Forward declaration
-pipeline_stage_t *stage_ahrs_quaternion_create(uint32_t gyro_tag, uint32_t output_tag);
+pipeline_stage_t* stage_ahrs_quaternion_create(uint32_t gyro_tag, uint32_t output_tag);
 
 typedef struct {
-    pipeline_stage_t *stage;
+    pipeline_stage_t* stage;
 } test_ctx_t;
 
-static int setup(void **state) {
-    test_ctx_t *ctx = calloc(1, sizeof(test_ctx_t));
+static int setup(void** state) {
+    test_ctx_t* ctx = calloc(1, sizeof(test_ctx_t));
     ctx->stage = stage_ahrs_quaternion_create(100, 200);
     *state = ctx;
     return 0;
 }
 
-static int teardown(void **state) {
-    test_ctx_t *ctx = *state;
+static int teardown(void** state) {
+    test_ctx_t* ctx = *state;
     if (ctx->stage->cleanup_state) ctx->stage->cleanup_state(ctx->stage->priv_state);
     free(ctx->stage);
     free(ctx);
     return 0;
 }
 
-static void test_ahrs_quaternion_gimbal_lock_free(void **state) {
-    test_ctx_t *ctx = *state;
-    pipeline_stage_t *stage = ctx->stage;
+static void test_ahrs_quaternion_gimbal_lock_free(void** state) {
+    test_ctx_t* ctx = *state;
+    pipeline_stage_t* stage = ctx->stage;
     assert_non_null(stage);
 
     pipe_msg_t ev = {0};
-    double vec_data[4]; 
+    double vec_data[4];
     ev.type = PIPEMSG_TYPE_BATCH;
     ev.payload.batch.ptr = vec_data;
 
@@ -52,17 +52,17 @@ static void test_ahrs_quaternion_gimbal_lock_free(void **state) {
     // 1. Rotate 90 degrees around X-axis (gx = pi/2)
     double gx = (M_PI / 2.0);
     for (int i = 0; i < steps; i++) {
-        ev.tag_id = 100; // Reset tag ID
+        ev.tag_id = 100;  // Reset tag ID
         ev.payload.batch.count = 3;
         vec_data[0] = gx;
         vec_data[1] = 0.0;
         vec_data[2] = 0.0;
         ev.ts = current_ts;
-        current_ts += 10; // 10ms
-        
+        current_ts += 10;  // 10ms
+
         stage->process(stage, &ev);
     }
-    
+
     // Check intermediate quaternion after 90 deg X rotation
     // Expected: w=cos(45)=0.7071, x=sin(45)=0.7071, y=0, z=0
     double w = vec_data[0];
@@ -78,14 +78,14 @@ static void test_ahrs_quaternion_gimbal_lock_free(void **state) {
     // 2. Rotate 90 degrees around local Y-axis
     double gy = (M_PI / 2.0);
     for (int i = 0; i < steps; i++) {
-        ev.tag_id = 100; // Reset tag ID
+        ev.tag_id = 100;  // Reset tag ID
         ev.payload.batch.count = 3;
         vec_data[0] = 0.0;
         vec_data[1] = gy;
         vec_data[2] = 0.0;
         ev.ts = current_ts;
         current_ts += 10;
-        
+
         stage->process(stage, &ev);
     }
 
@@ -94,7 +94,7 @@ static void test_ahrs_quaternion_gimbal_lock_free(void **state) {
     y = vec_data[2];
     z = vec_data[3];
     printf("After 90 deg local Y: q = [%.4f, %.4f, %.4f, %.4f]\n", w, x, y, z);
-    
+
     // Expected final: q_x * q_y = [0.707, 0.707, 0, 0] * [0.707, 0, 0.707, 0]
     // w = 0.5 - 0 = 0.5
     // x = 0 + 0.5 = 0.5

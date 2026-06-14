@@ -5,14 +5,14 @@
 
 #include "edge_version.h"
 
-static void test_addition(void **state) {
+static void test_addition(void** state) {
     (void)state;
     assert_int_equal(1 + 1, 2);
 }
 
-static void test_version_structure(void **state) {
+static void test_version_structure(void** state) {
     (void)state;
-    const edge_version_t *v = edge_get_version();
+    const edge_version_t* v = edge_get_version();
     // [高质量对齐] 验证主版本号是否为 V4.x
     assert_int_equal(v->major, 4);
     assert_non_null(v->version_str);

@@ -17,15 +17,15 @@ typedef struct {
     uv_timer_t timeout;
 } test_ctx_t;
 
-static void on_timeout(uv_timer_t *handle) {
-    test_ctx_t *ctx = (test_ctx_t *)handle->data;
+static void on_timeout(uv_timer_t* handle) {
+    test_ctx_t* ctx = (test_ctx_t*)handle->data;
     fprintf(stderr, "[FATAL] Test timed out! Received: %d/100\n", ctx->received);
     uv_stop(&ctx->loop);
     exit(1);  // Force fail
 }
 
-static void *producer_thread(void *arg) {
-    test_ctx_t *ctx = (test_ctx_t *)arg;
+static void* producer_thread(void* arg) {
+    test_ctx_t* ctx = (test_ctx_t*)arg;
     for (int i = 0; i < 100; i++) {
         pipe_msg_t msg = {0};
         msg.type = PIPEMSG_TYPE_SCALAR;
@@ -39,8 +39,8 @@ static void *producer_thread(void *arg) {
     return NULL;
 }
 
-static void on_hub_data(datahub_t *hub, void *user_data) {
-    test_ctx_t *ctx = (test_ctx_t *)user_data;
+static void on_hub_data(datahub_t* hub, void* user_data) {
+    test_ctx_t* ctx = (test_ctx_t*)user_data;
     pipe_msg_t msg;
     static uint64_t my_seq = 0;
     while (shm_ring_read(&hub->ring, &my_seq, &msg) == 0) {
@@ -52,8 +52,8 @@ static void on_hub_data(datahub_t *hub, void *user_data) {
     }
 }
 
-static void test_datahub_notify(void **state) {
-    test_ctx_t *ctx = (test_ctx_t *)*state;
+static void test_datahub_notify(void** state) {
+    test_ctx_t* ctx = (test_ctx_t*)*state;
 
     // 安全网：5秒超时
     uv_timer_init(&ctx->loop, &ctx->timeout);
@@ -69,8 +69,8 @@ static void test_datahub_notify(void **state) {
     assert_int_equal(ctx->received, 100);
 }
 
-static int setup(void **state) {
-    test_ctx_t *ctx = calloc(1, sizeof(*ctx));
+static int setup(void** state) {
+    test_ctx_t* ctx = calloc(1, sizeof(*ctx));
     uv_loop_init(&ctx->loop);
     shm_unlink("/test_hub");
 
@@ -88,23 +88,22 @@ static int setup(void **state) {
     return 0;
 }
 
-static void on_walk_close(uv_handle_t *handle, void *arg) {
+static void on_walk_close(uv_handle_t* handle, void* arg) {
     (void)arg;
     if (!uv_is_closing(handle)) {
         uv_close(handle, NULL);
     }
 }
 
-static int teardown(void **state) {
-    test_ctx_t *ctx = (test_ctx_t *)*state;
+static int teardown(void** state) {
+    test_ctx_t* ctx = (test_ctx_t*)*state;
     datahub_destroy(&ctx->hub);
 
     // 关键修复：关闭所有句柄 (包括 timeout timer)
     uv_walk(&ctx->loop, on_walk_close, NULL);
 
     // 运行循环直到所有关闭回调完成
-    while (uv_run(&ctx->loop, UV_RUN_DEFAULT) != 0)
-        ;
+    while (uv_run(&ctx->loop, UV_RUN_DEFAULT) != 0);
 
     if (uv_loop_close(&ctx->loop) != 0) {
         fprintf(stderr, "[WARN] Loop close failed (leak?)\n");

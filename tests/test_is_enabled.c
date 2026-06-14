@@ -13,7 +13,7 @@
 /**
  * 验证 IS_ENABLED 宏在各种配置情况下的表现
  */
-static void test_is_enabled_logic(void **state) {
+static void test_is_enabled_logic(void** state) {
     (void)state;
 
     // 1. 验证定义为 1 的情况
@@ -29,7 +29,7 @@ static void test_is_enabled_logic(void **state) {
 /**
  * 验证 IS_ENABLED 在运行时逻辑分支中的应用
  */
-static void test_is_enabled_in_branch(void **state) {
+static void test_is_enabled_in_branch(void** state) {
     (void)state;
     int check = 0;
 

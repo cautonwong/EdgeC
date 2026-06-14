@@ -7,7 +7,7 @@
 
 #include "datahub.h"
 
-static void test_shadow_read_consistency(void **state) {
+static void test_shadow_read_consistency(void** state) {
     (void)state;
     uv_loop_t loop;
     uv_loop_init(&loop);
@@ -25,8 +25,7 @@ static void test_shadow_read_consistency(void **state) {
 
     datahub_destroy(&hub);
     // 关键：排空并关闭 loop
-    while (uv_run(&loop, UV_RUN_NOWAIT))
-        ;
+    while (uv_run(&loop, UV_RUN_NOWAIT));
     uv_loop_close(&loop);
 }
 

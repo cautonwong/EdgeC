@@ -11,13 +11,13 @@
 #include "datahub.h"
 #include "driver_manager.h"
 
-static void on_walk_print(uv_handle_t *handle, void *arg) {
+static void on_walk_print(uv_handle_t* handle, void* arg) {
     (void)arg;
-    fprintf(stderr, "[DEBUG] Pending handle: %p, type: %d, closing: %d\n", (void *)handle,
+    fprintf(stderr, "[DEBUG] Pending handle: %p, type: %d, closing: %d\n", (void*)handle,
             handle->type, uv_is_closing(handle));
 }
 
-static void test_bus_orchestrator_dynamic_create(void **state) {
+static void test_bus_orchestrator_dynamic_create(void** state) {
     (void)state;
     fprintf(stderr, "[DEBUG] Start test_bus_orchestrator_dynamic_create\n");
 
@@ -27,11 +27,11 @@ static void test_bus_orchestrator_dynamic_create(void **state) {
     datahub_t hub;
     datahub_init(&hub, &loop, "test_bus", 64, 1024, NULL, 0, NULL, NULL, NULL);
 
-    arbiter_t *arb = NULL;
+    arbiter_t* arb = NULL;
     arbiter_init(&arb, &loop);
-    driver_manager_t *mgr = driver_manager_create();
+    driver_manager_t* mgr = driver_manager_create();
 
-    bus_orchestrator_t *ctx = bus_orchestrator_create(&hub, arb, mgr, 8, 32, 2048);
+    bus_orchestrator_t* ctx = bus_orchestrator_create(&hub, arb, mgr, 8, 32, 2048);
     assert_non_null(ctx);
 
     fprintf(stderr, "[DEBUG] Created Orchestrator, now destroying...\n");

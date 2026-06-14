@@ -5,13 +5,13 @@
 #include "edge_ui.h"
 
 // [UI-01] New timer callback for asynchronous refresh
-static void _ui_on_refresh(uv_timer_t *handle) {
-    ui_service_t *service = (ui_service_t *)handle->data;
+static void _ui_on_refresh(uv_timer_t* handle) {
+    ui_service_t* service = (ui_service_t*)handle->data;
     if (!service->running || service->stack_top < 0) {
         return;
     }
 
-    ui_page_t *current_page = service->page_stack[service->stack_top];
+    ui_page_t* current_page = service->page_stack[service->stack_top];
 
     // 1. Process input
     if (service->hal && service->hal->hal_get_key) {
@@ -47,8 +47,8 @@ static void _ui_on_refresh(uv_timer_t *handle) {
 }
 
 // [UI-02] create is now lean, no HAL is passed in.
-ui_service_t *ui_service_create(datahub_t *hub) {
-    ui_service_t *service = calloc(1, sizeof(ui_service_t));
+ui_service_t* ui_service_create(datahub_t* hub) {
+    ui_service_t* service = calloc(1, sizeof(ui_service_t));
     if (!service) {
         return NULL;
     }
@@ -65,13 +65,13 @@ ui_service_t *ui_service_create(datahub_t *hub) {
     return service;
 }
 
-void ui_service_destroy(ui_service_t *service) {
+void ui_service_destroy(ui_service_t* service) {
     if (!service) {
         return;
     }
 
-    if (!uv_is_closing((uv_handle_t *)&service->refresh_timer)) {
-        uv_close((uv_handle_t *)&service->refresh_timer, NULL);
+    if (!uv_is_closing((uv_handle_t*)&service->refresh_timer)) {
+        uv_close((uv_handle_t*)&service->refresh_timer, NULL);
     }
 
     if (service->hal) {
@@ -84,7 +84,7 @@ void ui_service_destroy(ui_service_t *service) {
 }
 
 // [UI-01] run is now non-blocking and orchestrates init.
-void ui_service_run(ui_service_t *service) {
+void ui_service_run(ui_service_t* service) {
     if (!service) {
         return;
     }
@@ -116,7 +116,7 @@ void ui_service_run(ui_service_t *service) {
     uv_run(service->loop, UV_RUN_DEFAULT);
 }
 
-void ui_service_stop(ui_service_t *service) {
+void ui_service_stop(ui_service_t* service) {
     if (service && service->running) {
         service->running = false;
         uv_timer_stop(&service->refresh_timer);
@@ -128,7 +128,7 @@ void ui_service_stop(ui_service_t *service) {
 }
 
 // [UI-03] Page stack logic with on_enter/on_exit hooks
-void ui_service_push_page(ui_service_t *service, ui_page_t *page) {
+void ui_service_push_page(ui_service_t* service, ui_page_t* page) {
     if (!service || service->stack_top >= 7) {
         LOG_ERROR(LOG_CAT_UI, "Cannot push page, stack is full.");
         return;
@@ -147,7 +147,7 @@ void ui_service_push_page(ui_service_t *service, ui_page_t *page) {
     }
 }
 
-void ui_service_pop_page(ui_service_t *service) {
+void ui_service_pop_page(ui_service_t* service) {
     if (!service || service->stack_top < 0) {
         return;
     }
@@ -165,7 +165,7 @@ void ui_service_pop_page(ui_service_t *service) {
     }
 }
 
-__attribute__((weak)) void ui_product_init(ui_service_t *service) {
+__attribute__((weak)) void ui_product_init(ui_service_t* service) {
     (void)service;
     LOG_INFO(LOG_CAT_UI, "Default weak ui_product_init() called. No pages loaded.");
 }

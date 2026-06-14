@@ -5,7 +5,7 @@
 
 #include "battery_strategy.h"
 
-static void test_battery_safety_low_soc(void **state) {
+static void test_battery_safety_low_soc(void** state) {
     (void)state;
 
     battery_state_t b_state = {.soc = 5.0f,  // 极低 SoC
@@ -25,7 +25,7 @@ static void test_battery_safety_low_soc(void **state) {
     assert_float_equal(safe_pwr, 0.0f, 0.001f);
 }
 
-static void test_battery_safety_normal(void **state) {
+static void test_battery_safety_normal(void** state) {
     (void)state;
 
     battery_state_t b_state = {.soc = 50.0f,  // 正常 SoC

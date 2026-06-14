@@ -1,19 +1,24 @@
-#include <stdio.h>
 #include <assert.h>
-#include "edge_linalg.h"
 #include <math.h>
+#include <stdio.h>
+
+#include "edge_linalg.h"
 
 void test_matrix_basic() {
     printf("[Test] Running Linalg Basic Test...\n");
-    edge_matrix_t *a = edge_matrix_alloc(2, 2);
-    edge_matrix_t *b = edge_matrix_alloc(2, 2);
-    edge_matrix_t *c = edge_matrix_alloc(2, 2);
+    edge_matrix_t* a = edge_matrix_alloc(2, 2);
+    edge_matrix_t* b = edge_matrix_alloc(2, 2);
+    edge_matrix_t* c = edge_matrix_alloc(2, 2);
 
-    edge_matrix_set(a, 0, 0, 1.0); edge_matrix_set(a, 0, 1, 2.0);
-    edge_matrix_set(a, 1, 0, 3.0); edge_matrix_set(a, 1, 1, 4.0);
+    edge_matrix_set(a, 0, 0, 1.0);
+    edge_matrix_set(a, 0, 1, 2.0);
+    edge_matrix_set(a, 1, 0, 3.0);
+    edge_matrix_set(a, 1, 1, 4.0);
 
-    edge_matrix_set(b, 0, 0, 5.0); edge_matrix_set(b, 0, 1, 6.0);
-    edge_matrix_set(b, 1, 0, 7.0); edge_matrix_set(b, 1, 1, 8.0);
+    edge_matrix_set(b, 0, 0, 5.0);
+    edge_matrix_set(b, 0, 1, 6.0);
+    edge_matrix_set(b, 1, 0, 7.0);
+    edge_matrix_set(b, 1, 1, 8.0);
 
     // Test Addition
     edge_matrix_add(a, b, c);
@@ -38,17 +43,19 @@ void test_matrix_basic() {
 
 void test_matrix_inversion() {
     printf("[Test] Running Linalg Inversion Test...\n");
-    edge_matrix_t *m = edge_matrix_alloc(2, 2);
-    edge_matrix_t *inv = edge_matrix_alloc(2, 2);
-    edge_matrix_t *id = edge_matrix_alloc(2, 2);
+    edge_matrix_t* m = edge_matrix_alloc(2, 2);
+    edge_matrix_t* inv = edge_matrix_alloc(2, 2);
+    edge_matrix_t* id = edge_matrix_alloc(2, 2);
 
     // [4 7]
     // [2 6]
     // det = 4*6 - 7*2 = 24 - 14 = 10
     // inv = 1/10 * [6 -7] = [0.6 -0.7]
     //              [-2 4]   [-0.2 0.4]
-    edge_matrix_set(m, 0, 0, 4.0); edge_matrix_set(m, 0, 1, 7.0);
-    edge_matrix_set(m, 1, 0, 2.0); edge_matrix_set(m, 1, 1, 6.0);
+    edge_matrix_set(m, 0, 0, 4.0);
+    edge_matrix_set(m, 0, 1, 7.0);
+    edge_matrix_set(m, 1, 0, 2.0);
+    edge_matrix_set(m, 1, 1, 6.0);
 
     int ret = edge_matrix_inv(m, inv);
     assert(ret == 0);

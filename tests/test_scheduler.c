@@ -9,7 +9,7 @@
 // 模拟时间函数声明
 void mock_set_time(wall_time_t w, mono_time_t m);
 
-static void test_calendar_alignments(void **state) {
+static void test_calendar_alignments(void** state) {
     (void)state;
     uv_periodic_t t;
     uv_periodic_init(uv_default_loop(), &t);

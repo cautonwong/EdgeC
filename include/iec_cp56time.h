@@ -37,17 +37,17 @@ typedef struct {
 /**
  * @brief 获取当前系统时间的 CP56Time2a 表示
  */
-void iec_cp56time_now(iec_cp56time_t *out);
+void iec_cp56time_now(iec_cp56time_t* out);
 
 /**
  * @brief 将 CP56Time2a 转换为 Unix 毫秒时间戳
  */
-uint64_t iec_cp56time_to_ms(const iec_cp56time_t *ts);
+uint64_t iec_cp56time_to_ms(const iec_cp56time_t* ts);
 
 /**
  * @brief 从 Unix 毫秒时间戳构造 CP56Time2a
  */
-void iec_cp56time_from_ms(iec_cp56time_t *out, uint64_t ms);
+void iec_cp56time_from_ms(iec_cp56time_t* out, uint64_t ms);
 
 #ifdef __cplusplus
 }

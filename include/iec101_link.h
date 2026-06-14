@@ -45,13 +45,13 @@ typedef enum {
 /**
  * @brief 构建固定长度帧 (0x10) - 用于请求与确认
  */
-int iec101_link_build_fixed(iec101_link_mgr_t *mgr, iec101_ctrl_t ctrl, net_buf_t *out);
+int iec101_link_build_fixed(iec101_link_mgr_t* mgr, iec101_ctrl_t ctrl, net_buf_t* out);
 
 /**
  * @brief 构建可变长度帧 (0x68) - 承载 ASDU
  * @param asdu 已包含业务数据的 net_buf
  */
-int iec101_link_wrap_asdu(iec101_link_mgr_t *mgr, iec101_ctrl_t ctrl, net_buf_t *asdu);
+int iec101_link_wrap_asdu(iec101_link_mgr_t* mgr, iec101_ctrl_t ctrl, net_buf_t* asdu);
 
 /**
  * @brief 解析并验证 FT1.2 帧 (Phase 5 Task 4)
@@ -60,13 +60,13 @@ int iec101_link_wrap_asdu(iec101_link_mgr_t *mgr, iec101_ctrl_t ctrl, net_buf_t 
  * @param out_ctrl 输出控制域
  * @param out_asdu 输出 ASDU 数据片段 (指向 in->data 的内部视图)
  */
-int iec101_link_parse(iec101_link_mgr_t *mgr, struct net_buf_simple *in, size_t *consumed,
-                      iec101_ctrl_t *out_ctrl, struct net_buf_simple *out_asdu);
+int iec101_link_parse(iec101_link_mgr_t* mgr, struct net_buf_simple* in, size_t* consumed,
+                      iec101_ctrl_t* out_ctrl, struct net_buf_simple* out_asdu);
 
 /**
  * @brief 计算并附加 Sum8 校验和
  */
-uint8_t iec101_calc_sum8(const uint8_t *data, size_t len);
+uint8_t iec101_calc_sum8(const uint8_t* data, size_t len);
 
 #ifdef __cplusplus
 }

@@ -10,16 +10,16 @@
 #include "edge_log.h"
 #include "io_executor.h"
 
-static net_buf_pool_t *g_pool = NULL;
+static net_buf_pool_t* g_pool = NULL;
 static bool g_rx_received = false;
 static bool g_tx_done = false;
 
-static void on_http_event(io_handle_t *h, io_event_t evt, void *data, void *user_data) {
+static void on_http_event(io_handle_t* h, io_event_t evt, void* data, void* user_data) {
     (void)h;
     (void)user_data;
 
     if (evt == IO_EVENT_RX) {
-        net_buf_t *nb = (net_buf_t *)data;
+        net_buf_t* nb = (net_buf_t*)data;
         if (nb->b.len > 0) {
             g_rx_received = true;
             char buf[65] = {0};
@@ -36,16 +36,16 @@ static void on_http_event(io_handle_t *h, io_event_t evt, void *data, void *user
     }
 }
 
-static void test_http_get_public_api(void **state) {
+static void test_http_get_public_api(void** state) {
     (void)state;
-    uv_loop_t *loop = uv_default_loop();
+    uv_loop_t* loop = uv_default_loop();
 
     io_config_t cfg = {.type = IO_TYPE_HTTP};
     // 使用 httpbin.org 验证 GET 请求
     strncpy(cfg.params.http.url, "http://httpbin.org/get", 255);
     strncpy(cfg.params.http.method, "GET", 15);
 
-    io_handle_t *h = io_executor_create(loop, &cfg, g_pool);
+    io_handle_t* h = io_executor_create(loop, &cfg, g_pool);
     assert_non_null(h);
     h->cb = on_http_event;
 
@@ -69,21 +69,20 @@ static void test_http_get_public_api(void **state) {
     h->ops->destroy(h);
 }
 
-static int setup(void **state) {
+static int setup(void** state) {
     (void)state;
     g_pool = calloc(1, sizeof(net_buf_pool_t));
     net_buf_pool_init(g_pool, 4, 4096, 0, NULL, NULL);
     return 0;
 }
 
-static int teardown(void **state) {
+static int teardown(void** state) {
     (void)state;
     io_executor_cleanup();
 
     // 彻底排空 Loop
-    uv_loop_t *loop = uv_default_loop();
-    while (uv_run(loop, UV_RUN_NOWAIT))
-        ;
+    uv_loop_t* loop = uv_default_loop();
+    while (uv_run(loop, UV_RUN_NOWAIT));
 
     net_buf_pool_destroy(g_pool);
     free(g_pool);

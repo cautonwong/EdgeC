@@ -7,10 +7,10 @@
 
 #include "stream_engine.h"
 
-static void test_ema_smoothing(void **state) {
+static void test_ema_smoothing(void** state) {
     (void)state;
     // 创建一个 alpha 为 0.5 的 EMA 算子
-    pipeline_stage_t *ema = stage_ema_create(0.5);
+    pipeline_stage_t* ema = stage_ema_create(0.5);
     pipe_msg_t ev = {.type = PIPEMSG_TYPE_SCALAR, .tag_id = 1001};
 
     // 1. 初始值
@@ -36,10 +36,10 @@ static void test_ema_smoothing(void **state) {
     free(ema);
 }
 
-static void test_clamp_bounds(void **state) {
+static void test_clamp_bounds(void** state) {
     (void)state;
     // 限幅 0.0 ~ 100.0
-    pipeline_stage_t *clamp = stage_clamp_create(0.0, 100.0);
+    pipeline_stage_t* clamp = stage_clamp_create(0.0, 100.0);
     pipe_msg_t ev = {.type = PIPEMSG_TYPE_SCALAR, .tag_id = 1001};
 
     // 正常值
@@ -64,10 +64,10 @@ static void test_clamp_bounds(void **state) {
 }
 
 // 3. 验证削峰填谷决策算子 (V2 - 调用核心算法平面)
-static void test_peak_shaving_v2(void **state) {
+static void test_peak_shaving_v2(void** state) {
     (void)state;
     // 门限 5000W，控制 Tag 2001
-    pipeline_stage_t *shave = stage_peak_shaving_create(5000.0, 2001);
+    pipeline_stage_t* shave = stage_peak_shaving_create(5000.0, 2001);
     pipe_msg_t ev = {.type = PIPEMSG_TYPE_SCALAR, .tag_id = 1001, .payload.val.f = 6000.0};
 
     // 执行削峰决策

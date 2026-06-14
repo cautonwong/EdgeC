@@ -11,27 +11,27 @@
 extern edge_driver_t modbus_rtu_driver;
 
 typedef struct {
-    driver_manager_t *mgr;
+    driver_manager_t* mgr;
 } test_state_t;
 
-static int setup(void **state) {
-    test_state_t *ts = calloc(1, sizeof(test_state_t));
+static int setup(void** state) {
+    test_state_t* ts = calloc(1, sizeof(test_state_t));
     ts->mgr = driver_manager_create();
     driver_manager_register(ts->mgr, &modbus_rtu_driver);
     *state = ts;
     return 0;
 }
 
-static int teardown(void **state) {
-    test_state_t *ts = *state;
+static int teardown(void** state) {
+    test_state_t* ts = *state;
     driver_manager_destroy(ts->mgr);
     free(ts);
     return 0;
 }
 
-static void test_modbus_v3_master_cycle(void **state) {
-    test_state_t *ts = *state;
-    edge_driver_ctx_t *ctx = driver_instance_create(ts->mgr, "ModbusRTU", 1);
+static void test_modbus_v3_master_cycle(void** state) {
+    test_state_t* ts = *state;
+    edge_driver_ctx_t* ctx = driver_instance_create(ts->mgr, "ModbusRTU", 1);
     assert_non_null(ctx);
 
     driver_instance_destroy(ctx, "ModbusRTU");

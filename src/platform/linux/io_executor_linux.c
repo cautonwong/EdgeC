@@ -21,12 +21,12 @@
 /* --- 0. Libcurl Multi-Socket 集成 --- */
 
 typedef struct {
-    CURLM *multi;
+    CURLM* multi;
     uv_timer_t timer;
-    uv_loop_t *loop;
+    uv_loop_t* loop;
 } curl_multi_ctx_t;
 
-static curl_multi_ctx_t *g_curl_ctx = NULL;
+static curl_multi_ctx_t* g_curl_ctx = NULL;
 
 typedef struct {
     uv_poll_t poll_handle;
@@ -41,30 +41,30 @@ typedef struct linux_io_handle_s {
         uv_poll_t poll;
         uv_tcp_t tcp;
         uv_udp_t udp;
-        CURL *curl;
+        CURL* curl;
     } handle;
     int fd;
-    net_buf_pool_t *pool;
-    net_buf_t *pending_tx;
+    net_buf_pool_t* pool;
+    net_buf_t* pending_tx;
     io_type_t type;
 
     struct sockaddr_in udp_dest;
-    net_buf_t *udp_rx_nb;
+    net_buf_t* udp_rx_nb;
 
     // HTTP 专用
-    net_buf_t *http_rx_nb;
-    struct curl_slist *http_hdrs;
+    net_buf_t* http_rx_nb;
+    struct curl_slist* http_hdrs;
 } linux_io_handle_t;
 
-static void _on_curl_timeout(uv_timer_t *handle) {
+static void _on_curl_timeout(uv_timer_t* handle) {
     (void)handle;
     int running_handles;
     curl_multi_socket_action(g_curl_ctx->multi, CURL_SOCKET_TIMEOUT, 0, &running_handles);
 }
 
-static int _curl_timer_cb(CURLM *multi, long timeout_ms, void *userp) {
+static int _curl_timer_cb(CURLM* multi, long timeout_ms, void* userp) {
     (void)multi;
-    curl_multi_ctx_t *ctx = (curl_multi_ctx_t *)userp;
+    curl_multi_ctx_t* ctx = (curl_multi_ctx_t*)userp;
     if (timeout_ms < 0) {
         uv_timer_stop(&ctx->timer);
     } else {
@@ -74,30 +74,30 @@ static int _curl_timer_cb(CURLM *multi, long timeout_ms, void *userp) {
     return 0;
 }
 
-static void _on_curl_poll(uv_poll_t *handle, int status, int events) {
+static void _on_curl_poll(uv_poll_t* handle, int status, int events) {
     (void)status;
     int running_handles;
     int flags = 0;
-    curl_poll_ctx_t *poll_ctx = (curl_poll_ctx_t *)handle->data;
+    curl_poll_ctx_t* poll_ctx = (curl_poll_ctx_t*)handle->data;
 
     if (events & UV_READABLE) flags |= CURL_CSELECT_IN;
     if (events & UV_WRITABLE) flags |= CURL_CSELECT_OUT;
 
     curl_multi_socket_action(g_curl_ctx->multi, poll_ctx->sockfd, flags, &running_handles);
 
-    CURLMsg *msg;
+    CURLMsg* msg;
     int msgs_left;
     while ((msg = curl_multi_info_read(g_curl_ctx->multi, &msgs_left))) {
         if (msg->msg == CURLMSG_DONE) {
-            CURL *easy = msg->easy_handle;
-            linux_io_handle_t *impl = NULL;
+            CURL* easy = msg->easy_handle;
+            linux_io_handle_t* impl = NULL;
             curl_easy_getinfo(easy, CURLINFO_PRIVATE, &impl);
 
             if (impl) {
                 if (msg->data.result == CURLE_OK) {
                     impl->base.cb(&impl->base, IO_EVENT_TX_DONE, NULL, impl->base.user_data);
                 } else {
-                    impl->base.cb(&impl->base, IO_EVENT_ERROR, (void *)(intptr_t)msg->data.result,
+                    impl->base.cb(&impl->base, IO_EVENT_ERROR, (void*)(intptr_t)msg->data.result,
                                   impl->base.user_data);
                 }
                 curl_multi_remove_handle(g_curl_ctx->multi, easy);
@@ -106,10 +106,10 @@ static void _on_curl_poll(uv_poll_t *handle, int status, int events) {
     }
 }
 
-static int _curl_socket_cb(CURL *easy, curl_socket_t s, int action, void *userp, void *socketp) {
+static int _curl_socket_cb(CURL* easy, curl_socket_t s, int action, void* userp, void* socketp) {
     (void)easy;
-    curl_multi_ctx_t *ctx = (curl_multi_ctx_t *)userp;
-    curl_poll_ctx_t *poll_ctx = (curl_poll_ctx_t *)socketp;
+    curl_multi_ctx_t* ctx = (curl_multi_ctx_t*)userp;
+    curl_poll_ctx_t* poll_ctx = (curl_poll_ctx_t*)socketp;
 
     if (action == CURL_POLL_IN || action == CURL_POLL_OUT || action == CURL_POLL_INOUT) {
         if (!poll_ctx) {
@@ -126,14 +126,14 @@ static int _curl_socket_cb(CURL *easy, curl_socket_t s, int action, void *userp,
     } else if (action == CURL_POLL_REMOVE) {
         if (poll_ctx) {
             uv_poll_stop(&poll_ctx->poll_handle);
-            uv_close((uv_handle_t *)&poll_ctx->poll_handle, (uv_close_cb)free);
+            uv_close((uv_handle_t*)&poll_ctx->poll_handle, (uv_close_cb)free);
             curl_multi_assign(ctx->multi, s, NULL);
         }
     }
     return 0;
 }
 
-static void _ensure_curl_init(uv_loop_t *loop) {
+static void _ensure_curl_init(uv_loop_t* loop) {
     if (g_curl_ctx) return;
     g_curl_ctx = calloc(1, sizeof(curl_multi_ctx_t));
     g_curl_ctx->loop = loop;
@@ -146,7 +146,7 @@ static void _ensure_curl_init(uv_loop_t *loop) {
     curl_multi_setopt(g_curl_ctx->multi, CURLMOPT_TIMERDATA, g_curl_ctx);
 }
 
-static void _on_curl_ctx_close(uv_handle_t *handle) {
+static void _on_curl_ctx_close(uv_handle_t* handle) {
     free(handle->data);
 }
 
@@ -155,15 +155,15 @@ void io_executor_cleanup(void) {
         uv_timer_stop(&g_curl_ctx->timer);
         curl_multi_cleanup(g_curl_ctx->multi);
         g_curl_ctx->multi = NULL;
-        uv_close((uv_handle_t *)&g_curl_ctx->timer, _on_curl_ctx_close);
+        uv_close((uv_handle_t*)&g_curl_ctx->timer, _on_curl_ctx_close);
         g_curl_ctx = NULL;
     }
 }
 
 /* --- 1. 基于 Poll (FD) 的通用处理 (UART, CAN, UDS) --- */
 
-static void _on_uv_poll(uv_poll_t *handle, int status, int events) {
-    linux_io_handle_t *impl = (linux_io_handle_t *)handle->data;
+static void _on_uv_poll(uv_poll_t* handle, int status, int events) {
+    linux_io_handle_t* impl = (linux_io_handle_t*)handle->data;
     if (status < 0) {
         impl->base.cb(&impl->base, IO_EVENT_ERROR, NULL, impl->base.user_data);
         return;
@@ -175,15 +175,18 @@ static void _on_uv_poll(uv_poll_t *handle, int status, int events) {
         do {
             ret = recv(impl->fd, buf, sizeof(buf), MSG_DONTWAIT);
             if (ret > 0) {
-                net_buf_t *nb = net_buf_alloc(impl->pool, ret);
+                net_buf_t* nb = net_buf_alloc(impl->pool, ret);
                 if (nb) {
                     memcpy(nb->b.data, buf, ret);
                     nb->b.len = (uint16_t)ret;
-                    if (impl->base.cb) impl->base.cb(&impl->base, IO_EVENT_RX, nb, impl->base.user_data);
+                    if (impl->base.cb)
+                        impl->base.cb(&impl->base, IO_EVENT_RX, nb, impl->base.user_data);
                     net_buf_unref(nb);
                 }
-            } else if (ret == 0 || (ret < 0 && errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)) {
-                if (impl->base.cb) impl->base.cb(&impl->base, IO_EVENT_ERROR, NULL, impl->base.user_data);
+            } else if (ret == 0 ||
+                       (ret < 0 && errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)) {
+                if (impl->base.cb)
+                    impl->base.cb(&impl->base, IO_EVENT_ERROR, NULL, impl->base.user_data);
             }
         } while (ret > 0);
     }
@@ -193,7 +196,7 @@ static void _on_uv_poll(uv_poll_t *handle, int status, int events) {
             ssize_t n = write(impl->fd, impl->pending_tx->b.data, impl->pending_tx->b.len);
             if (n > 0) {
                 fprintf(stderr, "[IO-TX] FD:%d Sent %zd bytes SUCCESS\n", impl->fd, n);
-                net_buf_t *buf = impl->pending_tx;
+                net_buf_t* buf = impl->pending_tx;
                 impl->pending_tx = NULL;
                 // 恢复只读监听
                 uv_poll_start(handle, UV_READABLE, _on_uv_poll);
@@ -209,21 +212,21 @@ static void _on_uv_poll(uv_poll_t *handle, int status, int events) {
     }
 }
 
-static int _poll_enable_read(io_handle_t *h, bool enable) {
-    linux_io_handle_t *impl = (linux_io_handle_t *)h;
+static int _poll_enable_read(io_handle_t* h, bool enable) {
+    linux_io_handle_t* impl = (linux_io_handle_t*)h;
     if (enable) return uv_poll_start(&impl->handle.poll, UV_READABLE, _on_uv_poll);
     return uv_poll_stop(&impl->handle.poll);
 }
 
-static int _poll_write_async(io_handle_t *h, net_buf_t *buf) {
-    linux_io_handle_t *impl = (linux_io_handle_t *)h;
+static int _poll_write_async(io_handle_t* h, net_buf_t* buf) {
+    linux_io_handle_t* impl = (linux_io_handle_t*)h;
     if (impl->pending_tx) return -EBUSY;
     impl->pending_tx = net_buf_ref(buf);
     return uv_poll_start(&impl->handle.poll, UV_READABLE | UV_WRITABLE, _on_uv_poll);
 }
 
-static int _poll_ioctl(io_handle_t *h, int cmd, void *arg) {
-    linux_io_handle_t *impl = (linux_io_handle_t *)h;
+static int _poll_ioctl(io_handle_t* h, int cmd, void* arg) {
+    linux_io_handle_t* impl = (linux_io_handle_t*)h;
     if (cmd == IO_CTL_FLUSH) {
         if (impl->pending_tx) {
             fprintf(stderr, "[IO] Forced FLUSH: Releasing pending TX buf\n");
@@ -239,7 +242,7 @@ static int _poll_ioctl(io_handle_t *h, int cmd, void *arg) {
         return 0;
     }
     if (cmd == IO_CTL_SET_BAUD && impl->type == IO_TYPE_UART) {
-        uint32_t baud = *(uint32_t *)arg;
+        uint32_t baud = *(uint32_t*)arg;
         struct termios options;
         if (tcgetattr(impl->fd, &options) != 0) return -errno;
         speed_t speed = B9600;
@@ -270,13 +273,13 @@ static int _poll_ioctl(io_handle_t *h, int cmd, void *arg) {
 
 /* --- 2. 基于 UDP 的处理 --- */
 
-static void _on_udp_alloc(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf) {
+static void _on_udp_alloc(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
     (void)suggested_size;
-    linux_io_handle_t *impl = (linux_io_handle_t *)handle->data;
+    linux_io_handle_t* impl = (linux_io_handle_t*)handle->data;
     if (impl->udp_rx_nb) net_buf_unref(impl->udp_rx_nb);
     impl->udp_rx_nb = net_buf_alloc(impl->pool, 0);
     if (impl->udp_rx_nb) {
-        buf->base = (char *)impl->udp_rx_nb->b.data;
+        buf->base = (char*)impl->udp_rx_nb->b.data;
         buf->len = impl->udp_rx_nb->b.size;
     } else {
         buf->base = NULL;
@@ -284,12 +287,12 @@ static void _on_udp_alloc(uv_handle_t *handle, size_t suggested_size, uv_buf_t *
     }
 }
 
-static void _on_udp_recv(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
-                         const struct sockaddr *addr, unsigned flags) {
+static void _on_udp_recv(uv_udp_t* handle, ssize_t nread, const uv_buf_t* buf,
+                         const struct sockaddr* addr, unsigned flags) {
     (void)buf;
     (void)addr;
     (void)flags;
-    linux_io_handle_t *impl = (linux_io_handle_t *)handle->data;
+    linux_io_handle_t* impl = (linux_io_handle_t*)handle->data;
     if (nread > 0 && impl->udp_rx_nb) {
         impl->udp_rx_nb->b.len = (uint16_t)nread;
         impl->base.cb(&impl->base, IO_EVENT_RX, impl->udp_rx_nb, impl->base.user_data);
@@ -300,32 +303,32 @@ static void _on_udp_recv(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf,
     }
 }
 
-static void _on_udp_send_done(uv_udp_send_t *req, int status) {
+static void _on_udp_send_done(uv_udp_send_t* req, int status) {
     (void)status;
-    linux_io_handle_t *impl = (linux_io_handle_t *)req->data;
+    linux_io_handle_t* impl = (linux_io_handle_t*)req->data;
     impl->base.cb(&impl->base, IO_EVENT_TX_DONE, NULL, impl->base.user_data);
     free(req);
 }
 
-static int _udp_enable_read(io_handle_t *h, bool enable) {
-    linux_io_handle_t *impl = (linux_io_handle_t *)h;
+static int _udp_enable_read(io_handle_t* h, bool enable) {
+    linux_io_handle_t* impl = (linux_io_handle_t*)h;
     if (enable) return uv_udp_recv_start(&impl->handle.udp, _on_udp_alloc, _on_udp_recv);
     return uv_udp_recv_stop(&impl->handle.udp);
 }
 
-static int _udp_write_async(io_handle_t *h, net_buf_t *buf) {
-    linux_io_handle_t *impl = (linux_io_handle_t *)h;
-    uv_udp_send_t *req = malloc(sizeof(uv_udp_send_t));
+static int _udp_write_async(io_handle_t* h, net_buf_t* buf) {
+    linux_io_handle_t* impl = (linux_io_handle_t*)h;
+    uv_udp_send_t* req = malloc(sizeof(uv_udp_send_t));
     req->data = impl;
-    uv_buf_t b = uv_buf_init((char *)buf->b.data, buf->b.len);
-    return uv_udp_send(req, &impl->handle.udp, &b, 1, (const struct sockaddr *)&impl->udp_dest,
+    uv_buf_t b = uv_buf_init((char*)buf->b.data, buf->b.len);
+    return uv_udp_send(req, &impl->handle.udp, &b, 1, (const struct sockaddr*)&impl->udp_dest,
                        _on_udp_send_done);
 }
 
 /* --- 3. 基于 HTTP (Libcurl) 的处理 --- */
 
-static size_t _on_curl_write(void *ptr, size_t size, size_t nmemb, void *userp) {
-    linux_io_handle_t *impl = (linux_io_handle_t *)userp;
+static size_t _on_curl_write(void* ptr, size_t size, size_t nmemb, void* userp) {
+    linux_io_handle_t* impl = (linux_io_handle_t*)userp;
     size_t total = size * nmemb;
     if (!impl->http_rx_nb) impl->http_rx_nb = net_buf_alloc(impl->pool, 0);
     if (impl->http_rx_nb && net_buf_simple_tailroom(&impl->http_rx_nb->b) >= total) {
@@ -335,8 +338,8 @@ static size_t _on_curl_write(void *ptr, size_t size, size_t nmemb, void *userp) 
     return total;
 }
 
-static int _http_enable_read(io_handle_t *h, bool enable) {
-    linux_io_handle_t *impl = (linux_io_handle_t *)h;
+static int _http_enable_read(io_handle_t* h, bool enable) {
+    linux_io_handle_t* impl = (linux_io_handle_t*)h;
     if (enable)
         curl_multi_add_handle(g_curl_ctx->multi, impl->handle.curl);
     else
@@ -344,8 +347,8 @@ static int _http_enable_read(io_handle_t *h, bool enable) {
     return 0;
 }
 
-static int _http_write_async(io_handle_t *h, net_buf_t *buf) {
-    linux_io_handle_t *impl = (linux_io_handle_t *)h;
+static int _http_write_async(io_handle_t* h, net_buf_t* buf) {
+    linux_io_handle_t* impl = (linux_io_handle_t*)h;
     if (buf && buf->b.len > 0) {
         curl_easy_setopt(impl->handle.curl, CURLOPT_POSTFIELDS, buf->b.data);
         curl_easy_setopt(impl->handle.curl, CURLOPT_POSTFIELDSIZE, (long)buf->b.len);
@@ -354,17 +357,17 @@ static int _http_write_async(io_handle_t *h, net_buf_t *buf) {
     return 0;
 }
 
-static int _http_ioctl(io_handle_t *h, int cmd, void *arg) {
-    linux_io_handle_t *impl = (linux_io_handle_t *)h;
+static int _http_ioctl(io_handle_t* h, int cmd, void* arg) {
+    linux_io_handle_t* impl = (linux_io_handle_t*)h;
     switch (cmd) {
         case IO_CTL_HTTP_SET_URL:
-            curl_easy_setopt(impl->handle.curl, CURLOPT_URL, (const char *)arg);
+            curl_easy_setopt(impl->handle.curl, CURLOPT_URL, (const char*)arg);
             break;
         case IO_CTL_HTTP_SET_METHOD:
-            curl_easy_setopt(impl->handle.curl, CURLOPT_CUSTOMREQUEST, (const char *)arg);
+            curl_easy_setopt(impl->handle.curl, CURLOPT_CUSTOMREQUEST, (const char*)arg);
             break;
         case IO_CTL_HTTP_ADD_HEADER:
-            impl->http_hdrs = curl_slist_append(impl->http_hdrs, (const char *)arg);
+            impl->http_hdrs = curl_slist_append(impl->http_hdrs, (const char*)arg);
             curl_easy_setopt(impl->handle.curl, CURLOPT_HTTPHEADER, impl->http_hdrs);
             break;
         default:
@@ -373,8 +376,8 @@ static int _http_ioctl(io_handle_t *h, int cmd, void *arg) {
     return 0;
 }
 
-static void _http_destroy(io_handle_t *h) {
-    linux_io_handle_t *impl = (linux_io_handle_t *)h;
+static void _http_destroy(io_handle_t* h) {
+    linux_io_handle_t* impl = (linux_io_handle_t*)h;
     if (g_curl_ctx && g_curl_ctx->multi) {
         curl_multi_remove_handle(g_curl_ctx->multi, impl->handle.curl);
     }
@@ -397,28 +400,28 @@ typedef struct {
     MQTTAsync client;
     bool connected;
     char current_topic[128];
-    linux_io_handle_t *impl;
+    linux_io_handle_t* impl;
 } mqtt_ctx_t;
 
-static void _on_mqtt_connect_success(void *context, MQTTAsync_successData *response) {
-    mqtt_ctx_t *ctx = (mqtt_ctx_t *)context;
+static void _on_mqtt_connect_success(void* context, MQTTAsync_successData* response) {
+    mqtt_ctx_t* ctx = (mqtt_ctx_t*)context;
     ctx->connected = true;
-    LOG_INFO(LOG_CAT_CORE, "MQTT Connected to Broker: %s", (char *)response->alt.connect.serverURI);
+    LOG_INFO(LOG_CAT_CORE, "MQTT Connected to Broker: %s", (char*)response->alt.connect.serverURI);
     ctx->impl->base.cb(&ctx->impl->base, IO_EVENT_TX_DONE, NULL, ctx->impl->base.user_data);
 }
 
-static void _on_mqtt_connect_failure(void *context, MQTTAsync_failureData *response) {
-    mqtt_ctx_t *ctx = (mqtt_ctx_t *)context;
+static void _on_mqtt_connect_failure(void* context, MQTTAsync_failureData* response) {
+    mqtt_ctx_t* ctx = (mqtt_ctx_t*)context;
     LOG_ERROR(LOG_CAT_CORE, "MQTT Connection Failed, code: %d", response ? response->code : -1);
     ctx->impl->base.cb(&ctx->impl->base, IO_EVENT_ERROR, NULL, ctx->impl->base.user_data);
 }
 
-static int _on_mqtt_msg_arrived(void *context, char *topicName, int topicLen,
-                                MQTTAsync_message *message) {
-    mqtt_ctx_t *ctx = (mqtt_ctx_t *)context;
-    net_buf_t *nb = net_buf_alloc(ctx->impl->pool, 0);
+static int _on_mqtt_msg_arrived(void* context, char* topicName, int topicLen,
+                                MQTTAsync_message* message) {
+    mqtt_ctx_t* ctx = (mqtt_ctx_t*)context;
+    net_buf_t* nb = net_buf_alloc(ctx->impl->pool, 0);
     if (nb) {
-        net_buf_append_bytes(nb, (uint8_t *)message->payload, message->payloadlen);
+        net_buf_append_bytes(nb, (uint8_t*)message->payload, message->payloadlen);
         ctx->impl->base.cb(&ctx->impl->base, IO_EVENT_RX, nb, ctx->impl->base.user_data);
         net_buf_unref(nb);
     }
@@ -427,17 +430,17 @@ static int _on_mqtt_msg_arrived(void *context, char *topicName, int topicLen,
     return 1;
 }
 
-static void _on_mqtt_poll(uv_poll_t *handle, int status, int events) {
+static void _on_mqtt_poll(uv_poll_t* handle, int status, int events) {
     (void)events;
-    linux_io_handle_t *impl = (linux_io_handle_t *)handle->data;
+    linux_io_handle_t* impl = (linux_io_handle_t*)handle->data;
     if (status < 0) {
         impl->base.cb(&impl->base, IO_EVENT_ERROR, NULL, impl->base.user_data);
     }
 }
 
-static int _mqtt_enable_read(io_handle_t *h, bool enable) {
-    linux_io_handle_t *impl = (linux_io_handle_t *)h;
-    mqtt_ctx_t *ctx = (mqtt_ctx_t *)impl->handle.poll.data;
+static int _mqtt_enable_read(io_handle_t* h, bool enable) {
+    linux_io_handle_t* impl = (linux_io_handle_t*)h;
+    mqtt_ctx_t* ctx = (mqtt_ctx_t*)impl->handle.poll.data;
     if (enable && !ctx->connected) {
         MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
         conn_opts.onSuccess = _on_mqtt_connect_success;
@@ -449,9 +452,9 @@ static int _mqtt_enable_read(io_handle_t *h, bool enable) {
     return 0;
 }
 
-static int _mqtt_write_async(io_handle_t *h, net_buf_t *buf) {
-    linux_io_handle_t *impl = (linux_io_handle_t *)h;
-    mqtt_ctx_t *ctx = (mqtt_ctx_t *)impl->handle.poll.data;
+static int _mqtt_write_async(io_handle_t* h, net_buf_t* buf) {
+    linux_io_handle_t* impl = (linux_io_handle_t*)h;
+    mqtt_ctx_t* ctx = (mqtt_ctx_t*)impl->handle.poll.data;
     if (!ctx->connected) return -ENOTCONN;
 
     MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
@@ -460,23 +463,23 @@ static int _mqtt_write_async(io_handle_t *h, net_buf_t *buf) {
     return (rc == MQTTASYNC_SUCCESS) ? 0 : -1;
 }
 
-static int _mqtt_ioctl(io_handle_t *h, int cmd, void *arg) {
-    linux_io_handle_t *impl = (linux_io_handle_t *)h;
-    mqtt_ctx_t *ctx = (mqtt_ctx_t *)impl->handle.poll.data;
+static int _mqtt_ioctl(io_handle_t* h, int cmd, void* arg) {
+    linux_io_handle_t* impl = (linux_io_handle_t*)h;
+    mqtt_ctx_t* ctx = (mqtt_ctx_t*)impl->handle.poll.data;
     switch (cmd) {
         case IO_CTL_MQTT_SET_TOPIC:
-            strncpy(ctx->current_topic, (const char *)arg, 127);
+            strncpy(ctx->current_topic, (const char*)arg, 127);
             return 0;
         case IO_CTL_MQTT_SUBSCRIBE:
-            return MQTTAsync_subscribe(ctx->client, (const char *)arg, 1, NULL);
+            return MQTTAsync_subscribe(ctx->client, (const char*)arg, 1, NULL);
         default:
             return -1;
     }
 }
 
-static void _mqtt_destroy(io_handle_t *h) {
-    linux_io_handle_t *impl = (linux_io_handle_t *)h;
-    mqtt_ctx_t *ctx = (mqtt_ctx_t *)impl->handle.poll.data;
+static void _mqtt_destroy(io_handle_t* h) {
+    linux_io_handle_t* impl = (linux_io_handle_t*)h;
+    mqtt_ctx_t* ctx = (mqtt_ctx_t*)impl->handle.poll.data;
     if (ctx->client) {
         MQTTAsync_disconnectOptions disc_opts = MQTTAsync_disconnectOptions_initializer;
         MQTTAsync_disconnect(ctx->client, &disc_opts);
@@ -493,16 +496,16 @@ static const io_ops_t mqtt_ops = {.enable_read = _mqtt_enable_read,
 
 /* --- 5. 统一入口与销毁 --- */
 
-static void _on_handle_close(uv_handle_t *handle) {
-    linux_io_handle_t *impl = (linux_io_handle_t *)handle->data;
+static void _on_handle_close(uv_handle_t* handle) {
+    linux_io_handle_t* impl = (linux_io_handle_t*)handle->data;
     if (impl->fd >= 0) close(impl->fd);
     if (impl->pending_tx) net_buf_unref(impl->pending_tx);
     if (impl->udp_rx_nb) net_buf_unref(impl->udp_rx_nb);
     free(impl);
 }
 
-static void _linux_destroy(io_handle_t *h) {
-    linux_io_handle_t *impl = (linux_io_handle_t *)h;
+static void _linux_destroy(io_handle_t* h) {
+    linux_io_handle_t* impl = (linux_io_handle_t*)h;
     if (impl->type == IO_TYPE_HTTP) {
         _http_destroy(h);
         return;
@@ -511,7 +514,7 @@ static void _linux_destroy(io_handle_t *h) {
         _mqtt_destroy(h);
         return;
     }
-    uv_close((uv_handle_t *)&impl->handle, _on_handle_close);
+    uv_close((uv_handle_t*)&impl->handle, _on_handle_close);
 }
 
 static const io_ops_t poll_ops = {.enable_read = _poll_enable_read,
@@ -523,8 +526,8 @@ static const io_ops_t udp_ops = {.enable_read = _udp_enable_read,
                                  .ioctl = NULL,
                                  .destroy = _linux_destroy};
 
-io_handle_t *io_executor_create(uv_loop_t *loop, const io_config_t *cfg, net_buf_pool_t *pool) {
-    linux_io_handle_t *impl = calloc(1, sizeof(linux_io_handle_t));
+io_handle_t* io_executor_create(uv_loop_t* loop, const io_config_t* cfg, net_buf_pool_t* pool) {
+    linux_io_handle_t* impl = calloc(1, sizeof(linux_io_handle_t));
     impl->pool = pool;
     impl->type = cfg->type;
     impl->fd = -1;
@@ -565,7 +568,7 @@ io_handle_t *io_executor_create(uv_loop_t *loop, const io_config_t *cfg, net_buf
             break;
         }
         case IO_TYPE_MQTT: {
-            mqtt_ctx_t *mctx = calloc(1, sizeof(mqtt_ctx_t));
+            mqtt_ctx_t* mctx = calloc(1, sizeof(mqtt_ctx_t));
             mctx->impl = impl;
             int rc =
                 MQTTAsync_create(&mctx->client, cfg->params.mqtt.broker, cfg->params.mqtt.client_id,
@@ -588,10 +591,10 @@ io_handle_t *io_executor_create(uv_loop_t *loop, const io_config_t *cfg, net_buf
     return &impl->base;
 }
 
-io_handle_t *io_executor_create_from_fd(uv_loop_t *loop, int fd, net_buf_pool_t *pool) {
+io_handle_t* io_executor_create_from_fd(uv_loop_t* loop, int fd, net_buf_pool_t* pool) {
     if (fd < 0) return NULL;
 
-    linux_io_handle_t *impl = calloc(1, sizeof(linux_io_handle_t));
+    linux_io_handle_t* impl = calloc(1, sizeof(linux_io_handle_t));
     if (!impl) return NULL;
 
     impl->fd = fd;
@@ -614,9 +617,9 @@ io_handle_t *io_executor_create_from_fd(uv_loop_t *loop, int fd, net_buf_pool_t 
     return &impl->base;
 }
 
-io_handle_t *io_executor_create_uart(uv_loop_t *loop, const char *dev_path, uint32_t baud,
+io_handle_t* io_executor_create_uart(uv_loop_t* loop, const char* dev_path, uint32_t baud,
 
-                                     net_buf_pool_t *pool) {
+                                     net_buf_pool_t* pool) {
     io_config_t cfg = {.type = IO_TYPE_UART};
 
     strncpy(cfg.params.uart.dev, dev_path, 63);
@@ -626,17 +629,17 @@ io_handle_t *io_executor_create_uart(uv_loop_t *loop, const char *dev_path, uint
     return io_executor_create(loop, &cfg, pool);
 }
 
-static void _on_http_simple_cb(io_handle_t *h, io_event_t evt, void *payload, void *user_data) {
+static void _on_http_simple_cb(io_handle_t* h, io_event_t evt, void* payload, void* user_data) {
     (void)payload;
     (void)user_data;
     if (evt == IO_EVENT_TX_DONE || evt == IO_EVENT_ERROR) h->ops->destroy(h);
 }
 
-void io_executor_http_request(uv_loop_t *loop, const char *url, const char *method) {
+void io_executor_http_request(uv_loop_t* loop, const char* url, const char* method) {
     io_config_t cfg = {.type = IO_TYPE_HTTP};
     strncpy(cfg.params.http.url, url, 255);
     strncpy(cfg.params.http.method, method, 15);
-    io_handle_t *h = io_executor_create(loop, &cfg, NULL);
+    io_handle_t* h = io_executor_create(loop, &cfg, NULL);
     if (h) {
         h->cb = _on_http_simple_cb;
         h->ops->enable_read(h, true);

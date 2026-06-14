@@ -24,24 +24,26 @@ static const edge_tag_meta_t mock_metadata[] = {
 typedef struct {
     uv_loop_t loop;
     datahub_t hub;
-    arbiter_t *arb;
-    stream_engine_t *engine;
-    bus_orchestrator_t *orch;
+    arbiter_t* arb;
+    stream_engine_t* engine;
+    bus_orchestrator_t* orch;
     net_buf_pool_t pool;
     uv_timer_t timeout;
 } omnis_test_ctx_t;
 
-static void on_timeout(uv_timer_t *handle) {
-    omnis_test_ctx_t *ctx = (omnis_test_ctx_t *)handle->data;
+static void on_timeout(uv_timer_t* handle) {
+    omnis_test_ctx_t* ctx = (omnis_test_ctx_t*)handle->data;
     fprintf(stderr, "[ERROR] Integration test timed out!\n");
     uv_stop(&ctx->loop);
 }
 
-static int _test_stream_submit_control(void *ctx, int bus_id, uint32_t tag_id, double value, const char *proto) {
-    struct bus_orchestrator_s *orch = (struct bus_orchestrator_s *)ctx;
+static int _test_stream_submit_control(void* ctx, int bus_id, uint32_t tag_id, double value,
+                                       const char* proto) {
+    struct bus_orchestrator_s* orch = (struct bus_orchestrator_s*)ctx;
     if (!orch) return -1;
-    extern int bus_orchestrator_submit_cmd(struct bus_orchestrator_s *ctx, int bus_id, cmd_msg_t *cmd);
-    cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));
+    extern int bus_orchestrator_submit_cmd(struct bus_orchestrator_s * ctx, int bus_id,
+                                           cmd_msg_t* cmd);
+    cmd_msg_t* cmd = calloc(1, sizeof(cmd_msg_t));
     if (!cmd) return -1;
     cmd->action = CMD_ACTION_WRITE;
     cmd->tag_id = tag_id;
@@ -53,8 +55,8 @@ static int _test_stream_submit_control(void *ctx, int bus_id, uint32_t tag_id, d
     return 0;
 }
 
-static int setup(void **state) {
-    omnis_test_ctx_t *ctx = calloc(1, sizeof(omnis_test_ctx_t));
+static int setup(void** state) {
+    omnis_test_ctx_t* ctx = calloc(1, sizeof(omnis_test_ctx_t));
     uv_loop_init(&ctx->loop);
 
     net_buf_pool_init(&ctx->pool, 32, 256, 0, NULL, NULL);
@@ -75,14 +77,15 @@ static int setup(void **state) {
     static const edge_pipeline_def_t pipelines[] = {
         {.id = "safety_loop", .trigger_tag = 1001, .stages = stages, .stage_count = 1}};
 
-    pipeline_loader_ctx_t l_ctx = { .control_ops = { .ctx = ctx->orch, .submit_control = _test_stream_submit_control } };
+    pipeline_loader_ctx_t l_ctx = {
+        .control_ops = {.ctx = ctx->orch, .submit_control = _test_stream_submit_control}};
     stream_engine_load_static_metadata(ctx->engine, pipelines, 1, &l_ctx);
 
     *state = ctx;
     return 0;
 }
 
-static void on_force_close(uv_handle_t *handle, void *arg) {
+static void on_force_close(uv_handle_t* handle, void* arg) {
     (void)arg;
 
     if (!uv_is_closing(handle)) {
@@ -90,8 +93,8 @@ static void on_force_close(uv_handle_t *handle, void *arg) {
     }
 }
 
-static int teardown(void **state) {
-    omnis_test_ctx_t *ctx = *state;
+static int teardown(void** state) {
+    omnis_test_ctx_t* ctx = *state;
 
     uv_timer_stop(&ctx->timeout);
 
@@ -104,16 +107,15 @@ static int teardown(void **state) {
 
     // 2. 彻底排空 Loop
     uv_walk(&ctx->loop, on_force_close, NULL);
-    while (uv_run(&ctx->loop, UV_RUN_ONCE))
-        ;
+    while (uv_run(&ctx->loop, UV_RUN_ONCE));
     uv_loop_close(&ctx->loop);
 
     free(ctx);
     return 0;
 }
 
-static void test_omnis_basic_assembly(void **state) {
-    omnis_test_ctx_t *ctx = (omnis_test_ctx_t *)*state;
+static void test_omnis_basic_assembly(void** state) {
+    omnis_test_ctx_t* ctx = (omnis_test_ctx_t*)*state;
     assert_non_null(ctx->engine);
 
     pipe_msg_t msg;

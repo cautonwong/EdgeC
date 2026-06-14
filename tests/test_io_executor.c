@@ -11,12 +11,12 @@
 /**
  * 验证物理通道创建 (Linux 适配层)
  */
-static void test_io_create_uart(void **state) {
+static void test_io_create_uart(void** state) {
     (void)state;
-    uv_loop_t *loop = uv_default_loop();
+    uv_loop_t* loop = uv_default_loop();
 
     // 我们无法在没有物理串口的情况下打开成功，但我们可以验证工厂函数的行为
-    io_handle_t *h = io_executor_create_uart(loop, "/dev/non_existent_tty", 9600, NULL);
+    io_handle_t* h = io_executor_create_uart(loop, "/dev/non_existent_tty", 9600, NULL);
     assert_null(h);
 }
 

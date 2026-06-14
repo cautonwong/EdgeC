@@ -7,14 +7,14 @@
 
 #include "stream_engine.h"
 
-static void test_timeguard_anti_jump(void **state) {
+static void test_timeguard_anti_jump(void** state) {
     (void)state;
-    uv_loop_t *loop = uv_default_loop();
+    uv_loop_t* loop = uv_default_loop();
     datahub_t hub;
     // 适配新签名
     datahub_init(&hub, loop, "time_bus", 64, 1024, NULL, 0, NULL, NULL, NULL);
 
-    stream_engine_t *engine = stream_engine_create(&hub, loop, NULL, NULL);
+    stream_engine_t* engine = stream_engine_create(&hub, loop, NULL, NULL);
     stream_engine_start(engine);
     assert_non_null(engine);
 

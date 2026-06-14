@@ -16,8 +16,8 @@
 #define TEST_SLOT_COUNT 1024
 #define TEST_WRITE_COUNT 500
 
-static int setup(void **state) {
-    shm_ring_t *ring = malloc(sizeof(shm_ring_t));
+static int setup(void** state) {
+    shm_ring_t* ring = malloc(sizeof(shm_ring_t));
     // memfd_create 不需要 unlink
     if (shmring_create(ring, TEST_RING_NAME, TEST_SLOT_COUNT) != 0) {
         free(ring);
@@ -27,15 +27,15 @@ static int setup(void **state) {
     return 0;
 }
 
-static int teardown(void **state) {
-    shm_ring_t *ring = (shm_ring_t *)*state;
+static int teardown(void** state) {
+    shm_ring_t* ring = (shm_ring_t*)*state;
     shmring_destroy(ring);
     free(ring);
     return 0;
 }
 
-static void test_single_thread_read_write(void **state) {
-    shm_ring_t *ring = (shm_ring_t *)*state;
+static void test_single_thread_read_write(void** state) {
+    shm_ring_t* ring = (shm_ring_t*)*state;
     PipeMsg write_msg = {0}, read_msg = {0};
     uint64_t seq = 0;
 
@@ -47,8 +47,8 @@ static void test_single_thread_read_write(void **state) {
     assert_float_equal(read_msg.payload.val.f, 99.9, 0.001);
 }
 
-static void test_multi_process_concurrency(void **state) {
-    shm_ring_t *ring_parent = (shm_ring_t *)*state;
+static void test_multi_process_concurrency(void** state) {
+    shm_ring_t* ring_parent = (shm_ring_t*)*state;
 
     pid_t pid = fork();
 
