@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -64,7 +65,53 @@ func handleGetTag(w http.ResponseWriter, r *http.Request) {
 	api.RespondJSON(w, http.StatusOK, 0, "OK", data, ServiceName)
 }
 
+func handleStream(w http.ResponseWriter, r *http.Request) {
+	if matrix == nil {
+		api.RespondError(w, http.StatusServiceUnavailable, "DataHub not connected", ServiceName)
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		api.RespondError(w, http.StatusInternalServerError, "Streaming unsupported", ServiceName)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	// Parse requested tags from query, or default to some
+	// For demo, we just watch 1001, 1002, 1003, 1004
+	tagIDs := []uint32{1001, 1002, 1003, 1004}
+
+	ch := make(chan *shm.PipeMsg, 100)
+	ctx := r.Context()
+	
+	go matrix.Watch(ctx, tagIDs, ch)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg := <-ch:
+			valF, _ := msg.Scalar()
+			meta := tags.Metadata[msg.TagID]
+			
+			// Format as SSE
+			// Example JSON payload
+			// data: {"id":1001,"value":220.88,"ts":12345}
+			
+			fmt.Fprintf(w, "event: update\n")
+			fmt.Fprintf(w, "data: {\"id\":%d,\"name\":\"%s\",\"value\":%f,\"ts\":%d}\n\n",
+				msg.TagID, meta.Name, valF, msg.Timestamp)
+			flusher.Flush()
+		}
+	}
+}
+
 func main() {
+
 	log.Printf("Starting %s on port 8080...", ServiceName)
 
 	var err error
@@ -78,6 +125,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
+	mux.HandleFunc("/api/v1/hub/stream", handleStream)
 	mux.HandleFunc("/api/v1/hub/tags/", handleGetTag)
 
 	// Wrap with middlewares
