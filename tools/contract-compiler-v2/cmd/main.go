@@ -64,5 +64,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Emit Go Bindings
+	if err := (&backend.GoBackend{OutDir: *out}).Emit(ir); err != nil {
+		fmt.Printf("❌ Backend Error (Go): %v\n", err)
+		os.Exit(1)
+	}
+
 	fmt.Printf("  ✨ Backend: All artifacts emitted to %s\n", *out)
+
 }

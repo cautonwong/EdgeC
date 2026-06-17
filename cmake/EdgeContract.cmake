@@ -34,6 +34,7 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
     set(OUT_JSON "${GEN_DIR}/omnis_manifest.json")
     set(OUT_TS "${GEN_DIR}/tags_type.ts")
     set(OUT_SQL "${GEN_DIR}/init.sql")
+    set(OUT_GO "${GEN_DIR}/tags.go")
 
     # 2. 构建命令参数
     set(CMD_ARGS 
@@ -49,10 +50,12 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
 
     # 定义自定义生成命令 (仅在构建目录生成)
     add_custom_command(
-        OUTPUT "${OUT_C}" "${OUT_H}" "${OUT_YAML}" "${OUT_CMAKE}" "${OUT_JSON}" "${OUT_TS}" "${OUT_SQL}" "${OUT_SLAVE_C}" "${OUT_ROUTER_C}"
+        OUTPUT "${OUT_C}" "${OUT_H}" "${OUT_YAML}" "${OUT_CMAKE}" "${OUT_JSON}" "${OUT_TS}" "${OUT_SQL}" "${OUT_SLAVE_C}" "${OUT_ROUTER_C}" "${OUT_GO}"
         COMMAND "${COMPILER_BIN}" ${CMD_ARGS}
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_SOURCE_DIR}/go/pkg/tags"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${OUT_GO}" "${CMAKE_SOURCE_DIR}/go/pkg/tags/tags.go"
         DEPENDS "${COMPILER_BIN}" "${PRODUCT_YAML}" ${LOCAL_DEP}
-        COMMENT "[Contract] Generating native lookup tables via V2 for ${TARGET_NAME}"
+        COMMENT "[Contract] Generating native lookup tables and Go bindings via V2 for ${TARGET_NAME}"
         VERBATIM
     )
 
