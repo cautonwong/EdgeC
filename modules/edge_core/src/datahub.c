@@ -6,6 +6,8 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <errno.h>
+#include <sys/stat.h>
 
 #include "edge_log.h"
 
@@ -39,14 +41,44 @@ int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slo
         }
     }
     uint32_t capacity = (max_id > shadow_capacity) ? max_id + 1 : shadow_capacity;
+    if (capacity == 0) capacity = 1; // 最小分配 1 槽位，避免 mmap(0) 失败
     hub->shadow_capacity = capacity;
 
     int ring_fd = shmring_create(&hub->ring, name, slots);
     if (ring_fd < 0) return -1;
 
-    // 💡 [Nexus Fix] 回归最稳健的堆内存，消除 memfd 在某些环境下的可见性问题
-    hub->shadow_table = calloc(capacity, sizeof(pipe_msg_t));
-    if (!hub->shadow_table) return -1;
+    // 💡 [Nexus-Go] 使用 POSIX SHM 映射影子表，支持 Golang 零拷贝挂载
+    char shm_path[256];
+    const char *safe_name = name ? name : "default";
+    if (safe_name[0] == '/') safe_name++; // 跳过开头的斜杠，避免 // 路径
+    
+    snprintf(shm_path, sizeof(shm_path), "/edgeos_shadow_%s", safe_name);
+    
+    // 进一步清理路径中的非法斜杠
+    for (char *p = shm_path + 1; *p; p++) {
+        if (*p == '/') *p = '_';
+    }
+    
+    hub->shadow_size = capacity * sizeof(pipe_msg_t);
+    hub->shadow_fd = shm_open(shm_path, O_RDWR | O_CREAT | O_TRUNC, 0666);
+    if (hub->shadow_fd < 0) {
+        LOG_ERROR(LOG_CAT_BUS, "Failed to create SHM shadow table: %s", strerror(errno));
+        return -1;
+    }
+
+    if (ftruncate(hub->shadow_fd, (off_t)hub->shadow_size) < 0) {
+        close(hub->shadow_fd);
+        shm_unlink(shm_path);
+        return -1;
+    }
+
+    hub->shadow_table = mmap(NULL, hub->shadow_size, PROT_READ | PROT_WRITE, MAP_SHARED, hub->shadow_fd, 0);
+    if (hub->shadow_table == MAP_FAILED) {
+        close(hub->shadow_fd);
+        shm_unlink(shm_path);
+        hub->shadow_table = NULL;
+        return -1;
+    }
     
     // 初始化影子锁
     uv_mutex_init(&hub->shadow_lock);
@@ -58,7 +90,12 @@ int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slo
 void datahub_destroy(datahub_t *hub) {
     if (!hub) return;
     shmring_destroy(&hub->ring);
-    if (hub->shadow_table) free(hub->shadow_table);
+    if (hub->shadow_table) {
+        munmap(hub->shadow_table, hub->shadow_size);
+        if (hub->shadow_fd >= 0) {
+            close(hub->shadow_fd);
+        }
+    }
     uv_mutex_destroy(&hub->shadow_lock);
     if (!uv_is_closing((uv_handle_t *)&hub->legacy_async)) {
         uv_close((uv_handle_t *)&hub->legacy_async, NULL);
@@ -324,8 +361,17 @@ int datahub_init_from_fd(datahub_t *hub, uv_loop_t *loop, int ring_fd, size_t ri
 
     hub->shadow_fd = shadow_fd;
     hub->shadow_size = shadow_size;
-    hub->shadow_table = calloc(compact_capacity, sizeof(pipe_msg_t));
-    if (!hub->shadow_table) return -1;
+    
+    if (shadow_fd >= 0) {
+        hub->shadow_table = mmap(NULL, shadow_size, PROT_READ | PROT_WRITE, MAP_SHARED, shadow_fd, 0);
+        if (hub->shadow_table == MAP_FAILED) {
+            hub->shadow_table = NULL;
+            return -1;
+        }
+    } else {
+        hub->shadow_table = calloc(compact_capacity, sizeof(pipe_msg_t));
+        if (!hub->shadow_table) return -1;
+    }
 
     uv_mutex_init(&hub->shadow_lock);
     hub->legacy_async.data = hub;

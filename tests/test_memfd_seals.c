@@ -20,8 +20,9 @@ static void test_memfd_sealing_logic(void** state) {
     int ret = datahub_init(&hub, &loop, "test_seal", 64, 100, NULL, 0, NULL, NULL, NULL);
     assert_int_equal(ret, 0);
 
-    assert_true(hub.shadow_fd >= 0);
-    int seals = fcntl(hub.shadow_fd, F_GET_SEALS);
+    int ring_fd = shmring_get_fd(&hub.ring);
+    assert_true(ring_fd >= 0);
+    int seals = fcntl(ring_fd, F_GET_SEALS);
     assert_true(seals & F_SEAL_SHRINK);
     assert_true(seals & F_SEAL_GROW);
 
