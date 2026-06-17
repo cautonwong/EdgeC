@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EdgeOS | Command Center</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-obsidian: #0B0B0F;
+            --accent-plasma: #00FF9C;
+            --alert-mars: #FF3E00;
+            --panel-border: rgba(0, 255, 156, 0.2);
+            --panel-bg: rgba(11, 11, 15, 0.85);
+        }
+        
+        body {
+            background-color: var(--bg-obsidian);
+            color: #E2E8F0;
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+            background-image: 
+                linear-gradient(rgba(0, 255, 156, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 156, 0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+
+        .font-mono-data {
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        .glass-panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            backdrop-filter: blur(12px);
+            box-shadow: inset 0 0 20px rgba(0, 255, 156, 0.02),
+                        0 4px 20px rgba(0,0,0,0.5);
+            position: relative;
+        }
+        
+        .glass-panel::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 8px; height: 1px;
+            background: var(--accent-plasma);
+        }
+        
+        .glass-panel::after {
+            content: '';
+            position: absolute;
+            bottom: 0; right: 0;
+            width: 8px; height: 1px;
+            background: var(--accent-plasma);
+        }
+
+        .data-value {
+            color: var(--accent-plasma);
+            text-shadow: 0 0 10px rgba(0, 255, 156, 0.5);
+        }
+        
+        .data-alert {
+            color: var(--alert-mars);
+            text-shadow: 0 0 10px rgba(255, 62, 0, 0.5);
+            animation: pulse-alert 2s infinite;
+        }
+
+        @keyframes pulse-alert {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        /* Subtle scanline overlay */
+        .scanlines {
+            position: fixed;
+            top: 0; left: 0; w: 100vw; h: 100vh;
+            background: linear-gradient(
+                to bottom,
+                rgba(255,255,255,0),
+                rgba(255,255,255,0) 50%,
+                rgba(0,0,0,0.1) 50%,
+                rgba(0,0,0,0.1)
+            );
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-obsidian); }
+        ::-webkit-scrollbar-thumb { background: rgba(0, 255, 156, 0.3); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--accent-plasma); }
+    </style>
+</head>
+<body>
+    <div class="scanlines"></div>
+    <div id="app" class="h-full flex flex-col p-4 box-border">
+        
+        <!-- Header -->
+        <header class="flex justify-between items-end mb-6 pb-2 border-b border-[rgba(0,255,156,0.3)]">
+            <div>
+                <h1 class="text-3xl font-extrabold tracking-tight text-white flex items-center gap-3">
+                    <div class="w-3 h-3 bg-[#00FF9C] animate-pulse"></div>
+                    EDGE-OS <span class="text-sm font-normal text-gray-400 align-text-top ml-2">CORE_NODE_01</span>
+                </h1>
+            </div>
+            <div class="font-mono-data text-sm flex gap-6 text-gray-400">
+                <div>UPTIME: <span class="text-white">{{ uptime }}</span></div>
+                <div>SYS_CLK: <span class="text-white">{{ currentTime }}</span></div>
+                <div>NET_STATUS: <span class="text-[#00FF9C]">SECURE</span></div>
+            </div>
+        </header>
+
+        <!-- Main Grid -->
+        <main class="flex-1 grid grid-cols-12 gap-4 min-h-0">
+            
+            <!-- Left: System Topology / Mesh -->
+            <section class="col-span-3 glass-panel p-4 flex flex-col">
+                <h2 class="text-xs uppercase tracking-widest text-[#00FF9C] mb-4">Service Mesh Topology</h2>
+                <div class="flex-1 overflow-y-auto space-y-4">
+                    <div v-for="svc in services" :key="svc.name" class="p-3 border border-gray-800 bg-black/40 relative group cursor-pointer hover:border-[#00FF9C] transition-colors">
+                        <div class="absolute top-0 right-0 w-2 h-2" :class="svc.status === 'online' ? 'bg-[#00FF9C]' : 'bg-[#FF3E00]'"></div>
+                        <div class="text-xs text-gray-500 mb-1">PORT: {{ svc.port }}</div>
+                        <div class="font-bold text-sm tracking-wide">{{ svc.name }}</div>
+                        <div class="text-xs text-gray-400 mt-2 font-mono-data truncate">{{ svc.prefix }}</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Center: DataHub Telemetry (The Grid) -->
+            <section class="col-span-6 glass-panel p-4 flex flex-col">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xs uppercase tracking-widest text-[#00FF9C]">DataHub Telemetry Stream</h2>
+                    <div class="text-xs font-mono-data bg-[#00FF9C]/10 text-[#00FF9C] px-2 py-1 rounded">SSE: CONNECTED</div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-3 flex-1 overflow-y-auto pr-2">
+                    <div v-for="tag in tags" :key="tag.id" class="border border-[rgba(0,255,156,0.1)] p-4 relative overflow-hidden group hover:bg-[#00FF9C]/5 transition-colors">
+                        <!-- Abstract Waveform Background (CSS pure) -->
+                        <div class="absolute bottom-0 left-0 right-0 h-8 opacity-20" 
+                             style="background: repeating-linear-gradient(45deg, transparent, transparent 10px, #00FF9C 10px, #00FF9C 11px);">
+                        </div>
+                        
+                        <div class="text-[10px] text-gray-500 font-mono-data mb-1">TAG_ID: {{ tag.id }}</div>
+                        <div class="text-sm font-semibold truncate text-gray-300">{{ tag.name }}</div>
+                        <div class="mt-4 flex items-baseline gap-1">
+                            <span class="text-3xl font-mono-data" :class="getAlertClass(tag)">
+                                {{ formatValue(tag.value) }}
+                            </span>
+                            <span class="text-xs text-gray-500">{{ tag.unit }}</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right: Command & Control -->
+            <section class="col-span-3 glass-panel p-4 flex flex-col">
+                <h2 class="text-xs uppercase tracking-widest text-[#FF3E00] mb-4">Execution Plane</h2>
+                
+                <!-- Terminal Output Mock -->
+                <div class="bg-black border border-gray-800 p-3 h-48 font-mono-data text-[10px] text-gray-400 overflow-y-auto mb-4 flex flex-col gap-1">
+                    <div v-for="(log, idx) in logs" :key="idx" :class="log.type === 'err' ? 'text-[#FF3E00]' : ''">> {{ log.msg }}</div>
+                </div>
+
+                <!-- Actuators -->
+                <div class="mt-auto space-y-4">
+                    <div class="border border-[#FF3E00]/30 p-4">
+                        <div class="text-xs text-[#FF3E00] mb-2 uppercase">Emergency Trip (Tag 8004)</div>
+                        <button @click="triggerAction('TRIP')" 
+                                class="w-full py-3 bg-[#FF3E00]/10 border border-[#FF3E00] text-[#FF3E00] font-bold tracking-widest hover:bg-[#FF3E00] hover:text-black transition-all active:scale-95">
+                            EXECUTE TRIP
+                        </button>
+                    </div>
+                    
+                    <div class="border border-[rgba(0,255,156,0.3)] p-4">
+                        <div class="text-xs text-[#00FF9C] mb-2 uppercase">System Reboot</div>
+                        <button @click="triggerAction('REBOOT')" 
+                                class="w-full py-3 bg-transparent border border-[#00FF9C] text-[#00FF9C] font-bold tracking-widest hover:bg-[#00FF9C] hover:text-black transition-all active:scale-95">
+                            INITIATE
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted, onUnmounted } = Vue;
+
+        createApp({
+            setup() {
+                const uptime = ref('00:00:00');
+                const currentTime = ref('00:00:00');
+                const services = ref([]);
+                const tags = ref([
+                    { id: 1001, name: 'VOLTAGE_PHASE_A', value: 220.5, unit: 'V', threshold: 240 },
+                    { id: 1002, name: 'CURRENT_PHASE_A', value: 12.3, unit: 'A', threshold: 50 },
+                    { id: 1003, name: 'GRID_POWER', value: 2706, unit: 'W', threshold: 10000 },
+                    { id: 1004, name: 'GRID_FREQUENCY', value: 50.01, unit: 'Hz', threshold: 51 },
+                    { id: 4001, name: 'BATTERY_SOC', value: 85.2, unit: '%', threshold: 100 }
+                ]);
+                const logs = ref([
+                    { msg: 'System initialized.', type: 'info' },
+                    { msg: 'Connected to DataHub SHM.', type: 'info' }
+                ]);
+
+                let sse;
+
+                const addLog = (msg, type = 'info') => {
+                    logs.value.push({ msg: `[${new Date().toISOString().substring(11,19)}] ${msg}`, type });
+                    if (logs.value.length > 20) logs.value.shift();
+                };
+
+                const formatValue = (val) => {
+                    return Number(val).toFixed(2);
+                };
+
+                const getAlertClass = (tag) => {
+                    if (tag.value >= tag.threshold) return 'data-alert';
+                    return 'data-value';
+                };
+
+                const triggerAction = (action) => {
+                    addLog(`Executing Action: ${action}...`, 'err');
+                    // In a real app, this calls POST /api/v1/control/actuate
+                    setTimeout(() => {
+                        addLog(`${action} execution confirmed by Arbiter.`, 'info');
+                    }, 500);
+                };
+
+                const fetchDiscovery = async () => {
+                    try {
+                        const res = await fetch('/api/v1/discovery');
+                        const json = await res.json();
+                        services.value = json.data.services;
+                        addLog('Service discovery complete.');
+                    } catch (e) {
+                        addLog('Discovery failed, using mock data.', 'err');
+                        services.value = [
+                            { name: 'core_api', port: 8080, prefix: '/api/v1/hub/', status: 'online' },
+                            { name: 'vpp_algo', port: 8081, prefix: '/api/v1/algo/', status: 'online' },
+                            { name: 'ui_host', port: 8082, prefix: '/', status: 'online' }
+                        ];
+                    }
+                };
+
+                const initSSE = () => {
+                    addLog('Establishing SSE stream to DataHub...');
+                    // In real EdgeOS, connects to port 80 proxy
+                    sse = new EventSource('/api/v1/hub/stream');
+                    
+                    sse.onmessage = (event) => {
+                        try {
+                            const data = JSON.parse(event.data);
+                            const tag = tags.value.find(t => t.id === data.id);
+                            if (tag) {
+                                tag.value = data.value;
+                            }
+                        } catch(e) {}
+                    };
+
+                    sse.onerror = () => {
+                        addLog('SSE connection lost. Reconnecting...', 'err');
+                    };
+                };
+
+                onMounted(() => {
+                    fetchDiscovery();
+                    // initSSE(); // Commented out to prevent errors if backend is not running
+
+                    // Mock simulation updates for the demo
+                    setInterval(() => {
+                        tags.value[0].value = 220 + Math.random() * 2;
+                        tags.value[1].value = 12 + Math.random();
+                        const now = new Date();
+                        currentTime.value = now.toISOString().substring(11, 19);
+                    }, 1000);
+                });
+
+                onUnmounted(() => {
+                    if (sse) sse.close();
+                });
+
+                return { uptime, currentTime, services, tags, logs, formatValue, getAlertClass, triggerAction };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
