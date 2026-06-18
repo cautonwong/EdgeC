@@ -90,8 +90,8 @@ class MatrixContext:
             await asyncio.sleep(1)
         return False
 
-    async def wait_for(self, tag_name, expect, tolerance=0.05, timeout=30):
-        """等待测点达到预期值"""
+    async def wait_for(self, tag_name, expect=None, tolerance=0.05, timeout=30, condition=None):
+        """等待测点达到预期值或满足特定条件"""
         tag_id = tag_name
         if self.loader and tag_name in self.loader.name_to_id:
             tag_id = self.loader.name_to_id[tag_name]
@@ -100,8 +100,12 @@ class MatrixContext:
         while (datetime.now() - start).total_seconds() < timeout:
             val = self.edgec.get_tag(tag_id)
             if val is not None:
-                if abs(float(val) - float(expect)) <= tolerance:
-                    return True
+                # 💡 [Omnis Fix] 支持 Lambda 条件判定
+                if condition is not None:
+                    if condition(float(val)): return True
+                elif expect is not None:
+                    if abs(float(val) - float(expect)) <= tolerance:
+                        return True
             await asyncio.sleep(0.5)
         return False
 

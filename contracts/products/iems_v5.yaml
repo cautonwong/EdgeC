@@ -81,13 +81,9 @@ pipelines:
         config:
           state_tag: 2002 # Output to ADC_VOLTAGE_RMS
 
-  - id: "island_mpc_protection"
-    trigger: "GRID_POWER" # 监控并网功率
+  - id: "island_protection"
+    trigger: "BATTERY_SOC"
     stages:
-      - type: "timeguard"
-        config:
-          timeout_ms: 180000 # 3次 * 60秒心跳 = 180000ms（这里可短一点便于测试，比如 3000ms）
-          fallback_tag: 9001 # 写入 ISLAND_MODE
       - type: "mpc_dispatch"
         config:
           soc_tag: 4001

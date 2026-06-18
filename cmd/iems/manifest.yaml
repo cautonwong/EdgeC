@@ -18,6 +18,13 @@ connectivity:
     config: { shm_name: "adc_raw", size: 1024 }
     simulation: { transport: "MEMFD", control_sock: "/tmp/v_adc.sock" }
 
+  - id: 1
+    label: "CAN_Main"
+    category: "SOUTHBOUND"
+    type: "CAN"
+    config: { path: "can0", baud: 500000 }
+    simulation: { transport: "UDS", endpoint: "UDS:/tmp/vbus1.sock" }
+
   - id: 10
     label: "Northbound_SCADA"
     category: "NORTHBOUND"
@@ -32,6 +39,12 @@ devices:
     protocol: "ModbusRTU"
     address: 1
     model: "Acrel_P80" 
+
+  - id: "BMS_MAIN"
+    bus_id: 1
+    protocol: "CAN"
+    address: 0
+    model: "CATL_Rack_V1" 
 
   - id: "SCADA_MASTER"
     bus_id: 10

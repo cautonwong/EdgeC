@@ -28,3 +28,6 @@ target_link_libraries(iems PRIVATE
 )
 install(TARGETS iems DESTINATION bin)
 
+add_web_product(iems "${CMAKE_SOURCE_DIR}/web/products/iems")
+add_dependencies(iems web_ui_iems)
+

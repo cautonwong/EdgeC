@@ -24,17 +24,25 @@ typedef enum {
     TRACE_DROP_FILTER = 0x12
 } TraceState;
 
+// 💡 [Nexus Legacy Compatibility] 恢复存量算子库依赖的消息类型宏
 enum {
     PIPEMSG_TYPE_SCALAR = 1,
     PIPEMSG_TYPE_REF = 2,
     PIPEMSG_TYPE_BATCH = 3,
-    PIPEMSG_TYPE_EVENT = 4
+    PIPEMSG_TYPE_EVENT = 4,
+    
+    // 别名支持
+    PIPEMSG_SCALAR_F64 = 1,
+    PIPEMSG_SCALAR_I64 = 1,
+    PIPEMSG_REF = 2,
+    PIPEMSG_BATCH = 3,
+    PIPEMSG_EVENT = 4
 };
 
 typedef struct {
     uint8_t priority;
     uint8_t source_id;
-    uint8_t _reserved[6]; // 💡 [Omnis Align] 严格占用 8 字节，消灭 Padding 变数
+    uint8_t _res[5];   // 💡 [Omnis Align] 严格占用 7 字节，确保 Header 总长 32 字节
 } PipeMsgAttr;
 
 typedef struct {
@@ -45,37 +53,35 @@ typedef struct {
     uint16_t state;       // 18..19
     uint32_t drop_reason; // 20..23
     uint8_t quality;      // 24
-    uint8_t _pad1[7];     // 💡 [Omnis Align] 显式对齐到 32 字节边界 (25..31)
-    
-    PipeMsgAttr attr;     // 32..39
+    PipeMsgAttr attr;     // 25..31 (7 bytes)
 
     union {
         struct {
             double f;
             int64_t i;
-        } val;            // 40..47/55
+        } val;            // 32..47
 
         struct {
             void *ptr;
             int fd;
             size_t len;
             void (*free_cb)(void *);
-        } ref;
+        } ref;            // 32..63 (ptr=8, fd=4, pad=4, len=8, cb=8)
 
         struct {
             void *ptr;
             int count;
-        } batch;
+        } batch;          // 32..43
 
         struct {
             uint32_t event_id;
             uint32_t param;
-        } event;
-    } payload;            // 起始地址 40
+        } event;          // 32..39
+    } payload;            // 起始地址 32 (由于之前的结构体总长是 32 且对齐需求)
 } PipeMsg;
 
-_Static_assert(sizeof(PipeMsg) <= 128, "PipeMsg too large");
-// 我们不再强制 64 字节，而是强制“物理偏移量一致性”
+// 💡 [Iron Rule] 严格强制 64 字节对齐，这是跨进程共享内存的生命线
+_Static_assert(sizeof(PipeMsg) == 64, "PipeMsg must be 64 bytes");
 
 typedef struct {
     uint32_t magic;

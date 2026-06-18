@@ -56,9 +56,10 @@ func main() {
 		}
 	})
 
-	// Serve Static Files (Vue/Vite Dist)
-	// Fallback to empty response if not found, since we don't have Vite running yet
-	staticDir := filepath.Join("..", "..", "web", "dist")
+	staticDir := os.Getenv("STATIC_DIR")
+	if staticDir == "" {
+		staticDir = "/workspaces/edgeos/EdgeC/web/dist"
+	}
 	os.MkdirAll(staticDir, 0755)
 	
 	// Create a dummy index.html for testing

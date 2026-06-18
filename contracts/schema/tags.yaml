@@ -104,6 +104,12 @@ tags:
     type: int
     desc: "光伏并网继电器"
 
+  - id: 8005
+    name: PCS_CONTROL
+    type: float
+    desc: "储能变流器功率控制指令"
+    attributes: { category: "Control", northbound: { push: "change" } }
+
   - id: 8002
     name: PLUG_OVERTEMP
     type: int

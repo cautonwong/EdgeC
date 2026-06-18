@@ -27,3 +27,8 @@ mappings:
     addr: 0x000F
     scale: 0.01
     desc: "电池PCS功率 (0.01A)"
+
+  - tag: BATTERY_SOC
+    addr: 0x0105
+    scale: 1.0
+    desc: "电池SOC状态 (0-100)"
