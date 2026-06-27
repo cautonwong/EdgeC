@@ -69,6 +69,7 @@ add_edge_test(test_js_engine test_js_engine.c)
 add_edge_test(test_wasm_stage test_wasm_stage.c)
 add_edge_test(test_wasm_host_api test_wasm_host_api.c)
 add_edge_test(test_wasm_scheduler test_wasm_scheduler.c)
+add_edge_test(test_wasm_sandbox test_wasm_sandbox.c)
 add_edge_test(test_sqlite_injection test_sqlite_injection.c)
 
 # 5. 标准算子与算法测试 (Stages & Algos)
