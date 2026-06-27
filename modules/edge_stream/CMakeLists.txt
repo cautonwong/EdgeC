@@ -27,6 +27,7 @@ if(CONFIG_EDGEC_WASM)
     list(APPEND STREAM_SOURCES
         src/stage_wasm.c
         src/wasm_runtime/wasm_mgr.c
+        src/wasm_runtime/wasm_app_scheduler.c
     )
 endif()
 
