@@ -6,9 +6,12 @@ source "$(dirname "$0")/scripts/setup_env.sh"
 
 # 参数解析
 DO_PACKAGE=false
+FORCE_CONF=false
 for arg in "$@"; do
     if [ "$arg" == "--package" ]; then
         DO_PACKAGE=true
+    elif [ "$arg" == "--configure" ] || [ "$arg" == "-c" ]; then
+        FORCE_CONF=true
     fi
 done
 
@@ -26,7 +29,9 @@ if command -v ninja >/dev/null 2>&1; then
     GENERATOR="-GNinja"
 fi
 
-cmake .. $GENERATOR -DCMAKE_BUILD_TYPE=Debug -DENABLE_UI=ON
+if [ ! -f "CMakeCache.txt" ] || [ "$FORCE_CONF" = true ]; then
+    cmake .. $GENERATOR -DCMAKE_BUILD_TYPE=Debug -DENABLE_UI=ON
+fi
 cmake --build . -j$(nproc)
 
 # [Nexus] Removed automatic ctest execution from build.sh to allow isolated integration testing.

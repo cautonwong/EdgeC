@@ -10,11 +10,9 @@ static datahub_t *g_hub = NULL;
 static bool g_wasm_inited = false;
 
 // --- Host Exports (ABI) ---
-static int wasm_host_read(wasm_exec_env_t exec_env, uint32_t tag_id, uint32_t out_ptr_wasm) {
-    if (!g_hub) return -1;
-    wasm_module_inst_t inst = wasm_runtime_get_module_inst(exec_env);
-    double *host_ptr = (double *)wasm_runtime_addr_app_to_native(inst, out_ptr_wasm);
-    if (!host_ptr) return -1;
+static int wasm_host_get_tag(wasm_exec_env_t exec_env, uint32_t tag_id, double *host_ptr) {
+    (void)exec_env;
+    if (!g_hub || !host_ptr) return -1;
     pipe_msg_t msg;
     if (datahub_read_shadow(g_hub, tag_id, &msg) == 0) {
         if (msg.type == PIPEMSG_TYPE_SCALAR) {
@@ -25,17 +23,17 @@ static int wasm_host_read(wasm_exec_env_t exec_env, uint32_t tag_id, uint32_t ou
     return -1;
 }
 
-static int wasm_host_publish(wasm_exec_env_t exec_env, uint32_t tag_id, double value) {
+static int wasm_host_set_tag(wasm_exec_env_t exec_env, uint32_t tag_id, double value) {
     (void)exec_env;
     if (!g_hub) return -1;
     pipe_msg_t msg;
     pipe_msg_init_scalar(&msg, tag_id, value, uv_hrtime());
-    return datahub_publish(g_hub, &msg);
+    // Safe write to the shadow matrix
+    return datahub_write_shadow_idx(g_hub, tag_id, &msg);
 }
 
-static void wasm_host_log(wasm_exec_env_t exec_env, uint32_t level, uint32_t msg_ptr_wasm) {
-    wasm_module_inst_t inst = wasm_runtime_get_module_inst(exec_env);
-    const char *host_msg = (const char *)wasm_runtime_addr_app_to_native(inst, msg_ptr_wasm);
+static void wasm_host_log(wasm_exec_env_t exec_env, uint32_t level, const char *host_msg) {
+    (void)exec_env;
     if (!host_msg) return;
     if (level == 0) LOG_INFO(LOG_CAT_CORE, "[WASM] %s", host_msg);
     else if (level == 1) LOG_INFO(LOG_CAT_CORE, "[WASM] %s", host_msg);
@@ -44,9 +42,9 @@ static void wasm_host_log(wasm_exec_env_t exec_env, uint32_t level, uint32_t msg
 }
 
 static NativeSymbol native_symbols[] = {
-    {"ext_datahub_read", wasm_host_read, "(ii)i", NULL},
-    {"ext_datahub_publish", wasm_host_publish, "(id)i", NULL},
-    {"ext_log", wasm_host_log, "(ii)v", NULL}
+    {"host_get_tag", wasm_host_get_tag, "(i*)i", NULL},
+    {"host_set_tag", wasm_host_set_tag, "(iF)i", NULL},
+    {"ext_log", wasm_host_log, "(i*)", NULL}
 };
 
 struct wasm_app_s {

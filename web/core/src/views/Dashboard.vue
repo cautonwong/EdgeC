@@ -51,6 +51,47 @@
       </div>
     </div>
 
+    <!-- 🟢 Channel Activity Grid (维度七：通道活动面板) -->
+    <section v-if="!contractStore.loading && systemStats.buses && systemStats.buses.length > 0" class="space-y-6 bg-slate-900/5 backdrop-blur-sm border border-slate-100 p-8 rounded-[3rem]">
+      <div class="flex items-center gap-8">
+        <h2 class="text-xl font-black text-slate-800 tracking-tight uppercase italic flex items-center gap-2">
+          <span class="text-blue-500">🎛️</span> Physical Channels Activity
+        </h2>
+        <div class="h-px flex-1 bg-gradient-to-r from-slate-200 to-transparent"></div>
+        <span class="px-3 py-1 text-[9px] font-black bg-blue-500/10 text-blue-600 rounded-full border border-blue-500/20 font-mono">
+          GATEWAY REVERSE PROXY ACTIVE
+        </span>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-4">
+        <div 
+          v-for="bus in systemStats.buses" 
+          :key="bus.id"
+          class="bg-white border p-4 rounded-2xl flex flex-col justify-between transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5"
+          :class="bus.busy ? 'border-blue-500 bg-blue-50/50 shadow-md shadow-blue-500/5' : 'border-slate-100'"
+        >
+          <div class="flex justify-between items-center">
+            <span class="text-[10px] font-black text-slate-400 font-mono">CH-{{ String(bus.id).padStart(2, '0') }}</span>
+            <div 
+              class="w-2 h-2 rounded-full"
+              :class="bus.busy ? 'bg-blue-500 animate-pulse' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]'"
+            ></div>
+          </div>
+          <div class="mt-4">
+            <div class="text-[9px] font-black uppercase tracking-wider" :class="bus.busy ? 'text-blue-600' : 'text-slate-400'">
+              {{ bus.busy ? 'Active' : 'Idle' }}
+            </div>
+            <div class="text-[11px] font-mono font-bold mt-0.5 text-slate-700" v-if="bus.busy">
+              Queue: {{ bus.queue }}
+            </div>
+            <div class="text-[9px] text-slate-300 font-bold" v-else>
+              Standby
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Loading & Empty States -->
     <div v-if="contractStore.loading" class="flex flex-col items-center justify-center py-32">
       <div class="w-16 h-16 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
@@ -73,7 +114,9 @@ import LiveTagCard from '../components/LiveTagCard.vue';
 
 const contractStore = useContractStore();
 const health = ref<any>({});
+const systemStats = ref<any>({});
 let timer: any;
+let statsTimer: any;
 
 const fetchHealth = async () => {
   try {
@@ -82,9 +125,21 @@ const fetchHealth = async () => {
   } catch (e) { health.value = { status: 'error' }; }
 };
 
+const fetchStats = async () => {
+  try {
+    const res = await axios.get('/api/v1/system/stats');
+    systemStats.value = res.data;
+  } catch (e) { systemStats.value = {}; }
+};
+
 onMounted(() => {
   fetchHealth();
+  fetchStats();
   timer = setInterval(fetchHealth, 3000);
+  statsTimer = setInterval(fetchStats, 1000);
 });
-onUnmounted(() => clearInterval(timer));
+onUnmounted(() => {
+  clearInterval(timer);
+  clearInterval(statsTimer);
+});
 </script>

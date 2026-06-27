@@ -19,19 +19,6 @@ var (
 	configMutex sync.RWMutex
 )
 
-// FileServer interceptor for Vue SPA
-type spaFileSystem struct {
-	root http.FileSystem
-}
-
-func (fs *spaFileSystem) Open(name string) (http.File, error) {
-	f, err := fs.root.Open(name)
-	if os.IsNotExist(err) {
-		return fs.root.Open("index.html")
-	}
-	return f, err
-}
-
 func main() {
 	svc := service.New("ui_host", 8082)
 
@@ -68,9 +55,17 @@ func main() {
 		os.WriteFile(dummyHTML, []byte("<h1>EdgeOS Command Center (Placeholder)</h1>"), 0644)
 	}
 
-	fs := http.FileServer(&spaFileSystem{http.Dir(staticDir)})
+	fs := http.FileServer(http.Dir(staticDir))
 	svc.Handle("/", func(w http.ResponseWriter, r *http.Request) {
-		// Log static file requests but serve normally
+		// Single Page Application (SPA) Routing logic
+		path := filepath.Join(staticDir, r.URL.Path)
+		stat, err := os.Stat(path)
+
+		if r.URL.Path == "/" || os.IsNotExist(err) || (err == nil && stat.IsDir()) {
+			http.ServeFile(w, r, filepath.Join(staticDir, "index.html"))
+			return
+		}
+
 		fs.ServeHTTP(w, r)
 	})
 
