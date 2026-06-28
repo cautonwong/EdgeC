@@ -1,46 +1,80 @@
 package main
 
 import (
+	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-		"strings"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"edgeos.go/pkg/api"
+	"edgeos.go/pkg/tags"
 )
 
 const ServiceName = "edge_gateway"
 
+type TagDefinition struct {
+	ID       uint32 `json:"id"`
+	Name     string `json:"name"`
+	DataType string `json:"data_type"`
+	Unit     string `json:"unit"`
+}
+
 type Service struct {
-	Name   string `json:"name"`
-	Port   int    `json:"port"`
-	Prefix string `json:"prefix"`
-	Status string `json:"status"`
+	Name      string                   `json:"name"`
+	Port      int                      `json:"port"`
+	Prefix    string                   `json:"prefix"`
+	Status    string                   `json:"status"`
+	Tags      []TagDefinition          `json:"tags,omitempty"`
+	UIConfigs []map[string]interface{} `json:"ui_configs,omitempty"`
 }
 
 var (
-	registryLock sync.RWMutex
-	registry     = []Service{
+	registryLock   sync.RWMutex
+	registry       = []Service{
 		{Name: "core_api", Port: 8080, Prefix: "/api/v1/hub/", Status: "online"},
 		{Name: "vpp_algo", Port: 8081, Prefix: "/api/v1/algo/", Status: "online"},
 		{Name: "c_rest", Port: 9091, Prefix: "/api/v1/", Status: "online"},
 		{Name: "ui_host", Port: 8082, Prefix: "/", Status: "online"}, // Fallback for UI assets
 	}
-	proxies = make(map[string]*httputil.ReverseProxy)
+	proxies        = make(map[string]*httputil.ReverseProxy)
+	fusedTagsLock  sync.RWMutex
+	fusedTags      = make(map[uint32]tags.TagMetadata)
+	fusedUIConfigs []map[string]interface{}
 )
+
+func init() {
+	for k, v := range tags.Metadata {
+		fusedTags[k] = v
+	}
+}
 
 func handleDiscovery(w http.ResponseWriter, r *http.Request) {
 	registryLock.RLock()
-	defer registryLock.RUnlock()
-	
+	services := append([]Service{}, registry...)
+	registryLock.RUnlock()
+
+	fusedTagsLock.RLock()
+	tagsMap := make(map[uint32]tags.TagMetadata)
+	for k, v := range fusedTags {
+		tagsMap[k] = v
+	}
+	uiConfigsCopy := append([]map[string]interface{}{}, fusedUIConfigs...)
+	fusedTagsLock.RUnlock()
+
 	api.RespondJSON(w, http.StatusOK, 0, "OK", map[string]interface{}{
-		"services": registry,
+		"services":   services,
+		"tags":       tagsMap,
+		"ui_configs": uiConfigsCopy,
 	}, ServiceName)
 }
 
@@ -124,8 +158,137 @@ func handleRegisterService(w http.ResponseWriter, r *http.Request) {
 	proxies[newSvc.Prefix] = httputil.NewSingleHostReverseProxy(targetURL)
 	newSvc.Status = "online"
 
-	log.Printf("[Mesh-Registry] Dynamic service registered: %s (Port: %d, Prefix: %s)", newSvc.Name, newSvc.Port, newSvc.Prefix)
+	// 融合点表元数据与 UI 配置
+	fusedTagsLock.Lock()
+	for _, t := range newSvc.Tags {
+		fusedTags[t.ID] = tags.TagMetadata{
+			ID:       t.ID,
+			Name:     t.Name,
+			DataType: t.DataType,
+			Unit:     t.Unit,
+		}
+	}
+	for _, ui := range newSvc.UIConfigs {
+		// 检查是否已存在同名的 UI 配置，避免重复添加
+		dup := false
+		if title, ok := ui["title"].(string); ok {
+			for _, existingUI := range fusedUIConfigs {
+				if existingTitle, existsOk := existingUI["title"].(string); existsOk && existingTitle == title {
+					dup = true
+					break
+				}
+			}
+		}
+		if !dup {
+			fusedUIConfigs = append(fusedUIConfigs, ui)
+		}
+	}
+	fusedTagsLock.Unlock()
+
+	log.Printf("[Mesh-Registry] Dynamic service registered: %s (Port: %d, Prefix: %s, Tags: %d, UIs: %d)",
+		newSvc.Name, newSvc.Port, newSvc.Prefix, len(newSvc.Tags), len(newSvc.UIConfigs))
 	api.RespondJSON(w, http.StatusOK, 0, "Service registered successfully", newSvc, ServiceName)
+}
+
+func handleAppUpload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		api.RespondError(w, http.StatusMethodNotAllowed, "Method not allowed", ServiceName)
+		return
+	}
+
+	err := r.ParseMultipartForm(10 << 20) // 10MB limit
+	if err != nil {
+		api.RespondError(w, http.StatusBadRequest, "Failed to parse multipart form", ServiceName)
+		return
+	}
+
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		api.RespondError(w, http.StatusBadRequest, "Missing file parameter", ServiceName)
+		return
+	}
+	defer file.Close()
+
+	name := r.FormValue("name")
+	triggerTagStr := r.FormValue("trigger_tag")
+	entryFunc := r.FormValue("entry_func")
+
+	if name == "" || triggerTagStr == "" || entryFunc == "" {
+		api.RespondError(w, http.StatusBadRequest, "Missing name, trigger_tag, or entry_func parameters", ServiceName)
+		return
+	}
+
+	triggerTag, err := strconv.Atoi(triggerTagStr)
+	if err != nil {
+		api.RespondError(w, http.StatusBadRequest, "Invalid trigger_tag parameter (must be an integer)", ServiceName)
+		return
+	}
+
+	fileBytes, err := io.ReadAll(file)
+	if err != nil {
+		api.RespondError(w, http.StatusInternalServerError, "Failed to read uploaded file", ServiceName)
+		return
+	}
+
+	hexPayload := hex.EncodeToString(fileBytes)
+
+	cPayload := map[string]interface{}{
+		"name":        name,
+		"trigger_tag": triggerTag,
+		"entry_func":  entryFunc,
+		"payload_hex": hexPayload,
+	}
+
+	jsonBytes, err := json.Marshal(cPayload)
+	if err != nil {
+		api.RespondError(w, http.StatusInternalServerError, "Failed to marshal JSON payload", ServiceName)
+		return
+	}
+
+	cURL := "http://127.0.0.1:9091/api/v1/apps/upload"
+	resp, err := http.Post(cURL, "application/json", bytes.NewBuffer(jsonBytes))
+	if err != nil {
+		api.RespondError(w, http.StatusBadGateway, "C REST service is offline or unreachable", ServiceName)
+		return
+	}
+	defer resp.Body.Close()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		api.RespondError(w, http.StatusInternalServerError, "Failed to read response from C REST service", ServiceName)
+		return
+	}
+
+	var cResp map[string]interface{}
+	if err := json.Unmarshal(respBytes, &cResp); err != nil {
+		api.RespondError(w, http.StatusInternalServerError, "Invalid response from C REST service", ServiceName)
+		return
+	}
+
+	if cResp["status"] == "ok" {
+		api.RespondJSON(w, http.StatusOK, 0, "App uploaded and activated successfully", nil, ServiceName)
+	} else {
+		reason := "unknown error"
+		if r, ok := cResp["reason"].(string); ok {
+			reason = r
+		}
+		api.RespondError(w, http.StatusInternalServerError, "C service failed: "+reason, ServiceName)
+	}
+}
+
+func handleUIBootstrap(w http.ResponseWriter, r *http.Request) {
+	fusedTagsLock.RLock()
+	tagsMap := make(map[uint32]tags.TagMetadata)
+	for k, v := range fusedTags {
+		tagsMap[k] = v
+	}
+	uiConfigsCopy := append([]map[string]interface{}{}, fusedUIConfigs...)
+	fusedTagsLock.RUnlock()
+
+	api.RespondJSON(w, http.StatusOK, 0, "OK", map[string]interface{}{
+		"tags":       tagsMap,
+		"ui_configs": uiConfigsCopy,
+	}, ServiceName)
 }
 
 func main() {
@@ -135,6 +298,8 @@ func main() {
 	mux.HandleFunc("/api/v1/discovery", handleDiscovery)
 	mux.HandleFunc("/api/v1/system/stats", handleSystemStatsMock)
 	mux.HandleFunc("/api/v1/internal/registry", handleRegisterService)
+	mux.HandleFunc("/api/v1/apps/upload", handleAppUpload)
+	mux.HandleFunc("/api/v1/ui/bootstrap", handleUIBootstrap)
 
 	// 2. Initial Reverse Proxy setup
 	registryLock.Lock()

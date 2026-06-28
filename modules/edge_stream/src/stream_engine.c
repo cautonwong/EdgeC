@@ -112,6 +112,7 @@ static void _on_data_async(uv_async_t *handle) {
         if (rc > 0) {
             LOG_WARN(LOG_CAT_CORE, "StreamEngine: ShmRing dropped %d messages", rc);
         }
+        uv_mutex_lock(&engine->pipe_mutex);
         struct uv__queue *q;
         uv__queue_foreach(q, &engine->pipelines) {
             pipeline_t *p = uv__queue_data(q, pipeline_t, node);
@@ -127,6 +128,7 @@ static void _on_data_async(uv_async_t *handle) {
                 }
             }
         }
+        uv_mutex_unlock(&engine->pipe_mutex);
     }
 }
 
@@ -241,6 +243,7 @@ pipeline_stage_t *pipeline_add_stage(pipeline_t *p, const char *name, stage_proc
     s->cleanup_state = cleanup_state;
     s->priv_cfg = priv_cfg;
     s->cleanup_cfg = cleanup_cfg;
+    if (p->engine) uv_mutex_lock(&p->engine->pipe_mutex);
     if (!p->head)
         p->head = s;
     else {
@@ -248,6 +251,7 @@ pipeline_stage_t *pipeline_add_stage(pipeline_t *p, const char *name, stage_proc
         while(last->next[0]) last = last->next[0];
         last->next[0] = s;
     }
+    if (p->engine) uv_mutex_unlock(&p->engine->pipe_mutex);
     return s;
 }
 
@@ -269,6 +273,7 @@ stream_engine_t *stream_engine_create_ex(datahub_t *hub, uv_loop_t *loop,
 
     uv__queue_init(&engine->pipelines);
     uv_sem_init(&engine->start_sem, 0);
+    uv_mutex_init(&engine->pipe_mutex);
 
 #if defined(CONFIG_EDGEC_WASM)
     wasm_mgr_init(hub);
@@ -303,6 +308,7 @@ void stream_engine_destroy(stream_engine_t *engine) {
         engine->thread_started = false;
     }
 
+    uv_mutex_lock(&engine->pipe_mutex);
     while (!uv__queue_empty(&engine->pipelines)) {
         struct uv__queue *q = uv__queue_head(&engine->pipelines);
         pipeline_t *p = uv__queue_data(q, pipeline_t, node);
@@ -323,7 +329,8 @@ void stream_engine_destroy(stream_engine_t *engine) {
         if (p->extra_triggers) free(p->extra_triggers);
         free(p);
     }
-
+    uv_mutex_unlock(&engine->pipe_mutex);
+    uv_mutex_destroy(&engine->pipe_mutex);
 
 #if defined(CONFIG_EDGEC_WASM)
     wasm_mgr_cleanup();
@@ -338,7 +345,9 @@ pipeline_t *stream_engine_add_pipeline(stream_engine_t *engine, const char *id,
     strncpy(p->id, id, 63);
     p->trigger_tag = trigger_tag;
     p->engine = engine;
+    uv_mutex_lock(&engine->pipe_mutex);
     uv__queue_insert_tail(&engine->pipelines, &p->node);
+    uv_mutex_unlock(&engine->pipe_mutex);
     return p;
 }
 
