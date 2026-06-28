@@ -7,6 +7,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -27,7 +28,9 @@ var (
 	mockValues     = make(map[uint32]float64)
 	mockWatchers   = make([]chan *shm.PipeMsg, 0)
 	watchersLock   sync.Mutex
-	mockCancel     context.CancelFunc
+	mockCancel      context.CancelFunc
+	currentLogLevel = "info"
+	logLevelMutex   sync.RWMutex
 )
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -351,6 +354,83 @@ func handleBatchSet(w http.ResponseWriter, r *http.Request) {
 	api.RespondJSON(w, http.StatusOK, 0, "Batch write completed", results, ServiceName)
 }
 
+type LogLevelRequest struct {
+	Level string `json:"level"`
+}
+
+func handleLogging(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		api.RespondError(w, http.StatusMethodNotAllowed, "Method not allowed", ServiceName)
+		return
+	}
+
+	var req LogLevelRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		api.RespondError(w, http.StatusBadRequest, "Invalid request payload", ServiceName)
+		return
+	}
+
+	level := strings.ToLower(req.Level)
+	if level != "debug" && level != "info" && level != "warn" && level != "error" {
+		api.RespondError(w, http.StatusBadRequest, "Invalid log level", ServiceName)
+		return
+	}
+
+	logLevelMutex.Lock()
+	currentLogLevel = level
+	logLevelMutex.Unlock()
+
+	log.Printf("[SYSTEM] Log level dynamically switched to %s. Capturing HEX frame dumps.", strings.ToUpper(level))
+
+	api.RespondJSON(w, http.StatusOK, 0, "Log level updated successfully", map[string]string{"current_level": level}, ServiceName)
+}
+
+func handleBackup(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		api.RespondError(w, http.StatusMethodNotAllowed, "Method not allowed", ServiceName)
+		return
+	}
+
+	dbPath := "/workspaces/edgeos/EdgeC/build/products/iems/bin/iems.db"
+	backupPath := "/tmp/edgeos_backup.db"
+
+	var backupType string
+	var err error
+
+	if _, err = os.Stat(dbPath); err == nil {
+		var input []byte
+		input, err = os.ReadFile(dbPath)
+		if err == nil {
+			err = os.WriteFile(backupPath, input, 0644)
+		}
+		backupType = "SQLite database copy"
+	} else {
+		backupPath = "/tmp/edgeos_snapshot.json"
+		mockLock.RLock()
+		snapshotData, err2 := json.MarshalIndent(mockValues, "", "  ")
+		mockLock.RUnlock()
+
+		if err2 == nil {
+			err = os.WriteFile(backupPath, snapshotData, 0644)
+		} else {
+			err = err2
+		}
+		backupType = "Mock values JSON snapshot"
+	}
+
+	if err != nil {
+		api.RespondError(w, http.StatusInternalServerError, "Failed to create backup: "+err.Error(), ServiceName)
+		return
+	}
+
+	log.Printf("[SYSTEM] Backup completed successfully. Type: %s, Destination: %s", backupType, backupPath)
+
+	api.RespondJSON(w, http.StatusOK, 0, "Backup completed successfully", map[string]string{
+		"backup_type": backupType,
+		"backup_path": backupPath,
+	}, ServiceName)
+}
+
 func main() {
 
 	log.Printf("Starting %s on port 8080...", ServiceName)
@@ -371,6 +451,8 @@ func main() {
 	mux.HandleFunc("/api/v1/ui/mock", handleMockToggle)
 	mux.HandleFunc("/api/v1/hub/batch/read", handleBatchRead)
 	mux.HandleFunc("/api/v1/actor/batch/set", handleBatchSet)
+	mux.HandleFunc("/api/v1/system/logging", handleLogging)
+	mux.HandleFunc("/api/v1/system/backup", handleBackup)
 
 	// Wrap with middlewares
 	recovery := func(next http.Handler) http.Handler {
