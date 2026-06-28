@@ -4,6 +4,16 @@ project(EdgeC C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+# [Build Optimization] Enable ccache if available
+find_program(CCACHE_PROGRAM ccache)
+if(CCACHE_PROGRAM)
+    set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+    message(STATUS "[Build-Opt] Enabled ccache for compilation speedup")
+endif()
+
+# [Build Optimization] Option to bypass HMI web frontend builds
+option(ENABLE_WEB_BUILD "Enable frontend Web UI compilation" ON)
+
 # ==============================================================================
 # 1. Environment & Path Configuration
 # ==============================================================================
