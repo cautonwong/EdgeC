@@ -312,9 +312,55 @@ func main() {
 	}
 	registryLock.Unlock()
 
-	// 3. Dynamic Router (最长前缀匹配)
+	// 3. Dynamic Router (最长前缀匹配与私有 API 命名空间隔离)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-EdgeOS-Gateway", "2.0-Mesh")
+
+		// 🟢 [TSK-02] 检查是否匹配私有 API 命名空间: /api/v1/services/{service_name}/private/
+		if strings.HasPrefix(r.URL.Path, "/api/v1/services/") {
+			parts := strings.Split(r.URL.Path, "/")
+			if len(parts) >= 6 && parts[5] == "private" {
+				svcName := parts[4]
+
+				registryLock.RLock()
+				var targetSvc *Service
+				for _, svc := range registry {
+					if svc.Name == svcName {
+						targetSvc = &svc
+						break
+					}
+				}
+				registryLock.RUnlock()
+
+				if targetSvc != nil {
+					targetURL, err := url.Parse(fmtURL(targetSvc.Port))
+					if err == nil {
+						// 动态重写路径：替换 /api/v1/services/{service_name} 为该服务的注册 Prefix
+						oldPrefix := fmt.Sprintf("/api/v1/services/%s", svcName)
+						newPath := strings.Replace(r.URL.Path, oldPrefix, strings.TrimSuffix(targetSvc.Prefix, "/"), 1)
+
+						proxy := &httputil.ReverseProxy{
+							Director: func(req *http.Request) {
+								req.URL.Scheme = targetURL.Scheme
+								req.URL.Host = targetURL.Host
+								req.URL.Path = newPath
+								req.URL.RawPath = newPath
+								req.Host = targetURL.Host
+								// 拷贝 Query 字段
+								if req.URL.RawQuery == "" {
+									req.URL.RawQuery = r.URL.RawQuery
+								}
+							},
+						}
+						proxy.ServeHTTP(w, r)
+						return
+					}
+				} else {
+					api.RespondError(w, http.StatusNotFound, fmt.Sprintf("Service %s not found in registry", svcName), ServiceName)
+					return
+				}
+			}
+		}
 
 		registryLock.RLock()
 		defer registryLock.RUnlock()
