@@ -229,6 +229,128 @@ func runMockSimulation(ctx context.Context) {
 	}
 }
 
+type BatchReadRequest struct {
+	IDs []uint32 `json:"ids"`
+}
+
+type TagValueData struct {
+	ID    uint32  `json:"id"`
+	Name  string  `json:"name"`
+	Unit  string  `json:"unit"`
+	Type  string  `json:"type"`
+	Value float64 `json:"value"`
+	TS    uint64  `json:"ts"`
+}
+
+func handleBatchRead(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		api.RespondError(w, http.StatusMethodNotAllowed, "Method not allowed", ServiceName)
+		return
+	}
+
+	var req BatchReadRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		api.RespondError(w, http.StatusBadRequest, "Invalid request payload", ServiceName)
+		return
+	}
+
+	mockLock.RLock()
+	isMocked := mockEnabled
+	mockLock.RUnlock()
+
+	results := make(map[string]TagValueData)
+	now := uint64(time.Now().UnixNano() / 1e6)
+
+	for _, id := range req.IDs {
+		var val float64
+		var ts uint64
+		var err error
+
+		if isMocked {
+			mockLock.RLock()
+			val = mockValues[id]
+			mockLock.RUnlock()
+			ts = now
+		} else {
+			if matrix == nil {
+				api.RespondError(w, http.StatusServiceUnavailable, "DataHub not connected", ServiceName)
+				return
+			}
+			var msg *shm.PipeMsg
+			msg, err = matrix.ReadTag(id)
+			if err != nil {
+				continue
+			}
+			val, _ = msg.Scalar()
+			ts = msg.Timestamp
+		}
+
+		meta := tags.Metadata[id]
+		results[strconv.Itoa(int(id))] = TagValueData{
+			ID:    id,
+			Name:  meta.Name,
+			Unit:  meta.Unit,
+			Type:  meta.DataType,
+			Value: val,
+			TS:    ts,
+		}
+	}
+
+	api.RespondJSON(w, http.StatusOK, 0, "OK", results, ServiceName)
+}
+
+type BatchSetRequest struct {
+	Values map[string]float64 `json:"values"`
+}
+
+func handleBatchSet(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		api.RespondError(w, http.StatusMethodNotAllowed, "Method not allowed", ServiceName)
+		return
+	}
+
+	var req BatchSetRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		api.RespondError(w, http.StatusBadRequest, "Invalid request payload", ServiceName)
+		return
+	}
+
+	mockLock.RLock()
+	isMocked := mockEnabled
+	mockLock.RUnlock()
+
+	results := make(map[string]string)
+	now := uint64(time.Now().UnixNano() / 1e6)
+
+	for idStr, val := range req.Values {
+		id, err := strconv.ParseUint(idStr, 10, 32)
+		if err != nil {
+			results[idStr] = "Invalid Tag ID"
+			continue
+		}
+
+		if isMocked {
+			mockLock.Lock()
+			mockValues[uint32(id)] = val
+			mockLock.Unlock()
+			results[idStr] = "OK"
+		} else {
+			if matrix == nil {
+				api.RespondError(w, http.StatusServiceUnavailable, "DataHub not connected", ServiceName)
+				return
+			}
+			err = matrix.WriteTag(uint32(id), val, now)
+			if err != nil {
+				results[idStr] = err.Error()
+			} else {
+				results[idStr] = "OK"
+			}
+		}
+	}
+
+	api.RespondJSON(w, http.StatusOK, 0, "Batch write completed", results, ServiceName)
+}
+
 func main() {
 
 	log.Printf("Starting %s on port 8080...", ServiceName)
@@ -247,6 +369,8 @@ func main() {
 	mux.HandleFunc("/api/v1/hub/stream", handleStream)
 	mux.HandleFunc("/api/v1/hub/tags/", handleGetTag)
 	mux.HandleFunc("/api/v1/ui/mock", handleMockToggle)
+	mux.HandleFunc("/api/v1/hub/batch/read", handleBatchRead)
+	mux.HandleFunc("/api/v1/actor/batch/set", handleBatchSet)
 
 	// Wrap with middlewares
 	recovery := func(next http.Handler) http.Handler {

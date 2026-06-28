@@ -76,6 +76,16 @@ func (s *ShadowMatrix) ReadTag(idx uint32) (*PipeMsg, error) {
 	return &msg, nil
 }
 
+// WriteTag writes a float64 value to the shadow table by index
+func (s *ShadowMatrix) WriteTag(idx uint32, val float64, ts uint64) error {
+	if idx >= uint32(len(s.data)) {
+		return fmt.Errorf("index out of bounds: %d", idx)
+	}
+	s.data[idx].Timestamp = ts
+	*(*float64)(unsafe.Pointer(&s.data[idx].Payload[0])) = val
+	return nil
+}
+
 // Close unmaps the memory and closes the file
 func (s *ShadowMatrix) Close() error {
 	header := (*reflect.SliceHeader)(unsafe.Pointer(&s.data))
