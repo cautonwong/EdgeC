@@ -100,10 +100,10 @@ static int setup(void** state) {
 
     ctx->orch = bus_orchestrator_create(&ctx->hub, ctx->arb, ctx->drv_mgr, 2, 64, 1024);
 
-    extern pipeline_stage_t* stage_mpc_dispatcher_create_v2(const edge_stage_def_t* def,
+    extern pipeline_stage_t* stage_mpc_dispatch_create_v2(const edge_stage_def_t* def,
                                                             pipeline_loader_ctx_t* ctx);
     static const edge_stage_factory_entry_t test_stages[] = {
-        {"mpc_dispatch", stage_mpc_dispatcher_create_v2}, {NULL, NULL}};
+        {"mpc_dispatch", stage_mpc_dispatch_create_v2}, {NULL, NULL}};
     printf("[DEBUG] Setup: Creating StreamEngine...\n");
     ctx->engine = stream_engine_create(&ctx->hub, &ctx->loop, NULL, test_stages);
     if (!ctx->engine) {

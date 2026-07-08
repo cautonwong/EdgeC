@@ -3,6 +3,7 @@ package ir
 type ContractIR struct {
 	ProductName string `json:"product"`
 	Signature   uint32 `json:"signature"`
+	SchemaHash  string `json:"schema_hash"`  // 💡 [ADR-0002] Unique schema fingerprint for blob identification
 
 	// --- [NEW] Semantic Architecture ---
 	Models    []ModelRecord    `json:"models"`
@@ -125,7 +126,11 @@ type StageRecord struct {
 	F2   float64
 	F3   float64
 	U1   uint32
+	U2   uint32
+	U3   uint32
 	S1   string
+	S2   string
+	S3   string
 	NextIndices [4]int `json:"next_indices"`
 }
 

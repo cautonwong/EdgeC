@@ -30,13 +30,15 @@ enum {
     PIPEMSG_TYPE_REF = 2,
     PIPEMSG_TYPE_BATCH = 3,
     PIPEMSG_TYPE_EVENT = 4,
-    
+    PIPEMSG_TYPE_METRIC = 5,   // 💡 [ADR-0001] 系统性能指标
+
     // 别名支持
     PIPEMSG_SCALAR_F64 = 1,
     PIPEMSG_SCALAR_I64 = 1,
     PIPEMSG_REF = 2,
     PIPEMSG_BATCH = 3,
-    PIPEMSG_EVENT = 4
+    PIPEMSG_EVENT = 4,
+    PIPEMSG_METRIC = 5
 };
 
 typedef struct {
@@ -98,6 +100,7 @@ typedef struct {
     PipeMsg *slots;
     size_t map_size;
     int fd;
+    int event_fd;        // [ADR-0001] eventfd for O(1) wakeup
     char name[256];
 } ShmRing;
 
@@ -107,6 +110,7 @@ typedef PipeMsg pipe_msg_t;
 int shmring_create(shm_ring_t *ring, const char *name, uint32_t slots);
 int shmring_init_from_fd(shm_ring_t *ring, int fd, size_t size);
 int shmring_get_fd(shm_ring_t *ring);
+int shmring_get_event_fd(shm_ring_t *ring); // [ADR-0001] eventfd for O(1) wakeup
 int shmring_open(shm_ring_t *ring, const char *name);
 void shmring_close(shm_ring_t *ring);
 int shmring_destroy(shm_ring_t *ring);

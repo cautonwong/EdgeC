@@ -20,6 +20,7 @@ const (
 	PLUG_OVERTEMP = 8002
 	SOLAR_VOLTAGE = 8003
 	SOLAR_RELAY = 8004
+	PCS_CONTROL = 8005
 	DLMS_SAP_LIST = 9001
 	DLMS_AUTH_MECHANISM = 9002
 	DLMS_SECURITY_POLICY = 9003
@@ -57,6 +58,7 @@ var Metadata = map[uint32]TagMetadata{
 	8002: {ID: 8002, Name: "PLUG_OVERTEMP", DataType: "int", Unit: ""},
 	8003: {ID: 8003, Name: "SOLAR_VOLTAGE", DataType: "float", Unit: "V"},
 	8004: {ID: 8004, Name: "SOLAR_RELAY", DataType: "int", Unit: ""},
+	8005: {ID: 8005, Name: "PCS_CONTROL", DataType: "float", Unit: ""},
 	9001: {ID: 9001, Name: "DLMS_SAP_LIST", DataType: "string", Unit: ""},
 	9002: {ID: 9002, Name: "DLMS_AUTH_MECHANISM", DataType: "int", Unit: ""},
 	9003: {ID: 9003, Name: "DLMS_SECURITY_POLICY", DataType: "int", Unit: ""},

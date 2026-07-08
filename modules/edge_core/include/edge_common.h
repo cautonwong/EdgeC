@@ -88,6 +88,17 @@ typedef enum {
 
 #define EDGE_UNUSED(x) (void)(x)
 
+// 💡 [ADR-0001] 系统 Metric 标签 ID 范围
+#define EDGE_METRIC_TAG_BASE    12000
+#define EDGE_METRIC_TAG_MAX     12999
+// 按模块分区：
+// 12000-12099  DataHub（Ring 水位/丢包/读写延迟）
+// 12100-12199  StreamEngine（Stage 请求数/p99 延迟/错误计数）
+// 12200-12299  Arbiter（队列深度/仲裁等待/总线争用）
+// 12300-12399  SnF Manager（缓冲队列/上次同步/失败计数）
+// 12400-12499  License Engine（已用容量/过期时间）
+// 12500-12999  预留
+
 int edge_get_app_root(char *out_path, size_t size);
 
 #ifdef __cplusplus

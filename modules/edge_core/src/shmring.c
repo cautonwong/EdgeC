@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <sys/eventfd.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
@@ -98,6 +99,27 @@ int shmring_create(shm_ring_t *ring, const char *name, uint32_t slots) {
     atomic_store_explicit(&ring->hdr->write_idx, 0, memory_order_relaxed);
     atomic_store_explicit(&ring->hdr->total_writes, 0, memory_order_relaxed);
 
+    // 6. [ADR-0001] 创建 FIFO 用于跨进程 O(1) 唤醒（Go watcher 通过 epoll 等待）
+    {
+        char fifo_path[384];
+        int n = snprintf(fifo_path, sizeof(fifo_path), "/tmp/edgeos_ev_%s", name ? name : "default");
+        if (n > 0 && n < (int)sizeof(fifo_path)) {
+            unlink(fifo_path);
+            if (mkfifo(fifo_path, 0666) == 0) {
+                ring->event_fd = open(fifo_path, O_WRONLY | O_NONBLOCK);
+                if (ring->event_fd < 0) {
+                    LOG_WARN(LOG_CAT_BUS, "FIFO open failed: %s", strerror(errno));
+                    unlink(fifo_path);
+                }
+            } else {
+                LOG_WARN(LOG_CAT_BUS, "FIFO create failed: %s", strerror(errno));
+                ring->event_fd = -1;
+            }
+        } else {
+            ring->event_fd = -1;
+        }
+    }
+
     return 0;
 }
 
@@ -131,6 +153,10 @@ int shmring_get_fd(shm_ring_t *ring) {
     return ring ? ring->fd : -1;
 }
 
+int shmring_get_event_fd(shm_ring_t *ring) {
+    return ring ? ring->event_fd : -1;
+}
+
 int shmring_open(shm_ring_t *ring, const char *name) {
     (void)ring;
     (void)name;
@@ -144,6 +170,10 @@ void shmring_close(shm_ring_t *ring) {
         if (ring->fd >= 0) {
             close(ring->fd);
             ring->fd = -1;
+        }
+        if (ring->event_fd >= 0) {
+            close(ring->event_fd);
+            ring->event_fd = -1;
         }
         ring->hdr = NULL;
         ring->slots = NULL;
@@ -169,6 +199,12 @@ void shm_ring_write(shm_ring_t *ring, const PipeMsg *msg) {
     // 屏障确保存储可见性
     atomic_fetch_add_explicit(&ring->hdr->seq, 1, memory_order_release);
     atomic_fetch_add_explicit(&ring->hdr->total_writes, 1, memory_order_relaxed);
+
+    // [ADR-0001] 信号 eventfd 唤醒等待者（Go watcher 等）
+    if (ring->event_fd >= 0) {
+        uint64_t val = 1;
+        (void)write(ring->event_fd, &val, sizeof(val));
+    }
 }
 
 int shm_ring_read(shm_ring_t *ring, uint64_t *last_seq, PipeMsg *out) {

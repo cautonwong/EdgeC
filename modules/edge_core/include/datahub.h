@@ -80,6 +80,11 @@ struct datahub_s {
     uv_timer_t compaction_timer;
     char snapshot_path[256];
     int compaction_active;
+
+    // --- [ADR-0001] Metrics ---
+    atomic_uint_fast64_t metrics_shadow_writes;
+    uv_timer_t metrics_timer;
+    int metrics_active;
 };
 
 int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slots,
@@ -110,6 +115,16 @@ int datahub_register_ref(datahub_t *hub, uint32_t tag_id, int fd, size_t len);
 int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out);
 int datahub_read_shadow_idx(datahub_t *hub, uint32_t idx, pipe_msg_t *out);
 void datahub_subscribe(datahub_t *hub, datahub_on_data_cb cb, void *user_data);
+
+/**
+ * @brief [ADR-0001] 启动 DataHub Metrics 定时上报（100ms 高频环）
+ */
+int datahub_start_metrics(datahub_t *hub);
+
+/**
+ * @brief [ADR-0001] 停止 Metrics 上报
+ */
+void datahub_stop_metrics(datahub_t *hub);
 
 /**
  * @brief [Aetheris] 持久化快照：将影子表存入磁盘

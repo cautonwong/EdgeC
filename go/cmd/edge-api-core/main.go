@@ -431,6 +431,45 @@ func handleBackup(w http.ResponseWriter, r *http.Request) {
 	}, ServiceName)
 }
 
+// 💡 [ADR-0001] Prometheus-format metrics endpoint
+func handleMetrics(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+	w.WriteHeader(http.StatusOK)
+
+	totalTags := len(tags.Metadata)
+	mockLock.RLock()
+	mockCount := len(mockValues)
+	mockLock.RUnlock()
+
+	fmt.Fprintf(w, "# HELP edgeos_tags_total Total number of registered tags\n")
+	fmt.Fprintf(w, "# TYPE edgeos_tags_total gauge\n")
+	fmt.Fprintf(w, "edgeos_tags_total %d\n", totalTags)
+
+	fmt.Fprintf(w, "# HELP edgeos_mock_enabled Whether mock mode is active\n")
+	fmt.Fprintf(w, "# TYPE edgeos_mock_enabled gauge\n")
+	mockVal := 0
+	if mockEnabled {
+		mockVal = 1
+	}
+	fmt.Fprintf(w, "edgeos_mock_enabled %d\n", mockVal)
+
+	fmt.Fprintf(w, "# HELP edgeos_mock_values_count Number of mock values being generated\n")
+	fmt.Fprintf(w, "# TYPE edgeos_mock_values_count gauge\n")
+	fmt.Fprintf(w, "edgeos_mock_values_count %d\n", mockCount)
+
+	shmConnected := 0
+	if matrix != nil {
+		shmConnected = 1
+	}
+	fmt.Fprintf(w, "# HELP edgeos_shm_connected SHM connection status\n")
+	fmt.Fprintf(w, "# TYPE edgeos_shm_connected gauge\n")
+	fmt.Fprintf(w, "edgeos_shm_connected %d\n", shmConnected)
+
+	fmt.Fprintf(w, "# HELP edgeos_build_info Build metadata\n")
+	fmt.Fprintf(w, "# TYPE edgeos_build_info gauge\n")
+	fmt.Fprintf(w, "edgeos_build_info{service=\"%s\"} 1\n", ServiceName)
+}
+
 func main() {
 
 	log.Printf("Starting %s on port 8080...", ServiceName)
@@ -453,6 +492,7 @@ func main() {
 	mux.HandleFunc("/api/v1/actor/batch/set", handleBatchSet)
 	mux.HandleFunc("/api/v1/system/logging", handleLogging)
 	mux.HandleFunc("/api/v1/system/backup", handleBackup)
+	mux.HandleFunc("/api/v1/system/metrics", handleMetrics)
 
 	// Wrap with middlewares
 	recovery := func(next http.Handler) http.Handler {

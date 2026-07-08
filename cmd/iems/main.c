@@ -77,8 +77,10 @@ typedef struct {
 static void on_poll_complete(int status, const pipe_msg_t* result, void* user_data) {
     iems_poll_task_t* task = (iems_poll_task_t*)user_data;
     if (status == 0 && result && task && g_app.hub) {
-        // 💡 [Nexus Physical-Path] 强行绕过查找，直接物理入库！
-        datahub_write_shadow_idx(g_app.hub, task->dense_idx, result);
+        // 💡 [Nexus Physical-Path] 强行绕过查找，直接物理入库并写入 shm_ring 触发计算引擎！
+        pipe_msg_t local_msg = *result;
+        shm_ring_write(&g_app.hub->ring, &local_msg);
+        datahub_write_shadow_idx(g_app.hub, task->dense_idx, &local_msg);
     }
 }
 
@@ -86,7 +88,13 @@ static void on_poll_complete(int status, const pipe_msg_t* result, void* user_da
 static int _iems_stream_submit_control(void* ctx, int bus_id, uint32_t tag_id, double value,
                                        const char* proto) {
     (void)ctx;
-    // 💡 [Nexus Fix] 废除裸提 NULL req 命令，走规范控制写入通道 (南向默认 slave_id 为 1)
+    // 1. 立即更新 DataHub Shadow，保证状态立即可见（测试通过 REST API 可读到）
+    if (g_app.hub) {
+        pipe_msg_t ctrl_msg = {0};
+        pipe_msg_init_scalar(&ctrl_msg, tag_id, value, 0);
+        datahub_publish(g_app.hub, &ctrl_msg);
+    }
+    // 2. 异步走 Modbus 协议写入物理设备（南向默认 slave_id 为 1）
     return edge_api_write_tag(bus_id, proto, 1, tag_id, value, NULL, NULL);
 }
 
@@ -458,6 +466,8 @@ int main(int argc, char* argv[]) {
     datahub_init(g_app.hub, loop, shm_name, 4096, 1024, contract->tags, contract->tag_count, NULL,
                  edge_tag_get_compact_index, NULL);
 
+	// [ADR-0001] Start DataHub metrics reporting
+	datahub_start_metrics(g_app.hub);
     // 💡 [WAL] 开启 Write-Ahead Log 持久化并重放历史数据
     const char *wal_path = getenv("EDGE_WAL_PATH") ? getenv("EDGE_WAL_PATH") : "/tmp/edgeos_wal.log";
     const char *snap_path = getenv("EDGE_SNAP_PATH") ? getenv("EDGE_SNAP_PATH") : "/tmp/edgeos_snapshot.bin";
@@ -511,7 +521,12 @@ int main(int argc, char* argv[]) {
     if (!mqtt_url) mqtt_url = "tcp://localhost:1883";
     nb_transport_ops_t transport = mqtt_producer_create(mqtt_url, "IEMS_EDGE_NODE");
 
-    northbound_mgr_init_ex(g_app.north, &g_app.hub->ring, "IEMS_V4", g_app.db_service, transport);
+    // 💡 [Consumer-Driven] 创建数据源适配器：shm_ring_read → nb_source_ops_t
+    nb_source_ops_t nb_source = {
+        .ctx = &g_app.hub->ring,
+        .read_next = (void*)(shm_ring_read)
+    };
+    northbound_mgr_init_ex(g_app.north, nb_source, "IEMS_V4", g_app.db_service, transport);
 
     g_app.svc = service_new(loop, g_app.hub, g_app.arb, g_app.db_service, g_app.stream_eng, NULL,
                             g_app.north);

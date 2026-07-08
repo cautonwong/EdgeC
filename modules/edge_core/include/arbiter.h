@@ -97,9 +97,20 @@ static inline void cmd_msg_init_write(cmd_msg_t *msg, uint32_t tag_id, double va
     msg->timeout_ms = ARBITER_DEFAULT_TIMEOUT_MS;
 }
 
-// 架构补强点
+// --- 架构补强点
 void arbiter_set_orchestrator(arbiter_t *arb, void *orch);
 void *arbiter_get_orchestrator(arbiter_t *arb);
+
+// 💡 [Consumer-Driven] 执行器抽象：Arbiter 不再直接依赖 io_executor
+typedef struct {
+    void *ctx;
+    /** 执行指令。返回 0=成功, <0=错误 */
+    int (*execute)(void *ctx, int bus_id, cmd_msg_t *cmd);
+    /** IO 完成通知。返回 0=已处理继续调度, 1=未处理 */
+    int (*on_io_done)(void *ctx, int bus_id, cmd_msg_t *msg, int status);
+} arb_executor_ops_t;
+
+void arbiter_set_executor(arbiter_t *arb, arb_executor_ops_t ops);
 
 #ifdef __cplusplus
 }

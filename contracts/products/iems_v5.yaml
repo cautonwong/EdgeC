@@ -52,6 +52,10 @@ tags:
         - { protocol: "ModbusRTU", reg: 15, type: "holding", scaler: 0.01 }
         - { protocol: "IEC104", ioa: 16388, type: "measured_float" }
 
+  - id: 8005 # PCS_CONTROL
+    attributes:
+      ui: { group: "Battery_Health", min: -100000, max: 100000 }
+
 # 4. 核心业务管线 (Core Pipelines)
 pipelines:
   - id: "energy_manager"

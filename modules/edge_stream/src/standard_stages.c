@@ -672,9 +672,15 @@ pipeline_stage_t *stage_foc_create_v2(const edge_stage_def_t *def, pipeline_load
 pipeline_stage_t *stage_fir_filter_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
 pipeline_stage_t *stage_battery_guard_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
 
+#ifndef CONFIG_EDGEC_ALGO_LINALG
+#warning "CONFIG_EDGEC_ALGO_LINALG is NOT defined!"
+#else
+#warning "CONFIG_EDGEC_ALGO_LINALG IS DEFINED!"
+#endif
+
 #if defined(CONFIG_EDGEC_ALGO_LINALG)
 pipeline_stage_t *stage_ekf_soc_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
-pipeline_stage_t *stage_mpc_dispatcher_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_mpc_dispatch_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
 pipeline_stage_t *stage_kinematics_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
 pipeline_stage_t *stage_sensor_fusion_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
 #endif
@@ -706,7 +712,7 @@ static const edge_stage_factory_entry_t g_standard_stages[] = {
     {"advanced_pid", stage_advanced_pid_create_v2},
 #if defined(CONFIG_EDGEC_ALGO_LINALG)
     {"ekf_soc", stage_ekf_soc_create_v2},
-    {"mpc_dispatch", stage_mpc_dispatcher_create_v2},
+    {"mpc_dispatch", stage_mpc_dispatch_create_v2},
     {"kinematics", stage_kinematics_create_v2},
     {"sensor_fusion", stage_sensor_fusion_create_v2},
 #endif

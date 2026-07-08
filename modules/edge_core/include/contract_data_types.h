@@ -171,6 +171,34 @@ typedef struct {
 
 } edge_contract_t;
 
+// 💡 [ADR-0002] 契约实例（运行时加载版，适用于 Contract Blob 场景）
+typedef struct contract_instance_s {
+    uint32_t    version;
+    char        name[64];
+    char        schema_id[64];          // 编译器生成的 schema UID
+
+    // 协议映射表（由编译器填充）
+    void*       proto_map;
+    uint32_t    proto_map_len;
+    uint32_t    proto_map_entry_size;
+
+    // Pipeline 拓扑描述
+    edge_pipeline_def_t*  pipeline_desc;
+    uint32_t              pipeline_count;
+
+    // 标签元数据（单源！不再有 C/Go 双份）
+    edge_tag_meta_t*      tag_table;
+    uint32_t              tag_count;
+
+    // 生命周期
+    uint64_t              loaded_at;
+    char                  source_url[256];  // 来源（本地 blob / 云端 URL）
+
+    // 运行时状态
+    bool                  is_active;
+    struct contract_instance_s* next;  // 链表，支持热加载时新旧版本共存
+} contract_instance_t;
+
 // --- 协议映射结构 (由编译器生成并满足 driver_contract_injection_t) ---
 typedef struct {
     uint64_t key;

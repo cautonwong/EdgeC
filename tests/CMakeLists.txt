@@ -48,6 +48,7 @@ add_edge_test(test_memfd_seals test_memfd_seals.c)
 add_edge_test(test_fuzz_datahub test_fuzz_datahub.c)
 add_edge_test(test_sqlite_service test_sqlite_service.c)
 add_edge_test(test_fuzz_iec104 test_fuzz_iec104.c)
+	add_edge_test(test_fuzz_dlms_dlt698 test_fuzz_dlms_dlt698.c)
 add_edge_test(test_dlms_security_validation test_dlms_security_validation.c)
 
 # 3. 执行引擎测试 (Execution Plane)

@@ -17,6 +17,7 @@ struct arbiter {
     cmd_msg_t *zombies;
     bool paused;
     void *orchestrator;
+    arb_executor_ops_t executor;  // 💡 [Consumer-Driven] 注入的执行器
 };
 
 int arbiter_init(arbiter_t **arb, uv_loop_t *loop) {
@@ -33,6 +34,10 @@ void arbiter_set_orchestrator(arbiter_t *arb, void *orch) {
 
 void *arbiter_get_orchestrator(arbiter_t *arb) {
     return arb ? arb->orchestrator : NULL;
+}
+
+void arbiter_set_executor(arbiter_t *arb, arb_executor_ops_t ops) {
+    if (arb) arb->executor = ops;
 }
 
 void arbiter_pause(arbiter_t *arb) {
@@ -53,7 +58,11 @@ void arbiter_resume(arbiter_t *arb) {
             
             // 释放锁后再回调，防止递归死锁
             uv_mutex_unlock(&arb->lock);
-            if (job->on_start) job->on_start(job);
+            if (arb->executor.execute) {
+                arb->executor.execute(arb->executor.ctx, i, job);
+            } else if (job->on_start) {
+                job->on_start(job);
+            }
             uv_mutex_lock(&arb->lock);
         }
     }
@@ -79,7 +88,11 @@ int arbiter_submit_cmd(arbiter_t *arb, int bus_id, cmd_msg_t *cmd) {
         arb->buses[bus_id].queue = arb->buses[bus_id].queue->next;
         cmd_msg_t *job = arb->buses[bus_id].owner;
         uv_mutex_unlock(&arb->lock);
-        if (job->on_start) job->on_start(job);
+        if (arb->executor.execute) {
+            arb->executor.execute(arb->executor.ctx, bus_id, job);
+        } else if (job->on_start) {
+            job->on_start(job);
+        }
         return 0;
     }
     uv_mutex_unlock(&arb->lock);
@@ -88,22 +101,33 @@ int arbiter_submit_cmd(arbiter_t *arb, int bus_id, cmd_msg_t *cmd) {
 
 void arbiter_on_io_done(arbiter_t *arb, int bus_id, cmd_msg_t *msg, int status) {
     if (!arb || bus_id < 0 || bus_id >= ARBITER_MAX_BUSES) return;
+
+    // 💡 [Consumer-Driven] 优先通过 executor 回调处理
+    if (arb->executor.on_io_done) {
+        int handled = arb->executor.on_io_done(arb->executor.ctx, bus_id, msg, status);
+        if (handled) return;
+    }
+
     uv_mutex_lock(&arb->lock);
     if (arb->buses[bus_id].owner == msg) {
         arb->buses[bus_id].owner = NULL;
         uv_mutex_unlock(&arb->lock);
-        
+
         if (msg->on_complete) msg->on_complete(msg, status);
         if (msg->on_cleanup) msg->on_cleanup(msg);
         free(msg);
-        
+
         uv_mutex_lock(&arb->lock);
         if (!arb->paused && arb->buses[bus_id].queue) {
             arb->buses[bus_id].owner = arb->buses[bus_id].queue;
             arb->buses[bus_id].queue = arb->buses[bus_id].queue->next;
             cmd_msg_t *job = arb->buses[bus_id].owner;
             uv_mutex_unlock(&arb->lock);
-            if (job->on_start) job->on_start(job);
+            if (arb->executor.execute) {
+                arb->executor.execute(arb->executor.ctx, bus_id, job);
+            } else if (job->on_start) {
+                job->on_start(job);
+            }
             return;
         }
     }

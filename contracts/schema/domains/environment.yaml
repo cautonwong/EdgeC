@@ -25,3 +25,9 @@ tags:
     type: int
     desc: "插座过温报警"
     traits: [ "alarm" ]
+
+  - id: 8005
+    name: PCS_CONTROL
+    type: float
+    desc: "储能变流器功率控制指令"
+    traits: [ "control" ]

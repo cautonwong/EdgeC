@@ -14,6 +14,7 @@ func main() {
 	local := flag.String("local", "", "Path to local manifest YAML")
 	out := flag.String("out", "", "Output directory")
 	base := flag.String("base", ".", "Base directory for includes")
+	outputFormat := flag.String("output-format", "all", "Output format: all, blob, c, go, ts")
 	flag.Parse()
 
 	if *product == "" || *out == "" {
@@ -41,33 +42,51 @@ func main() {
 		len(ir.Tags), len(ir.LookupEngines))
 
 	// Emit C Code
-	if err := (&backend.CBackend{OutDir: *out}).Emit(ir); err != nil {
-		fmt.Printf("❌ Backend Error (C): %v\n", err)
-		os.Exit(1)
+	if *outputFormat == "all" || *outputFormat == "c" {
+		if err := (&backend.CBackend{OutDir: *out}).Emit(ir); err != nil {
+			fmt.Printf("❌ Backend Error (C): %v\n", err)
+			os.Exit(1)
+		}
 	}
-	
+
+	// Emit Binary Blob (ADR-0002)
+	if *outputFormat == "all" || *outputFormat == "blob" {
+		if err := (&backend.BlobBackend{OutDir: *out}).Emit(ir); err != nil {
+			fmt.Printf("❌ Backend Error (Blob): %v\n", err)
+			os.Exit(1)
+		}
+	}
+
 	// Emit Metadata (JSON/YAML)
-	if err := (&backend.MetadataBackend{OutDir: *out}).Emit(ir); err != nil {
-		fmt.Printf("❌ Backend Error (Meta): %v\n", err)
-		os.Exit(1)
+	if *outputFormat == "all" || *outputFormat == "c" {
+		if err := (&backend.MetadataBackend{OutDir: *out}).Emit(ir); err != nil {
+			fmt.Printf("❌ Backend Error (Meta): %v\n", err)
+			os.Exit(1)
+		}
 	}
 
 	// Emit CMake Config
-	if err := (&backend.CMakeBackend{OutDir: *out}).Emit(ir); err != nil {
-		fmt.Printf("❌ Backend Error (CMake): %v\n", err)
-		os.Exit(1)
+	if *outputFormat == "all" || *outputFormat == "c" {
+		if err := (&backend.CMakeBackend{OutDir: *out}).Emit(ir); err != nil {
+			fmt.Printf("❌ Backend Error (CMake): %v\n", err)
+			os.Exit(1)
+		}
 	}
 
 	// Emit TypeScript
-	if err := (&backend.TsBackend{OutDir: *out}).Emit(ir); err != nil {
-		fmt.Printf("❌ Backend Error (TS): %v\n", err)
-		os.Exit(1)
+	if *outputFormat == "all" || *outputFormat == "ts" {
+		if err := (&backend.TsBackend{OutDir: *out}).Emit(ir); err != nil {
+			fmt.Printf("❌ Backend Error (TS): %v\n", err)
+			os.Exit(1)
+		}
 	}
 
 	// Emit Go Bindings
-	if err := (&backend.GoBackend{OutDir: *out}).Emit(ir); err != nil {
-		fmt.Printf("❌ Backend Error (Go): %v\n", err)
-		os.Exit(1)
+	if *outputFormat == "all" || *outputFormat == "go" {
+		if err := (&backend.GoBackend{OutDir: *out}).Emit(ir); err != nil {
+			fmt.Printf("❌ Backend Error (Go): %v\n", err)
+			os.Exit(1)
+		}
 	}
 
 	fmt.Printf("  ✨ Backend: All artifacts emitted to %s\n", *out)

@@ -148,10 +148,25 @@ func (o *Optimizer) Optimize(ast *frontend.ContractAST) (*ir.ContractIR, error) 
 			}
 			usedStageMap[strings.ToLower(s.Type)] = true
 			cfg := s.Config
-			st.F1 = getFloat64(cfg, "threshold", getFloat64(cfg, "alpha", getFloat64(cfg, "min", 0.0)))
-			if gt, ok := cfg["greater_than"].(bool); ok && gt { st.F2 = 1.0 } else { st.F2 = getFloat64(cfg, "beta", getFloat64(cfg, "max", 0.0)) }
-			st.F3 = getFloat64(cfg, "action_value", getFloat64(cfg, "action_val", 0.0))
-			st.U1 = uint32(getUint64(cfg, "target_tag", getUint64(cfg, "state_tag", getUint64(cfg, "bus_id", 0))))
+			st.F1 = getFloat64(cfg, "threshold", getFloat64(cfg, "alpha", getFloat64(cfg, "min", getFloat64(cfg, "dt", 0.0))))
+			if gt, ok := cfg["greater_than"].(bool); ok && gt {
+				st.F2 = 1.0
+			} else {
+				st.F2 = getFloat64(cfg, "beta", getFloat64(cfg, "max", getFloat64(cfg, "capacity_ah", 0.0)))
+			}
+			st.F3 = getFloat64(cfg, "action_value", getFloat64(cfg, "action_val", getFloat64(cfg, "target_soc", 0.0)))
+			st.U1 = uint32(getUint64(cfg, "target_tag", getUint64(cfg, "state_tag", getUint64(cfg, "bus_id", getUint64(cfg, "soc_tag", 0)))))
+			if st.U1 == 0 {
+				if socName, ok := cfg["soc_tag"].(string); ok {
+					st.U1 = nameToTagID[socName]
+				}
+			}
+			st.U3 = uint32(getUint64(cfg, "out_pcs_tag", 0))
+			if st.U3 == 0 {
+				if pcsName, ok := cfg["out_pcs_tag"].(string); ok {
+					st.U3 = nameToTagID[pcsName]
+				}
+			}
 			st.S1 = getString(cfg, "protocol", getString(cfg, "script", getString(cfg, "table", "")))
 			
 			// Resolve branches to indices
@@ -233,6 +248,10 @@ func (o *Optimizer) Optimize(ast *frontend.ContractAST) (*ir.ContractIR, error) 
 			Simulation: simData,
 		})
 	}
+	// 💡 [ADR-0002] Generate schema hash for blob identification
+	hashInput := res.ProductName + ":" + strconv.Itoa(len(res.Tags))
+	res.SchemaHash = fmt.Sprintf("%08x", crc32.ChecksumIEEE([]byte(hashInput)))
+
 
 	return res, nil
 }

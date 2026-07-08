@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 
 #include "edge_log.h"
+#include "edge_metrics.h"
 
 static void _legacy_async_cb(uv_async_t *handle) {
     datahub_t *hub = (datahub_t *)handle->data;
@@ -82,6 +83,19 @@ int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slo
     
     // 初始化影子锁
     uv_mutex_init(&hub->shadow_lock);
+
+    // [ADR-0001] 初始化 Metrics
+    atomic_store_explicit(&hub->metrics_shadow_writes, 0, memory_order_relaxed);
+    hub->metrics_active = 0;
+    edge_metrics_register(12001, "datahub.ring.watermark",
+                          "Ring buffer write_idx / slot_count ratio (0.0-1.0)");
+    edge_metrics_register(12002, "datahub.ring.drop_count",
+                          "Cumulative dropped message count");
+    edge_metrics_register(12003, "datahub.ring.read_latency",
+                          "Last shm_ring_read latency (ms)");
+    edge_metrics_register(12004, "datahub.shadow.write_count",
+                          "Total shadow table writes");
+
     hub->legacy_async.data = hub;
     uv_async_init(loop, &hub->legacy_async, _legacy_async_cb);
     return 0;
@@ -89,6 +103,7 @@ int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slo
 
 void datahub_destroy(datahub_t *hub) {
     if (!hub) return;
+    datahub_stop_metrics(hub);
     shmring_destroy(&hub->ring);
     if (hub->shadow_table) {
         munmap(hub->shadow_table, hub->shadow_size);
@@ -111,7 +126,10 @@ void datahub_destroy(datahub_t *hub) {
 
 int datahub_write_shadow_idx(datahub_t *hub, int idx, const pipe_msg_t *msg) {
     if (!hub || idx < 0 || idx >= (int)hub->shadow_capacity || !msg || !hub->shadow_table) return -1;
-    
+
+    // [ADR-0001] 计量 Shadow 写入
+    atomic_fetch_add_explicit(&hub->metrics_shadow_writes, 1, memory_order_relaxed);
+
     uv_mutex_lock(&hub->shadow_lock);
     hub->shadow_table[idx] = *msg;
     
@@ -377,4 +395,43 @@ int datahub_init_from_fd(datahub_t *hub, uv_loop_t *loop, int ring_fd, size_t ri
     hub->legacy_async.data = hub;
     uv_async_init(loop, &hub->legacy_async, _legacy_async_cb);
     return 0;
+}
+
+// --- [ADR-0001] DataHub Metrics Timer ---
+
+static void _metrics_timer_cb(uv_timer_t *handle) {
+    datahub_t *hub = (datahub_t *)handle->data;
+    if (!hub || !hub->ring.hdr) return;
+
+    ShmRingHeader *hdr = hub->ring.hdr;
+    uint32_t w_idx = atomic_load_explicit(&hdr->write_idx, memory_order_relaxed);
+    uint32_t slots = hdr->slot_count;
+    double watermark = (slots > 0) ? (double)(w_idx % slots) / (double)slots : 0.0;
+    double drops = (double)atomic_load_explicit(&hdr->drop_count, memory_order_relaxed);
+    double shadow_writes = (double)atomic_load_explicit(&hub->metrics_shadow_writes,
+                                                        memory_order_relaxed);
+
+    edge_metrics_report(hub, 12001, watermark, 0);
+    edge_metrics_report(hub, 12002, drops, 0);
+    edge_metrics_report(hub, 12004, shadow_writes, 0);
+}
+
+int datahub_start_metrics(datahub_t *hub) {
+    if (!hub || !hub->loop) return -1;
+    if (hub->metrics_active) return 0;
+
+    uv_timer_init(hub->loop, &hub->metrics_timer);
+    hub->metrics_timer.data = hub;
+    hub->metrics_active = 1;
+    uv_timer_start(&hub->metrics_timer, _metrics_timer_cb, 100, 100);
+    return 0;
+}
+
+void datahub_stop_metrics(datahub_t *hub) {
+    if (!hub || !hub->metrics_active) return;
+    uv_timer_stop(&hub->metrics_timer);
+    if (!uv_is_closing((uv_handle_t *)&hub->metrics_timer)) {
+        uv_close((uv_handle_t *)&hub->metrics_timer, NULL);
+    }
+    hub->metrics_active = 0;
 }

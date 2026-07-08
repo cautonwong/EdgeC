@@ -34,6 +34,9 @@ if [ ! -f "CMakeCache.txt" ] || [ "$FORCE_CONF" = true ]; then
 fi
 cmake --build . -j$(nproc)
 
+# [ADR-0001] 编译期点表一致性校验
+"$PROJECT_ROOT/scripts/check_tag_consistency.sh" "$PROJECT_ROOT" || echo "⚠️  Tag consistency check skipped (non-fatal)"
+
 # [Nexus] Removed automatic ctest execution from build.sh to allow isolated integration testing.
 
 # ==============================================================================

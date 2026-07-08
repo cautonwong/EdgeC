@@ -38,6 +38,7 @@ func (m *PipeMsg) Scalar() (float64, int64) {
 type ShadowMatrix struct {
 	data []PipeMsg
 	file *os.File
+	name string // [ADR-0001] SHM name, used for FIFO-based event notification
 }
 
 // OpenShadowMatrix maps the DataHub shadow table from shared memory
@@ -63,6 +64,7 @@ func OpenShadowMatrix(name string, capacity uint32) (*ShadowMatrix, error) {
 	return &ShadowMatrix{
 		data: *(*[]PipeMsg)(unsafe.Pointer(header)),
 		file: f,
+		name: name,
 	}, nil
 }
 

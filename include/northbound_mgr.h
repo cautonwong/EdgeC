@@ -17,6 +17,13 @@ typedef struct {
     bool (*is_connected)(void* ctx);
 } nb_transport_ops_t;
 
+// 💡 [Consumer-Driven] 数据源抽象：Northbound 不再直接依赖 shm_ring_t
+typedef struct {
+    void* ctx;
+    /** 读取下一条消息。返回 0=有数据, 1=无数据, <0=错误 */
+    int (*read_next)(void* ctx, uint64_t* seq, pipe_msg_t* out);
+} nb_source_ops_t;
+
 typedef struct {
     uv_thread_t thread;
     uv_loop_t* loop;
@@ -24,7 +31,8 @@ typedef struct {
     uv_async_t stop_async;
     uv_async_t req_async;
 
-    shm_ring_t* ring;
+    // 💡 [Consumer-Driven] 使用抽象数据源代替直接 shm_ring_t 依赖
+    nb_source_ops_t source;
     uint64_t last_seq;
 
     void* user_data;
@@ -50,8 +58,8 @@ typedef struct {
     struct uv__queue node;
 } nb_req_entry_t;
 
-// 物理闭环初始化：注入 transport 实现
-int northbound_mgr_init_ex(northbound_mgr_t* mgr, shm_ring_t* ring, const char* product_name,
+// 物理闭环初始化：注入 source 和 transport 实现
+int northbound_mgr_init_ex(northbound_mgr_t* mgr, nb_source_ops_t source, const char* product_name,
                            struct sqlite_svc_s* db, nb_transport_ops_t transport);
 
 int northbound_mgr_start(northbound_mgr_t* mgr);

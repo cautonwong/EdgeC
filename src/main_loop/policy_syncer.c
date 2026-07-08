@@ -1,9 +1,17 @@
 #include "policy_syncer.h"
 
 #include <stdio.h>
+#include <string.h>
 
 #include "bus_orchestrator.h"
 #include "edge_log.h"
+
+// 💡 [Consumer-Driven] 静态存储注入的 IO 接口
+static policy_io_ops_t g_policy_io = {NULL, NULL, NULL};
+
+void policy_syncer_set_io(policy_io_ops_t ops) {
+    g_policy_io = ops;
+}
 
 int policy_syncer_run(sqlite_svc_t* db, bus_orchestrator_t* orch) {
     if (!db || !orch) return -1;

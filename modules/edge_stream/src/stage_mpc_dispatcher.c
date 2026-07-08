@@ -118,7 +118,7 @@ pipeline_stage_t *stage_mpc_dispatcher_create(uint32_t soc_tag, uint32_t out_pcs
     return s;
 }
 
-pipeline_stage_t *stage_mpc_dispatcher_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
+pipeline_stage_t *stage_mpc_dispatch_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
     (void)ctx;
     return stage_mpc_dispatcher_create(def->params.u1, def->params.u3, def->params.f1, def->params.f2, def->params.f3);
 }

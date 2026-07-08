@@ -148,8 +148,8 @@ func (b *CBackend) emitSource(contract *ir.ContractIR) error {
 	for _, p := range contract.Pipelines {
 		fmt.Fprintf(f, "static const edge_stage_def_t _stages_%s[] = {\n", p.ID)
 		for _, s := range p.Stages {
-			fmt.Fprintf(f, "    { \"%s\", \"%s\", { %f, %f, %f, %d, \"%s\" }, { %d, %d, %d, %d } },\n",
-				s.Name, s.Type, s.F1, s.F2, s.F3, s.U1, s.S1,
+			fmt.Fprintf(f, "    { \"%s\", \"%s\", { %f, %f, %f, %d, \"%s\", \"%s\", \"%s\", %d, %d }, { %d, %d, %d, %d } },\n",
+				s.Name, s.Type, s.F1, s.F2, s.F3, s.U1, s.S1, s.S2, s.S3, s.U2, s.U3,
 				s.NextIndices[0], s.NextIndices[1], s.NextIndices[2], s.NextIndices[3])
 		}
 		fmt.Fprintln(f, "};")

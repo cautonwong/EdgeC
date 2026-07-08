@@ -139,7 +139,7 @@ static void on_data_notify_timer(uv_timer_t* handle) {
     }
 
     PipeMsg msg;
-    while (shm_ring_read(mgr->ring, &mgr->last_seq, &msg) == 0) {
+    while (mgr->source.read_next && mgr->source.read_next(mgr->source.ctx, &mgr->last_seq, &msg) == 0) {
         if (msg.type == PIPEMSG_TYPE_SCALAR) {
             _push_to_transport(mgr, msg.tag_id, msg.payload.val.f, msg.ts);
         }
@@ -220,10 +220,10 @@ static void north_thread_entry(void* arg) {
     mgr->loop = NULL;
 }
 
-int northbound_mgr_init_ex(northbound_mgr_t* mgr, shm_ring_t* ring, const char* product_name,
+int northbound_mgr_init_ex(northbound_mgr_t* mgr, nb_source_ops_t source, const char* product_name,
                            struct sqlite_svc_s* db, nb_transport_ops_t transport) {
     memset(mgr, 0, sizeof(*mgr));
-    mgr->ring = ring;
+    mgr->source = source;
     mgr->db = db;
     strncpy(mgr->product_name, product_name, sizeof(mgr->product_name) - 1);
     mgr->transport = transport;
