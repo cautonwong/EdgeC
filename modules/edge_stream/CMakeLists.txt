@@ -38,4 +38,5 @@ add_library(edge_stream STATIC
 target_include_directories(edge_stream PUBLIC include)
 target_include_directories(edge_stream PRIVATE src/wasm_runtime)
 target_link_libraries(edge_stream PUBLIC edge_core edge_algo)
-target_link_libraries(edge_stream PRIVATE QuickJS::QuickJS iwasm::vmlib)
+find_package(OpenSSL REQUIRED)
+target_link_libraries(edge_stream PRIVATE QuickJS::QuickJS iwasm::vmlib OpenSSL::Crypto)

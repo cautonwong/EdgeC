@@ -3,8 +3,19 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdbool.h>
 #include "edge_log.h"
 #include "wasm_export.h"
+
+/* OpenSSL headers conflict with edge_log.h's '#define UI LOG_CAT_UI' */
+#undef UI
+#include <openssl/evp.h>
+#include <openssl/pem.h>
+#include <openssl/bio.h>
+#include <openssl/sha.h>
+
+/* Default public key path relative to CWD (used by wasm_app_create) */
+#define DEFAULT_PUBKEY_PATH "keys/edgec_signing_public.pem"
 
 static datahub_t *g_hub = NULL;
 static bool g_wasm_inited = false;
@@ -69,6 +80,58 @@ static char *read_file_to_buffer(const char *path, uint32_t *size) {
     return buf;
 }
 
+/**
+ * @brief Verify .wasm signature using RSA PKCS1v15-SHA256
+ * @return  1 = valid signature, 0 = skip (no sig/pubkey file), -1 = error / invalid
+ */
+static int verify_wasm_signature(const char *wasm_path, const char *pubkey_path,
+                                 const uint8_t *wasm_buf, uint32_t wasm_size) {
+    /* Build .wasm.sig path */
+    char sig_path[1024];
+    int ret = snprintf(sig_path, sizeof(sig_path), "%s.sig", wasm_path);
+    if (ret < 0 || (size_t)ret >= sizeof(sig_path)) return -1;
+
+    /* Read signature file */
+    uint32_t sig_size;
+    uint8_t *sig_buf = (uint8_t *)read_file_to_buffer(sig_path, &sig_size);
+    if (!sig_buf) return 0; /* No sig file → skip (backward compat) */
+
+    /* Read public key */
+    BIO *bio = BIO_new_file(pubkey_path, "rb");
+    if (!bio) {
+        free(sig_buf);
+        return 0; /* No pubkey → skip (backward compat) */
+    }
+
+    EVP_PKEY *pkey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
+    BIO_free(bio);
+    if (!pkey) {
+        free(sig_buf);
+        LOG_ERROR(LOG_CAT_CORE, "WASM Verify: failed to parse public key %s", pubkey_path);
+        return -1;
+    }
+
+    /* Verify using EVP API (PKCS1v15 SHA256) */
+    EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+    int ok = EVP_DigestVerifyInit(ctx, NULL, EVP_sha256(), NULL, pkey);
+    if (ok == 1) ok = EVP_DigestVerifyUpdate(ctx, wasm_buf, wasm_size);
+    if (ok == 1) ok = EVP_DigestVerifyFinal(ctx, sig_buf, sig_size);
+
+    EVP_MD_CTX_free(ctx);
+    EVP_PKEY_free(pkey);
+    free(sig_buf);
+
+    if (ok == 1) {
+        LOG_INFO(LOG_CAT_CORE, "WASM Verify: signature VALID for %s", wasm_path);
+    } else if (ok == 0) {
+        LOG_ERROR(LOG_CAT_CORE, "WASM Verify: signature INVALID for %s", wasm_path);
+    } else {
+        LOG_ERROR(LOG_CAT_CORE, "WASM Verify: verification error for %s", wasm_path);
+    }
+
+    return ok;
+}
+
 int wasm_mgr_init(datahub_t *hub) {
     if (g_wasm_inited) {
         g_hub = hub;
@@ -94,10 +157,38 @@ void wasm_mgr_cleanup(void) {
     }
 }
 
-wasm_app_t *wasm_app_create(const char *wasm_path, uint32_t heap_size, uint32_t stack_size, uint32_t timeout_ms) {
+/**
+ * @brief Internal: create wasm_app from already-loaded buffer and verify optional signature.
+ * @param verify_path  path used to derive .wasm.sig (can be NULL to skip file-based verify)
+ * @param pubkey_path  public key PEM path (only used when verify_path is non-NULL)
+ * @param require_verify  if true, fail when sig/pubkey files are missing
+ */
+static wasm_app_t *wasm_app_create_internal(const char *wasm_path, uint32_t heap_size,
+                                            uint32_t stack_size, uint32_t timeout_ms,
+                                            const char *pubkey_path, bool require_verify) {
     uint32_t wasm_size;
     uint8_t *buf = (uint8_t *)read_file_to_buffer(wasm_path, &wasm_size);
     if (!buf) return NULL;
+
+    /* Signature verification */
+    if (pubkey_path) {
+        int vret = verify_wasm_signature(wasm_path, pubkey_path, buf, wasm_size);
+        if (vret < 0) {
+            /* Error during verification → fail */
+            LOG_ERROR(LOG_CAT_CORE, "WASM Verify: verification FAILED for %s", wasm_path);
+            free(buf);
+            return NULL;
+        }
+        if (vret == 0) {
+            /* No sig/pubkey files found */
+            if (require_verify) {
+                LOG_ERROR(LOG_CAT_CORE, "WASM Verify: mandatory verification FAILED (no sig/pubkey) for %s", wasm_path);
+                free(buf);
+                return NULL;
+            }
+            LOG_INFO(LOG_CAT_CORE, "WASM Verify: skipped (no sig/pubkey) for %s", wasm_path);
+        }
+    }
 
     wasm_app_t *app = calloc(1, sizeof(wasm_app_t));
     app->wasm_buf = buf;
@@ -119,6 +210,19 @@ wasm_app_t *wasm_app_create(const char *wasm_path, uint32_t heap_size, uint32_t 
     }
 
     return app;
+}
+
+wasm_app_t *wasm_app_create(const char *wasm_path, uint32_t heap_size, uint32_t stack_size, uint32_t timeout_ms) {
+    return wasm_app_create_internal(wasm_path, heap_size, stack_size, timeout_ms,
+                                    DEFAULT_PUBKEY_PATH, false);
+}
+
+wasm_app_t *wasm_app_create_verify(const char *wasm_path, uint32_t heap_size,
+                                   uint32_t stack_size, uint32_t timeout_ms,
+                                   const char *pubkey_path) {
+    if (!pubkey_path) return NULL;
+    return wasm_app_create_internal(wasm_path, heap_size, stack_size, timeout_ms,
+                                    pubkey_path, true);
 }
 
 typedef struct {

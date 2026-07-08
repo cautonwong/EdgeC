@@ -10,6 +10,7 @@ set(IO_SOURCES
     src/passthrough_mgr.c
     src/protocol_bridge.c
     src/cloud_sync_service.c
+    src/edge_agent.c
     src/rest_server.c
     src/web_server.c
     src/ws_proto.c

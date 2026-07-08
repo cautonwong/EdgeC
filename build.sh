@@ -15,6 +15,22 @@ for arg in "$@"; do
     fi
 done
 
+# ==============================================================================
+# make-keys: 生成 RSA 签名密钥对 (WASM 签名链)
+# ==============================================================================
+if [ "$1" == "make-keys" ]; then
+    KEYS_DIR="$PROJECT_ROOT/keys"
+    mkdir -p "$KEYS_DIR"
+    PRIV="$KEYS_DIR/edgec_signing_private.pem"
+    PUB="$KEYS_DIR/edgec_signing_public.pem"
+    openssl genrsa -out "$PRIV" 2048
+    openssl rsa -in "$PRIV" -pubout -out "$PUB"
+    echo "=== Keys generated ==="
+    echo "  Private: $PRIV"
+    echo "  Public:  $PUB"
+    exit 0
+fi
+
 echo "=== [1/3] Building Native (x86_64) ==="
 
 # 代码格式化

@@ -4,9 +4,16 @@ import (
 	"contract-compiler-v2/internal/backend"
 	"contract-compiler-v2/internal/frontend"
 	"contract-compiler-v2/internal/optimizer"
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/pem"
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
 func main() {
@@ -15,6 +22,7 @@ func main() {
 	out := flag.String("out", "", "Output directory")
 	base := flag.String("base", ".", "Base directory for includes")
 	outputFormat := flag.String("output-format", "all", "Output format: all, blob, c, go, ts")
+	signKey := flag.String("sign", "", "Path to RSA private key for signing .wasm output")
 	flag.Parse()
 
 	if *product == "" || *out == "" {
@@ -89,6 +97,61 @@ func main() {
 		}
 	}
 
+	// Sign .wasm output if requested
+	if *signKey != "" {
+		wasmPath := filepath.Join(*out, ast.ProductName+".wasm")
+		if err := signWasmFile(wasmPath, *signKey); err != nil {
+			fmt.Printf("  ⚠️  Signing skipped: %v\n", err)
+		}
+	}
+
 	fmt.Printf("  ✨ Backend: All artifacts emitted to %s\n", *out)
 
+}
+
+// signWasmFile reads a .wasm file, computes SHA256, and signs with the given RSA private key.
+// The signature is written to <wasmPath>.sig in PKCS1v15-SHA256 format.
+func signWasmFile(wasmPath, keyPath string) error {
+	wasmData, err := os.ReadFile(wasmPath)
+	if err != nil {
+		return fmt.Errorf("cannot read %s: %v", wasmPath, err)
+	}
+
+	hash := sha256.Sum256(wasmData)
+
+	keyData, err := os.ReadFile(keyPath)
+	if err != nil {
+		return fmt.Errorf("cannot read key %s: %v", keyPath, err)
+	}
+
+	block, _ := pem.Decode(keyData)
+	if block == nil {
+		return fmt.Errorf("invalid PEM data in %s", keyPath)
+	}
+
+	priv, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		priv, err = x509.ParsePKCS1PrivateKey(block.Bytes)
+		if err != nil {
+			return fmt.Errorf("failed to parse private key: %v", err)
+		}
+	}
+
+	rsaKey, ok := priv.(*rsa.PrivateKey)
+	if !ok {
+		return fmt.Errorf("key is not RSA (got %T)", priv)
+	}
+
+	sig, err := rsa.SignPKCS1v15(rand.Reader, rsaKey, crypto.SHA256, hash[:])
+	if err != nil {
+		return fmt.Errorf("signing failed: %v", err)
+	}
+
+	sigPath := wasmPath + ".sig"
+	if err := os.WriteFile(sigPath, sig, 0644); err != nil {
+		return fmt.Errorf("cannot write %s: %v", sigPath, err)
+	}
+
+	fmt.Printf("  ✅ Signature written to %s\n", sigPath)
+	return nil
 }
