@@ -45,3 +45,4 @@ third-party/.west
 third-party/modules
 third-party/tools
 .local/linux-x86_64/bin/contract-compiler
+go/edge-ops
