@@ -207,3 +207,44 @@ int wasm_scheduler_unload_app(wasm_scheduler_t *sched, const char *name) {
     uv_mutex_unlock(&sched->lock);
     return -1;
 }
+
+int wasm_scheduler_reload_app(wasm_scheduler_t *sched, const char *name, const char *wasm_path, uint32_t heap_size, uint32_t stack_size, uint32_t timeout_ms) {
+    if (!sched || !name || !wasm_path) return -1;
+
+    uv_mutex_lock(&sched->lock);
+    
+    // Find if app name already exists
+    wasm_scheduled_app_t *curr = sched->apps_head;
+    while (curr) {
+        if (strcmp(curr->name, name) == 0) {
+            break;
+        }
+        curr = curr->next;
+    }
+
+    if (!curr) {
+        LOG_ERROR(LOG_CAT_CORE, "WASM Scheduler: App '%s' not found for reload", name);
+        uv_mutex_unlock(&sched->lock);
+        return -1;
+    }
+
+    // Create new WASM container first to ensure it's valid before discarding the old one
+    wasm_app_t *new_wasm_app = wasm_app_create(wasm_path, heap_size, stack_size, timeout_ms);
+    if (!new_wasm_app) {
+        LOG_ERROR(LOG_CAT_CORE, "WASM Scheduler: Failed to create new app container for reload of '%s'", name);
+        uv_mutex_unlock(&sched->lock);
+        return -1;
+    }
+
+    // Destroy old container
+    if (curr->app) {
+        wasm_app_destroy(curr->app);
+    }
+    
+    curr->app = new_wasm_app;
+    curr->active = true;
+
+    LOG_INFO(LOG_CAT_CORE, "WASM Scheduler: App '%s' hot-reloaded successfully", name);
+    uv_mutex_unlock(&sched->lock);
+    return 0;
+}

@@ -350,20 +350,62 @@ static char *handle_apps_upload(service_t *svc, const char *body) {
         return strdup("{\"status\":\"error\",\"reason\":\"no_engine\"}");
     }
 
-    pipeline_t *p = stream_engine_add_pipeline(engine, name, trigger_tag);
-    if (!p) {
-        cJSON_Delete(root);
-        return strdup("{\"status\":\"error\",\"reason\":\"pipeline_creation_failed\"}");
+    pipeline_t *p = NULL;
+    // Check if pipeline with the same name already exists
+    uv_mutex_lock(&engine->pipe_mutex);
+    struct uv__queue *q;
+    uv__queue_foreach(q, &engine->pipelines) {
+        pipeline_t *curr = uv__queue_data(q, pipeline_t, node);
+        if (strcmp(curr->id, name) == 0) {
+            p = curr;
+            break;
+        }
     }
+    uv_mutex_unlock(&engine->pipe_mutex);
 
-    pipeline_stage_t *st = stage_wasm_create(wasm_path, entry_func);
-    if (!st) {
-        cJSON_Delete(root);
-        return strdup("{\"status\":\"error\",\"reason\":\"stage_creation_failed\"}");
+    if (p) {
+        // Hot-reload case
+        pipeline_stage_t *st = stage_wasm_create(wasm_path, entry_func);
+        if (!st) {
+            cJSON_Delete(root);
+            return strdup("{\"status\":\"error\",\"reason\":\"stage_creation_failed\"}");
+        }
+
+        // Clean up old stages
+        uv_mutex_lock(&engine->pipe_mutex);
+        pipeline_stage_t *s = p->head;
+        while (s) {
+            pipeline_stage_t *next_s = s->next[0];
+            if (s->cleanup_state) s->cleanup_state(s->priv_state);
+            if (s->cleanup_cfg) s->cleanup_cfg(s->priv_cfg);
+            free(s);
+            s = next_s;
+        }
+        p->head = NULL;
+        p->trigger_tag = trigger_tag; // Update trigger tag if changed
+        uv_mutex_unlock(&engine->pipe_mutex);
+
+        // Add the new stage
+        pipeline_add_stage(p, st->name, st->process, st->priv_state, st->cleanup_state, st->priv_cfg, st->cleanup_cfg);
+        free(st);
+        LOG_INFO(LOG_CAT_CORE, "[REST] App '%s' hot-reloaded successfully on trigger_tag %u", name, trigger_tag);
+    } else {
+        // New upload case
+        p = stream_engine_add_pipeline(engine, name, trigger_tag);
+        if (!p) {
+            cJSON_Delete(root);
+            return strdup("{\"status\":\"error\",\"reason\":\"pipeline_creation_failed\"}");
+        }
+
+        pipeline_stage_t *st = stage_wasm_create(wasm_path, entry_func);
+        if (!st) {
+            cJSON_Delete(root);
+            return strdup("{\"status\":\"error\",\"reason\":\"stage_creation_failed\"}");
+        }
+
+        pipeline_add_stage(p, st->name, st->process, st->priv_state, st->cleanup_state, st->priv_cfg, st->cleanup_cfg);
+        free(st);
     }
-
-    pipeline_add_stage(p, st->name, st->process, st->priv_state, st->cleanup_state, st->priv_cfg, st->cleanup_cfg);
-    free(st);
 
     cJSON_Delete(root);
     return strdup("{\"status\":\"ok\"}");

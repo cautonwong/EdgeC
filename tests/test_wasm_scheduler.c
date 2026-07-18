@@ -79,9 +79,47 @@ static void test_wasm_scheduler_lifecycle(void** state) {
     while (uv_run(loop, UV_RUN_NOWAIT));
 }
 
+static void test_wasm_scheduler_reload(void** state) {
+    (void)state;
+
+    // 1. Initialize DataHub
+    datahub_t hub;
+    uv_loop_t* loop = uv_default_loop();
+    int rc = datahub_init(&hub, loop, "wasm_reload_hub", 128, 10000, NULL, 0, NULL, NULL, NULL);
+    assert_int_equal(rc, 0);
+
+    // 2. Initialize WASM Manager
+    wasm_mgr_init(&hub);
+
+    // 3. Create WASM Scheduler
+    wasm_scheduler_t *sched = wasm_scheduler_create(&hub, loop, 10);
+    assert_non_null(sched);
+
+    // 4. Load demo.wasm
+    const char* wasm_path = "../../algo/wasm/demo/demo.wasm";
+    rc = wasm_scheduler_load_app(sched, "reload_app", wasm_path, 16384, 16384, 100);
+    assert_int_equal(rc, 0);
+
+    // 5. Try to reload with same file
+    rc = wasm_scheduler_reload_app(sched, "reload_app", wasm_path, 16384, 16384, 100);
+    assert_int_equal(rc, 0);
+
+    // 6. Try to reload non-existent app, should fail
+    rc = wasm_scheduler_reload_app(sched, "non_existent_app", wasm_path, 16384, 16384, 100);
+    assert_int_equal(rc, -1);
+
+    // 7. Cleanup
+    wasm_scheduler_unload_app(sched, "reload_app");
+    wasm_scheduler_destroy(sched);
+    wasm_mgr_cleanup();
+    datahub_destroy(&hub);
+    while (uv_run(loop, UV_RUN_NOWAIT));
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_wasm_scheduler_lifecycle),
+        cmocka_unit_test(test_wasm_scheduler_reload),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

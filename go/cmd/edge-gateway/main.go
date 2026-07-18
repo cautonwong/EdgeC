@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -44,7 +45,8 @@ var (
 		{Name: "core_api", Port: 8080, Prefix: "/api/v1/hub/", Status: "online"},
 		{Name: "vpp_algo", Port: 8081, Prefix: "/api/v1/algo/", Status: "online"},
 		{Name: "c_rest", Port: 9091, Prefix: "/api/v1/", Status: "online"},
-		{Name: "ui_host", Port: 8082, Prefix: "/", Status: "online"}, // Fallback for UI assets
+		{Name: "ui_host", Port: 8082, Prefix: "/ui/", Status: "online"},
+		{Name: "ui_host_fallback", Port: 8082, Prefix: "/", Status: "online"}, // Fallback for UI assets
 	}
 	proxies        = make(map[string]*httputil.ReverseProxy)
 	fusedTagsLock  sync.RWMutex
@@ -79,6 +81,20 @@ func handleDiscovery(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleSystemStatsMock(w http.ResponseWriter, r *http.Request) {
+	// Try to get real stats from C REST service
+	cURL := "http://127.0.0.1:9091/api/v1/system/stats"
+	client := &http.Client{Timeout: 500 * time.Millisecond}
+	resp, err := client.Get(cURL)
+	if err == nil {
+		defer resp.Body.Close()
+		if resp.StatusCode == http.StatusOK {
+			w.Header().Set("Content-Type", "application/json")
+			io.Copy(w, resp.Body)
+			return
+		}
+	}
+
+	// Fallback to mock data if C service is offline or returned error
 	buses := make([]map[string]interface{}, 32)
 	for i := 0; i < 32; i++ {
 		busy := rand.Float32() < 0.25
@@ -316,6 +332,12 @@ func main() {
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-EdgeOS-Gateway", "2.0-Mesh")
 
+		// Handle /ui redirect to /ui/ to ensure relative assets load correctly.
+		if r.URL.Path == "/ui" {
+			http.Redirect(w, r, "/ui/", http.StatusMovedPermanently)
+			return
+		}
+
 		// 🟢 [TSK-02] 检查是否匹配私有 API 命名空间: /api/v1/services/{service_name}/private/
 		if strings.HasPrefix(r.URL.Path, "/api/v1/services/") {
 			parts := strings.Split(r.URL.Path, "/")
@@ -367,15 +389,24 @@ func main() {
 
 		var bestMatch *httputil.ReverseProxy
 		bestLen := -1
+		var matchedPrefix string
 
 		for prefix, proxy := range proxies {
 			if strings.HasPrefix(r.URL.Path, prefix) && len(prefix) > bestLen {
 				bestMatch = proxy
 				bestLen = len(prefix)
+				matchedPrefix = prefix
 			}
 		}
 
 		if bestMatch != nil {
+			// If we matched the "/ui/" prefix, strip it so the static asset server (ui_host) receives relative paths.
+			if matchedPrefix == "/ui/" {
+				originalPath := r.URL.Path
+				r.URL.Path = "/" + strings.TrimPrefix(originalPath, "/ui/")
+				r.URL.RawPath = "/" + strings.TrimPrefix(originalPath, "/ui/")
+				log.Printf("[Gateway-Route] Stripped /ui/ prefix from %s -> %s", originalPath, r.URL.Path)
+			}
 			bestMatch.ServeHTTP(w, r)
 		} else {
 			api.RespondError(w, http.StatusNotFound, "Route not found in Gateway", ServiceName)
@@ -388,14 +419,28 @@ func main() {
 	}
 	handler := api.Chain(mux, api.LoggerMiddleware, recovery)
 
+	portStr := "80"
+	if envPort := os.Getenv("GATEWAY_PORT"); envPort != "" {
+		portStr = envPort
+	}
+	addr := ":" + portStr
+
 	server := &http.Server{
-		Addr:    ":8000",
+		Addr:    addr,
 		Handler: handler,
 	}
 
-	log.Printf("Starting %s (with Mesh Routing) on port 8000...", ServiceName)
+	log.Printf("Starting %s (with Mesh Routing) on port %s...", ServiceName, portStr)
 	if err := server.ListenAndServe(); err != nil {
-		log.Fatalf("Gateway failed: %v", err)
+		if strings.Contains(err.Error(), "permission denied") && portStr == "80" {
+			log.Printf("Failed to bind to port 80 (permission denied). Falling back to port 8000...")
+			server.Addr = ":8000"
+			if errFallback := server.ListenAndServe(); errFallback != nil {
+				log.Fatalf("Gateway failed: %v", errFallback)
+			}
+		} else {
+			log.Fatalf("Gateway failed: %v", err)
+		}
 	}
 }
 
