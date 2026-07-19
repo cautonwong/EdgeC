@@ -45,6 +45,10 @@ var (
 		{Name: "core_api", Port: 8080, Prefix: "/api/v1/hub/", Status: "online"},
 		{Name: "vpp_algo", Port: 8081, Prefix: "/api/v1/algo/", Status: "online"},
 		{Name: "c_rest", Port: 9091, Prefix: "/api/v1/", Status: "online"},
+		{Name: "smart_box_gateway", Port: 8083, Prefix: "/api/v1/privacy/", Status: "online"},
+		{Name: "smart_box_gateway", Port: 8083, Prefix: "/api/v1/blockchain/", Status: "online"},
+		{Name: "smart_box_gateway", Port: 8083, Prefix: "/api/v1/ui/cast", Status: "online"},
+		{Name: "smart_box_gateway", Port: 8083, Prefix: "/api/v1/monetization/", Status: "online"},
 		{Name: "ui_host", Port: 8082, Prefix: "/ui/", Status: "online"},
 		{Name: "ui_host_fallback", Port: 8082, Prefix: "/", Status: "online"}, // Fallback for UI assets
 	}
