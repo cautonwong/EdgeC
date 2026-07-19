@@ -9,9 +9,21 @@ set_target_properties(smart_box PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/products/smart_box/bin"
 )
 target_link_libraries(smart_box PRIVATE 
-    edge_stream 
-    edge_core
+    -Wl,--start-group
+    edge_io
+    -Wl,--whole-archive
+    edge_stream
+    -Wl,--no-whole-archive
     edge_security
+    edge_core
     edge_protocol
+    -Wl,--end-group
     contract_smart_box
+    crypto
+    ssl
 )
+
+if(ENABLE_WEB_BUILD)
+    add_web_product(smart_box "${CMAKE_SOURCE_DIR}/web/products/smart_box")
+    add_dependencies(smart_box web_ui_smart_box)
+endif()

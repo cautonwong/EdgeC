@@ -39,8 +39,14 @@ static int wasm_host_set_tag(wasm_exec_env_t exec_env, uint32_t tag_id, double v
     if (!g_hub) return -1;
     pipe_msg_t msg;
     pipe_msg_init_scalar(&msg, tag_id, value, uv_hrtime());
-    // Safe write to the shadow matrix
-    return datahub_write_shadow_idx(g_hub, tag_id, &msg);
+    int idx = -1;
+    if (g_hub->map_fn_v2) {
+        idx = g_hub->map_fn_v2(tag_id, 0);
+    } else if (g_hub->map_fn) {
+        idx = g_hub->map_fn(tag_id);
+    }
+    if (idx < 0) idx = (int)tag_id;
+    return datahub_write_shadow_idx(g_hub, idx, &msg);
 }
 
 static void wasm_host_log(wasm_exec_env_t exec_env, uint32_t level, const char *host_msg) {
