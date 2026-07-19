@@ -60,20 +60,55 @@
 ### 2.2 共享内存 (SHM) 内存布局与对齐
 底座初始化时，在系统中开辟共享内存区：
 - **SHM 物理文件**：`/dev/shm/edgeos_shadow_matrix`
-- **内存对齐与格式**：每个 Tag 单元严格对齐 `sizeof(pipe_msg_t)` (32字节)。
+- **内存对齐与格式**：每个 Tag 单元严格对齐 `sizeof(pipe_msg_t)` (64字节)。
   ```c
   typedef struct {
-      uint32_t tag_id;       // 4字节
-      uint32_t msg_type;     // 4字节 (0=Scalar, 1=Buffer)
-      uint64_t timestamp;    // 8字节 (MTT 纳秒时间戳)
+      uint8_t priority;
+      uint8_t source_id;
+      uint8_t _res[5];       // 占用 7 字节，确保 Header 属性部分对齐
+  } PipeMsgAttr;
+
+  typedef struct {
+      uint64_t ts;          // 8字节 (MTT 纳秒时间戳)
+      uint32_t tag_id;      // 4字节
+      uint32_t device_id;   // 4字节
+      uint16_t type;        // 2字节 (如 PIPEMSG_TYPE_SCALAR)
+      uint16_t state;       // 2字节
+      uint32_t drop_reason; // 4字节
+      uint8_t quality;      // 1字节
+      PipeMsgAttr attr;     // 7字节
+
       union {
-          double f;          // 8字节 浮点数值
-          uint64_t i;        // 8字节 整型数值
-      } payload;
-      uint32_t reserved;     // 4字节 预留对齐
-  } pipe_msg_t;
+          struct {
+              double f;      // 8字节 浮点值
+              int64_t i;     // 8字节 整型值
+          } val;
+
+          struct {
+              void *ptr;
+              int fd;
+              size_t len;
+              void (*free_cb)(void *);
+          } ref;
+
+          struct {
+              void *ptr;
+              int count;
+          } batch;
+
+          struct {
+              uint32_t event_id;
+              uint32_t param;
+          } event;
+      } payload;            // 起始偏移量 32 字节
+  } PipeMsg;
+
+  typedef PipeMsg pipe_msg_t;
+  _Static_assert(sizeof(PipeMsg) == 64, "PipeMsg must be 64 bytes");
   ```
-- Go 语言端利用 `sys/unix` 的 `Mmap` 零拷贝映射此文件，直接按偏移量读取原始浮点数，完全避免进程间频繁系统调用的性能开销。
+- Go 语言端利用 `sys/unix` 的 `Mmap` 零拷贝映射此文件，直接按偏移量读取原始值与类型，完全避免进程间频繁系统调用的性能开销。
+- smartbox.yaml 点表定义中的 Tag ID，将经由 `edge_tag_get_compact_index` 映射为 compact index，并在 `on_tick` 的 Wasm 读取中进行标量判定与处理。对于多维原始数据（如三轴加速度），采用 `PIPEMSG_TYPE_REF` 或 `PIPEMSG_TYPE_BATCH` 指针进行缓冲区交互。
+```
 
 ### 2.3 Unix 域套接字 (UDS) 控制层协议
 对于非周期的控制指令（如：开始 BLE 扫描、触发投屏、修改隐私模式状态），C 与 Go 通过 `/tmp/smart_box_ipc.sock` 传输自定义二进制报文：
@@ -82,7 +117,7 @@
 | :--- | :--- | :--- | :--- |
 | **0 - 1** | `Magic` | `uint16_t` | 帧头魔数，固定为 `0x5342` ("SB") |
 | **2** | `MsgType` | `uint8_t` | 指令类型 (1=设置隐私模式, 2=启动设备扫描, 3=SOS报警事件, 4=OTA触发) |
-| **3** | `Length` | `uint8_t` | 数据负载长度 $N$ |
+| **3** | `Length` | `uint8_t` | 数据负载长度 $N$（物理上限严格限制为 `MaxPayload = 255` 字节。接收解析时必须进行长度合法性截断校验，丢弃任何非法的越界帧） |
 | **4 - (4+N-1)**| `Payload` | `uint8_t[N]` | 指令参数 payload |
 | **4+N** | `Checksum` | `uint8_t` | 异或校验和 (XOR Checksum) |
 
@@ -211,7 +246,7 @@
    - 读取 CPU 唯一序列号（从 `/proc/cpuinfo` 提取 `Serial` 字段），与硬编码的物理盐值做 **PBKDF2-HMAC-SHA256**（迭代 10000 次），生成 256 位密钥。
 2. **加密算法逻辑**：
    - 每次加密产生一个随机的 12-byte 初始向量 (IV)。
-   - 使用 AES-GCM 算法对浮点数/字符串形式的健康指标进行加密，输出密文 `ciphertext` 和 16-byte 的认证标签 `auth_tag`。
+   - 使用 AES-GCM 算法对浮点数/字符串形式的健康指标进行加密，输出密文 `ciphertext` 和由 `aesgcm.Overhead()`（默认为 16 字节）确定的认证标签 `auth_tag`，严禁在提取时硬编码魔数 16。
 
 ### 4.3 GDPR 被遗忘权与物理零擦除接口 (`/api/v1/privacy/purge`)
 当用户在 Vue UI 上点击“被遗忘权”注销时，Go 网关执行以下擦除：
@@ -224,15 +259,16 @@
    DELETE FROM blockchain_receipts;
    COMMIT;
    ```
-3. **物理碎片重整**：紧随删除操作之后，执行 **`VACUUM;`** 命令。SQLite 会物理重写整个数据库文件，将所有已删除数据对应的磁盘页清零并重新紧实，实现数据级物理毁灭。
+3. **物理碎片重整**：在事务提交之后，在全局 `g.mu.Lock()` 互斥锁的保护下，在主连接上独立执行 **`VACUUM;`** 命令（不得处于任何活跃事务内）。由于 `VACUUM` 会请求独占数据库排他锁，互斥锁保护可防止任何并发的读取或写入操作导致 SQLite 锁冲突失败。SQLite 会物理重写数据库文件，将所有已删除页数据清零重构。
 
 ### C.4 区块链存证机制
 1. **设备密钥对**：在 `/workspaces/edgeos/EdgeC/keys/` 目录下生成独一无二的私钥 `smartbox_private.pem` 和公钥 `smartbox_public.pem`。
-2. **存证逻辑**：
-   - 每晚零点，Go 网关将用户一整天的步态、心率告警频次打包为 JSON 并计算哈希：
-     $$Hash = SHA256(JSON\_Record)$$
+2. **存证逻辑与防重放**：
+   - 为彻底规避重放攻击风险，计算哈希时除打包 JSON 记录外，必须强行拼装毫秒级高精度时间戳（或随机 Nonce）：
+     $$Hash = SHA256(JSON\_Record \parallel "-" \parallel Timestamp)$$
    - 用本地 ECDSA 私钥对该 Hash 进行签名：
-     $$Signature = ECDSA\_Sign(Hash, PrivateKey)$$
+     $$r, s = ECDSA\_Sign(Hash, PrivateKey)$$
+   - **签名固定编码规则**：将大整数 $r$ 和 $s$ 各自通过 `FillBytes` 或零填充形式转换为固定 **32 字节** 长度的大端字节数组，拼接为固定 **64 字节** 的 `r || s` 格式（如：`sigBytes := append(rBytes, sBytes...)`），随后进行 Base64 编码，避免首位为零时长度缩水导致的解析越界。
    - 将签名和哈希推送到云端存证节点，并将 `tx_hash`、`record_hash` 和 `signature` 写入本地 `blockchain_receipts` 表。
 
 ---
@@ -363,3 +399,39 @@ Go 后端服务通过 HTTP 客户端连接云端大模型，实现流式自然�
 
 ### 7.4 物理大按钮 (GPIO 26) 触发 U 盘救砖自愈
 在上电瞬间，U-Boot 检测到 `GPIO_26`（物理 SOS 大按钮）被持续拉低 5 秒以上，进入 `USB Recovery Mode`，提示黄灯常亮。挂载插入盒子的 FAT32 格式 U 盘第一分区 `/dev/sda1`，执行 `/recovery.sh` 脚本，格式化并重新提取原厂固件 `golden_firmware.tar.gz` 写入系统 A 分区，并重置 U-Boot 引导环境变量，实现脱机救砖自愈。
+
+---
+
+## 八、 未来扩展与 PRD 遗漏补充 (PRD Requirements Coverage & Future Extensions)
+
+为响应产品需求文档 (PRD) 对物联网边缘及慢病看护的规划，设计对以下 PRD 未覆盖模块进行预架构拓展：
+
+### 8.1 Zigbee / LoRa 双物联网中枢物理接入 (PRD §2.1)
+1. **Zigbee 模块**：
+   - 接入引脚：USB /dev/ttyUSB0 (内部集成 EZSP 协议转换器，波特率 115200)。
+   - 驱动机制：C 底座加载内置 `zigbee_driver`，在独立的事件轮询中读取串口数据帧，解析出环境传感器（如养老院温湿度、漏水探头）状态，并映射写入 DataHub。
+2. **LoRa 模块 (USB接入)**：
+   - 物理通道：`/dev/ttyUSB1` (波特率 9600)，采用标准 AT 指令控制射频模块。
+   - 轮询策略：每 5 秒发起一次接收状态检索，处理家庭周界围栏告警信号，保障断网环境下的超长距离传感器应急接入。
+
+### 8.2 慢病管理模块与健康数据采集 (PRD §6.2)
+1. **血糖仪与血压计**：
+   - 采用标准 BLE GATT 规范协议进行绑定与数据同步：
+     - 血糖监测服务：GATT UUID `0x1808` (Glucose Service)。
+     - 血压监测服务：GATT UUID `0x1810` (Blood Pressure Service)。
+   - 数据捕获后，写入 DataHub 专用 Tag，由 Go 网关读取后通过 AES-256-GCM 密文插入 `sensitive_records` 表，记录为本地历史档案。
+
+### 8.3 云端双向双备份 mTLS 传输与增量同步机制 (PRD §3.1.1)
+1. **端到端加密传输**：
+   - Go 网关与云端服务器之间的所有 REST/MQTT 通信强制开启双向 TLS 认证 (mTLS)，客户端证书 `client_cert.pem` 由设备出厂阶段写入只读分区 `/dev/mtd1` 并由硬件加密卡保护。
+2. **云端增量同步与备份**：
+   - Go 网关在每天凌晨 2:00 生成增量 SQLite 数据备份。
+   - 使用设备 PBKDF2 派生密钥对备份数据库进行对称加密打包（`tar.gz.aes`），并通过 HTTPS mTLS 安全通道上传至远程云端备份服务器，确保“本地+云端”双备份安全性。
+
+### 8.4 本地语音识别引擎与视音频采集管线 (PRD §5.3.1, §4.5)
+1. **本地语音识别 (ASR/TTS)**：
+   - 基于轻量级 ASR 引擎（如 Sherpa-onnx），以独立守护进程常驻，通过 `/proc/asound` ALSA 音频直读。
+   - 识别结果经分词转换为意图 JSON，通过 UDS 通道发送给 Go 网关。
+2. **视频与音频物理开关逻辑**：
+   - 当 `PRIVACY_MODE_ACTIVE = 1` 时，GPIO 29/31 强制切断摄像头与麦克风 VCC 物理供电线，从源头上杜绝黑客通过驱动溢出越权开启视音频监听的物理安全红线。
+   - 在隐私模式关闭时，使用 standard V4L2 与 ALSA 驱动捕获多媒体流，支持紧急救援视频通话。
