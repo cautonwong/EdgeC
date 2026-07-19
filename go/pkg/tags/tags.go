@@ -31,6 +31,18 @@ const (
 	SYS_NETBUF_PEAK = 11003
 	SYS_NETBUF_LEAK_RECLAIM = 11004
 	SYS_PIPE_QUEUE_DEPTH = 11005
+	BOX_SYSTEM_STATUS = 12001
+	BOX_INDICATOR_LED = 12002
+	BOX_FALL_ALERT = 12003
+	BOX_HEART_RATE_ALERT = 12004
+	RAW_HEART_RATE = 12005
+	RAW_ACCELERATION = 12006
+	REHAB_COMPLETION_RATE = 12007
+	PRIVACY_MODE_ACTIVE = 12008
+	SYS_POWER_SOURCE = 12009
+	BOX_VOICE_COMMAND = 12010
+	BOX_USER_COINS = 12011
+	BOX_CURRENT_SCENE = 12012
 )
 
 type TagMetadata struct {
@@ -69,4 +81,16 @@ var Metadata = map[uint32]TagMetadata{
 	11003: {ID: 11003, Name: "SYS_NETBUF_PEAK", DataType: "int", Unit: ""},
 	11004: {ID: 11004, Name: "SYS_NETBUF_LEAK_RECLAIM", DataType: "int", Unit: ""},
 	11005: {ID: 11005, Name: "SYS_PIPE_QUEUE_DEPTH", DataType: "int", Unit: ""},
+	12001: {ID: 12001, Name: "BOX_SYSTEM_STATUS", DataType: "int", Unit: ""},
+	12002: {ID: 12002, Name: "BOX_INDICATOR_LED", DataType: "int", Unit: ""},
+	12003: {ID: 12003, Name: "BOX_FALL_ALERT", DataType: "int", Unit: ""},
+	12004: {ID: 12004, Name: "BOX_HEART_RATE_ALERT", DataType: "int", Unit: ""},
+	12005: {ID: 12005, Name: "RAW_HEART_RATE", DataType: "float", Unit: ""},
+	12006: {ID: 12006, Name: "RAW_ACCELERATION", DataType: "float", Unit: ""},
+	12007: {ID: 12007, Name: "REHAB_COMPLETION_RATE", DataType: "float", Unit: ""},
+	12008: {ID: 12008, Name: "PRIVACY_MODE_ACTIVE", DataType: "int", Unit: ""},
+	12009: {ID: 12009, Name: "SYS_POWER_SOURCE", DataType: "int", Unit: ""},
+	12010: {ID: 12010, Name: "BOX_VOICE_COMMAND", DataType: "int", Unit: ""},
+	12011: {ID: 12011, Name: "BOX_USER_COINS", DataType: "int", Unit: ""},
+	12012: {ID: 12012, Name: "BOX_CURRENT_SCENE", DataType: "int", Unit: ""},
 }

@@ -127,6 +127,7 @@ include(BuildContractCompiler)
 
 build_contract_compiler()
 
+add_subdirectory(cmd/smart_box)
 add_subdirectory(cmd/iems)
 add_subdirectory(cmd/dcu)
 add_subdirectory(cmd/nexus_lab)

@@ -1,0 +1,15 @@
+product: "Smart_Box_Controller"
+include:
+  - "contracts/schema/domains/power.yaml"
+  - "contracts/schema/domains/signal.yaml"
+  - "contracts/schema/domains/energy.yaml"
+  - "contracts/schema/domains/battery.yaml"
+  - "contracts/schema/domains/policy.yaml"
+  - "contracts/schema/domains/environment.yaml"
+  - "contracts/schema/domains/security.yaml"
+  - "contracts/schema/domains/system.yaml"
+  - "contracts/schema/domains/smartbox.yaml"
+tags:
+  - id: 12006
+    attributes:
+      ui: { min: 0.0, max: 8.0 }

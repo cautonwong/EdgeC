@@ -1,0 +1,61 @@
+tags:
+  - id: 12001
+    name: BOX_SYSTEM_STATUS
+    type: int
+    desc: "系统运行状态 (0=正常, 1=报错, 2=升级中, 3=变砖恢复)"
+    traits: [ "smartbox", "diagnostic" ]
+  - id: 12002
+    name: BOX_INDICATOR_LED
+    type: int
+    desc: "LED指示灯控制 (0=灭, 1=绿常亮, 2=红闪烁, 3=黄常亮)"
+    traits: [ "smartbox", "control" ]
+  - id: 12003
+    name: BOX_FALL_ALERT
+    type: int
+    desc: "跌倒警报状态 (0=正常, 1=跌倒触发)"
+    traits: [ "smartbox", "safety", "alert" ]
+  - id: 12004
+    name: BOX_HEART_RATE_ALERT
+    type: int
+    desc: "心率异常警报 (0=正常, 1=异常超标)"
+    traits: [ "smartbox", "safety", "alert" ]
+  - id: 12005
+    name: RAW_HEART_RATE
+    type: float
+    desc: "实时心率值"
+    traits: [ "smartbox", "sensor" ]
+  - id: 12006
+    name: RAW_ACCELERATION
+    type: float
+    desc: "三轴重力合成加速度量"
+    traits: [ "smartbox", "sensor" ]
+  - id: 12007
+    name: REHAB_COMPLETION_RATE
+    type: float
+    desc: "康复计划完成百分比"
+    traits: [ "smartbox", "rehab" ]
+  - id: 12008
+    name: PRIVACY_MODE_ACTIVE
+    type: int
+    desc: "隐私模式物理断电开关 (0=关闭, 1=物理切断)"
+    traits: [ "smartbox", "security" ]
+  - id: 12009
+    name: SYS_POWER_SOURCE
+    type: int
+    desc: "电源供电判定 (0=AC, 1=电池)"
+    traits: [ "smartbox", "diagnostic" ]
+  - id: 12010
+    name: BOX_VOICE_COMMAND
+    type: int
+    desc: "本地语音控制触发指令字 (0=无, 1=开始, 2=SOS, 3=停止)"
+    traits: [ "smartbox", "control" ]
+  - id: 12011
+    name: BOX_USER_COINS
+    type: int
+    desc: "健身奖励金币数"
+    traits: [ "smartbox", "monetization" ]
+  - id: 12012
+    name: BOX_CURRENT_SCENE
+    type: int
+    desc: "自适应场景模式 (0=居家, 1=养老院, 2=社区)"
+    traits: [ "smartbox", "policy" ]
