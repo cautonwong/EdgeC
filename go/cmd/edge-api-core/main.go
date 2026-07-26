@@ -474,12 +474,16 @@ func main() {
 
 	log.Printf("Starting %s on port 8080...", ServiceName)
 
+	shmName := os.Getenv("EDGE_SHM_NAME")
+	if shmName == "" {
+		shmName = "iems"
+	}
 	var err error
-	// For demo, we try to open "demo" shm with capacity 1024
-	matrix, err = shm.OpenShadowMatrix("demo", 1024)
+	matrix, err = shm.OpenShadowMatrix(shmName, 1024)
 	if err != nil {
 		log.Printf("Warning: Failed to open DataHub SHM: %v", err)
 	} else {
+		log.Printf("Successfully connected to DataHub SHM: edgeos_shadow_%s", shmName)
 		defer matrix.Close()
 	}
 

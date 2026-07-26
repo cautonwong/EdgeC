@@ -4,6 +4,9 @@ set(PROTO_SOURCES
     src/can_codec.c
     src/dlt645/dlt645_codec.c
     src/dlt698/dlt698_codec.c
+    src/protocol_converter.c
+    src/simd_cdd_codec.c
+    src/multibus_bridge.c
 )
 
 if(CONFIG_EDGEC_PROTO_MODBUS)

@@ -40,6 +40,22 @@ typedef struct {
     size_t len;
 } datahub_ref_t;
 
+typedef struct {
+    uint32_t chunk_id;
+    int fd;
+    pipe_msg_t *ptr;
+    size_t size;
+    uint32_t capacity;
+} datahub_chunk_t;
+
+typedef struct {
+    uint32_t version;
+    uint32_t chunk_count;
+    datahub_chunk_t chunks[16];
+    uint32_t *tag_to_index_map;
+    uint32_t tag_count;
+} schema_version_t;
+
 struct datahub_s {
     uv_loop_t *loop;
     shm_ring_t ring;
@@ -53,6 +69,12 @@ struct datahub_s {
     int shadow_fd;
     size_t shadow_size;
     uint32_t shadow_capacity;
+
+    // --- [Dynamic Chunking & Hot Schema] ---
+    atomic_uintptr_t active_schema; /**< 原子动态契约指针 (schema_version_t*) */
+    datahub_chunk_t chunks[16];      /**< 动态分块内存映射表 */
+    uint32_t chunk_count;
+
     datahub_tag_map_cb map_fn;
     datahub_tag_map_cb_v2 map_fn_v2; // [Nexus-Pro] 支持实例感知的寻址
     datahub_wakeup_filter_cb wakeup_fn;  // [注入] 唤醒过滤器
@@ -110,6 +132,7 @@ int datahub_init_from_fd(datahub_t *hub, uv_loop_t *loop, int ring_fd, size_t ri
 
 void datahub_destroy(datahub_t *hub);
 int datahub_publish(datahub_t *hub, const pipe_msg_t *msg);
+int datahub_write_shadow(datahub_t *hub, const pipe_msg_t *msg);
 int datahub_write_shadow_idx(datahub_t *hub, int idx, const pipe_msg_t *msg);
 int datahub_register_ref(datahub_t *hub, uint32_t tag_id, int fd, size_t len);
 int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out);
@@ -156,6 +179,16 @@ int datahub_start_compaction(datahub_t *hub, uint64_t interval_ms, const char *s
  */
 int datahub_compact_now(datahub_t *hub);
 
+/**
+ * @brief [V2 Evolution] 动态分配扩展 Chunk 内存物理切片
+ */
+int datahub_allocate_chunk(datahub_t *hub, uint32_t additional_capacity, datahub_chunk_t *out_chunk);
+
+/**
+ * @brief [V2 Evolution] 执行契约 Schema CAS 无锁热切换
+ */
+int datahub_switch_schema(datahub_t *hub, schema_version_t *new_schema);
+
 // 监听器管理 (由 StreamEngine 等使用)
 int datahub_add_listener(datahub_t *hub, uv_async_t *async_handle);
 int datahub_remove_listener(datahub_t *hub, uv_async_t *async_handle);
@@ -179,6 +212,18 @@ static inline const edge_tag_meta_t *datahub_get_metadata_by_tag(datahub_t *hub,
     if (idx < 0) return NULL;
     return datahub_get_metadata_by_index(hub, (uint32_t)idx);
 }
+
+/**
+ * @brief [KubeEdge DeviceTwin Pattern] 设备影子状态对齐与冲突校验
+ * @return 0=状态对齐 (In-Sync), 1=存在偏差 (State Mismatch)
+ */
+int datahub_devicetwin_reconcile(datahub_t *hub, uint32_t desired_tag_id, uint32_t reported_tag_id, double tolerance);
+
+/**
+ * @brief [Eclipse Zenoh-Pico Pattern] 瞬时 Tag 快照 Query-Reply 查询
+ * @return 0=成功 (Query Success), -1=Tag不存在 (Tag Not Found)
+ */
+int datahub_query_snapshot(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out_msg);
 
 #ifdef __cplusplus
 }

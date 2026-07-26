@@ -436,14 +436,13 @@ func main() {
 
 	log.Printf("Starting %s (with Mesh Routing) on port %s...", ServiceName, portStr)
 	if err := server.ListenAndServe(); err != nil {
-		if strings.Contains(err.Error(), "permission denied") && portStr == "80" {
-			log.Printf("Failed to bind to port 80 (permission denied). Falling back to port 8000...")
-			server.Addr = ":8000"
-			if errFallback := server.ListenAndServe(); errFallback != nil {
-				log.Fatalf("Gateway failed: %v", errFallback)
-			}
-		} else {
-			log.Fatalf("Gateway failed: %v", err)
+		log.Printf("Failed to bind on port %s (%v). Falling back to port 8000...", portStr, err)
+		fallbackServer := &http.Server{
+			Addr:    ":8000",
+			Handler: handler,
+		}
+		if errFallback := fallbackServer.ListenAndServe(); errFallback != nil {
+			log.Fatalf("Gateway failed: %v", errFallback)
 		}
 	}
 }

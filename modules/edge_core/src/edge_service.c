@@ -45,6 +45,9 @@ struct service_s {
 
     // S10: 时间管理
     uint64_t time_offset_ms;
+
+    // App Manager 模块
+    void *app_mgr;
 };
 
 // --- Lifecycle ---
@@ -329,4 +332,10 @@ int service_post_cmd(service_t *svc, cmd_msg_t *cmd) {
     if (!svc || !svc->arb || !cmd) return -1;
     if (cmd->signature != 0x55AA) return -13;
     return arbiter_submit_cmd(svc->arb, 0, cmd);
+}
+void *service_get_app_mgr(service_t *svc) {
+    return svc ? svc->app_mgr : NULL;
+}
+void service_set_app_mgr(service_t *svc, void *mgr) {
+    if (svc) svc->app_mgr = mgr;
 }

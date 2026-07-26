@@ -21,4 +21,6 @@ void rest_server_destroy(rest_server_t *srv);
 
 void rest_server_enable_write(bool enable);
 
+char *rest_dispatch(service_t *svc, const char *method, const char *path, const char *body);
+
 #endif

@@ -91,6 +91,23 @@ struct pipeline_stage_s {
 typedef struct stream_engine_s stream_engine_t;
 typedef struct pipeline_s pipeline_t;
 
+typedef struct dag_node_s {
+    pipeline_stage_t *stage;
+    atomic_int pending_inputs;
+    uint32_t in_degree;
+    uint32_t child_count;
+    struct dag_node_s *children[8];
+} dag_node_t;
+
+typedef struct {
+    uint32_t node_count;
+    dag_node_t nodes[16];
+    bool is_acyclic;
+} dag_graph_t;
+
+int dag_validate_acyclic(dag_graph_t *graph);
+int dag_execute_parallel(stream_engine_t *engine, dag_graph_t *graph, pipe_msg_t *msg);
+
 // [Consumer-Defined Control Interface] 解耦底层总线模块
 typedef int (*stream_control_cb)(void *ctx, int bus_id, uint32_t tag_id, double value, const char *proto);
 typedef struct {

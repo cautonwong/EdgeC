@@ -38,8 +38,9 @@ void rest_server_destroy(rest_server_t* srv) {
     free(srv);
 }
 
-char* rest_dispatch(service_t* svc, const char* path, const char* body) {
+char* rest_dispatch(service_t* svc, const char* method, const char* path, const char* body) {
     (void)svc;
+    (void)method;
     (void)path;
     (void)body;
     return strdup("{}");

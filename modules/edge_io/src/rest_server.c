@@ -15,6 +15,7 @@
 #include "edge_service.h"
 #include "edge_version.h"
 #include "sqlite_service.h"
+#include "edge_app_mgr.h"
 #include "stream_engine.h"
 #include "stream_engine_priv.h"
 
@@ -310,6 +311,88 @@ static char *handle_stream_topology(service_t *svc) {
     return strdup("{\"error\":\"engine_not_ready\"}");
 }
 
+static char *handle_apps_list(service_t *svc) {
+    sqlite_svc_t *db = service_get_storage(svc);
+    app_manifest_t apps[64];
+    int count = db ? sqlite_svc_list_apps(db, apps, 64) : 0;
+
+    cJSON *arr = cJSON_CreateArray();
+    for (int i = 0; i < count; i++) {
+        cJSON *item = cJSON_CreateObject();
+        cJSON_AddStringToObject(item, "id", apps[i].id);
+        cJSON_AddStringToObject(item, "name", apps[i].name);
+        cJSON_AddStringToObject(item, "version", apps[i].version);
+        cJSON_AddStringToObject(item, "author", apps[i].author);
+        cJSON_AddStringToObject(item, "wasm_path", apps[i].wasm_path);
+        cJSON_AddNumberToObject(item, "trigger_tag", apps[i].trigger_tag);
+        cJSON_AddStringToObject(item, "entry_func", apps[i].entry_func);
+        cJSON_AddStringToObject(item, "fault_policy", apps[i].fault_policy == FAULT_POLICY_ISOLATE_AND_ALARM ? "isolate_and_alarm" : "auto_restart");
+        cJSON_AddNumberToObject(item, "state", apps[i].state);
+        cJSON_AddNumberToObject(item, "restart_count", apps[i].restart_count);
+        cJSON_AddItemToArray(arr, item);
+    }
+
+    char *json = cJSON_PrintUnformatted(arr);
+    cJSON_Delete(arr);
+    return json;
+}
+
+static char *handle_apps_start(service_t *svc, const char *body) {
+    cJSON *root = cJSON_Parse(body);
+    if (!root) return strdup("{\"status\":\"error\",\"reason\":\"invalid_json\"}");
+    cJSON *id_item = cJSON_GetObjectItem(root, "app_id");
+    if (!id_item || !id_item->valuestring) {
+        cJSON_Delete(root);
+        return strdup("{\"status\":\"error\",\"reason\":\"missing_app_id\"}");
+    }
+
+    edge_app_mgr_t *mgr = (edge_app_mgr_t *)service_get_app_mgr(svc);
+    int rc = -1;
+    if (mgr) {
+        rc = edge_app_mgr_start(mgr, id_item->valuestring);
+    } else {
+        sqlite_svc_t *db = service_get_storage(svc);
+        if (db) {
+            app_manifest_t m;
+            if (sqlite_svc_get_app(db, id_item->valuestring, &m) == 0) {
+                m.state = APP_STATE_RUNNING;
+                rc = sqlite_svc_save_app(db, &m);
+            }
+        }
+    }
+
+    cJSON_Delete(root);
+    return rc == 0 ? strdup("{\"status\":\"ok\"}") : strdup("{\"status\":\"error\",\"reason\":\"start_failed\"}");
+}
+
+static char *handle_apps_stop(service_t *svc, const char *body) {
+    cJSON *root = cJSON_Parse(body);
+    if (!root) return strdup("{\"status\":\"error\",\"reason\":\"invalid_json\"}");
+    cJSON *id_item = cJSON_GetObjectItem(root, "app_id");
+    if (!id_item || !id_item->valuestring) {
+        cJSON_Delete(root);
+        return strdup("{\"status\":\"error\",\"reason\":\"missing_app_id\"}");
+    }
+
+    edge_app_mgr_t *mgr = (edge_app_mgr_t *)service_get_app_mgr(svc);
+    int rc = -1;
+    if (mgr) {
+        rc = edge_app_mgr_stop(mgr, id_item->valuestring);
+    } else {
+        sqlite_svc_t *db = service_get_storage(svc);
+        if (db) {
+            app_manifest_t m;
+            if (sqlite_svc_get_app(db, id_item->valuestring, &m) == 0) {
+                m.state = APP_STATE_STOPPED;
+                rc = sqlite_svc_save_app(db, &m);
+            }
+        }
+    }
+
+    cJSON_Delete(root);
+    return rc == 0 ? strdup("{\"status\":\"ok\"}") : strdup("{\"status\":\"error\",\"reason\":\"stop_failed\"}");
+}
+
 static char *handle_apps_upload(service_t *svc, const char *body) {
     cJSON *root = cJSON_Parse(body);
     if (!root) return strdup("{\"status\":\"error\",\"reason\":\"invalid_json\"}");
@@ -319,93 +402,91 @@ static char *handle_apps_upload(service_t *svc, const char *body) {
     cJSON *entry_item = cJSON_GetObjectItem(root, "entry_func");
     cJSON *payload_item = cJSON_GetObjectItem(root, "payload_hex");
 
-    if (!name_item || !trigger_item || !entry_item || !payload_item) {
+    if (!name_item || !payload_item) {
         cJSON_Delete(root);
         return strdup("{\"status\":\"error\",\"reason\":\"missing_fields\"}");
     }
 
     const char *name = name_item->valuestring;
-    uint32_t trigger_tag = (uint32_t)trigger_item->valueint;
-    const char *entry_func = entry_item->valuestring;
     const char *hex = payload_item->valuestring;
     size_t hex_len = strlen(hex);
 
-    char wasm_path[128];
-    snprintf(wasm_path, sizeof(wasm_path), "/tmp/%s.wasm", name);
-    FILE *f = fopen(wasm_path, "wb");
-    if (f) {
+    app_manifest_t manifest;
+    cJSON *manifest_item = cJSON_GetObjectItem(root, "manifest");
+    if (manifest_item && manifest_item->valuestring) {
+        edge_app_mgr_parse_manifest_json(manifest_item->valuestring, &manifest);
+    } else {
+        edge_app_mgr_construct_default_manifest(name, &manifest);
+        if (trigger_item) manifest.trigger_tag = (uint32_t)trigger_item->valueint;
+        if (entry_item && entry_item->valuestring) snprintf(manifest.entry_func, sizeof(manifest.entry_func), "%s", entry_item->valuestring);
+    }
+
+    uint8_t *wasm_buf = malloc(hex_len / 2 + 1);
+    size_t wasm_len = 0;
+    if (wasm_buf) {
         for (size_t i = 0; i < hex_len; i += 2) {
             unsigned int b;
             sscanf(hex + i, "%02x", &b);
-            fputc(b, f);
+            wasm_buf[wasm_len++] = (uint8_t)b;
         }
-        fclose(f);
-    } else {
-        cJSON_Delete(root);
-        return strdup("{\"status\":\"error\",\"reason\":\"file_io\"}");
     }
+
+    edge_app_mgr_t *mgr = (edge_app_mgr_t *)service_get_app_mgr(svc);
+    if (mgr) {
+        edge_app_mgr_install(mgr, &manifest, wasm_buf, wasm_len);
+        edge_app_mgr_start(mgr, manifest.id);
+    } else {
+        sqlite_svc_t *db = service_get_storage(svc);
+        if (db) {
+            manifest.state = APP_STATE_RUNNING;
+            sqlite_svc_save_app(db, &manifest);
+        }
+    }
+
+    if (wasm_buf) free(wasm_buf);
 
     stream_engine_t *engine = service_get_stream_engine(svc);
-    if (!engine) {
-        cJSON_Delete(root);
-        return strdup("{\"status\":\"error\",\"reason\":\"no_engine\"}");
-    }
-
-    pipeline_t *p = NULL;
-    // Check if pipeline with the same name already exists
-    uv_mutex_lock(&engine->pipe_mutex);
-    struct uv__queue *q;
-    uv__queue_foreach(q, &engine->pipelines) {
-        pipeline_t *curr = uv__queue_data(q, pipeline_t, node);
-        if (strcmp(curr->id, name) == 0) {
-            p = curr;
-            break;
-        }
-    }
-    uv_mutex_unlock(&engine->pipe_mutex);
-
-    if (p) {
-        // Hot-reload case
-        pipeline_stage_t *st = stage_wasm_create(wasm_path, entry_func);
-        if (!st) {
-            cJSON_Delete(root);
-            return strdup("{\"status\":\"error\",\"reason\":\"stage_creation_failed\"}");
-        }
-
-        // Clean up old stages
+    if (engine) {
+        pipeline_t *p = NULL;
         uv_mutex_lock(&engine->pipe_mutex);
-        pipeline_stage_t *s = p->head;
-        while (s) {
-            pipeline_stage_t *next_s = s->next[0];
-            if (s->cleanup_state) s->cleanup_state(s->priv_state);
-            if (s->cleanup_cfg) s->cleanup_cfg(s->priv_cfg);
-            free(s);
-            s = next_s;
+        struct uv__queue *q;
+        uv__queue_foreach(q, &engine->pipelines) {
+            pipeline_t *curr = uv__queue_data(q, pipeline_t, node);
+            if (strcmp(curr->id, manifest.id) == 0) {
+                p = curr;
+                break;
+            }
         }
-        p->head = NULL;
-        p->trigger_tag = trigger_tag; // Update trigger tag if changed
         uv_mutex_unlock(&engine->pipe_mutex);
 
-        // Add the new stage
-        pipeline_add_stage(p, st->name, st->process, st->priv_state, st->cleanup_state, st->priv_cfg, st->cleanup_cfg);
-        free(st);
-        LOG_INFO(LOG_CAT_CORE, "[REST] App '%s' hot-reloaded successfully on trigger_tag %u", name, trigger_tag);
-    } else {
-        // New upload case
-        p = stream_engine_add_pipeline(engine, name, trigger_tag);
-        if (!p) {
-            cJSON_Delete(root);
-            return strdup("{\"status\":\"error\",\"reason\":\"pipeline_creation_failed\"}");
+        if (p) {
+            pipeline_stage_t *st = stage_wasm_create(manifest.wasm_path, manifest.entry_func);
+            if (st) {
+                uv_mutex_lock(&engine->pipe_mutex);
+                pipeline_stage_t *s = p->head;
+                while (s) {
+                    pipeline_stage_t *next_s = s->next[0];
+                    if (s->cleanup_state) s->cleanup_state(s->priv_state);
+                    if (s->cleanup_cfg) s->cleanup_cfg(s->priv_cfg);
+                    free(s);
+                    s = next_s;
+                }
+                p->head = NULL;
+                p->trigger_tag = manifest.trigger_tag;
+                uv_mutex_unlock(&engine->pipe_mutex);
+                pipeline_add_stage(p, st->name, st->process, st->priv_state, st->cleanup_state, st->priv_cfg, st->cleanup_cfg);
+                free(st);
+            }
+        } else {
+            p = stream_engine_add_pipeline(engine, manifest.id, manifest.trigger_tag);
+            if (p) {
+                pipeline_stage_t *st = stage_wasm_create(manifest.wasm_path, manifest.entry_func);
+                if (st) {
+                    pipeline_add_stage(p, st->name, st->process, st->priv_state, st->cleanup_state, st->priv_cfg, st->cleanup_cfg);
+                    free(st);
+                }
+            }
         }
-
-        pipeline_stage_t *st = stage_wasm_create(wasm_path, entry_func);
-        if (!st) {
-            cJSON_Delete(root);
-            return strdup("{\"status\":\"error\",\"reason\":\"stage_creation_failed\"}");
-        }
-
-        pipeline_add_stage(p, st->name, st->process, st->priv_state, st->cleanup_state, st->priv_cfg, st->cleanup_cfg);
-        free(st);
     }
 
     cJSON_Delete(root);
@@ -422,6 +503,8 @@ char *rest_dispatch(service_t *svc, const char *method, const char *path, const 
         if (strncmp(path, "/api/v1/actor/set", 17) == 0) return handle_data_write(svc, body);
         if (strncmp(path, "/api/v1/io/raw", 14) == 0) return handle_io_raw(svc, body);
         if (strncmp(path, "/api/v1/apps/upload", 19) == 0) return handle_apps_upload(svc, body);
+        if (strncmp(path, "/api/v1/apps/start", 18) == 0) return handle_apps_start(svc, body);
+        if (strncmp(path, "/api/v1/apps/stop", 17) == 0) return handle_apps_stop(svc, body);
     }
 
     if (strncmp(path, "/api/v1/system/health", 21) == 0) return handle_system_health(svc);
@@ -431,6 +514,7 @@ char *rest_dispatch(service_t *svc, const char *method, const char *path, const 
     if (strncmp(path, "/api/v1/io/raw/latest", 21) == 0) return handle_io_raw_latest();
     if (strncmp(path, "/api/v1/stream/topology", 23) == 0) return handle_stream_topology(svc);
     if (strncmp(path, "/api/v1/stream/snapshot", 23) == 0) return handle_buffer_snapshot(svc);
+    if (strncmp(path, "/api/v1/apps/list", 17) == 0) return handle_apps_list(svc);
     if (strncmp(path, "/api/v1/data/latest/", 20) == 0)
         return handle_data_latest(svc, (uint32_t)atoi(path + 20));
     return strdup("{\"error\":\"not_found\"}");

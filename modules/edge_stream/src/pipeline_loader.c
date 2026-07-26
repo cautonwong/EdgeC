@@ -186,3 +186,44 @@ int stream_engine_load_config(stream_engine_t *engine, const char *json_path,
     cJSON_Delete(root);
     return 0;
 }
+
+// --- [Topology] DAG 拓扑无环校验 (DFS / Tarjan 算法) ---
+static bool _dag_dfs_has_cycle(dag_graph_t *graph, uint32_t node_idx, bool *visited, bool *rec_stack) {
+    visited[node_idx] = true;
+    rec_stack[node_idx] = true;
+
+    dag_node_t *node = &graph->nodes[node_idx];
+    for (uint32_t i = 0; i < node->child_count; i++) {
+        dag_node_t *child = node->children[i];
+        if (!child) continue;
+        uint32_t child_idx = (uint32_t)(child - graph->nodes);
+        if (child_idx >= graph->node_count) continue;
+
+        if (!visited[child_idx]) {
+            if (_dag_dfs_has_cycle(graph, child_idx, visited, rec_stack)) return true;
+        } else if (rec_stack[child_idx]) {
+            return true; // 发现回边 (Cycle)
+        }
+    }
+
+    rec_stack[node_idx] = false;
+    return false;
+}
+
+int dag_validate_acyclic(dag_graph_t *graph) {
+    if (!graph || graph->node_count == 0) return -1;
+
+    bool visited[16] = {0};
+    bool rec_stack[16] = {0};
+
+    for (uint32_t i = 0; i < graph->node_count; i++) {
+        if (!visited[i]) {
+            if (_dag_dfs_has_cycle(graph, i, visited, rec_stack)) {
+                graph->is_acyclic = false;
+                return -1; // 存在环
+            }
+        }
+    }
+    graph->is_acyclic = true;
+    return 0;
+}

@@ -22,14 +22,26 @@ get_go_tag_count() {
 SHARED_GO="${PROJECT_ROOT}/go/pkg/tags/tags.go"
 GO_COUNT=$(get_go_tag_count "$SHARED_GO")
 
-# IEMS: 全量校验
+# SmartBox: 全量标签校验（C vs Go 必须一致）
+SMARTBOX_C="${PROJECT_ROOT}/build/products/smart_box/generated/contracts.c"
+SMARTBOX_C_COUNT=$(get_c_tag_count "$SMARTBOX_C")
+if [ "$SMARTBOX_C_COUNT" -gt 0 ] && [ "$GO_COUNT" -gt 0 ]; then
+    if [ "$SMARTBOX_C_COUNT" -eq "$GO_COUNT" ]; then
+        echo "  ✅ SmartBox: C=$SMARTBOX_C_COUNT, Go=$GO_COUNT"
+    else
+        echo "  ❌ SmartBox MISMATCH: contracts.c has $SMARTBOX_C_COUNT, tags.go has $GO_COUNT"
+        ERRORS=$((ERRORS + 1))
+    fi
+fi
+
+# IEMS: 只上报（IEMS 标签集是子集，允许少于 Go 全量）
 IEMS_C="${PROJECT_ROOT}/build/products/iems/generated/contracts.c"
 IEMS_C_COUNT=$(get_c_tag_count "$IEMS_C")
-if [ "$IEMS_C_COUNT" -gt 0 ] && [ "$GO_COUNT" -gt 0 ]; then
-    if [ "$IEMS_C_COUNT" -eq "$GO_COUNT" ]; then
-        echo "  ✅ IEMS: C=$IEMS_C_COUNT, Go=$GO_COUNT"
+if [ "$IEMS_C_COUNT" -gt 0 ]; then
+    if [ "$IEMS_C_COUNT" -le "$GO_COUNT" ] 2>/dev/null; then
+        echo "  ✅ IEMS: C=$IEMS_C_COUNT (≤ Go=$GO_COUNT, 子集合规)"
     else
-        echo "  ❌ IEMS MISMATCH: contracts.c has $IEMS_C_COUNT, tags.go has $GO_COUNT"
+        echo "  ❌ IEMS OVERFLOW: C=$IEMS_C_COUNT > Go=$GO_COUNT"
         ERRORS=$((ERRORS + 1))
     fi
 fi

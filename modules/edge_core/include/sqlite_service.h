@@ -104,6 +104,15 @@ int sqlite_svc_get_param(sqlite_svc_t *svc, const char *product, uint32_t tag_id
  */
 void *sqlite_svc_get_db_handle(sqlite_svc_t *svc);
 
+// --- App Registry CRUD ---
+struct app_manifest_s;
+typedef struct app_manifest_s app_manifest_t_opaque;
+
+int sqlite_svc_save_app(sqlite_svc_t *svc, const void *manifest_ptr);
+int sqlite_svc_get_app(sqlite_svc_t *svc, const char *app_id, void *out_manifest_ptr);
+int sqlite_svc_delete_app(sqlite_svc_t *svc, const char *app_id);
+int sqlite_svc_list_apps(sqlite_svc_t *svc, void *manifests_array_ptr, int max_count);
+
 #ifdef __cplusplus
 }
 #endif

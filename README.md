@@ -436,3 +436,37 @@ graph TB
 - **CCache 原生集成**：CMakeLists 自动检测并优先使用本地 `ccache` 缓存编译，使后续的 C 语言增量与重新配置构建耗时骤降 90%。
 - **ENABLE_WEB_BUILD 条件构建**：新增 CMake 选项 `-DENABLE_WEB_BUILD=ON/OFF`。当专注于 C 侧后台调试时，可选择关闭 npm 和 Vite 静态前端构建，省去每次编译时重复执行前端 bundler 的开销。
 - **链接并行度控制**：在 CTest 用例数高达 80+ 个的系统中，通过降低 Ninja 的链接并行度（如 `-j2`）以约束 `ld` 并发数，彻底避免了容器环境物理内存被撑爆发生 OOM 的重大痛点。
+
+---
+
+## 👵 8. 智能养老健康终端协同 (Smart Box System - Sprint 8)
+
+为了响应适老化健康监护和家庭安全防卫需求，EdgeOS 衍生并集成了 **Smart Box** 养老智能监护系统，打通了物理控制底座、Web API 慢车道网关及 Wasm 实时边缘 AI 算子的完整协同机制：
+
+### 8.1 物理控制底座 (C 语言实现)
+底座代码位于 `cmd/smart_box/main.c`，利用 `libuv` 维持高性能事件循环：
+- **指示灯渲染**：读取 DataHub 状态更新红、黄、绿三色 GPIO（23/24/25），控制指示状态。
+- **物理 SOS 紧急求救**：epoll 边缘触发（GPIO 26）下降沿中断，判定大按钮按下并立即触发本地报警。
+- **隐私沙盒断电**：当隐私模式激活时，拉低 GPIO 29 和 31 强制切断摄像头和麦克风的 VCC 物理供电。
+- **电池监测**：通过 I2C 1 (地址 `0x34`) 轮询 AXP209 PMIC 电池电源状态。
+- **南向多协议外设接入**：支持 NFC 读卡（PN532 SPI）、外骨骼康复控制（Modbus RTU串口）和 BLE GATT 心率手环的驱动交互。
+
+### 8.2 Web API 与业务网关 (Go 语言实现)
+网关代码位于 `go/cmd/smart-box-gateway/main.go`，提供慢车道数据与安全合规逻辑：
+- **GDPR 被遗忘权与零擦除**：`/api/v1/privacy/purge` 事务内删除用户记录并在事务外加全局锁执行 `VACUUM;` 强制磁盘数据页重置归零。
+- **AES-256-GCM 敏感数据加密**：本地数据均采用对称加密算法混淆并进行消息认证。
+- **区块链存证锚定**：计算哈希并使用 ECDSA 私钥对存证信息进行 64 字节对齐的 Base64 编码签名存储。
+
+### 8.3 C↔Go 双轨通信 (UDS 二进制 IPC)
+底座与网关之间采用 UNIX Domain Socket (`/tmp/smart_box_ipc.sock`) 建立高可靠性的二进制字节帧交互通道：
+- **帧字节布局**：
+  `Magic (0x5342 - "SB") | MsgType (1B) | Length (1B) | Payload (NB) | Checksum (1B, XOR)`
+- **主要消息定义**：
+  - `MsgType == 2`：NFC 扫卡发现外设并发送 NDEF JSON 报文，网关自动在 SQLite 库的 `devices` 表中注册设备。
+  - `MsgType == 3`：SOS 紧急求助事件。
+
+### 8.4 边缘实时 Wasm AI 算子
+跌倒与健康状态分析通过嵌入式安全 Wasm 容器（基于 WAMR 沙箱）在 `modules/edge_stream/src/wasm_runtime/rehab_companion.c` 中运转：
+- **跌倒判定**：采用 **SVM (信号矢量幅值) + SMA (信号幅值面积)** 双指标算法判定瞬间空中失重（连续 10 次 $SVM < 0.2G$）、强碰撞（$SVM > 3.2G$）与碰撞后人体动力学静躺昏迷状态（$SMA < 0.4G$），有效清除了由于床铺跌落、拾物弯腰等产生的误报。
+- **心率异常监控**：心率低于 50 或高于 140 BPM 时实时触发系统状态告警和红灯闪烁。
+

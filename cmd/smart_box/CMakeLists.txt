@@ -13,6 +13,7 @@ target_link_libraries(smart_box PRIVATE
     edge_io
     -Wl,--whole-archive
     edge_stream
+    edge_algo
     -Wl,--no-whole-archive
     edge_security
     edge_core

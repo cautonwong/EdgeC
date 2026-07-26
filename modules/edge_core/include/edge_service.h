@@ -66,6 +66,8 @@ stream_engine_t *service_get_stream_engine(service_t *svc);
 arbiter_t *service_get_arbiter(service_t *svc);
 edge_params_t *service_get_params(service_t *svc);
 const char *service_get_contract_path(service_t *svc);
+void *service_get_app_mgr(service_t *svc);
+void service_set_app_mgr(service_t *svc, void *mgr);
 
 int service_post_cmd(service_t *svc, cmd_msg_t *cmd);
 /**

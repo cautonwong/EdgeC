@@ -117,6 +117,17 @@ int shmring_destroy(shm_ring_t *ring);
 void shm_ring_write(shm_ring_t *ring, const PipeMsg *msg);
 int shm_ring_read(shm_ring_t *ring, uint64_t *last_seq, PipeMsg *out);
 
+// 💡 [Iceoryx Pattern] 物理首地址无关相对指针 (Relative Pointer Translation)
+static inline ptrdiff_t shmring_abs_to_rel(const void *base, const void *abs_ptr) {
+    if (!abs_ptr || !base) return 0;
+    return (const char *)abs_ptr - (const char *)base;
+}
+
+static inline void *shmring_rel_to_abs(const void *base, ptrdiff_t rel_offset) {
+    if (rel_offset == 0 || !base) return NULL;
+    return (void *)((const char *)base + rel_offset);
+}
+
 int edge_fd_send(int sock_fd, int fd_to_send);
 int edge_fd_recv(int sock_fd);
 

@@ -11,6 +11,7 @@ set(STREAM_SOURCES
     src/aggregator.c
     src/energy_integrator.c
     src/script_loader.c
+    src/stream_sql_dag.c
     ${STAGE_SOURCES}
 )
 
@@ -28,6 +29,7 @@ if(CONFIG_EDGEC_WASM)
         src/stage_wasm.c
         src/wasm_runtime/wasm_mgr.c
         src/wasm_runtime/wasm_app_scheduler.c
+        src/wasm_runtime/wasm_sandbox_watchdog.c
     )
 endif()
 

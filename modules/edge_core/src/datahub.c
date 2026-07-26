@@ -170,6 +170,10 @@ int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
     return datahub_write_shadow_idx(hub, idx, &local_msg);
 }
 
+int datahub_write_shadow(datahub_t *hub, const pipe_msg_t *msg) {
+    return datahub_publish(hub, msg);
+}
+
 int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out) {
     if (!hub || !out) return -1;
     int idx = -1;
@@ -435,3 +439,65 @@ void datahub_stop_metrics(datahub_t *hub) {
     }
     hub->metrics_active = 0;
 }
+
+int datahub_allocate_chunk(datahub_t *hub, uint32_t additional_capacity, datahub_chunk_t *out_chunk) {
+    if (!hub || additional_capacity == 0 || !out_chunk) return -1;
+    if (hub->chunk_count >= 16) return -1;
+
+    size_t chunk_size = (additional_capacity * sizeof(pipe_msg_t) + 4095) & ~4095UL;
+    char shm_name[128];
+    snprintf(shm_name, sizeof(shm_name), "/edgeos_chunk_%u_%d", hub->chunk_count, (int)getpid());
+
+    int fd = shm_open(shm_name, O_CREAT | O_RDWR, 0666);
+    if (fd < 0) return -1;
+    shm_unlink(shm_name);
+
+    if (ftruncate(fd, (off_t)chunk_size) != 0) {
+        close(fd);
+        return -1;
+    }
+
+    pipe_msg_t *ptr = mmap(NULL, chunk_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (ptr == MAP_FAILED) {
+        close(fd);
+        return -1;
+    }
+
+    memset(ptr, 0, chunk_size);
+    out_chunk->chunk_id = hub->chunk_count;
+    out_chunk->fd = fd;
+    out_chunk->ptr = ptr;
+    out_chunk->size = chunk_size;
+    out_chunk->capacity = additional_capacity;
+
+    hub->chunks[hub->chunk_count] = *out_chunk;
+    hub->chunk_count++;
+    return 0;
+}
+
+int datahub_switch_schema(datahub_t *hub, schema_version_t *new_schema) {
+    if (!hub || !new_schema) return -1;
+    atomic_store_explicit(&hub->active_schema, (uintptr_t)new_schema, memory_order_release);
+    LOG_INFO(LOG_CAT_CORE, "[DataHub] Dynamic Schema CAS hot-switched to version v%u (Tag count: %u)",
+             new_schema->version, new_schema->tag_count);
+    return 0;
+}
+
+int datahub_devicetwin_reconcile(datahub_t *hub, uint32_t desired_tag_id, uint32_t reported_tag_id, double tolerance) {
+    if (!hub) return -1;
+    pipe_msg_t msg_desired, msg_reported;
+    if (datahub_read_shadow(hub, desired_tag_id, &msg_desired) != 0) return -1;
+    if (datahub_read_shadow(hub, reported_tag_id, &msg_reported) != 0) return -1;
+    if (msg_desired.type != PIPEMSG_TYPE_SCALAR || msg_reported.type != PIPEMSG_TYPE_SCALAR) return -1;
+
+    double diff = msg_desired.payload.val.f - msg_reported.payload.val.f;
+    if (diff < 0) diff = -diff;
+    return (diff <= tolerance) ? 0 : 1;
+}
+
+int datahub_query_snapshot(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out_msg) {
+    if (!hub || !out_msg) return -1;
+    return datahub_read_shadow(hub, tag_id, out_msg);
+}
+
+

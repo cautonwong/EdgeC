@@ -13,3 +13,14 @@ tags:
   - id: 12006
     attributes:
       ui: { min: 0.0, max: 8.0 }
+  - id: 12013
+    attributes:
+      ui: { min: 0.0, max: 100.0 }
+  - id: 12014
+  - id: 12015
+  - id: 12016
+  - id: 12017
+  - id: 12018
+  - id: 12019
+  - id: 12020
+

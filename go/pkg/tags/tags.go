@@ -11,7 +11,6 @@ const (
 	ADC_VOLTAGE_RMS = 2002
 	ENERGY_ACTIVE_IMPORT = 3001
 	ENERGY_ACTIVE_EXPORT = 3002
-	BATTERY_SOC = 4001
 	BATTERY_POWER = 4003
 	IEMS_BATTERY_MAX_SOC = 5001
 	IEMS_BATTERY_MIN_SOC = 5002
@@ -43,6 +42,14 @@ const (
 	BOX_VOICE_COMMAND = 12010
 	BOX_USER_COINS = 12011
 	BOX_CURRENT_SCENE = 12012
+	BATTERY_SOC = 12013
+	ABNORMAL_BEHAVIOR_ALERT = 12014
+	REHAB_PRESCRIPTION_ID = 12015
+	NET_ACTIVE_INTERFACE = 12016
+	BLE_SLOT_BINDING_ID = 12017
+	REMOTE_MIRROR_STATUS = 12018
+	LED_RGB_STATUS = 12019
+	ALSA_AUDIO_ROUTE = 12020
 )
 
 type TagMetadata struct {
@@ -61,7 +68,6 @@ var Metadata = map[uint32]TagMetadata{
 	2002: {ID: 2002, Name: "ADC_VOLTAGE_RMS", DataType: "float", Unit: "V"},
 	3001: {ID: 3001, Name: "ENERGY_ACTIVE_IMPORT", DataType: "double", Unit: "kWh"},
 	3002: {ID: 3002, Name: "ENERGY_ACTIVE_EXPORT", DataType: "double", Unit: "kWh"},
-	4001: {ID: 4001, Name: "BATTERY_SOC", DataType: "float", Unit: "%"},
 	4003: {ID: 4003, Name: "BATTERY_POWER", DataType: "float", Unit: "W"},
 	5001: {ID: 5001, Name: "IEMS_BATTERY_MAX_SOC", DataType: "float", Unit: "%"},
 	5002: {ID: 5002, Name: "IEMS_BATTERY_MIN_SOC", DataType: "float", Unit: "%"},
@@ -93,4 +99,12 @@ var Metadata = map[uint32]TagMetadata{
 	12010: {ID: 12010, Name: "BOX_VOICE_COMMAND", DataType: "int", Unit: ""},
 	12011: {ID: 12011, Name: "BOX_USER_COINS", DataType: "int", Unit: ""},
 	12012: {ID: 12012, Name: "BOX_CURRENT_SCENE", DataType: "int", Unit: ""},
+	12013: {ID: 12013, Name: "BATTERY_SOC", DataType: "float", Unit: "%"},
+	12014: {ID: 12014, Name: "ABNORMAL_BEHAVIOR_ALERT", DataType: "int", Unit: ""},
+	12015: {ID: 12015, Name: "REHAB_PRESCRIPTION_ID", DataType: "int", Unit: ""},
+	12016: {ID: 12016, Name: "NET_ACTIVE_INTERFACE", DataType: "int", Unit: ""},
+	12017: {ID: 12017, Name: "BLE_SLOT_BINDING_ID", DataType: "int", Unit: ""},
+	12018: {ID: 12018, Name: "REMOTE_MIRROR_STATUS", DataType: "int", Unit: ""},
+	12019: {ID: 12019, Name: "LED_RGB_STATUS", DataType: "int", Unit: ""},
+	12020: {ID: 12020, Name: "ALSA_AUDIO_ROUTE", DataType: "int", Unit: ""},
 }

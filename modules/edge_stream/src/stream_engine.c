@@ -444,3 +444,30 @@ void stream_engine_push(stream_engine_t *engine, pipe_msg_t *msg) {
 uv_async_t *stream_engine_get_notify_handle(stream_engine_t *engine) {
     return engine ? &engine->notify_handle : NULL;
 }
+
+int dag_execute_parallel(stream_engine_t *engine, dag_graph_t *graph, pipe_msg_t *msg) {
+    if (!graph || !graph->is_acyclic || graph->node_count == 0 || !msg) return -1;
+    (void)engine;
+
+    for (uint32_t i = 0; i < graph->node_count; i++) {
+        dag_node_t *node = &graph->nodes[i];
+        atomic_store(&node->pending_inputs, (int)node->in_degree);
+    }
+
+    for (uint32_t i = 0; i < graph->node_count; i++) {
+        dag_node_t *node = &graph->nodes[i];
+        if (atomic_load(&node->pending_inputs) == 0) {
+            if (node->stage && node->stage->process) {
+                stage_ret_t res = node->stage->process(node->stage, msg);
+                (void)res;
+            }
+            for (uint32_t c = 0; c < node->child_count; c++) {
+                dag_node_t *child = node->children[c];
+                if (child) {
+                    atomic_fetch_sub(&child->pending_inputs, 1);
+                }
+            }
+        }
+    }
+    return 0;
+}

@@ -13,6 +13,24 @@ set(ALGO_SOURCES
     src/algorithm_sum.c
     src/battery_strategy.c
     src/algo_peak_shaving.c
+    src/fall_detection.c
+    src/emg_dsp.c
+    src/rehab_kinematics.c
+    src/motion_wavelet.c
+    src/hrv_analyzer.c
+    src/ppg_spo2.c
+    src/bia_estimator.c
+    src/ecg_arrhythmia.c
+    src/tremor_analyzer.c
+    src/gait_balance.c
+    src/apnea_detector.c
+    src/dicom_parser.c
+    src/federated_aggregator.c
+    src/impedance_control.c
+    src/gait_safety.c
+    src/facility_coordinator.c
+    src/edge_cep_engine.c
+    src/onnx_host_guard.c
     src/math/control_algo.c
     src/math/motor_algo.c
     src/math/radar_algo.c

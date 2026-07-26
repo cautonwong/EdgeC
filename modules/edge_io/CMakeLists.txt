@@ -7,6 +7,7 @@ file(GLOB DRIVER_SOURCES src/driver_*.c)
 set(IO_SOURCES
     src/bus_orchestrator.c
     src/driver_manager.c
+    src/driver_hotplug.c
     src/passthrough_mgr.c
     src/protocol_bridge.c
     src/cloud_sync_service.c

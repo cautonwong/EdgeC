@@ -31,6 +31,11 @@ if [ "$1" == "make-keys" ]; then
     exit 0
 fi
 
+echo "=== [0/3] Compiling and Deploying Wasm AI Operator ==="
+clang --target=wasm32 -O3 -nostdlib -Wl,--no-entry -Wl,--export-all -Wl,--allow-undefined -o rehab_companion.wasm modules/edge_stream/src/wasm_runtime/rehab_companion.c
+mkdir -p /data/apps
+cp rehab_companion.wasm /data/apps/
+
 echo "=== [1/3] Building Native (x86_64) ==="
 
 # 代码格式化
