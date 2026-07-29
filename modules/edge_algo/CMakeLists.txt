@@ -34,6 +34,7 @@ set(ALGO_SOURCES
     src/math/control_algo.c
     src/math/motor_algo.c
     src/math/radar_algo.c
+    src/math/fmcw_dsp_neon.c
 )
 
 # 根据 Kconfig 条件加载高精度数值与矩阵库 (以接地气的中文添加注释)
