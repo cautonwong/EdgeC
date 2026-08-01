@@ -334,3 +334,105 @@ func TestUDSIPC(t *testing.T) {
 		t.Errorf("SOS tag history mismatch: tagID=%d, val=%.2f", tagID, val)
 	}
 }
+
+func TestUDSSecurityHardeningAndRBAC(t *testing.T) {
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	_, _ = db.Exec("CREATE TABLE IF NOT EXISTS tag_history (timestamp INTEGER, tag_id INTEGER, value REAL, status INTEGER);")
+
+	gateway := &AppGateway{
+		db:        db,
+		jwtSecret: make([]byte, 32),
+	}
+	rand.Read(gateway.jwtSecret)
+
+	userToken, _ := gateway.generateToken("user1", RoleUser)
+	adminToken, _ := gateway.generateToken("admin1", RoleAdmin)
+
+	// 1. Test OTA Check RBAC Protection
+	reqOTAUnauth := httptest.NewRequest("GET", "/api/v1/device/ota/check", nil)
+	wOTAUnauth := httptest.NewRecorder()
+	gateway.withRBAC(RoleUser, gateway.handleDeviceOTACheck)(wOTAUnauth, reqOTAUnauth)
+	if wOTAUnauth.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401 for unauth OTA check, got %d", wOTAUnauth.Code)
+	}
+
+	reqOTAAuth := httptest.NewRequest("GET", "/api/v1/device/ota/check", nil)
+	reqOTAAuth.Header.Set("Authorization", "Bearer "+userToken)
+	wOTAAuth := httptest.NewRecorder()
+	gateway.withRBAC(RoleUser, gateway.handleDeviceOTACheck)(wOTAAuth, reqOTAAuth)
+	if wOTAAuth.Code != http.StatusOK {
+		t.Errorf("Expected 200 for auth OTA check, got %d", wOTAAuth.Code)
+	}
+
+	// 2. Test UDS Security REST Endpoint Role Protection
+	reqSecUser := httptest.NewRequest("GET", "/api/v1/ecu/uds/security", nil)
+	reqSecUser.Header.Set("Authorization", "Bearer "+userToken)
+	wSecUser := httptest.NewRecorder()
+	gateway.withRBAC(RoleAdmin, gateway.handleUDSSecurity)(wSecUser, reqSecUser)
+	if wSecUser.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 for user accessing UDS security endpoint, got %d", wSecUser.Code)
+	}
+
+	reqSecAdmin := httptest.NewRequest("GET", "/api/v1/ecu/uds/security", nil)
+	reqSecAdmin.Header.Set("Authorization", "Bearer "+adminToken)
+	wSecAdmin := httptest.NewRecorder()
+	gateway.withRBAC(RoleAdmin, gateway.handleUDSSecurity)(wSecAdmin, reqSecAdmin)
+	if wSecAdmin.Code != http.StatusOK {
+		t.Errorf("Expected 200 for admin accessing UDS security endpoint, got %d", wSecAdmin.Code)
+	}
+
+	// 3. Test SecurityAccess 0x27 Seed & Key Logic over DoIP handler
+	c1, c2 := net.Pipe()
+	defer c1.Close()
+	defer c2.Close()
+
+	go gateway.handleDoIPConnection(c1)
+
+	// Step A: Routing Activation (0x0005)
+	actReq := []byte{0x02, 0xF9, 0x00, 0x05, 0x00, 0x00, 0x00, 0x07, 0x0E, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00}
+	c2.Write(actReq)
+	actResp := make([]byte, 19)
+	c2.Read(actResp)
+
+	// Step B: Request Seed (0x27 0x01)
+	reqSeedBody := []byte{0x00, 0x0E, 0x00, 0x10, 0x27, 0x01}
+	payLen := uint32(len(reqSeedBody))
+	reqSeedMsg := append([]byte{0x02, 0xF9, 0x80, 0x01, byte(payLen >> 24), byte(payLen >> 16), byte(payLen >> 8), byte(payLen)}, reqSeedBody...)
+	c2.Write(reqSeedMsg)
+
+	respBuf := make([]byte, 256)
+	n, _ := c2.Read(respBuf)
+	if n < 14 || respBuf[12] != 0x67 || respBuf[13] != 0x01 {
+		t.Fatalf("Failed to receive seed, response len: %d, bytes: %x", n, respBuf[:n])
+	}
+	seed := append([]byte(nil), respBuf[14:18]...)
+
+	// Step C: Send Wrong Key (0x27 0x02)
+	wrongKey := []byte{0xFF, 0xFF, 0xFF, 0xFF}
+	sendWrongBody := append([]byte{0x00, 0x0E, 0x00, 0x10, 0x27, 0x02}, wrongKey...)
+	payLenW := uint32(len(sendWrongBody))
+	sendWrongMsg := append([]byte{0x02, 0xF9, 0x80, 0x01, byte(payLenW >> 24), byte(payLenW >> 16), byte(payLenW >> 8), byte(payLenW)}, sendWrongBody...)
+	c2.Write(sendWrongMsg)
+
+	n, _ = c2.Read(respBuf)
+	if n < 15 || respBuf[12] != 0x7F || respBuf[14] != 0x35 {
+		t.Errorf("Expected negative response 0x7F 0x27 0x35 for wrong key, got: %x", respBuf[:n])
+	}
+
+	// Step D: Send Correct Key
+	correctKey := computeSecurityKey(seed)
+	sendRightBody := append([]byte{0x00, 0x0E, 0x00, 0x10, 0x27, 0x02}, correctKey...)
+	payLenR := uint32(len(sendRightBody))
+	sendRightMsg := append([]byte{0x02, 0xF9, 0x80, 0x01, byte(payLenR >> 24), byte(payLenR >> 16), byte(payLenR >> 8), byte(payLenR)}, sendRightBody...)
+	c2.Write(sendRightMsg)
+
+	n, _ = c2.Read(respBuf)
+	if n < 14 || respBuf[12] != 0x67 || respBuf[13] != 0x02 {
+		t.Errorf("Expected positive response 0x67 0x02 for correct key, got: %x", respBuf[:n])
+	}
+}
+
