@@ -106,7 +106,8 @@ int shmring_create(shm_ring_t *ring, const char *name, uint32_t slots) {
         if (n > 0 && n < (int)sizeof(fifo_path)) {
             unlink(fifo_path);
             if (mkfifo(fifo_path, 0666) == 0) {
-                ring->event_fd = open(fifo_path, O_WRONLY | O_NONBLOCK);
+                // 使用 O_RDWR 模式，避免无读者时 O_WRONLY|O_NONBLOCK 报 ENXIO 失败
+                ring->event_fd = open(fifo_path, O_RDWR | O_NONBLOCK);
                 if (ring->event_fd < 0) {
                     LOG_WARN(LOG_CAT_BUS, "FIFO open failed: %s", strerror(errno));
                     unlink(fifo_path);
