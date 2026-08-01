@@ -50,6 +50,21 @@ const (
 	REMOTE_MIRROR_STATUS = 12018
 	LED_RGB_STATUS = 12019
 	ALSA_AUDIO_ROUTE = 12020
+	RADAR_TARGET_DISTANCE = 12021
+	RADAR_TARGET_VELOCITY = 12022
+	RADAR_MICRO_MOTION_AMP = 12023
+	RADAR_RESPIRATION_RATE = 12024
+	RADAR_GESTURE_EVENT = 12025
+	FOC_TARGET_VELOCITY = 12026
+	FOC_ACTUAL_VELOCITY = 12027
+	FOC_IQ_CURRENT = 12028
+	FOC_MOTOR_TEMP = 12029
+	FOC_FAULT_CODE = 12030
+	UDS_SESSION_STATE = 12031
+	UDS_ACTIVE_DTC_COUNT = 12032
+	UDS_SECURITY_UNLOCKED = 12033
+	UDS_ROUTINE_STATUS = 12034
+	DOIP_CLIENT_CONNECTED = 12035
 )
 
 type TagMetadata struct {
@@ -107,4 +122,19 @@ var Metadata = map[uint32]TagMetadata{
 	12018: {ID: 12018, Name: "REMOTE_MIRROR_STATUS", DataType: "int", Unit: ""},
 	12019: {ID: 12019, Name: "LED_RGB_STATUS", DataType: "int", Unit: ""},
 	12020: {ID: 12020, Name: "ALSA_AUDIO_ROUTE", DataType: "int", Unit: ""},
+	12021: {ID: 12021, Name: "RADAR_TARGET_DISTANCE", DataType: "float", Unit: ""},
+	12022: {ID: 12022, Name: "RADAR_TARGET_VELOCITY", DataType: "float", Unit: ""},
+	12023: {ID: 12023, Name: "RADAR_MICRO_MOTION_AMP", DataType: "float", Unit: ""},
+	12024: {ID: 12024, Name: "RADAR_RESPIRATION_RATE", DataType: "float", Unit: ""},
+	12025: {ID: 12025, Name: "RADAR_GESTURE_EVENT", DataType: "int", Unit: ""},
+	12026: {ID: 12026, Name: "FOC_TARGET_VELOCITY", DataType: "float", Unit: ""},
+	12027: {ID: 12027, Name: "FOC_ACTUAL_VELOCITY", DataType: "float", Unit: ""},
+	12028: {ID: 12028, Name: "FOC_IQ_CURRENT", DataType: "float", Unit: ""},
+	12029: {ID: 12029, Name: "FOC_MOTOR_TEMP", DataType: "float", Unit: ""},
+	12030: {ID: 12030, Name: "FOC_FAULT_CODE", DataType: "int", Unit: ""},
+	12031: {ID: 12031, Name: "UDS_SESSION_STATE", DataType: "int", Unit: ""},
+	12032: {ID: 12032, Name: "UDS_ACTIVE_DTC_COUNT", DataType: "int", Unit: ""},
+	12033: {ID: 12033, Name: "UDS_SECURITY_UNLOCKED", DataType: "int", Unit: ""},
+	12034: {ID: 12034, Name: "UDS_ROUTINE_STATUS", DataType: "int", Unit: ""},
+	12035: {ID: 12035, Name: "DOIP_CLIENT_CONNECTED", DataType: "int", Unit: ""},
 }

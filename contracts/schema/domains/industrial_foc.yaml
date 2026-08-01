@@ -1,0 +1,26 @@
+tags:
+  - id: 12026
+    name: FOC_TARGET_VELOCITY
+    type: float
+    desc: "SimpleFOC 目标设定转速 (RPM)"
+    traits: [ "smartbox", "foc", "control" ]
+  - id: 12027
+    name: FOC_ACTUAL_VELOCITY
+    type: float
+    desc: "SimpleFOC 传感器反馈实际转速 (RPM)"
+    traits: [ "smartbox", "foc", "sensor" ]
+  - id: 12028
+    name: FOC_IQ_CURRENT
+    type: float
+    desc: "FOC Q 轴转矩电流有效值 (A)"
+    traits: [ "smartbox", "foc", "sensor" ]
+  - id: 12029
+    name: FOC_MOTOR_TEMP
+    type: float
+    desc: "电机绕组实时温度 (°C)"
+    traits: [ "smartbox", "foc", "diagnostic" ]
+  - id: 12030
+    name: FOC_FAULT_CODE
+    type: int
+    desc: "FOC 电机驱动故障码 (0=正常, 1=过流, 2=堵转, 3=过温)"
+    traits: [ "smartbox", "foc", "alert" ]
