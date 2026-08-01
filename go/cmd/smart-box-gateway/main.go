@@ -22,9 +22,11 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"edgeos.go/internal/prescription"
+	"edgeos.go/pkg/tags"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -1166,6 +1168,7 @@ func main() {
 	rand.Read(gateway.jwtSecret)
 
 	go gateway.startUDSListener()
+	go gateway.startDoIPServer()
 	go gateway.startHeartbeatTicker(1 * time.Hour)
 
 	priv, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -1205,6 +1208,11 @@ func main() {
 	http.HandleFunc("/api/v1/users/manage", gateway.withRBAC(RoleAdmin, gateway.handleUserManage))
 	http.HandleFunc("/api/v1/users/switch", gateway.withRBAC(RoleUser, gateway.handleUserSwitch))
 	http.HandleFunc("/api/v1/remote/input", gateway.withRBAC(RoleUser, gateway.handleRemoteInput))
+	http.HandleFunc("/api/v1/ecu/uds/session", gateway.withRBAC(RoleUser, gateway.handleUDSSession))
+	http.HandleFunc("/api/v1/ecu/uds/dtc", gateway.withRBAC(RoleUser, gateway.handleUDSDTC))
+	http.HandleFunc("/api/v1/ecu/uds/security", gateway.withRBAC(RoleAdmin, gateway.handleUDSSecurity))
+	http.HandleFunc("/api/v1/ecu/uds/routine", gateway.withRBAC(RoleAdmin, gateway.handleUDSRoutine))
+	http.HandleFunc("/api/v1/ecu/doip/status", gateway.withRBAC(RoleUser, gateway.handleDoIPStatus))
 
 	port := os.Getenv("GATEWAY_PORT")
 	if port == "" {
@@ -1313,7 +1321,362 @@ func (g *AppGateway) handleUDSConnection(conn net.Conn) {
 		_, _ = g.db.Exec("INSERT INTO tag_history(timestamp, tag_id, value, status) VALUES(?, ?, ?, ?);",
 			time.Now().UnixNano()/1e6, 12003, 1.0, 1)
 		g.mu.Unlock()
+
+	case 4:
+		log.Printf("[UDS IPC] BLE Multi-Device Telemetry Received: %s", string(payload))
+
 	default:
 		log.Printf("UDS: Unknown MsgType: %d", msgType)
 	}
 }
+
+// --- ISO 13400 DoIP (Diagnostics over IP) Server & UDS REST API ---
+
+type SecurityAccessState struct {
+	mu          sync.Mutex
+	activeSeed  []byte
+	failedCount int
+	lockedUntil time.Time
+}
+
+var (
+	secAccessState      = &SecurityAccessState{}
+	activeDoIPConns     int32
+	maxDoIPConns        int32 = 5
+	doipClientConnected bool
+	doipMutex           sync.Mutex
+	udsSessionState     int = 1 // 1=Default, 2=Programming, 3=Extended
+	udsSecurityUnlocked int = 0 // 0=Locked, 1=Unlocked
+	udsRoutineStatus    int = 0 // 0=Idle, 1=Running, 2=Completed, 3=Failed
+)
+
+func computeSecurityKey(seed []byte) []byte {
+	if len(seed) == 0 {
+		return nil
+	}
+	key := make([]byte, len(seed))
+	for i, b := range seed {
+		key[i] = b ^ 0x5A
+	}
+	return key
+}
+
+func (g *AppGateway) recordTagValue(tagID uint32, val float64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.db != nil {
+		_, _ = g.db.Exec("INSERT INTO tag_history(timestamp, tag_id, value, status) VALUES(?, ?, ?, ?);",
+			time.Now().UnixNano()/1e6, tagID, val, 1)
+	}
+}
+
+func (g *AppGateway) startDoIPServer() {
+	port := os.Getenv("DOIP_PORT")
+	if port == "" {
+		port = "13400"
+	}
+	listener, err := net.Listen("tcp", ":"+port)
+	if err != nil {
+		log.Printf("DoIP Server Listen Error on port %s: %v", port, err)
+		return
+	}
+	defer listener.Close()
+	log.Printf("ISO 13400 DoIP Server listening on TCP port %s", port)
+
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			log.Printf("DoIP Accept error: %v", err)
+			continue
+		}
+
+		if atomic.LoadInt32(&activeDoIPConns) >= maxDoIPConns {
+			log.Printf("DoIP: Max connection limit (%d) reached. Rejecting connection from %s", maxDoIPConns, conn.RemoteAddr())
+			conn.Close()
+			continue
+		}
+
+		atomic.AddInt32(&activeDoIPConns, 1)
+		doipMutex.Lock()
+		doipClientConnected = true
+		doipMutex.Unlock()
+		g.recordTagValue(tags.DOIP_CLIENT_CONNECTED, 1.0)
+
+		go g.handleDoIPConnection(conn)
+	}
+}
+
+func (g *AppGateway) handleDoIPConnection(conn net.Conn) {
+	defer func() {
+		conn.Close()
+		remaining := atomic.AddInt32(&activeDoIPConns, -1)
+		doipMutex.Lock()
+		if remaining <= 0 {
+			doipClientConnected = false
+			g.recordTagValue(tags.DOIP_CLIENT_CONNECTED, 0.0)
+		}
+		doipMutex.Unlock()
+		log.Printf("DoIP Client disconnected (active: %d)", remaining)
+	}()
+
+	buf := make([]byte, 8192)
+	for {
+		conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+		n, err := conn.Read(buf)
+		if err != nil || n < 8 {
+			return
+		}
+
+		// Parse ISO 13400-2 Generic DoIP Header
+		// Protocol Version: 0x02, Inverse: 0xF9
+		if buf[0] != 0x02 || buf[1] != 0xF9 {
+			log.Printf("DoIP: Invalid protocol version (0x%02x 0x%02x)", buf[0], buf[1])
+			return
+		}
+
+		payloadType := (uint16(buf[2]) << 8) | uint16(buf[3])
+		payloadLen := (uint32(buf[4]) << 24) | (uint32(buf[5]) << 16) | (uint32(buf[6]) << 8) | uint32(buf[7])
+
+		if payloadLen > 4096 {
+			log.Printf("DoIP: Payload length %d exceeds max allowed (4096). Closing connection.", payloadLen)
+			return
+		}
+
+		if uint32(n-8) < payloadLen {
+			log.Printf("DoIP: Partial payload read (%d < %d)", n-8, payloadLen)
+			continue
+		}
+
+		payload := buf[8 : 8+payloadLen]
+
+		switch payloadType {
+		case 0x0005: // Routing Activation Request
+			log.Printf("[DoIP] Routing Activation Request received")
+			resp := []byte{0x02, 0xF9, 0x00, 0x06, 0x00, 0x00, 0x00, 0x0B,
+				0x0E, 0x00, // Tester SA
+				0x10, 0x00, // Entity Logical Address
+				0x10,       // Activation Result: Successfully Activated
+				0x00, 0x00, 0x00, 0x00, // Reserved
+				0x00, 0x00, // OEM Reserved
+			}
+			conn.Write(resp)
+
+		case 0x8001: // Diagnostic Message
+			if len(payload) >= 5 {
+				sa := (uint16(payload[0]) << 8) | uint16(payload[1])
+				ta := (uint16(payload[2]) << 8) | uint16(payload[3])
+				udsData := payload[4:]
+				if len(udsData) > 0 {
+					sid := udsData[0]
+					log.Printf("[DoIP/UDS] Diagnostic Message SA=0x%04x TA=0x%04x SID=0x%02x", sa, ta, sid)
+					g.processUDSService(conn, sa, ta, udsData)
+				}
+			}
+
+		default:
+			log.Printf("[DoIP] Unhandled Payload Type: 0x%04x", payloadType)
+		}
+	}
+}
+
+func (g *AppGateway) processUDSService(conn net.Conn, sa, ta uint16, udsData []byte) {
+	if len(udsData) == 0 {
+		return
+	}
+	sid := udsData[0]
+	var respUDS []byte
+
+	switch sid {
+	case 0x10: // DiagnosticSessionControl
+		subFunc := byte(1)
+		if len(udsData) > 1 {
+			subFunc = udsData[1]
+		}
+		doipMutex.Lock()
+		udsSessionState = int(subFunc)
+		doipMutex.Unlock()
+		g.recordTagValue(tags.UDS_SESSION_STATE, float64(subFunc))
+		respUDS = []byte{0x50, subFunc, 0x00, 0x32, 0x01, 0xF4} // Positive Response 0x50
+
+	case 0x22: // ReadDataByIdentifier
+		respUDS = []byte{0x62, 0xF1, 0x90, 0x45, 0x64, 0x67, 0x65, 0x43, 0x5f, 0x45, 0x43, 0x55} // "EdgeC_ECU"
+
+	case 0x27: // SecurityAccess
+		subFunc := byte(1)
+		if len(udsData) > 1 {
+			subFunc = udsData[1]
+		}
+		secAccessState.mu.Lock()
+		now := time.Now()
+		if now.Before(secAccessState.lockedUntil) {
+			secAccessState.mu.Unlock()
+			respUDS = []byte{0x7F, 0x27, 0x36} // Exceeded Number of Attempts / Locked
+		} else if subFunc == 0x01 { // Request Seed
+			seed := make([]byte, 4)
+			rand.Read(seed)
+			secAccessState.activeSeed = seed
+			secAccessState.mu.Unlock()
+			respUDS = append([]byte{0x67, 0x01}, seed...)
+		} else if subFunc == 0x02 { // Send Key
+			sentKey := udsData[2:]
+			expected := computeSecurityKey(secAccessState.activeSeed)
+			if len(secAccessState.activeSeed) > 0 && len(expected) > 0 && bytes.Equal(sentKey, expected) {
+				secAccessState.failedCount = 0
+				secAccessState.activeSeed = nil
+				secAccessState.mu.Unlock()
+
+				doipMutex.Lock()
+				udsSecurityUnlocked = 1
+				doipMutex.Unlock()
+				g.recordTagValue(tags.UDS_SECURITY_UNLOCKED, 1.0)
+				respUDS = []byte{0x67, 0x02} // Unlocked Success
+			} else {
+				secAccessState.failedCount++
+				if secAccessState.failedCount >= 3 {
+					secAccessState.lockedUntil = now.Add(10 * time.Second)
+				}
+				secAccessState.mu.Unlock()
+				respUDS = []byte{0x7F, 0x27, 0x35} // Invalid Key
+			}
+		} else {
+			secAccessState.mu.Unlock()
+			respUDS = []byte{0x7F, 0x27, 0x12} // SubFunction Not Supported
+		}
+
+	case 0x19: // ReadDTCInformation
+		g.recordTagValue(tags.UDS_ACTIVE_DTC_COUNT, 1.0)
+		respUDS = []byte{0x59, 0x02, 0xFF, 0x01, 0x90, 0x01, 0x2F} // DTC: P09012F (Motor Fault)
+
+	case 0x31: // RoutineControl
+		doipMutex.Lock()
+		udsRoutineStatus = 2 // Completed
+		doipMutex.Unlock()
+		g.recordTagValue(tags.UDS_ROUTINE_STATUS, 2.0)
+		respUDS = []byte{0x71, 0x01, 0x02, 0x01} // Routine executed
+
+	default:
+		respUDS = []byte{0x7F, sid, 0x11} // Service Not Supported
+	}
+
+	// Wrap in DoIP Header + Diagnostic Message header
+	diagPayload := append([]byte{byte(ta >> 8), byte(ta), byte(sa >> 8), byte(sa)}, respUDS...)
+	payLen := uint32(len(diagPayload))
+
+	header := []byte{
+		0x02, 0xF9, 0x80, 0x01,
+		byte(payLen >> 24), byte(payLen >> 16), byte(payLen >> 8), byte(payLen),
+	}
+	conn.Write(append(header, diagPayload...))
+}
+
+func (g *AppGateway) handleUDSSession(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[AUDIT] REST UDS Session request from %s", r.RemoteAddr)
+	w.Header().Set("Content-Type", "application/json")
+	if r.Method == "POST" {
+		var req struct {
+			Session int `json:"session"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err == nil && req.Session > 0 {
+			doipMutex.Lock()
+			udsSessionState = req.Session
+			doipMutex.Unlock()
+			g.recordTagValue(tags.UDS_SESSION_STATE, float64(req.Session))
+		}
+	}
+
+	doipMutex.Lock()
+	sess := udsSessionState
+	doipMutex.Unlock()
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"code":    200,
+		"message": "UDS session status retrieved",
+		"data": map[string]interface{}{
+			"session_state": sess,
+			"session_name":  map[int]string{1: "Default", 2: "Programming", 3: "Extended"}[sess],
+		},
+	})
+}
+
+func (g *AppGateway) handleUDSDTC(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[AUDIT] REST UDS DTC request from %s", r.RemoteAddr)
+	w.Header().Set("Content-Type", "application/json")
+	g.recordTagValue(tags.UDS_ACTIVE_DTC_COUNT, 1.0)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"code":    200,
+		"message": "UDS DTC active codes retrieved",
+		"data": map[string]interface{}{
+			"active_dtc_count": 1,
+			"dtc_list": []map[string]interface{}{
+				{"dtc_code": "P09012F", "description": "Motor Overcurrent/Thermal Fault", "status": "CONFIRMED"},
+			},
+		},
+	})
+}
+
+func (g *AppGateway) handleUDSSecurity(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[AUDIT] REST UDS Security request from %s", r.RemoteAddr)
+	w.Header().Set("Content-Type", "application/json")
+	if r.Method == "POST" {
+		doipMutex.Lock()
+		udsSecurityUnlocked = 1
+		doipMutex.Unlock()
+		g.recordTagValue(tags.UDS_SECURITY_UNLOCKED, 1.0)
+	}
+
+	doipMutex.Lock()
+	unlocked := udsSecurityUnlocked
+	doipMutex.Unlock()
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"code":    200,
+		"message": "UDS security access status",
+		"data": map[string]interface{}{
+			"unlocked": unlocked == 1,
+		},
+	})
+}
+
+func (g *AppGateway) handleUDSRoutine(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[AUDIT] REST UDS Routine request from %s", r.RemoteAddr)
+	w.Header().Set("Content-Type", "application/json")
+	if r.Method == "POST" {
+		doipMutex.Lock()
+		udsRoutineStatus = 1 // Running
+		doipMutex.Unlock()
+		g.recordTagValue(tags.UDS_ROUTINE_STATUS, 1.0)
+	}
+
+	doipMutex.Lock()
+	status := udsRoutineStatus
+	doipMutex.Unlock()
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"code":    200,
+		"message": "UDS routine status retrieved",
+		"data": map[string]interface{}{
+			"routine_id": "0x0201",
+			"status":     status,
+			"name":       "FOC_Motor_Self_Calibration",
+		},
+	})
+}
+
+func (g *AppGateway) handleDoIPStatus(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[AUDIT] REST DoIP Status request from %s", r.RemoteAddr)
+	w.Header().Set("Content-Type", "application/json")
+	doipMutex.Lock()
+	conn := doipClientConnected
+	doipMutex.Unlock()
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"code":    200,
+		"message": "DoIP server status retrieved",
+		"data": map[string]interface{}{
+			"doip_port":        13400,
+			"client_connected": conn,
+			"protocol_version": "ISO 13400-2:2019",
+		},
+	})
+}
+
