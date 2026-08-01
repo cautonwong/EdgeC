@@ -258,18 +258,49 @@ uint32_t datahub_get_metadata_count(datahub_t *hub) {
 
 int datahub_save_snapshot(datahub_t *hub, const char *path) {
     if (!hub || !path) return -1;
-    FILE *fp = fopen(path, "wb");
-    if (!fp) return -1;
+
     uv_mutex_lock(&hub->shadow_lock);
-    if (!hub->shadow_table) {
+    if (!hub->shadow_table || hub->shadow_capacity == 0) {
         uv_mutex_unlock(&hub->shadow_lock);
-        fclose(fp);
         return -1;
     }
-    size_t written = fwrite(hub->shadow_table, sizeof(pipe_msg_t), hub->shadow_capacity, fp);
+
+    uint32_t capacity = hub->shadow_capacity;
+    size_t bytes = capacity * sizeof(pipe_msg_t);
+    pipe_msg_t *buf = malloc(bytes);
+    if (!buf) {
+        uv_mutex_unlock(&hub->shadow_lock);
+        return -1;
+    }
+
+    memcpy(buf, hub->shadow_table, bytes);
     uv_mutex_unlock(&hub->shadow_lock);
+
+    char tmp_path[512];
+    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", path);
+
+    FILE *fp = fopen(tmp_path, "wb");
+    if (!fp) {
+        free(buf);
+        return -1;
+    }
+
+    size_t written = fwrite(buf, sizeof(pipe_msg_t), capacity, fp);
+    fflush(fp);
     fclose(fp);
-    return (written == hub->shadow_capacity) ? 0 : -1;
+    free(buf);
+
+    if (written != capacity) {
+        unlink(tmp_path);
+        return -1;
+    }
+
+    if (rename(tmp_path, path) != 0) {
+        unlink(tmp_path);
+        return -1;
+    }
+
+    return 0;
 }
 
 int datahub_load_snapshot(datahub_t *hub, const char *path) {
