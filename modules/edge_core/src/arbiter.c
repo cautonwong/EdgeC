@@ -100,36 +100,36 @@ int arbiter_submit_cmd(arbiter_t *arb, int bus_id, cmd_msg_t *cmd) {
 }
 
 void arbiter_on_io_done(arbiter_t *arb, int bus_id, cmd_msg_t *msg, int status) {
-    if (!arb || bus_id < 0 || bus_id >= ARBITER_MAX_BUSES) return;
+    if (!arb || bus_id < 0 || bus_id >= ARBITER_MAX_BUSES || !msg) return;
 
     // 💡 [Consumer-Driven] 优先通过 executor 回调处理
+    int handled = 0;
     if (arb->executor.on_io_done) {
-        int handled = arb->executor.on_io_done(arb->executor.ctx, bus_id, msg, status);
-        if (handled) return;
+        handled = arb->executor.on_io_done(arb->executor.ctx, bus_id, msg, status);
+    }
+
+    if (!handled) {
+        if (msg->on_complete) msg->on_complete(msg, status);
+        if (msg->on_cleanup) msg->on_cleanup(msg);
+        else free(msg);
     }
 
     uv_mutex_lock(&arb->lock);
     if (arb->buses[bus_id].owner == msg) {
         arb->buses[bus_id].owner = NULL;
+    }
+
+    if (!arb->paused && !arb->buses[bus_id].owner && arb->buses[bus_id].queue) {
+        arb->buses[bus_id].owner = arb->buses[bus_id].queue;
+        arb->buses[bus_id].queue = arb->buses[bus_id].queue->next;
+        cmd_msg_t *job = arb->buses[bus_id].owner;
         uv_mutex_unlock(&arb->lock);
-
-        if (msg->on_complete) msg->on_complete(msg, status);
-        if (msg->on_cleanup) msg->on_cleanup(msg);
-        free(msg);
-
-        uv_mutex_lock(&arb->lock);
-        if (!arb->paused && arb->buses[bus_id].queue) {
-            arb->buses[bus_id].owner = arb->buses[bus_id].queue;
-            arb->buses[bus_id].queue = arb->buses[bus_id].queue->next;
-            cmd_msg_t *job = arb->buses[bus_id].owner;
-            uv_mutex_unlock(&arb->lock);
-            if (arb->executor.execute) {
-                arb->executor.execute(arb->executor.ctx, bus_id, job);
-            } else if (job->on_start) {
-                job->on_start(job);
-            }
-            return;
+        if (arb->executor.execute) {
+            arb->executor.execute(arb->executor.ctx, bus_id, job);
+        } else if (job->on_start) {
+            job->on_start(job);
         }
+        return;
     }
     uv_mutex_unlock(&arb->lock);
 }
@@ -160,6 +160,35 @@ void arbiter_set_exclusive(arbiter_t *arb, int bus_id, bool exclusive) {
 
 void arbiter_destroy(arbiter_t *arb) {
     if (!arb) return;
+    uv_mutex_lock(&arb->lock);
+
+    for (int i = 0; i < ARBITER_MAX_BUSES; i++) {
+        if (arb->buses[i].owner) {
+            cmd_msg_t *cmd = arb->buses[i].owner;
+            arb->buses[i].owner = NULL;
+            if (cmd->on_cleanup) cmd->on_cleanup(cmd);
+            else free(cmd);
+        }
+        cmd_msg_t *curr = arb->buses[i].queue;
+        arb->buses[i].queue = NULL;
+        while (curr) {
+            cmd_msg_t *next = curr->next;
+            if (curr->on_cleanup) curr->on_cleanup(curr);
+            else free(curr);
+            curr = next;
+        }
+    }
+
+    cmd_msg_t *z = arb->zombies;
+    arb->zombies = NULL;
+    while (z) {
+        cmd_msg_t *next = z->next;
+        if (z->on_cleanup) z->on_cleanup(z);
+        else free(z);
+        z = next;
+    }
+
+    uv_mutex_unlock(&arb->lock);
     uv_mutex_destroy(&arb->lock);
     free(arb);
 }
