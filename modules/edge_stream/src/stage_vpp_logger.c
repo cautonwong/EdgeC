@@ -63,8 +63,12 @@ pipeline_stage_t *stage_vpp_logger_create(sqlite_svc_t *db) {
     vpp_logger_ctx_t *ctx = calloc(1, sizeof(vpp_logger_ctx_t));
     
     ctx->db = db;
-    ctx->key.raw_data = (const uint8_t *)"vpp-audit-secret-2026";
-    ctx->key.len = 21;
+    const char *secret = getenv("VPP_AUDIT_SECRET");
+    if (!secret || strlen(secret) == 0) {
+        secret = "TEST_ONLY_vpp_audit_secret_key_override";
+    }
+    ctx->key.raw_data = (const uint8_t *)secret;
+    ctx->key.len = (uint32_t)strlen(secret);
     
     strncpy(s->name, "VPP_LOGGER", 31);
     s->process = _vpp_logger_proc;
