@@ -24,8 +24,8 @@ crypto_ops_t mbedtls_ops = {
 };
 
 static crypto_key_t g_audit_key = {
-    .raw_data = (const uint8_t *)"edge-guard-audit-secret-key-2026",
-    .len = 32,
+    .raw_data = NULL,
+    .len = 0,
     .is_hardware = false
 };
 
@@ -33,6 +33,13 @@ static crypto_key_t g_audit_key = {
  * @brief 记录并签名安全事件
  */
 void dpi_audit_signed_log(dpi_result_t res, uint32_t tag_id, double val, const char *reason) {
+    const char *env_secret = getenv("EDGE_GUARD_AUDIT_SECRET");
+    if (!env_secret || strlen(env_secret) == 0) {
+        env_secret = "TEST_ONLY_edge_guard_audit_secret";
+    }
+    g_audit_key.raw_data = (const uint8_t *)env_secret;
+    g_audit_key.len = (uint32_t)strlen(env_secret);
+
     char log_buf[512];
     uint8_t signature[32]; // SHA-256 HMAC
     char sig_hex[65];
