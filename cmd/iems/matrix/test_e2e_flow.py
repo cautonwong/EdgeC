@@ -42,8 +42,10 @@ async def test_iems_multi_tag_consistency(matrix):
     
     print("\n🚀 [Step 1] Injecting multiple values...")
     dev = matrix.device("METER_MAIN")
+    loader = getattr(matrix, 'loader', None)
     for name, val in data_map.items():
-        dev.inject(name, val, matrix.orch.loader)
+        dev.inject(name, val, loader)
+        await asyncio.sleep(0.1)
         
     print("⏳ [Step 2] Verifying all tags in IEMS...")
     for name, val in data_map.items():
@@ -54,4 +56,3 @@ async def test_iems_multi_tag_consistency(matrix):
             assert False
         else:
             print(f"✅ Tag {name} verified: {val}")
-        print(f"✅ Tag {name} verified: {val}")
