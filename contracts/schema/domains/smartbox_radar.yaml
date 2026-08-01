@@ -1,0 +1,26 @@
+tags:
+  - id: 12021
+    name: RADAR_TARGET_DISTANCE
+    type: float
+    desc: "FMCW 雷达目标测量距离(米)"
+    traits: [ "smartbox", "radar", "sensor" ]
+  - id: 12022
+    name: RADAR_TARGET_VELOCITY
+    type: float
+    desc: "FMCW 雷达目标测量速度(m/s)"
+    traits: [ "smartbox", "radar", "sensor" ]
+  - id: 12023
+    name: RADAR_MICRO_MOTION_AMP
+    type: float
+    desc: "FMCW 雷达胸腔微动幅度(mm)"
+    traits: [ "smartbox", "radar", "sensor" ]
+  - id: 12024
+    name: RADAR_RESPIRATION_RATE
+    type: float
+    desc: "FMCW 雷达提取呼吸频率(次/分)"
+    traits: [ "smartbox", "radar", "vital" ]
+  - id: 12025
+    name: RADAR_GESTURE_EVENT
+    type: int
+    desc: "TinyML 识别手势事件 (0=无, 1=挥手, 2=推掌, 3=圈选)"
+    traits: [ "smartbox", "radar", "tinyml" ]

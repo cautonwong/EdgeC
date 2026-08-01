@@ -1,0 +1,26 @@
+tags:
+  - id: 12031
+    name: UDS_SESSION_STATE
+    type: int
+    desc: "AUTOSAR UDS 诊断会话 (0=Default, 1=Programming, 2=Extended)"
+    traits: [ "smartbox", "uds", "diagnostic" ]
+  - id: 12032
+    name: UDS_ACTIVE_DTC_COUNT
+    type: int
+    desc: "当前车载 ECU 激活的 DTC 故障码数量"
+    traits: [ "smartbox", "uds", "diagnostic" ]
+  - id: 12033
+    name: UDS_SECURITY_UNLOCKED
+    type: int
+    desc: "UDS 安全访问 0x27 解锁状态 (0=锁定, 1=已解锁)"
+    traits: [ "smartbox", "uds", "security" ]
+  - id: 12034
+    name: UDS_ROUTINE_STATUS
+    type: int
+    desc: "例程控制 0x31 执行状态 (0=空闲, 1=进行中, 2=成功, 3=失败)"
+    traits: [ "smartbox", "uds", "control" ]
+  - id: 12035
+    name: DOIP_CLIENT_CONNECTED
+    type: int
+    desc: "ISO 13400 DoIP 原生诊断客户端连接计数"
+    traits: [ "smartbox", "uds", "diagnostic" ]
