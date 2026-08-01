@@ -95,9 +95,50 @@ static int teardown(void** state) {
     return 0;
 }
 
+static void* submitter_thread(void* arg) {
+    arbiter_t* arb = (arbiter_t*)arg;
+    for (int i = 0; i < 100; i++) {
+        cmd_msg_t* cmd = calloc(1, sizeof(cmd_msg_t));
+        cmd_msg_init_write(cmd, (uint32_t)(100 + i), (double)i, (uint8_t)(i % 100));
+        arbiter_submit_cmd(arb, i % 8, cmd);
+        if (i % 20 == 0) {
+            arbiter_pause(arb);
+            usleep(100);
+            arbiter_resume(arb);
+        }
+    }
+    return NULL;
+}
+
+static void test_arbiter_stress_and_destroy(void** state) {
+    (void)state;
+    uv_loop_t loop;
+    uv_loop_init(&loop);
+    arbiter_t* arb = NULL;
+    arbiter_init(&arb, &loop);
+    arbiter_resume(arb);
+
+    pthread_t t1, t2;
+    pthread_create(&t1, NULL, submitter_thread, arb);
+    pthread_create(&t2, NULL, submitter_thread, arb);
+
+    pthread_join(t1, NULL);
+    pthread_join(t2, NULL);
+
+    arbiter_bus_status_t stats[8];
+    int count = arbiter_get_statuses(arb, stats, 8);
+    assert_int_equal(count, 8);
+
+    // Destroy arbiter with queued/active jobs; verify clean teardown
+    arbiter_destroy(arb);
+
+    uv_loop_close(&loop);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_arbiter_preempt, setup, teardown),
+        cmocka_unit_test(test_arbiter_stress_and_destroy),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
