@@ -113,9 +113,95 @@ static int teardown(void** state) {
     return 0;
 }
 
+static void* wal_writer_thread(void* arg) {
+    datahub_t* hub = (datahub_t*)arg;
+    for (int i = 0; i < 200; i++) {
+        pipe_msg_t msg = {0};
+        msg.tag_id = (uint32_t)(i % 50 + 1);
+        msg.type = PIPEMSG_TYPE_SCALAR;
+        msg.payload.val.f = (double)(i + 100);
+        datahub_publish(hub, &msg);
+        uv_sleep(1);
+    }
+    return NULL;
+}
+
+static void* wal_reader_thread(void* arg) {
+    datahub_t* hub = (datahub_t*)arg;
+    pipe_msg_t msg;
+    for (int i = 0; i < 150; i++) {
+        for (uint32_t tag = 1; tag <= 50; tag++) {
+            datahub_read_shadow(hub, tag, &msg);
+        }
+        uv_sleep(1);
+    }
+    return NULL;
+}
+
+static void test_datahub_wal_concurrency(void** state) {
+    (void)state;
+    uv_loop_t loop;
+    uv_loop_init(&loop);
+    datahub_t hub;
+    shm_unlink("/test_wal_hub");
+
+    assert_int_equal(datahub_init(&hub, &loop, "/test_wal_hub", 256, 128, NULL, 0, NULL, NULL, NULL), 0);
+
+    const char* wal_path = "/tmp/test_datahub_wal_t103.log";
+    const char* snap_path = "/tmp/test_datahub_snap_t103.bin";
+    unlink(wal_path);
+    unlink(snap_path);
+
+    assert_int_equal(datahub_enable_wal(&hub, wal_path), 0);
+
+    pthread_t w1, w2, r1;
+    pthread_create(&w1, NULL, wal_writer_thread, &hub);
+    pthread_create(&w2, NULL, wal_writer_thread, &hub);
+    pthread_create(&r1, NULL, wal_reader_thread, &hub);
+
+    // Concurrently trigger snapshot compaction
+    uv_sleep(50);
+    hub.snapshot_path[0] = '\0';
+    strncpy(hub.snapshot_path, snap_path, sizeof(hub.snapshot_path) - 1);
+    datahub_compact_now(&hub);
+
+    pthread_join(w1, NULL);
+    pthread_join(w2, NULL);
+    pthread_join(r1, NULL);
+
+    // Save final snapshot and test WAL replay into a fresh hub
+    datahub_save_snapshot(&hub, snap_path);
+    datahub_destroy(&hub);
+
+    datahub_t hub2;
+    uv_loop_t loop2;
+    uv_loop_init(&loop2);
+    shm_unlink("/test_wal_hub2");
+    assert_int_equal(datahub_init(&hub2, &loop2, "/test_wal_hub2", 256, 128, NULL, 0, NULL, NULL, NULL), 0);
+
+    assert_int_equal(datahub_load_snapshot(&hub2, snap_path), 0);
+    strncpy(hub2.wal_path, wal_path, sizeof(hub2.wal_path) - 1);
+    assert_int_equal(datahub_replay_wal(&hub2), 0);
+
+    // Verify tag 1 shadow read succeeds
+    pipe_msg_t msg_out;
+    assert_int_equal(datahub_read_shadow(&hub2, 1, &msg_out), 0);
+    assert_int_equal(msg_out.type, PIPEMSG_TYPE_SCALAR);
+
+    datahub_destroy(&hub2);
+    while (uv_run(&loop, UV_RUN_NOWAIT));
+    uv_loop_close(&loop);
+    while (uv_run(&loop2, UV_RUN_NOWAIT));
+    uv_loop_close(&loop2);
+
+    unlink(wal_path);
+    unlink(snap_path);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_datahub_notify, setup, teardown),
+        cmocka_unit_test(test_datahub_wal_concurrency),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

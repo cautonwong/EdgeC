@@ -105,19 +105,23 @@ void datahub_destroy(datahub_t *hub) {
     if (!hub) return;
     datahub_stop_metrics(hub);
     shmring_destroy(&hub->ring);
+    uv_mutex_lock(&hub->shadow_lock);
     if (hub->shadow_table) {
         munmap(hub->shadow_table, hub->shadow_size);
+        hub->shadow_table = NULL;
         if (hub->shadow_fd >= 0) {
             close(hub->shadow_fd);
+            hub->shadow_fd = -1;
         }
-    }
-    uv_mutex_destroy(&hub->shadow_lock);
-    if (!uv_is_closing((uv_handle_t *)&hub->legacy_async)) {
-        uv_close((uv_handle_t *)&hub->legacy_async, NULL);
     }
     if (hub->wal_fd >= 0) {
         close(hub->wal_fd);
         hub->wal_fd = -1;
+    }
+    uv_mutex_unlock(&hub->shadow_lock);
+    uv_mutex_destroy(&hub->shadow_lock);
+    if (!uv_is_closing((uv_handle_t *)&hub->legacy_async)) {
+        uv_close((uv_handle_t *)&hub->legacy_async, NULL);
     }
     if (hub->compaction_active && !uv_is_closing((uv_handle_t *)&hub->compaction_timer)) {
         uv_close((uv_handle_t *)&hub->compaction_timer, NULL);
@@ -125,12 +129,16 @@ void datahub_destroy(datahub_t *hub) {
 }
 
 int datahub_write_shadow_idx(datahub_t *hub, int idx, const pipe_msg_t *msg) {
-    if (!hub || idx < 0 || idx >= (int)hub->shadow_capacity || !msg || !hub->shadow_table) return -1;
+    if (!hub || idx < 0 || idx >= (int)hub->shadow_capacity || !msg) return -1;
 
     // [ADR-0001] 计量 Shadow 写入
     atomic_fetch_add_explicit(&hub->metrics_shadow_writes, 1, memory_order_relaxed);
 
     uv_mutex_lock(&hub->shadow_lock);
+    if (!hub->shadow_table) {
+        uv_mutex_unlock(&hub->shadow_lock);
+        return -1;
+    }
     hub->shadow_table[idx] = *msg;
     
     // 💡 [WAL] Write to Write-Ahead Log if enabled
@@ -187,9 +195,13 @@ int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out) {
 }
 
 int datahub_read_shadow_idx(datahub_t *hub, uint32_t idx, pipe_msg_t *out) {
-    if (!hub || !out || idx >= hub->shadow_capacity || !hub->shadow_table) return -1;
+    if (!hub || !out || idx >= hub->shadow_capacity) return -1;
     
     uv_mutex_lock(&hub->shadow_lock);
+    if (!hub->shadow_table) {
+        uv_mutex_unlock(&hub->shadow_lock);
+        return -1;
+    }
     *out = hub->shadow_table[idx];
     uv_mutex_unlock(&hub->shadow_lock);
     return 0;
@@ -245,10 +257,15 @@ uint32_t datahub_get_metadata_count(datahub_t *hub) {
 }
 
 int datahub_save_snapshot(datahub_t *hub, const char *path) {
-    if (!hub || !path || !hub->shadow_table) return -1;
+    if (!hub || !path) return -1;
     FILE *fp = fopen(path, "wb");
     if (!fp) return -1;
     uv_mutex_lock(&hub->shadow_lock);
+    if (!hub->shadow_table) {
+        uv_mutex_unlock(&hub->shadow_lock);
+        fclose(fp);
+        return -1;
+    }
     size_t written = fwrite(hub->shadow_table, sizeof(pipe_msg_t), hub->shadow_capacity, fp);
     uv_mutex_unlock(&hub->shadow_lock);
     fclose(fp);
@@ -256,10 +273,15 @@ int datahub_save_snapshot(datahub_t *hub, const char *path) {
 }
 
 int datahub_load_snapshot(datahub_t *hub, const char *path) {
-    if (!hub || !path || !hub->shadow_table) return -1;
+    if (!hub || !path) return -1;
     FILE *fp = fopen(path, "rb");
     if (!fp) return -1;
     uv_mutex_lock(&hub->shadow_lock);
+    if (!hub->shadow_table) {
+        uv_mutex_unlock(&hub->shadow_lock);
+        fclose(fp);
+        return -1;
+    }
     size_t nread = fread(hub->shadow_table, sizeof(pipe_msg_t), hub->shadow_capacity, fp);
     uv_mutex_unlock(&hub->shadow_lock);
     fclose(fp);
@@ -268,15 +290,22 @@ int datahub_load_snapshot(datahub_t *hub, const char *path) {
 
 int datahub_enable_wal(datahub_t *hub, const char *path) {
     if (!hub || !path) return -1;
-    if (hub->wal_fd >= 0) close(hub->wal_fd);
+    uv_mutex_lock(&hub->shadow_lock);
+    if (hub->wal_fd >= 0) {
+        close(hub->wal_fd);
+        hub->wal_fd = -1;
+    }
     strncpy(hub->wal_path, path, sizeof(hub->wal_path) - 1);
+    hub->wal_path[sizeof(hub->wal_path) - 1] = '\0';
     
     // Open for append, create if not exist
     hub->wal_fd = open(path, O_WRONLY | O_APPEND | O_CREAT, 0644);
     if (hub->wal_fd < 0) {
+        uv_mutex_unlock(&hub->shadow_lock);
         printf("[DataHub] Failed to open WAL file: %s\n", path);
         return -1;
     }
+    uv_mutex_unlock(&hub->shadow_lock);
     printf("[DataHub] WAL enabled: %s\n", path);
     return 0;
 }
@@ -284,8 +313,10 @@ int datahub_enable_wal(datahub_t *hub, const char *path) {
 int datahub_replay_wal(datahub_t *hub) {
     if (!hub || hub->wal_path[0] == '\0') return -1;
     
+    uv_mutex_lock(&hub->shadow_lock);
     int fd = open(hub->wal_path, O_RDONLY);
     if (fd < 0) {
+        uv_mutex_unlock(&hub->shadow_lock);
         printf("[DataHub] No existing WAL file to replay: %s\n", hub->wal_path);
         return 0; // Not an error if file doesn't exist yet
     }
@@ -301,13 +332,14 @@ int datahub_replay_wal(datahub_t *hub) {
         }
         if (idx < 0) idx = (int)msg.tag_id;
         
-        if (idx >= 0 && idx < (int)hub->shadow_capacity) {
+        if (idx >= 0 && idx < (int)hub->shadow_capacity && hub->shadow_table) {
             hub->shadow_table[idx] = msg;
             replayed_count++;
         }
     }
     
     close(fd);
+    uv_mutex_unlock(&hub->shadow_lock);
     printf("[DataHub] WAL replayed successfully, loaded %d events\n", replayed_count);
     return 0;
 }
@@ -322,14 +354,14 @@ int datahub_compact_now(datahub_t *hub) {
     }
     
     // 2. Truncate WAL file
+    uv_mutex_lock(&hub->shadow_lock);
     if (hub->wal_fd >= 0 && hub->wal_path[0] != '\0') {
-        uv_mutex_lock(&hub->shadow_lock);
         close(hub->wal_fd);
         // O_TRUNC will wipe the file, rolling it over safely since we have the snapshot
         hub->wal_fd = open(hub->wal_path, O_WRONLY | O_TRUNC | O_CREAT, 0644);
-        uv_mutex_unlock(&hub->shadow_lock);
-        printf("[DataHub] WAL compacted and truncated.\n");
     }
+    uv_mutex_unlock(&hub->shadow_lock);
+    printf("[DataHub] WAL compacted and truncated.\n");
     return 0;
 }
 
