@@ -32,12 +32,6 @@ dist/
 *.log
 logs/
 
-# SQLite & Temp data
-*.db
-*.db-shm
-*.db-wal
-vpp_db.sqlite
-
 # Assets & Drafts
 image*.png
 *_draft.md
@@ -45,4 +39,29 @@ third-party/.west
 third-party/modules
 third-party/tools
 .local/linux-x86_64/bin/contract-compiler
-go/edge-ops
+
+# Go & Executable Binaries
+go/edge-*
+go/ui-backend
+go/demo-algo
+go/demo_shm
+go/smart-box-gateway
+go/cmd/*/*
+!go/cmd/*/*.go
+check_go_shm
+tests/test_wasm_signature
+tools/contract-compiler-v2/contract-compiler*
+tools/contract-compiler/contract-compiler*
+rehab_companion.wasm
+
+# Archives
+*.tgz
+*.tar.gz
+
+# SQLite & Temp data
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+vpp_db.sqlite
+
