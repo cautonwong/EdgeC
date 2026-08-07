@@ -4,6 +4,7 @@ import (
 	"contract-compiler-v2/internal/backend"
 	"contract-compiler-v2/internal/frontend"
 	"contract-compiler-v2/internal/optimizer"
+	"contract-compiler-v2/internal/validator"
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
@@ -23,6 +24,7 @@ func main() {
 	base := flag.String("base", ".", "Base directory for includes")
 	outputFormat := flag.String("output-format", "all", "Output format: all, blob, c, go, ts")
 	signKey := flag.String("sign", "", "Path to RSA private key for signing .wasm output")
+	strict := flag.Bool("strict", true, "Enable strict contract validation (default: true)")
 	flag.Parse()
 
 	if *product == "" || *out == "" {
@@ -39,6 +41,16 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Printf("  ✅ Frontend: AST built for %s\n", ast.ProductName)
+
+	v := validator.NewValidator(*strict)
+	if errs := v.Validate(ast); len(errs) > 0 {
+		fmt.Printf("❌ Contract Validation Failed (%d error(s)):\n", len(errs))
+		for _, e := range errs {
+			fmt.Printf("   • %v\n", e)
+		}
+		os.Exit(1)
+	}
+	fmt.Printf("  ✅ Validator: Contract validation PASSED\n")
 
 	opt := &optimizer.Optimizer{}
 	ir, err := opt.Optimize(ast)

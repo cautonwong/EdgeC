@@ -184,7 +184,7 @@ func (b *CBackend) emitSource(contract *ir.ContractIR) error {
 	for _, s := range contract.UsedStages { fmt.Fprintf(f, "    { \"%s\", stage_%s_create_v2 },\n", s, s) }
 	fmt.Fprintln(f, "    { NULL, NULL }")
 	fmt.Fprintln(f, "};")
-	fmt.Fprintln(f, "const edge_stage_factory_entry_t* edge_stage_factory_get_registry(void) { return g_stage_factory_registry; }\n")
+	fmt.Fprintln(f, "const edge_stage_factory_entry_t* edge_stage_factory_get_registry(void) { return g_stage_factory_registry; }")
 
 	// 6. Protocol Lookup Tables
 	for proto, engine := range contract.LookupEngines {
@@ -243,7 +243,7 @@ func (b *CBackend) emitSource(contract *ir.ContractIR) error {
 	if len(contract.Tags) == 0 { fmt.Fprintln(f, "    { 0 }") }
 	fmt.Fprintln(f, "};")
 	fmt.Fprintln(f, "const int g_api_routes_len = (int)g_tag_metadata_len;")
-	fmt.Fprintln(f, "const ui_info_t g_ui_metadata = { \"default\" };\n")
+	fmt.Fprintln(f, "const ui_info_t g_ui_metadata = { \"default\" };")
 
 	// 9. Contract Manifest (Root Descriptor)
 	fmt.Fprintln(f, "const edge_contract_t g_contract_manifest = {")
@@ -265,7 +265,7 @@ func (b *CBackend) emitSource(contract *ir.ContractIR) error {
 
 	fmt.Fprintln(f, "const driver_contract_injection_t *edge_model_find(const char *name) {")
 	fmt.Fprintln(f, "    return contract_model_find(name);")
-	fmt.Fprintln(f, "}\n")
+	fmt.Fprintln(f, "}")
 
 	fmt.Fprintln(f, "const char* edge_resolve_bus_path(int bus_id) {")
 	fmt.Fprintf(f, "    char env_name[64]; snprintf(env_name, sizeof(env_name), \"OMNIS_BUS_%%d_DEV\", bus_id);\n")
@@ -372,7 +372,7 @@ func (b *CBackend) emitProtocolTable(f *os.File, engine *ir.PerfectHashEngine, r
 			}
 		}
 	}
-	fmt.Fprintln(f, "};\n")
+	fmt.Fprintln(f, "};")
 	
 	// Use 64-bit Mix Hash to match Optimizer.go
 	fmt.Fprintf(f, "const %s_map_t* edge_get_map_%s(uint64_t key) {\n", lp, lp)
@@ -402,9 +402,9 @@ func (b *CBackend) emitProtocolTable(f *os.File, engine *ir.PerfectHashEngine, r
 		}
 		if !found { fmt.Fprintln(f, "    { 0 },") }
 	}
-	fmt.Fprintln(f, "};\n")
+	fmt.Fprintln(f, "};")
 	fmt.Fprintf(f, "const %s_map_t* edge_get_map_%s_by_tag(edge_tag_id_t tag_id) {\n", lp, lp)
-	fmt.Fprintln(f, "    int idx = edge_tag_get_compact_index(tag_id);\n")
+	fmt.Fprintln(f, "    int idx = edge_tag_get_compact_index(tag_id);")
 	fmt.Fprintf(f, "    if (idx < 0 || idx >= %d) { return NULL; }\n", tagCount)
 	fmt.Fprintf(f, "    return &s_%s_rev_table[idx];\n}\n", lp)
 }

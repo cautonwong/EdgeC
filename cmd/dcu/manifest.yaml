@@ -320,11 +320,13 @@ connectivity:
     transport: UDS
   type: UART
 tags:
-- attributes:
+- id: 1001
+  name: VOLTAGE_PHASE_A
+  attributes:
     persist: true
     poll_interval_ms: 1000
-  id: 536871424
-- attributes:
+- id: 1002
+  name: CURRENT_PHASE_A
+  attributes:
     persist: true
     poll_interval_ms: 1000
-  id: 536936960

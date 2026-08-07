@@ -16,3 +16,4 @@ pytest-asyncio
 pytest-html
 pytest-metadata
 numpy
+kconfiglib

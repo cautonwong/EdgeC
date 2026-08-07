@@ -14,12 +14,20 @@ static router_sink_ops_t g_router_sink_ops;
 
 int dcu_tag_map_fn(uint32_t tag_id, uint32_t device_id) {
     uint32_t offset = 0;
-    // 映射规则对齐：电压 OAD (0x20000200) -> Offset 0, 累计电量 OAD (0x00100200) -> Offset 1
-    if (tag_id == 0x20000200 || tag_id == 1004)
+    // 若 tag_id 为原生 698 OAD (>= 0x00010000)，通过契约生成的 dlt698 查找引擎解析为标准 TagID
+    if (tag_id >= 0x00010000) {
+        float scale = 1.0f;
+        edge_tag_id_t resolved = edge_lookup_dlt698((uint64_t)tag_id, &scale);
+        if (resolved != 0) {
+            tag_id = (uint32_t)resolved;
+        }
+    }
+
+    if (tag_id == TAG_VOLTAGE_PHASE_A || tag_id == 1001 || tag_id == 1004)
         offset = 0;
-    else if (tag_id == 0x00100200)
+    else if (tag_id == TAG_ENERGY_ACTIVE_IMPORT || tag_id == 3001)
         offset = 1;
-    else if (tag_id == 0x20010200)
+    else if (tag_id == TAG_CURRENT_PHASE_A || tag_id == 1002)
         offset = 2;  // 电流
     else
         return -1;

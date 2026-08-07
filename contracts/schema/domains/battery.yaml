@@ -7,6 +7,13 @@ tags:
     desc: "电池剩余电量"
     traits: [ "status", "critical" ]
 
+  - id: 4002
+    name: BATTERY_TEMP_MAX
+    type: float
+    unit: "°C"
+    desc: "电池最高单体温度"
+    traits: [ "status", "critical" ]
+
   - id: 4003
     name: BATTERY_POWER
     type: float

@@ -11,12 +11,12 @@ include:
 
 # 2. 行为定制 (OAD 映射)
 tags:
-  - id: 0x20000200 
+  - id: 1001
     name: VOLTAGE_PHASE_A
     attributes: { persist: true }
-  - id: 0x20010200 
+  - id: 1002
     name: CURRENT_PHASE_A
     attributes: { persist: true }
-  - id: 0x00100200 
+  - id: 3001
     name: ENERGY_ACTIVE_IMPORT
     attributes: { persist: true }

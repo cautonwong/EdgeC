@@ -5,10 +5,11 @@ import (
 	"os"
 	"syscall"
 	"testing"
+	"unsafe"
 )
 
 func TestTryOpenEventFifo(t *testing.T) {
-	name := "test_fifo_unit"
+	name := fmt.Sprintf("test_fifo_unit_%d", os.Getpid())
 	fifoPath := fmt.Sprintf("/tmp/edgeos_ev_%s", name)
 	_ = os.Remove(fifoPath)
 
@@ -31,4 +32,32 @@ func TestTryOpenEventFifo(t *testing.T) {
 	}
 	defer syscall.Close(epollFd)
 	defer fifoFile.Close()
+}
+
+func TestZeroCopyReadDirect(t *testing.T) {
+	msg := &PipeMsg{
+		Timestamp: 12345678,
+		TagID:     1001,
+		Type:      1,
+	}
+	*(*float64)(unsafe.Pointer(&msg.Payload[0])) = 220.5
+
+	f, _ := msg.Scalar()
+	if f != 220.5 {
+		t.Fatalf("expected 220.5, got %v", f)
+	}
+}
+
+func BenchmarkReadTagDirect(b *testing.B) {
+	sm := &ShadowMatrix{
+		data: make([]PipeMsg, 1024),
+	}
+	sm.WriteTag(5, 311.0, 99999)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		msg, _ := sm.ReadTagDirect(5)
+		_ = msg.Timestamp
+	}
 }

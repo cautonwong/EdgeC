@@ -8,6 +8,7 @@ import (
 	"crypto/cipher"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
@@ -1354,11 +1355,50 @@ func computeSecurityKey(seed []byte) []byte {
 	if len(seed) == 0 {
 		return nil
 	}
-	key := make([]byte, len(seed))
-	for i, b := range seed {
-		key[i] = b ^ 0x5A
+	secret := os.Getenv("DOIP_UDS_SECRET_KEY")
+	if secret == "" {
+		if os.Getenv("EDGE_ENV") == "production" || os.Getenv("EDGE_ENV") == "prod" {
+			log.Fatalf("[FATAL] Security Redline: DOIP_UDS_SECRET_KEY must be set in production mode!")
+		}
+		secret = "EdgeOS_DoIP_UDS_SecretKey_2026_dev"
 	}
-	return key
+	h := hmac.New(sha256.New, []byte(secret))
+	h.Write(seed)
+	return h.Sum(nil)[:4]
+}
+
+type clientSecState struct {
+	mu          sync.Mutex
+	failedCount int
+	lockedUntil time.Time
+	activeSeed  []byte
+}
+
+type secAccessManager struct {
+	mu      sync.Mutex
+	clients map[string]*clientSecState
+}
+
+var secAccessMgr = &secAccessManager{
+	clients: make(map[string]*clientSecState),
+}
+
+func (m *secAccessManager) getClientState(addr string) *clientSecState {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		host = addr
+	}
+	st, exists := m.clients[host]
+	if !exists {
+		if len(m.clients) >= 128 {
+			m.clients = make(map[string]*clientSecState)
+		}
+		st = &clientSecState{}
+		m.clients[host] = st
+	}
+	return st
 }
 
 func (g *AppGateway) recordTagValue(tagID uint32, val float64) {
@@ -1419,62 +1459,71 @@ func (g *AppGateway) handleDoIPConnection(conn net.Conn) {
 		log.Printf("DoIP Client disconnected (active: %d)", remaining)
 	}()
 
+	var readBuf []byte
 	buf := make([]byte, 8192)
+
 	for {
 		conn.SetReadDeadline(time.Now().Add(30 * time.Second))
 		n, err := conn.Read(buf)
-		if err != nil || n < 8 {
+		if err != nil {
 			return
 		}
-
-		// Parse ISO 13400-2 Generic DoIP Header
-		// Protocol Version: 0x02, Inverse: 0xF9
-		if buf[0] != 0x02 || buf[1] != 0xF9 {
-			log.Printf("DoIP: Invalid protocol version (0x%02x 0x%02x)", buf[0], buf[1])
-			return
-		}
-
-		payloadType := (uint16(buf[2]) << 8) | uint16(buf[3])
-		payloadLen := (uint32(buf[4]) << 24) | (uint32(buf[5]) << 16) | (uint32(buf[6]) << 8) | uint32(buf[7])
-
-		if payloadLen > 4096 {
-			log.Printf("DoIP: Payload length %d exceeds max allowed (4096). Closing connection.", payloadLen)
-			return
-		}
-
-		if uint32(n-8) < payloadLen {
-			log.Printf("DoIP: Partial payload read (%d < %d)", n-8, payloadLen)
-			continue
-		}
-
-		payload := buf[8 : 8+payloadLen]
-
-		switch payloadType {
-		case 0x0005: // Routing Activation Request
-			log.Printf("[DoIP] Routing Activation Request received")
-			resp := []byte{0x02, 0xF9, 0x00, 0x06, 0x00, 0x00, 0x00, 0x0B,
-				0x0E, 0x00, // Tester SA
-				0x10, 0x00, // Entity Logical Address
-				0x10,       // Activation Result: Successfully Activated
-				0x00, 0x00, 0x00, 0x00, // Reserved
-				0x00, 0x00, // OEM Reserved
+		if n > 0 {
+			readBuf = append(readBuf, buf[:n]...)
+			if len(readBuf) > 65536 {
+				log.Printf("DoIP: readBuf size %d exceeds maximum buffer limit (65536). Closing connection.", len(readBuf))
+				return
 			}
-			conn.Write(resp)
+		}
 
-		case 0x8001: // Diagnostic Message
-			if len(payload) >= 5 {
-				sa := (uint16(payload[0]) << 8) | uint16(payload[1])
-				ta := (uint16(payload[2]) << 8) | uint16(payload[3])
-				udsData := payload[4:]
-				if len(udsData) > 0 {
-					sid := udsData[0]
-					log.Printf("[DoIP/UDS] Diagnostic Message SA=0x%04x TA=0x%04x SID=0x%02x", sa, ta, sid)
-					g.processUDSService(conn, sa, ta, udsData)
+		for len(readBuf) >= 8 {
+			if readBuf[0] != 0x02 || readBuf[1] != 0xF9 {
+				log.Printf("DoIP: Invalid protocol version (0x%02x 0x%02x)", readBuf[0], readBuf[1])
+				return
+			}
+
+			payloadType := (uint16(readBuf[2]) << 8) | uint16(readBuf[3])
+			payloadLen := (uint32(readBuf[4]) << 24) | (uint32(readBuf[5]) << 16) | (uint32(readBuf[6]) << 8) | uint32(readBuf[7])
+
+			if payloadLen > 4096 {
+				log.Printf("DoIP: Payload length %d exceeds max allowed (4096). Closing connection.", payloadLen)
+				return
+			}
+
+			if uint32(len(readBuf)-8) < payloadLen {
+				break
+			}
+
+			payload := readBuf[8 : 8+payloadLen]
+			readBuf = readBuf[8+payloadLen:]
+
+			switch payloadType {
+			case 0x0005: // Routing Activation Request
+				log.Printf("[DoIP] Routing Activation Request received")
+				resp := []byte{0x02, 0xF9, 0x00, 0x06, 0x00, 0x00, 0x00, 0x0B,
+					0x0E, 0x00, // Tester SA
+					0x10, 0x00, // Entity Logical Address
+					0x10,       // Activation Result: Successfully Activated
+					0x00, 0x00, 0x00, 0x00, // Reserved
+					0x00, 0x00, // OEM Reserved
 				}
-			}
+				conn.Write(resp)
 
-		default:
-			log.Printf("[DoIP] Unhandled Payload Type: 0x%04x", payloadType)
+			case 0x8001: // Diagnostic Message
+				if len(payload) >= 5 {
+					sa := (uint16(payload[0]) << 8) | uint16(payload[1])
+					ta := (uint16(payload[2]) << 8) | uint16(payload[3])
+					udsData := payload[4:]
+					if len(udsData) > 0 {
+						sid := udsData[0]
+						log.Printf("[DoIP/UDS] Diagnostic Message SA=0x%04x TA=0x%04x SID=0x%02x", sa, ta, sid)
+						g.processUDSService(conn, sa, ta, udsData)
+					}
+				}
+
+			default:
+				log.Printf("[DoIP] Unhandled Payload Type: 0x%04x", payloadType)
+			}
 		}
 	}
 }
@@ -1496,51 +1545,56 @@ func (g *AppGateway) processUDSService(conn net.Conn, sa, ta uint16, udsData []b
 		udsSessionState = int(subFunc)
 		doipMutex.Unlock()
 		g.recordTagValue(tags.UDS_SESSION_STATE, float64(subFunc))
-		respUDS = []byte{0x50, subFunc, 0x00, 0x32, 0x01, 0xF4} // Positive Response 0x50
+		respUDS = []byte{0x50, subFunc, 0x00, 0x32, 0x01, 0xF4}
 
 	case 0x22: // ReadDataByIdentifier
-		respUDS = []byte{0x62, 0xF1, 0x90, 0x45, 0x64, 0x67, 0x65, 0x43, 0x5f, 0x45, 0x43, 0x55} // "EdgeC_ECU"
+		respUDS = []byte{0x62, 0xF1, 0x90, 0x45, 0x64, 0x67, 0x65, 0x43, 0x5f, 0x45, 0x43, 0x55}
 
 	case 0x27: // SecurityAccess
 		subFunc := byte(1)
 		if len(udsData) > 1 {
 			subFunc = udsData[1]
 		}
-		secAccessState.mu.Lock()
+		clientAddr := "default"
+		if conn != nil && conn.RemoteAddr() != nil {
+			clientAddr = conn.RemoteAddr().String()
+		}
+		st := secAccessMgr.getClientState(clientAddr)
+		st.mu.Lock()
 		now := time.Now()
-		if now.Before(secAccessState.lockedUntil) {
-			secAccessState.mu.Unlock()
-			respUDS = []byte{0x7F, 0x27, 0x36} // Exceeded Number of Attempts / Locked
+		if now.Before(st.lockedUntil) {
+			st.mu.Unlock()
+			respUDS = []byte{0x7F, 0x27, 0x36} // Exceeded Attempts / Locked
 		} else if subFunc == 0x01 { // Request Seed
 			seed := make([]byte, 4)
 			rand.Read(seed)
-			secAccessState.activeSeed = seed
-			secAccessState.mu.Unlock()
+			st.activeSeed = seed
+			st.mu.Unlock()
 			respUDS = append([]byte{0x67, 0x01}, seed...)
 		} else if subFunc == 0x02 { // Send Key
 			sentKey := udsData[2:]
-			expected := computeSecurityKey(secAccessState.activeSeed)
-			if len(secAccessState.activeSeed) > 0 && len(expected) > 0 && bytes.Equal(sentKey, expected) {
-				secAccessState.failedCount = 0
-				secAccessState.activeSeed = nil
-				secAccessState.mu.Unlock()
+			expected := computeSecurityKey(st.activeSeed)
+			if len(st.activeSeed) > 0 && len(expected) > 0 && bytes.Equal(sentKey, expected) {
+				st.failedCount = 0
+				st.activeSeed = nil
+				st.mu.Unlock()
 
 				doipMutex.Lock()
 				udsSecurityUnlocked = 1
 				doipMutex.Unlock()
 				g.recordTagValue(tags.UDS_SECURITY_UNLOCKED, 1.0)
-				respUDS = []byte{0x67, 0x02} // Unlocked Success
+				respUDS = []byte{0x67, 0x02}
 			} else {
-				secAccessState.failedCount++
-				if secAccessState.failedCount >= 3 {
-					secAccessState.lockedUntil = now.Add(10 * time.Second)
+				st.failedCount++
+				if st.failedCount >= 3 {
+					st.lockedUntil = now.Add(10 * time.Second)
 				}
-				secAccessState.mu.Unlock()
+				st.mu.Unlock()
 				respUDS = []byte{0x7F, 0x27, 0x35} // Invalid Key
 			}
 		} else {
-			secAccessState.mu.Unlock()
-			respUDS = []byte{0x7F, 0x27, 0x12} // SubFunction Not Supported
+			st.mu.Unlock()
+			respUDS = []byte{0x7F, 0x27, 0x12}
 		}
 
 	case 0x19: // ReadDTCInformation

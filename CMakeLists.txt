@@ -17,7 +17,8 @@ option(ENABLE_WEB_BUILD "Enable frontend Web UI compilation" ON)
 # ==============================================================================
 # 1. Environment & Path Configuration
 # ==============================================================================
-set(LOCAL_ROOT "${CMAKE_SOURCE_DIR}/.local/${CMAKE_HOST_SYSTEM_NAME}-${CMAKE_HOST_SYSTEM_PROCESSOR}")
+string(TOLOWER "${CMAKE_HOST_SYSTEM_NAME}" SYSTEM_NAME_LOWER)
+set(LOCAL_ROOT "${CMAKE_SOURCE_DIR}/.local/${SYSTEM_NAME_LOWER}-${CMAKE_HOST_SYSTEM_PROCESSOR}")
 list(APPEND CMAKE_PREFIX_PATH "${LOCAL_ROOT}")
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 

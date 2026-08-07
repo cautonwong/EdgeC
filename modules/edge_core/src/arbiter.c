@@ -160,21 +160,27 @@ void arbiter_set_exclusive(arbiter_t *arb, int bus_id, bool exclusive) {
 
 void arbiter_destroy(arbiter_t *arb) {
     if (!arb) return;
+
+    cmd_msg_t *to_free_head = NULL;
+    cmd_msg_t *to_free_tail = NULL;
+
     uv_mutex_lock(&arb->lock);
 
     for (int i = 0; i < ARBITER_MAX_BUSES; i++) {
         if (arb->buses[i].owner) {
             cmd_msg_t *cmd = arb->buses[i].owner;
             arb->buses[i].owner = NULL;
-            if (cmd->on_cleanup) cmd->on_cleanup(cmd);
-            else free(cmd);
+            cmd->next = NULL;
+            if (!to_free_head) { to_free_head = cmd; to_free_tail = cmd; }
+            else { to_free_tail->next = cmd; to_free_tail = cmd; }
         }
         cmd_msg_t *curr = arb->buses[i].queue;
         arb->buses[i].queue = NULL;
         while (curr) {
             cmd_msg_t *next = curr->next;
-            if (curr->on_cleanup) curr->on_cleanup(curr);
-            else free(curr);
+            curr->next = NULL;
+            if (!to_free_head) { to_free_head = curr; to_free_tail = curr; }
+            else { to_free_tail->next = curr; to_free_tail = curr; }
             curr = next;
         }
     }
@@ -183,12 +189,25 @@ void arbiter_destroy(arbiter_t *arb) {
     arb->zombies = NULL;
     while (z) {
         cmd_msg_t *next = z->next;
-        if (z->on_cleanup) z->on_cleanup(z);
-        else free(z);
+        z->next = NULL;
+        if (!to_free_head) { to_free_head = z; to_free_tail = z; }
+        else { to_free_tail->next = z; to_free_tail = z; }
         z = next;
     }
 
     uv_mutex_unlock(&arb->lock);
     uv_mutex_destroy(&arb->lock);
     free(arb);
+
+    // Invoke cleanups outside arbiter lock
+    cmd_msg_t *curr = to_free_head;
+    while (curr) {
+        cmd_msg_t *next = curr->next;
+        if (curr->on_cleanup) {
+            curr->on_cleanup(curr);
+        } else {
+            free(curr);
+        }
+        curr = next;
+    }
 }

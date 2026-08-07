@@ -16,6 +16,10 @@ func main() {
 	// 2. Set API key from environment variable
 	apiKey := os.Getenv("DEMO_ALGO_API_KEY")
 	if apiKey == "" {
+		if os.Getenv("EDGE_ENV") == "production" || os.Getenv("EDGE_ENV") == "prod" {
+			log.Fatalf("[FATAL] Security Redline: DEMO_ALGO_API_KEY must be set in production mode!")
+		}
+		log.Println("[WARN] DEMO_ALGO_API_KEY missing, using dev fallback key")
 		apiKey = "TEST_ONLY_demo_algo_key"
 	}
 	svc.SetAPIKey(apiKey)

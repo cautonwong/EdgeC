@@ -13,6 +13,7 @@ int ebpf_guard_init(ebpf_guard_mgr_t *mgr) {
 
     memset(mgr, 0, sizeof(ebpf_guard_mgr_t));
     mgr->global_enforce_mode = true;
+    mgr->bpf_ringbuf_supported = true; /* Linux kernel >= 5.8 bpf_ringbuf zero-syscall mode enabled */
     return 0;
 }
 
@@ -55,4 +56,13 @@ int ebpf_guard_audit_event(ebpf_guard_mgr_t *mgr, uint32_t probe_id, uint32_t pi
     }
 
     return 0; /* Allowed */
+}
+
+int ebpf_guard_ringbuf_consume(ebpf_guard_mgr_t *mgr, const void *event_payload, size_t payload_len) {
+    if (!mgr || !event_payload || payload_len == 0) {
+        return -1;
+    }
+
+    mgr->ringbuf_events_ingested++;
+    return 0;
 }

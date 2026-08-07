@@ -24,6 +24,7 @@ add_library(dcu_app_lib STATIC
 # 2. 自治库头文件依赖关系
 target_include_directories(dcu_app_lib PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_BINARY_DIR}/products/${PROD_NAME}/generated
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/modules/edge_io/include
     ${CMAKE_SOURCE_DIR}/modules/edge_stream/include
@@ -42,6 +43,7 @@ target_link_libraries(dcu_app_lib PUBLIC
     edge_algo
     SQLite::SQLite3
     libuv::uv_a
+    contract_${PROD_NAME}
 )
 
 # 4. 创建最终可执行应用程序

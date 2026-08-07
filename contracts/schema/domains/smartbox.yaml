@@ -22,16 +22,19 @@ tags:
   - id: 12005
     name: RAW_HEART_RATE
     type: float
+    unit: bpm
     desc: "实时心率值"
     traits: [ "smartbox", "sensor" ]
   - id: 12006
     name: RAW_ACCELERATION
     type: float
+    unit: m/s2
     desc: "三轴重力合成加速度量"
     traits: [ "smartbox", "sensor" ]
   - id: 12007
     name: REHAB_COMPLETION_RATE
     type: float
+    unit: "%"
     desc: "康复计划完成百分比"
     traits: [ "smartbox", "rehab" ]
   - id: 12008
@@ -62,6 +65,7 @@ tags:
   - id: 12013
     name: BATTERY_SOC
     type: float
+    unit: "%"
     desc: "电池剩余电量百分比 0.0-100.0"
     traits: [ "smartbox", "diagnostic" ]
   - id: 12014

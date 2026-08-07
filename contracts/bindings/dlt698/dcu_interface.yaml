@@ -2,10 +2,19 @@
 protocol: "DLT698"
 model: "DLT698"
 mappings:
-  - tag: GRID_FREQUENCY
-    oad: 0x20010200 # 对象标识: 频率
-    scale: 0.01
-
   - tag: VOLTAGE_PHASE_A
     oad: 0x20000200
     scale: 0.1
+
+  - tag: CURRENT_PHASE_A
+    oad: 0x20010200
+    scale: 0.01
+
+  - tag: ENERGY_ACTIVE_IMPORT
+    oad: 0x00100200
+    scale: 0.01
+
+  - tag: GRID_FREQUENCY
+    oad: 0x20000300
+    scale: 0.01
+

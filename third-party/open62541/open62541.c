@@ -23,6 +23,12 @@ void UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     (void)config;
 }
 
+UA_StatusCode UA_Client_connect(UA_Client *client, const char *endpointUrl) {
+    (void)client;
+    (void)endpointUrl;
+    return UA_STATUSCODE_GOOD;
+}
+
 void UA_Client_run_iterate(UA_Client *client, int timeout) {
     (void)client;
     (void)timeout;

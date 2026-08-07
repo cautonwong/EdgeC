@@ -39,6 +39,13 @@ tags:
       category: "Metrology"
       ui: { group: "Grid_Params", min: 45, max: 55, precision: 2 }
 
+  - id: 1005
+    name: EV_CHARGE_POWER
+    type: float
+    unit: W
+    desc: "电动汽车充电功率"
+    attributes: { category: "Metrology" }
+
   - id: 2001
     name: ADC_RAW_DATA
     type: float
@@ -78,6 +85,13 @@ tags:
       ui: { group: "Battery_Health", min: 0, max: 100, widget: "gauge" }
       northbound: { storage: "trend", push: "periodic" }
 
+  - id: 4002
+    name: BATTERY_TEMP_MAX
+    type: float
+    unit: "°C"
+    desc: "电池最高单体温度"
+    attributes: { category: "Storage" }
+
   - id: 4003
     name: BATTERY_POWER
     type: float
@@ -107,6 +121,7 @@ tags:
   - id: 8005
     name: PCS_CONTROL
     type: float
+    unit: W
     desc: "储能变流器功率控制指令"
     attributes: { category: "Control", northbound: { push: "change" } }
 

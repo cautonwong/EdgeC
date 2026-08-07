@@ -58,6 +58,11 @@ static void _vpp_logger_cleanup(void *priv) {
     if (priv) free(priv);
 }
 
+static bool is_production_env(void) {
+    const char *env = getenv("EDGE_ENV");
+    return env && (strcmp(env, "production") == 0 || strcmp(env, "prod") == 0);
+}
+
 pipeline_stage_t *stage_vpp_logger_create(sqlite_svc_t *db) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
     vpp_logger_ctx_t *ctx = calloc(1, sizeof(vpp_logger_ctx_t));
@@ -65,7 +70,14 @@ pipeline_stage_t *stage_vpp_logger_create(sqlite_svc_t *db) {
     ctx->db = db;
     const char *secret = getenv("VPP_AUDIT_SECRET");
     if (!secret || strlen(secret) == 0) {
-        secret = "TEST_ONLY_vpp_audit_secret_key_override";
+        if (is_production_env()) {
+            LOG_ERROR(LOG_CAT_CORE, "FATAL: VPP_AUDIT_SECRET missing in production!");
+            free(ctx);
+            free(s);
+            return NULL;
+        }
+        LOG_WARN(LOG_CAT_CORE, "WARNING: VPP_AUDIT_SECRET missing, using dev fallback");
+        secret = "DEV_ONLY_vpp_audit_secret_key";
     }
     ctx->key.raw_data = (const uint8_t *)secret;
     ctx->key.len = (uint32_t)strlen(secret);

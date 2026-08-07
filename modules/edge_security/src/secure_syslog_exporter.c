@@ -35,7 +35,13 @@ static crypto_key_t g_audit_key = {
 void dpi_audit_signed_log(dpi_result_t res, uint32_t tag_id, double val, const char *reason) {
     const char *env_secret = getenv("EDGE_GUARD_AUDIT_SECRET");
     if (!env_secret || strlen(env_secret) == 0) {
-        env_secret = "TEST_ONLY_edge_guard_audit_secret";
+        const char *edge_env = getenv("EDGE_ENV");
+        if (edge_env && (strcmp(edge_env, "production") == 0 || strcmp(edge_env, "prod") == 0)) {
+            LOG_ERROR(LOG_CAT_CORE, "FATAL: EDGE_GUARD_AUDIT_SECRET missing in production! System aborting.");
+            exit(EXIT_FAILURE);
+        }
+        LOG_WARN(LOG_CAT_CORE, "WARNING: EDGE_GUARD_AUDIT_SECRET missing, using dev fallback");
+        env_secret = "DEV_ONLY_edge_guard_audit_secret";
     }
     g_audit_key.raw_data = (const uint8_t *)env_secret;
     g_audit_key.len = (uint32_t)strlen(env_secret);

@@ -64,12 +64,14 @@ int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slo
     hub->shadow_fd = shm_open(shm_path, O_RDWR | O_CREAT | O_TRUNC, 0666);
     if (hub->shadow_fd < 0) {
         LOG_ERROR(LOG_CAT_BUS, "Failed to create SHM shadow table: %s", strerror(errno));
+        shmring_destroy(&hub->ring);
         return -1;
     }
 
     if (ftruncate(hub->shadow_fd, (off_t)hub->shadow_size) < 0) {
         close(hub->shadow_fd);
         shm_unlink(shm_path);
+        shmring_destroy(&hub->ring);
         return -1;
     }
 
@@ -77,6 +79,7 @@ int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slo
     if (hub->shadow_table == MAP_FAILED) {
         close(hub->shadow_fd);
         shm_unlink(shm_path);
+        shmring_destroy(&hub->ring);
         hub->shadow_table = NULL;
         return -1;
     }
@@ -287,6 +290,7 @@ int datahub_save_snapshot(datahub_t *hub, const char *path) {
 
     size_t written = fwrite(buf, sizeof(pipe_msg_t), capacity, fp);
     fflush(fp);
+    fsync(fileno(fp));
     fclose(fp);
     free(buf);
 

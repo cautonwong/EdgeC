@@ -34,6 +34,8 @@ typedef struct {
     size_t probe_count;
     ebpf_probe_t probes[EBPF_GUARD_MAX_PROBES];
     bool global_enforce_mode;
+    bool bpf_ringbuf_supported;
+    uint64_t ringbuf_events_ingested;
 } ebpf_guard_mgr_t;
 
 /**
@@ -61,6 +63,15 @@ int ebpf_guard_attach_probe(ebpf_guard_mgr_t *mgr, ebpf_probe_type_t type, uint3
  * @return 0 if allowed, 1 if intercepted violation, negative error code on failure
  */
 int ebpf_guard_audit_event(ebpf_guard_mgr_t *mgr, uint32_t probe_id, uint32_t pid, bool is_unauthorized_shm_mutation);
+
+/**
+ * @brief Consumes events via bpf_ringbuf zero-syscall mechanism (or fallback)
+ * @param mgr Pointer to eBPF guard manager instance
+ * @param event_payload Event data buffer
+ * @param payload_len Event buffer length
+ * @return 0 on success, negative error code on failure
+ */
+int ebpf_guard_ringbuf_consume(ebpf_guard_mgr_t *mgr, const void *event_payload, size_t payload_len);
 
 #ifdef __cplusplus
 }

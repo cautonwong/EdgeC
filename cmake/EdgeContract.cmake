@@ -48,47 +48,39 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
         set(LOCAL_DEP "${LOCAL_YAML}")
     endif()
 
-    # 定义自定义生成命令 (仅在构建目录生成)
+    # 2. 如果生成文件不存在，在 CMake 配置期预先运行编译器生成
+    if(NOT EXISTS "${OUT_C}")
+        execute_process(
+            COMMAND "${COMPILER_BIN}" ${CMD_ARGS}
+        )
+        execute_process(
+            COMMAND "${CMAKE_SOURCE_DIR}/.venv/bin/python3" "${CMAKE_SOURCE_DIR}/scripts/aggregate_go_tags.py"
+        )
+    endif()
+
     add_custom_command(
-        OUTPUT "${OUT_C}" "${OUT_H}" "${OUT_YAML}" "${OUT_CMAKE}" "${OUT_JSON}" "${OUT_TS}" "${OUT_SQL}" "${OUT_SLAVE_C}" "${OUT_ROUTER_C}" "${OUT_GO}"
+        OUTPUT "${OUT_C}" "${OUT_H}" "${OUT_YAML}" "${OUT_JSON}" "${OUT_TS}" "${OUT_SQL}" "${OUT_SLAVE_C}" "${OUT_ROUTER_C}" "${OUT_GO}"
         COMMAND "${COMPILER_BIN}" ${CMD_ARGS}
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_SOURCE_DIR}/go/pkg/tags"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${OUT_GO}" "${CMAKE_SOURCE_DIR}/go/pkg/tags/tags.go"
+        COMMAND "${CMAKE_SOURCE_DIR}/.venv/bin/python3" "${CMAKE_SOURCE_DIR}/scripts/aggregate_go_tags.py"
         DEPENDS "${COMPILER_BIN}" "${PRODUCT_YAML}" ${LOCAL_DEP}
-        COMMENT "[Contract] Generating native lookup tables and Go bindings via V2 for ${TARGET_NAME}"
+        COMMENT "[Contract] Generating native lookup tables and Go bindings for ${TARGET_NAME}"
         VERBATIM
     )
 
-    # 3. 如果文件已生成（通常是第二次配置或已经构建过），则引入 CMake 配置
-    # 这允许格在 CMake 中使用 if(CONFIG_XXX) 等逻辑
-    if(EXISTS "${OUT_CMAKE}")
-        include("${OUT_CMAKE}")
-        message(STATUS "[Contract] ${TARGET_NAME} configuration loaded from ${OUT_CMAKE}")
-    endif()
-
     # 4. 创建静态库并精准控制其输出路径
-    add_library(${TARGET_NAME}_obj OBJECT "${OUT_C}")
-    set_target_properties(${TARGET_NAME}_obj PROPERTIES 
+    add_library(${TARGET_NAME} STATIC "${OUT_C}")
+    set_target_properties(${TARGET_NAME} PROPERTIES 
         POSITION_INDEPENDENT_CODE ON
     )
-    # 显式关联基础接口，确保继承头文件路径和编译选项 (以接地气的中文添加注释)
-    target_link_libraries(${TARGET_NAME}_obj PRIVATE edge_common_interface)
-    target_include_directories(${TARGET_NAME}_obj PRIVATE 
-        "${GEN_DIR}"
-        "${CMAKE_SOURCE_DIR}/modules/edge_core/include"
-    )
-
-    # 创建一个 INTERFACE 库供外部链接，自动传播头文件路径
-    add_library(${TARGET_NAME} INTERFACE)
-    target_sources(${TARGET_NAME} INTERFACE $<TARGET_OBJECTS:${TARGET_NAME}_obj>)
-    target_include_directories(${TARGET_NAME} INTERFACE 
+    target_link_libraries(${TARGET_NAME} PRIVATE edge_common_interface)
+    target_include_directories(${TARGET_NAME} PUBLIC 
         "${GEN_DIR}"
         "${CMAKE_SOURCE_DIR}/include"
+        "${CMAKE_SOURCE_DIR}/modules/edge_core/include"
         "${CMAKE_SOURCE_DIR}/algo/include"
-        "${CMAKE_SOURCE_DIR}/.local/${ARCH}/include"
+        "${CMAKE_SOURCE_DIR}/.local/${SYSTEM_NAME_LOWER}-${CMAKE_HOST_SYSTEM_PROCESSOR}/include"
     )
 
-    # 如果有对应的 lib 需求，也可以保留静态库链接逻辑，但推荐使用 INTERFACE 传播
-    message(STATUS "[Contract] Target ${TARGET_NAME} created as INTERFACE with OBJECT sources")
+    message(STATUS "[Contract] Target ${TARGET_NAME} created as STATIC library")
 
 endfunction()

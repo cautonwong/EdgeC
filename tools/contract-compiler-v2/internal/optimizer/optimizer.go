@@ -349,7 +349,10 @@ func (o *Optimizer) parseKey(proto string, attr map[string]interface{}) uint64 {
 		// [Nexus] Ensure OAD/DI is never 0 unless explicitly defined
 		if deviceAddr != 0 { return (deviceAddr << 32) | regAddr }
 		return regAddr
-	case "CAN": return getUint64(attr, "can_id", 0)
+	case "CAN":
+		canID := getUint64(attr, "can_id", 0)
+		startBit := getUint64(attr, "start_bit", 0)
+		return (canID << 16) | startBit
 	default: return 0
 	}
 }

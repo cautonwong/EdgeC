@@ -6,19 +6,28 @@
 # ==============================================================================
 set -euo pipefail
 
+# Always run relative to the repository root directory
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "${PROJECT_ROOT}"
+
 echo "🔍 Checking Git tracked files for prohibited binaries and build artifacts..."
 
-# Prohibited file extensions/patterns (excluding .local/)
+# Whitelisted test fixture .wasm files (retained for unit tests / examples):
+# - algo/wasm/demo/demo.wasm
+# - examples/wasm/c_moving_average/moving_average.wasm
+# - examples/wasm/c_voltage_guard/voltage_guard.wasm
+# - tests/virus_divzero.wasm
+# - tests/virus_loop.wasm
+
+# Prohibited file extensions/patterns (excluding .local/ and whitelisted test fixtures)
 PROHIBITED_PATTERNS='(\.db|\.db-shm|\.db-wal|\.sqlite|\.tgz|\.tar\.gz|rehab_companion\.wasm)$'
 
 VIOLATIONS=$(git ls-files | grep -v '^\.local/' | grep -E "${PROHIBITED_PATTERNS}" || true)
 
-# Also check for tracked ELF executables outside .local/
 ELF_VIOLATIONS=""
-for f in $(git ls-files | grep -v '^\.local/'); do
+for f in $(git ls-files | grep -v '^\.local/' | grep -v '\.\(c\|h\|py\|go\|md\|yaml\|yml\|json\|cmake\|txt\|sh\|in\|toml\|rst\|html\|css\|js\|png\|svg\|jpg\)$'); do
     if [ -f "$f" ]; then
         if file "$f" 2>/dev/null | grep -q "ELF"; then
-            # Ignore static library archives .a
             if [[ "$f" != *.a ]]; then
                 ELF_VIOLATIONS="${ELF_VIOLATIONS}\n${f}"
             fi

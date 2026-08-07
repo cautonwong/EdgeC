@@ -29,5 +29,6 @@ tags:
   - id: 8005
     name: PCS_CONTROL
     type: float
+    unit: W
     desc: "储能变流器功率控制指令"
     traits: [ "control" ]

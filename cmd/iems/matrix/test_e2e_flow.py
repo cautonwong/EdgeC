@@ -45,7 +45,6 @@ async def test_iems_multi_tag_consistency(matrix):
     loader = getattr(matrix, 'loader', None)
     for name, val in data_map.items():
         dev.inject(name, val, loader)
-        await asyncio.sleep(0.1)
         
     print("⏳ [Step 2] Verifying all tags in IEMS...")
     for name, val in data_map.items():

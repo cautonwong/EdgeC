@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -32,23 +33,28 @@ func (l *Loader) Load(productPath, localPath string) (*ContractAST, error) {
 	ast.ProductName, _ = rawProduct["product"].(string)
 
 	// 2. Recursive Load Includes
-	l.processIncludes(rawProduct, ast)
+	if err := l.processIncludes(rawProduct, ast); err != nil {
+		return nil, err
+	}
 
 	// 3. Load Local Manifest Overrides (Highest priority)
 	if localPath != "" {
 		lData, err := os.ReadFile(localPath)
 		if err == nil {
 			var rawLocal map[string]interface{}
-			yaml.Unmarshal(lData, &rawLocal)
-			l.processIncludes(rawLocal, ast)
-			l.processManifest(rawLocal, ast)
+			if err := yaml.Unmarshal(lData, &rawLocal); err == nil {
+				if err := l.processIncludes(rawLocal, ast); err != nil {
+					return nil, err
+				}
+				l.processManifest(rawLocal, ast)
+			}
 		}
 	}
 
 	return ast, nil
 }
 
-func (l *Loader) processIncludes(raw map[string]interface{}, ast *ContractAST) {
+func (l *Loader) processIncludes(raw map[string]interface{}, ast *ContractAST) error {
 	// A. Recurse first (depth-first to allow parent overrides)
 	var includes []string
 	if incs, ok := raw["includes"].([]interface{}); ok {
@@ -58,7 +64,9 @@ func (l *Loader) processIncludes(raw map[string]interface{}, ast *ContractAST) {
 		for _, v := range incs { if s, ok := v.(string); ok { includes = append(includes, s) } }
 	}
 	for _, incPath := range includes {
-		l.loadInclude(incPath, ast)
+		if err := l.loadInclude(incPath, ast); err != nil {
+			return err
+		}
 	}
 
 	// B. Process Models (蓝图库)
@@ -168,17 +176,23 @@ func (l *Loader) processIncludes(raw map[string]interface{}, ast *ContractAST) {
 			ast.Models = append(ast.Models, node)
 		}
 	}
+	return nil
 }
 
-func (l *Loader) loadInclude(path string, ast *ContractAST) {
+func (l *Loader) loadInclude(path string, ast *ContractAST) error {
 	absPath := path
 	if !filepath.IsAbs(path) { absPath = filepath.Join(l.BaseDir, path) }
-	if l.seen[absPath] { return }
+	if l.seen[absPath] { return nil }
 	l.seen[absPath] = true
-	data, err := os.ReadFile(absPath); if err != nil { return }
+	data, err := os.ReadFile(absPath)
+	if err != nil {
+		return fmt.Errorf("include file not found or unreadable: %s (%w)", absPath, err)
+	}
 	var raw map[string]interface{}
-	if err := yaml.Unmarshal(data, &raw); err != nil { return }
-	l.processIncludes(raw, ast)
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("failed to parse include file YAML %s: %w", absPath, err)
+	}
+	return l.processIncludes(raw, ast)
 }
 
 func (l *Loader) parseModel(mm map[string]interface{}, ast *ContractAST) {

@@ -68,7 +68,14 @@ func OpenShadowMatrix(name string, capacity uint32) (*ShadowMatrix, error) {
 	}, nil
 }
 
-// ReadTag reads a message from the shadow table by index
+func init() {
+	// [ADR-0004] C/Go zero-copy memory alignment verification
+	if size := unsafe.Sizeof(PipeMsg{}); size != PipeMsgSize {
+		panic(fmt.Sprintf("PipeMsg size mismatch: expected %d, got %d", PipeMsgSize, size))
+	}
+}
+
+// ReadTag reads a message from the shadow table by index (copy return)
 func (s *ShadowMatrix) ReadTag(idx uint32) (*PipeMsg, error) {
 	if idx >= uint32(len(s.data)) {
 		return nil, fmt.Errorf("index out of bounds: %d", idx)
@@ -76,6 +83,14 @@ func (s *ShadowMatrix) ReadTag(idx uint32) (*PipeMsg, error) {
 	// Return a copy to ensure safety
 	msg := s.data[idx]
 	return &msg, nil
+}
+
+// ReadTagDirect returns a direct pointer into the mmap shared memory (0 B/op zero-copy access)
+func (s *ShadowMatrix) ReadTagDirect(idx uint32) (*PipeMsg, error) {
+	if idx >= uint32(len(s.data)) {
+		return nil, fmt.Errorf("index out of bounds: %d", idx)
+	}
+	return &s.data[idx], nil
 }
 
 // WriteTag writes a float64 value to the shadow table by index

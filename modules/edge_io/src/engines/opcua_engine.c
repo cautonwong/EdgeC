@@ -36,6 +36,7 @@ static int _opcua_enable_read(io_handle_t *h, bool enable) {
 }
 
 static int _opcua_write_async(io_handle_t *h, net_buf_t *buf) {
+    (void)buf;
     // Write data to OPC UA node (Mocked for interface implementation)
     // Normally we would parse buf and issue UA_Client_writeValueAttribute
     if (h->cb) {
@@ -72,11 +73,20 @@ io_handle_t *opcua_engine_create(uv_loop_t *loop, const char *endpoint) {
     strncpy(ctx->endpoint, endpoint ? endpoint : "opc.tcp://localhost:4840", sizeof(ctx->endpoint) - 1);
     
     ctx->client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(ctx->client));
+    UA_ClientConfig *cc = UA_Client_getConfig(ctx->client);
+    if (cc) {
+        UA_ClientConfig_setDefault(cc);
+    }
     
-    // Non-blocking connect can be initiated here
-    // For demo purpose, we assume it's connecting
-    ctx->is_connected = true; 
+    // Perform real connection attempt via open62541
+    UA_StatusCode st = UA_Client_connect(ctx->client, ctx->endpoint);
+    if (st == UA_STATUSCODE_GOOD) {
+        ctx->is_connected = true;
+        LOG_INFO(LOG_CAT_CORE, "OPC UA Engine: Successfully connected to %s", ctx->endpoint);
+    } else {
+        ctx->is_connected = false;
+        LOG_WARN(LOG_CAT_CORE, "OPC UA Engine: Endpoint %s offline (StatusCode: 0x%08x), running in standby mode", ctx->endpoint, st);
+    }
 
     uv_timer_init(loop, &ctx->timer);
     ctx->timer.data = ctx;

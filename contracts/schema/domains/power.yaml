@@ -27,3 +27,11 @@ tags:
     unit: Hz
     desc: "系统频率"
     traits: [ "metrology", "realtime" ]
+
+  - id: 1005
+    name: EV_CHARGE_POWER
+    type: float
+    unit: W
+    desc: "电动汽车充电功率"
+    traits: [ "metrology", "realtime" ]
+
