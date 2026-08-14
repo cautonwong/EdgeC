@@ -1,6 +1,6 @@
 /**
  * @file test_resilient_buffer.c
- * @brief Unit tests for Resilient Telemetry Store-and-Forward Buffer Operator
+ * @brief Unit tests for Resilient Telemetry Store-and-Forward Buffer Operator (with WAL persistence)
  */
 
 #include <stdarg.h>
@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <cmocka.h>
+#include <unistd.h>
 
 #include "resilient_buffer.h"
 
@@ -52,10 +53,41 @@ static void test_resilient_buffer_workflow(void **state) {
     assert_int_equal(resilient_buffer_pop(&buf, &rec), 1); /* Empty */
 }
 
+static void test_resilient_buffer_wal_recovery(void **state) {
+    (void)state;
+    const char *wal_path = "test_resilient_recovery.wal";
+    unlink(wal_path);
+
+    resilient_buffer_t buf1, buf2;
+    assert_int_equal(resilient_buffer_init(&buf1, 50), 0);
+    assert_int_equal(resilient_buffer_push(&buf1, 3001, 12.5, 1800000000ULL), 0);
+    assert_int_equal(resilient_buffer_push(&buf1, 3002, 13.0, 1800000001ULL), 0);
+
+    /* Persist to WAL file */
+    assert_int_equal(resilient_buffer_flush_to_file(&buf1, wal_path), 0);
+
+    /* Simulate crash restart and recovery */
+    assert_int_equal(resilient_buffer_init(&buf2, 50), 0);
+    assert_int_equal(resilient_buffer_load_from_file(&buf2, wal_path), 0);
+    assert_int_equal(buf2.count, 2);
+
+    telemetry_record_t rec;
+    assert_int_equal(resilient_buffer_pop(&buf2, &rec), 0);
+    assert_int_equal(rec.tag_id, 3001);
+    assert_float_equal(rec.val, 12.5, 0.01);
+
+    assert_int_equal(resilient_buffer_pop(&buf2, &rec), 0);
+    assert_int_equal(rec.tag_id, 3002);
+    assert_float_equal(rec.val, 13.0, 0.01);
+
+    unlink(wal_path);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_resilient_buffer_init_null),
         cmocka_unit_test(test_resilient_buffer_workflow),
+        cmocka_unit_test(test_resilient_buffer_wal_recovery),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(EdgeC_Tests)
+project(EdgeC_Tests C)
 
 # 统一测试构建宏
 macro(add_edge_test TEST_NAME)
@@ -44,6 +44,7 @@ add_edge_test(test_dcu_advanced_modules test_dcu_advanced_modules.c)
 # 2. 数据总线测试 (Data Plane)
 add_edge_test(test_datahub test_datahub.c)
 add_edge_test(test_datahub_shadow test_datahub_shadow.c)
+add_edge_test(test_datahub_multi_backend test_datahub_multi_backend.c)
 add_edge_test(test_passthrough test_passthrough.c)
 add_edge_test(test_memfd_seals test_memfd_seals.c)
 add_edge_test(test_fuzz_datahub test_fuzz_datahub.c)
@@ -218,4 +219,7 @@ add_edge_test(test_edge_cep_engine test_edge_cep_engine.c)
 add_edge_test(test_edge_spiffe_auth test_edge_spiffe_auth.c)
 add_edge_test(test_timeseries_compressor test_timeseries_compressor.c)
 add_edge_test(test_onnx_host_guard test_onnx_host_guard.c)
+add_edge_test(test_idl_generated_serialization test_idl_generated_serialization.c)
+target_include_directories(test_idl_generated_serialization PRIVATE ${CMAKE_BINARY_DIR}/idl_generated)
+
 

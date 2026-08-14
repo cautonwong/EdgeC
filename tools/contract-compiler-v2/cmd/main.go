@@ -22,7 +22,7 @@ func main() {
 	local := flag.String("local", "", "Path to local manifest YAML")
 	out := flag.String("out", "", "Output directory")
 	base := flag.String("base", ".", "Base directory for includes")
-	outputFormat := flag.String("output-format", "all", "Output format: all, blob, c, go, ts")
+	outputFormat := flag.String("output-format", "all", "Output format: all, blob, c, go, ts, idl")
 	signKey := flag.String("sign", "", "Path to RSA private key for signing .wasm output")
 	strict := flag.Bool("strict", true, "Enable strict contract validation (default: true)")
 	flag.Parse()
@@ -105,6 +105,14 @@ func main() {
 	if *outputFormat == "all" || *outputFormat == "go" {
 		if err := (&backend.GoBackend{OutDir: *out}).Emit(ir); err != nil {
 			fmt.Printf("❌ Backend Error (Go): %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	// Emit OMG IDL 4.2 Contracts (Option A)
+	if *outputFormat == "all" || *outputFormat == "idl" {
+		if err := (&backend.IDLBackend{OutDir: *out}).Emit(ir); err != nil {
+			fmt.Printf("❌ Backend Error (IDL): %v\n", err)
 			os.Exit(1)
 		}
 	}

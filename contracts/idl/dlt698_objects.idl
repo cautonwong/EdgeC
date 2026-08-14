@@ -1,0 +1,230 @@
+// EXHAUSTIVE OMG IDL 4.2 FOR DLT698.45 SPECIFICATION (CLEAN INDUSTRIAL SPEC)
+// TOTAL OAD CONSTANTS: 207
+
+module dlt698 {
+    enum Dlt698ClassId {
+        CLASS_DATA,
+        CLASS_REGISTER,
+        CLASS_EXTENDED_REGISTER,
+        CLASS_DEMAND_REGISTER,
+        CLASS_PROFILE_GENERIC,
+        CLASS_CLOCK,
+        CLASS_DISCONNECT_CONTROL
+    };
+
+    const unsigned long OAD_ACTIVE_IMPORT_TOTAL = 0x00100200; // 正向有功总电能量
+    const unsigned long OAD_ACTIVE_EXPORT_TOTAL = 0x00200200; // 反向有功总电能量
+    const unsigned long OAD_REACTIVE_IMPORT_TOTAL = 0x00300200; // 组合无功1总电能量
+    const unsigned long OAD_REACTIVE_EXPORT_TOTAL = 0x00400200; // 组合无功2总电能量
+    const unsigned long OAD_MAX_DEMAND_ACTIVE_IMPORT = 0x10100200; // 正向有功最大需量
+    const unsigned long OAD_MAX_DEMAND_ACTIVE_EXPORT = 0x10200200; // 反向有功最大需量
+    const unsigned long OAD_VOLTAGE_PHASE_A = 0x20000200; // A相电压
+    const unsigned long OAD_VOLTAGE_PHASE_B = 0x20010200; // B相电压
+    const unsigned long OAD_VOLTAGE_PHASE_C = 0x20020200; // C相电压
+    const unsigned long OAD_CURRENT_PHASE_A = 0x20030200; // A相电流
+    const unsigned long OAD_CURRENT_PHASE_B = 0x20040200; // B相电流
+    const unsigned long OAD_CURRENT_PHASE_C = 0x20050200; // C相电流
+    const unsigned long OAD_ACTIVE_POWER_TOTAL = 0x20060200; // 总有功功率
+    const unsigned long OAD_ACTIVE_POWER_PHASE_A = 0x20070200; // A相有功功率
+    const unsigned long OAD_ACTIVE_POWER_PHASE_B = 0x20080200; // B相有功功率
+    const unsigned long OAD_ACTIVE_POWER_PHASE_C = 0x20090200; // C相有功功率
+    const unsigned long OAD_POWER_FACTOR_TOTAL = 0x200A0200; // 总功率因数
+    const unsigned long OAD_FREQUENCY = 0x200B0200; // 电网频率
+    const unsigned long OAD_RTC_TIME = 0x40000200; // 实时时钟 RTC
+    const unsigned long OAD_METER_SERIAL_NUMBER = 0x40010200; // 表号序列号
+    const unsigned long OAD_DISCONNECT_CONTROL = 0x60000200; // 拉合闸控制执行器
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_1 = 0x21010200; // A相1次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_1 = 0x22010200; // A相1次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_2 = 0x21020200; // A相2次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_2 = 0x22020200; // A相2次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_3 = 0x21030200; // A相3次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_3 = 0x22030200; // A相3次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_4 = 0x21040200; // A相4次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_4 = 0x22040200; // A相4次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_5 = 0x21050200; // A相5次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_5 = 0x22050200; // A相5次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_6 = 0x21060200; // A相6次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_6 = 0x22060200; // A相6次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_7 = 0x21070200; // A相7次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_7 = 0x22070200; // A相7次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_8 = 0x21080200; // A相8次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_8 = 0x22080200; // A相8次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_9 = 0x21090200; // A相9次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_9 = 0x22090200; // A相9次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_10 = 0x210A0200; // A相10次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_10 = 0x220A0200; // A相10次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_11 = 0x210B0200; // A相11次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_11 = 0x220B0200; // A相11次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_12 = 0x210C0200; // A相12次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_12 = 0x220C0200; // A相12次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_13 = 0x210D0200; // A相13次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_13 = 0x220D0200; // A相13次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_14 = 0x210E0200; // A相14次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_14 = 0x220E0200; // A相14次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_15 = 0x210F0200; // A相15次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_15 = 0x220F0200; // A相15次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_16 = 0x21100200; // A相16次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_16 = 0x22100200; // A相16次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_17 = 0x21110200; // A相17次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_17 = 0x22110200; // A相17次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_18 = 0x21120200; // A相18次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_18 = 0x22120200; // A相18次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_19 = 0x21130200; // A相19次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_19 = 0x22130200; // A相19次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_20 = 0x21140200; // A相20次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_20 = 0x22140200; // A相20次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_21 = 0x21150200; // A相21次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_21 = 0x22150200; // A相21次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_22 = 0x21160200; // A相22次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_22 = 0x22160200; // A相22次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_23 = 0x21170200; // A相23次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_23 = 0x22170200; // A相23次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_24 = 0x21180200; // A相24次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_24 = 0x22180200; // A相24次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_25 = 0x21190200; // A相25次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_25 = 0x22190200; // A相25次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_26 = 0x211A0200; // A相26次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_26 = 0x221A0200; // A相26次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_27 = 0x211B0200; // A相27次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_27 = 0x221B0200; // A相27次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_28 = 0x211C0200; // A相28次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_28 = 0x221C0200; // A相28次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_29 = 0x211D0200; // A相29次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_29 = 0x221D0200; // A相29次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_30 = 0x211E0200; // A相30次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_30 = 0x221E0200; // A相30次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_A_31 = 0x211F0200; // A相31次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_A_31 = 0x221F0200; // A相31次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_1 = 0x21010200; // B相1次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_1 = 0x22010200; // B相1次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_2 = 0x21020200; // B相2次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_2 = 0x22020200; // B相2次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_3 = 0x21030200; // B相3次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_3 = 0x22030200; // B相3次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_4 = 0x21040200; // B相4次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_4 = 0x22040200; // B相4次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_5 = 0x21050200; // B相5次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_5 = 0x22050200; // B相5次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_6 = 0x21060200; // B相6次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_6 = 0x22060200; // B相6次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_7 = 0x21070200; // B相7次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_7 = 0x22070200; // B相7次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_8 = 0x21080200; // B相8次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_8 = 0x22080200; // B相8次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_9 = 0x21090200; // B相9次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_9 = 0x22090200; // B相9次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_10 = 0x210A0200; // B相10次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_10 = 0x220A0200; // B相10次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_11 = 0x210B0200; // B相11次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_11 = 0x220B0200; // B相11次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_12 = 0x210C0200; // B相12次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_12 = 0x220C0200; // B相12次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_13 = 0x210D0200; // B相13次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_13 = 0x220D0200; // B相13次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_14 = 0x210E0200; // B相14次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_14 = 0x220E0200; // B相14次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_15 = 0x210F0200; // B相15次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_15 = 0x220F0200; // B相15次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_16 = 0x21100200; // B相16次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_16 = 0x22100200; // B相16次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_17 = 0x21110200; // B相17次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_17 = 0x22110200; // B相17次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_18 = 0x21120200; // B相18次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_18 = 0x22120200; // B相18次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_19 = 0x21130200; // B相19次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_19 = 0x22130200; // B相19次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_20 = 0x21140200; // B相20次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_20 = 0x22140200; // B相20次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_21 = 0x21150200; // B相21次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_21 = 0x22150200; // B相21次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_22 = 0x21160200; // B相22次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_22 = 0x22160200; // B相22次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_23 = 0x21170200; // B相23次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_23 = 0x22170200; // B相23次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_24 = 0x21180200; // B相24次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_24 = 0x22180200; // B相24次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_25 = 0x21190200; // B相25次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_25 = 0x22190200; // B相25次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_26 = 0x211A0200; // B相26次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_26 = 0x221A0200; // B相26次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_27 = 0x211B0200; // B相27次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_27 = 0x221B0200; // B相27次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_28 = 0x211C0200; // B相28次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_28 = 0x221C0200; // B相28次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_29 = 0x211D0200; // B相29次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_29 = 0x221D0200; // B相29次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_30 = 0x211E0200; // B相30次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_30 = 0x221E0200; // B相30次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_B_31 = 0x211F0200; // B相31次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_B_31 = 0x221F0200; // B相31次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_1 = 0x21010200; // C相1次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_1 = 0x22010200; // C相1次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_2 = 0x21020200; // C相2次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_2 = 0x22020200; // C相2次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_3 = 0x21030200; // C相3次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_3 = 0x22030200; // C相3次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_4 = 0x21040200; // C相4次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_4 = 0x22040200; // C相4次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_5 = 0x21050200; // C相5次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_5 = 0x22050200; // C相5次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_6 = 0x21060200; // C相6次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_6 = 0x22060200; // C相6次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_7 = 0x21070200; // C相7次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_7 = 0x22070200; // C相7次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_8 = 0x21080200; // C相8次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_8 = 0x22080200; // C相8次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_9 = 0x21090200; // C相9次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_9 = 0x22090200; // C相9次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_10 = 0x210A0200; // C相10次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_10 = 0x220A0200; // C相10次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_11 = 0x210B0200; // C相11次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_11 = 0x220B0200; // C相11次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_12 = 0x210C0200; // C相12次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_12 = 0x220C0200; // C相12次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_13 = 0x210D0200; // C相13次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_13 = 0x220D0200; // C相13次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_14 = 0x210E0200; // C相14次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_14 = 0x220E0200; // C相14次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_15 = 0x210F0200; // C相15次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_15 = 0x220F0200; // C相15次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_16 = 0x21100200; // C相16次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_16 = 0x22100200; // C相16次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_17 = 0x21110200; // C相17次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_17 = 0x22110200; // C相17次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_18 = 0x21120200; // C相18次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_18 = 0x22120200; // C相18次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_19 = 0x21130200; // C相19次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_19 = 0x22130200; // C相19次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_20 = 0x21140200; // C相20次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_20 = 0x22140200; // C相20次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_21 = 0x21150200; // C相21次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_21 = 0x22150200; // C相21次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_22 = 0x21160200; // C相22次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_22 = 0x22160200; // C相22次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_23 = 0x21170200; // C相23次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_23 = 0x22170200; // C相23次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_24 = 0x21180200; // C相24次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_24 = 0x22180200; // C相24次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_25 = 0x21190200; // C相25次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_25 = 0x22190200; // C相25次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_26 = 0x211A0200; // C相26次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_26 = 0x221A0200; // C相26次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_27 = 0x211B0200; // C相27次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_27 = 0x221B0200; // C相27次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_28 = 0x211C0200; // C相28次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_28 = 0x221C0200; // C相28次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_29 = 0x211D0200; // C相29次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_29 = 0x221D0200; // C相29次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_30 = 0x211E0200; // C相30次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_30 = 0x221E0200; // C相30次电流谐波
+    const unsigned long OAD_VOLTAGE_HARMONIC_C_31 = 0x211F0200; // C相31次电压谐波
+    const unsigned long OAD_CURRENT_HARMONIC_C_31 = 0x221F0200; // C相31次电流谐波
+
+    struct Dlt698AttributeData {
+        @key unsigned long oad;
+        unsigned short class_id;
+        octet attribute_id;
+        double double_val;
+        unsigned long long timestamp_ms;
+    };
+};

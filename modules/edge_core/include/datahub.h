@@ -11,6 +11,30 @@
 extern "C" {
 #endif
 
+typedef enum {
+    DATAHUB_BACKEND_SHM    = 0,
+    DATAHUB_BACKEND_DDS    = 1,
+    DATAHUB_BACKEND_HYBRID = 2
+} datahub_backend_type_t;
+
+typedef struct {
+    datahub_backend_type_t backend_type;
+    uint32_t dds_domain_id;             /**< Default 0 */
+    char dds_network_interface[64];     /**< e.g. "eth0" or "lo" */
+    char shm_name[128];                 /**< e.g. "edgeos_shadow" */
+    uint32_t shadow_capacity;
+    uint32_t ring_slots;
+} datahub_config_t;
+
+typedef struct {
+    uint64_t total_publishes;
+    uint64_t total_shadow_writes;
+    uint64_t total_shadow_reads;
+    uint64_t network_packets_tx;
+    uint64_t network_packets_rx;
+    uint64_t drops;
+} datahub_backend_stats_t;
+
 /**
  * @brief 测点映射回调 (支持实例寻址)
  */
@@ -32,6 +56,17 @@ typedef void (*datahub_on_data_cb)(datahub_t *hub, void *user_data);
  * @brief 唤醒过滤回调 (Phase 3 优化)
  */
 typedef bool (*datahub_wakeup_filter_cb)(int index);
+
+typedef struct datahub_ops_s {
+    int (*init)(datahub_t *hub, const datahub_config_t *config);
+    int (*publish)(datahub_t *hub, const pipe_msg_t *msg);
+    int (*write_shadow)(datahub_t *hub, const pipe_msg_t *msg);
+    int (*read_shadow)(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out_msg);
+    int (*subscribe)(datahub_t *hub, datahub_on_data_cb cb, void *user_data);
+    int (*query_snapshot)(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out_msg);
+    int (*get_stats)(datahub_t *hub, datahub_backend_stats_t *stats);
+    void (*destroy)(datahub_t *hub);
+} datahub_ops_t;
 
 typedef struct {
     uint32_t tag_id;
@@ -57,6 +92,10 @@ typedef struct {
 } schema_version_t;
 
 struct datahub_s {
+    datahub_backend_type_t backend_type;
+    const datahub_ops_t *ops;  /**< Active VTable implementation */
+    void *backend_ctx;         /**< Backend-specific private context pointer */
+
     uv_loop_t *loop;
     shm_ring_t ring;
     struct net_buf_pool *io_pool;  // [Phase 4] 注入的 IO 内存池引用
@@ -107,12 +146,27 @@ struct datahub_s {
     atomic_uint_fast64_t metrics_shadow_writes;
     uv_timer_t metrics_timer;
     int metrics_active;
+
+    // --- [ADR-0005] Backend Stats Counters ---
+    atomic_uint_fast64_t total_publishes;
+    atomic_uint_fast64_t total_shadow_reads;
+    atomic_uint_fast64_t network_packets_tx;
+    atomic_uint_fast64_t network_packets_rx;
+    atomic_uint_fast64_t backend_drops;
 };
 
 int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slots,
                  uint32_t shadow_capacity, const edge_tag_meta_t *metadata, uint32_t metadata_len,
                  struct net_buf_pool *io_pool, datahub_tag_map_cb map_fn,
                  datahub_wakeup_filter_cb wakeup_fn);
+
+/**
+ * @brief [ADR-0005] 初始化 DataHub (配置驱动)
+ */
+int datahub_init_with_config(datahub_t *hub, uv_loop_t *loop, const datahub_config_t *config,
+                             const edge_tag_meta_t *metadata, uint32_t metadata_len,
+                             struct net_buf_pool *io_pool, datahub_tag_map_cb map_fn,
+                             datahub_wakeup_filter_cb wakeup_fn);
 
 /**
  * @brief [Nexus] 从契约自动初始化 DataHub
@@ -138,6 +192,11 @@ int datahub_register_ref(datahub_t *hub, uint32_t tag_id, int fd, size_t len);
 int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out);
 int datahub_read_shadow_idx(datahub_t *hub, uint32_t idx, pipe_msg_t *out);
 void datahub_subscribe(datahub_t *hub, datahub_on_data_cb cb, void *user_data);
+
+/**
+ * @brief [ADR-0005] 获取 Backend 统计信息
+ */
+int datahub_get_stats(datahub_t *hub, datahub_backend_stats_t *stats);
 
 /**
  * @brief [ADR-0001] 启动 DataHub Metrics 定时上报（100ms 高频环）

@@ -1,6 +1,6 @@
 /**
  * @file resilient_buffer.h
- * @brief Resilient Telemetry Store-and-Forward Buffer Engine for EdgeC
+ * @brief Resilient Telemetry Store-and-Forward Buffer Engine for EdgeC (Crash-Resilient WAL Support)
  */
 
 #ifndef RESILIENT_BUFFER_H
@@ -15,6 +15,7 @@ extern "C" {
 #include <stdbool.h>
 
 #define RESILIENT_BUFFER_CAPACITY 128
+#define RESILIENT_WAL_MAGIC 0x52425546 /* "RBUF" */
 
 typedef struct {
     uint32_t record_id;
@@ -22,6 +23,13 @@ typedef struct {
     double val;
     uint64_t timestamp_ms;
 } telemetry_record_t;
+
+typedef struct {
+    uint32_t magic;
+    uint32_t count;
+    uint32_t head;
+    uint32_t tail;
+} resilient_wal_header_t;
 
 typedef struct {
     size_t head;
@@ -64,6 +72,22 @@ int resilient_buffer_pop(resilient_buffer_t *buf, telemetry_record_t *out_record
  * @param online True if network connected, false if offline
  */
 void resilient_buffer_set_net_state(resilient_buffer_t *buf, bool online);
+
+/**
+ * @brief Persists buffer contents to a crash-resilient WAL file
+ * @param buf Pointer to resilient buffer instance
+ * @param filepath Output WAL filepath
+ * @return 0 on success, negative error code on failure
+ */
+int resilient_buffer_flush_to_file(const resilient_buffer_t *buf, const char *filepath);
+
+/**
+ * @brief Restores buffer contents from a crash-resilient WAL file upon restart
+ * @param buf Pointer to resilient buffer instance
+ * @param filepath Input WAL filepath
+ * @return 0 on success, negative error code on failure
+ */
+int resilient_buffer_load_from_file(resilient_buffer_t *buf, const char *filepath);
 
 #ifdef __cplusplus
 }

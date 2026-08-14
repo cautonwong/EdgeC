@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include "datahub.h"
+#include "datahub_shm.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,100 +35,52 @@ int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slo
     hub->map_fn = map_fn;
     hub->wakeup_fn = wakeup_fn;
 
-    // 💡 [Omnis Auto-Capacity]
-    uint32_t max_id = shadow_capacity;
-    if (metadata) {
-        for (uint32_t i = 0; i < metadata_len; i++) {
-            if (metadata[i].id > max_id) max_id = metadata[i].id;
-        }
-    }
-    uint32_t capacity = (max_id > shadow_capacity) ? max_id + 1 : shadow_capacity;
-    if (capacity == 0) capacity = 1; // 最小分配 1 槽位，避免 mmap(0) 失败
-    hub->shadow_capacity = capacity;
-
-    int ring_fd = shmring_create(&hub->ring, name, slots);
-    if (ring_fd < 0) return -1;
-
-    // 💡 [Nexus-Go] 使用 POSIX SHM 映射影子表，支持 Golang 零拷贝挂载
-    char shm_path[256];
-    const char *safe_name = name ? name : "default";
-    if (safe_name[0] == '/') safe_name++; // 跳过开头的斜杠，避免 // 路径
-    
-    snprintf(shm_path, sizeof(shm_path), "/edgeos_shadow_%s", safe_name);
-    
-    // 进一步清理路径中的非法斜杠
-    for (char *p = shm_path + 1; *p; p++) {
-        if (*p == '/') *p = '_';
-    }
-    
-    hub->shadow_size = capacity * sizeof(pipe_msg_t);
-    hub->shadow_fd = shm_open(shm_path, O_RDWR | O_CREAT | O_TRUNC, 0666);
-    if (hub->shadow_fd < 0) {
-        LOG_ERROR(LOG_CAT_BUS, "Failed to create SHM shadow table: %s", strerror(errno));
-        shmring_destroy(&hub->ring);
-        return -1;
+    datahub_config_t config;
+    memset(&config, 0, sizeof(config));
+    config.backend_type = DATAHUB_BACKEND_SHM;
+    config.ring_slots = slots;
+    config.shadow_capacity = shadow_capacity;
+    if (name) {
+        strncpy(config.shm_name, name, sizeof(config.shm_name) - 1);
     }
 
-    if (ftruncate(hub->shadow_fd, (off_t)hub->shadow_size) < 0) {
-        close(hub->shadow_fd);
-        shm_unlink(shm_path);
-        shmring_destroy(&hub->ring);
-        return -1;
+    hub->ops = &g_datahub_shm_ops;
+    return hub->ops->init(hub, &config);
+}
+
+int datahub_init_with_config(datahub_t *hub, uv_loop_t *loop, const datahub_config_t *config,
+                             const edge_tag_meta_t *metadata, uint32_t metadata_len,
+                             struct net_buf_pool *io_pool, datahub_tag_map_cb map_fn,
+                             datahub_wakeup_filter_cb wakeup_fn) {
+    if (!hub || !config) return -1;
+    memset(hub, 0, sizeof(datahub_t));
+    hub->wal_fd = -1;
+    hub->compaction_active = 0;
+    hub->loop = loop;
+    hub->io_pool = io_pool;
+    hub->metadata_table = metadata;
+    hub->metadata_count = metadata_len;
+    hub->map_fn = map_fn;
+    hub->wakeup_fn = wakeup_fn;
+
+    switch (config->backend_type) {
+        case DATAHUB_BACKEND_SHM:
+            hub->ops = &g_datahub_shm_ops;
+            break;
+        default:
+            hub->ops = &g_datahub_shm_ops;
+            break;
     }
 
-    hub->shadow_table = mmap(NULL, hub->shadow_size, PROT_READ | PROT_WRITE, MAP_SHARED, hub->shadow_fd, 0);
-    if (hub->shadow_table == MAP_FAILED) {
-        close(hub->shadow_fd);
-        shm_unlink(shm_path);
-        shmring_destroy(&hub->ring);
-        hub->shadow_table = NULL;
-        return -1;
-    }
-    
-    // 初始化影子锁
-    uv_mutex_init(&hub->shadow_lock);
-
-    // [ADR-0001] 初始化 Metrics
-    atomic_store_explicit(&hub->metrics_shadow_writes, 0, memory_order_relaxed);
-    hub->metrics_active = 0;
-    edge_metrics_register(12001, "datahub.ring.watermark",
-                          "Ring buffer write_idx / slot_count ratio (0.0-1.0)");
-    edge_metrics_register(12002, "datahub.ring.drop_count",
-                          "Cumulative dropped message count");
-    edge_metrics_register(12003, "datahub.ring.read_latency",
-                          "Last shm_ring_read latency (ms)");
-    edge_metrics_register(12004, "datahub.shadow.write_count",
-                          "Total shadow table writes");
-
-    hub->legacy_async.data = hub;
-    uv_async_init(loop, &hub->legacy_async, _legacy_async_cb);
-    return 0;
+    return hub->ops->init(hub, config);
 }
 
 void datahub_destroy(datahub_t *hub) {
     if (!hub) return;
-    datahub_stop_metrics(hub);
-    shmring_destroy(&hub->ring);
-    uv_mutex_lock(&hub->shadow_lock);
-    if (hub->shadow_table) {
-        munmap(hub->shadow_table, hub->shadow_size);
-        hub->shadow_table = NULL;
-        if (hub->shadow_fd >= 0) {
-            close(hub->shadow_fd);
-            hub->shadow_fd = -1;
-        }
-    }
-    if (hub->wal_fd >= 0) {
-        close(hub->wal_fd);
-        hub->wal_fd = -1;
-    }
-    uv_mutex_unlock(&hub->shadow_lock);
-    uv_mutex_destroy(&hub->shadow_lock);
-    if (!uv_is_closing((uv_handle_t *)&hub->legacy_async)) {
-        uv_close((uv_handle_t *)&hub->legacy_async, NULL);
-    }
-    if (hub->compaction_active && !uv_is_closing((uv_handle_t *)&hub->compaction_timer)) {
-        uv_close((uv_handle_t *)&hub->compaction_timer, NULL);
+    if (hub->ops && hub->ops->destroy) {
+        hub->ops->destroy(hub);
+    } else {
+        g_datahub_shm_ops.destroy(hub);
     }
 }
 
@@ -165,36 +118,27 @@ int datahub_write_shadow_idx(datahub_t *hub, int idx, const pipe_msg_t *msg) {
 }
 
 int datahub_publish(datahub_t *hub, const pipe_msg_t *msg) {
-    if (!hub || !msg || !hub->ring.hdr) return -1;
-    
-    pipe_msg_t local_msg = *msg;
-    shm_ring_write(&hub->ring, &local_msg);
-    
-    int idx = -1;
-    if (hub->map_fn_v2) {
-        idx = hub->map_fn_v2(msg->tag_id, msg->device_id);
-    } else if (hub->map_fn) {
-        idx = hub->map_fn(msg->tag_id);
+    if (!hub || !msg) return -1;
+    if (hub->ops && hub->ops->publish) {
+        return hub->ops->publish(hub, msg);
     }
-    if (idx < 0) idx = (int)msg->tag_id; // Fallback
-    
-    return datahub_write_shadow_idx(hub, idx, &local_msg);
+    return g_datahub_shm_ops.publish(hub, msg);
 }
 
 int datahub_write_shadow(datahub_t *hub, const pipe_msg_t *msg) {
-    return datahub_publish(hub, msg);
+    if (!hub || !msg) return -1;
+    if (hub->ops && hub->ops->write_shadow) {
+        return hub->ops->write_shadow(hub, msg);
+    }
+    return g_datahub_shm_ops.write_shadow(hub, msg);
 }
 
 int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out) {
     if (!hub || !out) return -1;
-    int idx = -1;
-    if (hub->map_fn_v2) {
-        idx = hub->map_fn_v2(tag_id, 0); // Default device_id to 0
-    } else if (hub->map_fn) {
-        idx = hub->map_fn(tag_id);
+    if (hub->ops && hub->ops->read_shadow) {
+        return hub->ops->read_shadow(hub, tag_id, out);
     }
-    if (idx < 0) idx = (int)tag_id;
-    return datahub_read_shadow_idx(hub, (uint32_t)idx, out);
+    return g_datahub_shm_ops.read_shadow(hub, tag_id, out);
 }
 
 int datahub_read_shadow_idx(datahub_t *hub, uint32_t idx, pipe_msg_t *out) {
@@ -212,8 +156,19 @@ int datahub_read_shadow_idx(datahub_t *hub, uint32_t idx, pipe_msg_t *out) {
 
 void datahub_subscribe(datahub_t *hub, datahub_on_data_cb cb, void *user_data) {
     if (!hub) return;
-    hub->legacy_cb = cb;
-    hub->legacy_user_data = user_data;
+    if (hub->ops && hub->ops->subscribe) {
+        hub->ops->subscribe(hub, cb, user_data);
+    } else {
+        g_datahub_shm_ops.subscribe(hub, cb, user_data);
+    }
+}
+
+int datahub_get_stats(datahub_t *hub, datahub_backend_stats_t *stats) {
+    if (!hub || !stats) return -1;
+    if (hub->ops && hub->ops->get_stats) {
+        return hub->ops->get_stats(hub, stats);
+    }
+    return g_datahub_shm_ops.get_stats(hub, stats);
 }
 
 int datahub_register_ref(datahub_t *hub, uint32_t tag_id, int fd, size_t len) {

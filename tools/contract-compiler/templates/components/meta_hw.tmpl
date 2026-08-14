@@ -1,9 +1,0 @@
-{{- define "meta_hw" -}}
-// [Hardware Resources]
-const hw_resource_info_t g_hw_resources[] = {
-{{- range .Hardware }}
-    { .type = "{{ .Type }}", .id = {{ .ID }}, .label = "{{ .Label }}" },
-{{- end }}
-};
-const int g_hw_resources_len = {{ len .Hardware }};
-{{- end -}}

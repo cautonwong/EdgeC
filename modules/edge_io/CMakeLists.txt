@@ -50,7 +50,7 @@ add_library(edge_io STATIC
 
 target_include_directories(edge_io PUBLIC include src/requests ${CMAKE_SOURCE_DIR}/third-party/open62541)
 target_include_directories(edge_io PRIVATE src/engines)
-target_link_libraries(edge_io PUBLIC edge_core edge_protocol edge_stream edge_security)
+target_link_libraries(edge_io PUBLIC edge_core edge_protocol edge_stream edge_security edge_common_interface cyclonedds)
 target_link_libraries(edge_io PRIVATE libuv::uv_a SQLite::SQLite3 cjson PahoMQTT::PahoMQTT CURL::libcurl)
 
 

@@ -56,6 +56,16 @@ jobs:
           export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${{ github.workspace }}/.local/linux-x86_64/lib
           cd build && ctest --output-on-failure
 
+      - name: Run Go Unit Tests (x86_64 only)
+        if: matrix.config.target == 'x86_64'
+        run: |
+          cd go && go test ./...
+
+      - name: Run Matrix Simulation Tests (x86_64 only)
+        if: matrix.config.target == 'x86_64'
+        run: |
+          ./test.sh --omnis
+
       - name: Generate Packages
         run: |
           cd build && cpack -G TGZ && cpack -G DEB

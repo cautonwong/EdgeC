@@ -111,12 +111,13 @@ endif()
 # ==============================================================================
 # 5. Modular Packages
 # ==============================================================================
+add_subdirectory(third-party)
 add_subdirectory(modules/edge_core)
 add_subdirectory(modules/edge_algo)
 add_subdirectory(modules/edge_protocol)
-add_subdirectory(modules/edge_io)
 add_subdirectory(modules/edge_security)
 add_subdirectory(modules/edge_stream)
+add_subdirectory(modules/edge_io)
 
 # ==============================================================================
 # 6. Applications & Tests

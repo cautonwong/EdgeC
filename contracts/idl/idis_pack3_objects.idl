@@ -1,0 +1,23 @@
+// EXHAUSTIVE OMG IDL 4.2 FOR IDIS PACKAGE 3 SPECIFICATION (CLEAN INDUSTRIAL SPEC)
+
+module idis {
+    const string OBIS_IDIS_LOAD_PROFILE_1 = "1.0.99.1.0.255"; // 15分钟负荷曲线 1
+    const string OBIS_IDIS_LOAD_PROFILE_2 = "1.0.99.2.0.255"; // 60分钟负荷曲线 2
+    const string OBIS_IDIS_BILLING_PROFILE = "1.0.98.1.0.255"; // 月度结算账单曲线
+    const string OBIS_IDIS_POWER_QUALITY_PROFILE = "1.0.99.98.0.255"; // 电能质量曲线
+    const string OBIS_IDIS_DISCONNECT_CONTROL = "0.0.96.3.10.255"; // 拉合闸断开控制
+    const string OBIS_IDIS_METER_SERIAL_NUMBER = "0.0.96.1.0.255"; // 表号序列号
+    const string OBIS_IDIS_CLOCK_RTC = "0.0.1.0.0.255"; // 实时时钟 RTC
+    const string OBIS_IDIS_IMAGE_TRANSFER = "0.0.44.0.0.255"; // 固件升级传输
+    const string OBIS_IDIS_PUSH_SETUP_1 = "0.0.25.9.0.255"; // 主动推送任务 1
+
+    struct IdisPack3Record {
+        @key string obis_code;
+        unsigned long long timestamp_ms;
+        double active_energy_import;
+        double active_energy_export;
+        double reactive_energy_import;
+        double reactive_energy_export;
+        unsigned long status_flags;
+    };
+};
