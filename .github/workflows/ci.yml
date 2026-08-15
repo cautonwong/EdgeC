@@ -2,7 +2,7 @@ name: EdgeOS CI/CD Pipeline
 
 on:
   push:
-    branches: [ "main", "develop" ]
+    branches: [ "main", "develop", "feature/*" ]
     tags: [ "v*" ]
   pull_request:
     branches: [ "main" ]
@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   # ==========================================
-  # Job 1: Build & Unit Test
+  # Job 1: Build & Unit Test (Matrix with ASan/TSan)
   # ==========================================
   build-and-test:
     name: Build & Test (${{ matrix.config.target }})
@@ -23,6 +23,7 @@ jobs:
       matrix:
         config:
           - { target: x86_64, cc: gcc, cxx: g++, cmake_args: "-DENABLE_COVERAGE=ON", run_tests: true }
+          - { target: x86_64_asan, cc: gcc, cxx: g++, cmake_args: "-DENABLE_ASAN=ON", run_tests: true }
           - { target: arm64, cc: aarch64-linux-gnu-gcc, cxx: aarch64-linux-gnu-g++, cmake_args: "-DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/aarch64-linux-gnu.cmake", run_tests: false }
 
     steps:
@@ -33,7 +34,7 @@ jobs:
       - name: Setup Go Environment
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.24'
           cache: true
 
       - name: Install System Dependencies
@@ -51,7 +52,7 @@ jobs:
           cmake --build . -j$(nproc)
 
       - name: Run Tests (x86_64 only)
-        if: matrix.config.target == 'x86_64'
+        if: matrix.config.run_tests
         run: |
           export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${{ github.workspace }}/.local/linux-x86_64/lib
           cd build && ctest --output-on-failure
@@ -67,10 +68,12 @@ jobs:
           ./test.sh --omnis
 
       - name: Generate Packages
+        if: matrix.config.target != 'x86_64_asan'
         run: |
           cd build && cpack -G TGZ && cpack -G DEB
 
       - name: Upload Artifacts
+        if: matrix.config.target != 'x86_64_asan'
         uses: actions/upload-artifact@v4
         with:
           name: edgeos-dist-${{ matrix.config.target }}

@@ -219,7 +219,44 @@ add_edge_test(test_edge_cep_engine test_edge_cep_engine.c)
 add_edge_test(test_edge_spiffe_auth test_edge_spiffe_auth.c)
 add_edge_test(test_timeseries_compressor test_timeseries_compressor.c)
 add_edge_test(test_onnx_host_guard test_onnx_host_guard.c)
-add_edge_test(test_idl_generated_serialization test_idl_generated_serialization.c)
-target_include_directories(test_idl_generated_serialization PRIVATE ${CMAKE_BINARY_DIR}/idl_generated)
+# Automated OMG IDL 4.2 compilation target for clean builds
+set(IDLC_BIN "${CMAKE_SOURCE_DIR}/.local/linux-x86_64/bin/idlc")
+set(IDL_GEN_DIR "${CMAKE_BINARY_DIR}/idl_generated")
+file(MAKE_DIRECTORY "${IDL_GEN_DIR}")
+
+set(IDL_FILES
+    "${CMAKE_SOURCE_DIR}/contracts/idl/dlt698_objects.idl"
+    "${CMAKE_SOURCE_DIR}/contracts/idl/dlms_bluebook_objects.idl"
+    "${CMAKE_SOURCE_DIR}/contracts/idl/idis_pack3_objects.idl"
+    "${CMAKE_SOURCE_DIR}/contracts/idl/dlms_cosem_objects.idl"
+)
+
+set(IDL_GEN_OUTPUTS
+    "${IDL_GEN_DIR}/dlt698_objects.h"
+    "${IDL_GEN_DIR}/dlt698_objects.c"
+    "${IDL_GEN_DIR}/dlms_bluebook_objects.h"
+    "${IDL_GEN_DIR}/dlms_bluebook_objects.c"
+    "${IDL_GEN_DIR}/idis_pack3_objects.h"
+    "${IDL_GEN_DIR}/idis_pack3_objects.c"
+    "${IDL_GEN_DIR}/dlms_cosem_objects.h"
+    "${IDL_GEN_DIR}/dlms_cosem_objects.c"
+)
+
+if(EXISTS "${IDLC_BIN}")
+    add_custom_command(
+        OUTPUT ${IDL_GEN_OUTPUTS}
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${IDL_GEN_DIR}"
+        COMMAND "${IDLC_BIN}" -o "${IDL_GEN_DIR}" "${CMAKE_SOURCE_DIR}/contracts/idl/dlt698_objects.idl"
+        COMMAND "${IDLC_BIN}" -o "${IDL_GEN_DIR}" "${CMAKE_SOURCE_DIR}/contracts/idl/dlms_bluebook_objects.idl"
+        COMMAND "${IDLC_BIN}" -o "${IDL_GEN_DIR}" "${CMAKE_SOURCE_DIR}/contracts/idl/idis_pack3_objects.idl"
+        COMMAND "${IDLC_BIN}" -o "${IDL_GEN_DIR}" "${CMAKE_SOURCE_DIR}/contracts/idl/dlms_cosem_objects.idl"
+        DEPENDS ${IDL_FILES}
+        COMMENT "Compiling OMG IDL 4.2 files using Cyclone DDS idlc compiler..."
+    )
+    add_custom_target(generate_idls DEPENDS ${IDL_GEN_OUTPUTS})
+    add_edge_test(test_idl_generated_serialization test_idl_generated_serialization.c)
+    target_include_directories(test_idl_generated_serialization PRIVATE "${IDL_GEN_DIR}")
+    add_dependencies(test_idl_generated_serialization generate_idls)
+endif()
 
 

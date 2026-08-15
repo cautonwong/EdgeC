@@ -27,12 +27,14 @@ import (
 	"time"
 
 	"edgeos.go/internal/prescription"
+	"edgeos.go/pkg/shm"
 	"edgeos.go/pkg/tags"
 	_ "github.com/mattn/go-sqlite3"
 )
 
 type AppGateway struct {
 	db              *sql.DB
+	matrix          *shm.ShadowMatrix
 	mu              sync.Mutex
 	aesKey          []byte
 	privKey         *ecdsa.PrivateKey
@@ -1351,6 +1353,11 @@ var (
 	udsRoutineStatus    int = 0 // 0=Idle, 1=Running, 2=Completed, 3=Failed
 )
 
+var (
+	ephemeralDevSecretOnce sync.Once
+	ephemeralDevSecret     []byte
+)
+
 func computeSecurityKey(seed []byte) []byte {
 	if len(seed) == 0 {
 		return nil
@@ -1360,7 +1367,16 @@ func computeSecurityKey(seed []byte) []byte {
 		if os.Getenv("EDGE_ENV") == "production" || os.Getenv("EDGE_ENV") == "prod" {
 			log.Fatalf("[FATAL] Security Redline: DOIP_UDS_SECRET_KEY must be set in production mode!")
 		}
-		secret = "EdgeOS_DoIP_UDS_SecretKey_2026_dev"
+		ephemeralDevSecretOnce.Do(func() {
+			ephemeralDevSecret = make([]byte, 32)
+			if _, err := rand.Read(ephemeralDevSecret); err != nil {
+				log.Fatalf("[FATAL] Failed to generate ephemeral dev HMAC secret: %v", err)
+			}
+			log.Printf("[WARN] DOIP_UDS_SECRET_KEY not set. Using ephemeral random secret for non-prod session.")
+		})
+		h := hmac.New(sha256.New, ephemeralDevSecret)
+		h.Write(seed)
+		return h.Sum(nil)[:4]
 	}
 	h := hmac.New(sha256.New, []byte(secret))
 	h.Write(seed)
@@ -1393,7 +1409,17 @@ func (m *secAccessManager) getClientState(addr string) *clientSecState {
 	st, exists := m.clients[host]
 	if !exists {
 		if len(m.clients) >= 128 {
-			m.clients = make(map[string]*clientSecState)
+			now := time.Now()
+			for k, v := range m.clients {
+				v.mu.Lock()
+				if now.After(v.lockedUntil) && len(v.activeSeed) == 0 {
+					delete(m.clients, k)
+				}
+				v.mu.Unlock()
+			}
+			if len(m.clients) >= 128 {
+				m.clients = make(map[string]*clientSecState)
+			}
 		}
 		st = &clientSecState{}
 		m.clients[host] = st
@@ -1404,9 +1430,13 @@ func (m *secAccessManager) getClientState(addr string) *clientSecState {
 func (g *AppGateway) recordTagValue(tagID uint32, val float64) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	nowMs := uint64(time.Now().UnixNano() / 1e6)
 	if g.db != nil {
 		_, _ = g.db.Exec("INSERT INTO tag_history(timestamp, tag_id, value, status) VALUES(?, ?, ?, ?);",
-			time.Now().UnixNano()/1e6, tagID, val, 1)
+			nowMs, tagID, val, 1)
+	}
+	if g.matrix != nil {
+		_ = g.matrix.WriteTag(tagID, val, nowMs)
 	}
 }
 

@@ -434,5 +434,44 @@ func TestUDSSecurityHardeningAndRBAC(t *testing.T) {
 	if n < 14 || respBuf[12] != 0x67 || respBuf[13] != 0x02 {
 		t.Errorf("Expected positive response 0x67 0x02 for correct key, got: %x", respBuf[:n])
 	}
+
+	// Step E: Test DiagnosticSessionControl (0x10)
+	sessionReq := []byte{0x02, 0xF9, 0x80, 0x01, 0x00, 0x00, 0x00, 0x06, 0x00, 0x0E, 0x00, 0x10, 0x10, 0x03}
+	c2.Write(sessionReq)
+	n, _ = c2.Read(respBuf)
+	if n < 14 || respBuf[12] != 0x50 || respBuf[13] != 0x03 {
+		t.Errorf("Expected positive session response 0x50 0x03, got: %x", respBuf[:n])
+	}
+
+	// Step F: Test ReadDataByIdentifier (0x22)
+	readReq := []byte{0x02, 0xF9, 0x80, 0x01, 0x00, 0x00, 0x00, 0x07, 0x00, 0x0E, 0x00, 0x10, 0x22, 0xF1, 0x90}
+	c2.Write(readReq)
+	n, _ = c2.Read(respBuf)
+	if n < 15 || respBuf[12] != 0x62 {
+		t.Errorf("Expected positive read DID response 0x62, got: %x", respBuf[:n])
+	}
+
+	// Step G: Test ReadDTCInformation (0x19)
+	dtcReq := []byte{0x02, 0xF9, 0x80, 0x01, 0x00, 0x00, 0x00, 0x06, 0x00, 0x0E, 0x00, 0x10, 0x19, 0x02}
+	c2.Write(dtcReq)
+	n, _ = c2.Read(respBuf)
+	if n < 14 || respBuf[12] != 0x59 {
+		t.Errorf("Expected positive DTC response 0x59, got: %x", respBuf[:n])
+	}
+
+	// Step H: Test RoutineControl (0x31)
+	routineReq := []byte{0x02, 0xF9, 0x80, 0x01, 0x00, 0x00, 0x00, 0x08, 0x00, 0x0E, 0x00, 0x10, 0x31, 0x01, 0x02, 0x01}
+	c2.Write(routineReq)
+	n, _ = c2.Read(respBuf)
+	if n < 14 || respBuf[12] != 0x71 {
+		t.Errorf("Expected positive Routine response 0x71, got: %x", respBuf[:n])
+	}
+
+	// Verify DataHub SQLite audit records were written
+	var count int
+	_ = db.QueryRow("SELECT COUNT(*) FROM tag_history WHERE tag_id = 12034").Scan(&count)
+	if count == 0 {
+		t.Errorf("Expected tag_history record for UDS_SECURITY_UNLOCKED (12034)")
+	}
 }
 

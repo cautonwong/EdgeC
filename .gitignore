@@ -38,6 +38,7 @@ image*.png
 third-party/.west
 third-party/modules
 third-party/tools
+third-party/cyclonedds
 .local/linux-x86_64/bin/contract-compiler
 
 # Go & Executable Binaries
