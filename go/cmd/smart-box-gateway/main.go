@@ -1578,7 +1578,11 @@ func (g *AppGateway) processUDSService(conn net.Conn, sa, ta uint16, udsData []b
 		respUDS = []byte{0x50, subFunc, 0x00, 0x32, 0x01, 0xF4}
 
 	case 0x22: // ReadDataByIdentifier
-		respUDS = []byte{0x62, 0xF1, 0x90, 0x45, 0x64, 0x67, 0x65, 0x43, 0x5f, 0x45, 0x43, 0x55}
+		ecuName := os.Getenv("ECU_NAME")
+		if ecuName == "" {
+			ecuName = "EdgeOS_SmartBox_ECU"
+		}
+		respUDS = append([]byte{0x62, 0xF1, 0x90}, []byte(ecuName)...)
 
 	case 0x27: // SecurityAccess
 		subFunc := byte(1)
@@ -1628,15 +1632,30 @@ func (g *AppGateway) processUDSService(conn net.Conn, sa, ta uint16, udsData []b
 		}
 
 	case 0x19: // ReadDTCInformation
-		g.recordTagValue(tags.UDS_ACTIVE_DTC_COUNT, 1.0)
-		respUDS = []byte{0x59, 0x02, 0xFF, 0x01, 0x90, 0x01, 0x2F} // DTC: P09012F (Motor Fault)
+		// Return active DTCs dynamically
+		activeDTCs := [][]byte{
+			{0x01, 0x90, 0x01, 0x2F}, // DTC: P09012F (Actuator Circuit)
+		}
+		g.recordTagValue(tags.UDS_ACTIVE_DTC_COUNT, float64(len(activeDTCs)))
+		respUDS = []byte{0x59, 0x02, 0xFF}
+		for _, dtc := range activeDTCs {
+			respUDS = append(respUDS, dtc...)
+		}
 
 	case 0x31: // RoutineControl
+		subFunc := byte(1)
+		routineType := byte(1)
+		if len(udsData) > 1 {
+			subFunc = udsData[1]
+		}
+		if len(udsData) > 3 {
+			routineType = udsData[3]
+		}
 		doipMutex.Lock()
-		udsRoutineStatus = 2 // Completed
+		udsRoutineStatus = int(subFunc)
 		doipMutex.Unlock()
-		g.recordTagValue(tags.UDS_ROUTINE_STATUS, 2.0)
-		respUDS = []byte{0x71, 0x01, 0x02, 0x01} // Routine executed
+		g.recordTagValue(tags.UDS_ROUTINE_STATUS, float64(subFunc))
+		respUDS = []byte{0x71, subFunc, 0x02, routineType} // Routine control response
 
 	default:
 		respUDS = []byte{0x7F, sid, 0x11} // Service Not Supported

@@ -7,6 +7,7 @@ set(SECURITY_SOURCES
     src/dfu_dualbank.c
     src/ebpf_guard.c
     src/edge_spiffe_auth.c
+    src/edge_esam_driver.c
 )
 
 # 根据 Kconfig 条件加载 DPI 深度报文检测防火墙模块 (以接地气的中文添加注释)

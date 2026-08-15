@@ -24,6 +24,7 @@ jobs:
         config:
           - { target: x86_64, cc: gcc, cxx: g++, cmake_args: "-DENABLE_COVERAGE=ON", run_tests: true }
           - { target: x86_64_asan, cc: gcc, cxx: g++, cmake_args: "-DENABLE_ASAN=ON", run_tests: true }
+          - { target: x86_64_tsan, cc: gcc, cxx: g++, cmake_args: "-DENABLE_TSAN=ON", run_tests: true }
           - { target: arm64, cc: aarch64-linux-gnu-gcc, cxx: aarch64-linux-gnu-g++, cmake_args: "-DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/aarch64-linux-gnu.cmake", run_tests: false }
 
     steps:

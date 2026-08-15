@@ -19,6 +19,16 @@ add_library(dcu_app_lib STATIC
     dcu_security.c
     dcu_discovery.c
     dcu_event_monitor.c
+    dcu_topology_lineloss.c
+    dcu_load_control.c
+    dcu_outage_detector.c
+    dcu_vertical_tasks.c
+    dcu_horizontal_tasks.c
+    dcu_soe_event_engine.c
+    dcu_peripheral_telecontrol.c
+    dcu_data_fusion_engine.c
+    dcu_dlt698_mgmt_engine.c
+    dcu_app_daemon.c
 )
 
 # 2. 自治库头文件依赖关系

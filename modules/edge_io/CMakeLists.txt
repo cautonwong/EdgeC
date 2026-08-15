@@ -19,6 +19,7 @@ set(IO_SOURCES
     src/session_manager.c
     # 命名不符合 driver_*.c 模式，需要显式列出 (以接地气的中文添加注释)
     src/edge_api.c
+    src/edge_bsp_hal.c
     src/adc_driver.c
     src/modbus_rtu_driver.c
     src/modbus_tcp_driver.c

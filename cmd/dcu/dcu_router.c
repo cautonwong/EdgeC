@@ -1,4 +1,6 @@
 #include "dcu_router.h"
+#include "datahub.h"
+#include "shmring.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -189,15 +191,23 @@ static int _oi_variable_read(dcu_object_t* obj, uint8_t attr_id, uint8_t elem_id
     (void)elem_idx;
     if (!out_val) return -1;
 
-    // 属性 2: 实时参量数值反馈
+    // 属性 2: 实时参量物理数值反馈 (Strict Physical Truth from DataHub)
     if (attr_id == 2) {
-        if (obj->oi == ((OAD_VOLTAGE >> 16) & 0xFFFF)) {
-            *(float*)out_val = 220.5f;
-        } else if (obj->oi == ((OAD_CURRENT >> 16) & 0xFFFF)) {
-            *(float*)out_val = 4.95f;
-        } else {
-            *(float*)out_val = 1.0f;
+        float val = 0.0f;
+        int target_tag = TAG_VOLTAGE_PHASE_A;
+        if (obj->oi == ((OAD_CURRENT >> 16) & 0xFFFF)) {
+            target_tag = TAG_CURRENT_PHASE_A;
         }
+
+        int shadow_idx = dcu_tag_map_fn((uint32_t)target_tag, 0);
+        if (shadow_idx >= 0 && g_router_bus_ops.read_shadow_idx) {
+            pipe_msg_t msg;
+            memset(&msg, 0, sizeof(pipe_msg_t));
+            if (g_router_bus_ops.read_shadow_idx(g_router_bus_ops.ctx, (uint32_t)shadow_idx, &msg) == 0) {
+                val = (float)msg.payload.val.f;
+            }
+        }
+        *(float*)out_val = val;
         return 0;
     }
     return -2;
