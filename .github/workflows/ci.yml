@@ -22,7 +22,7 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          - { target: x86_64, cc: gcc, cxx: g++, cmake_args: "-DENABLE_COVERAGE=ON", run_tests: true }
+          - { target: x86_64, cc: gcc, cxx: g++, cmake_args: "-DCOVERAGE=ON", run_tests: true }
           - { target: x86_64_asan, cc: gcc, cxx: g++, cmake_args: "-DENABLE_ASAN=ON", run_tests: true }
           - { target: x86_64_tsan, cc: gcc, cxx: g++, cmake_args: "-DENABLE_TSAN=ON", run_tests: true }
           - { target: arm64, cc: aarch64-linux-gnu-gcc, cxx: aarch64-linux-gnu-g++, cmake_args: "-DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/aarch64-linux-gnu.cmake", run_tests: false }
@@ -57,6 +57,14 @@ jobs:
         run: |
           export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${{ github.workspace }}/.local/linux-x86_64/lib
           cd build && ctest --output-on-failure
+
+      - name: Generate Code Coverage (x86_64 only)
+        if: matrix.config.target == 'x86_64'
+        run: |
+          cd build
+          lcov --capture --directory . --output-file coverage.info --ignore-errors gcov,source
+          lcov --remove coverage.info '/usr/*' '*/tests/*' '*/third-party/*' --output-file coverage_clean.info --ignore-errors gcov,source
+          lcov --list coverage_clean.info || true
 
       - name: Run Go Unit Tests (x86_64 only)
         if: matrix.config.target == 'x86_64'
