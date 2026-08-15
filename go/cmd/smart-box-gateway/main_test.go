@@ -10,10 +10,13 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
 	"edgeos.go/internal/prescription"
+	"edgeos.go/pkg/shm"
+	"edgeos.go/pkg/tags"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -472,6 +475,116 @@ func TestUDSSecurityHardeningAndRBAC(t *testing.T) {
 	_ = db.QueryRow("SELECT COUNT(*) FROM tag_history WHERE tag_id = 12034").Scan(&count)
 	if count == 0 {
 		t.Errorf("Expected tag_history record for UDS_SECURITY_UNLOCKED (12034)")
+	}
+}
+
+func TestUDSProductionSecretFailFast(t *testing.T) {
+	// 1. In production mode, empty secret MUST return fatal error
+	_, err := validateAndGetUDSSecret("", "production")
+	if err == nil {
+		t.Errorf("Expected error when DOIP_UDS_SECRET_KEY is empty in production mode, got nil")
+	}
+	_, err2 := validateAndGetUDSSecret("", "prod")
+	if err2 == nil {
+		t.Errorf("Expected error when DOIP_UDS_SECRET_KEY is empty in prod mode, got nil")
+	}
+
+	// 2. In non-production mode, empty secret returns ephemeral secret without error
+	devSec, err3 := validateAndGetUDSSecret("", "development")
+	if err3 != nil || len(devSec) != 32 {
+		t.Errorf("Expected 32-byte ephemeral secret in dev mode, got %v, len=%d", err3, len(devSec))
+	}
+
+	// 3. When explicit secret is provided, returns configured secret
+	cfgSec, err4 := validateAndGetUDSSecret("MyCustomSecret123", "production")
+	if err4 != nil || string(cfgSec) != "MyCustomSecret123" {
+		t.Errorf("Expected configured secret, got %v (%s)", err4, string(cfgSec))
+	}
+}
+
+func TestUDSDynamicDTCConfiguration(t *testing.T) {
+	// A. Test when unconfigured -> returns empty / no data
+	os.Unsetenv("UDS_ACTIVE_DTCS")
+	dtcs := getActiveDTCRecords()
+	if len(dtcs) != 0 {
+		t.Errorf("Expected 0 DTC records when unconfigured, got %d", len(dtcs))
+	}
+
+	// Test REST endpoint when unconfigured
+	gw := &AppGateway{jwtSecret: make([]byte, 32)}
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/api/v1/ecu/uds/dtc", nil)
+	gw.handleUDSDTC(w, r)
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK, got %d", w.Code)
+	}
+	var resp map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Failed to parse JSON response: %v", err)
+	}
+	data := resp["data"].(map[string]interface{})
+	if data["active_dtc_count"].(float64) != 0 {
+		t.Errorf("Expected active_dtc_count=0 when unconfigured, got %v", data["active_dtc_count"])
+	}
+
+	// B. Test when configured dynamically via JSON env
+	cfg := `[{"dtc_code":"P0101","description":"Mass Air Flow Circuit Fault","status":"CONFIRMED","raw_bytes":[1,1,0,1]}]`
+	os.Setenv("UDS_ACTIVE_DTCS", cfg)
+	defer os.Unsetenv("UDS_ACTIVE_DTCS")
+
+	dtcsConfigured := getActiveDTCRecords()
+	if len(dtcsConfigured) != 1 || dtcsConfigured[0].Code != "P0101" {
+		t.Errorf("Expected 1 configured DTC P0101, got %v", dtcsConfigured)
+	}
+
+	w2 := httptest.NewRecorder()
+	r2 := httptest.NewRequest("GET", "/api/v1/ecu/uds/dtc", nil)
+	gw.handleUDSDTC(w2, r2)
+	if w2.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK, got %d", w2.Code)
+	}
+	var resp2 map[string]interface{}
+	if err := json.Unmarshal(w2.Body.Bytes(), &resp2); err != nil {
+		t.Fatalf("Failed to parse JSON response: %v", err)
+	}
+	data2 := resp2["data"].(map[string]interface{})
+	if data2["active_dtc_count"].(float64) != 1 {
+		t.Errorf("Expected active_dtc_count=1 when configured, got %v", data2["active_dtc_count"])
+	}
+}
+
+func TestUDSStateSHMReadback(t *testing.T) {
+	matrix, err := shm.OpenShadowMatrix("smart_box", 256)
+	if err != nil {
+		t.Logf("SHM ShadowMatrix not available in standalone environment: %v (skipping hardware SHM readback)", err)
+		return
+	}
+	defer matrix.Close()
+
+	gw := &AppGateway{matrix: matrix}
+	// Write UDS state
+	gw.recordTagValue(tags.UDS_SESSION_STATE, 3.0)
+	gw.recordTagValue(tags.UDS_SECURITY_UNLOCKED, 1.0)
+
+	// Read back from SHM
+	msgSession, err := matrix.ReadTag(tags.UDS_SESSION_STATE)
+	if err != nil {
+		t.Errorf("ReadTag UDS_SESSION_STATE failed: %v", err)
+	} else {
+		val, _ := msgSession.Scalar()
+		if val != 3.0 {
+			t.Errorf("Expected UDS_SESSION_STATE=3.0, got %f", val)
+		}
+	}
+
+	msgSec, err := matrix.ReadTag(tags.UDS_SECURITY_UNLOCKED)
+	if err != nil {
+		t.Errorf("ReadTag UDS_SECURITY_UNLOCKED failed: %v", err)
+	} else {
+		val, _ := msgSec.Scalar()
+		if val != 1.0 {
+			t.Errorf("Expected UDS_SECURITY_UNLOCKED=1.0, got %f", val)
+		}
 	}
 }
 

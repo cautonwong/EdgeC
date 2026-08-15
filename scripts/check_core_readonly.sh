@@ -9,9 +9,12 @@ if ! git rev-parse --verify "$BASE_REF" >/dev/null 2>&1; then
     BASE_REF="HEAD~1"
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
 echo "🔍 Checking PR diff against ${BASE_REF} for protected core modifications..."
 
-CHANGED_CORE_FILES=$(git diff --name-only "${BASE_REF}"...HEAD -- modules/edge_core/ include/contract_data_types.h || true)
+CHANGED_CORE_FILES=$(git -C "${ROOT_DIR}" diff --name-only "${BASE_REF}"...HEAD -- modules/edge_core/ include/contract_data_types.h || true)
 
 if [ -n "$CHANGED_CORE_FILES" ]; then
     echo "⚠️  [ARCH-GATE WARNING] The following protected core files were modified:"
