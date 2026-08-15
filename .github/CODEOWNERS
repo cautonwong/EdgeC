@@ -1,0 +1,14 @@
+# EdgeOS Core Architecture CODEOWNERS
+# 任何对核心目录、数据宪法和基础设施接口的修改必须经过双人架构签署
+
+# 全局默认
+*       @cautonwong
+
+# 纯净内核与数据宪法（严格只读）
+/modules/edge_core/     @cautonwong
+/include/contract_data_types.h  @cautonwong
+
+# 契约与构建底座
+/contracts/schema/      @cautonwong
+/cmake/                 @cautonwong
+/CMakeLists.txt         @cautonwong
