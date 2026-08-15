@@ -278,4 +278,9 @@ if(EXISTS "${IDLC_BIN}")
     add_dependencies(test_idl_generated_serialization generate_idls)
 endif()
 
+# AEP-201 基础设施接口抽象测试
+add_edge_test(test_infra_interfaces test_infra_interfaces.c)
+target_link_libraries(test_infra_interfaces PRIVATE edge_infra)
+
+
 
