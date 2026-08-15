@@ -28,11 +28,11 @@ set(IO_SOURCES
     ${ENGINE_SOURCES}
     ${REQUEST_SOURCES}
     ${DRIVER_SOURCES}
-    # 从旧 src/ 目录引入尚未迁移至模块的服务层代码
-    ${CMAKE_SOURCE_DIR}/src/main_loop/northbound_mgr.c
-    ${CMAKE_SOURCE_DIR}/src/main_loop/sched_engine.c
-    ${CMAKE_SOURCE_DIR}/src/main_loop/sched_port.c
-    ${CMAKE_SOURCE_DIR}/src/platform/linux/io_executor_linux.c
+    # 服务层与调度层代码
+    src/northbound_mgr.c
+    src/sched_engine.c
+    src/sched_port.c
+    src/io_executor_linux.c
 )
 
 # 根据 Kconfig 条件加载 Store-and-Forward (SnF) 断线缓存与可靠传输机制 (以接地气的中文添加注释)
