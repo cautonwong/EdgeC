@@ -1,0 +1,4 @@
+ .github/workflows/ci.yml         |  7 +++++++
+ scripts/check_no_old_src.sh       | 28 ++++++++++++++++++++++++++++
+ scripts/check_symbols_baseline.sh | 39 +++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 74 insertions(+)

@@ -1358,14 +1358,10 @@ var (
 	ephemeralDevSecret     []byte
 )
 
-func computeSecurityKey(seed []byte) []byte {
-	if len(seed) == 0 {
-		return nil
-	}
-	secret := os.Getenv("DOIP_UDS_SECRET_KEY")
+func validateAndGetUDSSecret(secret, edgeEnv string) ([]byte, error) {
 	if secret == "" {
-		if os.Getenv("EDGE_ENV") == "production" || os.Getenv("EDGE_ENV") == "prod" {
-			log.Fatalf("[FATAL] Security Redline: DOIP_UDS_SECRET_KEY must be set in production mode!")
+		if edgeEnv == "production" || edgeEnv == "prod" {
+			return nil, fmt.Errorf("[FATAL] Security Redline: DOIP_UDS_SECRET_KEY must be set in production mode")
 		}
 		ephemeralDevSecretOnce.Do(func() {
 			ephemeralDevSecret = make([]byte, 32)
@@ -1374,13 +1370,41 @@ func computeSecurityKey(seed []byte) []byte {
 			}
 			log.Printf("[WARN] DOIP_UDS_SECRET_KEY not set. Using ephemeral random secret for non-prod session.")
 		})
-		h := hmac.New(sha256.New, ephemeralDevSecret)
-		h.Write(seed)
-		return h.Sum(nil)[:4]
+		return ephemeralDevSecret, nil
 	}
-	h := hmac.New(sha256.New, []byte(secret))
+	return []byte(secret), nil
+}
+
+func computeSecurityKey(seed []byte) []byte {
+	if len(seed) == 0 {
+		return nil
+	}
+	secretBytes, err := validateAndGetUDSSecret(os.Getenv("DOIP_UDS_SECRET_KEY"), os.Getenv("EDGE_ENV"))
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+	h := hmac.New(sha256.New, secretBytes)
 	h.Write(seed)
 	return h.Sum(nil)[:4]
+}
+
+type DTCRecord struct {
+	Code        string `json:"dtc_code"`
+	RawBytes    []byte `json:"raw_bytes,omitempty"`
+	Description string `json:"description"`
+	Status      string `json:"status"`
+}
+
+func getActiveDTCRecords() []DTCRecord {
+	dtcEnv := os.Getenv("UDS_ACTIVE_DTCS")
+	if dtcEnv == "" {
+		return []DTCRecord{}
+	}
+	var records []DTCRecord
+	if err := json.Unmarshal([]byte(dtcEnv), &records); err == nil && len(records) > 0 {
+		return records
+	}
+	return []DTCRecord{}
 }
 
 type clientSecState struct {
@@ -1578,7 +1602,11 @@ func (g *AppGateway) processUDSService(conn net.Conn, sa, ta uint16, udsData []b
 		respUDS = []byte{0x50, subFunc, 0x00, 0x32, 0x01, 0xF4}
 
 	case 0x22: // ReadDataByIdentifier
-		respUDS = []byte{0x62, 0xF1, 0x90, 0x45, 0x64, 0x67, 0x65, 0x43, 0x5f, 0x45, 0x43, 0x55}
+		ecuName := os.Getenv("ECU_NAME")
+		if ecuName == "" {
+			ecuName = "EdgeOS_SmartBox_ECU"
+		}
+		respUDS = append([]byte{0x62, 0xF1, 0x90}, []byte(ecuName)...)
 
 	case 0x27: // SecurityAccess
 		subFunc := byte(1)
@@ -1628,15 +1656,29 @@ func (g *AppGateway) processUDSService(conn net.Conn, sa, ta uint16, udsData []b
 		}
 
 	case 0x19: // ReadDTCInformation
-		g.recordTagValue(tags.UDS_ACTIVE_DTC_COUNT, 1.0)
-		respUDS = []byte{0x59, 0x02, 0xFF, 0x01, 0x90, 0x01, 0x2F} // DTC: P09012F (Motor Fault)
+		activeDTCs := getActiveDTCRecords()
+		g.recordTagValue(tags.UDS_ACTIVE_DTC_COUNT, float64(len(activeDTCs)))
+		respUDS = []byte{0x59, 0x02, 0xFF}
+		for _, dtc := range activeDTCs {
+			if len(dtc.RawBytes) == 4 {
+				respUDS = append(respUDS, dtc.RawBytes...)
+			}
+		}
 
 	case 0x31: // RoutineControl
+		subFunc := byte(1)
+		routineType := byte(1)
+		if len(udsData) > 1 {
+			subFunc = udsData[1]
+		}
+		if len(udsData) > 3 {
+			routineType = udsData[3]
+		}
 		doipMutex.Lock()
-		udsRoutineStatus = 2 // Completed
+		udsRoutineStatus = int(subFunc)
 		doipMutex.Unlock()
-		g.recordTagValue(tags.UDS_ROUTINE_STATUS, 2.0)
-		respUDS = []byte{0x71, 0x01, 0x02, 0x01} // Routine executed
+		g.recordTagValue(tags.UDS_ROUTINE_STATUS, float64(subFunc))
+		respUDS = []byte{0x71, subFunc, 0x02, routineType} // Routine control response
 
 	default:
 		respUDS = []byte{0x7F, sid, 0x11} // Service Not Supported
@@ -1685,15 +1727,29 @@ func (g *AppGateway) handleUDSSession(w http.ResponseWriter, r *http.Request) {
 func (g *AppGateway) handleUDSDTC(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[AUDIT] REST UDS DTC request from %s", r.RemoteAddr)
 	w.Header().Set("Content-Type", "application/json")
-	g.recordTagValue(tags.UDS_ACTIVE_DTC_COUNT, 1.0)
+	activeDTCs := getActiveDTCRecords()
+	g.recordTagValue(tags.UDS_ACTIVE_DTC_COUNT, float64(len(activeDTCs)))
+
+	dtcList := make([]map[string]interface{}, 0, len(activeDTCs))
+	for _, d := range activeDTCs {
+		dtcList = append(dtcList, map[string]interface{}{
+			"dtc_code":    d.Code,
+			"description": d.Description,
+			"status":      d.Status,
+		})
+	}
+
+	msg := "UDS DTC active codes retrieved"
+	if len(activeDTCs) == 0 {
+		msg = "No active DTC faults detected (system healthy or unconfigured)"
+	}
+
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"code":    200,
-		"message": "UDS DTC active codes retrieved",
+		"message": msg,
 		"data": map[string]interface{}{
-			"active_dtc_count": 1,
-			"dtc_list": []map[string]interface{}{
-				{"dtc_code": "P09012F", "description": "Motor Overcurrent/Thermal Fault", "status": "CONFIRMED"},
-			},
+			"active_dtc_count": len(activeDTCs),
+			"dtc_list":         dtcList,
 		},
 	})
 }

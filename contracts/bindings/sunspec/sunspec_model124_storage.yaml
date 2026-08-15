@@ -1,0 +1,18 @@
+# SunSpec Model 124 Basic Storage Controls Binding
+model: "SunSpec_Model124_Storage"
+protocol: "ModbusRTU"
+mappings:
+  - tag: BATTERY_SOC
+    addr: 40140
+    type: uint16
+    scaler: 0.1
+
+  - tag: BATTERY_POWER
+    addr: 40142
+    type: int16
+    scaler: 1.0
+
+  - tag: BATTERY_TEMP_MAX
+    addr: 40150
+    type: int16
+    scaler: 0.1

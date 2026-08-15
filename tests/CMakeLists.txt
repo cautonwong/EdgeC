@@ -36,6 +36,17 @@ add_edge_test(test_dcu_storage test_dcu_storage.c)
 add_edge_test(test_dcu_integration test_dcu_integration.c)
 add_edge_test(test_dcu_router test_dcu_router.c)
 add_edge_test(test_dcu_advanced_modules test_dcu_advanced_modules.c)
+add_edge_test(test_dcu_business_engines test_dcu_business_engines.c)
+target_include_directories(test_dcu_business_engines PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_dcu_business_engines PRIVATE dcu_app_lib edge_security)
+
+add_edge_test(test_dcu_phase1_delivery test_dcu_phase1_delivery.c)
+target_include_directories(test_dcu_phase1_delivery PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu" "${CMAKE_SOURCE_DIR}/modules/edge_security/include")
+target_link_libraries(test_dcu_phase1_delivery PRIVATE dcu_app_lib edge_security)
+
+add_edge_test(test_dlt698_conformance_suite test_dlt698_conformance_suite.c)
+target_include_directories(test_dlt698_conformance_suite PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_dlt698_conformance_suite PRIVATE dcu_app_lib edge_security)
 
 
 
@@ -86,6 +97,14 @@ add_edge_test(test_sqlite_injection test_sqlite_injection.c)
 add_edge_test(test_linalg test_linalg.c)
 add_edge_test(test_algorithm_sum test_algorithm_sum.c)
 add_edge_test(test_battery_algo test_battery_algo.c)
+add_edge_test(test_iems_business_engines test_iems_business_engines.c)
+target_include_directories(test_iems_business_engines PRIVATE "${CMAKE_SOURCE_DIR}/cmd/iems")
+target_link_libraries(test_iems_business_engines PRIVATE iems_app_lib)
+
+add_edge_test(test_iems_advanced_delivery test_iems_advanced_delivery.c)
+target_include_directories(test_iems_advanced_delivery PRIVATE "${CMAKE_SOURCE_DIR}/cmd/iems")
+target_link_libraries(test_iems_advanced_delivery PRIVATE iems_app_lib)
+
 add_edge_test(test_ekf_soc test_ekf_soc.c)
 add_edge_test(test_mpc_dispatcher test_mpc_dispatcher.c)
 add_edge_test(test_sparkplug_b test_sparkplug_b.c)
