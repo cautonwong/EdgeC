@@ -10,6 +10,7 @@ set_target_properties(smart_box PROPERTIES
 )
 target_link_libraries(smart_box PRIVATE 
     -Wl,--start-group
+    edge_infra
     edge_io
     -Wl,--whole-archive
     edge_stream

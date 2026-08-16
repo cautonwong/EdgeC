@@ -3,9 +3,9 @@
  * @brief EdgeOS DataHub Subsystem Abstract Interface (Port / VTable)
  * @copyright (c) 2026 EdgeOS Project. All rights reserved.
  * 
- * [AEP-201] Clean Architecture / Anti-Corruption Layer:
+ * [AEP-201 / AEP-203] Clean Architecture / Anti-Corruption Layer:
  * Defines pure consumer interfaces for all DataHub distributed / SHM bus operations.
- * Concrete backends (SHM, CycloneDDS, MQTT, Zenoh) must implement datahub_ops_t.
+ * Concrete backends (SHM, CycloneDDS, MQTT, Zenoh) implement datahub_ops_t.
  */
 
 #ifndef EDGE_INFRA_DATAHUB_OPS_H
@@ -17,13 +17,10 @@
 #include <uv.h>
 
 #include "contract_data_types.h"
-#include "shmring.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-typedef PipeMsg pipe_msg_t;
 
 /* Forward declarations */
 typedef struct datahub_s datahub_t;
@@ -82,32 +79,52 @@ typedef struct datahub_ops_s {
     /**
      * @brief 向总线发布遥测消息
      */
-    int (*publish)(datahub_t *hub, const pipe_msg_t *msg);
+    int (*publish)(datahub_t *hub, const void *msg_ptr);
 
     /**
      * @brief 写入影子内存/本地缓存
      */
-    int (*write_shadow)(datahub_t *hub, const pipe_msg_t *msg);
+    int (*write_shadow)(datahub_t *hub, const void *msg_ptr);
 
     /**
      * @brief 从影子内存读取最新快照
      */
-    int (*read_shadow)(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out_msg);
+    int (*read_shadow)(datahub_t *hub, uint32_t tag_id, void *out_msg_ptr);
 
     /**
-     * @brief 订阅总线数据流
+     * @brief 订阅总线全局数据流
      */
     int (*subscribe)(datahub_t *hub, datahub_on_data_cb cb, void *user_data);
 
     /**
      * @brief 按测点 ID 查询最新快照
      */
-    int (*query_snapshot)(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out_msg);
+    int (*query_snapshot)(datahub_t *hub, uint32_t tag_id, void *out_msg_ptr);
 
     /**
      * @brief 获取后端运行统计
      */
     int (*get_stats)(datahub_t *hub, datahub_backend_stats_t *stats);
+
+    /**
+     * @brief 注册特定测点事件监听器 (notes 3)
+     */
+    int (*register_listener)(datahub_t *hub, uint32_t tag_id, datahub_on_data_cb cb, void *user_data);
+
+    /**
+     * @brief 注销特定测点事件监听器 (notes 3)
+     */
+    int (*unregister_listener)(datahub_t *hub, uint32_t tag_id, datahub_on_data_cb cb);
+
+    /**
+     * @brief 测点 TagID 到影子矩阵索引查找 (notes 3)
+     */
+    int (*shadow_index_lookup)(datahub_t *hub, uint32_t tag_id, uint32_t *out_index);
+
+    /**
+     * @brief 获取底层共享内存矩阵基地址 (notes 3 - 仅限快车道 0 拷贝访问)
+     */
+    void *(*get_shadow_matrix_ptr)(datahub_t *hub);
 
     /**
      * @brief 销毁总线后端资源

@@ -6,6 +6,7 @@ macro(add_edge_test TEST_NAME)
     add_executable(${TEST_NAME} ${ARGN})
     target_link_libraries(${TEST_NAME} PRIVATE
         -Wl,--start-group
+        edge_infra
         edge_io
         edge_stream
         edge_security
