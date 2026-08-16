@@ -1,0 +1,12 @@
+# EdgeOS Architecture Committee Approved Read-Only Core Exemption Whitelist
+# Used by scripts/check_core_readonly.sh
+# Any modifications to files listed here have been signed off by the Architecture Committee.
+
+# Phase 2 Modular Refactor: CMakeLists refactoring to remove 3rd-party dependencies
+modules/edge_core/CMakeLists.txt
+
+# Phase 2 Modular Refactor: Migration of legacy headers to modules/edge_infra
+modules/edge_core/include/sqlite_service.h
+modules/edge_core/src/datahub_dds.c
+modules/edge_core/src/datahub_mqtt.c
+modules/edge_core/src/sqlite_service.c

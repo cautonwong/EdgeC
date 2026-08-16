@@ -17,6 +17,7 @@
 #include <uv.h>
 
 #include "contract_data_types.h"
+#include "shmring.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,11 +33,7 @@ typedef enum {
     DATAHUB_BACKEND_SHM    = 0,
     DATAHUB_BACKEND_DDS    = 1,
     DATAHUB_BACKEND_MQTT   = 2,
-    DATAHUB_BACKEND_HYBRID = 3,
-    DATAHUB_BACKEND_TYPE_SHM    = 0,
-    DATAHUB_BACKEND_TYPE_DDS    = 1,
-    DATAHUB_BACKEND_TYPE_MQTT   = 2,
-    DATAHUB_BACKEND_TYPE_HYBRID = 3
+    DATAHUB_BACKEND_HYBRID = 3
 } datahub_backend_type_t;
 
 /**
@@ -68,6 +65,8 @@ typedef struct {
     uint64_t drops;
 } datahub_backend_stats_t;
 
+typedef datahub_backend_stats_t datahub_stats_t;
+
 /**
  * @brief 数据到达通知回调
  */
@@ -85,17 +84,17 @@ typedef struct datahub_ops_s {
     /**
      * @brief 向总线发布遥测消息
      */
-    int (*publish)(datahub_t *hub, const void *msg_ptr);
+    int (*publish)(datahub_t *hub, const PipeMsg *msg);
 
     /**
      * @brief 写入影子内存/本地缓存
      */
-    int (*write_shadow)(datahub_t *hub, const void *msg_ptr);
+    int (*write_shadow)(datahub_t *hub, const PipeMsg *msg);
 
     /**
      * @brief 从影子内存读取最新快照
      */
-    int (*read_shadow)(datahub_t *hub, uint32_t tag_id, void *out_msg_ptr);
+    int (*read_shadow)(datahub_t *hub, uint32_t tag_id, PipeMsg *out_msg);
 
     /**
      * @brief 订阅总线全局数据流
@@ -105,7 +104,7 @@ typedef struct datahub_ops_s {
     /**
      * @brief 按测点 ID 查询最新快照
      */
-    int (*query_snapshot)(datahub_t *hub, uint32_t tag_id, void *out_msg_ptr);
+    int (*query_snapshot)(datahub_t *hub, uint32_t tag_id, PipeMsg *out_msg);
 
     /**
      * @brief 获取后端运行统计

@@ -283,5 +283,9 @@ endif()
 add_edge_test(test_infra_interfaces test_infra_interfaces.c)
 target_link_libraries(test_infra_interfaces PRIVATE edge_infra)
 
+# AEP-204 任务装载与环境安全回退定向单测
+add_edge_test(test_iems_task_loader test_iems_task_loader.c)
+target_link_libraries(test_iems_task_loader PRIVATE edge_infra SQLite::SQLite3)
+
 
 

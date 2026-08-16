@@ -1,0 +1,12 @@
+ contracts/schema/core_readonly_whitelist.txt |  12 +++
+ docs/evidence/AEP-204/diffstat.txt           |  12 +++
+ docs/evidence/AEP-204/redlines.md            |  12 +++
+ docs/evidence/AEP-204/summary.md             |  57 ++++++++++++++
+ docs/evidence/AEP-204/tests.log              |  35 +++++++++
+ docs/evidence/AEP-206/diffstat.txt           |   2 +-
+ modules/edge_infra/include/datahub_ops.h     |  17 ++---
+ scripts/check_core_readonly.sh               |  24 +++++-
+ scripts/check_core_symbols.sh                |  53 +++++++++++++
+ tests/CMakeLists.txt                         |   4 +
+ tests/test_iems_task_loader.c                | 110 +++++++++++++++++++++++++++
+ 11 files changed, 324 insertions(+), 14 deletions(-)
