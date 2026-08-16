@@ -1,6 +1,6 @@
 /**
  * @file test_infra_interfaces.c
- * @brief Unit tests for storage_ops_t, datahub_ops_t and SQLite storage driver (AEP-201 / AEP-202)
+ * @brief Unit tests for storage_ops_t, datahub_ops_t, SQLite driver, and DDS/MQTT bus drivers (AEP-201 / AEP-202 / AEP-203)
  */
 
 #include <stdio.h>
@@ -11,6 +11,8 @@
 
 #include "storage_ops.h"
 #include "datahub_ops.h"
+#include "datahub_dds.h"
+#include "datahub_mqtt.h"
 #include "shmring.h"
 
 extern const storage_ops_t g_sqlite_storage_ops;
@@ -276,7 +278,8 @@ static void test_storage_ops_vtable(void) {
         .flush_interval_ms = 100,
         .batch_size = 50,
         .enable_wal = true,
-        .enable_snf = true
+        .enable_snf = true,
+        .max_db_size_mb = 10
     };
 
     /* 1. Init */
@@ -401,9 +404,43 @@ static void test_sqlite_storage_driver_live(void) {
     printf("  --> sqlite_storage_driver live test verified successfully!\n");
 }
 
+static void test_datahub_bus_drivers(void) {
+    printf("[TEST] Testing datahub DDS & MQTT bus drivers in edge_infra...\n");
+
+    /* 1. DDS Driver VTable */
+    assert(g_datahub_dds_ops.init != NULL);
+    assert(g_datahub_dds_ops.publish != NULL);
+    assert(g_datahub_dds_ops.read_shadow != NULL);
+    assert(g_datahub_dds_ops.write_shadow != NULL);
+    assert(g_datahub_dds_ops.destroy != NULL);
+
+    /* 2. MQTT Driver VTable */
+    assert(g_datahub_mqtt_ops.init != NULL);
+    assert(g_datahub_mqtt_ops.publish != NULL);
+    assert(g_datahub_mqtt_ops.read_shadow != NULL);
+    assert(g_datahub_mqtt_ops.write_shadow != NULL);
+    assert(g_datahub_mqtt_ops.destroy != NULL);
+
+    /* 3. DataHub instance with DDS ops */
+    datahub_t dds_hub = {0};
+    dds_hub.ops = &g_datahub_dds_ops;
+    datahub_config_t cfg = {0};
+    assert(datahub_dds_init(&dds_hub, &cfg) == 0);
+    assert(dds_hub.backend_type == DATAHUB_BACKEND_DDS);
+
+    PipeMsg msg = { .tag_id = 9999, .ts = 5000 };
+    assert(dds_hub.ops->publish(&dds_hub, &msg) == 0);
+    assert(dds_hub.ops->write_shadow(&dds_hub, &msg) == 0);
+
+    dds_hub.ops->destroy(&dds_hub);
+
+    printf("  --> datahub DDS & MQTT bus drivers in edge_infra verified successfully!\n");
+}
+
 int main(void) {
     test_storage_ops_vtable();
     test_sqlite_storage_driver_live();
-    printf("=== All AEP-201 / AEP-202 Infra Interface Tests PASSED ===\n");
+    test_datahub_bus_drivers();
+    printf("=== All AEP-201 / AEP-202 / AEP-203 Infra Interface & Bus Tests PASSED ===\n");
     return 0;
 }

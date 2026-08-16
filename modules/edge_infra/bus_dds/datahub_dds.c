@@ -106,3 +106,9 @@ const datahub_ops_t g_datahub_dds_ops = {
     .get_stats = dds_get_stats_impl,
     .destroy = dds_destroy_impl
 };
+
+int datahub_dds_init(datahub_t *hub, const datahub_config_t *config) {
+    if (!hub) return -1;
+    hub->ops = &g_datahub_dds_ops;
+    return dds_init_impl(hub, config);
+}

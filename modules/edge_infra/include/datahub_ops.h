@@ -29,6 +29,10 @@ typedef struct datahub_s datahub_t;
  * @brief DataHub 后端协议类型
  */
 typedef enum {
+    DATAHUB_BACKEND_SHM    = 0,
+    DATAHUB_BACKEND_DDS    = 1,
+    DATAHUB_BACKEND_MQTT   = 2,
+    DATAHUB_BACKEND_HYBRID = 3,
     DATAHUB_BACKEND_TYPE_SHM    = 0,
     DATAHUB_BACKEND_TYPE_DDS    = 1,
     DATAHUB_BACKEND_TYPE_MQTT   = 2,
@@ -49,6 +53,8 @@ typedef struct {
     char mqtt_topic_prefix[64];
     void *extra_opts;
 } datahub_backend_config_t;
+
+typedef datahub_backend_config_t datahub_config_t;
 
 /**
  * @brief 后端性能统计指标
