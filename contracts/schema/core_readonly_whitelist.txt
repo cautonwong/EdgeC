@@ -10,3 +10,6 @@ modules/edge_core/include/sqlite_service.h
 modules/edge_core/src/datahub_dds.c
 modules/edge_core/src/datahub_mqtt.c
 modules/edge_core/src/sqlite_service.c
+
+# Dependency Exemption: cJSON (lightweight parser in modules/edge_core/src/edge_app_mgr.c for app descriptors)
+# Approved by Architecture Committee (2026-08-16)
