@@ -1,0 +1,50 @@
+=== AEP-202 Test Verification Log ===
+$ ./test.sh
+100% tests passed, 0 tests failed out of 135
+Total Test time (real) = 60.46 sec
+
+$ ./test.sh --omnis
+10 passed in 67.42s (0:01:07)
+✨ OMNIS INTEGRATION TEST PASSED!
+
+$ cd go && go test ./...
+ok   edgeos.go/cmd/smart-box-gateway (cached)
+ok   edgeos.go/internal/logger (cached)
+ok   edgeos.go/internal/p2p (cached)
+ok   edgeos.go/internal/prescription (cached)
+ok   edgeos.go/internal/twin (cached)
+ok   edgeos.go/internal/voice (cached)
+ok   edgeos.go/internal/webrtc (cached)
+ok   edgeos.go/pkg/shm (cached)
+
+=== Exported Symbols Verification (nm -g) ===
+$ nm -g build/modules/edge_infra/libedge_infra.a | grep sqlite_svc_
+0000000000001615 T sqlite_svc_begin_trans
+0000000000001677 T sqlite_svc_commit_trans
+0000000000000bab T sqlite_svc_create
+000000000000223b T sqlite_svc_delete_app
+00000000000018a1 T sqlite_svc_destroy
+0000000000001bb0 T sqlite_svc_exec
+0000000000001f05 T sqlite_svc_get_app
+0000000000001c71 T sqlite_svc_get_db_handle
+0000000000000f62 T sqlite_svc_get_param
+00000000000016d9 T sqlite_svc_init_from_contract
+00000000000010b8 T sqlite_svc_insert
+0000000000002314 T sqlite_svc_list_apps
+000000000000133f T sqlite_svc_query
+0000000000001c94 T sqlite_svc_save_app
+0000000000000e3f T sqlite_svc_set_param
+0000000000000000 D g_sqlite_storage_ops
+0000000000000b70 T storage_driver_sqlite_create
+
+=== Architecture Gates ===
+$ ./scripts/check_no_old_src.sh
+✅ [ARCH-GATE PASS] Zero legacy 'src/' references detected across the entire codebase.
+
+$ ./scripts/check_symbols_baseline.sh
+✅ [ARCH-GATE PASS] All 7 essential symbols verified in libedge_io.a.
+
+$ ./scripts/check_core_readonly.sh HEAD~1
+✅ [ARCH-GATE PASS] No protected core files were modified.
+
+STATUS: 100% PASS

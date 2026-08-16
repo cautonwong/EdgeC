@@ -1,0 +1,7 @@
+=== AEP-102 Build & Test Verification ===
+$ cmake --build build -j$(nproc)
+[100%] Built target edge_io
+[100%] Built target edge_app
+
+CTest: 134/134 100% Passed (33.18s)
+STATUS: PASS

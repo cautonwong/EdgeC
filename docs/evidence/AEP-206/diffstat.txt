@@ -1,0 +1,29 @@
+ .gitignore                                         |  1 +
+ cmd/dcu/CMakeLists.txt                             |  2 +-
+ cmd/dcu/dcu_storage.c                              | 11 +++++
+ cmd/dcu/dcu_storage.h                              | 11 ++++-
+ cmd/dcu/main.c                                     | 10 +----
+ cmd/iems/CMakeLists.txt                            |  2 +
+ docs/evidence/AEP-002/tests.log                    | 20 +++++++++
+ docs/evidence/AEP-003/tests.log                    |  7 +++
+ docs/evidence/AEP-004/tests.log                    | 24 +++++++++++
+ docs/evidence/AEP-005/tests.log                    |  5 +++
+ docs/evidence/AEP-006/tests.log                    |  9 ++++
+ docs/evidence/AEP-101/tests.log                    | 14 ++++++
+ docs/evidence/AEP-102/tests.log                    |  7 +++
+ docs/evidence/AEP-103/tests.log                    |  6 +++
+ docs/evidence/AEP-104/tests.log                    |  4 ++
+ docs/evidence/AEP-105/tests.log                    | 13 ++++++
+ docs/evidence/AEP-201/tests.log                    | 30 +++++++++++++
+ docs/evidence/AEP-202/tests.log                    | 50 ++++++++++++++++++++++
+ docs/evidence/AEP-203/tests.log                    | 42 ++++++++++++++++++
+ docs/evidence/AEP-206/diffstat.txt                 | 18 ++++++++
+ docs/evidence/AEP-206/redlines.md                  | 12 ++++++
+ docs/evidence/AEP-206/summary.md                   | 50 ++++++++++++++++++++++
+ docs/evidence/AEP-206/tests.log                    | 36 ++++++++++++++++
+ modules/edge_core/CMakeLists.txt                   |  2 +-
+ .../include/sqlite_service.h                       |  0
+ modules/edge_io/CMakeLists.txt                     |  6 ++-
+ tests/test_dcu_integration.c                       |  1 +
+ tests/test_dcu_storage.c                           |  1 +
+ 28 files changed, 381 insertions(+), 13 deletions(-)

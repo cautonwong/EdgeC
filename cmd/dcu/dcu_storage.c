@@ -1,5 +1,6 @@
 #include "dcu_storage.h"
 
+#include <sqlite3.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -229,6 +230,16 @@ int dcu_storage_count_freezes(dcu_storage_t* storage, uint16_t* out_count) {
     }
     sqlite3_finalize(stmt);
     return 0;
+}
+
+int dcu_storage_begin_trans(dcu_storage_t* storage) {
+    if (!storage || !storage->db) return -1;
+    return sqlite3_exec(storage->db, "BEGIN IMMEDIATE TRANSACTION;", NULL, NULL, NULL) == SQLITE_OK ? 0 : -1;
+}
+
+int dcu_storage_commit_trans(dcu_storage_t* storage) {
+    if (!storage || !storage->db) return -1;
+    return sqlite3_exec(storage->db, "COMMIT;", NULL, NULL, NULL) == SQLITE_OK ? 0 : -1;
 }
 
 void dcu_storage_destroy(dcu_storage_t* storage) {

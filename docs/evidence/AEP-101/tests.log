@@ -1,0 +1,14 @@
+=== AEP-101 Symbol & Test Verification ===
+$ nm -g build/modules/edge_io/libedge_io.a | grep -E "northbound_mgr|sched_engine|sched_port|io_executor"
+0000000000000e9e T northbound_mgr_destroy
+0000000000000c8e T northbound_mgr_init_ex
+0000000000000e12 T northbound_mgr_start
+0000000000000e59 T northbound_mgr_stop
+00000000000006f6 T io_executor_cleanup
+0000000000001cd5 T io_executor_create
+000000000000202a T io_executor_create_from_fd
+000000000000212c T io_executor_create_uart
+0000000000002227 T io_executor_http_request
+
+CTest: 134/134 100% Passed (33.18s)
+STATUS: PASS

@@ -1,10 +1,13 @@
 #ifndef DCU_STORAGE_H
 #define DCU_STORAGE_H
 
-#include <sqlite3.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <uv.h>
+
+/* Forward declarations for SQLite handle types */
+typedef struct sqlite3 sqlite3;
+typedef struct sqlite3_stmt sqlite3_stmt;
 
 #define STORAGE_CACHE_MAX 128
 #define STORAGE_ADDR_LEN 32
@@ -88,6 +91,12 @@ int dcu_storage_query_freeze(dcu_storage_t* storage, const char* addr, uint32_t 
                              uint16_t* out_count);
 
 int dcu_storage_count_freezes(dcu_storage_t* storage, uint16_t* out_count);
+
+/**
+ * @brief 显式开启与提交事务 (用于批量操作加速)
+ */
+int dcu_storage_begin_trans(dcu_storage_t* storage);
+int dcu_storage_commit_trans(dcu_storage_t* storage);
 
 /**
  * @brief 销毁存储服务，干净释放互斥锁并关闭 SQLite 指针

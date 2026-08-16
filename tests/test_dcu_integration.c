@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <sqlite3.h>
 #include <uv.h>
 
 #include "datahub.h"

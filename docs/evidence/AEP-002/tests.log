@@ -1,0 +1,20 @@
+======================================================================
+CTest Unit Tests: 134/134 Passed
+100% tests passed, 0 tests failed out of 134
+Total Test time (real) =  87.21 sec
+
+Omnis Matrix Physical Simulation: 10/10 Passed
+============================= 10 passed in 50.00s ==============================
+✨ OMNIS INTEGRATION TEST PASSED!
+
+Go Microservices & Gateways Tests: All Passed
+ok  	edgeos.go/cmd/smart-box-gateway	(cached)
+ok  	edgeos.go/internal/logger	(cached)
+ok  	edgeos.go/internal/p2p	(cached)
+ok  	edgeos.go/internal/prescription	(cached)
+ok  	edgeos.go/internal/twin	(cached)
+ok  	edgeos.go/internal/voice	(cached)
+ok  	edgeos.go/internal/webrtc	(cached)
+ok  	edgeos.go/pkg/shm	(cached)
+======================================================================
+Log Archive: docs/baselines/2026-08-16-base-134.log (Size: 84KB)
