@@ -16,6 +16,7 @@ add_library(iems_app_lib STATIC
     iems_multi_pcs_dispatcher.c
     iems_fire_safety_interlock.c
     iems_commissioning_tool.c
+    iems_task_loader.c
     mqtt_producer.c
 )
 

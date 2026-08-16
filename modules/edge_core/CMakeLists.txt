@@ -32,6 +32,6 @@ target_include_directories(edge_core PUBLIC
 )
 
 # PRIVATE: 依赖项
-target_link_libraries(edge_core PUBLIC edge_common_interface cyclonedds edge_infra)
+target_link_libraries(edge_core PUBLIC edge_common_interface edge_infra)
 target_link_libraries(edge_core PRIVATE libuv::uv_a cjson zlog::zlog)
 

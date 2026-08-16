@@ -1,10 +1,10 @@
-=== AEP-204 Comprehensive Test & Gate Verification Log ===
+=== AEP-204 Comprehensive Test & Gate Verification Log (Round 2) ===
 $ ctest --test-dir build -j1
 100% tests passed, 0 tests failed out of 136
-Total Test time (real) = 40.27 sec
+Total Test time (real) = 47.16 sec
 
 $ ./test.sh --omnis
-============================= 10 passed in 48.63s ==============================
+============================= 10 passed in 55.36s ==============================
 ✨ OMNIS INTEGRATION TEST PASSED!
 
 $ cd go && go test ./...
