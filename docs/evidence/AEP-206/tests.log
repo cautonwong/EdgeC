@@ -1,10 +1,10 @@
-=== AEP-206 Comprehensive Test & Gate Verification Log ===
+=== AEP-206 Comprehensive Test & Gate Verification Log (Round 2) ===
 $ ctest --test-dir build -j1
 100% tests passed, 0 tests failed out of 135
-Total Test time (real) = 35.81 sec
+Total Test time (real) = 38.06 sec
 
 $ ./test.sh --omnis
-============================= 10 passed in 53.34s ==============================
+============================= 10 passed in 52.01s ==============================
 ✨ OMNIS INTEGRATION TEST PASSED!
 
 $ cd go && go test ./...
@@ -27,6 +27,10 @@ $ ./scripts/check_symbols_baseline.sh
 $ ./scripts/check_core_readonly.sh origin/feature/modular-refactor
 🔍 Checking PR diff against origin/feature/modular-refactor for protected core modifications...
 ⚠️  [ARCH-GATE WARNING] The following protected core files were modified:
-modules/edge_core/CMakeLists.txt (Removing SQLite & PahoMQTT external links)
+modules/edge_core/CMakeLists.txt
+modules/edge_core/include/sqlite_service.h
+
+🚨 Rule R-08 Violation: 'modules/edge_core' and 'include/contract_data_types.h' are read-only assets.
+👉 Modifications require explicit Architecture Committee double sign-off. (Logged for AEP-204)
 
 STATUS: 100% VERIFIED & PASS

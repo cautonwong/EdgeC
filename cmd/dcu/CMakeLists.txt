@@ -43,7 +43,7 @@ target_include_directories(dcu_app_lib PUBLIC
     ${CMAKE_SOURCE_DIR}/modules/edge_security/include
 )
 
-# 3. 自治库链接外部依赖
+# 3. 自治库链接外部依赖 (包含 DCU 本地微数据库引擎 dcu_storage/dcu_inventory 适配器)
 target_link_libraries(dcu_app_lib PUBLIC
     edge_infra
     edge_io
@@ -52,6 +52,7 @@ target_link_libraries(dcu_app_lib PUBLIC
     edge_core
     edge_protocol
     edge_algo
+    SQLite::SQLite3
     libuv::uv_a
     contract_${PROD_NAME}
 )

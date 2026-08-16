@@ -501,32 +501,6 @@ void *sqlite_svc_get_db_handle(sqlite_svc_t *svc) {
     return svc ? svc->db : NULL;
 }
 
-int sqlite_svc_load_poll_tasks(sqlite_svc_t *svc,
-                               int (*row_cb)(void *user_data, int argc, char **argv, char **azColName),
-                               void *user_data) {
-    if (!svc || !svc->db) return -1;
-
-    const char *check_sql = "SELECT val FROM matrix_meta WHERE key='is_ready';";
-    sqlite3_stmt *stmt = NULL;
-    bool ready = false;
-    if (sqlite3_prepare_v2(svc->db, check_sql, -1, &stmt, NULL) == SQLITE_OK) {
-        if (sqlite3_step(stmt) == SQLITE_ROW &&
-            strcmp((const char *)sqlite3_column_text(stmt, 0), "1") == 0) {
-            ready = true;
-        }
-        sqlite3_finalize(stmt);
-    }
-    if (!ready) return -2;
-
-    const char *sql =
-        "SELECT t.bus_id, i.addr, t.tag_id, i.protocol FROM poll_tasks t INNER JOIN inventory "
-        "i ON t.device_id = i.id;";
-    char *err = NULL;
-    int rc = sqlite3_exec(svc->db, sql, row_cb, user_data, &err);
-    if (err) sqlite3_free(err);
-    return (rc == SQLITE_OK) ? 0 : -3;
-}
-
 // --- App Registry CRUD Implementation ---
 
 int sqlite_svc_save_app(sqlite_svc_t *svc, const void *manifest_ptr) {

@@ -48,6 +48,8 @@ target_link_libraries(iems PRIVATE
     edge_security
     edge_core
     edge_protocol
+    SQLite::SQLite3
+    PahoMQTT::PahoMQTT
     -Wl,--end-group
     contract_iems
 )

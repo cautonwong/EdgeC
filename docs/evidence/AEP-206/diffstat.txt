@@ -1,17 +1,18 @@
  .gitignore                                                                          |  1 +
- cmd/dcu/CMakeLists.txt                                                              |  1 -
+ cmd/dcu/CMakeLists.txt                                                              |  2 +-
  cmd/dcu/dcu_storage.c                                                               | 11 +++++++++++
  cmd/dcu/dcu_storage.h                                                               | 14 +++++++++++---
  cmd/dcu/main.c                                                                      | 10 +---------
- cmd/iems/main.c                                                                     | 42 +++++++++++------------------------------
+ cmd/iems/CMakeLists.txt                                                             |  2 ++
+ cmd/iems/main.c                                                                     |  0
  docs/evidence/AEP-206/diffstat.txt                                                  | 18 +++++++++++++++---
  docs/evidence/AEP-206/redlines.md                                                   | 13 +++++++++++++
- docs/evidence/AEP-206/summary.md                                                    | 45 +++++++++++++++++++++++++++++++++++++++++++
- docs/evidence/AEP-206/tests.log                                                     | 26 ++++++++++++++++++++++++++
+ docs/evidence/AEP-206/summary.md                                                    | 52 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ docs/evidence/AEP-206/tests.log                                                     | 27 +++++++++++++++++++++++++++
  modules/edge_core/CMakeLists.txt                                                    |  2 +-
- modules/{edge_core/include => edge_infra/include}/sqlite_service.h                   | 11 +++++++++++
- modules/edge_infra/storage/sqlite_service.c                                         | 26 ++++++++++++++++++++++++++
- modules/edge_io/CMakeLists.txt                                                      |  4 ++--
+ modules/{edge_core/include => edge_infra/include}/sqlite_service.h                   |  0
+ modules/edge_infra/storage/sqlite_service.c                                         |  0
+ modules/edge_io/CMakeLists.txt                                                      |  0
  tests/test_dcu_integration.c                                                        |  1 +
  tests/test_dcu_storage.c                                                            |  1 +
- 16 files changed, 178 insertions(+), 60 deletions(-)
+ 17 files changed, 137 insertions(+), 17 deletions(-)

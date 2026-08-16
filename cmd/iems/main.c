@@ -1,6 +1,7 @@
 #include <curl/curl.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <sqlite3.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -184,19 +185,39 @@ static int _load_tasks_cb(void* user_data, int argc, char** argv, char** cols) {
 }
 
 static void iems_load_tasks_timer_cb(uv_timer_t* handle) {
-    if (!g_app.db_service) return;
-
-    if (sqlite_svc_load_poll_tasks(g_app.db_service, _load_tasks_cb, NULL) == 0) {
-        int count = 0;
-        struct uv__queue* q;
-        uv__queue_foreach(q, &g_poll_task_head) count++;
-        if (count > 0) {
-            g_assets_loaded = true;
-            uv_timer_stop(handle);
-            uv_close((uv_handle_t*)handle, (uv_close_cb)free);
-            g_timer_load_tasks = NULL;
-        }
+    sqlite3* raw_db = NULL;
+    if (sqlite3_open_v2(g_app.db_path, &raw_db, SQLITE_OPEN_READONLY, NULL) != SQLITE_OK) {
+        if (raw_db) sqlite3_close(raw_db);
+        return;
     }
+    const char* check_sql = "SELECT val FROM matrix_meta WHERE key='is_ready';";
+    sqlite3_stmt* stmt;
+    bool ready = false;
+    if (sqlite3_prepare_v2(raw_db, check_sql, -1, &stmt, NULL) == SQLITE_OK) {
+        if (sqlite3_step(stmt) == SQLITE_ROW &&
+            strcmp((const char*)sqlite3_column_text(stmt, 0), "1") == 0)
+            ready = true;
+        sqlite3_finalize(stmt);
+    }
+    if (ready) {
+        const char* sql =
+            "SELECT t.bus_id, i.addr, t.tag_id, i.protocol FROM poll_tasks t INNER JOIN inventory "
+            "i ON t.device_id = i.id;";
+        char* err = NULL;
+        if (sqlite3_exec(raw_db, sql, _load_tasks_cb, NULL, &err) == SQLITE_OK) {
+            int count = 0;
+            struct uv__queue* q;
+            uv__queue_foreach(q, &g_poll_task_head) count++;
+            if (count > 0) {
+                g_assets_loaded = true;
+                uv_timer_stop(handle);
+                uv_close((uv_handle_t*)handle, (uv_close_cb)free);
+                g_timer_load_tasks = NULL;
+            }
+        } else if (err)
+            sqlite3_free(err);
+    }
+    sqlite3_close(raw_db);
 }
 
 typedef struct {
