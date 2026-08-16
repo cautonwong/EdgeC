@@ -1,0 +1,24 @@
+=== Go UDS & Security Tests Output ===
+$ go test -count=1 -v ./cmd/smart-box-gateway
+=== RUN   TestPurgeAndAnchor
+--- PASS: TestPurgeAndAnchor (6.02s)
+=== RUN   TestUDSIPC
+--- PASS: TestUDSIPC (0.02s)
+=== RUN   TestUDSSecurityHardeningAndRBAC
+--- PASS: TestUDSSecurityHardeningAndRBAC (0.00s)
+=== RUN   TestUDSProductionSecretFailFast
+--- PASS: TestUDSProductionSecretFailFast (0.00s)
+=== RUN   TestUDSDynamicDTCConfiguration
+--- PASS: TestUDSDynamicDTCConfiguration (0.00s)
+=== RUN   TestUDSStateSHMReadback
+--- PASS: TestUDSStateSHMReadback (0.00s)
+PASS
+ok  	edgeos.go/cmd/smart-box-gateway	6.064s
+
+=== Full System & Gate Verification ===
+CTest: 134/134 100% Passed (35.87s)
+Go Unit Tests: All packages 100% Passed
+scripts/check_no_old_src.sh: PASS
+scripts/check_symbols_baseline.sh: PASS
+scripts/check_core_readonly.sh: PASS
+STATUS: 100% PASS

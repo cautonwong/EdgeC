@@ -1,0 +1,9 @@
+=== Core Readonly Gate Test ===
+$ chmod +x scripts/check_core_readonly.sh
+$ ./scripts/check_core_readonly.sh HEAD~1
+🔍 Checking PR diff against HEAD~1 for protected core modifications...
+✅ [ARCH-GATE PASS] No protected core files were modified.
+
+$ STRICT_CORE_GATE=1 ./scripts/check_core_readonly.sh HEAD~1
+✅ [ARCH-GATE PASS] No protected core files were modified.
+STATUS: PASS

@@ -31,6 +31,7 @@ dist/
 # Logs
 *.log
 logs/
+!docs/evidence/**/tests.log
 
 # Assets & Drafts
 image*.png

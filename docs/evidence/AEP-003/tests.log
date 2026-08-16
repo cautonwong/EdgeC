@@ -1,0 +1,7 @@
+=== GitHub Actions Workflow Validation ===
+File: .github/workflows/ci.yml
+- Syntax: Valid YAML
+- Coverage Flag: -DCOVERAGE=ON (Fixed)
+- Coverage Steps: lcov capture + filter added
+- Target Matrix: x86_64, x86_64_asan, x86_64_tsan, arm64
+STATUS: PASS

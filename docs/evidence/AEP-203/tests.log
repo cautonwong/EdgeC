@@ -1,0 +1,42 @@
+=== AEP-203 Test Verification Log ===
+$ ./build/tests/test_tinyml_overhead
+TinyML WASM Invocation Benchmark:
+  Total Time: 361.33 ms for 1000 iterations
+  Average Overhead: 0.361 ms
+[  PASSED  ] 1 test(s).
+
+$ ./test.sh
+100% tests passed, 0 tests failed out of 135
+Total Test time (real) = 41.82 sec
+
+$ ./test.sh --omnis
+10 passed in 54.25s
+✨ OMNIS INTEGRATION TEST PASSED!
+
+$ cd go && go test ./...
+ok   edgeos.go/cmd/smart-box-gateway (cached)
+ok   edgeos.go/internal/logger (cached)
+ok   edgeos.go/internal/p2p (cached)
+ok   edgeos.go/internal/prescription (cached)
+ok   edgeos.go/internal/twin (cached)
+ok   edgeos.go/internal/voice (cached)
+ok   edgeos.go/internal/webrtc (cached)
+ok   edgeos.go/pkg/shm (cached)
+
+=== Exported Symbols Verification (nm -g) ===
+$ nm -g build/modules/edge_infra/libedge_infra.a | grep -E "datahub_dds|datahub_mqtt"
+datahub_dds.c.o:
+0000000000000486 T datahub_dds_init
+0000000000000000 D g_datahub_dds_ops
+datahub_mqtt.c.o:
+00000000000006b5 T datahub_mqtt_init
+0000000000000000 D g_datahub_mqtt_ops
+
+=== Architecture Gates ===
+$ ./scripts/check_no_old_src.sh
+✅ [ARCH-GATE PASS] Zero legacy 'src/' references detected across the entire codebase.
+
+$ ./scripts/check_symbols_baseline.sh
+✅ [ARCH-GATE PASS] All 7 essential symbols verified in libedge_io.a.
+
+STATUS: 100% PASS

@@ -99,7 +99,7 @@ static void _freeze_trigger_cb(uv_timer_t* handle) {
 
         // 💡 [Industrial Fix] 开启大事务保护 5xxx 冻结管线的高频批量写入，防止 SQLite 疯狂分配/释放
         // heap 导致 C 库崩溃
-        sqlite3_exec(g_dcu_storage.db, "BEGIN IMMEDIATE TRANSACTION;", NULL, NULL, NULL);
+        dcu_storage_begin_trans(&g_dcu_storage);
 
         for (int i = 0; i < g_dcu_inventory.count; i++) {
             pipe_msg_t trigger;
@@ -120,7 +120,7 @@ static void _freeze_trigger_cb(uv_timer_t* handle) {
             }
         }
 
-        sqlite3_exec(g_dcu_storage.db, "COMMIT;", NULL, NULL, NULL);
+        dcu_storage_commit_trans(&g_dcu_storage);
     }
 
     if (++g_test_cycles >= 3) {
@@ -185,12 +185,6 @@ static int _router_read_shadow(void* ctx, uint32_t idx, void* out_msg) {
 int main(int argc, char** argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
     (void)argc;
-    (void)argv;
-
-    // [Industrial Truth Mandate] 彻底禁用 SQLite 内部互斥锁。
-    // 在单线程 libuv 反应堆模型中，这是保障极致稳定、杜绝 glibc 断言崩溃的最后底牌。
-    sqlite3_config(SQLITE_CONFIG_SINGLETHREAD);
-
     LOG_INFO(LOG_CAT_SCHED, "🚀 Starting EdgeC DCU (Series 6xxx) - Digital Twin Marathon");
 
     uv_loop_t* loop = uv_default_loop();

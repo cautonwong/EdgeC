@@ -100,6 +100,17 @@ int sqlite_svc_get_param(sqlite_svc_t *svc, const char *product, uint32_t tag_id
                          size_t buflen);
 
 /**
+ * @brief [Nexus] 从存储层同步加载轮询任务列表 (用于总线与编排器初始化)
+ * @param svc 数据库服务实例
+ * @param row_cb 每行数据的回调函数
+ * @param user_data 透传上下文
+ * @return 0 成功加载, -2 表示未就绪 (matrix_meta), 其他负数表示错误
+ */
+int sqlite_svc_load_poll_tasks(sqlite_svc_t *svc,
+                               int (*row_cb)(void *user_data, int argc, char **argv, char **azColName),
+                               void *user_data);
+
+/**
  * @brief 获取原始 SQLite 句柄 (用于高级配置加载)
  */
 void *sqlite_svc_get_db_handle(sqlite_svc_t *svc);
