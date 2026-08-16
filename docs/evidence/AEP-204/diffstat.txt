@@ -15,4 +15,4 @@
  scripts/check_core_symbols.sh                |  53 +++++++++
  tests/CMakeLists.txt                         |   5 +
  tests/test_iems_task_loader.c                | 157 +++++++++++++++++++++++++++
- 17 files changed, 516 insertions(+), 74 deletions(-)
+ 17 files changed, 522 insertions(+), 74 deletions(-)

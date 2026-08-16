@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# EdgeOS Anti-Entropy Gate: Binary & Core Footprint Size Gate (AEP-205)
+# Measures binary sizes under Release + strip caliber against WARN/ERROR thresholds
+# ==============================================================================
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+BUILD_DIR="${ROOT_DIR}/build"
+
+echo "🔍 [ARCH-GATE] Running Binary Footprint Size Gate (Release+strip caliber)..."
+
+# 临时工作目录
+TMP_DIR=$(mktemp -d /tmp/edgeos_size_gate.XXXXXX)
+trap 'rm -rf "${TMP_DIR}"' EXIT
+
+# 阈值定义 (Bytes)
+# 1. libedge_core.a: 纯核心库，严禁膨胀 (Warn: 250KB, Error: 500KB)
+CORE_WARN_BYTES=$((250 * 1024))
+CORE_ERROR_BYTES=$((500 * 1024))
+
+# 2. 产品二进制: IEMS / DCU / SmartBox (Warn: 5MB, Error: 8MB)
+PROD_WARN_BYTES=$((5 * 1024 * 1024))
+PROD_ERROR_BYTES=$((8 * 1024 * 1024))
+
+# 检查目标配置: "文件路径|类型(core/prod)|Warn阈值|Error阈值"
+TARGETS=(
+    "${BUILD_DIR}/modules/edge_core/libedge_core.a|core|${CORE_WARN_BYTES}|${CORE_ERROR_BYTES}"
+    "${BUILD_DIR}/products/iems/bin/iems|prod|${PROD_WARN_BYTES}|${PROD_ERROR_BYTES}"
+    "${BUILD_DIR}/products/dcu/bin/dcu|prod|${PROD_WARN_BYTES}|${PROD_ERROR_BYTES}"
+    "${BUILD_DIR}/products/smart_box/bin/smart_box|prod|${PROD_WARN_BYTES}|${PROD_ERROR_BYTES}"
+)
+
+format_size() {
+    local bytes=$1
+    if [ "$bytes" -ge $((1024 * 1024)) ]; then
+        awk -v b="$bytes" 'BEGIN {printf "%.2f MB", b/1048576}'
+    elif [ "$bytes" -ge 1024 ]; then
+        awk -v b="$bytes" 'BEGIN {printf "%.1f KB", b/1024}'
+    else
+        echo "${bytes} B"
+    fi
+}
+
+HAS_ERROR=0
+HAS_WARN=0
+
+printf "\n%-38s | %-10s | %-10s | %-9s | %-9s | %-8s\n" "Artifact Target" "Raw Size" "Stripped" "Warn Lim" "Err Lim" "Status"
+printf -- "----------------------------------------------------------------------------------------------------\n"
+
+for target_spec in "${TARGETS[@]}"; do
+    IFS="|" read -r file_path target_type warn_lim err_lim <<< "$target_spec"
+    
+    if [ ! -f "$file_path" ]; then
+        # If product hasn't been built yet in this configuration, skip gracefully
+        continue
+    fi
+
+    file_name=$(basename "$file_path")
+    parent_dir=$(basename "$(dirname "$file_path")")
+    display_name="${parent_dir}/${file_name}"
+    if [ "$target_type" = "core" ]; then
+        display_name="edge_core/${file_name}"
+    fi
+
+    raw_bytes=$(stat -c %s "$file_path")
+
+    # 制作 stripped 副本测定真实落地体积
+    tmp_file="${TMP_DIR}/${file_name}"
+    cp "$file_path" "$tmp_file"
+    if [[ "$file_path" == *.a ]]; then
+        strip --strip-unneeded "$tmp_file" 2>/dev/null || true
+    else
+        strip --strip-all "$tmp_file" 2>/dev/null || true
+    fi
+    stripped_bytes=$(stat -c %s "$tmp_file")
+
+    status="PASS"
+    if [ "$stripped_bytes" -gt "$err_lim" ]; then
+        status="ERROR"
+        HAS_ERROR=1
+    elif [ "$stripped_bytes" -gt "$warn_lim" ]; then
+        status="WARN"
+        HAS_WARN=1
+    fi
+
+    raw_str=$(format_size "$raw_bytes")
+    strip_str=$(format_size "$stripped_bytes")
+    warn_str=$(format_size "$warn_lim")
+    err_str=$(format_size "$err_lim")
+
+    printf "%-38s | %-10s | %-10s | %-9s | %-9s | " "$display_name" "$raw_str" "$strip_str" "$warn_str" "$err_str"
+    if [ "$status" = "PASS" ]; then
+        printf "\033[0;32m%-8s\033[0m\n" "✅ PASS"
+    elif [ "$status" = "WARN" ]; then
+        printf "\033[1;33m%-8s\033[0m\n" "⚠️  WARN"
+    else
+        printf "\033[0;31m%-8s\033[0m\n" "🚨 FAIL"
+    fi
+done
+
+printf -- "----------------------------------------------------------------------------------------------------\n\n"
+
+if [ "$HAS_ERROR" -eq 1 ]; then
+    echo "🚨 [ARCH-GATE FAIL] Binary size gate threshold exceeded! Binary bloat detected."
+    exit 1
+fi
+
+if [ "$HAS_WARN" -eq 1 ]; then
+    echo "⚠️  [ARCH-GATE WARNING] Binary size is approaching limits."
+    if [ "${STRICT_SIZE_GATE:-0}" = "1" ]; then
+        echo "❌ [ARCH-GATE FAIL] STRICT_SIZE_GATE=1: Failing build on warning."
+        exit 1
+    fi
+fi
+
+echo "✅ [ARCH-GATE PASS] All binary footprint sizes conform to release budget."
+exit 0

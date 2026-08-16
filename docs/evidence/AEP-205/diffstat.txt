@@ -1,0 +1,10 @@
+ .github/workflows/ci.yml                     |   3 +-
+ contracts/schema/core_readonly_whitelist.txt |   3 +
+ docs/evidence/AEP-204/diffstat.txt           |   2 +-
+ docs/evidence/AEP-205/diffstat.txt           |  10 +++
+ docs/evidence/AEP-205/redlines.md            |  12 +++
+ docs/evidence/AEP-205/summary.md             |  51 ++++++++++++
+ docs/evidence/AEP-205/tests.log              |  48 +++++++++++
+ scripts/check_binary_sizes.sh                | 119 +++++++++++++++++++++++++++
+ tests/test_iems_task_loader.c                |  22 +++++
+ 9 files changed, 268 insertions(+), 2 deletions(-)
