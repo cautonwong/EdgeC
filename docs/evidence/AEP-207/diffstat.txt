@@ -1,0 +1,13 @@
+ .github/workflows/ci.yml          |  3 ++-
+ Kconfig                           |  1 +
+ cmd/dcu/prj.conf                  |  3 +++
+ cmd/iems/prj.conf                 |  3 +++
+ cmd/smart_box/prj.conf            | 18 ++++++++++++++
+ docs/evidence/AEP-207/diffstat.txt | 13 ++++++++++
+ docs/evidence/AEP-207/redlines.md | 12 +++++++++
+ docs/evidence/AEP-207/summary.md  | 52 +++++++++++++++++++++++++++++++++++++++
+ docs/evidence/AEP-207/tests.log   | 49 ++++++++++++++++++++++++++++++++++++
+ modules/edge_infra/CMakeLists.txt | 38 +++++++++++++++++++++++-----
+ modules/edge_infra/Kconfig        | 23 +++++++++++++++++
+ scripts/check_binary_sizes.sh     | 49 +++++++++++++++++++++++++-----------
+ 12 files changed, 243 insertions(+), 21 deletions(-)

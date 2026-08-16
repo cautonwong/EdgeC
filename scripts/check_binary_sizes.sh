@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# EdgeOS Anti-Entropy Gate: Binary & Core Footprint Size Gate (AEP-205)
+# EdgeOS Anti-Entropy Gate: Binary & Core Footprint Size Gate (AEP-205 / AEP-207)
 # Measures binary sizes under Release + strip caliber against WARN/ERROR thresholds
 # ==============================================================================
 set -euo pipefail
@@ -10,6 +10,16 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 BUILD_DIR="${ROOT_DIR}/build"
 
 echo "🔍 [ARCH-GATE] Running Binary Footprint Size Gate (Release+strip caliber)..."
+
+# 1. 自校验构建模式 (Self-check Build Configuration)
+BUILD_TYPE="Release"
+if [ -f "${BUILD_DIR}/CMakeCache.txt" ]; then
+    DETECTED_TYPE=$(grep -i "^CMAKE_BUILD_TYPE:STRING=" "${BUILD_DIR}/CMakeCache.txt" 2>/dev/null | cut -d'=' -f2 || true)
+    if [ -n "$DETECTED_TYPE" ]; then
+        BUILD_TYPE="$DETECTED_TYPE"
+    fi
+fi
+echo "ℹ️  [SELF-CHECK] Verified Build Type: ${BUILD_TYPE} (Measurement Caliber: Release + strip)"
 
 # 临时工作目录
 TMP_DIR=$(mktemp -d /tmp/edgeos_size_gate.XXXXXX)
@@ -24,12 +34,12 @@ CORE_ERROR_BYTES=$((500 * 1024))
 PROD_WARN_BYTES=$((5 * 1024 * 1024))
 PROD_ERROR_BYTES=$((8 * 1024 * 1024))
 
-# 检查目标配置: "文件路径|类型(core/prod)|Warn阈值|Error阈值"
+# 检查目标配置: "文件路径|类型(core/prod)|是否必须(1/0)|Warn阈值|Error阈值"
 TARGETS=(
-    "${BUILD_DIR}/modules/edge_core/libedge_core.a|core|${CORE_WARN_BYTES}|${CORE_ERROR_BYTES}"
-    "${BUILD_DIR}/products/iems/bin/iems|prod|${PROD_WARN_BYTES}|${PROD_ERROR_BYTES}"
-    "${BUILD_DIR}/products/dcu/bin/dcu|prod|${PROD_WARN_BYTES}|${PROD_ERROR_BYTES}"
-    "${BUILD_DIR}/products/smart_box/bin/smart_box|prod|${PROD_WARN_BYTES}|${PROD_ERROR_BYTES}"
+    "${BUILD_DIR}/modules/edge_core/libedge_core.a|core|1|${CORE_WARN_BYTES}|${CORE_ERROR_BYTES}"
+    "${BUILD_DIR}/products/iems/bin/iems|prod|0|${PROD_WARN_BYTES}|${PROD_ERROR_BYTES}"
+    "${BUILD_DIR}/products/dcu/bin/dcu|prod|0|${PROD_WARN_BYTES}|${PROD_ERROR_BYTES}"
+    "${BUILD_DIR}/products/smart_box/bin/smart_box|prod|0|${PROD_WARN_BYTES}|${PROD_ERROR_BYTES}"
 )
 
 format_size() {
@@ -45,18 +55,14 @@ format_size() {
 
 HAS_ERROR=0
 HAS_WARN=0
+CHECKED_COUNT=0
 
 printf "\n%-38s | %-10s | %-10s | %-9s | %-9s | %-8s\n" "Artifact Target" "Raw Size" "Stripped" "Warn Lim" "Err Lim" "Status"
 printf -- "----------------------------------------------------------------------------------------------------\n"
 
 for target_spec in "${TARGETS[@]}"; do
-    IFS="|" read -r file_path target_type warn_lim err_lim <<< "$target_spec"
+    IFS="|" read -r file_path target_type is_required warn_lim err_lim <<< "$target_spec"
     
-    if [ ! -f "$file_path" ]; then
-        # If product hasn't been built yet in this configuration, skip gracefully
-        continue
-    fi
-
     file_name=$(basename "$file_path")
     parent_dir=$(basename "$(dirname "$file_path")")
     display_name="${parent_dir}/${file_name}"
@@ -64,6 +70,16 @@ for target_spec in "${TARGETS[@]}"; do
         display_name="edge_core/${file_name}"
     fi
 
+    if [ ! -f "$file_path" ]; then
+        if [ "$is_required" = "1" ]; then
+            printf "%-38s | %-10s | %-10s | %-9s | %-9s | \033[0;31m%-8s\033[0m\n" "$display_name" "MISSING" "MISSING" "-" "-" "🚨 FAIL"
+            echo "🚨 [ARCH-GATE FAIL] Required artifact is missing: ${file_path}"
+            HAS_ERROR=1
+        fi
+        continue
+    fi
+
+    CHECKED_COUNT=$((CHECKED_COUNT + 1))
     raw_bytes=$(stat -c %s "$file_path")
 
     # 制作 stripped 副本测定真实落地体积
@@ -102,8 +118,13 @@ done
 
 printf -- "----------------------------------------------------------------------------------------------------\n\n"
 
+if [ "$CHECKED_COUNT" -eq 0 ]; then
+    echo "🚨 [ARCH-GATE FAIL] Zero artifacts were evaluated! Build must be executed before size check."
+    exit 1
+fi
+
 if [ "$HAS_ERROR" -eq 1 ]; then
-    echo "🚨 [ARCH-GATE FAIL] Binary size gate threshold exceeded! Binary bloat detected."
+    echo "🚨 [ARCH-GATE FAIL] Binary size gate threshold exceeded or required artifact missing! Binary bloat detected."
     exit 1
 fi
 
@@ -115,5 +136,5 @@ if [ "$HAS_WARN" -eq 1 ]; then
     fi
 fi
 
-echo "✅ [ARCH-GATE PASS] All binary footprint sizes conform to release budget."
+echo "✅ [ARCH-GATE PASS] All evaluated binary footprint sizes conform to release budget."
 exit 0

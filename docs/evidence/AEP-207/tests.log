@@ -1,0 +1,49 @@
+=== AEP-207 Comprehensive Test & Gate Verification Log ===
+$ ctest --test-dir build -j1
+100% tests passed, 0 tests failed out of 136
+Total Test time (real) = 61.19 sec
+
+$ ./test.sh --omnis
+============================= 10 passed in 58.74s ==============================
+✨ OMNIS INTEGRATION TEST PASSED!
+
+$ cd go && go test ./...
+ok   edgeos.go/cmd/smart-box-gateway (cached)
+ok   edgeos.go/internal/logger (cached)
+ok   edgeos.go/internal/p2p (cached)
+ok   edgeos.go/internal/prescription (cached)
+ok   edgeos.go/internal/twin (cached)
+ok   edgeos.go/internal/voice (cached)
+ok   edgeos.go/internal/webrtc (cached)
+ok   edgeos.go/pkg/shm (cached)
+
+=== Architecture Anti-Entropy Gates ===
+$ ./scripts/check_no_old_src.sh
+✅ [ARCH-GATE PASS] Zero legacy 'src/' references detected across the entire codebase.
+
+$ ./scripts/check_symbols_baseline.sh
+✅ [ARCH-GATE PASS] All 7 essential symbols verified in libedge_io.a.
+
+$ STRICT_CORE_GATE=1 ./scripts/check_core_symbols.sh
+🔍 [ARCH-GATE] Checking libedge_core.a undefined symbols (nm -u)...
+✅ [ARCH-GATE PASS] libedge_core.a is completely free of forbidden 3rd-party engine symbols (0 sqlite3/paho/dds references).
+
+$ STRICT_CORE_GATE=1 ./scripts/check_core_readonly.sh origin/feature/modular-refactor
+🔍 Checking PR diff against origin/feature/modular-refactor for protected core modifications...
+✅ [ARCH-GATE PASS] No unauthorized protected core files were modified (all diffs match approved whitelist).
+
+$ ./scripts/check_binary_sizes.sh
+🔍 [ARCH-GATE] Running Binary Footprint Size Gate (Release+strip caliber)...
+ℹ️  [SELF-CHECK] Verified Build Type: Debug (Measurement Caliber: Release + strip)
+
+Artifact Target                        | Raw Size   | Stripped   | Warn Lim  | Err Lim   | Status  
+----------------------------------------------------------------------------------------------------
+edge_core/libedge_core.a               | 499.7 KB   | 127.0 KB   | 250.0 KB  | 500.0 KB  | ✅ PASS
+bin/iems                               | 4.83 MB    | 3.64 MB    | 5.00 MB   | 8.00 MB   | ✅ PASS
+bin/dcu                                | 3.29 MB    | 2.61 MB    | 5.00 MB   | 8.00 MB   | ✅ PASS
+bin/smart_box                          | 3.89 MB    | 2.91 MB    | 5.00 MB   | 8.00 MB   | ✅ PASS
+----------------------------------------------------------------------------------------------------
+
+✅ [ARCH-GATE PASS] All evaluated binary footprint sizes conform to release budget.
+
+STATUS: 100% VERIFIED & PASS

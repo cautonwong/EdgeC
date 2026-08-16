@@ -1,0 +1,23 @@
+# modules/edge_infra/Kconfig
+
+menu "Edge_Infra (Storage, Bus, and Infrastructure Drivers)"
+
+config EDGE_INFRA_SQLITE
+    bool "Enable SQLite Storage Service & Driver"
+    default y
+    help
+      Enables sqlite_service and sqlite_storage_driver in edge_infra.
+
+config EDGE_INFRA_DDS
+    bool "Enable CycloneDDS DataHub Backend"
+    default y
+    help
+      Enables CycloneDDS distributed mesh DataHub backend in edge_infra.
+
+config EDGE_INFRA_MQTT
+    bool "Enable Northbound MQTT Bridge Backend"
+    default y
+    help
+      Enables MQTT cloud bridge DataHub backend in edge_infra.
+
+endmenu
