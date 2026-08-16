@@ -6,41 +6,16 @@
 
 #include "contract_data_types.h"
 #include "shmring.h"
+#include "datahub_ops.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef enum {
-    DATAHUB_BACKEND_SHM    = 0,
-    DATAHUB_BACKEND_DDS    = 1,
-    DATAHUB_BACKEND_HYBRID = 2
-} datahub_backend_type_t;
-
-typedef struct {
-    datahub_backend_type_t backend_type;
-    uint32_t dds_domain_id;             /**< Default 0 */
-    char dds_network_interface[64];     /**< e.g. "eth0" or "lo" */
-    char shm_name[128];                 /**< e.g. "edgeos_shadow" */
-    uint32_t shadow_capacity;
-    uint32_t ring_slots;
-} datahub_config_t;
-
-typedef struct {
-    uint64_t total_publishes;
-    uint64_t total_shadow_writes;
-    uint64_t total_shadow_reads;
-    uint64_t network_packets_tx;
-    uint64_t network_packets_rx;
-    uint64_t drops;
-} datahub_backend_stats_t;
-
 /**
  * @brief 测点映射回调 (支持实例寻址)
  */
 typedef int (*datahub_tag_map_cb_v2)(uint32_t tag_id, uint32_t device_id);
-
-typedef struct datahub_s datahub_t;
 
 /**
  * @brief 测点映射回调
@@ -48,25 +23,9 @@ typedef struct datahub_s datahub_t;
 typedef int (*datahub_tag_map_cb)(uint32_t tag_id);
 
 /**
- * @brief 数据到达通知回调
- */
-typedef void (*datahub_on_data_cb)(datahub_t *hub, void *user_data);
-
-/**
  * @brief 唤醒过滤回调 (Phase 3 优化)
  */
 typedef bool (*datahub_wakeup_filter_cb)(int index);
-
-typedef struct datahub_ops_s {
-    int (*init)(datahub_t *hub, const datahub_config_t *config);
-    int (*publish)(datahub_t *hub, const pipe_msg_t *msg);
-    int (*write_shadow)(datahub_t *hub, const pipe_msg_t *msg);
-    int (*read_shadow)(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out_msg);
-    int (*subscribe)(datahub_t *hub, datahub_on_data_cb cb, void *user_data);
-    int (*query_snapshot)(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out_msg);
-    int (*get_stats)(datahub_t *hub, datahub_backend_stats_t *stats);
-    void (*destroy)(datahub_t *hub);
-} datahub_ops_t;
 
 typedef struct {
     uint32_t tag_id;

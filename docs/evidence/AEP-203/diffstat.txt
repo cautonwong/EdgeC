@@ -1,0 +1,14 @@
+ docs/evidence/AEP-203/diffstat.txt            |  13 +++
+ docs/evidence/AEP-203/redlines.md             |  14 +++
+ docs/evidence/AEP-203/summary.md              |  38 +++++++
+ docs/evidence/AEP-203/tests.log               |  30 ++++++
+ modules/edge_core/CMakeLists.txt              |   2 -
+ modules/edge_core/include/datahub.h           |  53 +---------
+ modules/edge_core/src/datahub_dds.c           | 109 ---------------------
+ modules/edge_core/src/datahub_mqtt.c          | 121 ----------------------
+ modules/edge_infra/CMakeLists.txt             |   4 +-
+ modules/edge_infra/bus_dds/datahub_dds.c      | 115 ++++++++++++++++++++++
+ modules/edge_infra/bus_mqtt/datahub_mqtt.c    | 127 ++++++++++++++++++++++++
+ modules/edge_infra/include/datahub_ops.h      |   6 ++
+ tests/test_infra_interfaces.c                 |  38 +++++++
+ 13 files changed, 381 insertions(+), 289 deletions(-)

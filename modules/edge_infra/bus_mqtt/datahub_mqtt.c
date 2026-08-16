@@ -118,3 +118,9 @@ const datahub_ops_t g_datahub_mqtt_ops = {
     .get_stats = mqtt_get_stats_impl,
     .destroy = mqtt_destroy_impl
 };
+
+int datahub_mqtt_init(datahub_t *hub, const datahub_config_t *config) {
+    if (!hub) return -1;
+    hub->ops = &g_datahub_mqtt_ops;
+    return mqtt_init_impl(hub, config);
+}

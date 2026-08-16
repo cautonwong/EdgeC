@@ -5,8 +5,6 @@ add_library(edge_core STATIC
     src/shmring.c
     src/datahub.c
     src/datahub_shm.c
-    src/datahub_dds.c
-    src/datahub_mqtt.c
     src/datahub_router.c
     src/net_buf.c
     src/edge_log.c
