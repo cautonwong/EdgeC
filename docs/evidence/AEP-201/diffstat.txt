@@ -1,0 +1,12 @@
+ CMakeLists.txt                         |   1 +
+ docs/evidence/AEP-201/diffstat.txt     |  10 ++
+ docs/evidence/AEP-201/redlines.md      |  18 +++
+ docs/evidence/AEP-201/summary.md       |  34 ++++++
+ docs/evidence/AEP-201/tests.log        |  24 ++++
+ docs/plans/2026-08-16-aep-phase2-dispatch.md |  76 ++++++++++++
+ modules/edge_infra/CMakeLists.txt      |  10 ++
+ modules/edge_infra/include/datahub_ops.h | 122 +++++++++++++++++++
+ modules/edge_infra/include/storage_ops.h | 150 +++++++++++++++++++++++
+ tests/CMakeLists.txt                   |   5 +
+ tests/test_infra_interfaces.c          | 249 +++++++++++++++++++++++++++++++++++++++
+ 11 files changed, 699 insertions(+)

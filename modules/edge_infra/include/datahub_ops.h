@@ -1,0 +1,122 @@
+/**
+ * @file datahub_ops.h
+ * @brief EdgeOS DataHub Subsystem Abstract Interface (Port / VTable)
+ * @copyright (c) 2026 EdgeOS Project. All rights reserved.
+ * 
+ * [AEP-201] Clean Architecture / Anti-Corruption Layer:
+ * Defines pure consumer interfaces for all DataHub distributed / SHM bus operations.
+ * Concrete backends (SHM, CycloneDDS, MQTT, Zenoh) must implement datahub_ops_t.
+ */
+
+#ifndef EDGE_INFRA_DATAHUB_OPS_H
+#define EDGE_INFRA_DATAHUB_OPS_H
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <uv.h>
+
+#include "contract_data_types.h"
+#include "shmring.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef PipeMsg pipe_msg_t;
+
+/* Forward declarations */
+typedef struct datahub_s datahub_t;
+
+/**
+ * @brief DataHub 后端协议类型
+ */
+typedef enum {
+    DATAHUB_BACKEND_TYPE_SHM    = 0,
+    DATAHUB_BACKEND_TYPE_DDS    = 1,
+    DATAHUB_BACKEND_TYPE_MQTT   = 2,
+    DATAHUB_BACKEND_TYPE_HYBRID = 3
+} datahub_backend_type_t;
+
+/**
+ * @brief DataHub 后端初始化配置
+ */
+typedef struct {
+    datahub_backend_type_t backend_type;
+    uint32_t dds_domain_id;             /**< Default 0 */
+    char dds_network_interface[64];     /**< e.g. "eth0" or "lo" */
+    char shm_name[128];                 /**< e.g. "edgeos_shadow" */
+    uint32_t shadow_capacity;
+    uint32_t ring_slots;
+    char mqtt_broker_url[128];          /**< e.g. "mqtt://localhost:1883" */
+    char mqtt_topic_prefix[64];
+    void *extra_opts;
+} datahub_backend_config_t;
+
+/**
+ * @brief 后端性能统计指标
+ */
+typedef struct {
+    uint64_t total_publishes;
+    uint64_t total_shadow_writes;
+    uint64_t total_shadow_reads;
+    uint64_t network_packets_tx;
+    uint64_t network_packets_rx;
+    uint64_t drops;
+} datahub_backend_stats_t;
+
+/**
+ * @brief 数据到达通知回调
+ */
+typedef void (*datahub_on_data_cb)(datahub_t *hub, void *user_data);
+
+/**
+ * @brief DataHub 协议/总线操作虚表 (DataHub Operations VTable)
+ */
+typedef struct datahub_ops_s {
+    /**
+     * @brief 初始化总线后端
+     */
+    int (*init)(datahub_t *hub, const datahub_backend_config_t *config);
+
+    /**
+     * @brief 向总线发布遥测消息
+     */
+    int (*publish)(datahub_t *hub, const pipe_msg_t *msg);
+
+    /**
+     * @brief 写入影子内存/本地缓存
+     */
+    int (*write_shadow)(datahub_t *hub, const pipe_msg_t *msg);
+
+    /**
+     * @brief 从影子内存读取最新快照
+     */
+    int (*read_shadow)(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out_msg);
+
+    /**
+     * @brief 订阅总线数据流
+     */
+    int (*subscribe)(datahub_t *hub, datahub_on_data_cb cb, void *user_data);
+
+    /**
+     * @brief 按测点 ID 查询最新快照
+     */
+    int (*query_snapshot)(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out_msg);
+
+    /**
+     * @brief 获取后端运行统计
+     */
+    int (*get_stats)(datahub_t *hub, datahub_backend_stats_t *stats);
+
+    /**
+     * @brief 销毁总线后端资源
+     */
+    void (*destroy)(datahub_t *hub);
+} datahub_ops_t;
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* EDGE_INFRA_DATAHUB_OPS_H */

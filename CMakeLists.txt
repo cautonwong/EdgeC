@@ -119,6 +119,7 @@ add_subdirectory(modules/edge_protocol)
 add_subdirectory(modules/edge_security)
 add_subdirectory(modules/edge_stream)
 add_subdirectory(modules/edge_io)
+add_subdirectory(modules/edge_infra)
 
 # ==============================================================================
 # 6. Applications & Tests
