@@ -45,6 +45,7 @@ target_include_directories(dcu_app_lib PUBLIC
 
 # 3. 自治库链接外部依赖
 target_link_libraries(dcu_app_lib PUBLIC
+    edge_infra
     edge_io
     edge_stream
     edge_security

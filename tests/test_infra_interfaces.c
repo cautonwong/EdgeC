@@ -1,15 +1,20 @@
 /**
  * @file test_infra_interfaces.c
- * @brief Unit tests for storage_ops_t and datahub_ops_t abstract interface definitions (AEP-201)
+ * @brief Unit tests for storage_ops_t, datahub_ops_t and SQLite storage driver (AEP-201 / AEP-202)
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <uv.h>
 
 #include "storage_ops.h"
 #include "datahub_ops.h"
+#include "shmring.h"
+
+extern const storage_ops_t g_sqlite_storage_ops;
+extern storage_driver_t *storage_driver_sqlite_create(uv_loop_t *loop, const storage_config_t *cfg);
 
 /* ---------------- Mock Storage Driver for Interface Contract Test ---------------- */
 
@@ -21,6 +26,16 @@ typedef struct {
     int trans_commit_called;
     int trans_rollback_called;
     int exec_called;
+    int checkpoint_called;
+    int flush_called;
+    int compact_called;
+    int get_wal_size_called;
+    int partition_gc_called;
+    int purge_old_data_called;
+    int snf_enqueue_called;
+    int snf_dequeue_called;
+    int snf_get_pending_called;
+    int snf_flush_called;
     int set_param_called;
     int get_param_called;
     int save_app_called;
@@ -37,8 +52,8 @@ static int mock_storage_init(storage_driver_t *drv, uv_loop_t *loop, const stora
     return 0;
 }
 
-static int mock_storage_insert(storage_driver_t *drv, const pipe_msg_t *msg) {
-    (void)msg;
+static int mock_storage_insert(storage_driver_t *drv, const void *msg_ptr) {
+    (void)msg_ptr;
     mock_storage_ctx_t *ctx = (mock_storage_ctx_t *)drv->priv_ctx;
     ctx->insert_called++;
     return 0;
@@ -48,7 +63,7 @@ static int mock_storage_query(storage_driver_t *drv, uint64_t start_ts, uint64_t
     (void)start_ts; (void)end_ts;
     mock_storage_ctx_t *ctx = (mock_storage_ctx_t *)drv->priv_ctx;
     ctx->query_called++;
-    pipe_msg_t dummy = { .tag_id = 1001, .ts = 1786800000 };
+    PipeMsg dummy = { .tag_id = 1001, .ts = 1786800000 };
     if (cb) {
         cb(user_data, &dummy);
     }
@@ -82,6 +97,73 @@ static int mock_storage_exec(storage_driver_t *drv, const char *stmt, storage_ex
     if (cb) {
         cb(user_data, 1, &dummy_val, &dummy_col);
     }
+    return 0;
+}
+
+static int mock_storage_checkpoint(storage_driver_t *drv, int mode) {
+    (void)mode;
+    mock_storage_ctx_t *ctx = (mock_storage_ctx_t *)drv->priv_ctx;
+    ctx->checkpoint_called++;
+    return 0;
+}
+
+static int mock_storage_flush(storage_driver_t *drv) {
+    mock_storage_ctx_t *ctx = (mock_storage_ctx_t *)drv->priv_ctx;
+    ctx->flush_called++;
+    return 0;
+}
+
+static int mock_storage_compact(storage_driver_t *drv) {
+    mock_storage_ctx_t *ctx = (mock_storage_ctx_t *)drv->priv_ctx;
+    ctx->compact_called++;
+    return 0;
+}
+
+static int mock_storage_get_wal_size(storage_driver_t *drv, uint64_t *out_bytes) {
+    if (out_bytes) *out_bytes = 4096;
+    mock_storage_ctx_t *ctx = (mock_storage_ctx_t *)drv->priv_ctx;
+    ctx->get_wal_size_called++;
+    return 0;
+}
+
+static int mock_storage_partition_gc(storage_driver_t *drv, uint64_t cutoff_ts) {
+    (void)cutoff_ts;
+    mock_storage_ctx_t *ctx = (mock_storage_ctx_t *)drv->priv_ctx;
+    ctx->partition_gc_called++;
+    return 0;
+}
+
+static int mock_storage_purge_old_data(storage_driver_t *drv, uint32_t max_size_mb) {
+    (void)max_size_mb;
+    mock_storage_ctx_t *ctx = (mock_storage_ctx_t *)drv->priv_ctx;
+    ctx->purge_old_data_called++;
+    return 0;
+}
+
+static int mock_storage_snf_enqueue(storage_driver_t *drv, const void *msg_ptr) {
+    (void)msg_ptr;
+    mock_storage_ctx_t *ctx = (mock_storage_ctx_t *)drv->priv_ctx;
+    ctx->snf_enqueue_called++;
+    return 0;
+}
+
+static int mock_storage_snf_dequeue(storage_driver_t *drv, void *out_msg_ptr) {
+    (void)out_msg_ptr;
+    mock_storage_ctx_t *ctx = (mock_storage_ctx_t *)drv->priv_ctx;
+    ctx->snf_dequeue_called++;
+    return 0;
+}
+
+static int mock_storage_snf_get_pending_count(storage_driver_t *drv, uint32_t *out_count) {
+    if (out_count) *out_count = 0;
+    mock_storage_ctx_t *ctx = (mock_storage_ctx_t *)drv->priv_ctx;
+    ctx->snf_get_pending_called++;
+    return 0;
+}
+
+static int mock_storage_snf_flush(storage_driver_t *drv) {
+    mock_storage_ctx_t *ctx = (mock_storage_ctx_t *)drv->priv_ctx;
+    ctx->snf_flush_called++;
     return 0;
 }
 
@@ -138,12 +220,23 @@ static void mock_storage_destroy(storage_driver_t *drv) {
 
 static const storage_ops_t g_mock_storage_ops = {
     .init = mock_storage_init,
+    .destroy = mock_storage_destroy,
     .insert = mock_storage_insert,
     .query = mock_storage_query,
     .begin_trans = mock_storage_begin_trans,
     .commit_trans = mock_storage_commit_trans,
     .rollback_trans = mock_storage_rollback_trans,
     .exec = mock_storage_exec,
+    .checkpoint = mock_storage_checkpoint,
+    .flush = mock_storage_flush,
+    .compact = mock_storage_compact,
+    .get_wal_size = mock_storage_get_wal_size,
+    .partition_gc = mock_storage_partition_gc,
+    .purge_old_data = mock_storage_purge_old_data,
+    .snf_enqueue = mock_storage_snf_enqueue,
+    .snf_dequeue = mock_storage_snf_dequeue,
+    .snf_get_pending_count = mock_storage_snf_get_pending_count,
+    .snf_flush = mock_storage_snf_flush,
     .set_param = mock_storage_set_param,
     .get_param = mock_storage_get_param,
     .save_app = mock_storage_save_app,
@@ -151,10 +244,10 @@ static const storage_ops_t g_mock_storage_ops = {
     .delete_app = mock_storage_delete_app,
     .list_apps = mock_storage_list_apps,
     .get_native_handle = mock_storage_get_native,
-    .destroy = mock_storage_destroy,
 };
 
-static int dummy_query_callback(void *user_data, const pipe_msg_t *msg) {
+static int dummy_query_callback(void *user_data, const void *msg_ptr) {
+    const PipeMsg *msg = (const PipeMsg *)msg_ptr;
     int *count = (int *)user_data;
     (*count)++;
     assert(msg->tag_id == 1001);
@@ -191,7 +284,7 @@ static void test_storage_ops_vtable(void) {
     assert(ctx.init_called == 1);
 
     /* 2. Insert */
-    pipe_msg_t msg = { .tag_id = 42, .ts = 1000 };
+    PipeMsg msg = { .tag_id = 42, .ts = 1000 };
     assert(drv.ops->insert(&drv, &msg) == 0);
     assert(ctx.insert_called == 1);
 
@@ -215,7 +308,31 @@ static void test_storage_ops_vtable(void) {
     assert(ctx.exec_called == 1);
     assert(exec_result == 1);
 
-    /* 6. Params */
+    /* 6. WAL / Compaction / SnF Ops (notes 3) */
+    assert(drv.ops->checkpoint(&drv, 1) == 0);
+    assert(ctx.checkpoint_called == 1);
+    assert(drv.ops->flush(&drv) == 0);
+    assert(ctx.flush_called == 1);
+    assert(drv.ops->compact(&drv) == 0);
+    assert(ctx.compact_called == 1);
+    uint64_t wal_size = 0;
+    assert(drv.ops->get_wal_size(&drv, &wal_size) == 0 && wal_size == 4096);
+    assert(ctx.get_wal_size_called == 1);
+    assert(drv.ops->partition_gc(&drv, 500) == 0);
+    assert(ctx.partition_gc_called == 1);
+    assert(drv.ops->purge_old_data(&drv, 50) == 0);
+    assert(ctx.purge_old_data_called == 1);
+    assert(drv.ops->snf_enqueue(&drv, &msg) == 0);
+    assert(ctx.snf_enqueue_called == 1);
+    assert(drv.ops->snf_dequeue(&drv, &msg) == 0);
+    assert(ctx.snf_dequeue_called == 1);
+    uint32_t snf_pending = 0;
+    assert(drv.ops->snf_get_pending_count(&drv, &snf_pending) == 0 && snf_pending == 0);
+    assert(ctx.snf_get_pending_called == 1);
+    assert(drv.ops->snf_flush(&drv) == 0);
+    assert(ctx.snf_flush_called == 1);
+
+    /* 7. Params */
     double param_val = 3.14;
     assert(drv.ops->set_param(&drv, "DCU", 5001, &param_val, sizeof(param_val)) == 0);
     assert(ctx.set_param_called == 1);
@@ -223,7 +340,7 @@ static void test_storage_ops_vtable(void) {
     assert(drv.ops->get_param(&drv, "DCU", 5001, &out_val, sizeof(out_val)) == 0);
     assert(ctx.get_param_called == 1);
 
-    /* 7. Apps */
+    /* 8. Apps */
     assert(drv.ops->save_app(&drv, NULL) == 0);
     assert(ctx.save_app_called == 1);
     assert(drv.ops->get_app(&drv, "app_01", NULL) == 0);
@@ -233,7 +350,7 @@ static void test_storage_ops_vtable(void) {
     assert(drv.ops->delete_app(&drv, "app_01") == 0);
     assert(ctx.delete_app_called == 1);
 
-    /* 8. Native handle & Destroy */
+    /* 9. Native handle & Destroy */
     assert(drv.ops->get_native_handle(&drv) == &ctx);
     drv.ops->destroy(&drv);
     assert(ctx.destroy_called == 1);
@@ -241,8 +358,52 @@ static void test_storage_ops_vtable(void) {
     printf("  --> storage_ops_t VTable interface contract verified successfully!\n");
 }
 
+static void test_sqlite_storage_driver_live(void) {
+    printf("[TEST] Testing sqlite_storage_driver live operations...\n");
+
+    uv_loop_t *loop = uv_default_loop();
+    storage_config_t cfg = {
+        .db_path = "/tmp/test_edge_infra_sqlite.db",
+        .flush_interval_ms = 50,
+        .batch_size = 10,
+        .enable_wal = true,
+        .enable_snf = true,
+        .max_db_size_mb = 50
+    };
+
+    remove(cfg.db_path);
+
+    storage_driver_t *drv = storage_driver_sqlite_create(loop, &cfg);
+    assert(drv != NULL);
+    assert(drv->ops == &g_sqlite_storage_ops);
+    assert(strcmp(drv->name, "sqlite-wal") == 0);
+
+    /* 1. Insert & Query */
+    PipeMsg m1 = { .tag_id = 2001, .ts = 100000, .payload.val.f = 220.5 };
+    assert(drv->ops->insert(drv, &m1) == 0);
+
+    /* 2. Params */
+    double set_val = 48.5;
+    assert(drv->ops->set_param(drv, "IEMS", 3001, &set_val, sizeof(set_val)) == 0);
+    double get_val = 0;
+    assert(drv->ops->get_param(drv, "IEMS", 3001, &get_val, sizeof(get_val)) == sizeof(double));
+    assert(get_val == 48.5);
+
+    /* 3. Checkpoint & Compact */
+    assert(drv->ops->checkpoint(drv, 0) == 0);
+    assert(drv->ops->compact(drv) == 0);
+
+    /* 4. Destroy */
+    drv->ops->destroy(drv);
+    free(drv);
+    remove(cfg.db_path);
+
+    printf("  --> sqlite_storage_driver live test verified successfully!\n");
+}
+
 int main(void) {
     test_storage_ops_vtable();
-    printf("=== All AEP-201 Infra Interface Tests PASSED ===\n");
+    test_sqlite_storage_driver_live();
+    printf("=== All AEP-201 / AEP-202 Infra Interface Tests PASSED ===\n");
     return 0;
 }

@@ -1,0 +1,17 @@
+ cmd/dcu/CMakeLists.txt                         |   1 +
+ cmd/iems/CMakeLists.txt                        |   1 +
+ cmd/smart_box/CMakeLists.txt                   |   1 +
+ docs/evidence/AEP-202/diffstat.txt             |  14 ++
+ docs/evidence/AEP-202/redlines.md              |  14 ++
+ docs/evidence/AEP-202/summary.md               |  38 ++++
+ docs/evidence/AEP-202/tests.log                |  40 ++++
+ modules/edge_core/CMakeLists.txt               |   3 +-
+ modules/edge_core/src/sqlite_service.c         | 614 ----------------------------------------
+ modules/edge_infra/CMakeLists.txt              |  11 +-
+ modules/edge_infra/include/datahub_ops.h       |  36 ++-
+ modules/edge_infra/include/storage_ops.h       |  46 ++-
+ modules/edge_infra/storage/sqlite_service.c    | 614 ++++++++++++++++++++++++++++++++++++++++
+ modules/edge_infra/storage/sqlite_storage_driver.c | 218 +++++++++++++++
+ tests/CMakeLists.txt                           |   1 +
+ tests/test_infra_interfaces.c                  | 142 ++++++++--
+ 16 files changed, 1109 insertions(+), 671 deletions(-)
