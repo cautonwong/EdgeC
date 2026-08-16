@@ -1,0 +1,8 @@
+ cmd/dcu/CMakeLists.txt             |  1 -
+ docs/evidence/AEP-206/diffstat.txt | 10 ++++++++++
+ docs/evidence/AEP-206/redlines.md  | 13 +++++++++++++
+ docs/evidence/AEP-206/summary.md   | 34 ++++++++++++++++++++++++++++++++++
+ docs/evidence/AEP-206/tests.log    | 24 ++++++++++++++++++++++++
+ modules/edge_core/CMakeLists.txt   |  2 +-
+ modules/edge_io/CMakeLists.txt     |  4 ++--
+ 7 files changed, 84 insertions(+), 4 deletions(-)

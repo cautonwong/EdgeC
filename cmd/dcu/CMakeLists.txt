@@ -52,7 +52,6 @@ target_link_libraries(dcu_app_lib PUBLIC
     edge_core
     edge_protocol
     edge_algo
-    SQLite::SQLite3
     libuv::uv_a
     contract_${PROD_NAME}
 )
