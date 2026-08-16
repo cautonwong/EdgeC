@@ -1,0 +1,18 @@
+ .github/workflows/ci.yml                     |   3 +-
+ cmd/iems/CMakeLists.txt                      |   1 +
+ cmd/iems/iems_task_loader.c                  |  81 ++++++++++++++
+ cmd/iems/iems_task_loader.h                  |  36 ++++++
+ cmd/iems/main.c                              |  81 ++++----------
+ contracts/schema/core_readonly_whitelist.txt |  12 ++
+ docs/evidence/AEP-204/diffstat.txt           |  18 ++++
+ docs/evidence/AEP-204/redlines.md            |  12 ++
+ docs/evidence/AEP-204/summary.md             |  57 ++++++++++
+ docs/evidence/AEP-204/tests.log              |  35 ++++++
+ docs/evidence/AEP-206/diffstat.txt           |   2 +-
+ modules/edge_core/CMakeLists.txt             |   2 +-
+ modules/edge_infra/include/datahub_ops.h     |  17 ++-
+ scripts/check_core_readonly.sh               |  24 +++-
+ scripts/check_core_symbols.sh                |  53 +++++++++
+ tests/CMakeLists.txt                         |   5 +
+ tests/test_iems_task_loader.c                | 157 +++++++++++++++++++++++++++
+ 17 files changed, 516 insertions(+), 74 deletions(-)

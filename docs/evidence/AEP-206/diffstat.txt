@@ -26,4 +26,4 @@
  modules/edge_io/CMakeLists.txt                     |  6 ++-
  tests/test_dcu_integration.c                       |  1 +
  tests/test_dcu_storage.c                           |  1 +
- 28 files changed, 381 insertions(+), 13 deletions(-)
+ 28 files changed, 391 insertions(+), 13 deletions(-)

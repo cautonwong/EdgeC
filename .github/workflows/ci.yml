@@ -81,7 +81,8 @@ jobs:
         run: |
           ./scripts/check_no_old_src.sh
           ./scripts/check_symbols_baseline.sh
-          ./scripts/check_core_readonly.sh HEAD~1
+          STRICT_CORE_GATE=1 ./scripts/check_core_symbols.sh
+          STRICT_CORE_GATE=1 ./scripts/check_core_readonly.sh HEAD~1
 
       - name: Generate Packages
         if: matrix.config.target != 'x86_64_asan'

@@ -283,5 +283,10 @@ endif()
 add_edge_test(test_infra_interfaces test_infra_interfaces.c)
 target_link_libraries(test_infra_interfaces PRIVATE edge_infra)
 
+# AEP-204 任务装载与环境安全回退定向单测
+add_edge_test(test_iems_task_loader test_iems_task_loader.c)
+target_include_directories(test_iems_task_loader PRIVATE ${CMAKE_SOURCE_DIR}/cmd/iems ${CMAKE_SOURCE_DIR}/modules/edge_stream/include)
+target_link_libraries(test_iems_task_loader PRIVATE iems_app_lib edge_stream edge_security edge_infra SQLite::SQLite3)
+
 
 

@@ -136,88 +136,53 @@ static void on_poll_task_trigger(uv_periodic_t* handle) {
     }
 }
 
-static int _load_tasks_cb(void* user_data, int argc, char** argv, char** cols) {
-    (void)user_data;
-    (void)cols;
-    if (argc < 4) return 0;
-    int bus_id = argv[0] ? atoi(argv[0]) : 0;
-    uint32_t slave_id = argv[1] ? (uint32_t)atoi(argv[1]) : 1;
-    if (slave_id == 0) slave_id = 1;  // 💡 [Nexus Fix] fallback to 1 for NULL/invalid addr
-    uint32_t tag_id = argv[2] ? (uint32_t)atoi(argv[2]) : 0;
-    // 💡 [Nexus Final Fix] 协议名归一化。
-    // 强制使用全局唯一的 MODBUS 标识符，消除 ModbusRTU/ModbusTCP 带来的查找歧义。
-    const char* proto = "MODBUS";
+#include "iems_task_loader.h"
 
-    // 💡 [Nexus Final Fix] 封杀北向虚假轮询。Bus 10 仅供镜像，不准自发读写。
-    if (bus_id == 10) return 0;
+static void _on_iems_task_loaded(const iems_loaded_task_t* loaded, void* user_data) {
+    (void)user_data;
+    if (!loaded) return;
 
     struct uv__queue* q;
     uv__queue_foreach(q, &g_poll_task_head) {
         iems_poll_task_t* existing = uv__queue_data(q, iems_poll_task_t, node);
-        // 💡 [Nexus Fix] 只有当总线、从站地址和标签 ID 完全一致时才视为重复
-        if (existing->bus_id == bus_id && existing->slave_id == slave_id &&
-            existing->tag_id == tag_id)
-            return 0;
+        if (existing->bus_id == loaded->bus_id && existing->slave_id == loaded->slave_id &&
+            existing->tag_id == loaded->tag_id)
+            return;
     }
 
     iems_poll_task_t* task = calloc(1, sizeof(iems_poll_task_t));
-    task->bus_id = bus_id;
-    task->slave_id = slave_id;
-    task->tag_id = tag_id;
-    task->dense_idx = edge_tag_get_compact_index(tag_id);  // 💡 [Nexus Physical-Path] 预填物理坑位
-    strncpy(task->protocol, proto, 15);
+    task->bus_id = loaded->bus_id;
+    task->slave_id = loaded->slave_id;
+    task->tag_id = loaded->tag_id;
+    task->dense_idx = edge_tag_get_compact_index(loaded->tag_id);
+    strncpy(task->protocol, loaded->protocol, 15);
     task->interval_ms = 1000;
 
-    const edge_tag_meta_t* meta = contract_tag_get_meta(tag_id);
+    const edge_tag_meta_t* meta = contract_tag_get_meta(loaded->tag_id);
     if (meta && meta->poll_interval_ms > 0) {
         task->interval_ms = meta->poll_interval_ms;
     }
 
-    printf("📝 [POLL REGISTER] Tag: %u, Bus: %d, Protocol: %s, Interval: %d\n", tag_id, bus_id,
-           proto, task->interval_ms);
+    printf("📝 [POLL REGISTER] Tag: %u, Bus: %d, Protocol: %s, Interval: %d\n", task->tag_id, task->bus_id,
+           task->protocol, task->interval_ms);
 
     uv__queue_insert_tail(&g_poll_task_head, &task->node);
     uv_periodic_init(uv_default_loop(), &task->scheduler);
     task->scheduler.data = task;
     uv_periodic_set(&task->scheduler, 0, (double)task->interval_ms, NULL);
     uv_periodic_start(&task->scheduler, on_poll_task_trigger);
-    return 0;
 }
 
 static void iems_load_tasks_timer_cb(uv_timer_t* handle) {
-    sqlite3* raw_db = NULL;
-    if (sqlite3_open_v2(g_app.db_path, &raw_db, SQLITE_OPEN_READONLY, NULL) != SQLITE_OK) {
-        if (raw_db) sqlite3_close(raw_db);
-        return;
+    if (!g_app.db_service) return;
+
+    int loaded = iems_poll_tasks_load(g_app.db_service, _on_iems_task_loaded, NULL);
+    if (loaded > 0) {
+        g_assets_loaded = true;
+        uv_timer_stop(handle);
+        uv_close((uv_handle_t*)handle, (uv_close_cb)free);
+        g_timer_load_tasks = NULL;
     }
-    const char* check_sql = "SELECT val FROM matrix_meta WHERE key='is_ready';";
-    sqlite3_stmt* stmt;
-    bool ready = false;
-    if (sqlite3_prepare_v2(raw_db, check_sql, -1, &stmt, NULL) == SQLITE_OK) {
-        if (sqlite3_step(stmt) == SQLITE_ROW &&
-            strcmp((const char*)sqlite3_column_text(stmt, 0), "1") == 0)
-            ready = true;
-        sqlite3_finalize(stmt);
-    }
-    if (ready) {
-        const char* sql =
-            "SELECT t.bus_id, i.addr, t.tag_id, i.protocol FROM poll_tasks t INNER JOIN inventory "
-            "i ON t.device_id = i.id;";
-        char* err = NULL;
-        if (sqlite3_exec(raw_db, sql, _load_tasks_cb, NULL, &err) == SQLITE_OK) {
-            int count = 0;
-            struct uv__queue* q;
-            uv__queue_foreach(q, &g_poll_task_head) count++;
-            if (count > 0) {
-                g_assets_loaded = true;
-                uv_timer_stop(handle);
-                uv_close((uv_handle_t*)handle, (uv_close_cb)free);
-                g_timer_load_tasks = NULL;
-            }
-        } else if (err)
-            sqlite3_free(err);
-    }
-    sqlite3_close(raw_db);
 }
 
 typedef struct {
