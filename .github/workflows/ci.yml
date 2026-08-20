@@ -83,7 +83,7 @@ jobs:
           ./scripts/check_symbols_baseline.sh
           STRICT_CORE_GATE=1 ./scripts/check_core_symbols.sh
           STRICT_CORE_GATE=1 ./scripts/check_core_readonly.sh origin/feature/modular-refactor
-          ./scripts/check_binary_sizes.sh
+          ./scripts/check_binary_sizes.sh | tee build/size_report.txt
 
       - name: Generate Packages
         if: matrix.config.target != 'x86_64_asan'
@@ -98,6 +98,7 @@ jobs:
           path: |
             build/*.tar.gz
             build/*.deb
+            build/size_report.txt
 
   # ==========================================
   # Job 2: Docker Build & Push

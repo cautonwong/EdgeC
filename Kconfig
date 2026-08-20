@@ -8,6 +8,7 @@ config EDGEC_TIER
 
 # Source distributed Kconfigs (Zephyr style)
 source "modules/edge_core/Kconfig"
+source "modules/edge_infra/Kconfig"
 source "modules/edge_algo/Kconfig"
 source "modules/edge_protocol/Kconfig"
 source "modules/edge_security/Kconfig"
