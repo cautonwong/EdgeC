@@ -22,6 +22,15 @@ void driver_manager_destroy(driver_manager_t *mgr);
 int driver_manager_register(driver_manager_t *mgr, const edge_driver_t *driver);
 
 /**
+ * @brief [AEP-301] 批量注册由编译器生成的驱动注册表
+ * @param mgr 驱动管理器
+ * @param registry 驱动注册表数组
+ * @param count 驱动注册表项数量
+ * @return 0 成功，非0 失败
+ */
+int driver_manager_register_table(driver_manager_t *mgr, const edge_driver_reg_entry_t *registry, size_t count);
+
+/**
  * @brief 查找协议模板
  */
 const edge_driver_t *driver_manager_find(driver_manager_t *mgr, const char *name);

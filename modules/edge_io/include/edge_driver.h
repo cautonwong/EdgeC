@@ -137,6 +137,16 @@ static inline void *edge_driver_get_priv_safe(edge_driver_ctx_t *ctx, const char
 #define EDGE_DRIVER_GET_PRIV(type, ctx, name_str) \
     ((type *)edge_driver_get_priv_safe((ctx), (name_str)))
 
+/**
+ * @brief 契约生成式驱动注册表项 (AEP-301)
+ */
+typedef struct {
+    const char *protocol_name;
+    const edge_driver_t *driver;
+} edge_driver_reg_entry_t;
+
+#define EDGE_DRIVER_ENTRY(proto, drv) { .protocol_name = (proto), .driver = &(drv) }
+
 #ifdef __cplusplus
 }
 #endif

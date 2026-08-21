@@ -1,6 +1,12 @@
 /**
  * @file edge_infra_base.c
  * @brief Base runtime anchor and graceful degradation stubs for edge_infra
+ *
+ * @note 优雅降级与错误传播语义 (Fallback Error Propagation Semantics):
+ * 当通过 Kconfig 禁用某个后端（如 CONFIG_EDGE_INFRA_SQLITE=n）时，此文件提供合规的符号桩。
+ * 1. 构造函数（如 sqlite_svc_create）返回 NULL；
+ * 2. 所有写/查询/事务操作统一返回明确错误码（-1 / NULL / 0 count），杜绝假成功，确保调用方能够感知后端未启用；
+ * 3. 析构函数（如 sqlite_svc_destroy）作为无状态安全函数保持空操作。
  */
 
 #include "edge_version.h"

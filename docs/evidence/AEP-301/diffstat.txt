@@ -1,0 +1,16 @@
+ .local/linux-x86_64/bin/contract-compiler          | Bin 5698559 -> 5709291 bytes
+ cmake/EdgeContract.cmake                           |   8 +-
+ docs/evidence/AEP-208/diffstat.txt                 |   2 +-
+ docs/evidence/AEP-301/diffstat.txt                 |  15 +
+ docs/evidence/AEP-301/redlines.md                  |  14 +
+ docs/evidence/AEP-301/summary.md                   |  95 ++++
+ docs/evidence/AEP-301/tests.log                    | 512 +++++++++++++++++++++
+ modules/edge_infra/include/storage_ops.h           |   4 +
+ modules/edge_infra/src/edge_infra_base.c           |   6 +
+ modules/edge_io/include/driver_manager.h           |   9 ++
+ modules/edge_io/include/edge_driver.h              |  10 ++
+ modules/edge_io/src/driver_manager.c               |  13 +++
+ tests/CMakeLists.txt                               |   6 +-
+ tests/test_driver_registry.c                       |  77 ++++
+ .../internal/backend/c_backend.go                  | 127 +++++++++++++++++++++
+ 15 files changed, 888 insertions(+), 5 deletions(-)

@@ -13,4 +13,4 @@
  modules/edge_infra/storage/sqlite_storage_driver.c |  75 ++-
  scripts/check_binary_sizes.sh                      |  23 +-
  tests/test_infra_interfaces.c                      |  65 ++-
- 15 files changed, 964 insertions(+), 36 deletions(-)
+ 15 files changed, 965 insertions(+), 36 deletions(-)

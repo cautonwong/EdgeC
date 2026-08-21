@@ -28,6 +28,7 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
     set(OUT_C "${GEN_DIR}/contracts.c")
     set(OUT_ROUTER_C "${GEN_DIR}/edge_router_table.c")
     set(OUT_SLAVE_C "${GEN_DIR}/contracts_slave.c")
+    set(OUT_DRIVER_REG_C "${GEN_DIR}/edge_driver_registry.c")
     set(OUT_H "${GEN_DIR}/contracts.h")
     set(OUT_YAML "${GEN_DIR}/contracts.yaml")
     set(OUT_CMAKE "${GEN_DIR}/config.cmake")
@@ -49,7 +50,7 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
     endif()
 
     # 2. 如果生成文件不存在，在 CMake 配置期预先运行编译器生成
-    if(NOT EXISTS "${OUT_C}")
+    if(NOT EXISTS "${OUT_C}" OR NOT EXISTS "${OUT_DRIVER_REG_C}")
         execute_process(
             COMMAND "${COMPILER_BIN}" ${CMD_ARGS}
         )
@@ -59,7 +60,7 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
     endif()
 
     add_custom_command(
-        OUTPUT "${OUT_C}" "${OUT_H}" "${OUT_YAML}" "${OUT_JSON}" "${OUT_TS}" "${OUT_SQL}" "${OUT_SLAVE_C}" "${OUT_ROUTER_C}" "${OUT_GO}"
+        OUTPUT "${OUT_C}" "${OUT_H}" "${OUT_YAML}" "${OUT_JSON}" "${OUT_TS}" "${OUT_SQL}" "${OUT_SLAVE_C}" "${OUT_ROUTER_C}" "${OUT_DRIVER_REG_C}" "${OUT_GO}"
         COMMAND "${COMPILER_BIN}" ${CMD_ARGS}
         COMMAND "${CMAKE_SOURCE_DIR}/.venv/bin/python3" "${CMAKE_SOURCE_DIR}/scripts/aggregate_go_tags.py"
         DEPENDS "${COMPILER_BIN}" "${PRODUCT_YAML}" ${LOCAL_DEP}
@@ -68,7 +69,7 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
     )
 
     # 4. 创建静态库并精准控制其输出路径
-    add_library(${TARGET_NAME} STATIC "${OUT_C}")
+    add_library(${TARGET_NAME} STATIC "${OUT_C}" "${OUT_DRIVER_REG_C}")
     set_target_properties(${TARGET_NAME} PROPERTIES 
         POSITION_INDEPENDENT_CODE ON
     )
@@ -77,6 +78,7 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
         "${GEN_DIR}"
         "${CMAKE_SOURCE_DIR}/include"
         "${CMAKE_SOURCE_DIR}/modules/edge_core/include"
+        "${CMAKE_SOURCE_DIR}/modules/edge_io/include"
         "${CMAKE_SOURCE_DIR}/algo/include"
         "${CMAKE_SOURCE_DIR}/.local/${SYSTEM_NAME_LOWER}-${CMAKE_HOST_SYSTEM_PROCESSOR}/include"
     )
