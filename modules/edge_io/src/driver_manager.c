@@ -35,6 +35,19 @@ int driver_manager_register(driver_manager_t *mgr, const edge_driver_t *driver) 
     return 0;
 }
 
+int driver_manager_register_table(driver_manager_t *mgr, const edge_driver_reg_entry_t *registry, size_t count) {
+    if (!mgr || !registry) return -1;
+    for (size_t i = 0; i < count; i++) {
+        if (registry[i].driver) {
+            int rc = driver_manager_register(mgr, registry[i].driver);
+            if (rc != 0 && rc != -2) {
+                // Log or handle error if needed
+            }
+        }
+    }
+    return 0;
+}
+
 const edge_driver_t *driver_manager_find(driver_manager_t *mgr, const char *name) {
     if (!mgr || !name) return NULL;
     for (int i = 0; i < mgr->count; i++) {

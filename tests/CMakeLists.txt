@@ -13,8 +13,8 @@ macro(add_edge_test TEST_NAME)
         edge_core
         edge_protocol
         edge_algo
-        -Wl,--end-group
         contract_iems
+        -Wl,--end-group
         edge_common_interface
         cmocka::cmocka
         pthread dl rt m
@@ -287,6 +287,10 @@ target_link_libraries(test_infra_interfaces PRIVATE edge_infra)
 add_edge_test(test_iems_task_loader test_iems_task_loader.c)
 target_include_directories(test_iems_task_loader PRIVATE ${CMAKE_SOURCE_DIR}/cmd/iems ${CMAKE_SOURCE_DIR}/modules/edge_stream/include)
 target_link_libraries(test_iems_task_loader PRIVATE iems_app_lib edge_stream edge_security edge_infra SQLite::SQLite3)
+
+# AEP-301 契约生成式驱动注册表测试
+add_edge_test(test_driver_registry test_driver_registry.c)
+
 
 
 

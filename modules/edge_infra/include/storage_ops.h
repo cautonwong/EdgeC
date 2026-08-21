@@ -80,6 +80,10 @@ typedef struct storage_ops_s {
 
     /* 6. 分区生命周期与过期清理 (Partition & Retention GC - notes 3) */
     int (*partition_gc)(storage_driver_t *drv, uint64_t cutoff_ts);
+    /**
+     * @brief 基于容量/条数预算清理最旧历史数据并压实
+     * @param max_size_mb 目标容量上限(MB)或保留阈值。在当前行数模型下，>0 表示触发最旧半数记录淘汰；在字节模型下按容量阈值淘汰。
+     */
     int (*purge_old_data)(storage_driver_t *drv, uint32_t max_size_mb);
 
     /* 7. 断线重发与韧性缓存 (Store-and-Forward / SnF - notes 3) */
