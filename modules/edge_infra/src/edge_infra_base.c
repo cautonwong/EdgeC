@@ -25,33 +25,33 @@ sqlite_svc_t *sqlite_svc_create(uv_loop_t *loop, sqlite_config_t *cfg) {
 
 int sqlite_svc_init_from_contract(sqlite_svc_t *svc, const edge_contract_t *contract) {
     (void)svc; (void)contract;
-    return 0;
+    return -1;
 }
 
 int sqlite_svc_insert(sqlite_svc_t *svc, const PipeMsg *msg) {
     (void)svc; (void)msg;
-    return 0;
+    return -1;
 }
 
 int sqlite_svc_query(sqlite_svc_t *svc, uint64_t start_ts, uint64_t end_ts, sqlite_svc_query_cb cb, void *user_data) {
     (void)svc; (void)start_ts; (void)end_ts; (void)cb; (void)user_data;
-    return 0;
+    return -1;
 }
 
 int sqlite_svc_begin_trans(sqlite_svc_t *svc) {
     (void)svc;
-    return 0;
+    return -1;
 }
 
 int sqlite_svc_commit_trans(sqlite_svc_t *svc) {
     (void)svc;
-    return 0;
+    return -1;
 }
 
 int sqlite_svc_exec(sqlite_svc_t *svc, const char *sql, sqlite_exec_cb cb, void *user_data) {
     (void)svc; (void)sql;
-    if (cb) cb(user_data, 0, NULL);
-    return 0;
+    if (cb) cb(user_data, -1, NULL);
+    return -1;
 }
 
 void sqlite_svc_destroy(sqlite_svc_t *svc) {
@@ -60,7 +60,7 @@ void sqlite_svc_destroy(sqlite_svc_t *svc) {
 
 int sqlite_svc_set_param(sqlite_svc_t *svc, const char *product, uint32_t tag_id, const void *val, size_t len) {
     (void)svc; (void)product; (void)tag_id; (void)val; (void)len;
-    return 0;
+    return -1;
 }
 
 int sqlite_svc_get_param(sqlite_svc_t *svc, const char *product, uint32_t tag_id, void *buf, size_t buflen) {
@@ -75,7 +75,7 @@ void *sqlite_svc_get_db_handle(sqlite_svc_t *svc) {
 
 int sqlite_svc_save_app(sqlite_svc_t *svc, const void *manifest_ptr) {
     (void)svc; (void)manifest_ptr;
-    return 0;
+    return -1;
 }
 
 int sqlite_svc_get_app(sqlite_svc_t *svc, const char *app_id, void *out_manifest_ptr) {
@@ -85,12 +85,12 @@ int sqlite_svc_get_app(sqlite_svc_t *svc, const char *app_id, void *out_manifest
 
 int sqlite_svc_delete_app(sqlite_svc_t *svc, const char *app_id) {
     (void)svc; (void)app_id;
-    return 0;
+    return -1;
 }
 
 int sqlite_svc_list_apps(sqlite_svc_t *svc, void *manifests_array_ptr, int max_count) {
     (void)svc; (void)manifests_array_ptr; (void)max_count;
-    return 0;
+    return 0; // count = 0
 }
 
 const storage_ops_t g_sqlite_storage_ops = {0};
@@ -106,7 +106,7 @@ storage_driver_t *storage_driver_sqlite_create(uv_loop_t *loop, const storage_co
 const datahub_ops_t g_datahub_dds_ops = {0};
 int datahub_dds_init(datahub_t *hub, const datahub_config_t *config) {
     (void)hub; (void)config;
-    return 0;
+    return -1;
 }
 #endif
 
@@ -115,6 +115,6 @@ int datahub_dds_init(datahub_t *hub, const datahub_config_t *config) {
 const datahub_ops_t g_datahub_mqtt_ops = {0};
 int datahub_mqtt_init(datahub_t *hub, const datahub_config_t *config) {
     (void)hub; (void)config;
-    return 0;
+    return -1;
 }
 #endif

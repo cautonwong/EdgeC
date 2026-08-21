@@ -4,13 +4,13 @@
  cmd/smart_box/main.c                               |   3 +-
  docs/evidence/AEP-208/diffstat.txt                 |  16 +
  docs/evidence/AEP-208/redlines.md                  |  13 +
- docs/evidence/AEP-208/summary.md                   |  85 ++++
+ docs/evidence/AEP-208/summary.md                   |  93 ++++
  docs/evidence/AEP-208/tests.log                    | 511 +++++++++++++++++++++
  go/cmd/smart-box-gateway/main_test.go              |  34 +-
  go/pkg/shm/shm.go                                  |  31 ++
  modules/edge_infra/CMakeLists.txt                  |   8 +-
  modules/edge_infra/src/edge_infra_base.c           | 120 +++++
- modules/edge_infra/storage/sqlite_storage_driver.c |  58 ++-
+ modules/edge_infra/storage/sqlite_storage_driver.c |  75 ++-
  scripts/check_binary_sizes.sh                      |  23 +-
- tests/test_infra_interfaces.c                      |  29 +-
- 15 files changed, 903 insertions(+), 34 deletions(-)
+ tests/test_infra_interfaces.c                      |  65 ++-
+ 15 files changed, 964 insertions(+), 36 deletions(-)

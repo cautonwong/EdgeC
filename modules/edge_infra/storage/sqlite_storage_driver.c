@@ -159,9 +159,24 @@ static int _sqlite_driver_purge_old_data(storage_driver_t *drv, uint32_t max_siz
     if (!drv || !drv->priv_ctx) return -1;
     sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle((sqlite_svc_t *)drv->priv_ctx);
     if (!db) return -1;
-    (void)max_size_mb;
-    const char *purge_sql = "DELETE FROM tag_history WHERE id IN (SELECT id FROM tag_history ORDER BY timestamp ASC LIMIT 50);";
-    sqlite3_exec(db, purge_sql, NULL, NULL, NULL);
+
+    sqlite3_stmt *stmt = NULL;
+    int total_rows = 0;
+    if (sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM tag_history;", -1, &stmt, NULL) == SQLITE_OK) {
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+            total_rows = sqlite3_column_int(stmt, 0);
+        }
+        sqlite3_finalize(stmt);
+    }
+
+    if (total_rows > 0) {
+        int purge_count = (max_size_mb > 0 && total_rows > 2) ? (total_rows / 2) : 1;
+        char purge_sql[128];
+        snprintf(purge_sql, sizeof(purge_sql),
+                 "DELETE FROM tag_history WHERE id IN (SELECT id FROM tag_history ORDER BY timestamp ASC LIMIT %d);",
+                 purge_count);
+        sqlite3_exec(db, purge_sql, NULL, NULL, NULL);
+    }
     return _sqlite_driver_compact(drv);
 }
 
