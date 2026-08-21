@@ -402,11 +402,23 @@ static void test_sqlite_storage_driver_live(void) {
     assert(drv->ops->partition_gc(drv, 50000) == 0);
     assert(drv->ops->purge_old_data(drv, 50) == 0);
 
-    /* 5. SnF operations */
-    PipeMsg m2 = { .tag_id = 2002, .ts = 100050, .payload.val.f = 50.02 };
+    /* 5. SnF Real Enqueue -> Pending -> Dequeue -> Empty Lifecycle */
+    uint32_t snf_pending = 999;
+    assert(drv->ops->snf_get_pending_count(drv, &snf_pending) == 0 && snf_pending == 0);
+
+    PipeMsg m2 = { .tag_id = 2002, .ts = 100050, .payload.val.f = 50.02f, .type = PIPEMSG_TYPE_SCALAR, .quality = 0 };
     assert(drv->ops->snf_enqueue(drv, &m2) == 0);
-    uint32_t snf_pending = 0;
-    assert(drv->ops->snf_get_pending_count(drv, &snf_pending) == 0);
+
+    assert(drv->ops->snf_get_pending_count(drv, &snf_pending) == 0 && snf_pending == 1);
+
+    PipeMsg dequeued = {0};
+    assert(drv->ops->snf_dequeue(drv, &dequeued) == 0);
+    assert(dequeued.tag_id == 2002);
+    assert(dequeued.ts == 100050);
+    assert(dequeued.payload.val.f == 50.02f);
+
+    assert(drv->ops->snf_get_pending_count(drv, &snf_pending) == 0 && snf_pending == 0);
+    assert(drv->ops->snf_dequeue(drv, &dequeued) == 1); // Queue empty
     assert(drv->ops->snf_flush(drv) == 0);
 
     /* 6. Destroy */
@@ -414,7 +426,7 @@ static void test_sqlite_storage_driver_live(void) {
     free(drv);
     remove(cfg.db_path);
 
-    printf("  --> sqlite_storage_driver live test verified successfully!\n");
+    printf("  --> sqlite_storage_driver live test verified successfully with full value assertions!\n");
 }
 
 static void test_datahub_bus_drivers(void) {
