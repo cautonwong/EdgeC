@@ -75,7 +75,8 @@ static void send_uds_frame(uint8_t msg_type, const uint8_t *payload, uint8_t len
 static void write_gpio(const char *path, const char *val) {
     int fd = open(path, O_WRONLY);
     if (fd >= 0) {
-        write(fd, val, 1);
+        ssize_t ret = write(fd, val, 1);
+        (void)ret;
         close(fd);
     }
 }

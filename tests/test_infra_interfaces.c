@@ -396,12 +396,55 @@ static void test_sqlite_storage_driver_live(void) {
     assert(drv->ops->checkpoint(drv, 0) == 0);
     assert(drv->ops->compact(drv) == 0);
 
-    /* 4. Destroy */
+    /* 4. WAL Size & Partition GC & Purge */
+    /* Insert a few more records to create WAL activity and records to purge */
+    for (int i = 0; i < 4; i++) {
+        PipeMsg pmsg = { .tag_id = (uint32_t)(2010 + i), .ts = (uint64_t)(100100 + i * 10), .payload.val.f = (float)(i * 1.5) };
+        assert(drv->ops->insert(drv, &pmsg) == 0);
+    }
+
+    uint64_t wal_size = 0;
+    assert(drv->ops->get_wal_size(drv, &wal_size) == 0);
+    assert(wal_size > 0 || strcmp(cfg.db_path, ":memory:") == 0);
+
+    /* Purge records and verify row drop */
+    int count_before = 0;
+    assert(drv->ops->query(drv, 0, 200000, dummy_query_callback, &count_before) == 0);
+    assert(count_before >= 4);
+
+    assert(drv->ops->purge_old_data(drv, 10) == 0);
+
+    int count_after = 0;
+    assert(drv->ops->query(drv, 0, 200000, dummy_query_callback, &count_after) == 0);
+    assert(count_after < count_before);
+
+    assert(drv->ops->partition_gc(drv, 50000) == 0);
+
+    /* 5. SnF Real Enqueue -> Pending -> Dequeue -> Empty Lifecycle */
+    uint32_t snf_pending = 999;
+    assert(drv->ops->snf_get_pending_count(drv, &snf_pending) == 0 && snf_pending == 0);
+
+    PipeMsg m2 = { .tag_id = 2002, .ts = 100050, .payload.val.f = 50.02f, .type = PIPEMSG_TYPE_SCALAR, .quality = 0 };
+    assert(drv->ops->snf_enqueue(drv, &m2) == 0);
+
+    assert(drv->ops->snf_get_pending_count(drv, &snf_pending) == 0 && snf_pending == 1);
+
+    PipeMsg dequeued = {0};
+    assert(drv->ops->snf_dequeue(drv, &dequeued) == 0);
+    assert(dequeued.tag_id == 2002);
+    assert(dequeued.ts == 100050);
+    assert(dequeued.payload.val.f == 50.02f);
+
+    assert(drv->ops->snf_get_pending_count(drv, &snf_pending) == 0 && snf_pending == 0);
+    assert(drv->ops->snf_dequeue(drv, &dequeued) == 1); // Queue empty
+    assert(drv->ops->snf_flush(drv) == 0);
+
+    /* 6. Destroy */
     drv->ops->destroy(drv);
     free(drv);
     remove(cfg.db_path);
 
-    printf("  --> sqlite_storage_driver live test verified successfully!\n");
+    printf("  --> sqlite_storage_driver live test verified successfully with full value assertions!\n");
 }
 
 static void test_datahub_bus_drivers(void) {
@@ -437,10 +480,26 @@ static void test_datahub_bus_drivers(void) {
     printf("  --> datahub DDS & MQTT bus drivers in edge_infra verified successfully!\n");
 }
 
+static void test_disabled_null_stubs_error_semantics(void) {
+    printf("[TEST] Testing disabled/null handle error propagation semantics...\n");
+
+    PipeMsg dummy = { .tag_id = 1001, .ts = 1000 };
+    /* Verify NULL service / operations cleanly return failure */
+    assert(sqlite_svc_insert(NULL, &dummy) == -1);
+    assert(sqlite_svc_query(NULL, 0, 1000, NULL, NULL) == -1);
+    assert(sqlite_svc_begin_trans(NULL) == -1);
+    assert(sqlite_svc_commit_trans(NULL) == -1);
+    assert(sqlite_svc_exec(NULL, "SELECT 1;", NULL, NULL) == -1);
+    assert(sqlite_svc_get_db_handle(NULL) == NULL);
+
+    printf("  --> disabled/null handle error propagation semantics verified successfully!\n");
+}
+
 int main(void) {
     test_storage_ops_vtable();
     test_sqlite_storage_driver_live();
     test_datahub_bus_drivers();
-    printf("=== All AEP-201 / AEP-202 / AEP-203 Infra Interface & Bus Tests PASSED ===\n");
+    test_disabled_null_stubs_error_semantics();
+    printf("=== All AEP-201 / AEP-202 / AEP-203 / AEP-208 Infra Interface & Bus Tests PASSED ===\n");
     return 0;
 }

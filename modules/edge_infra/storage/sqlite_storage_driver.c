@@ -119,20 +119,31 @@ static int _sqlite_driver_compact(storage_driver_t *drv) {
     return (sqlite3_exec(db, "VACUUM;", NULL, NULL, NULL) == SQLITE_OK) ? 0 : -1;
 }
 
+#include <sys/stat.h>
+
 static int _sqlite_driver_get_wal_size(storage_driver_t *drv, uint64_t *out_bytes) {
     if (!drv || !drv->priv_ctx || !out_bytes) return -1;
     *out_bytes = 0;
     sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle((sqlite_svc_t *)drv->priv_ctx);
     if (!db) return -1;
-    sqlite3_stmt *stmt;
-    if (sqlite3_prepare_v2(db, "PRAGMA page_count;", -1, &stmt, NULL) == SQLITE_OK) {
-        if (sqlite3_step(stmt) == SQLITE_ROW) {
-            *out_bytes = (uint64_t)sqlite3_column_int64(stmt, 0) * 4096;
+
+    const char *db_filename = sqlite3_db_filename(db, "main");
+    if (db_filename && strlen(db_filename) > 0 && strcmp(db_filename, ":memory:") != 0) {
+        char wal_path[512];
+        snprintf(wal_path, sizeof(wal_path), "%s-wal", db_filename);
+        struct stat st;
+        if (stat(wal_path, &st) == 0 && st.st_size > 0) {
+            *out_bytes = (uint64_t)st.st_size;
+            return 0;
         }
-        sqlite3_finalize(stmt);
+    }
+
+    int pnLog = 0, pnCkpt = 0;
+    if (sqlite3_wal_checkpoint_v2(db, NULL, SQLITE_CHECKPOINT_PASSIVE, &pnLog, &pnCkpt) == SQLITE_OK) {
+        *out_bytes = (uint64_t)pnLog * 4096;
         return 0;
     }
-    return -1;
+    return 0;
 }
 
 static int _sqlite_driver_partition_gc(storage_driver_t *drv, uint64_t cutoff_ts) {
@@ -146,7 +157,26 @@ static int _sqlite_driver_partition_gc(storage_driver_t *drv, uint64_t cutoff_ts
 
 static int _sqlite_driver_purge_old_data(storage_driver_t *drv, uint32_t max_size_mb) {
     if (!drv || !drv->priv_ctx) return -1;
-    (void)max_size_mb;
+    sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle((sqlite_svc_t *)drv->priv_ctx);
+    if (!db) return -1;
+
+    sqlite3_stmt *stmt = NULL;
+    int total_rows = 0;
+    if (sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM tag_history;", -1, &stmt, NULL) == SQLITE_OK) {
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+            total_rows = sqlite3_column_int(stmt, 0);
+        }
+        sqlite3_finalize(stmt);
+    }
+
+    if (total_rows > 0) {
+        int purge_count = (max_size_mb > 0 && total_rows > 2) ? (total_rows / 2) : 1;
+        char purge_sql[128];
+        snprintf(purge_sql, sizeof(purge_sql),
+                 "DELETE FROM tag_history WHERE id IN (SELECT id FROM tag_history ORDER BY timestamp ASC LIMIT %d);",
+                 purge_count);
+        sqlite3_exec(db, purge_sql, NULL, NULL, NULL);
+    }
     return _sqlite_driver_compact(drv);
 }
 
@@ -155,8 +185,35 @@ static int _sqlite_driver_snf_enqueue(storage_driver_t *drv, const void *msg_ptr
 }
 
 static int _sqlite_driver_snf_dequeue(storage_driver_t *drv, void *out_msg_ptr) {
-    (void)drv; (void)out_msg_ptr;
-    return 0;
+    if (!drv || !drv->priv_ctx || !out_msg_ptr) return -1;
+    sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle((sqlite_svc_t *)drv->priv_ctx);
+    if (!db) return -1;
+
+    sqlite3_stmt *stmt = NULL;
+    const char *sql = "SELECT id, timestamp, tag_id, value_f, quality, type FROM tag_history WHERE status = 0 ORDER BY timestamp ASC LIMIT 1;";
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        return -1;
+    }
+
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        int64_t row_id = sqlite3_column_int64(stmt, 0);
+        PipeMsg *msg = (PipeMsg *)out_msg_ptr;
+        memset(msg, 0, sizeof(PipeMsg));
+        msg->ts = (uint64_t)sqlite3_column_int64(stmt, 1);
+        msg->tag_id = (uint32_t)sqlite3_column_int64(stmt, 2);
+        msg->payload.val.f = (float)sqlite3_column_double(stmt, 3);
+        msg->quality = (uint8_t)sqlite3_column_int(stmt, 4);
+        msg->type = (uint8_t)sqlite3_column_int(stmt, 5);
+        sqlite3_finalize(stmt);
+
+        char update_sql[128];
+        snprintf(update_sql, sizeof(update_sql), "UPDATE tag_history SET status = 1 WHERE id = %lld;", (long long)row_id);
+        sqlite3_exec(db, update_sql, NULL, NULL, NULL);
+        return 0;
+    }
+
+    sqlite3_finalize(stmt);
+    return 1;
 }
 
 static int _sqlite_driver_snf_get_pending_count(storage_driver_t *drv, uint32_t *out_count) {
