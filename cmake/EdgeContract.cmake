@@ -29,6 +29,7 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
     set(OUT_ROUTER_C "${GEN_DIR}/edge_router_table.c")
     set(OUT_SLAVE_C "${GEN_DIR}/contracts_slave.c")
     set(OUT_DRIVER_REG_C "${GEN_DIR}/edge_driver_registry.c")
+    set(OUT_DRIVER_REG_H "${GEN_DIR}/edge_driver_registry.h")
     set(OUT_H "${GEN_DIR}/contracts.h")
     set(OUT_YAML "${GEN_DIR}/contracts.yaml")
     set(OUT_CMAKE "${GEN_DIR}/config.cmake")
@@ -50,7 +51,7 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
     endif()
 
     # 2. 如果生成文件不存在，在 CMake 配置期预先运行编译器生成
-    if(NOT EXISTS "${OUT_C}" OR NOT EXISTS "${OUT_DRIVER_REG_C}")
+    if(NOT EXISTS "${OUT_C}" OR NOT EXISTS "${OUT_DRIVER_REG_C}" OR NOT EXISTS "${OUT_DRIVER_REG_H}")
         execute_process(
             COMMAND "${COMPILER_BIN}" ${CMD_ARGS}
         )
@@ -60,7 +61,7 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
     endif()
 
     add_custom_command(
-        OUTPUT "${OUT_C}" "${OUT_H}" "${OUT_YAML}" "${OUT_JSON}" "${OUT_TS}" "${OUT_SQL}" "${OUT_SLAVE_C}" "${OUT_ROUTER_C}" "${OUT_DRIVER_REG_C}" "${OUT_GO}"
+        OUTPUT "${OUT_C}" "${OUT_H}" "${OUT_YAML}" "${OUT_JSON}" "${OUT_TS}" "${OUT_SQL}" "${OUT_SLAVE_C}" "${OUT_ROUTER_C}" "${OUT_DRIVER_REG_C}" "${OUT_DRIVER_REG_H}" "${OUT_GO}"
         COMMAND "${COMPILER_BIN}" ${CMD_ARGS}
         COMMAND "${CMAKE_SOURCE_DIR}/.venv/bin/python3" "${CMAKE_SOURCE_DIR}/scripts/aggregate_go_tags.py"
         DEPENDS "${COMPILER_BIN}" "${PRODUCT_YAML}" ${LOCAL_DEP}
@@ -73,7 +74,7 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
     set_target_properties(${TARGET_NAME} PROPERTIES 
         POSITION_INDEPENDENT_CODE ON
     )
-    target_link_libraries(${TARGET_NAME} PRIVATE edge_common_interface)
+    target_link_libraries(${TARGET_NAME} PUBLIC edge_io edge_common_interface)
     target_include_directories(${TARGET_NAME} PUBLIC 
         "${GEN_DIR}"
         "${CMAKE_SOURCE_DIR}/include"

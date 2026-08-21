@@ -25,11 +25,6 @@
 #include "stream_engine.h"
 #include "wasm_mgr.h"
 
-extern int modbus_driver_register(driver_manager_t* mgr);
-extern int modbus_tcp_driver_register(driver_manager_t* mgr);
-extern int iec104_driver_register(driver_manager_t* mgr);
-extern int sparkplug_b_driver_register(driver_manager_t* mgr);
-
 #define MAX_VBUS 32
 
 typedef enum {
@@ -423,8 +418,7 @@ int main(int argc, char* argv[]) {
     g_app.arb = NULL;
     arbiter_init(&g_app.arb, loop);
     g_app.drv_mgr = driver_manager_create();
-    modbus_driver_register(g_app.drv_mgr);
-    modbus_tcp_driver_register(g_app.drv_mgr);
+    edge_driver_registry_init(g_app.drv_mgr);
 
     const char* shm_name = getenv("EDGE_SHM_NAME") ? getenv("EDGE_SHM_NAME") : EDGE_SHM_BUS_NAME;
     g_app.hub = calloc(1, sizeof(datahub_t));

@@ -17,8 +17,6 @@
 #include "sqlite_service.h"
 #include "stream_engine.h"
 
-extern int modbus_driver_register(driver_manager_t* mgr);
-
 static service_t* g_running_svc = NULL;
 static void on_sigterm(int sig) {
     (void)sig;
@@ -34,7 +32,7 @@ int main(int argc, char** argv) {
     arbiter_t* arbiter = NULL;
     arbiter_init(&arbiter, loop);
     driver_manager_t* drv_mgr = driver_manager_create();
-    modbus_driver_register(drv_mgr);
+    edge_driver_registry_init(drv_mgr);
 
     datahub_t hub;
     datahub_init(&hub, loop, "sg_v1", 1024, g_tag_metadata_len, g_tag_metadata, g_tag_metadata_len,
