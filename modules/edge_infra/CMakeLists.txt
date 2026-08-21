@@ -2,12 +2,12 @@
 # EdgeOS Infrastructure & Driver Subsystem (edge_infra)
 # ==============================================================================
 
-set(INFRA_SOURCES)
+set(INFRA_SOURCES src/edge_infra_base.c)
 set(INFRA_PUBLIC_LIBS edge_common_interface)
 set(INFRA_PRIVATE_LIBS libuv::uv_a zlog::zlog)
 
 # Storage: SQLite Service & Driver (Kconfig: CONFIG_EDGE_INFRA_SQLITE)
-if(NOT DEFINED CONFIG_EDGE_INFRA_SQLITE OR CONFIG_EDGE_INFRA_SQLITE)
+if(CONFIG_EDGE_INFRA_SQLITE)
     list(APPEND INFRA_SOURCES
         storage/sqlite_service.c
         storage/sqlite_storage_driver.c
@@ -16,7 +16,7 @@ if(NOT DEFINED CONFIG_EDGE_INFRA_SQLITE OR CONFIG_EDGE_INFRA_SQLITE)
 endif()
 
 # Distributed Bus: CycloneDDS Backend (Kconfig: CONFIG_EDGE_INFRA_DDS)
-if(NOT DEFINED CONFIG_EDGE_INFRA_DDS OR CONFIG_EDGE_INFRA_DDS)
+if(CONFIG_EDGE_INFRA_DDS)
     list(APPEND INFRA_SOURCES
         bus_dds/datahub_dds.c
     )
@@ -24,7 +24,7 @@ if(NOT DEFINED CONFIG_EDGE_INFRA_DDS OR CONFIG_EDGE_INFRA_DDS)
 endif()
 
 # Northbound Bus: MQTT Bridge Backend (Kconfig: CONFIG_EDGE_INFRA_MQTT)
-if(NOT DEFINED CONFIG_EDGE_INFRA_MQTT OR CONFIG_EDGE_INFRA_MQTT)
+if(CONFIG_EDGE_INFRA_MQTT)
     list(APPEND INFRA_SOURCES
         bus_mqtt/datahub_mqtt.c
     )

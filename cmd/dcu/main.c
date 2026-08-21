@@ -185,6 +185,7 @@ static int _router_read_shadow(void* ctx, uint32_t idx, void* out_msg) {
 int main(int argc, char** argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
     (void)argc;
+    (void)argv;
     LOG_INFO(LOG_CAT_SCHED, "🚀 Starting EdgeC DCU (Series 6xxx) - Digital Twin Marathon");
 
     uv_loop_t* loop = uv_default_loop();

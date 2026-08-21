@@ -554,37 +554,37 @@ func TestUDSDynamicDTCConfiguration(t *testing.T) {
 }
 
 func TestUDSStateSHMReadback(t *testing.T) {
-	matrix, err := shm.OpenShadowMatrix("smart_box", 256)
+	matrix, err := shm.CreateOrOpenShadowMatrix("smart_box", 16384)
 	if err != nil {
-		t.Logf("SHM ShadowMatrix not available in standalone environment: %v (skipping hardware SHM readback)", err)
-		return
+		t.Fatalf("SHM ShadowMatrix create/open failed: %v", err)
 	}
-	defer matrix.Close()
+	defer func() {
+		matrix.Close()
+		os.Remove("/dev/shm/edgeos_shadow_smart_box")
+	}()
 
 	gw := &AppGateway{matrix: matrix}
 	// Write UDS state
 	gw.recordTagValue(tags.UDS_SESSION_STATE, 3.0)
 	gw.recordTagValue(tags.UDS_SECURITY_UNLOCKED, 1.0)
 
-	// Read back from SHM
+	// Read back from SHM with hard assertions (0 soft skips)
 	msgSession, err := matrix.ReadTag(tags.UDS_SESSION_STATE)
 	if err != nil {
-		t.Errorf("ReadTag UDS_SESSION_STATE failed: %v", err)
-	} else {
-		val, _ := msgSession.Scalar()
-		if val != 3.0 {
-			t.Errorf("Expected UDS_SESSION_STATE=3.0, got %f", val)
-		}
+		t.Fatalf("ReadTag UDS_SESSION_STATE failed: %v", err)
+	}
+	val, _ := msgSession.Scalar()
+	if val != 3.0 {
+		t.Fatalf("Hard assertion failed: expected UDS_SESSION_STATE=3.0, got %f", val)
 	}
 
 	msgSec, err := matrix.ReadTag(tags.UDS_SECURITY_UNLOCKED)
 	if err != nil {
-		t.Errorf("ReadTag UDS_SECURITY_UNLOCKED failed: %v", err)
-	} else {
-		val, _ := msgSec.Scalar()
-		if val != 1.0 {
-			t.Errorf("Expected UDS_SECURITY_UNLOCKED=1.0, got %f", val)
-		}
+		t.Fatalf("ReadTag UDS_SECURITY_UNLOCKED failed: %v", err)
+	}
+	valSec, _ := msgSec.Scalar()
+	if valSec != 1.0 {
+		t.Fatalf("Hard assertion failed: expected UDS_SECURITY_UNLOCKED=1.0, got %f", valSec)
 	}
 }
 

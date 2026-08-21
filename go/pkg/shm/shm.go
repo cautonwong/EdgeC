@@ -68,6 +68,37 @@ func OpenShadowMatrix(name string, capacity uint32) (*ShadowMatrix, error) {
 	}, nil
 }
 
+// CreateOrOpenShadowMatrix creates or opens the DataHub shadow table from shared memory
+func CreateOrOpenShadowMatrix(name string, capacity uint32) (*ShadowMatrix, error) {
+	shmPath := fmt.Sprintf("/dev/shm/edgeos_shadow_%s", name)
+	f, err := os.OpenFile(shmPath, os.O_CREATE|os.O_RDWR, 0666)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create/open shm: %v", err)
+	}
+
+	size := int(capacity) * PipeMsgSize
+	if err := f.Truncate(int64(size)); err != nil {
+		f.Close()
+		return nil, fmt.Errorf("failed to truncate shm: %v", err)
+	}
+
+	data, err := syscall.Mmap(int(f.Fd()), 0, size, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
+	if err != nil {
+		f.Close()
+		return nil, fmt.Errorf("failed to mmap: %v", err)
+	}
+
+	header := (*reflect.SliceHeader)(unsafe.Pointer(&data))
+	header.Len = int(capacity)
+	header.Cap = int(capacity)
+
+	return &ShadowMatrix{
+		data: *(*[]PipeMsg)(unsafe.Pointer(header)),
+		file: f,
+		name: name,
+	}, nil
+}
+
 func init() {
 	// [ADR-0004] C/Go zero-copy memory alignment verification
 	if size := unsafe.Sizeof(PipeMsg{}); size != PipeMsgSize {

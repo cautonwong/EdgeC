@@ -1,0 +1,11 @@
+ .github/workflows/ci.yml                 |  2 ++
+ CMakeLists.txt                           |  5 +++++
+ cmd/dcu/main.c                           |  1 +
+ cmd/smart_box/main.c                     |  3 ++-
+ go/cmd/smart-box-gateway/main_test.go    | 34 ++++++++++++++++----------------
+ go/pkg/shm/shm.go                        | 31 +++++++++++++++++++++++++++++
+ modules/edge_infra/CMakeLists.txt        |  8 ++++----
+ modules/edge_infra/src/edge_infra_base.c | 10 ++++++++++
+ scripts/check_binary_sizes.sh            | 23 +++++++++++++++++++--
+ tests/test_infra_interfaces.c            | 15 +++++++++++++-
+ 10 files changed, 107 insertions(+), 25 deletions(-)

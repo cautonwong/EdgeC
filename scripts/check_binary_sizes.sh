@@ -19,7 +19,20 @@ if [ -f "${BUILD_DIR}/CMakeCache.txt" ]; then
         BUILD_TYPE="$DETECTED_TYPE"
     fi
 fi
-echo "ℹ️  [SELF-CHECK] Verified Build Type: ${BUILD_TYPE} (Measurement Caliber: Release + strip)"
+echo "ℹ️  [SELF-CHECK] Detected Build Type: ${BUILD_TYPE} (Caliber requires: Release + strip)"
+
+IS_RELEASE=0
+if [ "${BUILD_TYPE,,}" = "release" ] || [ "${BUILD_TYPE,,}" = "relwithdebinfo" ] || [ "${BUILD_TYPE,,}" = "minsizerel" ]; then
+    IS_RELEASE=1
+fi
+
+if [ "$IS_RELEASE" -eq 0 ]; then
+    echo "⚠️  [ARCH-GATE WARNING] Current build is '${BUILD_TYPE}'. Formal size validation requires Release mode (-DCMAKE_BUILD_TYPE=Release)."
+    if [ "${STRICT_SIZE_GATE:-0}" = "1" ] && [ "${ALLOW_NON_RELEASE_SIZE:-0}" != "1" ]; then
+        echo "❌ [ARCH-GATE FAIL] STRICT_SIZE_GATE=1: Failing gate on non-Release build type."
+        exit 1
+    fi
+fi
 
 # 临时工作目录
 TMP_DIR=$(mktemp -d /tmp/edgeos_size_gate.XXXXXX)
@@ -75,6 +88,12 @@ for target_spec in "${TARGETS[@]}"; do
             printf "%-38s | %-10s | %-10s | %-9s | %-9s | \033[0;31m%-8s\033[0m\n" "$display_name" "MISSING" "MISSING" "-" "-" "🚨 FAIL"
             echo "🚨 [ARCH-GATE FAIL] Required artifact is missing: ${file_path}"
             HAS_ERROR=1
+        else
+            printf "%-38s | %-10s | %-10s | %-9s | %-9s | \033[1;33m%-8s\033[0m\n" "$display_name" "NOT_BUILT" "-" "-" "-" "⚠️  WARN"
+            echo "⚠️  [ARCH-GATE WARN] Optional product artifact not built: ${file_path}"
+            if [ "${REQUIRE_ALL_PRODUCTS:-0}" = "1" ]; then
+                HAS_WARN=1
+            fi
         fi
         continue
     fi
@@ -129,7 +148,7 @@ if [ "$HAS_ERROR" -eq 1 ]; then
 fi
 
 if [ "$HAS_WARN" -eq 1 ]; then
-    echo "⚠️  [ARCH-GATE WARNING] Binary size is approaching limits."
+    echo "⚠️  [ARCH-GATE WARNING] Binary size is approaching limits or optional artifacts missing."
     if [ "${STRICT_SIZE_GATE:-0}" = "1" ]; then
         echo "❌ [ARCH-GATE FAIL] STRICT_SIZE_GATE=1: Failing build on warning."
         exit 1

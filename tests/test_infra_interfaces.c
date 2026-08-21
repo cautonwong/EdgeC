@@ -396,7 +396,20 @@ static void test_sqlite_storage_driver_live(void) {
     assert(drv->ops->checkpoint(drv, 0) == 0);
     assert(drv->ops->compact(drv) == 0);
 
-    /* 4. Destroy */
+    /* 4. WAL Size & Partition GC & Purge */
+    uint64_t wal_size = 0;
+    assert(drv->ops->get_wal_size(drv, &wal_size) == 0);
+    assert(drv->ops->partition_gc(drv, 50000) == 0);
+    assert(drv->ops->purge_old_data(drv, 50) == 0);
+
+    /* 5. SnF operations */
+    PipeMsg m2 = { .tag_id = 2002, .ts = 100050, .payload.val.f = 50.02 };
+    assert(drv->ops->snf_enqueue(drv, &m2) == 0);
+    uint32_t snf_pending = 0;
+    assert(drv->ops->snf_get_pending_count(drv, &snf_pending) == 0);
+    assert(drv->ops->snf_flush(drv) == 0);
+
+    /* 6. Destroy */
     drv->ops->destroy(drv);
     free(drv);
     remove(cfg.db_path);
