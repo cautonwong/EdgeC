@@ -245,11 +245,7 @@ int main(int argc, char** argv) {
     arbiter_t* arbiter_ctx = NULL;
     arbiter_init(&arbiter_ctx, loop);
     driver_manager_t* drv_mgr = driver_manager_create();
-
-    extern const edge_driver_t dlt698_driver;
-    extern const edge_driver_t dlt645_driver;
-    driver_manager_register(drv_mgr, &dlt698_driver);
-    driver_manager_register(drv_mgr, &dlt645_driver);
+    edge_driver_registry_init(drv_mgr);
 
     bus_orchestrator_t* io_orch =
         bus_orchestrator_create(&hub, arbiter_ctx, drv_mgr, 64, 8192, 4096);

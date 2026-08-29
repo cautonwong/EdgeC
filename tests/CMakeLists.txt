@@ -155,8 +155,8 @@ target_link_libraries(test_scheduler PRIVATE
     edge_core
     edge_protocol
     edge_algo
-    -Wl,--end-group
     contract_iems
+    -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
     pthread dl rt m
@@ -177,8 +177,8 @@ target_link_libraries(test_northbound_mqtt PRIVATE
     edge_core
     edge_protocol
     edge_algo
-    -Wl,--end-group
     contract_iems
+    -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
     pthread dl rt m
@@ -288,8 +288,44 @@ add_edge_test(test_iems_task_loader test_iems_task_loader.c)
 target_include_directories(test_iems_task_loader PRIVATE ${CMAKE_SOURCE_DIR}/cmd/iems ${CMAKE_SOURCE_DIR}/modules/edge_stream/include)
 target_link_libraries(test_iems_task_loader PRIVATE iems_app_lib edge_stream edge_security edge_infra SQLite::SQLite3)
 
-# AEP-301 契约生成式驱动注册表测试
+# AEP-301 / AEP-302 契约生成式驱动注册表测试 (IEMS, DCU, SmartBox 参数化覆盖)
 add_edge_test(test_driver_registry test_driver_registry.c)
+
+add_executable(test_driver_registry_dcu test_driver_registry.c)
+target_link_libraries(test_driver_registry_dcu PRIVATE
+    -Wl,--start-group
+    edge_infra
+    edge_io
+    edge_stream
+    edge_security
+    edge_core
+    edge_protocol
+    edge_algo
+    contract_dcu
+    -Wl,--end-group
+    edge_common_interface
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_driver_registry_dcu COMMAND test_driver_registry_dcu)
+
+add_executable(test_driver_registry_smart_box test_driver_registry.c)
+target_link_libraries(test_driver_registry_smart_box PRIVATE
+    -Wl,--start-group
+    edge_infra
+    edge_io
+    edge_stream
+    edge_security
+    edge_core
+    edge_protocol
+    edge_algo
+    contract_smart_box
+    -Wl,--end-group
+    edge_common_interface
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_driver_registry_smart_box COMMAND test_driver_registry_smart_box)
 
 
 

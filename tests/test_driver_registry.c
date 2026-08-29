@@ -68,10 +68,39 @@ static void test_driver_registry_lifecycle_and_lookup(void) {
     printf("  --> Driver manager successfully populated from generated registry!\n");
 }
 
+static void test_driver_manager_register_table_strict_errors(void) {
+    printf("[TEST] Testing driver_manager_register_table strict error propagation...\n");
+
+    driver_manager_t *mgr = driver_manager_create();
+    assert(mgr != NULL);
+
+    /* 1. NULL pointer checks */
+    int rc1 = driver_manager_register_table(NULL, g_edge_driver_registry, g_edge_driver_registry_count);
+    assert(rc1 == -1);
+    (void)rc1;
+
+    int rc2 = driver_manager_register_table(mgr, NULL, g_edge_driver_registry_count);
+    assert(rc2 == -1);
+    (void)rc2;
+
+    /* 2. Table containing NULL driver entry must fail with -1 */
+    edge_driver_reg_entry_t invalid_table[] = {
+        { .protocol_name = "INVALID_NULL_DRIVER", .driver = NULL }
+    };
+    int rc3 = driver_manager_register_table(mgr, invalid_table, 1);
+    assert(rc3 == -1);
+    (void)rc3;
+    (void)invalid_table;
+
+    driver_manager_destroy(mgr);
+    printf("  --> Strict error propagation verified successfully!\n");
+}
+
 int main(void) {
-    printf("=== Starting AEP-301 Generated Driver Registry Tests ===\n");
+    printf("=== Starting AEP-301/AEP-302 Generated Driver Registry Tests ===\n");
     test_generated_driver_registry_table();
     test_driver_registry_lifecycle_and_lookup();
-    printf("=== All AEP-301 Generated Driver Registry Tests PASSED ===\n");
+    test_driver_manager_register_table_strict_errors();
+    printf("=== All AEP-301/AEP-302 Generated Driver Registry Tests PASSED ===\n");
     return 0;
 }

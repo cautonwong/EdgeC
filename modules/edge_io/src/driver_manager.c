@@ -37,15 +37,22 @@ int driver_manager_register(driver_manager_t *mgr, const edge_driver_t *driver) 
 
 int driver_manager_register_table(driver_manager_t *mgr, const edge_driver_reg_entry_t *registry, size_t count) {
     if (!mgr || !registry) return -1;
+    int error_count = 0;
     for (size_t i = 0; i < count; i++) {
-        if (registry[i].driver) {
-            int rc = driver_manager_register(mgr, registry[i].driver);
-            if (rc != 0 && rc != -2) {
-                // Log or handle error if needed
-            }
+        if (!registry[i].driver) {
+            LOG_ERROR(LOG_CAT_IO, "Driver registry entry [%zu] (%s) has NULL driver pointer",
+                      i, registry[i].protocol_name ? registry[i].protocol_name : "UNKNOWN");
+            error_count++;
+            continue;
+        }
+        int rc = driver_manager_register(mgr, registry[i].driver);
+        if (rc != 0) {
+            LOG_ERROR(LOG_CAT_IO, "Failed to register driver '%s' (rc=%d)",
+                      registry[i].driver->name ? registry[i].driver->name : "UNKNOWN", rc);
+            error_count++;
         }
     }
-    return 0;
+    return (error_count == 0) ? 0 : -1;
 }
 
 const edge_driver_t *driver_manager_find(driver_manager_t *mgr, const char *name) {
