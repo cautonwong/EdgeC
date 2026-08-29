@@ -1,0 +1,8 @@
+ docs/evidence/AEP-305/diffstat.txt        |  14 ++
+ docs/evidence/AEP-305/redlines.md        |  14 ++
+ docs/evidence/AEP-305/summary.md         | 100 ++++++++++++
+ docs/evidence/AEP-305/tests.log          | 530 +++++++++++++++++++++++++++++++
+ scripts/check_generated_drift.sh         | 105 ++++++
+ tests/CMakeLists.txt                     |   4 +
+ tests/test_generated_drift_tamper.sh     |  55 ++++
+ 7 files changed, 822 insertions(+)
