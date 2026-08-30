@@ -1,0 +1,9 @@
+ .local/linux-x86_64/bin/edge-cli            | Bin 3490583 -> 3494751 bytes
+ docs/evidence/AEP-402/diffstat.txt          |  16 +++
+ docs/evidence/AEP-402/redlines.md          |  16 +++
+ docs/evidence/AEP-402/summary.md           | 110 ++++++++++++
+ docs/evidence/AEP-402/tests.log            | 550 ++++++++++++++++++++++++++++++
+ tests/CMakeLists.txt                       |  20 +++
+ tests/test_archetype_generator.c           | 152 +++++++++++++++++++++++++
+ tools/edge-cli/internal/scaffold/product.go |  38 +++++--
+ 8 files changed, 892 insertions(+), 10 deletions(-)
