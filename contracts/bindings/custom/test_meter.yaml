@@ -1,0 +1,11 @@
+# [EdgeOS Driver Binding] TEST_METER
+binding: "test_meter"
+driver: "test_meter"
+protocol: "custom"
+
+points:
+  - id: 1001
+    name: "VOLTAGE_PHASE_A"
+    address: "0x0001"
+    register_type: "holding"
+    factor: 0.1
