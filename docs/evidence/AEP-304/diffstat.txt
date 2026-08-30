@@ -1,0 +1,7 @@
+ docs/evidence/AEP-304/diffstat.txt            |  16 ++
+ docs/evidence/AEP-304/redlines.md            |  16 ++
+ docs/evidence/AEP-304/summary.md             | 100 +++++++++++++
+ docs/evidence/AEP-304/tests.log              | 520 +++++++++++++++++++++++++++++++
+ tests/CMakeLists.txt                         |  20 ++
+ tests/test_dx_scaffolding.c                  | 230 ++++++++++++++
+ 6 files changed, 902 insertions(+)
