@@ -1,0 +1,10 @@
+ docs/evidence/AEP-353/diffstat.txt   |  17 ++
+ docs/evidence/AEP-353/redlines.md   |  16 ++
+ docs/evidence/AEP-353/summary.md    | 105 ++++++++
+ docs/evidence/AEP-353/tests.log     | 530 +++++++++++++++++++++++++++++++
+ modules/edge_infra/CMakeLists.txt   |   5 +-
+ modules/edge_infra/include/edge_acl.h |  75 +++++
+ modules/edge_infra/src/edge_acl.c   | 136 ++++++++
+ tests/CMakeLists.txt                |  20 ++
+ tests/test_acl_engine.c             | 205 ++++++++++++
+ 9 files changed, 1108 insertions(+), 1 deletion(-)
