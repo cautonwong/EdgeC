@@ -371,9 +371,9 @@ target_link_libraries(test_tag_domains_and_aliases PRIVATE
 )
 add_test(NAME test_tag_domains_and_aliases COMMAND test_tag_domains_and_aliases)
 
-# AEP-353 ACL 防腐层单测
-add_executable(test_acl_engine test_acl_engine.c)
-target_link_libraries(test_acl_engine PRIVATE
+# AEP-353 ACL 防腐层单测 (Anti-Corruption Layer)
+add_executable(test_anti_corruption_engine test_anti_corruption_engine.c)
+target_link_libraries(test_anti_corruption_engine PRIVATE
     -Wl,--start-group
     edge_infra
     edge_io
@@ -388,7 +388,7 @@ target_link_libraries(test_acl_engine PRIVATE
     cmocka::cmocka
     pthread dl rt m
 )
-add_test(NAME test_acl_engine COMMAND test_acl_engine)
+add_test(NAME test_anti_corruption_engine COMMAND test_anti_corruption_engine)
 
 
 
