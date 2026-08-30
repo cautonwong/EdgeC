@@ -1,0 +1,14 @@
+ .local/linux-x86_64/bin/edge-cli              | Bin 0 -> 4056282 bytes
+ docs/evidence/AEP-303/diffstat.txt            |  16 ++
+ docs/evidence/AEP-303/redlines.md            |  16 ++
+ docs/evidence/AEP-303/summary.md             | 105 +++++++++++++
+ docs/evidence/AEP-303/tests.log              | 530 +++++++++++++++++++++++++++++++
+ tests/CMakeLists.txt                         |   4 +
+ tests/test_edge_cli_scaffold.sh              | 123 +++++++
+ tools/edge-cli/cmd/main.go                   | 145 +++++++++
+ tools/edge-cli/go.mod                        |   5 +
+ tools/edge-cli/go.sum                        |   2 +
+ tools/edge-cli/internal/linter/linter.go     | 185 +++++++++++
+ tools/edge-cli/internal/scaffold/driver.go   | 180 +++++++++++
+ tools/edge-cli/internal/scaffold/product.go  | 175 +++++++++++
+ 13 files changed, 1486 insertions(+)

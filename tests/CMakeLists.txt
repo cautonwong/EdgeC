@@ -330,6 +330,10 @@ add_test(NAME test_driver_registry_smart_box COMMAND test_driver_registry_smart_
 # AEP-305 生成物可信链与防篡改门禁单测
 add_test(NAME test_generated_drift_tamper COMMAND "${CMAKE_SOURCE_DIR}/tests/test_generated_drift_tamper.sh")
 
+# AEP-303 edge-cli 脚手架与契约 linter 集成单测
+add_test(NAME test_edge_cli_scaffold COMMAND "${CMAKE_SOURCE_DIR}/tests/test_edge_cli_scaffold.sh")
+
+
 
 
 
