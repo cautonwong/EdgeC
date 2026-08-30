@@ -132,7 +132,8 @@ static void test_collision_checker_python_tool_execution(void **state) {
     (void)state;
 
     // Run the Python contract collision checker tool against the real repository schemas
-    int rc = system("python3 tools/check_contract_collisions.py > /dev/null 2>&1");
+    // Support running from repo root, build/, or build/tests/
+    int rc = system("python3 tools/check_contract_collisions.py > /dev/null 2>&1 || python3 ../tools/check_contract_collisions.py > /dev/null 2>&1 || python3 ../../tools/check_contract_collisions.py > /dev/null 2>&1");
     assert_int_equal(rc, 0);
 }
 
