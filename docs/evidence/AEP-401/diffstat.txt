@@ -1,0 +1,13 @@
+ docs/evidence/AEP-401/diffstat.txt   |  16 +++
+ docs/evidence/AEP-401/redlines.md   |  15 +++
+ docs/evidence/AEP-401/summary.md    | 110 ++++++++++++
+ docs/evidence/AEP-401/tests.log     | 550 ++++++++++++++++++++++++++++++
+ include/edgeos/anti_corruption.h    |  24 ++
+ include/edgeos/datahub.h            |  25 ++
+ include/edgeos/driver.h             |  25 ++
+ include/edgeos/edgeos.h             |  35 ++
+ include/edgeos/types.h              |  26 ++
+ include/edgeos/version.h            |  12 ++
+ tests/CMakeLists.txt                |  20 ++
+ tests/test_sdk_public_headers.c     | 138 ++++++++++++++++++++++++++++++
+ 12 files changed, 996 insertions(+)
