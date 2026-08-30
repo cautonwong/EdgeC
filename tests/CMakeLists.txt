@@ -390,6 +390,26 @@ target_link_libraries(test_anti_corruption_engine PRIVATE
 )
 add_test(NAME test_anti_corruption_engine COMMAND test_anti_corruption_engine)
 
+# AEP-354 核心业务场景集成测试 (DCU LineLoss/Outage 3011, IEMS Anti-Reverse/TOU Arbitrage)
+add_executable(test_domain_scenarios test_domain_scenarios.c)
+target_link_libraries(test_domain_scenarios PRIVATE
+    -Wl,--start-group
+    edge_infra
+    edge_io
+    edge_stream
+    edge_security
+    edge_core
+    edge_protocol
+    edge_algo
+    contract_iems
+    -Wl,--end-group
+    edge_common_interface
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_domain_scenarios COMMAND test_domain_scenarios)
+
+
 
 
 
