@@ -333,6 +333,26 @@ add_test(NAME test_generated_drift_tamper COMMAND "${CMAKE_SOURCE_DIR}/tests/tes
 # AEP-303 edge-cli 脚手架与契约 linter 集成单测
 add_test(NAME test_edge_cli_scaffold COMMAND "${CMAKE_SOURCE_DIR}/tests/test_edge_cli_scaffold.sh")
 
+# AEP-304 DX 自动化集成测试（二开驱动声明即调度）
+add_executable(test_dx_scaffolding test_dx_scaffolding.c)
+target_link_libraries(test_dx_scaffolding PRIVATE
+    -Wl,--start-group
+    edge_infra
+    edge_io
+    edge_stream
+    edge_security
+    edge_core
+    edge_protocol
+    edge_algo
+    contract_iems
+    -Wl,--end-group
+    edge_common_interface
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_dx_scaffolding COMMAND test_dx_scaffolding)
+
+
 
 
 
