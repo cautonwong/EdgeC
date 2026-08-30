@@ -447,6 +447,26 @@ target_link_libraries(test_sdk_public_headers PRIVATE
 )
 add_test(NAME test_sdk_public_headers COMMAND test_sdk_public_headers)
 
+# AEP-402 产品应用骨架生成器 (archetype) 单测
+add_executable(test_archetype_generator test_archetype_generator.c)
+target_link_libraries(test_archetype_generator PRIVATE
+    -Wl,--start-group
+    edge_infra
+    edge_io
+    edge_stream
+    edge_security
+    edge_core
+    edge_protocol
+    edge_algo
+    contract_iems
+    -Wl,--end-group
+    edge_common_interface
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_archetype_generator COMMAND test_archetype_generator)
+
+
 
 
 

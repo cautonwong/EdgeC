@@ -76,7 +76,19 @@ features:
 		return fmt.Errorf("failed to write %s: %w", manifestPath, err)
 	}
 
-	// 3. cmd/<name>/CMakeLists.txt
+	// 3. cmd/<name>/prj.conf (Kconfig Options)
+	prjConfPath := filepath.Join(cmdDir, "prj.conf")
+	prjConfContent := fmt.Sprintf(`# EdgeOS Product Kconfig Options: %s
+CONFIG_EDGEC_TIER="ENTERPRISE"
+CONFIG_EDGEC_PERSISTENCE=y
+CONFIG_EDGEC_PROTO_MODBUS=y
+CONFIG_EDGE_INFRA_SQLITE=y
+`, prodName)
+	if err := os.WriteFile(prjConfPath, []byte(prjConfContent), 0644); err != nil {
+		return fmt.Errorf("failed to write %s: %w", prjConfPath, err)
+	}
+
+	// 4. cmd/<name>/CMakeLists.txt
 	cmakePath := filepath.Join(cmdDir, "CMakeLists.txt")
 	cmakeContent := fmt.Sprintf(`# EdgeOS Product CMake Configuration: %s
 set(PROD_NAME %s)
@@ -114,7 +126,7 @@ target_link_libraries(${PROD_NAME} PRIVATE
 		return fmt.Errorf("failed to write %s: %w", cmakePath, err)
 	}
 
-	// 4. cmd/<name>/main.c (Clean Architecture with Contract-Generated Driver Registry)
+	// 5. cmd/<name>/main.c (Clean Architecture with Public SDK <edgeos/edgeos.h>)
 	mainPath := filepath.Join(cmdDir, "main.c")
 	mainContent := fmt.Sprintf(`/**
  * @file main.c
@@ -125,8 +137,7 @@ target_link_libraries(${PROD_NAME} PRIVATE
 #include <stdlib.h>
 #include <signal.h>
 #include <unistd.h>
-#include "edge_core.h"
-#include "datahub.h"
+#include <edgeos/edgeos.h>
 #include "driver_manager.h"
 #include "edge_driver_registry.h"
 
@@ -145,21 +156,27 @@ int main(int argc, char* argv[]) {
     signal(SIGTERM, sig_handler);
 
     printf("=========================================================\\n");
-    printf("🚀 Starting EdgeOS Product: %s\\n", "%s");
+    printf("🚀 Starting EdgeOS Product: %s (SDK v%%s)\\n", "%s", edgeos_sdk_get_version());
     printf("=========================================================\\n");
 
-    // 1. 初始化 DataHub
+    // 1. 初始化 EdgeOS SDK
+    if (edgeos_sdk_init() != 0) {
+        fprintf(stderr, "[-] Failed to initialize EdgeOS SDK\\n");
+        return -1;
+    }
+
+    // 2. 初始化 DataHub
     datahub_config_t dh_cfg = {
         .backend = DATAHUB_BACKEND_SHM,
         .max_tags = 2048,
     };
-    datahub_t* dh = datahub_create(&dh_cfg);
+    edgeos_datahub_t* dh = datahub_create(&dh_cfg);
     if (!dh) {
         fprintf(stderr, "[-] Failed to initialize DataHub\\n");
         return -1;
     }
 
-    // 2. 初始化驱动管理器并注入生成式驱动注册表 (零手工 extern)
+    // 3. 初始化驱动管理器并注入生成式驱动注册表 (零手工 extern)
     driver_manager_t* drv_mgr = driver_manager_create();
     if (!drv_mgr) {
         fprintf(stderr, "[-] Failed to create driver manager\\n");
@@ -182,7 +199,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    // 3. 优雅清理与退出
+    // 4. 优雅清理与退出
     driver_manager_destroy(drv_mgr);
     datahub_destroy(dh);
     printf("[-] Product %s stopped cleanly.\\n", "%s");
@@ -193,7 +210,7 @@ int main(int argc, char* argv[]) {
 		return fmt.Errorf("failed to write %s: %w", mainPath, err)
 	}
 
-	// 5. cmd/<name>/README.md
+	// 6. cmd/<name>/README.md
 	readmePath := filepath.Join(cmdDir, "README.md")
 	readmeContent := fmt.Sprintf(`# EdgeOS Product: %s
 
@@ -214,6 +231,7 @@ ninja -C build %s
 	fmt.Printf("✅ Successfully created product scaffold for '%s':\n", prodName)
 	fmt.Printf("  • Contract YAML : %s\n", prodYamlPath)
 	fmt.Printf("  • Manifest      : %s\n", manifestPath)
+	fmt.Printf("  • Prj Config    : %s\n", prjConfPath)
 	fmt.Printf("  • CMakeLists.txt: %s\n", cmakePath)
 	fmt.Printf("  • Entry main.c  : %s\n", mainPath)
 	fmt.Printf("  • README.md     : %s\n", readmePath)
