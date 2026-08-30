@@ -1,0 +1,10 @@
+ docs/evidence/AEP-353/diffstat.txt                 |  17 ++
+ docs/evidence/AEP-353/redlines.md                 |  17 ++
+ docs/evidence/AEP-353/summary.md                  | 110 +++++++++++
+ docs/evidence/AEP-353/tests.log                   | 552 ++++++++++++++++++++++++++++++
+ modules/edge_infra/CMakeLists.txt                 |   5 +-
+ modules/edge_infra/include/edge_anti_corruption.h |  75 +++++
+ modules/edge_infra/src/edge_anti_corruption.c     | 136 ++++++++
+ tests/CMakeLists.txt                              |  20 ++
+ tests/test_anti_corruption_engine.c               | 205 ++++++++++++
+ 9 files changed, 1136 insertions(+), 1 deletion(-)
