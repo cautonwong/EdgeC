@@ -1,0 +1,12 @@
+ contracts/products/smart_box.yaml      |  26 ++---
+ contracts/schema/domains/smartbox.yaml |  25 ++---
+ docs/evidence/AEP-355/diffstat.txt     |  17 +++
+ docs/evidence/AEP-355/redlines.md     |  16 +++
+ docs/evidence/AEP-355/summary.md      | 115 ++++++++++++
+ docs/evidence/AEP-355/tests.log       | 560 ++++++++++++++++++++++++++++++
+ go/pkg/tags/smart_box/tags.go          |  28 ++++-
+ go/pkg/tags/tags.go                    |  27 ++++-
+ tests/CMakeLists.txt                   |  20 ++++
+ tests/test_tag_collision_checker.c     | 147 ++++++++++++++++++++++++++
+ tools/check_contract_collisions.py     | 185 +++++++++++++++++++++++++++++++++
+ 11 files changed, 1135 insertions(+), 31 deletions(-)

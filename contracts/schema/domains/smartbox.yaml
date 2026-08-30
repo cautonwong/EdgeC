@@ -63,7 +63,7 @@ tags:
     desc: "自适应场景模式 (0=居家, 1=养老院, 2=社区)"
     traits: [ "smartbox", "policy" ]
   - id: 12013
-    name: BATTERY_SOC
+    name: SMARTBOX_BATTERY_SOC
     type: float
     unit: "%"
     desc: "电池剩余电量百分比 0.0-100.0"
@@ -103,57 +103,58 @@ tags:
     type: int
     desc: "ALSA 音频软路由 (0=板载Lineout, 1=USB声卡扩音器)"
     traits: [ "smartbox", "control" ]
-  - id: 12021
+  - id: 12051
     name: HDMI_CEC_POWER_STATE
     type: int
     desc: "HDMI CEC 电视联动开关机状态 (0=待机关机, 1=开机点亮)"
     traits: [ "smartbox", "control" ]
-  - id: 12022
+  - id: 12052
     name: GAME_SCORE_REALTIME
     type: float
+    unit: "pts"
     desc: "实时游戏得分累计值"
     traits: [ "smartbox", "rehab" ]
-  - id: 12023
+  - id: 12053
     name: CARDIAC_SAFETY_ALERT
     type: int
     desc: "心脏康复心率越界自动停车保护 (0=正常, 1=越界停车)"
     traits: [ "smartbox", "safety", "alert" ]
-  - id: 12024
+  - id: 12054
     name: UNSUPPORTED_DEVICE_BLOCKED
     type: int
     desc: "暂不支持设备阻断标记 (0=正常允许, 1=悬吊/振动台已被物理防护拦截)"
     traits: [ "smartbox", "security", "alert" ]
-  - id: 12025
+  - id: 12055
     name: BOX_USER_MODE
     type: int
     desc: "用户界面模式 (0=标准模式, 1=老人守护模式大字号焦点播报)"
     traits: [ "smartbox", "ui", "accessibility" ]
-  - id: 12026
+  - id: 12056
     name: DEV_UNBIND_TRIGGER
     type: int
     desc: "蓝牙设备解绑触发 (0=正常, 1=解绑指定设备, 2=批量解绑清空)"
     traits: [ "smartbox", "control" ]
-  - id: 12027
+  - id: 12057
     name: DEV_OTA_UPDATE_STATUS
     type: int
     desc: "外设固件 OTA 匹配透传升级状态 (0=无, 1=下载中, 2=传输中, 3=成功)"
     traits: [ "smartbox", "ota" ]
-  - id: 12028
+  - id: 12058
     name: HAP_GAME_UPDATE_STATE
     type: int
     desc: "游戏 HAP 包更新与验签回滚状态 (0=正常, 1=下载更新中, 2=校验失败自动回滚)"
     traits: [ "smartbox", "game", "ota" ]
-  - id: 12029
+  - id: 12059
     name: ADMIN_AUTH_STATE
     type: int
     desc: "管理员权限与多用户管理状态 (0=普通用户, 1=管理员模式已登录)"
     traits: [ "smartbox", "security", "auth" ]
-  - id: 12030
+  - id: 12060
     name: REMOTE_LOG_UPLOAD
     type: int
     desc: "运行日志云端备份与远程抓取状态 (0=空闲, 1=日志打包上传中)"
     traits: [ "smartbox", "diagnostic" ]
-  - id: 12031
+  - id: 12061
     name: GPIO_PHOENIX_DI_DO
     type: int
     desc: "10pin 凤凰端子 4路输入 4路输出 GPIO 位图状态"
