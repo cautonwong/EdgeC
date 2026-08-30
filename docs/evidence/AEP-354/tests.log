@@ -1,0 +1,558 @@
+=== CTest -j1 (145/145) ===
+Internal ctest changing into directory: /workspaces/edgeos/EdgeC/build
+Test project /workspaces/edgeos/EdgeC/build
+        Start   1: test_version
+  1/145 Test   #1: test_version .......................   Passed    0.11 sec
+        Start   2: test_is_enabled
+  2/145 Test   #2: test_is_enabled ....................   Passed    0.08 sec
+        Start   3: test_edge_log
+  3/145 Test   #3: test_edge_log ......................   Passed    0.11 sec
+        Start   4: test_net_buf
+  4/145 Test   #4: test_net_buf .......................   Passed    0.11 sec
+        Start   5: test_shmring
+  5/145 Test   #5: test_shmring .......................   Passed    0.08 sec
+        Start   6: test_edge_tlv
+  6/145 Test   #6: test_edge_tlv ......................   Passed    0.07 sec
+        Start   7: test_arbiter
+  7/145 Test   #7: test_arbiter .......................   Passed    0.11 sec
+        Start   8: test_dlt698_axdr
+  8/145 Test   #8: test_dlt698_axdr ...................   Passed    0.10 sec
+        Start   9: test_dcu_inventory
+  9/145 Test   #9: test_dcu_inventory .................   Passed    0.09 sec
+        Start  10: test_dcu_polling_loop
+ 10/145 Test  #10: test_dcu_polling_loop ..............   Passed    0.15 sec
+        Start  11: test_dcu_storage
+ 11/145 Test  #11: test_dcu_storage ...................   Passed    0.18 sec
+        Start  12: test_dcu_integration
+ 12/145 Test  #12: test_dcu_integration ...............   Passed   10.20 sec
+        Start  13: test_dcu_router
+ 13/145 Test  #13: test_dcu_router ....................   Passed    0.32 sec
+        Start  14: test_dcu_advanced_modules
+ 14/145 Test  #14: test_dcu_advanced_modules ..........   Passed    0.41 sec
+        Start  15: test_dcu_business_engines
+ 15/145 Test  #15: test_dcu_business_engines ..........   Passed    0.10 sec
+        Start  16: test_dcu_phase1_delivery
+ 16/145 Test  #16: test_dcu_phase1_delivery ...........   Passed    0.12 sec
+        Start  17: test_dlt698_conformance_suite
+ 17/145 Test  #17: test_dlt698_conformance_suite ......   Passed    0.10 sec
+        Start  18: test_datahub
+ 18/145 Test  #18: test_datahub .......................   Passed    0.52 sec
+        Start  19: test_datahub_shadow
+ 19/145 Test  #19: test_datahub_shadow ................   Passed    0.15 sec
+        Start  20: test_datahub_multi_backend
+ 20/145 Test  #20: test_datahub_multi_backend .........   Passed    0.44 sec
+        Start  21: test_passthrough
+ 21/145 Test  #21: test_passthrough ...................   Passed    1.35 sec
+        Start  22: test_memfd_seals
+ 22/145 Test  #22: test_memfd_seals ...................   Passed    0.24 sec
+        Start  23: test_fuzz_datahub
+ 23/145 Test  #23: test_fuzz_datahub ..................   Passed    0.37 sec
+        Start  24: test_sqlite_service
+ 24/145 Test  #24: test_sqlite_service ................   Passed    0.68 sec
+        Start  25: test_sqlite_app_registry
+ 25/145 Test  #25: test_sqlite_app_registry ...........   Passed    0.29 sec
+        Start  26: test_edge_app_mgr
+ 26/145 Test  #26: test_edge_app_mgr ..................   Passed    0.34 sec
+        Start  27: test_datahub_dynamic_chunk
+ 27/145 Test  #27: test_datahub_dynamic_chunk .........   Passed    0.09 sec
+        Start  28: test_stream_dag
+ 28/145 Test  #28: test_stream_dag ....................   Passed    0.17 sec
+        Start  29: test_edge_mesh
+ 29/145 Test  #29: test_edge_mesh .....................   Passed    0.13 sec
+        Start  30: test_fuzz_iec104
+ 30/145 Test  #30: test_fuzz_iec104 ...................   Passed    0.12 sec
+        Start  31: test_fuzz_dlms_dlt698
+ 31/145 Test  #31: test_fuzz_dlms_dlt698 ..............   Passed    0.12 sec
+        Start  32: test_dlms_security_validation
+ 32/145 Test  #32: test_dlms_security_validation ......   Passed    0.11 sec
+        Start  33: test_driver_manager
+ 33/145 Test  #33: test_driver_manager ................   Passed    0.08 sec
+        Start  34: test_io_executor
+ 34/145 Test  #34: test_io_executor ...................   Passed    0.12 sec
+        Start  35: test_contract_lookup
+ 35/145 Test  #35: test_contract_lookup ...............   Passed    0.09 sec
+        Start  36: test_driver_dlt645
+ 36/145 Test  #36: test_driver_dlt645 .................   Passed    0.10 sec
+        Start  37: test_driver_v3
+ 37/145 Test  #37: test_driver_v3 .....................   Passed    0.09 sec
+        Start  38: test_modbus_v3
+ 38/145 Test  #38: test_modbus_v3 .....................   Passed    0.10 sec
+        Start  39: test_fuzz_modbus
+ 39/145 Test  #39: test_fuzz_modbus ...................   Passed    0.12 sec
+        Start  40: test_radar_fmcw
+ 40/145 Test  #40: test_radar_fmcw ....................   Passed    0.11 sec
+        Start  41: test_io_http
+ 41/145 Test  #41: test_io_http .......................   Passed    1.56 sec
+        Start  42: test_rest_apps
+ 42/145 Test  #42: test_rest_apps .....................   Passed    0.47 sec
+        Start  43: test_stream_engine
+ 43/145 Test  #43: test_stream_engine .................   Passed    0.17 sec
+        Start  44: test_pipeline_loader
+ 44/145 Test  #44: test_pipeline_loader ...............   Passed    0.18 sec
+        Start  45: test_pipeline_hot_reload
+ 45/145 Test  #45: test_pipeline_hot_reload ...........   Passed    0.21 sec
+        Start  46: test_js_engine
+ 46/145 Test  #46: test_js_engine .....................   Passed    0.26 sec
+        Start  47: test_wasm_stage
+ 47/145 Test  #47: test_wasm_stage ....................   Passed    0.20 sec
+        Start  48: test_wasm_host_api
+ 48/145 Test  #48: test_wasm_host_api .................   Passed    0.15 sec
+        Start  49: test_wasm_scheduler
+ 49/145 Test  #49: test_wasm_scheduler ................   Passed    0.28 sec
+        Start  50: test_wasm_sandbox
+ 50/145 Test  #50: test_wasm_sandbox ..................   Passed    0.18 sec
+        Start  51: test_sqlite_injection
+ 51/145 Test  #51: test_sqlite_injection ..............   Passed    1.31 sec
+        Start  52: test_linalg
+ 52/145 Test  #52: test_linalg ........................   Passed    0.09 sec
+        Start  53: test_algorithm_sum
+ 53/145 Test  #53: test_algorithm_sum .................   Passed    0.11 sec
+        Start  54: test_battery_algo
+ 54/145 Test  #54: test_battery_algo ..................   Passed    0.12 sec
+        Start  55: test_iems_business_engines
+ 55/145 Test  #55: test_iems_business_engines .........   Passed    0.09 sec
+        Start  56: test_iems_advanced_delivery
+ 56/145 Test  #56: test_iems_advanced_delivery ........   Passed    0.08 sec
+        Start  57: test_ekf_soc
+ 57/145 Test  #57: test_ekf_soc .......................   Passed    0.09 sec
+        Start  58: test_mpc_dispatcher
+ 58/145 Test  #58: test_mpc_dispatcher ................   Passed    0.10 sec
+        Start  59: test_sparkplug_b
+ 59/145 Test  #59: test_sparkplug_b ...................   Passed    0.10 sec
+        Start  60: test_cia402
+ 60/145 Test  #60: test_cia402 ........................   Passed    0.09 sec
+        Start  61: test_foc_latency
+ 61/145 Test  #61: test_foc_latency ...................   Passed    0.07 sec
+        Start  62: test_wavelet_anomaly
+ 62/145 Test  #62: test_wavelet_anomaly ...............   Passed    0.08 sec
+        Start  63: test_kinematics
+ 63/145 Test  #63: test_kinematics ....................   Passed    0.08 sec
+        Start  64: test_dcu_poller
+ 64/145 Test  #64: test_dcu_poller ....................   Passed    0.11 sec
+        Start  65: test_protocol_bridge
+ 65/145 Test  #65: test_protocol_bridge ...............   Passed    0.15 sec
+        Start  66: test_wasm_secure
+ 66/145 Test  #66: test_wasm_secure ...................   Passed    0.15 sec
+        Start  67: test_sensor_fusion
+ 67/145 Test  #67: test_sensor_fusion .................   Passed    0.07 sec
+        Start  68: test_tinyml_overhead
+ 68/145 Test  #68: test_tinyml_overhead ...............   Passed    0.46 sec
+        Start  69: test_notch_filter
+ 69/145 Test  #69: test_notch_filter ..................   Passed    0.11 sec
+        Start  70: test_ecg_anomaly
+ 70/145 Test  #70: test_ecg_anomaly ...................   Passed    0.08 sec
+        Start  71: test_vibration_features
+ 71/145 Test  #71: test_vibration_features ............   Passed    0.13 sec
+        Start  72: test_vibra_sense_rul
+ 72/145 Test  #72: test_vibra_sense_rul ...............   Passed    0.14 sec
+        Start  73: test_radar_tracker
+ 73/145 Test  #73: test_radar_tracker .................   Passed    0.08 sec
+        Start  74: test_ahrs_quaternion
+ 74/145 Test  #74: test_ahrs_quaternion ...............   Passed    0.08 sec
+        Start  75: test_os_port
+ 75/145 Test  #75: test_os_port .......................   Passed    0.10 sec
+        Start  76: test_license_engine
+ 76/145 Test  #76: test_license_engine ................   Passed    0.06 sec
+        Start  77: test_ws_binary
+ 77/145 Test  #77: test_ws_binary .....................   Passed    0.05 sec
+        Start  78: test_edge_guard
+ 78/145 Test  #78: test_edge_guard ....................   Passed    0.09 sec
+        Start  79: test_snf_resilience
+ 79/145 Test  #79: test_snf_resilience ................   Passed    0.42 sec
+        Start  80: test_ccsds_driver
+ 80/145 Test  #80: test_ccsds_driver ..................   Passed    0.12 sec
+        Start  81: test_hl7_fhir
+ 81/145 Test  #81: test_hl7_fhir ......................   Passed    0.09 sec
+        Start  82: test_pid_antiwindup
+ 82/145 Test  #82: test_pid_antiwindup ................   Passed    0.07 sec
+        Start  83: test_standard_stages_math
+ 83/145 Test  #83: test_standard_stages_math ..........   Passed    0.13 sec
+        Start  84: test_stream_engine_industrial
+ 84/145 Test  #84: test_stream_engine_industrial ......   Passed    0.15 sec
+        Start  85: test_stream_engine_timeguard
+ 85/145 Test  #85: test_stream_engine_timeguard .......   Passed    0.15 sec
+        Start  86: test_proc_filter_pid
+ 86/145 Test  #86: test_proc_filter_pid ...............   Passed    0.07 sec
+        Start  87: test_smart_box_hw
+ 87/145 Test  #87: test_smart_box_hw ..................   Passed    0.12 sec
+        Start  88: test_integration
+ 88/145 Test  #88: test_integration ...................   Passed    0.12 sec
+        Start  89: test_sdk_full_chain
+ 89/145 Test  #89: test_sdk_full_chain ................   Passed    0.11 sec
+        Start  90: test_bus_orchestrator
+ 90/145 Test  #90: test_bus_orchestrator ..............   Passed    0.07 sec
+        Start  91: test_omnis_integration
+ 91/145 Test  #91: test_omnis_integration .............   Passed    0.21 sec
+        Start  92: test_dcu
+ 92/145 Test  #92: test_dcu ...........................   Passed    0.09 sec
+        Start  93: test_scheduler
+ 93/145 Test  #93: test_scheduler .....................   Passed    0.10 sec
+        Start  94: test_northbound_mqtt
+ 94/145 Test  #94: test_northbound_mqtt ...............   Passed    0.09 sec
+        Start  95: test_iems_full_stack
+ 95/145 Test  #95: test_iems_full_stack ...............   Passed    0.47 sec
+        Start  96: test_adc_dsp_local
+ 96/145 Test  #96: test_adc_dsp_local .................   Passed    0.14 sec
+        Start  97: test_spsc_ring
+ 97/145 Test  #97: test_spsc_ring .....................   Passed    0.06 sec
+        Start  98: test_fall_detection
+ 98/145 Test  #98: test_fall_detection ................   Passed    0.09 sec
+        Start  99: test_sos_dscp
+ 99/145 Test  #99: test_sos_dscp ......................   Passed    0.08 sec
+        Start 100: test_wasm_watchdog
+100/145 Test #100: test_wasm_watchdog .................   Passed    0.05 sec
+        Start 101: test_emg_dsp
+101/145 Test #101: test_emg_dsp .......................   Passed    0.09 sec
+        Start 102: test_timesync
+102/145 Test #102: test_timesync ......................   Passed    0.05 sec
+        Start 103: test_protocol_converter
+103/145 Test #103: test_protocol_converter ............   Passed    0.06 sec
+        Start 104: test_edge_acl
+104/145 Test #104: test_edge_acl ......................   Passed    0.06 sec
+        Start 105: test_rehab_kinematics
+105/145 Test #105: test_rehab_kinematics ..............   Passed    0.06 sec
+        Start 106: test_motion_wavelet
+106/145 Test #106: test_motion_wavelet ................   Passed    0.06 sec
+        Start 107: test_hrv_analyzer
+107/145 Test #107: test_hrv_analyzer ..................   Passed    0.06 sec
+        Start 108: test_ppg_spo2
+108/145 Test #108: test_ppg_spo2 ......................   Passed    0.06 sec
+        Start 109: test_bia_estimator
+109/145 Test #109: test_bia_estimator .................   Passed    0.05 sec
+        Start 110: test_ecg_arrhythmia
+110/145 Test #110: test_ecg_arrhythmia ................   Passed    0.06 sec
+        Start 111: test_tremor_analyzer
+111/145 Test #111: test_tremor_analyzer ...............   Passed    0.06 sec
+        Start 112: test_gait_balance
+112/145 Test #112: test_gait_balance ..................   Passed    0.08 sec
+        Start 113: test_apnea_detector
+113/145 Test #113: test_apnea_detector ................   Passed    0.06 sec
+        Start 114: test_dicom_parser
+114/145 Test #114: test_dicom_parser ..................   Passed    0.06 sec
+        Start 115: test_federated_aggregator
+115/145 Test #115: test_federated_aggregator ..........   Passed    0.06 sec
+        Start 116: test_shm_waitset
+116/145 Test #116: test_shm_waitset ...................   Passed    0.05 sec
+        Start 117: test_thermal_throttle
+117/145 Test #117: test_thermal_throttle ..............   Passed    0.06 sec
+        Start 118: test_device_twin
+118/145 Test #118: test_device_twin ...................   Passed    0.06 sec
+        Start 119: test_resilient_buffer
+119/145 Test #119: test_resilient_buffer ..............   Passed    0.07 sec
+        Start 120: test_driver_hotplug
+120/145 Test #120: test_driver_hotplug ................   Passed    0.07 sec
+        Start 121: test_dfu_dualbank
+121/145 Test #121: test_dfu_dualbank ..................   Passed    0.06 sec
+        Start 122: test_impedance_control
+122/145 Test #122: test_impedance_control .............   Passed    0.06 sec
+        Start 123: test_gait_safety
+123/145 Test #123: test_gait_safety ...................   Passed    0.06 sec
+        Start 124: test_facility_coordinator
+124/145 Test #124: test_facility_coordinator ..........   Passed    0.06 sec
+        Start 125: test_ebpf_guard
+125/145 Test #125: test_ebpf_guard ....................   Passed    0.08 sec
+        Start 126: test_simd_cdd_codec
+126/145 Test #126: test_simd_cdd_codec ................   Passed    0.06 sec
+        Start 127: test_multibus_bridge
+127/145 Test #127: test_multibus_bridge ...............   Passed    0.06 sec
+        Start 128: test_stream_sql_dag
+128/145 Test #128: test_stream_sql_dag ................   Passed    0.05 sec
+        Start 129: test_wasm_host_bridge
+129/145 Test #129: test_wasm_host_bridge ..............   Passed    0.06 sec
+        Start 130: test_edge_cep_engine
+130/145 Test #130: test_edge_cep_engine ...............   Passed    0.06 sec
+        Start 131: test_edge_spiffe_auth
+131/145 Test #131: test_edge_spiffe_auth ..............   Passed    0.06 sec
+        Start 132: test_timeseries_compressor
+132/145 Test #132: test_timeseries_compressor .........   Passed    0.05 sec
+        Start 133: test_onnx_host_guard
+133/145 Test #133: test_onnx_host_guard ...............   Passed    0.06 sec
+        Start 134: test_idl_generated_serialization
+134/145 Test #134: test_idl_generated_serialization ...   Passed    0.06 sec
+        Start 135: test_infra_interfaces
+135/145 Test #135: test_infra_interfaces ..............   Passed    0.31 sec
+        Start 136: test_iems_task_loader
+136/145 Test #136: test_iems_task_loader ..............   Passed    0.49 sec
+        Start 137: test_driver_registry
+137/145 Test #137: test_driver_registry ...............   Passed    0.11 sec
+        Start 138: test_driver_registry_dcu
+138/145 Test #138: test_driver_registry_dcu ...........   Passed    0.09 sec
+        Start 139: test_driver_registry_smart_box
+139/145 Test #139: test_driver_registry_smart_box .....   Passed    0.09 sec
+        Start 140: test_generated_drift_tamper
+140/145 Test #140: test_generated_drift_tamper ........   Passed   11.57 sec
+        Start 141: test_edge_cli_scaffold
+141/145 Test #141: test_edge_cli_scaffold .............   Passed    3.25 sec
+        Start 142: test_dx_scaffolding
+142/145 Test #142: test_dx_scaffolding ................   Passed    0.23 sec
+        Start 143: test_tag_domains_and_aliases
+143/145 Test #143: test_tag_domains_and_aliases .......   Passed    0.21 sec
+        Start 144: test_anti_corruption_engine
+144/145 Test #144: test_anti_corruption_engine ........   Passed    0.13 sec
+        Start 145: test_domain_scenarios
+145/145 Test #145: test_domain_scenarios ..............   Passed    0.19 sec
+
+100% tests passed, 0 tests failed out of 145
+
+Total Test time (real) =  49.92 sec
+
+=== Omnis Matrix (10/10) ===
+[35m🚀 Step [1/3]: Launching Matrix Plane...[0m
+[33m  🧹 Nuclear Cleanup...[0m
+[33m  ⏳ Waiting for Backplane...[0m
+[35m🧪 Step [2/2]: Running Automated Scenarios...[0m
+🔍 Checking Matrix environment at localhost:50051...
+  ✅ Matrix Server: ONLINE
+[94m============================================================
+🚀 Omnis Test Runner: Orchestrating for iems
+📡 Server: localhost:50051
+============================================================[0m
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-9.1.1, pluggy-1.6.0 -- /workspaces/edgeos/EdgeC/.venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /workspaces/edgeos/EdgeC
+plugins: asyncio-1.4.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 10 items
+
+cmd/iems/matrix/test_adc_dsp.py::test_industrial_proof_dsp 
+🚀 [Step 1] Verifying SDD results for 231.5V...
+🔥 [FINAL_SUCCESS] Full Chain Verified via Hub: 231.50000344961882
+PASSED
+cmd/iems/matrix/test_e2e_flow.py::test_iems_modbus_e2e_flow 
+🚀 [Step 1] Injecting 50.02Hz into virtual device...
+⏳ [Step 2] Waiting for IEMS to poll and update DataHub...
+🎉 [Step 3] Verification SUCCESS: IEMS DataHub now holds 50.02
+PASSED
+cmd/iems/matrix/test_e2e_flow.py::test_iems_multi_tag_consistency 
+🚀 [Step 1] Injecting multiple values...
+⏳ [Step 2] Verifying all tags in IEMS...
+✅ Tag VOLTAGE_PHASE_A verified: 220.5
+✅ Tag GRID_POWER verified: 1500.0
+✅ Tag GRID_FREQUENCY verified: 50.02
+PASSED
+cmd/iems/matrix/test_high_freq.py::test_adc_to_protection_e2e 
+🚀 [Step 1] Checking initial steady state...
+  [Matrix] Sent ADC Control: grid -> {'freq': 50.0, 'amp': 311.0}
+  [Matrix] Sent ADC Control: h3 -> {'ratio': 0.0}
+  Steady State RMS: 218.81 V
+
+🚀 [Step 2] Injecting Waveform Surge via ADC Control...
+  [Matrix] Sent ADC Control: grid -> {'amp': 395.9}
+⏳ Waiting for IEMS to compute new RMS...
+  [Debug] Current ADC_VOLTAGE_RMS: 218.81 V
+  [Debug] Current ADC_VOLTAGE_RMS: 278.54 V
+✅ IEMS Detected Surge: 278.54 V
+
+🚀 [Step 3] Verifying Reflex Protection Action...
+🔥 [FINAL_SUCCESS] Protection triggered! SOLAR_RELAY is now OPEN.
+  [Matrix] Sent ADC Control: grid -> {'freq': 50.0, 'amp': 311.0}
+  [Matrix] Sent ADC Control: h3 -> {'ratio': 0.0}
+PASSED
+cmd/iems/matrix/test_high_freq.py::test_harmonic_interference_rms   [Matrix] Sent ADC Control: grid -> {'freq': 50.0, 'amp': 311.0}
+
+🚀 [Step 1] Injecting 10% 3rd Harmonic...
+  [Matrix] Sent ADC Control: h3 -> {'ratio': 0.1}
+⏳ Waiting for RMS calibration (Expected: 221.1V)...
+✅ Harmonic RMS Verified: 220.12 V
+PASSED
+cmd/iems/matrix/test_protection.py::test_overvoltage_reporting 
+🚀 [Step 1] Injecting Overvoltage: 265.5V...
+⏳ [Step 2] Waiting for IEMS to detect overvoltage...
+✅ EdgeC Reported Value: 265.5000039562583 V
+PASSED
+cmd/iems/matrix/test_protection.py::test_island_mpc_protection 
+🌍 [Step 1] Simulating Cloud Connection Drop (Wait 4s for timeout)...
+
+🔋 [Step 2] Injecting Reverse Current and High SOC...
+⏳ [Step 3] Waiting for EdgeOS MPC to take over and dispatch PCS constraint...
+✅ EdgeC Island Protection Triggered. PCS Output Command: -0.013888877100491203 A
+PASSED
+cmd/iems/matrix/test_raw_io.py::test_raw_io_loopback 
+🚀 [Step 1] Connecting to Virtual Bus 0 at /tmp/vbus0.sock...
+🚀 [Step 2 & 4] Submitting Raw IO to IEMS and Verifying...
+  [Attempt 1] Sending DEADBEEF...
+📡 [Mock Device] Waiting for request...
+  [Attempt 1] Got garbage: 
+  [Attempt 2] Sending DEADBEEF...
+📥 [Mock Device] Received Raw: DEADBEEF
+📤 [Mock Device] MATCH! Sending Echo: CAFEBABE
+✅ [SUCCESS] IEMS captured the echo: CAFEBABE
+PASSED
+cmd/iems/matrix/test_scenarios.py::test_run_manifest_scenario[ion_precision_test.yaml] 
+🎬 Executing Scenario: ion_precision_test.yaml
+PASSED
+cmd/iems/matrix/test_slave_flow.py::test_slave_mirror_flow 
+⏳ [Setup] Waiting for IEMS Northbound to initialize...
+🚀 [Step 1] Injecting 238.5V to SOUTHBOUND meter...
+⏳ [Step 2] Waiting for IEMS Master to sync DataHub...
+🚀 [Step 3] Acting as External Master: Querying Northbound Port...
+🚀 [Step 3] Acting as External Master: Querying Northbound Port (Sent: 010300000001840A)...
+  [Attempt 1] Received Raw: 01030209517FE8
+  [Attempt 1] Received: 01030209517FE8 -> 238.5V
+🔥 [FINAL_SUCCESS] Northbound Slave E2E Flow Verified!
+PASSED
+
+============================= 10 passed in 50.42s ==============================
+[32m✨ OMNIS INTEGRATION TEST PASSED![0m
+[33m  🧹 Nuclear Cleanup...[0m
+./test.sh: line 48: 20804 Killed                  $ENV_PYTHON -u tools/matrix/server.py --product $PROD > matrix_server.log 2>&1
+
+=== Go Unit Tests ===
+?   	edgeos.go/cmd/demo-algo	[no test files]
+?   	edgeos.go/cmd/demo_shm	[no test files]
+?   	edgeos.go/cmd/edge-api-core	[no test files]
+?   	edgeos.go/cmd/edge-gateway	[no test files]
+?   	edgeos.go/cmd/edge-ops	[no test files]
+=== RUN   TestPurgeAndAnchor
+2026/08/29 16:02:57 [DLNA Engine] Dispatched SetAVTransportURI & Play SOAP XML to TV at http://192.168.1.10:1400/MediaRenderer/AVTransport/Control (Media: http://localhost/view)
+2026/08/29 16:02:57 [TRAFFIC CTL] Executing Firewall Command: iptables -t filter -I FORWARD 1 -i wlan0 -o wwan0 -m mac --mac-source AA:BB:CC:DD:EE:FF -j ACCEPT
+2026/08/29 16:02:57 [FAMILY ALBUM] Saved photo from Lily to /data/album/album_Lily_1787990577854.jpg (Caption: Grandma at Central Park)
+2026/08/29 16:02:57 [VOICE NLU ENGINE] Transcript: "启动步行训练" -> Intent: START_GAIT_TRAINING, Action: Trigger Exoskeleton Gait Assistance (Confidence: 0.96, CmdCode: 1.0)
+2026/08/29 16:02:57 [SPEAKER BRIDGE] Incoming request from xiaomi speaker, Action: get_status
+2026/08/29 16:02:57 [VISION CV ENGINE] Processed frame (21 bytes). FeatureHash: c249f865869781a4, Matched: ELDERLY-USER-8821 (Similarity: 0.957, Liveness: 0.933)
+2026/08/29 16:02:57 [PRESCRIPTION WARNING] WARNING: No active rehabilitation prescription found on gateway for training item 'ITEM_GAIT_01'
+2026/08/29 16:02:57 [HEARTBEAT TICKER] System: HEALTHY, Battery SOC: 100.0%, Net: ONLINE
+--- PASS: TestPurgeAndAnchor (6.01s)
+=== RUN   TestUDSIPC
+2026/08/29 16:02:57 [UDS IPC] NFC Device Scanned: {"dev_type":"exoskeleton","slave_id":1,"protocol":"ModbusRTU","baud":115200}
+2026/08/29 16:02:57 [UDS IPC] SQLite: Registered device 'exoskeleton' successfully!
+2026/08/29 16:02:57 🔴 [UDS IPC] URGENT SOS ALERT RECEIVED FROM PHYSICAL BASEPLANE!
+--- PASS: TestUDSIPC (0.02s)
+=== RUN   TestUDSSecurityHardeningAndRBAC
+2026/08/29 16:02:57 [AUDIT] REST UDS Security request from 192.0.2.1:1234
+2026/08/29 16:02:57 [DoIP] Routing Activation Request received
+2026/08/29 16:02:57 [DoIP/UDS] Diagnostic Message SA=0x000e TA=0x0010 SID=0x27
+2026/08/29 16:02:57 [DoIP/UDS] Diagnostic Message SA=0x000e TA=0x0010 SID=0x27
+2026/08/29 16:02:57 [WARN] DOIP_UDS_SECRET_KEY not set. Using ephemeral random secret for non-prod session.
+2026/08/29 16:02:57 [DoIP/UDS] Diagnostic Message SA=0x000e TA=0x0010 SID=0x27
+2026/08/29 16:02:57 [DoIP/UDS] Diagnostic Message SA=0x000e TA=0x0010 SID=0x10
+2026/08/29 16:02:57 [DoIP/UDS] Diagnostic Message SA=0x000e TA=0x0010 SID=0x22
+2026/08/29 16:02:57 [DoIP/UDS] Diagnostic Message SA=0x000e TA=0x0010 SID=0x19
+2026/08/29 16:02:57 [DoIP/UDS] Diagnostic Message SA=0x000e TA=0x0010 SID=0x31
+--- PASS: TestUDSSecurityHardeningAndRBAC (0.00s)
+=== RUN   TestUDSProductionSecretFailFast
+2026/08/29 16:02:57 DoIP Client disconnected (active: -1)
+--- PASS: TestUDSProductionSecretFailFast (0.00s)
+=== RUN   TestUDSDynamicDTCConfiguration
+2026/08/29 16:02:57 [AUDIT] REST UDS DTC request from 192.0.2.1:1234
+2026/08/29 16:02:57 [AUDIT] REST UDS DTC request from 192.0.2.1:1234
+--- PASS: TestUDSDynamicDTCConfiguration (0.00s)
+=== RUN   TestUDSStateSHMReadback
+--- PASS: TestUDSStateSHMReadback (0.00s)
+PASS
+ok  	edgeos.go/cmd/smart-box-gateway	(cached)
+?   	edgeos.go/cmd/ui-backend	[no test files]
+=== RUN   TestGzipChunkLogger
+    gzip_chunk_logger_test.go:60: Successfully read 186 bytes of decompressed log content from /tmp/edge_log_test681781616/edge_chunk_20260829_160251_999.log.gz
+--- PASS: TestGzipChunkLogger (0.01s)
+PASS
+ok  	edgeos.go/internal/logger	(cached)
+=== RUN   TestPeerDiscoveryLifecycle
+    mdns_discovery_test.go:28: Node 1 discovered 0 peers
+    mdns_discovery_test.go:29: Node 2 discovered 0 peers
+    mdns_discovery_test.go:32: Note: UDP multicast/broadcast loopback might be restricted in CI environment, test passes basic lifecycle
+--- PASS: TestPeerDiscoveryLifecycle (3.00s)
+=== RUN   TestMQTTBufferDeduplicationAndOrdering
+--- PASS: TestMQTTBufferDeduplicationAndOrdering (0.00s)
+=== RUN   TestMTLSValidator
+--- PASS: TestMTLSValidator (0.10s)
+=== RUN   TestTokenBucketLimiter
+--- PASS: TestTokenBucketLimiter (0.20s)
+PASS
+ok  	edgeos.go/internal/p2p	(cached)
+=== RUN   TestDeadLetterQueueRetryBackoff
+--- PASS: TestDeadLetterQueueRetryBackoff (0.01s)
+=== RUN   TestExportPrescriptionToFHIRCarePlan
+--- PASS: TestExportPrescriptionToFHIRCarePlan (0.00s)
+=== RUN   TestExportObservationToFHIRObservation
+--- PASS: TestExportObservationToFHIRObservation (0.00s)
+=== RUN   TestPrescriptionValidation
+2026/08/29 16:02:51 [PRESCRIPTION WARNING] WARNING: No active rehabilitation prescription found on gateway for training item 'ITEM_GAIT_01'
+2026/08/29 16:02:51 [PRESCRIPTION MANAGER] Active prescription updated: ID=RX-2026-001, Patient=PATIENT-881, Doctor=DOC-009
+2026/08/29 16:02:51 [PRESCRIPTION WARNING] WARNING: Incoming training prescription ID 'RX-MISMATCH-999' mismatch with active prescription ID 'RX-2026-001'
+2026/08/29 16:02:51 [PRESCRIPTION WARNING] WARNING: Training item 'ITEM_UNAUTHORIZED_99' is not prescribed in active prescription 'RX-2026-001' target items [ITEM_GAIT_01 ITEM_BALANCE_02]
+--- PASS: TestPrescriptionValidation (0.00s)
+=== RUN   TestAdherenceTracking
+--- PASS: TestAdherenceTracking (0.00s)
+=== RUN   TestWebSocketPrescriptionSync
+2026/08/29 16:02:51 [PRESCRIPTION MANAGER] Active prescription updated: ID=RX-CLOUD-777, Patient=PATIENT-999, Doctor=DOC-101
+--- PASS: TestWebSocketPrescriptionSync (0.20s)
+PASS
+ok  	edgeos.go/internal/prescription	(cached)
+=== RUN   TestThingTwinDeltaReconciliation
+    digital_twin_test.go:52: Digital Twin Snapshot JSON: {"thing_id":"org.edgeos:smartbox-alpha-01","policy_id":"smartbox:policy:v1","reported":{"telemetry":{"battery_soc":85,"rehab_prescription_id":1001}},"desired":{"telemetry":{"battery_soc":85,"rehab_prescription_id":1002,"speaker_volume":80}},"delta":{"telemetry":{"rehab_prescription_id":1002,"speaker_volume":80}},"last_modified":"2026-08-29T16:02:51.842750109+08:00","version":3}
+--- PASS: TestThingTwinDeltaReconciliation (0.00s)
+PASS
+ok  	edgeos.go/internal/twin	(cached)
+=== RUN   TestVoiceCommandParser
+--- PASS: TestVoiceCommandParser (0.00s)
+PASS
+ok  	edgeos.go/internal/voice	(cached)
+=== RUN   TestWebRTCCallLifecycle
+--- PASS: TestWebRTCCallLifecycle (0.00s)
+PASS
+ok  	edgeos.go/internal/webrtc	(cached)
+?   	edgeos.go/pkg/api	[no test files]
+?   	edgeos.go/pkg/service	[no test files]
+=== RUN   TestTryOpenEventFifo
+--- PASS: TestTryOpenEventFifo (0.00s)
+=== RUN   TestZeroCopyReadDirect
+--- PASS: TestZeroCopyReadDirect (0.00s)
+PASS
+ok  	edgeos.go/pkg/shm	(cached)
+?   	edgeos.go/pkg/tags	[no test files]
+?   	edgeos.go/pkg/tags/dcu	[no test files]
+?   	edgeos.go/pkg/tags/iems	[no test files]
+?   	edgeos.go/pkg/tags/smart_box	[no test files]
+
+=== Architecture Anti-Entropy Gates (6/6) ===
+🔍 [ARCH-GATE] Scanning codebase for illegal references to legacy 'src/' tree...
+✅ [ARCH-GATE PASS] Zero legacy 'src/' references detected across the entire codebase.
+🔍 [ARCH-GATE] Checking libedge_io.a exported symbols...
+✅ [ARCH-GATE PASS] All 7 essential symbols verified in libedge_io.a.
+🔍 [ARCH-GATE] Checking libedge_core.a undefined symbols (nm -u)...
+✅ [ARCH-GATE PASS] libedge_core.a is completely free of forbidden 3rd-party engine symbols (0 sqlite3/paho/dds references).
+🔍 Checking PR diff against origin/feature/modular-refactor for protected core modifications...
+✅ [ARCH-GATE PASS] No unauthorized protected core files were modified (all diffs match approved whitelist).
+🔍 [ARCH-GATE] Running Binary Footprint Size Gate (Release+strip caliber)...
+ℹ️  [SELF-CHECK] Detected Build Type: Release (Caliber requires: Release + strip)
+
+Artifact Target                        | Raw Size   | Stripped   | Warn Lim  | Err Lim   | Status  
+----------------------------------------------------------------------------------------------------
+edge_core/libedge_core.a               | 121.1 KB   | 118.7 KB   | 250.0 KB  | 500.0 KB  | [0;32m✅ PASS[0m
+bin/iems                               | 4.01 MB    | 3.60 MB    | 5.00 MB   | 8.00 MB   | [0;32m✅ PASS[0m
+bin/dcu                                | 2.92 MB    | 2.60 MB    | 5.00 MB   | 8.00 MB   | [0;32m✅ PASS[0m
+bin/smart_box                          | 3.19 MB    | 2.87 MB    | 5.00 MB   | 8.00 MB   | [0;32m✅ PASS[0m
+----------------------------------------------------------------------------------------------------
+
+✅ [ARCH-GATE PASS] All evaluated binary footprint sizes conform to release budget.
+🔍 [ARCH-GATE] Running Generated Artifacts Trust Chain & Drift Gate...
+  [1/3] Verifying contract-compiler-v2 source reproducibility...
+    • Committed binary size : 5713763 bytes
+    • Source-rebuilt binary  : 5713763 bytes
+    ✅ Compiler source reproducibility confirmed (delta: 0 bytes).
+  [2/3] Regenerating all contract bindings from YAML sources...
+  [3/3] Checking for manual tampering or uncommitted drift in tracked generated code...
+✅ [ARCH-GATE PASS] Generated artifacts trust chain verified: Zero drift detected across all contracts and bindings.
+
+=== DoD test_domain_scenarios (4/4) ===
+[==========] tests: Running 4 test(s).
+[ RUN      ] test_dcu_lineloss_topology_scenario
+[2026-08-30 16:00:34][INFO][BUS] Sealed memfd Ring created (FD: 13, Size: 68 KB)
+ [Metrics] Registered: Tag=12001, Name=datahub.ring.watermark
+ [Metrics] Registered: Tag=12002, Name=datahub.ring.drop_count
+ [Metrics] Registered: Tag=12003, Name=datahub.ring.read_latency
+ [Metrics] Registered: Tag=12004, Name=datahub.shadow.write_count
+[       OK ] test_dcu_lineloss_topology_scenario
+[ RUN      ] test_dcu_outage_soe_3011_scenario
+[2026-08-30 16:00:34][INFO][BUS] Sealed memfd Ring created (FD: 13, Size: 68 KB)
+[       OK ] test_dcu_outage_soe_3011_scenario
+[ RUN      ] test_iems_anti_reverse_flow_scenario
+[2026-08-30 16:00:34][INFO][BUS] Sealed memfd Ring created (FD: 13, Size: 68 KB)
+[       OK ] test_iems_anti_reverse_flow_scenario
+[ RUN      ] test_iems_tou_arbitrage_and_soc_envelope_scenario
+[2026-08-30 16:00:34][INFO][BUS] Sealed memfd Ring created (FD: 13, Size: 68 KB)
+[       OK ] test_iems_tou_arbitrage_and_soc_envelope_scenario
+[==========] tests: 4 test(s) run.
+[  PASSED  ] 4 test(s).

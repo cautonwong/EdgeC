@@ -1,0 +1,7 @@
+ docs/evidence/AEP-354/diffstat.txt   |  16 +++
+ docs/evidence/AEP-354/redlines.md   |  16 +++
+ docs/evidence/AEP-354/summary.md    | 115 ++++++++++++
+ docs/evidence/AEP-354/tests.log     | 550 ++++++++++++++++++++++++++++++
+ tests/CMakeLists.txt                |  20 ++
+ tests/test_domain_scenarios.c       | 235 ++++++++++++
+ 6 files changed, 952 insertions(+)
