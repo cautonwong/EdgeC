@@ -1,0 +1,21 @@
+# [EdgeOS Schema Domain] SmartBox Distribution Panel Domain (0x03xxxx)
+domain: "smart_box_panel"
+
+tags:
+  - id: 196609 # 0x030001
+    name: "SMARTBOX_RESIDUAL_CURRENT_MA"
+    type: "float"
+    unit: "mA"
+    description: "Residual Leakage Current for Electrical Fire Monitoring"
+
+  - id: 196610 # 0x030002
+    name: "SMARTBOX_TERMINAL_TEMP_C"
+    type: "float"
+    unit: "degC"
+    description: "Breaker Terminal Contact Temperature"
+
+  - id: 196611 # 0x030003
+    name: "SMARTBOX_BREAKER_STATE_BITMAP"
+    type: "uint"
+    unit: ""
+    description: "32-Circuit Miniature Breaker Open/Close Bitmap"

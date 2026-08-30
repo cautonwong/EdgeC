@@ -1,0 +1,33 @@
+# [EdgeOS Schema Domain] DCU Smart Distribution Domain (0x01xxxx)
+domain: "dcu_distribution"
+
+tags:
+  - id: 65537 # 0x010001
+    name: "DCU_TRANSFORMER_LOAD_RATE"
+    type: "float"
+    unit: "%"
+    description: "Distribution Transformer Realtime Load Rate"
+
+  - id: 65538 # 0x010002
+    name: "DCU_LINELOSS_PCT"
+    type: "float"
+    unit: "%"
+    description: "Distribution Area Branch Line Loss Percentage"
+
+  - id: 65539 # 0x010003
+    name: "DCU_OUTAGE_STATUS"
+    type: "uint"
+    unit: ""
+    description: "Outage Event Status Code (3011 Event Trigger)"
+
+  - id: 65540 # 0x010004
+    name: "DCU_DI_BITMAP"
+    type: "uint"
+    unit: ""
+    description: "16-Channel DI Telemetry Input Bitmap"
+
+  - id: 65541 # 0x010005
+    name: "DCU_DO_BITMAP"
+    type: "uint"
+    unit: ""
+    description: "8-Channel DO Telecontrol Output Relay Bitmap"

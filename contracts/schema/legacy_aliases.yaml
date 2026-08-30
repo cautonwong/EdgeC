@@ -1,0 +1,80 @@
+# [EdgeOS Schema] Legacy Tag Aliases & Domain Partitions (AEP-352)
+#
+# 领域分域规则 (Domain Partitioning Rules):
+#   0x000000 - 0x00FFFF (0 - 65535)       : Core & Standard Metrology (存量基础度量域)
+#   0x010000 - 0x01FFFF (65536 - 131071)  : DCU Smart Distribution Domain (配电台区域)
+#   0x020000 - 0x02FFFF (131072 - 196607) : IEMS Renewable ESS & Microgrid Domain (储能微网域)
+#   0x030000 - 0x03FFFF (196608 - 262143) : SmartBox Distribution Panel Domain (智能配电箱域)
+
+domains:
+  core_standard:
+    range_start: "0x000000"
+    range_end: "0x00FFFF"
+    description: "Core System, Power, Energy and Standard Metrology Tags"
+
+  dcu_distribution:
+    range_start: "0x010000"
+    range_end: "0x01FFFF"
+    description: "DCU Smart Distribution Controller, Topology & LineLoss"
+
+  iems_microgrid:
+    range_start: "0x020000"
+    range_end: "0x02FFFF"
+    description: "IEMS Industrial ESS, PCS, BMS & Microgrid Control"
+
+  smart_box_panel:
+    range_start: "0x030000"
+    range_end: "0x03FFFF"
+    description: "SmartBox Distribution Panel, MCB & Electrical Fire Protection"
+
+# 存量零破坏别名映射表 (Legacy Backward-Compatibility Aliases)
+aliases:
+  - alias: "TAG_VOLTAGE_A"
+    canonical_id: 1001
+    canonical_name: "VOLTAGE_PHASE_A"
+    domain: "core_standard"
+
+  - alias: "TAG_VOLTAGE_B"
+    canonical_id: 1002
+    canonical_name: "VOLTAGE_PHASE_B"
+    domain: "core_standard"
+
+  - alias: "TAG_VOLTAGE_C"
+    canonical_id: 1003
+    canonical_name: "VOLTAGE_PHASE_C"
+    domain: "core_standard"
+
+  - alias: "TAG_CURRENT_A"
+    canonical_id: 1004
+    canonical_name: "CURRENT_PHASE_A"
+    domain: "core_standard"
+
+  - alias: "TAG_ACTIVE_POWER"
+    canonical_id: 3001
+    canonical_name: "ACTIVE_POWER"
+    domain: "core_standard"
+
+  - alias: "TAG_ESS_SOC"
+    canonical_id: 11001
+    canonical_name: "ESS_SOC"
+    domain: "core_standard"
+
+  - alias: "TAG_ESS_SOH"
+    canonical_id: 11002
+    canonical_name: "ESS_SOH"
+    domain: "core_standard"
+
+  - alias: "DCU_FEEDER_LOSS"
+    canonical_id: 65538 # 0x010002
+    canonical_name: "DCU_LINELOSS_PCT"
+    domain: "dcu_distribution"
+
+  - alias: "BESS_MAX_CELL_V"
+    canonical_id: 131075 # 0x020003
+    canonical_name: "IEMS_BMS_MAX_CELL_VOLT"
+    domain: "iems_microgrid"
+
+  - alias: "PANEL_LEAKAGE_MA"
+    canonical_id: 196609 # 0x030001
+    canonical_name: "SMARTBOX_RESIDUAL_CURRENT_MA"
+    domain: "smart_box_panel"
