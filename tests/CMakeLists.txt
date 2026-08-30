@@ -428,6 +428,26 @@ target_link_libraries(test_tag_collision_checker PRIVATE
 )
 add_test(NAME test_tag_collision_checker COMMAND test_tag_collision_checker)
 
+# AEP-401 SDK 公共头文件体系单测 (include/edgeos/edgeos.h)
+add_executable(test_sdk_public_headers test_sdk_public_headers.c)
+target_link_libraries(test_sdk_public_headers PRIVATE
+    -Wl,--start-group
+    edge_infra
+    edge_io
+    edge_stream
+    edge_security
+    edge_core
+    edge_protocol
+    edge_algo
+    contract_iems
+    -Wl,--end-group
+    edge_common_interface
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_sdk_public_headers COMMAND test_sdk_public_headers)
+
+
 
 
 
