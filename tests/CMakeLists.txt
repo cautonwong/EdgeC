@@ -409,6 +409,26 @@ target_link_libraries(test_domain_scenarios PRIVATE
 )
 add_test(NAME test_domain_scenarios COMMAND test_domain_scenarios)
 
+# AEP-355 跨产品 Tag 冲突查重与分域合规单测
+add_executable(test_tag_collision_checker test_tag_collision_checker.c)
+target_link_libraries(test_tag_collision_checker PRIVATE
+    -Wl,--start-group
+    edge_infra
+    edge_io
+    edge_stream
+    edge_security
+    edge_core
+    edge_protocol
+    edge_algo
+    contract_iems
+    -Wl,--end-group
+    edge_common_interface
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_tag_collision_checker COMMAND test_tag_collision_checker)
+
+
 
 
 

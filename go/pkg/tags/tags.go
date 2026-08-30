@@ -12,6 +12,7 @@ const (
 	ADC_VOLTAGE_RMS = 2002
 	ENERGY_ACTIVE_IMPORT = 3001
 	ENERGY_ACTIVE_EXPORT = 3002
+	BATTERY_SOC = 4001
 	BATTERY_TEMP_MAX = 4002
 	BATTERY_POWER = 4003
 	IEMS_BATTERY_MAX_SOC = 5001
@@ -44,7 +45,7 @@ const (
 	BOX_VOICE_COMMAND = 12010
 	BOX_USER_COINS = 12011
 	BOX_CURRENT_SCENE = 12012
-	BATTERY_SOC = 12013
+	SMARTBOX_BATTERY_SOC = 12013
 	ABNORMAL_BEHAVIOR_ALERT = 12014
 	REHAB_PRESCRIPTION_ID = 12015
 	NET_ACTIVE_INTERFACE = 12016
@@ -67,6 +68,17 @@ const (
 	UDS_SECURITY_UNLOCKED = 12033
 	UDS_ROUTINE_STATUS = 12034
 	DOIP_CLIENT_CONNECTED = 12035
+	HDMI_CEC_POWER_STATE = 12051
+	GAME_SCORE_REALTIME = 12052
+	CARDIAC_SAFETY_ALERT = 12053
+	UNSUPPORTED_DEVICE_BLOCKED = 12054
+	BOX_USER_MODE = 12055
+	DEV_UNBIND_TRIGGER = 12056
+	DEV_OTA_UPDATE_STATUS = 12057
+	HAP_GAME_UPDATE_STATE = 12058
+	ADMIN_AUTH_STATE = 12059
+	REMOTE_LOG_UPLOAD = 12060
+	GPIO_PHOENIX_DI_DO = 12061
 )
 
 type TagMetadata struct {
@@ -119,7 +131,7 @@ var Metadata = map[uint32]TagMetadata{
 	12010: {ID: 12010, Name: "BOX_VOICE_COMMAND", DataType: "int", Unit: ""},
 	12011: {ID: 12011, Name: "BOX_USER_COINS", DataType: "int", Unit: ""},
 	12012: {ID: 12012, Name: "BOX_CURRENT_SCENE", DataType: "int", Unit: ""},
-	12013: {ID: 12013, Name: "BATTERY_SOC", DataType: "float", Unit: "%"},
+	12013: {ID: 12013, Name: "SMARTBOX_BATTERY_SOC", DataType: "float", Unit: "%"},
 	12014: {ID: 12014, Name: "ABNORMAL_BEHAVIOR_ALERT", DataType: "int", Unit: ""},
 	12015: {ID: 12015, Name: "REHAB_PRESCRIPTION_ID", DataType: "int", Unit: ""},
 	12016: {ID: 12016, Name: "NET_ACTIVE_INTERFACE", DataType: "int", Unit: ""},
@@ -142,4 +154,15 @@ var Metadata = map[uint32]TagMetadata{
 	12033: {ID: 12033, Name: "UDS_SECURITY_UNLOCKED", DataType: "int", Unit: ""},
 	12034: {ID: 12034, Name: "UDS_ROUTINE_STATUS", DataType: "int", Unit: ""},
 	12035: {ID: 12035, Name: "DOIP_CLIENT_CONNECTED", DataType: "int", Unit: ""},
+	12051: {ID: 12051, Name: "HDMI_CEC_POWER_STATE", DataType: "int", Unit: ""},
+	12052: {ID: 12052, Name: "GAME_SCORE_REALTIME", DataType: "float", Unit: "pts"},
+	12053: {ID: 12053, Name: "CARDIAC_SAFETY_ALERT", DataType: "int", Unit: ""},
+	12054: {ID: 12054, Name: "UNSUPPORTED_DEVICE_BLOCKED", DataType: "int", Unit: ""},
+	12055: {ID: 12055, Name: "BOX_USER_MODE", DataType: "int", Unit: ""},
+	12056: {ID: 12056, Name: "DEV_UNBIND_TRIGGER", DataType: "int", Unit: ""},
+	12057: {ID: 12057, Name: "DEV_OTA_UPDATE_STATUS", DataType: "int", Unit: ""},
+	12058: {ID: 12058, Name: "HAP_GAME_UPDATE_STATE", DataType: "int", Unit: ""},
+	12059: {ID: 12059, Name: "ADMIN_AUTH_STATE", DataType: "int", Unit: ""},
+	12060: {ID: 12060, Name: "REMOTE_LOG_UPLOAD", DataType: "int", Unit: ""},
+	12061: {ID: 12061, Name: "GPIO_PHOENIX_DI_DO", DataType: "int", Unit: ""},
 }
