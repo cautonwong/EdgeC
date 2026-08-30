@@ -352,6 +352,26 @@ target_link_libraries(test_dx_scaffolding PRIVATE
 )
 add_test(NAME test_dx_scaffolding COMMAND test_dx_scaffolding)
 
+# AEP-352 TagID 兼容分域与别名映射单测
+add_executable(test_tag_domains_and_aliases test_tag_domains_and_aliases.c)
+target_link_libraries(test_tag_domains_and_aliases PRIVATE
+    -Wl,--start-group
+    edge_infra
+    edge_io
+    edge_stream
+    edge_security
+    edge_core
+    edge_protocol
+    edge_algo
+    contract_iems
+    -Wl,--end-group
+    edge_common_interface
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_tag_domains_and_aliases COMMAND test_tag_domains_and_aliases)
+
+
 
 
 

@@ -1,0 +1,11 @@
+ contracts/schema/domains/dcu_distribution.yaml |  32 +++
+ contracts/schema/domains/iems_microgrid.yaml   |  36 +++
+ contracts/schema/domains/smart_box_panel.yaml  |  22 ++
+ contracts/schema/legacy_aliases.yaml           |  62 +++++
+ docs/evidence/AEP-352/diffstat.txt             |  17 ++
+ docs/evidence/AEP-352/redlines.md             |  16 ++
+ docs/evidence/AEP-352/summary.md              | 105 ++++++++
+ docs/evidence/AEP-352/tests.log               | 525 +++++++++++++++++++++++++++++++
+ tests/CMakeLists.txt                          |  20 ++
+ tests/test_tag_domains_and_aliases.c          | 205 ++++++++++++
+ 10 files changed, 1040 insertions(+)

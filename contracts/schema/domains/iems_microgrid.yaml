@@ -1,0 +1,39 @@
+# [EdgeOS Schema Domain] IEMS Renewable ESS & Microgrid Domain (0x02xxxx)
+domain: "iems_microgrid"
+
+tags:
+  - id: 131073 # 0x020001
+    name: "IEMS_PCS_MODE"
+    type: "uint"
+    unit: ""
+    description: "PCS Working Mode (PQ, VF, VSG, Droop)"
+
+  - id: 131074 # 0x020002
+    name: "IEMS_PCS_ACTIVE_POWER_SETPOINT"
+    type: "float"
+    unit: "kW"
+    description: "PCS Active Power Setpoint"
+
+  - id: 131075 # 0x020003
+    name: "IEMS_BMS_MAX_CELL_VOLT"
+    type: "float"
+    unit: "V"
+    description: "BMS Maximum Cell Voltage"
+
+  - id: 131076 # 0x020004
+    name: "IEMS_BMS_MIN_CELL_VOLT"
+    type: "float"
+    unit: "V"
+    description: "BMS Minimum Cell Voltage"
+
+  - id: 131077 # 0x020005
+    name: "IEMS_BMS_MAX_TEMP"
+    type: "float"
+    unit: "degC"
+    description: "BMS Maximum Cell Temperature"
+
+  - id: 131078 # 0x020006
+    name: "IEMS_ANTI_REVERSE_ACTIVE"
+    type: "bool"
+    unit: ""
+    description: "Anti-Reverse Power Flow Protection Active Flag"
