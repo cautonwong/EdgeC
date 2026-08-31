@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "EdgeOS 四平面架构",
+    "locale": "zh-CN",
+    "output": "edgeos-architecture.html",
+    "quality_profile": "showcase",
+    "viewBox": [1120, 700],
+    "views": [
+      { "id": "vertical-pipeline", "label": "垂直任务: 采集到展示", "focus": ["modbus", "arbiter", "datahub", "stream", "rest", "gateway", "ui"], "note": "端到端业务数据流：南向物理采集 → 北向展示" },
+      { "id": "horizontal-infra", "label": "水平任务: 共享基础设施", "focus": ["datahub", "shmring", "wal", "mtt", "contracts"], "note": "横贯所有平面的共享基础服务" },
+      { "id": "data-plane", "label": "双轨通信", "focus": ["datahub", "shmring", "rest", "go_shm", "go_api"], "note": "SHM 零拷贝快车道 + REST API 慢车道" }
+    ]
+  },
+  "components": [
+    { "id": "rest", "type": "backend", "label": "REST Server", "sublabel": "C libuv HTTP", "pos": [40, 30], "size": [150, 50], "tag": "Envelope" },
+    { "id": "gateway", "type": "cloud", "label": "API 网关", "sublabel": "反向代理 :80", "pos": [260, 30], "size": [140, 50], "tag": "路由" },
+    { "id": "ui", "type": "frontend", "label": "Command Center", "sublabel": "Vite + Vue3", "pos": [470, 30], "size": [150, 50], "tag": "Port 8082" },
+    { "id": "go_shm", "type": "backend", "label": "Go SHM Watcher", "sublabel": "epoll 唤醒", "pos": [700, 30], "size": [150, 50], "tag": "零拷贝" },
+    { "id": "go_api", "type": "backend", "label": "edge-api-core", "sublabel": "Go :8080", "pos": [930, 30], "size": [150, 50], "tag": "SSE" },
+
+    { "id": "arbiter", "type": "backend", "label": "Arbiter 仲裁器", "sublabel": "优先级队列", "pos": [40, 180], "size": [160, 50], "tag": "Control" },
+    { "id": "service", "type": "backend", "label": "Edge Service", "sublabel": "uv_loop 控制面", "pos": [270, 180], "size": [160, 50], "tag": "注入" },
+    { "id": "stream", "type": "backend", "label": "流引擎 Pipeline", "sublabel": "DSP / EKF / MPC", "pos": [500, 180], "size": [160, 50], "tag": "Compute" },
+    { "id": "mtt", "type": "security", "label": "MTT 时钟同步", "sublabel": "uv_periodic", "pos": [730, 180], "size": [140, 50], "tag": "整点" },
+    { "id": "wasm", "type": "cloud", "label": "WASM 沙箱", "sublabel": "WAMR 热插拔", "pos": [940, 180], "size": [140, 50], "tag": "隔离" },
+
+    { "id": "datahub", "type": "database", "label": "DataHub 影子总线", "sublabel": "POSIX SHM 64B", "pos": [40, 350], "size": [190, 54], "tag": "L0" },
+    { "id": "wal", "type": "database", "label": "WAL + Snapshot", "sublabel": "掉电恢复", "pos": [310, 350], "size": [150, 54], "tag": "持久化" },
+    { "id": "shmring", "type": "messagebus", "label": "ShmRing 队列", "sublabel": "Lock-Free 原子", "pos": [540, 350], "size": [160, 54], "tag": "L1" },
+    { "id": "contracts", "type": "security", "label": "契约编译器", "sublabel": "YAML→C/Go", "pos": [780, 350], "size": [140, 54], "tag": "CDD" },
+    { "id": "sqlite", "type": "database", "label": "SQLite", "sublabel": "历史分区", "pos": [990, 350], "size": [90, 54] },
+
+    { "id": "modbus", "type": "external", "label": "Modbus RTU/TCP", "sublabel": "RS485", "pos": [40, 540], "size": [140, 50] },
+    { "id": "iec104", "type": "external", "label": "IEC-104", "sublabel": "电力规约", "pos": [250, 540], "size": [120, 50] },
+    { "id": "opcua", "type": "external", "label": "OPC UA", "sublabel": "open62541", "pos": [440, 540], "size": [120, 50] },
+    { "id": "dlt698", "type": "external", "label": "DLT698", "sublabel": "电表", "pos": [630, 540], "size": [110, 50] },
+    { "id": "can", "type": "external", "label": "CAN", "sublabel": "CiA402", "pos": [810, 540], "size": [90, 50] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "管理平面 (Northbound)", "wraps": ["rest", "gateway", "ui", "go_shm", "go_api"] },
+    { "kind": "region", "label": "控制 + 计算平面", "wraps": ["arbiter", "service", "stream", "mtt", "wasm"] },
+    { "kind": "region", "label": "基础平面 (Foundation)", "wraps": ["datahub", "wal", "shmring", "contracts", "sqlite"] },
+    { "kind": "security-group", "label": "执行平面 (Southbound)", "wraps": ["modbus", "iec104", "opcua", "dlt698", "can"] }
+  ],
+  "connections": [
+    { "id": "c-modbus-dh", "from": "modbus", "to": "datahub", "label": "轮询帧", "variant": "emphasis", "fromSide": "top", "toSide": "bottom" },
+    { "id": "c-dh-arb", "from": "datahub", "to": "arbiter", "label": "写入 Tag", "variant": "emphasis", "fromSide": "top", "toSide": "bottom" },
+    { "id": "c-dh-stream", "from": "datahub", "to": "stream", "label": "订阅", "fromSide": "top", "toSide": "bottom" },
+    { "id": "c-stream-rest", "from": "stream", "to": "rest", "label": "结果", "fromSide": "top", "toSide": "bottom" },
+    { "id": "c-rest-gw", "from": "rest", "to": "gateway" },
+    { "id": "c-gw-ui", "from": "gateway", "to": "ui" },
+    { "id": "c-dh-wal", "from": "datahub", "to": "wal", "label": "日志" },
+    { "id": "c-shmring-go", "from": "shmring", "to": "go_shm", "label": "零拷贝", "variant": "emphasis", "fromSide": "top", "toSide": "bottom" },
+    { "id": "c-go-api", "from": "go_shm", "to": "go_api", "label": "SSE" },
+    { "id": "c-svc-arb", "from": "service", "to": "arbiter", "label": "提交" },
+    { "id": "c-mtt-stream", "from": "mtt", "to": "stream", "label": "触发" },
+    { "id": "c-wasm-contracts", "from": "wasm", "to": "contracts", "label": "Host API", "fromSide": "bottom", "toSide": "top", "variant": "dashed" }
+  ],
+  "cards": [
+    { "dot": "amber", "title": "垂直任务 (Vertical Tasks)", "items": ["Modbus → DataHub → Stream → REST → UI", "IEC-104 / OPC UA / DLT698 / CAN 各自贯穿", "每条协议构成独立的端到端业务通道"] },
+    { "dot": "cyan", "title": "水平任务 (Horizontal Tasks)", "items": ["DataHub SHM 影子总线横贯四平面", "ShmRing /dev/shm 零拷贝 C↔Go", "WAL + Snapshot 掉电热恢复 <100ms", "MTT uv_periodic 确定性整点调度", "契约编译器 YAML→C/Go 统一 Tag"] },
+    { "dot": "emerald", "title": "双轨通信", "items": ["快车道: SHM 零拷贝 μs级", "慢车道: REST Envelope ms级"] }
+  ]
+}
