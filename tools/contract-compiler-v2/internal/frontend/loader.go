@@ -261,13 +261,25 @@ func (l *Loader) parseTag(tm map[string]interface{}, ast *ContractAST) {
 	
 	if name == "" && !hasID { return }
 
-	// Search existing by Name OR ID
+	// Search existing by Name (for override/augmentation), or by ID if Name is empty
 	var target *TagNode
-	for _, t := range ast.Tags {
-		if (name != "" && t.Name == name) || (hasID && t.ID == uint32(idVal)) {
-			target = t; break
+	if name != "" {
+		for _, t := range ast.Tags {
+			if t.Name == name {
+				target = t
+				break
+			}
+		}
+	} else if hasID {
+		for _, t := range ast.Tags {
+			if t.ID == uint32(idVal) {
+				target = t
+				break
+			}
 		}
 	}
+
+
 
 	if target == nil {
 		target = &TagNode{Name: name, Attributes: make(map[string]interface{})}

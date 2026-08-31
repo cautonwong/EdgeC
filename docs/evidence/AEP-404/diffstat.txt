@@ -1,0 +1,11 @@
+ .local/linux-x86_64/bin/contract-compiler          | Bin 5713763 -> 5725304 bytes
+ docs/evidence/AEP-404/diffstat.txt                 |  11 +++
+ docs/evidence/AEP-404/redlines.md                 |  16 +++
+ docs/evidence/AEP-404/summary.md                  | 105 ++++++++++++
+ docs/evidence/AEP-404/tests.log                   | 550 ++++++++++++++++++++++++++++++
+ tests/CMakeLists.txt                               |  20 +++
+ tests/test_compiler_dx_diagnostics.c               | 175 ++++++++++
+ tools/contract-compiler-v2/internal/frontend/loader.go | 20 ++-
+ tools/contract-compiler-v2/internal/validator/validator.go | 142 ++++++++++++++++++++-
+ tools/contract-compiler-v2/internal/validator/validator_test.go | 95 +++-----------
+ 10 files changed, 1049 insertions(+), 85 deletions(-)

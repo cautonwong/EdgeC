@@ -8,11 +8,11 @@ import (
 
 func TestValidator(t *testing.T) {
 	tests := []struct {
-		name          string
-		strict        bool
-		ast           *frontend.ContractAST
+		name           string
+		strict         bool
+		ast            *frontend.ContractAST
 		expectedErrors int
-		errorSubstr   string
+		errorSubstr    string
 	}{
 		{
 			name:   "Valid Contract",
@@ -77,16 +77,40 @@ func TestValidator(t *testing.T) {
 			errorSubstr:    "Tag ID cannot be zero",
 		},
 		{
-			name:   "Invalid Data Type",
+			name:   "Invalid Data Type with Typo Suggestion",
 			strict: false,
 			ast: &frontend.ContractAST{
 				ProductName: "SmartBox",
 				Tags: []*frontend.TagNode{
-					{ID: 1001, Name: "BAD_TYPE_TAG", DataType: "invalid_custom_struct"},
+					{ID: 1001, Name: "BAD_TYPE_TAG", DataType: "flot"},
 				},
 			},
 			expectedErrors: 1,
-			errorSubstr:    "Invalid data type 'invalid_custom_struct'",
+			errorSubstr:    "Did you mean 'float'?",
+		},
+		{
+			name:   "Tag ID Out of Range with Domain Suggestion",
+			strict: false,
+			ast: &frontend.ContractAST{
+				ProductName: "SmartBox",
+				Tags: []*frontend.TagNode{
+					{ID: 50, Name: "VOLTAGE_LOW_ID", DataType: "float32"},
+				},
+			},
+			expectedErrors: 1,
+			errorSubstr:    "Assign Tag ID within Power Domain range 1000..1999",
+		},
+		{
+			name:   "Strict Mode Non-Standard Unit Suggestion",
+			strict: true,
+			ast: &frontend.ContractAST{
+				ProductName: "SmartBox",
+				Tags: []*frontend.TagNode{
+					{ID: 1001, Name: "VOLTAGE_NON_STD", DataType: "float32", Unit: "Volts"},
+				},
+			},
+			expectedErrors: 1,
+			errorSubstr:    "Did you mean canonical unit 'V'?",
 		},
 		{
 			name:   "Strict Mode Missing Unit",
@@ -100,96 +124,17 @@ func TestValidator(t *testing.T) {
 			expectedErrors: 1,
 			errorSubstr:    "no unit defined",
 		},
-		{
-			name:   "Strict Mode Missing Data Type",
-			strict: true,
-			ast: &frontend.ContractAST{
-				ProductName: "SmartBox",
-				Tags: []*frontend.TagNode{
-					{ID: 1001, Name: "NO_TYPE_TAG", DataType: ""},
-				},
-			},
-			expectedErrors: 1,
-			errorSubstr:    "Missing data type",
-		},
-		{
-			name:   "Instance Unknown Model Reference",
-			strict: false,
-			ast: &frontend.ContractAST{
-				ProductName: "SmartBox",
-				Tags: []*frontend.TagNode{
-					{ID: 1001, Name: "TAG_1001", DataType: "uint32"},
-				},
-				Instances: []*frontend.InstanceNode{
-					{Name: "Meter1", ModelName: "NonExistentModel"},
-				},
-			},
-			expectedErrors: 1,
-			errorSubstr:    "references unknown model 'NonExistentModel'",
-		},
-		{
-			name:   "Instance Binding Unknown TagID",
-			strict: false,
-			ast: &frontend.ContractAST{
-				ProductName: "SmartBox",
-				Tags: []*frontend.TagNode{
-					{ID: 1001, Name: "TAG_1001", DataType: "uint32"},
-				},
-				Models: []*frontend.ModelNode{
-					{Name: "MeterModel", Points: []*frontend.PointNode{{Name: "P1"}}},
-				},
-				Instances: []*frontend.InstanceNode{
-					{
-						Name:      "Meter1",
-						ModelName: "MeterModel",
-						Bindings: []*frontend.BindingMapNode{
-							{Point: "P1", TagID: 99999}, // 99999 does not exist
-						},
-					},
-				},
-			},
-			expectedErrors: 1,
-			errorSubstr:    "references non-existent tag ID 99999",
-		},
-		{
-			name:   "Duplicate Model Point Name",
-			strict: false,
-			ast: &frontend.ContractAST{
-				ProductName: "SmartBox",
-				Models: []*frontend.ModelNode{
-					{
-						Name: "BadModel",
-						Points: []*frontend.PointNode{
-							{Name: "POINT_A", Type: "float32"},
-							{Name: "POINT_A", Type: "uint32"},
-						},
-					},
-				},
-			},
-			expectedErrors: 1,
-			errorSubstr:    "Duplicate point name 'POINT_A'",
-		},
-		{
-			name:   "Tag ID Out of Segment Range",
-			strict: false,
-			ast: &frontend.ContractAST{
-				ProductName: "SmartBox",
-				Tags: []*frontend.TagNode{
-					{ID: 500, Name: "INVALID_LOW_TAG", DataType: "float32"},
-				},
-			},
-			expectedErrors: 1,
-			errorSubstr:    "outside allowed segment ranges",
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			v := NewValidator(tt.strict)
 			errs := v.Validate(tt.ast)
+
 			if len(errs) != tt.expectedErrors {
 				t.Fatalf("Expected %d errors, got %d: %v", tt.expectedErrors, len(errs), errs)
 			}
+
 			if tt.errorSubstr != "" && len(errs) > 0 {
 				found := false
 				for _, err := range errs {

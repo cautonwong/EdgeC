@@ -13,10 +13,50 @@ var AllowedDataTypes = map[string]bool{
 	"bool": true, "string": true, "bytes": true, "raw": true,
 }
 
+var CommonTypeAliases = map[string]string{
+	"flot":             "float",
+	"float_32":         "float32",
+	"float_64":         "float64",
+	"doubl":            "double",
+	"double_precision": "double",
+	"integer":          "int",
+	"int_32":           "int32",
+	"int_64":           "int64",
+	"boolean":          "bool",
+	"str":              "string",
+	"text":             "string",
+	"byte":             "bytes",
+	"binary":           "bytes",
+}
+
+var CommonUnitAliases = map[string]string{
+	"volts":    "V",
+	"volt":     "V",
+	"v":        "V",
+	"amperes":  "A",
+	"ampere":   "A",
+	"amps":     "A",
+	"amp":      "A",
+	"a":        "A",
+	"watts":    "W",
+	"watt":     "W",
+	"w":        "W",
+	"hertz":    "Hz",
+	"hz":       "Hz",
+	"kilowatt": "kW",
+	"kw":       "kW",
+	"kwh":      "kWh",
+	"kilowatthour": "kWh",
+	"percent":  "%",
+	"pct":      "%",
+	"celsius":  "°C",
+	"degc":     "°C",
+}
+
 type ValidationError struct {
-	Field       string
-	Message     string
-	Suggestion  string
+	Field      string
+	Message    string
+	Suggestion string
 }
 
 func (e *ValidationError) Error() string {
@@ -75,7 +115,7 @@ func (v *Validator) Validate(ast *frontend.ContractAST) []error {
 			errs = append(errs, &ValidationError{
 				Field:      location,
 				Message:    fmt.Sprintf("Tag ID %d (0x%X) is outside allowed segment ranges (Business: 1000-11999, Metrics: 12000-12999, Ext: 13000-65535, Protocol OAD: 0x00010000-0x7FFFFFFF)", tag.ID, tag.ID),
-				Suggestion: "Assign Tag ID within an allowed segment range",
+				Suggestion: suggestDomainRange(tag.Name),
 			})
 		} else if prevName, exists := idMap[tag.ID]; exists {
 			errs = append(errs, &ValidationError{
@@ -91,10 +131,16 @@ func (v *Validator) Validate(ast *frontend.ContractAST) []error {
 		if tag.DataType != "" {
 			lowerType := strings.ToLower(tag.DataType)
 			if !AllowedDataTypes[lowerType] {
+				suggestion := findClosestDataType(tag.DataType)
+				if suggestion == "" {
+					suggestion = "Use one of the supported types: float32, float64, int32, int64, uint32, uint64, bool, string, bytes"
+				} else {
+					suggestion = fmt.Sprintf("Did you mean '%s'?", suggestion)
+				}
 				errs = append(errs, &ValidationError{
 					Field:      location,
 					Message:    fmt.Sprintf("Invalid data type '%s'", tag.DataType),
-					Suggestion: "Use one of the supported types: float32, float64, int32, int64, uint32, uint64, bool, string, bytes",
+					Suggestion: suggestion,
 				})
 			}
 		} else if v.Strict {
@@ -106,7 +152,19 @@ func (v *Validator) Validate(ast *frontend.ContractAST) []error {
 		}
 
 		// Unit Check in Strict mode for numeric types
-		if v.Strict && tag.DataType != "" && isNumericType(tag.DataType) && tag.Unit == "" {
+		if tag.Unit != "" {
+			lowerUnit := strings.ToLower(tag.Unit)
+			if standardUnit, hasAlias := CommonUnitAliases[lowerUnit]; hasAlias && tag.Unit != standardUnit {
+				// Notice/Suggestion for unit canonicalization
+				if v.Strict && tag.Unit != standardUnit {
+					errs = append(errs, &ValidationError{
+						Field:      location,
+						Message:    fmt.Sprintf("Non-standard unit format '%s'", tag.Unit),
+						Suggestion: fmt.Sprintf("Did you mean canonical unit '%s'?", standardUnit),
+					})
+				}
+			}
+		} else if v.Strict && tag.DataType != "" && isNumericType(tag.DataType) && tag.Unit == "" {
 			errs = append(errs, &ValidationError{
 				Field:      location,
 				Message:    fmt.Sprintf("Tag '%s' has numeric type '%s' but no unit defined", tag.Name, tag.DataType),
@@ -188,4 +246,76 @@ func (v *Validator) Validate(ast *frontend.ContractAST) []error {
 func isNumericType(dt string) bool {
 	t := strings.ToLower(dt)
 	return t == "float32" || t == "float64" || t == "float" || t == "double"
+}
+
+func suggestDomainRange(tagName string) string {
+	upper := strings.ToUpper(tagName)
+	if strings.HasPrefix(upper, "VOLTAGE_") || strings.HasPrefix(upper, "CURRENT_") || strings.HasPrefix(upper, "GRID_") || strings.HasPrefix(upper, "POWER_") {
+		return "Assign Tag ID within Power Domain range 1000..1999"
+	}
+	if strings.HasPrefix(upper, "ENERGY_") {
+		return "Assign Tag ID within Energy Domain range 3000..3999"
+	}
+	if strings.HasPrefix(upper, "BATTERY_") || strings.HasPrefix(upper, "BMS_") || strings.HasPrefix(upper, "SOC_") {
+		return "Assign Tag ID within Storage Domain range 4000..4999"
+	}
+	return "Assign Tag ID within an allowed segment range (1000-11999)"
+}
+
+func findClosestDataType(input string) string {
+	lower := strings.ToLower(input)
+	if target, ok := CommonTypeAliases[lower]; ok {
+		return target
+	}
+
+	types := []string{"float32", "float64", "float", "double", "int32", "int64", "int", "uint32", "uint64", "uint", "bool", "string", "bytes"}
+	bestMatch := ""
+	minDist := 999
+
+	for _, candidate := range types {
+		d := levenshtein(lower, candidate)
+		if d < minDist && d <= 3 {
+			minDist = d
+			bestMatch = candidate
+		}
+	}
+	return bestMatch
+}
+
+func levenshtein(s1, s2 string) int {
+	r1, r2 := []rune(s1), []rune(s2)
+	l1, l2 := len(r1), len(r2)
+
+	col := make([]int, l1+1)
+	for y := 0; y <= l1; y++ {
+		col[y] = y
+	}
+
+	for x := 1; x <= l2; x++ {
+		col[0] = x
+		lastDiag := x - 1
+		for y := 1; y <= l1; y++ {
+			oldDiag := col[y]
+			cost := 0
+			if r1[y-1] != r2[x-1] {
+				cost = 1
+			}
+			col[y] = min3(col[y]+1, col[y-1]+1, lastDiag+cost)
+			lastDiag = oldDiag
+		}
+	}
+	return col[l1]
+}
+
+func min3(a, b, c int) int {
+	if a < b {
+		if a < c {
+			return a
+		}
+		return c
+	}
+	if b < c {
+		return b
+	}
+	return c
 }
