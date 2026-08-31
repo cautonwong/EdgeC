@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"edge-cli/internal/linter"
+	"edge-cli/internal/migrate"
 	"edge-cli/internal/scaffold"
 )
 
@@ -13,7 +14,7 @@ const Version = "1.0.0"
 
 func printUsage() {
 	fmt.Printf(`EdgeOS Developer Experience Tool (edge-cli) v%s
-Industrial Scaffold, Driver Generation & Contract Linter
+Industrial Scaffold, Driver Generation, Contract Linter & Migration Wizard
 
 Usage:
   edge-cli <command> [arguments]
@@ -22,19 +23,23 @@ Commands:
   create-product <name>       Create an isolated EdgeOS product scaffold
   create-driver <name>        Create an EdgeOS peripheral driver & binding template
   lint-contract <file.yaml>   Lint & validate an EdgeOS contract YAML file
+  migrate [--dir=<path>]      Scan and auto-migrate legacy SDK headers and contract schemas
   version                     Display edge-cli version
   help                        Show help message
 
 Flags:
   --base <dir>                Base project root directory (default: ".")
+  --dir <dir>                 Target directory to migrate (default: ".")
   --type <type>               Driver type (serial, tcp, can, custom; default: "serial")
   --protocol <protocol>       Driver protocol (modbus, dlt645, iec104, custom; default: "custom")
   --strict                    Treat linter warnings as errors
+  --fix                       Automatically apply migration fixes to files
 
 Examples:
   edge-cli create-product microgrid_gateway
   edge-cli create-driver inverter_sunspec --type=tcp --protocol=modbus
   edge-cli lint-contract contracts/products/iems_v5.yaml --strict
+  edge-cli migrate --dir=examples/custom_driver --fix
 `, Version)
 }
 
@@ -103,7 +108,7 @@ func main() {
 		_ = fs.Parse(flagArgs)
 
 		if len(nonFlagArgs) < 1 {
-			fmt.Fprintf(os.Stderr, "Error: missing driver name\nUsage: edge-cli create-driver <name> [--type=...] [--protocol=...]\n")
+			fmt.Fprintf(os.Stderr, "Error: missing driver name\nUsage: edge-cli create-driver <name> [--type=<type>] [--protocol=<protocol>]\n")
 			os.Exit(1)
 		}
 		drvName := nonFlagArgs[0]
@@ -155,6 +160,31 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Printf("✅ Lint PASSED: 0 errors, %d warnings\n", result.WarnCount)
+
+	case "migrate":
+		fs := flag.NewFlagSet("migrate", flag.ExitOnError)
+		dir := fs.String("dir", ".", "Target directory to scan and migrate")
+		fix := fs.Bool("fix", false, "Automatically apply migration changes")
+		verbose := fs.Bool("verbose", false, "Verbose output")
+
+		var flagArgs []string
+		for _, arg := range os.Args[2:] {
+			if len(arg) > 0 && arg[0] == '-' {
+				flagArgs = append(flagArgs, arg)
+			}
+		}
+		_ = fs.Parse(flagArgs)
+
+		res, err := migrate.RunMigration(migrate.MigrateOptions{
+			TargetDir: *dir,
+			Fix:       *fix,
+			Verbose:   *verbose,
+		})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "❌ Migration error: %v\n", err)
+			os.Exit(1)
+		}
+		migrate.PrintReport(res, *fix)
 
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: '%s'\n", cmd)

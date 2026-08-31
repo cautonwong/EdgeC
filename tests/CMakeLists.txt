@@ -506,6 +506,24 @@ target_link_libraries(test_compiler_dx_diagnostics PRIVATE
 )
 add_test(NAME test_compiler_dx_diagnostics COMMAND test_compiler_dx_diagnostics)
 
+# AEP-405 edge-cli migrate 跨版本迁移向导集成测试
+add_executable(test_cli_migrate test_cli_migrate.c)
+target_link_libraries(test_cli_migrate PRIVATE
+    -Wl,--start-group
+    edge_infra
+    edge_io
+    edge_stream
+    edge_security
+    edge_core
+    edge_algo
+    contract_iems
+    -Wl,--end-group
+    edge_common_interface
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_cli_migrate COMMAND test_cli_migrate)
+
 
 
 

@@ -1,0 +1,12 @@
+ .local/linux-x86_64/bin/edge-cli            | Bin 3494751 -> 3574074 bytes
+ docs/evidence/AEP-405/diffstat.txt                 |  11 +++
+ docs/evidence/AEP-405/redlines.md                 |  16 +++
+ docs/evidence/AEP-405/summary.md                  | 105 ++++++++++++
+ docs/evidence/AEP-405/tests.log                   | 550 ++++++++++++++++++++++++++++++
+ tests/CMakeLists.txt                               |  18 +++
+ tests/test_cli_migrate.c                           | 194 +++++++++++++++++++
+ tools/edge-cli/cmd/main.go                         |  34 +++-
+ tools/edge-cli/internal/migrate/migrate.go         | 190 ++++++++++++++++++++
+ tools/edge-cli/internal/migrate/migrate_test.go    | 120 ++++++++++++
+ tools/edge-cli/internal/scaffold/product.go        |  24 +--
+ 11 files changed, 1238 insertions(+), 24 deletions(-)
