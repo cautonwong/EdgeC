@@ -41,7 +41,7 @@ func CreateProduct(opts ProductOptions) error {
 product: "%s"
 
 # 1. 语义层继承 (Semantic Domains)
-include:
+includes:
   - "contracts/schema/domains/power.yaml"
   - "contracts/schema/domains/energy.yaml"
   - "contracts/schema/domains/system.yaml"
@@ -155,13 +155,13 @@ int main(int argc, char* argv[]) {
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 
-    printf("=========================================================\\n");
-    printf("🚀 Starting EdgeOS Product: %s (SDK v%%s)\\n", "%s", edgeos_sdk_get_version());
-    printf("=========================================================\\n");
+    printf("=========================================================\n");
+    printf("🚀 Starting EdgeOS Product: %s (SDK v%%s)\n", edgeos_sdk_get_version());
+    printf("=========================================================\n");
 
     // 1. 初始化 EdgeOS SDK
     if (edgeos_sdk_init() != 0) {
-        fprintf(stderr, "[-] Failed to initialize EdgeOS SDK\\n");
+        fprintf(stderr, "[-] Failed to initialize EdgeOS SDK\n");
         return -1;
     }
 
@@ -172,27 +172,27 @@ int main(int argc, char* argv[]) {
     };
     edgeos_datahub_t* dh = datahub_create(&dh_cfg);
     if (!dh) {
-        fprintf(stderr, "[-] Failed to initialize DataHub\\n");
+        fprintf(stderr, "[-] Failed to initialize DataHub\n");
         return -1;
     }
 
     // 3. 初始化驱动管理器并注入生成式驱动注册表 (零手工 extern)
     driver_manager_t* drv_mgr = driver_manager_create();
     if (!drv_mgr) {
-        fprintf(stderr, "[-] Failed to create driver manager\\n");
+        fprintf(stderr, "[-] Failed to create driver manager\n");
         datahub_destroy(dh);
         return -1;
     }
 
     int reg_rc = edge_driver_registry_init(drv_mgr);
-    printf("[+] Generated driver registry initialized (result: %%d, drivers: %%zu)\\n",
+    printf("[+] Generated driver registry initialized (result: %%d, drivers: %%zu)\n",
            reg_rc, g_edge_driver_registry_count);
 
-    printf("[+] Product %s is ready and operational.\\n", "%s");
+    printf("[+] Product %s is ready and operational.\n", "%s");
 
     // 运行主循环 (若单次运行则退出)
     if (getenv("EDGEOS_RUN_ONCE")) {
-        printf("[+] EDGEOS_RUN_ONCE mode: exiting cleanly.\\n");
+        printf("[+] EDGEOS_RUN_ONCE mode: exiting cleanly.\n");
     } else {
         while (g_running) {
             usleep(100000); // 100ms
@@ -202,10 +202,10 @@ int main(int argc, char* argv[]) {
     // 4. 优雅清理与退出
     driver_manager_destroy(drv_mgr);
     datahub_destroy(dh);
-    printf("[-] Product %s stopped cleanly.\\n", "%s");
+    printf("[-] Product %s stopped cleanly.\n", "%s");
     return 0;
 }
-`, strings.ToUpper(prodName), prodName, prodName, prodName, prodName)
+`, strings.ToUpper(prodName), prodName, prodName, "%s", prodName, "%s")
 	if err := os.WriteFile(mainPath, []byte(mainContent), 0644); err != nil {
 		return fmt.Errorf("failed to write %s: %w", mainPath, err)
 	}

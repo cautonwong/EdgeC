@@ -1,0 +1,16 @@
+schema_version: "2.0.0"
+product:
+  name: "sample_archetype_bess"
+  version: "1.0.0"
+  description: "EdgeOS Secondary Development Product Scaffold for sample_archetype_bess"
+  entry_point: "cmd/sample_archetype_bess/main.c"
+
+contract:
+  product_yaml: "contracts/products/sample_archetype_bess.yaml"
+
+runtime:
+  realtime: false
+  watchdog_sec: 10
+  memory_limit_mb: 64
+
+drivers: []
