@@ -1,0 +1,18 @@
+ CMakeLists.txt                                     |   3 +++
+ docs/evidence/AEP-403/diffstat.txt                 |  19 +++
+ docs/evidence/AEP-403/redlines.md                 |  16 +++
+ docs/evidence/AEP-403/summary.md                  | 115 ++++++++++++
+ docs/evidence/AEP-403/tests.log                   | 550 ++++++++++++++++++++++++++++++
+ examples/custom_algo/CMakeLists.txt               |  14 +++
+ examples/custom_algo/README.md                    |  36 +++
+ examples/custom_algo/include/custom_soc_filter.h  |  37 +++
+ examples/custom_algo/src/custom_soc_filter.c      |  48 +++
+ examples/custom_driver/CMakeLists.txt             |  16 +++
+ examples/custom_driver/README.md                  |  44 +++
+ examples/custom_driver/binding/custom_inverter.yaml |  27 +++
+ examples/custom_driver/include/custom_inverter_driver.h | 40 +++
+ examples/custom_driver/src/custom_inverter_driver.c |  86 +++++
+ include/edgeos/driver.h                            |   3 +-
+ tests/CMakeLists.txt                               |  22 +++
+ tests/test_examples_integration.c                  | 138 ++++++++
+ 17 files changed, 1213 insertions(+), 1 deletion(-)

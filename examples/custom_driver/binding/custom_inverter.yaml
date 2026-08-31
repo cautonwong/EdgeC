@@ -1,0 +1,33 @@
+# [EdgeOS Custom Driver Binding] Photovoltaic Inverter Modbus Mapping
+driver: "custom_inverter_driver"
+protocol: "modbus"
+device_model: "SOLAR_INV_5KW"
+
+registers:
+  - address: 0x3001
+    tag_id: 1001 # VOLTAGE_PHASE_A
+    type: "uint16"
+    scale: 0.1
+    unit: "V"
+    desc: "AC Output Voltage Phase A"
+
+  - address: 0x3002
+    tag_id: 1002 # CURRENT_PHASE_A
+    type: "uint16"
+    scale: 0.01
+    unit: "A"
+    desc: "AC Output Current Phase A"
+
+  - address: 0x3003
+    tag_id: 1003 # GRID_POWER
+    type: "uint32"
+    scale: 1.0
+    unit: "W"
+    desc: "Active Output Power"
+
+  - address: 0x3005
+    tag_id: 1004 # GRID_FREQUENCY
+    type: "uint16"
+    scale: 0.01
+    unit: "Hz"
+    desc: "Grid Frequency"

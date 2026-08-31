@@ -466,6 +466,28 @@ target_link_libraries(test_archetype_generator PRIVATE
 )
 add_test(NAME test_archetype_generator COMMAND test_archetype_generator)
 
+# AEP-403 二开驱动与算法范例集成单测
+add_executable(test_examples_integration test_examples_integration.c)
+target_link_libraries(test_examples_integration PRIVATE
+    -Wl,--start-group
+    custom_inverter_driver
+    custom_soc_filter
+    edge_infra
+    edge_io
+    edge_stream
+    edge_security
+    edge_core
+    edge_protocol
+    edge_algo
+    contract_iems
+    -Wl,--end-group
+    edge_common_interface
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_examples_integration COMMAND test_examples_integration)
+
+
 
 
 

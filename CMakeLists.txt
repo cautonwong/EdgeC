@@ -140,7 +140,10 @@ add_subdirectory(cmd/smart_box)
 add_subdirectory(cmd/iems)
 add_subdirectory(cmd/dcu)
 add_subdirectory(cmd/nexus_lab)
+add_subdirectory(examples/custom_driver)
+add_subdirectory(examples/custom_algo)
 enable_testing()
 add_subdirectory(tests)
+
 
 # Helper for test registration
