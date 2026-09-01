@@ -1,0 +1,9 @@
+ docs/evidence/AEP-406/diffstat.txt                |  10 +++
+ docs/evidence/AEP-406/redlines.md                |  16 +++
+ docs/evidence/AEP-406/summary.md                 | 110 +++++++++++++
+ docs/evidence/AEP-406/tests.log                  | 550 ++++++++++++++++++++++++++++++
+ docs/manuals/quickstart_5min.md                  |  68 ++++
+ docs/manuals/secondary_developer_guide.md        | 175 ++++++++++
+ tests/CMakeLists.txt                              |  18 +
+ tests/test_developer_manuals.c                   | 134 ++++++++
+ 8 files changed, 1081 insertions(+)

@@ -524,6 +524,24 @@ target_link_libraries(test_cli_migrate PRIVATE
 )
 add_test(NAME test_cli_migrate COMMAND test_cli_migrate)
 
+# AEP-406 二开工程师手册物理一致性自动化测试
+add_executable(test_developer_manuals test_developer_manuals.c)
+target_link_libraries(test_developer_manuals PRIVATE
+    -Wl,--start-group
+    edge_infra
+    edge_io
+    edge_stream
+    edge_security
+    edge_core
+    edge_algo
+    contract_iems
+    -Wl,--end-group
+    edge_common_interface
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_developer_manuals COMMAND test_developer_manuals)
+
 
 
 
