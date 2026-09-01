@@ -1,0 +1,12 @@
+ contracts/schema/core_readonly_whitelist.txt |   7 +-
+ docs/evidence/ARCH-DEEP-01/diffstat.txt      |  12 +++
+ docs/evidence/ARCH-DEEP-01/redlines.md      |  16 +++
+ docs/evidence/ARCH-DEEP-01/summary.md       | 115 ++++++++++++++++++++
+ docs/evidence/ARCH-DEEP-01/tests.log        | 580 ++++++++++++++++++++++++++++++
+ include/edgeos/datahub.h                     |   2 +
+ modules/edge_core/include/datahub.h          |  57 ++++++++++++
+ modules/edge_core/src/datahub.c              | 130 +++++++++++++++++++++++++++
+ modules/edge_core/src/datahub_shm.c          |   8 +-
+ tests/CMakeLists.txt                         |  18 ++++
+ tests/test_datahub_subscription.c            | 286 ++++++++++++++++++++++++++++++++++++++++++++++
+ 11 files changed, 1247 insertions(+), 4 deletions(-)

@@ -11,5 +11,8 @@ modules/edge_core/src/datahub_dds.c
 modules/edge_core/src/datahub_mqtt.c
 modules/edge_core/src/sqlite_service.c
 
-# Dependency Exemption: cJSON (lightweight parser in modules/edge_core/src/edge_app_mgr.c for app descriptors)
-# Approved by Architecture Committee (2026-08-16)
+# ARCH-DEEP-01 (Issue #123): DataHub Fine-Grained Subscription Engine Deepening
+# Approved by Architecture Committee (2026-09-01)
+modules/edge_core/include/datahub.h
+modules/edge_core/src/datahub.c
+modules/edge_core/src/datahub_shm.c

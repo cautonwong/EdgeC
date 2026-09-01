@@ -16,6 +16,8 @@ extern "C" {
 #endif
 
 typedef datahub_t edgeos_datahub_t;
+typedef datahub_event_cb edgeos_datahub_event_cb;
+typedef datahub_sub_filter_t edgeos_datahub_sub_filter_t;
 
 #ifdef __cplusplus
 }
