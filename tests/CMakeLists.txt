@@ -542,6 +542,24 @@ target_link_libraries(test_developer_manuals PRIVATE
 )
 add_test(NAME test_developer_manuals COMMAND test_developer_manuals)
 
+# ARCH-DEEP-01 DataHub 细粒度事件订阅与过滤分发引擎测试与基准
+add_executable(test_datahub_subscription test_datahub_subscription.c)
+target_link_libraries(test_datahub_subscription PRIVATE
+    -Wl,--start-group
+    edge_infra
+    edge_io
+    edge_stream
+    edge_security
+    edge_core
+    edge_algo
+    contract_iems
+    -Wl,--end-group
+    edge_common_interface
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_datahub_subscription COMMAND test_datahub_subscription)
+
 
 
 

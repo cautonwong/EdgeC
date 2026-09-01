@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include <sys/mman.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -105,6 +106,56 @@ int datahub_write_shadow_idx(datahub_t *hub, int idx, const pipe_msg_t *msg) {
         }
     }
     uv_mutex_unlock(&hub->shadow_lock);
+
+    // --- [ARCH-DEEP-01] Fine-Grained Subscription Zero-Copy Dispatch ---
+    uv_mutex_lock(&hub->sub_lock);
+    for (int i = 0; i < DATAHUB_MAX_SUBSCRIBERS; i++) {
+        if (!hub->subscribers[i].active) continue;
+        datahub_subscriber_entry_t *sub = &hub->subscribers[i];
+        const datahub_sub_filter_t *f = &sub->filter;
+
+        // 1. Tag ID filter
+        if (f->tag_id != 0 && msg->tag_id != f->tag_id) continue;
+        if (f->tag_mask != 0 && (msg->tag_id & f->tag_mask) != (f->tag_id & f->tag_mask)) continue;
+
+        // 2. Domain filter (support matching upper 16 bits or direct mask)
+        if (f->domain_mask != 0) {
+            uint32_t tag_domain = (msg->tag_id >> 16);
+            if ((tag_domain & f->domain_mask) == 0 && (msg->tag_id & f->domain_mask) == 0) continue;
+        }
+
+        // 3. Device ID filter
+        if (f->device_id != EDGE_DEVICE_ANY && msg->device_id != f->device_id) continue;
+
+        // 4. Deadband / Report-by-Exception (RBE)
+        if (f->notify_on_change_only && sub->has_last_msg) {
+            bool changed = false;
+            if (msg->type == PIPEMSG_TYPE_SCALAR) {
+                if (fabs(msg->payload.val.f - sub->last_notified_msg.payload.val.f) > f->deadband ||
+                    (f->deadband == 0.0 && msg->payload.val.i != sub->last_notified_msg.payload.val.i)) {
+                    changed = true;
+                }
+            } else if (msg->type == PIPEMSG_TYPE_EVENT) {
+                if (msg->payload.event.event_id != sub->last_notified_msg.payload.event.event_id ||
+                    msg->payload.event.param != sub->last_notified_msg.payload.event.param) {
+                    changed = true;
+                }
+            } else {
+                if (memcmp(&msg->payload, &sub->last_notified_msg.payload, sizeof(msg->payload)) != 0) {
+                    changed = true;
+                }
+            }
+            if (!changed) continue;
+        }
+
+        // 5. Direct typed zero-copy callback invocation
+        if (sub->callback) {
+            sub->callback(hub, msg, sub->user_ctx);
+        }
+        sub->last_notified_msg = *msg;
+        sub->has_last_msg = true;
+    }
+    uv_mutex_unlock(&hub->sub_lock);
     
     if (hub->legacy_cb) {
         uv_async_send(&hub->legacy_async);
@@ -162,6 +213,85 @@ void datahub_subscribe(datahub_t *hub, datahub_on_data_cb cb, void *user_data) {
         g_datahub_shm_ops.subscribe(hub, cb, user_data);
     }
 }
+
+int datahub_subscribe_filtered(datahub_t *hub, const datahub_sub_filter_t *filter,
+                               datahub_event_cb cb, void *user_ctx) {
+    if (!hub || !cb) return -1;
+
+    uv_mutex_lock(&hub->sub_lock);
+    int slot = -1;
+    for (int i = 0; i < DATAHUB_MAX_SUBSCRIBERS; i++) {
+        if (!hub->subscribers[i].active) {
+            slot = i;
+            break;
+        }
+    }
+
+    if (slot < 0) {
+        uv_mutex_unlock(&hub->sub_lock);
+        return -1; // Max subscribers reached
+    }
+
+    int sub_id = hub->next_sub_id++;
+    if (hub->next_sub_id <= 0) hub->next_sub_id = 1; // Overflow wrap protection
+
+    datahub_subscriber_entry_t *sub = &hub->subscribers[slot];
+    memset(sub, 0, sizeof(datahub_subscriber_entry_t));
+    sub->sub_id = sub_id;
+    sub->active = true;
+    if (filter) {
+        sub->filter = *filter;
+    } else {
+        sub->filter.device_id = EDGE_DEVICE_ANY;
+    }
+    sub->callback = cb;
+    sub->user_ctx = user_ctx;
+    sub->has_last_msg = false;
+
+    uv_mutex_unlock(&hub->sub_lock);
+    return sub_id;
+}
+
+int datahub_subscribe_tag(datahub_t *hub, uint32_t tag_id, datahub_event_cb cb, void *user_ctx) {
+    datahub_sub_filter_t filter = {
+        .tag_id = tag_id,
+        .tag_mask = 0,
+        .domain_mask = 0,
+        .device_id = EDGE_DEVICE_ANY,
+        .notify_on_change_only = false,
+        .deadband = 0.0,
+    };
+    return datahub_subscribe_filtered(hub, &filter, cb, user_ctx);
+}
+
+int datahub_subscribe_domain(datahub_t *hub, uint32_t domain_mask, datahub_event_cb cb, void *user_ctx) {
+    datahub_sub_filter_t filter = {
+        .tag_id = 0,
+        .tag_mask = 0,
+        .domain_mask = domain_mask,
+        .device_id = EDGE_DEVICE_ANY,
+        .notify_on_change_only = false,
+        .deadband = 0.0,
+    };
+    return datahub_subscribe_filtered(hub, &filter, cb, user_ctx);
+}
+
+int datahub_unsubscribe(datahub_t *hub, int sub_id) {
+    if (!hub || sub_id <= 0) return -1;
+
+    uv_mutex_lock(&hub->sub_lock);
+    for (int i = 0; i < DATAHUB_MAX_SUBSCRIBERS; i++) {
+        if (hub->subscribers[i].active && hub->subscribers[i].sub_id == sub_id) {
+            hub->subscribers[i].active = false;
+            memset(&hub->subscribers[i], 0, sizeof(datahub_subscriber_entry_t));
+            uv_mutex_unlock(&hub->sub_lock);
+            return 0;
+        }
+    }
+    uv_mutex_unlock(&hub->sub_lock);
+    return -1; // Not found
+}
+
 
 int datahub_get_stats(datahub_t *hub, datahub_backend_stats_t *stats) {
     if (!hub || !stats) return -1;

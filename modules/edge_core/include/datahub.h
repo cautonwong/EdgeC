@@ -50,6 +50,36 @@ typedef struct {
     uint32_t tag_count;
 } schema_version_t;
 
+#define DATAHUB_MAX_SUBSCRIBERS 64
+#define EDGE_DEVICE_ANY 0xFFFFFFFF
+
+/**
+ * @brief 细粒度数据更新回调 (Zero-Copy)
+ */
+typedef void (*datahub_event_cb)(datahub_t *hub, const pipe_msg_t *msg, void *user_ctx);
+
+/**
+ * @brief 订阅过滤条件
+ */
+typedef struct {
+    uint32_t tag_id;            /**< 精确测点 ID (0 表示使用掩码或范围) */
+    uint32_t tag_mask;          /**< 测点位掩码过滤 (如 0xFFFF0000) */
+    uint32_t domain_mask;       /**< 域掩码 (如 DOMAIN_TELEMETRY | DOMAIN_ALARM) */
+    uint32_t device_id;         /**< 目标设备 ID (EDGE_DEVICE_ANY = 0xFFFFFFFF 表示通配) */
+    bool notify_on_change_only; /**< 仅在值发生物理改变时触发 (Deadband / RBE) */
+    double deadband;            /**< 死区绝对变化阈值 */
+} datahub_sub_filter_t;
+
+typedef struct {
+    int sub_id;
+    bool active;
+    datahub_sub_filter_t filter;
+    datahub_event_cb callback;
+    void *user_ctx;
+    pipe_msg_t last_notified_msg;
+    bool has_last_msg;
+} datahub_subscriber_entry_t;
+
 struct datahub_s {
     datahub_backend_type_t backend_type;
     const datahub_ops_t *ops;  /**< Active VTable implementation */
@@ -106,6 +136,11 @@ struct datahub_s {
     uv_timer_t metrics_timer;
     int metrics_active;
 
+    // --- [ARCH-DEEP-01] Fine-Grained Subscription Engine ---
+    datahub_subscriber_entry_t subscribers[DATAHUB_MAX_SUBSCRIBERS];
+    uv_mutex_t sub_lock;
+    int next_sub_id;
+
     // --- [ADR-0005] Backend Stats Counters ---
     atomic_uint_fast64_t total_publishes;
     atomic_uint_fast64_t total_shadow_reads;
@@ -151,6 +186,28 @@ int datahub_register_ref(datahub_t *hub, uint32_t tag_id, int fd, size_t len);
 int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out);
 int datahub_read_shadow_idx(datahub_t *hub, uint32_t idx, pipe_msg_t *out);
 void datahub_subscribe(datahub_t *hub, datahub_on_data_cb cb, void *user_data);
+
+/**
+ * @brief [ARCH-DEEP-01] 订阅指定测点精确更新 (Zero-Copy Callback)
+ * @return 订阅句柄 sub_id (>= 0)，失败返回负数错误码
+ */
+int datahub_subscribe_tag(datahub_t *hub, uint32_t tag_id, datahub_event_cb cb, void *user_ctx);
+
+/**
+ * @brief [ARCH-DEEP-01] 订阅指定数据域更新
+ */
+int datahub_subscribe_domain(datahub_t *hub, uint32_t domain_mask, datahub_event_cb cb, void *user_ctx);
+
+/**
+ * @brief [ARCH-DEEP-01] 细粒度组合条件订阅 (过滤、死区、变位上送)
+ */
+int datahub_subscribe_filtered(datahub_t *hub, const datahub_sub_filter_t *filter,
+                               datahub_event_cb cb, void *user_ctx);
+
+/**
+ * @brief [ARCH-DEEP-01] 注销细粒度订阅
+ */
+int datahub_unsubscribe(datahub_t *hub, int sub_id);
 
 /**
  * @brief [ADR-0005] 获取 Backend 统计信息

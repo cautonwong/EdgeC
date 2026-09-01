@@ -78,8 +78,11 @@ int datahub_shm_init(datahub_t *hub, const datahub_config_t *config) {
         return -1;
     }
     
-    // 初始化影子锁
+    // 初始化影子锁与细粒度订阅锁
     uv_mutex_init(&hub->shadow_lock);
+    uv_mutex_init(&hub->sub_lock);
+    hub->next_sub_id = 1;
+    memset(hub->subscribers, 0, sizeof(hub->subscribers));
 
     // [ADR-0001] 初始化 Metrics
     atomic_store_explicit(&hub->metrics_shadow_writes, 0, memory_order_relaxed);
@@ -178,7 +181,8 @@ void datahub_shm_destroy(datahub_t *hub) {
     }
     uv_mutex_unlock(&hub->shadow_lock);
     uv_mutex_destroy(&hub->shadow_lock);
-    if (!uv_is_closing((uv_handle_t *)&hub->legacy_async)) {
+    uv_mutex_destroy(&hub->sub_lock);
+    if (hub->loop && !uv_is_closing((uv_handle_t *)&hub->legacy_async)) {
         uv_close((uv_handle_t *)&hub->legacy_async, NULL);
     }
     if (hub->compaction_active && !uv_is_closing((uv_handle_t *)&hub->compaction_timer)) {
