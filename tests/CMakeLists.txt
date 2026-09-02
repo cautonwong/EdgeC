@@ -614,6 +614,28 @@ target_link_libraries(test_stream_yaml_assembly PRIVATE
 )
 add_test(NAME test_stream_yaml_assembly COMMAND test_stream_yaml_assembly)
 
+# ARCH-DDS-01 Cyclone DDS 工业级能力深化与分布式网状通信测试
+add_executable(test_datahub_dds_mesh test_datahub_dds_mesh.c)
+target_include_directories(test_datahub_dds_mesh PRIVATE
+    ${CMAKE_BINARY_DIR}/idl_generated
+)
+target_link_libraries(test_datahub_dds_mesh PRIVATE
+    -Wl,--start-group
+    edge_infra
+    edge_io
+    edge_stream
+    edge_security
+    edge_core
+    edge_algo
+    contract_iems
+    -Wl,--end-group
+    edge_common_interface
+    cyclonedds
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_datahub_dds_mesh COMMAND test_datahub_dds_mesh)
+
 
 
 

@@ -12,6 +12,7 @@
 #include "edgeos/driver.h"
 #include "edgeos/storage.h"
 #include "edgeos/stream_engine.h"
+#include "edgeos/dds.h"
 #include "edgeos/anti_corruption.h"
 
 #ifdef __cplusplus
