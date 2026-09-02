@@ -560,6 +560,24 @@ target_link_libraries(test_datahub_subscription PRIVATE
 )
 add_test(NAME test_datahub_subscription COMMAND test_datahub_subscription)
 
+# ARCH-DEEP-02 南向驱动自动轮询调度与遥测编排器测试
+add_executable(test_driver_orchestrator test_driver_orchestrator.c)
+target_link_libraries(test_driver_orchestrator PRIVATE
+    -Wl,--start-group
+    edge_infra
+    edge_io
+    edge_stream
+    edge_security
+    edge_core
+    edge_algo
+    contract_iems
+    -Wl,--end-group
+    edge_common_interface
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_driver_orchestrator COMMAND test_driver_orchestrator)
+
 
 
 

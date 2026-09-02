@@ -1,0 +1,10 @@
+ docs/evidence/ARCH-DEEP-02/diffstat.txt      |  12 +++
+ docs/evidence/ARCH-DEEP-02/redlines.md      |  16 +++
+ docs/evidence/ARCH-DEEP-02/summary.md       | 115 ++++++++++++++++++++
+ docs/evidence/ARCH-DEEP-02/tests.log        | 590 ++++++++++++++++++++++++++++++
+ include/edgeos/driver.h                  |   5 +-
+ modules/edge_io/include/driver_manager.h |  85 ++++++
+ modules/edge_io/src/driver_manager.c     | 437 ++++++++++++++++++++++++++++++-
+ tests/CMakeLists.txt                     |  18 ++
+ tests/test_driver_orchestrator.c         | 313 ++++++++++++++++++++++++++++++++++++++++++++++
+ 9 files changed, 1591 insertions(+), 2 deletions(-)
