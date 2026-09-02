@@ -5,6 +5,7 @@
 set(INFRA_SOURCES
     src/edge_infra_base.c
     src/edge_anti_corruption.c
+    storage/edge_telemetry_store.c
 )
 set(INFRA_PUBLIC_LIBS edge_common_interface)
 set(INFRA_PRIVATE_LIBS libuv::uv_a zlog::zlog)

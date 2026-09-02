@@ -578,6 +578,24 @@ target_link_libraries(test_driver_orchestrator PRIVATE
 )
 add_test(NAME test_driver_orchestrator COMMAND test_driver_orchestrator)
 
+# ARCH-DEEP-03 时序存储、WAL 崩溃一致性与 SnF 统一仓储测试
+add_executable(test_telemetry_store_crash test_telemetry_store_crash.c)
+target_link_libraries(test_telemetry_store_crash PRIVATE
+    -Wl,--start-group
+    edge_infra
+    edge_io
+    edge_stream
+    edge_security
+    edge_core
+    edge_algo
+    contract_iems
+    -Wl,--end-group
+    edge_common_interface
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_telemetry_store_crash COMMAND test_telemetry_store_crash)
+
 
 
 
