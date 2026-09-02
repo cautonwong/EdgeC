@@ -43,6 +43,7 @@ target_include_directories(edge_infra PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+    ${CMAKE_BINARY_DIR}/idl_generated
 )
 
 target_link_libraries(edge_infra PUBLIC ${INFRA_PUBLIC_LIBS})
