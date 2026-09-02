@@ -1,0 +1,11 @@
+ docs/evidence/ARCH-DEEP-03/diffstat.txt                    |  12 +++
+ docs/evidence/ARCH-DEEP-03/redlines.md                    |  16 +++
+ docs/evidence/ARCH-DEEP-03/summary.md                     | 115 ++++++++++++++++++++
+ docs/evidence/ARCH-DEEP-03/tests.log                      | 590 ++++++++++++++++++++++++++++++
+ include/edgeos/storage.h                                  |  24 +++
+ modules/edge_infra/CMakeLists.txt                         |   1 +
+ modules/edge_infra/include/edge_telemetry_store.h         | 104 ++++++
+ modules/edge_infra/storage/edge_telemetry_store.c         | 435 ++++++++++++++++++++++++++++++
+ tests/CMakeLists.txt                                      |  18 ++
+ tests/test_telemetry_store_crash.c                        | 256 +++++++++++++++++++++++++++++++++++++++
+ 10 files changed, 1571 insertions(+)
