@@ -596,6 +596,24 @@ target_link_libraries(test_telemetry_store_crash PRIVATE
 )
 add_test(NAME test_telemetry_store_crash COMMAND test_telemetry_store_crash)
 
+# ARCH-DEEP-04 流计算 DAG 管道声明式自装配引擎测试
+add_executable(test_stream_yaml_assembly test_stream_yaml_assembly.c)
+target_link_libraries(test_stream_yaml_assembly PRIVATE
+    -Wl,--start-group
+    edge_infra
+    edge_io
+    edge_stream
+    edge_security
+    edge_core
+    edge_algo
+    contract_iems
+    -Wl,--end-group
+    edge_common_interface
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_stream_yaml_assembly COMMAND test_stream_yaml_assembly)
+
 
 
 

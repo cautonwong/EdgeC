@@ -1,0 +1,11 @@
+ docs/evidence/ARCH-DEEP-04/diffstat.txt                    |  12 +++
+ docs/evidence/ARCH-DEEP-04/redlines.md                    |  16 +++
+ docs/evidence/ARCH-DEEP-04/summary.md                     | 115 ++++++++++++++++++++
+ docs/evidence/ARCH-DEEP-04/tests.log                      | 590 ++++++++++++++++++++++++++++++
+ include/edgeos/edgeos.h                                   |   2 +
+ include/edgeos/stream_engine.h                            |  28 +++
+ modules/edge_stream/include/stream_engine.h               |  32 ++++
+ modules/edge_stream/src/pipeline_loader.c                 | 260 ++++++++++++++++++++++++++++
+ tests/CMakeLists.txt                                      |  18 ++
+ tests/test_stream_yaml_assembly.c                         | 185 +++++++++++++++++++++++++++
+ 10 files changed, 1258 insertions(+)
