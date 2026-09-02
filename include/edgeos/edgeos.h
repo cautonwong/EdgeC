@@ -10,6 +10,8 @@
 #include "edgeos/types.h"
 #include "edgeos/datahub.h"
 #include "edgeos/driver.h"
+#include "edgeos/storage.h"
+#include "edgeos/stream_engine.h"
 #include "edgeos/anti_corruption.h"
 
 #ifdef __cplusplus

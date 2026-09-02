@@ -147,6 +147,38 @@ int stream_engine_load_config(stream_engine_t *engine, const char *json_path,
                               pipeline_loader_ctx_t *ctx);
 
 /**
+ * @brief 算子工厂函数原型 (支持根据节点参数动态构造算子)
+ */
+typedef pipeline_stage_t *(*stage_factory_create_fn)(const char *name,
+                                                      void *config_json,
+                                                      pipeline_loader_ctx_t *ctx);
+
+/**
+ * @brief 注册自定义算子工厂 (支持二开产品插件化算子扩展)
+ */
+int stream_engine_register_stage_factory(const char *type_name, stage_factory_create_fn factory_fn);
+
+/**
+ * @brief 从声明式 YAML / JSON 文本直接装配流计算 DAG (包含无环拓扑检查与自动连线)
+ */
+int stream_engine_load_yaml_contract(stream_engine_t *engine,
+                                     const char *yaml_content,
+                                     pipeline_loader_ctx_t *ctx);
+
+/**
+ * @brief 从声明式 YAML / JSON 文件路径直接装配流计算 DAG
+ */
+int stream_engine_load_yaml_file(stream_engine_t *engine,
+                                 const char *yaml_path,
+                                 pipeline_loader_ctx_t *ctx);
+
+/**
+ * @brief 导出流处理引擎当前运行拓扑的 Graphviz DOT 结构 (用于前端可视化与拓扑审计)
+ * @return 动态分配的 DOT 字符串 (调用方需 free)
+ */
+char *stream_engine_export_dot(stream_engine_t *engine);
+
+/**
  * @brief [S17] 从注入的静态元数据装配逻辑管线
  */
 int stream_engine_load_static_metadata(stream_engine_t *engine, const edge_pipeline_def_t *metadata,
