@@ -123,7 +123,8 @@ int iems_coordinator_evaluate_cycle(iems_microgrid_coordinator_t* coord,
             coord->target_pcs_power_kw -= pid_out; // 进一步加大充电功率 (负值加大)
         } else {
             // 储能已满，光伏逆变器快速降额限出力
-            coord->target_pv_limit_kw = (p_pv > pid_out) ? (p_pv - pid_out) : 0.0;
+            double surplus_kw = coord->anti_reverse_deadband_kw - p_grid;
+            coord->target_pv_limit_kw = (p_pv > surplus_kw) ? (p_pv - surplus_kw) : 0.0;
         }
     } else {
         // 无倒送风险时缓慢复位 PID 误差

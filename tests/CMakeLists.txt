@@ -657,6 +657,27 @@ target_link_libraries(test_iems_energy_strategy PRIVATE
 )
 add_test(NAME test_iems_energy_strategy COMMAND test_iems_energy_strategy)
 
+# AEP-441 DCU 配网台区三相不平衡换相决策与 31 次谐波/暂态电能质量分析测试
+add_executable(test_dcu_power_quality test_dcu_power_quality.c ../cmd/dcu/dcu_power_quality.c)
+target_include_directories(test_dcu_power_quality PRIVATE
+    ${CMAKE_SOURCE_DIR}/cmd/dcu
+)
+target_link_libraries(test_dcu_power_quality PRIVATE
+    -Wl,--start-group
+    edge_infra
+    edge_io
+    edge_stream
+    edge_security
+    edge_core
+    edge_algo
+    contract_dcu
+    -Wl,--end-group
+    edge_common_interface
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_dcu_power_quality COMMAND test_dcu_power_quality)
+
 
 
 
