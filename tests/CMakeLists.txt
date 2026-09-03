@@ -678,6 +678,27 @@ target_link_libraries(test_dcu_power_quality PRIVATE
 )
 add_test(NAME test_dcu_power_quality COMMAND test_dcu_power_quality)
 
+# AEP-442 SmartBox 箱变绕组热寿命老化评估模型与电气五防智能闭锁测试
+add_executable(test_smartbox_interlock_thermal test_smartbox_interlock_thermal.c ../cmd/smart_box/smartbox_thermal_aging.c ../cmd/smart_box/smartbox_five_safety_interlock.c)
+target_include_directories(test_smartbox_interlock_thermal PRIVATE
+    ${CMAKE_SOURCE_DIR}/cmd/smart_box
+)
+target_link_libraries(test_smartbox_interlock_thermal PRIVATE
+    -Wl,--start-group
+    edge_infra
+    edge_io
+    edge_stream
+    edge_security
+    edge_core
+    edge_algo
+    contract_smart_box
+    -Wl,--end-group
+    edge_common_interface
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_smartbox_interlock_thermal COMMAND test_smartbox_interlock_thermal)
+
 
 
 
