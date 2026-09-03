@@ -699,6 +699,27 @@ target_link_libraries(test_smartbox_interlock_thermal PRIVATE
 )
 add_test(NAME test_smartbox_interlock_thermal COMMAND test_smartbox_interlock_thermal)
 
+# AEP-452 Cyclone DDS 节点动态自发现、Liveliness 监听与分布式拓扑自愈测试
+add_executable(test_dds_discovery_liveliness test_dds_discovery_liveliness.c)
+target_include_directories(test_dds_discovery_liveliness PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_dds_discovery_liveliness PRIVATE
+    -Wl,--start-group
+    edge_infra
+    edge_io
+    edge_stream
+    edge_security
+    edge_core
+    edge_algo
+    -Wl,--end-group
+    edge_common_interface
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_dds_discovery_liveliness COMMAND test_dds_discovery_liveliness)
+
 
 
 

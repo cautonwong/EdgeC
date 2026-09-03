@@ -23,6 +23,7 @@ endif()
 if(CONFIG_EDGE_INFRA_DDS)
     list(APPEND INFRA_SOURCES
         bus_dds/datahub_dds.c
+        bus_dds/dds_topology_monitor.c
     )
     list(APPEND INFRA_PUBLIC_LIBS cyclonedds)
 endif()
