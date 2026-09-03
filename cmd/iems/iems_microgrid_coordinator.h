@@ -50,6 +50,18 @@ typedef struct {
     double demand_limit_kw;          // 需量控制红线 (kW, 如 500kW)
     double anti_reverse_deadband_kw; // 防逆流安全死区 (kW, 如 5kW)
 
+    // PID 快速防逆流闭环参数 (<100ms)
+    double pid_kp;
+    double pid_ki;
+    double pid_kd;
+    double pid_integral;
+    double pid_prev_error;
+
+    // 需量预测与滑窗统计 (15分钟滚动负荷均值)
+    double demand_window_sum;
+    uint32_t demand_window_samples;
+    double demand_15min_avg_kw;
+
     // 输出调度指令
     double target_pcs_power_kw;      // 建议下发 PCS 功率 (正放负充, kW)
     double target_pv_limit_kw;       // 建议下发光伏出力限额 (kW)
@@ -82,6 +94,11 @@ int iems_coordinator_evaluate_cycle(iems_microgrid_coordinator_t* coord,
                                     double p_grid, double p_pv, double p_load, double p_ev,
                                     double battery_soc, uint8_t current_hour, uint8_t current_minute,
                                     const iems_tou_planner_t* planner);
+
+/**
+ * @brief 重置防逆流 PID 积分与历史状态
+ */
+void iems_coordinator_reset_pid(iems_microgrid_coordinator_t* coord);
 
 #ifdef __cplusplus
 }

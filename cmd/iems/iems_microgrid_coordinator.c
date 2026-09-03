@@ -13,6 +13,17 @@ void iems_coordinator_init(iems_microgrid_coordinator_t* coord, double transform
     coord->transformer_capacity_kva = (transformer_kva > 0.0) ? transformer_kva : 630.0;
     coord->demand_limit_kw = (demand_limit_kw > 0.0) ? demand_limit_kw : 500.0;
     coord->anti_reverse_deadband_kw = 5.0; // 5kW 安全防倒送裕度
+
+    // 默认 PID 参数 (针对 100ms 快速闭环)
+    coord->pid_kp = 1.0;
+    coord->pid_ki = 0.2;
+    coord->pid_kd = 0.05;
+}
+
+void iems_coordinator_reset_pid(iems_microgrid_coordinator_t* coord) {
+    if (!coord) return;
+    coord->pid_integral = 0.0;
+    coord->pid_prev_error = 0.0;
 }
 
 void iems_coordinator_setup_default_tou(iems_tou_planner_t* planner) {
@@ -45,6 +56,15 @@ int iems_coordinator_evaluate_cycle(iems_microgrid_coordinator_t* coord,
     double total_consumption = p_load + p_ev;
     double net_load = total_consumption - p_pv;
 
+    // 滑动窗口需量更新
+    coord->demand_window_sum += (net_load > 0.0) ? net_load : 0.0;
+    coord->demand_window_samples++;
+    if (coord->demand_window_samples > 9000) { // 超过 15 分钟 (9000 * 100ms) 时重置窗口保持平滑
+        coord->demand_window_sum = coord->demand_window_sum / 2.0;
+        coord->demand_window_samples = coord->demand_window_samples / 2;
+    }
+    coord->demand_15min_avg_kw = coord->demand_window_sum / (double)coord->demand_window_samples;
+
     // 1. 基础 TOU 计划功率决策
     double scheduled_power_kw = 0.0;
     if (planner && planner->is_schedule_enabled) {
@@ -70,27 +90,46 @@ int iems_coordinator_evaluate_cycle(iems_microgrid_coordinator_t* coord,
     coord->is_demand_shaving_active = false;
 
     // 2. 需量控制闭环 (Demand Peak Shaving):
-    // 若总用电负荷超过变压器需量红线 (demand_limit_kw), 储能强制加大放电进行削峰
-    if (net_load > coord->demand_limit_kw && battery_soc > 10.0) {
-        double required_discharge_kw = net_load - coord->demand_limit_kw;
+    // 若瞬时或滚动需量超过需量红线 (demand_limit_kw), 储能强制加大放电进行削峰
+    double peak_load = (net_load > coord->demand_15min_avg_kw) ? net_load : coord->demand_15min_avg_kw;
+    if (peak_load > coord->demand_limit_kw && battery_soc > 10.0) {
+        double required_discharge_kw = peak_load - coord->demand_limit_kw;
         coord->is_demand_shaving_active = true;
         if (required_discharge_kw > coord->target_pcs_power_kw) {
             coord->target_pcs_power_kw = required_discharge_kw;
         }
     }
 
-    // 3. 动态防逆流闭环 (Anti-Reverse Power Flow / Zero Export):
+    // 3. 动态防逆流闭环 (Anti-Reverse Power Flow / Zero Export with Fast PID):
     // 关口功率倒送 (p_grid < safety_deadband, 出现向电网反送电风险)
     if (p_grid < coord->anti_reverse_deadband_kw) {
         coord->is_anti_reverse_active = true;
-        double surplus_kw = coord->anti_reverse_deadband_kw - p_grid;
+        double error = coord->anti_reverse_deadband_kw - p_grid;
+
+        // PID 调节量计算 (dt = 0.1s = 100ms)
+        double dt = 0.1;
+        coord->pid_integral += error * dt;
+        if (coord->pid_integral > 500.0) coord->pid_integral = 500.0;
+        if (coord->pid_integral < -500.0) coord->pid_integral = -500.0;
+
+        double derivative = (error - coord->pid_prev_error) / dt;
+        double pid_out = coord->pid_kp * error + coord->pid_ki * coord->pid_integral + coord->pid_kd * derivative;
+        coord->pid_prev_error = error;
+
+        if (pid_out < error) pid_out = error;
 
         // 优先利用储能加大充电功率吸收余电
         if (battery_soc < 95.0) {
-            coord->target_pcs_power_kw -= surplus_kw; // Charge more
+            coord->target_pcs_power_kw -= pid_out; // 进一步加大充电功率 (负值加大)
         } else {
-            // 储能已满，光伏逆变器快速降额
-            coord->target_pv_limit_kw = (p_pv > surplus_kw) ? (p_pv - surplus_kw) : 0.0;
+            // 储能已满，光伏逆变器快速降额限出力
+            coord->target_pv_limit_kw = (p_pv > pid_out) ? (p_pv - pid_out) : 0.0;
+        }
+    } else {
+        // 无倒送风险时缓慢复位 PID 误差
+        coord->pid_prev_error = 0.0;
+        if (coord->pid_integral > 0.0) {
+            coord->pid_integral *= 0.95;
         }
     }
 

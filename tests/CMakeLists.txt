@@ -636,6 +636,27 @@ target_link_libraries(test_datahub_dds_mesh PRIVATE
 )
 add_test(NAME test_datahub_dds_mesh COMMAND test_datahub_dds_mesh)
 
+# AEP-440 IEMS 工商业储能需量控制、分时电价排程与 100ms 快速防逆流测试
+add_executable(test_iems_energy_strategy test_iems_energy_strategy.c ../cmd/iems/iems_microgrid_coordinator.c)
+target_include_directories(test_iems_energy_strategy PRIVATE
+    ${CMAKE_SOURCE_DIR}/cmd/iems
+)
+target_link_libraries(test_iems_energy_strategy PRIVATE
+    -Wl,--start-group
+    edge_infra
+    edge_io
+    edge_stream
+    edge_security
+    edge_core
+    edge_algo
+    contract_iems
+    -Wl,--end-group
+    edge_common_interface
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_iems_energy_strategy COMMAND test_iems_energy_strategy)
+
 
 
 
