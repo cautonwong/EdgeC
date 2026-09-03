@@ -1,0 +1,9 @@
+ docs/evidence/AEP-440/diffstat.txt             |  12 +++
+ docs/evidence/AEP-440/redlines.md             |  16 +++
+ docs/evidence/AEP-440/summary.md              | 120 ++++++++++++++++++++
+ docs/evidence/AEP-440/tests.log               | 600 ++++++++++++++++++++++++++++++
+ cmd/iems/iems_microgrid_coordinator.c         |  55 +++++++++++++-
+ cmd/iems/iems_microgrid_coordinator.h         |  17 +++
+ tests/CMakeLists.txt                          |  21 +++
+ tests/test_iems_energy_strategy.c             | 145 +++++++++++++++++++++++++++
+ 8 files changed, 978 insertions(+), 8 deletions(-)
