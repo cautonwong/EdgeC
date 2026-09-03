@@ -1,0 +1,10 @@
+ docs/evidence/AEP-452/diffstat.txt             |  12 +++
+ docs/evidence/AEP-452/redlines.md             |  16 +++
+ docs/evidence/AEP-452/summary.md              | 120 ++++++++++++++++++++
+ docs/evidence/AEP-452/tests.log               | 600 ++++++++++++++++++++++++++++++
+ modules/edge_infra/CMakeLists.txt             |   1 +
+ modules/edge_infra/bus_dds/dds_topology_monitor.c | 125 ++++++++++++++++++++++
+ modules/edge_infra/include/dds_topology_monitor.h |  75 ++++++++++++++
+ tests/CMakeLists.txt                          |  21 +++
+ tests/test_dds_discovery_liveliness.c         | 150 ++++++++++++++++++++++++
+ 9 files changed, 1120 insertions(+)
