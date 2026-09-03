@@ -1,0 +1,11 @@
+ docs/evidence/AEP-442/diffstat.txt             |  12 +++
+ docs/evidence/AEP-442/redlines.md             |  16 +++
+ docs/evidence/AEP-442/summary.md              | 120 ++++++++++++++++++++
+ docs/evidence/AEP-442/tests.log               | 600 ++++++++++++++++++++++++++++++
+ cmd/smart_box/smartbox_five_safety_interlock.c|  85 ++++++++++++++++++++++
+ cmd/smart_box/smartbox_five_safety_interlock.h|  55 ++++++++++++++
+ cmd/smart_box/smartbox_thermal_aging.c        |  60 ++++++++++++++
+ cmd/smart_box/smartbox_thermal_aging.h        |  50 +++++++++++++
+ tests/CMakeLists.txt                          |  21 +++
+ tests/test_smartbox_interlock_thermal.c       | 120 ++++++++++++++++++++
+ 10 files changed, 1139 insertions(+)
