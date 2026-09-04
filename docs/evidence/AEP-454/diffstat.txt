@@ -1,0 +1,10 @@
+ docs/evidence/AEP-454/diffstat.txt             |  12 +++
+ docs/evidence/AEP-454/redlines.md             |  16 +++
+ docs/evidence/AEP-454/summary.md              | 120 ++++++++++++++++++++
+ docs/evidence/AEP-454/tests.log               | 600 ++++++++++++++++++++++++++++++
+ tests/CMakeLists.txt                          |   8 ++
+ tests/test_dds_cli_diagnostics.c              | 120 ++++++++++++++++++++
+ tools/edge-cli/cmd/main.go                    |  64 ++++++++++++++
+ tools/edge-cli/internal/dds/dds_diagnostics.go| 180 ++++++++++++++++++++++++++++
+ tools/edge-cli/internal/dds/dds_test.go       |  65 +++++++++++
+ 9 files changed, 1185 insertions(+)

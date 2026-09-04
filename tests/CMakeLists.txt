@@ -720,6 +720,14 @@ target_link_libraries(test_dds_discovery_liveliness PRIVATE
 )
 add_test(NAME test_dds_discovery_liveliness COMMAND test_dds_discovery_liveliness)
 
+# AEP-454 DDS 现场运维观测与 edge-cli dds 诊断测试
+add_executable(test_dds_cli_diagnostics test_dds_cli_diagnostics.c)
+target_link_libraries(test_dds_cli_diagnostics PRIVATE
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_dds_cli_diagnostics COMMAND test_dds_cli_diagnostics)
+
 
 
 
