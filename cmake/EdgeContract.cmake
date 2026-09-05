@@ -56,14 +56,14 @@ function(edge_add_contract TARGET_NAME PRODUCT_YAML LOCAL_YAML)
             COMMAND "${COMPILER_BIN}" ${CMD_ARGS}
         )
         execute_process(
-            COMMAND "${CMAKE_SOURCE_DIR}/.venv/bin/python3" "${CMAKE_SOURCE_DIR}/scripts/aggregate_go_tags.py"
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/scripts/aggregate_go_tags.py"
         )
     endif()
 
     add_custom_command(
         OUTPUT "${OUT_C}" "${OUT_H}" "${OUT_YAML}" "${OUT_JSON}" "${OUT_TS}" "${OUT_SQL}" "${OUT_SLAVE_C}" "${OUT_ROUTER_C}" "${OUT_DRIVER_REG_C}" "${OUT_DRIVER_REG_H}" "${OUT_GO}"
         COMMAND "${COMPILER_BIN}" ${CMD_ARGS}
-        COMMAND "${CMAKE_SOURCE_DIR}/.venv/bin/python3" "${CMAKE_SOURCE_DIR}/scripts/aggregate_go_tags.py"
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/scripts/aggregate_go_tags.py"
         DEPENDS "${COMPILER_BIN}" "${PRODUCT_YAML}" ${LOCAL_DEP}
         COMMENT "[Contract] Generating native lookup tables and Go bindings for ${TARGET_NAME}"
         VERBATIM

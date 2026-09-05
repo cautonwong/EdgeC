@@ -20,6 +20,7 @@ export const coreRoutes: RouteRecordRaw[] = [
       { path: 'storage', name: 'Storage', component: () => import('../views/system/Storage.vue'), meta: { title: 'Storage', icon: '💾' } },
       { path: 'dcu/packets', name: 'DcuPackets', component: () => import('../views/dcu/PacketCapture.vue'), meta: { title: 'Packet Sniffer', icon: '📡' } },
       { path: 'dcu/power-quality', name: 'DcuPowerQuality', component: () => import('../views/dcu/PowerQuality.vue'), meta: { title: 'Power Quality', icon: '🧭' } },
+      { path: 'events', name: 'Events', component: () => import('../views/events/EventStreamHub.vue'), meta: { title: 'SOE Events', icon: '🚨' } },
       { path: 'system', name: 'System', component: () => import('../views/system/SystemConfig.vue'), meta: { title: 'Config', icon: '🛠️' } },
     ]
   }
