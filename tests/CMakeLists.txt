@@ -787,6 +787,17 @@ target_link_libraries(test_web_dcu_power_quality PRIVATE
 )
 add_test(NAME test_web_dcu_power_quality COMMAND test_web_dcu_power_quality)
 
+# AEP-497 全局实时 SOE 毫秒级事件流中心与告警瀑布流看板测试
+add_executable(test_web_event_stream test_web_event_stream.c ../cmd/dcu/dcu_soe_event_engine.c)
+target_include_directories(test_web_event_stream PRIVATE
+    ${CMAKE_SOURCE_DIR}/cmd/dcu
+)
+target_link_libraries(test_web_event_stream PRIVATE
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_web_event_stream COMMAND test_web_event_stream)
+
 
 
 
