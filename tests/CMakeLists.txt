@@ -768,6 +768,14 @@ target_link_libraries(test_web_iems_energy_flow PRIVATE
 )
 add_test(NAME test_web_iems_energy_flow COMMAND test_web_iems_energy_flow)
 
+# AEP-495 SmartBox 100Hz 示波器与双人复核安全沙盒测试
+add_executable(test_smartbox_scope_double_auth test_smartbox_scope_double_auth.c)
+target_link_libraries(test_smartbox_scope_double_auth PRIVATE
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_smartbox_scope_double_auth COMMAND test_smartbox_scope_double_auth)
+
 
 
 
