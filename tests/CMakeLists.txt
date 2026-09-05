@@ -744,6 +744,15 @@ target_link_libraries(test_web_contract_loader PRIVATE
 )
 add_test(NAME test_web_contract_loader COMMAND test_web_contract_loader)
 
+# AEP-492 LiveTagCard 工业级高刷组件与 400ms GSAP 动效及 shallowRef 内存优化测试
+add_executable(test_web_live_tag_card test_web_live_tag_card.c)
+target_link_libraries(test_web_live_tag_card PRIVATE
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_web_live_tag_card COMMAND test_web_live_tag_card)
+
+
 
 
 

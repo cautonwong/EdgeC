@@ -1,0 +1,9 @@
+ .local/linux-x86_64/bin/contract-compiler | Bin 5725304 -> 5730296 bytes
+ docs/evidence/AEP-492/diffstat.txt        |   0
+ docs/evidence/AEP-492/redlines.md         |   9 ++
+ docs/evidence/AEP-492/summary.md          |  21 ++++
+ docs/evidence/AEP-492/tests.log           |  27 ++++
+ tests/CMakeLists.txt                      |   9 ++
+ tests/test_web_live_tag_card.c            |  96 +++++++++++++++
+ web/core/src/components/LiveTagCard.vue   | 196 ++++++++++++++++++++++++------
+ 8 files changed, 319 insertions(+), 39 deletions(-)
