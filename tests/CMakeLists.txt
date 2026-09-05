@@ -798,6 +798,18 @@ target_link_libraries(test_web_event_stream PRIVATE
 )
 add_test(NAME test_web_event_stream COMMAND test_web_event_stream)
 
+# AEP-498 Web ANSI 实时日志流控制台与过滤导出终端测试
+add_executable(test_web_log_terminal test_web_log_terminal.c)
+target_include_directories(test_web_log_terminal PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_web_log_terminal PRIVATE
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_web_log_terminal COMMAND test_web_log_terminal)
+
+
 
 
 

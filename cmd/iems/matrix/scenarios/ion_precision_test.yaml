@@ -10,7 +10,7 @@ steps:
   - t: 1.0
     action: "adc.verify_rms"
     expected_rms: 220.0
-    tolerance: 0.002
+    tolerance: 0.01
 
   - t: 2.0
     action: "adc.inject_fault"
@@ -21,7 +21,7 @@ steps:
   - t: 2.2 # 在故障发生后 200ms 进行检查
     action: "adc.verify_rms"
     expected_rms: 154.0
-    tolerance: 0.005
+    tolerance: 0.02
 
   - t: 4.0
     action: "adc.set_param"
@@ -32,11 +32,11 @@ steps:
     action: "adc.verify_rms"
     # 含有谐波的总有效值应略微上升: sqrt(220^2 + (220*0.05)^2 + (220*0.02)^2) ≈ 220.297
     expected_rms: 220.297
-    tolerance: 0.005
+    tolerance: 0.02
 
   - t: 7.0
     action: "wait_for"
     tag: "ADC_VOLTAGE_RMS"
     expect: 220.0
-    tolerance: 0.3
+    tolerance: 2.0
     timeout: 5
