@@ -1,0 +1,12 @@
+ docs/evidence/AEP-493/redlines.md         |   8 +
+ docs/evidence/AEP-493/summary.md          |  24 ++
+ docs/evidence/AEP-493/tests.log           |  27 ++
+ tests/CMakeLists.txt                      |   8 +
+ tests/test_web_data_curves.c              | 110 ++++++
+ web/core/package.json                     |   4 +-
+ web/core/src/views/data/DataCurves.vue    | 534 ++++++++++++++++++++++++++----
+ web/core/src/views/data/HistoryCurves.vue | 264 ++++++++++++---
+ web/products/iems/package-lock.json       |  26 ++
+ web/products/iems/package.json            |   9 +-
+ web/products/iems/vite.config.ts          |   3 +-
+ 11 files changed, 900 insertions(+), 117 deletions(-)

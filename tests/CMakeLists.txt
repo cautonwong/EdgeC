@@ -752,6 +752,14 @@ target_link_libraries(test_web_live_tag_card PRIVATE
 )
 add_test(NAME test_web_live_tag_card COMMAND test_web_live_tag_card)
 
+# AEP-493 DataCurves ECharts 工业级负荷曲线与 LTTB 动态降采样及十字准星测试
+add_executable(test_web_data_curves test_web_data_curves.c)
+target_link_libraries(test_web_data_curves PRIVATE
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_web_data_curves COMMAND test_web_data_curves)
+
 
 
 
