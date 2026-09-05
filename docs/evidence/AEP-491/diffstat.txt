@@ -1,0 +1,6 @@
+ tests/CMakeLists.txt                               |   9 +
+ tests/test_web_contract_loader.c                   |  86 ++++++++
+ .../internal/backend/ts_backend.go                 |  70 +++++-
+ web/core/src/services/ContractLoader.ts            | 111 +++++++--
+ web/core/src/views/Dashboard.vue                   | 262 ++++++++++++++-------
+ 5 files changed, 431 insertions(+), 107 deletions(-)

@@ -1,0 +1,37 @@
+======================================================================
+EdgeOS CTest Unit Test Suite (164/164 PASS)
+======================================================================
+100% tests passed, 0 tests failed out of 164
+
+Total Test time (real) = 106.87 sec
+
+AEP-491 Specific Verification:
+163/164 Test #163: test_web_design_tokens .............   Passed    0.25 sec
+164/164 Test #164: test_web_contract_loader ...........   Passed    0.24 sec
+
+[==========] tests: Running 3 test(s).
+[ RUN      ] test_ts_compiler_backend_ui_metadata
+[       OK ] test_ts_compiler_backend_ui_metadata
+[ RUN      ] test_contract_loader_pinia_store
+[       OK ] test_contract_loader_pinia_store
+[ RUN      ] test_dashboard_vue_contract_driven
+[       OK ] test_dashboard_vue_contract_driven
+[==========] tests: 3 test(s) run.
+[  PASSED  ] 3 test(s).
+
+======================================================================
+Omnis Physical Matrix Simulation Suite (10/10 PASS)
+======================================================================
+cmd/iems/matrix/test_adc_dsp.py::test_industrial_proof_dsp PASSED
+cmd/iems/matrix/test_e2e_flow.py::test_iems_modbus_e2e_flow PASSED
+cmd/iems/matrix/test_e2e_flow.py::test_iems_multi_tag_consistency PASSED
+cmd/iems/matrix/test_high_freq.py::test_adc_to_protection_e2e PASSED
+cmd/iems/matrix/test_high_freq.py::test_harmonic_interference_rms PASSED
+cmd/iems/matrix/test_protection.py::test_overvoltage_reporting PASSED
+cmd/iems/matrix/test_protection.py::test_island_mpc_protection PASSED
+cmd/iems/matrix/test_raw_io.py::test_raw_io_loopback PASSED
+cmd/iems/matrix/test_scenarios.py::test_run_manifest_scenario[ion_precision_test.yaml] PASSED
+cmd/iems/matrix/test_slave_flow.py::test_slave_mirror_flow PASSED
+
+======================== 10 passed in 70.92s (0:01:10) =========================
+✨ OMNIS INTEGRATION TEST PASSED!
