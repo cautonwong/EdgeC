@@ -8,12 +8,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "vue": "^3.3.0",
-    "pinia": "^2.1.0",
-    "vue-router": "^4.2.0",
+    "@edgeos/web-core": "file:../../core",
     "axios": "^1.4.0",
+    "echarts": "^6.1.0",
     "js-yaml": "^4.1.0",
-    "@edgeos/web-core": "file:../../core"
+    "pinia": "^2.1.0",
+    "vue": "^3.3.0",
+    "vue-router": "^4.2.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^4.2.0",
