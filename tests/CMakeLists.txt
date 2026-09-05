@@ -736,6 +736,15 @@ target_link_libraries(test_web_design_tokens PRIVATE
 )
 add_test(NAME test_web_design_tokens COMMAND test_web_design_tokens)
 
+# AEP-491 EdgeOS Web 契约驱动与 Pinia ContractLoader 动态聚合测试
+add_executable(test_web_contract_loader test_web_contract_loader.c)
+target_link_libraries(test_web_contract_loader PRIVATE
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_web_contract_loader COMMAND test_web_contract_loader)
+
+
 
 
 

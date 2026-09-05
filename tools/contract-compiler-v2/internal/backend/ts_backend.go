@@ -29,11 +29,75 @@ func (b *TsBackend) emitTs(contract *ir.ContractIR) error {
 	}
 	fmt.Fprintln(f, "}")
 	
-	fmt.Fprintln(f, "export interface TagMetadata { id: number; name: string; type: string; unit?: string; }")
+	fmt.Fprintln(f, "export interface TagUIMetadata {")
+	fmt.Fprintln(f, "  group?: string;")
+	fmt.Fprintln(f, "  widget?: string;")
+	fmt.Fprintln(f, "  precision?: number;")
+	fmt.Fprintln(f, "  min?: number;")
+	fmt.Fprintln(f, "  max?: number;")
+	fmt.Fprintln(f, "  flash_color?: string;")
+	fmt.Fprintln(f, "  icon?: string;")
+	fmt.Fprintln(f, "}")
+	fmt.Fprintln(f, "")
+	fmt.Fprintln(f, "export interface TagMetadata {")
+	fmt.Fprintln(f, "  id: number;")
+	fmt.Fprintln(f, "  name: string;")
+	fmt.Fprintln(f, "  type: string;")
+	fmt.Fprintln(f, "  unit?: string;")
+	fmt.Fprintln(f, "  ui?: TagUIMetadata;")
+	fmt.Fprintln(f, "}")
+	fmt.Fprintln(f, "")
 	fmt.Fprintln(f, "export const TAG_METADATA: Record<TagID, TagMetadata> = {")
 	for _, t := range contract.Tags {
-		fmt.Fprintf(f, "  [TagID.%s]: { id: %d, name: \"%s\", type: \"%s\", unit: \"%s\" },\n",
-			t.Name, t.ID, t.Name, t.DataType, t.Unit)
+		uiStr := ""
+		if t.Attributes != nil {
+			if ui, ok := t.Attributes["ui"].(map[string]interface{}); ok {
+				uiStr = ", ui: {"
+				first := true
+				if g, ok := ui["group"].(string); ok && g != "" {
+					if !first { uiStr += ", " }
+					uiStr += fmt.Sprintf("group: %q", g)
+					first = false
+				}
+				if w, ok := ui["widget"].(string); ok && w != "" {
+					if !first { uiStr += ", " }
+					uiStr += fmt.Sprintf("widget: %q", w)
+					first = false
+				}
+				if p, ok := ui["precision"].(float64); ok {
+					if !first { uiStr += ", " }
+					uiStr += fmt.Sprintf("precision: %d", int(p))
+					first = false
+				} else if pInt, ok := ui["precision"].(int); ok {
+					if !first { uiStr += ", " }
+					uiStr += fmt.Sprintf("precision: %d", pInt)
+					first = false
+				}
+				if minV, ok := ui["min"].(float64); ok {
+					if !first { uiStr += ", " }
+					uiStr += fmt.Sprintf("min: %v", minV)
+					first = false
+				}
+				if maxV, ok := ui["max"].(float64); ok {
+					if !first { uiStr += ", " }
+					uiStr += fmt.Sprintf("max: %v", maxV)
+					first = false
+				}
+				if fc, ok := ui["flash_color"].(string); ok && fc != "" {
+					if !first { uiStr += ", " }
+					uiStr += fmt.Sprintf("flash_color: %q", fc)
+					first = false
+				}
+				if ic, ok := ui["icon"].(string); ok && ic != "" {
+					if !first { uiStr += ", " }
+					uiStr += fmt.Sprintf("icon: %q", ic)
+					first = false
+				}
+				uiStr += " }"
+			}
+		}
+		fmt.Fprintf(f, "  [TagID.%s]: { id: %d, name: \"%s\", type: \"%s\", unit: \"%s\"%s },\n",
+			t.Name, t.ID, t.Name, t.DataType, t.Unit, uiStr)
 	}
 	fmt.Fprintln(f, "};")
 	return nil
