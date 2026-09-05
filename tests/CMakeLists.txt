@@ -842,6 +842,19 @@ target_link_libraries(test_web_console_drawer PRIVATE
 )
 add_test(NAME test_web_console_drawer COMMAND test_web_console_drawer)
 
+# AEP-502 交互式 CLI Shell 引擎与 WebSocket 双向协议通道测试
+add_executable(test_web_cli_bridge test_web_cli_bridge.c)
+target_include_directories(test_web_cli_bridge PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_mgmt/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_web_cli_bridge PRIVATE
+    edge_mgmt
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_web_cli_bridge COMMAND test_web_cli_bridge)
+
 
 
 
