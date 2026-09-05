@@ -14,12 +14,12 @@ function(add_zephyr_app APP_NAME APP_PATH)
     ExternalProject_Add(${APP_NAME}_zephyr_build
         SOURCE_DIR "${ABS_APP_PATH}"
         BINARY_DIR "${APP_BINARY_DIR}"
-        CONFIGURE_COMMAND ${CMAKE_SOURCE_DIR}/.venv/bin/python3 -m west build 
+        CONFIGURE_COMMAND ${Python3_EXECUTABLE} -m west build 
             -b ${ZEPHYR_BOARD} 
             -d "${APP_BINARY_DIR}"
             "${ABS_APP_PATH}" 
             --cmake-only
-        BUILD_COMMAND ${CMAKE_SOURCE_DIR}/.venv/bin/python3 -m west build -d "${APP_BINARY_DIR}"
+        BUILD_COMMAND ${Python3_EXECUTABLE} -m west build -d "${APP_BINARY_DIR}"
         INSTALL_COMMAND ""
         BUILD_ALWAYS ON
     )

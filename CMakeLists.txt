@@ -35,6 +35,12 @@ find_package(QuickJS REQUIRED)
 find_package(iwasm REQUIRED)
 find_package(cmocka REQUIRED)
 
+# Python3 Interpreter detection (supports system python, venv, and virtual environments)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin/python3")
+    set(Python3_EXECUTABLE "${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin/python3")
+endif()
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+
 # ==============================================================================
 # 3. Kconfig Configuration System
 # ==============================================================================
@@ -45,9 +51,46 @@ if(NOT CONF_FILE)
     set(CONF_FILE "${CMAKE_CURRENT_SOURCE_DIR}/cmd/iems/prj.conf")
 endif()
 
+find_program(DEFCONFIG_BIN defconfig HINTS "${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin")
+find_program(GENCONFIG_BIN genconfig HINTS "${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin")
+
+# If defconfig is not found, check if kconfiglib can be imported or needs bootstrapping
+if(NOT DEFCONFIG_BIN)
+    execute_process(
+        COMMAND "${Python3_EXECUTABLE}" -c "import kconfiglib"
+        RESULT_VARIABLE kconfiglib_check
+        OUTPUT_QUIET ERROR_QUIET
+    )
+    if(NOT kconfiglib_check EQUAL 0 AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/scripts/setup_env.sh")
+        message(STATUS "[Kconfig] Bootstrapping Python environment and dependencies...")
+        execute_process(
+            COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/scripts/setup_env.sh"
+            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+            RESULT_VARIABLE setup_res
+        )
+        if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin/python3")
+            set(Python3_EXECUTABLE "${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin/python3")
+        endif()
+        find_program(DEFCONFIG_BIN defconfig HINTS "${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin")
+        find_program(GENCONFIG_BIN genconfig HINTS "${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin")
+    endif()
+endif()
+
+if(DEFCONFIG_BIN)
+    set(DEFCONFIG_CMD "${DEFCONFIG_BIN}")
+else()
+    set(DEFCONFIG_CMD "${Python3_EXECUTABLE}" -m defconfig)
+endif()
+
+if(GENCONFIG_BIN)
+    set(GENCONFIG_CMD "${GENCONFIG_BIN}")
+else()
+    set(GENCONFIG_CMD "${Python3_EXECUTABLE}" -m genconfig)
+endif()
+
 execute_process(
     COMMAND ${CMAKE_COMMAND} -E env KCONFIG_CONFIG=${DOTCONFIG_FILE} srctree=${CMAKE_CURRENT_SOURCE_DIR}
-            ${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin/python3 ${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin/defconfig
+            ${DEFCONFIG_CMD}
             --kconfig ${CMAKE_CURRENT_SOURCE_DIR}/Kconfig
             ${CONF_FILE}
     RESULT_VARIABLE kconfig_res
@@ -55,31 +98,36 @@ execute_process(
 
 execute_process(
     COMMAND ${CMAKE_COMMAND} -E env KCONFIG_CONFIG=${DOTCONFIG_FILE} srctree=${CMAKE_CURRENT_SOURCE_DIR}
-            ${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin/python3 ${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin/genconfig
+            ${GENCONFIG_CMD}
             --header-path ${AUTOCONF_HEADER}
             ${CMAKE_CURRENT_SOURCE_DIR}/Kconfig
+    RESULT_VARIABLE genconfig_res
 )
 
 # Parse .config for CMake usage
-file(STRINGS "${DOTCONFIG_FILE}" CONFIG_LINES)
-foreach(line ${CONFIG_LINES})
-    if(line MATCHES "^CONFIG_([^=]+)=(.*)$")
-        set(CONF_KEY "CONFIG_${CMAKE_MATCH_1}")
-        set(CONF_VAL ${CMAKE_MATCH_2})
-        if(CONF_VAL STREQUAL "y")
-            set(${CONF_KEY} ON)
-            add_definitions(-D${CONF_KEY})
-        elseif(CONF_VAL STREQUAL "n")
+if(EXISTS "${DOTCONFIG_FILE}")
+    file(STRINGS "${DOTCONFIG_FILE}" CONFIG_LINES)
+    foreach(line ${CONFIG_LINES})
+        if(line MATCHES "^CONFIG_([^=]+)=(.*)$")
+            set(CONF_KEY "CONFIG_${CMAKE_MATCH_1}")
+            set(CONF_VAL ${CMAKE_MATCH_2})
+            if(CONF_VAL STREQUAL "y")
+                set(${CONF_KEY} ON)
+                add_definitions(-D${CONF_KEY})
+            elseif(CONF_VAL STREQUAL "n")
+                set(${CONF_KEY} OFF)
+            else()
+                set(${CONF_KEY} ${CONF_VAL})
+                add_definitions(-D${CONF_KEY}=${CONF_VAL})
+            endif()
+        elseif(line MATCHES "^# CONFIG_([^ ]+) is not set")
+            set(CONF_KEY "CONFIG_${CMAKE_MATCH_1}")
             set(${CONF_KEY} OFF)
-        else()
-            set(${CONF_KEY} ${CONF_VAL})
-            add_definitions(-D${CONF_KEY}=${CONF_VAL})
         endif()
-    elseif(line MATCHES "^# CONFIG_([^ ]+) is not set")
-        set(CONF_KEY "CONFIG_${CMAKE_MATCH_1}")
-        set(${CONF_KEY} OFF)
-    endif()
-endforeach()
+    endforeach()
+else()
+    message(WARNING "[Kconfig] ${DOTCONFIG_FILE} was not generated; skipping config parsing")
+endif()
 
 # ==============================================================================
 # 4. Common Build Options (Interface Target)
@@ -145,5 +193,17 @@ add_subdirectory(examples/custom_algo)
 enable_testing()
 add_subdirectory(tests)
 
-
-# Helper for test registration
+# ==============================================================================
+# 7. CPack Packaging Configuration
+# ==============================================================================
+set(CPACK_PACKAGE_NAME "EdgeOS")
+set(CPACK_PACKAGE_VENDOR "EdgeOS Team")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "EdgeOS Industrial Edge Computing Platform")
+set(CPACK_PACKAGE_VERSION_MAJOR 1)
+set(CPACK_PACKAGE_VERSION_MINOR 0)
+set(CPACK_PACKAGE_VERSION_PATCH 0)
+set(CPACK_PACKAGE_VERSION "1.0.0")
+set(CPACK_GENERATOR "TGZ;DEB")
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "EdgeOS Architect <dev@edgeos.io>")
+set(CPACK_DEBIAN_PACKAGE_SECTION "devel")
+include(CPack)
