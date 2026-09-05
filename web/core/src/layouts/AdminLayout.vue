@@ -83,7 +83,17 @@
         </div>
 
         <div class="flex items-center gap-8">
-          <!-- Header Right: System Metrics -->
+          <!-- Header Right: Console Trigger & System Metrics -->
+          <button 
+            @click="isConsoleOpen = !isConsoleOpen"
+            class="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-slate-700 font-mono text-xs flex items-center gap-2 transition cursor-pointer shadow-sm"
+            title="Toggle Web Console (Ctrl+`)"
+          >
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span class="font-bold">&gt;_ Terminal</span>
+            <kbd class="hidden sm:inline px-1 py-0.5 bg-slate-950 rounded text-[9px] text-slate-400 border border-slate-800">Ctrl+`</kbd>
+          </button>
+
           <div class="flex gap-8">
             <div class="text-right">
               <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Uptime</div>
@@ -107,6 +117,9 @@
           </transition>
         </router-view>
       </main>
+
+      <!-- Global Embedded Web Console Drawer -->
+      <WebConsoleDrawer v-model:isOpen="isConsoleOpen" />
     </div>
   </div>
 </template>
@@ -115,6 +128,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { getVisibleMenuItems } from '../router';
 import { useContractStore } from '../services/ContractLoader';
+import WebConsoleDrawer from '../components/console/WebConsoleDrawer.vue';
 import axios from 'axios';
 
 const contractStore = useContractStore();
@@ -122,6 +136,7 @@ const visibleMenuItems = computed(() => getVisibleMenuItems());
 const uptime = ref(0);
 const isOnline = ref(false);
 const isCollapsed = ref(false);
+const isConsoleOpen = ref(false);
 let timer: any = null;
 
 const fetchStatus = async () => {

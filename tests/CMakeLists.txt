@@ -831,6 +831,17 @@ target_link_libraries(test_web_channel_topology PRIVATE
 )
 add_test(NAME test_web_channel_topology COMMAND test_web_channel_topology)
 
+# AEP-501 全局抽屉式 Web 交互控制台与快捷按键召唤底座测试
+add_executable(test_web_console_drawer test_web_console_drawer.c)
+target_include_directories(test_web_console_drawer PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_web_console_drawer PRIVATE
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_web_console_drawer COMMAND test_web_console_drawer)
+
 
 
 
