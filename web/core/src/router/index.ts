@@ -18,6 +18,8 @@ export const coreRoutes: RouteRecordRaw[] = [
       { path: 'pipelines', name: 'Pipelines', component: () => import('../views/pipelines/PipelineList.vue'), meta: { title: 'Pipelines', icon: '⚙️' } },
       { path: 'scheduling', name: 'Scheduling', component: () => import('../views/system/Scheduling.vue'), meta: { title: 'Scheduling', icon: '🕒' } },
       { path: 'storage', name: 'Storage', component: () => import('../views/system/Storage.vue'), meta: { title: 'Storage', icon: '💾' } },
+      { path: 'dcu/packets', name: 'DcuPackets', component: () => import('../views/dcu/PacketCapture.vue'), meta: { title: 'Packet Sniffer', icon: '📡' } },
+      { path: 'dcu/power-quality', name: 'DcuPowerQuality', component: () => import('../views/dcu/PowerQuality.vue'), meta: { title: 'Power Quality', icon: '🧭' } },
       { path: 'system', name: 'System', component: () => import('../views/system/SystemConfig.vue'), meta: { title: 'Config', icon: '🛠️' } },
     ]
   }

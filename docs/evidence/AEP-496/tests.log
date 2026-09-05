@@ -1,0 +1,23 @@
+100% tests passed, 0 tests failed out of 169
+
+Total Test time (real) = 115.14 sec
+
+        Start 169: test_web_dcu_power_quality
+169/169 Test #169: test_web_dcu_power_quality .........   Passed    0.26 sec
+
+[==========] tests: Running 5 test(s).
+[ RUN      ] test_dcu_packet_capture_hex_dump_and_axdr_inspector
+[       OK ] test_dcu_packet_capture_hex_dump_and_axdr_inspector
+[ RUN      ] test_dcu_power_quality_phasor_and_harmonics
+[       OK ] test_dcu_power_quality_phasor_and_harmonics
+[ RUN      ] test_dcu_power_quality_phase_commutation_optimizer
+[       OK ] test_dcu_power_quality_phase_commutation_optimizer
+[ RUN      ] test_dcu_router_and_web_core_exports
+[       OK ] test_dcu_router_and_web_core_exports
+[ RUN      ] test_dcu_physical_unbalance_and_harmonic_algorithms
+[       OK ] test_dcu_physical_unbalance_and_harmonic_algorithms
+[==========] tests: 5 test(s) run.
+[  PASSED  ] 5 test(s).
+
+======================== 10 passed in 62.78s (0:01:02) =========================
+✨ OMNIS INTEGRATION TEST PASSED!

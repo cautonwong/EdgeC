@@ -8,3 +8,5 @@ export { default as TOUArbitrageWidget } from './components/TOUArbitrageWidget.v
 export { default as AntiReversePIDGauge } from './components/AntiReversePIDGauge.vue';
 export { default as DemandPeakShavingWidget } from './components/DemandPeakShavingWidget.vue';
 export { default as EnergyFlowView } from './views/energy/EnergyFlowView.vue';
+export { default as PacketCapture } from './views/dcu/PacketCapture.vue';
+export { default as PowerQuality } from './views/dcu/PowerQuality.vue';
