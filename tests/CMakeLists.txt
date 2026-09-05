@@ -809,6 +809,18 @@ target_link_libraries(test_web_log_terminal PRIVATE
 )
 add_test(NAME test_web_log_terminal COMMAND test_web_log_terminal)
 
+# AEP-499 全景实时系统级 Metrics 矩阵与 DataHub/DDS 资源监控看板测试
+add_executable(test_web_metrics_matrix test_web_metrics_matrix.c)
+target_include_directories(test_web_metrics_matrix PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_web_metrics_matrix PRIVATE
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_web_metrics_matrix COMMAND test_web_metrics_matrix)
+
+
 
 
 

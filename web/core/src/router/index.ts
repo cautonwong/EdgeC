@@ -22,6 +22,7 @@ export const coreRoutes: RouteRecordRaw[] = [
       { path: 'dcu/power-quality', name: 'DcuPowerQuality', component: () => import('../views/dcu/PowerQuality.vue'), meta: { title: 'Power Quality', icon: '🧭' } },
       { path: 'events', name: 'Events', component: () => import('../views/events/EventStreamHub.vue'), meta: { title: 'SOE Events', icon: '🚨' } },
       { path: 'logs', name: 'Logs', component: () => import('../views/logs/LogStreamTerminal.vue'), meta: { title: 'Live Logs', icon: '📟' } },
+      { path: 'metrics', name: 'Metrics', component: () => import('../views/metrics/MetricsMatrix.vue'), meta: { title: 'Metrics Matrix', icon: '🎛️' } },
       { path: 'system', name: 'System', component: () => import('../views/system/SystemConfig.vue'), meta: { title: 'Config', icon: '🛠️' } },
     ]
   }
