@@ -820,6 +820,18 @@ target_link_libraries(test_web_metrics_matrix PRIVATE
 )
 add_test(NAME test_web_metrics_matrix COMMAND test_web_metrics_matrix)
 
+# AEP-500 南向物理通道通信拓扑与 HPLC/无线信噪比热力图交互看板测试
+add_executable(test_web_channel_topology test_web_channel_topology.c)
+target_include_directories(test_web_channel_topology PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_web_channel_topology PRIVATE
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_web_channel_topology COMMAND test_web_channel_topology)
+
+
 
 
 

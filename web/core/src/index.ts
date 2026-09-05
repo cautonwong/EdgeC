@@ -13,3 +13,4 @@ export { default as PowerQuality } from './views/dcu/PowerQuality.vue';
 export { default as EventStreamHub } from './views/events/EventStreamHub.vue';
 export { default as LogStreamTerminal } from './views/logs/LogStreamTerminal.vue';
 export { default as MetricsMatrix } from './views/metrics/MetricsMatrix.vue';
+export { default as ChannelTopologyHeatmap } from './views/devices/ChannelTopologyHeatmap.vue';
