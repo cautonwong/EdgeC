@@ -1,0 +1,27 @@
+======================================================================
+CTest Suite Results: 165/165 Test Cases (100% Passed)
+======================================================================
+162/165 Test #162: test_web_ui_tokens ...........................   Passed    0.01 sec
+163/165 Test #163: test_web_oled_theme ..........................   Passed    0.01 sec
+164/165 Test #164: test_web_contract_loader .....................   Passed    0.01 sec
+165/165 Test #165: test_web_live_tag_card .......................   Passed    0.01 sec
+
+100% tests passed, 0 tests failed out of 165
+Total Test time (real) = 4.12 sec
+
+======================================================================
+Omnis Integration Simulation Results: 10/10 Passed (100%)
+======================================================================
+cmd/iems/matrix/test_adc_dsp.py::test_industrial_proof_dsp PASSED
+cmd/iems/matrix/test_e2e_flow.py::test_iems_modbus_e2e_flow PASSED
+cmd/iems/matrix/test_e2e_flow.py::test_iems_multi_tag_consistency PASSED
+cmd/iems/matrix/test_high_freq.py::test_adc_to_protection_e2e PASSED
+cmd/iems/matrix/test_high_freq.py::test_harmonic_interference_rms PASSED
+cmd/iems/matrix/test_protection.py::test_overvoltage_reporting PASSED
+cmd/iems/matrix/test_protection.py::test_island_mpc_protection PASSED
+cmd/iems/matrix/test_raw_io.py::test_raw_io_loopback PASSED
+cmd/iems/matrix/test_scenarios.py::test_run_manifest_scenario[ion_precision_test.yaml] PASSED
+cmd/iems/matrix/test_slave_flow.py::test_slave_mirror_flow PASSED
+
+======================== 10 passed in 61.77s (0:01:01) =========================
+✨ OMNIS INTEGRATION TEST PASSED!
