@@ -728,6 +728,15 @@ target_link_libraries(test_dds_cli_diagnostics PRIVATE
 )
 add_test(NAME test_dds_cli_diagnostics COMMAND test_dds_cli_diagnostics)
 
+# AEP-490 EdgeOS Web 设计系统 Tokens 与深黑主题测试
+add_executable(test_web_design_tokens test_web_design_tokens.c)
+target_link_libraries(test_web_design_tokens PRIVATE
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_web_design_tokens COMMAND test_web_design_tokens)
+
+
 
 
 

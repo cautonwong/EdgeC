@@ -1,0 +1,61 @@
+/**
+ * EdgeOS CSS Variables & Design Tokens (AEP-490)
+ * Industrial Edge Deep Black Theme
+ */
+
+:root {
+  /* Surfaces & Backgrounds */
+  --edge-bg-base: #020617;
+  --edge-bg-surface: #0f172a;
+  --edge-bg-elevated: #1e293b;
+  --edge-bg-subtle: #334155;
+
+  /* Borders */
+  --edge-border-subtle: #1e293b;
+  --edge-border-default: #334155;
+  --edge-border-focus: #38bdf8;
+
+  /* Text Colors */
+  --edge-text-primary: #f8fafc;
+  --edge-text-secondary: #94a3b8;
+  --edge-text-muted: #64748b;
+  --edge-text-inverse: #020617;
+
+  /* Status Tokens */
+  --edge-status-normal: #10b981;
+  --edge-status-warning: #f59e0b;
+  --edge-status-fault: #ef4444;
+  --edge-status-offline: #64748b;
+  --edge-status-standby: #38bdf8;
+
+  /* Power Flow Vectors */
+  --edge-flow-grid: #38bdf8;
+  --edge-flow-pv: #fbbf24;
+  --edge-flow-ess-charge: #34d399;
+  --edge-flow-ess-discharge: #f97316;
+  --edge-flow-load: #a78bfa;
+  --edge-flow-diesel: #fb7185;
+
+  /* Fonts */
+  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', "SF Mono", Consolas, monospace;
+}
+
+/* Base Body Styles */
+body {
+  background-color: var(--edge-bg-base);
+  color: var(--edge-text-primary);
+  font-family: var(--font-ui);
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Numeric & Industrial Metric Class */
+.metric-num,
+.mtt-timestamp,
+.monospace-val {
+  font-family: var(--font-mono);
+  font-feature-settings: 'tnum' on, 'zero' on;
+}
