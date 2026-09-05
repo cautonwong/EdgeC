@@ -16,3 +16,4 @@ export { default as MetricsMatrix } from './views/metrics/MetricsMatrix.vue';
 export { default as ChannelTopologyHeatmap } from './views/devices/ChannelTopologyHeatmap.vue';
 export { default as WebConsoleDrawer } from './components/console/WebConsoleDrawer.vue';
 export { default as AnsiTerminalView } from './components/console/AnsiTerminalView.vue';
+export { default as InteractiveShell } from './components/console/InteractiveShell.vue';

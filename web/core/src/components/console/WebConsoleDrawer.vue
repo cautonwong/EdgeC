@@ -80,7 +80,7 @@
       <main class="flex-1 min-h-0 relative overflow-hidden">
         <!-- TAB 1: CLI Shell Terminal -->
         <div v-show="activeTab === 'cli'" class="h-full">
-          <AnsiTerminalView ref="terminalViewRef" />
+          <InteractiveShell ref="terminalViewRef" />
         </div>
 
         <!-- TAB 2: Live Log Stream Console -->
@@ -183,6 +183,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import InteractiveShell from './InteractiveShell.vue';
 import AnsiTerminalView from './AnsiTerminalView.vue';
 
 export interface ConsoleTab {
@@ -229,7 +230,7 @@ const drawerMode = ref<'docked' | 'fullscreen' | 'floating'>('docked');
 const drawerHeightVh = ref(45);
 const logLevelFilter = ref('ALL');
 
-const terminalViewRef = ref<InstanceType<typeof AnsiTerminalView> | null>(null);
+const terminalViewRef = ref<InstanceType<typeof InteractiveShell> | null>(null);
 
 const consoleTabs: ConsoleTab[] = [
   { id: 'cli', name: 'CLI Terminal', icon: '🖥️' },

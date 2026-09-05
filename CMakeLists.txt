@@ -173,6 +173,7 @@ add_subdirectory(modules/edge_security)
 add_subdirectory(modules/edge_stream)
 add_subdirectory(modules/edge_io)
 add_subdirectory(modules/edge_infra)
+add_subdirectory(modules/edge_mgmt)
 
 # ==============================================================================
 # 6. Applications & Tests
