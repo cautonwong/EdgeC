@@ -776,6 +776,17 @@ target_link_libraries(test_smartbox_scope_double_auth PRIVATE
 )
 add_test(NAME test_smartbox_scope_double_auth COMMAND test_smartbox_scope_double_auth)
 
+# AEP-496 DCU DL/T 645/698 规约抓包器与三相谐波电能质量/换相看板测试
+add_executable(test_web_dcu_power_quality test_web_dcu_power_quality.c ../cmd/dcu/dcu_power_quality.c)
+target_include_directories(test_web_dcu_power_quality PRIVATE
+    ${CMAKE_SOURCE_DIR}/cmd/dcu
+)
+target_link_libraries(test_web_dcu_power_quality PRIVATE
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_web_dcu_power_quality COMMAND test_web_dcu_power_quality)
+
 
 
 
