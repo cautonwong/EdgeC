@@ -11,3 +11,4 @@ export { default as EnergyFlowView } from './views/energy/EnergyFlowView.vue';
 export { default as PacketCapture } from './views/dcu/PacketCapture.vue';
 export { default as PowerQuality } from './views/dcu/PowerQuality.vue';
 export { default as EventStreamHub } from './views/events/EventStreamHub.vue';
+export { default as LogStreamTerminal } from './views/logs/LogStreamTerminal.vue';
