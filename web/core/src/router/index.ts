@@ -14,6 +14,7 @@ export const coreRoutes: RouteRecordRaw[] = [
       { path: 'dashboard', name: 'Dashboard', component: Dashboard, meta: { title: 'Dashboard', icon: '📊' } },
       { path: 'energy', name: 'Energy', component: () => import('../views/energy/EnergyFlowView.vue'), meta: { title: 'Microgrid', icon: '⚡' } },
       { path: 'devices', name: 'Devices', component: () => import('../views/devices/DeviceList.vue'), meta: { title: 'Devices', icon: '🔌' } },
+      { path: 'devices/topology', name: 'ChannelTopology', component: () => import('../views/devices/ChannelTopologyHeatmap.vue'), meta: { title: 'Channel Topology', icon: '🌐' } },
       { path: 'data', name: 'Data', component: () => import('../views/data/DataCurves.vue'), meta: { title: 'Analysis', icon: '📈' } },
       { path: 'pipelines', name: 'Pipelines', component: () => import('../views/pipelines/PipelineList.vue'), meta: { title: 'Pipelines', icon: '⚙️' } },
       { path: 'scheduling', name: 'Scheduling', component: () => import('../views/system/Scheduling.vue'), meta: { title: 'Scheduling', icon: '🕒' } },
