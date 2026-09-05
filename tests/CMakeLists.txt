@@ -760,6 +760,14 @@ target_link_libraries(test_web_data_curves PRIVATE
 )
 add_test(NAME test_web_data_curves COMMAND test_web_data_curves)
 
+# AEP-494 IEMS Sankey 动态能流图与 TOU 分时套利看板测试
+add_executable(test_web_iems_energy_flow test_web_iems_energy_flow.c)
+target_link_libraries(test_web_iems_energy_flow PRIVATE
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_web_iems_energy_flow COMMAND test_web_iems_energy_flow)
+
 
 
 
