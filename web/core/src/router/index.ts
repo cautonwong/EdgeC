@@ -12,6 +12,7 @@ export const coreRoutes: RouteRecordRaw[] = [
     children: [
       { path: '', redirect: 'dashboard' },
       { path: 'dashboard', name: 'Dashboard', component: Dashboard, meta: { title: 'Dashboard', icon: '📊' } },
+      { path: 'energy', name: 'Energy', component: () => import('../views/energy/EnergyFlowView.vue'), meta: { title: 'Microgrid', icon: '⚡' } },
       { path: 'devices', name: 'Devices', component: () => import('../views/devices/DeviceList.vue'), meta: { title: 'Devices', icon: '🔌' } },
       { path: 'data', name: 'Data', component: () => import('../views/data/DataCurves.vue'), meta: { title: 'Analysis', icon: '📈' } },
       { path: 'pipelines', name: 'Pipelines', component: () => import('../views/pipelines/PipelineList.vue'), meta: { title: 'Pipelines', icon: '⚙️' } },
