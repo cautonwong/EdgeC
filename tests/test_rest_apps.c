@@ -27,9 +27,13 @@ static int setup(void **state) {
 
 static int teardown(void **state) {
     uv_loop_t *loop = (uv_loop_t *)*state;
+    fprintf(stderr, "[rest_apps] teardown: uv_run DEFAULT enter\n");
     uv_run(loop, UV_RUN_DEFAULT);
+    fprintf(stderr, "[rest_apps] teardown: uv_run DEFAULT exit, closing handles\n");
     uv_walk(loop, (uv_walk_cb)_on_close_cb, NULL);
-    while (uv_loop_close(loop) == UV_EBUSY) uv_run(loop, UV_RUN_ONCE);
+    int close_rc = 0;
+    while ((close_rc = uv_loop_close(loop)) == UV_EBUSY) uv_run(loop, UV_RUN_ONCE);
+    fprintf(stderr, "[rest_apps] teardown: loop closed rc=%d\n", close_rc);
     free(loop);
     return 0;
 }
@@ -38,6 +42,7 @@ static void test_rest_apps_api_endpoints(void **state) {
     uv_loop_t *loop = (uv_loop_t *)*state;
     const char *db_path = "test_rest_apps.db";
     unlink(db_path);
+    fprintf(stderr, "[rest_apps] setup db\n");
 
     sqlite_config_t cfg = {
         .strategy = STRATEGY_LITE,
@@ -45,15 +50,18 @@ static void test_rest_apps_api_endpoints(void **state) {
     };
     sqlite_svc_t *db = sqlite_svc_create(loop, &cfg);
     assert_non_null(db);
+    fprintf(stderr, "[rest_apps] db created\n");
 
     edge_app_mgr_t *app_mgr = edge_app_mgr_create(loop, NULL, db, NULL);
     assert_non_null(app_mgr);
+    fprintf(stderr, "[rest_apps] app_mgr created\n");
 
     datahub_t *hub = calloc(1, sizeof(datahub_t));
     arbiter_t *arb = (arbiter_t *)0x1234;
 
     service_t *svc = service_new(loop, hub, arb, db, NULL, NULL, NULL);
     assert_non_null(svc);
+    fprintf(stderr, "[rest_apps] service created\n");
     service_set_app_mgr(svc, app_mgr);
 
     // 1. Test POST /api/v1/apps/upload
@@ -66,18 +74,21 @@ static void test_rest_apps_api_endpoints(void **state) {
         "}";
 
     char *resp = rest_dispatch(svc, "POST", "/api/v1/apps/upload", upload_body);
+    fprintf(stderr, "[rest_apps] upload dispatched\n");
     assert_non_null(resp);
     assert_non_null(strstr(resp, "\"status\":\"ok\""));
     free(resp);
 
     // 2. Test GET /api/v1/apps/list
     resp = rest_dispatch(svc, "GET", "/api/v1/apps/list", "");
+    fprintf(stderr, "[rest_apps] list dispatched\n");
     assert_non_null(resp);
     assert_non_null(strstr(resp, "voltage_guard"));
     free(resp);
 
     // 3. Test POST /api/v1/apps/stop
     resp = rest_dispatch(svc, "POST", "/api/v1/apps/stop", "{\"app_id\":\"voltage_guard\"}");
+    fprintf(stderr, "[rest_apps] stop dispatched\n");
     assert_non_null(resp);
     assert_non_null(strstr(resp, "\"status\":\"ok\""));
     free(resp);
@@ -90,6 +101,7 @@ static void test_rest_apps_api_endpoints(void **state) {
 
     // 4. Test POST /api/v1/apps/start
     resp = rest_dispatch(svc, "POST", "/api/v1/apps/start", "{\"app_id\":\"voltage_guard\"}");
+    fprintf(stderr, "[rest_apps] start dispatched\n");
     assert_non_null(resp);
     assert_non_null(strstr(resp, "\"status\":\"ok\""));
     free(resp);
@@ -100,8 +112,11 @@ static void test_rest_apps_api_endpoints(void **state) {
     assert_int_equal(m.state, APP_STATE_RUNNING);
 
     service_delete(svc);
+    fprintf(stderr, "[rest_apps] service deleted\n");
     edge_app_mgr_destroy(app_mgr);
+    fprintf(stderr, "[rest_apps] app_mgr destroyed\n");
     sqlite_svc_destroy(db);
+    fprintf(stderr, "[rest_apps] db destroyed\n");
     free(hub);
     unlink(db_path);
 }
