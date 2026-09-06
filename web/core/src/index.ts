@@ -19,3 +19,4 @@ export { default as AnsiTerminalView } from './components/console/AnsiTerminalVi
 export { default as InteractiveShell } from './components/console/InteractiveShell.vue';
 export { default as ProtocolSnifferView } from './components/console/ProtocolSnifferView.vue';
 export { default as HexPayloadViewer } from './components/console/HexPayloadViewer.vue';
+export { default as TwoManRuleModal } from './components/console/TwoManRuleModal.vue';

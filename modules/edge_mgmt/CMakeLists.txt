@@ -3,6 +3,8 @@
 add_library(edge_mgmt STATIC
     src/api/console_ws.c
     src/api/sniffer_ws.c
+    src/auth/console_rbac.c
+    src/audit/console_audit.c
 )
 
 target_include_directories(edge_mgmt PUBLIC

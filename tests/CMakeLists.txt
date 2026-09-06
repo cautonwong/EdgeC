@@ -868,6 +868,19 @@ target_link_libraries(test_web_protocol_sniffer PRIVATE
 )
 add_test(NAME test_web_protocol_sniffer COMMAND test_web_protocol_sniffer)
 
+# AEP-504 工业控制台安全门禁、高危操作双人复核与全量审计留痕测试
+add_executable(test_web_console_rbac_audit test_web_console_rbac_audit.c)
+target_include_directories(test_web_console_rbac_audit PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_mgmt/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_web_console_rbac_audit PRIVATE
+    edge_mgmt
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_web_console_rbac_audit COMMAND test_web_console_rbac_audit)
+
 
 
 

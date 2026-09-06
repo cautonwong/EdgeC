@@ -104,9 +104,31 @@ execute_process(
     RESULT_VARIABLE genconfig_res
 )
 
+if(NOT EXISTS "${DOTCONFIG_FILE}" AND EXISTS "${CONF_FILE}")
+    file(READ "${CONF_FILE}" FALLBACK_CONFIG_CONTENT)
+    file(WRITE "${DOTCONFIG_FILE}" "${FALLBACK_CONFIG_CONTENT}")
+endif()
+
 if(NOT EXISTS "${AUTOCONF_HEADER}")
-    message(WARNING "[Kconfig] ${AUTOCONF_HEADER} was not generated; creating fallback empty header")
-    file(WRITE "${AUTOCONF_HEADER}" "/* Auto-generated fallback autoconf.h */\n#ifndef AUTOCONF_H\n#define AUTOCONF_H\n#endif\n")
+    message(WARNING "[Kconfig] ${AUTOCONF_HEADER} was not generated; creating fallback header from config")
+    set(AUTOCONF_CONTENT "/* Auto-generated fallback autoconf.h */\n#ifndef AUTOCONF_H\n#define AUTOCONF_H\n")
+    if(EXISTS "${DOTCONFIG_FILE}")
+        file(STRINGS "${DOTCONFIG_FILE}" CFG_LINES)
+        foreach(line ${CFG_LINES})
+            if(line MATCHES "^CONFIG_([^=]+)=(.*)$")
+                set(C_KEY "CONFIG_${CMAKE_MATCH_1}")
+                set(C_VAL ${CMAKE_MATCH_2})
+                if(C_VAL STREQUAL "y")
+                    string(APPEND AUTOCONF_CONTENT "#define ${C_KEY} 1\n")
+                elseif(NOT C_VAL STREQUAL "n")
+                    string(APPEND AUTOCONF_CONTENT "#define ${C_KEY} ${C_VAL}\n")
+                endif()
+            endif()
+        endforeach()
+    endif()
+    string(APPEND AUTOCONF_CONTENT "#ifndef CONFIG_EDGEC_TIER\n#define CONFIG_EDGEC_TIER \"ENTERPRISE\"\n#endif\n")
+    string(APPEND AUTOCONF_CONTENT "#endif /* AUTOCONF_H */\n")
+    file(WRITE "${AUTOCONF_HEADER}" "${AUTOCONF_CONTENT}")
 endif()
 
 # Parse .config for CMake usage
