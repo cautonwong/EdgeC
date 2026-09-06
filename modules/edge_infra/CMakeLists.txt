@@ -36,6 +36,26 @@ if(CONFIG_EDGE_INFRA_MQTT)
     list(APPEND INFRA_PRIVATE_LIBS PahoMQTT::PahoMQTT)
 endif()
 
+# ==============================================================================
+# IDL Code Generation & Header Preparation
+# ==============================================================================
+set(IDL_GEN_DIR "${CMAKE_BINARY_DIR}/idl_generated")
+file(MAKE_DIRECTORY "${IDL_GEN_DIR}")
+
+find_program(IDLC_BIN idlc HINTS "${LOCAL_ROOT}/bin")
+if(IDLC_BIN AND EXISTS "${CMAKE_SOURCE_DIR}/contracts/idl/dlt698_objects.idl")
+    execute_process(
+        COMMAND "${IDLC_BIN}" -o "${IDL_GEN_DIR}" "${CMAKE_SOURCE_DIR}/contracts/idl/dlt698_objects.idl"
+        OUTPUT_QUIET ERROR_QUIET
+        RESULT_VARIABLE idlc_res
+    )
+endif()
+
+if(NOT EXISTS "${IDL_GEN_DIR}/dlt698_objects.h" AND EXISTS "${CMAKE_SOURCE_DIR}/contracts/idl/generated/dlt698_objects.h")
+    file(COPY "${CMAKE_SOURCE_DIR}/contracts/idl/generated/dlt698_objects.h" DESTINATION "${IDL_GEN_DIR}")
+    file(COPY "${CMAKE_SOURCE_DIR}/contracts/idl/generated/dlt698_objects.c" DESTINATION "${IDL_GEN_DIR}")
+endif()
+
 add_library(edge_infra STATIC
     ${INFRA_SOURCES}
 )
@@ -44,7 +64,8 @@ target_include_directories(edge_infra PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
-    ${CMAKE_BINARY_DIR}/idl_generated
+    ${IDL_GEN_DIR}
+    ${CMAKE_SOURCE_DIR}/contracts/idl/generated
 )
 
 target_link_libraries(edge_infra PUBLIC ${INFRA_PUBLIC_LIBS})
