@@ -90,6 +90,7 @@ static void test_rest_apps_api_endpoints(void **state) {
 
     char *resp = rest_dispatch(svc, "POST", "/api/v1/apps/upload", upload_body);
     trace_phase("upload dispatched");
+    trace_phase(resp ? resp : "upload resp NULL");
     assert_non_null(resp);
     assert_non_null(strstr(resp, "\"status\":\"ok\""));
     free(resp);
@@ -97,6 +98,7 @@ static void test_rest_apps_api_endpoints(void **state) {
     // 2. Test GET /api/v1/apps/list
     resp = rest_dispatch(svc, "GET", "/api/v1/apps/list", "");
     trace_phase("list dispatched");
+    trace_phase(resp ? resp : "list resp NULL");
     assert_non_null(resp);
     assert_non_null(strstr(resp, "voltage_guard"));
     free(resp);
