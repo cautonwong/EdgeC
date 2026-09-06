@@ -30,6 +30,10 @@ typedef enum {
 #include <string.h>
 #include "autoconf.h"
 
+#ifndef CONFIG_EDGEC_TIER
+#define CONFIG_EDGEC_TIER "ENTERPRISE"
+#endif
+
 #define CURRENT_SDK_TIER _edgec_get_compiled_tier()
 
 static inline edgec_tier_t _edgec_get_compiled_tier(void) {
