@@ -68,15 +68,6 @@ jobs:
           export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${{ github.workspace }}/.local/linux-x86_64/lib
           cd build && ctest --output-on-failure
 
-      - name: Upload rest_apps trace on failure
-        if: failure() && matrix.config.run_tests
-        uses: actions/upload-artifact@v4
-        with:
-          name: rest-apps-trace-${{ matrix.config.target }}
-          path: |
-            build/rest_apps_trace.txt
-            build/tests/rest_apps_trace.txt
-          if-no-files-found: ignore
 
       - name: Generate Code Coverage (x86_64 only)
         if: matrix.config.target == 'x86_64'
