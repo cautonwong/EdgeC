@@ -14,11 +14,26 @@
 #include "edge_service.h"
 #include "rest_server.h"
 
+static FILE *g_trace = NULL;
+
+static void trace_phase(const char *phase) {
+    if (!g_trace) {
+        g_trace = fopen("rest_apps_trace.txt", "a");
+    }
+    if (g_trace) {
+        fprintf(g_trace, "%s\n", phase);
+        fflush(g_trace);
+        fsync(fileno(g_trace));
+    }
+    fprintf(stderr, "[rest_apps] %s\n", phase);
+}
+
 static void _on_close_cb(uv_handle_t *handle) {
     (void)handle;
 }
 
 static int setup(void **state) {
+    trace_phase("setup");
     uv_loop_t *loop = malloc(sizeof(uv_loop_t));
     uv_loop_init(loop);
     *state = loop;
@@ -27,13 +42,13 @@ static int setup(void **state) {
 
 static int teardown(void **state) {
     uv_loop_t *loop = (uv_loop_t *)*state;
-    fprintf(stderr, "[rest_apps] teardown: uv_run DEFAULT enter\n");
+    trace_phase("teardown: uv_run DEFAULT enter");
     uv_run(loop, UV_RUN_DEFAULT);
-    fprintf(stderr, "[rest_apps] teardown: uv_run DEFAULT exit, closing handles\n");
+    trace_phase("teardown: uv_run DEFAULT exit, closing handles");
     uv_walk(loop, (uv_walk_cb)_on_close_cb, NULL);
     int close_rc = 0;
     while ((close_rc = uv_loop_close(loop)) == UV_EBUSY) uv_run(loop, UV_RUN_ONCE);
-    fprintf(stderr, "[rest_apps] teardown: loop closed rc=%d\n", close_rc);
+    trace_phase("teardown: loop closed");
     free(loop);
     return 0;
 }
@@ -42,7 +57,7 @@ static void test_rest_apps_api_endpoints(void **state) {
     uv_loop_t *loop = (uv_loop_t *)*state;
     const char *db_path = "test_rest_apps.db";
     unlink(db_path);
-    fprintf(stderr, "[rest_apps] setup db\n");
+    trace_phase("setup db");
 
     sqlite_config_t cfg = {
         .strategy = STRATEGY_LITE,
@@ -50,18 +65,18 @@ static void test_rest_apps_api_endpoints(void **state) {
     };
     sqlite_svc_t *db = sqlite_svc_create(loop, &cfg);
     assert_non_null(db);
-    fprintf(stderr, "[rest_apps] db created\n");
+    trace_phase("db created");
 
     edge_app_mgr_t *app_mgr = edge_app_mgr_create(loop, NULL, db, NULL);
     assert_non_null(app_mgr);
-    fprintf(stderr, "[rest_apps] app_mgr created\n");
+    trace_phase("app_mgr created");
 
     datahub_t *hub = calloc(1, sizeof(datahub_t));
     arbiter_t *arb = (arbiter_t *)0x1234;
 
     service_t *svc = service_new(loop, hub, arb, db, NULL, NULL, NULL);
     assert_non_null(svc);
-    fprintf(stderr, "[rest_apps] service created\n");
+    trace_phase("service created");
     service_set_app_mgr(svc, app_mgr);
 
     // 1. Test POST /api/v1/apps/upload
@@ -74,21 +89,21 @@ static void test_rest_apps_api_endpoints(void **state) {
         "}";
 
     char *resp = rest_dispatch(svc, "POST", "/api/v1/apps/upload", upload_body);
-    fprintf(stderr, "[rest_apps] upload dispatched\n");
+    trace_phase("upload dispatched");
     assert_non_null(resp);
     assert_non_null(strstr(resp, "\"status\":\"ok\""));
     free(resp);
 
     // 2. Test GET /api/v1/apps/list
     resp = rest_dispatch(svc, "GET", "/api/v1/apps/list", "");
-    fprintf(stderr, "[rest_apps] list dispatched\n");
+    trace_phase("list dispatched");
     assert_non_null(resp);
     assert_non_null(strstr(resp, "voltage_guard"));
     free(resp);
 
     // 3. Test POST /api/v1/apps/stop
     resp = rest_dispatch(svc, "POST", "/api/v1/apps/stop", "{\"app_id\":\"voltage_guard\"}");
-    fprintf(stderr, "[rest_apps] stop dispatched\n");
+    trace_phase("stop dispatched");
     assert_non_null(resp);
     assert_non_null(strstr(resp, "\"status\":\"ok\""));
     free(resp);
@@ -101,7 +116,7 @@ static void test_rest_apps_api_endpoints(void **state) {
 
     // 4. Test POST /api/v1/apps/start
     resp = rest_dispatch(svc, "POST", "/api/v1/apps/start", "{\"app_id\":\"voltage_guard\"}");
-    fprintf(stderr, "[rest_apps] start dispatched\n");
+    trace_phase("start dispatched");
     assert_non_null(resp);
     assert_non_null(strstr(resp, "\"status\":\"ok\""));
     free(resp);
@@ -112,16 +127,18 @@ static void test_rest_apps_api_endpoints(void **state) {
     assert_int_equal(m.state, APP_STATE_RUNNING);
 
     service_delete(svc);
-    fprintf(stderr, "[rest_apps] service deleted\n");
+    trace_phase("service deleted");
     edge_app_mgr_destroy(app_mgr);
-    fprintf(stderr, "[rest_apps] app_mgr destroyed\n");
+    trace_phase("app_mgr destroyed");
     sqlite_svc_destroy(db);
-    fprintf(stderr, "[rest_apps] db destroyed\n");
+    trace_phase("db destroyed");
     free(hub);
     unlink(db_path);
 }
 
 int main(void) {
+    remove("rest_apps_trace.txt");
+    trace_phase("main start");
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_rest_apps_api_endpoints, setup, teardown),
     };
