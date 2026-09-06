@@ -105,7 +105,15 @@ execute_process(
 )
 
 if(NOT EXISTS "${DOTCONFIG_FILE}" AND EXISTS "${CONF_FILE}")
-    file(READ "${CONF_FILE}" FALLBACK_CONFIG_CONTENT)
+    # Kconfig unavailable: merge committed default-y options first, then let
+    # prj.conf override, so the fallback matches a real `defconfig` run.
+    set(FALLBACK_CONFIG_CONTENT "")
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/scripts/kconfig_defaults.conf")
+        file(READ "${CMAKE_CURRENT_SOURCE_DIR}/scripts/kconfig_defaults.conf" KCONFIG_DEFAULTS_CONTENT)
+        set(FALLBACK_CONFIG_CONTENT "${KCONFIG_DEFAULTS_CONTENT}\n")
+    endif()
+    file(READ "${CONF_FILE}" CONF_FILE_CONTENT)
+    string(APPEND FALLBACK_CONFIG_CONTENT "${CONF_FILE_CONTENT}")
     file(WRITE "${DOTCONFIG_FILE}" "${FALLBACK_CONFIG_CONTENT}")
 endif()
 
