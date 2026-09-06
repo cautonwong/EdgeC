@@ -45,6 +45,12 @@ jobs:
           sudo apt-get install -y cmake ninja-build clang-tidy lcov valgrind libssl-dev
           if [ "${{ matrix.config.target }}" == "arm64" ]; then
             sudo dpkg --add-architecture arm64
+            if [ -f /etc/apt/sources.list ]; then
+              sudo sed -i 's/^deb /deb [arch=amd64,arm64] /' /etc/apt/sources.list || true
+            fi
+            if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+              sudo sed -i 's/^Architectures:.*/Architectures: amd64 arm64/' /etc/apt/sources.list.d/ubuntu.sources || true
+            fi
             sudo apt-get update
             sudo apt-get install -y libssl-dev:arm64
             sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
