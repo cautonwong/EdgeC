@@ -433,7 +433,12 @@ static char *handle_apps_upload(service_t *svc, const char *body) {
 
     edge_app_mgr_t *mgr = (edge_app_mgr_t *)service_get_app_mgr(svc);
     if (mgr) {
-        edge_app_mgr_install(mgr, &manifest, wasm_buf, wasm_len);
+        int install_rc = edge_app_mgr_install(mgr, &manifest, wasm_buf, wasm_len);
+        if (install_rc != 0) {
+            free(wasm_buf);
+            cJSON_Delete(root);
+            return strdup("{\"status\":\"error\",\"reason\":\"install_failed\"}");
+        }
         edge_app_mgr_start(mgr, manifest.id);
     } else {
         sqlite_svc_t *db = service_get_storage(svc);

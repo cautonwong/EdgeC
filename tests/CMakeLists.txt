@@ -83,7 +83,6 @@ add_edge_test(test_radar_fmcw test_radar_fmcw.c)
 add_edge_test(test_io_http test_io_http.c)
 target_link_libraries(test_io_http PRIVATE CURL::libcurl)
 add_edge_test(test_rest_apps test_rest_apps.c)
-set_tests_properties(test_rest_apps PROPERTIES TIMEOUT 60)
 
 # 4. 流处理引擎测试 (Compute Plane)
 add_edge_test(test_stream_engine test_stream_engine.c)
@@ -882,7 +881,6 @@ target_link_libraries(test_web_console_rbac_audit PRIVATE
     pthread dl rt m
 )
 add_test(NAME test_web_console_rbac_audit COMMAND test_web_console_rbac_audit)
-
 
 
 
