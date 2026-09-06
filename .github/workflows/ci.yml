@@ -73,7 +73,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: rest-apps-trace-${{ matrix.config.target }}
-          path: build/rest_apps_trace.txt
+          path: |
+            build/rest_apps_trace.txt
+            build/tests/rest_apps_trace.txt
           if-no-files-found: ignore
 
       - name: Generate Code Coverage (x86_64 only)
