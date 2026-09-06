@@ -104,6 +104,11 @@ execute_process(
     RESULT_VARIABLE genconfig_res
 )
 
+if(NOT EXISTS "${AUTOCONF_HEADER}")
+    message(WARNING "[Kconfig] ${AUTOCONF_HEADER} was not generated; creating fallback empty header")
+    file(WRITE "${AUTOCONF_HEADER}" "/* Auto-generated fallback autoconf.h */\n#ifndef AUTOCONF_H\n#define AUTOCONF_H\n#endif\n")
+endif()
+
 # Parse .config for CMake usage
 if(EXISTS "${DOTCONFIG_FILE}")
     file(STRINGS "${DOTCONFIG_FILE}" CONFIG_LINES)

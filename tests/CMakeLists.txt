@@ -855,6 +855,19 @@ target_link_libraries(test_web_cli_bridge PRIVATE
 )
 add_test(NAME test_web_cli_bridge COMMAND test_web_cli_bridge)
 
+# AEP-503 工业协议原始报文抓包与实时十六进制解析器测试
+add_executable(test_web_protocol_sniffer test_web_protocol_sniffer.c)
+target_include_directories(test_web_protocol_sniffer PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_mgmt/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_web_protocol_sniffer PRIVATE
+    edge_mgmt
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_web_protocol_sniffer COMMAND test_web_protocol_sniffer)
+
 
 
 

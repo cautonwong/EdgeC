@@ -2,6 +2,7 @@
 
 add_library(edge_mgmt STATIC
     src/api/console_ws.c
+    src/api/sniffer_ws.c
 )
 
 target_include_directories(edge_mgmt PUBLIC

@@ -122,34 +122,8 @@
         </div>
 
         <!-- TAB 3: Protocol Packet Sniffer -->
-        <div v-show="activeTab === 'sniffer'" class="h-full flex flex-col bg-[#050b14] p-4 font-mono text-xs overflow-hidden">
-          <!-- Sniffer Header -->
-          <div class="flex items-center justify-between pb-3 border-b border-slate-800">
-            <span class="text-cyan-400 font-bold">Live Hex / AXDR Packet Capture Stream</span>
-            <span class="text-slate-500 text-[11px]">Channels: RS-485 / HPLC / Sub-1GHz RF</span>
-          </div>
-          <div class="flex-1 overflow-y-auto py-2 space-y-2">
-            <div 
-              v-for="(pkt, idx) in packetStream" 
-              :key="idx"
-              class="bg-slate-950 p-2.5 rounded-xl border border-slate-850 space-y-1 hover:border-slate-700 transition"
-            >
-              <div class="flex items-center justify-between text-[10px]">
-                <div class="flex items-center gap-2">
-                  <span class="px-1.5 py-0.5 rounded font-bold" :class="pkt.direction === 'TX' ? 'bg-blue-500/20 text-blue-400' : 'bg-emerald-500/20 text-emerald-400'">
-                    {{ pkt.direction }}
-                  </span>
-                  <span class="text-slate-400 font-bold">{{ pkt.protocol }}</span>
-                  <span class="text-slate-500">{{ pkt.channel }}</span>
-                </div>
-                <span class="text-slate-600">{{ pkt.time }}</span>
-              </div>
-              <div class="text-amber-400/90 font-mono text-[11px] tracking-wider break-all">
-                {{ pkt.hexData }}
-              </div>
-              <div class="text-[10px] text-slate-400">Parsed: {{ pkt.decodedSummary }}</div>
-            </div>
-          </div>
+        <div v-show="activeTab === 'sniffer'" class="h-full">
+          <ProtocolSnifferView />
         </div>
 
         <!-- TAB 4: Quick Macros -->
@@ -184,6 +158,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import InteractiveShell from './InteractiveShell.vue';
+import ProtocolSnifferView from './ProtocolSnifferView.vue';
 import AnsiTerminalView from './AnsiTerminalView.vue';
 
 export interface ConsoleTab {

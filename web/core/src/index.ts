@@ -17,3 +17,5 @@ export { default as ChannelTopologyHeatmap } from './views/devices/ChannelTopolo
 export { default as WebConsoleDrawer } from './components/console/WebConsoleDrawer.vue';
 export { default as AnsiTerminalView } from './components/console/AnsiTerminalView.vue';
 export { default as InteractiveShell } from './components/console/InteractiveShell.vue';
+export { default as ProtocolSnifferView } from './components/console/ProtocolSnifferView.vue';
+export { default as HexPayloadViewer } from './components/console/HexPayloadViewer.vue';

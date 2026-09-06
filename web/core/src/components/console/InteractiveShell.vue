@@ -228,10 +228,13 @@ async function executeCurrentCommand() {
 
   try {
     // Attempt dispatch via REST / API bridge
-    const res = await axios.post('/api/v1/debug/cli/exec', { command: cmd });
-    if (res.data && res.data.output) {
+    const res = await axios.post('/api/v1/debug/cli/exec', { command: cmd }, { timeout: 1000 });
+    if (res.data && typeof res.data.output === 'string') {
       output = res.data.output;
       channelMode.value = 'REST';
+    } else {
+      output = simulateLocalCommandDispatch(cmd);
+      channelMode.value = 'WS';
     }
   } catch (err) {
     // Local fallback built-in dispatcher
