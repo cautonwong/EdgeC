@@ -31,6 +31,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
 
       - name: Setup Go Environment
         uses: actions/setup-go@v5
@@ -43,6 +44,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build clang-tidy lcov valgrind libssl-dev
           if [ "${{ matrix.config.target }}" == "arm64" ]; then
+            sudo dpkg --add-architecture arm64
+            if [ -f /etc/apt/sources.list ]; then
+              sudo sed -i 's/^deb /deb [arch=amd64,arm64] /' /etc/apt/sources.list || true
+            fi
+            if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+              sudo sed -i 's/^Architectures:.*/Architectures: amd64 arm64/' /etc/apt/sources.list.d/ubuntu.sources || true
+            fi
+            sudo apt-get update
+            sudo apt-get install -y libssl-dev:arm64
             sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
           fi
 
@@ -57,6 +67,7 @@ jobs:
         run: |
           export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${{ github.workspace }}/.local/linux-x86_64/lib
           cd build && ctest --output-on-failure
+
 
       - name: Generate Code Coverage (x86_64 only)
         if: matrix.config.target == 'x86_64'
@@ -84,7 +95,7 @@ jobs:
           ./scripts/check_no_old_src.sh
           ./scripts/check_symbols_baseline.sh
           STRICT_CORE_GATE=1 ./scripts/check_core_symbols.sh
-          STRICT_CORE_GATE=1 ./scripts/check_core_readonly.sh origin/feature/modular-refactor
+          STRICT_CORE_GATE=1 ./scripts/check_core_readonly.sh "${{ github.event.pull_request.base.sha || github.event.before }}"
           ./scripts/check_binary_sizes.sh | tee build/size_report.txt
 
       - name: Generate Packages

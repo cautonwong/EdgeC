@@ -14,11 +14,15 @@
 #include "edge_service.h"
 #include "rest_server.h"
 
-static void _on_close_cb(uv_handle_t *handle) {
-    (void)handle;
+static void _on_close_cb(uv_handle_t *handle, void *arg) {
+    (void)arg;
+    if (!uv_is_closing(handle)) {
+        uv_close(handle, NULL);
+    }
 }
 
 static int setup(void **state) {
+    setenv("EDGE_APPS_DIR", "edgeos_test_apps", 1);
     uv_loop_t *loop = malloc(sizeof(uv_loop_t));
     uv_loop_init(loop);
     *state = loop;
@@ -27,11 +31,15 @@ static int setup(void **state) {
 
 static int teardown(void **state) {
     uv_loop_t *loop = (uv_loop_t *)*state;
-    uv_run(loop, UV_RUN_DEFAULT);
-    uv_walk(loop, (uv_walk_cb)_on_close_cb, NULL);
-    while (uv_loop_close(loop) == UV_EBUSY) uv_run(loop, UV_RUN_ONCE);
+    /* Bounded drain: never block forever if a timer/handle remains active */
+    uv_walk(loop, _on_close_cb, NULL);
+    int close_rc = uv_loop_close(loop);
+    for (int i = 0; i < 100000 && close_rc == UV_EBUSY; i++) {
+        uv_run(loop, UV_RUN_NOWAIT);
+        close_rc = uv_loop_close(loop);
+    }
     free(loop);
-    return 0;
+    return close_rc == 0 ? 0 : -1;
 }
 
 static void test_rest_apps_api_endpoints(void **state) {

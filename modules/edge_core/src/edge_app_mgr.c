@@ -102,6 +102,11 @@ int edge_app_mgr_construct_default_manifest(const char *filename_or_id, app_mani
     if (!filename_or_id || !out_manifest) return -1;
     memset(out_manifest, 0, sizeof(app_manifest_t));
 
+    const char *apps_dir = getenv("EDGE_APPS_DIR");
+    if (!apps_dir || apps_dir[0] == '\0') {
+        apps_dir = "/var/edgeos/apps";
+    }
+
     char clean_id[64];
     snprintf(clean_id, sizeof(clean_id), "%s", filename_or_id);
     char *dot = strrchr(clean_id, '.');
@@ -111,7 +116,7 @@ int edge_app_mgr_construct_default_manifest(const char *filename_or_id, app_mani
     snprintf(out_manifest->name, sizeof(out_manifest->name), "%s App", clean_id);
     snprintf(out_manifest->version, sizeof(out_manifest->version), "1.0.0");
     snprintf(out_manifest->author, sizeof(out_manifest->author), "EdgeOS Auto");
-    snprintf(out_manifest->wasm_path, sizeof(out_manifest->wasm_path), "/var/edgeos/apps/%s/app.wasm", clean_id);
+    snprintf(out_manifest->wasm_path, sizeof(out_manifest->wasm_path), "%s/%s/app.wasm", apps_dir, clean_id);
     out_manifest->trigger_tag = 1001;
     snprintf(out_manifest->entry_func, sizeof(out_manifest->entry_func), "on_event");
     out_manifest->fault_policy = FAULT_POLICY_AUTO_RESTART;
@@ -145,7 +150,11 @@ int edge_app_mgr_install(edge_app_mgr_t *mgr, const app_manifest_t *manifest, co
 
     app_manifest_t m = *manifest;
     if (m.wasm_path[0] == '\0') {
-        snprintf(m.wasm_path, sizeof(m.wasm_path), "/var/edgeos/apps/%s/app.wasm", m.id);
+        const char *apps_dir = getenv("EDGE_APPS_DIR");
+        if (!apps_dir || apps_dir[0] == '\0') {
+            apps_dir = "/var/edgeos/apps";
+        }
+        snprintf(m.wasm_path, sizeof(m.wasm_path), "%s/%s/app.wasm", apps_dir, m.id);
     }
 
     char dir_path[256];

@@ -18,7 +18,7 @@ option(ENABLE_WEB_BUILD "Enable frontend Web UI compilation" ON)
 # 1. Environment & Path Configuration
 # ==============================================================================
 string(TOLOWER "${CMAKE_HOST_SYSTEM_NAME}" SYSTEM_NAME_LOWER)
-set(LOCAL_ROOT "${CMAKE_SOURCE_DIR}/.local/${SYSTEM_NAME_LOWER}-${CMAKE_HOST_SYSTEM_PROCESSOR}")
+set(LOCAL_ROOT "${CMAKE_SOURCE_DIR}/.local/${SYSTEM_NAME_LOWER}-${CMAKE_SYSTEM_PROCESSOR}")
 list(APPEND CMAKE_PREFIX_PATH "${LOCAL_ROOT}")
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
@@ -105,7 +105,15 @@ execute_process(
 )
 
 if(NOT EXISTS "${DOTCONFIG_FILE}" AND EXISTS "${CONF_FILE}")
-    file(READ "${CONF_FILE}" FALLBACK_CONFIG_CONTENT)
+    # Kconfig unavailable: merge committed default-y options first, then let
+    # prj.conf override, so the fallback matches a real `defconfig` run.
+    set(FALLBACK_CONFIG_CONTENT "")
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/scripts/kconfig_defaults.conf")
+        file(READ "${CMAKE_CURRENT_SOURCE_DIR}/scripts/kconfig_defaults.conf" KCONFIG_DEFAULTS_CONTENT)
+        set(FALLBACK_CONFIG_CONTENT "${KCONFIG_DEFAULTS_CONTENT}\n")
+    endif()
+    file(READ "${CONF_FILE}" CONF_FILE_CONTENT)
+    string(APPEND FALLBACK_CONFIG_CONTENT "${CONF_FILE_CONTENT}")
     file(WRITE "${DOTCONFIG_FILE}" "${FALLBACK_CONFIG_CONTENT}")
 endif()
 
@@ -201,7 +209,6 @@ add_subdirectory(modules/edge_stream)
 add_subdirectory(modules/edge_io)
 add_subdirectory(modules/edge_infra)
 add_subdirectory(modules/edge_mgmt)
-add_subdirectory(modules/edge_mcp)
 
 # ==============================================================================
 # 6. Applications & Tests

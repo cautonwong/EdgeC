@@ -32,6 +32,7 @@ dist/
 *.log
 logs/
 !docs/evidence/**/tests.log
+!web/core/src/views/logs/
 
 # Assets & Drafts
 image*.png
@@ -66,4 +67,3 @@ rehab_companion.wasm
 *.db-wal
 *.sqlite
 vpp_db.sqlite
-
