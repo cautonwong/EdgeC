@@ -20,6 +20,7 @@ macro(add_edge_test TEST_NAME)
         pthread dl rt m
     )
     add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
+    set_tests_properties(${TEST_NAME} PROPERTIES TIMEOUT 180)
 endmacro()
 
 # 1. 核心框架测试 (Framework)
@@ -880,7 +881,6 @@ target_link_libraries(test_web_console_rbac_audit PRIVATE
     pthread dl rt m
 )
 add_test(NAME test_web_console_rbac_audit COMMAND test_web_console_rbac_audit)
-
 
 
 
