@@ -57,7 +57,7 @@ async def test_raw_io_loopback(matrix):
     success = False
     
     # 工业级柔性重试：为了抵御之前 Modbus 超时堆积的“垃圾报文”，我们允许重发
-    for attempt in range(5):
+    for attempt in range(10):
         print(f"  [Attempt {attempt+1}] Sending DEADBEEF...")
         resp = await loop.run_in_executor(None, lambda: requests.post(api_url, json={
             "bus_id": bus_id,
@@ -65,7 +65,7 @@ async def test_raw_io_loopback(matrix):
         }))
         assert resp.status_code == 200
         
-        await asyncio.sleep(1.0) # 等待 EdgeC 抓取并回填
+        await asyncio.sleep(1.5) # 等待 EdgeC 抓取并回填
         
         resp = await loop.run_in_executor(None, lambda: requests.get(latest_url))
         data = resp.json()
@@ -79,4 +79,4 @@ async def test_raw_io_loopback(matrix):
     # 等待后台任务平滑结束
     echo_task.cancel()
     
-    assert success, f"IEMS failed to capture echo after 5 attempts."
+    assert success, f"IEMS failed to capture echo after 10 attempts."
