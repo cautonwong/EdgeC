@@ -50,6 +50,9 @@ int sqlite_svc_init_from_contract(sqlite_svc_t *svc, const edge_contract_t *cont
 // 插入数据 (内部根据策略自动路由)
 int sqlite_svc_insert(sqlite_svc_t *svc, const PipeMsg *msg);
 
+// 同步刷盘（将内存批处理缓冲区立即写入 SQLite 数据库）
+int sqlite_svc_flush_sync(sqlite_svc_t *svc);
+
 // 查询回调定义
 typedef int (*sqlite_svc_query_cb)(void *user_data, PipeMsg *msg);
 

@@ -56,6 +56,7 @@ target_link_libraries(dcu_app_lib PUBLIC
     libuv::uv_a
     contract_${PROD_NAME}
 )
+add_dependencies(dcu_app_lib contract_${PROD_NAME})
 
 # 4. 创建最终可执行应用程序
 add_executable(${PROD_NAME} main.c)

@@ -256,6 +256,13 @@ static int dummy_query_callback(void *user_data, const void *msg_ptr) {
     return 0;
 }
 
+static int dummy_count_callback(void *user_data, const void *msg_ptr) {
+    (void)msg_ptr;
+    int *count = (int *)user_data;
+    (*count)++;
+    return 0;
+}
+
 static int dummy_exec_callback(void *user_data, int col_count, char **col_values, char **col_names) {
     (void)col_count; (void)col_names;
     int *called = (int *)user_data;
@@ -409,16 +416,16 @@ static void test_sqlite_storage_driver_live(void) {
 
     /* Purge records and verify row drop */
     int count_before = 0;
-    assert(drv->ops->query(drv, 0, 200000, dummy_query_callback, &count_before) == 0);
+    assert(drv->ops->query(drv, 0, 200000, dummy_count_callback, &count_before) == 0);
     assert(count_before >= 4);
 
     assert(drv->ops->purge_old_data(drv, 10) == 0);
 
     int count_after = 0;
-    assert(drv->ops->query(drv, 0, 200000, dummy_query_callback, &count_after) == 0);
+    assert(drv->ops->query(drv, 0, 200000, dummy_count_callback, &count_after) == 0);
     assert(count_after < count_before);
 
-    assert(drv->ops->partition_gc(drv, 50000) == 0);
+    assert(drv->ops->partition_gc(drv, 500000) == 0);
 
     /* 5. SnF Real Enqueue -> Pending -> Dequeue -> Empty Lifecycle */
     uint32_t snf_pending = 999;

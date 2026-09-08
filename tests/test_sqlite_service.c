@@ -37,7 +37,6 @@ static int setup(void** state) {
 
 static int teardown(void** state) {
     uv_loop_t* loop = (uv_loop_t*)*state;
-    uv_run(loop, UV_RUN_DEFAULT);
     uv_walk(loop, on_walk_close, NULL);
     while (uv_loop_close(loop) == UV_EBUSY) uv_run(loop, UV_RUN_ONCE);
     free(loop);

@@ -22,13 +22,14 @@ async def test_raw_io_loopback(matrix):
     
     # 使用 asyncio 打开 Unix 域套接字连接
     reader, writer = await asyncio.open_unix_connection(vbus_path)
+    # 给 UDS Relay 足够的时间在事件循环中 accept 此连接
+    await asyncio.sleep(0.1)
 
     async def mock_device_echo():
         try:
             print(f"📡 [Mock Device] Waiting for request...")
             while True:
-                # 持续读取直到发现 DEADBEEF
-                data = await asyncio.wait_for(reader.read(1024), timeout=10.0)
+                data = await reader.read(1024)
                 if not data: break
                 
                 hex_recv = data.hex().upper()
@@ -39,12 +40,16 @@ async def test_raw_io_loopback(matrix):
                     print(f"📤 [Mock Device] MATCH! Sending Echo: {rx_echo_hex}")
                     writer.write(bytes.fromhex(rx_echo_hex))
                     await writer.drain()
-                    break
+        except asyncio.CancelledError:
+            pass
         except Exception as e:
             print(f"❌ [Mock Device] Error: {e}")
         finally:
             writer.close()
-            await writer.wait_closed()
+            try:
+                await writer.wait_closed()
+            except Exception:
+                pass
 
     # 启动后台模拟设备任务
     echo_task = asyncio.create_task(mock_device_echo())
@@ -56,7 +61,9 @@ async def test_raw_io_loopback(matrix):
     loop = asyncio.get_event_loop()
     success = False
     
-    # 工业级柔性重试：为了抵御之前 Modbus 超时堆积的“垃圾报文”，我们允许重发
+    # 等待总线与 EdgeC 完全就绪
+    await asyncio.sleep(0.5)
+
     for attempt in range(10):
         print(f"  [Attempt {attempt+1}] Sending DEADBEEF...")
         resp = await loop.run_in_executor(None, lambda: requests.post(api_url, json={
@@ -65,18 +72,26 @@ async def test_raw_io_loopback(matrix):
         }))
         assert resp.status_code == 200
         
-        await asyncio.sleep(1.5) # 等待 EdgeC 抓取并回填
+        # 轮询 latest 结果，最多等 2 秒
+        for _ in range(20):
+            await asyncio.sleep(0.1)
+            resp = await loop.run_in_executor(None, lambda: requests.get(latest_url))
+            data = resp.json()
+            if data.get("payload") == rx_echo_hex:
+                print(f"✅ [SUCCESS] IEMS captured the echo: {rx_echo_hex}")
+                success = True
+                break
         
-        resp = await loop.run_in_executor(None, lambda: requests.get(latest_url))
-        data = resp.json()
-        if data.get("payload") == rx_echo_hex:
-            print(f"✅ [SUCCESS] IEMS captured the echo: {rx_echo_hex}")
-            success = True
+        if success:
             break
         else:
-            print(f"  [Attempt {attempt+1}] Got garbage: {data.get('payload')}")
+            print(f"  [Attempt {attempt+1}] Got payload: {data.get('payload')}")
         
     # 等待后台任务平滑结束
     echo_task.cancel()
+    try:
+        await echo_task
+    except asyncio.CancelledError:
+        pass
     
     assert success, f"IEMS failed to capture echo after 10 attempts."

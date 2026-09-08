@@ -100,6 +100,7 @@ static int _sqlite_driver_exec(storage_driver_t *drv, const char *stmt, storage_
 
 static int _sqlite_driver_checkpoint(storage_driver_t *drv, int mode) {
     if (!drv || !drv->priv_ctx) return -1;
+    sqlite_svc_flush_sync((sqlite_svc_t *)drv->priv_ctx);
     sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle((sqlite_svc_t *)drv->priv_ctx);
     if (!db) return -1;
     int eMode = (mode > 0) ? mode : SQLITE_CHECKPOINT_PASSIVE;
@@ -109,6 +110,7 @@ static int _sqlite_driver_checkpoint(storage_driver_t *drv, int mode) {
 
 static int _sqlite_driver_flush(storage_driver_t *drv) {
     if (!drv || !drv->priv_ctx) return -1;
+    sqlite_svc_flush_sync((sqlite_svc_t *)drv->priv_ctx);
     return _sqlite_driver_checkpoint(drv, SQLITE_CHECKPOINT_PASSIVE);
 }
 
@@ -148,21 +150,23 @@ static int _sqlite_driver_get_wal_size(storage_driver_t *drv, uint64_t *out_byte
 
 static int _sqlite_driver_partition_gc(storage_driver_t *drv, uint64_t cutoff_ts) {
     if (!drv || !drv->priv_ctx) return -1;
+    sqlite_svc_flush_sync((sqlite_svc_t *)drv->priv_ctx);
     sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle((sqlite_svc_t *)drv->priv_ctx);
     if (!db) return -1;
     char sql[128];
-    snprintf(sql, sizeof(sql), "DELETE FROM tag_history WHERE timestamp < %llu;", (unsigned long long)cutoff_ts);
+    snprintf(sql, sizeof(sql), "DELETE FROM telemetry WHERE ts < %llu;", (unsigned long long)cutoff_ts);
     return (sqlite3_exec(db, sql, NULL, NULL, NULL) == SQLITE_OK) ? 0 : -1;
 }
 
 static int _sqlite_driver_purge_old_data(storage_driver_t *drv, uint32_t max_size_mb) {
     if (!drv || !drv->priv_ctx) return -1;
+    sqlite_svc_flush_sync((sqlite_svc_t *)drv->priv_ctx);
     sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle((sqlite_svc_t *)drv->priv_ctx);
     if (!db) return -1;
 
     sqlite3_stmt *stmt = NULL;
     int total_rows = 0;
-    if (sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM tag_history;", -1, &stmt, NULL) == SQLITE_OK) {
+    if (sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM telemetry;", -1, &stmt, NULL) == SQLITE_OK) {
         if (sqlite3_step(stmt) == SQLITE_ROW) {
             total_rows = sqlite3_column_int(stmt, 0);
         }
@@ -173,7 +177,7 @@ static int _sqlite_driver_purge_old_data(storage_driver_t *drv, uint32_t max_siz
         int purge_count = (max_size_mb > 0 && total_rows > 2) ? (total_rows / 2) : 1;
         char purge_sql[128];
         snprintf(purge_sql, sizeof(purge_sql),
-                 "DELETE FROM tag_history WHERE id IN (SELECT id FROM tag_history ORDER BY timestamp ASC LIMIT %d);",
+                 "DELETE FROM telemetry WHERE ts IN (SELECT ts FROM telemetry ORDER BY ts ASC LIMIT %d);",
                  purge_count);
         sqlite3_exec(db, purge_sql, NULL, NULL, NULL);
     }
@@ -186,28 +190,29 @@ static int _sqlite_driver_snf_enqueue(storage_driver_t *drv, const void *msg_ptr
 
 static int _sqlite_driver_snf_dequeue(storage_driver_t *drv, void *out_msg_ptr) {
     if (!drv || !drv->priv_ctx || !out_msg_ptr) return -1;
+    sqlite_svc_flush_sync((sqlite_svc_t *)drv->priv_ctx);
     sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle((sqlite_svc_t *)drv->priv_ctx);
     if (!db) return -1;
 
     sqlite3_stmt *stmt = NULL;
-    const char *sql = "SELECT id, timestamp, tag_id, value_f, quality, type FROM tag_history WHERE status = 0 ORDER BY timestamp ASC LIMIT 1;";
+    const char *sql = "SELECT ts, tag_id, val, q FROM telemetry WHERE synced = 0 ORDER BY ts ASC LIMIT 1;";
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
         return -1;
     }
 
     if (sqlite3_step(stmt) == SQLITE_ROW) {
-        int64_t row_id = sqlite3_column_int64(stmt, 0);
         PipeMsg *msg = (PipeMsg *)out_msg_ptr;
         memset(msg, 0, sizeof(PipeMsg));
-        msg->ts = (uint64_t)sqlite3_column_int64(stmt, 1);
-        msg->tag_id = (uint32_t)sqlite3_column_int64(stmt, 2);
-        msg->payload.val.f = (float)sqlite3_column_double(stmt, 3);
-        msg->quality = (uint8_t)sqlite3_column_int(stmt, 4);
-        msg->type = (uint8_t)sqlite3_column_int(stmt, 5);
+        msg->ts = (uint64_t)sqlite3_column_int64(stmt, 0);
+        msg->tag_id = (uint32_t)sqlite3_column_int(stmt, 1);
+        msg->payload.val.f = (float)sqlite3_column_double(stmt, 2);
+        msg->quality = (uint8_t)sqlite3_column_int(stmt, 3);
+        msg->type = PIPEMSG_TYPE_SCALAR;
         sqlite3_finalize(stmt);
 
         char update_sql[128];
-        snprintf(update_sql, sizeof(update_sql), "UPDATE tag_history SET status = 1 WHERE id = %lld;", (long long)row_id);
+        snprintf(update_sql, sizeof(update_sql), "UPDATE telemetry SET synced = 1 WHERE ts = %llu AND tag_id = %u;",
+                 (unsigned long long)msg->ts, msg->tag_id);
         sqlite3_exec(db, update_sql, NULL, NULL, NULL);
         return 0;
     }
@@ -219,10 +224,11 @@ static int _sqlite_driver_snf_dequeue(storage_driver_t *drv, void *out_msg_ptr) 
 static int _sqlite_driver_snf_get_pending_count(storage_driver_t *drv, uint32_t *out_count) {
     if (!drv || !drv->priv_ctx || !out_count) return -1;
     *out_count = 0;
+    sqlite_svc_flush_sync((sqlite_svc_t *)drv->priv_ctx);
     sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle((sqlite_svc_t *)drv->priv_ctx);
     if (!db) return -1;
     sqlite3_stmt *stmt;
-    if (sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM tag_history WHERE status = 0;", -1, &stmt, NULL) == SQLITE_OK) {
+    if (sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM telemetry WHERE synced = 0;", -1, &stmt, NULL) == SQLITE_OK) {
         if (sqlite3_step(stmt) == SQLITE_ROW) {
             *out_count = (uint32_t)sqlite3_column_int(stmt, 0);
         }

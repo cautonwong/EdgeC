@@ -87,10 +87,7 @@ class MatrixOrchestrator:
                                 for c in list(clients): # Use list() to iterate safely
                                     if c is not s:
                                         try:
-                                            # [Nexus Fix] 改为非阻塞发送，防止 Relay 线程卡死
-                                            c.send(data)
-                                        except (BlockingIOError, InterruptedError):
-                                            pass 
+                                            c.sendall(data)
                                         except Exception as e:
                                             print(f"  [Relay] Send failed to FD {c.fileno()}: {e}")
                                             if c in clients: clients.remove(c)

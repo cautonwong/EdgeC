@@ -356,9 +356,27 @@ int sqlite_svc_insert(sqlite_svc_t *svc, const PipeMsg *msg) {
     return 0;
 }
 
+int sqlite_svc_flush_sync(sqlite_svc_t *svc) {
+    if (!svc || !svc->active_buf) return 0;
+    uv_mutex_lock(&svc->buf_lock);
+    if (svc->active_buf->count > 0) {
+        data_batch_t *old_flush = svc->flush_buf;
+        svc->flush_buf = svc->active_buf;
+        uv_work_t req = {.data = svc};
+        _worker_flush_cb(&req);
+        svc->flush_buf = old_flush;
+        svc->active_buf->count = 0;
+    }
+    uv_mutex_unlock(&svc->buf_lock);
+    return 0;
+}
+
 int sqlite_svc_query(sqlite_svc_t *svc, uint64_t start_ts, uint64_t end_ts, sqlite_svc_query_cb cb,
                      void *user_data) {
     if (!svc || !cb) return -1;
+    if (svc->active_buf && svc->active_buf->count > 0) {
+        sqlite_svc_flush_sync(svc);
+    }
     char sql[512];
     if (svc->config.strategy == STRATEGY_SHARDING) {
         char shard[64];
@@ -435,16 +453,32 @@ int sqlite_svc_init_from_contract(sqlite_svc_t *svc, const edge_contract_t *cont
     return 0;
 }
 
+static void _on_svc_timer_close(uv_handle_t *handle) {
+    int *pending = (int *)handle->data;
+    if (pending) {
+        (*pending)--;
+    }
+}
+
 void sqlite_svc_destroy(sqlite_svc_t *svc) {
     if (!svc) return;
 
-    uv_timer_stop(&svc->gc_timer);
+    int pending_closes = 0;
+
     if (!uv_is_closing((uv_handle_t *)&svc->gc_timer)) {
-        uv_close((uv_handle_t *)&svc->gc_timer, NULL);
+        uv_timer_stop(&svc->gc_timer);
+        svc->gc_timer.data = &pending_closes;
+        pending_closes++;
+        uv_close((uv_handle_t *)&svc->gc_timer, _on_svc_timer_close);
     }
 
     if (svc->active_buf) {
-        uv_timer_stop(&svc->flush_timer);
+        if (!uv_is_closing((uv_handle_t *)&svc->flush_timer)) {
+            uv_timer_stop(&svc->flush_timer);
+            svc->flush_timer.data = &pending_closes;
+            pending_closes++;
+            uv_close((uv_handle_t *)&svc->flush_timer, _on_svc_timer_close);
+        }
         while (svc->is_flushing) uv_run(svc->loop, UV_RUN_ONCE);
         if (svc->active_buf->count > 0) {
             data_batch_t *old_flush = svc->flush_buf;
@@ -461,6 +495,11 @@ void sqlite_svc_destroy(sqlite_svc_t *svc) {
         }
         uv_mutex_destroy(&svc->buf_lock);
     }
+
+    while (pending_closes > 0 && svc->loop) {
+        uv_run(svc->loop, UV_RUN_ONCE);
+    }
+
     if (svc->db) sqlite3_close(svc->db);
     free(svc);
 }

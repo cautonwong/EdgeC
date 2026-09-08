@@ -11,8 +11,11 @@
 #include "sqlite_service.h"
 #include "edge_app_mgr.h"
 
-static void _on_close_cb(uv_handle_t *handle) {
-    (void)handle;
+static void _on_close_cb(uv_handle_t *handle, void *arg) {
+    (void)arg;
+    if (!uv_is_closing(handle)) {
+        uv_close(handle, NULL);
+    }
 }
 
 static int setup(void **state) {
@@ -24,8 +27,7 @@ static int setup(void **state) {
 
 static int teardown(void **state) {
     uv_loop_t *loop = (uv_loop_t *)*state;
-    uv_run(loop, UV_RUN_DEFAULT);
-    uv_walk(loop, (uv_walk_cb)_on_close_cb, NULL);
+    uv_walk(loop, _on_close_cb, NULL);
     while (uv_loop_close(loop) == UV_EBUSY) uv_run(loop, UV_RUN_ONCE);
     free(loop);
     return 0;
