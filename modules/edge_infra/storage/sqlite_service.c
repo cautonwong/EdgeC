@@ -182,12 +182,10 @@ static int _migrate_schema(sqlite_svc_t *svc) {
     return 0;
 }
 
-// --- 3. 异步冲刷逻辑 ---
+// --- 3. 异步/同步冲刷逻辑 ---
 
-static void _worker_flush_cb(uv_work_t *req) {
-    sqlite_svc_t *svc = (sqlite_svc_t *)req->data;
-    data_batch_t *batch = svc->flush_buf;
-    if (!batch || batch->count == 0) return;
+static void _flush_batch_internal(sqlite_svc_t *svc, data_batch_t *batch) {
+    if (!svc || !svc->db || !batch || batch->count == 0) return;
 
     sqlite3_exec(svc->db, "BEGIN IMMEDIATE;", 0, 0, 0);
 
@@ -226,6 +224,26 @@ static void _worker_flush_cb(uv_work_t *req) {
 
     if (stmt) sqlite3_finalize(stmt);
     sqlite3_exec(svc->db, "COMMIT;", 0, 0, 0);
+}
+
+static void _worker_flush_cb(uv_work_t *req) {
+    sqlite_svc_t *svc = (sqlite_svc_t *)req->data;
+    data_batch_t *batch = svc->flush_buf;
+    if (!batch || batch->count == 0) return;
+    _flush_batch_internal(svc, batch);
+}
+
+int sqlite_svc_flush(sqlite_svc_t *svc) {
+    if (!svc || !svc->db) return -1;
+    if (svc->active_buf) {
+        uv_mutex_lock(&svc->buf_lock);
+        if (svc->active_buf->count > 0) {
+            _flush_batch_internal(svc, svc->active_buf);
+            svc->active_buf->count = 0;
+        }
+        uv_mutex_unlock(&svc->buf_lock);
+    }
+    return 0;
 }
 
 static void _after_flush_cb(uv_work_t *req, int status) {

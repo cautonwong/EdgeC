@@ -888,6 +888,47 @@ target_link_libraries(test_web_console_rbac_audit PRIVATE
 )
 add_test(NAME test_web_console_rbac_audit COMMAND test_web_console_rbac_audit)
 
+# AEP-506 工业 MCP Server 分发器与双轨传输层测试
+add_executable(test_mcp_dispatcher test_mcp_dispatcher.c)
+target_include_directories(test_mcp_dispatcher PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_mcp/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_io/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_stream/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
+)
+target_link_libraries(test_mcp_dispatcher PRIVATE
+    edge_mcp
+    edge_core
+    edge_io
+    edge_stream
+    edge_infra
+    cjson
+    libuv::uv_a
+    pthread dl rt m
+)
+add_test(NAME test_mcp_dispatcher COMMAND test_mcp_dispatcher)
+
+add_executable(test_mcp_server_protocol test_mcp_server_protocol.c)
+target_include_directories(test_mcp_server_protocol PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_mcp/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_io/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_stream/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
+)
+target_link_libraries(test_mcp_server_protocol PRIVATE
+    edge_mcp
+    edge_core
+    edge_io
+    edge_stream
+    edge_infra
+    cjson
+    libuv::uv_a
+    pthread dl rt m
+)
+add_test(NAME test_mcp_server_protocol COMMAND test_mcp_server_protocol)
+
 
 
 

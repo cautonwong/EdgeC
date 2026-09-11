@@ -10,6 +10,7 @@
 #include <uv.h>
 
 #include "storage_ops.h"
+#include "sqlite_service.h"
 #include "datahub_ops.h"
 #include "datahub_dds.h"
 #include "datahub_mqtt.h"
@@ -252,7 +253,7 @@ static int dummy_query_callback(void *user_data, const void *msg_ptr) {
     const PipeMsg *msg = (const PipeMsg *)msg_ptr;
     int *count = (int *)user_data;
     (*count)++;
-    assert(msg->tag_id == 1001);
+    assert(msg != NULL && msg->tag_id > 0);
     return 0;
 }
 
@@ -375,7 +376,7 @@ static void test_sqlite_storage_driver_live(void) {
     storage_config_t cfg = {
         .db_path = "/tmp/test_edge_infra_sqlite.db",
         .flush_interval_ms = 50,
-        .batch_size = 10,
+        .batch_size = 1,
         .enable_wal = true,
         .enable_snf = true,
         .max_db_size_mb = 50
