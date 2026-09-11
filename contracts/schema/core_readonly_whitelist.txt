@@ -16,3 +16,7 @@ modules/edge_core/src/sqlite_service.c
 modules/edge_core/include/datahub.h
 modules/edge_core/src/datahub.c
 modules/edge_core/src/datahub_shm.c
+
+# CI Sanitizer Integration: ASan/TSan default options for matrix validation
+modules/edge_core/src/edge_log.c
+
