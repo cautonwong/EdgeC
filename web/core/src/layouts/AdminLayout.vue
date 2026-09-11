@@ -82,7 +82,18 @@
           </div>
         </div>
 
-        <div class="flex items-center gap-8">
+        <div class="flex items-center gap-4">
+          <!-- AI Copilot Trigger -->
+          <button 
+            @click="toggleCopilot()"
+            class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-mono text-xs flex items-center gap-2 transition cursor-pointer shadow-sm shadow-blue-500/20"
+            title="Toggle AI Industrial Copilot (Ctrl+K / Alt+A)"
+          >
+            <span class="text-sm">⚡</span>
+            <span class="font-bold">AI Copilot</span>
+            <kbd class="hidden sm:inline px-1 py-0.5 bg-blue-950/60 rounded text-[9px] text-blue-200 border border-blue-400/30">Ctrl+K</kbd>
+          </button>
+
           <!-- Header Right: Console Trigger & System Metrics -->
           <button 
             @click="isConsoleOpen = !isConsoleOpen"
@@ -120,6 +131,9 @@
 
       <!-- Global Embedded Web Console Drawer -->
       <WebConsoleDrawer v-model:isOpen="isConsoleOpen" />
+
+      <!-- Global Industrial AI Copilot Drawer (AEP-507) -->
+      <AICopilotDrawer />
     </div>
   </div>
 </template>
@@ -129,7 +143,11 @@ import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { getVisibleMenuItems } from '../router';
 import { useContractStore } from '../services/ContractLoader';
 import WebConsoleDrawer from '../components/console/WebConsoleDrawer.vue';
+import AICopilotDrawer from '../components/ai/AICopilotDrawer.vue';
+import { useAICopilot } from '../services/AIProviderService';
 import axios from 'axios';
+
+const { toggleCopilot } = useAICopilot();
 
 const contractStore = useContractStore();
 const visibleMenuItems = computed(() => getVisibleMenuItems());

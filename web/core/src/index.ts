@@ -1,4 +1,5 @@
 export * from './services/ContractLoader';
+export * from './services/AIProviderService';
 export * from './router';
 export * from './tokens';
 export { default as TagValue } from './components/TagValue.vue';
@@ -7,6 +8,8 @@ export { default as SankeyEnergyFlow } from './components/SankeyEnergyFlow.vue';
 export { default as TOUArbitrageWidget } from './components/TOUArbitrageWidget.vue';
 export { default as AntiReversePIDGauge } from './components/AntiReversePIDGauge.vue';
 export { default as DemandPeakShavingWidget } from './components/DemandPeakShavingWidget.vue';
+export { default as AICopilotDrawer } from './components/ai/AICopilotDrawer.vue';
+export { default as McpToolCallCard } from './components/ai/McpToolCallCard.vue';
 export { default as EnergyFlowView } from './views/energy/EnergyFlowView.vue';
 export { default as PacketCapture } from './views/dcu/PacketCapture.vue';
 export { default as PowerQuality } from './views/dcu/PowerQuality.vue';
