@@ -273,3 +273,32 @@ int edge_matrix_scale(edge_matrix_t *m, double scale) {
     }
     return 0;
 }
+
+int edge_matrix_cholesky(const edge_matrix_t *a, edge_matrix_t *l) {
+    if (!a || !l || a->rows != a->cols || l->rows != a->rows || l->cols != a->cols) return -1;
+    uint32_t n = a->rows;
+    memset(l->data, 0, l->rows * l->cols * sizeof(double));
+    for (uint32_t i = 0; i < n; i++) {
+        for (uint32_t j = 0; j <= i; j++) {
+            double sum = 0.0;
+            if (j == i) {
+                for (uint32_t k = 0; k < j; k++) {
+                    double val = edge_matrix_get(l, j, k);
+                    sum += val * val;
+                }
+                double diff = edge_matrix_get(a, j, j) - sum;
+                if (diff <= 0.0) return -1;
+                edge_matrix_set(l, j, j, sqrt(diff));
+            } else {
+                for (uint32_t k = 0; k < j; k++) {
+                    sum += edge_matrix_get(l, i, k) * edge_matrix_get(l, j, k);
+                }
+                double l_jj = edge_matrix_get(l, j, j);
+                if (fabs(l_jj) < 1e-15) return -1;
+                edge_matrix_set(l, i, j, (edge_matrix_get(a, i, j) - sum) / l_jj);
+            }
+        }
+    }
+    return 0;
+}
+

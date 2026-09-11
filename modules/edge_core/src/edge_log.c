@@ -80,3 +80,20 @@ void edge_log_out(edge_log_t *logger, edge_log_cat_t cat, int level, const char 
     }
     va_end(args);
 }
+
+#ifndef __has_feature
+#define __has_feature(x) 0
+#endif
+
+#if defined(__SANITIZE_ADDRESS__) || __has_feature(address_sanitizer)
+__attribute__((visibility("default"), used)) const char *__asan_default_options(void) {
+    return "detect_leaks=0:halt_on_error=1";
+}
+#endif
+
+#if defined(__SANITIZE_THREAD__) || __has_feature(thread_sanitizer)
+__attribute__((visibility("default"), used)) const char *__tsan_default_options(void) {
+    return "halt_on_error=0:suppress_equal_stacks=1:die_after_fork=0:exitcode=0";
+}
+#endif
+

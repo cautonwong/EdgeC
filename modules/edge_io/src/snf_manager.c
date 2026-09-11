@@ -147,11 +147,16 @@ int snf_manager_buffer_data(snf_manager_t *mgr, const PipeMsg *msg) {
     return sqlite_svc_insert(mgr->config.db, msg);
 }
 
+static void _on_snf_close(uv_handle_t *handle) {
+    snf_manager_t *mgr = (snf_manager_t *)handle->data;
+    if (mgr) free(mgr);
+}
+
 void snf_manager_destroy(snf_manager_t *mgr) {
     if (!mgr) return;
     uv_timer_stop(&mgr->sync_timer);
     if (!uv_is_closing((uv_handle_t *)&mgr->sync_timer)) {
-        uv_close((uv_handle_t *)&mgr->sync_timer, (uv_close_cb)free);
+        uv_close((uv_handle_t *)&mgr->sync_timer, _on_snf_close);
     } else {
         free(mgr);
     }

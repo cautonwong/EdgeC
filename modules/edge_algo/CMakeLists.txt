@@ -1,6 +1,8 @@
 # modules/edge_algo/CMakeLists.txt
 
-find_package(GSL QUIET)
+if(NOT CMAKE_CROSSCOMPILING)
+    find_package(GSL QUIET)
+endif()
 if(GSL_FOUND)
     set(MATH_IMPL src/math/linalg_gsl.c)
     set(MATH_DEFS USE_GSL)

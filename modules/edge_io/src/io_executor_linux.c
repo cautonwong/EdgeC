@@ -564,6 +564,9 @@ io_handle_t* io_executor_create(uv_loop_t* loop, const io_config_t* cfg, net_buf
             curl_easy_setopt(impl->handle.curl, CURLOPT_WRITEFUNCTION, _on_curl_write);
             curl_easy_setopt(impl->handle.curl, CURLOPT_WRITEDATA, impl);
             curl_easy_setopt(impl->handle.curl, CURLOPT_PRIVATE, impl);
+            curl_easy_setopt(impl->handle.curl, CURLOPT_CONNECTTIMEOUT, 2L);
+            curl_easy_setopt(impl->handle.curl, CURLOPT_TIMEOUT, 3L);
+            curl_easy_setopt(impl->handle.curl, CURLOPT_NOSIGNAL, 1L);
             impl->base.ops = &http_ops;
             break;
         }

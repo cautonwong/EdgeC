@@ -109,6 +109,7 @@ int dsp_fft_r2c(double *data, size_t n) {
  * 针对 GSL 的 stride 优化，避免显式矩阵转置。
  */
 int dsp_fft2d_c2c(double *data, size_t rows, size_t cols, bool forward) {
+#ifdef USE_GSL
     // 1. 对每一行做 1D FFT
     for(size_t i=0; i<rows; i++) {
         double *row_ptr = &data[i * cols * 2];
@@ -128,6 +129,70 @@ int dsp_fft2d_c2c(double *data, size_t rows, size_t cols, bool forward) {
     }
     
     return 0;
+#else
+    if (!data || rows == 0 || cols == 0 || (rows & (rows - 1)) != 0 || (cols & (cols - 1)) != 0) return -1;
+    // 1. 行变换
+    for (size_t r = 0; r < rows; r++) {
+        double *row = &data[r * cols * 2];
+        bit_reverse_copy(row, cols);
+        for (size_t s = 1; s <= (size_t)log2((double)cols); s++) {
+            size_t m = 1 << s;
+            double theta = (forward ? -2.0 : 2.0) * M_PI / (double)m;
+            double w_re = cos(theta), w_im = sin(theta);
+            for (size_t k = 0; k < cols; k += m) {
+                double w_k_re = 1.0, w_k_im = 0.0;
+                for (size_t j = 0; j < m / 2; j++) {
+                    double t_re = w_k_re * row[2 * (k + j + m / 2)] - w_k_im * row[2 * (k + j + m / 2) + 1];
+                    double t_im = w_k_re * row[2 * (k + j + m / 2) + 1] + w_k_im * row[2 * (k + j + m / 2)];
+                    double u_re = row[2 * (k + j)], u_im = row[2 * (k + j) + 1];
+                    row[2 * (k + j)] = u_re + t_re;
+                    row[2 * (k + j) + 1] = u_im + t_im;
+                    row[2 * (k + j + m / 2)] = u_re - t_re;
+                    row[2 * (k + j + m / 2) + 1] = u_im - t_im;
+                    double next_w_k_re = w_k_re * w_re - w_k_im * w_im;
+                    double next_w_k_im = w_k_re * w_im + w_k_im * w_re;
+                    w_k_re = next_w_k_re; w_k_im = next_w_k_im;
+                }
+            }
+        }
+    }
+    // 2. 列变换
+    double *col_temp = (double *)malloc(rows * 2 * sizeof(double));
+    if (!col_temp) return -1;
+    for (size_t c = 0; c < cols; c++) {
+        for (size_t r = 0; r < rows; r++) {
+            col_temp[2 * r] = data[(r * cols + c) * 2];
+            col_temp[2 * r + 1] = data[(r * cols + c) * 2 + 1];
+        }
+        bit_reverse_copy(col_temp, rows);
+        for (size_t s = 1; s <= (size_t)log2((double)rows); s++) {
+            size_t m = 1 << s;
+            double theta = (forward ? -2.0 : 2.0) * M_PI / (double)m;
+            double w_re = cos(theta), w_im = sin(theta);
+            for (size_t k = 0; k < rows; k += m) {
+                double w_k_re = 1.0, w_k_im = 0.0;
+                for (size_t j = 0; j < m / 2; j++) {
+                    double t_re = w_k_re * col_temp[2 * (k + j + m / 2)] - w_k_im * col_temp[2 * (k + j + m / 2) + 1];
+                    double t_im = w_k_re * col_temp[2 * (k + j + m / 2) + 1] + w_k_im * col_temp[2 * (k + j + m / 2)];
+                    double u_re = col_temp[2 * (k + j)], u_im = col_temp[2 * (k + j) + 1];
+                    col_temp[2 * (k + j)] = u_re + t_re;
+                    col_temp[2 * (k + j) + 1] = u_im + t_im;
+                    col_temp[2 * (k + j + m / 2)] = u_re - t_re;
+                    col_temp[2 * (k + j + m / 2) + 1] = u_im - t_im;
+                    double next_w_k_re = w_k_re * w_re - w_k_im * w_im;
+                    double next_w_k_im = w_k_re * w_im + w_k_im * w_re;
+                    w_k_re = next_w_k_re; w_k_im = next_w_k_im;
+                }
+            }
+        }
+        for (size_t r = 0; r < rows; r++) {
+            data[(r * cols + c) * 2] = col_temp[2 * r];
+            data[(r * cols + c) * 2 + 1] = col_temp[2 * r + 1];
+        }
+    }
+    free(col_temp);
+    return 0;
+#endif
 }
 
 int dsp_correlate(const double *a, size_t na, const double *b, size_t nb, double *res) {

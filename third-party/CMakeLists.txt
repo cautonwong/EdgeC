@@ -1,8 +1,8 @@
 # third-party/CMakeLists.txt
 cmake_minimum_required(VERSION 3.16)
 
-set(LOCAL_CYCLONE_LIB "${CMAKE_SOURCE_DIR}/.local/linux-x86_64/lib/libddsc.so")
-set(LOCAL_CYCLONE_INC "${CMAKE_SOURCE_DIR}/.local/linux-x86_64/include")
+set(LOCAL_CYCLONE_LIB "${LOCAL_ROOT}/lib/libddsc.so")
+set(LOCAL_CYCLONE_INC "${LOCAL_ROOT}/include")
 
 if(EXISTS "${LOCAL_CYCLONE_LIB}")
     add_library(cyclonedds UNKNOWN IMPORTED GLOBAL)

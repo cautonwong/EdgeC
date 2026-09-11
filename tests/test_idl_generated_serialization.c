@@ -16,11 +16,11 @@
 #include "dlms_bluebook_objects.h"
 #include "dlms_cosem_objects.h"
 
-/* Include generated descriptor C files directly for standalone compilation without linking libddsc */
-#include "../build/idl_generated/dlt698_objects.c"
-#include "../build/idl_generated/idis_pack3_objects.c"
-#include "../build/idl_generated/dlms_bluebook_objects.c"
-#include "../build/idl_generated/dlms_cosem_objects.c"
+/* Include generated descriptor C files directly from IDL_GEN_DIR without hardcoded paths */
+#include "dlt698_objects.c"
+#include "idis_pack3_objects.c"
+#include "dlms_bluebook_objects.c"
+#include "dlms_cosem_objects.c"
 
 static void test_dlt698_idl_struct_and_descriptor(void **state) {
     (void)state;
