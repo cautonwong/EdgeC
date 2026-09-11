@@ -117,6 +117,14 @@ func main() {
 		}
 	}
 
+	// Emit MCP Tools Schema (AEP-506)
+	if *outputFormat == "all" || *outputFormat == "c" || *outputFormat == "mcp" {
+		if err := (&backend.MCPBackend{OutDir: *out}).Emit(ir); err != nil {
+			fmt.Printf("❌ Backend Error (MCP): %v\n", err)
+			os.Exit(1)
+		}
+	}
+
 	// Sign .wasm output if requested
 	if *signKey != "" {
 		wasmPath := filepath.Join(*out, ast.ProductName+".wasm")

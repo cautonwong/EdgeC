@@ -66,6 +66,9 @@ typedef int (*sqlite_svc_query_cb)(void *user_data, PipeMsg *msg);
 int sqlite_svc_query(sqlite_svc_t *svc, uint64_t start_ts, uint64_t end_ts, sqlite_svc_query_cb cb,
                      void *user_data);
 
+// 同步冲刷内存缓冲至数据库
+int sqlite_svc_flush(sqlite_svc_t *svc);
+
 // 事务控制 (事务策略专用)
 int sqlite_svc_begin_trans(sqlite_svc_t *svc);
 int sqlite_svc_commit_trans(sqlite_svc_t *svc);

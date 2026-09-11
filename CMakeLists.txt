@@ -209,6 +209,7 @@ add_subdirectory(modules/edge_stream)
 add_subdirectory(modules/edge_io)
 add_subdirectory(modules/edge_infra)
 add_subdirectory(modules/edge_mgmt)
+add_subdirectory(modules/edge_mcp)
 
 # ==============================================================================
 # 6. Applications & Tests
@@ -223,6 +224,7 @@ build_contract_compiler()
 add_subdirectory(cmd/smart_box)
 add_subdirectory(cmd/iems)
 add_subdirectory(cmd/dcu)
+add_subdirectory(cmd/edge_mcp_server)
 add_subdirectory(cmd/nexus_lab)
 add_subdirectory(examples/custom_driver)
 add_subdirectory(examples/custom_algo)

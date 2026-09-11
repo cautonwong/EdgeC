@@ -22,7 +22,7 @@ static int _sqlite_driver_init(storage_driver_t *drv, uv_loop_t *loop, const sto
     if (!drv || !cfg) return -1;
 
     sqlite_config_t sql_cfg = {
-        .strategy = STRATEGY_SERIES,
+        .strategy = (cfg->batch_size <= 1) ? STRATEGY_LITE : STRATEGY_SERIES,
         .db_path = cfg->db_path,
         .batch_size = (int)cfg->batch_size,
         .flush_interval_ms = (int)cfg->flush_interval_ms,
@@ -175,9 +175,9 @@ static int _sqlite_driver_purge_old_data(storage_driver_t *drv, uint32_t max_siz
 
     if (total_rows > 0) {
         int purge_count = (max_size_mb > 0 && total_rows > 2) ? (total_rows / 2) : 1;
-        char purge_sql[128];
+        char purge_sql[256];
         snprintf(purge_sql, sizeof(purge_sql),
-                 "DELETE FROM telemetry WHERE ts IN (SELECT ts FROM telemetry ORDER BY ts ASC LIMIT %d);",
+                 "DELETE FROM telemetry WHERE (ts, tag_id) IN (SELECT ts, tag_id FROM telemetry ORDER BY ts ASC LIMIT %d);",
                  purge_count);
         sqlite3_exec(db, purge_sql, NULL, NULL, NULL);
     }
