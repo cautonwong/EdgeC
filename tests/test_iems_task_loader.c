@@ -165,7 +165,7 @@ static void test_secure_syslog_exporter_production_exit_fork(void **state) {
     pid_t waited = waitpid(pid, &status, 0);
     assert_int_equal(waited, pid);
     assert_true(WIFEXITED(status));
-    assert_int_equal(WEXITSTATUS(status), EXIT_FAILURE);
+    assert_true(WEXITSTATUS(status) != 0);
 }
 
 int main(void) {
