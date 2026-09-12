@@ -929,6 +929,28 @@ target_link_libraries(test_mcp_server_protocol PRIVATE
 )
 add_test(NAME test_mcp_server_protocol COMMAND test_mcp_server_protocol)
 
+# AEP-508 行业专有算法 MCP 工具链单测
+add_executable(test_mcp_industry_tools test_mcp_industry_tools.c)
+target_include_directories(test_mcp_industry_tools PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_mcp/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_io/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_stream/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
+)
+target_link_libraries(test_mcp_industry_tools PRIVATE
+    edge_mcp
+    edge_core
+    edge_io
+    edge_stream
+    edge_infra
+    cjson
+    libuv::uv_a
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_mcp_industry_tools COMMAND test_mcp_industry_tools)
+
 
 
 
