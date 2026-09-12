@@ -6,6 +6,7 @@ set(INFRA_SOURCES
     src/edge_infra_base.c
     src/edge_anti_corruption.c
     storage/edge_telemetry_store.c
+    bus_dds/dds_topology_monitor.c
 )
 set(INFRA_PUBLIC_LIBS edge_common_interface)
 set(INFRA_PRIVATE_LIBS libuv::uv_a zlog::zlog)
@@ -20,10 +21,9 @@ if(CONFIG_EDGE_INFRA_SQLITE)
 endif()
 
 # Distributed Bus: CycloneDDS Backend (Kconfig: CONFIG_EDGE_INFRA_DDS)
-if(CONFIG_EDGE_INFRA_DDS)
+if(CONFIG_EDGE_INFRA_DDS AND HAVE_DDS_HEADERS)
     list(APPEND INFRA_SOURCES
         bus_dds/datahub_dds.c
-        bus_dds/dds_topology_monitor.c
     )
     list(APPEND INFRA_PUBLIC_LIBS cyclonedds)
 endif()

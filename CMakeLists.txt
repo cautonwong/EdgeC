@@ -164,6 +164,15 @@ else()
     message(WARNING "[Kconfig] ${DOTCONFIG_FILE} was not generated; skipping config parsing")
 endif()
 
+set(HAVE_DDS_HEADERS OFF)
+if(EXISTS "${LOCAL_ROOT}/include/ddsc/dds.h" OR EXISTS "${LOCAL_ROOT}/include/dds/dds.h" OR EXISTS "${CMAKE_SOURCE_DIR}/third-party/cyclonedds/include/dds/dds.h")
+    set(HAVE_DDS_HEADERS ON)
+else()
+    set(CONFIG_EDGE_INFRA_DDS OFF)
+    remove_definitions(-DCONFIG_EDGE_INFRA_DDS)
+    add_compile_definitions(CONFIG_EDGE_INFRA_DDS=0)
+endif()
+
 # ==============================================================================
 # 4. Common Build Options (Interface Target)
 # ==============================================================================

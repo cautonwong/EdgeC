@@ -107,7 +107,7 @@ storage_driver_t *storage_driver_sqlite_create(uv_loop_t *loop, const storage_co
 }
 #endif
 
-#ifndef CONFIG_EDGE_INFRA_DDS
+#if !defined(CONFIG_EDGE_INFRA_DDS) || (CONFIG_EDGE_INFRA_DDS == 0)
 #include "datahub_dds.h"
 const datahub_ops_t g_datahub_dds_ops = {0};
 int datahub_dds_init(datahub_t *hub, const datahub_config_t *config) {

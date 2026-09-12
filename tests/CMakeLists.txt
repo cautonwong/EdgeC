@@ -622,6 +622,7 @@ target_link_libraries(test_stream_yaml_assembly PRIVATE
 add_test(NAME test_stream_yaml_assembly COMMAND test_stream_yaml_assembly)
 
 # ARCH-DDS-01 Cyclone DDS 工业级能力深化与分布式网状通信测试
+if(CONFIG_EDGE_INFRA_DDS AND HAVE_DDS_HEADERS)
 add_executable(test_datahub_dds_mesh test_datahub_dds_mesh.c)
 target_include_directories(test_datahub_dds_mesh PRIVATE
     ${CMAKE_BINARY_DIR}/idl_generated
@@ -642,6 +643,7 @@ target_link_libraries(test_datahub_dds_mesh PRIVATE
     pthread dl rt m
 )
 add_test(NAME test_datahub_dds_mesh COMMAND test_datahub_dds_mesh)
+endif()
 
 # AEP-440 IEMS 工商业储能需量控制、分时电价排程与 100ms 快速防逆流测试
 add_executable(test_iems_energy_strategy test_iems_energy_strategy.c ../cmd/iems/iems_microgrid_coordinator.c)

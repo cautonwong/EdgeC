@@ -25,9 +25,11 @@ elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cyclonedds/src/cyclonedds.c")
     )
 else()
     add_library(cyclonedds INTERFACE)
-    target_include_directories(cyclonedds INTERFACE
-        ${CMAKE_CURRENT_SOURCE_DIR}/cyclonedds/include
-    )
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cyclonedds/include")
+        target_include_directories(cyclonedds INTERFACE
+            ${CMAKE_CURRENT_SOURCE_DIR}/cyclonedds/include
+        )
+    endif()
 endif()
 
 if(NOT TARGET ddsc)
