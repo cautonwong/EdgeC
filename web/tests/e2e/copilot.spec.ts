@@ -4,7 +4,7 @@ test.describe('EdgeOS Industrial AI Copilot (AEP-507)', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to IEMS Dashboard
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
   });
 
   test('should toggle AI Copilot drawer via Header Button and Hotkey', async ({ page }) => {
@@ -14,7 +14,7 @@ test.describe('EdgeOS Industrial AI Copilot (AEP-507)', () => {
     await copilotBtn.click();
 
     // 2. Assert Drawer opens
-    const drawer = page.locator('text=EdgeOS AI 工业伴侣');
+    const drawer = page.locator('span:has-text("EdgeOS AI 工业伴侣")');
     await expect(drawer).toBeVisible();
 
     // 3. Close with Escape key
@@ -38,7 +38,7 @@ test.describe('EdgeOS Industrial AI Copilot (AEP-507)', () => {
       await aiDiagBtn.click();
 
       // 2. Assert AI Copilot Drawer automatically slides out
-      const drawer = page.locator('text=EdgeOS AI 工业伴侣');
+      const drawer = page.locator('span:has-text("EdgeOS AI 工业伴侣")');
       await expect(drawer).toBeVisible();
 
       // 3. Assert Context Pill is attached with Target Tag Info
@@ -65,7 +65,7 @@ test.describe('EdgeOS Industrial AI Copilot (AEP-507)', () => {
     await expect(page.locator('text=EdgeOS AI 工业伴侣诊断报告')).toBeVisible({ timeout: 10000 });
 
     // 4. Assert MCP Tool Call Card is present (e.g. datahub_scan_abnormal or io_list_channels)
-    const mcpBadge = page.locator('text=DataHub, text=IO Bus').first();
+    const mcpBadge = page.locator('text=DataHub').or(page.locator('text=IO Bus')).or(page.locator('text=datahub_scan_abnormal')).first();
     await expect(mcpBadge).toBeVisible();
   });
 

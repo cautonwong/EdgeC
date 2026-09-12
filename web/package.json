@@ -8,7 +8,10 @@
   ],
   "scripts": {
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:iems": "playwright test --project=iems",
+    "test:e2e:smartbox": "playwright test --project=smartbox",
+    "test:e2e:ui": "playwright test --ui",
+    "build:all": "npm run build --prefix products/iems && npm run build --prefix products/smart_box"
   },
   "devDependencies": {
     "@playwright/test": "^1.50.0"

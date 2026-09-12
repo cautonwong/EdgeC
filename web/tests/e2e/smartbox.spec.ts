@@ -3,12 +3,12 @@ import { test, expect } from '@playwright/test';
 test.describe('EdgeOS SmartBox Rehab & Health Hub E2E', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
   });
 
   test('should render SmartBox Hub header and switch navigation tabs', async ({ page }) => {
     // 1. Verify SmartBox Header
-    const headerTitle = page.locator('text=SMARTBOX');
+    const headerTitle = page.locator('h1:has-text("SMARTBOX")');
     if (await headerTitle.isVisible()) {
       await expect(headerTitle).toBeVisible();
 
