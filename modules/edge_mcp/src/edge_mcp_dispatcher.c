@@ -12,6 +12,7 @@
 #include <cjson/cJSON.h>
 
 #include "edgeos/edge_mcp_dispatcher.h"
+#include "edgeos/edge_mcp_industry_tools.h"
 #include "datahub.h"
 #include "driver_manager.h"
 #include "edge_driver.h"
@@ -480,6 +481,9 @@ edge_mcp_dispatcher_t *edge_mcp_dispatcher_create(const edge_mcp_env_t *env) {
     for (size_t i = 0; i < num_defaults; i++) {
         edge_mcp_register_tool(disp, &g_default_tools[i]);
     }
+
+    /* Register 4 industry specialized tools (AEP-508) */
+    edge_mcp_register_industry_tools(disp);
 
     return disp;
 }

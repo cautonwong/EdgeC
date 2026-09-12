@@ -53,7 +53,7 @@ static void test_dispatcher_create_destroy(void) {
     assert(tools != NULL);
     assert(cJSON_IsArray(tools));
     int tool_count = cJSON_GetArraySize(tools);
-    assert(tool_count == 13);
+    assert(tool_count == 17);
     printf("  --> Verified %d default industrial MCP tools registered.\n", tool_count);
     cJSON_Delete(tools);
 
@@ -128,7 +128,7 @@ static void test_jsonrpc_tools_list_and_call(void) {
     cJSON *res_obj = cJSON_GetObjectItem(resp_json, "result");
     assert(res_obj != NULL);
     cJSON *tools_arr = cJSON_GetObjectItem(res_obj, "tools");
-    assert(tools_arr && cJSON_GetArraySize(tools_arr) == 13);
+    assert(tools_arr && cJSON_GetArraySize(tools_arr) == 17);
     cJSON_Delete(resp_json);
     free(resp);
 
