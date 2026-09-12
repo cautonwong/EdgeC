@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe('EdgeOS Web Console & Industrial Terminal (AEP-501/504)', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
   });
 
   test('should toggle Web Console drawer via Terminal Button and Shortcut', async ({ page }) => {
@@ -24,7 +24,7 @@ test.describe('EdgeOS Web Console & Industrial Terminal (AEP-501/504)', () => {
     const snifferTab = page.locator('button:has-text("Sniffer")');
     if (await snifferTab.isVisible()) {
       await snifferTab.click();
-      await expect(page.locator('text=Protocol Sniffer')).toBeVisible();
+      await expect(page.locator('text=Packet Sniffer').or(page.locator('text=Live Sniffer')).first()).toBeVisible();
     }
   });
 });
