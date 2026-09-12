@@ -1,6 +1,13 @@
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import path from 'path';
+import fs from 'fs';
+
+const resolvePkg = (pkg: string) => {
+  const localPath = path.resolve(__dirname, 'node_modules', pkg);
+  if (fs.existsSync(localPath)) return localPath;
+  return path.resolve(__dirname, '../../node_modules', pkg);
+};
 
 export default defineConfig({
   plugins: [vue()],
@@ -8,12 +15,12 @@ export default defineConfig({
     alias: {
       '@edgeos/web-core': path.resolve(__dirname, '../../core/src/index.ts'),
       '@generated': process.env.VITE_CONTRACT_GEN_DIR || path.resolve(__dirname, '../../../build/products/iems/generated'),
-      'vue': path.resolve(__dirname, 'node_modules/vue'),
-      'pinia': path.resolve(__dirname, 'node_modules/pinia'),
-      'vue-router': path.resolve(__dirname, 'node_modules/vue-router'),
-      'axios': path.resolve(__dirname, 'node_modules/axios'),
-      'js-yaml': path.resolve(__dirname, 'node_modules/js-yaml'),
-      'echarts': path.resolve(__dirname, 'node_modules/echarts')
+      'vue': resolvePkg('vue'),
+      'pinia': resolvePkg('pinia'),
+      'vue-router': resolvePkg('vue-router'),
+      'axios': resolvePkg('axios'),
+      'js-yaml': resolvePkg('js-yaml'),
+      'echarts': resolvePkg('echarts')
     }
   },
   server: {

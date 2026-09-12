@@ -83,9 +83,19 @@
       </div>
     </div>
 
-    <!-- Footer: Point ID & Widget Type -->
+    <!-- Footer: Point ID, AI Diagnostic & Widget Type -->
     <div class="mt-4 pt-2.5 border-t border-[#334155]/40 flex justify-between items-center text-[10px] font-mono text-slate-400 pl-1">
-      <span class="text-slate-400">ID: <span class="text-slate-300 font-bold">{{ meta.id }}</span></span>
+      <div class="flex items-center gap-2">
+        <span class="text-slate-400">ID: <span class="text-slate-300 font-bold">{{ meta.id }}</span></span>
+        <button 
+          @click.stop="diagnoseWithAI"
+          class="px-1.5 py-0.5 rounded bg-blue-950/60 hover:bg-blue-600 text-blue-300 hover:text-white border border-blue-500/30 transition-all cursor-pointer text-[9px] font-sans flex items-center gap-1"
+          title="看图问诊 (Context-Aware Chat)"
+        >
+          <span>⚡</span>
+          <span>AI 诊断</span>
+        </button>
+      </div>
       <span class="text-[9px] uppercase tracking-wider px-1 py-0.5 rounded bg-[#1e293b] text-slate-400 border border-[#334155]/30">
         {{ meta.attributes?.ui?.widget || 'TEXT' }}
       </span>
@@ -97,11 +107,24 @@
 import { shallowRef, computed, onMounted, onUnmounted } from 'vue';
 import axios from 'axios';
 import { TagMeta } from '../services/ContractLoader';
+import { useAICopilot } from '../services/AIProviderService';
 
 const props = defineProps<{
   meta: TagMeta;
   refreshMs?: number;
 }>();
+
+const { openWithContext } = useAICopilot();
+
+function diagnoseWithAI() {
+  openWithContext({
+    selectedTagId: typeof props.meta.id === 'string' ? parseInt(props.meta.id, 16) || 0 : props.meta.id,
+    selectedTagName: props.meta.name,
+    currentValue: formattedValue.value,
+    unit: props.meta.unit,
+    pageTitle: '测点实时监控',
+  }, `请对测点 ${props.meta.name} (当前值: ${formattedValue.value} ${props.meta.unit || ''}) 进行物理工况诊断与异常排查。`);
+}
 
 // ShallowRef for high-frequency telemetry memory optimization (AEP-492)
 const value = shallowRef<number | null>(null);

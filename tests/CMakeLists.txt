@@ -929,7 +929,13 @@ target_link_libraries(test_mcp_server_protocol PRIVATE
     libuv::uv_a
     pthread dl rt m
 )
-add_test(NAME test_mcp_server_protocol COMMAND test_mcp_server_protocol)
+# AEP-507 工业 AI 伴侣抽屉与 MCP 工具调用组件测试
+add_executable(test_web_ai_copilot test_web_ai_copilot.c)
+target_link_libraries(test_web_ai_copilot PRIVATE
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_web_ai_copilot COMMAND test_web_ai_copilot)
 
 
 
