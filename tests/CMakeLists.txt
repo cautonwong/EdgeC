@@ -1080,6 +1080,20 @@ target_link_libraries(test_battery_gas_early_warning PRIVATE
 )
 add_test(NAME test_battery_gas_early_warning COMMAND test_battery_gas_early_warning)
 
+# AEP-738 极端低温环境电池脉冲自加热热电耦合控制单测
+add_executable(test_battery_pulse_heating test_battery_pulse_heating.c)
+target_include_directories(test_battery_pulse_heating PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_algo/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_battery_pulse_heating PRIVATE
+    edge_algo
+    edge_core
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_battery_pulse_heating COMMAND test_battery_pulse_heating)
+
 
 
 
