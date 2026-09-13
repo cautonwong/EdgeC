@@ -48,6 +48,17 @@ mcp_transport_t *mcp_transport_ws_create(uv_loop_t *loop,
                                          const char *bind_ip,
                                          uint16_t port);
 
+/**
+ * @brief Create Unix Domain Socket (UDS) IPC transport for local multi-client MCP bus
+ * @param loop libuv event loop
+ * @param disp MCP dispatcher
+ * @param socket_path Path to unix domain socket (e.g. "/tmp/edge_mcp.sock")
+ * @return Allocated transport handle or NULL
+ */
+mcp_transport_t *mcp_transport_uds_create(uv_loop_t *loop,
+                                         edge_mcp_dispatcher_t *disp,
+                                         const char *socket_path);
+
 #ifdef __cplusplus
 }
 #endif

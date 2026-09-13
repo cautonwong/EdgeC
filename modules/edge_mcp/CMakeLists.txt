@@ -5,6 +5,7 @@ set(EDGE_MCP_SOURCES
     src/edge_mcp_dispatcher.c
     src/transport/mcp_stdio.c
     src/transport/mcp_ws.c
+    src/transport/mcp_uds.c
     src/tools/mcp_tools_power_quality.c
     src/tools/mcp_tools_transformer.c
     src/tools/mcp_tools_tou.c
