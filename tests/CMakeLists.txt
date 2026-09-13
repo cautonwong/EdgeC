@@ -973,6 +973,20 @@ target_link_libraries(test_battery_fo_ecm_ekf PRIVATE
 )
 add_test(NAME test_battery_fo_ecm_ekf COMMAND test_battery_fo_ecm_ekf)
 
+# AEP-732 储能电芯析锂微内短路 1~7 天早期预警模型与残差辨识核单测
+add_executable(test_battery_micro_isc test_battery_micro_isc.c)
+target_include_directories(test_battery_micro_isc PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_algo/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_battery_micro_isc PRIVATE
+    edge_algo
+    edge_core
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_battery_micro_isc COMMAND test_battery_micro_isc)
+
 
 
 

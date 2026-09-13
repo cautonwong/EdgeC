@@ -5,13 +5,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # 1. Python Virtual Environment
-if [ ! -d "$PROJECT_ROOT/.venv" ]; then
-    echo "[Env] Creating virtual environment..."
-    python3 -m venv "$PROJECT_ROOT/.venv"
+if [ -x "$PROJECT_ROOT/.venv/bin/python3" ] && "$PROJECT_ROOT/.venv/bin/python3" -c "import numpy" 2>/dev/null; then
+    ENV_PYTHON="$PROJECT_ROOT/.venv/bin/python3"
+elif [ -x "/workspaces/edgeos/EdgeC/.venv/bin/python3" ] && "/workspaces/edgeos/EdgeC/.venv/bin/python3" -c "import numpy" 2>/dev/null; then
+    ENV_PYTHON="/workspaces/edgeos/EdgeC/.venv/bin/python3"
+else
+    if [ ! -d "$PROJECT_ROOT/.venv" ]; then
+        echo "[Env] Creating virtual environment..."
+        python3 -m venv "$PROJECT_ROOT/.venv"
+    fi
+    ENV_PYTHON="$PROJECT_ROOT/.venv/bin/python3"
 fi
-
-# 显式解释器路径
-ENV_PYTHON="$PROJECT_ROOT/.venv/bin/python3"
 export ENV_PYTHON
 
 # 2. Dependencies
