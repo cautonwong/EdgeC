@@ -36,7 +36,13 @@ RUN mkdir -p build && cd build && \
         cmake .. -GNinja -DCMAKE_BUILD_TYPE=Release \
                  -DCMAKE_INSTALL_PREFIX=/app/runtime; \
     fi && \
-    cmake --build . --target install
+    cmake --build . --target install && \
+    mkdir -p /app/runtime/lib && \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+        cp -a /build/.local/linux-aarch64/lib/. /app/runtime/lib/; \
+    else \
+        cp -a /build/.local/linux-x86_64/lib/. /app/runtime/lib/; \
+    fi
 
 # ========================================== 
 # Stage 2: Production Runtime
@@ -54,9 +60,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 COPY --from=builder /app/runtime /app
-
-# Copy correct local libraries
-COPY --from=builder /build/.local/linux-$(if [ "$TARGETARCH" = "arm64" ]; then echo "aarch64"; else echo "x86_64"; fi)/lib /app/lib
 COPY --from=builder /build/config /app/config
 
 ENV LD_LIBRARY_PATH=/app/lib
