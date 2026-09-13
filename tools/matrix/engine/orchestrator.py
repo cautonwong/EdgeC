@@ -68,40 +68,82 @@ class MatrixOrchestrator:
     def _relay_loop(self, bus_id, srv):
         clients = []
         while self.running:
+            # 1. 过滤已关闭或无效的 socket (fileno < 0)
+            active_clients = []
+            for c in clients:
+                try:
+                    if c.fileno() >= 0:
+                        active_clients.append(c)
+                    else:
+                        try: c.close()
+                        except Exception: pass
+                except Exception:
+                    try: c.close()
+                    except Exception: pass
+            clients = active_clients
+
             try:
                 readable, _, _ = select.select([srv] + clients, [], [], 0.1)
-                for s in readable:
-                    if s is srv:
+            except (ValueError, OSError):
+                # 若遇到 EBADF 或负数描述符，逐个排查剔除坏套接字
+                valid_clients = []
+                for c in clients:
+                    try:
+                        select.select([c], [], [], 0)
+                        valid_clients.append(c)
+                    except Exception:
+                        try: c.close()
+                        except Exception: pass
+                clients = valid_clients
+                continue
+            except Exception:
+                time.sleep(0.05)
+                continue
+
+            for s in readable:
+                if s is srv:
+                    try:
                         conn, _ = s.accept()
                         conn.setblocking(False)
                         clients.append(conn)
                         print(f"  [Relay] Bus {bus_id}: New connection (FD:{conn.fileno()}). Total: {len(clients)}")
-                    else:
-                        try:
-                            data = s.recv(4096)
-                            if data:
-                                # [Nexus] Debug log to confirm data is flowing through the relay
-                                hex_data = " ".join(f"{b:02X}" for b in data)
-                                print(f"  [Relay] Bus {bus_id}: Forwarding {len(data)} bytes from FD {s.fileno()}: {hex_data}")
-                                
-                                for c in list(clients): # Use list() to iterate safely
-                                    if c is not s:
-                                        try:
-                                            c.sendall(data)
-                                        except Exception as e:
-                                            print(f"  [Relay] Send failed to FD {c.fileno()}: {e}")
-                                            if c in clients: clients.remove(c)
-                                            try: c.close()
-                                            except: pass
-                            else:
-                                print(f"  [Relay] Bus {bus_id}: FD {s.fileno()} closed (EOF).")
-                                if s in clients: clients.remove(s)
-                                s.close()
-                        except Exception as e:
-                            print(f"  [Relay] Bus {bus_id}: FD {s.fileno()} error: {e}")
+                    except Exception as e:
+                        print(f"  [Relay] Bus {bus_id}: Accept error: {e}")
+                else:
+                    try:
+                        data = s.recv(4096)
+                        if data:
+                            # [Nexus] Debug log to confirm data is flowing through the relay
+                            hex_data = " ".join(f"{b:02X}" for b in data)
+                            print(f"  [Relay] Bus {bus_id}: Forwarding {len(data)} bytes from FD {s.fileno()}: {hex_data}")
+                            
+                            for c in list(clients): # Use list() to iterate safely
+                                if c is not s:
+                                    try:
+                                        c.sendall(data)
+                                    except Exception as e:
+                                        print(f"  [Relay] Bus {bus_id}: Send failed to client: {e}")
+                                        if c in clients: clients.remove(c)
+                                        try: c.close()
+                                        except Exception: pass
+                        else:
+                            try:
+                                fd_str = str(s.fileno())
+                            except Exception:
+                                fd_str = "closed"
+                            print(f"  [Relay] Bus {bus_id}: FD {fd_str} closed (EOF).")
                             if s in clients: clients.remove(s)
-                            s.close()
-            except: pass
+                            try: s.close()
+                            except Exception: pass
+                    except Exception as e:
+                        try:
+                            fd_str = str(s.fileno())
+                        except Exception:
+                            fd_str = "error"
+                        print(f"  [Relay] Bus {bus_id}: FD {fd_str} error: {e}")
+                        if s in clients: clients.remove(s)
+                        try: s.close()
+                        except Exception: pass
 
     def _launch_actor(self, sock_path, dev_info):
         sim_cfg = dev_info.get("simulation") or {}

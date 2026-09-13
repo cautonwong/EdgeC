@@ -119,15 +119,19 @@ run_omnis() {
     
     # 3. 执行自动化场景验收 (由 pytest 内部拉起隔离的 EdgeC)
     echo -e "${P}🧪 Step [2/2]: Running Automated Scenarios...${NC}"
+    set +e
     $ENV_PYTHON tools/matrix/matrix_test.py --product $PROD $PYTEST_ARGS
-    
     TEST_RES=$?
+    set -e
+    
     if [ $TEST_RES -eq 0 ]; then
         echo -e "${G}✨ OMNIS INTEGRATION TEST PASSED!${NC}"
     else
         echo -e "${R}❌ OMNIS INTEGRATION TEST FAILED!${NC}"
         echo -e "${Y}--- [Tail of matrix_edgec.log] ---${NC}"
-        tail -n 20 build/matrix_edgec.log
+        tail -n 50 build/matrix_edgec.log || true
+        echo -e "${Y}--- [Tail of matrix_server.log] ---${NC}"
+        tail -n 50 matrix_server.log || true
     fi
     
     stop_all

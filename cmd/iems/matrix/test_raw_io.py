@@ -80,7 +80,7 @@ async def test_raw_io_loopback(matrix):
     success = False
     
     # 等待总线与 EdgeC 完全就绪
-    await asyncio.sleep(1.0)
+    await asyncio.sleep(1.5)
 
     for attempt in range(15):
         print(f"  [Attempt {attempt+1}] Sending DEADBEEF...")
@@ -90,8 +90,8 @@ async def test_raw_io_loopback(matrix):
         }))
         assert resp.status_code == 200
         
-        # 轮询 latest 结果，最多等 2 秒
-        for _ in range(20):
+        # 轮询 latest 结果，最多等 3 秒 (容纳总线仲裁排队时间)
+        for _ in range(30):
             await asyncio.sleep(0.1)
             resp = await loop.run_in_executor(None, lambda: requests.get(latest_url))
             data = resp.json()
