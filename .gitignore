@@ -4,7 +4,7 @@
 !*.h
 !*.so
 # Build and Temp
-build/
+build*/
 .cache/
 .vscode/
 
@@ -43,7 +43,7 @@ third-party/.west
 third-party/modules
 third-party/tools
 third-party/cyclonedds
-.local/linux-x86_64/bin/contract-compiler
+.local/*/bin/contract-compiler
 
 # Go & Executable Binaries
 go/edge-*
