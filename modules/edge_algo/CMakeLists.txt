@@ -20,6 +20,7 @@ set(ALGO_SOURCES
     src/battery_eis.c
     src/battery_soh_fusion.c
     src/battery_balancer.c
+    src/battery_gas_early_warning.c
     src/algo_peak_shaving.c
     src/fall_detection.c
     src/emg_dsp.c
