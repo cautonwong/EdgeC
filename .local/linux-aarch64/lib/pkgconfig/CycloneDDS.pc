@@ -1,0 +1,9 @@
+prefix=/workspaces/edgeos/EdgeC/.local/linux-aarch64
+includedir=${prefix}/include
+libdir=${prefix}/lib
+
+Name: CycloneDDS
+Description: Eclipse Cyclone DDS library
+Version: 11.0.1
+Libs: -L${libdir} -lddsc
+Cflags: -I${includedir}
