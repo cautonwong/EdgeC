@@ -959,6 +959,21 @@ target_link_libraries(test_mcp_industry_tools PRIVATE
 )
 add_test(NAME test_mcp_industry_tools COMMAND test_mcp_industry_tools)
 
+# AEP-731 分数阶等效电路 FO-ECM 在线参数自适应卡尔曼滤波单测
+add_executable(test_battery_fo_ecm_ekf test_battery_fo_ecm_ekf.c)
+target_include_directories(test_battery_fo_ecm_ekf PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_algo/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_battery_fo_ecm_ekf PRIVATE
+    edge_algo
+    edge_core
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_battery_fo_ecm_ekf COMMAND test_battery_fo_ecm_ekf)
+
+
 
 
 

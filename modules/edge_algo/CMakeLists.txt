@@ -14,6 +14,7 @@ endif()
 set(ALGO_SOURCES
     src/algorithm_sum.c
     src/battery_strategy.c
+    src/battery_fo_ecm_ekf.c
     src/algo_peak_shaving.c
     src/fall_detection.c
     src/emg_dsp.c
