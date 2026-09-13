@@ -1038,6 +1038,21 @@ target_link_libraries(test_battery_eis PRIVATE
 )
 add_test(NAME test_battery_eis COMMAND test_battery_eis)
 
+# AEP-735 动力/储能电池健康状态 (SOH) 与剩余寿命 (RUL) 融合估计单测
+add_executable(test_battery_soh_fusion test_battery_soh_fusion.c)
+target_include_directories(test_battery_soh_fusion PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_algo/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_battery_soh_fusion PRIVATE
+    edge_algo
+    edge_core
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_battery_soh_fusion COMMAND test_battery_soh_fusion)
+
+
 
 
 
