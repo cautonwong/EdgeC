@@ -929,6 +929,29 @@ target_link_libraries(test_mcp_server_protocol PRIVATE
     libuv::uv_a
     pthread dl rt m
 )
+add_test(NAME test_mcp_server_protocol COMMAND test_mcp_server_protocol)
+
+# AEP-510 工业共享 MCP 总线与多客户端 UDS 传输层单测
+add_executable(test_mcp_uds test_mcp_uds.c)
+target_include_directories(test_mcp_uds PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_mcp/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_io/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_stream/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
+)
+target_link_libraries(test_mcp_uds PRIVATE
+    edge_mcp
+    edge_core
+    edge_io
+    edge_stream
+    edge_infra
+    cjson
+    libuv::uv_a
+    pthread dl rt m
+)
+add_test(NAME test_mcp_uds COMMAND test_mcp_uds)
+
 # AEP-507 工业 AI 伴侣抽屉与 MCP 工具调用组件测试
 add_executable(test_web_ai_copilot test_web_ai_copilot.c)
 target_link_libraries(test_web_ai_copilot PRIVATE

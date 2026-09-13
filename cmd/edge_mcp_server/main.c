@@ -33,14 +33,19 @@ static void print_usage(const char *prog) {
     printf("Usage: %s [options]\n", prog);
     printf("Options:\n");
     printf("  --stdio             Run in stdio line streaming mode (Claude Desktop / SSH pipe)\n");
-    printf("  --port <port>       WebSocket / HTTP JSON-RPC port (default: 8089)\n");
+    printf("  --sock, --uds <path> Unix Domain Socket path (default: /tmp/edge_mcp.sock)\n");
+    printf("  --port <port>       WebSocket / HTTP JSON-RPC port (default: 8089, 0 to disable)\n");
     printf("  --bind <ip>         Bind IP address (default: 0.0.0.0)\n");
+    printf("  --no-ws             Disable WebSocket / HTTP transport\n");
     printf("  --product <name>    Physical product domain (default: IEMS)\n");
     printf("  --help              Display this help message\n");
 }
 
 int main(int argc, char **argv) {
     bool use_stdio = false;
+    bool use_uds = false;
+    bool disable_ws = false;
+    const char *sock_path = "/tmp/edge_mcp.sock";
     uint16_t port = 8089;
     const char *bind_ip = "0.0.0.0";
     const char *product = "IEMS";
@@ -48,10 +53,18 @@ int main(int argc, char **argv) {
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--stdio") == 0) {
             use_stdio = true;
+        } else if (strcmp(argv[i], "--sock") == 0 || strcmp(argv[i], "--uds") == 0) {
+            use_uds = true;
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
+                sock_path = argv[++i];
+            }
         } else if (strcmp(argv[i], "--port") == 0 && i + 1 < argc) {
             port = (uint16_t)atoi(argv[++i]);
+            if (port == 0) disable_ws = true;
         } else if (strcmp(argv[i], "--bind") == 0 && i + 1 < argc) {
             bind_ip = argv[++i];
+        } else if (strcmp(argv[i], "--no-ws") == 0) {
+            disable_ws = true;
         } else if (strcmp(argv[i], "--product") == 0 && i + 1 < argc) {
             product = argv[++i];
         } else if (strcmp(argv[i], "--help") == 0) {
@@ -86,30 +99,48 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    mcp_transport_t *trans = NULL;
+    mcp_transport_t *stdio_trans = NULL;
+    mcp_transport_t *ws_trans = NULL;
+    mcp_transport_t *uds_trans = NULL;
+
     if (use_stdio) {
-        trans = mcp_transport_stdio_create(g_loop, disp);
+        stdio_trans = mcp_transport_stdio_create(g_loop, disp);
+        if (!stdio_trans || stdio_trans->start(stdio_trans) != 0) {
+            fprintf(stderr, "Failed to start MCP stdio transport\n");
+            if (stdio_trans) stdio_trans->destroy(stdio_trans);
+            edge_mcp_dispatcher_destroy(disp);
+            datahub_destroy(hub);
+            free(hub);
+            return 1;
+        }
     } else {
-        trans = mcp_transport_ws_create(g_loop, disp, bind_ip, port);
-        printf("[MCP Server] Listening on ws://%s:%u/mcp and http://%s:%u/api/v1/mcp/call\n",
-               bind_ip, port, bind_ip, port);
-    }
+        if (use_uds) {
+            uds_trans = mcp_transport_uds_create(g_loop, disp, sock_path);
+            if (!uds_trans || uds_trans->start(uds_trans) != 0) {
+                fprintf(stderr, "Failed to start MCP UDS transport at %s\n", sock_path);
+                if (uds_trans) uds_trans->destroy(uds_trans);
+                edge_mcp_dispatcher_destroy(disp);
+                datahub_destroy(hub);
+                free(hub);
+                return 1;
+            }
+            printf("[MCP Server] Listening on unix domain socket: %s\n", sock_path);
+        }
 
-    if (!trans) {
-        fprintf(stderr, "Failed to create MCP transport\n");
-        edge_mcp_dispatcher_destroy(disp);
-        datahub_destroy(hub);
-        free(hub);
-        return 1;
-    }
-
-    if (trans->start(trans) != 0) {
-        fprintf(stderr, "Failed to start MCP transport\n");
-        trans->destroy(trans);
-        edge_mcp_dispatcher_destroy(disp);
-        datahub_destroy(hub);
-        free(hub);
-        return 1;
+        if (!disable_ws) {
+            ws_trans = mcp_transport_ws_create(g_loop, disp, bind_ip, port);
+            if (!ws_trans || ws_trans->start(ws_trans) != 0) {
+                fprintf(stderr, "Failed to start MCP WS transport\n");
+                if (ws_trans) ws_trans->destroy(ws_trans);
+                if (uds_trans) { uds_trans->stop(uds_trans); uds_trans->destroy(uds_trans); }
+                edge_mcp_dispatcher_destroy(disp);
+                datahub_destroy(hub);
+                free(hub);
+                return 1;
+            }
+            printf("[MCP Server] Listening on ws://%s:%u/mcp and http://%s:%u/api/v1/mcp/call\n",
+                   bind_ip, port, bind_ip, port);
+        }
     }
 
     uv_signal_init(g_loop, &g_sigint);
@@ -119,8 +150,18 @@ int main(int argc, char **argv) {
 
     uv_run(g_loop, UV_RUN_DEFAULT);
 
-    trans->stop(trans);
-    trans->destroy(trans);
+    if (stdio_trans) {
+        stdio_trans->stop(stdio_trans);
+        stdio_trans->destroy(stdio_trans);
+    }
+    if (ws_trans) {
+        ws_trans->stop(ws_trans);
+        ws_trans->destroy(ws_trans);
+    }
+    if (uds_trans) {
+        uds_trans->stop(uds_trans);
+        uds_trans->destroy(uds_trans);
+    }
     edge_mcp_dispatcher_destroy(disp);
     datahub_destroy(hub);
     free(hub);
