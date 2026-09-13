@@ -1010,6 +1010,19 @@ target_link_libraries(test_battery_micro_isc PRIVATE
 )
 add_test(NAME test_battery_micro_isc COMMAND test_battery_micro_isc)
 
+add_executable(test_battery_spatial_matrix test_battery_spatial_matrix.c)
+target_include_directories(test_battery_spatial_matrix PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_algo/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_battery_spatial_matrix PRIVATE
+    edge_algo
+    edge_core
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_battery_spatial_matrix COMMAND test_battery_spatial_matrix)
+
 
 
 

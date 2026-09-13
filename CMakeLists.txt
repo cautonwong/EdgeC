@@ -38,6 +38,8 @@ find_package(cmocka REQUIRED)
 # Python3 Interpreter detection (supports system python, venv, and virtual environments)
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin/python3")
     set(Python3_EXECUTABLE "${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin/python3")
+elseif(EXISTS "/workspaces/edgeos/EdgeC/.venv/bin/python3")
+    set(Python3_EXECUTABLE "/workspaces/edgeos/EdgeC/.venv/bin/python3")
 endif()
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 

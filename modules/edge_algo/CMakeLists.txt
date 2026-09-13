@@ -16,6 +16,7 @@ set(ALGO_SOURCES
     src/battery_strategy.c
     src/battery_fo_ecm_ekf.c
     src/battery_micro_isc.c
+    src/battery_spatial_matrix.c
     src/algo_peak_shaving.c
     src/fall_detection.c
     src/emg_dsp.c
