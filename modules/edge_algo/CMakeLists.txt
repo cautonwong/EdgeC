@@ -19,6 +19,7 @@ set(ALGO_SOURCES
     src/battery_spatial_matrix.c
     src/battery_eis.c
     src/battery_soh_fusion.c
+    src/battery_balancer.c
     src/algo_peak_shaving.c
     src/fall_detection.c
     src/emg_dsp.c

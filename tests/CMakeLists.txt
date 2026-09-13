@@ -1052,6 +1052,21 @@ target_link_libraries(test_battery_soh_fusion PRIVATE
 )
 add_test(NAME test_battery_soh_fusion COMMAND test_battery_soh_fusion)
 
+# AEP-736 多电芯被动/主动均衡最优能效与寿命均衡控制单测
+add_executable(test_battery_balancer test_battery_balancer.c)
+target_include_directories(test_battery_balancer PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_algo/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_battery_balancer PRIVATE
+    edge_algo
+    edge_core
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_battery_balancer COMMAND test_battery_balancer)
+
+
 
 
 
