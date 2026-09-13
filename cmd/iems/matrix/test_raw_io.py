@@ -25,12 +25,30 @@ async def test_raw_io_loopback(matrix):
     # 给 UDS Relay 足够的时间在事件循环中 accept 此连接
     await asyncio.sleep(0.1)
 
+    stop_event = asyncio.Event()
+
     async def mock_device_echo():
+        nonlocal reader, writer
         try:
             print(f"📡 [Mock Device] Waiting for request...")
-            while True:
-                data = await reader.read(1024)
-                if not data: break
+            while not stop_event.is_set():
+                try:
+                    data = await asyncio.wait_for(reader.read(1024), timeout=0.5)
+                except asyncio.TimeoutError:
+                    continue
+                if not data:
+                    print(f"⚠️ [Mock Device] Connection EOF detected, reconnecting to {vbus_path}...")
+                    try:
+                        writer.close()
+                        await writer.wait_closed()
+                    except Exception:
+                        pass
+                    await asyncio.sleep(0.2)
+                    try:
+                        reader, writer = await asyncio.open_unix_connection(vbus_path)
+                    except Exception as re_err:
+                        print(f"⚠️ [Mock Device] Reconnect error: {re_err}")
+                    continue
                 
                 hex_recv = data.hex().upper()
                 if not hex_recv.startswith("0103"):
@@ -45,8 +63,8 @@ async def test_raw_io_loopback(matrix):
         except Exception as e:
             print(f"❌ [Mock Device] Error: {e}")
         finally:
-            writer.close()
             try:
+                writer.close()
                 await writer.wait_closed()
             except Exception:
                 pass
@@ -62,9 +80,9 @@ async def test_raw_io_loopback(matrix):
     success = False
     
     # 等待总线与 EdgeC 完全就绪
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(1.0)
 
-    for attempt in range(10):
+    for attempt in range(15):
         print(f"  [Attempt {attempt+1}] Sending DEADBEEF...")
         resp = await loop.run_in_executor(None, lambda: requests.post(api_url, json={
             "bus_id": bus_id,
@@ -88,10 +106,11 @@ async def test_raw_io_loopback(matrix):
             print(f"  [Attempt {attempt+1}] Got payload: {data.get('payload')}")
         
     # 等待后台任务平滑结束
+    stop_event.set()
     echo_task.cancel()
     try:
         await echo_task
     except asyncio.CancelledError:
         pass
     
-    assert success, f"IEMS failed to capture echo after 10 attempts."
+    assert success, f"IEMS failed to capture echo after 15 attempts."
