@@ -1,7 +1,7 @@
 # ==========================================
 # Stage 1: Build Environment
 # ==========================================
-FROM debian:bookworm-slim AS builder
+FROM --platform=$BUILDPLATFORM debian:bookworm-slim AS builder
 
 ARG TARGETARCH
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -19,7 +19,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     nodejs \
     npm \
     && if [ "$TARGETARCH" = "arm64" ]; then \
-       apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu; \
+       dpkg --add-architecture arm64 && \
+       apt-get update && \
+       apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libssl-dev:arm64; \
     fi \
     && rm -rf /var/lib/apt/lists/*
 

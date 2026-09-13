@@ -23,7 +23,7 @@ function(add_web_product PRODUCT_NAME WEB_SRC_DIR)
     # 通过环境变量传递生成目录，让 Vite 能够找到 tags_type.ts
     add_custom_command(
         OUTPUT "${WEB_STAMP}"
-        COMMAND sh -c "if [ ! -d node_modules ]; then npm install --ignore-scripts; fi; if [ \"$(uname -m)\" = \"aarch64\" ] && [ ! -d node_modules/@rollup/rollup-linux-arm64-gnu ]; then npm install --save-optional @rollup/rollup-linux-arm64-gnu --ignore-scripts || true; fi"
+        COMMAND sh -c "if [ ! -d node_modules ]; then npm install --ignore-scripts; fi; if [ \"$(uname -m)\" = \"aarch64\" ]; then if [ ! -d node_modules/@rollup/rollup-linux-arm64-gnu ]; then npm install --save-optional @rollup/rollup-linux-arm64-gnu --ignore-scripts || true; fi; if [ ! -d node_modules/@esbuild/linux-arm64 ]; then npm install --save-optional @esbuild/linux-arm64 --ignore-scripts || true; fi; fi"
         COMMAND ${CMAKE_COMMAND} -E env VITE_CONTRACT_GEN_DIR=${GEN_DIR} npm run build
         COMMAND ${CMAKE_COMMAND} -E make_directory "${WEB_BUILD_DIR}"
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${WEB_SRC_DIR}/dist" "${WEB_BUILD_DIR}"
