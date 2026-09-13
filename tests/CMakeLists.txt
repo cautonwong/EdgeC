@@ -1066,6 +1066,20 @@ target_link_libraries(test_battery_balancer PRIVATE
 )
 add_test(NAME test_battery_balancer COMMAND test_battery_balancer)
 
+# AEP-737 电池热失控喷阀前气体多源融合概率预警单测
+add_executable(test_battery_gas_early_warning test_battery_gas_early_warning.c)
+target_include_directories(test_battery_gas_early_warning PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_algo/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_battery_gas_early_warning PRIVATE
+    edge_algo
+    edge_core
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_battery_gas_early_warning COMMAND test_battery_gas_early_warning)
+
 
 
 
