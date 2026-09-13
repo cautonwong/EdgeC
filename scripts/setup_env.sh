@@ -8,6 +8,9 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 if [ -x "$PROJECT_ROOT/.venv/bin/python3" ] && "$PROJECT_ROOT/.venv/bin/python3" -c "import numpy" 2>/dev/null; then
     ENV_PYTHON="$PROJECT_ROOT/.venv/bin/python3"
 elif [ -x "/workspaces/edgeos/EdgeC/.venv/bin/python3" ] && "/workspaces/edgeos/EdgeC/.venv/bin/python3" -c "import numpy" 2>/dev/null; then
+    if [ ! -e "$PROJECT_ROOT/.venv" ]; then
+        ln -s /workspaces/edgeos/EdgeC/.venv "$PROJECT_ROOT/.venv" 2>/dev/null || true
+    fi
     ENV_PYTHON="/workspaces/edgeos/EdgeC/.venv/bin/python3"
 else
     if [ ! -d "$PROJECT_ROOT/.venv" ]; then
