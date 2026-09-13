@@ -1010,6 +1010,7 @@ target_link_libraries(test_battery_micro_isc PRIVATE
 )
 add_test(NAME test_battery_micro_isc COMMAND test_battery_micro_isc)
 
+# AEP-733 4096 节点电芯空间矩阵与热失控扩散预测单测
 add_executable(test_battery_spatial_matrix test_battery_spatial_matrix.c)
 target_include_directories(test_battery_spatial_matrix PRIVATE
     ${CMAKE_SOURCE_DIR}/modules/edge_algo/include
@@ -1022,6 +1023,21 @@ target_link_libraries(test_battery_spatial_matrix PRIVATE
     pthread dl rt m
 )
 add_test(NAME test_battery_spatial_matrix COMMAND test_battery_spatial_matrix)
+
+# AEP-734 在线电化学阻抗谱 (EIS) 宽频 PRBS 快速辨识单测
+add_executable(test_battery_eis test_battery_eis.c)
+target_include_directories(test_battery_eis PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_algo/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_battery_eis PRIVATE
+    edge_algo
+    edge_core
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_battery_eis COMMAND test_battery_eis)
+
 
 
 
