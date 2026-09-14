@@ -36,6 +36,11 @@ int thermal_mesh_engine_init(thermal_mesh_engine_t *engine, const thermal_mesh_c
         engine->cfg = DEFAULT_CONFIG;
     }
 
+    if (engine->cfg.cell_mass_kg <= 0.0f || engine->cfg.specific_heat_j_kg_k <= 0.0f ||
+        engine->cfg.k_in_plane_w_m_k <= 0.0f || engine->cfg.k_cross_plane_w_m_k <= 0.0f) {
+        return -1;
+    }
+
     /* 1. 根据电芯总热容划分各空间节点热容 (单位: J/K) */
     float c_total = engine->cfg.cell_mass_kg * engine->cfg.specific_heat_j_kg_k;
     engine->heat_capacities[THERMAL_NODE_CORE_CENTER]   = c_total * 0.40f;
@@ -141,7 +146,7 @@ int thermal_mesh_engine_step(thermal_mesh_engine_t *engine,
     if (!engine || !engine->initialized || !telem || !out) {
         return -1;
     }
-    if (dt_s <= 0.0f) {
+    if (!isfinite(dt_s) || dt_s <= 0.0f) {
         dt_s = 0.01f;
     }
     if (dt_s > 1.0f) {
@@ -224,9 +229,11 @@ int thermal_mesh_engine_step(thermal_mesh_engine_t *engine,
 
         for (uint8_t s = 0; s < telem->sensor_count && s < THERMAL_MESH_MAX_SENSORS; s++) {
             if (telem->bindings[s].is_valid) {
-                thermal_node_id_t node = telem->bindings[s].mapped_node;
-                if (node < THERMAL_MESH_NUM_NODES) {
-                    float residual = telem->sensor_temps[s] - engine->temperatures[node];
+                int node = (int)telem->bindings[s].mapped_node;
+                float s_temp = telem->sensor_temps[s];
+                if (node >= 0 && node < THERMAL_MESH_NUM_NODES &&
+                    isfinite(s_temp) && s_temp >= -50.0f && s_temp <= 150.0f) {
+                    float residual = s_temp - engine->temperatures[node];
                     engine->temperatures[node] += obs_gain * residual;
 
                     /* 将表面残差沿强导热路径适度传导反馈至内部核心节点 */

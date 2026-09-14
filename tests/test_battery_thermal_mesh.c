@@ -225,6 +225,111 @@ static void test_thermal_mesh_hotspot_and_gradient_alarms(void **state) {
     assert_float_equal(out.core_hotspot_temp_c, 58.0f, 0.5f);
 }
 
+static void test_thermal_mesh_sensor_nan_rejection(void **state) {
+    (void)state;
+    thermal_mesh_engine_t engine;
+    thermal_mesh_engine_init(&engine, NULL);
+
+    /* 注入包含 NAN、Inf 及越界温度的传感器脏数据 */
+    thermal_mesh_telemetry_t telem = {
+        .load_current_a = 50.0f,
+        .cell_terminal_voltage_v = 3.25f,
+        .open_circuit_voltage_v = 3.28f,
+        .cell_soc = 0.60f,
+        .ambient_temp_c = 25.0f,
+        .coolant_temp_c = 25.0f,
+        .sensor_count = 3,
+        .sensor_temps = { (float)NAN, (float)INFINITY, -99.0f },
+        .bindings = {
+            { .mapped_node = THERMAL_NODE_SURFACE_FRONT, .is_valid = true },
+            { .mapped_node = THERMAL_NODE_TAB_POSITIVE, .is_valid = true },
+            { .mapped_node = THERMAL_NODE_TAB_NEGATIVE, .is_valid = true }
+        }
+    };
+
+    thermal_mesh_output_t out;
+    for (int i = 0; i < 20; i++) {
+        int ret = thermal_mesh_engine_step(&engine, &telem, 0.1f, &out);
+        assert_int_equal(ret, 0);
+    }
+
+    /* 验证热网络未被 NAN/Inf 毒化，所有节点温度均保持有限合规值 */
+    for (int i = 0; i < THERMAL_MESH_NUM_NODES; i++) {
+        assert_true(isfinite(out.node_temperatures[i]));
+        assert_true(out.node_temperatures[i] >= 20.0f && out.node_temperatures[i] <= 100.0f);
+    }
+}
+
+static void test_thermal_mesh_invalid_binding_bounds(void **state) {
+    (void)state;
+    thermal_mesh_engine_t engine;
+    thermal_mesh_engine_init(&engine, NULL);
+
+    /* 传入有符号负数及越界枚举作为绑定节点 */
+    thermal_mesh_telemetry_t telem = {
+        .load_current_a = 0.0f,
+        .cell_terminal_voltage_v = 3.30f,
+        .open_circuit_voltage_v = 3.30f,
+        .cell_soc = 0.50f,
+        .ambient_temp_c = 25.0f,
+        .coolant_temp_c = 25.0f,
+        .sensor_count = 2,
+        .sensor_temps = { 35.0f, 40.0f },
+        .bindings = {
+            { .mapped_node = (thermal_node_id_t)(-1), .is_valid = true },
+            { .mapped_node = (thermal_node_id_t)99, .is_valid = true }
+        }
+    };
+
+    thermal_mesh_output_t out;
+    int ret = thermal_mesh_engine_step(&engine, &telem, 0.1f, &out);
+    assert_int_equal(ret, 0);
+
+    for (int i = 0; i < THERMAL_MESH_NUM_NODES; i++) {
+        assert_true(isfinite(out.node_temperatures[i]));
+    }
+}
+
+static void test_thermal_mesh_invalid_cfg_rejection(void **state) {
+    (void)state;
+    thermal_mesh_engine_t engine;
+
+    thermal_mesh_config_t bad_cfg_mass = { .cell_mass_kg = 0.0f, .specific_heat_j_kg_k = 1100.0f };
+    assert_int_equal(thermal_mesh_engine_init(&engine, &bad_cfg_mass), -1);
+
+    thermal_mesh_config_t bad_cfg_cp = { .cell_mass_kg = 5.4f, .specific_heat_j_kg_k = -10.0f };
+    assert_int_equal(thermal_mesh_engine_init(&engine, &bad_cfg_cp), -1);
+
+    thermal_mesh_config_t bad_cfg_k = { .cell_mass_kg = 5.4f, .specific_heat_j_kg_k = 1100.0f, .k_in_plane_w_m_k = -1.0f };
+    assert_int_equal(thermal_mesh_engine_init(&engine, &bad_cfg_k), -1);
+}
+
+static void test_thermal_mesh_nan_dt_rejection(void **state) {
+    (void)state;
+    thermal_mesh_engine_t engine;
+    thermal_mesh_engine_init(&engine, NULL);
+
+    thermal_mesh_telemetry_t telem = {
+        .load_current_a = 100.0f,
+        .cell_terminal_voltage_v = 3.20f,
+        .open_circuit_voltage_v = 3.28f,
+        .cell_soc = 0.70f,
+        .ambient_temp_c = 25.0f,
+        .coolant_temp_c = 25.0f,
+        .sensor_count = 0
+    };
+
+    thermal_mesh_output_t out;
+    /* 传入 NAN 与 Inf 步长，验证被安全兜底，无发散 */
+    int ret1 = thermal_mesh_engine_step(&engine, &telem, (float)NAN, &out);
+    assert_int_equal(ret1, 0);
+    assert_true(isfinite(out.core_hotspot_temp_c));
+
+    int ret2 = thermal_mesh_engine_step(&engine, &telem, (float)INFINITY, &out);
+    assert_int_equal(ret2, 0);
+    assert_true(isfinite(out.core_hotspot_temp_c));
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_thermal_mesh_init_and_reset),
@@ -234,6 +339,10 @@ int main(void) {
         cmocka_unit_test(test_thermal_mesh_bottom_liquid_cooling),
         cmocka_unit_test(test_thermal_mesh_surface_sensor_fusion),
         cmocka_unit_test(test_thermal_mesh_hotspot_and_gradient_alarms),
+        cmocka_unit_test(test_thermal_mesh_sensor_nan_rejection),
+        cmocka_unit_test(test_thermal_mesh_invalid_binding_bounds),
+        cmocka_unit_test(test_thermal_mesh_invalid_cfg_rejection),
+        cmocka_unit_test(test_thermal_mesh_nan_dt_rejection),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);
