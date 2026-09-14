@@ -1094,6 +1094,20 @@ target_link_libraries(test_battery_pulse_heating PRIVATE
 )
 add_test(NAME test_battery_pulse_heating COMMAND test_battery_pulse_heating)
 
+# AEP-739 电池单体热阻抗矩阵非均匀热场三维重建单测
+add_executable(test_battery_thermal_mesh test_battery_thermal_mesh.c)
+target_include_directories(test_battery_thermal_mesh PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_algo/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_battery_thermal_mesh PRIVATE
+    edge_algo
+    edge_core
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_battery_thermal_mesh COMMAND test_battery_thermal_mesh)
+
 
 
 
