@@ -1094,6 +1094,28 @@ target_link_libraries(test_battery_pulse_heating PRIVATE
 )
 add_test(NAME test_battery_pulse_heating COMMAND test_battery_pulse_heating)
 
+# ARCH-MCP-02 工业级共享 MCP 神经总线与安全门禁单测
+add_executable(test_mcp_bus_security test_mcp_bus_security.c)
+target_include_directories(test_mcp_bus_security PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_mcp/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_io/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_stream/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
+)
+target_link_libraries(test_mcp_bus_security PRIVATE
+    edge_mcp
+    edge_core
+    edge_io
+    edge_stream
+    edge_infra
+    cjson
+    libuv::uv_a
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_mcp_bus_security COMMAND test_mcp_bus_security)
+
 
 
 

@@ -497,6 +497,13 @@ void edge_mcp_dispatcher_destroy(edge_mcp_dispatcher_t *disp) {
 int edge_mcp_register_tool(edge_mcp_dispatcher_t *disp, const edge_mcp_tool_def_t *tool_def) {
     if (!disp || !tool_def || !tool_def->name || !tool_def->handler) return -1;
     uv_mutex_lock(&disp->lock);
+    for (size_t i = 0; i < disp->tool_count; i++) {
+        if (strcmp(disp->tools[i].name, tool_def->name) == 0) {
+            disp->tools[i] = *tool_def;
+            uv_mutex_unlock(&disp->lock);
+            return 0;
+        }
+    }
     if (disp->tool_count >= MAX_MCP_TOOLS) {
         uv_mutex_unlock(&disp->lock);
         return -1;
