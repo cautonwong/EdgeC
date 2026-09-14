@@ -292,6 +292,60 @@ static void test_energy_time_trajectory_and_reset(void **state)
     assert_null(battery_balancer_get_plan(&bal));
 }
 
+/* 8. 测试 NaN 脏数据注入与 qsort 排序弱序违规整改防御 */
+static void test_nan_cell_defense_and_qsort_weak_order(void **state)
+{
+    (void)state;
+    battery_balancer_t bal;
+    battery_balancer_init(&bal, NULL, 16);
+
+    /* 注入包含 NaN 的电芯数据 (#3 电芯 SOC 为 NaN, #7 电芯电压为 NaN) */
+    for (uint16_t i = 0; i < 16; i++) {
+        double s = (i % 2 == 0) ? 0.65 : 0.45;
+        double v = (i % 2 == 0) ? 3.35 : 3.25;
+        if (i == 3) s = NAN;
+        if (i == 7) v = NAN;
+
+        battery_bal_cell_input_t input = {
+            .cell_id = i,
+            .voltage_v = v,
+            .soc = s,
+            .temperature_c = 25.0,
+            .soh = 0.95,
+            .r0_mohm = 0.50
+        };
+        battery_balancer_update_cell(&bal, i, &input);
+    }
+
+    /* 执行规划步进，断言 qsort 绝不因 NaN 崩溃，且极差统计不出现 -2e12 mV 异常 */
+    int rc = battery_balancer_plan_step(&bal, 100.0);
+    assert_int_equal(rc, 0);
+
+    const battery_bal_plan_t *plan = battery_balancer_get_plan(&bal);
+    assert_non_null(plan);
+    assert_true(isfinite(plan->voltage_diff_mv));
+    assert_true(plan->voltage_diff_mv >= 0.0);
+    assert_true(plan->voltage_diff_mv < 1000.0); /* 正常极差 ~100mV */
+    assert_true(isfinite(plan->avg_soc));
+    assert_true(isfinite(plan->max_soc_diff_pct));
+
+    /* 校验 NaN 电芯已被互锁隔离 */
+    assert_true(plan->commands[3].interlocked);
+    assert_int_equal(plan->commands[3].action, BATTERY_BAL_ACTION_IDLE);
+    assert_true(plan->commands[7].interlocked);
+    assert_int_equal(plan->commands[7].action, BATTERY_BAL_ACTION_IDLE);
+
+    /* 8.2 校验非法 start_soc_diff_pct 初始配置自愈防除零 */
+    battery_bal_config_t edge_cfg = {
+        .cell_count = 16,
+        .start_soc_diff_pct = 0.0,
+        .stop_soc_diff_pct = 0.0,
+        .max_active_current_a = 5.0
+    };
+    assert_int_equal(battery_balancer_init(&bal, &edge_cfg, 16), 0);
+    assert_true(bal.config.start_soc_diff_pct > 0.0);
+}
+
 int main(void)
 {
     const struct CMUnitTest tests[] = {
@@ -302,6 +356,7 @@ int main(void)
         cmocka_unit_test(test_temperature_and_voltage_safety_interlock),
         cmocka_unit_test(test_adjacent_hardware_interlock),
         cmocka_unit_test(test_energy_time_trajectory_and_reset),
+        cmocka_unit_test(test_nan_cell_defense_and_qsort_weak_order),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

@@ -249,6 +249,34 @@ static void test_multi_cell_pack_robustness_64_cells(void **state) {
     assert_int_equal(det.total_samples_processed, 0);
 }
 
+static void test_nan_cell_and_qsort_median_defense(void **state) {
+    (void)state;
+    pack_micro_isc_detector_t det;
+    assert_int_equal(battery_micro_isc_init(&det, NULL, 16), 0);
+
+    /* 1. 注入包含 NaN 的电压与 SOC，测试 qsort compare_floats 严格弱序与中位数计算 */
+    for (uint16_t i = 0; i < 16; i++) {
+        float v = (i == 4) ? NAN : (3.30f + 0.001f * (float)i);
+        float s = (i == 9) ? NAN : 0.80f;
+        assert_int_equal(battery_micro_isc_feed_cell(&det, i, v, 0.0f, 25.0f, s, 100.0), 0);
+    }
+    assert_int_equal(battery_micro_isc_process_step(&det, 100.0), 0);
+
+    assert_true(isfinite(det.pack_avg_voltage));
+    assert_true(isfinite(det.pack_median_voltage));
+    assert_true(det.pack_median_voltage > 3.20f && det.pack_median_voltage < 3.40f);
+
+    /* 2. 测试 battery_micro_isc_identify_r_isc 输入 NaN rest_time_s 防除零 */
+    cell_isc_state_t test_cell;
+    memset(&test_cell, 0, sizeof(test_cell));
+    test_cell.r_isc_ohm = 1000000.0f;
+    float out_r = 0.0f;
+    float out_rate = 0.0f;
+    assert_int_equal(battery_micro_isc_identify_r_isc(&test_cell, 3.30f, 0.001f, 280.0f, NAN, &out_r, &out_rate), 0);
+    assert_true(isfinite(out_r));
+    assert_true(isfinite(out_rate));
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_init_and_config),
@@ -257,6 +285,7 @@ int main(void) {
         cmocka_unit_test(test_micro_isc_resistance_identification),
         cmocka_unit_test(test_severe_isc_1d_and_critical),
         cmocka_unit_test(test_multi_cell_pack_robustness_64_cells),
+        cmocka_unit_test(test_nan_cell_and_qsort_median_defense),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

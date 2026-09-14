@@ -45,7 +45,8 @@ typedef enum {
     PULSE_HEAT_FAULT_SOC_OUT_OF_BOUNDS,      /**< SOC 超出允许加热安全区间 (20%~85%) */
     PULSE_HEAT_FAULT_LITHIUM_PLATING_RISK,   /**< 负极过电位逼近零点 (析锂高危阻断) */
     PULSE_HEAT_FAULT_INVERTER_NOT_READY,     /**< 逆变功率桥臂硬件未就绪或过流 */
-    PULSE_HEAT_FAULT_TIMEOUT                 /**< 加热总耗时超过最大限制超时 */
+    PULSE_HEAT_FAULT_TIMEOUT,                /**< 加热总耗时超过最大限制超时 */
+    PULSE_HEAT_FAULT_SENSOR_INVALID          /**< 传感器采样异常或数据无效 (NaN/越界) */
 } pulse_heat_fault_t;
 
 /**
@@ -132,6 +133,7 @@ typedef struct {
     float rate_timer_s;                        /**< 速率计算差分窗口计时 */
     float calculated_rate_c_min;               /**< 滤波后升温速率 */
     bool initialized;                          /**< 初始化标志 */
+    bool temp_initialized;                     /**< 初始温度状态对齐标志 */
 } pulse_heat_engine_t;
 
 /**

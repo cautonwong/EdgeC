@@ -35,16 +35,22 @@ int battery_balancer_init(battery_balancer_t *bal, const battery_bal_config_t *c
     bal->config.cell_count = cell_count;
 
     /* 校验与修正参数 */
-    if (bal->config.nominal_capacity_ah <= 0.0) {
+    if (bal->config.nominal_capacity_ah <= 0.0 || !isfinite(bal->config.nominal_capacity_ah)) {
         bal->config.nominal_capacity_ah = 280.0;
     }
-    if (bal->config.start_voltage_diff_mv <= bal->config.stop_voltage_diff_mv) {
+    if (bal->config.start_voltage_diff_mv <= bal->config.stop_voltage_diff_mv || !isfinite(bal->config.start_voltage_diff_mv)) {
         bal->config.start_voltage_diff_mv = bal->config.stop_voltage_diff_mv + 5.0;
     }
-    if (bal->config.max_active_current_a <= 0.0) {
+    if (bal->config.start_soc_diff_pct <= bal->config.stop_soc_diff_pct || bal->config.start_soc_diff_pct <= 0.01 || !isfinite(bal->config.start_soc_diff_pct)) {
+        bal->config.start_soc_diff_pct = bal->config.stop_soc_diff_pct + 0.50;
+        if (bal->config.start_soc_diff_pct <= 0.0) {
+            bal->config.start_soc_diff_pct = 1.50;
+        }
+    }
+    if (bal->config.max_active_current_a <= 0.0 || !isfinite(bal->config.max_active_current_a)) {
         bal->config.max_active_current_a = BATTERY_BAL_DEFAULT_MAX_CURR_A;
     }
-    if (bal->config.bleed_resistor_ohm <= 0.0) {
+    if (bal->config.bleed_resistor_ohm <= 0.0 || !isfinite(bal->config.bleed_resistor_ohm)) {
         bal->config.bleed_resistor_ohm = BATTERY_BAL_BLEED_RESISTOR_OHM;
     }
     if (bal->config.max_concurrent_channels == 0) {
@@ -87,18 +93,28 @@ static int compare_soc_desc(const void *a, const void *b)
 {
     const cell_sort_item_t *ca = (const cell_sort_item_t *)a;
     const cell_sort_item_t *cb = (const cell_sort_item_t *)b;
+    bool a_fin = isfinite(ca->soc);
+    bool b_fin = isfinite(cb->soc);
+    if (!a_fin && !b_fin) return (ca->cell_id > cb->cell_id) - (ca->cell_id < cb->cell_id);
+    if (!a_fin) return 1; /* non-finite sinks to bottom */
+    if (!b_fin) return -1;
     if (cb->soc > ca->soc) return 1;
     if (cb->soc < ca->soc) return -1;
-    return 0;
+    return (ca->cell_id > cb->cell_id) - (ca->cell_id < cb->cell_id);
 }
 
 static int compare_soc_asc(const void *a, const void *b)
 {
     const cell_sort_item_t *ca = (const cell_sort_item_t *)a;
     const cell_sort_item_t *cb = (const cell_sort_item_t *)b;
+    bool a_fin = isfinite(ca->soc);
+    bool b_fin = isfinite(cb->soc);
+    if (!a_fin && !b_fin) return (ca->cell_id > cb->cell_id) - (ca->cell_id < cb->cell_id);
+    if (!a_fin) return 1; /* non-finite sinks to bottom */
+    if (!b_fin) return -1;
     if (ca->soc > cb->soc) return 1;
     if (ca->soc < cb->soc) return -1;
-    return 0;
+    return (ca->cell_id > cb->cell_id) - (ca->cell_id < cb->cell_id);
 }
 
 int battery_balancer_plan_step(battery_balancer_t *bal, double cur_timestamp_s)
@@ -118,19 +134,42 @@ int battery_balancer_plan_step(battery_balancer_t *bal, double cur_timestamp_s)
     double dt = 1.0;
     if (bal->last_timestamp_s > 0.0) {
         dt = cur_timestamp_s - bal->last_timestamp_s;
-        if (dt < 0.0) dt = 0.0;
+        if (dt < 0.0 || !isfinite(dt)) dt = 0.0;
         if (dt > 60.0) dt = 1.0;
     }
     bal->last_timestamp_s = cur_timestamp_s;
     bal->total_cycles_planned++;
 
-    /* 1. 统计整组极值、均值与离散度 */
+    memset(&bal->plan, 0, sizeof(bal->plan));
+
+    /* 初始化所有通道为 IDLE */
+    bool safe_to_balance[BATTERY_BAL_MAX_CELLS];
+    for (uint16_t i = 0; i < n; i++) {
+        bal->plan.commands[i].cell_id = i;
+        bal->plan.commands[i].action = BATTERY_BAL_ACTION_IDLE;
+        bal->plan.commands[i].interlocked = false;
+        safe_to_balance[i] = true;
+    }
+
+    /* 1. 统计整组极值、均值与离散度，拦截 NaN / Inf 脏数据 */
     double v_min = 1e9, v_max = -1e9, v_sum = 0.0;
     double soc_min = 1e9, soc_max = -1e9, soc_sum = 0.0;
+    uint16_t valid_cells = 0;
 
     for (uint16_t i = 0; i < n; i++) {
         double v = bal->cells[i].voltage_v;
         double s = bal->cells[i].soc;
+        double t = bal->cells[i].temperature_c;
+        double soh = bal->cells[i].soh;
+
+        if (!isfinite(v) || !isfinite(s) || !isfinite(t) || !isfinite(soh) ||
+            v < bal->config.cell_min_volt_v || v > bal->config.cell_max_volt_v ||
+            t < bal->config.temp_min_c || t > bal->config.temp_max_c) {
+            safe_to_balance[i] = false;
+            bal->plan.commands[i].interlocked = true;
+            continue;
+        }
+
         if (v < v_min) v_min = v;
         if (v > v_max) v_max = v;
         v_sum += v;
@@ -138,32 +177,29 @@ int battery_balancer_plan_step(battery_balancer_t *bal, double cur_timestamp_s)
         if (s < soc_min) soc_min = s;
         if (s > soc_max) soc_max = s;
         soc_sum += s;
+        valid_cells++;
     }
 
-    double v_mean = v_sum / (double)n;
-    double soc_mean = soc_sum / (double)n;
-    double v_diff_mv = (v_max - v_min) * 1000.0;
-    double soc_diff_pct = (soc_max - soc_min) * 100.0;
+    double v_mean = (valid_cells > 0) ? (v_sum / (double)valid_cells) : 3.30;
+    double soc_mean = (valid_cells > 0) ? (soc_sum / (double)valid_cells) : 0.50;
+    double v_diff_mv = (valid_cells >= 2) ? ((v_max - v_min) * 1000.0) : 0.0;
+    double soc_diff_pct = (valid_cells >= 2) ? ((soc_max - soc_min) * 100.0) : 0.0;
 
-    memset(&bal->plan, 0, sizeof(bal->plan));
+    if (v_min > 1e8) v_min = 0.0;
+    if (v_max < -1e8) v_max = 0.0;
+
     bal->plan.max_voltage_v = v_max;
     bal->plan.min_voltage_v = v_min;
     bal->plan.voltage_diff_mv = v_diff_mv;
     bal->plan.avg_soc = soc_mean;
     bal->plan.max_soc_diff_pct = soc_diff_pct;
 
-    /* 初始化所有通道为 IDLE */
-    for (uint16_t i = 0; i < n; i++) {
-        bal->plan.commands[i].cell_id = i;
-        bal->plan.commands[i].action = BATTERY_BAL_ACTION_IDLE;
-    }
-
     /* 2. 判断是否满足启动门限 (满足任意电压差或 SOC 极差) */
     bool trigger = (v_diff_mv >= bal->config.start_voltage_diff_mv) ||
                    (soc_diff_pct >= bal->config.start_soc_diff_pct);
 
-    if (!trigger && v_diff_mv <= bal->config.stop_voltage_diff_mv &&
-        soc_diff_pct <= bal->config.stop_soc_diff_pct) {
+    if ((!trigger && v_diff_mv <= bal->config.stop_voltage_diff_mv &&
+         soc_diff_pct <= bal->config.stop_soc_diff_pct) || valid_cells < 2) {
         bal->plan.is_balancing_active = false;
         bal->plan.energy_efficiency_score = 1.0;
         bal->plan.valid = true;
@@ -171,20 +207,6 @@ int battery_balancer_plan_step(battery_balancer_t *bal, double cur_timestamp_s)
     }
 
     bal->plan.is_balancing_active = true;
-
-    /* 3. 安全互锁掩码检查 (温度边界与电压边界) */
-    bool safe_to_balance[BATTERY_BAL_MAX_CELLS];
-    for (uint16_t i = 0; i < n; i++) {
-        safe_to_balance[i] = true;
-        double t = bal->cells[i].temperature_c;
-        double v = bal->cells[i].voltage_v;
-
-        if (t < bal->config.temp_min_c || t > bal->config.temp_max_c ||
-            v < bal->config.cell_min_volt_v || v > bal->config.cell_max_volt_v) {
-            safe_to_balance[i] = false;
-            bal->plan.commands[i].interlocked = true;
-        }
-    }
 
     double total_power_transferred = 0.0;
     double total_power_dissipated = 0.0;
@@ -264,7 +286,9 @@ int battery_balancer_plan_step(battery_balancer_t *bal, double cur_timestamp_s)
             }
 
             double delta_soc = high_cells[p].soc - low_cells[p].soc;
-            double i_transfer = bal->config.max_active_current_a * (delta_soc / (bal->config.start_soc_diff_pct * 0.01));
+            double soc_scale = bal->config.start_soc_diff_pct * 0.01;
+            if (soc_scale <= 1e-4 || !isfinite(soc_scale)) soc_scale = 0.015;
+            double i_transfer = bal->config.max_active_current_a * (delta_soc / soc_scale);
             if (i_transfer > bal->config.max_active_current_a) {
                 i_transfer = bal->config.max_active_current_a;
             }

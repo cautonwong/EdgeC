@@ -33,19 +33,19 @@ int battery_gas_ew_init(battery_gas_ew_detector_t *ew, const battery_gas_ew_conf
     }
 
     /* 校验参数有效性 */
-    if (ew->config.voc_trace_ppb <= 0.0) ew->config.voc_trace_ppb = 300.0;
-    if (ew->config.h2_trace_ppm <= 0.0) ew->config.h2_trace_ppm = 15.0;
-    if (ew->config.co_trace_ppm <= 0.0) ew->config.co_trace_ppm = 10.0;
-    if (ew->config.co_vent_ppm <= 0.0) ew->config.co_vent_ppm = 50.0;
-    if (ew->config.h2_vent_ppm <= 0.0) ew->config.h2_vent_ppm = 80.0;
-    if (ew->config.pressure_pulse_pa_s <= 0.0) ew->config.pressure_pulse_pa_s = 30.0;
-    if (ew->config.temp_rate_vent_cs <= 0.0) ew->config.temp_rate_vent_cs = 0.25;
-    if (ew->config.smoke_runaway_thresh <= 0.0) ew->config.smoke_runaway_thresh = 0.15;
-    if (ew->config.co_runaway_ppm <= 0.0) ew->config.co_runaway_ppm = 250.0;
-    if (ew->config.temp_runaway_c <= 0.0) ew->config.temp_runaway_c = 75.0;
-    if (ew->config.max_valid_temp_c <= 50.0) ew->config.max_valid_temp_c = 150.0;
-    if (ew->config.min_valid_pressure_pa <= 10000.0) ew->config.min_valid_pressure_pa = 60000.0;
-    if (ew->config.max_valid_pressure_pa <= ew->config.min_valid_pressure_pa) ew->config.max_valid_pressure_pa = 150000.0;
+    if (ew->config.voc_trace_ppb <= 0.0 || !isfinite(ew->config.voc_trace_ppb)) ew->config.voc_trace_ppb = 300.0;
+    if (ew->config.h2_trace_ppm <= 0.0 || !isfinite(ew->config.h2_trace_ppm)) ew->config.h2_trace_ppm = 15.0;
+    if (ew->config.co_trace_ppm <= 0.0 || !isfinite(ew->config.co_trace_ppm)) ew->config.co_trace_ppm = 10.0;
+    if (ew->config.co_vent_ppm <= 0.0 || !isfinite(ew->config.co_vent_ppm)) ew->config.co_vent_ppm = 50.0;
+    if (ew->config.h2_vent_ppm <= 0.0 || !isfinite(ew->config.h2_vent_ppm)) ew->config.h2_vent_ppm = 80.0;
+    if (ew->config.pressure_pulse_pa_s <= 0.0 || !isfinite(ew->config.pressure_pulse_pa_s)) ew->config.pressure_pulse_pa_s = 30.0;
+    if (ew->config.temp_rate_vent_cs <= 0.0 || !isfinite(ew->config.temp_rate_vent_cs)) ew->config.temp_rate_vent_cs = 0.25;
+    if (ew->config.smoke_runaway_thresh <= 0.0 || !isfinite(ew->config.smoke_runaway_thresh)) ew->config.smoke_runaway_thresh = 0.15;
+    if (ew->config.co_runaway_ppm <= 0.0 || !isfinite(ew->config.co_runaway_ppm)) ew->config.co_runaway_ppm = 250.0;
+    if (ew->config.temp_runaway_c <= 55.0 || !isfinite(ew->config.temp_runaway_c)) ew->config.temp_runaway_c = 75.0;
+    if (ew->config.max_valid_temp_c <= 50.0 || !isfinite(ew->config.max_valid_temp_c)) ew->config.max_valid_temp_c = 150.0;
+    if (ew->config.min_valid_pressure_pa <= 10000.0 || !isfinite(ew->config.min_valid_pressure_pa)) ew->config.min_valid_pressure_pa = 60000.0;
+    if (ew->config.max_valid_pressure_pa <= ew->config.min_valid_pressure_pa || !isfinite(ew->config.max_valid_pressure_pa)) ew->config.max_valid_pressure_pa = 150000.0;
 
     battery_gas_ew_reset(ew);
     return 0;
@@ -73,8 +73,8 @@ int battery_gas_ew_push_sample(battery_gas_ew_detector_t *ew, const battery_gas_
 
 static double clamp01(double v)
 {
+    if (!isfinite(v) || v < 0.0) return 0.0;
     if (v > 1.0) return 1.0;
-    if (v < 0.0) return 0.0;
     return v;
 }
 
@@ -87,8 +87,12 @@ int battery_gas_ew_process_step(battery_gas_ew_detector_t *ew, double cur_timest
     uint16_t curr_idx = ew->sample_count - 1;
     const battery_gas_sensor_sample_t *curr = &ew->history[curr_idx];
 
-    /* 1. 传感器物理故障/断线/量程越界检查 */
-    if (curr->pressure_pa < ew->config.min_valid_pressure_pa ||
+    /* 1. 传感器物理故障/断线/量程越界检查及 NaN 脏数据拦截 */
+    if (!isfinite(curr->pressure_pa) || !isfinite(curr->max_cell_temp_c) ||
+        !isfinite(curr->co_ppm) || !isfinite(curr->h2_ppm) ||
+        !isfinite(curr->voc_ppb) || !isfinite(curr->smoke_density) ||
+        !isfinite(curr->min_cell_volt_v) || !isfinite(curr->timestamp_s) ||
+        curr->pressure_pa < ew->config.min_valid_pressure_pa ||
         curr->pressure_pa > ew->config.max_valid_pressure_pa ||
         curr->max_cell_temp_c < -40.0 ||
         curr->max_cell_temp_c > ew->config.max_valid_temp_c ||
@@ -126,7 +130,7 @@ int battery_gas_ew_process_step(battery_gas_ew_detector_t *ew, double cur_timest
     if (ew->sample_count >= 2) {
         const battery_gas_sensor_sample_t *prev = &ew->history[curr_idx - 1];
         double dt = curr->timestamp_s - prev->timestamp_s;
-        if (dt > 0.001) {
+        if (dt > 0.001 && isfinite(dt)) {
             dco_dt = (curr->co_ppm - prev->co_ppm) / dt;
             dh2_dt = (curr->h2_ppm - prev->h2_ppm) / dt;
             dvoc_dt = (curr->voc_ppb - prev->voc_ppb) / dt;
@@ -150,7 +154,9 @@ int battery_gas_ew_process_step(battery_gas_ew_detector_t *ew, double cur_timest
     double e_press_pulse = clamp01(dpress_dt / ew->config.pressure_pulse_pa_s);
     double e_temp_rate = clamp01(dtemp_dt / ew->config.temp_rate_vent_cs);
     double e_smoke = clamp01(curr->smoke_density / ew->config.smoke_runaway_thresh);
-    double e_temp_high = clamp01((curr->max_cell_temp_c - 55.0) / (ew->config.temp_runaway_c - 55.0));
+    double temp_diff_denom = ew->config.temp_runaway_c - 55.0;
+    if (temp_diff_denom <= 1e-3) temp_diff_denom = 20.0;
+    double e_temp_high = clamp01((curr->max_cell_temp_c - 55.0) / temp_diff_denom);
 
     /* 5. 贝叶斯网络多级后验概率融合 */
     double prob_stage1 = 0.50 * e_voc_trace + 0.35 * e_h2_trace + 0.15 * e_temp_high;
