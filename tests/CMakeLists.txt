@@ -1108,6 +1108,20 @@ target_link_libraries(test_battery_thermal_mesh PRIVATE
 )
 add_test(NAME test_battery_thermal_mesh COMMAND test_battery_thermal_mesh)
 
+# AEP-740 电池峰值充放电功率 SOP 多约束物理边界求解器单测
+add_executable(test_battery_sop_dynamic_bounds test_battery_sop_dynamic_bounds.c)
+target_include_directories(test_battery_sop_dynamic_bounds PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_algo/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_battery_sop_dynamic_bounds PRIVATE
+    edge_algo
+    edge_core
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_battery_sop_dynamic_bounds COMMAND test_battery_sop_dynamic_bounds)
+
 
 
 
