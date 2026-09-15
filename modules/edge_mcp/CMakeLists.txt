@@ -3,6 +3,7 @@ project(edge_mcp C)
 
 set(EDGE_MCP_SOURCES
     src/edge_mcp_dispatcher.c
+    src/edge_mcp_bus.c
     src/transport/mcp_stdio.c
     src/transport/mcp_ws.c
     src/transport/mcp_uds.c
