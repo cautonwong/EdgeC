@@ -181,6 +181,9 @@ int mcp_bus_unregister_provider(mcp_bus_hub_t *hub, const char *provider_id) {
     }
 
     if (found_idx >= 0) {
+        for (size_t t = 0; t < hub->providers[found_idx].tool_count; t++) {
+            edge_mcp_unregister_tool(hub->disp, hub->providers[found_idx].tools[t].name);
+        }
         for (size_t i = (size_t)found_idx; i < hub->provider_count - 1; i++) {
             hub->providers[i] = hub->providers[i + 1];
         }
@@ -200,6 +203,9 @@ int mcp_bus_unregister_by_fd(mcp_bus_hub_t *hub, int client_fd) {
     int removed = 0;
     for (size_t i = 0; i < hub->provider_count;) {
         if (hub->providers[i].client_fd == client_fd) {
+            for (size_t t = 0; t < hub->providers[i].tool_count; t++) {
+                edge_mcp_unregister_tool(hub->disp, hub->providers[i].tools[t].name);
+            }
             for (size_t j = i; j < hub->provider_count - 1; j++) {
                 hub->providers[j] = hub->providers[j + 1];
             }

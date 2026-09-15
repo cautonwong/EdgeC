@@ -85,9 +85,19 @@ edge_mcp_dispatcher_t *edge_mcp_dispatcher_create(const edge_mcp_env_t *env);
 void edge_mcp_dispatcher_destroy(edge_mcp_dispatcher_t *disp);
 
 /**
+ * @brief Get environment context pointers from dispatcher
+ */
+const edge_mcp_env_t *edge_mcp_dispatcher_get_env(const edge_mcp_dispatcher_t *disp);
+
+/**
  * @brief Register a custom tool handler
  */
 int edge_mcp_register_tool(edge_mcp_dispatcher_t *disp, const edge_mcp_tool_def_t *tool_def);
+
+/**
+ * @brief Unregister a tool handler by name
+ */
+int edge_mcp_unregister_tool(edge_mcp_dispatcher_t *disp, const char *tool_name);
 
 /**
  * @brief Dispatch a raw JSON-RPC 2.0 request string and return the response JSON string

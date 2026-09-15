@@ -11,6 +11,7 @@ set(EDGE_MCP_SOURCES
     src/tools/mcp_tools_transformer.c
     src/tools/mcp_tools_tou.c
     src/tools/mcp_tools_interlock.c
+    src/tools/mcp_tools_microservices.c
     src/tools/mcp_tools_registration.c
 )
 
