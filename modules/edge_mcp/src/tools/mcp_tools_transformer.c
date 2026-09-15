@@ -42,8 +42,10 @@ int handle_smartbox_eval_transformer_life(edge_mcp_dispatcher_t *disp,
     double ambient_temp = amb_item->valuedouble;
     double top_oil_temp = top_oil_item->valuedouble;
 
-    if (load_ratio < 0.0) {
-        snprintf(err_msg, err_len, "load_ratio cannot be negative");
+    if (!isfinite(load_ratio) || !isfinite(ambient_temp) || !isfinite(top_oil_temp) ||
+        load_ratio < 0.0 || top_oil_temp < -50.0 || top_oil_temp > 300.0 ||
+        ambient_temp < -60.0 || ambient_temp > 100.0) {
+        snprintf(err_msg, err_len, "Invalid parameters: numeric inputs must be finite and within valid physical ranges");
         return MCP_RPC_INVALID_PARAMS;
     }
 
@@ -52,6 +54,10 @@ int handle_smartbox_eval_transformer_life(edge_mcp_dispatcher_t *disp,
     const cJSON *hrise_item = cJSON_GetObjectItem(params, "rated_hotspot_rise");
     if (hrise_item && cJSON_IsNumber(hrise_item)) {
         rated_hotspot_rise = hrise_item->valuedouble;
+        if (!isfinite(rated_hotspot_rise) || rated_hotspot_rise <= 0.0) {
+            snprintf(err_msg, err_len, "rated_hotspot_rise must be positive finite value");
+            return MCP_RPC_INVALID_PARAMS;
+        }
     }
 
     /* 1. Hot-spot Temperature Rise Calculation (IEEE C57.91) */

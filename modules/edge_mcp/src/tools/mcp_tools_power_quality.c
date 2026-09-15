@@ -42,8 +42,8 @@ int handle_dcu_analyze_power_quality(edge_mcp_dispatcher_t *disp,
     double vb = vb_item->valuedouble;
     double vc = vc_item->valuedouble;
 
-    if (va <= 0.0 || vb <= 0.0 || vc <= 0.0) {
-        snprintf(err_msg, err_len, "Voltages must be strictly positive values");
+    if (!isfinite(va) || !isfinite(vb) || !isfinite(vc) || va <= 0.0 || vb <= 0.0 || vc <= 0.0) {
+        snprintf(err_msg, err_len, "Voltages must be strictly positive finite values");
         return MCP_RPC_INVALID_PARAMS;
     }
 
@@ -52,6 +52,10 @@ int handle_dcu_analyze_power_quality(edge_mcp_dispatcher_t *disp,
     const cJSON *thd_item = cJSON_GetObjectItem(params, "current_thd");
     if (thd_item && cJSON_IsNumber(thd_item)) {
         current_thd = thd_item->valuedouble;
+        if (!isfinite(current_thd) || current_thd < 0.0) {
+            snprintf(err_msg, err_len, "current_thd must be non-negative finite value");
+            return MCP_RPC_INVALID_PARAMS;
+        }
     }
 
     /* Optional Phase Currents */
@@ -59,9 +63,27 @@ int handle_dcu_analyze_power_quality(edge_mcp_dispatcher_t *disp,
     const cJSON *ia_item = cJSON_GetObjectItem(params, "phase_a_i");
     const cJSON *ib_item = cJSON_GetObjectItem(params, "phase_b_i");
     const cJSON *ic_item = cJSON_GetObjectItem(params, "phase_c_i");
-    if (ia_item && cJSON_IsNumber(ia_item)) ia = ia_item->valuedouble;
-    if (ib_item && cJSON_IsNumber(ib_item)) ib = ib_item->valuedouble;
-    if (ic_item && cJSON_IsNumber(ic_item)) ic = ic_item->valuedouble;
+    if (ia_item && cJSON_IsNumber(ia_item)) {
+        ia = ia_item->valuedouble;
+        if (!isfinite(ia) || ia < 0.0) {
+            snprintf(err_msg, err_len, "phase_a_i must be non-negative finite value");
+            return MCP_RPC_INVALID_PARAMS;
+        }
+    }
+    if (ib_item && cJSON_IsNumber(ib_item)) {
+        ib = ib_item->valuedouble;
+        if (!isfinite(ib) || ib < 0.0) {
+            snprintf(err_msg, err_len, "phase_b_i must be non-negative finite value");
+            return MCP_RPC_INVALID_PARAMS;
+        }
+    }
+    if (ic_item && cJSON_IsNumber(ic_item)) {
+        ic = ic_item->valuedouble;
+        if (!isfinite(ic) || ic < 0.0) {
+            snprintf(err_msg, err_len, "phase_c_i must be non-negative finite value");
+            return MCP_RPC_INVALID_PARAMS;
+        }
+    }
 
     /* 1. Symmetrical Components & Unbalance calculation (GB/T 15543) */
     double v_avg = (va + vb + vc) / 3.0;
@@ -125,19 +147,35 @@ int handle_dcu_analyze_power_quality(edge_mcp_dispatcher_t *disp,
     cJSON_AddStringToObject(res, "thd_status", thd_status);
     cJSON_AddNumberToObject(res, "standard_thd_limit_pct", 5.0);
 
-    /* Harmonic Spectrum breakdown (up to 31st) */
-    cJSON *harmonics_arr = cJSON_CreateArray();
-    int harmonic_orders[] = {3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31};
-    size_t num_harmonics = sizeof(harmonic_orders) / sizeof(harmonic_orders[0]);
-    for (size_t i = 0; i < num_harmonics; i++) {
-        int order = harmonic_orders[i];
-        double amplitude = (current_thd / (double)order) * 1.85;
-        cJSON *h_obj = cJSON_CreateObject();
-        cJSON_AddNumberToObject(h_obj, "order", order);
-        cJSON_AddNumberToObject(h_obj, "distortion_pct", round(amplitude * 100.0) / 100.0);
-        cJSON_AddItemToArray(harmonics_arr, h_obj);
+    /* 物理真实性原则：严禁使用经验公式硬编码捏造 3~31 次谐波谱。仅当调用方提供实际物理采样或驱动上传时透传 */
+    const cJSON *harm_in = cJSON_GetObjectItem(params, "harmonics");
+    if (!harm_in) harm_in = cJSON_GetObjectItem(params, "harmonic_spectrum");
+
+    if (harm_in && cJSON_IsArray(harm_in) && cJSON_GetArraySize(harm_in) > 0) {
+        cJSON_AddBoolToObject(res, "spectrum_available", true);
+        cJSON_AddStringToObject(res, "spectrum_source", "PHYSICAL_TELEMETRY");
+        cJSON *harmonics_arr = cJSON_CreateArray();
+        int count = cJSON_GetArraySize(harm_in);
+        for (int i = 0; i < count; i++) {
+            cJSON *item = cJSON_GetArrayItem(harm_in, i);
+            if (cJSON_IsObject(item)) {
+                cJSON *ord = cJSON_GetObjectItem(item, "order");
+                cJSON *dist = cJSON_GetObjectItem(item, "distortion_pct");
+                if (!dist) dist = cJSON_GetObjectItem(item, "amplitude");
+                if (ord && cJSON_IsNumber(ord) && dist && cJSON_IsNumber(dist) && isfinite(dist->valuedouble)) {
+                    cJSON *h_obj = cJSON_CreateObject();
+                    cJSON_AddNumberToObject(h_obj, "order", ord->valueint);
+                    cJSON_AddNumberToObject(h_obj, "distortion_pct", round(dist->valuedouble * 100.0) / 100.0);
+                    cJSON_AddItemToArray(harmonics_arr, h_obj);
+                }
+            }
+        }
+        cJSON_AddItemToObject(res, "harmonic_spectrum_31st", harmonics_arr);
+    } else {
+        cJSON_AddBoolToObject(res, "spectrum_available", false);
+        cJSON_AddStringToObject(res, "spectrum_source", "UNAVAILABLE (FFT physical measurement required)");
+        cJSON_AddNullToObject(res, "harmonic_spectrum_31st");
     }
-    cJSON_AddItemToObject(res, "harmonic_spectrum_31st", harmonics_arr);
 
     /* Commutation Guidance */
     cJSON *comm_obj = cJSON_CreateObject();

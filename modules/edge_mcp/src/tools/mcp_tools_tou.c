@@ -50,8 +50,8 @@ int handle_iems_optimize_tou_schedule(edge_mcp_dispatcher_t *disp,
     }
 
     double current_soc = soc_item->valuedouble;
-    if (current_soc < 0.0 || current_soc > 100.0) {
-        snprintf(err_msg, err_len, "'soc_pct' must be within [0, 100]");
+    if (!isfinite(current_soc) || current_soc < 0.0 || current_soc > 100.0) {
+        snprintf(err_msg, err_len, "'soc_pct' must be a valid finite number within [0, 100]");
         return MCP_RPC_INVALID_PARAMS;
     }
 
@@ -63,18 +63,42 @@ int handle_iems_optimize_tou_schedule(edge_mcp_dispatcher_t *disp,
     double round_trip_eff = 0.92;
 
     const cJSON *cap_item = cJSON_GetObjectItem(params, "battery_capacity_kwh");
-    if (cap_item && cJSON_IsNumber(cap_item)) batt_cap_kwh = cap_item->valuedouble;
+    if (cap_item && cJSON_IsNumber(cap_item)) {
+        batt_cap_kwh = cap_item->valuedouble;
+        if (!isfinite(batt_cap_kwh) || batt_cap_kwh <= 0.0) {
+            snprintf(err_msg, err_len, "'battery_capacity_kwh' must be positive finite number");
+            return MCP_RPC_INVALID_PARAMS;
+        }
+    }
 
     const cJSON *pcs_item = cJSON_GetObjectItem(params, "pcs_max_power_kw");
-    if (pcs_item && cJSON_IsNumber(pcs_item)) pcs_max_kw = pcs_item->valuedouble;
+    if (pcs_item && cJSON_IsNumber(pcs_item)) {
+        pcs_max_kw = pcs_item->valuedouble;
+        if (!isfinite(pcs_max_kw) || pcs_max_kw <= 0.0) {
+            snprintf(err_msg, err_len, "'pcs_max_power_kw' must be positive finite number");
+            return MCP_RPC_INVALID_PARAMS;
+        }
+    }
 
     double pv_avg_kw = 45.0;
     double load_avg_kw = 80.0;
     const cJSON *pv_item = cJSON_GetObjectItem(params, "pv_forecast_kw");
-    if (pv_item && cJSON_IsNumber(pv_item)) pv_avg_kw = pv_item->valuedouble;
+    if (pv_item && cJSON_IsNumber(pv_item)) {
+        pv_avg_kw = pv_item->valuedouble;
+        if (!isfinite(pv_avg_kw) || pv_avg_kw < 0.0) {
+            snprintf(err_msg, err_len, "'pv_forecast_kw' must be non-negative finite number");
+            return MCP_RPC_INVALID_PARAMS;
+        }
+    }
 
     const cJSON *load_item = cJSON_GetObjectItem(params, "load_forecast_kw");
-    if (load_item && cJSON_IsNumber(load_item)) load_avg_kw = load_item->valuedouble;
+    if (load_item && cJSON_IsNumber(load_item)) {
+        load_avg_kw = load_item->valuedouble;
+        if (!isfinite(load_avg_kw) || load_avg_kw < 0.0) {
+            snprintf(err_msg, err_len, "'load_forecast_kw' must be non-negative finite number");
+            return MCP_RPC_INVALID_PARAMS;
+        }
+    }
 
     /* 1. Simulate 24-Hour Schedule Optimization */
     double baseline_daily_cost = 0.0;
