@@ -284,6 +284,7 @@ static void test_pulse_heat_thermal_gradient_homogenize(void **state) {
     /* 人为拉大核心与表面温差 */
     engine.core_temp_est_c = -15.0f;
     engine.surf_temp_est_c = -23.0f; /* 温差 8℃ > max_thermal_gradient_c (6℃) */
+    engine.temp_initialized = true;
     engine.current_state = PULSE_HEAT_STATE_ACTIVE_HEATING;
 
     pulse_heat_engine_step(&engine, &telem, 0.1f, &out);
@@ -327,6 +328,53 @@ static void test_pulse_heat_overtemp_and_timeout_faults(void **state) {
     assert_int_equal(out.fault, PULSE_HEAT_FAULT_TIMEOUT);
 }
 
+static void test_pulse_heat_zero_deg_startup_and_nan_defense(void **state) {
+    (void)state;
+    pulse_heat_engine_t engine;
+    pulse_heat_engine_init(&engine, NULL);
+
+    /* 1. 测试 0.0°C 精确冰水混合物工况下的状态机启动与温度初始化对齐 */
+    pulse_heat_cell_telemetry_t telem_zero = {
+        .cell_count = 16,
+        .temp_count = 4,
+        .ambient_temp_c = 0.0f,
+        .pack_soc = 0.60f,
+        .inverter_ready = true,
+        .actual_current_rms_a = 0.0f,
+        .actual_frequency_hz = 0.0f
+    };
+    for (int i = 0; i < 16; i++) telem_zero.cell_voltages[i] = 3.25f;
+    for (int i = 0; i < 4; i++) telem_zero.cell_temps[i] = 0.0f;
+
+    assert_int_equal(pulse_heat_engine_start(&engine), 0);
+    pulse_heat_control_output_t out;
+    assert_int_equal(pulse_heat_engine_step(&engine, &telem_zero, 0.1f, &out), 0);
+    assert_int_equal(out.state, PULSE_HEAT_STATE_FREQ_SWEEP);
+    assert_true(isfinite(out.estimated_core_temp_c));
+    assert_true(isfinite(out.estimated_surface_temp_c));
+    assert_float_equal(out.estimated_core_temp_c, 0.0f, 0.05f);
+
+    /* 2. 测试 cell_count = 0 异常输入防御 */
+    pulse_heat_engine_reset(&engine);
+    pulse_heat_cell_telemetry_t telem_empty = telem_zero;
+    telem_empty.cell_count = 0;
+    pulse_heat_engine_start(&engine);
+    assert_int_equal(pulse_heat_engine_step(&engine, &telem_empty, 0.1f, &out), 0);
+    assert_int_equal(out.state, PULSE_HEAT_STATE_FAULT);
+    assert_int_equal(out.fault, PULSE_HEAT_FAULT_SENSOR_INVALID);
+
+    /* 3. 测试遥测 NaN 脏数据注入防御 */
+    pulse_heat_engine_reset(&engine);
+    pulse_heat_cell_telemetry_t telem_nan = telem_zero;
+    telem_nan.cell_voltages[2] = NAN;
+    pulse_heat_engine_start(&engine);
+    assert_int_equal(pulse_heat_engine_step(&engine, &telem_nan, 0.1f, &out), 0);
+    assert_int_equal(out.state, PULSE_HEAT_STATE_FAULT);
+    assert_int_equal(out.fault, PULSE_HEAT_FAULT_SENSOR_INVALID);
+    assert_false(out.inverter_enable);
+    assert_true(isfinite(out.estimated_core_temp_c));
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_pulse_heat_init_and_config),
@@ -336,6 +384,7 @@ int main(void) {
         cmocka_unit_test(test_pulse_heat_lithium_plating_throttle),
         cmocka_unit_test(test_pulse_heat_thermal_gradient_homogenize),
         cmocka_unit_test(test_pulse_heat_overtemp_and_timeout_faults),
+        cmocka_unit_test(test_pulse_heat_zero_deg_startup_and_nan_defense),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

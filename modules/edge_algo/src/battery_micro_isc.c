@@ -17,6 +17,11 @@
 static int compare_floats(const void *a, const void *b) {
     float fa = *(const float *)a;
     float fb = *(const float *)b;
+    bool fa_fin = isfinite(fa);
+    bool fb_fin = isfinite(fb);
+    if (!fa_fin && !fb_fin) return 0;
+    if (!fa_fin) return 1;  /* non-finite sinks to bottom */
+    if (!fb_fin) return -1;
     if (fa < fb) return -1;
     if (fa > fb) return 1;
     return 0;
@@ -67,6 +72,12 @@ int battery_micro_isc_feed_cell(pack_micro_isc_detector_t *det,
     if (!det || cell_id >= det->cell_count) {
         return -1;
     }
+
+    if (!isfinite(voltage)) voltage = 3.30f;
+    if (!isfinite(current)) current = 0.0f;
+    if (!isfinite(temp)) temp = 25.0f;
+    if (!isfinite(soc)) soc = 0.50f;
+    if (!isfinite(timestamp_s)) timestamp_s = 0.0;
 
     cell_isc_state_t *c = &det->cells[cell_id];
     c->voltage = voltage;
@@ -136,7 +147,7 @@ int battery_micro_isc_detect_lithium_plating(cell_isc_state_t *cell,
     /* 5 点 Savitzky-Golay 二阶微分核: [-2, 1, 2, 1, -2] 或 [2, -1, -2, -1, 2]/7 */
     for (uint16_t i = 2; i < r->window_count - 2; i++) {
         float dt = (r->time_window[i + 1] - r->time_window[i - 1]) * 0.5f;
-        if (dt <= 1e-4f) {
+        if (dt <= 1e-4f || !isfinite(dt)) {
             dt = 1.0f;
         }
 
@@ -187,18 +198,19 @@ int battery_micro_isc_identify_r_isc(cell_isc_state_t *cell,
                                      float rest_time_s,
                                      float *out_r_isc,
                                      float *out_discharge_rate_pct_day) {
-    if (!cell || nominal_capacity_ah <= 0.0f) {
+    if (!cell || !isfinite(nominal_capacity_ah) || nominal_capacity_ah <= 0.0f) {
         return -1;
     }
 
-    if (rest_time_s < 5.0f) {
+    if (!isfinite(rest_time_s) || rest_time_s < 5.0f ||
+        !isfinite(baseline_avg_voltage) || !isfinite(baseline_delta_soc)) {
         if (out_r_isc) *out_r_isc = cell->r_isc_ohm;
         if (out_discharge_rate_pct_day) *out_discharge_rate_pct_day = cell->self_discharge_rate_pct_day;
         return 0;
     }
 
     float delta_soc = cell->relaxation.rest_start_soc - cell->soc;
-    if (delta_soc < 0.0f) {
+    if (!isfinite(delta_soc) || delta_soc < 0.0f) {
         delta_soc = 0.0f;
     }
 
@@ -213,7 +225,7 @@ int battery_micro_isc_identify_r_isc(cell_isc_state_t *cell,
         /* 等效短路漏电流 (A) = (Ah * 3600) / s */
         float i_leakage_a = (excess_capacity_ah * 3600.0f) / rest_time_s;
         if (i_leakage_a > 1e-5f) {
-            float v_eval = (cell->voltage > 1.0f) ? cell->voltage : baseline_avg_voltage;
+            float v_eval = (cell->voltage > 1.0f && isfinite(cell->voltage)) ? cell->voltage : baseline_avg_voltage;
             r_isc = v_eval / i_leakage_a;
         }
     }
@@ -237,25 +249,42 @@ int battery_micro_isc_process_step(pack_micro_isc_detector_t *det,
     float v_arr[BATTERY_MAX_CELLS_PER_PACK];
     float delta_soc_arr[BATTERY_MAX_CELLS_PER_PACK];
     float i_sum = 0.0f;
+    uint16_t valid_cells = 0;
 
     for (uint16_t i = 0; i < det->cell_count; i++) {
-        v_sum += det->cells[i].voltage;
-        v_arr[i] = det->cells[i].voltage;
-        i_sum += det->cells[i].current;
+        float v = det->cells[i].voltage;
+        float curr_i = det->cells[i].current;
+        float s = det->cells[i].soc;
 
-        float d_soc = det->cells[i].relaxation.rest_start_soc - det->cells[i].soc;
-        delta_soc_arr[i] = (d_soc > 0.0f) ? d_soc : 0.0f;
+        if (isfinite(v)) {
+            v_sum += v;
+            v_arr[valid_cells] = v;
+        } else {
+            v_arr[valid_cells] = 3.30f;
+        }
+
+        if (isfinite(curr_i)) {
+            i_sum += curr_i;
+        }
+
+        float d_soc = det->cells[i].relaxation.rest_start_soc - s;
+        if (isfinite(d_soc) && d_soc > 0.0f) {
+            delta_soc_arr[valid_cells] = d_soc;
+        } else {
+            delta_soc_arr[valid_cells] = 0.0f;
+        }
+        valid_cells++;
     }
 
-    det->pack_avg_voltage = v_sum / (float)det->cell_count;
-    det->pack_current = i_sum / (float)det->cell_count;
+    det->pack_avg_voltage = (valid_cells > 0) ? (v_sum / (float)valid_cells) : 3.30f;
+    det->pack_current = (valid_cells > 0) ? (i_sum / (float)valid_cells) : 0.0f;
 
     /* 计算电压中位数与基准 SOC 衰减 */
-    qsort(v_arr, det->cell_count, sizeof(float), compare_floats);
-    det->pack_median_voltage = v_arr[det->cell_count / 2];
+    qsort(v_arr, valid_cells, sizeof(float), compare_floats);
+    det->pack_median_voltage = (valid_cells > 0) ? v_arr[valid_cells / 2] : 3.30f;
 
-    qsort(delta_soc_arr, det->cell_count, sizeof(float), compare_floats);
-    float baseline_delta_soc = delta_soc_arr[det->cell_count / 2];
+    qsort(delta_soc_arr, valid_cells, sizeof(float), compare_floats);
+    float baseline_delta_soc = (valid_cells > 0) ? delta_soc_arr[valid_cells / 2] : 0.0f;
 
     bool pack_in_rest = (fabsf(det->pack_current) <= det->config.rest_current_threshold_a);
     if (pack_in_rest) {

@@ -63,6 +63,7 @@ int pulse_heat_engine_init(pulse_heat_engine_t *engine, const pulse_heat_config_
     engine->active_fault = PULSE_HEAT_FAULT_NONE;
     engine->optimal_freq_hz = engine->cfg.nominal_frequency_hz;
     engine->initialized = true;
+    engine->temp_initialized = false;
     return 0;
 }
 
@@ -79,6 +80,7 @@ int pulse_heat_engine_reset(pulse_heat_engine_t *engine) {
     engine->cumulative_energy_wh = 0.0f;
     engine->rate_timer_s = 0.0f;
     engine->calculated_rate_c_min = 0.0f;
+    engine->temp_initialized = false;
     return 0;
 }
 
@@ -118,11 +120,91 @@ int pulse_heat_engine_step(pulse_heat_engine_t *engine,
     if (!engine || !engine->initialized || !telem || !out) {
         return -1;
     }
-    if (dt_s <= 0.0f) {
+    if (dt_s <= 0.0f || !isfinite(dt_s)) {
         dt_s = 0.01f;
     }
     if (dt_s > 1.0f) {
         dt_s = 1.0f; /* 限制最大步长 */
+    }
+
+    /* 0. 校验输入遥测有效性与 NaN/Inf 脏数据拦截 */
+    if (telem->cell_count == 0 || telem->cell_count > PULSE_HEAT_MAX_CELLS ||
+        telem->temp_count == 0 || telem->temp_count > PULSE_HEAT_MAX_TEMPS ||
+        !isfinite(telem->ambient_temp_c) || !isfinite(telem->pack_soc) ||
+        !isfinite(telem->actual_current_rms_a) || !isfinite(telem->actual_frequency_hz)) {
+        engine->current_state = PULSE_HEAT_STATE_FAULT;
+        engine->active_fault = PULSE_HEAT_FAULT_SENSOR_INVALID;
+        engine->current_cmd_a = 0.0f;
+        engine->target_cmd_a = 0.0f;
+
+        out->state = engine->current_state;
+        out->fault = engine->active_fault;
+        out->inverter_enable = false;
+        out->target_current_amp_a = 0.0f;
+        out->target_frequency_hz = engine->optimal_freq_hz;
+        out->duty_ratio = 0.50f;
+        out->estimated_core_temp_c = engine->core_temp_est_c;
+        out->estimated_surface_temp_c = engine->surf_temp_est_c;
+        out->temp_gradient_c = fabsf(engine->core_temp_est_c - engine->surf_temp_est_c);
+        out->cell_temp_spread_c = 0.0f;
+        out->estimated_heating_power_w = 0.0f;
+        out->heating_rate_c_per_min = engine->calculated_rate_c_min;
+        out->plating_safety_margin_v = 0.0f;
+        out->elapsed_heating_time_s = engine->total_elapsed_s;
+        out->total_energy_consumed_wh = engine->cumulative_energy_wh;
+        return 0;
+    }
+
+    for (uint16_t i = 0; i < telem->cell_count; i++) {
+        if (!isfinite(telem->cell_voltages[i])) {
+            engine->current_state = PULSE_HEAT_STATE_FAULT;
+            engine->active_fault = PULSE_HEAT_FAULT_SENSOR_INVALID;
+            engine->current_cmd_a = 0.0f;
+            engine->target_cmd_a = 0.0f;
+
+            out->state = engine->current_state;
+            out->fault = engine->active_fault;
+            out->inverter_enable = false;
+            out->target_current_amp_a = 0.0f;
+            out->target_frequency_hz = engine->optimal_freq_hz;
+            out->duty_ratio = 0.50f;
+            out->estimated_core_temp_c = engine->core_temp_est_c;
+            out->estimated_surface_temp_c = engine->surf_temp_est_c;
+            out->temp_gradient_c = fabsf(engine->core_temp_est_c - engine->surf_temp_est_c);
+            out->cell_temp_spread_c = 0.0f;
+            out->estimated_heating_power_w = 0.0f;
+            out->heating_rate_c_per_min = engine->calculated_rate_c_min;
+            out->plating_safety_margin_v = 0.0f;
+            out->elapsed_heating_time_s = engine->total_elapsed_s;
+            out->total_energy_consumed_wh = engine->cumulative_energy_wh;
+            return 0;
+        }
+    }
+
+    for (uint16_t i = 0; i < telem->temp_count; i++) {
+        if (!isfinite(telem->cell_temps[i])) {
+            engine->current_state = PULSE_HEAT_STATE_FAULT;
+            engine->active_fault = PULSE_HEAT_FAULT_SENSOR_INVALID;
+            engine->current_cmd_a = 0.0f;
+            engine->target_cmd_a = 0.0f;
+
+            out->state = engine->current_state;
+            out->fault = engine->active_fault;
+            out->inverter_enable = false;
+            out->target_current_amp_a = 0.0f;
+            out->target_frequency_hz = engine->optimal_freq_hz;
+            out->duty_ratio = 0.50f;
+            out->estimated_core_temp_c = engine->core_temp_est_c;
+            out->estimated_surface_temp_c = engine->surf_temp_est_c;
+            out->temp_gradient_c = fabsf(engine->core_temp_est_c - engine->surf_temp_est_c);
+            out->cell_temp_spread_c = 0.0f;
+            out->estimated_heating_power_w = 0.0f;
+            out->heating_rate_c_per_min = engine->calculated_rate_c_min;
+            out->plating_safety_margin_v = 0.0f;
+            out->elapsed_heating_time_s = engine->total_elapsed_s;
+            out->total_energy_consumed_wh = engine->cumulative_energy_wh;
+            return 0;
+        }
     }
 
     const pulse_heat_config_t *cfg = &engine->cfg;
@@ -130,9 +212,7 @@ int pulse_heat_engine_step(pulse_heat_engine_t *engine,
     /* 1. 统计电芯端电压极值与表面温度统计量 */
     float v_min = 1000.0f;
     float v_max = -1000.0f;
-    uint16_t cells = (telem->cell_count > 0 && telem->cell_count <= PULSE_HEAT_MAX_CELLS)
-                         ? telem->cell_count
-                         : 1;
+    uint16_t cells = telem->cell_count;
     for (uint16_t i = 0; i < cells; i++) {
         float v = telem->cell_voltages[i];
         if (v < v_min) v_min = v;
@@ -142,9 +222,7 @@ int pulse_heat_engine_step(pulse_heat_engine_t *engine,
     float t_min = 1000.0f;
     float t_max = -1000.0f;
     float t_sum = 0.0f;
-    uint16_t temps = (telem->temp_count > 0 && telem->temp_count <= PULSE_HEAT_MAX_TEMPS)
-                         ? telem->temp_count
-                         : 1;
+    uint16_t temps = telem->temp_count;
     for (uint16_t i = 0; i < temps; i++) {
         float t = telem->cell_temps[i];
         if (t < t_min) t_min = t;
@@ -154,11 +232,12 @@ int pulse_heat_engine_step(pulse_heat_engine_t *engine,
     float t_surf_avg = t_sum / (float)temps;
     float temp_spread = (temps > 1) ? (t_max - t_min) : 0.0f;
 
-    /* 2. 初始化核心与表面温度状态变量 (首次运行时对齐采样表面温度) */
-    if (engine->core_temp_est_c == 0.0f && engine->surf_temp_est_c == 0.0f && t_surf_avg != 0.0f) {
+    /* 2. 初始化核心与表面温度状态变量 (首次运行时对齐采样表面温度，支持 0.0℃ 精确对齐) */
+    if (!engine->temp_initialized) {
         engine->core_temp_est_c = t_surf_avg;
         engine->surf_temp_est_c = t_surf_avg;
         engine->prev_temp_for_rate_c = t_surf_avg;
+        engine->temp_initialized = true;
     }
 
     /* 3. 动态阻抗与焦耳内阻发热功率计算 */
@@ -451,6 +530,7 @@ const char *pulse_heat_fault_to_str(pulse_heat_fault_t fault) {
     case PULSE_HEAT_FAULT_LITHIUM_PLATING_RISK: return "LITHIUM_PLATING_RISK";
     case PULSE_HEAT_FAULT_INVERTER_NOT_READY: return "INVERTER_NOT_READY";
     case PULSE_HEAT_FAULT_TIMEOUT: return "TIMEOUT";
+    case PULSE_HEAT_FAULT_SENSOR_INVALID: return "SENSOR_INVALID";
     default: return "UNKNOWN";
     }
 }

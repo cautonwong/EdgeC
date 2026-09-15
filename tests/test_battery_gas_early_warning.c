@@ -226,6 +226,63 @@ static void test_reset_and_recovery(void **state)
     assert_null(battery_gas_ew_get_report(&ew));
 }
 
+/* 8. 测试 NaN 脏数据注入与阈值除零防御 */
+static void test_nan_injection_and_zero_division_defense(void **state)
+{
+    (void)state;
+    battery_gas_ew_detector_t ew;
+    battery_gas_ew_init(&ew, NULL);
+
+    /* 8.1 注入 NaN 气压值，断言 IEEE 754 比较不绕过并安全判定为 SENSOR_FAULT */
+    battery_gas_sensor_sample_t nan_sample = {
+        .co_ppm = 1.0,
+        .h2_ppm = 2.0,
+        .voc_ppb = 50.0,
+        .pressure_pa = NAN, /* 异常 NaN 气压 */
+        .smoke_density = 0.01,
+        .max_cell_temp_c = 25.0,
+        .min_cell_volt_v = 3.30,
+        .timestamp_s = 10.0
+    };
+    battery_gas_ew_push_sample(&ew, &nan_sample);
+    int rc = battery_gas_ew_process_step(&ew, 10.0);
+    assert_int_equal(rc, 0);
+    const battery_gas_ew_report_t *rep = battery_gas_ew_get_report(&ew);
+    assert_non_null(rep);
+    assert_int_equal(rep->stage, BATTERY_GAS_STAGE_SENSOR_FAULT);
+    assert_false(rep->trigger_extinguisher_req);
+    assert_true(isfinite(ew.baseline_pressure));
+
+    /* 8.2 测试温升阈值 temp_runaway_c == 55.0 临界除零配置防御 */
+    battery_gas_ew_config_t edge_cfg = {
+        .temp_runaway_c = 55.0, /* 与基准温差 55.0 完全重合 */
+        .voc_trace_ppb = 0.0,   /* 0 阈值 */
+        .co_vent_ppm = 0.0,
+        .h2_vent_ppm = 0.0
+    };
+    assert_int_equal(battery_gas_ew_init(&ew, &edge_cfg), 0);
+    assert_true(ew.config.temp_runaway_c > 55.0); /* 必须修正或有保护 */
+
+    battery_gas_sensor_sample_t valid_sample = {
+        .co_ppm = 10.0,
+        .h2_ppm = 20.0,
+        .voc_ppb = 100.0,
+        .pressure_pa = 101325.0,
+        .smoke_density = 0.05,
+        .max_cell_temp_c = 60.0,
+        .min_cell_volt_v = 3.30,
+        .timestamp_s = 20.0
+    };
+    battery_gas_ew_push_sample(&ew, &valid_sample);
+    rc = battery_gas_ew_process_step(&ew, 20.0);
+    assert_int_equal(rc, 0);
+    rep = battery_gas_ew_get_report(&ew);
+    assert_non_null(rep);
+    assert_true(isfinite(rep->prob_prevent_latent));
+    assert_true(isfinite(rep->prob_vent_confirmed));
+    assert_true(isfinite(rep->prob_runaway_fire));
+}
+
 int main(void)
 {
     const struct CMUnitTest tests[] = {
@@ -236,6 +293,7 @@ int main(void)
         cmocka_unit_test(test_stage3_runaway_fire_imminent),
         cmocka_unit_test(test_sensor_fault_detection),
         cmocka_unit_test(test_reset_and_recovery),
+        cmocka_unit_test(test_nan_injection_and_zero_division_defense),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);
