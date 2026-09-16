@@ -56,6 +56,28 @@ target_link_libraries(iems PRIVATE
 )
 install(TARGETS iems DESTINATION bin)
 
+add_executable(iems-cli iems_cli.c)
+set_target_properties(iems-cli PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/products/iems/bin"
+)
+target_link_libraries(iems-cli PRIVATE
+    -Wl,--start-group
+    iems_app_lib
+    edge_mcp
+    edge_infra
+    edge_io
+    edge_stream
+    edge_algo
+    edge_security
+    edge_core
+    edge_protocol
+    SQLite::SQLite3
+    PahoMQTT::PahoMQTT
+    -Wl,--end-group
+    contract_iems
+)
+install(TARGETS iems-cli DESTINATION bin)
+
 if(ENABLE_WEB_BUILD)
     add_web_product(iems "${CMAKE_SOURCE_DIR}/web/products/iems")
     add_dependencies(iems web_ui_iems)
