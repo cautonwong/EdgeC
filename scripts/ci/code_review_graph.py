@@ -202,6 +202,80 @@ class CodeReviewGraph:
             "call_hierarchy": callers_list
         }
 
+    def query_symbol_definitions(self, symbol_name: str) -> List[Dict[str, Any]]:
+        """根据符号名查询定义信息"""
+        definitions = []
+        with self._get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT s.name, s.kind, s.line, f.path, f.module
+                FROM symbols s
+                JOIN files f ON s.file_id = f.id
+                WHERE s.name = ? OR s.name LIKE ?
+                LIMIT 20
+            """, (symbol_name, f"%{symbol_name}%"))
+            for r in cur.fetchall():
+                definitions.append({
+                    "symbol": r["name"],
+                    "kind": r["kind"],
+                    "file": r["path"],
+                    "line": r["line"],
+                    "module": r["module"]
+                })
+        return definitions
+
+    def query_symbol_callers(self, symbol_name: str) -> List[Dict[str, Any]]:
+        """根据符号名查询跨文件调用方"""
+        callers = []
+        with self._get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT r.symbol_name, f.path as caller_file, r.line, f.module
+                FROM symbol_references r
+                JOIN files f ON r.caller_file_id = f.id
+                WHERE r.symbol_name = ?
+                LIMIT 20
+            """, (symbol_name,))
+            for r in cur.fetchall():
+                callers.append({
+                    "symbol": r["symbol_name"],
+                    "caller_file": r["caller_file"],
+                    "line": r["line"],
+                    "module": r["module"]
+                })
+        return callers
+
+    def query_file_dependencies(self, file_path: str) -> Dict[str, Any]:
+        """查询特定文件的依赖头文件及被引用关系"""
+        includes = []
+        depended_by = []
+        with self._get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT i.included_path
+                FROM includes i
+                JOIN files f ON i.source_file_id = f.id
+                WHERE f.path = ?
+            """, (file_path,))
+            for r in cur.fetchall():
+                includes.append(r["included_path"])
+
+            base_name = os.path.basename(file_path)
+            cur.execute("""
+                SELECT f.path
+                FROM includes i
+                JOIN files f ON i.source_file_id = f.id
+                WHERE i.included_path LIKE ?
+            """, (f"%{base_name}%",))
+            for r in cur.fetchall():
+                depended_by.append(r["path"])
+
+        return {
+            "file": file_path,
+            "direct_includes": includes,
+            "included_by_files": depended_by
+        }
+
 
 crg_instance = CodeReviewGraph()
 
@@ -212,6 +286,36 @@ if HAS_MCP:
     def get_review_context_tool(changed_files: List[str]) -> str:
         res = crg_instance.query_review_context(changed_files)
         return json.dumps(res, indent=2, ensure_ascii=False)
+
+    @server.tool(name="get_symbol_definitions", description="【CRG MCP】根据函数或结构体符号名称查询全库定义位置与模块归属")
+    def get_symbol_definitions(symbol_name: str) -> str:
+        res = crg_instance.query_symbol_definitions(symbol_name)
+        return json.dumps(res, indent=2, ensure_ascii=False)
+
+    @server.tool(name="get_symbol_callers", description="【CRG MCP】根据符号名查询全库跨模块调用方层级 (Call Hierarchy)")
+    def get_symbol_callers(symbol_name: str) -> str:
+        res = crg_instance.query_symbol_callers(symbol_name)
+        return json.dumps(res, indent=2, ensure_ascii=False)
+
+    @server.tool(name="get_file_dependencies", description="【CRG MCP】查询指定文件的直接 #include 头文件及全库反向包含依赖")
+    def get_file_dependencies(file_path: str) -> str:
+        res = crg_instance.query_file_dependencies(file_path)
+        return json.dumps(res, indent=2, ensure_ascii=False)
+
+    @server.tool(name="get_affected_tests", description="【CRG MCP】查询代码变更直接或间接影响的全库 CTest / GTest 单元测试集合")
+    def get_affected_tests(changed_files: List[str]) -> str:
+        res = crg_instance.query_review_context(changed_files)
+        return json.dumps({"impacted_tests": res.get("impacted_tests", [])}, indent=2, ensure_ascii=False)
+
+    @server.tool(name="get_blast_radius_summary", description="【CRG MCP】评估当前改动对全局系统的综合风险分值 (Risk Score) 与受波及产品线")
+    def get_blast_radius_summary(changed_files: List[str]) -> str:
+        res = crg_instance.query_review_context(changed_files)
+        summary = {
+            "risk_score": res.get("risk_score", "LOW"),
+            "impacted_modules": res.get("impacted_modules", []),
+            "impacted_products": res.get("impacted_products", [])
+        }
+        return json.dumps(summary, indent=2, ensure_ascii=False)
 
 
 def main():

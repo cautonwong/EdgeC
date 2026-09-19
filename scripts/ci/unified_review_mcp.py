@@ -256,24 +256,78 @@ def run_cppcheck_analysis(files: List[str]) -> List[str]:
         return [f"Cppcheck error: {str(e)}"]
 
 
+def check_isr_safety(files: List[str]) -> List[Dict[str, Any]]:
+    """专项检查：ISR 中断上下文中的阻塞操作与动态堆分配 (P0)"""
+    diff_lines = get_git_diff_lines()
+    all_findings = ocr_engine.scan_files([f for f in files if os.path.exists(f)], diff_lines)
+    return [f for f in all_findings if f.get("rule_id") == "RULE-SAFE-01"]
+
+
+def check_hardware_polling_timeout(files: List[str]) -> List[Dict[str, Any]]:
+    """专项检查：硬件寄存器/标志位轮询超时熔断机制 (P0)"""
+    diff_lines = get_git_diff_lines()
+    all_findings = ocr_engine.scan_files([f for f in files if os.path.exists(f)], diff_lines)
+    return [f for f in all_findings if f.get("rule_id") == "RULE-SAFE-02"]
+
+
+def check_physical_truth_violations(files: List[str]) -> List[Dict[str, Any]]:
+    """专项检查：物理真实性违规（硬编码 Mock 常量占位符入库）(P0)"""
+    diff_lines = get_git_diff_lines()
+    all_findings = ocr_engine.scan_files([f for f in files if os.path.exists(f)], diff_lines)
+    return [f for f in all_findings if f.get("rule_id") == "RULE-EDGEOS-03"]
+
+
+def check_buffer_security(files: List[str]) -> List[Dict[str, Any]]:
+    """专项检查：不安全 C 字符串与缓冲区操作 (strcpy, sprintf 等) (P1)"""
+    diff_lines = get_git_diff_lines()
+    all_findings = ocr_engine.scan_files([f for f in files if os.path.exists(f)], diff_lines)
+    return [f for f in all_findings if f.get("rule_id") == "OCR-MEM-02"]
+
+
+def get_git_diff_context(base: str = "origin/main") -> Dict[str, List[int]]:
+    """获取当前分支相较于基准分支的改动文件及增量改动行号列表"""
+    raw = get_git_diff_lines(base)
+    return {k: sorted(list(v)) for k, v in raw.items()}
+
+
 if HAS_MCP:
     server = MCPServer("UnifiedReviewTools")
 
-    @server.tool(name="scan_ocr_rules", description="【Alibaba OCR】调用阿里巴巴 Open Code Review 规则引擎扫描工业规约")
+    @server.tool(name="scan_ocr_rules", description="【Alibaba OCR】调用阿里巴巴 Open Code Review 规则引擎扫描工业全量规约")
     def tool_scan_ocr(files: List[str]) -> str:
         return scan_ocr_rules(files)
 
-    @server.tool(name="match_company_rules", description="【企业经验规约】加载 .github/company_rules.json 业务红线")
+    @server.tool(name="match_company_rules", description="【企业经验规约】加载 .github/company_rules.json 业务设计红线")
     def tool_match_rules(repo_path: str = ".") -> str:
         return match_company_rules(repo_path)
 
-    @server.tool(name="run_clang_tidy_check", description="【clang-tidy AST 检查】执行增量行级编译语法语义检查")
+    @server.tool(name="check_isr_safety", description="【ISR 专项检查】检测中断上下文中的堆分配、休眠与互斥锁违规 (P0 阻断)")
+    def tool_check_isr(files: List[str]) -> str:
+        return json.dumps(check_isr_safety(files), indent=2, ensure_ascii=False)
+
+    @server.tool(name="check_hardware_polling_timeout", description="【硬件轮询专项】检测寄存器状态位轮询是否具备超时熔断保护 (P0 阻断)")
+    def tool_check_poll(files: List[str]) -> str:
+        return json.dumps(check_hardware_polling_timeout(files), indent=2, ensure_ascii=False)
+
+    @server.tool(name="check_physical_truth_violations", description="【物理真实性专项】检测入库数据是否存在硬编码 Mock 常量占位符 (P0 阻断)")
+    def tool_check_mock(files: List[str]) -> str:
+        return json.dumps(check_physical_truth_violations(files), indent=2, ensure_ascii=False)
+
+    @server.tool(name="check_buffer_security", description="【缓冲区安全专项】检测 strcpy / sprintf / gets 等不安全字符串操作 (P1 严重)")
+    def tool_check_buf(files: List[str]) -> str:
+        return json.dumps(check_buffer_security(files), indent=2, ensure_ascii=False)
+
+    @server.tool(name="run_clang_tidy_check", description="【clang-tidy AST 检查】执行增量行级编译器 AST 语法语义检查")
     def tool_clang_tidy(files: List[str]) -> str:
         return json.dumps(run_clang_tidy_check(files), indent=2, ensure_ascii=False)
 
-    @server.tool(name="run_cppcheck_analysis", description="【Cppcheck 静态数据流分析】检查空指针与内存越界")
+    @server.tool(name="run_cppcheck_analysis", description="【Cppcheck 静态数据流分析】检查空指针解引用与内存越界")
     def tool_cppcheck(files: List[str]) -> str:
         return json.dumps(run_cppcheck_analysis(files), indent=2, ensure_ascii=False)
+
+    @server.tool(name="get_git_diff_context", description="【Git 增量上下文】获取当前 PR/分支变更文件的精确改动行号列表")
+    def tool_git_diff(base: str = "origin/main") -> str:
+        return json.dumps(get_git_diff_context(base), indent=2, ensure_ascii=False)
 
 
 def main():
