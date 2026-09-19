@@ -3,6 +3,7 @@ project(edge_mcp C)
 
 set(EDGE_MCP_SOURCES
     src/edge_mcp_dispatcher.c
+    src/edge_mcp_bus.c
     src/transport/mcp_stdio.c
     src/transport/mcp_ws.c
     src/transport/mcp_uds.c
@@ -10,6 +11,7 @@ set(EDGE_MCP_SOURCES
     src/tools/mcp_tools_transformer.c
     src/tools/mcp_tools_tou.c
     src/tools/mcp_tools_interlock.c
+    src/tools/mcp_tools_microservices.c
     src/tools/mcp_tools_registration.c
 )
 

@@ -494,9 +494,20 @@ void edge_mcp_dispatcher_destroy(edge_mcp_dispatcher_t *disp) {
     free(disp);
 }
 
+const edge_mcp_env_t *edge_mcp_dispatcher_get_env(const edge_mcp_dispatcher_t *disp) {
+    return disp ? &disp->env : NULL;
+}
+
 int edge_mcp_register_tool(edge_mcp_dispatcher_t *disp, const edge_mcp_tool_def_t *tool_def) {
     if (!disp || !tool_def || !tool_def->name || !tool_def->handler) return -1;
     uv_mutex_lock(&disp->lock);
+    for (size_t i = 0; i < disp->tool_count; i++) {
+        if (strcmp(disp->tools[i].name, tool_def->name) == 0) {
+            disp->tools[i] = *tool_def;
+            uv_mutex_unlock(&disp->lock);
+            return 0;
+        }
+    }
     if (disp->tool_count >= MAX_MCP_TOOLS) {
         uv_mutex_unlock(&disp->lock);
         return -1;
@@ -504,6 +515,23 @@ int edge_mcp_register_tool(edge_mcp_dispatcher_t *disp, const edge_mcp_tool_def_
     disp->tools[disp->tool_count++] = *tool_def;
     uv_mutex_unlock(&disp->lock);
     return 0;
+}
+
+int edge_mcp_unregister_tool(edge_mcp_dispatcher_t *disp, const char *tool_name) {
+    if (!disp || !tool_name) return -1;
+    uv_mutex_lock(&disp->lock);
+    for (size_t i = 0; i < disp->tool_count; i++) {
+        if (strcmp(disp->tools[i].name, tool_name) == 0) {
+            for (size_t j = i; j < disp->tool_count - 1; j++) {
+                disp->tools[j] = disp->tools[j + 1];
+            }
+            disp->tool_count--;
+            uv_mutex_unlock(&disp->lock);
+            return 0;
+        }
+    }
+    uv_mutex_unlock(&disp->lock);
+    return -1;
 }
 
 cJSON *edge_mcp_list_tools_json(edge_mcp_dispatcher_t *disp) {

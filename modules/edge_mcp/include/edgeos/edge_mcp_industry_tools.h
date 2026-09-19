@@ -60,14 +60,78 @@ int handle_security_simulate_interlock(edge_mcp_dispatcher_t *disp,
                                        size_t err_len);
 
 /**
- * @brief Register all 4 specialized industry algorithm MCP tools to dispatcher
+ * @brief Handler for 'ess_emergency_stop'
+ * Triggers emergency shutdown of energy storage system with Five-Anti interlock verification.
+ */
+int handle_ess_emergency_stop(edge_mcp_dispatcher_t *disp,
+                              const cJSON *params,
+                              cJSON **out_result,
+                              char *err_msg,
+                              size_t err_len);
+
+/**
+ * @brief Handler for 'iems_get_battery_status'
+ * Queries real-time battery cluster status with Fast-Track SHM zero-copy handle.
+ */
+int handle_iems_get_battery_status(edge_mcp_dispatcher_t *disp,
+                                   const cJSON *params,
+                                   cJSON **out_result,
+                                   char *err_msg,
+                                   size_t err_len);
+
+/**
+ * @brief Handler for 'smartbox_get_topology'
+ * Queries transformer distribution network topology and identified branch phases.
+ */
+int handle_smartbox_get_topology(edge_mcp_dispatcher_t *disp,
+                                 const cJSON *params,
+                                 cJSON **out_result,
+                                 char *err_msg,
+                                 size_t err_len);
+
+/**
+ * @brief Handler for 'tag_batch_read_scaled'
+ * Batch reads DataHub tags with ABCD/CDAB/BADC/DCBA byte swapping, scaling and deadband filtering.
+ */
+int handle_tag_batch_read_scaled(edge_mcp_dispatcher_t *disp,
+                                 const cJSON *params,
+                                 cJSON **out_result,
+                                 char *err_msg,
+                                 size_t err_len);
+
+/**
+ * @brief Register all specialized industry algorithm MCP tools to dispatcher
  * @param disp Dispatcher instance
  * @return 0 on success, negative error code on failure
  */
 int edge_mcp_register_industry_tools(edge_mcp_dispatcher_t *disp);
+
+/* Forward declaration for Hub */
+struct mcp_bus_hub_s;
+
+/**
+ * @brief Register IEMS ESS microservice provider into the shared MCP bus hub
+ */
+int edge_mcp_register_iems_provider(struct mcp_bus_hub_s *hub, const edge_mcp_env_t *env);
+
+/**
+ * @brief Register SmartBox transformer microservice provider into the shared MCP bus hub
+ */
+int edge_mcp_register_smartbox_provider(struct mcp_bus_hub_s *hub, const edge_mcp_env_t *env);
+
+/**
+ * @brief Register DCU metering microservice provider into the shared MCP bus hub
+ */
+int edge_mcp_register_dcu_provider(struct mcp_bus_hub_s *hub, const edge_mcp_env_t *env);
+
+/**
+ * @brief Register all 3 microservices (iems, smartbox, dcu) into the shared MCP bus hub
+ */
+int edge_mcp_register_all_microservices(struct mcp_bus_hub_s *hub, const edge_mcp_env_t *env);
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* EDGE_MCP_INDUSTRY_TOOLS_H */
+
