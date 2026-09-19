@@ -200,6 +200,35 @@ static void test_reset_and_consistency(void **state)
     assert_null(battery_soh_get_result(&est));
 }
 
+/* 8. 测试神经网络前向传播与偏置使用完整性 (AEP-735) */
+static void test_nn_bias_utilization_and_forward(void **state)
+{
+    (void)state;
+    battery_soh_fusion_estimator_t est;
+    battery_soh_init(&est, NULL);
+
+    /* 初始状态 SOH 应为 1.0 (出厂新电芯) */
+    battery_soh_feed_sample(&est, 0.0, 3.295, 25.0, 0.50, 0.0);
+    battery_soh_process_fusion(&est, 1.0);
+
+    const battery_soh_result_t *res = battery_soh_get_result(&est);
+    assert_non_null(res);
+    assert_true(res->soh_capacity >= 0.99);
+
+    /* 模拟多工况复合应力下的神经网络平滑衰减响应 */
+    est.initial_timestamp_s = 0.0;
+    est.last_timestamp_s = 600.0 * 86400.0; /* 600 天 */
+    est.total_ah_charge = 500000.0;
+    est.total_ah_discharge = 500000.0;
+    est.avg_operating_temp_c = 35.0;
+    est.total_samples_fed = 200000;
+
+    battery_soh_process_fusion(&est, est.last_timestamp_s);
+    const battery_soh_result_t *res_aged = battery_soh_get_result(&est);
+    assert_non_null(res_aged);
+    assert_true(res_aged->soh_capacity >= 0.82 && res_aged->soh_capacity <= 0.93);
+}
+
 int main(void)
 {
     const struct CMUnitTest tests[] = {
@@ -210,7 +239,9 @@ int main(void)
         cmocka_unit_test(test_eol_retirement_threshold),
         cmocka_unit_test(test_ica_phase_peak_extraction),
         cmocka_unit_test(test_reset_and_consistency),
+        cmocka_unit_test(test_nn_bias_utilization_and_forward),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
+

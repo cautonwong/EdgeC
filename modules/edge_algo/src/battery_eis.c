@@ -166,7 +166,7 @@ int battery_eis_push_sample(battery_eis_analyzer_t *eis, double current_amp, dou
     uint32_t n_bins = eis->config.num_freq_bins;
     for (uint32_t k = 0; k < n_bins; k++) {
         double f = eis->bins[k].freq_hz;
-        double omega_t = 2.0 * M_PI * f * t;
+        double omega_t = fmod(2.0 * M_PI * f * t, 2.0 * M_PI);
         double c = cos(omega_t);
         double s = sin(omega_t);
 
@@ -258,6 +258,10 @@ int battery_eis_fit_nyquist(battery_eis_analyzer_t *eis, double cell_temp_c, dou
 {
     if (!eis || !eis->spectrum_ready) {
         return -1;
+    }
+
+    if (cell_temp_c < -273.15) {
+        return -3; /* 绝对零度以下非法物理温度 */
     }
 
     uint32_t n_bins = eis->config.num_freq_bins;
