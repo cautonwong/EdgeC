@@ -14,13 +14,13 @@ import tempfile
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../scripts/ci"))
+from code_review_graph import CodeReviewGraph
 from unified_review_mcp import (
     get_git_diff_lines,
     match_company_rules,
-    SQLiteCodeReviewGraph,
     AlibabaOCREngine
 )
-from run_pure_mcp_orchestrator import run_local_fallback_synthesis
+from run_pure_mcp_orchestrator import UniversalModelOrchestrator
 
 
 class TestCIOrchestratorDeep(unittest.TestCase):
@@ -48,10 +48,10 @@ class TestCIOrchestratorDeep(unittest.TestCase):
 
     def test_sqlite_crg_graph_indexing(self):
         """验证 SQLite CRG 关系图谱构建与爆炸半径解析"""
-        crg = SQLiteCodeReviewGraph(root_dir=".", db_path=self.db_path)
-        crg.build_graph(force=True)
+        crg = CodeReviewGraph(root_dir=".", db_path=self.db_path)
+        crg.build(verbose=False)
 
-        blast = crg.analyze_blast_radius(["modules/edge_infra/npu/npu_ascend_acl.c"])
+        blast = crg.query_review_context(["modules/edge_infra/npu/npu_ascend_acl.c"])
         self.assertIn("risk_score", blast)
         self.assertIn("impacted_modules", blast)
         self.assertIn("edge_infra", blast["impacted_modules"])
@@ -130,7 +130,8 @@ class TestCIOrchestratorDeep(unittest.TestCase):
 
     def test_clean_synthesis_pass(self):
         """验证干净代码通过门禁"""
-        report = run_local_fallback_synthesis([])
+        orchestrator = UniversalModelOrchestrator([])
+        report = orchestrator.run()
         self.assertEqual(report["summary"]["P0"], 0)
         self.assertIn("PASSED", report["markdown_report"])
 
