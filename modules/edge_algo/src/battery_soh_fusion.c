@@ -33,11 +33,6 @@ static double relu(double x)
     return (x > 0.0) ? x : 0.0;
 }
 
-static double sigmoid(double x)
-{
-    return 1.0 / (1.0 + exp(-x));
-}
-
 static double evaluate_nn_soh(double norm_cyc, double norm_days, double norm_temp,
                               double dod, double crate, double norm_r0, double soc)
 {
@@ -47,26 +42,27 @@ static double evaluate_nn_soh(double norm_cyc, double norm_days, double norm_tem
         (norm_days > 0.0) ? norm_days : 0.0,
         (norm_temp > 0.0) ? norm_temp : 0.0,
         (dod > 0.5) ? (dod - 0.5) * 2.0 : 0.0,
-        (crate > 0.2) ? (crate - 0.2) * 1.5 : 0.0,
+        (crate > 0.5) ? (crate - 0.5) * 1.5 : 0.0,
         (norm_r0 > 0.0) ? norm_r0 : 0.0,
-        (soc > 0.5) ? (soc - 0.5) * 1.5 : 0.0
+        (soc > 0.8) ? (soc - 0.8) * 2.0 : 0.0
     };
 
     double h[8];
     for (int i = 0; i < 8; i++) {
-        double sum = 0.0;
+        double sum = NN_B1[i];
         for (int j = 0; j < 7; j++) {
-            sum += fabs(NN_W1[i][j]) * x[j];
+            sum += NN_W1[i][j] * x[j];
         }
         h[i] = relu(sum);
     }
 
-    double deg = 0.0;
+    double z2 = NN_B2;
     for (int i = 0; i < 8; i++) {
-        deg += fabs(NN_W2[i]) * h[i] * 0.08;
+        z2 += NN_W2[i] * h[i];
     }
 
-    double soh = 1.0 - deg;
+    /* 基准化映射: 当处于出厂新电芯状态 (h = B1) 时 z2_max = 2.4856 - 0.20 = 2.2856 -> SOH = 1.0 */
+    double soh = 0.75 + 0.25 * ((z2 - NN_B2) / 2.4856);
     if (soh > 1.0) soh = 1.0;
     if (soh < 0.50) soh = 0.50;
     return soh;
@@ -306,7 +302,7 @@ int battery_soh_process_fusion(battery_soh_fusion_estimator_t *est,
     double norm_days = cal_days / 1000.0;
     double norm_temp = (est->avg_operating_temp_c > 25.0) ? (est->avg_operating_temp_c - 25.0) / 30.0 : 0.0;
     double norm_dod = (eq_cycles > 0.1 && est->avg_dod > 0.5) ? (est->avg_dod - 0.5) * 2.0 : 0.0;
-    double norm_r0 = (est->state_soh_res < 0.999) ? (1.0 - est->state_soh_res) : 0.0;
+    double norm_r0 = (est->state_soh_res > 0.0 && est->state_soh_res < 0.999) ? (1.0 - est->state_soh_res) : 0.0;
 
     double soh_nn = evaluate_nn_soh(norm_cyc, norm_days, norm_temp, norm_dod, 0.5, norm_r0, 0.50);
     if (soh_nn > 1.0) soh_nn = 1.0;
@@ -332,7 +328,7 @@ int battery_soh_process_fusion(battery_soh_fusion_estimator_t *est,
     double w_nn = 0.20;
     double w_coulomb = (est->coulomb.last_coulomb_valid) ? 0.35 : 0.0;
     double w_ica = (est->ica.features_valid) ? 0.20 : 0.0;
-    double w_res = (est->state_soh_res < 0.999) ? 0.25 : 0.0;
+    double w_res = (est->state_soh_res > 0.0 && est->state_soh_res < 0.999) ? 0.25 : 0.0;
 
     double w_sum = w_mech + w_nn + w_coulomb + w_ica + w_res;
     double soh_fused = (w_mech * soh_mech + w_nn * soh_nn + w_coulomb * soh_coulomb + w_ica * soh_ica + w_res * est->state_soh_res) / w_sum;

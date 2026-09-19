@@ -271,6 +271,70 @@ static void test_reset_and_streaming_step(void **state)
     assert_null(battery_eis_get_params(&eis));
 }
 
+/* 8. 测试 100,000 步超长时采样流数值稳定性 (消除大 t 浮点截断与舍入灾难 AEP-734) */
+static void test_long_running_stream_stability_100k(void **state)
+{
+    (void)state;
+    battery_eis_analyzer_t eis;
+    battery_eis_config_t cfg = {
+        .prbs_order = BATTERY_EIS_PRBS_7,
+        .pert_amplitude_a = 1.0,
+        .sample_rate_hz = 1000.0,
+        .num_freq_bins = 8,
+        .f_min_hz = 1.0,
+        .f_max_hz = 100.0,
+        .nominal_r0_mohm = 0.5,
+        .nominal_rct_mohm = 0.8
+    };
+
+    battery_eis_init(&eis, &cfg);
+
+    double true_r0 = 0.0005;
+    double v_dc = 3.300;
+
+    /* 连续推入 100,000 个采样点 (相当于 100 秒持续高频激励) */
+    for (uint32_t i = 0; i < 100000; i++) {
+        double i_pert = battery_eis_next_prbs_excitation(&eis);
+        double v_cell = v_dc + i_pert * true_r0;
+        battery_eis_push_sample(&eis, i_pert, v_cell);
+    }
+
+    assert_true(battery_eis_is_ready(&eis));
+    int rc = battery_eis_solve_spectrum(&eis);
+    assert_int_equal(rc, 0);
+
+    /* 校验长时间累加后阻抗谱未发生 NaN 或数值崩溃 */
+    for (uint32_t k = 0; k < eis.config.num_freq_bins; k++) {
+        assert_false(isnan(eis.bins[k].z_real_mohm));
+        assert_false(isnan(eis.bins[k].z_imag_mohm));
+        assert_false(isinf(eis.bins[k].z_real_mohm));
+        assert_false(isinf(eis.bins[k].z_imag_mohm));
+        /* 实部应稳定维持在 0.5 mΩ 附近 */
+        assert_true(fabs(eis.bins[k].z_real_mohm - 0.5) < 0.2);
+    }
+
+    rc = battery_eis_fit_nyquist(&eis, 25.0, 0.0);
+    assert_int_equal(rc, 0);
+    const battery_eis_randles_params_t *params = battery_eis_get_params(&eis);
+    assert_non_null(params);
+    assert_true(params->valid);
+    assert_true(fabs(params->r0_mohm - 0.5) < 0.2);
+}
+
+/* 9. 测试极端非法温度（低于绝对零度 -273.15°C）防除零拦截 */
+static void test_sub_absolute_zero_temperature_defense(void **state)
+{
+    (void)state;
+    battery_eis_analyzer_t eis;
+    battery_eis_init(&eis, NULL);
+    eis.spectrum_ready = true;
+    eis.total_samples = 511;
+
+    /* 传入 -275°C 非法物理超低温 */
+    int rc = battery_eis_fit_nyquist(&eis, -275.0, 0.0);
+    assert_int_equal(rc, -3); /* 必须安全拦截返回 -3 */
+}
+
 int main(void)
 {
     const struct CMUnitTest tests[] = {
@@ -281,7 +345,10 @@ int main(void)
         cmocka_unit_test(test_cold_charging_lithium_plating_risk),
         cmocka_unit_test(test_soh_degradation_tracking),
         cmocka_unit_test(test_reset_and_streaming_step),
+        cmocka_unit_test(test_long_running_stream_stability_100k),
+        cmocka_unit_test(test_sub_absolute_zero_temperature_defense),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
+
