@@ -34,4 +34,3 @@ tags:
     unit: W
     desc: "电动汽车充电功率"
     traits: [ "metrology", "realtime" ]
-

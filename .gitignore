@@ -69,3 +69,9 @@ rehab_companion.wasm
 *.db-wal
 *.sqlite
 vpp_db.sqlite
+
+# CI AI Review Artifacts
+final_report.json
+final_report.md
+.code-review-graph/
+changed_files.txt
