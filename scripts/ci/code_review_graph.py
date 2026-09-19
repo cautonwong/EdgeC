@@ -4,7 +4,7 @@ Code Review Graph (CRG) Server & CLI Engine for EdgeOS / EdgeC
 依据 docs/modular_2.md 规范实现：
 提供与官方 code-review-graph 兼容的 CLI 与 MCP Server 协议：
 - `code-review-graph build`: 扫描代码库构建全库 AST 符号表、调用拓扑 (Call Hierarchy) 与单测映射
-- `code-review-graph serve`: 提供标准 FastMCP / JSON-RPC 服务，暴露 `get_review_context_tool`
+- `code-review-graph serve`: 提供标准 MCP stdio 服务，暴露 `get_review_context_tool`
 """
 
 import os
@@ -12,10 +12,11 @@ import sys
 import re
 import json
 import sqlite3
+import asyncio
 from typing import List, Dict, Set, Any, Optional
 
 try:
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.mcpserver import MCPServer
     HAS_MCP = True
 except ImportError:
     HAS_MCP = False
@@ -50,7 +51,6 @@ class CodeReviewGraph:
                     name TEXT NOT NULL,
                     kind TEXT NOT NULL,
                     line INTEGER NOT NULL,
-                    signature TEXT,
                     FOREIGN KEY(file_id) REFERENCES files(id)
                 );
 
@@ -77,7 +77,7 @@ class CodeReviewGraph:
     def build(self, verbose: bool = True):
         """全库 AST 关系拓扑构建"""
         if verbose:
-            print(f"🏗️ [CRG] 正在扫描全库源码并构建 SQLite 拓扑图谱: {self.db_path} ...")
+            print(f"🏗️ [CRG] 正在扫描全库源码并构建 SQLite 拓扑图谱: {self.db_path} ...", file=sys.stderr)
         
         with self._get_conn() as conn:
             cur = conn.cursor()
@@ -114,7 +114,6 @@ class CodeReviewGraph:
                         cur.execute("INSERT INTO files (path, module, is_test) VALUES (?, ?, ?)", (rel_p, module, is_test))
                         files_map[rel_p] = cur.lastrowid
 
-            # Parse file contents
             for rel_p, file_id in files_map.items():
                 abs_p = os.path.join(self.root_dir, rel_p)
                 try:
@@ -141,18 +140,15 @@ class CodeReviewGraph:
                                         (callee, file_id, idx))
 
             conn.commit()
-            cur.execute("SELECT COUNT(*) FROM files")
-            total_files = cur.fetchone()[0]
-            cur.execute("SELECT COUNT(*) FROM symbols")
-            total_symbols = cur.fetchone()[0]
-            cur.execute("SELECT COUNT(*) FROM symbol_references")
-            total_refs = cur.fetchone()[0]
             if verbose:
-                print(f"✅ [CRG] 构建完成: 索引 {total_files} 个文件, {total_symbols} 个符号定义, {total_refs} 处跨文件引用。")
+                cur.execute("SELECT COUNT(*) FROM files")
+                total_files = cur.fetchone()[0]
+                cur.execute("SELECT COUNT(*) FROM symbols")
+                total_symbols = cur.fetchone()[0]
+                print(f"✅ [CRG] 构建完成: 索引 {total_files} 个文件, {total_symbols} 个符号定义。", file=sys.stderr)
 
     def query_review_context(self, changed_files: List[str]) -> Dict[str, Any]:
         """查询代码审查上下文：爆炸半径、调用链与受波及单测"""
-        self.build(verbose=False)
         impacted_modules = set()
         impacted_products = set()
         impacted_tests = set()
@@ -170,7 +166,6 @@ class CodeReviewGraph:
                     else:
                         impacted_modules.add(mod)
 
-                # Header inclusion reverse mapping
                 base_name = os.path.basename(cf)
                 cur.execute("""
                     SELECT f.path FROM includes i
@@ -180,7 +175,6 @@ class CodeReviewGraph:
                 for t_row in cur.fetchall():
                     impacted_tests.add(t_row["path"])
 
-                # Cross-file caller hierarchy
                 cur.execute("""
                     SELECT s.name, f.path as caller_path, r.line
                     FROM symbols s
@@ -212,11 +206,10 @@ class CodeReviewGraph:
 crg_instance = CodeReviewGraph()
 
 if HAS_MCP:
-    crg_mcp = FastMCP("CodeReviewGraph")
+    server = MCPServer("CodeReviewGraph")
 
-    @crg_mcp.tool()
+    @server.tool(name="get_review_context_tool", description="【CRG MCP】查询全库 AST 依赖图谱、调用链关系与变更爆炸半径 (Blast Radius)")
     def get_review_context_tool(changed_files: List[str]) -> str:
-        """【CRG MCP】查询全库 AST 依赖图谱、调用链关系与变更爆炸半径 (Blast Radius)。"""
         res = crg_instance.query_review_context(changed_files)
         return json.dumps(res, indent=2, ensure_ascii=False)
 
@@ -227,11 +220,10 @@ def main():
         crg.build(verbose=True)
     elif len(sys.argv) > 1 and sys.argv[1] == "serve":
         if HAS_MCP:
-            crg_mcp.run()
+            asyncio.run(server.run_stdio_async())
         else:
-            print("FastMCP not installed. Running in JSON-RPC mock stdio server mode.")
+            print("MCPServer not installed", file=sys.stderr)
     else:
-        # Diagnostic query
         crg = CodeReviewGraph()
         crg.build(verbose=True)
         sample = ["modules/edge_infra/npu/npu_ascend_acl.c"]
