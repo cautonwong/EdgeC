@@ -14,6 +14,7 @@ DOMAIN_RANGES = {
     "dcu_distribution": (0x010000, 0x01FFFF, "DCU / Distribution TTU"),
     "iems_microgrid": (0x020000, 0x02FFFF, "IEMS / Microgrid ESS"),
     "smart_box_panel": (0x030000, 0x03FFFF, "SmartBox / Smart Breaker"),
+    "npu_accelerator": (0x040000, 0x04FFFF, "NPU / AI Acceleration"),
 }
 
 def get_domain_for_tag_id(tag_id):
@@ -80,6 +81,8 @@ def validate_contracts(base_dir):
                 domain_name = "iems_microgrid"
             elif "smart_box" in fname or "smartbox" in fname:
                 domain_name = "smart_box_panel"
+            elif "npu" in fname:
+                domain_name = "npu_accelerator"
             else:
                 domain_name = "core_standard"
 
