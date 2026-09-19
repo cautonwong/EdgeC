@@ -1166,6 +1166,21 @@ target_link_libraries(test_mcp_microservices_integration PRIVATE
 )
 add_test(NAME test_mcp_microservices_integration COMMAND test_mcp_microservices_integration)
 
+# AEP-741 华为昇腾 (Ascend ACL) NPU 统一驱动契约与零拷贝张量映射测试
+add_executable(test_npu_ascend_acl test_npu_ascend_acl.c)
+target_include_directories(test_npu_ascend_acl PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_npu_ascend_acl PRIVATE
+    edge_infra
+    edge_core
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_npu_ascend_acl COMMAND test_npu_ascend_acl)
+
+
 
 
 

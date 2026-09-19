@@ -14,6 +14,7 @@
 #include "edgeos/stream_engine.h"
 #include "edgeos/dds.h"
 #include "edgeos/anti_corruption.h"
+#include "edgeos/npu.h"
 
 #ifdef __cplusplus
 extern "C" {

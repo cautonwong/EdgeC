@@ -7,6 +7,8 @@ set(INFRA_SOURCES
     src/edge_anti_corruption.c
     storage/edge_telemetry_store.c
     bus_dds/dds_topology_monitor.c
+    npu/npu_hal.c
+    npu/npu_ascend_acl.c
 )
 set(INFRA_PUBLIC_LIBS edge_common_interface)
 set(INFRA_PRIVATE_LIBS libuv::uv_a zlog::zlog)

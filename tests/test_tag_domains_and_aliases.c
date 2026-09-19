@@ -26,6 +26,7 @@ typedef enum {
     TAG_DOMAIN_DCU           = 1,
     TAG_DOMAIN_IEMS          = 2,
     TAG_DOMAIN_SMART_BOX     = 3,
+    TAG_DOMAIN_NPU           = 4,
     TAG_DOMAIN_UNKNOWN       = -1
 } tag_domain_t;
 
@@ -36,6 +37,7 @@ static tag_domain_t get_tag_domain(uint32_t tag_id) {
         case 0x01: return TAG_DOMAIN_DCU;
         case 0x02: return TAG_DOMAIN_IEMS;
         case 0x03: return TAG_DOMAIN_SMART_BOX;
+        case 0x04: return TAG_DOMAIN_NPU;
         default:   return TAG_DOMAIN_UNKNOWN;
     }
 }
@@ -100,8 +102,13 @@ static void test_tag_domain_partitioning(void **state) {
     assert_int_equal(get_tag_domain(0x030002), TAG_DOMAIN_SMART_BOX);
     assert_int_equal(get_tag_domain(0x03FFFF), TAG_DOMAIN_SMART_BOX);
 
-    // Unassigned domain (0x04xxxx and above)
-    assert_int_equal(get_tag_domain(0x040001), TAG_DOMAIN_UNKNOWN);
+    // NPU domain (0x04xxxx)
+    assert_int_equal(get_tag_domain(0x040001), TAG_DOMAIN_NPU);
+    assert_int_equal(get_tag_domain(0x040002), TAG_DOMAIN_NPU);
+    assert_int_equal(get_tag_domain(0x04FFFF), TAG_DOMAIN_NPU);
+
+    // Unassigned domain (0x05xxxx and above)
+    assert_int_equal(get_tag_domain(0x050001), TAG_DOMAIN_UNKNOWN);
 }
 
 static void test_legacy_alias_resolution(void **state) {
