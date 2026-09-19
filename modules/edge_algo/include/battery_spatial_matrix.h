@@ -183,6 +183,8 @@ typedef struct {
 
 /**
  * @brief Full 4096-Node Spatial Matrix & Ringbuffer State
+ * @warning This structure is ~2.3MB in size. NEVER allocate on thread stack.
+ *          Always use battery_spatial_matrix_create() or heap allocation.
  */
 typedef struct {
     battery_spatial_matrix_config_t config;
@@ -201,7 +203,22 @@ typedef struct {
 } battery_spatial_matrix_t;
 
 /**
- * @brief Initialize 4096-Node Spatial Matrix context and calculate 3D topology
+ * @brief Safely allocate on heap and initialize 4096-Node Spatial Matrix context
+ * @note Allocates ~2.3MB on heap. Safe for embedded RTOS threads.
+ * @param config Pointer to configuration struct
+ * @return Pointer to initialized context on success, NULL on failure
+ */
+battery_spatial_matrix_t *battery_spatial_matrix_create(const battery_spatial_matrix_config_t *config);
+
+/**
+ * @brief Free memory allocated for 4096-Node Spatial Matrix context
+ * @param ctx Pointer to context created via battery_spatial_matrix_create
+ */
+void battery_spatial_matrix_destroy(battery_spatial_matrix_t *ctx);
+
+/**
+ * @brief Initialize existing 4096-Node Spatial Matrix context and calculate 3D topology
+ * @warning Ensure ctx is allocated on the heap, not on the function stack.
  * @param ctx Pointer to battery_spatial_matrix_t context
  * @param config Pointer to configuration struct
  * @return 0 on success, negative error code on failure

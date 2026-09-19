@@ -44,6 +44,38 @@ static inline float soc_from_ocv(float ocv) {
     }
 }
 
+static inline bool is_valid_sensor_val(float val) {
+    return !isnan(val) && !isinf(val) && (val > -100.0f) && (val < 1000.0f);
+}
+
+battery_spatial_matrix_t *battery_spatial_matrix_create(const battery_spatial_matrix_config_t *config) {
+    if (!config) {
+        return NULL;
+    }
+    if (config->num_cells == 0 || config->num_cells > BATTERY_SPATIAL_MAX_CELLS) {
+        return NULL;
+    }
+
+    battery_spatial_matrix_t *ctx = (battery_spatial_matrix_t *)calloc(1, sizeof(battery_spatial_matrix_t));
+    if (!ctx) {
+        return NULL;
+    }
+
+    int rc = battery_spatial_matrix_init(ctx, config);
+    if (rc != 0) {
+        free(ctx);
+        return NULL;
+    }
+
+    return ctx;
+}
+
+void battery_spatial_matrix_destroy(battery_spatial_matrix_t *ctx) {
+    if (ctx) {
+        free(ctx);
+    }
+}
+
 int battery_spatial_matrix_init(battery_spatial_matrix_t *ctx, const battery_spatial_matrix_config_t *config) {
     if (!ctx || !config) {
         return -1;
@@ -221,6 +253,8 @@ int battery_spatial_matrix_process_frame(battery_spatial_matrix_t *ctx,
     float r0 = ctx->config.internal_r0_mohm * 0.001f; // convert mOhm to Ohm
 
     // First Pass: Copy to flat contiguous arrays, update sliding windows, calculate time differentials
+    uint32_t valid_v_count = 0;
+    uint32_t valid_t_count = 0;
     double v_sum = 0.0;
     double t_sum = 0.0;
     float v_min = 1e9f, v_max = -1e9f;
@@ -237,25 +271,36 @@ int battery_spatial_matrix_process_frame(battery_spatial_matrix_t *ctx,
         float t = temperatures[i];
         float curr = currents ? currents[i] : 0.0f;
 
-        ctx->raw_v[i] = v;
-        ctx->raw_t[i] = t;
+        bool v_valid = is_valid_sensor_val(v);
+        bool t_valid = is_valid_sensor_val(t);
+        bool i_valid = is_valid_sensor_val(curr);
+        if (!i_valid) curr = 0.0f;
+
+        ctx->raw_v[i] = v_valid ? v : 0.0f;
+        ctx->raw_t[i] = t_valid ? t : 0.0f;
         ctx->raw_i[i] = curr;
 
         // Statistics accumulation
-        v_sum += v;
-        t_sum += t;
-        if (v < v_min) { v_min = v; v_min_idx = i; }
-        if (v > v_max) { v_max = v; v_max_idx = i; }
-        if (t < t_min) { t_min = t; t_min_idx = i; }
-        if (t > t_max) { t_max = t; t_max_idx = i; }
+        if (v_valid) {
+            v_sum += (double)v;
+            valid_v_count++;
+            if (v < v_min) { v_min = v; v_min_idx = i; }
+            if (v > v_max) { v_max = v; v_max_idx = i; }
+        }
+        if (t_valid) {
+            t_sum += (double)t;
+            valid_t_count++;
+            if (t < t_min) { t_min = t; t_min_idx = i; }
+            if (t > t_max) { t_max = t; t_max_idx = i; }
+        }
 
         // Update sliding window ringbuffer
         battery_cell_window_t *w = &ctx->windows[i];
         uint8_t prev_head = w->head;
         uint8_t head = (uint8_t)((w->head + 1) % BATTERY_SPATIAL_WINDOW_LEN);
         w->head = head;
-        w->v_history[head] = v;
-        w->t_history[head] = t;
+        w->v_history[head] = v_valid ? v : 0.0f;
+        w->t_history[head] = t_valid ? t : 0.0f;
         w->i_history[head] = curr;
         w->ts_history[head] = timestamp_ms;
         if (w->count < BATTERY_SPATIAL_WINDOW_LEN) {
@@ -267,7 +312,7 @@ int battery_spatial_matrix_process_frame(battery_spatial_matrix_t *ctx,
         float dt_dt = 0.0f;
         float d2v_dt2 = 0.0f;
 
-        if (w->count >= 2) {
+        if (w->count >= 2 && v_valid && t_valid) {
             uint64_t ts_curr = timestamp_ms;
             uint64_t ts_prev = w->ts_history[prev_head];
             float dt_sec = (float)(ts_curr - ts_prev) * 0.001f;
@@ -275,43 +320,48 @@ int battery_spatial_matrix_process_frame(battery_spatial_matrix_t *ctx,
             if (dt_sec > 0.0001f) {
                 float v_prev = w->v_history[prev_head];
                 float t_prev = w->t_history[prev_head];
-                dv_dt = (v - v_prev) / dt_sec;
-                dt_dt = (t - t_prev) / dt_sec;
+                if (is_valid_sensor_val(v_prev) && is_valid_sensor_val(t_prev)) {
+                    dv_dt = (v - v_prev) / dt_sec;
+                    dt_dt = (t - t_prev) / dt_sec;
 
-                // When 5 or more samples available, use 5-point Savitzky-Golay for curvature
-                if (w->count >= 5) {
-                    uint8_t idx0 = head;
-                    uint8_t idx1 = (uint8_t)((head + BATTERY_SPATIAL_WINDOW_LEN - 1) % BATTERY_SPATIAL_WINDOW_LEN);
-                    uint8_t idx2 = (uint8_t)((head + BATTERY_SPATIAL_WINDOW_LEN - 2) % BATTERY_SPATIAL_WINDOW_LEN);
-                    uint8_t idx3 = (uint8_t)((head + BATTERY_SPATIAL_WINDOW_LEN - 3) % BATTERY_SPATIAL_WINDOW_LEN);
-                    uint8_t idx4 = (uint8_t)((head + BATTERY_SPATIAL_WINDOW_LEN - 4) % BATTERY_SPATIAL_WINDOW_LEN);
+                    // When 5 or more samples available, use 5-point Savitzky-Golay for curvature
+                    if (w->count >= 5) {
+                        uint8_t idx0 = head;
+                        uint8_t idx1 = (uint8_t)((head + BATTERY_SPATIAL_WINDOW_LEN - 1) % BATTERY_SPATIAL_WINDOW_LEN);
+                        uint8_t idx2 = (uint8_t)((head + BATTERY_SPATIAL_WINDOW_LEN - 2) % BATTERY_SPATIAL_WINDOW_LEN);
+                        uint8_t idx3 = (uint8_t)((head + BATTERY_SPATIAL_WINDOW_LEN - 3) % BATTERY_SPATIAL_WINDOW_LEN);
+                        uint8_t idx4 = (uint8_t)((head + BATTERY_SPATIAL_WINDOW_LEN - 4) % BATTERY_SPATIAL_WINDOW_LEN);
 
-                    float v0 = w->v_history[idx0];
-                    float v1 = w->v_history[idx1];
-                    float v2 = w->v_history[idx2];
-                    float v3 = w->v_history[idx3];
-                    float v4 = w->v_history[idx4];
+                        float v0 = w->v_history[idx0];
+                        float v1 = w->v_history[idx1];
+                        float v2 = w->v_history[idx2];
+                        float v3 = w->v_history[idx3];
+                        float v4 = w->v_history[idx4];
 
-                    // 5-point 2nd derivative operator: (2*v0 - v1 - 2*v2 - v3 + 2*v4) / 7
-                    d2v_dt2 = (2.0f * v0 - v1 - 2.0f * v2 - v3 + 2.0f * v4) / (7.0f * (dt_sec * dt_sec + EPSILON_FLOAT));
+                        if (is_valid_sensor_val(v0) && is_valid_sensor_val(v1) &&
+                            is_valid_sensor_val(v2) && is_valid_sensor_val(v3) && is_valid_sensor_val(v4)) {
+                            // 5-point 2nd derivative operator: (2*v0 - v1 - 2*v2 - v3 + 2*v4) / 7
+                            d2v_dt2 = (2.0f * v0 - v1 - 2.0f * v2 - v3 + 2.0f * v4) / (7.0f * (dt_sec * dt_sec + EPSILON_FLOAT));
+                        }
+                    }
                 }
             }
         }
 
-        if (dt_dt > max_dtdt) {
+        if (t_valid && dt_dt > max_dtdt) {
             max_dtdt = dt_dt;
             max_dtdt_idx = i;
         }
-        if (fabsf(d2v_dt2) > max_d2vdt2) {
+        if (v_valid && fabsf(d2v_dt2) > max_d2vdt2) {
             max_d2vdt2 = fabsf(d2v_dt2);
             max_d2vdt2_idx = i;
         }
 
         battery_cell_features_t *f = &ctx->features[i];
-        f->voltage = v;
-        f->temperature = t;
+        f->voltage = v_valid ? v : 0.0f;
+        f->temperature = t_valid ? t : 0.0f;
         f->current = curr;
-        f->soc = soc_from_ocv(v - curr * r0);
+        f->soc = v_valid ? soc_from_ocv(v - curr * r0) : 0.0f;
         f->dV_dt = dv_dt;
         f->dT_dt = dt_dt;
         f->d2V_dt2 = d2v_dt2;
@@ -322,19 +372,29 @@ int battery_spatial_matrix_process_frame(battery_spatial_matrix_t *ctx,
     }
 
     // Mean & Standard Deviation
-    float v_mean = (float)(v_sum / (double)num_cells);
-    float t_mean = (float)(t_sum / (double)num_cells);
+    float v_mean = (valid_v_count > 0) ? (float)(v_sum / (double)valid_v_count) : 0.0f;
+    float t_mean = (valid_t_count > 0) ? (float)(t_sum / (double)valid_t_count) : 0.0f;
     double v_var_sum = 0.0;
     double t_var_sum = 0.0;
 
     for (uint32_t i = 0; i < num_cells; i++) {
-        double v_diff = ctx->raw_v[i] - v_mean;
-        double t_diff = ctx->raw_t[i] - t_mean;
-        v_var_sum += v_diff * v_diff;
-        t_var_sum += t_diff * t_diff;
+        float v = voltages[i];
+        float t = temperatures[i];
+        if (is_valid_sensor_val(v)) {
+            double v_diff = (double)v - (double)v_mean;
+            v_var_sum += v_diff * v_diff;
+        }
+        if (is_valid_sensor_val(t)) {
+            double t_diff = (double)t - (double)t_mean;
+            t_var_sum += t_diff * t_diff;
+        }
     }
-    float v_std = sqrtf((float)(v_var_sum / (double)num_cells));
-    float t_std = sqrtf((float)(t_var_sum / (double)num_cells));
+    float v_std = (valid_v_count > 0) ? sqrtf((float)(v_var_sum / (double)valid_v_count)) : 0.0f;
+    float t_std = (valid_t_count > 0) ? sqrtf((float)(t_var_sum / (double)valid_t_count)) : 0.0f;
+
+    if (valid_v_count == 0) { v_min = 0.0f; v_max = 0.0f; }
+    if (valid_t_count == 0) { t_min = 0.0f; t_max = 0.0f; }
+    if (max_dtdt < -1e8f) max_dtdt = 0.0f;
 
     out_result->v_min = v_min;
     out_result->v_max = v_max;
@@ -360,15 +420,22 @@ int battery_spatial_matrix_process_frame(battery_spatial_matrix_t *ctx,
     // Second Pass: Spatial Laplacian Gradients, Polarization Overpotential, Diffusion Vectors, Stage Classification & Hotspots
     for (uint32_t i = 0; i < num_cells; i++) {
         battery_cell_features_t *f = &ctx->features[i];
-        float t_i = ctx->raw_t[i];
-        float v_i = ctx->raw_v[i];
+        float v_raw = voltages[i];
+        float t_raw = temperatures[i];
+        bool v_valid = is_valid_sensor_val(v_raw);
+        bool t_valid = is_valid_sensor_val(t_raw);
         float curr_i = ctx->raw_i[i];
 
         // Polarization overpotential relative to pack consensus mean
-        float eta = fabsf(v_mean - v_i);
-        float rp = (fabsf(curr_i) > 0.1f) ? (eta / fabsf(curr_i)) : (eta / 1.0f);
-        f->overpotential = eta;
-        f->polarization_res = rp;
+        if (v_valid) {
+            float eta = fabsf(v_mean - v_raw);
+            float rp = (fabsf(curr_i) > 0.1f) ? (eta / fabsf(curr_i)) : (eta / 1.0f);
+            f->overpotential = eta;
+            f->polarization_res = rp;
+        } else {
+            f->overpotential = 0.0f;
+            f->polarization_res = 0.0f;
+        }
 
         float max_grad = 0.0f;
         float diff_x = 0.0f;
@@ -379,23 +446,27 @@ int battery_spatial_matrix_process_frame(battery_spatial_matrix_t *ctx,
         // 0: -X (dx), 1: +X (dx), 2: -Y (dy), 3: +Y (dy), 4: -Z (dz), 5: +Z (dz)
         static const float dir_dist_factors[6] = { -1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f };
 
-        for (int k = 0; k < 6; k++) {
-            int32_t neighbor_idx = ctx->neighbor_indices[i][k];
-            if (neighbor_idx >= 0 && (uint32_t)neighbor_idx < num_cells) {
-                float t_neighbor = ctx->raw_t[neighbor_idx];
-                float dist = (k < 2) ? ctx->config.cell_dx : ((k < 4) ? ctx->config.cell_dy : ctx->config.cell_dz);
-                if (dist < EPSILON_FLOAT) dist = 0.05f;
+        if (t_valid) {
+            for (int k = 0; k < 6; k++) {
+                int32_t neighbor_idx = ctx->neighbor_indices[i][k];
+                if (neighbor_idx >= 0 && (uint32_t)neighbor_idx < num_cells) {
+                    float t_neighbor = temperatures[neighbor_idx];
+                    if (is_valid_sensor_val(t_neighbor)) {
+                        float dist = (k < 2) ? ctx->config.cell_dx : ((k < 4) ? ctx->config.cell_dy : ctx->config.cell_dz);
+                        if (dist < EPSILON_FLOAT) dist = 0.05f;
 
-                float grad = (t_i - t_neighbor) / dist; // °C / m
-                if (grad > max_grad) {
-                    max_grad = grad;
+                        float grad = (t_raw - t_neighbor) / dist; // °C / m
+                        if (grad > max_grad) {
+                            max_grad = grad;
+                        }
+
+                        // Diffusion flux vector: heat flows away from hotspot to colder neighbor
+                        float flux = (t_raw - t_neighbor) / (dist * dist);
+                        if (k < 2) diff_x += flux * dir_dist_factors[k];
+                        else if (k < 4) diff_y += flux * dir_dist_factors[k];
+                        else diff_z += flux * dir_dist_factors[k];
+                    }
                 }
-
-                // Diffusion flux vector: heat flows away from hotspot to colder neighbor
-                float flux = (t_i - t_neighbor) / (dist * dist);
-                if (k < 2) diff_x += flux * dir_dist_factors[k];
-                else if (k < 4) diff_y += flux * dir_dist_factors[k];
-                else diff_z += flux * dir_dist_factors[k];
             }
         }
 
@@ -405,14 +476,16 @@ int battery_spatial_matrix_process_frame(battery_spatial_matrix_t *ctx,
         battery_tr_stage_t stage = BATTERY_TR_STAGE_NORMAL;
         float dtdt = f->dT_dt;
 
-        if (t_i >= ctx->config.temp_explosive_thresh || dtdt >= ctx->config.dtdt_explosive_thresh) {
-            stage = BATTERY_TR_STAGE_EXPLOSIVE;
-        } else if (t_i >= ctx->config.temp_acceleration_thresh || dtdt >= ctx->config.dtdt_acceleration_thresh) {
-            stage = BATTERY_TR_STAGE_ACCELERATION;
-        } else if (t_i >= ctx->config.temp_self_heating_thresh || dtdt >= ctx->config.dtdt_self_heating_thresh) {
-            stage = BATTERY_TR_STAGE_SELF_HEATING;
-        } else if (t_i >= ctx->config.temp_attention_thresh || dtdt >= ctx->config.dtdt_attention_thresh) {
-            stage = BATTERY_TR_STAGE_ATTENTION;
+        if (t_valid) {
+            if (t_raw >= ctx->config.temp_explosive_thresh || dtdt >= ctx->config.dtdt_explosive_thresh) {
+                stage = BATTERY_TR_STAGE_EXPLOSIVE;
+            } else if (t_raw >= ctx->config.temp_acceleration_thresh || dtdt >= ctx->config.dtdt_acceleration_thresh) {
+                stage = BATTERY_TR_STAGE_ACCELERATION;
+            } else if (t_raw >= ctx->config.temp_self_heating_thresh || dtdt >= ctx->config.dtdt_self_heating_thresh) {
+                stage = BATTERY_TR_STAGE_SELF_HEATING;
+            } else if (t_raw >= ctx->config.temp_attention_thresh || dtdt >= ctx->config.dtdt_attention_thresh) {
+                stage = BATTERY_TR_STAGE_ATTENTION;
+            }
         }
         f->tr_stage = stage;
 
@@ -421,12 +494,12 @@ int battery_spatial_matrix_process_frame(battery_spatial_matrix_t *ctx,
         }
 
         // Collect Hotspots if stage >= ATTENTION
-        if (stage >= BATTERY_TR_STAGE_ATTENTION && out_result->num_hotspots < BATTERY_DIFFUSION_MAX_HOTSPOTS) {
+        if (t_valid && stage >= BATTERY_TR_STAGE_ATTENTION && out_result->num_hotspots < BATTERY_DIFFUSION_MAX_HOTSPOTS) {
             uint32_t h_idx = out_result->num_hotspots++;
             battery_diffusion_hotspot_t *h = &out_result->hotspots[h_idx];
             h->cell_index = i;
             memcpy(&h->coord, &ctx->coords[i], sizeof(battery_cell_coord_t));
-            h->temperature = t_i;
+            h->temperature = t_raw;
             h->dT_dt = dtdt;
             h->spatial_grad = max_grad;
             h->diffusion_vec_x = diff_x;
@@ -439,22 +512,22 @@ int battery_spatial_matrix_process_frame(battery_spatial_matrix_t *ctx,
         }
 
         // Outlier detection using Z-Score (3-Sigma)
-        if (v_std > EPSILON_FLOAT) {
-            float z_v = fabsf(ctx->raw_v[i] - v_mean) / v_std;
+        if (v_valid && v_std > EPSILON_FLOAT) {
+            float z_v = fabsf(v_raw - v_mean) / v_std;
             if (z_v >= ctx->config.z_score_outlier_thresh && out_result->num_voltage_outliers < BATTERY_TOP_OUTLIERS_MAX) {
                 uint32_t out_idx = out_result->num_voltage_outliers++;
                 out_result->voltage_outliers[out_idx].cell_index = i;
-                out_result->voltage_outliers[out_idx].value = ctx->raw_v[i];
+                out_result->voltage_outliers[out_idx].value = v_raw;
                 out_result->voltage_outliers[out_idx].z_score = z_v;
             }
         }
 
-        if (t_std > EPSILON_FLOAT) {
-            float z_t = fabsf(ctx->raw_t[i] - t_mean) / t_std;
+        if (t_valid && t_std > EPSILON_FLOAT) {
+            float z_t = fabsf(t_raw - t_mean) / t_std;
             if (z_t >= ctx->config.z_score_outlier_thresh && out_result->num_temp_outliers < BATTERY_TOP_OUTLIERS_MAX) {
                 uint32_t out_idx = out_result->num_temp_outliers++;
                 out_result->temp_outliers[out_idx].cell_index = i;
-                out_result->temp_outliers[out_idx].value = ctx->raw_t[i];
+                out_result->temp_outliers[out_idx].value = t_raw;
                 out_result->temp_outliers[out_idx].z_score = z_t;
             }
         }

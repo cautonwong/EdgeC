@@ -343,6 +343,105 @@ static int test_reset_and_robustness(void) {
     return TEST_PASS;
 }
 
+static int test_heap_factory_lifecycle(void) {
+    printf("[TEST 7] Testing heap factory allocation & lifecycle (prevent 2.3MB stack overflow)...\n");
+
+    // 1. Invalid config NULL
+    assert(battery_spatial_matrix_create(NULL) == NULL);
+
+    // 2. Invalid cell count
+    battery_spatial_matrix_config_t invalid_cfg;
+    memset(&invalid_cfg, 0, sizeof(invalid_cfg));
+    invalid_cfg.num_cells = 0;
+    assert(battery_spatial_matrix_create(&invalid_cfg) == NULL);
+
+    invalid_cfg.num_cells = 5000;
+    assert(battery_spatial_matrix_create(&invalid_cfg) == NULL);
+
+    // 3. Valid factory creation
+    battery_spatial_matrix_config_t config;
+    memset(&config, 0, sizeof(config));
+    config.num_cells = 4096;
+    config.num_racks = 16;
+    config.num_modules_per_rack = 16;
+    config.num_cells_per_module = 16;
+
+    battery_spatial_matrix_t *ctx = battery_spatial_matrix_create(&config);
+    assert(ctx != NULL);
+    assert(ctx->config.num_cells == 4096);
+
+    // 4. Safe destruction
+    battery_spatial_matrix_destroy(ctx);
+
+    // 5. Safe NULL destruction
+    battery_spatial_matrix_destroy(NULL);
+
+    printf("  --> PASSED: Heap factory lifecycle & stack overflow defense verified.\n");
+    return TEST_PASS;
+}
+
+static int test_nan_fault_tolerant_statistics(void) {
+    printf("[TEST 8] Testing NaN / Inf sensor disconnection fault tolerance & consensus statistics...\n");
+
+    battery_spatial_matrix_config_t config;
+    memset(&config, 0, sizeof(config));
+    config.num_cells = 4096;
+    config.nominal_capacity_ah = 280.0f;
+
+    battery_spatial_matrix_t *ctx = battery_spatial_matrix_create(&config);
+    assert(ctx != NULL);
+
+    float *voltages = (float *)malloc(4096 * sizeof(float));
+    float *temperatures = (float *)malloc(4096 * sizeof(float));
+    float *currents = (float *)malloc(4096 * sizeof(float));
+
+    for (int i = 0; i < 4096; i++) {
+        voltages[i] = 3.300f;
+        temperatures[i] = 25.0f;
+        currents[i] = 10.0f;
+    }
+
+    // Inject NaN and INFINITY sensor dropouts on specific cells
+    voltages[10] = NAN;
+    temperatures[10] = NAN;
+
+    voltages[100] = (float)INFINITY;
+    temperatures[100] = 25.0f;
+
+    voltages[500] = 3.300f;
+    temperatures[500] = -NAN;
+
+    battery_spatial_frame_result_t result;
+    int rc = battery_spatial_matrix_process_frame(ctx, voltages, temperatures, currents, 4096, 1000000, &result);
+    assert(rc == 0);
+
+    // Verify statistical results are strictly FINITE and NOT NaN / Inf
+    assert(!isnan(result.v_mean) && !isinf(result.v_mean));
+    assert(!isnan(result.t_mean) && !isinf(result.t_mean));
+    assert(!isnan(result.v_std) && !isinf(result.v_std));
+    assert(!isnan(result.t_std) && !isinf(result.t_std));
+
+    // Consensus mean across remaining 4094 valid cells should be 3.300V and 25.0°C
+    assert(fabsf(result.v_mean - 3.300f) < 1e-4f);
+    assert(fabsf(result.t_mean - 25.0f) < 1e-4f);
+    assert(fabsf(result.v_std) < 1e-4f);
+    assert(fabsf(result.t_std) < 1e-4f);
+
+    // Verify cell features for NaN cell are safely initialized
+    battery_cell_features_t f_nan;
+    rc = battery_spatial_matrix_get_cell_features(ctx, 10, &f_nan);
+    assert(rc == 0);
+    assert(!isnan(f_nan.overpotential) && !isnan(f_nan.polarization_res));
+
+    free(voltages);
+    free(temperatures);
+    free(currents);
+    battery_spatial_matrix_destroy(ctx);
+
+    printf("  --> PASSED: Single-cell NaN/Inf isolation & statistical consensus verified.\n");
+    return TEST_PASS;
+}
+
 int main(void) {
     printf("===============================================================\n");
     printf("🧪 [UNIT TEST] AEP-733 4096-Node Spatial Matrix & TR Diffusion\n");
@@ -355,9 +454,11 @@ int main(void) {
     failures += test_polarization_resistance_anomaly_outlier();
     failures += test_spatial_heat_diffusion_wave_multi_cells();
     failures += test_reset_and_robustness();
+    failures += test_heap_factory_lifecycle();
+    failures += test_nan_fault_tolerant_statistics();
 
     if (failures == 0) {
-        printf("\n🎉 ALL AEP-733 4096-NODE SPATIAL MATRIX TESTS PASSED (6/6)!\n");
+        printf("\n🎉 ALL AEP-733 4096-NODE SPATIAL MATRIX TESTS PASSED (8/8)!\n");
         return 0;
     } else {
         printf("\n❌ %d TESTS FAILED!\n", failures);
