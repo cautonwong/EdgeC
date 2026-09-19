@@ -1,0 +1,90 @@
+name: AI Augmented Code Review & Quality Gate
+
+on:
+  pull_request:
+    branches: [ "main", "develop" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  ai-review-gate:
+    name: AI Quality Gate & Orchestrator
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup Python & System Linters
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-tidy cppcheck python3-pip
+
+      - name: Extract Changed Files & Run Orchestrator
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          git diff --name-only origin/${{ github.base_ref || 'main' }}...HEAD > changed_files.txt || git diff --name-only HEAD~1...HEAD > changed_files.txt
+          echo "Changed files list:"
+          cat changed_files.txt
+          PYTHONPATH=scripts/ci python3 scripts/ci/run_pure_mcp_orchestrator.py
+
+      - name: Render GitHub Step Summary
+        if: always()
+        run: |
+          if [ -f "final_report.md" ]; then
+            cat final_report.md >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Post PR Sticky Comment
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            if (!fs.existsSync('final_report.md')) return;
+            const content = fs.readFileSync('final_report.md', 'utf8');
+            const botTag = "<!-- AI_CODE_REVIEW_STICKY_BOT -->";
+            const fullBody = `${botTag}\n${content}`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body.includes(botTag));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: fullBody
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: fullBody
+              });
+            }
+
+      - name: Hard Quality Gate
+        run: |
+          python3 -c '
+          import json, sys
+          with open("final_report.json") as f:
+              data = json.load(f)
+          p0 = data.get("summary", {}).get("P0", 0)
+          p1 = data.get("summary", {}).get("P1", 0)
+          print(f"::notice::审查门禁判定: P0={p0}, P1={p1}")
+          if p0 > 0:
+              print(f"::error::门禁触发硬拦截：存在 {p0} 个 P0 阻断级缺陷，禁止合并！")
+              sys.exit(1)
+          '

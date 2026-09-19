@@ -1,0 +1,44 @@
+[
+  {
+    "id": "RULE-SAFE-01",
+    "name": "严禁在中断服务函数 (ISR) 中执行阻塞与堆分配",
+    "severity": "P0",
+    "description": "ISR 函数内严禁使用 malloc/free/new/delete，严禁调用 printf 或可能引发任务挂起的非 FromISR 接口，防止系统死锁或上下文异常。"
+  },
+  {
+    "id": "RULE-SAFE-02",
+    "name": "硬件状态轮询必须设置超时熔断",
+    "severity": "P0",
+    "description": "等待外设寄存器标志位或底层总线时，严禁使用裸 while 死等，必须加入 SysTick 或微秒级超时退出保护，防止硬件故障挂死系统看门狗。"
+  },
+  {
+    "id": "RULE-EDGEOS-03",
+    "name": "物理真实性铁律：禁止入库 Mock、Demo 或 Hardcoded 占位符",
+    "severity": "P0",
+    "description": "所有业务与驱动入库数据必须源自真实的物理寄存器、真实的 DataHub 偏移量或真实的算法产出，禁止硬编码占位常量 (如 val = 220.0)。"
+  },
+  {
+    "id": "RULE-EDGEOS-04",
+    "name": "四平面隔离与契约交互铁律",
+    "severity": "P1",
+    "description": "系统严格遵循 Foundation (L0/L1), Control Plane, Compute Plane, Execution Plane 四平面隔离，严禁跨平面直接操作私有结构体，必须通过契约层交互。"
+  },
+  {
+    "id": "RULE-EDGEOS-05",
+    "name": "使用者制定接口与解耦 (Consumer-Defined Interfaces)",
+    "severity": "P1",
+    "description": "业务层 (Consumer) 定义 ops 虚表或回调契约，底层驱动 (Producer) 只管填充实现。严禁底层驱动反向依赖上层业务头文件。"
+  },
+  {
+    "id": "RULE-EDGEOS-06",
+    "name": "共享内存与零拷贝指针安全性",
+    "severity": "P0",
+    "description": "在 SHM 零拷贝与 NetBuf 传递中，必须进行 64 字节硬件对齐校验与生命周期引用计数管理，杜绝野指针、未对齐访问与内存泄漏。"
+  },
+  {
+    "id": "RULE-EDGEOS-07",
+    "name": "确定性调度与 MTT 挂钟时间戳对齐",
+    "severity": "P2",
+    "description": "所有周期任务与时序遥测必须对齐 MTT 挂钟时间 (15min/60min 整点对齐)，统一 API 响应 Envelope 必须包含精确的 MTT 时间戳。"
+  }
+]
