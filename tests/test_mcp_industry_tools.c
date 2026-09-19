@@ -45,10 +45,9 @@ static void test_mcp_tool_power_quality_normal(void **state) {
     assert_non_null(thd_status);
     assert_string_equal(thd_status->valuestring, "COMPLIANT");
 
-    cJSON *harmonics = cJSON_GetObjectItem(res, "harmonic_spectrum_31st");
-    assert_non_null(harmonics);
-    assert_true(cJSON_IsArray(harmonics));
-    assert_int_equal(cJSON_GetArraySize(harmonics), 15);
+    cJSON *spec_avail = cJSON_GetObjectItem(res, "spectrum_available");
+    assert_non_null(spec_avail);
+    assert_false(cJSON_IsTrue(spec_avail)); /* 没有硬件FFT输入时严禁伪造 */
 
     cJSON_Delete(res);
     free(result_json);
@@ -321,6 +320,77 @@ static void test_mcp_json_rpc_tools_list_and_call(void **state) {
     edge_mcp_dispatcher_destroy(disp);
 }
 
+/* 6. 测试变压器寿命评估工具 NaN 脏数据注入防御 */
+static void test_mcp_tool_transformer_life_nan_defense(void **state) {
+    (void)state;
+    edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(NULL);
+    assert_non_null(disp);
+
+    /* 6.1 顶层油温为 NaN 时必须返回错误，绝不能穿透为 NORMAL */
+    const char *nan_params_oil = "{\"load_ratio\": 0.8, \"ambient_temp_c\": 25.0, \"current_top_oil_c\": 1e309}"; // will parse as inf/huge or invalid
+    char *result_json = NULL;
+    int rc = edge_mcp_call_tool(disp, "smartbox_eval_transformer_life", nan_params_oil, &result_json);
+    /* 校验返回非 0 错误码或者不返回 NORMAL 状态 */
+    if (rc == 0 && result_json != NULL) {
+        cJSON *res = cJSON_Parse(result_json);
+        cJSON *status = cJSON_GetObjectItem(res, "thermal_status");
+        if (status) {
+            assert_string_not_equal(status->valuestring, "NORMAL");
+        }
+        cJSON_Delete(res);
+        free(result_json);
+        result_json = NULL;
+    }
+
+    /* 6.2 负数负载率或非法数值校验 */
+    const char *neg_params = "{\"load_ratio\": -0.5, \"ambient_temp_c\": 25.0, \"current_top_oil_c\": 50.0}";
+    rc = edge_mcp_call_tool(disp, "smartbox_eval_transformer_life", neg_params, &result_json);
+    assert_int_not_equal(rc, 0);
+
+    edge_mcp_dispatcher_destroy(disp);
+}
+
+/* 7. 测试电能质量分析真实物理谐波谱透传与异常输入防御 */
+static void test_mcp_tool_power_quality_real_spectrum_and_nan_defense(void **state) {
+    (void)state;
+    edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(NULL);
+    assert_non_null(disp);
+
+    /* 7.1 传入实际物理采样谐波谱 */
+    const char *real_harm_params = "{\"phase_a_v\": 220.0, \"phase_b_v\": 220.0, \"phase_c_v\": 220.0, \"current_thd\": 3.5, \"harmonics\": [{\"order\": 3, \"distortion_pct\": 1.8}, {\"order\": 5, \"distortion_pct\": 1.2}]}";
+    char *result_json = NULL;
+    int rc = edge_mcp_call_tool(disp, "dcu_analyze_power_quality", real_harm_params, &result_json);
+    assert_int_equal(rc, 0);
+    assert_non_null(result_json);
+
+    cJSON *res = cJSON_Parse(result_json);
+    assert_non_null(res);
+    cJSON *spec_avail = cJSON_GetObjectItem(res, "spectrum_available");
+    assert_non_null(spec_avail);
+    assert_true(cJSON_IsTrue(spec_avail));
+
+    cJSON *harmonics = cJSON_GetObjectItem(res, "harmonic_spectrum_31st");
+    assert_non_null(harmonics);
+    assert_true(cJSON_IsArray(harmonics));
+    assert_int_equal(cJSON_GetArraySize(harmonics), 2);
+
+    /* 校验 3 次谐波真实值精确为 1.8%，无 1.85 假系数 */
+    cJSON *h3 = cJSON_GetArrayItem(harmonics, 0);
+    assert_non_null(h3);
+    assert_int_equal(cJSON_GetObjectItem(h3, "order")->valueint, 3);
+    assert_double_equal(cJSON_GetObjectItem(h3, "distortion_pct")->valuedouble, 1.8, 0.01);
+
+    cJSON_Delete(res);
+    free(result_json);
+
+    /* 7.2 传入非法电压 (0V 或负电压) */
+    const char *bad_v_params = "{\"phase_a_v\": -220.0, \"phase_b_v\": 220.0, \"phase_c_v\": 220.0}";
+    rc = edge_mcp_call_tool(disp, "dcu_analyze_power_quality", bad_v_params, &result_json);
+    assert_int_not_equal(rc, 0);
+
+    edge_mcp_dispatcher_destroy(disp);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_mcp_tool_power_quality_normal),
@@ -330,6 +400,8 @@ int main(void) {
         cmocka_unit_test(test_mcp_tool_tou_arbitrage_optimization),
         cmocka_unit_test(test_mcp_tool_electrical_five_anti_interlock),
         cmocka_unit_test(test_mcp_json_rpc_tools_list_and_call),
+        cmocka_unit_test(test_mcp_tool_transformer_life_nan_defense),
+        cmocka_unit_test(test_mcp_tool_power_quality_real_spectrum_and_nan_defense),
     };
 
     printf("=== Running EdgeOS Industry Specialized MCP Algorithm Tools (AEP-508) Tests ===\n");
