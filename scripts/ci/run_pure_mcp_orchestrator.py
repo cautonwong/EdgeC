@@ -2,7 +2,7 @@
 """
 Pure MCP Orchestrator & Synthesis Engine for EdgeOS / EdgeC
 依据 docs/modular_2.md 规范实现：
-作为 CI/CD 智能审查中枢，调度 CRG MCP、OCR、clang-tidy、cppcheck 与 Company Rules，
+作为 CI/CD 智能审查中枢，调度 CRG MCP、Alibaba OCR、clang-tidy、cppcheck 与 Company Rules，
 进行去重归并、优先级分级 (P0~P3) 并产出双产物 (final_report.json + final_report.md)。
 """
 
@@ -38,7 +38,7 @@ from unified_review_mcp import (
     match_company_rules,
     run_clang_tidy_check,
     run_cppcheck_analysis,
-    crg_engine,
+    crg_db_engine,
     ocr_engine
 )
 
@@ -94,15 +94,15 @@ FINAL_SUBMIT_TOOL = {
 
 def run_local_fallback_synthesis(changed_files: List[str]) -> Dict[str, Any]:
     """
-    当无外网 API 或本地离线运行时的确定性直接合成引擎。
-    执行底层 CRG 爆炸半径分析、Alibaba OCR 模式匹配、clang-tidy 与 Cppcheck 检查。
+    确定性直接合成引擎。
+    执行 SQLite CRG 爆炸半径分析、Alibaba OCR 模式匹配、clang-tidy 与 Cppcheck 检查。
     """
     print("ℹ️ 执行本地确定性静态审查分析与 CRG/OCR 双引擎合成...")
     rules_json = match_company_rules()
     diff_lines = get_git_diff_lines()
     
-    # 1. CRG Blast Radius Analysis
-    blast_radius = crg_engine.analyze_blast_radius(changed_files)
+    # 1. CRG SQLite Blast Radius Analysis
+    blast_radius = crg_db_engine.analyze_blast_radius(changed_files)
 
     # 2. Linters
     clang_findings = run_clang_tidy_check(changed_files)
@@ -187,7 +187,6 @@ def run_local_fallback_synthesis(changed_files: List[str]) -> Dict[str, Any]:
             "fix_suggestion": "排查底层内存越界、未初始化或空指针隐患。"
         })
 
-    # Render Ultra-Professional Markdown Report
     status_banner = "🔴 **质量门禁未通过 (BLOCKED)**：发现阻断级 P0 缺陷，禁止合并至主干。" if p0_count > 0 else "🟢 **质量门禁通过 (PASSED)**：未发现阻断级缺陷，代码质量达标。"
 
     md_lines = [
@@ -212,9 +211,9 @@ def run_local_fallback_synthesis(changed_files: List[str]) -> Dict[str, Any]:
         ""
     ]
 
-    if blast_radius["sample_callers"]:
+    if blast_radius.get("call_hierarchy_samples"):
         md_lines.append("### 🔗 跨模块依赖调用链 (Call Hierarchy)")
-        for caller in blast_radius["sample_callers"][:6]:
+        for caller in blast_radius["call_hierarchy_samples"][:6]:
             md_lines.append(f"- ↳ {caller}")
         md_lines.append("")
 

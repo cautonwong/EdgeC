@@ -35,3 +35,7 @@ tags:
     desc: "电动汽车充电功率"
     traits: [ "metrology", "realtime" ]
 
+  - id: 1999
+    name: "TAMPER_DRIFT_UNCOMMITTED_TAG"
+    type: "float"
+    unit: "V"

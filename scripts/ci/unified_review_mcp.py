@@ -2,9 +2,9 @@
 """
 Unified Code Review MCP Server & Industrial Analysis Engine for EdgeOS / EdgeC
 依据 docs/modular_2.md 规范实现：
-1. CRG (Code Review Graph): 全库 AST 调用拓扑图谱、爆炸半径 (Blast Radius) 与 CTest 单测映射分析
-2. Alibaba OCR (Open Code Review): 嵌入式与工业级模式匹配 (NPE、并发锁配对、ISR 安全、DMA 64B对齐、缓冲区安全)
-3. Company Rules: .github/company_rules.json 业务红线校验
+1. CRG (Code Review Graph): 基于 SQLite 存储的全库 AST 符号图谱、调用拓扑 (Call Hierarchy)、爆炸半径 (Blast Radius) 与 CTest 单测映射
+2. Alibaba OCR (Open Code Review): 嵌入式与工业级模式匹配 (NPE、并发锁配对、ISR 安全、DMA 64B对齐、缓冲区安全、物理真实性)
+3. Company Rules: .github/company_rules.json 业务红线深度校验
 4. clang-tidy & Cppcheck: 增量行级编译硬缺陷过滤
 """
 
@@ -12,10 +12,11 @@ import os
 import sys
 import re
 import json
+import sqlite3
 import subprocess
-from typing import List, Dict, Set, Any, Tuple
+from typing import List, Dict, Set, Any, Tuple, Optional
 
-# Try importing FastMCP, or provide fallback
+# FastMCP support
 try:
     from mcp.server.fastmcp import FastMCP
     HAS_MCP = True
@@ -86,104 +87,185 @@ def get_git_diff_lines(base: str = "origin/main") -> Dict[str, Set[int]]:
 
 
 # ==============================================================================
-# 2. CRG (Code Review Graph) 全局调用图谱与爆炸半径分析引擎
+# 2. CRG (Code Review Graph) SQLite 关系型代码图谱与爆炸半径引擎
 # ==============================================================================
 
-class CodeReviewGraphEngine:
+class SQLiteCodeReviewGraph:
     """
-    基于 AST / 正则符号解析的全局依赖图谱与爆炸半径分析引擎。
-    构建全库 Function/Struct/Header 倒排索引，评估 PR 改动的跨模块影响与单测映射。
+    基于本地 SQLite 存储的工业级代码关系图谱 (CRG)。
+    持久化存储全库函数定义、结构体声明、头文件依赖、跨文件调用及测试用例关联。
     """
-    def __init__(self, root_dir: str = "."):
-        self.root_dir = root_dir
-        self.symbol_defs: Dict[str, List[Tuple[str, int]]] = {}  # symbol -> [(file, line)]
-        self.file_includes: Dict[str, Set[str]] = {}             # file -> {included_files}
-        self.file_symbols: Dict[str, Set[str]] = {}              # file -> {defined_symbols}
-        self.test_mappings: Dict[str, Set[str]] = {}             # module/file -> {test_files}
-        self._built = False
+    def __init__(self, root_dir: str = ".", db_path: Optional[str] = None):
+        self.root_dir = os.path.abspath(root_dir)
+        self.db_dir = os.path.join(self.root_dir, ".code-review-graph")
+        os.makedirs(self.db_dir, exist_ok=True)
+        self.db_path = db_path or os.path.join(self.db_dir, "crg_graph.sqlite")
+        self._init_db()
 
-    def build_graph(self):
-        if self._built:
-            return
-        
-        c_files = []
-        for root, _, files in os.walk(self.root_dir):
-            if any(ign in root for ign in [".git", "build", "node_modules", "third-party"]):
-                continue
-            for f in files:
-                if f.endswith(('.c', '.h', '.cpp', '.hpp')):
-                    rel_p = os.path.relpath(os.path.join(root, f), self.root_dir)
-                    c_files.append(rel_p)
+    def _get_conn(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
 
-        func_def_pattern = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_\*\s]+\s+([a-zA-Z_][a-zA-Z0-9_]+)\s*\([^;]*\)\s*\{', re.MULTILINE)
-        include_pattern = re.compile(r'#include\s+["<]([^">]+)[">]')
+    def _init_db(self):
+        with self._get_conn() as conn:
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS files (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    path TEXT UNIQUE NOT NULL,
+                    module TEXT,
+                    is_test INTEGER DEFAULT 0
+                );
 
-        for rel_p in c_files:
-            abs_p = os.path.join(self.root_dir, rel_p)
-            self.file_includes[rel_p] = set()
-            self.file_symbols[rel_p] = set()
-            try:
-                with open(abs_p, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
+                CREATE TABLE IF NOT EXISTS symbols (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_id INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    kind TEXT NOT NULL, -- function, struct, typedef, macro
+                    line INTEGER NOT NULL,
+                    FOREIGN KEY(file_id) REFERENCES files(id)
+                );
 
-                # Extract includes
+                CREATE TABLE IF NOT EXISTS includes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    source_file_id INTEGER NOT NULL,
+                    included_path TEXT NOT NULL,
+                    FOREIGN KEY(source_file_id) REFERENCES files(id)
+                );
+
+                CREATE TABLE IF NOT EXISTS symbol_references (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    symbol_name TEXT NOT NULL,
+                    caller_file_id INTEGER NOT NULL,
+                    line INTEGER NOT NULL,
+                    FOREIGN KEY(caller_file_id) REFERENCES files(id)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_symbols_name ON symbols(name);
+                CREATE INDEX IF NOT EXISTS idx_refs_sym ON symbol_references(symbol_name);
+                CREATE INDEX IF NOT EXISTS idx_includes_src ON includes(source_file_id);
+            """)
+
+    def build_graph(self, force: bool = False):
+        """扫描全库构建/刷新 SQLite 图谱"""
+        with self._get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) FROM files")
+            count = cur.fetchone()[0]
+            if count > 0 and not force:
+                return
+
+            cur.execute("DELETE FROM symbol_references")
+            cur.execute("DELETE FROM includes")
+            cur.execute("DELETE FROM symbols")
+            cur.execute("DELETE FROM files")
+
+            func_pattern = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_\*\s]+\s+([a-zA-Z_][a-zA-Z0-9_]+)\s*\([^;]*\)\s*\{', re.MULTILINE)
+            include_pattern = re.compile(r'#include\s+["<]([^">]+)[">]')
+            call_pattern = re.compile(r'\b([a-zA-Z_][a-zA-Z0-9_]+)\s*\(')
+
+            files_map = {}
+            for root, _, fnames in os.walk(self.root_dir):
+                if any(ign in root for ign in [".git", "build", "node_modules", "third-party", ".venv", ".code-review-graph"]):
+                    continue
+                for f in fnames:
+                    if f.endswith(('.c', '.h', '.cpp', '.hpp')):
+                        full_p = os.path.join(root, f)
+                        rel_p = os.path.relpath(full_p, self.root_dir)
+                        is_test = 1 if ("tests/" in rel_p or "test_" in rel_p) else 0
+                        
+                        module = None
+                        parts = rel_p.split(os.sep)
+                        if "modules" in parts:
+                            idx = parts.index("modules")
+                            if idx + 1 < len(parts):
+                                module = parts[idx + 1]
+                        elif "cmd" in parts:
+                            idx = parts.index("cmd")
+                            if idx + 1 < len(parts):
+                                module = f"product:{parts[idx + 1]}"
+
+                        cur.execute("INSERT INTO files (path, module, is_test) VALUES (?, ?, ?)", (rel_p, module, is_test))
+                        files_map[rel_p] = cur.lastrowid
+
+            # Parse files
+            for rel_p, file_id in files_map.items():
+                abs_p = os.path.join(self.root_dir, rel_p)
+                try:
+                    with open(abs_p, 'r', encoding='utf-8', errors='ignore') as fp:
+                        content = fp.read()
+                except Exception:
+                    continue
+
+                # Parse includes
                 for inc in include_pattern.findall(content):
-                    self.file_includes[rel_p].add(inc)
+                    cur.execute("INSERT INTO includes (source_file_id, included_path) VALUES (?, ?)", (file_id, inc))
 
-                # Extract function definitions
-                for match in func_def_pattern.finditer(content):
+                # Parse defined symbols
+                for match in func_pattern.finditer(content):
                     sym_name = match.group(1)
-                    if sym_name not in ["if", "for", "while", "switch"]:
+                    if sym_name not in ["if", "for", "while", "switch", "return", "sizeof"]:
                         line_no = content[:match.start()].count('\n') + 1
-                        self.symbol_defs.setdefault(sym_name, []).append((rel_p, line_no))
-                        self.file_symbols[rel_p].add(sym_name)
+                        cur.execute("INSERT INTO symbols (file_id, name, kind, line) VALUES (?, ?, ?, ?)",
+                                    (file_id, sym_name, "function", line_no))
 
-                # Map test files
-                if "tests/" in rel_p or "test_" in rel_p:
-                    for inc in self.file_includes[rel_p]:
-                        base_h = os.path.basename(inc)
-                        self.test_mappings.setdefault(base_h, set()).add(rel_p)
-            except Exception:
-                continue
+                # Parse references
+                for idx, line in enumerate(content.splitlines(), 1):
+                    for call_match in call_pattern.finditer(line):
+                        callee = call_match.group(1)
+                        if callee not in ["if", "for", "while", "switch", "return", "sizeof", "printf"]:
+                            cur.execute("INSERT INTO symbol_references (symbol_name, caller_file_id, line) VALUES (?, ?, ?)",
+                                        (callee, file_id, idx))
 
-        self._built = True
+            conn.commit()
 
     def analyze_blast_radius(self, changed_files: List[str]) -> Dict[str, Any]:
         self.build_graph()
         impacted_modules = set()
         impacted_products = set()
         impacted_tests = set()
-        impacted_callers = []
-        
-        for cf in changed_files:
-            # Detect affected module
-            parts = cf.split(os.sep)
-            if "modules" in parts:
-                idx = parts.index("modules")
-                if idx + 1 < len(parts):
-                    impacted_modules.add(parts[idx + 1])
-            if "cmd" in parts:
-                idx = parts.index("cmd")
-                if idx + 1 < len(parts):
-                    impacted_products.add(parts[idx + 1])
+        callers_list = []
 
-            # Check matching tests
-            base_name = os.path.basename(cf)
-            if base_name in self.test_mappings:
-                impacted_tests.update(self.test_mappings[base_name])
+        with self._get_conn() as conn:
+            cur = conn.cursor()
+            for cf in changed_files:
+                cur.execute("SELECT id, module FROM files WHERE path = ?", (cf,))
+                row = cur.fetchone()
+                if row and row["module"]:
+                    mod = row["module"]
+                    if mod.startswith("product:"):
+                        impacted_products.add(mod.replace("product:", ""))
+                    else:
+                        impacted_modules.add(mod)
 
-            # Check dependent callers across codebase
-            defined_syms = self.file_symbols.get(cf, set())
-            for sym in list(defined_syms)[:5]:  # sample top 5
-                callers = self.symbol_defs.get(sym, [])
-                for caller_file, line_no in callers:
-                    if caller_file != cf:
-                        impacted_callers.append(f"`{sym}` referenced by `{caller_file}:{line_no}`")
+                # Check headers included
+                base_name = os.path.basename(cf)
+                cur.execute("""
+                    SELECT f.path FROM includes i
+                    JOIN files f ON i.source_file_id = f.id
+                    WHERE i.included_path LIKE ? AND f.is_test = 1
+                """, (f"%{base_name}%",))
+                for t_row in cur.fetchall():
+                    impacted_tests.add(t_row["path"])
 
+                # Check defined symbols in changed file and where they are called
+                cur.execute("""
+                    SELECT s.name, f.path as caller_path, r.line
+                    FROM symbols s
+                    JOIN symbol_references r ON s.name = r.symbol_name
+                    JOIN files f ON r.caller_file_id = f.id
+                    WHERE s.file_id = (SELECT id FROM files WHERE path = ?)
+                    AND f.path != ?
+                    LIMIT 8
+                """, (cf, cf))
+                for c_row in cur.fetchall():
+                    callers_list.append(f"`{c_row['name']}()` called by `{c_row['caller_path']}:{c_row['line']}`")
+
+        # Determine risk
         risk_score = "LOW"
         if len(impacted_modules) >= 2 or len(impacted_products) >= 2 or len(changed_files) > 8:
             risk_score = "CRITICAL"
-        elif len(impacted_modules) >= 1 or len(changed_files) > 3:
+        elif len(impacted_modules) >= 1 or len(changed_files) > 3 or callers_list:
             risk_score = "MEDIUM"
 
         return {
@@ -192,34 +274,27 @@ class CodeReviewGraphEngine:
             "impacted_modules": sorted(list(impacted_modules)),
             "impacted_products": sorted(list(impacted_products)),
             "impacted_tests": sorted(list(impacted_tests)),
-            "sample_callers": impacted_callers[:10]
+            "call_hierarchy_samples": callers_list
         }
 
 
-crg_engine = CodeReviewGraphEngine()
+crg_db_engine = SQLiteCodeReviewGraph()
 
 
 @mcp.tool()
 def get_review_context_tool(changed_files: List[str]) -> str:
-    """【CRG MCP】查询全库 AST 依赖图谱、调用链关系与变更爆炸半径 (Blast Radius)。"""
-    blast = crg_engine.analyze_blast_radius(changed_files)
+    """【CRG MCP】基于 SQLite 拓扑图谱查询全库 AST 调用链、跨模块引用与变更爆炸半径 (Blast Radius)。"""
+    blast = crg_db_engine.analyze_blast_radius(changed_files)
     return json.dumps(blast, indent=2, ensure_ascii=False)
 
 
 # ==============================================================================
-# 3. Alibaba OCR (Open Code Review) 工业级规约与高危模式分析引擎
+# 3. Alibaba OCR (Open Code Review) 嵌入式工业级规约分析引擎
 # ==============================================================================
 
 class AlibabaOCREngine:
     """
     针对嵌入式与工业级 C 语言量身定制的 Open Code Review 模式引擎。
-    涵盖：
-    - OCR-NPE-01: 未判空直接解引用
-    - OCR-MEM-02: 高危字符串与缓冲区函数 (sprintf/strcpy)
-    - OCR-CONC-03: 互斥锁配对异常 (带 return 的分支漏解锁)
-    - OCR-SAFE-04: 裸 while 寄存器轮询无超时保护
-    - OCR-ISR-05: 中断函数内执行阻塞或 malloc/free
-    - OCR-ALIGN-06: SHM/DMA 张量指针缺乏 64 字节硬件对齐
     """
     def __init__(self, root_dir: str = "."):
         self.root_dir = root_dir
@@ -238,7 +313,6 @@ class AlibabaOCREngine:
                 continue
 
             for idx, line in enumerate(content_lines, 1):
-                # If diff_lines specified, enforce strict line filter
                 if lines_to_check and idx not in lines_to_check:
                     continue
 
@@ -247,15 +321,17 @@ class AlibabaOCREngine:
                     continue
 
                 # 1. OCR-MEM-02: Unsafe buffer functions
-                if re.search(r'\b(strcpy|strcat|sprintf|vsprintf)\s*\(', line):
+                if re.search(r'\b(strcpy|strcat|sprintf|vsprintf|gets)\s*\(', line):
+                    match = re.search(r'\b(strcpy|strcat|sprintf|vsprintf|gets)\b', line).group(1)
                     findings.append({
                         "file": f,
                         "line": idx,
                         "rule_id": "OCR-MEM-02",
                         "priority": "P1",
                         "source": "Alibaba OCR",
-                        "issue": f"检测到不安全的 C 字符串操作函数: `{stripped}`",
-                        "fix_suggestion": "请替换为带边界长度保护的 `strncpy`、`snprintf` 或安全缓冲区 API，杜绝栈溢出。"
+                        "issue": f"检测到不安全的 C 字符串/缓冲区操作函数 `{match}`: `{stripped}`",
+                        "code_snippet": stripped,
+                        "fix_suggestion": f"建议替换为带边界长度保护的 `snprintf`、`strncpy` 或 `strlcpy`，防止栈溢出与内存越界。"
                     })
 
                 # 2. OCR-SAFE-04: Unbounded register polling
@@ -263,37 +339,41 @@ class AlibabaOCREngine:
                     findings.append({
                         "file": f,
                         "line": idx,
-                        "rule_id": "OCR-SAFE-04",
+                        "rule_id": "RULE-SAFE-02",
                         "priority": "P0",
-                        "source": "Alibaba OCR",
+                        "source": "Alibaba OCR / Company Rules",
                         "issue": f"硬件寄存器标志位轮询缺少超时熔断保护: `{stripped}`",
-                        "fix_suggestion": "必须加入 SysTick 或循环递减计数器超时退出保护，防止硬件故障挂死看门狗。"
+                        "code_snippet": stripped,
+                        "fix_suggestion": "必须加入 SysTick 或循环递减计数器 (如 `uint32_t timeout = 10000; while(... && --timeout); if (!timeout) return -ETIMEDOUT;`) 保护。"
                     })
 
                 # 3. OCR-ISR-05: Blocking / Dynamic alloc in ISR
-                is_isr_file = "_isr" in f.lower() or "irq" in f.lower() or "isr" in stripped.lower()
-                if is_isr_file:
-                    if re.search(r'\b(malloc|free|calloc|realloc|printf)\s*\(', line):
+                is_isr_context = "_isr" in f.lower() or "irq" in f.lower() or "_isr" in stripped.lower() or "isr(" in stripped.lower()
+                if is_isr_context:
+                    if re.search(r'\b(malloc|free|calloc|realloc|printf|nanosleep|sleep)\s*\(', line):
+                        match_fn = re.search(r'\b(malloc|free|calloc|realloc|printf|nanosleep|sleep)\b', line).group(1)
                         findings.append({
                             "file": f,
                             "line": idx,
-                            "rule_id": "OCR-ISR-05",
+                            "rule_id": "RULE-SAFE-01",
                             "priority": "P0",
-                            "source": "Alibaba OCR",
-                            "issue": f"严禁在中断上下文 (ISR) 中调用动态堆内存分配或阻塞打印: `{stripped}`",
-                            "fix_suggestion": "移除 malloc/free/printf 调用，改为静态预分配环形缓冲或 FromISR 无阻塞原子通知。"
+                            "source": "Alibaba OCR / Company Rules",
+                            "issue": f"严禁在中断服务函数 (ISR) 中调用动态堆内存分配或阻塞接口 `{match_fn}`: `{stripped}`",
+                            "code_snippet": stripped,
+                            "fix_suggestion": "移除阻塞调用与动态堆分配，使用静态预分配 RingBuffer 或 FromISR 异步无锁唤醒通知。"
                         })
 
-                # 4. OCR-CDD-07: Direct Mock Placeholder Violation
-                if re.search(r'\b(val|voltage|current|temp|freq)\s*=\s*220\.0|380\.0|50\.0;', line) and "mock" not in f.lower() and "test" not in f.lower():
+                # 4. OCR-CDD-07: Direct Mock Placeholder Violation (Physical Truth)
+                if re.search(r'\b(val|voltage|current|temp|freq|power)\s*=\s*(220\.0|380\.0|50\.0|25\.0);', line) and "test" not in f.lower() and "mock" not in f.lower():
                     findings.append({
                         "file": f,
                         "line": idx,
-                        "rule_id": "OCR-CDD-07",
+                        "rule_id": "RULE-EDGEOS-03",
                         "priority": "P0",
                         "source": "EdgeOS Physical Truth",
-                        "issue": f"疑似硬编码 Mock 常量占位符入库: `{stripped}`",
-                        "fix_suggestion": "入库数据必须源自物理寄存器、DataHub 影子总线或算法实际产出，禁止硬编码物理量。"
+                        "issue": f"物理真实性违规：检测到硬编码 Mock 常量占位符入库 `{stripped}`",
+                        "code_snippet": stripped,
+                        "fix_suggestion": "入库数据必须源自物理寄存器驱动、DataHub 影子总线或算法实际产出，严禁在生产代码中硬编码固定物理量。"
                     })
 
         return findings
@@ -317,7 +397,6 @@ def scan_ocr_rules(files: List[str]) -> str:
     except Exception:
         pass
 
-    # Built-in High-Fidelity OCR Engine
     diff_lines = get_git_diff_lines()
     findings = ocr_engine.scan_files(valid_files, diff_lines)
     return json.dumps(findings, indent=2, ensure_ascii=False) if findings else "OCR: PASS (No violations detected)."
@@ -439,5 +518,5 @@ if __name__ == "__main__":
         print("Unified Review Tools MCP Test Mode:")
         diff = get_git_diff_lines()
         print(f"Detected git diff files: {list(diff.keys())}")
-        blast = crg_engine.analyze_blast_radius(list(diff.keys()))
-        print(f"CRG Blast Radius: {blast}")
+        blast = crg_db_engine.analyze_blast_radius(list(diff.keys()))
+        print(f"CRG SQLite Blast Radius: {blast}")
