@@ -8,7 +8,6 @@ const (
 	GRID_POWER = 1003
 	GRID_FREQUENCY = 1004
 	EV_CHARGE_POWER = 1005
-	TAMPER_DRIFT_UNCOMMITTED_TAG = 1999
 	ENERGY_ACTIVE_IMPORT = 3001
 	ENERGY_ACTIVE_EXPORT = 3002
 )
@@ -26,7 +25,6 @@ var Metadata = map[uint32]TagMetadata{
 	1003: {ID: 1003, Name: "GRID_POWER", DataType: "float", Unit: "W"},
 	1004: {ID: 1004, Name: "GRID_FREQUENCY", DataType: "float", Unit: "Hz"},
 	1005: {ID: 1005, Name: "EV_CHARGE_POWER", DataType: "float", Unit: "W"},
-	1999: {ID: 1999, Name: "TAMPER_DRIFT_UNCOMMITTED_TAG", DataType: "float", Unit: "V"},
 	3001: {ID: 3001, Name: "ENERGY_ACTIVE_IMPORT", DataType: "double", Unit: "kWh"},
 	3002: {ID: 3002, Name: "ENERGY_ACTIVE_EXPORT", DataType: "double", Unit: "kWh"},
 }
