@@ -25,14 +25,19 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y clang-tidy cppcheck python3-pip
+          pip3 install mcp
+          sudo ln -sf $(pwd)/scripts/ci/code_review_graph.py /usr/local/bin/code-review-graph
 
       - name: Extract Changed Files & Run Orchestrator
         env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || secrets.GOOGLE_API_KEY || 'AQ.Ab8RN6JjQQbeAe19odItD0pkm3TikbMOLJxwJ8CtgKq53j26YQ' }}
+          GEMINI_MODEL: "gemini-3.8-flash"
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           git diff --name-only origin/${{ github.base_ref || 'main' }}...HEAD > changed_files.txt || git diff --name-only HEAD~1...HEAD > changed_files.txt
           echo "Changed files list:"
           cat changed_files.txt
+          python3 scripts/ci/code_review_graph.py build
           PYTHONPATH=scripts/ci python3 scripts/ci/run_pure_mcp_orchestrator.py
 
       - name: Render GitHub Step Summary
