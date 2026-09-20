@@ -26,15 +26,23 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang-tidy cppcheck python3-pip
           pip3 install mcp
-          sudo ln -sf $(pwd)/scripts/ci/code_review_graph.py /usr/local/bin/code-review-graph
+          sudo ln -sf "$(pwd)/scripts/ci/code_review_graph.py" /usr/local/bin/code-review-graph
+
+      - name: Verify Gemini secret
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "::error::GEMINI_API_KEY is not configured in GitHub Actions Secrets."
+            exit 1
+          fi
 
       - name: Extract Changed Files & Run Orchestrator
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || secrets.GOOGLE_API_KEY || 'AQ.Ab8RN6JjQQbeAe19odItD0pkm3TikbMOLJxwJ8CtgKq53j26YQ' }}
-          GEMINI_MODEL: "gemini-3.8-flash"
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-2.5-flash' }}
         run: |
-          git diff --name-only origin/${{ github.base_ref || 'main' }}...HEAD > changed_files.txt || git diff --name-only HEAD~1...HEAD > changed_files.txt
+          git diff --name-only "origin/${{ github.base_ref || 'main' }}...HEAD" > changed_files.txt || git diff --name-only HEAD~1...HEAD > changed_files.txt
           echo "Changed files list:"
           cat changed_files.txt
           python3 scripts/ci/code_review_graph.py build
@@ -44,7 +52,7 @@ jobs:
         if: always()
         run: |
           if [ -f "final_report.md" ]; then
-            cat final_report.md >> $GITHUB_STEP_SUMMARY
+            cat final_report.md >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Post PR Sticky Comment
