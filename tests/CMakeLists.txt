@@ -1180,6 +1180,20 @@ target_link_libraries(test_npu_ascend_acl PRIVATE
 )
 add_test(NAME test_npu_ascend_acl COMMAND test_npu_ascend_acl)
 
+# AEP-742 瑞芯微 (Rockchip RKNN) NPU 硬件多核负载均衡与 DMA-BUF 绑定测试 (Issue #272)
+add_executable(test_npu_rockchip_rknn test_npu_rockchip_rknn.c)
+target_include_directories(test_npu_rockchip_rknn PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_npu_rockchip_rknn PRIVATE
+    edge_infra
+    edge_core
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_npu_rockchip_rknn COMMAND test_npu_rockchip_rknn)
+
 
 
 

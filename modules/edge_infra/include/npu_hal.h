@@ -207,6 +207,7 @@ int npu_reset_hardware(npu_device_t *dev);
 
 /* Specific Backend Factory */
 int npu_ascend_acl_create(npu_device_t *dev);
+int npu_rockchip_rknn_create(npu_device_t *dev);
 
 #ifdef __cplusplus
 }

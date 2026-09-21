@@ -15,6 +15,8 @@ int npu_device_create(npu_device_t *dev, npu_backend_type_t backend) {
     switch (backend) {
         case NPU_BACKEND_ASCEND_ACL:
             return npu_ascend_acl_create(dev);
+        case NPU_BACKEND_ROCKCHIP_RKNN:
+            return npu_rockchip_rknn_create(dev);
         default:
             /* Fallback or unconfigured backend */
             return -2;
