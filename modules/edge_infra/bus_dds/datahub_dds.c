@@ -197,8 +197,26 @@ static int dds_write_shadow_impl(datahub_t *hub, const pipe_msg_t *msg) {
 static int dds_read_shadow_impl(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out_msg) {
     if (!hub || !out_msg) return -1;
     hub->total_shadow_reads++;
-    (void)tag_id;
-    return 0;
+
+    dds_backend_ctx_t *ctx = (dds_backend_ctx_t *)hub->backend_ctx;
+    if (!ctx || !ctx->is_initialized || ctx->reader_yc <= 0) {
+        return -38; /* -ENOTSUP */
+    }
+
+    dlt698_Dlt698AttributeData sample;
+    void *samples[1] = { &sample };
+    dds_sample_info_t infos[1];
+    int nread = dds_take(ctx->reader_yc, samples, infos, 1, 1);
+    if (nread > 0 && infos[0].valid_data) {
+        memset(out_msg, 0, sizeof(pipe_msg_t));
+        out_msg->tag_id = sample.oad ? sample.oad : tag_id;
+        out_msg->payload.val.f = (float)sample.double_val;
+        out_msg->ts = (uint64_t)sample.timestamp_ms * 1000;
+        out_msg->type = PIPEMSG_TYPE_SCALAR;
+        return 0;
+    }
+
+    return -2; /* -ENOENT */
 }
 
 static int dds_subscribe_impl(datahub_t *hub, datahub_on_data_cb cb, void *user_data) {

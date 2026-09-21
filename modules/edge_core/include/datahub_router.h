@@ -7,10 +7,16 @@
 extern "C" {
 #endif
 
+typedef enum {
+    DATAHUB_ROUTER_POLICY_BEST_EFFORT = 0, /**< 默认尽力而为：至少一个后端成功即放行 */
+    DATAHUB_ROUTER_POLICY_ALL_REQUIRED = 1 /**< 强一致性策略：要求所有活跃后端全部写入成功，否则返回错误码 */
+} datahub_router_policy_t;
+
 typedef struct {
     bool enable_shm;
     bool enable_dds;
     bool enable_mqtt;
+    datahub_router_policy_t write_policy;
     datahub_config_t shm_config;
     datahub_config_t dds_config;
     datahub_config_t mqtt_config;
@@ -25,6 +31,7 @@ struct datahub_router_s {
     bool shm_active;
     bool dds_active;
     bool mqtt_active;
+    datahub_router_policy_t write_policy;
 };
 
 /**
