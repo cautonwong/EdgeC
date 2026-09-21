@@ -260,7 +260,7 @@ mcp_transport_t *mcp_transport_ws_create(uv_loop_t *loop,
         return NULL;
     }
 
-    strncpy(priv->bind_ip, bind_ip ? bind_ip : "0.0.0.0", sizeof(priv->bind_ip) - 1);
+    strncpy(priv->bind_ip, bind_ip ? bind_ip : "127.0.0.1", sizeof(priv->bind_ip) - 1);
     priv->port = port ? port : 8089;
 
     trans->disp = disp;

@@ -32,6 +32,10 @@ extern "C" {
 #define MCP_BUS_MAX_NAME_LEN 64
 #define MCP_BUS_MAX_DESC_LEN 256
 
+#define EDGEOS_MCP_DEFAULT_UDS_PATH "/tmp/edgeos_mcp_bus.sock"
+#define EDGEOS_MCP_DEFAULT_BIND_IP  "127.0.0.1"
+#define EDGEOS_MCP_DEFAULT_PORT     8089
+
 /**
  * @brief MCP 工业四级安全特权定义
  */

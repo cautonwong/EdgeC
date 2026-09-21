@@ -123,10 +123,11 @@ static int handle_mcp_call(const char *tool_name, const char *args_json, const c
         return 1;
     }
 
+    const char *env_token = getenv("EDGEOS_SUPERVISOR_TOKEN");
     mcp_security_context_t sec_ctx = {
         .client_id = "iems-cli",
         .operator_id = operator_id ? operator_id : "cli_operator",
-        .supervisor_token = "SUPERVISOR_KEY_AUTH_2026",
+        .supervisor_token = env_token ? env_token : "",
         .role_level = sec_level,
         .request_timestamp_ns = (uint64_t)uv_hrtime()
     };
