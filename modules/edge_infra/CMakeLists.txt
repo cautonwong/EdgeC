@@ -10,6 +10,7 @@ set(INFRA_SOURCES
     npu/npu_hal.c
     npu/npu_ascend_acl.c
     npu/npu_rockchip_rknn.c
+    npu/npu_horizon_bpu.c
 )
 set(INFRA_PUBLIC_LIBS edge_common_interface)
 set(INFRA_PRIVATE_LIBS libuv::uv_a zlog::zlog)
