@@ -1208,6 +1208,20 @@ target_link_libraries(test_npu_horizon_bpu PRIVATE
 )
 add_test(NAME test_npu_horizon_bpu COMMAND test_npu_horizon_bpu)
 
+# AEP-744 英伟达 (NVIDIA Jetson) TensorRT 异步推理与 CUDA 流绑定测试 (Issue #274)
+add_executable(test_npu_nvidia_trt test_npu_nvidia_trt.c)
+target_include_directories(test_npu_nvidia_trt PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_npu_nvidia_trt PRIVATE
+    edge_infra
+    edge_core
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_npu_nvidia_trt COMMAND test_npu_nvidia_trt)
+
 
 
 
