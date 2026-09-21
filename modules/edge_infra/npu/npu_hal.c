@@ -19,6 +19,8 @@ int npu_device_create(npu_device_t *dev, npu_backend_type_t backend) {
             return npu_rockchip_rknn_create(dev);
         case NPU_BACKEND_HORIZON_BPU:
             return npu_horizon_bpu_create(dev);
+        case NPU_BACKEND_NVIDIA_TRT:
+            return npu_nvidia_trt_create(dev);
         default:
             /* Fallback or unconfigured backend */
             return -2;
