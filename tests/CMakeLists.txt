@@ -1194,6 +1194,20 @@ target_link_libraries(test_npu_rockchip_rknn PRIVATE
 )
 add_test(NAME test_npu_rockchip_rknn COMMAND test_npu_rockchip_rknn)
 
+# AEP-743 地平线 (Horizon BPU) 嵌入式异构计算接入测试 (Issue #273)
+add_executable(test_npu_horizon_bpu test_npu_horizon_bpu.c)
+target_include_directories(test_npu_horizon_bpu PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_npu_horizon_bpu PRIVATE
+    edge_infra
+    edge_core
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_npu_horizon_bpu COMMAND test_npu_horizon_bpu)
+
 
 
 
