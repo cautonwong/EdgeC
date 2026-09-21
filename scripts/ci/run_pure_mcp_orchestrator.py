@@ -195,9 +195,9 @@ async def run_mcp_orchestration(
         print("ℹ️ 未检测到 GEMINI_API_KEY，切换至确定性本地扫描引擎兜底")
         return synthesize_deterministic_fallback_report(manifest, ledger)
 
-    primary_model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    primary_model = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
     candidate_models = [primary_model]
-    for model in ["gemini-2.5-flash-lite", "gemini-2.5-flash"]:
+    for model in ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"]:
         if model not in candidate_models:
             candidate_models.append(model)
 
