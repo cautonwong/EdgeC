@@ -129,12 +129,22 @@ class TestCIOrchestratorDeep(unittest.TestCase):
         self.assertIn("OCR-MEM-02", rule_ids)
 
     def test_clean_synthesis_pass(self):
-        """验证干净代码分析流程"""
+        """验证干净代码分析流程及确定性本地扫描兜底"""
         import asyncio
-        report = asyncio.run(run_mcp_orchestration([]))
+        from review_manifest import compute_review_manifest
+        from tool_ledger import ToolExecutionLedger
+        from run_pure_mcp_orchestrator import synthesize_deterministic_fallback_report
+
+        manifest = compute_review_manifest(changed_files=[])
+        ledger = ToolExecutionLedger(required_tools=manifest.required_tools)
+        report = asyncio.run(run_mcp_orchestration(manifest, ledger))
+        if not report:
+            report = synthesize_deterministic_fallback_report(manifest, ledger)
+
         self.assertIsNotNone(report)
-        if "summary" in report:
-            self.assertIn("P0", report["summary"])
+        self.assertIn("summary", report)
+        self.assertIn("P0", report["summary"])
+        self.assertIn("findings", report)
 
 
 if __name__ == "__main__":
