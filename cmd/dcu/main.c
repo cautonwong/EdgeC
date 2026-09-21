@@ -192,9 +192,19 @@ int main(int argc, char** argv) {
     extern const edge_contract_t g_contract_manifest;
     contract_register(&g_contract_manifest);
 
-    dcu_inventory_init(&g_dcu_inventory);
+    const char *env_data_dir = getenv("EDGEC_DATA_DIR");
+    char db_resolved_path[512];
+    if (env_data_dir && strlen(env_data_dir) > 0) {
+        snprintf(db_resolved_path, sizeof(db_resolved_path), "%s/dcu_runtime.db", env_data_dir);
+    } else if (access("build/products/dcu/bin/dcu_runtime.db", F_OK) == 0) {
+        strncpy(db_resolved_path, "build/products/dcu/bin/dcu_runtime.db", sizeof(db_resolved_path) - 1);
+    } else if (access("dcu_runtime.db", F_OK) == 0) {
+        strncpy(db_resolved_path, "dcu_runtime.db", sizeof(db_resolved_path) - 1);
+    } else {
+        strncpy(db_resolved_path, "build/products/dcu/bin/dcu_runtime.db", sizeof(db_resolved_path) - 1);
+    }
 
-    const char* db_abs_path = "/workspaces/edgeos/EdgeC/build/products/dcu/bin/dcu_runtime.db";
+    const char* db_abs_path = db_resolved_path;
     if (dcu_storage_init(&g_dcu_storage, loop, db_abs_path) != 0) {
         LOG_ERROR(LOG_CAT_SCHED, "❌ FATAL: Failed to initialize storage.");
         return -1;

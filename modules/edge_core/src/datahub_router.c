@@ -16,6 +16,8 @@ int datahub_router_init(datahub_router_t *router, uv_loop_t *loop, const datahub
     if (!router || !config) return -1;
     memset(router, 0, sizeof(datahub_router_t));
 
+    router->write_policy = config->write_policy;
+
     if (config->enable_shm) {
         int rc = datahub_init_with_config(&router->shm_hub, loop, &config->shm_config, metadata, metadata_len, io_pool, map_fn, wakeup_fn);
         if (rc == 0) {
@@ -47,50 +49,66 @@ int datahub_router_init(datahub_router_t *router, uv_loop_t *loop, const datahub
 
 int datahub_router_publish(datahub_router_t *router, const pipe_msg_t *msg) {
     if (!router || !msg) return -1;
-    int status = 0;
+    int total_active = 0;
     int success_count = 0;
+    int first_error = 0;
 
     if (router->shm_active) {
+        total_active++;
         int rc = datahub_publish(&router->shm_hub, msg);
         if (rc == 0) success_count++;
-        else status |= rc;
+        else if (first_error == 0) first_error = rc;
     }
     if (router->dds_active && router->dds_hub.ops) {
+        total_active++;
         int rc = router->dds_hub.ops->publish(&router->dds_hub, msg);
         if (rc == 0) success_count++;
-        else status |= rc;
+        else if (first_error == 0) first_error = rc;
     }
     if (router->mqtt_active && router->mqtt_hub.ops) {
+        total_active++;
         int rc = router->mqtt_hub.ops->publish(&router->mqtt_hub, msg);
         if (rc == 0) success_count++;
-        else status |= rc;
+        else if (first_error == 0) first_error = rc;
     }
 
-    return (success_count > 0) ? 0 : status;
+    if (total_active == 0) return -1;
+    if (router->write_policy == DATAHUB_ROUTER_POLICY_ALL_REQUIRED) {
+        return (success_count == total_active) ? 0 : (first_error ? first_error : -1);
+    }
+    return (success_count > 0) ? 0 : (first_error ? first_error : -1);
 }
 
 int datahub_router_write_shadow(datahub_router_t *router, const pipe_msg_t *msg) {
     if (!router || !msg) return -1;
-    int status = 0;
+    int total_active = 0;
     int success_count = 0;
+    int first_error = 0;
 
     if (router->shm_active) {
+        total_active++;
         int rc = datahub_write_shadow(&router->shm_hub, msg);
         if (rc == 0) success_count++;
-        else status |= rc;
+        else if (first_error == 0) first_error = rc;
     }
     if (router->dds_active && router->dds_hub.ops) {
+        total_active++;
         int rc = router->dds_hub.ops->write_shadow(&router->dds_hub, msg);
         if (rc == 0) success_count++;
-        else status |= rc;
+        else if (first_error == 0) first_error = rc;
     }
     if (router->mqtt_active && router->mqtt_hub.ops) {
+        total_active++;
         int rc = router->mqtt_hub.ops->write_shadow(&router->mqtt_hub, msg);
         if (rc == 0) success_count++;
-        else status |= rc;
+        else if (first_error == 0) first_error = rc;
     }
 
-    return (success_count > 0) ? 0 : status;
+    if (total_active == 0) return -1;
+    if (router->write_policy == DATAHUB_ROUTER_POLICY_ALL_REQUIRED) {
+        return (success_count == total_active) ? 0 : (first_error ? first_error : -1);
+    }
+    return (success_count > 0) ? 0 : (first_error ? first_error : -1);
 }
 
 int datahub_router_read_shadow(datahub_router_t *router, uint32_t tag_id, pipe_msg_t *out_msg) {

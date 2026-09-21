@@ -402,6 +402,14 @@ static void test_mcp_bus_client_disconnect_cleanup(void **state) {
     mcp_bus_hub_destroy(hub);
 }
 
+static void test_mcp_bus_security_defaults(void **state) {
+    (void)state;
+    /* 验证统一的默认 UDS 路径与 Localhost 绑定常量 (Issue #324) */
+    assert_string_equal(EDGEOS_MCP_DEFAULT_UDS_PATH, "/tmp/edgeos_mcp_bus.sock");
+    assert_string_equal(EDGEOS_MCP_DEFAULT_BIND_IP, "127.0.0.1");
+    assert_int_equal(EDGEOS_MCP_DEFAULT_PORT, 8089);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_mcp_bus_create_and_destroy),
@@ -412,6 +420,7 @@ int main(void) {
         cmocka_unit_test(test_mcp_bus_l3_dual_authorization_requirement),
         cmocka_unit_test(test_mcp_bus_audit_blackbox_logging),
         cmocka_unit_test(test_mcp_bus_client_disconnect_cleanup),
+        cmocka_unit_test(test_mcp_bus_security_defaults),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

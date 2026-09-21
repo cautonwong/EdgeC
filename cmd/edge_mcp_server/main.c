@@ -11,6 +11,7 @@
 #include <uv.h>
 
 #include "edgeos/edge_mcp_dispatcher.h"
+#include "edgeos/edge_mcp_bus.h"
 #include "edgeos/mcp_transport.h"
 #include "datahub.h"
 #include "edge_log.h"
@@ -33,9 +34,9 @@ static void print_usage(const char *prog) {
     printf("Usage: %s [options]\n", prog);
     printf("Options:\n");
     printf("  --stdio             Run in stdio line streaming mode (Claude Desktop / SSH pipe)\n");
-    printf("  --sock, --uds <path> Unix Domain Socket path (default: /tmp/edge_mcp.sock)\n");
-    printf("  --port <port>       WebSocket / HTTP JSON-RPC port (default: 8089, 0 to disable)\n");
-    printf("  --bind <ip>         Bind IP address (default: 0.0.0.0)\n");
+    printf("  --sock, --uds <path> Unix Domain Socket path (default: %s)\n", EDGEOS_MCP_DEFAULT_UDS_PATH);
+    printf("  --port <port>       WebSocket / HTTP JSON-RPC port (default: %d, 0 to disable)\n", EDGEOS_MCP_DEFAULT_PORT);
+    printf("  --bind <ip>         Bind IP address (default: %s)\n", EDGEOS_MCP_DEFAULT_BIND_IP);
     printf("  --no-ws             Disable WebSocket / HTTP transport\n");
     printf("  --product <name>    Physical product domain (default: IEMS)\n");
     printf("  --help              Display this help message\n");
@@ -45,9 +46,9 @@ int main(int argc, char **argv) {
     bool use_stdio = false;
     bool use_uds = false;
     bool disable_ws = false;
-    const char *sock_path = "/tmp/edge_mcp.sock";
-    uint16_t port = 8089;
-    const char *bind_ip = "0.0.0.0";
+    const char *sock_path = EDGEOS_MCP_DEFAULT_UDS_PATH;
+    uint16_t port = EDGEOS_MCP_DEFAULT_PORT;
+    const char *bind_ip = EDGEOS_MCP_DEFAULT_BIND_IP;
     const char *product = "IEMS";
 
     for (int i = 1; i < argc; i++) {
