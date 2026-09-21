@@ -6,7 +6,10 @@ import sys
 NUM_METERS = 2000
 NUM_CHANNELS = 32
 
-db_path = "/workspaces/edgeos/EdgeC/build/products/dcu/bin/dcu_runtime.db"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+db_path = os.environ.get("EDGEC_DATA_DIR", os.path.join(SCRIPT_DIR, "../../build/products/dcu/bin/dcu_runtime.db"))
+if not os.path.isabs(db_path):
+    db_path = os.path.abspath(db_path)
 
 def provision():
     # 确保目录存在

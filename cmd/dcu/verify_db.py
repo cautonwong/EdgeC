@@ -1,7 +1,10 @@
 import sqlite3
 import os
 
-DB_PATH = "/workspaces/edgeos/EdgeC/build/products/dcu/bin/dcu_runtime.db"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.environ.get("EDGEC_DATA_DIR", os.path.join(SCRIPT_DIR, "../../build/products/dcu/bin/dcu_runtime.db"))
+if not os.path.isabs(DB_PATH):
+    DB_PATH = os.path.abspath(DB_PATH)
 
 def verify_evidence():
     if not os.path.exists(DB_PATH):

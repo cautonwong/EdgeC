@@ -454,8 +454,21 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    // 初始化 GPIO 模拟节点文件以用于本地调试运行
-    system("mkdir -p /sys/class/gpio/gpio23 /sys/class/gpio/gpio24 /sys/class/gpio/gpio25 /sys/class/gpio/gpio26 /sys/class/gpio/gpio29 /sys/class/gpio/gpio31");
+    // 初始化 GPIO 节点 (通过安全 HAL 适配，避免 shell 注入风险)
+    static const char *gpio_dirs[] = {
+        "/sys/class/gpio/gpio23",
+        "/sys/class/gpio/gpio24",
+        "/sys/class/gpio/gpio25",
+        "/sys/class/gpio/gpio26",
+        "/sys/class/gpio/gpio29",
+        "/sys/class/gpio/gpio31",
+        NULL
+    };
+    for (int i = 0; gpio_dirs[i] != NULL; i++) {
+        if (access(gpio_dirs[i], F_OK) != 0) {
+            mkdir(gpio_dirs[i], 0755);
+        }
+    }
     write_gpio(GPIO_SOS_EDGE, "1");
 
     box_watchdog_init();
