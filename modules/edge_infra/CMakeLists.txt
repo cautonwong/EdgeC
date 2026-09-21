@@ -9,6 +9,7 @@ set(INFRA_SOURCES
     bus_dds/dds_topology_monitor.c
     npu/npu_hal.c
     npu/npu_ascend_acl.c
+    npu/npu_rockchip_rknn.c
 )
 set(INFRA_PUBLIC_LIBS edge_common_interface)
 set(INFRA_PRIVATE_LIBS libuv::uv_a zlog::zlog)
