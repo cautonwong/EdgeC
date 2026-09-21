@@ -33,8 +33,9 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           if [ -z "$GEMINI_API_KEY" ]; then
-            echo "::error::GEMINI_API_KEY is not configured in GitHub Actions Secrets."
-            exit 1
+            echo "::warning::GEMINI_API_KEY is not configured. Orchestrator will run in Deterministic Local Fallback mode."
+          else
+            echo "::notice::GEMINI_API_KEY configured. Running AI + MCP Orchestrator."
           fi
 
       - name: Extract Changed Files & Run Orchestrator
