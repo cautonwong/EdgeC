@@ -1222,6 +1222,20 @@ target_link_libraries(test_npu_nvidia_trt PRIVATE
 )
 add_test(NAME test_npu_nvidia_trt COMMAND test_npu_nvidia_trt)
 
+# AEP-745 德州仪器 (TI Sitara) C7x DSP / MMA 矩阵加速器测试 (Issue #275)
+add_executable(test_npu_ti_sitara test_npu_ti_sitara.c)
+target_include_directories(test_npu_ti_sitara PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_npu_ti_sitara PRIVATE
+    edge_infra
+    edge_core
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_npu_ti_sitara COMMAND test_npu_ti_sitara)
+
 
 
 

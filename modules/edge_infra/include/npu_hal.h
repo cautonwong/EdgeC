@@ -210,6 +210,7 @@ int npu_ascend_acl_create(npu_device_t *dev);
 int npu_rockchip_rknn_create(npu_device_t *dev);
 int npu_horizon_bpu_create(npu_device_t *dev);
 int npu_nvidia_trt_create(npu_device_t *dev);
+int npu_ti_sitara_create(npu_device_t *dev);
 
 #ifdef __cplusplus
 }
