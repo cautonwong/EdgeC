@@ -1236,6 +1236,20 @@ target_link_libraries(test_npu_ti_sitara PRIVATE
 )
 add_test(NAME test_npu_ti_sitara COMMAND test_npu_ti_sitara)
 
+# AEP-746 Linux DMA-BUF 内存文件描述符生命周期管理器与内存池测试 (Issue #276)
+add_executable(test_dma_buf_pool test_dma_buf_pool.c)
+target_include_directories(test_dma_buf_pool PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_dma_buf_pool PRIVATE
+    edge_infra
+    edge_core
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_dma_buf_pool COMMAND test_dma_buf_pool)
+
 
 
 
