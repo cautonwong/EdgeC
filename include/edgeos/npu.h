@@ -7,5 +7,6 @@
 #define EDGEOS_SDK_NPU_H
 
 #include "npu_hal.h"
+#include "dma_buf_pool.h"
 
 #endif /* EDGEOS_SDK_NPU_H */
