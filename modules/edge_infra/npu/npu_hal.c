@@ -21,6 +21,8 @@ int npu_device_create(npu_device_t *dev, npu_backend_type_t backend) {
             return npu_horizon_bpu_create(dev);
         case NPU_BACKEND_NVIDIA_TRT:
             return npu_nvidia_trt_create(dev);
+        case NPU_BACKEND_TI_SITARA:
+            return npu_ti_sitara_create(dev);
         default:
             /* Fallback or unconfigured backend */
             return -2;
