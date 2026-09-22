@@ -8,5 +8,6 @@
 
 #include "npu_hal.h"
 #include "dma_buf_pool.h"
+#include "npu_self_healing.h"
 
 #endif /* EDGEOS_SDK_NPU_H */

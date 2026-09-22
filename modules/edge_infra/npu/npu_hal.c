@@ -13,6 +13,8 @@ int npu_device_create(npu_device_t *dev, npu_backend_type_t backend) {
     memset(dev, 0, sizeof(npu_device_t));
 
     switch (backend) {
+        case NPU_BACKEND_CPU_FALLBACK:
+            return npu_cpu_fallback_create(dev);
         case NPU_BACKEND_ASCEND_ACL:
             return npu_ascend_acl_create(dev);
         case NPU_BACKEND_ROCKCHIP_RKNN:

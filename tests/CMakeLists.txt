@@ -1250,6 +1250,20 @@ target_link_libraries(test_dma_buf_pool PRIVATE
 )
 add_test(NAME test_dma_buf_pool COMMAND test_dma_buf_pool)
 
+# AEP-747 NPU 硬件异常过温/死锁自愈机制与 CPU 备用推理核测试 (Issue #277)
+add_executable(test_npu_self_healing test_npu_self_healing.c)
+target_include_directories(test_npu_self_healing PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_npu_self_healing PRIVATE
+    edge_infra
+    edge_core
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_npu_self_healing COMMAND test_npu_self_healing)
+
 
 
 
