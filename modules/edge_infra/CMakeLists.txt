@@ -14,6 +14,7 @@ set(INFRA_SOURCES
     npu/npu_nvidia_trt.c
     npu/npu_ti_sitara.c
     npu/dma_buf_pool.c
+    npu/npu_self_healing.c
 )
 set(INFRA_PUBLIC_LIBS edge_common_interface)
 set(INFRA_PRIVATE_LIBS libuv::uv_a zlog::zlog)
