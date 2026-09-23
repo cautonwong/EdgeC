@@ -9,10 +9,7 @@ are strictly pinned to a full 40-character commit SHA with valid repository and 
 import sys
 import os
 import json
-import re
 import argparse
-
-SHA_PATTERN = re.compile(r'^[0-9a-fA-F]{40}$')
 
 def check_dependencies_file(json_path):
     if not os.path.exists(json_path):
@@ -35,7 +32,7 @@ def check_dependencies_file(json_path):
         repo = dep.get("repository", "")
         license_name = dep.get("license", "")
 
-        if not SHA_PATTERN.match(sha):
+        if len(sha) != 40 or not all(c in '0123456789abcdefABCDEF' for c in sha):
             violations.append(f"Dependency '{name}' does not have a valid 40-character commit SHA: '{sha}'")
         if not repo:
             violations.append(f"Dependency '{name}' is missing repository URL")

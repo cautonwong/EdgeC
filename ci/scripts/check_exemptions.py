@@ -23,15 +23,12 @@ def check_exemptions_file(json_path):
         except Exception as e:
             return [f"Invalid JSON in {json_path}: {e}"]
 
-    violations = []
-    exemptions = data.get("exemptions", [])
-    for ex in exemptions:
-        ex_id = ex.get("id", "UNKNOWN")
-        for field in REQUIRED_FIELDS:
-            val = ex.get(field, "")
-            if not val or not str(val).strip():
-                violations.append(f"Exemption '{ex_id}' is missing required governance field '{field}'")
-    return violations
+    return [
+        f"Exemption '{ex.get('id', 'UNKNOWN')}' is missing required governance field '{field}'"
+        for ex in data.get("exemptions", [])
+        for field in REQUIRED_FIELDS
+        if not str(ex.get(field, "")).strip()
+    ]
 
 def main():
     parser = argparse.ArgumentParser(description="EdgeOS Exemptions Ledger Guard")

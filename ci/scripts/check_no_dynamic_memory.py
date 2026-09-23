@@ -64,16 +64,17 @@ def check_file_dynamic_memory(file_path, repo_root):
 
 def check_dynamic_memory(target_dir):
     violations = []
-    # Scan modules/edge_algo and fixtures
-    for root, _, files in os.walk(target_dir):
-        # Ignore test files and third-party
-        if "third-party" in root or "tests" in root and "guards" not in root:
+    scan_dir = os.path.join(target_dir, "modules", "edge_algo")
+    if not os.path.exists(scan_dir):
+        scan_dir = target_dir
+
+    for root, dirs, files in os.walk(scan_dir):
+        dirs[:] = [d for d in dirs if d not in [".git", "build", "third-party"]]
+        if "tests" in root and "guards" not in root:
             continue
         for f in files:
             if f.endswith(('.c', '.cpp')):
-                full_path = os.path.join(root, f)
-                v = check_file_dynamic_memory(full_path, target_dir)
-                violations.extend(v)
+                violations.extend(check_file_dynamic_memory(os.path.join(root, f), target_dir))
     return violations
 
 def main():

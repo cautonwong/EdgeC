@@ -79,15 +79,8 @@ int edge_composition_root_init(edge_composition_container_t **out_container,
     edge_port_adapter_from_console_logger(&container->ports.logger);
 
     /* 5. Initialize container metrics */
-    if (cfg->product_name) {
-        strncpy(container->metrics.product_name, cfg->product_name, sizeof(container->metrics.product_name) - 1);
-    } else {
-        strncpy(container->metrics.product_name, "EdgeOS-Product", sizeof(container->metrics.product_name) - 1);
-    }
-    container->metrics.active_consumers = 0;
-    container->metrics.port_read_ops = 0;
-    container->metrics.port_write_ops = 0;
-    container->metrics.port_alloc_ops = 0;
+    snprintf(container->metrics.product_name, sizeof(container->metrics.product_name), "%s",
+             cfg->product_name ? cfg->product_name : "EdgeOS-Product");
     container->metrics.zero_alloc_runtime = true;
     container->metrics.initialized = true;
 

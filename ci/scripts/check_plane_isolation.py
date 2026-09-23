@@ -54,12 +54,11 @@ def check_file_plane_isolation(file_path, repo_root):
 
 def run_plane_isolation_check(target_dir):
     violations = []
-    for root, _, files in os.walk(target_dir):
+    for root, dirs, files in os.walk(target_dir):
+        dirs[:] = [d for d in dirs if d not in [".git", "build", "third-party"]]
         for f in files:
             if f.endswith(('.c', '.h', '.cpp', '.hpp')):
-                full_path = os.path.join(root, f)
-                v = check_file_plane_isolation(full_path, target_dir)
-                violations.extend(v)
+                violations.extend(check_file_plane_isolation(os.path.join(root, f), target_dir))
     return violations
 
 def main():

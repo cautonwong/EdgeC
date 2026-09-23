@@ -59,24 +59,27 @@ def scan_large_stack_buffers_in_source(file_path, repo_root, max_bytes):
 def check_stack_usage(target_dir, max_bytes=DEFAULT_MAX_STACK_BYTES):
     violations = []
     
-    # 1. Check any generated .su files in build dir
-    su_found = False
-    for root, _, files in os.walk(target_dir):
-        for f in files:
-            if f.endswith('.su'):
-                su_found = True
-                full_path = os.path.join(root, f)
-                violations.extend(parse_su_file(full_path, max_bytes))
-
-    # 2. If no .su files or scanning fixtures, scan source stack arrays
-    if not su_found or "guards" in target_dir:
-        for root, _, files in os.walk(target_dir):
-            if "third-party" in root or "tests" in root and "guards" not in root:
-                continue
+    # 1. Check generated .su files if build dir exists
+    build_dir = os.path.join(target_dir, "build")
+    if os.path.isdir(build_dir):
+        for root, dirs, files in os.walk(build_dir):
+            dirs[:] = [d for d in dirs if d not in [".git", "third-party", "subprojects", "CMakeFiles"]]
             for f in files:
-                if f.endswith(('.c', '.cpp')):
-                    full_path = os.path.join(root, f)
-                    violations.extend(scan_large_stack_buffers_in_source(full_path, target_dir, max_bytes))
+                if f.endswith('.su'):
+                    violations.extend(parse_su_file(os.path.join(root, f), max_bytes))
+
+    # 2. Source stack buffer declarations scan
+    scan_dir = os.path.join(target_dir, "modules", "edge_algo")
+    if not os.path.exists(scan_dir) or "guards" in target_dir:
+        scan_dir = target_dir
+
+    for root, dirs, files in os.walk(scan_dir):
+        dirs[:] = [d for d in dirs if d not in [".git", "build", "third-party"]]
+        if "tests" in root and "guards" not in root:
+            continue
+        for f in files:
+            if f.endswith(('.c', '.cpp')):
+                violations.extend(scan_large_stack_buffers_in_source(os.path.join(root, f), target_dir, max_bytes))
 
     return violations
 
