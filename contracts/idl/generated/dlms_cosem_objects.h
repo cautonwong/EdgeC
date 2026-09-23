@@ -15,103 +15,102 @@
 extern "C" {
 #endif
 
-typedef enum dlms_cosem_CosemClassId
-{
-  dlms_cosem_CLASS_ID_1,
-  dlms_cosem_CLASS_ID_2,
-  dlms_cosem_CLASS_ID_3,
-  dlms_cosem_CLASS_ID_4,
-  dlms_cosem_CLASS_ID_5,
-  dlms_cosem_CLASS_ID_6,
-  dlms_cosem_CLASS_ID_7,
-  dlms_cosem_CLASS_ID_8,
-  dlms_cosem_CLASS_ID_9,
-  dlms_cosem_CLASS_ID_10,
-  dlms_cosem_CLASS_ID_11,
-  dlms_cosem_CLASS_ID_12,
-  dlms_cosem_CLASS_ID_13,
-  dlms_cosem_CLASS_ID_14,
-  dlms_cosem_CLASS_ID_15,
-  dlms_cosem_CLASS_ID_16,
-  dlms_cosem_CLASS_ID_17,
-  dlms_cosem_CLASS_ID_18,
-  dlms_cosem_CLASS_ID_19,
-  dlms_cosem_CLASS_ID_20,
-  dlms_cosem_CLASS_ID_21,
-  dlms_cosem_CLASS_ID_22,
-  dlms_cosem_CLASS_ID_23,
-  dlms_cosem_CLASS_ID_24,
-  dlms_cosem_CLASS_ID_25,
-  dlms_cosem_CLASS_ID_26,
-  dlms_cosem_CLASS_ID_27,
-  dlms_cosem_CLASS_ID_28,
-  dlms_cosem_CLASS_ID_29,
-  dlms_cosem_CLASS_ID_30,
-  dlms_cosem_CLASS_ID_31,
-  dlms_cosem_CLASS_ID_32,
-  dlms_cosem_CLASS_ID_33,
-  dlms_cosem_CLASS_ID_34,
-  dlms_cosem_CLASS_ID_35,
-  dlms_cosem_CLASS_ID_36,
-  dlms_cosem_CLASS_ID_37,
-  dlms_cosem_CLASS_ID_38,
-  dlms_cosem_CLASS_ID_39,
-  dlms_cosem_CLASS_ID_40,
-  dlms_cosem_CLASS_ID_41,
-  dlms_cosem_CLASS_ID_42,
-  dlms_cosem_CLASS_ID_43,
-  dlms_cosem_CLASS_ID_44,
-  dlms_cosem_CLASS_ID_45,
-  dlms_cosem_CLASS_ID_46,
-  dlms_cosem_CLASS_ID_47,
-  dlms_cosem_CLASS_ID_48,
-  dlms_cosem_CLASS_ID_49,
-  dlms_cosem_CLASS_ID_50,
-  dlms_cosem_CLASS_ID_51,
-  dlms_cosem_CLASS_ID_52,
-  dlms_cosem_CLASS_ID_53,
-  dlms_cosem_CLASS_ID_54,
-  dlms_cosem_CLASS_ID_55,
-  dlms_cosem_CLASS_ID_56,
-  dlms_cosem_CLASS_ID_57,
-  dlms_cosem_CLASS_ID_58,
-  dlms_cosem_CLASS_ID_59,
-  dlms_cosem_CLASS_ID_60,
-  dlms_cosem_CLASS_ID_61,
-  dlms_cosem_CLASS_ID_62,
-  dlms_cosem_CLASS_ID_63,
-  dlms_cosem_CLASS_ID_64,
-  dlms_cosem_CLASS_ID_65,
-  dlms_cosem_CLASS_ID_66,
-  dlms_cosem_CLASS_ID_67,
-  dlms_cosem_CLASS_ID_68,
-  dlms_cosem_CLASS_ID_69,
-  dlms_cosem_CLASS_ID_70,
-  dlms_cosem_CLASS_ID_71,
-  dlms_cosem_CLASS_ID_72,
-  dlms_cosem_CLASS_ID_73,
-  dlms_cosem_CLASS_ID_74,
-  dlms_cosem_CLASS_ID_75,
-  dlms_cosem_CLASS_ID_76,
-  dlms_cosem_CLASS_ID_77,
-  dlms_cosem_CLASS_ID_78,
-  dlms_cosem_CLASS_ID_79,
-  dlms_cosem_CLASS_ID_80,
-  dlms_cosem_CLASS_ID_81,
-  dlms_cosem_CLASS_ID_82,
-  dlms_cosem_CLASS_ID_83,
-  dlms_cosem_CLASS_ID_84,
-  dlms_cosem_CLASS_ID_85,
-  dlms_cosem_CLASS_ID_86,
-  dlms_cosem_CLASS_ID_87,
-  dlms_cosem_CLASS_ID_88,
-  dlms_cosem_CLASS_ID_89,
-  dlms_cosem_CLASS_ID_90,
-  dlms_cosem_CLASS_ID_91
+typedef enum dlms_cosem_CosemClassId {
+    dlms_cosem_CLASS_ID_1,
+    dlms_cosem_CLASS_ID_2,
+    dlms_cosem_CLASS_ID_3,
+    dlms_cosem_CLASS_ID_4,
+    dlms_cosem_CLASS_ID_5,
+    dlms_cosem_CLASS_ID_6,
+    dlms_cosem_CLASS_ID_7,
+    dlms_cosem_CLASS_ID_8,
+    dlms_cosem_CLASS_ID_9,
+    dlms_cosem_CLASS_ID_10,
+    dlms_cosem_CLASS_ID_11,
+    dlms_cosem_CLASS_ID_12,
+    dlms_cosem_CLASS_ID_13,
+    dlms_cosem_CLASS_ID_14,
+    dlms_cosem_CLASS_ID_15,
+    dlms_cosem_CLASS_ID_16,
+    dlms_cosem_CLASS_ID_17,
+    dlms_cosem_CLASS_ID_18,
+    dlms_cosem_CLASS_ID_19,
+    dlms_cosem_CLASS_ID_20,
+    dlms_cosem_CLASS_ID_21,
+    dlms_cosem_CLASS_ID_22,
+    dlms_cosem_CLASS_ID_23,
+    dlms_cosem_CLASS_ID_24,
+    dlms_cosem_CLASS_ID_25,
+    dlms_cosem_CLASS_ID_26,
+    dlms_cosem_CLASS_ID_27,
+    dlms_cosem_CLASS_ID_28,
+    dlms_cosem_CLASS_ID_29,
+    dlms_cosem_CLASS_ID_30,
+    dlms_cosem_CLASS_ID_31,
+    dlms_cosem_CLASS_ID_32,
+    dlms_cosem_CLASS_ID_33,
+    dlms_cosem_CLASS_ID_34,
+    dlms_cosem_CLASS_ID_35,
+    dlms_cosem_CLASS_ID_36,
+    dlms_cosem_CLASS_ID_37,
+    dlms_cosem_CLASS_ID_38,
+    dlms_cosem_CLASS_ID_39,
+    dlms_cosem_CLASS_ID_40,
+    dlms_cosem_CLASS_ID_41,
+    dlms_cosem_CLASS_ID_42,
+    dlms_cosem_CLASS_ID_43,
+    dlms_cosem_CLASS_ID_44,
+    dlms_cosem_CLASS_ID_45,
+    dlms_cosem_CLASS_ID_46,
+    dlms_cosem_CLASS_ID_47,
+    dlms_cosem_CLASS_ID_48,
+    dlms_cosem_CLASS_ID_49,
+    dlms_cosem_CLASS_ID_50,
+    dlms_cosem_CLASS_ID_51,
+    dlms_cosem_CLASS_ID_52,
+    dlms_cosem_CLASS_ID_53,
+    dlms_cosem_CLASS_ID_54,
+    dlms_cosem_CLASS_ID_55,
+    dlms_cosem_CLASS_ID_56,
+    dlms_cosem_CLASS_ID_57,
+    dlms_cosem_CLASS_ID_58,
+    dlms_cosem_CLASS_ID_59,
+    dlms_cosem_CLASS_ID_60,
+    dlms_cosem_CLASS_ID_61,
+    dlms_cosem_CLASS_ID_62,
+    dlms_cosem_CLASS_ID_63,
+    dlms_cosem_CLASS_ID_64,
+    dlms_cosem_CLASS_ID_65,
+    dlms_cosem_CLASS_ID_66,
+    dlms_cosem_CLASS_ID_67,
+    dlms_cosem_CLASS_ID_68,
+    dlms_cosem_CLASS_ID_69,
+    dlms_cosem_CLASS_ID_70,
+    dlms_cosem_CLASS_ID_71,
+    dlms_cosem_CLASS_ID_72,
+    dlms_cosem_CLASS_ID_73,
+    dlms_cosem_CLASS_ID_74,
+    dlms_cosem_CLASS_ID_75,
+    dlms_cosem_CLASS_ID_76,
+    dlms_cosem_CLASS_ID_77,
+    dlms_cosem_CLASS_ID_78,
+    dlms_cosem_CLASS_ID_79,
+    dlms_cosem_CLASS_ID_80,
+    dlms_cosem_CLASS_ID_81,
+    dlms_cosem_CLASS_ID_82,
+    dlms_cosem_CLASS_ID_83,
+    dlms_cosem_CLASS_ID_84,
+    dlms_cosem_CLASS_ID_85,
+    dlms_cosem_CLASS_ID_86,
+    dlms_cosem_CLASS_ID_87,
+    dlms_cosem_CLASS_ID_88,
+    dlms_cosem_CLASS_ID_89,
+    dlms_cosem_CLASS_ID_90,
+    dlms_cosem_CLASS_ID_91
 } dlms_cosem_CosemClassId;
 
 #define dlms_cosem_CosemClassId__alloc() \
-((dlms_cosem_CosemClassId*) dds_alloc (sizeof (dlms_cosem_CosemClassId)));
+    ((dlms_cosem_CosemClassId*)dds_alloc(sizeof(dlms_cosem_CosemClassId)));
 
 #define dlms_cosem_OBIS_COSEM_ABSTRACT_CH0_Q1_T7 ("0.0.1.7.0.255")
 #define dlms_cosem_OBIS_COSEM_ABSTRACT_CH0_Q1_T8 ("0.0.1.8.0.255")
@@ -5513,27 +5512,27 @@ typedef enum dlms_cosem_CosemClassId
 #define dlms_cosem_OBIS_COSEM_WATER_CH14_Q72_T8 ("7.14.72.8.0.255")
 #define dlms_cosem_OBIS_COSEM_WATER_CH14_Q72_T9 ("7.14.72.9.0.255")
 #define dlms_cosem_OBIS_COSEM_WATER_CH14_Q72_T27 ("7.14.72.27.0.255")
-typedef struct dlms_cosem_CosemAttributeData
-{
-  char * obis_string;
-  uint16_t class_id;
-  uint8_t attribute_id;
-  double scaler_value;
-  char * unit;
-  uint32_t status;
-  uint64_t mtt_timestamp;
+typedef struct dlms_cosem_CosemAttributeData {
+    char* obis_string;
+    uint16_t class_id;
+    uint8_t attribute_id;
+    double scaler_value;
+    char* unit;
+    uint32_t status;
+    uint64_t mtt_timestamp;
 } dlms_cosem_CosemAttributeData;
 
 extern const dds_topic_descriptor_t dlms_cosem_CosemAttributeData_desc;
 
 #define dlms_cosem_CosemAttributeData__alloc() \
-((dlms_cosem_CosemAttributeData*) dds_alloc (sizeof (dlms_cosem_CosemAttributeData)));
+    ((dlms_cosem_CosemAttributeData*)dds_alloc(sizeof(dlms_cosem_CosemAttributeData)));
 
-#define dlms_cosem_CosemAttributeData_free(d,o) \
-dds_sample_free ((d), &dlms_cosem_CosemAttributeData_desc, (o))
+#define dlms_cosem_CosemAttributeData_free(d, o) \
+    dds_sample_free((d), &dlms_cosem_CosemAttributeData_desc, (o))
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* DDSC__WORKSPACES_EDGEOS_EDGEC_CONTRACTS_IDL_GENERATED_DLMS_COSEM_OBJECTS_H_FD8E66DBAAE45F2EDADA5E0260C7811E */
+#endif /* DDSC__WORKSPACES_EDGEOS_EDGEC_CONTRACTS_IDL_GENERATED_DLMS_COSEM_OBJECTS_H_FD8E66DBAAE45F2EDADA5E0260C7811E \
+        */

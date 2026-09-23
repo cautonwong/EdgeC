@@ -15,19 +15,18 @@
 extern "C" {
 #endif
 
-typedef enum dlt698_Dlt698ClassId
-{
-  dlt698_CLASS_DATA,
-  dlt698_CLASS_REGISTER,
-  dlt698_CLASS_EXTENDED_REGISTER,
-  dlt698_CLASS_DEMAND_REGISTER,
-  dlt698_CLASS_PROFILE_GENERIC,
-  dlt698_CLASS_CLOCK,
-  dlt698_CLASS_DISCONNECT_CONTROL
+typedef enum dlt698_Dlt698ClassId {
+    dlt698_CLASS_DATA,
+    dlt698_CLASS_REGISTER,
+    dlt698_CLASS_EXTENDED_REGISTER,
+    dlt698_CLASS_DEMAND_REGISTER,
+    dlt698_CLASS_PROFILE_GENERIC,
+    dlt698_CLASS_CLOCK,
+    dlt698_CLASS_DISCONNECT_CONTROL
 } dlt698_Dlt698ClassId;
 
 #define dlt698_Dlt698ClassId__alloc() \
-((dlt698_Dlt698ClassId*) dds_alloc (sizeof (dlt698_Dlt698ClassId)));
+    ((dlt698_Dlt698ClassId*)dds_alloc(sizeof(dlt698_Dlt698ClassId)));
 
 #define dlt698_OAD_ACTIVE_IMPORT_TOTAL 1049088
 #define dlt698_OAD_ACTIVE_EXPORT_TOTAL 2097664
@@ -236,22 +235,21 @@ typedef enum dlt698_Dlt698ClassId
 #define dlt698_OAD_CURRENT_HARMONIC_C_30 572391936
 #define dlt698_OAD_VOLTAGE_HARMONIC_C_31 555680256
 #define dlt698_OAD_CURRENT_HARMONIC_C_31 572457472
-typedef struct dlt698_Dlt698AttributeData
-{
-  uint32_t oad;
-  uint16_t class_id;
-  uint8_t attribute_id;
-  double double_val;
-  uint64_t timestamp_ms;
+typedef struct dlt698_Dlt698AttributeData {
+    uint32_t oad;
+    uint16_t class_id;
+    uint8_t attribute_id;
+    double double_val;
+    uint64_t timestamp_ms;
 } dlt698_Dlt698AttributeData;
 
 extern const dds_topic_descriptor_t dlt698_Dlt698AttributeData_desc;
 
 #define dlt698_Dlt698AttributeData__alloc() \
-((dlt698_Dlt698AttributeData*) dds_alloc (sizeof (dlt698_Dlt698AttributeData)));
+    ((dlt698_Dlt698AttributeData*)dds_alloc(sizeof(dlt698_Dlt698AttributeData)));
 
-#define dlt698_Dlt698AttributeData_free(d,o) \
-dds_sample_free ((d), &dlt698_Dlt698AttributeData_desc, (o))
+#define dlt698_Dlt698AttributeData_free(d, o) \
+    dds_sample_free((d), &dlt698_Dlt698AttributeData_desc, (o))
 
 #ifdef __cplusplus
 }

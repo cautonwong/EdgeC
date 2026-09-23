@@ -35,29 +35,6 @@ struct rest_server_s {
     uv_tcp_t server;
 };
 
-// --- SQL 回调 ---
-typedef struct {
-    cJSON *array;
-    int count;
-} query_ctx_t;
-static int on_sqlite_row(void *user_data, PipeMsg *msg) {
-    query_ctx_t *ctx = (query_ctx_t *)user_data;
-    cJSON *item = cJSON_CreateObject();
-    cJSON_AddNumberToObject(item, "ts", (double)msg->ts);
-    cJSON_AddNumberToObject(item, "val", msg->payload.val.f);
-    cJSON_AddItemToArray(ctx->array, item);
-    ctx->count++;
-    return 0;
-}
-
-static uint64_t get_query_param_uint(const char *path, const char *key, uint64_t default_val) {
-    char search_key[32];
-    snprintf(search_key, sizeof(search_key), "%s=", key);
-    char *p = strstr(path, search_key);
-    if (!p) return default_val;
-    return (uint64_t)atoll(p + strlen(search_key));
-}
-
 // --- API Handlers ---
 
 static char *handle_system_health(service_t *svc) {

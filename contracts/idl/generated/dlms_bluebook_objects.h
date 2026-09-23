@@ -4335,23 +4335,23 @@ extern "C" {
 #define dlms_bluebook_OBIS_BLUEBOOK_CH19_Q72_T27_TRF0 ("1.19.72.27.0.255")
 #define dlms_bluebook_OBIS_BLUEBOOK_CH19_Q72_T27_TRF1 ("1.19.72.27.1.255")
 #define dlms_bluebook_OBIS_BLUEBOOK_CH19_Q72_T27_TRF2 ("1.19.72.27.2.255")
-typedef struct dlms_bluebook_BluebookRecord
-{
-  char * obis_string;
-  uint16_t class_id;
-  double value;
+typedef struct dlms_bluebook_BluebookRecord {
+    char* obis_string;
+    uint16_t class_id;
+    double value;
 } dlms_bluebook_BluebookRecord;
 
 extern const dds_topic_descriptor_t dlms_bluebook_BluebookRecord_desc;
 
 #define dlms_bluebook_BluebookRecord__alloc() \
-((dlms_bluebook_BluebookRecord*) dds_alloc (sizeof (dlms_bluebook_BluebookRecord)));
+    ((dlms_bluebook_BluebookRecord*)dds_alloc(sizeof(dlms_bluebook_BluebookRecord)));
 
-#define dlms_bluebook_BluebookRecord_free(d,o) \
-dds_sample_free ((d), &dlms_bluebook_BluebookRecord_desc, (o))
+#define dlms_bluebook_BluebookRecord_free(d, o) \
+    dds_sample_free((d), &dlms_bluebook_BluebookRecord_desc, (o))
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* DDSC__WORKSPACES_EDGEOS_EDGEC_CONTRACTS_IDL_GENERATED_DLMS_BLUEBOOK_OBJECTS_H_510670CDE08EF9917D526DB11E68AB35 */
+#endif /* DDSC__WORKSPACES_EDGEOS_EDGEC_CONTRACTS_IDL_GENERATED_DLMS_BLUEBOOK_OBJECTS_H_510670CDE08EF9917D526DB11E68AB35 \
+        */

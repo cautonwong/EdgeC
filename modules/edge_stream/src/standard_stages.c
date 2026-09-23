@@ -672,12 +672,6 @@ pipeline_stage_t *stage_foc_create_v2(const edge_stage_def_t *def, pipeline_load
 pipeline_stage_t *stage_fir_filter_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
 pipeline_stage_t *stage_battery_guard_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
 
-#ifndef CONFIG_EDGEC_ALGO_LINALG
-#warning "CONFIG_EDGEC_ALGO_LINALG is NOT defined!"
-#else
-#warning "CONFIG_EDGEC_ALGO_LINALG IS DEFINED!"
-#endif
-
 #if defined(CONFIG_EDGEC_ALGO_LINALG)
 pipeline_stage_t *stage_ekf_soc_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
 pipeline_stage_t *stage_mpc_dispatch_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);

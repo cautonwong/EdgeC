@@ -27,7 +27,6 @@ static stage_ret_t _proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
     // 假设输入是来自 vibration_feature_stage 的 RMS 值
     if (ev->type == PIPEMSG_TYPE_SCALAR) {
         LOG_INFO(LOG_CAT_CORE, "RUL Prediction: Processing Input %.2f (Tag %u)", ev->payload.val.f, ev->tag_id);
-        double z = ev->payload.val.f; // 观测值
         
         // EKF 预测与修正 (简化逻辑)
         // x_pred = F * x
