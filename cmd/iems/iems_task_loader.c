@@ -1,9 +1,9 @@
 #include "iems_task_loader.h"
 
+#include <sqlite3.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sqlite3.h>
 
 #include "contract_data_types.h"
 
@@ -62,11 +62,7 @@ int iems_poll_tasks_load(sqlite_svc_t *db_svc, iems_task_registered_cb on_task, 
         return 0;
     }
 
-    loader_ctx_t ctx = {
-        .on_task = on_task,
-        .user_data = user_data,
-        .loaded_count = 0
-    };
+    loader_ctx_t ctx = {.on_task = on_task, .user_data = user_data, .loaded_count = 0};
 
     const char *sql =
         "SELECT t.bus_id, i.addr, t.tag_id, i.protocol FROM poll_tasks t INNER JOIN inventory "

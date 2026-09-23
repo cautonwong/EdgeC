@@ -4,12 +4,12 @@
  * 运行: ./test_wasm_signature ../algo/wasm/demo/demo.wasm ../keys/edgec_signing_public.pem
  */
 
+#include <openssl/bio.h>
+#include <openssl/evp.h>
+#include <openssl/pem.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <openssl/evp.h>
-#include <openssl/pem.h>
-#include <openssl/bio.h>
 
 static char *read_file_to_buffer(const char *path, size_t *size) {
     FILE *f = fopen(path, "rb");
@@ -18,8 +18,15 @@ static char *read_file_to_buffer(const char *path, size_t *size) {
     *size = (size_t)ftell(f);
     fseek(f, 0, SEEK_SET);
     char *buf = malloc(*size);
-    if (!buf) { fclose(f); return NULL; }
-    if (fread(buf, 1, *size, f) != *size) { free(buf); fclose(f); return NULL; }
+    if (!buf) {
+        fclose(f);
+        return NULL;
+    }
+    if (fread(buf, 1, *size, f) != *size) {
+        free(buf);
+        fclose(f);
+        return NULL;
+    }
     fclose(f);
     return buf;
 }
@@ -28,8 +35,8 @@ static char *read_file_to_buffer(const char *path, size_t *size) {
  * 模拟 wasm_mgr.c 的 verify_wasm_signature 逻辑
  * 返回: 1 = valid, 0 = invalid, -1 = error
  */
-static int verify_wasm_sig(const char *wasm_path, const char *pubkey_path,
-                           const uint8_t *wasm_buf, size_t wasm_size) {
+static int verify_wasm_sig(const char *wasm_path, const char *pubkey_path, const uint8_t *wasm_buf,
+                           size_t wasm_size) {
     /* 构建签名文件路径 */
     char sig_path[1024];
     int ret = snprintf(sig_path, sizeof(sig_path), "%s.sig", wasm_path);

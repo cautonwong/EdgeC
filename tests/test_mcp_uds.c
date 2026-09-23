@@ -1,21 +1,22 @@
 /**
  * @file test_mcp_uds.c
- * @brief Unit & Integration tests for Industrial Shared MCP Bus with Multi-Client UDS Transport (AEP-510)
+ * @brief Unit & Integration tests for Industrial Shared MCP Bus with Multi-Client UDS Transport
+ * (AEP-510)
  * @copyright (c) 2026 EdgeOS Project. All rights reserved.
  */
 
+#include <assert.h>
+#include <cjson/cJSON.h>
+#include <dirent.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <assert.h>
-#include <pthread.h>
 #include <sys/socket.h>
-#include <sys/un.h>
 #include <sys/time.h>
-#include <dirent.h>
+#include <sys/un.h>
+#include <unistd.h>
 #include <uv.h>
-#include <cjson/cJSON.h>
 
 #include "edgeos/edge_mcp_dispatcher.h"
 #include "edgeos/mcp_transport.h"
@@ -40,7 +41,7 @@ static int connect_uds_client(const char *path) {
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0) return -1;
 
-    struct timeval tv = { .tv_sec = 5, .tv_usec = 0 };
+    struct timeval tv = {.tv_sec = 5, .tv_usec = 0};
     setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
     setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 
@@ -82,8 +83,10 @@ static char *recv_line(int fd) {
         ssize_t n = read(fd, &c, 1);
         if (n <= 0) break;
         if (c == '\n' || c == '\r') {
-            if (pos > 0) break;
-            else continue;
+            if (pos > 0)
+                break;
+            else
+                continue;
         }
         buf[pos++] = c;
     }
@@ -111,10 +114,12 @@ static void *client_test_thread(void *arg) {
     assert(c1 >= 0);
     assert(c2 >= 0);
     assert(c3 >= 0);
-    printf("  --> Step 1: 3 concurrent client pipes connected successfully (c1=%d, c2=%d, c3=%d)\n", c1, c2, c3);
+    printf("  --> Step 1: 3 concurrent client pipes connected successfully (c1=%d, c2=%d, c3=%d)\n",
+           c1, c2, c3);
 
     /* 2. Client 1 sends initialize */
-    const char *init_req = "{\"jsonrpc\":\"2.0\",\"id\":1001,\"method\":\"initialize\",\"params\":{}}";
+    const char *init_req =
+        "{\"jsonrpc\":\"2.0\",\"id\":1001,\"method\":\"initialize\",\"params\":{}}";
     assert(send_msg(c1, init_req) == 0);
     char *resp1 = recv_line(c1);
     assert(resp1 != NULL);
@@ -151,7 +156,10 @@ static void *client_test_thread(void *arg) {
     printf("  --> Step 3: Client 2 tools/list verified!\n");
 
     /* 4. Client 3 calls security_simulate_interlock */
-    const char *tool_req3 = "{\"jsonrpc\":\"2.0\",\"id\":3003,\"method\":\"tools/call\",\"params\":{\"name\":\"security_simulate_interlock\",\"arguments\":{\"breaker_id\":\"QF1\",\"target_state\":\"CLOSE\"}}}";
+    const char *tool_req3 =
+        "{\"jsonrpc\":\"2.0\",\"id\":3003,\"method\":\"tools/"
+        "call\",\"params\":{\"name\":\"security_simulate_interlock\",\"arguments\":{\"breaker_id\":"
+        "\"QF1\",\"target_state\":\"CLOSE\"}}}";
     assert(send_msg(c3, tool_req3) == 0);
     char *resp3 = recv_line(c3);
     assert(resp3 != NULL);
@@ -168,7 +176,10 @@ static void *client_test_thread(void *arg) {
     printf("  --> Step 4: Client 3 tool call (security_simulate_interlock) verified!\n");
 
     /* 5. Client 2 calls dcu_analyze_power_quality */
-    const char *tool_req2 = "{\"jsonrpc\":\"2.0\",\"id\":2004,\"method\":\"tools/call\",\"params\":{\"name\":\"dcu_analyze_power_quality\",\"arguments\":{\"phase_a_v\":220.0,\"phase_b_v\":220.8,\"phase_c_v\":219.4,\"current_thd\":2.3}}}";
+    const char *tool_req2 =
+        "{\"jsonrpc\":\"2.0\",\"id\":2004,\"method\":\"tools/"
+        "call\",\"params\":{\"name\":\"dcu_analyze_power_quality\",\"arguments\":{\"phase_a_v\":"
+        "220.0,\"phase_b_v\":220.8,\"phase_c_v\":219.4,\"current_thd\":2.3}}}";
     assert(send_msg(c2, tool_req2) == 0);
     char *resp2_tool = recv_line(c2);
     assert(resp2_tool != NULL);
@@ -243,7 +254,9 @@ static void *client_test_thread(void *arg) {
     cJSON_Delete(j4);
     free(r4);
 
-    assert(send_msg(c5, "{\"jsonrpc\":\"2.0\",\"id\":5001,\"method\":\"initialize\",\"params\":{}}") == 0);
+    assert(
+        send_msg(c5, "{\"jsonrpc\":\"2.0\",\"id\":5001,\"method\":\"initialize\",\"params\":{}}") ==
+        0);
     char *r5 = recv_line(c5);
     assert(r5 != NULL);
     cJSON *j5 = cJSON_Parse(r5);
@@ -279,7 +292,7 @@ int main(void) {
     uv_loop_t loop;
     uv_loop_init(&loop);
 
-    edge_mcp_env_t env = { .loop = &loop };
+    edge_mcp_env_t env = {.loop = &loop};
     edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(&env);
     assert(disp != NULL);
 
@@ -298,10 +311,7 @@ int main(void) {
     uv_timer_init(&loop, &timeout_timer);
     uv_timer_start(&timeout_timer, on_timeout, 10000, 0);
 
-    test_runner_ctx_t runner_ctx = {
-        .stop_async = &stop_async,
-        .status = -1
-    };
+    test_runner_ctx_t runner_ctx = {.stop_async = &stop_async, .status = -1};
 
     pthread_t th;
     assert(pthread_create(&th, NULL, client_test_thread, &runner_ctx) == 0);
@@ -320,7 +330,8 @@ int main(void) {
     uv_close((uv_handle_t *)&timeout_timer, NULL);
     uv_close((uv_handle_t *)&stop_async, NULL);
 
-    while (uv_run(&loop, UV_RUN_NOWAIT));
+    while (uv_run(&loop, UV_RUN_NOWAIT))
+        ;
     uv_loop_close(&loop);
 
     /* Verify socket is cleanly unlinked */

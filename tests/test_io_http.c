@@ -82,7 +82,8 @@ static int teardown(void** state) {
 
     // 彻底排空 Loop
     uv_loop_t* loop = uv_default_loop();
-    while (uv_run(loop, UV_RUN_NOWAIT));
+    while (uv_run(loop, UV_RUN_NOWAIT))
+        ;
 
     net_buf_pool_destroy(g_pool);
     free(g_pool);

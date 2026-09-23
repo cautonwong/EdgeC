@@ -6,9 +6,9 @@
 #ifndef EDGEOS_SDK_TYPES_H
 #define EDGEOS_SDK_TYPES_H
 
-#include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include "contract_data_types.h"
 #include "shmring.h"

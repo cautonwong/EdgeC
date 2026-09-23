@@ -5,10 +5,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "net_buf.h"
 #include "dlms_codec.h"
 #include "dlt698_codec.h"
 #include "edge_log.h"
+#include "net_buf.h"
 
 // --- DLMS/COSEM Fuzz ---
 
@@ -46,8 +46,7 @@ static void test_fuzz_dlms_short(void** state) {
 static void test_fuzz_dlms_overflow(void** state) {
     net_buf_pool_t* pool = (net_buf_pool_t*)*state;
     net_buf_t* in = net_buf_alloc(pool, 0);
-    for (int i = 0; i < 4096; i++)
-        net_buf_simple_add_u8(&in->b, (uint8_t)(i % 256));
+    for (int i = 0; i < 4096; i++) net_buf_simple_add_u8(&in->b, (uint8_t)(i % 256));
 
     dlms_decoder_t dec;
     dlms_decoder_init(&dec, &in->b);
@@ -67,7 +66,7 @@ static void test_fuzz_dlt698_short(void** state) {
 
     dlt698_addr_t sa;
     uint8_t svc, piid;
-    uint8_t *payload = NULL;
+    uint8_t* payload = NULL;
     size_t payload_len = 0;
     int rc = dlt698_decode_frame(&in->b, &sa, &svc, &piid, &payload, &payload_len);
     (void)rc;
@@ -78,12 +77,12 @@ static void test_fuzz_dlt698_short(void** state) {
 static void test_fuzz_dlt698_wrong_length(void** state) {
     net_buf_pool_t* pool = (net_buf_pool_t*)*state;
     net_buf_t* in = net_buf_alloc(pool, 0);
-    uint8_t frame[] = { 0x68, 0xFF, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x16 };
+    uint8_t frame[] = {0x68, 0xFF, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x16};
     net_buf_simple_add_mem(&in->b, frame, sizeof(frame));
 
     dlt698_addr_t sa;
     uint8_t svc, piid;
-    uint8_t *payload = NULL;
+    uint8_t* payload = NULL;
     size_t payload_len = 0;
     int rc = dlt698_decode_frame(&in->b, &sa, &svc, &piid, &payload, &payload_len);
     (void)rc;
@@ -94,12 +93,11 @@ static void test_fuzz_dlt698_wrong_length(void** state) {
 static void test_fuzz_dlt698_overflow(void** state) {
     net_buf_pool_t* pool = (net_buf_pool_t*)*state;
     net_buf_t* in = net_buf_alloc(pool, 0);
-    for (int i = 0; i < 2048; i++)
-        net_buf_simple_add_u8(&in->b, (uint8_t)(i % 256));
+    for (int i = 0; i < 2048; i++) net_buf_simple_add_u8(&in->b, (uint8_t)(i % 256));
 
     dlt698_addr_t sa;
     uint8_t svc, piid;
-    uint8_t *payload = NULL;
+    uint8_t* payload = NULL;
     size_t payload_len = 0;
     int rc = dlt698_decode_frame(&in->b, &sa, &svc, &piid, &payload, &payload_len);
     (void)rc;

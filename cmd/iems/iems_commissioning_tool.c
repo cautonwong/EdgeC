@@ -1,15 +1,16 @@
 /**
  * @file iems_commissioning_tool.c
- * @brief Production Commercial Energy Storage Site Commissioning & Pre-Flight Self-Check Implementation
+ * @brief Production Commercial Energy Storage Site Commissioning & Pre-Flight Self-Check
+ * Implementation
  */
 
 #include "iems_commissioning_tool.h"
-#include <string.h>
-#include <stdio.h>
 
-void iems_commissioning_set_transformer(iems_meter_transformer_cfg_t* cfg,
-                                        uint32_t ct_pri, uint32_t ct_sec,
-                                        uint32_t pt_pri, uint32_t pt_sec) {
+#include <stdio.h>
+#include <string.h>
+
+void iems_commissioning_set_transformer(iems_meter_transformer_cfg_t* cfg, uint32_t ct_pri,
+                                        uint32_t ct_sec, uint32_t pt_pri, uint32_t pt_sec) {
     if (!cfg) return;
     memset(cfg, 0, sizeof(iems_meter_transformer_cfg_t));
 
@@ -28,10 +29,10 @@ double iems_commissioning_scale_power(const iems_meter_transformer_cfg_t* cfg, d
     return raw_power_w * cfg->total_power_multiplier;
 }
 
-int iems_commissioning_run_preflight_check(iems_commissioning_report_t* report,
-                                          double u_grid_v, double f_grid_hz,
-                                          double bms_r_iso_kohm, double bms_max_rack_v_diff,
-                                          bool pcs_fault, bool fire_alarm, double bus_drop_rate_pct) {
+int iems_commissioning_run_preflight_check(iems_commissioning_report_t* report, double u_grid_v,
+                                           double f_grid_hz, double bms_r_iso_kohm,
+                                           double bms_max_rack_v_diff, bool pcs_fault,
+                                           bool fire_alarm, double bus_drop_rate_pct) {
     if (!report) return -1;
     memset(report, 0, sizeof(iems_commissioning_report_t));
 
@@ -44,7 +45,8 @@ int iems_commissioning_run_preflight_check(iems_commissioning_report_t* report,
     if (!report->is_grid_voltage_ok) {
         score = (uint8_t)(score >= 20 ? score - 20 : 0);
         is_go = false;
-        snprintf(report->failure_reason, sizeof(report->failure_reason), "Grid Voltage Out-of-Bounds (%.1fV)", u_grid_v);
+        snprintf(report->failure_reason, sizeof(report->failure_reason),
+                 "Grid Voltage Out-of-Bounds (%.1fV)", u_grid_v);
     }
 
     // 2. Grid Frequency Check (49.5Hz ~ 50.5Hz)
@@ -53,7 +55,8 @@ int iems_commissioning_run_preflight_check(iems_commissioning_report_t* report,
         score = (uint8_t)(score >= 20 ? score - 20 : 0);
         is_go = false;
         if (report->failure_reason[0] == '\0') {
-            snprintf(report->failure_reason, sizeof(report->failure_reason), "Grid Frequency Unstable (%.2fHz)", f_grid_hz);
+            snprintf(report->failure_reason, sizeof(report->failure_reason),
+                     "Grid Frequency Unstable (%.2fHz)", f_grid_hz);
         }
     }
 
@@ -63,7 +66,8 @@ int iems_commissioning_run_preflight_check(iems_commissioning_report_t* report,
         score = (uint8_t)(score >= 25 ? score - 25 : 0);
         is_go = false;
         if (report->failure_reason[0] == '\0') {
-            snprintf(report->failure_reason, sizeof(report->failure_reason), "BMS Low Insulation Resistance (%.1fkOhm)", bms_r_iso_kohm);
+            snprintf(report->failure_reason, sizeof(report->failure_reason),
+                     "BMS Low Insulation Resistance (%.1fkOhm)", bms_r_iso_kohm);
         }
     }
 
@@ -73,7 +77,8 @@ int iems_commissioning_run_preflight_check(iems_commissioning_report_t* report,
         score = (uint8_t)(score >= 15 ? score - 15 : 0);
         is_go = false;
         if (report->failure_reason[0] == '\0') {
-            snprintf(report->failure_reason, sizeof(report->failure_reason), "BMS Inter-Rack Voltage Mismatch (%.1fV > 10V)", bms_max_rack_v_diff);
+            snprintf(report->failure_reason, sizeof(report->failure_reason),
+                     "BMS Inter-Rack Voltage Mismatch (%.1fV > 10V)", bms_max_rack_v_diff);
         }
     }
 
@@ -83,16 +88,18 @@ int iems_commissioning_run_preflight_check(iems_commissioning_report_t* report,
         score = (uint8_t)(score >= 30 ? score - 30 : 0);
         is_go = false;
         if (report->failure_reason[0] == '\0') {
-            strncpy(report->failure_reason, "PCS Hardware Fault Active", sizeof(report->failure_reason) - 1);
+            strncpy(report->failure_reason, "PCS Hardware Fault Active",
+                    sizeof(report->failure_reason) - 1);
         }
     }
 
     // 6. Fire Loop Check
     report->is_fire_loop_normal = !fire_alarm;
     if (!report->is_fire_loop_normal) {
-        score = 0; // Critical blocker
+        score = 0;  // Critical blocker
         is_go = false;
-        strncpy(report->failure_reason, "Fire Safety Interlock Tripped", sizeof(report->failure_reason) - 1);
+        strncpy(report->failure_reason, "Fire Safety Interlock Tripped",
+                sizeof(report->failure_reason) - 1);
     }
 
     // 7. Bus Health (< 1% drop rate)

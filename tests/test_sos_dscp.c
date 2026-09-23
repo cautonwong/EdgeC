@@ -6,15 +6,16 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <unistd.h>
+
 #include "edge_sos_dscp.h"
 
 static void test_sos_dscp_emergency_tagger(void** state) {
     (void)state;
 
     // 1. Verify emergency tag detection
-    assert_true(edge_sos_is_emergency_event(12001, 1.0)); // Emergency SOS button press
-    assert_true(edge_sos_is_emergency_event(12002, 0.90)); // Fall detected
-    assert_false(edge_sos_is_emergency_event(10001, 220.0)); // Normal voltage
+    assert_true(edge_sos_is_emergency_event(12001, 1.0));     // Emergency SOS button press
+    assert_true(edge_sos_is_emergency_event(12002, 0.90));    // Fall detected
+    assert_false(edge_sos_is_emergency_event(10001, 220.0));  // Normal voltage
 
     // 2. Verify DSCP Expedited Forwarding socket option setting
     int sockfd = socket(AF_INET, SOCK_DGRAM, 0);

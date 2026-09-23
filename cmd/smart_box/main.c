@@ -1,25 +1,26 @@
+#include <cjson/cJSON.h>
+#include <fcntl.h>
+#include <linux/i2c-dev.h>
+#include <linux/watchdog.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <fcntl.h>
-#include <unistd.h>
 #include <sys/ioctl.h>
-#include <linux/i2c-dev.h>
-#include <linux/watchdog.h>
+#include <unistd.h>
 #include <uv.h>
-#include <cjson/cJSON.h>
-#include "edge_log.h"
-#include "datahub.h"
+
 #include "contracts.h"
-#include "wasm_mgr.h"
+#include "datahub.h"
+#include "edge_log.h"
 #include "wasm_app_scheduler.h"
+#include "wasm_mgr.h"
 
 #define GPIO_LED_GREEN "/sys/class/gpio/gpio23/value"
-#define GPIO_LED_RED   "/sys/class/gpio/gpio24/value"
+#define GPIO_LED_RED "/sys/class/gpio/gpio24/value"
 #define GPIO_LED_YELLOW "/sys/class/gpio/gpio25/value"
-#define GPIO_CAM_VCC   "/sys/class/gpio/gpio29/value"
-#define GPIO_MIC_VCC   "/sys/class/gpio/gpio31/value"
-#define GPIO_SOS_EDGE  "/sys/class/gpio/gpio26/value"
+#define GPIO_CAM_VCC "/sys/class/gpio/gpio29/value"
+#define GPIO_MIC_VCC "/sys/class/gpio/gpio31/value"
+#define GPIO_SOS_EDGE "/sys/class/gpio/gpio26/value"
 
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -50,8 +51,8 @@ static void send_uds_frame(uint8_t msg_type, const uint8_t *payload, uint8_t len
     }
 
     uint8_t frame_buf[260];
-    frame_buf[0] = 0x53; // Magic 'S'
-    frame_buf[1] = 0x42; // Magic 'B'
+    frame_buf[0] = 0x53;  // Magic 'S'
+    frame_buf[1] = 0x42;  // Magic 'B'
     frame_buf[2] = msg_type;
     frame_buf[3] = len;
 
@@ -105,13 +106,13 @@ static void box_watchdog_feed(void) {
 static int net_priority_check(void) {
     if (access("/sys/class/net/eth0", F_OK) == 0) {
         LOG_INFO(LOG_CAT_CORE, "Net Priority Check: Ethernet (eth0) active [Ethernet > WiFi > 5G]");
-        return 1; // Ethernet
+        return 1;  // Ethernet
     } else if (access("/sys/class/net/wlan0", F_OK) == 0) {
         LOG_INFO(LOG_CAT_CORE, "Net Priority Check: WiFi (wlan0) active [Ethernet > WiFi > 5G]");
-        return 2; // WiFi
+        return 2;  // WiFi
     } else if (access("/sys/class/net/wwan0", F_OK) == 0) {
         LOG_INFO(LOG_CAT_CORE, "Net Priority Check: 5G (wwan0) active [Ethernet > WiFi > 5G]");
-        return 3; // 5G
+        return 3;  // 5G
     }
     LOG_INFO(LOG_CAT_CORE, "Net Priority Check: Default fallback [Ethernet > WiFi > 5G]");
     return 1;
@@ -143,21 +144,21 @@ static int alsa_usb_audio_check(void) {
 
 static void timer_hw_poll_cb(uv_timer_t *handle) {
     (void)handle;
-    box_watchdog_feed(); // 定期喂狗
+    box_watchdog_feed();  // 定期喂狗
 
     // 1. 读取 AXP209 I2C 电池监测 (地址 0x34)
     int i2c_fd = open("/dev/i2c-1", O_RDWR);
     double power_src = 0.0;
-    double battery_soc = 85.0; // Default/Mock SOC (%)
+    double battery_soc = 85.0;  // Default/Mock SOC (%)
     if (i2c_fd >= 0) {
         if (ioctl(i2c_fd, I2C_SLAVE, 0x34) >= 0) {
-            unsigned char reg = 0x01; // Power Status Reg
+            unsigned char reg = 0x01;  // Power Status Reg
             if (write(i2c_fd, &reg, 1) == 1) {
                 unsigned char status_byte = 0;
                 if (read(i2c_fd, &status_byte, 1) == 1) {
                     // Check Bit 4 (AC present) and Bit 3 (USB present)
                     if ((status_byte & 0x18) == 0) {
-                        power_src = 1.0; // Battery
+                        power_src = 1.0;  // Battery
                     }
                 }
             }
@@ -189,9 +190,11 @@ static void timer_hw_poll_cb(uv_timer_t *handle) {
 
     // 低电量预警 (SOC < 15.0%)
     if (battery_soc < 15.0) {
-        LOG_WARN(LOG_CAT_CORE, "AXP209: Low battery warning! Battery SOC: %.1f%% (< 15.0%%)", battery_soc);
+        LOG_WARN(LOG_CAT_CORE, "AXP209: Low battery warning! Battery SOC: %.1f%% (< 15.0%%)",
+                 battery_soc);
         char alert_buf[64];
-        int alen = snprintf(alert_buf, sizeof(alert_buf), "{\"alert\":\"LOW_BATTERY\",\"soc\":%.1f}", battery_soc);
+        int alen = snprintf(alert_buf, sizeof(alert_buf),
+                            "{\"alert\":\"LOW_BATTERY\",\"soc\":%.1f}", battery_soc);
         send_uds_frame(3, (const uint8_t *)alert_buf, (uint8_t)alen);
     }
 
@@ -201,7 +204,8 @@ static void timer_hw_poll_cb(uv_timer_t *handle) {
     // LED Mode 3 (Yellow/Blue constant) = Network Connected
     double led_mode = 0.0;
     pipe_msg_t led_msg;
-    if (datahub_read_shadow(g_hub, TAG_BOX_INDICATOR_LED, &led_msg) == 0 && led_msg.type == PIPEMSG_TYPE_SCALAR) {
+    if (datahub_read_shadow(g_hub, TAG_BOX_INDICATOR_LED, &led_msg) == 0 &&
+        led_msg.type == PIPEMSG_TYPE_SCALAR) {
         led_mode = led_msg.payload.val.f;
     }
     if (led_mode == 1.0) {
@@ -229,12 +233,13 @@ static void timer_hw_poll_cb(uv_timer_t *handle) {
     // 3. 隐私沙盒 GPIO 物理切断
     double privacy_active = 0.0;
     pipe_msg_t priv_msg;
-    if (datahub_read_shadow(g_hub, TAG_PRIVACY_MODE_ACTIVE, &priv_msg) == 0 && priv_msg.type == PIPEMSG_TYPE_SCALAR) {
+    if (datahub_read_shadow(g_hub, TAG_PRIVACY_MODE_ACTIVE, &priv_msg) == 0 &&
+        priv_msg.type == PIPEMSG_TYPE_SCALAR) {
         privacy_active = priv_msg.payload.val.f;
     }
     if (privacy_active == 1.0) {
-        write_gpio(GPIO_CAM_VCC, "0"); // Cutoff Cam
-        write_gpio(GPIO_MIC_VCC, "0"); // Cutoff Mic
+        write_gpio(GPIO_CAM_VCC, "0");  // Cutoff Cam
+        write_gpio(GPIO_MIC_VCC, "0");  // Cutoff Mic
     } else {
         write_gpio(GPIO_CAM_VCC, "1");
         write_gpio(GPIO_MIC_VCC, "1");
@@ -251,7 +256,8 @@ static void timer_hw_poll_cb(uv_timer_t *handle) {
 
     int alsa_found = alsa_usb_audio_check();
     pipe_msg_t msg_alsa;
-    pipe_msg_init_scalar(&msg_alsa, TAG_ALSA_AUDIO_ROUTE, (double)(alsa_found > 0 ? 1 : 0), uv_hrtime());
+    pipe_msg_init_scalar(&msg_alsa, TAG_ALSA_AUDIO_ROUTE, (double)(alsa_found > 0 ? 1 : 0),
+                         uv_hrtime());
     int idx_alsa = edge_tag_get_compact_index(TAG_ALSA_AUDIO_ROUTE);
     if (idx_alsa >= 0) {
         datahub_write_shadow_idx(g_hub, idx_alsa, &msg_alsa);
@@ -267,7 +273,10 @@ static void timer_hw_poll_cb(uv_timer_t *handle) {
 
 // 物理大按钮 SOS 下沿中断处理
 static void poll_sos_cb(uv_fs_event_t *handle, const char *filename, int events, int status) {
-    (void)handle; (void)filename; (void)events; (void)status;
+    (void)handle;
+    (void)filename;
+    (void)events;
+    (void)status;
     int fd = open(GPIO_SOS_EDGE, O_RDONLY);
     if (fd >= 0) {
         char ch = '1';
@@ -276,7 +285,8 @@ static void poll_sos_cb(uv_fs_event_t *handle, const char *filename, int events,
         if (ch == '0') {
             LOG_WARN(LOG_CAT_CORE, "HARDWARE BUTTON: Physical SOS Triggered!");
             pipe_msg_t msg;
-            pipe_msg_init_scalar(&msg, TAG_BOX_VOICE_COMMAND, 2.0, uv_hrtime()); // command = SOS (2.0)
+            pipe_msg_init_scalar(&msg, TAG_BOX_VOICE_COMMAND, 2.0,
+                                 uv_hrtime());  // command = SOS (2.0)
             int idx = edge_tag_get_compact_index(TAG_BOX_VOICE_COMMAND);
             if (idx >= 0) {
                 datahub_write_shadow_idx(g_hub, idx, &msg);
@@ -293,19 +303,24 @@ static void timer_nfc_poll_cb(uv_timer_t *handle) {
     // 模拟扫卡检测：轮询 SPI /dev/spidev0.0
     int spi_fd = open("/dev/spidev0.0", O_RDWR);
     if (spi_fd >= 0) {
-        unsigned char nfc_cmd[] = {0x00, 0x00, 0xFF, 0x04, 0xFC, 0xD4, 0x4A, 0x01, 0x00, 0xE1, 0x00};
+        unsigned char nfc_cmd[] = {0x00, 0x00, 0xFF, 0x04, 0xFC, 0xD4,
+                                   0x4A, 0x01, 0x00, 0xE1, 0x00};
         write(spi_fd, nfc_cmd, sizeof(nfc_cmd));
         close(spi_fd);
-        
-        LOG_INFO(LOG_CAT_CORE, "NFC SPI Driver: Active wristband certificate scanned successfully!");
+
+        LOG_INFO(LOG_CAT_CORE,
+                 "NFC SPI Driver: Active wristband certificate scanned successfully!");
         pipe_msg_t msg;
-        pipe_msg_init_scalar(&msg, TAG_BOX_VOICE_COMMAND, 3.0, uv_hrtime()); // command = LogIn (3.0)
+        pipe_msg_init_scalar(&msg, TAG_BOX_VOICE_COMMAND, 3.0,
+                             uv_hrtime());  // command = LogIn (3.0)
         int idx = edge_tag_get_compact_index(TAG_BOX_VOICE_COMMAND);
         if (idx >= 0) {
             datahub_write_shadow_idx(g_hub, idx, &msg);
         }
         // 发送扫到的外设 NDEF 报文
-        const char *nfc_payload = "{\"dev_type\":\"exoskeleton\",\"slave_id\":1,\"protocol\":\"ModbusRTU\",\"baud\":115200}";
+        const char *nfc_payload =
+            "{\"dev_type\":\"exoskeleton\",\"slave_id\":1,\"protocol\":\"ModbusRTU\",\"baud\":"
+            "115200}";
         send_uds_frame(2, (const uint8_t *)nfc_payload, (uint8_t)strlen(nfc_payload));
     }
 }
@@ -317,8 +332,8 @@ static void timer_modbus_poll_cb(uv_timer_t *handle) {
     if (uart_fd >= 0) {
         unsigned char query[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x02, 0xC4, 0x0B};
         write(uart_fd, query, sizeof(query));
-        
-        double completion = 85.0; // 模拟达成率 85%
+
+        double completion = 85.0;  // 模拟达成率 85%
         pipe_msg_t msg;
         pipe_msg_init_scalar(&msg, TAG_REHAB_COMPLETION_RATE, completion, uv_hrtime());
         int idx = edge_tag_get_compact_index(TAG_REHAB_COMPLETION_RATE);
@@ -343,11 +358,10 @@ typedef struct {
 } ble_device_t;
 
 static ble_device_t g_ble_devices[MAX_BLE_DEVICES] = {
-    {0, "BLE_HR_Belt",    "AA:BB:CC:11:22:01", "heart_rate",      1, 75.0,  0.0},
-    {1, "BLE_BP_Monitor", "AA:BB:CC:11:22:02", "blood_pressure",  1, 120.0, 80.0},
-    {2, "BLE_Oximeter",   "AA:BB:CC:11:22:03", "oximeter",        1, 98.0,  0.0},
-    {3, "BLE_Exo_Sensor", "AA:BB:CC:11:22:04", "rehab_sensor",    1, 45.5,  0.0}
-};
+    {0, "BLE_HR_Belt", "AA:BB:CC:11:22:01", "heart_rate", 1, 75.0, 0.0},
+    {1, "BLE_BP_Monitor", "AA:BB:CC:11:22:02", "blood_pressure", 1, 120.0, 80.0},
+    {2, "BLE_Oximeter", "AA:BB:CC:11:22:03", "oximeter", 1, 98.0, 0.0},
+    {3, "BLE_Exo_Sensor", "AA:BB:CC:11:22:04", "rehab_sensor", 1, 45.5, 0.0}};
 
 static void ble_heartrate_cb(int raw_hr) {
     LOG_INFO(LOG_CAT_CORE, "BLE GATT: Subscribed heart rate updated: %d BPM", raw_hr);
@@ -359,7 +373,10 @@ static void ble_heartrate_cb(int raw_hr) {
     }
 
     if (raw_hr > 130) {
-        LOG_WARN(LOG_CAT_CORE, "[CARDIAC SAFETY] ECG Heart Rate %d BPM exceeds safety limit 130 BPM! Triggering emergency motor brake.", raw_hr);
+        LOG_WARN(LOG_CAT_CORE,
+                 "[CARDIAC SAFETY] ECG Heart Rate %d BPM exceeds safety limit 130 BPM! Triggering "
+                 "emergency motor brake.",
+                 raw_hr);
         pipe_msg_t alert_msg;
         pipe_msg_init_scalar(&alert_msg, TAG_BOX_HEART_RATE_ALERT, 1.0, uv_hrtime());
         int alert_idx = edge_tag_get_compact_index(TAG_BOX_HEART_RATE_ALERT);
@@ -411,7 +428,8 @@ static void ble_multi_device_poll(void) {
         }
         char *json_str = cJSON_PrintUnformatted(root);
         if (json_str) {
-            LOG_INFO(LOG_CAT_CORE, "BLE Multi-Device Poll: Polled %d devices. JSON frame: %s", MAX_BLE_DEVICES, json_str);
+            LOG_INFO(LOG_CAT_CORE, "BLE Multi-Device Poll: Polled %d devices. JSON frame: %s",
+                     MAX_BLE_DEVICES, json_str);
             size_t len = strlen(json_str);
             if (len <= 245) {
                 send_uds_frame(4, (const uint8_t *)json_str, (uint8_t)len);
@@ -430,7 +448,8 @@ static void timer_ble_poll_cb(uv_timer_t *handle) {
 }
 
 int main(int argc, char **argv) {
-    (void)argc; (void)argv;
+    (void)argc;
+    (void)argv;
     LOG_INFO(LOG_CAT_CORE, "=== Starting Smart Box Controller ===");
     uv_loop_t *loop = uv_default_loop();
 
@@ -447,23 +466,21 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    if (datahub_init(g_hub, loop, "smart_box", 4096, 1024, contract->tags, contract->tag_count, NULL,
-                     edge_tag_get_compact_index, NULL) != 0) {
+    if (datahub_init(g_hub, loop, "smart_box", 4096, 1024, contract->tags, contract->tag_count,
+                     NULL, edge_tag_get_compact_index, NULL) != 0) {
         LOG_ERROR(LOG_CAT_CORE, "Failed to initialize datahub");
         free(g_hub);
         return -1;
     }
 
     // 初始化 GPIO 节点 (通过安全 HAL 适配，避免 shell 注入风险)
-    static const char *gpio_dirs[] = {
-        "/sys/class/gpio/gpio23",
-        "/sys/class/gpio/gpio24",
-        "/sys/class/gpio/gpio25",
-        "/sys/class/gpio/gpio26",
-        "/sys/class/gpio/gpio29",
-        "/sys/class/gpio/gpio31",
-        NULL
-    };
+    static const char *gpio_dirs[] = {"/sys/class/gpio/gpio23",
+                                      "/sys/class/gpio/gpio24",
+                                      "/sys/class/gpio/gpio25",
+                                      "/sys/class/gpio/gpio26",
+                                      "/sys/class/gpio/gpio29",
+                                      "/sys/class/gpio/gpio31",
+                                      NULL};
     for (int i = 0; gpio_dirs[i] != NULL; i++) {
         if (access(gpio_dirs[i], F_OK) != 0) {
             mkdir(gpio_dirs[i], 0755);
@@ -475,7 +492,7 @@ int main(int argc, char **argv) {
 
     uv_timer_t hw_timer;
     uv_timer_init(loop, &hw_timer);
-    uv_timer_start(&hw_timer, timer_hw_poll_cb, 0, 500); // 500ms 刷新率
+    uv_timer_start(&hw_timer, timer_hw_poll_cb, 0, 500);  // 500ms 刷新率
 
     uv_fs_event_t sos_event;
     uv_fs_event_init(loop, &sos_event);
@@ -483,38 +500,43 @@ int main(int argc, char **argv) {
 
     // Task 3: WASM Micro-Runtime 初始化沙箱容器调度器 (限制堆 256KB、栈 64KB、运行耗时门禁为 10ms)
     wasm_mgr_init(g_hub);
-    g_sched = wasm_scheduler_create(g_hub, loop, 10); // 10ms 心跳 (100Hz)
+    g_sched = wasm_scheduler_create(g_hub, loop, 10);  // 10ms 心跳 (100Hz)
     if (g_sched) {
         // 限制堆 256KB (262144字节)，栈 64KB (65536字节)，执行超时 10ms
-        wasm_scheduler_load_app(g_sched, "rehab_companion", "/data/apps/rehab_companion.wasm", 262144, 65536, 10);
+        wasm_scheduler_load_app(g_sched, "rehab_companion", "/data/apps/rehab_companion.wasm",
+                                262144, 65536, 10);
         wasm_scheduler_start(g_sched);
     }
 
     // Task 9: 注册 NFC、BLE 与 Modbus 驱动定时轮询
     uv_timer_t nfc_timer;
     uv_timer_init(loop, &nfc_timer);
-    uv_timer_start(&nfc_timer, timer_nfc_poll_cb, 0, 1000); // 1s 轮询一次
+    uv_timer_start(&nfc_timer, timer_nfc_poll_cb, 0, 1000);  // 1s 轮询一次
 
     uv_timer_t ble_timer;
     uv_timer_init(loop, &ble_timer);
-    uv_timer_start(&ble_timer, timer_ble_poll_cb, 0, 1000); // 1s 轮询一次
+    uv_timer_start(&ble_timer, timer_ble_poll_cb, 0, 1000);  // 1s 轮询一次
 
     uv_timer_t modbus_timer;
     uv_timer_init(loop, &modbus_timer);
-    uv_timer_start(&modbus_timer, timer_modbus_poll_cb, 0, 1000); // 1s 轮询一次
+    uv_timer_start(&modbus_timer, timer_modbus_poll_cb, 0, 1000);  // 1s 轮询一次
 
     // 10pin 凤凰端子 4路输入/4路输出 IO 模拟轮询与硬件标记初始化
     pipe_msg_t msg_mode;
-    pipe_msg_init_scalar(&msg_mode, TAG_BOX_CURRENT_SCENE, 1.0, uv_hrtime()); // 默认场景 1.0 (老人守护场景)
+    pipe_msg_init_scalar(&msg_mode, TAG_BOX_CURRENT_SCENE, 1.0,
+                         uv_hrtime());  // 默认场景 1.0 (老人守护场景)
     int idx_mode = edge_tag_get_compact_index(TAG_BOX_CURRENT_SCENE);
     if (idx_mode >= 0) datahub_write_shadow_idx(g_hub, idx_mode, &msg_mode);
 
     pipe_msg_t msg_phx;
-    pipe_msg_init_scalar(&msg_phx, TAG_BLE_SLOT_BINDING_ID, 0x0F, uv_hrtime()); // 4路槽位硬件连接标记
+    pipe_msg_init_scalar(&msg_phx, TAG_BLE_SLOT_BINDING_ID, 0x0F,
+                         uv_hrtime());  // 4路槽位硬件连接标记
     int idx_phx = edge_tag_get_compact_index(TAG_BLE_SLOT_BINDING_ID);
     if (idx_phx >= 0) datahub_write_shadow_idx(g_hub, idx_phx, &msg_phx);
 
-    LOG_INFO(LOG_CAT_CORE, "Smart Box Loop with HW polling, Wasm Scheduler, Phoenix 10pin IO and drivers initialized");
+    LOG_INFO(
+        LOG_CAT_CORE,
+        "Smart Box Loop with HW polling, Wasm Scheduler, Phoenix 10pin IO and drivers initialized");
     int rc = uv_run(loop, UV_RUN_DEFAULT);
 
     if (g_sched) {

@@ -26,8 +26,8 @@ static void test_generated_driver_registry_table(void) {
         assert(strlen(entry->protocol_name) > 0);
         assert(entry->driver != NULL);
         assert(entry->driver->name != NULL);
-        printf("  --> Entry [%zu]: Protocol = %s, Driver Symbol Name = %s\n",
-               i, entry->protocol_name, entry->driver->name);
+        printf("  --> Entry [%zu]: Protocol = %s, Driver Symbol Name = %s\n", i,
+               entry->protocol_name, entry->driver->name);
     }
 }
 
@@ -75,7 +75,8 @@ static void test_driver_manager_register_table_strict_errors(void) {
     assert(mgr != NULL);
 
     /* 1. NULL pointer checks */
-    int rc1 = driver_manager_register_table(NULL, g_edge_driver_registry, g_edge_driver_registry_count);
+    int rc1 =
+        driver_manager_register_table(NULL, g_edge_driver_registry, g_edge_driver_registry_count);
     assert(rc1 == -1);
     (void)rc1;
 
@@ -85,8 +86,7 @@ static void test_driver_manager_register_table_strict_errors(void) {
 
     /* 2. Table containing NULL driver entry must fail with -1 */
     edge_driver_reg_entry_t invalid_table[] = {
-        { .protocol_name = "INVALID_NULL_DRIVER", .driver = NULL }
-    };
+        {.protocol_name = "INVALID_NULL_DRIVER", .driver = NULL}};
     int rc3 = driver_manager_register_table(mgr, invalid_table, 1);
     assert(rc3 == -1);
     (void)rc3;

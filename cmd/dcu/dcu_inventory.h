@@ -26,9 +26,9 @@ typedef struct {
     uint32_t pt_ratio;        // PT变比
     uint32_t ct_ratio;        // CT变比
 
-    bool is_online;             // 状态：true 表示 ACTIVE, false 表示 SUSPENDED (熔断离线)
-    uint8_t fail_count;         // 连续抄表超时失败计数器，达到 3 时触发静默熔断
-    uint32_t last_poll_time_s;  // 上一次被调度抄读的挂钟时间戳 (秒)
+    bool is_online;      // 状态：true 表示 ACTIVE, false 表示 SUSPENDED (熔断离线)
+    uint8_t fail_count;  // 连续抄表超时失败计数器，达到 3 时触发静默熔断
+    uint32_t last_poll_time_s;                  // 上一次被调度抄读的挂钟时间戳 (秒)
     const driver_contract_injection_t* inject;  // 关联的契约注入字典
 } production_meter_t;
 

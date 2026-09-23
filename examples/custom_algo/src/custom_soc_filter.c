@@ -1,17 +1,19 @@
 /**
  * @file custom_soc_filter.c
- * @brief Secondary Developer Example: Custom Battery SOC Estimation & Smoothing Algorithm Implementation
+ * @brief Secondary Developer Example: Custom Battery SOC Estimation & Smoothing Algorithm
+ * Implementation
  */
 
+#include "custom_soc_filter.h"
+
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
-#include "custom_soc_filter.h"
 
 int custom_soc_filter_init(custom_soc_filter_t *filter, float alpha, float initial_soc) {
     if (!filter) return -1;
     if (alpha <= 0.0f || alpha > 1.0f) {
-        alpha = 0.2f; // Default smoothing factor
+        alpha = 0.2f;  // Default smoothing factor
     }
     filter->alpha = alpha;
     filter->filtered_soc = initial_soc;
@@ -32,13 +34,14 @@ float custom_soc_filter_step(custom_soc_filter_t *filter, float raw_soc) {
     return filter->filtered_soc;
 }
 
-int custom_soc_filter_process_datahub(custom_soc_filter_t *filter, edgeos_datahub_t *hub, uint32_t raw_tag_id, uint32_t out_tag_id) {
+int custom_soc_filter_process_datahub(custom_soc_filter_t *filter, edgeos_datahub_t *hub,
+                                      uint32_t raw_tag_id, uint32_t out_tag_id) {
     if (!filter || !hub) return -1;
 
     edgeos_pipe_msg_t raw_msg;
     int rc = datahub_read_shadow(hub, raw_tag_id, &raw_msg);
     if (rc != 0) {
-        return -1; // Tag not yet available
+        return -1;  // Tag not yet available
     }
 
     float raw_val = (float)raw_msg.payload.val.f;

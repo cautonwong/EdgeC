@@ -1,18 +1,17 @@
-#include <stdio.h>
 #include <assert.h>
 #include <math.h>
+#include <stdio.h>
+
 #include "timeseries_compressor.h"
 
 int main(void) {
     printf("=== Test Time-Series Compressor Start ===\n");
 
-    ts_sample_t original[5] = {
-        { .timestamp_ms = 1700000000000ULL, .value = 22.5 },
-        { .timestamp_ms = 1700000001000ULL, .value = 22.6 },
-        { .timestamp_ms = 1700000002000ULL, .value = 22.6 },
-        { .timestamp_ms = 1700000003000ULL, .value = 22.8 },
-        { .timestamp_ms = 1700000004000ULL, .value = 23.0 }
-    };
+    ts_sample_t original[5] = {{.timestamp_ms = 1700000000000ULL, .value = 22.5},
+                               {.timestamp_ms = 1700000001000ULL, .value = 22.6},
+                               {.timestamp_ms = 1700000002000ULL, .value = 22.6},
+                               {.timestamp_ms = 1700000003000ULL, .value = 22.8},
+                               {.timestamp_ms = 1700000004000ULL, .value = 23.0}};
 
     uint8_t buffer[512];
     size_t compressed_len = 0;

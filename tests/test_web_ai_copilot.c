@@ -4,28 +4,23 @@
  * @copyright (c) 2026 EdgeOS Project. All rights reserved.
  */
 
-#include <stdarg.h>
-#include <stddef.h>
+#include <cmocka.h>
 #include <setjmp.h>
-#include <stdint.h>
+#include <stdarg.h>
 #include <stdbool.h>
-#include <string.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <cmocka.h>
+#include <string.h>
 
 static void read_file_content(const char *rel_path, char *buf, size_t max_len) {
     char path[512];
     FILE *fp = NULL;
 
     const char *prefixes[] = {
-        "",
-        "../",
-        "../../",
-        "/workspaces/edgeos/EdgeC/",
-        "/workspaces/edgeos/EdgeC-wt-AEP-507/",
-        NULL
-    };
+        "",  "../", "../../", "/workspaces/edgeos/EdgeC/", "/workspaces/edgeos/EdgeC-wt-AEP-507/",
+        NULL};
 
     for (int i = 0; prefixes[i] != NULL; i++) {
         snprintf(path, sizeof(path), "%s%s", prefixes[i], rel_path);
@@ -134,7 +129,8 @@ static void test_ai_copilot_drawer_component(void **state) {
 static void test_admin_layout_and_tag_card_integration(void **state) {
     (void)state;
     char layout_content[32768];
-    read_file_content("web/core/src/layouts/AdminLayout.vue", layout_content, sizeof(layout_content));
+    read_file_content("web/core/src/layouts/AdminLayout.vue", layout_content,
+                      sizeof(layout_content));
 
     assert_non_null(strstr(layout_content, "AICopilotDrawer"));
     assert_non_null(strstr(layout_content, "AI Copilot"));
@@ -142,7 +138,8 @@ static void test_admin_layout_and_tag_card_integration(void **state) {
     assert_non_null(strstr(layout_content, "toggleCopilot"));
 
     char tag_card_content[32768];
-    read_file_content("web/core/src/components/LiveTagCard.vue", tag_card_content, sizeof(tag_card_content));
+    read_file_content("web/core/src/components/LiveTagCard.vue", tag_card_content,
+                      sizeof(tag_card_content));
 
     assert_non_null(strstr(tag_card_content, "diagnoseWithAI"));
     assert_non_null(strstr(tag_card_content, "AI 诊断"));

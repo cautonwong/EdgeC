@@ -3,12 +3,12 @@
  * @brief Unit tests for Facility Microgrid & Environment Coordinator Operator
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdint.h>
-#include <stdbool.h>
 #include <cmocka.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 #include "facility_coordinator.h"
 
@@ -26,26 +26,22 @@ static void test_facility_coordinator_workflow(void **state) {
     assert_int_equal(facility_coordinator_init(&cmd), 0);
 
     /* Normal grid demand & good CO2 */
-    facility_telemetry_t telem1 = {
-        .grid_power_kw = 40.0f,
-        .battery_soc_pct = 50.0f,
-        .indoor_temp_c = 24.0f,
-        .indoor_co2_ppm = 600.0f,
-        .peak_shave_threshold_kw = 50.0f
-    };
+    facility_telemetry_t telem1 = {.grid_power_kw = 40.0f,
+                                   .battery_soc_pct = 50.0f,
+                                   .indoor_temp_c = 24.0f,
+                                   .indoor_co2_ppm = 600.0f,
+                                   .peak_shave_threshold_kw = 50.0f};
 
     assert_int_equal(facility_coordinator_step(&telem1, &cmd), 0);
     assert_false(cmd.peak_shaving_active);
     assert_float_equal(cmd.hvac_fan_speed_pct, 30.0f, 0.01f);
 
     /* Peak demand Spike & High CO2 */
-    facility_telemetry_t telem2 = {
-        .grid_power_kw = 65.0f,
-        .battery_soc_pct = 80.0f,
-        .indoor_temp_c = 26.0f,
-        .indoor_co2_ppm = 1200.0f,
-        .peak_shave_threshold_kw = 50.0f
-    };
+    facility_telemetry_t telem2 = {.grid_power_kw = 65.0f,
+                                   .battery_soc_pct = 80.0f,
+                                   .indoor_temp_c = 26.0f,
+                                   .indoor_co2_ppm = 1200.0f,
+                                   .peak_shave_threshold_kw = 50.0f};
 
     assert_int_equal(facility_coordinator_step(&telem2, &cmd), 0);
     assert_true(cmd.peak_shaving_active);

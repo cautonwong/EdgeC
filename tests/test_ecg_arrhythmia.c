@@ -1,5 +1,6 @@
-#include <stdio.h>
 #include <assert.h>
+#include <stdio.h>
+
 #include "ecg_arrhythmia.h"
 
 int main(void) {
@@ -12,10 +13,8 @@ int main(void) {
     ecg_arrhythmia_analyze(&res, 800.0f, 90.0f, 400.0f);
 
     printf("Heart Rate: %.1f BPM, QRS: %.1f ms, PVC: %s, Bradycardia: %s, Tachycardia: %s\n",
-           res.heart_rate_bpm, res.qrs_duration_ms,
-           res.pvc_detected ? "YES" : "NO",
-           res.bradycardia_alert ? "YES" : "NO",
-           res.tachycardia_alert ? "YES" : "NO");
+           res.heart_rate_bpm, res.qrs_duration_ms, res.pvc_detected ? "YES" : "NO",
+           res.bradycardia_alert ? "YES" : "NO", res.tachycardia_alert ? "YES" : "NO");
 
     assert(res.heart_rate_bpm == 75.0f);
     assert(!res.pvc_detected);

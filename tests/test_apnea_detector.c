@@ -1,5 +1,6 @@
-#include <stdio.h>
 #include <assert.h>
+#include <stdio.h>
+
 #include "apnea_detector.h"
 
 int main(void) {
@@ -20,9 +21,8 @@ int main(void) {
         apnea_detector_update(&det, 0.01f, 20.0f, 1.0f, 1.0f);
     }
 
-    printf("Apnea Duration: %.1f s, Events: %u, AHI: %.1f, Alert: %s\n",
-           det.apnea_duration_sec, det.apnea_events_count, det.ahi_index,
-           det.obstructive_apnea_alert ? "YES" : "NO");
+    printf("Apnea Duration: %.1f s, Events: %u, AHI: %.1f, Alert: %s\n", det.apnea_duration_sec,
+           det.apnea_events_count, det.ahi_index, det.obstructive_apnea_alert ? "YES" : "NO");
 
     assert(det.obstructive_apnea_alert);
     assert(det.apnea_events_count == 1);

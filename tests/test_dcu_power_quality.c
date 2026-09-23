@@ -3,6 +3,8 @@
  * @brief Empirical Verification for DCU Power Quality & Phase Switching Engine (AEP-441)
  */
 
+#include <cmocka.h>
+#include <math.h>
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -11,8 +13,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
-#include <cmocka.h>
 
 #include "dcu_power_quality.h"
 
@@ -40,7 +40,7 @@ static void test_phase_switching_decision_solver(void **state) {
     (void)state;
 
     dcu_power_quality_engine_t engine;
-    dcu_power_quality_init(&engine, 220.0, 15.0); // 15% 门限
+    dcu_power_quality_init(&engine, 220.0, 15.0);  // 15% 门限
 
     // 设定台区初始三相电流: Ia=180A, Ib=80A, Ic=40A (Avg=100A, Unbalance=80%)
     engine.ia = 180.0;
@@ -61,9 +61,9 @@ static void test_phase_switching_decision_solver(void **state) {
     // 验证决策结果
     assert_true(plan.is_action_recommended);
     assert_int_equal(plan.action_count, 1);
-    assert_int_equal(plan.actions[0].meter_id, 102); // 迁移 60A 表箱收益最大
+    assert_int_equal(plan.actions[0].meter_id, 102);  // 迁移 60A 表箱收益最大
     assert_int_equal(plan.actions[0].from_phase, PQ_PHASE_A);
-    assert_int_equal(plan.actions[0].to_phase, PQ_PHASE_C); // 迁往负荷最小的 C 相
+    assert_int_equal(plan.actions[0].to_phase, PQ_PHASE_C);  // 迁往负荷最小的 C 相
     assert_float_equal(plan.actions[0].migrated_current_amps, 60.0, 0.01);
 
     // 迁移后: Ia'=120A, Ib'=80A, Ic'=100A -> Unbalance'=20%
@@ -78,10 +78,10 @@ static void test_2_to_31_harmonics_and_thd_computation(void **state) {
     double harmonics[DCU_MAX_HARMONICS] = {0};
 
     // 注入典型谐波分量 (3次、5次、7次奇次谐波 + 2次偶次微量)
-    harmonics[2] = 2.2;  // 1.0%
-    harmonics[3] = 11.0; // 5.0%
-    harmonics[5] = 8.8;  // 4.0%
-    harmonics[7] = 6.6;  // 3.0%
+    harmonics[2] = 2.2;   // 1.0%
+    harmonics[3] = 11.0;  // 5.0%
+    harmonics[5] = 8.8;   // 4.0%
+    harmonics[7] = 6.6;   // 3.0%
 
     dcu_harmonic_analysis_t analysis;
     int rc = dcu_analyze_harmonics_thd(fundamental, harmonics, &analysis);

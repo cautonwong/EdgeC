@@ -3,16 +3,16 @@
  * @brief Unit & Integration Tests for TI Sitara C7x DSP / MMA NPU Driver (AEP-745 / Issue #275)
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 #include <cmocka.h>
 #include <math.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "npu_hal.h"
 
@@ -48,13 +48,11 @@ static void test_sitara_lifecycle_init_deinit(void **state) {
     npu_device_t dev;
     assert_int_equal(npu_device_create(&dev, NPU_BACKEND_TI_SITARA), 0);
 
-    npu_device_config_t cfg = {
-        .device_id = 0,
-        .backend = NPU_BACKEND_TI_SITARA,
-        .max_workspace_mb = 256,
-        .enable_zero_copy = true,
-        .max_temp_throttle_c = 85.0f
-    };
+    npu_device_config_t cfg = {.device_id = 0,
+                               .backend = NPU_BACKEND_TI_SITARA,
+                               .max_workspace_mb = 256,
+                               .enable_zero_copy = true,
+                               .max_temp_throttle_c = 85.0f};
 
     assert_int_equal(npu_device_init(&dev, &cfg), 0);
     assert_true(dev.initialized);
@@ -83,9 +81,11 @@ static void test_sitara_tidl_model_load_unload(void **state) {
     npu_model_handle_t handle_a = NULL;
     npu_model_handle_t handle_b = NULL;
 
-    assert_int_equal(npu_load_model_from_mem(&dev, mock_tidl_model_a, sizeof(mock_tidl_model_a), &handle_a), 0);
+    assert_int_equal(
+        npu_load_model_from_mem(&dev, mock_tidl_model_a, sizeof(mock_tidl_model_a), &handle_a), 0);
     assert_non_null(handle_a);
-    assert_int_equal(npu_load_model_from_mem(&dev, mock_tidl_model_b, sizeof(mock_tidl_model_b), &handle_b), 0);
+    assert_int_equal(
+        npu_load_model_from_mem(&dev, mock_tidl_model_b, sizeof(mock_tidl_model_b), &handle_b), 0);
     assert_non_null(handle_b);
 
     npu_metrics_t metrics;
@@ -118,7 +118,8 @@ static void test_sitara_cma_and_rpmsg_zero_copy(void **state) {
     float mock_dma_mem[128];
     for (int i = 0; i < 128; i++) mock_dma_mem[i] = (float)i * 0.33f;
 
-    assert_int_equal(npu_map_shm_to_tensor(&dev, mock_dma_mem, sizeof(mock_dma_mem), 42, &dma_tensor), 0);
+    assert_int_equal(
+        npu_map_shm_to_tensor(&dev, mock_dma_mem, sizeof(mock_dma_mem), 42, &dma_tensor), 0);
     assert_ptr_equal(dma_tensor.host_ptr, mock_dma_mem);
     assert_int_equal(dma_tensor.dma_fd, 42);
     assert_true(dma_tensor.is_zero_copy);
@@ -152,24 +153,17 @@ static void test_sitara_rpmsg_multichannel_inference(void **state) {
     for (int i = 0; i < 64; i++) in_data[i] = (float)i * 0.04f;
 
     npu_tensor_buf_t input_tensor = {
-        .host_ptr = in_data,
-        .size = sizeof(in_data),
-        .dma_fd = -1,
-        .is_zero_copy = true
-    };
+        .host_ptr = in_data, .size = sizeof(in_data), .dma_fd = -1, .is_zero_copy = true};
 
     float out_data[16];
     npu_tensor_buf_t output_tensor = {
-        .host_ptr = out_data,
-        .size = sizeof(out_data),
-        .dma_fd = -1,
-        .is_zero_copy = false
-    };
+        .host_ptr = out_data, .size = sizeof(out_data), .dma_fd = -1, .is_zero_copy = false};
 
     /* 执行 8 次推理，验证 4 个 RPMsg 通道的轮转调度 */
     for (int step = 0; step < 8; step++) {
         npu_inference_stats_t stats;
-        assert_int_equal(npu_execute_inference(&dev, handle, &input_tensor, 1, &output_tensor, 1, &stats), 0);
+        assert_int_equal(
+            npu_execute_inference(&dev, handle, &input_tensor, 1, &output_tensor, 1, &stats), 0);
         assert_true(stats.execution_latency_us > 0);
         assert_true(stats.throughput_fps > 0.0f);
         assert_int_equal(stats.total_inferences, (uint32_t)(step + 1));

@@ -1,21 +1,22 @@
 /**
  * @file test_archetype_generator.c
- * @brief AEP-402: CMocka Unit Test for Product Application Archetype Generator (edge-cli create-product)
+ * @brief AEP-402: CMocka Unit Test for Product Application Archetype Generator (edge-cli
+ * create-product)
  */
 
-#include <stdarg.h>
-#include <stddef.h>
+#include <cmocka.h>
 #include <setjmp.h>
-#include <stdint.h>
+#include <stdarg.h>
 #include <stdbool.h>
-#include <stdlib.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <cmocka.h>
 
 #define TEST_PROD_NAME "sample_archetype_bess"
-#define TEST_DRV_NAME  "sample_sunspec_pv"
+#define TEST_DRV_NAME "sample_sunspec_pv"
 
 /* -------------------------------------------------------------------------- */
 /* Helper Functions                                                           */
@@ -60,9 +61,13 @@ static int cleanup_test_archetypes(void **state) {
     get_repo_root(root, sizeof(root));
 
     char cmd[2048];
-    snprintf(cmd, sizeof(cmd),
-             "rm -rf %s/cmd/%s %s/contracts/products/%s.yaml %s/build/products/%s %s/modules/edge_io/src/drivers/%s_driver.c %s/modules/edge_io/include/drivers/%s_driver.h %s/contracts/bindings/modbus/%s.yaml > /dev/null 2>&1",
-             root, TEST_PROD_NAME, root, TEST_PROD_NAME, root, TEST_PROD_NAME, root, TEST_DRV_NAME, root, TEST_DRV_NAME, root, TEST_DRV_NAME);
+    snprintf(
+        cmd, sizeof(cmd),
+        "rm -rf %s/cmd/%s %s/contracts/products/%s.yaml %s/build/products/%s "
+        "%s/modules/edge_io/src/drivers/%s_driver.c %s/modules/edge_io/include/drivers/%s_driver.h "
+        "%s/contracts/bindings/modbus/%s.yaml > /dev/null 2>&1",
+        root, TEST_PROD_NAME, root, TEST_PROD_NAME, root, TEST_PROD_NAME, root, TEST_DRV_NAME, root,
+        TEST_DRV_NAME, root, TEST_DRV_NAME);
     int rc = system(cmd);
     (void)rc;
     return 0;
@@ -79,7 +84,8 @@ static void test_archetype_product_scaffolding(void **state) {
     get_repo_root(root, sizeof(root));
 
     char cmd[4096];
-    snprintf(cmd, sizeof(cmd), "%s/.local/linux-x86_64/bin/edge-cli create-product %s --base=%s > /dev/null 2>&1",
+    snprintf(cmd, sizeof(cmd),
+             "%s/.local/linux-x86_64/bin/edge-cli create-product %s --base=%s > /dev/null 2>&1",
              root, TEST_PROD_NAME, root);
     int rc = system(cmd);
     assert_int_equal(rc, 0);
@@ -109,7 +115,9 @@ static void test_archetype_contract_linter(void **state) {
     get_repo_root(root, sizeof(root));
 
     char cmd[4096];
-    snprintf(cmd, sizeof(cmd), "%s/.local/linux-x86_64/bin/edge-cli lint-contract %s/contracts/products/%s.yaml --base=%s --strict > /dev/null 2>&1",
+    snprintf(cmd, sizeof(cmd),
+             "%s/.local/linux-x86_64/bin/edge-cli lint-contract %s/contracts/products/%s.yaml "
+             "--base=%s --strict > /dev/null 2>&1",
              root, root, TEST_PROD_NAME, root);
     int rc = system(cmd);
     assert_int_equal(rc, 0);
@@ -122,13 +130,19 @@ static void test_archetype_contract_compilation(void **state) {
     get_repo_root(root, sizeof(root));
 
     char cmd[4096];
-    snprintf(cmd, sizeof(cmd), "mkdir -p %s/build/products/%s/generated && %s/.local/linux-x86_64/bin/contract-compiler --product %s/contracts/products/%s.yaml --local %s/cmd/%s/manifest.yaml --out %s/build/products/%s/generated --base %s > /dev/null 2>&1",
-             root, TEST_PROD_NAME, root, root, TEST_PROD_NAME, root, TEST_PROD_NAME, root, TEST_PROD_NAME, root);
+    snprintf(
+        cmd, sizeof(cmd),
+        "mkdir -p %s/build/products/%s/generated && %s/.local/linux-x86_64/bin/contract-compiler "
+        "--product %s/contracts/products/%s.yaml --local %s/cmd/%s/manifest.yaml --out "
+        "%s/build/products/%s/generated --base %s > /dev/null 2>&1",
+        root, TEST_PROD_NAME, root, root, TEST_PROD_NAME, root, TEST_PROD_NAME, root,
+        TEST_PROD_NAME, root);
     int rc = system(cmd);
     assert_int_equal(rc, 0);
 
     char path[4096];
-    snprintf(path, sizeof(path), "%s/build/products/%s/generated/contracts.c", root, TEST_PROD_NAME);
+    snprintf(path, sizeof(path), "%s/build/products/%s/generated/contracts.c", root,
+             TEST_PROD_NAME);
     assert_true(file_exists_and_contains(path, "g_tag_metadata"));
 }
 
@@ -139,7 +153,9 @@ static void test_archetype_driver_scaffolding(void **state) {
     get_repo_root(root, sizeof(root));
 
     char cmd[4096];
-    snprintf(cmd, sizeof(cmd), "%s/.local/linux-x86_64/bin/edge-cli create-driver %s --type=tcp --protocol=modbus --base=%s > /dev/null 2>&1",
+    snprintf(cmd, sizeof(cmd),
+             "%s/.local/linux-x86_64/bin/edge-cli create-driver %s --type=tcp --protocol=modbus "
+             "--base=%s > /dev/null 2>&1",
              root, TEST_DRV_NAME, root);
     int rc = system(cmd);
     assert_int_equal(rc, 0);

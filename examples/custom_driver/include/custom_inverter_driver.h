@@ -6,9 +6,9 @@
 #ifndef EXAMPLES_CUSTOM_INVERTER_DRIVER_H
 #define EXAMPLES_CUSTOM_INVERTER_DRIVER_H
 
-#include <stdint.h>
-#include <stdbool.h>
 #include <edgeos/edgeos.h>
+#include <stdbool.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {

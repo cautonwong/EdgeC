@@ -4,16 +4,16 @@
  * @copyright (c) 2026 EdgeOS Project. All rights reserved.
  */
 
-#include <stdarg.h>
-#include <stddef.h>
+#include <cjson/cJSON.h>
+#include <cmocka.h>
 #include <setjmp.h>
-#include <stdint.h>
+#include <stdarg.h>
 #include <stdbool.h>
-#include <string.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <cmocka.h>
-#include <cjson/cJSON.h>
+#include <string.h>
 
 #include "edgeos/edge_mcp_dispatcher.h"
 #include "edgeos/edge_mcp_industry_tools.h"
@@ -24,7 +24,8 @@ static void test_mcp_tool_power_quality_normal(void **state) {
     edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(NULL);
     assert_non_null(disp);
 
-    const char *params = "{\"phase_a_v\": 220.0, \"phase_b_v\": 220.8, \"phase_c_v\": 219.4, \"current_thd\": 2.3}";
+    const char *params =
+        "{\"phase_a_v\": 220.0, \"phase_b_v\": 220.8, \"phase_c_v\": 219.4, \"current_thd\": 2.3}";
     char *result_json = NULL;
     int rc = edge_mcp_call_tool(disp, "dcu_analyze_power_quality", params, &result_json);
     assert_int_equal(rc, 0);
@@ -59,7 +60,8 @@ static void test_mcp_tool_power_quality_critical_commutation(void **state) {
     edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(NULL);
     assert_non_null(disp);
 
-    const char *params = "{\"phase_a_v\": 238.0, \"phase_b_v\": 218.0, \"phase_c_v\": 204.0, \"current_thd\": 7.2}";
+    const char *params =
+        "{\"phase_a_v\": 238.0, \"phase_b_v\": 218.0, \"phase_c_v\": 204.0, \"current_thd\": 7.2}";
     char *result_json = NULL;
     int rc = edge_mcp_call_tool(disp, "dcu_analyze_power_quality", params, &result_json);
     assert_int_equal(rc, 0);
@@ -100,7 +102,8 @@ static void test_mcp_tool_transformer_life_normal(void **state) {
     edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(NULL);
     assert_non_null(disp);
 
-    const char *params = "{\"load_ratio\": 0.65, \"ambient_temp_c\": 25.0, \"current_top_oil_c\": 52.0}";
+    const char *params =
+        "{\"load_ratio\": 0.65, \"ambient_temp_c\": 25.0, \"current_top_oil_c\": 52.0}";
     char *result_json = NULL;
     int rc = edge_mcp_call_tool(disp, "smartbox_eval_transformer_life", params, &result_json);
     assert_int_equal(rc, 0);
@@ -134,7 +137,8 @@ static void test_mcp_tool_transformer_life_overload_critical(void **state) {
     edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(NULL);
     assert_non_null(disp);
 
-    const char *params = "{\"load_ratio\": 1.25, \"ambient_temp_c\": 42.0, \"current_top_oil_c\": 88.0}";
+    const char *params =
+        "{\"load_ratio\": 1.25, \"ambient_temp_c\": 42.0, \"current_top_oil_c\": 88.0}";
     char *result_json = NULL;
     int rc = edge_mcp_call_tool(disp, "smartbox_eval_transformer_life", params, &result_json);
     assert_int_equal(rc, 0);
@@ -173,7 +177,9 @@ static void test_mcp_tool_tou_arbitrage_optimization(void **state) {
     edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(NULL);
     assert_non_null(disp);
 
-    const char *params = "{\"soc_pct\": 45.0, \"battery_capacity_kwh\": 200.0, \"pcs_max_power_kw\": 100.0, \"pv_forecast_kw\": 50.0, \"load_forecast_kw\": 80.0}";
+    const char *params =
+        "{\"soc_pct\": 45.0, \"battery_capacity_kwh\": 200.0, \"pcs_max_power_kw\": 100.0, "
+        "\"pv_forecast_kw\": 50.0, \"load_forecast_kw\": 80.0}";
     char *result_json = NULL;
     int rc = edge_mcp_call_tool(disp, "iems_optimize_tou_schedule", params, &result_json);
     assert_int_equal(rc, 0);
@@ -220,7 +226,9 @@ static void test_mcp_tool_electrical_five_anti_interlock(void **state) {
 
     /* Case A: Disconnector operation under heavy load (Violates Rule 2) */
     {
-        const char *p_load = "{\"breaker_id\": \"DS-101-1\", \"target_state\": \"OPEN\", \"current_load_amps\": 350.0, \"associated_cb_closed\": true}";
+        const char *p_load =
+            "{\"breaker_id\": \"DS-101-1\", \"target_state\": \"OPEN\", \"current_load_amps\": "
+            "350.0, \"associated_cb_closed\": true}";
         char *out = NULL;
         int rc = edge_mcp_call_tool(disp, "security_simulate_interlock", p_load, &out);
         assert_int_equal(rc, 0);
@@ -235,7 +243,9 @@ static void test_mcp_tool_electrical_five_anti_interlock(void **state) {
 
     /* Case B: Earth switch closing on energized line (Violates Rule 3) */
     {
-        const char *p_live = "{\"breaker_id\": \"ES-101\", \"target_state\": \"CLOSE\", \"line_voltage_v\": 10000.0}";
+        const char *p_live =
+            "{\"breaker_id\": \"ES-101\", \"target_state\": \"CLOSE\", \"line_voltage_v\": "
+            "10000.0}";
         char *out = NULL;
         int rc = edge_mcp_call_tool(disp, "security_simulate_interlock", p_live, &out);
         assert_int_equal(rc, 0);
@@ -248,7 +258,9 @@ static void test_mcp_tool_electrical_five_anti_interlock(void **state) {
 
     /* Case C: Breaker closing when Earth switch is active (Violates Rule 4) */
     {
-        const char *p_earth = "{\"breaker_id\": \"CB-101\", \"target_state\": \"CLOSE\", \"associated_es_closed\": true}";
+        const char *p_earth =
+            "{\"breaker_id\": \"CB-101\", \"target_state\": \"CLOSE\", \"associated_es_closed\": "
+            "true}";
         char *out = NULL;
         int rc = edge_mcp_call_tool(disp, "security_simulate_interlock", p_earth, &out);
         assert_int_equal(rc, 0);
@@ -261,7 +273,9 @@ static void test_mcp_tool_electrical_five_anti_interlock(void **state) {
 
     /* Case D: Safe Breaker Opening with zero violation */
     {
-        const char *p_safe = "{\"breaker_id\": \"CB-101\", \"target_state\": \"OPEN\", \"current_load_amps\": 0.0, \"line_voltage_v\": 0.0}";
+        const char *p_safe =
+            "{\"breaker_id\": \"CB-101\", \"target_state\": \"OPEN\", \"current_load_amps\": 0.0, "
+            "\"line_voltage_v\": 0.0}";
         char *out = NULL;
         int rc = edge_mcp_call_tool(disp, "security_simulate_interlock", p_safe, &out);
         assert_int_equal(rc, 0);
@@ -303,7 +317,10 @@ static void test_mcp_json_rpc_tools_list_and_call(void **state) {
     free(list_resp);
 
     /* Test tools/call JSON-RPC for dcu_analyze_power_quality */
-    const char *call_req = "{\"jsonrpc\":\"2.0\",\"id\":102,\"method\":\"tools/call\",\"params\":{\"name\":\"dcu_analyze_power_quality\",\"arguments\":{\"phase_a_v\":220.0,\"phase_b_v\":220.0,\"phase_c_v\":220.0}}}";
+    const char *call_req =
+        "{\"jsonrpc\":\"2.0\",\"id\":102,\"method\":\"tools/"
+        "call\",\"params\":{\"name\":\"dcu_analyze_power_quality\",\"arguments\":{\"phase_a_v\":"
+        "220.0,\"phase_b_v\":220.0,\"phase_c_v\":220.0}}}";
     char *call_resp = edge_mcp_dispatch_json(disp, call_req);
     assert_non_null(call_resp);
 
@@ -327,9 +344,16 @@ static void test_mcp_tool_transformer_life_nan_defense(void **state) {
     assert_non_null(disp);
 
     /* 6.1 顶层油温为 NaN 时必须返回错误，绝不能穿透为 NORMAL */
-    const char *nan_params_oil = "{\"load_ratio\": 0.8, \"ambient_temp_c\": 25.0, \"current_top_oil_c\": 1e309}"; // will parse as inf/huge or invalid
+    const char *nan_params_oil =
+        "{\"load_ratio\": 0.8, \"ambient_temp_c\": 25.0, \"current_top_oil_c\": 1e309}";  // will
+                                                                                          // parse
+                                                                                          // as
+                                                                                          // inf/huge
+                                                                                          // or
+                                                                                          // invalid
     char *result_json = NULL;
-    int rc = edge_mcp_call_tool(disp, "smartbox_eval_transformer_life", nan_params_oil, &result_json);
+    int rc =
+        edge_mcp_call_tool(disp, "smartbox_eval_transformer_life", nan_params_oil, &result_json);
     /* 校验返回非 0 错误码或者不返回 NORMAL 状态 */
     if (rc == 0 && result_json != NULL) {
         cJSON *res = cJSON_Parse(result_json);
@@ -343,7 +367,8 @@ static void test_mcp_tool_transformer_life_nan_defense(void **state) {
     }
 
     /* 6.2 负数负载率或非法数值校验 */
-    const char *neg_params = "{\"load_ratio\": -0.5, \"ambient_temp_c\": 25.0, \"current_top_oil_c\": 50.0}";
+    const char *neg_params =
+        "{\"load_ratio\": -0.5, \"ambient_temp_c\": 25.0, \"current_top_oil_c\": 50.0}";
     rc = edge_mcp_call_tool(disp, "smartbox_eval_transformer_life", neg_params, &result_json);
     assert_int_not_equal(rc, 0);
 
@@ -357,7 +382,10 @@ static void test_mcp_tool_power_quality_real_spectrum_and_nan_defense(void **sta
     assert_non_null(disp);
 
     /* 7.1 传入实际物理采样谐波谱 */
-    const char *real_harm_params = "{\"phase_a_v\": 220.0, \"phase_b_v\": 220.0, \"phase_c_v\": 220.0, \"current_thd\": 3.5, \"harmonics\": [{\"order\": 3, \"distortion_pct\": 1.8}, {\"order\": 5, \"distortion_pct\": 1.2}]}";
+    const char *real_harm_params =
+        "{\"phase_a_v\": 220.0, \"phase_b_v\": 220.0, \"phase_c_v\": 220.0, \"current_thd\": 3.5, "
+        "\"harmonics\": [{\"order\": 3, \"distortion_pct\": 1.8}, {\"order\": 5, "
+        "\"distortion_pct\": 1.2}]}";
     char *result_json = NULL;
     int rc = edge_mcp_call_tool(disp, "dcu_analyze_power_quality", real_harm_params, &result_json);
     assert_int_equal(rc, 0);
@@ -384,7 +412,8 @@ static void test_mcp_tool_power_quality_real_spectrum_and_nan_defense(void **sta
     free(result_json);
 
     /* 7.2 传入非法电压 (0V 或负电压) */
-    const char *bad_v_params = "{\"phase_a_v\": -220.0, \"phase_b_v\": 220.0, \"phase_c_v\": 220.0}";
+    const char *bad_v_params =
+        "{\"phase_a_v\": -220.0, \"phase_b_v\": 220.0, \"phase_c_v\": 220.0}";
     rc = edge_mcp_call_tool(disp, "dcu_analyze_power_quality", bad_v_params, &result_json);
     assert_int_not_equal(rc, 0);
 

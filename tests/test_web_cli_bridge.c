@@ -2,28 +2,23 @@
  * test_web_cli_bridge.c - Verification of Interactive Web CLI & PTY Bridge (AEP-502)
  */
 
-#include <stdarg.h>
-#include <stddef.h>
+#include <cmocka.h>
 #include <setjmp.h>
-#include <stdint.h>
+#include <stdarg.h>
 #include <stdbool.h>
-#include <string.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <cmocka.h>
+#include <string.h>
+
 #include "edgeos/console_ws.h"
 
 static void read_file_content(const char *rel_path, char *buf, size_t max_len) {
     char path[512];
     FILE *fp = NULL;
 
-    const char *prefixes[] = {
-        "",
-        "../",
-        "../../",
-        "/workspaces/edgeos/EdgeC/",
-        NULL
-    };
+    const char *prefixes[] = {"", "../", "../../", "/workspaces/edgeos/EdgeC/", NULL};
 
     for (int i = 0; prefixes[i] != NULL; i++) {
         snprintf(path, sizeof(path), "%s%s", prefixes[i], rel_path);
@@ -40,7 +35,8 @@ static void read_file_content(const char *rel_path, char *buf, size_t max_len) {
 static void test_web_interactive_shell_component_structure(void **state) {
     (void)state;
     char content[65536];
-    read_file_content("web/core/src/components/console/InteractiveShell.vue", content, sizeof(content));
+    read_file_content("web/core/src/components/console/InteractiveShell.vue", content,
+                      sizeof(content));
 
     // Headers & PTY Bridge Modes
     assert_non_null(strstr(content, "EdgeOS Industrial Interactive Web Shell Bridge"));
@@ -142,20 +138,24 @@ static void test_c_console_ws_completions(void **state) {
     size_t count = 0;
 
     // Prefix "data"
-    assert_int_equal(console_ws_get_completions("data", completions, CONSOLE_WS_MAX_COMPLETIONS, &count), 0);
+    assert_int_equal(
+        console_ws_get_completions("data", completions, CONSOLE_WS_MAX_COMPLETIONS, &count), 0);
     assert_true(count >= 3);
     assert_string_equal(completions[0], "datahub");
     assert_string_equal(completions[1], "datahub stats");
     assert_string_equal(completions[2], "datahub dump");
 
     // Prefix "dds"
-    assert_int_equal(console_ws_get_completions("dds", completions, CONSOLE_WS_MAX_COMPLETIONS, &count), 0);
+    assert_int_equal(
+        console_ws_get_completions("dds", completions, CONSOLE_WS_MAX_COMPLETIONS, &count), 0);
     assert_true(count >= 4);
     assert_string_equal(completions[0], "dds");
     assert_string_equal(completions[1], "dds peers");
 
     // Prefix "unknown"
-    assert_int_equal(console_ws_get_completions("unknown_xyz", completions, CONSOLE_WS_MAX_COMPLETIONS, &count), 0);
+    assert_int_equal(
+        console_ws_get_completions("unknown_xyz", completions, CONSOLE_WS_MAX_COMPLETIONS, &count),
+        0);
     assert_int_equal(count, 0);
 
     // Empty prefix -> all commands up to limit

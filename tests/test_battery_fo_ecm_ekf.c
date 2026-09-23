@@ -9,16 +9,14 @@
 static void test_initialization_and_validation(void) {
     printf("[TEST] Testing FO-ECM EKF Initialization and Bounds...\n");
 
-    fo_ecm_params_t params = {
-        .alpha = 0.75,
-        .r0 = 0.005,
-        .rp = 0.008,
-        .c_alpha = 1200.0,
-        .capacity_ah = 100.0,
-        .coulombic_eff = 0.998,
-        .temp_coeff_r0 = 0.004,
-        .temp_ref_c = 25.0
-    };
+    fo_ecm_params_t params = {.alpha = 0.75,
+                              .r0 = 0.005,
+                              .rp = 0.008,
+                              .c_alpha = 1200.0,
+                              .capacity_ah = 100.0,
+                              .coulombic_eff = 0.998,
+                              .temp_coeff_r0 = 0.004,
+                              .temp_ref_c = 25.0};
 
     fo_ecm_ekf_t ekf;
     bool ok = fo_ecm_ekf_init(&ekf, &params, 0.60, 25.0, 1.0);
@@ -57,7 +55,8 @@ static void test_ocv_and_derivative(void) {
     double eps = 1e-4;
     for (double s = 0.1; s <= 0.9; s += 0.2) {
         double d_analytical = fo_ecm_docv_dsoc(s);
-        double d_numerical = (fo_ecm_ocv_lookup(s + eps) - fo_ecm_ocv_lookup(s - eps)) / (2.0 * eps);
+        double d_numerical =
+            (fo_ecm_ocv_lookup(s + eps) - fo_ecm_ocv_lookup(s - eps)) / (2.0 * eps);
         assert(d_analytical > 0.0);
         assert(fabs(d_analytical - d_numerical) < 0.05);
     }
@@ -68,16 +67,14 @@ static void test_ocv_and_derivative(void) {
 static void test_constant_current_convergence(void) {
     printf("[TEST] Testing EKF SOC Convergence under CC Discharge with Initial Bias...\n");
 
-    fo_ecm_params_t params = {
-        .alpha = 0.80,
-        .r0 = 0.004,
-        .rp = 0.006,
-        .c_alpha = 1500.0,
-        .capacity_ah = 100.0,
-        .coulombic_eff = 1.0,
-        .temp_coeff_r0 = 0.003,
-        .temp_ref_c = 25.0
-    };
+    fo_ecm_params_t params = {.alpha = 0.80,
+                              .r0 = 0.004,
+                              .rp = 0.006,
+                              .c_alpha = 1500.0,
+                              .capacity_ah = 100.0,
+                              .coulombic_eff = 1.0,
+                              .temp_coeff_r0 = 0.003,
+                              .temp_ref_c = 25.0};
 
     fo_ecm_ekf_t ekf;
     /* True SOC starts at 0.70, but EKF guess is intentionally biased to 0.50 (20% error) */
@@ -101,7 +98,7 @@ static void test_constant_current_convergence(void) {
     for (int step = 0; step < 120; ++step) {
         /* Physical fractional cell simulator (Ground Truth) */
         true_soc += (params.coulombic_eff * dt * current) / (3600.0 * params.capacity_ah);
-        
+
         double hist_sum = 0.0;
         int active = step < FO_ECM_MEMORY_LENGTH ? step : FO_ECM_MEMORY_LENGTH;
         for (int j = 1; j < active; ++j) {
@@ -123,8 +120,10 @@ static void test_constant_current_convergence(void) {
     }
 
     double final_soc_error = fabs(ekf.soc - true_soc);
-    printf("  --> Initial error: 20.0%%, Final error after 120s: %.3f%% (Estimated: %.4f, True: %.4f)\n",
-           final_soc_error * 100.0, ekf.soc, true_soc);
+    printf(
+        "  --> Initial error: 20.0%%, Final error after 120s: %.3f%% (Estimated: %.4f, True: "
+        "%.4f)\n",
+        final_soc_error * 100.0, ekf.soc, true_soc);
 
     /* Error must converge to within 1.5% */
     assert(final_soc_error < 0.015);
@@ -135,16 +134,14 @@ static void test_constant_current_convergence(void) {
 static void test_fractional_relaxation_and_pulses(void) {
     printf("[TEST] Testing Fractional-Order Long-Tail Memory & Pulse Dynamics...\n");
 
-    fo_ecm_params_t params = {
-        .alpha = 0.70,
-        .r0 = 0.005,
-        .rp = 0.010,
-        .c_alpha = 800.0,
-        .capacity_ah = 50.0,
-        .coulombic_eff = 0.995,
-        .temp_coeff_r0 = 0.004,
-        .temp_ref_c = 25.0
-    };
+    fo_ecm_params_t params = {.alpha = 0.70,
+                              .r0 = 0.005,
+                              .rp = 0.010,
+                              .c_alpha = 800.0,
+                              .capacity_ah = 50.0,
+                              .coulombic_eff = 0.995,
+                              .temp_coeff_r0 = 0.004,
+                              .temp_ref_c = 25.0};
 
     fo_ecm_ekf_t ekf;
     fo_ecm_ekf_init(&ekf, &params, 0.80, 25.0, 0.5);
@@ -167,24 +164,22 @@ static void test_fractional_relaxation_and_pulses(void) {
 
     /* Polarization should decay towards 0, but preserve long-tail fractional memory */
     assert(fabs(ekf.up) < fabs(up_after_pulse));
-    printf("  --> Pulse polarization: %.4f V, Relaxed polarization: %.4f V\n",
-           up_after_pulse, ekf.up);
+    printf("  --> Pulse polarization: %.4f V, Relaxed polarization: %.4f V\n", up_after_pulse,
+           ekf.up);
     printf("  --> Fractional memory relaxation PASSED!\n");
 }
 
 static void test_temperature_compensation(void) {
     printf("[TEST] Testing Arrhenius Temperature Compensation on Ohmic Resistance...\n");
 
-    fo_ecm_params_t params = {
-        .alpha = 0.75,
-        .r0 = 0.010,
-        .rp = 0.015,
-        .c_alpha = 1000.0,
-        .capacity_ah = 60.0,
-        .coulombic_eff = 1.0,
-        .temp_coeff_r0 = 0.005,
-        .temp_ref_c = 25.0
-    };
+    fo_ecm_params_t params = {.alpha = 0.75,
+                              .r0 = 0.010,
+                              .rp = 0.015,
+                              .c_alpha = 1000.0,
+                              .capacity_ah = 60.0,
+                              .coulombic_eff = 1.0,
+                              .temp_coeff_r0 = 0.005,
+                              .temp_ref_c = 25.0};
 
     fo_ecm_ekf_t ekf;
     fo_ecm_ekf_init(&ekf, &params, 0.50, 25.0, 1.0);
@@ -193,12 +188,14 @@ static void test_temperature_compensation(void) {
     fo_ecm_ekf_step(&ekf, -10.0, 3.25, 25.0, 1.0);
     double v_est_25 = ekf.terminal_voltage_est;
 
-    /* Step at 0°C (Resistance higher -> larger IR drop -> lower terminal voltage during discharge) */
+    /* Step at 0°C (Resistance higher -> larger IR drop -> lower terminal voltage during discharge)
+     */
     fo_ecm_ekf_reset(&ekf, 0.50, 0.0);
     fo_ecm_ekf_step(&ekf, -10.0, 3.20, 0.0, 1.0);
     double v_est_0 = ekf.terminal_voltage_est;
 
-    /* Step at 45°C (Resistance lower -> smaller IR drop -> higher terminal voltage during discharge) */
+    /* Step at 45°C (Resistance lower -> smaller IR drop -> higher terminal voltage during
+     * discharge) */
     fo_ecm_ekf_reset(&ekf, 0.50, 45.0);
     fo_ecm_ekf_step(&ekf, -10.0, 3.28, 45.0, 1.0);
     double v_est_45 = ekf.terminal_voltage_est;

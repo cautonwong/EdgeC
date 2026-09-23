@@ -1,16 +1,17 @@
 /**
- * test_web_dcu_power_quality.c - Verification of DCU Packet Sniffer & Power Quality / Phase-Switching Views (AEP-496)
+ * test_web_dcu_power_quality.c - Verification of DCU Packet Sniffer & Power Quality /
+ * Phase-Switching Views (AEP-496)
  */
 
-#include <stdarg.h>
-#include <stddef.h>
+#include <cmocka.h>
 #include <setjmp.h>
-#include <stdint.h>
+#include <stdarg.h>
 #include <stdbool.h>
-#include <string.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <cmocka.h>
+#include <string.h>
 
 #include "dcu_power_quality.h"
 
@@ -18,13 +19,7 @@ static void read_file_content(const char *rel_path, char *buf, size_t max_len) {
     char path[512];
     FILE *fp = NULL;
 
-    const char *prefixes[] = {
-        "",
-        "../",
-        "../../",
-        "/workspaces/edgeos/EdgeC/",
-        NULL
-    };
+    const char *prefixes[] = {"", "../", "../../", "/workspaces/edgeos/EdgeC/", NULL};
 
     for (int i = 0; prefixes[i] != NULL; i++) {
         snprintf(path, sizeof(path), "%s%s", prefixes[i], rel_path);
@@ -130,12 +125,12 @@ static void test_dcu_physical_unbalance_and_harmonic_algorithms(void **state) {
     engine.ic = 36.8;
 
     double unbalance = dcu_calc_three_phase_unbalance(engine.ia, engine.ib, engine.ic);
-    assert_true(unbalance > 15.0); // 84.2 vs ~54.5 is > 50% unbalance
+    assert_true(unbalance > 15.0);  // 84.2 vs ~54.5 is > 50% unbalance
 
     dcu_switchable_branch_t branches[3] = {
-        { .meter_id = 101, .current_phase = PQ_PHASE_A, .current_amps = 18.5 },
-        { .meter_id = 102, .current_phase = PQ_PHASE_A, .current_amps = 24.2 },
-        { .meter_id = 103, .current_phase = PQ_PHASE_B, .current_amps = 12.0 },
+        {.meter_id = 101, .current_phase = PQ_PHASE_A, .current_amps = 18.5},
+        {.meter_id = 102, .current_phase = PQ_PHASE_A, .current_amps = 24.2},
+        {.meter_id = 103, .current_phase = PQ_PHASE_B, .current_amps = 12.0},
     };
 
     dcu_phase_switch_plan_t plan;

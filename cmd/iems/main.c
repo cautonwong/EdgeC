@@ -158,8 +158,8 @@ static void _on_iems_task_loaded(const iems_loaded_task_t* loaded, void* user_da
         task->interval_ms = meta->poll_interval_ms;
     }
 
-    printf("📝 [POLL REGISTER] Tag: %u, Bus: %d, Protocol: %s, Interval: %d\n", task->tag_id, task->bus_id,
-           task->protocol, task->interval_ms);
+    printf("📝 [POLL REGISTER] Tag: %u, Bus: %d, Protocol: %s, Interval: %d\n", task->tag_id,
+           task->bus_id, task->protocol, task->interval_ms);
 
     uv__queue_insert_tail(&g_poll_task_head, &task->node);
     uv_periodic_init(uv_default_loop(), &task->scheduler);
@@ -318,8 +318,6 @@ static void _on_task_close(uv_handle_t* handle) {
     free(task);
 }
 
-
-
 static void iems_shutdown(uv_loop_t* loop) {
     if (g_timer_load_tasks) {
         uv_timer_stop(g_timer_load_tasks);
@@ -399,18 +397,20 @@ int main(int argc, char* argv[]) {
     datahub_init(g_app.hub, loop, shm_name, 4096, 1024, contract->tags, contract->tag_count, NULL,
                  edge_tag_get_compact_index, NULL);
 
-	// [ADR-0001] Start DataHub metrics reporting
-	datahub_start_metrics(g_app.hub);
+    // [ADR-0001] Start DataHub metrics reporting
+    datahub_start_metrics(g_app.hub);
     // 💡 [WAL] 开启 Write-Ahead Log 持久化并重放历史数据
-    const char *wal_path = getenv("EDGE_WAL_PATH") ? getenv("EDGE_WAL_PATH") : "/tmp/edgeos_wal.log";
-    const char *snap_path = getenv("EDGE_SNAP_PATH") ? getenv("EDGE_SNAP_PATH") : "/tmp/edgeos_snapshot.bin";
-    
+    const char* wal_path =
+        getenv("EDGE_WAL_PATH") ? getenv("EDGE_WAL_PATH") : "/tmp/edgeos_wal.log";
+    const char* snap_path =
+        getenv("EDGE_SNAP_PATH") ? getenv("EDGE_SNAP_PATH") : "/tmp/edgeos_snapshot.bin";
+
     // 💡 [Compaction] 先加载快照（如果存在），然后重放 WAL 残余日志
     datahub_load_snapshot(g_app.hub, snap_path);
-    
+
     datahub_enable_wal(g_app.hub, wal_path);
     datahub_replay_wal(g_app.hub);
-    
+
     // 启动压实调度：每 5 分钟 (300,000ms) 将内存落盘并截断 WAL
     datahub_start_compaction(g_app.hub, 300000, snap_path);
 
@@ -455,10 +455,7 @@ int main(int argc, char* argv[]) {
     nb_transport_ops_t transport = mqtt_producer_create(mqtt_url, "IEMS_EDGE_NODE");
 
     // 💡 [Consumer-Driven] 创建数据源适配器：shm_ring_read → nb_source_ops_t
-    nb_source_ops_t nb_source = {
-        .ctx = &g_app.hub->ring,
-        .read_next = (void*)(shm_ring_read)
-    };
+    nb_source_ops_t nb_source = {.ctx = &g_app.hub->ring, .read_next = (void*)(shm_ring_read)};
     northbound_mgr_init_ex(g_app.north, nb_source, "IEMS_V4", g_app.db_service, transport);
 
     g_app.svc = service_new(loop, g_app.hub, g_app.arb, g_app.db_service, g_app.stream_eng, NULL,

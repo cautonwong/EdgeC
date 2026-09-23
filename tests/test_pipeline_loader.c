@@ -21,7 +21,8 @@ static void test_loader_dynamic_build(void** state) {
 
     stream_engine_destroy(engine);
     datahub_destroy(&hub);
-    while (uv_run(&loop, UV_RUN_NOWAIT));
+    while (uv_run(&loop, UV_RUN_NOWAIT))
+        ;
     uv_loop_close(&loop);
 }
 

@@ -4,24 +4,22 @@
  */
 
 #include "smartbox_thermal_aging.h"
-#include <string.h>
+
 #include <math.h>
+#include <string.h>
 
 void smartbox_thermal_init(smartbox_thermal_model_t *model, double rated_capacity_kva) {
     if (!model) return;
     memset(model, 0, sizeof(smartbox_thermal_model_t));
     model->rated_capacity_kva = (rated_capacity_kva > 0.0) ? rated_capacity_kva : 630.0;
-    model->rated_hotspot_rise_k = 30.0; // 额定最热点对顶层油温升 30K
-    model->winding_exponent_m = 0.8;    // 绕组指数
-    model->rated_top_oil_rise_k = 50.0; // 额定顶层油温升 50K
+    model->rated_hotspot_rise_k = 30.0;  // 额定最热点对顶层油温升 30K
+    model->winding_exponent_m = 0.8;     // 绕组指数
+    model->rated_top_oil_rise_k = 50.0;  // 额定顶层油温升 50K
     model->remaining_useful_life_hours = TRANSFORMER_NORMAL_LIFE_HOURS;
 }
 
-int smartbox_thermal_evaluate_cycle(smartbox_thermal_model_t *model,
-                                    double ambient_temp,
-                                    double top_oil_temp,
-                                    double load_kva,
-                                    double delta_time_sec) {
+int smartbox_thermal_evaluate_cycle(smartbox_thermal_model_t *model, double ambient_temp,
+                                    double top_oil_temp, double load_kva, double delta_time_sec) {
     if (!model || delta_time_sec <= 0.0) return -1;
 
     model->ambient_temp_c = ambient_temp;
@@ -53,7 +51,8 @@ int smartbox_thermal_evaluate_cycle(smartbox_thermal_model_t *model,
     double incremental_loss_pct = (equivalent_aging_hours / TRANSFORMER_NORMAL_LIFE_HOURS) * 100.0;
     model->cumulative_loss_of_life_pct += incremental_loss_pct;
 
-    double rul = TRANSFORMER_NORMAL_LIFE_HOURS * (1.0 - (model->cumulative_loss_of_life_pct / 100.0));
+    double rul =
+        TRANSFORMER_NORMAL_LIFE_HOURS * (1.0 - (model->cumulative_loss_of_life_pct / 100.0));
     if (rul < 0.0) rul = 0.0;
     model->remaining_useful_life_hours = rul;
 

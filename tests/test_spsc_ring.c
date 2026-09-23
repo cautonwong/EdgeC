@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+
 #include "spsc_ring.h"
 
 static void test_spsc_ring_basic(void** state) {

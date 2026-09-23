@@ -3,12 +3,12 @@
  * @brief Unit tests for Multimodal Gait Analysis & Fall Active Safety Operator
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdint.h>
-#include <stdbool.h>
 #include <cmocka.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 
 #include "gait_safety.h"
@@ -26,13 +26,11 @@ static void test_gait_safety_eval_normal_and_hazard(void **state) {
     assert_int_equal(gait_safety_init(&status), 0);
 
     /* Normal posture input */
-    gait_sensory_input_t normal_in = {
-        .cop_x_cm = 1.0f,
-        .cop_y_cm = 1.5f,
-        .body_tilt_deg = 2.0f,
-        .tilt_velocity = 5.0f,
-        .harness_tension_n = 20.0f
-    };
+    gait_sensory_input_t normal_in = {.cop_x_cm = 1.0f,
+                                      .cop_y_cm = 1.5f,
+                                      .body_tilt_deg = 2.0f,
+                                      .tilt_velocity = 5.0f,
+                                      .harness_tension_n = 20.0f};
 
     assert_int_equal(gait_safety_eval(&normal_in, &status), 0);
     assert_false(status.fall_hazard_detected);
@@ -40,13 +38,11 @@ static void test_gait_safety_eval_normal_and_hazard(void **state) {
     assert_true(status.hazard_score < 0.3f);
 
     /* Fall Hazard input (Sudden tilt and velocity) */
-    gait_sensory_input_t hazard_in = {
-        .cop_x_cm = 8.0f,
-        .cop_y_cm = 10.0f,
-        .body_tilt_deg = 30.0f,
-        .tilt_velocity = 95.0f,
-        .harness_tension_n = 180.0f
-    };
+    gait_sensory_input_t hazard_in = {.cop_x_cm = 8.0f,
+                                      .cop_y_cm = 10.0f,
+                                      .body_tilt_deg = 30.0f,
+                                      .tilt_velocity = 95.0f,
+                                      .harness_tension_n = 180.0f};
 
     assert_int_equal(gait_safety_eval(&hazard_in, &status), 0);
     assert_true(status.fall_hazard_detected);

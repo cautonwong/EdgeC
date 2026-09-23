@@ -1280,6 +1280,12 @@ target_link_libraries(test_composition_root PRIVATE
 )
 add_test(NAME test_composition_root COMMAND test_composition_root)
 
+# AEP-792 架构质量守卫与反驳测试 (Testing the Gates) (Issue #337)
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+add_test(NAME test_ci_architecture_guards
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/ci/scripts/run_guard_selftest.py
+)
+
 
 
 

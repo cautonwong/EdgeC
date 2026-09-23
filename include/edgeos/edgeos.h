@@ -6,16 +6,16 @@
 #ifndef EDGEOS_SDK_EDGEOS_H
 #define EDGEOS_SDK_EDGEOS_H
 
-#include "edgeos/version.h"
-#include "edgeos/types.h"
+#include "edgeos/anti_corruption.h"
 #include "edgeos/datahub.h"
+#include "edgeos/dds.h"
 #include "edgeos/driver.h"
+#include "edgeos/npu.h"
 #include "edgeos/storage.h"
 #include "edgeos/stream_engine.h"
-#include "edgeos/dds.h"
-#include "edgeos/anti_corruption.h"
-#include "edgeos/npu.h"
 #include "edgeos/port.h"
+#include "edgeos/types.h"
+#include "edgeos/version.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -1,10 +1,11 @@
+#include <cmocka.h>
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <cmocka.h>
+
 #include "stream_engine.h"
 
 static int g_stage1_run = 0;

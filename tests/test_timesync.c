@@ -1,5 +1,6 @@
-#include <stdio.h>
 #include <assert.h>
+#include <stdio.h>
+
 #include "timesync.h"
 
 int main(void) {
@@ -23,7 +24,7 @@ int main(void) {
     timesync_update(&clk, t1, t2, t3, t4);
 
     assert(clk.is_synced);
-    assert(clk.offset_ns == 0); // Symmetric delay in this synthetic setup
+    assert(clk.offset_ns == 0);  // Symmetric delay in this synthetic setup
 
     // Test non-zero offset
     // t2=1000010000 (+10us offset)

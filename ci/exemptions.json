@@ -1,0 +1,23 @@
+{
+  "version": "1.0",
+  "exemptions": [
+    {
+      "id": "EXEMPT-001",
+      "module": "modules/edge_security/src/hal_crypto.c",
+      "rule": "no_dynamic_memory_in_init",
+      "owner": "800900",
+      "reason": "OpenSSL dynamic context initialization during startup only",
+      "ticket": "Issue #324",
+      "exit_plan": "Replace with zero-allocation static context when upgrading mbedTLS"
+    },
+    {
+      "id": "EXEMPT-002",
+      "module": "third-party/cyclonedds",
+      "rule": "code_style_uniformity",
+      "owner": "800900",
+      "reason": "Upstream vendor source code must remain unmodified",
+      "ticket": "Issue #201",
+      "exit_plan": "Maintain non-intrusive shim adapter"
+    }
+  ]
+}

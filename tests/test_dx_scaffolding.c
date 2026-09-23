@@ -1,26 +1,26 @@
 /**
  * @file test_dx_scaffolding.c
  * @brief AEP-304: DX (Developer Experience) Automated Integration Test
- * 
+ *
  * Verifies that 2nd-party developers can create, declare, register and schedule
  * new drivers with zero SDK source modification, complete VTable dispatch,
  * DataHub telemetry writeback, and lifecycle safety.
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 #include <cmocka.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <uv.h>
 
+#include "datahub.h"
 #include "driver_manager.h"
 #include "edge_driver.h"
-#include "datahub.h"
 #include "net_buf.h"
 #include "shmring.h"
 
@@ -39,8 +39,8 @@ static int custom_bess_on_init(edge_driver_ctx_t *ctx) {
     if (!ctx) return -1;
     custom_bess_ctx_t *priv = (custom_bess_ctx_t *)ctx->priv;
     if (!priv) return -1;
-    priv->simulated_voltage = 2300; // 230.0 V
-    priv->simulated_power = 5000;   // 5000 W
+    priv->simulated_voltage = 2300;  // 230.0 V
+    priv->simulated_power = 5000;    // 5000 W
     priv->is_online = true;
     priv->request_count = 0;
     return 0;
@@ -78,17 +78,16 @@ static int custom_bess_encode_request(edge_driver_ctx_t *ctx, const uint32_t *ta
     return 0;
 }
 
-static int custom_bess_encode_write(edge_driver_ctx_t *ctx, uint32_t tag_id,
-                                    double value, net_buf_t *out) {
+static int custom_bess_encode_write(edge_driver_ctx_t *ctx, uint32_t tag_id, double value,
+                                    net_buf_t *out) {
     if (!ctx || !out) return -1;
     (void)tag_id;
     (void)value;
     return 0;
 }
 
-static int custom_bess_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in,
-                                       net_buf_t *resp_out, pipe_msg_t *out_msgs,
-                                       int *msg_count, size_t *consumed) {
+static int custom_bess_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_out,
+                                       pipe_msg_t *out_msgs, int *msg_count, size_t *consumed) {
     if (!ctx || !in || !out_msgs || !msg_count || !consumed) return -1;
     (void)resp_out;
     custom_bess_ctx_t *priv = (custom_bess_ctx_t *)ctx->priv;
@@ -102,9 +101,8 @@ static int custom_bess_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in,
     return 0;
 }
 
-static int custom_bess_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in,
-                                net_buf_t *resp_out, pipe_msg_t *async_msgs,
-                                int *async_count, size_t *consumed) {
+static int custom_bess_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_out,
+                                 pipe_msg_t *async_msgs, int *async_count, size_t *consumed) {
     return custom_bess_decode_response(ctx, in, resp_out, async_msgs, async_count, consumed);
 }
 
@@ -132,7 +130,7 @@ static void test_dx_driver_registration_and_lookup(void **state) {
 
     // 1. Declare generated-style driver registry table containing the custom driver
     static const edge_driver_reg_entry_t custom_registry[] = {
-        { .protocol_name = "CUSTOM_BESS", .driver = &g_custom_bess_driver },
+        {.protocol_name = "CUSTOM_BESS", .driver = &g_custom_bess_driver},
     };
 
     // 2. Batch register table into driver manager
@@ -154,7 +152,7 @@ static void test_dx_device_lifecycle_and_io(void **state) {
     assert_non_null(mgr);
 
     static const edge_driver_reg_entry_t custom_registry[] = {
-        { .protocol_name = "CUSTOM_BESS", .driver = &g_custom_bess_driver },
+        {.protocol_name = "CUSTOM_BESS", .driver = &g_custom_bess_driver},
     };
     assert_int_equal(driver_manager_register_table(mgr, custom_registry, 1), 0);
 
@@ -192,7 +190,8 @@ static void test_dx_device_lifecycle_and_io(void **state) {
     pipe_msg_t msgs[8];
     int msg_count = 0;
     size_t consumed = 0;
-    int dec_rc = g_custom_bess_driver.decode_response(ctx, rx_buf, NULL, msgs, &msg_count, &consumed);
+    int dec_rc =
+        g_custom_bess_driver.decode_response(ctx, rx_buf, NULL, msgs, &msg_count, &consumed);
     assert_int_equal(dec_rc, 0);
     assert_int_equal(msg_count, 2);
     assert_int_equal(msgs[0].tag_id, 1001);
@@ -222,13 +221,13 @@ static void test_dx_datahub_telemetry_integration(void **state) {
     assert_non_null(mgr);
 
     static const edge_driver_reg_entry_t custom_registry[] = {
-        { .protocol_name = "CUSTOM_BESS", .driver = &g_custom_bess_driver },
+        {.protocol_name = "CUSTOM_BESS", .driver = &g_custom_bess_driver},
     };
     assert_int_equal(driver_manager_register_table(mgr, custom_registry, 1), 0);
 
     edge_driver_ctx_t *ctx = driver_instance_create(mgr, "CUSTOM_BESS", 101);
     assert_non_null(ctx);
-    ctx->user_data = &hub; // Dependency injection of DataHub
+    ctx->user_data = &hub;  // Dependency injection of DataHub
 
     // 2. Simulate decode & writeback loop
     net_buf_pool_t *pool = net_buf_pool_new(4, 256, 0);
@@ -241,7 +240,8 @@ static void test_dx_datahub_telemetry_integration(void **state) {
     pipe_msg_t msgs[4];
     int msg_count = 0;
     size_t consumed = 0;
-    assert_int_equal(g_custom_bess_driver.decode_response(ctx, rx_buf, NULL, msgs, &msg_count, &consumed), 0);
+    assert_int_equal(
+        g_custom_bess_driver.decode_response(ctx, rx_buf, NULL, msgs, &msg_count, &consumed), 0);
 
     // 3. Dispatch decoded points into DataHub shadow table
     for (int i = 0; i < msg_count; i++) {
@@ -264,7 +264,8 @@ static void test_dx_datahub_telemetry_integration(void **state) {
     driver_manager_destroy(mgr);
 
     datahub_destroy(&hub);
-    while (uv_run(&loop, UV_RUN_NOWAIT));
+    while (uv_run(&loop, UV_RUN_NOWAIT))
+        ;
     uv_loop_close(&loop);
 }
 
@@ -283,7 +284,7 @@ static void test_dx_error_handling_and_edge_cases(void **state) {
 
     // 3. Table with NULL entry driver pointer
     static const edge_driver_reg_entry_t bad_registry[] = {
-        { .protocol_name = "NULL_DRV", .driver = NULL },
+        {.protocol_name = "NULL_DRV", .driver = NULL},
     };
     assert_int_equal(driver_manager_register_table(mgr, bad_registry, 1), -1);
 

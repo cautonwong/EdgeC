@@ -3,6 +3,7 @@
  * @brief Cyclone DDS Industrial QoS Matrix & Multi-Node Distributed Mesh Test (ARCH-DDS-01)
  */
 
+#include <cmocka.h>
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -11,7 +12,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <cmocka.h>
 
 #include "datahub.h"
 #include "datahub_dds.h"
@@ -43,26 +43,20 @@ static void test_dds_node_discovery_and_telemetry_streaming(void **state) {
 
     datahub_t hub_a;
     memset(&hub_a, 0, sizeof(hub_a));
-    datahub_config_t cfg_a = {
-        .dds_domain_id = 0,
-        .backend_type = DATAHUB_BACKEND_DDS
-    };
+    datahub_config_t cfg_a = {.dds_domain_id = 0, .backend_type = DATAHUB_BACKEND_DDS};
     int rc = datahub_dds_init(&hub_a, &cfg_a);
     assert_int_equal(rc, 0);
 
     datahub_t hub_b;
     memset(&hub_b, 0, sizeof(hub_b));
-    datahub_config_t cfg_b = {
-        .dds_domain_id = 0,
-        .backend_type = DATAHUB_BACKEND_DDS
-    };
+    datahub_config_t cfg_b = {.dds_domain_id = 0, .backend_type = DATAHUB_BACKEND_DDS};
     rc = datahub_dds_init(&hub_b, &cfg_b);
     assert_int_equal(rc, 0);
 
     // Node B 发布 100 帧高频遥测流 (YC)
     for (int i = 0; i < 100; i++) {
         pipe_msg_t msg = {
-            .tag_id = 536871424 + (uint32_t)i, // DLT698 Voltage Phase A offset
+            .tag_id = 536871424 + (uint32_t)i,  // DLT698 Voltage Phase A offset
             .ts = 1000000ULL * (uint64_t)(uint32_t)i,
             .type = PIPEMSG_TYPE_SCALAR,
             .payload.val.f = 220.0 + (double)i * 0.1,
@@ -85,10 +79,7 @@ static void test_dds_yx_late_joiner_retention(void **state) {
 
     datahub_t hub_b;
     memset(&hub_b, 0, sizeof(hub_b));
-    datahub_config_t cfg_b = {
-        .dds_domain_id = 0,
-        .backend_type = DATAHUB_BACKEND_DDS
-    };
+    datahub_config_t cfg_b = {.dds_domain_id = 0, .backend_type = DATAHUB_BACKEND_DDS};
     int rc = datahub_dds_init(&hub_b, &cfg_b);
     assert_int_equal(rc, 0);
 
@@ -98,8 +89,8 @@ static void test_dds_yx_late_joiner_retention(void **state) {
             .tag_id = 0x30110001 + (uint32_t)i,
             .ts = 2000000ULL * (uint64_t)(uint32_t)i,
             .type = PIPEMSG_TYPE_EVENT,
-            .attr = { .priority = 5 },
-            .payload.val.f = 1.0, // 变位报警置位
+            .attr = {.priority = 5},
+            .payload.val.f = 1.0,  // 变位报警置位
         };
         rc = datahub_dds_publish_yx(&hub_b, &alarm_msg);
         assert_int_equal(rc, 0);
@@ -113,10 +104,7 @@ static void test_dds_yx_late_joiner_retention(void **state) {
     // Node A 晚加入 (Late Joiner)
     datahub_t hub_a;
     memset(&hub_a, 0, sizeof(hub_a));
-    datahub_config_t cfg_a = {
-        .dds_domain_id = 0,
-        .backend_type = DATAHUB_BACKEND_DDS
-    };
+    datahub_config_t cfg_a = {.dds_domain_id = 0, .backend_type = DATAHUB_BACKEND_DDS};
     rc = datahub_dds_init(&hub_a, &cfg_a);
     assert_int_equal(rc, 0);
 
@@ -129,10 +117,7 @@ static void test_dds_yk_telecontrol_strict_dispatch(void **state) {
 
     datahub_t hub_a;
     memset(&hub_a, 0, sizeof(hub_a));
-    datahub_config_t cfg_a = {
-        .dds_domain_id = 0,
-        .backend_type = DATAHUB_BACKEND_DDS
-    };
+    datahub_config_t cfg_a = {.dds_domain_id = 0, .backend_type = DATAHUB_BACKEND_DDS};
     int rc = datahub_dds_init(&hub_a, &cfg_a);
     assert_int_equal(rc, 0);
 
@@ -141,8 +126,8 @@ static void test_dds_yk_telecontrol_strict_dispatch(void **state) {
         .tag_id = 0x40010001,
         .ts = 5000000ULL,
         .type = PIPEMSG_TYPE_EVENT,
-        .attr = { .priority = 10 },
-        .payload.val.f = 0.0, // 遥控分闸
+        .attr = {.priority = 10},
+        .payload.val.f = 0.0,  // 遥控分闸
     };
     rc = datahub_dds_publish_yk(&hub_a, &cmd_msg);
     assert_int_equal(rc, 0);

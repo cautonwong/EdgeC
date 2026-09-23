@@ -8,8 +8,8 @@
 #include <unistd.h>
 #include <uv.h>
 
-#include "sqlite_service.h"
 #include "edge_app_mgr.h"
+#include "sqlite_service.h"
 
 static void _on_close_cb(uv_handle_t *handle, void *arg) {
     (void)arg;
@@ -38,10 +38,7 @@ static void test_sqlite_app_registry_crud(void **state) {
     const char *db_path = "test_app_registry.db";
     unlink(db_path);
 
-    sqlite_config_t cfg = {
-        .strategy = STRATEGY_LITE,
-        .db_path = db_path
-    };
+    sqlite_config_t cfg = {.strategy = STRATEGY_LITE, .db_path = db_path};
     sqlite_svc_t *svc = sqlite_svc_create(loop, &cfg);
     assert_non_null(svc);
 
@@ -52,7 +49,8 @@ static void test_sqlite_app_registry_crud(void **state) {
     snprintf(manifest_in.name, sizeof(manifest_in.name), "Voltage Guard App");
     snprintf(manifest_in.version, sizeof(manifest_in.version), "1.0.0");
     snprintf(manifest_in.author, sizeof(manifest_in.author), "EdgeOS Team");
-    snprintf(manifest_in.wasm_path, sizeof(manifest_in.wasm_path), "/var/edgeos/apps/voltage_guard/app.wasm");
+    snprintf(manifest_in.wasm_path, sizeof(manifest_in.wasm_path),
+             "/var/edgeos/apps/voltage_guard/app.wasm");
     manifest_in.trigger_tag = 1001;
     snprintf(manifest_in.entry_func, sizeof(manifest_in.entry_func), "on_event");
     manifest_in.fault_policy = FAULT_POLICY_AUTO_RESTART;

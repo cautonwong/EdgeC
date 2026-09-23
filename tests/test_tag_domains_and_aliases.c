@@ -3,15 +3,15 @@
  * @brief AEP-352: Unit tests for TagID domain partitioning and legacy alias mapping
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 #include <cmocka.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <uv.h>
 
 #include "datahub.h"
@@ -23,22 +23,28 @@
 
 typedef enum {
     TAG_DOMAIN_CORE_STANDARD = 0,
-    TAG_DOMAIN_DCU           = 1,
-    TAG_DOMAIN_IEMS          = 2,
-    TAG_DOMAIN_SMART_BOX     = 3,
-    TAG_DOMAIN_NPU           = 4,
-    TAG_DOMAIN_UNKNOWN       = -1
+    TAG_DOMAIN_DCU = 1,
+    TAG_DOMAIN_IEMS = 2,
+    TAG_DOMAIN_SMART_BOX = 3,
+    TAG_DOMAIN_NPU = 4,
+    TAG_DOMAIN_UNKNOWN = -1
 } tag_domain_t;
 
 static tag_domain_t get_tag_domain(uint32_t tag_id) {
     uint32_t domain_prefix = (tag_id >> 16) & 0xFF;
     switch (domain_prefix) {
-        case 0x00: return TAG_DOMAIN_CORE_STANDARD;
-        case 0x01: return TAG_DOMAIN_DCU;
-        case 0x02: return TAG_DOMAIN_IEMS;
-        case 0x03: return TAG_DOMAIN_SMART_BOX;
-        case 0x04: return TAG_DOMAIN_NPU;
-        default:   return TAG_DOMAIN_UNKNOWN;
+        case 0x00:
+            return TAG_DOMAIN_CORE_STANDARD;
+        case 0x01:
+            return TAG_DOMAIN_DCU;
+        case 0x02:
+            return TAG_DOMAIN_IEMS;
+        case 0x03:
+            return TAG_DOMAIN_SMART_BOX;
+        case 0x04:
+            return TAG_DOMAIN_NPU;
+        default:
+            return TAG_DOMAIN_UNKNOWN;
     }
 }
 
@@ -54,13 +60,13 @@ typedef struct {
 } tag_alias_entry_t;
 
 static const tag_alias_entry_t g_test_aliases[] = {
-    { "TAG_VOLTAGE_A",    1001,   "VOLTAGE_PHASE_A",             TAG_DOMAIN_CORE_STANDARD },
-    { "TAG_VOLTAGE_B",    1002,   "VOLTAGE_PHASE_B",             TAG_DOMAIN_CORE_STANDARD },
-    { "TAG_ACTIVE_POWER", 3001,   "ACTIVE_POWER",                TAG_DOMAIN_CORE_STANDARD },
-    { "TAG_ESS_SOC",      11001,  "ESS_SOC",                     TAG_DOMAIN_CORE_STANDARD },
-    { "DCU_FEEDER_LOSS",  65538,  "DCU_LINELOSS_PCT",            TAG_DOMAIN_DCU },
-    { "BESS_MAX_CELL_V",  131075, "IEMS_BMS_MAX_CELL_VOLT",       TAG_DOMAIN_IEMS },
-    { "PANEL_LEAKAGE_MA", 196609, "SMARTBOX_RESIDUAL_CURRENT_MA", TAG_DOMAIN_SMART_BOX },
+    {"TAG_VOLTAGE_A", 1001, "VOLTAGE_PHASE_A", TAG_DOMAIN_CORE_STANDARD},
+    {"TAG_VOLTAGE_B", 1002, "VOLTAGE_PHASE_B", TAG_DOMAIN_CORE_STANDARD},
+    {"TAG_ACTIVE_POWER", 3001, "ACTIVE_POWER", TAG_DOMAIN_CORE_STANDARD},
+    {"TAG_ESS_SOC", 11001, "ESS_SOC", TAG_DOMAIN_CORE_STANDARD},
+    {"DCU_FEEDER_LOSS", 65538, "DCU_LINELOSS_PCT", TAG_DOMAIN_DCU},
+    {"BESS_MAX_CELL_V", 131075, "IEMS_BMS_MAX_CELL_VOLT", TAG_DOMAIN_IEMS},
+    {"PANEL_LEAKAGE_MA", 196609, "SMARTBOX_RESIDUAL_CURRENT_MA", TAG_DOMAIN_SMART_BOX},
 };
 static const size_t g_test_aliases_count = sizeof(g_test_aliases) / sizeof(g_test_aliases[0]);
 
@@ -158,7 +164,8 @@ static void test_datahub_partitioned_tag_telemetry(void **state) {
     uv_loop_init(&loop);
     datahub_t hub;
     // Initialize DataHub with domain tag mapping function
-    int rc = datahub_init(&hub, &loop, "domain_alias_hub", 1024, 1024, NULL, 0, NULL, domain_tag_map_fn, NULL);
+    int rc = datahub_init(&hub, &loop, "domain_alias_hub", 1024, 1024, NULL, 0, NULL,
+                          domain_tag_map_fn, NULL);
     assert_int_equal(rc, 0);
 
     // 1. Core domain tag write/read
@@ -197,7 +204,8 @@ static void test_datahub_partitioned_tag_telemetry(void **state) {
 
     // Clean up
     datahub_destroy(&hub);
-    while (uv_run(&loop, UV_RUN_NOWAIT));
+    while (uv_run(&loop, UV_RUN_NOWAIT))
+        ;
     uv_loop_close(&loop);
 }
 

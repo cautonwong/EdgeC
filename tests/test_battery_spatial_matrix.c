@@ -5,12 +5,13 @@
  * @author EdgeOS Core Architecture Team
  */
 
-#include "battery_spatial_matrix.h"
+#include <assert.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
-#include <assert.h>
+
+#include "battery_spatial_matrix.h"
 
 #define TEST_PASS 0
 #define TEST_FAIL 1
@@ -18,7 +19,8 @@
 static int test_init_and_geometry(void) {
     printf("[TEST 1] Testing 4096-node spatial matrix initialization & 3D topology...\n");
 
-    battery_spatial_matrix_t *ctx = (battery_spatial_matrix_t *)calloc(1, sizeof(battery_spatial_matrix_t));
+    battery_spatial_matrix_t *ctx =
+        (battery_spatial_matrix_t *)calloc(1, sizeof(battery_spatial_matrix_t));
     assert(ctx != NULL);
 
     battery_spatial_matrix_config_t config;
@@ -27,9 +29,9 @@ static int test_init_and_geometry(void) {
     config.num_racks = 16;
     config.num_modules_per_rack = 16;
     config.num_cells_per_module = 16;
-    config.cell_dx = 0.05f; // 50mm
-    config.cell_dy = 0.20f; // 200mm
-    config.cell_dz = 0.80f; // 800mm
+    config.cell_dx = 0.05f;  // 50mm
+    config.cell_dy = 0.20f;  // 200mm
+    config.cell_dz = 0.80f;  // 800mm
     config.nominal_capacity_ah = 280.0f;
     config.internal_r0_mohm = 0.25f;
 
@@ -44,25 +46,26 @@ static int test_init_and_geometry(void) {
     assert(fabsf(ctx->coords[0].pos_y - 0.0f) < 1e-4f);
     assert(fabsf(ctx->coords[0].pos_z - 0.0f) < 1e-4f);
 
-    // Verify cell #0 boundary neighbor conditions (-X is boundary, +X is #1, -Y is boundary, +Y is #16, -Z is boundary, +Z is #256)
-    assert(ctx->neighbor_indices[0][0] == -1); // -X
-    assert(ctx->neighbor_indices[0][1] == 1);  // +X
-    assert(ctx->neighbor_indices[0][2] == -1); // -Y
-    assert(ctx->neighbor_indices[0][3] == 16); // +Y
-    assert(ctx->neighbor_indices[0][4] == -1); // -Z
-    assert(ctx->neighbor_indices[0][5] == 256);// +Z
+    // Verify cell #0 boundary neighbor conditions (-X is boundary, +X is #1, -Y is boundary, +Y is
+    // #16, -Z is boundary, +Z is #256)
+    assert(ctx->neighbor_indices[0][0] == -1);   // -X
+    assert(ctx->neighbor_indices[0][1] == 1);    // +X
+    assert(ctx->neighbor_indices[0][2] == -1);   // -Y
+    assert(ctx->neighbor_indices[0][3] == 16);   // +Y
+    assert(ctx->neighbor_indices[0][4] == -1);   // -Z
+    assert(ctx->neighbor_indices[0][5] == 256);  // +Z
 
     // Verify internal cell #273 (r=1, m=1, c=1 => 1*256 + 1*16 + 1 = 273)
     uint32_t internal_idx = 273;
     assert(ctx->coords[internal_idx].rack_id == 1);
     assert(ctx->coords[internal_idx].module_id == 1);
     assert(ctx->coords[internal_idx].cell_id_in_module == 1);
-    assert(ctx->neighbor_indices[internal_idx][0] == 272); // -X
-    assert(ctx->neighbor_indices[internal_idx][1] == 274); // +X
-    assert(ctx->neighbor_indices[internal_idx][2] == 257); // -Y (273 - 16)
-    assert(ctx->neighbor_indices[internal_idx][3] == 289); // +Y (273 + 16)
-    assert(ctx->neighbor_indices[internal_idx][4] == 17);  // -Z (273 - 256)
-    assert(ctx->neighbor_indices[internal_idx][5] == 529); // +Z (273 + 256)
+    assert(ctx->neighbor_indices[internal_idx][0] == 272);  // -X
+    assert(ctx->neighbor_indices[internal_idx][1] == 274);  // +X
+    assert(ctx->neighbor_indices[internal_idx][2] == 257);  // -Y (273 - 16)
+    assert(ctx->neighbor_indices[internal_idx][3] == 289);  // +Y (273 + 16)
+    assert(ctx->neighbor_indices[internal_idx][4] == 17);   // -Z (273 - 256)
+    assert(ctx->neighbor_indices[internal_idx][5] == 529);  // +Z (273 + 256)
 
     free(ctx);
     printf("  --> PASSED: 4096-Node 3D lattice geometry & neighbor indices verified.\n");
@@ -72,7 +75,8 @@ static int test_init_and_geometry(void) {
 static int test_uniform_pack_baseline_and_speed(void) {
     printf("[TEST 2] Testing uniform 4096-node pack baseline & compute latency benchmark...\n");
 
-    battery_spatial_matrix_t *ctx = (battery_spatial_matrix_t *)calloc(1, sizeof(battery_spatial_matrix_t));
+    battery_spatial_matrix_t *ctx =
+        (battery_spatial_matrix_t *)calloc(1, sizeof(battery_spatial_matrix_t));
     assert(ctx != NULL);
 
     battery_spatial_matrix_config_t config;
@@ -100,7 +104,8 @@ static int test_uniform_pack_baseline_and_speed(void) {
 
     // Feed 10 consecutive frames at 100ms intervals
     for (int step = 0; step < 10; step++) {
-        rc = battery_spatial_matrix_process_frame(ctx, voltages, temperatures, currents, 4096, ts, &result);
+        rc = battery_spatial_matrix_process_frame(ctx, voltages, temperatures, currents, 4096, ts,
+                                                  &result);
         assert(rc == 0);
         ts += 100;
     }
@@ -132,7 +137,8 @@ static int test_uniform_pack_baseline_and_speed(void) {
 static int test_single_cell_thermal_runaway_acceleration(void) {
     printf("[TEST 3] Testing localized thermal runaway acceleration & propagation vector...\n");
 
-    battery_spatial_matrix_t *ctx = (battery_spatial_matrix_t *)calloc(1, sizeof(battery_spatial_matrix_t));
+    battery_spatial_matrix_t *ctx =
+        (battery_spatial_matrix_t *)calloc(1, sizeof(battery_spatial_matrix_t));
     assert(ctx != NULL);
 
     battery_spatial_matrix_config_t config;
@@ -159,16 +165,18 @@ static int test_single_cell_thermal_runaway_acceleration(void) {
 
     // Normal steady baseline (5 frames)
     for (int step = 0; step < 5; step++) {
-        battery_spatial_matrix_process_frame(ctx, voltages, temperatures, currents, 4096, ts, &result);
+        battery_spatial_matrix_process_frame(ctx, voltages, temperatures, currents, 4096, ts,
+                                             &result);
         ts += 100;
     }
 
     // Inject thermal runaway on Cell #512: temperature increases at +2.5°C/s (0.25°C per 100ms)
     uint32_t hotspot_idx = 512;
     for (int step = 0; step < 10; step++) {
-        temperatures[hotspot_idx] += 0.25f; // +2.5°C/s rise
-        voltages[hotspot_idx] -= 0.005f;    // slight voltage sag
-        battery_spatial_matrix_process_frame(ctx, voltages, temperatures, currents, 4096, ts, &result);
+        temperatures[hotspot_idx] += 0.25f;  // +2.5°C/s rise
+        voltages[hotspot_idx] -= 0.005f;     // slight voltage sag
+        battery_spatial_matrix_process_frame(ctx, voltages, temperatures, currents, 4096, ts,
+                                             &result);
         ts += 100;
     }
 
@@ -181,7 +189,7 @@ static int test_single_cell_thermal_runaway_acceleration(void) {
     assert(result.num_hotspots >= 1);
     assert(result.hotspots[0].cell_index == hotspot_idx);
     assert(result.hotspots[0].temperature >= 75.0f);
-    assert(result.hotspots[0].spatial_grad > 50.0f); // severe spatial gradient with neighbors
+    assert(result.hotspots[0].spatial_grad > 50.0f);  // severe spatial gradient with neighbors
 
     // Verify feature inspection for hotspot cell
     battery_cell_features_t f;
@@ -199,9 +207,11 @@ static int test_single_cell_thermal_runaway_acceleration(void) {
 }
 
 static int test_polarization_resistance_anomaly_outlier(void) {
-    printf("[TEST 4] Testing 3-Sigma Z-Score outlier detection & polarization resistance spike...\n");
+    printf(
+        "[TEST 4] Testing 3-Sigma Z-Score outlier detection & polarization resistance spike...\n");
 
-    battery_spatial_matrix_t *ctx = (battery_spatial_matrix_t *)calloc(1, sizeof(battery_spatial_matrix_t));
+    battery_spatial_matrix_t *ctx =
+        (battery_spatial_matrix_t *)calloc(1, sizeof(battery_spatial_matrix_t));
     assert(ctx != NULL);
 
     battery_spatial_matrix_config_t config;
@@ -219,15 +229,17 @@ static int test_polarization_resistance_anomaly_outlier(void) {
     for (int i = 0; i < 4096; i++) {
         voltages[i] = 3.250f;
         temperatures[i] = 26.0f;
-        currents[i] = 100.0f; // 100A high current load
+        currents[i] = 100.0f;  // 100A high current load
     }
 
-    // Inject abnormal voltage drop on Cell #1024 due to high polarization resistance (3.05V vs 3.25V)
+    // Inject abnormal voltage drop on Cell #1024 due to high polarization resistance (3.05V
+    // vs 3.25V)
     uint32_t outlier_idx = 1024;
-    voltages[outlier_idx] = 3.050f; // 200mV sag
+    voltages[outlier_idx] = 3.050f;  // 200mV sag
 
     battery_spatial_frame_result_t result;
-    int rc = battery_spatial_matrix_process_frame(ctx, voltages, temperatures, currents, 4096, 1000000, &result);
+    int rc = battery_spatial_matrix_process_frame(ctx, voltages, temperatures, currents, 4096,
+                                                  1000000, &result);
     assert(rc == 0);
 
     // Verify statistical outlier detection
@@ -254,7 +266,8 @@ static int test_polarization_resistance_anomaly_outlier(void) {
 static int test_spatial_heat_diffusion_wave_multi_cells(void) {
     printf("[TEST 5] Testing 3D spatial heat diffusion wave across adjacent cells...\n");
 
-    battery_spatial_matrix_t *ctx = (battery_spatial_matrix_t *)calloc(1, sizeof(battery_spatial_matrix_t));
+    battery_spatial_matrix_t *ctx =
+        (battery_spatial_matrix_t *)calloc(1, sizeof(battery_spatial_matrix_t));
     assert(ctx != NULL);
 
     battery_spatial_matrix_config_t config;
@@ -284,19 +297,20 @@ static int test_spatial_heat_diffusion_wave_multi_cells(void) {
     temperatures[center_idx] = 95.0f;
 
     // Simulate diffusion to adjacent neighbors
-    temperatures[272] = 58.0f; // -X
-    temperatures[274] = 56.0f; // +X
-    temperatures[257] = 50.0f; // -Y
-    temperatures[289] = 48.0f; // +Y
-    temperatures[17]  = 46.0f; // -Z
-    temperatures[529] = 47.0f; // +Z
+    temperatures[272] = 58.0f;  // -X
+    temperatures[274] = 56.0f;  // +X
+    temperatures[257] = 50.0f;  // -Y
+    temperatures[289] = 48.0f;  // +Y
+    temperatures[17] = 46.0f;   // -Z
+    temperatures[529] = 47.0f;  // +Z
 
     battery_spatial_frame_result_t result;
-    int rc = battery_spatial_matrix_process_frame(ctx, voltages, temperatures, currents, 4096, 1000000, &result);
+    int rc = battery_spatial_matrix_process_frame(ctx, voltages, temperatures, currents, 4096,
+                                                  1000000, &result);
     assert(rc == 0);
 
     assert(result.overall_tr_stage == BATTERY_TR_STAGE_EXPLOSIVE);
-    assert(result.num_hotspots >= 2); // Primary hotspot + adjacent heated cells
+    assert(result.num_hotspots >= 2);  // Primary hotspot + adjacent heated cells
 
     // Verify center cell diffusion vector magnitude is non-zero
     assert(result.hotspots[0].cell_index == center_idx);
@@ -313,7 +327,8 @@ static int test_spatial_heat_diffusion_wave_multi_cells(void) {
 static int test_reset_and_robustness(void) {
     printf("[TEST 6] Testing context reset & error handling...\n");
 
-    battery_spatial_matrix_t *ctx = (battery_spatial_matrix_t *)calloc(1, sizeof(battery_spatial_matrix_t));
+    battery_spatial_matrix_t *ctx =
+        (battery_spatial_matrix_t *)calloc(1, sizeof(battery_spatial_matrix_t));
     assert(ctx != NULL);
 
     // Test invalid config
@@ -322,7 +337,7 @@ static int test_reset_and_robustness(void) {
     memset(&config, 0, sizeof(config));
     config.num_cells = 0;
     assert(battery_spatial_matrix_init(ctx, &config) == -2);
-    config.num_cells = 5000; // exceeds 4096
+    config.num_cells = 5000;  // exceeds 4096
     assert(battery_spatial_matrix_init(ctx, &config) == -2);
 
     config.num_cells = 128;
@@ -332,7 +347,8 @@ static int test_reset_and_robustness(void) {
     battery_spatial_frame_result_t res;
     float v[128], t[128];
     assert(battery_spatial_matrix_process_frame(NULL, v, t, NULL, 128, 1000, &res) == -1);
-    assert(battery_spatial_matrix_process_frame(ctx, v, t, NULL, 64, 1000, &res) == -2); // mismatch
+    assert(battery_spatial_matrix_process_frame(ctx, v, t, NULL, 64, 1000, &res) ==
+           -2);  // mismatch
 
     // Test reset
     assert(battery_spatial_matrix_reset(ctx) == 0);
@@ -344,7 +360,8 @@ static int test_reset_and_robustness(void) {
 }
 
 static int test_heap_factory_lifecycle(void) {
-    printf("[TEST 7] Testing heap factory allocation & lifecycle (prevent 2.3MB stack overflow)...\n");
+    printf(
+        "[TEST 7] Testing heap factory allocation & lifecycle (prevent 2.3MB stack overflow)...\n");
 
     // 1. Invalid config NULL
     assert(battery_spatial_matrix_create(NULL) == NULL);
@@ -381,7 +398,9 @@ static int test_heap_factory_lifecycle(void) {
 }
 
 static int test_nan_fault_tolerant_statistics(void) {
-    printf("[TEST 8] Testing NaN / Inf sensor disconnection fault tolerance & consensus statistics...\n");
+    printf(
+        "[TEST 8] Testing NaN / Inf sensor disconnection fault tolerance & consensus "
+        "statistics...\n");
 
     battery_spatial_matrix_config_t config;
     memset(&config, 0, sizeof(config));
@@ -412,7 +431,8 @@ static int test_nan_fault_tolerant_statistics(void) {
     temperatures[500] = -NAN;
 
     battery_spatial_frame_result_t result;
-    int rc = battery_spatial_matrix_process_frame(ctx, voltages, temperatures, currents, 4096, 1000000, &result);
+    int rc = battery_spatial_matrix_process_frame(ctx, voltages, temperatures, currents, 4096,
+                                                  1000000, &result);
     assert(rc == 0);
 
     // Verify statistical results are strictly FINITE and NOT NaN / Inf

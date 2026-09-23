@@ -96,6 +96,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python3 ci/scripts/run_guard_selftest.py
           ./scripts/check_no_old_src.sh
           ./scripts/check_symbols_baseline.sh
           STRICT_CORE_GATE=1 ./scripts/check_core_symbols.sh

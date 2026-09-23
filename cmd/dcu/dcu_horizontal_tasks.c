@@ -4,8 +4,9 @@
  */
 
 #include "dcu_horizontal_tasks.h"
-#include <string.h>
+
 #include <math.h>
+#include <string.h>
 
 void dcu_horizontal_init(dcu_horizontal_engine_t* engine) {
     if (!engine) return;
@@ -44,17 +45,15 @@ int dcu_horizontal_compute_spatial_loss(dcu_horizontal_engine_t* engine, uint32_
     return 0;
 }
 
-int dcu_horizontal_evaluate_phase_balancing(dcu_horizontal_engine_t* engine,
-                                            double ia, double ib, double ic,
-                                            uint32_t heaviest_meter_id,
-                                            const char* heaviest_meter_addr,
-                                            uint8_t meter_phase, double meter_current,
-                                            uint64_t now_ms) {
+int dcu_horizontal_evaluate_phase_balancing(dcu_horizontal_engine_t* engine, double ia, double ib,
+                                            double ic, uint32_t heaviest_meter_id,
+                                            const char* heaviest_meter_addr, uint8_t meter_phase,
+                                            double meter_current, uint64_t now_ms) {
     if (!engine) return -1;
 
     double currents[3] = {ia, ib, ic};
     double i_avg = (ia + ib + ic) / 3.0;
-    if (i_avg < 0.01) return 0; // Negligible current
+    if (i_avg < 0.01) return 0;  // Negligible current
 
     int max_idx = 0;
     int min_idx = 0;
@@ -76,14 +75,14 @@ int dcu_horizontal_evaluate_phase_balancing(dcu_horizontal_engine_t* engine,
         engine->last_commutation.to_phase = (uint8_t)(min_idx + 1);
         engine->last_commutation.expected_shift_current_a = meter_current;
         engine->last_commutation.decision_timestamp_ms = now_ms;
-        return 1; // Commutation recommended
+        return 1;  // Commutation recommended
     }
 
     return 0;
 }
 
-int dcu_horizontal_compute_volt_var(dcu_horizontal_engine_t* engine, double head_u,
-                                    double tail_u, double total_pv_kw) {
+int dcu_horizontal_compute_volt_var(dcu_horizontal_engine_t* engine, double head_u, double tail_u,
+                                    double total_pv_kw) {
     if (!engine) return -1;
 
     dcu_volt_var_state_t* v = &engine->vvc_state;
@@ -91,14 +90,14 @@ int dcu_horizontal_compute_volt_var(dcu_horizontal_engine_t* engine, double head
     v->feeder_tail_voltage_v = tail_u;
     v->total_pv_active_kw = total_pv_kw;
 
-    double delta_u_tail = v->target_voltage_v - tail_u; // e.g. 220 - 205 = 15V drop
+    double delta_u_tail = v->target_voltage_v - tail_u;  // e.g. 220 - 205 = 15V drop
 
     // If tail voltage dropped by > 5% (below 209V)
     if (tail_u < 209.0) {
         v->is_vvc_active = true;
         // Inject capacitive reactive power: Q_inj = delta_U * sensitivity_factor
-        v->required_q_inject_kvar = delta_u_tail * 2.5; // 2.5 kVAR per volt drop
-    } else if (head_u > 235.0) { // Overvoltage due to heavy solar reverse flow
+        v->required_q_inject_kvar = delta_u_tail * 2.5;  // 2.5 kVAR per volt drop
+    } else if (head_u > 235.0) {  // Overvoltage due to heavy solar reverse flow
         v->is_vvc_active = true;
         // Absorb inductive reactive power
         v->required_q_inject_kvar = -(head_u - 235.0) * 3.0;

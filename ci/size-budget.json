@@ -1,0 +1,31 @@
+{
+  "version": "1.0",
+  "platform": "cortex-m7_and_aarch64",
+  "budgets": {
+    "edge_core": {
+      "max_flash_kb": 256,
+      "max_ram_kb": 64,
+      "max_stack_frame_bytes": 512
+    },
+    "edge_algo": {
+      "max_flash_kb": 512,
+      "max_ram_kb": 128,
+      "max_stack_frame_bytes": 512
+    },
+    "edge_stream": {
+      "max_flash_kb": 128,
+      "max_ram_kb": 64,
+      "max_stack_frame_bytes": 512
+    },
+    "edge_io": {
+      "max_flash_kb": 256,
+      "max_ram_kb": 64,
+      "max_stack_frame_bytes": 512
+    },
+    "edge_infra": {
+      "max_flash_kb": 512,
+      "max_ram_kb": 128,
+      "max_stack_frame_bytes": 512
+    }
+  }
+}

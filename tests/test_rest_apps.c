@@ -1,3 +1,4 @@
+#include <cjson/cJSON.h>
 #include <cmocka.h>
 #include <setjmp.h>
 #include <sqlite3.h>
@@ -7,12 +8,11 @@
 #include <string.h>
 #include <unistd.h>
 #include <uv.h>
-#include <cjson/cJSON.h>
 
-#include "sqlite_service.h"
 #include "edge_app_mgr.h"
 #include "edge_service.h"
 #include "rest_server.h"
+#include "sqlite_service.h"
 
 static void _on_close_cb(uv_handle_t *handle, void *arg) {
     (void)arg;
@@ -47,10 +47,7 @@ static void test_rest_apps_api_endpoints(void **state) {
     const char *db_path = "test_rest_apps.db";
     unlink(db_path);
 
-    sqlite_config_t cfg = {
-        .strategy = STRATEGY_LITE,
-        .db_path = db_path
-    };
+    sqlite_config_t cfg = {.strategy = STRATEGY_LITE, .db_path = db_path};
     sqlite_svc_t *db = sqlite_svc_create(loop, &cfg);
     assert_non_null(db);
 

@@ -4,8 +4,9 @@
  */
 
 #include "iems_multi_pcs_dispatcher.h"
-#include <string.h>
+
 #include <math.h>
+#include <string.h>
 
 void iems_pcs_dispatcher_init(iems_multi_pcs_dispatcher_t* disp, double ramp_limit_kw_s) {
     if (!disp) return;
@@ -61,7 +62,8 @@ int iems_pcs_dispatcher_update_status(iems_multi_pcs_dispatcher_t* disp, uint8_t
     return 0;
 }
 
-int iems_pcs_dispatcher_dispatch(iems_multi_pcs_dispatcher_t* disp, double total_demand_kw, double dt_s) {
+int iems_pcs_dispatcher_dispatch(iems_multi_pcs_dispatcher_t* disp, double total_demand_kw,
+                                 double dt_s) {
     if (!disp || disp->unit_count == 0) return -1;
 
     // 1. Ramp-Rate Limiting:

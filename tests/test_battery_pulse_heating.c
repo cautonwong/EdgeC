@@ -3,13 +3,13 @@
  * @brief 极端低温环境电池脉冲自加热与热电耦合控制算法单元测试 (AEP-738)
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdint.h>
-#include <stdbool.h>
 #include <cmocka.h>
 #include <math.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 
 #include "battery_pulse_heating.h"
@@ -29,33 +29,32 @@ static void test_pulse_heat_init_and_config(void **state) {
     assert_string_equal(pulse_heat_state_to_str(PULSE_HEAT_STATE_IDLE), "IDLE");
     assert_string_equal(pulse_heat_state_to_str(PULSE_HEAT_STATE_ACTIVE_HEATING), "ACTIVE_HEATING");
     assert_string_equal(pulse_heat_fault_to_str(PULSE_HEAT_FAULT_NONE), "NONE");
-    assert_string_equal(pulse_heat_fault_to_str(PULSE_HEAT_FAULT_LITHIUM_PLATING_RISK), "LITHIUM_PLATING_RISK");
+    assert_string_equal(pulse_heat_fault_to_str(PULSE_HEAT_FAULT_LITHIUM_PLATING_RISK),
+                        "LITHIUM_PLATING_RISK");
 
     /* 自定义配置初始化 */
-    pulse_heat_config_t custom_cfg = {
-        .target_temp_c = 15.0f,
-        .min_start_temp_c = -5.0f,
-        .max_temp_limit_c = 50.0f,
-        .max_thermal_gradient_c = 8.0f,
-        .max_cell_temp_spread_c = 5.0f,
-        .min_soc = 0.20f,
-        .max_soc = 0.80f,
-        .max_current_amp_a = 200.0f,
-        .nominal_frequency_hz = 600.0f,
-        .sweep_freq_start_hz = 150.0f,
-        .sweep_freq_end_hz = 1200.0f,
-        .current_ramp_rate_a_per_s = 40.0f,
-        .active_burst_duration_s = 25.0f,
-        .homogenize_duration_s = 5.0f,
-        .timeout_limit_s = 800.0f,
-        .cell_v_min_nominal = 2.1f,
-        .cell_v_max_nominal = 3.7f,
-        .cell_heat_capacity_j_per_k = 500.0f,
-        .core_surface_r_th = 0.9f,
-        .surface_ambient_r_th = 3.0f,
-        .baseline_resistance_ohm = 0.0015f,
-        .arrhenius_activation_energy_j = 25000.0f
-    };
+    pulse_heat_config_t custom_cfg = {.target_temp_c = 15.0f,
+                                      .min_start_temp_c = -5.0f,
+                                      .max_temp_limit_c = 50.0f,
+                                      .max_thermal_gradient_c = 8.0f,
+                                      .max_cell_temp_spread_c = 5.0f,
+                                      .min_soc = 0.20f,
+                                      .max_soc = 0.80f,
+                                      .max_current_amp_a = 200.0f,
+                                      .nominal_frequency_hz = 600.0f,
+                                      .sweep_freq_start_hz = 150.0f,
+                                      .sweep_freq_end_hz = 1200.0f,
+                                      .current_ramp_rate_a_per_s = 40.0f,
+                                      .active_burst_duration_s = 25.0f,
+                                      .homogenize_duration_s = 5.0f,
+                                      .timeout_limit_s = 800.0f,
+                                      .cell_v_min_nominal = 2.1f,
+                                      .cell_v_max_nominal = 3.7f,
+                                      .cell_heat_capacity_j_per_k = 500.0f,
+                                      .core_surface_r_th = 0.9f,
+                                      .surface_ambient_r_th = 3.0f,
+                                      .baseline_resistance_ohm = 0.0015f,
+                                      .arrhenius_activation_energy_j = 25000.0f};
 
     ret = pulse_heat_engine_init(&engine, &custom_cfg);
     assert_int_equal(ret, 0);
@@ -68,15 +67,13 @@ static void test_pulse_heat_precheck_safety_gates(void **state) {
     pulse_heat_engine_t engine;
     pulse_heat_engine_init(&engine, NULL);
 
-    pulse_heat_cell_telemetry_t telem = {
-        .cell_count = 16,
-        .temp_count = 4,
-        .ambient_temp_c = -20.0f,
-        .pack_soc = 0.50f,
-        .inverter_ready = false, /* 逆变器未就绪 */
-        .actual_current_rms_a = 0.0f,
-        .actual_frequency_hz = 0.0f
-    };
+    pulse_heat_cell_telemetry_t telem = {.cell_count = 16,
+                                         .temp_count = 4,
+                                         .ambient_temp_c = -20.0f,
+                                         .pack_soc = 0.50f,
+                                         .inverter_ready = false, /* 逆变器未就绪 */
+                                         .actual_current_rms_a = 0.0f,
+                                         .actual_frequency_hz = 0.0f};
     for (int i = 0; i < 16; i++) telem.cell_voltages[i] = 3.20f;
     for (int i = 0; i < 4; i++) telem.cell_temps[i] = -20.0f;
 
@@ -118,15 +115,13 @@ static void test_pulse_heat_frequency_sweep_and_ramp(void **state) {
     pulse_heat_engine_t engine;
     pulse_heat_engine_init(&engine, NULL);
 
-    pulse_heat_cell_telemetry_t telem = {
-        .cell_count = 16,
-        .temp_count = 4,
-        .ambient_temp_c = -20.0f,
-        .pack_soc = 0.60f,
-        .inverter_ready = true,
-        .actual_current_rms_a = 0.0f,
-        .actual_frequency_hz = 0.0f
-    };
+    pulse_heat_cell_telemetry_t telem = {.cell_count = 16,
+                                         .temp_count = 4,
+                                         .ambient_temp_c = -20.0f,
+                                         .pack_soc = 0.60f,
+                                         .inverter_ready = true,
+                                         .actual_current_rms_a = 0.0f,
+                                         .actual_frequency_hz = 0.0f};
     for (int i = 0; i < 16; i++) telem.cell_voltages[i] = 3.20f;
     for (int i = 0; i < 4; i++) telem.cell_temps[i] = -20.0f;
 
@@ -167,15 +162,13 @@ static void test_pulse_heat_full_heating_cycle_convergence(void **state) {
     pulse_heat_engine_t engine;
     pulse_heat_engine_init(&engine, NULL);
 
-    pulse_heat_cell_telemetry_t telem = {
-        .cell_count = 16,
-        .temp_count = 4,
-        .ambient_temp_c = -5.0f,
-        .pack_soc = 0.65f,
-        .inverter_ready = true,
-        .actual_current_rms_a = 0.0f,
-        .actual_frequency_hz = 500.0f
-    };
+    pulse_heat_cell_telemetry_t telem = {.cell_count = 16,
+                                         .temp_count = 4,
+                                         .ambient_temp_c = -5.0f,
+                                         .pack_soc = 0.65f,
+                                         .inverter_ready = true,
+                                         .actual_current_rms_a = 0.0f,
+                                         .actual_frequency_hz = 500.0f};
     for (int i = 0; i < 16; i++) telem.cell_voltages[i] = 3.25f;
     for (int i = 0; i < 4; i++) telem.cell_temps[i] = -10.0f;
 
@@ -234,15 +227,13 @@ static void test_pulse_heat_lithium_plating_throttle(void **state) {
     pulse_heat_engine_t engine;
     pulse_heat_engine_init(&engine, NULL);
 
-    pulse_heat_cell_telemetry_t telem = {
-        .cell_count = 16,
-        .temp_count = 4,
-        .ambient_temp_c = -25.0f,
-        .pack_soc = 0.75f,
-        .inverter_ready = true,
-        .actual_current_rms_a = 0.0f,
-        .actual_frequency_hz = 500.0f
-    };
+    pulse_heat_cell_telemetry_t telem = {.cell_count = 16,
+                                         .temp_count = 4,
+                                         .ambient_temp_c = -25.0f,
+                                         .pack_soc = 0.75f,
+                                         .inverter_ready = true,
+                                         .actual_current_rms_a = 0.0f,
+                                         .actual_frequency_hz = 500.0f};
     /* 设置单体端电压逼近低温上限 (3.8 - 0.015*25 = 3.425V) */
     for (int i = 0; i < 16; i++) telem.cell_voltages[i] = 3.40f;
     for (int i = 0; i < 4; i++) telem.cell_temps[i] = -25.0f;
@@ -266,15 +257,13 @@ static void test_pulse_heat_thermal_gradient_homogenize(void **state) {
     pulse_heat_engine_t engine;
     pulse_heat_engine_init(&engine, NULL);
 
-    pulse_heat_cell_telemetry_t telem = {
-        .cell_count = 16,
-        .temp_count = 4,
-        .ambient_temp_c = -30.0f,
-        .pack_soc = 0.60f,
-        .inverter_ready = true,
-        .actual_current_rms_a = 100.0f,
-        .actual_frequency_hz = 500.0f
-    };
+    pulse_heat_cell_telemetry_t telem = {.cell_count = 16,
+                                         .temp_count = 4,
+                                         .ambient_temp_c = -30.0f,
+                                         .pack_soc = 0.60f,
+                                         .inverter_ready = true,
+                                         .actual_current_rms_a = 100.0f,
+                                         .actual_frequency_hz = 500.0f};
     for (int i = 0; i < 16; i++) telem.cell_voltages[i] = 3.20f;
     for (int i = 0; i < 4; i++) telem.cell_temps[i] = -30.0f;
 
@@ -298,15 +287,13 @@ static void test_pulse_heat_overtemp_and_timeout_faults(void **state) {
     pulse_heat_engine_t engine;
     pulse_heat_engine_init(&engine, NULL);
 
-    pulse_heat_cell_telemetry_t telem = {
-        .cell_count = 16,
-        .temp_count = 4,
-        .ambient_temp_c = 0.0f,
-        .pack_soc = 0.50f,
-        .inverter_ready = true,
-        .actual_current_rms_a = 50.0f,
-        .actual_frequency_hz = 500.0f
-    };
+    pulse_heat_cell_telemetry_t telem = {.cell_count = 16,
+                                         .temp_count = 4,
+                                         .ambient_temp_c = 0.0f,
+                                         .pack_soc = 0.50f,
+                                         .inverter_ready = true,
+                                         .actual_current_rms_a = 50.0f,
+                                         .actual_frequency_hz = 500.0f};
     for (int i = 0; i < 16; i++) telem.cell_voltages[i] = 3.30f;
     for (int i = 0; i < 4; i++) telem.cell_temps[i] = 48.0f; /* 超过 45℃ */
 
@@ -334,15 +321,13 @@ static void test_pulse_heat_zero_deg_startup_and_nan_defense(void **state) {
     pulse_heat_engine_init(&engine, NULL);
 
     /* 1. 测试 0.0°C 精确冰水混合物工况下的状态机启动与温度初始化对齐 */
-    pulse_heat_cell_telemetry_t telem_zero = {
-        .cell_count = 16,
-        .temp_count = 4,
-        .ambient_temp_c = 0.0f,
-        .pack_soc = 0.60f,
-        .inverter_ready = true,
-        .actual_current_rms_a = 0.0f,
-        .actual_frequency_hz = 0.0f
-    };
+    pulse_heat_cell_telemetry_t telem_zero = {.cell_count = 16,
+                                              .temp_count = 4,
+                                              .ambient_temp_c = 0.0f,
+                                              .pack_soc = 0.60f,
+                                              .inverter_ready = true,
+                                              .actual_current_rms_a = 0.0f,
+                                              .actual_frequency_hz = 0.0f};
     for (int i = 0; i < 16; i++) telem_zero.cell_voltages[i] = 3.25f;
     for (int i = 0; i < 4; i++) telem_zero.cell_temps[i] = 0.0f;
 

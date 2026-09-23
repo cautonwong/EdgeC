@@ -5,14 +5,14 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <sys/wait.h>
+#include <unistd.h>
 #include <uv.h>
 
+#include "edge_guard.h"
 #include "iems_task_loader.h"
 #include "sqlite_service.h"
 #include "stream_engine.h"
-#include "edge_guard.h"
 
 extern pipeline_stage_t *stage_vpp_logger_create(sqlite_svc_t *db);
 extern void dpi_audit_signed_log(dpi_result_t res, uint32_t tag_id, double val, const char *reason);
@@ -34,10 +34,7 @@ static void test_iems_task_loading_direct_product_code(void **state) {
     unlink(db_path);
 
     uv_loop_t *loop = uv_default_loop();
-    sqlite_config_t cfg = {
-        .strategy = STRATEGY_LITE,
-        .db_path = db_path
-    };
+    sqlite_config_t cfg = {.strategy = STRATEGY_LITE, .db_path = db_path};
     sqlite_svc_t *svc = sqlite_svc_create(loop, &cfg);
     assert_non_null(svc);
 
@@ -59,7 +56,9 @@ static void test_iems_task_loading_direct_product_code(void **state) {
         "INSERT INTO inventory (id, addr, protocol) VALUES (2, '02', 'MODBUS');"
         "INSERT INTO poll_tasks (bus_id, device_id, tag_id) VALUES (0, 1, 1001);"
         "INSERT INTO poll_tasks (bus_id, device_id, tag_id) VALUES (0, 2, 1002);"
-        "INSERT INTO poll_tasks (bus_id, device_id, tag_id) VALUES (10, 1, 9999);"; // Bus 10 should be filtered
+        "INSERT INTO poll_tasks (bus_id, device_id, tag_id) VALUES (10, 1, 9999);";  // Bus 10
+                                                                                     // should be
+                                                                                     // filtered
     rc = sqlite3_exec(raw_db, setup_sql, NULL, NULL, NULL);
     assert_int_equal(rc, SQLITE_OK);
 
@@ -69,7 +68,8 @@ static void test_iems_task_loading_direct_product_code(void **state) {
     assert_int_equal(g_callback_task_count, 0);
 
     // 4. Set is_ready=1
-    rc = sqlite3_exec(raw_db, "INSERT INTO matrix_meta (key, val) VALUES ('is_ready', '1');", NULL, NULL, NULL);
+    rc = sqlite3_exec(raw_db, "INSERT INTO matrix_meta (key, val) VALUES ('is_ready', '1');", NULL,
+                      NULL, NULL);
     assert_int_equal(rc, SQLITE_OK);
 
     // 5. Load tasks -> should load 2 tasks (bus 0 tag 1001, 1002; bus 10 ignored)
@@ -89,10 +89,7 @@ static void test_stage_vpp_logger_edge_env_guard(void **state) {
     const char *db_path = "test_vpp_logger_guard.db";
     unlink(db_path);
 
-    sqlite_config_t cfg = {
-        .strategy = STRATEGY_LITE,
-        .db_path = db_path
-    };
+    sqlite_config_t cfg = {.strategy = STRATEGY_LITE, .db_path = db_path};
     sqlite_svc_t *svc = sqlite_svc_create(loop, &cfg);
     assert_non_null(svc);
 

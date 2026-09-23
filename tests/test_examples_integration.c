@@ -3,21 +3,21 @@
  * @brief AEP-403: Integration Test for Secondary Developer Custom Driver and Algorithm Examples
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <math.h>
 #include <cmocka.h>
+#include <edgeos/edgeos.h>
+#include <math.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <uv.h>
 
-#include <edgeos/edgeos.h>
-#include "../examples/custom_driver/include/custom_inverter_driver.h"
 #include "../examples/custom_algo/include/custom_soc_filter.h"
+#include "../examples/custom_driver/include/custom_inverter_driver.h"
 
 /* -------------------------------------------------------------------------- */
 /* Helper Functions                                                           */
@@ -39,7 +39,8 @@ static void test_custom_inverter_driver_lifecycle(void **state) {
 
     // 1. Initialize DataHub
     edgeos_datahub_t hub;
-    int rc = datahub_init(&hub, &loop, "test_drv_hub", 512, 512, NULL, 0, NULL, example_test_map_fn, NULL);
+    int rc = datahub_init(&hub, &loop, "test_drv_hub", 512, 512, NULL, 0, NULL, example_test_map_fn,
+                          NULL);
     assert_int_equal(rc, 0);
 
     // 2. Driver Context Allocation & Init
@@ -119,7 +120,8 @@ static void test_driver_and_algo_pipeline(void **state) {
 
     // 1. Setup DataHub
     edgeos_datahub_t hub;
-    int rc = datahub_init(&hub, &loop, "test_pipe_hub", 512, 512, NULL, 0, NULL, example_test_map_fn, NULL);
+    int rc = datahub_init(&hub, &loop, "test_pipe_hub", 512, 512, NULL, 0, NULL,
+                          example_test_map_fn, NULL);
     assert_int_equal(rc, 0);
 
     // 2. Setup Filter (alpha=0.5, initial=40.0%)
@@ -139,7 +141,7 @@ static void test_driver_and_algo_pipeline(void **state) {
     edgeos_pipe_msg_t out_msg;
     rc = datahub_read_shadow(&hub, 4001, &out_msg);
     assert_int_equal(rc, 0);
-    assert_float_equal(out_msg.payload.val.f, 60.0f, 0.001f); // 0.5*80 + 0.5*40 = 60.0%
+    assert_float_equal(out_msg.payload.val.f, 60.0f, 0.001f);  // 0.5*80 + 0.5*40 = 60.0%
 
     datahub_destroy(&hub);
     uv_loop_close(&loop);

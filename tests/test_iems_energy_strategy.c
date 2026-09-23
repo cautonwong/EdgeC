@@ -1,8 +1,11 @@
 /**
  * @file test_iems_energy_strategy.c
- * @brief Empirical Verification for IEMS Comprehensive Energy Strategy: Demand Control, TOU & Anti-Reverse (AEP-440)
+ * @brief Empirical Verification for IEMS Comprehensive Energy Strategy: Demand Control, TOU &
+ * Anti-Reverse (AEP-440)
  */
 
+#include <cmocka.h>
+#include <math.h>
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -11,8 +14,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
-#include <cmocka.h>
 
 #include "iems_microgrid_coordinator.h"
 
@@ -126,7 +127,8 @@ static void test_multi_cycle_closed_loop_simulation(void **state) {
         double grid = load - pv - coord.target_pcs_power_kw;
 
         for (uint8_t step = 0; step < 10; step++) {
-            int rc = iems_coordinator_evaluate_cycle(&coord, grid, pv, load, 0.0, soc, h, step * 6, &planner);
+            int rc = iems_coordinator_evaluate_cycle(&coord, grid, pv, load, 0.0, soc, h, step * 6,
+                                                     &planner);
             assert_int_equal(rc, 0);
         }
 

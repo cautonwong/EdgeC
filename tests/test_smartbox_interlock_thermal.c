@@ -1,8 +1,11 @@
 /**
  * @file test_smartbox_interlock_thermal.c
- * @brief Empirical Verification for SmartBox Transformer Thermal Model & Five-Safety Interlocks (AEP-442)
+ * @brief Empirical Verification for SmartBox Transformer Thermal Model & Five-Safety Interlocks
+ * (AEP-442)
  */
 
+#include <cmocka.h>
+#include <math.h>
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -11,17 +14,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
-#include <cmocka.h>
 
-#include "smartbox_thermal_aging.h"
 #include "smartbox_five_safety_interlock.h"
+#include "smartbox_thermal_aging.h"
 
 static void test_transformer_thermal_hotspot_and_life_loss(void **state) {
     (void)state;
 
     smartbox_thermal_model_t model;
-    smartbox_thermal_init(&model, 630.0); // 630 kVA
+    smartbox_thermal_init(&model, 630.0);  // 630 kVA
 
     // 1. 额定满载基准测试 (Load=630kVA, K=1.0, TopOil=80℃, Ambient=30℃)
     // 最热点温升 = 30K -> θH = 80 + 30 = 110.0℃
@@ -32,7 +33,8 @@ static void test_transformer_thermal_hotspot_and_life_loss(void **state) {
     assert_float_equal(model.relative_aging_rate_faa, 1.0, 0.01);
     assert_false(model.is_thermal_alarm);
     // 运行 1 小时, 损耗 = 1 / 180000 * 100%
-    assert_float_equal((float)model.cumulative_loss_of_life_pct, (float)((1.0 / 180000.0) * 100.0), 0.0001f);
+    assert_float_equal((float)model.cumulative_loss_of_life_pct, (float)((1.0 / 180000.0) * 100.0),
+                       0.0001f);
     assert_float_equal((float)model.remaining_useful_life_hours, 179999.0f, 0.1f);
 
     // 2. 重载加速老化与高温报警测试 (Load=945kVA, K=1.5, TopOil=95℃, Ambient=35℃)
@@ -40,7 +42,7 @@ static void test_transformer_thermal_hotspot_and_life_loss(void **state) {
     rc = smartbox_thermal_evaluate_cycle(&model, 35.0, 95.0, 945.0, 3600.0);
     assert_int_equal(rc, 0);
     assert_true(model.hotspot_temp_c > 140.0);
-    assert_true(model.relative_aging_rate_faa > 5.0); // 老化速度超过标称 5 倍以上
+    assert_true(model.relative_aging_rate_faa > 5.0);  // 老化速度超过标称 5 倍以上
     assert_true(model.is_thermal_alarm);
 }
 
@@ -58,7 +60,8 @@ static void test_five_safety_interlock_normal_operations(void **state) {
     bay.is_busbar_charged = false;
 
     // 1. 检修态下允许开柜门
-    interlock_result_t res = smartbox_interlock_evaluate(&bay, INTERLOCK_OP_OPEN_CUBICLE_DOOR, &reason);
+    interlock_result_t res =
+        smartbox_interlock_evaluate(&bay, INTERLOCK_OP_OPEN_CUBICLE_DOOR, &reason);
     assert_int_equal(res, INTERLOCK_PERMITTED);
 
     // 2. 检修完毕关门，分接地刀闸
@@ -93,7 +96,8 @@ static void test_five_safety_interlock_forbidden_violations(void **state) {
     // 场景 1: 带负荷拉/合隔离开关 (断路器处于合位) -> 触发 Rule 2 闭锁
     bay.is_breaker_closed = true;
     bay.is_bus_isolator_closed = true;
-    interlock_result_t res = smartbox_interlock_evaluate(&bay, INTERLOCK_OP_OPEN_BUS_ISOLATOR, &reason);
+    interlock_result_t res =
+        smartbox_interlock_evaluate(&bay, INTERLOCK_OP_OPEN_BUS_ISOLATOR, &reason);
     assert_int_equal(res, INTERLOCK_BLOCK_LOADED_ISOLATOR);
 
     // 场景 2: 带电合接地刀闸 (主回路带电或开关合闸) -> 触发 Rule 3 闭锁

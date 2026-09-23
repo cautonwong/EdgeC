@@ -9,7 +9,8 @@ __attribute__((import_module("env"), import_name("host_get_tag"))) extern int ho
 __attribute__((import_module("env"), import_name("host_set_tag"))) extern int host_set_tag(
     uint32_t tag_id, double value);
 
-__attribute__((import_module("env"), import_name("ext_log"))) extern void ext_log(int level, const char* msg);
+__attribute__((import_module("env"), import_name("ext_log"))) extern void ext_log(int level,
+                                                                                  const char* msg);
 
 #define LOG_DEBUG 0
 #define LOG_INFO 1

@@ -8,7 +8,8 @@
 typedef struct {
     void* ctx;
     int (*publish)(void* ctx, const char* topic, const uint8_t* data, size_t len);
-    int (*request)(void* ctx, const char* url, const char* method, const uint8_t* body, size_t body_len);
+    int (*request)(void* ctx, const char* url, const char* method, const uint8_t* body,
+                   size_t body_len);
 } policy_io_ops_t;
 
 /**

@@ -42,15 +42,17 @@ static void test_wasm_host_api(void** state) {
     pipe_msg_t result;
     rc = datahub_read_shadow(&hub, 1002, &result);
     assert_int_equal(rc, 0);
-    assert_float_equal(result.payload.val.f, 481.0, 0.001); // 240.5 * 2.0 = 481.0
+    assert_float_equal(result.payload.val.f, 481.0, 0.001);  // 240.5 * 2.0 = 481.0
 
-    printf("🔥 [SUCCESS] WASM correctly interacted with physical DataHub! Tag 1002 = %.2f\n", result.payload.val.f);
+    printf("🔥 [SUCCESS] WASM correctly interacted with physical DataHub! Tag 1002 = %.2f\n",
+           result.payload.val.f);
 
     // 7. Cleanup
     wasm_app_destroy(app);
     wasm_mgr_cleanup();
     datahub_destroy(&hub);
-    while (uv_run(loop, UV_RUN_NOWAIT));
+    while (uv_run(loop, UV_RUN_NOWAIT))
+        ;
 }
 
 int main(void) {

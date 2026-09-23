@@ -3,12 +3,12 @@
  * @brief Unit tests for Dynamic Driver Hot-Plug & ABI Guard Operator
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdint.h>
-#include <stdbool.h>
 #include <cmocka.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 #include "driver_hotplug.h"
 
@@ -32,24 +32,20 @@ static void test_driver_hotplug_abi_validation(void **state) {
     driver_hotplug_mgr_t mgr;
     assert_int_equal(driver_hotplug_init(&mgr), 0);
 
-    driver_plugin_ops_t bad_ops = {
-        .abi_magic = 0xDEADBEEF,
-        .abi_version = DRIVER_ABI_VERSION,
-        .driver_name = "BadAbiDriver",
-        .init_fn = dummy_driver_init,
-        .cleanup_fn = dummy_driver_cleanup
-    };
+    driver_plugin_ops_t bad_ops = {.abi_magic = 0xDEADBEEF,
+                                   .abi_version = DRIVER_ABI_VERSION,
+                                   .driver_name = "BadAbiDriver",
+                                   .init_fn = dummy_driver_init,
+                                   .cleanup_fn = dummy_driver_cleanup};
 
     uint32_t slot_id = 0;
     assert_int_equal(driver_hotplug_load(&mgr, "/lib/bad_driver.so", &bad_ops, &slot_id), -2);
 
-    driver_plugin_ops_t good_ops = {
-        .abi_magic = DRIVER_ABI_MAGIC,
-        .abi_version = DRIVER_ABI_VERSION,
-        .driver_name = "GoodDriver",
-        .init_fn = dummy_driver_init,
-        .cleanup_fn = dummy_driver_cleanup
-    };
+    driver_plugin_ops_t good_ops = {.abi_magic = DRIVER_ABI_MAGIC,
+                                    .abi_version = DRIVER_ABI_VERSION,
+                                    .driver_name = "GoodDriver",
+                                    .init_fn = dummy_driver_init,
+                                    .cleanup_fn = dummy_driver_cleanup};
 
     assert_int_equal(driver_hotplug_load(&mgr, "/lib/good_driver.so", &good_ops, &slot_id), 0);
     assert_int_equal(slot_id, 1);

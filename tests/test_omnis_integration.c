@@ -107,7 +107,8 @@ static int teardown(void** state) {
 
     // 2. 彻底排空 Loop
     uv_walk(&ctx->loop, on_force_close, NULL);
-    while (uv_run(&ctx->loop, UV_RUN_ONCE));
+    while (uv_run(&ctx->loop, UV_RUN_ONCE))
+        ;
     uv_loop_close(&ctx->loop);
 
     free(ctx);

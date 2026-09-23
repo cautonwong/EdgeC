@@ -1,28 +1,23 @@
 /**
- * test_web_contract_loader.c - Verification of Web ContractLoader & Dynamic UI Aggregation (AEP-491)
+ * test_web_contract_loader.c - Verification of Web ContractLoader & Dynamic UI Aggregation
+ * (AEP-491)
  */
 
-#include <stdarg.h>
-#include <stddef.h>
+#include <cmocka.h>
 #include <setjmp.h>
-#include <stdint.h>
+#include <stdarg.h>
 #include <stdbool.h>
-#include <string.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <cmocka.h>
+#include <string.h>
 
 static void read_file_content(const char *rel_path, char *buf, size_t max_len) {
     char path[512];
     FILE *fp = NULL;
 
-    const char *prefixes[] = {
-        "",
-        "../",
-        "../../",
-        "/workspaces/edgeos/EdgeC/",
-        NULL
-    };
+    const char *prefixes[] = {"", "../", "../../", "/workspaces/edgeos/EdgeC/", NULL};
 
     for (int i = 0; prefixes[i] != NULL; i++) {
         snprintf(path, sizeof(path), "%s%s", prefixes[i], rel_path);
@@ -39,7 +34,8 @@ static void read_file_content(const char *rel_path, char *buf, size_t max_len) {
 static void test_ts_compiler_backend_ui_metadata(void **state) {
     (void)state;
     char content[16384];
-    read_file_content("tools/contract-compiler-v2/internal/backend/ts_backend.go", content, sizeof(content));
+    read_file_content("tools/contract-compiler-v2/internal/backend/ts_backend.go", content,
+                      sizeof(content));
 
     // TS backend generates TagUIMetadata interface
     assert_non_null(strstr(content, "export interface TagUIMetadata"));

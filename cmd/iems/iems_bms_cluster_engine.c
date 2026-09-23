@@ -1,11 +1,13 @@
 /**
  * @file iems_bms_cluster_engine.c
- * @brief Production Commercial BMS Multi-Rack Cluster Aggregation & Thermal Runaway Safety Engine Implementation
+ * @brief Production Commercial BMS Multi-Rack Cluster Aggregation & Thermal Runaway Safety Engine
+ * Implementation
  */
 
 #include "iems_bms_cluster_engine.h"
-#include <string.h>
+
 #include <math.h>
+#include <string.h>
 
 void iems_bms_cluster_init(iems_bms_cluster_engine_t* engine) {
     if (!engine) return;
@@ -13,9 +15,8 @@ void iems_bms_cluster_init(iems_bms_cluster_engine_t* engine) {
 }
 
 int iems_bms_update_rack(iems_bms_cluster_engine_t* engine, uint8_t rack_id, const char* sn,
-                         double u_v, double i_a, double soc, double soh,
-                         double v_max, double v_min, double t_max, double t_min,
-                         double dt_rate, double r_iso) {
+                         double u_v, double i_a, double soc, double soh, double v_max, double v_min,
+                         double t_max, double t_min, double dt_rate, double r_iso) {
     if (!engine || rack_id == 0 || rack_id > IEMS_MAX_BMS_RACKS) return -1;
 
     uint8_t idx = rack_id - 1;
@@ -41,7 +42,7 @@ int iems_bms_update_rack(iems_bms_cluster_engine_t* engine, uint8_t rack_id, con
 
     // 2. Rack Alarm Level
     if (t_max > 55.0 || dt_rate > 1.0 || r_iso < 50.0) {
-        r->alarm_level = BMS_ALARM_LEVEL_3; // Thermal runaway / severe insulation fault
+        r->alarm_level = BMS_ALARM_LEVEL_3;  // Thermal runaway / severe insulation fault
     } else if (t_max > 45.0 || cell_diff_v > 0.100) {
         r->alarm_level = BMS_ALARM_LEVEL_2;
     } else if (cell_diff_v > 0.050) {
@@ -105,12 +106,14 @@ int iems_bms_evaluate_cluster_safety(iems_bms_cluster_engine_t* engine) {
     if (engine->active_rack_count > 0) {
         engine->sys_total_voltage_v = sum_v / engine->active_rack_count;
         engine->sys_total_current_a = sum_i;
-        engine->sys_total_power_kw = (engine->sys_total_voltage_v * engine->sys_total_current_a) / 1000.0;
+        engine->sys_total_power_kw =
+            (engine->sys_total_voltage_v * engine->sys_total_current_a) / 1000.0;
         engine->sys_avg_soc_pct = sum_soc / engine->active_rack_count;
         engine->sys_avg_soh_pct = sum_soh / engine->active_rack_count;
 
         // Check circulating current risk: delta_V between parallel racks > 10.0 V
-        engine->is_circulating_risk = (engine->active_rack_count > 1 && (max_rack_v - min_rack_v) > 10.0);
+        engine->is_circulating_risk =
+            (engine->active_rack_count > 1 && (max_rack_v - min_rack_v) > 10.0);
     }
 
     return 0;

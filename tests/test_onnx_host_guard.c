@@ -1,6 +1,7 @@
-#include <stdio.h>
 #include <assert.h>
 #include <math.h>
+#include <stdio.h>
+
 #include "onnx_host_guard.h"
 
 int main(void) {
@@ -10,7 +11,7 @@ int main(void) {
     /* Input scale = 0.1, zp = 0. Output scale = 0.5, zp = 0 */
     onnx_guard_init(&ctx, 0.1f, 0, 0.5f, 0, 100 /* 100ms timeout */);
 
-    float float_in[4] = { 1.0f, 2.5f, -3.0f, 12.7f };
+    float float_in[4] = {1.0f, 2.5f, -3.0f, 12.7f};
     int8_t q_out[4];
     assert(onnx_quantize_input(&ctx, float_in, q_out, 4) == 0);
     assert(q_out[0] == 10);
@@ -18,7 +19,7 @@ int main(void) {
     assert(q_out[2] == -30);
     assert(q_out[3] == 127);
 
-    int8_t q_in[4] = { 20, -10, 40, 100 };
+    int8_t q_in[4] = {20, -10, 40, 100};
     float float_out[4];
     assert(onnx_dequantize_output(&ctx, q_in, float_out, 4) == 0);
     assert(fabsf(float_out[0] - 10.0f) < 0.0001f);

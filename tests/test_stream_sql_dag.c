@@ -1,6 +1,7 @@
-#include <stdio.h>
 #include <assert.h>
 #include <math.h>
+#include <stdio.h>
+
 #include "stream_sql_dag.h"
 
 int main(void) {

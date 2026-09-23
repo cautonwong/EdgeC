@@ -3,11 +3,12 @@
  * @brief Secondary Developer Example: Custom Inverter Driver Implementation
  */
 
+#include "custom_inverter_driver.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include "custom_inverter_driver.h"
 
 typedef struct {
     char device_uri[64];
@@ -18,7 +19,8 @@ typedef struct {
 
 static int custom_inverter_on_init(edgeos_driver_ctx_t *ctx) {
     if (!ctx) return -1;
-    custom_inverter_priv_t *priv = (custom_inverter_priv_t *)calloc(1, sizeof(custom_inverter_priv_t));
+    custom_inverter_priv_t *priv =
+        (custom_inverter_priv_t *)calloc(1, sizeof(custom_inverter_priv_t));
     if (!priv) return -1;
 
     priv->slave_addr = 1;

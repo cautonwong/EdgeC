@@ -1,6 +1,7 @@
-#include <stdio.h>
 #include <assert.h>
+#include <stdio.h>
 #include <string.h>
+
 #include "protocol_converter.h"
 
 int main(void) {

@@ -3,25 +3,24 @@
  * @brief 共享 MCP 工业神经总线与五防安全仲裁门禁单元测试 (ARCH-MCP-02 / Issue #297)
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <cmocka.h>
 #include <cjson/cJSON.h>
-#include <string.h>
+#include <cmocka.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "edgeos/edge_mcp_bus.h"
 #include "edgeos/edge_mcp_dispatcher.h"
 
-static int mock_transformer_tool_handler(edge_mcp_dispatcher_t *disp,
-                                         const cJSON *params,
-                                         cJSON **out_result,
-                                         char *err_msg,
-                                         size_t err_len) {
-    (void)disp; (void)err_msg; (void)err_len;
+static int mock_transformer_tool_handler(edge_mcp_dispatcher_t *disp, const cJSON *params,
+                                         cJSON **out_result, char *err_msg, size_t err_len) {
+    (void)disp;
+    (void)err_msg;
+    (void)err_len;
     cJSON *res = cJSON_CreateObject();
     cJSON_AddNumberToObject(res, "hotspot_temp_c", 88.5);
     cJSON_AddNumberToObject(res, "aging_factor_faa", 1.05);
@@ -33,12 +32,12 @@ static int mock_transformer_tool_handler(edge_mcp_dispatcher_t *disp,
     return 0;
 }
 
-static int mock_breaker_action_handler(edge_mcp_dispatcher_t *disp,
-                                       const cJSON *params,
-                                       cJSON **out_result,
-                                       char *err_msg,
-                                       size_t err_len) {
-    (void)disp; (void)err_msg; (void)err_len; (void)params;
+static int mock_breaker_action_handler(edge_mcp_dispatcher_t *disp, const cJSON *params,
+                                       cJSON **out_result, char *err_msg, size_t err_len) {
+    (void)disp;
+    (void)err_msg;
+    (void)err_len;
+    (void)params;
     cJSON *res = cJSON_CreateObject();
     cJSON_AddStringToObject(res, "action_status", "EXECUTED");
     cJSON_AddStringToObject(res, "breaker_state", "OPEN");
@@ -53,7 +52,8 @@ static void test_mcp_bus_create_and_destroy(void **state) {
     assert_non_null(mcp_bus_get_dispatcher(hub));
 
     /* 验证核心管理方法已就绪 */
-    char *resp = edge_mcp_dispatch_json(mcp_bus_get_dispatcher(hub), "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}");
+    char *resp = edge_mcp_dispatch_json(mcp_bus_get_dispatcher(hub),
+                                        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}");
     assert_non_null(resp);
     assert_non_null(strstr(resp, "mcp_register_provider"));
     assert_non_null(strstr(resp, "mcp_unregister_provider"));
@@ -75,25 +75,18 @@ static void test_mcp_bus_dynamic_provider_registration(void **state) {
         .security_domain = "grid_distribution",
         .tool_count = 2,
         .client_fd = 10,
-        .tools = {
-            {
-                .name = "smartbox_eval_transformer_life",
-                .description = "Evaluates transformer thermal life",
-                .input_schema_json = "{\"type\":\"object\"}",
-                .security_level = MCP_SEC_L0_SAFE_READ,
-                .interlock_rule = MCP_INTERLOCK_RULE_NONE,
-                .local_handler = mock_transformer_tool_handler
-            },
-            {
-                .name = "smartbox_trip_breaker",
-                .description = "Trip 10kV breaker",
-                .input_schema_json = "{\"type\":\"object\"}",
-                .security_level = MCP_SEC_L2_CRITICAL_ACTION,
-                .interlock_rule = MCP_INTERLOCK_RULE_PREVENT_LOAD_DISCONNECT,
-                .local_handler = mock_breaker_action_handler
-            }
-        }
-    };
+        .tools = {{.name = "smartbox_eval_transformer_life",
+                   .description = "Evaluates transformer thermal life",
+                   .input_schema_json = "{\"type\":\"object\"}",
+                   .security_level = MCP_SEC_L0_SAFE_READ,
+                   .interlock_rule = MCP_INTERLOCK_RULE_NONE,
+                   .local_handler = mock_transformer_tool_handler},
+                  {.name = "smartbox_trip_breaker",
+                   .description = "Trip 10kV breaker",
+                   .input_schema_json = "{\"type\":\"object\"}",
+                   .security_level = MCP_SEC_L2_CRITICAL_ACTION,
+                   .interlock_rule = MCP_INTERLOCK_RULE_PREVENT_LOAD_DISCONNECT,
+                   .local_handler = mock_breaker_action_handler}}};
 
     /* 注册 Provider */
     int ret = mcp_bus_register_provider(hub, &provider);
@@ -112,16 +105,13 @@ static void test_mcp_bus_dynamic_provider_registration(void **state) {
 
     /* 验证动态调用工具 */
     mcp_security_context_t sec_ctx = {
-        .client_id = "test_agent",
-        .operator_id = "op_01",
-        .role_level = MCP_SEC_L0_SAFE_READ
-    };
+        .client_id = "test_agent", .operator_id = "op_01", .role_level = MCP_SEC_L0_SAFE_READ};
 
     char *call_resp = mcp_bus_dispatch_with_security(
         hub,
-        "{\"jsonrpc\":\"2.0\",\"id\":10,\"method\":\"tools/call\",\"params\":{\"name\":\"smartbox_eval_transformer_life\",\"arguments\":{}}}",
-        &sec_ctx
-    );
+        "{\"jsonrpc\":\"2.0\",\"id\":10,\"method\":\"tools/"
+        "call\",\"params\":{\"name\":\"smartbox_eval_transformer_life\",\"arguments\":{}}}",
+        &sec_ctx);
     assert_non_null(call_resp);
     assert_non_null(strstr(call_resp, "hotspot_temp_c"));
     free(call_resp);
@@ -142,17 +132,14 @@ static void test_mcp_bus_l0_safe_read_passthrough(void **state) {
     mcp_bus_hub_t *hub = mcp_bus_hub_create(NULL);
 
     mcp_security_context_t sec_ctx = {
-        .client_id = "guest_copilot",
-        .operator_id = "guest",
-        .role_level = MCP_SEC_L0_SAFE_READ
-    };
+        .client_id = "guest_copilot", .operator_id = "guest", .role_level = MCP_SEC_L0_SAFE_READ};
 
     /* L0 只读工具 (datahub_read_tags) 直接放行 */
-    char *resp = mcp_bus_dispatch_with_security(
-        hub,
-        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"datahub_read_tags\",\"arguments\":{\"tag_ids\":[1001, 1002]}}}",
-        &sec_ctx
-    );
+    char *resp = mcp_bus_dispatch_with_security(hub,
+                                                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/"
+                                                "call\",\"params\":{\"name\":\"datahub_read_tags\","
+                                                "\"arguments\":{\"tag_ids\":[1001, 1002]}}}",
+                                                &sec_ctx);
     assert_non_null(resp);
     assert_null(strstr(resp, "error"));
     assert_non_null(strstr(resp, "tags"));
@@ -166,31 +153,28 @@ static void test_mcp_bus_l1_param_tuning_boundary_checks(void **state) {
     mcp_bus_hub_t *hub = mcp_bus_hub_create(NULL);
 
     mcp_security_context_t low_sec = {
-        .client_id = "unauth_client",
-        .role_level = MCP_SEC_L0_SAFE_READ /* 权限不足 (L0 < L1) */
+        .client_id = "unauth_client", .role_level = MCP_SEC_L0_SAFE_READ /* 权限不足 (L0 < L1) */
     };
 
     /* 权限不足时拦截 */
-    char *resp = mcp_bus_dispatch_with_security(
-        hub,
-        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"datahub_write_tag\",\"arguments\":{\"tag_id\":1001,\"value\":220.0}}}",
-        &low_sec
-    );
+    char *resp = mcp_bus_dispatch_with_security(hub,
+                                                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/"
+                                                "call\",\"params\":{\"name\":\"datahub_write_tag\","
+                                                "\"arguments\":{\"tag_id\":1001,\"value\":220.0}}}",
+                                                &low_sec);
     assert_non_null(resp);
     assert_non_null(strstr(resp, "-32002"));
     assert_non_null(strstr(resp, "Privilege Insufficient"));
     free(resp);
 
     /* 权限足够时 (L1) 放行 */
-    mcp_security_context_t ok_sec = {
-        .client_id = "auth_tuning_agent",
-        .role_level = MCP_SEC_L1_PARAM_TUNING
-    };
-    resp = mcp_bus_dispatch_with_security(
-        hub,
-        "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"datahub_write_tag\",\"arguments\":{\"tag_id\":1001,\"value\":220.0}}}",
-        &ok_sec
-    );
+    mcp_security_context_t ok_sec = {.client_id = "auth_tuning_agent",
+                                     .role_level = MCP_SEC_L1_PARAM_TUNING};
+    resp = mcp_bus_dispatch_with_security(hub,
+                                          "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/"
+                                          "call\",\"params\":{\"name\":\"datahub_write_tag\","
+                                          "\"arguments\":{\"tag_id\":1001,\"value\":220.0}}}",
+                                          &ok_sec);
     assert_non_null(resp);
     assert_null(strstr(resp, "Privilege Insufficient"));
     assert_non_null(strstr(resp, "written_value"));
@@ -206,44 +190,34 @@ static void test_mcp_bus_l2_five_anti_interlock_enforcement(void **state) {
     mcp_provider_desc_t provider = {
         .provider_id = "grid_breaker_driver",
         .tool_count = 3,
-        .tools = {
-            {
-                .name = "breaker_operate_disconnector",
-                .description = "Open/close knife disconnector",
-                .security_level = MCP_SEC_L2_CRITICAL_ACTION,
-                .interlock_rule = MCP_INTERLOCK_RULE_PREVENT_LOAD_DISCONNECT,
-                .local_handler = mock_breaker_action_handler
-            },
-            {
-                .name = "breaker_operate_earth_switch",
-                .description = "Close grounding earth switch",
-                .security_level = MCP_SEC_L2_CRITICAL_ACTION,
-                .interlock_rule = MCP_INTERLOCK_RULE_PREVENT_LIVE_EARTHING,
-                .local_handler = mock_breaker_action_handler
-            },
-            {
-                .name = "breaker_close_main_breaker",
-                .description = "Close main 10kV circuit breaker",
-                .security_level = MCP_SEC_L2_CRITICAL_ACTION,
-                .interlock_rule = MCP_INTERLOCK_RULE_PREVENT_EARTHED_CLOSING,
-                .local_handler = mock_breaker_action_handler
-            }
-        }
-    };
+        .tools = {{.name = "breaker_operate_disconnector",
+                   .description = "Open/close knife disconnector",
+                   .security_level = MCP_SEC_L2_CRITICAL_ACTION,
+                   .interlock_rule = MCP_INTERLOCK_RULE_PREVENT_LOAD_DISCONNECT,
+                   .local_handler = mock_breaker_action_handler},
+                  {.name = "breaker_operate_earth_switch",
+                   .description = "Close grounding earth switch",
+                   .security_level = MCP_SEC_L2_CRITICAL_ACTION,
+                   .interlock_rule = MCP_INTERLOCK_RULE_PREVENT_LIVE_EARTHING,
+                   .local_handler = mock_breaker_action_handler},
+                  {.name = "breaker_close_main_breaker",
+                   .description = "Close main 10kV circuit breaker",
+                   .security_level = MCP_SEC_L2_CRITICAL_ACTION,
+                   .interlock_rule = MCP_INTERLOCK_RULE_PREVENT_EARTHED_CLOSING,
+                   .local_handler = mock_breaker_action_handler}}};
     mcp_bus_register_provider(hub, &provider);
 
-    mcp_security_context_t sec_ctx = {
-        .client_id = "scada_control_agent",
-        .operator_id = "engineer_wkt",
-        .role_level = MCP_SEC_L2_CRITICAL_ACTION
-    };
+    mcp_security_context_t sec_ctx = {.client_id = "scada_control_agent",
+                                      .operator_id = "engineer_wkt",
+                                      .role_level = MCP_SEC_L2_CRITICAL_ACTION};
 
     /* 测试 1: 五防规则 1 - 带负荷分刀闸 (I = 15.0A > 0.5A) -> 必须 100% 阻断 */
     char *resp = mcp_bus_dispatch_with_security(
         hub,
-        "{\"jsonrpc\":\"2.0\",\"id\":100,\"method\":\"tools/call\",\"params\":{\"name\":\"breaker_operate_disconnector\",\"arguments\":{\"load_current_a\":15.0,\"target_state\":\"OPEN\"}}}",
-        &sec_ctx
-    );
+        "{\"jsonrpc\":\"2.0\",\"id\":100,\"method\":\"tools/"
+        "call\",\"params\":{\"name\":\"breaker_operate_disconnector\",\"arguments\":{\"load_"
+        "current_a\":15.0,\"target_state\":\"OPEN\"}}}",
+        &sec_ctx);
     assert_non_null(resp);
     assert_non_null(strstr(resp, "-32001"));
     assert_non_null(strstr(resp, "Five-Anti Violation [Rule 1]"));
@@ -252,31 +226,32 @@ static void test_mcp_bus_l2_five_anti_interlock_enforcement(void **state) {
     /* 负荷电流归零 (I = 0.0A) -> 五防放行 */
     resp = mcp_bus_dispatch_with_security(
         hub,
-        "{\"jsonrpc\":\"2.0\",\"id\":101,\"method\":\"tools/call\",\"params\":{\"name\":\"breaker_operate_disconnector\",\"arguments\":{\"load_current_a\":0.0,\"target_state\":\"OPEN\"}}}",
-        &sec_ctx
-    );
+        "{\"jsonrpc\":\"2.0\",\"id\":101,\"method\":\"tools/"
+        "call\",\"params\":{\"name\":\"breaker_operate_disconnector\",\"arguments\":{\"load_"
+        "current_a\":0.0,\"target_state\":\"OPEN\"}}}",
+        &sec_ctx);
     assert_non_null(resp);
     assert_null(strstr(resp, "Five-Anti Violation"));
     assert_non_null(strstr(resp, "EXECUTED"));
     free(resp);
 
     /* 测试 2: 五防规则 2 - 带电合接地刀闸 (U = 220.0V > 10V) -> 必须阻断 */
-    resp = mcp_bus_dispatch_with_security(
-        hub,
-        "{\"jsonrpc\":\"2.0\",\"id\":102,\"method\":\"tools/call\",\"params\":{\"name\":\"breaker_operate_earth_switch\",\"arguments\":{\"bus_voltage_v\":220.0}}}",
-        &sec_ctx
-    );
+    resp = mcp_bus_dispatch_with_security(hub,
+                                          "{\"jsonrpc\":\"2.0\",\"id\":102,\"method\":\"tools/"
+                                          "call\",\"params\":{\"name\":\"breaker_operate_earth_"
+                                          "switch\",\"arguments\":{\"bus_voltage_v\":220.0}}}",
+                                          &sec_ctx);
     assert_non_null(resp);
     assert_non_null(strstr(resp, "-32001"));
     assert_non_null(strstr(resp, "Five-Anti Violation [Rule 2]"));
     free(resp);
 
     /* 测试 3: 五防规则 3 - 带接地刀闸合断路器 -> 必须阻断 */
-    resp = mcp_bus_dispatch_with_security(
-        hub,
-        "{\"jsonrpc\":\"2.0\",\"id\":103,\"method\":\"tools/call\",\"params\":{\"name\":\"breaker_close_main_breaker\",\"arguments\":{\"is_earthed\":true}}}",
-        &sec_ctx
-    );
+    resp = mcp_bus_dispatch_with_security(hub,
+                                          "{\"jsonrpc\":\"2.0\",\"id\":103,\"method\":\"tools/"
+                                          "call\",\"params\":{\"name\":\"breaker_close_main_"
+                                          "breaker\",\"arguments\":{\"is_earthed\":true}}}",
+                                          &sec_ctx);
     assert_non_null(resp);
     assert_non_null(strstr(resp, "-32001"));
     assert_non_null(strstr(resp, "Five-Anti Violation [Rule 3]"));
@@ -292,47 +267,40 @@ static void test_mcp_bus_l3_dual_authorization_requirement(void **state) {
     mcp_provider_desc_t provider = {
         .provider_id = "firmware_service",
         .tool_count = 1,
-        .tools = {
-            {
-                .name = "system_firmware_upgrade",
-                .description = "Perform dual-bank DFU firmware upgrade",
-                .security_level = MCP_SEC_L3_SYSTEM_CRITICAL,
-                .interlock_rule = MCP_INTERLOCK_RULE_NONE,
-                .local_handler = mock_breaker_action_handler
-            }
-        }
-    };
+        .tools = {{.name = "system_firmware_upgrade",
+                   .description = "Perform dual-bank DFU firmware upgrade",
+                   .security_level = MCP_SEC_L3_SYSTEM_CRITICAL,
+                   .interlock_rule = MCP_INTERLOCK_RULE_NONE,
+                   .local_handler = mock_breaker_action_handler}}};
     mcp_bus_register_provider(hub, &provider);
 
     /* 场景 1: 无监护人 Supervisor Token -> 阻断 */
-    mcp_security_context_t sec_no_token = {
-        .client_id = "admin_client",
-        .operator_id = "admin",
-        .role_level = MCP_SEC_L3_SYSTEM_CRITICAL,
-        .supervisor_token = NULL
-    };
-    char *resp = mcp_bus_dispatch_with_security(
-        hub,
-        "{\"jsonrpc\":\"2.0\",\"id\":200,\"method\":\"tools/call\",\"params\":{\"name\":\"system_firmware_upgrade\",\"arguments\":{\"firmware_url\":\"https://ota/fw.bin\"}}}",
-        &sec_no_token
-    );
+    mcp_security_context_t sec_no_token = {.client_id = "admin_client",
+                                           .operator_id = "admin",
+                                           .role_level = MCP_SEC_L3_SYSTEM_CRITICAL,
+                                           .supervisor_token = NULL};
+    char *resp =
+        mcp_bus_dispatch_with_security(hub,
+                                       "{\"jsonrpc\":\"2.0\",\"id\":200,\"method\":\"tools/"
+                                       "call\",\"params\":{\"name\":\"system_firmware_upgrade\","
+                                       "\"arguments\":{\"firmware_url\":\"https://ota/fw.bin\"}}}",
+                                       &sec_no_token);
     assert_non_null(resp);
     assert_non_null(strstr(resp, "-32002"));
     assert_non_null(strstr(resp, "Dual-Authorization Required"));
     free(resp);
 
     /* 场景 2: 携带有效 Supervisor Token -> 放行 */
-    mcp_security_context_t sec_with_token = {
-        .client_id = "admin_client",
-        .operator_id = "admin",
-        .role_level = MCP_SEC_L3_SYSTEM_CRITICAL,
-        .supervisor_token = "SUPERVISOR_KEY_TOKEN_SECRET_999"
-    };
-    resp = mcp_bus_dispatch_with_security(
-        hub,
-        "{\"jsonrpc\":\"2.0\",\"id\":201,\"method\":\"tools/call\",\"params\":{\"name\":\"system_firmware_upgrade\",\"arguments\":{\"firmware_url\":\"https://ota/fw.bin\"}}}",
-        &sec_with_token
-    );
+    mcp_security_context_t sec_with_token = {.client_id = "admin_client",
+                                             .operator_id = "admin",
+                                             .role_level = MCP_SEC_L3_SYSTEM_CRITICAL,
+                                             .supervisor_token = "SUPERVISOR_KEY_TOKEN_SECRET_999"};
+    resp =
+        mcp_bus_dispatch_with_security(hub,
+                                       "{\"jsonrpc\":\"2.0\",\"id\":201,\"method\":\"tools/"
+                                       "call\",\"params\":{\"name\":\"system_firmware_upgrade\","
+                                       "\"arguments\":{\"firmware_url\":\"https://ota/fw.bin\"}}}",
+                                       &sec_with_token);
     assert_non_null(resp);
     assert_null(strstr(resp, "Dual-Authorization Required"));
     assert_non_null(strstr(resp, "EXECUTED"));
@@ -346,18 +314,19 @@ static void test_mcp_bus_audit_blackbox_logging(void **state) {
     mcp_bus_hub_t *hub = mcp_bus_hub_create(NULL);
 
     /* 触发若干调用 (包含放行与阻断) */
-    mcp_security_context_t guest = { .client_id = "guest", .role_level = MCP_SEC_L0_SAFE_READ };
+    mcp_security_context_t guest = {.client_id = "guest", .role_level = MCP_SEC_L0_SAFE_READ};
     char *r1 = mcp_bus_dispatch_with_security(
         hub,
-        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"datahub_read_tags\",\"arguments\":{\"tag_ids\":[1001]}}}",
-        &guest
-    );
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/"
+        "call\",\"params\":{\"name\":\"datahub_read_tags\",\"arguments\":{\"tag_ids\":[1001]}}}",
+        &guest);
     free(r1);
 
-    char *r2 = mcp_bus_dispatch_with_security(
-        hub,
-        "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"datahub_write_tag\",\"arguments\":{\"tag_id\":1001,\"value\":50.0}}}",
-        &guest /* L0 写操作被阻断 */
+    char *r2 = mcp_bus_dispatch_with_security(hub,
+                                              "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/"
+                                              "call\",\"params\":{\"name\":\"datahub_write_tag\","
+                                              "\"arguments\":{\"tag_id\":1001,\"value\":50.0}}}",
+                                              &guest /* L0 写操作被阻断 */
     );
     free(r2);
 
@@ -381,8 +350,8 @@ static void test_mcp_bus_client_disconnect_cleanup(void **state) {
     (void)state;
     mcp_bus_hub_t *hub = mcp_bus_hub_create(NULL);
 
-    mcp_provider_desc_t p1 = { .provider_id = "p1", .client_fd = 20, .tool_count = 0 };
-    mcp_provider_desc_t p2 = { .provider_id = "p2", .client_fd = 21, .tool_count = 0 };
+    mcp_provider_desc_t p1 = {.provider_id = "p1", .client_fd = 20, .tool_count = 0};
+    mcp_provider_desc_t p2 = {.provider_id = "p2", .client_fd = 21, .tool_count = 0};
     mcp_bus_register_provider(hub, &p1);
     mcp_bus_register_provider(hub, &p2);
 

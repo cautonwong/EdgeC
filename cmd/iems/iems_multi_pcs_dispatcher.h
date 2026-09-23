@@ -10,9 +10,9 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #define IEMS_MAX_PCS_UNITS 8
 
@@ -32,7 +32,7 @@ typedef struct {
     iems_pcs_unit_t units[IEMS_MAX_PCS_UNITS];
     uint8_t unit_count;
     double total_rated_capacity_kw;
-    double ramp_rate_limit_kw_per_sec; // 功率爬坡斜率限制 (如 50kW/s)
+    double ramp_rate_limit_kw_per_sec;  // 功率爬坡斜率限制 (如 50kW/s)
     double last_total_dispatched_kw;
 } iems_multi_pcs_dispatcher_t;
 
@@ -58,10 +58,11 @@ int iems_pcs_dispatcher_update_status(iems_multi_pcs_dispatcher_t* disp, uint8_t
  * @param total_demand_kw 全站总目标功率需求 (正放负充, kW)
  * @param dt_s 距离上一次调度的时步 (秒, e.g. 0.1s)
  */
-int iems_pcs_dispatcher_dispatch(iems_multi_pcs_dispatcher_t* disp, double total_demand_kw, double dt_s);
+int iems_pcs_dispatcher_dispatch(iems_multi_pcs_dispatcher_t* disp, double total_demand_kw,
+                                 double dt_s);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // IEMS_MULTI_PCS_DISPATCHER_H
+#endif  // IEMS_MULTI_PCS_DISPATCHER_H

@@ -1,5 +1,6 @@
-#include <stdio.h>
 #include <assert.h>
+#include <stdio.h>
+
 #include "hrv_analyzer.h"
 
 int main(void) {
@@ -18,8 +19,8 @@ int main(void) {
 
     hrv_analyzer_calculate(&hrv);
 
-    printf("SDNN: %.2f ms, RMSSD: %.2f ms, Stress Index: %.1f, Alert: %s\n",
-           hrv.sdnn_ms, hrv.rmssd_ms, hrv.stress_index, hrv.high_stress_alert ? "YES" : "NO");
+    printf("SDNN: %.2f ms, RMSSD: %.2f ms, Stress Index: %.1f, Alert: %s\n", hrv.sdnn_ms,
+           hrv.rmssd_ms, hrv.stress_index, hrv.high_stress_alert ? "YES" : "NO");
 
     assert(hrv.sdnn_ms > 0.0f);
     assert(hrv.rmssd_ms > 0.0f);

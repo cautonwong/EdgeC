@@ -3,15 +3,15 @@
  * @brief AEP-353: Unit tests for Anti-Corruption Layer (ACL) translation engine
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 #include <cmocka.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "edge_anti_corruption.h"
 
@@ -20,67 +20,54 @@
 /* -------------------------------------------------------------------------- */
 
 static const edge_anti_corruption_entry_t g_test_acl_table[] = {
-    {
-        .tag_id = 1001,
-        .domain_name = "core_standard",
-        .entity_prop = "grid.voltage_phase_a",
-        .proto = EDGE_PROTO_MODBUS,
-        .raw_address = 0x3001,
-        .scaler = 0.1,
-        .offset = 0.0,
-        .data_type = EDGE_ACL_TYPE_FLOAT
-    },
-    {
-        .tag_id = 1004,
-        .domain_name = "core_standard",
-        .entity_prop = "grid.current_phase_a",
-        .proto = EDGE_PROTO_DLT645,
-        .raw_address = 0x00010000,
-        .scaler = 0.01,
-        .offset = 0.0,
-        .data_type = EDGE_ACL_TYPE_FLOAT
-    },
-    {
-        .tag_id = 65538, // 0x010002
-        .domain_name = "dcu_distribution",
-        .entity_prop = "branch.lineloss_pct",
-        .proto = EDGE_PROTO_MODBUS,
-        .raw_address = 0x4001,
-        .scaler = 0.01,
-        .offset = 0.0,
-        .data_type = EDGE_ACL_TYPE_FLOAT
-    },
-    {
-        .tag_id = 65541, // 0x010005
-        .domain_name = "dcu_distribution",
-        .entity_prop = "telecontrol.do_bitmap",
-        .proto = EDGE_PROTO_MODBUS,
-        .raw_address = 0x4005,
-        .scaler = 1.0,
-        .offset = 0.0,
-        .data_type = EDGE_ACL_TYPE_UINT32
-    },
-    {
-        .tag_id = 131074, // 0x020002
-        .domain_name = "iems_microgrid",
-        .entity_prop = "pcs.active_power_setpoint",
-        .proto = EDGE_PROTO_MODBUS,
-        .raw_address = 0x5001,
-        .scaler = 0.1,
-        .offset = 0.0,
-        .data_type = EDGE_ACL_TYPE_FLOAT
-    },
-    {
-        .tag_id = 196609, // 0x030001
-        .domain_name = "smart_box_panel",
-        .entity_prop = "breaker.residual_current_ma",
-        .proto = EDGE_PROTO_MODBUS,
-        .raw_address = 0x6001,
-        .scaler = 0.1,
-        .offset = 0.0,
-        .data_type = EDGE_ACL_TYPE_FLOAT
-    }
-};
+    {.tag_id = 1001,
+     .domain_name = "core_standard",
+     .entity_prop = "grid.voltage_phase_a",
+     .proto = EDGE_PROTO_MODBUS,
+     .raw_address = 0x3001,
+     .scaler = 0.1,
+     .offset = 0.0,
+     .data_type = EDGE_ACL_TYPE_FLOAT},
+    {.tag_id = 1004,
+     .domain_name = "core_standard",
+     .entity_prop = "grid.current_phase_a",
+     .proto = EDGE_PROTO_DLT645,
+     .raw_address = 0x00010000,
+     .scaler = 0.01,
+     .offset = 0.0,
+     .data_type = EDGE_ACL_TYPE_FLOAT},
+    {.tag_id = 65538,  // 0x010002
+     .domain_name = "dcu_distribution",
+     .entity_prop = "branch.lineloss_pct",
+     .proto = EDGE_PROTO_MODBUS,
+     .raw_address = 0x4001,
+     .scaler = 0.01,
+     .offset = 0.0,
+     .data_type = EDGE_ACL_TYPE_FLOAT},
+    {.tag_id = 65541,  // 0x010005
+     .domain_name = "dcu_distribution",
+     .entity_prop = "telecontrol.do_bitmap",
+     .proto = EDGE_PROTO_MODBUS,
+     .raw_address = 0x4005,
+     .scaler = 1.0,
+     .offset = 0.0,
+     .data_type = EDGE_ACL_TYPE_UINT32},
+    {.tag_id = 131074,  // 0x020002
+     .domain_name = "iems_microgrid",
+     .entity_prop = "pcs.active_power_setpoint",
+     .proto = EDGE_PROTO_MODBUS,
+     .raw_address = 0x5001,
+     .scaler = 0.1,
+     .offset = 0.0,
+     .data_type = EDGE_ACL_TYPE_FLOAT},
+    {.tag_id = 196609,  // 0x030001
+     .domain_name = "smart_box_panel",
+     .entity_prop = "breaker.residual_current_ma",
+     .proto = EDGE_PROTO_MODBUS,
+     .raw_address = 0x6001,
+     .scaler = 0.1,
+     .offset = 0.0,
+     .data_type = EDGE_ACL_TYPE_FLOAT}};
 static const size_t g_test_acl_count = sizeof(g_test_acl_table) / sizeof(g_test_acl_table[0]);
 
 /* -------------------------------------------------------------------------- */
@@ -95,7 +82,8 @@ static void test_acl_init_and_registration(void **state) {
     assert_int_equal(edge_anti_corruption_init(&acl, 2), 0);
 
     // Register test table
-    assert_int_equal(edge_anti_corruption_register_table(&acl, g_test_acl_table, g_test_acl_count), 0);
+    assert_int_equal(edge_anti_corruption_register_table(&acl, g_test_acl_table, g_test_acl_count),
+                     0);
     assert_int_equal(acl.count, g_test_acl_count);
     assert_true(acl.capacity >= g_test_acl_count);
 
@@ -126,7 +114,8 @@ static void test_acl_inbound_translation(void **state) {
 
     edge_anti_corruption_engine_t acl;
     assert_int_equal(edge_anti_corruption_init(&acl, 16), 0);
-    assert_int_equal(edge_anti_corruption_register_table(&acl, g_test_acl_table, g_test_acl_count), 0);
+    assert_int_equal(edge_anti_corruption_register_table(&acl, g_test_acl_table, g_test_acl_count),
+                     0);
 
     // 1. Modbus Voltage Inbound: raw 2305 * 0.1 -> 230.5 V
     pipe_msg_t msg;
@@ -171,7 +160,8 @@ static void test_acl_outbound_translation(void **state) {
 
     edge_anti_corruption_engine_t acl;
     assert_int_equal(edge_anti_corruption_init(&acl, 16), 0);
-    assert_int_equal(edge_anti_corruption_register_table(&acl, g_test_acl_table, g_test_acl_count), 0);
+    assert_int_equal(edge_anti_corruption_register_table(&acl, g_test_acl_table, g_test_acl_count),
+                     0);
 
     // 1. IEMS Set Active Power (Tag 131074): 5000.0 kW -> raw address 0x5001, raw value 50000.0
     uint32_t raw_addr = 0;
@@ -199,7 +189,8 @@ static void test_acl_domain_entity_isolation(void **state) {
 
     edge_anti_corruption_engine_t acl;
     assert_int_equal(edge_anti_corruption_init(&acl, 16), 0);
-    assert_int_equal(edge_anti_corruption_register_table(&acl, g_test_acl_table, g_test_acl_count), 0);
+    assert_int_equal(edge_anti_corruption_register_table(&acl, g_test_acl_table, g_test_acl_count),
+                     0);
 
     // Verify all registered entries belong to explicit domain names
     for (size_t i = 0; i < acl.count; i++) {

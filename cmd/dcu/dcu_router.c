@@ -1,10 +1,11 @@
 #include "dcu_router.h"
-#include "datahub.h"
-#include "shmring.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "datahub.h"
+#include "shmring.h"
 
 #define MAX_DICT_SIZE 64
 
@@ -203,7 +204,8 @@ static int _oi_variable_read(dcu_object_t* obj, uint8_t attr_id, uint8_t elem_id
         if (shadow_idx >= 0 && g_router_bus_ops.read_shadow_idx) {
             pipe_msg_t msg;
             memset(&msg, 0, sizeof(pipe_msg_t));
-            if (g_router_bus_ops.read_shadow_idx(g_router_bus_ops.ctx, (uint32_t)shadow_idx, &msg) == 0) {
+            if (g_router_bus_ops.read_shadow_idx(g_router_bus_ops.ctx, (uint32_t)shadow_idx,
+                                                 &msg) == 0) {
                 val = (float)msg.payload.val.f;
             }
         }
@@ -482,7 +484,8 @@ static int _oi_event_execute(dcu_object_t* obj, uint8_t method_id, const void* p
         evt->last_start_time = 0;
         evt->last_end_time = 0;
         if (result) *(int*)result = 0;
-        printf("🧹 [EVENT] ACTION: 成功复位事件 %04X 的历史事件记录表。\n", evt->oi);
+        printf("🧹 [EVENT] ACTION: 成功复位事件 %04X 的历史事件记录表。\n",
+               evt->oi);
         return 0;
     }
     return -2;

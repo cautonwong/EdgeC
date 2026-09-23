@@ -66,14 +66,14 @@ typedef struct {
     uint16_t oi;                                    // 事件对象 OID (如 OI_VOLTAGE_DROP)
     dcu_event_record_t records[MAX_EVENT_RECORDS];  // 倒序排列的事件记录表 (属性 2)
     uint16_t record_count;                          // 当前记录条数 (属性 4)
-    uint32_t snapshot_oads[8];                      // [Align Attr 3] 关联抓取的快照 OAD 列表
-    uint8_t snapshot_count;                         // 快照列表长度
-    float threshold;                                // 判定门限值 (属性 6 配置参数)
-    uint32_t delay_s;                               // 判定触发延时时间 (秒)
-    uint8_t report_flag;                            // 上报标识 (属性 8)
-    bool is_enabled;                                // 是否使能有效 (属性 9)
-    uint64_t last_start_time;                       // 最近发生时间 (属性 10 的部分元素)
-    uint64_t last_end_time;                         // 最近恢复时间
+    uint32_t snapshot_oads[8];  // [Align Attr 3] 关联抓取的快照 OAD 列表
+    uint8_t snapshot_count;     // 快照列表长度
+    float threshold;            // 判定门限值 (属性 6 配置参数)
+    uint32_t delay_s;           // 判定触发延时时间 (秒)
+    uint8_t report_flag;        // 上报标识 (属性 8)
+    bool is_enabled;            // 是否使能有效 (属性 9)
+    uint64_t last_start_time;   // 最近发生时间 (属性 10 的部分元素)
+    uint64_t last_end_time;     // 最近恢复时间
 } dcu_event_obj_t;
 
 // === [Consumer-Defined Interfaces] ===

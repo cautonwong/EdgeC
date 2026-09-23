@@ -1,7 +1,8 @@
-#include <stdio.h>
-#include <stdlib.h>
 #include <assert.h>
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+
 #include "simd_cdd_codec.h"
 
 int main(void) {
@@ -19,11 +20,11 @@ int main(void) {
 
     cdd_batch_sample_t samples[2];
     samples[0].tag_id = 1001;
-    samples[0].value = 25.5;  /* Eng value */
+    samples[0].value = 25.5; /* Eng value */
     samples[0].timestamp_ms = 1700000000000ULL;
 
     samples[1].tag_id = 1002;
-    samples[1].value = 35.0;  /* Eng value */
+    samples[1].value = 35.0; /* Eng value */
     samples[1].timestamp_ms = 1700000001000ULL;
 
     uint8_t buffer[512];

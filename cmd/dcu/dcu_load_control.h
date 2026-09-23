@@ -10,14 +10,14 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 typedef enum {
-    LOAD_STATE_NORMAL    = 0, // < 85% Rated Capacity
-    LOAD_STATE_WARNING   = 1, // 85% ~ 95% (Level 1 Curtailment: EV Chargers -30%)
-    LOAD_STATE_HIGH      = 2, // 95% ~ 110% (Level 2 Curtailment: PV inverters limit, Battery Discharge)
-    LOAD_STATE_OVERLOAD  = 3  // > 110% (Level 3 Emergency: Trip non-essential flexible circuits)
+    LOAD_STATE_NORMAL = 0,   // < 85% Rated Capacity
+    LOAD_STATE_WARNING = 1,  // 85% ~ 95% (Level 1 Curtailment: EV Chargers -30%)
+    LOAD_STATE_HIGH = 2,  // 95% ~ 110% (Level 2 Curtailment: PV inverters limit, Battery Discharge)
+    LOAD_STATE_OVERLOAD = 3  // > 110% (Level 3 Emergency: Trip non-essential flexible circuits)
 } dcu_load_state_t;
 
 typedef struct {
@@ -53,4 +53,4 @@ dcu_load_state_t dcu_load_control_evaluate(dcu_load_controller_t* ctrl, double u
 }
 #endif
 
-#endif // DCU_LOAD_CONTROL_H
+#endif  // DCU_LOAD_CONTROL_H

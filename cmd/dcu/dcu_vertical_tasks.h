@@ -1,6 +1,7 @@
 /**
  * @file dcu_vertical_tasks.h
- * @brief Production DCU Vertical Tasks Engine (1s Real-Time Sampling, 15min MTT Periodic Freeze, Daily TOU & Monthly Billing)
+ * @brief Production DCU Vertical Tasks Engine (1s Real-Time Sampling, 15min MTT Periodic Freeze,
+ * Daily TOU & Monthly Billing)
  */
 
 #ifndef DCU_VERTICAL_TASKS_H
@@ -10,35 +11,35 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <time.h>
 
 #define DCU_MAX_VERTICAL_METERS 2048
-#define DCU_MAX_15MIN_CURVE_POINTS 96 // 96 points in 24 hours (15-min interval)
+#define DCU_MAX_15MIN_CURVE_POINTS 96  // 96 points in 24 hours (15-min interval)
 
 typedef struct {
     double energy_total_kwh;
-    double energy_t1_peak_kwh;     // 尖峰费率 (Rate 1 - Peak)
-    double energy_t2_shoulder_kwh; // 高峰费率 (Rate 2 - Shoulder)
-    double energy_t3_flat_kwh;     // 平段费率 (Rate 3 - Flat)
-    double energy_t4_valley_kwh;   // 低谷费率 (Rate 4 - Valley)
+    double energy_t1_peak_kwh;      // 尖峰费率 (Rate 1 - Peak)
+    double energy_t2_shoulder_kwh;  // 高峰费率 (Rate 2 - Shoulder)
+    double energy_t3_flat_kwh;      // 平段费率 (Rate 3 - Flat)
+    double energy_t4_valley_kwh;    // 低谷费率 (Rate 4 - Valley)
     double reactive_q1_kvarh;
     double reactive_q2_kvarh;
     double reactive_q3_kvarh;
     double reactive_q4_kvarh;
-    double max_demand_kw;          // 最大需量 (kW)
-    uint64_t max_demand_ts_ms;     // 最大需量发生时间戳
-    double max_voltage_v;          // 最高电压
-    double min_voltage_v;          // 最低电压
+    double max_demand_kw;       // 最大需量 (kW)
+    uint64_t max_demand_ts_ms;  // 最大需量发生时间戳
+    double max_voltage_v;       // 最高电压
+    double min_voltage_v;       // 最低电压
 } dcu_tou_energy_record_t;
 
 typedef struct {
     uint64_t timestamp_ms;
-    double avg_active_power_kw;    // 15分钟平均有功功率
-    double avg_reactive_power_kvar;// 15分钟平均无功功率
-    double avg_power_factor;       // 15分钟平均功率因数
-    double freeze_energy_kwh;      // 15分钟整点冻结电量
+    double avg_active_power_kw;      // 15分钟平均有功功率
+    double avg_reactive_power_kvar;  // 15分钟平均无功功率
+    double avg_power_factor;         // 15分钟平均功率因数
+    double freeze_energy_kwh;        // 15分钟整点冻结电量
 } dcu_15min_profile_point_t;
 
 typedef struct {
@@ -81,15 +82,18 @@ void dcu_vertical_mgr_init(dcu_vertical_task_mgr_t* mgr);
 /**
  * @brief 注册或查找电表垂直数据上下文
  */
-dcu_meter_vertical_state_t* dcu_vertical_get_or_create_meter(dcu_vertical_task_mgr_t* mgr, const char* addr, uint32_t dev_id);
+dcu_meter_vertical_state_t* dcu_vertical_get_or_create_meter(dcu_vertical_task_mgr_t* mgr,
+                                                             const char* addr, uint32_t dev_id);
 
 /**
  * @brief 垂直任务 1: 秒级实时数据采集与流引擎推送
  */
-int dcu_vertical_1s_sample(dcu_vertical_task_mgr_t* mgr, uint32_t dev_id, double u_v, double i_a, double p_kw, double freq, uint64_t now_ms);
+int dcu_vertical_1s_sample(dcu_vertical_task_mgr_t* mgr, uint32_t dev_id, double u_v, double i_a,
+                           double p_kw, double freq, uint64_t now_ms);
 
 /**
- * @brief 垂直任务 2: 15分钟 MTT 挂钟对齐负荷曲线生成 (Wall-Clock Aligned at XX:00, XX:15, XX:30, XX:45)
+ * @brief 垂直任务 2: 15分钟 MTT 挂钟对齐负荷曲线生成 (Wall-Clock Aligned at XX:00, XX:15, XX:30,
+ * XX:45)
  */
 int dcu_vertical_15min_freeze(dcu_vertical_task_mgr_t* mgr, uint64_t freeze_ts_ms);
 
@@ -107,4 +111,4 @@ int dcu_vertical_monthly_freeze(dcu_vertical_task_mgr_t* mgr, uint64_t month_sta
 }
 #endif
 
-#endif // DCU_VERTICAL_TASKS_H
+#endif  // DCU_VERTICAL_TASKS_H

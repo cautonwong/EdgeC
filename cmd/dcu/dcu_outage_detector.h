@@ -10,14 +10,14 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 typedef enum {
-    OUTAGE_STATUS_NORMAL         = 0, // 正常供电 (All 3 Phases OK)
-    OUTAGE_STATUS_SINGLE_PHASE   = 1, // 单相失压 (e.g. Phase A down)
-    OUTAGE_STATUS_TWO_PHASE      = 2, // 两相失压
-    OUTAGE_STATUS_FULL_BLACKOUT  = 3  // 全停电 (Last-Gasp triggered on Supercap)
+    OUTAGE_STATUS_NORMAL = 0,        // 正常供电 (All 3 Phases OK)
+    OUTAGE_STATUS_SINGLE_PHASE = 1,  // 单相失压 (e.g. Phase A down)
+    OUTAGE_STATUS_TWO_PHASE = 2,     // 两相失压
+    OUTAGE_STATUS_FULL_BLACKOUT = 3  // 全停电 (Last-Gasp triggered on Supercap)
 } dcu_outage_status_t;
 
 typedef struct {
@@ -25,9 +25,9 @@ typedef struct {
     uint64_t outage_start_timestamp_ms;
     uint64_t last_restoration_timestamp_ms;
     uint32_t total_outage_events;
-    uint32_t supercap_voltage_mv;      // 超级电容电压 (mV, e.g. 5200 mV)
-    bool is_last_gasp_sent;            // 最后一公报是否已封包发出
-    char affected_branch_mask[32];     // 受影响分支掩码
+    uint32_t supercap_voltage_mv;   // 超级电容电压 (mV, e.g. 5200 mV)
+    bool is_last_gasp_sent;         // 最后一公报是否已封包发出
+    char affected_branch_mask[32];  // 受影响分支掩码
 } dcu_outage_detector_t;
 
 /**
@@ -44,13 +44,12 @@ void dcu_outage_detector_init(dcu_outage_detector_t* detector);
  * @param supercap_mv 超级电容电压 (mV)
  * @param now_ms 当前时间戳 (ms)
  */
-dcu_outage_status_t dcu_outage_detector_evaluate(dcu_outage_detector_t* detector,
-                                                 double ua, double ub, double uc,
-                                                 double nominal_v, uint32_t supercap_mv,
-                                                 uint64_t now_ms);
+dcu_outage_status_t dcu_outage_detector_evaluate(dcu_outage_detector_t* detector, double ua,
+                                                 double ub, double uc, double nominal_v,
+                                                 uint32_t supercap_mv, uint64_t now_ms);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // DCU_OUTAGE_DETECTOR_H
+#endif  // DCU_OUTAGE_DETECTOR_H

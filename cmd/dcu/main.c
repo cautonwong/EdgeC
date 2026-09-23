@@ -94,8 +94,7 @@ static void _freeze_trigger_cb(uv_timer_t* handle) {
     if (saved > 0) {
         dcu_storage_flush(&g_dcu_storage);
         LOG_INFO(LOG_CAT_SCHED, "✅ [STORAGE] SUCCESS! Captured %d meters truth data.", saved);
-        printf("💓 [HEARTBEAT] Marathon Cycle %d Completed. Database Flushed.\n",
-               g_test_cycles + 1);
+        printf("💓 [HEARTBEAT] Marathon Cycle %d Completed. Database Flushed.\n", g_test_cycles + 1);
 
         // 💡 [Industrial Fix] 开启大事务保护 5xxx 冻结管线的高频批量写入，防止 SQLite 疯狂分配/释放
         // heap 导致 C 库崩溃
@@ -115,7 +114,8 @@ static void _freeze_trigger_cb(uv_timer_t* handle) {
                 uint32_t relay_omd = (0x8000U << 16) | 0x0100;
                 uint8_t action =
                     (g_test_cycles % 2 == 0) ? 1 : 0;  // 0/2 cycle Trip, 1 cycle Restore
-                printf("🎛️ [RELAY] Dev %d: Triggering Action %d (OI 8000 Attr 1)\n", i, action);
+                printf("🎛️ [RELAY] Dev %d: Triggering Action %d (OI 8000 Attr 1)\n", i,
+                       action);
                 dcu_router_action(relay_omd, (void*)(uintptr_t)i, &action);
             }
         }
@@ -133,8 +133,7 @@ static uv_timer_t g_control_test_timer;
 
 static void _control_test_cb(uv_timer_t* handle) {
     (void)handle;
-    LOG_INFO(LOG_CAT_BUS,
-             "🏁 [TEST] Triggering Remote Control ACTION (8000) for Meter 10000001...");
+    LOG_INFO(LOG_CAT_BUS, "🏁 [TEST] Triggering Remote Control ACTION (8000) for Meter 10000001...");
     uint32_t omd = (0x8000U << 16) | 0x0100;
     dcu_router_action(omd, NULL, NULL);
 }
@@ -192,16 +191,18 @@ int main(int argc, char** argv) {
     extern const edge_contract_t g_contract_manifest;
     contract_register(&g_contract_manifest);
 
-    const char *env_data_dir = getenv("EDGEC_DATA_DIR");
+    const char* env_data_dir = getenv("EDGEC_DATA_DIR");
     char db_resolved_path[512];
     if (env_data_dir && strlen(env_data_dir) > 0) {
         snprintf(db_resolved_path, sizeof(db_resolved_path), "%s/dcu_runtime.db", env_data_dir);
     } else if (access("build/products/dcu/bin/dcu_runtime.db", F_OK) == 0) {
-        strncpy(db_resolved_path, "build/products/dcu/bin/dcu_runtime.db", sizeof(db_resolved_path) - 1);
+        strncpy(db_resolved_path, "build/products/dcu/bin/dcu_runtime.db",
+                sizeof(db_resolved_path) - 1);
     } else if (access("dcu_runtime.db", F_OK) == 0) {
         strncpy(db_resolved_path, "dcu_runtime.db", sizeof(db_resolved_path) - 1);
     } else {
-        strncpy(db_resolved_path, "build/products/dcu/bin/dcu_runtime.db", sizeof(db_resolved_path) - 1);
+        strncpy(db_resolved_path, "build/products/dcu/bin/dcu_runtime.db",
+                sizeof(db_resolved_path) - 1);
     }
 
     const char* db_abs_path = db_resolved_path;

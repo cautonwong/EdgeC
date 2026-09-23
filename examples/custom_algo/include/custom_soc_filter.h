@@ -6,17 +6,17 @@
 #ifndef EXAMPLES_CUSTOM_SOC_FILTER_H
 #define EXAMPLES_CUSTOM_SOC_FILTER_H
 
-#include <stdint.h>
-#include <stdbool.h>
 #include <edgeos/edgeos.h>
+#include <stdbool.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef struct {
-    float alpha;         /**< 平滑衰减因子 (0.0 < alpha <= 1.0) */
-    float filtered_soc;  /**< 当前平滑后的 SOC 估计值 (%) */
+    float alpha;        /**< 平滑衰减因子 (0.0 < alpha <= 1.0) */
+    float filtered_soc; /**< 当前平滑后的 SOC 估计值 (%) */
     bool initialized;
 } custom_soc_filter_t;
 
@@ -33,7 +33,8 @@ float custom_soc_filter_step(custom_soc_filter_t *filter, float raw_soc);
 /**
  * @brief 从 DataHub 影子总线读取原始测点，执行滤波并写回目标测点
  */
-int custom_soc_filter_process_datahub(custom_soc_filter_t *filter, edgeos_datahub_t *hub, uint32_t raw_tag_id, uint32_t out_tag_id);
+int custom_soc_filter_process_datahub(custom_soc_filter_t *filter, edgeos_datahub_t *hub,
+                                      uint32_t raw_tag_id, uint32_t out_tag_id);
 
 #ifdef __cplusplus
 }

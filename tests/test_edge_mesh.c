@@ -1,10 +1,11 @@
+#include <cmocka.h>
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <cmocka.h>
+
 #include "edge_mesh.h"
 
 static void test_mesh_delta_and_merkle_reconcile(void **state) {
@@ -43,12 +44,10 @@ static void test_mesh_delta_and_merkle_reconcile(void **state) {
     assert_double_equal(msg_b.payload.val.f, 380.5, 0.001);
 
     // 验证两节点 Merkle Root 完全一致
-    pipe_msg_t msg_a = {
-        .tag_id = 2001,
-        .ts = 1000000,
-        .type = PIPEMSG_TYPE_SCALAR,
-        .payload = {.val = {.f = 380.5}}
-    };
+    pipe_msg_t msg_a = {.tag_id = 2001,
+                        .ts = 1000000,
+                        .type = PIPEMSG_TYPE_SCALAR,
+                        .payload = {.val = {.f = 380.5}}};
     datahub_write_shadow(&hub_a, &msg_a);
 
     uint64_t root_a = edge_mesh_compute_merkle_root(&mesh_a);
@@ -56,7 +55,7 @@ static void test_mesh_delta_and_merkle_reconcile(void **state) {
     assert_int_equal(root_a, root_b);
 
     ret = edge_mesh_reconcile(&mesh_a, root_b);
-    assert_int_equal(ret, 0); // 0 代表完全匹配
+    assert_int_equal(ret, 0);  // 0 代表完全匹配
 
     datahub_destroy(&hub_a);
     datahub_destroy(&hub_b);

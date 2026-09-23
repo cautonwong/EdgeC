@@ -6,8 +6,8 @@
 #ifndef EDGEOS_SDK_ANTI_CORRUPTION_H
 #define EDGEOS_SDK_ANTI_CORRUPTION_H
 
-#include "edgeos/types.h"
 #include "edge_anti_corruption.h"
+#include "edgeos/types.h"
 
 #ifdef __cplusplus
 extern "C" {

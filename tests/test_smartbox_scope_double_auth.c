@@ -1,28 +1,23 @@
 /**
- * test_smartbox_scope_double_auth.c - Verification of SmartBox 100Hz Scope & Double-Auth Safety Modal (AEP-495)
+ * test_smartbox_scope_double_auth.c - Verification of SmartBox 100Hz Scope & Double-Auth Safety
+ * Modal (AEP-495)
  */
 
-#include <stdarg.h>
-#include <stddef.h>
+#include <cmocka.h>
 #include <setjmp.h>
-#include <stdint.h>
+#include <stdarg.h>
 #include <stdbool.h>
-#include <string.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <cmocka.h>
+#include <string.h>
 
 static void read_file_content(const char *rel_path, char *buf, size_t max_len) {
     char path[512];
     FILE *fp = NULL;
 
-    const char *prefixes[] = {
-        "",
-        "../",
-        "../../",
-        "/workspaces/edgeos/EdgeC/",
-        NULL
-    };
+    const char *prefixes[] = {"", "../", "../../", "/workspaces/edgeos/EdgeC/", NULL};
 
     for (int i = 0; prefixes[i] != NULL; i++) {
         snprintf(path, sizeof(path), "%s%s", prefixes[i], rel_path);
@@ -39,7 +34,8 @@ static void read_file_content(const char *rel_path, char *buf, size_t max_len) {
 static void test_waveform_scope_100hz_canvas_and_controls(void **state) {
     (void)state;
     char content[65536];
-    read_file_content("web/products/smart_box/src/components/WaveformScope100Hz.vue", content, sizeof(content));
+    read_file_content("web/products/smart_box/src/components/WaveformScope100Hz.vue", content,
+                      sizeof(content));
 
     // 100Hz sampling & Canvas 2D engine
     assert_non_null(strstr(content, "100Hz HARDWARE"));
@@ -64,7 +60,8 @@ static void test_waveform_scope_100hz_canvas_and_controls(void **state) {
 static void test_double_auth_safety_interlock_modal(void **state) {
     (void)state;
     char content[65536];
-    read_file_content("web/products/smart_box/src/components/DoubleAuthModal.vue", content, sizeof(content));
+    read_file_content("web/products/smart_box/src/components/DoubleAuthModal.vue", content,
+                      sizeof(content));
 
     // Safety Interlock & Four-Eyes Principle
     assert_non_null(strstr(content, "CRITICAL SAFETY INTERLOCK"));

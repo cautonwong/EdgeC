@@ -1,9 +1,11 @@
 /**
  * @file dcu_app_daemon.c
- * @brief Production SGCC/CSG Microservices Container Lifecycle & Resource Quota Daemon Engine Implementation
+ * @brief Production SGCC/CSG Microservices Container Lifecycle & Resource Quota Daemon Engine
+ * Implementation
  */
 
 #include "dcu_app_daemon.h"
+
 #include <string.h>
 
 void dcu_app_daemon_init(dcu_app_daemon_t* daemon, uint64_t now_ms) {
@@ -18,12 +20,12 @@ int dcu_app_daemon_install(dcu_app_daemon_t* daemon, const char* name, const cha
 
     for (uint32_t i = 0; i < daemon->app_count; i++) {
         if (daemon->apps[i].app_id == app_id) {
-            return -2; // Already exists
+            return -2;  // Already exists
         }
     }
 
     if (daemon->app_count >= DCU_MAX_CONTAINER_APPS) {
-        return -3; // Full
+        return -3;  // Full
     }
 
     uint32_t idx = daemon->app_count++;
@@ -57,7 +59,7 @@ int dcu_app_daemon_start(dcu_app_daemon_t* daemon, uint32_t app_id, uint64_t now
             return 0;
         }
     }
-    return -2; // Not found
+    return -2;  // Not found
 }
 
 int dcu_app_daemon_stop(dcu_app_daemon_t* daemon, uint32_t app_id) {
@@ -82,7 +84,7 @@ int dcu_app_daemon_heartbeat(dcu_app_daemon_t* daemon, uint32_t app_id, double c
         dcu_app_container_t* app = &daemon->apps[i];
         if (app->app_id == app_id) {
             if (app->state != APP_STATE_RUNNING) {
-                return -3; // Not running
+                return -3;  // Not running
             }
             app->current_cpu_pct = cpu_pct;
             app->current_mem_bytes = mem_bytes;
@@ -100,14 +102,16 @@ int dcu_app_daemon_heartbeat(dcu_app_daemon_t* daemon, uint32_t app_id, double c
     return -2;
 }
 
-int dcu_app_daemon_watchdog_poll(dcu_app_daemon_t* daemon, uint64_t timeout_threshold_ms, uint64_t now_ms) {
+int dcu_app_daemon_watchdog_poll(dcu_app_daemon_t* daemon, uint64_t timeout_threshold_ms,
+                                 uint64_t now_ms) {
     if (!daemon) return -1;
 
     int recovered_count = 0;
     for (uint32_t i = 0; i < daemon->app_count; i++) {
         dcu_app_container_t* app = &daemon->apps[i];
         if (app->state == APP_STATE_RUNNING) {
-            uint64_t elapsed = (now_ms >= app->last_heartbeat_ms) ? (now_ms - app->last_heartbeat_ms) : 0;
+            uint64_t elapsed =
+                (now_ms >= app->last_heartbeat_ms) ? (now_ms - app->last_heartbeat_ms) : 0;
             // If heartbeat timeout or severely exceeded quota, restart sandbox
             if (elapsed > timeout_threshold_ms || app->is_quota_exceeded) {
                 app->state = APP_STATE_FAULT;

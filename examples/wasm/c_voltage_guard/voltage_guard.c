@@ -3,7 +3,7 @@
 /**
  * @file voltage_guard.c
  * @brief EdgeOS WASM 智能越限守护算法示例
- * 
+ *
  * 物理契约:
  * 1. 订阅输入 Tag 1001 (VOLTAGE_PHASE_A)
  * 2. 判定逻辑: 若 A 相电压 > 240.0V，触发高压越限告警 (Tag 9999 输出 1.0)
@@ -12,7 +12,7 @@
 
 __attribute__((export_name("on_event"))) void on_event() {
     double voltage = 0.0;
-    
+
     // 读 DataHub 1001 点位
     if (ext_datahub_read(1001, &voltage) == 0) {
         if (voltage > 240.0) {
