@@ -15,6 +15,7 @@
 #include "edgeos/dds.h"
 #include "edgeos/anti_corruption.h"
 #include "edgeos/npu.h"
+#include "edgeos/port.h"
 
 #ifdef __cplusplus
 extern "C" {

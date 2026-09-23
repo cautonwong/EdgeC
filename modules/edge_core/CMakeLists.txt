@@ -24,11 +24,14 @@ add_library(edge_core STATIC
     src/resilient_buffer.c
     src/wasm_host_bridge.c
     src/timeseries_compressor.c
+    src/edge_port.c
+    src/edge_composition_root.c
 )
 
 # PUBLIC: 链接 edge_core 的 Target 也能 include 这些头文件
 target_include_directories(edge_core PUBLIC
     include
+    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
 )
 
 # PRIVATE: 依赖项

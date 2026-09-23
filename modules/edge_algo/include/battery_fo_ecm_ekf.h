@@ -118,6 +118,32 @@ bool fo_ecm_ekf_step(fo_ecm_ekf_t *ekf, double current_a, double voltage_v,
  */
 void fo_ecm_ekf_reset(fo_ecm_ekf_t *ekf, double soc, double temp_c);
 
+/* -------------------------------------------------------------------------- */
+/* Consumer-Defined Port Driven Interface (AEP-751)                          */
+/* -------------------------------------------------------------------------- */
+
+struct edge_reader_port;
+struct edge_writer_port;
+struct edge_clock_port;
+
+typedef struct {
+    uint32_t tag_current_a;
+    uint32_t tag_voltage_v;
+    uint32_t tag_temp_c;
+    uint32_t tag_soc_est;
+    uint32_t tag_ocv_est;
+} fo_ecm_port_binding_t;
+
+/**
+ * @brief Consumer-Port driven execution: reads inputs from Reader Port, executes EKF, writes output to Writer Port
+ */
+bool fo_ecm_ekf_step_ports(fo_ecm_ekf_t *ekf,
+                           const struct edge_reader_port *reader,
+                           const struct edge_writer_port *writer,
+                           const struct edge_clock_port *clock,
+                           const fo_ecm_port_binding_t *binding,
+                           double dt_s);
+
 #ifdef __cplusplus
 }
 #endif

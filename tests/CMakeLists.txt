@@ -1264,6 +1264,22 @@ target_link_libraries(test_npu_self_healing PRIVATE
 )
 add_test(NAME test_npu_self_healing COMMAND test_npu_self_healing)
 
+# AEP-751 组合根 (Composition Root) 与消费者定义接口 (Consumer-Defined Ports) 测试 (Issue #336)
+add_executable(test_composition_root test_composition_root.c)
+target_include_directories(test_composition_root PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_algo/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
+)
+target_link_libraries(test_composition_root PRIVATE
+    edge_core
+    edge_algo
+    edge_infra
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_composition_root COMMAND test_composition_root)
+
 
 
 
