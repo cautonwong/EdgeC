@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+
 #include "sqlite_service.h"
 
 #ifdef __cplusplus

@@ -36,7 +36,8 @@ static void test_wasm_sandbox_divide_by_zero(void** state) {
     wasm_app_destroy(app);
     wasm_mgr_cleanup();
     datahub_destroy(&hub);
-    while (uv_run(loop, UV_RUN_NOWAIT));
+    while (uv_run(loop, UV_RUN_NOWAIT))
+        ;
 }
 
 static void test_wasm_sandbox_infinite_loop_timeout(void** state) {
@@ -72,7 +73,8 @@ static void test_wasm_sandbox_infinite_loop_timeout(void** state) {
     wasm_app_destroy(app);
     wasm_mgr_cleanup();
     datahub_destroy(&hub);
-    while (uv_run(loop, UV_RUN_NOWAIT));
+    while (uv_run(loop, UV_RUN_NOWAIT))
+        ;
 }
 
 int main(void) {

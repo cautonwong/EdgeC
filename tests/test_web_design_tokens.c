@@ -2,27 +2,21 @@
  * test_web_design_tokens.c - Verification of EdgeOS Web Design System Tokens (AEP-490)
  */
 
-#include <stdarg.h>
-#include <stddef.h>
+#include <cmocka.h>
 #include <setjmp.h>
-#include <stdint.h>
+#include <stdarg.h>
 #include <stdbool.h>
-#include <string.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <cmocka.h>
+#include <string.h>
 
 static void read_file_content(const char *rel_path, char *buf, size_t max_len) {
     char path[512];
     FILE *fp = NULL;
 
-    const char *prefixes[] = {
-        "",
-        "../",
-        "../../",
-        "/workspaces/edgeos/EdgeC/",
-        NULL
-    };
+    const char *prefixes[] = {"", "../", "../../", "/workspaces/edgeos/EdgeC/", NULL};
 
     for (int i = 0; prefixes[i] != NULL; i++) {
         snprintf(path, sizeof(path), "%s%s", prefixes[i], rel_path);

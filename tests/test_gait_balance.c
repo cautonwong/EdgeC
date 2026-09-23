@@ -1,5 +1,6 @@
-#include <stdio.h>
 #include <assert.h>
+#include <stdio.h>
+
 #include "gait_balance.h"
 
 int main(void) {
@@ -22,8 +23,10 @@ int main(void) {
     assert(!res.fall_risk_asymmetry_alert);
 
     // Asymmetric distribution (75N left, 25N right -> Asymmetry = 50%)
-    float left_unbalanced[SENSOR_ARRAY_SIZE] = {9.375f, 9.375f, 9.375f, 9.375f, 9.375f, 9.375f, 9.375f, 9.375f};
-    float right_unbalanced[SENSOR_ARRAY_SIZE] = {3.125f, 3.125f, 3.125f, 3.125f, 3.125f, 3.125f, 3.125f, 3.125f};
+    float left_unbalanced[SENSOR_ARRAY_SIZE] = {9.375f, 9.375f, 9.375f, 9.375f,
+                                                9.375f, 9.375f, 9.375f, 9.375f};
+    float right_unbalanced[SENSOR_ARRAY_SIZE] = {3.125f, 3.125f, 3.125f, 3.125f,
+                                                 3.125f, 3.125f, 3.125f, 3.125f};
 
     gait_balance_compute(&res, left_unbalanced, right_unbalanced);
     assert(res.balance_asymmetry_index == 50.0f);

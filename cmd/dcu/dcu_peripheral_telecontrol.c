@@ -1,9 +1,11 @@
 /**
  * @file dcu_peripheral_telecontrol.c
- * @brief Production SGCC/CSG Peripheral Control & "Four-Remotes" (四遥: YC/YX/YK/YT) Interface Engine Implementation
+ * @brief Production SGCC/CSG Peripheral Control & "Four-Remotes" (四遥: YC/YX/YK/YT) Interface
+ * Engine Implementation
  */
 
 #include "dcu_peripheral_telecontrol.h"
+
 #include <string.h>
 
 void dcu_telecontrol_init(dcu_telecontrol_manager_t* mgr, const dcu_io_ops_t* ops) {
@@ -36,7 +38,8 @@ int dcu_telecontrol_scan_yx(dcu_telecontrol_manager_t* mgr) {
     return 0;
 }
 
-int dcu_telecontrol_exec_yk(dcu_telecontrol_manager_t* mgr, uint8_t do_channel, dcu_yk_action_t action) {
+int dcu_telecontrol_exec_yk(dcu_telecontrol_manager_t* mgr, uint8_t do_channel,
+                            dcu_yk_action_t action) {
     if (!mgr || do_channel >= DCU_MAX_DO_CHANNELS) return -1;
 
     bool target_state = (action == YK_ACTION_CLOSE);
@@ -52,10 +55,11 @@ int dcu_telecontrol_exec_yk(dcu_telecontrol_manager_t* mgr, uint8_t do_channel, 
     return 0;
 }
 
-int dcu_telecontrol_switch_capacitor(dcu_telecontrol_manager_t* mgr, uint8_t bank_idx, bool enable) {
+int dcu_telecontrol_switch_capacitor(dcu_telecontrol_manager_t* mgr, uint8_t bank_idx,
+                                     bool enable) {
     if (!mgr || bank_idx >= DCU_MAX_CAPACITOR_BANKS) return -1;
 
-    uint8_t do_channel = (uint8_t)(4 + bank_idx); // Channels 4..7 map to capacitor banks 0..3
+    uint8_t do_channel = (uint8_t)(4 + bank_idx);  // Channels 4..7 map to capacitor banks 0..3
     if (do_channel < DCU_MAX_DO_CHANNELS && mgr->ops.set_do) {
         mgr->ops.set_do(do_channel, enable, mgr->ops.user_data);
     }
@@ -65,7 +69,7 @@ int dcu_telecontrol_switch_capacitor(dcu_telecontrol_manager_t* mgr, uint8_t ban
 
 int dcu_telecontrol_regulate_oltc(dcu_telecontrol_manager_t* mgr, int8_t target_tap) {
     if (!mgr) return -1;
-    if (target_tap < -8 || target_tap > 8) return -2; // Out of range
+    if (target_tap < -8 || target_tap > 8) return -2;  // Out of range
 
     if (mgr->ops.set_oltc_tap) {
         int rc = mgr->ops.set_oltc_tap(target_tap, mgr->ops.user_data);

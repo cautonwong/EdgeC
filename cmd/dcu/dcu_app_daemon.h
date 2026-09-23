@@ -10,25 +10,25 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #define DCU_MAX_CONTAINER_APPS 16
 
 typedef enum {
     APP_STATE_UNINSTALLED = 0,
-    APP_STATE_INSTALLED   = 1,
-    APP_STATE_RUNNING     = 2,
-    APP_STATE_PAUSED      = 3,
-    APP_STATE_STOPPED     = 4,
-    APP_STATE_FAULT       = 5
+    APP_STATE_INSTALLED = 1,
+    APP_STATE_RUNNING = 2,
+    APP_STATE_PAUSED = 3,
+    APP_STATE_STOPPED = 4,
+    APP_STATE_FAULT = 5
 } dcu_app_state_t;
 
 typedef struct {
-    uint8_t max_cpu_pct;      // 最大允许 CPU 占用 (e.g. 20%)
-    uint32_t max_mem_bytes;   // 最大允许内存占用 (e.g. 64 * 1024 * 1024)
-    uint32_t max_flash_bytes; // 最大允许磁盘占用 (e.g. 32 * 1024 * 1024)
+    uint8_t max_cpu_pct;       // 最大允许 CPU 占用 (e.g. 20%)
+    uint32_t max_mem_bytes;    // 最大允许内存占用 (e.g. 64 * 1024 * 1024)
+    uint32_t max_flash_bytes;  // 最大允许磁盘占用 (e.g. 32 * 1024 * 1024)
 } dcu_app_quota_t;
 
 typedef struct {
@@ -84,10 +84,11 @@ int dcu_app_daemon_heartbeat(dcu_app_daemon_t* daemon, uint32_t app_id, double c
 /**
  * @brief 守护巡检: 检查心跳超时与资源超额强杀/自愈重启 (Watchdog Routine)
  */
-int dcu_app_daemon_watchdog_poll(dcu_app_daemon_t* daemon, uint64_t timeout_threshold_ms, uint64_t now_ms);
+int dcu_app_daemon_watchdog_poll(dcu_app_daemon_t* daemon, uint64_t timeout_threshold_ms,
+                                 uint64_t now_ms);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // DCU_APP_DAEMON_H
+#endif  // DCU_APP_DAEMON_H

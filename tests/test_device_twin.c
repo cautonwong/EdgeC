@@ -3,12 +3,12 @@
  * @brief Unit tests for State-Reconciled Device Twin Operator
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdint.h>
-#include <stdbool.h>
 #include <cmocka.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 #include "device_twin.h"
 

@@ -4,19 +4,21 @@
  */
 
 #include "dcu_vertical_tasks.h"
-#include <string.h>
+
 #include <math.h>
+#include <string.h>
 
 void dcu_vertical_mgr_init(dcu_vertical_task_mgr_t* mgr) {
     if (!mgr) return;
     memset(mgr, 0, sizeof(dcu_vertical_task_mgr_t));
 }
 
-dcu_meter_vertical_state_t* dcu_vertical_get_or_create_meter(dcu_vertical_task_mgr_t* mgr, const char* addr, uint32_t dev_id) {
+dcu_meter_vertical_state_t* dcu_vertical_get_or_create_meter(dcu_vertical_task_mgr_t* mgr,
+                                                             const char* addr, uint32_t dev_id) {
     if (!mgr || !addr) return NULL;
 
     for (uint32_t i = 0; i < mgr->meter_count; i++) {
-        if (mgr->meters[i].device_id == dev_id || 
+        if (mgr->meters[i].device_id == dev_id ||
             strncmp(mgr->meters[i].meter_addr, addr, sizeof(mgr->meters[i].meter_addr)) == 0) {
             return &mgr->meters[i];
         }
@@ -36,7 +38,8 @@ dcu_meter_vertical_state_t* dcu_vertical_get_or_create_meter(dcu_vertical_task_m
     return m;
 }
 
-int dcu_vertical_1s_sample(dcu_vertical_task_mgr_t* mgr, uint32_t dev_id, double u_v, double i_a, double p_kw, double freq, uint64_t now_ms) {
+int dcu_vertical_1s_sample(dcu_vertical_task_mgr_t* mgr, uint32_t dev_id, double u_v, double i_a,
+                           double p_kw, double freq, uint64_t now_ms) {
     if (!mgr) return -1;
 
     for (uint32_t i = 0; i < mgr->meter_count; i++) {
@@ -63,7 +66,7 @@ int dcu_vertical_1s_sample(dcu_vertical_task_mgr_t* mgr, uint32_t dev_id, double
             return 0;
         }
     }
-    return -2; // Not found
+    return -2;  // Not found
 }
 
 int dcu_vertical_15min_freeze(dcu_vertical_task_mgr_t* mgr, uint64_t freeze_ts_ms) {
@@ -77,9 +80,12 @@ int dcu_vertical_15min_freeze(dcu_vertical_task_mgr_t* mgr, uint64_t freeze_ts_m
         uint32_t idx = m->curve_point_count % DCU_MAX_15MIN_CURVE_POINTS;
         m->load_curve[idx].timestamp_ms = freeze_ts_ms;
         m->load_curve[idx].avg_active_power_kw = m->last_active_power_kw;
-        m->load_curve[idx].avg_reactive_power_kvar = m->last_voltage_v * m->last_current_a * 0.1; // Approximation
-        m->load_curve[idx].avg_power_factor = (m->last_voltage_v * m->last_current_a > 0.1) ? 
-            (fabs(m->last_active_power_kw) * 1000.0 / (m->last_voltage_v * m->last_current_a)) : 1.0;
+        m->load_curve[idx].avg_reactive_power_kvar =
+            m->last_voltage_v * m->last_current_a * 0.1;  // Approximation
+        m->load_curve[idx].avg_power_factor =
+            (m->last_voltage_v * m->last_current_a > 0.1)
+                ? (fabs(m->last_active_power_kw) * 1000.0 / (m->last_voltage_v * m->last_current_a))
+                : 1.0;
         if (m->load_curve[idx].avg_power_factor > 1.0) m->load_curve[idx].avg_power_factor = 1.0;
 
         m->load_curve[idx].freeze_energy_kwh = m->daily_freeze.energy_total_kwh;
@@ -123,7 +129,7 @@ int dcu_vertical_monthly_freeze(dcu_vertical_task_mgr_t* mgr, uint64_t month_sta
         if (!m->is_active) continue;
 
         m->last_monthly_freeze_ts_ms = month_start_ts_ms;
-        m->monthly_freeze = m->daily_freeze; // Archive monthly snapshot
+        m->monthly_freeze = m->daily_freeze;  // Archive monthly snapshot
         frozen_count++;
     }
     return frozen_count;

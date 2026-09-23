@@ -7,9 +7,10 @@
 #define EDGEOS_SDK_DATAHUB_H
 
 #include <uv.h>
-#include "edgeos/types.h"
-#include "../../modules/edge_infra/include/datahub_ops.h"
+
 #include "../../modules/edge_core/include/datahub.h"
+#include "../../modules/edge_infra/include/datahub_ops.h"
+#include "edgeos/types.h"
 
 #ifdef __cplusplus
 extern "C" {

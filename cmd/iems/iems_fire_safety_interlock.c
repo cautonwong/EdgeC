@@ -4,18 +4,18 @@
  */
 
 #include "iems_fire_safety_interlock.h"
+
 #include <string.h>
 
 void iems_fire_interlock_init(iems_fire_safety_interlock_t* fire) {
     if (!fire) return;
     memset(fire, 0, sizeof(iems_fire_safety_interlock_t));
     fire->current_stage = FIRE_STAGE_NORMAL;
-    fire->release_countdown_s = 30; // 30s 撤离倒计时
+    fire->release_countdown_s = 30;  // 30s 撤离倒计时
 }
 
-int iems_fire_interlock_evaluate(iems_fire_safety_interlock_t* fire,
-                                 double co, double h2, double temp,
-                                 bool smoke, bool water, double dt_s) {
+int iems_fire_interlock_evaluate(iems_fire_safety_interlock_t* fire, double co, double h2,
+                                 double temp, bool smoke, bool water, double dt_s) {
     if (!fire) return -1;
 
     fire->co_ppm = co;
@@ -31,7 +31,7 @@ int iems_fire_interlock_evaluate(iems_fire_safety_interlock_t* fire,
         fire->is_pcs_emergency_stop = true;
         fire->is_hv_breaker_tripped = true;
         fire->is_fire_damper_closed = true;
-        fire->is_ventilation_fan_on = false; // Stop fan to prevent oxygen supply
+        fire->is_ventilation_fan_on = false;  // Stop fan to prevent oxygen supply
 
         if (fire->release_countdown_s > 0) {
             double step = (dt_s > 0.0) ? dt_s : 0.1;
@@ -55,7 +55,7 @@ int iems_fire_interlock_evaluate(iems_fire_safety_interlock_t* fire,
     else if (co > 30.0 || h2 > 100.0 || temp > 45.0) {
         fire->current_stage = FIRE_STAGE_1_WARNING;
         fire->is_sound_light_alarm = true;
-        fire->is_ventilation_fan_on = true; // Turn on fan to dilute combustible gas
+        fire->is_ventilation_fan_on = true;  // Turn on fan to dilute combustible gas
         fire->is_fire_damper_closed = false;
         fire->is_pcs_emergency_stop = false;
         fire->is_hv_breaker_tripped = false;

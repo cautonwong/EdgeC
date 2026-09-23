@@ -1,6 +1,7 @@
-#include <stdio.h>
 #include <assert.h>
 #include <math.h>
+#include <stdio.h>
+
 #include "emg_dsp.h"
 
 int main(void) {
@@ -19,8 +20,8 @@ int main(void) {
 
     emg_dsp_calculate_features(&analyzer, sample_rate);
 
-    printf("EMG Total Power: %.2f, MPF: %.2f Hz, MF: %.2f Hz, Fatigue: %s\n",
-           analyzer.total_power, analyzer.mean_frequency, analyzer.median_frequency,
+    printf("EMG Total Power: %.2f, MPF: %.2f Hz, MF: %.2f Hz, Fatigue: %s\n", analyzer.total_power,
+           analyzer.mean_frequency, analyzer.median_frequency,
            analyzer.fatigue_flag ? "YES" : "NO");
 
     assert(analyzer.total_power > 0.0f);

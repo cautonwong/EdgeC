@@ -21,7 +21,8 @@ static void test_engine_basic_flow(void** state) {
 
     stream_engine_destroy(engine);
     datahub_destroy(&hub);
-    while (uv_run(&loop, UV_RUN_NOWAIT));
+    while (uv_run(&loop, UV_RUN_NOWAIT))
+        ;
     uv_loop_close(&loop);
 }
 

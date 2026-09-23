@@ -2,15 +2,15 @@
  * test_web_event_stream.c - Verification of Global SOE Event Stream & Alarm Waterfall Hub (AEP-497)
  */
 
-#include <stdarg.h>
-#include <stddef.h>
+#include <cmocka.h>
 #include <setjmp.h>
-#include <stdint.h>
+#include <stdarg.h>
 #include <stdbool.h>
-#include <string.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <cmocka.h>
+#include <string.h>
 
 #include "dcu_soe_event_engine.h"
 
@@ -18,13 +18,7 @@ static void read_file_content(const char *rel_path, char *buf, size_t max_len) {
     char path[512];
     FILE *fp = NULL;
 
-    const char *prefixes[] = {
-        "",
-        "../",
-        "../../",
-        "/workspaces/edgeos/EdgeC/",
-        NULL
-    };
+    const char *prefixes[] = {"", "../", "../../", "/workspaces/edgeos/EdgeC/", NULL};
 
     for (int i = 0; prefixes[i] != NULL; i++) {
         snprintf(path, sizeof(path), "%s%s", prefixes[i], rel_path);
@@ -92,17 +86,16 @@ static void test_dcu_soe_c_engine_event_recording_and_active_alarms(void **state
     assert_int_equal(dcu_soe_get_active_alarms(&engine), 0);
 
     // Record Outage Last-Gasp event (0x3011)
-    int rc = dcu_soe_record_event(&engine, OAD_EVT_OUTAGE_LASTGASP, "000000000001",
-                                  101, EVT_STATE_TRIGGERED, 0.0, 1725525612314ULL,
+    int rc = dcu_soe_record_event(&engine, OAD_EVT_OUTAGE_LASTGASP, "000000000001", 101,
+                                  EVT_STATE_TRIGGERED, 0.0, 1725525612314ULL,
                                   "Power Outage Last-Gasp Alarm");
     assert_int_equal(rc, 0);
     assert_int_equal(engine.total_events_logged, 1);
     assert_int_equal(dcu_soe_get_active_alarms(&engine), 1);
 
     // Record Unbalance event (0x3005)
-    rc = dcu_soe_record_event(&engine, OAD_EVT_UNBALANCE, "000000000002",
-                              102, EVT_STATE_TRIGGERED, 38.5, 1725525612400ULL,
-                              "3-Phase Current Unbalance Exceeded 15%");
+    rc = dcu_soe_record_event(&engine, OAD_EVT_UNBALANCE, "000000000002", 102, EVT_STATE_TRIGGERED,
+                              38.5, 1725525612400ULL, "3-Phase Current Unbalance Exceeded 15%");
     assert_int_equal(rc, 0);
     assert_int_equal(engine.total_events_logged, 2);
     assert_int_equal(dcu_soe_get_active_alarms(&engine), 2);
@@ -114,15 +107,13 @@ static void test_dcu_soe_event_state_machine_transitions(void **state) {
     dcu_soe_init(&engine);
 
     // Trigger Overtemperature
-    dcu_soe_record_event(&engine, OAD_EVT_TEMP_EXCEEDED, "000000000003",
-                         103, EVT_STATE_TRIGGERED, 96.2, 1725525615000ULL,
-                         "Transformer Winding Overheating");
+    dcu_soe_record_event(&engine, OAD_EVT_TEMP_EXCEEDED, "000000000003", 103, EVT_STATE_TRIGGERED,
+                         96.2, 1725525615000ULL, "Transformer Winding Overheating");
     assert_int_equal(dcu_soe_get_active_alarms(&engine), 1);
 
     // Restore Overtemperature
-    dcu_soe_record_event(&engine, OAD_EVT_TEMP_EXCEEDED, "000000000003",
-                         103, EVT_STATE_RESTORED, 84.0, 1725525619000ULL,
-                         "Transformer Winding Temperature Normal");
+    dcu_soe_record_event(&engine, OAD_EVT_TEMP_EXCEEDED, "000000000003", 103, EVT_STATE_RESTORED,
+                         84.0, 1725525619000ULL, "Transformer Winding Temperature Normal");
     assert_int_equal(dcu_soe_get_active_alarms(&engine), 0);
     assert_int_equal(engine.total_events_logged, 2);
 }

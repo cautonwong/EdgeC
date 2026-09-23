@@ -2,27 +2,21 @@
  * test_web_live_tag_card.c - Verification of LiveTagCard Component & High-Rate Rendering (AEP-492)
  */
 
-#include <stdarg.h>
-#include <stddef.h>
+#include <cmocka.h>
 #include <setjmp.h>
-#include <stdint.h>
+#include <stdarg.h>
 #include <stdbool.h>
-#include <string.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <cmocka.h>
+#include <string.h>
 
 static void read_file_content(const char *rel_path, char *buf, size_t max_len) {
     char path[512];
     FILE *fp = NULL;
 
-    const char *prefixes[] = {
-        "",
-        "../",
-        "../../",
-        "/workspaces/edgeos/EdgeC/",
-        NULL
-    };
+    const char *prefixes[] = {"", "../", "../../", "/workspaces/edgeos/EdgeC/", NULL};
 
     for (int i = 0; prefixes[i] != NULL; i++) {
         snprintf(path, sizeof(path), "%s%s", prefixes[i], rel_path);

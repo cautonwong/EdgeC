@@ -1,17 +1,16 @@
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <math.h>
-#include <stdio.h>
 #include <cmocka.h>
+#include <math.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
 
 #include "battery_soh_fusion.h"
 
 /* 1. 测试初始化与配置校验 */
-static void test_soh_init_and_config(void **state)
-{
+static void test_soh_init_and_config(void **state) {
     (void)state;
     battery_soh_fusion_estimator_t est;
 
@@ -24,13 +23,11 @@ static void test_soh_init_and_config(void **state)
     assert_double_equal(est.config.min_coulomb_delta_soc, 0.25, 0.01);
 
     /* 自定义配置 */
-    battery_soh_config_t cfg = {
-        .nominal_capacity_ah = 314.0,
-        .fresh_r0_mohm = 0.40,
-        .fresh_rct_mohm = 0.70,
-        .eol_soh_ratio = 0.75,
-        .min_coulomb_delta_soc = 0.30
-    };
+    battery_soh_config_t cfg = {.nominal_capacity_ah = 314.0,
+                                .fresh_r0_mohm = 0.40,
+                                .fresh_rct_mohm = 0.70,
+                                .eol_soh_ratio = 0.75,
+                                .min_coulomb_delta_soc = 0.30};
     rc = battery_soh_init(&est, &cfg);
     assert_int_equal(rc, 0);
     assert_double_equal(est.config.nominal_capacity_ah, 314.0, 0.01);
@@ -38,8 +35,7 @@ static void test_soh_init_and_config(void **state)
 }
 
 /* 2. 测试出厂新电芯基准与优秀评级 */
-static void test_fresh_cell_baseline_grade(void **state)
-{
+static void test_fresh_cell_baseline_grade(void **state) {
     (void)state;
     battery_soh_fusion_estimator_t est;
     battery_soh_init(&est, NULL);
@@ -62,8 +58,7 @@ static void test_fresh_cell_baseline_grade(void **state)
 }
 
 /* 3. 测试区间库仑积分动态容量辨识 */
-static void test_coulomb_counting_capacity_identification(void **state)
-{
+static void test_coulomb_counting_capacity_identification(void **state) {
     (void)state;
     battery_soh_fusion_estimator_t est;
     battery_soh_init(&est, NULL);
@@ -100,8 +95,7 @@ static void test_coulomb_counting_capacity_identification(void **state)
 }
 
 /* 4. 测试长期循环与日历老化衰减及 RUL 寿命预测 */
-static void test_long_term_cycle_and_calendar_aging(void **state)
-{
+static void test_long_term_cycle_and_calendar_aging(void **state) {
     (void)state;
     battery_soh_fusion_estimator_t est;
     battery_soh_init(&est, NULL);
@@ -132,8 +126,7 @@ static void test_long_term_cycle_and_calendar_aging(void **state)
 }
 
 /* 5. 测试达到 80% EOL 退役门限判定 */
-static void test_eol_retirement_threshold(void **state)
-{
+static void test_eol_retirement_threshold(void **state) {
     (void)state;
     battery_soh_fusion_estimator_t est;
     battery_soh_init(&est, NULL);
@@ -163,8 +156,7 @@ static void test_eol_retirement_threshold(void **state)
 }
 
 /* 6. 测试 ICA 增量容量相变峰值提取 */
-static void test_ica_phase_peak_extraction(void **state)
-{
+static void test_ica_phase_peak_extraction(void **state) {
     (void)state;
     battery_soh_fusion_estimator_t est;
     battery_soh_init(&est, NULL);
@@ -184,8 +176,7 @@ static void test_ica_phase_peak_extraction(void **state)
 }
 
 /* 7. 测试重置与状态一致性 */
-static void test_reset_and_consistency(void **state)
-{
+static void test_reset_and_consistency(void **state) {
     (void)state;
     battery_soh_fusion_estimator_t est;
     battery_soh_init(&est, NULL);
@@ -201,8 +192,7 @@ static void test_reset_and_consistency(void **state)
 }
 
 /* 8. 测试神经网络前向传播与偏置使用完整性 (AEP-735) */
-static void test_nn_bias_utilization_and_forward(void **state)
-{
+static void test_nn_bias_utilization_and_forward(void **state) {
     (void)state;
     battery_soh_fusion_estimator_t est;
     battery_soh_init(&est, NULL);
@@ -229,8 +219,7 @@ static void test_nn_bias_utilization_and_forward(void **state)
     assert_true(res_aged->soh_capacity >= 0.82 && res_aged->soh_capacity <= 0.93);
 }
 
-int main(void)
-{
+int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_soh_init_and_config),
         cmocka_unit_test(test_fresh_cell_baseline_grade),
@@ -244,4 +233,3 @@ int main(void)
 
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
-

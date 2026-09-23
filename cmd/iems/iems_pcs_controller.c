@@ -4,8 +4,9 @@
  */
 
 #include "iems_pcs_controller.h"
-#include <string.h>
+
 #include <math.h>
+#include <string.h>
 
 void iems_pcs_init(iems_pcs_controller_t* pcs, double max_power_kw) {
     if (!pcs) return;
@@ -14,15 +15,15 @@ void iems_pcs_init(iems_pcs_controller_t* pcs, double max_power_kw) {
     double p_max = (max_power_kw > 0.0) ? max_power_kw : 250.0;
     pcs->max_charge_kw = p_max;
     pcs->max_discharge_kw = p_max;
-    pcs->max_reactive_kvar = p_max * 0.6; // 0.6 S_rated for VAR capability
+    pcs->max_reactive_kvar = p_max * 0.6;  // 0.6 S_rated for VAR capability
 
     pcs->rated_voltage_v = 400.0;
     pcs->rated_frequency_hz = 50.00;
 
     // Standard VSG parameters
-    pcs->vsg_inertia_j = 5.0;     // J
-    pcs->vsg_damping_dp = 20.0;   // 20 kW per Hz droop
-    pcs->vsg_droop_dq = 2.5;      // 2.5 kVAR per V droop
+    pcs->vsg_inertia_j = 5.0;    // J
+    pcs->vsg_damping_dp = 20.0;  // 20 kW per Hz droop
+    pcs->vsg_droop_dq = 2.5;     // 2.5 kVAR per V droop
 
     pcs->mode = PCS_MODE_STANDBY;
     pcs->is_grid_connected = true;
@@ -56,8 +57,8 @@ int iems_pcs_exec_pq_control(iems_pcs_controller_t* pcs, double target_p_kw, dou
     return 0;
 }
 
-int iems_pcs_exec_vsg_cycle(iems_pcs_controller_t* pcs, double v_meas, double f_meas,
-                            double df_dt, double p_setpoint, double q_setpoint) {
+int iems_pcs_exec_vsg_cycle(iems_pcs_controller_t* pcs, double v_meas, double f_meas, double df_dt,
+                            double p_setpoint, double q_setpoint) {
     if (!pcs || pcs->mode != PCS_MODE_VSG) return -1;
 
     pcs->measured_voltage_v = v_meas;

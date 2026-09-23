@@ -1,0 +1,45 @@
+{
+  "version": "1.0",
+  "dependencies": [
+    {
+      "name": "cjson",
+      "version": "1.7.18",
+      "commit_sha": "4a4b49749eb403759a2a7a4cfd29c8e108149862",
+      "repository": "https://github.com/DaveGamble/cJSON",
+      "license": "MIT",
+      "verified": true
+    },
+    {
+      "name": "libuv",
+      "version": "1.48.0",
+      "commit_sha": "d040a454d68e1ee540989f66bb6b3d95eb1dfba3",
+      "repository": "https://github.com/libuv/libuv",
+      "license": "MIT",
+      "verified": true
+    },
+    {
+      "name": "zlog",
+      "version": "1.2.16",
+      "commit_sha": "7f8b958c2794c1a5bdf3b9df7285ea658ff9025e",
+      "repository": "https://github.com/HardySimpson/zlog",
+      "license": "LGPL-2.1",
+      "verified": true
+    },
+    {
+      "name": "cmocka",
+      "version": "1.1.7",
+      "commit_sha": "e9fbdf35d1f88efcb15e5111b15112cb9547d065",
+      "repository": "https://gitlab.com/cmocka/cmocka",
+      "license": "Apache-2.0",
+      "verified": true
+    },
+    {
+      "name": "cyclonedds",
+      "version": "0.10.4",
+      "commit_sha": "f1b14285848bb4ee6b60e6e73f3248354c0e6241",
+      "repository": "https://github.com/eclipse-cyclonedds/cyclonedds",
+      "license": "EPL-2.0",
+      "verified": true
+    }
+  ]
+}

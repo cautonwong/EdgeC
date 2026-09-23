@@ -10,25 +10,25 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #define DCU_MAX_TOPOLOGY_METERS 2048
 
 typedef enum {
     PHASE_UNKNOWN = 0,
-    PHASE_A       = 1,
-    PHASE_B       = 2,
-    PHASE_C       = 3,
-    PHASE_THREE   = 4
+    PHASE_A = 1,
+    PHASE_B = 2,
+    PHASE_C = 3,
+    PHASE_THREE = 4
 } dcu_phase_t;
 
 typedef enum {
-    LINELOSS_HEALTH_NORMAL     = 0, // 0.0% ~ 4.0%
-    LINELOSS_HEALTH_ATTENTION  = 1, // 4.0% ~ 8.0%
-    LINELOSS_HEALTH_HIGH_LOSS  = 2, // > 8.0%
-    LINELOSS_HEALTH_NEGATIVE   = 3  // < 0.0% (Theft or reverse flow)
+    LINELOSS_HEALTH_NORMAL = 0,     // 0.0% ~ 4.0%
+    LINELOSS_HEALTH_ATTENTION = 1,  // 4.0% ~ 8.0%
+    LINELOSS_HEALTH_HIGH_LOSS = 2,  // > 8.0%
+    LINELOSS_HEALTH_NEGATIVE = 3    // < 0.0% (Theft or reverse flow)
 } dcu_lineloss_health_t;
 
 typedef struct {
@@ -56,12 +56,12 @@ typedef struct {
     double phase_a_current_a;
     double phase_b_current_a;
     double phase_c_current_a;
-    double current_unbalance_pct;   // 三相电流不平衡度 (%)
+    double current_unbalance_pct;  // 三相电流不平衡度 (%)
 
     double phase_a_voltage_v;
     double phase_b_voltage_v;
     double phase_c_voltage_v;
-    double voltage_unbalance_pct;   // 三相电压不平衡度 (%)
+    double voltage_unbalance_pct;  // 三相电压不平衡度 (%)
 
     uint32_t online_meter_count;
     uint32_t offline_meter_count;
@@ -83,8 +83,8 @@ void dcu_topology_init(dcu_topology_engine_t* engine);
  * @brief 注册或更新从表拓扑节点
  */
 int dcu_topology_update_meter(dcu_topology_engine_t* engine, const char* addr, uint32_t dev_id,
-                             uint32_t branch_id, dcu_phase_t phase, double energy_kwh,
-                             double u_val, double i_val, double pf, int8_t snr);
+                              uint32_t branch_id, dcu_phase_t phase, double energy_kwh,
+                              double u_val, double i_val, double pf, int8_t snr);
 
 /**
  * @brief 执行台区线损分摊与三相不平衡度全量计算
@@ -97,12 +97,12 @@ int dcu_topology_update_meter(dcu_topology_engine_t* engine, const char* addr, u
  * @param master_uc 台变 C 相电压
  */
 int dcu_topology_compute_analytics(dcu_topology_engine_t* engine, double master_input_kwh,
-                                  double master_ia, double master_ib, double master_ic,
-                                  double master_ua, double master_ub, double master_uc,
-                                  uint64_t now_ms);
+                                   double master_ia, double master_ib, double master_ic,
+                                   double master_ua, double master_ub, double master_uc,
+                                   uint64_t now_ms);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // DCU_TOPOLOGY_LINELOSS_H
+#endif  // DCU_TOPOLOGY_LINELOSS_H

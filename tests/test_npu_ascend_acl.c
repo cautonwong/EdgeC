@@ -1,18 +1,19 @@
 /**
  * @file test_npu_ascend_acl.c
- * @brief Unit & Integration Tests for EdgeOS Huawei Ascend (ACL) NPU Driver & Zero-Copy Tensor Mapping
+ * @brief Unit & Integration Tests for EdgeOS Huawei Ascend (ACL) NPU Driver & Zero-Copy Tensor
+ * Mapping
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 #include <cmocka.h>
 #include <math.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "npu_hal.h"
 
@@ -52,13 +53,11 @@ static void test_npu_lifecycle_init_deinit(void **state) {
     npu_device_t dev;
     assert_int_equal(npu_device_create(&dev, NPU_BACKEND_ASCEND_ACL), 0);
 
-    npu_device_config_t cfg = {
-        .device_id = 0,
-        .backend = NPU_BACKEND_ASCEND_ACL,
-        .max_workspace_mb = 256,
-        .enable_zero_copy = true,
-        .max_temp_throttle_c = 80.0f
-    };
+    npu_device_config_t cfg = {.device_id = 0,
+                               .backend = NPU_BACKEND_ASCEND_ACL,
+                               .max_workspace_mb = 256,
+                               .enable_zero_copy = true,
+                               .max_temp_throttle_c = 80.0f};
 
     assert_int_equal(npu_device_init(&dev, &cfg), 0);
     assert_true(dev.initialized);
@@ -82,7 +81,7 @@ static void test_npu_model_load_unload(void **state) {
     assert_int_equal(npu_device_create(&dev, NPU_BACKEND_ASCEND_ACL), 0);
     assert_int_equal(npu_device_init(&dev, NULL), 0);
 
-    const uint8_t mock_om_model[128] = { 0x41, 0x43, 0x4C, 0x5F, 0x4F, 0x4D, 0x01, 0x00 };
+    const uint8_t mock_om_model[128] = {0x41, 0x43, 0x4C, 0x5F, 0x4F, 0x4D, 0x01, 0x00};
     npu_model_handle_t handle = NULL;
 
     int rc = npu_load_model_from_mem(&dev, mock_om_model, sizeof(mock_om_model), &handle);
@@ -112,7 +111,7 @@ static void test_npu_tensor_alloc_and_free(void **state) {
     assert_int_equal(npu_device_init(&dev, NULL), 0);
 
     npu_tensor_buf_t buf;
-    size_t alloc_sz = 1024 * 1024; // 1MB
+    size_t alloc_sz = 1024 * 1024;  // 1MB
     int rc = npu_alloc_tensor_buffer(&dev, alloc_sz, NPU_MEM_FLAG_HUGE_FIRST, &buf);
     assert_int_equal(rc, 0);
     assert_non_null(buf.host_ptr);
@@ -177,7 +176,7 @@ static void test_npu_inference_execution_and_accuracy(void **state) {
     assert_int_equal(npu_device_create(&dev, NPU_BACKEND_ASCEND_ACL), 0);
     assert_int_equal(npu_device_init(&dev, NULL), 0);
 
-    const uint8_t mock_model[64] = { 0xAA, 0xBB, 0xCC, 0xDD };
+    const uint8_t mock_model[64] = {0xAA, 0xBB, 0xCC, 0xDD};
     npu_model_handle_t model = NULL;
     assert_int_equal(npu_load_model_from_mem(&dev, mock_model, sizeof(mock_model), &model), 0);
 
@@ -231,14 +230,11 @@ static void test_npu_thermal_throttle_and_reset(void **state) {
 
     npu_device_t dev;
     npu_device_config_t cfg = {
-        .device_id = 0,
-        .backend = NPU_BACKEND_ASCEND_ACL,
-        .max_temp_throttle_c = 75.0f
-    };
+        .device_id = 0, .backend = NPU_BACKEND_ASCEND_ACL, .max_temp_throttle_c = 75.0f};
     assert_int_equal(npu_device_create(&dev, NPU_BACKEND_ASCEND_ACL), 0);
     assert_int_equal(npu_device_init(&dev, &cfg), 0);
 
-    const uint8_t mock_model[32] = { 0x01 };
+    const uint8_t mock_model[32] = {0x01};
     npu_model_handle_t model = NULL;
     assert_int_equal(npu_load_model_from_mem(&dev, mock_model, sizeof(mock_model), &model), 0);
 

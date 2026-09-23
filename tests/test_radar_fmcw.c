@@ -1,15 +1,15 @@
+#include <cmocka.h>
+#include <math.h>
+#include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
-#include <setjmp.h>
-#include <cmocka.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
 
+#include "datahub.h"
 #include "driver_radar_fmcw.h"
 #include "fmcw_dsp_neon.h"
-#include "datahub.h"
 
 static int dummy_map_fn(uint32_t tag_id) {
     if (tag_id >= 12021 && tag_id <= 12025) {

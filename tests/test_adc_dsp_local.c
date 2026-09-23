@@ -1,14 +1,13 @@
 #define _GNU_SOURCE
 #include <cmocka.h>
 #include <fcntl.h>
+#include <math.h>
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <sys/mman.h>
 #include <unistd.h>
-
-#include <math.h>
 
 #include "datahub.h"
 #include "stream_engine.h"
@@ -48,7 +47,7 @@ static void test_adc_dsp_full_chain(void** state) {
     bool found_thd = false;
     float rms_val = 0.0f;
     float thd_val = 0.0f;
-    
+
     // 增加搜索深度
     for (int i = 0; i < 100; i++) {
         if (shm_ring_read(&hub.ring, &seq, &result) == 0) {
@@ -66,7 +65,8 @@ static void test_adc_dsp_full_chain(void** state) {
     assert_true(found_thd);
     assert_float_equal(rms_val, 71.063f, 0.1f);
     assert_float_equal(thd_val, 0.1f, 0.01f);
-    printf("\n🔥 [SUCCESS] Full Chain Verified! DSP Output RMS: %.2f, THD: %.3f\n", rms_val, thd_val);
+    printf("\n🔥 [SUCCESS] Full Chain Verified! DSP Output RMS: %.2f, THD: %.3f\n", rms_val,
+           thd_val);
 
     munmap(ptr, 4096);
     close(fd);

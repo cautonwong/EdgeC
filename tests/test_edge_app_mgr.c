@@ -8,8 +8,8 @@
 #include <unistd.h>
 #include <uv.h>
 
-#include "sqlite_service.h"
 #include "edge_app_mgr.h"
+#include "sqlite_service.h"
 
 static void _on_close_cb(uv_handle_t *handle) {
     (void)handle;
@@ -75,10 +75,7 @@ static void test_app_lifecycle_and_boot_restore(void **state) {
     const char *db_path = "test_app_mgr.db";
     unlink(db_path);
 
-    sqlite_config_t cfg = {
-        .strategy = STRATEGY_LITE,
-        .db_path = db_path
-    };
+    sqlite_config_t cfg = {.strategy = STRATEGY_LITE, .db_path = db_path};
     sqlite_svc_t *db = sqlite_svc_create(loop, &cfg);
     assert_non_null(db);
 

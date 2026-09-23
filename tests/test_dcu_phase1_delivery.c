@@ -1,20 +1,21 @@
 /**
  * @file test_dcu_phase1_delivery.c
- * @brief Production Unit Tests for Phase 1 Delivery: DLT698.45 Management (DFU/Tariffs), AppDaemon & ESAM Security
+ * @brief Production Unit Tests for Phase 1 Delivery: DLT698.45 Management (DFU/Tariffs), AppDaemon
+ * & ESAM Security
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdint.h>
-#include <stdbool.h>
 #include <cmocka.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "dcu_dlt698_mgmt_engine.h"
 #include "dcu_app_daemon.h"
+#include "dcu_dlt698_mgmt_engine.h"
 #include "edge_esam_driver.h"
 
 static void test_dcu_dlt698_dfu_and_tariffs(void** state) {
@@ -24,7 +25,7 @@ static void test_dcu_dlt698_dfu_and_tariffs(void** state) {
     dcu_mgmt_init(&mgmt);
 
     assert_int_equal(mgmt.dfu.state, DFU_STATE_IDLE);
-    assert_int_equal(mgmt.dfu.active_bank, 0); // Bank A
+    assert_int_equal(mgmt.dfu.active_bank, 0);  // Bank A
 
     // 1. Initiate DFU transfer of a 1024-byte firmware image (2 blocks of 512)
     uint8_t image[1024];
@@ -57,13 +58,13 @@ static void test_dcu_dlt698_dfu_and_tariffs(void** state) {
     // 3. Verify and activate Bank B
     rc = dcu_mgmt_dfu_verify_and_activate(&mgmt);
     assert_int_equal(rc, 0);
-    assert_int_equal(mgmt.dfu.active_bank, 1); // Swapped to Bank B
+    assert_int_equal(mgmt.dfu.active_bank, 1);  // Swapped to Bank B
     assert_int_equal(mgmt.dfu.state, DFU_STATE_ACTIVATED);
 
     // 4. Test TOU Tariff Slot Update
     dcu_tou_slot_t new_slots[2] = {
-        {.slot_id = 1, .start_hour = 0, .start_minute = 0, .tariff_rate = 4}, // Valley
-        {.slot_id = 2, .start_hour = 12, .start_minute = 0, .tariff_rate = 1} // Peak
+        {.slot_id = 1, .start_hour = 0, .start_minute = 0, .tariff_rate = 4},  // Valley
+        {.slot_id = 2, .start_hour = 12, .start_minute = 0, .tariff_rate = 1}  // Peak
     };
     rc = dcu_mgmt_set_tariff_table(&mgmt, new_slots, 2);
     assert_int_equal(rc, 0);
@@ -86,11 +87,13 @@ static void test_dcu_app_daemon_lifecycle_and_quota(void** state) {
     dcu_app_daemon_init(&daemon, t0);
 
     // 1. Install 2 container apps
-    dcu_app_quota_t quota1 = {.max_cpu_pct = 20, .max_mem_bytes = 64 * 1024 * 1024, .max_flash_bytes = 32 * 1024 * 1024};
+    dcu_app_quota_t quota1 = {
+        .max_cpu_pct = 20, .max_mem_bytes = 64 * 1024 * 1024, .max_flash_bytes = 32 * 1024 * 1024};
     int rc = dcu_app_daemon_install(&daemon, "LineLoss_Analytics_App", "1.0.0", 101, &quota1);
     assert_int_equal(rc, 0);
 
-    dcu_app_quota_t quota2 = {.max_cpu_pct = 15, .max_mem_bytes = 32 * 1024 * 1024, .max_flash_bytes = 16 * 1024 * 1024};
+    dcu_app_quota_t quota2 = {
+        .max_cpu_pct = 15, .max_mem_bytes = 32 * 1024 * 1024, .max_flash_bytes = 16 * 1024 * 1024};
     rc = dcu_app_daemon_install(&daemon, "VVC_Optimizer_App", "1.1.0", 102, &quota2);
     assert_int_equal(rc, 0);
     assert_int_equal(daemon.app_count, 2);
@@ -127,13 +130,13 @@ static int mock_spi_transmit(const uint8_t* tx, uint8_t* rx, uint16_t len, void*
     uint8_t ins = tx[1];
     uint8_t le = (len > 4) ? tx[len - 1] : 8;
 
-    rx[0] = le; // Length
-    if (ins == 0x84) { // Random
+    rx[0] = le;         // Length
+    if (ins == 0x84) {  // Random
         for (uint8_t i = 1; i <= le; i++) rx[i] = (uint8_t)(0xA5 ^ i);
-    } else if (ins == 0x3C) { // SM3 hash
+    } else if (ins == 0x3C) {  // SM3 hash
         rx[0] = 32;
         for (uint8_t i = 1; i <= 32; i++) rx[i] = (uint8_t)(0x3C ^ i);
-    } else if (ins == 0x3A) { // SM4 CBC
+    } else if (ins == 0x3A) {  // SM4 CBC
         uint8_t lc = tx[4];
         rx[0] = lc;
         for (uint8_t i = 1; i <= lc; i++) rx[i] = (uint8_t)(tx[4 + i] ^ 0x4B);
@@ -147,7 +150,7 @@ static void test_edge_esam_driver_apdu(void** state) {
     (void)state;
 
     esam_driver_t esam;
-    int rc = esam_driver_init(&esam, mock_spi_transmit, NULL); // Bound to physical SPI interface
+    int rc = esam_driver_init(&esam, mock_spi_transmit, NULL);  // Bound to physical SPI interface
     assert_int_equal(rc, 0);
     assert_true(esam.is_initialized);
 

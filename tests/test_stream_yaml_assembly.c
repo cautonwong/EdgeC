@@ -1,3 +1,5 @@
+#include <cjson/cJSON.h>
+#include <cmocka.h>
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -7,8 +9,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <uv.h>
-#include <cmocka.h>
-#include <cjson/cJSON.h>
 
 #include "datahub.h"
 #include "stream_engine.h"
@@ -32,7 +32,8 @@ static stage_ret_t custom_gain_proc(pipeline_stage_t *stage, pipe_msg_t *msg) {
     return STAGE_OK;
 }
 
-static pipeline_stage_t *custom_gain_factory(const char *name, void *config_json, pipeline_loader_ctx_t *ctx) {
+static pipeline_stage_t *custom_gain_factory(const char *name, void *config_json,
+                                             pipeline_loader_ctx_t *ctx) {
     (void)name;
     (void)ctx;
     cJSON *cfg = (cJSON *)config_json;
@@ -65,20 +66,23 @@ static void test_declarative_dag_assembly_and_execution(void **state) {
     stream_engine_t *engine = stream_engine_create(&hub, NULL, NULL, NULL);
     assert_non_null(engine);
 
-    const char *contract_json = 
-    "{"
-    "  \"pipelines\": ["
-    "    {"
-    "      \"id\": \"grid_analytics_dag\","
-    "      \"trigger_tag\": 268435457,"
-    "      \"nodes\": ["
-    "        { \"name\": \"clamp_1\", \"type\": \"clamp\", \"params\": { \"min\": 100.0, \"max\": 300.0 } },"
-    "        { \"name\": \"ema_1\", \"type\": \"ema\", \"inputs\": [\"clamp_1\"], \"params\": { \"alpha\": 0.5 } },"
-    "        { \"name\": \"transform_1\", \"type\": \"transform\", \"inputs\": [\"ema_1\"], \"params\": { \"alpha\": 1.1, \"beta\": 5.0 } }"
-    "      ]"
-    "    }"
-    "  ]"
-    "}";
+    const char *contract_json =
+        "{"
+        "  \"pipelines\": ["
+        "    {"
+        "      \"id\": \"grid_analytics_dag\","
+        "      \"trigger_tag\": 268435457,"
+        "      \"nodes\": ["
+        "        { \"name\": \"clamp_1\", \"type\": \"clamp\", \"params\": { \"min\": 100.0, "
+        "\"max\": 300.0 } },"
+        "        { \"name\": \"ema_1\", \"type\": \"ema\", \"inputs\": [\"clamp_1\"], \"params\": "
+        "{ \"alpha\": 0.5 } },"
+        "        { \"name\": \"transform_1\", \"type\": \"transform\", \"inputs\": [\"ema_1\"], "
+        "\"params\": { \"alpha\": 1.1, \"beta\": 5.0 } }"
+        "      ]"
+        "    }"
+        "  ]"
+        "}";
 
     pipeline_loader_ctx_t ctx = {0};
     rc = stream_engine_load_yaml_contract(engine, contract_json, &ctx);
@@ -115,23 +119,25 @@ static void test_dag_cycle_detection_rejected(void **state) {
     assert_non_null(engine);
 
     // 构造循环依赖有向图：node_A -> node_B -> node_A
-    const char *cyclic_contract = 
-    "{"
-    "  \"pipelines\": ["
-    "    {"
-    "      \"id\": \"invalid_cycle_pipe\","
-    "      \"trigger_tag\": 1001,"
-    "      \"nodes\": ["
-    "        { \"name\": \"node_A\", \"type\": \"clamp\", \"inputs\": [\"node_B\"], \"params\": { \"min\": 0.0, \"max\": 100.0 } },"
-    "        { \"name\": \"node_B\", \"type\": \"ema\", \"inputs\": [\"node_A\"], \"params\": { \"alpha\": 0.5 } }"
-    "      ]"
-    "    }"
-    "  ]"
-    "}";
+    const char *cyclic_contract =
+        "{"
+        "  \"pipelines\": ["
+        "    {"
+        "      \"id\": \"invalid_cycle_pipe\","
+        "      \"trigger_tag\": 1001,"
+        "      \"nodes\": ["
+        "        { \"name\": \"node_A\", \"type\": \"clamp\", \"inputs\": [\"node_B\"], "
+        "\"params\": { \"min\": 0.0, \"max\": 100.0 } },"
+        "        { \"name\": \"node_B\", \"type\": \"ema\", \"inputs\": [\"node_A\"], \"params\": "
+        "{ \"alpha\": 0.5 } }"
+        "      ]"
+        "    }"
+        "  ]"
+        "}";
 
     pipeline_loader_ctx_t ctx = {0};
     rc = stream_engine_load_yaml_contract(engine, cyclic_contract, &ctx);
-    assert_int_equal(rc, -22); // 拒绝循环依赖拓扑
+    assert_int_equal(rc, -22);  // 拒绝循环依赖拓扑
 
     stream_engine_destroy(engine);
     datahub_destroy(&hub);
@@ -140,7 +146,8 @@ static void test_dag_cycle_detection_rejected(void **state) {
 static void test_custom_stage_factory_registration(void **state) {
     (void)state;
     datahub_t hub;
-    int rc = datahub_init(&hub, NULL, "stream_factory_test", 64, 0x10000, NULL, 0, NULL, NULL, NULL);
+    int rc =
+        datahub_init(&hub, NULL, "stream_factory_test", 64, 0x10000, NULL, 0, NULL, NULL, NULL);
     assert_int_equal(rc, 0);
 
     stream_engine_t *engine = stream_engine_create(&hub, NULL, NULL, NULL);
@@ -150,18 +157,19 @@ static void test_custom_stage_factory_registration(void **state) {
     rc = stream_engine_register_stage_factory("custom_gain", custom_gain_factory);
     assert_int_equal(rc, 0);
 
-    const char *custom_contract = 
-    "{"
-    "  \"pipelines\": ["
-    "    {"
-    "      \"id\": \"custom_gain_pipe\","
-    "      \"trigger_tag\": 2001,"
-    "      \"nodes\": ["
-    "        { \"name\": \"gain_x3\", \"type\": \"custom_gain\", \"params\": { \"gain\": 3.0 } }"
-    "      ]"
-    "    }"
-    "  ]"
-    "}";
+    const char *custom_contract =
+        "{"
+        "  \"pipelines\": ["
+        "    {"
+        "      \"id\": \"custom_gain_pipe\","
+        "      \"trigger_tag\": 2001,"
+        "      \"nodes\": ["
+        "        { \"name\": \"gain_x3\", \"type\": \"custom_gain\", \"params\": { \"gain\": 3.0 } "
+        "}"
+        "      ]"
+        "    }"
+        "  ]"
+        "}";
 
     pipeline_loader_ctx_t ctx = {0};
     rc = stream_engine_load_yaml_contract(engine, custom_contract, &ctx);

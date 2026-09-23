@@ -9,8 +9,8 @@
 #include <uv.h>
 
 #include "datahub.h"
-#include "wasm_mgr.h"
 #include "wasm_app_scheduler.h"
+#include "wasm_mgr.h"
 
 static void test_wasm_scheduler_lifecycle(void** state) {
     (void)state;
@@ -31,7 +31,7 @@ static void test_wasm_scheduler_lifecycle(void** state) {
     wasm_mgr_init(&hub);
 
     // 4. Create WASM Scheduler with 10ms period
-    wasm_scheduler_t *sched = wasm_scheduler_create(&hub, loop, 10);
+    wasm_scheduler_t* sched = wasm_scheduler_create(&hub, loop, 10);
     assert_non_null(sched);
 
     // 5. Load and schedule demo.wasm
@@ -62,9 +62,10 @@ static void test_wasm_scheduler_lifecycle(void** state) {
     pipe_msg_t result;
     rc = datahub_read_shadow(&hub, 1002, &result);
     assert_int_equal(rc, 0);
-    assert_float_equal(result.payload.val.f, 300.0, 0.001); // 150.0 * 2.0 = 300.0
+    assert_float_equal(result.payload.val.f, 300.0, 0.001);  // 150.0 * 2.0 = 300.0
 
-    printf("🔥 [SUCCESS] WASM Scheduler successfully triggered demo_app! Tag 1002 = %.2f\n", result.payload.val.f);
+    printf("🔥 [SUCCESS] WASM Scheduler successfully triggered demo_app! Tag 1002 = %.2f\n",
+           result.payload.val.f);
 
     // 10. Unload app
     rc = wasm_scheduler_unload_app(sched, "demo_app");
@@ -74,9 +75,10 @@ static void test_wasm_scheduler_lifecycle(void** state) {
     wasm_scheduler_destroy(sched);
     wasm_mgr_cleanup();
     datahub_destroy(&hub);
-    
+
     // Drain event loop
-    while (uv_run(loop, UV_RUN_NOWAIT));
+    while (uv_run(loop, UV_RUN_NOWAIT))
+        ;
 }
 
 static void test_wasm_scheduler_reload(void** state) {
@@ -92,7 +94,7 @@ static void test_wasm_scheduler_reload(void** state) {
     wasm_mgr_init(&hub);
 
     // 3. Create WASM Scheduler
-    wasm_scheduler_t *sched = wasm_scheduler_create(&hub, loop, 10);
+    wasm_scheduler_t* sched = wasm_scheduler_create(&hub, loop, 10);
     assert_non_null(sched);
 
     // 4. Load demo.wasm
@@ -113,7 +115,8 @@ static void test_wasm_scheduler_reload(void** state) {
     wasm_scheduler_destroy(sched);
     wasm_mgr_cleanup();
     datahub_destroy(&hub);
-    while (uv_run(loop, UV_RUN_NOWAIT));
+    while (uv_run(loop, UV_RUN_NOWAIT))
+        ;
 }
 
 int main(void) {

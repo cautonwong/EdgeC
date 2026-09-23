@@ -1,5 +1,6 @@
-#include <stdio.h>
 #include <assert.h>
+#include <stdio.h>
+
 #include "rehab_kinematics.h"
 
 int main(void) {
@@ -14,8 +15,8 @@ int main(void) {
 
     rehab_kinematics_compute(&kin, arm, forearm);
 
-    printf("Elbow Angle: %.1f deg, ROM Score: %.1f%%, Hyperextension: %s\n",
-           kin.elbow_angle_deg, kin.rom_score, kin.hyperextension_alert ? "YES" : "NO");
+    printf("Elbow Angle: %.1f deg, ROM Score: %.1f%%, Hyperextension: %s\n", kin.elbow_angle_deg,
+           kin.rom_score, kin.hyperextension_alert ? "YES" : "NO");
 
     assert(kin.elbow_angle_deg >= 89.0f && kin.elbow_angle_deg <= 91.0f);
     assert(!kin.hyperextension_alert);

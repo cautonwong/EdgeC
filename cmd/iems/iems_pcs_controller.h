@@ -1,6 +1,7 @@
 /**
  * @file iems_pcs_controller.h
- * @brief Production Power Conversion System (PCS) Controller: PQ, VF Islanding & VSG Virtual Synchronous Generator
+ * @brief Production Power Conversion System (PCS) Controller: PQ, VF Islanding & VSG Virtual
+ * Synchronous Generator
  */
 
 #ifndef IEMS_PCS_CONTROLLER_H
@@ -10,23 +11,23 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 typedef enum {
-    PCS_MODE_STANDBY   = 0, // 待机模式
-    PCS_MODE_GRID_PQ   = 1, // 并网 PQ 恒功率解耦控制模式
-    PCS_MODE_ISLAND_VF = 2, // 离网 VF 孤岛黑启动自主构网模式
-    PCS_MODE_VSG       = 3, // 虚拟同步机 (VSG) 惯量与下垂阻尼模式
-    PCS_MODE_FAULT     = 4  // 故障停机保护
+    PCS_MODE_STANDBY = 0,    // 待机模式
+    PCS_MODE_GRID_PQ = 1,    // 并网 PQ 恒功率解耦控制模式
+    PCS_MODE_ISLAND_VF = 2,  // 离网 VF 孤岛黑启动自主构网模式
+    PCS_MODE_VSG = 3,        // 虚拟同步机 (VSG) 惯量与下垂阻尼模式
+    PCS_MODE_FAULT = 4       // 故障停机保护
 } iems_pcs_mode_t;
 
 typedef struct {
     // VSG 虚拟惯量与阻尼参数
-    double vsg_inertia_j;       // 转动惯量 J (kg*m^2, e.g. 5.0)
-    double vsg_damping_dp;      // 有功-频率下垂系数 Dp (kW/Hz, e.g. 20.0)
-    double vsg_droop_dq;        // 无功-电压下垂系数 Dq (kVAR/V, e.g. 2.5)
+    double vsg_inertia_j;   // 转动惯量 J (kg*m^2, e.g. 5.0)
+    double vsg_damping_dp;  // 有功-频率下垂系数 Dp (kW/Hz, e.g. 20.0)
+    double vsg_droop_dq;    // 无功-电压下垂系数 Dq (kVAR/V, e.g. 2.5)
 
     // 额定电气参数
     double rated_voltage_v;     // 额定线电压 (400.0 V)
@@ -71,8 +72,8 @@ int iems_pcs_exec_pq_control(iems_pcs_controller_t* pcs, double target_p_kw, dou
  * @param p_setpoint 有功设定基准 (kW)
  * @param q_setpoint 无功设定基准 (kVAR)
  */
-int iems_pcs_exec_vsg_cycle(iems_pcs_controller_t* pcs, double v_meas, double f_meas,
-                            double df_dt, double p_setpoint, double q_setpoint);
+int iems_pcs_exec_vsg_cycle(iems_pcs_controller_t* pcs, double v_meas, double f_meas, double df_dt,
+                            double p_setpoint, double q_setpoint);
 
 /**
  * @brief VF 孤岛黑启动与零起升压自主构网 (VF Black Start Ramp-Up)
@@ -83,4 +84,4 @@ int iems_pcs_exec_black_start(iems_pcs_controller_t* pcs, double target_v, doubl
 }
 #endif
 
-#endif // IEMS_PCS_CONTROLLER_H
+#endif  // IEMS_PCS_CONTROLLER_H

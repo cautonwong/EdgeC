@@ -1,20 +1,21 @@
 /**
  * @file test_infra_interfaces.c
- * @brief Unit tests for storage_ops_t, datahub_ops_t, SQLite driver, and DDS/MQTT bus drivers (AEP-201 / AEP-202 / AEP-203)
+ * @brief Unit tests for storage_ops_t, datahub_ops_t, SQLite driver, and DDS/MQTT bus drivers
+ * (AEP-201 / AEP-202 / AEP-203)
  */
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 #include <uv.h>
 
-#include "storage_ops.h"
-#include "sqlite_service.h"
-#include "datahub_ops.h"
 #include "datahub_dds.h"
 #include "datahub_mqtt.h"
+#include "datahub_ops.h"
 #include "shmring.h"
+#include "sqlite_service.h"
+#include "storage_ops.h"
 
 extern const storage_ops_t g_sqlite_storage_ops;
 extern storage_driver_t *storage_driver_sqlite_create(uv_loop_t *loop, const storage_config_t *cfg);
@@ -49,7 +50,8 @@ typedef struct {
 } mock_storage_ctx_t;
 
 static int mock_storage_init(storage_driver_t *drv, uv_loop_t *loop, const storage_config_t *cfg) {
-    (void)loop; (void)cfg;
+    (void)loop;
+    (void)cfg;
     mock_storage_ctx_t *ctx = (mock_storage_ctx_t *)drv->priv_ctx;
     ctx->init_called++;
     return 0;
@@ -62,11 +64,13 @@ static int mock_storage_insert(storage_driver_t *drv, const void *msg_ptr) {
     return 0;
 }
 
-static int mock_storage_query(storage_driver_t *drv, uint64_t start_ts, uint64_t end_ts, storage_query_cb cb, void *user_data) {
-    (void)start_ts; (void)end_ts;
+static int mock_storage_query(storage_driver_t *drv, uint64_t start_ts, uint64_t end_ts,
+                              storage_query_cb cb, void *user_data) {
+    (void)start_ts;
+    (void)end_ts;
     mock_storage_ctx_t *ctx = (mock_storage_ctx_t *)drv->priv_ctx;
     ctx->query_called++;
-    PipeMsg dummy = { .tag_id = 1001, .ts = 1786800000 };
+    PipeMsg dummy = {.tag_id = 1001, .ts = 1786800000};
     if (cb) {
         cb(user_data, &dummy);
     }
@@ -91,7 +95,8 @@ static int mock_storage_rollback_trans(storage_driver_t *drv) {
     return 0;
 }
 
-static int mock_storage_exec(storage_driver_t *drv, const char *stmt, storage_exec_cb cb, void *user_data) {
+static int mock_storage_exec(storage_driver_t *drv, const char *stmt, storage_exec_cb cb,
+                             void *user_data) {
     (void)stmt;
     mock_storage_ctx_t *ctx = (mock_storage_ctx_t *)drv->priv_ctx;
     ctx->exec_called++;
@@ -170,15 +175,23 @@ static int mock_storage_snf_flush(storage_driver_t *drv) {
     return 0;
 }
 
-static int mock_storage_set_param(storage_driver_t *drv, const char *product, uint32_t tag_id, const void *val, size_t val_len) {
-    (void)product; (void)tag_id; (void)val; (void)val_len;
+static int mock_storage_set_param(storage_driver_t *drv, const char *product, uint32_t tag_id,
+                                  const void *val, size_t val_len) {
+    (void)product;
+    (void)tag_id;
+    (void)val;
+    (void)val_len;
     mock_storage_ctx_t *ctx = (mock_storage_ctx_t *)drv->priv_ctx;
     ctx->set_param_called++;
     return 0;
 }
 
-static int mock_storage_get_param(storage_driver_t *drv, const char *product, uint32_t tag_id, void *buf, size_t buf_len) {
-    (void)product; (void)tag_id; (void)buf; (void)buf_len;
+static int mock_storage_get_param(storage_driver_t *drv, const char *product, uint32_t tag_id,
+                                  void *buf, size_t buf_len) {
+    (void)product;
+    (void)tag_id;
+    (void)buf;
+    (void)buf_len;
     mock_storage_ctx_t *ctx = (mock_storage_ctx_t *)drv->priv_ctx;
     ctx->get_param_called++;
     return 0;
@@ -192,7 +205,8 @@ static int mock_storage_save_app(storage_driver_t *drv, const void *manifest_ptr
 }
 
 static int mock_storage_get_app(storage_driver_t *drv, const char *app_id, void *out_manifest_ptr) {
-    (void)app_id; (void)out_manifest_ptr;
+    (void)app_id;
+    (void)out_manifest_ptr;
     mock_storage_ctx_t *ctx = (mock_storage_ctx_t *)drv->priv_ctx;
     ctx->get_app_called++;
     return 0;
@@ -206,7 +220,8 @@ static int mock_storage_delete_app(storage_driver_t *drv, const char *app_id) {
 }
 
 static int mock_storage_list_apps(storage_driver_t *drv, void *manifests_array_ptr, int max_count) {
-    (void)manifests_array_ptr; (void)max_count;
+    (void)manifests_array_ptr;
+    (void)max_count;
     mock_storage_ctx_t *ctx = (mock_storage_ctx_t *)drv->priv_ctx;
     ctx->list_apps_called++;
     return 1;
@@ -264,8 +279,10 @@ static int dummy_count_callback(void *user_data, const void *msg_ptr) {
     return 0;
 }
 
-static int dummy_exec_callback(void *user_data, int col_count, char **col_values, char **col_names) {
-    (void)col_count; (void)col_names;
+static int dummy_exec_callback(void *user_data, int col_count, char **col_values,
+                               char **col_names) {
+    (void)col_count;
+    (void)col_names;
     int *called = (int *)user_data;
     *called = atoi(col_values[0]);
     return 0;
@@ -275,27 +292,21 @@ static void test_storage_ops_vtable(void) {
     printf("[TEST] Testing storage_ops_t abstract interface polymorphism...\n");
 
     mock_storage_ctx_t ctx = {0};
-    storage_driver_t drv = {
-        .ops = &g_mock_storage_ops,
-        .priv_ctx = &ctx,
-        .name = "mock_storage"
-    };
+    storage_driver_t drv = {.ops = &g_mock_storage_ops, .priv_ctx = &ctx, .name = "mock_storage"};
 
-    storage_config_t cfg = {
-        .db_path = ":memory:",
-        .flush_interval_ms = 100,
-        .batch_size = 50,
-        .enable_wal = true,
-        .enable_snf = true,
-        .max_db_size_mb = 10
-    };
+    storage_config_t cfg = {.db_path = ":memory:",
+                            .flush_interval_ms = 100,
+                            .batch_size = 50,
+                            .enable_wal = true,
+                            .enable_snf = true,
+                            .max_db_size_mb = 10};
 
     /* 1. Init */
     assert(drv.ops->init(&drv, NULL, &cfg) == 0);
     assert(ctx.init_called == 1);
 
     /* 2. Insert */
-    PipeMsg msg = { .tag_id = 42, .ts = 1000 };
+    PipeMsg msg = {.tag_id = 42, .ts = 1000};
     assert(drv.ops->insert(&drv, &msg) == 0);
     assert(ctx.insert_called == 1);
 
@@ -373,14 +384,12 @@ static void test_sqlite_storage_driver_live(void) {
     printf("[TEST] Testing sqlite_storage_driver live operations...\n");
 
     uv_loop_t *loop = uv_default_loop();
-    storage_config_t cfg = {
-        .db_path = "/tmp/test_edge_infra_sqlite.db",
-        .flush_interval_ms = 50,
-        .batch_size = 1,
-        .enable_wal = true,
-        .enable_snf = true,
-        .max_db_size_mb = 50
-    };
+    storage_config_t cfg = {.db_path = "/tmp/test_edge_infra_sqlite.db",
+                            .flush_interval_ms = 50,
+                            .batch_size = 1,
+                            .enable_wal = true,
+                            .enable_snf = true,
+                            .max_db_size_mb = 50};
 
     remove(cfg.db_path);
 
@@ -390,7 +399,7 @@ static void test_sqlite_storage_driver_live(void) {
     assert(strcmp(drv->name, "sqlite-wal") == 0);
 
     /* 1. Insert & Query */
-    PipeMsg m1 = { .tag_id = 2001, .ts = 100000, .payload.val.f = 220.5 };
+    PipeMsg m1 = {.tag_id = 2001, .ts = 100000, .payload.val.f = 220.5};
     assert(drv->ops->insert(drv, &m1) == 0);
 
     /* 2. Params */
@@ -407,7 +416,9 @@ static void test_sqlite_storage_driver_live(void) {
     /* 4. WAL Size & Partition GC & Purge */
     /* Insert a few more records to create WAL activity and records to purge */
     for (int i = 0; i < 4; i++) {
-        PipeMsg pmsg = { .tag_id = (uint32_t)(2010 + i), .ts = (uint64_t)(100100 + i * 10), .payload.val.f = (float)(i * 1.5) };
+        PipeMsg pmsg = {.tag_id = (uint32_t)(2010 + i),
+                        .ts = (uint64_t)(100100 + i * 10),
+                        .payload.val.f = (float)(i * 1.5)};
         assert(drv->ops->insert(drv, &pmsg) == 0);
     }
 
@@ -432,7 +443,11 @@ static void test_sqlite_storage_driver_live(void) {
     uint32_t snf_pending = 999;
     assert(drv->ops->snf_get_pending_count(drv, &snf_pending) == 0 && snf_pending == 0);
 
-    PipeMsg m2 = { .tag_id = 2002, .ts = 100050, .payload.val.f = 50.02f, .type = PIPEMSG_TYPE_SCALAR, .quality = 0 };
+    PipeMsg m2 = {.tag_id = 2002,
+                  .ts = 100050,
+                  .payload.val.f = 50.02f,
+                  .type = PIPEMSG_TYPE_SCALAR,
+                  .quality = 0};
     assert(drv->ops->snf_enqueue(drv, &m2) == 0);
 
     assert(drv->ops->snf_get_pending_count(drv, &snf_pending) == 0 && snf_pending == 1);
@@ -444,7 +459,7 @@ static void test_sqlite_storage_driver_live(void) {
     assert(dequeued.payload.val.f == 50.02f);
 
     assert(drv->ops->snf_get_pending_count(drv, &snf_pending) == 0 && snf_pending == 0);
-    assert(drv->ops->snf_dequeue(drv, &dequeued) == 1); // Queue empty
+    assert(drv->ops->snf_dequeue(drv, &dequeued) == 1);  // Queue empty
     assert(drv->ops->snf_flush(drv) == 0);
 
     /* 6. Destroy */
@@ -452,7 +467,9 @@ static void test_sqlite_storage_driver_live(void) {
     free(drv);
     remove(cfg.db_path);
 
-    printf("  --> sqlite_storage_driver live test verified successfully with full value assertions!\n");
+    printf(
+        "  --> sqlite_storage_driver live test verified successfully with full value "
+        "assertions!\n");
 }
 
 static void test_datahub_bus_drivers(void) {
@@ -479,7 +496,7 @@ static void test_datahub_bus_drivers(void) {
     assert(datahub_dds_init(&dds_hub, &cfg) == 0);
     assert(dds_hub.backend_type == DATAHUB_BACKEND_DDS);
 
-    PipeMsg msg = { .tag_id = 9999, .ts = 5000 };
+    PipeMsg msg = {.tag_id = 9999, .ts = 5000};
     assert(dds_hub.ops->publish(&dds_hub, &msg) == 0);
     assert(dds_hub.ops->write_shadow(&dds_hub, &msg) == 0);
 
@@ -491,7 +508,7 @@ static void test_datahub_bus_drivers(void) {
 static void test_disabled_null_stubs_error_semantics(void) {
     printf("[TEST] Testing disabled/null handle error propagation semantics...\n");
 
-    PipeMsg dummy = { .tag_id = 1001, .ts = 1000 };
+    PipeMsg dummy = {.tag_id = 1001, .ts = 1000};
     /* Verify NULL service / operations cleanly return failure */
     assert(sqlite_svc_insert(NULL, &dummy) == -1);
     assert(sqlite_svc_query(NULL, 0, 1000, NULL, NULL) == -1);
@@ -508,6 +525,7 @@ int main(void) {
     test_sqlite_storage_driver_live();
     test_datahub_bus_drivers();
     test_disabled_null_stubs_error_semantics();
-    printf("=== All AEP-201 / AEP-202 / AEP-203 / AEP-208 Infra Interface & Bus Tests PASSED ===\n");
+    printf(
+        "=== All AEP-201 / AEP-202 / AEP-203 / AEP-208 Infra Interface & Bus Tests PASSED ===\n");
     return 0;
 }

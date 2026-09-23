@@ -103,7 +103,8 @@ static int teardown(void** state) {
     uv_walk(&ctx->loop, on_walk_close, NULL);
 
     // 运行循环直到所有关闭回调完成
-    while (uv_run(&ctx->loop, UV_RUN_DEFAULT) != 0);
+    while (uv_run(&ctx->loop, UV_RUN_DEFAULT) != 0)
+        ;
 
     if (uv_loop_close(&ctx->loop) != 0) {
         fprintf(stderr, "[WARN] Loop close failed (leak?)\n");
@@ -145,7 +146,8 @@ static void test_datahub_wal_concurrency(void** state) {
     datahub_t hub;
     shm_unlink("/test_wal_hub");
 
-    assert_int_equal(datahub_init(&hub, &loop, "/test_wal_hub", 256, 128, NULL, 0, NULL, NULL, NULL), 0);
+    assert_int_equal(
+        datahub_init(&hub, &loop, "/test_wal_hub", 256, 128, NULL, 0, NULL, NULL, NULL), 0);
 
     const char* wal_path = "/tmp/test_datahub_wal_t103.log";
     const char* snap_path = "/tmp/test_datahub_snap_t103.bin";
@@ -177,7 +179,8 @@ static void test_datahub_wal_concurrency(void** state) {
     uv_loop_t loop2;
     uv_loop_init(&loop2);
     shm_unlink("/test_wal_hub2");
-    assert_int_equal(datahub_init(&hub2, &loop2, "/test_wal_hub2", 256, 128, NULL, 0, NULL, NULL, NULL), 0);
+    assert_int_equal(
+        datahub_init(&hub2, &loop2, "/test_wal_hub2", 256, 128, NULL, 0, NULL, NULL, NULL), 0);
 
     assert_int_equal(datahub_load_snapshot(&hub2, snap_path), 0);
     strncpy(hub2.wal_path, wal_path, sizeof(hub2.wal_path) - 1);
@@ -189,9 +192,11 @@ static void test_datahub_wal_concurrency(void** state) {
     assert_int_equal(msg_out.type, PIPEMSG_TYPE_SCALAR);
 
     datahub_destroy(&hub2);
-    while (uv_run(&loop, UV_RUN_NOWAIT));
+    while (uv_run(&loop, UV_RUN_NOWAIT))
+        ;
     uv_loop_close(&loop);
-    while (uv_run(&loop2, UV_RUN_NOWAIT));
+    while (uv_run(&loop2, UV_RUN_NOWAIT))
+        ;
     uv_loop_close(&loop2);
 
     unlink(wal_path);

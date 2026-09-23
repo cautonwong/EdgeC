@@ -1,28 +1,23 @@
 /**
- * test_web_metrics_matrix.c - Verification of Panoramic System Metrics & DataHub/DDS Dashboard (AEP-499)
+ * test_web_metrics_matrix.c - Verification of Panoramic System Metrics & DataHub/DDS Dashboard
+ * (AEP-499)
  */
 
-#include <stdarg.h>
-#include <stddef.h>
+#include <cmocka.h>
 #include <setjmp.h>
-#include <stdint.h>
+#include <stdarg.h>
 #include <stdbool.h>
-#include <string.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <cmocka.h>
+#include <string.h>
 
 static void read_file_content(const char *rel_path, char *buf, size_t max_len) {
     char path[512];
     FILE *fp = NULL;
 
-    const char *prefixes[] = {
-        "",
-        "../",
-        "../../",
-        "/workspaces/edgeos/EdgeC/",
-        NULL
-    };
+    const char *prefixes[] = {"", "../", "../../", "/workspaces/edgeos/EdgeC/", NULL};
 
     for (int i = 0; prefixes[i] != NULL; i++) {
         snprintf(path, sizeof(path), "%s%s", prefixes[i], rel_path);
@@ -110,8 +105,10 @@ static void test_prometheus_openmetrics_formatting(void **state) {
     uint32_t active_nodes = 4;
     double cpu_load = 14.2;
 
-    int n = snprintf(payload, sizeof(payload),
-        "# HELP edgeos_datahub_ring_watermark_percent DataHub SPSC ringbuffer utilization percentage\n"
+    int n = snprintf(
+        payload, sizeof(payload),
+        "# HELP edgeos_datahub_ring_watermark_percent DataHub SPSC ringbuffer utilization "
+        "percentage\n"
         "# TYPE edgeos_datahub_ring_watermark_percent gauge\n"
         "edgeos_datahub_ring_watermark_percent %.1f\n"
         "# HELP edgeos_datahub_tps DataHub transaction throughput per second\n"
@@ -152,16 +149,16 @@ static void test_statistical_latency_percentiles(void **state) {
 
     // Synthesize distribution: 70% < 50ns, 20% 50-100ns, 8% 100-200ns, 2% > 200ns
     for (size_t i = 0; i < 700; i++) {
-        latencies[i] = 30 + (uint32_t)(i % 20); // 30..49 ns
+        latencies[i] = 30 + (uint32_t)(i % 20);  // 30..49 ns
     }
     for (size_t i = 700; i < 900; i++) {
-        latencies[i] = 50 + (uint32_t)(i % 50); // 50..99 ns
+        latencies[i] = 50 + (uint32_t)(i % 50);  // 50..99 ns
     }
     for (size_t i = 900; i < 980; i++) {
-        latencies[i] = 100 + (uint32_t)(i % 100); // 100..199 ns
+        latencies[i] = 100 + (uint32_t)(i % 100);  // 100..199 ns
     }
     for (size_t i = 980; i < 1000; i++) {
-        latencies[i] = 200 + (uint32_t)(i % 300); // 200..499 ns
+        latencies[i] = 200 + (uint32_t)(i % 300);  // 200..499 ns
     }
 
     qsort(latencies, N, sizeof(uint32_t), compare_uint32);

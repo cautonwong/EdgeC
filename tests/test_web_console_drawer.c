@@ -2,27 +2,21 @@
  * test_web_console_drawer.c - Verification of Global Web Console Drawer & Ansi Terminal (AEP-501)
  */
 
-#include <stdarg.h>
-#include <stddef.h>
+#include <cmocka.h>
 #include <setjmp.h>
-#include <stdint.h>
+#include <stdarg.h>
 #include <stdbool.h>
-#include <string.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <cmocka.h>
+#include <string.h>
 
 static void read_file_content(const char *rel_path, char *buf, size_t max_len) {
     char path[512];
     FILE *fp = NULL;
 
-    const char *prefixes[] = {
-        "",
-        "../",
-        "../../",
-        "/workspaces/edgeos/EdgeC/",
-        NULL
-    };
+    const char *prefixes[] = {"", "../", "../../", "/workspaces/edgeos/EdgeC/", NULL};
 
     for (int i = 0; prefixes[i] != NULL; i++) {
         snprintf(path, sizeof(path), "%s%s", prefixes[i], rel_path);
@@ -39,7 +33,8 @@ static void read_file_content(const char *rel_path, char *buf, size_t max_len) {
 static void test_web_console_drawer_component_structure(void **state) {
     (void)state;
     char content[65536];
-    read_file_content("web/core/src/components/console/WebConsoleDrawer.vue", content, sizeof(content));
+    read_file_content("web/core/src/components/console/WebConsoleDrawer.vue", content,
+                      sizeof(content));
 
     // Headers & Mode Controls
     assert_non_null(strstr(content, "EdgeOS Global Web Console"));
@@ -69,7 +64,8 @@ static void test_web_console_drawer_component_structure(void **state) {
 static void test_ansi_terminal_view_structure(void **state) {
     (void)state;
     char content[65536];
-    read_file_content("web/core/src/components/console/AnsiTerminalView.vue", content, sizeof(content));
+    read_file_content("web/core/src/components/console/AnsiTerminalView.vue", content,
+                      sizeof(content));
 
     // Terminal Input & Output
     assert_non_null(strstr(content, "promptPrefix"));
@@ -98,7 +94,8 @@ static void test_ansi_terminal_view_structure(void **state) {
 static void test_admin_layout_integration_and_exports(void **state) {
     (void)state;
     char layout_content[16384];
-    read_file_content("web/core/src/layouts/AdminLayout.vue", layout_content, sizeof(layout_content));
+    read_file_content("web/core/src/layouts/AdminLayout.vue", layout_content,
+                      sizeof(layout_content));
 
     assert_non_null(strstr(layout_content, "WebConsoleDrawer"));
     assert_non_null(strstr(layout_content, "isConsoleOpen"));
@@ -119,9 +116,12 @@ typedef enum {
 
 static drawer_mode_t cycle_mode(drawer_mode_t cur) {
     switch (cur) {
-        case DRAWER_MODE_DOCKED: return DRAWER_MODE_FULLSCREEN;
-        case DRAWER_MODE_FULLSCREEN: return DRAWER_MODE_FLOATING;
-        case DRAWER_MODE_FLOATING: return DRAWER_MODE_DOCKED;
+        case DRAWER_MODE_DOCKED:
+            return DRAWER_MODE_FULLSCREEN;
+        case DRAWER_MODE_FULLSCREEN:
+            return DRAWER_MODE_FLOATING;
+        case DRAWER_MODE_FLOATING:
+            return DRAWER_MODE_DOCKED;
     }
     return DRAWER_MODE_DOCKED;
 }

@@ -7,9 +7,9 @@
 #ifndef EDGEOS_SDK_STORAGE_H
 #define EDGEOS_SDK_STORAGE_H
 
-#include "edgeos/types.h"
 #include "../../modules/edge_infra/include/edge_telemetry_store.h"
 #include "../../modules/edge_infra/include/storage_ops.h"
+#include "edgeos/types.h"
 
 #ifdef __cplusplus
 extern "C" {

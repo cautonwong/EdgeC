@@ -1,3 +1,4 @@
+#include <cmocka.h>
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -8,7 +9,6 @@
 #include <string.h>
 #include <time.h>
 #include <uv.h>
-#include <cmocka.h>
 
 #include "datahub.h"
 #include "driver_manager.h"
@@ -17,12 +17,13 @@
 
 // --- Mock Driver Implementation ---
 
-static int mock_driver_encode_request(edge_driver_ctx_t *ctx, const uint32_t *tag_ids, int tag_count, net_buf_t *out) {
+static int mock_driver_encode_request(edge_driver_ctx_t *ctx, const uint32_t *tag_ids,
+                                      int tag_count, net_buf_t *out) {
     (void)ctx;
     if (!out) return -1;
     net_buf_reset(out);
     // 写入请求头与测点列表
-    net_buf_simple_add_u8(&out->b, 0xAA); // 帧头
+    net_buf_simple_add_u8(&out->b, 0xAA);  // 帧头
     net_buf_simple_add_u8(&out->b, (uint8_t)tag_count);
     for (int i = 0; i < tag_count; i++) {
         net_buf_simple_add_be32(&out->b, tag_ids[i]);
@@ -31,14 +32,14 @@ static int mock_driver_encode_request(edge_driver_ctx_t *ctx, const uint32_t *ta
 }
 
 static int mock_driver_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_out,
-                                      pipe_msg_t *out_msgs, int *msg_count, size_t *consumed) {
+                                       pipe_msg_t *out_msgs, int *msg_count, size_t *consumed) {
     (void)ctx;
     (void)resp_out;
     if (!in || !out_msgs || !msg_count || !consumed) return -1;
-    if (in->b.len < 10) return -2; // 最小帧长校验
+    if (in->b.len < 10) return -2;  // 最小帧长校验
 
     uint8_t header = net_buf_simple_pull_u8(&in->b);
-    if (header != 0x55) return -3; // 响应帧头
+    if (header != 0x55) return -3;  // 响应帧头
 
     uint8_t count = net_buf_simple_pull_u8(&in->b);
     *msg_count = 0;
@@ -93,7 +94,7 @@ static int mock_io_write_async(io_handle_t *h, net_buf_t *buf) {
         net_buf_unref(mio->last_tx_buf);
     }
     mio->last_tx_buf = net_buf_ref(buf);
-    net_buf_unref(buf); // 释放管理器传过来的引用
+    net_buf_unref(buf);  // 释放管理器传过来的引用
     return 0;
 }
 
@@ -154,7 +155,8 @@ static void test_orchestrator_manual_trigger_and_feed(void **state) {
         .priority = 0,
     };
 
-    rc = driver_manager_add_poll_target(mgr, 101, "MockSensor", (io_handle_t *)&mio, tag_list, 2, &policy);
+    rc = driver_manager_add_poll_target(mgr, 101, "MockSensor", (io_handle_t *)&mio, tag_list, 2,
+                                        &policy);
     assert_int_equal(rc, 0);
     assert_true(mio.read_enabled);
 
@@ -163,8 +165,8 @@ static void test_orchestrator_manual_trigger_and_feed(void **state) {
     assert_int_equal(rc, 0);
     assert_int_equal(mio.tx_count, 1);
     assert_non_null(mio.last_tx_buf);
-    assert_int_equal(mio.last_tx_buf->b.data[0], 0xAA); // 校验编码帧头
-    assert_int_equal(mio.last_tx_buf->b.data[1], 2);    // 2 个测点
+    assert_int_equal(mio.last_tx_buf->b.data[0], 0xAA);  // 校验编码帧头
+    assert_int_equal(mio.last_tx_buf->b.data[1], 2);     // 2 个测点
 
     edge_poll_stats_t stats = {0};
     rc = driver_manager_get_target_stats(mgr, 101, &stats);
@@ -175,10 +177,10 @@ static void test_orchestrator_manual_trigger_and_feed(void **state) {
     // 2. 构造响应帧并喂入
     net_buf_t *rx_buf = net_buf_alloc(pool, 0);
     assert_non_null(rx_buf);
-    net_buf_simple_add_u8(&rx_buf->b, 0x55); // 响应帧头
-    net_buf_simple_add_u8(&rx_buf->b, 2);    // 2 个测点响应
+    net_buf_simple_add_u8(&rx_buf->b, 0x55);  // 响应帧头
+    net_buf_simple_add_u8(&rx_buf->b, 2);     // 2 个测点响应
     net_buf_simple_add_be32(&rx_buf->b, 0x2001);
-    net_buf_simple_add_be32(&rx_buf->b, 2205); // 220.5V
+    net_buf_simple_add_be32(&rx_buf->b, 2205);  // 220.5V
     net_buf_simple_add_be32(&rx_buf->b, 0x2002);
     net_buf_simple_add_be32(&rx_buf->b, 500);  // 50.0Hz
 
@@ -251,13 +253,14 @@ static void test_orchestrator_periodic_timer_and_timeout(void **state) {
         .priority = 1,
     };
 
-    rc = driver_manager_add_poll_target(mgr, 202, "MockSensor", (io_handle_t *)&mio, tag_list, 1, &policy);
+    rc = driver_manager_add_poll_target(mgr, 202, "MockSensor", (io_handle_t *)&mio, tag_list, 1,
+                                        &policy);
     assert_int_equal(rc, 0);
 
     // 运行事件循环若干次让定时器触发
     for (int i = 0; i < 5; i++) {
         uv_run(loop, UV_RUN_NOWAIT);
-        struct timespec req = {0, 15000000L}; // 15ms
+        struct timespec req = {0, 15000000L};  // 15ms
         nanosleep(&req, NULL);
         uv_run(loop, UV_RUN_NOWAIT);
     }
@@ -266,7 +269,7 @@ static void test_orchestrator_periodic_timer_and_timeout(void **state) {
     rc = driver_manager_get_target_stats(mgr, 202, &stats);
     assert_int_equal(rc, 0);
     assert_true(stats.poll_count >= 1);
-    assert_true(stats.timeout_count >= 1); // 未应答故触发超时
+    assert_true(stats.timeout_count >= 1);  // 未应答故触发超时
 
     // 测试暂停与恢复
     rc = driver_manager_set_target_active(mgr, 202, false);
@@ -282,7 +285,7 @@ static void test_orchestrator_periodic_timer_and_timeout(void **state) {
 
     rc = driver_manager_get_target_stats(mgr, 202, &stats);
     assert_int_equal(rc, 0);
-    assert_int_equal(stats.poll_count, polls_before); // 暂停期间无新轮询
+    assert_int_equal(stats.poll_count, polls_before);  // 暂停期间无新轮询
 
     rc = driver_manager_set_target_active(mgr, 202, true);
     assert_int_equal(rc, 0);

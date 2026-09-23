@@ -3,6 +3,7 @@
  * @brief Empirical Verification for edge-cli dds Observability & PCAP Diagnostics Suite (AEP-454)
  */
 
+#include <cmocka.h>
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -13,7 +14,6 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <cmocka.h>
 
 static void find_edge_root(char *out, size_t max_len) {
     char cwd[512];
@@ -40,7 +40,8 @@ static void test_edge_cli_dds_discovery(void **state) {
 
     // 1. 测试 Table 格式输出
     char cmd[2048];
-    snprintf(cmd, sizeof(cmd), "cd %s/tools/edge-cli && go run ./cmd dds discovery --format=table", root);
+    snprintf(cmd, sizeof(cmd), "cd %s/tools/edge-cli && go run ./cmd dds discovery --format=table",
+             root);
     FILE *fp = popen(cmd, "r");
     assert_non_null(fp);
 
@@ -55,7 +56,8 @@ static void test_edge_cli_dds_discovery(void **state) {
     assert_non_null(strstr(buffer, "DCU_Feeder_Gateway"));
 
     // 2. 测试 JSON 格式输出
-    snprintf(cmd, sizeof(cmd), "cd %s/tools/edge-cli && go run ./cmd dds discovery --format=json", root);
+    snprintf(cmd, sizeof(cmd), "cd %s/tools/edge-cli && go run ./cmd dds discovery --format=json",
+             root);
     fp = popen(cmd, "r");
     assert_non_null(fp);
 
@@ -98,7 +100,9 @@ static void test_edge_cli_dds_dump(void **state) {
     find_edge_root(root, sizeof(root));
 
     char cmd[2048];
-    snprintf(cmd, sizeof(cmd), "cd %s/tools/edge-cli && go run ./cmd dds dump --topic=edgeos/telemetry/yc --count=3", root);
+    snprintf(cmd, sizeof(cmd),
+             "cd %s/tools/edge-cli && go run ./cmd dds dump --topic=edgeos/telemetry/yc --count=3",
+             root);
     FILE *fp = popen(cmd, "r");
     assert_non_null(fp);
 
@@ -122,7 +126,9 @@ static void test_edge_cli_dds_pcap(void **state) {
     unlink(pcap_path);
 
     char cmd[2048];
-    snprintf(cmd, sizeof(cmd), "cd %s/tools/edge-cli && go run ./cmd dds pcap --output=%s --count=10", root, pcap_path);
+    snprintf(cmd, sizeof(cmd),
+             "cd %s/tools/edge-cli && go run ./cmd dds pcap --output=%s --count=10", root,
+             pcap_path);
     int status = system(cmd);
     assert_int_equal(status, 0);
 

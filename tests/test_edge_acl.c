@@ -1,5 +1,6 @@
-#include <stdio.h>
 #include <assert.h>
+#include <stdio.h>
+
 #include "edge_acl.h"
 
 int main(void) {
@@ -10,7 +11,7 @@ int main(void) {
 
     // Allow subnet 192.168.1.0/24 on port 8080 TCP
     uint32_t ip_sub = (192 << 24) | (168 << 16) | (1 << 8) | 0;
-    uint32_t mask   = (255 << 24) | (255 << 16) | (255 << 8) | 0;
+    uint32_t mask = (255 << 24) | (255 << 16) | (255 << 8) | 0;
 
     int ret = edge_acl_add_rule(&acl, ip_sub, mask, 8080, 6, ACL_ACTION_ALLOW);
     assert(ret == 0);

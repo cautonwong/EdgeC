@@ -1,9 +1,9 @@
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdint.h>
 #include <cmocka.h>
 #include <math.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 
 #include "battery_micro_isc.h"
@@ -27,17 +27,15 @@ static void test_init_and_config(void **state) {
     assert_float_equal(det.config.alarm_r_isc_ohm, 200.0f, 0.01f);
 
     /* 自定义配置初始化 */
-    battery_micro_isc_config_t custom_cfg = {
-        .nominal_capacity_ah = 314.0f,
-        .sample_interval_s = 2.0f,
-        .warn_voltage_diff_v = 0.010f,
-        .alarm_voltage_diff_v = 0.030f,
-        .warn_r_isc_ohm = 1500.0f,
-        .alarm_r_isc_ohm = 300.0f,
-        .critical_r_isc_ohm = 60.0f,
-        .li_plating_d2v_threshold = 0.00015f,
-        .rest_current_threshold_a = 0.1f
-    };
+    battery_micro_isc_config_t custom_cfg = {.nominal_capacity_ah = 314.0f,
+                                             .sample_interval_s = 2.0f,
+                                             .warn_voltage_diff_v = 0.010f,
+                                             .alarm_voltage_diff_v = 0.030f,
+                                             .warn_r_isc_ohm = 1500.0f,
+                                             .alarm_r_isc_ohm = 300.0f,
+                                             .critical_r_isc_ohm = 60.0f,
+                                             .li_plating_d2v_threshold = 0.00015f,
+                                             .rest_current_threshold_a = 0.1f};
     assert_int_equal(battery_micro_isc_init(&det, &custom_cfg, 32), 0);
     assert_int_equal(det.cell_count, 32);
     assert_float_equal(det.config.nominal_capacity_ah, 314.0f, 0.001f);
@@ -54,7 +52,7 @@ static void test_healthy_pack_baseline(void **state) {
         t += 60.0; /* 步长 60s */
         for (uint16_t i = 0; i < 16; i++) {
             /* 正常平滑指数衰减电压 */
-            float v = 3.350f - 0.010f * (1.0f - expf(- (float)t / 600.0f)) + (float)i * 0.0001f;
+            float v = 3.350f - 0.010f * (1.0f - expf(-(float)t / 600.0f)) + (float)i * 0.0001f;
             float soc = 0.800f - 0.00001f * (float)(t / 3600.0); /* 极低自然自放电 */
             assert_int_equal(battery_micro_isc_feed_cell(&det, i, v, 0.0f, 25.0f, soc, t), 0);
         }
@@ -84,7 +82,7 @@ static void test_lithium_plating_detection(void **state) {
     for (int step = 0; step < 30; step++) {
         t += 10.0; /* 每步 10s */
         for (uint16_t i = 0; i < 8; i++) {
-            float v = 3.400f - 0.015f * (1.0f - expf(- (float)t / 200.0f));
+            float v = 3.400f - 0.015f * (1.0f - expf(-(float)t / 200.0f));
             if (i == 2 && step >= 8 && step <= 16) {
                 /* 注入析锂金属溶解剥离电压平台波动 */
                 v += 0.008f * sinf((float)(step - 8) * 0.4f);
@@ -110,17 +108,15 @@ static void test_lithium_plating_detection(void **state) {
 static void test_micro_isc_resistance_identification(void **state) {
     (void)state;
     pack_micro_isc_detector_t det;
-    battery_micro_isc_config_t cfg = {
-        .nominal_capacity_ah = 280.0f,
-        .sample_interval_s = 60.0f,
-        .warn_voltage_diff_v = 0.015f,
-        .alarm_voltage_diff_v = 0.035f,
-        .warn_r_isc_ohm = 1000.0f,
-        .alarm_r_isc_ohm = 200.0f,
-        .critical_r_isc_ohm = 50.0f,
-        .li_plating_d2v_threshold = 0.0002f,
-        .rest_current_threshold_a = 0.2f
-    };
+    battery_micro_isc_config_t cfg = {.nominal_capacity_ah = 280.0f,
+                                      .sample_interval_s = 60.0f,
+                                      .warn_voltage_diff_v = 0.015f,
+                                      .alarm_voltage_diff_v = 0.035f,
+                                      .warn_r_isc_ohm = 1000.0f,
+                                      .alarm_r_isc_ohm = 200.0f,
+                                      .critical_r_isc_ohm = 50.0f,
+                                      .li_plating_d2v_threshold = 0.0002f,
+                                      .rest_current_threshold_a = 0.2f};
     assert_int_equal(battery_micro_isc_init(&det, &cfg, 16), 0);
 
     /* 设定真实物理微短路电阻: R_isc = 400 Ω
@@ -167,7 +163,8 @@ static void test_micro_isc_resistance_identification(void **state) {
 
     /* 400Ω 处于 200Ω ~ 1000Ω 之间，必须精准触发 3 天早期预警 */
     assert_int_equal(report_c7.alarm_level, BATTERY_ALARM_EARLY_WARNING_3D);
-    assert_true(report_c7.estimated_days_to_failure >= 2.0f && report_c7.estimated_days_to_failure <= 4.0f);
+    assert_true(report_c7.estimated_days_to_failure >= 2.0f &&
+                report_c7.estimated_days_to_failure <= 4.0f);
 
     /* 获取最高告警判定 */
     battery_isc_alarm_level_t max_alarm;
@@ -234,7 +231,9 @@ static void test_multi_cell_pack_robustness_64_cells(void **state) {
     /* 喂入 64 电芯轻微白噪声数据 */
     for (uint16_t i = 0; i < 64; i++) {
         float noise = ((float)(i % 7) - 3.0f) * 0.0005f;
-        assert_int_equal(battery_micro_isc_feed_cell(&det, i, 3.32f + noise, 0.0f, 24.0f + (float)(i % 5)*0.5f, 0.75f, 100.0), 0);
+        assert_int_equal(battery_micro_isc_feed_cell(&det, i, 3.32f + noise, 0.0f,
+                                                     24.0f + (float)(i % 5) * 0.5f, 0.75f, 100.0),
+                         0);
     }
     assert_int_equal(battery_micro_isc_process_step(&det, 100.0), 0);
 
@@ -272,7 +271,9 @@ static void test_nan_cell_and_qsort_median_defense(void **state) {
     test_cell.r_isc_ohm = 1000000.0f;
     float out_r = 0.0f;
     float out_rate = 0.0f;
-    assert_int_equal(battery_micro_isc_identify_r_isc(&test_cell, 3.30f, 0.001f, 280.0f, NAN, &out_r, &out_rate), 0);
+    assert_int_equal(
+        battery_micro_isc_identify_r_isc(&test_cell, 3.30f, 0.001f, 280.0f, NAN, &out_r, &out_rate),
+        0);
     assert_true(isfinite(out_r));
     assert_true(isfinite(out_rate));
 }

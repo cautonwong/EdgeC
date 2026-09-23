@@ -2,27 +2,21 @@
  * test_web_iems_energy_flow.c - Verification of IEMS Dynamic Energy Flow & TOU Dashboard (AEP-494)
  */
 
-#include <stdarg.h>
-#include <stddef.h>
+#include <cmocka.h>
 #include <setjmp.h>
-#include <stdint.h>
+#include <stdarg.h>
 #include <stdbool.h>
-#include <string.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <cmocka.h>
+#include <string.h>
 
 static void read_file_content(const char *rel_path, char *buf, size_t max_len) {
     char path[512];
     FILE *fp = NULL;
 
-    const char *prefixes[] = {
-        "",
-        "../",
-        "../../",
-        "/workspaces/edgeos/EdgeC/",
-        NULL
-    };
+    const char *prefixes[] = {"", "../", "../../", "/workspaces/edgeos/EdgeC/", NULL};
 
     for (int i = 0; prefixes[i] != NULL; i++) {
         snprintf(path, sizeof(path), "%s%s", prefixes[i], rel_path);
@@ -93,7 +87,8 @@ static void test_anti_reverse_pid_deadband_and_curtailment_loop(void **state) {
 static void test_demand_peak_shaving_and_transformer_redline_monitoring(void **state) {
     (void)state;
     char content[65536];
-    read_file_content("web/core/src/components/DemandPeakShavingWidget.vue", content, sizeof(content));
+    read_file_content("web/core/src/components/DemandPeakShavingWidget.vue", content,
+                      sizeof(content));
 
     // 15-min rolling demand & 500kVA transformer protection
     assert_non_null(strstr(content, "15-Min Rolling Demand"));

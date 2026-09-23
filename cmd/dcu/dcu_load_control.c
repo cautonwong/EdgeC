@@ -1,16 +1,18 @@
 /**
  * @file dcu_load_control.c
- * @brief Production DCU Transformer Overload Protection & Demand Response Load Shaving Engine Implementation
+ * @brief Production DCU Transformer Overload Protection & Demand Response Load Shaving Engine
+ * Implementation
  */
 
 #include "dcu_load_control.h"
-#include <string.h>
+
 #include <math.h>
+#include <string.h>
 
 void dcu_load_control_init(dcu_load_controller_t* ctrl, double rated_kva) {
     if (!ctrl) return;
     memset(ctrl, 0, sizeof(dcu_load_controller_t));
-    ctrl->rated_capacity_kva = (rated_kva > 0.0) ? rated_kva : 630.0; // Default 630 kVA
+    ctrl->rated_capacity_kva = (rated_kva > 0.0) ? rated_kva : 630.0;  // Default 630 kVA
     ctrl->state = LOAD_STATE_NORMAL;
 }
 
@@ -27,7 +29,8 @@ dcu_load_state_t dcu_load_control_evaluate(dcu_load_controller_t* ctrl, double u
     ctrl->active_power_kw = s_kva * fabs(power_factor);
     // Q = sqrt(S^2 - P^2)
     if (s_kva >= ctrl->active_power_kw) {
-        ctrl->reactive_power_kvar = sqrt(s_kva * s_kva - ctrl->active_power_kw * ctrl->active_power_kw);
+        ctrl->reactive_power_kvar =
+            sqrt(s_kva * s_kva - ctrl->active_power_kw * ctrl->active_power_kw);
     } else {
         ctrl->reactive_power_kvar = 0.0;
     }

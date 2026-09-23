@@ -1,3 +1,4 @@
+#include <cmocka.h>
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -8,7 +9,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <uv.h>
-#include <cmocka.h>
 
 #include "edge_telemetry_store.h"
 
@@ -44,7 +44,7 @@ static int mock_telemetry_forward(const pipe_msg_t *msgs, size_t count, void *us
             fctx->last_msg = msgs[count - 1];
         }
     }
-    return 0; // 成功
+    return 0;  // 成功
 }
 
 // --- Test Cases ---
@@ -83,7 +83,8 @@ static void test_telemetry_store_append_and_query(void **state) {
 
     // 查询 Tag=0x2001, ts in [1000, 1060] (应有 i = 0, 3, 6 -> 1000, 1030, 1060: 3 条)
     query_ctx_t qctx = {0};
-    int match_count = edge_telemetry_store_query(store, 0x2001, 1000, 1060, query_collector_cb, &qctx);
+    int match_count =
+        edge_telemetry_store_query(store, 0x2001, 1000, 1060, query_collector_cb, &qctx);
     assert_int_equal(match_count, 3);
     assert_int_equal(qctx.count, 3);
     assert_int_equal(qctx.collected[0].ts, 1000);
@@ -130,11 +131,12 @@ static void test_telemetry_store_wal_crash_recovery(void **state) {
 
     edge_telemetry_store_stats_t stats2 = {0};
     edge_telemetry_store_get_stats(store2, &stats2);
-    assert_int_equal(stats2.total_wal_flushed, 50); // 100% 成功恢复 50 条记录
+    assert_int_equal(stats2.total_wal_flushed, 50);  // 100% 成功恢复 50 条记录
 
     // 验证恢复数据的准确性
     query_ctx_t qctx = {0};
-    int match_count = edge_telemetry_store_query(store2, 0x3001, 5000, 10000, query_collector_cb, &qctx);
+    int match_count =
+        edge_telemetry_store_query(store2, 0x3001, 5000, 10000, query_collector_cb, &qctx);
     assert_int_equal(match_count, 50);
     assert_int_equal(qctx.count, 50);
     assert_int_equal(qctx.collected[0].ts, 5000);

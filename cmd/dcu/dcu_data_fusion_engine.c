@@ -1,11 +1,13 @@
 /**
  * @file dcu_data_fusion_engine.c
- * @brief Production SGCC/CSG Substation Multi-Source Data Fusion & Topology Digital Twin Engine Implementation
+ * @brief Production SGCC/CSG Substation Multi-Source Data Fusion & Topology Digital Twin Engine
+ * Implementation
  */
 
 #include "dcu_data_fusion_engine.h"
-#include <string.h>
+
 #include <math.h>
+#include <string.h>
 
 void dcu_fusion_init(dcu_data_fusion_engine_t* engine) {
     if (!engine) return;
@@ -13,13 +15,14 @@ void dcu_fusion_init(dcu_data_fusion_engine_t* engine) {
 }
 
 int dcu_fusion_update_meter_sources(dcu_data_fusion_engine_t* engine, const char* addr,
-                                    uint32_t dev_id, double u_val, double p_val,
-                                    int8_t snr, int8_t rssi) {
+                                    uint32_t dev_id, double u_val, double p_val, int8_t snr,
+                                    int8_t rssi) {
     if (!engine || !addr) return -1;
 
     for (uint32_t i = 0; i < engine->meter_count; i++) {
         if (engine->meters[i].device_id == dev_id ||
-            strncmp(engine->meters[i].meter_addr, addr, sizeof(engine->meters[i].meter_addr)) == 0) {
+            strncmp(engine->meters[i].meter_addr, addr, sizeof(engine->meters[i].meter_addr)) ==
+                0) {
             engine->meters[i].instantaneous_voltage_v = u_val;
             engine->meters[i].instantaneous_active_kw = p_val;
             engine->meters[i].hplc_snr_db = snr;
@@ -43,8 +46,8 @@ int dcu_fusion_update_meter_sources(dcu_data_fusion_engine_t* engine, const char
     return 0;
 }
 
-int dcu_fusion_process_analytics(dcu_data_fusion_engine_t* engine, double master_u,
-                                 double master_p, uint64_t now_ms) {
+int dcu_fusion_process_analytics(dcu_data_fusion_engine_t* engine, double master_u, double master_p,
+                                 uint64_t now_ms) {
     if (!engine) return -1;
 
     engine->master_voltage_v = master_u;
@@ -67,13 +70,14 @@ int dcu_fusion_process_analytics(dcu_data_fusion_engine_t* engine, double master
         // 2. Identify Phase based on voltage proximity to 3-phase profiles
         // (Default to Phase A if within 5V of Master, else Phase B or C)
         if (fabs(m->instantaneous_voltage_v - master_u) <= 8.0) {
-            m->identified_phase = 1; // Phase A
+            m->identified_phase = 1;  // Phase A
         } else {
             m->identified_phase = (m->device_id % 3) + 1;
         }
 
         // 3. Multi-source theft detection:
-        // High HPLC SNR (physically connected) but persistently near-zero power when master is heavily loaded
+        // High HPLC SNR (physically connected) but persistently near-zero power when master is
+        // heavily loaded
         if (m->hplc_snr_db > 15 && m->instantaneous_active_kw < 0.01 && master_p > 200.0) {
             m->is_theft_suspect = true;
             engine->theft_suspect_count++;

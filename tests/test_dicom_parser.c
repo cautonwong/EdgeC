@@ -3,12 +3,12 @@
  * @brief Unit tests for Micro-DICOM Frame & Telemetry Parser Operator
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdint.h>
-#include <stdbool.h>
 #include <cmocka.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 
 #include "dicom_parser.h"
@@ -35,18 +35,26 @@ static void test_dicom_parse_valid_frame(void **state) {
     frame_buf[131] = 'M';
 
     /* Tag (0x0028, 0x0010) Rows = 16 */
-    frame_buf[132] = 0x28; frame_buf[133] = 0x00;
-    frame_buf[134] = 0x10; frame_buf[135] = 0x00;
-    frame_buf[140] = 16;   frame_buf[141] = 0;
+    frame_buf[132] = 0x28;
+    frame_buf[133] = 0x00;
+    frame_buf[134] = 0x10;
+    frame_buf[135] = 0x00;
+    frame_buf[140] = 16;
+    frame_buf[141] = 0;
 
     /* Tag (0x0028, 0x0011) Columns = 16 */
-    frame_buf[142] = 0x28; frame_buf[143] = 0x00;
-    frame_buf[144] = 0x11; frame_buf[145] = 0x00;
-    frame_buf[150] = 16;   frame_buf[151] = 0;
+    frame_buf[142] = 0x28;
+    frame_buf[143] = 0x00;
+    frame_buf[144] = 0x11;
+    frame_buf[145] = 0x00;
+    frame_buf[150] = 16;
+    frame_buf[151] = 0;
 
     /* Tag (0x7FE0, 0x0010) Pixel Data */
-    frame_buf[152] = 0xE0; frame_buf[153] = 0x7F;
-    frame_buf[154] = 0x10; frame_buf[155] = 0x00;
+    frame_buf[152] = 0xE0;
+    frame_buf[153] = 0x7F;
+    frame_buf[154] = 0x10;
+    frame_buf[155] = 0x00;
     size_t pixel_offset = 164;
 
     uint16_t *pixels = (uint16_t *)(frame_buf + pixel_offset);

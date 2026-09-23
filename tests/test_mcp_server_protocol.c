@@ -4,22 +4,22 @@
  * @copyright (c) 2026 EdgeOS Project. All rights reserved.
  */
 
+#include <assert.h>
+#include <cjson/cJSON.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 #include <uv.h>
-#include <cjson/cJSON.h>
 
+#include "datahub.h"
 #include "edgeos/edge_mcp_dispatcher.h"
 #include "edgeos/mcp_transport.h"
-#include "datahub.h"
 
 static void test_ws_transport_lifecycle(void) {
     printf("[TEST] Testing WebSocket / HTTP MCP server transport lifecycle...\n");
     uv_loop_t *loop = uv_default_loop();
 
-    edge_mcp_env_t env = { .loop = loop };
+    edge_mcp_env_t env = {.loop = loop};
     edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(&env);
     assert(disp != NULL);
 
@@ -42,7 +42,7 @@ static void test_stdio_transport_lifecycle(void) {
     printf("[TEST] Testing stdio MCP transport lifecycle...\n");
     uv_loop_t *loop = uv_default_loop();
 
-    edge_mcp_env_t env = { .loop = loop };
+    edge_mcp_env_t env = {.loop = loop};
     edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(&env);
     assert(disp != NULL);
 

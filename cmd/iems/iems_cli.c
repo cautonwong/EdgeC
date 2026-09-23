@@ -4,39 +4,58 @@
  * @copyright (c) 2026 EdgeOS Project. All rights reserved.
  */
 
+#include <cjson/cJSON.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
-#include <stdbool.h>
 #include <uv.h>
-#include <cjson/cJSON.h>
 
+#include "contracts.h"
+#include "datahub.h"
+#include "edge_log.h"
 #include "edgeos/edge_mcp_bus.h"
 #include "edgeos/edge_mcp_dispatcher.h"
 #include "edgeos/edge_mcp_industry_tools.h"
-#include "datahub.h"
-#include "contracts.h"
-#include "edge_log.h"
 
 static void print_usage(const char *prog) {
     printf("EdgeOS IEMS Industrial Management CLI & MCP Copilot Console\n");
     printf("Usage: %s <command> [subcommand] [arguments...]\n\n", prog);
     printf("Commands:\n");
-    printf("  mcp list                           List all registered microservice providers and industrial MCP tools\n");
-    printf("  mcp call <tool_name> [args_json]   Execute an industrial MCP tool with JSON arguments\n");
+    printf(
+        "  mcp list                           List all registered microservice providers and "
+        "industrial MCP tools\n");
+    printf(
+        "  mcp call <tool_name> [args_json]   Execute an industrial MCP tool with JSON "
+        "arguments\n");
     printf("  mcp audit [limit]                  View MTT-timestamped audit blackbox logs\n");
-    printf("  mcp policy                         View active Four-Level privilege policies and Five-Anti rules\n");
-    printf("  tag read <tag_id>                  Read physical telemetry value from DataHub shadow\n");
+    printf(
+        "  mcp policy                         View active Four-Level privilege policies and "
+        "Five-Anti rules\n");
+    printf(
+        "  tag read <tag_id>                  Read physical telemetry value from DataHub shadow\n");
     printf("  tag write <tag_id> <val>           Write setpoint or telecontrol value to DataHub\n");
     printf("  status                             Print system health and runtime summary\n");
     printf("  help, --help, -h                   Display this help message\n\n");
     printf("Examples:\n");
     printf("  %s mcp list\n", prog);
-    printf("  %s mcp call dcu_analyze_power_quality '{\"phase_a_v\": 235.0, \"phase_b_v\": 220.0, \"phase_c_v\": 205.0}'\n", prog);
-    printf("  %s mcp call smartbox_eval_transformer_life '{\"load_ratio\": 1.15, \"ambient_temp_c\": 35.0, \"current_top_oil_c\": 78.0}'\n", prog);
-    printf("  %s mcp call iems_optimize_tou_schedule '{\"soc_pct\": 65.0, \"pv_forecast_kw\": 40.0}'\n", prog);
-    printf("  %s mcp call ess_emergency_stop '{\"system_id\": \"ESS_01\", \"reason\": \"GRID_SURGE\"}'\n", prog);
+    printf(
+        "  %s mcp call dcu_analyze_power_quality '{\"phase_a_v\": 235.0, \"phase_b_v\": 220.0, "
+        "\"phase_c_v\": 205.0}'\n",
+        prog);
+    printf(
+        "  %s mcp call smartbox_eval_transformer_life '{\"load_ratio\": 1.15, \"ambient_temp_c\": "
+        "35.0, \"current_top_oil_c\": 78.0}'\n",
+        prog);
+    printf(
+        "  %s mcp call iems_optimize_tou_schedule '{\"soc_pct\": 65.0, \"pv_forecast_kw\": "
+        "40.0}'\n",
+        prog);
+    printf(
+        "  %s mcp call ess_emergency_stop '{\"system_id\": \"ESS_01\", \"reason\": "
+        "\"GRID_SURGE\"}'\n",
+        prog);
 }
 
 static mcp_bus_hub_t *create_initialized_hub(void) {
@@ -56,11 +75,18 @@ static int handle_mcp_list(void) {
     cJSON *providers = NULL;
     int pcount = mcp_bus_get_providers_json(hub, &providers);
 
-    printf("========================================================================================================\n");
+    printf(
+        "=========================================================================================="
+        "==============\n");
     printf(" EdgeOS Shared MCP Neural Bus - Registered Providers & Tools (%d Providers)\n", pcount);
-    printf("========================================================================================================\n");
-    printf("%-20s %-18s %-10s %-32s %s\n", "PROVIDER", "DOMAIN", "PID", "TOOL NAME", "PRIVILEGE / DESCRIPTION");
-    printf("--------------------------------------------------------------------------------------------------------\n");
+    printf(
+        "=========================================================================================="
+        "==============\n");
+    printf("%-20s %-18s %-10s %-32s %s\n", "PROVIDER", "DOMAIN", "PID", "TOOL NAME",
+           "PRIVILEGE / DESCRIPTION");
+    printf(
+        "------------------------------------------------------------------------------------------"
+        "--------------\n");
 
     if (providers && cJSON_IsArray(providers)) {
         int sz = cJSON_GetArraySize(providers);
@@ -79,28 +105,29 @@ static int handle_mcp_list(void) {
                     const char *t_sec = cJSON_GetObjectItem(t, "security_level")->valuestring;
                     const char *t_desc = cJSON_GetObjectItem(t, "description")->valuestring;
 
-                    printf("%-20s %-18s %-10d %-32s [%s] %s\n",
-                           (j == 0) ? p_id : "",
-                           (j == 0) ? p_dom : "",
-                           (j == 0) ? pid : 0,
-                           t_name, t_sec, t_desc);
+                    printf("%-20s %-18s %-10d %-32s [%s] %s\n", (j == 0) ? p_id : "",
+                           (j == 0) ? p_dom : "", (j == 0) ? pid : 0, t_name, t_sec, t_desc);
                 }
             }
-            printf("--------------------------------------------------------------------------------------------------------\n");
+            printf(
+                "----------------------------------------------------------------------------------"
+                "----------------------\n");
         }
     }
 
     if (providers) cJSON_Delete(providers);
 
     /* Also list foundational built-in tools */
-    char *resp = edge_mcp_dispatch_json(mcp_bus_get_dispatcher(hub), "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}");
+    char *resp = edge_mcp_dispatch_json(mcp_bus_get_dispatcher(hub),
+                                        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}");
     if (resp) {
         cJSON *root = cJSON_Parse(resp);
         if (root) {
             cJSON *res = cJSON_GetObjectItem(root, "result");
             cJSON *tools = res ? cJSON_GetObjectItem(res, "tools") : NULL;
             if (tools && cJSON_IsArray(tools)) {
-                printf("\nTotal Active MCP Tools Available in Dispatcher: %d\n", cJSON_GetArraySize(tools));
+                printf("\nTotal Active MCP Tools Available in Dispatcher: %d\n",
+                       cJSON_GetArraySize(tools));
             }
             cJSON_Delete(root);
         }
@@ -111,7 +138,8 @@ static int handle_mcp_list(void) {
     return 0;
 }
 
-static int handle_mcp_call(const char *tool_name, const char *args_json, const char *operator_id, mcp_security_level_t sec_level) {
+static int handle_mcp_call(const char *tool_name, const char *args_json, const char *operator_id,
+                           mcp_security_level_t sec_level) {
     if (!tool_name) {
         fprintf(stderr, "Error: Missing tool name for 'mcp call'.\n");
         return 1;
@@ -124,13 +152,11 @@ static int handle_mcp_call(const char *tool_name, const char *args_json, const c
     }
 
     const char *env_token = getenv("EDGEOS_SUPERVISOR_TOKEN");
-    mcp_security_context_t sec_ctx = {
-        .client_id = "iems-cli",
-        .operator_id = operator_id ? operator_id : "cli_operator",
-        .supervisor_token = env_token ? env_token : "",
-        .role_level = sec_level,
-        .request_timestamp_ns = (uint64_t)uv_hrtime()
-    };
+    mcp_security_context_t sec_ctx = {.client_id = "iems-cli",
+                                      .operator_id = operator_id ? operator_id : "cli_operator",
+                                      .supervisor_token = env_token ? env_token : "",
+                                      .role_level = sec_level,
+                                      .request_timestamp_ns = (uint64_t)uv_hrtime()};
 
     cJSON *req = cJSON_CreateObject();
     cJSON_AddStringToObject(req, "jsonrpc", "2.0");
@@ -192,11 +218,18 @@ static int handle_mcp_audit(int limit) {
     cJSON *logs = NULL;
     int count = mcp_bus_get_audit_logs(hub, (size_t)limit, &logs);
 
-    printf("========================================================================================================\n");
+    printf(
+        "=========================================================================================="
+        "==============\n");
     printf(" EdgeOS Industrial Audit Blackbox Trail (Recent %d Records)\n", count);
-    printf("========================================================================================================\n");
-    printf("%-22s %-16s %-16s %-28s %-12s %s\n", "MTT TIMESTAMP (ns)", "CLIENT ID", "OPERATOR", "TOOL NAME", "STATUS", "DURATION");
-    printf("--------------------------------------------------------------------------------------------------------\n");
+    printf(
+        "=========================================================================================="
+        "==============\n");
+    printf("%-22s %-16s %-16s %-28s %-12s %s\n", "MTT TIMESTAMP (ns)", "CLIENT ID", "OPERATOR",
+           "TOOL NAME", "STATUS", "DURATION");
+    printf(
+        "------------------------------------------------------------------------------------------"
+        "--------------\n");
 
     if (logs && cJSON_IsArray(logs)) {
         int sz = cJSON_GetArraySize(logs);
@@ -209,11 +242,13 @@ static int handle_mcp_audit(int limit) {
             bool auth = cJSON_IsTrue(cJSON_GetObjectItem(item, "authorized"));
             int dur = cJSON_GetObjectItem(item, "duration_us")->valueint;
 
-            printf("%-22.0f %-16s %-16s %-28s %-12s %d µs\n",
-                   ts, cid, op, tname, auth ? "APPROVED" : "BLOCKED", dur);
+            printf("%-22.0f %-16s %-16s %-28s %-12s %d µs\n", ts, cid, op, tname,
+                   auth ? "APPROVED" : "BLOCKED", dur);
         }
     }
-    printf("========================================================================================================\n");
+    printf(
+        "=========================================================================================="
+        "==============\n");
 
     if (logs) cJSON_Delete(logs);
     mcp_bus_hub_destroy(hub);
@@ -231,8 +266,8 @@ static int handle_tag_read(uint32_t tag_id) {
 
     pipe_msg_t msg = {0};
     if (datahub_read_shadow(&hub, tag_id, &msg) == 0) {
-        printf("Tag [0x%04X / %u]: Value=%.4f Quality=0x%02X Timestamp=%lu\n",
-               tag_id, tag_id, msg.payload.val.f, msg.quality, (unsigned long)msg.ts);
+        printf("Tag [0x%04X / %u]: Value=%.4f Quality=0x%02X Timestamp=%lu\n", tag_id, tag_id,
+               msg.payload.val.f, msg.quality, (unsigned long)msg.ts);
     } else {
         printf("Tag [0x%04X / %u]: NOT FOUND or uninitialized.\n", tag_id, tag_id);
     }
@@ -269,7 +304,8 @@ int main(int argc, char **argv) {
             int limit = (argc >= 4) ? atoi(argv[3]) : 20;
             return handle_mcp_audit(limit);
         } else if (strcmp(sub, "policy") == 0) {
-            return handle_mcp_call("mcp_query_security_policy", "{}", "guest", MCP_SEC_L0_SAFE_READ);
+            return handle_mcp_call("mcp_query_security_policy", "{}", "guest",
+                                   MCP_SEC_L0_SAFE_READ);
         } else {
             fprintf(stderr, "Unknown mcp subcommand: %s\n", sub);
             return 1;
@@ -286,7 +322,8 @@ int main(int argc, char **argv) {
         } else if (strcmp(sub, "write") == 0 && argc >= 5) {
             char call_args[128];
             snprintf(call_args, sizeof(call_args), "{\"tag_id\": %u, \"value\": %s}", tid, argv[4]);
-            return handle_mcp_call("datahub_write_tag", call_args, "operator", MCP_SEC_L1_PARAM_TUNING);
+            return handle_mcp_call("datahub_write_tag", call_args, "operator",
+                                   MCP_SEC_L1_PARAM_TUNING);
         }
     } else if (strcmp(cmd, "status") == 0) {
         printf("EdgeOS IEMS Node: ONLINE | MCP Bus: ACTIVE | DataHub: SYNCHRONIZED\n");

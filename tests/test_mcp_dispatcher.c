@@ -4,16 +4,16 @@
  * @copyright (c) 2026 EdgeOS Project. All rights reserved.
  */
 
+#include <assert.h>
+#include <cjson/cJSON.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
-#include <uv.h>
 #include <sys/mman.h>
-#include <cjson/cJSON.h>
+#include <uv.h>
 
-#include "edgeos/edge_mcp_dispatcher.h"
 #include "datahub.h"
+#include "edgeos/edge_mcp_dispatcher.h"
 
 static datahub_t *create_test_hub(uv_loop_t *loop, const char *name) {
     datahub_t *hub = (datahub_t *)calloc(1, sizeof(datahub_t));
@@ -39,12 +39,7 @@ static void test_dispatcher_create_destroy(void) {
     assert(hub != NULL);
 
     edge_mcp_env_t env = {
-        .hub = hub,
-        .drv_mgr = NULL,
-        .stream_eng = NULL,
-        .storage_drv = NULL,
-        .loop = loop
-    };
+        .hub = hub, .drv_mgr = NULL, .stream_eng = NULL, .storage_drv = NULL, .loop = loop};
 
     edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(&env);
     assert(disp != NULL);
@@ -106,16 +101,14 @@ static void test_jsonrpc_tools_list_and_call(void) {
     assert(hub != NULL);
 
     /* Seed DataHub with physical measurements */
-    pipe_msg_t msg1 = {
-        .tag_id = 0x1001,
-        .payload = { .val = { .f = 220.5f } },
-        .quality = 0,
-        .type = PIPEMSG_TYPE_SCALAR,
-        .ts = 1000000ULL
-    };
+    pipe_msg_t msg1 = {.tag_id = 0x1001,
+                       .payload = {.val = {.f = 220.5f}},
+                       .quality = 0,
+                       .type = PIPEMSG_TYPE_SCALAR,
+                       .ts = 1000000ULL};
     assert(datahub_write_shadow(hub, &msg1) == 0);
 
-    edge_mcp_env_t env = { .hub = hub, .loop = loop };
+    edge_mcp_env_t env = {.hub = hub, .loop = loop};
     edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(&env);
     assert(disp != NULL);
 
@@ -133,7 +126,9 @@ static void test_jsonrpc_tools_list_and_call(void) {
     free(resp);
 
     /* 2. tools/call datahub_read_tags */
-    const char *call_req = "{\"jsonrpc\":\"2.0\",\"id\":11,\"method\":\"tools/call\",\"params\":{\"name\":\"datahub_read_tags\",\"arguments\":{\"tag_ids\":[4097]}}}";
+    const char *call_req =
+        "{\"jsonrpc\":\"2.0\",\"id\":11,\"method\":\"tools/"
+        "call\",\"params\":{\"name\":\"datahub_read_tags\",\"arguments\":{\"tag_ids\":[4097]}}}";
     resp = edge_mcp_dispatch_json(disp, call_req);
     assert(resp != NULL);
     resp_json = cJSON_Parse(resp);
@@ -149,7 +144,10 @@ static void test_jsonrpc_tools_list_and_call(void) {
     free(resp);
 
     /* 3. tools/call datahub_write_tag */
-    const char *write_req = "{\"jsonrpc\":\"2.0\",\"id\":12,\"method\":\"tools/call\",\"params\":{\"name\":\"datahub_write_tag\",\"arguments\":{\"tag_id\":4098,\"value\":49.98,\"quality\":0}}}";
+    const char *write_req =
+        "{\"jsonrpc\":\"2.0\",\"id\":12,\"method\":\"tools/"
+        "call\",\"params\":{\"name\":\"datahub_write_tag\",\"arguments\":{\"tag_id\":4098,"
+        "\"value\":49.98,\"quality\":0}}}";
     resp = edge_mcp_dispatch_json(disp, write_req);
     assert(resp != NULL);
     resp_json = cJSON_Parse(resp);
@@ -169,22 +167,30 @@ static void test_jsonrpc_tools_list_and_call(void) {
     assert(read_back.payload.val.f > 49.97f && read_back.payload.val.f < 49.99f);
 
     /* 4. tools/call other domain tools (io, pipeline, dds, storage) */
-    const char *io_req = "{\"jsonrpc\":\"2.0\",\"id\":13,\"method\":\"tools/call\",\"params\":{\"name\":\"io_list_channels\",\"arguments\":{}}}";
+    const char *io_req =
+        "{\"jsonrpc\":\"2.0\",\"id\":13,\"method\":\"tools/"
+        "call\",\"params\":{\"name\":\"io_list_channels\",\"arguments\":{}}}";
     resp = edge_mcp_dispatch_json(disp, io_req);
     assert(resp != NULL && strstr(resp, "RS485-1"));
     free(resp);
 
-    const char *pipe_req = "{\"jsonrpc\":\"2.0\",\"id\":14,\"method\":\"tools/call\",\"params\":{\"name\":\"pipeline_query_metrics\",\"arguments\":{}}}";
+    const char *pipe_req =
+        "{\"jsonrpc\":\"2.0\",\"id\":14,\"method\":\"tools/"
+        "call\",\"params\":{\"name\":\"pipeline_query_metrics\",\"arguments\":{}}}";
     resp = edge_mcp_dispatch_json(disp, pipe_req);
     assert(resp != NULL && strstr(resp, "avg_latency_us"));
     free(resp);
 
-    const char *dds_req = "{\"jsonrpc\":\"2.0\",\"id\":15,\"method\":\"tools/call\",\"params\":{\"name\":\"dds_inspect_topics\",\"arguments\":{}}}";
+    const char *dds_req =
+        "{\"jsonrpc\":\"2.0\",\"id\":15,\"method\":\"tools/"
+        "call\",\"params\":{\"name\":\"dds_inspect_topics\",\"arguments\":{}}}";
     resp = edge_mcp_dispatch_json(disp, dds_req);
     assert(resp != NULL && strstr(resp, "EdgeOS/DCU/Telemetry"));
     free(resp);
 
-    const char *soe_req = "{\"jsonrpc\":\"2.0\",\"id\":16,\"method\":\"tools/call\",\"params\":{\"name\":\"storage_query_soe_events\",\"arguments\":{\"limit\":5}}}";
+    const char *soe_req =
+        "{\"jsonrpc\":\"2.0\",\"id\":16,\"method\":\"tools/"
+        "call\",\"params\":{\"name\":\"storage_query_soe_events\",\"arguments\":{\"limit\":5}}}";
     resp = edge_mcp_dispatch_json(disp, soe_req);
     assert(resp != NULL && strstr(resp, "GRID_POWER_OUTAGE"));
     free(resp);
@@ -212,19 +218,23 @@ static void test_jsonrpc_error_handling(void) {
     free(resp);
 
     /* 3. Unknown method */
-    resp = edge_mcp_dispatch_json(disp, "{\"jsonrpc\":\"2.0\",\"id\":99,\"method\":\"unknown_method\"}");
+    resp = edge_mcp_dispatch_json(disp,
+                                  "{\"jsonrpc\":\"2.0\",\"id\":99,\"method\":\"unknown_method\"}");
     assert(resp != NULL);
     assert(strstr(resp, "-32601"));
     free(resp);
 
     /* 4. Unknown tool in tools/call */
-    resp = edge_mcp_dispatch_json(disp, "{\"jsonrpc\":\"2.0\",\"id\":100,\"method\":\"tools/call\",\"params\":{\"name\":\"non_existent_tool\"}}");
+    resp = edge_mcp_dispatch_json(disp,
+                                  "{\"jsonrpc\":\"2.0\",\"id\":100,\"method\":\"tools/"
+                                  "call\",\"params\":{\"name\":\"non_existent_tool\"}}");
     assert(resp != NULL);
     assert(strstr(resp, "-32601"));
     free(resp);
 
     /* 5. Missing params in tools/call */
-    resp = edge_mcp_dispatch_json(disp, "{\"jsonrpc\":\"2.0\",\"id\":101,\"method\":\"tools/call\"}");
+    resp =
+        edge_mcp_dispatch_json(disp, "{\"jsonrpc\":\"2.0\",\"id\":101,\"method\":\"tools/call\"}");
     assert(resp != NULL);
     assert(strstr(resp, "-32602"));
     free(resp);
@@ -237,7 +247,7 @@ static void test_direct_c_api_and_benchmark(void) {
     printf("[TEST] Testing direct C API tool invocation & latency benchmark...\n");
     uv_loop_t *loop = uv_default_loop();
     datahub_t *hub = create_test_hub(loop, "/test_mcp_disp_3");
-    edge_mcp_env_t env = { .hub = hub, .loop = loop };
+    edge_mcp_env_t env = {.hub = hub, .loop = loop};
     edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(&env);
 
     /* Direct C call */

@@ -1,27 +1,28 @@
 /**
  * @file test_iems_advanced_delivery.c
- * @brief Production Unit Tests for Advanced IEMS Multi-PCS Dispatcher, Fire Interlock & Site Commissioning Engine
+ * @brief Production Unit Tests for Advanced IEMS Multi-PCS Dispatcher, Fire Interlock & Site
+ * Commissioning Engine
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdint.h>
-#include <stdbool.h>
 #include <cmocka.h>
+#include <math.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
 
-#include "iems_multi_pcs_dispatcher.h"
-#include "iems_fire_safety_interlock.h"
 #include "iems_commissioning_tool.h"
+#include "iems_fire_safety_interlock.h"
+#include "iems_multi_pcs_dispatcher.h"
 
 static void test_iems_multi_pcs_load_sharing(void** state) {
     (void)state;
 
     iems_multi_pcs_dispatcher_t disp;
-    iems_pcs_dispatcher_init(&disp, 1000.0); // 1000 kW/s ramp rate
+    iems_pcs_dispatcher_init(&disp, 1000.0);  // 1000 kW/s ramp rate
 
     // Register 4 PCS units (250 kW each = 1000 kW capacity)
     assert_int_equal(iems_pcs_dispatcher_register_unit(&disp, 1, "PCS_01", 250.0), 0);
@@ -42,9 +43,9 @@ static void test_iems_multi_pcs_load_sharing(void** state) {
     assert_int_equal(iems_pcs_dispatcher_update_status(&disp, 2, true, false, 150.0, 80.0), 0);
     assert_true(fabs(disp.units[1].derating_factor - 0.5) < 0.001);
 
-    // Re-dispatch 600 kW -> Effective capacities: PCS1=250, PCS2=125, PCS3=250, PCS4=250 -> Total 875 kW
-    // PCS2 share = 125/875 = 1/7 -> target = 600 / 7 = 85.71 kW
-    // PCS1,3,4 share = 250/875 = 2/7 -> target = 1200 / 7 = 171.43 kW
+    // Re-dispatch 600 kW -> Effective capacities: PCS1=250, PCS2=125, PCS3=250, PCS4=250 -> Total
+    // 875 kW PCS2 share = 125/875 = 1/7 -> target = 600 / 7 = 85.71 kW PCS1,3,4 share = 250/875 =
+    // 2/7 -> target = 1200 / 7 = 171.43 kW
     rc = iems_pcs_dispatcher_dispatch(&disp, 600.0, 1.0);
     assert_int_equal(rc, 0);
     assert_true(fabs(disp.units[1].target_power_kw - (600.0 * 125.0 / 875.0)) < 0.01);
@@ -102,18 +103,20 @@ static void test_iems_site_commissioning_preflight(void** state) {
     assert_true(fabs(cfg.calculated_pt_ratio - 100.0) < 0.001);
     assert_true(fabs(cfg.total_power_multiplier - 20000.0) < 0.001);
 
-    double scaled_power = iems_commissioning_scale_power(&cfg, 5.0); // 5W raw -> 100kW
+    double scaled_power = iems_commissioning_scale_power(&cfg, 5.0);  // 5W raw -> 100kW
     assert_true(fabs(scaled_power - 100000.0) < 0.001);
 
     // 2. Pre-Flight Check (All Healthy)
     iems_commissioning_report_t report;
-    int rc = iems_commissioning_run_preflight_check(&report, 395.0, 50.01, 800.0, 4.5, false, false, 0.05);
+    int rc = iems_commissioning_run_preflight_check(&report, 395.0, 50.01, 800.0, 4.5, false, false,
+                                                    0.05);
     assert_int_equal(rc, 0);
     assert_true(report.is_go_for_grid_tie);
     assert_int_equal(report.total_score, 100);
 
     // 3. Pre-Flight Check (Low Insulation Fault -> No-Go)
-    rc = iems_commissioning_run_preflight_check(&report, 395.0, 50.01, 200.0, 4.5, false, false, 0.05);
+    rc = iems_commissioning_run_preflight_check(&report, 395.0, 50.01, 200.0, 4.5, false, false,
+                                                0.05);
     assert_int_equal(rc, 0);
     assert_false(report.is_go_for_grid_tie);
     assert_false(report.is_bms_insulation_ok);

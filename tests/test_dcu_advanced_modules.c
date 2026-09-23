@@ -272,8 +272,8 @@ static void test_dcu_advanced_features_dispatch(void** state) {
                               &first_evt_rec);  // 通过 OAD 召测首条事件记录
     assert_int_equal(ret, 0);
     assert_int_equal(first_evt_rec.index, 1);
-    assert_float_equal(first_evt_rec.snapshot_value, 150.0f, 0.01f);             // 快照电压 150V
-    assert_true(first_evt_rec.is_active);                                        // 事件处于发生状态
+    assert_float_equal(first_evt_rec.snapshot_value, 150.0f, 0.01f);  // 快照电压 150V
+    assert_true(first_evt_rec.is_active);                             // 事件处于发生状态
     assert_int_equal(first_evt_rec.start_time, base_ts + 5ULL * 1000000000ULL);  // 触发点正确
 
     // 💡 C. 注入电压恢复 220.5V 标量，失压事件应消除

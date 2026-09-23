@@ -2,28 +2,22 @@
  * test_web_channel_topology.c - Verification of Physical Channel Topology & SNR Heatmap (AEP-500)
  */
 
-#include <stdarg.h>
-#include <stddef.h>
+#include <cmocka.h>
+#include <math.h>
 #include <setjmp.h>
-#include <stdint.h>
+#include <stdarg.h>
 #include <stdbool.h>
-#include <string.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
-#include <cmocka.h>
+#include <string.h>
 
 static void read_file_content(const char *rel_path, char *buf, size_t max_len) {
     char path[512];
     FILE *fp = NULL;
 
-    const char *prefixes[] = {
-        "",
-        "../",
-        "../../",
-        "/workspaces/edgeos/EdgeC/",
-        NULL
-    };
+    const char *prefixes[] = {"", "../", "../../", "/workspaces/edgeos/EdgeC/", NULL};
 
     for (int i = 0; prefixes[i] != NULL; i++) {
         snprintf(path, sizeof(path), "%s%s", prefixes[i], rel_path);
@@ -40,7 +34,8 @@ static void read_file_content(const char *rel_path, char *buf, size_t max_len) {
 static void test_channel_topology_component_structure(void **state) {
     (void)state;
     char content[65536];
-    read_file_content("web/core/src/views/devices/ChannelTopologyHeatmap.vue", content, sizeof(content));
+    read_file_content("web/core/src/views/devices/ChannelTopologyHeatmap.vue", content,
+                      sizeof(content));
 
     // Headers & Navigation
     assert_non_null(strstr(content, "TOPOLOGY & SNR HEATMAP"));
@@ -99,10 +94,10 @@ static snr_quality_t classify_channel_snr(double snr_db) {
     return SNR_QUALITY_POOR;
 }
 
-static const char* get_link_color_code(double snr_db) {
-    if (snr_db > 20.0) return "#10b981"; // Emerald
-    if (snr_db >= 10.0) return "#f59e0b"; // Amber
-    return "#f43f5e"; // Rose
+static const char *get_link_color_code(double snr_db) {
+    if (snr_db > 20.0) return "#10b981";   // Emerald
+    if (snr_db >= 10.0) return "#f59e0b";  // Amber
+    return "#f43f5e";                      // Rose
 }
 
 static void test_channel_topology_snr_classification_algorithm(void **state) {
@@ -130,7 +125,7 @@ typedef struct {
     double phase_bc_coupling_db;
     double phase_ca_coupling_db;
     bool is_excessive_leakage;
-    const char* root_cause_phase_pair;
+    const char *root_cause_phase_pair;
 } crosstalk_report_t;
 
 static crosstalk_report_t evaluate_phase_crosstalk(double ab, double bc, double ca) {
@@ -172,7 +167,7 @@ static void test_channel_topology_crosstalk_and_noise_analyzer(void **state) {
 
     // Inverter Noise Burst Delta Check
     double baseline_noise_floor_dbm = -90.0;
-    double measured_noise_floor_dbm = -71.8; // +18.2 dB rise
+    double measured_noise_floor_dbm = -71.8;  // +18.2 dB rise
     double noise_rise = measured_noise_floor_dbm - baseline_noise_floor_dbm;
     assert_true(fabs(noise_rise - 18.2) < 0.01);
 }

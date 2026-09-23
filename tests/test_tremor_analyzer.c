@@ -1,6 +1,7 @@
-#include <stdio.h>
 #include <assert.h>
 #include <math.h>
+#include <stdio.h>
+
 #include "tremor_analyzer.h"
 
 int main(void) {
@@ -20,8 +21,7 @@ int main(void) {
     tremor_analyzer_compute(&res, accel, 200, sample_rate);
 
     printf("Peak Frequency: %.1f Hz, Power: %.2f, Resting Tremor: %s, Action Tremor: %s\n",
-           res.peak_frequency_hz, res.tremor_power,
-           res.resting_tremor_flag ? "YES" : "NO",
+           res.peak_frequency_hz, res.tremor_power, res.resting_tremor_flag ? "YES" : "NO",
            res.action_tremor_flag ? "YES" : "NO");
 
     assert(res.peak_frequency_hz >= 4.5f && res.peak_frequency_hz <= 5.5f);

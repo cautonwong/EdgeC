@@ -7,8 +7,8 @@
 #ifndef EDGEOS_SDK_STREAM_ENGINE_H
 #define EDGEOS_SDK_STREAM_ENGINE_H
 
-#include "edgeos/types.h"
 #include "../../modules/edge_stream/include/stream_engine.h"
+#include "edgeos/types.h"
 
 #ifdef __cplusplus
 extern "C" {

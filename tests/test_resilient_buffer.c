@@ -1,14 +1,15 @@
 /**
  * @file test_resilient_buffer.c
- * @brief Unit tests for Resilient Telemetry Store-and-Forward Buffer Operator (with WAL persistence)
+ * @brief Unit tests for Resilient Telemetry Store-and-Forward Buffer Operator (with WAL
+ * persistence)
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdint.h>
-#include <stdbool.h>
 #include <cmocka.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <unistd.h>
 
 #include "resilient_buffer.h"
@@ -30,7 +31,8 @@ static void test_resilient_buffer_workflow(void **state) {
     /* Simulate Network Outage */
     resilient_buffer_set_net_state(&buf, false);
     telemetry_record_t rec;
-    assert_int_equal(resilient_buffer_pop(&buf, &rec), 1); /* Should be blocked/throttled during outage */
+    assert_int_equal(resilient_buffer_pop(&buf, &rec),
+                     1); /* Should be blocked/throttled during outage */
 
     /* Store 2 more during outage */
     assert_int_equal(resilient_buffer_push(&buf, 1002, 221.0, 1700000001ULL), 0);

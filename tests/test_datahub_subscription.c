@@ -1,19 +1,20 @@
 /**
  * @file test_datahub_subscription.c
- * @brief CMocka Unit Tests and Benchmark for DataHub Fine-Grained Subscription Engine (ARCH-DEEP-01)
+ * @brief CMocka Unit Tests and Benchmark for DataHub Fine-Grained Subscription Engine
+ * (ARCH-DEEP-01)
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdint.h>
-#include <stdbool.h>
 #include <cmocka.h>
+#include <math.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <math.h>
 
 #include "datahub.h"
 
@@ -93,14 +94,12 @@ static void test_domain_and_device_filter(void **state) {
     assert_true(sub_alarm > 0);
 
     // 订阅指定物理设备 Device 42
-    datahub_sub_filter_t filter_dev = {
-        .tag_id = 0,
-        .tag_mask = 0,
-        .domain_mask = 0,
-        .device_id = 42,
-        .notify_on_change_only = false,
-        .deadband = 0.0
-    };
+    datahub_sub_filter_t filter_dev = {.tag_id = 0,
+                                       .tag_mask = 0,
+                                       .domain_mask = 0,
+                                       .device_id = 42,
+                                       .notify_on_change_only = false,
+                                       .deadband = 0.0};
     int sub_dev42 = datahub_subscribe_filtered(&hub, &filter_dev, test_sub_callback, &ctx_dev42);
     assert_true(sub_dev42 > 0);
 
@@ -147,14 +146,12 @@ static void test_deadband_and_rbe(void **state) {
     assert_int_equal(rc, 0);
 
     test_subscriber_cb_ctx_t ctx = {0};
-    datahub_sub_filter_t filter = {
-        .tag_id = 0x1000,
-        .tag_mask = 0,
-        .domain_mask = 0,
-        .device_id = EDGE_DEVICE_ANY,
-        .notify_on_change_only = true,
-        .deadband = 0.5
-    };
+    datahub_sub_filter_t filter = {.tag_id = 0x1000,
+                                   .tag_mask = 0,
+                                   .domain_mask = 0,
+                                   .device_id = EDGE_DEVICE_ANY,
+                                   .notify_on_change_only = true,
+                                   .deadband = 0.5};
 
     int sub_id = datahub_subscribe_filtered(&hub, &filter, test_sub_callback, &ctx);
     assert_true(sub_id > 0);
@@ -238,7 +235,8 @@ static void test_subscription_dispatch_microbenchmark(void **state) {
 
     // 满载注册 64 个活跃订阅者
     for (int i = 0; i < 64; i++) {
-        int sub_id = datahub_subscribe_tag(&hub, (uint32_t)(0x1000 + i), test_sub_callback, &ctx_arr[i]);
+        int sub_id =
+            datahub_subscribe_tag(&hub, (uint32_t)(0x1000 + i), test_sub_callback, &ctx_arr[i]);
         assert_true(sub_id > 0);
     }
 

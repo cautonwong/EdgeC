@@ -3,12 +3,12 @@
  * @brief CMocka Unit & Physical Consistency Test for EdgeOS Secondary Developer Manuals (AEP-406)
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdint.h>
-#include <stdbool.h>
 #include <cmocka.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -93,7 +93,8 @@ static void test_quickstart_scaffold_flow(void **state) {
 
     // Run quickstart create-product command directly against repo root
     char cmd[8192];
-    snprintf(cmd, sizeof(cmd), "%s/.local/linux-x86_64/bin/edge-cli create-product %s --base=%s > /dev/null 2>&1",
+    snprintf(cmd, sizeof(cmd),
+             "%s/.local/linux-x86_64/bin/edge-cli create-product %s --base=%s > /dev/null 2>&1",
              root, MANUAL_TEST_PROD, root);
     int rc = system(cmd);
     assert_int_equal(rc, 0);
@@ -107,14 +108,16 @@ static void test_quickstart_scaffold_flow(void **state) {
     assert_true(file_exists_and_contains(path, "<edgeos/edgeos.h>"));
 
     // Run contract linter as instructed in quickstart
-    snprintf(cmd, sizeof(cmd), "%s/.local/linux-x86_64/bin/edge-cli lint-contract %s/contracts/products/%s.yaml --base=%s --strict > /dev/null 2>&1",
+    snprintf(cmd, sizeof(cmd),
+             "%s/.local/linux-x86_64/bin/edge-cli lint-contract %s/contracts/products/%s.yaml "
+             "--base=%s --strict > /dev/null 2>&1",
              root, root, MANUAL_TEST_PROD, root);
     rc = system(cmd);
     assert_int_equal(rc, 0);
 
     // Clean up created sample product files
-    snprintf(cmd, sizeof(cmd), "rm -rf %s/cmd/%s %s/contracts/products/%s.yaml",
-             root, MANUAL_TEST_PROD, root, MANUAL_TEST_PROD);
+    snprintf(cmd, sizeof(cmd), "rm -rf %s/cmd/%s %s/contracts/products/%s.yaml", root,
+             MANUAL_TEST_PROD, root, MANUAL_TEST_PROD);
     rc = system(cmd);
     (void)rc;
 }

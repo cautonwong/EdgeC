@@ -1,5 +1,6 @@
-#include <stdio.h>
 #include <assert.h>
+#include <stdio.h>
+
 #include "motion_wavelet.h"
 
 int main(void) {
@@ -20,8 +21,8 @@ int main(void) {
     motion_wavelet_push(&mw, 100.0f);
     motion_wavelet_transform_haar(&mw, 5.0f);
 
-    printf("Detail Energy: %.2f, Anomaly Detected: %s\n",
-           mw.detail_energy, mw.anomaly_detected ? "YES" : "NO");
+    printf("Detail Energy: %.2f, Anomaly Detected: %s\n", mw.detail_energy,
+           mw.anomaly_detected ? "YES" : "NO");
 
     assert(mw.anomaly_detected);
 

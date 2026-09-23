@@ -3,24 +3,24 @@
  * @brief Empirical C Unit Test verifying serialization descriptors & structs derived from OMG IDLs
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdint.h>
-#include <stdbool.h>
 #include <cmocka.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 
-#include "dlt698_objects.h"
-#include "idis_pack3_objects.h"
 #include "dlms_bluebook_objects.h"
 #include "dlms_cosem_objects.h"
+#include "dlt698_objects.h"
+#include "idis_pack3_objects.h"
 
 /* Include generated descriptor C files directly from IDL_GEN_DIR without hardcoded paths */
-#include "dlt698_objects.c"
-#include "idis_pack3_objects.c"
 #include "dlms_bluebook_objects.c"
 #include "dlms_cosem_objects.c"
+#include "dlt698_objects.c"
+#include "idis_pack3_objects.c"
 
 static void test_dlt698_idl_struct_and_descriptor(void **state) {
     (void)state;
@@ -82,8 +82,10 @@ static void test_dlms_bluebook_idl_struct_and_descriptor(void **state) {
 
     /* Verify Cyclone DDS Topic Descriptor struct */
     assert_non_null(dlms_bluebook_BluebookRecord_desc.m_typename);
-    assert_string_equal(dlms_bluebook_BluebookRecord_desc.m_typename, "dlms::bluebook::BluebookRecord");
-    assert_int_equal(dlms_bluebook_BluebookRecord_desc.m_size, sizeof(dlms_bluebook_BluebookRecord));
+    assert_string_equal(dlms_bluebook_BluebookRecord_desc.m_typename,
+                        "dlms::bluebook::BluebookRecord");
+    assert_int_equal(dlms_bluebook_BluebookRecord_desc.m_size,
+                     sizeof(dlms_bluebook_BluebookRecord));
 }
 
 int main(void) {

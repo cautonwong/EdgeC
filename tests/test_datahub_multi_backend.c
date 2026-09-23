@@ -1,15 +1,16 @@
+#include <assert.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
-#include <errno.h>
 
 #include "datahub.h"
-#include "datahub_router.h"
 #include "datahub_dds.h"
+#include "datahub_router.h"
 
 int main(void) {
-    printf("=== Testing Three-Backend DataHub Architecture & Consistency Policy (Issue #325) ===\n");
+    printf(
+        "=== Testing Three-Backend DataHub Architecture & Consistency Policy (Issue #325) ===\n");
 
     uv_loop_t *loop = uv_default_loop();
     assert(loop != NULL);
@@ -61,7 +62,8 @@ int main(void) {
     config.enable_dds = false;
     config.enable_mqtt = false;
     config.write_policy = DATAHUB_ROUTER_POLICY_ALL_REQUIRED;
-    snprintf(config.shm_config.shm_name, sizeof(config.shm_config.shm_name), "test_router_strict_shm");
+    snprintf(config.shm_config.shm_name, sizeof(config.shm_config.shm_name),
+             "test_router_strict_shm");
     config.shm_config.ring_slots = 64;
     config.shm_config.shadow_capacity = 2048;
 
@@ -92,7 +94,9 @@ int main(void) {
     rc = dds_hub.ops->read_shadow(&dds_hub, 1001, &dds_read);
     /* 无硬件对端样本时应返回真实错误码，绝不假冒 0 成功 */
     assert(rc == -ENOENT || rc == -ENOTSUP || rc == -2 || rc == -38);
-    printf("  [PASS] DDS Shadow Read returns non-zero when no peer data is present (No Fake Success)\n");
+    printf(
+        "  [PASS] DDS Shadow Read returns non-zero when no peer data is present (No Fake "
+        "Success)\n");
 
     if (dds_hub.ops && dds_hub.ops->destroy) {
         dds_hub.ops->destroy(&dds_hub);

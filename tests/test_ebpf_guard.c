@@ -3,12 +3,12 @@
  * @brief Unit tests for Kernel-Level eBPF Security Guard Operator
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdint.h>
-#include <stdbool.h>
 #include <cmocka.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 #include "ebpf_guard.h"
 

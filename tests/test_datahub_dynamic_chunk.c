@@ -1,10 +1,11 @@
+#include <cmocka.h>
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <cmocka.h>
+
 #include "datahub.h"
 
 static void test_datahub_chunk_allocation_and_schema_switch(void **state) {
@@ -25,11 +26,7 @@ static void test_datahub_chunk_allocation_and_schema_switch(void **state) {
 
     // 验证 Schema 切换 (Schema v1 -> Schema v2)
     schema_version_t schema_v1 = {
-        .version = 1,
-        .chunk_count = 1,
-        .chunks = {chunk1},
-        .tag_count = 100
-    };
+        .version = 1, .chunk_count = 1, .chunks = {chunk1}, .tag_count = 100};
 
     ret = datahub_switch_schema(&hub, &schema_v1);
     assert_int_equal(ret, 0);
@@ -46,11 +43,7 @@ static void test_datahub_chunk_allocation_and_schema_switch(void **state) {
     assert_int_equal(hub.chunk_count, 2);
 
     schema_version_t schema_v2 = {
-        .version = 2,
-        .chunk_count = 2,
-        .chunks = {chunk1, chunk2},
-        .tag_count = 500
-    };
+        .version = 2, .chunk_count = 2, .chunks = {chunk1, chunk2}, .tag_count = 500};
 
     ret = datahub_switch_schema(&hub, &schema_v2);
     assert_int_equal(ret, 0);

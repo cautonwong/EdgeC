@@ -38,7 +38,8 @@ static int teardown(void** state) {
     arbiter_destroy(ctx->arb);
     datahub_destroy(&ctx->hub);
 
-    while (uv_run(&ctx->loop, UV_RUN_NOWAIT));
+    while (uv_run(&ctx->loop, UV_RUN_NOWAIT))
+        ;
     uv_loop_close(&ctx->loop);
 
     free(ctx);

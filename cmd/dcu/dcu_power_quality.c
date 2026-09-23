@@ -1,17 +1,21 @@
 /**
  * @file dcu_power_quality.c
- * @brief DCU Power Quality Analytics & Three-Phase Unbalance Phase-Switching Optimization Implementation
+ * @brief DCU Power Quality Analytics & Three-Phase Unbalance Phase-Switching Optimization
+ * Implementation
  */
 
 #include "dcu_power_quality.h"
-#include <string.h>
-#include <math.h>
 
-void dcu_power_quality_init(dcu_power_quality_engine_t *engine, double nominal_voltage, double unbalance_threshold_pct) {
+#include <math.h>
+#include <string.h>
+
+void dcu_power_quality_init(dcu_power_quality_engine_t *engine, double nominal_voltage,
+                            double unbalance_threshold_pct) {
     if (!engine) return;
     memset(engine, 0, sizeof(dcu_power_quality_engine_t));
     engine->nominal_voltage = (nominal_voltage > 0.0) ? nominal_voltage : 220.0;
-    engine->unbalance_threshold_pct = (unbalance_threshold_pct > 0.0) ? unbalance_threshold_pct : 15.0;
+    engine->unbalance_threshold_pct =
+        (unbalance_threshold_pct > 0.0) ? unbalance_threshold_pct : 15.0;
 }
 
 double dcu_calc_three_phase_unbalance(double a, double b, double c) {
@@ -30,8 +34,7 @@ double dcu_calc_three_phase_unbalance(double a, double b, double c) {
 }
 
 int dcu_solve_phase_switch_plan(dcu_power_quality_engine_t *engine,
-                                const dcu_switchable_branch_t *branches,
-                                uint8_t branch_count,
+                                const dcu_switchable_branch_t *branches, uint8_t branch_count,
                                 dcu_phase_switch_plan_t *out_plan) {
     if (!engine || !out_plan) return -1;
     memset(out_plan, 0, sizeof(dcu_phase_switch_plan_t));
@@ -69,7 +72,8 @@ int dcu_solve_phase_switch_plan(dcu_power_quality_engine_t *engine,
             test_cur[max_phase] -= branches[i].current_amps;
             test_cur[min_phase] += branches[i].current_amps;
 
-            double test_unbalance = dcu_calc_three_phase_unbalance(test_cur[0], test_cur[1], test_cur[2]);
+            double test_unbalance =
+                dcu_calc_three_phase_unbalance(test_cur[0], test_cur[1], test_cur[2]);
             if (test_unbalance < best_projected_unbalance) {
                 best_projected_unbalance = test_unbalance;
                 best_branch_idx = i;
@@ -90,8 +94,7 @@ int dcu_solve_phase_switch_plan(dcu_power_quality_engine_t *engine,
     return 0;
 }
 
-int dcu_analyze_harmonics_thd(double fundamental,
-                              const double *harmonic_components,
+int dcu_analyze_harmonics_thd(double fundamental, const double *harmonic_components,
                               dcu_harmonic_analysis_t *out_analysis) {
     if (!out_analysis || fundamental < 1e-6 || !harmonic_components) return -1;
     memset(out_analysis, 0, sizeof(dcu_harmonic_analysis_t));
@@ -110,23 +113,21 @@ int dcu_analyze_harmonics_thd(double fundamental,
         double sq = val * val;
         sum_sq_all += sq;
         if ((k % 2) != 0) {
-            sum_sq_odd += sq; // 3, 5, 7, 9 ... 31
+            sum_sq_odd += sq;  // 3, 5, 7, 9 ... 31
         } else {
-            sum_sq_even += sq; // 2, 4, 6, 8 ... 30
+            sum_sq_even += sq;  // 2, 4, 6, 8 ... 30
         }
     }
 
     out_analysis->thd_total_pct = (sqrt(sum_sq_all) / fundamental) * 100.0;
-    out_analysis->thd_odd_pct   = (sqrt(sum_sq_odd) / fundamental) * 100.0;
-    out_analysis->thd_even_pct  = (sqrt(sum_sq_even) / fundamental) * 100.0;
+    out_analysis->thd_odd_pct = (sqrt(sum_sq_odd) / fundamental) * 100.0;
+    out_analysis->thd_even_pct = (sqrt(sum_sq_even) / fundamental) * 100.0;
 
     return 0;
 }
 
-int dcu_detect_voltage_transient(dcu_power_quality_engine_t *engine,
-                                 double current_voltage,
-                                 uint64_t timestamp_ms,
-                                 dcu_transient_event_t *out_event) {
+int dcu_detect_voltage_transient(dcu_power_quality_engine_t *engine, double current_voltage,
+                                 uint64_t timestamp_ms, dcu_transient_event_t *out_event) {
     if (!engine || !out_event) return -1;
 
     double un = (engine->nominal_voltage > 0.0) ? engine->nominal_voltage : 220.0;
@@ -157,10 +158,13 @@ int dcu_detect_voltage_transient(dcu_power_quality_engine_t *engine,
         }
     } else {
         // 事件持续中
-        engine->transient_event.duration_ms = timestamp_ms - engine->transient_event.start_timestamp_ms;
-        if (engine->transient_event.event_type == PQ_EVENT_VOLTAGE_SAG && current_voltage < engine->transient_event.extreme_voltage) {
+        engine->transient_event.duration_ms =
+            timestamp_ms - engine->transient_event.start_timestamp_ms;
+        if (engine->transient_event.event_type == PQ_EVENT_VOLTAGE_SAG &&
+            current_voltage < engine->transient_event.extreme_voltage) {
             engine->transient_event.extreme_voltage = current_voltage;
-        } else if (engine->transient_event.event_type == PQ_EVENT_VOLTAGE_SWELL && current_voltage > engine->transient_event.extreme_voltage) {
+        } else if (engine->transient_event.event_type == PQ_EVENT_VOLTAGE_SWELL &&
+                   current_voltage > engine->transient_event.extreme_voltage) {
             engine->transient_event.extreme_voltage = current_voltage;
         }
 

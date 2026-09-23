@@ -1,18 +1,19 @@
 /**
  * @file test_npu_rockchip_rknn.c
- * @brief Unit & Integration Tests for Rockchip RKNN Multi-Core Load Balancer & DMA-BUF Tensor Mapping (Issue #272)
+ * @brief Unit & Integration Tests for Rockchip RKNN Multi-Core Load Balancer & DMA-BUF Tensor
+ * Mapping (Issue #272)
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 #include <cmocka.h>
 #include <math.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "npu_hal.h"
 
@@ -48,13 +49,11 @@ static void test_rknn_lifecycle_init_deinit(void **state) {
     npu_device_t dev;
     assert_int_equal(npu_device_create(&dev, NPU_BACKEND_ROCKCHIP_RKNN), 0);
 
-    npu_device_config_t cfg = {
-        .device_id = 0,
-        .backend = NPU_BACKEND_ROCKCHIP_RKNN,
-        .max_workspace_mb = 128,
-        .enable_zero_copy = true,
-        .max_temp_throttle_c = 85.0f
-    };
+    npu_device_config_t cfg = {.device_id = 0,
+                               .backend = NPU_BACKEND_ROCKCHIP_RKNN,
+                               .max_workspace_mb = 128,
+                               .enable_zero_copy = true,
+                               .max_temp_throttle_c = 85.0f};
 
     assert_int_equal(npu_device_init(&dev, &cfg), 0);
     assert_true(dev.initialized);
@@ -81,7 +80,8 @@ static void test_rknn_model_load_unload(void **state) {
     const char mock_rknn_model[] = "RKNN_MODEL_RK3588_BMS_FAULT_DIAGNOSTICS_V2";
     npu_model_handle_t handle = NULL;
 
-    assert_int_equal(npu_load_model_from_mem(&dev, mock_rknn_model, sizeof(mock_rknn_model), &handle), 0);
+    assert_int_equal(
+        npu_load_model_from_mem(&dev, mock_rknn_model, sizeof(mock_rknn_model), &handle), 0);
     assert_non_null(handle);
 
     npu_metrics_t metrics;
@@ -112,7 +112,8 @@ static void test_rknn_dmabuf_and_shm_zero_copy_mapping(void **state) {
     float mock_dma_mem[64];
     for (int i = 0; i < 64; i++) mock_dma_mem[i] = (float)i * 0.5f;
 
-    assert_int_equal(npu_map_shm_to_tensor(&dev, mock_dma_mem, sizeof(mock_dma_mem), 12, &dma_tensor), 0);
+    assert_int_equal(
+        npu_map_shm_to_tensor(&dev, mock_dma_mem, sizeof(mock_dma_mem), 12, &dma_tensor), 0);
     assert_ptr_equal(dma_tensor.host_ptr, mock_dma_mem);
     assert_int_equal(dma_tensor.dma_fd, 12);
     assert_true(dma_tensor.is_zero_copy);
@@ -146,24 +147,17 @@ static void test_rknn_multicore_load_balancing_inference(void **state) {
     for (int i = 0; i < 32; i++) in_data[i] = (float)i * 0.1f;
 
     npu_tensor_buf_t input_tensor = {
-        .host_ptr = in_data,
-        .size = sizeof(in_data),
-        .dma_fd = -1,
-        .is_zero_copy = true
-    };
+        .host_ptr = in_data, .size = sizeof(in_data), .dma_fd = -1, .is_zero_copy = true};
 
     float out_data[32];
     npu_tensor_buf_t output_tensor = {
-        .host_ptr = out_data,
-        .size = sizeof(out_data),
-        .dma_fd = -1,
-        .is_zero_copy = false
-    };
+        .host_ptr = out_data, .size = sizeof(out_data), .dma_fd = -1, .is_zero_copy = false};
 
     /* 执行 6 次推理，验证 3 核负载均衡多任务轮询调度 */
     for (int step = 0; step < 6; step++) {
         npu_inference_stats_t stats;
-        assert_int_equal(npu_execute_inference(&dev, handle, &input_tensor, 1, &output_tensor, 1, &stats), 0);
+        assert_int_equal(
+            npu_execute_inference(&dev, handle, &input_tensor, 1, &output_tensor, 1, &stats), 0);
         assert_true(stats.execution_latency_us > 0);
         assert_true(stats.throughput_fps > 0.0f);
         assert_int_equal(stats.total_inferences, (uint32_t)(step + 1));

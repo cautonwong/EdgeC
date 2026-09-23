@@ -4,17 +4,17 @@
  * @copyright (c) 2026 EdgeOS Project. All rights reserved.
  */
 
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <signal.h>
 #include <uv.h>
 
-#include "edgeos/edge_mcp_dispatcher.h"
-#include "edgeos/edge_mcp_bus.h"
-#include "edgeos/mcp_transport.h"
 #include "datahub.h"
 #include "edge_log.h"
+#include "edgeos/edge_mcp_bus.h"
+#include "edgeos/edge_mcp_dispatcher.h"
+#include "edgeos/mcp_transport.h"
 
 static uv_loop_t *g_loop = NULL;
 static uv_signal_t g_sigint;
@@ -34,8 +34,10 @@ static void print_usage(const char *prog) {
     printf("Usage: %s [options]\n", prog);
     printf("Options:\n");
     printf("  --stdio             Run in stdio line streaming mode (Claude Desktop / SSH pipe)\n");
-    printf("  --sock, --uds <path> Unix Domain Socket path (default: %s)\n", EDGEOS_MCP_DEFAULT_UDS_PATH);
-    printf("  --port <port>       WebSocket / HTTP JSON-RPC port (default: %d, 0 to disable)\n", EDGEOS_MCP_DEFAULT_PORT);
+    printf("  --sock, --uds <path> Unix Domain Socket path (default: %s)\n",
+           EDGEOS_MCP_DEFAULT_UDS_PATH);
+    printf("  --port <port>       WebSocket / HTTP JSON-RPC port (default: %d, 0 to disable)\n",
+           EDGEOS_MCP_DEFAULT_PORT);
     printf("  --bind <ip>         Bind IP address (default: %s)\n", EDGEOS_MCP_DEFAULT_BIND_IP);
     printf("  --no-ws             Disable WebSocket / HTTP transport\n");
     printf("  --product <name>    Physical product domain (default: IEMS)\n");
@@ -78,19 +80,15 @@ int main(int argc, char **argv) {
 
     /* Initialize DataHub */
     datahub_t *hub = (datahub_t *)calloc(1, sizeof(datahub_t));
-    if (!hub || datahub_init(hub, g_loop, "/edgeos_mcp", 1024, 65536, NULL, 0, NULL, NULL, NULL) != 0) {
+    if (!hub ||
+        datahub_init(hub, g_loop, "/edgeos_mcp", 1024, 65536, NULL, 0, NULL, NULL, NULL) != 0) {
         fprintf(stderr, "Failed to initialize DataHub for product %s\n", product);
         free(hub);
         return 1;
     }
 
     edge_mcp_env_t env = {
-        .hub = hub,
-        .drv_mgr = NULL,
-        .stream_eng = NULL,
-        .storage_drv = NULL,
-        .loop = g_loop
-    };
+        .hub = hub, .drv_mgr = NULL, .stream_eng = NULL, .storage_drv = NULL, .loop = g_loop};
 
     edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(&env);
     if (!disp) {
@@ -133,7 +131,10 @@ int main(int argc, char **argv) {
             if (!ws_trans || ws_trans->start(ws_trans) != 0) {
                 fprintf(stderr, "Failed to start MCP WS transport\n");
                 if (ws_trans) ws_trans->destroy(ws_trans);
-                if (uds_trans) { uds_trans->stop(uds_trans); uds_trans->destroy(uds_trans); }
+                if (uds_trans) {
+                    uds_trans->stop(uds_trans);
+                    uds_trans->destroy(uds_trans);
+                }
                 edge_mcp_dispatcher_destroy(disp);
                 datahub_destroy(hub);
                 free(hub);

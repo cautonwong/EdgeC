@@ -4,6 +4,7 @@
  */
 
 #include "dcu_soe_event_engine.h"
+
 #include <string.h>
 
 void dcu_soe_init(dcu_soe_event_engine_t* engine) {

@@ -2,27 +2,21 @@
  * test_web_log_terminal.c - Verification of Industrial ANSI Live Log Stream Console (AEP-498)
  */
 
-#include <stdarg.h>
-#include <stddef.h>
+#include <cmocka.h>
 #include <setjmp.h>
-#include <stdint.h>
+#include <stdarg.h>
 #include <stdbool.h>
-#include <string.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <cmocka.h>
+#include <string.h>
 
 static void read_file_content(const char *rel_path, char *buf, size_t max_len) {
     char path[512];
     FILE *fp = NULL;
 
-    const char *prefixes[] = {
-        "",
-        "../",
-        "../../",
-        "/workspaces/edgeos/EdgeC/",
-        NULL
-    };
+    const char *prefixes[] = {"", "../", "../../", "/workspaces/edgeos/EdgeC/", NULL};
 
     for (int i = 0; prefixes[i] != NULL; i++) {
         snprintf(path, sizeof(path), "%s%s", prefixes[i], rel_path);
@@ -103,8 +97,9 @@ static void test_ansi_sgr_c_formatting_and_parsing(void **state) {
     char buffer[256];
     const char *tag = "EdgeOS/Core";
     const char *msg = "Motor current exceeded threshold";
-    
-    // Format ANSI SGR colored log line: \x1b[1;31m[ERROR]\x1b[0m \x1b[1;36m[EdgeOS/Core]\x1b[0m Motor current exceeded threshold
+
+    // Format ANSI SGR colored log line: \x1b[1;31m[ERROR]\x1b[0m \x1b[1;36m[EdgeOS/Core]\x1b[0m
+    // Motor current exceeded threshold
     snprintf(buffer, sizeof(buffer), "\x1b[1;31m[ERROR]\x1b[0m \x1b[1;36m[%s]\x1b[0m %s", tag, msg);
 
     assert_non_null(strstr(buffer, "\x1b[1;31m"));
@@ -147,7 +142,7 @@ static void test_log_ring_buffer_backpressure_eviction(void **state) {
     for (int i = 0; i < 25; i++) {
         char entry[128];
         snprintf(entry, sizeof(entry), "Log entry line #%03d", i);
-        
+
         size_t slot = (ring.head + ring.count) % ring.capacity;
         if (ring.count == ring.capacity) {
             // Evict oldest

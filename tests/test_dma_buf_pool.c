@@ -1,17 +1,18 @@
 /**
  * @file test_dma_buf_pool.c
- * @brief Unit & Integration Tests for Linux DMA-BUF Memory Pool & Lifecycle Manager (AEP-746 / Issue #276)
+ * @brief Unit & Integration Tests for Linux DMA-BUF Memory Pool & Lifecycle Manager (AEP-746 /
+ * Issue #276)
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 #include <cmocka.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "dma_buf_pool.h"
 #include "npu_hal.h"
@@ -25,11 +26,7 @@ static void test_dma_buf_pool_lifecycle(void **state) {
 
     dma_buf_pool_t *pool = NULL;
     dma_buf_pool_config_t cfg = {
-        .buffer_size = 4096,
-        .pool_capacity = 8,
-        .enable_auto_flush = true,
-        .alignment = 64
-    };
+        .buffer_size = 4096, .pool_capacity = 8, .enable_auto_flush = true, .alignment = 64};
 
     assert_int_equal(dma_buf_pool_init(&pool, &cfg), 0);
     assert_non_null(pool);
@@ -49,11 +46,7 @@ static void test_dma_buf_pool_acquire_and_release(void **state) {
 
     dma_buf_pool_t *pool = NULL;
     dma_buf_pool_config_t cfg = {
-        .buffer_size = 2048,
-        .pool_capacity = 4,
-        .enable_auto_flush = true,
-        .alignment = 64
-    };
+        .buffer_size = 2048, .pool_capacity = 4, .enable_auto_flush = true, .alignment = 64};
 
     assert_int_equal(dma_buf_pool_init(&pool, &cfg), 0);
 
@@ -95,11 +88,7 @@ static void test_dma_buf_ref_counting(void **state) {
 
     dma_buf_pool_t *pool = NULL;
     dma_buf_pool_config_t cfg = {
-        .buffer_size = 1024,
-        .pool_capacity = 2,
-        .enable_auto_flush = false,
-        .alignment = 64
-    };
+        .buffer_size = 1024, .pool_capacity = 2, .enable_auto_flush = false, .alignment = 64};
 
     assert_int_equal(dma_buf_pool_init(&pool, &cfg), 0);
 
@@ -129,11 +118,7 @@ static void test_dma_buf_sync_operations(void **state) {
 
     dma_buf_pool_t *pool = NULL;
     dma_buf_pool_config_t cfg = {
-        .buffer_size = 512,
-        .pool_capacity = 2,
-        .enable_auto_flush = true,
-        .alignment = 64
-    };
+        .buffer_size = 512, .pool_capacity = 2, .enable_auto_flush = true, .alignment = 64};
 
     assert_int_equal(dma_buf_pool_init(&pool, &cfg), 0);
 
@@ -159,12 +144,10 @@ static void test_dma_buf_to_npu_tensor_bridge(void **state) {
     (void)state;
 
     dma_buf_pool_t *pool = NULL;
-    dma_buf_pool_config_t cfg = {
-        .buffer_size = 256 * sizeof(float),
-        .pool_capacity = 4,
-        .enable_auto_flush = true,
-        .alignment = 64
-    };
+    dma_buf_pool_config_t cfg = {.buffer_size = 256 * sizeof(float),
+                                 .pool_capacity = 4,
+                                 .enable_auto_flush = true,
+                                 .alignment = 64};
 
     assert_int_equal(dma_buf_pool_init(&pool, &cfg), 0);
 

@@ -7,8 +7,8 @@
 #ifndef EDGEOS_SDK_DDS_H
 #define EDGEOS_SDK_DDS_H
 
-#include "edgeos/types.h"
 #include "../../modules/edge_core/include/datahub_dds.h"
+#include "edgeos/types.h"
 
 #ifdef __cplusplus
 extern "C" {
