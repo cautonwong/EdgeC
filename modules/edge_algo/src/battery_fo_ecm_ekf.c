@@ -234,3 +234,50 @@ bool fo_ecm_ekf_step(fo_ecm_ekf_t *ekf, double current_a, double voltage_v,
 
     return true;
 }
+
+#include "edge_port.h"
+
+bool fo_ecm_ekf_step_ports(fo_ecm_ekf_t *ekf,
+                           const struct edge_reader_port *reader,
+                           const struct edge_writer_port *writer,
+                           const struct edge_clock_port *clock,
+                           const fo_ecm_port_binding_t *binding,
+                           double dt_s) {
+    if (!ekf || !reader || !writer || !binding) return false;
+
+    double current_a = 0.0;
+    double voltage_v = 0.0;
+    double temp_c = 25.0;
+
+    if (reader->read_tag) {
+        if (binding->tag_current_a) {
+            reader->read_tag(reader->ctx, binding->tag_current_a, &current_a, NULL);
+        }
+        if (binding->tag_voltage_v) {
+            reader->read_tag(reader->ctx, binding->tag_voltage_v, &voltage_v, NULL);
+        }
+        if (binding->tag_temp_c) {
+            reader->read_tag(reader->ctx, binding->tag_temp_c, &temp_c, NULL);
+        }
+    }
+
+    uint64_t now_us = 0;
+    if (clock && clock->now_us) {
+        now_us = clock->now_us(clock->ctx);
+    }
+
+    bool ok = fo_ecm_ekf_step(ekf, current_a, voltage_v, temp_c, dt_s);
+    if (!ok) return false;
+
+    if (writer->write_tag) {
+        if (binding->tag_soc_est) {
+            writer->write_tag(writer->ctx, binding->tag_soc_est, ekf->soc, now_us);
+        }
+        if (binding->tag_ocv_est) {
+            writer->write_tag(writer->ctx, binding->tag_ocv_est, ekf->ocv_est, now_us);
+        }
+    }
+
+    return true;
+}
+
