@@ -11,9 +11,9 @@
 #include "edgeos/dds.h"
 #include "edgeos/driver.h"
 #include "edgeos/npu.h"
+#include "edgeos/port.h"
 #include "edgeos/storage.h"
 #include "edgeos/stream_engine.h"
-#include "edgeos/port.h"
 #include "edgeos/types.h"
 #include "edgeos/version.h"
 

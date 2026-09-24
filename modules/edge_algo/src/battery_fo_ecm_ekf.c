@@ -3,6 +3,45 @@
 #include <math.h>
 #include <string.h>
 
+struct fo_ecm_ekf {
+    fo_ecm_params_t params;  /**< Model physical parameters */
+    
+    /* State Vector x = [SOC, Up]^T */
+    double soc;              /**< Estimated State of Charge (0.0 to 1.0) */
+    double up;               /**< Estimated fractional polarization voltage (V) */
+    
+    /* Voltage and Current Estimates */
+    double terminal_voltage_est;  /**< Estimated terminal voltage (V) */
+    double terminal_voltage_meas; /**< Measured terminal voltage (V) */
+    double current_meas;          /**< Measured current (A, >0 charge, <0 discharge) */
+    double temperature_c;         /**< Current cell temperature (°C) */
+    double ocv_est;               /**< Estimated Open-Circuit Voltage (V) */
+    double residual;              /**< Voltage innovation: y_k - y_est (V) */
+    
+    /* Covariance Matrices */
+    double p[2][2];          /**< Error covariance matrix P */
+    double q[2][2];          /**< Process noise covariance matrix Q */
+    double r_meas;           /**< Measurement noise covariance R */
+    
+    /* Grünwald-Letnikov History Window */
+    double history_up[FO_ECM_MEMORY_LENGTH]; /**< Past polarization voltages */
+    double gl_weights[FO_ECM_MEMORY_LENGTH]; /**< Precomputed GL binomial coefficients */
+    uint32_t memory_count;                   /**< Current filled memory count */
+    
+    /* Adaptive Sage-Husa / Innovation Tracking */
+    double moving_residual_sq; /**< Low-pass filtered innovation square */
+    uint32_t step_count;       /**< Total execution steps */
+    bool is_converged;         /**< Convergence status */
+};
+
+/* -------------------------------------------------------------------------- */
+/* Compile-Time Size & Alignment Assertions (AEP-752)                          */
+/* -------------------------------------------------------------------------- */
+_Static_assert(sizeof(struct fo_ecm_ekf) <= sizeof(fo_ecm_ekf_storage_t),
+               "fo_ecm_ekf_storage_t size buffer too small for struct fo_ecm_ekf");
+_Static_assert(_Alignof(struct fo_ecm_ekf) <= _Alignof(fo_ecm_ekf_storage_t),
+               "fo_ecm_ekf_storage_t alignment mismatch for struct fo_ecm_ekf");
+
 /* Monotonic LiFePO4 / NMC OCV-SOC 5th-order polynomial coefficients */
 static const double OCV_POLY[6] = {
     3.008315084,  /* c0: OCV at 0% SOC */
@@ -43,6 +82,17 @@ static void compute_gl_weights(double alpha, double *weights, size_t len) {
     }
 }
 
+fo_ecm_ekf_t *fo_ecm_ekf_create_in(fo_ecm_ekf_storage_t *store,
+                                   const fo_ecm_params_t *params,
+                                   double initial_soc, double initial_temp_c, double dt_s) {
+    if (!store || !params) return NULL;
+    fo_ecm_ekf_t *ekf = (fo_ecm_ekf_t *)store->raw;
+    if (!fo_ecm_ekf_init(ekf, params, initial_soc, initial_temp_c, dt_s)) {
+        return NULL;
+    }
+    return ekf;
+}
+
 bool fo_ecm_ekf_init(fo_ecm_ekf_t *ekf, const fo_ecm_params_t *params,
                      double initial_soc, double initial_temp_c, double dt_s) {
     if (!ekf || !params || dt_s <= 0.0) return false;
@@ -51,7 +101,7 @@ bool fo_ecm_ekf_init(fo_ecm_ekf_t *ekf, const fo_ecm_params_t *params,
         return false;
     }
 
-    memset(ekf, 0, sizeof(fo_ecm_ekf_t));
+    memset(ekf, 0, sizeof(struct fo_ecm_ekf));
     ekf->params = *params;
     
     /* Clamp initial SOC */
@@ -235,6 +285,45 @@ bool fo_ecm_ekf_step(fo_ecm_ekf_t *ekf, double current_a, double voltage_v,
     return true;
 }
 
+/* -------------------------------------------------------------------------- */
+/* State & Telemetry Inspectors                                               */
+/* -------------------------------------------------------------------------- */
+double fo_ecm_ekf_get_soc(const fo_ecm_ekf_t *ekf) {
+    return ekf ? ekf->soc : 0.0;
+}
+
+double fo_ecm_ekf_get_up(const fo_ecm_ekf_t *ekf) {
+    return ekf ? ekf->up : 0.0;
+}
+
+double fo_ecm_ekf_get_terminal_voltage_est(const fo_ecm_ekf_t *ekf) {
+    return ekf ? ekf->terminal_voltage_est : 0.0;
+}
+
+double fo_ecm_ekf_get_ocv_est(const fo_ecm_ekf_t *ekf) {
+    return ekf ? ekf->ocv_est : 0.0;
+}
+
+double fo_ecm_ekf_get_residual(const fo_ecm_ekf_t *ekf) {
+    return ekf ? ekf->residual : 0.0;
+}
+
+bool fo_ecm_ekf_is_converged(const fo_ecm_ekf_t *ekf) {
+    return ekf ? ekf->is_converged : false;
+}
+
+double fo_ecm_ekf_get_gl_weight(const fo_ecm_ekf_t *ekf, size_t index) {
+    if (!ekf || index >= FO_ECM_MEMORY_LENGTH) return 0.0;
+    return ekf->gl_weights[index];
+}
+
+uint32_t fo_ecm_ekf_get_step_count(const fo_ecm_ekf_t *ekf) {
+    return ekf ? ekf->step_count : 0;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Consumer-Defined Port Driven Interface (AEP-751)                          */
+/* -------------------------------------------------------------------------- */
 #include "edge_port.h"
 
 bool fo_ecm_ekf_step_ports(fo_ecm_ekf_t *ekf,
@@ -280,4 +369,3 @@ bool fo_ecm_ekf_step_ports(fo_ecm_ekf_t *ekf,
 
     return true;
 }
-

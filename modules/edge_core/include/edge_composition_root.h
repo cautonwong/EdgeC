@@ -1,10 +1,16 @@
 /**
  * @file edge_composition_root.h
- * @brief EdgeOS Single Composition Root & Dependency Injection Framework (AEP-751 / Issue #336)
+ * @brief EdgeOS Single Composition Root & Dependency Injection Framework (AEP-751 / AEP-752 / Issue #336 & #340)
  *
  * Provides a standardized Composition Root for EdgeOS products (DCU, IEMS, SmartBox),
  * ensuring that object instantiation, memory pooling, and port injection are centralized
  * in one place, eliminating global service locators and hidden singletons.
+ *
+ * Conforms to:
+ * - Consumer-Defined Interfaces (edge_consumer_ports_t)
+ * - Aggregate Root Encapsulation
+ * - Composition Root Symmetric Lifecycle
+ * - Caller-Allocated Storage & Opaque Pointers
  */
 
 #ifndef EDGE_COMPOSITION_ROOT_H
@@ -13,6 +19,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <stdalign.h>
 #include "edge_port.h"
 #include "datahub.h"
 
@@ -49,14 +56,34 @@ typedef struct {
     bool initialized;                   /**< True if container is healthy and running */
 } edge_composition_metrics_t;
 
+/**
+ * @brief Opaque Container Handle for Composition Root
+ */
 typedef struct edge_composition_container edge_composition_container_t;
+
+/**
+ * @brief Caller-Allocated Storage for Composition Root (Physical Opaque Encapsulation)
+ */
+typedef struct {
+    alignas(max_align_t) uint8_t raw[1024];
+} edge_composition_container_storage_t;
 
 /* -------------------------------------------------------------------------- */
 /* Public APIs                                                                */
 /* -------------------------------------------------------------------------- */
 
 /**
- * @brief Build and assemble a Single Composition Root container
+ * @brief In-place placement constructor for Composition Root Container
+ *
+ * @param store Caller-allocated storage buffer
+ * @param cfg Container configuration parameters
+ * @return edge_composition_container_t* handle pointing into store, or NULL on error
+ */
+edge_composition_container_t *edge_composition_root_create_in(edge_composition_container_storage_t *store,
+                                                              const edge_composition_config_t *cfg);
+
+/**
+ * @brief Build and assemble a Single Composition Root container (Heap allocated fallback)
  */
 int edge_composition_root_init(edge_composition_container_t **out_container,
                                const edge_composition_config_t *cfg);
