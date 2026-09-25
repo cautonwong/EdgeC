@@ -31,8 +31,7 @@ static void test_thermal_mesh_init_and_reset(void **state) {
     for (int i = 0; i < THERMAL_MESH_NUM_NODES; i++) {
         for (int j = 0; j < THERMAL_MESH_NUM_NODES; j++) {
             assert_float_equal(thermal_mesh_get_conductance(engine, i, j),
-                               thermal_mesh_get_conductance(engine, j, i),
-                               0.0001f);
+                               thermal_mesh_get_conductance(engine, j, i), 0.0001f);
         }
     }
 
@@ -204,7 +203,8 @@ static void test_thermal_mesh_hotspot_and_gradient_alarms(void **state) {
 
     /* 人为设置核心超温 (> 55.0 ℃) */
     thermal_mesh_set_node_temperature(engine, THERMAL_NODE_CORE_CENTER, 58.0f);
-    thermal_mesh_set_node_temperature(engine, THERMAL_NODE_BOTTOM_COOLING, 45.0f); /* 梯度 13℃ > 8℃ */
+    thermal_mesh_set_node_temperature(engine, THERMAL_NODE_BOTTOM_COOLING,
+                                      45.0f); /* 梯度 13℃ > 8℃ */
 
     thermal_mesh_output_t out;
     thermal_mesh_engine_step(engine, &telem, 0.1f, &out);

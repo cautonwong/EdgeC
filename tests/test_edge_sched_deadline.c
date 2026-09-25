@@ -3,13 +3,13 @@
  * @brief 确定性调度死线超限监控器与熔断器单元测试 (AEP-720 / Issue #251)
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <string.h>
 #include <cmocka.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
 
 #include "edge_sched_deadline.h"
 
@@ -28,7 +28,8 @@ static uint64_t mock_get_now_us(void *ctx) {
     return env ? env->current_time_us : 0;
 }
 
-static void mock_on_violation(void *ctx, uint32_t task_id, const edge_sched_task_stats_t *stats, edge_sched_action_t action) {
+static void mock_on_violation(void *ctx, uint32_t task_id, const edge_sched_task_stats_t *stats,
+                              edge_sched_action_t action) {
     (void)stats;
     mock_sched_env_t *env = (mock_sched_env_t *)ctx;
     if (env) {
@@ -49,25 +50,20 @@ static void test_edge_sched_create_in_and_init(void **state) {
 
     mock_sched_env_t env = {.current_time_us = 1000000ULL};
     edge_sched_deadline_ports_t ports = {
-        .get_now_us = mock_get_now_us,
-        .on_violation = mock_on_violation,
-        .ctx = &env
-    };
+        .get_now_us = mock_get_now_us, .on_violation = mock_on_violation, .ctx = &env};
 
     edge_sched_deadline_monitor_t *mon = edge_sched_deadline_create_in(&storage, &ports);
     assert_non_null(mon);
     assert_ptr_equal(mon, (void *)storage.raw);
     assert_int_equal(edge_sched_deadline_get_task_count(mon), 0);
 
-    edge_sched_task_config_t cfg = {
-        .task_id = 101,
-        .name = "vsg_control_loop",
-        .period_us = 10000,
-        .deadline_us = 2000,
-        .max_allowed_jitter_us = 500,
-        .max_consecutive_overruns = 3,
-        .fallback_action = EDGE_SCHED_ACTION_SAFE_FALLBACK
-    };
+    edge_sched_task_config_t cfg = {.task_id = 101,
+                                    .name = "vsg_control_loop",
+                                    .period_us = 10000,
+                                    .deadline_us = 2000,
+                                    .max_allowed_jitter_us = 500,
+                                    .max_consecutive_overruns = 3,
+                                    .fallback_action = EDGE_SCHED_ACTION_SAFE_FALLBACK};
 
     int rc = edge_sched_deadline_register_task(mon, &cfg);
     assert_int_equal(rc, 0);
@@ -83,23 +79,18 @@ static void test_edge_sched_normal_execution_metrics(void **state) {
     edge_sched_deadline_storage_t storage;
     mock_sched_env_t env = {.current_time_us = 1000000ULL};
     edge_sched_deadline_ports_t ports = {
-        .get_now_us = mock_get_now_us,
-        .on_violation = mock_on_violation,
-        .ctx = &env
-    };
+        .get_now_us = mock_get_now_us, .on_violation = mock_on_violation, .ctx = &env};
 
     edge_sched_deadline_monitor_t *mon = edge_sched_deadline_create_in(&storage, &ports);
     assert_non_null(mon);
 
-    edge_sched_task_config_t cfg = {
-        .task_id = 1,
-        .name = "ekf_estimator",
-        .period_us = 10000,
-        .deadline_us = 2000,
-        .max_allowed_jitter_us = 500,
-        .max_consecutive_overruns = 3,
-        .fallback_action = EDGE_SCHED_ACTION_SAFE_FALLBACK
-    };
+    edge_sched_task_config_t cfg = {.task_id = 1,
+                                    .name = "ekf_estimator",
+                                    .period_us = 10000,
+                                    .deadline_us = 2000,
+                                    .max_allowed_jitter_us = 500,
+                                    .max_consecutive_overruns = 3,
+                                    .fallback_action = EDGE_SCHED_ACTION_SAFE_FALLBACK};
     assert_int_equal(edge_sched_deadline_register_task(mon, &cfg), 0);
 
     /* Run 5 normal cycles: 1000us execution time each (well below 2000us deadline) */
@@ -136,22 +127,17 @@ static void test_edge_sched_deadline_overrun_and_recovery(void **state) {
     edge_sched_deadline_storage_t storage;
     mock_sched_env_t env = {.current_time_us = 1000000ULL};
     edge_sched_deadline_ports_t ports = {
-        .get_now_us = mock_get_now_us,
-        .on_violation = mock_on_violation,
-        .ctx = &env
-    };
+        .get_now_us = mock_get_now_us, .on_violation = mock_on_violation, .ctx = &env};
 
     edge_sched_deadline_monitor_t *mon = edge_sched_deadline_create_in(&storage, &ports);
 
-    edge_sched_task_config_t cfg = {
-        .task_id = 2,
-        .name = "mpc_solver",
-        .period_us = 20000,
-        .deadline_us = 5000,
-        .max_allowed_jitter_us = 1000,
-        .max_consecutive_overruns = 3,
-        .fallback_action = EDGE_SCHED_ACTION_SAFE_FALLBACK
-    };
+    edge_sched_task_config_t cfg = {.task_id = 2,
+                                    .name = "mpc_solver",
+                                    .period_us = 20000,
+                                    .deadline_us = 5000,
+                                    .max_allowed_jitter_us = 1000,
+                                    .max_consecutive_overruns = 3,
+                                    .fallback_action = EDGE_SCHED_ACTION_SAFE_FALLBACK};
     assert_int_equal(edge_sched_deadline_register_task(mon, &cfg), 0);
 
     /* 1. Run with 6000 us execution (Exceeds 5000 us deadline) */
@@ -190,22 +176,17 @@ static void test_edge_sched_circuit_breaker_trip_and_reset(void **state) {
     edge_sched_deadline_storage_t storage;
     mock_sched_env_t env = {.current_time_us = 1000000ULL};
     edge_sched_deadline_ports_t ports = {
-        .get_now_us = mock_get_now_us,
-        .on_violation = mock_on_violation,
-        .ctx = &env
-    };
+        .get_now_us = mock_get_now_us, .on_violation = mock_on_violation, .ctx = &env};
 
     edge_sched_deadline_monitor_t *mon = edge_sched_deadline_create_in(&storage, &ports);
 
-    edge_sched_task_config_t cfg = {
-        .task_id = 3,
-        .name = "vsg_inertia_loop",
-        .period_us = 10000,
-        .deadline_us = 2000,
-        .max_allowed_jitter_us = 500,
-        .max_consecutive_overruns = 3,
-        .fallback_action = EDGE_SCHED_ACTION_SAFE_FALLBACK
-    };
+    edge_sched_task_config_t cfg = {.task_id = 3,
+                                    .name = "vsg_inertia_loop",
+                                    .period_us = 10000,
+                                    .deadline_us = 2000,
+                                    .max_allowed_jitter_us = 500,
+                                    .max_consecutive_overruns = 3,
+                                    .fallback_action = EDGE_SCHED_ACTION_SAFE_FALLBACK};
     assert_int_equal(edge_sched_deadline_register_task(mon, &cfg), 0);
 
     /* Miss 1 */
@@ -258,22 +239,17 @@ static void test_edge_sched_jitter_detection(void **state) {
     edge_sched_deadline_storage_t storage;
     mock_sched_env_t env = {.current_time_us = 1000000ULL};
     edge_sched_deadline_ports_t ports = {
-        .get_now_us = mock_get_now_us,
-        .on_violation = mock_on_violation,
-        .ctx = &env
-    };
+        .get_now_us = mock_get_now_us, .on_violation = mock_on_violation, .ctx = &env};
 
     edge_sched_deadline_monitor_t *mon = edge_sched_deadline_create_in(&storage, &ports);
 
-    edge_sched_task_config_t cfg = {
-        .task_id = 4,
-        .name = "grid_phase_tracker",
-        .period_us = 10000,
-        .deadline_us = 2000,
-        .max_allowed_jitter_us = 300,
-        .max_consecutive_overruns = 3,
-        .fallback_action = EDGE_SCHED_ACTION_SAFE_FALLBACK
-    };
+    edge_sched_task_config_t cfg = {.task_id = 4,
+                                    .name = "grid_phase_tracker",
+                                    .period_us = 10000,
+                                    .deadline_us = 2000,
+                                    .max_allowed_jitter_us = 300,
+                                    .max_consecutive_overruns = 3,
+                                    .fallback_action = EDGE_SCHED_ACTION_SAFE_FALLBACK};
     assert_int_equal(edge_sched_deadline_register_task(mon, &cfg), 0);
 
     /* Run 1: at 1000000 us */
@@ -300,31 +276,24 @@ static void test_edge_sched_multi_task_isolation(void **state) {
     edge_sched_deadline_storage_t storage;
     mock_sched_env_t env = {.current_time_us = 1000000ULL};
     edge_sched_deadline_ports_t ports = {
-        .get_now_us = mock_get_now_us,
-        .on_violation = mock_on_violation,
-        .ctx = &env
-    };
+        .get_now_us = mock_get_now_us, .on_violation = mock_on_violation, .ctx = &env};
 
     edge_sched_deadline_monitor_t *mon = edge_sched_deadline_create_in(&storage, &ports);
 
-    edge_sched_task_config_t cfg1 = {
-        .task_id = 11,
-        .name = "fast_pwm",
-        .period_us = 1000,
-        .deadline_us = 200,
-        .max_allowed_jitter_us = 50,
-        .max_consecutive_overruns = 2,
-        .fallback_action = EDGE_SCHED_ACTION_CIRCUIT_TRIP
-    };
-    edge_sched_task_config_t cfg2 = {
-        .task_id = 22,
-        .name = "slow_soh",
-        .period_us = 100000,
-        .deadline_us = 20000,
-        .max_allowed_jitter_us = 5000,
-        .max_consecutive_overruns = 3,
-        .fallback_action = EDGE_SCHED_ACTION_SAFE_FALLBACK
-    };
+    edge_sched_task_config_t cfg1 = {.task_id = 11,
+                                     .name = "fast_pwm",
+                                     .period_us = 1000,
+                                     .deadline_us = 200,
+                                     .max_allowed_jitter_us = 50,
+                                     .max_consecutive_overruns = 2,
+                                     .fallback_action = EDGE_SCHED_ACTION_CIRCUIT_TRIP};
+    edge_sched_task_config_t cfg2 = {.task_id = 22,
+                                     .name = "slow_soh",
+                                     .period_us = 100000,
+                                     .deadline_us = 20000,
+                                     .max_allowed_jitter_us = 5000,
+                                     .max_consecutive_overruns = 3,
+                                     .fallback_action = EDGE_SCHED_ACTION_SAFE_FALLBACK};
     assert_int_equal(edge_sched_deadline_register_task(mon, &cfg1), 0);
     assert_int_equal(edge_sched_deadline_register_task(mon, &cfg2), 0);
     assert_int_equal(edge_sched_deadline_get_task_count(mon), 2);

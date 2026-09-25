@@ -13,6 +13,7 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdalign.h>
 
 typedef struct {
     float mass;              /* M (kg) */
