@@ -30,6 +30,7 @@
 #include "battery_pulse_heating.h"
 #include "battery_soh_fusion.h"
 #include "edge_composition_root.h"
+#include "edge_sched_deadline.h"
 #include "mpc_dispatcher.h"
 #include "vsg_control.h"
 
@@ -334,6 +335,30 @@ static void test_battery_pulse_heating_caller_allocated_storage(void **state) {
     assert_int_equal(pulse_heat_engine_get_fault(engine), PULSE_HEAT_FAULT_NONE);
 }
 
+static void test_edge_sched_deadline_caller_allocated_storage(void **state) {
+    (void)state;
+    edge_sched_deadline_storage_t store;
+    memset(&store, 0x77, sizeof(store));
+
+    edge_sched_deadline_monitor_t *mon = edge_sched_deadline_create_in(&store, NULL);
+    assert_non_null(mon);
+    assert_ptr_equal(mon, (void *)store.raw);
+
+    assert_int_equal(edge_sched_deadline_get_task_count(mon), 0);
+
+    edge_sched_task_config_t cfg = {
+        .task_id = 99,
+        .name = "caller_storage_task",
+        .period_us = 10000,
+        .deadline_us = 2000,
+        .max_allowed_jitter_us = 500,
+        .max_consecutive_overruns = 3,
+        .fallback_action = EDGE_SCHED_ACTION_SAFE_FALLBACK
+    };
+    assert_int_equal(edge_sched_deadline_register_task(mon, &cfg), 0);
+    assert_int_equal(edge_sched_deadline_get_task_count(mon), 1);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_battery_ekf_caller_allocated_storage),
@@ -346,6 +371,7 @@ int main(void) {
         cmocka_unit_test(test_battery_soh_caller_allocated_storage),
         cmocka_unit_test(test_battery_eis_caller_allocated_storage),
         cmocka_unit_test(test_battery_pulse_heating_caller_allocated_storage),
+        cmocka_unit_test(test_edge_sched_deadline_caller_allocated_storage),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

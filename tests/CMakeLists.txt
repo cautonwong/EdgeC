@@ -1316,6 +1316,10 @@ target_link_libraries(test_vsg_control PRIVATE
 )
 add_test(NAME test_vsg_control COMMAND test_vsg_control)
 
+# AEP-720 确定性任务调度死线监控与熔断器单测
+add_edge_test(test_edge_sched_deadline test_edge_sched_deadline.c)
+
+
 
 
 

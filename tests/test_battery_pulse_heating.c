@@ -178,6 +178,7 @@ static void test_pulse_heat_full_heating_cycle_convergence(void **state) {
 
     pulse_heat_engine_start(engine);
     pulse_heat_control_output_t out;
+    memset(&out, 0, sizeof(out));
 
     bool seen_sweep = false;
     bool seen_ramp = false;
@@ -187,6 +188,8 @@ static void test_pulse_heat_full_heating_cycle_convergence(void **state) {
 
     /* 模拟闭环运行仿真，步长 0.2s */
     for (int step = 0; step < 2500; step++) {
+        pulse_heat_engine_step(engine, &telem, 0.2f, &out);
+
         /* 电芯表面温度随核心温度和热阻传导缓慢上升 */
         if (out.state == PULSE_HEAT_STATE_ACTIVE_HEATING) {
             seen_active = true;
@@ -201,8 +204,6 @@ static void test_pulse_heat_full_heating_cycle_convergence(void **state) {
             seen_ramp = true;
             telem.actual_current_rms_a = out.target_current_amp_a * 0.7071f;
         }
-
-        pulse_heat_engine_step(engine, &telem, 0.2f, &out);
 
         /* 同步仿真表面传感器读数跟踪估算表面温度 */
         for (int i = 0; i < 4; i++) {
