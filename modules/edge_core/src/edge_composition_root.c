@@ -1,6 +1,6 @@
 /**
  * @file edge_composition_root.c
- * @brief EdgeOS Single Composition Root Implementation (AEP-751 / Issue #336)
+ * @brief EdgeOS Single Composition Root Implementation (AEP-751 / AEP-752 / Issue #336 & #340)
  */
 
 #include "edge_composition_root.h"
@@ -21,15 +21,18 @@ struct edge_composition_container {
     edge_composition_metrics_t metrics;
     pthread_mutex_t lock;
     bool initialized;
+    bool is_caller_allocated;
 };
 
-int edge_composition_root_init(edge_composition_container_t **out_container,
-                               const edge_composition_config_t *cfg) {
-    if (!out_container || !cfg) return -1;
+/* -------------------------------------------------------------------------- */
+/* Compile-Time Size & Alignment Assertions (AEP-752)                          */
+/* -------------------------------------------------------------------------- */
+_Static_assert(sizeof(struct edge_composition_container) <= sizeof(edge_composition_container_storage_t),
+               "edge_composition_container_storage_t buffer too small for struct edge_composition_container");
+_Static_assert(_Alignof(struct edge_composition_container) <= _Alignof(edge_composition_container_storage_t),
+               "edge_composition_container_storage_t alignment mismatch for struct edge_composition_container");
 
-    edge_composition_container_t *container = (edge_composition_container_t *)calloc(1, sizeof(edge_composition_container_t));
-    if (!container) return -2;
-
+static int _init_container_resources(edge_composition_container_t *container, const edge_composition_config_t *cfg) {
     container->config = *cfg;
     pthread_mutex_init(&container->lock, NULL);
 
@@ -37,7 +40,6 @@ int edge_composition_root_init(edge_composition_container_t **out_container,
     container->hub = (datahub_t *)calloc(1, sizeof(datahub_t));
     if (!container->hub) {
         pthread_mutex_destroy(&container->lock);
-        free(container);
         return -3;
     }
 
@@ -46,8 +48,8 @@ int edge_composition_root_init(edge_composition_container_t **out_container,
     int rc = datahub_init(container->hub, NULL, p_name, 64, shadow_cap, NULL, 0, NULL, NULL, NULL);
     if (rc != 0) {
         free(container->hub);
+        container->hub = NULL;
         pthread_mutex_destroy(&container->lock);
-        free(container);
         return -4;
     }
 
@@ -92,6 +94,35 @@ int edge_composition_root_init(edge_composition_container_t **out_container,
     container->metrics.initialized = true;
 
     container->initialized = true;
+    return 0;
+}
+
+edge_composition_container_t *edge_composition_root_create_in(edge_composition_container_storage_t *store,
+                                                              const edge_composition_config_t *cfg) {
+    if (!store || !cfg) return NULL;
+    edge_composition_container_t *container = (edge_composition_container_t *)store->raw;
+    memset(container, 0, sizeof(struct edge_composition_container));
+    container->is_caller_allocated = true;
+
+    int rc = _init_container_resources(container, cfg);
+    if (rc != 0) return NULL;
+    return container;
+}
+
+int edge_composition_root_init(edge_composition_container_t **out_container,
+                               const edge_composition_config_t *cfg) {
+    if (!out_container || !cfg) return -1;
+
+    edge_composition_container_t *container = (edge_composition_container_t *)calloc(1, sizeof(edge_composition_container_t));
+    if (!container) return -2;
+    container->is_caller_allocated = false;
+
+    int rc = _init_container_resources(container, cfg);
+    if (rc != 0) {
+        free(container);
+        return rc;
+    }
+
     *out_container = container;
     return 0;
 }
@@ -121,9 +152,13 @@ int edge_composition_root_destroy(edge_composition_container_t *container) {
     }
 
     container->initialized = false;
+    bool was_caller_alloc = container->is_caller_allocated;
     pthread_mutex_unlock(&container->lock);
     pthread_mutex_destroy(&container->lock);
-    free(container);
+
+    if (!was_caller_alloc) {
+        free(container);
+    }
     return 0;
 }
 

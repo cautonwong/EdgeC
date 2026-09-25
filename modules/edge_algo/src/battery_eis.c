@@ -33,6 +33,54 @@ static uint32_t get_prbs_length(battery_eis_prbs_order_t order)
     }
 }
 
+#include <stdalign.h>
+
+struct battery_eis_analyzer {
+    battery_eis_config_t config;
+    uint32_t lfsr_reg;
+    uint32_t prbs_len;
+    uint32_t prbs_idx;
+    uint32_t total_samples;
+    uint32_t min_samples_req;
+    
+    battery_eis_freq_bin_t bins[BATTERY_EIS_MAX_FREQ_BINS];
+    
+    /* 离散傅里叶相关解调累加器 (Zero-memory 实时流式累加) */
+    double sum_i_cos[BATTERY_EIS_MAX_FREQ_BINS];
+    double sum_i_sin[BATTERY_EIS_MAX_FREQ_BINS];
+    double sum_v_cos[BATTERY_EIS_MAX_FREQ_BINS];
+    double sum_v_sin[BATTERY_EIS_MAX_FREQ_BINS];
+    double sum_cos[BATTERY_EIS_MAX_FREQ_BINS];
+    double sum_sin[BATTERY_EIS_MAX_FREQ_BINS];
+    double sum_i_sq[BATTERY_EIS_MAX_FREQ_BINS];
+    double sum_v_sq[BATTERY_EIS_MAX_FREQ_BINS];
+    
+    /* DC 稳态偏置滤波累加 */
+    double sum_i_dc;
+    double sum_v_dc;
+    
+    battery_eis_randles_params_t params;
+    bool spectrum_ready;
+    double last_calc_time_us;
+};
+
+_Static_assert(sizeof(struct battery_eis_analyzer) <= sizeof(battery_eis_storage_t),
+               "battery_eis_storage_t too small for struct battery_eis_analyzer");
+_Static_assert(alignof(struct battery_eis_analyzer) <= alignof(battery_eis_storage_t),
+               "battery_eis_storage_t bad alignment for struct battery_eis_analyzer");
+
+battery_eis_analyzer_t *battery_eis_create_in(battery_eis_storage_t *store, const battery_eis_config_t *cfg)
+{
+    if (!store) {
+        return NULL;
+    }
+    battery_eis_analyzer_t *eis = (battery_eis_analyzer_t *)store;
+    if (battery_eis_init(eis, cfg) != 0) {
+        return NULL;
+    }
+    return eis;
+}
+
 int battery_eis_init(battery_eis_analyzer_t *eis, const battery_eis_config_t *cfg)
 {
     if (!eis) {
@@ -282,6 +330,7 @@ int battery_eis_fit_nyquist(battery_eis_analyzer_t *eis, double cell_temp_c, dou
             hf_idx = k;
         }
     }
+    (void)hf_idx;
 
     /* 若存在虚部符号过零点，使用线性插值精细解算实轴截距 */
     for (uint32_t k = n_bins / 2; k < n_bins - 1; k++) {
@@ -502,5 +551,70 @@ void battery_eis_reset(battery_eis_analyzer_t *eis)
         eis->bins[i].z_mag_mohm = 0.0;
         eis->bins[i].z_phase_deg = 0.0;
         eis->bins[i].coherence = 0.0;
+    }
+}
+
+int battery_eis_step_ports(battery_eis_analyzer_t *eis, const battery_eis_ports_t *ports, bool *out_ready)
+{
+    if (!eis || !ports) {
+        return -1;
+    }
+
+    if (out_ready) {
+        *out_ready = false;
+    }
+
+    if (ports->read_sample) {
+        double current_amp = 0.0, voltage_volt = 0.0, cell_temp_c = 25.0;
+        if (ports->read_sample(ports->ctx, &current_amp, &voltage_volt, &cell_temp_c) == 0) {
+            bool ready = false;
+            int rc = battery_eis_step(eis, current_amp, voltage_volt, cell_temp_c, &ready);
+            if (out_ready) {
+                *out_ready = ready;
+            }
+            if (rc == 0 && ready) {
+                if (ports->write_params) {
+                    const battery_eis_randles_params_t *params = battery_eis_get_params(eis);
+                    if (params) {
+                        ports->write_params(ports->ctx, params);
+                    }
+                }
+                if (ports->write_spectrum) {
+                    ports->write_spectrum(ports->ctx, eis->bins, eis->config.num_freq_bins);
+                }
+            }
+            return rc;
+        }
+    }
+
+    return 0;
+}
+
+const battery_eis_config_t *battery_eis_get_config(const battery_eis_analyzer_t *eis)
+{
+    return eis ? &eis->config : NULL;
+}
+
+uint32_t battery_eis_get_prbs_len(const battery_eis_analyzer_t *eis)
+{
+    return eis ? eis->prbs_len : 0;
+}
+
+const battery_eis_freq_bin_t *battery_eis_get_bins(const battery_eis_analyzer_t *eis)
+{
+    return eis ? eis->bins : NULL;
+}
+
+void battery_eis_set_test_spectrum(battery_eis_analyzer_t *eis,
+                                   const battery_eis_freq_bin_t *bins,
+                                   uint32_t count,
+                                   uint32_t samples)
+{
+    if (!eis) return;
+    eis->spectrum_ready = true;
+    eis->total_samples = samples;
+    uint32_t n = count < BATTERY_EIS_MAX_FREQ_BINS ? count : BATTERY_EIS_MAX_FREQ_BINS;
+    if (bins) {
+        memcpy(eis->bins, bins, sizeof(battery_eis_freq_bin_t) * n);
     }
 }

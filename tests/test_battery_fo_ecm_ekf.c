@@ -18,22 +18,22 @@ static void test_initialization_and_validation(void) {
                               .temp_coeff_r0 = 0.004,
                               .temp_ref_c = 25.0};
 
-    fo_ecm_ekf_t ekf;
-    bool ok = fo_ecm_ekf_init(&ekf, &params, 0.60, 25.0, 1.0);
-    assert(ok == true);
-    assert(fabs(ekf.soc - 0.60) < 1e-6);
-    assert(fabs(ekf.up) < 1e-6);
-    assert(ekf.gl_weights[0] == 1.0);
-    assert(fabs(ekf.gl_weights[1] - (-0.75)) < 1e-6);
+    fo_ecm_ekf_storage_t store;
+    fo_ecm_ekf_t *ekf = fo_ecm_ekf_create_in(&store, &params, 0.60, 25.0, 1.0);
+    assert(ekf != NULL);
+    assert(fabs(fo_ecm_ekf_get_soc(ekf) - 0.60) < 1e-6);
+    assert(fabs(fo_ecm_ekf_get_up(ekf)) < 1e-6);
+    assert(fo_ecm_ekf_get_gl_weight(ekf, 0) == 1.0);
+    assert(fabs(fo_ecm_ekf_get_gl_weight(ekf, 1) - (-0.75)) < 1e-6);
 
     /* Invalid parameters checks */
     fo_ecm_params_t invalid_params = params;
     invalid_params.alpha = 1.5; /* Out of fractional bounds */
-    assert(fo_ecm_ekf_init(&ekf, &invalid_params, 0.5, 25.0, 1.0) == false);
+    assert(fo_ecm_ekf_create_in(&store, &invalid_params, 0.5, 25.0, 1.0) == NULL);
 
     invalid_params = params;
     invalid_params.capacity_ah = -10.0;
-    assert(fo_ecm_ekf_init(&ekf, &invalid_params, 0.5, 25.0, 1.0) == false);
+    assert(fo_ecm_ekf_create_in(&store, &invalid_params, 0.5, 25.0, 1.0) == NULL);
 
     printf("  --> Initialization & validation tests PASSED!\n");
 }
@@ -76,14 +76,15 @@ static void test_constant_current_convergence(void) {
                               .temp_coeff_r0 = 0.003,
                               .temp_ref_c = 25.0};
 
-    fo_ecm_ekf_t ekf;
+    fo_ecm_ekf_storage_t store;
     /* True SOC starts at 0.70, but EKF guess is intentionally biased to 0.50 (20% error) */
     double true_soc = 0.70;
     double biased_guess_soc = 0.50;
     double dt = 1.0;
     double current = -20.0; /* 20A discharge */
 
-    fo_ecm_ekf_init(&ekf, &params, biased_guess_soc, 25.0, dt);
+    fo_ecm_ekf_t *ekf = fo_ecm_ekf_create_in(&store, &params, biased_guess_soc, 25.0, dt);
+    assert(ekf != NULL);
 
     double true_history_up[FO_ECM_MEMORY_LENGTH] = {0};
     double gl_w[FO_ECM_MEMORY_LENGTH] = {0};
@@ -116,18 +117,18 @@ static void test_constant_current_convergence(void) {
         double meas_vt = true_vt + 0.001 * ((step % 3) - 1.0);
 
         /* Step EKF */
-        fo_ecm_ekf_step(&ekf, current, meas_vt, 25.0, dt);
+        fo_ecm_ekf_step(ekf, current, meas_vt, 25.0, dt);
     }
 
-    double final_soc_error = fabs(ekf.soc - true_soc);
+    double final_soc_error = fabs(fo_ecm_ekf_get_soc(ekf) - true_soc);
     printf(
         "  --> Initial error: 20.0%%, Final error after 120s: %.3f%% (Estimated: %.4f, True: "
         "%.4f)\n",
-        final_soc_error * 100.0, ekf.soc, true_soc);
+        final_soc_error * 100.0, fo_ecm_ekf_get_soc(ekf), true_soc);
 
     /* Error must converge to within 1.5% */
     assert(final_soc_error < 0.015);
-    assert(ekf.is_converged == true);
+    assert(fo_ecm_ekf_is_converged(ekf) == true);
     printf("  --> Convergence from 20%% initial bias PASSED!\n");
 }
 
@@ -143,29 +144,30 @@ static void test_fractional_relaxation_and_pulses(void) {
                               .temp_coeff_r0 = 0.004,
                               .temp_ref_c = 25.0};
 
-    fo_ecm_ekf_t ekf;
-    fo_ecm_ekf_init(&ekf, &params, 0.80, 25.0, 0.5);
+    fo_ecm_ekf_storage_t store;
+    fo_ecm_ekf_t *ekf = fo_ecm_ekf_create_in(&store, &params, 0.80, 25.0, 0.5);
+    assert(ekf != NULL);
 
     /* 1. Apply high discharge pulse (-50A for 10s) */
     for (int i = 0; i < 20; ++i) {
         double current = -50.0;
-        double vt = fo_ecm_ocv_lookup(ekf.soc) - 0.05 + current * params.r0;
-        fo_ecm_ekf_step(&ekf, current, vt, 25.0, 0.5);
+        double vt = fo_ecm_ocv_lookup(fo_ecm_ekf_get_soc(ekf)) - 0.05 + current * params.r0;
+        fo_ecm_ekf_step(ekf, current, vt, 25.0, 0.5);
     }
-    double up_after_pulse = ekf.up;
+    double up_after_pulse = fo_ecm_ekf_get_up(ekf);
     assert(up_after_pulse < 0.0); /* Negative polarization during discharge */
 
     /* 2. Rest period (0A current) -> Fractional diffusion relaxation */
     for (int i = 0; i < 30; ++i) {
         double current = 0.0;
-        double vt = fo_ecm_ocv_lookup(ekf.soc) + ekf.up;
-        fo_ecm_ekf_step(&ekf, current, vt, 25.0, 0.5);
+        double vt = fo_ecm_ocv_lookup(fo_ecm_ekf_get_soc(ekf)) + fo_ecm_ekf_get_up(ekf);
+        fo_ecm_ekf_step(ekf, current, vt, 25.0, 0.5);
     }
 
     /* Polarization should decay towards 0, but preserve long-tail fractional memory */
-    assert(fabs(ekf.up) < fabs(up_after_pulse));
+    assert(fabs(fo_ecm_ekf_get_up(ekf)) < fabs(up_after_pulse));
     printf("  --> Pulse polarization: %.4f V, Relaxed polarization: %.4f V\n", up_after_pulse,
-           ekf.up);
+           fo_ecm_ekf_get_up(ekf));
     printf("  --> Fractional memory relaxation PASSED!\n");
 }
 
@@ -181,24 +183,25 @@ static void test_temperature_compensation(void) {
                               .temp_coeff_r0 = 0.005,
                               .temp_ref_c = 25.0};
 
-    fo_ecm_ekf_t ekf;
-    fo_ecm_ekf_init(&ekf, &params, 0.50, 25.0, 1.0);
+    fo_ecm_ekf_storage_t store;
+    fo_ecm_ekf_t *ekf = fo_ecm_ekf_create_in(&store, &params, 0.50, 25.0, 1.0);
+    assert(ekf != NULL);
 
     /* Step at 25°C */
-    fo_ecm_ekf_step(&ekf, -10.0, 3.25, 25.0, 1.0);
-    double v_est_25 = ekf.terminal_voltage_est;
+    fo_ecm_ekf_step(ekf, -10.0, 3.25, 25.0, 1.0);
+    double v_est_25 = fo_ecm_ekf_get_terminal_voltage_est(ekf);
 
     /* Step at 0°C (Resistance higher -> larger IR drop -> lower terminal voltage during discharge)
      */
-    fo_ecm_ekf_reset(&ekf, 0.50, 0.0);
-    fo_ecm_ekf_step(&ekf, -10.0, 3.20, 0.0, 1.0);
-    double v_est_0 = ekf.terminal_voltage_est;
+    fo_ecm_ekf_reset(ekf, 0.50, 0.0);
+    fo_ecm_ekf_step(ekf, -10.0, 3.20, 0.0, 1.0);
+    double v_est_0 = fo_ecm_ekf_get_terminal_voltage_est(ekf);
 
     /* Step at 45°C (Resistance lower -> smaller IR drop -> higher terminal voltage during
      * discharge) */
-    fo_ecm_ekf_reset(&ekf, 0.50, 45.0);
-    fo_ecm_ekf_step(&ekf, -10.0, 3.28, 45.0, 1.0);
-    double v_est_45 = ekf.terminal_voltage_est;
+    fo_ecm_ekf_reset(ekf, 0.50, 45.0);
+    fo_ecm_ekf_step(ekf, -10.0, 3.28, 45.0, 1.0);
+    double v_est_45 = fo_ecm_ekf_get_terminal_voltage_est(ekf);
 
     assert(v_est_0 < v_est_25);
     assert(v_est_25 < v_est_45);
@@ -209,7 +212,9 @@ static void test_temperature_compensation(void) {
 }
 
 int main(void) {
-    printf("=== EdgeOS Battery FO-ECM Adaptive Extended Kalman Filter Tests (AEP-731) ===\n");
+    printf(
+        "=== EdgeOS Battery FO-ECM Adaptive Extended Kalman Filter Tests (AEP-731 / AEP-752) "
+        "===\n");
     test_initialization_and_validation();
     test_ocv_and_derivative();
     test_constant_current_convergence();

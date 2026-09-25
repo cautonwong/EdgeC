@@ -1286,6 +1286,36 @@ add_test(NAME test_ci_architecture_guards
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/ci/scripts/run_guard_selftest.py
 )
 
+# AEP-752 调用方提供内存 (Caller-Allocated Storage) 与不透明指针物理封装架构单测 (Issue #340)
+add_executable(test_caller_allocated_storage test_caller_allocated_storage.c)
+target_include_directories(test_caller_allocated_storage PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_algo/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_stream/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_caller_allocated_storage PRIVATE
+    edge_algo
+    edge_stream
+    edge_core
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_caller_allocated_storage COMMAND test_caller_allocated_storage)
+
+# AEP-723 ~ AEP-730 构网型虚拟同步发电机 (VSG) 控制算法单测
+add_executable(test_vsg_control test_vsg_control.c)
+target_include_directories(test_vsg_control PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_algo/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_vsg_control PRIVATE
+    edge_algo
+    edge_core
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_vsg_control COMMAND test_vsg_control)
+
 
 
 

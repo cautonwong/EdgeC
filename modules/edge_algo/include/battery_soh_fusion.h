@@ -104,31 +104,39 @@ typedef struct {
     bool   valid;
 } battery_soh_result_t;
 
+#include <stdalign.h>
+
 /**
- * @brief SOH & RUL 融合估计器结构体
+ * @brief SOH & RUL 融合估计器不透明聚合根类型
+ */
+typedef struct battery_soh_estimator battery_soh_estimator_t;
+typedef battery_soh_estimator_t battery_soh_fusion_estimator_t;
+
+/**
+ * @brief 调用方分配存储块 (Caller-Allocated Storage)
  */
 typedef struct {
-    battery_soh_config_t config;
-    battery_soh_ica_state_t ica;
-    battery_soh_coulomb_state_t coulomb;
-    
-    /* 运行统计累计变量 */
-    double total_ah_charge;
-    double total_ah_discharge;
-    double total_energy_kwh;
-    double initial_timestamp_s;
-    double last_timestamp_s;
-    double avg_operating_temp_c;
-    double avg_dod;
-    uint64_t total_samples_fed;
-    
-    /* 贝叶斯融合状态变量与协方差 */
-    double state_soh_cap;
-    double state_soh_res;
-    double cov_soh_cap;
-    
-    battery_soh_result_t result;
-} battery_soh_fusion_estimator_t;
+    alignas(max_align_t) uint8_t raw[4096];
+} battery_soh_storage_t;
+
+/**
+ * @brief 消费者定义接口 (Consumer-Defined Ports)
+ */
+typedef struct {
+    int (*read_sample)(void *ctx, double *current_a, double *voltage_v, double *temp_c, double *soc);
+    int (*read_impedance)(void *ctx, double *r0_mohm, double *rct_mohm, double *temp_c);
+    int (*write_result)(void *ctx, const battery_soh_result_t *result);
+    double (*get_time_s)(void *ctx);
+    void *ctx;
+} battery_soh_ports_t;
+
+/**
+ * @brief 就地构造 SOH & RUL 融合估计器 (0 malloc)
+ * @param store 调用方分配的对齐存储
+ * @param cfg 算法配置参数 (若为 NULL 则使用工业级默认参数)
+ * @return 构造成功的聚合根指针, 失败返回 NULL
+ */
+battery_soh_estimator_t *battery_soh_create_in(battery_soh_storage_t *store, const battery_soh_config_t *cfg);
 
 /**
  * @brief 初始化 SOH & RUL 融合估计器
@@ -178,6 +186,14 @@ int battery_soh_process_fusion(battery_soh_fusion_estimator_t *est,
                                double cur_timestamp_s);
 
 /**
+ * @brief 基于消费者 Ports 抽象执行单步驱动融合 (Consumer-Defined Ports)
+ * @param est 估计器句柄
+ * @param ports 消费者接口表
+ * @return 0 成功, 负数 错误码
+ */
+int battery_soh_step_ports(battery_soh_estimator_t *est, const battery_soh_ports_t *ports);
+
+/**
  * @brief 获取最新 SOH & RUL 评估诊断报告
  * @param est 估计器句柄
  * @return 诊断报告指针, 若无效返回 NULL
@@ -189,6 +205,38 @@ const battery_soh_result_t *battery_soh_get_result(const battery_soh_fusion_esti
  * @param est 估计器句柄
  */
 void battery_soh_reset(battery_soh_fusion_estimator_t *est);
+
+/**
+ * @brief 探针接口: 获取配置
+ */
+const battery_soh_config_t *battery_soh_get_config(const battery_soh_estimator_t *est);
+
+/**
+ * @brief 探针接口: 获取库仑积分内部状态
+ */
+const battery_soh_coulomb_state_t *battery_soh_get_coulomb_state(const battery_soh_estimator_t *est);
+
+/**
+ * @brief 探针接口: 获取 ICA 内部特征状态
+ */
+const battery_soh_ica_state_t *battery_soh_get_ica_state(const battery_soh_estimator_t *est);
+
+/**
+ * @brief 探针接口: 设定测试运行统计指标
+ */
+void battery_soh_set_test_metrics(battery_soh_estimator_t *est,
+                                  double init_t,
+                                  double last_t,
+                                  double ah_chg,
+                                  double ah_dis,
+                                  double energy_kwh,
+                                  double avg_temp,
+                                  uint64_t samples);
+
+/**
+ * @brief 探针接口: 获取累计充电量
+ */
+double battery_soh_get_total_ah_charge(const battery_soh_estimator_t *est);
 
 #ifdef __cplusplus
 }

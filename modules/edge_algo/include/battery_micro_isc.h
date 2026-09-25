@@ -71,24 +71,45 @@ typedef struct {
     cell_relaxation_data_t relaxation;                     /**< 松弛曲率分析数据 */
 } cell_isc_state_t;
 
-/**
- * @brief 多电芯 Pack 级微短路与析锂辨识检测引擎结构体
- */
-typedef struct {
-    battery_micro_isc_config_t config;                     /**< 算法参数配置 */
-    uint16_t cell_count;                                   /**< 电芯总数量 (<= BATTERY_MAX_CELLS_PER_PACK) */
-    cell_isc_state_t cells[BATTERY_MAX_CELLS_PER_PACK];   /**< 电芯状态列表 */
-    float pack_avg_voltage;                                /**< 组端电芯均值电压 (V) */
-    float pack_median_voltage;                             /**< 组端电芯中位数电压 (V) */
-    float pack_current;                                    /**< 电池簇总电流 (A) */
-    bool is_in_rest;                                       /**< 当前电池簇是否处于静置松弛态 */
-    double rest_start_timestamp;                           /**< 当前静置开始时间戳 */
-    double accumulated_rest_s;                             /**< 连续静置时长 (s) */
-    uint64_t total_samples_processed;                      /**< 累计处理样本计数 */
-} pack_micro_isc_detector_t;
+#include <stdalign.h>
+#include "edge_port.h"
 
 /**
- * @brief 初始化微短路与析锂早期预警检测器
+ * @brief 消费者定义接口 (Consumer-Defined Ports - AEP-751 / AEP-752)
+ */
+typedef struct battery_micro_isc_ports {
+    edge_reader_port_t reader;
+    edge_writer_port_t writer;
+    edge_clock_port_t clock;
+} battery_micro_isc_ports_t;
+
+/**
+ * @brief 多电芯 Pack 级微短路与析锂辨识检测引擎句柄 (Opaque Pointer)
+ */
+typedef struct pack_micro_isc_detector pack_micro_isc_detector_t;
+
+/**
+ * @brief 调用方预分配存储空间 (Caller-Allocated Storage - 48KB Aligned)
+ */
+typedef struct {
+    alignas(max_align_t) uint8_t raw[49152];
+} pack_micro_isc_detector_storage_t;
+
+/**
+ * @brief 就地就近构造多电芯微短路与析锂辨识聚合根 (0 heap allocation)
+ * @param store 调用方提供的内存块
+ * @param cfg 算法配置参数 (为 NULL 则使用工业级默认参数)
+ * @param cell_count 电芯数量 (1 ~ BATTERY_MAX_CELLS_PER_PACK)
+ * @param ports 消费者接口注入 (可选)
+ * @return 构造成功的聚合根指针, 失败返回 NULL
+ */
+pack_micro_isc_detector_t *battery_micro_isc_create_in(pack_micro_isc_detector_storage_t *store,
+                                                       const battery_micro_isc_config_t *cfg,
+                                                       uint16_t cell_count,
+                                                       const battery_micro_isc_ports_t *ports);
+
+/**
+ * @brief 初始化微短路与析锂早期预警检测器 (向下兼容适配)
  * @param det 检测器结构体指针
  * @param cfg 配置参数指针 (若为 NULL 则使用默认工业级参数)
  * @param cell_count 电芯数量 (1 ~ BATTERY_MAX_CELLS_PER_PACK)
@@ -97,6 +118,40 @@ typedef struct {
 int battery_micro_isc_init(pack_micro_isc_detector_t *det,
                            const battery_micro_isc_config_t *cfg,
                            uint16_t cell_count);
+
+/**
+ * @brief 探针接口：获取当前电芯总数
+ */
+uint16_t battery_micro_isc_get_cell_count(const pack_micro_isc_detector_t *det);
+
+/**
+ * @brief 探针接口：获取当前配置
+ */
+const battery_micro_isc_config_t *battery_micro_isc_get_config(const pack_micro_isc_detector_t *det);
+
+/**
+ * @brief 探针接口：获取 Pack 平均电压
+ */
+float battery_micro_isc_get_pack_avg_voltage(const pack_micro_isc_detector_t *det);
+
+/**
+ * @brief 探针接口：获取 Pack 中位数电压
+ */
+float battery_micro_isc_get_pack_median_voltage(const pack_micro_isc_detector_t *det);
+
+/**
+ * @brief 探针接口：获取累计样本数
+ */
+uint64_t battery_micro_isc_get_total_samples(const pack_micro_isc_detector_t *det);
+
+/**
+ * @brief 基于 Ports 驱动的自动批处理步进
+ */
+int battery_micro_isc_step_ports(pack_micro_isc_detector_t *det,
+                                 const uint32_t *cell_u_tags,
+                                 const uint32_t *cell_i_tags,
+                                 uint32_t alarm_out_tag,
+                                 double dt_s);
 
 /**
  * @brief 喂入单个电芯最新物理采集数据

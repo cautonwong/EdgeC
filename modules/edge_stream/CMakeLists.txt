@@ -12,6 +12,7 @@ set(STREAM_SOURCES
     src/energy_integrator.c
     src/script_loader.c
     src/stream_sql_dag.c
+    src/mpc_dispatcher.c
     ${STAGE_SOURCES}
 )
 

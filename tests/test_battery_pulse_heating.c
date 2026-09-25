@@ -16,15 +16,16 @@
 
 static void test_pulse_heat_init_and_config(void **state) {
     (void)state;
-    pulse_heat_engine_t engine;
+    pulse_heat_engine_storage_t store;
+    pulse_heat_engine_t *engine = pulse_heat_engine_create_in(&store, NULL);
+    assert_non_null(engine);
 
-    /* 默认配置初始化 */
-    int ret = pulse_heat_engine_init(&engine, NULL);
-    assert_int_equal(ret, 0);
-    assert_int_equal(engine.current_state, PULSE_HEAT_STATE_IDLE);
-    assert_int_equal(engine.active_fault, PULSE_HEAT_FAULT_NONE);
-    assert_float_equal(engine.cfg.target_temp_c, 10.0f, 0.001f);
-    assert_float_equal(engine.cfg.nominal_frequency_hz, 500.0f, 0.001f);
+    const pulse_heat_config_t *cfg = pulse_heat_engine_get_config(engine);
+    assert_non_null(cfg);
+    assert_int_equal(pulse_heat_engine_get_state(engine), PULSE_HEAT_STATE_IDLE);
+    assert_int_equal(pulse_heat_engine_get_fault(engine), PULSE_HEAT_FAULT_NONE);
+    assert_float_equal(cfg->target_temp_c, 10.0f, 0.001f);
+    assert_float_equal(cfg->nominal_frequency_hz, 500.0f, 0.001f);
 
     assert_string_equal(pulse_heat_state_to_str(PULSE_HEAT_STATE_IDLE), "IDLE");
     assert_string_equal(pulse_heat_state_to_str(PULSE_HEAT_STATE_ACTIVE_HEATING), "ACTIVE_HEATING");
@@ -56,16 +57,17 @@ static void test_pulse_heat_init_and_config(void **state) {
                                       .baseline_resistance_ohm = 0.0015f,
                                       .arrhenius_activation_energy_j = 25000.0f};
 
-    ret = pulse_heat_engine_init(&engine, &custom_cfg);
+    int ret = pulse_heat_engine_init(engine, &custom_cfg);
     assert_int_equal(ret, 0);
-    assert_float_equal(engine.cfg.target_temp_c, 15.0f, 0.001f);
-    assert_float_equal(engine.cfg.max_current_amp_a, 200.0f, 0.001f);
+    assert_float_equal(cfg->target_temp_c, 15.0f, 0.001f);
+    assert_float_equal(cfg->max_current_amp_a, 200.0f, 0.001f);
 }
 
 static void test_pulse_heat_precheck_safety_gates(void **state) {
     (void)state;
-    pulse_heat_engine_t engine;
-    pulse_heat_engine_init(&engine, NULL);
+    pulse_heat_engine_storage_t store;
+    pulse_heat_engine_t *engine = pulse_heat_engine_create_in(&store, NULL);
+    assert_non_null(engine);
 
     pulse_heat_cell_telemetry_t telem = {.cell_count = 16,
                                          .temp_count = 4,
@@ -78,33 +80,33 @@ static void test_pulse_heat_precheck_safety_gates(void **state) {
     for (int i = 0; i < 4; i++) telem.cell_temps[i] = -20.0f;
 
     /* 启动加热 */
-    int ret = pulse_heat_engine_start(&engine);
+    int ret = pulse_heat_engine_start(engine);
     assert_int_equal(ret, 0);
 
     pulse_heat_control_output_t out;
-    ret = pulse_heat_engine_step(&engine, &telem, 0.1f, &out);
+    ret = pulse_heat_engine_step(engine, &telem, 0.1f, &out);
     assert_int_equal(ret, 0);
     assert_int_equal(out.state, PULSE_HEAT_STATE_FAULT);
     assert_int_equal(out.fault, PULSE_HEAT_FAULT_INVERTER_NOT_READY);
     assert_false(out.inverter_enable);
 
     /* 重置并测试 SOC 过低门禁 */
-    pulse_heat_engine_reset(&engine);
+    pulse_heat_engine_reset(engine);
     telem.inverter_ready = true;
     telem.pack_soc = 0.10f; /* 低于 0.15 */
-    pulse_heat_engine_start(&engine);
-    ret = pulse_heat_engine_step(&engine, &telem, 0.1f, &out);
+    pulse_heat_engine_start(engine);
+    ret = pulse_heat_engine_step(engine, &telem, 0.1f, &out);
     assert_int_equal(ret, 0);
     assert_int_equal(out.state, PULSE_HEAT_STATE_FAULT);
     assert_int_equal(out.fault, PULSE_HEAT_FAULT_SOC_OUT_OF_BOUNDS);
 
     /* 重置并测试电芯间温差过大门禁 */
-    pulse_heat_engine_reset(&engine);
+    pulse_heat_engine_reset(engine);
     telem.pack_soc = 0.60f;
     telem.cell_temps[0] = -20.0f;
     telem.cell_temps[1] = -14.0f; /* 极差 6℃ > 4℃ */
-    pulse_heat_engine_start(&engine);
-    ret = pulse_heat_engine_step(&engine, &telem, 0.1f, &out);
+    pulse_heat_engine_start(engine);
+    ret = pulse_heat_engine_step(engine, &telem, 0.1f, &out);
     assert_int_equal(ret, 0);
     assert_int_equal(out.state, PULSE_HEAT_STATE_FAULT);
     assert_int_equal(out.fault, PULSE_HEAT_FAULT_HIGH_THERMAL_GRADIENT);
@@ -112,8 +114,9 @@ static void test_pulse_heat_precheck_safety_gates(void **state) {
 
 static void test_pulse_heat_frequency_sweep_and_ramp(void **state) {
     (void)state;
-    pulse_heat_engine_t engine;
-    pulse_heat_engine_init(&engine, NULL);
+    pulse_heat_engine_storage_t store;
+    pulse_heat_engine_t *engine = pulse_heat_engine_create_in(&store, NULL);
+    assert_non_null(engine);
 
     pulse_heat_cell_telemetry_t telem = {.cell_count = 16,
                                          .temp_count = 4,
@@ -125,18 +128,18 @@ static void test_pulse_heat_frequency_sweep_and_ramp(void **state) {
     for (int i = 0; i < 16; i++) telem.cell_voltages[i] = 3.20f;
     for (int i = 0; i < 4; i++) telem.cell_temps[i] = -20.0f;
 
-    pulse_heat_engine_start(&engine);
+    pulse_heat_engine_start(engine);
     pulse_heat_control_output_t out;
 
     /* 步进第 1 周期: PRECHECK -> FREQ_SWEEP */
-    pulse_heat_engine_step(&engine, &telem, 0.1f, &out);
+    pulse_heat_engine_step(engine, &telem, 0.1f, &out);
     assert_int_equal(out.state, PULSE_HEAT_STATE_FREQ_SWEEP);
     assert_float_equal(out.target_current_amp_a, 10.0f, 0.01f);
     assert_true(out.inverter_enable);
 
     /* 连续步进 1.0s 完成扫频 -> RAMP_UP */
     for (int i = 0; i < 10; i++) {
-        pulse_heat_engine_step(&engine, &telem, 0.1f, &out);
+        pulse_heat_engine_step(engine, &telem, 0.1f, &out);
     }
     assert_int_equal(out.state, PULSE_HEAT_STATE_RAMP_UP);
     assert_float_equal(out.target_frequency_hz, 500.0f, 0.01f);
@@ -144,14 +147,14 @@ static void test_pulse_heat_frequency_sweep_and_ramp(void **state) {
     /* 验证斜坡电流上升：30 A/s 速率 */
     float prev_curr = out.target_current_amp_a;
     for (int i = 0; i < 10; i++) {
-        pulse_heat_engine_step(&engine, &telem, 0.1f, &out);
+        pulse_heat_engine_step(engine, &telem, 0.1f, &out);
         assert_true(out.target_current_amp_a >= prev_curr);
         prev_curr = out.target_current_amp_a;
     }
 
     /* 步进直至达到稳态 150A -> 转入 ACTIVE_HEATING */
     while (out.state == PULSE_HEAT_STATE_RAMP_UP) {
-        pulse_heat_engine_step(&engine, &telem, 0.1f, &out);
+        pulse_heat_engine_step(engine, &telem, 0.1f, &out);
     }
     assert_int_equal(out.state, PULSE_HEAT_STATE_ACTIVE_HEATING);
     assert_float_equal(out.target_current_amp_a, 150.0f, 0.01f);
@@ -159,8 +162,9 @@ static void test_pulse_heat_frequency_sweep_and_ramp(void **state) {
 
 static void test_pulse_heat_full_heating_cycle_convergence(void **state) {
     (void)state;
-    pulse_heat_engine_t engine;
-    pulse_heat_engine_init(&engine, NULL);
+    pulse_heat_engine_storage_t store;
+    pulse_heat_engine_t *engine = pulse_heat_engine_create_in(&store, NULL);
+    assert_non_null(engine);
 
     pulse_heat_cell_telemetry_t telem = {.cell_count = 16,
                                          .temp_count = 4,
@@ -172,7 +176,7 @@ static void test_pulse_heat_full_heating_cycle_convergence(void **state) {
     for (int i = 0; i < 16; i++) telem.cell_voltages[i] = 3.25f;
     for (int i = 0; i < 4; i++) telem.cell_temps[i] = -10.0f;
 
-    pulse_heat_engine_start(&engine);
+    pulse_heat_engine_start(engine);
     pulse_heat_control_output_t out;
 
     bool seen_sweep = false;
@@ -198,7 +202,7 @@ static void test_pulse_heat_full_heating_cycle_convergence(void **state) {
             telem.actual_current_rms_a = out.target_current_amp_a * 0.7071f;
         }
 
-        pulse_heat_engine_step(&engine, &telem, 0.2f, &out);
+        pulse_heat_engine_step(engine, &telem, 0.2f, &out);
 
         /* 同步仿真表面传感器读数跟踪估算表面温度 */
         for (int i = 0; i < 4; i++) {
@@ -224,8 +228,9 @@ static void test_pulse_heat_full_heating_cycle_convergence(void **state) {
 
 static void test_pulse_heat_lithium_plating_throttle(void **state) {
     (void)state;
-    pulse_heat_engine_t engine;
-    pulse_heat_engine_init(&engine, NULL);
+    pulse_heat_engine_storage_t store;
+    pulse_heat_engine_t *engine = pulse_heat_engine_create_in(&store, NULL);
+    assert_non_null(engine);
 
     pulse_heat_cell_telemetry_t telem = {.cell_count = 16,
                                          .temp_count = 4,
@@ -238,12 +243,12 @@ static void test_pulse_heat_lithium_plating_throttle(void **state) {
     for (int i = 0; i < 16; i++) telem.cell_voltages[i] = 3.40f;
     for (int i = 0; i < 4; i++) telem.cell_temps[i] = -25.0f;
 
-    pulse_heat_engine_start(&engine);
+    pulse_heat_engine_start(engine);
     pulse_heat_control_output_t out;
 
     /* 推进到稳态阶段 */
     for (int i = 0; i < 50; i++) {
-        pulse_heat_engine_step(&engine, &telem, 0.1f, &out);
+        pulse_heat_engine_step(engine, &telem, 0.1f, &out);
     }
 
     /* 验证过电位安全裕度较小时，目标电流幅值被自适应限制 (< 150A) */
@@ -254,8 +259,9 @@ static void test_pulse_heat_lithium_plating_throttle(void **state) {
 
 static void test_pulse_heat_thermal_gradient_homogenize(void **state) {
     (void)state;
-    pulse_heat_engine_t engine;
-    pulse_heat_engine_init(&engine, NULL);
+    pulse_heat_engine_storage_t store;
+    pulse_heat_engine_t *engine = pulse_heat_engine_create_in(&store, NULL);
+    assert_non_null(engine);
 
     pulse_heat_cell_telemetry_t telem = {.cell_count = 16,
                                          .temp_count = 4,
@@ -267,16 +273,13 @@ static void test_pulse_heat_thermal_gradient_homogenize(void **state) {
     for (int i = 0; i < 16; i++) telem.cell_voltages[i] = 3.20f;
     for (int i = 0; i < 4; i++) telem.cell_temps[i] = -30.0f;
 
-    pulse_heat_engine_start(&engine);
+    pulse_heat_engine_start(engine);
     pulse_heat_control_output_t out;
 
     /* 人为拉大核心与表面温差 */
-    engine.core_temp_est_c = -15.0f;
-    engine.surf_temp_est_c = -23.0f; /* 温差 8℃ > max_thermal_gradient_c (6℃) */
-    engine.temp_initialized = true;
-    engine.current_state = PULSE_HEAT_STATE_ACTIVE_HEATING;
+    pulse_heat_engine_set_test_state(engine, PULSE_HEAT_STATE_ACTIVE_HEATING, -15.0f, -23.0f, 0.0f);
 
-    pulse_heat_engine_step(&engine, &telem, 0.1f, &out);
+    pulse_heat_engine_step(engine, &telem, 0.1f, &out);
     assert_int_equal(out.state, PULSE_HEAT_STATE_COOLDOWN_HOMOGENIZE);
     assert_float_equal(out.target_current_amp_a, 0.0f, 0.01f);
     assert_false(out.inverter_enable);
@@ -284,8 +287,9 @@ static void test_pulse_heat_thermal_gradient_homogenize(void **state) {
 
 static void test_pulse_heat_overtemp_and_timeout_faults(void **state) {
     (void)state;
-    pulse_heat_engine_t engine;
-    pulse_heat_engine_init(&engine, NULL);
+    pulse_heat_engine_storage_t store;
+    pulse_heat_engine_t *engine = pulse_heat_engine_create_in(&store, NULL);
+    assert_non_null(engine);
 
     pulse_heat_cell_telemetry_t telem = {.cell_count = 16,
                                          .temp_count = 4,
@@ -297,28 +301,29 @@ static void test_pulse_heat_overtemp_and_timeout_faults(void **state) {
     for (int i = 0; i < 16; i++) telem.cell_voltages[i] = 3.30f;
     for (int i = 0; i < 4; i++) telem.cell_temps[i] = 48.0f; /* 超过 45℃ */
 
-    pulse_heat_engine_start(&engine);
+    pulse_heat_engine_start(engine);
     pulse_heat_control_output_t out;
 
-    pulse_heat_engine_step(&engine, &telem, 0.1f, &out);
+    pulse_heat_engine_step(engine, &telem, 0.1f, &out);
     assert_int_equal(out.state, PULSE_HEAT_STATE_FAULT);
     assert_int_equal(out.fault, PULSE_HEAT_FAULT_OVERTEMP);
 
     /* 超时故障测试 */
-    pulse_heat_engine_reset(&engine);
+    pulse_heat_engine_reset(engine);
     for (int i = 0; i < 4; i++) telem.cell_temps[i] = -10.0f;
-    pulse_heat_engine_start(&engine);
-    engine.total_elapsed_s = 650.0f; /* 超过 600s 超时 */
+    pulse_heat_engine_start(engine);
+    pulse_heat_engine_set_test_state(engine, PULSE_HEAT_STATE_PRECHECK, 0.0f, 0.0f, 650.0f);
 
-    pulse_heat_engine_step(&engine, &telem, 0.1f, &out);
+    pulse_heat_engine_step(engine, &telem, 0.1f, &out);
     assert_int_equal(out.state, PULSE_HEAT_STATE_FAULT);
     assert_int_equal(out.fault, PULSE_HEAT_FAULT_TIMEOUT);
 }
 
 static void test_pulse_heat_zero_deg_startup_and_nan_defense(void **state) {
     (void)state;
-    pulse_heat_engine_t engine;
-    pulse_heat_engine_init(&engine, NULL);
+    pulse_heat_engine_storage_t store;
+    pulse_heat_engine_t *engine = pulse_heat_engine_create_in(&store, NULL);
+    assert_non_null(engine);
 
     /* 1. 测试 0.0°C 精确冰水混合物工况下的状态机启动与温度初始化对齐 */
     pulse_heat_cell_telemetry_t telem_zero = {.cell_count = 16,
@@ -331,29 +336,29 @@ static void test_pulse_heat_zero_deg_startup_and_nan_defense(void **state) {
     for (int i = 0; i < 16; i++) telem_zero.cell_voltages[i] = 3.25f;
     for (int i = 0; i < 4; i++) telem_zero.cell_temps[i] = 0.0f;
 
-    assert_int_equal(pulse_heat_engine_start(&engine), 0);
+    assert_int_equal(pulse_heat_engine_start(engine), 0);
     pulse_heat_control_output_t out;
-    assert_int_equal(pulse_heat_engine_step(&engine, &telem_zero, 0.1f, &out), 0);
+    assert_int_equal(pulse_heat_engine_step(engine, &telem_zero, 0.1f, &out), 0);
     assert_int_equal(out.state, PULSE_HEAT_STATE_FREQ_SWEEP);
     assert_true(isfinite(out.estimated_core_temp_c));
     assert_true(isfinite(out.estimated_surface_temp_c));
     assert_float_equal(out.estimated_core_temp_c, 0.0f, 0.05f);
 
     /* 2. 测试 cell_count = 0 异常输入防御 */
-    pulse_heat_engine_reset(&engine);
+    pulse_heat_engine_reset(engine);
     pulse_heat_cell_telemetry_t telem_empty = telem_zero;
     telem_empty.cell_count = 0;
-    pulse_heat_engine_start(&engine);
-    assert_int_equal(pulse_heat_engine_step(&engine, &telem_empty, 0.1f, &out), 0);
+    pulse_heat_engine_start(engine);
+    assert_int_equal(pulse_heat_engine_step(engine, &telem_empty, 0.1f, &out), 0);
     assert_int_equal(out.state, PULSE_HEAT_STATE_FAULT);
     assert_int_equal(out.fault, PULSE_HEAT_FAULT_SENSOR_INVALID);
 
     /* 3. 测试遥测 NaN 脏数据注入防御 */
-    pulse_heat_engine_reset(&engine);
+    pulse_heat_engine_reset(engine);
     pulse_heat_cell_telemetry_t telem_nan = telem_zero;
     telem_nan.cell_voltages[2] = NAN;
-    pulse_heat_engine_start(&engine);
-    assert_int_equal(pulse_heat_engine_step(&engine, &telem_nan, 0.1f, &out), 0);
+    pulse_heat_engine_start(engine);
+    assert_int_equal(pulse_heat_engine_step(engine, &telem_nan, 0.1f, &out), 0);
     assert_int_equal(out.state, PULSE_HEAT_STATE_FAULT);
     assert_int_equal(out.fault, PULSE_HEAT_FAULT_SENSOR_INVALID);
     assert_false(out.inverter_enable);

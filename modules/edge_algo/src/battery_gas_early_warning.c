@@ -3,6 +3,114 @@
 #include <math.h>
 #include <stdio.h>
 
+struct battery_gas_ew_detector {
+    battery_gas_ew_config_t config;
+    battery_gas_ew_ports_t ports;
+    battery_gas_sensor_sample_t history[BATTERY_GAS_HISTORY_LEN];
+    uint16_t sample_count;
+    
+    /* 自适应基线追踪 */
+    double baseline_co;
+    double baseline_h2;
+    double baseline_voc;
+    double baseline_pressure;
+    
+    battery_gas_ew_report_t report;
+    uint64_t total_samples_processed;
+    double last_timestamp_s;
+};
+
+/* -------------------------------------------------------------------------- */
+/* Compile-Time Size & Alignment Assertions (AEP-752)                          */
+/* -------------------------------------------------------------------------- */
+_Static_assert(sizeof(struct battery_gas_ew_detector) <= sizeof(battery_gas_ew_storage_t),
+               "battery_gas_ew_storage_t buffer too small for struct battery_gas_ew_detector");
+_Static_assert(_Alignof(struct battery_gas_ew_detector) <= _Alignof(battery_gas_ew_storage_t),
+               "battery_gas_ew_storage_t alignment mismatch for struct battery_gas_ew_detector");
+
+battery_gas_ew_detector_t *battery_gas_ew_create_in(battery_gas_ew_storage_t *store,
+                                                    const battery_gas_ew_config_t *cfg,
+                                                    const battery_gas_ew_ports_t *ports) {
+    if (!store) {
+        return NULL;
+    }
+
+    battery_gas_ew_detector_t *ew = (battery_gas_ew_detector_t *)store->raw;
+    if (battery_gas_ew_init(ew, cfg) != 0) {
+        return NULL;
+    }
+
+    if (ports) {
+        ew->ports = *ports;
+    }
+
+    return ew;
+}
+
+const battery_gas_ew_config_t *battery_gas_ew_get_config(const battery_gas_ew_detector_t *ew) {
+    return ew ? &ew->config : NULL;
+}
+
+uint16_t battery_gas_ew_get_sample_count(const battery_gas_ew_detector_t *ew) {
+    return ew ? ew->sample_count : 0;
+}
+
+int battery_gas_ew_step_ports(battery_gas_ew_detector_t *ew,
+                              uint32_t tag_co,
+                              uint32_t tag_h2,
+                              uint32_t tag_voc,
+                              uint32_t tag_press,
+                              uint32_t tag_temp,
+                              uint32_t tag_stage_out,
+                              double dt_s) {
+    if (!ew || dt_s <= 0.0) return -1;
+
+    uint64_t now_us = 0;
+    if (ew->ports.clock.now_us) {
+        now_us = ew->ports.clock.now_us(ew->ports.clock.ctx);
+    }
+    double cur_ts_s = (double)now_us / 1000000.0;
+
+    double co = 0.0, h2 = 0.0, voc = 0.0, press = 101325.0, temp = 25.0;
+    if (ew->ports.reader.read_tag && tag_co) {
+        ew->ports.reader.read_tag(ew->ports.reader.ctx, tag_co, &co, NULL);
+    }
+    if (ew->ports.reader.read_tag && tag_h2) {
+        ew->ports.reader.read_tag(ew->ports.reader.ctx, tag_h2, &h2, NULL);
+    }
+    if (ew->ports.reader.read_tag && tag_voc) {
+        ew->ports.reader.read_tag(ew->ports.reader.ctx, tag_voc, &voc, NULL);
+    }
+    if (ew->ports.reader.read_tag && tag_press) {
+        ew->ports.reader.read_tag(ew->ports.reader.ctx, tag_press, &press, NULL);
+    }
+    if (ew->ports.reader.read_tag && tag_temp) {
+        ew->ports.reader.read_tag(ew->ports.reader.ctx, tag_temp, &temp, NULL);
+    }
+
+    battery_gas_sensor_sample_t sample = {
+        .co_ppm = co,
+        .h2_ppm = h2,
+        .voc_ppb = voc,
+        .pressure_pa = press,
+        .smoke_density = 0.0,
+        .max_cell_temp_c = temp,
+        .min_cell_volt_v = 3.30,
+        .timestamp_s = cur_ts_s
+    };
+
+    battery_gas_ew_push_sample(ew, &sample);
+    int rc = battery_gas_ew_process_step(ew, cur_ts_s);
+    if (rc != 0) return rc;
+
+    const battery_gas_ew_report_t *report = battery_gas_ew_get_report(ew);
+    if (report && ew->ports.writer.write_tag && tag_stage_out) {
+        ew->ports.writer.write_tag(ew->ports.writer.ctx, tag_stage_out, (double)report->stage, now_us);
+    }
+
+    return 0;
+}
+
 int battery_gas_ew_init(battery_gas_ew_detector_t *ew, const battery_gas_ew_config_t *cfg)
 {
     if (!ew) {
@@ -80,6 +188,7 @@ static double clamp01(double v)
 
 int battery_gas_ew_process_step(battery_gas_ew_detector_t *ew, double cur_timestamp_s)
 {
+    (void)cur_timestamp_s;
     if (!ew || ew->sample_count == 0) {
         return -1;
     }

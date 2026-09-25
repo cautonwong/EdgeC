@@ -15,6 +15,7 @@ set(ALGO_SOURCES
     src/algorithm_sum.c
     src/battery_strategy.c
     src/battery_fo_ecm_ekf.c
+    src/vsg_control.c
     src/battery_micro_isc.c
     src/battery_spatial_matrix.c
     src/battery_eis.c

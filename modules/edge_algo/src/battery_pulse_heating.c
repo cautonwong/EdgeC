@@ -49,6 +49,44 @@ static float calculate_arrhenius_resistance(const pulse_heat_config_t *cfg, floa
     return cfg->baseline_resistance_ohm * expf(exponent);
 }
 
+#include <stdalign.h>
+
+struct pulse_heat_engine {
+    pulse_heat_config_t cfg;
+    pulse_heat_state_t current_state;
+    pulse_heat_fault_t active_fault;
+    float current_cmd_a;
+    float target_cmd_a;
+    float optimal_freq_hz;
+    float core_temp_est_c;
+    float surf_temp_est_c;
+    float state_timer_s;
+    float total_elapsed_s;
+    float cumulative_energy_wh;
+    float last_dt_s;
+    float prev_temp_for_rate_c;
+    float rate_timer_s;
+    float calculated_rate_c_min;
+    bool initialized;
+    bool temp_initialized;
+};
+
+_Static_assert(sizeof(struct pulse_heat_engine) <= sizeof(pulse_heat_engine_storage_t),
+               "pulse_heat_engine_storage_t too small for struct pulse_heat_engine");
+_Static_assert(alignof(struct pulse_heat_engine) <= alignof(pulse_heat_engine_storage_t),
+               "pulse_heat_engine_storage_t bad alignment for struct pulse_heat_engine");
+
+pulse_heat_engine_t *pulse_heat_engine_create_in(pulse_heat_engine_storage_t *store, const pulse_heat_config_t *cfg) {
+    if (!store) {
+        return NULL;
+    }
+    pulse_heat_engine_t *engine = (pulse_heat_engine_t *)store;
+    if (pulse_heat_engine_init(engine, cfg) != 0) {
+        return NULL;
+    }
+    return engine;
+}
+
 int pulse_heat_engine_init(pulse_heat_engine_t *engine, const pulse_heat_config_t *cfg) {
     if (!engine) {
         return -1;
@@ -533,4 +571,64 @@ const char *pulse_heat_fault_to_str(pulse_heat_fault_t fault) {
     case PULSE_HEAT_FAULT_SENSOR_INVALID: return "SENSOR_INVALID";
     default: return "UNKNOWN";
     }
+}
+
+int pulse_heat_engine_step_ports(pulse_heat_engine_t *engine,
+                                 const pulse_heat_ports_t *ports,
+                                 pulse_heat_control_output_t *out)
+{
+    if (!engine || !ports) {
+        return -1;
+    }
+
+    float dt_s = 0.1f;
+    if (ports->get_dt_s) {
+        dt_s = ports->get_dt_s(ports->ctx);
+    }
+
+    pulse_heat_control_output_t local_out;
+    pulse_heat_control_output_t *target_out = out ? out : &local_out;
+
+    if (ports->read_telemetry) {
+        pulse_heat_cell_telemetry_t telem;
+        memset(&telem, 0, sizeof(telem));
+        if (ports->read_telemetry(ports->ctx, &telem) == 0) {
+            int rc = pulse_heat_engine_step(engine, &telem, dt_s, target_out);
+            if (rc == 0 && ports->write_output) {
+                ports->write_output(ports->ctx, target_out);
+            }
+            return rc;
+        }
+    }
+
+    return -1;
+}
+
+const pulse_heat_config_t *pulse_heat_engine_get_config(const pulse_heat_engine_t *engine)
+{
+    return engine ? &engine->cfg : NULL;
+}
+
+pulse_heat_state_t pulse_heat_engine_get_state(const pulse_heat_engine_t *engine)
+{
+    return engine ? engine->current_state : PULSE_HEAT_STATE_IDLE;
+}
+
+pulse_heat_fault_t pulse_heat_engine_get_fault(const pulse_heat_engine_t *engine)
+{
+    return engine ? engine->active_fault : PULSE_HEAT_FAULT_NONE;
+}
+
+void pulse_heat_engine_set_test_state(pulse_heat_engine_t *engine,
+                                      pulse_heat_state_t state,
+                                      float core_t,
+                                      float surf_t,
+                                      float elapsed_s)
+{
+    if (!engine) return;
+    engine->current_state = state;
+    engine->core_temp_est_c = core_t;
+    engine->surf_temp_est_c = surf_t;
+    engine->temp_initialized = true;
+    engine->total_elapsed_s = elapsed_s;
 }

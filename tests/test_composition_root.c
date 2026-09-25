@@ -3,19 +3,19 @@
  * @brief Unit Tests for Single Composition Root & Consumer-Defined Ports (AEP-751 / Issue #336)
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 #include <cmocka.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#include "edge_port.h"
-#include "edge_composition_root.h"
 #include "battery_fo_ecm_ekf.h"
+#include "edge_composition_root.h"
+#include "edge_port.h"
 
 /* -------------------------------------------------------------------------- */
 /* Test Cases                                                                 */
@@ -34,52 +34,52 @@ static void test_consumer_ports_mock_isolation(void **state) {
     uint32_t tag_soc = 104;
     uint32_t tag_ocv = 105;
 
-    assert_int_equal(mock_ports.writer.write_tag(mock_ports.writer.ctx, tag_cur, -10.0, 1000000ULL), 0); // 10A discharge
-    assert_int_equal(mock_ports.writer.write_tag(mock_ports.writer.ctx, tag_volt, 3.28, 1000000ULL), 0); // 3.28V
-    assert_int_equal(mock_ports.writer.write_tag(mock_ports.writer.ctx, tag_temp, 25.0, 1000000ULL), 0); // 25C
+    assert_int_equal(mock_ports.writer.write_tag(mock_ports.writer.ctx, tag_cur, -10.0, 1000000ULL),
+                     0);  // 10A discharge
+    assert_int_equal(mock_ports.writer.write_tag(mock_ports.writer.ctx, tag_volt, 3.28, 1000000ULL),
+                     0);  // 3.28V
+    assert_int_equal(mock_ports.writer.write_tag(mock_ports.writer.ctx, tag_temp, 25.0, 1000000ULL),
+                     0);  // 25C
 
-    /* Initialize battery EKF algorithm */
-    fo_ecm_ekf_t ekf;
-    fo_ecm_params_t params = {
-        .alpha = 0.75,
-        .r0 = 0.005,
-        .rp = 0.008,
-        .c_alpha = 1200.0,
-        .capacity_ah = 100.0,
-        .coulombic_eff = 0.998,
-        .temp_coeff_r0 = 0.002,
-        .temp_ref_c = 25.0
-    };
-    assert_true(fo_ecm_ekf_init(&ekf, &params, 0.80, 25.0, 1.0));
+    /* Initialize battery EKF algorithm with Caller-Allocated Storage */
+    fo_ecm_ekf_storage_t ekf_store;
+    fo_ecm_params_t params = {.alpha = 0.75,
+                              .r0 = 0.005,
+                              .rp = 0.008,
+                              .c_alpha = 1200.0,
+                              .capacity_ah = 100.0,
+                              .coulombic_eff = 0.998,
+                              .temp_coeff_r0 = 0.002,
+                              .temp_ref_c = 25.0};
+    fo_ecm_ekf_t *ekf = fo_ecm_ekf_create_in(&ekf_store, &params, 0.80, 25.0, 1.0);
+    assert_non_null(ekf);
 
-    fo_ecm_port_binding_t binding = {
-        .tag_current_a = tag_cur,
-        .tag_voltage_v = tag_volt,
-        .tag_temp_c = tag_temp,
-        .tag_soc_est = tag_soc,
-        .tag_ocv_est = tag_ocv
-    };
+    fo_ecm_port_binding_t binding = {.tag_current_a = tag_cur,
+                                     .tag_voltage_v = tag_volt,
+                                     .tag_temp_c = tag_temp,
+                                     .tag_soc_est = tag_soc,
+                                     .tag_ocv_est = tag_ocv};
 
     /* Execute algorithm driven entirely via Consumer-Defined Ports */
-    assert_true(fo_ecm_ekf_step_ports(&ekf, &mock_ports.reader, &mock_ports.writer, &mock_ports.clock, &binding, 1.0));
+    assert_true(fo_ecm_ekf_step_ports(ekf, &mock_ports.reader, &mock_ports.writer,
+                                      &mock_ports.clock, &binding, 1.0));
 
     /* Verify output written back to port */
     double estimated_soc = 0.0;
-    assert_int_equal(mock_ports.reader.read_tag(mock_ports.reader.ctx, tag_soc, &estimated_soc, NULL), 0);
+    assert_int_equal(
+        mock_ports.reader.read_tag(mock_ports.reader.ctx, tag_soc, &estimated_soc, NULL), 0);
     assert_true(estimated_soc > 0.0 && estimated_soc <= 1.0);
 }
 
 static void test_composition_root_lifecycle(void **state) {
     (void)state;
 
-    edge_composition_config_t cfg = {
-        .product_name = "IEMS-ESS-Container",
-        .datahub_capacity = 512,
-        .memory_pool_buffer_size = 2048,
-        .memory_pool_capacity = 8,
-        .enable_dma_buf = true,
-        .enable_anti_corruption = true
-    };
+    edge_composition_config_t cfg = {.product_name = "IEMS-ESS-Container",
+                                     .datahub_capacity = 512,
+                                     .memory_pool_buffer_size = 2048,
+                                     .memory_pool_capacity = 8,
+                                     .enable_dma_buf = true,
+                                     .enable_anti_corruption = true};
 
     edge_composition_container_t *root = NULL;
     assert_int_equal(edge_composition_root_init(&root, &cfg), 0);
@@ -119,14 +119,12 @@ static int wire_dummy_consumer(void *ctx, const edge_consumer_ports_t *ports) {
 static void test_composition_root_dependency_injection(void **state) {
     (void)state;
 
-    edge_composition_config_t cfg = {
-        .product_name = "DCU-Smart-Grid-Terminal",
-        .datahub_capacity = 256,
-        .memory_pool_buffer_size = 1024,
-        .memory_pool_capacity = 4,
-        .enable_dma_buf = true,
-        .enable_anti_corruption = false
-    };
+    edge_composition_config_t cfg = {.product_name = "DCU-Smart-Grid-Terminal",
+                                     .datahub_capacity = 256,
+                                     .memory_pool_buffer_size = 1024,
+                                     .memory_pool_capacity = 4,
+                                     .enable_dma_buf = true,
+                                     .enable_anti_corruption = false};
 
     edge_composition_container_t *root = NULL;
     assert_int_equal(edge_composition_root_init(&root, &cfg), 0);
@@ -153,14 +151,12 @@ static void test_composition_root_dependency_injection(void **state) {
 static void test_composition_root_zero_allocation_memory_port(void **state) {
     (void)state;
 
-    edge_composition_config_t cfg = {
-        .product_name = "SmartBox-Gateway",
-        .datahub_capacity = 128,
-        .memory_pool_buffer_size = 4096,
-        .memory_pool_capacity = 4,
-        .enable_dma_buf = true,
-        .enable_anti_corruption = false
-    };
+    edge_composition_config_t cfg = {.product_name = "SmartBox-Gateway",
+                                     .datahub_capacity = 128,
+                                     .memory_pool_buffer_size = 4096,
+                                     .memory_pool_capacity = 4,
+                                     .enable_dma_buf = true,
+                                     .enable_anti_corruption = false};
 
     edge_composition_container_t *root = NULL;
     assert_int_equal(edge_composition_root_init(&root, &cfg), 0);

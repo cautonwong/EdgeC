@@ -14,6 +14,28 @@
 #define DEFAULT_REST_CURRENT_THRESH_A   0.2f    /* 0.2 A */
 #define HEALTHY_R_ISC_BASE_OHM          1000000.0f /* 1 MΩ */
 
+struct pack_micro_isc_detector {
+    battery_micro_isc_config_t config;                     /**< 算法参数配置 */
+    battery_micro_isc_ports_t  ports;                      /**< 消费者注入接口 */
+    uint16_t cell_count;                                   /**< 电芯总数量 (<= BATTERY_MAX_CELLS_PER_PACK) */
+    cell_isc_state_t cells[BATTERY_MAX_CELLS_PER_PACK];   /**< 电芯状态列表 */
+    float pack_avg_voltage;                                /**< 组端电芯均值电压 (V) */
+    float pack_median_voltage;                             /**< 组端电芯中位数电压 (V) */
+    float pack_current;                                    /**< 电池簇总电流 (A) */
+    bool is_in_rest;                                       /**< 当前电池簇是否处于静置松弛态 */
+    double rest_start_timestamp;                           /**< 当前静置开始时间戳 */
+    double accumulated_rest_s;                             /**< 连续静置时长 (s) */
+    uint64_t total_samples_processed;                      /**< 累计处理样本计数 */
+};
+
+/* -------------------------------------------------------------------------- */
+/* Compile-Time Size & Alignment Assertions (AEP-752)                          */
+/* -------------------------------------------------------------------------- */
+_Static_assert(sizeof(struct pack_micro_isc_detector) <= sizeof(pack_micro_isc_detector_storage_t),
+               "pack_micro_isc_detector_storage_t buffer too small for struct pack_micro_isc_detector");
+_Static_assert(_Alignof(struct pack_micro_isc_detector) <= _Alignof(pack_micro_isc_detector_storage_t),
+               "pack_micro_isc_detector_storage_t alignment mismatch for struct pack_micro_isc_detector");
+
 static int compare_floats(const void *a, const void *b) {
     float fa = *(const float *)a;
     float fb = *(const float *)b;
@@ -24,6 +46,83 @@ static int compare_floats(const void *a, const void *b) {
     if (!fb_fin) return -1;
     if (fa < fb) return -1;
     if (fa > fb) return 1;
+    return 0;
+}
+
+pack_micro_isc_detector_t *battery_micro_isc_create_in(pack_micro_isc_detector_storage_t *store,
+                                                       const battery_micro_isc_config_t *cfg,
+                                                       uint16_t cell_count,
+                                                       const battery_micro_isc_ports_t *ports) {
+    if (!store || cell_count == 0 || cell_count > BATTERY_MAX_CELLS_PER_PACK) {
+        return NULL;
+    }
+
+    pack_micro_isc_detector_t *det = (pack_micro_isc_detector_t *)store->raw;
+    if (battery_micro_isc_init(det, cfg, cell_count) != 0) {
+        return NULL;
+    }
+
+    if (ports) {
+        det->ports = *ports;
+    }
+
+    return det;
+}
+
+uint16_t battery_micro_isc_get_cell_count(const pack_micro_isc_detector_t *det) {
+    return det ? det->cell_count : 0;
+}
+
+const battery_micro_isc_config_t *battery_micro_isc_get_config(const pack_micro_isc_detector_t *det) {
+    return det ? &det->config : NULL;
+}
+
+float battery_micro_isc_get_pack_avg_voltage(const pack_micro_isc_detector_t *det) {
+    return det ? det->pack_avg_voltage : 0.0f;
+}
+
+float battery_micro_isc_get_pack_median_voltage(const pack_micro_isc_detector_t *det) {
+    return det ? det->pack_median_voltage : 0.0f;
+}
+
+uint64_t battery_micro_isc_get_total_samples(const pack_micro_isc_detector_t *det) {
+    return det ? det->total_samples_processed : 0;
+}
+
+int battery_micro_isc_step_ports(pack_micro_isc_detector_t *det,
+                                 const uint32_t *cell_u_tags,
+                                 const uint32_t *cell_i_tags,
+                                 uint32_t alarm_out_tag,
+                                 double dt_s) {
+    if (!det || dt_s <= 0.0) return -1;
+
+    uint64_t now_us = 0;
+    if (det->ports.clock.now_us) {
+        now_us = det->ports.clock.now_us(det->ports.clock.ctx);
+    }
+    double cur_ts_s = (double)now_us / 1000000.0;
+
+    for (uint16_t i = 0; i < det->cell_count; i++) {
+        double v = 3.30, curr = 0.0;
+        if (det->ports.reader.read_tag && cell_u_tags && cell_u_tags[i]) {
+            det->ports.reader.read_tag(det->ports.reader.ctx, cell_u_tags[i], &v, NULL);
+        }
+        if (det->ports.reader.read_tag && cell_i_tags && cell_i_tags[i]) {
+            det->ports.reader.read_tag(det->ports.reader.ctx, cell_i_tags[i], &curr, NULL);
+        }
+        battery_micro_isc_feed_cell(det, i, (float)v, (float)curr, 25.0f, 0.50f, cur_ts_s);
+    }
+
+    int rc = battery_micro_isc_process_step(det, cur_ts_s);
+    if (rc != 0) return rc;
+
+    if (det->ports.writer.write_tag && alarm_out_tag) {
+        battery_isc_alarm_level_t max_alarm = BATTERY_ALARM_NORMAL;
+        uint16_t worst_cell = 0;
+        battery_micro_isc_get_highest_alarm(det, &max_alarm, &worst_cell);
+        det->ports.writer.write_tag(det->ports.writer.ctx, alarm_out_tag, (double)max_alarm, now_us);
+    }
+
     return 0;
 }
 
