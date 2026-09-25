@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <stdalign.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,14 +38,28 @@ int dsp_fft2d_c2c(double *data, size_t rows, size_t cols, bool forward);
 
 /* --- 3. 滤波器 --- */
 
+#define MAX_DSP_FIR_TAPS 64
+
+typedef struct {
+    alignas(max_align_t) uint8_t raw[2048];
+} dsp_fir_storage_t;
+
 // FIR 滤波器
 typedef struct dsp_fir_s dsp_fir_t;
+dsp_fir_t* dsp_fir_create_in(dsp_fir_storage_t *storage, const double *taps, size_t num_taps);
 dsp_fir_t* dsp_fir_create(const double *taps, size_t num_taps);
 void dsp_fir_free(dsp_fir_t *f);
 double dsp_fir_process(dsp_fir_t *f, double in);
 
+#define MAX_DSP_IIR_ORDER 16
+
+typedef struct {
+    alignas(max_align_t) uint8_t raw[512];
+} dsp_iir_storage_t;
+
 // IIR 滤波器 (直接 II 型)
 typedef struct dsp_iir_s dsp_iir_t;
+dsp_iir_t* dsp_iir_create_in(dsp_iir_storage_t *storage, uint32_t order, const double *b, const double *a);
 dsp_iir_t* dsp_iir_create(uint32_t order, const double *b, const double *a);
 void dsp_iir_free(dsp_iir_t *f);
 double dsp_iir_process(dsp_iir_t *f, double in);

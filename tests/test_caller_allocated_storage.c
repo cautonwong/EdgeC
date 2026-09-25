@@ -251,7 +251,12 @@ static void test_battery_balancer_caller_allocated_storage(void **state) {
     assert_int_equal(cfg->mode, BATTERY_BAL_MODE_ACTIVE_PAIRWISE);
 
     for (uint16_t i = 0; i < 16; i++) {
-        battery_bal_cell_input_t in = {.cell_id = i, .voltage_v = 3.300, .soc = 0.50, .temperature_c = 25.0, .soh = 1.0, .r0_mohm = 0.5};
+        battery_bal_cell_input_t in = {.cell_id = i,
+                                       .voltage_v = 3.300,
+                                       .soc = 0.50,
+                                       .temperature_c = 25.0,
+                                       .soh = 1.0,
+                                       .r0_mohm = 0.5};
         assert_int_equal(battery_balancer_update_cell(bal, i, &in), 0);
     }
     assert_int_equal(battery_balancer_plan_step(bal, 0.0), 0);
@@ -271,16 +276,14 @@ static void test_gas_early_warning_caller_allocated_storage(void **state) {
 
     assert_int_equal(battery_gas_ew_get_sample_count(ew), 0);
 
-    battery_gas_sensor_sample_t s = {
-        .pressure_pa = 101325.0,
-        .max_cell_temp_c = 25.0,
-        .co_ppm = 0.0,
-        .h2_ppm = 0.0,
-        .voc_ppb = 10.0,
-        .smoke_density = 0.0,
-        .min_cell_volt_v = 3.300,
-        .timestamp_s = 100.0
-    };
+    battery_gas_sensor_sample_t s = {.pressure_pa = 101325.0,
+                                     .max_cell_temp_c = 25.0,
+                                     .co_ppm = 0.0,
+                                     .h2_ppm = 0.0,
+                                     .voc_ppb = 10.0,
+                                     .smoke_density = 0.0,
+                                     .min_cell_volt_v = 3.300,
+                                     .timestamp_s = 100.0};
     assert_int_equal(battery_gas_ew_push_sample(ew, &s), 0);
     assert_int_equal(battery_gas_ew_get_sample_count(ew), 1);
     assert_int_equal(battery_gas_ew_process_step(ew, 100.0), 0);
@@ -346,15 +349,13 @@ static void test_edge_sched_deadline_caller_allocated_storage(void **state) {
 
     assert_int_equal(edge_sched_deadline_get_task_count(mon), 0);
 
-    edge_sched_task_config_t cfg = {
-        .task_id = 99,
-        .name = "caller_storage_task",
-        .period_us = 10000,
-        .deadline_us = 2000,
-        .max_allowed_jitter_us = 500,
-        .max_consecutive_overruns = 3,
-        .fallback_action = EDGE_SCHED_ACTION_SAFE_FALLBACK
-    };
+    edge_sched_task_config_t cfg = {.task_id = 99,
+                                    .name = "caller_storage_task",
+                                    .period_us = 10000,
+                                    .deadline_us = 2000,
+                                    .max_allowed_jitter_us = 500,
+                                    .max_consecutive_overruns = 3,
+                                    .fallback_action = EDGE_SCHED_ACTION_SAFE_FALLBACK};
     assert_int_equal(edge_sched_deadline_register_task(mon, &cfg), 0);
     assert_int_equal(edge_sched_deadline_get_task_count(mon), 1);
 }

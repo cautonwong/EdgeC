@@ -13,10 +13,12 @@
 
 #if defined(CONFIG_EDGEC_WASM)
 
+#define MAX_TINYML_WINDOW 256
+
 typedef struct {
     char entry_func[64];
     wasm_app_t *app;
-    float *window;
+    float window[MAX_TINYML_WINDOW];
     size_t window_size;
     size_t cursor;
     uint32_t output_tag;
@@ -49,9 +51,10 @@ static stage_ret_t tinyml_stage_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
 
 static void tinyml_stage_cleanup(void *ptr) {
     tinyml_ctx_t *ctx = (tinyml_ctx_t *)ptr;
-    if (ctx->app) wasm_app_destroy(ctx->app);
-    if (ctx->window) free(ctx->window);
-    free(ctx);
+    if (ctx && ctx->app) {
+        wasm_app_destroy(ctx->app);
+        ctx->app = NULL;
+    }
 }
 
 /**
@@ -62,22 +65,22 @@ pipeline_stage_t *stage_tinyml_wasm_create(const edge_stage_def_t *def, pipeline
     (void)loader_ctx;
     if (!def->params.s1) return NULL;
 
-    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    pipeline_stage_t *s = stream_stage_alloc_node();
     strncpy(s->name, "TINYML_WASM", 31);
     s->process = tinyml_stage_proc;
 
-    tinyml_ctx_t *ctx = calloc(1, sizeof(tinyml_ctx_t));
+    tinyml_ctx_t *ctx = (tinyml_ctx_t *)s->storage_state;
+    memset(ctx, 0, sizeof(*ctx));
     strncpy(ctx->entry_func, def->params.s2 ? def->params.s2 : "inference", 63);
     
     ctx->window_size = (size_t)def->params.f1;
-    if (ctx->window_size == 0) ctx->window_size = 128;
-    ctx->window = calloc(ctx->window_size, sizeof(float));
+    if (ctx->window_size == 0 || ctx->window_size > MAX_TINYML_WINDOW) ctx->window_size = 128;
     ctx->output_tag = (uint32_t)def->params.u1;
 
     // 创建安全容器 (128KB 堆，用于 TFLite)
     ctx->app = wasm_app_create(def->params.s1, 128 * 1024, 64 * 1024, 200);
     if (!ctx->app) {
-        free(ctx->window); free(ctx); free(s); return NULL;
+        return NULL;
     }
 
     s->priv_cfg = ctx;

@@ -83,7 +83,6 @@ static void test_ekf_soc_convergence(void** state) {
 
     // Cleanup
     if (soc_stage->cleanup_state) soc_stage->cleanup_state(soc_stage->priv_state);
-    free(soc_stage);
 
     assert_true(pass);
 }

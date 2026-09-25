@@ -278,7 +278,8 @@ static void test_nan_cell_and_qsort_median_defense(void **state) {
 
     assert_true(isfinite(battery_micro_isc_get_pack_avg_voltage(det)));
     assert_true(isfinite(battery_micro_isc_get_pack_median_voltage(det)));
-    assert_true(battery_micro_isc_get_pack_median_voltage(det) > 3.20f && battery_micro_isc_get_pack_median_voltage(det) < 3.40f);
+    assert_true(battery_micro_isc_get_pack_median_voltage(det) > 3.20f &&
+                battery_micro_isc_get_pack_median_voltage(det) < 3.40f);
 
     /* 2. 测试 battery_micro_isc_identify_r_isc 输入 NaN rest_time_s 防除零 */
     cell_isc_state_t test_cell;

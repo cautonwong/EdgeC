@@ -147,9 +147,20 @@ static void _safe_close(uv_handle_t *handle, void *arg) {
     }
 }
 
+#define MAX_STREAM_STAGES 512
+static pipeline_stage_t g_stage_pool[MAX_STREAM_STAGES];
+static uint32_t g_stage_pool_idx = 0;
+
+pipeline_stage_t *stream_stage_alloc_node(void) {
+    uint32_t idx = (g_stage_pool_idx++) % MAX_STREAM_STAGES;
+    pipeline_stage_t *s = &g_stage_pool[idx];
+    memset(s, 0, sizeof(*s));
+    return s;
+}
+
 static void _stream_engine_thread_entry(void *arg) {
     stream_engine_t *engine = (stream_engine_t *)arg;
-    uv_loop_t *compute_loop = malloc(sizeof(uv_loop_t));
+    uv_loop_t *compute_loop = &engine->compute_loop_inst;
     uv_loop_init(compute_loop);
     engine->loop = compute_loop;
 
@@ -170,7 +181,6 @@ static void _stream_engine_thread_entry(void *arg) {
         ;
 
     uv_loop_close(compute_loop);
-    free(compute_loop);
     engine->loop = NULL;
     engine->notify_inited = false;
 }
@@ -193,20 +203,23 @@ static pipeline_stage_t *_create_stage_by_type(stream_engine_t *engine, const ed
 
 int stream_engine_load_static_metadata(stream_engine_t *engine, const edge_pipeline_def_t *metadata,
                                        int count, pipeline_loader_ctx_t *ctx) {
-    if (!engine || !metadata) return -1;
+    if (!engine || !metadata || count <= 0) return -1;
     for (int i = 0; i < count; i++) {
         const edge_pipeline_def_t *p_def = &metadata[i];
         pipeline_t *p = stream_engine_add_pipeline(engine, p_def->id, p_def->trigger_tag);
+        if (!p) continue;
 
         if (p_def->extra_trigger_count > 0) {
-            p->extra_triggers = calloc(p_def->extra_trigger_count, sizeof(uint32_t));
-            memcpy(p->extra_triggers, p_def->extra_triggers,
-                   p_def->extra_trigger_count * sizeof(uint32_t));
-            p->extra_trigger_count = p_def->extra_trigger_count;
+            uint32_t c = p_def->extra_trigger_count > MAX_EXTRA_TRIGGERS_PER_PIPE
+                             ? MAX_EXTRA_TRIGGERS_PER_PIPE
+                             : p_def->extra_trigger_count;
+            memcpy(p->extra_triggers, p_def->extra_triggers, c * sizeof(uint32_t));
+            p->extra_trigger_count = c;
         }
 
-        pipeline_stage_t **stages = calloc(p_def->stage_count, sizeof(pipeline_stage_t *));
-        for (uint32_t j = 0; j < p_def->stage_count; j++) {
+        pipeline_stage_t *stages[32] = {0};
+        uint32_t sc = p_def->stage_count > 32 ? 32 : p_def->stage_count;
+        for (uint32_t j = 0; j < sc; j++) {
             stages[j] = _create_stage_by_type(engine, &p_def->stages[j], ctx);
             if (stages[j]) {
                 stages[j]->pipeline = p;
@@ -215,19 +228,18 @@ int stream_engine_load_static_metadata(stream_engine_t *engine, const edge_pipel
             }
         }
 
-        for (uint32_t j = 0; j < p_def->stage_count; j++) {
+        for (uint32_t j = 0; j < sc; j++) {
             if (!stages[j]) continue;
             const edge_stage_def_t *s_def = &p_def->stages[j];
             for (int k = 0; k < 4; k++) {
                 int next_idx = s_def->next_indices[k];
-                if (next_idx >= 0 && (uint32_t)next_idx < p_def->stage_count) {
+                if (next_idx >= 0 && (uint32_t)next_idx < sc) {
                     stages[j]->next[k] = stages[next_idx];
-                } else if (k == 0 && j + 1 < p_def->stage_count) {
+                } else if (k == 0 && j + 1 < sc) {
                     stages[j]->next[k] = stages[j + 1];
                 }
             }
         }
-        free(stages);
     }
     return 0;
 }
@@ -235,7 +247,7 @@ int stream_engine_load_static_metadata(stream_engine_t *engine, const edge_pipel
 pipeline_stage_t *pipeline_add_stage(pipeline_t *p, const char *name, stage_proc_fn proc,
                                      void *priv_state, stage_cleanup_fn cleanup_state,
                                      void *priv_cfg, stage_cleanup_fn cleanup_cfg) {
-    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    pipeline_stage_t *s = stream_stage_alloc_node();
     strncpy(s->name, name, 31);
     s->pipeline = p;
     s->process = proc;
@@ -255,12 +267,17 @@ pipeline_stage_t *pipeline_add_stage(pipeline_t *p, const char *name, stage_proc
     return s;
 }
 
-stream_engine_t *stream_engine_create_ex(datahub_t *hub, uv_loop_t *loop,
-                                         void *orch,
+_Static_assert(sizeof(struct stream_engine_s) <= sizeof(stream_engine_storage_t),
+               "stream_engine_s size exceeds stream_engine_storage_t");
+
+stream_engine_t *stream_engine_create_in(stream_engine_storage_t *storage, datahub_t *hub,
+                                         uv_loop_t *loop, void *orch,
                                          const edge_stage_factory_entry_t *registry) {
     (void)loop;
     (void)orch;
-    stream_engine_t *engine = calloc(1, sizeof(stream_engine_t));
+    if (!storage) return NULL;
+    stream_engine_t *engine = (stream_engine_t *)storage->raw;
+    memset(engine, 0, sizeof(*engine));
     engine->hub = hub;
     engine->time_src.get_monotonic_ms = _default_get_monotonic_ms;
     engine->time_src.get_calendar_ms = _default_get_calendar_ms;
@@ -280,6 +297,14 @@ stream_engine_t *stream_engine_create_ex(datahub_t *hub, uv_loop_t *loop,
 #endif
 
     return engine;
+}
+
+static stream_engine_storage_t g_default_engine_storage;
+
+stream_engine_t *stream_engine_create_ex(datahub_t *hub, uv_loop_t *loop,
+                                         void *orch,
+                                         const edge_stage_factory_entry_t *registry) {
+    return stream_engine_create_in(&g_default_engine_storage, hub, loop, orch, registry);
 }
 
 stream_engine_t *stream_engine_create(datahub_t *hub, uv_loop_t *loop,
@@ -317,17 +342,13 @@ void stream_engine_destroy(stream_engine_t *engine) {
         pipeline_stage_t *s = p->head;
         while (s) {
             pipeline_stage_t *next_s = s->next[0];
-            // [Nexus] Avoid double free if stages are shared or chain is corrupted
-            if (s->health == 99) break; // Use health=99 as "already freed" marker for this slice
-            
+            if (s->health == 99) break;
             if (s->cleanup_state) s->cleanup_state(s->priv_state);
             if (s->cleanup_cfg) s->cleanup_cfg(s->priv_cfg);
             s->health = 99;
-            free(s);
             s = next_s;
         }
-        if (p->extra_triggers) free(p->extra_triggers);
-        free(p);
+        p->in_use = false;
     }
     uv_mutex_unlock(&engine->pipe_mutex);
     uv_mutex_destroy(&engine->pipe_mutex);
@@ -335,13 +356,24 @@ void stream_engine_destroy(stream_engine_t *engine) {
 #if defined(CONFIG_EDGEC_WASM)
     wasm_mgr_cleanup();
 #endif
-
-    free(engine);
 }
 
 pipeline_t *stream_engine_add_pipeline(stream_engine_t *engine, const char *id,
                                        uint32_t trigger_tag) {
-    pipeline_t *p = calloc(1, sizeof(pipeline_t));
+    if (!engine) return NULL;
+    pipeline_t *p = NULL;
+    for (int i = 0; i < MAX_PIPELINES_PER_ENGINE; i++) {
+        if (!engine->pipe_pool[i].in_use) {
+            p = &engine->pipe_pool[i];
+            break;
+        }
+    }
+    if (!p) {
+        LOG_ERROR(LOG_CAT_CORE, "StreamEngine: pipe_pool full (%d)", MAX_PIPELINES_PER_ENGINE);
+        return NULL;
+    }
+    memset(p, 0, sizeof(*p));
+    p->in_use = true;
     strncpy(p->id, id, 63);
     p->trigger_tag = trigger_tag;
     p->engine = engine;

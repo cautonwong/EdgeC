@@ -14,7 +14,7 @@ fi
 for dir in "${INCLUDE_DIRS[@]}"; do
     if [ -d "$dir" ]; then
         echo "[Format] Processing directory: $dir..."
-        find "$dir" -type f \( -name "*.c" -o -name "*.h" \) -exec clang-format -i {} +
+        find "$dir" -type f \( -name "*.c" -o -name "*.h" \) -not -path "*/generated/*" -exec clang-format -i {} +
     fi
 done
 

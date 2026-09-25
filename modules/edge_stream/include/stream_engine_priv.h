@@ -6,7 +6,9 @@
 #include "queue.h"
 #include "stream_engine.h"
 
-#define MAX_PENDING_QUEUE 256
+#define MAX_PENDING_QUEUE 16
+#define MAX_EXTRA_TRIGGERS_PER_PIPE 16
+#define MAX_PIPELINES_PER_ENGINE 32
 #define TIME_JUMP_THRESHOLD_MS 5000
 
 typedef enum { PIPE_STATE_IDLE, PIPE_STATE_RUNNING, PIPE_STATE_SUSPENDED } pipeline_state_t;
@@ -15,9 +17,10 @@ struct pipeline_s {
     struct uv__queue node;
     char id[64];
     uint32_t trigger_tag;
-    uint32_t *extra_triggers;      // [Omnis 扩展]
+    uint32_t extra_triggers[MAX_EXTRA_TRIGGERS_PER_PIPE];      // [Omnis 扩展]
     uint32_t extra_trigger_count;  // [Omnis 扩展]
     pipeline_state_t state;
+    bool in_use;
     struct stream_engine_s *engine;  // Set the back-pointer to parent engine
 
     pipeline_stage_t *head;
@@ -34,6 +37,8 @@ struct pipeline_s {
 
 struct stream_engine_s {
     uv_loop_t *loop;
+    uv_loop_t compute_loop_inst;
+    pipeline_t pipe_pool[MAX_PIPELINES_PER_ENGINE];
     datahub_t *hub;
     uv_thread_t thread;
     bool thread_started;

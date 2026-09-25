@@ -2,6 +2,8 @@
 #define STREAM_ENGINE_H
 
 #include <stdint.h>
+#include <stddef.h>
+#include <stdalign.h>
 #include <uv.h>
 
 #include "contract_data_types.h"
@@ -86,10 +88,23 @@ struct pipeline_stage_s {
 
     // --- [Topology] 拓扑连接 ---
     struct pipeline_stage_s *next[4]; /**< 支持最多 4 路分支输出 (next[0] 为默认主路) */
+
+    // --- Zero-Alloc Inline Storage ---
+    alignas(max_align_t) uint8_t storage_cfg[256];
+    alignas(max_align_t) uint8_t storage_state[2048];
 };
+
+/**
+ * @brief 线程安全/循环重用的 Stage 节点静态分配器 (Zero-Alloc)
+ */
+pipeline_stage_t *stream_stage_alloc_node(void);
 
 typedef struct stream_engine_s stream_engine_t;
 typedef struct pipeline_s pipeline_t;
+
+typedef struct {
+    alignas(max_align_t) uint8_t raw[65536];
+} stream_engine_storage_t;
 
 typedef struct dag_node_s {
     pipeline_stage_t *stage;
@@ -122,6 +137,10 @@ struct pipeline_loader_ctx_s {
     edge_params_t *params;
     stream_control_ops_t control_ops; /**< [IoC] 用于指令触发，消费者定义的接口 */
 };
+
+stream_engine_t *stream_engine_create_in(stream_engine_storage_t *storage, datahub_t *hub,
+                                         uv_loop_t *loop, void *orch,
+                                         const edge_stage_factory_entry_t *registry);
 
 stream_engine_t *stream_engine_create(datahub_t *hub, uv_loop_t *loop,
                                       void *orch,
