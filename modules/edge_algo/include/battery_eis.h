@@ -67,37 +67,37 @@ typedef struct {
     double nominal_rct_mohm;               /**< 新电芯 25°C 标称电荷转移内阻基准 (mΩ) */
 } battery_eis_config_t;
 
+#include <stdalign.h>
+
 /**
- * @brief 在线 EIS 快速辨识器内部状态结构体
+ * @brief 在线 EIS 快速辨识器不透明聚合根类型
+ */
+typedef struct battery_eis_analyzer battery_eis_analyzer_t;
+
+/**
+ * @brief 调用方分配存储块 (Caller-Allocated Storage)
  */
 typedef struct {
-    battery_eis_config_t config;                                  /**< 算法配置 */
-    uint32_t lfsr_reg;                                            /**< PRBS 移位寄存器当前状态 */
-    uint32_t prbs_len;                                            /**< 当前 PRBS 周期长度 */
-    uint32_t prbs_idx;                                            /**< 当前 PRBS 序列索引 */
-    uint32_t total_samples;                                       /**< 累计接收样本数 */
-    uint32_t min_samples_req;                                     /**< 辨识所需最小样本数 (至少 1 个完整 PRBS 周期) */
-    
-    battery_eis_freq_bin_t bins[BATTERY_EIS_MAX_FREQ_BINS];       /**< 离散频点阻抗数据 */
-    
-    /* 离散傅里叶相关解调累加器 (Zero-memory 实时流式累加) */
-    double sum_i_cos[BATTERY_EIS_MAX_FREQ_BINS];
-    double sum_i_sin[BATTERY_EIS_MAX_FREQ_BINS];
-    double sum_v_cos[BATTERY_EIS_MAX_FREQ_BINS];
-    double sum_v_sin[BATTERY_EIS_MAX_FREQ_BINS];
-    double sum_cos[BATTERY_EIS_MAX_FREQ_BINS];
-    double sum_sin[BATTERY_EIS_MAX_FREQ_BINS];
-    double sum_i_sq[BATTERY_EIS_MAX_FREQ_BINS];
-    double sum_v_sq[BATTERY_EIS_MAX_FREQ_BINS];
-    
-    /* DC 稳态偏置滤波累加 */
-    double sum_i_dc;
-    double sum_v_dc;
-    
-    battery_eis_randles_params_t params;                          /**< Randles 等效电路提取参数 */
-    bool spectrum_ready;                                          /**< 频域解调是否完成 */
-    double last_calc_time_us;                                     /**< 上次单次解算耗时 (微秒) */
-} battery_eis_analyzer_t;
+    alignas(max_align_t) uint8_t raw[8192];
+} battery_eis_storage_t;
+
+/**
+ * @brief 消费者定义接口 (Consumer-Defined Ports)
+ */
+typedef struct {
+    int (*read_sample)(void *ctx, double *current_amp, double *voltage_volt, double *cell_temp_c);
+    int (*write_params)(void *ctx, const battery_eis_randles_params_t *params);
+    int (*write_spectrum)(void *ctx, const battery_eis_freq_bin_t *bins, uint32_t count);
+    void *ctx;
+} battery_eis_ports_t;
+
+/**
+ * @brief 就地构造在线 EIS 辨识器聚合根 (0 malloc)
+ * @param store 调用方分配的对齐存储
+ * @param cfg 配置参数 (若为 NULL 则使用工业级默认参数)
+ * @return 构造成功的聚合根指针, 失败返回 NULL
+ */
+battery_eis_analyzer_t *battery_eis_create_in(battery_eis_storage_t *store, const battery_eis_config_t *cfg);
 
 /**
  * @brief 初始化在线 EIS 阻抗谱辨识器
@@ -184,6 +184,38 @@ int battery_eis_get_spectrum(const battery_eis_analyzer_t *eis,
  * @param eis 辨识器句柄
  */
 void battery_eis_reset(battery_eis_analyzer_t *eis);
+
+/**
+ * @brief 基于消费者 Ports 抽象执行单步 EIS 辨识调度 (Consumer-Defined Ports)
+ * @param eis 辨识器句柄
+ * @param ports 消费者接口表
+ * @param out_ready 若本步完成了一次完整辨识则置为 true, 否则 false
+ * @return 0 成功, 负数 错误码
+ */
+int battery_eis_step_ports(battery_eis_analyzer_t *eis, const battery_eis_ports_t *ports, bool *out_ready);
+
+/**
+ * @brief 探针接口: 获取配置
+ */
+const battery_eis_config_t *battery_eis_get_config(const battery_eis_analyzer_t *eis);
+
+/**
+ * @brief 探针接口: 获取 PRBS 周期长度
+ */
+uint32_t battery_eis_get_prbs_len(const battery_eis_analyzer_t *eis);
+
+/**
+ * @brief 探针接口: 获取离散频点只读数组
+ */
+const battery_eis_freq_bin_t *battery_eis_get_bins(const battery_eis_analyzer_t *eis);
+
+/**
+ * @brief 探针接口: 设定测试阻抗谱数据
+ */
+void battery_eis_set_test_spectrum(battery_eis_analyzer_t *eis,
+                                   const battery_eis_freq_bin_t *bins,
+                                   uint32_t count,
+                                   uint32_t samples);
 
 #ifdef __cplusplus
 }

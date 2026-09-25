@@ -121,29 +121,76 @@ typedef struct {
     bool   valid;
 } battery_bal_plan_t;
 
-/**
- * @brief 多电芯均衡控制器句柄
- */
-typedef struct {
-    battery_bal_config_t config;
-    battery_bal_cell_input_t cells[BATTERY_BAL_MAX_CELLS];
-    battery_bal_plan_t plan;
-    
-    /* 历史累计运行统计 */
-    double cum_transferred_wh;
-    double cum_dissipated_wh;
-    uint64_t total_cycles_planned;
-    double last_timestamp_s;
-} battery_balancer_t;
+#include <stdalign.h>
+#include "edge_port.h"
 
 /**
- * @brief 初始化多电芯能效优化均衡控制器
+ * @brief 消费者定义接口 (Consumer-Defined Ports - AEP-751 / AEP-752)
+ */
+typedef struct battery_balancer_ports {
+    edge_reader_port_t reader;
+    edge_writer_port_t writer;
+    edge_clock_port_t clock;
+} battery_balancer_ports_t;
+
+/**
+ * @brief 多电芯能效优化均衡控制器句柄 (Opaque Pointer)
+ */
+typedef struct battery_balancer battery_balancer_t;
+
+/**
+ * @brief 调用方预分配存储空间 (Caller-Allocated Storage - 16KB Aligned)
+ */
+typedef struct {
+    alignas(max_align_t) uint8_t raw[16384];
+} battery_balancer_storage_t;
+
+/**
+ * @brief 就地就近构造多电芯均衡控制器聚合根 (0 heap allocation)
+ * @param store 调用方提供的内存块
+ * @param cfg 配置参数 (为 NULL 则使用工业级默认参数)
+ * @param cell_count 电芯数量 (2 ~ BATTERY_BAL_MAX_CELLS)
+ * @param ports 消费者接口注入 (可选)
+ * @return 构造成功的聚合根指针, 失败返回 NULL
+ */
+battery_balancer_t *battery_balancer_create_in(battery_balancer_storage_t *store,
+                                               const battery_bal_config_t *cfg,
+                                               uint16_t cell_count,
+                                               const battery_balancer_ports_t *ports);
+
+/**
+ * @brief 初始化多电芯能效优化均衡控制器 (向下兼容)
  * @param bal 控制器句柄
  * @param cfg 配置参数 (若为 NULL 则使用工业级默认参数)
  * @param cell_count 电芯数量 (2 ~ BATTERY_BAL_MAX_CELLS)
  * @return 0 成功, 负数 错误码
  */
 int battery_balancer_init(battery_balancer_t *bal, const battery_bal_config_t *cfg, uint16_t cell_count);
+
+/**
+ * @brief 探针接口：获取当前配置
+ */
+const battery_bal_config_t *battery_balancer_get_config(const battery_balancer_t *bal);
+
+/**
+ * @brief 探针接口：获取当前电芯数
+ */
+uint16_t battery_balancer_get_cell_count(const battery_balancer_t *bal);
+
+/**
+ * @brief 探针接口：获取累计转移能量 (Wh)
+ */
+double battery_balancer_get_transferred_wh(const battery_balancer_t *bal);
+
+/**
+ * @brief 基于 Ports 驱动的自动均衡执行步进
+ */
+int battery_balancer_step_ports(battery_balancer_t *bal,
+                                const uint32_t *cell_u_tags,
+                                const uint32_t *cell_soc_tags,
+                                const uint32_t *cell_temp_tags,
+                                const uint32_t *cmd_out_tags,
+                                double dt_s);
 
 /**
  * @brief 更新单电芯物理输入采样

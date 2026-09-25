@@ -22,7 +22,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "battery_balancer.h"
+#include "battery_eis.h"
 #include "battery_fo_ecm_ekf.h"
+#include "battery_gas_early_warning.h"
+#include "battery_micro_isc.h"
+#include "battery_pulse_heating.h"
+#include "battery_soh_fusion.h"
 #include "edge_composition_root.h"
 #include "mpc_dispatcher.h"
 #include "vsg_control.h"
@@ -211,12 +217,135 @@ static void test_composition_root_caller_allocated_storage(void **state) {
     assert_int_equal(edge_composition_root_destroy(root), 0);
 }
 
+static void test_micro_isc_caller_allocated_storage(void **state) {
+    (void)state;
+    pack_micro_isc_detector_storage_t store;
+    memset(&store, 0xEE, sizeof(store));
+
+    pack_micro_isc_detector_t *det = battery_micro_isc_create_in(&store, NULL, 64, NULL);
+    assert_non_null(det);
+    assert_ptr_equal(det, (void *)store.raw);
+
+    assert_int_equal(battery_micro_isc_get_cell_count(det), 64);
+    assert_float_equal(battery_micro_isc_get_pack_avg_voltage(det), 0.0f, 0.001f);
+
+    /* Feed cell */
+    for (uint16_t c = 0; c < 64; c++) {
+        assert_int_equal(battery_micro_isc_feed_cell(det, c, 3.300f, 0.0f, 25.0f, 0.50f, 0.0), 0);
+    }
+}
+
+static void test_battery_balancer_caller_allocated_storage(void **state) {
+    (void)state;
+    battery_balancer_storage_t store;
+    memset(&store, 0xDD, sizeof(store));
+
+    battery_balancer_t *bal = battery_balancer_create_in(&store, NULL, 16, NULL);
+    assert_non_null(bal);
+    assert_ptr_equal(bal, (void *)store.raw);
+
+    assert_int_equal(battery_balancer_get_cell_count(bal), 16);
+    const battery_bal_config_t *cfg = battery_balancer_get_config(bal);
+    assert_non_null(cfg);
+    assert_int_equal(cfg->mode, BATTERY_BAL_MODE_ACTIVE_PAIRWISE);
+
+    for (uint16_t i = 0; i < 16; i++) {
+        battery_bal_cell_input_t in = {.cell_id = i, .voltage_v = 3.300, .soc = 0.50, .temperature_c = 25.0, .soh = 1.0, .r0_mohm = 0.5};
+        assert_int_equal(battery_balancer_update_cell(bal, i, &in), 0);
+    }
+    assert_int_equal(battery_balancer_plan_step(bal, 0.0), 0);
+    const battery_bal_plan_t *plan = battery_balancer_get_plan(bal);
+    assert_non_null(plan);
+    assert_true(plan->valid);
+}
+
+static void test_gas_early_warning_caller_allocated_storage(void **state) {
+    (void)state;
+    battery_gas_ew_storage_t store;
+    memset(&store, 0xBB, sizeof(store));
+
+    battery_gas_ew_detector_t *ew = battery_gas_ew_create_in(&store, NULL, NULL);
+    assert_non_null(ew);
+    assert_ptr_equal(ew, (void *)store.raw);
+
+    assert_int_equal(battery_gas_ew_get_sample_count(ew), 0);
+
+    battery_gas_sensor_sample_t s = {
+        .pressure_pa = 101325.0,
+        .max_cell_temp_c = 25.0,
+        .co_ppm = 0.0,
+        .h2_ppm = 0.0,
+        .voc_ppb = 10.0,
+        .smoke_density = 0.0,
+        .min_cell_volt_v = 3.300,
+        .timestamp_s = 100.0
+    };
+    assert_int_equal(battery_gas_ew_push_sample(ew, &s), 0);
+    assert_int_equal(battery_gas_ew_get_sample_count(ew), 1);
+    assert_int_equal(battery_gas_ew_process_step(ew, 100.0), 0);
+
+    const battery_gas_ew_report_t *rep = battery_gas_ew_get_report(ew);
+    assert_non_null(rep);
+    assert_int_equal(rep->stage, BATTERY_GAS_STAGE_NORMAL);
+}
+
+static void test_battery_soh_caller_allocated_storage(void **state) {
+    (void)state;
+    battery_soh_storage_t store;
+    memset(&store, 0xAA, sizeof(store));
+
+    battery_soh_estimator_t *est = battery_soh_create_in(&store, NULL);
+    assert_non_null(est);
+    assert_ptr_equal(est, (void *)store.raw);
+
+    assert_int_equal(battery_soh_feed_sample(est, 0.0, 3.295, 25.0, 0.50, 0.0), 0);
+    assert_int_equal(battery_soh_process_fusion(est, 1.0), 0);
+
+    const battery_soh_result_t *res = battery_soh_get_result(est);
+    assert_non_null(res);
+    assert_true(res->valid);
+    assert_true(res->soh_capacity >= 0.98);
+}
+
+static void test_battery_eis_caller_allocated_storage(void **state) {
+    (void)state;
+    battery_eis_storage_t store;
+    memset(&store, 0x99, sizeof(store));
+
+    battery_eis_analyzer_t *eis = battery_eis_create_in(&store, NULL);
+    assert_non_null(eis);
+    assert_ptr_equal(eis, (void *)store.raw);
+
+    assert_false(battery_eis_is_ready(eis));
+    double pert = battery_eis_next_prbs_excitation(eis);
+    assert_true(fabs(fabs(pert) - 1.0) < 1e-6);
+}
+
+static void test_battery_pulse_heating_caller_allocated_storage(void **state) {
+    (void)state;
+    pulse_heat_engine_storage_t store;
+    memset(&store, 0x88, sizeof(store));
+
+    pulse_heat_engine_t *engine = pulse_heat_engine_create_in(&store, NULL);
+    assert_non_null(engine);
+    assert_ptr_equal(engine, (void *)store.raw);
+
+    assert_int_equal(pulse_heat_engine_get_state(engine), PULSE_HEAT_STATE_IDLE);
+    assert_int_equal(pulse_heat_engine_get_fault(engine), PULSE_HEAT_FAULT_NONE);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_battery_ekf_caller_allocated_storage),
         cmocka_unit_test(test_vsg_controller_caller_allocated_storage),
         cmocka_unit_test(test_mpc_dispatcher_caller_allocated_storage),
         cmocka_unit_test(test_composition_root_caller_allocated_storage),
+        cmocka_unit_test(test_micro_isc_caller_allocated_storage),
+        cmocka_unit_test(test_battery_balancer_caller_allocated_storage),
+        cmocka_unit_test(test_gas_early_warning_caller_allocated_storage),
+        cmocka_unit_test(test_battery_soh_caller_allocated_storage),
+        cmocka_unit_test(test_battery_eis_caller_allocated_storage),
+        cmocka_unit_test(test_battery_pulse_heating_caller_allocated_storage),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

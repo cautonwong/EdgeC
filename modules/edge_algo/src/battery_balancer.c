@@ -4,6 +4,112 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+struct battery_balancer {
+    battery_bal_config_t config;
+    battery_balancer_ports_t ports;
+    battery_bal_cell_input_t cells[BATTERY_BAL_MAX_CELLS];
+    battery_bal_plan_t plan;
+    
+    /* 历史累计运行统计 */
+    double cum_transferred_wh;
+    double cum_dissipated_wh;
+    uint64_t total_cycles_planned;
+    double last_timestamp_s;
+};
+
+/* -------------------------------------------------------------------------- */
+/* Compile-Time Size & Alignment Assertions (AEP-752)                          */
+/* -------------------------------------------------------------------------- */
+_Static_assert(sizeof(struct battery_balancer) <= sizeof(battery_balancer_storage_t),
+               "battery_balancer_storage_t buffer too small for struct battery_balancer");
+_Static_assert(_Alignof(struct battery_balancer) <= _Alignof(battery_balancer_storage_t),
+               "battery_balancer_storage_t alignment mismatch for struct battery_balancer");
+
+battery_balancer_t *battery_balancer_create_in(battery_balancer_storage_t *store,
+                                               const battery_bal_config_t *cfg,
+                                               uint16_t cell_count,
+                                               const battery_balancer_ports_t *ports) {
+    if (!store || cell_count < 2 || cell_count > BATTERY_BAL_MAX_CELLS) {
+        return NULL;
+    }
+
+    battery_balancer_t *bal = (battery_balancer_t *)store->raw;
+    if (battery_balancer_init(bal, cfg, cell_count) != 0) {
+        return NULL;
+    }
+
+    if (ports) {
+        bal->ports = *ports;
+    }
+
+    return bal;
+}
+
+const battery_bal_config_t *battery_balancer_get_config(const battery_balancer_t *bal) {
+    return bal ? &bal->config : NULL;
+}
+
+uint16_t battery_balancer_get_cell_count(const battery_balancer_t *bal) {
+    return bal ? bal->config.cell_count : 0;
+}
+
+double battery_balancer_get_transferred_wh(const battery_balancer_t *bal) {
+    return bal ? bal->cum_transferred_wh : 0.0;
+}
+
+int battery_balancer_step_ports(battery_balancer_t *bal,
+                                const uint32_t *cell_u_tags,
+                                const uint32_t *cell_soc_tags,
+                                const uint32_t *cell_temp_tags,
+                                const uint32_t *cmd_out_tags,
+                                double dt_s) {
+    if (!bal || dt_s <= 0.0) return -1;
+
+    uint64_t now_us = 0;
+    if (bal->ports.clock.now_us) {
+        now_us = bal->ports.clock.now_us(bal->ports.clock.ctx);
+    }
+    double cur_ts_s = (double)now_us / 1000000.0;
+
+    for (uint16_t i = 0; i < bal->config.cell_count; i++) {
+        double v = 3.30, soc = 0.50, temp = 25.0;
+        if (bal->ports.reader.read_tag && cell_u_tags && cell_u_tags[i]) {
+            bal->ports.reader.read_tag(bal->ports.reader.ctx, cell_u_tags[i], &v, NULL);
+        }
+        if (bal->ports.reader.read_tag && cell_soc_tags && cell_soc_tags[i]) {
+            bal->ports.reader.read_tag(bal->ports.reader.ctx, cell_soc_tags[i], &soc, NULL);
+        }
+        if (bal->ports.reader.read_tag && cell_temp_tags && cell_temp_tags[i]) {
+            bal->ports.reader.read_tag(bal->ports.reader.ctx, cell_temp_tags[i], &temp, NULL);
+        }
+
+        battery_bal_cell_input_t input = {
+            .cell_id = i,
+            .voltage_v = v,
+            .soc = soc,
+            .temperature_c = temp,
+            .soh = 1.0,
+            .r0_mohm = 0.50
+        };
+        battery_balancer_update_cell(bal, i, &input);
+    }
+
+    int rc = battery_balancer_plan_step(bal, cur_ts_s);
+    if (rc != 0) return rc;
+
+    const battery_bal_plan_t *plan = battery_balancer_get_plan(bal);
+    if (plan && bal->ports.writer.write_tag && cmd_out_tags) {
+        for (uint16_t i = 0; i < bal->config.cell_count; i++) {
+            if (cmd_out_tags[i]) {
+                bal->ports.writer.write_tag(bal->ports.writer.ctx, cmd_out_tags[i],
+                                           (double)plan->commands[i].action, now_us);
+            }
+        }
+    }
+
+    return 0;
+}
+
 int battery_balancer_init(battery_balancer_t *bal, const battery_bal_config_t *cfg, uint16_t cell_count)
 {
     if (!bal || cell_count < 2 || cell_count > BATTERY_BAL_MAX_CELLS) {

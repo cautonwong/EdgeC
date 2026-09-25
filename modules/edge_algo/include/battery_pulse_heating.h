@@ -113,28 +113,37 @@ typedef struct {
     float total_energy_consumed_wh;            /**< 累计自加热能耗 (Wh) */
 } pulse_heat_control_output_t;
 
+#include <stdalign.h>
+
 /**
- * @brief 脉冲自加热算法引擎主上下文
+ * @brief 脉冲自加热算法引擎不透明聚合根类型
+ */
+typedef struct pulse_heat_engine pulse_heat_engine_t;
+
+/**
+ * @brief 调用方分配存储块 (Caller-Allocated Storage)
  */
 typedef struct {
-    pulse_heat_config_t cfg;                   /**< 配置参数 */
-    pulse_heat_state_t current_state;          /**< 状态机运行态 */
-    pulse_heat_fault_t active_fault;           /**< 当前告警故障 */
-    float current_cmd_a;                       /**< 当前平滑电流指令 */
-    float target_cmd_a;                        /**< 目标稳态电流 */
-    float optimal_freq_hz;                     /**< 辨识得到的最优频率 */
-    float core_temp_est_c;                     /**< 核心温度状态变量 */
-    float surf_temp_est_c;                     /**< 表面温度状态变量 */
-    float state_timer_s;                       /**< 当前子状态停留计时器 */
-    float total_elapsed_s;                     /**< 总流程计时器 */
-    float cumulative_energy_wh;                /**< 累计消耗能量 */
-    float last_dt_s;                           /**< 步长记忆 */
-    float prev_temp_for_rate_c;                /**< 速率差分参考温度 */
-    float rate_timer_s;                        /**< 速率计算差分窗口计时 */
-    float calculated_rate_c_min;               /**< 滤波后升温速率 */
-    bool initialized;                          /**< 初始化标志 */
-    bool temp_initialized;                     /**< 初始温度状态对齐标志 */
-} pulse_heat_engine_t;
+    alignas(max_align_t) uint8_t raw[1024];
+} pulse_heat_engine_storage_t;
+
+/**
+ * @brief 消费者定义接口 (Consumer-Defined Ports)
+ */
+typedef struct {
+    int (*read_telemetry)(void *ctx, pulse_heat_cell_telemetry_t *telem);
+    int (*write_output)(void *ctx, const pulse_heat_control_output_t *out);
+    float (*get_dt_s)(void *ctx);
+    void *ctx;
+} pulse_heat_ports_t;
+
+/**
+ * @brief 就地构造脉冲自加热引擎聚合根 (0 malloc)
+ * @param store 调用方分配的对齐存储
+ * @param cfg 配置参数 (传 NULL 则使用工业默认配置)
+ * @return 构造成功的聚合根指针, 失败返回 NULL
+ */
+pulse_heat_engine_t *pulse_heat_engine_create_in(pulse_heat_engine_storage_t *store, const pulse_heat_config_t *cfg);
 
 /**
  * @brief 初始化脉冲自加热引擎
@@ -177,6 +186,41 @@ int pulse_heat_engine_step(pulse_heat_engine_t *engine,
                            const pulse_heat_cell_telemetry_t *telem,
                            float dt_s,
                            pulse_heat_control_output_t *out);
+
+/**
+ * @brief 基于消费者 Ports 抽象执行单步自加热控制调度 (Consumer-Defined Ports)
+ * @param engine 算法引擎句柄
+ * @param ports 消费者接口表
+ * @param out 控制输出结构指针 (可为 NULL)
+ * @return 0 成功, 负数 错误码
+ */
+int pulse_heat_engine_step_ports(pulse_heat_engine_t *engine,
+                                 const pulse_heat_ports_t *ports,
+                                 pulse_heat_control_output_t *out);
+
+/**
+ * @brief 探针接口: 获取引擎配置
+ */
+const pulse_heat_config_t *pulse_heat_engine_get_config(const pulse_heat_engine_t *engine);
+
+/**
+ * @brief 探针接口: 获取当前状态
+ */
+pulse_heat_state_t pulse_heat_engine_get_state(const pulse_heat_engine_t *engine);
+
+/**
+ * @brief 探针接口: 获取当前故障码
+ */
+pulse_heat_fault_t pulse_heat_engine_get_fault(const pulse_heat_engine_t *engine);
+
+/**
+ * @brief 探针接口: 设定测试运行内部状态
+ */
+void pulse_heat_engine_set_test_state(pulse_heat_engine_t *engine,
+                                      pulse_heat_state_t state,
+                                      float core_t,
+                                      float surf_t,
+                                      float elapsed_s);
 
 /**
  * @brief 查询当前状态机状态字符串

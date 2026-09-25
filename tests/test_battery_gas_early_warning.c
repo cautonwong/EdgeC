@@ -12,41 +12,46 @@
 /* 1. 测试初始化与配置校验 */
 static void test_ew_init_and_config(void **state) {
     (void)state;
-    battery_gas_ew_detector_t ew;
+    battery_gas_ew_storage_t store;
+    battery_gas_ew_detector_t *ew = battery_gas_ew_create_in(&store, NULL, NULL);
+    assert_non_null(ew);
 
     /* 默认配置 */
-    int rc = battery_gas_ew_init(&ew, NULL);
-    assert_int_equal(rc, 0);
-    assert_double_equal(ew.config.voc_trace_ppb, 300.0, 0.01);
-    assert_double_equal(ew.config.co_vent_ppm, 50.0, 0.01);
-    assert_double_equal(ew.config.h2_vent_ppm, 80.0, 0.01);
-    assert_double_equal(ew.config.smoke_runaway_thresh, 0.15, 0.01);
+    const battery_gas_ew_config_t *cfg = battery_gas_ew_get_config(ew);
+    assert_non_null(cfg);
+    assert_double_equal(cfg->voc_trace_ppb, 300.0, 0.01);
+    assert_double_equal(cfg->co_vent_ppm, 50.0, 0.01);
+    assert_double_equal(cfg->h2_vent_ppm, 80.0, 0.01);
+    assert_double_equal(cfg->smoke_runaway_thresh, 0.15, 0.01);
 
     /* 自定义配置 */
-    battery_gas_ew_config_t cfg = {.voc_trace_ppb = 500.0,
-                                   .h2_trace_ppm = 25.0,
-                                   .co_trace_ppm = 15.0,
-                                   .co_vent_ppm = 80.0,
-                                   .h2_vent_ppm = 120.0,
-                                   .pressure_pulse_pa_s = 50.0,
-                                   .temp_rate_vent_cs = 0.50,
-                                   .smoke_runaway_thresh = 0.20,
-                                   .co_runaway_ppm = 300.0,
-                                   .temp_runaway_c = 80.0,
-                                   .max_valid_temp_c = 160.0,
-                                   .min_valid_pressure_pa = 50000.0,
-                                   .max_valid_pressure_pa = 160000.0};
-    rc = battery_gas_ew_init(&ew, &cfg);
-    assert_int_equal(rc, 0);
-    assert_double_equal(ew.config.voc_trace_ppb, 500.0, 0.01);
-    assert_double_equal(ew.config.co_runaway_ppm, 300.0, 0.01);
+    battery_gas_ew_config_t custom_cfg = {.voc_trace_ppb = 500.0,
+                                          .h2_trace_ppm = 25.0,
+                                          .co_trace_ppm = 15.0,
+                                          .co_vent_ppm = 80.0,
+                                          .h2_vent_ppm = 120.0,
+                                          .pressure_pulse_pa_s = 50.0,
+                                          .temp_rate_vent_cs = 0.50,
+                                          .smoke_runaway_thresh = 0.20,
+                                          .co_runaway_ppm = 300.0,
+                                          .temp_runaway_c = 80.0,
+                                          .max_valid_temp_c = 160.0,
+                                          .min_valid_pressure_pa = 50000.0,
+                                          .max_valid_pressure_pa = 160000.0};
+    ew = battery_gas_ew_create_in(&store, &custom_cfg, NULL);
+    assert_non_null(ew);
+    cfg = battery_gas_ew_get_config(ew);
+    assert_non_null(cfg);
+    assert_double_equal(cfg->voc_trace_ppb, 500.0, 0.01);
+    assert_double_equal(cfg->co_runaway_ppm, 300.0, 0.01);
 }
 
 /* 2. 测试正常环境背景与安全待机 */
 static void test_normal_background_safe(void **state) {
     (void)state;
-    battery_gas_ew_detector_t ew;
-    battery_gas_ew_init(&ew, NULL);
+    battery_gas_ew_storage_t store;
+    battery_gas_ew_detector_t *ew = battery_gas_ew_create_in(&store, NULL, NULL);
+    assert_non_null(ew);
 
     /* 连续喂入 10 组正常数据 */
     for (int i = 0; i < 10; i++) {
@@ -58,13 +63,13 @@ static void test_normal_background_safe(void **state) {
                                          .max_cell_temp_c = 25.0 + 0.1 * i,
                                          .min_cell_volt_v = 3.300,
                                          .timestamp_s = (double)i * 1.0};
-        battery_gas_ew_push_sample(&ew, &s);
+        battery_gas_ew_push_sample(ew, &s);
     }
 
-    int rc = battery_gas_ew_process_step(&ew, 10.0);
+    int rc = battery_gas_ew_process_step(ew, 10.0);
     assert_int_equal(rc, 0);
 
-    const battery_gas_ew_report_t *rep = battery_gas_ew_get_report(&ew);
+    const battery_gas_ew_report_t *rep = battery_gas_ew_get_report(ew);
     assert_non_null(rep);
     assert_true(rep->valid);
     assert_int_equal(rep->stage, BATTERY_GAS_STAGE_NORMAL);
@@ -77,8 +82,9 @@ static void test_normal_background_safe(void **state) {
 /* 3. 测试阶段 1: 喷阀前微量气体潜伏预警 (VOC/H2 初渗) */
 static void test_stage1_prevent_trace_detection(void **state) {
     (void)state;
-    battery_gas_ew_detector_t ew;
-    battery_gas_ew_init(&ew, NULL);
+    battery_gas_ew_storage_t store;
+    battery_gas_ew_detector_t *ew = battery_gas_ew_create_in(&store, NULL, NULL);
+    assert_non_null(ew);
 
     /* 样本 1: 正常基线 */
     battery_gas_sensor_sample_t s1 = {.co_ppm = 1.0,
@@ -89,7 +95,7 @@ static void test_stage1_prevent_trace_detection(void **state) {
                                       .max_cell_temp_c = 26.0,
                                       .min_cell_volt_v = 3.30,
                                       .timestamp_s = 10.0};
-    battery_gas_ew_push_sample(&ew, &s1);
+    battery_gas_ew_push_sample(ew, &s1);
 
     /* 样本 2: VOC 显著抬升至 450 ppb, H2 抬升至 22 ppm */
     battery_gas_sensor_sample_t s2 = {.co_ppm = 3.5,
@@ -100,12 +106,12 @@ static void test_stage1_prevent_trace_detection(void **state) {
                                       .max_cell_temp_c = 42.0,
                                       .min_cell_volt_v = 3.28,
                                       .timestamp_s = 15.0};
-    battery_gas_ew_push_sample(&ew, &s2);
+    battery_gas_ew_push_sample(ew, &s2);
 
-    int rc = battery_gas_ew_process_step(&ew, 15.0);
+    int rc = battery_gas_ew_process_step(ew, 15.0);
     assert_int_equal(rc, 0);
 
-    const battery_gas_ew_report_t *rep = battery_gas_ew_get_report(&ew);
+    const battery_gas_ew_report_t *rep = battery_gas_ew_get_report(ew);
     assert_non_null(rep);
     assert_int_equal(rep->stage, BATTERY_GAS_STAGE_STAGE1_PREVENT_TRACE);
     assert_true(rep->prob_prevent_latent >= 0.40);
@@ -118,8 +124,9 @@ static void test_stage1_prevent_trace_detection(void **state) {
 /* 4. 测试阶段 2: 安全阀喷阀确认 (CO/H2 突增 + 气压脉冲) */
 static void test_stage2_venting_pulse_confirmation(void **state) {
     (void)state;
-    battery_gas_ew_detector_t ew;
-    battery_gas_ew_init(&ew, NULL);
+    battery_gas_ew_storage_t store;
+    battery_gas_ew_detector_t *ew = battery_gas_ew_create_in(&store, NULL, NULL);
+    assert_non_null(ew);
 
     /* 样本 1: 喷阀前夕 */
     battery_gas_sensor_sample_t s1 = {.co_ppm = 5.0,
@@ -130,7 +137,7 @@ static void test_stage2_venting_pulse_confirmation(void **state) {
                                       .max_cell_temp_c = 48.0,
                                       .min_cell_volt_v = 3.26,
                                       .timestamp_s = 20.0};
-    battery_gas_ew_push_sample(&ew, &s1);
+    battery_gas_ew_push_sample(ew, &s1);
 
     /* 样本 2: 破裂喷阀瞬间 (气压突增 80 Pa/s, CO 85 ppm, H2 140 ppm, 温升 0.4°C/s) */
     battery_gas_sensor_sample_t s2 = {.co_ppm = 85.0,
@@ -141,12 +148,12 @@ static void test_stage2_venting_pulse_confirmation(void **state) {
                                       .max_cell_temp_c = 48.8,
                                       .min_cell_volt_v = 3.20,
                                       .timestamp_s = 22.0};
-    battery_gas_ew_push_sample(&ew, &s2);
+    battery_gas_ew_push_sample(ew, &s2);
 
-    int rc = battery_gas_ew_process_step(&ew, 22.0);
+    int rc = battery_gas_ew_process_step(ew, 22.0);
     assert_int_equal(rc, 0);
 
-    const battery_gas_ew_report_t *rep = battery_gas_ew_get_report(&ew);
+    const battery_gas_ew_report_t *rep = battery_gas_ew_get_report(ew);
     assert_non_null(rep);
     assert_int_equal(rep->stage, BATTERY_GAS_STAGE_STAGE2_VENT_CONFIRM);
     assert_true(rep->prob_vent_confirmed >= 0.45);
@@ -160,8 +167,9 @@ static void test_stage2_venting_pulse_confirmation(void **state) {
 /* 5. 测试阶段 3: 热失控剧烈起火临界 (烟雾爆发 + 高温失控 + 灭火喷放) */
 static void test_stage3_runaway_fire_imminent(void **state) {
     (void)state;
-    battery_gas_ew_detector_t ew;
-    battery_gas_ew_init(&ew, NULL);
+    battery_gas_ew_storage_t store;
+    battery_gas_ew_detector_t *ew = battery_gas_ew_create_in(&store, NULL, NULL);
+    assert_non_null(ew);
 
     /* 样本: 烟雾浓度 0.35, CO 420 ppm, 电芯温度 88°C */
     battery_gas_sensor_sample_t s = {.co_ppm = 420.0,
@@ -172,12 +180,12 @@ static void test_stage3_runaway_fire_imminent(void **state) {
                                      .max_cell_temp_c = 88.0,
                                      .min_cell_volt_v = 2.10,
                                      .timestamp_s = 30.0};
-    battery_gas_ew_push_sample(&ew, &s);
+    battery_gas_ew_push_sample(ew, &s);
 
-    int rc = battery_gas_ew_process_step(&ew, 30.0);
+    int rc = battery_gas_ew_process_step(ew, 30.0);
     assert_int_equal(rc, 0);
 
-    const battery_gas_ew_report_t *rep = battery_gas_ew_get_report(&ew);
+    const battery_gas_ew_report_t *rep = battery_gas_ew_get_report(ew);
     assert_non_null(rep);
     assert_int_equal(rep->stage, BATTERY_GAS_STAGE_STAGE3_RUNAWAY_FIRE);
     assert_true(rep->prob_runaway_fire >= 0.50);
@@ -189,8 +197,9 @@ static void test_stage3_runaway_fire_imminent(void **state) {
 /* 6. 测试传感器断线/量程越界故障处理 */
 static void test_sensor_fault_detection(void **state) {
     (void)state;
-    battery_gas_ew_detector_t ew;
-    battery_gas_ew_init(&ew, NULL);
+    battery_gas_ew_storage_t store;
+    battery_gas_ew_detector_t *ew = battery_gas_ew_create_in(&store, NULL, NULL);
+    assert_non_null(ew);
 
     /* 异常气压值 (5000 Pa 远低于正常大气压下限 60000 Pa) */
     battery_gas_sensor_sample_t broken = {.co_ppm = 0.0,
@@ -201,12 +210,12 @@ static void test_sensor_fault_detection(void **state) {
                                           .max_cell_temp_c = 25.0,
                                           .min_cell_volt_v = 3.30,
                                           .timestamp_s = 10.0};
-    battery_gas_ew_push_sample(&ew, &broken);
+    battery_gas_ew_push_sample(ew, &broken);
 
-    int rc = battery_gas_ew_process_step(&ew, 10.0);
+    int rc = battery_gas_ew_process_step(ew, 10.0);
     assert_int_equal(rc, 0);
 
-    const battery_gas_ew_report_t *rep = battery_gas_ew_get_report(&ew);
+    const battery_gas_ew_report_t *rep = battery_gas_ew_get_report(ew);
     assert_non_null(rep);
     assert_int_equal(rep->stage, BATTERY_GAS_STAGE_SENSOR_FAULT);
     assert_false(rep->trigger_extinguisher_req);
@@ -215,8 +224,9 @@ static void test_sensor_fault_detection(void **state) {
 /* 7. 测试重置与基线恢复 */
 static void test_reset_and_recovery(void **state) {
     (void)state;
-    battery_gas_ew_detector_t ew;
-    battery_gas_ew_init(&ew, NULL);
+    battery_gas_ew_storage_t store;
+    battery_gas_ew_detector_t *ew = battery_gas_ew_create_in(&store, NULL, NULL);
+    assert_non_null(ew);
 
     battery_gas_sensor_sample_t s = {.co_ppm = 100.0,
                                      .h2_ppm = 200.0,
@@ -226,21 +236,23 @@ static void test_reset_and_recovery(void **state) {
                                      .max_cell_temp_c = 50.0,
                                      .min_cell_volt_v = 3.20,
                                      .timestamp_s = 10.0};
-    battery_gas_ew_push_sample(&ew, &s);
-    battery_gas_ew_process_step(&ew, 10.0);
-    assert_true(ew.report.valid);
+    battery_gas_ew_push_sample(ew, &s);
+    battery_gas_ew_process_step(ew, 10.0);
+    const battery_gas_ew_report_t *rep = battery_gas_ew_get_report(ew);
+    assert_non_null(rep);
+    assert_true(rep->valid);
 
-    battery_gas_ew_reset(&ew);
-    assert_false(ew.report.valid);
-    assert_int_equal(ew.sample_count, 0);
-    assert_null(battery_gas_ew_get_report(&ew));
+    battery_gas_ew_reset(ew);
+    assert_int_equal(battery_gas_ew_get_sample_count(ew), 0);
+    assert_null(battery_gas_ew_get_report(ew));
 }
 
 /* 8. 测试 NaN 脏数据注入与阈值除零防御 */
 static void test_nan_injection_and_zero_division_defense(void **state) {
     (void)state;
-    battery_gas_ew_detector_t ew;
-    battery_gas_ew_init(&ew, NULL);
+    battery_gas_ew_storage_t store;
+    battery_gas_ew_detector_t *ew = battery_gas_ew_create_in(&store, NULL, NULL);
+    assert_non_null(ew);
 
     /* 8.1 注入 NaN 气压值，断言 IEEE 754 比较不绕过并安全判定为 SENSOR_FAULT */
     battery_gas_sensor_sample_t nan_sample = {.co_ppm = 1.0,
@@ -251,22 +263,24 @@ static void test_nan_injection_and_zero_division_defense(void **state) {
                                               .max_cell_temp_c = 25.0,
                                               .min_cell_volt_v = 3.30,
                                               .timestamp_s = 10.0};
-    battery_gas_ew_push_sample(&ew, &nan_sample);
-    int rc = battery_gas_ew_process_step(&ew, 10.0);
+    battery_gas_ew_push_sample(ew, &nan_sample);
+    int rc = battery_gas_ew_process_step(ew, 10.0);
     assert_int_equal(rc, 0);
-    const battery_gas_ew_report_t *rep = battery_gas_ew_get_report(&ew);
+    const battery_gas_ew_report_t *rep = battery_gas_ew_get_report(ew);
     assert_non_null(rep);
     assert_int_equal(rep->stage, BATTERY_GAS_STAGE_SENSOR_FAULT);
     assert_false(rep->trigger_extinguisher_req);
-    assert_true(isfinite(ew.baseline_pressure));
 
     /* 8.2 测试温升阈值 temp_runaway_c == 55.0 临界除零配置防御 */
     battery_gas_ew_config_t edge_cfg = {.temp_runaway_c = 55.0, /* 与基准温差 55.0 完全重合 */
                                         .voc_trace_ppb = 0.0, /* 0 阈值 */
                                         .co_vent_ppm = 0.0,
                                         .h2_vent_ppm = 0.0};
-    assert_int_equal(battery_gas_ew_init(&ew, &edge_cfg), 0);
-    assert_true(ew.config.temp_runaway_c > 55.0); /* 必须修正或有保护 */
+    ew = battery_gas_ew_create_in(&store, &edge_cfg, NULL);
+    assert_non_null(ew);
+    const battery_gas_ew_config_t *cfg = battery_gas_ew_get_config(ew);
+    assert_non_null(cfg);
+    assert_true(cfg->temp_runaway_c > 55.0); /* 必须修正或有保护 */
 
     battery_gas_sensor_sample_t valid_sample = {.co_ppm = 10.0,
                                                 .h2_ppm = 20.0,
@@ -276,10 +290,10 @@ static void test_nan_injection_and_zero_division_defense(void **state) {
                                                 .max_cell_temp_c = 60.0,
                                                 .min_cell_volt_v = 3.30,
                                                 .timestamp_s = 20.0};
-    battery_gas_ew_push_sample(&ew, &valid_sample);
-    rc = battery_gas_ew_process_step(&ew, 20.0);
+    battery_gas_ew_push_sample(ew, &valid_sample);
+    rc = battery_gas_ew_process_step(ew, 20.0);
     assert_int_equal(rc, 0);
-    rep = battery_gas_ew_get_report(&ew);
+    rep = battery_gas_ew_get_report(ew);
     assert_non_null(rep);
     assert_true(isfinite(rep->prob_prevent_latent));
     assert_true(isfinite(rep->prob_vent_confirmed));

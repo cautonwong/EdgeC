@@ -68,6 +68,48 @@ static double evaluate_nn_soh(double norm_cyc, double norm_days, double norm_tem
     return soh;
 }
 
+#include <stdalign.h>
+
+struct battery_soh_estimator {
+    battery_soh_config_t config;
+    battery_soh_ica_state_t ica;
+    battery_soh_coulomb_state_t coulomb;
+    
+    /* 运行统计累计变量 */
+    double total_ah_charge;
+    double total_ah_discharge;
+    double total_energy_kwh;
+    double initial_timestamp_s;
+    double last_timestamp_s;
+    double avg_operating_temp_c;
+    double avg_dod;
+    uint64_t total_samples_fed;
+    
+    /* 贝叶斯融合状态变量与协方差 */
+    double state_soh_cap;
+    double state_soh_res;
+    double cov_soh_cap;
+    
+    battery_soh_result_t result;
+};
+
+_Static_assert(sizeof(struct battery_soh_estimator) <= sizeof(battery_soh_storage_t),
+               "battery_soh_storage_t too small for struct battery_soh_estimator");
+_Static_assert(alignof(struct battery_soh_estimator) <= alignof(battery_soh_storage_t),
+               "battery_soh_storage_t bad alignment for struct battery_soh_estimator");
+
+battery_soh_estimator_t *battery_soh_create_in(battery_soh_storage_t *store, const battery_soh_config_t *cfg)
+{
+    if (!store) {
+        return NULL;
+    }
+    battery_soh_estimator_t *est = (battery_soh_estimator_t *)store;
+    if (battery_soh_init(est, cfg) != 0) {
+        return NULL;
+    }
+    return est;
+}
+
 int battery_soh_init(battery_soh_fusion_estimator_t *est, const battery_soh_config_t *cfg)
 {
     if (!est) {
@@ -421,4 +463,79 @@ void battery_soh_reset(battery_soh_fusion_estimator_t *est)
     est->state_soh_cap = 1.0;
     est->state_soh_res = 1.0;
     est->cov_soh_cap = 0.01;
+}
+
+int battery_soh_step_ports(battery_soh_estimator_t *est, const battery_soh_ports_t *ports)
+{
+    if (!est || !ports) {
+        return -1;
+    }
+
+    double ts = 0.0;
+    if (ports->get_time_s) {
+        ts = ports->get_time_s(ports->ctx);
+    }
+
+    if (ports->read_sample) {
+        double current_a = 0.0, voltage_v = 0.0, temp_c = 25.0, soc = 0.5;
+        if (ports->read_sample(ports->ctx, &current_a, &voltage_v, &temp_c, &soc) == 0) {
+            battery_soh_feed_sample(est, current_a, voltage_v, temp_c, soc, ts);
+        }
+    }
+
+    if (ports->read_impedance) {
+        double r0 = 0.0, rct = 0.0, temp_c = 25.0;
+        if (ports->read_impedance(ports->ctx, &r0, &rct, &temp_c) == 0) {
+            battery_soh_feed_impedance(est, r0, rct, temp_c);
+        }
+    }
+
+    int rc = battery_soh_process_fusion(est, ts);
+    if (rc == 0 && ports->write_result) {
+        const battery_soh_result_t *res = battery_soh_get_result(est);
+        if (res) {
+            ports->write_result(ports->ctx, res);
+        }
+    }
+
+    return rc;
+}
+
+const battery_soh_config_t *battery_soh_get_config(const battery_soh_estimator_t *est)
+{
+    return est ? &est->config : NULL;
+}
+
+const battery_soh_coulomb_state_t *battery_soh_get_coulomb_state(const battery_soh_estimator_t *est)
+{
+    return est ? &est->coulomb : NULL;
+}
+
+const battery_soh_ica_state_t *battery_soh_get_ica_state(const battery_soh_estimator_t *est)
+{
+    return est ? &est->ica : NULL;
+}
+
+void battery_soh_set_test_metrics(battery_soh_estimator_t *est,
+                                  double init_t,
+                                  double last_t,
+                                  double ah_chg,
+                                  double ah_dis,
+                                  double energy_kwh,
+                                  double avg_temp,
+                                  uint64_t samples)
+{
+    if (!est) return;
+    est->initial_timestamp_s = init_t;
+    est->last_timestamp_s = last_t;
+    est->total_ah_charge = ah_chg;
+    est->total_ah_discharge = ah_dis;
+    est->total_energy_kwh = energy_kwh;
+    est->avg_operating_temp_c = avg_temp;
+    est->total_samples_fed = samples;
+}
+
+double battery_soh_get_total_ah_charge(const battery_soh_estimator_t *est)
+{
+    return est ? est->total_ah_charge : 0.0;
 }

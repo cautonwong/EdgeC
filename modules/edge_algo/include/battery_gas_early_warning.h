@@ -87,32 +87,70 @@ typedef struct {
     bool valid;
 } battery_gas_ew_report_t;
 
-/**
- * @brief 气体预警检测器内部状态结构体
- */
-typedef struct {
-    battery_gas_ew_config_t config;
-    battery_gas_sensor_sample_t history[BATTERY_GAS_HISTORY_LEN];
-    uint16_t sample_count;
-    
-    /* 自适应基线追踪 */
-    double baseline_co;
-    double baseline_h2;
-    double baseline_voc;
-    double baseline_pressure;
-    
-    battery_gas_ew_report_t report;
-    uint64_t total_samples_processed;
-    double last_timestamp_s;
-} battery_gas_ew_detector_t;
+#include <stdalign.h>
+#include "edge_port.h"
 
 /**
- * @brief 初始化热失控喷阀前气体多源预警检测器
+ * @brief 消费者定义接口 (Consumer-Defined Ports - AEP-751 / AEP-752)
+ */
+typedef struct battery_gas_ew_ports {
+    edge_reader_port_t reader;
+    edge_writer_port_t writer;
+    edge_clock_port_t clock;
+} battery_gas_ew_ports_t;
+
+/**
+ * @brief 气体预警检测器句柄 (Opaque Pointer)
+ */
+typedef struct battery_gas_ew_detector battery_gas_ew_detector_t;
+
+/**
+ * @brief 调用方预分配存储空间 (Caller-Allocated Storage - 4KB Aligned)
+ */
+typedef struct {
+    alignas(max_align_t) uint8_t raw[4096];
+} battery_gas_ew_storage_t;
+
+/**
+ * @brief 就地就近构造气体预警检测器聚合根 (0 heap allocation)
+ * @param store 调用方提供的内存块
+ * @param cfg 配置参数 (为 NULL 则使用工业级默认参数)
+ * @param ports 消费者接口注入 (可选)
+ * @return 构造成功的聚合根指针, 失败返回 NULL
+ */
+battery_gas_ew_detector_t *battery_gas_ew_create_in(battery_gas_ew_storage_t *store,
+                                                    const battery_gas_ew_config_t *cfg,
+                                                    const battery_gas_ew_ports_t *ports);
+
+/**
+ * @brief 初始化热失控喷阀前气体多源预警检测器 (向下兼容)
  * @param ew 检测器句柄
  * @param cfg 配置参数 (若为 NULL 则使用工业级默认参数)
  * @return 0 成功, 负数 错误码
  */
 int battery_gas_ew_init(battery_gas_ew_detector_t *ew, const battery_gas_ew_config_t *cfg);
+
+/**
+ * @brief 探针接口：获取当前配置
+ */
+const battery_gas_ew_config_t *battery_gas_ew_get_config(const battery_gas_ew_detector_t *ew);
+
+/**
+ * @brief 探针接口：获取历史样本数
+ */
+uint16_t battery_gas_ew_get_sample_count(const battery_gas_ew_detector_t *ew);
+
+/**
+ * @brief 基于 Ports 驱动的自动气体预警批处理步进
+ */
+int battery_gas_ew_step_ports(battery_gas_ew_detector_t *ew,
+                              uint32_t tag_co,
+                              uint32_t tag_h2,
+                              uint32_t tag_voc,
+                              uint32_t tag_press,
+                              uint32_t tag_temp,
+                              uint32_t tag_stage_out,
+                              double dt_s);
 
 /**
  * @brief 喂入一组最新采样的多传感器特征数据
