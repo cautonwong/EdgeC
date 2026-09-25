@@ -16,11 +16,10 @@
 
 static void test_thermal_mesh_init_and_reset(void **state) {
     (void)state;
-    thermal_mesh_engine_t engine;
-
-    int ret = thermal_mesh_engine_init(&engine, NULL);
-    assert_int_equal(ret, 0);
-    assert_true(engine.initialized);
+    thermal_mesh_engine_storage_t store;
+    thermal_mesh_engine_t *engine = thermal_mesh_engine_create_in(&store, NULL);
+    assert_non_null(engine);
+    assert_true(thermal_mesh_is_initialized(engine));
 
     /* 验证热网络节点名称字符串转换 */
     assert_string_equal(thermal_mesh_node_to_str(THERMAL_NODE_CORE_CENTER), "CORE_CENTER");
@@ -31,23 +30,25 @@ static void test_thermal_mesh_init_and_reset(void **state) {
     /* 验证导热矩阵对称性 G_ij == G_ji */
     for (int i = 0; i < THERMAL_MESH_NUM_NODES; i++) {
         for (int j = 0; j < THERMAL_MESH_NUM_NODES; j++) {
-            assert_float_equal(engine.conductance_matrix[i][j], engine.conductance_matrix[j][i],
+            assert_float_equal(thermal_mesh_get_conductance(engine, i, j),
+                               thermal_mesh_get_conductance(engine, j, i),
                                0.0001f);
         }
     }
 
     /* 验证重置温度 */
-    ret = thermal_mesh_engine_reset(&engine, 30.0f);
+    int ret = thermal_mesh_engine_reset(engine, 30.0f);
     assert_int_equal(ret, 0);
     for (int i = 0; i < THERMAL_MESH_NUM_NODES; i++) {
-        assert_float_equal(engine.temperatures[i], 30.0f, 0.001f);
+        assert_float_equal(thermal_mesh_get_temperature(engine, i), 30.0f, 0.001f);
     }
 }
 
 static void test_thermal_mesh_steady_state_no_load(void **state) {
     (void)state;
-    thermal_mesh_engine_t engine;
-    thermal_mesh_engine_init(&engine, NULL);
+    thermal_mesh_engine_storage_t store;
+    thermal_mesh_engine_t *engine = thermal_mesh_engine_create_in(&store, NULL);
+    assert_non_null(engine);
 
     thermal_mesh_telemetry_t telem = {.load_current_a = 0.0f,
                                       .cell_terminal_voltage_v = 3.30f,
@@ -58,7 +59,7 @@ static void test_thermal_mesh_steady_state_no_load(void **state) {
                                       .sensor_count = 0};
 
     thermal_mesh_output_t out;
-    int ret = thermal_mesh_engine_step(&engine, &telem, 0.1f, &out);
+    int ret = thermal_mesh_engine_step(engine, &telem, 0.1f, &out);
     assert_int_equal(ret, 0);
 
     /* 零电流稳态无发热，各节点保持 25℃ */
@@ -71,8 +72,9 @@ static void test_thermal_mesh_steady_state_no_load(void **state) {
 
 static void test_thermal_mesh_high_rate_discharge_heating(void **state) {
     (void)state;
-    thermal_mesh_engine_t engine;
-    thermal_mesh_engine_init(&engine, NULL);
+    thermal_mesh_engine_storage_t store;
+    thermal_mesh_engine_t *engine = thermal_mesh_engine_create_in(&store, NULL);
+    assert_non_null(engine);
 
     /* 模拟 280A (1C) 恒流放电工况 */
     thermal_mesh_telemetry_t telem = {.load_current_a = 280.0f,
@@ -87,7 +89,7 @@ static void test_thermal_mesh_high_rate_discharge_heating(void **state) {
 
     /* 仿真连续放电 300 秒 (5 分钟) */
     for (int i = 0; i < 3000; i++) {
-        thermal_mesh_engine_step(&engine, &telem, 0.1f, &out);
+        thermal_mesh_engine_step(engine, &telem, 0.1f, &out);
     }
 
     /* 验证产热量 */
@@ -104,8 +106,9 @@ static void test_thermal_mesh_high_rate_discharge_heating(void **state) {
 
 static void test_thermal_mesh_tab_temperature_rise(void **state) {
     (void)state;
-    thermal_mesh_engine_t engine;
-    thermal_mesh_engine_init(&engine, NULL);
+    thermal_mesh_engine_storage_t store;
+    thermal_mesh_engine_t *engine = thermal_mesh_engine_create_in(&store, NULL);
+    assert_non_null(engine);
 
     /* 模拟高电流脉冲 (400A) 验证极耳局部收敛发热 */
     thermal_mesh_telemetry_t telem = {.load_current_a = 400.0f,
@@ -118,7 +121,7 @@ static void test_thermal_mesh_tab_temperature_rise(void **state) {
 
     thermal_mesh_output_t out;
     for (int i = 0; i < 600; i++) { /* 60 秒大电流脉冲 */
-        thermal_mesh_engine_step(&engine, &telem, 0.1f, &out);
+        thermal_mesh_engine_step(engine, &telem, 0.1f, &out);
     }
 
     /* 验证正负极耳温升与梯度 */
@@ -129,8 +132,9 @@ static void test_thermal_mesh_tab_temperature_rise(void **state) {
 
 static void test_thermal_mesh_bottom_liquid_cooling(void **state) {
     (void)state;
-    thermal_mesh_engine_t engine;
-    thermal_mesh_engine_init(&engine, NULL);
+    thermal_mesh_engine_storage_t store;
+    thermal_mesh_engine_t *engine = thermal_mesh_engine_create_in(&store, NULL);
+    assert_non_null(engine);
 
     /* 设置底板进水温度为 15.0 ℃, 环境 25.0 ℃ */
     thermal_mesh_telemetry_t telem = {.load_current_a = 150.0f,
@@ -143,7 +147,7 @@ static void test_thermal_mesh_bottom_liquid_cooling(void **state) {
 
     thermal_mesh_output_t out;
     for (int i = 0; i < 1000; i++) {
-        thermal_mesh_engine_step(&engine, &telem, 0.1f, &out);
+        thermal_mesh_engine_step(engine, &telem, 0.1f, &out);
     }
 
     /* 底部液冷接触面温度应低于内部核心温度 */
@@ -155,8 +159,9 @@ static void test_thermal_mesh_bottom_liquid_cooling(void **state) {
 
 static void test_thermal_mesh_surface_sensor_fusion(void **state) {
     (void)state;
-    thermal_mesh_engine_t engine;
-    thermal_mesh_engine_init(&engine, NULL);
+    thermal_mesh_engine_storage_t store;
+    thermal_mesh_engine_t *engine = thermal_mesh_engine_create_in(&store, NULL);
+    assert_non_null(engine);
 
     /* 接入 1 个前大面 NTC 传感器 (测得 35.0 ℃，而模型此时初始为 25.0 ℃) */
     thermal_mesh_telemetry_t telem = {.load_current_a = 0.0f,
@@ -175,7 +180,7 @@ static void test_thermal_mesh_surface_sensor_fusion(void **state) {
 
     /* 步进若干周期观察状态观测器收敛 */
     for (int i = 0; i < 50; i++) {
-        thermal_mesh_engine_step(&engine, &telem, 0.1f, &out);
+        thermal_mesh_engine_step(engine, &telem, 0.1f, &out);
     }
 
     /* 表面节点温度应被观测器拉升至接近实测 35.0 ℃ */
@@ -185,8 +190,9 @@ static void test_thermal_mesh_surface_sensor_fusion(void **state) {
 
 static void test_thermal_mesh_hotspot_and_gradient_alarms(void **state) {
     (void)state;
-    thermal_mesh_engine_t engine;
-    thermal_mesh_engine_init(&engine, NULL);
+    thermal_mesh_engine_storage_t store;
+    thermal_mesh_engine_t *engine = thermal_mesh_engine_create_in(&store, NULL);
+    assert_non_null(engine);
 
     thermal_mesh_telemetry_t telem = {.load_current_a = 0.0f,
                                       .cell_terminal_voltage_v = 3.30f,
@@ -197,11 +203,11 @@ static void test_thermal_mesh_hotspot_and_gradient_alarms(void **state) {
                                       .sensor_count = 0};
 
     /* 人为设置核心超温 (> 55.0 ℃) */
-    engine.temperatures[THERMAL_NODE_CORE_CENTER] = 58.0f;
-    engine.temperatures[THERMAL_NODE_BOTTOM_COOLING] = 45.0f; /* 梯度 13℃ > 8℃ */
+    thermal_mesh_set_node_temperature(engine, THERMAL_NODE_CORE_CENTER, 58.0f);
+    thermal_mesh_set_node_temperature(engine, THERMAL_NODE_BOTTOM_COOLING, 45.0f); /* 梯度 13℃ > 8℃ */
 
     thermal_mesh_output_t out;
-    thermal_mesh_engine_step(&engine, &telem, 0.1f, &out);
+    thermal_mesh_engine_step(engine, &telem, 0.1f, &out);
 
     assert_true(out.hotspot_alarm);
     assert_true(out.gradient_alarm);
@@ -211,8 +217,9 @@ static void test_thermal_mesh_hotspot_and_gradient_alarms(void **state) {
 
 static void test_thermal_mesh_sensor_nan_rejection(void **state) {
     (void)state;
-    thermal_mesh_engine_t engine;
-    thermal_mesh_engine_init(&engine, NULL);
+    thermal_mesh_engine_storage_t store;
+    thermal_mesh_engine_t *engine = thermal_mesh_engine_create_in(&store, NULL);
+    assert_non_null(engine);
 
     /* 注入包含 NAN、Inf 及越界温度的传感器脏数据 */
     thermal_mesh_telemetry_t telem = {
@@ -230,7 +237,7 @@ static void test_thermal_mesh_sensor_nan_rejection(void **state) {
 
     thermal_mesh_output_t out;
     for (int i = 0; i < 20; i++) {
-        int ret = thermal_mesh_engine_step(&engine, &telem, 0.1f, &out);
+        int ret = thermal_mesh_engine_step(engine, &telem, 0.1f, &out);
         assert_int_equal(ret, 0);
     }
 
@@ -243,8 +250,9 @@ static void test_thermal_mesh_sensor_nan_rejection(void **state) {
 
 static void test_thermal_mesh_invalid_binding_bounds(void **state) {
     (void)state;
-    thermal_mesh_engine_t engine;
-    thermal_mesh_engine_init(&engine, NULL);
+    thermal_mesh_engine_storage_t store;
+    thermal_mesh_engine_t *engine = thermal_mesh_engine_create_in(&store, NULL);
+    assert_non_null(engine);
 
     /* 传入有符号负数及越界枚举作为绑定节点 */
     thermal_mesh_telemetry_t telem = {
@@ -260,7 +268,7 @@ static void test_thermal_mesh_invalid_binding_bounds(void **state) {
                      {.mapped_node = (thermal_node_id_t)99, .is_valid = true}}};
 
     thermal_mesh_output_t out;
-    int ret = thermal_mesh_engine_step(&engine, &telem, 0.1f, &out);
+    int ret = thermal_mesh_engine_step(engine, &telem, 0.1f, &out);
     assert_int_equal(ret, 0);
 
     for (int i = 0; i < THERMAL_MESH_NUM_NODES; i++) {
@@ -270,23 +278,24 @@ static void test_thermal_mesh_invalid_binding_bounds(void **state) {
 
 static void test_thermal_mesh_invalid_cfg_rejection(void **state) {
     (void)state;
-    thermal_mesh_engine_t engine;
+    thermal_mesh_engine_storage_t store;
 
     thermal_mesh_config_t bad_cfg_mass = {.cell_mass_kg = 0.0f, .specific_heat_j_kg_k = 1100.0f};
-    assert_int_equal(thermal_mesh_engine_init(&engine, &bad_cfg_mass), -1);
+    assert_null(thermal_mesh_engine_create_in(&store, &bad_cfg_mass));
 
     thermal_mesh_config_t bad_cfg_cp = {.cell_mass_kg = 5.4f, .specific_heat_j_kg_k = -10.0f};
-    assert_int_equal(thermal_mesh_engine_init(&engine, &bad_cfg_cp), -1);
+    assert_null(thermal_mesh_engine_create_in(&store, &bad_cfg_cp));
 
     thermal_mesh_config_t bad_cfg_k = {
         .cell_mass_kg = 5.4f, .specific_heat_j_kg_k = 1100.0f, .k_in_plane_w_m_k = -1.0f};
-    assert_int_equal(thermal_mesh_engine_init(&engine, &bad_cfg_k), -1);
+    assert_null(thermal_mesh_engine_create_in(&store, &bad_cfg_k));
 }
 
 static void test_thermal_mesh_nan_dt_rejection(void **state) {
     (void)state;
-    thermal_mesh_engine_t engine;
-    thermal_mesh_engine_init(&engine, NULL);
+    thermal_mesh_engine_storage_t store;
+    thermal_mesh_engine_t *engine = thermal_mesh_engine_create_in(&store, NULL);
+    assert_non_null(engine);
 
     thermal_mesh_telemetry_t telem = {.load_current_a = 100.0f,
                                       .cell_terminal_voltage_v = 3.20f,
@@ -298,11 +307,11 @@ static void test_thermal_mesh_nan_dt_rejection(void **state) {
 
     thermal_mesh_output_t out;
     /* 传入 NAN 与 Inf 步长，验证被安全兜底，无发散 */
-    int ret1 = thermal_mesh_engine_step(&engine, &telem, (float)NAN, &out);
+    int ret1 = thermal_mesh_engine_step(engine, &telem, (float)NAN, &out);
     assert_int_equal(ret1, 0);
     assert_true(isfinite(out.core_hotspot_temp_c));
 
-    int ret2 = thermal_mesh_engine_step(&engine, &telem, (float)INFINITY, &out);
+    int ret2 = thermal_mesh_engine_step(engine, &telem, (float)INFINITY, &out);
     assert_int_equal(ret2, 0);
     assert_true(isfinite(out.core_hotspot_temp_c));
 }

@@ -7,6 +7,39 @@
 #include <string.h>
 #include <math.h>
 
+struct impedance_controller {
+    impedance_params_t params;
+    impedance_state_t state;
+};
+
+_Static_assert(sizeof(struct impedance_controller) <= sizeof(impedance_controller_storage_t),
+               "impedance_controller_storage_t size is insufficient");
+
+impedance_controller_t *impedance_controller_create_in(impedance_controller_storage_t *store,
+                                                      const impedance_params_t *params) {
+    if (!store || !params) return NULL;
+    impedance_controller_t *ctrl = (impedance_controller_t *)store->raw;
+    memset(ctrl, 0, sizeof(struct impedance_controller));
+    ctrl->params = *params;
+    return ctrl;
+}
+
+float impedance_controller_get_torque(const impedance_controller_t *ctrl) {
+    return ctrl ? ctrl->state.output_torque : 0.0f;
+}
+
+bool impedance_controller_is_assisted(const impedance_controller_t *ctrl) {
+    return ctrl ? ctrl->state.active_assistance : false;
+}
+
+int impedance_controller_step(impedance_controller_t *ctrl, float pos, float vel, float force, float dt_s) {
+    if (!ctrl) return -1;
+    ctrl->state.current_pos = pos;
+    ctrl->state.current_vel = vel;
+    ctrl->state.external_force = force;
+    return impedance_control_step(&ctrl->params, &ctrl->state, dt_s);
+}
+
 int impedance_control_init(impedance_params_t *params, float M, float B, float K, float target_pos, float max_torque) {
     if (!params || M <= 0.0f || B < 0.0f || K < 0.0f || max_torque <= 0.0f) {
         return -1;

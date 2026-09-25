@@ -97,20 +97,28 @@ typedef struct {
 } thermal_mesh_output_t;
 
 /**
- * @brief 三维热阻抗降阶模型主引擎上下文
+ * @brief 三维热阻抗降阶模型不透明聚合根类型
  */
-typedef struct {
-    thermal_mesh_config_t cfg;       /**< 模型物性配置 */
-    float temperatures[THERMAL_MESH_NUM_NODES]; /**< 节点温度状态向量 */
-    float heat_capacities[THERMAL_MESH_NUM_NODES]; /**< 各节点热容 C_i (J/K) */
-    float conductance_matrix[THERMAL_MESH_NUM_NODES][THERMAL_MESH_NUM_NODES]; /**< 导热矩阵 G_ij (W/K) */
-    float ambient_conductance[THERMAL_MESH_NUM_NODES]; /**< 对流换热导热率 (W/K) */
-    float cooling_conductance[THERMAL_MESH_NUM_NODES]; /**< 液冷换热导热率 (W/K) */
-    bool initialized;                /**< 初始化标志 */
-} thermal_mesh_engine_t;
+typedef struct thermal_mesh_engine thermal_mesh_engine_t;
 
 /**
- * @brief 初始化三维热阻抗矩阵重建引擎
+ * @brief 调用方分配存储块 (Caller-Allocated Storage - AEP-752)
+ */
+typedef struct {
+    alignas(max_align_t) uint8_t raw[1024];
+} thermal_mesh_engine_storage_t;
+
+/**
+ * @brief 就地构造三维热网络聚合根 (0 malloc)
+ * @param store 调用方分配的存储块
+ * @param cfg 配置参数 (传 NULL 则使用默认参数)
+ * @return 构造成功的聚合根指针, 失败返回 NULL
+ */
+thermal_mesh_engine_t *thermal_mesh_engine_create_in(thermal_mesh_engine_storage_t *store,
+                                                     const thermal_mesh_config_t *cfg);
+
+/**
+ * @brief 初始化三维热阻抗矩阵重建引擎 (向下兼容适配)
  * @param engine 算法引擎句柄
  * @param cfg 配置参数 (传 NULL 则使用 280Ah LFP 工业默认参数)
  * @return 0 成功, 负数 错误码
@@ -137,6 +145,26 @@ int thermal_mesh_engine_step(thermal_mesh_engine_t *engine,
                              const thermal_mesh_telemetry_t *telem,
                              float dt_s,
                              thermal_mesh_output_t *out);
+
+/**
+ * @brief 访问函数：查询引擎初始化状态
+ */
+bool thermal_mesh_is_initialized(const thermal_mesh_engine_t *engine);
+
+/**
+ * @brief 访问函数：获取节点间热导率 G_ij (W/K)
+ */
+float thermal_mesh_get_conductance(const thermal_mesh_engine_t *engine, int i, int j);
+
+/**
+ * @brief 访问函数：获取指定节点当前温度 (℃)
+ */
+float thermal_mesh_get_temperature(const thermal_mesh_engine_t *engine, int node_idx);
+
+/**
+ * @brief 访问函数：设置指定节点当前温度 (℃)
+ */
+void thermal_mesh_set_node_temperature(thermal_mesh_engine_t *engine, int node_idx, float temp_c);
 
 /**
  * @brief 获取热网络节点名称字符串

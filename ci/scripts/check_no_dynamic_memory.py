@@ -67,7 +67,11 @@ def check_dynamic_memory(target_dir):
     # Scan modules/edge_algo and fixtures
     for root, _, files in os.walk(target_dir):
         # Ignore test files and third-party
-        if "third-party" in root or "tests" in root and "guards" not in root:
+        if "third-party" in root:
+            continue
+        if "fixtures" in root and not os.path.basename(target_dir).startswith("good_") and not os.path.basename(target_dir).startswith("bad_"):
+            continue
+        if "tests" in root and "guards" not in root:
             continue
         for f in files:
             if f.endswith(('.c', '.cpp')):

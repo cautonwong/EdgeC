@@ -5,12 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Internal structure to pass result to async callback
-typedef struct {
-    algo_result_t res;
-    algo_ctx_t *ctx;
-} async_msg_t;
-
 static void worker_thread(void *arg) {
     algo_ctx_t *ctx = (algo_ctx_t *)arg;
 
@@ -31,18 +25,14 @@ static void worker_thread(void *arg) {
                 sum += ctx->samples[i].value;
             }
 
-            // Prepare result
-            async_msg_t *msg = malloc(sizeof(async_msg_t));
-            if (msg) {
-                msg->ctx = ctx;
-                msg->res.total_sum = sum;
-                msg->res.sample_count = (uint32_t)ctx->count;
-                msg->res.average = sum / (double)ctx->count;
-                msg->res.compute_ts = uv_now(ctx->loop);
+            // Prepare result without dynamic allocation
+            ctx->pending_res.total_sum = sum;
+            ctx->pending_res.sample_count = (uint32_t)ctx->count;
+            ctx->pending_res.average = sum / (double)ctx->count;
+            ctx->pending_res.compute_ts = uv_now(ctx->loop);
 
-                ctx->async_result.data = msg;
-                uv_async_send(&ctx->async_result);
-            }
+            ctx->async_result.data = ctx;
+            uv_async_send(&ctx->async_result);
 
             // Clear buffer
             ctx->count = 0;
@@ -57,14 +47,13 @@ static void worker_thread(void *arg) {
 }
 
 static void on_result_async(uv_async_t *handle) {
-    async_msg_t *msg = (async_msg_t *)handle->data;
-    if (msg) {
-        algo_ctx_t *ctx = msg->ctx;
-        if (ctx && ctx->cb) {
-            ctx->cb(ctx, &msg->res, ctx->user_data);
-        }
-        free(msg);
-        handle->data = NULL;
+    algo_ctx_t *ctx = (algo_ctx_t *)handle->data;
+    if (ctx && ctx->cb) {
+        algo_result_t res_copy;
+        uv_mutex_lock(&ctx->lock);
+        res_copy = ctx->pending_res;
+        uv_mutex_unlock(&ctx->lock);
+        ctx->cb(ctx, &res_copy, ctx->user_data);
     }
 }
 

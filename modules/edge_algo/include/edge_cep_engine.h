@@ -29,13 +29,13 @@ typedef struct {
     uint16_t alert_tag;
 } cep_rule_t;
 
-typedef struct {
-    cep_rule_t rules[CEP_MAX_RULES];
-    uint32_t rule_count;
-    uint64_t total_events;
-    uint64_t total_alerts;
-} cep_engine_t;
+typedef struct cep_engine cep_engine_t;
 
+typedef struct {
+    alignas(max_align_t) uint8_t raw[2048];
+} cep_engine_storage_t;
+
+cep_engine_t *cep_engine_create_in(cep_engine_storage_t *store);
 void cep_engine_init(cep_engine_t *engine);
 int cep_engine_add_rule(cep_engine_t *engine, uint32_t rule_id, uint16_t tag_a, double val_a_min, uint16_t tag_b, double val_b_min, uint64_t window_ms, uint16_t alert_tag);
 int cep_engine_feed_event(cep_engine_t *engine, const cep_event_t *event, uint16_t *out_alert_tag, bool *triggered);

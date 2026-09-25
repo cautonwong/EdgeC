@@ -30,6 +30,19 @@ typedef struct {
     bool active_assistance; /* True if assisting patient, False if resistive */
 } impedance_state_t;
 
+typedef struct impedance_controller impedance_controller_t;
+
+typedef struct {
+    alignas(max_align_t) uint8_t raw[128];
+} impedance_controller_storage_t;
+
+impedance_controller_t *impedance_controller_create_in(impedance_controller_storage_t *store,
+                                                      const impedance_params_t *params);
+
+float impedance_controller_get_torque(const impedance_controller_t *ctrl);
+bool impedance_controller_is_assisted(const impedance_controller_t *ctrl);
+int impedance_controller_step(impedance_controller_t *ctrl, float pos, float vel, float force, float dt_s);
+
 /**
  * @brief Initializes impedance control parameters
  * @param params Pointer to parameter structure

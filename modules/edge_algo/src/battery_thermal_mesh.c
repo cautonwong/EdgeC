@@ -11,6 +11,19 @@
 #define KELVIN_OFFSET 273.15f
 #define REF_TEMP_K 298.15f /* 25.0 ℃ */
 
+struct thermal_mesh_engine {
+    thermal_mesh_config_t cfg;       /**< 模型物性配置 */
+    float temperatures[THERMAL_MESH_NUM_NODES]; /**< 节点温度状态向量 */
+    float heat_capacities[THERMAL_MESH_NUM_NODES]; /**< 各节点热容 C_i (J/K) */
+    float conductance_matrix[THERMAL_MESH_NUM_NODES][THERMAL_MESH_NUM_NODES]; /**< 导热矩阵 G_ij (W/K) */
+    float ambient_conductance[THERMAL_MESH_NUM_NODES]; /**< 对流换热导热率 (W/K) */
+    float cooling_conductance[THERMAL_MESH_NUM_NODES]; /**< 液冷换热导热率 (W/K) */
+    bool initialized;                /**< 初始化标志 */
+};
+
+_Static_assert(sizeof(struct thermal_mesh_engine) <= sizeof(thermal_mesh_engine_storage_t),
+               "thermal_mesh_engine_storage_t size is insufficient");
+
 static const thermal_mesh_config_t DEFAULT_CONFIG = {
     .cell_mass_kg = 5.4f,               /* 280Ah LFP 标称质量 */
     .specific_heat_j_kg_k = 1100.0f,    /* LFP 典型比热容 */
@@ -24,6 +37,18 @@ static const thermal_mesh_config_t DEFAULT_CONFIG = {
     .max_temp_alarm_c = 55.0f,          /* 热点报警阈值 */
     .max_gradient_alarm_c = 8.0f        /* 空间温差梯度报警阈值 */
 };
+
+thermal_mesh_engine_t *thermal_mesh_engine_create_in(thermal_mesh_engine_storage_t *store,
+                                                     const thermal_mesh_config_t *cfg) {
+    if (!store) {
+        return NULL;
+    }
+    thermal_mesh_engine_t *engine = (thermal_mesh_engine_t *)store->raw;
+    if (thermal_mesh_engine_init(engine, cfg) != 0) {
+        return NULL;
+    }
+    return engine;
+}
 
 int thermal_mesh_engine_init(thermal_mesh_engine_t *engine, const thermal_mesh_config_t *cfg) {
     if (!engine) {
@@ -303,5 +328,29 @@ const char *thermal_mesh_node_to_str(thermal_node_id_t node) {
     case THERMAL_NODE_SURFACE_FRONT: return "SURFACE_FRONT";
     case THERMAL_NODE_SURFACE_BACK: return "SURFACE_BACK";
     default: return "UNKNOWN";
+    }
+}
+
+bool thermal_mesh_is_initialized(const thermal_mesh_engine_t *engine) {
+    return engine ? engine->initialized : false;
+}
+
+float thermal_mesh_get_conductance(const thermal_mesh_engine_t *engine, int i, int j) {
+    if (!engine || i < 0 || i >= THERMAL_MESH_NUM_NODES || j < 0 || j >= THERMAL_MESH_NUM_NODES) {
+        return 0.0f;
+    }
+    return engine->conductance_matrix[i][j];
+}
+
+float thermal_mesh_get_temperature(const thermal_mesh_engine_t *engine, int node_idx) {
+    if (!engine || node_idx < 0 || node_idx >= THERMAL_MESH_NUM_NODES) {
+        return 0.0f;
+    }
+    return engine->temperatures[node_idx];
+}
+
+void thermal_mesh_set_node_temperature(thermal_mesh_engine_t *engine, int node_idx, float temp_c) {
+    if (engine && node_idx >= 0 && node_idx < THERMAL_MESH_NUM_NODES) {
+        engine->temperatures[node_idx] = temp_c;
     }
 }

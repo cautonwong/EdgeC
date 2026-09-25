@@ -48,6 +48,7 @@ struct algo_ctx_s {
     void *user_data;
 
     // Internal state
+    algo_result_t pending_res;
     bool running;
     bool flush_requested;
 };

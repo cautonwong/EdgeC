@@ -1,9 +1,26 @@
 #include "edge_cep_engine.h"
 #include <string.h>
 
+struct cep_engine {
+    cep_rule_t rules[CEP_MAX_RULES];
+    uint32_t rule_count;
+    uint64_t total_events;
+    uint64_t total_alerts;
+};
+
+_Static_assert(sizeof(struct cep_engine) <= sizeof(cep_engine_storage_t),
+               "cep_engine_storage_t size is insufficient");
+
+cep_engine_t *cep_engine_create_in(cep_engine_storage_t *store) {
+    if (!store) return NULL;
+    cep_engine_t *engine = (cep_engine_t *)store->raw;
+    cep_engine_init(engine);
+    return engine;
+}
+
 void cep_engine_init(cep_engine_t *engine) {
     if (!engine) return;
-    memset(engine, 0, sizeof(cep_engine_t));
+    memset(engine, 0, sizeof(struct cep_engine));
 }
 
 int cep_engine_add_rule(cep_engine_t *engine, uint32_t rule_id, uint16_t tag_a, double val_a_min, uint16_t tag_b, double val_b_min, uint64_t window_ms, uint16_t alert_tag) {

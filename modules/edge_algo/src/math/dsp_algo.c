@@ -157,7 +157,8 @@ int dsp_fft2d_c2c(double *data, size_t rows, size_t cols, bool forward) {
         }
     }
     // 2. 列变换
-    double *col_temp = (double *)malloc(rows * 2 * sizeof(double));
+    double col_stack[2048];
+    double *col_temp = (rows * 2 <= 2048) ? col_stack : (double *)malloc(rows * 2 * sizeof(double));
     if (!col_temp) return -1;
     for (size_t c = 0; c < cols; c++) {
         for (size_t r = 0; r < rows; r++) {
@@ -190,7 +191,9 @@ int dsp_fft2d_c2c(double *data, size_t rows, size_t cols, bool forward) {
             data[(r * cols + c) * 2 + 1] = col_temp[2 * r + 1];
         }
     }
-    free(col_temp);
+    if (col_temp != col_stack) {
+        free(col_temp);
+    }
     return 0;
 #endif
 }
@@ -235,7 +238,9 @@ void dsp_s2z_bilinear(double fs, const double *s_num, const double *s_den,
 
 void dsp_dwt_haar(double *data, size_t n, uint32_t level) {
     if (n < 2 || level == 0) return;
-    double *tmp = malloc(n * sizeof(double));
+    double stack_tmp[1024];
+    double *tmp = (n <= 1024) ? stack_tmp : malloc(n * sizeof(double));
+    if (!tmp) return;
     size_t current_n = n;
 
     for (uint32_t L = 0; L < level && current_n >= 2; L++) {
@@ -249,7 +254,9 @@ void dsp_dwt_haar(double *data, size_t n, uint32_t level) {
         memcpy(data, tmp, current_n * sizeof(double));
         current_n = half; // 递归分解近似分量
     }
-    free(tmp);
+    if (tmp != stack_tmp) {
+        free(tmp);
+    }
 }
 
 struct dsp_fir_s {

@@ -29,8 +29,11 @@
 #include "battery_micro_isc.h"
 #include "battery_pulse_heating.h"
 #include "battery_soh_fusion.h"
+#include "battery_thermal_mesh.h"
+#include "edge_cep_engine.h"
 #include "edge_composition_root.h"
 #include "edge_sched_deadline.h"
+#include "impedance_control.h"
 #include "mpc_dispatcher.h"
 #include "vsg_control.h"
 
@@ -359,6 +362,74 @@ static void test_edge_sched_deadline_caller_allocated_storage(void **state) {
     assert_int_equal(edge_sched_deadline_get_task_count(mon), 1);
 }
 
+static void test_thermal_mesh_caller_allocated_storage(void **state) {
+    (void)state;
+    thermal_mesh_engine_storage_t store;
+    memset(&store, 0x66, sizeof(store));
+
+    thermal_mesh_engine_t *engine = thermal_mesh_engine_create_in(&store, NULL);
+    assert_non_null(engine);
+    assert_ptr_equal(engine, (void *)store.raw);
+
+    assert_true(thermal_mesh_is_initialized(engine));
+    assert_float_equal(thermal_mesh_get_temperature(engine, THERMAL_NODE_CORE_CENTER), 25.0f, 0.001f);
+
+    thermal_mesh_telemetry_t telem = {
+        .cell_terminal_voltage_v = 3.25f,
+        .load_current_a = 50.0f,
+        .ambient_temp_c = 25.0f,
+        .coolant_temp_c = 20.0f,
+        .cell_soc = 0.5f,
+    };
+    thermal_mesh_output_t out;
+    assert_int_equal(thermal_mesh_engine_step(engine, &telem, 0.1f, &out), 0);
+    assert_true(out.core_hotspot_temp_c >= 25.0f);
+}
+
+static void test_cep_engine_caller_allocated_storage(void **state) {
+    (void)state;
+    cep_engine_storage_t store;
+    memset(&store, 0x55, sizeof(store));
+
+    cep_engine_t *engine = cep_engine_create_in(&store);
+    assert_non_null(engine);
+    assert_ptr_equal(engine, (void *)store.raw);
+
+    assert_int_equal(cep_engine_add_rule(engine, 101, 1, 50.0, 2, 80.0, 5000, 999), 0);
+
+    cep_event_t ev1 = {.tag_id = 1, .val = 55.0, .timestamp_ms = 1000};
+    uint16_t alert = 0;
+    bool trig = false;
+    assert_int_equal(cep_engine_feed_event(engine, &ev1, &alert, &trig), 0);
+    assert_false(trig);
+
+    cep_event_t ev2 = {.tag_id = 2, .val = 85.0, .timestamp_ms = 2000};
+    assert_int_equal(cep_engine_feed_event(engine, &ev2, &alert, &trig), 0);
+    assert_true(trig);
+    assert_int_equal(alert, 999);
+}
+
+static void test_impedance_controller_caller_allocated_storage(void **state) {
+    (void)state;
+    impedance_controller_storage_t store;
+    memset(&store, 0x44, sizeof(store));
+
+    impedance_params_t params = {
+        .mass = 2.0f,
+        .damping = 10.0f,
+        .stiffness = 50.0f,
+        .target_pos = 0.5f,
+        .max_torque_limit = 100.0f,
+    };
+    impedance_controller_t *ctrl = impedance_controller_create_in(&store, &params);
+    assert_non_null(ctrl);
+    assert_ptr_equal(ctrl, (void *)store.raw);
+
+    assert_float_equal(impedance_controller_get_torque(ctrl), 0.0f, 0.001f);
+    assert_int_equal(impedance_controller_step(ctrl, 0.4f, 0.0f, 0.0f, 0.001f), 0);
+    assert_true(impedance_controller_get_torque(ctrl) != 0.0f);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_battery_ekf_caller_allocated_storage),
@@ -372,6 +443,9 @@ int main(void) {
         cmocka_unit_test(test_battery_eis_caller_allocated_storage),
         cmocka_unit_test(test_battery_pulse_heating_caller_allocated_storage),
         cmocka_unit_test(test_edge_sched_deadline_caller_allocated_storage),
+        cmocka_unit_test(test_thermal_mesh_caller_allocated_storage),
+        cmocka_unit_test(test_cep_engine_caller_allocated_storage),
+        cmocka_unit_test(test_impedance_controller_caller_allocated_storage),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);
