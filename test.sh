@@ -25,6 +25,9 @@ show_help() {
     echo -e "${B}Options:${NC}"
     echo "  (none)          运行标准 C 语言单元测试 (cmocka)"
     echo "  --omnis         运行全链路自动化集成测试 (Matrix Plane)"
+    echo "  --asan          使用 AddressSanitizer 构建并运行测试"
+    echo "  --ubsan         使用 UndefinedBehaviorSanitizer 构建并运行测试"
+    echo "  --coverage      生成代码覆盖率报告 (gcovr)"
     echo "  --only <test>   只运行特定的测试文件或用例 (例如: cmd/iems/matrix/test_slave_flow.py)"
     echo "  --help          显示此帮助信息"
     echo ""
@@ -97,6 +100,20 @@ run_asan() {
     cd ..
 }
 
+run_ubsan() {
+    echo -e "${B}🔍 Step [1/1]: Building and Running with UndefinedBehaviorSanitizer (UBSAN)...${NC}"
+    cd build
+    rm -f CMakeCache.txt
+    cmake -DENABLE_UBSAN=ON -DCOVERAGE=OFF ..
+    ninja
+    
+    echo -e "${P}🧪 Running tests with UBSAN...${NC}"
+    UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 ctest --output-on-failure
+    
+    echo -e "${G}✨ UBSAN undefined behavior sweep completed cleanly!${NC}"
+    cd ..
+}
+
 
 run_omnis() {
     echo -e "${P}🚀 Step [1/3]: Launching Matrix Plane...${NC}"
@@ -160,6 +177,9 @@ case "$1" in
         ;;
     --asan)
         run_asan
+        ;;
+    --ubsan)
+        run_ubsan
         ;;
     "")
         run_unit_tests

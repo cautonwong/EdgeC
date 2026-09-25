@@ -27,6 +27,7 @@ jobs:
           - { target: x86_64, cc: gcc, cxx: g++, cmake_args: "-DCOVERAGE=ON", run_tests: true }
           - { target: x86_64_asan, cc: gcc, cxx: g++, cmake_args: "-DENABLE_ASAN=ON", run_tests: true }
           - { target: x86_64_tsan, cc: gcc, cxx: g++, cmake_args: "-DENABLE_TSAN=ON", run_tests: true }
+          - { target: x86_64_ubsan, cc: gcc, cxx: g++, cmake_args: "-DENABLE_UBSAN=ON", run_tests: true }
           - { target: arm64, cc: aarch64-linux-gnu-gcc, cxx: aarch64-linux-gnu-g++, cmake_args: "-DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/aarch64-linux-gnu.cmake", run_tests: false }
 
     steps:
@@ -102,6 +103,14 @@ jobs:
           STRICT_CORE_GATE=1 ./scripts/check_core_symbols.sh
           STRICT_CORE_GATE=1 ./scripts/check_core_readonly.sh "${{ github.event.pull_request.base.sha || github.event.before }}"
           ./scripts/check_binary_sizes.sh | tee build/size_report.txt
+
+      - name: CI Log Diagnostics & Summary Analysis (Fast-DDS style)
+        if: always()
+        shell: bash
+        run: |
+          if [ -f build/Testing/Temporary/LastTest.log ]; then
+            python3 ci/scripts/ci_log_analyzer.py -i build/Testing/Temporary/LastTest.log -t "${{ matrix.config.target }}" > $GITHUB_STEP_SUMMARY || true
+          fi
 
       - name: Generate Packages
         if: matrix.config.target != 'x86_64_asan'
