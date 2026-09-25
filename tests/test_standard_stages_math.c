@@ -33,7 +33,6 @@ static void test_ema_smoothing(void** state) {
     // 清理
     if (ema->cleanup_state) ema->cleanup_state(ema->priv_state);
     if (ema->cleanup_cfg) ema->cleanup_cfg(ema->priv_cfg);
-    free(ema);
 }
 
 static void test_clamp_bounds(void** state) {
@@ -60,7 +59,6 @@ static void test_clamp_bounds(void** state) {
     // 清理
     if (clamp->cleanup_state) clamp->cleanup_state(clamp->priv_state);
     if (clamp->cleanup_cfg) clamp->cleanup_cfg(clamp->priv_cfg);
-    free(clamp);
 }
 
 // 3. 验证削峰填谷决策算子 (V2 - 调用核心算法平面)
@@ -81,7 +79,6 @@ static void test_peak_shaving_v2(void** state) {
     // 清理
     if (shave->cleanup_state) shave->cleanup_state(shave->priv_state);
     if (shave->cleanup_cfg) shave->cleanup_cfg(shave->priv_cfg);
-    free(shave);
 }
 
 int main(void) {

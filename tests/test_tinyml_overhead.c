@@ -67,7 +67,6 @@ static void test_tinyml_invocation_overhead(void** state) {
 
     // Cleanup
     if (stage->cleanup_cfg) stage->cleanup_cfg(stage->priv_cfg);
-    free(stage);
     wasm_mgr_cleanup();
     unlink(path);
 }

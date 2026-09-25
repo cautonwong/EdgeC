@@ -196,6 +196,7 @@ endif()
 
 option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
 option(ENABLE_TSAN "Enable ThreadSanitizer" OFF)
+option(ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer" OFF)
 
 if(ENABLE_ASAN)
     target_compile_options(edge_common_interface INTERFACE -fsanitize=address -fno-omit-frame-pointer)
@@ -203,8 +204,13 @@ if(ENABLE_ASAN)
 endif()
 
 if(ENABLE_TSAN)
-    target_compile_options(edge_common_interface INTERFACE -fsanitize=thread)
+    target_compile_options(edge_common_interface INTERFACE -fsanitize=thread -fno-omit-frame-pointer)
     target_link_options(edge_common_interface INTERFACE -fsanitize=thread)
+endif()
+
+if(ENABLE_UBSAN)
+    target_compile_options(edge_common_interface INTERFACE -fsanitize=undefined -fno-omit-frame-pointer -fsanitize=float-divide-by-zero -fsanitize=bounds-strict)
+    target_link_options(edge_common_interface INTERFACE -fsanitize=undefined)
 endif()
 
 
@@ -241,6 +247,7 @@ add_subdirectory(examples/custom_driver)
 add_subdirectory(examples/custom_algo)
 enable_testing()
 add_subdirectory(tests)
+add_subdirectory(fuzz)
 
 # ==============================================================================
 # 7. CPack Packaging Configuration

@@ -47,14 +47,12 @@ static void test_simulated_wear_and_rul(void** state) {
     pipeline_stage_t* st_feat = stage_vibration_features_create(100, 2001, 2002, 2003);
     pipeline_add_stage(p, st_feat->name, st_feat->process, st_feat->priv_state,
                        st_feat->cleanup_state, NULL, NULL);
-    free(st_feat);
 
     // Stage 2: RUL Prediction -> Output RUL to 3001
     pipeline_t* p2 = stream_engine_add_pipeline(ctx->se, "rul_pipe", 2001);
     pipeline_stage_t* st_rul = stage_rul_prediction_create(3001);
     pipeline_add_stage(p2, st_rul->name, st_rul->process, st_rul->priv_state, st_rul->cleanup_state,
                        NULL, NULL);
-    free(st_rul);
 
     // Inject synthetic vibration signal purely via Hub (matching production)
     pipe_msg_t msg;

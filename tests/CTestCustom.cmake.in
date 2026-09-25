@@ -1,0 +1,7 @@
+# CTestCustom.cmake.in - EdgeOS Test Customization & IPC Cleanup (Fast-DDS style)
+
+# Clean residual shared memory segments before/after test suite execution
+execute_process(COMMAND /bin/sh -c "rm -rf /dev/shm/matrix_shm_* /dev/shm/edge_shm_* /tmp/vbus*.sock /tmp/iems*.sock 2>/dev/null || true")
+
+set(CTEST_CUSTOM_MAXIMUM_PASSED_TEST_OUTPUT_SIZE 65536)
+set(CTEST_CUSTOM_MAXIMUM_FAILED_TEST_OUTPUT_SIZE 524288)

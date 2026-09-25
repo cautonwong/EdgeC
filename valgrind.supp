@@ -1,0 +1,40 @@
+{
+    <Ignore dynamic loader reachable allocations>
+    Memcheck:Leak
+    match-leak-kinds: reachable
+    fun:*alloc
+    ...
+    obj:*ld-*
+    ...
+}
+{
+    <Ignore OpenSSL internal allocations>
+    Memcheck:Leak
+    fun:malloc
+    fun:CRYPTO_zalloc
+    ...
+    obj:*libcrypto*
+}
+{
+    <Ignore Paho MQTT internal thread buffer>
+    Memcheck:Leak
+    match-leak-kinds: reachable
+    ...
+    obj:*libpaho-mqtt3*
+}
+{
+    <Ignore QuickJS garbage collection sweep artifact>
+    Memcheck:Leak
+    match-leak-kinds: reachable
+    fun:malloc
+    ...
+    obj:*libquickjs*
+}
+{
+    <POSIX sem_open false positive>
+    Memcheck:Param
+    write(buf)
+    ...
+    fun:sem_open
+    ...
+}

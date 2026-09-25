@@ -27,7 +27,13 @@ macro(add_edge_test TEST_NAME)
     if(ENABLE_TSAN)
         set_tests_properties(${TEST_NAME} PROPERTIES ENVIRONMENT "TSAN_OPTIONS=halt_on_error=0:suppress_equal_stacks=1:die_after_fork=0:exitcode=0")
     endif()
+    if(ENABLE_UBSAN)
+        set_tests_properties(${TEST_NAME} PROPERTIES ENVIRONMENT "UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1")
+    endif()
 endmacro()
+
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/CTestCustom.cmake.in ${CMAKE_BINARY_DIR}/CTestCustom.cmake)
+set(MEMORYCHECK_SUPPRESSIONS_FILE "${CMAKE_SOURCE_DIR}/valgrind.supp" CACHE FILEPATH "Valgrind suppressions file")
 
 # 1. 核心框架测试 (Framework)
 add_edge_test(test_version test_version.c)

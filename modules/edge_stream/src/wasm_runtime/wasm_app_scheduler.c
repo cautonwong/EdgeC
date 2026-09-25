@@ -3,11 +3,13 @@
 #include <string.h>
 #include "edge_log.h"
 
-typedef struct wasm_scheduled_app_s {
+#define MAX_SCHEDULED_APPS 16
+
+typedef struct {
     char name[64];
     wasm_app_t *app;
     bool active;
-    struct wasm_scheduled_app_s *next;
+    bool in_use;
 } wasm_scheduled_app_t;
 
 struct wasm_scheduler_s {
@@ -15,9 +17,10 @@ struct wasm_scheduler_s {
     uv_loop_t *loop;
     uv_timer_t timer;
     uint32_t tick_period_ms;
-    wasm_scheduled_app_t *apps_head;
+    wasm_scheduled_app_t apps[MAX_SCHEDULED_APPS];
     uv_mutex_t lock;
     bool running;
+    bool is_static;
 };
 
 static void wasm_scheduler_tick(uv_timer_t *timer) {
@@ -25,9 +28,9 @@ static void wasm_scheduler_tick(uv_timer_t *timer) {
     if (!sched) return;
 
     uv_mutex_lock(&sched->lock);
-    wasm_scheduled_app_t *curr = sched->apps_head;
-    while (curr) {
-        if (curr->active && curr->app) {
+    for (int i = 0; i < MAX_SCHEDULED_APPS; i++) {
+        wasm_scheduled_app_t *curr = &sched->apps[i];
+        if (curr->in_use && curr->active && curr->app) {
             LOG_INFO(LOG_CAT_CORE, "WASM Scheduler: Ticking app '%s'", curr->name);
             // Execute on_tick
             int rc = wasm_app_exec(curr->app, "on_tick", NULL);
@@ -35,22 +38,23 @@ static void wasm_scheduler_tick(uv_timer_t *timer) {
                 LOG_ERROR(LOG_CAT_CORE, "WASM Scheduler: App '%s' returned non-zero or failed", curr->name);
             }
         }
-        curr = curr->next;
     }
     uv_mutex_unlock(&sched->lock);
 }
 
+static struct wasm_scheduler_s g_wasm_scheduler;
+
 wasm_scheduler_t *wasm_scheduler_create(datahub_t *hub, uv_loop_t *loop, uint32_t tick_period_ms) {
     if (!hub || !loop) return NULL;
 
-    wasm_scheduler_t *sched = calloc(1, sizeof(wasm_scheduler_t));
-    if (!sched) return NULL;
+    wasm_scheduler_t *sched = &g_wasm_scheduler;
+    memset(sched, 0, sizeof(*sched));
 
     sched->hub = hub;
     sched->loop = loop;
     sched->tick_period_ms = tick_period_ms > 0 ? tick_period_ms : 1000;
-    sched->apps_head = NULL;
     sched->running = false;
+    sched->is_static = true;
 
     uv_mutex_init(&sched->lock);
     uv_timer_init(loop, &sched->timer);
@@ -71,23 +75,23 @@ void wasm_scheduler_destroy(wasm_scheduler_t *sched) {
 
     // Destroy all scheduled apps
     uv_mutex_lock(&sched->lock);
-    wasm_scheduled_app_t *curr = sched->apps_head;
-    while (curr) {
-        wasm_scheduled_app_t *next = curr->next;
-        if (curr->app) {
+    for (int i = 0; i < MAX_SCHEDULED_APPS; i++) {
+        wasm_scheduled_app_t *curr = &sched->apps[i];
+        if (curr->in_use && curr->app) {
             wasm_app_destroy(curr->app);
+            curr->app = NULL;
         }
-        free(curr);
-        curr = next;
+        curr->in_use = false;
+        curr->active = false;
     }
-    sched->apps_head = NULL;
     uv_mutex_unlock(&sched->lock);
 
     uv_mutex_destroy(&sched->lock);
     uv_close((uv_handle_t *)&sched->timer, on_timer_close);
     
-    // Allow loop to run close callback
-    free(sched);
+    if (!sched->is_static) {
+        free(sched);
+    }
     LOG_INFO(LOG_CAT_CORE, "WASM Scheduler: Destroyed");
 }
 
@@ -136,15 +140,23 @@ int wasm_scheduler_load_app(wasm_scheduler_t *sched, const char *name, const cha
 
     uv_mutex_lock(&sched->lock);
     
-    // Check if app name already exists
-    wasm_scheduled_app_t *curr = sched->apps_head;
-    while (curr) {
-        if (strcmp(curr->name, name) == 0) {
+    int free_slot = -1;
+    // Check if app name already exists and find free slot
+    for (int i = 0; i < MAX_SCHEDULED_APPS; i++) {
+        if (sched->apps[i].in_use && strcmp(sched->apps[i].name, name) == 0) {
             LOG_ERROR(LOG_CAT_CORE, "WASM Scheduler: App '%s' already loaded", name);
             uv_mutex_unlock(&sched->lock);
             return -1;
         }
-        curr = curr->next;
+        if (!sched->apps[i].in_use && free_slot < 0) {
+            free_slot = i;
+        }
+    }
+
+    if (free_slot < 0) {
+        LOG_ERROR(LOG_CAT_CORE, "WASM Scheduler: Maximum app limit (%d) reached", MAX_SCHEDULED_APPS);
+        uv_mutex_unlock(&sched->lock);
+        return -1;
     }
 
     // Create WASM container
@@ -155,19 +167,12 @@ int wasm_scheduler_load_app(wasm_scheduler_t *sched, const char *name, const cha
         return -1;
     }
 
-    // Add to scheduled list
-    wasm_scheduled_app_t *new_node = calloc(1, sizeof(wasm_scheduled_app_t));
-    if (!new_node) {
-        wasm_app_destroy(wasm_app);
-        uv_mutex_unlock(&sched->lock);
-        return -1;
-    }
-
-    strncpy(new_node->name, name, sizeof(new_node->name) - 1);
-    new_node->app = wasm_app;
-    new_node->active = true;
-    new_node->next = sched->apps_head;
-    sched->apps_head = new_node;
+    wasm_scheduled_app_t *slot = &sched->apps[free_slot];
+    memset(slot, 0, sizeof(*slot));
+    strncpy(slot->name, name, sizeof(slot->name) - 1);
+    slot->app = wasm_app;
+    slot->active = true;
+    slot->in_use = true;
 
     LOG_INFO(LOG_CAT_CORE, "WASM Scheduler: Loaded and scheduled app '%s' successfully", name);
     uv_mutex_unlock(&sched->lock);
@@ -178,29 +183,19 @@ int wasm_scheduler_unload_app(wasm_scheduler_t *sched, const char *name) {
     if (!sched || !name) return -1;
 
     uv_mutex_lock(&sched->lock);
-    wasm_scheduled_app_t *prev = NULL;
-    wasm_scheduled_app_t *curr = sched->apps_head;
-
-    while (curr) {
-        if (strcmp(curr->name, name) == 0) {
-            // Remove from list
-            if (prev) {
-                prev->next = curr->next;
-            } else {
-                sched->apps_head = curr->next;
-            }
-
-            // Destroy container
+    for (int i = 0; i < MAX_SCHEDULED_APPS; i++) {
+        wasm_scheduled_app_t *curr = &sched->apps[i];
+        if (curr->in_use && strcmp(curr->name, name) == 0) {
             if (curr->app) {
                 wasm_app_destroy(curr->app);
+                curr->app = NULL;
             }
-            free(curr);
+            curr->in_use = false;
+            curr->active = false;
             LOG_INFO(LOG_CAT_CORE, "WASM Scheduler: Unloaded and destroyed app '%s'", name);
             uv_mutex_unlock(&sched->lock);
             return 0;
         }
-        prev = curr;
-        curr = curr->next;
     }
 
     LOG_WARN(LOG_CAT_CORE, "WASM Scheduler: App '%s' not found to unload", name);
@@ -213,13 +208,12 @@ int wasm_scheduler_reload_app(wasm_scheduler_t *sched, const char *name, const c
 
     uv_mutex_lock(&sched->lock);
     
-    // Find if app name already exists
-    wasm_scheduled_app_t *curr = sched->apps_head;
-    while (curr) {
-        if (strcmp(curr->name, name) == 0) {
+    wasm_scheduled_app_t *curr = NULL;
+    for (int i = 0; i < MAX_SCHEDULED_APPS; i++) {
+        if (sched->apps[i].in_use && strcmp(sched->apps[i].name, name) == 0) {
+            curr = &sched->apps[i];
             break;
         }
-        curr = curr->next;
     }
 
     if (!curr) {

@@ -58,7 +58,6 @@ static void test_wavelet_anomaly_detection(void** state) {
 
     // Cleanup
     if (stage->cleanup_state) stage->cleanup_state(stage->priv_state);
-    free(stage);
 }
 
 int main(void) {

@@ -223,7 +223,6 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     pipeline_stage_t* mon_stage = stage_event_monitor_create(&evt_3000, &evt_3005);
     pipeline_add_stage(evt_pipeline, mon_stage->name, mon_stage->process, mon_stage->priv_state,
                        mon_stage->cleanup_state, NULL, NULL);
-    free(mon_stage);
 
     event_sink_ops_t event_sink = {.ctx = &storage,
                                    .archive_event = _test_archive_event,
@@ -231,7 +230,6 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     pipeline_stage_t* log_stage = stage_event_logger_create(&evt_3000, &evt_3005, &hub, event_sink);
     pipeline_add_stage(evt_pipeline, log_stage->name, log_stage->process, log_stage->priv_state,
                        log_stage->cleanup_state, NULL, NULL);
-    free(log_stage);
 
     uint64_t base_ts = 1716500000ULL * 1000000000ULL;
 
@@ -295,7 +293,6 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     pipeline_stage_t* freeze_stage = stage_periodic_freeze_create_ex(&hub, event_sink);
     pipeline_add_stage(freeze_pipeline, freeze_stage->name, freeze_stage->process,
                        freeze_stage->priv_state, freeze_stage->cleanup_state, NULL, NULL);
-    free(freeze_stage);
 
     // 往 DataHub 总线写入累计电能 OAD_ACTIVE_ENERGY 的最新实时影子数据
     pipe_msg_t energy_msg;

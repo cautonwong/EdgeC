@@ -260,21 +260,30 @@ void dsp_dwt_haar(double *data, size_t n, uint32_t level) {
 }
 
 struct dsp_fir_s {
-    double *taps;
-    double *delay_line;
+    double taps[MAX_DSP_FIR_TAPS];
+    double delay_line[MAX_DSP_FIR_TAPS];
     size_t num_taps;
     size_t head;
+    bool is_static;
 };
 
-dsp_fir_t* dsp_fir_create(const double *taps, size_t num_taps) {
-    if (!taps || num_taps == 0) return NULL;
-    dsp_fir_t *f = malloc(sizeof(dsp_fir_t));
+_Static_assert(sizeof(struct dsp_fir_s) <= sizeof(dsp_fir_storage_t),
+               "dsp_fir_s size exceeds dsp_fir_storage_t");
+
+dsp_fir_t* dsp_fir_create_in(dsp_fir_storage_t *storage, const double *taps, size_t num_taps) {
+    if (!storage || !taps || num_taps == 0 || num_taps > MAX_DSP_FIR_TAPS) return NULL;
+    dsp_fir_t *f = (dsp_fir_t *)storage->raw;
+    memset(f, 0, sizeof(*f));
     f->num_taps = num_taps;
-    f->taps = malloc(num_taps * sizeof(double));
-    f->delay_line = calloc(num_taps, sizeof(double));
     f->head = 0;
+    f->is_static = true;
     memcpy(f->taps, taps, num_taps * sizeof(double));
     return f;
+}
+
+static dsp_fir_storage_t g_default_fir_storage;
+dsp_fir_t* dsp_fir_create(const double *taps, size_t num_taps) {
+    return dsp_fir_create_in(&g_default_fir_storage, taps, num_taps);
 }
 
 double dsp_fir_process(dsp_fir_t *f, double in) {
@@ -291,28 +300,34 @@ double dsp_fir_process(dsp_fir_t *f, double in) {
 }
 
 void dsp_fir_free(dsp_fir_t *f) {
-    if (f) {
-        free(f->taps);
-        free(f->delay_line);
-        free(f);
-    }
+    (void)f;
 }
 
 struct dsp_iir_s {
-    double *b, *a;
-    double *w;
+    double b[MAX_DSP_IIR_ORDER + 1];
+    double a[MAX_DSP_IIR_ORDER + 1];
+    double w[MAX_DSP_IIR_ORDER + 1];
     uint32_t order;
+    bool is_static;
 };
 
-dsp_iir_t* dsp_iir_create(uint32_t order, const double *b, const double *a) {
-    dsp_iir_t *f = malloc(sizeof(dsp_iir_t));
+_Static_assert(sizeof(struct dsp_iir_s) <= sizeof(dsp_iir_storage_t),
+               "dsp_iir_s size exceeds dsp_iir_storage_t");
+
+dsp_iir_t* dsp_iir_create_in(dsp_iir_storage_t *storage, uint32_t order, const double *b, const double *a) {
+    if (!storage || !b || !a || order > MAX_DSP_IIR_ORDER) return NULL;
+    dsp_iir_t *f = (dsp_iir_t *)storage->raw;
+    memset(f, 0, sizeof(*f));
     f->order = order;
-    f->b = malloc((order + 1) * sizeof(double));
-    f->a = malloc((order + 1) * sizeof(double));
-    f->w = calloc(order + 1, sizeof(double));
+    f->is_static = true;
     memcpy(f->b, b, (order + 1) * sizeof(double));
     memcpy(f->a, a, (order + 1) * sizeof(double));
     return f;
+}
+
+static dsp_iir_storage_t g_default_iir_storage;
+dsp_iir_t* dsp_iir_create(uint32_t order, const double *b, const double *a) {
+    return dsp_iir_create_in(&g_default_iir_storage, order, b, a);
 }
 
 double dsp_iir_process(dsp_iir_t *f, double in) {
@@ -334,8 +349,5 @@ double dsp_iir_process(dsp_iir_t *f, double in) {
 }
 
 void dsp_iir_free(dsp_iir_t *f) {
-    if (f) {
-        free(f->b); free(f->a); free(f->w);
-        free(f);
-    }
+    (void)f;
 }
