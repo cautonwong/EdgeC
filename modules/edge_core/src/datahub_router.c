@@ -1,7 +1,5 @@
 #include "datahub_router.h"
-#include "datahub_shm.h"
-#include "datahub_dds.h"
-#include "datahub_mqtt.h"
+#include "datahub.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,20 +25,28 @@ int datahub_router_init(datahub_router_t *router, uv_loop_t *loop, const datahub
     }
 
     if (config->enable_dds) {
-        router->dds_hub.ops = &g_datahub_dds_ops;
-        int rc = router->dds_hub.ops->init(&router->dds_hub, &config->dds_config);
-        if (rc == 0) {
-            router->dds_active = true;
-            LOG_INFO(CORE, "DataHub Router: Cyclone DDS backend active");
+        if (config->dds_ops) {
+            router->dds_hub.ops = config->dds_ops;
+        }
+        if (router->dds_hub.ops && router->dds_hub.ops->init) {
+            int rc = router->dds_hub.ops->init(&router->dds_hub, &config->dds_config);
+            if (rc == 0) {
+                router->dds_active = true;
+                LOG_INFO(CORE, "DataHub Router: DDS backend active");
+            }
         }
     }
 
     if (config->enable_mqtt) {
-        router->mqtt_hub.ops = &g_datahub_mqtt_ops;
-        int rc = router->mqtt_hub.ops->init(&router->mqtt_hub, &config->mqtt_config);
-        if (rc == 0) {
-            router->mqtt_active = true;
-            LOG_INFO(CORE, "DataHub Router: Paho MQTT backend active");
+        if (config->mqtt_ops) {
+            router->mqtt_hub.ops = config->mqtt_ops;
+        }
+        if (router->mqtt_hub.ops && router->mqtt_hub.ops->init) {
+            int rc = router->mqtt_hub.ops->init(&router->mqtt_hub, &config->mqtt_config);
+            if (rc == 0) {
+                router->mqtt_active = true;
+                LOG_INFO(CORE, "DataHub Router: MQTT backend active");
+            }
         }
     }
 

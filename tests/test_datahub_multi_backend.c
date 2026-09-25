@@ -6,6 +6,7 @@
 
 #include "datahub.h"
 #include "datahub_dds.h"
+#include "datahub_mqtt.h"
 #include "datahub_router.h"
 
 int main(void) {
@@ -21,6 +22,8 @@ int main(void) {
     config.enable_shm = true;
     config.enable_dds = true;
     config.enable_mqtt = true;
+    config.dds_ops = &g_datahub_dds_ops;
+    config.mqtt_ops = &g_datahub_mqtt_ops;
     config.write_policy = DATAHUB_ROUTER_POLICY_BEST_EFFORT;
 
     snprintf(config.shm_config.shm_name, sizeof(config.shm_config.shm_name), "test_router_shm");

@@ -17,6 +17,8 @@ typedef struct {
     bool enable_dds;
     bool enable_mqtt;
     datahub_router_policy_t write_policy;
+    const datahub_ops_t *dds_ops;   /**< 可选注入 DDS Ops 虚表 */
+    const datahub_ops_t *mqtt_ops;  /**< 可选注入 MQTT Ops 虚表 */
     datahub_config_t shm_config;
     datahub_config_t dds_config;
     datahub_config_t mqtt_config;

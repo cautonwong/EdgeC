@@ -27,6 +27,7 @@ add_library(edge_core STATIC
     src/edge_port.c
     src/edge_composition_root.c
     src/edge_sched_deadline.c
+    src/edge_fd_ipc.c
 )
 
 # PUBLIC: 链接 edge_core 的 Target 也能 include 这些头文件
