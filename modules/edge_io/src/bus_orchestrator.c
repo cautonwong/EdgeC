@@ -38,6 +38,8 @@ static void _engine_on_start_wrapper(void *user_data) {
             eng->run_command(eng, cmd);
         }
     }
+}
+
 _Static_assert(sizeof(struct bus_orchestrator_s) <= sizeof(bus_orchestrator_storage_t),
                "bus_orchestrator_s size exceeds bus_orchestrator_storage_t");
 

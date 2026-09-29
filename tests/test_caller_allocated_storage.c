@@ -618,8 +618,11 @@ static void test_persistence_mgr_caller_allocated_storage(void **state) {
     uv_loop_close(&loop);
 }
 
-static int _dummy_hp_init(void) { return 0; }
-static void _dummy_hp_cleanup(void) {}
+static int _dummy_hp_init(void) {
+    return 0;
+}
+static void _dummy_hp_cleanup(void) {
+}
 
 static void test_driver_hotplug_caller_allocated_storage(void **state) {
     (void)state;
