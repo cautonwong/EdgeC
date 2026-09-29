@@ -18,7 +18,8 @@
 #include "net_buf.h"
 
 typedef struct {
-    iec104_apci_mgr_t apci;
+    iec104_apci_mgr_storage_t apci_store;
+    iec104_apci_mgr_t *apci;
     uint16_t casdu;
     datahub_t *hub;
     double *last_values;
@@ -29,7 +30,7 @@ typedef struct {
 static int iec104_v4_on_init(edge_driver_ctx_t *ctx) {
     iec104_ctx_t *priv = (iec104_ctx_t *)ctx->priv;
     memset(priv, 0, sizeof(iec104_ctx_t));
-    iec104_apci_init(&priv->apci);
+    priv->apci = iec104_apci_mgr_create_in(&priv->apci_store);
     priv->casdu = (uint16_t)ctx->device_id;
     priv->hub = (datahub_t *)ctx->user_data;
 
@@ -51,25 +52,25 @@ static int iec104_v4_on_tick(edge_driver_ctx_t *ctx, net_buf_t **out_tx) {
     iec104_ctx_t *priv = (iec104_ctx_t *)ctx->priv;
     uint64_t now = uv_hrtime() / 1000000;
 
-    if (ctx->role == PROTOCOL_ROLE_MASTER && priv->apci.state == IEC104_STATE_DISCONNECTED) {
+    if (ctx->role == PROTOCOL_ROLE_MASTER && iec104_apci_get_state(priv->apci) == IEC104_STATE_DISCONNECTED) {
         *out_tx = net_buf_alloc(ctx->pool, 0);
         iec104_apci_build_u(IEC104_U_STARTDT_ACT, *out_tx);
-        priv->apci.state = IEC104_STATE_STARTING;
+        iec104_apci_set_state(priv->apci, IEC104_STATE_STARTING);
         return 0;
     }
 
-    if (ctx->role == PROTOCOL_ROLE_MASTER && priv->apci.state == IEC104_STATE_CONNECTED && priv->needs_gi) {
+    if (ctx->role == PROTOCOL_ROLE_MASTER && iec104_apci_get_state(priv->apci) == IEC104_STATE_CONNECTED && priv->needs_gi) {
         *out_tx = net_buf_alloc(ctx->pool, 0);
         iec_asdu_init(*out_tx, IEC_TYPE_C_IC_NA_1, false, 1, IEC_COT_ACT, priv->casdu, &IEC_ADDR_CONF_104);
         iec_asdu_add_c_ic_na_1(*out_tx, 0, 20, &IEC_ADDR_CONF_104);
-        iec104_apci_wrap_i(&priv->apci, *out_tx);
+        iec104_apci_wrap_i(priv->apci, *out_tx);
         priv->needs_gi = false;
         priv->last_gi_ts = now;
         LOG_INFO(LOG_CAT_IO, "IEC104: Handshake - Sent General Interrogation (GI).");
         return 0;
     }
 
-    if (ctx->role == PROTOCOL_ROLE_SLAVE && priv->apci.state == IEC104_STATE_CONNECTED && priv->hub) {
+    if (ctx->role == PROTOCOL_ROLE_SLAVE && iec104_apci_get_state(priv->apci) == IEC104_STATE_CONNECTED && priv->hub) {
         for (uint32_t i = 0; i < ctx->meta_list_len; i++) {
             const iec104_map_t *map = (const iec104_map_t *)ctx->meta_list + i;
             if (map->tag_id == 0) continue;
@@ -81,7 +82,7 @@ static int iec104_v4_on_tick(edge_driver_ctx_t *ctx, net_buf_t **out_tx) {
                     net_buf_t *df = net_buf_alloc(ctx->pool, 0);
                     iec_asdu_init(df, (iec_type_id_t)map->type_id, false, 1, IEC_COT_SPONT, priv->casdu, &IEC_ADDR_CONF_104);
                     iec_asdu_add_any(df, (uint8_t)map->type_id, map->key, vm.payload.val.f / (double)map->scaler, 0, map->flags, (iec_qds_t){0}, &IEC_ADDR_CONF_104);
-                    iec104_apci_wrap_i(&priv->apci, df);
+                    iec104_apci_wrap_i(priv->apci, df);
                     net_buf_simple_add_mem(&(*out_tx)->b, df->b.data, df->b.len);
                     net_buf_unref(df);
                     priv->last_values[i] = vm.payload.val.f;
@@ -90,10 +91,10 @@ static int iec104_v4_on_tick(edge_driver_ctx_t *ctx, net_buf_t **out_tx) {
         }
     }
 
-    iec104_apci_event_t evt = iec104_apci_tick(&priv->apci, now);
+    iec104_apci_event_t evt = iec104_apci_tick(priv->apci, now);
     if (evt == IEC104_EVENT_SEND_S) {
         *out_tx = net_buf_alloc(ctx->pool, 0);
-        iec104_apci_build_s(&priv->apci, *out_tx);
+        iec104_apci_build_s(priv->apci, *out_tx);
     } else if (evt == IEC104_EVENT_SEND_TESTFR) {
         *out_tx = net_buf_alloc(ctx->pool, 0);
         iec104_apci_build_u(IEC104_U_TESTFR_ACT, *out_tx);

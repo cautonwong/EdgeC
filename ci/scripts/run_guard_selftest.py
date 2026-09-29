@@ -49,14 +49,14 @@ TEST_MATRIX = [
         "guard_name": "check_dependencies.py",
         "script": os.path.join(SCRIPTS_DIR, "check_dependencies.py"),
         "good_target": os.path.join(REPO_ROOT, "ci", "dependencies.json"),
-        "bad_target": None, # Validates current committed ledger
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_dependencies.json"),
         "arg_flag": "--file"
     },
     {
         "guard_name": "check_exemptions.py",
         "script": os.path.join(SCRIPTS_DIR, "check_exemptions.py"),
         "good_target": os.path.join(REPO_ROOT, "ci", "exemptions.json"),
-        "bad_target": None, # Validates current committed ledger
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_exemptions.json"),
         "arg_flag": "--file"
     },
     {

@@ -8,6 +8,8 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <stdalign.h>
 #include <uv.h>
 
 #include "net_buf.h"
@@ -24,30 +26,34 @@ typedef enum {
     IEC104_STATE_STOPPING   /**< 发送了 STOPDT ACT */
 } iec104_state_t;
 
+typedef struct iec104_apci_mgr iec104_apci_mgr_t;
+
 /**
- * @brief APCI 管理器上下文
+ * @brief IEC 104 APCI 管理器调用方分配存储容器 (Caller-Allocated Storage - AEP-752)
  */
 typedef struct {
-    iec104_state_t state;
+    alignas(max_align_t) uint8_t raw[512];
+} iec104_apci_mgr_storage_t;
 
-    // 序列号维护
-    uint16_t ns;       /**< 发送序列号 N(S) */
-    uint16_t nr;       /**< 接收序列号 N(R) */
-    uint16_t acked_nr; /**< 上次对方确认到的序列号 */
+/**
+ * @brief 在调用方提供的内存就地构造 IEC 104 APCI 状态机聚合根 (Zero-Alloc)
+ * @param store 调用方分配的存储块
+ * @return 构造成功的聚合根指针, 失败返回 NULL
+ */
+iec104_apci_mgr_t *iec104_apci_mgr_create_in(iec104_apci_mgr_storage_t *store);
 
-    // 滑窗控制 (k, w 因子)
-    uint16_t k; /**< 最大未确认发送 I 帧数 (默认 12) */
-    uint16_t w; /**< 最大未确认接收 I 帧数 (默认 8) */
+/**
+ * @brief 获取与设置 APCI 状态
+ */
+iec104_state_t iec104_apci_get_state(const iec104_apci_mgr_t *mgr);
+void iec104_apci_set_state(iec104_apci_mgr_t *mgr, iec104_state_t state);
 
-    // 定时器 (t0, t1, t2, t3)
-    uint64_t t1_start_ts; /**< I 帧发送时间戳 (用于 t1 超时监测) */
-    uint64_t t2_start_ts; /**< 未确认接收 I 帧时间戳 (用于 t2 自动发 S 帧) */
-    uint64_t t3_start_ts; /**< 空闲链路时间戳 (用于 t3 发送 TESTFR) */
-
-    // 发送备份队列 (用于重发，逻辑上暂由 Engine 协助)
-    net_buf_t *unacked_frames[32];
-
-} iec104_apci_mgr_t;
+/**
+ * @brief 获取与设置序列号
+ */
+uint16_t iec104_apci_get_ns(const iec104_apci_mgr_t *mgr);
+uint16_t iec104_apci_get_nr(const iec104_apci_mgr_t *mgr);
+void iec104_apci_set_nr(iec104_apci_mgr_t *mgr, uint16_t nr);
 
 /**
  * @brief 初始化 APCI 管理器

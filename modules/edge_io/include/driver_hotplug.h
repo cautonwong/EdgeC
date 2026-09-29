@@ -13,6 +13,7 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdalign.h>
 
 #define DRIVER_ABI_MAGIC      0x45444745 /* "EDGE" */
 #define DRIVER_ABI_VERSION    0x02010000 /* V2.1.0 */
@@ -27,18 +28,26 @@ typedef struct {
     void (*cleanup_fn)(void);
 } driver_plugin_ops_t;
 
-typedef struct {
-    uint32_t slot_id;
-    bool loaded;
-    char driver_path[128];
-    driver_plugin_ops_t ops;
-    uint32_t crash_count;
-} driver_slot_t;
+typedef struct driver_hotplug_mgr driver_hotplug_mgr_t;
 
+/**
+ * @brief 热插拔驱动管理器调用方分配存储容器 (Caller-Allocated Storage - AEP-752)
+ */
 typedef struct {
-    size_t active_count;
-    driver_slot_t slots[DRIVER_HOTPLUG_MAX_SLOTS];
-} driver_hotplug_mgr_t;
+    alignas(max_align_t) uint8_t raw[2048];
+} driver_hotplug_mgr_storage_t;
+
+/**
+ * @brief 在调用方提供的内存就地构造驱动热插拔管理器聚合根 (Zero-Alloc)
+ * @param store 调用方分配的存储块
+ * @return 构造成功的聚合根指针, 失败返回 NULL
+ */
+driver_hotplug_mgr_t *driver_hotplug_mgr_create_in(driver_hotplug_mgr_storage_t *store);
+
+/**
+ * @brief 获取当前已加载驱动插件数量
+ */
+size_t driver_hotplug_get_active_count(const driver_hotplug_mgr_t *mgr);
 
 /**
  * @brief Initializes dynamic driver hotplug manager

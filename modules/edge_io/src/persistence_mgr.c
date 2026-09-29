@@ -7,6 +7,38 @@
 
 #include "sqlite_service.h"
 
+struct persistence_mgr {
+    shm_ring_t *ring;
+    uv_timer_t timer;
+    uint64_t last_seq;
+    uv_loop_t *loop;
+    sqlite_svc_t *writer;
+};
+
+_Static_assert(sizeof(struct persistence_mgr) <= sizeof(persistence_mgr_storage_t),
+               "persistence_mgr_storage_t size is insufficient");
+
+persistence_mgr_t *persistence_mgr_create_in(persistence_mgr_storage_t *store,
+                                             uv_loop_t *loop,
+                                             shm_ring_t *ring,
+                                             uint64_t interval_ms) {
+    if (!store || !loop || !ring) return NULL;
+
+    persistence_mgr_t *mgr = (persistence_mgr_t *)store->raw;
+    memset(mgr, 0, sizeof(*mgr));
+
+    if (persistence_mgr_init(mgr, loop, ring, interval_ms) != 0) {
+        return NULL;
+    }
+    return mgr;
+}
+
+void persistence_mgr_set_writer(persistence_mgr_t *mgr, sqlite_svc_t *writer) {
+    if (mgr) {
+        mgr->writer = writer;
+    }
+}
+
 static void persistence_tick(uv_timer_t *t) {
     persistence_mgr_t *mgr = (persistence_mgr_t *)t->data;
     if (!mgr || !mgr->ring || !mgr->writer) return;

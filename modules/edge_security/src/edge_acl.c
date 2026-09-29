@@ -1,9 +1,28 @@
 #include "edge_acl.h"
 #include <string.h>
 
+struct edge_acl_engine {
+    acl_rule_t rules[MAX_ACL_RULES];
+    size_t rule_count;
+    acl_action_t default_action;
+};
+
+_Static_assert(sizeof(struct edge_acl_engine) <= sizeof(edge_acl_engine_storage_t),
+               "edge_acl_engine_storage_t size is insufficient");
+
+edge_acl_engine_t *edge_acl_engine_create_in(edge_acl_engine_storage_t *store, acl_action_t default_action) {
+    if (!store) {
+        return NULL;
+    }
+    edge_acl_engine_t *acl = (edge_acl_engine_t *)store->raw;
+    memset(acl, 0, sizeof(*acl));
+    acl->default_action = default_action;
+    return acl;
+}
+
 void edge_acl_init(edge_acl_engine_t *acl, acl_action_t default_action) {
     if (!acl) return;
-    memset(acl, 0, sizeof(edge_acl_engine_t));
+    memset(acl, 0, sizeof(struct edge_acl_engine));
     acl->default_action = default_action;
 }
 

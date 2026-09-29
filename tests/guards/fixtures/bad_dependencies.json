@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "dependencies": [
+    {
+      "name": "unpinned-bad-library",
+      "repository": "https://github.com/example/bad-lib",
+      "commit_sha": "master-branch-not-a-sha",
+      "license": "MIT"
+    }
+  ]
+}

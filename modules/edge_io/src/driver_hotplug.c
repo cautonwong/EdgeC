@@ -6,12 +6,41 @@
 #include "driver_hotplug.h"
 #include <string.h>
 
+typedef struct {
+    uint32_t slot_id;
+    bool loaded;
+    char driver_path[128];
+    driver_plugin_ops_t ops;
+    uint32_t crash_count;
+} driver_slot_t;
+
+struct driver_hotplug_mgr {
+    size_t active_count;
+    driver_slot_t slots[DRIVER_HOTPLUG_MAX_SLOTS];
+};
+
+_Static_assert(sizeof(struct driver_hotplug_mgr) <= sizeof(driver_hotplug_mgr_storage_t),
+               "driver_hotplug_mgr_storage_t size is insufficient");
+
+driver_hotplug_mgr_t *driver_hotplug_mgr_create_in(driver_hotplug_mgr_storage_t *store) {
+    if (!store) {
+        return NULL;
+    }
+    driver_hotplug_mgr_t *mgr = (driver_hotplug_mgr_t *)store->raw;
+    memset(mgr, 0, sizeof(*mgr));
+    return mgr;
+}
+
+size_t driver_hotplug_get_active_count(const driver_hotplug_mgr_t *mgr) {
+    return mgr ? mgr->active_count : 0;
+}
+
 int driver_hotplug_init(driver_hotplug_mgr_t *mgr) {
     if (!mgr) {
         return -1;
     }
 
-    memset(mgr, 0, sizeof(driver_hotplug_mgr_t));
+    memset(mgr, 0, sizeof(struct driver_hotplug_mgr));
     return 0;
 }
 

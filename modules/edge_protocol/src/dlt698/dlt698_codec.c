@@ -252,8 +252,8 @@ int dlt698_decode_data(const uint8_t *buf, uint16_t len, uint16_t *offset, dlt69
             if (*offset + 7 > len) return -1;
             // 简单存储为原始字节或进一步解析
             res->val.str.len = 7;
-            res->val.str.ptr = malloc(7);
-            memcpy(res->val.str.ptr, &buf[*offset], 7);
+            memcpy(res->val.str.buf, &buf[*offset], 7);
+            res->val.str.ptr = res->val.str.buf;
             *offset += 7;
             return 0;
         }

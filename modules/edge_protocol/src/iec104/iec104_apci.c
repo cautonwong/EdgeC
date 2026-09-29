@@ -39,8 +39,66 @@ static void _reclaim_acked_frames(iec104_apci_mgr_t *mgr, uint16_t nr) {
     }
 }
 
+struct iec104_apci_mgr {
+    iec104_state_t state;
+
+    // 序列号维护
+    uint16_t ns;       /**< 发送序列号 N(S) */
+    uint16_t nr;       /**< 接收序列号 N(R) */
+    uint16_t acked_nr; /**< 上次对方确认到的序列号 */
+
+    // 滑窗控制 (k, w 因子)
+    uint16_t k; /**< 最大未确认发送 I 帧数 (默认 12) */
+    uint16_t w; /**< 最大未确认接收 I 帧数 (默认 8) */
+
+    // 定时器 (t0, t1, t2, t3)
+    uint64_t t1_start_ts; /**< I 帧发送时间戳 (用于 t1 超时监测) */
+    uint64_t t2_start_ts; /**< 未确认接收 I 帧时间戳 (用于 t2 自动发 S 帧) */
+    uint64_t t3_start_ts; /**< 空闲链路时间戳 (用于 t3 发送 TESTFR) */
+
+    // 发送备份队列 (用于重发，逻辑上暂由 Engine 协助)
+    net_buf_t *unacked_frames[32];
+};
+
+_Static_assert(sizeof(struct iec104_apci_mgr) <= sizeof(iec104_apci_mgr_storage_t),
+               "iec104_apci_mgr_storage_t size is insufficient");
+
+iec104_apci_mgr_t *iec104_apci_mgr_create_in(iec104_apci_mgr_storage_t *store) {
+    if (!store) {
+        return NULL;
+    }
+    iec104_apci_mgr_t *mgr = (iec104_apci_mgr_t *)store->raw;
+    iec104_apci_init(mgr);
+    return mgr;
+}
+
+iec104_state_t iec104_apci_get_state(const iec104_apci_mgr_t *mgr) {
+    return mgr ? mgr->state : IEC104_STATE_DISCONNECTED;
+}
+
+void iec104_apci_set_state(iec104_apci_mgr_t *mgr, iec104_state_t state) {
+    if (mgr) {
+        mgr->state = state;
+    }
+}
+
+uint16_t iec104_apci_get_ns(const iec104_apci_mgr_t *mgr) {
+    return mgr ? mgr->ns : 0;
+}
+
+uint16_t iec104_apci_get_nr(const iec104_apci_mgr_t *mgr) {
+    return mgr ? mgr->nr : 0;
+}
+
+void iec104_apci_set_nr(iec104_apci_mgr_t *mgr, uint16_t nr) {
+    if (mgr) {
+        mgr->nr = nr;
+    }
+}
+
 void iec104_apci_init(iec104_apci_mgr_t *mgr) {
-    memset(mgr, 0, sizeof(iec104_apci_mgr_t));
+    if (!mgr) return;
+    memset(mgr, 0, sizeof(struct iec104_apci_mgr));
     mgr->state = IEC104_STATE_DISCONNECTED;
     mgr->k = 12;
     mgr->w = 8;

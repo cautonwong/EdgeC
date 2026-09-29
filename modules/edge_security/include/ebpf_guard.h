@@ -13,6 +13,7 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdalign.h>
 
 #define EBPF_GUARD_MAX_PROBES 16
 
@@ -30,13 +31,36 @@ typedef struct {
     uint32_t violations_intercepted;
 } ebpf_probe_t;
 
+typedef struct ebpf_guard_mgr ebpf_guard_mgr_t;
+
+/**
+ * @brief eBPF 监控管理器调用方分配存储块 (Caller-Allocated Storage - AEP-752)
+ */
 typedef struct {
-    size_t probe_count;
-    ebpf_probe_t probes[EBPF_GUARD_MAX_PROBES];
-    bool global_enforce_mode;
-    bool bpf_ringbuf_supported;
-    uint64_t ringbuf_events_ingested;
-} ebpf_guard_mgr_t;
+    alignas(max_align_t) uint8_t raw[1024];
+} ebpf_guard_mgr_storage_t;
+
+/**
+ * @brief 在调用方提供的内存就地构造 eBPF 安全监控聚合根 (Zero-Alloc)
+ * @param store 调用方分配的存储块
+ * @return 构造成功的聚合根指针, 失败返回 NULL
+ */
+ebpf_guard_mgr_t *ebpf_guard_mgr_create_in(ebpf_guard_mgr_storage_t *store);
+
+/**
+ * @brief 查询全局拦截模式
+ */
+bool ebpf_guard_is_enforce_mode(const ebpf_guard_mgr_t *mgr);
+
+/**
+ * @brief 查询指定探针已处理事件数
+ */
+uint64_t ebpf_guard_get_probe_events_processed(const ebpf_guard_mgr_t *mgr, uint32_t probe_id);
+
+/**
+ * @brief 查询指定探针已拦截违规数
+ */
+uint32_t ebpf_guard_get_probe_violations(const ebpf_guard_mgr_t *mgr, uint32_t probe_id);
 
 /**
  * @brief Initializes eBPF security guard manager

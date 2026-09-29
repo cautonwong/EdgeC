@@ -1,0 +1,15 @@
+{
+  "version": "2.0",
+  "policy": "ZERO_EXEMPTIONS",
+  "exemptions": [
+    {
+      "id": "EXEMPT-ILLEGAL-001",
+      "module": "modules/edge_security/src/illegal_leak.c",
+      "rule": "no_dynamic_memory",
+      "owner": "rogue_dev",
+      "reason": "illegal exemption attempt",
+      "ticket": "Issue #999",
+      "exit_plan": "none"
+    }
+  ]
+}
