@@ -128,12 +128,12 @@ static int iec104_v4_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
     uint8_t c1 = b.data[2];
     if (c1 == 0x07) { // STARTDT ACT
         iec104_apci_build_u(IEC104_U_STARTDT_CON, resp_out);
-        priv->apci.state = IEC104_STATE_CONNECTED;
+        iec104_apci_set_state(priv->apci, IEC104_STATE_CONNECTED);
         LOG_INFO(LOG_CAT_IO, "IEC104: Link Activated (STARTDT CON sent).");
         return 0;
     }
     if (c1 == 0x0B) { // STARTDT CON
-        priv->apci.state = IEC104_STATE_CONNECTED;
+        iec104_apci_set_state(priv->apci, IEC104_STATE_CONNECTED);
         LOG_INFO(LOG_CAT_IO, "IEC104: Master Link READY.");
         return 0;
     }
@@ -141,8 +141,8 @@ static int iec104_v4_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
     if ((c1 & 0x01) == 0) {
         uint16_t ns = (uint16_t)((b.data[2] | (b.data[3] << 8)) >> 1);
         uint16_t nr = (uint16_t)((b.data[4] | (b.data[5] << 8)) >> 1);
-        priv->apci.nr = (uint16_t)((ns + 1) & 0x7FFF);
-        iec104_apci_handle_nr(&priv->apci, nr);
+        iec104_apci_set_nr(priv->apci, (uint16_t)((ns + 1) & 0x7FFF));
+        iec104_apci_handle_nr(priv->apci, nr);
         
         net_buf_simple_pull(&b, 6);
         iec_type_id_t type; bool sq; uint8_t count; iec_cot_t cot; uint16_t casdu;
@@ -151,7 +151,7 @@ static int iec104_v4_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
                 net_buf_t *con = net_buf_alloc(in->pool, 0);
                 iec_asdu_init(con, type, false, 1, IEC_COT_ACT_CON, casdu, &IEC_ADDR_CONF_104);
                 net_buf_simple_add_mem(&con->b, b.data, 1);
-                iec104_apci_wrap_i(&priv->apci, con);
+                iec104_apci_wrap_i(priv->apci, con);
                 net_buf_simple_add_mem(&resp_out->b, con->b.data, con->b.len);
                 net_buf_unref(con);
                 
@@ -164,7 +164,7 @@ static int iec104_v4_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
                             net_buf_t *df = net_buf_alloc(in->pool, 0);
                             iec_asdu_init(df, (iec_type_id_t)map->type_id, false, 1, IEC_COT_INTROGEN, priv->casdu, &IEC_ADDR_CONF_104);
                             iec_asdu_add_any(df, (uint8_t)map->type_id, map->key, vm.payload.val.f / (double)map->scaler, 0, map->flags, (iec_qds_t){0}, &IEC_ADDR_CONF_104);
-                            iec104_apci_wrap_i(&priv->apci, df);
+                            iec104_apci_wrap_i(priv->apci, df);
                             net_buf_simple_add_mem(&resp_out->b, df->b.data, df->b.len);
                             net_buf_unref(df);
                         }

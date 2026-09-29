@@ -24,6 +24,14 @@ extern "C" {
 #endif
 
 /**
+ * @brief VSG Rotor Motion Integrator Algorithm Type (AEP-721)
+ */
+typedef enum {
+    VSG_INTEGRATOR_RK4 = 0,   /**< 4th-order Runge-Kutta high-precision integrator (default) */
+    VSG_INTEGRATOR_EULER = 1, /**< Forward Euler integrator (legacy / baseline comparison) */
+} vsg_integrator_mode_t;
+
+/**
  * @brief Virtual Synchronous Generator Configuration & Physical Parameters
  */
 typedef struct {
@@ -35,6 +43,7 @@ typedef struct {
     double q_ref;           /**< Reactive power setpoint (var) */
     double droop_p;         /**< Frequency-Active power droop coefficient (Hz/W) */
     double droop_q;         /**< Voltage-Reactive power droop coefficient (V/var) */
+    vsg_integrator_mode_t integrator_mode; /**< Numerical integrator mode (default RK4) */
 } vsg_config_t;
 
 /**
@@ -111,6 +120,12 @@ double vsg_controller_get_frequency(const vsg_controller_t *vsg);
 double vsg_controller_get_voltage(const vsg_controller_t *vsg);
 double vsg_controller_get_omega(const vsg_controller_t *vsg);
 double vsg_controller_get_theta(const vsg_controller_t *vsg);
+vsg_integrator_mode_t vsg_controller_get_integrator_mode(const vsg_controller_t *vsg);
+void vsg_controller_set_integrator_mode(vsg_controller_t *vsg, vsg_integrator_mode_t mode);
+double vsg_controller_get_p_mech(const vsg_controller_t *vsg);
+double vsg_controller_get_p_damping(const vsg_controller_t *vsg);
+double vsg_controller_get_p_net(const vsg_controller_t *vsg);
+uint64_t vsg_controller_get_step_count(const vsg_controller_t *vsg);
 
 #ifdef __cplusplus
 }

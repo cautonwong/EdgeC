@@ -11,6 +11,7 @@ include:
   - "contracts/schema/domains/environment.yaml"
   - "contracts/schema/domains/security.yaml"
   - "contracts/schema/domains/system.yaml"
+  - "contracts/schema/domains/iems_microgrid.yaml"
   - "contracts/bindings/modbus/acrel_p80.yaml"
   - "contracts/bindings/dlt645/standard_meter.yaml"
   - "contracts/bindings/iec104/substation.yaml"

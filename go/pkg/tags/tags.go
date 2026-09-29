@@ -79,6 +79,16 @@ const (
 	ADMIN_AUTH_STATE = 12059
 	REMOTE_LOG_UPLOAD = 12060
 	GPIO_PHOENIX_DI_DO = 12061
+	IEMS_PCS_MODE = 131073
+	IEMS_PCS_ACTIVE_POWER_SETPOINT = 131074
+	IEMS_BMS_MAX_CELL_VOLT = 131075
+	IEMS_BMS_MIN_CELL_VOLT = 131076
+	IEMS_BMS_MAX_TEMP = 131077
+	IEMS_ANTI_REVERSE_ACTIVE = 131078
+	IEMS_VSG_VIRTUAL_FREQ = 131079
+	IEMS_VSG_VIRTUAL_VOLT = 131080
+	IEMS_VSG_ROTOR_ANGLE = 131081
+	IEMS_VSG_VIRTUAL_OMEGA = 131082
 )
 
 type TagMetadata struct {
@@ -165,4 +175,14 @@ var Metadata = map[uint32]TagMetadata{
 	12059: {ID: 12059, Name: "ADMIN_AUTH_STATE", DataType: "int", Unit: ""},
 	12060: {ID: 12060, Name: "REMOTE_LOG_UPLOAD", DataType: "int", Unit: ""},
 	12061: {ID: 12061, Name: "GPIO_PHOENIX_DI_DO", DataType: "int", Unit: ""},
+	131073: {ID: 131073, Name: "IEMS_PCS_MODE", DataType: "uint", Unit: ""},
+	131074: {ID: 131074, Name: "IEMS_PCS_ACTIVE_POWER_SETPOINT", DataType: "float", Unit: "kW"},
+	131075: {ID: 131075, Name: "IEMS_BMS_MAX_CELL_VOLT", DataType: "float", Unit: "V"},
+	131076: {ID: 131076, Name: "IEMS_BMS_MIN_CELL_VOLT", DataType: "float", Unit: "V"},
+	131077: {ID: 131077, Name: "IEMS_BMS_MAX_TEMP", DataType: "float", Unit: "°C"},
+	131078: {ID: 131078, Name: "IEMS_ANTI_REVERSE_ACTIVE", DataType: "bool", Unit: ""},
+	131079: {ID: 131079, Name: "IEMS_VSG_VIRTUAL_FREQ", DataType: "float", Unit: "Hz"},
+	131080: {ID: 131080, Name: "IEMS_VSG_VIRTUAL_VOLT", DataType: "float", Unit: "V"},
+	131081: {ID: 131081, Name: "IEMS_VSG_ROTOR_ANGLE", DataType: "float", Unit: "rad"},
+	131082: {ID: 131082, Name: "IEMS_VSG_VIRTUAL_OMEGA", DataType: "float", Unit: "rad/s"},
 }

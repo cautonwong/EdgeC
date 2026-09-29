@@ -450,9 +450,8 @@ static void test_dpi_engine_caller_allocated_storage(void **state) {
     (void)state;
     edge_guard_dpi_storage_t storage;
     memset(&storage, 0xEE, sizeof(storage));
-    dpi_engine_ctx_t *ctx = dpi_engine_init_in(&storage, NULL);
-    assert_non_null(ctx);
-    assert_ptr_equal(ctx, (void *)storage.raw);
+    int rc = dpi_engine_init_in(&storage, NULL);
+    assert_int_equal(rc, 0);
 }
 
 static void test_bus_orchestrator_caller_allocated_storage(void **state) {
@@ -461,7 +460,7 @@ static void test_bus_orchestrator_caller_allocated_storage(void **state) {
     uv_loop_init(&loop);
     datahub_t hub = {0};
     hub.loop = &loop;
-    arbiter_t arb = {0};
+    arbiter_t *arb = NULL;
 
     driver_manager_storage_t dm_storage;
     driver_manager_t *mgr = driver_manager_create_in(&dm_storage);
@@ -469,7 +468,7 @@ static void test_bus_orchestrator_caller_allocated_storage(void **state) {
 
     bus_orchestrator_storage_t storage;
     memset(&storage, 0xDD, sizeof(storage));
-    bus_orchestrator_t *orch = bus_orchestrator_create_in(&storage, &hub, &arb, mgr, 4, 32, 256);
+    bus_orchestrator_t *orch = bus_orchestrator_create_in(&storage, &hub, arb, mgr, 4, 32, 256);
     assert_non_null(orch);
     assert_ptr_equal(orch, (void *)storage.raw);
     assert_ptr_equal(bus_orchestrator_get_hub(orch), &hub);
@@ -510,14 +509,15 @@ static void test_protocol_bridge_caller_allocated_storage(void **state) {
     uv_loop_init(&loop);
     datahub_t hub = {0};
     hub.loop = &loop;
-    arbiter_t arb = {0};
+    arbiter_t *arb = NULL;
 
     driver_manager_storage_t dm_storage;
     driver_manager_t *mgr = driver_manager_create_in(&dm_storage);
     assert_non_null(mgr);
 
     bus_orchestrator_storage_t orch_storage;
-    bus_orchestrator_t *orch = bus_orchestrator_create_in(&orch_storage, &hub, &arb, mgr, 4, 32, 256);
+    bus_orchestrator_t *orch =
+        bus_orchestrator_create_in(&orch_storage, &hub, arb, mgr, 4, 32, 256);
     assert_non_null(orch);
 
     protocol_bridge_storage_t bridge_storage;
@@ -609,7 +609,7 @@ static void test_persistence_mgr_caller_allocated_storage(void **state) {
     uv_loop_t loop;
     uv_loop_init(&loop);
     shm_ring_t ring;
-    assert_int_equal(shmring_init(&ring, 16), 0);
+    assert_int_equal(shmring_create(&ring, "persistence_ring", 16), 0);
 
     persistence_mgr_storage_t store;
     memset(&store, 0x33, sizeof(store));

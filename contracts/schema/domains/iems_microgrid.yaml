@@ -29,7 +29,7 @@ tags:
   - id: 131077 # 0x020005
     name: "IEMS_BMS_MAX_TEMP"
     type: "float"
-    unit: "degC"
+    unit: "°C"
     description: "BMS Maximum Cell Temperature"
 
   - id: 131078 # 0x020006
@@ -37,3 +37,27 @@ tags:
     type: "bool"
     unit: ""
     description: "Anti-Reverse Power Flow Protection Active Flag"
+
+  - id: 131079 # 0x020007
+    name: "IEMS_VSG_VIRTUAL_FREQ"
+    type: "float"
+    unit: "Hz"
+    description: "Virtual Synchronous Generator Virtual Frequency"
+
+  - id: 131080 # 0x020008
+    name: "IEMS_VSG_VIRTUAL_VOLT"
+    type: "float"
+    unit: "V"
+    description: "Virtual Synchronous Generator Output Voltage Amplitude"
+
+  - id: 131081 # 0x020009
+    name: "IEMS_VSG_ROTOR_ANGLE"
+    type: "float"
+    unit: "rad"
+    description: "Virtual Synchronous Generator Virtual Rotor Phase Angle (theta)"
+
+  - id: 131082 # 0x02000A
+    name: "IEMS_VSG_VIRTUAL_OMEGA"
+    type: "float"
+    unit: "rad/s"
+    description: "Virtual Synchronous Generator Virtual Rotor Angular Velocity"

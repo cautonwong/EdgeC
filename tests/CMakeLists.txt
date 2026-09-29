@@ -1312,11 +1312,9 @@ target_link_libraries(test_caller_allocated_storage PRIVATE
     edge_io
     edge_security
     edge_protocol
-    sqlite3
     -Wl,--end-group
     cmocka::cmocka
     libuv::uv_a
-    paho-mqtt3a
     pthread dl rt m
 )
 add_test(NAME test_caller_allocated_storage COMMAND test_caller_allocated_storage)

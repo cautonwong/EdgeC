@@ -42,6 +42,8 @@ int bus_orchestrator_attach_io(bus_orchestrator_t *ctx, int bus_id, io_handle_t 
 
 io_handle_t *bus_orchestrator_get_io(bus_orchestrator_t *ctx, int bus_id);
 
+datahub_t *bus_orchestrator_get_hub(bus_orchestrator_t *ctx);
+
 /**
  * @brief 配置总线为 Master 模式并注入契约
  */
