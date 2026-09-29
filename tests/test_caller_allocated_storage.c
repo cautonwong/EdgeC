@@ -30,11 +30,19 @@
 #include "battery_pulse_heating.h"
 #include "battery_soh_fusion.h"
 #include "battery_thermal_mesh.h"
+#include "bus_orchestrator.h"
+#include "datahub.h"
+#include "driver_manager.h"
+#include "edge_agent.h"
 #include "edge_cep_engine.h"
 #include "edge_composition_root.h"
+#include "edge_guard.h"
 #include "edge_sched_deadline.h"
 #include "impedance_control.h"
 #include "mpc_dispatcher.h"
+#include "protocol_bridge.h"
+#include "snf_manager.h"
+#include "sqlite_service.h"
 #include "vsg_control.h"
 
 /* -------------------------------------------------------------------------- */
@@ -432,6 +440,121 @@ static void test_impedance_controller_caller_allocated_storage(void **state) {
     assert_true(impedance_controller_get_torque(ctrl) != 0.0f);
 }
 
+static void test_dpi_engine_caller_allocated_storage(void **state) {
+    (void)state;
+    edge_guard_dpi_storage_t storage;
+    memset(&storage, 0xEE, sizeof(storage));
+    dpi_engine_ctx_t *ctx = dpi_engine_init_in(&storage, NULL);
+    assert_non_null(ctx);
+    assert_ptr_equal(ctx, (void *)storage.raw);
+}
+
+static void test_bus_orchestrator_caller_allocated_storage(void **state) {
+    (void)state;
+    uv_loop_t loop;
+    uv_loop_init(&loop);
+    datahub_t hub = {0};
+
+    bus_orchestrator_storage_t storage;
+    memset(&storage, 0xDD, sizeof(storage));
+    bus_orchestrator_t *orch = bus_orchestrator_create_in(&storage, &loop, &hub);
+    assert_non_null(orch);
+    assert_ptr_equal(orch, (void *)storage.raw);
+    assert_ptr_equal(bus_orchestrator_get_hub(orch), &hub);
+
+    bus_orchestrator_destroy(orch);
+    uv_loop_close(&loop);
+}
+
+static void test_driver_manager_caller_allocated_storage(void **state) {
+    (void)state;
+    uv_loop_t loop;
+    uv_loop_init(&loop);
+    datahub_t hub = {0};
+    bus_orchestrator_storage_t orch_storage;
+    bus_orchestrator_t *orch = bus_orchestrator_create_in(&orch_storage, &loop, &hub);
+    assert_non_null(orch);
+
+    driver_manager_storage_t dm_storage;
+    memset(&dm_storage, 0xBB, sizeof(dm_storage));
+    driver_manager_t *mgr = driver_manager_create_in(&dm_storage, &hub, orch);
+    assert_non_null(mgr);
+    assert_ptr_equal(mgr, (void *)dm_storage.raw);
+
+    driver_manager_destroy(mgr);
+    bus_orchestrator_destroy(orch);
+    uv_loop_close(&loop);
+}
+
+static void test_edge_agent_caller_allocated_storage(void **state) {
+    (void)state;
+    edge_agent_storage_t agent_storage;
+    memset(&agent_storage, 0x11, sizeof(agent_storage));
+    edge_agent_config_t cfg = {.broker_url = "tcp://127.0.0.1:1883",
+                               .device_id = "EDGE_TEST_001",
+                               .product_type = "IEMS_BOX"};
+    edge_agent_t *agent = edge_agent_create_in(&agent_storage, cfg);
+    assert_non_null(agent);
+    assert_ptr_equal(agent, (void *)agent_storage.raw);
+
+    edge_agent_destroy(agent);
+}
+
+static void test_protocol_bridge_caller_allocated_storage(void **state) {
+    (void)state;
+    uv_loop_t loop;
+    uv_loop_init(&loop);
+    datahub_t hub = {0};
+    bus_orchestrator_storage_t orch_storage;
+    bus_orchestrator_t *orch = bus_orchestrator_create_in(&orch_storage, &loop, &hub);
+    assert_non_null(orch);
+
+    protocol_bridge_storage_t bridge_storage;
+    memset(&bridge_storage, 0x22, sizeof(bridge_storage));
+    protocol_bridge_t *bridge = protocol_bridge_create_in(&bridge_storage, &loop, &hub, orch);
+    assert_non_null(bridge);
+    assert_ptr_equal(bridge, (void *)bridge_storage.raw);
+
+    protocol_bridge_destroy(bridge);
+    bus_orchestrator_destroy(orch);
+    uv_run(&loop, UV_RUN_NOWAIT);
+    uv_loop_close(&loop);
+}
+
+static int _dummy_snf_pub(void *user_data, const PipeMsg *msg) {
+    (void)user_data;
+    (void)msg;
+    return 0;
+}
+
+static void test_snf_manager_caller_allocated_storage(void **state) {
+    (void)state;
+    uv_loop_t loop;
+    uv_loop_init(&loop);
+    sqlite_config_t scfg = {.db_path = ":memory:",
+                            .strategy = STRATEGY_SERIES,
+                            .batch_size = 10,
+                            .flush_interval_ms = 1000};
+    sqlite_svc_t *db = sqlite_svc_create(&loop, &scfg);
+    assert_non_null(db);
+
+    snf_manager_storage_t snf_storage;
+    memset(&snf_storage, 0x33, sizeof(snf_storage));
+    snf_config_t cfg = {.db = db,
+                        .loop = &loop,
+                        .publish_fn = _dummy_snf_pub,
+                        .sync_batch_size = 50,
+                        .sync_interval_ms = 1000};
+    snf_manager_t *mgr = snf_manager_create_in(&snf_storage, &cfg);
+    assert_non_null(mgr);
+    assert_ptr_equal(mgr, (void *)snf_storage.raw);
+
+    snf_manager_destroy(mgr);
+    sqlite_svc_destroy(db);
+    uv_run(&loop, UV_RUN_NOWAIT);
+    uv_loop_close(&loop);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_battery_ekf_caller_allocated_storage),
@@ -448,6 +571,12 @@ int main(void) {
         cmocka_unit_test(test_thermal_mesh_caller_allocated_storage),
         cmocka_unit_test(test_cep_engine_caller_allocated_storage),
         cmocka_unit_test(test_impedance_controller_caller_allocated_storage),
+        cmocka_unit_test(test_dpi_engine_caller_allocated_storage),
+        cmocka_unit_test(test_bus_orchestrator_caller_allocated_storage),
+        cmocka_unit_test(test_driver_manager_caller_allocated_storage),
+        cmocka_unit_test(test_edge_agent_caller_allocated_storage),
+        cmocka_unit_test(test_protocol_bridge_caller_allocated_storage),
+        cmocka_unit_test(test_snf_manager_caller_allocated_storage),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

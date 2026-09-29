@@ -12,7 +12,14 @@
 struct driver_manager_s;
 typedef struct driver_manager_s driver_manager_t;
 
+#include <stddef.h>
+#include <stdalign.h>
+
 typedef struct bus_orchestrator_s bus_orchestrator_t;
+
+typedef struct {
+    alignas(max_align_t) uint8_t raw[4096];
+} bus_orchestrator_storage_t;
 
 typedef struct {
     uint32_t tag_netbuf_total;
@@ -20,6 +27,10 @@ typedef struct {
     uint32_t tag_netbuf_peak;
     uint32_t tag_netbuf_leak;
 } bus_orch_monitor_tags_t;
+
+bus_orchestrator_t *bus_orchestrator_create_in(bus_orchestrator_storage_t *storage,
+                                               datahub_t *hub, arbiter_t *arb, driver_manager_t *mgr,
+                                               int max_buses, uint32_t pool_size, uint32_t buf_size);
 
 bus_orchestrator_t *bus_orchestrator_create(datahub_t *hub, arbiter_t *arb, driver_manager_t *mgr,
                                             int max_buses, uint32_t pool_size, uint32_t buf_size);

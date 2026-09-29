@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdalign.h>
 #include <uv.h>
 
 #define EDGE_AGENT_ID_MAX  64
@@ -39,6 +41,19 @@ typedef struct {
 
 // Opaque agent handle
 typedef struct edge_agent_s edge_agent_t;
+
+// Aligned storage placeholder for caller allocation
+typedef struct {
+    alignas(max_align_t) uint8_t raw[4096];
+} edge_agent_storage_t;
+
+/**
+ * @brief Create Edge-Ops management agent using caller-allocated storage
+ * @param storage Pre-allocated storage buffer
+ * @param cfg Agent configuration
+ * @return Agent handle, NULL on failure
+ */
+edge_agent_t *edge_agent_create_in(edge_agent_storage_t *storage, edge_agent_config_t cfg);
 
 /**
  * @brief Create Edge-Ops management agent

@@ -26,14 +26,23 @@ typedef enum {
 /**
  * @brief 动态安全约束状态 (用于计算变化率)
  */
-typedef struct {
-    uint32_t tag_id;
-    double last_value;
-    uint64_t last_ts;
-} dpi_state_t;
+#include <stddef.h>
+#include <stdalign.h>
 
 /**
- * @brief 初始化 DPI 校验引擎
+ * @brief DPI 引擎调用方预分配内存容器 (32KB)
+ */
+typedef struct {
+    alignas(max_align_t) uint8_t raw[32768];
+} edge_guard_dpi_storage_t;
+
+/**
+ * @brief 在调用方提供的内存就地初始化 DPI 校验引擎 (Zero-Alloc)
+ */
+int dpi_engine_init_in(edge_guard_dpi_storage_t *storage, datahub_t *hub);
+
+/**
+ * @brief 初始化 DPI 校验引擎 (兼容单例)
  */
 int dpi_engine_init(datahub_t *hub);
 

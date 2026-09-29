@@ -96,6 +96,8 @@ typedef enum {
     DLT698_TAG_DATE_TIME_S = 28
 } dlt698_data_tag_t;
 
+#define MAX_DLT698_STRING_LEN 64
+
 /**
  * @brief 抽象数据容器 (用于递归解析)
  */
@@ -115,6 +117,7 @@ typedef struct dlt698_data_s {
         struct {
             uint8_t *ptr;
             size_t len;
+            uint8_t buf[MAX_DLT698_STRING_LEN];
         } str;
         struct {
             struct dlt698_data_s *items;

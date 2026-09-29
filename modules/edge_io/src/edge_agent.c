@@ -91,15 +91,23 @@ static void on_heartbeat_timer(uv_timer_t *handle) {
     send_heartbeat(agent);
 }
 
-// --- Public API ---
+_Static_assert(sizeof(struct edge_agent_s) <= sizeof(edge_agent_storage_t),
+               "edge_agent_storage_t is too small for struct edge_agent_s");
 
-edge_agent_t *edge_agent_create(edge_agent_config_t cfg) {
-    edge_agent_t *agent = calloc(1, sizeof(edge_agent_t));
-    if (!agent) return NULL;
+static edge_agent_storage_t g_default_agent_storage;
+
+edge_agent_t *edge_agent_create_in(edge_agent_storage_t *storage, edge_agent_config_t cfg) {
+    if (!storage) return NULL;
+    memset(storage, 0, sizeof(*storage));
+    edge_agent_t *agent = (edge_agent_t *)storage;
     agent->cfg = cfg;
     agent->state = AGENT_STATE_DISCONNECTED;
     agent->started = false;
     return agent;
+}
+
+edge_agent_t *edge_agent_create(edge_agent_config_t cfg) {
+    return edge_agent_create_in(&g_default_agent_storage, cfg);
 }
 
 int edge_agent_start(edge_agent_t *agent, uv_loop_t *loop) {
@@ -178,6 +186,4 @@ void edge_agent_destroy(edge_agent_t *agent) {
         MQTTAsync_destroy(&agent->client);
         agent->client = NULL;
     }
-
-    free(agent);
 }

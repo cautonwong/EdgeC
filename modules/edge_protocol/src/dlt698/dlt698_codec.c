@@ -157,18 +157,12 @@ int dlt698_decode_frame(struct net_buf_simple *in, dlt698_addr_t *sa, uint8_t *s
 /**
  * @brief 释放递归分配的 A-XDR 数据资源
  */
+static _Thread_local dlt698_data_t g_dlt698_item_pool[64];
+static _Thread_local size_t g_dlt698_pool_idx = 0;
+
 void dlt698_free_data(dlt698_data_t *data) {
-    if (!data) return;
-    if (data->tag == DLT698_TAG_OCTET_STRING || data->tag == DLT698_TAG_VISIBLE_STRING) {
-        if (data->val.str.ptr) free(data->val.str.ptr);
-    } else if (data->tag == DLT698_TAG_ARRAY || data->tag == DLT698_TAG_STRUCTURE) {
-        if (data->val.container.items) {
-            for (uint16_t i = 0; i < data->val.container.count; i++) {
-                dlt698_free_data(&data->val.container.items[i]);
-            }
-            free(data->val.container.items);
-        }
-    }
+    (void)data;
+    // Zero-alloc: No dynamic memory to free
 }
 
 /**
@@ -188,11 +182,17 @@ int dlt698_decode_data(const uint8_t *buf, uint16_t len, uint16_t *offset, dlt69
             uint8_t count = buf[(*offset)++];
             res->val.container.count = count;
             if (count > 0) {
-                res->val.container.items = calloc(count, sizeof(dlt698_data_t));
+                if (g_dlt698_pool_idx + count > 64) {
+                    g_dlt698_pool_idx = 0;
+                }
+                res->val.container.items = &g_dlt698_item_pool[g_dlt698_pool_idx];
+                g_dlt698_pool_idx += count;
                 for (uint8_t i = 0; i < count; i++) {
                     int rc = dlt698_decode_data(buf, len, offset, &res->val.container.items[i]);
                     if (rc != 0) return rc;
                 }
+            } else {
+                res->val.container.items = NULL;
             }
             return 0;
         }
@@ -216,9 +216,10 @@ int dlt698_decode_data(const uint8_t *buf, uint16_t len, uint16_t *offset, dlt69
             uint8_t slen = buf[(*offset)++];
             if (*offset + slen > len) return -1;
             res->val.str.len = slen;
-            res->val.str.ptr = malloc(slen + 1);
-            memcpy(res->val.str.ptr, &buf[*offset], slen);
-            res->val.str.ptr[slen] = '\0';
+            uint8_t copy_len = (slen >= MAX_DLT698_STRING_LEN) ? (MAX_DLT698_STRING_LEN - 1) : slen;
+            memcpy(res->val.str.buf, &buf[*offset], copy_len);
+            res->val.str.buf[copy_len] = '\0';
+            res->val.str.ptr = res->val.str.buf;
             *offset += slen;
             return 0;
         }

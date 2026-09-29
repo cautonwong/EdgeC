@@ -14,22 +14,39 @@
 #define MAX_DPI_TRACKED_TAGS 1024
 
 typedef struct {
+    uint32_t tag_id;
+    double last_value;
+    uint64_t last_ts;
+} dpi_state_t;
+
+struct dpi_engine_ctx_s {
     datahub_t *hub;
     dpi_state_t states[MAX_DPI_TRACKED_TAGS];
     edge_mutex_t lock;
-} dpi_engine_ctx_t;
+};
+typedef struct dpi_engine_ctx_s dpi_engine_ctx_t;
 
+_Static_assert(sizeof(struct dpi_engine_ctx_s) <= sizeof(edge_guard_dpi_storage_t),
+               "dpi_engine_ctx_s size exceeds edge_guard_dpi_storage_t");
+
+static edge_guard_dpi_storage_t g_default_dpi_storage;
 static dpi_engine_ctx_t *g_dpi = NULL;
 
-int dpi_engine_init(datahub_t *hub) {
+int dpi_engine_init_in(edge_guard_dpi_storage_t *storage, datahub_t *hub) {
+    if (!storage) return -1;
     if (g_dpi) return 0;
-    
-    g_dpi = calloc(1, sizeof(dpi_engine_ctx_t));
+
+    g_dpi = (dpi_engine_ctx_t *)storage->raw;
+    memset(g_dpi, 0, sizeof(*g_dpi));
     g_dpi->hub = hub;
     edge_mutex_init(&g_dpi->lock);
-    
+
     LOG_INFO(LOG_CAT_CORE, "Edge-Guard: DPI Validation Engine active.");
     return 0;
+}
+
+int dpi_engine_init(datahub_t *hub) {
+    return dpi_engine_init_in(&g_default_dpi_storage, hub);
 }
 
 dpi_result_t dpi_validate_telemetry(uint32_t tag_id, double val) {

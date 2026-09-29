@@ -10,7 +10,14 @@
 struct datahub_s;
 typedef struct datahub_s datahub_t;
 
+#include <stddef.h>
+#include <stdalign.h>
+
 typedef struct driver_manager_s driver_manager_t;
+
+typedef struct {
+    alignas(max_align_t) uint8_t raw[65536];
+} driver_manager_storage_t;
 
 /**
  * @brief 轮询调度策略
@@ -45,6 +52,11 @@ typedef struct {
     uint64_t last_poll_ts;      /**< 上次轮询发起时间 (ms) */
     uint64_t last_success_ts;   /**< 上次成功时间 (ms) */
 } edge_poll_stats_t;
+
+/**
+ * @brief 在调用方提供的内存就地创建驱动管理器实例 (Zero-Alloc)
+ */
+driver_manager_t *driver_manager_create_in(driver_manager_storage_t *storage);
 
 /**
  * @brief 创建驱动管理器实例 (组合模式)

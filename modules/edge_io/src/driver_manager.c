@@ -11,8 +11,17 @@
 #include "net_buf.h"
 
 #define MAX_DRIVERS 32
-#define MAX_POLL_TARGETS 64
+#define MAX_POLL_TARGETS 32
+#define MAX_DRIVER_INSTANCES 32
+#define DRIVER_PRIV_SIZE 512
+#define MAX_POLL_TAGS 64
 #define MAX_DISPATCH_MSGS 64
+
+typedef struct {
+    edge_driver_ctx_t ctx;
+    uint8_t priv[DRIVER_PRIV_SIZE];
+    bool in_use;
+} driver_inst_slot_t;
 
 // 内部单通道轮询目标结构体
 typedef struct poll_target_s {
@@ -20,7 +29,7 @@ typedef struct poll_target_s {
     char protocol[64];
     edge_driver_ctx_t *ctx;
     io_handle_t *io_handle;
-    uint32_t *tag_ids;
+    uint32_t tag_ids[MAX_POLL_TAGS];
     size_t tag_count;
     edge_poll_policy_t policy;
     edge_poll_stats_t stats;
@@ -47,9 +56,17 @@ struct driver_manager_s {
     net_buf_pool_t *fallback_pool;
     poll_target_t targets[MAX_POLL_TARGETS];
     uint32_t target_count;
+    driver_inst_slot_t inst_slots[MAX_DRIVER_INSTANCES];
     uv_mutex_t lock;
     bool lock_init;
+    bool is_static;
 };
+
+_Static_assert(sizeof(struct driver_manager_s) <= sizeof(driver_manager_storage_t),
+               "driver_manager_s size exceeds driver_manager_storage_t");
+
+static driver_manager_storage_t g_default_drv_mgr_storage;
+static driver_inst_slot_t g_fallback_inst_slots[MAX_DRIVER_INSTANCES];
 
 static uint64_t _now_ms(void) {
     struct timespec ts;
@@ -165,12 +182,18 @@ static void _target_io_event_cb(io_handle_t *h, io_event_t evt, void *payload, v
     }
 }
 
-driver_manager_t *driver_manager_create(void) {
-    driver_manager_t *mgr = calloc(1, sizeof(struct driver_manager_s));
-    if (!mgr) return NULL;
+driver_manager_t *driver_manager_create_in(driver_manager_storage_t *storage) {
+    if (!storage) return NULL;
+    driver_manager_t *mgr = (driver_manager_t *)storage->raw;
+    memset(mgr, 0, sizeof(*mgr));
     uv_mutex_init(&mgr->lock);
     mgr->lock_init = true;
+    mgr->is_static = true;
     return mgr;
+}
+
+driver_manager_t *driver_manager_create(void) {
+    return driver_manager_create_in(&g_default_drv_mgr_storage);
 }
 
 void driver_manager_destroy(driver_manager_t *mgr) {
@@ -184,10 +207,7 @@ void driver_manager_destroy(driver_manager_t *mgr) {
                 driver_instance_destroy(mgr->targets[i].ctx, mgr->targets[i].protocol);
                 mgr->targets[i].ctx = NULL;
             }
-            if (mgr->targets[i].tag_ids) {
-                free(mgr->targets[i].tag_ids);
-                mgr->targets[i].tag_ids = NULL;
-            }
+            mgr->targets[i].tag_count = 0;
             mgr->targets[i].in_use = false;
         }
     }
@@ -202,7 +222,9 @@ void driver_manager_destroy(driver_manager_t *mgr) {
         mgr->lock_init = false;
     }
 
-    free(mgr);
+    if (!mgr->is_static) {
+        free(mgr);
+    }
 }
 
 int driver_manager_register(driver_manager_t *mgr, const edge_driver_t *driver) {
@@ -256,24 +278,45 @@ edge_driver_ctx_t *driver_instance_create(driver_manager_t *mgr, const char *pro
     const edge_driver_t *tmpl = driver_manager_find(mgr, protocol);
     if (!tmpl) return NULL;
 
-    edge_driver_ctx_t *ctx = calloc(1, sizeof(edge_driver_ctx_t));
-    ctx->driver = tmpl;
-    ctx->device_id = device_id;
-    if (tmpl->ctx_size > 0) ctx->priv = calloc(1, tmpl->ctx_size);
-    if (tmpl->on_init) tmpl->on_init(ctx);
+    driver_inst_slot_t *slot = NULL;
+    if (mgr) {
+        for (int i = 0; i < MAX_DRIVER_INSTANCES; i++) {
+            if (!mgr->inst_slots[i].in_use) {
+                slot = &mgr->inst_slots[i];
+                break;
+            }
+        }
+    }
+    if (!slot) {
+        for (int i = 0; i < MAX_DRIVER_INSTANCES; i++) {
+            if (!g_fallback_inst_slots[i].in_use) {
+                slot = &g_fallback_inst_slots[i];
+                break;
+            }
+        }
+    }
+    if (!slot) return NULL;
 
-    return ctx;
+    memset(slot, 0, sizeof(*slot));
+    slot->in_use = true;
+    slot->ctx.driver = tmpl;
+    slot->ctx.device_id = device_id;
+    if (tmpl->ctx_size > 0 && tmpl->ctx_size <= DRIVER_PRIV_SIZE) {
+        slot->ctx.priv = slot->priv;
+        memset(slot->priv, 0, DRIVER_PRIV_SIZE);
+    }
+    if (tmpl->on_init) tmpl->on_init(&slot->ctx);
+
+    return &slot->ctx;
 }
 
 void driver_instance_destroy(edge_driver_ctx_t *ctx, const char *protocol) {
     (void)protocol;
     if (!ctx) return;
     if (ctx->driver && ctx->driver->on_cleanup) ctx->driver->on_cleanup(ctx);
-    if (ctx->priv) {
-        free(ctx->priv);
-        ctx->priv = NULL;
-    }
-    free(ctx);
+    driver_inst_slot_t *slot = (driver_inst_slot_t *)ctx;
+    slot->in_use = false;
+    ctx->priv = NULL;
 }
 
 int driver_manager_start_auto_polling(driver_manager_t *mgr, const edge_orchestrator_cfg_t *cfg) {
@@ -342,10 +385,7 @@ int driver_manager_add_poll_target(driver_manager_t *mgr, uint32_t device_id,
             driver_instance_destroy(t->ctx, t->protocol);
             t->ctx = NULL;
         }
-        if (t->tag_ids) {
-            free(t->tag_ids);
-            t->tag_ids = NULL;
-        }
+        t->tag_count = 0;
     }
 
     memset(t, 0, sizeof(poll_target_t));
@@ -364,11 +404,9 @@ int driver_manager_add_poll_target(driver_manager_t *mgr, uint32_t device_id,
     }
 
     if (tag_count > 0 && tag_ids) {
-        t->tag_ids = malloc(tag_count * sizeof(uint32_t));
-        if (t->tag_ids) {
-            memcpy(t->tag_ids, tag_ids, tag_count * sizeof(uint32_t));
-            t->tag_count = tag_count;
-        }
+        size_t copy_cnt = tag_count > MAX_POLL_TAGS ? MAX_POLL_TAGS : tag_count;
+        memcpy(t->tag_ids, tag_ids, copy_cnt * sizeof(uint32_t));
+        t->tag_count = copy_cnt;
     }
 
     if (policy) {

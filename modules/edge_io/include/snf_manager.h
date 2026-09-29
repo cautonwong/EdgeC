@@ -8,12 +8,19 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <stdalign.h>
 #include <uv.h>
 
 #include "shmring.h"
 #include "sqlite_service.h"
 
 typedef struct snf_manager_s snf_manager_t;
+
+// Aligned storage placeholder for caller allocation
+typedef struct {
+    alignas(max_align_t) uint8_t raw[4096];
+} snf_manager_storage_t;
 
 /**
  * @brief SnF 事件回调 (用于上层同步数据)
@@ -28,6 +35,11 @@ typedef struct {
     uint32_t sync_batch_size;
     uint32_t sync_interval_ms;
 } snf_config_t;
+
+/**
+ * @brief 创建 SnF 管理器 (基于调用方分配存储)
+ */
+snf_manager_t *snf_manager_create_in(snf_manager_storage_t *storage, const snf_config_t *cfg);
 
 /**
  * @brief 创建 SnF 管理器

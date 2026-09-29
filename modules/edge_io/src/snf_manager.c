@@ -15,7 +15,13 @@ struct snf_manager_s {
     bool is_online;
     uv_timer_t sync_timer;
     bool is_syncing;
+    bool is_caller_allocated;
 };
+
+_Static_assert(sizeof(struct snf_manager_s) <= sizeof(snf_manager_storage_t),
+               "snf_manager_storage_t is too small for struct snf_manager_s");
+
+static snf_manager_storage_t g_default_snf_storage;
 
 static void _on_sync_timer(uv_timer_t *handle) {
     snf_manager_t *mgr = (snf_manager_t *)handle->data;
@@ -86,10 +92,12 @@ static void _on_sync_timer(uv_timer_t *handle) {
     mgr->is_syncing = false;
 }
 
-snf_manager_t *snf_manager_create(const snf_config_t *cfg) {
-    if (!cfg || !cfg->db || !cfg->loop || !cfg->publish_fn) return NULL;
+snf_manager_t *snf_manager_create_in(snf_manager_storage_t *storage, const snf_config_t *cfg) {
+    if (!storage || !cfg || !cfg->db || !cfg->loop || !cfg->publish_fn) return NULL;
 
-    snf_manager_t *mgr = calloc(1, sizeof(snf_manager_t));
+    memset(storage, 0, sizeof(*storage));
+    snf_manager_t *mgr = (snf_manager_t *)storage;
+    mgr->is_caller_allocated = true;
     mgr->config = *cfg;
     if (mgr->config.sync_batch_size == 0) mgr->config.sync_batch_size = 100;
     if (mgr->config.sync_interval_ms == 0) mgr->config.sync_interval_ms = 5000;
@@ -129,6 +137,10 @@ snf_manager_t *snf_manager_create(const snf_config_t *cfg) {
     return mgr;
 }
 
+snf_manager_t *snf_manager_create(const snf_config_t *cfg) {
+    return snf_manager_create_in(&g_default_snf_storage, cfg);
+}
+
 void snf_manager_set_online(snf_manager_t *mgr, bool online) {
     if (!mgr) return;
     if (mgr->is_online != online) {
@@ -149,7 +161,7 @@ int snf_manager_buffer_data(snf_manager_t *mgr, const PipeMsg *msg) {
 
 static void _on_snf_close(uv_handle_t *handle) {
     snf_manager_t *mgr = (snf_manager_t *)handle->data;
-    if (mgr) free(mgr);
+    if (mgr && !mgr->is_caller_allocated) free(mgr);
 }
 
 void snf_manager_destroy(snf_manager_t *mgr) {
@@ -158,6 +170,6 @@ void snf_manager_destroy(snf_manager_t *mgr) {
     if (!uv_is_closing((uv_handle_t *)&mgr->sync_timer)) {
         uv_close((uv_handle_t *)&mgr->sync_timer, _on_snf_close);
     } else {
-        free(mgr);
+        if (!mgr->is_caller_allocated) free(mgr);
     }
 }

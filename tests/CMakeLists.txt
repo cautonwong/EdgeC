@@ -1298,12 +1298,25 @@ target_include_directories(test_caller_allocated_storage PRIVATE
     ${CMAKE_SOURCE_DIR}/modules/edge_algo/include
     ${CMAKE_SOURCE_DIR}/modules/edge_stream/include
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_io/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_security/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_protocol/include
 )
 target_link_libraries(test_caller_allocated_storage PRIVATE
+    -Wl,--start-group
     edge_algo
     edge_stream
     edge_core
+    edge_infra
+    edge_io
+    edge_security
+    edge_protocol
+    sqlite3
+    -Wl,--end-group
     cmocka::cmocka
+    libuv::uv_a
+    paho-mqtt3a
     pthread dl rt m
 )
 add_test(NAME test_caller_allocated_storage COMMAND test_caller_allocated_storage)
