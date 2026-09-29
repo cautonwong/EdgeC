@@ -460,36 +460,34 @@ static void test_bus_orchestrator_caller_allocated_storage(void **state) {
     uv_loop_t loop;
     uv_loop_init(&loop);
     datahub_t hub = {0};
+    hub.loop = &loop;
+    arbiter_t arb = {0};
+
+    driver_manager_storage_t dm_storage;
+    driver_manager_t *mgr = driver_manager_create_in(&dm_storage);
+    assert_non_null(mgr);
 
     bus_orchestrator_storage_t storage;
     memset(&storage, 0xDD, sizeof(storage));
-    bus_orchestrator_t *orch = bus_orchestrator_create_in(&storage, &loop, &hub);
+    bus_orchestrator_t *orch = bus_orchestrator_create_in(&storage, &hub, &arb, mgr, 4, 32, 256);
     assert_non_null(orch);
     assert_ptr_equal(orch, (void *)storage.raw);
     assert_ptr_equal(bus_orchestrator_get_hub(orch), &hub);
 
     bus_orchestrator_destroy(orch);
+    driver_manager_destroy(mgr);
     uv_loop_close(&loop);
 }
 
 static void test_driver_manager_caller_allocated_storage(void **state) {
     (void)state;
-    uv_loop_t loop;
-    uv_loop_init(&loop);
-    datahub_t hub = {0};
-    bus_orchestrator_storage_t orch_storage;
-    bus_orchestrator_t *orch = bus_orchestrator_create_in(&orch_storage, &loop, &hub);
-    assert_non_null(orch);
-
     driver_manager_storage_t dm_storage;
     memset(&dm_storage, 0xBB, sizeof(dm_storage));
-    driver_manager_t *mgr = driver_manager_create_in(&dm_storage, &hub, orch);
+    driver_manager_t *mgr = driver_manager_create_in(&dm_storage);
     assert_non_null(mgr);
     assert_ptr_equal(mgr, (void *)dm_storage.raw);
 
     driver_manager_destroy(mgr);
-    bus_orchestrator_destroy(orch);
-    uv_loop_close(&loop);
 }
 
 static void test_edge_agent_caller_allocated_storage(void **state) {
@@ -511,8 +509,15 @@ static void test_protocol_bridge_caller_allocated_storage(void **state) {
     uv_loop_t loop;
     uv_loop_init(&loop);
     datahub_t hub = {0};
+    hub.loop = &loop;
+    arbiter_t arb = {0};
+
+    driver_manager_storage_t dm_storage;
+    driver_manager_t *mgr = driver_manager_create_in(&dm_storage);
+    assert_non_null(mgr);
+
     bus_orchestrator_storage_t orch_storage;
-    bus_orchestrator_t *orch = bus_orchestrator_create_in(&orch_storage, &loop, &hub);
+    bus_orchestrator_t *orch = bus_orchestrator_create_in(&orch_storage, &hub, &arb, mgr, 4, 32, 256);
     assert_non_null(orch);
 
     protocol_bridge_storage_t bridge_storage;
@@ -523,6 +528,7 @@ static void test_protocol_bridge_caller_allocated_storage(void **state) {
 
     protocol_bridge_destroy(bridge);
     bus_orchestrator_destroy(orch);
+    driver_manager_destroy(mgr);
     uv_run(&loop, UV_RUN_NOWAIT);
     uv_loop_close(&loop);
 }
@@ -590,8 +596,8 @@ static void test_edge_acl_caller_allocated_storage(void **state) {
     assert_non_null(acl);
     assert_ptr_equal(acl, (void *)store.raw);
 
-    uint32_t ip = (192 << 24) | (168 << 16) | (1 << 8) | 10;
-    uint32_t mask = (255 << 24) | (255 << 16) | (255 << 8) | 0;
+    uint32_t ip = (uint32_t)((192U << 24) | (168U << 16) | (1U << 8) | 10U);
+    uint32_t mask = (uint32_t)((255U << 24) | (255U << 16) | (255U << 8) | 0U);
     assert_int_equal(edge_acl_add_rule(acl, ip, mask, 443, 6, ACL_ACTION_ALLOW), 0);
 
     assert_int_equal(edge_acl_match(acl, ip, 443, 6), ACL_ACTION_ALLOW);
@@ -603,7 +609,7 @@ static void test_persistence_mgr_caller_allocated_storage(void **state) {
     uv_loop_t loop;
     uv_loop_init(&loop);
     shm_ring_t ring;
-    assert_int_equal(shm_ring_init(&ring, 16), 0);
+    assert_int_equal(shmring_init(&ring, 16), 0);
 
     persistence_mgr_storage_t store;
     memset(&store, 0x33, sizeof(store));
@@ -613,7 +619,7 @@ static void test_persistence_mgr_caller_allocated_storage(void **state) {
     assert_ptr_equal(mgr, (void *)store.raw);
 
     persistence_mgr_close(mgr);
-    shm_ring_destroy(&ring);
+    shmring_destroy(&ring);
     uv_run(&loop, UV_RUN_NOWAIT);
     uv_loop_close(&loop);
 }
