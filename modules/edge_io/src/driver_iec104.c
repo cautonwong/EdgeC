@@ -174,7 +174,7 @@ static int iec104_v4_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
                 net_buf_t *term = net_buf_alloc(in->pool, 0);
                 iec_asdu_init(term, type, false, 1, IEC_COT_ACT_TERM, casdu, &IEC_ADDR_CONF_104);
                 net_buf_simple_add_u8(&term->b, 20);
-                iec104_apci_wrap_i(&priv->apci, term);
+                iec104_apci_wrap_i(priv->apci, term);
                 net_buf_simple_add_mem(&resp_out->b, term->b.data, term->b.len);
                 net_buf_unref(term);
             } else if (type == IEC_TYPE_C_SC_NA_1 || type == IEC_TYPE_C_DC_NA_1 || type == IEC_TYPE_C_SE_NC_1) {
@@ -202,7 +202,7 @@ static int iec104_v4_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
                     net_buf_t *con = net_buf_alloc(in->pool, 0);
                     iec_asdu_init(con, type, false, 1, IEC_COT_ACT_CON, casdu, &IEC_ADDR_CONF_104);
                     // 简化镜像：重新编码 IOA 和载荷 (此处省略，实际应完整镜像)
-                    iec104_apci_wrap_i(&priv->apci, con);
+                    iec104_apci_wrap_i(priv->apci, con);
                     net_buf_simple_add_mem(&resp_out->b, con->b.data, con->b.len);
                     net_buf_unref(con);
 
@@ -241,7 +241,7 @@ static int iec104_v4_encode_request(edge_driver_ctx_t *ctx, const uint32_t *tag_
         } else {
             iec_asdu_add_any(out, (uint8_t)map->type_id, map->key, 0, 0, map->flags, (iec_qds_t){0}, &IEC_ADDR_CONF_104);
         }
-        iec104_apci_wrap_i(&priv->apci, out);
+        iec104_apci_wrap_i(priv->apci, out);
         return 0;
     }
     return -1;
@@ -265,7 +265,7 @@ static int iec104_v4_encode_write(edge_driver_ctx_t *ctx, uint32_t tag_id,
         } else {
             iec_asdu_add_any(out, (uint8_t)map->type_id, map->key, value, 0, map->flags, (iec_qds_t){0}, &IEC_ADDR_CONF_104);
         }
-        iec104_apci_wrap_i(&priv->apci, out);
+        iec104_apci_wrap_i(priv->apci, out);
         return 0;
     }
     return -1;
