@@ -32,15 +32,21 @@
 #include "battery_thermal_mesh.h"
 #include "bus_orchestrator.h"
 #include "datahub.h"
+#include "driver_hotplug.h"
 #include "driver_manager.h"
+#include "ebpf_guard.h"
+#include "edge_acl.h"
 #include "edge_agent.h"
 #include "edge_cep_engine.h"
 #include "edge_composition_root.h"
 #include "edge_guard.h"
 #include "edge_sched_deadline.h"
+#include "iec104_apci.h"
 #include "impedance_control.h"
 #include "mpc_dispatcher.h"
+#include "persistence_mgr.h"
 #include "protocol_bridge.h"
+#include "shmring.h"
 #include "snf_manager.h"
 #include "sqlite_service.h"
 #include "vsg_control.h"
@@ -555,6 +561,128 @@ static void test_snf_manager_caller_allocated_storage(void **state) {
     uv_loop_close(&loop);
 }
 
+static void test_ebpf_guard_caller_allocated_storage(void **state) {
+    (void)state;
+    ebpf_guard_mgr_storage_t store;
+    memset(&store, 0x11, sizeof(store));
+
+    ebpf_guard_mgr_t *mgr = ebpf_guard_mgr_create_in(&store);
+    assert_non_null(mgr);
+    assert_ptr_equal(mgr, (void *)store.raw);
+    assert_true(ebpf_guard_is_enforce_mode(mgr));
+
+    uint32_t probe_id = 0;
+    assert_int_equal(ebpf_guard_attach_probe(mgr, EBPF_PROBE_SYSCALL_MONITOR, &probe_id), 0);
+    assert_int_equal(probe_id, 1);
+
+    assert_int_equal(ebpf_guard_audit_event(mgr, probe_id, 100, false), 0);
+    assert_int_equal(ebpf_guard_audit_event(mgr, probe_id, 200, true), 1);
+    assert_int_equal(ebpf_guard_get_probe_events_processed(mgr, probe_id), 2);
+    assert_int_equal(ebpf_guard_get_probe_violations(mgr, probe_id), 1);
+}
+
+static void test_edge_acl_caller_allocated_storage(void **state) {
+    (void)state;
+    edge_acl_engine_storage_t store;
+    memset(&store, 0x22, sizeof(store));
+
+    edge_acl_engine_t *acl = edge_acl_engine_create_in(&store, ACL_ACTION_DROP);
+    assert_non_null(acl);
+    assert_ptr_equal(acl, (void *)store.raw);
+
+    uint32_t ip = (192 << 24) | (168 << 16) | (1 << 8) | 10;
+    uint32_t mask = (255 << 24) | (255 << 16) | (255 << 8) | 0;
+    assert_int_equal(edge_acl_add_rule(acl, ip, mask, 443, 6, ACL_ACTION_ALLOW), 0);
+
+    assert_int_equal(edge_acl_match(acl, ip, 443, 6), ACL_ACTION_ALLOW);
+    assert_int_equal(edge_acl_match(acl, (10 << 24) | 1, 443, 6), ACL_ACTION_DROP);
+}
+
+static void test_persistence_mgr_caller_allocated_storage(void **state) {
+    (void)state;
+    uv_loop_t loop;
+    uv_loop_init(&loop);
+    shm_ring_t ring;
+    assert_int_equal(shm_ring_init(&ring, 16), 0);
+
+    persistence_mgr_storage_t store;
+    memset(&store, 0x33, sizeof(store));
+
+    persistence_mgr_t *mgr = persistence_mgr_create_in(&store, &loop, &ring, 100);
+    assert_non_null(mgr);
+    assert_ptr_equal(mgr, (void *)store.raw);
+
+    persistence_mgr_close(mgr);
+    shm_ring_destroy(&ring);
+    uv_run(&loop, UV_RUN_NOWAIT);
+    uv_loop_close(&loop);
+}
+
+static int _dummy_hp_init(void) { return 0; }
+static void _dummy_hp_cleanup(void) {}
+
+static void test_driver_hotplug_caller_allocated_storage(void **state) {
+    (void)state;
+    driver_hotplug_mgr_storage_t store;
+    memset(&store, 0x44, sizeof(store));
+
+    driver_hotplug_mgr_t *mgr = driver_hotplug_mgr_create_in(&store);
+    assert_non_null(mgr);
+    assert_ptr_equal(mgr, (void *)store.raw);
+    assert_int_equal(driver_hotplug_get_active_count(mgr), 0);
+
+    driver_plugin_ops_t ops = {
+        .abi_magic = DRIVER_ABI_MAGIC,
+        .abi_version = DRIVER_ABI_VERSION,
+        .driver_name = "HotplugStorageTest",
+        .init_fn = _dummy_hp_init,
+        .cleanup_fn = _dummy_hp_cleanup,
+    };
+    uint32_t slot = 0;
+    assert_int_equal(driver_hotplug_load(mgr, "/lib/hp_test.so", &ops, &slot), 0);
+    assert_int_equal(slot, 1);
+    assert_int_equal(driver_hotplug_get_active_count(mgr), 1);
+
+    assert_int_equal(driver_hotplug_unload(mgr, slot), 0);
+    assert_int_equal(driver_hotplug_get_active_count(mgr), 0);
+}
+
+static void test_iec104_apci_caller_allocated_storage(void **state) {
+    (void)state;
+    iec104_apci_mgr_storage_t store;
+    memset(&store, 0x55, sizeof(store));
+
+    iec104_apci_mgr_t *mgr = iec104_apci_mgr_create_in(&store);
+    assert_non_null(mgr);
+    assert_ptr_equal(mgr, (void *)store.raw);
+
+    assert_int_equal(iec104_apci_get_state(mgr), IEC104_STATE_DISCONNECTED);
+    iec104_apci_set_state(mgr, IEC104_STATE_CONNECTED);
+    assert_int_equal(iec104_apci_get_state(mgr), IEC104_STATE_CONNECTED);
+
+    assert_int_equal(iec104_apci_get_ns(mgr), 0);
+    assert_int_equal(iec104_apci_get_nr(mgr), 0);
+    iec104_apci_set_nr(mgr, 104);
+    assert_int_equal(iec104_apci_get_nr(mgr), 104);
+
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 4, 128, 0, NULL, NULL), 0);
+    net_buf_t *u_buf = net_buf_alloc(&pool, 0);
+    assert_non_null(u_buf);
+    assert_int_equal(iec104_apci_build_u(IEC104_U_STARTDT_ACT, u_buf), 0);
+    assert_int_equal(u_buf->b.len, 6);
+    assert_int_equal(u_buf->b.data[0], 0x68);
+
+    net_buf_t *s_buf = net_buf_alloc(&pool, 0);
+    assert_non_null(s_buf);
+    assert_int_equal(iec104_apci_build_s(mgr, s_buf), 0);
+    assert_int_equal(s_buf->b.len, 6);
+
+    net_buf_unref(u_buf);
+    net_buf_unref(s_buf);
+    net_buf_pool_destroy(&pool);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_battery_ekf_caller_allocated_storage),
@@ -577,6 +705,11 @@ int main(void) {
         cmocka_unit_test(test_edge_agent_caller_allocated_storage),
         cmocka_unit_test(test_protocol_bridge_caller_allocated_storage),
         cmocka_unit_test(test_snf_manager_caller_allocated_storage),
+        cmocka_unit_test(test_ebpf_guard_caller_allocated_storage),
+        cmocka_unit_test(test_edge_acl_caller_allocated_storage),
+        cmocka_unit_test(test_persistence_mgr_caller_allocated_storage),
+        cmocka_unit_test(test_driver_hotplug_caller_allocated_storage),
+        cmocka_unit_test(test_iec104_apci_caller_allocated_storage),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);
