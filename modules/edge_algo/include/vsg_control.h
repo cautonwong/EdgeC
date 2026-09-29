@@ -44,6 +44,12 @@ typedef struct {
     double droop_p;         /**< Frequency-Active power droop coefficient (Hz/W) */
     double droop_q;         /**< Voltage-Reactive power droop coefficient (V/var) */
     vsg_integrator_mode_t integrator_mode; /**< Numerical integrator mode (default RK4) */
+
+    /* AEP-722 Adaptive Droop & Dynamic Damping Parameters */
+    bool enable_adaptive_scr;     /**< Enable dynamic SCR-based adaptation */
+    double scr_nominal;           /**< Baseline nominal grid Short-Circuit Ratio (typ. 3.0) */
+    double scr_current;           /**< Current grid Short-Circuit Ratio (typ. 1.0 ~ 10.0) */
+    double d_transient;           /**< Transient acceleration damping coefficient D_trans (s) */
 } vsg_config_t;
 
 /**
@@ -126,6 +132,15 @@ double vsg_controller_get_p_mech(const vsg_controller_t *vsg);
 double vsg_controller_get_p_damping(const vsg_controller_t *vsg);
 double vsg_controller_get_p_net(const vsg_controller_t *vsg);
 uint64_t vsg_controller_get_step_count(const vsg_controller_t *vsg);
+
+/* -------------------------------------------------------------------------- */
+/* AEP-722 Adaptive Droop & Dynamic Damping Compensator APIs                   */
+/* -------------------------------------------------------------------------- */
+int vsg_controller_set_grid_scr(vsg_controller_t *vsg, double scr);
+double vsg_controller_get_grid_scr(const vsg_controller_t *vsg);
+double vsg_controller_get_effective_damping(const vsg_controller_t *vsg);
+double vsg_controller_get_effective_droop_p(const vsg_controller_t *vsg);
+double vsg_controller_get_effective_droop_q(const vsg_controller_t *vsg);
 
 #ifdef __cplusplus
 }

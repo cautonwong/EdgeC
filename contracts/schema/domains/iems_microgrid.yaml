@@ -61,3 +61,27 @@ tags:
     type: "float"
     unit: "rad/s"
     description: "Virtual Synchronous Generator Virtual Rotor Angular Velocity"
+
+  - id: 131083 # 0x02000B
+    name: "IEMS_GRID_SCR"
+    type: "float"
+    unit: "N/A"
+    description: "Grid Short Circuit Ratio (SCR) for Adaptive VSG Tuning"
+
+  - id: 131084 # 0x02000C
+    name: "IEMS_VSG_EFFECTIVE_DAMPING"
+    type: "float"
+    unit: "N·m·s/rad"
+    description: "VSG Adaptive Effective Damping Coefficient D(SCR)"
+
+  - id: 131085 # 0x02000D
+    name: "IEMS_VSG_EFFECTIVE_DROOP_P"
+    type: "float"
+    unit: "Hz/W"
+    description: "VSG Adaptive Active Power-Frequency Droop Slope"
+
+  - id: 131086 # 0x02000E
+    name: "IEMS_VSG_EFFECTIVE_DROOP_Q"
+    type: "float"
+    unit: "V/var"
+    description: "VSG Adaptive Reactive Power-Voltage Droop Slope"

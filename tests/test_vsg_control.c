@@ -253,14 +253,131 @@ static void test_vsg_state_inspections_and_mode_switching(void) {
     printf("  --> VSG State Inspections & Mode Switching PASSED!\n");
 }
 
+static void test_vsg_adaptive_damping_under_weak_grid_scr(void) {
+    printf("[TEST] Testing VSG Adaptive Damping & Droop vs Grid SCR (AEP-722)...\n");
+
+    vsg_controller_storage_t store;
+    vsg_config_t cfg = {.j_inertia = 2.0,
+                        .d_damping = 20.0,
+                        .v_nominal = 380.0,
+                        .f_nominal = 50.0,
+                        .p_ref = 50000.0,
+                        .q_ref = 0.0,
+                        .droop_p = 1e-4,
+                        .droop_q = 1e-3,
+                        .enable_adaptive_scr = true,
+                        .scr_nominal = 3.0,
+                        .scr_current = 3.0,
+                        .integrator_mode = VSG_INTEGRATOR_RK4};
+
+    vsg_controller_t *vsg = vsg_controller_create_in(&store, &cfg, NULL);
+    assert(vsg != NULL);
+
+    /* 1. At nominal SCR = 3.0 */
+    assert(fabs(vsg_controller_get_grid_scr(vsg) - 3.0) < 1e-6);
+    assert(fabs(vsg_controller_get_effective_damping(vsg) - 20.0) < 1e-6);
+    assert(fabs(vsg_controller_get_effective_droop_p(vsg) - 1e-4) < 1e-9);
+    assert(fabs(vsg_controller_get_effective_droop_q(vsg) - 1e-3) < 1e-9);
+
+    /* 2. Grid weakens to SCR = 1.2 (Weak Grid) */
+    assert(vsg_controller_set_grid_scr(vsg, 1.2) == 0);
+    assert(fabs(vsg_controller_get_grid_scr(vsg) - 1.2) < 1e-6);
+
+    double expected_d_1_2 = 20.0 * sqrt(3.0 / 1.2); /* 20.0 * 1.58113883 = 31.6227766 */
+    double actual_d_1_2 = vsg_controller_get_effective_damping(vsg);
+    printf("    • SCR=1.2: Effective Damping = %.4f N·m·s/rad (Expected: %.4f)\n", actual_d_1_2,
+           expected_d_1_2);
+    assert(fabs(actual_d_1_2 - expected_d_1_2) < 1e-4);
+
+    double expected_dp_1_2 = 1e-4 * sqrt(1.2 / 3.0);
+    assert(fabs(vsg_controller_get_effective_droop_p(vsg) - expected_dp_1_2) < 1e-9);
+
+    double expected_dq_1_2 = 1e-3 * (1.2 / 3.0);
+    assert(fabs(vsg_controller_get_effective_droop_q(vsg) - expected_dq_1_2) < 1e-9);
+
+    /* 3. Grid weakens to SCR = 0.8 (Ultra-Weak Grid) */
+    assert(vsg_controller_set_grid_scr(vsg, 0.8) == 0);
+    double expected_d_0_8 = 20.0 * sqrt(3.0 / 0.8); /* 20.0 * 1.93649167 = 38.729833 */
+    double actual_d_0_8 = vsg_controller_get_effective_damping(vsg);
+    printf("    • SCR=0.8: Effective Damping = %.4f N·m·s/rad (Expected: %.4f)\n", actual_d_0_8,
+           expected_d_0_8);
+    assert(fabs(actual_d_0_8 - expected_d_0_8) < 1e-3);
+
+    /* Invalid SCR value rejected */
+    assert(vsg_controller_set_grid_scr(vsg, -1.0) == -1);
+    assert(vsg_controller_set_grid_scr(vsg, 0.0) == -1);
+
+    printf("  --> VSG Adaptive Damping & Droop vs Grid SCR PASSED!\n");
+}
+
+static void test_vsg_weak_grid_oscillation_suppression_comparison(void) {
+    printf("[TEST] Testing Weak Grid Oscillation Suppression: Fixed vs Adaptive Damping...\n");
+
+    /* Weak grid condition SCR = 1.0 */
+    double scr = 1.0;
+    double Pref = 50000.0;
+    double Pmeas = 80000.0; /* +30 kW step load */
+    double dt = 0.01;       /* 10 ms step */
+
+    /* Controller A: Fixed Damping (Baseline) */
+    vsg_controller_storage_t store_fixed;
+    vsg_config_t cfg_fixed = {.j_inertia = 1.0,
+                              .d_damping = 8.0,
+                              .v_nominal = 380.0,
+                              .f_nominal = 50.0,
+                              .p_ref = Pref,
+                              .q_ref = 0.0,
+                              .droop_p = 1e-4,
+                              .droop_q = 1e-3,
+                              .enable_adaptive_scr = false,
+                              .integrator_mode = VSG_INTEGRATOR_RK4};
+    vsg_controller_t *vsg_fixed = vsg_controller_create_in(&store_fixed, &cfg_fixed, NULL);
+
+    /* Controller B: Adaptive Damping Enabled under SCR = 1.0 */
+    vsg_controller_storage_t store_adapt;
+    vsg_config_t cfg_adapt = cfg_fixed;
+    cfg_adapt.enable_adaptive_scr = true;
+    cfg_adapt.scr_nominal = 3.0;
+    cfg_adapt.scr_current = scr;
+    vsg_controller_t *vsg_adapt = vsg_controller_create_in(&store_adapt, &cfg_adapt, NULL);
+
+    /* Run both controllers for 1.0 second */
+    double f_fixed_min = 50.0;
+    double f_adapt_min = 50.0;
+    for (int i = 0; i < 100; ++i) {
+        double f_fix = 0.0, v_fix = 0.0;
+        double f_ad = 0.0, v_ad = 0.0;
+        vsg_controller_step(vsg_fixed, Pmeas, 0.0, dt, &f_fix, &v_fix);
+        vsg_controller_step(vsg_adapt, Pmeas, 0.0, dt, &f_ad, &v_ad);
+
+        if (f_fix < f_fixed_min) f_fixed_min = f_fix;
+        if (f_ad < f_adapt_min) f_adapt_min = f_ad;
+    }
+
+    double delta_f_fixed_nadir = 50.0 - f_fixed_min;
+    double delta_f_adapt_nadir = 50.0 - f_adapt_min;
+
+    printf("    • Fixed damping freq nadir drop    : %.4f Hz\n", delta_f_fixed_nadir);
+    printf("    • Adaptive damping freq nadir drop   : %.4f Hz\n", delta_f_adapt_nadir);
+
+    /* Under SCR=1.0, adaptive damping provides higher damping and reduces frequency overshoot nadir
+     */
+    assert(delta_f_adapt_nadir < delta_f_fixed_nadir);
+
+    printf("  --> Weak Grid Oscillation Suppression Comparison PASSED!\n");
+}
+
 int main(void) {
-    printf("=== EdgeOS VSG Grid-Forming Control Tests (AEP-721 ~ AEP-730 / Issue #252) ===\n");
+    printf(
+        "=== EdgeOS VSG Grid-Forming Control Tests (AEP-721 ~ AEP-730 / Issue #252 & #253) ===\n");
     test_vsg_initialization_and_bounds();
     test_vsg_swing_dynamics_and_damping();
     test_vsg_reactive_droop();
     test_vsg_rk4_high_precision_against_analytical();
     test_vsg_rocof_and_inertia_simulation();
     test_vsg_state_inspections_and_mode_switching();
+    test_vsg_adaptive_damping_under_weak_grid_scr();
+    test_vsg_weak_grid_oscillation_suppression_comparison();
     printf("=== All VSG Control Tests PASSED! ===\n");
     return 0;
 }
