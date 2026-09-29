@@ -35,6 +35,10 @@ _Static_assert(sizeof(struct protocol_bridge_s) <= sizeof(protocol_bridge_storag
 
 static protocol_bridge_storage_t g_default_bridge_storage;
 
+static void _bridge_cmd_cleanup(struct cmd_msg *cmd) {
+    (void)cmd;
+}
+
 static void _on_data_async(uv_async_t *handle) {
     protocol_bridge_t *bridge = (protocol_bridge_t *)handle->data;
     pipe_msg_t msg;
@@ -52,6 +56,7 @@ static void _on_data_async(uv_async_t *handle) {
                 cmd_msg_t *cmd = &bridge->cmd_slots[i];
                 memset(cmd, 0, sizeof(*cmd));
                 cmd->signature = 0xFEFE; // Mark as routed from bridge
+                cmd->on_cleanup = _bridge_cmd_cleanup;
                 strncpy(cmd->req_id, "BRIDGE_DOWN", sizeof(cmd->req_id) - 1);
                 
                 bus_orchestrator_submit_cmd(bridge->orch, bridge->maps[i].target_bus_id, cmd);

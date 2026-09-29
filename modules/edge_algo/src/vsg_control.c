@@ -62,19 +62,74 @@ vsg_controller_t *vsg_controller_create_in(vsg_controller_storage_t *store,
     vsg->theta = 0.0;
     vsg->step_count = 0;
 
+    if (vsg->config.scr_nominal <= 0.0) {
+        vsg->config.scr_nominal = 3.0;
+    }
+    if (vsg->config.scr_current <= 0.0) {
+        vsg->config.scr_current = vsg->config.scr_nominal;
+    }
+
     return vsg;
+}
+
+static inline void _vsg_calc_adaptive_params(const struct vsg_controller *vsg,
+                                             double *out_d_eff, double *out_droop_p,
+                                             double *out_droop_q) {
+    double d_base = vsg->config.d_damping;
+    double dp_base = vsg->config.droop_p;
+    double dq_base = vsg->config.droop_q;
+
+    if (!vsg->config.enable_adaptive_scr) {
+        *out_d_eff = d_base;
+        *out_droop_p = dp_base;
+        *out_droop_q = dq_base;
+        return;
+    }
+
+    double scr = vsg->config.scr_current;
+    double scr_nom = vsg->config.scr_nominal > 0.0 ? vsg->config.scr_nominal : 3.0;
+    if (scr <= 0.1) scr = 0.1; /* Physical lower bound */
+
+    if (scr < scr_nom) {
+        /* In weak grid, synchronizing power Ks decreases proportionally with SCR.
+         * To maintain damping ratio zeta = D / (2 * sqrt(J * omega0 * Ks)) >= target,
+         * D must scale inversely with sqrt(SCR / SCR_nom): D_eff = D_0 * sqrt(SCR_nom / SCR).
+         */
+        double ratio = sqrt(scr_nom / scr);
+        if (ratio > 4.0) ratio = 4.0; /* Clamped to 4x to avoid overdamping */
+        *out_d_eff = d_base * ratio;
+
+        /* Adaptive Droop: scale down droop slopes to avoid excessive angle and voltage deviations */
+        double droop_scale = sqrt(scr / scr_nom);
+        *out_droop_p = dp_base * droop_scale;
+        *out_droop_q = dq_base * (scr / scr_nom);
+    } else {
+        *out_d_eff = d_base;
+        *out_droop_p = dp_base;
+        *out_droop_q = dq_base;
+    }
 }
 
 static inline double _vsg_eval_domega(const struct vsg_controller *vsg, double omega,
                                       double p_meas, double *out_p_mech, double *out_p_damp) {
+    double d_eff = 0.0, droop_p_eff = 0.0, droop_q_eff = 0.0;
+    _vsg_calc_adaptive_params(vsg, &d_eff, &droop_p_eff, &droop_q_eff);
+
     double p_mech = vsg->config.p_ref;
-    if (vsg->config.droop_p > 0.0) {
+    if (droop_p_eff > 0.0) {
         double delta_f = (omega - vsg->omega_0) / (2.0 * M_PI);
-        p_mech -= (delta_f / vsg->config.droop_p);
+        p_mech -= (delta_f / droop_p_eff);
     }
     double delta_omega = omega - vsg->omega_0;
-    double p_damping = vsg->config.d_damping * delta_omega;
+    double p_damping = d_eff * delta_omega;
     double p_net = p_mech - p_meas - p_damping;
+
+    /* Transient acceleration damping D_trans (if enabled) */
+    if (vsg->config.d_transient > 0.0) {
+        double d_trans_power = vsg->config.d_transient * p_net;
+        p_damping += d_trans_power;
+        p_net -= d_trans_power;
+    }
 
     if (out_p_mech) *out_p_mech = p_mech;
     if (out_p_damp) *out_p_damp = p_damping;
@@ -136,12 +191,15 @@ int vsg_controller_step(vsg_controller_t *vsg, double p_meas, double q_meas,
     vsg->frequency_hz = vsg->omega / (2.0 * M_PI);
 
     /* Update post-step physical power metrics at current rotor speed */
+    double d_eff_post = 0.0, dp_eff_post = 0.0, dq_eff_post = 0.0;
+    _vsg_calc_adaptive_params(vsg, &d_eff_post, &dp_eff_post, &dq_eff_post);
+
     double delta_omega_post = vsg->omega - vsg->omega_0;
-    vsg->p_damping_last = vsg->config.d_damping * delta_omega_post;
+    vsg->p_damping_last = d_eff_post * delta_omega_post;
     double p_mech_post = vsg->config.p_ref;
-    if (vsg->config.droop_p > 0.0) {
+    if (dp_eff_post > 0.0) {
         double delta_f_post = (vsg->omega - vsg->omega_0) / (2.0 * M_PI);
-        p_mech_post -= (delta_f_post / vsg->config.droop_p);
+        p_mech_post -= (delta_f_post / dp_eff_post);
     }
     vsg->p_mech_last = p_mech_post;
     vsg->p_net_last = p_mech_post - p_meas - vsg->p_damping_last;
@@ -156,7 +214,7 @@ int vsg_controller_step(vsg_controller_t *vsg, double p_meas, double q_meas,
      *    E = V_nominal + Droop_Q * (Q_ref - Q_meas)
      */
     double delta_q = vsg->config.q_ref - q_meas;
-    double v_target = vsg->config.v_nominal + vsg->config.droop_q * delta_q;
+    double v_target = vsg->config.v_nominal + dq_eff_post * delta_q;
 
     /* Low-pass filtering on voltage adjustment */
     double tau_v = 0.02; /* 20ms voltage filter time constant */
@@ -266,4 +324,35 @@ double vsg_controller_get_p_net(const vsg_controller_t *vsg) {
 
 uint64_t vsg_controller_get_step_count(const vsg_controller_t *vsg) {
     return vsg ? vsg->step_count : 0;
+}
+
+int vsg_controller_set_grid_scr(vsg_controller_t *vsg, double scr) {
+    if (!vsg || scr <= 0.0) return -1;
+    vsg->config.scr_current = scr;
+    return 0;
+}
+
+double vsg_controller_get_grid_scr(const vsg_controller_t *vsg) {
+    return vsg ? vsg->config.scr_current : 0.0;
+}
+
+double vsg_controller_get_effective_damping(const vsg_controller_t *vsg) {
+    if (!vsg) return 0.0;
+    double d_eff = 0.0, dp = 0.0, dq = 0.0;
+    _vsg_calc_adaptive_params(vsg, &d_eff, &dp, &dq);
+    return d_eff;
+}
+
+double vsg_controller_get_effective_droop_p(const vsg_controller_t *vsg) {
+    if (!vsg) return 0.0;
+    double d_eff = 0.0, dp = 0.0, dq = 0.0;
+    _vsg_calc_adaptive_params(vsg, &d_eff, &dp, &dq);
+    return dp;
+}
+
+double vsg_controller_get_effective_droop_q(const vsg_controller_t *vsg) {
+    if (!vsg) return 0.0;
+    double d_eff = 0.0, dp = 0.0, dq = 0.0;
+    _vsg_calc_adaptive_params(vsg, &d_eff, &dp, &dq);
+    return dq;
 }

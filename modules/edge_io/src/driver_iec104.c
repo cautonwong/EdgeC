@@ -28,6 +28,7 @@ typedef struct {
 } iec104_ctx_t;
 
 static int iec104_v4_on_init(edge_driver_ctx_t *ctx) {
+    if (!ctx || !ctx->priv) return -1;
     iec104_ctx_t *priv = (iec104_ctx_t *)ctx->priv;
     memset(priv, 0, sizeof(iec104_ctx_t));
     priv->apci = iec104_apci_mgr_create_in(&priv->apci_store);

@@ -13,7 +13,7 @@
 #define MAX_DRIVERS 32
 #define MAX_POLL_TARGETS 32
 #define MAX_DRIVER_INSTANCES 32
-#define DRIVER_PRIV_SIZE 512
+#define DRIVER_PRIV_SIZE 1024
 #define MAX_POLL_TAGS 64
 #define MAX_DISPATCH_MSGS 64
 
@@ -301,7 +301,11 @@ edge_driver_ctx_t *driver_instance_create(driver_manager_t *mgr, const char *pro
     slot->in_use = true;
     slot->ctx.driver = tmpl;
     slot->ctx.device_id = device_id;
-    if (tmpl->ctx_size > 0 && tmpl->ctx_size <= DRIVER_PRIV_SIZE) {
+    if (tmpl->ctx_size > 0) {
+        if (tmpl->ctx_size > DRIVER_PRIV_SIZE) {
+            slot->in_use = false;
+            return NULL;
+        }
         slot->ctx.priv = slot->priv;
         memset(slot->priv, 0, DRIVER_PRIV_SIZE);
     }
