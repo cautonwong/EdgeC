@@ -105,6 +105,29 @@ typedef struct {
 } vsg_circulating_status_t;
 
 /**
+ * @brief Subsynchronous Oscillation (SSO) & Supersynchronous Resonance (SSR) Damping Config (AEP-727)
+ */
+typedef struct {
+    bool enable_sso_damping;          /**< Enable active SSO/SSR detection and damping injection */
+    double sso_freq_min_hz;           /**< Lower search bound for SSO frequency band (Hz, typ. 5.0) */
+    double sso_freq_max_hz;           /**< Upper search bound for SSO frequency band (Hz, typ. 45.0) */
+    double sso_alarm_thresh_a;        /**< Current oscillation amplitude threshold to trigger alarm (A, typ. 2.0 ~ 10.0) */
+    double notch_damping_ratio_zeta;  /**< Damping ratio zeta of adaptive notch filter (typ. 0.1 ~ 0.3) */
+    double active_damp_gain;          /**< Anti-phase active damping injection gain K_damp (V/A, typ. 1.0 ~ 10.0) */
+} vsg_sso_config_t;
+
+/**
+ * @brief SSO/SSR Online Detection & Damping Status (AEP-727)
+ */
+typedef struct {
+    bool sso_detected;                /**< True when oscillation amplitude exceeds alarm threshold */
+    double sso_freq_hz;               /**< Online identified dominant oscillation frequency (Hz) */
+    double sso_amplitude_a;           /**< Estimated peak amplitude of subsynchronous current oscillation (A) */
+    double damping_out_v;             /**< Active anti-phase damping compensation voltage output (V) */
+    double energy_reduction_ratio_pct;/**< Oscillation energy suppression reduction percentage (%) */
+} vsg_sso_status_t;
+
+/**
  * @brief Pre-synchronization & Seamless Transition Status (AEP-723)
  */
 typedef struct {
@@ -152,6 +175,9 @@ typedef struct {
 
     /* AEP-725 Multi-PCS Line Impedance Identification & Circulating Current Suppression */
     vsg_circulating_suppress_config_t circ_suppress; /**< Circulating current suppression configuration */
+
+    /* AEP-727 Subsynchronous Oscillation (SSO) Detection & Active Notch Damping */
+    vsg_sso_config_t sso; /**< SSO/SSR detection and damping configuration */
 } vsg_config_t;
 
 /**
@@ -275,6 +301,14 @@ int vsg_controller_step_circ_suppression(vsg_controller_t *vsg,
                                          double dt_s,
                                          double *out_v_d, double *out_v_q);
 int vsg_controller_get_circ_status(const vsg_controller_t *vsg, vsg_circulating_status_t *status);
+
+/* -------------------------------------------------------------------------- */
+/* AEP-727 Subsynchronous Oscillation (SSO) Detection & Active Damping APIs   */
+/* -------------------------------------------------------------------------- */
+int vsg_controller_set_sso_config(vsg_controller_t *vsg, const vsg_sso_config_t *cfg);
+int vsg_controller_step_sso_damping(vsg_controller_t *vsg, double i_raw_a, double dt_s,
+                                    double *out_filtered_i_a, double *out_damping_v);
+int vsg_controller_get_sso_status(const vsg_controller_t *vsg, vsg_sso_status_t *status);
 
 #ifdef __cplusplus
 }

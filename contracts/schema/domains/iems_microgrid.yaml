@@ -163,3 +163,27 @@ tags:
     type: "float"
     unit: "Ω"
     description: "VSG Adaptive Virtual Stator Reactance X_v"
+
+  - id: 131100 # 0x02001C
+    name: "IEMS_VSG_SSO_DETECTED"
+    type: "bool"
+    unit: ""
+    description: "Sub/Super-Synchronous Oscillation (SSO/SSR) Detected Alarm"
+
+  - id: 131101 # 0x02001D
+    name: "IEMS_VSG_SSO_FREQ_HZ"
+    type: "float"
+    unit: "Hz"
+    description: "SSO Dominant Oscillation Frequency"
+
+  - id: 131102 # 0x02001E
+    name: "IEMS_VSG_SSO_AMPLITUDE_A"
+    type: "float"
+    unit: "A"
+    description: "SSO Oscillation Current Amplitude"
+
+  - id: 131103 # 0x02001F
+    name: "IEMS_VSG_SSO_DAMPING_OUT_V"
+    type: "float"
+    unit: "V"
+    description: "SSO Active Damping Compensation Output Voltage"

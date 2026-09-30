@@ -106,6 +106,10 @@ const (
 	IEMS_VSG_LINE_X_EST = 131097
 	IEMS_VSG_VIRTUAL_R = 131098
 	IEMS_VSG_VIRTUAL_X = 131099
+	IEMS_VSG_SSO_DETECTED = 131100
+	IEMS_VSG_SSO_FREQ_HZ = 131101
+	IEMS_VSG_SSO_AMPLITUDE_A = 131102
+	IEMS_VSG_SSO_DAMPING_OUT_V = 131103
 )
 
 type TagMetadata struct {
@@ -219,4 +223,8 @@ var Metadata = map[uint32]TagMetadata{
 	131097: {ID: 131097, Name: "IEMS_VSG_LINE_X_EST", DataType: "float", Unit: "Ω"},
 	131098: {ID: 131098, Name: "IEMS_VSG_VIRTUAL_R", DataType: "float", Unit: "Ω"},
 	131099: {ID: 131099, Name: "IEMS_VSG_VIRTUAL_X", DataType: "float", Unit: "Ω"},
+	131100: {ID: 131100, Name: "IEMS_VSG_SSO_DETECTED", DataType: "bool", Unit: ""},
+	131101: {ID: 131101, Name: "IEMS_VSG_SSO_FREQ_HZ", DataType: "float", Unit: "Hz"},
+	131102: {ID: 131102, Name: "IEMS_VSG_SSO_AMPLITUDE_A", DataType: "float", Unit: "A"},
+	131103: {ID: 131103, Name: "IEMS_VSG_SSO_DAMPING_OUT_V", DataType: "float", Unit: "V"},
 }

@@ -736,9 +736,110 @@ static void test_vsg_online_line_impedance_identification_rls(void) {
     printf("  --> VSG Online Line Impedance RLS Identification PASSED!\n");
 }
 
+static void test_vsg_sso_detection_and_frequency_tracking(void) {
+    printf("[TEST] Testing VSG SSO Online Frequency & Amplitude Estimation (AEP-727)...\n");
+
+    vsg_controller_storage_t store;
+    vsg_config_t cfg = {.j_inertia = 1.0,
+                        .d_damping = 20.0,
+                        .v_nominal = 380.0,
+                        .f_nominal = 50.0,
+                        .sso = {.enable_sso_damping = true,
+                                .sso_freq_min_hz = 5.0,
+                                .sso_freq_max_hz = 45.0,
+                                .sso_alarm_thresh_a = 5.0,
+                                .notch_damping_ratio_zeta = 0.2,
+                                .active_damp_gain = 3.0}};
+
+    vsg_controller_t *vsg = vsg_controller_create_in(&store, &cfg, NULL);
+    assert(vsg != NULL);
+
+    /* Injected current: 50Hz nominal grid current 100A + 18.5Hz SSO oscillation 12A */
+    double f_fund = 50.0;
+    double f_sso_true = 18.5;
+    double a_sso_true = 12.0;
+
+    double filtered_i = 0.0, v_damp = 0.0;
+
+    /* Run 1000 steps at 1kHz (dt = 0.001s, 1.0s duration) */
+    for (int i = 0; i < 1000; ++i) {
+        double t = i * 0.001;
+        double i_raw =
+            100.0 * sin(2.0 * M_PI * f_fund * t) + a_sso_true * sin(2.0 * M_PI * f_sso_true * t);
+
+        vsg_controller_step_sso_damping(vsg, i_raw, 0.001, &filtered_i, &v_damp);
+    }
+
+    vsg_sso_status_t status;
+    assert(vsg_controller_get_sso_status(vsg, &status) == 0);
+    printf(
+        "    • SSO Detection: Detected=%d, f_est=%.2f Hz (True=%.2f Hz), A_est=%.2f A (True=%.2f "
+        "A)\n",
+        status.sso_detected, status.sso_freq_hz, f_sso_true, status.sso_amplitude_a, a_sso_true);
+
+    assert(status.sso_detected == true);
+    assert(fabs(status.sso_freq_hz - f_sso_true) < 1.5);
+    assert(fabs(status.sso_amplitude_a - a_sso_true) < 2.0);
+
+    printf("  --> VSG SSO Frequency & Amplitude Estimation PASSED!\n");
+}
+
+static void test_vsg_sso_adaptive_notch_filtering_and_active_damping(void) {
+    printf(
+        "[TEST] Testing VSG SSO Adaptive Notch Filter & Anti-Phase Active Damping (AEP-727)...\n");
+
+    vsg_controller_storage_t store;
+    vsg_config_t cfg = {.j_inertia = 1.0,
+                        .d_damping = 20.0,
+                        .v_nominal = 380.0,
+                        .f_nominal = 50.0,
+                        .sso = {.enable_sso_damping = true,
+                                .sso_freq_min_hz = 5.0,
+                                .sso_freq_max_hz = 45.0,
+                                .sso_alarm_thresh_a = 4.0,
+                                .notch_damping_ratio_zeta = 0.25,
+                                .active_damp_gain = 4.0}};
+
+    vsg_controller_t *vsg = vsg_controller_create_in(&store, &cfg, NULL);
+    assert(vsg != NULL);
+
+    /* Pure 22Hz SSO oscillation current to evaluate notch suppression */
+    double f_sso = 22.0;
+    double a_sso = 10.0;
+
+    double filtered_i = 0.0, v_damp = 0.0;
+    double max_filtered_steady = 0.0;
+
+    /* Run 1500 steps to allow notch filter and FLL to lock and reach steady-state */
+    for (int i = 0; i < 1500; ++i) {
+        double t = i * 0.001;
+        double i_raw = a_sso * sin(2.0 * M_PI * f_sso * t);
+        vsg_controller_step_sso_damping(vsg, i_raw, 0.001, &filtered_i, &v_damp);
+
+        if (i > 1200) {
+            if (fabs(filtered_i) > max_filtered_steady) {
+                max_filtered_steady = fabs(filtered_i);
+            }
+        }
+    }
+
+    vsg_sso_status_t status;
+    assert(vsg_controller_get_sso_status(vsg, &status) == 0);
+    printf(
+        "    • Notch Attenuation: Input=10.0A SSO -> Output=%.2fA (Attenuated >80%%), "
+        "DampingVoltage=%.2f V\n",
+        max_filtered_steady, status.damping_out_v);
+
+    assert(max_filtered_steady <
+           2.0); /* Residual is < 2.0A (>= 80% attenuation at notch notch depth) */
+    assert(fabs(status.damping_out_v) > 0.1);
+
+    printf("  --> VSG SSO Adaptive Notch & Active Damping PASSED!\n");
+}
+
 int main(void) {
     printf(
-        "=== EdgeOS VSG Grid-Forming Control Tests (AEP-721 ~ AEP-730 / Issue #252 ~ #256) ===\n");
+        "=== EdgeOS VSG Grid-Forming Control Tests (AEP-721 ~ AEP-730 / Issue #252 ~ #257) ===\n");
     test_vsg_initialization_and_bounds();
     test_vsg_swing_dynamics_and_damping();
     test_vsg_reactive_droop();
@@ -754,6 +855,8 @@ int main(void) {
     test_vsg_black_start_multi_pcs_lockstep();
     test_vsg_circulating_current_active_suppression();
     test_vsg_online_line_impedance_identification_rls();
+    test_vsg_sso_detection_and_frequency_tracking();
+    test_vsg_sso_adaptive_notch_filtering_and_active_damping();
     printf("=== All VSG Control Tests PASSED! ===\n");
     return 0;
 }
