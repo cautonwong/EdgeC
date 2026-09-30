@@ -85,3 +85,27 @@ tags:
     type: "float"
     unit: "V/var"
     description: "VSG Adaptive Reactive Power-Voltage Droop Slope"
+
+  - id: 131087 # 0x02000F
+    name: "IEMS_VSG_GRID_MODE"
+    type: "uint"
+    unit: "N/A"
+    description: "VSG Grid Operation Mode (0:Connected, 1:Islanded, 2:PreSync)"
+
+  - id: 131088 # 0x020010
+    name: "IEMS_VSG_SYNC_LOCKED"
+    type: "bool"
+    unit: ""
+    description: "Pre-synchronization Lock Permit Flag for STS Reclosure"
+
+  - id: 131089 # 0x020011
+    name: "IEMS_VSG_SYNC_DELTA_THETA"
+    type: "float"
+    unit: "rad"
+    description: "Pre-synchronization Phase Angle Error vs Grid"
+
+  - id: 131090 # 0x020012
+    name: "IEMS_VSG_SYNC_DELTA_VOLT"
+    type: "float"
+    unit: "V"
+    description: "Pre-synchronization Voltage Amplitude Error vs Grid"

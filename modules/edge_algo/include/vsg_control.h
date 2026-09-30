@@ -32,6 +32,27 @@ typedef enum {
 } vsg_integrator_mode_t;
 
 /**
+ * @brief VSG Grid Operation Modes (AEP-723 Seamless Transition)
+ */
+typedef enum {
+    VSG_GRID_MODE_CONNECTED = 0,    /**< Grid-connected mode (active/reactive dispatch + grid forming) */
+    VSG_GRID_MODE_ISLANDED  = 1,    /**< Autonomous islanded microgrid (V/f master) */
+    VSG_GRID_MODE_PRE_SYNC  = 2,    /**< Pre-synchronization mode (phase/voltage tracking for reconnection) */
+} vsg_grid_mode_t;
+
+/**
+ * @brief Pre-synchronization & Seamless Transition Status (AEP-723)
+ */
+typedef struct {
+    vsg_grid_mode_t current_mode;   /**< Current operation mode */
+    bool sync_locked;               /**< True when phase, voltage, and frequency are locked within tolerances */
+    double delta_theta_rad;         /**< Phase angle error vs grid (rad, [-pi, pi]) */
+    double delta_volt_v;            /**< Voltage amplitude error vs grid (V) */
+    double delta_freq_hz;           /**< Frequency error vs grid (Hz) */
+    uint32_t lock_hold_cycles;      /**< Number of consecutive cycles tolerance held */
+} vsg_transition_status_t;
+
+/**
  * @brief Virtual Synchronous Generator Configuration & Physical Parameters
  */
 typedef struct {
@@ -50,6 +71,17 @@ typedef struct {
     double scr_nominal;           /**< Baseline nominal grid Short-Circuit Ratio (typ. 3.0) */
     double scr_current;           /**< Current grid Short-Circuit Ratio (typ. 1.0 ~ 10.0) */
     double d_transient;           /**< Transient acceleration damping coefficient D_trans (s) */
+
+    /* AEP-723 Seamless Transition & Pre-Synchronization Parameters */
+    vsg_grid_mode_t grid_mode;      /**< Initial operating mode (default CONNECTED) */
+    double sync_kp_theta;           /**< Pre-sync phase angle tracking proportional gain */
+    double sync_ki_theta;           /**< Pre-sync phase angle tracking integral gain */
+    double sync_kp_v;               /**< Pre-sync voltage magnitude tracking gain */
+    double sync_theta_tol_rad;      /**< Sync lock tolerance for delta_theta (rad, typ. 0.05) */
+    double sync_volt_tol_v;         /**< Sync lock tolerance for delta_V (V, typ. 2.0) */
+    double sync_freq_tol_hz;        /**< Sync lock tolerance for delta_f (Hz, typ. 0.1) */
+    double island_freq_slew_hz_s;   /**< Max frequency ramp rate when islanding (Hz/s, typ. 1.0) */
+    double island_volt_slew_v_s;    /**< Max voltage ramp rate when islanding (V/s, typ. 20.0) */
 } vsg_config_t;
 
 /**
@@ -141,6 +173,16 @@ double vsg_controller_get_grid_scr(const vsg_controller_t *vsg);
 double vsg_controller_get_effective_damping(const vsg_controller_t *vsg);
 double vsg_controller_get_effective_droop_p(const vsg_controller_t *vsg);
 double vsg_controller_get_effective_droop_q(const vsg_controller_t *vsg);
+
+/* -------------------------------------------------------------------------- */
+/* AEP-723 Seamless Grid-Forming Transition & Pre-Sync APIs                   */
+/* -------------------------------------------------------------------------- */
+int vsg_controller_set_mode(vsg_controller_t *vsg, vsg_grid_mode_t mode);
+vsg_grid_mode_t vsg_controller_get_mode(const vsg_controller_t *vsg);
+int vsg_controller_trigger_unplanned_islanding(vsg_controller_t *vsg, double grid_v, double grid_f, double grid_theta);
+int vsg_controller_step_presync(vsg_controller_t *vsg, double grid_v, double grid_f, double grid_theta, double dt_s);
+bool vsg_controller_is_sync_locked(const vsg_controller_t *vsg);
+int vsg_controller_get_transition_status(const vsg_controller_t *vsg, vsg_transition_status_t *status);
 
 #ifdef __cplusplus
 }

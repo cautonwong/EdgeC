@@ -26,6 +26,10 @@ struct vsg_controller {
     double p_mech_last;   /**< Last calculated mechanical power (W) */
     double p_damping_last;/**< Last calculated damping power (W) */
     double p_net_last;    /**< Last net accelerating power (W) */
+
+    /* AEP-723 Seamless Transition & Pre-Sync State */
+    vsg_transition_status_t transition;
+    double sync_theta_integ;   /**< Pre-sync integral state */
     
     /* Integrator state */
     uint64_t step_count;
@@ -68,6 +72,20 @@ vsg_controller_t *vsg_controller_create_in(vsg_controller_storage_t *store,
     if (vsg->config.scr_current <= 0.0) {
         vsg->config.scr_current = vsg->config.scr_nominal;
     }
+
+    if (vsg->config.sync_kp_theta <= 0.0) vsg->config.sync_kp_theta = 20.0;
+    if (vsg->config.sync_ki_theta <= 0.0) vsg->config.sync_ki_theta = 2.0;
+    if (vsg->config.sync_kp_v <= 0.0) vsg->config.sync_kp_v = 1.0;
+    if (vsg->config.sync_theta_tol_rad <= 0.0) vsg->config.sync_theta_tol_rad = 0.05;
+    if (vsg->config.sync_volt_tol_v <= 0.0) vsg->config.sync_volt_tol_v = 2.0;
+    if (vsg->config.sync_freq_tol_hz <= 0.0) vsg->config.sync_freq_tol_hz = 0.1;
+    if (vsg->config.island_freq_slew_hz_s <= 0.0) vsg->config.island_freq_slew_hz_s = 1.0;
+    if (vsg->config.island_volt_slew_v_s <= 0.0) vsg->config.island_volt_slew_v_s = 20.0;
+
+    vsg->transition.current_mode = cfg->grid_mode;
+    vsg->transition.sync_locked = false;
+    vsg->transition.lock_hold_cycles = 0;
+    vsg->sync_theta_integ = 0.0;
 
     return vsg;
 }
@@ -143,6 +161,9 @@ static inline double _vsg_eval_domega(const struct vsg_controller *vsg, double o
 int vsg_controller_step(vsg_controller_t *vsg, double p_meas, double q_meas,
                         double dt_s, double *out_freq_hz, double *out_voltage_v) {
     if (!vsg || dt_s <= 0.0) return -1;
+
+    double prev_f = vsg->frequency_hz;
+    double prev_v = vsg->voltage_v;
 
     /* 1 & 2. Swing Equation (Rotor Motion Integration) */
     if (vsg->config.integrator_mode == VSG_INTEGRATOR_EULER) {
@@ -226,6 +247,26 @@ int vsg_controller_step(vsg_controller_t *vsg, double p_meas, double q_meas,
     double max_v = 1.20 * vsg->config.v_nominal;
     if (vsg->voltage_v < min_v) vsg->voltage_v = min_v;
     if (vsg->voltage_v > max_v) vsg->voltage_v = max_v;
+
+    /* AEP-723 Autonomous Islanding Voltage & Frequency Slew Rate Control */
+    if (vsg->transition.current_mode == VSG_GRID_MODE_ISLANDED) {
+        double df_max = vsg->config.island_freq_slew_hz_s * dt_s;
+        double df = vsg->config.f_nominal - prev_f;
+        if (fabs(df) > df_max) {
+            vsg->frequency_hz = prev_f + (df > 0.0 ? df_max : -df_max);
+        } else {
+            vsg->frequency_hz = vsg->config.f_nominal;
+        }
+        vsg->omega = 2.0 * M_PI * vsg->frequency_hz;
+
+        double dv_max = vsg->config.island_volt_slew_v_s * dt_s;
+        double dv = vsg->config.v_nominal - prev_v;
+        if (fabs(dv) > dv_max) {
+            vsg->voltage_v = prev_v + (dv > 0.0 ? dv_max : -dv_max);
+        } else {
+            vsg->voltage_v = vsg->config.v_nominal;
+        }
+    }
 
     vsg->step_count++;
 
@@ -355,4 +396,118 @@ double vsg_controller_get_effective_droop_q(const vsg_controller_t *vsg) {
     double d_eff = 0.0, dp = 0.0, dq = 0.0;
     _vsg_calc_adaptive_params(vsg, &d_eff, &dp, &dq);
     return dq;
+}
+
+/* -------------------------------------------------------------------------- */
+/* AEP-723 Seamless Grid-Forming Transition & Pre-Sync Implementation         */
+/* -------------------------------------------------------------------------- */
+static inline double _wrap_pi(double angle) {
+    while (angle > M_PI) angle -= 2.0 * M_PI;
+    while (angle < -M_PI) angle += 2.0 * M_PI;
+    return angle;
+}
+
+int vsg_controller_set_mode(vsg_controller_t *vsg, vsg_grid_mode_t mode) {
+    if (!vsg) return -1;
+    vsg->transition.current_mode = mode;
+    if (mode == VSG_GRID_MODE_CONNECTED) {
+        vsg->transition.sync_locked = false;
+        vsg->transition.lock_hold_cycles = 0;
+        vsg->sync_theta_integ = 0.0;
+    }
+    return 0;
+}
+
+vsg_grid_mode_t vsg_controller_get_mode(const vsg_controller_t *vsg) {
+    return vsg ? vsg->transition.current_mode : VSG_GRID_MODE_CONNECTED;
+}
+
+int vsg_controller_trigger_unplanned_islanding(vsg_controller_t *vsg,
+                                              double grid_v, double grid_f, double grid_theta) {
+    if (!vsg) return -1;
+
+    /* Microsecond-level state handover to ensure zero voltage/phase jump */
+    if (grid_v > 0.0) {
+        vsg->voltage_v = grid_v;
+    }
+    if (grid_f > 0.0) {
+        vsg->frequency_hz = grid_f;
+        vsg->omega = 2.0 * M_PI * grid_f;
+    }
+    vsg->theta = fmod(grid_theta, 2.0 * M_PI);
+    if (vsg->theta < 0.0) vsg->theta += 2.0 * M_PI;
+
+    vsg->transition.current_mode = VSG_GRID_MODE_ISLANDED;
+    vsg->transition.sync_locked = false;
+    vsg->transition.lock_hold_cycles = 0;
+    vsg->sync_theta_integ = 0.0;
+
+    return 0;
+}
+
+int vsg_controller_step_presync(vsg_controller_t *vsg,
+                                double grid_v, double grid_f, double grid_theta, double dt_s) {
+    if (!vsg || dt_s <= 0.0 || grid_v <= 0.0 || grid_f <= 0.0) return -1;
+
+    vsg->transition.current_mode = VSG_GRID_MODE_PRE_SYNC;
+
+    /* 1. Calculate phase, voltage, and frequency errors */
+    double delta_theta = _wrap_pi(grid_theta - vsg->theta);
+    double delta_v = grid_v - vsg->voltage_v;
+    double delta_f = grid_f - vsg->frequency_hz;
+
+    vsg->transition.delta_theta_rad = delta_theta;
+    vsg->transition.delta_volt_v = delta_v;
+    vsg->transition.delta_freq_hz = delta_f;
+
+    /* 2. PI phase tracking trim */
+    vsg->sync_theta_integ += delta_theta * dt_s;
+    if (vsg->sync_theta_integ > 10.0) vsg->sync_theta_integ = 10.0;
+    if (vsg->sync_theta_integ < -10.0) vsg->sync_theta_integ = -10.0;
+
+    double omega_trim = vsg->config.sync_kp_theta * delta_theta +
+                        vsg->config.sync_ki_theta * vsg->sync_theta_integ;
+
+    vsg->omega = 2.0 * M_PI * grid_f + omega_trim;
+    vsg->frequency_hz = vsg->omega / (2.0 * M_PI);
+
+    /* 3. Voltage magnitude tracking trim */
+    double v_trim = vsg->config.sync_kp_v * delta_v;
+    vsg->voltage_v += v_trim * dt_s * 10.0;
+    if (vsg->voltage_v > 1.2 * vsg->config.v_nominal) vsg->voltage_v = 1.2 * vsg->config.v_nominal;
+    if (vsg->voltage_v < 0.8 * vsg->config.v_nominal) vsg->voltage_v = 0.8 * vsg->config.v_nominal;
+
+    /* 4. Update phase angle */
+    vsg->theta += vsg->omega * dt_s;
+    vsg->theta = fmod(vsg->theta, 2.0 * M_PI);
+    if (vsg->theta < 0.0) vsg->theta += 2.0 * M_PI;
+
+    /* 5. Check if tolerances are satisfied for lock hold */
+    bool in_tol = (fabs(delta_theta) <= vsg->config.sync_theta_tol_rad) &&
+                  (fabs(delta_v) <= vsg->config.sync_volt_tol_v) &&
+                  (fabs(delta_f) <= vsg->config.sync_freq_tol_hz);
+
+    if (in_tol) {
+        vsg->transition.lock_hold_cycles++;
+        if (vsg->transition.lock_hold_cycles >= 5) {
+            vsg->transition.sync_locked = true;
+        }
+    } else {
+        vsg->transition.lock_hold_cycles = 0;
+        vsg->transition.sync_locked = false;
+    }
+
+    vsg->step_count++;
+    return 0;
+}
+
+bool vsg_controller_is_sync_locked(const vsg_controller_t *vsg) {
+    return vsg ? vsg->transition.sync_locked : false;
+}
+
+int vsg_controller_get_transition_status(const vsg_controller_t *vsg,
+                                         vsg_transition_status_t *status) {
+    if (!vsg || !status) return -1;
+    *status = vsg->transition;
+    return 0;
 }

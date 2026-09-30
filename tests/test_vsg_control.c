@@ -367,9 +367,122 @@ static void test_vsg_weak_grid_oscillation_suppression_comparison(void) {
     printf("  --> Weak Grid Oscillation Suppression Comparison PASSED!\n");
 }
 
+static void test_vsg_seamless_unplanned_islanding(void) {
+    printf("[TEST] Testing VSG Seamless Unplanned Islanding Handover (AEP-723)...\n");
+
+    vsg_controller_storage_t store;
+    vsg_config_t cfg = {.j_inertia = 2.0,
+                        .d_damping = 25.0,
+                        .v_nominal = 380.0,
+                        .f_nominal = 50.0,
+                        .p_ref = 60000.0,
+                        .q_ref = 0.0,
+                        .droop_p = 1e-4,
+                        .droop_q = 1e-3,
+                        .island_freq_slew_hz_s = 1.0,
+                        .island_volt_slew_v_s = 20.0,
+                        .integrator_mode = VSG_INTEGRATOR_RK4};
+    vsg_controller_t *vsg = vsg_controller_create_in(&store, &cfg, NULL);
+    assert(vsg != NULL);
+    assert(vsg_controller_get_mode(vsg) == VSG_GRID_MODE_CONNECTED);
+
+    /* Grid fault occurs at V = 365.0 V, f = 49.6 Hz, theta = 2.15 rad */
+    double grid_v = 365.0;
+    double grid_f = 49.6;
+    double grid_theta = 2.15;
+
+    assert(vsg_controller_trigger_unplanned_islanding(vsg, grid_v, grid_f, grid_theta) == 0);
+    assert(vsg_controller_get_mode(vsg) == VSG_GRID_MODE_ISLANDED);
+
+    /* 1. Instantaneous zero-jump handover verification */
+    assert(fabs(vsg_controller_get_voltage(vsg) - 365.0) < 1e-6);
+    assert(fabs(vsg_controller_get_frequency(vsg) - 49.6) < 1e-6);
+    assert(fabs(vsg_controller_get_theta(vsg) - 2.15) < 1e-6);
+
+    /* 2. Run autonomous islanded steps for 2.0s and verify slew rate compliance */
+    double dt = 0.01;
+    double prev_f = 49.6;
+    double prev_v = 365.0;
+    for (int i = 0; i < 200; ++i) {
+        double f_out = 0.0, v_out = 0.0;
+        vsg_controller_step(vsg, 60000.0, 0.0, dt, &f_out, &v_out);
+
+        double rate_f = fabs(f_out - prev_f) / dt;
+        double rate_v = fabs(v_out - prev_v) / dt;
+        assert(rate_f <= 1.05); /* Rate limit 1.0 Hz/s + tolerance */
+        assert(rate_v <= 20.5); /* Rate limit 20.0 V/s + tolerance */
+
+        prev_f = f_out;
+        prev_v = v_out;
+    }
+
+    /* After 2 seconds, islanded state has smoothly recovered towards nominal */
+    assert(fabs(vsg_controller_get_frequency(vsg) - 50.0) < 0.05);
+    assert(fabs(vsg_controller_get_voltage(vsg) - 380.0) < 1.0);
+
+    printf("  --> VSG Seamless Unplanned Islanding Handover PASSED!\n");
+}
+
+static void test_vsg_presync_reconnection_lock(void) {
+    printf("[TEST] Testing VSG Pre-Synchronization Reconnection Locking (AEP-723)...\n");
+
+    vsg_controller_storage_t store;
+    vsg_config_t cfg = {.j_inertia = 2.0,
+                        .d_damping = 20.0,
+                        .v_nominal = 380.0,
+                        .f_nominal = 50.0,
+                        .p_ref = 0.0,
+                        .q_ref = 0.0,
+                        .sync_kp_theta = 35.0,
+                        .sync_ki_theta = 5.0,
+                        .sync_kp_v = 2.0,
+                        .sync_theta_tol_rad = 0.05,
+                        .sync_volt_tol_v = 2.0,
+                        .sync_freq_tol_hz = 0.1,
+                        .integrator_mode = VSG_INTEGRATOR_RK4};
+    vsg_controller_t *vsg = vsg_controller_create_in(&store, &cfg, NULL);
+    assert(vsg != NULL);
+
+    /* Microgrid running in islanded mode, grid returns with slight phase & voltage offset */
+    vsg_controller_set_mode(vsg, VSG_GRID_MODE_ISLANDED);
+    assert(!vsg_controller_is_sync_locked(vsg));
+
+    double grid_v = 381.5;
+    double grid_f = 50.02;
+    double grid_theta = 1.80; /* Initial grid phase */
+    double dt = 0.005;        /* 5ms control cycle */
+
+    /* Run pre-synchronization tracking loop for 1.5 seconds */
+    for (int i = 0; i < 300; ++i) {
+        grid_theta += 2.0 * M_PI * grid_f * dt;
+        while (grid_theta >= 2.0 * M_PI) grid_theta -= 2.0 * M_PI;
+
+        vsg_controller_step_presync(vsg, grid_v, grid_f, grid_theta, dt);
+    }
+
+    /* Verify locking achieved */
+    assert(vsg_controller_is_sync_locked(vsg));
+
+    vsg_transition_status_t status;
+    assert(vsg_controller_get_transition_status(vsg, &status) == 0);
+    printf(
+        "    • Pre-sync status: Locked=%d, delta_theta=%.4f rad, delta_v=%.2f V, delta_f=%.4f Hz\n",
+        status.sync_locked, status.delta_theta_rad, status.delta_volt_v, status.delta_freq_hz);
+
+    assert(fabs(status.delta_theta_rad) <= 0.05);
+    assert(fabs(status.delta_volt_v) <= 2.0);
+    assert(fabs(status.delta_freq_hz) <= 0.1);
+
+    /* Switch to connected mode */
+    vsg_controller_set_mode(vsg, VSG_GRID_MODE_CONNECTED);
+    assert(vsg_controller_get_mode(vsg) == VSG_GRID_MODE_CONNECTED);
+
+    printf("  --> VSG Pre-Synchronization Reconnection Locking PASSED!\n");
+}
+
 int main(void) {
     printf(
-        "=== EdgeOS VSG Grid-Forming Control Tests (AEP-721 ~ AEP-730 / Issue #252 & #253) ===\n");
+        "=== EdgeOS VSG Grid-Forming Control Tests (AEP-721 ~ AEP-730 / Issue #252 ~ #254) ===\n");
     test_vsg_initialization_and_bounds();
     test_vsg_swing_dynamics_and_damping();
     test_vsg_reactive_droop();
@@ -378,6 +491,8 @@ int main(void) {
     test_vsg_state_inspections_and_mode_switching();
     test_vsg_adaptive_damping_under_weak_grid_scr();
     test_vsg_weak_grid_oscillation_suppression_comparison();
+    test_vsg_seamless_unplanned_islanding();
+    test_vsg_presync_reconnection_lock();
     printf("=== All VSG Control Tests PASSED! ===\n");
     return 0;
 }

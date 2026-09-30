@@ -47,6 +47,10 @@ const (
 	IEMS_VSG_EFFECTIVE_DAMPING = 131084
 	IEMS_VSG_EFFECTIVE_DROOP_P = 131085
 	IEMS_VSG_EFFECTIVE_DROOP_Q = 131086
+	IEMS_VSG_GRID_MODE = 131087
+	IEMS_VSG_SYNC_LOCKED = 131088
+	IEMS_VSG_SYNC_DELTA_THETA = 131089
+	IEMS_VSG_SYNC_DELTA_VOLT = 131090
 )
 
 type TagMetadata struct {
@@ -101,4 +105,8 @@ var Metadata = map[uint32]TagMetadata{
 	131084: {ID: 131084, Name: "IEMS_VSG_EFFECTIVE_DAMPING", DataType: "float", Unit: "N·m·s/rad"},
 	131085: {ID: 131085, Name: "IEMS_VSG_EFFECTIVE_DROOP_P", DataType: "float", Unit: "Hz/W"},
 	131086: {ID: 131086, Name: "IEMS_VSG_EFFECTIVE_DROOP_Q", DataType: "float", Unit: "V/var"},
+	131087: {ID: 131087, Name: "IEMS_VSG_GRID_MODE", DataType: "uint", Unit: "N/A"},
+	131088: {ID: 131088, Name: "IEMS_VSG_SYNC_LOCKED", DataType: "bool", Unit: ""},
+	131089: {ID: 131089, Name: "IEMS_VSG_SYNC_DELTA_THETA", DataType: "float", Unit: "rad"},
+	131090: {ID: 131090, Name: "IEMS_VSG_SYNC_DELTA_VOLT", DataType: "float", Unit: "V"},
 }
