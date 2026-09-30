@@ -1127,9 +1127,115 @@ static void test_vsg_harmonic_current_extraction_and_damping(void) {
     printf("  --> VSG Harmonic Extraction & Active Damping PASSED!\n");
 }
 
+static void test_vsg_compute_tracking_surplus_green_power(void) {
+    printf("[TEST] Testing VSG Compute Load Following Surplus Green Power (AEP-730)...\n");
+
+    vsg_controller_storage_t store;
+    vsg_config_t cfg = {.j_inertia = 1.0,
+                        .d_damping = 20.0,
+                        .v_nominal = 380.0,
+                        .f_nominal = 50.0,
+                        .compute_tracking = {.enable_compute_tracking = true,
+                                             .p_compute_min_w = 1000.0,
+                                             .p_compute_max_w = 10000.0,
+                                             .tracking_efficiency = 0.95,
+                                             .k_feedforward_power = 1.0,
+                                             .t_feedforward_deriv_s = 0.02,
+                                             .carbon_factor_kg_kwh = 0.5810}};
+
+    vsg_controller_t *vsg = vsg_controller_create_in(&store, &cfg, NULL);
+    assert(vsg != NULL);
+
+    /* Scenario:
+     * Renewable PV generation: 8000W
+     * Factory base load: 2000W
+     * ESS charging absorption capacity: 1000W
+     * Net green surplus: 8000 - 2000 - 1000 = 5000W.
+     * Expected Target compute power: 1000 + 0.95 * 5000 = 5750W.
+     * Expected DVFS scaling: 10 + 90 * (4750 / 9000) = 57.5%.
+     */
+    double out_p_target = 0.0, out_p_ff = 0.0;
+    int ret = vsg_controller_step_compute_tracking(vsg, 8000.0, 2000.0, 1000.0, 5750.0, 0.1,
+                                                   &out_p_target, &out_p_ff);
+    assert(ret == 0);
+
+    vsg_compute_tracking_status_t status;
+    assert(vsg_controller_get_compute_tracking_status(vsg, &status) == 0);
+    printf(
+        "    • Compute Tracking: Surplus=%.1f W, TargetQuota=%.1f W (Expect 5750W), DVFS=%.1f%%, "
+        "GreenRatio=%.1f%%\n",
+        status.p_green_surplus_w, out_p_target, status.dvfs_freq_scale_pct,
+        status.green_utilization_pct);
+
+    assert(fabs(status.p_green_surplus_w - 5000.0) < 1e-3);
+    assert(fabs(out_p_target - 5750.0) < 1e-3);
+    assert(fabs(status.dvfs_freq_scale_pct - 57.5) < 1e-3);
+    assert(status.green_utilization_pct >= 99.9);
+
+    printf("  --> VSG Compute Load Following Surplus Green Power PASSED!\n");
+}
+
+static void test_vsg_compute_load_step_transient_feedforward(void) {
+    printf(
+        "[TEST] Testing VSG Compute Step Load Transient Power Feedforward & Carbon Tracking "
+        "(AEP-730)...\n");
+
+    vsg_controller_storage_t store;
+    vsg_config_t cfg = {.j_inertia = 1.0,
+                        .d_damping = 20.0,
+                        .v_nominal = 380.0,
+                        .f_nominal = 50.0,
+                        .compute_tracking = {.enable_compute_tracking = true,
+                                             .p_compute_min_w = 1000.0,
+                                             .p_compute_max_w = 10000.0,
+                                             .tracking_efficiency = 0.95,
+                                             .k_feedforward_power = 1.0,
+                                             .t_feedforward_deriv_s = 0.02,
+                                             .carbon_factor_kg_kwh = 0.5810}};
+
+    vsg_controller_t *vsg = vsg_controller_create_in(&store, &cfg, NULL);
+    assert(vsg != NULL);
+
+    /* Baseline step at 1000W */
+    double out_p_target = 0.0, out_p_ff = 0.0;
+    vsg_controller_step_compute_tracking(vsg, 10000.0, 1000.0, 0.0, 1000.0, 0.01, &out_p_target,
+                                         &out_p_ff);
+
+    /* Sudden step increase in AI inference compute load: 1000W -> 6000W in dt = 0.01s (500 kW/s)
+     * Delta_P = 5000W, P_dot = 5000 / 0.01 = 500,000 W/s.
+     * Expected Feedforward P_ff = 1.0 * 5000 + 0.02 * 500000 = 5000 + 10000 = 15000W.
+     */
+    vsg_controller_step_compute_tracking(vsg, 10000.0, 1000.0, 0.0, 6000.0, 0.01, &out_p_target,
+                                         &out_p_ff);
+
+    vsg_compute_tracking_status_t status;
+    assert(vsg_controller_get_compute_tracking_status(vsg, &status) == 0);
+    printf(
+        "    • Transient Feedforward: DeltaP=5000W -> Injected Feedforward=%.1f W (Expect "
+        "15000W)\n",
+        out_p_ff);
+    assert(fabs(out_p_ff - 15000.0) < 1e-3);
+
+    /* Run 36000 steps at dt = 0.1s (1 hour) of 5000W green compute to verify carbon reduction
+     * accumulation */
+    for (int i = 0; i < 1000; ++i) {
+        vsg_controller_step_compute_tracking(vsg, 10000.0, 1000.0, 0.0, 5000.0, 0.1, &out_p_target,
+                                             &out_p_ff);
+    }
+
+    assert(vsg_controller_get_compute_tracking_status(vsg, &status) == 0);
+    printf("    • Carbon Accounting: GreenEnergyConsumed=%.4f kWh, AvoidedCarbon=%.4f kg CO2\n",
+           status.cumulative_green_kwh, status.cumulative_carbon_saved_kg);
+
+    assert(status.cumulative_green_kwh > 0.1);
+    assert(status.cumulative_carbon_saved_kg > 0.05);
+
+    printf("  --> VSG Compute Step Load Transient Feedforward & Carbon Accounting PASSED!\n");
+}
+
 int main(void) {
     printf(
-        "=== EdgeOS VSG Grid-Forming Control Tests (AEP-721 ~ AEP-730 / Issue #252 ~ #259) ===\n");
+        "=== EdgeOS VSG Grid-Forming Control Tests (AEP-721 ~ AEP-730 / Issue #252 ~ #260) ===\n");
     test_vsg_initialization_and_bounds();
     test_vsg_swing_dynamics_and_damping();
     test_vsg_reactive_droop();
@@ -1153,6 +1259,8 @@ int main(void) {
     test_vsg_virtual_stator_impedance_drop();
     test_vsg_virtual_z_adaptive_rx_decoupling();
     test_vsg_harmonic_current_extraction_and_damping();
+    test_vsg_compute_tracking_surplus_green_power();
+    test_vsg_compute_load_step_transient_feedforward();
     printf("=== All VSG Control Tests PASSED! ===\n");
     return 0;
 }

@@ -1320,18 +1320,7 @@ target_link_libraries(test_caller_allocated_storage PRIVATE
 add_test(NAME test_caller_allocated_storage COMMAND test_caller_allocated_storage)
 
 # AEP-723 ~ AEP-730 构网型虚拟同步发电机 (VSG) 控制算法单测
-add_executable(test_vsg_control test_vsg_control.c)
-target_include_directories(test_vsg_control PRIVATE
-    ${CMAKE_SOURCE_DIR}/modules/edge_algo/include
-    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
-)
-target_link_libraries(test_vsg_control PRIVATE
-    edge_algo
-    edge_core
-    cmocka::cmocka
-    pthread dl rt m
-)
-add_test(NAME test_vsg_control COMMAND test_vsg_control)
+add_edge_test(test_vsg_control test_vsg_control.c)
 
 # AEP-720 确定性任务调度死线监控与熔断器单测
 add_edge_test(test_edge_sched_deadline test_edge_sched_deadline.c)

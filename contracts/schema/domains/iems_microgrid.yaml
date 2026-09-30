@@ -242,3 +242,34 @@ tags:
     unit: "A"
     description: "VSG 7th Harmonic Current Amplitude (350Hz)"
 
+  - id: 131113 # 0x020029
+    name: "IEMS_VSG_COMPUTE_POWER_TARGET_W"
+    type: "float"
+    unit: "W"
+    description: "Target Computing Cluster Power Quota for Green Energy Tracking"
+
+  - id: 131114 # 0x02002A
+    name: "IEMS_VSG_COMPUTE_FREQ_SCALE_PCT"
+    type: "float"
+    unit: "%"
+    description: "Compute Power DVFS Frequency Scaling Ratio (10.0% ~ 100.0%)"
+
+  - id: 131115 # 0x02002B
+    name: "IEMS_VSG_COMPUTE_P_FEEDFORWARD_W"
+    type: "float"
+    unit: "W"
+    description: "Compute Load Transient Power Feedforward Injected into VSG"
+
+  - id: 131116 # 0x02002C
+    name: "IEMS_VSG_GREEN_POWER_RATIO_PCT"
+    type: "float"
+    unit: "%"
+    description: "Instantaneous Green Energy Utilization Ratio (0.0% ~ 100.0%)"
+
+  - id: 131117 # 0x02002D
+    name: "IEMS_VSG_CARBON_SAVED_KG"
+    type: "float"
+    unit: "kg"
+    description: "Cumulative Avoided Carbon Emissions from Green Compute Tracking"
+
+

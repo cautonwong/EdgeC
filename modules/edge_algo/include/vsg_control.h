@@ -201,6 +201,32 @@ typedef struct {
 } vsg_virtual_z_status_t;
 
 /**
+ * @brief VSG Compute Load Following & Green Power Tracking Configuration (AEP-730)
+ */
+typedef struct {
+    bool enable_compute_tracking;     /**< Enable dynamic compute load following and feedforward */
+    double p_compute_min_w;           /**< Minimum compute cluster idle/baseline power consumption (W) */
+    double p_compute_max_w;           /**< Maximum compute cluster full-load power consumption (W) */
+    double tracking_efficiency;       /**< Green power tracking mapping factor (typ. 0.85 ~ 0.98) */
+    double k_feedforward_power;       /**< Transient power feedforward gain to VSG rotor dynamics (typ. 0.8 ~ 1.2) */
+    double t_feedforward_deriv_s;     /**< Feedforward derivative time constant (s, typ. 0.01 ~ 0.05) */
+    double carbon_factor_kg_kwh;      /**< Grid carbon emission factor (kg CO2 / kWh, typ. 0.5810) */
+} vsg_compute_tracking_config_t;
+
+/**
+ * @brief VSG Compute Load Following & Green Power Tracking Status (AEP-730)
+ */
+typedef struct {
+    double p_compute_target_w;        /**< Dynamic computing power quota setpoint (W) */
+    double dvfs_freq_scale_pct;       /**< Compute DVFS frequency scaling percentage (10.0% ~ 100.0%) */
+    double p_feedforward_vsg_w;       /**< Injected transient mechanical power feedforward to VSG (W) */
+    double p_green_surplus_w;         /**< Available surplus green generation power (W) */
+    double green_utilization_pct;     /**< Instantaneous green energy consumption ratio (%) */
+    double cumulative_green_kwh;      /**< Cumulative green energy consumed by compute cluster (kWh) */
+    double cumulative_carbon_saved_kg;/**< Cumulative avoided carbon emissions (kg CO2) */
+} vsg_compute_tracking_status_t;
+
+/**
  * @brief Pre-synchronization & Seamless Transition Status (AEP-723)
  */
 typedef struct {
@@ -257,6 +283,9 @@ typedef struct {
 
     /* AEP-729 Virtual Stator Impedance (R/X) Decoupling & Harmonic Damping */
     vsg_virtual_z_config_t virtual_z; /**< Virtual stator impedance configuration */
+
+    /* AEP-730 Computing-Power Integrated Load Following & Transient Feedforward */
+    vsg_compute_tracking_config_t compute_tracking; /**< Compute load following configuration */
 } vsg_config_t;
 
 /**
@@ -410,6 +439,20 @@ int vsg_controller_step_virtual_z(vsg_controller_t *vsg,
                                   double dt_s,
                                   double *out_v_d, double *out_v_q);
 int vsg_controller_get_virtual_z_status(const vsg_controller_t *vsg, vsg_virtual_z_status_t *status);
+
+/* -------------------------------------------------------------------------- */
+/* AEP-730 Computing-Power Integrated Dynamic Tracking APIs                  */
+/* -------------------------------------------------------------------------- */
+int vsg_controller_set_compute_tracking_config(vsg_controller_t *vsg, const vsg_compute_tracking_config_t *cfg);
+int vsg_controller_step_compute_tracking(vsg_controller_t *vsg,
+                                         double p_renewable_gen_w,
+                                         double p_base_load_w,
+                                         double p_ess_charge_avail_w,
+                                         double p_compute_meas_w,
+                                         double dt_s,
+                                         double *out_p_compute_target_w,
+                                         double *out_p_vsg_feedforward_w);
+int vsg_controller_get_compute_tracking_status(const vsg_controller_t *vsg, vsg_compute_tracking_status_t *status);
 
 #ifdef __cplusplus
 }
