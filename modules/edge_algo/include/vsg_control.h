@@ -128,6 +128,44 @@ typedef struct {
 } vsg_sso_status_t;
 
 /**
+ * @brief VSG Fault Ride-Through (FRT) State Machine (AEP-728)
+ */
+typedef enum {
+    VSG_FRT_STATE_NORMAL   = 0,  /**< Grid voltage within normal bounds (0.9 ~ 1.1 p.u.) */
+    VSG_FRT_STATE_LVRT     = 1,  /**< Low Voltage Ride-Through active (sag < 0.9 p.u.) */
+    VSG_FRT_STATE_HVRT     = 2,  /**< High Voltage Ride-Through active (swell > 1.1 p.u.) */
+    VSG_FRT_STATE_RECOVERY = 3,  /**< Post-fault smooth recovery state */
+} vsg_frt_state_t;
+
+/**
+ * @brief VSG Fault Ride-Through (FRT) Physical Configuration (AEP-728)
+ */
+typedef struct {
+    bool enable_frt;                  /**< Enable dynamic FRT state machine and reactive support */
+    double u_lvrt_thresh_pu;          /**< LVRT activation threshold (p.u., typ. 0.90) */
+    double u_hvrt_thresh_pu;          /**< HVRT activation threshold (p.u., typ. 1.10) */
+    double k_lvrt_reactive_support;   /**< LVRT reactive current support slope K_lvrt (typ. 1.5 ~ 2.0) */
+    double k_hvrt_reactive_support;   /**< HVRT reactive current support slope K_hvrt (typ. 1.5 ~ 2.0) */
+    double i_nominal_a;               /**< Rated converter output current RMS (A) */
+    double i_max_limit_a;             /**< Maximum allowable converter current limit (A, typ. 1.2 * I_N) */
+    double k_trans_virtual_z;         /**< Transient virtual impedance gain for current clamping */
+    double recovery_ramp_rate_pu_s;   /**< Active power recovery ramp rate after fault clearing (p.u./s, typ. 0.5) */
+} vsg_frt_config_t;
+
+/**
+ * @brief VSG Fault Ride-Through (FRT) Status Telemetry (AEP-728)
+ */
+typedef struct {
+    vsg_frt_state_t state;            /**< Current FRT state */
+    double u_grid_pu;                 /**< Grid voltage amplitude (p.u.) */
+    double i_q_support_a;             /**< Dynamic reactive current support injection setpoint (A) */
+    double i_d_limit_a;               /**< Active current ceiling allowed during reactive priority (A) */
+    double v_trans_drop_v;            /**< Transient virtual impedance voltage drop for current clamping (V) */
+    double recovery_progress_pct;     /**< Post-fault power recovery progress (0.0% ~ 100.0%) */
+    bool is_current_clamped;          /**< True when transient virtual impedance is actively clamping current */
+} vsg_frt_status_t;
+
+/**
  * @brief Pre-synchronization & Seamless Transition Status (AEP-723)
  */
 typedef struct {
@@ -178,6 +216,9 @@ typedef struct {
 
     /* AEP-727 Subsynchronous Oscillation (SSO) Detection & Active Notch Damping */
     vsg_sso_config_t sso; /**< SSO/SSR detection and damping configuration */
+
+    /* AEP-728 Fault Ride-Through (HVRT/LVRT) & Transient Current Limiting */
+    vsg_frt_config_t frt; /**< Fault Ride-Through physical configuration */
 } vsg_config_t;
 
 /**
@@ -309,6 +350,17 @@ int vsg_controller_set_sso_config(vsg_controller_t *vsg, const vsg_sso_config_t 
 int vsg_controller_step_sso_damping(vsg_controller_t *vsg, double i_raw_a, double dt_s,
                                     double *out_filtered_i_a, double *out_damping_v);
 int vsg_controller_get_sso_status(const vsg_controller_t *vsg, vsg_sso_status_t *status);
+
+/* -------------------------------------------------------------------------- */
+/* AEP-728 Fault Ride-Through (HVRT/LVRT) & Dynamic Reactive Support APIs     */
+/* -------------------------------------------------------------------------- */
+int vsg_controller_set_frt_config(vsg_controller_t *vsg, const vsg_frt_config_t *cfg);
+int vsg_controller_step_frt(vsg_controller_t *vsg, double grid_volt_v,
+                            double id_meas, double iq_meas, double dt_s,
+                            double *out_iq_support, double *out_p_derate,
+                            double *out_v_trans_drop);
+vsg_frt_state_t vsg_controller_get_frt_state(const vsg_controller_t *vsg);
+int vsg_controller_get_frt_status(const vsg_controller_t *vsg, vsg_frt_status_t *status);
 
 #ifdef __cplusplus
 }

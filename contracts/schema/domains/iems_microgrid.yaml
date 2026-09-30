@@ -187,3 +187,27 @@ tags:
     type: "float"
     unit: "V"
     description: "SSO Active Damping Compensation Output Voltage"
+
+  - id: 131104 # 0x020020
+    name: "IEMS_VSG_FRT_STATE"
+    type: "uint"
+    unit: "N/A"
+    description: "VSG Fault Ride-Through State (0:Normal, 1:LVRT, 2:HVRT, 3:Recovery)"
+
+  - id: 131105 # 0x020021
+    name: "IEMS_VSG_FRT_IQ_SUPPORT"
+    type: "float"
+    unit: "A"
+    description: "VSG FRT Dynamic Reactive Current Support Setpoint"
+
+  - id: 131106 # 0x020022
+    name: "IEMS_VSG_FRT_V_TRANS_LIMIT"
+    type: "float"
+    unit: "V"
+    description: "VSG FRT Transient Virtual Impedance Voltage Drop"
+
+  - id: 131107 # 0x020023
+    name: "IEMS_VSG_FRT_RECOVERY_PROGRESS"
+    type: "float"
+    unit: "%"
+    description: "VSG FRT Post-Fault Recovery Progress (0.0% ~ 100.0%)"

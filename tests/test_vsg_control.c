@@ -837,9 +837,161 @@ static void test_vsg_sso_adaptive_notch_filtering_and_active_damping(void) {
     printf("  --> VSG SSO Adaptive Notch & Active Damping PASSED!\n");
 }
 
+static void test_vsg_frt_lvrt_dynamic_reactive_support(void) {
+    printf(
+        "[TEST] Testing VSG LVRT Low-Voltage Ride-Through Dynamic Reactive Support (AEP-728)...\n");
+
+    vsg_controller_storage_t store;
+    vsg_config_t cfg = {.j_inertia = 1.0,
+                        .d_damping = 20.0,
+                        .v_nominal = 380.0,
+                        .f_nominal = 50.0,
+                        .frt = {.u_lvrt_thresh_pu = 0.90,
+                                .u_hvrt_thresh_pu = 1.10,
+                                .k_lvrt_reactive_support = 2.0,
+                                .k_hvrt_reactive_support = 2.0,
+                                .i_nominal_a = 150.0,
+                                .i_max_limit_a = 180.0,
+                                .k_trans_virtual_z = 0.5,
+                                .recovery_ramp_rate_pu_s = 2.0}};
+
+    vsg_controller_t *vsg = vsg_controller_create_in(&store, &cfg, NULL);
+    assert(vsg != NULL);
+
+    /* Grid sag to 0.50 pu (190V) */
+    double v_grid_sag = 190.0;
+    double out_iq = 0.0, out_p_derate = 0.0, out_v_drop = 0.0;
+
+    /* Step FRT during sag: Delta_U = 0.90 - 0.50 = 0.40 pu.
+     * Expected Iq_support = 2.0 * 0.40 * 150A = 120.0A.
+     * Id_limit = sqrt(180^2 - 120^2) = sqrt(32400 - 14400) = sqrt(18000) = 134.16A.
+     * P_derate = (134.16 / 150) * 0.5 = 0.4472 pu.
+     */
+    int ret = vsg_controller_step_frt(vsg, v_grid_sag, 50.0, 0.0, 0.01, &out_iq, &out_p_derate,
+                                      &out_v_drop);
+    assert(ret == 0);
+
+    vsg_frt_status_t status;
+    assert(vsg_controller_get_frt_status(vsg, &status) == 0);
+    assert(status.state == VSG_FRT_STATE_LVRT);
+    printf(
+        "    • LVRT Sag (0.50 pu): State=%d, Iq_support=%.2f A (Expect ~120.0A), Id_limit=%.2f A, "
+        "P_derate=%.3f pu\n",
+        status.state, out_iq, status.i_d_limit_a, out_p_derate);
+
+    assert(fabs(out_iq - 120.0) < 0.1);
+    assert(fabs(status.i_d_limit_a - 134.16) < 0.5);
+
+    /* Grid recovers to 1.0 pu (380V) -> Verify smooth recovery ramp */
+    for (int i = 0; i < 50; ++i) {
+        vsg_controller_step_frt(vsg, 380.0, 50.0, 0.0, 0.01, &out_iq, &out_p_derate, &out_v_drop);
+    }
+
+    assert(vsg_controller_get_frt_status(vsg, &status) == 0);
+    printf("    • LVRT Recovery: State=%d (Normal=%d), Progress=%.1f%%, P_derate=%.2f\n",
+           status.state, VSG_FRT_STATE_NORMAL, status.recovery_progress_pct, out_p_derate);
+
+    assert(status.state == VSG_FRT_STATE_NORMAL);
+    assert(status.recovery_progress_pct >= 99.9);
+    assert(fabs(out_p_derate - 1.0) < 0.01);
+
+    printf("  --> VSG LVRT Dynamic Reactive Support PASSED!\n");
+}
+
+static void test_vsg_frt_hvrt_inductive_reactive_absorption(void) {
+    printf(
+        "[TEST] Testing VSG HVRT High-Voltage Ride-Through Dynamic Inductive Absorption "
+        "(AEP-728)...\n");
+
+    vsg_controller_storage_t store;
+    vsg_config_t cfg = {.j_inertia = 1.0,
+                        .d_damping = 20.0,
+                        .v_nominal = 380.0,
+                        .f_nominal = 50.0,
+                        .frt = {.u_lvrt_thresh_pu = 0.90,
+                                .u_hvrt_thresh_pu = 1.10,
+                                .k_lvrt_reactive_support = 2.0,
+                                .k_hvrt_reactive_support = 2.0,
+                                .i_nominal_a = 150.0,
+                                .i_max_limit_a = 180.0,
+                                .k_trans_virtual_z = 0.5,
+                                .recovery_ramp_rate_pu_s = 2.0}};
+
+    vsg_controller_t *vsg = vsg_controller_create_in(&store, &cfg, NULL);
+    assert(vsg != NULL);
+
+    /* Grid swell to 1.25 pu (475V) */
+    double v_grid_swell = 475.0;
+    double out_iq = 0.0, out_p_derate = 0.0, out_v_drop = 0.0;
+
+    /* Step FRT during swell: Delta_U = 1.25 - 1.10 = 0.15 pu.
+     * Expected Iq_support = -2.0 * 0.15 * 150A = -45.0A (inductive absorption).
+     */
+    int ret = vsg_controller_step_frt(vsg, v_grid_swell, 50.0, 0.0, 0.01, &out_iq, &out_p_derate,
+                                      &out_v_drop);
+    assert(ret == 0);
+
+    vsg_frt_status_t status;
+    assert(vsg_controller_get_frt_status(vsg, &status) == 0);
+    assert(status.state == VSG_FRT_STATE_HVRT);
+    printf(
+        "    • HVRT Swell (1.25 pu): State=%d, Iq_absorption=%.2f A (Expect ~ -45.0A), "
+        "Id_limit=%.2f A\n",
+        status.state, out_iq, status.i_d_limit_a);
+
+    assert(fabs(out_iq - (-45.0)) < 0.1);
+    assert(out_iq < 0.0); /* Inductive reactive current absorption */
+
+    printf("  --> VSG HVRT Dynamic Reactive Absorption PASSED!\n");
+}
+
+static void test_vsg_frt_transient_virtual_impedance_clamping(void) {
+    printf("[TEST] Testing VSG Transient Virtual Impedance Overcurrent Clamping (AEP-728)...\n");
+
+    vsg_controller_storage_t store;
+    vsg_config_t cfg = {.j_inertia = 1.0,
+                        .d_damping = 20.0,
+                        .v_nominal = 380.0,
+                        .f_nominal = 50.0,
+                        .frt = {.u_lvrt_thresh_pu = 0.90,
+                                .u_hvrt_thresh_pu = 1.10,
+                                .k_lvrt_reactive_support = 2.0,
+                                .k_hvrt_reactive_support = 2.0,
+                                .i_nominal_a = 150.0,
+                                .i_max_limit_a = 180.0,
+                                .k_trans_virtual_z = 0.5,
+                                .recovery_ramp_rate_pu_s = 2.0}};
+
+    vsg_controller_t *vsg = vsg_controller_create_in(&store, &cfg, NULL);
+    assert(vsg != NULL);
+
+    /* Normal current 100A (below I_max 180A) -> No virtual impedance drop */
+    double out_iq = 0.0, out_p_derate = 0.0, out_v_drop = 0.0;
+    vsg_controller_step_frt(vsg, 380.0, 100.0, 0.0, 0.01, &out_iq, &out_p_derate, &out_v_drop);
+    assert(fabs(out_v_drop) < 1e-6);
+
+    /* Severe short-circuit surge current: Id = 220A, Iq = 60A -> I_mag = sqrt(220^2 + 60^2) =
+     * 228.03A */
+    vsg_controller_step_frt(vsg, 150.0, 220.0, 60.0, 0.01, &out_iq, &out_p_derate, &out_v_drop);
+
+    vsg_frt_status_t status;
+    assert(vsg_controller_get_frt_status(vsg, &status) == 0);
+    printf(
+        "    • Overcurrent Clamping: I_mag=228.0A (> I_max=180.0A), Clamped=%d, V_trans_drop=%.2f "
+        "V\n",
+        status.is_current_clamped, out_v_drop);
+
+    assert(status.is_current_clamped == true);
+    /* Delta_I = 228.035 - 180.0 = 48.035A. R_trans = 0.5 * 48.035 = 24.017 ohm. V_drop = 24.017 *
+     * 228.035 = 5477.0 V */
+    assert(out_v_drop > 5000.0);
+
+    printf("  --> VSG Transient Virtual Impedance Clamping PASSED!\n");
+}
+
 int main(void) {
     printf(
-        "=== EdgeOS VSG Grid-Forming Control Tests (AEP-721 ~ AEP-730 / Issue #252 ~ #257) ===\n");
+        "=== EdgeOS VSG Grid-Forming Control Tests (AEP-721 ~ AEP-730 / Issue #252 ~ #258) ===\n");
     test_vsg_initialization_and_bounds();
     test_vsg_swing_dynamics_and_damping();
     test_vsg_reactive_droop();
@@ -857,6 +1009,9 @@ int main(void) {
     test_vsg_online_line_impedance_identification_rls();
     test_vsg_sso_detection_and_frequency_tracking();
     test_vsg_sso_adaptive_notch_filtering_and_active_damping();
+    test_vsg_frt_lvrt_dynamic_reactive_support();
+    test_vsg_frt_hvrt_inductive_reactive_absorption();
+    test_vsg_frt_transient_virtual_impedance_clamping();
     printf("=== All VSG Control Tests PASSED! ===\n");
     return 0;
 }
