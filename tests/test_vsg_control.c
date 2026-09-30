@@ -989,9 +989,147 @@ static void test_vsg_frt_transient_virtual_impedance_clamping(void) {
     printf("  --> VSG Transient Virtual Impedance Clamping PASSED!\n");
 }
 
+static void test_vsg_virtual_stator_impedance_drop(void) {
+    printf("[TEST] Testing VSG Virtual Stator Impedance Drop (AEP-729)...\n");
+
+    vsg_controller_storage_t store;
+    vsg_config_t cfg = {.j_inertia = 1.0,
+                        .d_damping = 20.0,
+                        .v_nominal = 380.0,
+                        .f_nominal = 50.0,
+                        .virtual_z = {.enable_virtual_z = true,
+                                      .enable_adaptive_rx = false,
+                                      .enable_harmonic_damping = false,
+                                      .r_virtual_ohm = 0.05,
+                                      .x_virtual_ohm = 0.20}};
+
+    vsg_controller_t *vsg = vsg_controller_create_in(&store, &cfg, NULL);
+    assert(vsg != NULL);
+
+    /* Operating point: Internal EMF Vd = 380V, Vq = 0V
+     * Current: Id = 100A, Iq = -50A (Capacitive/Inductive mixed)
+     * Expected:
+     *   Vd_drop = Rv*Id - Xv*Iq = 0.05*100 - 0.20*(-50) = 5.0 - (-10.0) = 15.0V.
+     *   Vq_drop = Rv*Iq + Xv*Id = 0.05*(-50) + 0.20*100 = -2.5 + 20.0 = 17.5V.
+     *   Vd_out = 380 - 15.0 = 365.0V.
+     *   Vq_out = 0 - 17.5 = -17.5V.
+     */
+    double out_vd = 0.0, out_vq = 0.0;
+    int ret = vsg_controller_step_virtual_z(vsg, 380.0, 0.0, 100.0, -50.0, 0.001, &out_vd, &out_vq);
+    assert(ret == 0);
+
+    vsg_virtual_z_status_t status;
+    assert(vsg_controller_get_virtual_z_status(vsg, &status) == 0);
+    printf(
+        "    • Virtual Stator Drop: Vd_drop=%.2f V (Expect 15.0V), Vq_drop=%.2f V (Expect 17.5V), "
+        "Vd*=%.2f V, Vq*=%.2f V\n",
+        status.v_d_drop_fund_v, status.v_q_drop_fund_v, out_vd, out_vq);
+
+    assert(fabs(status.v_d_drop_fund_v - 15.0) < 1e-3);
+    assert(fabs(status.v_q_drop_fund_v - 17.5) < 1e-3);
+    assert(fabs(out_vd - 365.0) < 1e-3);
+    assert(fabs(out_vq - (-17.5)) < 1e-3);
+
+    printf("  --> VSG Virtual Stator Impedance Drop PASSED!\n");
+}
+
+static void test_vsg_virtual_z_adaptive_rx_decoupling(void) {
+    printf("[TEST] Testing VSG Virtual Impedance Adaptive R/X Ratio Decoupling (AEP-729)...\n");
+
+    vsg_controller_storage_t store;
+    vsg_config_t cfg = {
+        .j_inertia = 1.0,
+        .d_damping = 20.0,
+        .v_nominal = 380.0,
+        .f_nominal = 50.0,
+        .virtual_z = {
+            .enable_virtual_z = true,
+            .enable_adaptive_rx = true,
+            .target_rx_ratio = 0.10, /* Predominantly inductive target (R_eq / X_eq = 0.1) */
+            .r_line_est_ohm =
+                0.15, /* High resistive line (R_line = 0.15, X_line = 0.03 -> R/X = 5.0) */
+            .x_line_est_ohm = 0.03,
+            .r_virtual_ohm = 0.01,
+            .x_virtual_ohm = 0.10}};
+
+    vsg_controller_t *vsg = vsg_controller_create_in(&store, &cfg, NULL);
+    assert(vsg != NULL);
+
+    double out_vd = 0.0, out_vq = 0.0;
+    /* Step virtual Z with adaptive shaping */
+    vsg_controller_step_virtual_z(vsg, 380.0, 0.0, 80.0, 0.0, 0.001, &out_vd, &out_vq);
+
+    vsg_virtual_z_status_t status;
+    assert(vsg_controller_get_virtual_z_status(vsg, &status) == 0);
+    printf("    • Adaptive R/X Shaping: Effective Rv=%.4f Ω, Effective Xv=%.4f Ω\n",
+           status.r_v_effective_ohm, status.x_v_effective_ohm);
+
+    /* Total equivalent impedance: R_total = 0.15 + Rv = 0.15. X_total = 0.03 + Xv = 0.03 + 1.47
+     * = 1.50. R_total / X_total = 0.15 / 1.50 = 0.10 (Target achieved!)
+     */
+    double r_total = 0.15 + status.r_v_effective_ohm;
+    double x_total = 0.03 + status.x_v_effective_ohm;
+    double rx_achieved = r_total / x_total;
+    printf(
+        "    • Decoupled Equiv Impedance: R_eq=%.4f Ω, X_eq=%.4f Ω => (R/X)_eq=%.4f "
+        "(Target=0.1000)\n",
+        r_total, x_total, rx_achieved);
+
+    assert(fabs(rx_achieved - 0.10) < 1e-3);
+
+    printf("  --> VSG Virtual Impedance Adaptive R/X Decoupling PASSED!\n");
+}
+
+static void test_vsg_harmonic_current_extraction_and_damping(void) {
+    printf("[TEST] Testing VSG 5th/7th Harmonic Extraction & Active Damping (AEP-729)...\n");
+
+    vsg_controller_storage_t store;
+    vsg_config_t cfg = {.j_inertia = 1.0,
+                        .d_damping = 20.0,
+                        .v_nominal = 380.0,
+                        .f_nominal = 50.0,
+                        .virtual_z = {.enable_virtual_z = false,
+                                      .enable_adaptive_rx = false,
+                                      .enable_harmonic_damping = true,
+                                      .k_harmonic_damping_h5 = 2.5,
+                                      .k_harmonic_damping_h7 = 2.5,
+                                      .harmonic_bandwidth_rad_s = 20.0}};
+
+    vsg_controller_t *vsg = vsg_controller_create_in(&store, &cfg, NULL);
+    assert(vsg != NULL);
+
+    /* Injected current: DC fundamental 100A + 300Hz (6w0 ripple corresponding to 5th & 7th
+     * harmonics) 12A */
+    double omega_6 = 6.0 * 2.0 * M_PI * 50.0;
+    double out_vd = 0.0, out_vq = 0.0;
+
+    /* Simulate 500 steps (dt = 0.0005s, total 0.25s) */
+    for (int i = 0; i < 500; ++i) {
+        double t = i * 0.0005;
+        double id = 100.0 + 12.0 * sin(omega_6 * t);
+        double iq = 0.0 + 12.0 * cos(omega_6 * t);
+
+        vsg_controller_step_virtual_z(vsg, 380.0, 0.0, id, iq, 0.0005, &out_vd, &out_vq);
+    }
+
+    vsg_virtual_z_status_t status;
+    assert(vsg_controller_get_virtual_z_status(vsg, &status) == 0);
+    printf(
+        "    • Harmonic Extraction: Ih_rms=%.2f A (5th=%.2f A, 7th=%.2f A), THD=%.2f%%, "
+        "DampVd=%.2f V, DampVq=%.2f V\n",
+        status.i_h5_rms_a + status.i_h7_rms_a, status.i_h5_rms_a, status.i_h7_rms_a,
+        status.thd_current_pct, status.v_d_damp_harm_v, status.v_q_damp_harm_v);
+
+    assert(status.thd_current_pct > 5.0); /* Detected harmonic content */
+    assert(fabs(status.v_d_damp_harm_v) > 0.5 ||
+           fabs(status.v_q_damp_harm_v) > 0.5); /* Active damping injected */
+
+    printf("  --> VSG Harmonic Extraction & Active Damping PASSED!\n");
+}
+
 int main(void) {
     printf(
-        "=== EdgeOS VSG Grid-Forming Control Tests (AEP-721 ~ AEP-730 / Issue #252 ~ #258) ===\n");
+        "=== EdgeOS VSG Grid-Forming Control Tests (AEP-721 ~ AEP-730 / Issue #252 ~ #259) ===\n");
     test_vsg_initialization_and_bounds();
     test_vsg_swing_dynamics_and_damping();
     test_vsg_reactive_droop();
@@ -1012,6 +1150,9 @@ int main(void) {
     test_vsg_frt_lvrt_dynamic_reactive_support();
     test_vsg_frt_hvrt_inductive_reactive_absorption();
     test_vsg_frt_transient_virtual_impedance_clamping();
+    test_vsg_virtual_stator_impedance_drop();
+    test_vsg_virtual_z_adaptive_rx_decoupling();
+    test_vsg_harmonic_current_extraction_and_damping();
     printf("=== All VSG Control Tests PASSED! ===\n");
     return 0;
 }

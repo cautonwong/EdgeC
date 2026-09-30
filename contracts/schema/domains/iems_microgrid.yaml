@@ -211,3 +211,34 @@ tags:
     type: "float"
     unit: "%"
     description: "VSG FRT Post-Fault Recovery Progress (0.0% ~ 100.0%)"
+
+  - id: 131108 # 0x020024
+    name: "IEMS_VSG_VI_VD_OUT"
+    type: "float"
+    unit: "V"
+    description: "VSG Virtual Stator Impedance Dropped D-axis Voltage Vd*"
+
+  - id: 131109 # 0x020025
+    name: "IEMS_VSG_VI_VQ_OUT"
+    type: "float"
+    unit: "V"
+    description: "VSG Virtual Stator Impedance Dropped Q-axis Voltage Vq*"
+
+  - id: 131110 # 0x020026
+    name: "IEMS_VSG_HARMONIC_THD_PCT"
+    type: "float"
+    unit: "%"
+    description: "VSG Output Current Total Harmonic Distortion (THD)"
+
+  - id: 131111 # 0x020027
+    name: "IEMS_VSG_H5_CURRENT_AMP"
+    type: "float"
+    unit: "A"
+    description: "VSG 5th Harmonic Current Amplitude (250Hz)"
+
+  - id: 131112 # 0x020028
+    name: "IEMS_VSG_H7_CURRENT_AMP"
+    type: "float"
+    unit: "A"
+    description: "VSG 7th Harmonic Current Amplitude (350Hz)"
+

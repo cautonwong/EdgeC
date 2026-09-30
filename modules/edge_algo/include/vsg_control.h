@@ -166,6 +166,41 @@ typedef struct {
 } vsg_frt_status_t;
 
 /**
+ * @brief VSG Virtual Stator Impedance & Harmonic Damping Configuration (AEP-729)
+ */
+typedef struct {
+    bool enable_virtual_z;            /**< Enable fundamental virtual stator impedance drop */
+    bool enable_adaptive_rx;          /**< Enable online R/X ratio shaping decoupling */
+    bool enable_harmonic_damping;     /**< Enable 5th/7th harmonic virtual impedance extraction and damping */
+    double r_virtual_ohm;             /**< Fundamental virtual stator resistance R_v (Ω, typ. 0.01 ~ 0.5) */
+    double x_virtual_ohm;             /**< Fundamental virtual stator reactance X_v (Ω, typ. 0.05 ~ 1.0) */
+    double target_rx_ratio;           /**< Target equivalent (R_total / X_total) ratio for P-Q decoupling (typ. 0.1) */
+    double r_line_est_ohm;            /**< Estimated grid line resistance R_line (Ω) */
+    double x_line_est_ohm;            /**< Estimated grid line reactance X_line (Ω) */
+    double k_harmonic_damping_h5;     /**< 5th harmonic virtual damping gain R_v5 (V/A, typ. 0.5 ~ 5.0) */
+    double k_harmonic_damping_h7;     /**< 7th harmonic virtual damping gain R_v7 (V/A, typ. 0.5 ~ 5.0) */
+    double harmonic_bandwidth_rad_s;  /**< Resonant filter bandwidth omega_cut (rad/s, typ. 5.0 ~ 20.0) */
+} vsg_virtual_z_config_t;
+
+/**
+ * @brief VSG Virtual Stator Impedance & Harmonic Damping Status (AEP-729)
+ */
+typedef struct {
+    double r_v_effective_ohm;         /**< Effective fundamental virtual resistance R_v */
+    double x_v_effective_ohm;         /**< Effective fundamental virtual reactance X_v */
+    double v_d_drop_fund_v;           /**< Fundamental D-axis virtual impedance voltage drop (V) */
+    double v_q_drop_fund_v;           /**< Fundamental Q-axis virtual impedance voltage drop (V) */
+    double v_d_damp_harm_v;           /**< Harmonic D-axis damping voltage compensation (V) */
+    double v_q_damp_harm_v;           /**< Harmonic Q-axis damping voltage compensation (V) */
+    double v_d_out_v;                 /**< Final shaped D-axis output reference voltage Vd* (V) */
+    double v_q_out_v;                 /**< Final shaped Q-axis output reference voltage Vq* (V) */
+    double i_h5_rms_a;                /**< Extracted 5th harmonic current RMS (A) */
+    double i_h7_rms_a;                /**< Extracted 7th harmonic current RMS (A) */
+    double thd_current_pct;           /**< Estimated output current Total Harmonic Distortion (%) */
+    double thd_reduction_pct;         /**< Harmonic THD attenuation percentage achieved (%) */
+} vsg_virtual_z_status_t;
+
+/**
  * @brief Pre-synchronization & Seamless Transition Status (AEP-723)
  */
 typedef struct {
@@ -219,6 +254,9 @@ typedef struct {
 
     /* AEP-728 Fault Ride-Through (HVRT/LVRT) & Transient Current Limiting */
     vsg_frt_config_t frt; /**< Fault Ride-Through physical configuration */
+
+    /* AEP-729 Virtual Stator Impedance (R/X) Decoupling & Harmonic Damping */
+    vsg_virtual_z_config_t virtual_z; /**< Virtual stator impedance configuration */
 } vsg_config_t;
 
 /**
@@ -239,7 +277,7 @@ typedef struct vsg_controller vsg_controller_t;
  * @brief Caller-Allocated Storage for VSG Controller (Physical Opaque Encapsulation)
  */
 typedef struct {
-    alignas(max_align_t) uint8_t raw[1024];
+    alignas(max_align_t) uint8_t raw[2048];
 } vsg_controller_storage_t;
 
 /**
@@ -362,8 +400,20 @@ int vsg_controller_step_frt(vsg_controller_t *vsg, double grid_volt_v,
 vsg_frt_state_t vsg_controller_get_frt_state(const vsg_controller_t *vsg);
 int vsg_controller_get_frt_status(const vsg_controller_t *vsg, vsg_frt_status_t *status);
 
+/* -------------------------------------------------------------------------- */
+/* AEP-729 Virtual Stator Impedance (R/X) & Harmonic Damping APIs              */
+/* -------------------------------------------------------------------------- */
+int vsg_controller_set_virtual_z_config(vsg_controller_t *vsg, const vsg_virtual_z_config_t *cfg);
+int vsg_controller_step_virtual_z(vsg_controller_t *vsg,
+                                  double v_d_ref_in, double v_q_ref_in,
+                                  double i_d_meas, double i_q_meas,
+                                  double dt_s,
+                                  double *out_v_d, double *out_v_q);
+int vsg_controller_get_virtual_z_status(const vsg_controller_t *vsg, vsg_virtual_z_status_t *status);
+
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* EDGE_ALGO_VSG_CONTROL_H */
+
