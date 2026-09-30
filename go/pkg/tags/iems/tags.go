@@ -51,6 +51,10 @@ const (
 	IEMS_VSG_SYNC_LOCKED = 131088
 	IEMS_VSG_SYNC_DELTA_THETA = 131089
 	IEMS_VSG_SYNC_DELTA_VOLT = 131090
+	IEMS_VSG_BLACK_START_STATE = 131091
+	IEMS_VSG_BLACK_START_PROGRESS = 131092
+	IEMS_VSG_BLACK_START_VOLT_REF = 131093
+	IEMS_VSG_BLACK_START_FREQ_REF = 131094
 )
 
 type TagMetadata struct {
@@ -109,4 +113,8 @@ var Metadata = map[uint32]TagMetadata{
 	131088: {ID: 131088, Name: "IEMS_VSG_SYNC_LOCKED", DataType: "bool", Unit: ""},
 	131089: {ID: 131089, Name: "IEMS_VSG_SYNC_DELTA_THETA", DataType: "float", Unit: "rad"},
 	131090: {ID: 131090, Name: "IEMS_VSG_SYNC_DELTA_VOLT", DataType: "float", Unit: "V"},
+	131091: {ID: 131091, Name: "IEMS_VSG_BLACK_START_STATE", DataType: "uint", Unit: "N/A"},
+	131092: {ID: 131092, Name: "IEMS_VSG_BLACK_START_PROGRESS", DataType: "float", Unit: "%"},
+	131093: {ID: 131093, Name: "IEMS_VSG_BLACK_START_VOLT_REF", DataType: "float", Unit: "V"},
+	131094: {ID: 131094, Name: "IEMS_VSG_BLACK_START_FREQ_REF", DataType: "float", Unit: "Hz"},
 }

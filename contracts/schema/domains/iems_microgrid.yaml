@@ -109,3 +109,27 @@ tags:
     type: "float"
     unit: "V"
     description: "Pre-synchronization Voltage Amplitude Error vs Grid"
+
+  - id: 131091 # 0x020013
+    name: "IEMS_VSG_BLACK_START_STATE"
+    type: "uint"
+    unit: "N/A"
+    description: "VSG Black Start State Machine State (0:Idle, 1:Ramping, 2:SyncLock, 3:Established, 4:Fault)"
+
+  - id: 131092 # 0x020014
+    name: "IEMS_VSG_BLACK_START_PROGRESS"
+    type: "float"
+    unit: "%"
+    description: "VSG Black Start Voltage/Frequency Ramp Progress (0.0% ~ 100.0%)"
+
+  - id: 131093 # 0x020015
+    name: "IEMS_VSG_BLACK_START_VOLT_REF"
+    type: "float"
+    unit: "V"
+    description: "VSG Black Start Dynamic Soft-Start Voltage Reference"
+
+  - id: 131094 # 0x020016
+    name: "IEMS_VSG_BLACK_START_FREQ_REF"
+    type: "float"
+    unit: "Hz"
+    description: "VSG Black Start Dynamic Soft-Start Frequency Reference"

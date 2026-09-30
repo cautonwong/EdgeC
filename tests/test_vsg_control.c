@@ -480,9 +480,157 @@ static void test_vsg_presync_reconnection_lock(void) {
     printf("  --> VSG Pre-Synchronization Reconnection Locking PASSED!\n");
 }
 
+static void test_vsg_black_start_zero_voltage_soft_ramp(void) {
+    printf("[TEST] Testing VSG Black Start Zero-Voltage Soft Ramp-Up (AEP-724)...\n");
+
+    vsg_controller_storage_t store;
+    vsg_config_t cfg = {.j_inertia = 1.0,
+                        .d_damping = 20.0,
+                        .v_nominal = 380.0,
+                        .f_nominal = 50.0,
+                        .p_ref = 50000.0,
+                        .q_ref = 0.0,
+                        .droop_p = 1e-4,
+                        .droop_q = 1e-3,
+                        .black_start = {.ramp_time_s = 2.0,
+                                        .max_volt_slew_v_s = 200.0,
+                                        .max_freq_slew_hz_s = 30.0,
+                                        .inrush_i_limit_a = 150.0,
+                                        .sync_lock_angle_tol_rad = 0.05,
+                                        .settle_time_s = 0.2}};
+
+    vsg_controller_t *vsg = vsg_controller_create_in(&store, &cfg, NULL);
+    assert(vsg != NULL);
+
+    /* Trigger black start from cold microgrid state */
+    assert(vsg_controller_trigger_black_start(vsg) == 0);
+    assert(vsg_controller_get_black_start_state(vsg) == VSG_BS_STATE_RAMPING);
+    assert(vsg_controller_get_voltage(vsg) == 0.0);
+    assert(vsg_controller_get_frequency(vsg) == 0.0);
+
+    vsg_black_start_status_t status;
+    assert(vsg_controller_get_black_start_status(vsg, &status) == 0);
+    assert(status.is_ready_for_load == false);
+    assert(status.ramp_progress_pct == 0.0);
+
+    /* Step through ramp: 2.5 seconds with dt = 0.01s (250 steps) */
+    double f_out = 0.0, v_out = 0.0;
+    double last_v = 0.0, last_f = 0.0;
+    for (int i = 0; i < 250; ++i) {
+        vsg_controller_step_black_start(vsg, 0.0, -1.0, 0.01, &f_out, &v_out);
+        assert(v_out >= last_v); /* Monotonic soft start */
+        assert(f_out >= last_f);
+        last_v = v_out;
+        last_f = f_out;
+
+        if (i == 100) { /* t = 1.0s, halfway point */
+            assert(vsg_controller_get_black_start_status(vsg, &status) == 0);
+            printf("    • t=1.0s: Progress=%.1f%%, V=%.1f V, f=%.2f Hz\n", status.ramp_progress_pct,
+                   v_out, f_out);
+            assert(fabs(v_out - 190.0) < 5.0);
+            assert(fabs(f_out - 25.0) < 1.0);
+        }
+    }
+
+    /* Verify established state and readiness for load */
+    assert(vsg_controller_get_black_start_status(vsg, &status) == 0);
+    printf("    • t=2.5s Established: State=%d, ReadyForLoad=%d, V=%.1f V, f=%.2f Hz\n",
+           status.state, status.is_ready_for_load, v_out, f_out);
+
+    assert(status.state == VSG_BS_STATE_ESTABLISHED);
+    assert(status.is_ready_for_load == true);
+    assert(fabs(v_out - 380.0) < 1e-3);
+    assert(fabs(f_out - 50.0) < 1e-3);
+    assert(vsg_controller_get_mode(vsg) == VSG_GRID_MODE_ISLANDED);
+
+    printf("  --> VSG Black Start Zero-Voltage Soft Ramp PASSED!\n");
+}
+
+static void test_vsg_black_start_inrush_throttling_and_fault(void) {
+    printf("[TEST] Testing VSG Black Start Inrush Current Throttling & Fault Protection...\n");
+
+    vsg_controller_storage_t store;
+    vsg_config_t cfg = {.j_inertia = 1.0,
+                        .d_damping = 20.0,
+                        .v_nominal = 380.0,
+                        .f_nominal = 50.0,
+                        .black_start = {.ramp_time_s = 2.0,
+                                        .max_volt_slew_v_s = 200.0,
+                                        .max_freq_slew_hz_s = 30.0,
+                                        .inrush_i_limit_a = 100.0,
+                                        .settle_time_s = 0.2}};
+
+    vsg_controller_t *vsg = vsg_controller_create_in(&store, &cfg, NULL);
+    assert(vsg != NULL);
+    assert(vsg_controller_trigger_black_start(vsg) == 0);
+
+    /* 1. Step under mild inrush (90A > 0.8 * 100A) -> ramp rate is throttled */
+    double f_out = 0.0, v_out = 0.0;
+    for (int i = 0; i < 50; ++i) {
+        vsg_controller_step_black_start(vsg, 90.0, -1.0, 0.01, &f_out, &v_out);
+    }
+    /* Without throttle, at t=0.5s V would be 380/2.0 * 0.5 = 95V; throttled should be lower */
+    assert(v_out < 85.0);
+    assert(vsg_controller_get_black_start_state(vsg) == VSG_BS_STATE_RAMPING);
+
+    /* 2. Step under extreme inrush (250A > 2.0 * 100A) -> Trip to Fault */
+    vsg_controller_step_black_start(vsg, 250.0, -1.0, 0.01, &f_out, &v_out);
+    assert(vsg_controller_get_black_start_state(vsg) == VSG_BS_STATE_FAULT);
+    assert(v_out == 0.0);
+    assert(f_out == 0.0);
+
+    printf("  --> VSG Black Start Inrush Throttling & Protection PASSED!\n");
+}
+
+static void test_vsg_black_start_multi_pcs_lockstep(void) {
+    printf("[TEST] Testing VSG Black Start Multi-PCS Distributed Lockstep Alignment...\n");
+
+    vsg_controller_storage_t store1, store2;
+    vsg_config_t cfg = {.j_inertia = 1.0,
+                        .d_damping = 20.0,
+                        .v_nominal = 380.0,
+                        .f_nominal = 50.0,
+                        .black_start = {.ramp_time_s = 1.5,
+                                        .max_volt_slew_v_s = 300.0,
+                                        .max_freq_slew_hz_s = 40.0,
+                                        .sync_lock_angle_tol_rad = 0.05,
+                                        .settle_time_s = 0.1}};
+
+    vsg_controller_t *pcs1 = vsg_controller_create_in(&store1, &cfg, NULL);
+    vsg_controller_t *pcs2 = vsg_controller_create_in(&store2, &cfg, NULL);
+    assert(pcs1 && pcs2);
+
+    assert(vsg_controller_trigger_black_start(pcs1) == 0);
+    assert(vsg_controller_trigger_black_start(pcs2) == 0);
+
+    /* Run distributed lockstep: PCS2 tracks PCS1 virtual angle */
+    double f1 = 0, v1 = 0, f2 = 0, v2 = 0;
+    for (int i = 0; i < 200; ++i) {
+        double theta1 = vsg_controller_get_theta(pcs1);
+        vsg_controller_step_black_start(pcs1, 0.0, -1.0, 0.01, &f1, &v1);
+        vsg_controller_step_black_start(pcs2, 0.0, theta1, 0.01, &f2, &v2);
+
+        double delta_theta = fabs(vsg_controller_get_theta(pcs1) - vsg_controller_get_theta(pcs2));
+        if (delta_theta > M_PI) delta_theta = 2.0 * M_PI - delta_theta;
+
+        /* Verify phase lockstep within 0.05 rad after initial 10 steps */
+        if (i > 10) {
+            assert(delta_theta <= 0.05);
+        }
+    }
+
+    /* Both PCS units established and synchronized */
+    assert(vsg_controller_get_black_start_state(pcs1) == VSG_BS_STATE_ESTABLISHED);
+    assert(vsg_controller_get_black_start_state(pcs2) == VSG_BS_STATE_ESTABLISHED);
+    assert(fabs(v1 - 380.0) < 1e-3);
+    assert(fabs(v2 - 380.0) < 1e-3);
+
+    printf("  --> VSG Black Start Multi-PCS Lockstep PASSED!\n");
+}
+
 int main(void) {
     printf(
-        "=== EdgeOS VSG Grid-Forming Control Tests (AEP-721 ~ AEP-730 / Issue #252 ~ #254) ===\n");
+        "=== EdgeOS VSG Grid-Forming Control Tests (AEP-721 ~ AEP-730 / Issue #252 ~ #255) ===\n");
     test_vsg_initialization_and_bounds();
     test_vsg_swing_dynamics_and_damping();
     test_vsg_reactive_droop();
@@ -493,6 +641,9 @@ int main(void) {
     test_vsg_weak_grid_oscillation_suppression_comparison();
     test_vsg_seamless_unplanned_islanding();
     test_vsg_presync_reconnection_lock();
+    test_vsg_black_start_zero_voltage_soft_ramp();
+    test_vsg_black_start_inrush_throttling_and_fault();
+    test_vsg_black_start_multi_pcs_lockstep();
     printf("=== All VSG Control Tests PASSED! ===\n");
     return 0;
 }

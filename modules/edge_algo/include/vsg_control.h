@@ -35,10 +35,46 @@ typedef enum {
  * @brief VSG Grid Operation Modes (AEP-723 Seamless Transition)
  */
 typedef enum {
-    VSG_GRID_MODE_CONNECTED = 0,    /**< Grid-connected mode (active/reactive dispatch + grid forming) */
-    VSG_GRID_MODE_ISLANDED  = 1,    /**< Autonomous islanded microgrid (V/f master) */
-    VSG_GRID_MODE_PRE_SYNC  = 2,    /**< Pre-synchronization mode (phase/voltage tracking for reconnection) */
+    VSG_GRID_MODE_CONNECTED   = 0,  /**< Grid-connected mode (active/reactive dispatch + grid forming) */
+    VSG_GRID_MODE_ISLANDED    = 1,  /**< Autonomous islanded microgrid (V/f master) */
+    VSG_GRID_MODE_PRE_SYNC    = 2,  /**< Pre-synchronization mode (phase/voltage tracking for reconnection) */
+    VSG_GRID_MODE_BLACK_START = 3,  /**< Black start zero-voltage soft excitation mode (AEP-724) */
 } vsg_grid_mode_t;
+
+/**
+ * @brief VSG Black Start State Machine (AEP-724)
+ */
+typedef enum {
+    VSG_BS_STATE_IDLE        = 0,   /**< Black start idle / unexcited state */
+    VSG_BS_STATE_RAMPING     = 1,   /**< Zero-voltage soft ramp-up excitation phase */
+    VSG_BS_STATE_SYNC_LOCK   = 2,   /**< Multi-unit virtual lockstep phase alignment */
+    VSG_BS_STATE_ESTABLISHED = 3,   /**< Stable microgrid bus voltage/frequency established */
+    VSG_BS_STATE_FAULT       = 4,   /**< Black start fault (inrush overcurrent / timeout) */
+} vsg_black_start_state_t;
+
+/**
+ * @brief Black Start Engine Status & Telemetry (AEP-724)
+ */
+typedef struct {
+    vsg_black_start_state_t state; /**< Current state of black start engine */
+    double ramp_progress_pct;      /**< Ramp completion percentage [0.0, 100.0] */
+    double v_ref_v;                /**< Current instantaneous soft-start voltage reference (V) */
+    double f_ref_hz;               /**< Current instantaneous soft-start frequency reference (Hz) */
+    double elapsed_time_s;         /**< Time elapsed since black start trigger (s) */
+    bool is_ready_for_load;        /**< True when voltage and frequency are stable and ready for load pickup */
+} vsg_black_start_status_t;
+
+/**
+ * @brief Black Start Physical Configuration Parameters (AEP-724)
+ */
+typedef struct {
+    double ramp_time_s;            /**< Target duration for 0 -> V_nominal soft-start ramp (s, typ. 2.0 ~ 10.0) */
+    double max_volt_slew_v_s;      /**< Max voltage rise rate dV/dt (V/s, typ. 50.0 ~ 100.0) */
+    double max_freq_slew_hz_s;     /**< Max frequency rise rate df/dt (Hz/s, typ. 10.0 ~ 25.0) */
+    double inrush_i_limit_a;       /**< Maximum permissible inrush current during excitation (A, 0.0=disabled) */
+    double sync_lock_angle_tol_rad;/**< Inter-unit lockstep angle alignment tolerance (rad, typ. 0.05) */
+    double settle_time_s;          /**< Required duration to hold target V/f before ESTABLISHED (s, typ. 0.5) */
+} vsg_black_start_config_t;
 
 /**
  * @brief Pre-synchronization & Seamless Transition Status (AEP-723)
@@ -82,6 +118,9 @@ typedef struct {
     double sync_freq_tol_hz;        /**< Sync lock tolerance for delta_f (Hz, typ. 0.1) */
     double island_freq_slew_hz_s;   /**< Max frequency ramp rate when islanding (Hz/s, typ. 1.0) */
     double island_volt_slew_v_s;    /**< Max voltage ramp rate when islanding (V/s, typ. 20.0) */
+
+    /* AEP-724 Microgrid Black Start & Zero-Voltage Soft Excitation */
+    vsg_black_start_config_t black_start; /**< Black start physical configuration */
 } vsg_config_t;
 
 /**
@@ -183,6 +222,16 @@ int vsg_controller_trigger_unplanned_islanding(vsg_controller_t *vsg, double gri
 int vsg_controller_step_presync(vsg_controller_t *vsg, double grid_v, double grid_f, double grid_theta, double dt_s);
 bool vsg_controller_is_sync_locked(const vsg_controller_t *vsg);
 int vsg_controller_get_transition_status(const vsg_controller_t *vsg, vsg_transition_status_t *status);
+
+/* -------------------------------------------------------------------------- */
+/* AEP-724 Microgrid Black Start & Multi-Unit Lockstep Engine APIs            */
+/* -------------------------------------------------------------------------- */
+int vsg_controller_trigger_black_start(vsg_controller_t *vsg);
+int vsg_controller_step_black_start(vsg_controller_t *vsg, double i_meas_a, double sync_angle_rad,
+                                    double dt_s, double *out_freq_hz, double *out_voltage_v);
+vsg_black_start_state_t vsg_controller_get_black_start_state(const vsg_controller_t *vsg);
+int vsg_controller_get_black_start_status(const vsg_controller_t *vsg, vsg_black_start_status_t *status);
+void vsg_controller_abort_black_start(vsg_controller_t *vsg);
 
 #ifdef __cplusplus
 }
