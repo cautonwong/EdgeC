@@ -55,6 +55,11 @@ const (
 	IEMS_VSG_BLACK_START_PROGRESS = 131092
 	IEMS_VSG_BLACK_START_VOLT_REF = 131093
 	IEMS_VSG_BLACK_START_FREQ_REF = 131094
+	IEMS_VSG_CIRC_CURRENT_Q = 131095
+	IEMS_VSG_LINE_R_EST = 131096
+	IEMS_VSG_LINE_X_EST = 131097
+	IEMS_VSG_VIRTUAL_R = 131098
+	IEMS_VSG_VIRTUAL_X = 131099
 )
 
 type TagMetadata struct {
@@ -117,4 +122,9 @@ var Metadata = map[uint32]TagMetadata{
 	131092: {ID: 131092, Name: "IEMS_VSG_BLACK_START_PROGRESS", DataType: "float", Unit: "%"},
 	131093: {ID: 131093, Name: "IEMS_VSG_BLACK_START_VOLT_REF", DataType: "float", Unit: "V"},
 	131094: {ID: 131094, Name: "IEMS_VSG_BLACK_START_FREQ_REF", DataType: "float", Unit: "Hz"},
+	131095: {ID: 131095, Name: "IEMS_VSG_CIRC_CURRENT_Q", DataType: "float", Unit: "A"},
+	131096: {ID: 131096, Name: "IEMS_VSG_LINE_R_EST", DataType: "float", Unit: "Ω"},
+	131097: {ID: 131097, Name: "IEMS_VSG_LINE_X_EST", DataType: "float", Unit: "Ω"},
+	131098: {ID: 131098, Name: "IEMS_VSG_VIRTUAL_R", DataType: "float", Unit: "Ω"},
+	131099: {ID: 131099, Name: "IEMS_VSG_VIRTUAL_X", DataType: "float", Unit: "Ω"},
 }

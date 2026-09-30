@@ -133,3 +133,33 @@ tags:
     type: "float"
     unit: "Hz"
     description: "VSG Black Start Dynamic Soft-Start Frequency Reference"
+
+  - id: 131095 # 0x020017
+    name: "IEMS_VSG_CIRC_CURRENT_Q"
+    type: "float"
+    unit: "A"
+    description: "VSG Parallel Reactive Circulating Current"
+
+  - id: 131096 # 0x020018
+    name: "IEMS_VSG_LINE_R_EST"
+    type: "float"
+    unit: "Ω"
+    description: "VSG Online Identified Physical Line Resistance R_line"
+
+  - id: 131097 # 0x020019
+    name: "IEMS_VSG_LINE_X_EST"
+    type: "float"
+    unit: "Ω"
+    description: "VSG Online Identified Physical Line Reactance X_line"
+
+  - id: 131098 # 0x02001A
+    name: "IEMS_VSG_VIRTUAL_R"
+    type: "float"
+    unit: "Ω"
+    description: "VSG Adaptive Virtual Stator Resistance R_v"
+
+  - id: 131099 # 0x02001B
+    name: "IEMS_VSG_VIRTUAL_X"
+    type: "float"
+    unit: "Ω"
+    description: "VSG Adaptive Virtual Stator Reactance X_v"

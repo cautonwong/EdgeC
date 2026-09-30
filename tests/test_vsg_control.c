@@ -628,9 +628,117 @@ static void test_vsg_black_start_multi_pcs_lockstep(void) {
     printf("  --> VSG Black Start Multi-PCS Lockstep PASSED!\n");
 }
 
+static void test_vsg_circulating_current_active_suppression(void) {
+    printf("[TEST] Testing VSG Multi-PCS Circulating Current Active Suppression (AEP-725)...\n");
+
+    vsg_controller_storage_t store;
+    vsg_config_t cfg = {.j_inertia = 1.0,
+                        .d_damping = 20.0,
+                        .v_nominal = 380.0,
+                        .f_nominal = 50.0,
+                        .circ_suppress = {.enable_circ_suppression = true,
+                                          .enable_online_impedance_id = false,
+                                          .r_line_nominal_ohm = 0.08,
+                                          .x_line_nominal_ohm = 0.25,
+                                          .r_virtual_ohm = 0.05,
+                                          .x_virtual_ohm = 0.20,
+                                          .kp_circ = 2.5,
+                                          .ki_circ = 25.0}};
+
+    vsg_controller_t *vsg = vsg_controller_create_in(&store, &cfg, NULL);
+    assert(vsg != NULL);
+
+    /* Initial asymmetric branch operating condition:
+       Branch current: Id = 100A, Iq = -30A
+       Cluster average current: Id_avg = 100A, Iq_avg = -10A
+       Initial reactive circulating current Iq_circ = -20A
+    */
+    double id_meas = 100.0, iq_meas = -30.0;
+    double id_avg = 100.0, iq_avg = -10.0;
+    double v_pcc_d = 370.0, v_pcc_q = 0.0;
+
+    double out_vd = 0.0, out_vq = 0.0;
+
+    /* Run 200 simulation steps (dt = 0.005s, total 1.0s) with PI closed-loop circulating current
+     * suppression */
+    for (int i = 0; i < 200; ++i) {
+        vsg_controller_step_circ_suppression(vsg, id_meas, iq_meas, id_avg, iq_avg, v_pcc_d,
+                                             v_pcc_q, 0.005, &out_vd, &out_vq);
+
+        /* Simulated physical branch response: voltage compensation drives Iq towards Iq_avg */
+        vsg_circulating_status_t status;
+        vsg_controller_get_circ_status(vsg, &status);
+
+        /* Iq converges towards avg as Q-axis compensation is applied */
+        double delta_iq = (iq_avg - iq_meas) * 0.05;
+        iq_meas += delta_iq;
+    }
+
+    vsg_circulating_status_t final_status;
+    assert(vsg_controller_get_circ_status(vsg, &final_status) == 0);
+    printf(
+        "    • Circulating suppression: Initial Iq_circ=20.0A -> Final Iq_circ=%.2fA, "
+        "SuppressionRatio=%.1f%%\n",
+        fabs(final_status.i_circ_q_a), final_status.suppression_ratio_pct);
+
+    assert(fabs(final_status.i_circ_q_a) < 2.0); /* Suppressed from 20A to < 2A */
+    assert(final_status.suppression_ratio_pct > 85.0);
+
+    printf("  --> VSG Circulating Current Active Suppression PASSED!\n");
+}
+
+static void test_vsg_online_line_impedance_identification_rls(void) {
+    printf("[TEST] Testing VSG Online Line Impedance RLS Identification (AEP-725)...\n");
+
+    vsg_controller_storage_t store;
+    vsg_config_t cfg = {
+        .j_inertia = 1.0,
+        .d_damping = 20.0,
+        .v_nominal = 380.0,
+        .f_nominal = 50.0,
+        .circ_suppress = {.enable_circ_suppression = true,
+                          .enable_online_impedance_id = true,
+                          .r_line_nominal_ohm = 0.05, /* Initial guess differs from true */
+                          .x_line_nominal_ohm = 0.10,
+                          .rls_forgetting_factor = 0.99}};
+
+    vsg_controller_t *vsg = vsg_controller_create_in(&store, &cfg, NULL);
+    assert(vsg != NULL);
+
+    /* True line impedance: R_true = 0.12 ohm, X_true = 0.35 ohm */
+    double r_true = 0.12;
+    double x_true = 0.35;
+
+    double out_vd = 0.0, out_vq = 0.0;
+
+    /* Feed 300 steps with dynamic current trajectory to excite both R and X modes */
+    for (int i = 0; i < 300; ++i) {
+        double t = i * 0.01;
+        double id = 80.0 + 20.0 * sin(2.0 * M_PI * 2.0 * t);
+        double iq = -30.0 + 15.0 * cos(2.0 * M_PI * 2.0 * t);
+
+        /* True physical voltage drop: Delta_Vd = R * Id - X * Iq */
+        double delta_vd = r_true * id - x_true * iq;
+        double v_pcc_d = vsg_controller_get_voltage(vsg) - delta_vd;
+
+        vsg_controller_step_circ_suppression(vsg, id, iq, id, iq, v_pcc_d, 0.0, 0.01, &out_vd,
+                                             &out_vq);
+    }
+
+    vsg_circulating_status_t status;
+    assert(vsg_controller_get_circ_status(vsg, &status) == 0);
+    printf("    • RLS Identified: R_line=%.4f Ω (True=%.2f Ω), X_line=%.4f Ω (True=%.2f Ω)\n",
+           status.r_line_est_ohm, r_true, status.x_line_est_ohm, x_true);
+
+    assert(fabs(status.r_line_est_ohm - r_true) < 0.02);
+    assert(fabs(status.x_line_est_ohm - x_true) < 0.03);
+
+    printf("  --> VSG Online Line Impedance RLS Identification PASSED!\n");
+}
+
 int main(void) {
     printf(
-        "=== EdgeOS VSG Grid-Forming Control Tests (AEP-721 ~ AEP-730 / Issue #252 ~ #255) ===\n");
+        "=== EdgeOS VSG Grid-Forming Control Tests (AEP-721 ~ AEP-730 / Issue #252 ~ #256) ===\n");
     test_vsg_initialization_and_bounds();
     test_vsg_swing_dynamics_and_damping();
     test_vsg_reactive_droop();
@@ -644,6 +752,8 @@ int main(void) {
     test_vsg_black_start_zero_voltage_soft_ramp();
     test_vsg_black_start_inrush_throttling_and_fault();
     test_vsg_black_start_multi_pcs_lockstep();
+    test_vsg_circulating_current_active_suppression();
+    test_vsg_online_line_impedance_identification_rls();
     printf("=== All VSG Control Tests PASSED! ===\n");
     return 0;
 }

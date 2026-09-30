@@ -77,6 +77,34 @@ typedef struct {
 } vsg_black_start_config_t;
 
 /**
+ * @brief Multi-PCS Line Impedance & Circulating Current Suppression Configuration (AEP-725)
+ */
+typedef struct {
+    bool enable_circ_suppression;     /**< Enable active circulating current suppression */
+    bool enable_online_impedance_id;  /**< Enable online line impedance RLS estimation */
+    double r_line_nominal_ohm;        /**< Nominal/initial branch line resistance (Ω, typ. 0.05 ~ 0.5) */
+    double x_line_nominal_ohm;        /**< Nominal/initial branch line reactance (Ω, typ. 0.1 ~ 1.0) */
+    double r_virtual_ohm;             /**< Adaptive virtual stator resistance R_v (Ω, typ. 0.05 ~ 0.5) */
+    double x_virtual_ohm;             /**< Adaptive virtual stator reactance X_v (Ω, typ. 0.1 ~ 1.0) */
+    double kp_circ;                   /**< Reactive circulating current suppression proportional gain */
+    double ki_circ;                   /**< Reactive circulating current suppression integral gain */
+    double rls_forgetting_factor;     /**< RLS recursive least squares forgetting factor lambda (typ. 0.98 ~ 0.999) */
+} vsg_circulating_suppress_config_t;
+
+/**
+ * @brief Circulating Current & Line Impedance Status Telemetry (AEP-725)
+ */
+typedef struct {
+    double r_line_est_ohm;            /**< Online identified line resistance (Ω) */
+    double x_line_est_ohm;            /**< Online identified line reactance (Ω) */
+    double i_circ_d_a;                /**< Active circulating current component (A) */
+    double i_circ_q_a;                /**< Reactive circulating current component (A) */
+    double v_comp_d_v;                /**< D-axis virtual impedance voltage compensation (V) */
+    double v_comp_q_v;                /**< Q-axis virtual impedance voltage compensation (V) */
+    double suppression_ratio_pct;     /**< Circulating current suppression ratio (%) */
+} vsg_circulating_status_t;
+
+/**
  * @brief Pre-synchronization & Seamless Transition Status (AEP-723)
  */
 typedef struct {
@@ -121,6 +149,9 @@ typedef struct {
 
     /* AEP-724 Microgrid Black Start & Zero-Voltage Soft Excitation */
     vsg_black_start_config_t black_start; /**< Black start physical configuration */
+
+    /* AEP-725 Multi-PCS Line Impedance Identification & Circulating Current Suppression */
+    vsg_circulating_suppress_config_t circ_suppress; /**< Circulating current suppression configuration */
 } vsg_config_t;
 
 /**
@@ -141,7 +172,7 @@ typedef struct vsg_controller vsg_controller_t;
  * @brief Caller-Allocated Storage for VSG Controller (Physical Opaque Encapsulation)
  */
 typedef struct {
-    alignas(max_align_t) uint8_t raw[512];
+    alignas(max_align_t) uint8_t raw[1024];
 } vsg_controller_storage_t;
 
 /**
@@ -232,6 +263,18 @@ int vsg_controller_step_black_start(vsg_controller_t *vsg, double i_meas_a, doub
 vsg_black_start_state_t vsg_controller_get_black_start_state(const vsg_controller_t *vsg);
 int vsg_controller_get_black_start_status(const vsg_controller_t *vsg, vsg_black_start_status_t *status);
 void vsg_controller_abort_black_start(vsg_controller_t *vsg);
+
+/* -------------------------------------------------------------------------- */
+/* AEP-725 Multi-PCS Line Impedance & Circulating Suppression APIs            */
+/* -------------------------------------------------------------------------- */
+int vsg_controller_set_circ_suppress_config(vsg_controller_t *vsg, const vsg_circulating_suppress_config_t *cfg);
+int vsg_controller_step_circ_suppression(vsg_controller_t *vsg,
+                                         double i_d_meas, double i_q_meas,
+                                         double i_d_avg, double i_q_avg,
+                                         double v_pcc_d, double v_pcc_q,
+                                         double dt_s,
+                                         double *out_v_d, double *out_v_q);
+int vsg_controller_get_circ_status(const vsg_controller_t *vsg, vsg_circulating_status_t *status);
 
 #ifdef __cplusplus
 }
