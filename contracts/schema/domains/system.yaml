@@ -104,3 +104,22 @@ tags:
     type: int
     desc: "实时内存锁定 (mlockall) 与预故障状态 (1:已锁定, 0:未锁定)"
     traits: [ "system", "diagnostic" ]
+
+  - id: 11018
+    name: SYS_SCHED_LOCKFREE_RING_DEPTH
+    type: int
+    desc: "无锁环形队列当前积压深度"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11019
+    name: SYS_SCHED_LOCKFREE_RING_DROPS
+    type: int
+    desc: "无锁环形队列满载丢弃累计计数"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11020
+    name: SYS_SCHED_LOCKFREE_RING_OPS_SEC
+    type: int
+    desc: "无锁环形队列每秒吞吐操作数"
+    traits: [ "system", "diagnostic" ]
+

@@ -1337,6 +1337,9 @@ add_edge_test(test_rms_scheduler test_rms_scheduler.c)
 # AEP-716 CPU 核心独占绑定、中断亲和性 (IRQ) 调优与内存锁定 (mlockall) 单测
 add_edge_test(test_cpu_affinity test_cpu_affinity.c)
 
+# AEP-717 无锁定长环形队列 (Lock-Free RingBuffer) 生产者-消费者零拷贝调度单测
+add_edge_test(test_lockfree_ring test_lockfree_ring.c)
+
 
 
 

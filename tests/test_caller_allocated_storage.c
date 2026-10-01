@@ -42,6 +42,7 @@
 #include "edge_cpu_affinity.h"
 #include "edge_edf_scheduler.h"
 #include "edge_guard.h"
+#include "edge_lockfree_ring.h"
 #include "edge_pcp_mutex.h"
 #include "edge_rms_scheduler.h"
 #include "edge_sched_deadline.h"
@@ -500,6 +501,35 @@ static void test_edge_cpu_affinity_caller_allocated_storage(void **state) {
     assert_int_equal(edge_cpu_affinity_destroy(aff), 0);
 }
 
+static void test_edge_lockfree_ring_caller_allocated_storage(void **state) {
+    (void)state;
+    edge_lockfree_ring_storage_t store;
+    memset(&store, 0x11, sizeof(store));
+
+    edge_lockfree_ring_config_t cfg = {
+        .mode = EDGE_RING_MODE_SPSC,
+        .overflow_policy = EDGE_RING_OVERFLOW_DROP,
+        .capacity = 16,
+        .elem_size_bytes = 8,
+        .high_watermark_percent = 75,
+    };
+
+    edge_lockfree_ring_t *ring = edge_lockfree_ring_create_in(&store, &cfg, NULL);
+    assert_non_null(ring);
+    assert_ptr_equal(ring, (void *)store.raw);
+
+    uint64_t val = 0xDEADBEEFCAFEULL;
+    assert_int_equal(edge_lockfree_ring_enqueue(ring, &val), 0);
+    assert_int_equal(edge_lockfree_ring_depth(ring), 1);
+
+    uint64_t out_val = 0;
+    assert_int_equal(edge_lockfree_ring_dequeue(ring, &out_val), 0);
+    assert_int_equal(out_val, 0xDEADBEEFCAFEULL);
+    assert_int_equal(edge_lockfree_ring_depth(ring), 0);
+
+    assert_int_equal(edge_lockfree_ring_destroy(ring), 0);
+}
+
 static void test_thermal_mesh_caller_allocated_storage(void **state) {
     (void)state;
     thermal_mesh_engine_storage_t store;
@@ -832,6 +862,7 @@ int main(void) {
         cmocka_unit_test(test_edge_edf_scheduler_caller_allocated_storage),
         cmocka_unit_test(test_edge_rms_scheduler_caller_allocated_storage),
         cmocka_unit_test(test_edge_cpu_affinity_caller_allocated_storage),
+        cmocka_unit_test(test_edge_lockfree_ring_caller_allocated_storage),
         cmocka_unit_test(test_thermal_mesh_caller_allocated_storage),
         cmocka_unit_test(test_cep_engine_caller_allocated_storage),
         cmocka_unit_test(test_impedance_controller_caller_allocated_storage),
