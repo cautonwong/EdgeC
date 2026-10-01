@@ -123,3 +123,20 @@ tags:
     desc: "无锁环形队列每秒吞吐操作数"
     traits: [ "system", "diagnostic" ]
 
+  - id: 11021
+    name: SYS_SCHED_PRIO_BOOST_ACTIVE_COUNT
+    type: int
+    desc: "当前处于突发优先级提升状态的任务数"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11022
+    name: SYS_SCHED_PRIO_BOOST_TOTAL_EVENTS
+    type: int
+    desc: "累计触发突发工况优先级跃迁事件总数"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11023
+    name: SYS_SCHED_PRIO_ANNEAL_TOTAL_EVENTS
+    type: int
+    desc: "累计完成退火衰减恢复基准优先级总数"
+    traits: [ "system", "diagnostic" ]

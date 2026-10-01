@@ -1340,6 +1340,9 @@ add_edge_test(test_cpu_affinity test_cpu_affinity.c)
 # AEP-717 无锁定长环形队列 (Lock-Free RingBuffer) 生产者-消费者零拷贝调度单测
 add_edge_test(test_lockfree_ring test_lockfree_ring.c)
 
+# AEP-718 突发工况事件优先级动态提升 (Priority Boosting) 与退火衰减单测
+add_edge_test(test_prio_booster test_prio_booster.c)
+
 
 
 

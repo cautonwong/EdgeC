@@ -44,6 +44,7 @@
 #include "edge_guard.h"
 #include "edge_lockfree_ring.h"
 #include "edge_pcp_mutex.h"
+#include "edge_prio_booster.h"
 #include "edge_rms_scheduler.h"
 #include "edge_sched_deadline.h"
 #include "iec104_apci.h"
@@ -530,6 +531,39 @@ static void test_edge_lockfree_ring_caller_allocated_storage(void **state) {
     assert_int_equal(edge_lockfree_ring_destroy(ring), 0);
 }
 
+static void test_edge_prio_booster_caller_allocated_storage(void **state) {
+    (void)state;
+    edge_prio_booster_storage_t store;
+    memset(&store, 0x77, sizeof(store));
+
+    edge_prio_booster_config_t cfg = {
+        .tick_resolution_us = 1000,
+        .default_boost_hold_us = 50000,
+        .max_boosted_prio = 99,
+        .anneal_curve = EDGE_ANNEAL_STEP,
+    };
+
+    edge_prio_booster_t *booster = edge_prio_booster_create_in(&store, &cfg, NULL);
+    assert_non_null(booster);
+    assert_ptr_equal(booster, (void *)store.raw);
+
+    edge_boost_task_config_t t_cfg = {
+        .task_id = 99,
+        .name = "caller_booster_task",
+        .base_priority = 25,
+        .thread_handle = (pthread_t)0,
+    };
+    assert_int_equal(edge_prio_booster_register_task(booster, &t_cfg), 0);
+
+    assert_int_equal(edge_prio_booster_trigger_boost(booster, 99, 99, 10000, "trip"), 0);
+
+    int prio = 0;
+    assert_int_equal(edge_prio_booster_get_task_priority(booster, 99, &prio), 0);
+    assert_int_equal(prio, 99);
+
+    assert_int_equal(edge_prio_booster_destroy(booster), 0);
+}
+
 static void test_thermal_mesh_caller_allocated_storage(void **state) {
     (void)state;
     thermal_mesh_engine_storage_t store;
@@ -863,6 +897,7 @@ int main(void) {
         cmocka_unit_test(test_edge_rms_scheduler_caller_allocated_storage),
         cmocka_unit_test(test_edge_cpu_affinity_caller_allocated_storage),
         cmocka_unit_test(test_edge_lockfree_ring_caller_allocated_storage),
+        cmocka_unit_test(test_edge_prio_booster_caller_allocated_storage),
         cmocka_unit_test(test_thermal_mesh_caller_allocated_storage),
         cmocka_unit_test(test_cep_engine_caller_allocated_storage),
         cmocka_unit_test(test_impedance_controller_caller_allocated_storage),

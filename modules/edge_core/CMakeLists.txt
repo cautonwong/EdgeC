@@ -32,6 +32,7 @@ add_library(edge_core STATIC
     src/edge_rms_scheduler.c
     src/edge_cpu_affinity.c
     src/edge_lockfree_ring.c
+    src/edge_prio_booster.c
     src/edge_fd_ipc.c
 )
 
