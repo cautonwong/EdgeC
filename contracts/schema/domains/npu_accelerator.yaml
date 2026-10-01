@@ -101,3 +101,59 @@ tags:
     unit: "us"
     desc: "时钟门控待机到就绪唤醒物理延迟"
     traits: [ "npu", "power", "perf" ]
+
+  # === AEP-702: INT8/FP8 对称与非对称量化校准器 ===
+  - id: 262160 # 0x040010
+    name: AI_QUANT_CALIB_MSE_LOSS
+    type: float
+    desc: "INT8/FP8 量化均方误差 (MSE) 损失"
+    traits: [ "npu", "ai", "telemetry" ]
+
+  - id: 262161 # 0x040011
+    name: AI_QUANT_CALIB_SNR_DB
+    type: float
+    unit: "dB"
+    desc: "量化信号信噪比 (SQNR dB)"
+    traits: [ "npu", "ai", "telemetry" ]
+
+  - id: 262162 # 0x040012
+    name: AI_QUANT_SATURATION_PCT
+    type: float
+    unit: "%"
+    desc: "激活张量截断饱和率百分比"
+    traits: [ "npu", "ai", "telemetry" ]
+
+  # === AEP-703: 4-bit (AWQ/GPTQ) 紧凑权重量化与 GEMV ===
+  - id: 262163 # 0x040013
+    name: AI_AWQ_COMPRESSION_RATIO
+    type: float
+    desc: "4-bit 权重流式紧凑有效压缩比"
+    traits: [ "npu", "ai", "telemetry" ]
+
+  - id: 262164 # 0x040014
+    name: AI_AWQ_GEMV_GFLOPS
+    type: float
+    unit: "GFLOPS"
+    desc: "4-bit 解压与 GEMV 融合内积计算吞吐 (GFLOPS)"
+    traits: [ "npu", "ai", "perf" ]
+
+  # === AEP-704: 时序 1D-CNN + BiLSTM 故障诊断 ===
+  - id: 262165 # 0x040015
+    name: AI_FAULT_DIAG_CLASS
+    type: int
+    desc: "电力暂态与工业故障分类类型 (0:正常, 1:单相接地, 2:相间短路, 3:三相故障, 4:谐波异常, 5:励磁涌流)"
+    traits: [ "npu", "ai", "diagnostic" ]
+
+  - id: 262166 # 0x040016
+    name: AI_FAULT_DIAG_CONFIDENCE
+    type: float
+    unit: "%"
+    desc: "故障判定置信度百分比"
+    traits: [ "npu", "ai", "diagnostic" ]
+
+  - id: 262167 # 0x040017
+    name: AI_FAULT_INFERENCE_US
+    type: float
+    unit: "us"
+    desc: "1D-CNN+BiLSTM 融合推理耗时"
+    traits: [ "npu", "ai", "perf" ]

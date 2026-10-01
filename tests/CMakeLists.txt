@@ -1391,27 +1391,14 @@ add_edge_test(test_coop_guard test_coop_guard.c)
 # AEP-602 工业混合关键度实时调度器 (Mixed-Criticality Dispatcher) 与 MTT 确定性保障单测
 add_edge_test(test_mixed_criticality test_mixed_criticality.c)
 
+# AEP-702 INT8/FP8 对称与非对称量化校准器单测
+add_edge_test(test_ai_quant_calibrator test_ai_quant_calibrator.c)
 
+# AEP-703 边缘端 4-bit (AWQ/GPTQ) 紧凑权重量化与 GEMV 单测
+add_edge_test(test_ai_awq_gptq_gemm test_ai_awq_gptq_gemm.c)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# AEP-704 工业时序多尺度 1D-CNN + BiLSTM 故障诊断单测
+add_edge_test(test_ai_temporal_fault_net test_ai_temporal_fault_net.c)
 
 
 

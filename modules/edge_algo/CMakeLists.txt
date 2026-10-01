@@ -44,6 +44,9 @@ set(ALGO_SOURCES
     src/facility_coordinator.c
     src/edge_cep_engine.c
     src/onnx_host_guard.c
+    src/ai_quant_calibrator.c
+    src/ai_awq_gptq_gemm.c
+    src/ai_temporal_fault_net.c
     src/math/control_algo.c
     src/math/motor_algo.c
     src/math/radar_algo.c

@@ -22,6 +22,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "ai_awq_gptq_gemm.h"
+#include "ai_quant_calibrator.h"
+#include "ai_temporal_fault_net.h"
 #include "battery_balancer.h"
 #include "battery_eis.h"
 #include "battery_fo_ecm_ekf.h"
@@ -1023,6 +1026,57 @@ static void test_npu_power_mgr_caller_allocated_storage(void **state) {
     assert_int_equal(metrics.current_state, NPU_PWR_ACTIVE);
 }
 
+static void test_ai_quant_calib_caller_allocated_storage(void **state) {
+    (void)state;
+
+    ai_quant_calib_storage_t store;
+    memset(&store, 0x11, sizeof(store));
+
+    ai_quant_config_t cfg = {
+        .scheme = AI_QUANT_SCHEME_INT8_SYMMETRIC,
+        .method = AI_QUANT_CALIB_MINMAX
+    };
+
+    ai_quant_calibrator_t *calib = ai_quant_calibrator_create_in(&store, &cfg);
+    assert_non_null(calib);
+    assert_ptr_equal(calib, (void *)store.raw);
+
+    float samples[16] = {1.0f, -2.0f, 3.0f, -4.0f};
+    assert_int_equal(ai_quant_calibrator_collect_sample(calib, samples, 4), 0);
+
+    ai_quant_params_t p;
+    assert_int_equal(ai_quant_calibrator_compute_params(calib, &p), 0);
+    assert_true(p.scale > 0.0f);
+}
+
+static void test_ai_awq_gptq_caller_allocated_storage(void **state) {
+    (void)state;
+
+    ai_awq_gptq_storage_t store;
+    memset(&store, 0x22, sizeof(store));
+
+    ai_awq_gptq_engine_t *engine = ai_awq_gptq_create_in(&store);
+    assert_non_null(engine);
+    assert_ptr_equal(engine, (void *)store.raw);
+}
+
+static void test_ai_temporal_fault_caller_allocated_storage(void **state) {
+    (void)state;
+
+    ai_temporal_fault_storage_t store;
+    memset(&store, 0x33, sizeof(store));
+
+    ai_fault_net_config_t cfg = {
+        .classification_threshold = 75.0f,
+        .enable_bilstm = true,
+        .cell_state_clip = 10.0f
+    };
+
+    ai_temporal_fault_net_t *net = ai_temporal_fault_net_create_in(&store, &cfg);
+    assert_non_null(net);
+    assert_ptr_equal(net, (void *)store.raw);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_battery_ekf_caller_allocated_storage),
@@ -1061,6 +1115,9 @@ int main(void) {
         cmocka_unit_test(test_npu_pmu_caller_allocated_storage),
         cmocka_unit_test(test_npu_enclave_caller_allocated_storage),
         cmocka_unit_test(test_npu_power_mgr_caller_allocated_storage),
+        cmocka_unit_test(test_ai_quant_calib_caller_allocated_storage),
+        cmocka_unit_test(test_ai_awq_gptq_caller_allocated_storage),
+        cmocka_unit_test(test_ai_temporal_fault_caller_allocated_storage),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);
