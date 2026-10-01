@@ -159,3 +159,22 @@ tags:
     desc: "累计触发保护性软熔断隔离总次数"
     traits: [ "system", "diagnostic" ]
 
+  - id: 11027
+    name: SYS_SCHED_MIXED_CRIT_L1_DISPATCH_COUNT
+    type: int
+    desc: "L1 安全关键级任务调度总次数"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11028
+    name: SYS_SCHED_MIXED_CRIT_MTT_DRIFT_US
+    type: int
+    desc: "L2 MTT 工业整点挂钟时间漂移(微秒)"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11029
+    name: SYS_SCHED_MIXED_CRIT_THERMAL_THROTTLE_ACTIVE
+    type: int
+    desc: "混合关键度热力/功耗降级节流激活状态"
+    traits: [ "system", "diagnostic" ]
+
+

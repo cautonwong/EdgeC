@@ -1346,6 +1346,9 @@ add_edge_test(test_prio_booster test_prio_booster.c)
 # AEP-719 多任务协作式调度时间片超限软熔断与降级回调单测
 add_edge_test(test_coop_guard test_coop_guard.c)
 
+# AEP-602 工业混合关键度实时调度器 (Mixed-Criticality Dispatcher) 与 MTT 确定性保障单测
+add_edge_test(test_mixed_criticality test_mixed_criticality.c)
+
 
 
 

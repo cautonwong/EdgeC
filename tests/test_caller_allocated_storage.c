@@ -44,6 +44,7 @@
 #include "edge_edf_scheduler.h"
 #include "edge_guard.h"
 #include "edge_lockfree_ring.h"
+#include "edge_mixed_criticality.h"
 #include "edge_pcp_mutex.h"
 #include "edge_prio_booster.h"
 #include "edge_rms_scheduler.h"
@@ -602,6 +603,41 @@ static void test_edge_coop_guard_caller_allocated_storage(void **state) {
     assert_int_equal(edge_coop_guard_destroy(guard), 0);
 }
 
+static void test_edge_mixed_crit_caller_allocated_storage(void **state) {
+    (void)state;
+    edge_mixed_crit_storage_t store;
+    memset(&store, 0x99, sizeof(store));
+
+    edge_mixed_crit_config_t cfg = {
+        .tick_resolution_us = 1000,
+        .thermal_warning_temp_c = 70.0f,
+        .thermal_critical_temp_c = 85.0f,
+        .enable_thermal_throttling = true,
+        .l3_decimation_factor = 2,
+    };
+
+    edge_mixed_crit_dispatcher_t *disp = edge_mixed_crit_create_in(&store, &cfg, NULL);
+    assert_non_null(disp);
+    assert_ptr_equal(disp, (void *)store.raw);
+
+    edge_mixed_crit_task_config_t t_cfg = {
+        .task_id = 111,
+        .name = "caller_l1_task",
+        .level = CRITICALITY_L1_SAFETY,
+        .period_us = 10000,
+        .wcet_budget_us = 1000,
+    };
+    assert_int_equal(edge_mixed_crit_register_task(disp, &t_cfg), 0);
+
+    edge_mixed_crit_dispatch_result_t res;
+    assert_int_equal(edge_mixed_crit_step(disp, 0, &res), 0);
+    assert_true(res.task_dispatched);
+    assert_int_equal(res.active_task_id, 111);
+    assert_int_equal(res.active_level, CRITICALITY_L1_SAFETY);
+
+    assert_int_equal(edge_mixed_crit_destroy(disp), 0);
+}
+
 static void test_thermal_mesh_caller_allocated_storage(void **state) {
     (void)state;
     thermal_mesh_engine_storage_t store;
@@ -937,6 +973,7 @@ int main(void) {
         cmocka_unit_test(test_edge_lockfree_ring_caller_allocated_storage),
         cmocka_unit_test(test_edge_prio_booster_caller_allocated_storage),
         cmocka_unit_test(test_edge_coop_guard_caller_allocated_storage),
+        cmocka_unit_test(test_edge_mixed_crit_caller_allocated_storage),
         cmocka_unit_test(test_thermal_mesh_caller_allocated_storage),
         cmocka_unit_test(test_cep_engine_caller_allocated_storage),
         cmocka_unit_test(test_impedance_controller_caller_allocated_storage),
