@@ -41,6 +41,7 @@
 #include "edge_composition_root.h"
 #include "edge_guard.h"
 #include "edge_sched_deadline.h"
+#include "edge_pcp_mutex.h"
 #include "iec104_apci.h"
 #include "impedance_control.h"
 #include "mpc_dispatcher.h"
@@ -377,6 +378,35 @@ static void test_edge_sched_deadline_caller_allocated_storage(void **state) {
     assert_int_equal(edge_sched_deadline_get_task_count(mon), 1);
 }
 
+static void test_edge_pcp_mutex_caller_allocated_storage(void **state) {
+    (void)state;
+    edge_pcp_mutex_storage_t store;
+    memset(&store, 0x55, sizeof(store));
+
+    edge_pcp_mutex_config_t cfg = {
+        .mutex_id = 11009,
+        .name = "test_pcp_caller_storage",
+        .protocol = EDGE_PCP_PROTOCOL_PROTECT,
+        .prio_ceiling = 80,
+        .max_expected_hold_us = 10000,
+        .recursive = false,
+    };
+
+    edge_pcp_mutex_t *m = edge_pcp_mutex_create_in(&store, &cfg, NULL);
+    assert_non_null(m);
+    assert_ptr_equal(m, (void *)store.raw);
+
+    assert_int_equal(edge_pcp_mutex_lock(m), 0);
+    assert_int_equal(edge_pcp_mutex_unlock(m), 0);
+
+    edge_pcp_mutex_stats_t stats;
+    assert_int_equal(edge_pcp_mutex_get_stats(m, &stats), 0);
+    assert_int_equal(stats.total_lock_count, 1);
+    assert_int_equal(stats.mutex_id, 11009);
+
+    assert_int_equal(edge_pcp_mutex_destroy(m), 0);
+}
+
 static void test_thermal_mesh_caller_allocated_storage(void **state) {
     (void)state;
     thermal_mesh_engine_storage_t store;
@@ -705,6 +735,7 @@ int main(void) {
         cmocka_unit_test(test_battery_eis_caller_allocated_storage),
         cmocka_unit_test(test_battery_pulse_heating_caller_allocated_storage),
         cmocka_unit_test(test_edge_sched_deadline_caller_allocated_storage),
+        cmocka_unit_test(test_edge_pcp_mutex_caller_allocated_storage),
         cmocka_unit_test(test_thermal_mesh_caller_allocated_storage),
         cmocka_unit_test(test_cep_engine_caller_allocated_storage),
         cmocka_unit_test(test_impedance_controller_caller_allocated_storage),

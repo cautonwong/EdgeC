@@ -33,6 +33,9 @@ const (
 	SYS_NETBUF_PEAK = 11003
 	SYS_NETBUF_LEAK_RECLAIM = 11004
 	SYS_PIPE_QUEUE_DEPTH = 11005
+	SYS_SCHED_PCP_CONTENTION_COUNT = 11006
+	SYS_SCHED_PCP_MAX_HOLD_US = 11007
+	SYS_SCHED_PCP_INVERSIONS_PREVENTED = 11008
 	BOX_SYSTEM_STATUS = 12001
 	BOX_INDICATOR_LED = 12002
 	BOX_FALL_ALERT = 12003
@@ -164,6 +167,9 @@ var Metadata = map[uint32]TagMetadata{
 	11003: {ID: 11003, Name: "SYS_NETBUF_PEAK", DataType: "int", Unit: ""},
 	11004: {ID: 11004, Name: "SYS_NETBUF_LEAK_RECLAIM", DataType: "int", Unit: ""},
 	11005: {ID: 11005, Name: "SYS_PIPE_QUEUE_DEPTH", DataType: "int", Unit: ""},
+	11006: {ID: 11006, Name: "SYS_SCHED_PCP_CONTENTION_COUNT", DataType: "int", Unit: ""},
+	11007: {ID: 11007, Name: "SYS_SCHED_PCP_MAX_HOLD_US", DataType: "int", Unit: ""},
+	11008: {ID: 11008, Name: "SYS_SCHED_PCP_INVERSIONS_PREVENTED", DataType: "int", Unit: ""},
 	12001: {ID: 12001, Name: "BOX_SYSTEM_STATUS", DataType: "int", Unit: ""},
 	12002: {ID: 12002, Name: "BOX_INDICATOR_LED", DataType: "int", Unit: ""},
 	12003: {ID: 12003, Name: "BOX_FALL_ALERT", DataType: "int", Unit: ""},

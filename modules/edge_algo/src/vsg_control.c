@@ -1307,20 +1307,32 @@ int vsg_controller_step_virtual_z(vsg_controller_t *vsg,
 
     double omega_h = 6.0 * vsg->omega_0; /* 6 * 2*pi*50 = 600*pi rad/s */
     double omega_cut = vsg->config.virtual_z.harmonic_bandwidth_rad_s;
+    if (omega_cut <= 0.0) omega_cut = 20.0;
     double k_h = (vsg->config.virtual_z.k_harmonic_damping_h5 + vsg->config.virtual_z.k_harmonic_damping_h7) * 0.5;
 
-    /* SOGI Resonator on D-axis current */
-    double err_d = i_d_meas - vsg->h_sogi_x_d;
-    vsg->h_sogi_x_d += (2.0 * omega_cut * err_d - omega_h * vsg->h_sogi_y_d) * dt_s;
-    vsg->h_sogi_y_d += (omega_h * vsg->h_sogi_x_d) * dt_s;
+    /* Discrete Tustin BPF Resonator Direct Form II (with frequency pre-warping) */
+    double inv_T = 1.0 / dt_s;
+    double inv_T2 = 4.0 * inv_T * inv_T;
+    double omega_h_warped = (2.0 * inv_T) * tan(0.5 * omega_h * dt_s);
+    double omega_h2 = omega_h_warped * omega_h_warped;
+    double term_c = 4.0 * omega_cut * inv_T;
+    double d0 = inv_T2 + term_c + omega_h2;
 
-    /* SOGI Resonator on Q-axis current */
-    double err_q = i_q_meas - vsg->h_sogi_x_q;
-    vsg->h_sogi_x_q += (2.0 * omega_cut * err_q - omega_h * vsg->h_sogi_y_q) * dt_s;
-    vsg->h_sogi_y_q += (omega_h * vsg->h_sogi_x_q) * dt_s;
+    double b0 = term_c / d0;
+    double a1 = 2.0 * (omega_h2 - inv_T2) / d0;
+    double a2 = (inv_T2 - term_c + omega_h2) / d0;
 
-    double i_d_harm = vsg->h_sogi_x_d;
-    double i_q_harm = vsg->h_sogi_x_q;
+    /* D-axis BPF */
+    double w_d = i_d_meas - a1 * vsg->h_sogi_x_d - a2 * vsg->h_sogi_y_d;
+    double i_d_harm = b0 * (w_d - vsg->h_sogi_y_d);
+    vsg->h_sogi_y_d = vsg->h_sogi_x_d;
+    vsg->h_sogi_x_d = w_d;
+
+    /* Q-axis BPF */
+    double w_q = i_q_meas - a1 * vsg->h_sogi_x_q - a2 * vsg->h_sogi_y_q;
+    double i_q_harm = b0 * (w_q - vsg->h_sogi_y_q);
+    vsg->h_sogi_y_q = vsg->h_sogi_x_q;
+    vsg->h_sogi_x_q = w_q;
 
     if (vsg->config.virtual_z.enable_harmonic_damping) {
         v_d_damp = k_h * i_d_harm;

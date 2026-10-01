@@ -29,3 +29,22 @@ tags:
     type: int
     desc: "流处理引擎中单个 Pipeline 的积压事件数"
     traits: [ "system", "diagnostic" ]
+
+  - id: 11006
+    name: SYS_SCHED_PCP_CONTENTION_COUNT
+    type: int
+    desc: "PCP 优先级天花板互斥锁竞争阻塞总次数"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11007
+    name: SYS_SCHED_PCP_MAX_HOLD_US
+    type: int
+    desc: "PCP 互斥锁历史最大临界区持有耗时(微秒)"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11008
+    name: SYS_SCHED_PCP_INVERSIONS_PREVENTED
+    type: int
+    desc: "PCP/PIP 协议成功阻断优先级反转总次数"
+    traits: [ "system", "diagnostic" ]
+
