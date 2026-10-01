@@ -22,6 +22,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "ai_awq_gptq_gemm.h"
+#include "ai_dynamic_tensor_pool.h"
+#include "ai_graph_pruner.h"
+#include "ai_quant_calibrator.h"
+#include "ai_slm_kv_cache.h"
+#include "ai_temporal_fault_net.h"
 #include "battery_balancer.h"
 #include "battery_eis.h"
 #include "battery_fo_ecm_ekf.h"
@@ -52,6 +58,9 @@
 #include "iec104_apci.h"
 #include "impedance_control.h"
 #include "mpc_dispatcher.h"
+#include "npu_enclave.h"
+#include "npu_pmu.h"
+#include "npu_power_manager.h"
 #include "persistence_mgr.h"
 #include "protocol_bridge.h"
 #include "shmring.h"
@@ -953,6 +962,159 @@ static void test_iec104_apci_caller_allocated_storage(void **state) {
     net_buf_pool_destroy(&pool);
 }
 
+static void test_npu_pmu_caller_allocated_storage(void **state) {
+    (void)state;
+
+    npu_pmu_storage_t pmu_store;
+    memset(&pmu_store, 0xCC, sizeof(pmu_store));
+
+    npu_pmu_config_t cfg = {.peak_macs_per_cycle = 512,
+                            .core_clock_ghz = 1.0f,
+                            .jitter_threshold_sigma = 3.0f,
+                            .enable_ring_buffer = true};
+
+    npu_pmu_t *pmu = npu_pmu_create_in(&pmu_store, &cfg);
+    assert_non_null(pmu);
+    assert_ptr_equal(pmu, (void *)pmu_store.raw);
+
+    uint64_t tok = npu_pmu_op_begin(pmu, 1, NPU_OP_CONV2D, "layer1", 1000ULL, 1024);
+    assert_true(tok > 0);
+
+    npu_pmu_record_t rec;
+    assert_int_equal(npu_pmu_op_end(pmu, tok, 100, 5, 50, 2, &rec), 0);
+    assert_int_equal(rec.op_id, 1);
+}
+
+static void test_npu_enclave_caller_allocated_storage(void **state) {
+    (void)state;
+
+    npu_enclave_storage_t enc_store;
+    memset(&enc_store, 0xDD, sizeof(enc_store));
+
+    npu_enclave_config_t cfg = {.enforce_signature_check = false,
+                                .enforce_integrity_sha256 = true,
+                                .zeroize_on_unload = true};
+
+    npu_enclave_t *enclave = npu_enclave_create_in(&enc_store, &cfg);
+    assert_non_null(enclave);
+    assert_ptr_equal(enclave, (void *)enc_store.raw);
+
+    npu_enclave_auth_status_t status;
+    uint32_t tamper = 0;
+    assert_int_equal(npu_enclave_get_status(enclave, &status, NULL, &tamper), 0);
+    assert_int_equal(status, NPU_ENCLAVE_AUTH_UNINITIALIZED);
+}
+
+static void test_npu_power_mgr_caller_allocated_storage(void **state) {
+    (void)state;
+
+    npu_power_mgr_storage_t pwr_store;
+    memset(&pwr_store, 0xEE, sizeof(pwr_store));
+
+    npu_power_config_t cfg = {.governor = NPU_DVFS_ONDEMAND,
+                              .idle_gate_timeout_ms = 5,
+                              .standby_timeout_ms = 50,
+                              .deep_sleep_timeout_ms = 500,
+                              .thermal_warning_temp_c = 75.0f,
+                              .thermal_critical_temp_c = 85.0f,
+                              .max_freq_mhz = 1000,
+                              .min_freq_mhz = 300};
+
+    npu_power_mgr_t *mgr = npu_power_mgr_create_in(&pwr_store, &cfg);
+    assert_non_null(mgr);
+    assert_ptr_equal(mgr, (void *)pwr_store.raw);
+
+    npu_power_metrics_t metrics;
+    assert_int_equal(npu_power_mgr_get_metrics(mgr, &metrics), 0);
+    assert_int_equal(metrics.current_state, NPU_PWR_ACTIVE);
+}
+
+static void test_ai_quant_calib_caller_allocated_storage(void **state) {
+    (void)state;
+
+    ai_quant_calib_storage_t store;
+    memset(&store, 0x11, sizeof(store));
+
+    ai_quant_config_t cfg = {.scheme = AI_QUANT_SCHEME_INT8_SYMMETRIC,
+                             .method = AI_QUANT_CALIB_MINMAX};
+
+    ai_quant_calibrator_t *calib = ai_quant_calibrator_create_in(&store, &cfg);
+    assert_non_null(calib);
+    assert_ptr_equal(calib, (void *)store.raw);
+
+    float samples[16] = {1.0f, -2.0f, 3.0f, -4.0f};
+    assert_int_equal(ai_quant_calibrator_collect_sample(calib, samples, 4), 0);
+
+    ai_quant_params_t p;
+    assert_int_equal(ai_quant_calibrator_compute_params(calib, &p), 0);
+    assert_true(p.scale > 0.0f);
+}
+
+static void test_ai_awq_gptq_caller_allocated_storage(void **state) {
+    (void)state;
+
+    ai_awq_gptq_storage_t store;
+    memset(&store, 0x22, sizeof(store));
+
+    ai_awq_gptq_engine_t *engine = ai_awq_gptq_create_in(&store);
+    assert_non_null(engine);
+    assert_ptr_equal(engine, (void *)store.raw);
+}
+
+static void test_ai_temporal_fault_caller_allocated_storage(void **state) {
+    (void)state;
+
+    ai_temporal_fault_storage_t store;
+    memset(&store, 0x33, sizeof(store));
+
+    ai_fault_net_config_t cfg = {
+        .classification_threshold = 75.0f, .enable_bilstm = true, .cell_state_clip = 10.0f};
+
+    ai_temporal_fault_net_t *net = ai_temporal_fault_net_create_in(&store, &cfg);
+    assert_non_null(net);
+    assert_ptr_equal(net, (void *)store.raw);
+}
+
+static void test_ai_dyn_pool_caller_allocated_storage(void **state) {
+    (void)state;
+
+    ai_dyn_pool_storage_t store;
+    memset(&store, 0x44, sizeof(store));
+
+    ai_dyn_pool_t *pool = ai_dyn_pool_create_in(&store, 32768);
+    assert_non_null(pool);
+    assert_ptr_equal(pool, (void *)store.raw);
+}
+
+static void test_ai_slm_kv_cache_caller_allocated_storage(void **state) {
+    (void)state;
+
+    ai_slm_kv_cache_storage_t store;
+    memset(&store, 0x55, sizeof(store));
+
+    ai_slm_kv_config_t cfg = {.num_layers = 2,
+                              .num_heads = 4,
+                              .num_kv_heads = 2,
+                              .head_dim = 16,
+                              .sliding_window_size = 32,
+                              .rope_theta_base = 10000.0f};
+
+    ai_slm_kv_cache_t *cache = ai_slm_kv_cache_create_in(&store, &cfg);
+    assert_non_null(cache);
+    assert_ptr_equal(cache, (void *)store.raw);
+}
+
+static void test_ai_graph_pruner_caller_allocated_storage(void **state) {
+    (void)state;
+
+    ai_graph_pruner_storage_t store;
+    memset(&store, 0x66, sizeof(store));
+
+    ai_graph_pruner_t *pruner = ai_graph_pruner_create_in(&store);
+    assert_non_null(pruner);
+    assert_ptr_equal(pruner, (void *)store.raw);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_battery_ekf_caller_allocated_storage),
@@ -988,6 +1150,15 @@ int main(void) {
         cmocka_unit_test(test_persistence_mgr_caller_allocated_storage),
         cmocka_unit_test(test_driver_hotplug_caller_allocated_storage),
         cmocka_unit_test(test_iec104_apci_caller_allocated_storage),
+        cmocka_unit_test(test_npu_pmu_caller_allocated_storage),
+        cmocka_unit_test(test_npu_enclave_caller_allocated_storage),
+        cmocka_unit_test(test_npu_power_mgr_caller_allocated_storage),
+        cmocka_unit_test(test_ai_quant_calib_caller_allocated_storage),
+        cmocka_unit_test(test_ai_awq_gptq_caller_allocated_storage),
+        cmocka_unit_test(test_ai_temporal_fault_caller_allocated_storage),
+        cmocka_unit_test(test_ai_dyn_pool_caller_allocated_storage),
+        cmocka_unit_test(test_ai_slm_kv_cache_caller_allocated_storage),
+        cmocka_unit_test(test_ai_graph_pruner_caller_allocated_storage),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

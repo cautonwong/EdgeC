@@ -1270,6 +1270,48 @@ target_link_libraries(test_npu_self_healing PRIVATE
 )
 add_test(NAME test_npu_self_healing COMMAND test_npu_self_healing)
 
+# AEP-748: NPU PMU Hardware Performance Counters Test (Issue #278)
+add_executable(test_npu_pmu test_npu_pmu.c)
+target_include_directories(test_npu_pmu PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_npu_pmu PRIVATE
+    edge_infra
+    edge_core
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_npu_pmu COMMAND test_npu_pmu)
+
+# AEP-749: NPU Model Encryption & Secure Enclave Test (Issue #279)
+add_executable(test_npu_enclave test_npu_enclave.c)
+target_include_directories(test_npu_enclave PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_npu_enclave PRIVATE
+    edge_infra
+    edge_core
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_npu_enclave COMMAND test_npu_enclave)
+
+# AEP-750: NPU Power Manager & Dynamic Clock Gating Test (Issue #280)
+add_executable(test_npu_power_manager test_npu_power_manager.c)
+target_include_directories(test_npu_power_manager PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_npu_power_manager PRIVATE
+    edge_infra
+    edge_core
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_npu_power_manager COMMAND test_npu_power_manager)
+
 # AEP-751 组合根 (Composition Root) 与消费者定义接口 (Consumer-Defined Ports) 测试 (Issue #336)
 add_executable(test_composition_root test_composition_root.c)
 target_include_directories(test_composition_root PRIVATE
@@ -1349,26 +1391,23 @@ add_edge_test(test_coop_guard test_coop_guard.c)
 # AEP-602 工业混合关键度实时调度器 (Mixed-Criticality Dispatcher) 与 MTT 确定性保障单测
 add_edge_test(test_mixed_criticality test_mixed_criticality.c)
 
+# AEP-702 INT8/FP8 对称与非对称量化校准器单测
+add_edge_test(test_ai_quant_calibrator test_ai_quant_calibrator.c)
 
+# AEP-703 边缘端 4-bit (AWQ/GPTQ) 紧凑权重量化与 GEMV 单测
+add_edge_test(test_ai_awq_gptq_gemm test_ai_awq_gptq_gemm.c)
 
+# AEP-704 工业时序多尺度 1D-CNN + BiLSTM 故障诊断单测
+add_edge_test(test_ai_temporal_fault_net test_ai_temporal_fault_net.c)
 
+# AEP-706 动态张量形状内存池静态预分配器单测
+add_edge_test(test_ai_dynamic_tensor_pool test_ai_dynamic_tensor_pool.c)
 
+# AEP-707 边缘端轻量小语言模型 (SLM) KV-Cache 压缩与滑动窗口注意力单测
+add_edge_test(test_ai_slm_kv_cache test_ai_slm_kv_cache.c)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# AEP-708 神经网络计算图拓扑剪枝与死算子无死锁剔除单测
+add_edge_test(test_ai_graph_pruner test_ai_graph_pruner.c)
 
 
 
