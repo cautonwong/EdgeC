@@ -1270,6 +1270,48 @@ target_link_libraries(test_npu_self_healing PRIVATE
 )
 add_test(NAME test_npu_self_healing COMMAND test_npu_self_healing)
 
+# AEP-748: NPU PMU Hardware Performance Counters Test (Issue #278)
+add_executable(test_npu_pmu test_npu_pmu.c)
+target_include_directories(test_npu_pmu PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_npu_pmu PRIVATE
+    edge_infra
+    edge_core
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_npu_pmu COMMAND test_npu_pmu)
+
+# AEP-749: NPU Model Encryption & Secure Enclave Test (Issue #279)
+add_executable(test_npu_enclave test_npu_enclave.c)
+target_include_directories(test_npu_enclave PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_npu_enclave PRIVATE
+    edge_infra
+    edge_core
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_npu_enclave COMMAND test_npu_enclave)
+
+# AEP-750: NPU Power Manager & Dynamic Clock Gating Test (Issue #280)
+add_executable(test_npu_power_manager test_npu_power_manager.c)
+target_include_directories(test_npu_power_manager PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_npu_power_manager PRIVATE
+    edge_infra
+    edge_core
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_npu_power_manager COMMAND test_npu_power_manager)
+
 # AEP-751 组合根 (Composition Root) 与消费者定义接口 (Consumer-Defined Ports) 测试 (Issue #336)
 add_executable(test_composition_root test_composition_root.c)
 target_include_directories(test_composition_root PRIVATE

@@ -39,3 +39,65 @@ tags:
     type: int
     desc: "当前映射的零拷贝 SHM/DMA-BUF 张量缓冲区数量"
     traits: [ "npu", "diagnostic", "memory" ]
+
+  # === AEP-748: 硬件性能计数器 (PMU) 遥测 ===
+  - id: 262151 # 0x040007
+    name: NPU_PMU_EXEC_CYCLES
+    type: int
+    desc: "算子级硬件物理执行周期数"
+    traits: [ "npu", "telemetry", "pmu" ]
+
+  - id: 262152 # 0x040008
+    name: NPU_PMU_CACHE_MISS_PCT
+    type: float
+    unit: "%"
+    desc: "NPU 缓存未命中率百分比"
+    traits: [ "npu", "telemetry", "pmu" ]
+
+  - id: 262153 # 0x040009
+    name: NPU_PMU_MAC_UTIL_PCT
+    type: float
+    unit: "%"
+    desc: "NPU 乘加单元 (MAC) 物理算力利用率"
+    traits: [ "npu", "telemetry", "pmu" ]
+
+  # === AEP-749: 安全执行飞地 (Enclave) 状态 ===
+  - id: 262154 # 0x04000A
+    name: NPU_ENCLAVE_AUTH_STATUS
+    type: int
+    desc: "模型硬件签名与飞地鉴权状态 (0:未初始化, 1:已认证通过, 2:签名失效, 3:解密失败, 4:飞地违规)"
+    traits: [ "npu", "security", "enclave" ]
+
+  - id: 262155 # 0x04000B
+    name: NPU_ENCLAVE_DECRYPT_TIME_US
+    type: float
+    unit: "us"
+    desc: "AES-256-GCM 动态解密与载入耗时"
+    traits: [ "npu", "telemetry", "security" ]
+
+  - id: 262156 # 0x04000C
+    name: NPU_ENCLAVE_TAMPER_COUNT
+    type: int
+    desc: "检测到的模型防篡改告警累计次数"
+    traits: [ "npu", "security", "audit" ]
+
+  # === AEP-750: 低功耗模式与时钟门控 ===
+  - id: 262157 # 0x04000D
+    name: NPU_POWER_STATE
+    type: int
+    desc: "NPU 硬件能耗状态 (0:OFF, 1:ACTIVE, 2:IDLE_GATE, 3:STANDBY_SLEEP, 4:DEEP_SLEEP)"
+    traits: [ "npu", "power", "status" ]
+
+  - id: 262158 # 0x04000E
+    name: NPU_DYNAMIC_POWER_MW
+    type: float
+    unit: "mW"
+    desc: "NPU 实时动态估算功耗 (毫瓦)"
+    traits: [ "npu", "power", "telemetry" ]
+
+  - id: 262159 # 0x04000F
+    name: NPU_WAKEUP_LATENCY_US
+    type: float
+    unit: "us"
+    desc: "时钟门控待机到就绪唤醒物理延迟"
+    traits: [ "npu", "power", "perf" ]
