@@ -1331,6 +1331,10 @@ add_edge_test(test_pcp_mutex test_pcp_mutex.c)
 # AEP-712 最早截止时间优先 (EDF) 动态硬实时调度器单测
 add_edge_test(test_edf_scheduler test_edf_scheduler.c)
 
+# AEP-713 单调速率 (RMS) 静态确定性周期调度器与时间预算看门狗单测
+add_edge_test(test_rms_scheduler test_rms_scheduler.c)
+
+
 
 
 

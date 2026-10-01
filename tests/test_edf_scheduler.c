@@ -1,16 +1,17 @@
 /**
  * @file test_edf_scheduler.c
- * @brief Unit tests for Earliest Deadline First (EDF) Dynamic Hard Real-Time Preemptive Scheduler (AEP-712 / Issue #245)
+ * @brief Unit tests for Earliest Deadline First (EDF) Dynamic Hard Real-Time Preemptive Scheduler
+ * (AEP-712 / Issue #245)
  */
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <string.h>
 #include <cmocka.h>
 #include <errno.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
 
 #include "edge_edf_scheduler.h"
 
@@ -24,8 +25,8 @@ typedef struct {
     double last_warning_util;
 } test_edf_event_ctx_t;
 
-static void test_on_preempt(void *ctx, uint32_t preempted_task_id, uint32_t preempting_task_id, uint64_t time_us)
-{
+static void test_on_preempt(void *ctx, uint32_t preempted_task_id, uint32_t preempting_task_id,
+                            uint64_t time_us) {
     (void)time_us;
     test_edf_event_ctx_t *evt = (test_edf_event_ctx_t *)ctx;
     if (evt) {
@@ -35,8 +36,7 @@ static void test_on_preempt(void *ctx, uint32_t preempted_task_id, uint32_t pree
     }
 }
 
-static void test_on_miss(void *ctx, uint32_t task_id, uint64_t time_us, uint64_t overdue_us)
-{
+static void test_on_miss(void *ctx, uint32_t task_id, uint64_t time_us, uint64_t overdue_us) {
     (void)time_us;
     (void)overdue_us;
     test_edf_event_ctx_t *evt = (test_edf_event_ctx_t *)ctx;
@@ -46,8 +46,7 @@ static void test_on_miss(void *ctx, uint32_t task_id, uint64_t time_us, uint64_t
     }
 }
 
-static void test_on_warning(void *ctx, double total_utilization, const char *reason)
-{
+static void test_on_warning(void *ctx, double total_utilization, const char *reason) {
     (void)reason;
     test_edf_event_ctx_t *evt = (test_edf_event_ctx_t *)ctx;
     if (evt) {
@@ -56,8 +55,7 @@ static void test_on_warning(void *ctx, double total_utilization, const char *rea
     }
 }
 
-static int dummy_task_step(void *ctx)
-{
+static int dummy_task_step(void *ctx) {
     int *run_count = (int *)ctx;
     if (run_count) {
         (*run_count)++;
@@ -65,8 +63,7 @@ static int dummy_task_step(void *ctx)
     return 0;
 }
 
-static void test_edf_scheduler_lifecycle_and_registration(void **state)
-{
+static void test_edf_scheduler_lifecycle_and_registration(void **state) {
     (void)state;
     edge_edf_scheduler_storage_t store;
     edge_edf_config_t cfg = {
@@ -126,8 +123,7 @@ static void test_edf_scheduler_lifecycle_and_registration(void **state)
     assert_true(u > 0.499 && u < 0.501);
 }
 
-static void test_edf_schedulability_bound_analysis(void **state)
-{
+static void test_edf_schedulability_bound_analysis(void **state) {
     (void)state;
     test_edf_event_ctx_t evt_ctx = {0};
     edge_edf_port_t port = {
@@ -146,8 +142,10 @@ static void test_edf_schedulability_bound_analysis(void **state)
     assert_non_null(sched);
 
     // Test 1: Schedulable set (U = 0.80 <= 1.0)
-    edge_edf_task_config_t t1 = {.task_id = 1, .name = "t1", .period_us = 10000, .wcet_us = 3000}; // U=0.30
-    edge_edf_task_config_t t2 = {.task_id = 2, .name = "t2", .period_us = 20000, .wcet_us = 10000}; // U=0.50
+    edge_edf_task_config_t t1 = {
+        .task_id = 1, .name = "t1", .period_us = 10000, .wcet_us = 3000};  // U=0.30
+    edge_edf_task_config_t t2 = {
+        .task_id = 2, .name = "t2", .period_us = 20000, .wcet_us = 10000};  // U=0.50
 
     assert_int_equal(edge_edf_scheduler_register_task(sched, &t1), 0);
     assert_int_equal(edge_edf_scheduler_register_task(sched, &t2), 0);
@@ -159,7 +157,8 @@ static void test_edf_schedulability_bound_analysis(void **state)
     assert_int_equal(report.hyperperiod_us, 20000);
 
     // Test 2: Overloaded set (U = 0.30 + 0.50 + 0.40 = 1.20 > 1.0)
-    edge_edf_task_config_t t3 = {.task_id = 3, .name = "t3", .period_us = 25000, .wcet_us = 10000}; // U=0.40
+    edge_edf_task_config_t t3 = {
+        .task_id = 3, .name = "t3", .period_us = 25000, .wcet_us = 10000};  // U=0.40
     assert_int_equal(edge_edf_scheduler_register_task(sched, &t3), 0);
     assert_true(evt_ctx.warning_count > 0);
 
@@ -169,8 +168,7 @@ static void test_edf_schedulability_bound_analysis(void **state)
     assert_non_null(strstr(report.failure_reason, "Liu & Layland"));
 }
 
-static void test_edf_preemptive_dispatch_and_execution(void **state)
-{
+static void test_edf_preemptive_dispatch_and_execution(void **state) {
     (void)state;
     test_edf_event_ctx_t evt_ctx = {0};
     edge_edf_port_t port = {
@@ -252,8 +250,7 @@ static void test_edf_preemptive_dispatch_and_execution(void **state)
     assert_true(stats.total_dispatches >= 5);
 }
 
-static void test_edf_deadline_miss_isolation(void **state)
-{
+static void test_edf_deadline_miss_isolation(void **state) {
     (void)state;
     test_edf_event_ctx_t evt_ctx = {0};
     edge_edf_port_t port = {
@@ -293,8 +290,7 @@ static void test_edf_deadline_miss_isolation(void **state)
     assert_int_equal(evt_ctx.last_miss_id, 99);
 }
 
-int main(void)
-{
+int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_edf_scheduler_lifecycle_and_registration),
         cmocka_unit_test(test_edf_schedulability_bound_analysis),

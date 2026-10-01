@@ -39,10 +39,11 @@
 #include "edge_agent.h"
 #include "edge_cep_engine.h"
 #include "edge_composition_root.h"
-#include "edge_guard.h"
-#include "edge_sched_deadline.h"
-#include "edge_pcp_mutex.h"
 #include "edge_edf_scheduler.h"
+#include "edge_guard.h"
+#include "edge_pcp_mutex.h"
+#include "edge_rms_scheduler.h"
+#include "edge_sched_deadline.h"
 #include "iec104_apci.h"
 #include "impedance_control.h"
 #include "mpc_dispatcher.h"
@@ -438,6 +439,36 @@ static void test_edge_edf_scheduler_caller_allocated_storage(void **state) {
     assert_int_equal(res.active_task_id, 77);
 }
 
+static void test_edge_rms_scheduler_caller_allocated_storage(void **state) {
+    (void)state;
+    edge_rms_scheduler_storage_t store;
+    memset(&store, 0x33, sizeof(store));
+
+    edge_rms_config_t cfg = {
+        .tick_resolution_us = 1000,
+        .auto_assign_priorities = true,
+        .enable_budget_watchdog = true,
+    };
+
+    edge_rms_scheduler_t *sched = edge_rms_scheduler_create_in(&store, &cfg, NULL);
+    assert_non_null(sched);
+    assert_ptr_equal(sched, (void *)store.raw);
+
+    edge_rms_task_config_t t_cfg = {
+        .task_id = 88,
+        .name = "caller_rms_task",
+        .period_us = 10000,
+        .wcet_budget_us = 2000,
+    };
+    assert_int_equal(edge_rms_scheduler_register_task(sched, &t_cfg), 0);
+    assert_true(edge_rms_scheduler_get_utilization(sched) > 0.199);
+
+    edge_rms_dispatch_result_t res;
+    assert_int_equal(edge_rms_scheduler_step(sched, 0, 1000, &res), 0);
+    assert_true(res.task_dispatched);
+    assert_int_equal(res.active_task_id, 88);
+}
+
 static void test_thermal_mesh_caller_allocated_storage(void **state) {
     (void)state;
     thermal_mesh_engine_storage_t store;
@@ -768,6 +799,7 @@ int main(void) {
         cmocka_unit_test(test_edge_sched_deadline_caller_allocated_storage),
         cmocka_unit_test(test_edge_pcp_mutex_caller_allocated_storage),
         cmocka_unit_test(test_edge_edf_scheduler_caller_allocated_storage),
+        cmocka_unit_test(test_edge_rms_scheduler_caller_allocated_storage),
         cmocka_unit_test(test_thermal_mesh_caller_allocated_storage),
         cmocka_unit_test(test_cep_engine_caller_allocated_storage),
         cmocka_unit_test(test_impedance_controller_caller_allocated_storage),

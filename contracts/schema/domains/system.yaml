@@ -67,4 +67,25 @@ tags:
     desc: "EDF 调度器任务错过死线累计次数"
     traits: [ "system", "diagnostic" ]
 
+  - id: 11012
+    name: SYS_SCHED_RMS_UTILIZATION
+    type: float
+    unit: "%"
+    desc: "RMS 调度器当前任务集总 CPU 利用率"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11013
+    name: SYS_SCHED_RMS_BOUND_UTILIZATION
+    type: float
+    unit: "%"
+    desc: "RMS 调度器基于任务数的 Liu & Layland 理论利用率上界"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11014
+    name: SYS_SCHED_RMS_BUDGET_OVERRUN_COUNT
+    type: int
+    desc: "RMS 任务时间预算超限看门狗触发累计次数"
+    traits: [ "system", "diagnostic" ]
+
+
 
