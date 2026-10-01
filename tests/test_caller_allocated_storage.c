@@ -39,6 +39,7 @@
 #include "edge_agent.h"
 #include "edge_cep_engine.h"
 #include "edge_composition_root.h"
+#include "edge_coop_guard.h"
 #include "edge_cpu_affinity.h"
 #include "edge_edf_scheduler.h"
 #include "edge_guard.h"
@@ -564,6 +565,43 @@ static void test_edge_prio_booster_caller_allocated_storage(void **state) {
     assert_int_equal(edge_prio_booster_destroy(booster), 0);
 }
 
+static void test_edge_coop_guard_caller_allocated_storage(void **state) {
+    (void)state;
+    edge_coop_guard_storage_t store;
+    memset(&store, 0x88, sizeof(store));
+
+    edge_coop_guard_config_t cfg = {
+        .default_budget_us = 10000,
+        .default_degrade_threshold = 3,
+        .default_trip_threshold = 5,
+        .default_cooldown_us = 50000,
+    };
+
+    edge_coop_guard_t *guard = edge_coop_guard_create_in(&store, &cfg, NULL);
+    assert_non_null(guard);
+    assert_ptr_equal(guard, (void *)store.raw);
+
+    edge_coop_task_config_t t_cfg = {
+        .task_id = 777,
+        .name = "caller_coop_task",
+        .timeslice_budget_us = 10000,
+        .max_consecutive_overruns_to_degrade = 2,
+        .max_consecutive_overruns_to_trip = 4,
+        .recovery_cooldown_us = 50000,
+    };
+    assert_int_equal(edge_coop_guard_register_task(guard, &t_cfg), 0);
+
+    assert_true(edge_coop_guard_can_execute(guard, 777, 1000000ULL));
+    assert_int_equal(edge_coop_guard_enter_slice(guard, 777, 1000000ULL), 0);
+    assert_int_equal(edge_coop_guard_exit_slice(guard, 777, 1005000ULL), 0);
+
+    edge_coop_task_status_t status;
+    assert_int_equal(edge_coop_guard_get_task_status(guard, 777, &status), 0);
+    assert_int_equal(status.state, EDGE_COOP_STATE_HEALTHY);
+
+    assert_int_equal(edge_coop_guard_destroy(guard), 0);
+}
+
 static void test_thermal_mesh_caller_allocated_storage(void **state) {
     (void)state;
     thermal_mesh_engine_storage_t store;
@@ -898,6 +936,7 @@ int main(void) {
         cmocka_unit_test(test_edge_cpu_affinity_caller_allocated_storage),
         cmocka_unit_test(test_edge_lockfree_ring_caller_allocated_storage),
         cmocka_unit_test(test_edge_prio_booster_caller_allocated_storage),
+        cmocka_unit_test(test_edge_coop_guard_caller_allocated_storage),
         cmocka_unit_test(test_thermal_mesh_caller_allocated_storage),
         cmocka_unit_test(test_cep_engine_caller_allocated_storage),
         cmocka_unit_test(test_impedance_controller_caller_allocated_storage),

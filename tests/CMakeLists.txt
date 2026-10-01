@@ -1343,6 +1343,9 @@ add_edge_test(test_lockfree_ring test_lockfree_ring.c)
 # AEP-718 突发工况事件优先级动态提升 (Priority Boosting) 与退火衰减单测
 add_edge_test(test_prio_booster test_prio_booster.c)
 
+# AEP-719 多任务协作式调度时间片超限软熔断与降级回调单测
+add_edge_test(test_coop_guard test_coop_guard.c)
+
 
 
 

@@ -140,3 +140,22 @@ tags:
     type: int
     desc: "累计完成退火衰减恢复基准优先级总数"
     traits: [ "system", "diagnostic" ]
+
+  - id: 11024
+    name: SYS_SCHED_COOP_OVERRUN_COUNT
+    type: int
+    desc: "协作式任务时间片超限触发累计次数"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11025
+    name: SYS_SCHED_COOP_DEGRADED_TASK_COUNT
+    type: int
+    desc: "当前处于降级或熔断隔离状态的任务数"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11026
+    name: SYS_SCHED_COOP_TRIPPED_TOTAL_COUNT
+    type: int
+    desc: "累计触发保护性软熔断隔离总次数"
+    traits: [ "system", "diagnostic" ]
+
