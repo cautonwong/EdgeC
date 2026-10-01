@@ -23,7 +23,10 @@
 #include <string.h>
 
 #include "ai_awq_gptq_gemm.h"
+#include "ai_dynamic_tensor_pool.h"
+#include "ai_graph_pruner.h"
 #include "ai_quant_calibrator.h"
+#include "ai_slm_kv_cache.h"
 #include "ai_temporal_fault_net.h"
 #include "battery_balancer.h"
 #include "battery_eis.h"
@@ -1032,10 +1035,8 @@ static void test_ai_quant_calib_caller_allocated_storage(void **state) {
     ai_quant_calib_storage_t store;
     memset(&store, 0x11, sizeof(store));
 
-    ai_quant_config_t cfg = {
-        .scheme = AI_QUANT_SCHEME_INT8_SYMMETRIC,
-        .method = AI_QUANT_CALIB_MINMAX
-    };
+    ai_quant_config_t cfg = {.scheme = AI_QUANT_SCHEME_INT8_SYMMETRIC,
+                             .method = AI_QUANT_CALIB_MINMAX};
 
     ai_quant_calibrator_t *calib = ai_quant_calibrator_create_in(&store, &cfg);
     assert_non_null(calib);
@@ -1067,14 +1068,51 @@ static void test_ai_temporal_fault_caller_allocated_storage(void **state) {
     memset(&store, 0x33, sizeof(store));
 
     ai_fault_net_config_t cfg = {
-        .classification_threshold = 75.0f,
-        .enable_bilstm = true,
-        .cell_state_clip = 10.0f
-    };
+        .classification_threshold = 75.0f, .enable_bilstm = true, .cell_state_clip = 10.0f};
 
     ai_temporal_fault_net_t *net = ai_temporal_fault_net_create_in(&store, &cfg);
     assert_non_null(net);
     assert_ptr_equal(net, (void *)store.raw);
+}
+
+static void test_ai_dyn_pool_caller_allocated_storage(void **state) {
+    (void)state;
+
+    ai_dyn_pool_storage_t store;
+    memset(&store, 0x44, sizeof(store));
+
+    ai_dyn_pool_t *pool = ai_dyn_pool_create_in(&store, 32768);
+    assert_non_null(pool);
+    assert_ptr_equal(pool, (void *)store.raw);
+}
+
+static void test_ai_slm_kv_cache_caller_allocated_storage(void **state) {
+    (void)state;
+
+    ai_slm_kv_cache_storage_t store;
+    memset(&store, 0x55, sizeof(store));
+
+    ai_slm_kv_config_t cfg = {.num_layers = 2,
+                              .num_heads = 4,
+                              .num_kv_heads = 2,
+                              .head_dim = 16,
+                              .sliding_window_size = 32,
+                              .rope_theta_base = 10000.0f};
+
+    ai_slm_kv_cache_t *cache = ai_slm_kv_cache_create_in(&store, &cfg);
+    assert_non_null(cache);
+    assert_ptr_equal(cache, (void *)store.raw);
+}
+
+static void test_ai_graph_pruner_caller_allocated_storage(void **state) {
+    (void)state;
+
+    ai_graph_pruner_storage_t store;
+    memset(&store, 0x66, sizeof(store));
+
+    ai_graph_pruner_t *pruner = ai_graph_pruner_create_in(&store);
+    assert_non_null(pruner);
+    assert_ptr_equal(pruner, (void *)store.raw);
 }
 
 int main(void) {
@@ -1118,6 +1156,9 @@ int main(void) {
         cmocka_unit_test(test_ai_quant_calib_caller_allocated_storage),
         cmocka_unit_test(test_ai_awq_gptq_caller_allocated_storage),
         cmocka_unit_test(test_ai_temporal_fault_caller_allocated_storage),
+        cmocka_unit_test(test_ai_dyn_pool_caller_allocated_storage),
+        cmocka_unit_test(test_ai_slm_kv_cache_caller_allocated_storage),
+        cmocka_unit_test(test_ai_graph_pruner_caller_allocated_storage),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

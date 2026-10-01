@@ -157,3 +157,44 @@ tags:
     unit: "us"
     desc: "1D-CNN+BiLSTM 融合推理耗时"
     traits: [ "npu", "ai", "perf" ]
+
+  # === AEP-706: 动态张量形状内存池 ===
+  - id: 262168 # 0x040018
+    name: AI_DYN_POOL_WATERMARK_BYTES
+    type: int
+    desc: "动态张量内存池峰值水印字节数"
+    traits: [ "npu", "ai", "memory" ]
+
+  - id: 262169 # 0x040019
+    name: AI_DYN_POOL_FRAGMENTATION_PCT
+    type: float
+    unit: "%"
+    desc: "动态张量内存池碎片率百分比"
+    traits: [ "npu", "ai", "memory" ]
+
+  # === AEP-707: 小语言模型 (SLM) KV Cache ===
+  - id: 262170 # 0x04001A
+    name: AI_SLM_KV_CACHE_PAGES_ACTIVE
+    type: int
+    desc: "小模型活跃 Paged KV Cache 页块数量"
+    traits: [ "npu", "ai", "memory" ]
+
+  - id: 262171 # 0x04001B
+    name: AI_SLM_KV_CACHE_HIT_RATE_PCT
+    type: float
+    unit: "%"
+    desc: "滑动窗口注意力命中与复用率百分比"
+    traits: [ "npu", "ai", "perf" ]
+
+  # === AEP-708: 计算图拓扑剪枝与死算子剔除 ===
+  - id: 262172 # 0x04001C
+    name: AI_GRAPH_PRUNED_NODE_COUNT
+    type: int
+    desc: "计算图剪枝剔除的冗余/死算子节点数"
+    traits: [ "npu", "ai", "diagnostic" ]
+
+  - id: 262173 # 0x04001D
+    name: AI_GRAPH_FUSED_OP_COUNT
+    type: int
+    desc: "计算图拓扑融合的算子对数量"
+    traits: [ "npu", "ai", "diagnostic" ]

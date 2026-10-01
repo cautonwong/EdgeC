@@ -47,6 +47,9 @@ set(ALGO_SOURCES
     src/ai_quant_calibrator.c
     src/ai_awq_gptq_gemm.c
     src/ai_temporal_fault_net.c
+    src/ai_dynamic_tensor_pool.c
+    src/ai_slm_kv_cache.c
+    src/ai_graph_pruner.c
     src/math/control_algo.c
     src/math/motor_algo.c
     src/math/radar_algo.c

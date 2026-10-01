@@ -1400,6 +1400,16 @@ add_edge_test(test_ai_awq_gptq_gemm test_ai_awq_gptq_gemm.c)
 # AEP-704 工业时序多尺度 1D-CNN + BiLSTM 故障诊断单测
 add_edge_test(test_ai_temporal_fault_net test_ai_temporal_fault_net.c)
 
+# AEP-706 动态张量形状内存池静态预分配器单测
+add_edge_test(test_ai_dynamic_tensor_pool test_ai_dynamic_tensor_pool.c)
+
+# AEP-707 边缘端轻量小语言模型 (SLM) KV-Cache 压缩与滑动窗口注意力单测
+add_edge_test(test_ai_slm_kv_cache test_ai_slm_kv_cache.c)
+
+# AEP-708 神经网络计算图拓扑剪枝与死算子无死锁剔除单测
+add_edge_test(test_ai_graph_pruner test_ai_graph_pruner.c)
+
+
 
 
 

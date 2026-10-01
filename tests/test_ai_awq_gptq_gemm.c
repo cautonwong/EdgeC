@@ -4,13 +4,13 @@
  */
 
 #include <cmocka.h>
+#include <math.h>
 #include <stdint.h>
 #include <string.h>
-#include <math.h>
 #include <sys/mman.h>
 
-#include "datahub.h"
 #include "ai_awq_gptq_gemm.h"
+#include "datahub.h"
 
 static void test_ai_awq_pack_and_fused_gemv(void **state) {
     (void)state;
@@ -34,25 +34,20 @@ static void test_ai_awq_pack_and_fused_gemv(void **state) {
     uint8_t packed_w[(16 * 64) / 2];
     float scales[(16 * 64) / 32];
 
-    int rc = ai_awq_pack_weights(weights_fp32, N, K, group_size,
-                                 AI_AWQ_FORMAT_INT4_SYMMETRIC,
+    int rc = ai_awq_pack_weights(weights_fp32, N, K, group_size, AI_AWQ_FORMAT_INT4_SYMMETRIC,
                                  packed_w, scales, NULL);
     assert_int_equal(rc, 0);
 
     /* Construct Descriptor */
-    ai_awq_weight_tensor_t tensor = {
-        .header = {
-            .rows_out = N,
-            .cols_in = K,
-            .group_size = group_size,
-            .format = AI_AWQ_FORMAT_INT4_SYMMETRIC,
-            .num_groups = (N * K) / group_size
-        },
-        .packed_weights = packed_w,
-        .scales = scales,
-        .zeros = NULL,
-        .salient_channel_scales = NULL
-    };
+    ai_awq_weight_tensor_t tensor = {.header = {.rows_out = N,
+                                                .cols_in = K,
+                                                .group_size = group_size,
+                                                .format = AI_AWQ_FORMAT_INT4_SYMMETRIC,
+                                                .num_groups = (N * K) / group_size},
+                                     .packed_weights = packed_w,
+                                     .scales = scales,
+                                     .zeros = NULL,
+                                     .salient_channel_scales = NULL};
 
     /* Input vector X [1 x 64] */
     float vec_x[64];
@@ -91,14 +86,13 @@ static void test_ai_awq_datahub_sync(void **state) {
     uv_loop_init(&loop);
     datahub_t hub;
     shm_unlink("/test_ai_awq_hub");
-    assert_int_equal(datahub_init(&hub, &loop, "/test_ai_awq_hub", 32, 64, NULL, 0, NULL, NULL, NULL), 0);
+    assert_int_equal(
+        datahub_init(&hub, &loop, "/test_ai_awq_hub", 32, 64, NULL, 0, NULL, NULL, NULL), 0);
 
-    ai_awq_metrics_t m = {
-        .compression_ratio = 3.82f,
-        .gflops = 45.8f,
-        .effective_bw_gbps = 12.4f,
-        .latency_ns = 1500
-    };
+    ai_awq_metrics_t m = {.compression_ratio = 3.82f,
+                          .gflops = 45.8f,
+                          .effective_bw_gbps = 12.4f,
+                          .latency_ns = 1500};
     assert_int_equal(ai_awq_sync_datahub(&m, &hub), 0);
 
     datahub_destroy(&hub);
