@@ -28,6 +28,7 @@ add_library(edge_core STATIC
     src/edge_composition_root.c
     src/edge_sched_deadline.c
     src/edge_pcp_mutex.c
+    src/edge_edf_scheduler.c
     src/edge_fd_ipc.c
 )
 

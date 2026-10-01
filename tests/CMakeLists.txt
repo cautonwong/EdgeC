@@ -1328,6 +1328,10 @@ add_edge_test(test_edge_sched_deadline test_edge_sched_deadline.c)
 # AEP-711 PREEMPT_RT 优先级反转天花板协议 (PCP) 互斥锁与审计单测
 add_edge_test(test_pcp_mutex test_pcp_mutex.c)
 
+# AEP-712 最早截止时间优先 (EDF) 动态硬实时调度器单测
+add_edge_test(test_edf_scheduler test_edf_scheduler.c)
+
+
 
 
 

@@ -48,3 +48,23 @@ tags:
     desc: "PCP/PIP 协议成功阻断优先级反转总次数"
     traits: [ "system", "diagnostic" ]
 
+  - id: 11009
+    name: SYS_SCHED_EDF_UTILIZATION
+    type: float
+    unit: "%"
+    desc: "EDF 调度器当前任务集总 CPU 利用率"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11010
+    name: SYS_SCHED_EDF_PREEMPTION_COUNT
+    type: int
+    desc: "EDF 调度器动态抢占发生累计次数"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11011
+    name: SYS_SCHED_EDF_DEADLINE_MISS_COUNT
+    type: int
+    desc: "EDF 调度器任务错过死线累计次数"
+    traits: [ "system", "diagnostic" ]
+
+
