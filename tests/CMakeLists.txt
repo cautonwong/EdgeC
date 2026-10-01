@@ -1334,6 +1334,9 @@ add_edge_test(test_edf_scheduler test_edf_scheduler.c)
 # AEP-713 单调速率 (RMS) 静态确定性周期调度器与时间预算看门狗单测
 add_edge_test(test_rms_scheduler test_rms_scheduler.c)
 
+# AEP-716 CPU 核心独占绑定、中断亲和性 (IRQ) 调优与内存锁定 (mlockall) 单测
+add_edge_test(test_cpu_affinity test_cpu_affinity.c)
+
 
 
 

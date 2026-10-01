@@ -39,6 +39,7 @@
 #include "edge_agent.h"
 #include "edge_cep_engine.h"
 #include "edge_composition_root.h"
+#include "edge_cpu_affinity.h"
 #include "edge_edf_scheduler.h"
 #include "edge_guard.h"
 #include "edge_pcp_mutex.h"
@@ -469,6 +470,36 @@ static void test_edge_rms_scheduler_caller_allocated_storage(void **state) {
     assert_int_equal(res.active_task_id, 88);
 }
 
+static void test_edge_cpu_affinity_caller_allocated_storage(void **state) {
+    (void)state;
+    edge_cpu_affinity_storage_t store;
+    memset(&store, 0x22, sizeof(store));
+
+    edge_cpu_affinity_config_t cfg = {
+        .rt_core_mask = 0x02,
+        .housekeeping_core_mask = 0x01,
+        .auto_isolate_irqs = false,
+        .enable_mlockall = false,
+    };
+
+    edge_cpu_affinity_t *aff = edge_cpu_affinity_create_in(&store, &cfg, NULL);
+    assert_non_null(aff);
+    assert_ptr_equal(aff, (void *)store.raw);
+
+    edge_cpu_topology_t topo;
+    assert_int_equal(edge_cpu_affinity_get_topology(aff, &topo), 0);
+    assert_true(topo.total_online_cores >= 1);
+
+    assert_int_equal(edge_cpu_affinity_pin_current_thread(aff, 0, "caller_affinity_task"), 0);
+
+    edge_cpu_affinity_stats_t stats;
+    assert_int_equal(edge_cpu_affinity_get_stats(aff, &stats), 0);
+    assert_int_equal(stats.pinned_thread_count, 1);
+    assert_int_equal(stats.rt_core_mask, 0x02);
+
+    assert_int_equal(edge_cpu_affinity_destroy(aff), 0);
+}
+
 static void test_thermal_mesh_caller_allocated_storage(void **state) {
     (void)state;
     thermal_mesh_engine_storage_t store;
@@ -800,6 +831,7 @@ int main(void) {
         cmocka_unit_test(test_edge_pcp_mutex_caller_allocated_storage),
         cmocka_unit_test(test_edge_edf_scheduler_caller_allocated_storage),
         cmocka_unit_test(test_edge_rms_scheduler_caller_allocated_storage),
+        cmocka_unit_test(test_edge_cpu_affinity_caller_allocated_storage),
         cmocka_unit_test(test_thermal_mesh_caller_allocated_storage),
         cmocka_unit_test(test_cep_engine_caller_allocated_storage),
         cmocka_unit_test(test_impedance_controller_caller_allocated_storage),

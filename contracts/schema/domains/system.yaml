@@ -87,5 +87,20 @@ tags:
     desc: "RMS 任务时间预算超限看门狗触发累计次数"
     traits: [ "system", "diagnostic" ]
 
+  - id: 11015
+    name: SYS_SCHED_AFFINITY_RT_CORES_MASK
+    type: int
+    desc: "实时隔离 CPU 核心掩码位图"
+    traits: [ "system", "diagnostic" ]
 
+  - id: 11016
+    name: SYS_SCHED_AFFINITY_IRQ_STEERED_COUNT
+    type: int
+    desc: "南向中断线 (IRQ) 成功迁移与隔离累计次数"
+    traits: [ "system", "diagnostic" ]
 
+  - id: 11017
+    name: SYS_SCHED_MEMLOCK_STATUS
+    type: int
+    desc: "实时内存锁定 (mlockall) 与预故障状态 (1:已锁定, 0:未锁定)"
+    traits: [ "system", "diagnostic" ]
