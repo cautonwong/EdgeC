@@ -24,7 +24,10 @@
 
 #include "ai_awq_gptq_gemm.h"
 #include "ai_dynamic_tensor_pool.h"
+#include "ai_fast_gemm.h"
 #include "ai_graph_pruner.h"
+#include "ai_hetero_pipeline.h"
+#include "ai_pinn_evaluator.h"
 #include "ai_quant_calibrator.h"
 #include "ai_slm_kv_cache.h"
 #include "ai_temporal_fault_net.h"
@@ -1115,6 +1118,47 @@ static void test_ai_graph_pruner_caller_allocated_storage(void **state) {
     assert_ptr_equal(pruner, (void *)store.raw);
 }
 
+static void test_ai_fast_gemm_caller_allocated_storage(void **state) {
+    (void)state;
+
+    ai_fast_gemm_storage_t store;
+    memset(&store, 0x77, sizeof(store));
+
+    ai_gemm_config_t cfg = {.m = 2,
+                            .k = 2,
+                            .n = 2,
+                            .precision = AI_GEMM_PRECISION_INT8,
+                            .activation = AI_GEMM_ACT_NONE};
+
+    ai_fast_gemm_t *gemm = ai_fast_gemm_create_in(&store, &cfg);
+    assert_non_null(gemm);
+    assert_ptr_equal(gemm, (void *)store.raw);
+}
+
+static void test_ai_pinn_evaluator_caller_allocated_storage(void **state) {
+    (void)state;
+
+    ai_pinn_evaluator_storage_t store;
+    memset(&store, 0x88, sizeof(store));
+
+    ai_pinn_config_t cfg = {.lambda_mass = 1.0f, .lambda_energy = 1.0f, .lambda_circuit = 1.0f};
+
+    ai_pinn_evaluator_t *pinn = ai_pinn_evaluator_create_in(&store, &cfg);
+    assert_non_null(pinn);
+    assert_ptr_equal(pinn, (void *)store.raw);
+}
+
+static void test_ai_hetero_pipeline_caller_allocated_storage(void **state) {
+    (void)state;
+
+    ai_hetero_pipeline_storage_t store;
+    memset(&store, 0x99, sizeof(store));
+
+    ai_hetero_pipeline_t *pipe = ai_hetero_pipeline_create_in(&store);
+    assert_non_null(pipe);
+    assert_ptr_equal(pipe, (void *)store.raw);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_battery_ekf_caller_allocated_storage),
@@ -1159,6 +1203,9 @@ int main(void) {
         cmocka_unit_test(test_ai_dyn_pool_caller_allocated_storage),
         cmocka_unit_test(test_ai_slm_kv_cache_caller_allocated_storage),
         cmocka_unit_test(test_ai_graph_pruner_caller_allocated_storage),
+        cmocka_unit_test(test_ai_fast_gemm_caller_allocated_storage),
+        cmocka_unit_test(test_ai_pinn_evaluator_caller_allocated_storage),
+        cmocka_unit_test(test_ai_hetero_pipeline_caller_allocated_storage),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

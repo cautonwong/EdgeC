@@ -1409,8 +1409,11 @@ add_edge_test(test_ai_slm_kv_cache test_ai_slm_kv_cache.c)
 # AEP-708 神经网络计算图拓扑剪枝与死算子无死锁剔除单测
 add_edge_test(test_ai_graph_pruner test_ai_graph_pruner.c)
 
+# AEP-705 基于 CMSIS-NN 的 ARM Cortex 极速矩阵乘法 (GEMM) 汇编优化单测
+add_edge_test(test_ai_fast_gemm test_ai_fast_gemm.c)
 
+# AEP-709 工业端侧物理引导神经网络 (PINN) 质量守恒惩罚项求导器单测
+add_edge_test(test_ai_pinn_evaluator test_ai_pinn_evaluator.c)
 
-
-
-
+# AEP-710 异构多后端 (NPU/GPU/CPU) 算子级自动切分与流水线编排器单测
+add_edge_test(test_ai_hetero_pipeline test_ai_hetero_pipeline.c)

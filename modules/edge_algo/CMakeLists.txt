@@ -50,6 +50,9 @@ set(ALGO_SOURCES
     src/ai_dynamic_tensor_pool.c
     src/ai_slm_kv_cache.c
     src/ai_graph_pruner.c
+    src/ai_fast_gemm.c
+    src/ai_pinn_evaluator.c
+    src/ai_hetero_pipeline.c
     src/math/control_algo.c
     src/math/motor_algo.c
     src/math/radar_algo.c
