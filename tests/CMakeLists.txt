@@ -1412,6 +1412,16 @@ add_edge_test(test_ai_graph_pruner test_ai_graph_pruner.c)
 # AEP-705 基于 CMSIS-NN 的 ARM Cortex 极速矩阵乘法 (GEMM) 汇编优化单测
 add_edge_test(test_ai_fast_gemm test_ai_fast_gemm.c)
 
+# AEP-611 SIL-3 级三模冗余 (TMR) 锁步容错与无扰故障转移测试 (Issue #230)
+add_edge_test(test_tmr_failover test_tmr_failover.c)
+
+# AEP-612 基于 eBPF 的内核微秒级调度抖动遥测与自适应实时熔断器测试 (Issue #231)
+add_edge_test(test_ebpf_telemetry test_ebpf_telemetry.c)
+
+# AEP-614 工业恶劣工况热感知动态功耗预算与自适应降级调度器测试 (Issue #233)
+add_edge_test(test_thermal_scheduler test_thermal_scheduler.c)
+
+
 # AEP-709 工业端侧物理引导神经网络 (PINN) 质量守恒惩罚项求导器单测
 add_edge_test(test_ai_pinn_evaluator test_ai_pinn_evaluator.c)
 

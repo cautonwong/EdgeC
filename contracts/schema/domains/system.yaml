@@ -177,4 +177,62 @@ tags:
     desc: "混合关键度热力/功耗降级节流激活状态"
     traits: [ "system", "diagnostic" ]
 
+  # === AEP-611 / AEP-612 / AEP-614 容错安全与热感知遥测 (11030-11038) ===
+  - id: 11030
+    name: SYS_TMR_VOTER_OUT
+    type: float
+    unit: "N/A"
+    desc: "SIL-3 三模冗余 (2oo3) 表决最终仲裁输出"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11031
+    name: SYS_TMR_HEALTHY_CHANNELS
+    type: int
+    desc: "三模冗余当前健康通道数 (0-3)"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11032
+    name: SYS_TMR_FAILOVER_COUNT
+    type: int
+    desc: "三模冗余无扰故障转移累计发生次数"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11033
+    name: SYS_EBPF_JITTER_P99_US
+    type: int
+    desc: "eBPF 内核调度微秒级 P99 抖动分位数"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11034
+    name: SYS_EBPF_MAX_HARDIRQ_OFF_US
+    type: int
+    desc: "eBPF 捕获的最大内核关中断持续耗时(微秒)"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11035
+    name: SYS_EBPF_CIRCUIT_BREAKER_STATE
+    type: int
+    desc: "调度抖动自适应实时熔断器状态 (0:Closed, 1:Warning, 2:Degraded, 3:Tripped)"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11036
+    name: SYS_THERMAL_ZONE_STAGE
+    type: int
+    desc: "热感知动态功耗阶段 (0:Normal, 1:Warning, 2:Degraded, 3:Emergency)"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11037
+    name: SYS_THERMAL_POWER_BUDGET_W
+    type: float
+    unit: "W"
+    desc: "热感知动态功耗预算允许上限(W)"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11038
+    name: SYS_THERMAL_ESTIMATED_POWER_W
+    type: float
+    unit: "W"
+    desc: "系统当前实时估算总功耗(W)"
+    traits: [ "system", "diagnostic" ]
+
 
