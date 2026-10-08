@@ -177,6 +177,7 @@ tags:
     desc: "混合关键度热力/功耗降级节流激活状态"
     traits: [ "system", "diagnostic" ]
 
+<<<<<<< HEAD
   # === AEP-611 / AEP-612 / AEP-614 容错安全与热感知遥测 (11030-11038) ===
   - id: 11030
     name: SYS_TMR_VOTER_OUT
@@ -276,6 +277,45 @@ tags:
     name: SYS_AMP_IPC_RELOAD_COUNT
     type: int
     desc: "AMP 实时小核异常看门狗触发 RemoteProc 热重载累计次数"
+    traits: [ "system", "diagnostic" ]
+
+  # === AEP-607 / AEP-606 / AEP-604 VSG / Swarm / Fusion (11050-11055) ===
+  - id: 11050
+    name: SYS_VSG_OMEGA_VIRTUAL
+    type: float
+    unit: "rad/s"
+    desc: "VSG 虚拟同步机转子角速度"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11051
+    name: SYS_VSG_FFR_ACTIVE_POWER_KW
+    type: float
+    unit: "kW"
+    desc: "VSG 快速调频 (FFR) 输出有功功率补偿"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11052
+    name: SYS_SWARM_ACTIVE_NODES
+    type: int
+    desc: "Swarm AI 当前在线边缘协同节点总数"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11053
+    name: SYS_SWARM_OFFLOAD_SUCCESS_COUNT
+    type: int
+    desc: "Swarm AI 任务跨节点零拷贝卸载成功次数"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11054
+    name: SYS_AI_FUSION_OP_EXEC_COUNT
+    type: int
+    desc: "量化融合算子 (Fused Operator) 执行累计次数"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11055
+    name: SYS_AI_MODEL_HOTSWAP_COUNT
+    type: int
+    desc: "无锁双缓冲模型热插拔更新累计次数"
     traits: [ "system", "diagnostic" ]
 
 

@@ -56,6 +56,7 @@
 #include "edge_guard.h"
 #include "edge_lockfree_ring.h"
 #include "edge_mixed_criticality.h"
+#include "edge_operator_fusion.h"
 #include "edge_pcp_mutex.h"
 #include "edge_prio_booster.h"
 #include "edge_rms_scheduler.h"
@@ -64,6 +65,8 @@
 #include "edge_tmr_voter.h"
 #include "edge_tsn_engine.h"
 #include "edge_uns_engine.h"
+#include "edge_swarm_offload.h"
+#include "edge_vsg_engine.h"
 #include "iec104_apci.h"
 #include "impedance_control.h"
 #include "mpc_dispatcher.h"
@@ -1263,6 +1266,38 @@ static void test_edge_amp_caller_allocated_storage(void **state) {
     assert_int_equal(amp_ipc.remote_core_state, AMP_CORE_STATE_RUNNING);
 }
 
+static void test_edge_vsg_caller_allocated_storage(void **state) {
+    (void)state;
+    _Static_assert(sizeof(edge_vsg_engine_t) > 0, "edge_vsg_engine_t must have static size");
+    edge_vsg_engine_t vsg;
+    memset(&vsg, 0x55, sizeof(vsg));
+    edge_vsg_config_t cfg = {
+        .j_inertia = 5.0f, .d_damping = 20.0f, .droop_p_f = 100.0f, .droop_q_v = 50.0f};
+    assert_int_equal(edge_vsg_engine_init(&vsg, &cfg), 0);
+    assert_true(vsg.is_initialized);
+}
+
+static void test_edge_swarm_caller_allocated_storage(void **state) {
+    (void)state;
+    _Static_assert(sizeof(edge_swarm_engine_t) > 0, "edge_swarm_engine_t must have static size");
+    edge_swarm_engine_t swarm;
+    memset(&swarm, 0x44, sizeof(swarm));
+    assert_int_equal(edge_swarm_engine_init(&swarm, "node-local"), 0);
+    assert_int_equal(swarm.node_count, 1);
+}
+
+static void test_edge_operator_fusion_caller_allocated_storage(void **state) {
+    (void)state;
+    _Static_assert(sizeof(edge_model_manager_t) > 0, "edge_model_manager_t must have static size");
+    edge_model_manager_t mgr;
+    memset(&mgr, 0x33, sizeof(mgr));
+    uint8_t w[32] = {1, 2, 3};
+    assert_int_equal(edge_model_mgr_init(&mgr, 101, w, sizeof(w)), 0);
+    edge_ai_model_t *m = edge_model_acquire_active(&mgr);
+    assert_non_null(m);
+    edge_model_release(m);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_battery_ekf_caller_allocated_storage),
@@ -1316,6 +1351,9 @@ int main(void) {
         cmocka_unit_test(test_edge_uns_caller_allocated_storage),
         cmocka_unit_test(test_edge_tsn_caller_allocated_storage),
         cmocka_unit_test(test_edge_amp_caller_allocated_storage),
+        cmocka_unit_test(test_edge_vsg_caller_allocated_storage),
+        cmocka_unit_test(test_edge_swarm_caller_allocated_storage),
+        cmocka_unit_test(test_edge_operator_fusion_caller_allocated_storage),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);
