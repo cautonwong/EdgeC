@@ -235,4 +235,47 @@ tags:
     desc: "系统当前实时估算总功耗(W)"
     traits: [ "system", "diagnostic" ]
 
+  # === AEP-613 / AEP-609 / AEP-605 UNS / TSN / AMP (11040-11046) ===
+  - id: 11040
+    name: SYS_UNS_RBE_EVENTS_TOTAL
+    type: int
+    desc: "UNS 变化传输 (Report-by-Exception) 触发总次数"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11041
+    name: SYS_UNS_SPARKPLUG_NDATA_COUNT
+    type: int
+    desc: "Sparkplug B NDATA 紧凑报文生成累计次数"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11042
+    name: SYS_TSN_PHC_OFFSET_NS
+    type: int
+    desc: "TSN IEEE 802.1AS PTP 主时钟当前纳秒级相位偏移"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11043
+    name: SYS_TSN_TAS_SCHEDULE_CYCLES
+    type: int
+    desc: "IEEE 802.1Qbv TAS 门控周期执行总轮次"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11044
+    name: SYS_TSN_PCP7_QUEUE_DROPS
+    type: int
+    desc: "TSN 最高优先级 PCP=7 关键控制流丢包数 (恒定为0)"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11045
+    name: SYS_AMP_IPC_MSG_SENT_COUNT
+    type: int
+    desc: "AMP 异构小核零拷贝核间消息发送总数"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11046
+    name: SYS_AMP_IPC_RELOAD_COUNT
+    type: int
+    desc: "AMP 实时小核异常看门狗触发 RemoteProc 热重载累计次数"
+    traits: [ "system", "diagnostic" ]
+
 

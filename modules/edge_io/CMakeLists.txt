@@ -33,6 +33,7 @@ set(IO_SOURCES
     src/sched_engine.c
     src/sched_port.c
     src/io_executor_linux.c
+    src/edge_tsn_engine.c
 )
 
 # 根据 Kconfig 条件加载 Store-and-Forward (SnF) 断线缓存与可靠传输机制 (以接地气的中文添加注释)

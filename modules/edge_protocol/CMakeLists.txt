@@ -7,6 +7,7 @@ set(PROTO_SOURCES
     src/protocol_converter.c
     src/simd_cdd_codec.c
     src/multibus_bridge.c
+    src/edge_uns_engine.c
 )
 
 if(CONFIG_EDGEC_PROTO_MODBUS)
