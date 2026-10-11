@@ -1409,7 +1409,6 @@ add_edge_test(test_ai_slm_kv_cache test_ai_slm_kv_cache.c)
 # AEP-708 神经网络计算图拓扑剪枝与死算子无死锁剔除单测
 add_edge_test(test_ai_graph_pruner test_ai_graph_pruner.c)
 
-<<<<<<< HEAD
 # AEP-705 基于 CMSIS-NN 的 ARM Cortex 极速矩阵乘法 (GEMM) 汇编优化单测
 add_edge_test(test_ai_fast_gemm test_ai_fast_gemm.c)
 
@@ -1439,6 +1438,15 @@ add_edge_test(test_swarm_ai_offloading test_swarm_ai_offloading.c)
 
 # AEP-604 量化算子融合与无锁模型热插拔单测
 add_edge_test(test_operator_fusion test_operator_fusion.c)
+
+# AEP-608 储能电芯热失控 PINN 早期预警单测
+add_edge_test(test_battery_thermal_pinn test_battery_thermal_pinn.c)
+
+# AEP-601 Wasm-NN 共享内存零拷贝沙箱单测
+add_edge_test(test_wasm_nn_sandbox test_wasm_nn_sandbox.c)
+
+# AEP-603 CDD 多模态张量流水线与 DAG 拓扑单测
+add_edge_test(test_cdd_tensor_schema test_cdd_tensor_schema.c)
 
 
 

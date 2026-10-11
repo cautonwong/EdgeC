@@ -177,7 +177,6 @@ tags:
     desc: "混合关键度热力/功耗降级节流激活状态"
     traits: [ "system", "diagnostic" ]
 
-<<<<<<< HEAD
   # === AEP-611 / AEP-612 / AEP-614 容错安全与热感知遥测 (11030-11038) ===
   - id: 11030
     name: SYS_TMR_VOTER_OUT
@@ -316,6 +315,39 @@ tags:
     name: SYS_AI_MODEL_HOTSWAP_COUNT
     type: int
     desc: "无锁双缓冲模型热插拔更新累计次数"
+    traits: [ "system", "diagnostic" ]
+
+  # === AEP-608 / AEP-601 / AEP-603 PINN / Wasm-NN / Tensor Pipeline (11060-11064) ===
+  - id: 11060
+    name: SYS_PINN_RUNAWAY_RISK_SCORE
+    type: float
+    unit: "N/A"
+    desc: "PINN 储能电芯热失控综合风险评分 (0.0~1.0)"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11061
+    name: SYS_PINN_MAX_CELL_Q_ABNORMAL_W
+    type: float
+    unit: "W"
+    desc: "PINN 辨识最大异常产热功率 Q_abnormal"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11062
+    name: SYS_WASM_NN_INFERENCES_TOTAL
+    type: int
+    desc: "Wasm-NN 异构沙箱累计推理总次数"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11063
+    name: SYS_WASM_NN_WATCHDOG_TIMEOUTS
+    type: int
+    desc: "Wasm-NN WCET 预算超限看门狗熔断累计次数"
+    traits: [ "system", "diagnostic" ]
+
+  - id: 11064
+    name: SYS_TENSOR_PIPELINE_FRAMES
+    type: int
+    desc: "CDD 多模态时序张量处理累计帧数"
     traits: [ "system", "diagnostic" ]
 
 

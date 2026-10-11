@@ -39,6 +39,7 @@
 #include "battery_pulse_heating.h"
 #include "battery_soh_fusion.h"
 #include "battery_thermal_mesh.h"
+#include "battery_thermal_pinn.h"
 #include "bus_orchestrator.h"
 #include "datahub.h"
 #include "driver_hotplug.h"
@@ -67,6 +68,8 @@
 #include "edge_uns_engine.h"
 #include "edge_swarm_offload.h"
 #include "edge_vsg_engine.h"
+#include "edge_tensor_pipeline.h"
+#include "edge_wasm_nn.h"
 #include "iec104_apci.h"
 #include "impedance_control.h"
 #include "mpc_dispatcher.h"
@@ -1298,6 +1301,45 @@ static void test_edge_operator_fusion_caller_allocated_storage(void **state) {
     edge_model_release(m);
 }
 
+static void test_battery_thermal_pinn_caller_allocated_storage(void **state) {
+    (void)state;
+    _Static_assert(sizeof(battery_thermal_pinn_t) > 0,
+                   "battery_thermal_pinn_t must have static size");
+    battery_thermal_pinn_t pinn;
+    memset(&pinn, 0x55, sizeof(pinn));
+    pinn_config_t cfg = {.nominal_capacity_ah = 280.0f,
+                         .c_th_joule_per_k = 1500.0f,
+                         .r_th_k_per_w = 0.8f,
+                         .temp_ambient_c = 25.0f};
+    assert_int_equal(battery_thermal_pinn_init(&pinn, &cfg), 0);
+    assert_int_equal(pinn.channel_count, 0);
+}
+
+static void test_edge_wasm_nn_caller_allocated_storage(void **state) {
+    (void)state;
+    _Static_assert(sizeof(edge_wasm_nn_sandbox_t) > 0,
+                   "edge_wasm_nn_sandbox_t must have static size");
+    edge_wasm_nn_sandbox_t sandbox;
+    memset(&sandbox, 0x44, sizeof(sandbox));
+    assert_int_equal(edge_wasm_nn_sandbox_init(&sandbox, 1001, 50000), 0);
+    assert_true(sandbox.is_active);
+}
+
+static void test_edge_tensor_pipeline_caller_allocated_storage(void **state) {
+    (void)state;
+    _Static_assert(sizeof(edge_tensor_pipeline_t) > 0,
+                   "edge_tensor_pipeline_t must have static size");
+    edge_tensor_pipeline_t pipe;
+    memset(&pipe, 0x33, sizeof(pipe));
+    tensor_domain_def_t def = {
+        .domain_name = "test_tensor",
+        .domain_id = 1,
+        .stage_count = 1,
+        .stages = {{.stage_id = 1, .stage_type = TENSOR_STAGE_THRESHOLD_ALARM}}};
+    assert_int_equal(edge_tensor_pipeline_init(&pipe, &def), 0);
+    assert_true(pipe.is_valid_dag);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_battery_ekf_caller_allocated_storage),
@@ -1354,6 +1396,9 @@ int main(void) {
         cmocka_unit_test(test_edge_vsg_caller_allocated_storage),
         cmocka_unit_test(test_edge_swarm_caller_allocated_storage),
         cmocka_unit_test(test_edge_operator_fusion_caller_allocated_storage),
+        cmocka_unit_test(test_battery_thermal_pinn_caller_allocated_storage),
+        cmocka_unit_test(test_edge_wasm_nn_caller_allocated_storage),
+        cmocka_unit_test(test_edge_tensor_pipeline_caller_allocated_storage),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);
