@@ -14,6 +14,7 @@ extern "C" {
 
 #define ARBITER_MAX_BUSES 64
 #define ARBITER_DEFAULT_TIMEOUT_MS 1500
+#define ARBITER_MAX_QUEUE_PER_BUS  128
 
 typedef enum {
     ARBITER_PRIO_LOW = 0,
@@ -27,6 +28,8 @@ typedef enum {
     CMD_STATUS_IO_ERROR = -1,
     CMD_STATUS_PROTO_ERROR = -2,
     CMD_STATUS_TIMEOUT = -3,
+    CMD_STATUS_QUEUE_FULL = -4,
+    CMD_STATUS_RATE_LIMITED = -5
 } cmd_status_t;
 
 typedef enum {
@@ -65,6 +68,7 @@ typedef struct {
     int bus_id;
     bool is_busy;
     int queue_len;
+    uint64_t dropped_count;
 } arbiter_bus_status_t;
 
 typedef struct arbiter arbiter_t;
@@ -78,6 +82,8 @@ int arbiter_submit_cmd(arbiter_t *arb, int bus_id, cmd_msg_t *cmd);
 void arbiter_on_io_done(arbiter_t *arb, int bus_id, cmd_msg_t *msg, int status);
 int arbiter_get_statuses(arbiter_t *arb, arbiter_bus_status_t *out_stats, int max_count);
 void arbiter_set_exclusive(arbiter_t *arb, int bus_id, bool exclusive);
+void arbiter_set_bus_queue_limit(arbiter_t *arb, int bus_id, uint32_t max_queue);
+uint64_t arbiter_get_bus_dropped_count(arbiter_t *arb, int bus_id);
 
 // --- 辅助初始化函数 (Helper Init Functions) ---
 static inline void cmd_msg_init_read(cmd_msg_t *msg, uint32_t tag_id, uint8_t priority) {

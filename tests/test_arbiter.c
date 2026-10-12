@@ -135,10 +135,69 @@ static void test_arbiter_stress_and_destroy(void** state) {
     uv_loop_close(&loop);
 }
 
+static void test_arbiter_bounded_queue_and_priority_drop(void** state) {
+    (void)state;
+    uv_loop_t loop;
+    uv_loop_init(&loop);
+    arbiter_t* arb = NULL;
+    arbiter_init(&arb, &loop);
+    /* 保持 paused 状态，使命令留在队列中不被派发 */
+    arbiter_pause(arb);
+
+    /* 设置第 0 号总线队列上限为 5 条命令 */
+    arbiter_set_bus_queue_limit(arb, 0, 5);
+
+    /* 1. 注入 5 条低优先级命令填充队列 */
+    cmd_msg_t* cmds[10];
+
+    for (int i = 0; i < 5; i++) {
+        cmds[i] = calloc(1, sizeof(cmd_msg_t));
+        cmd_msg_init_write(cmds[i], 1000 + i, (double)i, ARBITER_PRIO_LOW);
+        cmds[i]->on_cleanup = on_cleanup;
+        int rc = arbiter_submit_cmd(arb, 0, cmds[i]);
+        assert_int_equal(rc, 0);
+    }
+
+    arbiter_bus_status_t stats;
+    assert_int_equal(arbiter_get_statuses(arb, &stats, 1), 1);
+    assert_int_equal(stats.queue_len, 5);
+    assert_int_equal(stats.dropped_count, 0);
+
+    /* 2. 注入第 6 条低/普通优先级命令：必须被准入控制拒绝 (CMD_STATUS_QUEUE_FULL) */
+    cmds[5] = calloc(1, sizeof(cmd_msg_t));
+    cmd_msg_init_write(cmds[5], 1005, 5.0, ARBITER_PRIO_NORMAL);
+    cmds[5]->on_cleanup = on_cleanup;
+    int rc_rejected = arbiter_submit_cmd(arb, 0, cmds[5]);
+    assert_int_equal(rc_rejected, CMD_STATUS_QUEUE_FULL);
+    free(cmds[5]);
+
+    assert_int_equal(arbiter_get_bus_dropped_count(arb, 0), 1);
+
+    /* 3. 注入 EMERGENCY 紧急跳闸命令：必须触发 Priority-Drop 剔除队尾低优命令入队成功 */
+    cmds[6] = calloc(1, sizeof(cmd_msg_t));
+    cmd_msg_init_write(cmds[6], 9999, 1.0, ARBITER_PRIO_EMERGENCY);
+    cmds[6]->on_cleanup = on_cleanup;
+    int rc_emergency = arbiter_submit_cmd(arb, 0, cmds[6]);
+    assert_int_equal(rc_emergency, 0);
+
+    /* 验证丢弃计数增加（低优被挤掉），且当前队列长度依然严格在上限 5 */
+    assert_int_equal(arbiter_get_bus_dropped_count(arb, 0), 2);
+    assert_int_equal(arbiter_get_statuses(arb, &stats, 1), 1);
+    assert_int_equal(stats.queue_len, 5);
+
+    arbiter_destroy(arb);
+    uv_loop_close(&loop);
+    for (int i = 0; i < 5; i++) {
+        free(cmds[i]);
+    }
+    free(cmds[6]);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_arbiter_preempt, setup, teardown),
         cmocka_unit_test(test_arbiter_stress_and_destroy),
+        cmocka_unit_test(test_arbiter_bounded_queue_and_priority_drop),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
