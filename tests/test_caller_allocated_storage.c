@@ -46,6 +46,7 @@
 #include "ebpf_guard.h"
 #include "edge_acl.h"
 #include "edge_agent.h"
+#include "edge_amp_ipc.h"
 #include "edge_cep_engine.h"
 #include "edge_composition_root.h"
 #include "edge_coop_guard.h"
@@ -61,6 +62,8 @@
 #include "edge_sched_deadline.h"
 #include "edge_thermal_scheduler.h"
 #include "edge_tmr_voter.h"
+#include "edge_tsn_engine.h"
+#include "edge_uns_engine.h"
 #include "iec104_apci.h"
 #include "impedance_control.h"
 #include "mpc_dispatcher.h"
@@ -1228,6 +1231,38 @@ static void test_thermal_scheduler_caller_allocated_storage(void **state) {
     assert_true(quota.level_a_allowed);
 }
 
+static void test_edge_uns_caller_allocated_storage(void **state) {
+    (void)state;
+    _Static_assert(sizeof(edge_uns_engine_t) > 0, "edge_uns_engine_t must have static size");
+    edge_uns_engine_t uns_engine;
+    memset(&uns_engine, 0x55, sizeof(uns_engine));
+    assert_int_equal(edge_uns_engine_init(&uns_engine, "Grid", "Node_01"), 0);
+    assert_int_equal(uns_engine.node_count, 0);
+}
+
+static void test_edge_tsn_caller_allocated_storage(void **state) {
+    (void)state;
+    _Static_assert(sizeof(edge_tsn_engine_t) > 0, "edge_tsn_engine_t must have static size");
+    edge_tsn_engine_t tsn_engine;
+    memset(&tsn_engine, 0x44, sizeof(tsn_engine));
+    tsn_schedule_config_t cfg = {.interface_name = "eth0",
+                                 .cycle_time_ns = 1000000,
+                                 .base_time_ns = 0,
+                                 .entry_count = 1,
+                                 .entries = {{.gate_mask = 0xFF, .time_interval_ns = 1000000}}};
+    assert_int_equal(edge_tsn_engine_init(&tsn_engine, &cfg), 0);
+    assert_true(tsn_engine.is_active);
+}
+
+static void test_edge_amp_caller_allocated_storage(void **state) {
+    (void)state;
+    _Static_assert(sizeof(edge_amp_ipc_t) > 0, "edge_amp_ipc_t must have static size");
+    edge_amp_ipc_t amp_ipc;
+    memset(&amp_ipc, 0x33, sizeof(amp_ipc));
+    assert_int_equal(edge_amp_ipc_init(&amp_ipc, NULL, 0), 0);
+    assert_int_equal(amp_ipc.remote_core_state, AMP_CORE_STATE_RUNNING);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_battery_ekf_caller_allocated_storage),
@@ -1278,6 +1313,9 @@ int main(void) {
         cmocka_unit_test(test_tmr_voter_caller_allocated_storage),
         cmocka_unit_test(test_ebpf_telemetry_caller_allocated_storage),
         cmocka_unit_test(test_thermal_scheduler_caller_allocated_storage),
+        cmocka_unit_test(test_edge_uns_caller_allocated_storage),
+        cmocka_unit_test(test_edge_tsn_caller_allocated_storage),
+        cmocka_unit_test(test_edge_amp_caller_allocated_storage),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

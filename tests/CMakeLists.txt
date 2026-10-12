@@ -1421,6 +1421,16 @@ add_edge_test(test_ebpf_telemetry test_ebpf_telemetry.c)
 # AEP-614 工业恶劣工况热感知动态功耗预算与自适应降级调度器测试 (Issue #233)
 add_edge_test(test_thermal_scheduler test_thermal_scheduler.c)
 
+# AEP-613 ISA-95 统一命名空间 (UNS) 与 Sparkplug B / OPC UA 镜像单测
+add_edge_test(test_uns_sparkplug_opcua test_uns_sparkplug_opcua.c)
+
+# AEP-609 IEEE 802.1Qbv TAS 与 IEEE 802.1AS TSN 确定性传输单测
+add_edge_test(test_tsn_engine test_tsn_engine.c)
+
+# AEP-605 异构多核非对称协同 (AMP/SMP) 与核间零拷贝通信单测
+add_edge_test(test_amp_ipc_ring test_amp_ipc_ring.c)
+
+
 
 # AEP-709 工业端侧物理引导神经网络 (PINN) 质量守恒惩罚项求导器单测
 add_edge_test(test_ai_pinn_evaluator test_ai_pinn_evaluator.c)

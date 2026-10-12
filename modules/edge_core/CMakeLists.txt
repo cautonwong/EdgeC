@@ -39,6 +39,7 @@ add_library(edge_core STATIC
     src/edge_tmr_voter.c
     src/edge_ebpf_telemetry.c
     src/edge_thermal_scheduler.c
+    src/edge_amp_ipc.c
 )
 
 # PUBLIC: 链接 edge_core 的 Target 也能 include 这些头文件
