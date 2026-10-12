@@ -13,6 +13,7 @@ set(STREAM_SOURCES
     src/script_loader.c
     src/stream_sql_dag.c
     src/mpc_dispatcher.c
+    src/edge_tensor_pipeline.c
     ${STAGE_SOURCES}
 )
 
