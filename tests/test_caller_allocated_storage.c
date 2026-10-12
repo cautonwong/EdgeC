@@ -50,6 +50,7 @@
 #include "edge_composition_root.h"
 #include "edge_coop_guard.h"
 #include "edge_cpu_affinity.h"
+#include "edge_ebpf_telemetry.h"
 #include "edge_edf_scheduler.h"
 #include "edge_guard.h"
 #include "edge_lockfree_ring.h"
@@ -58,6 +59,8 @@
 #include "edge_prio_booster.h"
 #include "edge_rms_scheduler.h"
 #include "edge_sched_deadline.h"
+#include "edge_thermal_scheduler.h"
+#include "edge_tmr_voter.h"
 #include "iec104_apci.h"
 #include "impedance_control.h"
 #include "mpc_dispatcher.h"
@@ -1159,6 +1162,72 @@ static void test_ai_hetero_pipeline_caller_allocated_storage(void **state) {
     assert_ptr_equal(pipe, (void *)store.raw);
 }
 
+static void test_tmr_voter_caller_allocated_storage(void **state) {
+    (void)state;
+
+    tmr_voter_context_t voter_store;
+    memset(&voter_store, 0x77, sizeof(voter_store));
+
+    tmr_voter_config_t cfg = {.tolerance_band = 0.05f,
+                              .suspect_cycles_threshold = 3,
+                              .failover_rate_limit = 50.0f,
+                              .cycle_period_sec = 0.001f,
+                              .fail_safe_value = 0.0f};
+
+    assert_int_equal(edge_tmr_voter_init(&voter_store, &cfg), 0);
+    assert_int_equal(edge_tmr_voter_update_channel(&voter_store, 0, 100.0f, TMR_NODE_HEALTHY), 0);
+    assert_int_equal(edge_tmr_voter_update_channel(&voter_store, 1, 100.0f, TMR_NODE_HEALTHY), 0);
+    assert_int_equal(edge_tmr_voter_update_channel(&voter_store, 2, 100.0f, TMR_NODE_HEALTHY), 0);
+
+    float voted = 0.0f;
+    assert_int_equal(edge_tmr_voter_step(&voter_store, &voted), 0);
+    assert_float_equal(voted, 100.0f, 0.01f);
+}
+
+static void test_ebpf_telemetry_caller_allocated_storage(void **state) {
+    (void)state;
+
+    edge_ebpf_telemetry_ctx_t ebpf_store;
+    memset(&ebpf_store, 0x88, sizeof(ebpf_store));
+
+    ebpf_telemetry_config_t cfg = {.jitter_warn_us = 20,
+                                   .jitter_trip_us = 50,
+                                   .hardirq_trip_us = 100,
+                                   .consecutive_spike_threshold = 3,
+                                   .recovery_healthy_cycles = 5,
+                                   .target_task_pid = 4321};
+
+    assert_int_equal(edge_ebpf_telemetry_init(&ebpf_store, &cfg), 0);
+    assert_int_equal(edge_ebpf_telemetry_record_event(&ebpf_store, 10, 5), 0);
+
+    ebpf_latency_stats_t stats;
+    assert_int_equal(edge_ebpf_telemetry_get_stats(&ebpf_store, &stats), 0);
+    assert_int_equal(stats.sample_count, 1);
+}
+
+static void test_thermal_scheduler_caller_allocated_storage(void **state) {
+    (void)state;
+
+    edge_thermal_scheduler_ctx_t thermal_store;
+    memset(&thermal_store, 0x99, sizeof(thermal_store));
+
+    thermal_scheduler_config_t cfg = {.temp_warn_threshold_c = 70.0f,
+                                      .temp_degraded_threshold_c = 85.0f,
+                                      .temp_emergency_threshold_c = 95.0f,
+                                      .thermal_resistance_r_th = 1.2f,
+                                      .thermal_capacitance_c_th = 50.0f,
+                                      .max_tdp_power_w = 35.0f,
+                                      .base_power_idle_w = 5.0f};
+
+    assert_int_equal(edge_thermal_scheduler_init(&thermal_store, &cfg), 0);
+    assert_int_equal(
+        edge_thermal_scheduler_update_sensors(&thermal_store, 50.0f, 48.0f, 28.0f, 0.1f), 0);
+
+    thermal_task_quota_t quota;
+    assert_int_equal(edge_thermal_scheduler_arbitrate(&thermal_store, &quota), 0);
+    assert_true(quota.level_a_allowed);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_battery_ekf_caller_allocated_storage),
@@ -1206,6 +1275,9 @@ int main(void) {
         cmocka_unit_test(test_ai_fast_gemm_caller_allocated_storage),
         cmocka_unit_test(test_ai_pinn_evaluator_caller_allocated_storage),
         cmocka_unit_test(test_ai_hetero_pipeline_caller_allocated_storage),
+        cmocka_unit_test(test_tmr_voter_caller_allocated_storage),
+        cmocka_unit_test(test_ebpf_telemetry_caller_allocated_storage),
+        cmocka_unit_test(test_thermal_scheduler_caller_allocated_storage),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);
