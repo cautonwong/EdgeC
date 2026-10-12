@@ -198,3 +198,47 @@ tags:
     type: int
     desc: "计算图拓扑融合的算子对数量"
     traits: [ "npu", "ai", "diagnostic" ]
+
+  # === AEP-705: ARM Cortex CMSIS-NN 极速 GEMM ===
+  - id: 262174 # 0x04001E
+    name: AI_FAST_GEMM_GFLOPS
+    type: float
+    unit: "GFLOPS"
+    desc: "定点 GEMM 汇编分块与向量内积吞吐"
+    traits: [ "npu", "ai", "perf" ]
+
+  - id: 262175 # 0x04001F
+    name: AI_FAST_GEMM_EFFICIENCY_PCT
+    type: float
+    unit: "%"
+    desc: "L1/L2 Cache 局部性与硬件流水线效率百分比"
+    traits: [ "npu", "ai", "perf" ]
+
+  # === AEP-709: 物理引导神经网络 (PINN) 质量/能量守恒求导器 ===
+  - id: 262176 # 0x040020
+    name: AI_PINN_PHYSICS_RESIDUAL_LOSS
+    type: float
+    desc: "PINN 质量守恒与电化学能量守恒偏微分残差损失"
+    traits: [ "npu", "ai", "diagnostic" ]
+
+  - id: 262177 # 0x040021
+    name: AI_PINN_ENERGY_CONSERVATION_PCT
+    type: float
+    unit: "%"
+    desc: "推理输出物理守恒度达标百分比"
+    traits: [ "npu", "ai", "diagnostic" ]
+
+  # === AEP-710: 异构多后端算子切分与流水线编排器 ===
+  - id: 262178 # 0x040022
+    name: AI_HETERO_SUBGRAPH_COUNT
+    type: int
+    desc: "异构多后端切分生成的子图执行流水线数量"
+    traits: [ "npu", "ai", "telemetry" ]
+
+  - id: 262179 # 0x040023
+    name: AI_HETERO_PIPELINE_OVERLAP_PCT
+    type: float
+    unit: "%"
+    desc: "CPU-NPU 异步乒乓流水线重叠隐藏率百分比"
+    traits: [ "npu", "ai", "perf" ]
+
