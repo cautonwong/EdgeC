@@ -57,6 +57,8 @@ set(ALGO_SOURCES
     src/math/motor_algo.c
     src/math/radar_algo.c
     src/math/fmcw_dsp_neon.c
+    src/edge_vsg_engine.c
+    src/edge_operator_fusion.c
 )
 
 # 根据 Kconfig 条件加载高精度数值与矩阵库 (以接地气的中文添加注释)
