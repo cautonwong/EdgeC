@@ -14,7 +14,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <uv.h>
+typedef struct uv_loop_s uv_loop_t;
 
 #include "contract_data_types.h"
 #include "shmring.h"

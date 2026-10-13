@@ -1,4 +1,5 @@
 #include "wasm_app_scheduler.h"
+#include <uv.h>
 #include <stdlib.h>
 #include <string.h>
 #include "edge_log.h"

@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdalign.h>
 #include <stdint.h>
-#include <uv.h>
+typedef struct uv_loop_s uv_loop_t;
 
 #include "shmring.h"
 #include "sqlite_service.h"

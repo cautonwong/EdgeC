@@ -2,7 +2,7 @@
 #define SQLITE_SERVICE_H
 
 #include <stdint.h>
-#include <uv.h>
+typedef struct uv_loop_s uv_loop_t;
 
 #include "shmring.h"  // For PipeMsg
 #include "contract_data_types.h"

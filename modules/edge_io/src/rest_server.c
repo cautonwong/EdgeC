@@ -1,4 +1,5 @@
 #include "rest_server.h"
+#include <uv.h>
 
 #include <cjson/cJSON.h>
 #include <stdio.h>

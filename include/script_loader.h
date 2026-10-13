@@ -1,7 +1,7 @@
 #ifndef EDGE_SCRIPT_LOADER_H
 #define EDGE_SCRIPT_LOADER_H
 
-#include <uv.h>
+typedef struct uv_loop_s uv_loop_t;
 
 #include "js_engine.h"
 

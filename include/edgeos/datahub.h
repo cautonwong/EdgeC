@@ -6,7 +6,7 @@
 #ifndef EDGEOS_SDK_DATAHUB_H
 #define EDGEOS_SDK_DATAHUB_H
 
-#include <uv.h>
+typedef struct uv_loop_s uv_loop_t;
 
 #include "../../modules/edge_core/include/datahub.h"
 #include "../../modules/edge_infra/include/datahub_ops.h"

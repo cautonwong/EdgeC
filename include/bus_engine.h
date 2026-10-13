@@ -1,7 +1,7 @@
 #ifndef EDGE_BUS_ENGINE_H
 #define EDGE_BUS_ENGINE_H
 
-#include <uv.h>
+typedef struct uv_loop_s uv_loop_t;
 
 #include "contract_data_types.h"
 #include "net_buf.h"

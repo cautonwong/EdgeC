@@ -1,7 +1,7 @@
 #ifndef WEB_SERVER_H
 #define WEB_SERVER_H
 
-#include <uv.h>
+typedef struct uv_loop_s uv_loop_t;
 
 // Opaque handle
 typedef struct web_server_s web_server_t;

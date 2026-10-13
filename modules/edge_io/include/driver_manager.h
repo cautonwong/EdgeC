@@ -1,7 +1,7 @@
 #ifndef DRIVER_MANAGER_H
 #define DRIVER_MANAGER_H
 
-#include <uv.h>
+typedef struct uv_loop_s uv_loop_t;
 #include "contract_data_types.h"
 #include "edge_driver.h"
 #include "io_executor.h"

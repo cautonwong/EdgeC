@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdalign.h>
-#include <uv.h>
+typedef struct uv_loop_s uv_loop_t;
 
 #define EDGE_AGENT_ID_MAX  64
 #define EDGE_AGENT_TOPIC_MAX 128

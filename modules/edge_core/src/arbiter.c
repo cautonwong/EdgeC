@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <uv.h>
 #include <string.h>
 #include <stdio.h>
 #include "arbiter.h"

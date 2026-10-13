@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <uv.h>
 
 struct snf_manager_s {
     snf_config_t config;

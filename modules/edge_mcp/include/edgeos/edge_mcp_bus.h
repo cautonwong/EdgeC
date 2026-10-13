@@ -18,7 +18,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <cjson/cJSON.h>
-#include <uv.h>
+typedef struct uv_loop_s uv_loop_t;
 
 #include "edgeos/edge_mcp_dispatcher.h"
 

@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <uv.h>
 #include <MQTTAsync.h>
 
 struct edge_agent_s {

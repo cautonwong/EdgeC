@@ -1,7 +1,7 @@
 #ifndef EDGEOS_H
 #define EDGEOS_H
 
-#include <uv.h>
+typedef struct uv_loop_s uv_loop_t;
 
 #include "arbiter.h"
 #include "bus_engine.h"

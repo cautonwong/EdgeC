@@ -1,7 +1,7 @@
 #ifndef PROTOCOL_BRIDGE_H
 #define PROTOCOL_BRIDGE_H
 
-#include <uv.h>
+typedef struct uv_loop_s uv_loop_t;
 #include <stdalign.h>
 #include <stddef.h>
 #include <stdint.h>

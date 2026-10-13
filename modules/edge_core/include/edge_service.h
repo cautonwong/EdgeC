@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include <uv.h>
+typedef struct uv_loop_s uv_loop_t;
 
 struct stream_engine_s;
 typedef struct stream_engine_s stream_engine_t;

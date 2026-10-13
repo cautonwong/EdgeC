@@ -1,4 +1,5 @@
 #include "script_loader.h"
+#include <uv.h>
 
 #include <dirent.h>
 #include <stdio.h>

@@ -4,6 +4,7 @@
  */
 
 #include "protocol_bridge.h"
+#include <uv.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>

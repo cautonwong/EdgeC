@@ -1,7 +1,7 @@
 #ifndef PASSTHROUGH_MGR_H
 #define PASSTHROUGH_MGR_H
 
-#include <uv.h>
+typedef struct uv_loop_s uv_loop_t;
 #include "bus_orchestrator.h"
 
 typedef struct passthrough_mgr_s passthrough_mgr_t;

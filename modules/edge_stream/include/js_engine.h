@@ -4,7 +4,7 @@
 #include <quickjs/quickjs.h>  // 必须包含以使用 JSValue
 #include <stdbool.h>
 #include <stdint.h>
-#include <uv.h>
+typedef struct uv_loop_s uv_loop_t;
 
 #include "edge_service.h"
 
