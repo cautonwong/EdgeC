@@ -58,6 +58,9 @@ cmake --build . -j$(nproc)
 # [ADR-0001] 编译期点表一致性校验
 "$PROJECT_ROOT/scripts/check_tag_consistency.sh" "$PROJECT_ROOT"
 
+# [Clean Architecture] 架构防腐与层级隔离门禁
+"$PROJECT_ROOT/scripts/check_architecture_layers.sh"
+
 # [Nexus] Removed automatic ctest execution from build.sh to allow isolated integration testing.
 
 # ==============================================================================

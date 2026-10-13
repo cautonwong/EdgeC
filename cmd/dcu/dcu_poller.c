@@ -72,29 +72,37 @@ void dcu_poller_pump(dcu_poller_t* poller, dcu_inventory_t* inv) {
                 cmd->user_data = ctx;
                 cmd->on_complete = _on_poll_cmd_complete;
                 cmd->on_cleanup = _on_poll_cmd_cleanup;
-                // [Digital Twin Bypass]
-                float fv = (cmd->device_id > 0 && cmd->device_id % 50 == 0) ? 150.0f : 220.88f;
 
-                if (poller->sink_ops.record_telemetry) {
-                    poller->sink_ops.record_telemetry(poller->sink_ops.ctx, m->address,
-                                                      cmd->device_id, cmd->tag_id, (double)fv);
+                bool handled_by_io = false;
+                if (poller->io_ops.dispatch_command) {
+                    uint8_t channel_id = (uint8_t)(cmd->device_id % DCU_MAX_CHANNELS);
+                    if (poller->io_ops.dispatch_command(poller->io_ops.ctx, channel_id, cmd) == 0) {
+                        handled_by_io = true;
+                    }
                 }
 
-                if (poller->bus_ops.publish_realtime) {
-                    poller->bus_ops.publish_realtime(poller->bus_ops.ctx, cmd->tag_id,
-                                                     cmd->device_id, (double)fv, uv_hrtime());
-                }
+                if (!handled_by_io) {
+                    // Fallback to digital twin simulated read if no IO orchestrator dispatched
+                    float fv = (cmd->device_id > 0 && cmd->device_id % 50 == 0) ? 150.0f : 220.88f;
 
-                // [Nexus] Direct synchronous push via injected interface
-                if (poller->bus_ops.push_event) {
-                    poller->bus_ops.push_event(poller->bus_ops.ctx, cmd->tag_id, cmd->device_id,
-                                               (double)fv, uv_hrtime());
-                }
+                    if (poller->sink_ops.record_telemetry) {
+                        poller->sink_ops.record_telemetry(poller->sink_ops.ctx, m->address,
+                                                          cmd->device_id, cmd->tag_id, (double)fv);
+                    }
 
-                // [Digital Twin] Skip physical IO, directly free mock structures
-                // Do not submit to orchestrator as it expects a real req
-                free(ctx);
-                free(cmd);
+                    if (poller->bus_ops.publish_realtime) {
+                        poller->bus_ops.publish_realtime(poller->bus_ops.ctx, cmd->tag_id,
+                                                         cmd->device_id, (double)fv, uv_hrtime());
+                    }
+
+                    if (poller->bus_ops.push_event) {
+                        poller->bus_ops.push_event(poller->bus_ops.ctx, cmd->tag_id, cmd->device_id,
+                                                   (double)fv, uv_hrtime());
+                    }
+
+                    free(ctx);
+                    free(cmd);
+                }
             }
         }
     }
