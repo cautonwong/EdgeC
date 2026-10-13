@@ -3,6 +3,7 @@
  * @brief Physics-Informed Neural Network (PINN) Conservation Law Residual Implementation (AEP-709 / Issue #242)
  */
 
+#include "datahub.h"
 #include "ai_pinn_evaluator.h"
 #include <string.h>
 #include <math.h>

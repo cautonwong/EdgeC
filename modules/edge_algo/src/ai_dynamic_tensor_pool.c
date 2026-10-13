@@ -3,6 +3,7 @@
  * @brief Dynamic Tensor Shape Static Memory Pool Implementation (AEP-706 / Issue #239)
  */
 
+#include "datahub.h"
 #include "ai_dynamic_tensor_pool.h"
 #include <string.h>
 

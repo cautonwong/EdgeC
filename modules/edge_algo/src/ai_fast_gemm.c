@@ -3,6 +3,7 @@
  * @brief High-Speed Quantized GEMM Engine Implementation (AEP-705 / Issue #238)
  */
 
+#include "datahub.h"
 #include "ai_fast_gemm.h"
 #include <string.h>
 #include <math.h>

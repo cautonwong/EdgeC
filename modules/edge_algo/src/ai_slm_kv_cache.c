@@ -4,6 +4,7 @@
  */
 
 #include "ai_slm_kv_cache.h"
+#include "datahub.h"
 #include <string.h>
 #include <math.h>
 

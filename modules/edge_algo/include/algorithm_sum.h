@@ -1,11 +1,14 @@
 #pragma once
 #include <stdbool.h>
 #include <stdint.h>
-#include <uv.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/* Forward declaration of external event loop */
+typedef struct uv_loop_s uv_loop_t;
 
 // Sample data structure (Input)
 typedef struct {
@@ -22,36 +25,11 @@ typedef struct {
     uint64_t compute_ts;
 } algo_result_t;
 
-// Forward declaration
+// Opaque context structure (Physical Opaque Encapsulation)
 typedef struct algo_ctx_s algo_ctx_t;
 
 // Callback type for results (executed on the main loop)
 typedef void (*algo_result_cb)(algo_ctx_t *ctx, const algo_result_t *result, void *user_data);
-
-// Context structure
-struct algo_ctx_s {
-    uv_loop_t *loop;
-
-    // Threading primitives
-    uv_thread_t thread;
-    uv_mutex_t lock;
-    uv_cond_t cond;
-    uv_async_t async_result;
-
-    // Data buffers (Double buffering or Ring buffer could be used, here simple buffer)
-    algo_sample_t *samples;
-    size_t capacity;
-    size_t count;
-
-    // Output callback
-    algo_result_cb cb;
-    void *user_data;
-
-    // Internal state
-    algo_result_t pending_res;
-    bool running;
-    bool flush_requested;
-};
 
 /**
  * @brief Initializes the fusion algorithm engine.

@@ -3,6 +3,7 @@
  * @brief Neural Network Computation Graph Topological Pruner Implementation (AEP-708 / Issue #241)
  */
 
+#include "datahub.h"
 #include "ai_graph_pruner.h"
 #include <string.h>
 

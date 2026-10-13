@@ -3,6 +3,7 @@
  * @brief INT8/FP8 Symmetric & Asymmetric Quantization Calibrator Implementation (AEP-702 / Issue #235)
  */
 
+#include "datahub.h"
 #include "ai_quant_calibrator.h"
 #include <string.h>
 #include <math.h>

@@ -12,13 +12,13 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include "datahub.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /* Forward declarations */
+typedef struct datahub_s datahub_t;
 struct dma_buf_pool;
 typedef struct dma_buf_pool dma_buf_pool_t;
 

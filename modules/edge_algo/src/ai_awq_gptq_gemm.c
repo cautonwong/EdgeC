@@ -3,6 +3,7 @@
  * @brief Edge 4-bit (AWQ/GPTQ) Compact Weight Quantization & Fused GEMV Implementation (AEP-703 / Issue #236)
  */
 
+#include "datahub.h"
 #include "ai_awq_gptq_gemm.h"
 #include <string.h>
 #include <math.h>

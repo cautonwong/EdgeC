@@ -18,11 +18,11 @@
 #include <stdbool.h>
 #include <stdalign.h>
 
-#include "datahub.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct datahub_s datahub_t;
 
 /* -------------------------------------------------------------------------- */
 /* Constants & Enumerations                                                   */

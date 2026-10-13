@@ -4,6 +4,31 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <uv.h>
+
+struct algo_ctx_s {
+    uv_loop_t *loop;
+
+    // Threading primitives
+    uv_thread_t thread;
+    uv_mutex_t lock;
+    uv_cond_t cond;
+    uv_async_t async_result;
+
+    // Data buffers (Double buffering or Ring buffer could be used, here simple buffer)
+    algo_sample_t *samples;
+    size_t capacity;
+    size_t count;
+
+    // Output callback
+    algo_result_cb cb;
+    void *user_data;
+
+    // Internal state
+    algo_result_t pending_res;
+    bool running;
+    bool flush_requested;
+};
 
 static void worker_thread(void *arg) {
     algo_ctx_t *ctx = (algo_ctx_t *)arg;

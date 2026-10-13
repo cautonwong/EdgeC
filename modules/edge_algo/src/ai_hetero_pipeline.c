@@ -3,6 +3,7 @@
  * @brief Heterogeneous Multi-Backend Pipeline Orchestrator Implementation (AEP-710 / Issue #243)
  */
 
+#include "datahub.h"
 #include "ai_hetero_pipeline.h"
 #include <string.h>
 

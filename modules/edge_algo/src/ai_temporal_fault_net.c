@@ -3,6 +3,7 @@
  * @brief Industrial Multi-Scale 1D-CNN + BiLSTM Operator Fusion Implementation (AEP-704 / Issue #237)
  */
 
+#include "datahub.h"
 #include "ai_temporal_fault_net.h"
 #include <string.h>
 #include <math.h>
