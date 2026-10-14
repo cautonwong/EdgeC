@@ -7,7 +7,6 @@
 #include "edge_driver.h"
 #include "edge_log.h"
 #include "net_buf.h"
-#include "datahub.h"
 
 typedef struct {
     uint8_t addr_bcd[6];
@@ -134,9 +133,9 @@ static int dlt645_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
         bool found = false;
         if (ctx->lookup_by_key) {
             const modbus_map_t *map = (const modbus_map_t *)ctx->lookup_by_key(di);
-            if (map && ctx->user_data) {
+            if (map) {
                 pipe_msg_t shadow;
-                if (datahub_read_shadow((datahub_t *)ctx->user_data, map->tag_id, &shadow) == 0) {
+                if (edge_driver_read_shadow(ctx, map->tag_id, &shadow) == 0) {
                     val = shadow.payload.val.f / (map->scaler ? map->scaler : 1.0);
                     found = true;
                 }

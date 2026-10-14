@@ -3,7 +3,6 @@
  * @brief High-Speed Quantized GEMM Engine Implementation (AEP-705 / Issue #238)
  */
 
-#include "datahub.h"
 #include "ai_fast_gemm.h"
 #include <string.h>
 #include <math.h>
@@ -150,15 +149,11 @@ bool ai_fast_gemm_get_metrics(const ai_fast_gemm_t *gemm, ai_gemm_metrics_t *met
     return true;
 }
 
-int ai_fast_gemm_sync_datahub(const ai_fast_gemm_t *gemm, datahub_t *hub) {
-    if (!gemm || !hub) return -1;
+int ai_fast_gemm_emit_metrics(const ai_fast_gemm_t *gemm, const edge_algo_sink_t *sink) {
+    if (!gemm || !sink) return -1;
 
-    pipe_msg_t msg;
-    pipe_msg_init_scalar(&msg, 262174, (double)gemm->metrics.gflops, 0);
-    datahub_write_shadow(hub, &msg);
-
-    pipe_msg_init_scalar(&msg, 262175, (double)gemm->metrics.efficiency_pct, 0);
-    datahub_write_shadow(hub, &msg);
+    edge_algo_sink_emit_scalar(sink, 262174, (double)gemm->metrics.gflops, 0);
+    edge_algo_sink_emit_scalar(sink, 262175, (double)gemm->metrics.efficiency_pct, 0);
 
     return 0;
 }

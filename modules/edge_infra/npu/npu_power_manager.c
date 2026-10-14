@@ -4,6 +4,7 @@
  */
 
 #include "npu_power_manager.h"
+#include "datahub.h"
 
 #include <string.h>
 #include <time.h>

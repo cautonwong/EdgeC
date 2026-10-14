@@ -4,6 +4,7 @@
  */
 
 #include "dds_topology_monitor.h"
+#include "datahub.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

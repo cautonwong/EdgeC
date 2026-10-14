@@ -8,6 +8,7 @@
 #include <time.h>
 #include <uv.h>
 
+#include "datahub.h"
 #include "dcu_discovery.h"
 #include "dcu_event_monitor.h"
 #include "dcu_inventory.h"

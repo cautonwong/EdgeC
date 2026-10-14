@@ -3,7 +3,6 @@
  * @brief Physics-Informed Neural Network (PINN) Conservation Law Residual Implementation (AEP-709 / Issue #242)
  */
 
-#include "datahub.h"
 #include "ai_pinn_evaluator.h"
 #include <string.h>
 #include <math.h>
@@ -88,15 +87,11 @@ int ai_pinn_evaluator_evaluate(ai_pinn_evaluator_t *pinn,
     return 0;
 }
 
-int ai_pinn_evaluator_sync_datahub(const ai_pinn_result_t *result, datahub_t *hub) {
-    if (!result || !hub) return -1;
+int ai_pinn_evaluator_emit_results(const ai_pinn_result_t *result, const edge_algo_sink_t *sink) {
+    if (!result || !sink) return -1;
 
-    pipe_msg_t msg;
-    pipe_msg_init_scalar(&msg, 262176, (double)result->total_physics_loss, 0);
-    datahub_write_shadow(hub, &msg);
-
-    pipe_msg_init_scalar(&msg, 262177, (double)result->conservation_compliance_pct, 0);
-    datahub_write_shadow(hub, &msg);
+    edge_algo_sink_emit_scalar(sink, 262176, (double)result->total_physics_loss, 0);
+    edge_algo_sink_emit_scalar(sink, 262177, (double)result->conservation_compliance_pct, 0);
 
     return 0;
 }

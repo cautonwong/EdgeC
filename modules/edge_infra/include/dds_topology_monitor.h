@@ -13,7 +13,8 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include "datahub.h"
+
+typedef struct datahub_s datahub_t;
 
 #define DDS_TOPOLOGY_MAX_NODES 32
 #define DDS_DEFAULT_LIVELINESS_LEASE_MS 2000ULL

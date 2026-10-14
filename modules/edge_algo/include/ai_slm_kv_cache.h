@@ -118,8 +118,15 @@ void ai_slm_kv_cache_reset(ai_slm_kv_cache_t *cache);
  */
 bool ai_slm_kv_cache_get_stats(const ai_slm_kv_cache_t *cache, ai_slm_kv_stats_t *stats);
 
+#include "edge_algo_port.h"
+
 /**
- * @brief Synchronize KV cache telemetry to DataHub
+ * @brief Emit KV cache telemetry via Consumer-Defined Algo Sink
+ */
+int ai_slm_kv_cache_emit_metrics(const ai_slm_kv_cache_t *cache, const edge_algo_sink_t *sink);
+
+/**
+ * @brief Synchronize KV cache telemetry to DataHub (Adapter bridge)
  */
 int ai_slm_kv_cache_sync_datahub(const ai_slm_kv_cache_t *cache, datahub_t *hub);
 

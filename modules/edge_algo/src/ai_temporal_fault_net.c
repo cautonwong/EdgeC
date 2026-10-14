@@ -3,7 +3,6 @@
  * @brief Industrial Multi-Scale 1D-CNN + BiLSTM Operator Fusion Implementation (AEP-704 / Issue #237)
  */
 
-#include "datahub.h"
 #include "ai_temporal_fault_net.h"
 #include <string.h>
 #include <math.h>
@@ -251,18 +250,12 @@ int ai_temporal_fault_net_infer(ai_temporal_fault_net_t *net,
     return 0;
 }
 
-int ai_temporal_fault_net_sync_datahub(const ai_fault_result_t *result, datahub_t *hub) {
-    if (!result || !hub) return -1;
+int ai_temporal_fault_net_emit_results(const ai_fault_result_t *result, const edge_algo_sink_t *sink) {
+    if (!result || !sink) return -1;
 
-    pipe_msg_t msg;
-    pipe_msg_init_scalar(&msg, TAG_AI_FAULT_DIAG_CLASS, (double)result->predicted_class, 0);
-    datahub_write_shadow(hub, &msg);
-
-    pipe_msg_init_scalar(&msg, TAG_AI_FAULT_DIAG_CONFIDENCE, (double)result->confidence_pct, 0);
-    datahub_write_shadow(hub, &msg);
-
-    pipe_msg_init_scalar(&msg, TAG_AI_FAULT_INFERENCE_US, (double)result->inference_time_us, 0);
-    datahub_write_shadow(hub, &msg);
+    edge_algo_sink_emit_scalar(sink, TAG_AI_FAULT_DIAG_CLASS, (double)result->predicted_class, 0);
+    edge_algo_sink_emit_scalar(sink, TAG_AI_FAULT_DIAG_CONFIDENCE, (double)result->confidence_pct, 0);
+    edge_algo_sink_emit_scalar(sink, TAG_AI_FAULT_INFERENCE_US, (double)result->inference_time_us, 0);
 
     return 0;
 }

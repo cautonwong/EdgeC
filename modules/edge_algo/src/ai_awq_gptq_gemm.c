@@ -3,7 +3,6 @@
  * @brief Edge 4-bit (AWQ/GPTQ) Compact Weight Quantization & Fused GEMV Implementation (AEP-703 / Issue #236)
  */
 
-#include "datahub.h"
 #include "ai_awq_gptq_gemm.h"
 #include <string.h>
 #include <math.h>
@@ -314,15 +313,11 @@ int ai_awq_munmap_weights(void *mmap_handle, size_t mmap_size) {
     return munmap(mmap_handle, mmap_size);
 }
 
-int ai_awq_sync_datahub(const ai_awq_metrics_t *metrics, datahub_t *hub) {
-    if (!metrics || !hub) return -1;
+int ai_awq_emit_metrics(const ai_awq_metrics_t *metrics, const edge_algo_sink_t *sink) {
+    if (!metrics || !sink) return -1;
 
-    pipe_msg_t msg;
-    pipe_msg_init_scalar(&msg, TAG_AI_AWQ_COMPRESSION_RATIO, (double)metrics->compression_ratio, 0);
-    datahub_write_shadow(hub, &msg);
-
-    pipe_msg_init_scalar(&msg, TAG_AI_AWQ_GEMV_GFLOPS, (double)metrics->gflops, 0);
-    datahub_write_shadow(hub, &msg);
+    edge_algo_sink_emit_scalar(sink, TAG_AI_AWQ_COMPRESSION_RATIO, (double)metrics->compression_ratio, 0);
+    edge_algo_sink_emit_scalar(sink, TAG_AI_AWQ_GEMV_GFLOPS, (double)metrics->gflops, 0);
 
     return 0;
 }

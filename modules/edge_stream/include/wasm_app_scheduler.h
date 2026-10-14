@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 typedef struct uv_loop_s uv_loop_t;
-#include "datahub.h"
+typedef struct datahub_s datahub_t;
 #include "wasm_mgr.h"
 
 #ifdef __cplusplus

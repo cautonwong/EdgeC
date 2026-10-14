@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <uv.h>
 
+#include "datahub.h"
 #include "stream_engine.h"
 #include "stream_engine_priv.h"
 

@@ -102,8 +102,15 @@ int ai_temporal_fault_net_infer(ai_temporal_fault_net_t *net,
                                 uint32_t time_steps,
                                 ai_fault_result_t *out_result);
 
+#include "edge_algo_port.h"
+
 /**
- * @brief Synchronize fault diagnosis metrics to DataHub
+ * @brief Emit fault diagnosis metrics via Consumer-Defined Algo Sink
+ */
+int ai_temporal_fault_net_emit_results(const ai_fault_result_t *result, const edge_algo_sink_t *sink);
+
+/**
+ * @brief Synchronize fault diagnosis metrics to DataHub (Adapter bridge)
  */
 int ai_temporal_fault_net_sync_datahub(const ai_fault_result_t *result, datahub_t *hub);
 

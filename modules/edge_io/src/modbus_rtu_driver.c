@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "datahub.h"
 #include "driver_manager.h"
 #include "edge_common.h"
 #include "edge_driver.h"
@@ -179,9 +178,9 @@ int modbus_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_o
                 }
             }
 
-            if (map && ctx->user_data) {
+            if (map) {
                 pipe_msg_t shadow;
-                if (datahub_read_shadow((datahub_t *)ctx->user_data, map->tag_id, &shadow) == 0) {
+                if (edge_driver_read_shadow(ctx, map->tag_id, &shadow) == 0) {
                     rv = (uint16_t)(shadow.payload.val.f / (map->scaler ? map->scaler : 1.0f));
                     LOG_INFO(LOG_CAT_IO, "Modbus Slave: Read Tag %u (Shadow: %.2f) -> Raw %u (Scale: %.4f)", 
                              map->tag_id, shadow.payload.val.f, rv, (double)map->scaler);

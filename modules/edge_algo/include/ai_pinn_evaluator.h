@@ -110,8 +110,15 @@ int ai_pinn_evaluator_evaluate(ai_pinn_evaluator_t *pinn,
                                const ai_pinn_circuit_state_t *circuit,
                                ai_pinn_result_t *result);
 
+#include "edge_algo_port.h"
+
 /**
- * @brief Synchronize PINN evaluation metrics to DataHub
+ * @brief Emit PINN evaluation metrics via Consumer-Defined Algo Sink
+ */
+int ai_pinn_evaluator_emit_results(const ai_pinn_result_t *result, const edge_algo_sink_t *sink);
+
+/**
+ * @brief Synchronize PINN evaluation metrics to DataHub (Adapter bridge)
  */
 int ai_pinn_evaluator_sync_datahub(const ai_pinn_result_t *result, datahub_t *hub);
 

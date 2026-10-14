@@ -3,7 +3,6 @@
  * @brief Heterogeneous Multi-Backend Pipeline Orchestrator Implementation (AEP-710 / Issue #243)
  */
 
-#include "datahub.h"
 #include "ai_hetero_pipeline.h"
 #include <string.h>
 
@@ -93,15 +92,11 @@ bool ai_hetero_pipeline_get_metrics(const ai_hetero_pipeline_t *pipe,
     return true;
 }
 
-int ai_hetero_pipeline_sync_datahub(const ai_hetero_pipeline_t *pipe, datahub_t *hub) {
-    if (!pipe || !hub) return -1;
+int ai_hetero_pipeline_emit_metrics(const ai_hetero_pipeline_t *pipe, const edge_algo_sink_t *sink) {
+    if (!pipe || !sink) return -1;
 
-    pipe_msg_t msg;
-    pipe_msg_init_scalar(&msg, 262178, (double)pipe->metrics.num_subgraphs, 0);
-    datahub_write_shadow(hub, &msg);
-
-    pipe_msg_init_scalar(&msg, 262179, (double)pipe->metrics.pipeline_overlap_pct, 0);
-    datahub_write_shadow(hub, &msg);
+    edge_algo_sink_emit_scalar(sink, 262178, (double)pipe->metrics.num_subgraphs, 0);
+    edge_algo_sink_emit_scalar(sink, 262179, (double)pipe->metrics.pipeline_overlap_pct, 0);
 
     return 0;
 }

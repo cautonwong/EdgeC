@@ -4,7 +4,6 @@
  */
 
 #include "ai_slm_kv_cache.h"
-#include "datahub.h"
 #include <string.h>
 #include <math.h>
 
@@ -280,18 +279,14 @@ bool ai_slm_kv_cache_get_stats(const ai_slm_kv_cache_t *cache, ai_slm_kv_stats_t
     return true;
 }
 
-int ai_slm_kv_cache_sync_datahub(const ai_slm_kv_cache_t *cache, datahub_t *hub) {
-    if (!cache || !hub) return -1;
+int ai_slm_kv_cache_emit_metrics(const ai_slm_kv_cache_t *cache, const edge_algo_sink_t *sink) {
+    if (!cache || !sink) return -1;
 
     ai_slm_kv_stats_t stats;
     if (!ai_slm_kv_cache_get_stats(cache, &stats)) return -1;
 
-    pipe_msg_t msg;
-    pipe_msg_init_scalar(&msg, 262170, (double)stats.active_pages, 0);
-    datahub_write_shadow(hub, &msg);
-
-    pipe_msg_init_scalar(&msg, 262171, (double)stats.cache_hit_rate_pct, 0);
-    datahub_write_shadow(hub, &msg);
+    edge_algo_sink_emit_scalar(sink, 262170, (double)stats.active_pages, 0);
+    edge_algo_sink_emit_scalar(sink, 262171, (double)stats.cache_hit_rate_pct, 0);
 
     return 0;
 }

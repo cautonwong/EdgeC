@@ -139,8 +139,15 @@ void ai_dyn_pool_reset(ai_dyn_pool_t *pool);
  */
 bool ai_dyn_pool_get_stats(const ai_dyn_pool_t *pool, ai_dyn_pool_stats_t *stats);
 
+#include "edge_algo_port.h"
+
 /**
- * @brief Synchronize pool telemetry to DataHub
+ * @brief Emit pool telemetry via Consumer-Defined Algo Sink
+ */
+int ai_dyn_pool_emit_metrics(const ai_dyn_pool_t *pool, const edge_algo_sink_t *sink);
+
+/**
+ * @brief Synchronize pool telemetry to DataHub (Adapter bridge)
  */
 int ai_dyn_pool_sync_datahub(const ai_dyn_pool_t *pool, datahub_t *hub);
 

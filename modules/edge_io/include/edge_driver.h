@@ -65,7 +65,41 @@ typedef struct edge_driver_ctx_s {
     const void *meta_list;
     uint32_t meta_list_len;
 
+    // --- 消费端端口抽象 (Consumer Ports: 隔离外界 DataHub / 消息总线) ---
+    int (*read_shadow)(struct edge_driver_ctx_s *ctx, uint32_t tag_id, pipe_msg_t *out_msg);
+    int (*publish)(struct edge_driver_ctx_s *ctx, const pipe_msg_t *msg);
+    uint32_t (*get_tag_count)(struct edge_driver_ctx_s *ctx);
+    const char *(*get_tag_name)(struct edge_driver_ctx_s *ctx, uint32_t tag_id);
+
 } edge_driver_ctx_t;
+
+static inline int edge_driver_read_shadow(edge_driver_ctx_t *ctx, uint32_t tag_id, pipe_msg_t *out_msg) {
+    if (ctx && ctx->read_shadow) {
+        return ctx->read_shadow(ctx, tag_id, out_msg);
+    }
+    return -1;
+}
+
+static inline int edge_driver_publish(edge_driver_ctx_t *ctx, const pipe_msg_t *msg) {
+    if (ctx && ctx->publish) {
+        return ctx->publish(ctx, msg);
+    }
+    return -1;
+}
+
+static inline uint32_t edge_driver_get_tag_count(edge_driver_ctx_t *ctx) {
+    if (ctx && ctx->get_tag_count) {
+        return ctx->get_tag_count(ctx);
+    }
+    return 0;
+}
+
+static inline const char *edge_driver_get_tag_name(edge_driver_ctx_t *ctx, uint32_t tag_id) {
+    if (ctx && ctx->get_tag_name) {
+        return ctx->get_tag_name(ctx, tag_id);
+    }
+    return NULL;
+}
 
 /**
  * @brief 协议驱动元模型 (V4.0 状态机版)

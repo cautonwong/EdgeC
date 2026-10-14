@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <uv.h>
 
+#include "datahub.h"
 #include "wasm_mgr.h"
 
 /**

@@ -142,8 +142,15 @@ int ai_awq_mmap_weights(const char *file_path,
  */
 int ai_awq_munmap_weights(void *mmap_handle, size_t mmap_size);
 
+#include "edge_algo_port.h"
+
 /**
- * @brief Synchronize AWQ execution metrics to DataHub
+ * @brief Emit AWQ execution metrics via Consumer-Defined Algo Sink
+ */
+int ai_awq_emit_metrics(const ai_awq_metrics_t *metrics, const edge_algo_sink_t *sink);
+
+/**
+ * @brief Synchronize AWQ execution metrics to DataHub (Adapter bridge)
  */
 int ai_awq_sync_datahub(const ai_awq_metrics_t *metrics, datahub_t *hub);
 

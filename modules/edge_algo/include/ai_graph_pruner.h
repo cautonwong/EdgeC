@@ -126,8 +126,15 @@ const ai_graph_node_t *ai_graph_pruner_get_node(const ai_graph_pruner_t *pruner,
  */
 bool ai_graph_pruner_get_stats(const ai_graph_pruner_t *pruner, ai_graph_stats_t *stats);
 
+#include "edge_algo_port.h"
+
 /**
- * @brief Synchronize pruning telemetry to DataHub
+ * @brief Emit pruning telemetry via Consumer-Defined Algo Sink
+ */
+int ai_graph_pruner_emit_metrics(const ai_graph_pruner_t *pruner, const edge_algo_sink_t *sink);
+
+/**
+ * @brief Synchronize pruning telemetry to DataHub (Adapter bridge)
  */
 int ai_graph_pruner_sync_datahub(const ai_graph_pruner_t *pruner, datahub_t *hub);
 

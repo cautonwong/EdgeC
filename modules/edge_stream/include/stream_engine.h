@@ -7,8 +7,9 @@
 #include <uv.h>
 
 #include "contract_data_types.h"
-#include "datahub.h"
 #include "shmring.h"
+
+typedef struct datahub_s datahub_t;
 
 #ifdef __cplusplus
 extern "C" {

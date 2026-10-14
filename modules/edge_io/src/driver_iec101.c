@@ -8,7 +8,6 @@
 #include <time.h>
 
 #include "contract_data_types.h"
-#include "datahub.h"
 #include "driver_manager.h"
 #include "edge_driver.h"
 #include "edge_log.h"
@@ -21,7 +20,6 @@ typedef struct {
     iec_addr_config_t addr_conf;
     uint16_t casdu;
     bool request_level1;
-    datahub_t *hub;
 } iec101_ctx_t;
 
 static int iec101_v3_on_init(edge_driver_ctx_t *ctx) {
@@ -36,7 +34,6 @@ static int iec101_v3_on_init(edge_driver_ctx_t *ctx) {
     priv->link.link_addr = (uint16_t)ctx->device_id;
     priv->link.addr_len = 1;
     priv->casdu = (uint16_t)ctx->device_id;
-    priv->hub = (datahub_t *)ctx->user_data;
 
     return 0;
 }
@@ -200,7 +197,7 @@ static int iec101_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
                     if (map->tag_id == 0) continue;
 
                     pipe_msg_t vm;
-                    if (datahub_read_shadow(priv->hub, map->tag_id, &vm) == 0) {
+                    if (edge_driver_read_shadow(ctx, map->tag_id, &vm) == 0) {
                         net_buf_t *df = net_buf_alloc(in->pool, 0);
                         iec_asdu_init(df, (iec_type_id_t)map->type_id, false, 1, IEC_COT_INTROGEN,
                                       priv->casdu, &priv->addr_conf);

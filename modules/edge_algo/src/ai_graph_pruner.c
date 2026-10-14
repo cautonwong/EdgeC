@@ -3,7 +3,6 @@
  * @brief Neural Network Computation Graph Topological Pruner Implementation (AEP-708 / Issue #241)
  */
 
-#include "datahub.h"
 #include "ai_graph_pruner.h"
 #include <string.h>
 
@@ -275,18 +274,14 @@ bool ai_graph_pruner_get_stats(const ai_graph_pruner_t *pruner, ai_graph_stats_t
     return true;
 }
 
-int ai_graph_pruner_sync_datahub(const ai_graph_pruner_t *pruner, datahub_t *hub) {
-    if (!pruner || !hub) return -1;
+int ai_graph_pruner_emit_metrics(const ai_graph_pruner_t *pruner, const edge_algo_sink_t *sink) {
+    if (!pruner || !sink) return -1;
 
     ai_graph_stats_t stats;
     if (!ai_graph_pruner_get_stats(pruner, &stats)) return -1;
 
-    pipe_msg_t msg;
-    pipe_msg_init_scalar(&msg, 262172, (double)stats.pruned_dead_nodes, 0);
-    datahub_write_shadow(hub, &msg);
-
-    pipe_msg_init_scalar(&msg, 262173, (double)stats.fused_operator_pairs, 0);
-    datahub_write_shadow(hub, &msg);
+    edge_algo_sink_emit_scalar(sink, 262172, (double)stats.pruned_dead_nodes, 0);
+    edge_algo_sink_emit_scalar(sink, 262173, (double)stats.fused_operator_pairs, 0);
 
     return 0;
 }

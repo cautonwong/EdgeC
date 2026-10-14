@@ -273,6 +273,35 @@ const edge_driver_t *driver_manager_find(driver_manager_t *mgr, const char *name
     return NULL;
 }
 
+static int _driver_port_read_shadow(edge_driver_ctx_t *ctx, uint32_t tag_id, pipe_msg_t *out_msg) {
+    if (!ctx || !out_msg) return -1;
+    datahub_t *hub = (datahub_t *)ctx->user_data;
+    if (!hub) return -1;
+    return datahub_read_shadow(hub, tag_id, out_msg);
+}
+
+static int _driver_port_publish(edge_driver_ctx_t *ctx, const pipe_msg_t *msg) {
+    if (!ctx || !msg) return -1;
+    datahub_t *hub = (datahub_t *)ctx->user_data;
+    if (!hub) return -1;
+    return datahub_publish(hub, (pipe_msg_t *)msg);
+}
+
+static uint32_t _driver_port_get_tag_count(edge_driver_ctx_t *ctx) {
+    if (!ctx) return 0;
+    datahub_t *hub = (datahub_t *)ctx->user_data;
+    if (!hub) return 0;
+    return datahub_get_metadata_count(hub);
+}
+
+static const char *_driver_port_get_tag_name(edge_driver_ctx_t *ctx, uint32_t tag_id) {
+    if (!ctx) return NULL;
+    datahub_t *hub = (datahub_t *)ctx->user_data;
+    if (!hub) return NULL;
+    const edge_tag_meta_t *meta = datahub_get_metadata_by_tag(hub, tag_id);
+    return meta ? meta->name : NULL;
+}
+
 edge_driver_ctx_t *driver_instance_create(driver_manager_t *mgr, const char *protocol,
                                           uint32_t device_id) {
     const edge_driver_t *tmpl = driver_manager_find(mgr, protocol);
@@ -301,6 +330,13 @@ edge_driver_ctx_t *driver_instance_create(driver_manager_t *mgr, const char *pro
     slot->in_use = true;
     slot->ctx.driver = tmpl;
     slot->ctx.device_id = device_id;
+    slot->ctx.read_shadow = _driver_port_read_shadow;
+    slot->ctx.publish = _driver_port_publish;
+    slot->ctx.get_tag_count = _driver_port_get_tag_count;
+    slot->ctx.get_tag_name = _driver_port_get_tag_name;
+    if (mgr && mgr->cfg.hub) {
+        slot->ctx.user_data = mgr->cfg.hub;
+    }
     if (tmpl->ctx_size > 0) {
         if (tmpl->ctx_size > DRIVER_PRIV_SIZE) {
             slot->in_use = false;
