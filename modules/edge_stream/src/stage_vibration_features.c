@@ -5,6 +5,7 @@
 
 #include "stream_engine.h"
 #include "stream_engine_priv.h"
+#include "datahub.h"
 #include "edge_log.h"
 #include <stdlib.h>
 #include <string.h>

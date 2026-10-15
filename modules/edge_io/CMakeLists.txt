@@ -54,7 +54,7 @@ target_include_directories(edge_io PUBLIC include src/requests ${CMAKE_SOURCE_DI
 target_include_directories(edge_io PRIVATE src/engines)
 
 # edge_io: 包含 SnF 断网落盘缓存 (snf_manager.c) 与 MQTT 南北向执行器 (edge_agent.c, io_executor_linux.c) 显式适配器
-target_link_libraries(edge_io PUBLIC edge_infra edge_core edge_protocol edge_stream edge_security edge_common_interface cyclonedds)
+target_link_libraries(edge_io PUBLIC edge_mgmt edge_infra edge_core edge_protocol edge_stream edge_security edge_common_interface cyclonedds)
 target_link_libraries(edge_io PRIVATE libuv::uv_a SQLite::SQLite3 PahoMQTT::PahoMQTT cjson CURL::libcurl)
 
 

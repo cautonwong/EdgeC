@@ -19,8 +19,6 @@ extern "C" {
 
 /* Forward declarations */
 typedef struct datahub_s datahub_t;
-struct dma_buf_pool;
-typedef struct dma_buf_pool dma_buf_pool_t;
 
 /* -------------------------------------------------------------------------- */
 /* Consumer-Defined Port Interfaces                                           */
@@ -96,12 +94,6 @@ int edge_port_adapter_from_datahub(edge_reader_port_t *out_reader,
  * @brief Wire POSIX/Host monotonic system clock to Consumer Clock Port
  */
 int edge_port_adapter_from_system_clock(edge_clock_port_t *out_clock);
-
-/**
- * @brief Wire Linux DMA-BUF pool to Consumer Memory Port
- */
-int edge_port_adapter_from_dma_pool(edge_memory_port_t *out_mem,
-                                    dma_buf_pool_t *pool);
 
 /**
  * @brief Wire standard stdout/stderr console logger to Consumer Logger Port

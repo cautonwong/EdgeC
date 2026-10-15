@@ -36,7 +36,7 @@ echo "  [3/7] Checking core public contracts for transitive <uv.h> contamination
 PROTECTED_HEADERS=(
     "modules/edge_core/include/arbiter.h"
     "modules/edge_core/include/edge_service.h"
-    "modules/edge_core/include/edge_app_mgr.h"
+    "modules/edge_mgmt/include/edgeos/edge_app_mgr.h"
     "modules/edge_io/include/driver_manager.h"
     "modules/edge_io/include/edge_agent.h"
     "modules/edge_infra/include/sqlite_service.h"

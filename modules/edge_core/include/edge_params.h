@@ -4,7 +4,9 @@
 #include "contract_data_types.h"
 #include "datahub.h"
 #include "edge_common.h"
-#include "sqlite_service.h"
+
+struct sqlite_svc_s;
+typedef struct sqlite_svc_s sqlite_svc_t;
 
 #ifdef __cplusplus
 extern "C" {

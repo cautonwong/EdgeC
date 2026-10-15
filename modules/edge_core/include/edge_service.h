@@ -11,7 +11,6 @@ typedef struct stream_engine_s stream_engine_t;
 #include "arbiter.h"
 #include "datahub.h"
 #include "edge_params.h"
-#include "sqlite_service.h"
 
 #ifdef __cplusplus
 extern "C" {

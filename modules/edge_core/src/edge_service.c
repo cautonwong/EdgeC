@@ -226,6 +226,9 @@ int service_bootstrap(service_t *svc, const char *manifest_path) {
     return -1;
 }
 
+typedef int (*sqlite_svc_query_cb)(void *user_data, pipe_msg_t *msg);
+int sqlite_svc_query(sqlite_svc_t *svc, uint64_t start_ts, uint64_t end_ts, sqlite_svc_query_cb cb, void *user_data);
+
 typedef struct {
     export_publish_fn cb;
     int count;

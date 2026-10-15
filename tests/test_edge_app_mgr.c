@@ -119,10 +119,84 @@ static void test_app_lifecycle_and_boot_restore(void **state) {
     unlink(db_path);
 }
 
+typedef struct {
+    app_manifest_t app;
+    int has_app;
+} mock_app_repo_ctx_t;
+
+static int _mock_save_app(void *ctx, const app_manifest_t *manifest) {
+    mock_app_repo_ctx_t *m = (mock_app_repo_ctx_t *)ctx;
+    m->app = *manifest;
+    m->has_app = 1;
+    return 0;
+}
+
+static int _mock_get_app(void *ctx, const char *app_id, app_manifest_t *out_manifest) {
+    mock_app_repo_ctx_t *m = (mock_app_repo_ctx_t *)ctx;
+    if (m->has_app && strcmp(m->app.id, app_id) == 0) {
+        *out_manifest = m->app;
+        return 0;
+    }
+    return -1;
+}
+
+static int _mock_delete_app(void *ctx, const char *app_id) {
+    mock_app_repo_ctx_t *m = (mock_app_repo_ctx_t *)ctx;
+    if (m->has_app && strcmp(m->app.id, app_id) == 0) {
+        m->has_app = 0;
+        return 0;
+    }
+    return -1;
+}
+
+static int _mock_list_apps(void *ctx, app_manifest_t *out_apps, int max_count) {
+    mock_app_repo_ctx_t *m = (mock_app_repo_ctx_t *)ctx;
+    if (m->has_app && max_count > 0) {
+        out_apps[0] = m->app;
+        return 1;
+    }
+    return 0;
+}
+
+static void test_app_mgr_custom_repo(void **state) {
+    uv_loop_t *loop = (uv_loop_t *)*state;
+    mock_app_repo_ctx_t mock_ctx = {0};
+    edge_app_repo_t repo = {.ctx = &mock_ctx,
+                            .save_app = _mock_save_app,
+                            .get_app = _mock_get_app,
+                            .delete_app = _mock_delete_app,
+                            .list_apps = _mock_list_apps};
+
+    edge_app_mgr_t *mgr = edge_app_mgr_create_with_repo(loop, NULL, &repo, NULL);
+    assert_non_null(mgr);
+
+    app_manifest_t m = {0};
+    strncpy(m.id, "repo_app", sizeof(m.id) - 1);
+    const char dummy_wasm[] = "\x00\x61\x73\x6d\x01\x00\x00\x00";
+    int rc = edge_app_mgr_install(mgr, &m, dummy_wasm, sizeof(dummy_wasm));
+    assert_int_equal(rc, 0);
+    assert_int_equal(mock_ctx.has_app, 1);
+
+    rc = edge_app_mgr_start(mgr, "repo_app");
+    assert_int_equal(rc, 0);
+    assert_int_equal(mock_ctx.app.state, APP_STATE_RUNNING);
+
+    rc = edge_app_mgr_stop(mgr, "repo_app");
+    assert_int_equal(rc, 0);
+    assert_int_equal(mock_ctx.app.state, APP_STATE_STOPPED);
+
+    rc = edge_app_mgr_uninstall(mgr, "repo_app");
+    assert_int_equal(rc, 0);
+    assert_int_equal(mock_ctx.has_app, 0);
+
+    edge_app_mgr_destroy(mgr);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_manifest_parse_and_default),
         cmocka_unit_test_setup_teardown(test_app_lifecycle_and_boot_restore, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_app_mgr_custom_repo, setup, teardown),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
