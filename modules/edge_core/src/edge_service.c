@@ -125,7 +125,7 @@ static void _ipc_forward_cb(datahub_t *hub, void *user_data) {
     if (!svc->ipc_pipe || uv_is_closing((uv_handle_t *)svc->ipc_pipe)) return;
     pipe_msg_t msg;
     static uint64_t last_seq = 0;
-    while (shm_ring_read(&svc->hub->ring, &last_seq, &msg) == 0) {
+    while (datahub_read_ring(svc->hub, &last_seq, &msg) == 0) {
         uv_buf_t buf = uv_buf_init((char *)&msg, sizeof(msg));
         uv_write_t *req = malloc(sizeof(uv_write_t));
         uv_write(req, (uv_stream_t *)svc->ipc_pipe, &buf, 1, _on_ipc_write);

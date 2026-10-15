@@ -300,6 +300,41 @@ int datahub_devicetwin_reconcile(datahub_t *hub, uint32_t desired_tag_id, uint32
  */
 int datahub_query_snapshot(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out_msg);
 
+/**
+ * @brief [DDD 聚合根安全封装] 从 DataHub 环形缓冲区读取下一条消息
+ */
+int datahub_read_ring(datahub_t *hub, uint64_t *inout_seq, pipe_msg_t *out_msg);
+
+/**
+ * @brief [DDD 聚合根安全封装] 向 DataHub 环形缓冲区写入一条消息
+ */
+int datahub_write_ring(datahub_t *hub, const pipe_msg_t *msg);
+
+/**
+ * @brief [DDD 聚合根安全封装] 获取 DataHub 环形缓冲区的文件描述符
+ */
+int datahub_get_ring_fd(datahub_t *hub);
+
+/**
+ * @brief [DDD 聚合根安全封装] 获取 DataHub 环形缓冲区写入总计数
+ */
+uint64_t datahub_get_ring_total_writes(const datahub_t *hub);
+
+/**
+ * @brief [DDD 聚合根安全封装] 获取 DataHub 环形缓冲区当前序列号
+ */
+uint64_t datahub_get_ring_seq(const datahub_t *hub);
+
+/**
+ * @brief [DDD 聚合根安全封装] 绑定网络/IO 缓冲池到 DataHub
+ */
+int datahub_bind_io_pool(datahub_t *hub, struct net_buf_pool *pool);
+
+/**
+ * @brief [DDD 聚合根安全封装] 获取当前注册的监听器数量
+ */
+uint32_t datahub_get_listener_count(const datahub_t *hub);
+
 #ifdef __cplusplus
 }
 #endif

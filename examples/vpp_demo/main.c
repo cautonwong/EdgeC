@@ -50,7 +50,7 @@ int main(int argc, char** argv) {
     edge_params_t* param_mgr = edge_params_create(db_service, &hub);
 
     northbound_mgr_t* north_mgr = calloc(1, sizeof(northbound_mgr_t));
-    northbound_mgr_init(north_mgr, loop, &hub.ring, "vpp_demo", db_service);
+    northbound_mgr_init(north_mgr, loop, &hub, "vpp_demo", db_service);
 
     service_t* svc =
         service_new(loop, &hub, arbiter, db_service, stream_engine, param_mgr, north_mgr);

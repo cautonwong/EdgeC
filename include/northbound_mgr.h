@@ -58,6 +58,12 @@ typedef struct {
     struct uv__queue node;
 } nb_req_entry_t;
 
+struct datahub_s;
+
+// 兼容性聚合根初始化：注入 datahub 聚合根安全适配
+int northbound_mgr_init(northbound_mgr_t* mgr, uv_loop_t* loop, struct datahub_s* hub,
+                        const char* product_name, struct sqlite_svc_s* db);
+
 // 物理闭环初始化：注入 source 和 transport 实现
 int northbound_mgr_init_ex(northbound_mgr_t* mgr, nb_source_ops_t source, const char* product_name,
                            struct sqlite_svc_s* db, nb_transport_ops_t transport);

@@ -652,4 +652,43 @@ int datahub_query_snapshot(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out_msg)
     return datahub_read_shadow(hub, tag_id, out_msg);
 }
 
+int datahub_read_ring(datahub_t *hub, uint64_t *inout_seq, pipe_msg_t *out_msg) {
+    if (!hub || !inout_seq || !out_msg) return -1;
+    return shm_ring_read(&hub->ring, inout_seq, out_msg);
+}
+
+int datahub_write_ring(datahub_t *hub, const pipe_msg_t *msg) {
+    if (!hub || !msg) return -1;
+    shm_ring_write(&hub->ring, msg);
+    return 0;
+}
+
+int datahub_get_ring_fd(datahub_t *hub) {
+    if (!hub) return -1;
+    return shmring_get_fd(&hub->ring);
+}
+
+uint64_t datahub_get_ring_total_writes(const datahub_t *hub) {
+    if (!hub || !hub->ring.hdr) return 0;
+    return hub->ring.hdr->total_writes;
+}
+
+uint64_t datahub_get_ring_seq(const datahub_t *hub) {
+    if (!hub || !hub->ring.hdr) return 0;
+    return (uint64_t)atomic_load_explicit(&hub->ring.hdr->seq, memory_order_acquire);
+}
+
+int datahub_bind_io_pool(datahub_t *hub, struct net_buf_pool *pool) {
+    if (!hub) return -1;
+    hub->io_pool = pool;
+    return 0;
+}
+
+uint32_t datahub_get_listener_count(const datahub_t *hub) {
+    if (!hub) return 0;
+    int count = atomic_load(&hub->listener_count);
+    return count < 0 ? 0 : (uint32_t)count;
+}
+
+
 
