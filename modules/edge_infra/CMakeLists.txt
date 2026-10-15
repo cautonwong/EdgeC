@@ -76,6 +76,7 @@ target_include_directories(edge_infra PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_mgmt/include
     ${IDL_GEN_DIR}
     ${CMAKE_SOURCE_DIR}/contracts/idl/generated
 )

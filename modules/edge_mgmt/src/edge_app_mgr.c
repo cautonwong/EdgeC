@@ -3,10 +3,13 @@
  * @brief EdgeOS WASM 应用管理器实现
  */
 
-#include "edge_app_mgr.h"
+#include "edgeos/edge_app_mgr.h"
+#include "datahub.h"
+#include "sqlite_service.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -17,7 +20,7 @@
 struct edge_app_mgr_s {
     uv_loop_t *loop;
     datahub_t *hub;
-    sqlite_svc_t *db;
+    edge_app_repo_t repo;
     void *stream_engine;
 };
 
@@ -129,15 +132,45 @@ int edge_app_mgr_construct_default_manifest(const char *filename_or_id, app_mani
     return 0;
 }
 
-edge_app_mgr_t *edge_app_mgr_create(uv_loop_t *loop, datahub_t *hub, sqlite_svc_t *db, void *stream_engine) {
+static int _sqlite_repo_save_app(void *ctx, const app_manifest_t *manifest) {
+    return sqlite_svc_save_app((sqlite_svc_t *)ctx, manifest);
+}
+
+static int _sqlite_repo_get_app(void *ctx, const char *app_id, app_manifest_t *out_manifest) {
+    return sqlite_svc_get_app((sqlite_svc_t *)ctx, app_id, out_manifest);
+}
+
+static int _sqlite_repo_delete_app(void *ctx, const char *app_id) {
+    return sqlite_svc_delete_app((sqlite_svc_t *)ctx, app_id);
+}
+
+static int _sqlite_repo_list_apps(void *ctx, app_manifest_t *out_apps, int max_count) {
+    return sqlite_svc_list_apps((sqlite_svc_t *)ctx, out_apps, max_count);
+}
+
+edge_app_mgr_t *edge_app_mgr_create_with_repo(uv_loop_t *loop, datahub_t *hub,
+                                              const edge_app_repo_t *repo,
+                                              void *stream_engine) {
+    if (!repo) return NULL;
     edge_app_mgr_t *mgr = calloc(1, sizeof(edge_app_mgr_t));
     if (!mgr) return NULL;
     mgr->loop = loop;
     mgr->hub = hub;
-    mgr->db = db;
+    mgr->repo = *repo;
     mgr->stream_engine = stream_engine;
-    LOG_INFO(LOG_CAT_CORE, "AppMgr: Initialized successfully");
+    LOG_INFO(LOG_CAT_CORE, "AppMgr: Initialized with repository successfully");
     return mgr;
+}
+
+edge_app_mgr_t *edge_app_mgr_create(uv_loop_t *loop, datahub_t *hub, sqlite_svc_t *db, void *stream_engine) {
+    edge_app_repo_t repo = {
+        .ctx = db,
+        .save_app = _sqlite_repo_save_app,
+        .get_app = _sqlite_repo_get_app,
+        .delete_app = _sqlite_repo_delete_app,
+        .list_apps = _sqlite_repo_list_apps
+    };
+    return edge_app_mgr_create_with_repo(loop, hub, &repo, stream_engine);
 }
 
 void edge_app_mgr_destroy(edge_app_mgr_t *mgr) {
@@ -176,7 +209,7 @@ int edge_app_mgr_install(edge_app_mgr_t *mgr, const app_manifest_t *manifest, co
     }
 
     m.state = APP_STATE_INSTALLED;
-    int rc = sqlite_svc_save_app(mgr->db, &m);
+    int rc = mgr->repo.save_app ? mgr->repo.save_app(mgr->repo.ctx, &m) : -1;
     if (rc == 0) {
         LOG_INFO(LOG_CAT_CORE, "AppMgr: Installed app %s successfully at %s", m.id, m.wasm_path);
     }
@@ -186,13 +219,13 @@ int edge_app_mgr_install(edge_app_mgr_t *mgr, const app_manifest_t *manifest, co
 int edge_app_mgr_start(edge_app_mgr_t *mgr, const char *app_id) {
     if (!mgr || !app_id) return -1;
     app_manifest_t m;
-    if (sqlite_svc_get_app(mgr->db, app_id, &m) != 0) {
+    if (!mgr->repo.get_app || mgr->repo.get_app(mgr->repo.ctx, app_id, &m) != 0) {
         LOG_ERROR(LOG_CAT_CORE, "AppMgr: App %s not found in registry", app_id);
         return -1;
     }
 
     m.state = APP_STATE_RUNNING;
-    sqlite_svc_save_app(mgr->db, &m);
+    if (mgr->repo.save_app) mgr->repo.save_app(mgr->repo.ctx, &m);
     LOG_INFO(LOG_CAT_CORE, "AppMgr: Started app %s", app_id);
     return 0;
 }
@@ -200,12 +233,12 @@ int edge_app_mgr_start(edge_app_mgr_t *mgr, const char *app_id) {
 int edge_app_mgr_stop(edge_app_mgr_t *mgr, const char *app_id) {
     if (!mgr || !app_id) return -1;
     app_manifest_t m;
-    if (sqlite_svc_get_app(mgr->db, app_id, &m) != 0) {
+    if (!mgr->repo.get_app || mgr->repo.get_app(mgr->repo.ctx, app_id, &m) != 0) {
         return -1;
     }
 
     m.state = APP_STATE_STOPPED;
-    sqlite_svc_save_app(mgr->db, &m);
+    if (mgr->repo.save_app) mgr->repo.save_app(mgr->repo.ctx, &m);
     LOG_INFO(LOG_CAT_CORE, "AppMgr: Stopped app %s", app_id);
     return 0;
 }
@@ -215,19 +248,19 @@ int edge_app_mgr_uninstall(edge_app_mgr_t *mgr, const char *app_id) {
     edge_app_mgr_stop(mgr, app_id);
 
     app_manifest_t m;
-    if (sqlite_svc_get_app(mgr->db, app_id, &m) == 0) {
+    if (mgr->repo.get_app && mgr->repo.get_app(mgr->repo.ctx, app_id, &m) == 0) {
         unlink(m.wasm_path);
     }
 
-    sqlite_svc_delete_app(mgr->db, app_id);
+    if (mgr->repo.delete_app) mgr->repo.delete_app(mgr->repo.ctx, app_id);
     LOG_INFO(LOG_CAT_CORE, "AppMgr: Uninstalled app %s", app_id);
     return 0;
 }
 
 int edge_app_mgr_boot_restore(edge_app_mgr_t *mgr) {
-    if (!mgr || !mgr->db) return 0;
+    if (!mgr || !mgr->repo.list_apps) return 0;
     app_manifest_t apps[64];
-    int count = sqlite_svc_list_apps(mgr->db, apps, 64);
+    int count = mgr->repo.list_apps(mgr->repo.ctx, apps, 64);
     int restored = 0;
 
     for (int i = 0; i < count; i++) {
@@ -242,6 +275,6 @@ int edge_app_mgr_boot_restore(edge_app_mgr_t *mgr) {
 }
 
 int edge_app_mgr_get_app(edge_app_mgr_t *mgr, const char *app_id, app_manifest_t *out_manifest) {
-    if (!mgr || !mgr->db || !app_id || !out_manifest) return -1;
-    return sqlite_svc_get_app(mgr->db, app_id, out_manifest);
+    if (!mgr || !mgr->repo.get_app || !app_id || !out_manifest) return -1;
+    return mgr->repo.get_app(mgr->repo.ctx, app_id, out_manifest);
 }

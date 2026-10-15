@@ -3,13 +3,29 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 typedef struct uv_loop_s uv_loop_t;
-#include "datahub.h"
-#include "sqlite_service.h"
+struct sqlite_svc_s;
+typedef struct sqlite_svc_s sqlite_svc_t;
+struct datahub_s;
+typedef struct datahub_s datahub_t;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct app_manifest_s app_manifest_t;
+
+/**
+ * @brief [DDD / Clean Architecture] 应用元数据仓储抽象契约 (Repository Pattern)
+ */
+typedef struct edge_app_repo_s {
+    void *ctx;
+    int (*save_app)(void *ctx, const app_manifest_t *manifest);
+    int (*get_app)(void *ctx, const char *app_id, app_manifest_t *out_manifest);
+    int (*delete_app)(void *ctx, const char *app_id);
+    int (*list_apps)(void *ctx, app_manifest_t *out_apps, int max_count);
+} edge_app_repo_t;
 
 /**
  * @brief WASM 应用运行状态
@@ -33,7 +49,7 @@ typedef enum {
 /**
  * @brief WASM 应用描述符结构体 (App Manifest)
  */
-typedef struct {
+typedef struct app_manifest_s {
     char id[64];              /**< 应用唯一标识 (e.g. "voltage_guard") */
     char name[128];           /**< 应用显示名称 */
     char version[32];         /**< 语义化版本 (e.g. "1.0.0") */
@@ -52,7 +68,14 @@ typedef struct {
 typedef struct edge_app_mgr_s edge_app_mgr_t;
 
 /**
- * @brief 创建并初始化应用管理器
+ * @brief 基于抽象仓储创建并初始化应用管理器 (IoC / Clean Architecture)
+ */
+edge_app_mgr_t *edge_app_mgr_create_with_repo(uv_loop_t *loop, datahub_t *hub,
+                                              const edge_app_repo_t *repo,
+                                              void *stream_engine);
+
+/**
+ * @brief 创建并初始化应用管理器 (兼容包装)
  */
 edge_app_mgr_t *edge_app_mgr_create(uv_loop_t *loop, datahub_t *hub, sqlite_svc_t *db, void *stream_engine);
 

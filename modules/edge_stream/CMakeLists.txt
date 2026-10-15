@@ -38,10 +38,13 @@ add_library(edge_stream STATIC
 )
 
 target_include_directories(edge_stream PUBLIC include)
-target_include_directories(edge_stream PRIVATE src/wasm_runtime)
+target_include_directories(edge_stream PRIVATE
+    src/wasm_runtime
+    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
+)
 target_link_libraries(edge_stream PUBLIC edge_core edge_algo)
 find_package(OpenSSL REQUIRED)
-target_link_libraries(edge_stream PRIVATE QuickJS::QuickJS iwasm::vmlib OpenSSL::Crypto)
+target_link_libraries(edge_stream PRIVATE edge_infra QuickJS::QuickJS iwasm::vmlib OpenSSL::Crypto)
 
 # 自动编译 WASM AI 算子沙箱产物 (如 clang 可用)
 find_program(CLANG_PROGRAM clang)

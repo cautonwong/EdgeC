@@ -13,6 +13,10 @@
 #include "datahub.h"
 #include "edge_log.h"
 
+// 前向声明外部持久化服务接口 (解耦 edge_infra/sqlite_service.h)
+typedef void (*sqlite_exec_cb)(void *user_data, int status, char **errmsg);
+int sqlite_svc_exec(sqlite_svc_t *svc, const char *sql, sqlite_exec_cb cb, void *user_data);
+
 // 紧凑型缓存：仅存放当前产品激活的参数
 static edge_param_value_t *g_compact_cache = NULL;
 static int g_compact_count = 0;

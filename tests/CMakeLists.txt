@@ -11,6 +11,8 @@ macro(add_edge_test TEST_NAME)
         edge_stream
         edge_security
         edge_core
+        edge_mgmt
+        edge_bootstrap
         edge_protocol
         edge_algo
         contract_iems
@@ -1310,11 +1312,13 @@ add_test(NAME test_npu_power_manager COMMAND test_npu_power_manager)
 # AEP-751 组合根 (Composition Root) 与消费者定义接口 (Consumer-Defined Ports) 测试 (Issue #336)
 add_executable(test_composition_root test_composition_root.c)
 target_include_directories(test_composition_root PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_bootstrap/include
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
     ${CMAKE_SOURCE_DIR}/modules/edge_algo/include
     ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
 )
 target_link_libraries(test_composition_root PRIVATE
+    edge_bootstrap
     edge_core
     edge_algo
     edge_infra
@@ -1332,6 +1336,7 @@ add_test(NAME test_ci_architecture_guards
 # AEP-752 调用方提供内存 (Caller-Allocated Storage) 与不透明指针物理封装架构单测 (Issue #340)
 add_executable(test_caller_allocated_storage test_caller_allocated_storage.c)
 target_include_directories(test_caller_allocated_storage PRIVATE
+    ${CMAKE_SOURCE_DIR}/modules/edge_bootstrap/include
     ${CMAKE_SOURCE_DIR}/modules/edge_algo/include
     ${CMAKE_SOURCE_DIR}/modules/edge_stream/include
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
@@ -1342,6 +1347,7 @@ target_include_directories(test_caller_allocated_storage PRIVATE
 )
 target_link_libraries(test_caller_allocated_storage PRIVATE
     -Wl,--start-group
+    edge_bootstrap
     edge_algo
     edge_stream
     edge_core

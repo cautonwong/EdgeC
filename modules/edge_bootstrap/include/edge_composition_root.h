@@ -117,6 +117,13 @@ datahub_t *edge_composition_root_get_datahub(edge_composition_container_t *conta
 int edge_composition_root_get_metrics(edge_composition_container_t *container,
                                       edge_composition_metrics_t *metrics);
 
+/**
+ * @brief Wire Linux DMA-BUF pool to Consumer Memory Port
+ */
+struct dma_buf_pool;
+typedef struct dma_buf_pool dma_buf_pool_t;
+int edge_port_adapter_from_dma_pool(edge_memory_port_t *out_mem, dma_buf_pool_t *pool);
+
 #ifdef __cplusplus
 }
 #endif

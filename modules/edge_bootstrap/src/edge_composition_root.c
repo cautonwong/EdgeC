@@ -32,6 +32,62 @@ _Static_assert(sizeof(struct edge_composition_container) <= sizeof(edge_composit
 _Static_assert(_Alignof(struct edge_composition_container) <= _Alignof(edge_composition_container_storage_t),
                "edge_composition_container_storage_t alignment mismatch for struct edge_composition_container");
 
+/* -------------------------------------------------------------------------- */
+/* DMA-BUF Memory Pool Glue Adapter Implementation                            */
+/* -------------------------------------------------------------------------- */
+
+typedef struct {
+    dma_buf_pool_t *pool;
+    uint64_t total_acquires;
+    uint64_t total_releases;
+} dma_adapter_ctx_t;
+
+static int dma_adapter_acquire(void *ctx, size_t size, void **out_ptr, int *out_fd) {
+    if (!ctx || !out_ptr) return -1;
+    (void)size;
+    dma_adapter_ctx_t *ad = (dma_adapter_ctx_t *)ctx;
+    if (!ad->pool) return -2;
+
+    dma_buf_desc_t *desc = NULL;
+    int rc = dma_buf_pool_acquire(ad->pool, &desc);
+    if (rc != 0 || !desc) return rc ? rc : -3;
+
+    *out_ptr = desc->vaddr;
+    if (out_fd) *out_fd = desc->fd;
+    ad->total_acquires++;
+    return 0;
+}
+
+static int dma_adapter_release(void *ctx, void *ptr) {
+    if (!ctx || !ptr) return -1;
+    dma_adapter_ctx_t *ad = (dma_adapter_ctx_t *)ctx;
+    if (!ad->pool) return -2;
+
+    /* Search matching buffer descriptor by virtual address */
+    dma_buf_desc_t temp_desc;
+    memset(&temp_desc, 0, sizeof(temp_desc));
+    temp_desc.vaddr = ptr;
+    temp_desc.is_in_use = true;
+    temp_desc.ref_count = 1;
+
+    int rc = dma_buf_unref(ad->pool, &temp_desc);
+    if (rc == 0) {
+        ad->total_releases++;
+    }
+    return rc;
+}
+
+static dma_adapter_ctx_t s_default_dma_ad = {0};
+
+int edge_port_adapter_from_dma_pool(edge_memory_port_t *out_mem, dma_buf_pool_t *pool) {
+    if (!out_mem || !pool) return -1;
+    s_default_dma_ad.pool = pool;
+    out_mem->acquire_buffer = dma_adapter_acquire;
+    out_mem->release_buffer = dma_adapter_release;
+    out_mem->ctx = &s_default_dma_ad;
+    return 0;
+}
+
 static int _init_container_resources(edge_composition_container_t *container, const edge_composition_config_t *cfg) {
     container->config = *cfg;
     pthread_mutex_init(&container->lock, NULL);

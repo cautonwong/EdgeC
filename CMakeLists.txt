@@ -227,6 +227,7 @@ add_subdirectory(modules/edge_io)
 add_subdirectory(modules/edge_infra)
 add_subdirectory(modules/edge_mgmt)
 add_subdirectory(modules/edge_mcp)
+add_subdirectory(modules/edge_bootstrap)
 
 # ==============================================================================
 # 6. Applications & Tests
