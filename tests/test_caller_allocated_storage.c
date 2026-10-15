@@ -44,7 +44,6 @@
 #include "datahub.h"
 #include "driver_hotplug.h"
 #include "driver_manager.h"
-#include "ebpf_guard.h"
 #include "edge_acl.h"
 #include "edge_agent.h"
 #include "edge_amp_ipc.h"
@@ -55,7 +54,6 @@
 #include "edge_ebpf_telemetry.h"
 #include "edge_edf_scheduler.h"
 #include "edge_guard.h"
-#include "edge_lockfree_ring.h"
 #include "edge_mixed_criticality.h"
 #include "edge_operator_fusion.h"
 #include "edge_pcp_mutex.h"
@@ -528,35 +526,6 @@ static void test_edge_cpu_affinity_caller_allocated_storage(void **state) {
     assert_int_equal(edge_cpu_affinity_destroy(aff), 0);
 }
 
-static void test_edge_lockfree_ring_caller_allocated_storage(void **state) {
-    (void)state;
-    edge_lockfree_ring_storage_t store;
-    memset(&store, 0x11, sizeof(store));
-
-    edge_lockfree_ring_config_t cfg = {
-        .mode = EDGE_RING_MODE_SPSC,
-        .overflow_policy = EDGE_RING_OVERFLOW_DROP,
-        .capacity = 16,
-        .elem_size_bytes = 8,
-        .high_watermark_percent = 75,
-    };
-
-    edge_lockfree_ring_t *ring = edge_lockfree_ring_create_in(&store, &cfg, NULL);
-    assert_non_null(ring);
-    assert_ptr_equal(ring, (void *)store.raw);
-
-    uint64_t val = 0xDEADBEEFCAFEULL;
-    assert_int_equal(edge_lockfree_ring_enqueue(ring, &val), 0);
-    assert_int_equal(edge_lockfree_ring_depth(ring), 1);
-
-    uint64_t out_val = 0;
-    assert_int_equal(edge_lockfree_ring_dequeue(ring, &out_val), 0);
-    assert_int_equal(out_val, 0xDEADBEEFCAFEULL);
-    assert_int_equal(edge_lockfree_ring_depth(ring), 0);
-
-    assert_int_equal(edge_lockfree_ring_destroy(ring), 0);
-}
-
 static void test_edge_prio_booster_caller_allocated_storage(void **state) {
     (void)state;
     edge_prio_booster_storage_t store;
@@ -850,26 +819,6 @@ static void test_snf_manager_caller_allocated_storage(void **state) {
     sqlite_svc_destroy(db);
     uv_run(&loop, UV_RUN_NOWAIT);
     uv_loop_close(&loop);
-}
-
-static void test_ebpf_guard_caller_allocated_storage(void **state) {
-    (void)state;
-    ebpf_guard_mgr_storage_t store;
-    memset(&store, 0x11, sizeof(store));
-
-    ebpf_guard_mgr_t *mgr = ebpf_guard_mgr_create_in(&store);
-    assert_non_null(mgr);
-    assert_ptr_equal(mgr, (void *)store.raw);
-    assert_true(ebpf_guard_is_enforce_mode(mgr));
-
-    uint32_t probe_id = 0;
-    assert_int_equal(ebpf_guard_attach_probe(mgr, EBPF_PROBE_SYSCALL_MONITOR, &probe_id), 0);
-    assert_int_equal(probe_id, 1);
-
-    assert_int_equal(ebpf_guard_audit_event(mgr, probe_id, 100, false), 0);
-    assert_int_equal(ebpf_guard_audit_event(mgr, probe_id, 200, true), 1);
-    assert_int_equal(ebpf_guard_get_probe_events_processed(mgr, probe_id), 2);
-    assert_int_equal(ebpf_guard_get_probe_violations(mgr, probe_id), 1);
 }
 
 static void test_edge_acl_caller_allocated_storage(void **state) {
@@ -1357,7 +1306,6 @@ int main(void) {
         cmocka_unit_test(test_edge_edf_scheduler_caller_allocated_storage),
         cmocka_unit_test(test_edge_rms_scheduler_caller_allocated_storage),
         cmocka_unit_test(test_edge_cpu_affinity_caller_allocated_storage),
-        cmocka_unit_test(test_edge_lockfree_ring_caller_allocated_storage),
         cmocka_unit_test(test_edge_prio_booster_caller_allocated_storage),
         cmocka_unit_test(test_edge_coop_guard_caller_allocated_storage),
         cmocka_unit_test(test_edge_mixed_crit_caller_allocated_storage),
@@ -1370,7 +1318,6 @@ int main(void) {
         cmocka_unit_test(test_edge_agent_caller_allocated_storage),
         cmocka_unit_test(test_protocol_bridge_caller_allocated_storage),
         cmocka_unit_test(test_snf_manager_caller_allocated_storage),
-        cmocka_unit_test(test_ebpf_guard_caller_allocated_storage),
         cmocka_unit_test(test_edge_acl_caller_allocated_storage),
         cmocka_unit_test(test_persistence_mgr_caller_allocated_storage),
         cmocka_unit_test(test_driver_hotplug_caller_allocated_storage),

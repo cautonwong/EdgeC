@@ -6,6 +6,7 @@ set(INFRA_SOURCES
     src/edge_infra_base.c
     src/edge_anti_corruption.c
     storage/edge_telemetry_store.c
+    storage/timeseries_compressor.c
     bus_dds/dds_topology_monitor.c
     npu/npu_hal.c
     npu/npu_ascend_acl.c
