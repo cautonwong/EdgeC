@@ -161,13 +161,11 @@ static int _mock_list_apps(void *ctx, app_manifest_t *out_apps, int max_count) {
 static void test_app_mgr_custom_repo(void **state) {
     uv_loop_t *loop = (uv_loop_t *)*state;
     mock_app_repo_ctx_t mock_ctx = {0};
-    edge_app_repo_t repo = {
-        .ctx = &mock_ctx,
-        .save_app = _mock_save_app,
-        .get_app = _mock_get_app,
-        .delete_app = _mock_delete_app,
-        .list_apps = _mock_list_apps
-    };
+    edge_app_repo_t repo = {.ctx = &mock_ctx,
+                            .save_app = _mock_save_app,
+                            .get_app = _mock_get_app,
+                            .delete_app = _mock_delete_app,
+                            .list_apps = _mock_list_apps};
 
     edge_app_mgr_t *mgr = edge_app_mgr_create_with_repo(loop, NULL, &repo, NULL);
     assert_non_null(mgr);
