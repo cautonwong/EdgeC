@@ -21,9 +21,7 @@ add_library(edge_core STATIC
     src/shm_waitset.c
     src/thermal_throttle.c
     src/device_twin.c
-    src/resilient_buffer.c
     src/wasm_host_bridge.c
-    src/timeseries_compressor.c
     src/edge_port.c
     src/edge_composition_root.c
     src/edge_sched_deadline.c
@@ -31,7 +29,6 @@ add_library(edge_core STATIC
     src/edge_edf_scheduler.c
     src/edge_rms_scheduler.c
     src/edge_cpu_affinity.c
-    src/edge_lockfree_ring.c
     src/edge_prio_booster.c
     src/edge_coop_guard.c
     src/edge_mixed_criticality.c

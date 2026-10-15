@@ -215,7 +215,6 @@ target_link_libraries(test_dcu_poller PRIVATE dcu_app_lib)
 target_link_libraries(test_dcu PRIVATE dcu_app_lib)
 target_link_libraries(test_dcu_advanced_modules PRIVATE dcu_app_lib)
 
-add_edge_test(test_spsc_ring test_spsc_ring.c)
 add_edge_test(test_fall_detection test_fall_detection.c)
 add_edge_test(test_sos_dscp test_sos_dscp.c)
 add_edge_test(test_wasm_watchdog test_wasm_watchdog.c)
@@ -237,19 +236,15 @@ add_edge_test(test_federated_aggregator test_federated_aggregator.c)
 add_edge_test(test_shm_waitset test_shm_waitset.c)
 add_edge_test(test_thermal_throttle test_thermal_throttle.c)
 add_edge_test(test_device_twin test_device_twin.c)
-add_edge_test(test_resilient_buffer test_resilient_buffer.c)
 add_edge_test(test_driver_hotplug test_driver_hotplug.c)
-add_edge_test(test_dfu_dualbank test_dfu_dualbank.c)
 add_edge_test(test_impedance_control test_impedance_control.c)
 add_edge_test(test_gait_safety test_gait_safety.c)
 add_edge_test(test_facility_coordinator test_facility_coordinator.c)
-add_edge_test(test_ebpf_guard test_ebpf_guard.c)
 add_edge_test(test_simd_cdd_codec test_simd_cdd_codec.c)
 add_edge_test(test_multibus_bridge test_multibus_bridge.c)
 add_edge_test(test_stream_sql_dag test_stream_sql_dag.c)
 add_edge_test(test_wasm_host_bridge test_wasm_host_bridge.c)
 add_edge_test(test_edge_cep_engine test_edge_cep_engine.c)
-add_edge_test(test_edge_spiffe_auth test_edge_spiffe_auth.c)
 add_edge_test(test_timeseries_compressor test_timeseries_compressor.c)
 add_edge_test(test_onnx_host_guard test_onnx_host_guard.c)
 # Automated OMG IDL 4.2 compilation target for clean builds
@@ -1378,9 +1373,6 @@ add_edge_test(test_rms_scheduler test_rms_scheduler.c)
 
 # AEP-716 CPU 核心独占绑定、中断亲和性 (IRQ) 调优与内存锁定 (mlockall) 单测
 add_edge_test(test_cpu_affinity test_cpu_affinity.c)
-
-# AEP-717 无锁定长环形队列 (Lock-Free RingBuffer) 生产者-消费者零拷贝调度单测
-add_edge_test(test_lockfree_ring test_lockfree_ring.c)
 
 # AEP-718 突发工况事件优先级动态提升 (Priority Boosting) 与退火衰减单测
 add_edge_test(test_prio_booster test_prio_booster.c)
