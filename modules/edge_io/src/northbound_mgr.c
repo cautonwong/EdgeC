@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include "contract_data_types.h"
+#include "datahub.h"
 #include "driver_manager.h"
 #include "edge_driver.h"
 #include "edge_log.h"
@@ -218,6 +219,17 @@ static void north_thread_entry(void* arg) {
     uv_loop_close(mgr->loop);
     free(mgr->loop);
     mgr->loop = NULL;
+}
+
+int northbound_mgr_init(northbound_mgr_t* mgr, uv_loop_t* loop, datahub_t* hub,
+                        const char* product_name, struct sqlite_svc_s* db) {
+    (void)loop;
+    nb_source_ops_t src = {
+        .ctx = hub,
+        .read_next = (int (*)(void*, uint64_t*, pipe_msg_t*))datahub_read_ring
+    };
+    nb_transport_ops_t transport = {0};
+    return northbound_mgr_init_ex(mgr, src, product_name, db, transport);
 }
 
 int northbound_mgr_init_ex(northbound_mgr_t* mgr, nb_source_ops_t source, const char* product_name,

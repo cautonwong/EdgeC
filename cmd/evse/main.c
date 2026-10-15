@@ -39,7 +39,7 @@ int main(int argc, char** argv) {
                  g_tag_metadata_len, NULL, edge_tag_get_compact_index, edge_router_needs_wakeup);
 
     bus_orchestrator_t* io_orch = bus_orchestrator_create(&hub, arbiter, drv_mgr, 8, 32, 2048);
-    hub.io_pool = bus_orchestrator_get_pool(io_orch);
+    datahub_bind_io_pool(&hub, bus_orchestrator_get_pool(io_orch));
 
     sqlite_config_t db_conf = {.db_path = "evse.db", .strategy = STRATEGY_LITE};
     sqlite_svc_t* db_service = sqlite_svc_create(loop, &db_conf);
@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
     edge_params_t* param_mgr = edge_params_create(db_service);
 
     northbound_mgr_t* north_mgr = calloc(1, sizeof(northbound_mgr_t));
-    northbound_mgr_init(north_mgr, loop, &hub.ring, "evse", db_service);
+    northbound_mgr_init(north_mgr, loop, &hub, "evse", db_service);
 
     service_t* svc =
         service_new(loop, &hub, arbiter, db_service, stream_engine, param_mgr, north_mgr);

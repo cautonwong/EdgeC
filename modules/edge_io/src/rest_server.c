@@ -97,8 +97,8 @@ static char *handle_system_stats(service_t *svc) {
     datahub_t *hub = service_get_datahub(svc);
     if (hub) {
         cJSON *dh = cJSON_AddObjectToObject(root, "datahub");
-        cJSON_AddNumberToObject(dh, "total_writes", (double)hub->ring.hdr->total_writes);
-        cJSON_AddNumberToObject(dh, "listener_count", hub->listener_count);
+        cJSON_AddNumberToObject(dh, "total_writes", (double)datahub_get_ring_total_writes(hub));
+        cJSON_AddNumberToObject(dh, "listener_count", (double)datahub_get_listener_count(hub));
     }
 
     // 2. Arbiter
@@ -453,45 +453,11 @@ static char *handle_apps_upload(service_t *svc, const char *body) {
 
     stream_engine_t *engine = service_get_stream_engine(svc);
     if (engine) {
-        pipeline_t *p = NULL;
-        uv_mutex_lock(&engine->pipe_mutex);
-        struct uv__queue *q;
-        uv__queue_foreach(q, &engine->pipelines) {
-            pipeline_t *curr = uv__queue_data(q, pipeline_t, node);
-            if (strcmp(curr->id, manifest.id) == 0) {
-                p = curr;
-                break;
-            }
-        }
-        uv_mutex_unlock(&engine->pipe_mutex);
-
-        if (p) {
-            pipeline_stage_t *st = stage_wasm_create(manifest.wasm_path, manifest.entry_func);
-            if (st) {
-                uv_mutex_lock(&engine->pipe_mutex);
-                pipeline_stage_t *s = p->head;
-                while (s) {
-                    pipeline_stage_t *next_s = s->next[0];
-                    if (s->cleanup_state) s->cleanup_state(s->priv_state);
-                    if (s->cleanup_cfg) s->cleanup_cfg(s->priv_cfg);
-                    free(s);
-                    s = next_s;
-                }
-                p->head = NULL;
-                p->trigger_tag = manifest.trigger_tag;
-                uv_mutex_unlock(&engine->pipe_mutex);
-                pipeline_add_stage(p, st->name, st->process, st->priv_state, st->cleanup_state, st->priv_cfg, st->cleanup_cfg);
-                free(st);
-            }
-        } else {
-            p = stream_engine_add_pipeline(engine, manifest.id, manifest.trigger_tag);
-            if (p) {
-                pipeline_stage_t *st = stage_wasm_create(manifest.wasm_path, manifest.entry_func);
-                if (st) {
-                    pipeline_add_stage(p, st->name, st->process, st->priv_state, st->cleanup_state, st->priv_cfg, st->cleanup_cfg);
-                    free(st);
-                }
-            }
+        pipeline_stage_t *st = stage_wasm_create(manifest.wasm_path, manifest.entry_func);
+        if (st) {
+            stream_engine_set_pipeline_trigger(engine, manifest.id, manifest.trigger_tag);
+            stream_engine_replace_pipeline_stage(engine, manifest.id, st);
+            free(st);
         }
     }
 

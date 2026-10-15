@@ -44,7 +44,7 @@ static void _on_data_async(uv_async_t *handle) {
     protocol_bridge_t *bridge = (protocol_bridge_t *)handle->data;
     pipe_msg_t msg;
 
-    while (shm_ring_read(&bridge->hub->ring, &bridge->last_seq, &msg) == 0) {
+    while (datahub_read_ring(bridge->hub, &bridge->last_seq, &msg) == 0) {
         // [Nexus] 自动控制路由 (Northbound -> Southbound)
         // 生产环境应过滤 SourceID，防止自循环
         if (msg.attr.source_id == 0xFE) continue; 

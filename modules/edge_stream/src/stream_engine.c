@@ -109,7 +109,7 @@ static void _on_data_async(uv_async_t *handle) {
     pipe_msg_t msg;
 
     int rc;
-    while ((rc = shm_ring_read(&hub->ring, &engine->bus_read_seq, &msg)) >= 0) {
+    while ((rc = datahub_read_ring(hub, &engine->bus_read_seq, &msg)) >= 0) {
         if (rc > 0) {
             LOG_WARN(LOG_CAT_CORE, "StreamEngine: ShmRing dropped %d messages", rc);
         }
@@ -268,6 +268,96 @@ pipeline_stage_t *pipeline_add_stage(pipeline_t *p, const char *name, stage_proc
     return s;
 }
 
+int stream_engine_clear_pipeline_stages(stream_engine_t *engine, const char *pipeline_id) {
+    if (!engine || !pipeline_id) return -1;
+    uv_mutex_lock(&engine->pipe_mutex);
+    pipeline_t *p = NULL;
+    struct uv__queue *q;
+    uv__queue_foreach(q, &engine->pipelines) {
+        pipeline_t *curr = uv__queue_data(q, pipeline_t, node);
+        if (strcmp(curr->id, pipeline_id) == 0) {
+            p = curr;
+            break;
+        }
+    }
+    if (!p) {
+        uv_mutex_unlock(&engine->pipe_mutex);
+        return -1;
+    }
+
+    pipeline_stage_t *s = p->head;
+    while (s) {
+        pipeline_stage_t *next_s = s->next[0];
+        if (s->cleanup_state) s->cleanup_state(s->priv_state);
+        if (s->cleanup_cfg) s->cleanup_cfg(s->priv_cfg);
+        s = next_s;
+    }
+    p->head = NULL;
+    uv_mutex_unlock(&engine->pipe_mutex);
+    return 0;
+}
+
+int stream_engine_replace_pipeline_stage(stream_engine_t *engine,
+                                         const char *pipeline_id,
+                                         pipeline_stage_t *new_stage) {
+    if (!engine || !pipeline_id || !new_stage) return -1;
+    uv_mutex_lock(&engine->pipe_mutex);
+    pipeline_t *p = NULL;
+    struct uv__queue *q;
+    uv__queue_foreach(q, &engine->pipelines) {
+        pipeline_t *curr = uv__queue_data(q, pipeline_t, node);
+        if (strcmp(curr->id, pipeline_id) == 0) {
+            p = curr;
+            break;
+        }
+    }
+    if (!p) {
+        uv_mutex_unlock(&engine->pipe_mutex);
+        p = stream_engine_add_pipeline(engine, pipeline_id, 0);
+        if (!p) return -1;
+        uv_mutex_lock(&engine->pipe_mutex);
+    }
+
+    pipeline_stage_t *s = p->head;
+    while (s) {
+        pipeline_stage_t *next_s = s->next[0];
+        if (s->cleanup_state) s->cleanup_state(s->priv_state);
+        if (s->cleanup_cfg) s->cleanup_cfg(s->priv_cfg);
+        s = next_s;
+    }
+    p->head = NULL;
+    uv_mutex_unlock(&engine->pipe_mutex);
+
+    pipeline_add_stage(p, new_stage->name, new_stage->process,
+                       new_stage->priv_state, new_stage->cleanup_state,
+                       new_stage->priv_cfg, new_stage->cleanup_cfg);
+    return 0;
+}
+
+int stream_engine_set_pipeline_trigger(stream_engine_t *engine,
+                                       const char *pipeline_id,
+                                       uint32_t trigger_tag) {
+    if (!engine || !pipeline_id) return -1;
+    uv_mutex_lock(&engine->pipe_mutex);
+    pipeline_t *p = NULL;
+    struct uv__queue *q;
+    uv__queue_foreach(q, &engine->pipelines) {
+        pipeline_t *curr = uv__queue_data(q, pipeline_t, node);
+        if (strcmp(curr->id, pipeline_id) == 0) {
+            p = curr;
+            break;
+        }
+    }
+    if (!p) {
+        uv_mutex_unlock(&engine->pipe_mutex);
+        p = stream_engine_add_pipeline(engine, pipeline_id, trigger_tag);
+        return p ? 0 : -1;
+    }
+    p->trigger_tag = trigger_tag;
+    uv_mutex_unlock(&engine->pipe_mutex);
+    return 0;
+}
+
 _Static_assert(sizeof(struct stream_engine_s) <= sizeof(stream_engine_storage_t),
                "stream_engine_s size exceeds stream_engine_storage_t");
 
@@ -285,8 +375,7 @@ stream_engine_t *stream_engine_create_in(stream_engine_storage_t *storage, datah
     engine->registry = registry;
 
     if (hub) {
-        engine->bus_read_seq =
-            (uint64_t)atomic_load_explicit(&hub->ring.hdr->seq, memory_order_acquire);
+        engine->bus_read_seq = datahub_get_ring_seq(hub);
     }
 
     uv__queue_init(&engine->pipelines);

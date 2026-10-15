@@ -74,7 +74,7 @@ static void on_poll_complete(int status, const pipe_msg_t* result, void* user_da
     if (status == 0 && result && task && g_app.hub) {
         // 💡 [Nexus Physical-Path] 强行绕过查找，直接物理入库并写入 shm_ring 触发计算引擎！
         pipe_msg_t local_msg = *result;
-        shm_ring_write(&g_app.hub->ring, &local_msg);
+        datahub_write_ring(g_app.hub, &local_msg);
         datahub_write_shadow_idx(g_app.hub, task->dense_idx, &local_msg);
     }
 }
@@ -100,7 +100,7 @@ static void on_ui_connect(uv_stream_t* server, int status) {
     if (uv_accept(server, (uv_stream_t*)client) == 0) {
         int cfd;
         uv_fileno((const uv_handle_t*)client, &cfd);
-        edge_fd_send(cfd, shmring_get_fd(&g_app.hub->ring));
+        edge_fd_send(cfd, datahub_get_ring_fd(g_app.hub));
         edge_fd_send(cfd, g_app.hub->shadow_fd);
     }
     uv_close((uv_handle_t*)client, (uv_close_cb)free);
@@ -415,7 +415,7 @@ int main(int argc, char* argv[]) {
     datahub_start_compaction(g_app.hub, 300000, snap_path);
 
     g_app.orch = bus_orchestrator_create(g_app.hub, g_app.arb, g_app.drv_mgr, 256, 256, 2048);
-    g_app.hub->io_pool = bus_orchestrator_get_pool(g_app.orch);
+    datahub_bind_io_pool(g_app.hub, bus_orchestrator_get_pool(g_app.orch));
     edge_api_init(g_app.orch, g_app.drv_mgr);
 
     for (uint32_t i = 0; i < contract->connectivity_count; i++) {
@@ -454,8 +454,8 @@ int main(int argc, char* argv[]) {
     if (!mqtt_url) mqtt_url = "tcp://localhost:1883";
     nb_transport_ops_t transport = mqtt_producer_create(mqtt_url, "IEMS_EDGE_NODE");
 
-    // 💡 [Consumer-Driven] 创建数据源适配器：shm_ring_read → nb_source_ops_t
-    nb_source_ops_t nb_source = {.ctx = &g_app.hub->ring, .read_next = (void*)(shm_ring_read)};
+    // 💡 [Consumer-Driven] 创建数据源适配器：datahub_read_ring → nb_source_ops_t
+    nb_source_ops_t nb_source = {.ctx = g_app.hub, .read_next = (void*)(datahub_read_ring)};
     northbound_mgr_init_ex(g_app.north, nb_source, "IEMS_V4", g_app.db_service, transport);
 
     g_app.svc = service_new(loop, g_app.hub, g_app.arb, g_app.db_service, g_app.stream_eng, NULL,

@@ -132,7 +132,7 @@ int cdd_decode_batch(const cdd_schema_t *schema, const uint8_t *in_buf, size_t i
     if (calc_crc != hdr.crc32) return -5;
 
     size_t sample_size = sizeof(uint16_t) + sizeof(double) + sizeof(uint64_t);
-    uint32_t count = hdr.payload_len / sample_size;
+    uint32_t count = (uint32_t)(hdr.payload_len / sample_size);
     if (count > max_count) count = max_count;
 
     size_t offset = 0;

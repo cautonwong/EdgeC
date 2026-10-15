@@ -86,7 +86,7 @@ int modbus_rtu_decode_frame(struct net_buf_simple *in, uint8_t *slave_id, uint8_
     uint8_t func = p[1];
     size_t frame_len = 0;
 
-    fprintf(stderr, "🔍 [MODBUS_DECODE] Len: %zu, Dump: ", in->len);
+    fprintf(stderr, "🔍 [MODBUS_DECODE] Len: %u, Dump: ", (unsigned int)in->len);
     for(size_t i=0; i<in->len && i<16; i++) {
         fprintf(stderr, "%02X ", p[i]);
     }

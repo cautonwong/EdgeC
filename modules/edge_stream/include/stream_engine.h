@@ -163,6 +163,25 @@ pipeline_stage_t *pipeline_add_stage(pipeline_t *p, const char *name, stage_proc
                                      void *priv_state, stage_cleanup_fn cleanup_state,
                                      void *priv_cfg, stage_cleanup_fn cleanup_cfg);
 
+/**
+ * @brief [DDD 聚合根安全封装] 清空指定管线的所有算子节点 (内部线程安全处理)
+ */
+int stream_engine_clear_pipeline_stages(stream_engine_t *engine, const char *pipeline_id);
+
+/**
+ * @brief [DDD 聚合根安全封装] 原子替换指定管线的算子节点为新算子
+ */
+int stream_engine_replace_pipeline_stage(stream_engine_t *engine,
+                                         const char *pipeline_id,
+                                         pipeline_stage_t *new_stage);
+
+/**
+ * @brief [DDD 聚合根安全封装] 设置管线的触发测点
+ */
+int stream_engine_set_pipeline_trigger(stream_engine_t *engine,
+                                       const char *pipeline_id,
+                                       uint32_t trigger_tag);
+
 int stream_engine_load_config(stream_engine_t *engine, const char *json_path,
                               pipeline_loader_ctx_t *ctx);
 

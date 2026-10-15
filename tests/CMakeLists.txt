@@ -1447,3 +1447,6 @@ add_edge_test(test_ai_pinn_evaluator test_ai_pinn_evaluator.c)
 
 # AEP-710 异构多后端 (NPU/GPU/CPU) 算子级自动切分与流水线编排器单测
 add_edge_test(test_ai_hetero_pipeline test_ai_hetero_pipeline.c)
+
+# ARCH-GOV: 聚合根封装治理单测 (Issue #369, #370)
+add_edge_test(test_aggregate_roots_governance test_aggregate_roots_governance.c)
