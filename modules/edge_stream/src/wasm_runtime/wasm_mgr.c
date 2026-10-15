@@ -1,4 +1,5 @@
 #include "wasm_mgr.h"
+#include "datahub.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

@@ -7,11 +7,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <uv.h>
 
 #include "edge_log.h"
 #include "snf_manager.h"
 #include "sqlite_service.h"
-#include <uv.h>
 
 static int g_publish_count = 0;
 

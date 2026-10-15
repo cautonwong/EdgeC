@@ -9,7 +9,6 @@
 #include <time.h>
 
 #include "contract_data_types.h"
-#include "datahub.h"
 #include "driver_manager.h"
 #include "edge_driver.h"
 #include "edge_log.h"
@@ -21,7 +20,6 @@ typedef struct {
     iec104_apci_mgr_storage_t apci_store;
     iec104_apci_mgr_t *apci;
     uint16_t casdu;
-    datahub_t *hub;
     double *last_values;
     bool needs_gi;      /**< 是否需要触发总召唤 (GI) */
     uint64_t last_gi_ts;
@@ -33,10 +31,10 @@ static int iec104_v4_on_init(edge_driver_ctx_t *ctx) {
     memset(priv, 0, sizeof(iec104_ctx_t));
     priv->apci = iec104_apci_mgr_create_in(&priv->apci_store);
     priv->casdu = (uint16_t)ctx->device_id;
-    priv->hub = (datahub_t *)ctx->user_data;
 
-    if (priv->hub && ctx->role == PROTOCOL_ROLE_SLAVE) {
-        uint32_t count = datahub_get_metadata_count(priv->hub);
+    if (ctx->role == PROTOCOL_ROLE_SLAVE) {
+        uint32_t count = edge_driver_get_tag_count(ctx);
+        if (count == 0 && ctx->meta_list_len > 0) count = ctx->meta_list_len;
         if (count > 0) priv->last_values = calloc(count, sizeof(double));
     } else {
         priv->needs_gi = (ctx->role == PROTOCOL_ROLE_MASTER);
@@ -71,13 +69,13 @@ static int iec104_v4_on_tick(edge_driver_ctx_t *ctx, net_buf_t **out_tx) {
         return 0;
     }
 
-    if (ctx->role == PROTOCOL_ROLE_SLAVE && iec104_apci_get_state(priv->apci) == IEC104_STATE_CONNECTED && priv->hub) {
+    if (ctx->role == PROTOCOL_ROLE_SLAVE && iec104_apci_get_state(priv->apci) == IEC104_STATE_CONNECTED) {
         for (uint32_t i = 0; i < ctx->meta_list_len; i++) {
             const iec104_map_t *map = (const iec104_map_t *)ctx->meta_list + i;
             if (map->tag_id == 0) continue;
 
             pipe_msg_t vm;
-            if (datahub_read_shadow(priv->hub, map->tag_id, &vm) == 0) {
+            if (edge_driver_read_shadow(ctx, map->tag_id, &vm) == 0) {
                 if (priv->last_values && fabs(vm.payload.val.f - priv->last_values[i]) > (double)map->dead_band) {
                     if (*out_tx == NULL) *out_tx = net_buf_alloc(ctx->pool, 0);
                     net_buf_t *df = net_buf_alloc(ctx->pool, 0);
@@ -108,13 +106,11 @@ static int iec104_v4_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
     (void)async_msgs; (void)async_count;
     iec104_ctx_t *priv = (iec104_ctx_t *)ctx->priv;
     
-    // [Nexus] Lazy init Hub and last_values if set after on_init
-    if (!priv->hub && ctx->user_data) {
-        priv->hub = (datahub_t *)ctx->user_data;
-        if (ctx->role == PROTOCOL_ROLE_SLAVE && !priv->last_values) {
-            uint32_t count = datahub_get_metadata_count(priv->hub);
-            if (count > 0) priv->last_values = calloc(count, sizeof(double));
-        }
+    // Lazy init last_values if not set in on_init
+    if (ctx->role == PROTOCOL_ROLE_SLAVE && !priv->last_values) {
+        uint32_t count = edge_driver_get_tag_count(ctx);
+        if (count == 0 && ctx->meta_list_len > 0) count = ctx->meta_list_len;
+        if (count > 0) priv->last_values = calloc(count, sizeof(double));
     }
 
     struct net_buf_simple b = in->b;
@@ -156,19 +152,17 @@ static int iec104_v4_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
                 net_buf_simple_add_mem(&resp_out->b, con->b.data, con->b.len);
                 net_buf_unref(con);
                 
-                if (priv->hub) {
-                    for (uint32_t i = 0; i < ctx->meta_list_len; i++) {
-                        const iec104_map_t *map = (const iec104_map_t *)ctx->meta_list + i;
-                        if (map->tag_id == 0) continue;
-                        pipe_msg_t vm;
-                        if (datahub_read_shadow(priv->hub, map->tag_id, &vm) == 0) {
-                            net_buf_t *df = net_buf_alloc(in->pool, 0);
-                            iec_asdu_init(df, (iec_type_id_t)map->type_id, false, 1, IEC_COT_INTROGEN, priv->casdu, &IEC_ADDR_CONF_104);
-                            iec_asdu_add_any(df, (uint8_t)map->type_id, map->key, vm.payload.val.f / (double)map->scaler, 0, map->flags, (iec_qds_t){0}, &IEC_ADDR_CONF_104);
-                            iec104_apci_wrap_i(priv->apci, df);
-                            net_buf_simple_add_mem(&resp_out->b, df->b.data, df->b.len);
-                            net_buf_unref(df);
-                        }
+                for (uint32_t i = 0; i < ctx->meta_list_len; i++) {
+                    const iec104_map_t *map = (const iec104_map_t *)ctx->meta_list + i;
+                    if (map->tag_id == 0) continue;
+                    pipe_msg_t vm;
+                    if (edge_driver_read_shadow(ctx, map->tag_id, &vm) == 0) {
+                        net_buf_t *df = net_buf_alloc(in->pool, 0);
+                        iec_asdu_init(df, (iec_type_id_t)map->type_id, false, 1, IEC_COT_INTROGEN, priv->casdu, &IEC_ADDR_CONF_104);
+                        iec_asdu_add_any(df, (uint8_t)map->type_id, map->key, vm.payload.val.f / (double)map->scaler, 0, map->flags, (iec_qds_t){0}, &IEC_ADDR_CONF_104);
+                        iec104_apci_wrap_i(priv->apci, df);
+                        net_buf_simple_add_mem(&resp_out->b, df->b.data, df->b.len);
+                        net_buf_unref(df);
                     }
                 }
                 
@@ -207,17 +201,15 @@ static int iec104_v4_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
                     net_buf_simple_add_mem(&resp_out->b, con->b.data, con->b.len);
                     net_buf_unref(con);
 
-                    // 2. 通过 DataHub 下发控制指令
+                    // 2. 通过 Consumer Port 下发控制指令
                     if (ctx->lookup_by_key) {
                         const iec104_map_t *map = (const iec104_map_t *)ctx->lookup_by_key(ioa);
                         if (map) {
-                            LOG_INFO(LOG_CAT_IO, "IEC104: Remote Control for Tag %u, IOA %u, Val %.2f (Hub: %p)", 
-                                     map->tag_id, ioa, val, (void *)priv->hub);
-                            if (priv->hub) {
-                                pipe_msg_t cmd_msg;
-                                pipe_msg_init_scalar(&cmd_msg, map->tag_id, val, uv_hrtime());
-                                datahub_publish(priv->hub, &cmd_msg);
-                            }
+                            LOG_INFO(LOG_CAT_IO, "IEC104: Remote Control for Tag %u, IOA %u, Val %.2f", 
+                                     map->tag_id, ioa, val);
+                            pipe_msg_t cmd_msg;
+                            pipe_msg_init_scalar(&cmd_msg, map->tag_id, val, uv_hrtime());
+                            edge_driver_publish(ctx, &cmd_msg);
                         } else {
                             LOG_WARN(LOG_CAT_IO, "IEC104: Received command for unknown IOA %u", ioa);
                         }

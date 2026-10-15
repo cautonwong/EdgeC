@@ -16,7 +16,7 @@
 #include <stdalign.h>
 
 #include "npu_hal.h"
-#include "datahub.h"
+typedef struct datahub_s datahub_t;
 
 #ifdef __cplusplus
 extern "C" {

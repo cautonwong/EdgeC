@@ -100,8 +100,15 @@ int ai_hetero_pipeline_execute_step(ai_hetero_pipeline_t *pipe);
 bool ai_hetero_pipeline_get_metrics(const ai_hetero_pipeline_t *pipe,
                                     ai_hetero_pipeline_metrics_t *metrics);
 
+#include "edge_algo_port.h"
+
 /**
- * @brief Synchronize metrics to DataHub
+ * @brief Emit metrics via Consumer-Defined Algo Sink
+ */
+int ai_hetero_pipeline_emit_metrics(const ai_hetero_pipeline_t *pipe, const edge_algo_sink_t *sink);
+
+/**
+ * @brief Synchronize metrics to DataHub (Adapter bridge)
  */
 int ai_hetero_pipeline_sync_datahub(const ai_hetero_pipeline_t *pipe, datahub_t *hub);
 

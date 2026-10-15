@@ -11,7 +11,6 @@
 #include "edge_driver.h"
 #include "driver_manager.h"
 #include "edge_log.h"
-#include "datahub.h"
 
 // CCSDS 133.0-B-1 Primary Header (6 bytes)
 typedef struct __attribute__((packed)) {
@@ -22,7 +21,6 @@ typedef struct __attribute__((packed)) {
 
 typedef struct {
     uint32_t node_id;
-    datahub_t *hub;
     uint32_t telemetry_tag;
     uint16_t seq_count;
 } ccsds_ctx_t;
@@ -30,7 +28,6 @@ typedef struct {
 static int ccsds_on_init(edge_driver_ctx_t *ctx) {
     ccsds_ctx_t *priv = (ccsds_ctx_t *)ctx->priv;
     priv->node_id = ctx->device_id;
-    priv->hub = (datahub_t *)ctx->user_data;
     
     priv->telemetry_tag = 200; // Default output tag from AHRS or similar
     priv->seq_count = 0;
@@ -41,16 +38,11 @@ static int ccsds_on_init(edge_driver_ctx_t *ctx) {
 
 static int ccsds_on_tick(edge_driver_ctx_t *ctx, net_buf_t **out_tx) {
     ccsds_ctx_t *priv = (ccsds_ctx_t *)ctx->priv;
-    if (!priv->hub && ctx->user_data) {
-        priv->hub = (datahub_t *)ctx->user_data;
-    }
-    if (!priv->hub) return -1;
-
     pipe_msg_t msg;
     bool needs_tx = false;
 
-    // Read latest telemetry from DataHub
-    if (datahub_read_shadow(priv->hub, priv->telemetry_tag, &msg) == 0) {
+    // Read latest telemetry via consumer-defined driver port
+    if (edge_driver_read_shadow(ctx, priv->telemetry_tag, &msg) == 0) {
         // Serialize telemetry to CCSDS Packet
         // Suppose it's a vector (e.g. Quaternion) or a scalar
         uint32_t payload_len = 0;

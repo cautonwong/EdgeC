@@ -14,7 +14,6 @@
 #include "edge_common.h"
 #include "edge_driver.h"
 #include "edge_log.h"
-#include "datahub.h"
 
 typedef enum {
     DLMS_SESSION_IDLE,
@@ -206,9 +205,9 @@ static int dlms_v4_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *r
             uint64_t key = 0;
             for(int i=0; i<6; i++) key = (key << 8) | obis[i];
             const dlms_map_t *map = (const dlms_map_t *)ctx->lookup_by_key(key);
-            if (map && ctx->user_data) {
+            if (map) {
                 pipe_msg_t shadow;
-                if (datahub_read_shadow((datahub_t *)ctx->user_data, map->tag_id, &shadow) == 0) {
+                if (edge_driver_read_shadow(ctx, map->tag_id, &shadow) == 0) {
                     val = shadow.payload.val.f;
                     found = true;
                 }
@@ -231,7 +230,7 @@ static int dlms_v4_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *r
             uint64_t key = 0;
             for (int i = 0; i < 6; i++) key = (key << 8) | obis[i];
             const dlms_map_t *map = (const dlms_map_t *)ctx->lookup_by_key(key);
-            if (map && ctx->user_data) {
+            if (map) {
                 /* 从 SET 数据中提取值 (简化: 跳过类型和长度, 取前2字节) */
                 if (apdu_in->b.len > 6) {
                     uint16_t raw = (uint16_t)((uint8_t)apdu_in->b.data[5] << 8
@@ -239,7 +238,7 @@ static int dlms_v4_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *r
                     double scaled = (double)raw / map->scaler;
                     pipe_msg_t am;
                     pipe_msg_init_scalar(&am, map->tag_id, scaled, uv_hrtime());
-                    datahub_publish((datahub_t *)ctx->user_data, &am);
+                    edge_driver_publish(ctx, &am);
                 }
             }
         }

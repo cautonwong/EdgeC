@@ -10,7 +10,6 @@
 #include <string.h>
 
 #include "contract_data_types.h"
-#include "datahub.h"
 #include "driver_manager.h"
 #include "edge_driver.h"
 #include "edge_log.h"
@@ -19,7 +18,6 @@
 
 typedef struct {
     uint16_t tid;       /* 事务标识符 (自增) */
-    datahub_t *hub;
     uint8_t slave_id;   /* 从站模式下本机地址 */
 } modbus_tcp_ctx_t;
 
@@ -157,9 +155,9 @@ static int modbus_tcp_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t
                     ? (const modbus_map_t *)ctx->lookup_by_key(addr)
                     : NULL;
 
-                if (map && priv->hub) {
+                if (map) {
                     pipe_msg_t shadow;
-                    if (datahub_read_shadow(priv->hub, map->tag_id, &shadow) == 0) {
+                    if (edge_driver_read_shadow(ctx, map->tag_id, &shadow) == 0) {
                         uint16_t raw = (uint16_t)(shadow.payload.val.f * map->scaler);
                         resp_data[resp_len++] = (uint8_t)(raw >> 8);
                         resp_data[resp_len++] = (uint8_t)(raw & 0xFF);
@@ -189,7 +187,7 @@ static int modbus_tcp_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t
                 double scaled = (double)value / map->scaler;
                 pipe_msg_t am;
                 pipe_msg_init_scalar(&am, map->tag_id, scaled, uv_hrtime());
-                if (priv->hub) datahub_publish(priv->hub, &am);
+                edge_driver_publish(ctx, &am);
             }
 
             modbus_tcp_encode_write_resp(tid, slave_id, addr, value, resp_out);
@@ -207,11 +205,11 @@ static int modbus_tcp_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t
                 const modbus_map_t *map = ctx->lookup_by_key
                     ? (const modbus_map_t *)ctx->lookup_by_key(reg_addr)
                     : NULL;
-                if (map && priv->hub) {
+                if (map) {
                     double scaled = (double)raw / map->scaler;
                     pipe_msg_t am;
                     pipe_msg_init_scalar(&am, map->tag_id, scaled, uv_hrtime());
-                    datahub_publish(priv->hub, &am);
+                    edge_driver_publish(ctx, &am);
                 }
             }
 
@@ -243,7 +241,6 @@ static int modbus_tcp_on_init(edge_driver_ctx_t *ctx) {
     modbus_tcp_ctx_t *priv = (modbus_tcp_ctx_t *)ctx->priv;
     memset(priv, 0, sizeof(modbus_tcp_ctx_t));
     priv->tid = 0;
-    priv->hub = (datahub_t *)ctx->user_data;
     priv->slave_id = (uint8_t)ctx->device_id;
     return 0;
 }

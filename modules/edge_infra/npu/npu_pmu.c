@@ -4,6 +4,7 @@
  */
 
 #include "npu_pmu.h"
+#include "datahub.h"
 
 #include <string.h>
 #include <time.h>

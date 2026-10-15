@@ -109,8 +109,15 @@ int ai_fast_gemm_compute_fp32(ai_fast_gemm_t *gemm,
  */
 bool ai_fast_gemm_get_metrics(const ai_fast_gemm_t *gemm, ai_gemm_metrics_t *metrics);
 
+#include "edge_algo_port.h"
+
 /**
- * @brief Synchronize performance metrics to DataHub
+ * @brief Emit performance metrics via Consumer-Defined Algo Sink
+ */
+int ai_fast_gemm_emit_metrics(const ai_fast_gemm_t *gemm, const edge_algo_sink_t *sink);
+
+/**
+ * @brief Synchronize performance metrics to DataHub (Adapter bridge)
  */
 int ai_fast_gemm_sync_datahub(const ai_fast_gemm_t *gemm, datahub_t *hub);
 

@@ -17,7 +17,7 @@
 #include <stdbool.h>
 #include <stdalign.h>
 
-#include "datahub.h"
+typedef struct datahub_s datahub_t;
 
 #ifdef __cplusplus
 extern "C" {

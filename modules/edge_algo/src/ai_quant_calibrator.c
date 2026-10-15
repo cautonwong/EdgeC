@@ -3,7 +3,6 @@
  * @brief INT8/FP8 Symmetric & Asymmetric Quantization Calibrator Implementation (AEP-702 / Issue #235)
  */
 
-#include "datahub.h"
 #include "ai_quant_calibrator.h"
 #include <string.h>
 #include <math.h>
@@ -511,18 +510,12 @@ int ai_dequantize_tensor(const ai_quant_params_t *params,
     return 0;
 }
 
-int ai_quant_sync_datahub(const ai_quant_params_t *params, datahub_t *hub) {
-    if (!params || !hub) return -1;
+int ai_quant_emit_params(const ai_quant_params_t *params, const edge_algo_sink_t *sink) {
+    if (!params || !sink) return -1;
 
-    pipe_msg_t msg;
-    pipe_msg_init_scalar(&msg, TAG_AI_QUANT_CALIB_MSE_LOSS, (double)params->mse_loss, 0);
-    datahub_write_shadow(hub, &msg);
-
-    pipe_msg_init_scalar(&msg, TAG_AI_QUANT_CALIB_SNR_DB, (double)params->snr_db, 0);
-    datahub_write_shadow(hub, &msg);
-
-    pipe_msg_init_scalar(&msg, TAG_AI_QUANT_SATURATION_PCT, (double)params->saturation_pct, 0);
-    datahub_write_shadow(hub, &msg);
+    edge_algo_sink_emit_scalar(sink, TAG_AI_QUANT_CALIB_MSE_LOSS, (double)params->mse_loss, 0);
+    edge_algo_sink_emit_scalar(sink, TAG_AI_QUANT_CALIB_SNR_DB, (double)params->snr_db, 0);
+    edge_algo_sink_emit_scalar(sink, TAG_AI_QUANT_SATURATION_PCT, (double)params->saturation_pct, 0);
 
     return 0;
 }

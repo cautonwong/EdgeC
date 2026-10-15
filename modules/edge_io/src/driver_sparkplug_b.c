@@ -12,13 +12,11 @@
 #include "driver_manager.h"
 #include "edge_log.h"
 #include "sparkplug_b.h"
-#include "datahub.h"
 
 typedef struct {
     char group_id[64];
     char edge_node_id[64];
     uint64_t seq;
-    datahub_t *hub;
     bool birth_sent;
 } spb_ctx_t;
 
@@ -51,7 +49,7 @@ static void _encode_metric_float(struct net_buf_simple *b, const char *name, flo
 /**
  * @brief 编码 NDATA/NBIRTH Payload
  */
-static int _spb_encode_payload(spb_ctx_t *ctx, uint32_t tag_id, double val, uint64_t ts, bool is_birth, net_buf_t *out) {
+static int _spb_encode_payload(edge_driver_ctx_t *driver_ctx, spb_ctx_t *ctx, uint32_t tag_id, double val, uint64_t ts, bool is_birth, net_buf_t *out) {
     struct net_buf_simple *b = &out->b;
     
     // 1. Root Timestamp
@@ -70,8 +68,8 @@ static int _spb_encode_payload(spb_ctx_t *ctx, uint32_t tag_id, double val, uint
     
     // 3. Metric
     if (tag_id > 0) {
-        const edge_tag_meta_t *meta = datahub_get_metadata_by_tag(ctx->hub, tag_id);
-        const char *name = meta ? meta->name : "unknown_tag";
+        const char *name = edge_driver_get_tag_name(driver_ctx, tag_id);
+        if (!name) name = "unknown_tag";
         _encode_metric_float(b, name, (float)val, ts);
     } else if (is_birth) {
         // [NBIRTH] 发送节点元数据
@@ -83,7 +81,6 @@ static int _spb_encode_payload(spb_ctx_t *ctx, uint32_t tag_id, double val, uint
 
 static int spb_on_init(edge_driver_ctx_t *ctx) {
     spb_ctx_t *priv = (spb_ctx_t *)ctx->priv;
-    priv->hub = (datahub_t *)ctx->user_data;
     priv->seq = 0;
     priv->birth_sent = false;
     
@@ -105,7 +102,7 @@ static int spb_on_tick(edge_driver_ctx_t *ctx, net_buf_t **out_tx) {
     if (!priv->birth_sent) {
         *out_tx = net_buf_alloc(ctx->pool, 0);
         if (*out_tx) {
-            _spb_encode_payload(priv, 0, 0, uv_hrtime()/1000000, true, *out_tx);
+            _spb_encode_payload(ctx, priv, 0, 0, uv_hrtime()/1000000, true, *out_tx);
             priv->birth_sent = true;
             return 0;
         }
@@ -115,7 +112,7 @@ static int spb_on_tick(edge_driver_ctx_t *ctx, net_buf_t **out_tx) {
 
 static int spb_encode_write(edge_driver_ctx_t *ctx, uint32_t tag_id, double value, net_buf_t *out) {
     spb_ctx_t *priv = (spb_ctx_t *)ctx->priv;
-    return _spb_encode_payload(priv, tag_id, value, uv_hrtime() / 1000000, false, out);
+    return _spb_encode_payload(ctx, priv, tag_id, value, uv_hrtime() / 1000000, false, out);
 }
 
 edge_driver_t sparkplug_b_driver = {

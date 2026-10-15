@@ -2,8 +2,9 @@
 #define EDGE_WASM_MGR_H
 
 #include <stdint.h>
-#include "datahub.h"
 #include "shmring.h"
+
+typedef struct datahub_s datahub_t;
 
 #ifdef __cplusplus
 extern "C" {

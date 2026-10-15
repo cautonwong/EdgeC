@@ -12,7 +12,6 @@
 #include "driver_manager.h"
 #include "edge_driver.h"
 #include "edge_log.h"
-#include "datahub.h"
 
 typedef struct {
     uint32_t node_id;
@@ -21,7 +20,6 @@ typedef struct {
     int32_t position_actual;
     int32_t position_target;
     cia402_state_t state;
-    datahub_t *hub;
     
     // Mapping from tag_id to CiA 402 objects
     uint32_t tag_statusword;
@@ -33,7 +31,6 @@ typedef struct {
 static int cia402_on_init(edge_driver_ctx_t *ctx) {
     cia402_ctx_t *priv = (cia402_ctx_t *)ctx->priv;
     priv->node_id = ctx->device_id;
-    priv->hub = (datahub_t *)ctx->user_data;
     priv->state = CIA402_STATE_UNKNOWN;
     
     // Default tag mapping (should be injected via contract)
@@ -80,19 +77,13 @@ static int cia402_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *re
 
 static int cia402_on_tick(edge_driver_ctx_t *ctx, net_buf_t **out_tx) {
     cia402_ctx_t *priv = (cia402_ctx_t *)ctx->priv;
-    
-    // [Nexus] 支持延迟注入 DataHub
-    if (!priv->hub && ctx->user_data) {
-        priv->hub = (datahub_t *)ctx->user_data;
-    }
-    if (!priv->hub) return -1;
 
-    // Read Controlword and Target Position from DataHub
+    // Read Controlword and Target Position via consumer-defined driver port
     pipe_msg_t msg;
     bool needs_tx = false;
     
     // RPDO1 (Controlword)
-    if (datahub_read_shadow(priv->hub, priv->tag_controlword, &msg) == 0) {
+    if (edge_driver_read_shadow(ctx, priv->tag_controlword, &msg) == 0) {
         uint16_t new_ctrl = (uint16_t)msg.payload.val.f;
         if (new_ctrl != priv->controlword) {
             priv->controlword = new_ctrl;
@@ -111,7 +102,7 @@ static int cia402_on_tick(edge_driver_ctx_t *ctx, net_buf_t **out_tx) {
     }
     
     // RPDO2 (Target Position) - If not already sent a Controlword
-    if (!needs_tx && datahub_read_shadow(priv->hub, priv->tag_pos_target, &msg) == 0) {
+    if (!needs_tx && edge_driver_read_shadow(ctx, priv->tag_pos_target, &msg) == 0) {
         int32_t new_pos = (int32_t)msg.payload.val.f;
         if (new_pos != priv->position_target) {
             priv->position_target = new_pos;

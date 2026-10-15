@@ -8,6 +8,7 @@
 #include <sys/time.h>
 
 #include "edge_log.h"
+#include "datahub.h"
 #include "stream_engine_priv.h"
 #include "sqlite_service.h"
 #include "wasm_mgr.h"

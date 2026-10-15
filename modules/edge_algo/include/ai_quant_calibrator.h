@@ -147,8 +147,15 @@ uint8_t ai_quant_fp32_to_fp8_e5m2(float val);
  */
 float ai_quant_fp8_e5m2_to_fp32(uint8_t fp8_val);
 
+#include "edge_algo_port.h"
+
 /**
- * @brief Synchronize calibration metrics to DataHub
+ * @brief Emit calibration metrics via Consumer-Defined Algo Sink
+ */
+int ai_quant_emit_params(const ai_quant_params_t *params, const edge_algo_sink_t *sink);
+
+/**
+ * @brief Synchronize calibration metrics to DataHub (Adapter bridge)
  */
 int ai_quant_sync_datahub(const ai_quant_params_t *params, datahub_t *hub);
 

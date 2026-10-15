@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <uv.h>
 
+#include "datahub.h"
 #include "stream_engine.h"
 
 static void test_pipeline_sequential_execution(void** state) {

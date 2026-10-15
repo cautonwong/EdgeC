@@ -3,7 +3,6 @@
  * @brief Dynamic Tensor Shape Static Memory Pool Implementation (AEP-706 / Issue #239)
  */
 
-#include "datahub.h"
 #include "ai_dynamic_tensor_pool.h"
 #include <string.h>
 
@@ -282,18 +281,14 @@ bool ai_dyn_pool_get_stats(const ai_dyn_pool_t *pool, ai_dyn_pool_stats_t *stats
     return true;
 }
 
-int ai_dyn_pool_sync_datahub(const ai_dyn_pool_t *pool, datahub_t *hub) {
-    if (!pool || !hub) return -1;
+int ai_dyn_pool_emit_metrics(const ai_dyn_pool_t *pool, const edge_algo_sink_t *sink) {
+    if (!pool || !sink) return -1;
 
     ai_dyn_pool_stats_t stats;
     if (!ai_dyn_pool_get_stats(pool, &stats)) return -1;
 
-    pipe_msg_t msg;
-    pipe_msg_init_scalar(&msg, 262168, (double)stats.peak_watermark_bytes, 0);
-    datahub_write_shadow(hub, &msg);
-
-    pipe_msg_init_scalar(&msg, 262169, (double)stats.fragmentation_pct, 0);
-    datahub_write_shadow(hub, &msg);
+    edge_algo_sink_emit_scalar(sink, 262168, (double)stats.peak_watermark_bytes, 0);
+    edge_algo_sink_emit_scalar(sink, 262169, (double)stats.fragmentation_pct, 0);
 
     return 0;
 }

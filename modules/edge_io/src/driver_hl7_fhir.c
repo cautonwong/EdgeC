@@ -11,13 +11,11 @@
 #include "edge_driver.h"
 #include "driver_manager.h"
 #include "edge_log.h"
-#include "datahub.h"
 
 #define MAX_FHIR_PAYLOAD 1024
 
 typedef struct {
     uint32_t node_id;
-    datahub_t *hub;
     char mqtt_topic[128];
     uint32_t alarm_tag;
     uint32_t hr_tag;
@@ -29,7 +27,6 @@ typedef struct {
 static int fhir_on_init(edge_driver_ctx_t *ctx) {
     hl7_fhir_ctx_t *priv = (hl7_fhir_ctx_t *)ctx->priv;
     priv->node_id = ctx->device_id;
-    priv->hub = (datahub_t *)ctx->user_data;
     
     // Read config from contract (simplified)
     snprintf(priv->mqtt_topic, sizeof(priv->mqtt_topic), "hospital/emr/device/%u", priv->node_id);
@@ -68,18 +65,12 @@ static void generate_fhir_risk_assessment(char *out_buf, size_t max_len, uint32_
 
 static int fhir_on_tick(edge_driver_ctx_t *ctx, net_buf_t **out_tx) {
     hl7_fhir_ctx_t *priv = (hl7_fhir_ctx_t *)ctx->priv;
-    if (!priv->hub && ctx->user_data) {
-        priv->hub = (datahub_t *)ctx->user_data;
-    }
-    if (!priv->hub) return -1;
-
     pipe_msg_t msg;
     bool needs_tx = false;
     char payload[MAX_FHIR_PAYLOAD];
 
-    // Check for Alarm Events (Events are usually popped, but we check shadow for simplicity or ring buffer)
-    // Assuming the DataHub has an event queue or we poll a specific alarm tag
-    if (datahub_read_shadow(priv->hub, priv->alarm_tag, &msg) == 0) {
+    // Check for Alarm Events via consumer-defined driver port
+    if (edge_driver_read_shadow(ctx, priv->alarm_tag, &msg) == 0) {
         if (msg.type == PIPEMSG_TYPE_EVENT) {
             // Found a fresh alarm
             uint32_t energy = msg.payload.event.param;
@@ -90,9 +81,6 @@ static int fhir_on_tick(edge_driver_ctx_t *ctx, net_buf_t **out_tx) {
             (*out_tx)->b.len = strlen(payload);
             
             LOG_INFO(LOG_CAT_IO, "FHIR: Exporting RiskAssessment -> %s", priv->mqtt_topic);
-            
-            // In a real driver, we'd clear the event or acknowledge it
-            // datahub_clear_event(priv->hub, priv->alarm_tag);
             
             needs_tx = true;
         }
