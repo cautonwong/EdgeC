@@ -172,6 +172,7 @@ static void test_app_mgr_custom_repo(void **state) {
 
     app_manifest_t m = {0};
     strncpy(m.id, "repo_app", sizeof(m.id) - 1);
+    snprintf(m.wasm_path, sizeof(m.wasm_path), "/tmp/test_edgeos_apps/repo_app/app.wasm");
     const char dummy_wasm[] = "\x00\x61\x73\x6d\x01\x00\x00\x00";
     int rc = edge_app_mgr_install(mgr, &m, dummy_wasm, sizeof(dummy_wasm));
     assert_int_equal(rc, 0);

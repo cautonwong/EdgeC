@@ -200,6 +200,16 @@ int edge_app_mgr_install(edge_app_mgr_t *mgr, const app_manifest_t *manifest, co
 
     if (wasm_data && wasm_len > 0) {
         FILE *f = fopen(m.wasm_path, "wb");
+        if (!f && strncmp(m.wasm_path, "/var/edgeos/apps", 16) == 0) {
+            snprintf(m.wasm_path, sizeof(m.wasm_path), "/tmp/edgeos/apps/%s/app.wasm", m.id);
+            snprintf(dir_path, sizeof(dir_path), "%s", m.wasm_path);
+            char *s2 = strrchr(dir_path, '/');
+            if (s2) {
+                *s2 = '\0';
+                _mkdir_p(dir_path);
+            }
+            f = fopen(m.wasm_path, "wb");
+        }
         if (!f) {
             LOG_ERROR(LOG_CAT_CORE, "AppMgr: Failed to write WASM file to %s", m.wasm_path);
             return -1;
