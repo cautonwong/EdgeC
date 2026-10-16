@@ -29,6 +29,7 @@ add_library(dcu_app_lib STATIC
     dcu_data_fusion_engine.c
     dcu_dlt698_mgmt_engine.c
     dcu_app_daemon.c
+    dcu_node.c
 )
 
 # 2. 自治库头文件依赖关系
@@ -36,6 +37,7 @@ target_include_directories(dcu_app_lib PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_BINARY_DIR}/products/${PROD_NAME}/generated
     ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_bootstrap/include
     ${CMAKE_SOURCE_DIR}/modules/edge_io/include
     ${CMAKE_SOURCE_DIR}/modules/edge_stream/include
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
@@ -45,6 +47,7 @@ target_include_directories(dcu_app_lib PUBLIC
 
 # 3. 自治库链接外部依赖 (包含 DCU 本地微数据库引擎 dcu_storage/dcu_inventory 适配器)
 target_link_libraries(dcu_app_lib PUBLIC
+    edge_bootstrap
     edge_infra
     edge_io
     edge_stream

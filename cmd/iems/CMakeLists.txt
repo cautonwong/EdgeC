@@ -40,6 +40,7 @@ set_target_properties(iems PROPERTIES
 target_link_libraries(iems PRIVATE 
     -Wl,--start-group
     iems_app_lib
+    edge_bootstrap
     edge_infra
     edge_io 
     -Wl,--whole-archive

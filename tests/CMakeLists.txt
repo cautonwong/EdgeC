@@ -60,6 +60,10 @@ add_edge_test(test_dcu_phase1_delivery test_dcu_phase1_delivery.c)
 target_include_directories(test_dcu_phase1_delivery PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu" "${CMAKE_SOURCE_DIR}/modules/edge_security/include")
 target_link_libraries(test_dcu_phase1_delivery PRIVATE dcu_app_lib edge_security)
 
+add_edge_test(test_dcu_node test_dcu_node.c)
+target_include_directories(test_dcu_node PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu" "${CMAKE_SOURCE_DIR}/modules/edge_bootstrap/include")
+target_link_libraries(test_dcu_node PRIVATE dcu_app_lib edge_bootstrap)
+
 add_edge_test(test_dlt698_conformance_suite test_dlt698_conformance_suite.c)
 target_include_directories(test_dlt698_conformance_suite PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
 target_link_libraries(test_dlt698_conformance_suite PRIVATE dcu_app_lib edge_security)

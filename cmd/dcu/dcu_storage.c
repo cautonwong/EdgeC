@@ -248,6 +248,9 @@ void dcu_storage_destroy(dcu_storage_t* storage) {
     if (!storage) return;
     if (storage->timer_active) {
         uv_timer_stop(&storage->flush_timer);
+        if (!uv_is_closing((uv_handle_t*)&storage->flush_timer)) {
+            uv_close((uv_handle_t*)&storage->flush_timer, NULL);
+        }
         storage->timer_active = false;
     }
     dcu_storage_flush(storage);

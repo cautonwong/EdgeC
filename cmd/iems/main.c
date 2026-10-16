@@ -13,6 +13,7 @@
 #include "contract_registry.h"
 #include "contracts.h"
 #include "edge_api.h"
+#include "edge_composition_root.h"
 #include "edge_license.h"
 #include "edge_service.h"
 #include "modbus_codec.h"
@@ -44,6 +45,7 @@ typedef struct {
     northbound_mgr_t* north;
     sqlite_svc_t* db_service;
     char* db_path;
+    edge_composition_container_t* comp_root;
 } iems_app_t;
 
 static iems_app_t g_app = {0};
@@ -350,7 +352,10 @@ static void iems_shutdown(uv_loop_t* loop) {
     if (g_app.orch) bus_orchestrator_destroy(g_app.orch);
     if (g_app.arb) arbiter_destroy(g_app.arb);
     if (g_app.drv_mgr) driver_manager_destroy(g_app.drv_mgr);
-    if (g_app.hub) {
+    if (g_app.comp_root) {
+        edge_composition_root_destroy(g_app.comp_root);
+        g_app.hub = NULL;
+    } else if (g_app.hub) {
         datahub_destroy(g_app.hub);
         free(g_app.hub);
     }
@@ -392,10 +397,21 @@ int main(int argc, char* argv[]) {
     g_app.drv_mgr = driver_manager_create();
     edge_driver_registry_init(g_app.drv_mgr);
 
-    const char* shm_name = getenv("EDGE_SHM_NAME") ? getenv("EDGE_SHM_NAME") : EDGE_SHM_BUS_NAME;
-    g_app.hub = calloc(1, sizeof(datahub_t));
-    datahub_init(g_app.hub, loop, shm_name, 4096, 1024, contract->tags, contract->tag_count, NULL,
-                 edge_tag_get_compact_index, NULL);
+    edge_composition_config_t comp_cfg = {
+        .product_name = "IEMS",
+        .datahub_capacity = 4096,
+        .memory_pool_buffer_size = 2048,
+        .memory_pool_capacity = 64,
+        .enable_dma_buf = false,
+        .enable_anti_corruption = true
+    };
+    static edge_composition_container_storage_t comp_storage;
+    g_app.comp_root = edge_composition_root_create_in(&comp_storage, &comp_cfg);
+    g_app.hub = edge_composition_root_get_datahub(g_app.comp_root);
+    if (g_app.hub) {
+        g_app.hub->loop = loop;
+        g_app.hub->map_fn = edge_tag_get_compact_index;
+    }
 
     // [ADR-0001] Start DataHub metrics reporting
     datahub_start_metrics(g_app.hub);
