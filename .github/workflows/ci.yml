@@ -119,6 +119,7 @@ jobs:
 
       - name: Upload Artifacts
         if: matrix.config.target != 'x86_64_asan'
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: edgeos-dist-${{ matrix.config.target }}
@@ -178,6 +179,7 @@ jobs:
 
       - name: Upload Playwright Report
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report-${{ matrix.product }}
