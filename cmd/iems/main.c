@@ -110,6 +110,7 @@ static void on_ui_connect(uv_stream_t* server, int status) {
 
 static void on_poll_task_trigger(uv_periodic_t* handle) {
     iems_poll_task_t* task = (iems_poll_task_t*)handle->data;
+    if (!task) return;
     if (!g_assets_loaded) return;
 
     const edge_contract_t* contract = contract_get_active();
@@ -397,21 +398,22 @@ int main(int argc, char* argv[]) {
     g_app.drv_mgr = driver_manager_create();
     edge_driver_registry_init(g_app.drv_mgr);
 
-    edge_composition_config_t comp_cfg = {
-        .product_name = "IEMS",
-        .datahub_capacity = 4096,
-        .memory_pool_buffer_size = 2048,
-        .memory_pool_capacity = 64,
-        .enable_dma_buf = false,
-        .enable_anti_corruption = true
-    };
+    const char* shm_name = getenv("EDGE_SHM_NAME") ? getenv("EDGE_SHM_NAME") : EDGE_SHM_BUS_NAME;
+    edge_composition_config_t comp_cfg = {.product_name = "IEMS",
+                                          .loop = loop,
+                                          .shm_name = shm_name,
+                                          .ring_capacity = 4096,
+                                          .datahub_capacity = 1024,
+                                          .tags = contract->tags,
+                                          .tag_count = contract->tag_count,
+                                          .map_fn = edge_tag_get_compact_index,
+                                          .memory_pool_buffer_size = 2048,
+                                          .memory_pool_capacity = 64,
+                                          .enable_dma_buf = false,
+                                          .enable_anti_corruption = true};
     static edge_composition_container_storage_t comp_storage;
     g_app.comp_root = edge_composition_root_create_in(&comp_storage, &comp_cfg);
     g_app.hub = edge_composition_root_get_datahub(g_app.comp_root);
-    if (g_app.hub) {
-        g_app.hub->loop = loop;
-        g_app.hub->map_fn = edge_tag_get_compact_index;
-    }
 
     // [ADR-0001] Start DataHub metrics reporting
     datahub_start_metrics(g_app.hub);

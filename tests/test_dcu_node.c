@@ -39,12 +39,10 @@ static void test_dcu_node_lifecycle(void **state) {
     const char *db_path = "/tmp/test_dcu_node.db";
     unlink(db_path);
 
-    dcu_node_config_t cfg = {
-        .product_name = "DCU_Test",
-        .db_path = db_path,
-        .datahub_capacity = 1024,
-        .poll_interval_ms = 100
-    };
+    dcu_node_config_t cfg = {.product_name = "DCU_Test",
+                             .db_path = db_path,
+                             .datahub_capacity = 1024,
+                             .poll_interval_ms = 100};
 
     dcu_node_t *node = dcu_node_create(loop, &cfg);
     assert_non_null(node);

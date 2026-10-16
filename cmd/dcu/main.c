@@ -16,8 +16,8 @@
 #include "datahub.h"
 #include "dcu_event_monitor.h"
 #include "dcu_inventory.h"
-#include "dcu_poller.h"
 #include "dcu_node.h"
+#include "dcu_poller.h"
 #include "dcu_router.h"
 #include "dcu_storage.h"
 #include "driver_manager.h"
@@ -83,8 +83,8 @@ static void _freeze_trigger_cb(uv_timer_t* handle) {
     for (int i = 0; i < inv->count; i++) {
         int shadow_idx = dcu_tag_map_fn(0x20000200, (uint32_t)i);
         if (datahub_read_shadow_idx(ctx->hub, (uint32_t)shadow_idx, &msg) == 0) {
-            dcu_storage_write_telemetry(storage, inv->meters[i].address,
-                                        (uint32_t)i, 0x20000200, (float)msg.payload.val.f);
+            dcu_storage_write_telemetry(storage, inv->meters[i].address, (uint32_t)i, 0x20000200,
+                                        (float)msg.payload.val.f);
             saved++;
         }
     }
@@ -173,12 +173,10 @@ int main(int argc, char** argv) {
     }
 
     const char* db_abs_path = db_resolved_path;
-    dcu_node_config_t node_cfg = {
-        .product_name = "DCU",
-        .db_path = db_abs_path,
-        .datahub_capacity = 32768,
-        .poll_interval_ms = 5000
-    };
+    dcu_node_config_t node_cfg = {.product_name = "DCU",
+                                  .db_path = db_abs_path,
+                                  .datahub_capacity = 32768,
+                                  .poll_interval_ms = 5000};
     g_dcu_node = dcu_node_create(loop, &node_cfg);
     if (!g_dcu_node) {
         LOG_ERROR(LOG_CAT_SCHED, "❌ FATAL: Failed to initialize DCU node.");
@@ -192,8 +190,7 @@ int main(int argc, char** argv) {
         dcu_node_destroy(g_dcu_node);
         return -2;
     }
-    LOG_INFO(LOG_CAT_SCHED, "📖 [ARCHIVE] Loaded %d meters from Digital Twin database.",
-             inv->count);
+    LOG_INFO(LOG_CAT_SCHED, "📖 [ARCHIVE] Loaded %d meters from Digital Twin database.", inv->count);
 
     datahub_t* hub = dcu_node_get_datahub(g_dcu_node);
     dcu_storage_t* storage = dcu_node_get_storage(g_dcu_node);
@@ -247,13 +244,13 @@ int main(int argc, char** argv) {
                                    .archive_freeze = _event_archive_freeze};
 
     pipeline_t* evt_pipe = stream_engine_add_pipeline(se, "EVENT_PIPELINE", 0);
-    pipeline_stage_t* m_stage =
-        stage_event_monitor_create(dcu_node_get_event_3000(g_dcu_node), dcu_node_get_event_3005(g_dcu_node));
+    pipeline_stage_t* m_stage = stage_event_monitor_create(dcu_node_get_event_3000(g_dcu_node),
+                                                           dcu_node_get_event_3005(g_dcu_node));
     pipeline_add_stage(evt_pipe, m_stage->name, m_stage->process, m_stage->priv_state,
                        m_stage->cleanup_state, NULL, NULL);
     free(m_stage);
-    pipeline_stage_t* l_stage =
-        stage_event_logger_create(dcu_node_get_event_3000(g_dcu_node), dcu_node_get_event_3005(g_dcu_node), hub, event_sink);
+    pipeline_stage_t* l_stage = stage_event_logger_create(
+        dcu_node_get_event_3000(g_dcu_node), dcu_node_get_event_3005(g_dcu_node), hub, event_sink);
     pipeline_add_stage(evt_pipe, l_stage->name, l_stage->process, l_stage->priv_state,
                        l_stage->cleanup_state, NULL, NULL);
     free(l_stage);

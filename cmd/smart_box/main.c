@@ -461,25 +461,26 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    edge_composition_config_t comp_cfg = {
-        .product_name = "smart_box",
-        .datahub_capacity = 4096,
-        .memory_pool_buffer_size = 2048,
-        .memory_pool_capacity = 32,
-        .enable_dma_buf = false,
-        .enable_anti_corruption = true
-    };
+    edge_composition_config_t comp_cfg = {.product_name = "smart_box",
+                                          .loop = loop,
+                                          .shm_name = "smart_box",
+                                          .ring_capacity = 4096,
+                                          .datahub_capacity = 1024,
+                                          .tags = contract->tags,
+                                          .tag_count = contract->tag_count,
+                                          .map_fn = edge_tag_get_compact_index,
+                                          .memory_pool_buffer_size = 2048,
+                                          .memory_pool_capacity = 32,
+                                          .enable_dma_buf = false,
+                                          .enable_anti_corruption = true};
     static edge_composition_container_storage_t comp_storage;
-    edge_composition_container_t *comp_root = edge_composition_root_create_in(&comp_storage, &comp_cfg);
+    edge_composition_container_t *comp_root =
+        edge_composition_root_create_in(&comp_storage, &comp_cfg);
     if (!comp_root) {
         LOG_ERROR(LOG_CAT_CORE, "Failed to instantiate Composition Root");
         return -1;
     }
     g_hub = edge_composition_root_get_datahub(comp_root);
-    if (g_hub) {
-        g_hub->loop = loop;
-        g_hub->map_fn = edge_tag_get_compact_index;
-    }
 
     // 初始化 GPIO 节点 (通过安全 HAL 适配，避免 shell 注入风险)
     static const char *gpio_dirs[] = {"/sys/class/gpio/gpio23",

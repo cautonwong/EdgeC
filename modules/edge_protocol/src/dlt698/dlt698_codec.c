@@ -334,10 +334,10 @@ int dlt698_decode_double_long(const uint8_t *buf, uint16_t len, uint16_t *offset
     (*offset)++;
     
     // 大端序还原 32 位有符号数
-    *val = (int32_t)((buf[*offset] << 24) | 
-                     (buf[*offset + 1] << 16) | 
-                     (buf[*offset + 2] << 8) | 
-                     buf[*offset + 3]);
+    *val = (int32_t)(((uint32_t)buf[*offset] << 24) | 
+                     ((uint32_t)buf[*offset + 1] << 16) | 
+                     ((uint32_t)buf[*offset + 2] << 8) | 
+                     (uint32_t)buf[*offset + 3]);
     *offset += 4;
     
     return 0;

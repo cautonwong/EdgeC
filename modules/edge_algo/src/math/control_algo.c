@@ -200,7 +200,8 @@ int control_qp_solve_hildreth(const edge_matrix_t *Q, const edge_matrix_t *c,
             for(uint32_t j=0; j<m; j++) {
                 if(i != j) w += edge_matrix_get(H, i, j) * edge_matrix_get(lambda, j, 0);
             }
-            double val = -w / edge_matrix_get(H, i, i);
+            double h_ii = edge_matrix_get(H, i, i);
+            double val = (fabs(h_ii) > 1e-12) ? (-w / h_ii) : 0.0;
             edge_matrix_set(lambda, i, 0, val > 0 ? val : 0);
         }
     }

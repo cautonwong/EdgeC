@@ -4,8 +4,10 @@
  */
 
 #include "dcu_node.h"
+
 #include <stdlib.h>
 #include <string.h>
+
 #include "contracts.h"
 #include "edge_log.h"
 
@@ -38,7 +40,8 @@ static void _dcu_node_poller_timer_cb(uv_timer_t *handle) {
     }
 }
 
-static int _node_publish_realtime(void *ctx, uint32_t tag_id, uint32_t meter_idx, double val, uint64_t timestamp_ns) {
+static int _node_publish_realtime(void *ctx, uint32_t tag_id, uint32_t meter_idx, double val,
+                                  uint64_t timestamp_ns) {
     dcu_node_t *node = (dcu_node_t *)ctx;
     if (!node || !node->hub) return -1;
     pipe_msg_t bus_msg;
@@ -74,14 +77,16 @@ dcu_node_t *dcu_node_create(uv_loop_t *loop, const dcu_node_config_t *cfg) {
     if (!node->cfg.datahub_capacity) node->cfg.datahub_capacity = 32768;
 
     /* 1. Assemble Foundation via Edge Composition Root */
-    edge_composition_config_t comp_cfg = {
-        .product_name = node->cfg.product_name,
-        .datahub_capacity = node->cfg.datahub_capacity,
-        .memory_pool_buffer_size = 4096,
-        .memory_pool_capacity = 16,
-        .enable_dma_buf = false,
-        .enable_anti_corruption = true
-    };
+    edge_composition_config_t comp_cfg = {.product_name = node->cfg.product_name,
+                                          .loop = node->loop,
+                                          .shm_name = node->cfg.product_name,
+                                          .ring_capacity = node->cfg.datahub_capacity,
+                                          .datahub_capacity = node->cfg.datahub_capacity,
+                                          .map_fn_v2 = dcu_tag_map_fn,
+                                          .memory_pool_buffer_size = 4096,
+                                          .memory_pool_capacity = 16,
+                                          .enable_dma_buf = false,
+                                          .enable_anti_corruption = true};
     node->comp_root = edge_composition_root_create_in(&node->comp_storage, &comp_cfg);
     if (!node->comp_root) {
         LOG_ERROR(LOG_CAT_CORE, "DCU Node: Failed to instantiate Composition Root");
@@ -90,15 +95,13 @@ dcu_node_t *dcu_node_create(uv_loop_t *loop, const dcu_node_config_t *cfg) {
     }
 
     node->hub = edge_composition_root_get_datahub(node->comp_root);
-    if (node->hub) {
-        node->hub->map_fn_v2 = dcu_tag_map_fn;
-    }
 
     /* 2. Initialize Encapsulated Storage Sink */
     if (node->cfg.db_path && strlen(node->cfg.db_path) > 0) {
         int rc = dcu_storage_init(&node->storage, loop, node->cfg.db_path);
         if (rc != 0) {
-            LOG_ERROR(LOG_CAT_CORE, "DCU Node: Failed to initialize storage at %s", node->cfg.db_path);
+            LOG_ERROR(LOG_CAT_CORE, "DCU Node: Failed to initialize storage at %s",
+                      node->cfg.db_path);
             edge_composition_root_destroy(node->comp_root);
             free(node);
             return NULL;
@@ -133,31 +136,22 @@ dcu_node_t *dcu_node_create(uv_loop_t *loop, const dcu_node_config_t *cfg) {
     dcu_poller_add_scheme(&node->poller, 1, 0, oads, 1);
     dcu_poller_add_task(&node->poller, 1, 5, 1);
 
-    poller_sink_ops_t poller_sink = {
-        .ctx = &node->storage,
-        .record_telemetry = (void *)dcu_storage_write_telemetry,
-        .commit_batch = (void *)dcu_storage_flush
-    };
+    poller_sink_ops_t poller_sink = {.ctx = &node->storage,
+                                     .record_telemetry = (void *)dcu_storage_write_telemetry,
+                                     .commit_batch = (void *)dcu_storage_flush};
     poller_bus_ops_t poller_bus = {
-        .ctx = node,
-        .publish_realtime = _node_publish_realtime,
-        .push_event = NULL
-    };
+        .ctx = node, .publish_realtime = _node_publish_realtime, .push_event = NULL};
     dcu_poller_start(&node->poller, (poller_io_ops_t){0}, poller_bus, poller_sink);
 
-    router_sink_ops_t router_sink = {
-        .ctx = &node->storage,
-        .record_telemetry = (void *)dcu_storage_write_telemetry,
-        .count_freezes = _node_count_freezes
-    };
-    router_bus_ops_t router_bus = {
-        .ctx = node,
-        .msg_size = sizeof(pipe_msg_t),
-        .publish_realtime = _node_publish_realtime,
-        .read_shadow_idx = _node_read_shadow
-    };
-    dcu_router_init_ex(&node->inventory, &node->poller, router_sink, NULL, NULL,
-                       &node->evt_3000, &node->evt_3005, router_bus);
+    router_sink_ops_t router_sink = {.ctx = &node->storage,
+                                     .record_telemetry = (void *)dcu_storage_write_telemetry,
+                                     .count_freezes = _node_count_freezes};
+    router_bus_ops_t router_bus = {.ctx = node,
+                                   .msg_size = sizeof(pipe_msg_t),
+                                   .publish_realtime = _node_publish_realtime,
+                                   .read_shadow_idx = _node_read_shadow};
+    dcu_router_init_ex(&node->inventory, &node->poller, router_sink, NULL, NULL, &node->evt_3000,
+                       &node->evt_3005, router_bus);
 
     /* 6. Setup Poller Periodic Timer */
     node->poller_timer = (uv_timer_t *)calloc(1, sizeof(uv_timer_t));
@@ -175,9 +169,11 @@ int dcu_node_start(dcu_node_t *node) {
     if (!node || node->running) return -1;
     node->running = true;
     if (node->poller_timer) {
-        uv_timer_start(node->poller_timer, _dcu_node_poller_timer_cb, 0, node->cfg.poll_interval_ms);
+        uv_timer_start(node->poller_timer, _dcu_node_poller_timer_cb, 0,
+                       node->cfg.poll_interval_ms);
     }
-    LOG_INFO(LOG_CAT_CORE, "DCU Node started with polling interval %u ms", node->cfg.poll_interval_ms);
+    LOG_INFO(LOG_CAT_CORE, "DCU Node started with polling interval %u ms",
+             node->cfg.poll_interval_ms);
     return 0;
 }
 

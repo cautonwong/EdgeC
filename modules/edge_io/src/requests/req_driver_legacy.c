@@ -8,21 +8,7 @@
 #include "bus_engine.h"
 #include "edge_driver.h"
 #include "session_manager.h"
-
-// [Deepening] 镜像 MasterEngine 的私有结构，用于访问 SessionManager
-typedef struct {
-    bus_engine_t base;
-    uv_loop_t *loop;
-    arbiter_t *arb;
-    struct net_buf_pool *pool;
-    io_handle_t *io;
-    uv_timer_t timer;
-    cmd_msg_t *current_cmd;
-    uint8_t rx_static_data[4096];
-    struct net_buf_simple rx_acc;
-    int bus_id;
-    session_manager_t *session_mgr;
-} master_engine_view_t;
+#include "../engines/engine_priv_internal.h"
 
 typedef struct {
     driver_manager_t *dm;
@@ -41,7 +27,7 @@ typedef struct {
 
 static int legacy_setup(edge_req_t *req, void *engine_ctx) {
     legacy_req_ctx_t *ctx = (legacy_req_ctx_t *)req->priv_data;
-    master_engine_view_t *master = (master_engine_view_t *)engine_ctx;
+    master_priv_t *master = (master_priv_t *)engine_ctx;
 
     // [Deepening] 从 SessionManager 获取持久化会话，而不是每次创建
     if (!ctx->drv_ctx) {

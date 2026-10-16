@@ -29,10 +29,10 @@ extern "C" {
 typedef struct dcu_node_s dcu_node_t;
 
 typedef struct {
-    const char *product_name;    /**< Product identifier, default "DCU" */
-    const char *db_path;         /**< Path to SQLite digital twin database */
-    size_t datahub_capacity;     /**< DataHub tag capacity (e.g. 32768) */
-    uint32_t poll_interval_ms;   /**< Poller timer period in ms (default 1000) */
+    const char *product_name;  /**< Product identifier, default "DCU" */
+    const char *db_path;       /**< Path to SQLite digital twin database */
+    size_t datahub_capacity;   /**< DataHub tag capacity (e.g. 32768) */
+    uint32_t poll_interval_ms; /**< Poller timer period in ms (default 1000) */
 } dcu_node_config_t;
 
 /**

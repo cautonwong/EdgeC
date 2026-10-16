@@ -463,8 +463,10 @@ static void test_vsg_presync_reconnection_lock(void) {
     /* Verify locking achieved */
     assert(vsg_controller_is_sync_locked(vsg));
 
-    vsg_transition_status_t status;
-    assert(vsg_controller_get_transition_status(vsg, &status) == 0);
+    vsg_transition_status_t status = {0};
+    int status_rc = vsg_controller_get_transition_status(vsg, &status);
+    assert(status_rc == 0);
+    (void)status_rc;
     printf(
         "    • Pre-sync status: Locked=%d, delta_theta=%.4f rad, delta_v=%.2f V, delta_f=%.4f Hz\n",
         status.sync_locked, status.delta_theta_rad, status.delta_volt_v, status.delta_freq_hz);

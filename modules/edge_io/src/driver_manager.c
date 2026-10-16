@@ -193,7 +193,12 @@ driver_manager_t *driver_manager_create_in(driver_manager_storage_t *storage) {
 }
 
 driver_manager_t *driver_manager_create(void) {
-    return driver_manager_create_in(&g_default_drv_mgr_storage);
+    driver_manager_t *mgr = calloc(1, sizeof(driver_manager_t));
+    if (!mgr) return NULL;
+    uv_mutex_init(&mgr->lock);
+    mgr->lock_init = true;
+    mgr->is_static = false;
+    return mgr;
 }
 
 void driver_manager_destroy(driver_manager_t *mgr) {
@@ -305,7 +310,16 @@ static const char *_driver_port_get_tag_name(edge_driver_ctx_t *ctx, uint32_t ta
 edge_driver_ctx_t *driver_instance_create(driver_manager_t *mgr, const char *protocol,
                                           uint32_t device_id) {
     const edge_driver_t *tmpl = driver_manager_find(mgr, protocol);
-    if (!tmpl) return NULL;
+    if (!tmpl) {
+        printf("[DRV_INST_FAIL] driver_manager_find failed for '%s'! mgr=%p, count=%d\n",
+               protocol, (void*)mgr, mgr ? mgr->count : -1);
+        if (mgr) {
+            for (int i = 0; i < mgr->count; i++) {
+                printf("  registered driver[%d]: '%s'\n", i, mgr->drivers[i] ? mgr->drivers[i]->name : "null");
+            }
+        }
+        return NULL;
+    }
 
     driver_inst_slot_t *slot = NULL;
     if (mgr) {
