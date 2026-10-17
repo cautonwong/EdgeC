@@ -23,8 +23,6 @@
 extern "C" {
 #endif
 
-typedef struct datahub_s datahub_t;
-
 /* -------------------------------------------------------------------------- */
 /* Constants & Types                                                          */
 /* -------------------------------------------------------------------------- */
@@ -107,10 +105,6 @@ bool ai_hetero_pipeline_get_metrics(const ai_hetero_pipeline_t *pipe,
  */
 int ai_hetero_pipeline_emit_metrics(const ai_hetero_pipeline_t *pipe, const edge_algo_sink_t *sink);
 
-/**
- * @brief Synchronize metrics to DataHub (Adapter bridge)
- */
-int ai_hetero_pipeline_sync_datahub(const ai_hetero_pipeline_t *pipe, datahub_t *hub);
 
 #ifdef __cplusplus
 }

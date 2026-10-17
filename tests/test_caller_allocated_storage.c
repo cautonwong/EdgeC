@@ -1345,8 +1345,8 @@ static void test_edge_service_caller_allocated_storage(void **state) {
     datahub_t dummy_hub;
     memset(&dummy_hub, 0, sizeof(dummy_hub));
     dummy_hub.loop = &loop;
-    uint8_t dummy_arb_buf[64] = {0};
-    arbiter_t *dummy_arb = (arbiter_t *)dummy_arb_buf;
+    arbiter_storage_t dummy_arb_store;
+    arbiter_t *dummy_arb = arbiter_create_in(&dummy_arb_store, &loop);
 
     service_t *svc =
         service_create_in(&store, &loop, &dummy_hub, dummy_arb, NULL, NULL, NULL, NULL);
@@ -1357,6 +1357,7 @@ static void test_edge_service_caller_allocated_storage(void **state) {
     assert_ptr_equal(service_get_arbiter(svc), dummy_arb);
 
     service_destroy(svc);
+    arbiter_destroy(dummy_arb);
     uv_loop_close(&loop);
 }
 

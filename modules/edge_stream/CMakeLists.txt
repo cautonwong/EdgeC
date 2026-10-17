@@ -14,6 +14,7 @@ set(STREAM_SOURCES
     src/stream_sql_dag.c
     src/mpc_dispatcher.c
     src/edge_tensor_pipeline.c
+    src/edge_algo_datahub_adapter.c
     ${STAGE_SOURCES}
 )
 

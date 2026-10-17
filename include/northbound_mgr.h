@@ -27,6 +27,7 @@ typedef struct {
 typedef struct {
     uv_thread_t thread;
     uv_loop_t* loop;
+    uv_loop_t loop_storage;  // [Issue #385] Caller-Allocated loop storage (0 malloc)
     uv_timer_t poll_timer;
     uv_async_t stop_async;
     uv_async_t req_async;
@@ -74,5 +75,6 @@ void northbound_mgr_destroy(northbound_mgr_t* mgr);
 
 int northbound_mgr_submit_req(northbound_mgr_t* mgr, edge_req_t* req);
 void northbound_mgr_set_rest_port(northbound_mgr_t* mgr, int port);
+void northbound_mgr_set_rest_server(northbound_mgr_t* mgr, void* rest_srv);
 
 #endif

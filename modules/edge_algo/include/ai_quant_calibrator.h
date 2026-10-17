@@ -22,8 +22,6 @@
 extern "C" {
 #endif
 
-typedef struct datahub_s datahub_t;
-
 /* -------------------------------------------------------------------------- */
 /* Constants & Enumerations                                                   */
 /* -------------------------------------------------------------------------- */
@@ -154,10 +152,6 @@ float ai_quant_fp8_e5m2_to_fp32(uint8_t fp8_val);
  */
 int ai_quant_emit_params(const ai_quant_params_t *params, const edge_algo_sink_t *sink);
 
-/**
- * @brief Synchronize calibration metrics to DataHub (Adapter bridge)
- */
-int ai_quant_sync_datahub(const ai_quant_params_t *params, datahub_t *hub);
 
 /**
  * @brief Reset calibrator histogram & accumulators

@@ -23,8 +23,6 @@
 extern "C" {
 #endif
 
-typedef struct datahub_s datahub_t;
-
 /* -------------------------------------------------------------------------- */
 /* Constants & Enumerations                                                   */
 /* -------------------------------------------------------------------------- */
@@ -133,10 +131,6 @@ bool ai_graph_pruner_get_stats(const ai_graph_pruner_t *pruner, ai_graph_stats_t
  */
 int ai_graph_pruner_emit_metrics(const ai_graph_pruner_t *pruner, const edge_algo_sink_t *sink);
 
-/**
- * @brief Synchronize pruning telemetry to DataHub (Adapter bridge)
- */
-int ai_graph_pruner_sync_datahub(const ai_graph_pruner_t *pruner, datahub_t *hub);
 
 #ifdef __cplusplus
 }

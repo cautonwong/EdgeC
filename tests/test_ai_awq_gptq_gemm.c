@@ -11,6 +11,7 @@
 
 #include "ai_awq_gptq_gemm.h"
 #include "datahub.h"
+#include "edge_algo_datahub_adapter.h"
 
 static void test_ai_awq_pack_and_fused_gemv(void **state) {
     (void)state;

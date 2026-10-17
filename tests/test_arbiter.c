@@ -193,11 +193,29 @@ static void test_arbiter_bounded_queue_and_priority_drop(void** state) {
     free(cmds[6]);
 }
 
+static void test_arbiter_caller_allocated(void** state) {
+    (void)state;
+    arbiter_storage_t store;
+    uv_loop_t loop;
+    uv_loop_init(&loop);
+
+    arbiter_t* arb = arbiter_create_in(&store, &loop);
+    assert_non_null(arb);
+    assert_ptr_equal(arb, (arbiter_t*)&store);
+
+    arbiter_bus_status_t stats;
+    assert_int_equal(arbiter_get_statuses(arb, &stats, 1), 1);
+
+    arbiter_destroy(arb);
+    uv_loop_close(&loop);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_arbiter_preempt, setup, teardown),
         cmocka_unit_test(test_arbiter_stress_and_destroy),
         cmocka_unit_test(test_arbiter_bounded_queue_and_priority_drop),
+        cmocka_unit_test(test_arbiter_caller_allocated),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

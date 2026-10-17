@@ -71,13 +71,10 @@ for h in "${DECOUPLED_PUBLIC_HEADERS[@]}"; do
     fi
 done
 
-# 5. 算法实现源文件不得直接包含具体的 datahub.h (防腐适配器 edge_algo_datahub_adapter.c 除外)
+# 5. 算法实现源文件不得直接包含具体的 datahub.h
 echo "  [5/7] Checking modules/edge_algo implementation source files..."
 for f in "${REPO_ROOT}"/modules/edge_algo/src/*.c; do
     base=$(basename "$f")
-    if [ "$base" = "edge_algo_datahub_adapter.c" ]; then
-        continue
-    fi
     if grep -E '^[[:space:]]*#[[:space:]]*include[[:space:]]+["<]datahub\.h[">]' "$f" >/dev/null 2>&1; then
         echo "    ❌ VIOLATION: Algorithm source file ${base} includes concrete datahub.h directly (must use consumer ports)"
         VIOLATIONS=$((VIOLATIONS + 1))

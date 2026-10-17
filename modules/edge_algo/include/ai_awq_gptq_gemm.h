@@ -23,8 +23,6 @@
 extern "C" {
 #endif
 
-typedef struct datahub_s datahub_t;
-
 /* -------------------------------------------------------------------------- */
 /* Constants & Enums                                                          */
 /* -------------------------------------------------------------------------- */
@@ -149,10 +147,6 @@ int ai_awq_munmap_weights(void *mmap_handle, size_t mmap_size);
  */
 int ai_awq_emit_metrics(const ai_awq_metrics_t *metrics, const edge_algo_sink_t *sink);
 
-/**
- * @brief Synchronize AWQ execution metrics to DataHub (Adapter bridge)
- */
-int ai_awq_sync_datahub(const ai_awq_metrics_t *metrics, datahub_t *hub);
 
 #ifdef __cplusplus
 }
