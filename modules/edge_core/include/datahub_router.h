@@ -64,6 +64,11 @@ int datahub_router_read_shadow(datahub_router_t *router, uint32_t tag_id, pipe_m
  */
 void datahub_router_destroy(datahub_router_t *router);
 
+/**
+ * @brief [Composite Backend] 复合多后端路由 VTable 实例
+ */
+extern const datahub_ops_t g_datahub_router_ops;
+
 #ifdef __cplusplus
 }
 #endif

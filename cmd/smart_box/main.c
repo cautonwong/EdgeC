@@ -176,18 +176,12 @@ static void timer_hw_poll_cb(uv_timer_t *handle) {
     }
     pipe_msg_t msg_p;
     pipe_msg_init_scalar(&msg_p, TAG_SYS_POWER_SOURCE, power_src, uv_hrtime());
-    int idx = edge_tag_get_compact_index(TAG_SYS_POWER_SOURCE);
-    if (idx >= 0) {
-        datahub_write_shadow_idx(g_hub, idx, &msg_p);
-    }
+    datahub_write_shadow(g_hub, &msg_p);
 
     // 写入 DataHub BATTERY_SOC 标签
     pipe_msg_t msg_soc;
     pipe_msg_init_scalar(&msg_soc, TAG_BATTERY_SOC, battery_soc, uv_hrtime());
-    int idx_soc = edge_tag_get_compact_index(TAG_BATTERY_SOC);
-    if (idx_soc >= 0) {
-        datahub_write_shadow_idx(g_hub, idx_soc, &msg_soc);
-    }
+    datahub_write_shadow(g_hub, &msg_soc);
 
     // 低电量预警 (SOC < 15.0%)
     if (battery_soc < 15.0) {
@@ -250,26 +244,17 @@ static void timer_hw_poll_cb(uv_timer_t *handle) {
     int net_type = net_priority_check();
     pipe_msg_t msg_net;
     pipe_msg_init_scalar(&msg_net, TAG_NET_ACTIVE_INTERFACE, (double)(net_type - 1), uv_hrtime());
-    int idx_net = edge_tag_get_compact_index(TAG_NET_ACTIVE_INTERFACE);
-    if (idx_net >= 0) {
-        datahub_write_shadow_idx(g_hub, idx_net, &msg_net);
-    }
+    datahub_write_shadow(g_hub, &msg_net);
 
     int alsa_found = alsa_usb_audio_check();
     pipe_msg_t msg_alsa;
     pipe_msg_init_scalar(&msg_alsa, TAG_ALSA_AUDIO_ROUTE, (double)(alsa_found > 0 ? 1 : 0),
                          uv_hrtime());
-    int idx_alsa = edge_tag_get_compact_index(TAG_ALSA_AUDIO_ROUTE);
-    if (idx_alsa >= 0) {
-        datahub_write_shadow_idx(g_hub, idx_alsa, &msg_alsa);
-    }
+    datahub_write_shadow(g_hub, &msg_alsa);
 
     pipe_msg_t msg_rgb;
     pipe_msg_init_scalar(&msg_rgb, TAG_LED_RGB_STATUS, led_mode, uv_hrtime());
-    int idx_rgb = edge_tag_get_compact_index(TAG_LED_RGB_STATUS);
-    if (idx_rgb >= 0) {
-        datahub_write_shadow_idx(g_hub, idx_rgb, &msg_rgb);
-    }
+    datahub_write_shadow(g_hub, &msg_rgb);
 }
 
 // 物理大按钮 SOS 下沿中断处理
@@ -288,10 +273,7 @@ static void poll_sos_cb(uv_fs_event_t *handle, const char *filename, int events,
             pipe_msg_t msg;
             pipe_msg_init_scalar(&msg, TAG_BOX_VOICE_COMMAND, 2.0,
                                  uv_hrtime());  // command = SOS (2.0)
-            int idx = edge_tag_get_compact_index(TAG_BOX_VOICE_COMMAND);
-            if (idx >= 0) {
-                datahub_write_shadow_idx(g_hub, idx, &msg);
-            }
+            datahub_write_shadow(g_hub, &msg);
             // 通过 UDS IPC 向 Go 后端发送二进制报警帧 (MsgType = 3)
             send_uds_frame(3, NULL, 0);
         }
@@ -314,10 +296,7 @@ static void timer_nfc_poll_cb(uv_timer_t *handle) {
         pipe_msg_t msg;
         pipe_msg_init_scalar(&msg, TAG_BOX_VOICE_COMMAND, 3.0,
                              uv_hrtime());  // command = LogIn (3.0)
-        int idx = edge_tag_get_compact_index(TAG_BOX_VOICE_COMMAND);
-        if (idx >= 0) {
-            datahub_write_shadow_idx(g_hub, idx, &msg);
-        }
+        datahub_write_shadow(g_hub, &msg);
         // 发送扫到的外设 NDEF 报文
         const char *nfc_payload =
             "{\"dev_type\":\"exoskeleton\",\"slave_id\":1,\"protocol\":\"ModbusRTU\",\"baud\":"
@@ -337,10 +316,7 @@ static void timer_modbus_poll_cb(uv_timer_t *handle) {
         double completion = 85.0;  // 模拟达成率 85%
         pipe_msg_t msg;
         pipe_msg_init_scalar(&msg, TAG_REHAB_COMPLETION_RATE, completion, uv_hrtime());
-        int idx = edge_tag_get_compact_index(TAG_REHAB_COMPLETION_RATE);
-        if (idx >= 0) {
-            datahub_write_shadow_idx(g_hub, idx, &msg);
-        }
+        datahub_write_shadow(g_hub, &msg);
         close(uart_fd);
     }
 }
@@ -368,10 +344,7 @@ static void ble_heartrate_cb(int raw_hr) {
     LOG_INFO(LOG_CAT_CORE, "BLE GATT: Subscribed heart rate updated: %d BPM", raw_hr);
     pipe_msg_t msg;
     pipe_msg_init_scalar(&msg, TAG_RAW_HEART_RATE, (double)raw_hr, uv_hrtime());
-    int idx = edge_tag_get_compact_index(TAG_RAW_HEART_RATE);
-    if (idx >= 0) {
-        datahub_write_shadow_idx(g_hub, idx, &msg);
-    }
+    datahub_write_shadow(g_hub, &msg);
 
     if (raw_hr > 130) {
         LOG_WARN(LOG_CAT_CORE,
@@ -380,10 +353,7 @@ static void ble_heartrate_cb(int raw_hr) {
                  raw_hr);
         pipe_msg_t alert_msg;
         pipe_msg_init_scalar(&alert_msg, TAG_BOX_HEART_RATE_ALERT, 1.0, uv_hrtime());
-        int alert_idx = edge_tag_get_compact_index(TAG_BOX_HEART_RATE_ALERT);
-        if (alert_idx >= 0) {
-            datahub_write_shadow_idx(g_hub, alert_idx, &alert_msg);
-        }
+        datahub_write_shadow(g_hub, &alert_msg);
     }
 }
 
@@ -472,7 +442,8 @@ int main(int argc, char **argv) {
                                           .memory_pool_buffer_size = 2048,
                                           .memory_pool_capacity = 32,
                                           .enable_dma_buf = false,
-                                          .enable_anti_corruption = true};
+                                          .enable_anti_corruption = true,
+                                          .backend_type = DATAHUB_BACKEND_HYBRID};
     static edge_composition_container_storage_t comp_storage;
     edge_composition_container_t *comp_root =
         edge_composition_root_create_in(&comp_storage, &comp_cfg);
@@ -534,14 +505,12 @@ int main(int argc, char **argv) {
     pipe_msg_t msg_mode;
     pipe_msg_init_scalar(&msg_mode, TAG_BOX_CURRENT_SCENE, 1.0,
                          uv_hrtime());  // 默认场景 1.0 (老人守护场景)
-    int idx_mode = edge_tag_get_compact_index(TAG_BOX_CURRENT_SCENE);
-    if (idx_mode >= 0) datahub_write_shadow_idx(g_hub, idx_mode, &msg_mode);
+    datahub_write_shadow(g_hub, &msg_mode);
 
     pipe_msg_t msg_phx;
     pipe_msg_init_scalar(&msg_phx, TAG_BLE_SLOT_BINDING_ID, 0x0F,
                          uv_hrtime());  // 4路槽位硬件连接标记
-    int idx_phx = edge_tag_get_compact_index(TAG_BLE_SLOT_BINDING_ID);
-    if (idx_phx >= 0) datahub_write_shadow_idx(g_hub, idx_phx, &msg_phx);
+    datahub_write_shadow(g_hub, &msg_phx);
 
     LOG_INFO(
         LOG_CAT_CORE,

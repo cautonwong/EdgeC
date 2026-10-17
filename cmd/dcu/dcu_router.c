@@ -42,7 +42,7 @@ int dcu_tag_map_fn(uint32_t tag_id, uint32_t device_id) {
  */
 int dcu_obj_snapshot(uint16_t oi, uint32_t device_id, void* out_msgs, int max_count) {
     uint8_t* p_out = (uint8_t*)out_msgs;
-    if (!g_router_bus_ops.read_shadow_idx || !p_out || max_count <= 0) return 0;
+    if (!g_router_bus_ops.read_shadow || !p_out || max_count <= 0) return 0;
 
     dcu_object_t* obj = NULL;
     for (uint16_t i = 0; i < g_obj_count; i++) {
@@ -60,14 +60,9 @@ int dcu_obj_snapshot(uint16_t oi, uint32_t device_id, void* out_msgs, int max_co
         dcu_event_obj_t* evt = (dcu_event_obj_t*)obj->instance_ptr;
         for (int i = 0; i < evt->snapshot_count && captured < max_count; i++) {
             uint32_t oad = evt->snapshot_oads[i];
-            // 利用 2D 矩阵寻址从 DataHub 提取真实物理值
-            int shadow_idx = dcu_tag_map_fn(oad, device_id);
-            if (shadow_idx >= 0) {
-                void* dest = p_out + (captured * g_router_bus_ops.msg_size);
-                if (g_router_bus_ops.read_shadow_idx(g_router_bus_ops.ctx, (uint32_t)shadow_idx,
-                                                     dest) == 0) {
-                    captured++;
-                }
+            void* dest = p_out + (captured * g_router_bus_ops.msg_size);
+            if (g_router_bus_ops.read_shadow(g_router_bus_ops.ctx, oad, device_id, dest) == 0) {
+                captured++;
             }
         }
     }
@@ -200,12 +195,11 @@ static int _oi_variable_read(dcu_object_t* obj, uint8_t attr_id, uint8_t elem_id
             target_tag = TAG_CURRENT_PHASE_A;
         }
 
-        int shadow_idx = dcu_tag_map_fn((uint32_t)target_tag, 0);
-        if (shadow_idx >= 0 && g_router_bus_ops.read_shadow_idx) {
+        if (g_router_bus_ops.read_shadow) {
             pipe_msg_t msg;
             memset(&msg, 0, sizeof(pipe_msg_t));
-            if (g_router_bus_ops.read_shadow_idx(g_router_bus_ops.ctx, (uint32_t)shadow_idx,
-                                                 &msg) == 0) {
+            if (g_router_bus_ops.read_shadow(g_router_bus_ops.ctx, (uint32_t)target_tag, 0, &msg) ==
+                0) {
                 val = (float)msg.payload.val.f;
             }
         }

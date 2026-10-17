@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include "datahub.h"
 #include "datahub_shm.h"
+#include "datahub_router.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,6 +14,24 @@
 
 #include "edge_log.h"
 #include "edge_metrics.h"
+
+static const datahub_ops_t *s_backend_registry[8] = {
+    [DATAHUB_BACKEND_SHM] = &g_datahub_shm_ops,
+    [DATAHUB_BACKEND_DDS] = NULL,
+    [DATAHUB_BACKEND_MQTT] = NULL,
+    [DATAHUB_BACKEND_HYBRID] = &g_datahub_router_ops,
+};
+
+int datahub_register_backend(datahub_backend_type_t type, const datahub_ops_t *ops) {
+    if ((size_t)type >= sizeof(s_backend_registry)/sizeof(s_backend_registry[0])) return -1;
+    s_backend_registry[type] = ops;
+    return 0;
+}
+
+const datahub_ops_t *datahub_get_backend(datahub_backend_type_t type) {
+    if ((size_t)type >= sizeof(s_backend_registry)/sizeof(s_backend_registry[0])) return NULL;
+    return s_backend_registry[type];
+}
 
 static void _legacy_async_cb(uv_async_t *handle) {
     datahub_t *hub = (datahub_t *)handle->data;
@@ -64,14 +83,12 @@ int datahub_init_with_config(datahub_t *hub, uv_loop_t *loop, const datahub_conf
     hub->map_fn = map_fn;
     hub->wakeup_fn = wakeup_fn;
 
-    switch (config->backend_type) {
-        case DATAHUB_BACKEND_SHM:
-            hub->ops = &g_datahub_shm_ops;
-            break;
-        default:
-            hub->ops = &g_datahub_shm_ops;
-            break;
+    const datahub_ops_t *backend_ops = datahub_get_backend(config->backend_type);
+    if (!backend_ops) {
+        LOG_WARN(LOG_CAT_CORE, "DataHub backend %d not registered, falling back to SHM", config->backend_type);
+        backend_ops = &g_datahub_shm_ops;
     }
+    hub->ops = backend_ops;
 
     return hub->ops->init(hub, config);
 }
@@ -190,6 +207,17 @@ int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out) {
         return hub->ops->read_shadow(hub, tag_id, out);
     }
     return g_datahub_shm_ops.read_shadow(hub, tag_id, out);
+}
+
+int datahub_read_shadow_device(datahub_t *hub, uint32_t tag_id, uint32_t device_id, pipe_msg_t *out) {
+    if (!hub || !out) return -1;
+    if (hub->ops && hub->ops->read_shadow_device) {
+        return hub->ops->read_shadow_device(hub, tag_id, device_id, out);
+    }
+    if (g_datahub_shm_ops.read_shadow_device) {
+        return g_datahub_shm_ops.read_shadow_device(hub, tag_id, device_id, out);
+    }
+    return datahub_read_shadow(hub, tag_id, out);
 }
 
 int datahub_read_shadow_idx(datahub_t *hub, uint32_t idx, pipe_msg_t *out) {

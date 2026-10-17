@@ -89,7 +89,7 @@ typedef struct {
     size_t msg_size;
     int (*publish_realtime)(void* ctx, uint32_t tag_id, uint32_t meter_idx, double val,
                             uint64_t timestamp_ns);
-    int (*read_shadow_idx)(void* ctx, uint32_t idx, void* out_msg);
+    int (*read_shadow)(void* ctx, uint32_t tag_id, uint32_t device_id, void* out_msg);
 } router_bus_ops_t;
 
 // 通用 OI 实例虚拟方法表结构体

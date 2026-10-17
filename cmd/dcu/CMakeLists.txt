@@ -29,6 +29,7 @@ add_library(dcu_app_lib STATIC
     dcu_data_fusion_engine.c
     dcu_dlt698_mgmt_engine.c
     dcu_app_daemon.c
+    dcu_twin_source.c
     dcu_node.c
 )
 

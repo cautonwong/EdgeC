@@ -104,12 +104,14 @@ int datahub_shm_init(datahub_t *hub, const datahub_config_t *config) {
 }
 
 int datahub_shm_publish(datahub_t *hub, const pipe_msg_t *msg) {
-    if (!hub || !msg || !hub->ring.hdr) return -1;
+    if (!hub || !msg) return -1;
     
     atomic_fetch_add_explicit(&hub->total_publishes, 1, memory_order_relaxed);
 
     pipe_msg_t local_msg = *msg;
-    shm_ring_write(&hub->ring, &local_msg);
+    if (hub->ring.hdr) {
+        shm_ring_write(&hub->ring, &local_msg);
+    }
     
     int idx = -1;
     if (hub->map_fn_v2) {
@@ -132,6 +134,19 @@ int datahub_shm_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out_msg
     int idx = -1;
     if (hub->map_fn_v2) {
         idx = hub->map_fn_v2(tag_id, 0); // Default device_id to 0
+    } else if (hub->map_fn) {
+        idx = hub->map_fn(tag_id);
+    }
+    if (idx < 0) idx = (int)tag_id;
+    return datahub_read_shadow_idx(hub, (uint32_t)idx, out_msg);
+}
+
+int datahub_shm_read_shadow_device(datahub_t *hub, uint32_t tag_id, uint32_t device_id, pipe_msg_t *out_msg) {
+    if (!hub || !out_msg) return -1;
+    atomic_fetch_add_explicit(&hub->total_shadow_reads, 1, memory_order_relaxed);
+    int idx = -1;
+    if (hub->map_fn_v2) {
+        idx = hub->map_fn_v2(tag_id, device_id);
     } else if (hub->map_fn) {
         idx = hub->map_fn(tag_id);
     }
@@ -195,6 +210,7 @@ const datahub_ops_t g_datahub_shm_ops = {
     .publish = datahub_shm_publish,
     .write_shadow = datahub_shm_write_shadow,
     .read_shadow = datahub_shm_read_shadow,
+    .read_shadow_device = datahub_shm_read_shadow_device,
     .subscribe = datahub_shm_subscribe,
     .query_snapshot = datahub_shm_query_snapshot,
     .get_stats = datahub_shm_get_stats,

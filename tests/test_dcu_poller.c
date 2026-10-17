@@ -53,6 +53,15 @@ static int _poller_test_pub(void* ctx, uint32_t tag_id, uint32_t meter_idx, doub
     return 0;
 }
 
+static int _test_poller_source_read(void* ctx, uint32_t meter_idx, uint32_t tag_id,
+                                    double* out_val) {
+    (void)ctx;
+    (void)meter_idx;
+    (void)tag_id;
+    *out_val = 220.0;
+    return 0;
+}
+
 // 2. 验证基于时间间隔对齐与方案队列生成机制 (TI 周期触发及防抖)
 static void test_poller_pump_and_ti_alignment(void** state) {
     (void)state;
@@ -74,7 +83,8 @@ static void test_poller_pump_and_ti_alignment(void** state) {
 
     poller_sink_ops_t sink = {0};
     poller_bus_ops_t bus = {.ctx = NULL, .publish_realtime = _poller_test_pub, .push_event = NULL};
-    dcu_poller_start(&poller, (poller_io_ops_t){0}, bus, sink);
+    poller_source_ops_t source = {.ctx = NULL, .read_value = _test_poller_source_read};
+    dcu_poller_start(&poller, source, bus, sink);
 
     g_poller_pub_count = 0;
 

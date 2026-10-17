@@ -5,6 +5,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "datahub.h"
 #include "dcu_inventory.h"
 #include "edge_log.h"
 #include "stream_engine_priv.h"
@@ -295,18 +296,15 @@ static stage_ret_t _freeze_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
         pipe_msg_t shadow_msg;
 
         // 抓拍电能 (Offset 1)
-        int idx = dcu_tag_map_fn(OAD_ACTIVE_ENERGY, dev);
-        if (idx >= 0 && datahub_read_shadow_idx(ctx->hub, (uint32_t)idx, &shadow_msg) == 0) {
+        if (datahub_read_shadow_device(ctx->hub, OAD_ACTIVE_ENERGY, dev, &shadow_msg) == 0) {
             active_energy = shadow_msg.payload.val.f;
         }
         // 抓拍电压 (Offset 0)
-        idx = dcu_tag_map_fn(OAD_VOLTAGE, dev);
-        if (idx >= 0 && datahub_read_shadow_idx(ctx->hub, (uint32_t)idx, &shadow_msg) == 0) {
+        if (datahub_read_shadow_device(ctx->hub, OAD_VOLTAGE, dev, &shadow_msg) == 0) {
             voltage = shadow_msg.payload.val.f;
         }
         // 抓拍电流 (Offset 2)
-        idx = dcu_tag_map_fn(0x20010200, dev);
-        if (idx >= 0 && datahub_read_shadow_idx(ctx->hub, (uint32_t)idx, &shadow_msg) == 0) {
+        if (datahub_read_shadow_device(ctx->hub, 0x20010200, dev, &shadow_msg) == 0) {
             current = shadow_msg.payload.val.f;
         }
 

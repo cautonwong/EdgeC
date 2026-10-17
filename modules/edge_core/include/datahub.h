@@ -181,10 +181,12 @@ int datahub_init_from_fd(datahub_t *hub, uv_loop_t *loop, int ring_fd, size_t ri
 void datahub_destroy(datahub_t *hub);
 int datahub_publish(datahub_t *hub, const pipe_msg_t *msg);
 int datahub_write_shadow(datahub_t *hub, const pipe_msg_t *msg);
-int datahub_write_shadow_idx(datahub_t *hub, int idx, const pipe_msg_t *msg);
-int datahub_register_ref(datahub_t *hub, uint32_t tag_id, int fd, size_t len);
 int datahub_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out);
+int datahub_read_shadow_device(datahub_t *hub, uint32_t tag_id, uint32_t device_id, pipe_msg_t *out);
+/* [Internal / Low-Level Adapter Only] */
+int datahub_write_shadow_idx(datahub_t *hub, int idx, const pipe_msg_t *msg);
 int datahub_read_shadow_idx(datahub_t *hub, uint32_t idx, pipe_msg_t *out);
+int datahub_register_ref(datahub_t *hub, uint32_t tag_id, int fd, size_t len);
 void datahub_subscribe(datahub_t *hub, datahub_on_data_cb cb, void *user_data);
 
 /**

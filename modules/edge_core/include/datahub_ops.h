@@ -97,6 +97,11 @@ typedef struct datahub_ops_s {
     int (*read_shadow)(datahub_t *hub, uint32_t tag_id, PipeMsg *out_msg);
 
     /**
+     * @brief 从影子内存读取指定设备/实例文档快照 (2D寻址支持)
+     */
+    int (*read_shadow_device)(datahub_t *hub, uint32_t tag_id, uint32_t device_id, PipeMsg *out_msg);
+
+    /**
      * @brief 订阅总线全局数据流
      */
     int (*subscribe)(datahub_t *hub, datahub_on_data_cb cb, void *user_data);
@@ -136,6 +141,16 @@ typedef struct datahub_ops_s {
      */
     void (*destroy)(datahub_t *hub);
 } datahub_ops_t;
+
+/**
+ * @brief 动态注册 DataHub 后端协议实现 (Dependency Injection / Seam)
+ */
+int datahub_register_backend(datahub_backend_type_t type, const datahub_ops_t *ops);
+
+/**
+ * @brief 获取已注册的 DataHub 后端操作虚表
+ */
+const datahub_ops_t *datahub_get_backend(datahub_backend_type_t type);
 
 #ifdef __cplusplus
 }

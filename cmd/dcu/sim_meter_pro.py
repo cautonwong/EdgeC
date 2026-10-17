@@ -54,7 +54,7 @@ class SmartMeter:
     def __init__(self, address, protocol):
         self.address = address
         self.protocol = protocol
-        self.voltage = 220.88  # [nexus-pro] 设定一个极具辨识度的真实数值
+        self.voltage = 220.0
         self.current = 5.0
         self.energy = 1000.0
         self.last_update = time.time()
@@ -90,7 +90,6 @@ class SmartMeter:
         if random.random() < INTERMITTENT_NOISE_RATE: return None 
         
         self.update()
-        self.voltage = 220.88 # 强制锁定特征值
         
         if self.protocol == "DLT698":
             return self._handle_698(raw_data)

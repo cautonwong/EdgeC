@@ -74,10 +74,8 @@ typedef struct {
 static void on_poll_complete(int status, const pipe_msg_t* result, void* user_data) {
     iems_poll_task_t* task = (iems_poll_task_t*)user_data;
     if (status == 0 && result && task && g_app.hub) {
-        // 💡 [Nexus Physical-Path] 强行绕过查找，直接物理入库并写入 shm_ring 触发计算引擎！
         pipe_msg_t local_msg = *result;
-        datahub_write_ring(g_app.hub, &local_msg);
-        datahub_write_shadow_idx(g_app.hub, task->dense_idx, &local_msg);
+        datahub_write_shadow(g_app.hub, &local_msg);
     }
 }
 
