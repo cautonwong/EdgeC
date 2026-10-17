@@ -200,7 +200,8 @@ static void _on_north_connect(uv_stream_t* server, int status) {
         if (new_fd >= 0) {
             int flags = fcntl(new_fd, F_GETFL, 0);
             fcntl(new_fd, F_SETFL, flags | O_NONBLOCK);
-            io_handle_t* h = io_executor_create_from_fd(server->loop, new_fd, g_app.hub->io_pool);
+            io_handle_t* h =
+                io_executor_create_from_fd(server->loop, new_fd, datahub_get_io_pool(g_app.hub));
             if (h) {
                 bus_orchestrator_attach_io(g_app.orch, ctx->bus_id, h);
                 if (h->ops && h->ops->enable_read) h->ops->enable_read(h, true);
@@ -251,7 +252,8 @@ static void _try_connect_buses(uv_timer_t* handle) {
             strncpy(addr.sun_path, cur_path, sizeof(addr.sun_path) - 1);
 
             if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) == 0) {
-                io_handle_t* h = io_executor_create_from_fd(handle->loop, fd, g_app.hub->io_pool);
+                io_handle_t* h =
+                    io_executor_create_from_fd(handle->loop, fd, datahub_get_io_pool(g_app.hub));
                 if (h) {
                     bus_orchestrator_attach_io(g_app.orch, c->id, h);
                     if (h->ops && h->ops->enable_read) h->ops->enable_read(h, true);

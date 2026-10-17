@@ -219,7 +219,7 @@ int main(int argc, char** argv) {
         if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) >= 0) {
             int flags = fcntl(fd, F_GETFL, 0);
             fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-            io_handle_t* h = io_executor_create_from_fd(loop, fd, hub->io_pool);
+            io_handle_t* h = io_executor_create_from_fd(loop, fd, datahub_get_io_pool(hub));
             bus_orchestrator_attach_io(io_orch, i, h);
         } else {
             close(fd);

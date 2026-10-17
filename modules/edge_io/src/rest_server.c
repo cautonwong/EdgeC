@@ -68,9 +68,10 @@ static char *handle_system_health(service_t *svc) {
     cJSON_AddStringToObject(root, "version", (const char *)edge_get_version());
 
     datahub_t *hub = service_get_datahub(svc);
-    if (hub && hub->io_pool) {
+    struct net_buf_pool *io_pool = datahub_get_io_pool(hub);
+    if (io_pool) {
         net_buf_pool_stats_t stats;
-        net_buf_pool_audit(hub->io_pool, 0, &stats);
+        net_buf_pool_audit(io_pool, 0, &stats);
         cJSON *pool = cJSON_AddObjectToObject(root, "net_buf_pool");
         cJSON_AddNumberToObject(pool, "total", stats.total_count);
         cJSON_AddNumberToObject(pool, "free", stats.free_count);
@@ -254,7 +255,7 @@ static char *handle_io_raw(service_t *svc, const char *body) {
     size_t hex_len = strlen(hex);
 
     datahub_t *hub = service_get_datahub(svc);
-    net_buf_t *tx = net_buf_alloc(hub->io_pool, 0);
+    net_buf_t *tx = net_buf_alloc(datahub_get_io_pool(hub), 0);
 
     for (size_t i = 0; i < hex_len; i += 2) {
         unsigned int b;
