@@ -233,9 +233,9 @@ int npu_pmu_op_end(npu_pmu_t *pmu, uint64_t token,
         rec.memory_bw_gbps = 0.0f;
     }
 
-    /* Update Accumulator and Check 3-Sigma Anomaly */
+    /* Update Accumulator and Check 3-Sigma Anomaly (requires >= 10 steady baseline samples) */
     op_accumulator_t *acc = find_or_create_accumulator(self, rec.op_id, rec.op_type, rec.op_name);
-    if (acc->count >= 5) {
+    if (acc->count >= 10) {
         double mean = (double)acc->total_latency_ns / (double)acc->count;
         double variance = (acc->sum_latency_sq / (double)acc->count) - (mean * mean);
         if (variance > 0.0) {
