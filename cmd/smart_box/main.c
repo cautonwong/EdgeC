@@ -11,6 +11,7 @@
 
 #include "contracts.h"
 #include "datahub.h"
+#include "edge_composition_root.h"
 #include "edge_log.h"
 #include "wasm_app_scheduler.h"
 #include "wasm_mgr.h"
@@ -460,18 +461,26 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    g_hub = calloc(1, sizeof(datahub_t));
-    if (!g_hub) {
-        LOG_ERROR(LOG_CAT_CORE, "Failed to allocate datahub");
+    edge_composition_config_t comp_cfg = {.product_name = "smart_box",
+                                          .loop = loop,
+                                          .shm_name = "smart_box",
+                                          .ring_capacity = 4096,
+                                          .datahub_capacity = 1024,
+                                          .tags = contract->tags,
+                                          .tag_count = contract->tag_count,
+                                          .map_fn = edge_tag_get_compact_index,
+                                          .memory_pool_buffer_size = 2048,
+                                          .memory_pool_capacity = 32,
+                                          .enable_dma_buf = false,
+                                          .enable_anti_corruption = true};
+    static edge_composition_container_storage_t comp_storage;
+    edge_composition_container_t *comp_root =
+        edge_composition_root_create_in(&comp_storage, &comp_cfg);
+    if (!comp_root) {
+        LOG_ERROR(LOG_CAT_CORE, "Failed to instantiate Composition Root");
         return -1;
     }
-
-    if (datahub_init(g_hub, loop, "smart_box", 4096, 1024, contract->tags, contract->tag_count,
-                     NULL, edge_tag_get_compact_index, NULL) != 0) {
-        LOG_ERROR(LOG_CAT_CORE, "Failed to initialize datahub");
-        free(g_hub);
-        return -1;
-    }
+    g_hub = edge_composition_root_get_datahub(comp_root);
 
     // 初始化 GPIO 节点 (通过安全 HAL 适配，避免 shell 注入风险)
     static const char *gpio_dirs[] = {"/sys/class/gpio/gpio23",
@@ -543,8 +552,7 @@ int main(int argc, char **argv) {
         wasm_scheduler_destroy(g_sched);
     }
     wasm_mgr_cleanup();
-    datahub_destroy(g_hub);
-    free(g_hub);
+    edge_composition_root_destroy(comp_root);
 
     return rc;
 }

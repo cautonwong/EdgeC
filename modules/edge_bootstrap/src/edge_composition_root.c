@@ -99,14 +99,20 @@ static int _init_container_resources(edge_composition_container_t *container, co
         return -3;
     }
 
-    const char *p_name = cfg->product_name ? cfg->product_name : "edgeos_product";
-    uint32_t shadow_cap = cfg->datahub_capacity ? (uint32_t)cfg->datahub_capacity : 256;
-    int rc = datahub_init(container->hub, NULL, p_name, 64, shadow_cap, NULL, 0, NULL, NULL, NULL);
+    const char *env_shm = getenv("EDGE_SHM_NAME");
+    const char *p_name = cfg->shm_name ? cfg->shm_name : (env_shm ? env_shm : (cfg->product_name ? cfg->product_name : "edgeos_bus"));
+    uint32_t ring_cap = cfg->ring_capacity ? (uint32_t)cfg->ring_capacity : 4096;
+    uint32_t shadow_cap = cfg->datahub_capacity ? (uint32_t)cfg->datahub_capacity : 1024;
+    int rc = datahub_init(container->hub, cfg->loop, p_name, ring_cap, shadow_cap,
+                          cfg->tags, cfg->tag_count, NULL, cfg->map_fn, NULL);
     if (rc != 0) {
         free(container->hub);
         container->hub = NULL;
         pthread_mutex_destroy(&container->lock);
         return -4;
+    }
+    if (cfg->map_fn_v2) {
+        container->hub->map_fn_v2 = cfg->map_fn_v2;
     }
 
     /* 2. Pre-allocate Memory Pool for Zero-Copy execution */

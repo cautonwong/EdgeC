@@ -41,6 +41,14 @@ typedef struct {
     uint32_t memory_pool_capacity;      /**< Number of pre-allocated buffers */
     bool enable_dma_buf;                /**< Enable DMA-BUF zero-copy allocation */
     bool enable_anti_corruption;        /**< Initialize Anti-Corruption Layer */
+    /* DataHub specific options */
+    uv_loop_t *loop;                    /**< Event loop for DataHub async/timers */
+    const char *shm_name;               /**< Explicit SHM name or NULL for default/env */
+    size_t ring_capacity;               /**< Ring buffer capacity (default: 4096) */
+    const edge_tag_meta_t *tags;        /**< Contract tags metadata array */
+    uint32_t tag_count;                 /**< Number of contract tags */
+    datahub_tag_map_cb map_fn;          /**< Tag to compact index mapping function */
+    datahub_tag_map_cb_v2 map_fn_v2;    /**< V2 tag mapping function */
 } edge_composition_config_t;
 
 /**

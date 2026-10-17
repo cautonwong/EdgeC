@@ -463,8 +463,10 @@ static void test_vsg_presync_reconnection_lock(void) {
     /* Verify locking achieved */
     assert(vsg_controller_is_sync_locked(vsg));
 
-    vsg_transition_status_t status;
-    assert(vsg_controller_get_transition_status(vsg, &status) == 0);
+    vsg_transition_status_t status = {0};
+    int status_rc = vsg_controller_get_transition_status(vsg, &status);
+    assert(status_rc == 0);
+    (void)status_rc;
     printf(
         "    • Pre-sync status: Locked=%d, delta_theta=%.4f rad, delta_v=%.2f V, delta_f=%.4f Hz\n",
         status.sync_locked, status.delta_theta_rad, status.delta_volt_v, status.delta_freq_hz);
@@ -508,7 +510,7 @@ static void test_vsg_black_start_zero_voltage_soft_ramp(void) {
     assert(vsg_controller_get_voltage(vsg) == 0.0);
     assert(vsg_controller_get_frequency(vsg) == 0.0);
 
-    vsg_black_start_status_t status;
+    vsg_black_start_status_t status = {0};
     assert(vsg_controller_get_black_start_status(vsg, &status) == 0);
     assert(status.is_ready_for_load == false);
     assert(status.ramp_progress_pct == 0.0);
@@ -666,7 +668,7 @@ static void test_vsg_circulating_current_active_suppression(void) {
                                              v_pcc_q, 0.005, &out_vd, &out_vq);
 
         /* Simulated physical branch response: voltage compensation drives Iq towards Iq_avg */
-        vsg_circulating_status_t status;
+        vsg_circulating_status_t status = {0};
         vsg_controller_get_circ_status(vsg, &status);
 
         /* Iq converges towards avg as Q-axis compensation is applied */
@@ -674,7 +676,7 @@ static void test_vsg_circulating_current_active_suppression(void) {
         iq_meas += delta_iq;
     }
 
-    vsg_circulating_status_t final_status;
+    vsg_circulating_status_t final_status = {0};
     assert(vsg_controller_get_circ_status(vsg, &final_status) == 0);
     printf(
         "    • Circulating suppression: Initial Iq_circ=20.0A -> Final Iq_circ=%.2fA, "
@@ -725,7 +727,7 @@ static void test_vsg_online_line_impedance_identification_rls(void) {
                                              &out_vq);
     }
 
-    vsg_circulating_status_t status;
+    vsg_circulating_status_t status = {0};
     assert(vsg_controller_get_circ_status(vsg, &status) == 0);
     printf("    • RLS Identified: R_line=%.4f Ω (True=%.2f Ω), X_line=%.4f Ω (True=%.2f Ω)\n",
            status.r_line_est_ohm, r_true, status.x_line_est_ohm, x_true);
@@ -770,7 +772,7 @@ static void test_vsg_sso_detection_and_frequency_tracking(void) {
         vsg_controller_step_sso_damping(vsg, i_raw, 0.001, &filtered_i, &v_damp);
     }
 
-    vsg_sso_status_t status;
+    vsg_sso_status_t status = {0};
     assert(vsg_controller_get_sso_status(vsg, &status) == 0);
     printf(
         "    • SSO Detection: Detected=%d, f_est=%.2f Hz (True=%.2f Hz), A_est=%.2f A (True=%.2f "
@@ -823,7 +825,7 @@ static void test_vsg_sso_adaptive_notch_filtering_and_active_damping(void) {
         }
     }
 
-    vsg_sso_status_t status;
+    vsg_sso_status_t status = {0};
     assert(vsg_controller_get_sso_status(vsg, &status) == 0);
     printf(
         "    • Notch Attenuation: Input=10.0A SSO -> Output=%.2fA (Attenuated >80%%), "
@@ -871,7 +873,7 @@ static void test_vsg_frt_lvrt_dynamic_reactive_support(void) {
                                       &out_v_drop);
     assert(ret == 0);
 
-    vsg_frt_status_t status;
+    vsg_frt_status_t status = {0};
     assert(vsg_controller_get_frt_status(vsg, &status) == 0);
     assert(status.state == VSG_FRT_STATE_LVRT);
     printf(
@@ -931,7 +933,7 @@ static void test_vsg_frt_hvrt_inductive_reactive_absorption(void) {
                                       &out_v_drop);
     assert(ret == 0);
 
-    vsg_frt_status_t status;
+    vsg_frt_status_t status = {0};
     assert(vsg_controller_get_frt_status(vsg, &status) == 0);
     assert(status.state == VSG_FRT_STATE_HVRT);
     printf(
@@ -974,7 +976,7 @@ static void test_vsg_frt_transient_virtual_impedance_clamping(void) {
      * 228.03A */
     vsg_controller_step_frt(vsg, 150.0, 220.0, 60.0, 0.01, &out_iq, &out_p_derate, &out_v_drop);
 
-    vsg_frt_status_t status;
+    vsg_frt_status_t status = {0};
     assert(vsg_controller_get_frt_status(vsg, &status) == 0);
     printf(
         "    • Overcurrent Clamping: I_mag=228.0A (> I_max=180.0A), Clamped=%d, V_trans_drop=%.2f "
@@ -1018,7 +1020,7 @@ static void test_vsg_virtual_stator_impedance_drop(void) {
     int ret = vsg_controller_step_virtual_z(vsg, 380.0, 0.0, 100.0, -50.0, 0.001, &out_vd, &out_vq);
     assert(ret == 0);
 
-    vsg_virtual_z_status_t status;
+    vsg_virtual_z_status_t status = {0};
     assert(vsg_controller_get_virtual_z_status(vsg, &status) == 0);
     printf(
         "    • Virtual Stator Drop: Vd_drop=%.2f V (Expect 15.0V), Vq_drop=%.2f V (Expect 17.5V), "
@@ -1059,7 +1061,7 @@ static void test_vsg_virtual_z_adaptive_rx_decoupling(void) {
     /* Step virtual Z with adaptive shaping */
     vsg_controller_step_virtual_z(vsg, 380.0, 0.0, 80.0, 0.0, 0.001, &out_vd, &out_vq);
 
-    vsg_virtual_z_status_t status;
+    vsg_virtual_z_status_t status = {0};
     assert(vsg_controller_get_virtual_z_status(vsg, &status) == 0);
     printf("    • Adaptive R/X Shaping: Effective Rv=%.4f Ω, Effective Xv=%.4f Ω\n",
            status.r_v_effective_ohm, status.x_v_effective_ohm);
@@ -1112,7 +1114,7 @@ static void test_vsg_harmonic_current_extraction_and_damping(void) {
         vsg_controller_step_virtual_z(vsg, 380.0, 0.0, id, iq, 0.0005, &out_vd, &out_vq);
     }
 
-    vsg_virtual_z_status_t status;
+    vsg_virtual_z_status_t status = {0};
     assert(vsg_controller_get_virtual_z_status(vsg, &status) == 0);
     printf(
         "    • Harmonic Extraction: Ih_rms=%.2f A (5th=%.2f A, 7th=%.2f A), THD=%.2f%%, "
@@ -1159,7 +1161,7 @@ static void test_vsg_compute_tracking_surplus_green_power(void) {
                                                    &out_p_target, &out_p_ff);
     assert(ret == 0);
 
-    vsg_compute_tracking_status_t status;
+    vsg_compute_tracking_status_t status = {0};
     assert(vsg_controller_get_compute_tracking_status(vsg, &status) == 0);
     printf(
         "    • Compute Tracking: Surplus=%.1f W, TargetQuota=%.1f W (Expect 5750W), DVFS=%.1f%%, "
@@ -1208,7 +1210,7 @@ static void test_vsg_compute_load_step_transient_feedforward(void) {
     vsg_controller_step_compute_tracking(vsg, 10000.0, 1000.0, 0.0, 6000.0, 0.01, &out_p_target,
                                          &out_p_ff);
 
-    vsg_compute_tracking_status_t status;
+    vsg_compute_tracking_status_t status = {0};
     assert(vsg_controller_get_compute_tracking_status(vsg, &status) == 0);
     printf(
         "    • Transient Feedforward: DeltaP=5000W -> Injected Feedforward=%.1f W (Expect "
