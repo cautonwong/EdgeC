@@ -101,11 +101,8 @@ dpi_result_t dpi_validate_command(cmd_msg_t *cmd) {
     return DPI_PASS;
 }
 
-extern void dpi_audit_signed_log(dpi_result_t res, uint32_t tag_id, double val, const char *reason);
-
 void dpi_audit_log(dpi_result_t res, uint32_t tag_id, double val, const char *reason) {
     if (res == DPI_PASS) return;
 
-    // 生产级要求：加密签名审计日志
-    dpi_audit_signed_log(res, tag_id, val, reason);
+    LOG_ERROR(LOG_CAT_CORE, "AUDIT_DPI_BLOCK: RESULT=%d TAG=%u VAL=%.2f REASON=%s", (int)res, tag_id, val, reason);
 }

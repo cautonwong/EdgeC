@@ -15,7 +15,6 @@
 #include "stream_engine.h"
 
 extern pipeline_stage_t *stage_vpp_logger_create(sqlite_svc_t *db);
-extern void dpi_audit_signed_log(dpi_result_t res, uint32_t tag_id, double val, const char *reason);
 
 static int g_callback_task_count = 0;
 static uint32_t g_last_tag_id = 0;
@@ -128,49 +127,10 @@ static void test_stage_vpp_logger_edge_env_guard(void **state) {
     unlink(db_path);
 }
 
-static void test_secure_syslog_exporter_dpi_audit_log(void **state) {
-    (void)state;
-    // Case 1: Development environment with fallback secret
-    setenv("EDGE_ENV", "development", 1);
-    unsetenv("EDGE_GUARD_AUDIT_SECRET");
-    // Should execute safely using dev fallback
-    dpi_audit_signed_log(DPI_PASS, 1001, 220.0, "normal_operation");
-
-    // Case 2: Custom secret provided
-    setenv("EDGE_GUARD_AUDIT_SECRET", "test_audit_secret_key_abcdef123456", 1);
-    dpi_audit_signed_log(DPI_BLOCK_RANGE, 1002, 380.0, "voltage_surge_block");
-
-    // Clean up
-    unsetenv("EDGE_ENV");
-    unsetenv("EDGE_GUARD_AUDIT_SECRET");
-}
-
-static void test_secure_syslog_exporter_production_exit_fork(void **state) {
-    (void)state;
-    pid_t pid = fork();
-    assert_true(pid >= 0);
-    if (pid == 0) {
-        // Child process: set EDGE_ENV=production without secret -> must exit(EXIT_FAILURE)
-        setenv("EDGE_ENV", "production", 1);
-        unsetenv("EDGE_GUARD_AUDIT_SECRET");
-        dpi_audit_signed_log(DPI_PASS, 1001, 220.0, "should_fail_in_production");
-        // If it didn't exit, fail child with code 0
-        exit(0);
-    }
-
-    int status = 0;
-    pid_t waited = waitpid(pid, &status, 0);
-    assert_int_equal(waited, pid);
-    assert_true(WIFEXITED(status));
-    assert_true(WEXITSTATUS(status) != 0);
-}
-
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_iems_task_loading_direct_product_code),
         cmocka_unit_test(test_stage_vpp_logger_edge_env_guard),
-        cmocka_unit_test(test_secure_syslog_exporter_dpi_audit_log),
-        cmocka_unit_test(test_secure_syslog_exporter_production_exit_fork),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

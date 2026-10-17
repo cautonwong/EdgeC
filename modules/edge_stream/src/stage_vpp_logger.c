@@ -12,8 +12,6 @@
 #include <stdio.h>
 #include <time.h>
 
-extern crypto_ops_t mbedtls_ops;
-
 typedef struct {
     sqlite_svc_t *db;
     crypto_key_t key;
@@ -33,8 +31,9 @@ static stage_ret_t _vpp_logger_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
                  (unsigned long long)ev->ts, ev->payload.event.event_id, ev->payload.event.param);
         
         // 计算签名
-        if (mbedtls_ops.hmac_calculate) {
-            mbedtls_ops.hmac_calculate(CRYPTO_HASH_SHA256, &ctx->key, (uint8_t *)event_info, strlen(event_info), signature);
+        const crypto_ops_t *crypto = hal_crypto_get_ops();
+        if (crypto && crypto->hmac_calculate) {
+            crypto->hmac_calculate(CRYPTO_HASH_SHA256, &ctx->key, (uint8_t *)event_info, strlen(event_info), signature);
             for (int i = 0; i < 32; i++) sprintf(sig_hex + i * 2, "%02x", signature[i]);
         } else {
             strcpy(sig_hex, "UNSIGNED");
