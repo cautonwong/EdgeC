@@ -24,3 +24,8 @@ modules/edge_core/src/edge_log.c
 # Approved by Architecture Committee (2026-10-17)
 modules/edge_core/include/edge_service.h
 modules/edge_core/src/edge_service.c
+
+# ARCH-ZERO-ALLOC (Issue #384): Arbiter Caller-Allocated Storage and Zero-Alloc Refactoring
+# Approved by Architecture Committee (2026-10-17)
+modules/edge_core/include/arbiter.h
+modules/edge_core/src/arbiter.c
