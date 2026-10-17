@@ -110,9 +110,37 @@ for d in "${PROTECTED_DRIVERS[@]}"; do
 done
 
 # 7. 契约代码零漂移检查
-echo "  [7/7] Verifying contract drift gate..."
+echo "  [7/11] Verifying contract drift gate..."
 if ! "${SCRIPT_DIR}/check_generated_drift.sh" >/dev/null 2>&1; then
     echo "    ❌ VIOLATION: Generated contracts drift check failed"
+    VIOLATIONS=$((VIOLATIONS + 1))
+fi
+
+# 8. 聚合根物理封装与防越权解引用检查
+echo "  [8/11] Checking aggregate root boundary encapsulation..."
+if ! python3 "${REPO_ROOT}/ci/scripts/check_aggregate_boundary.py" --root "${REPO_ROOT}" >/dev/null 2>&1; then
+    echo "    ❌ VIOLATION: Aggregate root boundary violation detected"
+    VIOLATIONS=$((VIOLATIONS + 1))
+fi
+
+# 9. 组合根排他性装配检查
+echo "  [9/11] Checking composition root exclusivity..."
+if ! python3 "${REPO_ROOT}/ci/scripts/check_composition_root.py" --root "${REPO_ROOT}" >/dev/null 2>&1; then
+    echo "    ❌ VIOLATION: Composition root exclusivity violation detected"
+    VIOLATIONS=$((VIOLATIONS + 1))
+fi
+
+# 10. 开闭原则查表化分发检查
+echo "  [10/11] Checking Open-Closed Principle (OCP)..."
+if ! python3 "${REPO_ROOT}/ci/scripts/check_open_closed_plugins.py" --root "${REPO_ROOT}" >/dev/null 2>&1; then
+    echo "    ❌ VIOLATION: Monolithic switch detected in core dispatch logic"
+    VIOLATIONS=$((VIOLATIONS + 1))
+fi
+
+# 11. 单一职责原则检查
+echo "  [11/11] Checking Single Responsibility Principle (SRP)..."
+if ! python3 "${REPO_ROOT}/ci/scripts/check_single_responsibility.py" --root "${REPO_ROOT}" >/dev/null 2>&1; then
+    echo "    ❌ VIOLATION: Single Responsibility bounds exceeded"
     VIOLATIONS=$((VIOLATIONS + 1))
 fi
 

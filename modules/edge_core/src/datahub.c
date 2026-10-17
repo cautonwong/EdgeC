@@ -684,6 +684,11 @@ int datahub_bind_io_pool(datahub_t *hub, struct net_buf_pool *pool) {
     return 0;
 }
 
+struct net_buf_pool *datahub_get_io_pool(const datahub_t *hub) {
+    if (!hub) return NULL;
+    return hub->io_pool;
+}
+
 uint32_t datahub_get_listener_count(const datahub_t *hub) {
     if (!hub) return 0;
     int count = atomic_load(&hub->listener_count);

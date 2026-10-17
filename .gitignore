@@ -75,3 +75,4 @@ final_report.json
 final_report.md
 .code-review-graph/
 changed_files.txt
+.venv

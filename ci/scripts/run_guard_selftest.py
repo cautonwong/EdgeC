@@ -65,6 +65,34 @@ TEST_MATRIX = [
         "good_target": os.path.join(FIXTURES_DIR, "good_caller_storage"),
         "bad_target": os.path.join(FIXTURES_DIR, "bad_caller_storage"),
         "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_aggregate_boundary.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_aggregate_boundary.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_aggregate_boundary"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_aggregate_boundary"),
+        "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_composition_root.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_composition_root.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_composition_root"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_composition_root"),
+        "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_open_closed_plugins.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_open_closed_plugins.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_open_closed"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_open_closed"),
+        "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_single_responsibility.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_single_responsibility.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_single_responsibility"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_single_responsibility"),
+        "arg_flag": "--root"
     }
 ]
 
@@ -120,7 +148,7 @@ def main():
 
     # Also run live check on actual codebase
     print("\n🔍 Running live architecture guards on active repository...")
-    for script_name in ["check_plane_isolation.py", "check_app_isolation.py", "check_caller_allocated_storage.py", "check_dependencies.py", "check_exemptions.py"]:
+    for script_name in ["check_plane_isolation.py", "check_app_isolation.py", "check_caller_allocated_storage.py", "check_dependencies.py", "check_exemptions.py", "check_aggregate_boundary.py", "check_composition_root.py", "check_open_closed_plugins.py", "check_single_responsibility.py"]:
         script_path = os.path.join(SCRIPTS_DIR, script_name)
         flag = "--file" if "dependencies" in script_name or "exemptions" in script_name else "--root"
         target = os.path.join(REPO_ROOT, "ci", f"{script_name.replace('check_', '').replace('.py', '')}.json") if flag == "--file" else REPO_ROOT

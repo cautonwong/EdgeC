@@ -331,6 +331,11 @@ uint64_t datahub_get_ring_seq(const datahub_t *hub);
 int datahub_bind_io_pool(datahub_t *hub, struct net_buf_pool *pool);
 
 /**
+ * @brief [DDD 聚合根安全封装] 获取 DataHub 绑定的 IO 缓冲池引用
+ */
+struct net_buf_pool *datahub_get_io_pool(const datahub_t *hub);
+
+/**
  * @brief [DDD 聚合根安全封装] 获取当前注册的监听器数量
  */
 uint32_t datahub_get_listener_count(const datahub_t *hub);
