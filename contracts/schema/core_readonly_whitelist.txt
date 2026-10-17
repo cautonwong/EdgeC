@@ -29,3 +29,8 @@ modules/edge_core/src/edge_service.c
 # Approved by Architecture Committee (2026-10-17)
 modules/edge_core/include/arbiter.h
 modules/edge_core/src/arbiter.c
+
+# ARCH-CRYPTO (Issue #378): Unified hal_crypto ops and dead mock_hmac purge
+# Approved by Architecture Committee (2026-10-17)
+modules/edge_core/src/hal_crypto.c
+

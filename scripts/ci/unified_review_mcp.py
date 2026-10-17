@@ -197,10 +197,25 @@ def run_clang_tidy_check(files: List[str], compile_commands_dir: str = "build") 
             if df == f or f.endswith(df) or df.endswith(f):
                 matched_diff = diff_lines[df]
                 break
+        if matched_diff is not None and len(matched_diff) == 0:
+            continue
         try:
             cmd = ["clang-tidy", f]
             if actual_comp_dir:
                 cmd.append(f"-p={actual_comp_dir}")
+            else:
+                cmd.extend([
+                    "--",
+                    "-I.",
+                    "-Iinclude",
+                    "-Imodules/edge_core/include",
+                    "-Imodules/edge_security/include",
+                    "-Imodules/edge_stream/include",
+                    "-Imodules/edge_io/include",
+                    "-Imodules/edge_infra/include",
+                    "-Imodules/edge_algo/include",
+                    "-Itests",
+                ])
             p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=60)
             for line in p.stdout.splitlines():
                 if ("warning:" in line or "error:" in line) and f in line:
@@ -211,7 +226,7 @@ def run_clang_tidy_check(files: List[str], compile_commands_dir: str = "build") 
                                 findings.append(line.strip())
                         except (ValueError, IndexError):
                             pass
-                    else:
+                    elif matched_diff is None:
                         findings.append(line.strip())
         except FileNotFoundError:
             return ["clang-tidy not installed in system PATH."]
@@ -245,8 +260,6 @@ def run_cppcheck_analysis(files: List[str]) -> List[str]:
                                 lines.append(line.strip())
                         except (ValueError, IndexError):
                             pass
-                    else:
-                        lines.append(line.strip())
             if not matched and not diff_lines and ("[" in line and "]" in line):
                 lines.append(line.strip())
         return lines if lines else ["Cppcheck: PASS"]

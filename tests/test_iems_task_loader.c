@@ -19,7 +19,8 @@ extern pipeline_stage_t *stage_vpp_logger_create(sqlite_svc_t *db);
 static int g_callback_task_count = 0;
 static uint32_t g_last_tag_id = 0;
 
-static void _test_task_cb(const iems_loaded_task_t *task, void *user_data) {
+static void test_task_loader_cb(const iems_loaded_task_t *task, void *user_data) {
+    (void)task;
     (void)user_data;
     if (task) {
         g_callback_task_count++;
@@ -39,7 +40,7 @@ static void test_iems_task_loading_direct_product_code(void **state) {
 
     // 1. Initial state: tables do not exist yet or not ready -> return 0
     g_callback_task_count = 0;
-    int rc = iems_poll_tasks_load(svc, _test_task_cb, NULL);
+    int rc = iems_poll_tasks_load(svc, test_task_loader_cb, NULL);
     assert_int_equal(rc, 0);
     assert_int_equal(g_callback_task_count, 0);
 
@@ -62,7 +63,7 @@ static void test_iems_task_loading_direct_product_code(void **state) {
     assert_int_equal(rc, SQLITE_OK);
 
     // 3. Before is_ready=1 -> must return 0
-    rc = iems_poll_tasks_load(svc, _test_task_cb, NULL);
+    rc = iems_poll_tasks_load(svc, test_task_loader_cb, NULL);
     assert_int_equal(rc, 0);
     assert_int_equal(g_callback_task_count, 0);
 
@@ -73,7 +74,7 @@ static void test_iems_task_loading_direct_product_code(void **state) {
 
     // 5. Load tasks -> should load 2 tasks (bus 0 tag 1001, 1002; bus 10 ignored)
     g_callback_task_count = 0;
-    rc = iems_poll_tasks_load(svc, _test_task_cb, NULL);
+    rc = iems_poll_tasks_load(svc, test_task_loader_cb, NULL);
     assert_int_equal(rc, 2);
     assert_int_equal(g_callback_task_count, 2);
     assert_int_equal(g_last_tag_id, 1002);
