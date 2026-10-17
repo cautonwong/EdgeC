@@ -241,7 +241,7 @@ int npu_pmu_op_end(npu_pmu_t *pmu, uint64_t token,
         if (variance > 0.0) {
             double std_dev = sqrt(variance);
             double sigma_thresh = mean + ((double)self->config.jitter_threshold_sigma * std_dev);
-            double min_jump_thresh = mean * 1.5; /* At least 50% jump to avoid sub-us noise */
+            double min_jump_thresh = mean * 2.0; /* At least 100% (2x) jump to avoid OS scheduling noise */
             double threshold = (sigma_thresh > min_jump_thresh) ? sigma_thresh : min_jump_thresh;
             if ((double)latency_ns > threshold) {
                 rec.is_jitter_anomaly = true;

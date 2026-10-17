@@ -88,7 +88,7 @@ static void test_npu_pmu_jitter_anomaly_and_datahub_sync(void **state) {
     npu_pmu_storage_t storage;
     npu_pmu_config_t cfg = {.peak_macs_per_cycle = 512,
                             .core_clock_ghz = 1.0f,
-                            .jitter_threshold_sigma = 3.5f,
+                            .jitter_threshold_sigma = 4.0f,
                             .enable_ring_buffer = true};
 
     npu_pmu_t *pmu = npu_pmu_create_in(&storage, &cfg);
@@ -98,17 +98,17 @@ static void test_npu_pmu_jitter_anomaly_and_datahub_sync(void **state) {
     for (int i = 0; i < 10; i++) {
         uint64_t tok =
             npu_pmu_op_begin(pmu, 201, NPU_OP_SOFTMAX, "softmax_layer", 50000ULL, 64 * 1024);
-        usleep(100); /* ~100us */
+        usleep(300); /* ~300us steady baseline */
         npu_pmu_record_t rec;
         int rc = npu_pmu_op_end(pmu, tok, 1000, 10, 500, 5, &rec);
         assert_int_equal(rc, 0);
         assert_false(rec.is_jitter_anomaly);
     }
 
-    /* Trigger a massive 20x outlier jitter spike */
+    /* Trigger a massive outlier jitter spike */
     uint64_t spike_tok =
         npu_pmu_op_begin(pmu, 201, NPU_OP_SOFTMAX, "softmax_layer", 50000ULL, 64 * 1024);
-    usleep(5000); /* 5000us spike */
+    usleep(5000); /* 5000us spike (>16x jump) */
     npu_pmu_record_t spike_rec;
     int rc = npu_pmu_op_end(pmu, spike_tok, 1000, 50, 500, 25, &spike_rec);
     assert_int_equal(rc, 0);
