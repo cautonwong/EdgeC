@@ -29,11 +29,27 @@
     "\r\n"                               \
     "%s"
 
+#define REST_MAX_CLIENTS 8
+#define REST_RX_BUF_SIZE 4096
+#define REST_TX_BUF_SIZE 65536
+
+typedef struct rest_client_s {
+    uv_tcp_t tcp;
+    rest_server_t *server;
+    bool in_use;
+    bool dyn_tx;
+    uv_write_t write_req;
+    char rx_buf[REST_RX_BUF_SIZE];
+    char tx_buf[REST_TX_BUF_SIZE];
+} rest_client_t;
+
 struct rest_server_s {
     uv_loop_t *loop;
     service_t *svc;
     int port;
     uv_tcp_t server;
+    bool is_allocated;
+    rest_client_t clients[REST_MAX_CLIENTS];
 };
 
 // --- SQL 回调 ---
@@ -493,56 +509,107 @@ char *rest_dispatch(service_t *svc, const char *method, const char *path, const 
     return strdup("{\"error\":\"not_found\"}");
 }
 
-static void on_write(uv_write_t *req, int status) {
-    (void)status;
-    free(req->data);
-    free(req);
-}
-static void on_alloc(uv_handle_t *h, size_t suggested, uv_buf_t *buf) {
-    (void)h;
-    buf->base = malloc(suggested);
-    buf->len = (unsigned int)suggested;
+static void on_client_close(uv_handle_t *handle) {
+    rest_client_t *client = (rest_client_t *)handle->data;
+    if (client) {
+        if (client->dyn_tx && client->write_req.data && client->write_req.data != client) {
+            free(client->write_req.data);
+            client->write_req.data = NULL;
+        }
+        client->in_use = false;
+        client->dyn_tx = false;
+    }
 }
 
-static void on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
+static void on_write(uv_write_t *req, int status) {
+    (void)status;
+    rest_client_t *client = (rest_client_t *)req->data;
+    if (client && client->dyn_tx) {
+        if (req->data != client) free(req->data);
+        client->dyn_tx = false;
+    }
+}
+
+static void on_alloc(uv_handle_t *h, size_t suggested, uv_buf_t *buf) {
+    (void)suggested;
+    rest_client_t *client = (rest_client_t *)h->data;
+    if (client) {
+        buf->base = client->rx_buf;
+        buf->len = sizeof(client->rx_buf);
+    } else {
+        buf->base = NULL;
+        buf->len = 0;
+    }
+}
+
+static void on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf) {
+    rest_client_t *client = (rest_client_t *)stream->data;
+    if (!client) return;
+
     if (nread > 0) {
-        rest_server_t *srv = client->data;
+        rest_server_t *srv = client->server;
         char path[128] = {0}, method[16] = {0};
         sscanf(buf->base, "%15s %127s", method, path);
         char *body = strstr(buf->base, "\r\n\r\n");
         if (body) body += 4;
         char *json = rest_dispatch(srv->svc, method, path, body);
-        size_t json_len = strlen(json);
-        char *resp = malloc(json_len + 512);
-        size_t resp_len = (size_t)sprintf(resp, HTTP_RESPONSE_FMT, json_len, json);
-        uv_write_t *write_req = malloc(sizeof(uv_write_t));
-        write_req->data = resp;
+        size_t json_len = json ? strlen(json) : 0;
+        char *resp = NULL;
+        size_t resp_len = 0;
+        if (json_len + 512 <= sizeof(client->tx_buf)) {
+            resp = client->tx_buf;
+            resp_len = (size_t)sprintf(resp, HTTP_RESPONSE_FMT, json_len, json ? json : "");
+            client->dyn_tx = false;
+            client->write_req.data = client;
+        } else {
+            resp = malloc(json_len + 512);
+            resp_len = (size_t)sprintf(resp, HTTP_RESPONSE_FMT, json_len, json ? json : "");
+            client->dyn_tx = true;
+            client->write_req.data = resp;
+        }
         uv_buf_t write_buf = uv_buf_init(resp, (unsigned int)resp_len);
-        uv_write(write_req, client, &write_buf, 1, on_write);
-        free(json);
+        uv_write(&client->write_req, stream, &write_buf, 1, on_write);
+        if (json) free(json);
     }
     if (nread < 0) {
-        if (!uv_is_closing((uv_handle_t *)client)) {
-            uv_close((uv_handle_t *)client, (uv_close_cb)free);
+        if (!uv_is_closing((uv_handle_t *)stream)) {
+            uv_close((uv_handle_t *)stream, on_client_close);
         }
     }
-    if (buf->base) free(buf->base);
 }
 
 static void on_new_connection(uv_stream_t *server, int status) {
     if (status < 0) return;
-    uv_tcp_t *client = malloc(sizeof(uv_tcp_t));
-    uv_tcp_init(server->loop, client);
-    client->data = server->data;
-    if (uv_accept(server, (uv_stream_t *)client) == 0) {
-        uv_read_start((uv_stream_t *)client, on_alloc, on_read);
+    rest_server_t *srv = (rest_server_t *)server->data;
+    rest_client_t *client = NULL;
+    for (int i = 0; i < REST_MAX_CLIENTS; i++) {
+        if (!srv->clients[i].in_use) {
+            client = &srv->clients[i];
+            break;
+        }
+    }
+    if (!client) {
+        uv_tcp_t tmp;
+        uv_tcp_init(server->loop, &tmp);
+        if (uv_accept(server, (uv_stream_t *)&tmp) == 0) {
+            uv_close((uv_handle_t *)&tmp, NULL);
+        }
+        return;
+    }
+
+    memset(client, 0, sizeof(*client));
+    client->in_use = true;
+    client->server = srv;
+    uv_tcp_init(server->loop, &client->tcp);
+    client->tcp.data = client;
+    if (uv_accept(server, (uv_stream_t *)&client->tcp) == 0) {
+        uv_read_start((uv_stream_t *)&client->tcp, on_alloc, on_read);
     } else {
-        uv_close((uv_handle_t *)client, (uv_close_cb)free);
+        uv_close((uv_handle_t *)&client->tcp, on_client_close);
     }
 }
 
-rest_server_t *rest_server_create(uv_loop_t *loop, service_t *svc, int port) {
-    rest_server_t *srv = calloc(1, sizeof(rest_server_t));
+static int _rest_server_bind_and_listen(rest_server_t *srv, uv_loop_t *loop, service_t *svc, int port) {
     srv->loop = loop;
     srv->svc = svc;
     srv->port = port;
@@ -553,7 +620,7 @@ rest_server_t *rest_server_create(uv_loop_t *loop, service_t *svc, int port) {
     int rc = uv_tcp_bind(&srv->server, (const struct sockaddr *)&addr, 0);
     if (rc != 0) {
         fprintf(stderr, "[REST] Failed to bind to port %d: %s\n", port, uv_strerror(rc));
-        return srv;
+        return rc;
     }
     rc = uv_listen((uv_stream_t *)&srv->server, 128, on_new_connection);
     if (rc != 0) {
@@ -561,15 +628,42 @@ rest_server_t *rest_server_create(uv_loop_t *loop, service_t *svc, int port) {
     } else {
         fprintf(stderr, "[REST] Server listening on port %d\n", port);
     }
+    return rc;
+}
+
+rest_server_t *rest_server_create_in(rest_server_storage_t *storage, uv_loop_t *loop, service_t *svc, int port) {
+    if (!storage) return NULL;
+    _Static_assert(sizeof(rest_server_t) <= sizeof(rest_server_storage_t), "rest_server_t exceeds storage");
+    rest_server_t *srv = (rest_server_t *)storage;
+    memset(srv, 0, sizeof(*srv));
+    srv->is_allocated = false;
+    _rest_server_bind_and_listen(srv, loop, svc, port);
+    return srv;
+}
+
+rest_server_t *rest_server_create(uv_loop_t *loop, service_t *svc, int port) {
+    rest_server_t *srv = calloc(1, sizeof(rest_server_t));
+    if (!srv) return NULL;
+    srv->is_allocated = true;
+    _rest_server_bind_and_listen(srv, loop, svc, port);
     return srv;
 }
 
 static void _on_rest_server_close(uv_handle_t *h) {
     rest_server_t *srv = (rest_server_t *)h->data;
-    free(srv);
+    if (srv && srv->is_allocated) {
+        free(srv);
+    }
 }
+
 void rest_server_destroy(rest_server_t *srv) {
-    if (srv && !uv_is_closing((uv_handle_t *)&srv->server)) {
+    if (!srv) return;
+    for (int i = 0; i < REST_MAX_CLIENTS; i++) {
+        if (srv->clients[i].in_use && !uv_is_closing((uv_handle_t *)&srv->clients[i].tcp)) {
+            uv_close((uv_handle_t *)&srv->clients[i].tcp, on_client_close);
+        }
+    }
+    if (!uv_is_closing((uv_handle_t *)&srv->server)) {
         uv_close((uv_handle_t *)&srv->server, _on_rest_server_close);
     }
 }

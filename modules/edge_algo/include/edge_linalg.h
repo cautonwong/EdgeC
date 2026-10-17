@@ -18,6 +18,21 @@ extern "C" {
  */
 typedef struct edge_matrix_s edge_matrix_t;
 
+#define EDGE_MATRIX_STATIC_CAPACITY 64
+
+/**
+ * @brief [Issue #364] 矩阵预分配内存结构 (调用方预分配，零堆分配)
+ */
+typedef struct {
+    uint64_t _align;
+    uint8_t opaque[sizeof(uint32_t) * 2 + sizeof(double *) + sizeof(uint64_t) + sizeof(double) * EDGE_MATRIX_STATIC_CAPACITY + 64];
+} edge_matrix_storage_t;
+
+/**
+ * @brief 在调用方预分配内存中就地初始化矩阵 (Zero-Alloc)
+ */
+edge_matrix_t *edge_matrix_init(edge_matrix_storage_t *storage, uint32_t rows, uint32_t cols);
+
 /**
  * @brief 分配矩阵内存
  */
@@ -27,6 +42,16 @@ edge_matrix_t* edge_matrix_alloc(uint32_t rows, uint32_t cols);
  * @brief 释放矩阵
  */
 void edge_matrix_free(edge_matrix_t *m);
+
+/**
+ * @brief [Issue #364] Caller-Allocated 矩阵求逆: res = inv(m)
+ */
+int edge_matrix_inv_in(const edge_matrix_t *m, edge_matrix_t *res);
+
+/**
+ * @brief [Issue #364] Caller-Allocated 最小二乘求解: Ax = b
+ */
+int edge_matrix_solve_ls_in(const edge_matrix_t *a, const edge_matrix_t *b, edge_matrix_t *x);
 
 /**
  * @brief 设置矩阵元素值

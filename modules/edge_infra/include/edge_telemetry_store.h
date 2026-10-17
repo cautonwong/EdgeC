@@ -63,6 +63,26 @@ typedef struct {
 } edge_telemetry_store_stats_t;
 
 /**
+ * @brief [Issue #366] 遥测仓储预分配存储结构 (Caller-Allocated Storage)
+ */
+#define EDGE_TELEMETRY_STORE_STORAGE_SIZE 4096
+typedef struct {
+    uint64_t _align;
+    uint8_t opaque[EDGE_TELEMETRY_STORE_STORAGE_SIZE];
+} edge_telemetry_store_storage_t;
+
+/**
+ * @brief 在调用方预分配内存中创建统一时序仓储 (Zero-Alloc)
+ */
+edge_telemetry_store_t *edge_telemetry_store_create_in(edge_telemetry_store_storage_t *storage,
+                                                       uv_loop_t *loop,
+                                                       const edge_telemetry_store_cfg_t *cfg,
+                                                       pipe_msg_t *mem_records_buf,
+                                                       size_t mem_capacity,
+                                                       pipe_msg_t *snf_queue_buf,
+                                                       size_t snf_capacity);
+
+/**
  * @brief 创建并启动统一时序仓储
  * @param loop Libuv 事件循环句柄 (可为 NULL，在无循环单测模式下同步运行)
  * @param cfg 仓储配置

@@ -1359,6 +1359,7 @@ target_link_libraries(test_caller_allocated_storage PRIVATE
     edge_io
     edge_security
     edge_protocol
+    contract_iems
     -Wl,--end-group
     cmocka::cmocka
     libuv::uv_a

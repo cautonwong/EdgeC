@@ -8,24 +8,55 @@
 #include <string.h>
 #include <math.h>
 
+#include <stdbool.h>
+
 struct edge_matrix_s {
     uint32_t rows;
     uint32_t cols;
     double *data;
+    bool is_allocated;
+    double inline_data[EDGE_MATRIX_STATIC_CAPACITY];
 };
+
+edge_matrix_t *edge_matrix_init(edge_matrix_storage_t *storage, uint32_t rows, uint32_t cols) {
+    if (!storage) return NULL;
+    _Static_assert(sizeof(edge_matrix_t) <= sizeof(edge_matrix_storage_t), "edge_matrix_t exceeds storage");
+    edge_matrix_t *m = (edge_matrix_t *)storage;
+    m->rows = rows;
+    m->cols = cols;
+    m->is_allocated = false;
+    if (rows * cols <= EDGE_MATRIX_STATIC_CAPACITY) {
+        m->data = m->inline_data;
+        memset(m->data, 0, rows * cols * sizeof(double));
+    } else {
+        m->data = calloc(rows * cols, sizeof(double));
+    }
+    return m;
+}
 
 edge_matrix_t* edge_matrix_alloc(uint32_t rows, uint32_t cols) {
     edge_matrix_t *m = malloc(sizeof(edge_matrix_t));
+    if (!m) return NULL;
     m->rows = rows;
     m->cols = cols;
-    m->data = calloc(rows * cols, sizeof(double));
+    m->is_allocated = true;
+    if (rows * cols <= EDGE_MATRIX_STATIC_CAPACITY) {
+        m->data = m->inline_data;
+        memset(m->data, 0, rows * cols * sizeof(double));
+    } else {
+        m->data = calloc(rows * cols, sizeof(double));
+    }
     return m;
 }
 
 void edge_matrix_free(edge_matrix_t *m) {
     if (m) {
-        free(m->data);
-        free(m);
+        if (m->data && m->data != m->inline_data) {
+            free(m->data);
+        }
+        if (m->is_allocated) {
+            free(m);
+        }
     }
 }
 
@@ -113,7 +144,9 @@ int edge_matrix_transpose(const edge_matrix_t *m, edge_matrix_t *res) {
 int edge_matrix_inv(const edge_matrix_t *m, edge_matrix_t *res) {
     if (m->rows != m->cols || m->rows != res->rows || m->cols != res->cols) return -1;
     uint32_t n = m->rows;
-    double *a = malloc(n * n * sizeof(double));
+    double stack_a[256];
+    double *a = (n <= 16) ? stack_a : malloc(n * n * sizeof(double));
+    if (!a) return -1;
     memcpy(a, m->data, n * n * sizeof(double));
     edge_matrix_identity(res);
     for (uint32_t i = 0; i < n; i++) {
@@ -128,7 +161,10 @@ int edge_matrix_inv(const edge_matrix_t *m, edge_matrix_t *res) {
             }
         }
         double div = a[i * n + i];
-        if (fabs(div) < 1e-12) { free(a); return -2; }
+        if (fabs(div) < 1e-12) {
+            if (a != stack_a) free(a);
+            return -2;
+        }
         for (uint32_t j = 0; j < n; j++) {
             a[i * n + j] /= div; res->data[i * n + j] /= div;
         }
@@ -142,8 +178,12 @@ int edge_matrix_inv(const edge_matrix_t *m, edge_matrix_t *res) {
             }
         }
     }
-    free(a);
+    if (a != stack_a) free(a);
     return 0;
+}
+
+int edge_matrix_inv_in(const edge_matrix_t *m, edge_matrix_t *res) {
+    return edge_matrix_inv(m, res);
 }
 
 /**
@@ -189,13 +229,14 @@ int edge_matrix_solve_ls(const edge_matrix_t *a, const edge_matrix_t *b, edge_ma
     // Ax = b -> QRx = b -> Rx = Q^T b
     uint32_t m = a->rows;
     uint32_t n = a->cols;
-    edge_matrix_t *q = edge_matrix_alloc(m, n);
-    edge_matrix_t *r = edge_matrix_alloc(n, n);
+    edge_matrix_storage_t sq, sr, sqt, sqtb;
+    edge_matrix_t *q = edge_matrix_init(&sq, m, n);
+    edge_matrix_t *r = edge_matrix_init(&sr, n, n);
     edge_matrix_qr(a, q, r);
 
-    edge_matrix_t *qt = edge_matrix_alloc(n, m);
+    edge_matrix_t *qt = edge_matrix_init(&sqt, n, m);
     edge_matrix_transpose(q, qt);
-    edge_matrix_t *qtb = edge_matrix_alloc(n, 1);
+    edge_matrix_t *qtb = edge_matrix_init(&sqtb, n, 1);
     edge_matrix_mul(qt, b, qtb);
 
     // 回代法解 Rx = qtb (R 是上三角矩阵)
@@ -210,6 +251,10 @@ int edge_matrix_solve_ls(const edge_matrix_t *a, const edge_matrix_t *b, edge_ma
 
     edge_matrix_free(q); edge_matrix_free(r); edge_matrix_free(qt); edge_matrix_free(qtb);
     return 0;
+}
+
+int edge_matrix_solve_ls_in(const edge_matrix_t *a, const edge_matrix_t *b, edge_matrix_t *x) {
+    return edge_matrix_solve_ls(a, b, x);
 }
 
 int edge_matrix_svd(const edge_matrix_t *a, edge_matrix_t *u, edge_matrix_t *s, edge_matrix_t *v) {

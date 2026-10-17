@@ -49,15 +49,13 @@ struct service_s {
 
     // App Manager 模块
     void *app_mgr;
+    bool is_allocated;
 };
 
 // --- Lifecycle ---
 
-service_t *service_new(uv_loop_t *loop, datahub_t *hub, arbiter_t *arb, sqlite_svc_t *db,
-                       stream_engine_t *engine, edge_params_t *params, void *north) {
-    if (!loop || !hub || !arb) return NULL;
-
-    service_t *svc = calloc(1, sizeof(service_t));
+static void _service_init_common(service_t *svc, uv_loop_t *loop, datahub_t *hub, arbiter_t *arb, sqlite_svc_t *db,
+                                 stream_engine_t *engine, edge_params_t *params, void *north) {
     svc->loop = loop;
     svc->hub = hub;
     svc->arb = arb;
@@ -87,7 +85,27 @@ service_t *service_new(uv_loop_t *loop, datahub_t *hub, arbiter_t *arb, sqlite_s
             break;
         }
     }
+}
 
+service_t *service_create_in(service_storage_t *storage, uv_loop_t *loop, datahub_t *hub, arbiter_t *arb,
+                             sqlite_svc_t *db, stream_engine_t *engine, edge_params_t *params, void *north) {
+    if (!storage || !loop) return NULL;
+    _Static_assert(sizeof(struct service_s) <= sizeof(service_storage_t), "service_t exceeds storage");
+    service_t *svc = (service_t *)storage;
+    memset(svc, 0, sizeof(service_t));
+    svc->is_allocated = false;
+    _service_init_common(svc, loop, hub, arb, db, engine, params, north);
+    return svc;
+}
+
+service_t *service_new(uv_loop_t *loop, datahub_t *hub, arbiter_t *arb, sqlite_svc_t *db,
+                       stream_engine_t *engine, edge_params_t *params, void *north) {
+    if (!loop || !hub || !arb) return NULL;
+
+    service_t *svc = calloc(1, sizeof(service_t));
+    if (!svc) return NULL;
+    svc->is_allocated = true;
+    _service_init_common(svc, loop, hub, arb, db, engine, params, north);
     return svc;
 }
 
@@ -110,7 +128,13 @@ void service_delete(service_t *svc) {
     if (svc->contract_path) free(svc->contract_path);
     if (svc->last_discovery_report) free(svc->last_discovery_report);
 
-    free(svc);
+    if (svc->is_allocated) {
+        free(svc);
+    }
+}
+
+void service_destroy(service_t *svc) {
+    service_delete(svc);
 }
 
 // --- IPC Impl ---
@@ -312,7 +336,8 @@ void service_report_link_status(service_t *svc, net_link_t link, bool is_up) {
     }
 }
 uv_loop_t *service_get_loop(service_t *svc) {
-    return svc->hub ? svc->hub->loop : NULL;
+    if (!svc) return NULL;
+    return svc->loop ? svc->loop : (svc->hub ? svc->hub->loop : NULL);
 }
 datahub_t *service_get_datahub(service_t *svc) {
     return svc->hub;

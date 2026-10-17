@@ -11,21 +11,60 @@
 #include <stdlib.h>
 #include <math.h>
 
+#include <stdbool.h>
+
 struct edge_matrix_s {
     gsl_matrix *g;
+    bool is_allocated;
+    gsl_matrix static_g;
+    double inline_data[EDGE_MATRIX_STATIC_CAPACITY];
 };
+
+edge_matrix_t *edge_matrix_init(edge_matrix_storage_t *storage, uint32_t rows, uint32_t cols) {
+    if (!storage) return NULL;
+    _Static_assert(sizeof(edge_matrix_t) <= sizeof(edge_matrix_storage_t), "edge_matrix_t exceeds storage");
+    edge_matrix_t *m = (edge_matrix_t *)storage;
+    m->is_allocated = false;
+    if (rows * cols <= EDGE_MATRIX_STATIC_CAPACITY) {
+        memset(m->inline_data, 0, rows * cols * sizeof(double));
+        m->static_g.size1 = rows;
+        m->static_g.size2 = cols;
+        m->static_g.tda = cols;
+        m->static_g.data = m->inline_data;
+        m->static_g.block = NULL;
+        m->static_g.owner = 0;
+        m->g = &m->static_g;
+    } else {
+        m->g = gsl_matrix_calloc(rows, cols);
+    }
+    return m;
+}
 
 edge_matrix_t* edge_matrix_alloc(uint32_t rows, uint32_t cols) {
     edge_matrix_t *m = malloc(sizeof(edge_matrix_t));
+    if (!m) return NULL;
+    m->is_allocated = true;
     m->g = gsl_matrix_calloc(rows, cols);
     return m;
 }
 
 void edge_matrix_free(edge_matrix_t *m) {
     if (m) {
-        gsl_matrix_free(m->g);
-        free(m);
+        if (m->g && m->g != &m->static_g) {
+            gsl_matrix_free(m->g);
+        }
+        if (m->is_allocated) {
+            free(m);
+        }
     }
+}
+
+int edge_matrix_inv_in(const edge_matrix_t *m, edge_matrix_t *res) {
+    return edge_matrix_inv(m, res);
+}
+
+int edge_matrix_solve_ls_in(const edge_matrix_t *a, const edge_matrix_t *b, edge_matrix_t *x) {
+    return edge_matrix_solve_ls(a, b, x);
 }
 
 int edge_matrix_set(edge_matrix_t *m, uint32_t r, uint32_t c, double val) {

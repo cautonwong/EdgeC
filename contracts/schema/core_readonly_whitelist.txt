@@ -20,3 +20,7 @@ modules/edge_core/src/datahub_shm.c
 # CI Sanitizer Integration: ASan/TSan default options for matrix validation
 modules/edge_core/src/edge_log.c
 
+# ARCH-ZERO-ALLOC (Issue #367): Zero-Heap Service Container & Caller-Allocated Storage
+# Approved by Architecture Committee (2026-10-17)
+modules/edge_core/include/edge_service.h
+modules/edge_core/src/edge_service.c
