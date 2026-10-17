@@ -20,18 +20,35 @@ struct arbiter {
     bus_slot_t buses[ARBITER_MAX_BUSES];
     cmd_msg_t *zombies;
     bool paused;
-    void *orchestrator;
+    bool is_allocated;
     arb_executor_ops_t executor;  // 💡 [Consumer-Driven] 注入的执行器
 };
 
-int arbiter_init(arbiter_t **arb, uv_loop_t *loop) {
-    *arb = calloc(1, sizeof(struct arbiter));
-    (*arb)->loop = loop;
-    uv_mutex_init(&(*arb)->lock);
-    (*arb)->paused = true;
+static void _arbiter_setup(arbiter_t *arb, uv_loop_t *loop) {
+    arb->loop = loop;
+    uv_mutex_init(&arb->lock);
+    arb->paused = true;
     for (int i = 0; i < ARBITER_MAX_BUSES; i++) {
-        (*arb)->buses[i].max_queue_len = ARBITER_MAX_QUEUE_PER_BUS;
+        arb->buses[i].max_queue_len = ARBITER_MAX_QUEUE_PER_BUS;
     }
+}
+
+arbiter_t *arbiter_create_in(arbiter_storage_t *storage, uv_loop_t *loop) {
+    if (!storage) return NULL;
+    _Static_assert(sizeof(struct arbiter) <= sizeof(arbiter_storage_t), "arbiter exceeds storage");
+    arbiter_t *arb = (arbiter_t *)storage;
+    memset(arb, 0, sizeof(struct arbiter));
+    arb->is_allocated = false;
+    _arbiter_setup(arb, loop);
+    return arb;
+}
+
+int arbiter_init(arbiter_t **arb, uv_loop_t *loop) {
+    if (!arb) return -1;
+    *arb = calloc(1, sizeof(struct arbiter));
+    if (!*arb) return -1;
+    (*arb)->is_allocated = true;
+    _arbiter_setup(*arb, loop);
     return 0;
 }
 
@@ -49,14 +66,6 @@ uint64_t arbiter_get_bus_dropped_count(arbiter_t *arb, int bus_id) {
     uint64_t count = arb->buses[bus_id].dropped_count;
     uv_mutex_unlock(&arb->lock);
     return count;
-}
-
-void arbiter_set_orchestrator(arbiter_t *arb, void *orch) {
-    if (arb) arb->orchestrator = orch;
-}
-
-void *arbiter_get_orchestrator(arbiter_t *arb) {
-    return arb ? arb->orchestrator : NULL;
 }
 
 void arbiter_set_executor(arbiter_t *arb, arb_executor_ops_t ops) {
@@ -172,7 +181,7 @@ void arbiter_on_io_done(arbiter_t *arb, int bus_id, cmd_msg_t *msg, int status) 
     if (!handled) {
         if (msg->on_complete) msg->on_complete(msg, status);
         if (msg->on_cleanup) msg->on_cleanup(msg);
-        else free(msg);
+        free(msg);
     }
 
     uv_mutex_lock(&arb->lock);
@@ -258,7 +267,9 @@ void arbiter_destroy(arbiter_t *arb) {
 
     uv_mutex_unlock(&arb->lock);
     uv_mutex_destroy(&arb->lock);
-    free(arb);
+    if (arb->is_allocated) {
+        free(arb);
+    }
 
     // Invoke cleanups outside arbiter lock
     cmd_msg_t *curr = to_free_head;

@@ -1,7 +1,9 @@
 #ifndef ARBITER_H
 #define ARBITER_H
 
+#include <stdalign.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 typedef struct uv_loop_s uv_loop_t;
 
@@ -71,7 +73,19 @@ typedef struct {
     uint64_t dropped_count;
 } arbiter_bus_status_t;
 
+/**
+ * @brief [Issue #384] 调用方预分配仲裁器存储 (Caller-Allocated Storage)
+ */
+typedef struct {
+    alignas(max_align_t) uint8_t raw[4096];
+} arbiter_storage_t;
+
 typedef struct arbiter arbiter_t;
+
+/**
+ * @brief 在调用方预分配内存中初始化仲裁器 (Zero-Alloc)
+ */
+arbiter_t *arbiter_create_in(arbiter_storage_t *storage, uv_loop_t *loop);
 
 int arbiter_init(arbiter_t **arb, uv_loop_t *loop);
 void arbiter_destroy(arbiter_t *arb);
@@ -103,9 +117,6 @@ static inline void cmd_msg_init_write(cmd_msg_t *msg, uint32_t tag_id, double va
     msg->timeout_ms = ARBITER_DEFAULT_TIMEOUT_MS;
 }
 
-// --- 架构补强点
-void arbiter_set_orchestrator(arbiter_t *arb, void *orch);
-void *arbiter_get_orchestrator(arbiter_t *arb);
 
 // 💡 [Consumer-Driven] 执行器抽象：Arbiter 不再直接依赖 io_executor
 typedef struct {

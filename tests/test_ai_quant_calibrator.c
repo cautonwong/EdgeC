@@ -11,6 +11,7 @@
 
 #include "ai_quant_calibrator.h"
 #include "datahub.h"
+#include "edge_algo_datahub_adapter.h"
 
 static void test_ai_quant_int8_symmetric_and_kl_divergence(void **state) {
     (void)state;

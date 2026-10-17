@@ -178,7 +178,6 @@ static void _on_tunnel_alloc(uv_handle_t *h, size_t suggested, uv_buf_t *buf) {
 
 static void _on_tunnel_cmd_cleanup(cmd_msg_t *cmd) {
     if (cmd->params) free(cmd->params);
-    free(cmd);
 }
 
 static void _on_tunnel_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {

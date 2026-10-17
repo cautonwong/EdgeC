@@ -23,8 +23,6 @@
 extern "C" {
 #endif
 
-typedef struct datahub_s datahub_t;
-
 /* -------------------------------------------------------------------------- */
 /* Constants & Enumerations                                                   */
 /* -------------------------------------------------------------------------- */
@@ -146,10 +144,6 @@ bool ai_dyn_pool_get_stats(const ai_dyn_pool_t *pool, ai_dyn_pool_stats_t *stats
  */
 int ai_dyn_pool_emit_metrics(const ai_dyn_pool_t *pool, const edge_algo_sink_t *sink);
 
-/**
- * @brief Synchronize pool telemetry to DataHub (Adapter bridge)
- */
-int ai_dyn_pool_sync_datahub(const ai_dyn_pool_t *pool, datahub_t *hub);
 
 #ifdef __cplusplus
 }

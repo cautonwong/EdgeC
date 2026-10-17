@@ -22,8 +22,6 @@
 extern "C" {
 #endif
 
-typedef struct datahub_s datahub_t;
-
 /* -------------------------------------------------------------------------- */
 /* Constants & Types                                                          */
 /* -------------------------------------------------------------------------- */
@@ -116,10 +114,6 @@ bool ai_fast_gemm_get_metrics(const ai_fast_gemm_t *gemm, ai_gemm_metrics_t *met
  */
 int ai_fast_gemm_emit_metrics(const ai_fast_gemm_t *gemm, const edge_algo_sink_t *sink);
 
-/**
- * @brief Synchronize performance metrics to DataHub (Adapter bridge)
- */
-int ai_fast_gemm_sync_datahub(const ai_fast_gemm_t *gemm, datahub_t *hub);
 
 #ifdef __cplusplus
 }

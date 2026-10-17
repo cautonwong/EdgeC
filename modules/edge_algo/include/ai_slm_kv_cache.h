@@ -23,8 +23,6 @@
 extern "C" {
 #endif
 
-typedef struct datahub_s datahub_t;
-
 /* -------------------------------------------------------------------------- */
 /* Constants & Configuration                                                  */
 /* -------------------------------------------------------------------------- */
@@ -125,10 +123,6 @@ bool ai_slm_kv_cache_get_stats(const ai_slm_kv_cache_t *cache, ai_slm_kv_stats_t
  */
 int ai_slm_kv_cache_emit_metrics(const ai_slm_kv_cache_t *cache, const edge_algo_sink_t *sink);
 
-/**
- * @brief Synchronize KV cache telemetry to DataHub (Adapter bridge)
- */
-int ai_slm_kv_cache_sync_datahub(const ai_slm_kv_cache_t *cache, datahub_t *hub);
 
 #ifdef __cplusplus
 }

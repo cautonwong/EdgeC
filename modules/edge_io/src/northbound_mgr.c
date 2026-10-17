@@ -12,8 +12,6 @@
 #include "driver_manager.h"
 #include "edge_driver.h"
 #include "edge_log.h"
-#include "edge_service.h"
-#include "rest_server.h"
 #include "snf_manager.h"
 #include "sparkplug_b.h"
 #include "web_server.h"
@@ -54,8 +52,6 @@ typedef struct {
     void* hub;
     bool birth_sent;
 } spb_ctx_t;
-
-extern char* rest_dispatch(service_t* svc, const char* method, const char* path, const char* body);
 
 static int _push_to_transport_direct(northbound_mgr_t* mgr, uint32_t tag_id, double val,
                                      uint64_t ts) {
@@ -179,11 +175,10 @@ static void north_thread_entry(void* arg) {
     if (!mgr) return;
 
     if (mgr->nb_driver) {
-        ((edge_driver_ctx_t*)mgr->nb_driver)->user_data =
-            service_get_datahub((service_t*)mgr->user_data);
+        ((edge_driver_ctx_t*)mgr->nb_driver)->user_data = mgr->source.ctx;
     }
 
-    mgr->loop = malloc(sizeof(uv_loop_t));
+    mgr->loop = &mgr->loop_storage;
     uv_loop_init(mgr->loop);
 
     uv_timer_init(mgr->loop, &mgr->poll_timer);
@@ -207,17 +202,11 @@ static void north_thread_entry(void* arg) {
         mgr->snf = snf_manager_create(&snf_cfg);
     }
 
-    if (mgr->rest_port > 0 && mgr->user_data) {
-        mgr->rest_srv = rest_server_create(mgr->loop, (service_t*)mgr->user_data, mgr->rest_port);
-    }
-
     uv_run(mgr->loop, UV_RUN_DEFAULT);
 
     if (mgr->snf) snf_manager_destroy(mgr->snf);
-    if (mgr->rest_srv) rest_server_destroy(mgr->rest_srv);
 
     uv_loop_close(mgr->loop);
-    free(mgr->loop);
     mgr->loop = NULL;
 }
 
@@ -278,4 +267,10 @@ void northbound_mgr_destroy(northbound_mgr_t* mgr) {
         mgr->drv_mgr = NULL;
     }
     uv_mutex_destroy(&mgr->req_lock);
+}
+
+void northbound_mgr_set_rest_server(northbound_mgr_t* mgr, void* rest_srv) {
+    if (mgr) {
+        mgr->rest_srv = rest_srv;
+    }
 }

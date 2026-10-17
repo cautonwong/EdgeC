@@ -11,6 +11,7 @@
 
 #include "ai_temporal_fault_net.h"
 #include "datahub.h"
+#include "edge_algo_datahub_adapter.h"
 
 static void test_ai_fault_net_normal_and_transient_classification(void **state) {
     (void)state;
