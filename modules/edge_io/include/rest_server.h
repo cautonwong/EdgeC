@@ -8,6 +8,18 @@ typedef struct uv_loop_s uv_loop_t;
 // Opaque handle
 typedef struct rest_server_s rest_server_t;
 
+#define REST_SERVER_STORAGE_SIZE (8 * 70000 + 2048)
+
+typedef struct {
+    uint64_t _align;
+    uint8_t opaque[REST_SERVER_STORAGE_SIZE];
+} rest_server_storage_t;
+
+/**
+ * @brief Init the REST API Server in caller-allocated storage (Zero-Alloc).
+ */
+rest_server_t *rest_server_create_in(rest_server_storage_t *storage, uv_loop_t *loop, service_t *svc, int port);
+
 /**
  * @brief Init the REST API Server (Data/Control).
  *

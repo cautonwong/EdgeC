@@ -1,7 +1,9 @@
 #ifndef EDGE_SERVICE_H
 #define EDGE_SERVICE_H
 
+#include <stdalign.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 typedef struct uv_loop_s uv_loop_t;
 
@@ -17,6 +19,19 @@ extern "C" {
 #endif
 
 typedef struct service_s service_t;
+
+/**
+ * @brief [Issue #367] 微服务核心预分配存储 (Caller-Allocated Storage)
+ */
+typedef struct {
+    alignas(max_align_t) uint8_t raw[256];
+} service_storage_t;
+
+/**
+ * @brief 在调用方预分配内存中创建服务编排器 (Zero-Alloc)
+ */
+service_t *service_create_in(service_storage_t *storage, uv_loop_t *loop, datahub_t *hub, arbiter_t *arb,
+                             sqlite_svc_t *db, stream_engine_t *engine, edge_params_t *params, void *north);
 
 typedef void (*emergency_hook_fn)(void *user_data);
 
@@ -42,6 +57,7 @@ service_t *service_new(uv_loop_t *loop, datahub_t *hub, arbiter_t *arb, sqlite_s
                        stream_engine_t *engine, edge_params_t *params, void *north);
 
 void service_delete(service_t *svc);
+void service_destroy(service_t *svc);
 
 // --- Setters ---
 void service_set_contract_path(service_t *svc, const char *path);

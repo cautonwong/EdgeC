@@ -60,8 +60,13 @@ static uint64_t get_current_time_us(void) {
 static int ascend_init(npu_device_t *dev, const npu_device_config_t *cfg) {
     if (!dev) return -1;
 
-    ascend_acl_priv_t *priv = (ascend_acl_priv_t *)calloc(1, sizeof(ascend_acl_priv_t));
-    if (!priv) return -2;
+    ascend_acl_priv_t *priv = (ascend_acl_priv_t *)dev->priv_data;
+    if (!priv) {
+        priv = (ascend_acl_priv_t *)calloc(1, sizeof(ascend_acl_priv_t));
+        if (!priv) return -2;
+        dev->priv_data = priv;
+        dev->is_priv_allocated = true;
+    }
 
     if (cfg) {
         dev->config = *cfg;
@@ -103,7 +108,9 @@ static int ascend_deinit(npu_device_t *dev) {
     priv->acl_stream = NULL;
     priv->acl_context = NULL;
 
-    free(priv);
+    if (dev->is_priv_allocated) {
+        free(priv);
+    }
     dev->priv_data = NULL;
     dev->initialized = false;
     return 0;

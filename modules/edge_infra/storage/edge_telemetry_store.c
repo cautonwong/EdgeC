@@ -64,6 +64,8 @@ struct edge_telemetry_store_s {
     uv_timer_t flush_timer;
     bool timer_init;
     bool lock_init;
+    bool is_allocated;
+    bool are_buffers_allocated;
 };
 
 // --- CRC32 IEEE 802.3 Checksum ---
@@ -223,11 +225,13 @@ static void _flush_timer_cb(uv_timer_t *handle) {
 
 // --- Public API Implementation ---
 
-edge_telemetry_store_t *edge_telemetry_store_create(uv_loop_t *loop,
-                                                    const edge_telemetry_store_cfg_t *cfg) {
-    edge_telemetry_store_t *store = calloc(1, sizeof(edge_telemetry_store_t));
-    if (!store) return NULL;
-
+static void _telemetry_store_init_common(edge_telemetry_store_t *store,
+                                         uv_loop_t *loop,
+                                         const edge_telemetry_store_cfg_t *cfg,
+                                         pipe_msg_t *mem_records_buf,
+                                         size_t mem_capacity,
+                                         pipe_msg_t *snf_queue_buf,
+                                         size_t snf_capacity) {
     if (cfg) {
         store->cfg = *cfg;
     }
@@ -243,13 +247,28 @@ edge_telemetry_store_t *edge_telemetry_store_create(uv_loop_t *loop,
     uv_mutex_init(&store->lock);
     store->lock_init = true;
 
-    // 分配内存历史记录环
-    store->mem_capacity = MAX_MEM_RECORDS;
-    store->mem_records = calloc(store->mem_capacity, sizeof(pipe_msg_t));
+    // 内存历史记录环
+    if (mem_records_buf && mem_capacity > 0) {
+        store->mem_capacity = mem_capacity;
+        store->mem_records = mem_records_buf;
+        memset(mem_records_buf, 0, mem_capacity * sizeof(pipe_msg_t));
+        store->are_buffers_allocated = false;
+    } else {
+        store->mem_capacity = MAX_MEM_RECORDS;
+        store->mem_records = calloc(store->mem_capacity, sizeof(pipe_msg_t));
+        store->are_buffers_allocated = true;
+    }
 
-    // 分配离线 SnF 队列
-    store->snf_capacity = store->cfg.snf_max_offline_records;
-    store->snf_queue = calloc(store->snf_capacity, sizeof(pipe_msg_t));
+    // 离线 SnF 队列
+    if (snf_queue_buf && snf_capacity > 0) {
+        store->snf_capacity = snf_capacity;
+        store->snf_queue = snf_queue_buf;
+        memset(snf_queue_buf, 0, snf_capacity * sizeof(pipe_msg_t));
+    } else {
+        store->snf_capacity = store->cfg.snf_max_offline_records;
+        store->snf_queue = calloc(store->snf_capacity, sizeof(pipe_msg_t));
+        store->are_buffers_allocated = true;
+    }
 
     // 配置与打开 WAL
     if (store->cfg.wal_path && strlen(store->cfg.wal_path) > 0) {
@@ -279,6 +298,31 @@ edge_telemetry_store_t *edge_telemetry_store_create(uv_loop_t *loop,
 
     LOG_INFO(LOG_CAT_CORE, "[TelemetryStore] Unified Telemetry Store Created (WAL: %s, Gorilla: %d, SnF Cap: %zu)",
              store->resolved_wal_path, store->cfg.enable_gorilla_compression, store->snf_capacity);
+}
+
+edge_telemetry_store_t *edge_telemetry_store_create_in(edge_telemetry_store_storage_t *storage,
+                                                       uv_loop_t *loop,
+                                                       const edge_telemetry_store_cfg_t *cfg,
+                                                       pipe_msg_t *mem_records_buf,
+                                                       size_t mem_capacity,
+                                                       pipe_msg_t *snf_queue_buf,
+                                                       size_t snf_capacity) {
+    if (!storage) return NULL;
+    _Static_assert(sizeof(edge_telemetry_store_t) <= sizeof(edge_telemetry_store_storage_t),
+                   "edge_telemetry_store_t exceeds storage");
+    edge_telemetry_store_t *store = (edge_telemetry_store_t *)storage;
+    memset(store, 0, sizeof(edge_telemetry_store_t));
+    store->is_allocated = false;
+    _telemetry_store_init_common(store, loop, cfg, mem_records_buf, mem_capacity, snf_queue_buf, snf_capacity);
+    return store;
+}
+
+edge_telemetry_store_t *edge_telemetry_store_create(uv_loop_t *loop,
+                                                    const edge_telemetry_store_cfg_t *cfg) {
+    edge_telemetry_store_t *store = calloc(1, sizeof(edge_telemetry_store_t));
+    if (!store) return NULL;
+    store->is_allocated = true;
+    _telemetry_store_init_common(store, loop, cfg, NULL, 0, NULL, 0);
     return store;
 }
 
@@ -421,21 +465,24 @@ void edge_telemetry_store_destroy(edge_telemetry_store_t *store) {
         store->wal_fd = -1;
     }
 
-    if (store->mem_records) {
-        free(store->mem_records);
-        store->mem_records = NULL;
+    if (store->are_buffers_allocated) {
+        if (store->mem_records) {
+            free(store->mem_records);
+        }
+        if (store->snf_queue) {
+            free(store->snf_queue);
+        }
     }
-
-    if (store->snf_queue) {
-        free(store->snf_queue);
-        store->snf_queue = NULL;
-    }
+    store->mem_records = NULL;
+    store->snf_queue = NULL;
 
     if (store->lock_init) {
         uv_mutex_destroy(&store->lock);
         store->lock_init = false;
     }
 
-    free(store);
+    if (store->is_allocated) {
+        free(store);
+    }
     LOG_INFO(LOG_CAT_CORE, "[TelemetryStore] Unified Telemetry Store Destroyed");
 }

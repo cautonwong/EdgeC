@@ -11,6 +11,7 @@
 #ifndef EDGE_NPU_HAL_H
 #define EDGE_NPU_HAL_H
 
+#include <stdalign.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -175,6 +176,13 @@ typedef struct npu_hal_ops {
 } npu_hal_ops_t;
 
 /**
+ * @brief [Issue #365] NPU 后端预分配存储空间 (Caller-Allocated Storage)
+ */
+typedef struct {
+    alignas(max_align_t) uint8_t raw[512];
+} npu_backend_storage_t;
+
+/**
  * @brief NPU Device Context
  */
 struct npu_device {
@@ -183,12 +191,14 @@ struct npu_device {
     const npu_hal_ops_t *ops;
     void *priv_data;            /**< Backend private state */
     bool initialized;
+    bool is_priv_allocated;
 };
 
 /* -------------------------------------------------------------------------- */
 /* Factory & High Level Unified APIs                                          */
 /* -------------------------------------------------------------------------- */
 
+int npu_device_create_in(npu_device_t *dev, npu_backend_type_t backend, npu_backend_storage_t *storage);
 int npu_device_create(npu_device_t *dev, npu_backend_type_t backend);
 int npu_device_init(npu_device_t *dev, const npu_device_config_t *cfg);
 int npu_device_deinit(npu_device_t *dev);

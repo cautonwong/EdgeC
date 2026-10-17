@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "ai_awq_gptq_gemm.h"
 #include "ai_dynamic_tensor_pool.h"
@@ -54,13 +55,16 @@
 #include "edge_ebpf_telemetry.h"
 #include "edge_edf_scheduler.h"
 #include "edge_guard.h"
+#include "edge_linalg.h"
 #include "edge_mixed_criticality.h"
 #include "edge_operator_fusion.h"
 #include "edge_pcp_mutex.h"
 #include "edge_prio_booster.h"
 #include "edge_rms_scheduler.h"
 #include "edge_sched_deadline.h"
+#include "edge_service.h"
 #include "edge_swarm_offload.h"
+#include "edge_telemetry_store.h"
 #include "edge_tensor_pipeline.h"
 #include "edge_thermal_scheduler.h"
 #include "edge_tmr_voter.h"
@@ -72,13 +76,16 @@
 #include "impedance_control.h"
 #include "mpc_dispatcher.h"
 #include "npu_enclave.h"
+#include "npu_hal.h"
 #include "npu_pmu.h"
 #include "npu_power_manager.h"
 #include "persistence_mgr.h"
 #include "protocol_bridge.h"
+#include "rest_server.h"
 #include "shmring.h"
 #include "snf_manager.h"
 #include "sqlite_service.h"
+#include "stream_engine.h"
 #include "vsg_control.h"
 
 /* -------------------------------------------------------------------------- */
@@ -1289,6 +1296,185 @@ static void test_edge_tensor_pipeline_caller_allocated_storage(void **state) {
     assert_true(pipe.is_valid_dag);
 }
 
+static void test_edge_matrix_caller_allocated_storage(void **state) {
+    (void)state;
+    edge_matrix_storage_t sA, sB, sC, sInv;
+    edge_matrix_t *A = edge_matrix_init(&sA, 2, 2);
+    edge_matrix_t *B = edge_matrix_init(&sB, 2, 2);
+    edge_matrix_t *C = edge_matrix_init(&sC, 2, 2);
+    edge_matrix_t *invA = edge_matrix_init(&sInv, 2, 2);
+
+    assert_non_null(A);
+    assert_non_null(B);
+    assert_non_null(C);
+    assert_non_null(invA);
+
+    edge_matrix_set(A, 0, 0, 4.0);
+    edge_matrix_set(A, 0, 1, 7.0);
+    edge_matrix_set(A, 1, 0, 2.0);
+    edge_matrix_set(A, 1, 1, 6.0);
+
+    edge_matrix_set(B, 0, 0, 1.0);
+    edge_matrix_set(B, 0, 1, 0.0);
+    edge_matrix_set(B, 1, 0, 0.0);
+    edge_matrix_set(B, 1, 1, 1.0);
+
+    assert_int_equal(edge_matrix_mul(A, B, C), 0);
+    assert_float_equal(edge_matrix_get(C, 0, 0), 4.0, 0.0001);
+    assert_float_equal(edge_matrix_get(C, 1, 1), 6.0, 0.0001);
+
+    assert_int_equal(edge_matrix_inv_in(A, invA), 0);
+    assert_int_equal(edge_matrix_mul(A, invA, C), 0);
+    assert_float_equal(edge_matrix_get(C, 0, 0), 1.0, 0.0001);
+    assert_float_equal(edge_matrix_get(C, 0, 1), 0.0, 0.0001);
+    assert_float_equal(edge_matrix_get(C, 1, 0), 0.0, 0.0001);
+    assert_float_equal(edge_matrix_get(C, 1, 1), 1.0, 0.0001);
+
+    edge_matrix_free(A);
+    edge_matrix_free(B);
+    edge_matrix_free(C);
+    edge_matrix_free(invA);
+}
+
+static void test_edge_service_caller_allocated_storage(void **state) {
+    (void)state;
+    service_storage_t store;
+    uv_loop_t loop;
+    uv_loop_init(&loop);
+
+    datahub_t dummy_hub;
+    memset(&dummy_hub, 0, sizeof(dummy_hub));
+    dummy_hub.loop = &loop;
+    uint8_t dummy_arb_buf[64] = {0};
+    arbiter_t *dummy_arb = (arbiter_t *)dummy_arb_buf;
+
+    service_t *svc =
+        service_create_in(&store, &loop, &dummy_hub, dummy_arb, NULL, NULL, NULL, NULL);
+    assert_non_null(svc);
+    assert_ptr_equal(svc, (service_t *)&store);
+    assert_ptr_equal(service_get_loop(svc), &loop);
+    assert_ptr_equal(service_get_datahub(svc), &dummy_hub);
+    assert_ptr_equal(service_get_arbiter(svc), dummy_arb);
+
+    service_destroy(svc);
+    uv_loop_close(&loop);
+}
+
+static void test_npu_device_caller_allocated_storage(void **state) {
+    (void)state;
+    npu_backend_storage_t backend_store;
+    npu_device_t dev;
+
+    assert_int_equal(npu_device_create_in(&dev, NPU_BACKEND_ASCEND_ACL, &backend_store), 0);
+    assert_ptr_equal(dev.priv_data, &backend_store);
+    assert_false(dev.is_priv_allocated);
+
+    npu_device_config_t cfg = {.device_id = 0,
+                               .backend = NPU_BACKEND_ASCEND_ACL,
+                               .max_workspace_mb = 64,
+                               .enable_zero_copy = true,
+                               .max_temp_throttle_c = 80.0f};
+    assert_int_equal(npu_device_init(&dev, &cfg), 0);
+    assert_true(dev.initialized);
+
+    npu_metrics_t metrics;
+    assert_int_equal(npu_get_telemetry_metrics(&dev, &metrics), 0);
+    assert_int_equal(metrics.device_status, NPU_STATUS_READY);
+
+    assert_int_equal(npu_device_deinit(&dev), 0);
+    assert_false(dev.initialized);
+}
+
+static void test_edge_telemetry_store_caller_allocated_storage(void **state) {
+    (void)state;
+    edge_telemetry_store_storage_t store_mem;
+    pipe_msg_t mem_records[32];
+    pipe_msg_t snf_queue[32];
+
+    const char *wal_path = "/tmp/test_telemetry_caller_alloc.wal";
+    unlink(wal_path);
+
+    edge_telemetry_store_cfg_t cfg = {.wal_path = wal_path,
+                                      .batch_size = 10,
+                                      .flush_interval_ms = 1000,
+                                      .snf_max_offline_records = 32};
+
+    edge_telemetry_store_t *store =
+        edge_telemetry_store_create_in(&store_mem, NULL, &cfg, mem_records, 32, snf_queue, 32);
+    assert_non_null(store);
+
+    pipe_msg_t msg = {.ts = 1000, .tag_id = 101, .payload.val.f = 220.5f, .quality = 0};
+    assert_int_equal(edge_telemetry_store_append(store, &msg), 0);
+
+    edge_telemetry_store_stats_t stats;
+    assert_int_equal(edge_telemetry_store_get_stats(store, &stats), 0);
+    assert_int_equal(stats.total_appended, 1);
+
+    edge_telemetry_store_destroy(store);
+    unlink(wal_path);
+}
+
+static void test_sqlite_svc_caller_allocated_storage(void **state) {
+    (void)state;
+    uv_loop_t loop;
+    uv_loop_init(&loop);
+
+    const char *db_path = "/tmp/test_sqlite_caller_alloc.db";
+    unlink(db_path);
+
+    sqlite_config_t cfg = {.strategy = STRATEGY_SERIES,
+                           .db_path = db_path,
+                           .batch_size = 10,
+                           .flush_interval_ms = 5000};
+
+    sqlite_svc_storage_t store_mem;
+    PipeMsg active_buf[10];
+    PipeMsg flush_buf[10];
+
+    sqlite_svc_t *svc =
+        sqlite_svc_create_in(&store_mem, &loop, &cfg, active_buf, 10, flush_buf, 10);
+    assert_non_null(svc);
+
+    PipeMsg msg = {.ts = 1700000000, .tag_id = 1, .payload.val.f = 380.0f, .quality = 1};
+    assert_int_equal(sqlite_svc_insert(svc, &msg), 0);
+    assert_int_equal(sqlite_svc_flush(svc), 0);
+
+    sqlite_svc_destroy(svc);
+    uv_loop_close(&loop);
+    unlink(db_path);
+}
+
+static void test_stream_engine_caller_allocated_storage(void **state) {
+    (void)state;
+    stream_engine_storage_t eng_store;
+    pipeline_stage_t *stage = stream_stage_alloc_node();
+    assert_non_null(stage);
+    assert_non_null(stage->storage_cfg);
+    assert_non_null(stage->storage_state);
+
+    uv_loop_t loop;
+    uv_loop_init(&loop);
+    stream_engine_t *eng = stream_engine_create_in(&eng_store, NULL, &loop, NULL, NULL);
+    assert_non_null(eng);
+
+    stream_engine_destroy(eng);
+    uv_loop_close(&loop);
+}
+
+static void test_rest_server_caller_allocated_storage(void **state) {
+    (void)state;
+    uv_loop_t loop;
+    uv_loop_init(&loop);
+
+    rest_server_storage_t srv_store;
+    rest_server_t *srv = rest_server_create_in(&srv_store, &loop, NULL, 18999);
+    assert_non_null(srv);
+
+    rest_server_destroy(srv);
+    uv_run(&loop, UV_RUN_NOWAIT);
+    uv_loop_close(&loop);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_battery_ekf_caller_allocated_storage),
@@ -1346,6 +1532,13 @@ int main(void) {
         cmocka_unit_test(test_battery_thermal_pinn_caller_allocated_storage),
         cmocka_unit_test(test_edge_wasm_nn_caller_allocated_storage),
         cmocka_unit_test(test_edge_tensor_pipeline_caller_allocated_storage),
+        cmocka_unit_test(test_edge_matrix_caller_allocated_storage),
+        cmocka_unit_test(test_edge_service_caller_allocated_storage),
+        cmocka_unit_test(test_npu_device_caller_allocated_storage),
+        cmocka_unit_test(test_edge_telemetry_store_caller_allocated_storage),
+        cmocka_unit_test(test_sqlite_svc_caller_allocated_storage),
+        cmocka_unit_test(test_stream_engine_caller_allocated_storage),
+        cmocka_unit_test(test_rest_server_caller_allocated_storage),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

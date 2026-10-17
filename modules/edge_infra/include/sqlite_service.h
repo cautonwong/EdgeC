@@ -1,6 +1,8 @@
 #ifndef SQLITE_SERVICE_H
 #define SQLITE_SERVICE_H
 
+#include <stdalign.h>
+#include <stddef.h>
 #include <stdint.h>
 typedef struct uv_loop_s uv_loop_t;
 
@@ -35,10 +37,31 @@ typedef struct {
     uint32_t max_db_size_mb; /**< [Phase 9] 数据库最大容量 (MB)，超过则触发自动清理 */
 } sqlite_config_t;
 
+/**
+ * @brief [Issue #366] 调用方分配的 SQLite 服务预分配内存结构
+ */
+typedef struct {
+    alignas(max_align_t) uint8_t raw[1024];
+} sqlite_svc_storage_t;
+
 // --- API ---
 
 // 创建并初始化服务 (包含自动迁移、Pragma 调优)
 sqlite_svc_t *sqlite_svc_create(uv_loop_t *loop, sqlite_config_t *cfg);
+
+/**
+ * @brief [Issue #366] 在调用方预分配内存中创建 SQLite 服务 (Zero-Alloc)
+ * @param storage 预分配的服务上下文内存
+ * @param loop 事件循环
+ * @param cfg 配置
+ * @param active_buf_mem 调用方预分配的活跃批处理缓冲区 (可选，NULL 则动态分配)
+ * @param active_capacity 活跃缓冲区容量
+ * @param flush_buf_mem 调用方预分配的刷盘批处理缓冲区 (可选，NULL 则动态分配)
+ * @param flush_capacity 刷盘缓冲区容量
+ */
+sqlite_svc_t *sqlite_svc_create_in(sqlite_svc_storage_t *storage, uv_loop_t *loop, sqlite_config_t *cfg,
+                                   PipeMsg *active_buf_mem, int active_capacity,
+                                   PipeMsg *flush_buf_mem, int flush_capacity);
 
 /**
  * @brief [Nexus] 从契约初始化数据库 (自动建表、注入初始配置)

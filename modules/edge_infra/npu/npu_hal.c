@@ -8,9 +8,30 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+int npu_device_create_in(npu_device_t *dev, npu_backend_type_t backend, npu_backend_storage_t *storage) {
+    if (!dev) return -1;
+    _Static_assert(sizeof(struct npu_device) <= sizeof(npu_backend_storage_t), "npu_backend_storage_t size");
+    memset(dev, 0, sizeof(npu_device_t));
+    if (storage) {
+        memset(storage, 0, sizeof(*storage));
+        dev->priv_data = storage;
+        dev->is_priv_allocated = false;
+    }
+    int rc = npu_device_create(dev, backend);
+    if (storage) {
+        dev->priv_data = storage;
+        dev->is_priv_allocated = false;
+    }
+    return rc;
+}
+
 int npu_device_create(npu_device_t *dev, npu_backend_type_t backend) {
     if (!dev) return -1;
+    void *existing_priv = dev->priv_data;
+    bool existing_priv_alloc = dev->is_priv_allocated;
     memset(dev, 0, sizeof(npu_device_t));
+    dev->priv_data = existing_priv;
+    dev->is_priv_allocated = existing_priv_alloc;
 
     switch (backend) {
         case NPU_BACKEND_CPU_FALLBACK:

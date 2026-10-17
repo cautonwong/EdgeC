@@ -31,6 +31,8 @@ struct sqlite_svc_s {
     sqlite_config_t config;
     data_batch_t *active_buf;
     data_batch_t *flush_buf;
+    data_batch_t static_active_buf;
+    data_batch_t static_flush_buf;
     uv_mutex_t buf_lock;
     uv_work_t work_req;
     uv_timer_t flush_timer;
@@ -41,6 +43,8 @@ struct sqlite_svc_s {
     uint64_t total_dropped;   /**< [新增] 因背压丢弃的消息计数 */
 
     int is_flushing;
+    bool is_allocated;
+    bool are_buffers_allocated;
     char current_shard[64];
 };
 
@@ -274,8 +278,63 @@ static void _on_timer(uv_timer_t *handle) {
 
 // --- 4. 公开 API (核心补强) ---
 
+sqlite_svc_t *sqlite_svc_create_in(sqlite_svc_storage_t *storage, uv_loop_t *loop, sqlite_config_t *cfg,
+                                   PipeMsg *active_buf_mem, int active_capacity,
+                                   PipeMsg *flush_buf_mem, int flush_capacity) {
+    if (!storage || !cfg) return NULL;
+    _Static_assert(sizeof(struct sqlite_svc_s) <= sizeof(sqlite_svc_storage_t), "sqlite_svc_t exceeds storage");
+    sqlite_svc_t *svc = (sqlite_svc_t *)storage;
+    memset(svc, 0, sizeof(sqlite_svc_t));
+    svc->loop = loop;
+    svc->config = *cfg;
+    svc->is_allocated = false;
+    if (sqlite3_open(cfg->db_path, &svc->db) != SQLITE_OK) {
+        return NULL;
+    }
+    sqlite3_exec(svc->db, "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA temp_store=MEMORY; PRAGMA wal_autocheckpoint=1000;", NULL, NULL, NULL);
+    _migrate_schema(svc);
+    if (cfg->strategy == STRATEGY_SERIES || cfg->strategy == STRATEGY_SHARDING) {
+        svc->active_buf = &svc->static_active_buf;
+        svc->flush_buf = &svc->static_flush_buf;
+        int bsize = cfg->batch_size > 0 ? cfg->batch_size : 100;
+        if (active_buf_mem && active_capacity > 0) {
+            svc->active_buf->buffer = active_buf_mem;
+            svc->active_buf->capacity = active_capacity;
+            svc->are_buffers_allocated = false;
+        } else {
+            svc->active_buf->buffer = malloc(sizeof(PipeMsg) * (size_t)bsize);
+            svc->active_buf->capacity = bsize;
+            svc->are_buffers_allocated = true;
+        }
+        if (flush_buf_mem && flush_capacity > 0) {
+            svc->flush_buf->buffer = flush_buf_mem;
+            svc->flush_buf->capacity = flush_capacity;
+        } else {
+            svc->flush_buf->buffer = malloc(sizeof(PipeMsg) * (size_t)bsize);
+            svc->flush_buf->capacity = bsize;
+            svc->are_buffers_allocated = true;
+        }
+        uv_mutex_init(&svc->buf_lock);
+        uv_timer_init(loop, &svc->flush_timer);
+        svc->flush_timer.data = svc;
+        int interval = cfg->flush_interval_ms > 0 ? cfg->flush_interval_ms : 1000;
+        uv_timer_start(&svc->flush_timer, _on_timer, (uint64_t)interval, (uint64_t)interval);
+    }
+
+    // 初始化 GC 定时器 (每分钟检查一次)
+    uv_timer_init(loop, &svc->gc_timer);
+    svc->gc_timer.data = svc;
+    uv_timer_start(&svc->gc_timer, _on_storage_gc, 60000, 60000);
+
+    atomic_init(&svc->is_busy, false);
+    return svc;
+}
+
 sqlite_svc_t *sqlite_svc_create(uv_loop_t *loop, sqlite_config_t *cfg) {
+    if (!cfg) return NULL;
     sqlite_svc_t *svc = calloc(1, sizeof(sqlite_svc_t));
+    if (!svc) return NULL;
+    svc->is_allocated = true;
     svc->loop = loop;
     svc->config = *cfg;
     if (sqlite3_open(cfg->db_path, &svc->db) != SQLITE_OK) {
@@ -285,13 +344,14 @@ sqlite_svc_t *sqlite_svc_create(uv_loop_t *loop, sqlite_config_t *cfg) {
     sqlite3_exec(svc->db, "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA temp_store=MEMORY; PRAGMA wal_autocheckpoint=1000;", NULL, NULL, NULL);
     _migrate_schema(svc);
     if (cfg->strategy == STRATEGY_SERIES || cfg->strategy == STRATEGY_SHARDING) {
-        svc->active_buf = calloc(1, sizeof(data_batch_t));
-        svc->flush_buf = calloc(1, sizeof(data_batch_t));
+        svc->active_buf = &svc->static_active_buf;
+        svc->flush_buf = &svc->static_flush_buf;
         int bsize = cfg->batch_size > 0 ? cfg->batch_size : 100;
         svc->active_buf->buffer = malloc(sizeof(PipeMsg) * (size_t)bsize);
         svc->flush_buf->buffer = malloc(sizeof(PipeMsg) * (size_t)bsize);
         svc->active_buf->capacity = bsize;
         svc->flush_buf->capacity = bsize;
+        svc->are_buffers_allocated = true;
         uv_mutex_init(&svc->buf_lock);
         uv_timer_init(loop, &svc->flush_timer);
         svc->flush_timer.data = svc;
@@ -506,11 +566,9 @@ void sqlite_svc_destroy(sqlite_svc_t *svc) {
             _worker_flush_cb(&req);
             svc->flush_buf = old_flush;
         }
-        free(svc->active_buf->buffer);
-        free(svc->active_buf);
-        if (svc->flush_buf) {
-            free(svc->flush_buf->buffer);
-            free(svc->flush_buf);
+        if (svc->are_buffers_allocated) {
+            if (svc->active_buf && svc->active_buf->buffer) free(svc->active_buf->buffer);
+            if (svc->flush_buf && svc->flush_buf->buffer) free(svc->flush_buf->buffer);
         }
         uv_mutex_destroy(&svc->buf_lock);
     }
@@ -520,7 +578,9 @@ void sqlite_svc_destroy(sqlite_svc_t *svc) {
     }
 
     if (svc->db) sqlite3_close(svc->db);
-    free(svc);
+    if (svc->is_allocated) {
+        free(svc);
+    }
 }
 
 typedef struct {
