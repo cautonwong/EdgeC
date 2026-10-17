@@ -36,6 +36,7 @@ add_library(edge_core STATIC
     src/edge_thermal_scheduler.c
     src/edge_amp_ipc.c
     src/edge_swarm_offload.c
+    src/hal_crypto.c
 )
 
 # PUBLIC: 链接 edge_core 的 Target 也能 include 这些头文件
