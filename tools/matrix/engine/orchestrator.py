@@ -6,6 +6,7 @@ import socket
 import select
 import threading
 import sys
+import errno
 from .loader import SchemaLoader
 
 class MatrixOrchestrator:
@@ -121,6 +122,25 @@ class MatrixOrchestrator:
                                 if c is not s:
                                     try:
                                         c.sendall(data)
+                                    except (BlockingIOError, socket.error) as e:
+                                        err_code = getattr(e, 'errno', None)
+                                        if err_code in (errno.EAGAIN, errno.EWOULDBLOCK):
+                                            try:
+                                                _, writable, _ = select.select([], [c], [], 1.0)
+                                                if writable:
+                                                    c.sendall(data)
+                                                else:
+                                                    print(f"  [Relay] Bus {bus_id}: Send timeout to client")
+                                            except Exception as retry_err:
+                                                print(f"  [Relay] Bus {bus_id}: Send retry failed: {retry_err}")
+                                                if c in clients: clients.remove(c)
+                                                try: c.close()
+                                                except Exception: pass
+                                        else:
+                                            print(f"  [Relay] Bus {bus_id}: Send failed to client: {e}")
+                                            if c in clients: clients.remove(c)
+                                            try: c.close()
+                                            except Exception: pass
                                     except Exception as e:
                                         print(f"  [Relay] Bus {bus_id}: Send failed to client: {e}")
                                         if c in clients: clients.remove(c)

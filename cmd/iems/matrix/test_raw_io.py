@@ -23,7 +23,7 @@ async def test_raw_io_loopback(matrix):
     # 使用 asyncio 打开 Unix 域套接字连接
     reader, writer = await asyncio.open_unix_connection(vbus_path)
     # 给 UDS Relay 足够的时间在事件循环中 accept 此连接
-    await asyncio.sleep(0.1)
+    await asyncio.sleep(0.3)
 
     stop_event = asyncio.Event()
 
@@ -104,6 +104,7 @@ async def test_raw_io_loopback(matrix):
             break
         else:
             print(f"  [Attempt {attempt+1}] Got payload: {data.get('payload')}")
+            await asyncio.sleep(0.2)
         
     # 等待后台任务平滑结束
     stop_event.set()

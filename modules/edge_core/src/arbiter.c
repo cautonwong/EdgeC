@@ -181,7 +181,7 @@ void arbiter_on_io_done(arbiter_t *arb, int bus_id, cmd_msg_t *msg, int status) 
     if (!handled) {
         if (msg->on_complete) msg->on_complete(msg, status);
         if (msg->on_cleanup) msg->on_cleanup(msg);
-        else free(msg);
+        free(msg);
     }
 
     uv_mutex_lock(&arb->lock);
