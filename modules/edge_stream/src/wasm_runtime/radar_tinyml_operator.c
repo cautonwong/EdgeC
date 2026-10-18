@@ -4,7 +4,9 @@ IMPORT("host_get_tag") int host_get_tag(unsigned int tag_id, double *val_ptr);
 IMPORT("host_set_tag") int host_set_tag(unsigned int tag_id, double val);
 IMPORT("ext_log") void ext_log(unsigned int level, const char *msg);
 
-// FMCW Radar & TinyML WASM Operator State
+// FMCW Radar & DSP Rule Classifier WASM Operator (Heuristic Rule Operator, ADR-0009)
+// Note: Per ADR-0009 and Issue #218, this operator performs physical heuristic feature extraction
+// and DSP rule classification without weight-based neural network tensors.
 static double g_distance_history[10];
 static int g_hist_idx = 0;
 static double g_respiration_accum = 0.0;

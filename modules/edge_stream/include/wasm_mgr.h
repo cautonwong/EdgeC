@@ -43,9 +43,34 @@ wasm_app_t *wasm_app_create(const char *wasm_path, uint32_t heap_size, uint32_t 
 wasm_app_t *wasm_app_create_verify(const char *wasm_path, uint32_t heap_size, uint32_t stack_size, uint32_t timeout_ms, const char *pubkey_path);
 
 /**
- * @brief 在容器中执行函数
+ * @brief 在容器中执行函数 (无参数)
  */
 int wasm_app_exec(wasm_app_t *app, const char *func_name, pipe_msg_t *msg);
+
+/**
+ * @brief 在容器中执行带参数函数 (支持张量地址与维度传递)
+ */
+int wasm_app_exec_args(wasm_app_t *app, const char *func_name, uint32_t argc, uint32_t argv[]);
+
+/**
+ * @brief WASM 堆内张量空间分配 (AEP-604 / Issue #219)
+ */
+int wasm_app_tensor_alloc(wasm_app_t *app, uint32_t size_bytes, uint32_t *out_wasm_ptr);
+
+/**
+ * @brief 释放 WASM 堆内张量空间
+ */
+int wasm_app_tensor_free(wasm_app_t *app, uint32_t wasm_ptr);
+
+/**
+ * @brief 向 WASM 张量空间精准灌入 Host 内存数据
+ */
+int wasm_app_tensor_write(wasm_app_t *app, uint32_t wasm_ptr, const void *src, uint32_t size_bytes);
+
+/**
+ * @brief 从 WASM 张量空间提取推理预测结果
+ */
+int wasm_app_tensor_read(wasm_app_t *app, uint32_t wasm_ptr, void *dst, uint32_t size_bytes);
 
 void wasm_app_destroy(wasm_app_t *app);
 
