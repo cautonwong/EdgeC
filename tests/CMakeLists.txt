@@ -1539,3 +1539,37 @@ add_edge_test(test_ai_hetero_pipeline test_ai_hetero_pipeline.c)
 
 # ARCH-GOV: 聚合根封装治理单测 (Issue #369, #370)
 add_edge_test(test_aggregate_roots_governance test_aggregate_roots_governance.c)
+
+# 阶段 2：电网物联高韧性与型式试验实战战役测试套件
+add_executable(test_dcu_mutex_marathon test_dcu_mutex_marathon.c)
+target_include_directories(test_dcu_mutex_marathon PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_dcu_mutex_marathon PRIVATE dcu_app_lib edge_core pthread)
+add_test(NAME test_dcu_mutex_marathon COMMAND test_dcu_mutex_marathon)
+
+add_executable(test_dcu_topology_phase_id test_dcu_topology_phase_id.c)
+target_include_directories(test_dcu_topology_phase_id PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_dcu_topology_phase_id PRIVATE dcu_app_lib m)
+add_test(NAME test_dcu_topology_phase_id COMMAND test_dcu_topology_phase_id)
+
+add_executable(test_bus_resilience_recovery test_bus_resilience_recovery.c)
+target_include_directories(test_bus_resilience_recovery PRIVATE "${CMAKE_SOURCE_DIR}/modules/edge_infra/include")
+target_link_libraries(test_bus_resilience_recovery PRIVATE edge_infra)
+add_test(NAME test_bus_resilience_recovery COMMAND test_bus_resilience_recovery)
+
+add_executable(test_northbound_dual_track_snf test_northbound_dual_track_snf.c "${CMAKE_SOURCE_DIR}/services/northbound/northbound_dual_track_snf.c")
+target_include_directories(test_northbound_dual_track_snf PRIVATE "${CMAKE_SOURCE_DIR}/services/northbound")
+add_test(NAME test_northbound_dual_track_snf COMMAND test_northbound_dual_track_snf)
+
+add_executable(test_iec104_type_test_suite test_iec104_type_test_suite.c)
+target_include_directories(test_iec104_type_test_suite PRIVATE "${CMAKE_SOURCE_DIR}/modules/edge_protocol/include" "${CMAKE_SOURCE_DIR}/modules/edge_io/include")
+target_link_libraries(test_iec104_type_test_suite PRIVATE edge_protocol edge_core)
+add_test(NAME test_iec104_type_test_suite COMMAND test_iec104_type_test_suite)
+
+add_executable(test_storage_powercut_resilience test_storage_powercut_resilience.c "${CMAKE_SOURCE_DIR}/tools/fault_injector/storage_powercut_fault_injector.c")
+target_include_directories(test_storage_powercut_resilience PRIVATE "${CMAKE_SOURCE_DIR}/tools/fault_injector")
+target_link_libraries(test_storage_powercut_resilience PRIVATE SQLite::SQLite3)
+add_test(NAME test_storage_powercut_resilience COMMAND test_storage_powercut_resilience)
+
+add_executable(test_soak_memory_convergence test_soak_memory_convergence.c)
+target_link_libraries(test_soak_memory_convergence PRIVATE edge_core)
+add_test(NAME test_soak_memory_convergence COMMAND test_soak_memory_convergence)
