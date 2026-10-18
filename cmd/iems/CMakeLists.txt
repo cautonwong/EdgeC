@@ -2,14 +2,9 @@
 
 set(PROD_NAME iems)
 
-# 签名: edge_add_contract(TARGET_NAME PRODUCT_YAML LOCAL_YAML) (以接地气的中文添加注释)
-edge_add_contract(
-    contract_${PROD_NAME}
-    "${CMAKE_SOURCE_DIR}/contracts/products/iems_v5.yaml"
-    "${CMAKE_CURRENT_SOURCE_DIR}/manifest.yaml"
-)
-
 add_library(iems_app_lib STATIC
+    iems_node.c
+    iems_driver_adapter.c
     iems_microgrid_coordinator.c
     iems_pcs_controller.c
     iems_bms_cluster_engine.c
@@ -23,14 +18,24 @@ add_library(iems_app_lib STATIC
 target_include_directories(iems_app_lib PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_bootstrap/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_io/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_stream/include
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_protocol/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_security/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
     ${CMAKE_SOURCE_DIR}/modules/edge_algo/include
 )
 
 target_link_libraries(iems_app_lib PUBLIC
+    edge_bootstrap
+    edge_io
     edge_core
+    edge_protocol
+    edge_stream
+    edge_infra
     edge_algo
-    contract_${PROD_NAME}
 )
 
 add_executable(iems main.c)
@@ -53,7 +58,6 @@ target_link_libraries(iems PRIVATE
     SQLite::SQLite3
     PahoMQTT::PahoMQTT
     -Wl,--end-group
-    contract_iems
 )
 install(TARGETS iems DESTINATION bin)
 
@@ -75,7 +79,6 @@ target_link_libraries(iems-cli PRIVATE
     SQLite::SQLite3
     PahoMQTT::PahoMQTT
     -Wl,--end-group
-    contract_iems
 )
 install(TARGETS iems-cli DESTINATION bin)
 

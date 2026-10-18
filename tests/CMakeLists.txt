@@ -15,7 +15,7 @@ macro(add_edge_test TEST_NAME)
         edge_bootstrap
         edge_protocol
         edge_algo
-        contract_iems
+        iems_app_lib
         -Wl,--end-group
         edge_common_interface
         cmocka::cmocka
@@ -176,7 +176,7 @@ target_link_libraries(test_scheduler PRIVATE
     edge_core
     edge_protocol
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -198,7 +198,7 @@ target_link_libraries(test_northbound_mqtt PRIVATE
     edge_core
     edge_protocol
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -208,6 +208,7 @@ target_link_options(test_northbound_mqtt PRIVATE "-Wl,--allow-multiple-definitio
 add_test(NAME test_northbound_mqtt COMMAND test_northbound_mqtt)
 
 add_edge_test(test_iems_full_stack test_iems_full_stack.c)
+add_edge_test(test_iems_node test_iems_node.c)
 
 # 编译选项加固
 target_link_options(test_integration PRIVATE -Wl,--wrap=io_submit)
@@ -361,7 +362,7 @@ target_link_libraries(test_dx_scaffolding PRIVATE
     edge_core
     edge_protocol
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -380,7 +381,7 @@ target_link_libraries(test_tag_domains_and_aliases PRIVATE
     edge_core
     edge_protocol
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -399,7 +400,7 @@ target_link_libraries(test_anti_corruption_engine PRIVATE
     edge_core
     edge_protocol
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -418,7 +419,7 @@ target_link_libraries(test_domain_scenarios PRIVATE
     edge_core
     edge_protocol
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -437,7 +438,7 @@ target_link_libraries(test_tag_collision_checker PRIVATE
     edge_core
     edge_protocol
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -456,7 +457,7 @@ target_link_libraries(test_sdk_public_headers PRIVATE
     edge_core
     edge_protocol
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -475,7 +476,7 @@ target_link_libraries(test_archetype_generator PRIVATE
     edge_core
     edge_protocol
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -496,7 +497,7 @@ target_link_libraries(test_examples_integration PRIVATE
     edge_core
     edge_protocol
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -515,7 +516,7 @@ target_link_libraries(test_compiler_dx_diagnostics PRIVATE
     edge_core
     edge_protocol
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -533,7 +534,7 @@ target_link_libraries(test_cli_migrate PRIVATE
     edge_security
     edge_core
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -551,7 +552,7 @@ target_link_libraries(test_developer_manuals PRIVATE
     edge_security
     edge_core
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -569,7 +570,7 @@ target_link_libraries(test_datahub_subscription PRIVATE
     edge_security
     edge_core
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -587,7 +588,7 @@ target_link_libraries(test_driver_orchestrator PRIVATE
     edge_security
     edge_core
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -605,7 +606,7 @@ target_link_libraries(test_telemetry_store_crash PRIVATE
     edge_security
     edge_core
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -623,7 +624,7 @@ target_link_libraries(test_stream_yaml_assembly PRIVATE
     edge_security
     edge_core
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -645,7 +646,7 @@ target_link_libraries(test_datahub_dds_mesh PRIVATE
     edge_security
     edge_core
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cyclonedds
@@ -683,7 +684,7 @@ target_link_libraries(test_dds_qos_matrix PRIVATE
     edge_security
     edge_core
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cyclonedds
@@ -708,7 +709,7 @@ target_link_libraries(test_dds_shm_zerocopy_perf PRIVATE
     edge_security
     edge_core
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cyclonedds
@@ -731,7 +732,7 @@ target_link_libraries(test_iems_energy_strategy PRIVATE
     edge_security
     edge_core
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -1439,7 +1440,7 @@ target_link_libraries(test_caller_allocated_storage PRIVATE
     edge_io
     edge_security
     edge_protocol
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     cmocka::cmocka
     libuv::uv_a

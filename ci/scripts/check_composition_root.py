@@ -16,7 +16,7 @@ import re
 import argparse
 
 ALLOWED_ROOT_PATHS = re.compile(
-    r'^(?:modules/edge_bootstrap/|cmd/.*/main\.c|cmd/dcu/dcu_node\.[ch]|tests/|fixtures/)'
+    r'^(?:modules/edge_bootstrap/|cmd/.*/main\.c|cmd/[^/]+/[^/]+_node\.[ch]|tests/|fixtures/)'
 )
 
 INCLUDE_COMPOSITION_ROOT_PAT = re.compile(

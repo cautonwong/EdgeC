@@ -12,8 +12,8 @@
 #include <string.h>
 #include <uv.h>
 
-#include "contracts.h"
 #include "datahub.h"
+#include "iems_driver_adapter.h"
 #include "edge_log.h"
 #include "edgeos/edge_mcp_bus.h"
 #include "edgeos/edge_mcp_dispatcher.h"
