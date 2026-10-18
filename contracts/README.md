@@ -1,19 +1,10 @@
-# EdgeOS / EdgeC Contract & TagID Specification
+# EdgeOS / EdgeC Contract Directory (Deprecated / Migrated to Autonomous Aggregates)
 
-## TagID Segment Partitioning Rules
-
-| Segment Range | Category / Purpose | Description & Examples |
-|---|---|---|
-| `0` | Reserved | `TAG_INVALID` |
-| `1000 - 11999` | Business Telemetry & Metrology | Standard power, telemetry, metrology, energy, battery, control, DLMS, policy, environment tags (`VOLTAGE_PHASE_A`=1001, `CURRENT_PHASE_A`=1002, `GRID_POWER`=1003, `ENERGY_ACTIVE_IMPORT`=3001, `BATTERY_SOC`=4001) |
-| `12000 - 12999` | Metrics, Performance & System Audit | DataHub performance metrics (`12001-12004`), SmartBox system audit & state tags (`12006-12035`) |
-| `13000 - 65535` | Custom & Project Extensions | Product-specific custom domain extension tag IDs |
-| `0x00010000 - 0x7FFFFFFF` | Protocol Native OAD Identifiers | DLT698 32-bit hex OAD identifiers (`OAD_VOLTAGE`=`0x20000200`, `OAD_ACTIVE_ENERGY`=`0x00100200`) |
-
-## Architectural Governance & Contract Rules
-
-1. **TagID Range Rules**: All tag IDs MUST fall within valid defined segment ranges (`1000-65535` or `0x00010000-0x7FFFFFFF`).
-2. **TagID & Name Uniqueness**: Tag IDs and tag names MUST be unique across all active contracts.
-3. **Data Type Whitelist**: Data types MUST be selected from: `float32`, `float64`, `int32`, `int64`, `uint32`, `uint64`, `bool`, `string`, `bytes`.
-4. **Physical Units Requirement**: Numeric telemetry/metrology tags in strict validation mode MUST define a physical unit (`V`, `A`, `W`, `Hz`, `%`, `°C`, `s`, `N/A`).
-5. **No Hardcoded OAD Duplication**: Protocol OADs are declared in protocol bindings (`contracts/bindings/dlt698/*.yaml`) and resolved dynamically to business TagIDs via contract-compiler generated `edge_lookup_dlt698()`. Code-level hardcoded dual-encodings are forbidden.
+> [!NOTE]
+> 根据 **ADR-0010** 与 **[No-TagID, No-Contract 架构白皮书](../docs/design/no-tagid-no-contract-architecture.md)**，
+> 全局中心化契约编译器 (`contract-compiler-v2`)、YAML 模式点表与数字 TagID 系统已被彻底废除。
+> 
+> 各产品（DCU、IEMS、SmartBox）已全面演进为自治聚合根（`dcu_node_t`, `iems_node_t`, `smartbox_node_t`），
+> 测点使用领域天然标识并通过防腐层（ACL）驱动适配器进行依赖注入。
+>
+> 当前目录仅保留 `idl/` 子目录，用于 Cyclone DDS 工业标准化通讯（DL/T 698.45 / DLMS Bluebook / IDIS Pack3 OMG IDL 4.2）结构体定义。

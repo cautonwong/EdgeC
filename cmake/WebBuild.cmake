@@ -29,8 +29,8 @@ function(add_web_product PRODUCT_NAME WEB_SRC_DIR)
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${WEB_SRC_DIR}/dist" "${WEB_BUILD_DIR}"
         COMMAND ${CMAKE_COMMAND} -E touch "${WEB_STAMP}"
         WORKING_DIRECTORY "${WEB_SRC_DIR}"
-        DEPENDS ${WEB_DEPS} "${GEN_DIR}/tags_type.ts"
-        COMMENT "Building Web UI for ${PRODUCT_NAME} (with generated contracts)..."
+        DEPENDS ${WEB_DEPS}
+        COMMENT "Building Web UI for ${PRODUCT_NAME}..."
         VERBATIM
     )
 

@@ -1,8 +1,0 @@
-# EVSE FastCharge Contract Definition
-product: "EVSE_FastCharge_V2"
-includes:
-  - "contracts/bindings/modbus/acrel_p80.yaml"
-enabled_tags: 
-  - VOLTAGE_PHASE_A
-  - CURRENT_PHASE_A
-  - GRID_POWER

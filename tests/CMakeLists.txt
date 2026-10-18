@@ -93,7 +93,6 @@ add_edge_test(test_dlms_security_validation test_dlms_security_validation.c)
 # 3. 执行引擎测试 (Execution Plane)
 add_edge_test(test_driver_manager test_driver_manager.c)
 add_edge_test(test_io_executor test_io_executor.c)
-add_edge_test(test_contract_lookup test_contract_lookup.c)
 add_edge_test(test_driver_dlt645 test_driver_dlt645.c)
 add_edge_test(test_driver_v3 test_driver_v3.c)
 add_edge_test(test_modbus_v3 test_modbus_v3.c)
@@ -307,6 +306,7 @@ target_link_libraries(test_iems_task_loader PRIVATE iems_app_lib edge_stream edg
 
 # AEP-301 / AEP-302 契约生成式驱动注册表测试 (IEMS, DCU, SmartBox 参数化覆盖)
 add_edge_test(test_driver_registry test_driver_registry.c)
+target_include_directories(test_driver_registry PRIVATE "${CMAKE_SOURCE_DIR}/cmd/iems")
 
 add_executable(test_driver_registry_dcu test_dcu_driver_adapter.c)
 target_include_directories(test_driver_registry_dcu PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
@@ -335,11 +335,7 @@ add_edge_test(test_smartbox_node test_smartbox_node.c)
 target_include_directories(test_smartbox_node PRIVATE "${CMAKE_SOURCE_DIR}/cmd/smart_box")
 target_link_libraries(test_smartbox_node PRIVATE smartbox_app_lib)
 
-# AEP-305 生成物可信链与防篡改门禁单测
-add_test(NAME test_generated_drift_tamper COMMAND "${CMAKE_SOURCE_DIR}/tests/test_generated_drift_tamper.sh")
 
-# AEP-303 edge-cli 脚手架与契约 linter 集成单测
-add_test(NAME test_edge_cli_scaffold COMMAND "${CMAKE_SOURCE_DIR}/tests/test_edge_cli_scaffold.sh")
 
 # AEP-304 DX 自动化集成测试（二开驱动声明即调度）
 add_executable(test_dx_scaffolding test_dx_scaffolding.c)
@@ -455,24 +451,7 @@ target_link_libraries(test_sdk_public_headers PRIVATE
 )
 add_test(NAME test_sdk_public_headers COMMAND test_sdk_public_headers)
 
-# AEP-402 产品应用骨架生成器 (archetype) 单测
-add_executable(test_archetype_generator test_archetype_generator.c)
-target_link_libraries(test_archetype_generator PRIVATE
-    -Wl,--start-group
-    edge_infra
-    edge_io
-    edge_stream
-    edge_security
-    edge_core
-    edge_protocol
-    edge_algo
-    iems_app_lib
-    -Wl,--end-group
-    edge_common_interface
-    cmocka::cmocka
-    pthread dl rt m
-)
-add_test(NAME test_archetype_generator COMMAND test_archetype_generator)
+
 
 # AEP-403 二开驱动与算法范例集成单测
 add_executable(test_examples_integration test_examples_integration.c)

@@ -1,7 +1,0 @@
-# Default device modbus binding
-protocol: "Modbus"
-map:
-  - tag: GRID_POWER
-    addr: 40001
-    type: uint32
-    desc: "Default address for grid power"

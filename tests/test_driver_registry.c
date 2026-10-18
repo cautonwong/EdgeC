@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "contracts.h"
+#include "iems_driver_adapter.h"
 #include "driver_manager.h"
 #include "edge_driver.h"
 

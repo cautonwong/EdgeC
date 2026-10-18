@@ -1,8 +1,0 @@
-# HEMS Gateway Contract Definition
-product: "HEMS_Gateway_Lite"
-includes:
-  - "contracts/bindings/modbus/acrel_p80.yaml"
-enabled_tags: 
-  - VOLTAGE_PHASE_A
-  - GRID_POWER
-  - ENERGY_ACTIVE_IMPORT
