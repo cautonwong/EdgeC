@@ -232,12 +232,8 @@ add_subdirectory(modules/edge_bootstrap)
 # ==============================================================================
 # 6. Applications & Tests
 # ==============================================================================
-include(EdgeContract)
 include(WebBuild)
 include(EdgeInstall)
-include(BuildContractCompiler)
-
-build_contract_compiler()
 
 add_subdirectory(cmd/smart_box)
 add_subdirectory(cmd/iems)

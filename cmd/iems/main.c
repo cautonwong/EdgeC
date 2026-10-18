@@ -10,8 +10,8 @@
 #include <unistd.h>
 #include <uv.h>
 
-#include "contract_registry.h"
-#include "contracts.h"
+#include "iems_driver_adapter.h"
+#include "iems_node.h"
 #include "edge_api.h"
 #include "edge_composition_root.h"
 #include "edge_license.h"
@@ -111,13 +111,14 @@ static void on_poll_task_trigger(uv_periodic_t* handle) {
     if (!task) return;
     if (!g_assets_loaded) return;
 
-    const edge_contract_t* contract = contract_get_active();
-    if (!contract) return;
+    uint32_t conn_count = 0;
+    const edge_connectivity_t* conns = iems_get_connectivity(&conn_count);
+    if (!conns) return;
 
     bool is_southbound = false;
-    for (uint32_t i = 0; i < contract->connectivity_count; i++) {
-        if (contract->connectivity[i].id == task->bus_id &&
-            strcmp(contract->connectivity[i].category, "SOUTHBOUND") == 0) {
+    for (uint32_t i = 0; i < conn_count; i++) {
+        if (conns[i].id == task->bus_id &&
+            strcmp(conns[i].category, "SOUTHBOUND") == 0) {
             is_southbound = true;
             break;
         }
@@ -154,7 +155,7 @@ static void _on_iems_task_loaded(const iems_loaded_task_t* loaded, void* user_da
     strncpy(task->protocol, loaded->protocol, 15);
     task->interval_ms = 1000;
 
-    const edge_tag_meta_t* meta = contract_tag_get_meta(loaded->tag_id);
+    const edge_tag_meta_t* meta = iems_get_tag_meta(loaded->tag_id);
     if (meta && meta->poll_interval_ms > 0) {
         task->interval_ms = meta->poll_interval_ms;
     }
@@ -211,11 +212,12 @@ static void _on_north_connect(uv_stream_t* server, int status) {
 }
 
 static void _try_connect_buses(uv_timer_t* handle) {
-    const edge_contract_t* contract = contract_get_active();
-    if (!contract) return;
+    uint32_t conn_count = 0;
+    const edge_connectivity_t* conns = iems_get_connectivity(&conn_count);
+    if (!conns) return;
 
-    for (uint32_t i = 0; i < contract->connectivity_count; i++) {
-        const edge_connectivity_t* c = &contract->connectivity[i];
+    for (uint32_t i = 0; i < conn_count; i++) {
+        const edge_connectivity_t* c = &conns[i];
         // 💡 [Nexus Fix] 只有 0-9 号总线支持这种动态 UDS 连接方式
         if (c->id >= MAX_VBUS) continue;
 
@@ -280,11 +282,12 @@ static void _adc_thread_entry(void* arg) {
     free(ctx);
 }
 static void _try_connect_internal_buses(uv_timer_t* handle) {
-    const edge_contract_t* contract = contract_get_active();
-    if (!contract) return;
+    uint32_t conn_count = 0;
+    const edge_connectivity_t* conns = iems_get_connectivity(&conn_count);
+    if (!conns) return;
 
-    for (uint32_t i = 0; i < contract->connectivity_count; i++) {
-        const edge_connectivity_t* c = &contract->connectivity[i];
+    for (uint32_t i = 0; i < conn_count; i++) {
+        const edge_connectivity_t* c = &conns[i];
         if (strcmp(c->category, "INTERNAL") != 0 || g_adc_running) continue;
         const char* path = edge_resolve_bus_path(c->id);
         if (path && access(path, F_OK) == 0) {
@@ -389,14 +392,13 @@ int main(int argc, char* argv[]) {
     uv_signal_init(loop, &s2);
     uv_signal_start(&s2, on_signal_exit, SIGTERM);
 
-    // --- [Deepening] Global Contract Registration ---
-    contract_register(&g_contract_manifest);
-    const edge_contract_t* contract = contract_get_active();
-
     g_app.arb = NULL;
     arbiter_init(&g_app.arb, loop);
     g_app.drv_mgr = driver_manager_create();
-    edge_driver_registry_init(g_app.drv_mgr);
+    iems_driver_registry_init(g_app.drv_mgr);
+
+    uint32_t tag_count = 0;
+    const edge_tag_meta_t* tags = iems_get_tag_metadata(&tag_count);
 
     const char* shm_name = getenv("EDGE_SHM_NAME") ? getenv("EDGE_SHM_NAME") : EDGE_SHM_BUS_NAME;
     edge_composition_config_t comp_cfg = {.product_name = "IEMS",
@@ -404,9 +406,9 @@ int main(int argc, char* argv[]) {
                                           .shm_name = shm_name,
                                           .ring_capacity = 4096,
                                           .datahub_capacity = 1024,
-                                          .tags = contract->tags,
-                                          .tag_count = contract->tag_count,
-                                          .map_fn = edge_tag_get_compact_index,
+                                          .tags = tags,
+                                          .tag_count = tag_count,
+                                          .map_fn_v2 = iems_tag_map_fn,
                                           .memory_pool_buffer_size = 2048,
                                           .memory_pool_capacity = 64,
                                           .enable_dma_buf = false,
@@ -436,9 +438,12 @@ int main(int argc, char* argv[]) {
     datahub_bind_io_pool(g_app.hub, bus_orchestrator_get_pool(g_app.orch));
     edge_api_init(g_app.orch, g_app.drv_mgr);
 
-    for (uint32_t i = 0; i < contract->connectivity_count; i++) {
-        const edge_connectivity_t* conn = &contract->connectivity[i];
-        const driver_contract_injection_t* inj = contract_model_find("ModbusRTU");
+    uint32_t conn_count = 0;
+    const edge_connectivity_t* conns = iems_get_connectivity(&conn_count);
+    const driver_contract_injection_t* inj = iems_get_driver_injection("ModbusRTU");
+
+    for (uint32_t i = 0; i < conn_count; i++) {
+        const edge_connectivity_t* conn = &conns[i];
 
         if (strcmp(conn->category, "SOUTHBOUND") == 0) {
             if (inj)
@@ -458,8 +463,10 @@ int main(int argc, char* argv[]) {
         .db = g_app.db_service,
         .control_ops = {.ctx = g_app.orch, .submit_control = _iems_stream_submit_control},
         .params = NULL};
-    stream_engine_load_static_metadata(g_app.stream_eng, contract->pipelines,
-                                       contract->pipeline_count, &loader_ctx);
+    uint32_t pipeline_count = 0;
+    const edge_pipeline_def_t* pipelines = iems_get_pipelines(&pipeline_count);
+    stream_engine_load_static_metadata(g_app.stream_eng, pipelines,
+                                       pipeline_count, &loader_ctx);
     stream_engine_start(g_app.stream_eng);
 
     // 💡 [WASM Micro-Runtime] 初始化 WAMR 引擎并导出 Host API
@@ -505,8 +512,8 @@ int main(int argc, char* argv[]) {
         printf("\033[32m[IEMS-INIT] UI Companion Socket listening at %s\033[0m\n", ui_path);
     }
 
-    for (uint32_t i = 0; i < contract->connectivity_count; i++) {
-        const edge_connectivity_t* c = &contract->connectivity[i];
+    for (uint32_t i = 0; i < conn_count; i++) {
+        const edge_connectivity_t* c = &conns[i];
 
         if (strcmp(c->category, "NORTHBOUND") == 0) {
             char env_key[32];

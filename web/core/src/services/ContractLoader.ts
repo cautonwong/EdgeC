@@ -1,8 +1,7 @@
 import axios from 'axios';
 import yaml from 'js-yaml';
 import { defineStore } from 'pinia';
-// @ts-ignore
-import { TagID, TAG_METADATA, TagMetadata as GeneratedTagMeta } from '@generated/tags_type';
+import { TagID, TAG_METADATA, TagMetadata as GeneratedTagMeta } from '../types/tags_type';
 
 export interface TagUIMeta {
   group?: string;

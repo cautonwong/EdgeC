@@ -92,9 +92,19 @@ def main():
     parser.add_argument("--manifest")
     args = parser.parse_args()
     
-    manifest_file = args.manifest or f"build/products/{args.product}/generated/omnis_manifest.json"
-    if not os.path.exists(manifest_file):
-        print(f"❌ FATAL: Manifest not found: {manifest_file}")
+    manifest_file = args.manifest
+    if not manifest_file:
+        candidates = [
+            f"build/products/{args.product}/generated/omnis_manifest.json",
+            f"cmd/{args.product}/omnis_manifest.json",
+            f"cmd/{args.product}/matrix/omnis_manifest.json",
+        ]
+        for c in candidates:
+            if os.path.exists(c):
+                manifest_file = c
+                break
+    if not manifest_file or not os.path.exists(manifest_file):
+        print(f"❌ FATAL: Manifest not found: {manifest_file or f'build/products/{args.product}/generated/omnis_manifest.json'}")
         sys.exit(1)
 
     print(f"🎬 Omnis Matrix Host starting for {args.product}...")

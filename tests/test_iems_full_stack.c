@@ -18,8 +18,8 @@
 #include "modbus_codec.h"
 #include "stream_engine.h"
 
-// IEMS Generated Contracts
-#include "contracts.h"
+// IEMS Local Driver Adapter (No-Contract)
+#include "iems_driver_adapter.h"
 
 typedef struct {
     uv_loop_t loop;

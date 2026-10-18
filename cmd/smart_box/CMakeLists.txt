@@ -1,14 +1,39 @@
 set(PROD_NAME smart_box)
-edge_add_contract(
-    contract_${PROD_NAME}
-    "${CMAKE_SOURCE_DIR}/contracts/products/smart_box.yaml"
-    "${CMAKE_CURRENT_SOURCE_DIR}/manifest.yaml"
+
+add_library(smartbox_app_lib STATIC
+    smartbox_node.c
+    smartbox_driver_adapter.c
+    smartbox_five_safety_interlock.c
+    smartbox_thermal_aging.c
 )
+target_include_directories(smartbox_app_lib PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_bootstrap/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_io/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_stream/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_protocol/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_security/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_algo/include
+)
+target_link_libraries(smartbox_app_lib PUBLIC
+    edge_bootstrap
+    edge_io
+    edge_core
+    edge_protocol
+    edge_stream
+    edge_infra
+    edge_algo
+)
+
 add_executable(smart_box main.c)
 set_target_properties(smart_box PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/products/smart_box/bin"
 )
 target_link_libraries(smart_box PRIVATE 
+    smartbox_app_lib
     -Wl,--start-group
     edge_bootstrap
     edge_infra
@@ -21,7 +46,6 @@ target_link_libraries(smart_box PRIVATE
     edge_core
     edge_protocol
     -Wl,--end-group
-    contract_smart_box
     crypto
     ssl
 )

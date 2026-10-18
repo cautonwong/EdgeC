@@ -5,7 +5,7 @@
 #include <string.h>
 #include <wchar.h>
 
-#include "contracts.h"
+#include "iems_driver_adapter.h"
 #include "edge_log.h"
 #include "edge_ui.h"
 

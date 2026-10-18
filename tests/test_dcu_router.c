@@ -20,10 +20,10 @@ static int _mock_read_shadow(void* ctx, uint32_t tag_id, uint32_t device_id, voi
     (void)ctx;
     (void)device_id;
     pipe_msg_t* msg = (pipe_msg_t*)out_msg;
-    if (tag_id == OAD_VOLTAGE || tag_id == TAG_VOLTAGE_PHASE_A || tag_id == 1001) {  // 电压
+    if (tag_id == OAD_VOLTAGE || tag_id == 1001) {  // 电压
         pipe_msg_init_scalar(msg, OAD_VOLTAGE, 220.5, uv_hrtime());
         return 0;
-    } else if (tag_id == OAD_CURRENT || tag_id == TAG_CURRENT_PHASE_A || tag_id == 1002) {  // 电流
+    } else if (tag_id == OAD_CURRENT || tag_id == 1002) {  // 电流
         pipe_msg_init_scalar(msg, OAD_CURRENT, 4.95, uv_hrtime());
         return 0;
     }

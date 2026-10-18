@@ -1,7 +1,12 @@
 #include "dcu_inventory.h"
 
+#include <sqlite3.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "dcu_driver_adapter.h"
+#include "sqlite_service.h"
 
 /**
  * @brief 初始化电表档案容器 (以接地气的中文添加注释)
@@ -105,12 +110,6 @@ production_meter_t* dcu_inventory_get(dcu_inventory_t* inv, const char* addr) {
 /**
  * @brief 资源回收与销毁容器
  */
-#include <sqlite3.h>
-#include <stdio.h>
-
-#include "contract_registry.h"
-#include "sqlite_service.h"
-
 int dcu_inventory_load_from_db(dcu_inventory_t* inv, const char* db_path) {
     sqlite3* db;
     if (sqlite3_open(db_path, &db) != SQLITE_OK) return -1;
@@ -140,8 +139,8 @@ int dcu_inventory_load_from_db(dcu_inventory_t* inv, const char* db_path) {
         int baud = sqlite3_column_int(stmt, 2);
         int chan = sqlite3_column_int(stmt, 3);
 
-        // 自动查找契约注入点 (使用 contract_model_find 以避免隐式声明截断指针)
-        const driver_contract_injection_t* inj = contract_model_find(proto);
+        // 自动查找驱动适配层注入点 (使用 dcu_get_driver_injection 解耦全局单例)
+        const driver_contract_injection_t* inj = dcu_get_driver_injection(proto);
 
         if (inv->count < MAX_METERS) {
             production_meter_t* m = &inv->meters[inv->count++];

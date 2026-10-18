@@ -34,15 +34,14 @@ static void read_file_content(const char *rel_path, char *buf, size_t max_len) {
 static void test_ts_compiler_backend_ui_metadata(void **state) {
     (void)state;
     char content[16384];
-    read_file_content("tools/contract-compiler-v2/internal/backend/ts_backend.go", content,
+    read_file_content("web/core/src/services/ContractLoader.ts", content,
                       sizeof(content));
 
-    // TS backend generates TagUIMetadata interface
-    assert_non_null(strstr(content, "export interface TagUIMetadata"));
+    // ContractLoader defines TagUIMeta interface for autonomous UI widgets
+    assert_non_null(strstr(content, "export interface TagUIMeta"));
     assert_non_null(strstr(content, "group?: string;"));
-    assert_non_null(strstr(content, "widget?: string;"));
+    assert_non_null(strstr(content, "widget?:"));
     assert_non_null(strstr(content, "precision?: number;"));
-    assert_non_null(strstr(content, "TAG_METADATA"));
 }
 
 static void test_contract_loader_pinia_store(void **state) {

@@ -1,9 +1,0 @@
-# Smart Gateway Contract Definition
-product: "SG_EL2025_GW"
-includes:
-  - "contracts/bindings/modbus/acrel_p80.yaml"
-  - "contracts/bindings/iec104/relay_station.yaml"
-enabled_tags: 
-  - VOLTAGE_PHASE_A # Tag 1001
-  - GRID_POWER
-  - CURRENT_PHASE_A

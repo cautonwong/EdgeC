@@ -1,0 +1,1440 @@
+{
+  "connectivity": [
+    {
+      "id": 0,
+      "label": "RS485_Main",
+      "category": "SOUTHBOUND",
+      "type": "UART",
+      "simulation": {
+        "endpoint": "UDS:/tmp/vbus0.sock",
+        "transport": "UDS"
+      },
+      "config": {
+        "baud": 9600,
+        "path": "/dev/ttyS1"
+      }
+    },
+    {
+      "id": 200,
+      "label": "HighSpeed_ADC",
+      "category": "INTERNAL",
+      "type": "MEM_RING",
+      "simulation": {
+        "control_sock": "/tmp/v_adc.sock",
+        "transport": "MEMFD"
+      },
+      "config": {
+        "shm_name": "adc_raw",
+        "size": 1024
+      }
+    },
+    {
+      "id": 1,
+      "label": "CAN_Main",
+      "category": "SOUTHBOUND",
+      "type": "CAN",
+      "simulation": {
+        "endpoint": "UDS:/tmp/vbus1.sock",
+        "transport": "UDS"
+      },
+      "config": {
+        "baud": 500000,
+        "path": "can0"
+      }
+    },
+    {
+      "id": 10,
+      "label": "Northbound_SCADA",
+      "category": "NORTHBOUND",
+      "type": "UART",
+      "simulation": {
+        "endpoint": "/tmp/iems_north_slave.sock",
+        "transport": "NONE"
+      },
+      "config": {
+        "baud": 115200,
+        "path": "/dev/ttyS2"
+      }
+    }
+  ],
+  "devices": [
+    {
+      "id": "METER_MAIN",
+      "bus_id": 0,
+      "protocol": "ModbusRTU",
+      "address": null,
+      "model": "Acrel_P80",
+      "simulation": {
+        "actor": "modbusrtu",
+        "id": null
+      }
+    },
+    {
+      "id": "BMS_MAIN",
+      "bus_id": 1,
+      "protocol": "CAN",
+      "address": null,
+      "model": "CATL_Rack_V1",
+      "simulation": {
+        "actor": "can",
+        "id": null
+      }
+    },
+    {
+      "id": "SCADA_MASTER",
+      "bus_id": 10,
+      "protocol": "ModbusRTU",
+      "address": null,
+      "model": "Acrel_P80",
+      "simulation": {
+        "actor": "supervisor",
+        "id": null
+      }
+    }
+  ],
+  "pipelines": [
+    {
+      "id": "energy_manager",
+      "trigger": 1003,
+      "stages": [
+        {
+          "name": "",
+          "type": "energy_integrator",
+          "F1": 0,
+          "F2": 0,
+          "F3": 0,
+          "U1": 3001,
+          "U2": 0,
+          "U3": 0,
+          "S1": "",
+          "S2": "",
+          "S3": "",
+          "next_indices": [
+            1,
+            -1,
+            -1,
+            -1
+          ]
+        },
+        {
+          "name": "",
+          "type": "sqlite_sink",
+          "F1": 0,
+          "F2": 0,
+          "F3": 0,
+          "U1": 0,
+          "U2": 0,
+          "U3": 0,
+          "S1": "energy_history",
+          "S2": "",
+          "S3": "",
+          "next_indices": [
+            -1,
+            -1,
+            -1,
+            -1
+          ]
+        }
+      ]
+    },
+    {
+      "id": "overvoltage_protection",
+      "trigger": 2002,
+      "stages": [
+        {
+          "name": "",
+          "type": "reflex",
+          "F1": 264,
+          "F2": 1,
+          "F3": 0,
+          "U1": 8004,
+          "U2": 0,
+          "U3": 0,
+          "S1": "ModbusRTU",
+          "S2": "",
+          "S3": "",
+          "next_indices": [
+            -1,
+            -1,
+            -1,
+            -1
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dsp_processor",
+      "trigger": 2001,
+      "stages": [
+        {
+          "name": "",
+          "type": "dsp_rms",
+          "F1": 0,
+          "F2": 0,
+          "F3": 0,
+          "U1": 2002,
+          "U2": 0,
+          "U3": 0,
+          "S1": "",
+          "S2": "",
+          "S3": "",
+          "next_indices": [
+            -1,
+            -1,
+            -1,
+            -1
+          ]
+        }
+      ]
+    },
+    {
+      "id": "island_protection",
+      "trigger": 4001,
+      "stages": [
+        {
+          "name": "",
+          "type": "mpc_dispatch",
+          "F1": 1,
+          "F2": 100,
+          "F3": 50,
+          "U1": 4001,
+          "U2": 0,
+          "U3": 8005,
+          "S1": "",
+          "S2": "",
+          "S3": "",
+          "next_indices": [
+            -1,
+            -1,
+            -1,
+            -1
+          ]
+        }
+      ]
+    }
+  ],
+  "policies": null,
+  "product": "IEMS_Controller_V5",
+  "signature": 601796183,
+  "tags": [
+    {
+      "id": 1001,
+      "name": "VOLTAGE_PHASE_A",
+      "attributes": {
+        "northbound": {
+          "push": "periodic",
+          "storage": "trend"
+        },
+        "scaler": 0.10000000149011612,
+        "ui": {
+          "group": "Grid_Params",
+          "max": 500,
+          "min": 0,
+          "precision": 1
+        }
+      },
+      "bindings": [
+        {
+          "attributes": {
+            "addr": 0,
+            "desc": "A相电压 (0.1V)",
+            "scale": 0.1,
+            "tag": "VOLTAGE_PHASE_A"
+          },
+          "protocol": "MODBUS"
+        },
+        {
+          "attributes": {
+            "access": 1,
+            "di": "02010100",
+            "length": 2,
+            "scaler": 0.1,
+            "tag": "VOLTAGE_PHASE_A"
+          },
+          "protocol": "DLT645"
+        },
+        {
+          "attributes": {
+            "ioa": 16386,
+            "tag": "VOLTAGE_PHASE_A",
+            "type_id": 36
+          },
+          "protocol": "IEC104"
+        }
+      ]
+    },
+    {
+      "id": 1002,
+      "name": "CURRENT_PHASE_A",
+      "attributes": {
+        "scaler": 0.0010000000474974513
+      },
+      "bindings": [
+        {
+          "attributes": {
+            "access": 1,
+            "di": "02020100",
+            "length": 3,
+            "scaler": 0.001,
+            "tag": "CURRENT_PHASE_A"
+          },
+          "protocol": "DLT645"
+        },
+        {
+          "attributes": {
+            "ioa": 16387,
+            "tag": "CURRENT_PHASE_A",
+            "type_id": 36
+          },
+          "protocol": "IEC104"
+        }
+      ]
+    },
+    {
+      "id": 1003,
+      "name": "GRID_POWER",
+      "attributes": {
+        "northbound": {
+          "push": "change",
+          "threshold": 10
+        },
+        "scaler": 1
+      },
+      "bindings": [
+        {
+          "attributes": {
+            "addr": 12,
+            "desc": "总有功功率 (1W)",
+            "length": 2,
+            "scale": 1,
+            "tag": "GRID_POWER"
+          },
+          "protocol": "MODBUS"
+        },
+        {
+          "attributes": {
+            "access": 1,
+            "di": "02030000",
+            "length": 3,
+            "scaler": 0.0001,
+            "tag": "GRID_POWER"
+          },
+          "protocol": "DLT645"
+        },
+        {
+          "attributes": {
+            "ioa": 16385,
+            "tag": "GRID_POWER",
+            "type_id": 36
+          },
+          "protocol": "IEC104"
+        }
+      ]
+    },
+    {
+      "id": 1004,
+      "name": "GRID_FREQUENCY",
+      "attributes": {
+        "scaler": 0.009999999776482582
+      },
+      "bindings": [
+        {
+          "attributes": {
+            "addr": 52,
+            "desc": "电网频率 (0.01Hz)",
+            "scale": 0.01,
+            "tag": "GRID_FREQUENCY"
+          },
+          "protocol": "MODBUS"
+        }
+      ]
+    },
+    {
+      "id": 1005,
+      "name": "EV_CHARGE_POWER",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 2001,
+      "name": "ADC_RAW_DATA",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 2002,
+      "name": "ADC_VOLTAGE_RMS",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 3001,
+      "name": "ENERGY_ACTIVE_IMPORT",
+      "attributes": {
+        "scaler": 0.009999999776482582
+      },
+      "bindings": [
+        {
+          "attributes": {
+            "access": 1,
+            "di": "00010000",
+            "length": 4,
+            "scaler": 0.01,
+            "tag": "ENERGY_ACTIVE_IMPORT"
+          },
+          "protocol": "DLT645"
+        }
+      ]
+    },
+    {
+      "id": 3002,
+      "name": "ENERGY_ACTIVE_EXPORT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 4001,
+      "name": "BATTERY_SOC",
+      "attributes": {
+        "northbound": {
+          "push": "periodic",
+          "storage": "trend"
+        },
+        "scaler": 1,
+        "ui": {
+          "group": "Battery_Health",
+          "max": 100,
+          "min": 0,
+          "widget": "gauge"
+        }
+      },
+      "bindings": [
+        {
+          "attributes": {
+            "addr": 261,
+            "desc": "电池SOC状态 (0-100)",
+            "scale": 1,
+            "tag": "BATTERY_SOC"
+          },
+          "protocol": "MODBUS"
+        },
+        {
+          "attributes": {
+            "can_id": 419385573,
+            "factor": 0.4,
+            "length": 8,
+            "offset": 0,
+            "start_bit": 0,
+            "tag": "BATTERY_SOC"
+          },
+          "protocol": "CAN"
+        }
+      ]
+    },
+    {
+      "id": 4002,
+      "name": "BATTERY_TEMP_MAX",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": [
+        {
+          "attributes": {
+            "can_id": 419385573,
+            "factor": 1,
+            "length": 8,
+            "offset": -40,
+            "start_bit": 16,
+            "tag": "BATTERY_TEMP_MAX"
+          },
+          "protocol": "CAN"
+        }
+      ]
+    },
+    {
+      "id": 4003,
+      "name": "BATTERY_POWER",
+      "attributes": {
+        "bindings": [
+          {
+            "protocol": "ModbusRTU",
+            "reg": 15,
+            "scaler": 0.01,
+            "type": "holding"
+          },
+          {
+            "ioa": 16388,
+            "protocol": "IEC104",
+            "type": "measured_float"
+          }
+        ],
+        "scaler": 0.009999999776482582
+      },
+      "bindings": [
+        {
+          "attributes": {
+            "addr": 15,
+            "desc": "电池PCS功率 (0.01A)",
+            "scale": 0.01,
+            "tag": "BATTERY_POWER"
+          },
+          "protocol": "MODBUS"
+        }
+      ]
+    },
+    {
+      "id": 5001,
+      "name": "IEMS_BATTERY_MAX_SOC",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 5002,
+      "name": "IEMS_BATTERY_MIN_SOC",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 5003,
+      "name": "IEMS_GRID_LIMIT_W",
+      "attributes": {
+        "default": 6000,
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 8001,
+      "name": "PROJECT_HUMIDITY",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": [
+        {
+          "attributes": {
+            "addr": 255,
+            "desc": "项目湿度标记 (1.0=Triggered)",
+            "scale": 1,
+            "tag": "PROJECT_HUMIDITY"
+          },
+          "protocol": "MODBUS"
+        }
+      ]
+    },
+    {
+      "id": 8002,
+      "name": "PLUG_OVERTEMP",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 8003,
+      "name": "SOLAR_VOLTAGE",
+      "attributes": {
+        "scaler": 0.10000000149011612
+      },
+      "bindings": [
+        {
+          "attributes": {
+            "addr": 256,
+            "scale": 0.1,
+            "tag": "SOLAR_VOLTAGE"
+          },
+          "protocol": "MODBUS"
+        }
+      ]
+    },
+    {
+      "id": 8004,
+      "name": "SOLAR_RELAY",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": [
+        {
+          "attributes": {
+            "addr": 258,
+            "scale": 1,
+            "tag": "SOLAR_RELAY"
+          },
+          "protocol": "MODBUS"
+        }
+      ]
+    },
+    {
+      "id": 8005,
+      "name": "PCS_CONTROL",
+      "attributes": {
+        "scaler": 1,
+        "ui": {
+          "group": "Battery_Health",
+          "max": 100000,
+          "min": -100000
+        }
+      },
+      "bindings": null
+    },
+    {
+      "id": 9001,
+      "name": "DLMS_SAP_LIST",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 9002,
+      "name": "DLMS_AUTH_MECHANISM",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 9003,
+      "name": "DLMS_SECURITY_POLICY",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 9004,
+      "name": "DLMS_SECURITY_SUITE",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 9005,
+      "name": "DLMS_REPLY_HLS",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11001,
+      "name": "SYS_NETBUF_TOTAL",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11002,
+      "name": "SYS_NETBUF_FREE",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11003,
+      "name": "SYS_NETBUF_PEAK",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11004,
+      "name": "SYS_NETBUF_LEAK_RECLAIM",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11005,
+      "name": "SYS_PIPE_QUEUE_DEPTH",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11006,
+      "name": "SYS_SCHED_PCP_CONTENTION_COUNT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11007,
+      "name": "SYS_SCHED_PCP_MAX_HOLD_US",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11008,
+      "name": "SYS_SCHED_PCP_INVERSIONS_PREVENTED",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11009,
+      "name": "SYS_SCHED_EDF_UTILIZATION",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11010,
+      "name": "SYS_SCHED_EDF_PREEMPTION_COUNT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11011,
+      "name": "SYS_SCHED_EDF_DEADLINE_MISS_COUNT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11012,
+      "name": "SYS_SCHED_RMS_UTILIZATION",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11013,
+      "name": "SYS_SCHED_RMS_BOUND_UTILIZATION",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11014,
+      "name": "SYS_SCHED_RMS_BUDGET_OVERRUN_COUNT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11015,
+      "name": "SYS_SCHED_AFFINITY_RT_CORES_MASK",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11016,
+      "name": "SYS_SCHED_AFFINITY_IRQ_STEERED_COUNT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11017,
+      "name": "SYS_SCHED_MEMLOCK_STATUS",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11018,
+      "name": "SYS_SCHED_LOCKFREE_RING_DEPTH",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11019,
+      "name": "SYS_SCHED_LOCKFREE_RING_DROPS",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11020,
+      "name": "SYS_SCHED_LOCKFREE_RING_OPS_SEC",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11021,
+      "name": "SYS_SCHED_PRIO_BOOST_ACTIVE_COUNT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11022,
+      "name": "SYS_SCHED_PRIO_BOOST_TOTAL_EVENTS",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11023,
+      "name": "SYS_SCHED_PRIO_ANNEAL_TOTAL_EVENTS",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11024,
+      "name": "SYS_SCHED_COOP_OVERRUN_COUNT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11025,
+      "name": "SYS_SCHED_COOP_DEGRADED_TASK_COUNT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11026,
+      "name": "SYS_SCHED_COOP_TRIPPED_TOTAL_COUNT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11027,
+      "name": "SYS_SCHED_MIXED_CRIT_L1_DISPATCH_COUNT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11028,
+      "name": "SYS_SCHED_MIXED_CRIT_MTT_DRIFT_US",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11029,
+      "name": "SYS_SCHED_MIXED_CRIT_THERMAL_THROTTLE_ACTIVE",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11030,
+      "name": "SYS_TMR_VOTER_OUT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11031,
+      "name": "SYS_TMR_HEALTHY_CHANNELS",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11032,
+      "name": "SYS_TMR_FAILOVER_COUNT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11033,
+      "name": "SYS_EBPF_JITTER_P99_US",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11034,
+      "name": "SYS_EBPF_MAX_HARDIRQ_OFF_US",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11035,
+      "name": "SYS_EBPF_CIRCUIT_BREAKER_STATE",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11036,
+      "name": "SYS_THERMAL_ZONE_STAGE",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11037,
+      "name": "SYS_THERMAL_POWER_BUDGET_W",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11038,
+      "name": "SYS_THERMAL_ESTIMATED_POWER_W",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11040,
+      "name": "SYS_UNS_RBE_EVENTS_TOTAL",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11041,
+      "name": "SYS_UNS_SPARKPLUG_NDATA_COUNT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11042,
+      "name": "SYS_TSN_PHC_OFFSET_NS",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11043,
+      "name": "SYS_TSN_TAS_SCHEDULE_CYCLES",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11044,
+      "name": "SYS_TSN_PCP7_QUEUE_DROPS",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11045,
+      "name": "SYS_AMP_IPC_MSG_SENT_COUNT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11046,
+      "name": "SYS_AMP_IPC_RELOAD_COUNT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11050,
+      "name": "SYS_VSG_OMEGA_VIRTUAL",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11051,
+      "name": "SYS_VSG_FFR_ACTIVE_POWER_KW",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11052,
+      "name": "SYS_SWARM_ACTIVE_NODES",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11053,
+      "name": "SYS_SWARM_OFFLOAD_SUCCESS_COUNT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11054,
+      "name": "SYS_AI_FUSION_OP_EXEC_COUNT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11055,
+      "name": "SYS_AI_MODEL_HOTSWAP_COUNT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11060,
+      "name": "SYS_PINN_RUNAWAY_RISK_SCORE",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11061,
+      "name": "SYS_PINN_MAX_CELL_Q_ABNORMAL_W",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11062,
+      "name": "SYS_WASM_NN_INFERENCES_TOTAL",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11063,
+      "name": "SYS_WASM_NN_WATCHDOG_TIMEOUTS",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 11064,
+      "name": "SYS_TENSOR_PIPELINE_FRAMES",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131073,
+      "name": "IEMS_PCS_MODE",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131074,
+      "name": "IEMS_PCS_ACTIVE_POWER_SETPOINT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131075,
+      "name": "IEMS_BMS_MAX_CELL_VOLT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131076,
+      "name": "IEMS_BMS_MIN_CELL_VOLT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131077,
+      "name": "IEMS_BMS_MAX_TEMP",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131078,
+      "name": "IEMS_ANTI_REVERSE_ACTIVE",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131079,
+      "name": "IEMS_VSG_VIRTUAL_FREQ",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131080,
+      "name": "IEMS_VSG_VIRTUAL_VOLT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131081,
+      "name": "IEMS_VSG_ROTOR_ANGLE",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131082,
+      "name": "IEMS_VSG_VIRTUAL_OMEGA",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131083,
+      "name": "IEMS_GRID_SCR",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131084,
+      "name": "IEMS_VSG_EFFECTIVE_DAMPING",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131085,
+      "name": "IEMS_VSG_EFFECTIVE_DROOP_P",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131086,
+      "name": "IEMS_VSG_EFFECTIVE_DROOP_Q",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131087,
+      "name": "IEMS_VSG_GRID_MODE",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131088,
+      "name": "IEMS_VSG_SYNC_LOCKED",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131089,
+      "name": "IEMS_VSG_SYNC_DELTA_THETA",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131090,
+      "name": "IEMS_VSG_SYNC_DELTA_VOLT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131091,
+      "name": "IEMS_VSG_BLACK_START_STATE",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131092,
+      "name": "IEMS_VSG_BLACK_START_PROGRESS",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131093,
+      "name": "IEMS_VSG_BLACK_START_VOLT_REF",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131094,
+      "name": "IEMS_VSG_BLACK_START_FREQ_REF",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131095,
+      "name": "IEMS_VSG_CIRC_CURRENT_Q",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131096,
+      "name": "IEMS_VSG_LINE_R_EST",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131097,
+      "name": "IEMS_VSG_LINE_X_EST",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131098,
+      "name": "IEMS_VSG_VIRTUAL_R",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131099,
+      "name": "IEMS_VSG_VIRTUAL_X",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131100,
+      "name": "IEMS_VSG_SSO_DETECTED",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131101,
+      "name": "IEMS_VSG_SSO_FREQ_HZ",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131102,
+      "name": "IEMS_VSG_SSO_AMPLITUDE_A",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131103,
+      "name": "IEMS_VSG_SSO_DAMPING_OUT_V",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131104,
+      "name": "IEMS_VSG_FRT_STATE",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131105,
+      "name": "IEMS_VSG_FRT_IQ_SUPPORT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131106,
+      "name": "IEMS_VSG_FRT_V_TRANS_LIMIT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131107,
+      "name": "IEMS_VSG_FRT_RECOVERY_PROGRESS",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131108,
+      "name": "IEMS_VSG_VI_VD_OUT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131109,
+      "name": "IEMS_VSG_VI_VQ_OUT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131110,
+      "name": "IEMS_VSG_HARMONIC_THD_PCT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131111,
+      "name": "IEMS_VSG_H5_CURRENT_AMP",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131112,
+      "name": "IEMS_VSG_H7_CURRENT_AMP",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131113,
+      "name": "IEMS_VSG_COMPUTE_POWER_TARGET_W",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131114,
+      "name": "IEMS_VSG_COMPUTE_FREQ_SCALE_PCT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131115,
+      "name": "IEMS_VSG_COMPUTE_P_FEEDFORWARD_W",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131116,
+      "name": "IEMS_VSG_GREEN_POWER_RATIO_PCT",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    },
+    {
+      "id": 131117,
+      "name": "IEMS_VSG_CARBON_SAVED_KG",
+      "attributes": {
+        "scaler": 1
+      },
+      "bindings": null
+    }
+  ]
+}

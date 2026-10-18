@@ -1,13 +1,6 @@
-# EdgeOS DCU 编译配置 (自治解耦重构版)
+# EdgeOS DCU 编译配置 (自治解耦重构版 - No Contract Compiler PoC)
 
 set(PROD_NAME dcu)
-
-# 签名: edge_add_contract(TARGET_NAME PRODUCT_YAML LOCAL_YAML)
-edge_add_contract(
-    contract_${PROD_NAME} 
-    "${CMAKE_SOURCE_DIR}/contracts/products/dcu.yaml"
-    "${CMAKE_CURRENT_SOURCE_DIR}/manifest.yaml"
-)
 
 # 1. 声明集中器专属业务自治静态库
 add_library(dcu_app_lib STATIC
@@ -31,13 +24,13 @@ add_library(dcu_app_lib STATIC
     dcu_app_daemon.c
     dcu_twin_source.c
     dcu_topology_phase_id.c
+    dcu_driver_adapter.c
     dcu_node.c
 )
 
-# 2. 自治库头文件依赖关系
+# 2. 自治库头文件依赖关系 (已彻底移除 generated 契约目录)
 target_include_directories(dcu_app_lib PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_BINARY_DIR}/products/${PROD_NAME}/generated
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/modules/edge_bootstrap/include
     ${CMAKE_SOURCE_DIR}/modules/edge_io/include
@@ -47,7 +40,7 @@ target_include_directories(dcu_app_lib PUBLIC
     ${CMAKE_SOURCE_DIR}/modules/edge_security/include
 )
 
-# 3. 自治库链接外部依赖 (包含 DCU 本地微数据库引擎 dcu_storage/dcu_inventory 适配器)
+# 3. 自治库链接外部依赖
 target_link_libraries(dcu_app_lib PUBLIC
     edge_bootstrap
     edge_infra
@@ -59,9 +52,7 @@ target_link_libraries(dcu_app_lib PUBLIC
     edge_algo
     SQLite::SQLite3
     libuv::uv_a
-    contract_${PROD_NAME}
 )
-add_dependencies(dcu_app_lib contract_${PROD_NAME})
 
 # 4. 创建最终可执行应用程序
 add_executable(${PROD_NAME} main.c)
@@ -80,11 +71,9 @@ target_link_libraries(${PROD_NAME} PRIVATE
     -Wl,--start-group
     dcu_app_lib
     -Wl,--end-group
-    contract_${PROD_NAME}
     edge_common_interface
     pthread dl rt m
 )
 
 # 6. 安装配置
 install_edge_product(${PROD_NAME})
-

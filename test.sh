@@ -54,7 +54,8 @@ stop_all() {
     pkill -9 "^iems$" || true
     pkill -9 -f "tools/matrix/server.py" || true
     pkill -9 -f "actors/" || true
-    rm -rf /tmp/vbus*.sock /tmp/v_adc*.sock /tmp/iems*.sock
+    pkill -9 -f "adc_simulator" || true
+    rm -rf /tmp/vbus*.sock /tmp/v_adc*.sock /tmp/iems*.sock /tmp/matrix_adc_ctrl.sock
     rm -rf /dev/shm/matrix_shm_* || true
     rm -f matrix_server.log iems_run.log
 }
@@ -67,7 +68,8 @@ run_unit_tests() {
 run_coverage() {
     echo -e "${B}🔍 Step [1/2]: Building and Running with Coverage...${NC}"
     cd build
-    cmake -DCOVERAGE=ON ..
+    rm -rf CMakeCache.txt CMakeFiles
+    cmake -GNinja -DCOVERAGE=ON -DENABLE_ASAN=OFF -DENABLE_UBSAN=OFF ..
     ninja
     ctest --output-on-failure
     
@@ -88,9 +90,9 @@ run_coverage() {
 run_asan() {
     echo -e "${B}🔍 Step [1/1]: Building and Running with AddressSanitizer (ASAN)...${NC}"
     cd build
-    # Force clean CMake cache to avoid CMake Re-running loop
-    rm -f CMakeCache.txt
-    cmake -DENABLE_ASAN=ON -DCOVERAGE=OFF ..
+    # Force clean CMake cache and files to avoid generator mismatch or CMake Re-running loop
+    rm -rf CMakeCache.txt CMakeFiles
+    cmake -GNinja -DENABLE_ASAN=ON -DCOVERAGE=OFF -DENABLE_UBSAN=OFF ..
     ninja
     
     echo -e "${P}🧪 Running tests with ASAN...${NC}"
@@ -103,8 +105,8 @@ run_asan() {
 run_ubsan() {
     echo -e "${B}🔍 Step [1/1]: Building and Running with UndefinedBehaviorSanitizer (UBSAN)...${NC}"
     cd build
-    rm -f CMakeCache.txt
-    cmake -DENABLE_UBSAN=ON -DCOVERAGE=OFF ..
+    rm -rf CMakeCache.txt CMakeFiles
+    cmake -GNinja -DENABLE_UBSAN=ON -DCOVERAGE=OFF -DENABLE_ASAN=OFF ..
     ninja
     
     echo -e "${P}🧪 Running tests with UBSAN...${NC}"
@@ -119,6 +121,12 @@ run_omnis() {
     echo -e "${P}🚀 Step [1/3]: Launching Matrix Plane...${NC}"
     stop_all
     
+    # 保证 generated 目录下有 manifest 副本 (向后兼容)
+    mkdir -p build/products/$PROD/generated
+    if [ -f "cmd/$PROD/omnis_manifest.json" ]; then
+        cp "cmd/$PROD/omnis_manifest.json" "build/products/$PROD/generated/omnis_manifest.json"
+    fi
+
     # 1. 启动仿真基座
     $ENV_PYTHON -u tools/matrix/server.py --product $PROD > matrix_server.log 2>&1 &
     

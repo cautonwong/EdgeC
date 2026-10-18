@@ -15,7 +15,7 @@ macro(add_edge_test TEST_NAME)
         edge_bootstrap
         edge_protocol
         edge_algo
-        contract_iems
+        iems_app_lib
         -Wl,--end-group
         edge_common_interface
         cmocka::cmocka
@@ -93,7 +93,6 @@ add_edge_test(test_dlms_security_validation test_dlms_security_validation.c)
 # 3. 执行引擎测试 (Execution Plane)
 add_edge_test(test_driver_manager test_driver_manager.c)
 add_edge_test(test_io_executor test_io_executor.c)
-add_edge_test(test_contract_lookup test_contract_lookup.c)
 add_edge_test(test_driver_dlt645 test_driver_dlt645.c)
 add_edge_test(test_driver_v3 test_driver_v3.c)
 add_edge_test(test_modbus_v3 test_modbus_v3.c)
@@ -176,7 +175,7 @@ target_link_libraries(test_scheduler PRIVATE
     edge_core
     edge_protocol
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -198,7 +197,7 @@ target_link_libraries(test_northbound_mqtt PRIVATE
     edge_core
     edge_protocol
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -208,6 +207,7 @@ target_link_options(test_northbound_mqtt PRIVATE "-Wl,--allow-multiple-definitio
 add_test(NAME test_northbound_mqtt COMMAND test_northbound_mqtt)
 
 add_edge_test(test_iems_full_stack test_iems_full_stack.c)
+add_edge_test(test_iems_node test_iems_node.c)
 
 # 编译选项加固
 target_link_options(test_integration PRIVATE -Wl,--wrap=io_submit)
@@ -306,10 +306,13 @@ target_link_libraries(test_iems_task_loader PRIVATE iems_app_lib edge_stream edg
 
 # AEP-301 / AEP-302 契约生成式驱动注册表测试 (IEMS, DCU, SmartBox 参数化覆盖)
 add_edge_test(test_driver_registry test_driver_registry.c)
+target_include_directories(test_driver_registry PRIVATE "${CMAKE_SOURCE_DIR}/cmd/iems")
 
-add_executable(test_driver_registry_dcu test_driver_registry.c)
+add_executable(test_driver_registry_dcu test_dcu_driver_adapter.c)
+target_include_directories(test_driver_registry_dcu PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
 target_link_libraries(test_driver_registry_dcu PRIVATE
     -Wl,--start-group
+    dcu_app_lib
     edge_infra
     edge_io
     edge_stream
@@ -317,7 +320,6 @@ target_link_libraries(test_driver_registry_dcu PRIVATE
     edge_core
     edge_protocol
     edge_algo
-    contract_dcu
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -325,29 +327,15 @@ target_link_libraries(test_driver_registry_dcu PRIVATE
 )
 add_test(NAME test_driver_registry_dcu COMMAND test_driver_registry_dcu)
 
-add_executable(test_driver_registry_smart_box test_driver_registry.c)
-target_link_libraries(test_driver_registry_smart_box PRIVATE
-    -Wl,--start-group
-    edge_infra
-    edge_io
-    edge_stream
-    edge_security
-    edge_core
-    edge_protocol
-    edge_algo
-    contract_smart_box
-    -Wl,--end-group
-    edge_common_interface
-    cmocka::cmocka
-    pthread dl rt m
-)
-add_test(NAME test_driver_registry_smart_box COMMAND test_driver_registry_smart_box)
+add_edge_test(test_driver_registry_smart_box test_smartbox_driver_adapter.c)
+target_include_directories(test_driver_registry_smart_box PRIVATE "${CMAKE_SOURCE_DIR}/cmd/smart_box")
+target_link_libraries(test_driver_registry_smart_box PRIVATE smartbox_app_lib)
 
-# AEP-305 生成物可信链与防篡改门禁单测
-add_test(NAME test_generated_drift_tamper COMMAND "${CMAKE_SOURCE_DIR}/tests/test_generated_drift_tamper.sh")
+add_edge_test(test_smartbox_node test_smartbox_node.c)
+target_include_directories(test_smartbox_node PRIVATE "${CMAKE_SOURCE_DIR}/cmd/smart_box")
+target_link_libraries(test_smartbox_node PRIVATE smartbox_app_lib)
 
-# AEP-303 edge-cli 脚手架与契约 linter 集成单测
-add_test(NAME test_edge_cli_scaffold COMMAND "${CMAKE_SOURCE_DIR}/tests/test_edge_cli_scaffold.sh")
+
 
 # AEP-304 DX 自动化集成测试（二开驱动声明即调度）
 add_executable(test_dx_scaffolding test_dx_scaffolding.c)
@@ -360,7 +348,7 @@ target_link_libraries(test_dx_scaffolding PRIVATE
     edge_core
     edge_protocol
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -379,7 +367,7 @@ target_link_libraries(test_tag_domains_and_aliases PRIVATE
     edge_core
     edge_protocol
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -398,7 +386,7 @@ target_link_libraries(test_anti_corruption_engine PRIVATE
     edge_core
     edge_protocol
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -417,7 +405,7 @@ target_link_libraries(test_domain_scenarios PRIVATE
     edge_core
     edge_protocol
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -436,7 +424,7 @@ target_link_libraries(test_tag_collision_checker PRIVATE
     edge_core
     edge_protocol
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -455,7 +443,7 @@ target_link_libraries(test_sdk_public_headers PRIVATE
     edge_core
     edge_protocol
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -463,24 +451,7 @@ target_link_libraries(test_sdk_public_headers PRIVATE
 )
 add_test(NAME test_sdk_public_headers COMMAND test_sdk_public_headers)
 
-# AEP-402 产品应用骨架生成器 (archetype) 单测
-add_executable(test_archetype_generator test_archetype_generator.c)
-target_link_libraries(test_archetype_generator PRIVATE
-    -Wl,--start-group
-    edge_infra
-    edge_io
-    edge_stream
-    edge_security
-    edge_core
-    edge_protocol
-    edge_algo
-    contract_iems
-    -Wl,--end-group
-    edge_common_interface
-    cmocka::cmocka
-    pthread dl rt m
-)
-add_test(NAME test_archetype_generator COMMAND test_archetype_generator)
+
 
 # AEP-403 二开驱动与算法范例集成单测
 add_executable(test_examples_integration test_examples_integration.c)
@@ -495,7 +466,7 @@ target_link_libraries(test_examples_integration PRIVATE
     edge_core
     edge_protocol
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -503,24 +474,7 @@ target_link_libraries(test_examples_integration PRIVATE
 )
 add_test(NAME test_examples_integration COMMAND test_examples_integration)
 
-# AEP-404 契约编译器 DX 诊断与纠错单测
-add_executable(test_compiler_dx_diagnostics test_compiler_dx_diagnostics.c)
-target_link_libraries(test_compiler_dx_diagnostics PRIVATE
-    -Wl,--start-group
-    edge_infra
-    edge_io
-    edge_stream
-    edge_security
-    edge_core
-    edge_protocol
-    edge_algo
-    contract_iems
-    -Wl,--end-group
-    edge_common_interface
-    cmocka::cmocka
-    pthread dl rt m
-)
-add_test(NAME test_compiler_dx_diagnostics COMMAND test_compiler_dx_diagnostics)
+
 
 # AEP-405 edge-cli migrate 跨版本迁移向导集成测试
 add_executable(test_cli_migrate test_cli_migrate.c)
@@ -532,7 +486,7 @@ target_link_libraries(test_cli_migrate PRIVATE
     edge_security
     edge_core
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -550,7 +504,7 @@ target_link_libraries(test_developer_manuals PRIVATE
     edge_security
     edge_core
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -568,7 +522,7 @@ target_link_libraries(test_datahub_subscription PRIVATE
     edge_security
     edge_core
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -586,7 +540,7 @@ target_link_libraries(test_driver_orchestrator PRIVATE
     edge_security
     edge_core
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -604,7 +558,7 @@ target_link_libraries(test_telemetry_store_crash PRIVATE
     edge_security
     edge_core
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -622,7 +576,7 @@ target_link_libraries(test_stream_yaml_assembly PRIVATE
     edge_security
     edge_core
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -644,7 +598,7 @@ target_link_libraries(test_datahub_dds_mesh PRIVATE
     edge_security
     edge_core
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cyclonedds
@@ -682,7 +636,7 @@ target_link_libraries(test_dds_qos_matrix PRIVATE
     edge_security
     edge_core
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cyclonedds
@@ -707,7 +661,7 @@ target_link_libraries(test_dds_shm_zerocopy_perf PRIVATE
     edge_security
     edge_core
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cyclonedds
@@ -730,7 +684,7 @@ target_link_libraries(test_iems_energy_strategy PRIVATE
     edge_security
     edge_core
     edge_algo
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -751,7 +705,7 @@ target_link_libraries(test_dcu_power_quality PRIVATE
     edge_security
     edge_core
     edge_algo
-    contract_dcu
+    dcu_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -760,25 +714,11 @@ target_link_libraries(test_dcu_power_quality PRIVATE
 add_test(NAME test_dcu_power_quality COMMAND test_dcu_power_quality)
 
 # AEP-442 SmartBox 箱变绕组热寿命老化评估模型与电气五防智能闭锁测试
-add_executable(test_smartbox_interlock_thermal test_smartbox_interlock_thermal.c ../cmd/smart_box/smartbox_thermal_aging.c ../cmd/smart_box/smartbox_five_safety_interlock.c)
+add_edge_test(test_smartbox_interlock_thermal test_smartbox_interlock_thermal.c)
 target_include_directories(test_smartbox_interlock_thermal PRIVATE
     ${CMAKE_SOURCE_DIR}/cmd/smart_box
 )
-target_link_libraries(test_smartbox_interlock_thermal PRIVATE
-    -Wl,--start-group
-    edge_infra
-    edge_io
-    edge_stream
-    edge_security
-    edge_core
-    edge_algo
-    contract_smart_box
-    -Wl,--end-group
-    edge_common_interface
-    cmocka::cmocka
-    pthread dl rt m
-)
-add_test(NAME test_smartbox_interlock_thermal COMMAND test_smartbox_interlock_thermal)
+target_link_libraries(test_smartbox_interlock_thermal PRIVATE smartbox_app_lib)
 
 # AEP-452 Cyclone DDS 节点动态自发现、Liveliness 监听与分布式拓扑自愈测试
 add_executable(test_dds_discovery_liveliness test_dds_discovery_liveliness.c)
@@ -1438,7 +1378,7 @@ target_link_libraries(test_caller_allocated_storage PRIVATE
     edge_io
     edge_security
     edge_protocol
-    contract_iems
+    iems_app_lib
     -Wl,--end-group
     cmocka::cmocka
     libuv::uv_a

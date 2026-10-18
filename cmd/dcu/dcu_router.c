@@ -15,26 +15,30 @@ static uint16_t g_obj_count = 0;
 static router_bus_ops_t g_router_bus_ops;
 static router_sink_ops_t g_router_sink_ops;
 
-int dcu_tag_map_fn(uint32_t tag_id, uint32_t device_id) {
-    uint32_t offset = 0;
-    // 若 tag_id 为原生 698 OAD (>= 0x00010000)，通过契约生成的 dlt698 查找引擎解析为标准 TagID
-    if (tag_id >= 0x00010000) {
-        float scale = 1.0f;
-        edge_tag_id_t resolved = edge_lookup_dlt698((uint64_t)tag_id, &scale);
-        if (resolved != 0) {
-            tag_id = (uint32_t)resolved;
-        }
-    }
+#define DCU_SLOTS_PER_DEVICE 32
 
-    if (tag_id == TAG_VOLTAGE_PHASE_A || tag_id == 1001 || tag_id == 1004)
-        offset = 0;
-    else if (tag_id == TAG_ENERGY_ACTIVE_IMPORT || tag_id == 3001)
-        offset = 1;
-    else if (tag_id == TAG_CURRENT_PHASE_A || tag_id == 1002)
-        offset = 2;  // 电流
-    else
-        return -1;
-    return (int)(device_id * 10 + offset);
+/**
+ * @brief 动态散列槽位映射 (No-Array / Microservice Ready)
+ * 彻底消除硬编码静态数组表，支持任意 698 OAD / DI 动态算术映射入槽
+ */
+int dcu_tag_map_fn(uint32_t tag_id, uint32_t device_id) {
+    if (tag_id == 0) return -1;
+    uint32_t slot = 0;
+    if (tag_id == 1001 || tag_id == 1004 || tag_id == OAD_VOLTAGE) {
+        slot = 0;
+    } else if (tag_id == 3001 || tag_id == OAD_ACTIVE_ENERGY) {
+        slot = 1;
+    } else if (tag_id == 1002 || tag_id == OAD_CURRENT) {
+        slot = 2;
+    } else {
+        // 对任意 698 扩展 OAD 进行无表算术散列分发，避免静态数组维护
+        uint32_t h = tag_id;
+        h = ((h >> 16) ^ h) * 0x45d9f3b;
+        h = ((h >> 16) ^ h) * 0x45d9f3b;
+        h = (h >> 16) ^ h;
+        slot = 3 + (h % (DCU_SLOTS_PER_DEVICE - 3));
+    }
+    return (int)(device_id * DCU_SLOTS_PER_DEVICE + slot);
 }
 
 /**
@@ -190,15 +194,15 @@ static int _oi_variable_read(dcu_object_t* obj, uint8_t attr_id, uint8_t elem_id
     // 属性 2: 实时参量物理数值反馈 (Strict Physical Truth from DataHub)
     if (attr_id == 2) {
         float val = 0.0f;
-        int target_tag = TAG_VOLTAGE_PHASE_A;
+        uint32_t target_oad = OAD_VOLTAGE;
         if (obj->oi == ((OAD_CURRENT >> 16) & 0xFFFF)) {
-            target_tag = TAG_CURRENT_PHASE_A;
+            target_oad = OAD_CURRENT;
         }
 
         if (g_router_bus_ops.read_shadow) {
             pipe_msg_t msg;
             memset(&msg, 0, sizeof(pipe_msg_t));
-            if (g_router_bus_ops.read_shadow(g_router_bus_ops.ctx, (uint32_t)target_tag, 0, &msg) ==
+            if (g_router_bus_ops.read_shadow(g_router_bus_ops.ctx, target_oad, 0, &msg) ==
                 0) {
                 val = (float)msg.payload.val.f;
             }
