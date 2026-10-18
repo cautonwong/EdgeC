@@ -24,7 +24,7 @@ int main() {
     for (int i=0; i<10; i++) {
         msg.payload.val.f = 220.0 + i*0.1;
         msg.ts = i; // Mock TS
-        datahub_write_shadow_idx(&hub, 1001, &msg);
+        datahub_write_shadow(&hub, &msg);
         usleep(500000); // 500ms
     }
     

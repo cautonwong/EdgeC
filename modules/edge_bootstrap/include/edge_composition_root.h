@@ -49,6 +49,7 @@ typedef struct {
     uint32_t tag_count;                 /**< Number of contract tags */
     datahub_tag_map_cb map_fn;          /**< Tag to compact index mapping function */
     datahub_tag_map_cb_v2 map_fn_v2;    /**< V2 tag mapping function */
+    datahub_backend_type_t backend_type;/**< DataHub backend variant (SHM, DDS, MQTT, HYBRID) */
 } edge_composition_config_t;
 
 /**

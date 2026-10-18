@@ -109,18 +109,80 @@ storage_driver_t *storage_driver_sqlite_create(uv_loop_t *loop, const storage_co
 
 #if !defined(CONFIG_EDGE_INFRA_DDS) || (CONFIG_EDGE_INFRA_DDS == 0)
 #include "datahub_dds.h"
-const datahub_ops_t g_datahub_dds_ops = {0};
+#include "edge_log.h"
+#include <errno.h>
+
+static int _disabled_dds_init(datahub_t *hub, const datahub_backend_config_t *config) {
+    (void)hub; (void)config;
+    LOG_WARN(LOG_CAT_CORE, "DataHub DDS backend is disabled in build (CONFIG_EDGE_INFRA_DDS not enabled)");
+    return -ENOSYS;
+}
+
+static int _disabled_dds_publish(datahub_t *hub, const PipeMsg *msg) {
+    (void)hub; (void)msg;
+    return -ENOSYS;
+}
+
+static int _disabled_dds_write_shadow(datahub_t *hub, const PipeMsg *msg) {
+    (void)hub; (void)msg;
+    return -ENOSYS;
+}
+
+static int _disabled_dds_read_shadow(datahub_t *hub, uint32_t tag_id, PipeMsg *out_msg) {
+    (void)hub; (void)tag_id; (void)out_msg;
+    return -ENOSYS;
+}
+
+const datahub_ops_t g_datahub_dds_ops = {
+    .init = _disabled_dds_init,
+    .publish = _disabled_dds_publish,
+    .write_shadow = _disabled_dds_write_shadow,
+    .read_shadow = _disabled_dds_read_shadow,
+};
+
 int datahub_dds_init(datahub_t *hub, const datahub_config_t *config) {
     (void)hub; (void)config;
-    return -1;
+    LOG_WARN(LOG_CAT_CORE, "DataHub DDS backend is disabled in build (CONFIG_EDGE_INFRA_DDS not enabled)");
+    return -ENOSYS;
 }
 #endif
 
 #ifndef CONFIG_EDGE_INFRA_MQTT
 #include "datahub_mqtt.h"
-const datahub_ops_t g_datahub_mqtt_ops = {0};
+#include "edge_log.h"
+#include <errno.h>
+
+static int _disabled_mqtt_init(datahub_t *hub, const datahub_backend_config_t *config) {
+    (void)hub; (void)config;
+    LOG_WARN(LOG_CAT_CORE, "DataHub MQTT backend is disabled in build (CONFIG_EDGE_INFRA_MQTT not enabled)");
+    return -ENOSYS;
+}
+
+static int _disabled_mqtt_publish(datahub_t *hub, const PipeMsg *msg) {
+    (void)hub; (void)msg;
+    return -ENOSYS;
+}
+
+static int _disabled_mqtt_write_shadow(datahub_t *hub, const PipeMsg *msg) {
+    (void)hub; (void)msg;
+    return -ENOSYS;
+}
+
+static int _disabled_mqtt_read_shadow(datahub_t *hub, uint32_t tag_id, PipeMsg *out_msg) {
+    (void)hub; (void)tag_id; (void)out_msg;
+    return -ENOSYS;
+}
+
+const datahub_ops_t g_datahub_mqtt_ops = {
+    .init = _disabled_mqtt_init,
+    .publish = _disabled_mqtt_publish,
+    .write_shadow = _disabled_mqtt_write_shadow,
+    .read_shadow = _disabled_mqtt_read_shadow,
+};
+
 int datahub_mqtt_init(datahub_t *hub, const datahub_config_t *config) {
     (void)hub; (void)config;
-    return -1;
+    LOG_WARN(LOG_CAT_CORE, "DataHub MQTT backend is disabled in build (CONFIG_EDGE_INFRA_MQTT not enabled)");
+    return -ENOSYS;
 }
 #endif

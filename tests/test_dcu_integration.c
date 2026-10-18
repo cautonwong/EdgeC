@@ -48,7 +48,7 @@ static void test_dcu_full_pipeline_integration(void** state) {
     poller_bus_ops_t poller_bus = {.ctx = &hub, .publish_realtime = NULL, .push_event = NULL};
 
     // 5. 启动数采模拟生产器并直推 DataHub
-    ret = dcu_poller_start(&poller, (poller_io_ops_t){0}, poller_bus, poller_sink);
+    ret = dcu_poller_start(&poller, (poller_source_ops_t){0}, poller_bus, poller_sink);
     assert_int_equal(ret, 0);
 
     // 6. 数据总线消费链路搭建：

@@ -57,13 +57,9 @@ int driver_radar_fmcw_parse_frame(const uint8_t *buf, size_t len, datahub_t *hub
     pipe_msg_init_scalar(&msg_vel, 12022, vel_ms, ts);
     pipe_msg_init_scalar(&msg_amp, 12023, micro_amp, ts);
 
-    int idx_dist = hub->map_fn_v2 ? hub->map_fn_v2(12021, 0) : hub->map_fn(12021);
-    int idx_vel  = hub->map_fn_v2 ? hub->map_fn_v2(12022, 0) : hub->map_fn(12022);
-    int idx_amp  = hub->map_fn_v2 ? hub->map_fn_v2(12023, 0) : hub->map_fn(12023);
-
-    if (idx_dist >= 0) datahub_write_shadow_idx(hub, idx_dist, &msg_dist);
-    if (idx_vel >= 0)  datahub_write_shadow_idx(hub, idx_vel, &msg_vel);
-    if (idx_amp >= 0)  datahub_write_shadow_idx(hub, idx_amp, &msg_amp);
+    datahub_write_shadow(hub, &msg_dist);
+    datahub_write_shadow(hub, &msg_vel);
+    datahub_write_shadow(hub, &msg_amp);
 
     return 0;
 }

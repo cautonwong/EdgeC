@@ -23,6 +23,9 @@ The zero-copy shared memory message bus at the core of EdgeC. It has two regions
 
 All inter-process communication (C↔Go↔UI) goes through the DataHub via POSIX shared memory.
 
+### Composite Backend (复合后端)
+A multi-backend adapter in the DataHub architecture (`datahub_router_t` implementing `datahub_ops_t` behind `DATAHUB_BACKEND_HYBRID`). It concurrently fans out writes across local shared memory (SHM), distributed mesh (Cyclone DDS), and cloud ingress (MQTT), while reading latest state from the ultra-low-latency primary shadow table. When secondary backends are disabled at compile-time or unavailable, it degrades gracefully with explicit warning logs without interrupting local edge execution.
+
 ### StreamEngine Pipeline
 A reactive, directed acyclic graph of processing *Stages* that data flows through. Each Stage is a pure function that reads from the DataHub, transforms the data, and writes back. Pipelines are defined by the Semantic Contract and can be hot-reloaded without restarting the engine.
 

@@ -22,8 +22,8 @@ static int _mock_count_freezes(void* ctx, uint16_t* out_count) {
     return dcu_storage_count_freezes((dcu_storage_t*)ctx, out_count);
 }
 
-static int _mock_read_shadow(void* ctx, uint32_t idx, void* out_msg) {
-    return datahub_read_shadow_idx((datahub_t*)ctx, idx, (pipe_msg_t*)out_msg);
+static int _mock_read_shadow(void* ctx, uint32_t tag_id, uint32_t device_id, void* out_msg) {
+    return datahub_read_shadow_device((datahub_t*)ctx, tag_id, device_id, (pipe_msg_t*)out_msg);
 }
 
 static int _mock_publish_realtime(void* ctx, uint32_t tag_id, uint32_t meter_idx, double val,
@@ -113,7 +113,7 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     router_bus_ops_t router_bus = {.ctx = &hub,
                                    .msg_size = sizeof(pipe_msg_t),
                                    .publish_realtime = _mock_publish_realtime,
-                                   .read_shadow_idx = _mock_read_shadow};
+                                   .read_shadow = _mock_read_shadow};
 
     // 2. 初始化核心对象字典契约路由器
     ret = dcu_router_init_ex(&g_dcu_inventory, &poller, router_sink, &esam, &discovery, &evt_3000,

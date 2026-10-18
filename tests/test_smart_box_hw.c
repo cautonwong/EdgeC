@@ -21,7 +21,7 @@ static void test_privacy_sandbox_toggle(void **state) {
     // Write privacy tag = 1
     pipe_msg_t msg;
     pipe_msg_init_scalar(&msg, 12008, 1.0, 1000);
-    rc = datahub_write_shadow_idx(hub, 12008, &msg);
+    rc = datahub_write_shadow(hub, &msg);
     assert_int_equal(rc, 0);
 
     pipe_msg_t read_msg;

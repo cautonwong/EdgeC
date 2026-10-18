@@ -16,14 +16,14 @@ static int _mock_count_freezes(void* ctx, uint16_t* out_count) {
     return dcu_storage_count_freezes((dcu_storage_t*)ctx, out_count);
 }
 
-static int _mock_read_shadow(void* ctx, uint32_t idx, void* out_msg) {
+static int _mock_read_shadow(void* ctx, uint32_t tag_id, uint32_t device_id, void* out_msg) {
     (void)ctx;
+    (void)device_id;
     pipe_msg_t* msg = (pipe_msg_t*)out_msg;
-    uint32_t offset = idx % 10;
-    if (offset == 0) {  // 电压 OAD_VOLTAGE
+    if (tag_id == OAD_VOLTAGE || tag_id == TAG_VOLTAGE_PHASE_A || tag_id == 1001) {  // 电压
         pipe_msg_init_scalar(msg, OAD_VOLTAGE, 220.5, uv_hrtime());
         return 0;
-    } else if (offset == 2) {  // 电流 OAD_CURRENT
+    } else if (tag_id == OAD_CURRENT || tag_id == TAG_CURRENT_PHASE_A || tag_id == 1002) {  // 电流
         pipe_msg_init_scalar(msg, OAD_CURRENT, 4.95, uv_hrtime());
         return 0;
     }
@@ -64,7 +64,7 @@ static void test_dcu_router_dispatch(void** state) {
     router_bus_ops_t router_bus = {.ctx = NULL,
                                    .msg_size = sizeof(pipe_msg_t),
                                    .publish_realtime = _mock_publish_realtime,
-                                   .read_shadow_idx = _mock_read_shadow};
+                                   .read_shadow = _mock_read_shadow};
 
     // 2. 初始化核心对象字典路由器
     ret = dcu_router_init_ex(&g_dcu_inventory, &poller, router_sink, NULL, NULL, NULL, NULL,

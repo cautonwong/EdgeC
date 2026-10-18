@@ -50,10 +50,10 @@ static int _node_publish_realtime(void *ctx, uint32_t tag_id, uint32_t meter_idx
     return datahub_publish(node->hub, &bus_msg);
 }
 
-static int _node_read_shadow(void *ctx, uint32_t idx, void *out_msg) {
+static int _node_read_shadow(void *ctx, uint32_t tag_id, uint32_t device_id, void *out_msg) {
     dcu_node_t *node = (dcu_node_t *)ctx;
     if (!node || !node->hub) return -1;
-    return datahub_read_shadow_idx(node->hub, idx, (pipe_msg_t *)out_msg);
+    return datahub_read_shadow_device(node->hub, tag_id, device_id, (pipe_msg_t *)out_msg);
 }
 
 static int _node_count_freezes(void *ctx, uint16_t *out_count) {
@@ -141,7 +141,7 @@ dcu_node_t *dcu_node_create(uv_loop_t *loop, const dcu_node_config_t *cfg) {
                                      .commit_batch = (void *)dcu_storage_flush};
     poller_bus_ops_t poller_bus = {
         .ctx = node, .publish_realtime = _node_publish_realtime, .push_event = NULL};
-    dcu_poller_start(&node->poller, (poller_io_ops_t){0}, poller_bus, poller_sink);
+    dcu_poller_start(&node->poller, node->cfg.source_ops, poller_bus, poller_sink);
 
     router_sink_ops_t router_sink = {.ctx = &node->storage,
                                      .record_telemetry = (void *)dcu_storage_write_telemetry,
@@ -149,7 +149,7 @@ dcu_node_t *dcu_node_create(uv_loop_t *loop, const dcu_node_config_t *cfg) {
     router_bus_ops_t router_bus = {.ctx = node,
                                    .msg_size = sizeof(pipe_msg_t),
                                    .publish_realtime = _node_publish_realtime,
-                                   .read_shadow_idx = _node_read_shadow};
+                                   .read_shadow = _node_read_shadow};
     dcu_router_init_ex(&node->inventory, &node->poller, router_sink, NULL, NULL, &node->evt_3000,
                        &node->evt_3005, router_bus);
 

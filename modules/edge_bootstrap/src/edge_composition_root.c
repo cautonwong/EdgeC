@@ -103,8 +103,35 @@ static int _init_container_resources(edge_composition_container_t *container, co
     const char *p_name = cfg->shm_name ? cfg->shm_name : (env_shm ? env_shm : (cfg->product_name ? cfg->product_name : "edgeos_bus"));
     uint32_t ring_cap = cfg->ring_capacity ? (uint32_t)cfg->ring_capacity : 4096;
     uint32_t shadow_cap = cfg->datahub_capacity ? (uint32_t)cfg->datahub_capacity : 1024;
-    int rc = datahub_init(container->hub, cfg->loop, p_name, ring_cap, shadow_cap,
+    datahub_backend_type_t backend = cfg->backend_type;
+    const char *env_b = getenv("EDGE_DATAHUB_BACKEND");
+    if (env_b) {
+        if (strcasecmp(env_b, "hybrid") == 0) backend = DATAHUB_BACKEND_HYBRID;
+        else if (strcasecmp(env_b, "dds") == 0) backend = DATAHUB_BACKEND_DDS;
+        else if (strcasecmp(env_b, "mqtt") == 0) backend = DATAHUB_BACKEND_MQTT;
+        else if (strcasecmp(env_b, "shm") == 0) backend = DATAHUB_BACKEND_SHM;
+    }
+
+    /* Register available infra backends into DataHub registry */
+    extern const datahub_ops_t g_datahub_dds_ops;
+    extern const datahub_ops_t g_datahub_mqtt_ops;
+    datahub_register_backend(DATAHUB_BACKEND_DDS, &g_datahub_dds_ops);
+    datahub_register_backend(DATAHUB_BACKEND_MQTT, &g_datahub_mqtt_ops);
+
+    int rc = 0;
+    if (backend != DATAHUB_BACKEND_SHM) {
+        datahub_config_t hub_conf = {
+            .backend_type = backend,
+            .ring_slots = ring_cap,
+            .shadow_capacity = shadow_cap
+        };
+        strncpy(hub_conf.shm_name, p_name, sizeof(hub_conf.shm_name) - 1);
+        rc = datahub_init_with_config(container->hub, cfg->loop, &hub_conf,
+                                      cfg->tags, cfg->tag_count, NULL, cfg->map_fn, NULL);
+    } else {
+        rc = datahub_init(container->hub, cfg->loop, p_name, ring_cap, shadow_cap,
                           cfg->tags, cfg->tag_count, NULL, cfg->map_fn, NULL);
+    }
     if (rc != 0) {
         free(container->hub);
         container->hub = NULL;

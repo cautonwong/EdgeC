@@ -24,7 +24,7 @@ static void test_wasm_scheduler_lifecycle(void** state) {
     // 2. Write initial value to Tag 1001 (e.g. 150.0)
     pipe_msg_t msg;
     pipe_msg_init_scalar(&msg, 1001, 150.0, uv_hrtime());
-    rc = datahub_write_shadow_idx(&hub, 1001, &msg);
+    rc = datahub_write_shadow(&hub, &msg);
     assert_int_equal(rc, 0);
 
     // 3. Initialize WASM Manager with DataHub context

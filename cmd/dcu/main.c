@@ -20,6 +20,7 @@
 #include "dcu_poller.h"
 #include "dcu_router.h"
 #include "dcu_storage.h"
+#include "dcu_twin_source.h"
 #include "driver_manager.h"
 #include "edge_driver.h"
 #include "edge_log.h"
@@ -81,8 +82,7 @@ static void _freeze_trigger_cb(uv_timer_t* handle) {
     if (!inv || !storage) return;
 
     for (int i = 0; i < inv->count; i++) {
-        int shadow_idx = dcu_tag_map_fn(0x20000200, (uint32_t)i);
-        if (datahub_read_shadow_idx(ctx->hub, (uint32_t)shadow_idx, &msg) == 0) {
+        if (datahub_read_shadow_device(ctx->hub, 0x20000200, (uint32_t)i, &msg) == 0) {
             dcu_storage_write_telemetry(storage, inv->meters[i].address, (uint32_t)i, 0x20000200,
                                         (float)msg.payload.val.f);
             saved++;
@@ -158,25 +158,31 @@ int main(int argc, char** argv) {
     extern const edge_contract_t g_contract_manifest;
     contract_register(&g_contract_manifest);
 
+    const char* env_db = getenv("EDGE_DB_PATH");
     const char* env_data_dir = getenv("EDGEC_DATA_DIR");
     char db_resolved_path[512];
-    if (env_data_dir && strlen(env_data_dir) > 0) {
+    if (env_db && strlen(env_db) > 0) {
+        strncpy(db_resolved_path, env_db, sizeof(db_resolved_path) - 1);
+        db_resolved_path[sizeof(db_resolved_path) - 1] = '\0';
+    } else if (env_data_dir && strlen(env_data_dir) > 0) {
         snprintf(db_resolved_path, sizeof(db_resolved_path), "%s/dcu_runtime.db", env_data_dir);
     } else if (access("build/products/dcu/bin/dcu_runtime.db", F_OK) == 0) {
         strncpy(db_resolved_path, "build/products/dcu/bin/dcu_runtime.db",
                 sizeof(db_resolved_path) - 1);
-    } else if (access("dcu_runtime.db", F_OK) == 0) {
-        strncpy(db_resolved_path, "dcu_runtime.db", sizeof(db_resolved_path) - 1);
+        db_resolved_path[sizeof(db_resolved_path) - 1] = '\0';
     } else {
-        strncpy(db_resolved_path, "build/products/dcu/bin/dcu_runtime.db",
-                sizeof(db_resolved_path) - 1);
+        strncpy(db_resolved_path, "dcu_runtime.db", sizeof(db_resolved_path) - 1);
+        db_resolved_path[sizeof(db_resolved_path) - 1] = '\0';
     }
 
     const char* db_abs_path = db_resolved_path;
+    static dcu_twin_source_t g_twin_source;
+    dcu_twin_source_init(&g_twin_source, 220.0, 5.0);
     dcu_node_config_t node_cfg = {.product_name = "DCU",
                                   .db_path = db_abs_path,
                                   .datahub_capacity = 32768,
-                                  .poll_interval_ms = 5000};
+                                  .poll_interval_ms = 5000,
+                                  .source_ops = dcu_twin_source_get_ops(&g_twin_source)};
     g_dcu_node = dcu_node_create(loop, &node_cfg);
     if (!g_dcu_node) {
         LOG_ERROR(LOG_CAT_SCHED, "❌ FATAL: Failed to initialize DCU node.");
