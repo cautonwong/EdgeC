@@ -87,3 +87,9 @@ if(ENABLE_WEB_BUILD)
     add_dependencies(iems web_ui_iems)
 endif()
 
+# 部署仿真与测试清单 (World & Simulation Manifest)
+file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/products/iems/generated")
+file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/omnis_manifest.json" 
+     DESTINATION "${CMAKE_BINARY_DIR}/products/iems/generated")
+
+

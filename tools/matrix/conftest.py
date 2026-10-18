@@ -119,7 +119,18 @@ async def matrix_env():
     base_url = f"http://{server_host}/api/v1"
     
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
-    manifest_path = os.path.join(project_root, f"build/products/{product_name}/generated/omnis_manifest.json")
+    manifest_path = os.environ.get("OMNIS_MANIFEST")
+    if not manifest_path:
+        for c in [
+            os.path.join(project_root, f"build/products/{product_name}/generated/omnis_manifest.json"),
+            os.path.join(project_root, f"cmd/{product_name}/omnis_manifest.json"),
+            os.path.join(project_root, f"cmd/{product_name}/matrix/omnis_manifest.json"),
+        ]:
+            if os.path.exists(c):
+                manifest_path = c
+                break
+    if not manifest_path:
+        manifest_path = os.path.join(project_root, f"build/products/{product_name}/generated/omnis_manifest.json")
     
     loader = SchemaLoader(manifest_path)
     yield {"loader": loader, "base_url": base_url, "project_root": project_root}

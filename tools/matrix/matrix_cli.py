@@ -21,7 +21,18 @@ class MatrixShell(cmd.Cmd):
         
         # 加载契约元数据用于补全
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
-        manifest_path = os.path.join(project_root, f"build/products/{product}/generated/omnis_manifest.json")
+        manifest_path = os.environ.get("OMNIS_MANIFEST")
+        if not manifest_path:
+            for c in [
+                os.path.join(project_root, f"build/products/{product}/generated/omnis_manifest.json"),
+                os.path.join(project_root, f"cmd/{product}/omnis_manifest.json"),
+                os.path.join(project_root, f"cmd/{product}/matrix/omnis_manifest.json"),
+            ]:
+                if os.path.exists(c):
+                    manifest_path = c
+                    break
+        if not manifest_path:
+            manifest_path = os.path.join(project_root, f"build/products/{product}/generated/omnis_manifest.json")
         try:
             self.loader = SchemaLoader(manifest_path)
             self.device_ids = [d["id"] for d in self.loader.devices]

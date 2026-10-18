@@ -703,6 +703,9 @@ pipeline_stage_t *stage_anomaly_baseline_create_v2(const edge_stage_def_t *def, 
 
 #endif
 
+pipeline_stage_t *stage_energy_integrator_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_dsp_rms_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+
 #if defined(CONFIG_EDGEC_WASM)
 pipeline_stage_t *stage_wasm_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
 pipeline_stage_t *stage_tinyml_wasm_create(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
@@ -734,6 +737,8 @@ static const edge_stage_factory_entry_t g_standard_stages[] = {
     {"wasm", stage_wasm_create_v2},
     {"tinyml_wasm", stage_tinyml_wasm_create},
 #endif
+    {"energy_integrator", stage_energy_integrator_create_v2},
+    {"dsp_rms", stage_dsp_rms_create_v2},
     {"kalman", stage_kf_create_v2},
     {"foc", stage_foc_create_v2},
     {"fir_filter", stage_fir_filter_create_v2},
