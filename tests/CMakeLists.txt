@@ -327,23 +327,13 @@ target_link_libraries(test_driver_registry_dcu PRIVATE
 )
 add_test(NAME test_driver_registry_dcu COMMAND test_driver_registry_dcu)
 
-add_executable(test_driver_registry_smart_box test_driver_registry.c)
-target_link_libraries(test_driver_registry_smart_box PRIVATE
-    -Wl,--start-group
-    edge_infra
-    edge_io
-    edge_stream
-    edge_security
-    edge_core
-    edge_protocol
-    edge_algo
-    contract_smart_box
-    -Wl,--end-group
-    edge_common_interface
-    cmocka::cmocka
-    pthread dl rt m
-)
-add_test(NAME test_driver_registry_smart_box COMMAND test_driver_registry_smart_box)
+add_edge_test(test_driver_registry_smart_box test_smartbox_driver_adapter.c)
+target_include_directories(test_driver_registry_smart_box PRIVATE "${CMAKE_SOURCE_DIR}/cmd/smart_box")
+target_link_libraries(test_driver_registry_smart_box PRIVATE smartbox_app_lib)
+
+add_edge_test(test_smartbox_node test_smartbox_node.c)
+target_include_directories(test_smartbox_node PRIVATE "${CMAKE_SOURCE_DIR}/cmd/smart_box")
+target_link_libraries(test_smartbox_node PRIVATE smartbox_app_lib)
 
 # AEP-305 生成物可信链与防篡改门禁单测
 add_test(NAME test_generated_drift_tamper COMMAND "${CMAKE_SOURCE_DIR}/tests/test_generated_drift_tamper.sh")
@@ -762,25 +752,11 @@ target_link_libraries(test_dcu_power_quality PRIVATE
 add_test(NAME test_dcu_power_quality COMMAND test_dcu_power_quality)
 
 # AEP-442 SmartBox 箱变绕组热寿命老化评估模型与电气五防智能闭锁测试
-add_executable(test_smartbox_interlock_thermal test_smartbox_interlock_thermal.c ../cmd/smart_box/smartbox_thermal_aging.c ../cmd/smart_box/smartbox_five_safety_interlock.c)
+add_edge_test(test_smartbox_interlock_thermal test_smartbox_interlock_thermal.c)
 target_include_directories(test_smartbox_interlock_thermal PRIVATE
     ${CMAKE_SOURCE_DIR}/cmd/smart_box
 )
-target_link_libraries(test_smartbox_interlock_thermal PRIVATE
-    -Wl,--start-group
-    edge_infra
-    edge_io
-    edge_stream
-    edge_security
-    edge_core
-    edge_algo
-    contract_smart_box
-    -Wl,--end-group
-    edge_common_interface
-    cmocka::cmocka
-    pthread dl rt m
-)
-add_test(NAME test_smartbox_interlock_thermal COMMAND test_smartbox_interlock_thermal)
+target_link_libraries(test_smartbox_interlock_thermal PRIVATE smartbox_app_lib)
 
 # AEP-452 Cyclone DDS 节点动态自发现、Liveliness 监听与分布式拓扑自愈测试
 add_executable(test_dds_discovery_liveliness test_dds_discovery_liveliness.c)

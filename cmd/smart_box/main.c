@@ -9,7 +9,7 @@
 #include <unistd.h>
 #include <uv.h>
 
-#include "contracts.h"
+#include "smartbox_driver_adapter.h"
 #include "datahub.h"
 #include "edge_composition_root.h"
 #include "edge_log.h"
@@ -424,21 +424,17 @@ int main(int argc, char **argv) {
     LOG_INFO(LOG_CAT_CORE, "=== Starting Smart Box Controller ===");
     uv_loop_t *loop = uv_default_loop();
 
-    contract_register(&g_contract_manifest);
-    const edge_contract_t *contract = contract_get_active();
-    if (!contract) {
-        LOG_ERROR(LOG_CAT_CORE, "Active contract is NULL");
-        return -1;
-    }
+    uint32_t tag_count = 0;
+    const edge_tag_meta_t *tags = smartbox_get_tag_metadata(&tag_count);
 
     edge_composition_config_t comp_cfg = {.product_name = "smart_box",
                                           .loop = loop,
                                           .shm_name = "smart_box",
                                           .ring_capacity = 4096,
                                           .datahub_capacity = 1024,
-                                          .tags = contract->tags,
-                                          .tag_count = contract->tag_count,
-                                          .map_fn = edge_tag_get_compact_index,
+                                          .tags = tags,
+                                          .tag_count = tag_count,
+                                          .map_fn_v2 = smartbox_tag_map_fn,
                                           .memory_pool_buffer_size = 2048,
                                           .memory_pool_capacity = 32,
                                           .enable_dma_buf = false,
