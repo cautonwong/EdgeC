@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 #include "arbiter.h"
 #include "edge_log.h"
@@ -28,13 +27,15 @@ void dcu_poller_pump(dcu_poller_t* poller, dcu_inventory_t* inv) {
         return;
     }
 
-    uint64_t now = (uint64_t)time(NULL);
-
     for (int i = 0; i < poller->task_count; i++) {
         dcu_task_unit_t* task = &poller->tasks[i];
-        if (now - task->last_run_time < task->interval_s) continue;
-
-        task->last_run_time = now;
+        if (task->interval_s > 0) {
+            uint64_t ticks = 0;
+            if (edge_periodic_clock_check(&task->clock, &ticks) <= 0) {
+                continue;
+            }
+        }
+        task->last_run_time = edge_periodic_clock_now_us(&task->clock) / 1000000ULL;
         task->monitor.total_meters = inv->count;
         task->monitor.success_meters = 0;
         task->cursor_meter_idx = 0;
@@ -96,11 +97,24 @@ int dcu_poller_add_scheme(dcu_poller_t* poller, uint32_t scheme_id, uint8_t mode
 
 int dcu_poller_add_task(dcu_poller_t* poller, uint32_t task_id, uint32_t interval_s,
                         uint32_t scheme_id) {
+    if (!poller || poller->task_count >= MAX_TASKS) return -1;
     dcu_task_unit_t* t = &poller->tasks[poller->task_count++];
     t->task_id = task_id;
     t->interval_s = interval_s;
     t->scheme_id = scheme_id;
     t->last_run_time = 0;
+    t->cursor_meter_idx = 0;
+
+    edge_periodic_clock_config_t clk_cfg = {
+        .interval_us = (interval_s > 0) ? ((uint64_t)interval_s * 1000000ULL) : 1ULL,
+        .policy = EDGE_OVERRUN_SKIP,
+        .wall_clock_align = (interval_s > 0),
+        .custom_clock = NULL,
+        .clock_ctx = NULL,
+    };
+    edge_periodic_clock_init(&t->clock, &clk_cfg);
+    // 首次允许立即执行
+    t->clock.next_tick_us = 0;
     return 0;
 }
 
