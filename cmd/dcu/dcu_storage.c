@@ -12,6 +12,8 @@
 /**
  * @brief 定时批量事务合并刷写回调 (libuv timer 驱动)
  */
+static int _dcu_storage_flush_locked(dcu_storage_t* storage);
+
 static void _flush_timer_cb(uv_timer_t* timer) {
     dcu_storage_t* storage = (dcu_storage_t*)timer->data;
     if (storage) {
@@ -28,6 +30,7 @@ int dcu_storage_init(dcu_storage_t* storage, uv_loop_t* loop, const char* db_pat
     storage->loop = loop;
     storage->cache_count = 0;
     memset(storage->cache, 0, sizeof(storage->cache));
+    uv_mutex_init(&storage->lock);
 
     // 1. 直接打开 SQLite
     int ret = sqlite3_open(db_path, &storage->db);
@@ -87,23 +90,27 @@ int dcu_storage_write_telemetry(dcu_storage_t* storage, const char* addr, uint32
                                 uint32_t oad, double value) {
     if (!storage || !addr) return -1;
 
+    uv_mutex_lock(&storage->lock);
     if (storage->cache_count >= STORAGE_CACHE_MAX) {
-        dcu_storage_flush(storage);
+        _dcu_storage_flush_locked(storage);
     }
 
-    telemetry_cache_entry_t* entry = &storage->cache[storage->cache_count];
-    strncpy(entry->meter_address, addr, STORAGE_ADDR_LEN - 1);
-    entry->meter_address[STORAGE_ADDR_LEN - 1] = '\0';
-    entry->oad = oad;
-    entry->value = value;
-    entry->ts = (uint64_t)time(NULL);
-    entry->device_id = device_id;
+    if (storage->cache_count < STORAGE_CACHE_MAX) {
+        telemetry_cache_entry_t* entry = &storage->cache[storage->cache_count];
+        strncpy(entry->meter_address, addr, STORAGE_ADDR_LEN - 1);
+        entry->meter_address[STORAGE_ADDR_LEN - 1] = '\0';
+        entry->oad = oad;
+        entry->value = value;
+        entry->ts = (uint64_t)time(NULL);
+        entry->device_id = device_id;
 
-    storage->cache_count++;
+        storage->cache_count++;
+    }
 
     if (storage->cache_count >= STORAGE_CACHE_MAX) {
-        dcu_storage_flush(storage);
+        _dcu_storage_flush_locked(storage);
     }
+    uv_mutex_unlock(&storage->lock);
 
     return 0;
 }
@@ -140,7 +147,7 @@ int dcu_storage_write_event(dcu_storage_t* storage, const char* addr, uint16_t o
     return (ret == SQLITE_DONE) ? 0 : -3;
 }
 
-int dcu_storage_flush(dcu_storage_t* storage) {
+static int _dcu_storage_flush_locked(dcu_storage_t* storage) {
     if (!storage || storage->cache_count == 0) return 0;
 
     sqlite3_exec(storage->db, "BEGIN IMMEDIATE TRANSACTION;", NULL, NULL, NULL);
@@ -183,6 +190,14 @@ int dcu_storage_flush(dcu_storage_t* storage) {
     sqlite3_exec(storage->db, "COMMIT;", NULL, NULL, NULL);
     storage->cache_count = 0;
     return 0;
+}
+
+int dcu_storage_flush(dcu_storage_t* storage) {
+    if (!storage) return -1;
+    uv_mutex_lock(&storage->lock);
+    int rc = _dcu_storage_flush_locked(storage);
+    uv_mutex_unlock(&storage->lock);
+    return rc;
 }
 
 int dcu_storage_query_freeze(dcu_storage_t* storage, const char* addr, uint32_t freeze_oad,
@@ -254,6 +269,7 @@ void dcu_storage_destroy(dcu_storage_t* storage) {
         storage->timer_active = false;
     }
     dcu_storage_flush(storage);
+    uv_mutex_destroy(&storage->lock);
     if (storage->stmt_freeze) {
         sqlite3_finalize(storage->stmt_freeze);
         storage->stmt_freeze = NULL;
