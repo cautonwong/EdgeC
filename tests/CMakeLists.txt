@@ -307,9 +307,11 @@ target_link_libraries(test_iems_task_loader PRIVATE iems_app_lib edge_stream edg
 # AEP-301 / AEP-302 契约生成式驱动注册表测试 (IEMS, DCU, SmartBox 参数化覆盖)
 add_edge_test(test_driver_registry test_driver_registry.c)
 
-add_executable(test_driver_registry_dcu test_driver_registry.c)
+add_executable(test_driver_registry_dcu test_dcu_driver_adapter.c)
+target_include_directories(test_driver_registry_dcu PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
 target_link_libraries(test_driver_registry_dcu PRIVATE
     -Wl,--start-group
+    dcu_app_lib
     edge_infra
     edge_io
     edge_stream
@@ -317,7 +319,6 @@ target_link_libraries(test_driver_registry_dcu PRIVATE
     edge_core
     edge_protocol
     edge_algo
-    contract_dcu
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka
@@ -751,7 +752,7 @@ target_link_libraries(test_dcu_power_quality PRIVATE
     edge_security
     edge_core
     edge_algo
-    contract_dcu
+    dcu_app_lib
     -Wl,--end-group
     edge_common_interface
     cmocka::cmocka

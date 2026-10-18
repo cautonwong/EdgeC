@@ -17,23 +17,23 @@ static router_sink_ops_t g_router_sink_ops;
 
 int dcu_tag_map_fn(uint32_t tag_id, uint32_t device_id) {
     uint32_t offset = 0;
-    // 若 tag_id 为原生 698 OAD (>= 0x00010000)，通过契约生成的 dlt698 查找引擎解析为标准 TagID
-    if (tag_id >= 0x00010000) {
-        float scale = 1.0f;
-        edge_tag_id_t resolved = edge_lookup_dlt698((uint64_t)tag_id, &scale);
-        if (resolved != 0) {
-            tag_id = (uint32_t)resolved;
-        }
+    switch (tag_id) {
+        case OAD_VOLTAGE:
+        case 1001:
+        case 1004:
+            offset = 0;
+            break;
+        case OAD_ACTIVE_ENERGY:
+        case 3001:
+            offset = 1;
+            break;
+        case OAD_CURRENT:
+        case 1002:
+            offset = 2;
+            break;
+        default:
+            return -1;
     }
-
-    if (tag_id == TAG_VOLTAGE_PHASE_A || tag_id == 1001 || tag_id == 1004)
-        offset = 0;
-    else if (tag_id == TAG_ENERGY_ACTIVE_IMPORT || tag_id == 3001)
-        offset = 1;
-    else if (tag_id == TAG_CURRENT_PHASE_A || tag_id == 1002)
-        offset = 2;  // 电流
-    else
-        return -1;
     return (int)(device_id * 10 + offset);
 }
 
@@ -190,15 +190,15 @@ static int _oi_variable_read(dcu_object_t* obj, uint8_t attr_id, uint8_t elem_id
     // 属性 2: 实时参量物理数值反馈 (Strict Physical Truth from DataHub)
     if (attr_id == 2) {
         float val = 0.0f;
-        int target_tag = TAG_VOLTAGE_PHASE_A;
+        uint32_t target_oad = OAD_VOLTAGE;
         if (obj->oi == ((OAD_CURRENT >> 16) & 0xFFFF)) {
-            target_tag = TAG_CURRENT_PHASE_A;
+            target_oad = OAD_CURRENT;
         }
 
         if (g_router_bus_ops.read_shadow) {
             pipe_msg_t msg;
             memset(&msg, 0, sizeof(pipe_msg_t));
-            if (g_router_bus_ops.read_shadow(g_router_bus_ops.ctx, (uint32_t)target_tag, 0, &msg) ==
+            if (g_router_bus_ops.read_shadow(g_router_bus_ops.ctx, target_oad, 0, &msg) ==
                 0) {
                 val = (float)msg.payload.val.f;
             }

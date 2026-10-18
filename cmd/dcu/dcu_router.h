@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "contracts.h"
 #include "dcu_discovery.h"
 #include "dcu_inventory.h"
 #include "dcu_poller.h"

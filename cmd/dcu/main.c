@@ -12,7 +12,7 @@
 
 #include "arbiter.h"
 #include "bus_orchestrator.h"
-#include "contract_registry.h"
+#include "dcu_driver_adapter.h"
 #include "datahub.h"
 #include "dcu_event_monitor.h"
 #include "dcu_inventory.h"
@@ -155,8 +155,6 @@ int main(int argc, char** argv) {
     LOG_INFO(LOG_CAT_SCHED, "🚀 Starting EdgeC DCU (Series 6xxx) - Digital Twin Marathon");
 
     uv_loop_t* loop = uv_default_loop();
-    extern const edge_contract_t g_contract_manifest;
-    contract_register(&g_contract_manifest);
 
     const char* env_db = getenv("EDGE_DB_PATH");
     const char* env_data_dir = getenv("EDGEC_DATA_DIR");
@@ -204,7 +202,7 @@ int main(int argc, char** argv) {
     arbiter_t* arbiter_ctx = NULL;
     arbiter_init(&arbiter_ctx, loop);
     driver_manager_t* drv_mgr = driver_manager_create();
-    edge_driver_registry_init(drv_mgr);
+    dcu_driver_registry_init(drv_mgr);
 
     bus_orchestrator_t* io_orch =
         bus_orchestrator_create(hub, arbiter_ctx, drv_mgr, 64, 8192, 4096);
@@ -215,7 +213,7 @@ int main(int argc, char** argv) {
         char path[64];
         snprintf(path, sizeof(path), "/tmp/rs485_%d.sock", i);
         const char* proto = (i < 22) ? "DLT698" : "DLT645";
-        const driver_contract_injection_t* inj = contract_model_find(proto);
+        const driver_contract_injection_t* inj = dcu_get_driver_injection(proto);
         if (inj) bus_orchestrator_setup_master(io_orch, i, proto, 0, inj);
         struct sockaddr_un addr;
         memset(&addr, 0, sizeof(addr));

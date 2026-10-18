@@ -8,7 +8,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "contracts.h"
 #include "edge_log.h"
 
 /* Global fallback for legacy modules referencing g_dcu_inventory */
