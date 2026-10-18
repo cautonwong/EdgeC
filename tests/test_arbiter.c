@@ -210,12 +210,260 @@ static void test_arbiter_caller_allocated(void** state) {
     uv_loop_close(&loop);
 }
 
+typedef struct {
+    int started;
+    int completed;
+    int status;
+} timeout_test_ctx_t;
+
+static int never_finish_execute(void* ctx, int bus_id, cmd_msg_t* cmd) {
+    (void)bus_id; (void)cmd;
+    timeout_test_ctx_t* tctx = (timeout_test_ctx_t*)ctx;
+    if (tctx) tctx->started++;
+    return 0; // Hangs forever without calling arbiter_on_io_done
+}
+
+static void on_timeout_complete(cmd_msg_t* cmd, int status) {
+    timeout_test_ctx_t* tctx = (timeout_test_ctx_t*)cmd->user_data;
+    if (tctx) {
+        tctx->completed++;
+        tctx->status = status;
+    }
+}
+
+static void test_arbiter_timeout_forced_release(void** state) {
+    (void)state;
+    uv_loop_t loop;
+    uv_loop_init(&loop);
+    arbiter_t* arb = NULL;
+    arbiter_init(&arb, &loop);
+    arbiter_resume(arb);
+
+    timeout_test_ctx_t tctx = {0};
+    arb_executor_ops_t exec_ops = {
+        .ctx = &tctx,
+        .execute = never_finish_execute,
+        .on_io_done = NULL,
+    };
+    arbiter_set_executor(arb, exec_ops);
+
+    cmd_msg_t* hung_cmd = calloc(1, sizeof(cmd_msg_t));
+    cmd_msg_init_read(hung_cmd, 1001, ARBITER_PRIO_NORMAL);
+    hung_cmd->timeout_ms = 40; // 40ms 超时
+    hung_cmd->user_data = &tctx;
+    hung_cmd->on_complete = on_timeout_complete;
+    hung_cmd->on_cleanup = on_cleanup;
+
+    arbiter_submit_cmd(arb, 0, hung_cmd);
+    assert_int_equal(tctx.started, 1);
+
+    arbiter_bus_status_t stats;
+    arbiter_get_statuses(arb, &stats, 1);
+    assert_true(stats.is_busy);
+
+    // 运行事件循环驱动定时器检测超时
+    for (int i = 0; i < 30; i++) {
+        uv_run(&loop, UV_RUN_NOWAIT);
+        if (tctx.completed > 0) break;
+        usleep(10000); // 10ms
+    }
+
+    // 断言超时触发：收到 CMD_STATUS_TIMEOUT，总线被强制剥夺并释放
+    assert_int_equal(tctx.completed, 1);
+    assert_int_equal(tctx.status, CMD_STATUS_TIMEOUT);
+
+    arbiter_get_statuses(arb, &stats, 1);
+    assert_false(stats.is_busy);
+
+    arbiter_destroy(arb);
+    uv_loop_close(&loop);
+}
+
+static int s_edf_order[4] = {0};
+static int s_edf_count = 0;
+
+static int record_exec_edf(void* ctx, int bus_id, cmd_msg_t* cmd) {
+    (void)bus_id; (void)ctx;
+    if (s_edf_count < 4) {
+        s_edf_order[s_edf_count++] = (int)cmd->tag_id;
+    }
+    return 0;
+}
+
+static void test_arbiter_edf_ordering(void** state) {
+    (void)state;
+    uv_loop_t loop;
+    uv_loop_init(&loop);
+    arbiter_t* arb = NULL;
+    arbiter_init(&arb, &loop);
+    arbiter_pause(arb); // 暂停以构建积压队列
+
+    s_edf_count = 0;
+    arb_executor_ops_t ops = { .execute = record_exec_edf };
+    arbiter_set_executor(arb, ops);
+
+    uint64_t now = uv_hrtime();
+
+    // 提交 3 个具有相同优先级 NORMAL 的命令，但截止期分别为 300ms, 100ms, 200ms
+    cmd_msg_t* c1 = calloc(1, sizeof(cmd_msg_t));
+    cmd_msg_init_read(c1, 101, ARBITER_PRIO_NORMAL);
+    c1->submit_ts = now;
+    c1->deadline_ns = now + 300000000ULL;
+    c1->on_cleanup = on_cleanup;
+
+    cmd_msg_t* c2 = calloc(1, sizeof(cmd_msg_t));
+    cmd_msg_init_read(c2, 102, ARBITER_PRIO_NORMAL);
+    c2->submit_ts = now;
+    c2->deadline_ns = now + 100000000ULL;
+    c2->on_cleanup = on_cleanup;
+
+    cmd_msg_t* c3 = calloc(1, sizeof(cmd_msg_t));
+    cmd_msg_init_read(c3, 103, ARBITER_PRIO_NORMAL);
+    c3->submit_ts = now;
+    c3->deadline_ns = now + 200000000ULL;
+    c3->on_cleanup = on_cleanup;
+
+    arbiter_submit_cmd(arb, 0, c1);
+    arbiter_submit_cmd(arb, 0, c2);
+    arbiter_submit_cmd(arb, 0, c3);
+
+    arbiter_resume(arb);
+
+    // 验证最早截止期 (c2, 100ms) 最先出队派发
+    assert_int_equal(s_edf_count, 1);
+    assert_int_equal(s_edf_order[0], 102);
+
+    // 完成第一条，派发次早截止期 (c3, 200ms)
+    arbiter_on_io_done(arb, 0, c2, 0);
+    assert_int_equal(s_edf_count, 2);
+    assert_int_equal(s_edf_order[1], 103);
+
+    // 完成第二条，派发最晚截止期 (c1, 300ms)
+    arbiter_on_io_done(arb, 0, c3, 0);
+    assert_int_equal(s_edf_count, 3);
+    assert_int_equal(s_edf_order[2], 101);
+
+    arbiter_on_io_done(arb, 0, c1, 0);
+
+    arbiter_destroy(arb);
+    uv_loop_close(&loop);
+}
+
+static int s_aging_dispatched_tag = 0;
+static int aging_test_exec(void* ctx, int bus_id, cmd_msg_t* cmd) {
+    (void)bus_id; (void)ctx;
+    s_aging_dispatched_tag = (int)cmd->tag_id;
+    return 0;
+}
+
+static void test_arbiter_aging_anti_starvation(void** state) {
+    (void)state;
+    uv_loop_t loop;
+    uv_loop_init(&loop);
+    arbiter_t* arb = NULL;
+    arbiter_init(&arb, &loop);
+    arbiter_pause(arb);
+
+    s_aging_dispatched_tag = 0;
+    arb_executor_ops_t ops = { .execute = aging_test_exec };
+    arbiter_set_executor(arb, ops);
+
+    uint64_t now = uv_hrtime();
+
+    // 1. 模拟一个在 2 秒前提交的低优先级命令 (LOW = 0)
+    // 2000ms / 50ms = 40 个 aging 步进，有效优先级提升至 EMERGENCY (200)
+    cmd_msg_t* old_low = calloc(1, sizeof(cmd_msg_t));
+    cmd_msg_init_read(old_low, 888, ARBITER_PRIO_LOW);
+    old_low->submit_ts = now - 2000000000ULL;
+    old_low->deadline_ns = now + 1000000000ULL;
+    old_low->on_cleanup = on_cleanup;
+    arbiter_submit_cmd(arb, 0, old_low);
+
+    // 2. 刚刚提交的 NORMAL 优先级命令 (NORMAL = 50)
+    cmd_msg_t* fresh_normal = calloc(1, sizeof(cmd_msg_t));
+    cmd_msg_init_read(fresh_normal, 999, ARBITER_PRIO_NORMAL);
+    fresh_normal->submit_ts = now;
+    fresh_normal->deadline_ns = now + 1000000000ULL;
+    fresh_normal->on_cleanup = on_cleanup;
+    arbiter_submit_cmd(arb, 0, fresh_normal);
+
+    // 3. 恢复调度：经过 aging 的 old_low 有效优先级压倒 fresh_normal，优先派发
+    arbiter_resume(arb);
+    assert_int_equal(s_aging_dispatched_tag, 888);
+
+    arbiter_on_io_done(arb, 0, old_low, 0);
+    assert_int_equal(s_aging_dispatched_tag, 999);
+    arbiter_on_io_done(arb, 0, fresh_normal, 0);
+
+    arbiter_destroy(arb);
+    uv_loop_close(&loop);
+}
+
+static int s_exclusive_dispatched_tag = 0;
+static int exclusive_test_exec(void* ctx, int bus_id, cmd_msg_t* cmd) {
+    (void)bus_id; (void)ctx;
+    s_exclusive_dispatched_tag = (int)cmd->tag_id;
+    return 0;
+}
+
+static void test_arbiter_exclusive_bus(void** state) {
+    (void)state;
+    uv_loop_t loop;
+    uv_loop_init(&loop);
+    arbiter_t* arb = NULL;
+    arbiter_init(&arb, &loop);
+    arbiter_resume(arb);
+
+    s_exclusive_dispatched_tag = 0;
+    arb_executor_ops_t ops = { .execute = exclusive_test_exec };
+    arbiter_set_executor(arb, ops);
+
+    // 1. 开启总线 0 独占模式
+    arbiter_set_exclusive(arb, 0, true);
+
+    // 2. 提交普通命令，排他总线必须阻断其派发
+    cmd_msg_t* norm = calloc(1, sizeof(cmd_msg_t));
+    cmd_msg_init_read(norm, 111, ARBITER_PRIO_NORMAL);
+    norm->on_cleanup = on_cleanup;
+    arbiter_submit_cmd(arb, 0, norm);
+    assert_int_equal(s_exclusive_dispatched_tag, 0);
+
+    arbiter_bus_status_t stats;
+    arbiter_get_statuses(arb, &stats, 1);
+    assert_int_equal(stats.queue_len, 1);
+    assert_false(stats.is_busy);
+
+    // 3. 提交紧急跳闸命令 (EMERGENCY)，验证允许穿透独占总线执行
+    cmd_msg_t* emerg = calloc(1, sizeof(cmd_msg_t));
+    cmd_msg_init_write(emerg, 999, 1.0, ARBITER_PRIO_EMERGENCY);
+    emerg->on_cleanup = on_cleanup;
+    arbiter_submit_cmd(arb, 0, emerg);
+    assert_int_equal(s_exclusive_dispatched_tag, 999);
+
+    arbiter_on_io_done(arb, 0, emerg, 0);
+    // 依然独占，普通命令仍留在队列
+    assert_int_equal(s_exclusive_dispatched_tag, 999);
+
+    // 4. 解除独占模式，普通命令立即被唤醒并派发
+    arbiter_set_exclusive(arb, 0, false);
+    assert_int_equal(s_exclusive_dispatched_tag, 111);
+
+    arbiter_on_io_done(arb, 0, norm, 0);
+
+    arbiter_destroy(arb);
+    uv_loop_close(&loop);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_arbiter_preempt, setup, teardown),
         cmocka_unit_test(test_arbiter_stress_and_destroy),
         cmocka_unit_test(test_arbiter_bounded_queue_and_priority_drop),
         cmocka_unit_test(test_arbiter_caller_allocated),
+        cmocka_unit_test(test_arbiter_timeout_forced_release),
+        cmocka_unit_test(test_arbiter_edf_ordering),
+        cmocka_unit_test(test_arbiter_aging_anti_starvation),
+        cmocka_unit_test(test_arbiter_exclusive_bus),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
