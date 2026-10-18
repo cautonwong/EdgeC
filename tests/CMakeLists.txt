@@ -651,6 +651,69 @@ target_link_libraries(test_datahub_dds_mesh PRIVATE
     pthread dl rt m
 )
 add_test(NAME test_datahub_dds_mesh COMMAND test_datahub_dds_mesh)
+
+# AEP-450: Eclipse Cyclone DDS IDL 强类型契约编译闭环与 C CDR 描述符生成测试 (Issue #142)
+add_executable(test_dds_idl_codec test_dds_idl_codec.c)
+target_include_directories(test_dds_idl_codec PRIVATE
+    ${CMAKE_SOURCE_DIR}/contracts/idl/generated
+    ${CMAKE_BINARY_DIR}/idl_generated
+)
+target_link_libraries(test_dds_idl_codec PRIVATE
+    cyclonedds
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_dds_idl_codec COMMAND test_dds_idl_codec)
+
+# AEP-451: 工业四遥分级 QoS 策略矩阵与自适应 DataWriter/DataReader 引擎测试 (Issue #143)
+add_executable(test_dds_qos_matrix test_dds_qos_matrix.c)
+target_include_directories(test_dds_qos_matrix PRIVATE
+    ${CMAKE_SOURCE_DIR}/contracts/idl/generated
+    ${CMAKE_BINARY_DIR}/idl_generated
+    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_dds_qos_matrix PRIVATE
+    -Wl,--start-group
+    edge_infra
+    edge_io
+    edge_stream
+    edge_security
+    edge_core
+    edge_algo
+    contract_iems
+    -Wl,--end-group
+    edge_common_interface
+    cyclonedds
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_dds_qos_matrix COMMAND test_dds_qos_matrix)
+
+# AEP-453: DDS 零拷贝共享内存 (Iceoryx/SHM) 加速与跨网络透明双轨路由测试 (Issue #145)
+add_executable(test_dds_shm_zerocopy_perf test_dds_shm_zerocopy_perf.c)
+target_include_directories(test_dds_shm_zerocopy_perf PRIVATE
+    ${CMAKE_SOURCE_DIR}/contracts/idl/generated
+    ${CMAKE_BINARY_DIR}/idl_generated
+    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+)
+target_link_libraries(test_dds_shm_zerocopy_perf PRIVATE
+    -Wl,--start-group
+    edge_infra
+    edge_io
+    edge_stream
+    edge_security
+    edge_core
+    edge_algo
+    contract_iems
+    -Wl,--end-group
+    edge_common_interface
+    cyclonedds
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_dds_shm_zerocopy_perf COMMAND test_dds_shm_zerocopy_perf)
 endif()
 
 # AEP-440 IEMS 工商业储能需量控制、分时电价排程与 100ms 快速防逆流测试
