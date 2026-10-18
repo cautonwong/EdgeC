@@ -59,6 +59,7 @@ typedef struct cmd_msg {
     uint32_t signature;
     uint32_t timeout_ms;
     uint64_t submit_ts;
+    uint64_t deadline_ns;
 
     void (*on_start)(struct cmd_msg *msg);
     void (*on_complete)(struct cmd_msg *msg, int status);
@@ -98,6 +99,7 @@ int arbiter_get_statuses(arbiter_t *arb, arbiter_bus_status_t *out_stats, int ma
 void arbiter_set_exclusive(arbiter_t *arb, int bus_id, bool exclusive);
 void arbiter_set_bus_queue_limit(arbiter_t *arb, int bus_id, uint32_t max_queue);
 uint64_t arbiter_get_bus_dropped_count(arbiter_t *arb, int bus_id);
+int arbiter_check_timeouts(arbiter_t *arb);
 
 // --- 辅助初始化函数 (Helper Init Functions) ---
 static inline void cmd_msg_init_read(cmd_msg_t *msg, uint32_t tag_id, uint8_t priority) {

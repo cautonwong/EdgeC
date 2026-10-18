@@ -571,25 +571,39 @@ int dag_execute_parallel(stream_engine_t *engine, dag_graph_t *graph, pipe_msg_t
     if (!graph || !graph->is_acyclic || graph->node_count == 0 || !msg) return -1;
     (void)engine;
 
-    for (uint32_t i = 0; i < graph->node_count; i++) {
+    // 基于 Kahn 拓扑排序工作队列 (Worklist) 执行，彻底消除子节点索引小于父节点时的静默跳过缺陷 (Issue #216)
+    dag_node_t *ready_queue[16];
+    int head = 0;
+    int tail = 0;
+
+    for (uint32_t i = 0; i < graph->node_count && i < 16; i++) {
         dag_node_t *node = &graph->nodes[i];
         atomic_store(&node->pending_inputs, (int)node->in_degree);
+        if (node->in_degree == 0) {
+            ready_queue[tail++] = node;
+        }
     }
 
-    for (uint32_t i = 0; i < graph->node_count; i++) {
-        dag_node_t *node = &graph->nodes[i];
-        if (atomic_load(&node->pending_inputs) == 0) {
-            if (node->stage && node->stage->process) {
-                stage_ret_t res = node->stage->process(node->stage, msg);
-                (void)res;
-            }
-            for (uint32_t c = 0; c < node->child_count; c++) {
-                dag_node_t *child = node->children[c];
-                if (child) {
-                    atomic_fetch_sub(&child->pending_inputs, 1);
+    uint32_t executed_count = 0;
+    while (head < tail) {
+        dag_node_t *node = ready_queue[head++];
+        executed_count++;
+
+        if (node->stage && node->stage->process) {
+            stage_ret_t res = node->stage->process(node->stage, msg);
+            (void)res;
+        }
+
+        for (uint32_t c = 0; c < node->child_count && c < 8; c++) {
+            dag_node_t *child = node->children[c];
+            if (child) {
+                int remaining = atomic_fetch_sub(&child->pending_inputs, 1) - 1;
+                if (remaining == 0 && tail < 16) {
+                    ready_queue[tail++] = child;
                 }
             }
         }
     }
-    return 0;
+
+    return (executed_count == graph->node_count) ? 0 : -1;
 }

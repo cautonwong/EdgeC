@@ -11,6 +11,12 @@ typedef struct {
     wasm_app_t *app;
     bool active;
     bool in_use;
+    uint32_t period_ms;
+    uint32_t cpu_budget_ms;
+    uint32_t deadline_ms;
+    uint64_t next_tick_ms;
+    uint64_t total_ticks;
+    uint64_t overruns;
 } wasm_scheduled_app_t;
 
 struct wasm_scheduler_s {
@@ -28,15 +34,36 @@ static void wasm_scheduler_tick(uv_timer_t *timer) {
     wasm_scheduler_t *sched = (wasm_scheduler_t *)timer->data;
     if (!sched) return;
 
+    uint64_t now_ms = (sched->loop) ? uv_now(sched->loop) : (uv_hrtime() / 1000000ULL);
+
     uv_mutex_lock(&sched->lock);
     for (int i = 0; i < MAX_SCHEDULED_APPS; i++) {
         wasm_scheduled_app_t *curr = &sched->apps[i];
         if (curr->in_use && curr->active && curr->app) {
+            if (now_ms < curr->next_tick_ms) {
+                continue; // 独立周期未到，跳过
+            }
+
+            uint64_t start_ns = uv_hrtime();
             LOG_INFO(LOG_CAT_CORE, "WASM Scheduler: Ticking app '%s'", curr->name);
-            // Execute on_tick
             int rc = wasm_app_exec(curr->app, "on_tick", NULL);
+            uint64_t duration_ms = (uv_hrtime() - start_ns) / 1000000ULL;
+
+            curr->total_ticks++;
+            if (curr->cpu_budget_ms > 0 && duration_ms > curr->cpu_budget_ms) {
+                curr->overruns++;
+                LOG_WARN(LOG_CAT_CORE, "WASM Scheduler: App '%s' exceeded CPU budget (%lu ms > %u ms)",
+                         curr->name, (unsigned long)duration_ms, curr->cpu_budget_ms);
+            }
+
             if (rc != 0) {
                 LOG_ERROR(LOG_CAT_CORE, "WASM Scheduler: App '%s' returned non-zero or failed", curr->name);
+            }
+
+            // 抗漂移周期推移
+            curr->next_tick_ms += curr->period_ms;
+            if (curr->next_tick_ms <= now_ms) {
+                curr->next_tick_ms = now_ms + curr->period_ms;
             }
         }
     }
@@ -136,7 +163,9 @@ int wasm_scheduler_stop(wasm_scheduler_t *sched) {
     return rc == 0 ? 0 : -1;
 }
 
-int wasm_scheduler_load_app(wasm_scheduler_t *sched, const char *name, const char *wasm_path, uint32_t heap_size, uint32_t stack_size, uint32_t timeout_ms) {
+int wasm_scheduler_load_app_ex(wasm_scheduler_t *sched, const char *name, const char *wasm_path,
+                              uint32_t heap_size, uint32_t stack_size, uint32_t timeout_ms,
+                              uint32_t period_ms, uint32_t cpu_budget_ms, uint32_t deadline_ms) {
     if (!sched || !name || !wasm_path) return -1;
 
     uv_mutex_lock(&sched->lock);
@@ -174,10 +203,41 @@ int wasm_scheduler_load_app(wasm_scheduler_t *sched, const char *name, const cha
     slot->app = wasm_app;
     slot->active = true;
     slot->in_use = true;
+    slot->period_ms = period_ms > 0 ? period_ms : sched->tick_period_ms;
+    slot->cpu_budget_ms = cpu_budget_ms > 0 ? cpu_budget_ms : timeout_ms;
+    slot->deadline_ms = deadline_ms > 0 ? deadline_ms : slot->period_ms;
+    slot->next_tick_ms = (sched->loop) ? uv_now(sched->loop) : (uv_hrtime() / 1000000ULL);
+    slot->total_ticks = 0;
+    slot->overruns = 0;
 
-    LOG_INFO(LOG_CAT_CORE, "WASM Scheduler: Loaded and scheduled app '%s' successfully", name);
+    LOG_INFO(LOG_CAT_CORE, "WASM Scheduler: Loaded and scheduled app '%s' (period=%ums, budget=%ums)",
+             name, slot->period_ms, slot->cpu_budget_ms);
     uv_mutex_unlock(&sched->lock);
     return 0;
+}
+
+int wasm_scheduler_load_app(wasm_scheduler_t *sched, const char *name, const char *wasm_path,
+                           uint32_t heap_size, uint32_t stack_size, uint32_t timeout_ms) {
+    uint32_t period = sched ? sched->tick_period_ms : 1000;
+    return wasm_scheduler_load_app_ex(sched, name, wasm_path, heap_size, stack_size, timeout_ms,
+                                      period, timeout_ms, period);
+}
+
+int wasm_scheduler_get_app_stats(wasm_scheduler_t *sched, const char *name,
+                                uint64_t *out_ticks, uint64_t *out_overruns) {
+    if (!sched || !name) return -1;
+    uv_mutex_lock(&sched->lock);
+    for (int i = 0; i < MAX_SCHEDULED_APPS; i++) {
+        wasm_scheduled_app_t *curr = &sched->apps[i];
+        if (curr->in_use && strcmp(curr->name, name) == 0) {
+            if (out_ticks) *out_ticks = curr->total_ticks;
+            if (out_overruns) *out_overruns = curr->overruns;
+            uv_mutex_unlock(&sched->lock);
+            return 0;
+        }
+    }
+    uv_mutex_unlock(&sched->lock);
+    return -1;
 }
 
 int wasm_scheduler_unload_app(wasm_scheduler_t *sched, const char *name) {

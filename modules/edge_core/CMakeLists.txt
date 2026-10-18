@@ -36,6 +36,7 @@ add_library(edge_core STATIC
     src/edge_thermal_scheduler.c
     src/edge_amp_ipc.c
     src/edge_swarm_offload.c
+    src/edge_periodic_clock.c
     src/hal_crypto.c
 )
 

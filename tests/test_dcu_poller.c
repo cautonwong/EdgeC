@@ -103,6 +103,11 @@ static void test_poller_pump_and_ti_alignment(void** state) {
 
     // 5. 模拟时间流逝 15 秒，再次触发轮询！
     poller.tasks[0].last_run_time -= 15;
+    if (poller.tasks[0].clock.next_tick_us >= 15000000ULL) {
+        poller.tasks[0].clock.next_tick_us -= 15000000ULL;
+    } else {
+        poller.tasks[0].clock.next_tick_us = 0;
+    }
     g_poller_pub_count = 0;
     dcu_poller_pump(&poller, &inv);
     assert_int_equal(g_poller_pub_count, 3);  // 第二次触发成功！
