@@ -22,6 +22,8 @@ typedef struct {
     size_t window_size;
     size_t cursor;
     uint32_t output_tag;
+    uint32_t in_tensor_ptr;
+    uint32_t out_tensor_ptr;
 } tinyml_ctx_t;
 
 static stage_ret_t tinyml_stage_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
@@ -29,19 +31,50 @@ static stage_ret_t tinyml_stage_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
     if (!ctx || !ctx->app) return STAGE_DROP;
 
     if (ev->type == PIPEMSG_TYPE_SCALAR) {
-        // 1. 窗口采样
+        // 1. 窗口物理采样
         ctx->window[ctx->cursor++] = (float)ev->payload.val.f;
         
         if (ctx->cursor >= ctx->window_size) {
-            ctx->cursor = 0; // 重置窗口
+            ctx->cursor = 0; // 重置滑动窗口游标
             
-            // 2. 将窗口数据推送到 WASM 内存 (此处简化：假设 WASM 通过 ABI 读取)
-            // 生产环境可使用 wasm_runtime_module_malloc 在 WASM 堆上分配空间并拷贝
-            
-            // 3. 执行推理
-            if (wasm_app_exec(ctx->app, ctx->entry_func, ev) == 0) {
-                // 结果通常由 WASM 通过 ext_datahub_publish 发布
-                return STAGE_DROP; 
+            // 2. 真实将滑动窗口数据推送到 WASM 内存 (AEP-604 / Issue #219)
+            if (ctx->in_tensor_ptr == 0) {
+                wasm_app_tensor_alloc(ctx->app, (uint32_t)(ctx->window_size * sizeof(float)), &ctx->in_tensor_ptr);
+            }
+            if (ctx->out_tensor_ptr == 0) {
+                wasm_app_tensor_alloc(ctx->app, 4 * sizeof(float), &ctx->out_tensor_ptr);
+            }
+
+            if (ctx->in_tensor_ptr > 0 && ctx->out_tensor_ptr > 0) {
+                // 精准内存拷贝灌入，杜绝数据被丢弃
+                wasm_app_tensor_write(ctx->app, ctx->in_tensor_ptr, ctx->window, (uint32_t)(ctx->window_size * sizeof(float)));
+
+                uint32_t argv[4] = {
+                    ctx->in_tensor_ptr,
+                    (uint32_t)ctx->window_size,
+                    ctx->out_tensor_ptr,
+                    4
+                };
+
+                // 3. 执行模型多参推理
+                if (wasm_app_exec_args(ctx->app, ctx->entry_func, 4, argv) == 0) {
+                    float out_scores[4] = {0};
+                    if (wasm_app_tensor_read(ctx->app, ctx->out_tensor_ptr, out_scores, sizeof(out_scores)) == 0) {
+                        if (ctx->output_tag > 0) {
+                            float max_val = out_scores[0];
+                            int max_idx = 0;
+                            for (int k = 1; k < 4; k++) {
+                                if (out_scores[k] > max_val) {
+                                    max_val = out_scores[k];
+                                    max_idx = k;
+                                }
+                            }
+                            ev->tag_id = ctx->output_tag;
+                            ev->payload.val.f = (double)max_idx;
+                            return STAGE_OK;
+                        }
+                    }
+                }
             }
         }
     }
@@ -52,6 +85,14 @@ static stage_ret_t tinyml_stage_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
 static void tinyml_stage_cleanup(void *ptr) {
     tinyml_ctx_t *ctx = (tinyml_ctx_t *)ptr;
     if (ctx && ctx->app) {
+        if (ctx->in_tensor_ptr) {
+            wasm_app_tensor_free(ctx->app, ctx->in_tensor_ptr);
+            ctx->in_tensor_ptr = 0;
+        }
+        if (ctx->out_tensor_ptr) {
+            wasm_app_tensor_free(ctx->app, ctx->out_tensor_ptr);
+            ctx->out_tensor_ptr = 0;
+        }
         wasm_app_destroy(ctx->app);
         ctx->app = NULL;
     }

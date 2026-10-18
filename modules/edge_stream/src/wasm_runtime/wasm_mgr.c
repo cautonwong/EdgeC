@@ -52,10 +52,26 @@ static void wasm_host_log(wasm_exec_env_t exec_env, uint32_t level, const char *
     else LOG_ERROR(LOG_CAT_CORE, "[WASM] %s", host_msg);
 }
 
+static uint32_t wasm_host_tensor_alloc(wasm_exec_env_t exec_env, uint32_t size_bytes) {
+    wasm_module_inst_t inst = wasm_runtime_get_module_inst(exec_env);
+    if (!inst) return 0;
+    void *native_ptr = NULL;
+    return (uint32_t)wasm_runtime_module_malloc(inst, size_bytes, &native_ptr);
+}
+
+static void wasm_host_tensor_free(wasm_exec_env_t exec_env, uint32_t wasm_ptr) {
+    wasm_module_inst_t inst = wasm_runtime_get_module_inst(exec_env);
+    if (inst && wasm_ptr) {
+        wasm_runtime_module_free(inst, wasm_ptr);
+    }
+}
+
 static NativeSymbol native_symbols[] = {
     {"host_get_tag", wasm_host_get_tag, "(i*)i", NULL},
     {"host_set_tag", wasm_host_set_tag, "(iF)i", NULL},
-    {"ext_log", wasm_host_log, "(i*)", NULL}
+    {"ext_log", wasm_host_log, "(i*)", NULL},
+    {"host_tensor_alloc", wasm_host_tensor_alloc, "(i)i", NULL},
+    {"host_tensor_free", wasm_host_tensor_free, "(i)", NULL}
 };
 
 struct wasm_app_s {
@@ -256,8 +272,8 @@ static void _watchdog_thread(void *arg) {
     }
 }
 
-int wasm_app_exec(wasm_app_t *app, const char *func_name, pipe_msg_t *msg) {
-    (void)msg;
+int wasm_app_exec_args(wasm_app_t *app, const char *func_name, uint32_t argc, uint32_t argv[]) {
+    if (!app || !app->inst || !func_name) return -1;
     wasm_exec_env_t exec_env = wasm_runtime_create_exec_env(app->inst, app->stack_size);
     if (!exec_env) return -1;
 
@@ -272,7 +288,7 @@ int wasm_app_exec(wasm_app_t *app, const char *func_name, pipe_msg_t *msg) {
         uv_thread_create(&wd_thread, _watchdog_thread, &wd);
     }
 
-    bool success = wasm_runtime_call_wasm(exec_env, func, 0, NULL);
+    bool success = wasm_runtime_call_wasm(exec_env, func, argc, argv);
     
     if (app->timeout_ms > 0) {
         uv_mutex_lock(&wd.lock);
@@ -284,6 +300,44 @@ int wasm_app_exec(wasm_app_t *app, const char *func_name, pipe_msg_t *msg) {
 
     wasm_runtime_destroy_exec_env(exec_env);
     return success ? 0 : -1;
+}
+
+int wasm_app_exec(wasm_app_t *app, const char *func_name, pipe_msg_t *msg) {
+    (void)msg;
+    return wasm_app_exec_args(app, func_name, 0, NULL);
+}
+
+int wasm_app_tensor_alloc(wasm_app_t *app, uint32_t size_bytes, uint32_t *out_wasm_ptr) {
+    if (!app || !app->inst || !out_wasm_ptr || size_bytes == 0) return -1;
+    void *native_ptr = NULL;
+    uint32_t offset = (uint32_t)wasm_runtime_module_malloc(app->inst, size_bytes, &native_ptr);
+    if (offset == 0) return -1;
+    *out_wasm_ptr = offset;
+    return 0;
+}
+
+int wasm_app_tensor_free(wasm_app_t *app, uint32_t wasm_ptr) {
+    if (!app || !app->inst || wasm_ptr == 0) return -1;
+    wasm_runtime_module_free(app->inst, wasm_ptr);
+    return 0;
+}
+
+int wasm_app_tensor_write(wasm_app_t *app, uint32_t wasm_ptr, const void *src, uint32_t size_bytes) {
+    if (!app || !app->inst || wasm_ptr == 0 || !src || size_bytes == 0) return -1;
+    void *native_ptr = wasm_runtime_addr_app_to_native(app->inst, wasm_ptr);
+    if (!native_ptr) return -1;
+    if (!wasm_runtime_validate_app_addr(app->inst, wasm_ptr, size_bytes)) return -1;
+    memcpy(native_ptr, src, size_bytes);
+    return 0;
+}
+
+int wasm_app_tensor_read(wasm_app_t *app, uint32_t wasm_ptr, void *dst, uint32_t size_bytes) {
+    if (!app || !app->inst || wasm_ptr == 0 || !dst || size_bytes == 0) return -1;
+    void *native_ptr = wasm_runtime_addr_app_to_native(app->inst, wasm_ptr);
+    if (!native_ptr) return -1;
+    if (!wasm_runtime_validate_app_addr(app->inst, wasm_ptr, size_bytes)) return -1;
+    memcpy(dst, native_ptr, size_bytes);
+    return 0;
 }
 
 void wasm_app_destroy(wasm_app_t *app) {
