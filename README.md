@@ -6,234 +6,108 @@ EdgeOS 是一个专为 **工业物联网 (IIoT)**、**能源管理系统 (EMS)**
 
 ---
 
-## 🏗️ 1. 核心架构设计 (The "Four Planes" Architecture)
+## 🏗️ 1. 核心架构设计 (Microkernel & Clean Architecture)
 
-遵循 **core_v2.md** 规范，系统划分为四个物理隔离的逻辑平面，通过严密的契约层进行解耦。
+EdgeOS 遵循微内核、整洁架构（Clean Architecture）与领域驱动设计（DDD）规范，系统划分为四个物理隔离的逻辑平面，严格遵循依赖倒置原则（DIP）与消费者定接口原则：
 
 ### 1.1 系统平面分布
 
-| 平面                | 库产物                    | 职责描述                                                                        |
+| 平面                | 产物/目录                 | 职责描述                                                                        |
 | :------------------ | :------------------------ | :------------------------------------------------------------------------------ |
-| **Foundation (L0)** | `contract_data_types.h`   | **数据宪法**。定义元数据与协议映射的静态 Schema，不依赖任何库。                 |
-| **Foundation (L1)** | `libedge_core.a`          | **核心底座**。包含 DataHub (总线)、NetBuf (内存池)、Params (参数中心)。         |
-| **Control Plane**   | `libedge_main_loop.a`     | **决策中枢**。Arbiter (仲裁器)、Scheduler (调度器)、REST Server。               |
-| **Compute Plane**   | `libedge_stream_engine.a` | **计算引擎**。Stream Engine、Pipeline 调度、有状态 JS/Lua 算法。                |
-| **Execution Plane** | `libedge_io_executor.a`   | **南向执行**。基于 **Request 模型** 的场景化调度核心，解耦协议逻辑与 I/O 链路。 |
+| **Foundation (L0)** | `contract_data_types.h`   | **基础类型定义**。定义标量、时间戳、质量码与无外部依赖的通用数据结构。         |
+| **Foundation (L1)** | `libedge_core.a`          | **核心底座**。包含 DataHub (Outbound 通道/SHM Ring)、NetBuf (内存池)、Params。 |
+| **Control Plane**   | `libedge_main_loop.a`     | **决策中枢**。包含 Arbiter (仲裁器)、Scheduler (调度器) 与控制循环。            |
+| **Compute Plane**   | `libedge_stream_engine.a` | **计算引擎**。Stream Engine、Pipeline 实时计算、WASM 算子沙箱。                |
+| **Execution Plane** | `libedge_io_executor.a`   | **南向执行**。基于 Request 模型的南向协议执行核心，协议编解码与 I/O 链路解耦。 |
+| **Product Plane**   | `cmd/<product>/`          | **产品专属聚合根与组合根**。DCU、IEMS、SmartBox 自治领域模型与事件编排。        |
 
 ---
 
-## 📜 2. 契约治理体系 (Contract Governance v2.0)
+## 🏛️ 2. 领域驱动自治与事件驱动架构 (DDD & EDA, ADR-0010)
 
-EdgeOS 采用“契约驱动开发 (CDD)”模式，通过 YAML 定义系统的“数据宪法”，并自动生成高性能的 C 语言查表代码。
+基于 **ADR-0010 (No-TagID, No-Contract, No-Contract-Compiler)**，系统彻底废除了全局中心化 YAML 契约编译器与统一连续数字 TagID 反模式，全面演进为 **产品聚合根自治**、**强类型领域方法** 与 **自描述领域事件广播** 体系。
 
-### 2.1 契约四级模型 (Sprint 4 Omnis)
-
-| 层级             | 文件路径                     | 职责描述                                                                |
-| :--------------- | :--------------------------- | :---------------------------------------------------------------------- |
-| **L1: 全局语义** | `contracts/schema/tags.yaml` | **定义“是什么”**。规定 TagID、名称、单位、类型及 UI 展现元数据。        |
-| **L2: 协议绑定** | `contracts/bindings/`        | **定义“怎么拿”**。规定特定设备型号（如 Chint_DTSU666）的寄存器映射。    |
-| **L3: 产品定制** | `cmd/<prod>/extension.yaml`  | **定义“我要谁”**。配置功能裁剪及产品特有的逻辑扩展。                    |
-| **L4: 物理拓扑** | `cmd/<prod>/world.yaml`      | **定义“在哪跑”**。描述真实/仿真环境的总线连接、设备地址及硬件模拟参数。 |
-
-### 2.2 实战指南：新增一个“机柜温度”测点
-
-#### 第一步：在全局字典中定义语义 (`tags.yaml`)
-
-```yaml
-- id: 1006
-  name: CABINET_TEMP
-  type: float
-  unit: "C"
-  attributes:
-    ui: { group: "Environment", min: -20, max: 80, precision: 1 }
-    northbound: { storage: "trend" }
+```
+                                  ┌─────────────────────────────┐
+                                  │   北向网络 / 外部消费端      │
+                                  │   (MQTT / REST / Web UI)    │
+                                  └──────────────▲──────────────┘
+                                                 │ 统一标准 JSON / 领域语义
+                                  ┌──────────────┴──────────────┐
+                                  │      北向协议适配层 (ACL)    │
+                                  └──────────────▲──────────────┘
+                                                 │ 领域事件广播 (dcu_domain_event_t) / 强类型调用
+┌────────────────────────────────────────────────┴────────────────────────────────────────────────┐
+│ 产品专属聚合根 / 编排组合根 (cmd/<product>/)                                                    │
+│                                                                                                 │
+│   ┌─────────────────────────────────────────┐       ┌───────────────────────────────────────┐   │
+│   │   领域模型与业务状态机 (Aggregate Root)   │       │   动态散列槽位分发 (No-Array Slot Map) │   │
+│   │   • DCU: 电力 698 32-bit OAD / 645 DI   │ ◄───► │   • 动态散列算术映射 (Zero Static Table)  │   │
+│   │   • IEMS: 工业寄存器 / BMS 拓扑         │       │   • 设备与测点槽位完全动态隔离        │   │
+│   │   • 业务不变量校验与控制防误动作拦截    │       └──────────────────┬────────────────────┘   │
+│   └────────────────────▲────────────────────┘                          │ 槽位索引               │
+│                        │ 强类型领域方法 (feed / control)                │                        │
+│   ┌────────────────────┴────────────────────┐       ┌──────────────────▼────────────────────┐   │
+│   │   南向防腐适配层 (ACL Adapter)          │       │   DataHub 影子存储与 IPC 通道         │   │
+│   │   • 协议自描述规约直通                  │       │   • 无锁 SeqLock 高频读瞬时快照       │   │
+│   │   • 动态参数与量纲解析                  │       │   • POSIX SHM Ring 零拷贝进程间通信   │   │
+│   └────────────────────▲────────────────────┘       └───────────────────────────────────────┘   │
+└────────────────────────┼────────────────────────────────────────────────────────────────────────┘
+                         │ 原始工业报文 / 帧驱动
+┌────────────────────────┴────────────────────────────────────────────────────────────────────────┐
+│ 南向工业协议栈与驱动模板 (modules/edge_protocol & edge_io)                                      │
+│ (DL/T 698.45, DL/T 645, Modbus RTU/TCP, IEC 104, CAN 协议，纯 C 算法，100% 零业务依赖)        │
+└─────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-#### 第二步：在 Modbus 点表中绑定物理地址 (`bindings/modbus/xxx.yaml`)
+### 2.1 核心设计原则
 
-```yaml
-mappings:
-  - tag: CABINET_TEMP
-    addr: 0x0100 # 对应硬件 256 寄存器
-    scale: 0.1 # 原始值 255 -> 25.5 C
-```
-
-#### 第三步：在产品中启用该测点 (`extension.yaml`)
-
-```yaml
-enabled_tags:
-  - CABINET_TEMP
-```
-
-#### 第四步：在 C 语言驱动中引用 (自动感知)
-
-```c
-// 驱动层无需修改代码，编译后自动支持：
-float scale;
-edge_tag_id_t id = edge_lookup_modbus(0x0100, &scale);
-// id 会自动变为 1006 (TAG_CABINET_TEMP)
-```
-
-### 2.3 全生命周期架构图 (v2.1)
-
-```mermaid
-graph TD
-    %% ========================================================
-    %% Layer 0: Raw Knowledge (原始知识与导入层)
-    %% ========================================================
-    subgraph Layer0["Layer 0: Raw Knowledge (原始知识与导入)"]
-        direction TB
-
-        %% 来源
-        Vendor_Docs[("📑 厂商点表\n(Excel / CSV / PDF)")]
-        Industry_Std[("📕 行业标准\n(DLMS BlueBook / IEC61850)")]
-        Auto_Files[("🚗 汽车文件\n(CAN DBC / A2L)")]
-
-        %% 工具
-        subgraph Toolchain["🧰 导入工具链 (Importers)"]
-            Py_Excel("🐍 import_excel.py")
-            Py_DBC("🐍 import_dbc.py")
-            AI_LLM("🤖 LLM Parser (PDF转译)")
-        end
-
-        %% 人工输入
-        Architect(("👨‍💻 架构师/PM\n(领域定义)"))
-
-        Vendor_Docs --> Py_Excel
-        Vendor_Docs -.-> AI_LLM
-        Auto_Files --> Py_DBC
-        Industry_Std --> Py_Excel
-    end
-
-    %% ========================================================
-    %% Layer 1: Contract Source (YAML 定义层)
-    %% ========================================================
-    subgraph Layer1["Layer 1: Contract Source (YAML 契约层)"]
-        direction TB
-
-        %% 接收 Layer 0 的输出
-        subgraph Bindings["协议绑定库 (Bindings)"]
-            DLMS_Bind["dlms/*.yaml\n(OBIS 映射)"]
-            Modbus_Bind["modbus/*.yaml\n(Reg 映射)"]
-            CAN_Bind["can/*.yaml\n(Signal 映射)"]
-        end
-
-        subgraph OEM["二开定制 (OEM)"]
-            OEM_Map["custom_map.yaml"]
-        end
-
-        %% 人工定义的
-        GlobalDefs[("🌍 tags.yaml\n(全平台语义定义)")]
-        ProductConfig["products/*.yaml\n(产品形态配置)"]
-    end
-
-    %% 连接 Layer 0 -> Layer 1
-    Py_Excel ==> Modbus_Bind & DLMS_Bind
-    Py_DBC ==> CAN_Bind
-    AI_LLM -.-> OEM_Map
-
-    Architect ==> GlobalDefs
-    Architect ==> ProductConfig
-
-    %% ========================================================
-    %% Layer 2: The Compiler (编译与合并层)
-    %% ========================================================
-    subgraph Layer2["Layer 2: Contract Compiler (编译层)"]
-        direction TB
-
-        GenScript("⚙️ contract_compiler.py")
-        Step_Merge["阶段 1: Merge & Resolve"]
-        EffectiveYAML[("✨ effective_contract.yaml\n(单一事实源/中间态)")]
-        Step_Gen["阶段 2: Code Generation"]
-
-        GlobalDefs --> GenScript
-        Bindings --> GenScript
-        ProductConfig --> GenScript
-        OEM --> GenScript
-
-        GenScript --> Step_Merge --> EffectiveYAML --> Step_Gen
-    end
-
-    %% ========================================================
-    %% Layer 3: Generated Artifacts (静态产物层)
-    %% ========================================================
-    subgraph Layer3["Layer 3: Generated Artifacts (产物层)"]
-        direction TB
-
-        Header_Config["edge_tag_config.h\n(裁剪宏 IS_ENABLED)"]
-        Header_ID["edge_tag_id.h\n(enum TagID)"]
-
-        Src_Lookup["map_*.c\n(Perfect Hash / Binary Search)"]
-        Src_Meta["tag_meta.c\n(.rodata 元数据)"]
-
-        LibFile[("📦 libedge_contracts.a")]
-
-        Step_Gen --> Header_Config & Header_ID & Src_Lookup & Src_Meta
-        Src_Lookup & Src_Meta --> LibFile
-    end
-
-    %% ========================================================
-    %% Layer 4: Consumers (运行时消费层)
-    %% ========================================================
-    subgraph Layer4["Layer 4: Consumers (消费层)"]
-
-        subgraph T1["T1: Driver (IO Executor)"]
-            Drv_Logic["驱动逻辑"]
-            Drv_Logic --"1.查表(Modbus/OBIS)"--> LibFile
-            Drv_Logic --"2.写入(TagID)"--> SHM[DataHub]
-            Header_Config -.-> Drv_Logic
-        end
-
-        subgraph L2["L2: Core (Stream Engine)"]
-            Algo["Pipeline / Algo"]
-            Algo --"3.识别(TagID)"--> Header_ID
-            Header_Config -.-> Algo
-        end
-
-        subgraph Docs["Docs & UI"]
-            Doc_Gen["生成 PDF/Excel"]
-            Web_UI["Web 配置页"]
-            EffectiveYAML -.-> Doc_Gen & Web_UI
-        end
-    end
-```
+1. **聚合根自治 (Aggregate Root Autonomy)**：
+   - 彻底废除全局 YAML 契约与离线编译器，彻底消除 Go 语言编译链依赖；
+   - 每个产品在 `cmd/<product>/` 维护专属聚合根（如 `dcu_node_t`），内部使用行业原生领域标识（如电力 DCU 原生使用 32-bit OAD 与 645 DI，储能 IEMS 使用电池簇寄存器），**彻底消灭 OAD ↔ TagID 的双重运行时翻译开销**。
+2. **强类型领域方法防护业务不变量**：
+   - 南向采集与北向控制严禁直接穿透物理底层数据表；
+   - 采集输入调用强类型领域方法（如 `dcu_node_feed_meter_reading`），由聚合根自治执行电表建档校验、越限告警判定与防爆刷控制；
+   - 遥控执行调用控制领域方法（如 `dcu_node_execute_control`），内置防误操作白名单拦截。
+3. **自描述领域事件广播（微服务架构就绪）**：
+   - 聚合根产生状态变更时，对外派发统一自描述领域事件（`dcu_domain_event_t`）；
+   - 通过挂接事件回调，无论未来服务是单体运行、还是拆分为独立进程/微服务容器，均可通过消息总线（MQTT、UDS、RPC）直接解耦对接。
+4. **DataHub 角色归位为 Outbound 通道**：
+   - DataHub 不再充当全局集中式“上帝测点字典”；
+   - 降级为聚合根背后的**高性能发布与影子存储通道**（提供 POSIX SHM Ring 零拷贝跨进程 IPC、无锁 SeqLock 瞬时快照及 DDS 跨节点发布）；
+   - 槽位映射全面采用**动态算术散列分发**，彻底消灭单机集中式静态数组点表。
+5. **南向协议自描述直通**：
+   - 充分发挥规约自身自描述特性（如 DL/T 698.45 报文自带 32-bit OAD 与 ASN.1 类型），解码器解析后直通领域方法，无需冗余静态表。
 
 ---
 
-## 🛠️ 3. 开发与构建
+## 🛠️ 3. 开发、构建与架构门禁
 
-### 3.1 环境设置
+### 3.1 极速纯 C 构建 (Zero-Go Dependency)
 
-为了获得完整的 Python 智能提示并确保契约编译器运行正常，建议初始化本地环境：
-
-1. **一键配置**：运行 `bash tools/setup_env.sh`。
-2. **IDE 适配**：将解释器路径设为 `./.venv/bin/python`。
-
-### 3.2 目录规范
-
-- `src/core/`: 跨 Loop 核心组件。
-- `src/main_loop/`: 控制平面实现。
-- `src/stream_engine/`: 计算平面实现。
-- `src/io_executor/`: 执行平面实现。
-- `contracts/`: 全局契约定义文件。
-
-### 3.2 构建专业布局
-
-构建系统（CMake）会自动将产物组织为工业级布局：
-
-```text
-build/
-├── sdk/lib/               # 通用 SDK 静态库
-├── products/              # 产品隔离沙箱 (bin, lib, generated)
-└── tests/                 # 统一测试套件
-```
-
-### 3.3 快速编译与测试
+得益于 ADR-0010 对全局契约编译器的拔除，工程实现了纯净的 C 语言原生工具链构建，摆脱了外部脚本与 Go 运行时的捆绑：
 
 ```bash
-./build.sh          # 自动化生成契约代码、编译、并运行全量单元测试
-./test.sh --omnis   # [推荐] 启动全链路仿真测试，包含 Matrix Server、内核引擎及交互式 UI
+# 1. 极速全量编译 (结合 CCache 毫秒级增量响应)
+cmake -B build -G Ninja
+ninja -C build
+
+# 2. 运行架构门禁与无契约防退化守护
+./scripts/check_architecture_layers.sh
+./scripts/check_generated_drift.sh
+
+# 3. 运行全量单元与集成测试套件 (245 项测试全覆盖)
+./test.sh
 ```
+
+### 3.2 CI 架构防腐与防退化门禁 (Architecture Guards)
+
+CI 流水线内建了严密的整洁架构守卫脚本（`check_architecture_layers.sh`），实施 11 项物理门禁校验：
+- **聚合根边界封装 (Aggregate Root Boundary)**：禁止任何外部代码跨层篡改聚合根私有状态；
+- **组合根唯一性 (Composition Root Exclusivity)**：全局生命周期装配严格收敛于组合根；
+- **开闭原则守护 (OCP Gate)**：禁止在核心路由层出现单体静态数组或庞大的硬编码 switch-case；
+- **单一职责守护 (SRP Gate)**：物理隔离领域逻辑、南向驱动防腐层与存储持久化；
+- **无全局契约防退化守卫 (ADR-0010 Guard)**：严格校验全局 0 编译器、0 全局 contracts.h 污染。
 
 ## 🚀 4. 核心演进 (Omnis Sprint 4 Highlights)
 
@@ -241,7 +115,7 @@ build/
 
 `MasterEngine` 已进化为纯粹的任务调度器，通过 `edge_req_t` 接口支持多种业务场景：
 
-- **Legacy Driver**: 兼容现有的契约化驱动，支持 Modbus/DLMS 周期性抄读。
+- **Protocol Driver**: 标准工业协议驱动，支持 Modbus/DLMS/698/645 周期性抄读与自描述解码。
 - **Raw I/O**: 支持透传原始字节流，专为混沌工程和非标协议调试设计。
 - **无状态调度**: 引擎不再硬编码驱动逻辑，符号在运行时由 `main.c` 动态注入。
 
@@ -263,7 +137,7 @@ build/
 
 | 模块          | 核心特性          | 后端 API                 | 前端 View          | 状态        |
 | :------------ | :---------------- | :----------------------- | :----------------- | :---------- |
-| **核心宪法**  | 元数据驱动渲染    | `/api/v1/contracts`      | `ContractStore`    | ✅ 完成     |
+| **测点与元数据** | 元数据自适应驱动渲染 | `/api/v1/contracts`      | `ContractStore`    | ✅ 完成     |
 | **Dashboard** | 实时健康监测      | `/api/v1/system/health`  | `Dashboard.vue`    | ✅ 完成     |
 | **Pipelines** | 实时运行拓扑      | `/api/v1/pipelines`      | `PipelineList.vue` | ✅ 完成     |
 | **数据分析**  | 历史曲线/影子点查 | `/api/v1/data/query`     | `DataCurves.vue`   | ✅ 完成     |
@@ -331,7 +205,7 @@ graph TB
   DH -- Shared Memory --> IEMS_CLI
 
   %% Metadata Driving
-  MANIFEST[("omnis_manifest.json<br/>(Generated by Contract)")]
+  MANIFEST[("omnis_manifest.json<br/>(World & Bus Manifest)")]
   MANIFEST -.-> SRV
   MANIFEST -.-> IEMS
   MANIFEST -.-> CLI
@@ -341,14 +215,14 @@ graph TB
 
 1. Simulation Plane (仿真面 - Matrix)
 
-- Matrix Server: 充当“物理世界”的管理器。它创建 UDS Relay (虚拟交换机)，并根据契约加载对应的 Actors。
+- Matrix Server: 充当“物理世界”的管理器。它创建 UDS Relay (虚拟交换机)，并根据仿真拓扑配置加载对应的 Actors。
 - Actors (Actors/simulators): 模拟真实硬件行为。例如 modbus.py 模拟一个电表，它监听虚拟总线并响应 IEMS 的请求。
 - Virtual Bus: 使用 Unix Domain Socket 模拟 RS485/CAN 总线，使 C 端代码无需修改即可运行。
 
 2. Product Plane (产品面 - EdgeOS)
 
 - EdgeOS IEMS: 待测的二进制核心程序。它通过环境变量（如 OMNIS_BUS_0_DEV）识别“总线”在哪里。
-- DataHub: 系统的“数据中枢”。南向采集的数据、北向下发的指令、以及 Pipeline 计算的中间结果（如电能累加）都在这里交换。
+- DataHub: 高性能 Outbound 发布与影子存储通道。提供 POSIX SHM Ring 零拷贝进程间通信与 SeqLock 瞬时快照。
 - Stream Engine: 处理业务逻辑。例如“发现电压 > 264V 则拉掉继电器”的 REFLEX 逻辑就在此运行。
 
 3. Control Plane (控制面 - CLI & Test)
