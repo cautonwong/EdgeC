@@ -34,3 +34,10 @@ modules/edge_core/src/arbiter.c
 # Approved by Architecture Committee (2026-10-17)
 modules/edge_core/src/hal_crypto.c
 
+# ARCH-SEAM-01 (Issue #213): DataHub Multi-Backend Seam & 2D Device Addressing
+# Approved by Architecture Committee (2026-10-18)
+modules/edge_core/include/datahub_ops.h
+modules/edge_core/include/datahub_router.h
+modules/edge_core/src/datahub_router.c
+
+
