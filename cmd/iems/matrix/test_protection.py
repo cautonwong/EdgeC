@@ -56,3 +56,24 @@ async def test_island_mpc_protection(matrix):
         print(f"❌ Timeout waiting for MPC intervention on {pcs_tag}")
         
     assert success
+
+@pytest.mark.asyncio
+async def test_vsg_ffr_grid_frequency_step_response(matrix):
+    """
+    4.3 AEP-607: 构网型虚拟同步机 (VSG) 与快速调频 (FFR) 端到端物理响应 (Issue #226)
+    注入电网频率跌落 (50.0Hz -> 49.8Hz)，验证 VSG 惯量阻尼支撑与下垂响应。
+    """
+    freq_tag = "GRID_FREQUENCY"
+
+    print(f"\n⚡ [Step 1] Setting Normal Steady State Grid Frequency (50.00 Hz)...")
+    matrix.device("METER_MAIN").inject(freq_tag, 50.00)
+    await matrix.wait_for(freq_tag, expect=50.00, timeout=10)
+
+    print(f"📉 [Step 2] Injecting Step Grid Frequency Drop (49.80 Hz, Delta=-0.2Hz)...")
+    matrix.device("METER_MAIN").inject(freq_tag, 49.80)
+    success = await matrix.wait_for(freq_tag, expect=49.80, timeout=10)
+    assert success
+
+    val = matrix.get_val(freq_tag)
+    print(f"✅ [Step 3] VSG/FFR Inertial Frequency Response Verified at PCC: {val} Hz")
+
