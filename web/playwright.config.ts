@@ -30,7 +30,7 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         baseURL: 'http://127.0.0.1:5173',
       },
-      testMatch: /.*(console|copilot|iems).*\.spec\.ts/,
+      testMatch: /.*(console|copilot|iems|nova_hmi).*\.spec\.ts/,
     },
     {
       name: 'smartbox',
