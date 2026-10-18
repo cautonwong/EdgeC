@@ -67,7 +67,8 @@ run_unit_tests() {
 run_coverage() {
     echo -e "${B}🔍 Step [1/2]: Building and Running with Coverage...${NC}"
     cd build
-    cmake -DCOVERAGE=ON ..
+    rm -rf CMakeCache.txt CMakeFiles
+    cmake -GNinja -DCOVERAGE=ON -DENABLE_ASAN=OFF -DENABLE_UBSAN=OFF ..
     ninja
     ctest --output-on-failure
     
@@ -88,9 +89,9 @@ run_coverage() {
 run_asan() {
     echo -e "${B}🔍 Step [1/1]: Building and Running with AddressSanitizer (ASAN)...${NC}"
     cd build
-    # Force clean CMake cache to avoid CMake Re-running loop
-    rm -f CMakeCache.txt
-    cmake -DENABLE_ASAN=ON -DCOVERAGE=OFF ..
+    # Force clean CMake cache and files to avoid generator mismatch or CMake Re-running loop
+    rm -rf CMakeCache.txt CMakeFiles
+    cmake -GNinja -DENABLE_ASAN=ON -DCOVERAGE=OFF -DENABLE_UBSAN=OFF ..
     ninja
     
     echo -e "${P}🧪 Running tests with ASAN...${NC}"
@@ -103,8 +104,8 @@ run_asan() {
 run_ubsan() {
     echo -e "${B}🔍 Step [1/1]: Building and Running with UndefinedBehaviorSanitizer (UBSAN)...${NC}"
     cd build
-    rm -f CMakeCache.txt
-    cmake -DENABLE_UBSAN=ON -DCOVERAGE=OFF ..
+    rm -rf CMakeCache.txt CMakeFiles
+    cmake -GNinja -DENABLE_UBSAN=ON -DCOVERAGE=OFF -DENABLE_ASAN=OFF ..
     ninja
     
     echo -e "${P}🧪 Running tests with UBSAN...${NC}"
