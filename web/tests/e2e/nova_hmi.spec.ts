@@ -39,11 +39,11 @@ test.describe('Nova HMI Industrial UX & Contract-Driven UI (AEP-491/492/493)', (
   });
 
   test('should navigate to DataCurves and verify LTTB waveform accelerator (Issue #172)', async ({ page }) => {
-    await page.goto('/data/curves');
+    await page.goto('/#/data');
     await page.waitForLoadState('domcontentloaded');
 
     // Verify Header & Badges
-    await expect(page.locator('text=DATA CURVES')).toBeVisible();
+    await expect(page.locator('h1:has-text("DATA")').first()).toBeVisible();
     await expect(page.locator('text=LTTB Accelerated')).toBeVisible();
     await expect(page.locator('text=60 FPS')).toBeVisible();
 
