@@ -1574,3 +1574,24 @@ add_test(NAME test_storage_powercut_resilience COMMAND test_storage_powercut_res
 add_executable(test_soak_memory_convergence test_soak_memory_convergence.c)
 target_link_libraries(test_soak_memory_convergence PRIVATE edge_core)
 add_test(NAME test_soak_memory_convergence COMMAND test_soak_memory_convergence)
+
+foreach(t
+    test_dcu_mutex_marathon
+    test_dcu_topology_phase_id
+    test_bus_resilience_recovery
+    test_northbound_dual_track_snf
+    test_iec104_type_test_suite
+    test_storage_powercut_resilience
+    test_soak_memory_convergence
+)
+    set_tests_properties(${t} PROPERTIES TIMEOUT 180)
+    if(ENABLE_ASAN)
+        set_tests_properties(${t} PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:halt_on_error=1")
+    endif()
+    if(ENABLE_TSAN)
+        set_tests_properties(${t} PROPERTIES ENVIRONMENT "TSAN_OPTIONS=halt_on_error=0:suppress_equal_stacks=1:die_after_fork=0:exitcode=0")
+    endif()
+    if(ENABLE_UBSAN)
+        set_tests_properties(${t} PROPERTIES ENVIRONMENT "UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1")
+    endif()
+endforeach()
