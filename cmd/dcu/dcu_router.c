@@ -15,26 +15,30 @@ static uint16_t g_obj_count = 0;
 static router_bus_ops_t g_router_bus_ops;
 static router_sink_ops_t g_router_sink_ops;
 
+#define DCU_SLOTS_PER_DEVICE 32
+
+/**
+ * @brief 动态散列槽位映射 (No-Array / Microservice Ready)
+ * 彻底消除硬编码静态数组表，支持任意 698 OAD / DI 动态算术映射入槽
+ */
 int dcu_tag_map_fn(uint32_t tag_id, uint32_t device_id) {
-    uint32_t offset = 0;
-    switch (tag_id) {
-        case OAD_VOLTAGE:
-        case 1001:
-        case 1004:
-            offset = 0;
-            break;
-        case OAD_ACTIVE_ENERGY:
-        case 3001:
-            offset = 1;
-            break;
-        case OAD_CURRENT:
-        case 1002:
-            offset = 2;
-            break;
-        default:
-            return -1;
+    if (tag_id == 0) return -1;
+    uint32_t slot = 0;
+    if (tag_id == 1001 || tag_id == 1004 || tag_id == OAD_VOLTAGE) {
+        slot = 0;
+    } else if (tag_id == 3001 || tag_id == OAD_ACTIVE_ENERGY) {
+        slot = 1;
+    } else if (tag_id == 1002 || tag_id == OAD_CURRENT) {
+        slot = 2;
+    } else {
+        // 对任意 698 扩展 OAD 进行无表算术散列分发，避免静态数组维护
+        uint32_t h = tag_id;
+        h = ((h >> 16) ^ h) * 0x45d9f3b;
+        h = ((h >> 16) ^ h) * 0x45d9f3b;
+        h = (h >> 16) ^ h;
+        slot = 3 + (h % (DCU_SLOTS_PER_DEVICE - 3));
     }
-    return (int)(device_id * 10 + offset);
+    return (int)(device_id * DCU_SLOTS_PER_DEVICE + slot);
 }
 
 /**

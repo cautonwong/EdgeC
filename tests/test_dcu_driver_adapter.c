@@ -59,6 +59,16 @@ static void test_dcu_driver_injection(void) {
     assert(p698->tag_id == OAD_VOLTAGE);
     assert(p698->scaler > 0.0f);
 
+    /* 2.1 Verify B-phase and C-phase 698 lookups */
+    const modbus_map_t *p698_vb = (const modbus_map_t *)inj_698->lookup_by_key(OAD_VOLTAGE_B);
+    assert(p698_vb != NULL && p698_vb->tag_id == OAD_VOLTAGE_B);
+    const modbus_map_t *p698_vc = (const modbus_map_t *)inj_698->lookup_by_key(OAD_VOLTAGE_C);
+    assert(p698_vc != NULL && p698_vc->tag_id == OAD_VOLTAGE_C);
+    const modbus_map_t *p698_pwr = (const modbus_map_t *)inj_698->lookup_by_key(OAD_ACTIVE_POWER_TOTAL);
+    assert(p698_pwr != NULL && p698_pwr->tag_id == OAD_ACTIVE_POWER_TOTAL);
+    const modbus_map_t *p698_freq = (const modbus_map_t *)inj_698->lookup_by_key(OAD_GRID_FREQUENCY);
+    assert(p698_freq != NULL && p698_freq->tag_id == OAD_GRID_FREQUENCY);
+
     /* 3. DLT645 Injection */
     const driver_contract_injection_t *inj_645 = dcu_get_driver_injection("DLT645");
     assert(inj_645 != NULL);
@@ -69,12 +79,45 @@ static void test_dcu_driver_injection(void) {
     /* 645 A相电压 DI 0x02010100 映射至 698 OAD_VOLTAGE */
     assert(p645->tag_id == OAD_VOLTAGE);
 
+    /* 3.1 Verify B-phase, C-phase, frequency for 645 */
+    const dlt645_map_t *p645_vb = (const dlt645_map_t *)inj_645->lookup_by_key(0x02010200);
+    assert(p645_vb != NULL && p645_vb->tag_id == OAD_VOLTAGE_B);
+    const dlt645_map_t *p645_freq = (const dlt645_map_t *)inj_645->lookup_by_key(0x02800002);
+    assert(p645_freq != NULL && p645_freq->tag_id == OAD_GRID_FREQUENCY);
+
     /* 4. Modbus Injection */
     const driver_contract_injection_t *inj_mb = dcu_get_driver_injection("ModbusRTU");
     assert(inj_mb != NULL);
     assert(inj_mb->lookup_by_key != NULL);
 
+    const modbus_map_t *pmb_vb = (const modbus_map_t *)inj_mb->lookup_by_key(1);
+    assert(pmb_vb != NULL && pmb_vb->tag_id == OAD_VOLTAGE_B);
+    const modbus_map_t *pmb_freq = (const modbus_map_t *)inj_mb->lookup_by_key(28);
+    assert(pmb_freq != NULL && pmb_freq->tag_id == OAD_GRID_FREQUENCY);
+
     printf("  --> Driver injection passed.\n");
+}
+
+static void test_dcu_slot_mapping(void) {
+    printf("[TEST] Testing dcu_tag_map_fn dynamic hash slot mappings (No-Array)...\n");
+
+    /* Device 1 (base 32) */
+    assert(dcu_tag_map_fn(OAD_VOLTAGE, 1) == 32 + 0);
+    assert(dcu_tag_map_fn(1001, 1) == 32 + 0);
+    assert(dcu_tag_map_fn(OAD_ACTIVE_ENERGY, 1) == 32 + 1);
+    assert(dcu_tag_map_fn(OAD_CURRENT, 1) == 32 + 2);
+
+    /* Dynamic hashing without array: device slots are strictly isolated */
+    int slot_dev1 = dcu_tag_map_fn(OAD_VOLTAGE_B, 1);
+    int slot_dev2 = dcu_tag_map_fn(OAD_VOLTAGE_B, 2);
+    assert(slot_dev1 >= 32 && slot_dev1 < 64);
+    assert(slot_dev2 >= 64 && slot_dev2 < 96);
+    assert(slot_dev1 + 32 == slot_dev2);
+
+    /* Zero/Invalid tag rejected */
+    assert(dcu_tag_map_fn(0, 1) == -1);
+
+    printf("  --> Dynamic slot mapping passed.\n");
 }
 
 int main(void) {
@@ -83,6 +126,7 @@ int main(void) {
     printf("========================================\n");
     test_dcu_driver_registry();
     test_dcu_driver_injection();
+    test_dcu_slot_mapping();
     printf("ALL TESTS PASSED!\n");
     return 0;
 }

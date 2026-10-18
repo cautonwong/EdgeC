@@ -25,6 +25,8 @@ struct dcu_node_s {
     dcu_event_obj_t evt_3000;
     dcu_event_obj_t evt_3005;
     uv_timer_t *poller_timer;
+    dcu_event_handler_t event_handler;
+    void *event_user_data;
     bool running;
 };
 
@@ -219,6 +221,99 @@ dcu_event_obj_t *dcu_node_get_event_3000(dcu_node_t *node) {
 
 dcu_event_obj_t *dcu_node_get_event_3005(dcu_node_t *node) {
     return node ? &node->evt_3005 : NULL;
+}
+
+int dcu_node_set_event_handler(dcu_node_t *node, dcu_event_handler_t handler, void *user_data) {
+    if (!node) return -1;
+    node->event_handler = handler;
+    node->event_user_data = user_data;
+    return 0;
+}
+
+int dcu_node_feed_meter_reading(dcu_node_t *node, const char *meter_addr, uint32_t oad,
+                                double val, uint64_t ts_ns) {
+    if (!node || !meter_addr) return -1;
+
+    /* 1. 领域不变量检查：电表是否在当前档案中 */
+    production_meter_t *meter = dcu_inventory_get(&node->inventory, meter_addr);
+    if (!meter) {
+        LOG_WARN(LOG_CAT_CORE, "DCU Feed Reading: Meter '%s' not registered in inventory", meter_addr);
+        return -2;
+    }
+
+    uint32_t dev_id = (uint32_t)(meter - node->inventory.meters);
+    uint64_t now_ns = ts_ns ? ts_ns : (node->loop ? uv_hrtime() : 0);
+
+    /* 2. 持久化至存储聚合 */
+    dcu_storage_write_telemetry(&node->storage, meter_addr, dev_id, oad, val);
+
+    /* 3. 推入 DataHub 出站通道 (Outbound Channel) */
+    if (node->hub) {
+        pipe_msg_t bus_msg;
+        pipe_msg_init_scalar(&bus_msg, oad, val, now_ns);
+        bus_msg.device_id = dev_id;
+        datahub_publish(node->hub, &bus_msg);
+    }
+
+    /* 4. 越限异常评估 (失压 / 过流领域事件) */
+    bool alarm_triggered = false;
+    dcu_event_type_t evt_type = DCU_EVENT_TELEMETRY;
+
+    if (oad == OAD_VOLTAGE && val < (double)node->evt_3000.threshold) {
+        evt_type = DCU_EVENT_VOLTAGE_DROP;
+        alarm_triggered = true;
+    } else if (oad == OAD_CURRENT && val > (double)node->evt_3005.threshold) {
+        evt_type = DCU_EVENT_OVER_CURRENT;
+        alarm_triggered = true;
+    }
+
+    /* 5. 广播领域事件 (微服务架构消息出口) */
+    if (node->event_handler) {
+        dcu_domain_event_t evt = {
+            .type = evt_type,
+            .oad = oad,
+            .value = val,
+            .timestamp_ns = now_ns,
+            .is_alarm_active = alarm_triggered,
+        };
+        strncpy(evt.meter_addr, meter_addr, sizeof(evt.meter_addr) - 1);
+        node->event_handler(&evt, node->event_user_data);
+    }
+
+    return 0;
+}
+
+int dcu_node_execute_control(dcu_node_t *node, const char *meter_addr, uint16_t control_oi) {
+    if (!node || !meter_addr) return -1;
+
+    /* 1. 领域前置检查：电表是否存在且在线 */
+    production_meter_t *meter = dcu_inventory_get(&node->inventory, meter_addr);
+    if (!meter || !meter->is_online) {
+        LOG_WARN(LOG_CAT_CORE, "DCU Control: Meter '%s' offline or not found", meter_addr);
+        return -2;
+    }
+
+    /* 2. 遥控动作白名单校验 (防误操作) */
+    if (control_oi != OI_REMOTE_CONTROL) {
+        LOG_WARN(LOG_CAT_CORE, "DCU Control: Unauthorized control OI 0x%04X", control_oi);
+        return -3;
+    }
+
+    /* 3. 广播动作事件至微服务事件总线 */
+    if (node->event_handler) {
+        dcu_domain_event_t evt = {
+            .type = DCU_EVENT_REMOTE_TRIP,
+            .oad = ((uint32_t)control_oi << 16) | 0x0200,
+            .value = 1.0,
+            .timestamp_ns = node->loop ? uv_hrtime() : 0,
+            .is_alarm_active = false,
+        };
+        strncpy(evt.meter_addr, meter_addr, sizeof(evt.meter_addr) - 1);
+        node->event_handler(&evt, node->event_user_data);
+    }
+
+    LOG_INFO(LOG_CAT_CORE, "DCU Control: Remote trip command dispatched for meter %s", meter_addr);
+    return 0;
 }
 
 void dcu_node_destroy(dcu_node_t *node) {

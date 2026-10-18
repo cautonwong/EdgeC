@@ -6,7 +6,6 @@
 #include <string.h>
 #include <time.h>
 
-#include "contract_registry.h"
 #include "edge_log.h"
 
 /**
