@@ -8,8 +8,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import axios from 'axios';
-// @ts-ignore
-import { TagID } from '@generated/tags_type';
+import type { TagID } from '../types/tags_type';
 import { useContractStore } from '../services/ContractLoader';
 
 const props = defineProps<{

@@ -1,4 +1,5 @@
 export * from './services/ContractLoader';
+export * from './types/tags_type';
 export * from './services/AIProviderService';
 export * from './router';
 export * from './tokens';

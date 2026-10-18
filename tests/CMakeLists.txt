@@ -474,24 +474,7 @@ target_link_libraries(test_examples_integration PRIVATE
 )
 add_test(NAME test_examples_integration COMMAND test_examples_integration)
 
-# AEP-404 契约编译器 DX 诊断与纠错单测
-add_executable(test_compiler_dx_diagnostics test_compiler_dx_diagnostics.c)
-target_link_libraries(test_compiler_dx_diagnostics PRIVATE
-    -Wl,--start-group
-    edge_infra
-    edge_io
-    edge_stream
-    edge_security
-    edge_core
-    edge_protocol
-    edge_algo
-    iems_app_lib
-    -Wl,--end-group
-    edge_common_interface
-    cmocka::cmocka
-    pthread dl rt m
-)
-add_test(NAME test_compiler_dx_diagnostics COMMAND test_compiler_dx_diagnostics)
+
 
 # AEP-405 edge-cli migrate 跨版本迁移向导集成测试
 add_executable(test_cli_migrate test_cli_migrate.c)

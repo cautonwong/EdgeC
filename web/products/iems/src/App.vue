@@ -17,9 +17,7 @@
 </template>
 
 <script setup lang="ts">
-import { TagValue } from '@edgeos/web-core';
-// @ts-ignore
-import { TagID } from '@generated/tags_type';
+
 </script>
 
 <style>
