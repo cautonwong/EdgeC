@@ -157,8 +157,10 @@ static void test_wasm_scheduler_per_app_periods_and_budgets(void** state) {
     uint64_t fast_ticks = 0, fast_overruns = 0;
     uint64_t slow_ticks = 0, slow_overruns = 0;
 
-    assert_int_equal(wasm_scheduler_get_app_stats(sched, "fast_app", &fast_ticks, &fast_overruns), 0);
-    assert_int_equal(wasm_scheduler_get_app_stats(sched, "slow_app", &slow_ticks, &slow_overruns), 0);
+    assert_int_equal(wasm_scheduler_get_app_stats(sched, "fast_app", &fast_ticks, &fast_overruns),
+                     0);
+    assert_int_equal(wasm_scheduler_get_app_stats(sched, "slow_app", &slow_ticks, &slow_overruns),
+                     0);
 
     // 验证：慢 App 不推迟快 App！快 App 运行频次显著高于慢 App (约 5 倍关系)
     assert_true(fast_ticks >= 5);

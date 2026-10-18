@@ -217,10 +217,11 @@ typedef struct {
 } timeout_test_ctx_t;
 
 static int never_finish_execute(void* ctx, int bus_id, cmd_msg_t* cmd) {
-    (void)bus_id; (void)cmd;
+    (void)bus_id;
+    (void)cmd;
     timeout_test_ctx_t* tctx = (timeout_test_ctx_t*)ctx;
     if (tctx) tctx->started++;
-    return 0; // Hangs forever without calling arbiter_on_io_done
+    return 0;  // Hangs forever without calling arbiter_on_io_done
 }
 
 static void on_timeout_complete(cmd_msg_t* cmd, int status) {
@@ -249,7 +250,7 @@ static void test_arbiter_timeout_forced_release(void** state) {
 
     cmd_msg_t* hung_cmd = calloc(1, sizeof(cmd_msg_t));
     cmd_msg_init_read(hung_cmd, 1001, ARBITER_PRIO_NORMAL);
-    hung_cmd->timeout_ms = 40; // 40ms 超时
+    hung_cmd->timeout_ms = 40;  // 40ms 超时
     hung_cmd->user_data = &tctx;
     hung_cmd->on_complete = on_timeout_complete;
     hung_cmd->on_cleanup = on_cleanup;
@@ -265,7 +266,7 @@ static void test_arbiter_timeout_forced_release(void** state) {
     for (int i = 0; i < 30; i++) {
         uv_run(&loop, UV_RUN_NOWAIT);
         if (tctx.completed > 0) break;
-        usleep(10000); // 10ms
+        usleep(10000);  // 10ms
     }
 
     // 断言超时触发：收到 CMD_STATUS_TIMEOUT，总线被强制剥夺并释放
@@ -283,7 +284,8 @@ static int s_edf_order[4] = {0};
 static int s_edf_count = 0;
 
 static int record_exec_edf(void* ctx, int bus_id, cmd_msg_t* cmd) {
-    (void)bus_id; (void)ctx;
+    (void)bus_id;
+    (void)ctx;
     if (s_edf_count < 4) {
         s_edf_order[s_edf_count++] = (int)cmd->tag_id;
     }
@@ -296,10 +298,10 @@ static void test_arbiter_edf_ordering(void** state) {
     uv_loop_init(&loop);
     arbiter_t* arb = NULL;
     arbiter_init(&arb, &loop);
-    arbiter_pause(arb); // 暂停以构建积压队列
+    arbiter_pause(arb);  // 暂停以构建积压队列
 
     s_edf_count = 0;
-    arb_executor_ops_t ops = { .execute = record_exec_edf };
+    arb_executor_ops_t ops = {.execute = record_exec_edf};
     arbiter_set_executor(arb, ops);
 
     uint64_t now = uv_hrtime();
@@ -351,7 +353,8 @@ static void test_arbiter_edf_ordering(void** state) {
 
 static int s_aging_dispatched_tag = 0;
 static int aging_test_exec(void* ctx, int bus_id, cmd_msg_t* cmd) {
-    (void)bus_id; (void)ctx;
+    (void)bus_id;
+    (void)ctx;
     s_aging_dispatched_tag = (int)cmd->tag_id;
     return 0;
 }
@@ -365,7 +368,7 @@ static void test_arbiter_aging_anti_starvation(void** state) {
     arbiter_pause(arb);
 
     s_aging_dispatched_tag = 0;
-    arb_executor_ops_t ops = { .execute = aging_test_exec };
+    arb_executor_ops_t ops = {.execute = aging_test_exec};
     arbiter_set_executor(arb, ops);
 
     uint64_t now = uv_hrtime();
@@ -401,7 +404,8 @@ static void test_arbiter_aging_anti_starvation(void** state) {
 
 static int s_exclusive_dispatched_tag = 0;
 static int exclusive_test_exec(void* ctx, int bus_id, cmd_msg_t* cmd) {
-    (void)bus_id; (void)ctx;
+    (void)bus_id;
+    (void)ctx;
     s_exclusive_dispatched_tag = (int)cmd->tag_id;
     return 0;
 }
@@ -415,7 +419,7 @@ static void test_arbiter_exclusive_bus(void** state) {
     arbiter_resume(arb);
 
     s_exclusive_dispatched_tag = 0;
-    arb_executor_ops_t ops = { .execute = exclusive_test_exec };
+    arb_executor_ops_t ops = {.execute = exclusive_test_exec};
     arbiter_set_executor(arb, ops);
 
     // 1. 开启总线 0 独占模式

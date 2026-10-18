@@ -21,8 +21,8 @@ static uint64_t mock_clock_fn(void *ctx) {
 static void test_clock_zero_drift_1000_cycles(void **state) {
     (void)state;
 
-    mock_time_ctx_t time_ctx = {.current_time_us = 10000000ULL}; // 10 秒基准
-    uint64_t interval = 1000ULL; // 1ms (1000us) 周期
+    mock_time_ctx_t time_ctx = {.current_time_us = 10000000ULL};  // 10 秒基准
+    uint64_t interval = 1000ULL;                                  // 1ms (1000us) 周期
 
     edge_periodic_clock_config_t cfg = {
         .interval_us = interval,
@@ -42,7 +42,7 @@ static void test_clock_zero_drift_1000_cycles(void **state) {
     // 运行 1000 个周期，模拟在每个周期内存在各种非确定性执行耗时 (jitter: -100us ~ +200us)
     for (int i = 0; i < 1000; i++) {
         // 时间行进到当前预定触发时刻 + 动态抖动 (模拟执行耗时)
-        uint64_t jitter = (uint64_t)((i % 7) * 30); // 0 ~ 180us 抖动
+        uint64_t jitter = (uint64_t)((i % 7) * 30);  // 0 ~ 180us 抖动
         time_ctx.current_time_us = clk.next_tick_us + jitter;
 
         uint64_t ticks = 0;
@@ -57,7 +57,7 @@ static void test_clock_zero_drift_1000_cycles(void **state) {
     // 严密断言：经过 1000 个周期的随机执行抖动后，下一次预定时刻必须严格锁定在理想格点上！
     uint64_t expected_lattice = start_lattice + 1000 * interval;
     int64_t drift = (int64_t)clk.next_tick_us - (int64_t)expected_lattice;
-    
+
     // 累计漂移严格等于 0 微秒，且必然 < 1 个 tick (1000us)
     assert_true(drift < (int64_t)interval);
     assert_int_equal(drift, 0);
@@ -80,7 +80,7 @@ static void test_clock_overrun_policy_skip(void **state) {
 
     edge_periodic_clock_t clk;
     edge_periodic_clock_init(&clk, &cfg);
-    uint64_t first_tick = clk.next_tick_us; // 5001000
+    uint64_t first_tick = clk.next_tick_us;  // 5001000
 
     // 模拟现场严重卡顿/阻塞：直接跳过 6.5 个周期 (6500us)
     time_ctx.current_time_us += 6500ULL;
@@ -88,7 +88,7 @@ static void test_clock_overrun_policy_skip(void **state) {
     uint64_t ticks = 0;
     int fired = edge_periodic_clock_check(&clk, &ticks);
     assert_int_equal(fired, 1);
-    assert_int_equal(ticks, 1); // SKIP 策略仅触发当前拍
+    assert_int_equal(ticks, 1);  // SKIP 策略仅触发当前拍
 
     // 漏拍计数为 5
     assert_int_equal(clk.missed_ticks, 5);
@@ -134,7 +134,7 @@ static void test_clock_wall_clock_alignment(void **state) {
     (void)state;
 
     mock_time_ctx_t time_ctx = {.current_time_us = 1234567ULL};
-    uint64_t interval = 10000ULL; // 10ms
+    uint64_t interval = 10000ULL;  // 10ms
 
     edge_periodic_clock_config_t cfg = {
         .interval_us = interval,

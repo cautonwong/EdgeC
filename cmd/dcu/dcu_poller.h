@@ -6,8 +6,8 @@
 #include <uv.h>
 
 #include "dcu_inventory.h"
-#include "queue.h"
 #include "edge_periodic_clock.h"
+#include "queue.h"
 
 // 前向声明驱动管理器，避免头文件循环依赖
 struct driver_manager_s;
@@ -62,8 +62,8 @@ typedef struct {
     uint8_t scheme_type;
     uint32_t scheme_id;
     uint16_t cursor_meter_idx;
-    uint64_t last_run_time;  // [Added] 上次执行时间戳 (保留向后兼容)
-    edge_periodic_clock_t clock; // [Issue #216] 统一抗漂移单调时钟
+    uint64_t last_run_time;       // [Added] 上次执行时间戳 (保留向后兼容)
+    edge_periodic_clock_t clock;  // [Issue #216] 统一抗漂移单调时钟
     dcu_task_monitor_t monitor;
 } dcu_task_unit_t;
 
