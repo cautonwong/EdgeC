@@ -67,6 +67,11 @@ _Static_assert(sizeof(struct driver_manager_s) <= sizeof(driver_manager_storage_
 
 static driver_inst_slot_t g_fallback_inst_slots[MAX_DRIVER_INSTANCES];
 
+__attribute__((weak)) const driver_contract_injection_t *edge_model_find(const char *name) {
+    (void)name;
+    return NULL;
+}
+
 static uint64_t _now_ms(void) {
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);

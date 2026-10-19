@@ -91,6 +91,32 @@ int iems_node_emergency_trip(iems_node_t *node, const char *reason);
 int iems_node_update_bms_rack(iems_node_t *node, uint8_t rack_id, double voltage_v,
                               double current_a, double soc_pct, double max_temp_c);
 
+/**
+ * @brief IEMS 控制环路延迟预算与看门狗统计 (AEP-407)
+ */
+typedef struct {
+    uint64_t last_cycle_us;       /**< 最近单步决策与下发总耗时 (微秒) */
+    uint64_t max_cycle_us;        /**< 历史最大决策耗时 (微秒) */
+    uint64_t watchdog_budget_us;  /**< 控制环路安全看门狗预算截止时间 (微秒，默认 10000us 即 10ms) */
+    uint32_t watchdog_trips;      /**< 超出预算触发降级/看门狗保护的次数 */
+    bool watchdog_degraded;       /**< 当前是否处于超时降级保护状态 */
+} iems_loop_watchdog_stats_t;
+
+/**
+ * @brief 配置控制环路看门狗预算与安全降级阈值
+ */
+int iems_node_set_watchdog_budget(iems_node_t *node, uint64_t budget_us);
+
+/**
+ * @brief 获取控制环路延迟统计与看门狗状态
+ */
+int iems_node_get_watchdog_stats(iems_node_t *node, iems_loop_watchdog_stats_t *out_stats);
+
+/**
+ * @brief 重置看门狗降级状态，恢复正常调度
+ */
+int iems_node_reset_watchdog_degrade(iems_node_t *node);
+
 #ifdef __cplusplus
 }
 #endif
