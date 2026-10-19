@@ -15,20 +15,24 @@ typedef struct {
 
 /**
  * @brief 创建失压/过流流式监控判定算子 (stage_event_monitor)
+ * @param inv 集中器档案指针 (经聚合根生命周期持有)
  * @param evt_3000 失压事件对象内存指针 (用于读取实时契约参数)
  * @param evt_3005 过流事件对象内存指针
  */
-pipeline_stage_t* stage_event_monitor_create(dcu_event_obj_t* evt_3000, dcu_event_obj_t* evt_3005);
+pipeline_stage_t* stage_event_monitor_create(dcu_inventory_t* inv, dcu_event_obj_t* evt_3000,
+                                             dcu_event_obj_t* evt_3005);
 
 /**
  * @brief 创建事件快照追加与主动上报算子 (stage_event_logger)
  */
-pipeline_stage_t* stage_event_logger_create(dcu_event_obj_t* evt_3000, dcu_event_obj_t* evt_3005,
-                                            datahub_t* hub, event_sink_ops_t sink_ops);
+pipeline_stage_t* stage_event_logger_create(dcu_inventory_t* inv, dcu_event_obj_t* evt_3000,
+                                            dcu_event_obj_t* evt_3005, datahub_t* hub,
+                                            event_sink_ops_t sink_ops);
 
 /**
  * @brief 创建日冻结定期快照算子 (stage_periodic_freeze)
  */
-pipeline_stage_t* stage_periodic_freeze_create_ex(datahub_t* hub, event_sink_ops_t sink_ops);
+pipeline_stage_t* stage_periodic_freeze_create_ex(dcu_inventory_t* inv, datahub_t* hub,
+                                                  event_sink_ops_t sink_ops);
 
 #endif  // DCU_EVENT_MONITOR_H

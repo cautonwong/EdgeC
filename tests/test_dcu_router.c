@@ -40,15 +40,14 @@ static int _mock_publish_realtime(void* ctx, uint32_t tag_id, uint32_t meter_idx
     return 0;
 }
 
-dcu_inventory_t g_dcu_inventory;
-
 // 验证对象字典与属性/方法路由的测试用例
 static void test_dcu_router_dispatch(void** state) {
     (void)state;
     uv_loop_t* loop = uv_default_loop();
 
     // 1. 初始化底层的档案、调度器与持久化存储服务
-    dcu_inventory_init(&g_dcu_inventory);
+    dcu_inventory_t test_inv;
+    dcu_inventory_init(&test_inv);
 
     dcu_poller_t poller;
     dcu_poller_init(&poller);
@@ -67,7 +66,7 @@ static void test_dcu_router_dispatch(void** state) {
                                    .read_shadow = _mock_read_shadow};
 
     // 2. 初始化核心对象字典路由器
-    ret = dcu_router_init_ex(&g_dcu_inventory, &poller, router_sink, NULL, NULL, NULL, NULL,
+    ret = dcu_router_init_ex(&test_inv, &poller, router_sink, NULL, NULL, NULL, NULL,
                              router_bus);
     assert_int_equal(ret, 0);
 
@@ -113,7 +112,7 @@ static void test_dcu_router_dispatch(void** state) {
 
     // 重新初始化以注册事件对象
     dcu_router_destroy();
-    ret = dcu_router_init_ex(&g_dcu_inventory, &poller, router_sink, NULL, NULL, &evt_3000, NULL,
+    ret = dcu_router_init_ex(&test_inv, &poller, router_sink, NULL, NULL, &evt_3000, NULL,
                              router_bus);
     assert_int_equal(ret, 0);
 
@@ -126,7 +125,7 @@ static void test_dcu_router_dispatch(void** state) {
     // 10. 清理并销毁全部资源
     dcu_router_destroy();
     dcu_storage_destroy(&storage);
-    dcu_inventory_destroy(&g_dcu_inventory);
+    dcu_inventory_destroy(&test_inv);
 }
 
 int main(void) {

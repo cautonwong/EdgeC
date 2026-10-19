@@ -14,6 +14,7 @@
 // 1. 失压与过流流式监控判定算子 (stage_event_monitor) 实现
 // ==============================================================================
 typedef struct {
+    dcu_inventory_t* inv;
     dcu_event_obj_t* evt_3000;
     dcu_event_obj_t* evt_3005;
 
@@ -38,7 +39,6 @@ static stage_ret_t _monitor_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
         dcu_event_obj_t* evt = ctx->evt_3000;
         if (evt && evt->is_enabled) {
             float voltage = (float)ev->payload.val.f;
-
             if (voltage < evt->threshold) {
                 if (ctx->v_overlimit_start_ts[dev] == 0) {
                     ctx->v_overlimit_start_ts[dev] = now_ns;
@@ -52,9 +52,8 @@ static stage_ret_t _monitor_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
                             (uint64_t)evt->delay_s * 1000000000ULL)) {
                     ctx->v_event_triggered[dev] = true;
 
-                    extern dcu_inventory_t g_dcu_inventory;
-                    const char* addr = (dev < g_dcu_inventory.count)
-                                           ? g_dcu_inventory.meters[dev].address
+                    const char* addr = (ctx->inv && dev < ctx->inv->count)
+                                           ? ctx->inv->meters[dev].address
                                            : "Unknown";
 
                     pipe_msg_t event_msg;
@@ -140,10 +139,12 @@ static void _monitor_cleanup(void* priv) {
     if (priv) free(priv);
 }
 
-pipeline_stage_t* stage_event_monitor_create(dcu_event_obj_t* evt_3000, dcu_event_obj_t* evt_3005) {
+pipeline_stage_t* stage_event_monitor_create(dcu_inventory_t* inv, dcu_event_obj_t* evt_3000,
+                                             dcu_event_obj_t* evt_3005) {
     pipeline_stage_t* s = calloc(1, sizeof(pipeline_stage_t));
     monitor_stage_ctx_t* ctx = calloc(1, sizeof(monitor_stage_ctx_t));
 
+    ctx->inv = inv;
     ctx->evt_3000 = evt_3000;
     ctx->evt_3005 = evt_3005;
 
@@ -158,6 +159,7 @@ pipeline_stage_t* stage_event_monitor_create(dcu_event_obj_t* evt_3000, dcu_even
 // 2. 事件快照追加与主动上报算子 (stage_event_logger) 实现
 // ==============================================================================
 typedef struct {
+    dcu_inventory_t* inv;
     dcu_event_obj_t* evt_3000;
     dcu_event_obj_t* evt_3005;
     datahub_t* hub;
@@ -203,9 +205,8 @@ static stage_ret_t _logger_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
                 int captured = dcu_obj_snapshot(evt->oi, ev->device_id, snapshots, 8);
 
                 // 💡 物理落盘：记录到事件历史表 (Class 7 Attr 2 落地)
-                extern dcu_inventory_t g_dcu_inventory;
-                const char* addr = (ev->device_id < g_dcu_inventory.count)
-                                       ? g_dcu_inventory.meters[ev->device_id].address
+                const char* addr = (ctx->inv && ev->device_id < ctx->inv->count)
+                                       ? ctx->inv->meters[ev->device_id].address
                                        : "Unknown";
 
                 if (ctx->sink_ops.archive_event) {
@@ -220,9 +221,8 @@ static stage_ret_t _logger_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
                 new_rec->end_time = ev->ts;
                 evt->last_end_time = ev->ts;  // 更新最近恢复时标
 
-                extern dcu_inventory_t g_dcu_inventory;
-                const char* addr = (ev->device_id < g_dcu_inventory.count)
-                                       ? g_dcu_inventory.meters[ev->device_id].address
+                const char* addr = (ctx->inv && ev->device_id < ctx->inv->count)
+                                       ? ctx->inv->meters[ev->device_id].address
                                        : "Unknown";
 
                 if (ctx->sink_ops.archive_event) {
@@ -255,11 +255,13 @@ static void _logger_cleanup(void* priv) {
     if (priv) free(priv);
 }
 
-pipeline_stage_t* stage_event_logger_create(dcu_event_obj_t* evt_3000, dcu_event_obj_t* evt_3005,
-                                            datahub_t* hub, event_sink_ops_t sink_ops) {
+pipeline_stage_t* stage_event_logger_create(dcu_inventory_t* inv, dcu_event_obj_t* evt_3000,
+                                            dcu_event_obj_t* evt_3005, datahub_t* hub,
+                                            event_sink_ops_t sink_ops) {
     pipeline_stage_t* s = calloc(1, sizeof(pipeline_stage_t));
     logger_stage_ctx_t* ctx = calloc(1, sizeof(logger_stage_ctx_t));
 
+    ctx->inv = inv;
     ctx->evt_3000 = evt_3000;
     ctx->evt_3005 = evt_3005;
     ctx->hub = hub;
@@ -276,6 +278,7 @@ pipeline_stage_t* stage_event_logger_create(dcu_event_obj_t* evt_3000, dcu_event
 // 3. 日冻结定期快照算子 (stage_periodic_freeze) 实现
 // ==============================================================================
 typedef struct {
+    dcu_inventory_t* inv;
     datahub_t* hub;
     event_sink_ops_t sink_ops;
 } freeze_stage_ctx_t;
@@ -287,9 +290,8 @@ static stage_ret_t _freeze_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
     // 定时触发标签：匹配标准日冻结定时触发 OAD (OAD_DAILY_FREEZE)
     if (ev->tag_id == OAD_DAILY_FREEZE) {
         uint32_t dev = ev->device_id;
-        extern dcu_inventory_t g_dcu_inventory;
-        if (dev >= g_dcu_inventory.count) return STAGE_DROP;
-        const char* addr = g_dcu_inventory.meters[dev].address;
+        if (ctx->inv && dev >= ctx->inv->count) return STAGE_DROP;
+        const char* addr = (ctx->inv && dev < ctx->inv->count) ? ctx->inv->meters[dev].address : "Unknown";
 
         // 💡 [2D Matrix Snapshot] 瞬间抓取 DataHub Shadow 缓存全断面电参量快照
         double active_energy = 0.0, voltage = 0.0, current = 0.0;
@@ -328,10 +330,12 @@ static void _freeze_cleanup(void* priv) {
     if (priv) free(priv);
 }
 
-pipeline_stage_t* stage_periodic_freeze_create_ex(datahub_t* hub, event_sink_ops_t sink_ops) {
+pipeline_stage_t* stage_periodic_freeze_create_ex(dcu_inventory_t* inv, datahub_t* hub,
+                                                  event_sink_ops_t sink_ops) {
     pipeline_stage_t* s = calloc(1, sizeof(pipeline_stage_t));
     freeze_stage_ctx_t* ctx = calloc(1, sizeof(freeze_stage_ctx_t));
 
+    ctx->inv = inv;
     ctx->hub = hub;
     ctx->sink_ops = sink_ops;
 

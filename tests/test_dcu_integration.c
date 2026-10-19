@@ -28,12 +28,12 @@ static void test_dcu_full_pipeline_integration(void** state) {
     ret = datahub_init(&hub, loop, "dcu_integration_bus", 128, 0, NULL, 0, NULL, NULL, NULL);
     assert_int_equal(ret, 0);
 
-    dcu_inventory_t g_dcu_inventory;
+    dcu_inventory_t test_inventory;
 
     // 3. 初始化档案并增加 2 只表 (TSA: 20000001, 20000002)
-    dcu_inventory_init(&g_dcu_inventory);
-    dcu_inventory_add(&g_dcu_inventory, "20000001", "dlt698", 9600, 1, NULL);
-    dcu_inventory_add(&g_dcu_inventory, "20000002", "dlt698", 9600, 1, NULL);
+    dcu_inventory_init(&test_inventory);
+    dcu_inventory_add(&test_inventory, "20000001", "dlt698", 9600, 1, NULL);
+    dcu_inventory_add(&test_inventory, "20000002", "dlt698", 9600, 1, NULL);
 
     // 4. 初始化 poller 并注册定时任务与普通采集方案
     dcu_poller_t poller;
@@ -83,7 +83,7 @@ static void test_dcu_full_pipeline_integration(void** state) {
 
     // 9. 回收所有资源
     dcu_poller_stop(&poller);
-    dcu_inventory_destroy(&g_dcu_inventory);
+    dcu_inventory_destroy(&test_inventory);
     datahub_destroy(&hub);
     dcu_storage_destroy(&storage);
 }

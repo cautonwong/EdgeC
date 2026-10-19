@@ -248,19 +248,19 @@ int main(int argc, char** argv) {
                                    .archive_freeze = _event_archive_freeze};
 
     pipeline_t* evt_pipe = stream_engine_add_pipeline(se, "EVENT_PIPELINE", 0);
-    pipeline_stage_t* m_stage = stage_event_monitor_create(dcu_node_get_event_3000(g_dcu_node),
+    pipeline_stage_t* m_stage = stage_event_monitor_create(inv, dcu_node_get_event_3000(g_dcu_node),
                                                            dcu_node_get_event_3005(g_dcu_node));
     pipeline_add_stage(evt_pipe, m_stage->name, m_stage->process, m_stage->priv_state,
                        m_stage->cleanup_state, NULL, NULL);
     free(m_stage);
     pipeline_stage_t* l_stage = stage_event_logger_create(
-        dcu_node_get_event_3000(g_dcu_node), dcu_node_get_event_3005(g_dcu_node), hub, event_sink);
+        inv, dcu_node_get_event_3000(g_dcu_node), dcu_node_get_event_3005(g_dcu_node), hub, event_sink);
     pipeline_add_stage(evt_pipe, l_stage->name, l_stage->process, l_stage->priv_state,
                        l_stage->cleanup_state, NULL, NULL);
     free(l_stage);
 
     pipeline_t* frz_pipe = stream_engine_add_pipeline(se, "FREEZE_PIPELINE", 0);
-    pipeline_stage_t* f_stage = stage_periodic_freeze_create_ex(hub, event_sink);
+    pipeline_stage_t* f_stage = stage_periodic_freeze_create_ex(inv, hub, event_sink);
     pipeline_add_stage(frz_pipe, f_stage->name, f_stage->process, f_stage->priv_state,
                        f_stage->cleanup_state, NULL, NULL);
     free(f_stage);
