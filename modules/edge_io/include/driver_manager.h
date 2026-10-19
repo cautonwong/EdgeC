@@ -28,6 +28,8 @@ typedef struct {
     uint32_t max_retries;       /**< 超时重试次数 */
     bool mtt_wall_clock_align;  /**< 是否对齐挂钟整点时间 */
     uint32_t priority;          /**< 调度优先级 (0 = 默认, 1 = 高频遥测) */
+    uint32_t max_in_flight;     /**< 最大并发在途请求数 (通常为 1) */
+    uint32_t circuit_break_threshold; /**< 连续失败熔断阈值 (0 = 禁用) */
 } edge_poll_policy_t;
 
 /**
@@ -51,6 +53,9 @@ typedef struct {
     uint64_t consecutive_fails; /**< 当前连续失败次数 */
     uint64_t last_poll_ts;      /**< 上次轮询发起时间 (ms) */
     uint64_t last_success_ts;   /**< 上次成功时间 (ms) */
+    uint32_t in_flight;         /**< 当前 in-flight 正在等待响应的请求数 */
+    uint32_t queue_depth;       /**< 当前待调度任务排队深度 */
+    bool is_circuit_broken;     /**< 是否已触发熔断保护 */
 } edge_poll_stats_t;
 
 /**
@@ -147,5 +152,10 @@ int driver_manager_feed_response(driver_manager_t *mgr, uint32_t device_id, net_
  * @brief 停止并销毁自动轮询编排引擎
  */
 int driver_manager_stop_auto_polling(driver_manager_t *mgr);
+
+/**
+ * @brief 重置通道熔断状态并恢复轮询调度
+ */
+int driver_manager_reset_circuit_breaker(driver_manager_t *mgr, uint32_t device_id);
 
 #endif

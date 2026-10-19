@@ -116,10 +116,166 @@ static void test_poller_pump_and_ti_alignment(void** state) {
     dcu_inventory_destroy(&inv);
 }
 
+static int g_failing_channel = -1;
+static int _mock_failing_source_read(void* ctx, uint32_t meter_idx, uint32_t tag_id,
+                                    double* out_val) {
+    (void)ctx;
+    (void)tag_id;
+    // 如果是偶数表计或指定失败通道则失败
+    if ((int)meter_idx == g_failing_channel || g_failing_channel == 999) {
+        return -1; // 模拟南向超时/故障
+    }
+    *out_val = 220.0;
+    return 0;
+}
+
+// 3. 验证通道失败熔断与可观测统计 (AEP-401)
+static void test_poller_circuit_breaker_and_observability(void** state) {
+    (void)state;
+    dcu_inventory_t inv;
+    dcu_poller_t poller;
+
+    dcu_inventory_init(&inv);
+    dcu_poller_init(&poller);
+
+    // 注册 1 台挂在通道 3 的电表
+    dcu_inventory_add(&inv, "CH3_0001", "dlt698", 9600, 3, NULL);
+
+    // 配置通道 3 调度策略：连续失败 3 次触发熔断
+    edge_poll_policy_t policy = {
+        .interval_ms = 0,
+        .timeout_ms = 500,
+        .max_in_flight = 1,
+        .circuit_break_threshold = 3
+    };
+    assert_int_equal(dcu_poller_set_channel_policy(&poller, 3, &policy), 0);
+
+    uint32_t csds[1] = {OAD_VOLTAGE};
+    dcu_poller_add_scheme(&poller, 1, 0, csds, 1);
+    dcu_poller_add_task(&poller, 1, 0, 1); // 0s 周期无条件到期
+
+    poller_sink_ops_t sink = {0};
+    poller_bus_ops_t bus = {0};
+    g_failing_channel = 999; // 全部模拟失败
+    poller_source_ops_t source = {.ctx = NULL, .read_value = _mock_failing_source_read};
+    dcu_poller_start(&poller, source, bus, sink);
+
+    // 连续触发 3 次失败
+    dcu_poller_pump(&poller, &inv);
+    dcu_poller_pump(&poller, &inv);
+    dcu_poller_pump(&poller, &inv);
+
+    edge_poll_stats_t stats;
+    assert_int_equal(dcu_poller_get_channel_stats(&poller, 3, &stats), 0);
+    assert_int_equal(stats.consecutive_fails, 3);
+    assert_true(stats.is_circuit_broken); // 触发熔断
+
+    // 再次调用 pump，熔断通道被阻断，poll_count 不再增加
+    uint64_t last_poll_count = stats.poll_count;
+    dcu_poller_pump(&poller, &inv);
+    assert_int_equal(dcu_poller_get_channel_stats(&poller, 3, &stats), 0);
+    assert_int_equal(stats.poll_count, last_poll_count);
+
+    // 重置熔断恢复在线
+    assert_int_equal(dcu_poller_reset_circuit_breaker(&poller, 3), 0);
+    assert_int_equal(dcu_poller_get_channel_stats(&poller, 3, &stats), 0);
+    assert_false(stats.is_circuit_broken);
+    assert_int_equal(stats.consecutive_fails, 0);
+
+    dcu_poller_destroy(&poller);
+    dcu_inventory_destroy(&inv);
+}
+
+// 4. 验证多通道隔离性 (通道 1 故障熔断不影响通道 2 正常调度)
+static void test_poller_multi_channel_isolation(void** state) {
+    (void)state;
+    dcu_inventory_t inv;
+    dcu_poller_t poller;
+
+    dcu_inventory_init(&inv);
+    dcu_poller_init(&poller);
+
+    // 通道 1 电表与通道 2 电表
+    dcu_inventory_add(&inv, "CH1_0001", "dlt698", 9600, 1, NULL);
+    dcu_inventory_add(&inv, "CH2_0001", "dlt698", 9600, 2, NULL);
+
+    edge_poll_policy_t policy = {.interval_ms = 0, .max_in_flight = 1, .circuit_break_threshold = 2};
+    dcu_poller_set_channel_policy(&poller, 1, &policy);
+    dcu_poller_set_channel_policy(&poller, 2, &policy);
+
+    uint32_t csds[1] = {OAD_VOLTAGE};
+    dcu_poller_add_scheme(&poller, 1, 0, csds, 1);
+    dcu_poller_add_task(&poller, 1, 0, 1);
+
+    g_poller_pub_count = 0;
+    poller_bus_ops_t bus = {.ctx = NULL, .publish_realtime = _poller_test_pub, .push_event = NULL};
+    g_failing_channel = 0; // meter_idx 0 (通道 1) 失败，meter_idx 1 (通道 2) 成功
+    poller_source_ops_t source = {.ctx = NULL, .read_value = _mock_failing_source_read};
+    dcu_poller_start(&poller, source, bus, (poller_sink_ops_t){0});
+
+    // 循环两次，让通道 1 触发熔断
+    dcu_poller_pump(&poller, &inv);
+    dcu_poller_pump(&poller, &inv);
+
+    edge_poll_stats_t s1, s2;
+    dcu_poller_get_channel_stats(&poller, 1, &s1);
+    dcu_poller_get_channel_stats(&poller, 2, &s2);
+
+    assert_true(s1.is_circuit_broken);   // 通道 1 熔断
+    assert_false(s2.is_circuit_broken);  // 通道 2 健康
+    assert_int_equal(s2.success_count, 2); // 通道 2 成功采集 2 次
+
+    dcu_poller_destroy(&poller);
+    dcu_inventory_destroy(&inv);
+}
+
+// 5. 验证分步调度步进器与大规模循环非阻塞 (AEP-399)
+static void test_poller_step_chunking(void** state) {
+    (void)state;
+    dcu_inventory_t inv;
+    dcu_poller_t poller;
+
+    dcu_inventory_init(&inv);
+    dcu_poller_init(&poller);
+
+    // 注册 10 台电表
+    for (int i = 0; i < 10; i++) {
+        char addr[16];
+        snprintf(addr, sizeof(addr), "METER_%04d", i);
+        dcu_inventory_add(&inv, addr, "dlt698", 9600, 0, NULL);
+    }
+
+    uint32_t csds[1] = {OAD_VOLTAGE};
+    dcu_poller_add_scheme(&poller, 1, 0, csds, 1);
+    dcu_poller_add_task(&poller, 1, 0, 1);
+
+    poller_source_ops_t source = {.ctx = NULL, .read_value = _test_poller_source_read};
+    dcu_poller_start(&poller, source, (poller_bus_ops_t){0}, (poller_sink_ops_t){0});
+
+    // 每次步进至多 4 台表
+    int p1 = dcu_poller_step(&poller, &inv, 4);
+    assert_int_equal(p1, 4);
+    assert_int_equal(poller.tasks[0].cursor_meter_idx, 4);
+
+    int p2 = dcu_poller_step(&poller, &inv, 4);
+    assert_int_equal(p2, 4);
+    assert_int_equal(poller.tasks[0].cursor_meter_idx, 8);
+
+    int p3 = dcu_poller_step(&poller, &inv, 4);
+    assert_int_equal(p3, 2); // 剩余 2 台 (8->10)，游标循环回 0
+    assert_int_equal(poller.tasks[0].cursor_meter_idx, 0);
+
+    dcu_poller_destroy(&poller);
+    dcu_inventory_destroy(&inv);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_task_and_scheme_add),
         cmocka_unit_test(test_poller_pump_and_ti_alignment),
+        cmocka_unit_test(test_poller_circuit_breaker_and_observability),
+        cmocka_unit_test(test_poller_multi_channel_isolation),
+        cmocka_unit_test(test_poller_step_chunking),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

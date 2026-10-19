@@ -65,7 +65,6 @@ struct driver_manager_s {
 _Static_assert(sizeof(struct driver_manager_s) <= sizeof(driver_manager_storage_t),
                "driver_manager_s size exceeds driver_manager_storage_t");
 
-static driver_manager_storage_t g_default_drv_mgr_storage;
 static driver_inst_slot_t g_fallback_inst_slots[MAX_DRIVER_INSTANCES];
 
 static uint64_t _now_ms(void) {
@@ -101,16 +100,39 @@ static void _target_timeout_cb(uv_timer_t *handle) {
     poll_target_t *t = (poll_target_t *)handle->data;
     if (t && t->pending_response) {
         t->pending_response = false;
+        if (t->stats.in_flight > 0) t->stats.in_flight--;
         t->stats.timeout_count++;
         t->stats.consecutive_fails++;
         LOG_WARN(LOG_CAT_IO, "[Orchestrator] Target %u (%s) polling response timeout (fails: %lu)",
                  t->device_id, t->protocol, (unsigned long)t->stats.consecutive_fails);
+
+        if (t->policy.circuit_break_threshold > 0 &&
+            t->stats.consecutive_fails >= t->policy.circuit_break_threshold) {
+            t->stats.is_circuit_broken = true;
+            LOG_ERROR(LOG_CAT_IO, "🚨 [Orchestrator] Target %u circuit breaker TRIPPED (fails: %lu >= threshold: %u)",
+                      t->device_id, (unsigned long)t->stats.consecutive_fails, t->policy.circuit_break_threshold);
+        }
     }
 }
 
 static int _execute_poll(poll_target_t *t) {
     if (!t || !t->active || !t->ctx || !t->ctx->driver) return -1;
     if (!t->ctx->driver->encode_request) return -1;
+
+    // 1. 熔断保护检查 (Circuit Breaker)
+    if (t->stats.is_circuit_broken) {
+        LOG_WARN(LOG_CAT_IO, "[Orchestrator] Target %u is circuit-broken, skipping poll cycle", t->device_id);
+        return -4;
+    }
+
+    // 2. In-flight 并发与背压控制 (Backpressure)
+    uint32_t max_in_flight = t->policy.max_in_flight > 0 ? t->policy.max_in_flight : 1;
+    if (t->stats.in_flight >= max_in_flight || t->pending_response) {
+        t->stats.queue_depth++;
+        LOG_WARN(LOG_CAT_IO, "[Orchestrator] Target %u in-flight limit reached (%u >= %u, queue_depth=%u), backpressure active",
+                 t->device_id, t->stats.in_flight, max_in_flight, t->stats.queue_depth);
+        return -5;
+    }
 
     t->stats.poll_count++;
     t->stats.last_poll_ts = _now_ms();
@@ -134,6 +156,8 @@ static int _execute_poll(poll_target_t *t) {
 
     if (t->io_handle && t->io_handle->ops && t->io_handle->ops->write_async) {
         t->pending_response = true;
+        t->stats.in_flight++;
+        if (t->stats.queue_depth > 0) t->stats.queue_depth--;
         if (t->timeout_init && t->policy.timeout_ms > 0) {
             uv_timer_start(&t->timeout_timer, _target_timeout_cb, t->policy.timeout_ms, 0);
         }
@@ -348,6 +372,15 @@ edge_driver_ctx_t *driver_instance_create(driver_manager_t *mgr, const char *pro
     slot->ctx.publish = _driver_port_publish;
     slot->ctx.get_tag_count = _driver_port_get_tag_count;
     slot->ctx.get_tag_name = _driver_port_get_tag_name;
+
+    const driver_contract_injection_t *inj = edge_model_find(protocol);
+    if (inj) {
+        slot->ctx.lookup_by_key = inj->lookup_by_key;
+        slot->ctx.lookup_by_tag = inj->lookup_by_tag;
+        slot->ctx.meta_list = inj->meta_list;
+        slot->ctx.meta_list_len = inj->meta_list_len;
+    }
+
     if (mgr && mgr->cfg.hub) {
         slot->ctx.user_data = mgr->cfg.hub;
     }
@@ -566,7 +599,10 @@ int driver_manager_feed_response(driver_manager_t *mgr, uint32_t device_id, net_
     if (t->timeout_init && !uv_is_closing((uv_handle_t *)&t->timeout_timer)) {
         uv_timer_stop(&t->timeout_timer);
     }
-    t->pending_response = false;
+    if (t->pending_response) {
+        t->pending_response = false;
+        if (t->stats.in_flight > 0) t->stats.in_flight--;
+    }
 
     pipe_msg_t msgs[MAX_DISPATCH_MSGS];
     int msg_count = 0;
@@ -582,6 +618,7 @@ int driver_manager_feed_response(driver_manager_t *mgr, uint32_t device_id, net_
         t->stats.consecutive_fails = 0;
         t->stats.success_count++;
         t->stats.last_success_ts = _now_ms();
+        t->stats.is_circuit_broken = false;
         uv_mutex_unlock(&mgr->lock);
         return 0;
     }
@@ -590,6 +627,27 @@ int driver_manager_feed_response(driver_manager_t *mgr, uint32_t device_id, net_
     t->stats.consecutive_fails++;
     uv_mutex_unlock(&mgr->lock);
     return -3;
+}
+
+int driver_manager_reset_circuit_breaker(driver_manager_t *mgr, uint32_t device_id) {
+    if (!mgr) return -1;
+    uv_mutex_lock(&mgr->lock);
+    poll_target_t *t = _find_target_locked(mgr, device_id);
+    if (!t) {
+        uv_mutex_unlock(&mgr->lock);
+        return -2;
+    }
+    t->stats.is_circuit_broken = false;
+    t->stats.consecutive_fails = 0;
+    t->stats.in_flight = 0;
+    t->pending_response = false;
+    t->active = true;
+    if (mgr->orchestrator_running && mgr->cfg.loop) {
+        _start_target_timer(mgr, t);
+    }
+    uv_mutex_unlock(&mgr->lock);
+    LOG_INFO(LOG_CAT_IO, "[Orchestrator] Target %u circuit breaker reset and restored", device_id);
+    return 0;
 }
 
 int driver_manager_stop_auto_polling(driver_manager_t *mgr) {

@@ -91,6 +91,8 @@ typedef struct {
     int (*read_value)(void* ctx, uint32_t meter_idx, uint32_t tag_id, double* out_val);
 } poller_source_ops_t;
 
+#include "driver_manager.h"
+
 typedef struct {
     dcu_task_unit_t tasks[MAX_TASKS];
     uint16_t task_count;
@@ -104,6 +106,10 @@ typedef struct {
     poller_sink_ops_t sink_ops;
     poller_bus_ops_t bus_ops;
     poller_source_ops_t source_ops;
+
+    // [AEP-401 & AEP-399] 通道级背压、in-flight 约束与熔断可观测性
+    edge_poll_stats_t channel_stats[DCU_MAX_CHANNELS];
+    edge_poll_policy_t channel_policies[DCU_MAX_CHANNELS];
 } dcu_poller_t;
 
 int dcu_poller_init(dcu_poller_t* poller);
@@ -116,6 +122,28 @@ int dcu_poller_start(dcu_poller_t* poller, poller_source_ops_t source_ops, polle
                      poller_sink_ops_t sink_ops);
 
 void dcu_poller_pump(dcu_poller_t* poller, dcu_inventory_t* inv);
+
+/**
+ * @brief 异步分步推进轮询调度 (消除 libuv 事件循环长时间阻塞)
+ */
+int dcu_poller_step(dcu_poller_t* poller, dcu_inventory_t* inv, uint32_t max_meters_per_step);
+
+/**
+ * @brief 设置特定物理通道的调度与熔断策略 (AEP-401)
+ */
+int dcu_poller_set_channel_policy(dcu_poller_t* poller, uint32_t channel_id,
+                                  const edge_poll_policy_t* policy);
+
+/**
+ * @brief 获取特定物理通道的实时运行与背压统计 (AEP-401)
+ */
+int dcu_poller_get_channel_stats(dcu_poller_t* poller, uint32_t channel_id,
+                                 edge_poll_stats_t* out_stats);
+
+/**
+ * @brief 重置通道熔断状态，恢复在线调度 (AEP-401)
+ */
+int dcu_poller_reset_circuit_breaker(dcu_poller_t* poller, uint32_t channel_id);
 
 void dcu_poller_stop(dcu_poller_t* poller);
 void dcu_poller_destroy(dcu_poller_t* poller);
