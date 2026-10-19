@@ -34,6 +34,24 @@ AGGREGATE_RULES = [
         re.compile(r'\b(?:node|dcu_node)\s*->\s*(?:inventory|poller|router|storage|root)\b'),
         re.compile(r'^(?:cmd/dcu/dcu_node.*\.c|tests/test_dcu.*\.c|tests/guards/fixtures/)'),
         "Direct dereference of dcu_node_t internal fields is forbidden outside cmd/dcu/dcu_node.c. Use dcu_node_* API."
+    ),
+    (
+        "iems_node_t",
+        re.compile(r'\b(?:iems_node\s*->\s*(?:bms_cluster|pcs_ctrl|coordinator|fire_safety|pcs_dispatcher|comp_root|hub)|node\s*->\s*(?:bms_cluster|pcs_ctrl|coordinator|fire_safety|pcs_dispatcher))\b'),
+        re.compile(r'^(?:cmd/iems/iems_node.*\.c|tests/test_iems.*\.c|tests/guards/fixtures/)'),
+        "Direct dereference of iems_node_t internal fields is forbidden outside cmd/iems/iems_node.c. Use iems_node_* API."
+    ),
+    (
+        "control_write_bypass",
+        re.compile(r'\bdatahub_publish\s*\([^)]*IEMS_TAG_PCS_CONTROL'),
+        re.compile(r'^(?:cmd/iems/iems_node.*\.c|tests/|tests/guards/fixtures/)'),
+        "Control write bypass detected: direct datahub_publish of IEMS_TAG_PCS_CONTROL is forbidden outside aggregate root (cmd/iems/iems_node.c). Use iems_node_dispatch_power()."
+    ),
+    (
+        "raw_southbound_write_bypass",
+        re.compile(r'\bedge_api_write_tag\s*\('),
+        re.compile(r'^(?:modules/|include/|tests/|tests/guards/fixtures/|cmd/iems/iems_app\.c|cmd/dcu/dcu_driver_adapter\.c|cmd/iems/iems_driver_adapter\.c)'),
+        "Direct edge_api_write_tag in product business logic is forbidden outside authorized app assembler/adapter. Control writes must pass through aggregate root domain operations."
     )
 ]
 
