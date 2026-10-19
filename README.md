@@ -111,13 +111,13 @@ CI 流水线内建了严密的整洁架构守卫脚本（`check_architecture_lay
 
 ## 🚀 4. 核心演进 (Omnis Sprint 4 Highlights)
 
-### 4.1 Request 模型场景化架构
+### 4.1 Master/Slave 对称双平面架构 (AEP-403)
 
-`MasterEngine` 已进化为纯粹的任务调度器，通过 `edge_req_t` 接口支持多种业务场景：
+EdgeC 协议栈具备完整的双向对称架构，分别支撑下行主动抄读（Master）与上行被动响应（Slave）：
 
-- **Protocol Driver**: 标准工业协议驱动，支持 Modbus/DLMS/698/645 周期性抄读与自描述解码。
-- **Raw I/O**: 支持透传原始字节流，专为混沌工程和非标协议调试设计。
-- **无状态调度**: 引擎不再硬编码驱动逻辑，符号在运行时由 `main.c` 动态注入。
+- **Master Plane (主站调度平面)**: `MasterEngine` 通过 `edge_req_t` 支持标准驱动抄读、Raw I/O 透传与无状态调度，实现单通道 in-flight ≤ 1 异步事务。
+- **Slave Plane (从站响应平面)**: `SlaveEngine` 专为 IEC104 Slave、Modbus Slave 及对端仿真设计。外部主站读请求通过 Consumer Port `edge_driver_read_shadow` 从 DataHub 影子寄存器无锁提取；写请求强制通过 `_slave_is_write_allowed` ACL 鉴权与 Edge-Guard DPI 深度报文检测，严禁旁路改写业务聚合根。
+  > 详细架构时序与接入指南见 [Slave Plane 架构规范](file:///tmp/edgec-worktree-campaign-arch/docs/design/slave_plane_architecture.md)。
 
 ### 4.2 高性能内存调度器
 
