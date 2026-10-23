@@ -114,10 +114,11 @@ static int _init_container_resources(edge_composition_container_t *container, co
     }
 
     /* Register available infra backends into the DataHub registry.
-     * Each backend is optional at compile time (CONFIG_EDGE_INFRA_DDS / _MQTT), so the
-     * symbol must be referenced under a guard: an unconditional reference resolves to an
-     * undefined symbol in trimmed builds and breaks the link (#416). */
-#if defined(CONFIG_EDGE_INFRA_DDS) && (CONFIG_EDGE_INFRA_DDS + 0)
+     * Guarded on EDGE_HAVE_*_BACKEND, which edge_infra/CMakeLists.txt derives from the
+     * same condition that adds the backend source file. Guarding on the Kconfig macro
+     * instead is what broke the trimmed link: autoconf.h and the CMake source list can
+     * disagree, and then this file references a symbol nobody compiled (#416). */
+#if defined(EDGE_HAVE_DDS_BACKEND)
     {
         extern const datahub_ops_t g_datahub_dds_ops;
         datahub_register_backend(DATAHUB_BACKEND_DDS, &g_datahub_dds_ops);
@@ -126,7 +127,7 @@ static int _init_container_resources(edge_composition_container_t *container, co
     LOG_WARN(LOG_CAT_CORE, "DDS backend not compiled in; DATAHUB_BACKEND_DDS unavailable");
 #endif
 
-#if defined(CONFIG_EDGE_INFRA_MQTT) && (CONFIG_EDGE_INFRA_MQTT + 0)
+#if defined(EDGE_HAVE_MQTT_BACKEND)
     {
         extern const datahub_ops_t g_datahub_mqtt_ops;
         datahub_register_backend(DATAHUB_BACKEND_MQTT, &g_datahub_mqtt_ops);

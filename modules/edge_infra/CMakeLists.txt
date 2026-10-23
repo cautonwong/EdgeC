@@ -34,11 +34,16 @@ if(CONFIG_EDGE_INFRA_SQLITE)
 endif()
 
 # Distributed Bus: CycloneDDS Backend (Kconfig: CONFIG_EDGE_INFRA_DDS)
+# EDGE_HAVE_DDS_BACKEND is generated here, next to the source it describes, and is the
+# only switch the C side checks. Kconfig-derived macros (CONFIG_*, autoconf.h) can
+# disagree with what CMake actually compiled, and that disagreement is exactly what
+# broke the trimmed link (#416).
 if(CONFIG_EDGE_INFRA_DDS AND HAVE_DDS_HEADERS)
     list(APPEND INFRA_SOURCES
         bus_dds/datahub_dds.c
     )
     list(APPEND INFRA_PUBLIC_LIBS cyclonedds)
+    set(EDGE_HAVE_DDS_BACKEND ON)
 endif()
 
 # Northbound Bus: MQTT Bridge Backend (Kconfig: CONFIG_EDGE_INFRA_MQTT)
@@ -47,6 +52,7 @@ if(CONFIG_EDGE_INFRA_MQTT)
         bus_mqtt/datahub_mqtt.c
     )
     list(APPEND INFRA_PRIVATE_LIBS PahoMQTT::PahoMQTT)
+    set(EDGE_HAVE_MQTT_BACKEND ON)
 endif()
 
 # ==============================================================================
@@ -72,6 +78,16 @@ endif()
 add_library(edge_infra STATIC
     ${INFRA_SOURCES}
 )
+
+# Authoritative backend availability. PUBLIC so every consumer (edge_bootstrap, the
+# products, the stub definitions in edge_infra_base.c) sees the same answer as the
+# source list above.
+if(EDGE_HAVE_DDS_BACKEND)
+    target_compile_definitions(edge_infra PUBLIC EDGE_HAVE_DDS_BACKEND=1)
+endif()
+if(EDGE_HAVE_MQTT_BACKEND)
+    target_compile_definitions(edge_infra PUBLIC EDGE_HAVE_MQTT_BACKEND=1)
+endif()
 
 target_include_directories(edge_infra PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
