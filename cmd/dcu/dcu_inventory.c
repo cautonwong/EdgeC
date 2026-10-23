@@ -16,6 +16,9 @@ int dcu_inventory_init(dcu_inventory_t* inv) {
 
     inv->count = 0;
     memset(inv->meters, 0, sizeof(inv->meters));
+    // lock 必须显式初始化：栈上的 dcu_inventory_t 未清零时，
+    // 直接 uv_mutex_lock 会永久阻塞（test_dcu_router 因此挂死）。
+    uv_mutex_init(&inv->lock);
 
     return 0;
 }
@@ -181,5 +184,6 @@ int dcu_inventory_load_from_db(dcu_inventory_t* inv, const char* db_path) {
 }
 
 void dcu_inventory_destroy(dcu_inventory_t* inv) {
-    (void)inv;
+    if (!inv) return;
+    uv_mutex_destroy(&inv->lock);
 }
