@@ -143,7 +143,7 @@ static void on_ui_connect(uv_stream_t* server, int status) {
         int cfd;
         uv_fileno((const uv_handle_t*)client, &cfd);
         edge_fd_send(cfd, datahub_get_ring_fd(app->hub));
-        edge_fd_send(cfd, app->hub->shadow_fd);
+        edge_fd_send(cfd, datahub_get_shadow_fd(app->hub));
     }
     uv_close((uv_handle_t*)client, (uv_close_cb)free);
 }
@@ -348,7 +348,7 @@ static void _try_connect_internal_buses(uv_timer_t* handle) {
 
 static void _monitor_shadow_tick(uv_timer_t* handle) {
     iems_app_t* app = (iems_app_t*)handle->data;
-    if (app && app->hub && app->hub->shadow_table) {
+    if (app && app->hub && datahub_shadow_ready(app->hub)) {
         pipe_msg_t msg;
         if (datahub_read_shadow(app->hub, IEMS_TAG_VOLTAGE_PHASE_A, &msg) == 0) {
             printf("\033[36m[HEARTBEAT] Shadow Tag 1001 = %.2f\033[0m\n", msg.payload.val.f);

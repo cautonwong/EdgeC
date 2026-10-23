@@ -272,23 +272,25 @@ int datahub_remove_listener(datahub_t *hub, uv_async_t *async_handle);
 
 uint32_t datahub_get_metadata_count(datahub_t *hub);
 
-static inline const edge_tag_meta_t *datahub_get_metadata_by_index(datahub_t *hub, uint32_t index) {
-    if (hub && index < hub->metadata_count) return &hub->metadata_table[index];
-    return NULL;
-}
+/*
+ * [Aggregate encapsulation] These accessors used to be `static inline` in this header
+ * and dereferenced internal fields directly, which published the aggregate layout to
+ * every includer. They live in datahub.c now (#413).
+ */
+const edge_tag_meta_t *datahub_get_metadata_by_index(datahub_t *hub, uint32_t index);
+const edge_tag_meta_t *datahub_get_metadata_by_tag(datahub_t *hub, uint32_t tag_id);
 
-static inline const edge_tag_meta_t *datahub_get_metadata_by_tag(datahub_t *hub, uint32_t tag_id) {
-    if (!hub) return NULL;
-    int idx = -1;
-    if (hub->map_fn_v2) {
-        idx = hub->map_fn_v2(tag_id, 0);
-    } else if (hub->map_fn) {
-        idx = hub->map_fn(tag_id);
-    }
-    if (idx < 0) idx = (int)tag_id;
-    if (idx < 0) return NULL;
-    return datahub_get_metadata_by_index(hub, (uint32_t)idx);
-}
+/** @brief Read-only access to the shadow table file descriptor (#413). */
+int datahub_get_shadow_fd(datahub_t *hub);
+
+/** @brief Non-zero when the shadow table is mapped and readable (#413). */
+bool datahub_shadow_ready(datahub_t *hub);
+
+/** @brief Event loop the hub was initialised with (#413). */
+uv_loop_t *datahub_get_loop(datahub_t *hub);
+
+/** @brief Install the instance-aware tag mapper after init (#413). */
+void datahub_set_tag_mapper_v2(datahub_t *hub, datahub_tag_map_cb_v2 map_fn_v2);
 
 /**
  * @brief [KubeEdge DeviceTwin Pattern] 设备影子状态对齐与冲突校验

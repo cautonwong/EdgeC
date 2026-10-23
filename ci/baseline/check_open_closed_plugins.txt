@@ -1,0 +1,4 @@
+# Shrink-only violation ledger (#411). Regenerate with --update-baseline.
+# Format: <path>|<RULE_ID>|<scope>[|<owning-issue>]
+# This file may only shrink. Removing an entry is done by fixing the code.
+modules/edge_stream/src/pipeline_loader.c|STRCMP_DISPATCH|build_stage|#415

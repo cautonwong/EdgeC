@@ -1,0 +1,18 @@
+# Sanctioned composition roots (#411 / #417)
+#
+# Object assembly (datahub_init, stream_engine_create, sqlite_svc_create, ...) is only
+# permitted in:
+#   1. the module that defines the entry point,
+#   2. modules/edge_bootstrap/,
+#   3. the product composition roots listed below.
+#
+# One line per file, path relative to the repository root. Adding a line is an
+# architecture decision, not a workaround: the composition root is the only place
+# allowed to know how the system is wired.
+
+cmd/iems/main.c
+cmd/iems/iems_app.c
+cmd/dcu/main.c
+cmd/smart_box/main.c
+cmd/edge_mcp_server/main.c
+cmd/nexus_lab/main.c

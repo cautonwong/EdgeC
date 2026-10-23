@@ -28,6 +28,8 @@ jobs:
           - { target: x86_64_asan, cc: gcc, cxx: g++, cmake_args: "-DENABLE_ASAN=ON", run_tests: true }
           - { target: x86_64_tsan, cc: gcc, cxx: g++, cmake_args: "-DENABLE_TSAN=ON", run_tests: true }
           - { target: x86_64_ubsan, cc: gcc, cxx: g++, cmake_args: "-DENABLE_UBSAN=ON", run_tests: true }
+          # #416: optional distributed backends compiled out must still link.
+          - { target: x86_64_trimmed, cc: gcc, cxx: g++, cmake_args: "-DCONF_FILE=${GITHUB_WORKSPACE}/ci/prj_trimmed.conf", run_tests: false }
           - { target: arm64, cc: aarch64-linux-gnu-gcc, cxx: aarch64-linux-gnu-g++, cmake_args: "-DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/aarch64-linux-gnu.cmake", run_tests: false }
 
     steps:
@@ -97,6 +99,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # run_guard_selftest exercises every guard twice: on its refutation fixture
+          # (must reject) and on the live tree (must pass). Live failures compare
+          # against the shrink-only ledgers in ci/baseline/ (#411).
           python3 ci/scripts/run_guard_selftest.py
           ./scripts/check_no_old_src.sh
           ./scripts/check_symbols_baseline.sh

@@ -132,6 +132,19 @@ def main():
             bad_cmd = [sys.executable, script, arg_flag, item["bad_target"]]
             rc_bad, out_bad, err_bad = run_cmd(bad_cmd)
             if rc_bad != 0:
+                # #411: a passing "bad fixture" only proves the guard rejects *something*.
+                # For the caller-storage guard we also require the one-line-body
+                # regression fixture to be named, because that specific bypass used to
+                # slip through while the fixture still failed for another reason.
+                if guard_name == "check_caller_allocated_storage.py":
+                    if "oneline_entity_create_in" not in (out_bad + err_bad):
+                        msg = (
+                            f"❌ [REGRESSION] {guard_name} no longer reports the one-line "
+                            "placement constructor (oneline_entity_create_in)."
+                        )
+                        print(msg)
+                        failures.append(msg)
+                        continue
                 print(f"  ✅ [PASS] {guard_name} (Refutation / Bad Fixture correctly caught and rejected)")
                 passed_tests += 1
             else:
@@ -148,7 +161,22 @@ def main():
 
     # Also run live check on actual codebase
     print("\n🔍 Running live architecture guards on active repository...")
-    for script_name in ["check_plane_isolation.py", "check_app_isolation.py", "check_caller_allocated_storage.py", "check_dependencies.py", "check_exemptions.py", "check_aggregate_boundary.py", "check_composition_root.py", "check_open_closed_plugins.py", "check_single_responsibility.py"]:
+    # Every guard is exercised against the live tree, including the two that used to be
+    # fixture-only (`no_dynamic_memory`, `stack_usage`) - that omission is what let the
+    # live violations in #410 hide (#411).
+    for script_name in [
+        "check_plane_isolation.py",
+        "check_app_isolation.py",
+        "check_caller_allocated_storage.py",
+        "check_dependencies.py",
+        "check_exemptions.py",
+        "check_aggregate_boundary.py",
+        "check_composition_root.py",
+        "check_open_closed_plugins.py",
+        "check_single_responsibility.py",
+        "check_no_dynamic_memory.py",
+        "check_stack_usage.py",
+    ]:
         script_path = os.path.join(SCRIPTS_DIR, script_name)
         flag = "--file" if "dependencies" in script_name or "exemptions" in script_name else "--root"
         target = os.path.join(REPO_ROOT, "ci", f"{script_name.replace('check_', '').replace('.py', '')}.json") if flag == "--file" else REPO_ROOT

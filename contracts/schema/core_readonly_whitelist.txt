@@ -1,0 +1,19 @@
+# Rule R-08 - modules/edge_core change approvals
+#
+# `modules/edge_core` and `include/contract_data_types.h` are protected assets:
+# changes require explicit architecture sign-off. This file IS that sign-off.
+#
+# Format: one path per line, `#` starts a comment. Every entry must name the
+# issue that justified it. `scripts/check_core_readonly.sh` fails a PR that touches
+# a protected file without a matching entry, so an empty file means "frozen".
+#
+# NOTE(#411): before this file existed the gate had no approval path at all, which
+# made modules/edge_core a hard freeze and blocked the very refactors it protects
+# (#410 audit §6.3). Adding an entry is a review decision, not a formality: review
+# the diff for ABI and aggregate-encapsulation impact before adding one.
+
+# #413 - aggregate root encapsulation, step 1: move the two `static inline`
+# metadata accessors out of the public header, and add the accessors that let
+# callers stop dereferencing datahub_t internals.
+modules/edge_core/include/datahub.h    # #413
+modules/edge_core/src/datahub.c        # #413

@@ -7,6 +7,7 @@
 #include "datahub_ops.h"
 #include "dma_buf_pool.h"
 #include "edge_anti_corruption.h"
+#include "edge_log.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -112,11 +113,33 @@ static int _init_container_resources(edge_composition_container_t *container, co
         else if (strcasecmp(env_b, "shm") == 0) backend = DATAHUB_BACKEND_SHM;
     }
 
-    /* Register available infra backends into DataHub registry */
-    extern const datahub_ops_t g_datahub_dds_ops;
-    extern const datahub_ops_t g_datahub_mqtt_ops;
-    datahub_register_backend(DATAHUB_BACKEND_DDS, &g_datahub_dds_ops);
-    datahub_register_backend(DATAHUB_BACKEND_MQTT, &g_datahub_mqtt_ops);
+    /* Register available infra backends into the DataHub registry.
+     * Each backend is optional at compile time (CONFIG_EDGE_INFRA_DDS / _MQTT), so the
+     * symbol must be referenced under a guard: an unconditional reference resolves to an
+     * undefined symbol in trimmed builds and breaks the link (#416). */
+#if defined(CONFIG_EDGE_INFRA_DDS) && (CONFIG_EDGE_INFRA_DDS + 0)
+    {
+        extern const datahub_ops_t g_datahub_dds_ops;
+        datahub_register_backend(DATAHUB_BACKEND_DDS, &g_datahub_dds_ops);
+    }
+#else
+    LOG_WARN(LOG_CAT_CORE, "DDS backend not compiled in; DATAHUB_BACKEND_DDS unavailable");
+#endif
+
+#if defined(CONFIG_EDGE_INFRA_MQTT) && (CONFIG_EDGE_INFRA_MQTT + 0)
+    {
+        extern const datahub_ops_t g_datahub_mqtt_ops;
+        datahub_register_backend(DATAHUB_BACKEND_MQTT, &g_datahub_mqtt_ops);
+    }
+#else
+    LOG_WARN(LOG_CAT_CORE, "MQTT backend not compiled in; DATAHUB_BACKEND_MQTT unavailable");
+#endif
+
+    /* Degrade instead of failing the whole node when the requested backend is absent */
+    if (backend != DATAHUB_BACKEND_SHM && !datahub_get_backend(backend)) {
+        LOG_WARN(LOG_CAT_CORE, "DataHub backend %d unavailable, falling back to SHM", (int)backend);
+        backend = DATAHUB_BACKEND_SHM;
+    }
 
     int rc = 0;
     if (backend != DATAHUB_BACKEND_SHM) {
@@ -139,7 +162,7 @@ static int _init_container_resources(edge_composition_container_t *container, co
         return -4;
     }
     if (cfg->map_fn_v2) {
-        container->hub->map_fn_v2 = cfg->map_fn_v2;
+        datahub_set_tag_mapper_v2(container->hub, cfg->map_fn_v2);
     }
 
     /* 2. Pre-allocate Memory Pool for Zero-Copy execution */
@@ -233,9 +256,7 @@ int edge_composition_root_destroy(edge_composition_container_t *container) {
     }
 
     if (container->hub) {
-        if (container->hub->ops && container->hub->ops->destroy) {
-            container->hub->ops->destroy(container->hub);
-        }
+        datahub_destroy(container->hub);
         free(container->hub);
         container->hub = NULL;
     }
