@@ -28,6 +28,23 @@
 #define TOTAL_METERS (NUM_BUSES * METERS_PER_BUS)
 #define OADS_PER_METER 3
 
+/*
+ * ModbusRTU 契约注入：驱动靠 lookup_by_tag 把 tag 映射成寄存器地址与缩放系数。
+ * 缺失时 encode_request 直接返回 -1，本用例此前从未提供映射表，因此一直红。
+ * 帧 0x0898 => 2200，scaler 0.1 => 220.0V。
+ */
+static const modbus_map_t _mock_modbus_map = {
+    .key = 0, .tag_id = 1001, .length = 1, .scaler = 0.1f};
+
+static const void* _mock_lookup_by_tag(uint32_t tag_id) {
+    return (tag_id == 1001) ? &_mock_modbus_map : NULL;
+}
+
+const driver_contract_injection_t* edge_model_find(const char* name) {
+    static const driver_contract_injection_t inj = {.lookup_by_tag = _mock_lookup_by_tag};
+    return (name && strcmp(name, "ModbusRTU") == 0) ? &inj : NULL;
+}
+
 static int _mock_source_read(void* ctx, uint32_t meter_idx, uint32_t tag_id, double* out_val) {
     (void)ctx;
     (void)meter_idx;
