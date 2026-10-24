@@ -372,6 +372,41 @@ uint32_t datahub_get_metadata_count(datahub_t *hub) {
     return hub ? hub->metadata_count : 0;
 }
 
+const edge_tag_meta_t *datahub_get_metadata_by_index(datahub_t *hub, uint32_t index) {
+    if (hub && index < hub->metadata_count) return &hub->metadata_table[index];
+    return NULL;
+}
+
+const edge_tag_meta_t *datahub_get_metadata_by_tag(datahub_t *hub, uint32_t tag_id) {
+    if (!hub) return NULL;
+    int idx = -1;
+    if (hub->map_fn_v2) {
+        idx = hub->map_fn_v2(tag_id, 0);
+    } else if (hub->map_fn) {
+        idx = hub->map_fn(tag_id);
+    }
+    if (idx < 0) idx = (int)tag_id;
+    if (idx < 0) return NULL;
+    return datahub_get_metadata_by_index(hub, (uint32_t)idx);
+}
+
+int datahub_get_shadow_fd(datahub_t *hub) {
+    return hub ? hub->shadow_fd : -1;
+}
+
+bool datahub_shadow_ready(datahub_t *hub) {
+    return hub && hub->shadow_table != NULL && hub->shadow_capacity > 0;
+}
+
+uv_loop_t *datahub_get_loop(datahub_t *hub) {
+    return hub ? hub->loop : NULL;
+}
+
+void datahub_set_tag_mapper_v2(datahub_t *hub, datahub_tag_map_cb_v2 map_fn_v2) {
+    if (!hub) return;
+    hub->map_fn_v2 = map_fn_v2;
+}
+
 int datahub_save_snapshot(datahub_t *hub, const char *path) {
     if (!hub || !path) return -1;
 

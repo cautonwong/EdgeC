@@ -14,6 +14,7 @@ static dcu_object_t g_obj_dictionary[MAX_DICT_SIZE];
 static uint16_t g_obj_count = 0;
 static router_bus_ops_t g_router_bus_ops;
 static router_sink_ops_t g_router_sink_ops;
+static dcu_inventory_t* s_router_inv = NULL;
 
 #define DCU_SLOTS_PER_DEVICE 32
 
@@ -254,11 +255,10 @@ static int _oi_8000_execute(dcu_object_t* obj, uint8_t method_id, const void* pa
         }
 
         // 2. 写入存储 (最新状态)
-        extern dcu_inventory_t g_dcu_inventory;
-        if (device_id < g_dcu_inventory.count) {
+        if (s_router_inv && device_id < s_router_inv->count) {
             if (g_router_sink_ops.record_telemetry) {
                 g_router_sink_ops.record_telemetry(g_router_sink_ops.ctx,
-                                                   g_dcu_inventory.meters[device_id].address,
+                                                   s_router_inv->meters[device_id].address,
                                                    device_id, 0x80000100, (double)action);
             }
         }
@@ -500,6 +500,7 @@ int dcu_router_init_ex(dcu_inventory_t* inv, dcu_poller_t* poller, router_sink_o
     memset(g_obj_dictionary, 0, sizeof(g_obj_dictionary));
     g_router_sink_ops = sink_ops;
     g_router_bus_ops = bus_ops;
+    s_router_inv = inv;
 
     // 1. 注册 0x6000 (档案配置单例)
     dcu_object_t* obj_6000 = &g_obj_dictionary[g_obj_count++];

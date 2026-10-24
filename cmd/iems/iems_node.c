@@ -27,6 +27,9 @@ struct iems_node_s {
     iems_fire_safety_interlock_t fire_safety;
     iems_multi_pcs_dispatcher_t pcs_dispatcher;
 
+    /* 控制环路看门狗与延迟预算 (AEP-407) */
+    iems_loop_watchdog_stats_t wd_stats;
+
     bool running;
 };
 
@@ -79,6 +82,9 @@ iems_node_t *iems_node_create(uv_loop_t *loop, const iems_node_config_t *cfg) {
                                       node->cfg.max_pcs_power_kw * 0.5);
     iems_pcs_dispatcher_register_unit(&node->pcs_dispatcher, 2, "PCS_02",
                                       node->cfg.max_pcs_power_kw * 0.5);
+
+    /* 默认看门狗安全截止时间预算: 10000us (10ms) */
+    node->wd_stats.watchdog_budget_us = 10000;
 
     LOG_INFO(LOG_CAT_CORE, "IEMS Node Aggregate Root assembled successfully (Max Power: %.1f kW)",
              node->cfg.max_pcs_power_kw);
@@ -147,8 +153,34 @@ edge_composition_container_t *iems_node_get_container(iems_node_t *node) {
     return node ? node->comp_root : NULL;
 }
 
+static inline void _iems_node_record_cycle(iems_node_t *node, uint64_t t_start) {
+    if (!node) return;
+    uint64_t elapsed_us = (uv_hrtime() - t_start) / 1000;
+    node->wd_stats.last_cycle_us = elapsed_us;
+    if (elapsed_us > node->wd_stats.max_cycle_us) {
+        node->wd_stats.max_cycle_us = elapsed_us;
+    }
+    if (node->wd_stats.watchdog_budget_us == 0 || elapsed_us > node->wd_stats.watchdog_budget_us) {
+        node->wd_stats.watchdog_trips++;
+        node->wd_stats.watchdog_degraded = true;
+        LOG_ERROR(LOG_CAT_CORE, "🚨 IEMS Control Loop Watchdog Tripped! Cycle %llu us > Budget %llu us (Total trips: %u)",
+                  (unsigned long long)elapsed_us, (unsigned long long)node->wd_stats.watchdog_budget_us,
+                  node->wd_stats.watchdog_trips);
+    }
+}
+
 int iems_node_dispatch_power(iems_node_t *node, double target_kw, double *out_actual_kw) {
     if (!node) return -1;
+    uint64_t t_start = uv_hrtime();
+
+    /* 0. 控制环路看门狗超时降级检查 (Watchdog Degradation Check) */
+    if (node->wd_stats.watchdog_degraded) {
+        LOG_WARN(LOG_CAT_CORE, "IEMS Dispatch: Rejected! Watchdog timeout degradation active.");
+        if (out_actual_kw) *out_actual_kw = 0.0;
+        iems_pcs_exec_pq_control(&node->pcs_ctrl, 0.0, 0.0);
+        _iems_node_record_cycle(node, t_start);
+        return -4;
+    }
 
     /* 1. 消防联动闭锁断开不变量检查 (Fire Safety Invariant) */
     if (node->fire_safety.is_pcs_emergency_stop || node->fire_safety.is_hv_breaker_tripped ||
@@ -156,6 +188,7 @@ int iems_node_dispatch_power(iems_node_t *node, double target_kw, double *out_ac
         LOG_WARN(LOG_CAT_CORE, "IEMS Dispatch: Rejected! Fire safety interlock active.");
         if (out_actual_kw) *out_actual_kw = 0.0;
         iems_pcs_exec_pq_control(&node->pcs_ctrl, 0.0, 0.0);
+        _iems_node_record_cycle(node, t_start);
         return -2;
     }
 
@@ -176,6 +209,7 @@ int iems_node_dispatch_power(iems_node_t *node, double target_kw, double *out_ac
         LOG_WARN(LOG_CAT_CORE, "IEMS Dispatch: Rejected! BMS Level 3 Thermal Runaway alarm.");
         if (out_actual_kw) *out_actual_kw = 0.0;
         iems_pcs_exec_pq_control(&node->pcs_ctrl, 0.0, 0.0);
+        _iems_node_record_cycle(node, t_start);
         return -3;
     }
 
@@ -210,11 +244,13 @@ int iems_node_dispatch_power(iems_node_t *node, double target_kw, double *out_ac
     }
 
     if (out_actual_kw) *out_actual_kw = permitted_kw;
+    _iems_node_record_cycle(node, t_start);
     return 0;
 }
 
 int iems_node_emergency_trip(iems_node_t *node, const char *reason) {
     if (!node) return -1;
+    uint64_t t_start = uv_hrtime();
     LOG_ERROR(LOG_CAT_CORE, "🚨 IEMS Emergency Trip Triggered! Reason: %s", reason ? reason : "Unknown");
     node->fire_safety.is_pcs_emergency_stop = true;
     node->fire_safety.is_hv_breaker_tripped = true;
@@ -227,6 +263,7 @@ int iems_node_emergency_trip(iems_node_t *node, const char *reason) {
         pipe_msg_init_scalar(&msg, IEMS_TAG_PCS_CONTROL, 0.0, uv_hrtime());
         datahub_publish(node->hub, &msg);
     }
+    _iems_node_record_cycle(node, t_start);
     return 0;
 }
 
@@ -251,4 +288,23 @@ int iems_node_update_bms_rack(iems_node_t *node, uint8_t rack_id, double voltage
         }
     }
     return rc;
+}
+
+int iems_node_set_watchdog_budget(iems_node_t *node, uint64_t budget_us) {
+    if (!node) return -1;
+    node->wd_stats.watchdog_budget_us = budget_us;
+    return 0;
+}
+
+int iems_node_get_watchdog_stats(iems_node_t *node, iems_loop_watchdog_stats_t *out_stats) {
+    if (!node || !out_stats) return -1;
+    *out_stats = node->wd_stats;
+    return 0;
+}
+
+int iems_node_reset_watchdog_degrade(iems_node_t *node) {
+    if (!node) return -1;
+    node->wd_stats.watchdog_degraded = false;
+    LOG_INFO(LOG_CAT_CORE, "IEMS Watchdog degradation state reset to normal");
+    return 0;
 }

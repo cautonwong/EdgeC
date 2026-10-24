@@ -1,0 +1,8 @@
+# Shrink-only violation ledger (#411). Regenerate with --update-baseline.
+# Format: <path>|<RULE_ID>|<scope>[|<owning-issue>]
+# This file may only shrink. Removing an entry is done by fixing the code.
+check_go_shm.c|ASSEMBLY||#417
+cmd/evse/main.c|ASSEMBLY||#417
+cmd/hems/main.c|ASSEMBLY||#417
+cmd/iems/iems_cli.c|ASSEMBLY||#417
+cmd/sg/main.c|ASSEMBLY||#417

@@ -107,7 +107,10 @@ storage_driver_t *storage_driver_sqlite_create(uv_loop_t *loop, const storage_co
 }
 #endif
 
-#if !defined(CONFIG_EDGE_INFRA_DDS) || (CONFIG_EDGE_INFRA_DDS == 0)
+/* EDGE_HAVE_DDS_BACKEND is set by edge_infra/CMakeLists.txt right next to the line
+ * that adds bus_dds/datahub_dds.c, so this stub and the real implementation can never
+ * disagree about which one exists (#416). */
+#if !defined(EDGE_HAVE_DDS_BACKEND)
 #include "datahub_dds.h"
 #include "edge_log.h"
 #include <errno.h>
@@ -147,7 +150,7 @@ int datahub_dds_init(datahub_t *hub, const datahub_config_t *config) {
 }
 #endif
 
-#ifndef CONFIG_EDGE_INFRA_MQTT
+#if !defined(EDGE_HAVE_MQTT_BACKEND)
 #include "datahub_mqtt.h"
 #include "edge_log.h"
 #include <errno.h>

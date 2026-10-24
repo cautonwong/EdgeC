@@ -14,6 +14,9 @@
 #include <stdatomic.h>
 
 #include "edge_log.h"
+// Provides app_manifest_t. The manifest persistence helpers in this file are the
+// remaining reason edge_infra depends on edge_mgmt; tracked as bounded-context debt
+// in #414 (they belong with the app manager, not with the storage engine).
 #include "edge_app_mgr.h"
 
 // 数据库架构版本 (V5: 支持 App Registry 持久化)
@@ -294,26 +297,21 @@ sqlite_svc_t *sqlite_svc_create_in(sqlite_svc_storage_t *storage, uv_loop_t *loo
     sqlite3_exec(svc->db, "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA temp_store=MEMORY; PRAGMA wal_autocheckpoint=1000;", NULL, NULL, NULL);
     _migrate_schema(svc);
     if (cfg->strategy == STRATEGY_SERIES || cfg->strategy == STRATEGY_SHARDING) {
+        /* Caller-allocated storage contract: a placement constructor must not fall back
+         * to the heap. Missing buffers are a programming error, not a reason to malloc
+         * (#411). `sqlite_svc_create()` keeps the owning variant for dynamic use. */
+        if (!active_buf_mem || active_capacity <= 0 || !flush_buf_mem || flush_capacity <= 0) {
+            sqlite3_close(svc->db);
+            svc->db = NULL;
+            return NULL;
+        }
         svc->active_buf = &svc->static_active_buf;
         svc->flush_buf = &svc->static_flush_buf;
-        int bsize = cfg->batch_size > 0 ? cfg->batch_size : 100;
-        if (active_buf_mem && active_capacity > 0) {
-            svc->active_buf->buffer = active_buf_mem;
-            svc->active_buf->capacity = active_capacity;
-            svc->are_buffers_allocated = false;
-        } else {
-            svc->active_buf->buffer = malloc(sizeof(PipeMsg) * (size_t)bsize);
-            svc->active_buf->capacity = bsize;
-            svc->are_buffers_allocated = true;
-        }
-        if (flush_buf_mem && flush_capacity > 0) {
-            svc->flush_buf->buffer = flush_buf_mem;
-            svc->flush_buf->capacity = flush_capacity;
-        } else {
-            svc->flush_buf->buffer = malloc(sizeof(PipeMsg) * (size_t)bsize);
-            svc->flush_buf->capacity = bsize;
-            svc->are_buffers_allocated = true;
-        }
+        svc->active_buf->buffer = active_buf_mem;
+        svc->active_buf->capacity = active_capacity;
+        svc->flush_buf->buffer = flush_buf_mem;
+        svc->flush_buf->capacity = flush_capacity;
+        svc->are_buffers_allocated = false;
         uv_mutex_init(&svc->buf_lock);
         uv_timer_init(loop, &svc->flush_timer);
         svc->flush_timer.data = svc;

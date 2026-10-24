@@ -1,0 +1,8 @@
+# Shrink-only violation ledger (#411). Regenerate with --update-baseline.
+# Format: <path>|<RULE_ID>|<scope>[|<owning-issue>]
+# This file may only shrink. Removing an entry is done by fixing the code.
+modules/edge_algo/src/math/dsp_algo.c|LARGE_BUFFER|col_stack|#412
+modules/edge_algo/src/math/dsp_algo.c|LARGE_BUFFER|stack_tmp|#412
+modules/edge_algo/src/math/linalg_builtin.c|LARGE_BUFFER|stack_a|#412
+modules/edge_infra/storage/edge_telemetry_store.c|LARGE_BUFFER|comp_buf|#412
+modules/edge_stream/src/wasm_runtime/wasm_mgr.c|LARGE_BUFFER|sig_path|#412

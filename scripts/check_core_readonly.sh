@@ -22,7 +22,7 @@ UNAUTHORIZED_CHANGES=()
 if [ -n "$CHANGED_CORE_FILES" ]; then
     while IFS= read -r file; do
         [ -z "$file" ] && continue
-        if [ -f "$WHITELIST_FILE" ] && grep -v '^[[:space:]]*#' "$WHITELIST_FILE" | grep -v '^[[:space:]]*$' | grep -Fxq "$file"; then
+        if [ -f "$WHITELIST_FILE" ] && sed 's/#.*//; s/[[:space:]]*$//' "$WHITELIST_FILE" | grep -v '^[[:space:]]*$' | grep -Fxq "$file"; then
             echo "ℹ️  [ARCH-GATE INFO] Approved whitelist exemption for: $file"
         else
             UNAUTHORIZED_CHANGES+=("$file")

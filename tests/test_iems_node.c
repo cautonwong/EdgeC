@@ -169,6 +169,58 @@ static void test_iems_node_fire_safety_trip(void **state) {
     assert_float_equal(msg.payload.val.f, 0.0, 0.001);
 }
 
+/* 6. 验证控制环路延迟统计与看门狗超时降级 (AEP-407) */
+static void test_iems_node_control_loop_latency_watchdog(void **state) {
+    test_fixture_t *fix = (test_fixture_t *)*state;
+    iems_node_t *node = fix->node;
+
+    // 1. 验证默认看门狗配置 (10ms = 10000us)
+    iems_loop_watchdog_stats_t stats;
+    assert_int_equal(iems_node_get_watchdog_stats(node, &stats), 0);
+    assert_int_equal(stats.watchdog_budget_us, 10000);
+    assert_false(stats.watchdog_degraded);
+    assert_int_equal(stats.watchdog_trips, 0);
+
+    // 2. 正常工况下连续调度并度量延迟分布 (50 轮循环)
+    iems_node_update_bms_rack(node, 1, 750.0, 0.0, 60.0, 25.0);
+    for (int i = 0; i < 50; i++) {
+        double actual_kw = 0.0;
+        int rc = iems_node_dispatch_power(node, 100.0 + (double)i, &actual_kw);
+        assert_int_equal(rc, 0);
+        assert_float_equal(actual_kw, (float)(100.0 + (double)i), 0.001f);
+    }
+
+    assert_int_equal(iems_node_get_watchdog_stats(node, &stats), 0);
+    assert_false(stats.watchdog_degraded);
+    assert_int_equal(stats.watchdog_trips, 0);
+    assert_true(stats.max_cycle_us < 10000);  // 远低于 10ms 工业安全预算
+
+    // 3. 注入看门狗超限条件 (budget = 0 强制触发超时)
+    assert_int_equal(iems_node_set_watchdog_budget(node, 0), 0);
+    double degraded_kw = -1.0;
+    int rc = iems_node_dispatch_power(node, 50.0, &degraded_kw);
+    // 第一步超限完成并触发看门狗置位
+    assert_int_equal(iems_node_get_watchdog_stats(node, &stats), 0);
+    assert_true(stats.watchdog_degraded);
+    assert_true(stats.watchdog_trips >= 1);
+
+    // 4. 处于超时降级状态时，后续写调度必须被拒绝 (-4) 并强制零功率
+    rc = iems_node_dispatch_power(node, 80.0, &degraded_kw);
+    assert_int_equal(rc, -4);
+    assert_float_equal(degraded_kw, 0.0, 0.001);
+
+    // 5. 恢复安全预算并重置降级状态
+    assert_int_equal(iems_node_set_watchdog_budget(node, 10000), 0);
+    assert_int_equal(iems_node_reset_watchdog_degrade(node), 0);
+    assert_int_equal(iems_node_get_watchdog_stats(node, &stats), 0);
+    assert_false(stats.watchdog_degraded);
+
+    // 恢复后可正常调度
+    rc = iems_node_dispatch_power(node, 60.0, &degraded_kw);
+    assert_int_equal(rc, 0);
+    assert_float_equal(degraded_kw, 60.0, 0.001);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_iems_node_assembly, setup_node, teardown_node),
@@ -176,6 +228,7 @@ int main(void) {
         cmocka_unit_test_setup_teardown(test_iems_node_soc_boundaries, setup_node, teardown_node),
         cmocka_unit_test_setup_teardown(test_iems_node_bms_invariants, setup_node, teardown_node),
         cmocka_unit_test_setup_teardown(test_iems_node_fire_safety_trip, setup_node, teardown_node),
+        cmocka_unit_test_setup_teardown(test_iems_node_control_loop_latency_watchdog, setup_node, teardown_node),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

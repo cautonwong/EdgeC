@@ -10,8 +10,6 @@
 
 #include "edge_log.h"
 
-/* Global fallback for legacy modules referencing g_dcu_inventory */
-dcu_inventory_t g_dcu_inventory = {0};
 
 struct dcu_node_s {
     uv_loop_t *loop;
@@ -110,7 +108,6 @@ dcu_node_t *dcu_node_create(uv_loop_t *loop, const dcu_node_config_t *cfg) {
 
         /* 3. Load Smart Meter Inventory from Storage */
         dcu_inventory_load_from_db(&node->inventory, node->cfg.db_path);
-        g_dcu_inventory = node->inventory;
     }
 
     /* 4. Configure Domain Event Objects */

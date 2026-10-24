@@ -1,0 +1,9 @@
+# Shrink-only violation ledger (#411). Regenerate with --update-baseline.
+# Format: <path>|<RULE_ID>|<scope>[|<owning-issue>]
+# This file may only shrink. Removing an entry is done by fixing the code.
+modules/edge_algo/src/math/radar_algo.c|RT_ALLOC|radar_tracker_update|#412
+modules/edge_io/src/rest_server.c|RT_ALLOC|rest_dispatch|#412
+modules/edge_stream/src/js_stage.c|RT_ALLOC|js_stage_proc|#412
+modules/edge_stream/src/stage_ecg_anomaly.c|RT_ALLOC|_ecg_anomaly_proc|#412
+modules/edge_stream/src/stage_wavelet_anomaly.c|RT_ALLOC|_wavelet_proc|#412
+modules/edge_stream/src/standard_stages.c|RT_ALLOC|_sink_proc|#412

@@ -27,6 +27,13 @@ NON_ALIGNED_STORAGE_PAT = re.compile(
 )
 
 CREATE_IN_PAT = re.compile(r'^\s*(\w+)\s*\*\s*(\w+_create_in)\s*\(\s*(\w+_storage_t)\s*\*\s*(\w+)')
+
+# Whole-signature + opening brace, so the body can be brace-matched as a unit.
+CREATE_IN_BODY_PAT = re.compile(
+    r'\w+\s*\*\s*(\w+_create_in)\s*\([^;{)]*\w+_storage_t\s*\*\s*\w*[^;{)]*\)\s*\{'
+)
+
+ALLOC_CALL_PAT = re.compile(r'\b(?:malloc|calloc|realloc|valloc|aligned_alloc|strdup|strndup)\s*\(')
 STATIC_ASSERT_STORAGE_PAT = re.compile(r'_Static_assert\s*\(\s*sizeof\s*\(\s*struct\s+\w+\s*\)\s*<=\s*sizeof\s*\(\s*(\w+_storage_t)\s*\)')
 
 PRUNE_DIRS = {".git", ".local", ".venv", ".vscode", ".code-review-graph", "build", "third-party", "node_modules", "docs", "web", "docker"}
@@ -86,33 +93,35 @@ def check_directory(target_dir):
         for m in STATIC_ASSERT_STORAGE_PAT.finditer(c_content):
             source_static_asserts.add(m.group(1))
 
-        # Check for malloc/calloc calls inside _create_in functions
-        lines = c_content.split('\n')
-        in_create_in = False
-        brace_depth = 0
-        create_in_name = ""
-
-        for line_idx, line in enumerate(lines, 1):
-            clean_line = re.sub(r'//.*', '', line)
-            
-            if not in_create_in:
-                m_create = CREATE_IN_PAT.search(clean_line)
-                if m_create:
-                    in_create_in = True
-                    brace_depth = clean_line.count('{') - clean_line.count('}')
-                    create_in_name = m_create.group(2)
-                    continue
-
-            if in_create_in:
-                brace_depth += clean_line.count('{') - clean_line.count('}')
-                if re.search(r'\b(?:malloc|calloc|realloc|valloc|aligned_alloc)\s*\(', clean_line):
-                    violations.append({
+        # Check for malloc/calloc calls inside _create_in functions.
+        # Scan the real function body by brace matching instead of per line: the
+        # previous line-based version reset brace_depth on the signature line and
+        # then `continue`d, so a one-line body
+        # `void *f_create_in(storage_t *s) { return malloc(32); }` was never
+        # inspected (#410 audit §7, probe 4).
+        for m in CREATE_IN_BODY_PAT.finditer(c_content):
+            body_start = m.end() - 1  # position of '{'
+            depth = 0
+            i = body_start
+            while i < len(c_content):
+                ch = c_content[i]
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        break
+                i += 1
+            body = c_content[body_start:i]
+            if ALLOC_CALL_PAT.search(body):
+                line_no = c_content.count("\n", 0, body_start) + 1
+                violations.append(
+                    {
                         "file": rel_path,
-                        "line": line_idx,
-                        "rule": f"Placement constructor `{create_in_name}` cannot call dynamic heap memory allocation."
-                    })
-                if brace_depth <= 0:
-                    in_create_in = False
+                        "line": line_no,
+                        "rule": f"Placement constructor `{m.group(1)}` cannot call dynamic heap memory allocation.",
+                    }
+                )
 
     # Ensure every declared storage placeholder has a corresponding _Static_assert
     for st_name, h_paths in declared_storages.items():

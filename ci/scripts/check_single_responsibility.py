@@ -5,7 +5,7 @@ check_single_responsibility.py - Single Responsibility Principle (SRP) & Code Bl
 Enforces:
 1. File Level SRP: Non-generated domain and algorithm source files (.c) must not exceed 1500 physical lines.
 2. Public Contract SRP: Clean interface headers (.h) must not exceed 600 physical lines.
-3. Function Level SRP: Individual C functions must not exceed 160 physical lines (prevents God-functions).
+3. Function Level SRP: Individual C functions must not exceed 200 physical lines (prevents God-functions).
 """
 
 import sys

@@ -1,0 +1,8 @@
+# Shrink-only violation ledger (#411). Regenerate with --update-baseline.
+# Format: <path>|<RULE_ID>|<scope>[|<owning-issue>]
+# This file may only shrink. Removing an entry is done by fixing the code.
+modules/edge_algo/src/freeze_logic.c|CROSS_CONTEXT|sqlite_service.h|#414
+modules/edge_infra/storage/sqlite_service.c|CROSS_CONTEXT|edge_app_mgr.h|#414
+modules/edge_stream/src/stage_vpp_logger.c|CROSS_CONTEXT|sqlite_service.h|#414
+modules/edge_stream/src/standard_stages.c|CROSS_CONTEXT|sqlite_service.h|#414
+modules/edge_stream/src/stream_engine.c|CROSS_CONTEXT|sqlite_service.h|#414

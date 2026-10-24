@@ -1,0 +1,15 @@
+# Ceiling on tracked architecture debt (#411).
+#
+# A guard's ledger in this directory may not hold more entries than the number
+# below. Lowering a number is progress. Raising one is an architecture decision
+# and must be justified in the PR that does it - which is the only reason this
+# file is hand-maintained instead of generated: `--update-baseline` cannot
+# silently grow the debt it exists to cap.
+#
+# Keys are the guard names the scripts pass to guard_baseline.apply().
+PLANE_ISOLATION_GUARD=5
+AGGREGATE_BOUNDARY_GUARD=5
+COMPOSITION_ROOT_GUARD=5
+OCP_PLUGIN_GUARD=1
+ZERO_DYNAMIC_MEMORY_GUARD=6
+STACK_USAGE_GUARD=5

@@ -54,7 +54,7 @@ bus_orchestrator_t *bus_orchestrator_create_in(bus_orchestrator_storage_t *stora
     ctx->hub = hub;
     ctx->arb = arb;
     ctx->drv_mgr = mgr;
-    ctx->loop = hub->loop;
+    ctx->loop = datahub_get_loop(hub);
     ctx->max_buses = (max_buses > ARBITER_MAX_BUSES) ? ARBITER_MAX_BUSES : max_buses;
     ctx->pool = net_buf_pool_new(pool_size, (uint16_t)buf_size, 0);
 

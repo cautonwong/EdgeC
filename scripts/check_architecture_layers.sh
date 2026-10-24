@@ -106,38 +106,56 @@ for d in "${PROTECTED_DRIVERS[@]}"; do
     fi
 done
 
-# 7. 契约代码零漂移检查
-echo "  [7/11] Verifying contract drift gate..."
+# 7. modules 目录公共头文件严禁包含产品前缀 (dcu_*, iems_*, smartbox_*) 污染 (Issue #402)
+echo "  [7/12] Checking modules/ public headers for product namespace contamination..."
+for h in "${REPO_ROOT}"/modules/*/include/*.h; do
+    [ -f "$h" ] || continue
+    base=$(basename "$h")
+    if [[ "$base" =~ ^(dcu_|iems_|smartbox_) ]]; then
+        echo "    ❌ VIOLATION: Product-prefixed header $base found in modules public API (${h})"
+        VIOLATIONS=$((VIOLATIONS + 1))
+    fi
+done
+
+# 8. 契约代码零漂移检查
+echo "  [8/12] Verifying contract drift gate..."
 if ! "${SCRIPT_DIR}/check_generated_drift.sh" >/dev/null 2>&1; then
     echo "    ❌ VIOLATION: Generated contracts drift check failed"
     VIOLATIONS=$((VIOLATIONS + 1))
 fi
 
-# 8. 聚合根物理封装与防越权解引用检查
-echo "  [8/11] Checking aggregate root boundary encapsulation..."
+# 9. 聚合根物理封装与防越权解引用检查
+echo "  [9/12] Checking aggregate root boundary encapsulation..."
 if ! python3 "${REPO_ROOT}/ci/scripts/check_aggregate_boundary.py" --root "${REPO_ROOT}" >/dev/null 2>&1; then
     echo "    ❌ VIOLATION: Aggregate root boundary violation detected"
     VIOLATIONS=$((VIOLATIONS + 1))
 fi
 
-# 9. 组合根排他性装配检查
-echo "  [9/11] Checking composition root exclusivity..."
+# 10. 组合根排他性装配检查
+echo "  [10/12] Checking composition root exclusivity..."
 if ! python3 "${REPO_ROOT}/ci/scripts/check_composition_root.py" --root "${REPO_ROOT}" >/dev/null 2>&1; then
     echo "    ❌ VIOLATION: Composition root exclusivity violation detected"
     VIOLATIONS=$((VIOLATIONS + 1))
 fi
 
-# 10. 开闭原则查表化分发检查
-echo "  [10/11] Checking Open-Closed Principle (OCP)..."
+# 11. 开闭原则查表化分发检查
+echo "  [11/12] Checking Open-Closed Principle (OCP)..."
 if ! python3 "${REPO_ROOT}/ci/scripts/check_open_closed_plugins.py" --root "${REPO_ROOT}" >/dev/null 2>&1; then
     echo "    ❌ VIOLATION: Monolithic switch detected in core dispatch logic"
     VIOLATIONS=$((VIOLATIONS + 1))
 fi
 
-# 11. 单一职责原则检查
-echo "  [11/11] Checking Single Responsibility Principle (SRP)..."
+# 12. 单一职责原则检查
+echo "  [12/13] Checking Single Responsibility Principle (SRP)..."
 if ! python3 "${REPO_ROOT}/ci/scripts/check_single_responsibility.py" --root "${REPO_ROOT}" >/dev/null 2>&1; then
     echo "    ❌ VIOLATION: Single Responsibility bounds exceeded"
+    VIOLATIONS=$((VIOLATIONS + 1))
+fi
+
+# 13. 业务全局实例排查 (禁止 g_dcu_inventory 等破坏聚合根自治的全局遗留) (Issue #404)
+echo "  [13/13] Checking for legacy business global state (g_dcu_inventory)..."
+if grep -rn --exclude-dir=build --exclude-dir=.git --exclude-dir=.venv --include="*.c" --include="*.h" '\<g_dcu_inventory\>' "${REPO_ROOT}/cmd" "${REPO_ROOT}/modules" >/dev/null 2>&1; then
+    echo "    ❌ VIOLATION: Found illegal reference to legacy g_dcu_inventory global instance"
     VIOLATIONS=$((VIOLATIONS + 1))
 fi
 

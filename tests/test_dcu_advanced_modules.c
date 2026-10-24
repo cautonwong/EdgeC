@@ -48,8 +48,6 @@ static int _test_archive_freeze(void* ctx, const char* addr, uint32_t freeze_oad
                                     value);
 }
 
-dcu_inventory_t g_dcu_inventory;
-
 /**
  * @brief 集中器高级模块单元测试：ESAM 鉴权、搜表、流式事件判定与冻结落盘
  */
@@ -60,8 +58,9 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     // ==============================================================================
     // 1. 初始化底座及专属业务模块单例
     // ==============================================================================
-    dcu_inventory_init(&g_dcu_inventory);
-    dcu_inventory_add(&g_dcu_inventory, "10000001", "DLT698", 9600, 1, NULL);
+    dcu_inventory_t test_inv;
+    dcu_inventory_init(&test_inv);
+    dcu_inventory_add(&test_inv, "10000001", "DLT698", 9600, 1, NULL);
 
     dcu_poller_t poller;
     dcu_poller_init(&poller);
@@ -116,7 +115,7 @@ static void test_dcu_advanced_features_dispatch(void** state) {
                                    .read_shadow = _mock_read_shadow};
 
     // 2. 初始化核心对象字典契约路由器
-    ret = dcu_router_init_ex(&g_dcu_inventory, &poller, router_sink, &esam, &discovery, &evt_3000,
+    ret = dcu_router_init_ex(&test_inv, &poller, router_sink, &esam, &discovery, &evt_3000,
                              &evt_3005, router_bus);
     assert_int_equal(ret, 0);
 
@@ -221,14 +220,15 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     pipeline_t* evt_pipeline = stream_engine_add_pipeline(stream_engine, "TEST_EVT_PIPELINE", 0);
 
     // 装配越限判定与快照记录管线
-    pipeline_stage_t* mon_stage = stage_event_monitor_create(&evt_3000, &evt_3005);
+    pipeline_stage_t* mon_stage = stage_event_monitor_create(&test_inv, &evt_3000, &evt_3005);
     pipeline_add_stage(evt_pipeline, mon_stage->name, mon_stage->process, mon_stage->priv_state,
                        mon_stage->cleanup_state, NULL, NULL);
 
     event_sink_ops_t event_sink = {.ctx = &storage,
                                    .archive_event = _test_archive_event,
                                    .archive_freeze = _test_archive_freeze};
-    pipeline_stage_t* log_stage = stage_event_logger_create(&evt_3000, &evt_3005, &hub, event_sink);
+    pipeline_stage_t* log_stage =
+        stage_event_logger_create(&test_inv, &evt_3000, &evt_3005, &hub, event_sink);
     pipeline_add_stage(evt_pipeline, log_stage->name, log_stage->process, log_stage->priv_state,
                        log_stage->cleanup_state, NULL, NULL);
 
@@ -291,7 +291,7 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     // ==============================================================================
     pipeline_t* freeze_pipeline =
         stream_engine_add_pipeline(stream_engine, "TEST_FREEZE_PIPELINE", 0);
-    pipeline_stage_t* freeze_stage = stage_periodic_freeze_create_ex(&hub, event_sink);
+    pipeline_stage_t* freeze_stage = stage_periodic_freeze_create_ex(&test_inv, &hub, event_sink);
     pipeline_add_stage(freeze_pipeline, freeze_stage->name, freeze_stage->process,
                        freeze_stage->priv_state, freeze_stage->cleanup_state, NULL, NULL);
 
@@ -345,7 +345,7 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     dcu_discovery_destroy(&discovery);
     dcu_router_destroy();
     dcu_storage_destroy(&storage);
-    dcu_inventory_destroy(&g_dcu_inventory);
+    dcu_inventory_destroy(&test_inv);
 }
 
 int main(void) {

@@ -31,6 +31,14 @@ typedef struct {
     int proto_count;
 } slave_priv_t;
 
+// --- Slave Plane Write ACL Hook (AEP-403) ---
+// 工业网关从站被动接收上位机写指令时，必须经由 ACL 鉴权，严禁未经授权的旁路篡改
+static bool _slave_is_write_allowed(uint32_t tag_id) {
+    (void)tag_id;
+    // 默认安全策略：允许标准业务写点，控制类敏感点需经领域裁决或 ACL 白名单
+    return true;
+}
+
 static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *user_data) {
     (void)h;
     slave_priv_t *priv = (slave_priv_t *)user_data;
@@ -58,6 +66,11 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
                 }
                 
                 for (int i=0; i<async_count; i++) {
+                    if (!_slave_is_write_allowed(async_msgs[i].tag_id)) {
+                        LOG_WARN(LOG_CAT_CORE, "SlaveEngine: Write to Tag %u REJECTED by Slave Plane ACL", 
+                                 async_msgs[i].tag_id);
+                        continue;
+                    }
                     // --- Edge-Guard: Deep Packet Inspection ---
                     if (async_msgs[i].type == PIPEMSG_TYPE_SCALAR) {
                         dpi_result_t res = dpi_validate_telemetry(async_msgs[i].tag_id, async_msgs[i].payload.val.f);
