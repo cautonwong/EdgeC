@@ -1,0 +1,14 @@
+# 任务文件:iems 的验收。
+#
+# launch 里必须有 ${PORT}:平台的就绪探针要 TCP connect 到它。iems 不认
+# --port,只认 EDGE_REST_PORT,所以由产品壳 iems_product.py 转换 —— 壳同时在
+# /tmp/vbus0.sock 上当 Modbus 从站,并把收到的请求记进 bus.json。
+id: iems-acceptance
+product: iems
+launch:
+  - ${PYTHON}
+  - iems_product.py
+  - --port
+  - ${PORT}
+devices: configs/devices.yaml
+select: tag:验收

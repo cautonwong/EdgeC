@@ -1,0 +1,8 @@
+# iems 的清单也是空的 —— 台架设备由产品壳在运行时托管,不是平台驱动去读的设备。
+#
+# 链路是:台架当 Modbus 从站(/tmp/vbus0.sock)→ iems 作为主站轮询 → 断言面是
+# iems 自己的 REST(/api/v1/data/latest/<tag>)。平台不参与收发,所以没有可由
+# 平台点表描述的 dut;硬塞一台会对不上,报告里会多一个永远没读数的设备。
+criteria_profiles: {}
+models: {}
+devices: []
