@@ -59,7 +59,8 @@ def rest(port: int, path: str, timeout: float = 3.0) -> dict:
             return json.loads(resp.read().decode("utf-8") or "{}")
     except urllib.error.HTTPError as exc:
         return {"http_status": exc.code, "body": exc.read().decode("utf-8", "replace")}
-    except (urllib.error.URLError, TimeoutError) as exc:
+    except OSError as exc:  # URLError/超时/ConnectionReset 都是它的子类
+        # ConnectionReset(产品刚起、监听还没完全就绪)也要能重试,不能炸穿等待循环
         return {"error": str(exc)}
 
 

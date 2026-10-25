@@ -81,6 +81,11 @@ echo "平台版本: ${HAVE:0:12}${PIN:+ (锁定 ${PIN:0:12})}"
 echo "产品: ${PRODUCTS[*]}"
 echo
 
+# 整轮清空报告目录,不只是逐个产品清:gate 会把 $REPORTS 下所有产品的 summary
+# 一起算,只跑一个产品时(`run.sh dcu`)上一轮别的产品的证据会混进这次门禁。
+rm -rf "$REPORTS"
+mkdir -p "$REPORTS"
+
 for product in "${PRODUCTS[@]}"; do
     project="$HERE/$product"
     task="$(ls "$project"/tasks/*.yaml 2>/dev/null | head -1 || true)"
@@ -89,6 +94,12 @@ for product in "${PRODUCTS[@]}"; do
         continue
     fi
     echo "[$product] $(basename "$task")"
+    # 每轮清空该产品的报告目录:它是一次运行的输出,不是累加日志。
+    # 不清会串轮次 —— 上一轮遗留的 stop.request 会让本轮 0 用例直接中断,
+    # 上一轮遗留的 <设备>.jsonl 会把旧读数带进本轮的判据(实测过一次:4 条用例
+    # 全绿,却被上一轮的 电压=0.0 判成设备不合格)。
+    rm -rf "$REPORTS/$product"
+    mkdir -p "$REPORTS/$product"
     set +e
     "$PYTHON" "$PLATFORM/tools/run_task.py" "$task" \
         --root "$project" --evidence-dir "$REPORTS/$product"

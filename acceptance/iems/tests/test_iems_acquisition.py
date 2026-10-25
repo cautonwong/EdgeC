@@ -64,11 +64,16 @@ def test_iems_polls_the_bench_bus():
         f"iems 启动后没有向 {SOCK} 发过任何 Modbus 请求 —— "
         "南向轮询没跑起来(检查 sqlite 里的 poll_tasks/inventory 与 matrix_meta)"
     )
-    # 1 秒一轮;给到 2 帧才能说"周期在跑",1 帧可能是启动时那一下。
-    time.sleep(2.5)
-    again = bus_seen()
-    assert again["requests"] > seen["requests"], (
-        f"只发了 {seen['requests']} 帧就停了,不是周期轮询: {BUS_LOG}"
+    # 1 秒一轮,但启动后第一轮可能晚几秒(总线 connect 重试 500ms + 任务加载)。
+    # 所以这里等到帧数真的增加,而不是赌一个固定窗口 —— 固定窗口会把"起步慢"
+    # 记成"不轮询",这类假红我们已经在台架上踩过。
+    deadline = time.time() + 10.0
+    while time.time() < deadline:
+        if bus_seen()["requests"] > seen["requests"]:
+            return
+        time.sleep(0.5)
+    pytest.fail(
+        f"10 秒内帧数没有增加(停在 {seen['requests']} 帧),不是周期轮询: {BUS_LOG}"
     )
 
 
