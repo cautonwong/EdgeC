@@ -12,6 +12,10 @@
 #include "edge_periodic_clock.h"
 #include "queue.h"
 
+// 表级状态的开放寻址表容量取档案上限的 2 倍：载荷因子 ≤ 0.5，探针链不会退化成长链扫描。
+// 墓碑只在探针路过的位置回收，容量不足时它们会把表占满。
+#define METER_TABLE_CAP (MAX_METERS * 2)
+
 // 前向声明驱动管理器，避免头文件循环依赖
 struct driver_manager_s;
 typedef struct driver_manager_s driver_manager_t;
@@ -103,6 +107,18 @@ typedef struct {
 #include "driver_manager.h"
 
 
+/* 表级轮询聚合：连败计数与熔断状态归 poller 这一个根，不归通道。
+ * 以表地址为键（档案删除会重排数组下标，下标不是稳定身份），开放寻址。 */
+typedef struct {
+    char address[MAX_ADDR_LEN]; // 与 production_meter_t.address 同宽
+    uint32_t consecutive_fails;
+    uint32_t gen; // 档案存活代际，用于退休已删表的条目
+    uint8_t channel_id;
+    bool breaker_open;
+    bool tracked;
+    bool tombstone; // 已退休：探测链必须跳过它，不能当作空槽终止
+} dcu_meter_poll_state_t;
+
 typedef struct {
     dcu_task_unit_t tasks[MAX_TASKS];
     uint16_t task_count;
@@ -120,6 +136,13 @@ typedef struct {
     // [AEP-401 & AEP-399] 通道级背压、in-flight 约束与熔断可观测性
     edge_poll_stats_t channel_stats[DCU_MAX_CHANNELS];
     edge_poll_policy_t channel_policies[DCU_MAX_CHANNELS];
+    // 通道级跟踪/熔断计数：由表级状态变更点维护，避免每次取统计都扫全表
+    uint16_t ch_tracked[DCU_MAX_CHANNELS];
+    uint16_t ch_broken[DCU_MAX_CHANNELS];
+
+    dcu_meter_poll_state_t meter_poll_state[METER_TABLE_CAP];
+    uint32_t state_gen;     // 档案变更代际
+    uint32_t last_inv_rev;  // 上次 GC 时的档案版本号
 } dcu_poller_t;
 
 int dcu_poller_init(dcu_poller_t* poller);
@@ -149,6 +172,9 @@ int dcu_poller_set_channel_policy(dcu_poller_t* poller, uint32_t channel_id,
  */
 int dcu_poller_get_channel_stats(dcu_poller_t* poller, uint32_t channel_id,
                                  edge_poll_stats_t* out_stats);
+
+/* 表级熔断可观测（按表地址查，不暴露聚合内部结构） */
+bool dcu_poller_meter_breaker_open(const dcu_poller_t* poller, const char* address);
 
 /**
  * @brief 重置通道熔断状态，恢复在线调度 (AEP-401)
