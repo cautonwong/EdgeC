@@ -1,0 +1,13 @@
+# 掉链用例:服务 12 帧后台架主动断开南向连接,iems 不许自己重连、不许把旧值
+# 当新值继续发布、也不许退出。
+id: iems-link-loss
+product: iems
+launch:
+  - ${PYTHON}
+  - iems_product.py
+  - --port
+  - ${PORT}
+  - --drop-after
+  - "12"
+devices: configs/devices.yaml
+select: case:I_00_00_01_000030

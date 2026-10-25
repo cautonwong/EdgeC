@@ -71,8 +71,16 @@ fi
 REPORTS="$ROOT/reports/acceptance"
 # DCU 等产品在 /tmp 下挂 unix socket:上一轮被杀掉会留下同名文件,下一轮 connect 全失败
 # 却"看起来跑通了"(产品侧静默跳过)。开跑前和收尾各清一次。
-_clean_sockets() { rm -f /tmp/rs485_*.sock; }
+_clean_sockets() {
+  # 每轮开始/结束都清:上一轮被 kill 的壳可能把从站 socket 留在 /tmp,
+  # DCU 会连到那个死 socket 然后静默跳过 —— 表现为"总线全空"的假红。
+  rm -f /tmp/rs485_*.sock
+  # 产品壳泄漏(平台只杀壳,壳的子进程可能还活着并占着端口/总线),
+  # 不清掉会让下一轮的用例连到上一轮的进程上 —— 这是已经踩过的假绿。
+  pkill -f "acceptance/.*/(iems_product|dcu_product|gateway)\.py" 2>/dev/null || true
+}
 trap _clean_sockets EXIT
+_clean_sockets
 _clean_sockets
 
 echo "平台: $PLATFORM"

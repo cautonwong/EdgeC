@@ -38,7 +38,21 @@ from testplatform.protocol import modbus_rtu
 
 _lock = threading.Lock()
 _fault = {"kind": None, "left": 0}
+# 掉链:服务 N 帧后主动断掉这条南向连接,模拟现场断线(产品不许自己重连)
+_drop = {"after": 0, "done": False}
 _seen = {"requests": 0, "first_request_hex": None, "addresses": []}
+
+
+def _should_drop() -> bool:
+    """第 N 帧之后断链。只在锁内判一次,之后的帧不再更新计数。"""
+    with _lock:
+        if not _drop["after"] or _drop["done"] or _seen["requests"] < _drop["after"]:
+            return False
+        _drop["done"] = True
+        (RUN_DIR / "dropped.json").write_text(
+            json.dumps({"requests": _seen["requests"]}, ensure_ascii=False),
+            encoding="utf-8")
+        return True
 
 
 def _record(request: bytes, address: int) -> None:
@@ -99,6 +113,9 @@ async def _serve(reader, writer):
                 _fail("parse_read_request", exc)
                 continue
             _record(head, address)
+            if _should_drop():
+                # 不回帧、直接关连接:iems 侧看到的就是链路断了
+                break
             if unit != SLAVE_ID:
                 break
             payload = b"".join(
@@ -182,14 +199,18 @@ def _north_bridge() -> None:
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     # 上一轮的壳刚死时端口还没完全放出来:重试 10 秒,别让一次 bind 失败就
     # 把整条验收判成"产品没起来"(实测踩过,假红)。
-    deadline = time.time() + 10.0
+    deadline = time.time() + 30.0
     while True:
         try:
             server.bind(("127.0.0.1", BRIDGE_PORT))
             break
-        except OSError:
+        except OSError as exc:
             if time.time() > deadline:
-                raise
+                # 台架自己起不来:留痕,让用例把原因说清,而不是炸在后台线程里
+                (RUN_DIR / "bridge_error.json").write_text(
+                    json.dumps({"port": BRIDGE_PORT, "error": str(exc)}, ensure_ascii=False),
+                    encoding="utf-8")
+                return
             time.sleep(0.5)
     server.listen(8)
     while True:
@@ -228,15 +249,19 @@ def main() -> int:
     parser.add_argument("--fault", choices=["bad-crc", "slow", "silent"],
                         help="对前若干帧应答制造故障(故障注入用例用)")
     parser.add_argument("--fault-frames", type=int, default=2)
+    parser.add_argument("--drop-after", type=int, default=0,
+                        help="服务 N 帧后主动断开南向连接(链路断开用例用)")
     parser.add_argument("--expect-boot-fail", action="store_true",
                         help="不给任何总线/从站,产品应该启动失败而不是重连")
     args = parser.parse_args()
     if args.fault:
         _fault["kind"], _fault["left"] = args.fault, args.fault_frames
+    _drop["after"] = args.drop_after
 
     RUN_DIR.mkdir(parents=True, exist_ok=True)
     BUS_LOG.write_text(json.dumps(_seen), encoding="utf-8")
     (RUN_DIR / "faults.json").unlink(missing_ok=True)  # 上一轮的注入记录不能留
+    (RUN_DIR / "dropped.json").unlink(missing_ok=True)
     provision()
 
     if not args.expect_boot_fail:
@@ -319,8 +344,9 @@ def main() -> int:
             proc.wait()
         raise
     (RUN_DIR / "iems_exit.json").write_text(json.dumps({"code": code}), encoding="utf-8")
-    while True:
-        time.sleep(1)
+    # iems 是常驻服务:它自己退出了就等于失败。壳必须跟着退,把退出码交给平台
+    # —— 壳若留着自己活,平台会记成 platform_killed,崩了的进程反而没有结论。
+    raise SystemExit(0 if code == 0 else (code if code and code > 0 else 1))
 
 
 if __name__ == "__main__":

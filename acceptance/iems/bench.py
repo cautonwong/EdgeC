@@ -14,6 +14,7 @@ HERE = Path(__file__).resolve().parent
 RUN_DIR = Path(os.environ.get("IEMS_RUN_DIR") or "/tmp/edgec-iems-run")
 DB_PATH = RUN_DIR / "iems.db"
 BUS_LOG = RUN_DIR / "bus.json"
+DROPPED_LOG = RUN_DIR / "dropped.json"
 
 _CANDIDATES = [HERE.parents[1] / "build/products/iems/bin/iems"]
 # 可用 IEMS_BIN 指到另一个构建(验证别人分支时不用换掉本 worktree 的产物)
@@ -38,6 +39,14 @@ VOLTAGE_REGISTER = int(VOLTAGE * 10)
 # 端口写死是因为 devices.yaml 是静态清单,读不到 ${PORT};换端口两边都要改。
 NORTH_SOCK = "/tmp/iems_north_slave.sock"
 BRIDGE_PORT = 19211
+
+
+def dropped() -> dict:
+    """掉链用例的记录:第几帧之后台架主动断了南向连接。文件缺失 = 还没断。"""
+    try:
+        return json.loads(DROPPED_LOG.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
 
 
 def bus_seen() -> dict:

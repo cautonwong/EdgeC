@@ -10,10 +10,24 @@ from __future__ import annotations
 import pytest
 
 # import 组合根会连带 import 所有 driver 模块,让 @register_device 真的执行一遍。
+from testplatform.application.event_relay import EventEmitFailed, drain_device_events
+from testplatform.cases import case_of
 from testplatform.composition.root import TEST_INVALID_PREFIX, UpstreamFault  # noqa: F401
 from testplatform.config.loader import load_device_config
 from testplatform.config.manifest import parse_manifest
 from testplatform.drivers.registry import registered_types
+
+
+@pytest.fixture(autouse=True)
+def _drain_device_events_after_test(composition_root, event_sink, request):
+    """每条用例结束后把设备事件落进证据,并带上这条用例的 @case 身份。
+
+    少了这一步,读数会记成 case=None:失败时归因找不到对应的读数,只能判
+    「未落证据的失败」——结论落在"未完成"而不是"设备不合格"。
+    """
+    yield
+    events = drain_device_events(composition_root.all_drivers(), event_sink)
+    composition_root.record_evidence(identity=case_of(request.node), events=events)
 
 
 def _device_ids_of_type(config: pytest.Config, device_type: str) -> list[str]:
