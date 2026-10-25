@@ -28,6 +28,8 @@
 #include "edge_log.h"
 #include "edge_service.h"
 #include "io_executor.h"
+#include "mqtt_producer.h"
+#include "northbound_mgr.h"
 #include "sqlite_service.h"
 #include "stream_engine.h"
 
@@ -44,15 +46,6 @@ typedef struct {
 } sync_ctx_t;
 
 static sync_ctx_t g_sync_ctx;
-
-// Linker Stubs
-int northbound_mgr_start(void* mgr) {
-    (void)mgr;
-    return 0;
-}
-void northbound_mgr_stop(void* mgr) {
-    (void)mgr;
-}
 
 static void on_sig_async(uv_signal_t* handle, int sig) {
     (void)handle;
@@ -264,7 +257,27 @@ int main(int argc, char** argv) {
         }
     }
 
-    service_t* svc = service_new(loop, hub, arbiter_ctx, NULL, NULL, NULL, NULL);
+    // 北向：数据不发出去，采集等于没做。传输层由 edge_io 提供，组合根只负责装配。
+    // 主题身份走 env（`driver_sparkplug_b.c` 读取），MULTI-NODE 台架并发跑两台 DCU 不能撞主题。
+    static northbound_mgr_t g_north;
+    const char* mqtt_url = getenv("MQTT_BROKER");
+    if (!mqtt_url || !*mqtt_url) mqtt_url = "tcp://127.0.0.1:1883";
+    if (!getenv("MQTT_GROUP_ID")) setenv("MQTT_GROUP_ID", "EdgeOS", 1);
+    if (!getenv("MQTT_NODE_ID")) setenv("MQTT_NODE_ID", "DCU_Node_A", 1);
+    const char* node_id = getenv("MQTT_NODE_ID");
+    char mqtt_client_id[80];
+    snprintf(mqtt_client_id, sizeof(mqtt_client_id), "%s_%d", node_id, (int)getpid());
+    nb_source_ops_t nb_source = {
+        .ctx = hub,
+        .read_next = (int (*)(void*, uint64_t*, pipe_msg_t*))datahub_read_ring
+    };
+    nb_transport_ops_t nb_transport =
+        mqtt_producer_create(mqtt_url, mqtt_client_id);
+    northbound_mgr_init_ex(&g_north, nb_source, "DCU", NULL, nb_transport);
+    LOG_INFO(LOG_CAT_NB, "🌐 Northbound assembled: broker=%s group=%s node=%s", mqtt_url,
+             getenv("MQTT_GROUP_ID"), node_id);
+
+    service_t* svc = service_new(loop, hub, arbiter_ctx, NULL, NULL, NULL, &g_north);
     g_running_svc = svc;
 
     // [Safe Signals]
@@ -317,8 +330,12 @@ int main(int argc, char** argv) {
 
     bus_orchestrator_run(io_orch);
     int ret = service_run(svc);
+    // 先停北向线程再拆它读的 datahub，否则 uv 线程会读已释放的 hub。
+    northbound_mgr_stop(&g_north);
     dcu_bus_source_stop(bus_source); // 先停源再拆聚合根：源持有 hub/inv 指针
     bus_source = NULL;
     dcu_node_destroy(g_dcu_node);
+    northbound_mgr_destroy(&g_north);
+    mqtt_producer_destroy(&nb_transport);
     return ret;
 }
