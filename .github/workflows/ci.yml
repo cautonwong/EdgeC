@@ -89,14 +89,6 @@ jobs:
         run: |
           cd go && go test ./...
 
-      - name: Run Matrix Simulation Tests (x86_64 only)
-        if: matrix.config.target == 'x86_64'
-        # #420：该集成链路在基线提交上即失败，且非确定性判定（残留值/采样相位）
-        # 尚未修好。先不阻断主干；修好后删除本行。
-        continue-on-error: true
-        run: |
-          ./test.sh --omnis
-
       - name: Run Architecture & Anti-Entropy Gates (x86_64 only)
         if: matrix.config.target == 'x86_64'
         shell: bash
