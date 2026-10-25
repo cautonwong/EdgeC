@@ -30,6 +30,13 @@ typedef struct {
     const char *snap_path;
     const char *mqtt_url;
     int rest_port;
+    // 北向 Modbus 从站的 UDS 路径;NULL = 契约表里的 simulation_path(再空则退回
+    // /tmp/iems_north_slave.sock,仅第一条北向总线;第二条无路径会报错跳过)。
+    // 只覆盖**第一条** NORTHBOUND 总线,多条时其余按契约表各自的 simulation_path。
+    // 由组合根从环境变量读一次传进来,深层模块不再 getenv
+    const char *north_sock;
+    // UI 伴随通道的 UDS 路径;NULL = /tmp/iems_ui.sock
+    const char *ui_sock;
 } iems_app_config_t;
 
 /**

@@ -550,36 +550,78 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     int rest_port = (cfg && cfg->rest_port > 0) ? cfg->rest_port : 9091;
     rest_server_create(loop, app->svc, rest_port);
 
-    const char* ui_path = EDGE_UI_SOCKET_PATH;
+    const char* ui_path =
+        (cfg && cfg->ui_sock && cfg->ui_sock[0]) ? cfg->ui_sock : EDGE_UI_SOCKET_PATH;
     app->ui_srv = (uv_pipe_t*)malloc(sizeof(uv_pipe_t));
     uv_pipe_init(loop, app->ui_srv, 0);
     app->ui_srv->data = app;
     unlink(ui_path);
-    if (uv_pipe_bind(app->ui_srv, ui_path) == 0) {
-        uv_listen((uv_stream_t*)app->ui_srv, 128, on_ui_connect);
+    int ui_bind = uv_pipe_bind(app->ui_srv, ui_path);
+    int ui_listen =
+        (ui_bind == 0) ? uv_listen((uv_stream_t*)app->ui_srv, 128, on_ui_connect) : 0;
+    if (ui_bind == 0 && ui_listen == 0) {
         printf("\033[32m[IEMS-INIT] UI Companion Socket listening at %s\033[0m\n", ui_path);
+    } else {
+        // 路径太长/目录不存在/被占:UI 面板会看不到数据,得让现场直接看见原因
+        LOG_ERROR(LOG_CAT_CORE, "IEMS-INIT: UI Companion Socket FAILED at %s (bind=%s)", ui_path,
+                  uv_strerror(ui_bind));
+        if (ui_bind == 0) LOG_ERROR(LOG_CAT_CORE, "IEMS-INIT: UI listen FAILED: %s",
+                                    uv_strerror(ui_listen));
+        if (ui_bind == 0) unlink(ui_path);  // bind 成功、listen 失败会留下没人听的 socket 文件
+        uv_close((uv_handle_t*)app->ui_srv, (uv_close_cb)free);
+        app->ui_srv = NULL;
     }
 
+    int north_bound_seen = 0;
     for (uint32_t i = 0; i < conn_count; i++) {
         const edge_connectivity_t* c = &conns[i];
         if (strcmp(c->category, "NORTHBOUND") == 0 && c->id < MAX_VBUS) {
-            char env_key[32];
-            snprintf(env_key, sizeof(env_key), "OMNIS_BUS_%d_DEV", c->id);
-            const char* path = getenv(env_key);
-            if (!path) path = "/tmp/iems_north_slave.sock";
+            // cfg->north_sock 只覆盖第一条 NORTHBOUND(单总线是常态);其余条目用契约表
+            // 自带的 simulation_path,否则第二条会 unlink 掉第一条正在监听的 socket
+            bool from_env = (north_bound_seen == 0 && cfg && cfg->north_sock && cfg->north_sock[0]);
+            const char* path = NULL;
+            if (from_env) {
+                path = cfg->north_sock;
+            } else if (c->simulation_path && c->simulation_path[0]) {
+                path = c->simulation_path;
+                if (north_bound_seen > 0) {
+                    LOG_WARN(LOG_CAT_CORE,
+                             "IEMS-INIT: NORTHBOUND bus %d uses contract path %s "
+                             "(IEMS_NORTH_SOCK 只覆盖第一条北向总线)",
+                             (int)c->id, path);
+                }
+            } else if (north_bound_seen == 0) {
+                path = "/tmp/iems_north_slave.sock";
+            } else {
+                // 共用同一个 socket 会让后面的 unlink 掉前面正在监听的文件,宁可不监听
+                LOG_ERROR(LOG_CAT_CORE,
+                          "IEMS-INIT: NORTHBOUND bus %d has no path in contract table; skipped "
+                          "(refusing to share another bus's socket)",
+                          (int)c->id);
+                continue;
+            }
+            north_bound_seen++;
 
             app->north_srv[c->id] = (uv_pipe_t*)malloc(sizeof(uv_pipe_t));
             uv_pipe_init(loop, app->north_srv[c->id], 0);
             unlink(path);
 
-            if (uv_pipe_bind(app->north_srv[c->id], path) == 0 &&
-                uv_listen((uv_stream_t*)app->north_srv[c->id], 128, _on_north_connect) == 0) {
+            int nb_bind = uv_pipe_bind(app->north_srv[c->id], path);
+            int nb_listen = (nb_bind == 0)
+                                ? uv_listen((uv_stream_t*)app->north_srv[c->id], 128,
+                                            _on_north_connect)
+                                : nb_bind;
+            if (nb_bind == 0 && nb_listen == 0) {
                 app->north_ctx[c->id].bus_id = c->id;
                 app->north_ctx[c->id].bus_idx = c->id % MAX_VBUS;
                 app->north_srv[c->id]->data = &app->north_ctx[c->id];
                 app->bus_state[app->north_ctx[c->id].bus_idx] = BUS_STATE_LISTENING;
                 printf("\033[32m[IEMS-INIT] Northbound Slave LISTENING at %s\033[0m\n", path);
             } else {
+                LOG_ERROR(LOG_CAT_CORE,
+                          "IEMS-INIT: Northbound Slave FAILED at %s (bind=%s, listen=%s)", path,
+                          uv_strerror(nb_bind), uv_strerror(nb_listen));
+                if (nb_bind == 0) unlink(path);
                 uv_close((uv_handle_t*)app->north_srv[c->id], (uv_close_cb)free);
                 app->north_srv[c->id] = NULL;
             }
