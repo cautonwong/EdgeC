@@ -26,6 +26,11 @@ def _drain_device_events_after_test(composition_root, event_sink, request):
     「未落证据的失败」——结论落在"未完成"而不是"设备不合格"。
     """
     yield
+    # 不碰设备的用例(纯通路冒烟)跳过:record_evidence 会给清单里每台设备都开一个
+    # 证据文件,而空文件在归因里读成"这台设备这轮没有任何读数"—— 冒烟任务会被
+    # 自己的收尾动作拖成"未完成"。
+    if not [name for name in request.node.fixturenames if name in set(registered_types())]:
+        return
     events = drain_device_events(composition_root.all_drivers(), event_sink)
     composition_root.record_evidence(identity=case_of(request.node), events=events)
 

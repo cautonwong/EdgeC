@@ -1,0 +1,23 @@
+# iems 有两个面,它们验的不是同一件事:
+#
+#   南向 —— 台架在 /tmp/vbus0.sock 当从站,iems 当主站去读。iems 不解析命令行,
+#           总线地址由 env(OMNIS_BUS_0_DEV)给,平台驱动不了这一面,所以这里没有
+#           对应的设备;取值靠产品壳记录的 bus.json + iems 自己的 REST。
+#
+#   北向 —— iems 自己起了一个 Modbus **从站**(cmd/iems/iems_app.c:415-431
+#           `bus_orchestrator_setup_slave(..., "ModbusRTU", 1, inj)`),监听
+#           /tmp/iems_north_slave.sock,发布的是它内部那份镜像。这一面平台能驱动:
+#           产品壳把 unix socket 桥成 127.0.0.1:19211,平台按 modbus_rtu/tcp 读。
+#
+# 有了北向这台 dut,结论才落在**设备级**。否则失败用例没有设备归属,平台按
+# "没验到设备就不算验过"判未完成(reporting/report.py:20),产品缺陷会被写成
+# "没测到"。
+#
+# 端口 19211 是写死的:devices.yaml 是静态清单,读不到 ${PORT}。改端口要同时改
+# acceptance/iems/bench.py 的 BRIDGE_PORT。
+# 这个清单是给"不验设备"的冒烟任务用的(启动闸门这类)。
+# 为什么空:平台在整轮收尾时会给清单里每台设备都开一个证据文件,而一个没有任何
+# 读数的设备文件在归因里等于"这轮没验它"—— 冒烟任务会被自己的收尾动作拖成未完成。
+criteria_profiles: {}
+models: {}
+devices: {}

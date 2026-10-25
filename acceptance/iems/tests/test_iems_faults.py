@@ -83,7 +83,7 @@ def _wait_latest(deadline_s: float):
 
 
 @case(id="I_00_00_01_000020", clause="IEMS-ROBUST-1", tags=["故障"])
-def test_bad_crc_frame_never_becomes_a_reading():
+def test_bad_crc_frame_never_becomes_a_reading(meter):
     assert _wait_faults(2), "台架一帧错帧都没注入 —— 这条用例什么都没验到(假绿)"
     seen = _sample(4.0)
     bogus = [v for v in seen if abs(v - BAD_VALUE) <= TOLERANCE_V]
@@ -95,10 +95,13 @@ def test_bad_crc_frame_never_becomes_a_reading():
     assert seen[-1] == pytest.approx(VOLTAGE, abs=TOLERANCE_V), (
         f"恢复后的读数 {seen[-1]}V 不是台架真值 {VOLTAGE}V(见过的值 {seen})"
     )
+    # 从平台这一侧再读一次:结论要落在设备上(带读数证据),不能只信产品自己的 REST。
+    meter.connect()
+    assert meter.read_all().readings["电压"] == pytest.approx(VOLTAGE, abs=TOLERANCE_V)
 
 
 @case(id="I_00_00_01_000021", clause="IEMS-ROBUST-2", tags=["故障"])
-def test_slow_response_does_not_stall_the_product():
+def test_slow_response_does_not_stall_the_product(meter):
     assert len(_wait_faults(2)) >= 2, "台架没有真的注入慢应答 —— 假绿"
     got, seen = _wait_latest(25.0)
     zeros = [v for v in seen if abs(v) <= 0.01]
@@ -110,3 +113,6 @@ def test_slow_response_does_not_stall_the_product():
     assert got == pytest.approx(VOLTAGE, abs=TOLERANCE_V), (
         f"恢复后的读数 {got}V 不是台架真值 {VOLTAGE}V(见过的值 {seen})"
     )
+    # 慢应答过去之后,平台这一侧必须重新读得到 —— 只验产品自报等于信它自己的话。
+    meter.connect()
+    assert meter.read_all().readings["电压"] == pytest.approx(VOLTAGE, abs=TOLERANCE_V)

@@ -7,5 +7,5 @@ launch:
   - --port
   - ${PORT}
   - --expect-boot-fail
-devices: configs/devices.yaml
+devices: configs/devices_empty.yaml
 select: tag:冒烟
