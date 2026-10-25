@@ -21,9 +21,12 @@ from testplatform.cases import case
 
 TAG_VOLTAGE = 0x20000200
 TOLERANCE_V = 0.5
+WAIT_S = 16
 
 
-def _latest_voltage(timeout: float = 8.0):
+# cross-round 两阶段读会让值晚一个 interval 才落库;DCU 的 poller_timer
+# 周期是 node_cfg.poll_interval_ms = 5000(main.c:193),所以给到 16 秒。
+def _latest_voltage(timeout: float = 16.0):
     deadline = time.time() + timeout
     while time.time() < deadline:
         if DB_PATH.exists():
@@ -83,7 +86,7 @@ def test_dcu_polls_the_bench_meter(meter):
     value = _latest_voltage()
     requests = _bus_requests()
     assert requests > 0, (
-        f"DCU 在 8 秒内没有向台架发出任何 DLT645 读请求(/tmp/rs485_22..31.sock) · "
+        f"DCU 在 {WAIT_S} 秒内没有向台架发出任何 DLT645 读请求(/tmp/rs485_22..31.sock) · "
         f"{_diagnose(requests, value)}\n"
         "读入口只有一个:dcu_poller.c 的 source_ops.read_value;全仓库只实现了 "
         "dcu_twin_source_read(合成值),关掉 twin 后 source_ops 为空,总线一个字节都不会发。"
