@@ -59,17 +59,33 @@ int main(int argc, char* argv[]) {
         return -1;
     }
 
-    // 4. 启动自律业务与服务
+    // 4. 南向总线连接:组合根只发起这一次,配了南向却一台都连不上就是启动失败
+    int configured = 0;
+    int bus_count = iems_app_connect_buses(g_app, &configured);
+    if (bus_count < 0 || (configured > 0 && bus_count == 0)) {
+        if (bus_count < 0) {
+            fprintf(stderr, "FATAL: bus connectivity contract unavailable. Boot aborted.\n");
+        } else {
+            fprintf(stderr,
+                    "FATAL: %d southbound bus(es) configured, none connected. Boot aborted.\n",
+                    configured);
+        }
+        iems_app_destroy(g_app);
+        curl_global_cleanup();
+        return -1;
+    }
+
+    // 5. 启动自律业务与服务
     if (iems_app_start(g_app) != 0) {
         fprintf(stderr, "FATAL: Failed to start IEMS application.\n");
         iems_app_destroy(g_app);
         return -1;
     }
 
-    // 5. 运行事件循环
+    // 6. 运行事件循环
     iems_app_run(g_app);
 
-    // 6. 安全释放与清理
+    // 7. 安全释放与清理
     iems_app_destroy(g_app);
     curl_global_cleanup();
     return 0;

@@ -42,7 +42,20 @@ typedef struct {
 iems_app_t *iems_app_assemble(uv_loop_t *loop, const iems_app_config_t *cfg);
 
 /**
- * @brief 启动 IEMS 应用程序 (自律业务循环、总线连接定时器、任务加载等)
+ * @brief 启动时连一次南向物理总线(组合根调用,只连一次、不重试)
+ *
+ * 谁发起:组合根。哪个总线没连上,启动日志会明确报出来,不再无限重连。
+ *
+ * @param app 应用程序句柄
+ * @param configured 出参:契约表里配置的南向总线数(可为 NULL)。用来区分「没配南向总线」和「配了但全连不上」
+ * @return 连上的南向总线数(含此前已连上的);<0 参数非法或装配契约表缺失
+ *
+ * 必须在 iems_app_start() 之前调用一次,iems_app_start() 会拒绝未连过总线的半装配启动。
+ */
+int iems_app_connect_buses(iems_app_t *app, int *configured);
+
+/**
+ * @brief 启动 IEMS 应用程序 (自律业务循环、内部总线、任务加载等;南向总线由组合根先 connect_buses)
  *
  * @param app 应用程序句柄
  * @return 0 成功, <0 失败
