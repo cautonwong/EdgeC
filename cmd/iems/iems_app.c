@@ -84,8 +84,9 @@ struct iems_app_s {
     bus_conn_state_t bus_state[MAX_VBUS];
 
     uv_timer_t* timer_load_tasks;
-    uv_timer_t timer_vbus;
     uv_timer_t timer_internal;
+    bool timers_initialized;
+    bool buses_attempted;
     uv_timer_t timer_monitor;
 
     volatile bool adc_running;
@@ -245,26 +246,40 @@ static void _on_north_connect(uv_stream_t* server, int status) {
     uv_close((uv_handle_t*)client, (uv_close_cb)free);
 }
 
-static void _try_connect_buses(uv_timer_t* handle) {
-    iems_app_t* app = (iems_app_t*)handle->data;
-    if (!app) return;
+static int _connect_southbound_buses(iems_app_t* app, int* configured) {
+    if (configured) *configured = 0;
+    if (!app) return -1;
 
     uint32_t conn_count = 0;
     const edge_connectivity_t* conns = iems_get_connectivity(&conn_count);
-    if (!conns) return;
+    if (!conns) return -1;  // 契约表都拿不到 = 装配坏了,交给组合根 abort
 
+    int connected = 0;
     for (uint32_t i = 0; i < conn_count; i++) {
         const edge_connectivity_t* c = &conns[i];
-        if (c->id >= MAX_VBUS) continue;
+        if (strcmp(c->category, "SOUTHBOUND") != 0) continue;
+        if (configured) (*configured)++;
+        const char* label = c->label ? c->label : "?";
+        if (c->id < 0 || c->id >= MAX_VBUS) {
+            LOG_WARN(LOG_CAT_CORE, "Startup: SOUTHBOUND %s has out-of-range id %d, ignored", label,
+                     c->id);
+            continue;
+        }
 
         int bus_idx = (int)c->id;
+        if (app->bus_state[bus_idx] == BUS_STATE_CONNECTED) {
+            connected++;
+            continue;
+        }
         if (app->bus_state[bus_idx] != BUS_STATE_DISCONNECTED) continue;
 
-        char env_key[32];
-        snprintf(env_key, sizeof(env_key), "OMNIS_BUS_%d_DEV", bus_idx);
-        const char* env_path = getenv(env_key);
+        const char* env_path = NULL;
+        {
+            char env_key[32];
+            snprintf(env_key, sizeof(env_key), "OMNIS_BUS_%d_DEV", bus_idx);
+            env_path = getenv(env_key);
+        }
         const char* path = env_path ? env_path : edge_resolve_bus_path(c->id);
-        if (!path) continue;
 
         const char* search_paths[3];
         search_paths[0] = env_path;
@@ -287,11 +302,12 @@ static void _try_connect_buses(uv_timer_t* handle) {
 
             if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) == 0) {
                 io_handle_t* h =
-                    io_executor_create_from_fd(handle->loop, fd, datahub_get_io_pool(app->hub));
+                    io_executor_create_from_fd(app->loop, fd, datahub_get_io_pool(app->hub));
                 if (h) {
                     bus_orchestrator_attach_io(app->orch, c->id, h);
                     if (h->ops && h->ops->enable_read) h->ops->enable_read(h, true);
                     app->bus_state[bus_idx] = BUS_STATE_CONNECTED;
+                    connected++;
                     printf("\033[32m[PHYSICS-SUCCESS] Bus %d CONNECTED via PATH: %s\033[0m\n",
                            bus_idx, cur_path);
                     break;
@@ -302,7 +318,21 @@ static void _try_connect_buses(uv_timer_t* handle) {
                 close(fd);
             }
         }
+
+        if (app->bus_state[bus_idx] != BUS_STATE_CONNECTED) {
+            LOG_WARN(LOG_CAT_CORE, "Startup: southbound bus %d (%s) NOT connected, no retry",
+                     bus_idx, label);
+        }
     }
+    return connected;
+}
+
+int iems_app_connect_buses(iems_app_t* app, int* configured) {
+    if (configured) *configured = 0;
+    if (!app) return -1;
+    int rc = _connect_southbound_buses(app, configured);
+    app->buses_attempted = (rc >= 0);  // 只在装配契约可用时才算「连过了」
+    return rc;
 }
 
 extern void adc_driver_handle_connection(int sock_fd, datahub_t* hub);
@@ -512,6 +542,14 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
 int iems_app_start(iems_app_t* app) {
     if (!app) return -1;
 
+    // 南向总线只由组合根连一次;没走过那一步就启动 = 半装配,拒绝起
+    if (!app->buses_attempted) {
+        LOG_ERROR(LOG_CAT_CORE,
+                  "IEMS start: iems_app_connect_buses() was never called; southbound buses are "
+                  "not wired. Boot aborted.");
+        return -1;
+    }
+
     iems_node_start(app->node);
 
     app->timer_load_tasks = (uv_timer_t*)malloc(sizeof(uv_timer_t));
@@ -523,12 +561,9 @@ int iems_app_start(iems_app_t* app) {
     app->timer_monitor.data = app;
     uv_timer_start(&app->timer_monitor, _monitor_shadow_tick, 1000, 1000);
 
-    uv_timer_init(app->loop, &app->timer_vbus);
-    app->timer_vbus.data = app;
-    uv_timer_start(&app->timer_vbus, _try_connect_buses, 0, 500);
-
     uv_timer_init(app->loop, &app->timer_internal);
     app->timer_internal.data = app;
+    app->timers_initialized = true;  // 此刻起 destroy 必须关掉这些已 uv_init 的 timer
     uv_timer_start(&app->timer_internal, _try_connect_internal_buses, 0, 500);
 
     arbiter_resume(app->arb);
@@ -548,14 +583,15 @@ void iems_app_destroy(iems_app_t* app) {
         uv_timer_stop(app->timer_load_tasks);
         uv_close((uv_handle_t*)app->timer_load_tasks, (uv_close_cb)free);
     }
-    uv_timer_stop(&app->timer_monitor);
-    uv_close((uv_handle_t*)&app->timer_monitor, NULL);
+    // timer_monitor / timer_internal 的 uv_init 在 iems_app_start 里;
+    // 启动前就调用 destroy 时(组合根在 connect 失败后退场)不能 uv_close 未初始化的 handle。
+    if (app->timers_initialized) {
+        uv_timer_stop(&app->timer_monitor);
+        uv_close((uv_handle_t*)&app->timer_monitor, NULL);
 
-    uv_timer_stop(&app->timer_vbus);
-    uv_close((uv_handle_t*)&app->timer_vbus, NULL);
-
-    uv_timer_stop(&app->timer_internal);
-    uv_close((uv_handle_t*)&app->timer_internal, NULL);
+        uv_timer_stop(&app->timer_internal);
+        uv_close((uv_handle_t*)&app->timer_internal, NULL);
+    }
 
     while (!uv__queue_empty(&app->poll_task_head)) {
         struct uv__queue* q = uv__queue_head(&app->poll_task_head);
