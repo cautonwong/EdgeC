@@ -222,6 +222,8 @@ target_link_libraries(test_dcu_integration PRIVATE dcu_app_lib)
 target_link_libraries(test_dcu_router PRIVATE dcu_app_lib)
 target_link_libraries(test_dcu_poller PRIVATE dcu_app_lib)
 target_link_libraries(test_dcu_scale_benchmark PRIVATE dcu_app_lib)
+# 本用例自带 edge_model_find 测试替身（生产端已是强定义），让测试 .o 的定义优先。
+target_link_options(test_dcu_scale_benchmark PRIVATE -Wl,--allow-multiple-definition)
 target_link_libraries(test_dcu PRIVATE dcu_app_lib)
 target_link_libraries(test_dcu_advanced_modules PRIVATE dcu_app_lib)
 

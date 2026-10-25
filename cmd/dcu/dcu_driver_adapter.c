@@ -202,6 +202,12 @@ static const driver_contract_injection_t s_modbus_injection = {
 /* ==============================================================================
  * 5. DCU 驱动注入查找调度
  * ============================================================================== */
+/* IO 层的弱符号默认返回 NULL（modules/edge_io/src/driver_manager.c:70）。弱定义在这里被顶掉，
+ * 否则 edge_api_read_tag 在 edge_api.c:40 查不到契约直接返回 -1，总线一帧都发不出去。 */
+const driver_contract_injection_t *edge_model_find(const char *name) {
+    return dcu_get_driver_injection(name);
+}
+
 const driver_contract_injection_t *dcu_get_driver_injection(const char *proto) {
     if (!proto) return NULL;
     if (strcasecmp(proto, "DLT698") == 0) {
