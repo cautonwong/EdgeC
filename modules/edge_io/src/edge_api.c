@@ -48,7 +48,8 @@ int edge_api_read_tag(int bus_id, const char *protocol, uint32_t slave_id, uint3
 
     edge_req_t *req = req_legacy_driver_create(g_drv_mgr, protocol, slave_id, CMD_ACTION_READ,
                                                physical_tag_id, 0.0, (void *)inject->lookup_by_tag,
-                                               (void *)inject->lookup_by_key, cb, user_data);
+                                               (void *)inject->lookup_by_key, inject->meta_list,
+                                               inject->meta_list_len, cb, user_data);
     if (!req) {
         static uint64_t last_no_req = 0;
         if (uv_now(uv_default_loop()) - last_no_req > 1000) {
@@ -93,7 +94,8 @@ int edge_api_write_tag(int bus_id, const char *protocol, uint32_t slave_id,
 
     edge_req_t *req = req_legacy_driver_create(g_drv_mgr, protocol, slave_id, CMD_ACTION_WRITE,
                                                physical_tag_id, value, (void *)inject->lookup_by_tag,
-                                               (void *)inject->lookup_by_key, cb, user_data);
+                                               (void *)inject->lookup_by_key, inject->meta_list,
+                                               inject->meta_list_len, cb, user_data);
     if (!req) return -1;
 
     cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));

@@ -23,6 +23,8 @@ typedef struct {
     pipe_msg_t result_msg;
     void *lookup_by_tag;
     void *lookup_by_key;
+    const void *meta_list;
+    uint32_t meta_list_len;
 } legacy_req_ctx_t;
 
 static int legacy_setup(edge_req_t *req, void *engine_ctx) {
@@ -35,8 +37,8 @@ static int legacy_setup(edge_req_t *req, void *engine_ctx) {
         if (!ctx->drv_ctx) {
             // 如果持久化会话不存在，则自动创建一个并加入 SessionManager（主站角色）
             driver_contract_injection_t inject = {
-                .meta_list = NULL,
-                .meta_list_len = 0,
+                .meta_list = ctx->meta_list,
+                .meta_list_len = ctx->meta_list_len,
                 .lookup_by_tag = ctx->lookup_by_tag,
                 .lookup_by_key = ctx->lookup_by_key
             };
@@ -53,6 +55,13 @@ static int legacy_setup(edge_req_t *req, void *engine_ctx) {
             ctx->drv_ctx->lookup_by_key = (const void *(*)(uint64_t))ctx->lookup_by_key;
             ctx->drv_ctx->pool = master->pool;
         }
+    }
+    if (ctx->drv_ctx) {
+        /* 会话可能是上一轮建的（那时 meta_list 还是 NULL）。每次 setup 都覆盖，
+         * 否则表地址永远停在广播地址 0x99×6。 */
+        ctx->drv_ctx->meta_list = ctx->meta_list;
+        ctx->drv_ctx->meta_list_len = ctx->meta_list_len;
+        ctx->drv_ctx->device_id = ctx->slave_id;
     }
     return ctx->drv_ctx ? 0 : -1;
 }
@@ -91,6 +100,9 @@ static int legacy_decode(edge_req_t *req, net_buf_t *buf, size_t *consumed) {
                                                    &msg_count, consumed);
 
     if (rc == 0 && msg_count > 0) {
+        /* shadow 按 (tag, device_id) 索引；驱动 decode 不填 device_id 的话
+         * datahub_read_shadow_device(tag, meter_idx) 只有 index 0 命得中。 */
+        ctx->result_msg.device_id = ctx->slave_id;
         if (ctx->result_msg.tag_id == ctx->tag_id) {
             return REQ_STATUS_DONE;
         } else {
@@ -134,6 +146,7 @@ static const request_ops_t legacy_ops = {
 edge_req_t *req_legacy_driver_create(driver_manager_t *dm, const char *protocol, uint32_t slave_id,
                                      cmd_action_t action, uint32_t tag_id, double value,
                                      void *lookup_by_tag, void *lookup_by_key,
+                                     const void *meta_list, uint32_t meta_list_len,
                                      legacy_on_complete_cb user_cb, void *user_data) {
     edge_req_t *req = calloc(1, sizeof(edge_req_t));
     legacy_req_ctx_t *ctx = calloc(1, sizeof(legacy_req_ctx_t));
@@ -144,6 +157,8 @@ edge_req_t *req_legacy_driver_create(driver_manager_t *dm, const char *protocol,
     ctx->value = value;
     ctx->lookup_by_tag = lookup_by_tag;
     ctx->lookup_by_key = lookup_by_key;
+    ctx->meta_list = meta_list;
+    ctx->meta_list_len = meta_list_len;
     strncpy(ctx->protocol, protocol, 15);
     ctx->on_complete = user_cb;
     ctx->user_data = user_data;

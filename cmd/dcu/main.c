@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -78,8 +79,18 @@ static void _freeze_trigger_cb(uv_timer_t* handle) {
 
     dcu_driver_adapter_set_meters(inv->meters, inv->count);
 
+    /* 落库前诊断：每个 meter_idx 命中/未命中都记一条，避免"落库 0 行"时无从判断
+     * 是总线没回、device_id 没填、还是 shadow 槽没写。 */
+    static uint64_t last_diag = 0;
+    bool diag = (uv_now(uv_default_loop()) - last_diag) > 5000;
+    if (diag) last_diag = uv_now(uv_default_loop());
     for (int i = 0; i < inv->count; i++) {
-        if (datahub_read_shadow_device(ctx->hub, 0x20000200, (uint32_t)i, &msg) != 0) continue;
+        int rr = datahub_read_shadow_device(ctx->hub, 0x20000200, (uint32_t)i, &msg);
+        if (diag) {
+            LOG_INFO(LOG_CAT_NB, "[FREEZE] meter=%d rc=%d ts=%llu val=%.1f", i, rr,
+                     (unsigned long long)msg.ts, rr == 0 ? (double)msg.payload.val.f : 0.0);
+        }
+        if (rr != 0) continue;
         /* ts==0 表示该 shadow 槽从未被真实读取写过。把"没读到"当 0V 落库会变假绿。 */
         if (msg.ts == 0) continue;
         dcu_storage_write_telemetry(storage, inv->meters[i].address, (uint32_t)i, 0x20000200,
