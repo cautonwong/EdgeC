@@ -16,9 +16,8 @@ DB_PATH = RUN_DIR / "iems.db"
 BUS_LOG = RUN_DIR / "bus.json"
 
 _CANDIDATES = [HERE.parents[1] / "build/products/iems/bin/iems"]
-IEMS_BIN = os.environ.get("IEMS_BIN") or next(
-    (str(p) for p in _CANDIDATES if p.exists()), str(_CANDIDATES[0])
-)
+# 可用 IEMS_BIN 指到另一个构建(验证别人分支时不用换掉本 worktree 的产物)
+IEMS_BIN = Path(os.environ.get("IEMS_BIN") or _CANDIDATES[0])
 
 # 南向总线 0:RS485_Main / UART。总线 1 是 CAN,总线 10 是北向从站,iems 自己封了
 # 北向自轮询(iems_task_loader.c:30 `if (bus_id == 10) return 0;`),台架不管它。

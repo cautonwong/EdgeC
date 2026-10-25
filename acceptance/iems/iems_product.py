@@ -17,6 +17,7 @@ iems 的硬事实(都核过源码):
   ④ exec iems,它死了壳不退(退出码落 iems_exit.json)
 
 用法: python iems_product.py --port 23456
+      python iems_product.py --port 23456 --expect-boot-fail   # 启动闸门用:不给总线
 """
 import argparse
 import asyncio
@@ -156,19 +157,40 @@ def _north_bridge() -> None:
         threading.Thread(target=_pump, args=(up, conn), daemon=True).start()
 
 
+def _hold_port(port: int) -> None:
+    """只占住端口让就绪探针通过;不服务任何请求。"""
+    srv = socket.socket()
+    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    srv.bind(("127.0.0.1", port))
+    srv.listen(8)
+
+    def loop() -> None:
+        while True:
+            try:
+                conn, _ = srv.accept()
+                conn.close()
+            except OSError:
+                return
+
+    threading.Thread(target=loop, daemon=True).start()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, required=True)
+    parser.add_argument("--expect-boot-fail", action="store_true",
+                        help="不给任何总线/从站,产品应该启动失败而不是重连")
     args = parser.parse_args()
 
     RUN_DIR.mkdir(parents=True, exist_ok=True)
     BUS_LOG.write_text(json.dumps(_seen), encoding="utf-8")
     provision()
 
-    loop = asyncio.new_event_loop()
-    threading.Thread(target=lambda: loop.run_until_complete(_unix_bus()), daemon=True).start()
-    threading.Thread(target=_north_bridge, daemon=True).start()
-    time.sleep(0.3)
+    if not args.expect_boot_fail:
+        loop = asyncio.new_event_loop()
+        threading.Thread(target=lambda: loop.run_until_complete(_unix_bus()), daemon=True).start()
+        threading.Thread(target=_north_bridge, daemon=True).start()
+        time.sleep(0.3)
     # 这个端口不自己占:iems 的 REST 直接绑 EDGE_REST_PORT,平台的就绪探针
     # connect 到的是 iems 自己。壳再起一个假监听会把端口抢走,REST 绑不上,
     # 探针连到的是壳然后被 reset —— 表现为「产品起来了但 REST 全崩」。
@@ -187,6 +209,38 @@ def main() -> int:
         "OMNIS_BUS_0_DEV": SOCK,
         "MQTT_BROKER": "tcp://127.0.0.1:1883",
     }
+    if args.expect_boot_fail:
+        # 启动闸门:壳自己占住 ${PORT},否则平台的就绪探针会先超时,把
+        # 「产品启动失败」记成「平台起不来产品」。同时把 iems 的 REST 挪到
+        # 隔壁端口 —— 让它撞上"地址已被占用"会让它卡在那儿不退,测的就不是
+        # 南向启动闸门了(实测:它会留在半死状态,20 秒不退出)。
+        _hold_port(args.port)
+        env["EDGE_REST_PORT"] = str(args.port + 1)
+        boot_path = RUN_DIR / "boot.json"
+        boot_path.unlink(missing_ok=True)  # 上一轮的结论不能留:测试会先看到它
+        stderr_path = RUN_DIR / "boot.err"
+        with stderr_path.open("w", encoding="utf-8") as err:
+            # 产品的日志走 stdout(edge_log_out 回落到 printf,zlog.conf 也全是
+            # >stdout),只有 main.c 那条致命行是 fprintf(stderr)。两个都收,
+            # 否则"有没有重连循环"这条证据会被丢掉。
+            proc = subprocess.Popen([IEMS_BIN], env=env, cwd=str(RUN_DIR),
+                                    stdout=err, stderr=err)
+            try:
+                code = proc.wait(timeout=20)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()  # 不收尸会留僵尸,而且文件可能还没刷新完
+                code = None  # 没自己退出 = 还在重连,这正是要抓的回归
+        lines = stderr_path.read_text(encoding="utf-8", errors="replace").splitlines()
+        boot_path.write_text(json.dumps({
+            "code": code,
+            "fatal": [ln for ln in lines if "none connected" in ln],
+            "warnings": [ln for ln in lines if "NOT connected" in ln],
+            "stderr_tail": lines[-5:],
+        }, ensure_ascii=False), encoding="utf-8")
+        while True:
+            time.sleep(1)
+
     proc = subprocess.Popen([IEMS_BIN], env=env, cwd=str(RUN_DIR))
     code = proc.wait()
     (RUN_DIR / "iems_exit.json").write_text(json.dumps({"code": code}), encoding="utf-8")

@@ -86,33 +86,48 @@ echo
 rm -rf "$REPORTS"
 mkdir -p "$REPORTS"
 
+product_dirs=()
 for product in "${PRODUCTS[@]}"; do
     project="$HERE/$product"
-    task="$(ls "$project"/tasks/*.yaml 2>/dev/null | head -1 || true)"
-    if [[ -z "$task" ]]; then
+    tasks=( "$project"/tasks/*.yaml )
+    if [[ ! -e "${tasks[0]}" ]]; then
         echo "[$product] 跳过:没有 tasks/*.yaml" >&2
         continue
     fi
-    echo "[$product] $(basename "$task")"
     # 每轮清空该产品的报告目录:它是一次运行的输出,不是累加日志。
     # 不清会串轮次 —— 上一轮遗留的 stop.request 会让本轮 0 用例直接中断,
     # 上一轮遗留的 <设备>.jsonl 会把旧读数带进本轮的判据(实测过一次:4 条用例
     # 全绿,却被上一轮的 电压=0.0 判成设备不合格)。
     rm -rf "$REPORTS/$product"
     mkdir -p "$REPORTS/$product"
-    set +e
-    "$PYTHON" "$PLATFORM/tools/run_task.py" "$task" \
-        --root "$project" --evidence-dir "$REPORTS/$product"
-    code=$?
-    set -e
-    echo "[$product] 退出码 $code"
+    product_dirs+=( "$REPORTS/$product" )
+    # 一个产品可以有多个任务(验收 + 冒烟/启动闸门各自的进程生命周期不同),
+    # 所以全跑,不要只取第一个。
+    for task in "${tasks[@]}"; do
+        [[ -e "$task" ]] || continue
+        task_dir="$REPORTS/$product/$(basename "$task" .yaml)"
+        echo "[$product] $(basename "$task")"
+        set +e
+        "$PYTHON" "$PLATFORM/tools/run_task.py" "$task" \
+            --root "$project" --evidence-dir "$task_dir"
+        code=$?
+        set -e
+        echo "[$product] $(basename "$task" .yaml) 退出码 $code"
+        echo
+    done
     echo
 done
+
+if [[ ${#product_dirs[@]} -eq 0 ]]; then
+    echo "没有可跑的产品(每个被点到的产品目录下都没有 tasks/*.yaml)" >&2
+    exit 6
+fi
 
 _clean_sockets
 echo "门禁:"
 set +e
-"$PYTHON" "$PLATFORM/tools/gate.py" "$REPORTS"
+# gate 取 <目录>/<任务>/summary.json,正好是"产品目录下的各任务"这一层。
+"$PYTHON" "$PLATFORM/tools/gate.py" "${product_dirs[@]}"
 gate=$?
 set -e
 echo
