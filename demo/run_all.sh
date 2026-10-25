@@ -1,39 +1,25 @@
 #!/bin/bash
-# IEMS 三合一 Demo 启动脚本 (Sprint 6)
-# 峰谷套利 + 过压保护 + 谐波分析
+# IEMS Demo 启动脚本
+# 峰谷套利 + 系统检查
+# 验收入口: ./acceptance/run.sh iems (覆盖采集/启动/健壮性,判据在 acceptance/iems/configs/clauses.yaml)
+# 过压保护与谐波的仿真场景(cmd/iems/matrix/*.py)目前没有可运行的入口:Matrix 基座已不在测试链路里
 set -e
 
 G='\033[32m'; B='\033[34m'; Y='\033[33m'; R='\033[31m'; NC='\033[0m'
 cd "$(dirname "$0")/.."
 
 echo -e "${B}============================================${NC}"
-echo -e "${B}  IEMS Demo Suite — All Scenarios${NC}"
+echo -e "${B}  IEMS Demo Suite${NC}"
 echo -e "${B}============================================${NC}"
 echo ""
 
 # 1. 峰谷套利
-echo -e "${Y}[Demo 1/3] 峰谷套利${NC}"
+echo -e "${Y}[Demo] 峰谷套利${NC}"
 echo -e "${Y}------------------------------------------------${NC}"
 bash demo/peak_shaving.sh | grep -E "时间|电价|MPC|电池|:00|→|每日|每月|每年|对比"
 echo ""
 
-# 2. 过压保护
-echo -e "${Y}[Demo 2/3] 过压保护 (Matrix)${NC}"
-echo -e "${Y}------------------------------------------------${NC}"
-echo "  依赖: Matrix 仿真环境 + IEMS 二进制"
-echo "  命令: .venv/bin/python3 -m pytest cmd/iems/matrix/test_high_freq.py -v -k test_adc_to_protection"
-echo "  预期: RMS 从 220V→278V → Reflex 保护触发 → SOLAR_RELAY 断开"
-echo ""
-
-# 3. 谐波分析
-echo -e "${Y}[Demo 3/3] 谐波分析 (Matrix)${NC}"
-echo -e "${Y}------------------------------------------------${NC}"
-echo "  依赖: Matrix 仿真环境 + IEMS 二进制"
-echo "  命令: .venv/bin/python3 -m pytest cmd/iems/matrix/test_high_freq.py -v -k test_harmonic"
-echo "  预期: 10% 3次谐波注入 → RMS 从 220V→221.1V 准确计算"
-echo ""
-
-# 4. 快速验证
+# 2. 系统检查
 echo -e "${Y}[Verify] 系统检查${NC}"
 echo -e "${Y}------------------------------------------------${NC}"
 echo -n "  C 测试: "
@@ -48,5 +34,5 @@ ls -lh build/products/iems/generated/IEMS_Controller_V5.edgec 2>/dev/null && ech
 echo ""
 
 echo -e "${G}============================================${NC}"
-echo -e "${G}  IEMS Demo Suite 准备就绪${NC}"
+echo -e "${G}  IEMS Demo Suite 就绪${NC}"
 echo -e "${G}============================================${NC}"
