@@ -21,6 +21,7 @@ iems 的硬事实(都核过源码):
 """
 import argparse
 import asyncio
+import signal
 import json
 import socket
 import sqlite3
@@ -36,6 +37,7 @@ from bench import (BRIDGE_PORT, BUS_LOG, BUS_ID, DB_PATH, IEMS_BIN,
 from testplatform.protocol import modbus_rtu
 
 _lock = threading.Lock()
+_fault = {"kind": None, "left": 0}
 _seen = {"requests": 0, "first_request_hex": None, "addresses": []}
 
 
@@ -103,8 +105,11 @@ async def _serve(reader, writer):
                 struct.pack(">H", VOLTAGE_REGISTER if (address + i) == 0 else 0)
                 for i in range(count)
             )
-            writer.write(modbus_rtu.build_read_response(unit, payload, function))
-            await writer.drain()
+            frame = modbus_rtu.build_read_response(unit, payload, function)
+            frame = await _inject_fault(frame, unit, function, count)
+            if frame is not None:
+                writer.write(frame)
+                await writer.drain()
     except (ConnectionError, OSError) as exc:
         _fail("serve", exc)
     except BaseException as exc:
@@ -112,6 +117,38 @@ async def _serve(reader, writer):
         raise
     finally:
         writer.close()
+
+
+async def _inject_fault(frame: bytes, unit: int, function: int, count: int):
+    """按 --fault 制造应答故障。返回 None 表示这一帧不回(让主站超时)。"""
+    with _lock:
+        kind, left = _fault["kind"], _fault["left"]
+        if kind and left > 0:
+            _fault["left"] = left - 1
+        else:
+            kind = None
+    if kind:
+        faults_path = RUN_DIR / "faults.json"
+        served = []
+        if faults_path.is_file():
+            try:
+                served = json.loads(faults_path.read_text(encoding="utf-8"))
+            except ValueError:
+                served = []  # 上一轮写了一半的文件,当没有,不要把台架弄崩
+        served.append(kind)
+        faults_path.write_text(json.dumps(served), encoding="utf-8")
+    if kind == "slow":
+        await asyncio.sleep(3.0)  # 超过一轮轮询周期:iems 必须扛住并恢复
+        return frame
+    if kind == "bad-crc":
+        # 载荷故意是个离谱值(999 -> 99.9V),CRC 故意错:主站必须整帧丢弃
+        bogus = modbus_rtu.build_read_response(
+            unit, b"".join(struct.pack(">H", 999) for _ in range(count)), function
+        )
+        return bogus[:-1] + bytes([bogus[-1] ^ 0xFF])
+    if kind == "silent":
+        return None
+    return frame
 
 
 async def _unix_bus() -> None:
@@ -143,7 +180,17 @@ def _north_bridge() -> None:
     """
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.bind(("127.0.0.1", BRIDGE_PORT))
+    # 上一轮的壳刚死时端口还没完全放出来:重试 10 秒,别让一次 bind 失败就
+    # 把整条验收判成"产品没起来"(实测踩过,假红)。
+    deadline = time.time() + 10.0
+    while True:
+        try:
+            server.bind(("127.0.0.1", BRIDGE_PORT))
+            break
+        except OSError:
+            if time.time() > deadline:
+                raise
+            time.sleep(0.5)
     server.listen(8)
     while True:
         conn, _ = server.accept()
@@ -178,12 +225,18 @@ def _hold_port(port: int) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, required=True)
+    parser.add_argument("--fault", choices=["bad-crc", "slow", "silent"],
+                        help="对前若干帧应答制造故障(故障注入用例用)")
+    parser.add_argument("--fault-frames", type=int, default=2)
     parser.add_argument("--expect-boot-fail", action="store_true",
                         help="不给任何总线/从站,产品应该启动失败而不是重连")
     args = parser.parse_args()
+    if args.fault:
+        _fault["kind"], _fault["left"] = args.fault, args.fault_frames
 
     RUN_DIR.mkdir(parents=True, exist_ok=True)
     BUS_LOG.write_text(json.dumps(_seen), encoding="utf-8")
+    (RUN_DIR / "faults.json").unlink(missing_ok=True)  # 上一轮的注入记录不能留
     provision()
 
     if not args.expect_boot_fail:
@@ -242,7 +295,29 @@ def main() -> int:
             time.sleep(1)
 
     proc = subprocess.Popen([IEMS_BIN], env=env, cwd=str(RUN_DIR))
-    code = proc.wait()
+
+    # 平台杀的是壳,不是 iems。不转发信号就会留孤儿:iems 继续占着 REST 端口和
+    # /tmp/vbus0.sock,下一个任务可能连到它 —— 那时"通过"的是上一个进程(实测踩过)。
+    def _forward(signum, _frame):
+        # 先给产品机会走它自己的 SIGTERM 收尾(刷 DB/WAL、拆 socket),
+        # 3 秒还不走才强杀 —— 直接 kill 等于把"优雅退出"这段路径从没验过。
+        proc.terminate()
+        try:
+            proc.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+        raise SystemExit(128 + signum)
+
+    signal.signal(signal.SIGTERM, _forward)
+    signal.signal(signal.SIGINT, _forward)
+    try:
+        code = proc.wait()
+    except BaseException:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
+        raise
     (RUN_DIR / "iems_exit.json").write_text(json.dumps({"code": code}), encoding="utf-8")
     while True:
         time.sleep(1)

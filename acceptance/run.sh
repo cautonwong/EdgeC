@@ -107,6 +107,10 @@ for product in "${PRODUCTS[@]}"; do
         [[ -e "$task" ]] || continue
         task_dir="$REPORTS/$product/$(basename "$task" .yaml)"
         echo "[$product] $(basename "$task")"
+        # 每个任务一个独立运行目录:共用一个会让上一轮的 sqlite/WAL 被回放,
+        # 故障还没注入 REST 就已经有旧读数 —— 用例会绿,但什么都没验到。
+        export IEMS_RUN_DIR="$ROOT/runtime/$product/$(basename "$task" .yaml)"
+        rm -rf "$IEMS_RUN_DIR"
         set +e
         "$PYTHON" "$PLATFORM/tools/run_task.py" "$task" \
             --root "$project" --evidence-dir "$task_dir"

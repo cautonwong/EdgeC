@@ -11,7 +11,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 
-RUN_DIR = Path("/tmp/edgec-iems-run")
+RUN_DIR = Path(os.environ.get("IEMS_RUN_DIR") or "/tmp/edgec-iems-run")
 DB_PATH = RUN_DIR / "iems.db"
 BUS_LOG = RUN_DIR / "bus.json"
 
