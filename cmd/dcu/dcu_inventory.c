@@ -4,8 +4,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 #include "dcu_driver_adapter.h"
+#include "edge_log.h"
 #include "sqlite_service.h"
 
 /**
@@ -108,6 +110,25 @@ production_meter_t* dcu_inventory_get(dcu_inventory_t* inv, const char* addr) {
     }
 
     return found;
+}
+
+const char* dcu_inventory_channel_protocol(const dcu_inventory_t* inv, uint8_t channel_id) {
+    if (!inv) return NULL;
+
+    const char* proto = NULL;
+    for (uint16_t i = 0; i < inv->count; i++) {
+        const production_meter_t* m = &inv->meters[i];
+        if (m->channel_id != channel_id || m->protocol[0] == '\0') continue;
+
+        if (!proto) {
+            proto = m->protocol;
+        } else if (strcasecmp(proto, m->protocol) != 0) {
+            LOG_WARN(LOG_CAT_SCHED, "⚠️ [ARCHIVE] channel %u mixes protocols (%s vs %s); using %s",
+                     channel_id, proto, m->protocol, proto);
+            break;  // 只告警一次
+        }
+    }
+    return proto;
 }
 
 /**

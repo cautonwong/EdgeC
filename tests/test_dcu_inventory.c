@@ -89,10 +89,38 @@ static void test_inventory_circuit_breaker(void** state) {
     dcu_inventory_destroy(&inv);
 }
 
+// 3. 通道协议从档案取, 不按通道号猜
+static void test_inventory_channel_protocol(void** state) {
+    (void)state;
+    dcu_inventory_t inv;
+    dcu_inventory_init(&inv);
+
+    // 空通道 → NULL
+    assert_null(dcu_inventory_channel_protocol(&inv, 22));
+
+    // 同一通道两只 645 表
+    dcu_inventory_add(&inv, "10000001", "DLT645", 9600, 22, NULL);
+    dcu_inventory_add(&inv, "10000002", "DLT645", 9600, 22, NULL);
+    assert_string_equal(dcu_inventory_channel_protocol(&inv, 22), "DLT645");
+    // 其它通道仍然空
+    assert_null(dcu_inventory_channel_protocol(&inv, 5));
+
+    // 通道 5 放一只 698 表: 协议必须来自档案, 而不是通道号 <22 就猜 698
+    dcu_inventory_add(&inv, "10000003", "dlt698", 9600, 5, NULL);
+    assert_string_equal(dcu_inventory_channel_protocol(&inv, 5), "dlt698");
+
+    // 混协议: 取首个, 不崩
+    dcu_inventory_add(&inv, "10000004", "DLT698", 9600, 22, NULL);
+    assert_string_equal(dcu_inventory_channel_protocol(&inv, 22), "DLT645");
+
+    dcu_inventory_destroy(&inv);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_inventory_add_remove),
         cmocka_unit_test(test_inventory_circuit_breaker),
+        cmocka_unit_test(test_inventory_channel_protocol),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

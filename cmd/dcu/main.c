@@ -174,13 +174,21 @@ int main(int argc, char** argv) {
     }
 
     const char* db_abs_path = db_resolved_path;
-    static dcu_twin_source_t g_twin_source;
-    dcu_twin_source_init(&g_twin_source, 220.0, 5.0);
+    // 合成数据源仅供孪生演示；默认不接线，让 poller 走真实总线。
+    poller_source_ops_t src_ops = {0};
+    const char* env_twin = getenv("EDGE_DCU_TWIN_SOURCE");
+    if (env_twin && strcmp(env_twin, "1") == 0) {
+        static dcu_twin_source_t g_twin_source;
+        dcu_twin_source_init(&g_twin_source, 220.0, 5.0);
+        src_ops = dcu_twin_source_get_ops(&g_twin_source);
+        LOG_WARN(LOG_CAT_SCHED,
+                 "⚠️ EDGE_DCU_TWIN_SOURCE=1: poller uses synthetic values, bus reads are bypassed");
+    }
     dcu_node_config_t node_cfg = {.product_name = "DCU",
                                   .db_path = db_abs_path,
                                   .datahub_capacity = 32768,
                                   .poll_interval_ms = 5000,
-                                  .source_ops = dcu_twin_source_get_ops(&g_twin_source)};
+                                  .source_ops = src_ops};
     g_dcu_node = dcu_node_create(loop, &node_cfg);
     if (!g_dcu_node) {
         LOG_ERROR(LOG_CAT_SCHED, "❌ FATAL: Failed to initialize DCU node.");
@@ -210,11 +218,18 @@ int main(int argc, char** argv) {
     arbiter_resume(arbiter_ctx);
 
     for (int i = 0; i < 32; i++) {
+        // 协议来自档案，不按通道号猜；空通道不建主站、不连 socket。
+        const char* proto = dcu_inventory_channel_protocol(inv, (uint8_t)i);
+        if (!proto) continue;
+        const driver_contract_injection_t* inj = dcu_get_driver_injection(proto);
+        if (!inj) {
+            LOG_ERROR(LOG_CAT_SCHED, "❌ channel %d: protocol '%s' has no registered driver", i,
+                      proto);
+            continue;
+        }
+        bus_orchestrator_setup_master(io_orch, i, proto, 0, inj);
         char path[64];
         snprintf(path, sizeof(path), "/tmp/rs485_%d.sock", i);
-        const char* proto = (i < 22) ? "DLT698" : "DLT645";
-        const driver_contract_injection_t* inj = dcu_get_driver_injection(proto);
-        if (inj) bus_orchestrator_setup_master(io_orch, i, proto, 0, inj);
         struct sockaddr_un addr;
         memset(&addr, 0, sizeof(addr));
         addr.sun_family = AF_UNIX;

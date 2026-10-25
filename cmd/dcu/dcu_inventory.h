@@ -65,6 +65,12 @@ int dcu_inventory_remove(dcu_inventory_t* inv, const char* addr);
 production_meter_t* dcu_inventory_get(dcu_inventory_t* inv, const char* addr);
 
 /**
+ * @brief 取通道上首个表计的协议名 (档案驱动, 非按通道号猜测)
+ * @return 该通道无表计时返回 NULL; 同通道混协议时取首个并打 WARN
+ */
+const char* dcu_inventory_channel_protocol(const dcu_inventory_t* inv, uint8_t channel_id);
+
+/**
  * @brief 从 SQLite 数据库加载表计档案
  */
 int dcu_inventory_load_from_db(dcu_inventory_t* inv, const char* db_path);
