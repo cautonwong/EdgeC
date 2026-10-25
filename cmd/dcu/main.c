@@ -81,12 +81,15 @@ static void _freeze_trigger_cb(uv_timer_t* handle) {
     dcu_storage_t* storage = dcu_node_get_storage(g_dcu_node);
     if (!inv || !storage) return;
 
+    dcu_driver_adapter_set_meters(inv->meters, inv->count);
+
     for (int i = 0; i < inv->count; i++) {
-        if (datahub_read_shadow_device(ctx->hub, 0x20000200, (uint32_t)i, &msg) == 0) {
-            dcu_storage_write_telemetry(storage, inv->meters[i].address, (uint32_t)i, 0x20000200,
-                                        (float)msg.payload.val.f);
-            saved++;
-        }
+        if (datahub_read_shadow_device(ctx->hub, 0x20000200, (uint32_t)i, &msg) != 0) continue;
+        /* ts==0 表示该 shadow 槽从未被真实读取写过。把"没读到"当 0V 落库会变假绿。 */
+        if (msg.ts == 0) continue;
+        dcu_storage_write_telemetry(storage, inv->meters[i].address, (uint32_t)i, 0x20000200,
+                                    (float)msg.payload.val.f);
+        saved++;
     }
     if (saved > 0) {
         dcu_storage_flush(storage);

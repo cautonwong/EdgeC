@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "contract_data_types.h"
+#include "dcu_inventory.h"
 #include "dcu_router.h"
 
 /* 外部协议驱动模板声明 */
@@ -120,10 +121,38 @@ static const void *dcu_lookup_645_by_tag(uint32_t tag_id) {
     return NULL;
 }
 
-static const driver_contract_injection_t s_dlt645_injection = {
+/* 台架/现场表地址 (6 字节 BCD, 低字节先), 按 device_id 索引。由 main 从 inventory 填充。 */
+static uint8_t s_meter_addr_bcd[MAX_METERS][6];
+
+static driver_contract_injection_t s_dlt645_injection = {
     .lookup_by_key = dcu_lookup_645_by_key,
     .lookup_by_tag = dcu_lookup_645_by_tag,
 };
+
+void dcu_driver_adapter_set_meters(const production_meter_t *meters, uint32_t count) {
+    if (!meters) return;
+    if (count > MAX_METERS) count = MAX_METERS;
+    for (uint32_t i = 0; i < count; i++) {
+        const char *s = meters[i].address;
+        size_t len = strlen(s);
+        uint8_t pair[3] = {0, 0, 0};  // pair[0] 最高两位, pair[2] 最低两位
+        for (int k = 0; k < 3; k++) {
+            uint8_t hi = 0, lo = 0;
+            size_t off = len - 6 + 2 * (size_t)k;
+            if (len >= (size_t)(6 - 2 * k)) {
+                char ch = s[off];
+                char cl = s[off + 1];
+                if (ch >= '0' && ch <= '9') hi = (uint8_t)(ch - '0');
+                if (cl >= '0' && cl <= '9') lo = (uint8_t)(cl - '0');
+            }
+            pair[k] = (uint8_t)((hi << 4) | lo);
+        }
+        for (int k = 0; k < 3; k++) s_meter_addr_bcd[i][k] = pair[2 - k];  // A0 = 最低字节
+        s_meter_addr_bcd[i][3] = s_meter_addr_bcd[i][4] = s_meter_addr_bcd[i][5] = 0;
+    }
+    s_dlt645_injection.meta_list = s_meter_addr_bcd;
+    s_dlt645_injection.meta_list_len = count;
+}
 
 /* ==============================================================================
  * 4. Modbus RTU 静态测点映射表

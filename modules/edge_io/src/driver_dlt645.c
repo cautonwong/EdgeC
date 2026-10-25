@@ -18,9 +18,17 @@ static uint8_t _calc_cs(const uint8_t *buf, size_t len) {
     return cs;
 }
 
+/* 注入的 meta_list = 6 字节 BCD 表地址数组 (低字节先), 按 device_id 索引。
+   缺失时回落到广播地址 0x999999999999。 */
+static void _fill_addr(edge_driver_ctx_t *ctx, dlt645_ctx_t *priv) {
+    memset(priv->addr_bcd, 0x99, 6);
+    if (!ctx->meta_list || ctx->device_id >= ctx->meta_list_len) return;
+    memcpy(priv->addr_bcd, ((const uint8_t (*)[6])ctx->meta_list)[ctx->device_id], 6);
+}
+
 static int dlt645_v3_on_init(edge_driver_ctx_t *ctx) {
     dlt645_ctx_t *priv = (dlt645_ctx_t *)ctx->priv;
-    memset(priv->addr_bcd, 0x99, 6);  // 默认广播地址
+    _fill_addr(ctx, priv);
     return 0;
 }
 
@@ -28,13 +36,19 @@ static int dlt645_v3_encode_request(edge_driver_ctx_t *ctx, const uint32_t *tag_
                                     net_buf_t *out) {
     if (tag_count == 0) return -1;
     dlt645_ctx_t *priv = (dlt645_ctx_t *)ctx->priv;
+    _fill_addr(ctx, priv);  // device_id/meta_list 可能在 on_init 之后才设置
     struct net_buf_simple *b = &out->b;
     net_buf_simple_add_u8(b, 0x68);
     net_buf_simple_add_mem(b, priv->addr_bcd, 6);
     net_buf_simple_add_u8(b, 0x68);
     net_buf_simple_add_u8(b, 0x11);
     net_buf_simple_add_u8(b, 0x04);
+    /* tag_ids[] 是消费侧 TagID(OAD); DLT645 线上要发的是 DI, 必须反查映射表 */
     uint32_t di = tag_ids[0];
+    if (ctx->lookup_by_tag) {
+        const dlt645_map_t *m = (const dlt645_map_t *)ctx->lookup_by_tag(tag_ids[0]);
+        if (m) di = (uint32_t)m->key;
+    }
     net_buf_simple_add_u8(b, (uint8_t)((di & 0xFF) + 0x33));
     net_buf_simple_add_u8(b, (uint8_t)(((di >> 8) & 0xFF) + 0x33));
     net_buf_simple_add_u8(b, (uint8_t)(((di >> 16) & 0xFF) + 0x33));
@@ -97,6 +111,7 @@ static int dlt645_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_
         if (found) {
             edge_tag_id_t tid = ((const dlt645_map_t *)ctx->lookup_by_key(di))->tag_id;
             pipe_msg_init_scalar(&out_msgs[0], tid, val, uv_hrtime());
+            out_msgs[0].device_id = ctx->device_id;  // 逐表区分, 否则 shadow 无法按表索引
             *msg_count = 1;
         }
     }

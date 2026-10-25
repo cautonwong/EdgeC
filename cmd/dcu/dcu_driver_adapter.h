@@ -6,6 +6,7 @@
 #ifndef DCU_DRIVER_ADAPTER_H
 #define DCU_DRIVER_ADAPTER_H
 
+#include "dcu_inventory.h"
 #include "driver_manager.h"
 #include "edge_driver.h"
 
@@ -20,6 +21,9 @@ extern "C" {
  * @return 0 成功, -1 失败
  */
 int dcu_driver_registry_init(driver_manager_t *mgr);
+
+/** @brief 注入仪表档案，让 DLT645 驱动按 device_id 取真实表地址（不再是广播 0x99） */
+void dcu_driver_adapter_set_meters(const production_meter_t *meters, uint32_t count);
 
 /**
  * @brief 获取 DCU 针对特定协议的测点映射注入包 (替代全局 contract_model_find)
