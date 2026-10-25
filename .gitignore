@@ -76,3 +76,7 @@ final_report.md
 .code-review-graph/
 changed_files.txt
 .venv
+
+# test-platform 跑出来的证据与报告(acceptance/run.sh)
+/reports/
+/acceptance/*/reports/

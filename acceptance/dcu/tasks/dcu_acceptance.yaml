@@ -1,0 +1,13 @@
+# DCU 验收任务:一次只跑一台台架、一条判据。
+# launch 里的 ${PORT} 由平台分配(20000-31999):DCU 自己不监听端口,
+# 由产品壳 dcu_product.py 替它占用,平台的就绪探针才过得去。
+id: dcu-acceptance
+kind: acceptance
+product: dcu
+launch:
+  - ${PYTHON}
+  - dcu_product.py
+  - --port
+  - ${PORT}
+devices: configs/devices.yaml
+select: tag:验收
