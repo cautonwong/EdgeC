@@ -15,6 +15,7 @@
 #include "dcu_driver_adapter.h"
 #include "datahub.h"
 #include "dcu_event_monitor.h"
+#include "dcu_bus_source.h"
 #include "dcu_inventory.h"
 #include "dcu_node.h"
 #include "dcu_poller.h"
@@ -179,6 +180,7 @@ int main(int argc, char** argv) {
     const char* db_abs_path = db_resolved_path;
     // 合成数据源仅供孪生演示；默认不接线，让 poller 走真实总线。
     poller_source_ops_t src_ops = {0};
+    static dcu_bus_source_t* bus_source = NULL;
     const char* env_twin = getenv("EDGE_DCU_TWIN_SOURCE");
     if (env_twin && strcmp(env_twin, "1") == 0) {
         static dcu_twin_source_t g_twin_source;
@@ -186,6 +188,14 @@ int main(int argc, char** argv) {
         src_ops = dcu_twin_source_get_ops(&g_twin_source);
         LOG_WARN(LOG_CAT_SCHED,
                  "⚠️ EDGE_DCU_TWIN_SOURCE=1: poller uses synthetic values, bus reads are bypassed");
+    }
+    if (!bus_source) {
+        bus_source = dcu_bus_source_start(NULL, NULL, 4000);
+        if (!bus_source) {
+            LOG_ERROR(LOG_CAT_SCHED, "❌ FATAL: bus source alloc failed");
+            return -1;
+        }
+        src_ops = dcu_bus_source_ops(bus_source);
     }
     dcu_node_config_t node_cfg = {.product_name = "DCU",
                                   .db_path = db_abs_path,
@@ -208,6 +218,7 @@ int main(int argc, char** argv) {
     LOG_INFO(LOG_CAT_SCHED, "📖 [ARCHIVE] Loaded %d meters from Digital Twin database.", inv->count);
 
     datahub_t* hub = dcu_node_get_datahub(g_dcu_node);
+    if (bus_source) dcu_bus_source_bind(bus_source, hub, inv);
     dcu_storage_t* storage = dcu_node_get_storage(g_dcu_node);
 
     arbiter_t* arbiter_ctx = NULL;

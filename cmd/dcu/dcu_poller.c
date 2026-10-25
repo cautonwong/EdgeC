@@ -106,7 +106,7 @@ int dcu_poller_step(dcu_poller_t* poller, dcu_inventory_t* inv, uint32_t max_met
                         poller->bus_ops.push_event(poller->bus_ops.ctx, tag_id, (uint32_t)m_idx, fv,
                                                    uv_hrtime());
                     }
-                } else {
+                } else if (read_rc != POLL_READ_PENDING) {
                     meter_success = false;
                 }
             }

@@ -3,6 +3,9 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+
+/* read_value 返回此值: 请求已发出、下一轮再收, 既非成功也非失败 */
+#define POLL_READ_PENDING 1
 #include <uv.h>
 
 #include "dcu_inventory.h"
@@ -22,6 +25,7 @@ typedef struct driver_manager_s driver_manager_t;
 /**
  * @brief DL/T 698.45 采集任务监控单元 (OI 6035)
  */
+
 typedef struct {
     uint32_t task_id;
     uint8_t status;
@@ -41,6 +45,7 @@ typedef enum {
     SCHEME_TYPE_SCRIPT = 5
 } dcu_scheme_type_t;
 
+
 typedef struct {
     uint32_t scheme_id;
     dcu_scheme_type_t type;
@@ -56,6 +61,7 @@ typedef struct {
     } data;
 } dcu_scheme_t;
 
+
 typedef struct {
     uint32_t task_id;
     uint32_t interval_s;
@@ -69,6 +75,7 @@ typedef struct {
 
 // === [Consumer-Defined Interfaces] ===
 // 1. 数据持久化接口
+
 typedef struct {
     void* ctx;
     int (*record_telemetry)(void* ctx, const char* meter_addr, uint32_t meter_idx, uint32_t tag_id,
@@ -77,6 +84,7 @@ typedef struct {
 } poller_sink_ops_t;
 
 // 2. 实时数据总线接口
+
 typedef struct {
     void* ctx;
     int (*publish_realtime)(void* ctx, uint32_t tag_id, uint32_t meter_idx, double val,
@@ -86,12 +94,14 @@ typedef struct {
 } poller_bus_ops_t;
 
 // 3. 采样数据源接口 (Source Adapter Seam)
+
 typedef struct {
     void* ctx;
     int (*read_value)(void* ctx, uint32_t meter_idx, uint32_t tag_id, double* out_val);
 } poller_source_ops_t;
 
 #include "driver_manager.h"
+
 
 typedef struct {
     dcu_task_unit_t tasks[MAX_TASKS];
