@@ -8,3 +8,4 @@ clauses:
   IEMS-ACQ-2: {standard: "EdgeC iems", number: "ACQ-2", summary: "轮询必须周期性发生,不是启动时发一帧就停"}
   IEMS-SVC-1: {standard: "EdgeC iems", number: "SVC-1", summary: "服务起来后 REST 健康检查可用,且监听在指定端口"}
   IEMS-KNOWN-GAP-1: {standard: "EdgeC iems", number: "KNOWN-GAP-1", summary: "已知缺口记录:产物侧无数据源时 REST 仍返回 0 而不是报缺失(升级时改判据)"}
+  IEMS-ACQ-3: {standard: "EdgeC iems", number: "ACQ-3", summary: "北向从站发布的镜像必须与南向读到的值一致,不是恒 0"}

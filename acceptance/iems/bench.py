@@ -33,6 +33,13 @@ TAG_CURRENT = 1002
 VOLTAGE = 231.7
 VOLTAGE_REGISTER = int(VOLTAGE * 10)
 
+# 北向从站(/tmp/iems_north_slave.sock,iems_app.c:415-431 的 setup_slave)。
+# 平台只认 serial / tcp,不认 unix socket,所以台架把这条 unix socket 桥成 TCP:
+# 平台驱动的是 iems 自己对外发布的那份镜像,不是 REST 自说自话。
+# 端口写死是因为 devices.yaml 是静态清单,读不到 ${PORT};换端口两边都要改。
+NORTH_SOCK = "/tmp/iems_north_slave.sock"
+BRIDGE_PORT = 19211
+
 
 def bus_seen() -> dict:
     """产品壳轮询到的总线请求。文件缺失 = 从站没起来,iems 连了个空 socket。"""

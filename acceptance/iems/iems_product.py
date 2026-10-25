@@ -21,14 +21,16 @@ iems 的硬事实(都核过源码):
 import argparse
 import asyncio
 import json
+import socket
 import sqlite3
 import subprocess
 import threading
 import time
 from pathlib import Path
 
-from bench import (BUS_LOG, BUS_ID, DB_PATH, IEMS_BIN, RUN_DIR, SOCK, SLAVE_ID,
-                   TAG_CURRENT, TAG_VOLTAGE, VOLTAGE_REGISTER)
+from bench import (BRIDGE_PORT, BUS_LOG, BUS_ID, DB_PATH, IEMS_BIN,
+                   NORTH_SOCK, RUN_DIR, SOCK, SLAVE_ID, TAG_CURRENT,
+                   TAG_VOLTAGE, VOLTAGE_REGISTER)
 from testplatform.protocol import modbus_rtu
 
 _lock = threading.Lock()
@@ -96,6 +98,39 @@ async def _unix_bus() -> None:
         await server.serve_forever()
 
 
+def _pump(src, dst) -> None:
+    try:
+        while (chunk := src.recv(4096)):
+            dst.sendall(chunk)
+    except OSError:
+        pass
+    finally:
+        src.close()
+        dst.close()
+
+
+def _north_bridge() -> None:
+    """unix socket → TCP:iems 的北向从站只监听 unix socket,而平台只认 serial/tcp。
+
+    一个连接一对 pump;连不上 iems 的 socket 就直接关掉这条 —— 平台那边看到的是
+    "连上了但没应答",由它自己记超时,不需要壳替它编一个应答。
+    """
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server.bind(("127.0.0.1", BRIDGE_PORT))
+    server.listen(8)
+    while True:
+        conn, _ = server.accept()
+        try:
+            up = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            up.connect(NORTH_SOCK)
+        except OSError:
+            conn.close()
+            continue
+        threading.Thread(target=_pump, args=(conn, up), daemon=True).start()
+        threading.Thread(target=_pump, args=(up, conn), daemon=True).start()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, required=True)
@@ -107,6 +142,7 @@ def main() -> int:
 
     loop = asyncio.new_event_loop()
     threading.Thread(target=lambda: loop.run_until_complete(_unix_bus()), daemon=True).start()
+    threading.Thread(target=_north_bridge, daemon=True).start()
     time.sleep(0.3)
     # 这个端口不自己占:iems 的 REST 直接绑 EDGE_REST_PORT,平台的就绪探针
     # connect 到的是 iems 自己。壳再起一个假监听会把端口抢走,REST 绑不上,

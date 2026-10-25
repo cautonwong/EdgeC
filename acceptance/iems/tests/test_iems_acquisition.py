@@ -80,3 +80,22 @@ def test_rest_reports_the_bench_voltage():
     assert got == pytest.approx(VOLTAGE, abs=TOLERANCE_V), (
         f"台架给了 {VOLTAGE}V(iems 的实时接口读到 {got}V)"
     )
+
+
+@case(id="I_00_00_01_000004", clause="IEMS-ACQ-3", tags=["验收"])
+@pytest.mark.contract
+@pytest.mark.requires_capability("电压")
+def test_northbound_image_carries_the_bench_voltage(meter):
+    """北向从站(平台按 modbus_rtu/tcp 读)发布的镜像必须就是台架给的那个值。
+
+    这条和 ACQ-1 的区别:ACQ-1 问 REST 报得对不对,这条问 iems 对外发布的
+    Modbus 镜像对不对。两者都从南向那一次读出发,漏一个就有一条假绿。
+    """
+    meter.connect()
+    measurement = meter.read_all()
+    value = measurement.readings["电压"]
+    assert abs(value - VOLTAGE) <= TOLERANCE_V, (
+        f"北向镜像 电压 = {value},台架给的是 {VOLTAGE}±{TOLERANCE_V};"
+        f"总线请求 {bus_seen()['requests']} 次。镜像为 0 说明 shadow 没被写入"
+        "(cmd/iems/iems_app.c:101-106 on_poll_complete 是空壳)"
+    )
