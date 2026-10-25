@@ -23,6 +23,7 @@ import asyncio
 import json
 import socket
 import sqlite3
+import struct
 import subprocess
 import threading
 import time
@@ -69,23 +70,47 @@ def provision() -> None:
     conn.close()
 
 
+def _fail(where: str, exc: BaseException) -> None:
+    """台架自己的异常必须留痕。
+
+    这个坑踩过一次:应答帧拼错(把寄存器列表当 payload 传给
+    build_read_response)时,协程里抛 TypeError,asyncio 不 retrieve 异常、
+    一声不响 —— 从站第 1 帧之后既不回包也不再 read,而验收看到的是
+    「产品只发了 1 帧」。台架的 bug 被记成产品的缺陷,是最贵的一种错。
+    """
+    with _lock:
+        _seen.setdefault("errors", []).append(f"{where}: {type(exc).__name__}: {exc}")
+        BUS_LOG.write_text(json.dumps(_seen, ensure_ascii=False), encoding="utf-8")
+
+
 async def _serve(reader, writer):
-    while True:
-        head = await reader.read(256)
-        if not head:
-            break
-        try:
-            unit, function, address, count = modbus_rtu.parse_read_request(head)
-        except ValueError:
-            _record(head, -1)
-            continue
-        _record(head, address)
-        if unit != SLAVE_ID:
-            break
-        registers = [VOLTAGE_REGISTER if (address + i) == 0 else 0 for i in range(count)]
-        writer.write(modbus_rtu.build_read_response(unit, function, registers))
-        await writer.drain()
-    writer.close()
+    try:
+        while True:
+            head = await reader.read(256)
+            if not head:
+                break
+            try:
+                unit, function, address, count = modbus_rtu.parse_read_request(head)
+            except ValueError as exc:
+                _record(head, -1)
+                _fail("parse_read_request", exc)
+                continue
+            _record(head, address)
+            if unit != SLAVE_ID:
+                break
+            payload = b"".join(
+                struct.pack(">H", VOLTAGE_REGISTER if (address + i) == 0 else 0)
+                for i in range(count)
+            )
+            writer.write(modbus_rtu.build_read_response(unit, payload, function))
+            await writer.drain()
+    except (ConnectionError, OSError) as exc:
+        _fail("serve", exc)
+    except BaseException as exc:
+        _fail("serve", exc)
+        raise
+    finally:
+        writer.close()
 
 
 async def _unix_bus() -> None:
