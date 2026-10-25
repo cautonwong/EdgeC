@@ -38,20 +38,29 @@ static void test_iems_task_loading_direct_product_code(void **state) {
     sqlite_svc_t *svc = sqlite_svc_create(loop, &cfg);
     assert_non_null(svc);
 
-    // 1. Initial state: tables do not exist yet or not ready -> return 0
+    // 1. Initial state: schema missing -> query fails, returns -1 (no tasks, no callback)
     g_callback_task_count = 0;
     int rc = iems_poll_tasks_load(svc, test_task_loader_cb, NULL);
-    assert_int_equal(rc, 0);
+    assert_int_equal(rc, -1);
     assert_int_equal(g_callback_task_count, 0);
 
     // 2. Setup schema & seed data via sqlite_svc_exec
     sqlite3 *raw_db = (sqlite3 *)sqlite_svc_get_db_handle(svc);
     assert_non_null(raw_db);
 
-    const char *setup_sql =
-        "CREATE TABLE IF NOT EXISTS matrix_meta (key TEXT PRIMARY KEY, val TEXT);"
+    const char *schema_sql =
         "CREATE TABLE IF NOT EXISTS inventory (id INTEGER PRIMARY KEY, addr TEXT, protocol TEXT);"
-        "CREATE TABLE IF NOT EXISTS poll_tasks (bus_id INTEGER, device_id INTEGER, tag_id INTEGER);"
+        "CREATE TABLE IF NOT EXISTS poll_tasks (bus_id INTEGER, device_id INTEGER, tag_id INTEGER);";
+    rc = sqlite3_exec(raw_db, schema_sql, NULL, NULL, NULL);
+    assert_int_equal(rc, SQLITE_OK);
+
+    // 3. 有表无数据 -> 0 条任务,不是错误(启动重试循环靠这个返回值区分)
+    g_callback_task_count = 0;
+    rc = iems_poll_tasks_load(svc, test_task_loader_cb, NULL);
+    assert_int_equal(rc, 0);
+    assert_int_equal(g_callback_task_count, 0);
+
+    const char *seed_sql =
         "INSERT INTO inventory (id, addr, protocol) VALUES (1, '01', 'MODBUS');"
         "INSERT INTO inventory (id, addr, protocol) VALUES (2, '02', 'MODBUS');"
         "INSERT INTO poll_tasks (bus_id, device_id, tag_id) VALUES (0, 1, 1001);"
@@ -59,20 +68,10 @@ static void test_iems_task_loading_direct_product_code(void **state) {
         "INSERT INTO poll_tasks (bus_id, device_id, tag_id) VALUES (10, 1, 9999);";  // Bus 10
                                                                                      // should be
                                                                                      // filtered
-    rc = sqlite3_exec(raw_db, setup_sql, NULL, NULL, NULL);
+    rc = sqlite3_exec(raw_db, seed_sql, NULL, NULL, NULL);
     assert_int_equal(rc, SQLITE_OK);
 
-    // 3. Before is_ready=1 -> must return 0
-    rc = iems_poll_tasks_load(svc, test_task_loader_cb, NULL);
-    assert_int_equal(rc, 0);
-    assert_int_equal(g_callback_task_count, 0);
-
-    // 4. Set is_ready=1
-    rc = sqlite3_exec(raw_db, "INSERT INTO matrix_meta (key, val) VALUES ('is_ready', '1');", NULL,
-                      NULL, NULL);
-    assert_int_equal(rc, SQLITE_OK);
-
-    // 5. Load tasks -> should load 2 tasks (bus 0 tag 1001, 1002; bus 10 ignored)
+    // 4. Load tasks -> should load 2 tasks (bus 0 tag 1001, 1002; bus 10 ignored)
     g_callback_task_count = 0;
     rc = iems_poll_tasks_load(svc, test_task_loader_cb, NULL);
     assert_int_equal(rc, 2);

@@ -53,6 +53,7 @@ typedef struct {
     char protocol[16];
     uint32_t interval_ms;
     uv_periodic_t scheduler;
+    iems_node_t* agg_root;
     struct uv__queue node;
 } iems_poll_task_t;
 
@@ -99,9 +100,18 @@ struct iems_app_s {
 volatile bool g_adc_running = false;
 
 static void on_poll_complete(int status, const pipe_msg_t* result, void* user_data) {
-    iems_poll_task_t* task = (iems_poll_task_t*)user_data;
-    if (status == 0 && result && task) {
-        // Shadow update from driver
+    // user_data 是聚合根(比 arbiter 活得久),不是 poll task —— 关停时 task 会先被释放。
+    iems_node_t* node = (iems_node_t*)user_data;
+    if (status != 0 || !result || !node) return;
+    if (result->type != PIPEMSG_TYPE_SCALAR) return;
+    // 镜像只能由聚合根写;这里只转交采样,不做任何堆分配。
+    if (iems_node_ingest_sample(node, result->tag_id, result->payload.val.f) != 0) {
+        static uint64_t last_warn_ns;  // 热路径:失败日志全局限流到 60s 一次
+        uint64_t now = uv_hrtime();
+        if (now - last_warn_ns > 60ULL * 1000000000ULL) {
+            last_warn_ns = now;
+            LOG_WARN(LOG_CAT_CORE, "IEMS ingest failed for tag %u", result->tag_id);
+        }
     }
 }
 
@@ -167,7 +177,7 @@ static void on_poll_task_trigger(uv_periodic_t* handle) {
 
     if (is_southbound) {
         edge_api_read_tag(task->bus_id, task->protocol, task->slave_id, task->tag_id,
-                          on_poll_complete, task);
+                          on_poll_complete, task->agg_root);
     }
 }
 
@@ -188,6 +198,7 @@ static void _on_iems_task_loaded(const iems_loaded_task_t* loaded, void* user_da
     task->slave_id = loaded->slave_id;
     task->tag_id = loaded->tag_id;
     task->dense_idx = edge_tag_get_compact_index(loaded->tag_id);
+    task->agg_root = app->node;
     strncpy(task->protocol, loaded->protocol, 15);
     task->interval_ms = 1000;
 

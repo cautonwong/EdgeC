@@ -20,13 +20,17 @@ typedef struct {
     iems_node_t *node;
 } test_fixture_t;
 
+// 每个测试进程用独立 shm,避开上一轮残留的镜像内容
+static char g_shm_name[64];
+
 static int setup_node(void **state) {
     test_fixture_t *fix = calloc(1, sizeof(test_fixture_t));
     uv_loop_init(&fix->loop);
+    snprintf(g_shm_name, sizeof(g_shm_name), "IEMS_TEST_SHM_%d", (int)getpid());
 
     iems_node_config_t cfg = {
         .product_name = "IEMS_TEST",
-        .shm_name = "IEMS_TEST_SHM",
+        .shm_name = g_shm_name,
         .datahub_capacity = 256,
         .max_pcs_power_kw = 500.0,
         .transformer_capacity_kva = 630.0,
@@ -221,6 +225,32 @@ static void test_iems_node_control_loop_latency_watchdog(void **state) {
     assert_float_equal(degraded_kw, 60.0, 0.001);
 }
 
+/* 7. 南向采样镜像写入口:写进去能读出来,非法入参被拒 */
+static void test_iems_node_ingest_sample(void **state) {
+    test_fixture_t *fix = (test_fixture_t *)*state;
+    iems_node_t *node = fix->node;
+    datahub_t *hub = iems_node_get_datahub(node);
+    assert_non_null(hub);
+
+    // 未采集过的 tag:ts 还是 0（/tmp/edgec-worktree-iems/cmd/iems/iems_node.h 里写的不变量）
+    pipe_msg_t before;
+    assert_int_equal(datahub_read_shadow(hub, 42, &before), 0);
+    assert_int_equal(before.ts, 0);
+
+    assert_int_equal(iems_node_ingest_sample(node, IEMS_TAG_VOLTAGE_PHASE_A, 231.7), 0);
+
+    pipe_msg_t out;
+    assert_int_equal(datahub_read_shadow(hub, IEMS_TAG_VOLTAGE_PHASE_A, &out), 0);
+    assert_int_equal(out.tag_id, IEMS_TAG_VOLTAGE_PHASE_A);
+    assert_true(out.ts > 0);
+    assert_float_equal(out.payload.val.f, 231.7, 0.001);
+
+    assert_int_equal(iems_node_ingest_sample(NULL, IEMS_TAG_VOLTAGE_PHASE_A, 1.0), -1);
+    assert_int_equal(iems_node_ingest_sample(node, 0, 1.0), -1);
+    // 不在 tag 映射里且超出 shadow 容量的 tag:写入失败要能看出来
+    assert_int_equal(iems_node_ingest_sample(node, 9999, 1.0), -1);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_iems_node_assembly, setup_node, teardown_node),
@@ -229,6 +259,7 @@ int main(void) {
         cmocka_unit_test_setup_teardown(test_iems_node_bms_invariants, setup_node, teardown_node),
         cmocka_unit_test_setup_teardown(test_iems_node_fire_safety_trip, setup_node, teardown_node),
         cmocka_unit_test_setup_teardown(test_iems_node_control_loop_latency_watchdog, setup_node, teardown_node),
+        cmocka_unit_test_setup_teardown(test_iems_node_ingest_sample, setup_node, teardown_node),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
