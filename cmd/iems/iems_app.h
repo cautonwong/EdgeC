@@ -51,6 +51,10 @@ iems_app_t *iems_app_assemble(uv_loop_t *loop, const iems_app_config_t *cfg);
  * @return 连上的南向总线数(含此前已连上的);<0 参数非法或装配契约表缺失
  *
  * 必须在 iems_app_start() 之前调用一次,iems_app_start() 会拒绝未连过总线的半装配启动。
+ * 语义:配了南向总线就要求至少连上一路;部分连上照常启动,缺的那几路只 WARN 不致命
+ *       (缺 CAN 的机器不该起不来)。全都没连上才算启动失败,由组合根 abort。
+ *       能拿到装配契约表时打一行摘要:[IEMS-INIT] southbound: <connected>/<configured> connected
+ *       (契约表本身取不到属于装配坏了,由组合根打 FATAL,这里不出摘要)
  */
 int iems_app_connect_buses(iems_app_t *app, int *configured);
 
