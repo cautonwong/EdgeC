@@ -8,4 +8,4 @@ launch:
   - ${PORT}
   - --expect-boot-fail
 devices: configs/devices_empty.yaml
-select: tag:冒烟
+select: case:I_00_00_01_000010

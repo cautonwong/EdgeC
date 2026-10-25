@@ -27,6 +27,7 @@ import socket
 import sqlite3
 import struct
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -251,6 +252,8 @@ def main() -> int:
     parser.add_argument("--fault-frames", type=int, default=2)
     parser.add_argument("--drop-after", type=int, default=0,
                         help="服务 N 帧后主动断开南向连接(链路断开用例用)")
+    parser.add_argument("--record-startup", action="store_true",
+                        help="把 iems 的输出同时落一份到 RUN_DIR/iems.log,供用例断言启动汇总行")
     parser.add_argument("--expect-boot-fail", action="store_true",
                         help="不给任何总线/从站,产品应该启动失败而不是重连")
     args = parser.parse_args()
@@ -319,7 +322,23 @@ def main() -> int:
         while True:
             time.sleep(1)
 
-    proc = subprocess.Popen([IEMS_BIN], env=env, cwd=str(RUN_DIR))
+    if args.record_startup:
+        # tee:产品输出既给平台(product.out 是失败时的第一现场),也落一份到
+        # RUN_DIR/iems.log —— 启动汇总行是 IEMS-ROBUST-3 的合同条款,用例要读它。
+        log = (RUN_DIR / "iems.log").open("w", encoding="utf-8", buffering=1)
+        proc = subprocess.Popen([IEMS_BIN], env=env, cwd=str(RUN_DIR),
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                text=True, bufsize=1)
+
+        def _tee():
+            for line in proc.stdout:
+                sys.stdout.write(line)
+                log.write(line)
+            log.close()
+
+        threading.Thread(target=_tee, daemon=True).start()
+    else:
+        proc = subprocess.Popen([IEMS_BIN], env=env, cwd=str(RUN_DIR))
 
     # 平台杀的是壳,不是 iems。不转发信号就会留孤儿:iems 继续占着 REST 端口和
     # /tmp/vbus0.sock,下一个任务可能连到它 —— 那时"通过"的是上一个进程(实测踩过)。

@@ -20,4 +20,4 @@
 # 读数的设备文件在归因里等于"这轮没验它"—— 冒烟任务会被自己的收尾动作拖成未完成。
 criteria_profiles: {}
 models: {}
-devices: {}
+devices: []

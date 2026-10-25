@@ -13,3 +13,4 @@ clauses:
   IEMS-ROBUST-1: {standard: "EdgeC iems", number: "ROBUST-1", summary: "CRC 校验失败的应答必须整帧丢弃,载荷不许变成读数"}
   IEMS-ROBUST-2: {standard: "EdgeC iems", number: "ROBUST-2", summary: "应答超时不许把 0 写成读数;下一轮必须恢复到正确值"}
   IEMS-LINK-1: {standard: "EdgeC iems", number: "LINK-1", summary: "南向链路断开后必须停止发布新数据(时间戳不再前进),不许把旧值或 0 当新读数,进程不许退出且服务仍可用"}
+  IEMS-ROBUST-3: {standard: "EdgeC iems", number: "ROBUST-3", summary: "部分南向总线连不上时产品仍可启动,但必须在启动汇总行里说清哪几路没连上(不许静默降级)"}
