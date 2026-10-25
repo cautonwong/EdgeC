@@ -80,3 +80,6 @@ changed_files.txt
 # test-platform 跑出来的证据与报告(acceptance/run.sh)
 /reports/
 /acceptance/*/reports/
+
+# clawpatch 的切片缓存与报告,不进仓库
+/.clawpatch/
