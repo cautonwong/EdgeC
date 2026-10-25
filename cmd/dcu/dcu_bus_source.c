@@ -2,6 +2,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include <uv.h>
 
 #include "dcu_inventory.h"
@@ -52,6 +53,17 @@ struct dcu_bus_source_s {
 };
 
 static uint64_t _now_ms(void) { return uv_hrtime() / 1000000ULL; }
+
+/* 静默失败会让"一帧都不发"无从定位：每个 -1 出口带原因码，每秒最多一条 */
+static void _src_err(const char *reason, uint32_t meter_idx, uint32_t tag_id, int extra) {
+    static uint64_t last_ms = 0;
+    static const char *last_reason = NULL;
+    uint64_t now = _now_ms();
+    if (last_reason == reason && now - last_ms < 1000) return;
+    last_ms = now;
+    last_reason = reason;
+    printf("[SRC-ERR] reason=%s meter=%u tag=%08x extra=%d\n", reason, meter_idx, tag_id, extra);
+}
 
 static void _bs_free(dcu_bus_source_t *bs) {
     uv_mutex_destroy(&bs->lock);
@@ -111,7 +123,15 @@ static void _abandon_locked(dcu_bus_source_t *bs, bus_slot_t *s, int drop_ref) {
 
 static int _read_value_impl(dcu_bus_source_t *bs, uint32_t meter_idx, uint32_t tag_id,
                             double *out_val) {
-    if (!out_val || !bs->inv || meter_idx >= bs->inv->count) return -1;
+    if (!out_val) return -1;
+    if (!bs->inv) {
+        _src_err("no-inv", meter_idx, tag_id, -1);
+        return -1;
+    }
+    if (meter_idx >= bs->inv->count) {
+        _src_err("idx-out-of-range", meter_idx, tag_id, (int)bs->inv->count);
+        return -1;
+    }
 
     const production_meter_t *m = &bs->inv->meters[meter_idx];
     const char *address = m->address;
@@ -166,7 +186,10 @@ static int _read_value_impl(dcu_bus_source_t *bs, uint32_t meter_idx, uint32_t t
     uv_mutex_unlock(&bs->lock);
 
     if (action == 0) return POLL_READ_PENDING; /* 在途 */
-    if (action == -1) return -1;
+    if (action == -1) {
+        _src_err("state-fail", meter_idx, tag_id, (int)s->state);
+        return -1;
+    }
 
     if (action == 1) {
         if (edge_api_read_tag((int)m->channel_id, m->protocol, meter_idx, tag_id, _on_done, c) !=
@@ -180,6 +203,8 @@ static int _read_value_impl(dcu_bus_source_t *bs, uint32_t meter_idx, uint32_t t
             c->used = 0;
             bs->refs--; /* 提交失败不会有回调 */
             uv_mutex_unlock(&bs->lock);
+            /* edge_api_read_tag 自己会打 [API-ERROR]，这里只标来源 */
+            _src_err("submit-fail", meter_idx, tag_id, (int)m->channel_id);
             return -1;
         }
         return POLL_READ_PENDING;
@@ -190,6 +215,7 @@ static int _read_value_impl(dcu_bus_source_t *bs, uint32_t meter_idx, uint32_t t
         *out_val = msg.payload.val.f;
         return 0;
     }
+    _src_err("no-shadow", meter_idx, tag_id, (int)tag_id);
     return -1; /* 应答成功但没落 shadow：本轮算失败，不回 0.0 */
 }
 
