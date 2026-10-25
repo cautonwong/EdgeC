@@ -52,6 +52,13 @@ int dcu_node_start(dcu_node_t *node);
 int dcu_node_stop(dcu_node_t *node);
 
 /**
+ * @brief 设置表计数据源（组合根在拿到 hub/inv 之后一次性交给聚合根）
+ * @note 必须在 dcu_node_start() 之前调用：poller 每轮直接读该字段，运行期替换会
+ *       丢掉旧源的 ctx（及其在途请求），故不做运行期热替换。
+ */
+void dcu_node_set_source_ops(dcu_node_t *node, poller_source_ops_t source_ops);
+
+/**
  * @brief Perform a single polling pump cycle across active inventory
  */
 int dcu_node_pump(dcu_node_t *node);

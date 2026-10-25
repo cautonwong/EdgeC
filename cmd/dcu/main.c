@@ -21,6 +21,7 @@
 #include "dcu_poller.h"
 #include "dcu_router.h"
 #include "dcu_storage.h"
+#include "edge_api.h"
 #include "dcu_twin_source.h"
 #include "driver_manager.h"
 #include "edge_driver.h"
@@ -189,14 +190,6 @@ int main(int argc, char** argv) {
         LOG_WARN(LOG_CAT_SCHED,
                  "⚠️ EDGE_DCU_TWIN_SOURCE=1: poller uses synthetic values, bus reads are bypassed");
     }
-    if (!bus_source) {
-        bus_source = dcu_bus_source_start(NULL, NULL, 4000);
-        if (!bus_source) {
-            LOG_ERROR(LOG_CAT_SCHED, "❌ FATAL: bus source alloc failed");
-            return -1;
-        }
-        src_ops = dcu_bus_source_ops(bus_source);
-    }
     dcu_node_config_t node_cfg = {.product_name = "DCU",
                                   .db_path = db_abs_path,
                                   .datahub_capacity = 32768,
@@ -218,7 +211,17 @@ int main(int argc, char** argv) {
     LOG_INFO(LOG_CAT_SCHED, "📖 [ARCHIVE] Loaded %d meters from Digital Twin database.", inv->count);
 
     datahub_t* hub = dcu_node_get_datahub(g_dcu_node);
-    if (bus_source) dcu_bus_source_bind(bus_source, hub, inv);
+    if (!bus_source && src_ops.read_value == NULL) {
+        // 组合根：依赖一次拿齐（hub + inv 已在手），不再有"先造后 bind"。
+        // 显式配置的数据源（合成源）优先：它存在时总线源根本不该被创建。
+        bus_source = dcu_bus_source_start(hub, inv, 4000);
+        if (!bus_source) {
+            LOG_ERROR(LOG_CAT_SCHED, "❌ FATAL: bus source alloc failed");
+            dcu_node_destroy(g_dcu_node);
+            return -1;
+        }
+        dcu_node_set_source_ops(g_dcu_node, dcu_bus_source_ops(bus_source));
+    }
     dcu_storage_t* storage = dcu_node_get_storage(g_dcu_node);
 
     arbiter_t* arbiter_ctx = NULL;
@@ -229,6 +232,8 @@ int main(int argc, char** argv) {
     bus_orchestrator_t* io_orch =
         bus_orchestrator_create(hub, arbiter_ctx, drv_mgr, 64, 8192, 4096);
     datahub_bind_io_pool(hub, bus_orchestrator_get_pool(io_orch));
+    // 装配必须做全：把 orchestrator/驱动管理器登记到对外门面，否则 edge_api_read_tag 恒返回 -1
+    edge_api_init(io_orch, drv_mgr);
     arbiter_resume(arbiter_ctx);
 
     for (int i = 0; i < 32; i++) {
@@ -312,6 +317,8 @@ int main(int argc, char** argv) {
 
     bus_orchestrator_run(io_orch);
     int ret = service_run(svc);
+    dcu_bus_source_stop(bus_source); // 先停源再拆聚合根：源持有 hub/inv 指针
+    bus_source = NULL;
     dcu_node_destroy(g_dcu_node);
     return ret;
 }

@@ -30,7 +30,6 @@ void dcu_bus_source_stop(dcu_bus_source_t *bs);
 poller_source_ops_t dcu_bus_source_ops(dcu_bus_source_t *bs);
 
 /** @brief node 建好之后才能拿到 hub/inv，先建后绑 */
-void dcu_bus_source_bind(dcu_bus_source_t *bs, datahub_t *hub, const dcu_inventory_t *inv);
 
 #ifdef __cplusplus
 }

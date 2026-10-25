@@ -163,6 +163,12 @@ dcu_node_t *dcu_node_create(uv_loop_t *loop, const dcu_node_config_t *cfg) {
     return node;
 }
 
+void dcu_node_set_source_ops(dcu_node_t *node, poller_source_ops_t source_ops) {
+    if (!node) return;
+    node->cfg.source_ops = source_ops;
+    node->poller.source_ops = source_ops;
+}
+
 int dcu_node_start(dcu_node_t *node) {
     if (!node || node->running) return -1;
     node->running = true;

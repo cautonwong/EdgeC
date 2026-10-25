@@ -271,12 +271,6 @@ void dcu_bus_source_stop(dcu_bus_source_t *bs) {
     /* 仍有在途请求：内存交给最后一个回调/read_value 释放（edge_api 无 cancel 接口） */
 }
 
-void dcu_bus_source_bind(dcu_bus_source_t *bs, datahub_t *hub, const dcu_inventory_t *inv) {
-    if (!bs) return;
-    bs->hub = hub;
-    bs->inv = inv;
-}
-
 poller_source_ops_t dcu_bus_source_ops(dcu_bus_source_t *bs) {
     poller_source_ops_t ops;
     ops.ctx = bs;
