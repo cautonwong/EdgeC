@@ -26,7 +26,7 @@ typedef void (*iems_task_registered_cb)(const iems_loaded_task_t *task, void *us
  * @param db_svc 统一 SQLite 服务实例
  * @param on_task 任务注册回调
  * @param user_data 回调透传参数
- * @return 成功加载的任务数量，未就绪返回 0，错误返回 -1
+ * @return 成功加载的任务数量；库里有表但无数据返回 0，查询/错误返回 -1
  */
 int iems_poll_tasks_load(sqlite_svc_t *db_svc, iems_task_registered_cb on_task, void *user_data);
 

@@ -92,6 +92,20 @@ int iems_node_update_bms_rack(iems_node_t *node, uint8_t rack_id, double voltage
                               double current_a, double soc_pct, double max_temp_c);
 
 /**
+ * @brief 南向轮询采样的镜像写入口 (镜像聚合的唯一写路径)
+ *
+ * 不变量:ts 由聚合根在采集时刻打(进程内单调递增);未采集过的 tag 读到 ts==0。
+ * 局限:镜像按 tag 唯一,不带 device_id —— 多机共用同一 tag 会互相覆盖。
+ * 调用方须在轮询回调里调用,热路径无堆分配。
+ *
+ * @param node 聚合根句柄
+ * @param tag_id 采集点
+ * @param value 采样值
+ * @return 0 成功, <0 参数非法或镜像写入失败
+ */
+int iems_node_ingest_sample(iems_node_t *node, uint32_t tag_id, double value);
+
+/**
  * @brief IEMS 控制环路延迟预算与看门狗统计 (AEP-407)
  */
 typedef struct {

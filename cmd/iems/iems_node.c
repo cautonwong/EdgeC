@@ -290,6 +290,14 @@ int iems_node_update_bms_rack(iems_node_t *node, uint8_t rack_id, double voltage
     return rc;
 }
 
+int iems_node_ingest_sample(iems_node_t *node, uint32_t tag_id, double value) {
+    if (!node || !node->hub || tag_id == 0) return -1;
+    pipe_msg_t msg;
+    // shortcut: device_id 留 0,镜像按 tag 全局;接多机同 tag 时再加参数。
+    pipe_msg_init_scalar(&msg, tag_id, value, uv_hrtime());
+    return datahub_publish(node->hub, &msg);
+}
+
 int iems_node_set_watchdog_budget(iems_node_t *node, uint64_t budget_us) {
     if (!node) return -1;
     node->wd_stats.watchdog_budget_us = budget_us;

@@ -47,21 +47,6 @@ int iems_poll_tasks_load(sqlite_svc_t *db_svc, iems_task_registered_cb on_task, 
     sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle(db_svc);
     if (!db) return -1;
 
-    const char *check_sql = "SELECT val FROM matrix_meta WHERE key='is_ready';";
-    sqlite3_stmt *stmt = NULL;
-    bool ready = false;
-    if (sqlite3_prepare_v2(db, check_sql, -1, &stmt, NULL) == SQLITE_OK) {
-        if (sqlite3_step(stmt) == SQLITE_ROW &&
-            strcmp((const char *)sqlite3_column_text(stmt, 0), "1") == 0) {
-            ready = true;
-        }
-        sqlite3_finalize(stmt);
-    }
-
-    if (!ready) {
-        return 0;
-    }
-
     loader_ctx_t ctx = {.on_task = on_task, .user_data = user_data, .loaded_count = 0};
 
     const char *sql =
