@@ -63,17 +63,9 @@ def provision() -> None:
             addr = f"{n:012d}"
             rows.append((addr, "DLT645", 2400, chan, 1, "123456789012", addr, 1, 1))
     cur.executemany("INSERT INTO meter_inventory VALUES (?,?,?,?,?,?,?,?,?)", rows)
-    cur.execute("CREATE TABLE IF NOT EXISTS telemetry (timestamp INTEGER, tag_id INTEGER, "
-                "value REAL, device_id INTEGER, quality INTEGER)")
-    cur.execute("CREATE TABLE IF NOT EXISTS event_history (meter_address TEXT, oi INTEGER, "
-                "start_time INTEGER, end_time INTEGER, snapshot_value REAL, "
-                "PRIMARY KEY (meter_address, oi, start_time))")
-    cur.execute("CREATE TABLE IF NOT EXISTS dcu_freeze_history (meter_address TEXT, "
-                "freeze_oad INTEGER, freeze_time INTEGER, source_oad INTEGER, "
-                "frozen_value REAL, PRIMARY KEY (meter_address, freeze_oad, "
-                "freeze_time, source_oad))")
-    cur.execute("CREATE TABLE IF NOT EXISTS dcu_telemetry_latest (device_id INTEGER, "
-                "tag_id INTEGER, value REAL, timestamp INTEGER, PRIMARY KEY (device_id, tag_id))")
+    # 其余表全部由 DCU 自己建(dcu_storage.c:51 起)。这里不预先建:
+    # CREATE TABLE IF NOT EXISTS 不覆盖已存在的表,壳的列名一旦和 DCU 不一致,
+    # DCU 的 INSERT 就静默失败 —— 表现为「跑完了但表是空的」。
     conn.commit()
     conn.close()
 

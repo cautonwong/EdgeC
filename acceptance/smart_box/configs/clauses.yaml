@@ -1,0 +1,12 @@
+# smart_box 用例引用的条款。
+#
+# 平台包里那份 clauses.yaml 是电力行业条款(DL/T 645、GB/T 34131、GB/T 37408),
+# 没有"HTTP 网关"的条款。项目可以自己声明一份:收集期按 --clause-config 校验,
+# 默认读项目根的 configs/clauses.yaml。
+#
+# summary 是这组用例测什么,不是标准原文标题 —— 别让它看起来像引用了某份标准。
+clauses:
+  SBX-RBAC-1: {standard: "EdgeC smart_box", number: "RBAC-1", summary: "网关按角色拒绝越权请求(匿名 401 / 权限不足 403 / 足够 200)"}
+  SBX-VOICE-NLU-1: {standard: "EdgeC smart_box", number: "VOICE-NLU-1", summary: "语音指令命中关键词后把指令码写入 tag_history,未命中不写"}
+  SBX-PRIVACY-1: {standard: "EdgeC smart_box", number: "PRIVACY-1", summary: "GDPR 清除不是回一句成功:隐私/历史/回执三张表必须真的清空"}
+  SBX-KNOWN-STUB-1: {standard: "EdgeC smart_box", number: "KNOWN-STUB-1", summary: "已知桩记录:人脸比对的 user_id 是常量,换图不换人(不判失败,升级时改判据)"}

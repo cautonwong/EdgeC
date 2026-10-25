@@ -49,6 +49,24 @@ def _bus_requests() -> int:
     return int(json.loads(BUS_LOG.read_text(encoding="utf-8"))["requests"])
 
 
+def _diagnose(requests: int, value) -> str:
+    """断言失败时把"现在是哪一种不通"说清楚,不让人自己猜。"""
+    facts = [f"总线请求 {requests} 次", f"落库电压 {value}"]
+    if DB_PATH.exists():
+        try:
+            conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+            for table in ("dcu_meters", "dcu_telemetry_latest"):
+                try:
+                    n = conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
+                    facts.append(f"{table} {n} 行")
+                except sqlite3.Error:
+                    facts.append(f"{table} 不存在")
+            conn.close()
+        except sqlite3.Error as exc:
+            facts.append(f"读库失败 {exc}")
+    return " · ".join(facts)
+
+
 @case(id="DCU_00_00_01_000001_01", clause="DLT645-4.5.2", tags=["验收"])
 @pytest.mark.contract
 def test_dcu_polls_the_bench_meter(meter):
@@ -65,8 +83,10 @@ def test_dcu_polls_the_bench_meter(meter):
     value = _latest_voltage()
     requests = _bus_requests()
     assert requests > 0, (
-        "DCU 在 8 秒内没有向台架发出任何 DLT645 读请求(/tmp/rs485_22..31.sock)。"
-        "落库的读数是 dcu_twin_source 合成的,不是从总线读来的。"
+        f"DCU 在 8 秒内没有向台架发出任何 DLT645 读请求(/tmp/rs485_22..31.sock) · "
+        f"{_diagnose(requests, value)}\n"
+        "读入口只有一个:dcu_poller.c 的 source_ops.read_value;全仓库只实现了 "
+        "dcu_twin_source_read(合成值),关掉 twin 后 source_ops 为空,总线一个字节都不会发。"
     )
 
     # 3. 落库值必须等于台架值。

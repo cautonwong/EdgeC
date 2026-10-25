@@ -17,9 +17,9 @@ DB_PATH = RUN_DIR / "dcu_runtime.db"
 BUS_LOG = RUN_DIR / "bus.json"
 
 # DCU 二进制:先看 DCU_BIN(CI 里指构建产物),否则按 CMake 的缺省产物位置找。
+# 只认本仓库根下的 build/:写死别的路径会静默用上过期二进制(踩过一次)。
 _CANDIDATES = [
-    HERE.parent.parent.parent / "build/products/dcu/bin/dcu",   # 仓库根/build
-    Path("/workspaces/edgeos/EdgeC/build/products/dcu/bin/dcu"),  # 主工作树
+    HERE.parents[1] / "build/products/dcu/bin/dcu",   # 仓库根/build
 ]
 DCU_BIN = os.environ.get("DCU_BIN") or next(
     (str(p) for p in _CANDIDATES if p.exists()), str(_CANDIDATES[0])

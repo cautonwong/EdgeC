@@ -1,0 +1,11 @@
+# smart_box 的清单是空的 —— 这是刻意的。
+#
+# 智能盒子不接现场总线:被测面是 go 网关的 HTTP API + 它写进 sqlite 的东西。
+# 平台证据层的设备模型只覆盖字节流规约(modbus / dlt645 / vendor_ascii / canopen),
+# 没有"HTTP 服务当 dut"这种接入方式,所以这里没有设备可声明。
+#
+# 以后网关接了真下游(外骨骼 modbus),就在这里加一台 support 设备当那台外骨骼,
+# 用例从"看 sqlite 记了什么"升级成"看总线上到底发了什么" —— 那时才能标 acceptance。
+criteria_profiles: {}
+models: {}
+devices: []
