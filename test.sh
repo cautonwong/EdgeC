@@ -2,7 +2,9 @@
 set -e
 
 # ==============================================================================
-# EdgeOS 集成测试与全链路演习指挥中心 (Omnis Edition)
+# EdgeOS 测试入口
+#   默认:  C 单元测试(ctest)
+#   --omnis: 产品验收,由 test-platform 跑和判(acceptance/run.sh)
 # ==============================================================================
 
 # Load shared environment
@@ -24,28 +26,18 @@ show_help() {
     echo ""
     echo -e "${B}Options:${NC}"
     echo "  (none)          运行标准 C 语言单元测试 (cmocka)"
-    echo "  --omnis         运行全链路自动化集成测试 (Matrix Plane)"
+    echo "  --omnis [产品..] 运行产品验收 (test-platform),缺省跑 acceptance/ 下所有产品"
     echo "  --asan          使用 AddressSanitizer 构建并运行测试"
     echo "  --ubsan         使用 UndefinedBehaviorSanitizer 构建并运行测试"
     echo "  --coverage      生成代码覆盖率报告 (gcovr)"
-    echo "  --only <test>   只运行特定的测试文件或用例 (例如: cmd/iems/matrix/test_slave_flow.py)"
+    echo "  --only <产品>   同 --omnis <产品>"
     echo "  --help          显示此帮助信息"
     echo ""
-    echo -e "${B}Interactive Debugging Tools (演习与调试工具):${NC}"
-    echo -e "  ${G}1. Matrix Server:${NC}  仿真基座，启动虚拟总线和 Actor"
-    echo "     命令: $ENV_PYTHON tools/matrix/server.py --product $PROD"
-    echo ""
-    echo -e "  ${G}2. Matrix CLI:${NC}     上帝视角控制台，支持 Tab 补全和契约透视"
-    echo "     命令: $ENV_PYTHON tools/matrix/matrix_cli.py --product $PROD"
-    echo "     用法: (omnis) set METER_MAIN VOLTAGE_PHASE_A 230.5"
-    echo "           (omnis) inspect METER_MAIN"
-    echo ""
-    echo -e "  ${G}3. IEMS CLI:${NC}       边缘侧 ncurses 监控面板，查看实时 DataHub 状态"
-    echo "     命令: ./build/products/$PROD/bin/iems-cli"
-    echo ""
-    echo -e "${B}Advanced Integration Scenarios (场景驱动测试):${NC}"
-    echo -e "  运行特定 YAML 场景: "
-    echo "     $ENV_PYTHON tools/matrix/matrix_test.py --product $PROD --scenario cmd/iems/scenarios/fault_test.yaml"
+    echo -e "${B}产品验收 (test-platform):${NC}"
+    echo -e "  ${G}入口:${NC} ./acceptance/run.sh [产品]"
+    echo -e "  ${G}内容:${NC} 清单/任务/用例在 acceptance/<产品>/,判据/证据/归因/门禁全在平台里"
+    echo -e "  ${G}锁版本:${NC} acceptance/testplatform.sha —— 平台是独立仓库,升级 = 改这一行的一次 PR"
+    echo -e "  ${G}退出码:${NC} 0 合格 / 1 不合格 / 2 测试无效 / 3 未完成 / 4 平台错误 / 5 没跑过 / 6 没有验收任务"
 }
 
 stop_all() {
@@ -117,65 +109,35 @@ run_ubsan() {
 }
 
 
-run_omnis() {
-    echo -e "${P}🚀 Step [1/3]: Launching Matrix Plane...${NC}"
+run_acceptance() {
+    echo -e "${P}🚀 产品验收 (test-platform)${NC}"
     stop_all
-    
-    # 保证 generated 目录下有 manifest 副本 (向后兼容)
-    mkdir -p build/products/$PROD/generated
-    if [ -f "cmd/$PROD/omnis_manifest.json" ]; then
-        cp "cmd/$PROD/omnis_manifest.json" "build/products/$PROD/generated/omnis_manifest.json"
-    fi
 
-    # 1. 启动仿真基座
-    $ENV_PYTHON -u tools/matrix/server.py --product $PROD > matrix_server.log 2>&1 &
-    
-    echo -e "${Y}  ⏳ Waiting for Backplane...${NC}"
-    MAX_RETRY=10
-    while [ $MAX_RETRY -gt 0 ]; do
-        if grep -q "Matrix is UP" matrix_server.log; then break; fi
-        sleep 1
-        MAX_RETRY=$((MAX_RETRY-1))
-    done
+    # 台架、清单、用例都在 acceptance/<产品>/,结论由平台给。这里只转退出码。
+    local code=0
+    ./acceptance/run.sh "$@" || code=$?
 
-    # 2. 注入环境变量 (用于 VBus 路径透传)
-    eval $(grep "export OMNIS_BUS_" matrix_server.log | sed 's/  //g')
-    export OMNIS_PRODUCT=$PROD
-    
-    # 3. 执行自动化场景验收 (由 pytest 内部拉起隔离的 EdgeC)
-    echo -e "${P}🧪 Step [2/2]: Running Automated Scenarios...${NC}"
-    set +e
-    $ENV_PYTHON tools/matrix/matrix_test.py --product $PROD $PYTEST_ARGS
-    TEST_RES=$?
-    set -e
-    
-    if [ $TEST_RES -eq 0 ]; then
-        echo -e "${G}✨ OMNIS INTEGRATION TEST PASSED!${NC}"
+    stop_all
+    if [ $code -eq 0 ]; then
+        echo -e "${G}✨ 验收通过${NC}"
     else
-        echo -e "${R}❌ OMNIS INTEGRATION TEST FAILED!${NC}"
-        echo -e "${Y}--- [Tail of matrix_edgec.log] ---${NC}"
-        tail -n 50 build/matrix_edgec.log || true
-        echo -e "${Y}--- [Tail of matrix_server.log] ---${NC}"
-        tail -n 50 matrix_server.log || true
+        echo -e "${R}❌ 验收未通过(门禁退出码 $code)${NC}"
     fi
-    
-    stop_all
-    exit $TEST_RES
+    exit $code
 }
 
 # 命令分发
 case "$1" in
     --omnis)
-        run_omnis
+        shift
+        run_acceptance "$@"
         ;;
     --only)
-        if [ -z "$2" ]; then
-            echo -e "${R}Error: --only requires a test file or pattern.${NC}"
+        if [ -z "${2:-}" ]; then
+            echo -e "${R}Error: --only requires a product name (e.g. dcu)${NC}"
             exit 1
         fi
-        # 暂时借用 run_omnis 的逻辑，但通过环境变量传递 pytest 过滤
-        export PYTEST_ARGS="$2"
-        run_omnis
+        run_acceptance "$2"
         ;;
     --help)
         show_help

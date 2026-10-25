@@ -89,6 +89,20 @@ jobs:
         run: |
           cd go && go test ./...
 
+      - name: Run Acceptance (test-platform)
+        if: matrix.config.target == 'x86_64'
+        # DCU 采集链路现在是红的:产品用 twin source 合成读数、对台架 0 个读请求
+        # (cmd/dcu/main.c:178 + cmd/dcu/dcu_twin_source.c:19)。这是产品缺陷,不是台架问题。
+        # 产品修好后删 continue-on-error,这一步就是验收门禁。
+        continue-on-error: true
+        run: |
+          TP="${RUNNER_TEMP}/test-platform"
+          SHA="$(sed -n 's/^\([0-9a-f]\{7,40\}\)$/\1/p' acceptance/testplatform.sha | head -1)"
+          git clone --quiet "https://x-access-token:${{ github.token }}@github.com/cautonwong/test-platform.git" "$TP"
+          git -C "$TP" checkout --quiet "$SHA"
+          python3 -m pip install --quiet -e "$TP[dev]"
+          ./acceptance/run.sh
+
       - name: Run Architecture & Anti-Entropy Gates (x86_64 only)
         if: matrix.config.target == 'x86_64'
         shell: bash
