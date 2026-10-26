@@ -1,5 +1,7 @@
 #include "dcu_bus_source.h"
 
+#include "dcu_node.h"
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -36,11 +38,14 @@ typedef struct bus_slot_s {
     char address[MAX_ADDR_LEN]; /* 提交时的表地址：下标被别的表复用后用于作废 */
     uint64_t gen;
     uint64_t ts;      /* 提交时刻：仅作"回调丢失"的兜底计时 */
+    double value;     /* 回调带回的读数：poller 下一轮直接取，不再反查 shadow */
+    uint8_t has_value;
     bus_slot_state_t state;
 } bus_slot_t;
 
 struct dcu_bus_source_s {
     datahub_t *hub;
+    dcu_node_t *node; /* 聚合根：读数由回调直接交给它，本源只是搬运工 */
     const dcu_inventory_t *inv;
     uint64_t timeout_ms;
     uint64_t gen_seq;
@@ -86,7 +91,6 @@ static bus_ctx_t *_ctx_acquire(dcu_bus_source_t *bs) {
 
 /* on_finish 只会来一次（master_engine 的超时/成功/协议错误三条路径各调用一次） */
 static void _on_done(int status, const pipe_msg_t *result, void *user_data) {
-    (void)result;
     bus_ctx_t *c = (bus_ctx_t *)user_data;
     if (!c) return;
 
@@ -98,14 +102,36 @@ static void _on_done(int status, const pipe_msg_t *result, void *user_data) {
     }
     dcu_bus_source_t *bs = s->owner;
 
-    int free_now = 0;
+    dcu_node_t *node = NULL;
+    uint32_t device_id = 0;
+    uint32_t proto_id = 0;
+    double value = 0.0;
+    int deliver = 0;
+
     uv_mutex_lock(&bs->lock);
     if (s->gen == c->gen && s->state == SLOT_INFLIGHT) {
         s->state = (status == 0) ? SLOT_DONE : SLOT_FAILED;
         s->ctx = NULL;
+        if (status == 0 && result) {
+            s->value = result->payload.val.f;
+            s->has_value = 1;
+            node = bs->node;
+            device_id = s->meter_idx;
+            proto_id = s->tag_id;
+            value = s->value;
+            deliver = 1;
+        }
     }
     c->used = 0;
     c->slot = NULL;
+    uv_mutex_unlock(&bs->lock);
+
+    /* 持锁只做搬运；落库在锁外（storage 自己有事务与队列） */
+    if (deliver && node) dcu_node_record_reading(node, device_id, proto_id,
+                                                (const uint8_t *)&value, sizeof(value));
+
+    int free_now = 0;
+    uv_mutex_lock(&bs->lock);
     free_now = (--bs->refs == 0);
     uv_mutex_unlock(&bs->lock);
     if (free_now) _bs_free(bs);
@@ -210,13 +236,19 @@ static int _read_value_impl(dcu_bus_source_t *bs, uint32_t meter_idx, uint32_t t
         return POLL_READ_PENDING;
     }
 
-    pipe_msg_t msg;
-    if (datahub_read_shadow_device(bs->hub, tag_id, meter_idx, &msg) == 0 && msg.ts != 0) {
-        *out_val = msg.payload.val.f;
+    /* 回调已把读数存进槽位：直接取。shadow 反查在上行直通改造里被删除，
+     * 因为"应答成功但 shadow 没写"会把真实读数变成 0 行。 */
+    uv_mutex_lock(&bs->lock);
+    int has = (s->state == SLOT_DONE && s->has_value);
+    double v = s->value;
+    s->has_value = 0;
+    uv_mutex_unlock(&bs->lock);
+    if (has) {
+        *out_val = v;
         return 0;
     }
-    _src_err("no-shadow", meter_idx, tag_id, (int)tag_id);
-    return -1; /* 应答成功但没落 shadow：本轮算失败，不回 0.0 */
+    _src_err("no-value", meter_idx, tag_id, (int)tag_id);
+    return -1; /* 应答成功但没带值：本轮算失败，不回 0.0 */
 }
 
 static int _read_value(void *ctx, uint32_t meter_idx, uint32_t tag_id, double *out_val) {
@@ -242,11 +274,12 @@ static int _read_value(void *ctx, uint32_t meter_idx, uint32_t tag_id, double *o
 }
 
 dcu_bus_source_t *dcu_bus_source_start(datahub_t *hub, const dcu_inventory_t *inv,
-                                       uint32_t timeout_ms) {
+                                       dcu_node_t *node, uint32_t timeout_ms) {
     dcu_bus_source_t *bs = (dcu_bus_source_t *)calloc(1, sizeof(*bs));
     if (!bs) return NULL;
     bs->hub = hub;
     bs->inv = inv;
+    bs->node = node;
     bs->timeout_ms = timeout_ms ? timeout_ms : 4000;
     bs->refs = 1; /* 基础引用 */
     for (uint32_t i = 0; i < DCU_BUS_SLOTS; i++) {

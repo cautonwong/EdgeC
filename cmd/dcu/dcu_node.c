@@ -26,6 +26,7 @@ struct dcu_node_s {
     dcu_event_handler_t event_handler;
     void *event_user_data;
     bool running;
+    uint32_t saved_since_take; /* 上一轮以来 record_reading 成功落库的条数 */
 };
 
 static void _timer_close_cb(uv_handle_t *handle) {
@@ -196,6 +197,35 @@ int dcu_node_pump(dcu_node_t *node) {
     if (!node) return -1;
     dcu_poller_pump(&node->poller, &node->inventory);
     return 0;
+}
+
+int dcu_node_record_reading(dcu_node_t *node, uint32_t device_id, uint32_t proto_id,
+                            const uint8_t *raw, size_t raw_len) {
+    if (!node || !raw || raw_len < sizeof(double)) return -1;
+    if (device_id >= node->inventory.count) return -1;
+
+    double value = *(const double *)raw;
+
+    /* 协议号 → 量纲/单位：DCU 只认这几个 DI，其余一律拒收（不静默塞 0）。 */
+    switch (proto_id) {
+        case 0x20000200: /* A 相电压，驱动已按 0.1V 解码成 V */
+            break;
+        default:
+            return -1;
+    }
+
+    const production_meter_t *m = &node->inventory.meters[device_id];
+    if (dcu_storage_write_telemetry(&node->storage, m->address, device_id, proto_id, value) != 0)
+        return -1;
+    node->saved_since_take++;
+    return 0;
+}
+
+uint32_t dcu_node_take_saved(dcu_node_t *node) {
+    if (!node) return 0;
+    uint32_t n = node->saved_since_take;
+    node->saved_since_take = 0;
+    return n;
 }
 
 dcu_inventory_t *dcu_node_get_inventory(dcu_node_t *node) {

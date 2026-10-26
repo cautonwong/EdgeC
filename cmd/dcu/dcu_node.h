@@ -66,6 +66,20 @@ int dcu_node_pump(dcu_node_t *node);
 /**
  * @brief Access encapsulated Meter Inventory
  */
+/**
+ * @brief 聚合根唯一进件入口：驱动 decode 完直接调这里，不经 shadow 反查。
+ *
+ * @param device_id 表在档案中的下标（= 驱动会话的 device_id）
+ * @param proto_id  DI / OAD / 寄存器地址；scale 与单位在本层 switch 里定
+ * @param raw       驱动解出的原始值字节（当前是 pipe_msg 的 double）
+ * @param raw_len   raw 的字节数
+ */
+int dcu_node_record_reading(dcu_node_t *node, uint32_t device_id, uint32_t proto_id,
+                            const uint8_t *raw, size_t raw_len);
+
+/** @brief 取走自上轮以来的落库条数（供轮次驱动用，取后清零） */
+uint32_t dcu_node_take_saved(dcu_node_t *node);
+
 dcu_inventory_t *dcu_node_get_inventory(dcu_node_t *node);
 
 /**

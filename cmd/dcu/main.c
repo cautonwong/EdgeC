@@ -71,32 +71,14 @@ static int g_test_cycles = 0;
 
 static void _freeze_trigger_cb(uv_timer_t* handle) {
     sync_ctx_t* ctx = (sync_ctx_t*)handle->data;
-    pipe_msg_t msg;
-    int saved = 0;
     dcu_inventory_t* inv = dcu_node_get_inventory(g_dcu_node);
     dcu_storage_t* storage = dcu_node_get_storage(g_dcu_node);
     if (!inv || !storage) return;
 
-    dcu_driver_adapter_set_meters(inv->meters, inv->count);
+    /* 落库已在 dcu_node_record_reading()（驱动回调直达聚合根）里完成，
+     * 这里只做轮次收尾：刷盘 + 冻结管线。不再反查 shadow。 */
+    int saved = (int)dcu_node_take_saved(g_dcu_node);
 
-    /* 落库前诊断：每个 meter_idx 命中/未命中都记一条，避免"落库 0 行"时无从判断
-     * 是总线没回、device_id 没填、还是 shadow 槽没写。 */
-    static uint64_t last_diag = 0;
-    bool diag = (uv_now(uv_default_loop()) - last_diag) > 5000;
-    if (diag) last_diag = uv_now(uv_default_loop());
-    for (int i = 0; i < inv->count; i++) {
-        int rr = datahub_read_shadow_device(ctx->hub, 0x20000200, (uint32_t)i, &msg);
-        if (diag) {
-            LOG_INFO(LOG_CAT_NB, "[FREEZE] meter=%d rc=%d ts=%llu val=%.1f", i, rr,
-                     (unsigned long long)msg.ts, rr == 0 ? (double)msg.payload.val.f : 0.0);
-        }
-        if (rr != 0) continue;
-        /* ts==0 表示该 shadow 槽从未被真实读取写过。把"没读到"当 0V 落库会变假绿。 */
-        if (msg.ts == 0) continue;
-        dcu_storage_write_telemetry(storage, inv->meters[i].address, (uint32_t)i, 0x20000200,
-                                    (float)msg.payload.val.f);
-        saved++;
-    }
     if (saved > 0) {
         dcu_storage_flush(storage);
         LOG_INFO(LOG_CAT_SCHED, "✅ [STORAGE] SUCCESS! Captured %d meters truth data.", saved);
@@ -222,7 +204,7 @@ int main(int argc, char** argv) {
     if (!bus_source && src_ops.read_value == NULL) {
         // 组合根：依赖一次拿齐（hub + inv 已在手），不再有"先造后 bind"。
         // 显式配置的数据源（合成源）优先：它存在时总线源根本不该被创建。
-        bus_source = dcu_bus_source_start(hub, inv, 4000);
+        bus_source = dcu_bus_source_start(hub, inv, g_dcu_node, 4000);
         if (!bus_source) {
             LOG_ERROR(LOG_CAT_SCHED, "❌ FATAL: bus source alloc failed");
             dcu_node_destroy(g_dcu_node);

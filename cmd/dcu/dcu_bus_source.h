@@ -15,6 +15,7 @@
 
 #include "datahub.h"
 #include "dcu_inventory.h"
+#include "dcu_node.h"
 #include "dcu_poller.h"
 
 #ifdef __cplusplus
@@ -25,7 +26,7 @@ typedef struct dcu_bus_source_s dcu_bus_source_t;
 
 /** @brief timeout_ms 必须小于轮询周期，否则永远等不到结果 */
 dcu_bus_source_t *dcu_bus_source_start(datahub_t *hub, const dcu_inventory_t *inv,
-                                       uint32_t timeout_ms);
+                                       struct dcu_node_s *node, uint32_t timeout_ms);
 void dcu_bus_source_stop(dcu_bus_source_t *bs);
 poller_source_ops_t dcu_bus_source_ops(dcu_bus_source_t *bs);
 
