@@ -1,3 +1,5 @@
+/* Release 构建带 -DNDEBUG，assert() 会被抹成空语句 → 测试变空壳 */
+#undef NDEBUG
 /**
  * @file test_swarm_ai_offloading.c
  * @brief Unit tests for Multi-Edge Swarm AI Scheduling & Task Offloading (AEP-606)

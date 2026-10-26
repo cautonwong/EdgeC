@@ -1,0 +1,16 @@
+# iems 用例引用的条款。
+#
+# 平台包里那份是电力行业条款(DL/T 645 / GB/T 34131 / GB/T 37408),没有
+# "采集网关轮询"的条款。项目自己声明一份,summary 写这组用例测什么,
+# 不是标准原文。
+clauses:
+  IEMS-ACQ-1: {standard: "EdgeC iems", number: "ACQ-1", summary: "南向总线上的表值必须真的被读回并落到 iems 的实时数据接口上"}
+  IEMS-ACQ-2: {standard: "EdgeC iems", number: "ACQ-2", summary: "轮询必须周期性发生,不是启动时发一帧就停"}
+  IEMS-SVC-1: {standard: "EdgeC iems", number: "SVC-1", summary: "服务起来后 REST 健康检查可用,且监听在指定端口"}
+  IEMS-KNOWN-GAP-1: {standard: "EdgeC iems", number: "KNOWN-GAP-1", summary: "已知缺口记录:产物侧无数据源时 REST 仍返回 0 而不是报缺失(升级时改判据)"}
+  IEMS-ACQ-3: {standard: "EdgeC iems", number: "ACQ-3", summary: "北向从站发布的镜像必须与南向读到的值一致,不是恒 0"}
+  IEMS-SVC-2: {standard: "EdgeC iems", number: "SVC-2", summary: "配了南向总线却一路上都连不上时,产品必须在启动阶段失败,不许进入重连循环"}
+  IEMS-ROBUST-1: {standard: "EdgeC iems", number: "ROBUST-1", summary: "CRC 校验失败的应答必须整帧丢弃,载荷不许变成读数"}
+  IEMS-ROBUST-2: {standard: "EdgeC iems", number: "ROBUST-2", summary: "应答超时不许把 0 写成读数;下一轮必须恢复到正确值"}
+  IEMS-LINK-1: {standard: "EdgeC iems", number: "LINK-1", summary: "南向链路断开后必须停止发布新数据(时间戳不再前进),不许把旧值或 0 当新读数,进程不许退出且服务仍可用"}
+  IEMS-ROBUST-3: {standard: "EdgeC iems", number: "ROBUST-3", summary: "部分南向总线连不上时产品仍可启动,但必须在启动汇总行里说清哪几路没连上(不许静默降级)"}

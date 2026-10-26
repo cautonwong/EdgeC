@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,17 +16,21 @@
 #include "dcu_driver_adapter.h"
 #include "datahub.h"
 #include "dcu_event_monitor.h"
+#include "dcu_bus_source.h"
 #include "dcu_inventory.h"
 #include "dcu_node.h"
 #include "dcu_poller.h"
 #include "dcu_router.h"
 #include "dcu_storage.h"
+#include "edge_api.h"
 #include "dcu_twin_source.h"
 #include "driver_manager.h"
 #include "edge_driver.h"
 #include "edge_log.h"
 #include "edge_service.h"
 #include "io_executor.h"
+#include "mqtt_producer.h"
+#include "northbound_mgr.h"
 #include "sqlite_service.h"
 #include "stream_engine.h"
 
@@ -42,15 +47,6 @@ typedef struct {
 } sync_ctx_t;
 
 static sync_ctx_t g_sync_ctx;
-
-// Linker Stubs
-int northbound_mgr_start(void* mgr) {
-    (void)mgr;
-    return 0;
-}
-void northbound_mgr_stop(void* mgr) {
-    (void)mgr;
-}
 
 static void on_sig_async(uv_signal_t* handle, int sig) {
     (void)handle;
@@ -75,19 +71,14 @@ static int g_test_cycles = 0;
 
 static void _freeze_trigger_cb(uv_timer_t* handle) {
     sync_ctx_t* ctx = (sync_ctx_t*)handle->data;
-    pipe_msg_t msg;
-    int saved = 0;
     dcu_inventory_t* inv = dcu_node_get_inventory(g_dcu_node);
     dcu_storage_t* storage = dcu_node_get_storage(g_dcu_node);
     if (!inv || !storage) return;
 
-    for (int i = 0; i < inv->count; i++) {
-        if (datahub_read_shadow_device(ctx->hub, 0x20000200, (uint32_t)i, &msg) == 0) {
-            dcu_storage_write_telemetry(storage, inv->meters[i].address, (uint32_t)i, 0x20000200,
-                                        (float)msg.payload.val.f);
-            saved++;
-        }
-    }
+    /* 落库已在 dcu_node_record_reading()（驱动回调直达聚合根）里完成，
+     * 这里只做轮次收尾：刷盘 + 冻结管线。不再反查 shadow。 */
+    int saved = (int)dcu_node_take_saved(g_dcu_node);
+
     if (saved > 0) {
         dcu_storage_flush(storage);
         LOG_INFO(LOG_CAT_SCHED, "✅ [STORAGE] SUCCESS! Captured %d meters truth data.", saved);
@@ -174,13 +165,22 @@ int main(int argc, char** argv) {
     }
 
     const char* db_abs_path = db_resolved_path;
-    static dcu_twin_source_t g_twin_source;
-    dcu_twin_source_init(&g_twin_source, 220.0, 5.0);
+    // 合成数据源仅供孪生演示；默认不接线，让 poller 走真实总线。
+    poller_source_ops_t src_ops = {0};
+    static dcu_bus_source_t* bus_source = NULL;
+    const char* env_twin = getenv("EDGE_DCU_TWIN_SOURCE");
+    if (env_twin && strcmp(env_twin, "1") == 0) {
+        static dcu_twin_source_t g_twin_source;
+        dcu_twin_source_init(&g_twin_source, 220.0, 5.0);
+        src_ops = dcu_twin_source_get_ops(&g_twin_source);
+        LOG_WARN(LOG_CAT_SCHED,
+                 "⚠️ EDGE_DCU_TWIN_SOURCE=1: poller uses synthetic values, bus reads are bypassed");
+    }
     dcu_node_config_t node_cfg = {.product_name = "DCU",
                                   .db_path = db_abs_path,
                                   .datahub_capacity = 32768,
                                   .poll_interval_ms = 5000,
-                                  .source_ops = dcu_twin_source_get_ops(&g_twin_source)};
+                                  .source_ops = src_ops};
     g_dcu_node = dcu_node_create(loop, &node_cfg);
     if (!g_dcu_node) {
         LOG_ERROR(LOG_CAT_SCHED, "❌ FATAL: Failed to initialize DCU node.");
@@ -196,7 +196,22 @@ int main(int argc, char** argv) {
     }
     LOG_INFO(LOG_CAT_SCHED, "📖 [ARCHIVE] Loaded %d meters from Digital Twin database.", inv->count);
 
+    /* 表档案必须在第一帧之前注入驱动：之前只在 freeze 定时器里注入，
+     * 前 5 秒发出的帧因此全部寻址到广播地址 0x99×6（多表串值的直接原因）。 */
+    dcu_driver_adapter_set_meters(inv->meters, inv->count);
+
     datahub_t* hub = dcu_node_get_datahub(g_dcu_node);
+    if (!bus_source && src_ops.read_value == NULL) {
+        // 组合根：依赖一次拿齐（hub + inv 已在手），不再有"先造后 bind"。
+        // 显式配置的数据源（合成源）优先：它存在时总线源根本不该被创建。
+        bus_source = dcu_bus_source_start(hub, inv, g_dcu_node, 4000);
+        if (!bus_source) {
+            LOG_ERROR(LOG_CAT_SCHED, "❌ FATAL: bus source alloc failed");
+            dcu_node_destroy(g_dcu_node);
+            return -1;
+        }
+        dcu_node_set_source_ops(g_dcu_node, dcu_bus_source_ops(bus_source));
+    }
     dcu_storage_t* storage = dcu_node_get_storage(g_dcu_node);
 
     arbiter_t* arbiter_ctx = NULL;
@@ -207,14 +222,23 @@ int main(int argc, char** argv) {
     bus_orchestrator_t* io_orch =
         bus_orchestrator_create(hub, arbiter_ctx, drv_mgr, 64, 8192, 4096);
     datahub_bind_io_pool(hub, bus_orchestrator_get_pool(io_orch));
+    // 装配必须做全：把 orchestrator/驱动管理器登记到对外门面，否则 edge_api_read_tag 恒返回 -1
+    edge_api_init(io_orch, drv_mgr);
     arbiter_resume(arbiter_ctx);
 
     for (int i = 0; i < 32; i++) {
+        // 协议来自档案，不按通道号猜；空通道不建主站、不连 socket。
+        const char* proto = dcu_inventory_channel_protocol(inv, (uint8_t)i);
+        if (!proto) continue;
+        const driver_contract_injection_t* inj = dcu_get_driver_injection(proto);
+        if (!inj) {
+            LOG_ERROR(LOG_CAT_SCHED, "❌ channel %d: protocol '%s' has no registered driver", i,
+                      proto);
+            continue;
+        }
+        bus_orchestrator_setup_master(io_orch, i, proto, 0, inj);
         char path[64];
         snprintf(path, sizeof(path), "/tmp/rs485_%d.sock", i);
-        const char* proto = (i < 22) ? "DLT698" : "DLT645";
-        const driver_contract_injection_t* inj = dcu_get_driver_injection(proto);
-        if (inj) bus_orchestrator_setup_master(io_orch, i, proto, 0, inj);
         struct sockaddr_un addr;
         memset(&addr, 0, sizeof(addr));
         addr.sun_family = AF_UNIX;
@@ -230,7 +254,27 @@ int main(int argc, char** argv) {
         }
     }
 
-    service_t* svc = service_new(loop, hub, arbiter_ctx, NULL, NULL, NULL, NULL);
+    // 北向：数据不发出去，采集等于没做。传输层由 edge_io 提供，组合根只负责装配。
+    // 主题身份走 env（`driver_sparkplug_b.c` 读取），MULTI-NODE 台架并发跑两台 DCU 不能撞主题。
+    static northbound_mgr_t g_north;
+    const char* mqtt_url = getenv("MQTT_BROKER");
+    if (!mqtt_url || !*mqtt_url) mqtt_url = "tcp://127.0.0.1:1883";
+    if (!getenv("MQTT_GROUP_ID")) setenv("MQTT_GROUP_ID", "EdgeOS", 1);
+    if (!getenv("MQTT_NODE_ID")) setenv("MQTT_NODE_ID", "DCU_Node_A", 1);
+    const char* node_id = getenv("MQTT_NODE_ID");
+    char mqtt_client_id[80];
+    snprintf(mqtt_client_id, sizeof(mqtt_client_id), "%s_%d", node_id, (int)getpid());
+    nb_source_ops_t nb_source = {
+        .ctx = hub,
+        .read_next = (int (*)(void*, uint64_t*, pipe_msg_t*))datahub_read_ring
+    };
+    nb_transport_ops_t nb_transport =
+        mqtt_producer_create(mqtt_url, mqtt_client_id);
+    northbound_mgr_init_ex(&g_north, nb_source, "DCU", NULL, nb_transport);
+    LOG_INFO(LOG_CAT_NB, "🌐 Northbound assembled: broker=%s group=%s node=%s", mqtt_url,
+             getenv("MQTT_GROUP_ID"), node_id);
+
+    service_t* svc = service_new(loop, hub, arbiter_ctx, NULL, NULL, NULL, &g_north);
     g_running_svc = svc;
 
     // [Safe Signals]
@@ -283,6 +327,12 @@ int main(int argc, char** argv) {
 
     bus_orchestrator_run(io_orch);
     int ret = service_run(svc);
+    // 先停北向线程再拆它读的 datahub，否则 uv 线程会读已释放的 hub。
+    northbound_mgr_stop(&g_north);
+    dcu_bus_source_stop(bus_source); // 先停源再拆聚合根：源持有 hub/inv 指针
+    bus_source = NULL;
     dcu_node_destroy(g_dcu_node);
+    northbound_mgr_destroy(&g_north);
+    mqtt_producer_destroy(&nb_transport);
     return ret;
 }

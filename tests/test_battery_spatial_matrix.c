@@ -1,3 +1,5 @@
+/* Release 构建带 -DNDEBUG，assert() 会被抹成空语句 → 测试变空壳 */
+#undef NDEBUG
 /**
  * @file test_battery_spatial_matrix.c
  * @brief Unit tests for 4096-Node Cell Voltage-Temperature-Current Sliding Window

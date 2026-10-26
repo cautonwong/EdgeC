@@ -1,3 +1,5 @@
+/* Release 构建带 -DNDEBUG，assert() 会被抹成空语句 → 测试变空壳 */
+#undef NDEBUG
 /**
  * @file test_soak_memory_convergence.c
  * @brief Soak Test & Memory Fragmentation / RSS Convergence Verification (AEP-411 / Issue #133)

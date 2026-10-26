@@ -1,0 +1,10 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-p no:randomly"
+timeout = 60
+timeout_method = "thread"
+markers = [
+    "contract: 对某一类设备所有实例都必须满足的通用验收测试",
+    "real_hardware: 只有连接真实硬件才有意义,--force-simulator 下自动跳过",
+    "requires_capability: 用例依赖的设备能力,型号未声明时收集阶段自动跳过",
+]

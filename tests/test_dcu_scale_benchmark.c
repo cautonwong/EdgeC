@@ -30,8 +30,10 @@
 
 /*
  * ModbusRTU 契约注入：驱动靠 lookup_by_tag 把 tag 映射成寄存器地址与缩放系数。
- * 缺失时 encode_request 直接返回 -1，本用例此前从未提供映射表，因此一直红。
+ * 缺失时 encode_request 返回 -1（本用例走的是真实的单表驱动编码路径）。
  * 帧 0x0898 => 2200，scaler 0.1 => 220.0V。
+ * 生产端已在 dcu_driver_adapter.c 提供强定义 edge_model_find 顶掉 IO 层弱符号，
+ * 本用例用 `-Wl,--allow-multiple-definition` 让测试副本优先（见 tests/CMakeLists.txt）。
  */
 static const modbus_map_t _mock_modbus_map = {
     .key = 0, .tag_id = 1001, .length = 1, .scaler = 0.1f};

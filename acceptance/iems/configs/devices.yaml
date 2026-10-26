@@ -1,0 +1,48 @@
+# iems 有两个面,它们验的不是同一件事:
+#
+#   南向 —— 台架在 /tmp/vbus0.sock 当从站,iems 当主站去读。iems 不解析命令行,
+#           总线地址由 env(OMNIS_BUS_0_DEV)给,平台驱动不了这一面,所以这里没有
+#           对应的设备;取值靠产品壳记录的 bus.json + iems 自己的 REST。
+#
+#   北向 —— iems 自己起了一个 Modbus **从站**(cmd/iems/iems_app.c:415-431
+#           `bus_orchestrator_setup_slave(..., "ModbusRTU", 1, inj)`),监听
+#           /tmp/iems_north_slave.sock,发布的是它内部那份镜像。这一面平台能驱动:
+#           产品壳把 unix socket 桥成 127.0.0.1:19211,平台按 modbus_rtu/tcp 读。
+#
+# 有了北向这台 dut,结论才落在**设备级**。否则失败用例没有设备归属,平台按
+# "没验到设备就不算验过"判未完成(reporting/report.py:20),产品缺陷会被写成
+# "没测到"。
+#
+# 端口 19211 是写死的:devices.yaml 是静态清单,读不到 ${PORT}。改端口要同时改
+# acceptance/iems/bench.py 的 BRIDGE_PORT。
+criteria_profiles:
+  # 镜像里读到 0 就是没在发布实时值 —— 这条故意写成「必须大于 0」。
+  iems_north_live:
+    - {quantity: 电压, gt: 0}
+
+models:
+  iems_north_image:
+    type: meter
+    protocol: modbus_rtu
+    criteria: iems_north_live
+    capabilities: [电压]
+    # 寄存器 0 = 镜像里的第一路电压,0.1V 分辨率。
+    # 映射是不是从 0 开始还没跟 iems 侧对齐(镜像现在是 0,测不出来),
+    # 对齐之前这条用例的失败原因里会带“镜像未生效”,不会假装是数值偏差。
+    point_table:
+      电压:
+        address: 0
+        length: 2
+        encoding: uint
+        scale: 0.1
+        unit: V
+
+devices:
+  - id: iems_north_01
+    model: iems_north_image
+    role: dut
+    access: tcp
+    bus_address: 1
+    connection:
+      host: 127.0.0.1
+      port: 19211

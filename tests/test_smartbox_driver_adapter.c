@@ -1,3 +1,5 @@
+/* Release 构建带 -DNDEBUG，assert() 会被抹成空语句 → 测试变空壳 */
+#undef NDEBUG
 /**
  * @file test_smartbox_driver_adapter.c
  * @brief Unit tests for SmartBox autonomous driver adapter and point mapping (No-Contract)

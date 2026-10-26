@@ -1,3 +1,5 @@
+/* Release 构建带 -DNDEBUG，assert() 会被抹成空语句 → 测试变空壳 */
+#undef NDEBUG
 /**
  * @file test_iec104_type_test_suite.c
  * @brief DL/T 634.5104 (IEC 104) State Grid Consistency Type Testing Automation Suite (AEP-430 /

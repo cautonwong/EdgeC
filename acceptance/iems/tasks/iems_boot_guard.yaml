@@ -1,0 +1,11 @@
+id: iems-boot-guard
+product: iems
+kind: smoke
+launch:
+  - ${PYTHON}
+  - iems_product.py
+  - --port
+  - ${PORT}
+  - --expect-boot-fail
+devices: configs/devices_empty.yaml
+select: case:I_00_00_01_000010

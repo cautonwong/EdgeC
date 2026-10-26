@@ -30,6 +30,13 @@ typedef struct {
     const char *snap_path;
     const char *mqtt_url;
     int rest_port;
+    // 北向 Modbus 从站的 UDS 路径;NULL = 契约表里的 simulation_path(再空则退回
+    // /tmp/iems_north_slave.sock,仅第一条北向总线;第二条无路径会报错跳过)。
+    // 只覆盖**第一条** NORTHBOUND 总线,多条时其余按契约表各自的 simulation_path。
+    // 由组合根从环境变量读一次传进来,深层模块不再 getenv
+    const char *north_sock;
+    // UI 伴随通道的 UDS 路径;NULL = /tmp/iems_ui.sock
+    const char *ui_sock;
 } iems_app_config_t;
 
 /**
@@ -42,7 +49,24 @@ typedef struct {
 iems_app_t *iems_app_assemble(uv_loop_t *loop, const iems_app_config_t *cfg);
 
 /**
- * @brief 启动 IEMS 应用程序 (自律业务循环、总线连接定时器、任务加载等)
+ * @brief 启动时连一次南向物理总线(组合根调用,只连一次、不重试)
+ *
+ * 谁发起:组合根。哪个总线没连上,启动日志会明确报出来,不再无限重连。
+ *
+ * @param app 应用程序句柄
+ * @param configured 出参:契约表里配置的南向总线数(可为 NULL)。用来区分「没配南向总线」和「配了但全连不上」
+ * @return 连上的南向总线数(含此前已连上的);<0 参数非法或装配契约表缺失
+ *
+ * 必须在 iems_app_start() 之前调用一次,iems_app_start() 会拒绝未连过总线的半装配启动。
+ * 语义:配了南向总线就要求至少连上一路;部分连上照常启动,缺的那几路只 WARN 不致命
+ *       (缺 CAN 的机器不该起不来)。全都没连上才算启动失败,由组合根 abort。
+ *       能拿到装配契约表时打一行摘要:[IEMS-INIT] southbound: <connected>/<configured> connected
+ *       (契约表本身取不到属于装配坏了,由组合根打 FATAL,这里不出摘要)
+ */
+int iems_app_connect_buses(iems_app_t *app, int *configured);
+
+/**
+ * @brief 启动 IEMS 应用程序 (自律业务循环、内部总线、任务加载等;南向总线由组合根先 connect_buses)
  *
  * @param app 应用程序句柄
  * @return 0 成功, <0 失败

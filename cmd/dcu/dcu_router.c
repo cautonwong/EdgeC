@@ -89,9 +89,8 @@ static int _oi_6000_read(dcu_object_t* obj, uint8_t attr_id, uint8_t elem_idx, v
 
     // 属性 2: 档案中的在线电能表总数
     if (attr_id == 2) {
-        uv_mutex_lock(&inv->lock);
+        // 档案只在 uv 循环线程上被读写，这里不需要锁（见 dcu_inventory.h 的线程所有权说明）
         *(uint16_t*)out_val = inv->count;
-        uv_mutex_unlock(&inv->lock);
         return 0;
     }
     return -2;  // 属性未定义
@@ -127,10 +126,9 @@ static int _oi_6000_execute(dcu_object_t* obj, uint8_t method_id, const void* pa
     }
     // [PRD Alignment] 方法 5: 清空档案表 (Clear)
     if (method_id == 5) {
-        uv_mutex_lock(&inv->lock);
         memset(inv->meters, 0, sizeof(inv->meters));
         inv->count = 0;
-        uv_mutex_unlock(&inv->lock);
+        inv->revision++; // 清档也是一次变更：poller 靠它退休表级状态
         if (result) *(int*)result = 0;
         return 0;
     }

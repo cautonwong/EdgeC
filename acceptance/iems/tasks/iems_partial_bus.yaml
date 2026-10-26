@@ -1,0 +1,12 @@
+# 部分南向总线连不上:iems 仍须启动,但启动汇总行必须点名缺哪一路。
+id: iems-partial-bus
+product: iems
+launch:
+  - ${PYTHON}
+  - iems_product.py
+  - --port
+  - ${PORT}
+  - --record-startup
+devices: configs/devices_empty.yaml
+select: case:I_00_00_01_000040
+kind: smoke

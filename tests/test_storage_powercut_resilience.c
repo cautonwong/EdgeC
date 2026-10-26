@@ -1,3 +1,5 @@
+/* Release 构建带 -DNDEBUG，assert() 会被抹成空语句 → 测试变空壳 */
+#undef NDEBUG
 /**
  * @file test_storage_powercut_resilience.c
  * @brief Unit tests for 1000 Simulated Power-Cut & Torn-Write Storage Crash Consistency (AEP-410 /

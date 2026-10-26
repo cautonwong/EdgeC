@@ -33,6 +33,7 @@ set(IO_SOURCES
     src/sched_engine.c
     src/sched_port.c
     src/io_executor_linux.c
+    src/mqtt_producer.c
     src/edge_tsn_engine.c
 )
 

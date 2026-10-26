@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <uv.h>
 
+#include "dcu_inventory.h"
 #include "dcu_node.h"
 
 static void on_walk_close(uv_handle_t *handle, void *arg) {
@@ -142,10 +143,49 @@ static void test_dcu_node_domain_methods_and_events(void **state) {
     unlink(db_path);
 }
 
+static int g_stub_calls = 0;
+static int _stub_read(void *ctx, uint32_t meter_idx, uint32_t tag_id, double *out_val) {
+    (void)ctx;
+    (void)meter_idx;
+    (void)tag_id;
+    g_stub_calls++;
+    if (out_val) *out_val = 231.7;
+    return 0;
+}
+
+/* setter 装进去的数据源必须真的被 poller 用上（否则组合根登记等于空转） */
+static void test_dcu_node_set_source_ops_is_used(void **state) {
+    uv_loop_t *loop = (uv_loop_t *)*state;
+    const char *db_path = "/tmp/test_dcu_node_srcops.db";
+    unlink(db_path);
+
+    dcu_node_config_t cfg = {.product_name = "DCU_Test",
+                             .db_path = db_path,
+                             .datahub_capacity = 1024,
+                             .poll_interval_ms = 100};
+    dcu_node_t *node = dcu_node_create(loop, &cfg);
+    assert_non_null(node);
+
+    dcu_inventory_add(dcu_node_get_inventory(node), "SRC_0001", "dlt698", 9600, 1, NULL);
+
+    poller_source_ops_t ops = {.ctx = NULL, .read_value = _stub_read};
+    dcu_node_set_source_ops(node, ops);
+
+    g_stub_calls = 0;
+    assert_int_equal(dcu_node_start(node), 0);
+    (void)dcu_node_pump(node);
+    assert_true(g_stub_calls > 0); // 注入的源被调用到了
+
+    assert_int_equal(dcu_node_stop(node), 0);
+    dcu_node_destroy(node);
+    unlink(db_path);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_dcu_node_lifecycle, setup, teardown),
         cmocka_unit_test_setup_teardown(test_dcu_node_domain_methods_and_events, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_dcu_node_set_source_ops_is_used, setup, teardown),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

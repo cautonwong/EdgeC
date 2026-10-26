@@ -129,7 +129,20 @@ typedef struct {
     int (*on_io_done)(void *ctx, int bus_id, cmd_msg_t *msg, int status);
 } arb_executor_ops_t;
 
+/**
+ * @brief 安装执行器钩子
+ * @note 按字段打补丁:只覆盖非 NULL 的字段。执行器可能由别的层先装过,
+ *       整份覆盖会把它装的 execute/ctx 一起抹掉。
+ */
 void arbiter_set_executor(arbiter_t *arb, arb_executor_ops_t ops);
+
+/**
+ * @brief 这个 cmd 现在还是该总线的 owner 吗(只比较指针,不解引用)
+ *
+ * 引擎持有 current_cmd 期间,arbiter_check_timeouts 可能已经把这条件结算并
+ * free 掉;引擎的超时/错误回调必须先问这一句,再决定要不要碰 cmd。
+ */
+bool arbiter_owns_cmd(arbiter_t *arb, int bus_id, cmd_msg_t *cmd);
 
 #ifdef __cplusplus
 }

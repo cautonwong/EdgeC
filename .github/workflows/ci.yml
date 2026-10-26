@@ -89,6 +89,29 @@ jobs:
         run: |
           cd go && go test ./...
 
+      # 门禁即结论:红了就是不合格,不再静音。
+      # 曾经的 continue-on-error 已随 DCU/iEMS 转绿删除(PR #448)。
+      - name: Run Acceptance (test-platform)
+        if: matrix.config.target == 'x86_64'
+        timeout-minutes: 30
+        run: |
+          TP="${RUNNER_TEMP}/test-platform"
+          SHA="$(sed -n 's/^\([0-9a-f]\{7,40\}\)$/\1/p' acceptance/testplatform.sha | head -1)"
+          git clone --quiet "https://x-access-token:${{ github.token }}@github.com/cautonwong/test-platform.git" "$TP"
+          git -C "$TP" checkout --quiet "$SHA"
+          python3 -m pip install --quiet -e "$TP[dev]"
+          ./acceptance/run.sh
+
+      # 门禁红了必须能回答"哪个产品、哪条用例、证据在哪":报告与证据都在
+      # reports/acceptance,不传上去就只能翻原始日志。
+      - name: Upload Acceptance Reports
+        if: always() && matrix.config.target == 'x86_64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: acceptance-reports
+          path: reports/acceptance
+          if-no-files-found: warn
+
       - name: Run Architecture & Anti-Entropy Gates (x86_64 only)
         if: matrix.config.target == 'x86_64'
         shell: bash

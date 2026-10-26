@@ -3,6 +3,7 @@
  * @brief DCU Edge Collector Domain Aggregate Root Implementation (Issue #375)
  */
 
+#include "dcu_driver_adapter.h"
 #include "dcu_node.h"
 
 #include <stdlib.h>
@@ -26,6 +27,7 @@ struct dcu_node_s {
     dcu_event_handler_t event_handler;
     void *event_user_data;
     bool running;
+    uint32_t saved_since_take; /* 上一轮以来 record_reading 成功落库的条数 */
 };
 
 static void _timer_close_cb(uv_handle_t *handle) {
@@ -163,6 +165,12 @@ dcu_node_t *dcu_node_create(uv_loop_t *loop, const dcu_node_config_t *cfg) {
     return node;
 }
 
+void dcu_node_set_source_ops(dcu_node_t *node, poller_source_ops_t source_ops) {
+    if (!node) return;
+    node->cfg.source_ops = source_ops;
+    node->poller.source_ops = source_ops;
+}
+
 int dcu_node_start(dcu_node_t *node) {
     if (!node || node->running) return -1;
     node->running = true;
@@ -190,6 +198,34 @@ int dcu_node_pump(dcu_node_t *node) {
     if (!node) return -1;
     dcu_poller_pump(&node->poller, &node->inventory);
     return 0;
+}
+
+int dcu_node_record_reading(dcu_node_t *node, uint32_t device_id, uint32_t proto_id,
+                            const uint8_t *raw, size_t raw_len) {
+    if (!node || !raw || raw_len < sizeof(double)) return -1;
+    if (device_id >= node->inventory.count) return -1;
+
+    const production_meter_t *m = &node->inventory.meters[device_id];
+
+    /* 协议号(线上 DI/寄存器) → OAD 与量纲：驱动只还原整数，换算全在 cmd 层。
+     * 未注册的协议号一律拒收，不静默塞 0。 */
+    uint32_t oad = dcu_driver_adapter_proto_to_oad(m->protocol, proto_id);
+    double scale = dcu_driver_adapter_scale(m->protocol, proto_id);
+    if (oad == 0 || scale <= 0.0) return -1;
+
+    double value = (*(const double *)raw) * scale;
+
+    if (dcu_storage_write_telemetry(&node->storage, m->address, device_id, oad, value) != 0)
+        return -1;
+    node->saved_since_take++;
+    return 0;
+}
+
+uint32_t dcu_node_take_saved(dcu_node_t *node) {
+    if (!node) return 0;
+    uint32_t n = node->saved_since_take;
+    node->saved_since_take = 0;
+    return n;
 }
 
 dcu_inventory_t *dcu_node_get_inventory(dcu_node_t *node) {

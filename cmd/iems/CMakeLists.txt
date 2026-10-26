@@ -13,7 +13,7 @@ add_library(iems_app_lib STATIC
     iems_fire_safety_interlock.c
     iems_commissioning_tool.c
     iems_task_loader.c
-    mqtt_producer.c
+
 )
 
 target_include_directories(iems_app_lib PUBLIC

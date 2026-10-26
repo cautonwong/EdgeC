@@ -6,6 +6,7 @@ set(PROD_NAME dcu)
 add_library(dcu_app_lib STATIC
     dcu_inventory.c
     dcu_poller.c
+    dcu_bus_source.c
     dcu_storage.c
     dcu_router.c
     dcu_dynamic_poller.c

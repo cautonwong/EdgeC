@@ -1,0 +1,41 @@
+# DCU 验收台架:一条"DUT(电表侧) + 一张表"的最小清单。
+#
+# 台架真值只写在 connection.simulated_645 一处:
+#   - 平台自己按这份点表读出"应该看到的电压"(进证据)
+#   - 产品壳 dcu_product.py 也读这份,把同样的字节喂给 DCU 的 /tmp/rs485_*.sock
+#
+# 电压 231.7V = 2317,BCD 低字节先 17 23(未加 0x33),scale 0.1。
+# 故意选 231.7 而不是 220.0:DCU 现在的合成源吐 220.0 + (idx%10)*0.2,
+# 撞不上这个值,落库值对不对一眼就能看出来。
+criteria_profiles:
+  meter_220v:
+    - quantity: 电压
+      min: 198
+      max: 242
+
+models:
+  bench_meter:
+    type: meter
+    protocol: dlt645
+    criteria: meter_220v
+    capabilities: [电压]
+    point_table:
+      电压:
+        address: "02010100"
+        length: 2
+        encoding: bcd
+        scale: 0.1
+        byteorder: little
+        unit: V
+
+devices:
+  - id: bench_meter_01
+    model: bench_meter
+    role: dut
+    access: serial
+    mode: simulator
+    bus_address: "000000000001"
+    connection:
+      simulated_645:
+        "000000000001":
+          "02010100": "1723"

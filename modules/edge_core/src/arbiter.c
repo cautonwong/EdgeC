@@ -102,7 +102,19 @@ uint64_t arbiter_get_bus_dropped_count(arbiter_t *arb, int bus_id) {
 }
 
 void arbiter_set_executor(arbiter_t *arb, arb_executor_ops_t ops) {
-    if (arb) arb->executor = ops;
+    if (!arb) return;
+    // 按字段打补丁,不整份覆盖:另一个层可能已经装了 execute,整份覆盖会把它抹掉
+    if (ops.execute) arb->executor.execute = ops.execute;
+    if (ops.on_io_done) arb->executor.on_io_done = ops.on_io_done;
+    if (ops.ctx) arb->executor.ctx = ops.ctx;
+}
+
+bool arbiter_owns_cmd(arbiter_t *arb, int bus_id, cmd_msg_t *cmd) {
+    if (!arb || !cmd || bus_id < 0 || bus_id >= ARBITER_MAX_BUSES) return false;
+    uv_mutex_lock(&arb->lock);
+    bool owned = (arb->buses[bus_id].owner == cmd);
+    uv_mutex_unlock(&arb->lock);
+    return owned;
 }
 
 void arbiter_pause(arbiter_t *arb) {
@@ -226,6 +238,15 @@ int arbiter_submit_cmd(arbiter_t *arb, int bus_id, cmd_msg_t *cmd) {
 void arbiter_on_io_done(arbiter_t *arb, int bus_id, cmd_msg_t *msg, int status) {
     if (!arb || bus_id < 0 || bus_id >= ARBITER_MAX_BUSES || !msg) return;
 
+    // 先摘 owner 再结算:msg 马上就要被 free,而引擎侧 arbiter_owns_cmd() 是靠
+    // 这个指针判断"我手里的命令还是我的吗";顺序反过来就会出现"已是 owner 的
+    // 已释放命令"(断链/超时 use-after-free 的根因)
+    uv_mutex_lock(&arb->lock);
+    if (arb->buses[bus_id].owner == msg) {
+        arb->buses[bus_id].owner = NULL;
+    }
+    uv_mutex_unlock(&arb->lock);
+
     // 💡 [Consumer-Driven] 优先通过 executor 回调处理
     int handled = 0;
     if (arb->executor.on_io_done) {
@@ -239,12 +260,7 @@ void arbiter_on_io_done(arbiter_t *arb, int bus_id, cmd_msg_t *msg, int status) 
     }
 
     uv_mutex_lock(&arb->lock);
-    if (arb->buses[bus_id].owner == msg) {
-        arb->buses[bus_id].owner = NULL;
-    }
-
     _dispatch_next_locked(arb, bus_id);
-
     uv_mutex_unlock(&arb->lock);
 }
 

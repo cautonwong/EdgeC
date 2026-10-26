@@ -1,3 +1,5 @@
+/* Release 构建带 -DNDEBUG，assert() 会被抹成空语句 → 测试变空壳 */
+#undef NDEBUG
 /**
  * @file test_caller_allocated_storage.c
  * @brief Unit Tests for Caller-Allocated Storage, Opaque Encapsulation & Aggregate Roots (AEP-752 /
