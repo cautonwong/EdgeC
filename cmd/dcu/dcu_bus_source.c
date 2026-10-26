@@ -93,6 +93,8 @@ static bus_ctx_t *_ctx_acquire(dcu_bus_source_t *bs) {
 
 /* on_finish 只会来一次（master_engine 的超时/成功/协议错误三条路径各调用一次） */
 static void _on_done(int status, const pipe_msg_t *result, void *user_data) {
+    if (getenv("EDGE_DCU_TRACE"))
+        fprintf(stderr, "[DONE] status=%d has_result=%d\n", status, result != NULL);
     bus_ctx_t *c = (bus_ctx_t *)user_data;
     if (!c) return;
 

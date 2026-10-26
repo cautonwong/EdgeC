@@ -80,8 +80,9 @@ static int dlt645_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_
     uint8_t calc_cs = _calc_cs(b->data, (size_t)(data_len + 10));
     if (rx_cs != calc_cs) return -1;
 
-    /* 解析主站响应 (0x91 = 读数据应答) */
-    if (ctrl == 0x91 && data_len >= 8) {
+    /* 解析主站响应 (0x91 = 读数据应答)。L 至少 4(DI)，数据段 = L-4 字节：
+     * 电压/电流等 2 字节量的 L=6，四字节量(如组合有功)的 L=8。 */
+    if (ctrl == 0x91 && data_len >= 4) {
         uint32_t di = (uint32_t)((b->data[10]-0x33) | ((b->data[11]-0x33) << 8) |
                                  ((b->data[12]-0x33) << 16) | ((b->data[13]-0x33) << 24));
 
@@ -89,11 +90,14 @@ static int dlt645_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_
          * 协议层不认识 OAD，也不查任何契约表。 */
         int32_t raw = 0;
         int32_t mul = 1;
-        for (int idx = 14; idx < (int)(10 + data_len - 2); idx++) {
+        for (int idx = 14; idx < (int)(10 + data_len); idx++) {
             uint8_t bcd = (uint8_t)(b->data[idx] - 0x33);
             raw += (int32_t)((bcd >> 4) * 10 + (bcd & 0x0F)) * mul;
             mul *= 100;
         }
+        if (getenv("EDGE_DCU_TRACE"))
+            fprintf(stderr, "[DEC] dev=%u di=%08x raw=%d len=%u consumed=%zu\n", ctx->device_id, di,
+                    raw, (unsigned)data_len, *consumed);
         pipe_msg_init_scalar(&out_msgs[0], (edge_tag_id_t)di, (double)raw, uv_hrtime());
         out_msgs[0].device_id = ctx->device_id;
         *msg_count = 1;
