@@ -131,6 +131,14 @@ typedef struct {
 
 void arbiter_set_executor(arbiter_t *arb, arb_executor_ops_t ops);
 
+/**
+ * @brief 这个 cmd 现在还是该总线的 owner 吗(只比较指针,不解引用)
+ *
+ * 引擎持有 current_cmd 期间,arbiter_check_timeouts 可能已经把这条件结算并
+ * free 掉;引擎的超时/错误回调必须先问这一句,再决定要不要碰 cmd。
+ */
+bool arbiter_owns_cmd(arbiter_t *arb, int bus_id, cmd_msg_t *cmd);
+
 #ifdef __cplusplus
 }
 #endif
