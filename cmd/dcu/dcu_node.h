@@ -52,6 +52,13 @@ int dcu_node_start(dcu_node_t *node);
 int dcu_node_stop(dcu_node_t *node);
 
 /**
+ * @brief 设置表计数据源（组合根在拿到 hub/inv 之后一次性交给聚合根）
+ * @note 必须在 dcu_node_start() 之前调用：poller 每轮直接读该字段，运行期替换会
+ *       丢掉旧源的 ctx（及其在途请求），故不做运行期热替换。
+ */
+void dcu_node_set_source_ops(dcu_node_t *node, poller_source_ops_t source_ops);
+
+/**
  * @brief Perform a single polling pump cycle across active inventory
  */
 int dcu_node_pump(dcu_node_t *node);
@@ -59,6 +66,20 @@ int dcu_node_pump(dcu_node_t *node);
 /**
  * @brief Access encapsulated Meter Inventory
  */
+/**
+ * @brief 聚合根唯一进件入口：驱动 decode 完直接调这里，不经 shadow 反查。
+ *
+ * @param device_id 表在档案中的下标（= 驱动会话的 device_id）
+ * @param proto_id  线上协议号(DLT645 的 DI / Modbus 寄存器号)；OAD 归属与 scale 由本层点表决定
+ * @param raw       驱动解出的原始值字节（当前是 pipe_msg 的 double）
+ * @param raw_len   raw 的字节数
+ */
+int dcu_node_record_reading(dcu_node_t *node, uint32_t device_id, uint32_t proto_id,
+                            const uint8_t *raw, size_t raw_len);
+
+/** @brief 取走自上轮以来的落库条数（供轮次驱动用，取后清零） */
+uint32_t dcu_node_take_saved(dcu_node_t *node);
+
 dcu_inventory_t *dcu_node_get_inventory(dcu_node_t *node);
 
 /**

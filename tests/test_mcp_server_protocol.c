@@ -1,3 +1,5 @@
+/* Release 构建带 -DNDEBUG，assert() 会被抹成空语句 → 测试变空壳 */
+#undef NDEBUG
 /**
  * @file test_mcp_server_protocol.c
  * @brief Unit tests for Industrial MCP Transports & Protocol Framing (AEP-506)

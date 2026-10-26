@@ -1,3 +1,5 @@
+/* Release 构建带 -DNDEBUG，assert() 会被抹成空语句 → 测试变空壳 */
+#undef NDEBUG
 /**
  * @file test_amp_ipc_ring.c
  * @brief Unit tests for Heterogeneous Multi-Core IPC & Zero-Copy SHM Ring (AEP-605)

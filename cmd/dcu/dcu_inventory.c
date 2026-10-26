@@ -17,10 +17,8 @@ int dcu_inventory_init(dcu_inventory_t* inv) {
     if (!inv) return -1;
 
     inv->count = 0;
+    inv->revision = 0;
     memset(inv->meters, 0, sizeof(inv->meters));
-    // lock 必须显式初始化：栈上的 dcu_inventory_t 未清零时，
-    // 直接 uv_mutex_lock 会永久阻塞（test_dcu_router 因此挂死）。
-    uv_mutex_init(&inv->lock);
 
     return 0;
 }
@@ -56,11 +54,11 @@ int dcu_inventory_add(dcu_inventory_t* inv, const char* addr, const char* proto,
     m->baud_rate = baud;
     m->channel_id = channel;
     m->is_online = true;      // 新增时初始置为在线状态 (ACTIVE)
-    m->fail_count = 0;        // 超时计数清零
     m->last_poll_time_s = 0;  // 上一次抄表时间戳初始化为0
     m->inject = inject;       // [Nexus] 挂接契约注入
 
     inv->count++;
+    inv->revision++;
 
     return 0;
 }
@@ -91,6 +89,7 @@ int dcu_inventory_remove(dcu_inventory_t* inv, const char* addr) {
     // 清空最后一个元素
     memset(&inv->meters[inv->count - 1], 0, sizeof(production_meter_t));
     inv->count--;
+    inv->revision++;
 
     return 0;
 }
@@ -157,6 +156,7 @@ int dcu_inventory_load_from_db(dcu_inventory_t* inv, const char* db_path) {
     }
 
     int loaded = 0;
+    uint32_t inserted = 0;
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         const char* addr = (const char*)sqlite3_column_text(stmt, 0);
         const char* proto = (const char*)sqlite3_column_text(stmt, 1);
@@ -195,16 +195,17 @@ int dcu_inventory_load_from_db(dcu_inventory_t* inv, const char* db_path) {
 
             m->pt_ratio = (uint32_t)sqlite3_column_int(stmt, 7);
             m->ct_ratio = (uint32_t)sqlite3_column_int(stmt, 8);
+            inserted++;
         }
         loaded++;
     }
 
     sqlite3_finalize(stmt);
     sqlite3_close(db);
+    inv->revision += inserted; // 只统计真的入库行：超出 MAX_METERS 被丢弃的不算变更
     return loaded;
 }
 
 void dcu_inventory_destroy(dcu_inventory_t* inv) {
     if (!inv) return;
-    uv_mutex_destroy(&inv->lock);
 }

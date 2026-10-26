@@ -1,3 +1,5 @@
+/* Release 构建带 -DNDEBUG，assert() 会被抹成空语句 → 测试变空壳 */
+#undef NDEBUG
 /**
  * @file test_dcu_topology_phase_id.c
  * @brief Unit tests for HPLC Dual-Mode Carrier Topology & Phase Identification (AEP-461 / Issue

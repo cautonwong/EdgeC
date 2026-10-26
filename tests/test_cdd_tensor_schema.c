@@ -1,3 +1,5 @@
+/* Release 构建带 -DNDEBUG，assert() 会被抹成空语句 → 测试变空壳 */
+#undef NDEBUG
 /**
  * @file test_cdd_tensor_schema.c
  * @brief Unit tests for CDD Multi-Modal Tensor Pipeline & DAG Schema (AEP-603)

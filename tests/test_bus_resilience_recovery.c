@@ -1,3 +1,5 @@
+/* Release 构建带 -DNDEBUG，assert() 会被抹成空语句 → 测试变空壳 */
+#undef NDEBUG
 /**
  * @file test_bus_resilience_recovery.c
  * @brief Unit tests for Industrial Bus Resilience, Half-Duplex Flow Control & CAN Bus-Off Recovery

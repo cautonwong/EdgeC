@@ -43,12 +43,8 @@ static int dlt645_v3_encode_request(edge_driver_ctx_t *ctx, const uint32_t *tag_
     net_buf_simple_add_u8(b, 0x68);
     net_buf_simple_add_u8(b, 0x11);
     net_buf_simple_add_u8(b, 0x04);
-    /* tag_ids[] 是消费侧 TagID(OAD); DLT645 线上要发的是 DI, 必须反查映射表 */
+    /* tag_ids[] 由 cmd 层换算好，线上直接就是 DI：协议层不做 OAD→DI 映射 */
     uint32_t di = tag_ids[0];
-    if (ctx->lookup_by_tag) {
-        const dlt645_map_t *m = (const dlt645_map_t *)ctx->lookup_by_tag(tag_ids[0]);
-        if (m) di = (uint32_t)m->key;
-    }
     net_buf_simple_add_u8(b, (uint8_t)((di & 0xFF) + 0x33));
     net_buf_simple_add_u8(b, (uint8_t)(((di >> 8) & 0xFF) + 0x33));
     net_buf_simple_add_u8(b, (uint8_t)(((di >> 16) & 0xFF) + 0x33));
@@ -84,36 +80,27 @@ static int dlt645_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_
     uint8_t calc_cs = _calc_cs(b->data, (size_t)(data_len + 10));
     if (rx_cs != calc_cs) return -1;
 
-    /* 解析主站响应 (0x91 = 读数据应答) */
-    if (ctrl == 0x91 && data_len >= 8) {
+    /* 解析主站响应 (0x91 = 读数据应答)。L 至少 4(DI)，数据段 = L-4 字节：
+     * 电压/电流等 2 字节量的 L=6，四字节量(如组合有功)的 L=8。 */
+    if (ctrl == 0x91 && data_len >= 4) {
         uint32_t di = (uint32_t)((b->data[10]-0x33) | ((b->data[11]-0x33) << 8) |
                                  ((b->data[12]-0x33) << 16) | ((b->data[13]-0x33) << 24));
 
-        double val = 0;
-        bool found = false;
-
-        if (ctx->lookup_by_key) {
-            const dlt645_map_t *map = (const dlt645_map_t *)ctx->lookup_by_key(di);
-            if (map) {
-                /* BCD 解码: 每个字节减去 0x33 后按 BCD 排列 */
-                int32_t raw = 0;
-                int digit_pos = 0;
-                for (int idx = 14; idx < (int)(10 + data_len - 2); idx++) {
-                    uint8_t bcd = (uint8_t)(b->data[idx] - 0x33);
-                    raw += (int32_t)((bcd >> 4) * 10 + (bcd & 0x0F)) * (int32_t)pow(100, digit_pos);
-                    digit_pos++;
-                }
-                val = (double)raw * map->scaler;
-                found = true;
-            }
+        /* 驱动只还原整数：量纲(scale)与 OAD 归属由 cmd 层按协议号决定，
+         * 协议层不认识 OAD，也不查任何契约表。 */
+        int32_t raw = 0;
+        int32_t mul = 1;
+        for (int idx = 14; idx < (int)(10 + data_len); idx++) {
+            uint8_t bcd = (uint8_t)(b->data[idx] - 0x33);
+            raw += (int32_t)((bcd >> 4) * 10 + (bcd & 0x0F)) * mul;
+            mul *= 100;
         }
-
-        if (found) {
-            edge_tag_id_t tid = ((const dlt645_map_t *)ctx->lookup_by_key(di))->tag_id;
-            pipe_msg_init_scalar(&out_msgs[0], tid, val, uv_hrtime());
-            out_msgs[0].device_id = ctx->device_id;  // 逐表区分, 否则 shadow 无法按表索引
-            *msg_count = 1;
-        }
+        if (getenv("EDGE_DCU_TRACE"))
+            fprintf(stderr, "[DEC] dev=%u di=%08x raw=%d len=%u consumed=%zu\n", ctx->device_id, di,
+                    raw, (unsigned)data_len, *consumed);
+        pipe_msg_init_scalar(&out_msgs[0], (edge_tag_id_t)di, (double)raw, uv_hrtime());
+        out_msgs[0].device_id = ctx->device_id;
+        *msg_count = 1;
     }
 
     return 0;
@@ -144,41 +131,11 @@ static int dlt645_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
         uint32_t di = (uint32_t)((b->data[10]-0x33) | ((b->data[11]-0x33) << 8) | 
                                  ((b->data[12]-0x33) << 16) | ((b->data[13]-0x33) << 24));
         
-        double val = 0;
-        bool found = false;
-        if (ctx->lookup_by_key) {
-            const modbus_map_t *map = (const modbus_map_t *)ctx->lookup_by_key(di);
-            if (map) {
-                pipe_msg_t shadow;
-                if (edge_driver_read_shadow(ctx, map->tag_id, &shadow) == 0) {
-                    val = shadow.payload.val.f / (map->scaler ? map->scaler : 1.0);
-                    found = true;
-                }
-            }
-        }
-
-        if (found) {
-            struct net_buf_simple *rb = &resp_out->b;
-            net_buf_simple_add_u8(rb, 0x68);
-            net_buf_simple_add_mem(rb, priv->addr_bcd, 6);
-            net_buf_simple_add_u8(rb, 0x68);
-            net_buf_simple_add_u8(rb, 0x91); // 读数据响应
-            net_buf_simple_add_u8(rb, 0x08); // 4(DI) + 4(DATA)
-            // DI
-            net_buf_simple_add_u8(rb, b->data[10]);
-            net_buf_simple_add_u8(rb, b->data[11]);
-            net_buf_simple_add_u8(rb, b->data[12]);
-            net_buf_simple_add_u8(rb, b->data[13]);
-            // Data (假设 4 字节 BCD, 0.01 精度)
-            uint32_t raw_val = (uint32_t)(val * 100);
-            net_buf_simple_add_u8(rb, (uint8_t)(((raw_val % 100) / 10 << 4 | (raw_val % 10)) + 0x33));
-            net_buf_simple_add_u8(rb, (uint8_t)(((raw_val / 100 % 100) / 10 << 4 | (raw_val / 100 % 10)) + 0x33));
-            net_buf_simple_add_u8(rb, (uint8_t)(((raw_val / 10000 % 100) / 10 << 4 | (raw_val / 10000 % 10)) + 0x33));
-            net_buf_simple_add_u8(rb, (uint8_t)(((raw_val / 1000000 % 100) / 10 << 4 | (raw_val / 1000000 % 10)) + 0x33));
-            net_buf_simple_add_u8(rb, _calc_cs(rb->data, rb->len));
-            net_buf_simple_add_u8(rb, 0x16);
-        }
-        return 0;
+        /* 从站角色要组应答：应答值必须由调用方/聚合根给，协议层禁止读 datahub。
+         * shortcut: 该路径尚未接入聚合根取数，暂不应答；DCU 只用主站角色。
+         * 返回 -1（未实现）而不是 0（已处理但无应答），否则从站模式坏掉也无声。 */
+        (void)di;
+        return -1;
     }
 
     return -1;

@@ -79,13 +79,42 @@ static int _spb_encode_payload(edge_driver_ctx_t *driver_ctx, spb_ctx_t *ctx, ui
     return 0;
 }
 
+/* 主题层级只允许可安全拼进 `spBv1.0/<group>/NDATA/<node>` 的字符集：
+ * 空值、含 '/' '+' '#' 或空格的值会让主题被拆层或变成通配，一律回落缺省并告警。 */
+static void _copy_topic_level(char *dst, size_t dst_size, const char *env, const char *fallback) {
+    const char *src = fallback;
+    if (env && env[0]) {
+        bool ok = true;
+        for (const char *p = env; *p; p++) {
+            char c = *p;
+            bool legal = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                         (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.';
+            if (!legal) {
+                ok = false;
+                break;
+            }
+        }
+        if (ok) {
+            src = env;
+        } else {
+            LOG_WARN(LOG_CAT_NB, "Sparkplug: illegal topic level '%s', falling back to '%s'", env,
+                     fallback);
+        }
+    }
+    snprintf(dst, dst_size, "%s", src);
+}
+
 static int spb_on_init(edge_driver_ctx_t *ctx) {
     spb_ctx_t *priv = (spb_ctx_t *)ctx->priv;
     priv->seq = 0;
     priv->birth_sent = false;
     
-    strncpy(priv->group_id, "EdgeOS_IEMS", 63);
-    strncpy(priv->edge_node_id, "IEMS_Node_A", 63);
+    // 主题身份走 env：同一台机器并发跑多个节点时，硬编码会让它们撞主题。
+    // 缺省值保持原样，未设置 env 的产品（iems）主题不变。
+    _copy_topic_level(priv->group_id, sizeof(priv->group_id), getenv("MQTT_GROUP_ID"),
+                      "EdgeOS_IEMS");
+    _copy_topic_level(priv->edge_node_id, sizeof(priv->edge_node_id), getenv("MQTT_NODE_ID"),
+                      "IEMS_Node_A");
     
     LOG_INFO(LOG_CAT_NB, "Sparkplug B: Driver initialized for Node %s", priv->edge_node_id);
     return 0;

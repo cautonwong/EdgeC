@@ -30,8 +30,113 @@ int dcu_poller_start(dcu_poller_t* poller, poller_source_ops_t source_ops, polle
     return 0;
 }
 
+static uint32_t _addr_hash(const char* address) {
+    uint32_t h = 5381;
+    for (const char* p = address; *p; ++p) {
+        h = h * 33u + (uint8_t)*p;
+    }
+    return h % METER_TABLE_CAP;
+}
+
+/* 通道级熔断标志只在变更点重算：比每次取统计都扫全表便宜 */
+static void _recompute_channel(dcu_poller_t* poller, uint32_t ch) {
+    if (ch >= DCU_MAX_CHANNELS) return;
+    poller->channel_stats[ch].is_circuit_broken =
+        (poller->ch_tracked[ch] > 0 && poller->ch_broken[ch] >= poller->ch_tracked[ch]);
+}
+
+static const dcu_meter_poll_state_t* _meter_state_find(const dcu_poller_t* poller,
+                                                      const char* address) {
+    uint32_t h = _addr_hash(address);
+    for (uint32_t n = 0; n < METER_TABLE_CAP; n++) {
+        const dcu_meter_poll_state_t* c = &poller->meter_poll_state[(h + n) % METER_TABLE_CAP];
+        if (!c->tracked && !c->tombstone) return NULL; // 真空槽才终止探测
+        if (c->tracked && strncmp(c->address, address, sizeof(c->address)) == 0) return c;
+    }
+    return NULL;
+}
+
+static dcu_meter_poll_state_t* _meter_state(dcu_poller_t* poller, const char* address,
+                                            uint8_t channel_id) {
+    uint32_t h = _addr_hash(address);
+    dcu_meter_poll_state_t* reuse = NULL; // 首个墓碑位，可重复利用
+    dcu_meter_poll_state_t* mp = NULL;
+    for (uint32_t n = 0; n < METER_TABLE_CAP; n++) {
+        dcu_meter_poll_state_t* c = &poller->meter_poll_state[(h + n) % METER_TABLE_CAP];
+        if (c->tracked) {
+            if (strncmp(c->address, address, sizeof(c->address)) == 0) {
+                c->gen = poller->state_gen;
+                if (c->channel_id != channel_id) { // 表可能被改配到另一个通道：计数跟着走
+                    uint32_t old = c->channel_id;
+                    if (old < DCU_MAX_CHANNELS) {
+                        if (poller->ch_tracked[old] > 0) poller->ch_tracked[old]--;
+                        if (c->breaker_open && poller->ch_broken[old] > 0) poller->ch_broken[old]--;
+                        _recompute_channel(poller, old);
+                    }
+                    c->channel_id = channel_id;
+                    if (channel_id < DCU_MAX_CHANNELS) {
+                        poller->ch_tracked[channel_id]++;
+                        if (c->breaker_open) poller->ch_broken[channel_id]++;
+                        _recompute_channel(poller, channel_id);
+                    }
+                }
+                return c;
+            }
+            continue; // 活条目：继续探测
+        }
+        if (c->tombstone) {
+            if (!reuse) reuse = c;
+            continue; // 墓碑不终止探测链
+        }
+        mp = c; // 真正的空槽：探测结束
+        break;
+    }
+    if (reuse) mp = reuse; // 优先回收墓碑：否则正常运行时墓碑永不释放，表终将占满
+    if (!mp) return NULL; // 表满：无状态可记，fail-open 继续轮询
+    memset(mp, 0, sizeof(*mp));
+    mp->tracked = true;
+    mp->gen = poller->state_gen;
+    strncpy(mp->address, address, sizeof(mp->address) - 1);
+    mp->channel_id = channel_id;
+    if (channel_id < DCU_MAX_CHANNELS) {
+        poller->ch_tracked[channel_id]++;
+        _recompute_channel(poller, channel_id); // 新增健康表可能解除通道级熔断
+    }
+    return mp;
+}
+
 int dcu_poller_step(dcu_poller_t* poller, dcu_inventory_t* inv, uint32_t max_meters_per_step) {
-    if (!poller || !inv || inv->count == 0) {
+    if (!poller || !inv) {
+        return 0;
+    }
+
+    // 档案版本变了才做一次退休扫描：已删表的条目必须释放，否则 MAX_METERS 最终被死条目占满。
+    // 必须早于 count==0 返回，否则最后一只表被删时不会退休。
+    if (poller->last_inv_rev != inv->revision) {
+        poller->state_gen++;
+        for (uint32_t i = 0; i < inv->count; i++) {
+            uint32_t ch = inv->meters[i].channel_id < DCU_MAX_CHANNELS ? inv->meters[i].channel_id : 0;
+            (void)_meter_state(poller, inv->meters[i].address, (uint8_t)ch);
+        }
+        for (uint32_t i = 0; i < METER_TABLE_CAP; i++) {
+            dcu_meter_poll_state_t* mp = &poller->meter_poll_state[i];
+            if (mp->tracked && mp->gen != poller->state_gen) {
+                // 表已从档案删除：释放槽位并同步通道计数
+                uint32_t ch = mp->channel_id;
+                if (ch < DCU_MAX_CHANNELS) {
+                    if (poller->ch_tracked[ch] > 0) poller->ch_tracked[ch]--;
+                    if (mp->breaker_open && poller->ch_broken[ch] > 0) poller->ch_broken[ch]--;
+                    _recompute_channel(poller, ch);
+                }
+                // 留墓碑而不是清空：否则探测链上后面的活条目会变成不可达
+                memset(mp, 0, sizeof(*mp));
+                mp->tombstone = true;
+            }
+        }
+        poller->last_inv_rev = inv->revision;
+    }
+
+    if (inv->count == 0) {
         return 0;
     }
 
@@ -51,19 +156,25 @@ int dcu_poller_step(dcu_poller_t* poller, dcu_inventory_t* inv, uint32_t max_met
         if (!s) continue;
 
         uint32_t start_idx = task->cursor_meter_idx % inv->count;
-        uint32_t remaining = inv->count - start_idx;
-        uint32_t step_limit = max_meters_per_step > 0 ? (max_meters_per_step < remaining ? max_meters_per_step : remaining) : remaining;
+        // 一轮扫描从游标开始绕整圈：熔断跳过的表不能浪费一轮
+        uint32_t step_limit = max_meters_per_step > 0
+                                  ? (max_meters_per_step < inv->count ? max_meters_per_step
+                                                                     : inv->count)
+                                  : inv->count;
         uint32_t count_in_this_step = 0;
+        uint32_t offsets_used = 0;
 
-        for (uint32_t offset = 0; offset < remaining && count_in_this_step < step_limit; offset++) {
-            uint32_t m_idx = start_idx + offset;
+        for (uint32_t offset = 0; offset < inv->count && count_in_this_step < step_limit; offset++) {
+            uint32_t m_idx = (start_idx + offset) % inv->count;
+            offsets_used = offset + 1;
             production_meter_t* m = &inv->meters[m_idx];
             uint32_t ch = m->channel_id < DCU_MAX_CHANNELS ? m->channel_id : 0;
             edge_poll_stats_t* cstats = &poller->channel_stats[ch];
             edge_poll_policy_t* cpolicy = &poller->channel_policies[ch];
+            dcu_meter_poll_state_t* mp = _meter_state(poller, m->address, (uint8_t)ch);
 
-            // 1. 熔断保护检查 (Circuit Breaker)
-            if (cstats->is_circuit_broken) {
+            // 1. 熔断保护检查：按表熔断，单表静默不拖累通道其余表
+            if (mp && mp->breaker_open) {
                 continue;
             }
 
@@ -80,7 +191,9 @@ int dcu_poller_step(dcu_poller_t* poller, dcu_inventory_t* inv, uint32_t max_met
             count_in_this_step++;
             meters_processed++;
 
-            bool meter_success = true;
+            bool meter_failed = false;
+            bool meter_pending = false;
+            int meter_ok = 0;
             for (int j = 0; j < s->data.normal.csd_count; j++) {
                 uint32_t tag_id = s->data.normal.csd_list[j];
                 double fv = 0.0;
@@ -106,29 +219,51 @@ int dcu_poller_step(dcu_poller_t* poller, dcu_inventory_t* inv, uint32_t max_met
                         poller->bus_ops.push_event(poller->bus_ops.ctx, tag_id, (uint32_t)m_idx, fv,
                                                    uv_hrtime());
                     }
+                    meter_ok++;
+                } else if (read_rc == POLL_READ_PENDING) {
+                    meter_pending = true; // 中性：请求在途，不改判连败/成功
                 } else {
-                    meter_success = false;
+                    meter_failed = true;
                 }
             }
 
             cstats->in_flight--;
-            if (meter_success) {
+            if (meter_failed) {
+                cstats->error_count++;
+                cstats->consecutive_fails++;  // 仅汇总可观测，不参与熔断判定
+                if (mp) {
+                    if (mp->consecutive_fails < UINT32_MAX) {
+                        mp->consecutive_fails++;
+                    }
+                    if (cpolicy->circuit_break_threshold > 0 &&
+                        mp->consecutive_fails >= cpolicy->circuit_break_threshold) {
+                        mp->breaker_open = true;
+                        if (ch < DCU_MAX_CHANNELS) {
+                            poller->ch_broken[ch]++;
+                            _recompute_channel(poller, ch);
+                        }
+                        LOG_ERROR(LOG_CAT_IO,
+                                  "🚨 [DCU-Poller] Meter %s (ch %u) circuit breaker tripped (fails: %u "
+                                  ">= threshold: %u)",
+                                  m->address, ch, (unsigned)mp->consecutive_fails,
+                                  cpolicy->circuit_break_threshold);
+                    }
+                }
+            } else if (meter_ok == 0 && (meter_pending || s->data.normal.csd_count == 0)) {
+                // 本轮结果未知（全部 CSD 在途，或该方案根本没有 CSD）：不记成功也不记失败
+            } else {
                 cstats->success_count++;
-                cstats->consecutive_fails = 0;
+                cstats->consecutive_fails = 0;  // 仅汇总可观测，不参与熔断判定
                 cstats->last_success_ts = uv_hrtime() / 1000000ULL;
                 task->monitor.success_meters++;
-            } else {
-                cstats->error_count++;
-                cstats->consecutive_fails++;
-                if (cpolicy->circuit_break_threshold > 0 &&
-                    cstats->consecutive_fails >= cpolicy->circuit_break_threshold) {
-                    cstats->is_circuit_broken = true;
-                    LOG_ERROR(LOG_CAT_IO, "🚨 [DCU-Poller] Channel %u circuit breaker tripped (fails: %lu >= threshold: %u)",
-                              ch, (unsigned long)cstats->consecutive_fails, cpolicy->circuit_break_threshold);
+                if (mp) {
+                    mp->consecutive_fails = 0;
                 }
             }
         }
-        task->cursor_meter_idx = (uint16_t)((start_idx + count_in_this_step) % inv->count);
+        // 游标至少推进一格：全部被熔断跳过时也必须继续扫描，否则任务卡死在单表
+        task->cursor_meter_idx =
+            (uint16_t)((start_idx + (offsets_used > 0 ? offsets_used : 1)) % inv->count);
     }
 
     // 批量落盘
@@ -150,19 +285,36 @@ int dcu_poller_set_channel_policy(dcu_poller_t* poller, uint32_t channel_id,
     return 0;
 }
 
+bool dcu_poller_meter_breaker_open(const dcu_poller_t* poller, const char* address) {
+    if (!poller || !address) return false;
+    const dcu_meter_poll_state_t* mp = _meter_state_find(poller, address);
+    return mp ? mp->breaker_open : false;
+}
+
 int dcu_poller_get_channel_stats(dcu_poller_t* poller, uint32_t channel_id,
                                  edge_poll_stats_t* out_stats) {
     if (!poller || channel_id >= DCU_MAX_CHANNELS || !out_stats) return -1;
+    /* is_circuit_broken 由表级状态变更点（熔断/重置/退休）维护，这里只读不写 */
     *out_stats = poller->channel_stats[channel_id];
     return 0;
 }
 
 int dcu_poller_reset_circuit_breaker(dcu_poller_t* poller, uint32_t channel_id) {
     if (!poller || channel_id >= DCU_MAX_CHANNELS) return -1;
+    poller->ch_broken[channel_id] = 0;
     poller->channel_stats[channel_id].is_circuit_broken = false;
     poller->channel_stats[channel_id].consecutive_fails = 0;
     poller->channel_stats[channel_id].in_flight = 0;
     poller->channel_stats[channel_id].queue_depth = 0;
+
+    // 表级熔断按表复位：只解这条通道上被熔断的表
+    for (uint32_t i = 0; i < METER_TABLE_CAP; i++) {
+        dcu_meter_poll_state_t* mp = &poller->meter_poll_state[i];
+        if (mp->tracked && mp->channel_id == (uint8_t)channel_id) {
+            mp->breaker_open = false;
+            mp->consecutive_fails = 0;
+        }
+    }
     return 0;
 }
 

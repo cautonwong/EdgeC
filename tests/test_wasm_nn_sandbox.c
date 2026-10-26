@@ -1,3 +1,5 @@
+/* Release 构建带 -DNDEBUG，assert() 会被抹成空语句 → 测试变空壳 */
+#undef NDEBUG
 /**
  * @file test_wasm_nn_sandbox.c
  * @brief Unit tests for Wasm-NN & Zero-Copy SHM Inference Sandbox (AEP-601)
