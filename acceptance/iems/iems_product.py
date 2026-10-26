@@ -179,17 +179,6 @@ async def _unix_bus() -> None:
         await server.serve_forever()
 
 
-def _pump(src, dst) -> None:
-    try:
-        while (chunk := src.recv(4096)):
-            dst.sendall(chunk)
-    except OSError:
-        pass
-    finally:
-        src.close()
-        dst.close()
-
-
 def _north_bridge() -> None:
     """unix socket → TCP:iems 的北向从站只监听 unix socket,而平台只认 serial/tcp。
 
@@ -216,14 +205,47 @@ def _north_bridge() -> None:
     server.listen(8)
     while True:
         conn, _ = server.accept()
-        try:
-            up = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            up.connect(NORTH_SOCK)
-        except OSError:
-            conn.close()
-            continue
-        threading.Thread(target=_pump, args=(conn, up), daemon=True).start()
-        threading.Thread(target=_pump, args=(up, conn), daemon=True).start()
+        threading.Thread(target=_serve_tcp, args=(conn,), daemon=True).start()
+
+
+def _serve_tcp(conn: socket.socket) -> None:
+    """一条 TCP 连接 = 一串请求/应答,每个请求换一条到 iems 的 unix 连接。
+
+    以前两条 pump 线程长期挂在同一条 unix 连接上:iems 一旦关上游(重启北向、
+    正常退出、协议层主动断),平台侧就收到 ConnectionError,把产品自己关连接
+    记成网络故障。改成每个请求现连一次 —— iems 关连接不再波及 TCP 侧,
+    而"不回应"仍然是沉默,平台的超时逻辑照常生效。
+    """
+    with conn:
+        while True:
+            try:
+                req = conn.recv(4096)
+            except OSError:
+                return
+            if not req:
+                return
+            try:
+                up = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                up.settimeout(2.0)
+                up.connect(NORTH_SOCK)
+                up.sendall(req)
+            except OSError:
+                continue  # 上游不在:这一帧就是没应答,平台自己记超时
+            try:
+                while True:
+                    try:
+                        chunk = up.recv(4096)
+                    except socket.timeout:
+                        break
+                    if not chunk:
+                        break
+                    try:
+                        conn.sendall(chunk)
+                    except OSError:
+                        return
+                    up.settimeout(0.2)  # 收完一帧就别等下一帧
+            finally:
+                up.close()
 
 
 def _hold_port(port: int) -> None:
@@ -288,6 +310,9 @@ def main() -> int:
         "EDGE_SNAP_PATH": str(RUN_DIR / "snapshot.bin"),
         "EDGE_SHM_NAME": f"/iems_acceptance_{args.port}",
         "OMNIS_BUS_0_DEV": SOCK,
+        # 北向 socket 跟着任务走:共用 /tmp/iems_north_slave.sock 时,两个人同时跑
+        # 验收会互相 unlink 对方的 socket,表现为“产品突然不回应”。
+        "IEMS_NORTH_SOCK": NORTH_SOCK,
         "MQTT_BROKER": "tcp://127.0.0.1:1883",
     }
     if args.expect_boot_fail:

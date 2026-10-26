@@ -118,7 +118,12 @@ for product in "${PRODUCTS[@]}"; do
         # 每个任务一个独立运行目录:共用一个会让上一轮的 sqlite/WAL 被回放,
         # 故障还没注入 REST 就已经有旧读数 —— 用例会绿,但什么都没验到。
         export IEMS_RUN_DIR="$ROOT/runtime/$product/$(basename "$task" .yaml)"
+        # 同一台机器上可能有人同时在跑验收(或开发者自己跑产品),/tmp 下的固定路径
+        # 会互相踩;每个任务一个名字空间,并把北向 socket 一起隔离。
+        export IEMS_NORTH_SOCK="$IEMS_RUN_DIR/north.sock"
+        export DCU_RUN_DIR="$ROOT/runtime/$product/$(basename "$task" .yaml)"
         rm -rf "$IEMS_RUN_DIR"
+        rm -rf "$DCU_RUN_DIR"
         set +e
         "$PYTHON" "$PLATFORM/tools/run_task.py" "$task" \
             --root "$project" --evidence-dir "$task_dir"

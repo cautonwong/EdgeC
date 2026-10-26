@@ -12,7 +12,8 @@ HERE = Path(__file__).resolve().parent
 DEVICES = HERE / "configs" / "devices.yaml"
 
 # 运行目录:产品壳把 db 和总线计数写在这里,用例从这里读。
-RUN_DIR = Path("/tmp/edgec-acceptance-run")
+# 运行目录可覆盖:多个人/多个任务同时跑时共用一个目录会互相踩(数据被抢、被杀)。
+RUN_DIR = Path(os.environ.get("DCU_RUN_DIR") or "/tmp/edgec-acceptance-run")
 DB_PATH = RUN_DIR / "dcu_runtime.db"
 BUS_LOG = RUN_DIR / "bus.json"
 
