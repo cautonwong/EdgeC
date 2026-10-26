@@ -9,6 +9,49 @@
 #include "session_manager.h"
 
 /**
+ * @brief 按总线登记的主站引擎
+ *
+ * arbiter 的执行器回调只给 bus_id,而引擎是每总线一个实例,靠这张表把 bus_id
+ * 翻译回引擎。只在 attach/detach 里增删,uv 单线程,不需要额外锁。
+ */
+static master_priv_t *g_engine_by_bus[ARBITER_MAX_BUSES];
+
+/**
+ * @brief arbiter 自己结算了这条命令(到期扫描),引擎借此清状态并让驱动收尾
+ *
+ * arbiter_check_timeouts 会在锁内把 owner 摘空、派发下一条,然后才结算并 free。
+ * 引擎完全不知情:定时器还挂着、current_cmd 还指着即将释放的内存,驱动侧的
+ * on_finish 也没人调用(两阶段 pending 的协议就永远等不到结果)。这里是唯一的
+ * 通知点。返回 0 表示不接管释放,arbiter 照常走 on_complete/on_cleanup/free。
+ */
+static int _on_arbiter_settled(void *ctx, int bus_id, cmd_msg_t *msg, int status) {
+    if (bus_id < 0 || bus_id >= ARBITER_MAX_BUSES) return 0;
+    master_priv_t *priv = g_engine_by_bus[bus_id];
+    // ctx 是注册时带上的 arbiter 身份:进程里可能存在多个 arbiter,不能只按总线号配
+    if (!priv || !msg || priv->arb != (arbiter_t *)ctx) return 0;
+
+    // 这个钩子**每次结算都会调**:正常成功/失败路径是引擎自己先调 on_finish 再调
+    // arbiter_on_io_done,此时 current_cmd 已经不是 msg 了,不能再叫一遍 on_finish,
+    // 否则驱动收到重复结果。只有"引擎还握着它"才说明这份结算是 arbiter 替我做的。
+    if (priv->current_cmd != msg) return 0;
+
+    priv->current_cmd = NULL;
+    uv_timer_stop(&priv->timer);
+    if (priv->io && priv->io->ops) {
+        // 和另外两条收尾路径一样先冲一次:队列里的 pending_tx 只有 FLUSH 会释放
+        if (priv->io->ops->ioctl) priv->io->ops->ioctl(priv->io, IO_CTL_FLUSH, NULL);
+        if (priv->io->ops->enable_read) priv->io->ops->enable_read(priv->io, false);
+    }
+    net_buf_simple_reset(&priv->rx_acc);
+
+    // 驱动侧必须收到这次的失败,否则它那一轮的请求就没有下文了
+    if (msg->req && msg->req->ops && msg->req->ops->on_finish) {
+        msg->req->ops->on_finish(msg->req, status);
+    }
+    return 0;
+}
+
+/**
  * @brief 事务超时处理
  */
 static void _master_on_timeout(uv_timer_t *handle) {
@@ -16,8 +59,10 @@ static void _master_on_timeout(uv_timer_t *handle) {
     if (priv->current_cmd) {
         cmd_msg_t *timed_out_cmd = priv->current_cmd;
         if (!arbiter_owns_cmd(priv->arb, priv->bus_id, timed_out_cmd)) {
-            // arbiter_check_timeouts 已经把这条件结算并 free 掉(它到期时不通知引擎),
+            // arbiter 已经把这条件结算并 free 掉(真正的收尾在 _on_arbiter_settled),
             // 这里一个字节都不能再读,否则就是 use-after-free
+            LOG_WARN(LOG_CAT_BUS, "Bus %d: stale timeout fired after arbiter settled the command",
+                     priv->bus_id);
             priv->current_cmd = NULL;
             priv->io->ops->enable_read(priv->io, false);
             return;
@@ -47,7 +92,10 @@ static void _process_req_result(master_priv_t *priv, int rc) {
     cmd_msg_t *cmd = priv->current_cmd;
     if (!cmd) return;
     if (!arbiter_owns_cmd(priv->arb, priv->bus_id, cmd)) {
-        // 同上:条件已被 arbiter 结算释放,只清状态,不碰 cmd
+        // 同上:条件已被 arbiter 结算释放,只清状态,不碰 cmd。这条日志是故意留的:
+        // 静默丢一帧结算,两阶段 pending 的协议会把"白读"记成自己的状态错误
+        LOG_WARN(LOG_CAT_BUS, "Bus %d: dropped completion for a command the arbiter already settled",
+                 priv->bus_id);
         priv->current_cmd = NULL;
         uv_timer_stop(&priv->timer);
         priv->io->ops->enable_read(priv->io, false);
@@ -184,6 +232,16 @@ static void _master_attach(bus_engine_t *self, io_handle_t *io) {
     priv->io = io;
     io->cb = _master_io_cb;
     io->user_data = priv;
+
+    // 让 arbiter 到期结算时回头通知引擎:超时的唯一权威是 arbiter 的扫描,
+    // 引擎只负责清状态并让驱动收尾,避免两份权威互相把对方的命令 free 掉
+    if (priv->bus_id >= 0 && priv->bus_id < ARBITER_MAX_BUSES) {
+        g_engine_by_bus[priv->bus_id] = priv;
+        arb_executor_ops_t ops = {0};
+        ops.ctx = priv->arb;
+        ops.on_io_done = _on_arbiter_settled;
+        arbiter_set_executor(priv->arb, ops);
+    }
     LOG_INFO(LOG_CAT_BUS, "Bus %d: Physical I/O attached (Type: %d)", priv->bus_id, io->ops ? 0 : -1);
 }
 
@@ -196,6 +254,10 @@ static void _master_close_cb(uv_handle_t *handle) {
 
 static void _master_detach(bus_engine_t *self) {
     master_priv_t *priv = (master_priv_t *)self->user_data;
+    if (priv->bus_id >= 0 && priv->bus_id < ARBITER_MAX_BUSES &&
+        g_engine_by_bus[priv->bus_id] == priv) {
+        g_engine_by_bus[priv->bus_id] = NULL;
+    }
     if (!uv_is_closing((uv_handle_t *)&priv->timer)) {
         uv_timer_stop(&priv->timer);
         uv_close((uv_handle_t *)&priv->timer, _master_close_cb);
