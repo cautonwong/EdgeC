@@ -1,3 +1,5 @@
+/* Release 构建带 -DNDEBUG，assert() 会被抹成空语句 → 测试变空壳 */
+#undef NDEBUG
 /**
  * @file test_uns_sparkplug_opcua.c
  * @brief Unit tests for ISA-95 Unified Namespace (UNS) Engine & Sparkplug B / OPC UA Mirror

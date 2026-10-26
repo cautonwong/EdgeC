@@ -1,3 +1,5 @@
+/* Release 构建带 -DNDEBUG，assert() 会被抹成空语句 → 测试变空壳 */
+#undef NDEBUG
 /**
  * @file test_infra_interfaces.c
  * @brief Unit tests for storage_ops_t, datahub_ops_t, SQLite driver, and DDS/MQTT bus drivers

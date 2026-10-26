@@ -1,3 +1,5 @@
+/* Release 构建带 -DNDEBUG，assert() 会被抹成空语句 → 测试变空壳 */
+#undef NDEBUG
 /**
  * @file test_aggregate_roots_governance.c
  * @brief 验证 Issue #369 与 Issue #370 聚合根封装与防跨层穿透治理测试

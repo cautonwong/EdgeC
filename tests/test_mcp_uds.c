@@ -1,3 +1,5 @@
+/* Release 构建带 -DNDEBUG，assert() 会被抹成空语句 → 测试变空壳 */
+#undef NDEBUG
 /**
  * @file test_mcp_uds.c
  * @brief Unit & Integration tests for Industrial Shared MCP Bus with Multi-Client UDS Transport

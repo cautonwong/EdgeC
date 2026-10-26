@@ -1,3 +1,5 @@
+/* Release 构建带 -DNDEBUG，assert() 会被抹成空语句 → 测试变空壳 */
+#undef NDEBUG
 /**
  * @file test_tsn_engine.c
  * @brief Unit tests for IEEE 802.1Qbv TAS & IEEE 802.1AS TSN Deterministic Transport Engine

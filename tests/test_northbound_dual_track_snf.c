@@ -1,3 +1,5 @@
+/* Release 构建带 -DNDEBUG，assert() 会被抹成空语句 → 测试变空壳 */
+#undef NDEBUG
 /**
  * @file test_northbound_dual_track_snf.c
  * @brief Unit tests for Dual-Track Northbound Relay (IEC 104 & MQTT) with SnF Resuming (AEP-463 /
