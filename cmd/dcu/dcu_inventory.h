@@ -27,18 +27,23 @@ typedef struct {
     uint32_t ct_ratio;        // CT变比
 
     bool is_online;      // 状态：true 表示 ACTIVE, false 表示 SUSPENDED (熔断离线)
-    uint8_t fail_count;  // 连续抄表超时失败计数器，达到 3 时触发静默熔断
     uint32_t last_poll_time_s;                  // 上一次被调度抄读的挂钟时间戳 (秒)
     const driver_contract_injection_t* inject;  // 关联的契约注入字典
 } production_meter_t;
 
 /**
- * @brief 集中器电表档案容器 (线程安全锁保护)
+ * @brief 集中器电表档案容器
+ *
+ * 线程所有权：`meters` / `count` / `revision` 只由 uv 事件循环线程读写
+ * （协议入口 `_oi_6000_execute`、`dcu_node` 装载、`dcu_poller_step` 全在循环线程上），
+ * 因此 `add` / `remove` / `load_from_db` 不再各自加锁 —— 单线程下加锁只会造成伪安全。
+ * 因此本结构不再带锁 —— 一把没有对应写者的锁只会造成伪安全。
+ * 若将来要在循环线程之外改档案，必须另加锁并把修改和 `revision++` 放进同一临界区。
  */
 typedef struct {
     production_meter_t meters[MAX_METERS];
     uint16_t count;
-    uv_mutex_t lock;  // 互斥安全锁
+    uint32_t revision; // 档案变更版本号：删除后又新增同数目不会变 count，靠它察觉
 } dcu_inventory_t;
 
 /* --- 生产级 API 函数原型声明 --- */

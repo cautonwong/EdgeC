@@ -3,11 +3,18 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+
+/* read_value 返回此值: 请求已发出、下一轮再收, 既非成功也非失败 */
+#define POLL_READ_PENDING 1
 #include <uv.h>
 
 #include "dcu_inventory.h"
 #include "edge_periodic_clock.h"
 #include "queue.h"
+
+// 表级状态的开放寻址表容量取档案上限的 2 倍：载荷因子 ≤ 0.5，探针链不会退化成长链扫描。
+// 墓碑只在探针路过的位置回收，容量不足时它们会把表占满。
+#define METER_TABLE_CAP (MAX_METERS * 2)
 
 // 前向声明驱动管理器，避免头文件循环依赖
 struct driver_manager_s;
@@ -22,6 +29,7 @@ typedef struct driver_manager_s driver_manager_t;
 /**
  * @brief DL/T 698.45 采集任务监控单元 (OI 6035)
  */
+
 typedef struct {
     uint32_t task_id;
     uint8_t status;
@@ -41,6 +49,7 @@ typedef enum {
     SCHEME_TYPE_SCRIPT = 5
 } dcu_scheme_type_t;
 
+
 typedef struct {
     uint32_t scheme_id;
     dcu_scheme_type_t type;
@@ -56,6 +65,7 @@ typedef struct {
     } data;
 } dcu_scheme_t;
 
+
 typedef struct {
     uint32_t task_id;
     uint32_t interval_s;
@@ -69,6 +79,7 @@ typedef struct {
 
 // === [Consumer-Defined Interfaces] ===
 // 1. 数据持久化接口
+
 typedef struct {
     void* ctx;
     int (*record_telemetry)(void* ctx, const char* meter_addr, uint32_t meter_idx, uint32_t tag_id,
@@ -77,6 +88,7 @@ typedef struct {
 } poller_sink_ops_t;
 
 // 2. 实时数据总线接口
+
 typedef struct {
     void* ctx;
     int (*publish_realtime)(void* ctx, uint32_t tag_id, uint32_t meter_idx, double val,
@@ -86,12 +98,26 @@ typedef struct {
 } poller_bus_ops_t;
 
 // 3. 采样数据源接口 (Source Adapter Seam)
+
 typedef struct {
     void* ctx;
     int (*read_value)(void* ctx, uint32_t meter_idx, uint32_t tag_id, double* out_val);
 } poller_source_ops_t;
 
 #include "driver_manager.h"
+
+
+/* 表级轮询聚合：连败计数与熔断状态归 poller 这一个根，不归通道。
+ * 以表地址为键（档案删除会重排数组下标，下标不是稳定身份），开放寻址。 */
+typedef struct {
+    char address[MAX_ADDR_LEN]; // 与 production_meter_t.address 同宽
+    uint32_t consecutive_fails;
+    uint32_t gen; // 档案存活代际，用于退休已删表的条目
+    uint8_t channel_id;
+    bool breaker_open;
+    bool tracked;
+    bool tombstone; // 已退休：探测链必须跳过它，不能当作空槽终止
+} dcu_meter_poll_state_t;
 
 typedef struct {
     dcu_task_unit_t tasks[MAX_TASKS];
@@ -110,6 +136,13 @@ typedef struct {
     // [AEP-401 & AEP-399] 通道级背压、in-flight 约束与熔断可观测性
     edge_poll_stats_t channel_stats[DCU_MAX_CHANNELS];
     edge_poll_policy_t channel_policies[DCU_MAX_CHANNELS];
+    // 通道级跟踪/熔断计数：由表级状态变更点维护，避免每次取统计都扫全表
+    uint16_t ch_tracked[DCU_MAX_CHANNELS];
+    uint16_t ch_broken[DCU_MAX_CHANNELS];
+
+    dcu_meter_poll_state_t meter_poll_state[METER_TABLE_CAP];
+    uint32_t state_gen;     // 档案变更代际
+    uint32_t last_inv_rev;  // 上次 GC 时的档案版本号
 } dcu_poller_t;
 
 int dcu_poller_init(dcu_poller_t* poller);
@@ -139,6 +172,9 @@ int dcu_poller_set_channel_policy(dcu_poller_t* poller, uint32_t channel_id,
  */
 int dcu_poller_get_channel_stats(dcu_poller_t* poller, uint32_t channel_id,
                                  edge_poll_stats_t* out_stats);
+
+/* 表级熔断可观测（按表地址查，不暴露聚合内部结构） */
+bool dcu_poller_meter_breaker_open(const dcu_poller_t* poller, const char* address);
 
 /**
  * @brief 重置通道熔断状态，恢复在线调度 (AEP-401)

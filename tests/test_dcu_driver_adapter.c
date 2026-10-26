@@ -3,6 +3,8 @@
  * @brief Unit tests for DCU autonomous driver adapter and point injection (PoC)
  */
 
+/* 构建类型是 Release 时 assert 会被 NDEBUG 全部抹掉，测试变成空壳 */
+#undef NDEBUG
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -69,21 +71,25 @@ static void test_dcu_driver_injection(void) {
     const modbus_map_t *p698_freq = (const modbus_map_t *)inj_698->lookup_by_key(OAD_GRID_FREQUENCY);
     assert(p698_freq != NULL && p698_freq->tag_id == OAD_GRID_FREQUENCY);
 
-    /* 3. DLT645 Injection */
+    /* 3. DLT645：不再向驱动暴露契约查找（协议层不认 OAD），映射与 scale 在 cmd 层 */
     const driver_contract_injection_t *inj_645 = dcu_get_driver_injection("DLT645");
     assert(inj_645 != NULL);
-    assert(inj_645->lookup_by_key != NULL);
+    assert(inj_645->lookup_by_key == NULL);
+    assert(inj_645->lookup_by_tag == NULL);
 
-    const dlt645_map_t *p645 = (const dlt645_map_t *)inj_645->lookup_by_key(0x02010100);
-    assert(p645 != NULL);
-    /* 645 A相电压 DI 0x02010100 映射至 698 OAD_VOLTAGE */
-    assert(p645->tag_id == OAD_VOLTAGE);
+    /* 645 A相电压 DI 0x02010100 映射至 698 OAD_VOLTAGE，两个方向都要一致 */
+    assert(dcu_driver_adapter_oad_to_proto("DLT645", OAD_VOLTAGE) == 0x02010100);
+    assert(dcu_driver_adapter_proto_to_oad("DLT645", 0x02010100) == OAD_VOLTAGE);
+    assert(dcu_driver_adapter_scale("DLT645", 0x02010100) > 0.0);
 
-    /* 3.1 Verify B-phase, C-phase, frequency for 645 */
-    const dlt645_map_t *p645_vb = (const dlt645_map_t *)inj_645->lookup_by_key(0x02010200);
-    assert(p645_vb != NULL && p645_vb->tag_id == OAD_VOLTAGE_B);
-    const dlt645_map_t *p645_freq = (const dlt645_map_t *)inj_645->lookup_by_key(0x02800002);
-    assert(p645_freq != NULL && p645_freq->tag_id == OAD_GRID_FREQUENCY);
+    /* 3.1 B相、C相、频率 */
+    assert(dcu_driver_adapter_proto_to_oad("DLT645", 0x02010200) == OAD_VOLTAGE_B);
+    assert(dcu_driver_adapter_proto_to_oad("DLT645", 0x02010300) == OAD_VOLTAGE_C);
+    assert(dcu_driver_adapter_proto_to_oad("DLT645", 0x02800002) == OAD_GRID_FREQUENCY);
+    /* 未注册的协议号/未知协议必须返回 0，而不是猜一个 */
+    assert(dcu_driver_adapter_proto_to_oad("DLT645", 0xDEADBEEF) == 0);
+    assert(dcu_driver_adapter_scale("DLT645", 0xDEADBEEF) == 0.0);
+    assert(dcu_driver_adapter_oad_to_proto("UNKNOWN", OAD_VOLTAGE) == 0);
 
     /* 4. Modbus Injection */
     const driver_contract_injection_t *inj_mb = dcu_get_driver_injection("ModbusRTU");

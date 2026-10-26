@@ -25,7 +25,15 @@ static void _on_api_cmd_cleanup(cmd_msg_t *cmd) {
 
 int edge_api_read_tag(int bus_id, const char *protocol, uint32_t slave_id, uint32_t physical_tag_id,
                       legacy_on_complete_cb cb, void *user_data) {
-    if (!g_orch) return -1;
+    if (!g_orch) {
+        static uint64_t last_no_orch = 0;
+        if (uv_now(uv_default_loop()) - last_no_orch > 1000) {
+            printf("[API-ERROR] reason=no-orchestrator bus=%d proto=%s\n", bus_id,
+                   protocol ? protocol : "?");
+            last_no_orch = uv_now(uv_default_loop());
+        }
+        return -1;
+    }
 
     const driver_contract_injection_t *inject = edge_model_find(protocol);
     if (!inject) {
@@ -40,8 +48,19 @@ int edge_api_read_tag(int bus_id, const char *protocol, uint32_t slave_id, uint3
 
     edge_req_t *req = req_legacy_driver_create(g_drv_mgr, protocol, slave_id, CMD_ACTION_READ,
                                                physical_tag_id, 0.0, (void *)inject->lookup_by_tag,
-                                               (void *)inject->lookup_by_key, cb, user_data);
-    if (!req) return -1;
+                                               (void *)inject->lookup_by_key, inject->meta_list,
+                                               inject->meta_list_len, cb, user_data);
+    if (!req) {
+        static uint64_t last_no_req = 0;
+        if (uv_now(uv_default_loop()) - last_no_req > 1000) {
+            printf("[API-ERROR] reason=req-create-failed bus=%d proto=%s slave=%u tag=%08x "
+                   "drv_mgr=%p\n",
+                   bus_id, protocol ? protocol : "?", slave_id, physical_tag_id,
+                   (void *)g_drv_mgr);
+            last_no_req = uv_now(uv_default_loop());
+        }
+        return -1;
+    }
 
     cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));
     cmd->req = req;
@@ -51,7 +70,16 @@ int edge_api_read_tag(int bus_id, const char *protocol, uint32_t slave_id, uint3
     cmd->on_cleanup = _on_api_cmd_cleanup;
     strncpy(cmd->req_id, "LEGACY_READ", sizeof(cmd->req_id) - 1);
 
-    return bus_orchestrator_submit_cmd(g_orch, bus_id, cmd);
+    int rc = bus_orchestrator_submit_cmd(g_orch, bus_id, cmd);
+    if (rc != 0) {
+        static uint64_t last_submit_err = 0;
+        if (uv_now(uv_default_loop()) - last_submit_err > 1000) {
+            printf("[API-ERROR] reason=submit-failed bus=%d proto=%s tag=%08x rc=%d\n", bus_id,
+                   protocol ? protocol : "?", physical_tag_id, rc);
+            last_submit_err = uv_now(uv_default_loop());
+        }
+    }
+    return rc;
 }
 
 int edge_api_write_tag(int bus_id, const char *protocol, uint32_t slave_id,
@@ -66,7 +94,8 @@ int edge_api_write_tag(int bus_id, const char *protocol, uint32_t slave_id,
 
     edge_req_t *req = req_legacy_driver_create(g_drv_mgr, protocol, slave_id, CMD_ACTION_WRITE,
                                                physical_tag_id, value, (void *)inject->lookup_by_tag,
-                                               (void *)inject->lookup_by_key, cb, user_data);
+                                               (void *)inject->lookup_by_key, inject->meta_list,
+                                               inject->meta_list_len, cb, user_data);
     if (!req) return -1;
 
     cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));
