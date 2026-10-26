@@ -44,13 +44,20 @@ int main(int argc, char* argv[]) {
     uv_signal_start(&s2, on_signal_exit, SIGTERM);
 
     // 3. 配置组装与 Assembler 装配
+    // socket 路径也在这里读一次,往下当参数传(深层模块不许 getenv)
+    const char* north_sock = getenv("IEMS_NORTH_SOCK");
+    if (north_sock && !north_sock[0]) north_sock = NULL;  // 空串当没设,别把空路径传下去
+    const char* ui_sock = getenv("IEMS_UI_SOCK");
+    if (ui_sock && !ui_sock[0]) ui_sock = NULL;
     iems_app_config_t cfg = {
         .db_path = getenv("EDGE_DB_PATH"),
         .shm_name = getenv("EDGE_SHM_NAME"),
         .wal_path = getenv("EDGE_WAL_PATH"),
         .snap_path = getenv("EDGE_SNAP_PATH"),
         .mqtt_url = getenv("MQTT_BROKER"),
-        .rest_port = getenv("EDGE_REST_PORT") ? atoi(getenv("EDGE_REST_PORT")) : 9091
+        .rest_port = getenv("EDGE_REST_PORT") ? atoi(getenv("EDGE_REST_PORT")) : 9091,
+        .north_sock = north_sock,
+        .ui_sock = ui_sock
     };
 
     g_app = iems_app_assemble(loop, &cfg);
