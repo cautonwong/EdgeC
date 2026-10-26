@@ -15,9 +15,19 @@ static void _master_on_timeout(uv_timer_t *handle) {
     master_priv_t *priv = (master_priv_t *)handle->data;
     if (priv->current_cmd) {
         cmd_msg_t *timed_out_cmd = priv->current_cmd;
+        if (!arbiter_owns_cmd(priv->arb, priv->bus_id, timed_out_cmd)) {
+            // arbiter_check_timeouts 已经把这条件结算并 free 掉(它到期时不通知引擎),
+            // 这里一个字节都不能再读,否则就是 use-after-free
+            priv->current_cmd = NULL;
+            priv->io->ops->enable_read(priv->io, false);
+            return;
+        }
         LOG_WARN(LOG_CAT_BUS, "Bus %d: Transaction Timeout [%s]", priv->bus_id,
                  timed_out_cmd->req_id);
         
+        // 先摘下来再回调:arbiter 会在 on_io_done 里当场派发下一条指令并换掉
+        // current_cmd,不先摘,重入就拿着已释放的 cmd 收尾
+        priv->current_cmd = NULL;
         priv->io->ops->ioctl(priv->io, IO_CTL_FLUSH, NULL);
         priv->io->ops->enable_read(priv->io, false);
         net_buf_simple_reset(&priv->rx_acc);
@@ -27,9 +37,6 @@ static void _master_on_timeout(uv_timer_t *handle) {
         
         arbiter_on_io_done(priv->arb, priv->bus_id, timed_out_cmd, CMD_STATUS_TIMEOUT);
         
-        if (priv->current_cmd == timed_out_cmd) {
-            priv->current_cmd = NULL;
-        }
     }
 }
 
@@ -39,6 +46,16 @@ static void _master_on_timeout(uv_timer_t *handle) {
 static void _process_req_result(master_priv_t *priv, int rc) {
     cmd_msg_t *cmd = priv->current_cmd;
     if (!cmd) return;
+    if (!arbiter_owns_cmd(priv->arb, priv->bus_id, cmd)) {
+        // 同上:条件已被 arbiter 结算释放,只清状态,不碰 cmd
+        priv->current_cmd = NULL;
+        uv_timer_stop(&priv->timer);
+        priv->io->ops->enable_read(priv->io, false);
+        return;
+    }
+    // 先摘下来:下面每一路都会回调 arbiter,而 arbiter 会当场派发下一条指令把
+    // current_cmd 换成新的;不先摘,重入就拿着已释放的 cmd 收尾(断链 SIGSEGV 根因)
+    priv->current_cmd = NULL;
 
     // 严谨停止超时计时器
     uv_timer_stop(&priv->timer);
@@ -48,16 +65,20 @@ static void _process_req_result(master_priv_t *priv, int rc) {
         if (cmd->req && cmd->req->ops->on_finish)
             cmd->req->ops->on_finish(cmd->req, CMD_STATUS_SUCCESS);
         arbiter_on_io_done(priv->arb, priv->bus_id, cmd, CMD_STATUS_SUCCESS);
-        if (priv->current_cmd == cmd) priv->current_cmd = NULL;
     } else if (rc == REQ_STATUS_CONTINUE) {
         net_buf_t *tx = net_buf_alloc(priv->pool, 0);
-        if (tx && cmd->req->ops->encode(cmd->req, tx) == 0) {
+        if (tx && cmd->req && cmd->req->ops && cmd->req->ops->encode &&
+            cmd->req->ops->encode(cmd->req, tx) == 0) {
+            // 续帧还要接着收:入口处摘下来的 current_cmd 必须挂回去,否则后续
+            // 的 RX/超时都找不到这条命令(多帧协议会静默断在半路)
+            priv->current_cmd = cmd;
             // 续展超时计时
             uv_timer_start(&priv->timer, _master_on_timeout, cmd->timeout_ms, 0);
             priv->io->ops->write_async(priv->io, tx);
             net_buf_unref(tx);
         } else {
             if (tx) net_buf_unref(tx);
+            priv->current_cmd = cmd;  // 失败收尾走的仍是 _process_req_result,得先挂回去
             _process_req_result(priv, REQ_STATUS_ERROR);
         }
     } else {
@@ -67,7 +88,6 @@ static void _process_req_result(master_priv_t *priv, int rc) {
         if (cmd->req && cmd->req->ops->on_finish)
             cmd->req->ops->on_finish(cmd->req, CMD_STATUS_PROTO_ERROR);
         arbiter_on_io_done(priv->arb, priv->bus_id, cmd, CMD_STATUS_PROTO_ERROR);
-        if (priv->current_cmd == cmd) priv->current_cmd = NULL;
     }
 }
 
@@ -122,7 +142,6 @@ static void _master_run_command(bus_engine_t *self, cmd_msg_t *cmd) {
         return;
     }
 
-    priv->current_cmd = cmd;
     net_buf_simple_reset(&priv->rx_acc);
     if (priv->io && priv->io->ops && priv->io->ops->ioctl) {
         priv->io->ops->ioctl(priv->io, IO_CTL_FLUSH, NULL);
@@ -130,12 +149,12 @@ static void _master_run_command(bus_engine_t *self, cmd_msg_t *cmd) {
 
     if (!cmd->req->ops || !cmd->req->ops->setup || !cmd->req->ops->encode || !cmd->req->ops->decode) {
         LOG_ERROR(LOG_CAT_BUS, "Bus %d: Request ops missing", priv->bus_id);
-        _process_req_result(priv, REQ_STATUS_ERROR);
+        arbiter_on_io_done(priv->arb, priv->bus_id, cmd, CMD_STATUS_PROTO_ERROR);
         return;
     }
 
     if (cmd->req->ops->setup(cmd->req, priv) != 0) {
-        _process_req_result(priv, REQ_STATUS_ERROR);
+        arbiter_on_io_done(priv->arb, priv->bus_id, cmd, CMD_STATUS_PROTO_ERROR);
         return;
     }
 
@@ -147,6 +166,9 @@ static void _master_run_command(bus_engine_t *self, cmd_msg_t *cmd) {
 
     if (cmd->req->ops->encode(cmd->req, tx) == 0 && tx->b.len > 0) {
         // [Safety] 启动原子级单次超时
+        // 真正发出去才占 current_cmd:失败路径会在下面直接归还给 arbiter 并释放 cmd,
+        // 先占就是给 priv 留一个悬垂指针(断链时 SIGSEGV 的根因)
+        priv->current_cmd = cmd;
         uv_timer_start(&priv->timer, _master_on_timeout, cmd->timeout_ms, 0);
         priv->io->ops->enable_read(priv->io, true);
         priv->io->ops->write_async(priv->io, tx);
