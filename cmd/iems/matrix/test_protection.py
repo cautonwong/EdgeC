@@ -1,6 +1,8 @@
 import pytest
 import asyncio
 import logging
+import os
+import struct
 
 @pytest.mark.asyncio
 async def test_overvoltage_reporting(matrix):
@@ -77,3 +79,60 @@ async def test_vsg_ffr_grid_frequency_step_response(matrix):
     val = matrix.get_val(freq_tag)
     print(f"✅ [Step 3] VSG/FFR Inertial Frequency Response Verified at PCC: {val} Hz")
 
+
+
+def _modbus_crc(data):
+    crc = 0xFFFF
+    for pos in data:
+        crc ^= pos
+        for _ in range(8):
+            crc = (crc >> 1) ^ 0xA001 if crc & 1 else crc >> 1
+    return struct.pack("<H", crc)
+
+
+@pytest.mark.asyncio
+async def test_northbound_slave_reports_mirrored_voltage(matrix):
+    """
+    从 test_slave_flow.py 迁入。本文件其余用例只验 DataHub 镜像值,不验对外发布的
+    北向帧;这条断言在删掉 test_slave_flow.py 之前必须留下。
+    """
+    uds_path = (os.environ.get("IEMS_NORTH_SOCK")
+                or os.environ.get("OMNIS_BUS_10_DEV", "/tmp/iems_north_slave.sock"))
+    for _ in range(10):
+        if os.path.exists(uds_path):
+            break
+        await asyncio.sleep(1)
+    assert os.path.exists(uds_path), f"北向从站 socket 没出现: {uds_path}"
+
+    test_val = 238.5
+    matrix.device("METER_MAIN").inject("VOLTAGE_PHASE_A", test_val)
+    assert await matrix.wait_for("VOLTAGE_PHASE_A", expect=test_val, timeout=15)
+
+    # Addr 0 = Tag 1001,功能码 03,读 1 个寄存器
+    req = struct.pack(">BBHH", 1, 3, 0, 1)
+    req += _modbus_crc(req)
+
+    for attempt in range(5):
+        writer = None
+        try:
+            reader, writer = await asyncio.open_unix_connection(uds_path)
+            writer.write(req)
+            await writer.drain()
+            resp = await asyncio.wait_for(reader.read(1024), timeout=10)
+            if len(resp) >= 7 and resp[1] == 3:
+                actual = struct.unpack(">H", resp[3:5])[0] * 0.1
+                if abs(actual - test_val) < 0.1:
+                    return
+            print(f"  [Attempt {attempt+1}] 帧不符: {resp.hex().upper()}")
+        except Exception as e:  # 从站可能还没起完/被别的用例占着
+            print(f"  [Attempt {attempt+1}] {type(e).__name__}: {e}")
+        finally:
+            if writer is not None:
+                writer.close()
+                try:
+                    await writer.wait_closed()
+                except Exception:
+                    pass
+        await asyncio.sleep(2)
+
+    pytest.fail(f"北向从站没回出镜像值 {test_val}V")
