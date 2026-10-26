@@ -43,12 +43,8 @@ static int dlt645_v3_encode_request(edge_driver_ctx_t *ctx, const uint32_t *tag_
     net_buf_simple_add_u8(b, 0x68);
     net_buf_simple_add_u8(b, 0x11);
     net_buf_simple_add_u8(b, 0x04);
-    /* tag_ids[] 是消费侧 TagID(OAD); DLT645 线上要发的是 DI, 必须反查映射表 */
+    /* tag_ids[] 由 cmd 层换算好，线上直接就是 DI：协议层不做 OAD→DI 映射 */
     uint32_t di = tag_ids[0];
-    if (ctx->lookup_by_tag) {
-        const dlt645_map_t *m = (const dlt645_map_t *)ctx->lookup_by_tag(tag_ids[0]);
-        if (m) di = (uint32_t)m->key;
-    }
     net_buf_simple_add_u8(b, (uint8_t)((di & 0xFF) + 0x33));
     net_buf_simple_add_u8(b, (uint8_t)(((di >> 8) & 0xFF) + 0x33));
     net_buf_simple_add_u8(b, (uint8_t)(((di >> 16) & 0xFF) + 0x33));
@@ -89,31 +85,18 @@ static int dlt645_v3_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_
         uint32_t di = (uint32_t)((b->data[10]-0x33) | ((b->data[11]-0x33) << 8) |
                                  ((b->data[12]-0x33) << 16) | ((b->data[13]-0x33) << 24));
 
-        double val = 0;
-        bool found = false;
-
-        if (ctx->lookup_by_key) {
-            const dlt645_map_t *map = (const dlt645_map_t *)ctx->lookup_by_key(di);
-            if (map) {
-                /* BCD 解码: 每个字节减去 0x33 后按 BCD 排列 */
-                int32_t raw = 0;
-                int digit_pos = 0;
-                for (int idx = 14; idx < (int)(10 + data_len - 2); idx++) {
-                    uint8_t bcd = (uint8_t)(b->data[idx] - 0x33);
-                    raw += (int32_t)((bcd >> 4) * 10 + (bcd & 0x0F)) * (int32_t)pow(100, digit_pos);
-                    digit_pos++;
-                }
-                val = (double)raw * map->scaler;
-                found = true;
-            }
+        /* 驱动只还原整数：量纲(scale)与 OAD 归属由 cmd 层按协议号决定，
+         * 协议层不认识 OAD，也不查任何契约表。 */
+        int32_t raw = 0;
+        int32_t mul = 1;
+        for (int idx = 14; idx < (int)(10 + data_len - 2); idx++) {
+            uint8_t bcd = (uint8_t)(b->data[idx] - 0x33);
+            raw += (int32_t)((bcd >> 4) * 10 + (bcd & 0x0F)) * mul;
+            mul *= 100;
         }
-
-        if (found) {
-            edge_tag_id_t tid = ((const dlt645_map_t *)ctx->lookup_by_key(di))->tag_id;
-            pipe_msg_init_scalar(&out_msgs[0], tid, val, uv_hrtime());
-            out_msgs[0].device_id = ctx->device_id;  // 逐表区分, 否则 shadow 无法按表索引
-            *msg_count = 1;
-        }
+        pipe_msg_init_scalar(&out_msgs[0], (edge_tag_id_t)di, (double)raw, uv_hrtime());
+        out_msgs[0].device_id = ctx->device_id;
+        *msg_count = 1;
     }
 
     return 0;
