@@ -70,7 +70,7 @@ int dcu_node_pump(dcu_node_t *node);
  * @brief 聚合根唯一进件入口：驱动 decode 完直接调这里，不经 shadow 反查。
  *
  * @param device_id 表在档案中的下标（= 驱动会话的 device_id）
- * @param proto_id  DI / OAD / 寄存器地址；scale 与单位在本层 switch 里定
+ * @param proto_id  线上协议号(DLT645 的 DI / Modbus 寄存器号)；OAD 归属与 scale 由本层点表决定
  * @param raw       驱动解出的原始值字节（当前是 pipe_msg 的 double）
  * @param raw_len   raw 的字节数
  */

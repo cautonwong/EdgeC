@@ -3,6 +3,7 @@
  * @brief DCU Edge Collector Domain Aggregate Root Implementation (Issue #375)
  */
 
+#include "dcu_driver_adapter.h"
 #include "dcu_node.h"
 
 #include <stdlib.h>
@@ -204,18 +205,17 @@ int dcu_node_record_reading(dcu_node_t *node, uint32_t device_id, uint32_t proto
     if (!node || !raw || raw_len < sizeof(double)) return -1;
     if (device_id >= node->inventory.count) return -1;
 
-    double value = *(const double *)raw;
-
-    /* 协议号 → 量纲/单位：DCU 只认这几个 DI，其余一律拒收（不静默塞 0）。 */
-    switch (proto_id) {
-        case 0x20000200: /* A 相电压，驱动已按 0.1V 解码成 V */
-            break;
-        default:
-            return -1;
-    }
-
     const production_meter_t *m = &node->inventory.meters[device_id];
-    if (dcu_storage_write_telemetry(&node->storage, m->address, device_id, proto_id, value) != 0)
+
+    /* 协议号(线上 DI/寄存器) → OAD 与量纲：驱动只还原整数，换算全在 cmd 层。
+     * 未注册的协议号一律拒收，不静默塞 0。 */
+    uint32_t oad = dcu_driver_adapter_proto_to_oad(m->protocol, proto_id);
+    double scale = dcu_driver_adapter_scale(m->protocol, proto_id);
+    if (oad == 0 || scale <= 0.0) return -1;
+
+    double value = (*(const double *)raw) * scale;
+
+    if (dcu_storage_write_telemetry(&node->storage, m->address, device_id, oad, value) != 0)
         return -1;
     node->saved_since_take++;
     return 0;

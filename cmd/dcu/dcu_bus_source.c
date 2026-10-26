@@ -1,5 +1,6 @@
 #include "dcu_bus_source.h"
 
+#include "dcu_driver_adapter.h"
 #include "dcu_node.h"
 
 #include <stdlib.h>
@@ -34,7 +35,8 @@ typedef struct bus_slot_s {
     dcu_bus_source_t *owner;
     bus_ctx_t *ctx;   /* 当前在途请求的凭据（仅 INFLIGHT 期间有效） */
     uint32_t meter_idx;
-    uint32_t tag_id;
+    uint32_t tag_id;   /* 消费侧 OAD：槽位身份 */
+    uint32_t proto_id; /* 线上协议号(DI)：交给驱动与聚合根 */
     char address[MAX_ADDR_LEN]; /* 提交时的表地址：下标被别的表复用后用于作废 */
     uint64_t gen;
     uint64_t ts;      /* 提交时刻：仅作"回调丢失"的兜底计时 */
@@ -117,7 +119,7 @@ static void _on_done(int status, const pipe_msg_t *result, void *user_data) {
             s->has_value = 1;
             node = bs->node;
             device_id = s->meter_idx;
-            proto_id = s->tag_id;
+            proto_id = s->proto_id;
             value = s->value;
             deliver = 1;
         }
@@ -186,6 +188,7 @@ static int _read_value_impl(dcu_bus_source_t *bs, uint32_t meter_idx, uint32_t t
             strncpy(s->address, address, sizeof(s->address) - 1);
             s->address[sizeof(s->address) - 1] = '\0';
             s->tag_id = tag_id;
+            s->proto_id = dcu_driver_adapter_oad_to_proto(m->protocol, tag_id);
             s->gen = ++bs->gen_seq;
             s->ts = _now_ms();
             s->state = SLOT_INFLIGHT;
@@ -218,8 +221,8 @@ static int _read_value_impl(dcu_bus_source_t *bs, uint32_t meter_idx, uint32_t t
     }
 
     if (action == 1) {
-        if (edge_api_read_tag((int)m->channel_id, m->protocol, meter_idx, tag_id, _on_done, c) !=
-            0) {
+        if (edge_api_read_tag((int)m->channel_id, m->protocol, meter_idx, s->proto_id, _on_done,
+                              c) != 0) {
             uv_mutex_lock(&bs->lock);
             if (c->slot == s) {
                 c->slot = NULL;

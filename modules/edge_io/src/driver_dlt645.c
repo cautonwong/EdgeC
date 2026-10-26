@@ -144,41 +144,11 @@ static int dlt645_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t 
         uint32_t di = (uint32_t)((b->data[10]-0x33) | ((b->data[11]-0x33) << 8) | 
                                  ((b->data[12]-0x33) << 16) | ((b->data[13]-0x33) << 24));
         
-        double val = 0;
-        bool found = false;
-        if (ctx->lookup_by_key) {
-            const modbus_map_t *map = (const modbus_map_t *)ctx->lookup_by_key(di);
-            if (map) {
-                pipe_msg_t shadow;
-                if (edge_driver_read_shadow(ctx, map->tag_id, &shadow) == 0) {
-                    val = shadow.payload.val.f / (map->scaler ? map->scaler : 1.0);
-                    found = true;
-                }
-            }
-        }
-
-        if (found) {
-            struct net_buf_simple *rb = &resp_out->b;
-            net_buf_simple_add_u8(rb, 0x68);
-            net_buf_simple_add_mem(rb, priv->addr_bcd, 6);
-            net_buf_simple_add_u8(rb, 0x68);
-            net_buf_simple_add_u8(rb, 0x91); // 读数据响应
-            net_buf_simple_add_u8(rb, 0x08); // 4(DI) + 4(DATA)
-            // DI
-            net_buf_simple_add_u8(rb, b->data[10]);
-            net_buf_simple_add_u8(rb, b->data[11]);
-            net_buf_simple_add_u8(rb, b->data[12]);
-            net_buf_simple_add_u8(rb, b->data[13]);
-            // Data (假设 4 字节 BCD, 0.01 精度)
-            uint32_t raw_val = (uint32_t)(val * 100);
-            net_buf_simple_add_u8(rb, (uint8_t)(((raw_val % 100) / 10 << 4 | (raw_val % 10)) + 0x33));
-            net_buf_simple_add_u8(rb, (uint8_t)(((raw_val / 100 % 100) / 10 << 4 | (raw_val / 100 % 10)) + 0x33));
-            net_buf_simple_add_u8(rb, (uint8_t)(((raw_val / 10000 % 100) / 10 << 4 | (raw_val / 10000 % 10)) + 0x33));
-            net_buf_simple_add_u8(rb, (uint8_t)(((raw_val / 1000000 % 100) / 10 << 4 | (raw_val / 1000000 % 10)) + 0x33));
-            net_buf_simple_add_u8(rb, _calc_cs(rb->data, rb->len));
-            net_buf_simple_add_u8(rb, 0x16);
-        }
-        return 0;
+        /* 从站角色要组应答：应答值必须由调用方/聚合根给，协议层禁止读 datahub。
+         * shortcut: 该路径尚未接入聚合根取数，暂不应答；DCU 只用主站角色。
+         * 返回 -1（未实现）而不是 0（已处理但无应答），否则从站模式坏掉也无声。 */
+        (void)di;
+        return -1;
     }
 
     return -1;
