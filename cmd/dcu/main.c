@@ -214,6 +214,10 @@ int main(int argc, char** argv) {
     }
     LOG_INFO(LOG_CAT_SCHED, "📖 [ARCHIVE] Loaded %d meters from Digital Twin database.", inv->count);
 
+    /* 表档案必须在第一帧之前注入驱动：之前只在 freeze 定时器里注入，
+     * 前 5 秒发出的帧因此全部寻址到广播地址 0x99×6（多表串值的直接原因）。 */
+    dcu_driver_adapter_set_meters(inv->meters, inv->count);
+
     datahub_t* hub = dcu_node_get_datahub(g_dcu_node);
     if (!bus_source && src_ops.read_value == NULL) {
         // 组合根：依赖一次拿齐（hub + inv 已在手），不再有"先造后 bind"。
