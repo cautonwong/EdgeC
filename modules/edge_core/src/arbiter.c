@@ -102,7 +102,11 @@ uint64_t arbiter_get_bus_dropped_count(arbiter_t *arb, int bus_id) {
 }
 
 void arbiter_set_executor(arbiter_t *arb, arb_executor_ops_t ops) {
-    if (arb) arb->executor = ops;
+    if (!arb) return;
+    // 按字段打补丁,不整份覆盖:另一个层可能已经装了 execute,整份覆盖会把它抹掉
+    if (ops.execute) arb->executor.execute = ops.execute;
+    if (ops.on_io_done) arb->executor.on_io_done = ops.on_io_done;
+    if (ops.ctx) arb->executor.ctx = ops.ctx;
 }
 
 bool arbiter_owns_cmd(arbiter_t *arb, int bus_id, cmd_msg_t *cmd) {

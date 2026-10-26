@@ -129,6 +129,11 @@ typedef struct {
     int (*on_io_done)(void *ctx, int bus_id, cmd_msg_t *msg, int status);
 } arb_executor_ops_t;
 
+/**
+ * @brief 安装执行器钩子
+ * @note 按字段打补丁:只覆盖非 NULL 的字段。执行器可能由别的层先装过,
+ *       整份覆盖会把它装的 execute/ctx 一起抹掉。
+ */
 void arbiter_set_executor(arbiter_t *arb, arb_executor_ops_t ops);
 
 /**
