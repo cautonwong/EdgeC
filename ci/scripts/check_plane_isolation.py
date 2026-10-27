@@ -80,6 +80,16 @@ MODULE_ALLOWED = {
     "edge_bootstrap": {"edge_core", "edge_infra"},
 }
 
+def _scanning_fixture(target_dir: str) -> bool:
+    """True when the scan target itself lives under tests/guards/fixtures.
+
+    The previous heuristic keyed off a ``good_*`` / ``bad_*`` directory-name
+    prefix, so any other fixture (e.g. ``fixtures/injection/i05_*``) was skipped
+    silently: the refutation run passed without ever reading the probe file.
+    """
+    return "/fixtures" in target_dir.replace("\\", "/")
+
+
 PRUNE_DIRS = {
     ".git",
     ".local",
@@ -179,7 +189,7 @@ def check_directory(target_dir):
     violations = []
     for root, dirs, files in os.walk(target_dir):
         dirs[:] = [d for d in dirs if not d.startswith(".") and d not in PRUNE_DIRS]
-        if "fixtures" in root and not os.path.basename(target_dir).startswith(("good_", "bad_")):
+        if "fixtures" in root and not _scanning_fixture(target_dir):
             continue
         if "tests" in root and "guards" not in root:
             continue

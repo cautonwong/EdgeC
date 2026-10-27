@@ -153,9 +153,13 @@ def check_file(file_path, repo_root):
 
 def check_directory(target_dir):
     violations = []
+    # Only skip the fixture tree when scanning the repository. When the target
+    # *is* a fixture we must scan it: the old good_*/bad_* name check silently
+    # skipped every other fixture, turning the refutation test into a no-op.
+    fixture_mode = "/fixtures" in target_dir.replace("\\", "/")
     for root, dirs, files in os.walk(target_dir):
         dirs[:] = [d for d in dirs if not d.startswith(".") and d not in PRUNE_DIRS]
-        if "fixtures" in root and not os.path.basename(target_dir).startswith("good_") and not os.path.basename(target_dir).startswith("bad_"):
+        if not fixture_mode and "/fixtures/" in "/" + root.replace("\\", "/") + "/":
             continue
         if "tests" in root and "fixtures" not in root and "guards" not in root:
             continue
