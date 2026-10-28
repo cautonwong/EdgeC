@@ -282,3 +282,57 @@ typedef struct {
 
 前者会让每个产品重写一遍超时/重试/并发控制；后者会让每加一个产品就改一次库。
 两边都越界，MasterEngine 就退化成第二个 poller。
+
+---
+
+## 9. 与既有规范 AEP-403 的冲突（必须先解决）
+
+`docs/design/slave_plane_architecture.md`（AEP-403）当前规定：
+
+> 从站平面依赖 Consumer Ports 机制实现与底座的依赖反转（DIP）。底层驱动无需直接引用具体的
+> DataHub，而是由装配层动态注入 `read_shadow` 与 `publish` 函数指针。
+>
+> ```
+> Drv->>DM: edge_driver_read_shadow(ctx, tag_id, &shadow)
+> ```
+
+即：**驱动通过注入的 `read_shadow` 自己读影子表。**
+
+这与 ADR-002（驱动纯 codec，删除 `read_shadow`）**直接冲突，两者不能并存**：
+
+| 维度 | AEP-403 现状 | ADR-002 目标 |
+|---|---|---|
+| 谁读影子表 | 驱动（经注入的函数指针） | 从站编排（经 `resolve` 端口），驱动不参与 |
+| 驱动的输入 | `tag_id` | `di`（行业原生标识） |
+| 依赖反转落在哪 | 函数指针注入进**驱动上下文** | 端口注入进**会话层** |
+| 驱动能否独立测试 | 需要先伪造影子表 | 纯字节进、纯字节出，无需任何桩 |
+
+**本设计取代 AEP-403 的以下三处：**
+1. §1 表格中「读数据源 = `edge_driver_read_shadow`」一行；
+2. §2 序列图里 `Drv->>DM: edge_driver_read_shadow(ctx, tag_id, &shadow)` 这一步；
+3. §3.2「驱动层实现 `handle_rx`」中的取数指引。
+
+**修订不另开 issue**：`#403 [docs/sec] 补齐 Slave Plane` 本来就开着，这次修订并进 #403。
+
+修订后的从站时序：
+
+```mermaid
+sequenceDiagram
+    participant Ext as 外部主站
+    participant Orch as bus_orchestrator (edge_io)
+    participant Drv as 645 驱动 (纯 codec)
+    participant Src as source_ops (cmd 实现)
+    Ext->>Orch: 0x11 读数据帧
+    Orch->>Drv: decode_slave_req(buf)
+    Drv-->>Orch: req{di, addr}
+    Orch->>Src: resolve(di, &value)
+    Src-->>Orch: 0=取到 / 非0=无此点位
+    Orch->>Drv: encode_slave_rsp(&req, out)
+    Drv-->>Orch: 字节
+    Orch->>Ext: 应答帧（0x91 正常 / 0xD1 异常）
+```
+
+> 这条冲突也说明一件事：**AEP-403 当初把依赖反转做在"驱动上下文"里，
+> 是把它当成了"注入点"，而不是"边界"**。函数指针注入进去了，耦合却没有解除——
+> 驱动仍然要知道 `tag_id`、要知道影子表的存在。ADR-002 把它推到会话层，
+> 驱动才真正对外部世界一无所知。
