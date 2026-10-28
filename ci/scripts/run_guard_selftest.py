@@ -96,6 +96,36 @@ TEST_MATRIX = [
     }
 ]
 
+# The eight probes recorded in issue #410 ("8 injection experiments, only 3 caught").
+# Each one is a real-world violation shape placed at the same relative path it
+# would occupy in the repository, so the guards are exercised against reality
+# rather than a sanitised snippet.
+#
+# `expected` is a ledger, not a wish:
+#   "caught" -> the guard must reject it; a regression fails the build.
+#   "gap"    -> the guard is known not to cover this shape yet. The owning issue
+#               is recorded, and the test FAILS if the gap silently closes, so
+#               the entry gets promoted to "caught" in the same PR.
+INJECTION_MATRIX = [
+    ("i01", "hub->shadow_table field penetration",
+     "check_aggregate_boundary.py", "i01_aggregate_field_penetration", "gap", "#413"),
+    ("i02", "library module calls datahub_init()",
+     "check_composition_root.py", "i02_library_assembles_datahub", "gap", "#417"),
+    ("i03", "plain malloc in a non-critical helper",
+     "check_no_dynamic_memory.py", "i03_plain_heap_alloc", "gap", "#412"),
+    ("i04", "single-line _create_in() that allocates",
+     "check_caller_allocated_storage.py", "i04_single_line_create_in", "caught", "#411"),
+    ("i05", "edge_core includes stream_engine_priv.h",
+     "check_plane_isolation.py", "i05_core_includes_compute_priv", "caught", "#414"),
+    ("i06", "multi-line _create_in() that allocates",
+     "check_caller_allocated_storage.py", "i06_multiline_create_in", "caught", "#411"),
+    ("i07", "_storage_t without alignas",
+     "check_caller_allocated_storage.py", "i07_unaligned_storage", "caught", "#411"),
+    ("i08", "_storage_t without _Static_assert",
+     "check_caller_allocated_storage.py", "i08_missing_static_assert", "caught", "#411"),
+]
+
+
 def run_cmd(cmd):
     proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     return proc.returncode, proc.stdout, proc.stderr
@@ -155,6 +185,38 @@ def main():
     print("=" * 80)
     print(f"📊 Refutation Test Results: {passed_tests}/{total_tests} passed (100% sensitivity)")
     print("=" * 80)
+
+    # ---- Injection regression: replay issue #410's eight probes --------------
+    print("\n" + "=" * 80)
+    print("🎯 [INJECTION_REGRESSION] Replaying the 8 probes from issue #410")
+    print("=" * 80)
+    caught_count = 0
+    gap_count = 0
+    for probe_id, desc, guard, fixture, expected, issue in INJECTION_MATRIX:
+        script = os.path.join(SCRIPTS_DIR, guard)
+        target = os.path.join(FIXTURES_DIR, "injection", fixture)
+        rc, out, err = run_cmd([sys.executable, script, "--root", target])
+        caught = rc != 0
+        if expected == "caught":
+            if caught:
+                print(f"  ✅ [CAUGHT]  {probe_id}  {desc}  -> {guard}")
+                caught_count += 1
+            else:
+                msg = (f"❌ [REGRESSION] {probe_id} {desc}: {guard} exited 0 on an injected "
+                       f"violation. A guard that cannot catch its own regression probe is decorative.")
+                print(msg)
+                failures.append(msg)
+        else:
+            if caught:
+                msg = (f"❌ [GAP_CLOSED] {probe_id} {desc}: {guard} now catches it. Promote this "
+                       f"entry from 'gap' to 'caught' and drop the {issue} reference.")
+                print(msg)
+                failures.append(msg)
+            else:
+                print(f"  ⚪ [GAP]     {probe_id}  {desc}  -> {guard}  ({issue}, tracked)")
+                gap_count += 1
+    print(f"📊 Injection coverage: {caught_count} caught / {gap_count} known gap(s) "
+          f"of {len(INJECTION_MATRIX)} probes")
 
     if failures:
         return 1
