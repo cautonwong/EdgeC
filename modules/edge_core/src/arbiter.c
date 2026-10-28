@@ -13,6 +13,9 @@ typedef struct {
     uint32_t max_queue_len;
     uint64_t dropped_count;
     uint64_t owner_start_ts_ns;
+    /* 帧间静默：min_gap_us=0 表示不限制；last_tx_end_ns 记录上一帧结束时刻 */
+    uint32_t min_gap_us;
+    uint64_t last_tx_end_ns;
 } bus_slot_t;
 
 struct arbiter {
@@ -24,6 +27,11 @@ struct arbiter {
     bool is_allocated;
     bool timer_initialized;
     uv_timer_t timer;
+    /* 帧间静默到期后的一次性唤醒：周期定时器 20ms 粒度太粗，2400bps 下
+     * 3.5 字符只要 16ms，靠它轮询会把静默时间抹平。 */
+    uv_timer_t gap_timer;
+    bool gap_timer_initialized;
+    uint64_t gap_timer_due_ns;
     arb_executor_ops_t executor;  // 💡 [Consumer-Driven] 注入的执行器
 };
 
@@ -63,6 +71,10 @@ static void _arbiter_setup(arbiter_t *arb, uv_loop_t *loop) {
         arb->timer.data = arb;
         arb->timer_initialized = true;
         uv_timer_start(&arb->timer, _arbiter_timer_cb, 20, 20);
+
+        uv_timer_init(loop, &arb->gap_timer);
+        arb->gap_timer.data = arb;
+        arb->gap_timer_initialized = true;
     }
 }
 
@@ -93,6 +105,13 @@ void arbiter_set_bus_queue_limit(arbiter_t *arb, int bus_id, uint32_t max_queue)
     }
 }
 
+void arbiter_set_bus_min_gap(arbiter_t *arb, int bus_id, uint32_t gap_us) {
+    if (!arb || bus_id < 0 || bus_id >= ARBITER_MAX_BUSES) return;
+    uv_mutex_lock(&arb->lock);
+    arb->buses[bus_id].min_gap_us = gap_us;
+    uv_mutex_unlock(&arb->lock);
+}
+
 uint64_t arbiter_get_bus_dropped_count(arbiter_t *arb, int bus_id) {
     if (!arb || bus_id < 0 || bus_id >= ARBITER_MAX_BUSES) return 0;
     uv_mutex_lock(&arb->lock);
@@ -121,6 +140,30 @@ void arbiter_pause(arbiter_t *arb) {
     uv_mutex_lock(&arb->lock); arb->paused = true; uv_mutex_unlock(&arb->lock);
 }
 
+static void _dispatch_next_locked(arbiter_t *arb, int bus_id);
+
+/* 帧间静默到期：一次性唤醒，把所有总线都试一遍（每条自己判间隔） */
+static void _gap_timer_cb(uv_timer_t *handle) {
+    arbiter_t *arb = (arbiter_t *)handle->data;
+    if (!arb) return;
+    uv_mutex_lock(&arb->lock);
+    arb->gap_timer_due_ns = 0;
+    for (int i = 0; i < ARBITER_MAX_BUSES; i++) {
+        _dispatch_next_locked(arb, i);
+    }
+    uv_mutex_unlock(&arb->lock);
+}
+
+/* 只允许把唤醒提前，不允许推后：多条总线同时被间隔挡住时，最早的那条说了算 */
+static void _arm_gap_timer_locked(arbiter_t *arb, uint64_t delay_ms) {
+    if (!arb->gap_timer_initialized) return;
+    if (delay_ms == 0) delay_ms = 1;
+    uint64_t due = uv_hrtime() + delay_ms * 1000000ULL;
+    if (arb->gap_timer_due_ns != 0 && arb->gap_timer_due_ns <= due) return;
+    arb->gap_timer_due_ns = due;
+    uv_timer_start(&arb->gap_timer, _gap_timer_cb, delay_ms, 0);
+}
+
 static void _dispatch_next_locked(arbiter_t *arb, int bus_id) {
     if (!arb || arb->paused) return;
     bus_slot_t *slot = &arb->buses[bus_id];
@@ -128,6 +171,17 @@ static void _dispatch_next_locked(arbiter_t *arb, int bus_id) {
 
     if (slot->is_exclusive && slot->queue->priority < ARBITER_PRIO_EMERGENCY) {
         return; // Exclusive bus blocks non-emergency commands
+    }
+
+    /* 帧间静默：从上一帧**结束**算起，不是从上一帧发起算起。
+     * 从发起算会让下一帧压在上一帧的尾巴上——645 从站会把它当粘包。 */
+    uint64_t now_ns = uv_hrtime();
+    if (slot->min_gap_us > 0 && slot->last_tx_end_ns > 0) {
+        uint64_t ready_at = slot->last_tx_end_ns + (uint64_t)slot->min_gap_us * 1000ULL;
+        if (now_ns < ready_at) {
+            _arm_gap_timer_locked(arb, (ready_at - now_ns) / 1000000ULL + 1);
+            return;
+        }
     }
 
     slot->owner = slot->queue;
@@ -169,12 +223,17 @@ int arbiter_submit_cmd(arbiter_t *arb, int bus_id, cmd_msg_t *cmd) {
 
     /* 准入控制与有界背压判断 (Admission & Bounded Backpressure) */
     if (slot->queue_len >= slot->max_queue_len) {
-        /* 如果新命令是普通/低优先级命令，直接拒绝 (CMD_STATUS_QUEUE_FULL) */
+        /* 如果新命令是普通/低优先级命令，直接拒绝。
+         * 配了帧间静默时，队列积压的根因是"线路不允许发那么快"，
+         * 用 RATE_LIMITED 区分于真正的容量不足（QUEUE_FULL）——
+         * 这个枚举以前只声明不产生，调用方无法区分"该退避"还是"该扩容"。 */
         if (cmd->priority < ARBITER_PRIO_EMERGENCY) {
+            int reject = (slot->min_gap_us > 0) ? CMD_STATUS_RATE_LIMITED
+                                                : CMD_STATUS_QUEUE_FULL;
             slot->dropped_count++;
             uv_mutex_unlock(&arb->lock);
-            if (cmd->on_complete) cmd->on_complete(cmd, CMD_STATUS_QUEUE_FULL);
-            return CMD_STATUS_QUEUE_FULL;
+            if (cmd->on_complete) cmd->on_complete(cmd, reject);
+            return reject;
         }
 
         /* 如果新命令是 EMERGENCY 紧急命令，执行 Priority-Drop 剔除队尾最低优先级命令 */
@@ -245,6 +304,8 @@ void arbiter_on_io_done(arbiter_t *arb, int bus_id, cmd_msg_t *msg, int status) 
     if (arb->buses[bus_id].owner == msg) {
         arb->buses[bus_id].owner = NULL;
     }
+    /* 这一帧到此结束：帧间静默从这里开始计时 */
+    arb->buses[bus_id].last_tx_end_ns = uv_hrtime();
     uv_mutex_unlock(&arb->lock);
 
     // 💡 [Consumer-Driven] 优先通过 executor 回调处理
@@ -316,6 +377,9 @@ int arbiter_check_timeouts(arbiter_t *arb) {
 
                 slot->owner = NULL;
                 slot->owner_start_ts_ns = 0;
+                /* 超时也意味着"这一帧结束了"：帧间静默同样要从这里重新计时，
+                 * 否则超时后的下一帧会立刻压在残留的回波上。 */
+                slot->last_tx_end_ns = now_ns;
 
                 _dispatch_next_locked(arb, i);
             }
@@ -354,6 +418,17 @@ void arbiter_destroy(arbiter_t *arb) {
         uv_timer_stop(&arb->timer);
         uv_close((uv_handle_t *)&arb->timer, NULL);
         arb->timer_initialized = false;
+        if (arb->loop) {
+            uv_run(arb->loop, UV_RUN_NOWAIT);
+        }
+    }
+
+    /* 帧间静默定时器同样要关：留着它 uv_loop_close 会因悬挂 handle 失败 */
+    if (arb->gap_timer_initialized) {
+        uv_timer_stop(&arb->gap_timer);
+        uv_close((uv_handle_t *)&arb->gap_timer, NULL);
+        arb->gap_timer_initialized = false;
+        arb->gap_timer_due_ns = 0;
         if (arb->loop) {
             uv_run(arb->loop, UV_RUN_NOWAIT);
         }

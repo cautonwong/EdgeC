@@ -320,12 +320,21 @@ int dcu_poller_reset_circuit_breaker(dcu_poller_t* poller, uint32_t channel_id) 
 
 int dcu_poller_add_scheme(dcu_poller_t* poller, uint32_t scheme_id, uint8_t mode,
                           const uint32_t* csds, uint16_t csd_count) {
+    if (!poller) return -1;
+    if (csd_count > 0 && !csds) return -1;
+    /* schemes[] 与 csd_list[] 都是定长数组，越界会直接写穿相邻的 tasks[]。
+     * 方案来自数据库/北向配置，不可信，必须在这里挡住——add_task 查了
+     * MAX_TASKS 而这里不查，是同一个聚合里两套规矩。 */
+    if (poller->scheme_count >= MAX_SCHEMES) return -1;
+    if (csd_count > MAX_SCHEME_OADS) return -1;
+
     dcu_scheme_t* s = &poller->schemes[poller->scheme_count++];
+    memset(s, 0, sizeof(*s));
     s->scheme_id = scheme_id;
     s->type = SCHEME_TYPE_NORMAL;
     s->data.normal.capture_mode = mode;
     s->data.normal.csd_count = csd_count;
-    for (int i = 0; i < csd_count; i++) s->data.normal.csd_list[i] = csds[i];
+    for (uint16_t i = 0; i < csd_count; i++) s->data.normal.csd_list[i] = csds[i];
     return 0;
 }
 
