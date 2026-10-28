@@ -124,6 +124,11 @@ typedef struct {
      * 而且档案结构里还挂着待删除的 inject 指针，不该再往里塞东西。 */
     uint16_t task_mask;
     bool task_mask_set;
+    /* 同一步内的去重记忆：位 i = csd_list[i] 本步已被某个任务抄过。
+     * 两个任务的项集重叠时，第二次遇到直接跳过，不再发一帧。
+     * done_step 是"这份位图属于哪一步"，避免每步都 memset 整张表。 */
+    uint32_t done_mask;
+    uint32_t done_step;
     bool breaker_open;
     bool tracked;
     bool tombstone; // 已退休：探测链必须跳过它，不能当作空槽终止
@@ -153,6 +158,8 @@ typedef struct {
     dcu_meter_poll_state_t meter_poll_state[METER_TABLE_CAP];
     uint32_t state_gen;     // 档案变更代际
     uint32_t last_inv_rev;  // 上次 GC 时的档案版本号
+    /* 调度步序号：每进一次 dcu_poller_step 自增，作为去重位图的"轮次戳" */
+    uint32_t step_seq;
 } dcu_poller_t;
 
 int dcu_poller_init(dcu_poller_t* poller);

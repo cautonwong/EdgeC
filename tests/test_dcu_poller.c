@@ -637,6 +637,42 @@ static void test_poller_meter_task_binding(void** state) {
     dcu_poller_destroy(&poller);
 }
 
+// 14. 跨任务去重：两个任务项集重叠时，同一步内同一数据项只抄一次
+static void test_poller_cross_task_dedup(void** state) {
+    (void)state;
+    dcu_inventory_t inv;
+    dcu_poller_t poller;
+    dcu_inventory_init(&inv);
+    dcu_poller_init(&poller);
+
+    dcu_inventory_add(&inv, "40000001", "dlt698", 9600, 1, NULL);
+    dcu_inventory_add(&inv, "40000002", "dlt698", 9600, 1, NULL);
+
+    uint32_t csds[1] = {OAD_VOLTAGE};
+    dcu_poller_add_scheme(&poller, 1, 0, csds, 1);
+    // 两个任务，同一方案、同一数据项，且都立即到期
+    dcu_poller_add_task(&poller, 1, 0, 1);
+    dcu_poller_add_task(&poller, 2, 0, 1);
+
+    poller_sink_ops_t sink = {0};
+    poller_bus_ops_t bus = {.ctx = NULL, .publish_realtime = _poller_test_pub, .push_event = NULL};
+    poller_source_ops_t source = {.ctx = NULL, .read_value = _test_poller_source_read};
+    dcu_poller_start(&poller, source, bus, sink);
+
+    g_poller_pub_count = 0;
+    dcu_poller_pump(&poller, &inv);
+
+    // 2 台表 x 1 项 = 2 次（没有去重会是 2 个任务 x 2 台 = 4 次）
+    assert_int_equal(g_poller_pub_count, 2);
+
+    // 下一步位图翻页，重新允许抄读（不是永久压制）
+    g_poller_pub_count = 0;
+    dcu_poller_pump(&poller, &inv);
+    assert_int_equal(g_poller_pub_count, 2);
+
+    dcu_poller_destroy(&poller);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_task_and_scheme_add),
@@ -648,6 +684,7 @@ int main(void) {
         cmocka_unit_test(test_poller_step_chunking),
         cmocka_unit_test(test_poller_task_item_mask),
         cmocka_unit_test(test_poller_meter_task_binding),
+        cmocka_unit_test(test_poller_cross_task_dedup),
         cmocka_unit_test(test_poller_chunked_step_skips_breaker),
         cmocka_unit_test(test_poller_meter_state_gc_on_archive_change),
         cmocka_unit_test(test_poller_meter_state_gc_on_empty_archive),

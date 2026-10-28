@@ -140,6 +140,9 @@ int dcu_poller_step(dcu_poller_t* poller, dcu_inventory_t* inv, uint32_t max_met
         return 0;
     }
 
+    /* 本轮次戳：去重位图靠它判断"这份记忆是否属于本步"，避免每步清整张表 */
+    poller->step_seq++;
+
     int meters_processed = 0;
 
     for (int i = 0; i < poller->task_count; i++) {
@@ -207,6 +210,11 @@ int dcu_poller_step(dcu_poller_t* poller, dcu_inventory_t* inv, uint32_t max_met
                 if (task->item_mask && !(task->item_mask & (1u << j))) {
                     continue;
                 }
+                /* 同一步内去重：本步已有任务抄过这一项，不再发第二帧。
+                 * 只对"已成功"的项去重——在途（PENDING）的项没有值，跳过等于丢数。 */
+                if (mp && mp->done_step == poller->step_seq && (mp->done_mask & (1u << j))) {
+                    continue;
+                }
                 uint32_t tag_id = s->data.normal.csd_list[j];
                 double fv = 0.0;
                 int read_rc = -1;
@@ -218,6 +226,10 @@ int dcu_poller_step(dcu_poller_t* poller, dcu_inventory_t* inv, uint32_t max_met
                 }
 
                 if (read_rc == 0) {
+                    if (mp) { // 记进本步去重位图：后面的任务遇到同一项不再发帧
+                        mp->done_mask |= (1u << j);
+                        mp->done_step = poller->step_seq;
+                    }
                     if (poller->sink_ops.record_telemetry) {
                         poller->sink_ops.record_telemetry(poller->sink_ops.ctx, m->address,
                                                           (uint32_t)m_idx, tag_id, fv);
