@@ -178,6 +178,13 @@ int dcu_poller_step(dcu_poller_t* poller, dcu_inventory_t* inv, uint32_t max_met
                 continue;
             }
 
+            // 2. 任务归属过滤：显式配置过归属的表只服务绑定它的任务。
+            //    未配置（task_mask_set=false）时沿用旧行为，所有任务都抄，
+            //    这样既有部署不需要一次性迁移配置。
+            if (mp && mp->task_mask_set && !(mp->task_mask & (1u << i))) {
+                continue;
+            }
+
             // 2. In-flight 限制与背压 (Backpressure)
             uint32_t max_in_flight = cpolicy->max_in_flight > 0 ? cpolicy->max_in_flight : 1;
             if (cstats->in_flight >= max_in_flight) {
@@ -194,10 +201,16 @@ int dcu_poller_step(dcu_poller_t* poller, dcu_inventory_t* inv, uint32_t max_met
             bool meter_failed = false;
             bool meter_pending = false;
             int meter_ok = 0;
+            int attempted = 0; // 本任务对本表实际发起了几个数据项的读取
             for (int j = 0; j < s->data.normal.csd_count; j++) {
+                /* 项维度过滤：位 j = csd_list[j]。item_mask=0 表示"全部"（旧配置） */
+                if (task->item_mask && !(task->item_mask & (1u << j))) {
+                    continue;
+                }
                 uint32_t tag_id = s->data.normal.csd_list[j];
                 double fv = 0.0;
                 int read_rc = -1;
+                attempted++;
 
                 if (poller->source_ops.read_value) {
                     read_rc = poller->source_ops.read_value(poller->source_ops.ctx, (uint32_t)m_idx,
@@ -249,8 +262,8 @@ int dcu_poller_step(dcu_poller_t* poller, dcu_inventory_t* inv, uint32_t max_met
                                   cpolicy->circuit_break_threshold);
                     }
                 }
-            } else if (meter_ok == 0 && (meter_pending || s->data.normal.csd_count == 0)) {
-                // 本轮结果未知（全部 CSD 在途，或该方案根本没有 CSD）：不记成功也不记失败
+            } else if (meter_ok == 0 && (meter_pending || attempted == 0)) {
+                // 本轮结果未知（全部 CSD 在途，或本任务对该表没有要抄的项）：不记成功也不记失败
             } else {
                 cstats->success_count++;
                 cstats->consecutive_fails = 0;  // 仅汇总可观测，不参与熔断判定
@@ -338,13 +351,15 @@ int dcu_poller_add_scheme(dcu_poller_t* poller, uint32_t scheme_id, uint8_t mode
     return 0;
 }
 
-int dcu_poller_add_task(dcu_poller_t* poller, uint32_t task_id, uint32_t interval_s,
-                        uint32_t scheme_id) {
+int dcu_poller_add_task_ex(dcu_poller_t* poller, uint32_t task_id, uint32_t interval_s,
+                           uint32_t scheme_id, uint32_t item_mask) {
     if (!poller || poller->task_count >= MAX_TASKS) return -1;
     dcu_task_unit_t* t = &poller->tasks[poller->task_count++];
+    memset(t, 0, sizeof(*t));
     t->task_id = task_id;
     t->interval_s = interval_s;
     t->scheme_id = scheme_id;
+    t->item_mask = item_mask;
     t->last_run_time = 0;
     t->cursor_meter_idx = 0;
 
@@ -358,6 +373,23 @@ int dcu_poller_add_task(dcu_poller_t* poller, uint32_t task_id, uint32_t interva
     edge_periodic_clock_init(&t->clock, &clk_cfg);
     // 首次允许立即执行
     t->clock.next_tick_us = 0;
+    return 0;
+}
+
+int dcu_poller_add_task(dcu_poller_t* poller, uint32_t task_id, uint32_t interval_s,
+                        uint32_t scheme_id) {
+    /* 旧签名没有项维度：0 在调度里解释为"全部 CSD" */
+    return dcu_poller_add_task_ex(poller, task_id, interval_s, scheme_id, 0);
+}
+
+int dcu_poller_set_meter_tasks(dcu_poller_t* poller, const char* address, uint8_t channel_id,
+                               uint16_t task_mask) {
+    if (!poller || !address || !address[0]) return -1;
+    if (channel_id >= DCU_MAX_CHANNELS) return -1;
+    dcu_meter_poll_state_t* mp = _meter_state(poller, address, channel_id);
+    if (!mp) return -1; // 状态表满：fail-open，该表仍按旧行为被全表抄读
+    mp->task_mask = task_mask;
+    mp->task_mask_set = true;
     return 0;
 }
 
