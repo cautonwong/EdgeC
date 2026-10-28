@@ -201,7 +201,7 @@ int main(int argc, char** argv) {
     dcu_driver_adapter_set_meters(inv->meters, inv->count);
 
     datahub_t* hub = dcu_node_get_datahub(g_dcu_node);
-    if (!bus_source && src_ops.read_value == NULL) {
+    if (!bus_source && src_ops.submit == NULL) {
         // 组合根：依赖一次拿齐（hub + inv 已在手），不再有"先造后 bind"。
         // 显式配置的数据源（合成源）优先：它存在时总线源根本不该被创建。
         bus_source = dcu_bus_source_start(hub, inv, g_dcu_node, 4000);

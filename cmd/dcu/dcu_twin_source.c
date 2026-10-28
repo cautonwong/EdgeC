@@ -31,7 +31,19 @@ int dcu_twin_source_read(void *ctx, uint32_t meter_idx, uint32_t tag_id, double 
     }
 }
 
+/* 合成源本来就是同步的：算完立刻回调。poller 的 pumping 守卫保证不会递归打穿栈。 */
+static int dcu_twin_source_submit(void *ctx, uint32_t meter_idx, uint32_t tag_id,
+                                  poller_read_done_cb cb, void *ud) {
+    double v = 0.0;
+    if (dcu_twin_source_read(ctx, meter_idx, tag_id, &v) != 0) return -1;
+    if (cb) cb(ud, 0, v);
+    return 0;
+}
+
 poller_source_ops_t dcu_twin_source_get_ops(dcu_twin_source_t *source) {
-    poller_source_ops_t ops = {.ctx = source, .read_value = dcu_twin_source_read};
+    poller_source_ops_t ops;
+    memset(&ops, 0, sizeof(ops));
+    ops.ctx = source;
+    ops.submit = dcu_twin_source_submit;
     return ops;
 }

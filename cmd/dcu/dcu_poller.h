@@ -101,11 +101,19 @@ typedef struct {
 } poller_bus_ops_t;
 
 // 3. 采样数据源接口 (Source Adapter Seam)
+//
+// 链式提交：submit 只负责把一帧交给总线（arbiter 决定何时真正发出去），
+// 结果通过 cb 回调。链**不判断通道是否空闲**——那是 arbiter 的职责
+// （arbiter_bus_status_t.is_busy / queue_len）。链只保留一个自计数 outstanding，
+// 表示"我提交了几个还没回来"，用来防止把 arbiter 的队列灌爆。
+typedef void (*poller_read_done_cb)(void* ud, int status, double value);
 
 typedef struct {
     void* ctx;
-    int (*read_value)(void* ctx, uint32_t meter_idx, uint32_t tag_id, double* out_val);
+    /** @return 0=已受理（无论是否立即发出），非 0=提交失败，不会再有回调 */
+    int (*submit)(void* ctx, uint32_t meter_idx, uint32_t tag_id, poller_read_done_cb cb, void* ud);
 } poller_source_ops_t;
+
 
 #include "driver_manager.h"
 
@@ -124,15 +132,41 @@ typedef struct {
      * 而且档案结构里还挂着待删除的 inject 指针，不该再往里塞东西。 */
     uint16_t task_mask;
     bool task_mask_set;
-    /* 同一步内的去重记忆：位 i = csd_list[i] 本步已被某个任务抄过。
-     * 两个任务的项集重叠时，第二次遇到直接跳过，不再发一帧。
-     * done_step 是"这份位图属于哪一步"，避免每步都 memset 整张表。 */
-    uint32_t done_mask;
-    uint32_t done_step;
+    /* 注：S3 曾在这里放 done_mask/done_step 做"同一步去重"。链式模型下不需要——
+     * 游标每轮只访问每块表一次，在一次访问里把到期任务的项取并集，结构上就不会重复。 */
     bool breaker_open;
     bool tracked;
     bool tombstone; // 已退休：探测链必须跳过它，不能当作空槽终止
 } dcu_meter_poll_state_t;
+
+/**
+ * @brief 一条物理通道的提交链。
+ *
+ * 调度状态只有游标和一个自计数，没有队列、没有 in-flight 表：
+ *   - 游标扫一圈 = 一个窗口（round），窗口内每块表只被访问一次；
+ *   - outstanding 只约束"我给 arbiter 塞了几个"，通道忙不忙由 arbiter 判；
+ *   - pending_tags 是本次访问要抄的项（已按 tag_id 去重），逐个提交。
+ */
+typedef struct {
+    void*    owner;                  // 回指 dcu_poller_t（回调里要用）
+    uint8_t  channel_id;
+    uint16_t cursor;                 // 下一块要看的表（档案下标）
+    uint32_t round;                  // 本通道窗口号（扫完一圈 +1）
+    uint8_t  outstanding;            // 已提交未回调的数量（自计数）
+    uint8_t  depth;                  // 允许并发，串口半双工默认 1
+    uint32_t meter_idx;              // 本次访问的表
+    uint32_t inflight_tag;           // 在途那一项的 tag
+    uint32_t pending_tags[MAX_SCHEME_OADS]; // 本次访问要抄的项（按 tag 去重后）
+    uint8_t  pending_n;
+    uint8_t  pending_i;
+    uint16_t visit_ok;               // 本次访问成功项数
+    uint16_t visit_fail;             // 本次访问失败项数
+    uint16_t scanned_in_round;       // 本圈已看过多少块表（一圈=一步）
+    bool     round_ended;            // 本步的这一圈已经扫完，不再继续
+    /* 防重入：数据源若同步回调（测试 mock、或底层立即返回），
+     * 回调里再进 pump 会一层层递归下去。有这个标志就退化成循环。 */
+    bool     pumping;
+} dcu_chain_t;
 
 typedef struct {
     dcu_task_unit_t tasks[MAX_TASKS];
@@ -158,8 +192,15 @@ typedef struct {
     dcu_meter_poll_state_t meter_poll_state[METER_TABLE_CAP];
     uint32_t state_gen;     // 档案变更代际
     uint32_t last_inv_rev;  // 上次 GC 时的档案版本号
-    /* 调度步序号：每进一次 dcu_poller_step 自增，作为去重位图的"轮次戳" */
-    uint32_t step_seq;
+
+    /* 每通道一条链：通道之间独立推进，慢通道不拖累快通道。
+     * 这是"通道并行"的全部实现——没有线程，只有各自独立的游标与在途预算。 */
+    dcu_chain_t chains[DCU_MAX_CHANNELS];
+    /* 当前档案快照：完成回调要靠它推进游标（回调签名里没有 inv） */
+    dcu_inventory_t* inv;
+    /* 每步快照"哪些任务到期"。edge_periodic_clock_check 会推进时钟，
+     * 必须每步只问一次——在链里对每块表各问一次的话，第二块表就被判成"未到期"。 */
+    bool task_due[MAX_TASKS];
 } dcu_poller_t;
 
 int dcu_poller_init(dcu_poller_t* poller);
