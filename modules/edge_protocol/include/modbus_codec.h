@@ -55,6 +55,14 @@ int modbus_rtu_decode_req_frame(struct net_buf_simple *in, uint8_t *slave_id, ui
 
 /* --- Modbus TCP / MBAP --- */
 
+/* [ADR-002] 驱动认识的点位标识：低 16 位地址 + 高 16 位寄存器个数。
+ * 产品侧用这个宏编码后传给 edge_api_read_tag_ex 的 native_id；
+ * 驱动只解这两个数，不知道 TagID 是什么。 */
+#define MODBUS_NATIVE(addr, quantity) \
+    ((((uint32_t)(quantity) & 0xFFFFu) << 16) | ((uint32_t)(addr) & 0xFFFFu))
+#define MODBUS_NATIVE_ADDR(id)   ((uint16_t)((id) & 0xFFFFu))
+#define MODBUS_NATIVE_QTY(id)    ((uint16_t)(((id) >> 16) & 0xFFFFu))
+
 #define MODBUS_TCP_HEADER_LEN 7  /* Transaction ID(2) + Protocol ID(2) + Length(2) + Unit ID(1) */
 #define MODBUS_TCP_PROTOCOL_ID 0x0000
 

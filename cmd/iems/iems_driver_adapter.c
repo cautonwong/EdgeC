@@ -12,6 +12,7 @@
 #include <string.h>
 
 #include "contract_data_types.h"
+#include "modbus_codec.h"
 
 /* 外部协议驱动模板声明 */
 extern edge_driver_t modbus_rtu_driver;
@@ -163,9 +164,16 @@ static const driver_contract_injection_t s_can_injection = {
  * 645 的 DI 已由 dcu_driver_adapter_oad_to_proto 换好；CAN 的 CAN ID 在这里换。
  * 翻译必须在产品侧完成——驱动拿不到点位表，也不该拿到。 */
 uint32_t iems_driver_adapter_native_id(const char *proto, uint32_t tag_id) {
-    if (proto && strcasecmp(proto, "CAN") == 0) {
+    if (!proto) return tag_id;
+    if (strcasecmp(proto, "CAN") == 0) {
         const modbus_map_t *m = (const modbus_map_t *)iems_lookup_can_by_tag(tag_id);
         if (m) return (uint32_t)m->key;
+    }
+    /* ModbusTCP 已 request-native：点位 = 寄存器地址 + 寄存器个数。
+     * ModbusRTU 仍是 legacy（驱动自己查表），这里保持等值不动。 */
+    if (strcasecmp(proto, "ModbusTCP") == 0) {
+        const modbus_map_t *m = (const modbus_map_t *)iems_lookup_modbus_by_tag(tag_id);
+        if (m) return MODBUS_NATIVE((uint32_t)m->key, m->length ? m->length : 1);
     }
     return tag_id;
 }
@@ -173,9 +181,15 @@ uint32_t iems_driver_adapter_native_id(const char *proto, uint32_t tag_id) {
 /* [ADR-002] 量纲：request-native 驱动不再自己乘 scaler，改由调用方给。
  * legacy 驱动仍在驱动内部标定，这里返回 1.0，避免双重相乘。 */
 double iems_driver_adapter_tag_scale(const char *proto, uint32_t tag_id) {
-    if (proto && strcasecmp(proto, "CAN") == 0) {
+    if (!proto) return 1.0;
+    if (strcasecmp(proto, "CAN") == 0) {
         const modbus_map_t *m = (const modbus_map_t *)iems_lookup_can_by_tag(tag_id);
-        if (m && m->scaler > 0.0) return m->scaler;
+        if (m && m->scaler > 0.0) return m->scaler;   /* CAN：工程值 = raw × scaler */
+    }
+    if (strcasecmp(proto, "ModbusTCP") == 0) {
+        const modbus_map_t *m = (const modbus_map_t *)iems_lookup_modbus_by_tag(tag_id);
+        /* Modbus：工程值 = raw / scaler，所以这里给倒数 */
+        if (m && m->scaler > 0.0) return 1.0 / m->scaler;
     }
     return 1.0;
 }

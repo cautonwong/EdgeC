@@ -106,8 +106,10 @@ static inline const char *edge_driver_get_tag_name(edge_driver_ctx_t *ctx, uint3
  * @brief 协议驱动元模型 (V4.0 状态机版)
  */
 /* 请求原生驱动（ADR-002）的私有数据上限。
- * 定长内嵌在请求上下文里，避免为核心路径引入动态内存。 */
-#define REQ_DRV_PRIV_MAX 64
+ * 定长内嵌在请求上下文里，避免为核心路径引入动态内存。
+ * 128 是量出来的：Modbus 要装 32 个原始寄存器（64B）+ 头字段，
+ * 645 的 dlt645_req_t 只有 24B，CAN 的 can_req_t 只有 24B。 */
+#define REQ_DRV_PRIV_MAX 128
 
 struct edge_driver_s {
     const char *name; /**< 协议名称，如 "IEC104" */
