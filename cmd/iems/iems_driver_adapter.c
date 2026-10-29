@@ -159,6 +159,27 @@ static const driver_contract_injection_t s_can_injection = {
     .lookup_by_tag = iems_lookup_can_by_tag,
 };
 
+/* [ADR-002] 产品的点位标识 → 驱动认识的原生标识。
+ * 645 的 DI 已由 dcu_driver_adapter_oad_to_proto 换好；CAN 的 CAN ID 在这里换。
+ * 翻译必须在产品侧完成——驱动拿不到点位表，也不该拿到。 */
+uint32_t iems_driver_adapter_native_id(const char *proto, uint32_t tag_id) {
+    if (proto && strcasecmp(proto, "CAN") == 0) {
+        const modbus_map_t *m = (const modbus_map_t *)iems_lookup_can_by_tag(tag_id);
+        if (m) return (uint32_t)m->key;
+    }
+    return tag_id;
+}
+
+/* [ADR-002] 量纲：request-native 驱动不再自己乘 scaler，改由调用方给。
+ * legacy 驱动仍在驱动内部标定，这里返回 1.0，避免双重相乘。 */
+double iems_driver_adapter_tag_scale(const char *proto, uint32_t tag_id) {
+    if (proto && strcasecmp(proto, "CAN") == 0) {
+        const modbus_map_t *m = (const modbus_map_t *)iems_lookup_can_by_tag(tag_id);
+        if (m && m->scaler > 0.0) return m->scaler;
+    }
+    return 1.0;
+}
+
 /* ==============================================================================
  * 5. DL/T 645-2007 静态测点映射表
  * ============================================================================== */

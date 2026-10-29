@@ -50,6 +50,12 @@ int iems_driver_registry_init(driver_manager_t *mgr);
  */
 const driver_contract_injection_t *iems_get_driver_injection(const char *proto);
 
+/* [ADR-002] 点位标识翻译与量纲：产品侧负责，驱动不再查表。
+ *   native_id：tag_id → 驱动认识的原生标识（CAN 是 CAN ID，其余暂等值）
+ *   tag_scale：该点位的工程量系数；legacy 驱动仍自己标定，故返回 1.0 */
+uint32_t iems_driver_adapter_native_id(const char *proto, uint32_t tag_id);
+double iems_driver_adapter_tag_scale(const char *proto, uint32_t tag_id);
+
 /**
  * @brief IEMS 本地测点到 DataHub 影子槽位的 O(1) 稠密映射函数
  */

@@ -23,8 +23,45 @@ static void _on_api_cmd_cleanup(cmd_msg_t *cmd) {
     }
 }
 
-int edge_api_read_tag(int bus_id, const char *protocol, uint32_t slave_id, uint32_t physical_tag_id,
-                      legacy_on_complete_cb cb, void *user_data) {
+/* --- 协议设备地址表登记（取代 driver_contract_injection_t.meta_list） --- */
+#define EDGE_API_META_MAX 8
+
+typedef struct {
+    char protocol[16];
+    const void *meta;
+    uint32_t count;
+} edge_api_meta_entry_t;
+
+static edge_api_meta_entry_t g_meta[EDGE_API_META_MAX];
+static uint32_t g_meta_count;
+
+void edge_api_set_protocol_meta(const char *protocol, const void *meta, uint32_t count) {
+    if (!protocol) return;
+    for (uint32_t i = 0; i < g_meta_count; i++) {
+        if (strcmp(g_meta[i].protocol, protocol) == 0) {
+            g_meta[i].meta = meta;
+            g_meta[i].count = count;
+            return;
+        }
+    }
+    if (g_meta_count >= EDGE_API_META_MAX) return;
+    strncpy(g_meta[g_meta_count].protocol, protocol, sizeof(g_meta[0].protocol) - 1);
+    g_meta[g_meta_count].meta = meta;
+    g_meta[g_meta_count].count = count;
+    g_meta_count++;
+}
+
+static const edge_api_meta_entry_t *_meta_of(const char *protocol) {
+    if (!protocol) return NULL;
+    for (uint32_t i = 0; i < g_meta_count; i++) {
+        if (strcmp(g_meta[i].protocol, protocol) == 0) return &g_meta[i];
+    }
+    return NULL;
+}
+
+int edge_api_read_tag_ex(int bus_id, const char *protocol, uint32_t slave_id, uint32_t native_id,
+                         uint32_t result_tag_id, double scale, legacy_on_complete_cb cb,
+                         void *user_data) {
     if (!g_orch) {
         static uint64_t last_no_orch = 0;
         if (uv_now(uv_default_loop()) - last_no_orch > 1000) {
@@ -35,28 +72,23 @@ int edge_api_read_tag(int bus_id, const char *protocol, uint32_t slave_id, uint3
         return -1;
     }
 
+    /* 设备地址表由组合根显式登记；没登记就传空，驱动按自己的默认值处理。 */
+    const edge_api_meta_entry_t *meta = _meta_of(protocol);
+    /* 仍未迁移的 legacy 驱动还要查表：这两个指针只喂给它们，native 驱动不会碰。
+     * 全部迁完后连同 driver_contract_injection_t 一起删除。 */
     const driver_contract_injection_t *inject = edge_model_find(protocol);
-    if (!inject) {
-        // 每秒最多打一次，防止刷屏
-        static uint64_t last_err = 0;
-        if (uv_now(uv_default_loop()) - last_err > 1000) {
-            printf("[API-ERROR] No contract for '%s'. Check g_model_registry!\n", protocol);
-            last_err = uv_now(uv_default_loop());
-        }
-        return -1;
-    }
 
-    edge_req_t *req = req_legacy_driver_create(g_drv_mgr, protocol, slave_id, CMD_ACTION_READ,
-                                               physical_tag_id, 0.0, (void *)inject->lookup_by_tag,
-                                               (void *)inject->lookup_by_key, inject->meta_list,
-                                               inject->meta_list_len, cb, user_data);
+    edge_req_t *req = req_legacy_driver_create(
+        g_drv_mgr, protocol, slave_id, CMD_ACTION_READ, native_id, result_tag_id, scale, 0.0,
+        inject ? (void *)inject->lookup_by_tag : NULL,
+        inject ? (void *)inject->lookup_by_key : NULL, meta ? meta->meta : NULL,
+        meta ? meta->count : 0, cb, user_data);
     if (!req) {
         static uint64_t last_no_req = 0;
         if (uv_now(uv_default_loop()) - last_no_req > 1000) {
             printf("[API-ERROR] reason=req-create-failed bus=%d proto=%s slave=%u tag=%08x "
                    "drv_mgr=%p\n",
-                   bus_id, protocol ? protocol : "?", slave_id, physical_tag_id,
-                   (void *)g_drv_mgr);
+                   bus_id, protocol ? protocol : "?", slave_id, native_id, (void *)g_drv_mgr);
             last_no_req = uv_now(uv_default_loop());
         }
         return -1;
@@ -75,27 +107,32 @@ int edge_api_read_tag(int bus_id, const char *protocol, uint32_t slave_id, uint3
         static uint64_t last_submit_err = 0;
         if (uv_now(uv_default_loop()) - last_submit_err > 1000) {
             printf("[API-ERROR] reason=submit-failed bus=%d proto=%s tag=%08x rc=%d\n", bus_id,
-                   protocol ? protocol : "?", physical_tag_id, rc);
+                   protocol ? protocol : "?", native_id, rc);
             last_submit_err = uv_now(uv_default_loop());
         }
     }
     return rc;
 }
 
+/* 兼容入口：老调用方只有一个标识，视作"原生标识 == 结果 tag"，量纲为 1。 */
+int edge_api_read_tag(int bus_id, const char *protocol, uint32_t slave_id, uint32_t physical_tag_id,
+                      legacy_on_complete_cb cb, void *user_data) {
+    return edge_api_read_tag_ex(bus_id, protocol, slave_id, physical_tag_id, physical_tag_id, 1.0,
+                                cb, user_data);
+}
+
 int edge_api_write_tag(int bus_id, const char *protocol, uint32_t slave_id,
                        uint32_t physical_tag_id, double value, legacy_on_complete_cb cb, void *user_data) {
     if (!g_orch) return -1;
 
+    const edge_api_meta_entry_t *meta = _meta_of(protocol);
     const driver_contract_injection_t *inject = edge_model_find(protocol);
-    if (!inject) {
-        printf("[API-ERROR] No contract for '%s'. Check g_model_registry!\n", protocol);
-        return -1;
-    }
 
-    edge_req_t *req = req_legacy_driver_create(g_drv_mgr, protocol, slave_id, CMD_ACTION_WRITE,
-                                               physical_tag_id, value, (void *)inject->lookup_by_tag,
-                                               (void *)inject->lookup_by_key, inject->meta_list,
-                                               inject->meta_list_len, cb, user_data);
+    edge_req_t *req = req_legacy_driver_create(
+        g_drv_mgr, protocol, slave_id, CMD_ACTION_WRITE, physical_tag_id, physical_tag_id, 1.0,
+        value, inject ? (void *)inject->lookup_by_tag : NULL,
+        inject ? (void *)inject->lookup_by_key : NULL, meta ? meta->meta : NULL,
+        meta ? meta->count : 0, cb, user_data);
     if (!req) return -1;
 
     cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));

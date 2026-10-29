@@ -1,79 +1,94 @@
 /**
  * @file driver_can.c
- * @brief 工业级 CAN 规约驱动 (基于 SocketCAN 归一化)
+ * @brief 工业级 CAN 规约驱动 —— 纯 codec（ADR-002）
+ *
+ * 与 645 的差别：645 的点位标识天然是 DI，CAN 的点位标识是 **CAN ID**，
+ * 与产品的 tag_id 不是一回事。所以翻译由调用方（产品点位模型）做完，
+ * 驱动只收 can_id，只回原始 float。
+ *
+ * 这个文件里没有 lookup_by_tag / lookup_by_key / read_shadow / tag_id / scaler：
+ *   - 不知道值属于哪个点位 → 回原始值，标识由请求层贴；
+ *   - 不知道量纲 → 不乘 scaler，标定由调用方给（edge_api_read_tag_ex 的 scale）。
  */
 
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
 
 #include "can_codec.h"
 #include "driver_manager.h"
 #include "edge_driver.h"
-#include "edge_log.h"
 #include "net_buf.h"
 
-typedef struct {
-    uint32_t last_can_id;
-} can_ctx_t;
+#define CAN_RTR_FLAG 0x40000000U
+#define CAN_ID_MASK 0x1FFFFFFFU
+#define CAN_MAX_DLC 8
 
-static int can_v4_on_init(edge_driver_ctx_t *ctx) {
-    can_ctx_t *priv = calloc(1, sizeof(can_ctx_t));
-    ctx->priv = priv;
+/** 请求私有数据：驱动认识的全部信息就是"哪一帧" */
+typedef struct {
+    uint32_t can_id;           /**< 原生点位标识（CAN ID，不含标志位） */
+    uint8_t dlc;               /**< 数据长度；请求阶段为 0（RTR） */
+    float raw;                 /**< 解码出的原始值 */
+    uint8_t data[CAN_MAX_DLC]; /**< 解码出的原始字节，留给上层按 DBC 再解释 */
+} can_req_t;
+
+static int can_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id, const void *meta_list,
+                           uint32_t meta_list_len) {
+    (void)slave_id;
+    (void)meta_list;
+    (void)meta_list_len;
+    can_req_t *p = (can_req_t *)priv;
+    if (!p) return -1;
+    p->can_id = point_id & CAN_ID_MASK;
+    p->dlc = 0;
+    p->raw = 0.0f;
+    memset(p->data, 0, sizeof(p->data));
     return 0;
 }
 
-static int can_v4_encode_request(edge_driver_ctx_t *ctx, const uint32_t *tag_ids, int count,
-                                  net_buf_t *out) {
-    // 对于 CAN 来说，Request 通常是发送一个特定 ID 的帧
-    if (count == 0) return -1;
-    
-    // [Nexus] 获取契约映射：TagID -> CAN ID
-    const modbus_map_t *map = NULL; 
-    if (ctx->lookup_by_tag) {
-        map = (const modbus_map_t *)ctx->lookup_by_tag(tag_ids[0]);
-    }
-    if (!map) return -1;
-
+static int can_req_encode(void *priv, net_buf_t *out) {
+    can_req_t *p = (can_req_t *)priv;
+    if (!p || !out) return -1;
+    /* 读请求 = 远程请求帧（RTR），不带数据 */
     edge_can_frame_t frame = {
-        .can_id = (uint32_t)map->key,
-        .can_dlc = 0 // 远程请求帧 RTR
+        .can_id = p->can_id | CAN_RTR_FLAG,
+        .can_dlc = 0,
     };
-    frame.can_id |= 0x40000000U; // CAN_RTR_FLAG
-    
     return can_encode_frame(&frame, out);
 }
 
-static int can_v4_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_out,
-                                   pipe_msg_t *out_msgs, int *msg_count, size_t *consumed) {
-    (void)resp_out;
+static int can_req_decode(void *priv, const uint8_t *buf, size_t len, size_t *consumed,
+                          double *out_value) {
+    can_req_t *p = (can_req_t *)priv;
+    if (!p || !buf || !consumed) return -1;
+    *consumed = 0;
+
+    struct net_buf_simple nb;
+    net_buf_simple_init_with_data(&nb, (void *)buf, len);
+
     edge_can_frame_t frame;
-    if (can_decode_frame(&in->b, &frame) != 0) {
-        return EDGE_ERR_INCOMPLETE;
-    }
+    if (can_decode_frame(&nb, &frame) != 0) return EDGE_ERR_INCOMPLETE;
+
+    /* can_decode_frame 消费固定 16 字节的归一化帧 */
     *consumed = 16;
 
-    // [Aetheris] 根据 CAN ID 反查 TagID
-    if (ctx->lookup_by_key) {
-        const modbus_map_t *map = (const modbus_map_t *)ctx->lookup_by_key(frame.can_id & 0x1FFFFFFFU);
-        if (map) {
-            // 简单解析：取前 4 字节作为 float 或 int
-            float val = 0;
-            memcpy(&val, frame.data, 4);
-            pipe_msg_init_scalar(&out_msgs[0], map->tag_id, (double)val * map->scaler, uv_hrtime());
-            *msg_count = 1;
-        }
-    }
+    /* 不是本请求要的那一帧（总线上的其它报文）：不认，让调用方继续找 */
+    if ((frame.can_id & CAN_ID_MASK) != p->can_id) return EDGE_ERR_INCOMPLETE;
+
+    p->dlc = frame.can_dlc > CAN_MAX_DLC ? CAN_MAX_DLC : frame.can_dlc;
+    memcpy(p->data, frame.data, p->dlc);
+    /* 原始 float 在前 4 字节；具体含义（电压/电流/温度）由上层按 DBC 解释 */
+    memcpy(&p->raw, frame.data, 4);
+    if (out_value) *out_value = (double)p->raw;
     return 0;
 }
 
-edge_driver_t can_driver = {
+const edge_driver_t can_driver = {
     .name = "CAN",
-    .ctx_size = sizeof(can_ctx_t),
-    .on_init = can_v4_on_init,
-    .encode_request = can_v4_encode_request,
-    .decode_response = can_v4_decode_response,
-    .handle_rx = can_v4_decode_response, // CAN 的响应和自发数据解析逻辑一致
+    .ctx_size = 0, /* request-native：驱动不需要 per-session 上下文 */
+    .req_priv_size = sizeof(can_req_t),
+    .req_prepare = can_req_prepare,
+    .req_encode = can_req_encode,
+    .req_decode = can_req_decode,
 };
 
 int can_driver_register(driver_manager_t *mgr) {
