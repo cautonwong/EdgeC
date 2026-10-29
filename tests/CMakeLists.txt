@@ -96,6 +96,8 @@ add_edge_test(test_io_executor test_io_executor.c)
 add_edge_test(test_master_link_lifecycle test_master_link_lifecycle.c)
 add_edge_test(test_arbiter_ownership test_arbiter_ownership.c)
 add_edge_test(test_driver_dlt645 test_driver_dlt645.c)
+# 驱动私有头在 src/ 下（不进公开 include）
+target_include_directories(test_driver_dlt645 PRIVATE ${CMAKE_SOURCE_DIR}/modules/edge_io/src)
 add_edge_test(test_driver_v3 test_driver_v3.c)
 add_edge_test(test_modbus_v3 test_modbus_v3.c)
 add_edge_test(test_fuzz_modbus test_fuzz_modbus.c)

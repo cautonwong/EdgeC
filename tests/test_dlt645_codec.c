@@ -23,7 +23,7 @@ static uint8_t g_buf_mem[TEST_BUF];
 
 static void _mk_buf(net_buf_t *nb, uint8_t *mem, size_t cap) {
     memset(nb, 0, sizeof(*nb));
-    net_buf_simple_init(&nb->b, mem, cap);
+    net_buf_simple_init_with_data(&nb->b, mem, cap);
 }
 
 /* 组请求：字节必须逐字节正确（这是现场能不能通的前提） */
@@ -53,7 +53,7 @@ static void test_slave_rsp_roundtrip(void** state) {
     const uint8_t addr[6] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06};
     memcpy(req.addr_bcd, addr, 6);
     req.di = 0x02010100;
-    req.raw = 22000;    /* 220.00V，两位小数 */
+    req.raw = 2200;    /* 220.0V，一位小数（2 字节 BCD 上限 9999） */
     req.data_len = 2;
 
     net_buf_t out;
@@ -66,9 +66,9 @@ static void test_slave_rsp_roundtrip(void** state) {
     assert_int_equal(dlt645_decode_read_rsp(&dec, out.b.data, out.b.len, &consumed), 0);
     assert_int_equal(consumed, out.b.len);
     assert_int_equal(dec.di, 0x02010100);
-    assert_int_equal(dec.raw, 22000);
+    assert_int_equal(dec.raw, 2200);
     assert_int_equal(dec.data_len, 2);
-    assert_true(dec.value > 21999.0 && dec.value < 22001.0);
+    assert_true(dec.value > 2199.0 && dec.value < 2201.0);
 }
 
 /* 四字节量（组合有功等）也要能解 */
@@ -98,7 +98,7 @@ static void test_incomplete_frame(void** state) {
     dlt645_req_t req;
     memset(&req, 0, sizeof(req));
     req.di = 0x02010100;
-    req.raw = 22000;
+    req.raw = 2200;
     req.data_len = 2;
 
     net_buf_t out;
@@ -118,7 +118,7 @@ static void test_bad_checksum(void** state) {
     dlt645_req_t req;
     memset(&req, 0, sizeof(req));
     req.di = 0x02010100;
-    req.raw = 22000;
+    req.raw = 2200;
     req.data_len = 2;
 
     net_buf_t out;
@@ -140,7 +140,7 @@ static void test_leading_garbage(void** state) {
     dlt645_req_t req;
     memset(&req, 0, sizeof(req));
     req.di = 0x02010100;
-    req.raw = 22000;
+    req.raw = 2200;
     req.data_len = 2;
 
     net_buf_t out;
@@ -160,7 +160,7 @@ static void test_leading_garbage(void** state) {
 
     /* 对齐后能正常解 */
     assert_int_equal(dlt645_decode_read_rsp(&dec, dirty + consumed, out.b.len, &consumed), 0);
-    assert_int_equal(dec.raw, 22000);
+    assert_int_equal(dec.raw, 2200);
 }
 
 /* req_prepare：点位与表地址都来自调用方，驱动不查表 */
