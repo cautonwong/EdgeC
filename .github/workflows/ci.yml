@@ -99,11 +99,12 @@ jobs:
           SHA="$(sed -n 's/^\([0-9a-f]\{7,40\}\)$/\1/p' acceptance/testplatform.sha | head -1)"
           git clone --quiet "https://x-access-token:${{ github.token }}@github.com/cautonwong/test-platform.git" "$TP"
           git -C "$TP" checkout --quiet "$SHA"
-          # 平台 pyproject 的后端没有 PEP 660 的 build_editable 钩子，
-          # 用 -e 装会直接失败（main 上一直是红的）。装成普通包即可：
-          # run.sh 只要求能 import 平台并跑它的 tools，不需要可编辑模式。
-          python3 -m pip install --quiet "$TP[dev]"
-          ./acceptance/run.sh
+          # 平台按源码布局跑：run.sh 自己会把 $TP/src 放进 PYTHONPATH，
+          # 所以**不需要** pip install 平台本身（它的后端也不支持可编辑安装）。
+          # 只补它声明为运行时依赖的两个包，再把平台路径交给 run.sh——
+          # 之前缺的就是 TESTPLATFORM，run.sh 找不到平台直接返回 4（平台错误）。
+          python3 -m pip install --quiet "pytest>=8.0" "pyyaml>=6.0"
+          TESTPLATFORM="$TP" ./acceptance/run.sh
 
       # 门禁红了必须能回答"哪个产品、哪条用例、证据在哪":报告与证据都在
       # reports/acceptance,不传上去就只能翻原始日志。
