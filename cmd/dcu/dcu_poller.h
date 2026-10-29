@@ -71,6 +71,9 @@ typedef struct {
     uint32_t interval_s;
     uint8_t scheme_type;
     uint32_t scheme_id;
+    /* 本任务要方案里的哪些 CSD：位 i = scheme->csd_list[i]。
+     * 0 视为"全部"（兼容既有配置，见 add_task 的默认值）。 */
+    uint32_t item_mask;
     uint16_t cursor_meter_idx;
     uint64_t last_run_time;       // [Added] 上次执行时间戳 (保留向后兼容)
     edge_periodic_clock_t clock;  // [Issue #216] 统一抗漂移单调时钟
@@ -114,6 +117,18 @@ typedef struct {
     uint32_t consecutive_fails;
     uint32_t gen; // 档案存活代际，用于退休已删表的条目
     uint8_t channel_id;
+    /* 这块表归哪些任务采集：位 i = poller->tasks[i]（任务注册顺序）。
+     * task_mask_set=false 表示"未配置"，沿用旧行为（所有任务都抄全表）；
+     * 一旦显式配置过就严格按位过滤，0 表示这块表不参与任何任务。
+     * 之所以不放进 production_meter_t：那是档案聚合，调度归属是运行时状态，
+     * 而且档案结构里还挂着待删除的 inject 指针，不该再往里塞东西。 */
+    uint16_t task_mask;
+    bool task_mask_set;
+    /* 同一步内的去重记忆：位 i = csd_list[i] 本步已被某个任务抄过。
+     * 两个任务的项集重叠时，第二次遇到直接跳过，不再发一帧。
+     * done_step 是"这份位图属于哪一步"，避免每步都 memset 整张表。 */
+    uint32_t done_mask;
+    uint32_t done_step;
     bool breaker_open;
     bool tracked;
     bool tombstone; // 已退休：探测链必须跳过它，不能当作空槽终止
@@ -143,11 +158,33 @@ typedef struct {
     dcu_meter_poll_state_t meter_poll_state[METER_TABLE_CAP];
     uint32_t state_gen;     // 档案变更代际
     uint32_t last_inv_rev;  // 上次 GC 时的档案版本号
+    /* 调度步序号：每进一次 dcu_poller_step 自增，作为去重位图的"轮次戳" */
+    uint32_t step_seq;
 } dcu_poller_t;
 
 int dcu_poller_init(dcu_poller_t* poller);
 int dcu_poller_add_task(dcu_poller_t* poller, uint32_t task_id, uint32_t interval_s,
                         uint32_t scheme_id);
+
+/**
+ * @brief 注册任务并指定它要方案里的哪些数据项。
+ *
+ * @param item_mask 位 i = scheme->csd_list[i]；传 0 等价于 add_task（全部项）。
+ *                  位宽 32 与 MAX_SCHEME_OADS 对齐。
+ */
+int dcu_poller_add_task_ex(dcu_poller_t* poller, uint32_t task_id, uint32_t interval_s,
+                           uint32_t scheme_id, uint32_t item_mask);
+
+/**
+ * @brief 声明某块表归哪些任务采集（位 i = 任务注册顺序）。
+ *
+ * 不调用时沿用旧行为：所有任务都抄全表（这样既有配置不需要迁移）。
+ * 调用后该表严格按位过滤，传 0 表示这块表不参与任何任务。
+ *
+ * @note 表必须已在档案里，否则下一次档案变更 GC 会把这个状态条目退休。
+ */
+int dcu_poller_set_meter_tasks(dcu_poller_t* poller, const char* address, uint8_t channel_id,
+                               uint16_t task_mask);
 int dcu_poller_add_scheme(dcu_poller_t* poller, uint32_t scheme_id, uint8_t mode,
                           const uint32_t* csds, uint16_t csd_count);
 dcu_scheme_t* dcu_poller_get_scheme(dcu_poller_t* poller, uint32_t scheme_id);

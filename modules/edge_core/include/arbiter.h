@@ -78,7 +78,9 @@ typedef struct {
  * @brief [Issue #384] 调用方预分配仲裁器存储 (Caller-Allocated Storage)
  */
 typedef struct {
-    alignas(max_align_t) uint8_t raw[4096];
+    /* 4608 = 原 4096 + 帧间静默所需的第二个 uv_timer_t（约 152B）+ 余量。
+     * 改这个值必须同步看 arbiter.c 里的 _Static_assert：它是唯一的尺寸契约。 */
+    alignas(max_align_t) uint8_t raw[4608];
 } arbiter_storage_t;
 
 typedef struct arbiter arbiter_t;
@@ -98,6 +100,19 @@ void arbiter_on_io_done(arbiter_t *arb, int bus_id, cmd_msg_t *msg, int status);
 int arbiter_get_statuses(arbiter_t *arb, arbiter_bus_status_t *out_stats, int max_count);
 void arbiter_set_exclusive(arbiter_t *arb, int bus_id, bool exclusive);
 void arbiter_set_bus_queue_limit(arbiter_t *arb, int bus_id, uint32_t max_queue);
+
+/**
+ * @brief 设置某条总线的帧间最小静默间隔（微秒），0 = 不限制。
+ *
+ * 半双工串口（DL/T 645、Modbus RTU）要求相邻两帧之间保持线路静默，否则从站
+ * 会把两帧粘成一帧。这个间隔必须由 arbiter 统一强制——它是唯一知道"上一帧
+ * 何时真正收完"的地方。让各消费者自己算节流，必然出现第二份真相（也正是
+ * CMD_STATUS_RATE_LIMITED 这个枚举一直没人产生的原因）。
+ *
+ * 计时基准是**上一帧结束**（arbiter_on_io_done / 超时结算），不是发起时刻：
+ * 从发起算会让下一帧提前压在上一帧的尾巴上。
+ */
+void arbiter_set_bus_min_gap(arbiter_t *arb, int bus_id, uint32_t gap_us);
 uint64_t arbiter_get_bus_dropped_count(arbiter_t *arb, int bus_id);
 int arbiter_check_timeouts(arbiter_t *arb);
 

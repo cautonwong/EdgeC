@@ -3,6 +3,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <uv.h>
 
@@ -458,6 +459,77 @@ static void test_arbiter_exclusive_bus(void** state) {
     uv_loop_close(&loop);
 }
 
+/* ---- 帧间静默 (min_gap) ---------------------------------------------------
+ * 半双工串口要求相邻两帧之间保持线路静默。间隔必须从"上一帧结束"起算，
+ * 而不是从"上一帧发起"起算——否则下一帧会压在上一帧尾巴上，645 从站会粘包。
+ */
+typedef struct {
+    uv_loop_t loop;
+    uint64_t start_ts[4];
+    int started;
+} gap_ctx_t;
+
+static gap_ctx_t* g_gap_ctx;
+
+static void gap_on_start(void* user) {
+    (void)user;
+    if (g_gap_ctx && g_gap_ctx->started < 4) {
+        g_gap_ctx->start_ts[g_gap_ctx->started++] = uv_hrtime();
+    }
+}
+
+static cmd_msg_t* gap_make_cmd(uint32_t tag) {
+    cmd_msg_t* cmd = calloc(1, sizeof(cmd_msg_t));
+    cmd_msg_init_write(cmd, tag, 1.0, ARBITER_PRIO_NORMAL);
+    cmd->on_start = gap_on_start;
+    cmd->on_cleanup = on_cleanup;
+    return cmd;
+}
+
+static void test_arbiter_min_gap(void** state) {
+    (void)state;
+    gap_ctx_t c;
+    memset(&c, 0, sizeof(c));
+    uv_loop_init(&c.loop);
+
+    /* 用调用方分配存储：同时验证 4608 的 storage 契约成立 */
+    arbiter_storage_t storage;
+    arbiter_t* arb = arbiter_create_in(&storage, &c.loop);
+    assert_non_null(arb);
+    arbiter_resume(arb);
+    arbiter_set_bus_min_gap(arb, 0, 50000); /* 50ms */
+    g_gap_ctx = &c;
+
+    /* 第一帧没有历史，立即发出 */
+    cmd_msg_t* first = gap_make_cmd(1);
+    assert_int_equal(arbiter_submit_cmd(arb, 0, first), 0);
+    assert_int_equal(c.started, 1);
+
+    /* 结束第一帧：静默从这里开始计时 */
+    arbiter_on_io_done(arb, 0, first, CMD_STATUS_SUCCESS);
+
+    /* 第二帧提交后不得立即发出 */
+    cmd_msg_t* second = gap_make_cmd(2);
+    assert_int_equal(arbiter_submit_cmd(arb, 0, second), 0);
+    assert_int_equal(c.started, 1);
+
+    /* 跑事件循环，等静默到期 */
+    for (int i = 0; i < 400 && c.started < 2; i++) {
+        uv_run(&c.loop, UV_RUN_ONCE);
+    }
+    assert_int_equal(c.started, 2);
+
+    /* 间隔必须 >= 50ms（允许少量时钟误差） */
+    uint64_t delta_ns = c.start_ts[1] - c.start_ts[0];
+    assert_true(delta_ns >= 45000000ULL);
+
+    arbiter_on_io_done(arb, 0, second, CMD_STATUS_SUCCESS);
+    arbiter_destroy(arb);
+    uv_run(&c.loop, UV_RUN_DEFAULT);
+    uv_loop_close(&c.loop);
+    g_gap_ctx = NULL;
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_arbiter_preempt, setup, teardown),
@@ -467,6 +539,7 @@ int main(void) {
         cmocka_unit_test(test_arbiter_timeout_forced_release),
         cmocka_unit_test(test_arbiter_edf_ordering),
         cmocka_unit_test(test_arbiter_aging_anti_starvation),
+        cmocka_unit_test(test_arbiter_min_gap),
         cmocka_unit_test(test_arbiter_exclusive_bus),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);

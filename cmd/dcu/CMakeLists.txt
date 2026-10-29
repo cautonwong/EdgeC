@@ -9,7 +9,6 @@ add_library(dcu_app_lib STATIC
     dcu_bus_source.c
     dcu_storage.c
     dcu_router.c
-    dcu_dynamic_poller.c
     dcu_security.c
     dcu_discovery.c
     dcu_event_monitor.c
