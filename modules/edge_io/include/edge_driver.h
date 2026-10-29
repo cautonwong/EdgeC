@@ -9,6 +9,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "edge_slave_plane.h"
 #include "net_buf.h"
 #include "shmring.h"
 
@@ -182,6 +183,20 @@ struct edge_driver_s {
      */
     int (*req_decode)(void *priv, const uint8_t *buf, size_t len, size_t *consumed,
                       double *out_value);
+
+    /**
+     * @brief 从站面：解请求 → 向端口取数/收数 → 组应答（ADR-002 S3-0）
+     *
+     * 与 `handle_rx` 的区别：这里**没有** ctx 查表、没有 read_shadow、没有 publish。
+     * "当前值"由 `src->resolve` 给，"写入值"交给 `src->accept`，
+     * 驱动只负责字节 ↔ 结构体的转换。端口每次现传，不进 ctx。
+     *
+     * @param priv      req_priv_size 字节的私有缓冲（scratch，跨帧不必保留）
+     * @param consumed  本帧消耗的字节数；返回 1 表示跳过了前导垃圾
+     */
+    int (*req_slave_exchange)(void *priv, const uint8_t *in, size_t in_len,
+                              const edge_slave_source_ops_t *src, void *src_ctx, net_buf_t *out,
+                              size_t *consumed);
 };
 
 /**

@@ -55,5 +55,13 @@ int dlt645_decode_write_rsp(dlt645_req_t *req, const uint8_t *buf, size_t len, s
 /* --- 从站侧 --- */
 int dlt645_decode_slave_req(dlt645_req_t *req, const uint8_t *buf, size_t len, size_t *consumed);
 int dlt645_encode_slave_rsp(const dlt645_req_t *req, net_buf_t *out);
+/** 写应答（0x94）：只回 DI，不带数据 */
+int dlt645_encode_slave_write_rsp(const dlt645_req_t *req, net_buf_t *out);
+/** 异常应答（0xD1）：L=1，一个错误码 */
+int dlt645_encode_slave_abnormal(const dlt645_req_t *req, uint8_t err, net_buf_t *out);
+
+/* 异常码 */
+#define DLT645_ERR_NO_POINT  0x01 /* 无此数据标识 */
+#define DLT645_ERR_NO_ACCESS 0x02 /* 不可读/不可写 */
 
 #endif /* DRIVER_DLT645_H */

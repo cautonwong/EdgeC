@@ -15,9 +15,12 @@
 
 #include "driver_dlt645.h"
 #include "edge_driver.h"
+#include "edge_slave_plane.h"
 #include "net_buf.h"
 
 #define TEST_BUF 256
+
+extern const edge_driver_t dlt645_driver;
 
 static uint8_t g_buf_mem[TEST_BUF];
 
@@ -170,7 +173,6 @@ static void test_req_prepare_uses_meta(void** state) {
     dlt645_req_t priv;
     memset(&priv, 0, sizeof(priv));
 
-    extern const edge_driver_t dlt645_driver;
     assert_int_equal(dlt645_driver.req_prepare(&priv, 1, 0x02010100, meta, 3), 0);
     assert_int_equal(priv.di, 0x02010100);
     assert_memory_equal(priv.addr_bcd, meta[1], 6);
@@ -198,6 +200,127 @@ static void test_driver_declares_native(void** state) {
     assert_null(dlt645_driver.handle_rx);
 }
 
+
+/* ==================== 从站面（S3-0） ====================
+ * 驱动拿不到点位表、读不到影子表：值由注入的端口给。
+ * 这里用 mock 端口验证"解请求 → 取数 → 组应答"这条链。 */
+
+static int g_accept_called;
+static uint32_t g_accept_di;
+static double g_accept_value;
+
+static int _mock_resolve(void* ctx, uint32_t point_id, edge_point_value_t* out) {
+    (void)ctx;
+    if (point_id != 0x02010100) return -1;   /* 只认电压这一点 */
+    out->raw = 2200;
+    out->width = 2;
+    out->value = 220.0;
+    return 0;
+}
+
+static int _mock_accept(void* ctx, uint32_t point_id, double value) {
+    (void)ctx;
+    g_accept_called++;
+    g_accept_di = point_id;
+    g_accept_value = value;
+    return 0;
+}
+
+static void test_slave_read_uses_port(void** state) {
+    (void)state;
+    const uint8_t addr[6] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06};
+    dlt645_req_t req;
+    memset(&req, 0, sizeof(req));
+    memcpy(req.addr_bcd, addr, 6);
+    req.di = 0x02010100;
+
+    uint8_t qmem[64];
+    net_buf_t q;
+    net_buf_simple_init_with_data(&q.b, qmem, sizeof(qmem));
+    assert_int_equal(dlt645_encode_read(&req, &q), 0);
+
+    edge_slave_source_ops_t src = {.resolve = _mock_resolve, .accept = _mock_accept};
+    uint8_t rmem[128];
+    net_buf_t out;
+    net_buf_simple_init_with_data(&out.b, rmem, sizeof(rmem));
+
+    dlt645_req_t priv;
+    memset(&priv, 0, sizeof(priv));
+    size_t consumed = 0;
+    int rc = dlt645_driver.req_slave_exchange(&priv, q.b.data, q.b.len, &src, NULL, &out, &consumed);
+    assert_int_equal(rc, 0);
+    assert_int_equal(consumed, q.b.len);
+
+    /* 应答必须是 0x91，且值来自端口 */
+    dlt645_req_t dec;
+    memset(&dec, 0, sizeof(dec));
+    size_t c2 = 0;
+    assert_int_equal(dlt645_decode_read_rsp(&dec, out.b.data, out.b.len, &c2), 0);
+    assert_int_equal(dec.di, 0x02010100);
+    assert_int_equal(dec.raw, 2200);
+    assert_int_equal(dec.data_len, 2);
+}
+
+/* 端口说没有这个点位 → 异常应答 0xD1，而不是 0 值 */
+static void test_slave_read_unknown_point_is_abnormal(void** state) {
+    (void)state;
+    dlt645_req_t req;
+    memset(&req, 0, sizeof(req));
+    req.di = 0x0A0B0C0D;   /* mock 不认 */
+
+    uint8_t qmem[64];
+    net_buf_t q;
+    net_buf_simple_init_with_data(&q.b, qmem, sizeof(qmem));
+    assert_int_equal(dlt645_encode_read(&req, &q), 0);
+
+    edge_slave_source_ops_t src = {.resolve = _mock_resolve, .accept = _mock_accept};
+    uint8_t rmem[128];
+    net_buf_t out;
+    net_buf_simple_init_with_data(&out.b, rmem, sizeof(rmem));
+
+    dlt645_req_t priv;
+    memset(&priv, 0, sizeof(priv));
+    size_t consumed = 0;
+    assert_int_equal(
+        dlt645_driver.req_slave_exchange(&priv, q.b.data, q.b.len, &src, NULL, &out, &consumed), 0);
+
+    assert_true(out.b.len >= 12);
+    assert_int_equal(out.b.data[8], 0xD1);   /* 控制码 = 异常应答 */
+}
+
+/* 写请求 → 值交给端口，驱动只回 0x94 */
+static void test_slave_write_goes_to_port(void** state) {
+    (void)state;
+    dlt645_req_t req;
+    memset(&req, 0, sizeof(req));
+    req.di = 0x02010100;
+    req.ctrl = DLT645_CTRL_WRITE;
+    req.raw = 1234;
+    req.data_len = 2;
+
+    uint8_t qmem[64];
+    net_buf_t q;
+    net_buf_simple_init_with_data(&q.b, qmem, sizeof(qmem));
+    assert_int_equal(dlt645_encode_write(&req, &q), 0);
+
+    edge_slave_source_ops_t src = {.resolve = _mock_resolve, .accept = _mock_accept};
+    uint8_t rmem[128];
+    net_buf_t out;
+    net_buf_simple_init_with_data(&out.b, rmem, sizeof(rmem));
+
+    g_accept_called = 0;
+    dlt645_req_t priv;
+    memset(&priv, 0, sizeof(priv));
+    size_t consumed = 0;
+    assert_int_equal(
+        dlt645_driver.req_slave_exchange(&priv, q.b.data, q.b.len, &src, NULL, &out, &consumed), 0);
+
+    assert_int_equal(g_accept_called, 1);
+    assert_int_equal(g_accept_di, 0x02010100);
+    assert_true(g_accept_value > 1233.0 && g_accept_value < 1235.0);
+    assert_int_equal(out.b.data[8], 0x94);   /* 写应答 */
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_encode_read_bytes),
@@ -208,6 +331,9 @@ int main(void) {
         cmocka_unit_test(test_leading_garbage),
         cmocka_unit_test(test_req_prepare_uses_meta),
         cmocka_unit_test(test_driver_declares_native),
+        cmocka_unit_test(test_slave_read_uses_port),
+        cmocka_unit_test(test_slave_read_unknown_point_is_abnormal),
+        cmocka_unit_test(test_slave_write_goes_to_port),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

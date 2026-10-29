@@ -15,7 +15,25 @@ struct session_manager_s {
     session_entry_t *sessions;
     int max_sessions;
     int current_count;
+
+    /* [ADR-002 S3-0] 从站面端口：由组合根注入，供 request-native 驱动的
+     * req_slave_exchange 取数/收数。端口不进 edge_driver_ctx_t —— 进了 ctx，
+     * 驱动就又变成"自己取数"，等于把 read_shadow 换个名字请回来。 */
+    edge_slave_source_ops_t slave_src;
+    void *slave_src_ctx;
+    uint8_t slave_scratch[REQ_DRV_PRIV_MAX];
 };
+
+void session_manager_set_slave_source(session_manager_t *sm, const edge_slave_source_ops_t *ops,
+                                      void *ctx) {
+    if (!sm) return;
+    if (ops) {
+        sm->slave_src = *ops;
+    } else {
+        memset(&sm->slave_src, 0, sizeof(sm->slave_src));
+    }
+    sm->slave_src_ctx = ctx;
+}
 
 session_manager_t *session_manager_create(driver_manager_t *mgr, int max_sessions) {
     session_manager_t *sm = calloc(1, sizeof(session_manager_t));
@@ -87,7 +105,19 @@ int session_manager_handle_rx(session_manager_t *sm, net_buf_t *rx, net_buf_t *r
     for (int i = 0; i < sm->max_sessions; i++) {
         if (sm->sessions[i].in_use) {
             edge_driver_ctx_t *ctx = sm->sessions[i].ctx;
-            if (ctx->driver && ctx->driver->handle_rx) {
+            if (!ctx->driver) continue;
+
+            /* request-native：驱动只做编解码，取值/收值走注入的端口 */
+            if (ctx->driver->req_slave_exchange) {
+                memset(sm->slave_scratch, 0, sizeof(sm->slave_scratch));
+                int rc = ctx->driver->req_slave_exchange(sm->slave_scratch, rx->b.data, rx->b.len,
+                                                         &sm->slave_src, sm->slave_src_ctx,
+                                                         resp_out, consumed);
+                if (rc != EDGE_ERR_INCOMPLETE) return rc;
+                continue;
+            }
+
+            if (ctx->driver->handle_rx) {
                 int rc = ctx->driver->handle_rx(ctx, rx, resp_out, async_msgs, async_count, consumed);
                 if (rc != EDGE_ERR_INCOMPLETE) return rc;
             }

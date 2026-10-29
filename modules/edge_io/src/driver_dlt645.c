@@ -229,6 +229,24 @@ int dlt645_encode_slave_rsp(const dlt645_req_t *req, net_buf_t *out) {
     return 0;
 }
 
+int dlt645_encode_slave_write_rsp(const dlt645_req_t *req, net_buf_t *out) {
+    if (!req || !out) return -1;
+    struct net_buf_simple *b = &out->b;
+    _put_head(b, req->addr_bcd, DLT645_CTRL_WRITE_RSP, DLT645_DI_LEN);
+    _put_di(b, req->di);
+    _seal(b);
+    return 0;
+}
+
+int dlt645_encode_slave_abnormal(const dlt645_req_t *req, uint8_t err, net_buf_t *out) {
+    if (!req || !out) return -1;
+    struct net_buf_simple *b = &out->b;
+    _put_head(b, req->addr_bcd, DLT645_CTRL_ABNORMAL, 1);
+    net_buf_simple_add_u8(b, (uint8_t)(err + 0x33));
+    _seal(b);
+    return 0;
+}
+
 /* ==================== 挂到 edge_driver_t（request-native） ==================== */
 
 static int dlt645_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id,
@@ -274,6 +292,42 @@ static int dlt645_req_decode(void *priv, const uint8_t *buf, size_t len, size_t 
     return rc;
 }
 
+/* 从站面：解请求 → 向端口要值 → 组应答。
+ *
+ * 这里没有 ctx、没有点位表、没有 read_shadow：当前值由调用方经 src->resolve 给，
+ * 驱动只做字节 ↔ 结构体。谁提供值，驱动不知道。 */
+static int dlt645_req_slave_exchange(void *priv, const uint8_t *in, size_t in_len,
+                                     const edge_slave_source_ops_t *src, void *src_ctx,
+                                     net_buf_t *out, size_t *consumed) {
+    dlt645_req_t *p = (dlt645_req_t *)priv;
+    if (!p || !in || !consumed || !out) return -1;
+    *consumed = 0;
+
+    int rc = dlt645_decode_slave_req(p, in, in_len, consumed);
+    if (rc != 0) return rc; /* 1=跳垃圾；EDGE_ERR_INCOMPLETE=等下一包；-1=坏帧 */
+
+    if (p->ctrl == DLT645_CTRL_READ) {
+        edge_point_value_t v;
+        memset(&v, 0, sizeof(v));
+        if (!src || !src->resolve || src->resolve(src_ctx, p->di, &v) != 0) {
+            return dlt645_encode_slave_abnormal(p, DLT645_ERR_NO_POINT, out);
+        }
+        /* 宽度由产品给（645 是 2 或 4 字节）；缺省 2 字节 */
+        p->data_len = (v.width == 4) ? 4 : 2;
+        p->raw = v.raw;
+        return dlt645_encode_slave_rsp(p, out);
+    }
+
+    if (p->ctrl == DLT645_CTRL_WRITE) {
+        if (!src || !src->accept || src->accept(src_ctx, p->di, (double)p->raw) != 0) {
+            return dlt645_encode_slave_abnormal(p, DLT645_ERR_NO_ACCESS, out);
+        }
+        return dlt645_encode_slave_write_rsp(p, out);
+    }
+
+    return dlt645_encode_slave_abnormal(p, DLT645_ERR_NO_ACCESS, out);
+}
+
 const edge_driver_t dlt645_driver = {
     .name = "DLT645",
     .ctx_size = 0, /* request-native：驱动不再需要 per-session 上下文 */
@@ -281,6 +335,7 @@ const edge_driver_t dlt645_driver = {
     .req_prepare = dlt645_req_prepare,
     .req_encode = dlt645_req_encode,
     .req_decode = dlt645_req_decode,
+    .req_slave_exchange = dlt645_req_slave_exchange,
 };
 
 int dlt645_driver_register(driver_manager_t *mgr) {
