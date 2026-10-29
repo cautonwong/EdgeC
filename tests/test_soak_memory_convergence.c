@@ -14,6 +14,19 @@
 
 #include "datahub.h"
 
+
+/* sanitizer 自带分配器与隔离区，RSS 由它主导：ASan/TSan 下测到的增长是
+ * 工具本身的开销，不是我们的代码。2% 阈值在这里不成立。
+ * 不静默跳过——打一行 SKIPPED 说明原因，避免"绿了但其实没测"。 */
+#if defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_THREAD__)
+#  define SOAK_RSS_UNRELIABLE 1
+#endif
+#if defined(__has_feature)
+#  if __has_feature(address_sanitizer) || __has_feature(thread_sanitizer)
+#    define SOAK_RSS_UNRELIABLE 1
+#  endif
+#endif
+
 static long get_current_rss_kb(void) {
     FILE *fp = fopen("/proc/self/statm", "r");
     if (!fp) return 0;
@@ -75,8 +88,16 @@ int main(void) {
     printf("     AEP-411: Soak Test & RSS Convergence Verification         \n");
     printf("=================================================================\n");
 
+#ifdef SOAK_RSS_UNRELIABLE
+    printf("[SKIPPED] RSS convergence is not measurable under ASan/TSan://n");
+    printf("          the sanitizer's allocator + quarantine dominate RSS, so a 2%%\n");
+    printf("          threshold would be measuring the tool, not our code.\n");
+    printf("          Run the Release build for this assertion.\n");
+    return 0;
+#else
     test_soak_memory_rss_convergence();
 
     printf("\nAll AEP-411 Soak Convergence tests PASSED!\n");
     return 0;
+#endif
 }
