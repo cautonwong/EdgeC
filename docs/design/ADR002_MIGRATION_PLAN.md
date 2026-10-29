@@ -83,6 +83,42 @@ grep -rn 'edge_model_find' --include='*.c' --include='*.h' modules cmd
 
 ## 3. 阶段划分
 
+### S3-0 从站面端口（前置，必须先做）
+
+**这是 ModbusTCP 迁不动的原因。** 7 个驱动实现了 `handle_rx`（从站面）：
+`modbus_rtu` / `modbus_tcp` / `dlt698` / `iec104` / `iec101` / `dlms` / `cia402`。
+
+它们在 `handle_rx` 里做的是：
+
+```c
+const modbus_map_t *map = ctx->lookup_by_key(addr);      // ① 查表
+edge_driver_read_shadow(ctx, map->tag_id, &shadow);      // ② 读当前值
+edge_driver_publish(ctx, &am);                           // ③ 写回（写请求）
+```
+
+①②③ 正是 §0 要删的东西。而 `driver_manager_register` **禁止 legacy 与 native 混用**，
+所以不能"主站路径先迁、从站路径留着"——要么整个驱动迁完，要么不迁。
+
+从站面需要的是设计文档 §3.1 里那个端口，目前**还没实现**：
+
+```c
+/* modules/edge_io/include/edge_slave_plane.h —— 由消费方（edge_io）定义 */
+typedef struct { double value; uint8_t quality; uint64_t ts_ms; } edge_point_value_t;
+typedef struct {
+    int (*resolve)(void *ctx, uint32_t point_id, edge_point_value_t *out); /* 取当前值 */
+    int (*accept)(void *ctx, uint32_t point_id, double value);             /* 接受写入 */
+} edge_slave_source_ops_t;
+```
+
+- 声明在 edge_io，**实现在 cmd**（只有产品认识自己的点位模型）
+- 组合根注入：`bus_orchestrator_setup_slave(..., source_ops, source_ctx)`
+- 驱动只接收"已填好的值"，不知道谁提供的 —— 否则就是把 `read_shadow` 换个名字请回来
+
+**S3-0 交付物**：`edge_slave_plane.h` + `handle_rx` 改为 `req_slave_decode` /
+`req_slave_encode` 两个纯函数 + 三个产品的 `resolve`/`accept` 实现。
+
+**没有 S3-0，Modbus / DLT698 / IEC104 一个都迁不了。**
+
 ### S3-b ModbusTCP → ModbusRTU（主力）
 
 - 覆盖 3 个产品，使用面最广。
@@ -151,11 +187,15 @@ IEC101 / DLMS / CIA402 / HL7 / CCSDS 没有任何产品注册，但都引用注�
 ## 6. 顺序与依赖
 
 ```
-S3-b ModbusTCP/RTU ──┐
-S3-c DLT698 ─────────┤
-S3-d IEC104（session_ctx）──┴──→ S3-e 处理未注册的 5 个 ──→ P2 一次性删除（§0 九项）
-                                                              ↓
-                                                    抄表优先级降 LOW
+S3-0 从站面端口 ──┬──→ S3-b ModbusTCP/RTU ──┐
+                  ├──→ S3-c DLT698 ─────────┤
+                  └──→ S3-d IEC104（另需 session_ctx）
+                                            ↓
+                              S3-e 处理未注册的 5 个
+                                            ↓
+                              P2 一次性删除（§0 九项）──→ 抄表优先级降 LOW
 ```
+
+**S3-0 是所有从站型驱动的前置**：它不解决，§0 的 grep 永远清不干净。
 
 **并行度**：b/c 互不依赖，可并行 PR；**P2 必须一次做完**，删一半比不删更糟。
