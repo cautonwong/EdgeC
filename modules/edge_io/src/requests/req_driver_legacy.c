@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include "arbiter.h"
 #include "bus_engine.h"
@@ -25,6 +26,10 @@ typedef struct {
     void *lookup_by_key;
     const void *meta_list;
     uint32_t meta_list_len;
+    /* [ADR-002] request-native 驱动的私有请求数据（点位信息）。
+     * 定长内嵌：核心路径不引入动态内存。大小由 driver->req_priv_size 决定。 */
+    uint8_t drv_priv[REQ_DRV_PRIV_MAX];
+    bool drv_priv_ready;
 } legacy_req_ctx_t;
 
 static int legacy_setup(edge_req_t *req, void *engine_ctx) {
@@ -63,6 +68,17 @@ static int legacy_setup(edge_req_t *req, void *engine_ctx) {
         ctx->drv_ctx->meta_list_len = ctx->meta_list_len;
         ctx->drv_ctx->device_id = ctx->slave_id;
     }
+
+    /* [ADR-002] request-native 驱动：把点位信息填进私有数据。
+     * 之后 encode/decode 都不再碰 tag_id —— 翻译由这一层完成。 */
+    if (ctx->drv_ctx && ctx->drv_ctx->driver && ctx->drv_ctx->driver->req_prepare) {
+        memset(ctx->drv_priv, 0, sizeof(ctx->drv_priv));
+        if (ctx->drv_ctx->driver->req_prepare(ctx->drv_priv, ctx->slave_id, ctx->tag_id,
+                                              ctx->meta_list, ctx->meta_list_len) != 0) {
+            return -1;
+        }
+        ctx->drv_priv_ready = true;
+    }
     return ctx->drv_ctx ? 0 : -1;
 }
 
@@ -70,6 +86,12 @@ static int legacy_encode(edge_req_t *req, net_buf_t *buf) {
     legacy_req_ctx_t *ctx = (legacy_req_ctx_t *)req->priv_data;
     if (!ctx->drv_ctx || !ctx->drv_ctx->driver) {
         return REQ_STATUS_ERROR;
+    }
+
+    if (ctx->drv_ctx->driver->req_encode) {
+        if (!ctx->drv_priv_ready) return REQ_STATUS_ERROR;
+        return ctx->drv_ctx->driver->req_encode(ctx->drv_priv, buf) == 0 ? 0
+                                                                         : REQ_STATUS_ERROR;
     }
 
     // [Deepening] 检查协议是否就绪 (例如 DLMS 是否已完成握手)
@@ -87,7 +109,25 @@ static int legacy_encode(edge_req_t *req, net_buf_t *buf) {
 
 static int legacy_decode(edge_req_t *req, net_buf_t *buf, size_t *consumed) {
     legacy_req_ctx_t *ctx = (legacy_req_ctx_t *)req->priv_data;
-    if (!ctx->drv_ctx || !ctx->drv_ctx->driver || !ctx->drv_ctx->driver->decode_response) {
+    if (!ctx->drv_ctx || !ctx->drv_ctx->driver) return REQ_STATUS_ERROR;
+
+    /* [ADR-002] request-native：驱动只回值，tag_id 由**请求层**贴上。
+     * 这正是 L2 的修法——驱动不再把 DI 当 tag_id 抛出来。 */
+    if (ctx->drv_ctx->driver->req_decode) {
+        if (!ctx->drv_priv_ready) return REQ_STATUS_ERROR;
+        double value = 0.0;
+        int nrc = ctx->drv_ctx->driver->req_decode(ctx->drv_priv, buf->b.data, buf->b.len,
+                                                   consumed, &value);
+        if (nrc == EDGE_ERR_INCOMPLETE) return EDGE_ERR_INCOMPLETE;
+        if (nrc != 0) return REQ_STATUS_ERROR;
+
+        memset(&ctx->result_msg, 0, sizeof(pipe_msg_t));
+        pipe_msg_init_scalar(&ctx->result_msg, (edge_tag_id_t)ctx->tag_id, value, uv_hrtime());
+        ctx->result_msg.device_id = ctx->slave_id;
+        return REQ_STATUS_DONE;
+    }
+
+    if (!ctx->drv_ctx->driver->decode_response) {
         return REQ_STATUS_ERROR;
     }
     int msg_count = 0;

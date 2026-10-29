@@ -265,6 +265,27 @@ int driver_manager_register(driver_manager_t *mgr, const edge_driver_t *driver) 
     if (!mgr || !driver) return -1;
     if (mgr->count >= MAX_DRIVERS) return -2;
 
+    /* [ADR-002] 两套接口互斥：要么 legacy 四件套，要么 request-native。
+     * 混用会让"这个驱动到底认 TagID 还是认点位"变成不可判定，
+     * 迁移期最容易出的就是这种半新半旧。 */
+    bool legacy = driver->encode_request || driver->decode_response || driver->handle_rx;
+    bool native = driver->req_prepare || driver->req_encode || driver->req_decode;
+    if (legacy && native) {
+        LOG_ERROR(LOG_CAT_IO, "Driver %s mixes legacy and request-native slots (ADR-002)",
+                  driver->name ? driver->name : "?");
+        return -3;
+    }
+    if (native && (!driver->req_prepare || !driver->req_encode || !driver->req_decode)) {
+        LOG_ERROR(LOG_CAT_IO, "Driver %s: request-native needs prepare+encode+decode",
+                  driver->name ? driver->name : "?");
+        return -4;
+    }
+    if (native && (driver->req_priv_size == 0 || driver->req_priv_size > REQ_DRV_PRIV_MAX)) {
+        LOG_ERROR(LOG_CAT_IO, "Driver %s: req_priv_size %zu out of range (max %d)",
+                  driver->name ? driver->name : "?", driver->req_priv_size, REQ_DRV_PRIV_MAX);
+        return -5;
+    }
+
     for (int i = 0; i < mgr->count; i++) {
         if (strcmp(mgr->drivers[i]->name, driver->name) == 0) return 0;
     }
