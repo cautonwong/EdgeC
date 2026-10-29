@@ -144,12 +144,13 @@ static void test_dcu_node_domain_methods_and_events(void **state) {
 }
 
 static int g_stub_calls = 0;
-static int _stub_read(void *ctx, uint32_t meter_idx, uint32_t tag_id, double *out_val) {
+static int _stub_submit(void *ctx, uint32_t meter_idx, uint32_t tag_id,
+                        poller_read_done_cb cb, void *ud) {
     (void)ctx;
     (void)meter_idx;
     (void)tag_id;
     g_stub_calls++;
-    if (out_val) *out_val = 231.7;
+    if (cb) cb(ud, 0, 231.7);   /* 同步回调：pump 的 pumping 守卫防重入 */
     return 0;
 }
 
@@ -168,7 +169,7 @@ static void test_dcu_node_set_source_ops_is_used(void **state) {
 
     dcu_inventory_add(dcu_node_get_inventory(node), "SRC_0001", "dlt698", 9600, 1, NULL);
 
-    poller_source_ops_t ops = {.ctx = NULL, .read_value = _stub_read};
+    poller_source_ops_t ops = {.ctx = NULL, .submit = _stub_submit};
     dcu_node_set_source_ops(node, ops);
 
     g_stub_calls = 0;

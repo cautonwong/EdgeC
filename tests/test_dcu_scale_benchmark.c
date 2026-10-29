@@ -47,12 +47,38 @@ const driver_contract_injection_t* edge_model_find(const char* name) {
     return (name && strcmp(name, "ModbusRTU") == 0) ? &inj : NULL;
 }
 
-static int _mock_source_read(void* ctx, uint32_t meter_idx, uint32_t tag_id, double* out_val) {
+/* 异步 mock：提交只登记回调，不立刻触发。
+ *
+ * 链式模型下 dcu_poller_step 的职责是"每条通道提交一项就返回"，
+ * 所以这里要测的是**这一步阻塞事件循环多久**——用同步回调会把整轮都算进
+ * 一步的时间里，测出来的不是事件循环延迟。 */
+#define PEND_MAX 128
+typedef struct {
+    poller_read_done_cb cb;
+    void *ud;
+} pend_t;
+static pend_t g_pend[PEND_MAX];
+static int g_pend_n;
+static uint64_t g_value_seq;
+
+static int _mock_source_submit(void* ctx, uint32_t meter_idx, uint32_t tag_id,
+                               poller_read_done_cb cb, void* ud) {
     (void)ctx;
-    (void)meter_idx;
     (void)tag_id;
-    *out_val = 220.0 + (double)(meter_idx % 10);
+    if (g_pend_n >= PEND_MAX) return -1;   /* 提交失败：链会当场结算并继续 */
+    g_pend[g_pend_n].cb = cb;
+    g_pend[g_pend_n].ud = ud;
+    g_pend_n++;
     return 0;
+}
+
+/* 把所有在途回调放完：回调里会继续提交，直到链自己停下来 */
+static void _drain(void) {
+    int guard = 0;
+    while (g_pend_n > 0 && guard++ < 100000) {
+        pend_t p = g_pend[--g_pend_n];
+        if (p.cb) p.cb(p.ud, 0, 220.0 + (double)(g_value_seq++ % 10));
+    }
 }
 
 static void test_scale_benchmark_p99_latency(void** state) {
@@ -86,26 +112,31 @@ static void test_scale_benchmark_p99_latency(void** state) {
     assert_int_equal(dcu_poller_add_scheme(&poller, 1, 0, csds, OADS_PER_METER), 0);
     assert_int_equal(dcu_poller_add_task(&poller, 1, 0, 1), 0);
 
-    poller_source_ops_t source = {.ctx = NULL, .read_value = _mock_source_read};
-    poller_bus_ops_t bus = {0};
-    poller_sink_ops_t sink = {0};
+    poller_source_ops_t source;
+    memset(&source, 0, sizeof(source));
+    source.submit = _mock_source_submit;
+    poller_bus_ops_t bus;
+    poller_sink_ops_t sink;
+    memset(&bus, 0, sizeof(bus));
+    memset(&sink, 0, sizeof(sink));
     assert_int_equal(dcu_poller_start(&poller, source, bus, sink), 0);
 
-    // 3. 执行分步调度步进 (Chunk Size = 50 meters)，记录每步延迟
-    const uint32_t chunk_size = 50;
-    const int total_steps = (int)(TOTAL_METERS / chunk_size);
-    uint64_t latencies_ns[total_steps];
+    /* 3. 一步 = 每条通道提交一项就返回；随后 drain 把回调放完，让链推进到下一块表。
+     *    这里量的是 step 本身的耗时，也就是它阻塞事件循环的时长。 */
+    const int total_steps = 400;   /* 4 通道 × 500 表，一步推进一格，400 步覆盖多轮 */
+    uint64_t latencies_ns[400];
+    g_pend_n = 0;
+    g_value_seq = 0;
 
     for (int step = 0; step < total_steps; step++) {
         uint64_t t0 = uv_hrtime();
-        int processed = dcu_poller_step(&poller, &inv, chunk_size);
+        (void)dcu_poller_step(&poller, &inv, 0);
         uint64_t t1 = uv_hrtime();
-        assert_int_equal(processed, (int)chunk_size);
         latencies_ns[step] = t1 - t0;
+        _drain();
     }
 
     // 4. 统计 P99 与最大延迟
-    // 简单冒泡排序延迟数组
     for (int i = 0; i < total_steps - 1; i++) {
         for (int j = 0; j < total_steps - 1 - i; j++) {
             if (latencies_ns[j] > latencies_ns[j + 1]) {
@@ -122,24 +153,22 @@ static void test_scale_benchmark_p99_latency(void** state) {
     double p99_ms = (double)latencies_ns[p99_idx] / 1000000.0;
     double max_ms = (double)latencies_ns[total_steps - 1] / 1000000.0;
     double avg_ms = 0.0;
-    for (int i = 0; i < total_steps; i++) {
-        avg_ms += (double)latencies_ns[i] / 1000000.0;
-    }
+    for (int i = 0; i < total_steps; i++) avg_ms += (double)latencies_ns[i] / 1000000.0;
     avg_ms /= (double)total_steps;
 
     printf("\n📊 [BENCHMARK] 4 Buses x 500 Meters (2000 Meters, 6000 OADs):\n");
     printf("   - Avg Step Latency: %.3f ms\n", avg_ms);
     printf("   - P99 Step Latency: %.3f ms (Threshold: < 5.0 ms)\n", p99_ms);
     printf("   - Max Step Latency: %.3f ms\n", max_ms);
+    printf("   - Submits issued: %" PRIu64 "\n", g_value_seq);
 
-    // 验证事件循环 P99 延迟严格小于 5ms，杜绝长时间阻塞
+    // 一步只提交"每通道一项"，不得阻塞事件循环
     assert_true(p99_ms < 5.0);
+    assert_true(g_value_seq > 0);
 
     dcu_poller_destroy(&poller);
-    dcu_inventory_destroy(&inv);
 }
 
-// 2. 验证端到端 Request 链路：encode_request -> IO -> decode_response -> DataHub
 static void test_e2e_request_to_shadow(void** state) {
     (void)state;
     uv_loop_t loop;

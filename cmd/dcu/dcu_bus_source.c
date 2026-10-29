@@ -11,51 +11,36 @@
 #include "dcu_inventory.h"
 #include "edge_api.h"
 
-/* 槽位与档案下标一一对应：一只表同时只允许一条在途请求。
- * 下标会被复用（删除用末尾覆盖、清档归零），所以槽位记地址，地址不符就作废。 */
+/* 在途凭据池：链式模型下每通道最多 depth 个在途，池子只需覆盖所有通道的峰值。
+ * 取 MAX_METERS 是保守上限，实际用不到这么多；留着是为了不引入新的配置面。 */
 #define DCU_BUS_SLOTS MAX_METERS
 
-typedef enum {
-    SLOT_IDLE = 0,  /* 可提交 */
-    SLOT_INFLIGHT,  /* 已提交，等 on_finish */
-    SLOT_DONE,      /* on_finish 成功，待取值 */
-    SLOT_FAILED     /* on_finish 失败，待记一次失败 */
-} bus_slot_state_t;
-
-typedef struct dcu_bus_source_s dcu_bus_source_t;
-
-/* 每次提交的身份凭据：回调只认自己那一张，槽位被复用也不会错认 */
+/* 每次提交的身份凭据：回调只认自己那一张。
+ *
+ * 这里不再有"按档案下标排的槽位表"——那是轮询取值的产物（read_value 被反复调用，
+ * 要靠槽位暂存结果）。链式模型下每次提交只对应一次回调，凭据池足够，
+ * 4096 张槽位（约 400KB）整块省掉。 */
 typedef struct bus_ctx_s {
-    struct bus_slot_s *slot; /* 作废后置 NULL：迟到的回调不得再碰已释放的 source */
+    struct dcu_bus_source_s *bs; /* 作废后置 NULL：迟到的回调不得再碰已释放的 source */
+    poller_read_done_cb cb;
+    void *cb_ud;
+    uint32_t meter_idx;
+    uint32_t tag_id;   /* 消费侧 OAD */
+    uint32_t proto_id; /* 线上协议号(DI)：交给驱动 */
     uint64_t gen;
     uint8_t used;
 } bus_ctx_t;
 
-typedef struct bus_slot_s {
-    dcu_bus_source_t *owner;
-    bus_ctx_t *ctx;   /* 当前在途请求的凭据（仅 INFLIGHT 期间有效） */
-    uint32_t meter_idx;
-    uint32_t tag_id;   /* 消费侧 OAD：槽位身份 */
-    uint32_t proto_id; /* 线上协议号(DI)：交给驱动与聚合根 */
-    char address[MAX_ADDR_LEN]; /* 提交时的表地址：下标被别的表复用后用于作废 */
-    uint64_t gen;
-    uint64_t ts;      /* 提交时刻：仅作"回调丢失"的兜底计时 */
-    double value;     /* 回调带回的读数：poller 下一轮直接取，不再反查 shadow */
-    uint8_t has_value;
-    bus_slot_state_t state;
-} bus_slot_t;
-
 struct dcu_bus_source_s {
     datahub_t *hub;
-    dcu_node_t *node; /* 聚合根：读数由回调直接交给它，本源只是搬运工 */
+    dcu_node_t *node; /* 保留：装配方仍按旧签名传入，本源已不再直接落库 */
     const dcu_inventory_t *inv;
     uint64_t timeout_ms;
     uint64_t gen_seq;
     uint32_t ctx_cursor;
-    int refs;         /* 基础引用 + 在途提交数 + 正在执行的 read_value 数 */
+    int refs;         /* 基础引用 + 在途提交数 */
     uint8_t closing;
     uv_mutex_t lock;
-    bus_slot_t slots[DCU_BUS_SLOTS];
     bus_ctx_t ctxs[DCU_BUS_SLOTS];
 };
 
@@ -83,7 +68,7 @@ static bus_ctx_t *_ctx_acquire(dcu_bus_source_t *bs) {
         bus_ctx_t *c = &bs->ctxs[(bs->ctx_cursor + n) % DCU_BUS_SLOTS];
         if (!c->used) {
             c->used = 1;
-            c->slot = NULL;
+            c->bs = bs;
             bs->ctx_cursor = (bs->ctx_cursor + n + 1) % DCU_BUS_SLOTS;
             return c;
         }
@@ -91,69 +76,54 @@ static bus_ctx_t *_ctx_acquire(dcu_bus_source_t *bs) {
     return NULL;
 }
 
-/* on_finish 只会来一次（master_engine 的超时/成功/协议错误三条路径各调用一次） */
+/* 请求完成：把结果交给链（poller），由它决定落库与扇出。
+ * 本层只做协议适配——OAD→DI、量纲换算——不碰 datahub、不碰存储。 */
 static void _on_done(int status, const pipe_msg_t *result, void *user_data) {
-    if (getenv("EDGE_DCU_TRACE"))
-        fprintf(stderr, "[DONE] status=%d has_result=%d\n", status, result != NULL);
     bus_ctx_t *c = (bus_ctx_t *)user_data;
     if (!c) return;
 
-    bus_slot_t *s = c->slot;
-    if (!s || !s->owner) { /* 已作废的请求：只归还凭据，不碰 source */
-        c->used = 0;
-        c->slot = NULL;
-        return;
-    }
-    dcu_bus_source_t *bs = s->owner;
+    dcu_bus_source_t *bs = c->bs;
+    poller_read_done_cb cb = c->cb;
+    void *ud = c->cb_ud;
+    uint32_t meter_idx = c->meter_idx;
+    uint32_t tag_id = c->tag_id;
+    uint32_t proto_id = c->proto_id;
 
-    dcu_node_t *node = NULL;
-    uint32_t device_id = 0;
-    uint32_t proto_id = 0;
     double value = 0.0;
-    int deliver = 0;
-
-    uv_mutex_lock(&bs->lock);
-    if (s->gen == c->gen && s->state == SLOT_INFLIGHT) {
-        s->state = (status == 0) ? SLOT_DONE : SLOT_FAILED;
-        s->ctx = NULL;
-        if (status == 0 && result) {
-            s->value = result->payload.val.f;
-            s->has_value = 1;
-            node = bs->node;
-            device_id = s->meter_idx;
-            proto_id = s->proto_id;
-            value = s->value;
-            deliver = 1;
+    int ok = (status == 0 && result != NULL);
+    if (ok) {
+        value = result->payload.val.f;
+        if (bs && bs->inv && meter_idx < bs->inv->count) {
+            const production_meter_t *m = &bs->inv->meters[meter_idx];
+            double scale = dcu_driver_adapter_scale(m->protocol, proto_id);
+            if (scale > 0.0) value *= scale;
         }
     }
-    c->used = 0;
-    c->slot = NULL;
-    uv_mutex_unlock(&bs->lock);
-
-    /* 持锁只做搬运；落库在锁外（storage 自己有事务与队列） */
-    if (deliver && node) dcu_node_record_reading(node, device_id, proto_id,
-                                                (const uint8_t *)&value, sizeof(value));
 
     int free_now = 0;
-    uv_mutex_lock(&bs->lock);
-    free_now = (--bs->refs == 0);
-    uv_mutex_unlock(&bs->lock);
-    if (free_now) _bs_free(bs);
-}
-
-/* 作废当前在途请求：槽位放回，凭据脱离 source，迟到的回调不会 UAF */
-static void _abandon_locked(dcu_bus_source_t *bs, bus_slot_t *s, int drop_ref) {
-    if (s->ctx) {
-        s->ctx->slot = NULL;
-        s->ctx = NULL;
-        if (drop_ref) bs->refs--;
+    if (bs) {
+        uv_mutex_lock(&bs->lock);
+        c->used = 0;
+        c->bs = NULL;
+        c->cb = NULL;
+        c->cb_ud = NULL;
+        free_now = (--bs->refs == 0);
+        uv_mutex_unlock(&bs->lock);
     }
-    s->state = SLOT_IDLE;
+
+    /* 先回调再释放：cb 里可能还要用 poller 的状态 */
+    if (cb) cb(ud, ok ? 0 : (status ? status : -1), value);
+    if (free_now && bs && bs->closing) _bs_free(bs);
+
+    if (!ok) _src_err("read-fail", meter_idx, tag_id, status);
 }
 
-static int _read_value_impl(dcu_bus_source_t *bs, uint32_t meter_idx, uint32_t tag_id,
-                            double *out_val) {
-    if (!out_val) return -1;
+/* 链式提交的唯一入口：受理即返回，结果走 cb。
+ * 通道忙不忙由 arbiter 判（is_busy/queue_len），本层不判、也不排队。 */
+static int _submit(void *ctx, uint32_t meter_idx, uint32_t tag_id, poller_read_done_cb cb,
+                   void *ud) {
+    dcu_bus_source_t *bs = (dcu_bus_source_t *)ctx;
+    if (!bs || !cb) return -1;
     if (!bs->inv) {
         _src_err("no-inv", meter_idx, tag_id, -1);
         return -1;
@@ -164,118 +134,45 @@ static int _read_value_impl(dcu_bus_source_t *bs, uint32_t meter_idx, uint32_t t
     }
 
     const production_meter_t *m = &bs->inv->meters[meter_idx];
-    const char *address = m->address;
-
-    int action = 0; /* 1=已提交, -1=本轮失败, 2=成功待取值, 0=在途 */
-    bus_slot_t *s = &bs->slots[meter_idx];
-    bus_ctx_t *c = NULL;
-
-    uv_mutex_lock(&bs->lock);
-    s->owner = bs;
-    s->meter_idx = meter_idx;
-
-    int same_owner = (s->state == SLOT_IDLE) ||
-                     (strncmp(s->address, address, sizeof(s->address)) == 0 && s->tag_id == tag_id);
-    if (!same_owner) {
-        /* 下标已指向另一只表 / 另一路 CSD：上一条的结果不再属于任何调用方 */
-        if (s->state == SLOT_INFLIGHT) {
-            action = 0; /* 等它落地再作废，避免同一 (表, CSD) 出现第二路在途请求 */
-        } else {
-            s->state = SLOT_IDLE;
-            action = -1;
-        }
-    } else if (s->state == SLOT_IDLE) {
-        c = _ctx_acquire(bs);
-        if (c) {
-            strncpy(s->address, address, sizeof(s->address) - 1);
-            s->address[sizeof(s->address) - 1] = '\0';
-            s->tag_id = tag_id;
-            s->proto_id = dcu_driver_adapter_oad_to_proto(m->protocol, tag_id);
-            s->gen = ++bs->gen_seq;
-            s->ts = _now_ms();
-            s->state = SLOT_INFLIGHT;
-            s->ctx = c;
-            c->gen = s->gen;
-            c->slot = s;
-            bs->refs++; /* 在途：由 _on_done 归还 */
-            action = 1;
-        } else {
-            action = -1; /* 凭据池耗尽（只可能发生在回调长期丢失后）：按失败计，不挂着 */
-        }
-    } else if (s->state == SLOT_FAILED) {
-        s->state = SLOT_IDLE;
-        action = -1; /* 失败只记一次 */
-    } else if (s->state == SLOT_DONE) {
-        s->state = SLOT_IDLE;
-        action = 2;
-    } else if (_now_ms() - s->ts > bs->timeout_ms) {
-        /* 兜底：总线自身 2s 必超时并回调，走到这里说明回调丢了。
-         * shortcut: 丢一个回调漏一张凭据（约 24B），池子耗尽后相关表按失败计。 */
-        _abandon_locked(bs, s, 1);
-        action = -1;
-    }
-    uv_mutex_unlock(&bs->lock);
-
-    if (action == 0) return POLL_READ_PENDING; /* 在途 */
-    if (action == -1) {
-        _src_err("state-fail", meter_idx, tag_id, (int)s->state);
+    uint32_t proto_id = dcu_driver_adapter_oad_to_proto(m->protocol, tag_id);
+    if (proto_id == 0) {
+        _src_err("no-proto", meter_idx, tag_id, (int)tag_id);
         return -1;
     }
-
-    if (action == 1) {
-        if (edge_api_read_tag((int)m->channel_id, m->protocol, meter_idx, s->proto_id, _on_done,
-                              c) != 0) {
-            uv_mutex_lock(&bs->lock);
-            if (c->slot == s) {
-                c->slot = NULL;
-                s->ctx = NULL;
-                s->state = SLOT_IDLE;
-            }
-            c->used = 0;
-            bs->refs--; /* 提交失败不会有回调 */
-            uv_mutex_unlock(&bs->lock);
-            /* edge_api_read_tag 自己会打 [API-ERROR]，这里只标来源 */
-            _src_err("submit-fail", meter_idx, tag_id, (int)m->channel_id);
-            return -1;
-        }
-        return POLL_READ_PENDING;
-    }
-
-    /* 回调已把读数存进槽位：直接取。shadow 反查在上行直通改造里被删除，
-     * 因为"应答成功但 shadow 没写"会把真实读数变成 0 行。 */
-    uv_mutex_lock(&bs->lock);
-    int has = (s->state == SLOT_DONE && s->has_value);
-    double v = s->value;
-    s->has_value = 0;
-    uv_mutex_unlock(&bs->lock);
-    if (has) {
-        *out_val = v;
-        return 0;
-    }
-    _src_err("no-value", meter_idx, tag_id, (int)tag_id);
-    return -1; /* 应答成功但没带值：本轮算失败，不回 0.0 */
-}
-
-static int _read_value(void *ctx, uint32_t meter_idx, uint32_t tag_id, double *out_val) {
-    dcu_bus_source_t *bs = (dcu_bus_source_t *)ctx;
-    if (!bs) return -1;
 
     uv_mutex_lock(&bs->lock);
     if (bs->closing) {
         uv_mutex_unlock(&bs->lock);
         return -1;
     }
-    bs->refs++; /* 本次调用期间 stop() 不能释放 bs */
+    bus_ctx_t *c = _ctx_acquire(bs);
+    if (!c) {
+        uv_mutex_unlock(&bs->lock);
+        _src_err("ctx-exhausted", meter_idx, tag_id, 0);
+        return -1;
+    }
+    c->cb = cb;
+    c->cb_ud = ud;
+    c->meter_idx = meter_idx;
+    c->tag_id = tag_id;
+    c->proto_id = proto_id;
+    c->gen = ++bs->gen_seq;
+    bs->refs++; /* 在途：由 _on_done 归还 */
     uv_mutex_unlock(&bs->lock);
 
-    int rc = _read_value_impl(bs, meter_idx, tag_id, out_val);
-
-    int free_now = 0;
-    uv_mutex_lock(&bs->lock);
-    free_now = (--bs->refs == 0);
-    uv_mutex_unlock(&bs->lock);
-    if (free_now) _bs_free(bs);
-    return rc;
+    if (edge_api_read_tag((int)m->channel_id, m->protocol, meter_idx, proto_id, _on_done, c) != 0) {
+        uv_mutex_lock(&bs->lock);
+        c->used = 0;
+        c->bs = NULL;
+        c->cb = NULL;
+        c->cb_ud = NULL;
+        bs->refs--; /* 提交失败不会有回调 */
+        uv_mutex_unlock(&bs->lock);
+        /* edge_api_read_tag 自己会打 [API-ERROR]，这里只标来源 */
+        _src_err("submit-fail", meter_idx, tag_id, (int)m->channel_id);
+        return -1;
+    }
+    return 0;
 }
 
 dcu_bus_source_t *dcu_bus_source_start(datahub_t *hub, const dcu_inventory_t *inv,
@@ -287,10 +184,6 @@ dcu_bus_source_t *dcu_bus_source_start(datahub_t *hub, const dcu_inventory_t *in
     bs->node = node;
     bs->timeout_ms = timeout_ms ? timeout_ms : 4000;
     bs->refs = 1; /* 基础引用 */
-    for (uint32_t i = 0; i < DCU_BUS_SLOTS; i++) {
-        bs->slots[i].owner = bs;
-        bs->slots[i].meter_idx = i;
-    }
     if (uv_mutex_init(&bs->lock) != 0) {
         free(bs);
         return NULL;
@@ -306,12 +199,13 @@ void dcu_bus_source_stop(dcu_bus_source_t *bs) {
     free_now = (--bs->refs == 0);
     uv_mutex_unlock(&bs->lock);
     if (free_now) _bs_free(bs);
-    /* 仍有在途请求：内存交给最后一个回调/read_value 释放（edge_api 无 cancel 接口） */
+    /* 仍有在途请求：内存交给最后一个回调释放（edge_api 无 cancel 接口） */
 }
 
 poller_source_ops_t dcu_bus_source_ops(dcu_bus_source_t *bs) {
     poller_source_ops_t ops;
+    memset(&ops, 0, sizeof(ops));
     ops.ctx = bs;
-    ops.read_value = _read_value;
+    ops.submit = _submit;
     return ops;
 }

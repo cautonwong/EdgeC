@@ -28,22 +28,25 @@ static int _test_poller_publish(void* ctx, uint32_t tag_id, uint32_t meter_idx, 
     return 0;
 }
 
-static int _test_poller_source_read(void* ctx, uint32_t meter_idx, uint32_t tag_id,
-                                    double* out_val) {
+/* 链式接口：submit 只负责提交，结果走回调。测试用同步回调，
+ * poller 的 pumping 守卫保证不会递归打穿栈。 */
+static int _test_poller_source_submit(void* ctx, uint32_t meter_idx, uint32_t tag_id,
+                                      poller_read_done_cb cb, void* ud) {
     (void)ctx;
     (void)meter_idx;
     (void)tag_id;
     g_source_read_calls++;
-    *out_val = g_injected_sample_value;
+    if (cb) cb(ud, 0, g_injected_sample_value);
     return 0;
 }
 
 static int _test_poller_source_fail(void* ctx, uint32_t meter_idx, uint32_t tag_id,
-                                    double* out_val) {
+                                    poller_read_done_cb cb, void* ud) {
     (void)ctx;
     (void)meter_idx;
     (void)tag_id;
-    (void)out_val;
+    (void)cb;
+    (void)ud;
     return -1;  // Physical communication failure
 }
 
@@ -76,7 +79,7 @@ static void test_polling_simulation(void** state) {
     poller_sink_ops_t poller_sink = {0};
     poller_bus_ops_t poller_bus = {
         .ctx = NULL, .publish_realtime = _test_poller_publish, .push_event = NULL};
-    poller_source_ops_t source_ops = {.ctx = NULL, .read_value = _test_poller_source_read};
+    poller_source_ops_t source_ops = {.ctx = NULL, .submit = _test_poller_source_submit};
 
     // 4. 启动动态轮询调度并注入源适配器
     ret = dcu_poller_start(&poller, source_ops, poller_bus, poller_sink);
@@ -120,7 +123,7 @@ static void test_polling_source_failure_no_fake_data(void** state) {
     poller_sink_ops_t poller_sink = {0};
     poller_bus_ops_t poller_bus = {
         .ctx = NULL, .publish_realtime = _test_poller_publish, .push_event = NULL};
-    poller_source_ops_t source_ops = {.ctx = NULL, .read_value = _test_poller_source_fail};
+    poller_source_ops_t source_ops = {.ctx = NULL, .submit = _test_poller_source_fail};
 
     ret = dcu_poller_start(&poller, source_ops, poller_bus, poller_sink);
     assert_int_equal(ret, 0);

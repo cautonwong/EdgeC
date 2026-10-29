@@ -18,6 +18,17 @@ int dcu_poller_init(dcu_poller_t* poller) {
         poller->channel_policies[i].max_in_flight = 1;
         poller->channel_policies[i].circuit_break_threshold = 5;
     }
+
+    /* 每通道一条独立的链：游标从 0 开始，并发默认 1（串口半双工无法流水）。
+     * 想放开某条通道的并发，改对应 chain.depth 即可——但先确认物理层真能流水。 */
+    for (int i = 0; i < DCU_MAX_CHANNELS; i++) {
+        poller->chains[i].owner = poller;
+        poller->chains[i].channel_id = (uint8_t)i;
+        poller->chains[i].cursor = 0;
+        poller->chains[i].round = 0;
+        poller->chains[i].outstanding = 0;
+        poller->chains[i].depth = 1;
+    }
     return 0;
 }
 
@@ -105,10 +116,204 @@ static dcu_meter_poll_state_t* _meter_state(dcu_poller_t* poller, const char* ad
     return mp;
 }
 
+/* 本任务这一轮是否到期。interval_s==0 视为每轮都跑。 */
+static bool _task_due(dcu_task_unit_t* task) {
+    if (task->interval_s == 0) return true;
+    uint64_t ticks = 0;
+    return edge_periodic_clock_check(&task->clock, &ticks) > 0;
+}
+
+/* 装载"本次访问要抄的项"：所有到期任务的项取并集，按 tag_id 去重。
+ * 这就是"避免同一数据重复抄读"的全部实现——同一项被多个任务引用时，
+ * 这里只留下一个 tag，后面只会发一帧。 */
+static void _chain_load_pending(dcu_poller_t* poller, const dcu_meter_poll_state_t* mp,
+                                dcu_chain_t* c) {
+    c->pending_n = 0;
+    c->pending_i = 0;
+    c->visit_ok = 0;
+    c->visit_fail = 0;
+
+    for (int t = 0; t < poller->task_count; t++) {
+        dcu_task_unit_t* task = &poller->tasks[t];
+        if (mp && mp->task_mask_set && !(mp->task_mask & (1u << t))) continue;
+        if (!poller->task_due[t]) continue;
+
+        dcu_scheme_t* s = dcu_poller_get_scheme(poller, task->scheme_id);
+        if (!s) continue;
+
+        for (int j = 0; j < s->data.normal.csd_count && c->pending_n < MAX_SCHEME_OADS; j++) {
+            if (task->item_mask && !(task->item_mask & (1u << j))) continue;
+            uint32_t tag = s->data.normal.csd_list[j];
+            bool dup = false;
+            for (int k = 0; k < c->pending_n; k++) {
+                if (c->pending_tags[k] == tag) { dup = true; break; }
+            }
+            if (!dup) c->pending_tags[c->pending_n++] = tag;
+        }
+    }
+}
+
+/* 游标推进到下一块"属于本通道且有事可做"的表。
+ *
+ * 一圈 = 一步：游标绕回 0 就结束本次推进，否则同步回调下会一圈接一圈永不停。
+ * 跨回调的续扫靠 scanned_in_round 记着本圈已经看过多少块。 */
+static bool _chain_next_meter(dcu_poller_t* poller, dcu_inventory_t* inv, dcu_chain_t* c) {
+    if (c->round_ended) return false;   /* 本步的一圈已扫完 */
+    while (c->scanned_in_round < inv->count) {
+        uint32_t idx = c->cursor;
+        c->cursor = (uint16_t)((c->cursor + 1) % inv->count);
+        c->scanned_in_round++;
+
+        bool wrapped = (c->cursor == 0);
+        if (wrapped) {
+            c->round++;            /* 扫完一圈：窗口翻页 */
+            c->scanned_in_round = 0;
+            c->round_ended = true; /* 这一块表处理完就结束本步 */
+        }
+
+        production_meter_t* m = &inv->meters[idx];
+        if (m->channel_id == c->channel_id) {
+            dcu_meter_poll_state_t* mp = _meter_state(poller, m->address, c->channel_id);
+            if (!(mp && mp->breaker_open)) {
+                _chain_load_pending(poller, mp, c);
+                if (c->pending_n > 0) {
+                    c->meter_idx = idx;
+                    return true;
+                }
+            }
+        }
+        if (wrapped) return false;  /* 一圈扫完，本步到此为止（未找到活） */
+    }
+    c->scanned_in_round = 0;
+    return false;
+}
+
+/* 一次访问结算：按结果更新表级熔断与通道统计 */
+static void _chain_finish_visit(dcu_poller_t* poller, dcu_chain_t* c) {
+    dcu_inventory_t* inv = poller->inv;
+    if (!inv || c->meter_idx >= inv->count) return;
+
+    production_meter_t* m = &inv->meters[c->meter_idx];
+    dcu_meter_poll_state_t* mp = _meter_state(poller, m->address, c->channel_id);
+    edge_poll_stats_t* st = &poller->channel_stats[c->channel_id];
+    edge_poll_policy_t* pol = &poller->channel_policies[c->channel_id];
+
+    if (c->visit_fail > 0) {
+        st->consecutive_fails++;
+        if (mp) {
+            if (mp->consecutive_fails < UINT32_MAX) mp->consecutive_fails++;
+            if (pol->circuit_break_threshold > 0 &&
+                mp->consecutive_fails >= pol->circuit_break_threshold) {
+                mp->breaker_open = true;
+                poller->ch_broken[c->channel_id]++;
+                _recompute_channel(poller, c->channel_id);
+                LOG_ERROR(LOG_CAT_IO,
+                          "🚨 [DCU-Poller] Meter %s (ch %u) circuit breaker tripped (fails: %u "
+                          ">= threshold: %u)",
+                          m->address, c->channel_id, (unsigned)mp->consecutive_fails,
+                          pol->circuit_break_threshold);
+            }
+        }
+    } else if (c->visit_ok > 0) {
+        st->success_count++;
+        st->consecutive_fails = 0;
+        st->last_success_ts = uv_hrtime() / 1000000ULL;
+        if (mp) mp->consecutive_fails = 0;
+        for (int t = 0; t < poller->task_count; t++) {
+            if (mp && mp->task_mask_set && !(mp->task_mask & (1u << t))) continue;
+            poller->tasks[t].monitor.success_meters++;
+        }
+    }
+}
+
+/* 读完成：写值、扇出、推进链 */
+static void _on_read_done(void* ud, int status, double value) {
+    dcu_chain_t* c = (dcu_chain_t*)ud;
+    dcu_poller_t* poller = (dcu_poller_t*)c->owner;
+    if (!poller) return;
+
+    if (c->outstanding > 0) c->outstanding--;
+
+    dcu_inventory_t* inv = poller->inv;
+    if (inv && c->meter_idx < inv->count) {
+        production_meter_t* m = &inv->meters[c->meter_idx];
+        if (status == 0) {
+            c->visit_ok++;
+            if (poller->sink_ops.record_telemetry) {
+                poller->sink_ops.record_telemetry(poller->sink_ops.ctx, m->address, c->meter_idx,
+                                                  c->inflight_tag, value);
+            }
+            if (poller->bus_ops.publish_realtime) {
+                poller->bus_ops.publish_realtime(poller->bus_ops.ctx, c->inflight_tag,
+                                                 c->meter_idx, value, uv_hrtime());
+            }
+        } else {
+            c->visit_fail++;
+            poller->channel_stats[c->channel_id].error_count++;
+        }
+    }
+
+    /* 链式：一项回来，立刻推进下一项。submit 保证异步回调，递归深度恒为 1。 */
+    extern void _dcu_chain_pump(dcu_poller_t * poller, dcu_chain_t * c);
+    _dcu_chain_pump(poller, c);
+}
+
+/* 推进一条链：要么提交下一项，要么换下一块表，要么无事可做 */
+void _dcu_chain_pump(dcu_poller_t* poller, dcu_chain_t* c) {
+    dcu_inventory_t* inv = poller->inv;
+    if (!inv || inv->count == 0) return;
+    if (c->depth == 0) c->depth = 1;
+    if (c->pumping) return;   /* 同步回调重入：交给外层循环继续 */
+    c->pumping = true;
+
+    for (;;) {
+        if (c->outstanding >= c->depth) break;   /* 在途已满，等回调 */
+
+        if (c->pending_i < c->pending_n) {
+            uint32_t tag = c->pending_tags[c->pending_i++];
+            c->inflight_tag = tag;
+
+            edge_poll_stats_t* st = &poller->channel_stats[c->channel_id];
+            st->poll_count++;
+            st->last_poll_ts = uv_hrtime() / 1000000ULL;
+
+            c->outstanding++;
+            int rc = poller->source_ops.submit
+                         ? poller->source_ops.submit(poller->source_ops.ctx, c->meter_idx, tag,
+                                                     _on_read_done, c)
+                         : -1;
+            if (rc != 0) {
+                /* 提交失败不会再有回调：当场结算，避免链卡死 */
+                c->outstanding--;
+                c->visit_fail++;
+                poller->channel_stats[c->channel_id].error_count++;
+                continue;
+            }
+            /* 异步：等回调。同步回调（mock/立即返回）时 outstanding 已归零，
+             * 上面那道 pumping 守卫让重入直接返回，于是这里继续循环即可。 */
+            if (c->outstanding > 0) break;
+            continue;
+        }
+
+        if (c->pending_n > 0) {
+            _chain_finish_visit(poller, c);
+            c->pending_n = 0;
+            c->pending_i = 0;
+        }
+        if (!_chain_next_meter(poller, inv, c)) break;
+    }
+
+    c->pumping = false;
+}
+
 int dcu_poller_step(dcu_poller_t* poller, dcu_inventory_t* inv, uint32_t max_meters_per_step) {
     if (!poller || !inv) {
         return 0;
     }
+    /* 并发由每通道 depth 控制；max_meters_per_step 不再按表数截断，
+     * 否则会在通道之间制造不公平的饥饿。保留形参仅为兼容既有调用。 */
+    (void)max_meters_per_step;
+    poller->inv = inv;
 
     // 档案版本变了才做一次退休扫描：已删表的条目必须释放，否则 MAX_METERS 最终被死条目占满。
     // 必须早于 count==0 返回，否则最后一只表被删时不会退休。
@@ -121,182 +326,48 @@ int dcu_poller_step(dcu_poller_t* poller, dcu_inventory_t* inv, uint32_t max_met
         for (uint32_t i = 0; i < METER_TABLE_CAP; i++) {
             dcu_meter_poll_state_t* mp = &poller->meter_poll_state[i];
             if (mp->tracked && mp->gen != poller->state_gen) {
-                // 表已从档案删除：释放槽位并同步通道计数
                 uint32_t ch = mp->channel_id;
                 if (ch < DCU_MAX_CHANNELS) {
                     if (poller->ch_tracked[ch] > 0) poller->ch_tracked[ch]--;
                     if (mp->breaker_open && poller->ch_broken[ch] > 0) poller->ch_broken[ch]--;
                     _recompute_channel(poller, ch);
                 }
-                // 留墓碑而不是清空：否则探测链上后面的活条目会变成不可达
                 memset(mp, 0, sizeof(*mp));
                 mp->tombstone = true;
             }
         }
         poller->last_inv_rev = inv->revision;
+        /* 档案变了，游标可能越界：夹回合法范围 */
+        for (int ch = 0; ch < DCU_MAX_CHANNELS; ch++) {
+            if (poller->chains[ch].cursor >= inv->count) poller->chains[ch].cursor = 0;
+        }
     }
 
     if (inv->count == 0) {
         return 0;
     }
 
-    /* 本轮次戳：去重位图靠它判断"这份记忆是否属于本步"，避免每步清整张表 */
-    poller->step_seq++;
-
-    int meters_processed = 0;
-
-    for (int i = 0; i < poller->task_count; i++) {
-        dcu_task_unit_t* task = &poller->tasks[i];
-        if (task->interval_s > 0) {
-            uint64_t ticks = 0;
-            if (edge_periodic_clock_check(&task->clock, &ticks) <= 0) {
-                continue;
-            }
+    /* 每步只问一次"谁到期"：时钟检查会推进 tick，问多次会把后面的任务吃掉 */
+    for (int t = 0; t < poller->task_count; t++) {
+        poller->task_due[t] = _task_due(&poller->tasks[t]);
+        if (poller->task_due[t]) {
+            poller->tasks[t].last_run_time = edge_periodic_clock_now_us(&poller->tasks[t].clock) / 1000000ULL;
         }
-        task->last_run_time = edge_periodic_clock_now_us(&task->clock) / 1000000ULL;
-        task->monitor.total_meters = inv->count;
-        dcu_scheme_t* s = dcu_poller_get_scheme(poller, task->scheme_id);
-        if (!s) continue;
+    }
 
-        uint32_t start_idx = task->cursor_meter_idx % inv->count;
-        // 一轮扫描从游标开始绕整圈：熔断跳过的表不能浪费一轮
-        uint32_t step_limit = max_meters_per_step > 0
-                                  ? (max_meters_per_step < inv->count ? max_meters_per_step
-                                                                     : inv->count)
-                                  : inv->count;
-        uint32_t count_in_this_step = 0;
-        uint32_t offsets_used = 0;
-
-        for (uint32_t offset = 0; offset < inv->count && count_in_this_step < step_limit; offset++) {
-            uint32_t m_idx = (start_idx + offset) % inv->count;
-            offsets_used = offset + 1;
-            production_meter_t* m = &inv->meters[m_idx];
-            uint32_t ch = m->channel_id < DCU_MAX_CHANNELS ? m->channel_id : 0;
-            edge_poll_stats_t* cstats = &poller->channel_stats[ch];
-            edge_poll_policy_t* cpolicy = &poller->channel_policies[ch];
-            dcu_meter_poll_state_t* mp = _meter_state(poller, m->address, (uint8_t)ch);
-
-            // 1. 熔断保护检查：按表熔断，单表静默不拖累通道其余表
-            if (mp && mp->breaker_open) {
-                continue;
-            }
-
-            // 2. 任务归属过滤：显式配置过归属的表只服务绑定它的任务。
-            //    未配置（task_mask_set=false）时沿用旧行为，所有任务都抄，
-            //    这样既有部署不需要一次性迁移配置。
-            if (mp && mp->task_mask_set && !(mp->task_mask & (1u << i))) {
-                continue;
-            }
-
-            // 2. In-flight 限制与背压 (Backpressure)
-            uint32_t max_in_flight = cpolicy->max_in_flight > 0 ? cpolicy->max_in_flight : 1;
-            if (cstats->in_flight >= max_in_flight) {
-                cstats->queue_depth++;
-                continue;
-            }
-
-            cstats->poll_count++;
-            cstats->last_poll_ts = uv_hrtime() / 1000000ULL;
-            cstats->in_flight++;
-            count_in_this_step++;
-            meters_processed++;
-
-            bool meter_failed = false;
-            bool meter_pending = false;
-            int meter_ok = 0;
-            int attempted = 0; // 本任务对本表实际发起了几个数据项的读取
-            for (int j = 0; j < s->data.normal.csd_count; j++) {
-                /* 项维度过滤：位 j = csd_list[j]。item_mask=0 表示"全部"（旧配置） */
-                if (task->item_mask && !(task->item_mask & (1u << j))) {
-                    continue;
-                }
-                /* 同一步内去重：本步已有任务抄过这一项，不再发第二帧。
-                 * 只对"已成功"的项去重——在途（PENDING）的项没有值，跳过等于丢数。 */
-                if (mp && mp->done_step == poller->step_seq && (mp->done_mask & (1u << j))) {
-                    continue;
-                }
-                uint32_t tag_id = s->data.normal.csd_list[j];
-                double fv = 0.0;
-                int read_rc = -1;
-                attempted++;
-
-                if (poller->source_ops.read_value) {
-                    read_rc = poller->source_ops.read_value(poller->source_ops.ctx, (uint32_t)m_idx,
-                                                            tag_id, &fv);
-                }
-
-                if (read_rc == 0) {
-                    if (mp) { // 记进本步去重位图：后面的任务遇到同一项不再发帧
-                        mp->done_mask |= (1u << j);
-                        mp->done_step = poller->step_seq;
-                    }
-                    if (poller->sink_ops.record_telemetry) {
-                        poller->sink_ops.record_telemetry(poller->sink_ops.ctx, m->address,
-                                                          (uint32_t)m_idx, tag_id, fv);
-                    }
-
-                    if (poller->bus_ops.publish_realtime) {
-                        poller->bus_ops.publish_realtime(poller->bus_ops.ctx, tag_id,
-                                                         (uint32_t)m_idx, fv, uv_hrtime());
-                    }
-
-                    if (poller->bus_ops.push_event) {
-                        poller->bus_ops.push_event(poller->bus_ops.ctx, tag_id, (uint32_t)m_idx, fv,
-                                                   uv_hrtime());
-                    }
-                    meter_ok++;
-                } else if (read_rc == POLL_READ_PENDING) {
-                    meter_pending = true; // 中性：请求在途，不改判连败/成功
-                } else {
-                    meter_failed = true;
-                }
-            }
-
-            cstats->in_flight--;
-            if (meter_failed) {
-                cstats->error_count++;
-                cstats->consecutive_fails++;  // 仅汇总可观测，不参与熔断判定
-                if (mp) {
-                    if (mp->consecutive_fails < UINT32_MAX) {
-                        mp->consecutive_fails++;
-                    }
-                    if (cpolicy->circuit_break_threshold > 0 &&
-                        mp->consecutive_fails >= cpolicy->circuit_break_threshold) {
-                        mp->breaker_open = true;
-                        if (ch < DCU_MAX_CHANNELS) {
-                            poller->ch_broken[ch]++;
-                            _recompute_channel(poller, ch);
-                        }
-                        LOG_ERROR(LOG_CAT_IO,
-                                  "🚨 [DCU-Poller] Meter %s (ch %u) circuit breaker tripped (fails: %u "
-                                  ">= threshold: %u)",
-                                  m->address, ch, (unsigned)mp->consecutive_fails,
-                                  cpolicy->circuit_break_threshold);
-                    }
-                }
-            } else if (meter_ok == 0 && (meter_pending || attempted == 0)) {
-                // 本轮结果未知（全部 CSD 在途，或本任务对该表没有要抄的项）：不记成功也不记失败
-            } else {
-                cstats->success_count++;
-                cstats->consecutive_fails = 0;  // 仅汇总可观测，不参与熔断判定
-                cstats->last_success_ts = uv_hrtime() / 1000000ULL;
-                task->monitor.success_meters++;
-                if (mp) {
-                    mp->consecutive_fails = 0;
-                }
-            }
-        }
-        // 游标至少推进一格：全部被熔断跳过时也必须继续扫描，否则任务卡死在单表
-        task->cursor_meter_idx =
-            (uint16_t)((start_idx + (offsets_used > 0 ? offsets_used : 1)) % inv->count);
+    /* 通道之间独立推进：一条通道卡住不影响其它通道。
+     * 每步只扫一圈：round_ended 在本步开始时清零，扫到游标归零即收工，
+     * 否则同步回调下会一圈接一圈永不返回。 */
+    for (int ch = 0; ch < DCU_MAX_CHANNELS; ch++) {
+        poller->chains[ch].round_ended = false;
+        _dcu_chain_pump(poller, &poller->chains[ch]);
     }
 
     // 批量落盘
     if (poller->sink_ops.commit_batch) {
         poller->sink_ops.commit_batch(poller->sink_ops.ctx);
     }
-
-    return meters_processed;
+    return 0;
 }
 
 void dcu_poller_pump(dcu_poller_t* poller, dcu_inventory_t* inv) {
