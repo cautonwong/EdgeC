@@ -104,6 +104,10 @@ static inline const char *edge_driver_get_tag_name(edge_driver_ctx_t *ctx, uint3
 /**
  * @brief 协议驱动元模型 (V4.0 状态机版)
  */
+/* 请求原生驱动（ADR-002）的私有数据上限。
+ * 定长内嵌在请求上下文里，避免为核心路径引入动态内存。 */
+#define REQ_DRV_PRIV_MAX 64
+
 struct edge_driver_s {
     const char *name; /**< 协议名称，如 "IEC104" */
     size_t ctx_size;  /**< 协议栈需要的私有上下文大小 */
@@ -145,6 +149,39 @@ struct edge_driver_s {
      */
     int (*handle_rx)(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_out,
                      pipe_msg_t *async_msgs, int *async_count, size_t *consumed);
+
+    // --- 4. 纯编解码 (Request-Native / ADR-002) ---
+    //
+    // 与上面 1-3 的 legacy 四件套**互斥**：一个驱动要么实现 legacy，要么实现这组，
+    // 不得混用（driver_manager_register 会拒绝混用）。
+    //
+    // 这组接口里没有 edge_driver_ctx_t、没有 tag_ids、没有 pipe_msg_t：
+    // 驱动只认"点位"（di/寄存器地址）与字节，不查表、不读影子表、不决定 tag_id。
+    // tag_id → 点位 的翻译由请求层完成，解码出的值也由请求层装进 pipe_msg_t。
+
+    /** 驱动私有请求数据的字节数（≤ REQ_DRV_PRIV_MAX）。0 表示走 legacy。 */
+    size_t req_priv_size;
+
+    /**
+     * @brief 把请求参数填进私有数据。
+     * @param priv      由请求层提供的 req_priv_size 字节缓冲（已清零）
+     * @param slave_id  从站地址/设备号
+     * @param point_id  行业原生点位标识（645 是 DI，Modbus 是寄存器地址）
+     * @param meta_list 设备附加信息（645 是 6 字节 BCD 表地址数组，按 slave_id 索引）
+     */
+    int (*req_prepare)(void *priv, uint32_t slave_id, uint32_t point_id, const void *meta_list,
+                       uint32_t meta_list_len);
+
+    /** @brief 私有数据 → 请求字节 */
+    int (*req_encode)(void *priv, net_buf_t *out);
+
+    /**
+     * @brief 应答字节 → 私有数据里的值
+     * @param out_value 解出的工程量/原始值，由请求层负责标定与落库
+     * @return 0=解出完整帧；EDGE_ERR_INCOMPLETE=未收全；<0=校验/格式错误
+     */
+    int (*req_decode)(void *priv, const uint8_t *buf, size_t len, size_t *consumed,
+                      double *out_value);
 };
 
 /**
