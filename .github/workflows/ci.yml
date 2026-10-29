@@ -99,7 +99,10 @@ jobs:
           SHA="$(sed -n 's/^\([0-9a-f]\{7,40\}\)$/\1/p' acceptance/testplatform.sha | head -1)"
           git clone --quiet "https://x-access-token:${{ github.token }}@github.com/cautonwong/test-platform.git" "$TP"
           git -C "$TP" checkout --quiet "$SHA"
-          python3 -m pip install --quiet -e "$TP[dev]"
+          # 平台 pyproject 的后端没有 PEP 660 的 build_editable 钩子，
+          # 用 -e 装会直接失败（main 上一直是红的）。装成普通包即可：
+          # run.sh 只要求能 import 平台并跑它的 tools，不需要可编辑模式。
+          python3 -m pip install --quiet "$TP[dev]"
           ./acceptance/run.sh
 
       # 门禁红了必须能回答"哪个产品、哪条用例、证据在哪":报告与证据都在
