@@ -83,6 +83,7 @@ static int mb_tcp_req_decode(void *priv, const uint8_t *buf, size_t len, size_t 
 
     struct net_buf_simple nb;
     net_buf_simple_init_with_data(&nb, (void *)buf, len);
+    nb.len = (uint16_t)len; /* init_with_data 只设 size，len 留给写入用 */
 
     uint16_t tid = 0;
     uint8_t slave = 0;
@@ -135,6 +136,7 @@ static int mb_tcp_req_slave_exchange(void *priv, const uint8_t *in, size_t in_le
 
     struct net_buf_simple nb;
     net_buf_simple_init_with_data(&nb, (void *)in, in_len);
+    nb.len = (uint16_t)in_len;
 
     uint16_t tid = 0;
     uint8_t slave = 0;

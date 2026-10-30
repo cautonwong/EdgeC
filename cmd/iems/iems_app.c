@@ -19,6 +19,7 @@
 #include "arbiter.h"
 #include "bus_orchestrator.h"
 #include "datahub.h"
+#include "edge_slave_plane.h"
 #include "driver_manager.h"
 #include "edge_api.h"
 #include "edge_log.h"
@@ -99,6 +100,29 @@ struct iems_app_s {
 };
 
 volatile bool g_adc_running = false;
+
+/* [ADR-002 S3-0] 北向从站面：主站读寄存器时，值从本地镜像取。
+ *
+ * 驱动不再自己 read_shadow；它只解请求，值由这里经端口给。
+ * point_id = MODBUS_NATIVE(addr, 1)，用 addr 反查点位表拿到 tag 与量纲。 */
+static int _iems_north_resolve(void* ctx, uint32_t point_id, edge_point_value_t* out) {
+    iems_app_t* app = (iems_app_t*)ctx;
+    if (!app || !app->hub || !out) return -1;
+
+    uint16_t addr = MODBUS_NATIVE_ADDR(point_id);
+    const modbus_map_t* map = edge_get_map_modbus(addr);
+    if (!map) return -1;
+
+    pipe_msg_t msg;
+    if (datahub_read_shadow(app->hub, map->tag_id, &msg) != 0) return -1;
+
+    double eng = msg.payload.val.f;
+    double sc = (map->scaler > 0.0) ? (double)map->scaler : 1.0;
+    out->raw = (int32_t)(eng / sc); /* RTU 约定：工程值 = raw × scaler */
+    out->width = 1;
+    out->value = eng;
+    return 0;
+}
 
 static void on_poll_complete(int status, const pipe_msg_t* result, void* user_data) {
     // user_data 是聚合根(比 arbiter 活得久),不是 poll task —— 关停时 task 会先被释放。
@@ -511,6 +535,10 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
         } else if (strcmp(conn->category, "NORTHBOUND") == 0) {
             if (inj) {
                 bus_orchestrator_setup_slave(app->orch, conn->id, "ModbusRTU", 1, inj);
+                /* 从站应答的"当前值"由产品给：驱动不认识点位模型 */
+                static const edge_slave_source_ops_t s_north_src = {
+                    .resolve = _iems_north_resolve, .accept = NULL};
+                bus_orchestrator_set_slave_source(app->orch, conn->id, &s_north_src, app);
             }
         }
     }

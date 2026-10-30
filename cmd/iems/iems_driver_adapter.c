@@ -169,9 +169,10 @@ uint32_t iems_driver_adapter_native_id(const char *proto, uint32_t tag_id) {
         const modbus_map_t *m = (const modbus_map_t *)iems_lookup_can_by_tag(tag_id);
         if (m) return (uint32_t)m->key;
     }
-    /* ModbusTCP 已 request-native：点位 = 寄存器地址 + 寄存器个数。
-     * ModbusRTU 仍是 legacy（驱动自己查表），这里保持等值不动。 */
-    if (strcasecmp(proto, "ModbusTCP") == 0) {
+    /* Modbus 已全部 request-native：点位 = 寄存器地址 + 寄存器个数。
+     * 协议串有三种写法（ModbusRTU / ModbusTCP / MODBUS），都要覆盖。 */
+    if (strcasecmp(proto, "ModbusTCP") == 0 || strcasecmp(proto, "ModbusRTU") == 0 ||
+        strcasecmp(proto, "Modbus") == 0) {
         const modbus_map_t *m = (const modbus_map_t *)iems_lookup_modbus_by_tag(tag_id);
         if (m) return MODBUS_NATIVE((uint32_t)m->key, m->length ? m->length : 1);
     }
@@ -190,6 +191,12 @@ double iems_driver_adapter_tag_scale(const char *proto, uint32_t tag_id) {
         const modbus_map_t *m = (const modbus_map_t *)iems_lookup_modbus_by_tag(tag_id);
         /* Modbus：工程值 = raw / scaler，所以这里给倒数 */
         if (m && m->scaler > 0.0) return 1.0 / m->scaler;
+    }
+    if (strcasecmp(proto, "ModbusRTU") == 0 || strcasecmp(proto, "Modbus") == 0) {
+        const modbus_map_t *m = (const modbus_map_t *)iems_lookup_modbus_by_tag(tag_id);
+        /* ModbusRTU 的旧约定是 ×scaler（与 TCP 相反）。历史差异，不在这次
+         * 改造里纠正——改数值口径要单独验证现场，混在重构里最危险。 */
+        if (m && m->scaler > 0.0) return m->scaler;
     }
     return 1.0;
 }
