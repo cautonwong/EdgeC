@@ -117,7 +117,23 @@ static void on_data_notify_timer(uv_timer_t* handle) {
 
     if (is_online && mgr->nb_driver) {
         edge_driver_ctx_t* ctx = (edge_driver_ctx_t*)mgr->nb_driver;
-        if (ctx->driver->on_tick) {
+        /* request-native 生产者：状态由端口给，驱动不碰 datahub */
+        if (ctx->driver->req_tick) {
+            net_buf_t* tick_buf = NULL;
+            if (ctx->driver->req_tick(ctx->priv, mgr->north_src, mgr->north_src_ctx, ctx->pool,
+                                      &tick_buf) == 0 &&
+                tick_buf) {
+                spb_ctx_t* spb = (spb_ctx_t*)ctx->priv;
+                char topic[256];
+                snprintf(topic, sizeof(topic), "spBv1.0/%s/NBIRTH/%s", spb->group_id,
+                         spb->edge_node_id);
+                if (mgr->transport.publish) {
+                    mgr->transport.publish(mgr->transport.ctx, topic, tick_buf->b.data,
+                                           tick_buf->b.len);
+                }
+                net_buf_unref(tick_buf);
+            }
+        } else if (ctx->driver->on_tick) {
             net_buf_t* tick_buf = NULL;
             if (ctx->driver->on_tick(ctx, &tick_buf) == 0 && tick_buf) {
                 spb_ctx_t* spb = (spb_ctx_t*)ctx->priv;

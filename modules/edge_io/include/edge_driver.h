@@ -199,6 +199,16 @@ struct edge_driver_s {
     int (*req_slave_exchange)(void *priv, const uint8_t *in, size_t in_len,
                               const edge_slave_source_ops_t *src, void *src_ctx, net_buf_t *out,
                               size_t *consumed);
+
+    /**
+     * @brief 北向生产者：读本地状态组北向报文（ADR-002）
+     *
+     * 与 `on_tick` 的区别：这里没有 `read_shadow`、没有 datahub 句柄。
+     * 状态由 `src->peek` 给，驱动不知道背后是什么。
+     * `priv` 是**持久**上下文（ctx_size 字节），因为生产者要记序号等状态。
+     */
+    int (*req_tick)(void *priv, const edge_north_source_ops_t *src, void *src_ctx,
+                    net_buf_pool_t *pool, net_buf_t **out_tx);
 };
 
 /**

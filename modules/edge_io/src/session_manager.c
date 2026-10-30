@@ -21,8 +21,22 @@ struct session_manager_s {
      * 驱动就又变成"自己取数"，等于把 read_shadow 换个名字请回来。 */
     edge_slave_source_ops_t slave_src;
     void *slave_src_ctx;
+    /* [ADR-002] 北向生产者端口：与从站端口并列，用途不同（BATCH/EVENT/标量） */
+    edge_north_source_ops_t north_src;
+    void *north_src_ctx;
     uint8_t slave_scratch[REQ_DRV_PRIV_MAX];
 };
+
+void session_manager_set_north_source(session_manager_t *sm, const edge_north_source_ops_t *ops,
+                                      void *ctx) {
+    if (!sm) return;
+    if (ops) {
+        sm->north_src = *ops;
+    } else {
+        memset(&sm->north_src, 0, sizeof(sm->north_src));
+    }
+    sm->north_src_ctx = ctx;
+}
 
 void session_manager_set_slave_source(session_manager_t *sm, const edge_slave_source_ops_t *ops,
                                       void *ctx) {
@@ -133,7 +147,20 @@ int session_manager_tick(session_manager_t *sm, int bus_id, net_buf_t **out_txs,
     for (int i = 0; i < sm->max_sessions && tx_count < max_txs; i++) {
         if (sm->sessions[i].in_use) {
             edge_driver_ctx_t *ctx = sm->sessions[i].ctx;
-            if (ctx->driver && ctx->driver->on_tick) {
+            if (!ctx->driver) continue;
+
+            /* request-native 生产者：状态由端口给，驱动不碰 datahub */
+            if (ctx->driver->req_tick) {
+                net_buf_t *tx = NULL;
+                if (ctx->driver->req_tick(ctx->priv, &sm->north_src, sm->north_src_ctx, ctx->pool,
+                                          &tx) == 0 &&
+                    tx) {
+                    out_txs[tx_count++] = tx;
+                }
+                continue;
+            }
+
+            if (ctx->driver->on_tick) {
                 net_buf_t *tx = NULL;
                 if (ctx->driver->on_tick(ctx, &tx) == 0 && tx) {
                     out_txs[tx_count++] = tx;

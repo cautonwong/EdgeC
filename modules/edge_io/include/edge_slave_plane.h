@@ -26,6 +26,8 @@
 
 #include <stdint.h>
 
+#include "shmring.h" /* pipe_msg_t */
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -42,6 +44,22 @@ typedef struct {
 /**
  * @brief 从站取数/收数端口。由 cmd 实现，组合根注入。
  */
+/**
+ * @brief 北向生产者端口：读本节点某个 tag 的当前状态，用于组北向报文。
+ *
+ * 与 `edge_slave_source_ops_t` **并列但不同用途**：
+ *   - 从站端口：南向从站应答，"这个点位现在是多少" → 标量就够
+ *   - 北向端口：北向发帧，"这个 tag 现在是什么状态" → 可能是 BATCH/EVENT/标量
+ * 所以这里用 pipe_msg_t 而不是标量——形状由消费方（北向编排）决定。
+ *
+ * 纪律与从站端口完全一致：声明在 edge_io、实现在 cmd、组合根注入，
+ * **不进 `edge_driver_ctx_t`**，每次调用现传。
+ */
+struct edge_north_source_ops_s {
+    int (*peek)(void *ctx, uint32_t tag_id, pipe_msg_t *out);
+};
+typedef struct edge_north_source_ops_s edge_north_source_ops_t;
+
 typedef struct {
     /**
      * @brief 取点位当前值。

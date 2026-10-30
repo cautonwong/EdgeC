@@ -101,18 +101,22 @@ int driver_manager_register(driver_manager_t *mgr, const edge_driver_t *driver) 
      * 混用会让"这个驱动到底认 TagID 还是认点位"变成不可判定，
      * 迁移期最容易出的就是这种半新半旧。 */
     bool legacy = driver->encode_request || driver->decode_response || driver->handle_rx;
-    bool native = driver->req_prepare || driver->req_encode || driver->req_decode;
+    bool native = driver->req_prepare || driver->req_encode || driver->req_decode ||
+                  driver->req_slave_exchange || driver->req_tick;
     if (legacy && native) {
         LOG_ERROR(LOG_CAT_IO, "Driver %s mixes legacy and request-native slots (ADR-002)",
                   driver->name ? driver->name : "?");
         return -3;
     }
-    if (native && (!driver->req_prepare || !driver->req_encode || !driver->req_decode)) {
+    /* 主站三件套要么全有、要么全无：纯从站/纯生产者不需要它们。 */
+    bool master = driver->req_prepare || driver->req_encode || driver->req_decode;
+    if (master && (!driver->req_prepare || !driver->req_encode || !driver->req_decode)) {
         LOG_ERROR(LOG_CAT_IO, "Driver %s: request-native needs prepare+encode+decode",
                   driver->name ? driver->name : "?");
         return -4;
     }
-    if (native && (driver->req_priv_size == 0 || driver->req_priv_size > REQ_DRV_PRIV_MAX)) {
+    /* 只有主站路径用请求私有缓冲；纯从站/纯生产者靠 ctx_size 的持久上下文。 */
+    if (master && (driver->req_priv_size == 0 || driver->req_priv_size > REQ_DRV_PRIV_MAX)) {
         LOG_ERROR(LOG_CAT_IO, "Driver %s: req_priv_size %zu out of range (max %d)",
                   driver->name ? driver->name : "?", driver->req_priv_size, REQ_DRV_PRIV_MAX);
         return -5;

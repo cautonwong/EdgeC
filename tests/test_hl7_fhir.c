@@ -9,6 +9,13 @@
 #include "datahub.h"
 #include "driver_manager.h"
 #include "edge_driver.h"
+#include "edge_slave_plane.h"
+
+/* [ADR-002] 北向生产者端口：测试扮演"组合根/消费方"，从本地镜像取状态。
+ * 驱动不再自己 read_shadow —— 这正是这次改造要验的东西。 */
+static int _test_north_peek(void* ctx, uint32_t tag_id, pipe_msg_t* out) {
+    return datahub_read_shadow((datahub_t*)ctx, tag_id, out);
+}
 
 extern int hl7_fhir_driver_register(driver_manager_t* mgr);
 
@@ -36,7 +43,8 @@ static void test_fhir_json_export(void** state) {
 
     // 2. Trigger driver tick to check if it formulates the FHIR payload
     net_buf_t* out_tx = NULL;
-    int rc = ctx->driver->on_tick(ctx, &out_tx);
+    static edge_north_source_ops_t s_src = {.peek = _test_north_peek};
+    int rc = ctx->driver->req_tick(ctx->priv, &s_src, &hub, ctx->pool, &out_tx);
 
     assert_int_equal(rc, 0);
     assert_non_null(out_tx);
