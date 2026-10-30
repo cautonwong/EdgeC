@@ -256,6 +256,37 @@ IEC101 / DLMS / CIA402 / HL7 / CCSDS 没有任何产品注册，但都引用注�
 
 ---
 
+## 5.1 边界目标：`datahub` 只出现在 cmd（用户 2026-10-30 明确）
+
+> 规则：`datahub.h` / `datahub_t` / `datahub_*()` **只能出现在 `cmd/`（组合根）**，
+> `modules/` 一律经端口。ADR-002 是这条规则在**驱动层**的落地。
+
+### 现状（实测）
+
+| 范围 | 引用 `datahub` 的文件数 | 说明 |
+|---|---:|---|
+| `modules/` 全体 | **79** | 引擎/管理面/流计算等，超出 ADR-002 范围 |
+| `cmd/` | 15 | 组合根，正确 |
+| **驱动层**（`driver_*.c` + `modbus_*_driver.c`） | **2** | 见下 |
+
+驱动层剩的两个：
+
+| 文件 | 性质 | 处理 |
+|---|---|---|
+| `driver_manager.c` | `_driver_port_read_shadow` / `_driver_port_publish` 等把 `ctx->user_data` 当 datahub 用——**这是 legacy 端口的实现**，只为喂 `edge_driver_ctx_t` 那 8 个回调 | **P2 删回调时一起消失** |
+| `driver_radar_fmcw.c` | `parse_frame(buf, len, datahub_t *hub)` 直接 `datahub_write_shadow`；**全仓无人调用** | 改为接收 sink 端口，或直接删 |
+
+**所以 P2 完成后，驱动层将完全不出现 `datahub`。** 这正是 ADR-002 的终点之一。
+
+### 剩余的 77 个文件（不在 ADR-002 范围）
+
+`session_manager` / `slave_engine` / `northbound_mgr` / `stream_engine` / `rest_server` 等
+仍在模块内直接用 datahub。把 `datahub` 整体收进 cmd 是**另一个更大的议题**
+（相当于给引擎层、管理面也各定义一套端口），建议单独立项，不要混进 ADR-002。
+
+**ADR-002 的边界就是驱动层**：驱动不认识 datahub、不认识点位表、不认识 tag_id。
+引擎与北向编排怎么拿数据，是下一个议题。
+
 ## 6. 顺序与依赖
 
 ```
