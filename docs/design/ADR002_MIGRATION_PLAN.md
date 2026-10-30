@@ -163,6 +163,37 @@ TCP 迁完以为 RTU 是"照抄再补 CRC"，实际连撞三次：
 
 ### S3-e 未注册的 5 个驱动（拦路石）
 
+#### 实测后修正：`read_shadow` 有两种用途，不能一刀切
+
+| 用途 | 谁在用 | 性质 | 归宿 |
+|---|---|---|---|
+| **南向从站应答取当前值** | modbus / dlt698 / iec104 / iec101 / dlms / cia402 | 驱动反向读消费侧，**是泄漏** | 已被 `edge_slave_source_ops_t` 取代 ✅ |
+| **北向生产者读本地状态发帧** | **ccsds / hl7_fhir** | 驱动作为北向出口，读的是本节点状态，**不是泄漏** | 需要单独端口，**不能塞进从站端口** |
+
+ccsds 读的是 `PIPEMSG_TYPE_BATCH`（`payload.batch.ptr` + count），
+hl7 读的是 `PIPEMSG_TYPE_EVENT`（`payload.event.param`）——
+两者都不是标量，而 `edge_point_value_t` 只带 `value/raw/width/quality/ts_ms`。
+硬塞进去会把端口搞成"什么都能装"的万能结构，那和 read_shadow 没区别。
+
+**正确做法**：另开一个 `edge_north_source_ops_t { peek(tag_id, pipe_msg_t *out) }`，
+只给北向生产者用；语义是"看本节点某个 tag 的当前状态"，仍然是消费方定义的端口。
+
+#### 分类处理
+
+| 驱动 | 类型 | 处理 |
+|---|---|---|
+| **IEC101** | 主站+从站，有会话状态 | 按既有模式迁（参考 IEC104） |
+| **DLMS** | 主站+从站，COSEM 对象模型 | 按既有模式迁 |
+| **CIA402** | 从站（`handle_rx`） | 迁，走 `req_slave_exchange` |
+| **CCSDS** | 北向生产者（`on_tick`） | 先加 `edge_north_source_ops_t` 再迁 |
+| **HL7-FHIR** | 北向生产者（`on_tick`） | 同上 |
+
+**为什么不再考虑"直接删"**：仓库里有 `AERO_EDGE_PRD.md`（航天）与 `IOT_HUB_PRD.md`，
+CCSDS 是航天遥测协议、HL7 是医疗协议——删掉等于砍掉规划中的产品线。
+虽然当前没有产品注册它们，但这是"还没接"不是"不要了"。
+
+### S3-e 未注册的 5 个驱动（拦路石）
+
 IEC101 / DLMS / CIA402 / HL7 / CCSDS 没有任何产品注册，但都引用注入包。
 两个选项：
 
