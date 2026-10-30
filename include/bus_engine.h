@@ -4,6 +4,7 @@
 typedef struct uv_loop_s uv_loop_t;
 
 #include "contract_data_types.h"
+#include "edge_slave_plane.h"
 #include "net_buf.h"
 
 // --- Forward Declarations (Decoupling Planes) ---
@@ -26,6 +27,10 @@ struct bus_engine_s {
 
     // [新增] 注入协议契约
     void (*inject)(bus_engine_t* self, const void* proto_contract);
+
+    // [ADR-002 S3-0] 注入从站面端口（取当前值 / 收写入值）。
+    // master 引擎为 NULL；从站引擎把它转交给 session_manager。
+    int (*set_slave_source)(bus_engine_t* self, const edge_slave_source_ops_t* ops, void* ctx);
 
     // 销毁
     void (*detach)(bus_engine_t* self);

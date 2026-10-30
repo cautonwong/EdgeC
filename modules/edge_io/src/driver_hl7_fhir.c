@@ -63,20 +63,22 @@ static void generate_fhir_risk_assessment(char *out_buf, size_t max_len, uint32_
         device_id, time_str, energy);
 }
 
-static int fhir_on_tick(edge_driver_ctx_t *ctx, net_buf_t **out_tx) {
-    hl7_fhir_ctx_t *priv = (hl7_fhir_ctx_t *)ctx->priv;
+/* [ADR-002] 北向生产者：告警事件由端口给，驱动不碰 datahub。 */
+static int fhir_req_tick(void *priv_v, const edge_north_source_ops_t *src, void *src_ctx,
+                         net_buf_pool_t *pool, net_buf_t **out_tx) {
+    hl7_fhir_ctx_t *priv = (hl7_fhir_ctx_t *)priv_v;
+    if (!priv || !src || !src->peek || !pool || !out_tx) return -1;
     pipe_msg_t msg;
     bool needs_tx = false;
     char payload[MAX_FHIR_PAYLOAD];
 
-    // Check for Alarm Events via consumer-defined driver port
-    if (edge_driver_read_shadow(ctx, priv->alarm_tag, &msg) == 0) {
+    if (src->peek(src_ctx, priv->alarm_tag, &msg) == 0) {
         if (msg.type == PIPEMSG_TYPE_EVENT) {
             // Found a fresh alarm
             uint32_t energy = msg.payload.event.param;
             generate_fhir_risk_assessment(payload, sizeof(payload), priv->node_id, energy);
             
-            *out_tx = net_buf_alloc(ctx->pool, strlen(payload) + 1);
+            *out_tx = net_buf_alloc(pool, strlen(payload) + 1);
             memcpy((*out_tx)->b.data, payload, strlen(payload));
             (*out_tx)->b.len = strlen(payload);
             
@@ -93,7 +95,7 @@ edge_driver_t hl7_fhir_exporter_driver = {
     .name = "HL7_FHIR",
     .ctx_size = sizeof(hl7_fhir_ctx_t),
     .on_init = fhir_on_init,
-    .on_tick = fhir_on_tick
+    .req_tick = fhir_req_tick,
 };
 
 int hl7_fhir_driver_register(driver_manager_t *mgr) {

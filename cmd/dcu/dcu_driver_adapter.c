@@ -12,6 +12,7 @@
 #include "contract_data_types.h"
 #include "dcu_inventory.h"
 #include "dcu_router.h"
+#include "modbus_codec.h"
 
 /* 外部协议驱动模板声明 */
 extern const edge_driver_t modbus_rtu_driver;
@@ -224,8 +225,12 @@ uint32_t dcu_driver_adapter_oad_to_proto(const char *proto, uint32_t oad) {
         return 0;
     }
     if (strcasecmp(proto, "ModbusRTU") == 0 || strcasecmp(proto, "Modbus") == 0) {
+        /* [ADR-002] Modbus 的点位标识 = 地址 + 寄存器个数，驱动只认这个。
+         * 长度不能丢：电流/功率/电量都是 2 个寄存器的 32 位量。 */
         for (size_t i = 0; i < sizeof(s_modbus_points) / sizeof(s_modbus_points[0]); i++)
-            if (s_modbus_points[i].tag_id == oad) return s_modbus_points[i].key;
+            if (s_modbus_points[i].tag_id == oad)
+                return MODBUS_NATIVE(s_modbus_points[i].key,
+                                     s_modbus_points[i].length ? s_modbus_points[i].length : 1);
         return 0;
     }
     return 0;
@@ -244,8 +249,9 @@ uint32_t dcu_driver_adapter_proto_to_oad(const char *proto, uint32_t proto_id) {
         return 0;
     }
     if (strcasecmp(proto, "ModbusRTU") == 0 || strcasecmp(proto, "Modbus") == 0) {
+        uint16_t maddr = MODBUS_NATIVE_ADDR(proto_id);
         for (size_t i = 0; i < sizeof(s_modbus_points) / sizeof(s_modbus_points[0]); i++)
-            if (s_modbus_points[i].key == proto_id) return (uint32_t)s_modbus_points[i].tag_id;
+            if (s_modbus_points[i].key == maddr) return (uint32_t)s_modbus_points[i].tag_id;
         return 0;
     }
     return 0;
@@ -264,8 +270,9 @@ double dcu_driver_adapter_scale(const char *proto, uint32_t proto_id) {
         return 0.0;
     }
     if (strcasecmp(proto, "ModbusRTU") == 0 || strcasecmp(proto, "Modbus") == 0) {
+        uint16_t saddr = MODBUS_NATIVE_ADDR(proto_id);
         for (size_t i = 0; i < sizeof(s_modbus_points) / sizeof(s_modbus_points[0]); i++)
-            if (s_modbus_points[i].key == proto_id) return (double)s_modbus_points[i].scaler;
+            if (s_modbus_points[i].key == saddr) return (double)s_modbus_points[i].scaler;
         return 0.0;
     }
     return 0.0;

@@ -9,6 +9,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "edge_slave_plane.h"
 #include "net_buf.h"
 #include "shmring.h"
 
@@ -105,8 +106,10 @@ static inline const char *edge_driver_get_tag_name(edge_driver_ctx_t *ctx, uint3
  * @brief 协议驱动元模型 (V4.0 状态机版)
  */
 /* 请求原生驱动（ADR-002）的私有数据上限。
- * 定长内嵌在请求上下文里，避免为核心路径引入动态内存。 */
-#define REQ_DRV_PRIV_MAX 64
+ * 定长内嵌在请求上下文里，避免为核心路径引入动态内存。
+ * 128 是量出来的：Modbus 要装 32 个原始寄存器（64B）+ 头字段，
+ * 645 的 dlt645_req_t 只有 24B，CAN 的 can_req_t 只有 24B。 */
+#define REQ_DRV_PRIV_MAX 128
 
 struct edge_driver_s {
     const char *name; /**< 协议名称，如 "IEC104" */
@@ -182,6 +185,30 @@ struct edge_driver_s {
      */
     int (*req_decode)(void *priv, const uint8_t *buf, size_t len, size_t *consumed,
                       double *out_value);
+
+    /**
+     * @brief 从站面：解请求 → 向端口取数/收数 → 组应答（ADR-002 S3-0）
+     *
+     * 与 `handle_rx` 的区别：这里**没有** ctx 查表、没有 read_shadow、没有 publish。
+     * "当前值"由 `src->resolve` 给，"写入值"交给 `src->accept`，
+     * 驱动只负责字节 ↔ 结构体的转换。端口每次现传，不进 ctx。
+     *
+     * @param priv      req_priv_size 字节的私有缓冲（scratch，跨帧不必保留）
+     * @param consumed  本帧消耗的字节数；返回 1 表示跳过了前导垃圾
+     */
+    int (*req_slave_exchange)(void *priv, const uint8_t *in, size_t in_len,
+                              const edge_slave_source_ops_t *src, void *src_ctx, net_buf_t *out,
+                              size_t *consumed);
+
+    /**
+     * @brief 北向生产者：读本地状态组北向报文（ADR-002）
+     *
+     * 与 `on_tick` 的区别：这里没有 `read_shadow`、没有 datahub 句柄。
+     * 状态由 `src->peek` 给，驱动不知道背后是什么。
+     * `priv` 是**持久**上下文（ctx_size 字节），因为生产者要记序号等状态。
+     */
+    int (*req_tick)(void *priv, const edge_north_source_ops_t *src, void *src_ctx,
+                    net_buf_pool_t *pool, net_buf_t **out_tx);
 };
 
 /**

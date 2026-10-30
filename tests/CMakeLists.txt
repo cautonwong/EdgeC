@@ -139,6 +139,7 @@ add_edge_test(test_wavelet_anomaly test_wavelet_anomaly.c)
 add_edge_test(test_kinematics test_kinematics.c)
 add_edge_test(test_dcu_poller test_dcu_poller.c)
 add_edge_test(test_dlt645_codec test_dlt645_codec.c)
+add_edge_test(test_driver_iec101 test_driver_iec101.c)
 add_edge_test(test_dcu_scale_benchmark test_dcu_scale_benchmark.c)
 add_edge_test(test_protocol_bridge test_protocol_bridge.c)
 add_edge_test(test_wasm_secure test_wasm_secure.c)
@@ -226,6 +227,9 @@ target_link_libraries(test_dcu_storage PRIVATE dcu_app_lib)
 target_link_libraries(test_dcu_integration PRIVATE dcu_app_lib)
 target_link_libraries(test_dcu_router PRIVATE dcu_app_lib)
 target_link_libraries(test_dcu_poller PRIVATE dcu_app_lib)
+# IEC101 request-native 契约测试：只依赖 edge_io + edge_protocol
+target_link_libraries(test_driver_iec101 PRIVATE edge_io edge_protocol)
+
 # DL/T 645 纯 codec（ADR-002 S1）：只依赖 edge_io，不依赖任何产品
 target_include_directories(test_dlt645_codec PRIVATE ${CMAKE_SOURCE_DIR}/modules/edge_io/src)
 target_link_libraries(test_dlt645_codec PRIVATE edge_io)
@@ -542,23 +546,9 @@ target_link_libraries(test_datahub_subscription PRIVATE
 )
 add_test(NAME test_datahub_subscription COMMAND test_datahub_subscription)
 
-# ARCH-DEEP-02 南向驱动自动轮询调度与遥测编排器测试
-add_executable(test_driver_orchestrator test_driver_orchestrator.c)
-target_link_libraries(test_driver_orchestrator PRIVATE
-    -Wl,--start-group
-    edge_infra
-    edge_io
-    edge_stream
-    edge_security
-    edge_core
-    edge_algo
-    iems_app_lib
-    -Wl,--end-group
-    edge_common_interface
-    cmocka::cmocka
-    pthread dl rt m
-)
-add_test(NAME test_driver_orchestrator COMMAND test_driver_orchestrator)
+# [ADR-002] test_driver_orchestrator 已随内置轮询器一起删除：
+# 它测的 driver_manager_start_auto_polling/add_poll_target 是第三套轮询实现，
+# 与 dcu_poller / edge_api 重复且无产品使用。
 
 # ARCH-DEEP-03 时序存储、WAL 崩溃一致性与 SnF 统一仓储测试
 add_executable(test_telemetry_store_crash test_telemetry_store_crash.c)

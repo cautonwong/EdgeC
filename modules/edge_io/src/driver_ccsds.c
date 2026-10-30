@@ -36,13 +36,16 @@ static int ccsds_on_init(edge_driver_ctx_t *ctx) {
     return 0;
 }
 
-static int ccsds_on_tick(edge_driver_ctx_t *ctx, net_buf_t **out_tx) {
-    ccsds_ctx_t *priv = (ccsds_ctx_t *)ctx->priv;
+/* [ADR-002] 北向生产者：状态由端口给，驱动不碰 datahub。
+ * 与从站端口的区别：这里读的是本节点状态，可能是 BATCH/EVENT，不只是标量。 */
+static int ccsds_req_tick(void *priv_v, const edge_north_source_ops_t *src, void *src_ctx,
+                          net_buf_pool_t *pool, net_buf_t **out_tx) {
+    ccsds_ctx_t *priv = (ccsds_ctx_t *)priv_v;
+    if (!priv || !src || !src->peek || !pool || !out_tx) return -1;
     pipe_msg_t msg;
     bool needs_tx = false;
 
-    // Read latest telemetry via consumer-defined driver port
-    if (edge_driver_read_shadow(ctx, priv->telemetry_tag, &msg) == 0) {
+    if (src->peek(src_ctx, priv->telemetry_tag, &msg) == 0) {
         // Serialize telemetry to CCSDS Packet
         // Suppose it's a vector (e.g. Quaternion) or a scalar
         uint32_t payload_len = 0;
@@ -74,7 +77,7 @@ static int ccsds_on_tick(edge_driver_ctx_t *ctx, net_buf_t **out_tx) {
         hdr.data_length = htons(payload_len - 1);
         
         // Allocate buffer and pack
-        *out_tx = net_buf_alloc(ctx->pool, sizeof(ccsds_primary_header_t) + payload_len);
+        *out_tx = net_buf_alloc(pool, sizeof(ccsds_primary_header_t) + payload_len);
         memcpy((*out_tx)->b.data, &hdr, sizeof(ccsds_primary_header_t));
         memcpy((*out_tx)->b.data + sizeof(ccsds_primary_header_t), payload_buf, payload_len);
         (*out_tx)->b.len = sizeof(ccsds_primary_header_t) + payload_len;
@@ -89,7 +92,7 @@ edge_driver_t ccsds_telemetry_driver = {
     .name = "CCSDS",
     .ctx_size = sizeof(ccsds_ctx_t),
     .on_init = ccsds_on_init,
-    .on_tick = ccsds_on_tick
+    .req_tick = ccsds_req_tick,
 };
 
 int ccsds_driver_register(driver_manager_t *mgr) {

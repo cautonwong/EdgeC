@@ -152,6 +152,16 @@ static int teardown(void** state) {
     return 0;
 }
 
+/* [ADR-002 S3-0] 从站面端口：驱动不再读影子表，当前值由这里给。 */
+static int _mock_slave_resolve(void* ctx, uint32_t point_id, edge_point_value_t* out) {
+    (void)ctx;
+    (void)point_id;
+    out->raw = 2317;
+    out->width = 1;
+    out->value = 231.7;
+    return 0;
+}
+
 static void test_iems_dispatch_flow(void** state) {
     iems_test_ctx_t* ctx = (iems_test_ctx_t*)*state;
 
@@ -166,6 +176,9 @@ static void test_iems_dispatch_flow(void** state) {
         .lookup_by_key = (const void* (*)(uint64_t))edge_get_map_modbus,
         .lookup_by_tag = (const void* (*)(uint32_t))edge_get_map_modbus_by_tag};
     bus_orchestrator_setup_slave(ctx->orch, 1, "ModbusRTU", 1, &mb_inj);
+    /* 从站应答的"当前值"由端口给，驱动不认识点位模型 */
+    static edge_slave_source_ops_t s_mb_src = {.resolve = _mock_slave_resolve, .accept = NULL};
+    bus_orchestrator_set_slave_source(ctx->orch, 1, &s_mb_src, NULL);
     ctx->mb_io.ops = &mb_mock_ops;
     bus_orchestrator_attach_io(ctx->orch, 1, &ctx->mb_io);
 

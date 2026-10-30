@@ -108,50 +108,14 @@ edge_driver_ctx_t *driver_instance_create(driver_manager_t *mgr, const char *pro
  */
 void driver_instance_destroy(edge_driver_ctx_t *ctx, const char *protocol);
 
-/**
- * @brief 初始化并启动南向自动轮询编排引擎
- */
-int driver_manager_start_auto_polling(driver_manager_t *mgr, const edge_orchestrator_cfg_t *cfg);
-
-/**
- * @brief 声明式注册物理设备轮询通道
- * @param mgr 驱动管理器句柄
- * @param device_id 目标设备 ID
- * @param protocol 协议名称 (如 "DLT645", "ModbusRTU")
- * @param io_handle 南向传输层句柄 (串口/TCP/Socket)
- * @param tag_ids 需要轮询的测点 ID 列表
- * @param tag_count 测点数量
- * @param policy 调度策略
- */
-int driver_manager_add_poll_target(driver_manager_t *mgr, uint32_t device_id,
-                                   const char *protocol, io_handle_t *io_handle,
-                                   const uint32_t *tag_ids, size_t tag_count,
-                                   const edge_poll_policy_t *policy);
-
-/**
- * @brief 暂停/恢复指定通道轮询
- */
-int driver_manager_set_target_active(driver_manager_t *mgr, uint32_t device_id, bool active);
-
-/**
- * @brief 获取通道运行统计指标
- */
-int driver_manager_get_target_stats(driver_manager_t *mgr, uint32_t device_id, edge_poll_stats_t *stats);
-
-/**
- * @brief 手动立即单次触发指定设备轮询
- */
-int driver_manager_trigger_poll_now(driver_manager_t *mgr, uint32_t device_id);
-
-/**
- * @brief 喂入收到的物理帧响应并触发自动解码入库
- */
-int driver_manager_feed_response(driver_manager_t *mgr, uint32_t device_id, net_buf_t *rx_buf);
-
-/**
- * @brief 停止并销毁自动轮询编排引擎
- */
-int driver_manager_stop_auto_polling(driver_manager_t *mgr);
+/* [ADR-002] 内置轮询器（start/add_poll_target/set_target_active/get_target_stats/
+ * trigger_poll_now/feed_response/stop_auto_polling/reset_circuit_breaker）已删除。
+ *
+ * 它是第三套轮询实现：直接调驱动的 legacy 槽位 encode_request/decode_response，
+ * 绕过请求层，与 dcu_poller（DCU）和 edge_api_read_tag（IEMS/SmartBox）完全重复，
+ * 且没有任何产品在用。保留它意味着每个驱动迁移都要额外照顾一条死路径。
+ *
+ * 需要轮询请用：DCU 走 dcu_poller，其余产品走 edge_api_read_tag / _ex。 */
 
 /**
  * @brief 重置通道熔断状态并恢复轮询调度

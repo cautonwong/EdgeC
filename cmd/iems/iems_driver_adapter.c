@@ -12,6 +12,7 @@
 #include <string.h>
 
 #include "contract_data_types.h"
+#include "modbus_codec.h"
 
 /* 外部协议驱动模板声明 */
 extern edge_driver_t modbus_rtu_driver;
@@ -158,6 +159,47 @@ static const driver_contract_injection_t s_can_injection = {
     .lookup_by_key = iems_lookup_can_by_key,
     .lookup_by_tag = iems_lookup_can_by_tag,
 };
+
+/* [ADR-002] 产品的点位标识 → 驱动认识的原生标识。
+ * 645 的 DI 已由 dcu_driver_adapter_oad_to_proto 换好；CAN 的 CAN ID 在这里换。
+ * 翻译必须在产品侧完成——驱动拿不到点位表，也不该拿到。 */
+uint32_t iems_driver_adapter_native_id(const char *proto, uint32_t tag_id) {
+    if (!proto) return tag_id;
+    if (strcasecmp(proto, "CAN") == 0) {
+        const modbus_map_t *m = (const modbus_map_t *)iems_lookup_can_by_tag(tag_id);
+        if (m) return (uint32_t)m->key;
+    }
+    /* Modbus 已全部 request-native：点位 = 寄存器地址 + 寄存器个数。
+     * 协议串有三种写法（ModbusRTU / ModbusTCP / MODBUS），都要覆盖。 */
+    if (strcasecmp(proto, "ModbusTCP") == 0 || strcasecmp(proto, "ModbusRTU") == 0 ||
+        strcasecmp(proto, "Modbus") == 0) {
+        const modbus_map_t *m = (const modbus_map_t *)iems_lookup_modbus_by_tag(tag_id);
+        if (m) return MODBUS_NATIVE((uint32_t)m->key, m->length ? m->length : 1);
+    }
+    return tag_id;
+}
+
+/* [ADR-002] 量纲：request-native 驱动不再自己乘 scaler，改由调用方给。
+ * legacy 驱动仍在驱动内部标定，这里返回 1.0，避免双重相乘。 */
+double iems_driver_adapter_tag_scale(const char *proto, uint32_t tag_id) {
+    if (!proto) return 1.0;
+    if (strcasecmp(proto, "CAN") == 0) {
+        const modbus_map_t *m = (const modbus_map_t *)iems_lookup_can_by_tag(tag_id);
+        if (m && m->scaler > 0.0) return m->scaler;   /* CAN：工程值 = raw × scaler */
+    }
+    if (strcasecmp(proto, "ModbusTCP") == 0) {
+        const modbus_map_t *m = (const modbus_map_t *)iems_lookup_modbus_by_tag(tag_id);
+        /* Modbus：工程值 = raw / scaler，所以这里给倒数 */
+        if (m && m->scaler > 0.0) return 1.0 / m->scaler;
+    }
+    if (strcasecmp(proto, "ModbusRTU") == 0 || strcasecmp(proto, "Modbus") == 0) {
+        const modbus_map_t *m = (const modbus_map_t *)iems_lookup_modbus_by_tag(tag_id);
+        /* ModbusRTU 的旧约定是 ×scaler（与 TCP 相反）。历史差异，不在这次
+         * 改造里纠正——改数值口径要单独验证现场，混在重构里最危险。 */
+        if (m && m->scaler > 0.0) return m->scaler;
+    }
+    return 1.0;
+}
 
 /* ==============================================================================
  * 5. DL/T 645-2007 静态测点映射表

@@ -49,6 +49,10 @@ typedef struct {
 
     struct driver_manager_s* drv_mgr;
     struct edge_driver_ctx_s* nb_driver;
+    /* [ADR-002] 北向生产者端口：由组合根注入，驱动不碰 datahub。
+     * 存指针而不是内嵌，避免根目录头文件依赖 edge_io 的 include 路径。 */
+    const struct edge_north_source_ops_s* north_src;
+    void* north_src_ctx;
 
     struct uv__queue req_queue;
     uv_mutex_t req_lock;

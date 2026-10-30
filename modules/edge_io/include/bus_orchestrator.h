@@ -6,6 +6,7 @@
 #include "arbiter.h"
 #include "contract_data_types.h"
 #include "datahub.h"
+#include "edge_slave_plane.h"
 #include "io_executor.h"
 
 // 前向声明驱动管理器，避免循环包含
@@ -39,6 +40,12 @@ void bus_orchestrator_set_monitor_tags(bus_orchestrator_t *ctx,
                                        const bus_orch_monitor_tags_t *tags);
 
 int bus_orchestrator_attach_io(bus_orchestrator_t *ctx, int bus_id, io_handle_t *io);
+
+/* [ADR-002 S3-0] 注入从站面端口（取当前值 / 收写入值）。
+ * request-native 驱动的 req_slave_exchange 用它；驱动自己不认识点位模型。
+ * 组合根在 setup_slave 之后调用。 */
+int bus_orchestrator_set_slave_source(bus_orchestrator_t *ctx, int bus_id,
+                                      const edge_slave_source_ops_t *ops, void *user_ctx);
 
 io_handle_t *bus_orchestrator_get_io(bus_orchestrator_t *ctx, int bus_id);
 

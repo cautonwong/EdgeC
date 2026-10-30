@@ -169,78 +169,9 @@ static void test_scale_benchmark_p99_latency(void** state) {
     dcu_poller_destroy(&poller);
 }
 
-static void test_e2e_request_to_shadow(void** state) {
-    (void)state;
-    uv_loop_t loop;
-    uv_loop_init(&loop);
-
-    datahub_t hub;
-    assert_int_equal(datahub_init(&hub, &loop, "bench_hub", 256, 1024, NULL, 0, NULL, NULL, NULL), 0);
-
-    driver_manager_t* drv_mgr = driver_manager_create();
-    assert_non_null(drv_mgr);
-
-    // 注册驱动
-    extern const edge_driver_t modbus_rtu_driver;
-    driver_manager_register(drv_mgr, &modbus_rtu_driver);
-
-    edge_orchestrator_cfg_t cfg = {
-        .loop = &loop,
-        .hub = &hub,
-        .io_pool = datahub_get_io_pool(&hub),
-        .max_channels = 4
-    };
-    assert_int_equal(driver_manager_start_auto_polling(drv_mgr, &cfg), 0);
-
-    // 注册轮询目标 (Device 1, ModbusRTU)
-    uint32_t tags[1] = {1001};
-    edge_poll_policy_t policy = {.interval_ms = 1000, .timeout_ms = 500, .max_in_flight = 1};
-    assert_int_equal(driver_manager_add_poll_target(drv_mgr, 1, "ModbusRTU", NULL, tags, 1, &policy), 0);
-
-#include "modbus_codec.h"
-
-    // 构造真实合规 Modbus RTU 响应帧：Slave=1, FC=03, ByteCount=2, Value=0x0898 (220.0V), CRC
-    net_buf_pool_t* pool = net_buf_pool_new(16, 256, 0);
-    assert_non_null(pool);
-    net_buf_t* rx_buf = net_buf_alloc(pool, 0);
-    assert_non_null(rx_buf);
-    uint8_t raw_modbus_resp[7] = {0x01, 0x03, 0x02, 0x08, 0x98, 0x00, 0x00};
-    uint16_t crc = modbus_calculate_crc(raw_modbus_resp, 5);
-    raw_modbus_resp[5] = (uint8_t)(crc & 0xFF);
-    raw_modbus_resp[6] = (uint8_t)(crc >> 8);
-    // 触发主动编码请求 (encode_request)
-    assert_int_equal(driver_manager_trigger_poll_now(drv_mgr, 1), 0);
-
-    net_buf_simple_add_mem(&rx_buf->b, raw_modbus_resp, sizeof(raw_modbus_resp));
-
-    // 喂入响应帧并触发解码与 DataHub 影子更新
-    int rc = driver_manager_feed_response(drv_mgr, 1, rx_buf);
-    assert_int_equal(rc, 0);
-
-    // 检查统计指标更新
-    edge_poll_stats_t stats;
-    assert_int_equal(driver_manager_get_target_stats(drv_mgr, 1, &stats), 0);
-    assert_int_equal(stats.success_count, 1);
-    assert_int_equal(stats.consecutive_fails, 0);
-    assert_false(stats.is_circuit_broken);
-
-    // 验证 DataHub Shadow 状态已同步
-    pipe_msg_t shadow_msg;
-    assert_int_equal(datahub_read_shadow(&hub, 1001, &shadow_msg), 0);
-    assert_float_equal(shadow_msg.payload.val.f, 220.0, 0.5);
-
-    net_buf_unref(rx_buf);
-    net_buf_pool_destroy(pool);
-    driver_manager_destroy(drv_mgr);
-    datahub_destroy(&hub);
-    uv_run(&loop, UV_RUN_NOWAIT);
-    uv_loop_close(&loop);
-}
-
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_scale_benchmark_p99_latency),
-        cmocka_unit_test(test_e2e_request_to_shadow),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

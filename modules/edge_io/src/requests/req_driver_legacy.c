@@ -17,7 +17,9 @@ typedef struct {
     char protocol[16];
     uint32_t slave_id;
     cmd_action_t action;
-    uint32_t tag_id;
+    uint32_t tag_id;        /* 驱动认的原生点位标识 */
+    uint32_t result_tag_id; /* 回调认的标识（产品自己的 tag_id） */
+    double scale;           /* 解码值量纲，<=0 视为 1.0 */
     double value;
     legacy_on_complete_cb on_complete;
     void *user_data;
@@ -122,7 +124,9 @@ static int legacy_decode(edge_req_t *req, net_buf_t *buf, size_t *consumed) {
         if (nrc != 0) return REQ_STATUS_ERROR;
 
         memset(&ctx->result_msg, 0, sizeof(pipe_msg_t));
-        pipe_msg_init_scalar(&ctx->result_msg, (edge_tag_id_t)ctx->tag_id, value, uv_hrtime());
+        /* 驱动只回原始值；标识与量纲由调用方给（ADR-002：驱动不认 tag_id、不管标定） */
+        pipe_msg_init_scalar(&ctx->result_msg, (edge_tag_id_t)ctx->result_tag_id,
+                             value * ctx->scale, uv_hrtime());
         ctx->result_msg.device_id = ctx->slave_id;
         return REQ_STATUS_DONE;
     }
@@ -184,17 +188,23 @@ static const request_ops_t legacy_ops = {
 };
 
 edge_req_t *req_legacy_driver_create(driver_manager_t *dm, const char *protocol, uint32_t slave_id,
-                                     cmd_action_t action, uint32_t tag_id, double value,
-                                     void *lookup_by_tag, void *lookup_by_key,
-                                     const void *meta_list, uint32_t meta_list_len,
-                                     legacy_on_complete_cb user_cb, void *user_data) {
+                                     cmd_action_t action, uint32_t native_id, uint32_t result_tag_id,
+                                     double scale, double value, void *lookup_by_tag,
+                                     void *lookup_by_key, const void *meta_list,
+                                     uint32_t meta_list_len, legacy_on_complete_cb user_cb,
+                                     void *user_data) {
     edge_req_t *req = calloc(1, sizeof(edge_req_t));
     legacy_req_ctx_t *ctx = calloc(1, sizeof(legacy_req_ctx_t));
     ctx->dm = dm;
     ctx->slave_id = slave_id;
     ctx->action = action;
-    ctx->tag_id = tag_id;
+    ctx->tag_id = native_id;
+    ctx->result_tag_id = result_tag_id;
+    ctx->scale = (scale > 0.0) ? scale : 1.0;
     ctx->value = value;
+    /* [ADR-002] request-native 驱动（req_encode 非空）根本不会碰这两个指针；
+     * 仍在 legacy 的驱动（Modbus/IEC104/…）还要靠它们查表，所以照旧传下去，
+     * 等它们迁完再整块删掉（届时这两个形参一起消失）。 */
     ctx->lookup_by_tag = lookup_by_tag;
     ctx->lookup_by_key = lookup_by_key;
     ctx->meta_list = meta_list;

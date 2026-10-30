@@ -3,6 +3,7 @@
 
 #include "driver_manager.h"
 #include "edge_driver.h"
+#include "edge_slave_plane.h"
 
 typedef struct session_manager_s session_manager_t;
 
@@ -45,6 +46,17 @@ void session_manager_close(session_manager_t* sm, const char* protocol, uint32_t
 
 int session_manager_add_session(session_manager_t* sm, const char* protocol, uint32_t device_id,
                                 const driver_contract_injection_t* inject, void* user_data);
+
+/* [ADR-002 S3-0] 注入从站面端口（取当前值 / 收写入值）。
+ * 由组合根调用；request-native 驱动的 req_slave_exchange 用它，
+ * 驱动自己不认识点位模型。端口不进 edge_driver_ctx_t。 */
+/* [ADR-002] 注入北向生产者端口（读本节点状态发帧）。与从站端口并列，
+ * 用途不同：从站要标量，北向要 BATCH/EVENT/标量。 */
+void session_manager_set_north_source(session_manager_t* sm,
+                                      const edge_north_source_ops_t* ops, void* ctx);
+
+void session_manager_set_slave_source(session_manager_t* sm,
+                                      const edge_slave_source_ops_t* ops, void* ctx);
 
 int session_manager_handle_rx(session_manager_t* sm, net_buf_t* rx, net_buf_t* resp_out,
                               pipe_msg_t* async_msgs, int* async_count, size_t* consumed);
