@@ -542,23 +542,9 @@ target_link_libraries(test_datahub_subscription PRIVATE
 )
 add_test(NAME test_datahub_subscription COMMAND test_datahub_subscription)
 
-# ARCH-DEEP-02 南向驱动自动轮询调度与遥测编排器测试
-add_executable(test_driver_orchestrator test_driver_orchestrator.c)
-target_link_libraries(test_driver_orchestrator PRIVATE
-    -Wl,--start-group
-    edge_infra
-    edge_io
-    edge_stream
-    edge_security
-    edge_core
-    edge_algo
-    iems_app_lib
-    -Wl,--end-group
-    edge_common_interface
-    cmocka::cmocka
-    pthread dl rt m
-)
-add_test(NAME test_driver_orchestrator COMMAND test_driver_orchestrator)
+# [ADR-002] test_driver_orchestrator 已随内置轮询器一起删除：
+# 它测的 driver_manager_start_auto_polling/add_poll_target 是第三套轮询实现，
+# 与 dcu_poller / edge_api 重复且无产品使用。
 
 # ARCH-DEEP-03 时序存储、WAL 崩溃一致性与 SnF 统一仓储测试
 add_executable(test_telemetry_store_crash test_telemetry_store_crash.c)
