@@ -63,7 +63,10 @@ static int iec101_on_init(edge_driver_ctx_t *ctx) {
 /* ==================== 主站：组请求 ==================== */
 
 static int iec101_req_prepare(void *priv_v, uint32_t slave_id, uint32_t point_id,
-                              const void *meta_list, uint32_t meta_list_len) {
+                              const void *meta_list, uint32_t meta_list_len,
+                              const void *point_desc, size_t point_desc_len) {
+    (void)point_desc;
+    (void)point_desc_len;
     (void)meta_list;
     (void)meta_list_len;
     iec101_ctx_t *priv = (iec101_ctx_t *)priv_v;

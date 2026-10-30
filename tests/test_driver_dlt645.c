@@ -22,7 +22,7 @@ extern const edge_driver_t dlt645_driver;
 
 static void _prepare(dlt645_req_t* priv, uint32_t di) {
     memset(priv, 0, sizeof(*priv));
-    assert_int_equal(dlt645_driver.req_prepare(priv, 0, di, NULL, 0), 0);
+    assert_int_equal(dlt645_driver.req_prepare(priv, 0, di, NULL, 0, NULL, 0), 0);
 }
 
 /* 验收台架的真实应答帧：68 010000000000 68 91 06 33343435 4a56 d8 16
@@ -70,7 +70,7 @@ static void test_dlt645_roundtrip(void** state) {
     uint8_t meta[1][6] = {{0x01, 0x02, 0x03, 0x04, 0x05, 0x06}};
     dlt645_req_t req;
     memset(&req, 0, sizeof(req));
-    assert_int_equal(dlt645_driver.req_prepare(&req, 0, 0x02010100, meta, 1), 0);
+    assert_int_equal(dlt645_driver.req_prepare(&req, 0, 0x02010100, meta, 1, NULL, 0), 0);
 
     uint8_t mem[256];
     net_buf_t out;

@@ -42,8 +42,11 @@ static void _fill_sa(dlt698_req_t *p, uint32_t slave_id) {
 
 /* ==================== 主站侧 ==================== */
 
-static int dlt698_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id,
-                              const void *meta_list, uint32_t meta_list_len) {
+static int dlt698_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id, const void *meta_list,
+                              uint32_t meta_list_len, const void *point_desc,
+                              size_t point_desc_len) {
+    (void)point_desc;
+    (void)point_desc_len;
     (void)meta_list;
     (void)meta_list_len;
     dlt698_req_t *p = (dlt698_req_t *)priv;

@@ -60,8 +60,8 @@ static const edge_api_meta_entry_t *_meta_of(const char *protocol) {
 }
 
 int edge_api_read_tag_ex(int bus_id, const char *protocol, uint32_t slave_id, uint32_t native_id,
-                         uint32_t result_tag_id, double scale, legacy_on_complete_cb cb,
-                         void *user_data) {
+                         uint32_t result_tag_id, double scale, const void *point_desc,
+                         size_t point_desc_len, legacy_on_complete_cb cb, void *user_data) {
     if (!g_orch) {
         static uint64_t last_no_orch = 0;
         if (uv_now(uv_default_loop()) - last_no_orch > 1000) {
@@ -82,7 +82,7 @@ int edge_api_read_tag_ex(int bus_id, const char *protocol, uint32_t slave_id, ui
         g_drv_mgr, protocol, slave_id, CMD_ACTION_READ, native_id, result_tag_id, scale, 0.0,
         inject ? (void *)inject->lookup_by_tag : NULL,
         inject ? (void *)inject->lookup_by_key : NULL, meta ? meta->meta : NULL,
-        meta ? meta->count : 0, cb, user_data);
+        meta ? meta->count : 0, point_desc, point_desc_len, cb, user_data);
     if (!req) {
         static uint64_t last_no_req = 0;
         if (uv_now(uv_default_loop()) - last_no_req > 1000) {
@@ -118,7 +118,7 @@ int edge_api_read_tag_ex(int bus_id, const char *protocol, uint32_t slave_id, ui
 int edge_api_read_tag(int bus_id, const char *protocol, uint32_t slave_id, uint32_t physical_tag_id,
                       legacy_on_complete_cb cb, void *user_data) {
     return edge_api_read_tag_ex(bus_id, protocol, slave_id, physical_tag_id, physical_tag_id, 1.0,
-                                cb, user_data);
+                                NULL, 0, cb, user_data);
 }
 
 int edge_api_write_tag(int bus_id, const char *protocol, uint32_t slave_id,
@@ -132,7 +132,7 @@ int edge_api_write_tag(int bus_id, const char *protocol, uint32_t slave_id,
         g_drv_mgr, protocol, slave_id, CMD_ACTION_WRITE, physical_tag_id, physical_tag_id, 1.0,
         value, inject ? (void *)inject->lookup_by_tag : NULL,
         inject ? (void *)inject->lookup_by_key : NULL, meta ? meta->meta : NULL,
-        meta ? meta->count : 0, cb, user_data);
+        meta ? meta->count : 0, NULL, 0, cb, user_data);
     if (!req) return -1;
 
     cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));

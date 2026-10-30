@@ -39,8 +39,11 @@ static int _decode_native(uint32_t native_id, uint16_t *addr, uint16_t *quantity
 
 /* ==================== 主站侧 ==================== */
 
-static int mb_rtu_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id,
-                              const void *meta_list, uint32_t meta_list_len) {
+static int mb_rtu_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id, const void *meta_list,
+                              uint32_t meta_list_len, const void *point_desc,
+                              size_t point_desc_len) {
+    (void)point_desc;
+    (void)point_desc_len;
     (void)meta_list;
     (void)meta_list_len;
     modbus_rtu_req_t *p = (modbus_rtu_req_t *)priv;

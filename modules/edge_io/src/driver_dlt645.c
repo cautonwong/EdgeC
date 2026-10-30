@@ -249,8 +249,11 @@ int dlt645_encode_slave_abnormal(const dlt645_req_t *req, uint8_t err, net_buf_t
 
 /* ==================== 挂到 edge_driver_t（request-native） ==================== */
 
-static int dlt645_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id,
-                              const void *meta_list, uint32_t meta_list_len) {
+static int dlt645_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id, const void *meta_list,
+                              uint32_t meta_list_len, const void *point_desc,
+                              size_t point_desc_len) {
+    (void)point_desc;
+    (void)point_desc_len;
     dlt645_req_t *p = (dlt645_req_t *)priv;
     if (!p) return -1;
 

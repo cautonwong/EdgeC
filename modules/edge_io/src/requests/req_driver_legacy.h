@@ -30,7 +30,8 @@ edge_req_t *req_legacy_driver_create(driver_manager_t *dm, const char *protocol,
                                      cmd_action_t action, uint32_t native_id, uint32_t result_tag_id,
                                      double scale, double value, void *lookup_by_tag,
                                      void *lookup_by_key, const void *meta_list,
-                                     uint32_t meta_list_len, legacy_on_complete_cb user_cb,
+                                     uint32_t meta_list_len, const void *point_desc,
+                                     size_t point_desc_len, legacy_on_complete_cb user_cb,
                                      void *user_data);
 
 #endif

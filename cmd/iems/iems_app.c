@@ -206,7 +206,7 @@ static void on_poll_task_trigger(uv_periodic_t* handle) {
         uint32_t native_id = iems_driver_adapter_native_id(task->protocol, task->tag_id);
         double scale = iems_driver_adapter_tag_scale(task->protocol, task->tag_id);
         edge_api_read_tag_ex(task->bus_id, task->protocol, task->slave_id, native_id, task->tag_id,
-                             scale, on_poll_complete, task->agg_root);
+                             scale, NULL, 0, on_poll_complete, task->agg_root);
     }
 }
 

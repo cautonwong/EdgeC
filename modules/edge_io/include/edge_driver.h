@@ -171,9 +171,12 @@ struct edge_driver_s {
      * @param slave_id  从站地址/设备号
      * @param point_id  行业原生点位标识（645 是 DI，Modbus 是寄存器地址）
      * @param meta_list 设备附加信息（645 是 6 字节 BCD 表地址数组，按 slave_id 索引）
+     * @param point_desc 本次请求的点位描述（点位标识超过 32 位的协议用，如 DLMS 的
+     *                   OBIS+class_id+attr）。**不是表**——调用方给的就是这一个点。
+     *                   驱动用 point_desc_len 校验尺寸，不匹配就拒绝。
      */
     int (*req_prepare)(void *priv, uint32_t slave_id, uint32_t point_id, const void *meta_list,
-                       uint32_t meta_list_len);
+                       uint32_t meta_list_len, const void *point_desc, size_t point_desc_len);
 
     /** @brief 私有数据 → 请求字节 */
     int (*req_encode)(void *priv, net_buf_t *out);
