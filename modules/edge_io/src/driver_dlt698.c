@@ -1,12 +1,17 @@
 /**
  * @file driver_dlt698.c
- * @brief 面向对象规约 DLT698.45 驱动 (Codec 分离 + 有状态会话)
+ * @brief 面向对象规约 DLT698.45 驱动 —— 纯 codec（ADR-002 S3-c）
+ *
+ * 与 645 同族，点位标识天然是 **OAD**（不需要像 Modbus 那样编码地址+长度），
+ * 所以产品适配层不用改：`oad_to_proto("DLT698", oad)` 返回的就是 OAD。
+ *
+ * 这个文件里没有 lookup_by_tag / lookup_by_key / read_shadow / tag_id：
+ *   - 主站：只认 oad，只回原始值；标识与量纲由调用方给
+ *   - 从站：解 GET 请求 → src->resolve(oad) → 组应答，驱动不认识点位模型
  */
 
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 #include "dlt698_codec.h"
 #include "dlt645_codec.h"
@@ -15,173 +20,161 @@
 #include "edge_log.h"
 #include "net_buf.h"
 
+#define DLT698_ADDR_LEN 6
+
+/** 请求私有数据：驱动认识的全部信息 */
 typedef struct {
-    dlt698_addr_t sa;
-    uint8_t piid;
-    uint32_t last_oad;
-    bool connected;
-} dlt698_ctx_t;
+    uint32_t oad;                  /**< 对象标识，698 原生点位 */
+    uint8_t piid;                  /**< 服务序号 */
+    uint8_t sa_addr[DLT698_ADDR_LEN];
+    uint8_t sa_len;
+    int32_t raw;                   /**< 解码出的原始值 */
+} dlt698_req_t;
 
-static int dlt698_v4_on_init(edge_driver_ctx_t *ctx) {
-    dlt698_ctx_t *priv = (dlt698_ctx_t *)ctx->priv;
-    memset(priv, 0, sizeof(dlt698_ctx_t));
-    
-    // 从 device_id 恢复 BCD 地址
-    dlt645_u64_to_bcd_addr(ctx->device_id, priv->sa.addr);
-    priv->sa.len = 6;
-    priv->sa.type = 0; // Single
-    priv->piid = 0;
+/* PIID 是协议层序号，不依赖任何全局服务 */
+static uint8_t s_piid;
+
+static void _fill_sa(dlt698_req_t *p, uint32_t slave_id) {
+    memset(p->sa_addr, 0, sizeof(p->sa_addr));
+    dlt645_u64_to_bcd_addr(slave_id, p->sa_addr);
+    p->sa_len = DLT698_ADDR_LEN;
+}
+
+/* ==================== 主站侧 ==================== */
+
+static int dlt698_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id,
+                              const void *meta_list, uint32_t meta_list_len) {
+    (void)meta_list;
+    (void)meta_list_len;
+    dlt698_req_t *p = (dlt698_req_t *)priv;
+    if (!p) return -1;
+    p->oad = point_id;
+    _fill_sa(p, slave_id);
+    p->piid = ++s_piid;
+    p->raw = 0;
     return 0;
 }
 
-static int dlt698_v4_encode_request(edge_driver_ctx_t *ctx, const uint32_t *tag_ids, int count,
-                                    net_buf_t *out) {
-    dlt698_ctx_t *priv = (dlt698_ctx_t *)ctx->priv;
-    if (count == 0) return -1;
-
-    // 【核心修正】实事求是：拿着 tag_id (影子索引) 去契约里找回原始 OAD
-    const dlt698_map_t *map = NULL; 
-    if (ctx->lookup_by_tag) {
-        map = (const dlt698_map_t *)ctx->lookup_by_tag(tag_ids[0]);
-    }
-    if (!map) {
-        // 如果契约里没找到映射，说明这个索引是非法的。由于我们的 poller 动态生成了索引，
-        // 我们在此必须有一个 Fallback：如果找不到，则尝试直接使用外部传进来的 OAD 提示
-        // 在本项目的 DCU 场景下，我们信任 poller 计算出的索引在契约反查表的覆盖范围内。
-        return -1;
-    }
-
-    priv->last_oad = (uint32_t)map->key;
-    return dlt698_encode_get_request(&priv->sa, ++priv->piid, priv->last_oad, out);
+static int dlt698_req_encode(void *priv, net_buf_t *out) {
+    dlt698_req_t *p = (dlt698_req_t *)priv;
+    if (!p || !out) return -1;
+    dlt698_addr_t sa = {.len = p->sa_len, .type = 0};
+    memcpy(sa.addr, p->sa_addr, p->sa_len);
+    return dlt698_encode_get_request(&sa, p->piid, p->oad, out);
 }
 
-static int dlt698_v4_decode_response(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_out,
-                                     pipe_msg_t *out_msgs, int *msg_count, size_t *consumed) {
-    (void)resp_out;
-    dlt698_ctx_t *priv = (dlt698_ctx_t *)ctx->priv;
-    
-    dlt698_addr_t sa_rx;
-    uint8_t svc, piid;
-    uint8_t *payload;
-    size_t payload_len;
+static int dlt698_req_decode(void *priv, const uint8_t *buf, size_t len, size_t *consumed,
+                             double *out_value) {
+    dlt698_req_t *p = (dlt698_req_t *)priv;
+    if (!p || !buf || !consumed) return -1;
+    *consumed = 0;
 
-    int ret = dlt698_decode_frame(&in->b, &sa_rx, &svc, &piid, &payload, &payload_len);
+    struct net_buf_simple nb;
+    net_buf_simple_init_with_data(&nb, (void *)buf, len);
+    nb.len = (uint16_t)len; /* init_with_data 只设 size，len 留给写入用 */
+
+    dlt698_addr_t sa_rx;
+    uint8_t svc = 0, piid = 0;
+    uint8_t *payload = NULL;
+    size_t payload_len = 0;
+
+    int ret = dlt698_decode_frame(&nb, &sa_rx, &svc, &piid, &payload, &payload_len);
+    if (ret == 1) return EDGE_ERR_INCOMPLETE;
+    if (ret < 0) {
+        *consumed = 1;
+        return EDGE_ERR_INCOMPLETE;
+    }
+    *consumed = (size_t)(payload + payload_len + 3 - buf);
+
+    if (svc != DLT698_SVC_GET_RES || payload_len < 5) return -1;
+
+    uint32_t oad_rx = (uint32_t)((payload[0] << 24) | (payload[1] << 16) | (payload[2] << 8) |
+                                 payload[3]);
+    /* 不是本请求的对象：不认，让调用方继续找 */
+    if (oad_rx != p->oad) return EDGE_ERR_INCOMPLETE;
+
+    uint16_t offset = 4;
+    dlt698_data_t res;
+    if (dlt698_decode_data(payload, (uint16_t)payload_len, &offset, &res) != 0) return -1;
+
+    double val = 0.0;
+    switch (res.tag) {
+        case DLT698_TAG_UNSIGNED: val = (double)res.val.u8; break;
+        case DLT698_TAG_LONG_UNSIGNED: val = (double)res.val.u16; break;
+        case DLT698_TAG_DOUBLE_LONG_UNSIGNED: val = (double)res.val.u32; break;
+        case DLT698_TAG_INTEGER: val = (double)res.val.i8; break;
+        case DLT698_TAG_LONG: val = (double)res.val.i16; break;
+        case DLT698_TAG_DOUBLE_LONG: val = (double)res.val.i32; break;
+        default:
+            dlt698_free_data(&res);
+            return -1;
+    }
+    dlt698_free_data(&res);
+
+    /* 只回原始值；量纲由调用方按点位表给 */
+    p->raw = (int32_t)val;
+    if (out_value) *out_value = val;
+    return 0;
+}
+
+/* ==================== 从站侧 ==================== */
+
+static int dlt698_req_slave_exchange(void *priv, const uint8_t *in, size_t in_len,
+                                     const edge_slave_source_ops_t *src, void *src_ctx,
+                                     net_buf_t *out, size_t *consumed) {
+    dlt698_req_t *p = (dlt698_req_t *)priv;
+    if (!p || !in || !out || !consumed) return -1;
+    *consumed = 0;
+
+    struct net_buf_simple nb;
+    net_buf_simple_init_with_data(&nb, (void *)in, in_len);
+    nb.len = (uint16_t)in_len;
+
+    dlt698_addr_t sa_rx;
+    uint8_t svc = 0, piid = 0;
+    uint8_t *payload = NULL;
+    size_t payload_len = 0;
+
+    int ret = dlt698_decode_frame(&nb, &sa_rx, &svc, &piid, &payload, &payload_len);
     if (ret == 1) return EDGE_ERR_INCOMPLETE;
     if (ret < 0) {
         *consumed = 1;
         return -1;
     }
+    *consumed = (size_t)(payload + payload_len + 3 - in);
 
-    // 计算消耗 (简单近似：到 payload + len + 2(FCS) + 1(16))
-    *consumed = (size_t)(payload + payload_len + 3 - in->b.data);
-
-    if (svc == DLT698_SVC_GET_RES && payload_len >= 5) {
-        // [Aetheris] 解析 OAD 后的数据 (使用通用递归解码引擎)
-        uint32_t oad_rx = (uint32_t)((payload[0] << 24) | (payload[1] << 16) | (payload[2] << 8) | payload[3]);
-        if (oad_rx == priv->last_oad) {
-            float scaler = 1.0f;
-            uint32_t tid = 0;
-            if (ctx->lookup_by_key) {
-                const modbus_map_t *map = (const modbus_map_t *)ctx->lookup_by_key(oad_rx);
-                if (map) {
-                    tid = map->tag_id;
-                    scaler = map->scaler;
-                }
-            }
-            
-            if (tid != 0) {
-                uint16_t offset = 4;
-                dlt698_data_t res_data;
-                if (dlt698_decode_data(payload, (uint16_t)payload_len, &offset, &res_data) == 0) {
-                    double val = 0.0;
-                    bool supported = true;
-
-                    // 将抽象 A-XDR 数据类型转为 DataHub 标量
-                    switch (res_data.tag) {
-                        case DLT698_TAG_UNSIGNED: val = (double)res_data.val.u8; break;
-                        case DLT698_TAG_LONG_UNSIGNED: val = (double)res_data.val.u16; break;
-                        case DLT698_TAG_DOUBLE_LONG_UNSIGNED: val = (double)res_data.val.u32; break;
-                        case DLT698_TAG_INTEGER: val = (double)res_data.val.i8; break;
-                        case DLT698_TAG_LONG: val = (double)res_data.val.i16; break;
-                        case DLT698_TAG_DOUBLE_LONG: val = (double)res_data.val.i32; break;
-                        default: supported = false; break;
-                    }
-
-                    if (supported) {
-                        pipe_msg_init_scalar(&out_msgs[0], tid, val * (double)scaler, uv_hrtime());
-                        out_msgs[0].device_id = ctx->device_id; // 【关键】注入实例 ID
-                        *msg_count = 1;
-                        LOG_DEBUG(LOG_CAT_IO, "DLT698: Decoded OAD %08X -> Tag %u, Device %u, Val %.3f", 
-                                  oad_rx, tid, ctx->device_id, val * (double)scaler);
-                    }
-                    dlt698_free_data(&res_data);
-                }
-            }
-        }
+    /* 只应答本机地址 */
+    if (p->sa_len && (sa_rx.len != p->sa_len || memcmp(sa_rx.addr, p->sa_addr, p->sa_len) != 0)) {
+        return 1;
     }
 
-    return 0;
-}
+    if (svc != DLT698_SVC_GET_REQ || payload_len < 4) return -1;
 
-static int dlt698_v4_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_out,
-                             pipe_msg_t *async_msgs, int *async_count, size_t *consumed) {
-    (void)async_msgs; (void)async_count;
-    dlt698_ctx_t *priv = (dlt698_ctx_t *)ctx->priv;
-    dlt698_addr_t sa_rx;
-    uint8_t svc, piid;
-    uint8_t *payload;
-    size_t payload_len;
-
-    int ret = dlt698_decode_frame(&in->b, &sa_rx, &svc, &piid, &payload, &payload_len);
-    if (ret == 1) return EDGE_ERR_INCOMPLETE;
-    if (ret < 0) {
-        *consumed = 1;
+    uint32_t oad = (uint32_t)((payload[0] << 24) | (payload[1] << 16) | (payload[2] << 8) |
+                              payload[3]);
+    edge_point_value_t v;
+    memset(&v, 0, sizeof(v));
+    if (!src || !src->resolve || src->resolve(src_ctx, oad, &v) != 0) {
+        /* 无此对象：不应答（698 的异常应答格式复杂，先保持静默，由主站超时） */
         return -1;
     }
-    *consumed = (size_t)(payload + payload_len + 3 - in->b.data);
 
-    // 验证地址
-    if (sa_rx.len != priv->sa.len || memcmp(sa_rx.addr, priv->sa.addr, sa_rx.len) != 0) {
-        return -1; 
-    }
-
-    if (svc == DLT698_SVC_GET_REQ && payload_len >= 4) {
-        uint32_t oad = (uint32_t)((payload[0] << 24) | (payload[1] << 16) | (payload[2] << 8) | payload[3]);
-        double val = 0;
-        bool found = false;
-
-        if (ctx->lookup_by_key) {
-            const modbus_map_t *map = (const modbus_map_t *)ctx->lookup_by_key(oad);
-            if (map) {
-                pipe_msg_t shadow;
-                if (edge_driver_read_shadow(ctx, map->tag_id, &shadow) == 0) {
-                    val = shadow.payload.val.f / (map->scaler ? map->scaler : 1.0);
-                    found = true;
-                }
-            }
-        }
-
-        if (found) {
-            // 简单实现：仅返回 2 字节 long-unsigned (uint16)
-            uint16_t rv = (uint16_t)val;
-            uint8_t data[2] = {(uint8_t)(rv >> 8), (uint8_t)(rv & 0xFF)};
-            dlt698_encode_get_response(&priv->sa, piid, oad, data, 2, resp_out);
-        } else {
-            // 这里的错误响应逻辑可以后续补强
-        }
-        return 0;
-    }
-
-    return -1;
+    uint16_t rv = (uint16_t)v.raw;
+    uint8_t data[2] = {(uint8_t)(rv >> 8), (uint8_t)(rv & 0xFF)};
+    dlt698_addr_t sa = {.len = p->sa_len, .type = 0};
+    memcpy(sa.addr, p->sa_addr, p->sa_len);
+    dlt698_encode_get_response(&sa, piid, oad, data, 2, out);
+    return 0;
 }
 
 const edge_driver_t dlt698_driver = {
     .name = "DLT698",
-    .ctx_size = sizeof(dlt698_ctx_t),
-    .on_init = dlt698_v4_on_init,
-    .encode_request = dlt698_v4_encode_request,
-    .decode_response = dlt698_v4_decode_response,
-    .handle_rx = dlt698_v4_handle_rx,
+    .ctx_size = 0, /* request-native：无 per-session 上下文 */
+    .req_priv_size = sizeof(dlt698_req_t),
+    .req_prepare = dlt698_req_prepare,
+    .req_encode = dlt698_req_encode,
+    .req_decode = dlt698_req_decode,
+    .req_slave_exchange = dlt698_req_slave_exchange,
 };
 
 int dlt698_driver_register(driver_manager_t *mgr) {
