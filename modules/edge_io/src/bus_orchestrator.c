@@ -113,6 +113,14 @@ int bus_orchestrator_setup_slave(bus_orchestrator_t *ctx, int bus_id, const char
     return 0;
 }
 
+int bus_orchestrator_set_slave_source(bus_orchestrator_t *ctx, int bus_id,
+                                      const edge_slave_source_ops_t *ops, void *user_ctx) {
+    if (!ctx || bus_id < 0 || bus_id >= ctx->max_buses) return -1;
+    bus_engine_t *eng = ctx->engines[bus_id];
+    if (!eng || !eng->set_slave_source) return -1;
+    return eng->set_slave_source(eng, ops, user_ctx);
+}
+
 io_handle_t *bus_orchestrator_get_io(bus_orchestrator_t *ctx, int bus_id) {
     if (ctx && bus_id >= 0 && bus_id < ctx->max_buses) {
         return ctx->io_handles[bus_id];

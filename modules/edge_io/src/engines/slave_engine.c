@@ -126,6 +126,13 @@ static void _slave_run_command(bus_engine_t *self, cmd_msg_t *cmd) {
     arbiter_on_io_done(priv->arb, priv->bus_id, cmd, CMD_STATUS_IO_ERROR);
 }
 
+static int _slave_set_source(bus_engine_t *self, const edge_slave_source_ops_t *ops, void *ctx) {
+    if (!self || !self->user_data) return -1;
+    slave_priv_t *priv = (slave_priv_t *)self->user_data;
+    session_manager_set_slave_source(priv->session_mgr, ops, ctx);
+    return 0;
+}
+
 bus_engine_t *engine_create_slave(driver_manager_t *mgr, int bus_id, const char *protocol,
                                   uint32_t device_id, uv_loop_t *loop, arbiter_t *arb,
                                   datahub_t *hub, net_buf_pool_t *pool,
@@ -154,7 +161,8 @@ bus_engine_t *engine_create_slave(driver_manager_t *mgr, int bus_id, const char 
     self->attach = _slave_attach;
     self->detach = _slave_detach;
     self->run_command = _slave_run_command;
-    
+    self->set_slave_source = _slave_set_source;
+
     return self;
 }
 
