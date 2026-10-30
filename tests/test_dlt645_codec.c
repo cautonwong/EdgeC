@@ -209,8 +209,11 @@ static int g_accept_called;
 static uint32_t g_accept_di;
 static double g_accept_value;
 
-static int _mock_resolve(void* ctx, uint32_t point_id, edge_point_value_t* out) {
+static int _mock_resolve(void* ctx, uint32_t point_id, const void* point_desc,
+                         size_t point_desc_len, edge_point_value_t* out) {
     (void)ctx;
+    (void)point_desc;
+    (void)point_desc_len;
     if (point_id != 0x02010100) return -1;   /* 只认电压这一点 */
     out->raw = 2200;
     out->width = 2;

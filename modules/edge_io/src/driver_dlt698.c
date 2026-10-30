@@ -157,7 +157,7 @@ static int dlt698_req_slave_exchange(void *priv, const uint8_t *in, size_t in_le
                               payload[3]);
     edge_point_value_t v;
     memset(&v, 0, sizeof(v));
-    if (!src || !src->resolve || src->resolve(src_ctx, oad, &v) != 0) {
+    if (!src || !src->resolve || src->resolve(src_ctx, oad, NULL, 0, &v) != 0) {
         /* 无此对象：不应答（698 的异常应答格式复杂，先保持静默，由主站超时） */
         return -1;
     }

@@ -183,7 +183,7 @@ static void _gi_emit(void *ud, uint32_t point_id) {
     iec101_gi_ctx_t *g = (iec101_gi_ctx_t *)ud;
     edge_point_value_t v;
     memset(&v, 0, sizeof(v));
-    if (!g->src->resolve || g->src->resolve(g->src_ctx, point_id, &v) != 0) return;
+    if (!g->src->resolve || g->src->resolve(g->src_ctx, point_id, NULL, 0, &v) != 0) return;
 
     uint8_t type = IEC101_NATIVE_TYPE(point_id);
     uint32_t ioa = IEC101_NATIVE_IOA(point_id);
@@ -263,7 +263,7 @@ static int iec101_req_slave_exchange(void *priv_v, const uint8_t *in, size_t in_
     edge_point_value_t v;
     memset(&v, 0, sizeof(v));
     uint32_t pid = IEC101_NATIVE((uint32_t)type, ioa);
-    if (!src || !src->resolve || src->resolve(src_ctx, pid, &v) != 0) return -1;
+    if (!src || !src->resolve || src->resolve(src_ctx, pid, NULL, 0, &v) != 0) return -1;
 
     iec_asdu_init(out, type, false, 1, IEC_COT_ACT_CON, priv->casdu, &priv->addr_conf);
     iec_asdu_add_any(out, (uint8_t)type, ioa, (double)v.raw, 0, 0, (iec_qds_t){0},

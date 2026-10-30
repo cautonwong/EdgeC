@@ -153,8 +153,11 @@ static int teardown(void** state) {
 }
 
 /* [ADR-002 S3-0] 从站面端口：驱动不再读影子表，当前值由这里给。 */
-static int _mock_slave_resolve(void* ctx, uint32_t point_id, edge_point_value_t* out) {
+static int _mock_slave_resolve(void* ctx, uint32_t point_id, const void* point_desc,
+                               size_t point_desc_len, edge_point_value_t* out) {
     (void)ctx;
+    (void)point_desc;
+    (void)point_desc_len;
     (void)point_id;
     out->raw = 2317;
     out->width = 1;

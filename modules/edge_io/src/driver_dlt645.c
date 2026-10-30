@@ -312,7 +312,7 @@ static int dlt645_req_slave_exchange(void *priv, const uint8_t *in, size_t in_le
     if (p->ctrl == DLT645_CTRL_READ) {
         edge_point_value_t v;
         memset(&v, 0, sizeof(v));
-        if (!src || !src->resolve || src->resolve(src_ctx, p->di, &v) != 0) {
+        if (!src || !src->resolve || src->resolve(src_ctx, p->di, NULL, 0, &v) != 0) {
             return dlt645_encode_slave_abnormal(p, DLT645_ERR_NO_POINT, out);
         }
         /* 宽度由产品给（645 是 2 或 4 字节）；缺省 2 字节 */

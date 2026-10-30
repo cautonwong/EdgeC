@@ -63,9 +63,13 @@ typedef struct edge_north_source_ops_s edge_north_source_ops_t;
 typedef struct {
     /**
      * @brief 取点位当前值。
+     *
+     * @param point_desc 点位描述（标识超过 32 位的协议用，如 DLMS 的 OBIS）。
+     *                   与主站侧同一个约定：**不是表**，就是这一个点。
      * @return 0 = 取到；非 0 = 无此点位/不可读 → 从站回异常应答
      */
-    int (*resolve)(void *ctx, uint32_t point_id, edge_point_value_t *out);
+    int (*resolve)(void *ctx, uint32_t point_id, const void *point_desc, size_t point_desc_len,
+                   edge_point_value_t *out);
 
     /**
      * @brief 收下主站写入的值。

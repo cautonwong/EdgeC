@@ -181,7 +181,7 @@ static int mb_tcp_req_slave_exchange(void *priv, const uint8_t *in, size_t in_le
                 uint16_t raw = 0;
                 /* Modbus 没有"部分失败"语义，取不到只能按 0 应答；
                  * 点位缺失由产品侧日志暴露，不在协议层造假。 */
-                if (src && src->resolve && src->resolve(src_ctx, pid, &v) == 0) {
+                if (src && src->resolve && src->resolve(src_ctx, pid, NULL, 0, &v) == 0) {
                     raw = (uint16_t)v.raw;
                 }
                 resp[n++] = (uint8_t)(raw >> 8);

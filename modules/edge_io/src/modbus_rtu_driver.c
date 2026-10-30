@@ -180,7 +180,7 @@ static int mb_rtu_req_slave_exchange(void *priv, const uint8_t *in, size_t in_le
             edge_point_value_t v;
             memset(&v, 0, sizeof(v));
             uint16_t raw = 0;
-            if (src && src->resolve && src->resolve(src_ctx, pid, &v) == 0) raw = (uint16_t)v.raw;
+            if (src && src->resolve && src->resolve(src_ctx, pid, NULL, 0, &v) == 0) raw = (uint16_t)v.raw;
             body[n++] = (uint8_t)(raw >> 8);
             body[n++] = (uint8_t)(raw & 0xFF);
         }

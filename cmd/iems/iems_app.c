@@ -105,7 +105,10 @@ volatile bool g_adc_running = false;
  *
  * 驱动不再自己 read_shadow；它只解请求，值由这里经端口给。
  * point_id = MODBUS_NATIVE(addr, 1)，用 addr 反查点位表拿到 tag 与量纲。 */
-static int _iems_north_resolve(void* ctx, uint32_t point_id, edge_point_value_t* out) {
+static int _iems_north_resolve(void* ctx, uint32_t point_id, const void* point_desc,
+                               size_t point_desc_len, edge_point_value_t* out) {
+    (void)point_desc;
+    (void)point_desc_len;
     iems_app_t* app = (iems_app_t*)ctx;
     if (!app || !app->hub || !out) return -1;
 
