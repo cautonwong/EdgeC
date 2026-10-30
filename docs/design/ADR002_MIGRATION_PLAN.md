@@ -181,6 +181,56 @@ int (*enumerate)(void *ctx, void (*fn)(void *ud, uint32_t point_id), void *ud);
 **结论**：IEC101 / DLMS / IEC104 属于同一批，应该在端口补完枚举能力后一起做，
 不适合按现在的模式逐个机械迁。
 
+### S3-c3 DLMS：native_id 需要 64 位（实测，2026-10-30）
+
+`dlms_map_t` 里**没有 key 字段**，点位标识是 **48 位 OBIS**（6 字节）：
+
+```c
+typedef struct {
+    uint8_t  obis[6];      /* ← 48 位，装不进 uint32 */
+    uint16_t class_id;
+    uint8_t  attribute_index;
+    edge_tag_id_t tag_id;
+    ...
+} dlms_map_t;
+
+/* 驱动里是这么查表的 */
+uint64_t key = 0;
+for (int i = 0; i < 6; i++) key = (key << 8) | obis[i];
+ctx->lookup_by_key(key);
+```
+
+而 `edge_api_read_tag_ex` 的 `native_id` 是 `uint32_t`。
+
+**缺口**：`native_id` 要扩到 64 位。影响面：
+
+- `edge_api_read_tag_ex(..., uint64_t native_id, ...)`
+- `edge_driver_t.req_prepare / req_encode / req_decode / req_slave_exchange`
+- 三个产品的适配层（DCU/IEMS 的 `native_id()` 返回类型）
+
+**为什么不能像 Modbus 那样塞进 32 位**：Modbus 是「地址 16 + 长度 16」正好 32 位；
+IEC101 是「类型 8 + IOA 24」正好 32 位；DLMS 的 OBIS 单独就 48 位，
+再加 class_id/attr 就更宽。硬压会丢信息。
+
+### 三个 API 决策汇总（做完才能动最后两个驱动）
+
+| 缺口 | 影响 | 状态 |
+|---|---|---|
+| 从站端口**枚举**（总召唤/批量读） | IEC101 / DLMS / IEC104 | ✅ 已加（`enumerate`） |
+| `native_id` 扩到 **64 位** | DLMS（OBIS 48 位） | ❌ 待决策 |
+| **`session_ctx`**（请求级会话状态） | IEC104（STARTDT/APDU 序号） | ❌ 待决策 |
+
+**建议**：后两个一起设计——都是请求模型的宽度/状态问题，
+分两次改会让 `req_*` 签名动两遍。
+
+### 关于测试覆盖（test-platform）
+
+- **已注册到产品的驱动**（645 / CAN / ModbusTCP / RTU / DLT698）：`acceptance/run.sh`
+  通过产品端到端覆盖，这是主验证手段。
+- **没有产品注册的驱动**（CCSDS / HL7 / CiA402 / IEC101 / DLMS / IEC104）：
+  test-platform 没有对应用例可挂（它的用例是产品级的），只能靠单元测试覆盖。
+  所以这几个驱动都补了 `tests/test_driver_*.c`。
+
 ### S3-d IEC104（唯一有设计风险的）
 
 104 是面向连接的：STARTDT/STOPDT 握手、APDU 收发序号、I 帧确认。纯 codec 化要求把这些
