@@ -175,8 +175,31 @@ hl7 读的是 `PIPEMSG_TYPE_EVENT`（`payload.event.param`）——
 两者都不是标量，而 `edge_point_value_t` 只带 `value/raw/width/quality/ts_ms`。
 硬塞进去会把端口搞成"什么都能装"的万能结构，那和 read_shadow 没区别。
 
-**正确做法**：另开一个 `edge_north_source_ops_t { peek(tag_id, pipe_msg_t *out) }`，
-只给北向生产者用；语义是"看本节点某个 tag 的当前状态"，仍然是消费方定义的端口。
+**正确做法**：另开一个端口，只给北向生产者用。
+
+```c
+/* modules/edge_io/include/edge_slave_plane.h —— 与从站端口并列 */
+typedef struct {
+    /* 看本节点某个 tag 的当前状态。用 pipe_msg_t 而不是标量，
+     * 因为北向要发的可能是 BATCH / EVENT / 标量，形状由消费方决定。 */
+    int (*peek)(void *ctx, uint32_t tag_id, pipe_msg_t *out);
+} edge_north_source_ops_t;
+```
+
+**这是硬要求，不是可选项。** 三条纪律与从站端口完全一致：
+
+1. **声明在 edge_io**（需要"读本地状态发帧"的是北向编排），**实现在 cmd**，
+   组合根注入——和 `edge_slave_source_ops_t` 同构。
+2. **端口不进 `edge_driver_ctx_t`**，每次调用现传。进了 ctx 就是把
+   `read_shadow` 换个名字请回来。
+3. **驱动不知道谁提供状态**：ccsds 只调 `src->peek(tag, &msg)`，
+   不知道背后是 datahub、内存镜像还是测试桩。
+
+**不允许的替代方案**：
+- ❌ 把 BATCH/EVENT 塞进 `edge_point_value_t` —— 端口会退化成万能结构
+- ❌ 给 ccsds/hl7 开"只用 read_shadow"的例外 —— 例外一旦开口，
+  后面每个驱动都会来要一个
+- ❌ 让北向生产者直接 `datahub_read_shadow` —— 那就是把泄漏写进驱动
 
 #### 分类处理
 
