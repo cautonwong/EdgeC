@@ -149,6 +149,38 @@ TCP 迁完以为 RTU 是"照抄再补 CRC"，实际连撞三次：
 
 - 与 645 同源，`dlt645_req_t` 的字段划分可照搬，差异在 OAD 四字节结构与对象属性访问。
 
+### S3-c2 IEC101 / DLMS：从站端口缺一个能力（实测，2026-10-30）
+
+迁 IEC101 时发现现有 `edge_slave_source_ops_t` **不够用**：
+
+```c
+/* IEC101 从站响应总召唤（C_IC_NA_1）时做的事 */
+for (uint32_t i = 0; i < ctx->meta_list_len; i++) {   // ← 遍历所有点位
+    const iec101_map_t *map = maps + i;
+    edge_driver_read_shadow(ctx, map->tag_id, &vm);    // ← 逐个取值
+    ...组 ASDU...
+}
+```
+
+它需要**"这个从站有哪些点位"**（枚举），而不只是"给我点位 X 的值"。
+现在的端口只有 `resolve(point_id)`，没有枚举能力，所以驱动只能靠
+`ctx->meta_list`（产品点位表）——那正是要删的东西。
+
+**缺口**：`edge_slave_source_ops_t` 需要补一个枚举方法，比如
+
+```c
+/* 遍历本从站的点位：回调式，避免动态内存 */
+int (*enumerate)(void *ctx, void (*fn)(void *ud, uint32_t point_id), void *ud);
+```
+
+或者更贴合协议：`resolve_all(ctx, fn, ud)` 直接回调 (point_id, value)。
+
+这是**端口设计问题，不是驱动问题**。IEC101 / DLMS / IEC104 都有总召唤/批量读，
+都会撞上同一件事——所以这个能力要一次设计对，别一个驱动加一个方法。
+
+**结论**：IEC101 / DLMS / IEC104 属于同一批，应该在端口补完枚举能力后一起做，
+不适合按现在的模式逐个机械迁。
+
 ### S3-d IEC104（唯一有设计风险的）
 
 104 是面向连接的：STARTDT/STOPDT 握手、APDU 收发序号、I 帧确认。纯 codec 化要求把这些
