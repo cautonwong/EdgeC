@@ -127,6 +127,24 @@ typedef struct {
   迁移时要顺手删掉驱动里那段等间隔代码，否则两处都在管。
 - 量纲：Modbus 的 `scaler` 目前乘在驱动里，迁走后由调用方经 `scale` 参数给（#459 已铺好）。
 
+### S3-b 补充：ModbusRTU 比 TCP 多三个隐藏消费方（实测记录）
+
+TCP 迁完以为 RTU 是"照抄再补 CRC"，实际连撞三次：
+
+| # | 隐藏消费方 | 症状 | 处理 |
+|---|---|---|---|
+| 1 | `driver_manager_add_poll_target` 的内置轮询器 | 驱动不再乘 scaler，影子表拿到原始值 | 该 API **只有测试在用**，建议连同测试一起改造或删 |
+| 2 | `bus_orchestrator_setup_slave` → `engine_create_slave` → `slave_engine` | 从站面 resolve 不到值 | **已修**：引擎加 `set_slave_source` 槽位 + orchestrator 转发（`bcff830c`） |
+| 3 | `driver_manager.c:125/153/620/637` | **直接调 `encode_request` / `decode_response`**，绕过请求层；驱动迁成 native 后这些调用直接失败 | 未修：这是第三套轮询实现，与 `dcu_poller`、`edge_api` 重复 |
+
+**结论**：`driver_manager` 的内置轮询器是 ADR-002 的第三个消费方，必须先决定它的去向：
+
+- **建议删**：它的能力与 `dcu_poller`（DCU）和 `edge_api_read_tag`（IEMS/SmartBox）完全重叠，
+  且没有产品在用（只有两个测试引用）。留着它，每个驱动迁移都要额外照顾一条老路径。
+- 若保留，则要把它改成走 `req_legacy_driver_create`，等于再写一遍请求层。
+
+**这也解释了 RTU 为什么两次都红**：不是驱动写错了，是这条老路径没人管。
+
 ### S3-c DLT698（同族）
 
 - 与 645 同源，`dlt645_req_t` 的字段划分可照搬，差异在 OAD 四字节结构与对象属性访问。
