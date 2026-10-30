@@ -73,6 +73,18 @@ typedef struct {
      * @return 0 = 接受
      */
     int (*accept)(void *ctx, uint32_t point_id, double value);
+
+    /**
+     * @brief 遍历本从站的全部点位（总召唤 / 批量读要用）。
+     *
+     * 只靠 `resolve(point_id)` 不够：IEC101 响应总召唤（C_IC_NA_1）时，
+     * 驱动必须知道"这个从站有哪些点位"才能逐个组 ASDU。
+     * 回调式，避免为核心路径引入动态内存。
+     *
+     * @param fn 对每个点位回调一次（point_id 是协议原生标识）
+     * @return 0 = 成功
+     */
+    int (*enumerate)(void *ctx, void (*fn)(void *ud, uint32_t point_id), void *ud);
 } edge_slave_source_ops_t;
 
 #ifdef __cplusplus

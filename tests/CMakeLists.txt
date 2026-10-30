@@ -139,6 +139,7 @@ add_edge_test(test_wavelet_anomaly test_wavelet_anomaly.c)
 add_edge_test(test_kinematics test_kinematics.c)
 add_edge_test(test_dcu_poller test_dcu_poller.c)
 add_edge_test(test_dlt645_codec test_dlt645_codec.c)
+add_edge_test(test_driver_iec101 test_driver_iec101.c)
 add_edge_test(test_dcu_scale_benchmark test_dcu_scale_benchmark.c)
 add_edge_test(test_protocol_bridge test_protocol_bridge.c)
 add_edge_test(test_wasm_secure test_wasm_secure.c)
@@ -226,6 +227,9 @@ target_link_libraries(test_dcu_storage PRIVATE dcu_app_lib)
 target_link_libraries(test_dcu_integration PRIVATE dcu_app_lib)
 target_link_libraries(test_dcu_router PRIVATE dcu_app_lib)
 target_link_libraries(test_dcu_poller PRIVATE dcu_app_lib)
+# IEC101 request-native 契约测试：只依赖 edge_io + edge_protocol
+target_link_libraries(test_driver_iec101 PRIVATE edge_io edge_protocol)
+
 # DL/T 645 纯 codec（ADR-002 S1）：只依赖 edge_io，不依赖任何产品
 target_include_directories(test_dlt645_codec PRIVATE ${CMAKE_SOURCE_DIR}/modules/edge_io/src)
 target_link_libraries(test_dlt645_codec PRIVATE edge_io)
