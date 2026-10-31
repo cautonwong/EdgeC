@@ -160,7 +160,9 @@ static int _submit(void *ctx, uint32_t meter_idx, uint32_t tag_id, poller_read_d
     bs->refs++; /* 在途：由 _on_done 归还 */
     uv_mutex_unlock(&bs->lock);
 
-    if (edge_api_read_tag((int)m->channel_id, m->protocol, meter_idx, proto_id, _on_done, c) != 0) {
+    /* 抄表是后台任务：低优先级，让交互式请求先过总线 */
+    if (edge_api_read_tag((int)m->channel_id, m->protocol, meter_idx, proto_id, ARBITER_PRIO_LOW,
+                          _on_done, c) != 0) {
         uv_mutex_lock(&bs->lock);
         c->used = 0;
         c->bs = NULL;

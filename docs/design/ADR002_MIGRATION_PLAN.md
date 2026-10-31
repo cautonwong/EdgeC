@@ -446,10 +446,14 @@ int (*req_prepare)(void *priv, uint32_t slave_id, uint32_t point_id, const void 
 
 ## 4. 抄表侧的两个尾巴
 
-| 项 | 为什么还没做 | 现在能不能做 |
-|---|---|---|
-| 抄表请求降 `ARBITER_PRIO_LOW` | `edge_api_read_tag` 曾建在注入包上 | **S3-b 之后可以**：请求已能携带优先级 |
-| 发布身份改 `meter.address` | 耦合 datahub 的 `(tag_id, device_id)` 索引 | 需 datahub 改造，单独排期 |
+| 项 | 状态 |
+|---|---|
+| 抄表请求降 `ARBITER_PRIO_LOW` | ✅ **已做**（2026-10-31）：`edge_api_read_tag(_ex)` 显式收 `priority`，DCU 的 `dcu_bus_source._submit` 与 IEMS 的采集任务都传 `ARBITER_PRIO_LOW`。抄表是后台任务，交互式请求先过总线 |
+| 发布身份改 `meter.address` | ❌ 未做：耦合 datahub 的 `(tag_id, device_id)` 索引，需 datahub 改造，单独排期 |
+
+为什么优先级要显式传而不是在 `edge_api` 里写死：写死的默认值会让"这次读是什么性质"
+变成库的猜测。`edge_api_read_tag` 原本固定 `ARBITER_PRIO_NORMAL`，于是抄表和交互式单点读
+同优先级——两者抢总线时没有任何区分依据。
 
 澄清：poller 传给 sink 的**已经是 address**。真正的问题在 `_node_publish_realtime`
 用 `meter_idx` 当 `pipe_msg.device_id`，而 datahub 影子表按 `(tag, device_id)` 索引，
