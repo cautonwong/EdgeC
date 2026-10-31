@@ -89,6 +89,8 @@ add_edge_test(test_edge_mesh test_edge_mesh.c)
 add_edge_test(test_fuzz_iec104 test_fuzz_iec104.c)
 	add_edge_test(test_fuzz_dlms_dlt698 test_fuzz_dlms_dlt698.c)
 add_edge_test(test_dlms_security_validation test_dlms_security_validation.c)
+add_edge_test(test_dlms_set test_dlms_set.c)
+target_include_directories(test_dlms_set PRIVATE ${CMAKE_SOURCE_DIR}/modules/edge_io/src)
 
 # 3. 执行引擎测试 (Execution Plane)
 add_edge_test(test_driver_manager test_driver_manager.c)
