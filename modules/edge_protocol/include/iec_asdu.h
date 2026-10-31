@@ -95,6 +95,24 @@ typedef struct {
 #define IEC_NATIVE_IOA(id) ((uint32_t)((id) & 0xFFFFFFu))
 
 /**
+ * @brief 写（遥控/遥调）请求的点位标识约定
+ *
+ * 控制点位的 `type_id` 是**命令类型**，不是测量类型：
+ *   - `IEC_TYPE_C_SC_NA_1` (45) 单点遥控
+ *   - `IEC_TYPE_C_DC_NA_1` (46) 双点遥控
+ *   - `IEC_TYPE_C_SE_NC_1` (50) 设定值（短浮点遥调）
+ *
+ * 产品组 native_id 时用命令类型：
+ *
+ *     IEC_NATIVE_ID(IEC_TYPE_C_SC_NA_1, ioa)
+ *
+ * 驱动在 `req_prepare` 里只接受这三种类型；拿到测量类型就拒绝——
+ * 用一个测量 ASDU 去"写"是协议错误，不是"没实现"。
+ */
+#define IEC_IS_COMMAND_TYPE(t) \
+    ((t) == IEC_TYPE_C_SC_NA_1 || (t) == IEC_TYPE_C_DC_NA_1 || (t) == IEC_TYPE_C_SE_NC_1)
+
+/**
  * @brief 电力规约地址长度配置 (101/104 归一化关键)
  */
 typedef struct {

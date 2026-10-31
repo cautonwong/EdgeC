@@ -62,6 +62,7 @@ typedef struct {
     uint8_t type_id;
     uint32_t ioa;
     double value;
+    bool is_write;
 } iec104_req_t;
 
 /* ctx_size 超了 DRIVER_PRIV_SIZE，driver_instance_create 会**静默**返回 NULL，
@@ -158,7 +159,8 @@ static int iec104_consume_apci(iec104_session_t *s, const uint8_t *in, size_t in
 
 static int iec104_req_prepare(void *priv_v, uint32_t slave_id, uint32_t point_id,
                               const void *meta_list, uint32_t meta_list_len,
-                              const void *point_desc, size_t point_desc_len) {
+                              const void *point_desc, size_t point_desc_len, bool is_write,
+                              double value) {
     (void)meta_list;
     (void)meta_list_len;
     (void)point_desc;
@@ -169,8 +171,20 @@ static int iec104_req_prepare(void *priv_v, uint32_t slave_id, uint32_t point_id
 
     req->type_id = IEC_NATIVE_TYPE(point_id);
     req->ioa = IEC_NATIVE_IOA(point_id);
-    /* 类型标识缺省：模拟量测量值（短浮点）。产品没给类型时按最常见的读法走，
-     * 而不是发一个类型 0 的非法 ASDU。 */
+    req->is_write = is_write;
+    req->value = value;
+
+    if (is_write) {
+        /* 写请求必须带**命令类型**：拿测量类型去写是协议错误，
+         * 也不能像读那样缺省成 M_ME_NC_1。 */
+        if (!IEC_IS_COMMAND_TYPE(req->type_id)) {
+            LOG_WARN(LOG_CAT_IO, "IEC104: 写请求的 type_id=%u 不是命令类型", req->type_id);
+            return -1;
+        }
+        return 0;
+    }
+
+    /* 读：类型缺省成模拟量测量值（短浮点），而不是发一个类型 0 的非法 ASDU */
     if (req->type_id == 0) req->type_id = IEC_TYPE_M_ME_NC_1;
     return 0;
 }
@@ -180,6 +194,25 @@ static int iec104_req_encode(void *priv_v, void *session, net_buf_t *out) {
     iec104_session_t *s = (iec104_session_t *)session;
     if (!req || !s || !out) return -1;
     if (iec104_apci_get_state(s->apci) != IEC104_STATE_CONNECTED) return -1;
+
+    if (req->is_write) {
+        /* 控制方向用 ACT（激活） */
+        iec_asdu_init(out, (iec_type_id_t)req->type_id, false, 1, IEC_COT_ACT, s->casdu,
+                      &IEC_ADDR_CONF_104);
+        int rc;
+        if (req->type_id == IEC_TYPE_C_SC_NA_1) {
+            rc = iec_asdu_add_c_sc_na_1(out, req->ioa, req->value > 0.0, false,
+                                        &IEC_ADDR_CONF_104);
+        } else if (req->type_id == IEC_TYPE_C_DC_NA_1) {
+            uint8_t dcs = (req->value > 0.0) ? 2 : 1; /* 1=分闸，2=合闸 */
+            rc = iec_asdu_add_c_dc_na_1(out, req->ioa, dcs, false, &IEC_ADDR_CONF_104);
+        } else {
+            rc = iec_asdu_add_c_se_nc_1(out, req->ioa, (float)req->value, 0, false,
+                                        &IEC_ADDR_CONF_104);
+        }
+        if (rc != 0) return -1;
+        return iec104_apci_wrap_i(s->apci, out) == 0 ? 0 : -1;
+    }
 
     iec_asdu_init(out, (iec_type_id_t)req->type_id, false, 1, IEC_COT_REQ, s->casdu,
                   &IEC_ADDR_CONF_104);

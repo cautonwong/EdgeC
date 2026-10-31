@@ -15,9 +15,9 @@ typedef struct {
     int started_flags[2];
 } test_ctx_t;
 
-static void on_start(void* user) {
-    if (!user) return;
-    cmd_msg_t* cmd = (cmd_msg_t*)user;
+/* 签名与 cmd_msg_t.on_start 一致：靠"函数指针类型不兼容"的警告混过去就是 UB */
+static void on_start(cmd_msg_t* cmd) {
+    if (!cmd) return;
     int* flag = (int*)cmd->user_data;
     if (flag) (*flag) = 1;
 }
@@ -471,8 +471,8 @@ typedef struct {
 
 static gap_ctx_t* g_gap_ctx;
 
-static void gap_on_start(void* user) {
-    (void)user;
+static void gap_on_start(cmd_msg_t* cmd) {
+    (void)cmd;
     if (g_gap_ctx && g_gap_ctx->started < 4) {
         g_gap_ctx->start_ts[g_gap_ctx->started++] = uv_hrtime();
     }
