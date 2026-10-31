@@ -57,6 +57,16 @@ typedef struct {
  */
 struct edge_north_source_ops_s {
     int (*peek)(void *ctx, uint32_t tag_id, pipe_msg_t *out);
+
+    /**
+     * @brief 点位名（北向报文里的 metric 名）。
+     *
+     * 名字是"点位模型"的一部分，驱动不认识它——所以由端口给，驱动只负责
+     * 把它编进报文。返回 NULL 时驱动回落成数字标识。
+     *
+     * 这一条取代了 `edge_driver_ctx_t.get_tag_name`（驱动反查 datahub 元数据）。
+     */
+    const char *(*name)(void *ctx, uint32_t tag_id);
 };
 typedef struct edge_north_source_ops_s edge_north_source_ops_t;
 
