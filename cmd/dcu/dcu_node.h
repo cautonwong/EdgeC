@@ -31,7 +31,12 @@ typedef struct dcu_node_s dcu_node_t;
 typedef struct {
     const char *product_name;       /**< Product identifier, default "DCU" */
     const char *db_path;            /**< Path to SQLite digital twin database */
-    size_t datahub_capacity;        /**< DataHub tag capacity (e.g. 32768) */
+    /* 影子槽位数。必须 >= MAX_METERS * DCU_SLOTS_PER_DEVICE，否则高位表的
+     * 写入会越界被丢弃。默认按这个乘积推导（4096 * 32 = 131072）。 */
+    size_t datahub_capacity;
+    /* SHM 环形队列容量（消息条数）。与影子槽位是两回事：队列只要几千条就够，
+     * 早先两者共用一个值，把影子容量压到 32768 只够 1024 只表。 */
+    size_t ring_capacity;
     uint32_t poll_interval_ms;      /**< Poller timer period in ms (default 1000) */
     poller_source_ops_t source_ops; /**< Injected physical/twin meter data source adapter */
 } dcu_node_config_t;

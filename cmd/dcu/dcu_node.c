@@ -75,13 +75,24 @@ dcu_node_t *dcu_node_create(uv_loop_t *loop, const dcu_node_config_t *cfg) {
     node->cfg = *cfg;
     if (!node->cfg.product_name) node->cfg.product_name = "DCU";
     if (!node->cfg.poll_interval_ms) node->cfg.poll_interval_ms = 1000;
-    if (!node->cfg.datahub_capacity) node->cfg.datahub_capacity = 32768;
+    /* 影子表按槽位公式索引：slot = device_id * DCU_SLOTS_PER_DEVICE + tag_slot。
+     * 容量必须容得下 MAX_METERS 只表，否则 idx 越界、写入被静默丢弃
+     * （32768 只够 1024 只表，而 MAX_METERS 是 4096）。 */
+    if (!node->cfg.datahub_capacity) {
+        node->cfg.datahub_capacity = MAX_METERS * DCU_SLOTS_PER_DEVICE;
+    }
+    if (!node->cfg.ring_capacity) node->cfg.ring_capacity = 32768;
+    if (node->cfg.datahub_capacity < (size_t)MAX_METERS * DCU_SLOTS_PER_DEVICE) {
+        LOG_WARN(LOG_CAT_SCHED,
+                 "datahub_capacity=%zu < MAX_METERS*SLOTS=%d：高位表的影子值会被丢弃",
+                 node->cfg.datahub_capacity, MAX_METERS * DCU_SLOTS_PER_DEVICE);
+    }
 
     /* 1. Assemble Foundation via Edge Composition Root */
     edge_composition_config_t comp_cfg = {.product_name = node->cfg.product_name,
                                           .loop = node->loop,
                                           .shm_name = node->cfg.product_name,
-                                          .ring_capacity = node->cfg.datahub_capacity,
+                                          .ring_capacity = node->cfg.ring_capacity,
                                           .datahub_capacity = node->cfg.datahub_capacity,
                                           .map_fn_v2 = dcu_tag_map_fn,
                                           .memory_pool_buffer_size = 4096,

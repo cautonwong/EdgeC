@@ -128,9 +128,30 @@ static void test_dcu_router_dispatch(void** state) {
     dcu_inventory_destroy(&test_inv);
 }
 
+/* 槽位公式的上界必须落在影子容量内。
+ *
+ * `slot = device_id * DCU_SLOTS_PER_DEVICE + tag_slot`，而 datahub 的
+ * `write_shadow_idx` 对 idx >= capacity 是**静默丢弃**。DCU 默认容量原来写死
+ * 32768，只够 1024 只表（MAX_METERS 是 4096）——第 1025 只表起，值写不进去
+ * 也没有任何痕迹。这条用例锁住"最后一只表的最后一个槽位仍可写"。 */
+static void test_slot_upper_bound_fits_capacity(void** state) {
+    (void)state;
+
+    /* 用公式自己的最大 tag_slot 去顶：任何 OAD 的 slot 都 < SLOTS_PER_DEVICE */
+    int worst = dcu_tag_map_fn(0xFFFFFFFFu, MAX_METERS - 1);
+    assert_true(worst >= 0);
+    assert_true((size_t)worst < (size_t)MAX_METERS * DCU_SLOTS_PER_DEVICE);
+
+    /* 常用点位也要在范围内（防止某天改公式时把上界顶出容量） */
+    int v = dcu_tag_map_fn(0x20000200u, MAX_METERS - 1);
+    assert_true(v >= 0);
+    assert_true((size_t)v < (size_t)MAX_METERS * DCU_SLOTS_PER_DEVICE);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_dcu_router_dispatch),
+        cmocka_unit_test(test_slot_upper_bound_fits_capacity),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
