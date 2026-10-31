@@ -24,6 +24,7 @@
 #include "dlms_codec.h"
 #include "dlms_cosem.h"
 #include "dlms_hdlc.h"
+#include "driver_dlms.h"
 #include "driver_manager.h"
 #include "edge_driver.h"
 #include "edge_log.h"
@@ -37,13 +38,6 @@ typedef enum {
     DLMS_SESSION_ERROR
 } dlms_session_state_t;
 
-/** 点位描述：调用方按这个结构填，作为 point_desc 传进来 */
-typedef struct {
-    uint8_t obis[6];
-    uint16_t class_id;
-    uint8_t attribute_index;
-} dlms_point_t;
-
 /* 设备级会话（ctx_size）：跨帧状态，随 SessionManager 的会话存活 */
 typedef struct {
     dlms_hdlc_manager_t hdlc;
@@ -52,10 +46,13 @@ typedef struct {
     uint64_t last_step_ts;
 } dlms_session_t;
 
-/* 请求级 scratch（req_priv_size）：只放"这一帧要读哪个点" */
+/* 请求级 scratch（req_priv_size）：只放"这一帧要读/写哪个点" */
 typedef struct {
     dlms_point_t cur;
     bool cur_valid;
+    bool is_write;
+    uint8_t write_type;   /**< Data 类型标签（dlms_write_type_t） */
+    double write_value;   /**< 写入值（raw） */
 } dlms_req_t;
 
 static int dlms_on_init(edge_driver_ctx_t *ctx) {
@@ -77,15 +74,6 @@ static int dlms_req_prepare(void *priv_v, uint32_t slave_id, uint32_t point_id,
                             const void *meta_list, uint32_t meta_list_len,
                             const void *point_desc, size_t point_desc_len,
                               bool is_write, double value) {
-    /* 写路径尚未实现：宁可在这里失败，也不能把写请求当读请求发出去。
-     * 补齐时按协议接对应的写编码 helper（见 ADR002 计划 §S5）。 */
-    if (is_write) {
-        (void)value;
-        LOG_WARN(LOG_CAT_IO, "DLMS: 写请求暂不支持");
-        return -1;
-    }
-    (void)is_write;
-
     (void)slave_id;
     (void)point_id;
     (void)meta_list;
@@ -98,6 +86,38 @@ static int dlms_req_prepare(void *priv_v, uint32_t slave_id, uint32_t point_id,
     if (!point_desc || point_desc_len != sizeof(dlms_point_t)) return -1;
     memcpy(&priv->cur, point_desc, sizeof(dlms_point_t));
     priv->cur_valid = true;
+
+    priv->is_write = is_write;
+    priv->write_type = 0;
+    priv->write_value = 0.0;
+    if (is_write) {
+        /* 写还要知道值的 Data 类型：同一个 OBIS 在不同表上类型可能不同，
+         * 驱动猜不了。类型/值域不合法就拒绝。 */
+        if (priv->cur.class_id == 0) return -1;
+        /* 类型是点位描述的一部分（同一个 OBIS 在不同表上类型可能不同），
+         * 所以放在 point_desc 里而不是 meta_list（meta_list 是设备附加信息）。 */
+        uint8_t type = priv->cur.data_type;
+        if (type == 0) {
+            LOG_WARN(LOG_CAT_IO, "DLMS: 写请求缺少 Data 类型描述");
+            return -1;
+        }
+        if (type == DLMS_WRITE_LONG_UNSIGNED) {
+            if (value < 0.0 || value > 65535.0) {
+                LOG_WARN(LOG_CAT_IO, "DLMS: long-unsigned 越界 %.0f", value);
+                return -1;
+            }
+        } else if (type == DLMS_WRITE_DOUBLE_LONG_UNSIGNED) {
+            if (value < 0.0 || value > 4294967295.0) {
+                LOG_WARN(LOG_CAT_IO, "DLMS: double-long-unsigned 越界 %.0f", value);
+                return -1;
+            }
+        } else {
+            LOG_WARN(LOG_CAT_IO, "DLMS: 不支持的 Data 类型 0x%02X", type);
+            return -1;
+        }
+        priv->write_type = type;
+        priv->write_value = value;
+    }
     return 0;
 }
 
@@ -114,11 +134,34 @@ static int dlms_req_encode(void *priv_v, void *session, net_buf_t *out) {
 
     net_buf_t *apdu = net_buf_alloc(out->pool, 0);
     if (!apdu) return -1;
-    dlms_cosem_build_get_request(&priv->cosem, req->cur.class_id, obis_str,
-                                 req->cur.attribute_index, NULL, apdu);
-    dlms_hdlc_send_iframe(&priv->hdlc, apdu, out);
+
+    int rc;
+    if (!req->is_write) {
+        rc = dlms_cosem_build_get_request(&priv->cosem, req->cur.class_id, obis_str,
+                                          req->cur.attribute_index, NULL, apdu);
+    } else {
+        /* SET：Data = 类型标签 + 大端值。只编 prepare 校验过的两种类型。 */
+        uint8_t data[8];
+        size_t n = 0;
+        data[n++] = req->write_type;
+        if (req->write_type == DLMS_WRITE_LONG_UNSIGNED) {
+            uint16_t v = (uint16_t)req->write_value;
+            data[n++] = (uint8_t)(v >> 8);
+            data[n++] = (uint8_t)(v & 0xFF);
+        } else {
+            uint32_t v = (uint32_t)req->write_value;
+            data[n++] = (uint8_t)(v >> 24);
+            data[n++] = (uint8_t)(v >> 16);
+            data[n++] = (uint8_t)(v >> 8);
+            data[n++] = (uint8_t)(v & 0xFF);
+        }
+        rc = dlms_cosem_build_set_request(&priv->cosem, req->cur.class_id, obis_str,
+                                          req->cur.attribute_index, data, n, apdu);
+    }
+
+    if (rc == 0) dlms_hdlc_send_iframe(&priv->hdlc, apdu, out);
     net_buf_unref(apdu);
-    return 0;
+    return rc == 0 ? 0 : -1;
 }
 
 /* ==================== 主站：解应答 ==================== */

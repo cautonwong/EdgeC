@@ -47,6 +47,19 @@ int dlms_cosem_build_aarq(dlms_cosem_ctx_t *ctx, net_buf_t *out);
 int dlms_cosem_parse_aare(dlms_cosem_ctx_t *ctx, struct net_buf_simple *in);
 int dlms_cosem_build_get_request(dlms_cosem_ctx_t *ctx, uint16_t class_id, const char *obis,
                                  uint8_t attr_id, net_buf_t *access_params, net_buf_t *out);
+
+/**
+ * @brief 构造 SET-Request（写一个属性）
+ *
+ * 结构与 GET-Request 同构，尾部把"选择访问"换成 value：
+ *   `193 | 01 | invoke-id | class-id(2) | OBIS(6) | attr | 00 | value`
+ *
+ * `data` 是 **带类型标签**的 Data 编码（`DLMS_TYPE_LONG_UNSIGNED` /
+ * `DLMS_TYPE_DOUBLE_LONG_UNSIGNED` …）——类型是点位模型的知识，codec 不猜。
+ */
+int dlms_cosem_build_set_request(dlms_cosem_ctx_t *ctx, uint16_t class_id, const char *obis,
+                                 uint8_t attr_id, const uint8_t *data, size_t dlen,
+                                 net_buf_t *out);
 int dlms_cosem_process_apdu(dlms_cosem_ctx_t *ctx, net_buf_t *apdu);
 int dlms_cosem_decode_response(dlms_cosem_ctx_t *ctx, struct net_buf_simple *apdu,
                                dlms_variant_t *out);

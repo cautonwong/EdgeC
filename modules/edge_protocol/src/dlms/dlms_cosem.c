@@ -93,6 +93,37 @@ int dlms_cosem_build_get_request(dlms_cosem_ctx_t *ctx, uint16_t class_id, const
     return 0;
 }
 
+int dlms_cosem_build_set_request(dlms_cosem_ctx_t *ctx, uint16_t class_id, const char *obis,
+                                 uint8_t attr_id, const uint8_t *data, size_t dlen,
+                                 net_buf_t *out) {
+    if (ctx->state != COSEM_STATE_ASSOCIATED) return -1;
+    if (dlen > 0 && !data) return -1;
+
+    net_buf_reserve(out, DLMS_MAX_LINK_HEADER);
+    struct net_buf_simple *b = &out->b;
+
+    /* SET-Request ::= SEQUENCE { invoke-id, class-id, OBIS, attribute-id,
+     *                            access-selection, value } —— 与 GET 同构，尾部换成 value */
+    net_buf_simple_add_u8(b, (uint8_t)DLMS_SERVICE_SET_REQUEST);
+    net_buf_simple_add_u8(b, 0x01); /* Normal */
+    net_buf_simple_add_u8(b, 0xC1); /* Invoke ID */
+    net_buf_simple_add_be16(b, class_id);
+
+    uint8_t obis_bytes[6];
+    int p[6];
+    if (sscanf(obis, "%d.%d.%d.%d.%d.%d", &p[0], &p[1], &p[2], &p[3], &p[4], &p[5]) != 6) {
+        return -1;
+    }
+    for (int i = 0; i < 6; i++) obis_bytes[i] = (uint8_t)p[i];
+    net_buf_simple_add_mem(b, obis_bytes, 6);
+    net_buf_simple_add_u8(b, attr_id);
+
+    /* 无选择访问；值由调用方给（含类型标签），codec 不猜类型 */
+    net_buf_simple_add_u8(b, 0x00);
+    if (dlen > 0) net_buf_simple_add_mem(b, data, dlen);
+    return 0;
+}
+
 int dlms_cosem_decode_response(dlms_cosem_ctx_t *ctx, struct net_buf_simple *apdu,
                                dlms_variant_t *out) {
     if (apdu->len < 1) return -1;
@@ -139,6 +170,14 @@ int dlms_cosem_decode_response(dlms_cosem_ctx_t *ctx, struct net_buf_simple *apd
                 return 1;  // Need GET-Next
             }
         }
+    } else if (service_tag == DLMS_SERVICE_SET_RESPONSE) {
+        /* SET-Response ::= SEQUENCE { invoke-id, result } —— 没有值，成功即 0 */
+        net_buf_simple_pull_u8(apdu); /* response type: 01 = normal */
+        net_buf_simple_pull_u8(apdu); /* invoke id */
+        uint8_t result = net_buf_simple_pull_u8(apdu);
+        if (result != 0x00) return -2;
+        memset(out, 0, sizeof(*out));
+        return 0;
     } else if (service_tag == 194) {  // Event-Notification
         uint8_t time_present = net_buf_simple_pull_u8(apdu);
         if (time_present) net_buf_simple_pull(apdu, 12);

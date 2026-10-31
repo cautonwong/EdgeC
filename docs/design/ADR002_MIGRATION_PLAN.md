@@ -424,7 +424,8 @@ int (*req_prepare)(void *priv, uint32_t slave_id, uint32_t point_id, const void 
 | **DLT645** | ✅ 控制码 0x14 | 2026-10-31：宽度来自 `dlt645_write_desc_t`（经 `point_desc` 传），值按 BCD 编进数据段；缺宽度或宽度非 2/4 一律拒绝 |
 | **DLT698** | ✅ SET-Request | 2026-10-31：`dlt698_encode_set_request()` + `dlt698_write_desc_t`（A-XDR 类型）。只开放 codec 里**已有编码器**的 `long-unsigned` / `double-long`，值域先校验 |
 | **IEC101 / IEC104** | ✅ 控制 ASDU | 2026-10-31：写请求的 `type_id` 就是**命令类型**（`C_SC_NA_1`/`C_DC_NA_1`/`C_SE_NC_1`），COT 用 `ACT`。拿到测量类型一律拒绝（`IEC_IS_COMMAND_TYPE`） |
-| CAN / DLMS | ❌ 显式失败 | `req_prepare` 里 `if (is_write) return -1` + WARN。**宁可失败，也不发读帧** |
+| **DLMS** | ✅ SET-Request | 2026-10-31：`dlms_cosem_build_set_request()` + `dlms_point_t.data_type`（long-unsigned / double-long-unsigned），SET-Response 的 result≠0 判失败 |
+| CAN | ❌ 显式失败 | `req_prepare` 里 `if (is_write) return -1` + WARN。**宁可失败，也不发读帧** |
 | CiA402 | — | 没有 `req_prepare`（纯从站） |
 
 **698 不是"补个 tag 就完"**：
@@ -440,8 +441,12 @@ int (*req_prepare)(void *priv, uint32_t slave_id, uint32_t point_id, const void 
 
 | 协议 | 阻塞点 |
 |---|---|
-| DLMS | 缺 `dlms_cosem_build_set_request`（cosem 层没有 SET 构造器） |
-| CAN | 数据帧语义由产品定义（哪几个字节是值、字节序），没有统一样例 |
+| CAN | 数据帧语义由产品定义（哪几个字节是值、字节序），没有统一样例——**这条只能产品定，驱动无法代劳** |
+
+**DLMS 也已补**：`dlms_cosem_build_set_request()` 与 GET 同构（尾部把"选择访问"换成
+value），`decode_response` 补 SET-Response 分支（result≠0 判失败，不能把失败的写当成功）。
+`dlms_point_t` 加 `data_type` 并搬到 `driver_dlms.h`——产品要填它、测试也要用它，
+不该在 `.c` 里再复制一份结构体。
 
 **101/104 的"控制点位 type_id 从哪来"已定**：`native_id` 的高 8 位直接放命令类型，
 产品侧写 `IEC_NATIVE_ID(IEC_TYPE_C_SC_NA_1, ioa)`。这是契约问题不是样例问题，
