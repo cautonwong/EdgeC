@@ -205,9 +205,10 @@ static stage_ret_t _logger_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
                 int captured = dcu_obj_snapshot(evt->oi, ev->device_id, snapshots, 8);
 
                 // 💡 物理落盘：记录到事件历史表 (Class 7 Attr 2 落地)
-                const char* addr = (ctx->inv && ev->device_id < ctx->inv->count)
-                                       ? ctx->inv->meters[ev->device_id].address
-                                       : "Unknown";
+                /* ev->device_id 是 slot_id（影子表的设备身份），不是数组下标 */
+                const production_meter_t* meter =
+                    dcu_inventory_by_slot(ctx->inv, ev->device_id);
+                const char* addr = meter ? meter->address : "Unknown";
 
                 if (ctx->sink_ops.archive_event) {
                     ctx->sink_ops.archive_event(ctx->sink_ops.ctx, addr, evt->oi, ev->ts, 0,

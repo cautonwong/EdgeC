@@ -45,9 +45,16 @@ static int _node_publish_realtime(void *ctx, uint32_t tag_id, uint32_t meter_idx
                                   uint64_t timestamp_ns) {
     dcu_node_t *node = (dcu_node_t *)ctx;
     if (!node || !node->hub) return -1;
+
+    /* device_id 是影子表的**设备身份**，不是数组下标。
+     * `dcu_inventory_remove` 用末元素覆盖删除位，下标会变；用下标当身份的话，
+     * 删一只表就会把最后一只表的数据挪到别人的槽位上。 */
+    dcu_inventory_t *inv = dcu_node_get_inventory(node);
+    if (!inv || meter_idx >= inv->count) return -1;
+
     pipe_msg_t bus_msg;
     pipe_msg_init_scalar(&bus_msg, tag_id, val, timestamp_ns);
-    bus_msg.device_id = meter_idx;
+    bus_msg.device_id = inv->meters[meter_idx].slot_id;
     return datahub_publish(node->hub, &bus_msg);
 }
 
@@ -285,7 +292,9 @@ int dcu_node_feed_meter_reading(dcu_node_t *node, const char *meter_addr, uint32
         return -2;
     }
 
-    uint32_t dev_id = (uint32_t)(meter - node->inventory.meters);
+    /* 设备身份用 slot_id，不用数组下标：下标会被 remove 的末元素覆盖改掉，
+     * 而影子表和存储都按 device_id 索引。 */
+    uint32_t dev_id = meter->slot_id;
     uint64_t now_ns = ts_ns ? ts_ns : (node->loop ? uv_hrtime() : 0);
 
     /* 2. 持久化至存储聚合 */
