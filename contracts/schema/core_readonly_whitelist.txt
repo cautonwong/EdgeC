@@ -17,3 +17,13 @@
 # callers stop dereferencing datahub_t internals.
 modules/edge_core/include/datahub.h    # #413
 modules/edge_core/src/datahub.c        # #413
+
+# ADR-002 / #415 - 删除驱动契约注入包（driver_contract_injection_t）。
+#
+# 类型定义本身就在 contract_data_types.h 里，不删它注入包就删不干净；
+# contract_model_find() 是它的查表入口，一起删。
+# 影响面：纯删除，无新增 ABI。edge_model_info_t 保留（只去掉 injection 字段），
+# 契约句柄的 models/model_count 不变，聚合封装边界不动。
+modules/edge_core/include/contract_data_types.h    # #415 ADR-002
+modules/edge_core/include/contract_registry.h      # #415 ADR-002
+modules/edge_core/src/contract_registry.c          # #415 ADR-002
