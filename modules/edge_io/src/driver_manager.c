@@ -19,9 +19,17 @@
 
 typedef struct {
     edge_driver_ctx_t ctx;
-    uint8_t priv[DRIVER_PRIV_SIZE];
+    /* Caller-Allocated Storage 的对齐契约：缓冲区必须满足 max_align_t。
+     * 少了 alignas，`alignas(max_align_t)` 的会话结构体（IEC104 的 APCI storage）
+     * 落在非 16 字节边界上——ubsan 直接报 misaligned，实际运行是 UB。 */
+    alignas(max_align_t) uint8_t priv[DRIVER_PRIV_SIZE];
     bool in_use;
 } driver_inst_slot_t;
+
+/* 结构体整体也必须满足 max_align_t，否则 priv 只是"相对结构体对齐"，
+ * 而结构体本身可能落在任意地址（calloc 保证的是 max_align_t，这里双保险）。 */
+_Static_assert(alignof(driver_inst_slot_t) >= alignof(max_align_t),
+               "driver_inst_slot_t 必须按 max_align_t 对齐，否则驱动 priv 会 misaligned");
 
 
 struct driver_manager_s {
