@@ -31,6 +31,55 @@ uint16_t dlt698_calculate_fcs(const uint8_t *p, size_t len) {
     return (uint16_t)(fcs ^ 0xFFFF);
 }
 
+/* ---- 帧头/帧尾（SET 与 GET 共用同一套约定） ----
+ *
+ * 帧格式：68 | L(2, LE, 低 14 位) | 43 | SA | CA | HCS(2) | APDU | FCS(2) | 16
+ * L 与 FCS 都覆盖"68 之后、FCS 之前"，所以只能在 APDU 写完后回填——
+ * 用 len_ptr 把占位符带出去。 */
+static uint8_t *_frame_begin(struct net_buf_simple *b, const dlt698_addr_t *sa,
+                             uint8_t **len_ptr) {
+    uint8_t *start = b->data + b->len;
+    net_buf_simple_add_u8(b, DLT698_HEAD);
+    *len_ptr = net_buf_simple_add(b, 2);
+    net_buf_simple_add_u8(b, 0x43); /* Ctrl: DIR=0, PRM=1, Frame=3 (LLC) */
+    net_buf_simple_add_u8(b, (uint8_t)((sa->type << 6) | (sa->len - 1)));
+    net_buf_simple_add_mem(b, sa->addr, sa->len);
+    net_buf_simple_add_u8(b, 0x10); /* CA */
+    uint16_t hcs = dlt698_calculate_fcs(start + 1, (size_t)(b->data + b->len - (start + 1)));
+    net_buf_simple_add_le16(b, hcs);
+    return start;
+}
+
+static void _frame_seal(struct net_buf_simple *b, uint8_t *start, uint8_t *len_ptr) {
+    size_t total_len = (size_t)(b->data + b->len - start) + 3; /* +2 FCS +1 END */
+    uint16_t l_field = (uint16_t)((total_len - 1) & 0x3FFF);
+    len_ptr[0] = (uint8_t)(l_field & 0xFF);
+    len_ptr[1] = (uint8_t)(l_field >> 8);
+
+    uint16_t fcs = dlt698_calculate_fcs(start + 1, (size_t)(b->data + b->len - (start + 1)));
+    net_buf_simple_add_le16(b, fcs);
+    net_buf_simple_add_u8(b, DLT698_END);
+}
+
+int dlt698_encode_set_request(const dlt698_addr_t *sa, uint8_t piid, uint32_t oad,
+                              const uint8_t *data, size_t dlen, net_buf_t *out) {
+    if (!sa || !out || (dlen > 0 && !data)) return -1;
+
+    struct net_buf_simple *b = &out->b;
+    uint8_t *len_ptr = NULL;
+    uint8_t *start = _frame_begin(b, sa, &len_ptr);
+
+    /* APDU: SET-Request-Normal = 06 | 01 | PIID | OAD(4) | Data(A-XDR，含类型标签) */
+    net_buf_simple_add_u8(b, DLT698_SVC_SET_REQ);
+    net_buf_simple_add_u8(b, 0x01); /* Normal */
+    net_buf_simple_add_u8(b, piid);
+    net_buf_simple_add_be32(b, oad);
+    if (dlen > 0) net_buf_simple_add_mem(b, data, dlen);
+
+    _frame_seal(b, start, len_ptr);
+    return 0;
+}
+
 int dlt698_encode_get_request(const dlt698_addr_t *sa, uint8_t piid, uint32_t oad, net_buf_t *out) {
     struct net_buf_simple *b = &out->b;
     uint8_t *start = b->data + b->len;
