@@ -64,7 +64,17 @@ static int iec101_on_init(edge_driver_ctx_t *ctx) {
 
 static int iec101_req_prepare(void *priv_v, uint32_t slave_id, uint32_t point_id,
                               const void *meta_list, uint32_t meta_list_len,
-                              const void *point_desc, size_t point_desc_len) {
+                              const void *point_desc, size_t point_desc_len,
+                              bool is_write, double value) {
+    /* 写路径尚未实现：宁可在这里失败，也不能把写请求当读请求发出去。
+     * 补齐时按协议接对应的写编码 helper（见 ADR002 计划 §S5）。 */
+    if (is_write) {
+        (void)value;
+        LOG_WARN(LOG_CAT_IO, "IEC101: 写请求暂不支持");
+        return -1;
+    }
+    (void)is_write;
+
     (void)point_desc;
     (void)point_desc_len;
     (void)meta_list;

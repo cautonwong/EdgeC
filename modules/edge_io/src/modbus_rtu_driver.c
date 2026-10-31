@@ -27,6 +27,8 @@ typedef struct {
     uint8_t slave_id;
     uint16_t raw[MB_MAX_REGS];
     uint16_t raw_n;
+    bool is_write;  /**< 写请求：编码成 FC05/06 而不是读 */
+    double value;   /**< 写入值（raw，未标定） */
 } modbus_rtu_req_t;
 
 static int _decode_native(uint32_t native_id, uint16_t *addr, uint16_t *quantity) {
@@ -41,7 +43,7 @@ static int _decode_native(uint32_t native_id, uint16_t *addr, uint16_t *quantity
 
 static int mb_rtu_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id, const void *meta_list,
                               uint32_t meta_list_len, const void *point_desc,
-                              size_t point_desc_len) {
+                              size_t point_desc_len, bool is_write, double value) {
     (void)point_desc;
     (void)point_desc_len;
     (void)meta_list;
@@ -51,6 +53,11 @@ static int mb_rtu_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id, 
     if (_decode_native(point_id, &p->addr, &p->quantity) != 0) return -1;
     p->slave_id = (uint8_t)slave_id;
     p->raw_n = 0;
+    p->is_write = is_write;
+    p->value = value;
+    /* 单寄存器写：一个地址只写一个寄存器，多写需要连续的 raw 数组，
+     * 当前请求模型只带一个标量，所以显式拒绝而不是截断。 */
+    if (is_write && p->quantity != 1) return -1;
     return 0;
 }
 
@@ -58,6 +65,9 @@ static int mb_rtu_req_encode(void *priv, void *session, net_buf_t *out) {
     (void)session; /* 无会话状态：这一帧自成一体 */
     modbus_rtu_req_t *p = (modbus_rtu_req_t *)priv;
     if (!p || !out) return -1;
+    if (p->is_write) {
+        return modbus_rtu_encode_write_single(p->slave_id, p->addr, (uint16_t)p->value, out);
+    }
     return modbus_rtu_encode_read(p->slave_id, MODBUS_FC_READ_HOLDING_REGS, p->addr, p->quantity,
                                   out);
 }

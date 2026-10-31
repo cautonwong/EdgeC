@@ -150,9 +150,15 @@ struct edge_driver_s {
      * @param point_desc 本次请求的点位描述（点位标识超过 32 位的协议用，如 DLMS 的
      *                   OBIS+class_id+attr）。**不是表**——调用方给的就是这一个点。
      *                   驱动用 point_desc_len 校验尺寸，不匹配就拒绝。
+     * @param is_write   本次是写还是读。**必须传**：native 驱动的 encode 只有一个入口，
+     *                   拿不到这个标志就只能一律发读帧——写请求会静默变成读，
+     *                   控制命令失效且不报错（ADR-002 S5 修的就是这个）。
+     * @param value      写入值（`is_write` 为 true 时有效）。是 **raw**：调用方负责把
+     *                   工程量换成寄存器/BCD 原始值，驱动不碰标定。
      */
     int (*req_prepare)(void *priv, uint32_t slave_id, uint32_t point_id, const void *meta_list,
-                       uint32_t meta_list_len, const void *point_desc, size_t point_desc_len);
+                       uint32_t meta_list_len, const void *point_desc, size_t point_desc_len,
+                       bool is_write, double value);
 
     /**
      * @brief 私有数据 → 请求字节
