@@ -45,9 +45,16 @@ static int _node_publish_realtime(void *ctx, uint32_t tag_id, uint32_t meter_idx
                                   uint64_t timestamp_ns) {
     dcu_node_t *node = (dcu_node_t *)ctx;
     if (!node || !node->hub) return -1;
+
+    /* device_id 是影子表的**设备身份**，不是数组下标。
+     * `dcu_inventory_remove` 用末元素覆盖删除位，下标会变；用下标当身份的话，
+     * 删一只表就会把最后一只表的数据挪到别人的槽位上。 */
+    dcu_inventory_t *inv = dcu_node_get_inventory(node);
+    if (!inv || meter_idx >= inv->count) return -1;
+
     pipe_msg_t bus_msg;
     pipe_msg_init_scalar(&bus_msg, tag_id, val, timestamp_ns);
-    bus_msg.device_id = meter_idx;
+    bus_msg.device_id = inv->meters[meter_idx].slot_id;
     return datahub_publish(node->hub, &bus_msg);
 }
 

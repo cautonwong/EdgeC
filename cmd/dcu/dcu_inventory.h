@@ -28,6 +28,16 @@ typedef struct {
 
     bool is_online;      // 状态：true 表示 ACTIVE, false 表示 SUSPENDED (熔断离线)
     uint32_t last_poll_time_s;                  // 上一次被调度抄读的挂钟时间戳 (秒)
+
+    /* 影子表的设备身份。
+     *
+     * `dcu_inventory_remove` 用"末元素覆盖删除位"保持紧凑布局，所以**数组下标会变**。
+     * 而影子表按 `device_id * 32 + tag_slot` 索引，device_id 一旦跟着下标走，
+     * 删一只表就会把最后一只表的数据挪到别人的槽位上。
+     *
+     * slot_id 在 add 时分配、跟着表走（swap 是整体 memcpy，它自然一起搬），
+     * 是设备在影子表里的稳定身份。 */
+    uint32_t slot_id;
 } production_meter_t;
 
 /**
@@ -42,7 +52,8 @@ typedef struct {
 typedef struct {
     production_meter_t meters[MAX_METERS];
     uint16_t count;
-    uint32_t revision; // 档案变更版本号：删除后又新增同数目不会变 count，靠它察觉
+    uint32_t revision;  // 档案变更版本号：删除后又新增同数目不会变 count，靠它察觉
+    uint32_t next_slot; // 下一个待分配的 slot_id（单调递增，耗尽后才回收）
 } dcu_inventory_t;
 
 /* --- 生产级 API 函数原型声明 --- */
@@ -57,6 +68,12 @@ int dcu_inventory_init(dcu_inventory_t* inv);
  */
 int dcu_inventory_add(dcu_inventory_t* inv, const char* addr, const char* proto, uint32_t baud,
                       uint8_t channel);
+
+/**
+ * @brief 按 slot_id 反查档案（影子表用的是 slot_id，不是数组下标）。
+ * @return 找到返回实体指针，否则 NULL
+ */
+const production_meter_t* dcu_inventory_by_slot(const dcu_inventory_t* inv, uint32_t slot_id);
 
 /**
  * @brief 删除指定 TSA 地址的表计
