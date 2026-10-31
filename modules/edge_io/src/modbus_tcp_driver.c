@@ -69,15 +69,17 @@ static int mb_tcp_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id, 
     return 0;
 }
 
-static int mb_tcp_req_encode(void *priv, net_buf_t *out) {
+static int mb_tcp_req_encode(void *priv, void *session, net_buf_t *out) {
+    (void)session; /* 无会话状态：这一帧自成一体 */
     modbus_tcp_req_t *p = (modbus_tcp_req_t *)priv;
     if (!p || !out) return -1;
     return modbus_tcp_encode_read(p->tid, p->slave_id, MODBUS_FC_READ_HOLDING_REGS, p->addr,
                                   p->quantity, out);
 }
 
-static int mb_tcp_req_decode(void *priv, const uint8_t *buf, size_t len, size_t *consumed,
+static int mb_tcp_req_decode(void *priv, void *session, const uint8_t *buf, size_t len, size_t *consumed,
                              double *out_value) {
+    (void)session; /* 无会话状态：这一帧自成一体 */
     modbus_tcp_req_t *p = (modbus_tcp_req_t *)priv;
     if (!p || !buf || !consumed) return -1;
     *consumed = 0;
@@ -128,9 +130,10 @@ static int mb_tcp_req_decode(void *priv, const uint8_t *buf, size_t len, size_t 
 
 /* ==================== 从站侧 ==================== */
 
-static int mb_tcp_req_slave_exchange(void *priv, const uint8_t *in, size_t in_len,
+static int mb_tcp_req_slave_exchange(void *priv, void *session, const uint8_t *in, size_t in_len,
                                      const edge_slave_source_ops_t *src, void *src_ctx,
                                      net_buf_t *out, size_t *consumed) {
+    (void)session; /* 无跨帧状态：一问一答自成一体 */
     modbus_tcp_req_t *p = (modbus_tcp_req_t *)priv;
     if (!p || !in || !out || !consumed) return -1;
     *consumed = 0;

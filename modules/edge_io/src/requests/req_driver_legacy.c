@@ -97,8 +97,11 @@ static int legacy_encode(edge_req_t *req, net_buf_t *buf) {
 
     if (ctx->drv_ctx->driver->req_encode) {
         if (!ctx->drv_priv_ready) return REQ_STATUS_ERROR;
-        return ctx->drv_ctx->driver->req_encode(ctx->drv_priv, buf) == 0 ? 0
-                                                                         : REQ_STATUS_ERROR;
+        /* session = 设备级持久上下文（ctx_size 字节），跨请求保留 APCI 序号等会话状态 */
+        void *session = ctx->drv_ctx->priv;
+        return ctx->drv_ctx->driver->req_encode(ctx->drv_priv, session, buf) == 0
+                   ? 0
+                   : REQ_STATUS_ERROR;
     }
 
     // [Deepening] 检查协议是否就绪 (例如 DLMS 是否已完成握手)
@@ -123,8 +126,8 @@ static int legacy_decode(edge_req_t *req, net_buf_t *buf, size_t *consumed) {
     if (ctx->drv_ctx->driver->req_decode) {
         if (!ctx->drv_priv_ready) return REQ_STATUS_ERROR;
         double value = 0.0;
-        int nrc = ctx->drv_ctx->driver->req_decode(ctx->drv_priv, buf->b.data, buf->b.len,
-                                                   consumed, &value);
+        int nrc = ctx->drv_ctx->driver->req_decode(ctx->drv_priv, ctx->drv_ctx->priv,
+                                                   buf->b.data, buf->b.len, consumed, &value);
         if (nrc == EDGE_ERR_INCOMPLETE) return EDGE_ERR_INCOMPLETE;
         if (nrc != 0) return REQ_STATUS_ERROR;
 

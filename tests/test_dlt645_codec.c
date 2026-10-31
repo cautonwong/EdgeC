@@ -250,7 +250,7 @@ static void test_slave_read_uses_port(void** state) {
     dlt645_req_t priv;
     memset(&priv, 0, sizeof(priv));
     size_t consumed = 0;
-    int rc = dlt645_driver.req_slave_exchange(&priv, q.b.data, q.b.len, &src, NULL, &out, &consumed);
+    int rc = dlt645_driver.req_slave_exchange(&priv, NULL, q.b.data, q.b.len, &src, NULL, &out, &consumed);
     assert_int_equal(rc, 0);
     assert_int_equal(consumed, q.b.len);
 
@@ -285,7 +285,7 @@ static void test_slave_read_unknown_point_is_abnormal(void** state) {
     memset(&priv, 0, sizeof(priv));
     size_t consumed = 0;
     assert_int_equal(
-        dlt645_driver.req_slave_exchange(&priv, q.b.data, q.b.len, &src, NULL, &out, &consumed), 0);
+        dlt645_driver.req_slave_exchange(&priv, NULL, q.b.data, q.b.len, &src, NULL, &out, &consumed), 0);
 
     assert_true(out.b.len >= 12);
     assert_int_equal(out.b.data[8], 0xD1);   /* 控制码 = 异常应答 */
@@ -316,7 +316,7 @@ static void test_slave_write_goes_to_port(void** state) {
     memset(&priv, 0, sizeof(priv));
     size_t consumed = 0;
     assert_int_equal(
-        dlt645_driver.req_slave_exchange(&priv, q.b.data, q.b.len, &src, NULL, &out, &consumed), 0);
+        dlt645_driver.req_slave_exchange(&priv, NULL, q.b.data, q.b.len, &src, NULL, &out, &consumed), 0);
 
     assert_int_equal(g_accept_called, 1);
     assert_int_equal(g_accept_di, 0x02010100);

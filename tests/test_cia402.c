@@ -76,7 +76,7 @@ static void test_cia402_pdo_flow(void** state) {
     edge_slave_source_ops_t s_slave = {.resolve = NULL, .accept = _test_accept};
     g_accept_calls = 0;
     size_t consumed = 0;
-    int rc = ctx->driver->req_slave_exchange(ctx->priv, in->b.data, in->b.len, &s_slave, &hub, NULL,
+    int rc = ctx->driver->req_slave_exchange(ctx->priv, NULL, in->b.data, in->b.len, &s_slave, &hub, NULL,
                                              &consumed);
     assert_int_equal(rc, 0);
     assert_int_equal(g_accept_calls, 1);
@@ -94,7 +94,7 @@ static void test_cia402_pdo_flow(void** state) {
     // 3. Trigger on_tick to generate TPDO2 (Target Position to Servo)
     net_buf_t* out_tx = NULL;
     static edge_north_source_ops_t s_north = {.peek = _test_peek};
-    rc = ctx->driver->req_tick(ctx->priv, &s_north, &hub, ctx->pool, &out_tx);
+    rc = ctx->driver->req_tick(ctx->priv, &s_north, &hub, NULL, NULL, ctx->pool, &out_tx);
     assert_int_equal(rc, 0);
     assert_non_null(out_tx);
 

@@ -12,13 +12,14 @@
 #include <string.h>
 
 #include "contract_data_types.h"
+#include "iec_asdu.h"
 #include "modbus_codec.h"
 
 /* 外部协议驱动模板声明 */
-extern edge_driver_t modbus_rtu_driver;
-extern edge_driver_t modbus_tcp_driver;
-extern edge_driver_t iec104_driver;
-extern edge_driver_t can_driver;
+extern const edge_driver_t modbus_rtu_driver;
+extern const edge_driver_t modbus_tcp_driver;
+extern const edge_driver_t iec104_driver;
+extern const edge_driver_t can_driver;
 extern const edge_driver_t dlt645_driver;
 
 /* ==============================================================================
@@ -175,6 +176,15 @@ uint32_t iems_driver_adapter_native_id(const char *proto, uint32_t tag_id) {
         strcasecmp(proto, "Modbus") == 0) {
         const modbus_map_t *m = (const modbus_map_t *)iems_lookup_modbus_by_tag(tag_id);
         if (m) return MODBUS_NATIVE((uint32_t)m->key, m->length ? m->length : 1);
+    }
+    /* IEC104 组 ASDU 要「类型标识 + IOA」，与 IEC101 同一套 32 位编码。
+     * 表里没配 type_id 时按短浮点测量值（M_ME_NC_1）走。 */
+    if (strcasecmp(proto, "IEC104") == 0) {
+        const iec104_map_t *m = (const iec104_map_t *)iems_lookup_iec104_by_tag(tag_id);
+        if (m) {
+            uint8_t type_id = m->type_id ? m->type_id : (uint8_t)IEC_TYPE_M_ME_NC_1;
+            return IEC_NATIVE_ID(type_id, (uint32_t)m->key);
+        }
     }
     return tag_id;
 }

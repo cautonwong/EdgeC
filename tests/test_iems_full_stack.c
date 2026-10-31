@@ -165,6 +165,18 @@ static int _mock_slave_resolve(void* ctx, uint32_t point_id, const void* point_d
     return 0;
 }
 
+/* [ADR-002] IEC104 从站端口：遥控/遥调下发时，由产品把值写回 DataHub。
+ * 驱动不再 lookup + publish，它只把「点位标识 + 值」交出来。
+ * point_id = (type_id << 24) | ioa，与驱动同一套编码。 */
+static int _mock_iec_accept(void* ctx, uint32_t point_id, double value) {
+    iems_test_ctx_t* t = (iems_test_ctx_t*)ctx;
+    const iec104_map_t* m = edge_get_map_iec104((uint64_t)(point_id & 0xFFFFFFu));
+    if (!m) return -1;
+    pipe_msg_t msg;
+    pipe_msg_init_scalar(&msg, m->tag_id, value, uv_hrtime());
+    return datahub_publish(&t->hub, &msg);
+}
+
 static void test_iems_dispatch_flow(void** state) {
     iems_test_ctx_t* ctx = (iems_test_ctx_t*)*state;
 
@@ -172,6 +184,8 @@ static void test_iems_dispatch_flow(void** state) {
         .lookup_by_key = (const void* (*)(uint64_t))edge_get_map_iec104,
         .lookup_by_tag = (const void* (*)(uint32_t))edge_get_map_iec104_by_tag};
     bus_orchestrator_setup_slave(ctx->orch, 0, "IEC104", 1, &iec_inj);
+    static edge_slave_source_ops_t s_iec_src = {.resolve = NULL, .accept = _mock_iec_accept};
+    bus_orchestrator_set_slave_source(ctx->orch, 0, &s_iec_src, ctx);
     ctx->iec_io.ops = &iec_mock_ops;
     bus_orchestrator_attach_io(ctx->orch, 0, &ctx->iec_io);
 

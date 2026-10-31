@@ -58,7 +58,7 @@ static void test_master_encode_uses_point_id(void** state) {
     uint8_t mem[TEST_BUF];
     net_buf_t out;
     net_buf_simple_init_with_data(&out.b, mem, sizeof(mem));
-    assert_int_equal(iec101_driver.req_encode(priv, &out), 0);
+    assert_int_equal(iec101_driver.req_encode(priv, NULL, &out), 0);
     assert_true(out.b.len > 0);
 
     /* 类型标识必须出现在 ASDU 里（头部布局由协议层决定，不在这里钉死位置） */
@@ -96,7 +96,7 @@ static void test_slave_answers_link_status(void** state) {
     net_buf_simple_init_with_data(&out.b, rmem, sizeof(rmem));
 
     size_t consumed = 0;
-    int rc = iec101_driver.req_slave_exchange(priv, q.b.data, q.b.len, NULL, NULL, &out, &consumed);
+    int rc = iec101_driver.req_slave_exchange(priv, NULL, q.b.data, q.b.len, NULL, NULL, &out, &consumed);
     assert_int_equal(rc, 0);
     assert_true(consumed > 0);
     /* 必须组出应答；帧头细节由协议层 iec101_link 决定，这里只验"有输出" */
@@ -113,7 +113,7 @@ static void test_master_tick_builds_link_request(void** state) {
     net_buf_pool_t* pool = net_buf_pool_new(4, 256, 0);
     assert_non_null(pool);
     net_buf_t* out_tx = NULL;
-    assert_int_equal(iec101_driver.req_tick(priv, NULL, NULL, pool, &out_tx), 0);
+    assert_int_equal(iec101_driver.req_tick(priv, NULL, NULL, NULL, NULL, pool, &out_tx), 0);
     assert_non_null(out_tx);
     assert_true(out_tx->b.len > 0);
     net_buf_unref(out_tx);

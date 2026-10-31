@@ -245,17 +245,53 @@ IEC101 是「类型 8 + IOA 24」正好 32 位；DLMS 的 OBIS 单独就 48 位�
   test-platform 没有对应用例可挂（它的用例是产品级的），只能靠单元测试覆盖。
   所以这几个驱动都补了 `tests/test_driver_*.c`。
 
-### S3-d IEC104（唯一有设计风险的）
+### S3-d IEC104（已完成，2026-10-31）
 
 104 是面向连接的：STARTDT/STOPDT 握手、APDU 收发序号、I 帧确认。纯 codec 化要求把这些
-会话状态从驱动里搬走，而 `edge_req_s` 目前没有"会话上下文"的位置。
+会话状态从驱动里搬走，而 `edge_req_s` 原来只有一块"请求级 scratch"。
 
-| 方案 | 做法 | 代价 |
+**最后选的不是 A 也不是 B，是 C：把两种 priv 分开。**
+
+`edge_req_s` 早就有 `ctx_size`（设备级持久上下文，SessionManager 持有一份），
+只是一直没交给 native 槽位用。所以不需要新增"会话对象"，只要把已有的那块传进去：
+
+| 槽位 | priv（scratch） | session（持久） |
 |---|---|---|
-| A（建议） | 扩 `edge_req_s` 加 `session_ctx` + 生命周期钩子 | 请求模型变复杂 |
-| B | 104 长期留 legacy | **注入包删不干净，本计划 §0 无法达成** |
+| `req_prepare` | 本次要读/写的点 | — |
+| `req_encode` / `req_decode` | 同上 | APCI 收发序号、HDLC/COSEM 关联状态 |
+| `req_slave_exchange` | 从站一般不用 | 同上 |
+| `req_tick` | — | 整个就是 session |
 
-选 B 等于放弃 §0，所以只认真做 A。
+签名变化（一次改完，只改 native 槽位，legacy 四件套不动）：
+
+```c
+int (*req_encode)(void *priv, void *session, net_buf_t *out);
+int (*req_decode)(void *priv, void *session, const uint8_t *buf, size_t len,
+                  size_t *consumed, double *out_value);
+int (*req_slave_exchange)(void *priv, void *session, const uint8_t *in, size_t in_len,
+                          const edge_slave_source_ops_t *src, void *src_ctx,
+                          net_buf_t *out, size_t *consumed);
+int (*req_tick)(void *priv, const edge_north_source_ops_t *north, void *north_ctx,
+                const edge_slave_source_ops_t *slave, void *slave_ctx,
+                net_buf_pool_t *pool, net_buf_t **out_tx);
+```
+
+`req_tick` 同时收北向端口和从站端口：北向是"发北向报文"，从站是"测点变化主动上送"，
+两者用途不同不能互替（104 从站的自发上报就靠后者）。
+
+**这个拆分顺手修掉了两个隐藏 bug**：
+
+1. DLMS 的 `req_encode` 原来从 scratch 里读 `session_state`——scratch 每请求清零，
+   状态永远是 IDLE，主站读**必然失败**。DLMS 没有产品注册，所以一直没暴露。
+2. DLMS 没有 `req_priv_size`，`driver_manager_register` 的 `-5` 校验会让注册直接失败。
+
+IEC104 的点位标识用 `IEC_NATIVE_ID(type_id, ioa)`（`iec_asdu.h`），与 IEC101 同一套
+32 位编码——两个协议的 ASDU 都是「类型 8 + IOA 24」，正好装得下，不需要 `point_desc`。
+
+**一个踩过的坑**：`iec104_session_t` 一开始 32 个死区槽位，加上 APCI 的 512 字节
+超过了 `DRIVER_PRIV_SIZE`(1024)，`driver_instance_create` **静默返回 NULL**，
+现象是"会话建不出来、日志什么都没有"。现在驱动里有 `_Static_assert`，
+`driver_manager.c` 也补了 `LOG_ERROR`。
 
 ### S3-e 未注册的 5 个驱动（拦路石）
 

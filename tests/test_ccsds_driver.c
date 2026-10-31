@@ -44,7 +44,7 @@ static void test_ccsds_packet_format(void** state) {
     // 2. Trigger driver tick to formulate CCSDS packet
     net_buf_t* out_tx = NULL;
     static edge_north_source_ops_t s_src = {.peek = _test_north_peek};
-    int rc = ctx->driver->req_tick(ctx->priv, &s_src, &hub, ctx->pool, &out_tx);
+    int rc = ctx->driver->req_tick(ctx->priv, &s_src, &hub, NULL, NULL, ctx->pool, &out_tx);
 
     assert_int_equal(rc, 0);
     assert_non_null(out_tx);

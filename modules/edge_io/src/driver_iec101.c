@@ -78,7 +78,8 @@ static int iec101_req_prepare(void *priv_v, uint32_t slave_id, uint32_t point_id
     return 0;
 }
 
-static int iec101_req_encode(void *priv_v, net_buf_t *out) {
+static int iec101_req_encode(void *priv_v, void *session, net_buf_t *out) {
+    (void)session; /* 无会话状态：这一帧自成一体 */
     iec101_ctx_t *priv = (iec101_ctx_t *)priv_v;
     if (!priv || !out) return -1;
     iec_asdu_init(out, (iec_type_id_t)priv->cur_type, false, 1, IEC_COT_REQ, priv->casdu,
@@ -90,8 +91,9 @@ static int iec101_req_encode(void *priv_v, net_buf_t *out) {
 
 /* ==================== 主站：解应答 ==================== */
 
-static int iec101_req_decode(void *priv_v, const uint8_t *buf, size_t len, size_t *consumed,
+static int iec101_req_decode(void *priv_v, void *session, const uint8_t *buf, size_t len, size_t *consumed,
                              double *out_value) {
+    (void)session; /* 无会话状态：这一帧自成一体 */
     iec101_ctx_t *priv = (iec101_ctx_t *)priv_v;
     if (!priv || !buf || !consumed) return -1;
     *consumed = 0;
@@ -191,9 +193,10 @@ static void _gi_emit(void *ud, uint32_t point_id) {
     g->count++;
 }
 
-static int iec101_req_slave_exchange(void *priv_v, const uint8_t *in, size_t in_len,
+static int iec101_req_slave_exchange(void *priv_v, void *session, const uint8_t *in, size_t in_len,
                                      const edge_slave_source_ops_t *src, void *src_ctx,
                                      net_buf_t *out, size_t *consumed) {
+    (void)session; /* 无跨帧状态：一问一答自成一体 */
     iec101_ctx_t *priv = (iec101_ctx_t *)priv_v;
     if (!priv || !in || !out || !consumed) return -1;
     *consumed = 0;
@@ -274,7 +277,10 @@ static int iec101_req_slave_exchange(void *priv_v, const uint8_t *in, size_t in_
 /* ==================== 主站：周期链路状态 ==================== */
 
 static int iec101_req_tick(void *priv_v, const edge_north_source_ops_t *src, void *src_ctx,
-                           net_buf_pool_t *pool, net_buf_t **out_tx) {
+                    const edge_slave_source_ops_t *slave, void *slave_ctx,
+                    net_buf_pool_t *pool, net_buf_t **out_tx) {
+    (void)slave; /* 这一路只发北向报文，不用从站端口 */
+    (void)slave_ctx;
     (void)src;
     (void)src_ctx;
     iec101_ctx_t *priv = (iec101_ctx_t *)priv_v;

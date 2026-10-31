@@ -55,9 +55,10 @@ static int cia402_on_init(edge_driver_ctx_t *ctx) {
 
 /* ==================== 收 TPDO：解值交给端口，无应答 ==================== */
 
-static int cia402_req_slave_exchange(void *priv_v, const uint8_t *in, size_t in_len,
+static int cia402_req_slave_exchange(void *priv_v, void *session, const uint8_t *in, size_t in_len,
                                      const edge_slave_source_ops_t *src, void *src_ctx,
                                      net_buf_t *out, size_t *consumed) {
+    (void)session; /* 无跨帧状态：一问一答自成一体 */
     cia402_ctx_t *priv = (cia402_ctx_t *)priv_v;
     if (!priv || !in || !consumed) return -1;
     *consumed = 0;
@@ -96,7 +97,10 @@ static int cia402_req_slave_exchange(void *priv_v, const uint8_t *in, size_t in_
 /* ==================== 发 RPDO：状态由端口给 ==================== */
 
 static int cia402_req_tick(void *priv_v, const edge_north_source_ops_t *src, void *src_ctx,
-                           net_buf_pool_t *pool, net_buf_t **out_tx) {
+                    const edge_slave_source_ops_t *slave, void *slave_ctx,
+                    net_buf_pool_t *pool, net_buf_t **out_tx) {
+    (void)slave; /* 这一路只发北向报文，不用从站端口 */
+    (void)slave_ctx;
     cia402_ctx_t *priv = (cia402_ctx_t *)priv_v;
     if (!priv || !src || !src->peek || !pool || !out_tx) return -1;
 

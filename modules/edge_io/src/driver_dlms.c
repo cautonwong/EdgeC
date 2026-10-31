@@ -44,17 +44,22 @@ typedef struct {
     uint8_t attribute_index;
 } dlms_point_t;
 
+/* 设备级会话（ctx_size）：跨帧状态，随 SessionManager 的会话存活 */
 typedef struct {
     dlms_hdlc_manager_t hdlc;
     dlms_cosem_ctx_t cosem;
     dlms_session_state_t session_state;
     uint64_t last_step_ts;
+} dlms_session_t;
+
+/* 请求级 scratch（req_priv_size）：只放"这一帧要读哪个点" */
+typedef struct {
     dlms_point_t cur;
     bool cur_valid;
-} dlms_driver_ctx_t;
+} dlms_req_t;
 
 static int dlms_on_init(edge_driver_ctx_t *ctx) {
-    dlms_driver_ctx_t *priv = (dlms_driver_ctx_t *)ctx->priv;
+    dlms_session_t *priv = (dlms_session_t *)ctx->priv;
     memset(priv, 0, sizeof(*priv));
 
     priv->hdlc.client_addr = 0x01;
@@ -75,7 +80,7 @@ static int dlms_req_prepare(void *priv_v, uint32_t slave_id, uint32_t point_id,
     (void)point_id;
     (void)meta_list;
     (void)meta_list_len;
-    dlms_driver_ctx_t *priv = (dlms_driver_ctx_t *)priv_v;
+    dlms_req_t *priv = (dlms_req_t *)priv_v;
     if (!priv) return -1;
 
     /* 点位描述是必须的：DLMS 没有 native_id 可用的 32 位标识。
@@ -86,20 +91,21 @@ static int dlms_req_prepare(void *priv_v, uint32_t slave_id, uint32_t point_id,
     return 0;
 }
 
-static int dlms_req_encode(void *priv_v, net_buf_t *out) {
-    dlms_driver_ctx_t *priv = (dlms_driver_ctx_t *)priv_v;
-    if (!priv || !out || !priv->cur_valid) return -1;
+static int dlms_req_encode(void *priv_v, void *session, net_buf_t *out) {
+    dlms_req_t *req = (dlms_req_t *)priv_v;
+    dlms_session_t *priv = (dlms_session_t *)session;
+    if (!req || !priv || !out || !req->cur_valid) return -1;
     if (priv->session_state != DLMS_SESSION_READY) return -1;
 
     char obis_str[32];
-    snprintf(obis_str, sizeof(obis_str), "%d.%d.%d.%d.%d.%d", priv->cur.obis[0],
-             priv->cur.obis[1], priv->cur.obis[2], priv->cur.obis[3], priv->cur.obis[4],
-             priv->cur.obis[5]);
+    snprintf(obis_str, sizeof(obis_str), "%d.%d.%d.%d.%d.%d", req->cur.obis[0],
+             req->cur.obis[1], req->cur.obis[2], req->cur.obis[3], req->cur.obis[4],
+             req->cur.obis[5]);
 
     net_buf_t *apdu = net_buf_alloc(out->pool, 0);
     if (!apdu) return -1;
-    dlms_cosem_build_get_request(&priv->cosem, priv->cur.class_id, obis_str,
-                                 priv->cur.attribute_index, NULL, apdu);
+    dlms_cosem_build_get_request(&priv->cosem, req->cur.class_id, obis_str,
+                                 req->cur.attribute_index, NULL, apdu);
     dlms_hdlc_send_iframe(&priv->hdlc, apdu, out);
     net_buf_unref(apdu);
     return 0;
@@ -107,9 +113,10 @@ static int dlms_req_encode(void *priv_v, net_buf_t *out) {
 
 /* ==================== 主站：解应答 ==================== */
 
-static int dlms_req_decode(void *priv_v, const uint8_t *buf, size_t len, size_t *consumed,
-                           double *out_value) {
-    dlms_driver_ctx_t *priv = (dlms_driver_ctx_t *)priv_v;
+static int dlms_req_decode(void *priv_v, void *session, const uint8_t *buf, size_t len,
+                           size_t *consumed, double *out_value) {
+    (void)priv_v; /* 应答解析不需要"读哪个点"——序号与关联状态都在 session 里 */
+    dlms_session_t *priv = (dlms_session_t *)session;
     if (!priv || !buf || !consumed) return -1;
     *consumed = 0;
 
@@ -150,10 +157,11 @@ static int dlms_req_decode(void *priv_v, const uint8_t *buf, size_t len, size_t 
 
 /* ==================== 从站：应答 ==================== */
 
-static int dlms_req_slave_exchange(void *priv_v, const uint8_t *in, size_t in_len,
+static int dlms_req_slave_exchange(void *priv_v, void *session, const uint8_t *in, size_t in_len,
                                    const edge_slave_source_ops_t *src, void *src_ctx,
                                    net_buf_t *out, size_t *consumed) {
-    dlms_driver_ctx_t *priv = (dlms_driver_ctx_t *)priv_v;
+    (void)priv_v; /* HDLC 帧序号是跨帧状态，只能放 session */
+    dlms_session_t *priv = (dlms_session_t *)session;
     if (!priv || !in || !out || !consumed) return -1;
     *consumed = 0;
 
@@ -233,10 +241,13 @@ static int dlms_req_slave_exchange(void *priv_v, const uint8_t *in, size_t in_le
 /* ==================== 会话推进 ==================== */
 
 static int dlms_req_tick(void *priv_v, const edge_north_source_ops_t *src, void *src_ctx,
-                         net_buf_pool_t *pool, net_buf_t **out_tx) {
+                    const edge_slave_source_ops_t *slave, void *slave_ctx,
+                    net_buf_pool_t *pool, net_buf_t **out_tx) {
+    (void)slave; /* 这一路只发北向报文，不用从站端口 */
+    (void)slave_ctx;
     (void)src;
     (void)src_ctx;
-    dlms_driver_ctx_t *priv = (dlms_driver_ctx_t *)priv_v;
+    dlms_session_t *priv = (dlms_session_t *)priv_v;
     if (!priv || !pool || !out_tx) return -1;
 
     uint64_t now = uv_hrtime() / 1000000;
@@ -297,7 +308,8 @@ static int dlms_req_tick(void *priv_v, const edge_north_source_ops_t *src, void 
 
 const edge_driver_t dlms_driver = {
     .name = "DLMS",
-    .ctx_size = sizeof(dlms_driver_ctx_t), /* 会话是跨帧状态，必须持久 */
+    .ctx_size = sizeof(dlms_session_t),      /* 会话是跨帧状态，必须持久 */
+    .req_priv_size = sizeof(dlms_req_t),    /* 请求 scratch 只放这一个点 */
     .on_init = dlms_on_init,
     .req_prepare = dlms_req_prepare,
     .req_encode = dlms_req_encode,

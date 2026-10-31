@@ -120,8 +120,8 @@ static void on_data_notify_timer(uv_timer_t* handle) {
         /* request-native 生产者：状态由端口给，驱动不碰 datahub */
         if (ctx->driver->req_tick) {
             net_buf_t* tick_buf = NULL;
-            if (ctx->driver->req_tick(ctx->priv, mgr->north_src, mgr->north_src_ctx, ctx->pool,
-                                      &tick_buf) == 0 &&
+            if (ctx->driver->req_tick(ctx->priv, mgr->north_src, mgr->north_src_ctx, NULL, NULL,
+                                      ctx->pool, &tick_buf) == 0 &&
                 tick_buf) {
                 spb_ctx_t* spb = (spb_ctx_t*)ctx->priv;
                 char topic[256];

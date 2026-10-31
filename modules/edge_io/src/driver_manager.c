@@ -248,6 +248,9 @@ edge_driver_ctx_t *driver_instance_create(driver_manager_t *mgr, const char *pro
     }
     if (tmpl->ctx_size > 0) {
         if (tmpl->ctx_size > DRIVER_PRIV_SIZE) {
+            /* 静默失败最难查：表现为"会话建不出来"，日志里什么都没有 */
+            LOG_ERROR(LOG_CAT_IO, "Driver %s: ctx_size %zu exceeds DRIVER_PRIV_SIZE (%d)",
+                      tmpl->name ? tmpl->name : "?", tmpl->ctx_size, DRIVER_PRIV_SIZE);
             slot->in_use = false;
             return NULL;
         }

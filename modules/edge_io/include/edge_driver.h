@@ -165,6 +165,13 @@ struct edge_driver_s {
     /** 驱动私有请求数据的字节数（≤ REQ_DRV_PRIV_MAX）。0 表示走 legacy。 */
     size_t req_priv_size;
 
+    // 两个 priv 的分工（ADR-002 S3-d）：
+    //   priv    —— 请求级 scratch，req_priv_size 字节，每次请求清零，只放"这一帧"的东西；
+    //   session —— 设备级持久上下文，ctx_size 字节，随会话存活，放"跨帧"的东西
+    //              （APCI 收发序号、HDLC/COSEM 关联状态、总召唤是否已发）。
+    // session 由请求层从 SessionManager 取来传入，可为 NULL（无状态驱动不看它）。
+    // 驱动私有不透明，请求层不解释其内容——这与"驱动不查表"是同一条边界。
+
     /**
      * @brief 把请求参数填进私有数据。
      * @param priv      由请求层提供的 req_priv_size 字节缓冲（已清零）
@@ -178,15 +185,21 @@ struct edge_driver_s {
     int (*req_prepare)(void *priv, uint32_t slave_id, uint32_t point_id, const void *meta_list,
                        uint32_t meta_list_len, const void *point_desc, size_t point_desc_len);
 
-    /** @brief 私有数据 → 请求字节 */
-    int (*req_encode)(void *priv, net_buf_t *out);
+    /**
+     * @brief 私有数据 → 请求字节
+     * @param priv    本次请求的 scratch
+     * @param session 设备级持久上下文（ctx_size 字节，可为 NULL）；有会话状态的协议
+     *                （IEC104 的 N(S)、DLMS 的关联状态）从这里读写
+     */
+    int (*req_encode)(void *priv, void *session, net_buf_t *out);
 
     /**
      * @brief 应答字节 → 私有数据里的值
+     * @param session 设备级持久上下文，同上
      * @param out_value 解出的工程量/原始值，由请求层负责标定与落库
      * @return 0=解出完整帧；EDGE_ERR_INCOMPLETE=未收全；<0=校验/格式错误
      */
-    int (*req_decode)(void *priv, const uint8_t *buf, size_t len, size_t *consumed,
+    int (*req_decode)(void *priv, void *session, const uint8_t *buf, size_t len, size_t *consumed,
                       double *out_value);
 
     /**
@@ -197,21 +210,29 @@ struct edge_driver_s {
      * 驱动只负责字节 ↔ 结构体的转换。端口每次现传，不进 ctx。
      *
      * @param priv      req_priv_size 字节的私有缓冲（scratch，跨帧不必保留）
+     * @param session   设备级持久上下文（ctx_size 字节，可为 NULL）。HDLC 帧序号、
+     *                  APCI 收发序号这类**跨帧**状态放这里；放 scratch 里每帧归零，
+     *                  序号会永远停在 0，对端直接判帧错。
      * @param consumed  本帧消耗的字节数；返回 1 表示跳过了前导垃圾
      */
-    int (*req_slave_exchange)(void *priv, const uint8_t *in, size_t in_len,
+    int (*req_slave_exchange)(void *priv, void *session, const uint8_t *in, size_t in_len,
                               const edge_slave_source_ops_t *src, void *src_ctx, net_buf_t *out,
                               size_t *consumed);
 
     /**
-     * @brief 北向生产者：读本地状态组北向报文（ADR-002）
+     * @brief 周期发帧：北向报文 / 从站自发报文（ADR-002）
      *
      * 与 `on_tick` 的区别：这里没有 `read_shadow`、没有 datahub 句柄。
-     * 状态由 `src->peek` 给，驱动不知道背后是什么。
+     * 状态由端口给，驱动不知道背后是什么。
      * `priv` 是**持久**上下文（ctx_size 字节），因为生产者要记序号等状态。
+     *
+     * 两个端口都要给：北向生产者读 `north`（发北向报文），
+     * 从站自发上报读 `slave`（测点变化 → 主动上送）。两者用途不同，不能互替。
+     * 任一端口可为 NULL（该方向不需要发帧时）。
      */
-    int (*req_tick)(void *priv, const edge_north_source_ops_t *src, void *src_ctx,
-                    net_buf_pool_t *pool, net_buf_t **out_tx);
+    int (*req_tick)(void *priv, const edge_north_source_ops_t *north, void *north_ctx,
+                    const edge_slave_source_ops_t *slave, void *slave_ctx, net_buf_pool_t *pool,
+                    net_buf_t **out_tx);
 };
 
 /**

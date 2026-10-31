@@ -78,6 +78,23 @@ typedef struct {
 } iec_qds_t;
 
 /**
+ * @brief 点位标识编码（ADR-002）
+ *
+ * IEC 101/104 组 ASDU 需要「类型标识 + 信息对象地址」两个协议原生概念，
+ * 而 native_id 只有一个 32 位数，所以按位拼起来：
+ *
+ *     native_id = (type_id << 24) | (ioa & 0xFFFFFF)
+ *
+ * IOA 是 3 字节、类型标识 1 字节，正好 32 位不丢信息。
+ * **产品侧与驱动侧必须用同一套宏**，否则点位对不上——所以放在公开头里，
+ * 而不是各自在 .c 里定义一份。
+ */
+#define IEC_NATIVE_ID(type_id, ioa) \
+    ((((uint32_t)(type_id) & 0xFFu) << 24) | ((uint32_t)(ioa) & 0xFFFFFFu))
+#define IEC_NATIVE_TYPE(id) ((uint8_t)(((id) >> 24) & 0xFFu))
+#define IEC_NATIVE_IOA(id) ((uint32_t)((id) & 0xFFFFFFu))
+
+/**
  * @brief 电力规约地址长度配置 (101/104 归一化关键)
  */
 typedef struct {
