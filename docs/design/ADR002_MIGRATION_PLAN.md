@@ -461,6 +461,18 @@ value），`decode_response` 补 SET-Response 分支（result≠0 判失败，�
 
 回归测试：`tests/test_modbus_v3.c` 里三条——写发 FC06、读仍发 FC03、多寄存器写被拒。
 
+### 顺手修掉一个"假成功"：OI 8000 远程拉合闸
+
+`_oi_8000_execute` 原来只把动作值写进影子表 + 记一条遥测就 `return 0`：
+**主站看到"拉闸成功"，现场继电器根本没动**。这比"不支持"危险得多——没人会去复查。
+
+现在改成明确失败（返回 `-4` + `LOG_ERROR`），并写清阻塞点：真正的拉合闸是 698 的
+**ACTION-Request**（服务码 0x07、方法 1），而 `dlt698_codec.c` 只有 GET/SET 构造器，
+没有 ACTION，也没有继电器控制参数的报文样例。**拿到样例之前不猜报文格式。**
+
+顺带修掉它内部的 `meters[device_id]`：`device_id` 是 slot_id 不是数组下标
+（删表会让下标变，查地址会查到别人家去），改用 `dcu_inventory_by_slot()`。
+
 ### P2 一次性删除（§0 的 9 项）
 
 顺序不能颠倒：

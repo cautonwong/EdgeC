@@ -100,11 +100,15 @@ static void test_dcu_router_dispatch(void** state) {
     assert_int_equal(ret, 0);
     assert_float_equal(current, 4.95f, 0.01f);
 
-    // 8. 验证远程负荷控制执行动作 ACTION 8000 -> 模拟合分闸
+    /* 8. 远程负荷控制 ACTION 8000：**动作明确未实现**（缺 698 ACTION-Request 编码器）。
+     *
+     * 这条断言以前是 `ret == 0` —— 那是在给"假成功"背书：处理函数只把动作值写进
+     * 影子表就返回成功，主站以为拉闸成功，继电器根本没动。
+     * 现在断言 -4：**路由是通的**（不是 -2「方法不存在」），但动作明确拒绝，
+     * 绝不伪装成功。等 698 ACTION-Request 的编码器和报文样例齐了再改成真下发。 */
     method_res = -1;
     ret = dcu_router_action(((uint32_t)OI_REMOTE_CONTROL << 16) | 0x0100, NULL, &method_res);
-    assert_int_equal(ret, 0);
-    assert_int_equal(method_res, 0);
+    assert_int_equal(ret, -4);
 
     // 9. 验证影子抓拍引擎 (Generic Snapshot Engine)
     dcu_event_obj_t evt_3000 = {
