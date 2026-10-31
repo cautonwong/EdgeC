@@ -421,13 +421,20 @@ int (*req_prepare)(void *priv, uint32_t slave_id, uint32_t point_id, const void 
 | 协议 | 写支持 | 说明 |
 |---|---|---|
 | ModbusRTU / ModbusTCP | ✅ FC05/06 | 产品实际在用；多寄存器写显式拒绝（请求模型只带一个标量，截断比失败更危险） |
-| DLT645 / DLT698 / CAN / IEC101 / DLMS | ❌ 显式失败 | `req_prepare` 里 `if (is_write) return -1` + WARN。**宁可失败，也不发读帧** |
+| **DLT645** | ✅ 控制码 0x14 | 2026-10-31 补齐：宽度来自 `dlt645_write_desc_t`（经 `point_desc` 传），值按 BCD 编进数据段；缺宽度或宽度非 2/4 一律拒绝 |
+| DLT698 / CAN / IEC101 / DLMS | ❌ 显式失败 | `req_prepare` 里 `if (is_write) return -1` + WARN。**宁可失败，也不发读帧** |
 | CiA402 | — | 没有 `req_prepare`（纯从站） |
 
-补各协议写路径时要接的 helper（都已存在）：
-`dlt645_encode_write()`（需要点位宽度 2/4，point_desc 里没有 → 要先扩描述）、
-`dlt698` 的 SET-Request、`iec_asdu_add_c_sc_na_1/_c_se_nc_1`（101/104 遥控）、
-`dlms_cosem_build_set_request`。
+**为什么停在 645**：其余协议的写编码没有可复用的正确实现，硬写等于猜——
+
+| 协议 | 阻塞点 |
+|---|---|
+| DLT698 | `dlt698_codec.c` 是简化实现（源码里就写着 "For simplicity"），没有 SET-Request 编码器；要先补 codec 并拿到报文样例 |
+| IEC101 / IEC104 | `iec_asdu_add_c_sc_na_1/_c_se_nc_1` 已有，缺的是"写请求的 type_id 从哪来"——控制点位与测量点位的类型不同，需要产品在 `native_id` 里带控制类型，并补一条控制点位的用例 |
+| DLMS | 缺 `dlms_cosem_build_set_request` |
+| CAN | 数据帧语义由产品定义（哪几个字节是值、字节序），没有统一样例 |
+
+补任何一个之前，先要有**能对照的报文样例**——没有样例的编码器只是"看起来对"。
 
 回归测试：`tests/test_modbus_v3.c` 里三条——写发 FC06、读仍发 FC03、多寄存器写被拒。
 

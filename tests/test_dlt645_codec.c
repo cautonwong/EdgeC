@@ -185,6 +185,57 @@ static void test_req_prepare_uses_meta(void** state) {
     assert_memory_equal(p2.addr_bcd, broadcast, 6);
 }
 
+/* 写路径：宽度来自 point_desc（产品侧的点位模型知识），值按 BCD 进数据段。
+ * 这条用例锁住"写不再退化成读"——修之前 req_prepare 直接 return -1。 */
+static void test_req_write_encodes_ctrl14(void** state) {
+    (void)state;
+    uint8_t meta[1][6] = {{0x11, 0x22, 0x33, 0x44, 0x55, 0x66}};
+    dlt645_req_t priv;
+    memset(&priv, 0, sizeof(priv));
+    dlt645_write_desc_t desc = {.data_len = 2};
+
+    assert_int_equal(dlt645_driver.req_prepare(&priv, 0, 0x02010100, meta, 1, &desc, sizeof(desc),
+                                               true, 1234.0),
+                     0);
+
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 4, 256, 0, NULL, NULL), 0);
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    assert_int_equal(dlt645_driver.req_encode(&priv, NULL, out), 0);
+
+    /* 68 | addr(6) | 68 | ctrl | L | DI(4) | data(2) | CS | 16 */
+    assert_int_equal(out->b.data[0], 0x68);
+    assert_int_equal(out->b.data[7], 0x68);
+    assert_int_equal(out->b.data[8], DLT645_CTRL_WRITE); /* 0x14 */
+    assert_int_equal(out->b.data[9], DLT645_DI_LEN + 2); /* L = DI + data */
+    /* 1234 → BCD 低字节先，每字节 +0x33：0x34→0x67，0x12→0x45 */
+    assert_int_equal(out->b.data[14], 0x67);
+    assert_int_equal(out->b.data[15], 0x45);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+}
+
+/* 写请求缺宽度或宽度非法必须拒绝：把 BCD 写到错误的字节位置比失败更糟 */
+static void test_req_write_requires_width(void** state) {
+    (void)state;
+    dlt645_req_t priv;
+    memset(&priv, 0, sizeof(priv));
+
+    assert_int_not_equal(
+        dlt645_driver.req_prepare(&priv, 0, 0x02010100, NULL, 0, NULL, 0, true, 1.0), 0);
+
+    dlt645_write_desc_t bad = {.data_len = 3};
+    assert_int_not_equal(dlt645_driver.req_prepare(&priv, 0, 0x02010100, NULL, 0, &bad, sizeof(bad),
+                                                   true, 1.0),
+                         0);
+
+    /* 读请求不受影响：宽度描述对它无意义 */
+    assert_int_equal(dlt645_driver.req_prepare(&priv, 0, 0x02010100, NULL, 0, NULL, 0, false, 0.0),
+                     0);
+}
+
 /* 驱动声明自己是 request-native，且私有数据尺寸在契约内 */
 static void test_driver_declares_native(void** state) {
     (void)state;
@@ -333,6 +384,8 @@ int main(void) {
         cmocka_unit_test(test_bad_checksum),
         cmocka_unit_test(test_leading_garbage),
         cmocka_unit_test(test_req_prepare_uses_meta),
+        cmocka_unit_test(test_req_write_encodes_ctrl14),
+        cmocka_unit_test(test_req_write_requires_width),
         cmocka_unit_test(test_driver_declares_native),
         cmocka_unit_test(test_slave_read_uses_port),
         cmocka_unit_test(test_slave_read_unknown_point_is_abnormal),
