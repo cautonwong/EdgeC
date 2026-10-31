@@ -449,7 +449,7 @@ int (*req_prepare)(void *priv, uint32_t slave_id, uint32_t point_id, const void 
 | 项 | 状态 |
 |---|---|
 | 抄表请求降 `ARBITER_PRIO_LOW` | ✅ **已做**（2026-10-31）：`edge_api_read_tag(_ex)` 显式收 `priority`，DCU 的 `dcu_bus_source._submit` 与 IEMS 的采集任务都传 `ARBITER_PRIO_LOW`。抄表是后台任务，交互式请求先过总线 |
-| 发布身份改 `meter.address` | ❌ 未做：耦合 datahub 的 `(tag_id, device_id)` 索引，需 datahub 改造，单独排期 |
+| 发布身份改 `meter.address` | ✅ **已做**（2026-10-31）：不是把 address 当 device_id，而是给每只表一个 `slot_id` 当影子身份（见下节） |
 
 为什么优先级要显式传而不是在 `edge_api` 里写死：写死的默认值会让"这次读是什么性质"
 变成库的猜测。`edge_api_read_tag` 原本固定 `ARBITER_PRIO_NORMAL`，于是抄表和交互式单点读
@@ -480,7 +480,16 @@ slot = device_id * DCU_SLOTS_PER_DEVICE + tag_slot(tag_id);   /* SLOTS_PER_DEVIC
   容量不足时启动告警；越界写入打一次性告警（不再静默）。
 - 回归：`test_dcu_router` 断言槽位公式的上界落在容量内。
 
-尾巴 2 本身（`slot_id` + 稳定加载顺序 + 事件/快照路径统一）仍待单独排期。
+**尾巴 2 已落地（同日）**：`production_meter_t` 增加 `slot_id`，在 `add` 时分配
+（单调递增，不复用——复用会让新表继承旧表在影子表里的残留值），`load_from_db` 按
+`ORDER BY address` 加载以保证重启后 slot 可复现。`_node_publish_realtime` 用
+`meters[idx].slot_id` 当 `device_id`，事件监控改用 `dcu_inventory_by_slot()` 反查地址
+（原来直接 `meters[device_id]` 当下标用）。
+
+真正被修掉的 bug 在这里：`dcu_inventory_remove` 是**末元素覆盖删除位**，删一只表就会让
+最后一只表的数组下标变化——而影子表按 `device_id * 32 + tag_slot` 索引，于是
+**被挪动的那只表的数据会落到别人的槽位上**。`slot_id` 跟着表走（swap 是整体 memcpy），
+下标变了身份不变。回归用例：`test_dcu_inventory.test_slot_id_survives_remove`。
 
 澄清：poller 传给 sink 的**已经是 address**。真正的问题在 `_node_publish_realtime`
 用 `meter_idx` 当 `pipe_msg.device_id`，而 datahub 影子表按 `(tag, device_id)` 索引，

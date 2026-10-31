@@ -127,9 +127,39 @@ static void test_inventory_load_revision(void** state) {
     remove(db_path);
 }
 
+/* 删除用"末元素覆盖删除位"，数组下标会变——所以影子表的设备身份不能是下标。
+ * 这条用例锁住：被挪动的那只表 slot_id 不变，且能按 slot 反查回来。 */
+static void test_slot_id_survives_remove(void** state) {
+    (void)state;
+    dcu_inventory_t inv;
+    assert_int_equal(dcu_inventory_init(&inv), 0);
+
+    assert_int_equal(dcu_inventory_add(&inv, "A0000001", "dlt698", 9600, 1), 0);
+    assert_int_equal(dcu_inventory_add(&inv, "B0000002", "dlt698", 9600, 1), 0);
+    assert_int_equal(dcu_inventory_add(&inv, "C0000003", "dlt698", 9600, 1), 0);
+
+    uint32_t slot_a = inv.meters[0].slot_id;
+    uint32_t slot_c = inv.meters[2].slot_id;
+    assert_int_not_equal(slot_a, slot_c);
+
+    /* 删中间那只：末元素 C 会被 memcpy 到 index 1 */
+    assert_int_equal(dcu_inventory_remove(&inv, "B0000002"), 0);
+    assert_int_equal(inv.count, 2);
+    assert_string_equal(inv.meters[1].address, "C0000003");
+
+    /* 下标从 2 变成 1，身份不变 */
+    assert_int_equal(inv.meters[1].slot_id, slot_c);
+    assert_ptr_equal(dcu_inventory_by_slot(&inv, slot_c), &inv.meters[1]);
+    assert_ptr_equal(dcu_inventory_by_slot(&inv, slot_a), &inv.meters[0]);
+
+    /* 不存在的 slot 必须返回 NULL，而不是随便给一只表 */
+    assert_null(dcu_inventory_by_slot(&inv, slot_c + 100));
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_inventory_add_remove),
+        cmocka_unit_test(test_slot_id_survives_remove),
         cmocka_unit_test(test_inventory_channel_protocol),
         cmocka_unit_test(test_inventory_load_revision),
     };

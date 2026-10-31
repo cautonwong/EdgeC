@@ -26,6 +26,36 @@ int dcu_inventory_init(dcu_inventory_t* inv) {
 /**
  * @brief 注册新电表，具备去重和边界保障
  */
+/* 分配一个设备槽位号。
+ *
+ * 优先单调递增（不复用）：复用会让新表继承旧表在影子表里的残留值，
+ * 首次抄表前读到的是上一只表的数——那是"错数据"，比"没数据"更难查。
+ * 只有 4096 个号用尽后才回收空洞（那时旧值早已被覆盖过很多轮）。 */
+static int _alloc_slot(dcu_inventory_t* inv) {
+    if (inv->next_slot < MAX_METERS) {
+        return (int)inv->next_slot++;
+    }
+    for (uint32_t slot = 0; slot < MAX_METERS; slot++) {
+        bool used = false;
+        for (uint16_t i = 0; i < inv->count; i++) {
+            if (inv->meters[i].slot_id == slot) {
+                used = true;
+                break;
+            }
+        }
+        if (!used) return (int)slot;
+    }
+    return -1;
+}
+
+const production_meter_t* dcu_inventory_by_slot(const dcu_inventory_t* inv, uint32_t slot_id) {
+    if (!inv) return NULL;
+    for (uint16_t i = 0; i < inv->count; i++) {
+        if (inv->meters[i].slot_id == slot_id) return &inv->meters[i];
+    }
+    return NULL;
+}
+
 int dcu_inventory_add(dcu_inventory_t* inv, const char* addr, const char* proto, uint32_t baud,
                       uint8_t channel) {
     if (!inv || !addr || !proto) return -1;
@@ -56,6 +86,10 @@ int dcu_inventory_add(dcu_inventory_t* inv, const char* addr, const char* proto,
     m->is_online = true;      // 新增时初始置为在线状态 (ACTIVE)
     m->last_poll_time_s = 0;  // 上一次抄表时间戳初始化为0
 
+    int slot = _alloc_slot(inv);
+    if (slot < 0) return -4;  // 槽位耗尽：宁可拒绝，也不能让两只表共用一个影子槽
+    m->slot_id = (uint32_t)slot;
+
     inv->count++;
     inv->revision++;
 
@@ -80,7 +114,9 @@ int dcu_inventory_remove(dcu_inventory_t* inv, const char* addr) {
         return -2;  // 没找到该表计
     }
 
-    // 用最后一个元素移到当前位置进行覆盖，保证紧凑布局
+    /* 用最后一个元素覆盖删除位，保持紧凑布局。
+     * 注意：**数组下标会变，但 slot_id 跟着表走**（整体 memcpy 一起搬），
+     * 所以被挪动的那只表在影子表里的位置不变。 */
     if (index < inv->count - 1) {
         memcpy(&inv->meters[index], &inv->meters[inv->count - 1], sizeof(production_meter_t));
     }
@@ -147,7 +183,10 @@ int dcu_inventory_load_from_db(dcu_inventory_t* inv, const char* db_path) {
     const char* sql =
         "SELECT address, protocol, baud, channel, wiring_mode, collector_addr, asset_no, pt_ratio, "
         "ct_ratio "
-        "FROM meter_inventory;";
+        "FROM meter_inventory "
+        /* 顺序必须确定：slot_id 按加载顺序分配，顺序一变，重启后同一只表的
+         * 影子槽位就换了。 */
+        "ORDER BY address ASC;";
     sqlite3_stmt* stmt;
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
         sqlite3_close(db);
@@ -173,6 +212,7 @@ int dcu_inventory_load_from_db(dcu_inventory_t* inv, const char* db_path) {
             m->baud_rate = (uint32_t)baud;
             m->channel_id = (uint8_t)chan;
             m->is_online = true;
+            m->slot_id = (uint32_t)_alloc_slot(inv);
 
             // [PRD 补完] 严防数据库空值
             m->wiring_mode = (uint8_t)sqlite3_column_int(stmt, 4);
