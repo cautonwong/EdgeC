@@ -208,8 +208,9 @@ static void on_poll_task_trigger(uv_periodic_t* handle) {
          * 量纲也由产品给。三件事都在这一层做完，驱动不查表、不标定。 */
         uint32_t native_id = iems_driver_adapter_native_id(task->protocol, task->tag_id);
         double scale = iems_driver_adapter_tag_scale(task->protocol, task->tag_id);
+        /* 周期采集是后台任务：低优先级 */
         edge_api_read_tag_ex(task->bus_id, task->protocol, task->slave_id, native_id, task->tag_id,
-                             scale, NULL, 0, on_poll_complete, task->agg_root);
+                             scale, NULL, 0, ARBITER_PRIO_LOW, on_poll_complete, task->agg_root);
     }
 }
 
