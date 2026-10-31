@@ -103,7 +103,18 @@ void datahub_destroy(datahub_t *hub) {
 }
 
 int datahub_write_shadow_idx(datahub_t *hub, int idx, const pipe_msg_t *msg) {
-    if (!hub || idx < 0 || idx >= (int)hub->shadow_capacity || !msg) return -1;
+    if (!hub || idx < 0 || idx >= (int)hub->shadow_capacity || !msg) {
+        /* 越界原来是**静默丢弃**：槽位公式算出来的 idx 超出容量时，值写不进去
+         * 也没有任何痕迹。只打一次，避免刷日志。 */
+        static bool warned = false;
+        if (hub && !warned) {
+            warned = true;
+            printf("[DataHub] shadow idx out of range: idx=%d capacity=%zu "
+                   "(槽位容量不足，写入被丢弃；检查 datahub_capacity 是否 >= 设备数×每设备槽位)\n",
+                   idx, hub->shadow_capacity);
+        }
+        return -1;
+    }
 
     // [ADR-0001] 计量 Shadow 写入
     atomic_fetch_add_explicit(&hub->metrics_shadow_writes, 1, memory_order_relaxed);

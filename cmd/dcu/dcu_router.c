@@ -16,7 +16,6 @@ static router_bus_ops_t g_router_bus_ops;
 static router_sink_ops_t g_router_sink_ops;
 static dcu_inventory_t* s_router_inv = NULL;
 
-#define DCU_SLOTS_PER_DEVICE 32
 
 /**
  * @brief 动态散列槽位映射 (No-Array / Microservice Ready)

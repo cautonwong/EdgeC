@@ -455,6 +455,33 @@ int (*req_prepare)(void *priv, uint32_t slave_id, uint32_t point_id, const void 
 变成库的猜测。`edge_api_read_tag` 原本固定 `ARBITER_PRIO_NORMAL`，于是抄表和交互式单点读
 同优先级——两者抢总线时没有任何区分依据。
 
+### 尾巴 2 的前置发现：`device_id` 是"槽位号"，不是身份
+
+做"发布身份改 address"之前先查了影子表的索引方式，结论是**不能直接把 address 当
+`device_id`**：
+
+```c
+/* cmd/dcu/dcu_router.c */
+slot = device_id * DCU_SLOTS_PER_DEVICE + tag_slot(tag_id);   /* SLOTS_PER_DEVICE = 32 */
+```
+
+`device_id` 必须是一个**稠密小整数**（0..N），因为它是槽位号的乘数；而 `meter.address`
+是 12 位字符串。直接换会让 idx 冲到天上。所以"改 address"的真实含义是：
+**让槽位号跟着电表身份走，而不是跟着数组下标走**（加一个 add 时分配、永不复用的
+`slot_id`，并在 `load_from_db` 时按稳定顺序重建）。
+
+查这条链时还发现一个**正在丢数据的隐患**，先修了：
+
+- DCU 的 `datahub_capacity` 原来写死 `32768`，而槽位公式要
+  `MAX_METERS(4096) × 32 = 131072`。**第 1025 只表起，影子写入 `idx >= capacity`
+  被 `datahub_write_shadow_idx` 静默丢弃**——不报错、不计数、没日志。
+- 修法：容量按 `MAX_METERS × DCU_SLOTS_PER_DEVICE` 推导；`ring_capacity` 与
+  影子容量解耦（队列只要几千条，早先两者共用一个值才把影子压到 1024 只表）；
+  容量不足时启动告警；越界写入打一次性告警（不再静默）。
+- 回归：`test_dcu_router` 断言槽位公式的上界落在容量内。
+
+尾巴 2 本身（`slot_id` + 稳定加载顺序 + 事件/快照路径统一）仍待单独排期。
+
 澄清：poller 传给 sink 的**已经是 address**。真正的问题在 `_node_publish_realtime`
 用 `meter_idx` 当 `pipe_msg.device_id`，而 datahub 影子表按 `(tag, device_id)` 索引，
 **档案重排后 device_id 会指向另一块表**——要在档案变更时重建映射。
