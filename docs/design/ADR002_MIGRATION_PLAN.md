@@ -363,6 +363,46 @@ IEC101 / DLMS / CIA402 / HL7 / CCSDS 没有任何产品注册，但都引用注�
 - **删掉**（推荐）：13 个驱动里 5 个是纯维护成本
 - 或 `EXCLUDE_FROM_ALL` 但**同时把注入引用摘掉**（只不编译不算解决，`grep` 还是会命中）
 
+### S5 写路径：native 驱动拿不到写入值（2026-10-31 发现并修复）
+
+**这是迁移带出来的一个静默 bug，不是新功能。**
+
+native 驱动的 encode 只有一个入口 `req_encode`，而 `req_prepare` 的签名里
+**没有 value、也没有"这是读还是写"**。于是：
+
+- `mb_rtu_req_encode` 永远发 `FC03`（读保持寄存器）；
+- `legacy_encode` 见 `req_encode` 非空就直奔它，**永远走不到 `encode_write`**；
+- 结果：`edge_api_write_tag()` → IEMS 的控制下发（`iems_app.c`）与 REST 写点
+  （`rest_server.c`）都会**发出一个读帧**，控制失效且不报错。
+
+`dlt645_req_encode` 里那句 `if (p->ctrl == DLT645_CTRL_WRITE)` 同理——`ctrl`
+从来没被置成 WRITE，是死分支。
+
+**修法**：`req_prepare` 补两个形参。
+
+```c
+int (*req_prepare)(void *priv, uint32_t slave_id, uint32_t point_id, const void *meta_list,
+                   uint32_t meta_list_len, const void *point_desc, size_t point_desc_len,
+                   bool is_write, double value);
+```
+
+`value` 是 **raw**（调用方负责工程量 → 寄存器值的换算），驱动不碰标定。
+
+**各协议现状**：
+
+| 协议 | 写支持 | 说明 |
+|---|---|---|
+| ModbusRTU / ModbusTCP | ✅ FC05/06 | 产品实际在用；多寄存器写显式拒绝（请求模型只带一个标量，截断比失败更危险） |
+| DLT645 / DLT698 / CAN / IEC101 / DLMS | ❌ 显式失败 | `req_prepare` 里 `if (is_write) return -1` + WARN。**宁可失败，也不发读帧** |
+| CiA402 | — | 没有 `req_prepare`（纯从站） |
+
+补各协议写路径时要接的 helper（都已存在）：
+`dlt645_encode_write()`（需要点位宽度 2/4，point_desc 里没有 → 要先扩描述）、
+`dlt698` 的 SET-Request、`iec_asdu_add_c_sc_na_1/_c_se_nc_1`（101/104 遥控）、
+`dlms_cosem_build_set_request`。
+
+回归测试：`tests/test_modbus_v3.c` 里三条——写发 FC06、读仍发 FC03、多寄存器写被拒。
+
 ### P2 一次性删除（§0 的 9 项）
 
 顺序不能颠倒：

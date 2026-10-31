@@ -173,14 +173,14 @@ static void test_req_prepare_uses_meta(void** state) {
     dlt645_req_t priv;
     memset(&priv, 0, sizeof(priv));
 
-    assert_int_equal(dlt645_driver.req_prepare(&priv, 1, 0x02010100, meta, 3, NULL, 0), 0);
+    assert_int_equal(dlt645_driver.req_prepare(&priv, 1, 0x02010100, meta, 3, NULL, 0, false, 0.0), 0);
     assert_int_equal(priv.di, 0x02010100);
     assert_memory_equal(priv.addr_bcd, meta[1], 6);
 
     /* 越界或缺失 → 广播地址 */
     dlt645_req_t p2;
     memset(&p2, 0, sizeof(p2));
-    assert_int_equal(dlt645_driver.req_prepare(&p2, 9, 0x02010100, meta, 3, NULL, 0), 0);
+    assert_int_equal(dlt645_driver.req_prepare(&p2, 9, 0x02010100, meta, 3, NULL, 0, false, 0.0), 0);
     const uint8_t broadcast[6] = {0x99, 0x99, 0x99, 0x99, 0x99, 0x99};
     assert_memory_equal(p2.addr_bcd, broadcast, 6);
 }

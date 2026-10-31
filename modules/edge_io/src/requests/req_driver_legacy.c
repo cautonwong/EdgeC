@@ -67,7 +67,8 @@ static int legacy_setup(edge_req_t *req, void *engine_ctx) {
         memset(ctx->drv_priv, 0, sizeof(ctx->drv_priv));
         if (ctx->drv_ctx->driver->req_prepare(ctx->drv_priv, ctx->slave_id, ctx->tag_id,
                                               ctx->meta_list, ctx->meta_list_len, ctx->point_desc,
-                                              ctx->point_desc_len) != 0) {
+                                              ctx->point_desc_len,
+                                              ctx->action == CMD_ACTION_WRITE, ctx->value) != 0) {
             return -1;
         }
         ctx->drv_priv_ready = true;

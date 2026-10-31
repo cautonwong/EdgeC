@@ -44,7 +44,17 @@ static void _fill_sa(dlt698_req_t *p, uint32_t slave_id) {
 
 static int dlt698_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id, const void *meta_list,
                               uint32_t meta_list_len, const void *point_desc,
-                              size_t point_desc_len) {
+                              size_t point_desc_len,
+                              bool is_write, double value) {
+    /* 写路径尚未实现：宁可在这里失败，也不能把写请求当读请求发出去。
+     * 补齐时按协议接对应的写编码 helper（见 ADR002 计划 §S5）。 */
+    if (is_write) {
+        (void)value;
+        LOG_WARN(LOG_CAT_IO, "DLT698: 写请求暂不支持");
+        return -1;
+    }
+    (void)is_write;
+
     (void)point_desc;
     (void)point_desc_len;
     (void)meta_list;
