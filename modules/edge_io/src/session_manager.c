@@ -81,7 +81,7 @@ edge_driver_ctx_t *session_manager_get(session_manager_t *sm, const char *protoc
 }
 
 int session_manager_add_session(session_manager_t *sm, const char *protocol, uint32_t device_id,
-                                const driver_contract_injection_t *inject, void *user_data) {
+                                void *user_data) {
     if (!sm || !protocol) return -1;
     for (int i = 0; i < sm->max_sessions; i++) {
         if (!sm->sessions[i].in_use) {
@@ -89,12 +89,6 @@ int session_manager_add_session(session_manager_t *sm, const char *protocol, uin
             if (!ctx) return -1;
             
             ctx->user_data = user_data;
-            if (inject) {
-                ctx->meta_list = inject->meta_list;
-                ctx->meta_list_len = inject->meta_list_len;
-                ctx->lookup_by_key = inject->lookup_by_key;
-                ctx->lookup_by_tag = inject->lookup_by_tag;
-            }
             ctx->role = PROTOCOL_ROLE_SLAVE;
             
             sm->sessions[i].ctx = ctx;
@@ -124,9 +118,9 @@ int session_manager_handle_rx(session_manager_t *sm, net_buf_t *rx, net_buf_t *r
             /* request-native：驱动只做编解码，取值/收值走注入的端口 */
             if (ctx->driver->req_slave_exchange) {
                 memset(sm->slave_scratch, 0, sizeof(sm->slave_scratch));
-                int rc = ctx->driver->req_slave_exchange(sm->slave_scratch, rx->b.data, rx->b.len,
-                                                         &sm->slave_src, sm->slave_src_ctx,
-                                                         resp_out, consumed);
+                int rc = ctx->driver->req_slave_exchange(sm->slave_scratch, ctx->priv, rx->b.data,
+                                                         rx->b.len, &sm->slave_src,
+                                                         sm->slave_src_ctx, resp_out, consumed);
                 if (rc != EDGE_ERR_INCOMPLETE) return rc;
                 continue;
             }
@@ -152,8 +146,8 @@ int session_manager_tick(session_manager_t *sm, int bus_id, net_buf_t **out_txs,
             /* request-native 生产者：状态由端口给，驱动不碰 datahub */
             if (ctx->driver->req_tick) {
                 net_buf_t *tx = NULL;
-                if (ctx->driver->req_tick(ctx->priv, &sm->north_src, sm->north_src_ctx, ctx->pool,
-                                          &tx) == 0 &&
+                if (ctx->driver->req_tick(ctx->priv, &sm->north_src, sm->north_src_ctx, &sm->slave_src,
+                                          sm->slave_src_ctx, ctx->pool, &tx) == 0 &&
                     tx) {
                     out_txs[tx_count++] = tx;
                 }

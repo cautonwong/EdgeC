@@ -14,9 +14,9 @@
 #include "contract_data_types.h"
 
 /* 外部协议驱动模板声明 */
-extern edge_driver_t modbus_rtu_driver;
-extern edge_driver_t modbus_tcp_driver;
-extern edge_driver_t can_driver;
+extern const edge_driver_t modbus_rtu_driver;
+extern const edge_driver_t modbus_tcp_driver;
+extern const edge_driver_t can_driver;
 
 /* ==============================================================================
  * 1. SmartBox 专属静态驱动注册表

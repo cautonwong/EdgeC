@@ -63,7 +63,10 @@ static int iec101_on_init(edge_driver_ctx_t *ctx) {
 /* ==================== 主站：组请求 ==================== */
 
 static int iec101_req_prepare(void *priv_v, uint32_t slave_id, uint32_t point_id,
-                              const void *meta_list, uint32_t meta_list_len) {
+                              const void *meta_list, uint32_t meta_list_len,
+                              const void *point_desc, size_t point_desc_len) {
+    (void)point_desc;
+    (void)point_desc_len;
     (void)meta_list;
     (void)meta_list_len;
     iec101_ctx_t *priv = (iec101_ctx_t *)priv_v;
@@ -75,7 +78,8 @@ static int iec101_req_prepare(void *priv_v, uint32_t slave_id, uint32_t point_id
     return 0;
 }
 
-static int iec101_req_encode(void *priv_v, net_buf_t *out) {
+static int iec101_req_encode(void *priv_v, void *session, net_buf_t *out) {
+    (void)session; /* 无会话状态：这一帧自成一体 */
     iec101_ctx_t *priv = (iec101_ctx_t *)priv_v;
     if (!priv || !out) return -1;
     iec_asdu_init(out, (iec_type_id_t)priv->cur_type, false, 1, IEC_COT_REQ, priv->casdu,
@@ -87,8 +91,9 @@ static int iec101_req_encode(void *priv_v, net_buf_t *out) {
 
 /* ==================== 主站：解应答 ==================== */
 
-static int iec101_req_decode(void *priv_v, const uint8_t *buf, size_t len, size_t *consumed,
+static int iec101_req_decode(void *priv_v, void *session, const uint8_t *buf, size_t len, size_t *consumed,
                              double *out_value) {
+    (void)session; /* 无会话状态：这一帧自成一体 */
     iec101_ctx_t *priv = (iec101_ctx_t *)priv_v;
     if (!priv || !buf || !consumed) return -1;
     *consumed = 0;
@@ -180,7 +185,7 @@ static void _gi_emit(void *ud, uint32_t point_id) {
     iec101_gi_ctx_t *g = (iec101_gi_ctx_t *)ud;
     edge_point_value_t v;
     memset(&v, 0, sizeof(v));
-    if (!g->src->resolve || g->src->resolve(g->src_ctx, point_id, &v) != 0) return;
+    if (!g->src->resolve || g->src->resolve(g->src_ctx, point_id, NULL, 0, &v) != 0) return;
 
     uint8_t type = IEC101_NATIVE_TYPE(point_id);
     uint32_t ioa = IEC101_NATIVE_IOA(point_id);
@@ -188,9 +193,10 @@ static void _gi_emit(void *ud, uint32_t point_id) {
     g->count++;
 }
 
-static int iec101_req_slave_exchange(void *priv_v, const uint8_t *in, size_t in_len,
+static int iec101_req_slave_exchange(void *priv_v, void *session, const uint8_t *in, size_t in_len,
                                      const edge_slave_source_ops_t *src, void *src_ctx,
                                      net_buf_t *out, size_t *consumed) {
+    (void)session; /* 无跨帧状态：一问一答自成一体 */
     iec101_ctx_t *priv = (iec101_ctx_t *)priv_v;
     if (!priv || !in || !out || !consumed) return -1;
     *consumed = 0;
@@ -260,7 +266,7 @@ static int iec101_req_slave_exchange(void *priv_v, const uint8_t *in, size_t in_
     edge_point_value_t v;
     memset(&v, 0, sizeof(v));
     uint32_t pid = IEC101_NATIVE((uint32_t)type, ioa);
-    if (!src || !src->resolve || src->resolve(src_ctx, pid, &v) != 0) return -1;
+    if (!src || !src->resolve || src->resolve(src_ctx, pid, NULL, 0, &v) != 0) return -1;
 
     iec_asdu_init(out, type, false, 1, IEC_COT_ACT_CON, priv->casdu, &priv->addr_conf);
     iec_asdu_add_any(out, (uint8_t)type, ioa, (double)v.raw, 0, 0, (iec_qds_t){0},
@@ -271,7 +277,10 @@ static int iec101_req_slave_exchange(void *priv_v, const uint8_t *in, size_t in_
 /* ==================== 主站：周期链路状态 ==================== */
 
 static int iec101_req_tick(void *priv_v, const edge_north_source_ops_t *src, void *src_ctx,
-                           net_buf_pool_t *pool, net_buf_t **out_tx) {
+                    const edge_slave_source_ops_t *slave, void *slave_ctx,
+                    net_buf_pool_t *pool, net_buf_t **out_tx) {
+    (void)slave; /* 这一路只发北向报文，不用从站端口 */
+    (void)slave_ctx;
     (void)src;
     (void)src_ctx;
     iec101_ctx_t *priv = (iec101_ctx_t *)priv_v;

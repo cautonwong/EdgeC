@@ -249,8 +249,11 @@ int dlt645_encode_slave_abnormal(const dlt645_req_t *req, uint8_t err, net_buf_t
 
 /* ==================== 挂到 edge_driver_t（request-native） ==================== */
 
-static int dlt645_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id,
-                              const void *meta_list, uint32_t meta_list_len) {
+static int dlt645_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id, const void *meta_list,
+                              uint32_t meta_list_len, const void *point_desc,
+                              size_t point_desc_len) {
+    (void)point_desc;
+    (void)point_desc_len;
     dlt645_req_t *p = (dlt645_req_t *)priv;
     if (!p) return -1;
 
@@ -269,15 +272,17 @@ static int dlt645_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id,
     return 0;
 }
 
-static int dlt645_req_encode(void *priv, net_buf_t *out) {
+static int dlt645_req_encode(void *priv, void *session, net_buf_t *out) {
+    (void)session; /* 无会话状态：这一帧自成一体 */
     dlt645_req_t *p = (dlt645_req_t *)priv;
     if (!p) return -1;
     if (p->ctrl == DLT645_CTRL_WRITE) return dlt645_encode_write(p, out);
     return dlt645_encode_read(p, out);
 }
 
-static int dlt645_req_decode(void *priv, const uint8_t *buf, size_t len, size_t *consumed,
+static int dlt645_req_decode(void *priv, void *session, const uint8_t *buf, size_t len, size_t *consumed,
                              double *out_value) {
+    (void)session; /* 无会话状态：这一帧自成一体 */
     dlt645_req_t *p = (dlt645_req_t *)priv;
     if (!p) return -1;
 
@@ -296,9 +301,10 @@ static int dlt645_req_decode(void *priv, const uint8_t *buf, size_t len, size_t 
  *
  * 这里没有 ctx、没有点位表、没有 read_shadow：当前值由调用方经 src->resolve 给，
  * 驱动只做字节 ↔ 结构体。谁提供值，驱动不知道。 */
-static int dlt645_req_slave_exchange(void *priv, const uint8_t *in, size_t in_len,
+static int dlt645_req_slave_exchange(void *priv, void *session, const uint8_t *in, size_t in_len,
                                      const edge_slave_source_ops_t *src, void *src_ctx,
                                      net_buf_t *out, size_t *consumed) {
+    (void)session; /* 无跨帧状态：一问一答自成一体 */
     dlt645_req_t *p = (dlt645_req_t *)priv;
     if (!p || !in || !consumed || !out) return -1;
     *consumed = 0;
@@ -309,7 +315,7 @@ static int dlt645_req_slave_exchange(void *priv, const uint8_t *in, size_t in_le
     if (p->ctrl == DLT645_CTRL_READ) {
         edge_point_value_t v;
         memset(&v, 0, sizeof(v));
-        if (!src || !src->resolve || src->resolve(src_ctx, p->di, &v) != 0) {
+        if (!src || !src->resolve || src->resolve(src_ctx, p->di, NULL, 0, &v) != 0) {
             return dlt645_encode_slave_abnormal(p, DLT645_ERR_NO_POINT, out);
         }
         /* 宽度由产品给（645 是 2 或 4 字节）；缺省 2 字节 */

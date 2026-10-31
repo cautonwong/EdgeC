@@ -65,7 +65,10 @@ static void generate_fhir_risk_assessment(char *out_buf, size_t max_len, uint32_
 
 /* [ADR-002] 北向生产者：告警事件由端口给，驱动不碰 datahub。 */
 static int fhir_req_tick(void *priv_v, const edge_north_source_ops_t *src, void *src_ctx,
-                         net_buf_pool_t *pool, net_buf_t **out_tx) {
+                    const edge_slave_source_ops_t *slave, void *slave_ctx,
+                    net_buf_pool_t *pool, net_buf_t **out_tx) {
+    (void)slave; /* 这一路只发北向报文，不用从站端口 */
+    (void)slave_ctx;
     hl7_fhir_ctx_t *priv = (hl7_fhir_ctx_t *)priv_v;
     if (!priv || !src || !src->peek || !pool || !out_tx) return -1;
     pipe_msg_t msg;

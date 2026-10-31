@@ -135,8 +135,7 @@ static int _slave_set_source(bus_engine_t *self, const edge_slave_source_ops_t *
 
 bus_engine_t *engine_create_slave(driver_manager_t *mgr, int bus_id, const char *protocol,
                                   uint32_t device_id, uv_loop_t *loop, arbiter_t *arb,
-                                  datahub_t *hub, net_buf_pool_t *pool,
-                                  const driver_contract_injection_t *inject) {
+                                  datahub_t *hub, net_buf_pool_t *pool) {
     bus_engine_t *self = calloc(1, sizeof(bus_engine_t));
     slave_priv_t *priv = calloc(1, sizeof(slave_priv_t));
     
@@ -151,7 +150,7 @@ bus_engine_t *engine_create_slave(driver_manager_t *mgr, int bus_id, const char 
     if (priv->rx_acc) net_buf_simple_reset(&priv->rx_acc->b);
 
     if (protocol) {
-        session_manager_add_session(priv->session_mgr, protocol, device_id, inject, hub);
+        session_manager_add_session(priv->session_mgr, protocol, device_id, hub);
     }
 
     uv_timer_init(loop, &priv->timer);
@@ -166,8 +165,7 @@ bus_engine_t *engine_create_slave(driver_manager_t *mgr, int bus_id, const char 
     return self;
 }
 
-int engine_slave_add_protocol(bus_engine_t *self, const char *protocol, uint32_t device_id,
-                              const driver_contract_injection_t *inject) {
+int engine_slave_add_protocol(bus_engine_t *self, const char *protocol, uint32_t device_id) {
     slave_priv_t *priv = (slave_priv_t *)self->user_data;
-    return session_manager_add_session(priv->session_mgr, protocol, device_id, inject, priv->hub);
+    return session_manager_add_session(priv->session_mgr, protocol, device_id, priv->hub);
 }

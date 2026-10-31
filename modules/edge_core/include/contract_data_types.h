@@ -133,18 +133,12 @@ typedef struct {
     uint8_t  access;
 } dlt698_map_t;
 
-// --- 驱动契约注入包 ---
-typedef struct {
-    const void *(*lookup_by_key)(uint64_t key);
-    const void *(*lookup_by_tag)(uint32_t tag_id);
-    const void *meta_list;
-    uint32_t meta_list_len;
-} driver_contract_injection_t;
-
 // --- 模型注册项 ---
+// [ADR-002] 这里原来还挂着一个 `driver_contract_injection_t`（点位表 + 查表函数），
+// 驱动靠它反查点位、读影子表。驱动改成纯 codec 后整包删除：
+// 点位翻译归产品（cmd/<product>/*_driver_adapter.c），驱动只认协议原生标识。
 typedef struct {
     const char *name;
-    const driver_contract_injection_t *injection;
 } edge_model_info_t;
 
 // --- [Nexus] 统一契约句柄 ---
@@ -199,7 +193,7 @@ typedef struct contract_instance_s {
     struct contract_instance_s* next;  // 链表，支持热加载时新旧版本共存
 } contract_instance_t;
 
-// --- 协议映射结构 (由编译器生成并满足 driver_contract_injection_t) ---
+// --- 协议映射结构（产品点位表用；驱动不再看它）---
 typedef struct {
     uint64_t key;
     edge_tag_id_t tag_id;

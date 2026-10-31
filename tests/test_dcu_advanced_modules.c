@@ -60,7 +60,7 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     // ==============================================================================
     dcu_inventory_t test_inv;
     dcu_inventory_init(&test_inv);
-    dcu_inventory_add(&test_inv, "10000001", "DLT698", 9600, 1, NULL);
+    dcu_inventory_add(&test_inv, "10000001", "DLT698", 9600, 1);
 
     dcu_poller_t poller;
     dcu_poller_init(&poller);

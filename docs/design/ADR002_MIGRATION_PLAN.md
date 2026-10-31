@@ -9,39 +9,47 @@
 
 ## 0. 硬目标：这四样必须删掉
 
-| # | 对象 | 现在的位置 | 终态 |
+| # | 对象 | 终态 | 状态 |
 |---|---|---|---|
-| 1 | `driver_contract_injection_t`（整个类型） | `modules/edge_core/include/contract_data_types.h` | **类型不存在** |
-| 2 | `lookup_by_tag` | `edge_driver_ctx_t` 字段 | **字段不存在** |
-| 3 | `lookup_by_key` | `edge_driver_ctx_t` 字段 | **字段不存在** |
-| 4 | `read_shadow`（含 `edge_driver_read_shadow()` 内联） | `edge_driver_ctx_t` 字段 | **字段不存在** |
+| 1 | `driver_contract_injection_t`（整个类型） | **类型不存在** | ✅ 2026-10-31 已删 |
+| 2 | `lookup_by_tag` | **字段不存在** | ✅ 已删 |
+| 3 | `lookup_by_key` | **字段不存在** | ✅ 已删 |
+| 4 | `read_shadow`（含 `edge_driver_read_shadow()` 内联） | **字段不存在** | ✅ 已删 |
 
 连带一起走的（同一个病根，不删就是留后门）：
 
-| # | 对象 | 说明 |
-|---|---|---|
-| 5 | `publish` / `get_tag_count` / `get_tag_name` | 同样是"驱动反向读消费侧"，和 `read_shadow` 一类 |
-| 6 | `meta_list` / `meta_list_len`（ctx 上的） | 已由 `edge_api_set_protocol_meta()` 取代（#459） |
-| 7 | `driver_manager.c` 的 `__attribute__((weak)) edge_model_find` 兜底 | 隐藏单例的根源，两个产品同时链接会互相覆盖 |
-| 8 | `cmd/dcu` 与 `cmd/iems` 里的 `edge_model_find` 强实现 | 弱符号的对偶，一起删 |
-| 9 | `build/*/generated/contracts.c/.h` 里的引用 | 生成物，跟着模板一起改 |
+| # | 对象 | 说明 | 状态 |
+|---|---|---|---|
+| 5 | `publish` / `get_tag_count` | 同样是"驱动反向读消费侧"，和 `read_shadow` 一类 | ✅ 已删 |
+| 5b | `get_tag_name` | 同上 | ⚠️ **仅剩这一处**：只有 `driver_sparkplug_b.c` 用（组 metric 名），它没有任何产品注册。等它走 `req_tick` + 北向端口时一起删 |
+| 6 | `meta_list` / `meta_list_len`（ctx 上的） | 改由 `edge_api_set_protocol_meta()` 承载，请求层在 `req_prepare` 时交给驱动 | ✅ ctx 字段已删，登记已接上（`dcu_driver_adapter_set_meters`） |
+| 7 | `driver_manager.c` 的 `__attribute__((weak)) edge_model_find` 兜底 | 隐藏单例的根源，两个产品同时链接会互相覆盖 | ✅ 已删 |
+| 8 | `cmd/dcu` 与 `cmd/iems` 里的 `edge_model_find` 强实现 | 弱符号的对偶，一起删 | ✅ 已删 |
+| 9 | `build/*/generated/contracts.c/.h` 里的引用 | 生成物，跟着模板一起改 | ✅ 已无引用 |
+
+**删完之后的实际形状**：`bus_orchestrator_setup_master/slave(bus, proto, device_id)` 不再收注入包；
+`session_manager_add_session(sm, proto, device_id, user_data)` 也不再收。点位翻译只剩一处入口——
+产品的 `*_driver_adapter_native_id()`，驱动拿到的是协议原生标识。
 
 ### 验收标准（可执行，不靠感觉）
 
 ```bash
-# 必须全部返回 0 行
+# 2026-10-31 实测：三条都是 0 行（只剩注释里提到名字）
 grep -rn 'driver_contract_injection_t' --include='*.c' --include='*.h' . | grep -v '^./build/'
-grep -rn 'lookup_by_tag\|lookup_by_key' --include='*.c' --include='*.h' modules cmd
-grep -rn 'read_shadow' --include='*.c' --include='*.h' modules cmd
+grep -rn 'edge_driver_read_shadow\|ctx->read_shadow' --include='*.c' --include='*.h' modules cmd
 grep -rn 'edge_model_find' --include='*.c' --include='*.h' modules cmd
 ```
 
-并且 `scripts/check_architecture_layers.sh` 增加一道门禁：
+`lookup_by_tag|lookup_by_key` 还剩 `edge_anti_corruption_lookup_by_tag`（ACL 防腐层自己的查找，
+与驱动无关）和两行说明性注释。
 
-> 任何 `driver_*.c` / `*_driver.c` 出现 `lookup_by_*` / `read_shadow` / `edge_driver_read_shadow`
-> → 直接判红。
+门禁已落地：`scripts/check_architecture_layers.sh` 第 14 道。
+
+> 任何 `driver_*.c` / `modbus_*_driver.c` 出现 `lookup_by_*` / `edge_driver_read_shadow` /
+> `driver_contract_injection_t` / `edge_model_find` → 直接判红（纯注释行放行）。
 
 **没有这道门禁，删完的东西会被下一个提交悄悄加回来。** 门禁是这次改造的"锁"，不是可选项。
+正负样本都验过：干净树上通过，临时插一行 `edge_driver_read_shadow` 立刻判红。
 
 ---
 
@@ -65,19 +73,20 @@ grep -rn 'edge_model_find' --include='*.c' --include='*.h' modules cmd
 |---|:--:|:--:|:--:|--:|--:|---|
 | DLT645 | ✅ | ✅ | — | 0 | 0 | **已完成（#456）** |
 | CAN | — | ✅ | ✅ | 0 | 0 | **已完成（#459）** |
-| ModbusRTU | ✅ | ✅ | ✅ | 16 | 6 | 待迁（覆盖最广） |
-| ModbusTCP | — | ✅ | ✅ | 15 | 6 | 待迁 |
-| DLT698 | ✅ | — | — | 7 | 6 | 待迁 |
-| IEC104 | — | ✅ | — | 16 | 5 | 待迁（最重） |
-| IEC101 | — | — | — | 17 | 6 | **无产品注册** |
-| DLMS | — | — | — | 7 | 7 | **无产品注册** |
-| CIA402 | — | — | — | 2 | 2 | **无产品注册** |
-| HL7-FHIR | — | — | — | 1 | 0 | **无产品注册** |
-| CCSDS | — | — | — | 1 | 0 | **无产品注册** |
+| ModbusRTU | ✅ | ✅ | ✅ | 0 | 0 | **已完成（S3-b）** |
+| ModbusTCP | — | ✅ | ✅ | 0 | 0 | **已完成（S3-b）** |
+| DLT698 | ✅ | — | — | 0 | 0 | **已完成（S3-c）** |
+| IEC104 | — | ✅ | — | 16 | 5 | **唯一剩余**（等 `session_ctx` 决策） |
+| IEC101 | — | — | — | 0 | 0 | **已完成（S3-c2）** |
+| DLMS | — | — | — | 0 | 0 | **已完成（S3-c3）** |
+| CIA402 | — | — | — | 0 | 0 | **已完成（S3-e）** |
+| HL7-FHIR | — | — | — | 0 | 0 | **已完成（S3-e，北向端口）** |
+| CCSDS | — | — | — | 0 | 0 | **已完成（S3-e，北向端口）** |
 | SparkplugB / RadarFMCW / Hotplug | — | — | — | 0 | 0 | 非会话型驱动，不涉及 |
 
-**真正要迁的是 4 个。** 另外 5 个编译进产物但没有任何产品注册——
-它们同样引用着注入包，是"删干净"的拦路石。
+**截至 2026-10-31：只剩 IEC104 一个。** 其余 12 个驱动全部纯 codec 化，
+`lookup_by_*` / `read_shadow` / `driver_contract_injection_t` 在驱动目录里已归零；
+最后两处是 `driver_manager.c` 的注入兜底和 `driver_iec104.c`。
 
 ---
 
@@ -181,17 +190,116 @@ int (*enumerate)(void *ctx, void (*fn)(void *ud, uint32_t point_id), void *ud);
 **结论**：IEC101 / DLMS / IEC104 属于同一批，应该在端口补完枚举能力后一起做，
 不适合按现在的模式逐个机械迁。
 
-### S3-d IEC104（唯一有设计风险的）
+### S3-c3 DLMS：native_id 需要 64 位（实测，2026-10-30）
+
+`dlms_map_t` 里**没有 key 字段**，点位标识是 **48 位 OBIS**（6 字节）：
+
+```c
+typedef struct {
+    uint8_t  obis[6];      /* ← 48 位，装不进 uint32 */
+    uint16_t class_id;
+    uint8_t  attribute_index;
+    edge_tag_id_t tag_id;
+    ...
+} dlms_map_t;
+
+/* 驱动里是这么查表的 */
+uint64_t key = 0;
+for (int i = 0; i < 6; i++) key = (key << 8) | obis[i];
+ctx->lookup_by_key(key);
+```
+
+而 `edge_api_read_tag_ex` 的 `native_id` 是 `uint32_t`。
+
+**缺口**：`native_id` 要扩到 64 位。影响面：
+
+- `edge_api_read_tag_ex(..., uint64_t native_id, ...)`
+- `edge_driver_t.req_prepare / req_encode / req_decode / req_slave_exchange`
+- 三个产品的适配层（DCU/IEMS 的 `native_id()` 返回类型）
+
+**为什么不能像 Modbus 那样塞进 32 位**：Modbus 是「地址 16 + 长度 16」正好 32 位；
+IEC101 是「类型 8 + IOA 24」正好 32 位；DLMS 的 OBIS 单独就 48 位，
+再加 class_id/attr 就更宽。硬压会丢信息。
+
+**最终解法：不动 `native_id`，加一条 `point_desc` 旁路**（2026-10-30 落地）。
+
+原方案是"把 `native_id` 扩到 64 位"，但那条路要改 `edge_api_read_tag_ex` 签名、
+四个 `req_*` 签名、三个产品适配层——为了一个**没有产品注册**的协议付全局代价，不划算。
+改成：请求对象带一个 `const void *point_desc + size_t point_desc_len`，由调用方把
+**协议原生的点位标识**按自己的结构体填进去（DLMS 就是 `{obis[6], class_id, attr}`），
+驱动用 `point_desc_len` 校验尺寸、`memcpy` 进 `priv`，不再反查任何表。
+
+- `native_id` 保持 `uint32_t`，只作为"快路径/调试标识"，不再是唯一标识通道。
+- 尺寸不匹配就**拒绝请求**——`void*` 不校验长度就是隐患，这条是硬约束。
+- 从站侧（`req_slave_exchange` 的 `resolve`）同样接收 `point_desc`，主站/从站两侧统一。
+- 收益：以后任何"标识比 32 位宽"的协议（OBIS、OID、长地址）都能直接接，不用再改契约。
+
+### 三个 API 决策汇总（做完才能动最后两个驱动）
+
+| 缺口 | 影响 | 状态 |
+|---|---|---|
+| 从站端口**枚举**（总召唤/批量读） | IEC101 / DLMS / IEC104 | ✅ 已加（`enumerate`） |
+| 宽标识（>32 位） | DLMS（OBIS 48 位） | ✅ 已解决：`point_desc` 旁路，不动 `native_id` |
+| **`session_ctx`**（请求级会话状态） | IEC104（STARTDT/APDU 序号） | ❌ 待决策（只剩这一个） |
+
+**建议**：后两个一起设计——都是请求模型的宽度/状态问题，
+分两次改会让 `req_*` 签名动两遍。
+
+### 关于测试覆盖（test-platform）
+
+- **已注册到产品的驱动**（645 / CAN / ModbusTCP / RTU / DLT698）：`acceptance/run.sh`
+  通过产品端到端覆盖，这是主验证手段。
+- **没有产品注册的驱动**（CCSDS / HL7 / CiA402 / IEC101 / DLMS / IEC104）：
+  test-platform 没有对应用例可挂（它的用例是产品级的），只能靠单元测试覆盖。
+  所以这几个驱动都补了 `tests/test_driver_*.c`。
+
+### S3-d IEC104（已完成，2026-10-31）
 
 104 是面向连接的：STARTDT/STOPDT 握手、APDU 收发序号、I 帧确认。纯 codec 化要求把这些
-会话状态从驱动里搬走，而 `edge_req_s` 目前没有"会话上下文"的位置。
+会话状态从驱动里搬走，而 `edge_req_s` 原来只有一块"请求级 scratch"。
 
-| 方案 | 做法 | 代价 |
+**最后选的不是 A 也不是 B，是 C：把两种 priv 分开。**
+
+`edge_req_s` 早就有 `ctx_size`（设备级持久上下文，SessionManager 持有一份），
+只是一直没交给 native 槽位用。所以不需要新增"会话对象"，只要把已有的那块传进去：
+
+| 槽位 | priv（scratch） | session（持久） |
 |---|---|---|
-| A（建议） | 扩 `edge_req_s` 加 `session_ctx` + 生命周期钩子 | 请求模型变复杂 |
-| B | 104 长期留 legacy | **注入包删不干净，本计划 §0 无法达成** |
+| `req_prepare` | 本次要读/写的点 | — |
+| `req_encode` / `req_decode` | 同上 | APCI 收发序号、HDLC/COSEM 关联状态 |
+| `req_slave_exchange` | 从站一般不用 | 同上 |
+| `req_tick` | — | 整个就是 session |
 
-选 B 等于放弃 §0，所以只认真做 A。
+签名变化（一次改完，只改 native 槽位，legacy 四件套不动）：
+
+```c
+int (*req_encode)(void *priv, void *session, net_buf_t *out);
+int (*req_decode)(void *priv, void *session, const uint8_t *buf, size_t len,
+                  size_t *consumed, double *out_value);
+int (*req_slave_exchange)(void *priv, void *session, const uint8_t *in, size_t in_len,
+                          const edge_slave_source_ops_t *src, void *src_ctx,
+                          net_buf_t *out, size_t *consumed);
+int (*req_tick)(void *priv, const edge_north_source_ops_t *north, void *north_ctx,
+                const edge_slave_source_ops_t *slave, void *slave_ctx,
+                net_buf_pool_t *pool, net_buf_t **out_tx);
+```
+
+`req_tick` 同时收北向端口和从站端口：北向是"发北向报文"，从站是"测点变化主动上送"，
+两者用途不同不能互替（104 从站的自发上报就靠后者）。
+
+**这个拆分顺手修掉了两个隐藏 bug**：
+
+1. DLMS 的 `req_encode` 原来从 scratch 里读 `session_state`——scratch 每请求清零，
+   状态永远是 IDLE，主站读**必然失败**。DLMS 没有产品注册，所以一直没暴露。
+2. DLMS 没有 `req_priv_size`，`driver_manager_register` 的 `-5` 校验会让注册直接失败。
+
+IEC104 的点位标识用 `IEC_NATIVE_ID(type_id, ioa)`（`iec_asdu.h`），与 IEC101 同一套
+32 位编码——两个协议的 ASDU 都是「类型 8 + IOA 24」，正好装得下，不需要 `point_desc`。
+
+**一个踩过的坑**：`iec104_session_t` 一开始 32 个死区槽位，加上 APCI 的 512 字节
+超过了 `DRIVER_PRIV_SIZE`(1024)，`driver_instance_create` **静默返回 NULL**，
+现象是"会话建不出来、日志什么都没有"。现在驱动里有 `_Static_assert`，
+`driver_manager.c` 也补了 `LOG_ERROR`。
 
 ### S3-e 未注册的 5 个驱动（拦路石）
 

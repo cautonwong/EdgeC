@@ -24,10 +24,12 @@ typedef struct {
     legacy_on_complete_cb on_complete;
     void *user_data;
     pipe_msg_t result_msg;
-    void *lookup_by_tag;
-    void *lookup_by_key;
     const void *meta_list;
     uint32_t meta_list_len;
+    /* [ADR-002] 本次请求的点位描述（点位标识超过 32 位的协议用，如 DLMS 的 OBIS）。
+     * 不是表——调用方给的就是这一个点。 */
+    const void *point_desc;
+    size_t point_desc_len;
     /* [ADR-002] request-native 驱动的私有请求数据（点位信息）。
      * 定长内嵌：核心路径不引入动态内存。大小由 driver->req_priv_size 决定。 */
     uint8_t drv_priv[REQ_DRV_PRIV_MAX];
@@ -43,13 +45,8 @@ static int legacy_setup(edge_req_t *req, void *engine_ctx) {
         ctx->drv_ctx = session_manager_get(master->session_mgr, ctx->protocol, ctx->slave_id);
         if (!ctx->drv_ctx) {
             // 如果持久化会话不存在，则自动创建一个并加入 SessionManager（主站角色）
-            driver_contract_injection_t inject = {
-                .meta_list = ctx->meta_list,
-                .meta_list_len = ctx->meta_list_len,
-                .lookup_by_tag = ctx->lookup_by_tag,
-                .lookup_by_key = ctx->lookup_by_key
-            };
-            if (session_manager_add_session(master->session_mgr, ctx->protocol, ctx->slave_id, &inject, NULL) == 0) {
+            if (session_manager_add_session(master->session_mgr, ctx->protocol, ctx->slave_id,
+                                            NULL) == 0) {
                 ctx->drv_ctx = session_manager_get(master->session_mgr, ctx->protocol, ctx->slave_id);
                 if (ctx->drv_ctx) {
                     ctx->drv_ctx->role = PROTOCOL_ROLE_MASTER; // 设置为 Master 运行角色
@@ -57,17 +54,10 @@ static int legacy_setup(edge_req_t *req, void *engine_ctx) {
             }
         }
         if (ctx->drv_ctx) {
-            // 注入契约查找函数 (如果是第一次创建)
-            ctx->drv_ctx->lookup_by_tag = (const void *(*)(uint32_t))ctx->lookup_by_tag;
-            ctx->drv_ctx->lookup_by_key = (const void *(*)(uint64_t))ctx->lookup_by_key;
             ctx->drv_ctx->pool = master->pool;
         }
     }
     if (ctx->drv_ctx) {
-        /* 会话可能是上一轮建的（那时 meta_list 还是 NULL）。每次 setup 都覆盖，
-         * 否则表地址永远停在广播地址 0x99×6。 */
-        ctx->drv_ctx->meta_list = ctx->meta_list;
-        ctx->drv_ctx->meta_list_len = ctx->meta_list_len;
         ctx->drv_ctx->device_id = ctx->slave_id;
     }
 
@@ -76,7 +66,8 @@ static int legacy_setup(edge_req_t *req, void *engine_ctx) {
     if (ctx->drv_ctx && ctx->drv_ctx->driver && ctx->drv_ctx->driver->req_prepare) {
         memset(ctx->drv_priv, 0, sizeof(ctx->drv_priv));
         if (ctx->drv_ctx->driver->req_prepare(ctx->drv_priv, ctx->slave_id, ctx->tag_id,
-                                              ctx->meta_list, ctx->meta_list_len) != 0) {
+                                              ctx->meta_list, ctx->meta_list_len, ctx->point_desc,
+                                              ctx->point_desc_len) != 0) {
             return -1;
         }
         ctx->drv_priv_ready = true;
@@ -92,8 +83,11 @@ static int legacy_encode(edge_req_t *req, net_buf_t *buf) {
 
     if (ctx->drv_ctx->driver->req_encode) {
         if (!ctx->drv_priv_ready) return REQ_STATUS_ERROR;
-        return ctx->drv_ctx->driver->req_encode(ctx->drv_priv, buf) == 0 ? 0
-                                                                         : REQ_STATUS_ERROR;
+        /* session = 设备级持久上下文（ctx_size 字节），跨请求保留 APCI 序号等会话状态 */
+        void *session = ctx->drv_ctx->priv;
+        return ctx->drv_ctx->driver->req_encode(ctx->drv_priv, session, buf) == 0
+                   ? 0
+                   : REQ_STATUS_ERROR;
     }
 
     // [Deepening] 检查协议是否就绪 (例如 DLMS 是否已完成握手)
@@ -118,8 +112,8 @@ static int legacy_decode(edge_req_t *req, net_buf_t *buf, size_t *consumed) {
     if (ctx->drv_ctx->driver->req_decode) {
         if (!ctx->drv_priv_ready) return REQ_STATUS_ERROR;
         double value = 0.0;
-        int nrc = ctx->drv_ctx->driver->req_decode(ctx->drv_priv, buf->b.data, buf->b.len,
-                                                   consumed, &value);
+        int nrc = ctx->drv_ctx->driver->req_decode(ctx->drv_priv, ctx->drv_ctx->priv,
+                                                   buf->b.data, buf->b.len, consumed, &value);
         if (nrc == EDGE_ERR_INCOMPLETE) return EDGE_ERR_INCOMPLETE;
         if (nrc != 0) return REQ_STATUS_ERROR;
 
@@ -189,9 +183,9 @@ static const request_ops_t legacy_ops = {
 
 edge_req_t *req_legacy_driver_create(driver_manager_t *dm, const char *protocol, uint32_t slave_id,
                                      cmd_action_t action, uint32_t native_id, uint32_t result_tag_id,
-                                     double scale, double value, void *lookup_by_tag,
-                                     void *lookup_by_key, const void *meta_list,
-                                     uint32_t meta_list_len, legacy_on_complete_cb user_cb,
+                                     double scale, double value, const void *meta_list,
+                                     uint32_t meta_list_len, const void *point_desc,
+                                     size_t point_desc_len, legacy_on_complete_cb user_cb,
                                      void *user_data) {
     edge_req_t *req = calloc(1, sizeof(edge_req_t));
     legacy_req_ctx_t *ctx = calloc(1, sizeof(legacy_req_ctx_t));
@@ -202,12 +196,9 @@ edge_req_t *req_legacy_driver_create(driver_manager_t *dm, const char *protocol,
     ctx->result_tag_id = result_tag_id;
     ctx->scale = (scale > 0.0) ? scale : 1.0;
     ctx->value = value;
-    /* [ADR-002] request-native 驱动（req_encode 非空）根本不会碰这两个指针；
-     * 仍在 legacy 的驱动（Modbus/IEC104/…）还要靠它们查表，所以照旧传下去，
-     * 等它们迁完再整块删掉（届时这两个形参一起消失）。 */
-    ctx->lookup_by_tag = lookup_by_tag;
-    ctx->lookup_by_key = lookup_by_key;
     ctx->meta_list = meta_list;
+    ctx->point_desc = point_desc;
+    ctx->point_desc_len = point_desc_len;
     ctx->meta_list_len = meta_list_len;
     strncpy(ctx->protocol, protocol, 15);
     ctx->on_complete = user_cb;

@@ -32,8 +32,8 @@ static void test_dcu_full_pipeline_integration(void** state) {
 
     // 3. 初始化档案并增加 2 只表 (TSA: 20000001, 20000002)
     dcu_inventory_init(&test_inventory);
-    dcu_inventory_add(&test_inventory, "20000001", "dlt698", 9600, 1, NULL);
-    dcu_inventory_add(&test_inventory, "20000002", "dlt698", 9600, 1, NULL);
+    dcu_inventory_add(&test_inventory, "20000001", "dlt698", 9600, 1);
+    dcu_inventory_add(&test_inventory, "20000002", "dlt698", 9600, 1);
 
     // 4. 初始化 poller 并注册定时任务与普通采集方案
     dcu_poller_t poller;

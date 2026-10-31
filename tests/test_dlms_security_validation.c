@@ -12,7 +12,7 @@
 #include "net_buf.h"
 
 // 访问驱动内部
-extern edge_driver_t dlms_driver;
+extern const edge_driver_t dlms_driver;
 
 static int setup(void** state) {
     net_buf_pool_t* pool = malloc(sizeof(net_buf_pool_t));
@@ -95,7 +95,10 @@ static void test_dlms_access_violation_blocked(void** state) {
 
     net_buf_t* resp = net_buf_alloc(pool, 0);
     size_t consumed = 0;
-    dlms_driver.handle_rx(&ctx, hdlc_aarq, resp, NULL, NULL, &consumed);
+    /* [ADR-002] 从站面改走 req_slave_exchange：驱动不查表、不读影子表 */
+    /* priv 是请求 scratch（从站不用），session 才是跨帧的 HDLC/COSEM 状态 */
+    dlms_driver.req_slave_exchange(NULL, ctx.priv, hdlc_aarq->b.data, hdlc_aarq->b.len, NULL,
+                                   NULL, resp, &consumed);
 
     // 2. 模拟请求敏感 OBIS (1.x.x.x)
     net_buf_t* get_req = net_buf_alloc(pool, 0);
@@ -113,8 +116,9 @@ static void test_dlms_access_violation_blocked(void** state) {
     net_buf_simple_add_mem(&hdlc_get->b, get_req->b.data, get_req->b.len);
     net_buf_simple_add_mem(&hdlc_get->b, "\x00\x00\x7E", 3);
 
-    int rc = dlms_driver.handle_rx(&ctx, hdlc_get, resp, NULL, NULL, &consumed);
-    assert_int_equal(rc, -1);
+    int rc = dlms_driver.req_slave_exchange(NULL, ctx.priv, hdlc_get->b.data, hdlc_get->b.len,
+                                            NULL, NULL, resp, &consumed);
+    assert_int_equal(rc, -1); /* 未认证访问受保护 OBIS 必须被拒 */
 
     net_buf_unref(aarq);
     net_buf_unref(get_req);

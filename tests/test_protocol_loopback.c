@@ -68,10 +68,8 @@ static int setup(void** state) {
     bus_orchestrator_attach_io(ctx->orch, 0, master_io);
     bus_orchestrator_attach_io(ctx->orch, 1, slave_io);
 
-    // 使用新的注入 API
-    driver_contract_injection_t inject = {.lookup_by_key = mock_lookup_by_key};
-    bus_orchestrator_setup_master(ctx->orch, 0, "ModbusRTU", 1, &inject);
-    bus_orchestrator_setup_slave(ctx->orch, 1, "ModbusRTU", 1, &inject);
+    bus_orchestrator_setup_master(ctx->orch, 0, "ModbusRTU", 1);
+    bus_orchestrator_setup_slave(ctx->orch, 1, "ModbusRTU", 1);
 
     *state = ctx;
     return 0;

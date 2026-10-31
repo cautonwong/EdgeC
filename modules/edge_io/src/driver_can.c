@@ -32,7 +32,10 @@ typedef struct {
 } can_req_t;
 
 static int can_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id, const void *meta_list,
-                           uint32_t meta_list_len) {
+                              uint32_t meta_list_len, const void *point_desc,
+                              size_t point_desc_len) {
+    (void)point_desc;
+    (void)point_desc_len;
     (void)slave_id;
     (void)meta_list;
     (void)meta_list_len;
@@ -45,7 +48,8 @@ static int can_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id, con
     return 0;
 }
 
-static int can_req_encode(void *priv, net_buf_t *out) {
+static int can_req_encode(void *priv, void *session, net_buf_t *out) {
+    (void)session; /* 无会话状态：这一帧自成一体 */
     can_req_t *p = (can_req_t *)priv;
     if (!p || !out) return -1;
     /* 读请求 = 远程请求帧（RTR），不带数据 */
@@ -56,8 +60,9 @@ static int can_req_encode(void *priv, net_buf_t *out) {
     return can_encode_frame(&frame, out);
 }
 
-static int can_req_decode(void *priv, const uint8_t *buf, size_t len, size_t *consumed,
+static int can_req_decode(void *priv, void *session, const uint8_t *buf, size_t len, size_t *consumed,
                           double *out_value) {
+    (void)session; /* 无会话状态：这一帧自成一体 */
     can_req_t *p = (can_req_t *)priv;
     if (!p || !buf || !consumed) return -1;
     *consumed = 0;

@@ -40,21 +40,18 @@ struct bus_engine_s {
 };
 
 // Factory functions
-// [Updated] 注入必要的依赖：Loop, Arbiter, DataHub, Pool, Contract Injection
+// [ADR-002] 不再注入点位表：驱动是纯 codec，点位翻译在产品侧完成
 bus_engine_t* engine_create_master(driver_manager_t* mgr, int bus_id, const char* protocol,
                                    uint32_t device_id, uv_loop_t* loop, arbiter_t* arb,
-                                   datahub_t* hub, net_buf_pool_t* pool,
-                                   const driver_contract_injection_t* inject);
+                                   datahub_t* hub, net_buf_pool_t* pool);
 
 bus_engine_t* engine_create_slave(driver_manager_t* mgr, int bus_id, const char* protocol,
                                   uint32_t device_id, uv_loop_t* loop, arbiter_t* arb,
-                                  datahub_t* hub, net_buf_pool_t* pool,
-                                  const driver_contract_injection_t* inject);
+                                  datahub_t* hub, net_buf_pool_t* pool);
 
 /**
  * @brief 向从站引擎添加额外的协议支持 (Phase 4: 多协议混跑)
  */
-int engine_slave_add_protocol(bus_engine_t* self, const char* protocol, uint32_t device_id,
-                              const driver_contract_injection_t* inject);
+int engine_slave_add_protocol(bus_engine_t* self, const char* protocol, uint32_t device_id);
 
 #endif

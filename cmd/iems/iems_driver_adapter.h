@@ -45,11 +45,6 @@ extern "C" {
  */
 int iems_driver_registry_init(driver_manager_t *mgr);
 
-/**
- * @brief 获取 IEMS 针对特定协议的测点映射注入包 (替代全局 contract_model_find)
- */
-const driver_contract_injection_t *iems_get_driver_injection(const char *proto);
-
 /* [ADR-002] 点位标识翻译与量纲：产品侧负责，驱动不再查表。
  *   native_id：tag_id → 驱动认识的原生标识（CAN 是 CAN ID，其余暂等值）
  *   tag_scale：该点位的工程量系数；legacy 驱动仍自己标定，故返回 1.0 */
@@ -105,7 +100,6 @@ edge_tag_id_t edge_lookup_modbus(uint64_t addr, float *scale);
 edge_tag_id_t edge_lookup_dlt645(uint64_t di, float *scale);
 int edge_contract_self_test(void);
 int edge_driver_registry_init(driver_manager_t *mgr);
-const driver_contract_injection_t *edge_model_find(const char *name);
 
 extern const edge_driver_reg_entry_t *g_edge_driver_registry;
 extern const size_t g_edge_driver_registry_count;

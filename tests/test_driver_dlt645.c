@@ -22,7 +22,7 @@ extern const edge_driver_t dlt645_driver;
 
 static void _prepare(dlt645_req_t* priv, uint32_t di) {
     memset(priv, 0, sizeof(*priv));
-    assert_int_equal(dlt645_driver.req_prepare(priv, 0, di, NULL, 0), 0);
+    assert_int_equal(dlt645_driver.req_prepare(priv, 0, di, NULL, 0, NULL, 0), 0);
 }
 
 /* 验收台架的真实应答帧：68 010000000000 68 91 06 33343435 4a56 d8 16
@@ -37,7 +37,7 @@ static void test_dlt645_acceptance_frame(void** state) {
 
     size_t consumed = 0;
     double value = 0.0;
-    assert_int_equal(dlt645_driver.req_decode(&priv, frame, sizeof(frame), &consumed, &value), 0);
+    assert_int_equal(dlt645_driver.req_decode(&priv, NULL, frame, sizeof(frame), &consumed, &value), 0);
     assert_int_equal(consumed, 18);
     assert_int_equal(priv.di, 0x02010100);   /* DI 被解析出来，但不会当 tag_id 抛出去 */
     assert_int_equal(priv.raw, 2317);        /* 未乘 scale，标定归上层 */
@@ -58,7 +58,7 @@ static void test_dlt645_four_byte_payload(void** state) {
 
     size_t consumed = 0;
     double value = 0.0;
-    assert_int_equal(dlt645_driver.req_decode(&priv, frame, sizeof(frame), &consumed, &value), 0);
+    assert_int_equal(dlt645_driver.req_decode(&priv, NULL, frame, sizeof(frame), &consumed, &value), 0);
     assert_int_equal(consumed, 20);
     assert_int_equal(priv.raw, 2317);
     assert_int_equal(priv.data_len, 4);
@@ -70,12 +70,12 @@ static void test_dlt645_roundtrip(void** state) {
     uint8_t meta[1][6] = {{0x01, 0x02, 0x03, 0x04, 0x05, 0x06}};
     dlt645_req_t req;
     memset(&req, 0, sizeof(req));
-    assert_int_equal(dlt645_driver.req_prepare(&req, 0, 0x02010100, meta, 1), 0);
+    assert_int_equal(dlt645_driver.req_prepare(&req, 0, 0x02010100, meta, 1, NULL, 0), 0);
 
     uint8_t mem[256];
     net_buf_t out;
     net_buf_simple_init_with_data(&out.b, mem, sizeof(mem));
-    assert_int_equal(dlt645_driver.req_encode(&req, &out), 0);
+    assert_int_equal(dlt645_driver.req_encode(&req, NULL, &out), 0);
     assert_int_equal(out.b.len, 16);
     assert_int_equal(out.b.data[0], 0x68);
     assert_int_equal(out.b.data[8], 0x11);

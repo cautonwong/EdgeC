@@ -173,14 +173,14 @@ static void test_req_prepare_uses_meta(void** state) {
     dlt645_req_t priv;
     memset(&priv, 0, sizeof(priv));
 
-    assert_int_equal(dlt645_driver.req_prepare(&priv, 1, 0x02010100, meta, 3), 0);
+    assert_int_equal(dlt645_driver.req_prepare(&priv, 1, 0x02010100, meta, 3, NULL, 0), 0);
     assert_int_equal(priv.di, 0x02010100);
     assert_memory_equal(priv.addr_bcd, meta[1], 6);
 
     /* 越界或缺失 → 广播地址 */
     dlt645_req_t p2;
     memset(&p2, 0, sizeof(p2));
-    assert_int_equal(dlt645_driver.req_prepare(&p2, 9, 0x02010100, meta, 3), 0);
+    assert_int_equal(dlt645_driver.req_prepare(&p2, 9, 0x02010100, meta, 3, NULL, 0), 0);
     const uint8_t broadcast[6] = {0x99, 0x99, 0x99, 0x99, 0x99, 0x99};
     assert_memory_equal(p2.addr_bcd, broadcast, 6);
 }
@@ -209,8 +209,11 @@ static int g_accept_called;
 static uint32_t g_accept_di;
 static double g_accept_value;
 
-static int _mock_resolve(void* ctx, uint32_t point_id, edge_point_value_t* out) {
+static int _mock_resolve(void* ctx, uint32_t point_id, const void* point_desc,
+                         size_t point_desc_len, edge_point_value_t* out) {
     (void)ctx;
+    (void)point_desc;
+    (void)point_desc_len;
     if (point_id != 0x02010100) return -1;   /* 只认电压这一点 */
     out->raw = 2200;
     out->width = 2;
@@ -247,7 +250,7 @@ static void test_slave_read_uses_port(void** state) {
     dlt645_req_t priv;
     memset(&priv, 0, sizeof(priv));
     size_t consumed = 0;
-    int rc = dlt645_driver.req_slave_exchange(&priv, q.b.data, q.b.len, &src, NULL, &out, &consumed);
+    int rc = dlt645_driver.req_slave_exchange(&priv, NULL, q.b.data, q.b.len, &src, NULL, &out, &consumed);
     assert_int_equal(rc, 0);
     assert_int_equal(consumed, q.b.len);
 
@@ -282,7 +285,7 @@ static void test_slave_read_unknown_point_is_abnormal(void** state) {
     memset(&priv, 0, sizeof(priv));
     size_t consumed = 0;
     assert_int_equal(
-        dlt645_driver.req_slave_exchange(&priv, q.b.data, q.b.len, &src, NULL, &out, &consumed), 0);
+        dlt645_driver.req_slave_exchange(&priv, NULL, q.b.data, q.b.len, &src, NULL, &out, &consumed), 0);
 
     assert_true(out.b.len >= 12);
     assert_int_equal(out.b.data[8], 0xD1);   /* 控制码 = 异常应答 */
@@ -313,7 +316,7 @@ static void test_slave_write_goes_to_port(void** state) {
     memset(&priv, 0, sizeof(priv));
     size_t consumed = 0;
     assert_int_equal(
-        dlt645_driver.req_slave_exchange(&priv, q.b.data, q.b.len, &src, NULL, &out, &consumed), 0);
+        dlt645_driver.req_slave_exchange(&priv, NULL, q.b.data, q.b.len, &src, NULL, &out, &consumed), 0);
 
     assert_int_equal(g_accept_called, 1);
     assert_int_equal(g_accept_di, 0x02010100);

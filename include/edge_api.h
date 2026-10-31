@@ -31,8 +31,8 @@ int edge_api_read_tag(int bus_id, const char* protocol, uint32_t slave_id, uint3
  * @param scale          量纲：解码值 × scale 后交给回调；传 0 表示 1.0
  */
 int edge_api_read_tag_ex(int bus_id, const char* protocol, uint32_t slave_id, uint32_t native_id,
-                         uint32_t result_tag_id, double scale, legacy_on_complete_cb cb,
-                         void* user_data);
+                         uint32_t result_tag_id, double scale, const void* point_desc,
+                         size_t point_desc_len, legacy_on_complete_cb cb, void* user_data);
 
 /**
  * @brief 登记某协议的设备地址表（645 的 6 字节 BCD 表地址等）。
