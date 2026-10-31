@@ -253,19 +253,23 @@ static int dlt645_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id, 
                               uint32_t meta_list_len, const void *point_desc,
                               size_t point_desc_len,
                               bool is_write, double value) {
-    /* 写路径尚未实现：宁可在这里失败，也不能把写请求当读请求发出去。
-     * 补齐时按协议接对应的写编码 helper（见 ADR002 计划 §S5）。 */
-    if (is_write) {
-        (void)value;
-        LOG_WARN(LOG_CAT_IO, "DLT645: 写请求暂不支持");
-        return -1;
-    }
-    (void)is_write;
-
-    (void)point_desc;
-    (void)point_desc_len;
     dlt645_req_t *p = (dlt645_req_t *)priv;
     if (!p) return -1;
+
+    /* 写请求必须带点位宽度：645 的数据段长度由它决定，驱动不猜。
+     * 缺描述或宽度非法就拒绝——把 BCD 写到错误的字节位置比失败更糟。 */
+    uint8_t write_len = 0;
+    if (is_write) {
+        if (!point_desc || point_desc_len != sizeof(dlt645_write_desc_t)) {
+            LOG_WARN(LOG_CAT_IO, "DLT645: 写请求缺少点位宽度描述");
+            return -1;
+        }
+        write_len = ((const dlt645_write_desc_t *)point_desc)->data_len;
+        if (write_len != 2 && write_len != 4) {
+            LOG_WARN(LOG_CAT_IO, "DLT645: 点位宽度 %u 非法（只支持 2/4）", write_len);
+            return -1;
+        }
+    }
 
     /* 表地址来自设备配置：meta_list 是按 slave_id 索引的 6 字节 BCD 数组。
      * 缺失时回落广播地址 0x99×6，与旧行为一致。 */
@@ -275,9 +279,15 @@ static int dlt645_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id, 
                DLT645_ADDR_LEN);
     }
     p->di = point_id;
-    p->ctrl = DLT645_CTRL_READ;
-    p->data_len = 0;
-    p->raw = 0;
+    if (is_write) {
+        p->ctrl = DLT645_CTRL_WRITE;
+        p->data_len = write_len;
+        p->raw = (int32_t)value; /* 写入值按 raw 编码，标定归调用方 */
+    } else {
+        p->ctrl = DLT645_CTRL_READ;
+        p->data_len = 0;
+        p->raw = 0;
+    }
     p->value = 0.0;
     return 0;
 }
