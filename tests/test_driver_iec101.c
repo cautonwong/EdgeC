@@ -120,6 +120,60 @@ static void test_master_tick_builds_link_request(void** state) {
     net_buf_pool_destroy(pool);
 }
 
+/* 写（遥控）：type_id 是命令类型，COT 用 ACT，SCO 编在 ASDU 尾部 */
+static void test_master_write_single_command(void** state) {
+    (void)state;
+    uint8_t priv[4096];
+    memset(priv, 0, sizeof(priv));
+    assert_int_equal(
+        iec101_driver.req_prepare(priv, 1, NATIVE(IEC_TYPE_C_SC_NA_1, 7), NULL, 0, NULL, 0, true,
+                                  1.0),
+        0);
+
+    net_buf_pool_t* pool = net_buf_pool_new(4, 256, 0);
+    assert_non_null(pool);
+    net_buf_t* out = net_buf_alloc(pool, 0);
+    assert_non_null(out);
+    assert_int_equal(iec101_driver.req_encode(priv, NULL, out), 0);
+    assert_true(out->b.len > 0);
+
+    struct net_buf_simple b;
+    net_buf_simple_init_with_data(&b, out->b.data, out->b.len);
+    b.len = out->b.len;
+
+    iec_addr_config_t conf = {.cot_len = 1, .casdu_len = 1, .ioa_len = 2};
+    iec_type_id_t type;
+    bool sq;
+    uint8_t count;
+    iec_cot_t cot;
+    uint16_t casdu;
+    assert_int_equal(iec_asdu_parse_header(&b, &type, &sq, &count, &cot, &casdu, &conf), 0);
+    assert_int_equal(type, IEC_TYPE_C_SC_NA_1); /* 45 */
+    assert_int_equal(cot, IEC_COT_ACT);         /* 控制方向是 ACT，不是 REQ */
+    /* 剩下 IOA(2) + SCO(1) */
+    assert_int_equal(b.len, 3);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(pool);
+}
+
+/* 写请求必须带命令类型：拿测量类型去"写"是协议错误 */
+static void test_master_write_rejects_measurement_type(void** state) {
+    (void)state;
+    uint8_t priv[4096];
+    memset(priv, 0, sizeof(priv));
+    assert_int_not_equal(
+        iec101_driver.req_prepare(priv, 1, NATIVE(IEC_TYPE_M_ME_NC_1, 7), NULL, 0, NULL, 0, true,
+                                  1.0),
+        0);
+
+    /* 读请求不受影响 */
+    assert_int_equal(
+        iec101_driver.req_prepare(priv, 1, NATIVE(IEC_TYPE_M_ME_NC_1, 7), NULL, 0, NULL, 0, false,
+                                  0.0),
+        0);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_ctx_size_fits_test_buffer),
@@ -127,6 +181,8 @@ int main(void) {
         cmocka_unit_test(test_master_encode_uses_point_id),
         cmocka_unit_test(test_slave_answers_link_status),
         cmocka_unit_test(test_master_tick_builds_link_request),
+        cmocka_unit_test(test_master_write_single_command),
+        cmocka_unit_test(test_master_write_rejects_measurement_type),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

@@ -188,7 +188,10 @@ target_compile_definitions(edge_common_interface INTERFACE _DEFAULT_SOURCE)
 option(COVERAGE "Enable code coverage reporting" OFF)
 option(ENABLE_COVERAGE "Enable code coverage reporting" OFF)
 
-target_compile_options(edge_common_interface INTERFACE -Wall -Wextra -Wformat=2 -Wconversion)
+target_compile_options(edge_common_interface INTERFACE -Wall -Wextra -Wformat=2 -Wconversion
+    # 函数指针类型不匹配是**静默 UB**：多传的参数被忽略、少传的读到垃圾。
+    # IEC104 的 req_prepare 就因此少两个形参而没被发现（写请求一直在发读帧）。
+    -Werror=incompatible-pointer-types)
 if(COVERAGE OR ENABLE_COVERAGE)
     target_compile_options(edge_common_interface INTERFACE --coverage)
     target_link_options(edge_common_interface INTERFACE --coverage)

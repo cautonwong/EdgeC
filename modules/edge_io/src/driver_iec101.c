@@ -44,6 +44,8 @@ typedef struct {
     /* 当前请求（主站解码时用来校验 IOA） */
     uint32_t cur_type;
     uint32_t cur_ioa;
+    bool is_write;
+    double write_value;
 } iec101_ctx_t;
 
 static int iec101_on_init(edge_driver_ctx_t *ctx) {
@@ -66,23 +68,25 @@ static int iec101_req_prepare(void *priv_v, uint32_t slave_id, uint32_t point_id
                               const void *meta_list, uint32_t meta_list_len,
                               const void *point_desc, size_t point_desc_len,
                               bool is_write, double value) {
-    /* 写路径尚未实现：宁可在这里失败，也不能把写请求当读请求发出去。
-     * 补齐时按协议接对应的写编码 helper（见 ADR002 计划 §S5）。 */
-    if (is_write) {
-        (void)value;
-        LOG_WARN(LOG_CAT_IO, "IEC101: 写请求暂不支持");
-        return -1;
-    }
-    (void)is_write;
-
     (void)point_desc;
     (void)point_desc_len;
     (void)meta_list;
     (void)meta_list_len;
     iec101_ctx_t *priv = (iec101_ctx_t *)priv_v;
     if (!priv) return -1;
-    priv->cur_type = IEC101_NATIVE_TYPE(point_id);
-    priv->cur_ioa = IEC101_NATIVE_IOA(point_id);
+
+    uint8_t type = IEC_NATIVE_TYPE(point_id);
+    if (is_write && !IEC_IS_COMMAND_TYPE(type)) {
+        /* 写请求必须带命令类型。用测量类型去"写"是协议错误——
+         * 不能拿一个 M_ME_NC_1 当控制命令发出去。 */
+        LOG_WARN(LOG_CAT_IO, "IEC101: 写请求的 type_id=%u 不是命令类型", type);
+        return -1;
+    }
+
+    priv->cur_type = type;
+    priv->cur_ioa = IEC_NATIVE_IOA(point_id);
+    priv->is_write = is_write;
+    priv->write_value = value;
     priv->link.link_addr = (uint16_t)slave_id;
     priv->casdu = (uint16_t)slave_id;
     return 0;
@@ -92,6 +96,30 @@ static int iec101_req_encode(void *priv_v, void *session, net_buf_t *out) {
     (void)session; /* 无会话状态：这一帧自成一体 */
     iec101_ctx_t *priv = (iec101_ctx_t *)priv_v;
     if (!priv || !out) return -1;
+
+    if (priv->is_write) {
+        /* 控制方向用 ACT（激活），不是 REQ */
+        iec_asdu_init(out, (iec_type_id_t)priv->cur_type, false, 1, IEC_COT_ACT, priv->casdu,
+                      &priv->addr_conf);
+        if (priv->cur_type == IEC_TYPE_C_SC_NA_1) {
+            return iec_asdu_add_c_sc_na_1(out, priv->cur_ioa, priv->write_value > 0.0, false,
+                                          &priv->addr_conf) == 0
+                       ? 0
+                       : -1;
+        }
+        if (priv->cur_type == IEC_TYPE_C_DC_NA_1) {
+            /* 双点遥控：1=分闸，2=合闸（0 不允许） */
+            uint8_t dcs = (priv->write_value > 0.0) ? 2 : 1;
+            return iec_asdu_add_c_dc_na_1(out, priv->cur_ioa, dcs, false, &priv->addr_conf) == 0
+                       ? 0
+                       : -1;
+        }
+        return iec_asdu_add_c_se_nc_1(out, priv->cur_ioa, (float)priv->write_value, 0, false,
+                                      &priv->addr_conf) == 0
+                   ? 0
+                   : -1;
+    }
+
     iec_asdu_init(out, (iec_type_id_t)priv->cur_type, false, 1, IEC_COT_REQ, priv->casdu,
                   &priv->addr_conf);
     iec_asdu_add_any(out, (uint8_t)priv->cur_type, priv->cur_ioa, 0, 0, 0, (iec_qds_t){0},

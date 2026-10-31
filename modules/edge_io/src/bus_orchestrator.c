@@ -26,8 +26,10 @@ struct bus_orchestrator_s {
 static bus_orchestrator_t *g_active_orch = NULL;
 
 // 【绝对安全】回调包装器：确保 self 指针正确传入驱动引擎
-static void _engine_on_start_wrapper(void *user_data) {
-    cmd_msg_t *cmd = (cmd_msg_t *)user_data;
+/* 签名必须与 cmd_msg_t.on_start 一致（void (*)(cmd_msg_t *)）。
+ * 早先写成 void*，靠"函数指针类型不兼容"的警告混过去——那正是
+ * IEC104 req_prepare 少两个形参却一直没被发现的原因。 */
+static void _engine_on_start_wrapper(cmd_msg_t *cmd) {
     int bus_id = (int)cmd->signature; // 我们利用 signature 存放 bus_id
     
     if (g_active_orch && bus_id >= 0 && bus_id < ARBITER_MAX_BUSES) {
