@@ -21,7 +21,7 @@
 | # | 对象 | 说明 | 状态 |
 |---|---|---|---|
 | 5 | `publish` / `get_tag_count` | 同样是"驱动反向读消费侧"，和 `read_shadow` 一类 | ✅ 已删 |
-| 5b | `get_tag_name` | 同上 | ⚠️ **仅剩这一处**：只有 `driver_sparkplug_b.c` 用（组 metric 名），它没有任何产品注册。等它走 `req_tick` + 北向端口时一起删 |
+| 5b | `get_tag_name` | 同上 | ✅ 已删（S6：sparkplug_b 改走北向端口 `name()`，名字经 `point_desc` 传入） |
 | 6 | `meta_list` / `meta_list_len`（ctx 上的） | 改由 `edge_api_set_protocol_meta()` 承载，请求层在 `req_prepare` 时交给驱动 | ✅ ctx 字段已删，登记已接上（`dcu_driver_adapter_set_meters`） |
 | 7 | `driver_manager.c` 的 `__attribute__((weak)) edge_model_find` 兜底 | 隐藏单例的根源，两个产品同时链接会互相覆盖 | ✅ 已删 |
 | 8 | `cmd/dcu` 与 `cmd/iems` 里的 `edge_model_find` 强实现 | 弱符号的对偶，一起删 | ✅ 已删 |
@@ -362,6 +362,34 @@ IEC101 / DLMS / CIA402 / HL7 / CCSDS 没有任何产品注册，但都引用注�
 
 - **删掉**（推荐）：13 个驱动里 5 个是纯维护成本
 - 或 `EXCLUDE_FROM_ALL` 但**同时把注入引用摘掉**（只不编译不算解决，`grep` 还是会命中）
+
+### S6 北向生产者改纯 codec：`get_tag_name` 退场（2026-10-31）
+
+`edge_driver_ctx_t` 最后剩下的一处"驱动反查消费侧"是 `get_tag_name`：
+sparkplug_b 组 metric 名时要读 datahub 元数据。它虽然是**北向**而非南向，
+但病根一样——驱动自己去消费侧取状态。
+
+**改法**：名字是"点位模型"的一部分，归调用方。北向端口补一个 `name()`：
+
+```c
+struct edge_north_source_ops_s {
+    int (*peek)(void *ctx, uint32_t tag_id, pipe_msg_t *out);
+    const char *(*name)(void *ctx, uint32_t tag_id);   /* metric 名 */
+};
+```
+
+名字经 `point_desc` 传给驱动（"这一个点的描述"本来就该包含它的名字），
+驱动只负责编进报文。于是：
+
+- `edge_driver_ctx_t` 里**一个消费端指针都不剩**；
+- sparkplug_b 变成 native：`req_prepare` / `req_encode`（NDATA）/ `req_tick`（NBIRTH）；
+- 北向管理器不再自己复制一份 `spb_ctx_t` 去 cast `ctx->priv`（布局一改就静默错位），
+  改成调 `sparkplug_b_identity()`；
+- 顺手放宽注册校验：`prepare + encode` 必须成对，`decode` 只有读路径才需要
+  （纯北向生产者只发不收）。
+
+回归测试：`tests/test_sparkplug_b.c` 断言 metric 名出现在报文里——证明名字来自调用方，
+而不是驱动自己去查。
 
 ### S5 写路径：native 驱动拿不到写入值（2026-10-31 发现并修复）
 

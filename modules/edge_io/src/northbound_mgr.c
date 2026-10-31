@@ -45,13 +45,20 @@
 #endif
 
 extern int sparkplug_b_driver_register(driver_manager_t* mgr);
-typedef struct {
-    char group_id[64];
-    char edge_node_id[64];
-    uint64_t seq;
-    void* hub;
-    bool birth_sent;
-} spb_ctx_t;
+
+/* 主题身份由驱动持有，这里只问不猜（早先复制一份结构体去 cast ctx->priv，
+ * 布局一改就静默错位）。 */
+static void _nb_topic(northbound_mgr_t* mgr, edge_driver_ctx_t* ctx, const char* suffix,
+                      char* out, size_t out_sz) {
+    char group[64] = {0};
+    char node[64] = {0};
+    if (sparkplug_b_identity(ctx->priv, group, sizeof(group), node, sizeof(node)) != 0) {
+        snprintf(out, out_sz, "spBv1.0/unknown/%s/unknown", suffix);
+        return;
+    }
+    snprintf(out, out_sz, "spBv1.0/%s/%s/%s", group, suffix, node);
+    (void)mgr;
+}
 
 static int _push_to_transport_direct(northbound_mgr_t* mgr, uint32_t tag_id, double val,
                                      uint64_t ts) {
@@ -67,11 +74,20 @@ static int _push_to_transport_direct(northbound_mgr_t* mgr, uint32_t tag_id, dou
     net_buf_t* nb = net_buf_alloc(ctx->pool, 0);
     int rc = -1;
     if (nb) {
-        if (ctx->driver->encode_write(ctx, tag_id, val, nb) == 0) {
-            spb_ctx_t* spb = (spb_ctx_t*)ctx->priv;
+        /* [ADR-002] 北向生产者走 native 槽位：metric 名由端口给，驱动不查 datahub。
+         * scratch 是请求级的，prepare 与 encode 背靠背调用，放栈上就够。 */
+        alignas(max_align_t) uint8_t scratch[REQ_DRV_PRIV_MAX];
+        memset(scratch, 0, sizeof(scratch));
+        const char* name = (mgr->north_src && mgr->north_src->name)
+                               ? mgr->north_src->name(mgr->north_src_ctx, tag_id)
+                               : NULL;
+        bool ok = ctx->driver->req_prepare &&
+                  ctx->driver->req_prepare(scratch, 1, tag_id, NULL, 0, name,
+                                           name ? strlen(name) + 1 : 0, true, val) == 0 &&
+                  ctx->driver->req_encode && ctx->driver->req_encode(scratch, ctx->priv, nb) == 0;
+        if (ok) {
             char topic[256];
-            snprintf(topic, sizeof(topic), "spBv1.0/%s/NDATA/%s", spb->group_id, spb->edge_node_id);
-
+            _nb_topic(mgr, ctx, "NDATA", topic, sizeof(topic));
             if (mgr->transport.publish) {
                 if (mgr->transport.publish(mgr->transport.ctx, topic, nb->b.data, nb->b.len) == 0) {
                     rc = 0;
@@ -123,29 +139,12 @@ static void on_data_notify_timer(uv_timer_t* handle) {
             if (ctx->driver->req_tick(ctx->priv, mgr->north_src, mgr->north_src_ctx, NULL, NULL,
                                       ctx->pool, &tick_buf) == 0 &&
                 tick_buf) {
-                spb_ctx_t* spb = (spb_ctx_t*)ctx->priv;
                 char topic[256];
-                snprintf(topic, sizeof(topic), "spBv1.0/%s/NBIRTH/%s", spb->group_id,
-                         spb->edge_node_id);
+                _nb_topic(mgr, ctx, "NBIRTH", topic, sizeof(topic));
                 if (mgr->transport.publish) {
                     mgr->transport.publish(mgr->transport.ctx, topic, tick_buf->b.data,
                                            tick_buf->b.len);
                 }
-                net_buf_unref(tick_buf);
-            }
-        } else if (ctx->driver->on_tick) {
-            net_buf_t* tick_buf = NULL;
-            if (ctx->driver->on_tick(ctx, &tick_buf) == 0 && tick_buf) {
-                spb_ctx_t* spb = (spb_ctx_t*)ctx->priv;
-                char topic[256];
-                snprintf(topic, sizeof(topic), "spBv1.0/%s/NBIRTH/%s", spb->group_id,
-                         spb->edge_node_id);
-
-                if (mgr->transport.publish) {
-                    mgr->transport.publish(mgr->transport.ctx, topic, tick_buf->b.data,
-                                           tick_buf->b.len);
-                }
-                LOG_INFO(LOG_CAT_NB, "Sparkplug B: Published NBIRTH to %s", topic);
                 net_buf_unref(tick_buf);
             }
         }

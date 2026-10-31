@@ -86,3 +86,16 @@ static inline void spb_encode_string(struct net_buf_simple *b, uint32_t field_nu
 }
 
 #endif
+
+/**
+ * @brief 读驱动的主题身份（group / node）。
+ *
+ * 主题层级由驱动持有（env 可覆盖），北向管理器只负责拼 topic。
+ * 早先北向管理器自己复制了一份 `spb_ctx_t` 结构体去 cast `ctx->priv`——
+ * 布局一改就静默错位，这里改成显式访问器。
+ *
+ * @param session `edge_driver_ctx_t.priv`（ctx_size 字节的会话）
+ * @return 0 = 成功；<0 = 参数错
+ */
+int sparkplug_b_identity(const void *session, char *group, size_t group_sz, char *node,
+                         size_t node_sz);
