@@ -43,11 +43,6 @@ _Static_assert(sizeof(struct driver_manager_s) <= sizeof(driver_manager_storage_
 
 static driver_inst_slot_t g_fallback_inst_slots[MAX_DRIVER_INSTANCES];
 
-__attribute__((weak)) const driver_contract_injection_t *edge_model_find(const char *name) {
-    (void)name;
-    return NULL;
-}
-
 static uint64_t _now_ms(void) {
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
@@ -164,27 +159,6 @@ const edge_driver_t *driver_manager_find(driver_manager_t *mgr, const char *name
     return NULL;
 }
 
-static int _driver_port_read_shadow(edge_driver_ctx_t *ctx, uint32_t tag_id, pipe_msg_t *out_msg) {
-    if (!ctx || !out_msg) return -1;
-    datahub_t *hub = (datahub_t *)ctx->user_data;
-    if (!hub) return -1;
-    return datahub_read_shadow(hub, tag_id, out_msg);
-}
-
-static int _driver_port_publish(edge_driver_ctx_t *ctx, const pipe_msg_t *msg) {
-    if (!ctx || !msg) return -1;
-    datahub_t *hub = (datahub_t *)ctx->user_data;
-    if (!hub) return -1;
-    return datahub_publish(hub, (pipe_msg_t *)msg);
-}
-
-static uint32_t _driver_port_get_tag_count(edge_driver_ctx_t *ctx) {
-    if (!ctx) return 0;
-    datahub_t *hub = (datahub_t *)ctx->user_data;
-    if (!hub) return 0;
-    return datahub_get_metadata_count(hub);
-}
-
 static const char *_driver_port_get_tag_name(edge_driver_ctx_t *ctx, uint32_t tag_id) {
     if (!ctx) return NULL;
     datahub_t *hub = (datahub_t *)ctx->user_data;
@@ -230,18 +204,7 @@ edge_driver_ctx_t *driver_instance_create(driver_manager_t *mgr, const char *pro
     slot->in_use = true;
     slot->ctx.driver = tmpl;
     slot->ctx.device_id = device_id;
-    slot->ctx.read_shadow = _driver_port_read_shadow;
-    slot->ctx.publish = _driver_port_publish;
-    slot->ctx.get_tag_count = _driver_port_get_tag_count;
     slot->ctx.get_tag_name = _driver_port_get_tag_name;
-
-    const driver_contract_injection_t *inj = edge_model_find(protocol);
-    if (inj) {
-        slot->ctx.lookup_by_key = inj->lookup_by_key;
-        slot->ctx.lookup_by_tag = inj->lookup_by_tag;
-        slot->ctx.meta_list = inj->meta_list;
-        slot->ctx.meta_list_len = inj->meta_list_len;
-    }
 
     if (mgr && mgr->cfg.hub) {
         slot->ctx.user_data = mgr->cfg.hub;

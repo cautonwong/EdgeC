@@ -9,39 +9,47 @@
 
 ## 0. 硬目标：这四样必须删掉
 
-| # | 对象 | 现在的位置 | 终态 |
+| # | 对象 | 终态 | 状态 |
 |---|---|---|---|
-| 1 | `driver_contract_injection_t`（整个类型） | `modules/edge_core/include/contract_data_types.h` | **类型不存在** |
-| 2 | `lookup_by_tag` | `edge_driver_ctx_t` 字段 | **字段不存在** |
-| 3 | `lookup_by_key` | `edge_driver_ctx_t` 字段 | **字段不存在** |
-| 4 | `read_shadow`（含 `edge_driver_read_shadow()` 内联） | `edge_driver_ctx_t` 字段 | **字段不存在** |
+| 1 | `driver_contract_injection_t`（整个类型） | **类型不存在** | ✅ 2026-10-31 已删 |
+| 2 | `lookup_by_tag` | **字段不存在** | ✅ 已删 |
+| 3 | `lookup_by_key` | **字段不存在** | ✅ 已删 |
+| 4 | `read_shadow`（含 `edge_driver_read_shadow()` 内联） | **字段不存在** | ✅ 已删 |
 
 连带一起走的（同一个病根，不删就是留后门）：
 
-| # | 对象 | 说明 |
-|---|---|---|
-| 5 | `publish` / `get_tag_count` / `get_tag_name` | 同样是"驱动反向读消费侧"，和 `read_shadow` 一类 |
-| 6 | `meta_list` / `meta_list_len`（ctx 上的） | 已由 `edge_api_set_protocol_meta()` 取代（#459） |
-| 7 | `driver_manager.c` 的 `__attribute__((weak)) edge_model_find` 兜底 | 隐藏单例的根源，两个产品同时链接会互相覆盖 |
-| 8 | `cmd/dcu` 与 `cmd/iems` 里的 `edge_model_find` 强实现 | 弱符号的对偶，一起删 |
-| 9 | `build/*/generated/contracts.c/.h` 里的引用 | 生成物，跟着模板一起改 |
+| # | 对象 | 说明 | 状态 |
+|---|---|---|---|
+| 5 | `publish` / `get_tag_count` | 同样是"驱动反向读消费侧"，和 `read_shadow` 一类 | ✅ 已删 |
+| 5b | `get_tag_name` | 同上 | ⚠️ **仅剩这一处**：只有 `driver_sparkplug_b.c` 用（组 metric 名），它没有任何产品注册。等它走 `req_tick` + 北向端口时一起删 |
+| 6 | `meta_list` / `meta_list_len`（ctx 上的） | 改由 `edge_api_set_protocol_meta()` 承载，请求层在 `req_prepare` 时交给驱动 | ✅ ctx 字段已删，登记已接上（`dcu_driver_adapter_set_meters`） |
+| 7 | `driver_manager.c` 的 `__attribute__((weak)) edge_model_find` 兜底 | 隐藏单例的根源，两个产品同时链接会互相覆盖 | ✅ 已删 |
+| 8 | `cmd/dcu` 与 `cmd/iems` 里的 `edge_model_find` 强实现 | 弱符号的对偶，一起删 | ✅ 已删 |
+| 9 | `build/*/generated/contracts.c/.h` 里的引用 | 生成物，跟着模板一起改 | ✅ 已无引用 |
+
+**删完之后的实际形状**：`bus_orchestrator_setup_master/slave(bus, proto, device_id)` 不再收注入包；
+`session_manager_add_session(sm, proto, device_id, user_data)` 也不再收。点位翻译只剩一处入口——
+产品的 `*_driver_adapter_native_id()`，驱动拿到的是协议原生标识。
 
 ### 验收标准（可执行，不靠感觉）
 
 ```bash
-# 必须全部返回 0 行
+# 2026-10-31 实测：三条都是 0 行（只剩注释里提到名字）
 grep -rn 'driver_contract_injection_t' --include='*.c' --include='*.h' . | grep -v '^./build/'
-grep -rn 'lookup_by_tag\|lookup_by_key' --include='*.c' --include='*.h' modules cmd
-grep -rn 'read_shadow' --include='*.c' --include='*.h' modules cmd
+grep -rn 'edge_driver_read_shadow\|ctx->read_shadow' --include='*.c' --include='*.h' modules cmd
 grep -rn 'edge_model_find' --include='*.c' --include='*.h' modules cmd
 ```
 
-并且 `scripts/check_architecture_layers.sh` 增加一道门禁：
+`lookup_by_tag|lookup_by_key` 还剩 `edge_anti_corruption_lookup_by_tag`（ACL 防腐层自己的查找，
+与驱动无关）和两行说明性注释。
 
-> 任何 `driver_*.c` / `*_driver.c` 出现 `lookup_by_*` / `read_shadow` / `edge_driver_read_shadow`
-> → 直接判红。
+门禁已落地：`scripts/check_architecture_layers.sh` 第 14 道。
+
+> 任何 `driver_*.c` / `modbus_*_driver.c` 出现 `lookup_by_*` / `edge_driver_read_shadow` /
+> `driver_contract_injection_t` / `edge_model_find` → 直接判红（纯注释行放行）。
 
 **没有这道门禁，删完的东西会被下一个提交悄悄加回来。** 门禁是这次改造的"锁"，不是可选项。
+正负样本都验过：干净树上通过，临时插一行 `edge_driver_read_shadow` 立刻判红。
 
 ---
 

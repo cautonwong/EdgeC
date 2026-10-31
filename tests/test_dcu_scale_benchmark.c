@@ -28,24 +28,8 @@
 #define TOTAL_METERS (NUM_BUSES * METERS_PER_BUS)
 #define OADS_PER_METER 3
 
-/*
- * ModbusRTU 契约注入：驱动靠 lookup_by_tag 把 tag 映射成寄存器地址与缩放系数。
- * 缺失时 encode_request 返回 -1（本用例走的是真实的单表驱动编码路径）。
- * 帧 0x0898 => 2200，scaler 0.1 => 220.0V。
- * 生产端已在 dcu_driver_adapter.c 提供强定义 edge_model_find 顶掉 IO 层弱符号，
- * 本用例用 `-Wl,--allow-multiple-definition` 让测试副本优先（见 tests/CMakeLists.txt）。
- */
-static const modbus_map_t _mock_modbus_map = {
-    .key = 0, .tag_id = 1001, .length = 1, .scaler = 0.1f};
-
-static const void* _mock_lookup_by_tag(uint32_t tag_id) {
-    return (tag_id == 1001) ? &_mock_modbus_map : NULL;
-}
-
-const driver_contract_injection_t* edge_model_find(const char* name) {
-    static const driver_contract_injection_t inj = {.lookup_by_tag = _mock_lookup_by_tag};
-    return (name && strcmp(name, "ModbusRTU") == 0) ? &inj : NULL;
-}
+/* [ADR-002] 本用例走的是 mock 的 source.submit，不经过真实驱动，
+ * 所以不再需要伪造 edge_model_find / 点位表——驱动已经不查表了。 */
 
 /* 异步 mock：提交只登记回调，不立刻触发。
  *
@@ -102,7 +86,7 @@ static void test_scale_benchmark_p99_latency(void** state) {
         for (int m = 0; m < METERS_PER_BUS; m++) {
             char addr[32];
             snprintf(addr, sizeof(addr), "M_%d_%04d", b, m);
-            dcu_inventory_add(&inv, addr, "dlt698", 9600, (uint8_t)b, NULL);
+            dcu_inventory_add(&inv, addr, "dlt698", 9600, (uint8_t)b);
         }
     }
     assert_int_equal(inv.count, TOTAL_METERS);

@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "contract_data_types.h"
+#include "edge_api.h"
 #include "dcu_inventory.h"
 #include "dcu_router.h"
 #include "modbus_codec.h"
@@ -57,30 +58,6 @@ static const modbus_map_t s_dlt698_points[] = {
     {.key = OAD_GRID_FREQUENCY,       .tag_id = OAD_GRID_FREQUENCY,       .scaler = 0.01f,   .length = 2, .access = 0x01},
     {.key = OAD_ZERO_SEQ_CURRENT,     .tag_id = OAD_ZERO_SEQ_CURRENT,     .scaler = 0.01f,   .length = 3, .access = 0x01},
 };
-static const size_t s_dlt698_points_count = sizeof(s_dlt698_points) / sizeof(s_dlt698_points[0]);
-
-static const void *dcu_lookup_698_by_key(uint64_t key) {
-    for (size_t i = 0; i < s_dlt698_points_count; i++) {
-        if (s_dlt698_points[i].key == key) {
-            return &s_dlt698_points[i];
-        }
-    }
-    return NULL;
-}
-
-static const void *dcu_lookup_698_by_tag(uint32_t tag_id) {
-    for (size_t i = 0; i < s_dlt698_points_count; i++) {
-        if (s_dlt698_points[i].tag_id == tag_id) {
-            return &s_dlt698_points[i];
-        }
-    }
-    return NULL;
-}
-
-static const driver_contract_injection_t s_dlt698_injection = {
-    .lookup_by_key = dcu_lookup_698_by_key,
-    .lookup_by_tag = dcu_lookup_698_by_tag,
-};
 
 /* ==============================================================================
  * 3. DL/T 645-2007 静态测点映射表 (DI 直接映射至对应 698 OAD)
@@ -104,30 +81,11 @@ static const dlt645_map_t s_dlt645_points[] = {
 };
 static const size_t s_dlt645_points_count = sizeof(s_dlt645_points) / sizeof(s_dlt645_points[0]);
 
-static const void *dcu_lookup_645_by_key(uint64_t key) {
-    for (size_t i = 0; i < s_dlt645_points_count; i++) {
-        if (s_dlt645_points[i].key == key) {
-            return &s_dlt645_points[i];
-        }
-    }
-    return NULL;
-}
-
-static const void *dcu_lookup_645_by_tag(uint32_t tag_id) {
-    for (size_t i = 0; i < s_dlt645_points_count; i++) {
-        if (s_dlt645_points[i].tag_id == tag_id) {
-            return &s_dlt645_points[i];
-        }
-    }
-    return NULL;
-}
-
 /* 台架/现场表地址 (6 字节 BCD, 低字节先), 按 device_id 索引。由 main 从 inventory 填充。 */
 static uint8_t s_meter_addr_bcd[MAX_METERS][6];
 
-/* 645 不再向驱动暴露契约查找：驱动只认 DI(协议号)，OAD↔DI 与 scale 都在 cmd 层。
- * meta_list（表地址 BCD）仍由这里注入，那是物理寻址不是语义映射。 */
-static driver_contract_injection_t s_dlt645_injection = {0};
+/* 645 不再向驱动暴露任何查找：驱动只认 DI(协议号)，OAD↔DI 与 scale 都在 cmd 层。
+ * 表地址 BCD 走 edge_api 的 meta 登记（物理寻址），也不再经过驱动注入。 */
 
 void dcu_driver_adapter_set_meters(const production_meter_t *meters, uint32_t count) {
     if (!meters) return;
@@ -150,8 +108,9 @@ void dcu_driver_adapter_set_meters(const production_meter_t *meters, uint32_t co
         for (int k = 0; k < 3; k++) s_meter_addr_bcd[i][k] = pair[2 - k];  // A0 = 最低字节
         s_meter_addr_bcd[i][3] = s_meter_addr_bcd[i][4] = s_meter_addr_bcd[i][5] = 0;
     }
-    s_dlt645_injection.meta_list = s_meter_addr_bcd;
-    s_dlt645_injection.meta_list_len = count;
+    /* [ADR-002] 表地址是物理寻址信息，不是语义映射：走 edge_api 的 meta 登记，
+     * 由请求层在 req_prepare 时交给驱动，不再经过 ctx 注入。 */
+    edge_api_set_protocol_meta("DLT645", s_meter_addr_bcd, count);
 }
 
 /* ==============================================================================
@@ -174,40 +133,6 @@ static const modbus_map_t s_modbus_points[] = {
     {.key = 52, .tag_id = OAD_ACTIVE_ENERGY,        .scaler = 0.01f,   .length = 2, .access = 0x01},
     {.key = 56, .tag_id = OAD_REACTIVE_ENERGY,      .scaler = 0.01f,   .length = 2, .access = 0x01},
 };
-static const size_t s_modbus_points_count = sizeof(s_modbus_points) / sizeof(s_modbus_points[0]);
-
-static const void *dcu_lookup_modbus_by_key(uint64_t key) {
-    for (size_t i = 0; i < s_modbus_points_count; i++) {
-        if (s_modbus_points[i].key == key) {
-            return &s_modbus_points[i];
-        }
-    }
-    return NULL;
-}
-
-static const void *dcu_lookup_modbus_by_tag(uint32_t tag_id) {
-    for (size_t i = 0; i < s_modbus_points_count; i++) {
-        if (s_modbus_points[i].tag_id == tag_id) {
-            return &s_modbus_points[i];
-        }
-    }
-    return NULL;
-}
-
-static const driver_contract_injection_t s_modbus_injection = {
-    .lookup_by_key = dcu_lookup_modbus_by_key,
-    .lookup_by_tag = dcu_lookup_modbus_by_tag,
-};
-
-/* ==============================================================================
- * 5. DCU 驱动注入查找调度
- * ============================================================================== */
-/* IO 层的弱符号默认返回 NULL（modules/edge_io/src/driver_manager.c:70）。弱定义在这里被顶掉，
- * 否则 edge_api_read_tag 在 edge_api.c:40 查不到契约直接返回 -1，总线一帧都发不出去。 */
-const driver_contract_injection_t *edge_model_find(const char *name) {
-    return dcu_get_driver_injection(name);
-}
-
 
 /* ---- 消费侧 OAD <-> 线上协议号 的映射：都在 cmd 层，驱动不认识 OAD ----
  * shortcut: 三种协议各写了三段同构循环（约 90 行）。点表结构体类型不同没法直接复用；
@@ -278,14 +203,3 @@ double dcu_driver_adapter_scale(const char *proto, uint32_t proto_id) {
     return 0.0;
 }
 
-const driver_contract_injection_t *dcu_get_driver_injection(const char *proto) {
-    if (!proto) return NULL;
-    if (strcasecmp(proto, "DLT698") == 0) {
-        return &s_dlt698_injection;
-    } else if (strcasecmp(proto, "DLT645") == 0) {
-        return &s_dlt645_injection;
-    } else if (strcasecmp(proto, "ModbusRTU") == 0 || strcasecmp(proto, "Modbus") == 0) {
-        return &s_modbus_injection;
-    }
-    return NULL;
-}

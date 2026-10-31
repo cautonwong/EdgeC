@@ -56,44 +56,13 @@ typedef struct edge_driver_ctx_s {
     int session_state;         /**< 协议特定的会话状态码 */
     uint32_t flags;            /**< 协议运行标志位 */
 
-    // --- 契约注入 (Phase 4: 依赖注入模式) ---
-    /** @brief 根据协议地址查找元数据 (注入的哈希查找函数) */
-    const void *(*lookup_by_key)(uint64_t key);
-    /** @brief 根据 TagID 查找协议地址映射 (注入的哈希查找函数) */
-    const void *(*lookup_by_tag)(uint32_t tag_id);
-
-    /** @brief 协议特有的紧凑列表 (如 g_iec104_gi_list) */
-    const void *meta_list;
-    uint32_t meta_list_len;
-
-    // --- 消费端端口抽象 (Consumer Ports: 隔离外界 DataHub / 消息总线) ---
-    int (*read_shadow)(struct edge_driver_ctx_s *ctx, uint32_t tag_id, pipe_msg_t *out_msg);
-    int (*publish)(struct edge_driver_ctx_s *ctx, const pipe_msg_t *msg);
-    uint32_t (*get_tag_count)(struct edge_driver_ctx_s *ctx);
+    // --- 北向出口最后一块（ADR-002 未完成项）---
+    // 只剩这一处：sparkplug_b 组 metric 名要用点位名，而点位名在 datahub 元数据里。
+    // 它没有任何产品注册，等它走 req_tick + 北向端口时一起删。
+    // **不要在这个结构体里再加任何"驱动反查消费侧"的指针** —— 那正是 ADR-002 删掉的东西。
     const char *(*get_tag_name)(struct edge_driver_ctx_s *ctx, uint32_t tag_id);
 
 } edge_driver_ctx_t;
-
-static inline int edge_driver_read_shadow(edge_driver_ctx_t *ctx, uint32_t tag_id, pipe_msg_t *out_msg) {
-    if (ctx && ctx->read_shadow) {
-        return ctx->read_shadow(ctx, tag_id, out_msg);
-    }
-    return -1;
-}
-
-static inline int edge_driver_publish(edge_driver_ctx_t *ctx, const pipe_msg_t *msg) {
-    if (ctx && ctx->publish) {
-        return ctx->publish(ctx, msg);
-    }
-    return -1;
-}
-
-static inline uint32_t edge_driver_get_tag_count(edge_driver_ctx_t *ctx) {
-    if (ctx && ctx->get_tag_count) {
-        return ctx->get_tag_count(ctx);
-    }
-    return 0;
-}
 
 static inline const char *edge_driver_get_tag_name(edge_driver_ctx_t *ctx, uint32_t tag_id) {
     if (ctx && ctx->get_tag_name) {

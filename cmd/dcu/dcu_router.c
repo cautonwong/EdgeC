@@ -103,7 +103,7 @@ static int _oi_6000_execute(dcu_object_t* obj, uint8_t method_id, const void* pa
     // [PRD Alignment] 方法 1: 添加 (Add)
     if (method_id == 1) {
         const char* addr = (const char*)param;
-        int ret = dcu_inventory_add(inv, addr, "DLT698", 9600, 1, NULL);
+        int ret = dcu_inventory_add(inv, addr, "DLT698", 9600, 1);
         if (result) *(int*)result = ret;
         return ret;
     }
@@ -135,7 +135,7 @@ static int _oi_6000_execute(dcu_object_t* obj, uint8_t method_id, const void* pa
 
     // [Legacy/Testing mapping] 保留原来的 127/128 映射以免中断外部测试用例
     if (method_id == 127) {
-        int ret = dcu_inventory_add(inv, (const char*)param, "DLT698", 9600, 1, NULL);
+        int ret = dcu_inventory_add(inv, (const char*)param, "DLT698", 9600, 1);
         if (result) *(int*)result = ret;
         return ret;
     }

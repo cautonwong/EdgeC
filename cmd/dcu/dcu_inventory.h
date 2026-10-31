@@ -28,7 +28,6 @@ typedef struct {
 
     bool is_online;      // 状态：true 表示 ACTIVE, false 表示 SUSPENDED (熔断离线)
     uint32_t last_poll_time_s;                  // 上一次被调度抄读的挂钟时间戳 (秒)
-    const driver_contract_injection_t* inject;  // 关联的契约注入字典
 } production_meter_t;
 
 /**
@@ -57,7 +56,7 @@ int dcu_inventory_init(dcu_inventory_t* inv);
  * @brief 增加一台电表注册档案 (C11 边界安全拷贝)
  */
 int dcu_inventory_add(dcu_inventory_t* inv, const char* addr, const char* proto, uint32_t baud,
-                      uint8_t channel, const driver_contract_injection_t* inject);
+                      uint8_t channel);
 
 /**
  * @brief 删除指定 TSA 地址的表计

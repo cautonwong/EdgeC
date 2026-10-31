@@ -230,13 +230,13 @@ int main(int argc, char** argv) {
         // 协议来自档案，不按通道号猜；空通道不建主站、不连 socket。
         const char* proto = dcu_inventory_channel_protocol(inv, (uint8_t)i);
         if (!proto) continue;
-        const driver_contract_injection_t* inj = dcu_get_driver_injection(proto);
-        if (!inj) {
+        /* [ADR-002] 驱动不再需要点位表注入；这里只确认协议确实注册过 */
+        if (!driver_manager_find(drv_mgr, proto)) {
             LOG_ERROR(LOG_CAT_SCHED, "❌ channel %d: protocol '%s' has no registered driver", i,
                       proto);
             continue;
         }
-        bus_orchestrator_setup_master(io_orch, i, proto, 0, inj);
+        bus_orchestrator_setup_master(io_orch, i, proto, 0);
         char path[64];
         snprintf(path, sizeof(path), "/tmp/rs485_%d.sock", i);
         struct sockaddr_un addr;

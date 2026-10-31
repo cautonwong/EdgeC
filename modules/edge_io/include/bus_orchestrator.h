@@ -55,20 +55,19 @@ datahub_t *bus_orchestrator_get_hub(bus_orchestrator_t *ctx);
  * @brief 配置总线为 Master 模式并注入契约
  */
 int bus_orchestrator_setup_master(bus_orchestrator_t *ctx, int bus_id, const char *protocol,
-                                  uint32_t device_id, const driver_contract_injection_t *inject);
+                                  uint32_t device_id);
 
 /**
  * @brief 配置总线为 Slave 模式并注入契约
  */
 int bus_orchestrator_setup_slave(bus_orchestrator_t *ctx, int bus_id, const char *protocol,
-                                 uint32_t device_id, const driver_contract_injection_t *inject);
+                                 uint32_t device_id);
 
 /**
  * @brief 向已有的从站总线添加额外的协议支持 (多协议混跑)
  */
 int bus_orchestrator_add_slave_protocol(bus_orchestrator_t *ctx, int bus_id, const char *protocol,
-                                        uint32_t device_id,
-                                        const driver_contract_injection_t *inject);
+                                        uint32_t device_id);
 
 /**
  * @brief 提交业务指令到仲裁器

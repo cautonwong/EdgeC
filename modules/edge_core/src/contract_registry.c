@@ -17,17 +17,6 @@ const edge_contract_t *contract_get_active(void) {
     return g_active_contract;
 }
 
-const driver_contract_injection_t *contract_model_find(const char *name) {
-    if (!g_active_contract || !name) return NULL;
-
-    for (uint32_t i = 0; i < g_active_contract->model_count; i++) {
-        if (strcasecmp(g_active_contract->models[i].name, name) == 0) {
-            return g_active_contract->models[i].injection;
-        }
-    }
-    return NULL;
-}
-
 __attribute__((weak)) const edge_tag_meta_t *contract_tag_get_meta(edge_tag_id_t id) {
     if (!g_active_contract) return NULL;
     

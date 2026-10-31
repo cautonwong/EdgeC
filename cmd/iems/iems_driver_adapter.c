@@ -74,11 +74,6 @@ const void *iems_lookup_modbus_by_tag(uint32_t tag_id) {
     return NULL;
 }
 
-static const driver_contract_injection_t s_modbus_injection = {
-    .lookup_by_key = iems_lookup_modbus_by_key,
-    .lookup_by_tag = iems_lookup_modbus_by_tag,
-};
-
 /* 兼容外部全栈测试符号 */
 const modbus_map_t *edge_get_map_modbus(uint64_t key) {
     return (const modbus_map_t *)iems_lookup_modbus_by_key(key);
@@ -116,11 +111,6 @@ const void *iems_lookup_iec104_by_tag(uint32_t tag_id) {
     return NULL;
 }
 
-static const driver_contract_injection_t s_iec104_injection = {
-    .lookup_by_key = iems_lookup_iec104_by_key,
-    .lookup_by_tag = iems_lookup_iec104_by_tag,
-};
-
 /* 兼容外部全栈测试符号 */
 const iec104_map_t *edge_get_map_iec104(uint64_t key) {
     return (const iec104_map_t *)iems_lookup_iec104_by_key(key);
@@ -138,15 +128,6 @@ static const modbus_map_t s_can_points[] = {
 };
 static const size_t s_can_points_count = sizeof(s_can_points) / sizeof(s_can_points[0]);
 
-static const void *iems_lookup_can_by_key(uint64_t key) {
-    for (size_t i = 0; i < s_can_points_count; i++) {
-        if (s_can_points[i].key == key) {
-            return &s_can_points[i];
-        }
-    }
-    return NULL;
-}
-
 static const void *iems_lookup_can_by_tag(uint32_t tag_id) {
     for (size_t i = 0; i < s_can_points_count; i++) {
         if (s_can_points[i].tag_id == tag_id) {
@@ -155,11 +136,6 @@ static const void *iems_lookup_can_by_tag(uint32_t tag_id) {
     }
     return NULL;
 }
-
-static const driver_contract_injection_t s_can_injection = {
-    .lookup_by_key = iems_lookup_can_by_key,
-    .lookup_by_tag = iems_lookup_can_by_tag,
-};
 
 /* [ADR-002] 产品的点位标识 → 驱动认识的原生标识。
  * 645 的 DI 已由 dcu_driver_adapter_oad_to_proto 换好；CAN 的 CAN ID 在这里换。
@@ -222,45 +198,9 @@ static const dlt645_map_t s_dlt645_points[] = {
 };
 static const size_t s_dlt645_points_count = sizeof(s_dlt645_points) / sizeof(s_dlt645_points[0]);
 
-static const void *dcu_lookup_645_by_key(uint64_t key) {
-    for (size_t i = 0; i < s_dlt645_points_count; i++) {
-        if (s_dlt645_points[i].key == key) {
-            return &s_dlt645_points[i];
-        }
-    }
-    return NULL;
-}
-
-static const void *dcu_lookup_645_by_tag(uint32_t tag_id) {
-    for (size_t i = 0; i < s_dlt645_points_count; i++) {
-        if (s_dlt645_points[i].tag_id == tag_id) {
-            return &s_dlt645_points[i];
-        }
-    }
-    return NULL;
-}
-
-static const driver_contract_injection_t s_dlt645_injection = {
-    .lookup_by_key = dcu_lookup_645_by_key,
-    .lookup_by_tag = dcu_lookup_645_by_tag,
-};
-
 /* ==============================================================================
- * 6. IEMS 统一驱动注入调度
+ * 6. 点位翻译（ADR-002）：驱动不再拿点位表，翻译全在产品侧
  * ============================================================================== */
-const driver_contract_injection_t *iems_get_driver_injection(const char *proto) {
-    if (!proto) return NULL;
-    if (strcasecmp(proto, "ModbusRTU") == 0 || strcasecmp(proto, "Modbus") == 0 || strcasecmp(proto, "ModbusTCP") == 0) {
-        return &s_modbus_injection;
-    } else if (strcasecmp(proto, "IEC104") == 0) {
-        return &s_iec104_injection;
-    } else if (strcasecmp(proto, "CAN") == 0) {
-        return &s_can_injection;
-    } else if (strcasecmp(proto, "DLT645") == 0) {
-        return &s_dlt645_injection;
-    }
-    return NULL;
-}
 
 /* ==============================================================================
  * 7. IEMS 本地测点到 DataHub 影子槽位与轮询周期 (OCP 表驱动映射)
@@ -480,9 +420,5 @@ edge_tag_id_t edge_lookup_dlt645(uint64_t di, float *scale) {
 
 int edge_contract_self_test(void) {
     return 0;
-}
-
-const driver_contract_injection_t *edge_model_find(const char *name) {
-    return iems_get_driver_injection(name);
 }
 

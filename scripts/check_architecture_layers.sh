@@ -159,6 +159,20 @@ if grep -rn --exclude-dir=build --exclude-dir=.git --exclude-dir=.venv --include
     VIOLATIONS=$((VIOLATIONS + 1))
 fi
 
+# 14. ADR-002：协议驱动必须保持纯 codec
+#     驱动只做「字节 <-> 值」，不查点位表、不读影子表、不写回消费侧。
+#     这条门禁是 ADR-002 的锁：删掉的东西不能再被下一个提交悄悄加回来。
+echo "  [14/14] Checking protocol drivers stay pure codec (ADR-002)..."
+DRV_OFFENDERS=$(grep -rn -E 'lookup_by_key|lookup_by_tag|edge_driver_read_shadow|driver_contract_injection_t|edge_model_find' \
+    "${REPO_ROOT}"/modules/edge_io/src/driver_*.c \
+    "${REPO_ROOT}"/modules/edge_io/src/modbus_*_driver.c 2>/dev/null \
+    | grep -v -E '(^|:)[0-9]+:[[:space:]]*(\*|/\*|//)' || true)
+if [ -n "$DRV_OFFENDERS" ]; then
+    echo "    ❌ VIOLATION: protocol driver reaches back into the consumer side (ADR-002):"
+    echo "$DRV_OFFENDERS" | head -10 | sed 's/^/      /'
+    VIOLATIONS=$((VIOLATIONS + 1))
+fi
+
 if [ "$VIOLATIONS" -gt 0 ]; then
     echo "❌ [ARCH-GATE FAIL] Total violations found: ${VIOLATIONS}"
     exit 1

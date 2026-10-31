@@ -31,7 +31,7 @@ void dcu_driver_adapter_set_meters(const production_meter_t *meters, uint32_t co
  * @param proto 协议名称 (如 "DLT698", "DLT645", "ModbusRTU")
  * @return 对应的驱动依赖注入句柄指针，若无匹配则返回 NULL
  */
-const driver_contract_injection_t *dcu_get_driver_injection(const char *proto);
+/* [ADR-002] 已删除：驱动不再需要点位表注入。 */
 
 /**
  * @brief 消费侧 OAD → 线上协议号 (DLT645 的 DI / Modbus 的寄存器号)

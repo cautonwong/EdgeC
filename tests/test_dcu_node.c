@@ -100,7 +100,7 @@ static void test_dcu_node_domain_methods_and_events(void **state) {
     /* 1. 注册档案电表 */
     dcu_inventory_t *inv = dcu_node_get_inventory(node);
     assert_non_null(inv);
-    int rc = dcu_inventory_add(inv, "202610180001", "DLT698", 9600, 1, NULL);
+    int rc = dcu_inventory_add(inv, "202610180001", "DLT698", 9600, 1);
     assert_int_equal(rc, 0);
 
     /* 2. 挂接微服务领域事件监听器 */
@@ -167,7 +167,7 @@ static void test_dcu_node_set_source_ops_is_used(void **state) {
     dcu_node_t *node = dcu_node_create(loop, &cfg);
     assert_non_null(node);
 
-    dcu_inventory_add(dcu_node_get_inventory(node), "SRC_0001", "dlt698", 9600, 1, NULL);
+    dcu_inventory_add(dcu_node_get_inventory(node), "SRC_0001", "dlt698", 9600, 1);
 
     poller_source_ops_t ops = {.ctx = NULL, .submit = _stub_submit};
     dcu_node_set_source_ops(node, ops);

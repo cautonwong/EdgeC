@@ -74,15 +74,11 @@ int edge_api_read_tag_ex(int bus_id, const char *protocol, uint32_t slave_id, ui
 
     /* 设备地址表由组合根显式登记；没登记就传空，驱动按自己的默认值处理。 */
     const edge_api_meta_entry_t *meta = _meta_of(protocol);
-    /* 仍未迁移的 legacy 驱动还要查表：这两个指针只喂给它们，native 驱动不会碰。
-     * 全部迁完后连同 driver_contract_injection_t 一起删除。 */
-    const driver_contract_injection_t *inject = edge_model_find(protocol);
 
     edge_req_t *req = req_legacy_driver_create(
         g_drv_mgr, protocol, slave_id, CMD_ACTION_READ, native_id, result_tag_id, scale, 0.0,
-        inject ? (void *)inject->lookup_by_tag : NULL,
-        inject ? (void *)inject->lookup_by_key : NULL, meta ? meta->meta : NULL,
-        meta ? meta->count : 0, point_desc, point_desc_len, cb, user_data);
+        meta ? meta->meta : NULL, meta ? meta->count : 0, point_desc, point_desc_len, cb,
+        user_data);
     if (!req) {
         static uint64_t last_no_req = 0;
         if (uv_now(uv_default_loop()) - last_no_req > 1000) {
@@ -126,13 +122,10 @@ int edge_api_write_tag(int bus_id, const char *protocol, uint32_t slave_id,
     if (!g_orch) return -1;
 
     const edge_api_meta_entry_t *meta = _meta_of(protocol);
-    const driver_contract_injection_t *inject = edge_model_find(protocol);
 
     edge_req_t *req = req_legacy_driver_create(
         g_drv_mgr, protocol, slave_id, CMD_ACTION_WRITE, physical_tag_id, physical_tag_id, 1.0,
-        value, inject ? (void *)inject->lookup_by_tag : NULL,
-        inject ? (void *)inject->lookup_by_key : NULL, meta ? meta->meta : NULL,
-        meta ? meta->count : 0, NULL, 0, cb, user_data);
+        value, meta ? meta->meta : NULL, meta ? meta->count : 0, NULL, 0, cb, user_data);
     if (!req) return -1;
 
     cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));

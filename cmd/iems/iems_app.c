@@ -526,23 +526,16 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
 
     uint32_t conn_count = 0;
     const edge_connectivity_t* conns = iems_get_connectivity(&conn_count);
-    const driver_contract_injection_t* inj = iems_get_driver_injection("ModbusRTU");
-
     for (uint32_t i = 0; i < conn_count; i++) {
         const edge_connectivity_t* conn = &conns[i];
         if (strcmp(conn->category, "SOUTHBOUND") == 0) {
-            if (inj) {
-                bus_orchestrator_setup_master(app->orch, conn->id, "ModbusRTU",
-                                              (uint32_t)conn->id, inj);
-            }
+            bus_orchestrator_setup_master(app->orch, conn->id, "ModbusRTU", (uint32_t)conn->id);
         } else if (strcmp(conn->category, "NORTHBOUND") == 0) {
-            if (inj) {
-                bus_orchestrator_setup_slave(app->orch, conn->id, "ModbusRTU", 1, inj);
-                /* 从站应答的"当前值"由产品给：驱动不认识点位模型 */
-                static const edge_slave_source_ops_t s_north_src = {
-                    .resolve = _iems_north_resolve, .accept = NULL};
-                bus_orchestrator_set_slave_source(app->orch, conn->id, &s_north_src, app);
-            }
+            bus_orchestrator_setup_slave(app->orch, conn->id, "ModbusRTU", 1);
+            /* 从站应答的"当前值"由产品给：驱动不认识点位模型 */
+            static const edge_slave_source_ops_t s_north_src = {
+                .resolve = _iems_north_resolve, .accept = NULL};
+            bus_orchestrator_set_slave_source(app->orch, conn->id, &s_north_src, app);
         }
     }
 

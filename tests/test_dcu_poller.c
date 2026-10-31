@@ -123,9 +123,9 @@ static void test_chain_visits_each_meter_once(void** state) {
     dcu_inventory_init(&inv);
     dcu_poller_init(&poller);
 
-    dcu_inventory_add(&inv, "10000001", "dlt698", 9600, 1, NULL);
-    dcu_inventory_add(&inv, "10000002", "dlt698", 9600, 1, NULL);
-    dcu_inventory_add(&inv, "10000003", "dlt698", 9600, 1, NULL);
+    dcu_inventory_add(&inv, "10000001", "dlt698", 9600, 1);
+    dcu_inventory_add(&inv, "10000002", "dlt698", 9600, 1);
+    dcu_inventory_add(&inv, "10000003", "dlt698", 9600, 1);
 
     uint32_t csds[1] = {OAD_VOLTAGE};
     dcu_poller_add_scheme(&poller, 2, 0, csds, 1);
@@ -151,7 +151,7 @@ static void test_dedup_overlapping_tasks(void** state) {
     dcu_inventory_init(&inv);
     dcu_poller_init(&poller);
 
-    dcu_inventory_add(&inv, "20000001", "dlt698", 9600, 1, NULL);
+    dcu_inventory_add(&inv, "20000001", "dlt698", 9600, 1);
 
     /* 两个方案，项集有交集（OAD_VOLTAGE 出现在两边） */
     uint32_t csd_a[2] = {OAD_VOLTAGE, OAD_CURRENT};
@@ -185,8 +185,8 @@ static void test_submit_failure_does_not_stall(void** state) {
     dcu_inventory_init(&inv);
     dcu_poller_init(&poller);
 
-    dcu_inventory_add(&inv, "30000001", "dlt698", 9600, 1, NULL);
-    dcu_inventory_add(&inv, "30000002", "dlt698", 9600, 1, NULL);
+    dcu_inventory_add(&inv, "30000001", "dlt698", 9600, 1);
+    dcu_inventory_add(&inv, "30000002", "dlt698", 9600, 1);
 
     uint32_t csds[1] = {OAD_VOLTAGE};
     dcu_poller_add_scheme(&poller, 1, 0, csds, 1);
@@ -212,7 +212,7 @@ static void test_breaker_skips_meter(void** state) {
     dcu_inventory_init(&inv);
     dcu_poller_init(&poller);
 
-    dcu_inventory_add(&inv, "40000001", "dlt698", 9600, 1, NULL);
+    dcu_inventory_add(&inv, "40000001", "dlt698", 9600, 1);
 
     uint32_t csds[1] = {OAD_VOLTAGE};
     dcu_poller_add_scheme(&poller, 1, 0, csds, 1);
@@ -245,8 +245,8 @@ static void test_channels_progress_independently(void** state) {
     dcu_inventory_init(&inv);
     dcu_poller_init(&poller);
 
-    dcu_inventory_add(&inv, "50000001", "dlt698", 9600, 1, NULL);
-    dcu_inventory_add(&inv, "50000002", "dlt698", 9600, 2, NULL);
+    dcu_inventory_add(&inv, "50000001", "dlt698", 9600, 1);
+    dcu_inventory_add(&inv, "50000002", "dlt698", 9600, 2);
 
     uint32_t csds[1] = {OAD_VOLTAGE};
     dcu_poller_add_scheme(&poller, 1, 0, csds, 1);
@@ -272,8 +272,8 @@ static void test_gc_retires_deleted_meter(void** state) {
     dcu_inventory_init(&inv);
     dcu_poller_init(&poller);
 
-    dcu_inventory_add(&inv, "60000001", "dlt698", 9600, 1, NULL);
-    dcu_inventory_add(&inv, "60000002", "dlt698", 9600, 1, NULL);
+    dcu_inventory_add(&inv, "60000001", "dlt698", 9600, 1);
+    dcu_inventory_add(&inv, "60000002", "dlt698", 9600, 1);
 
     uint32_t csds[1] = {OAD_VOLTAGE};
     dcu_poller_add_scheme(&poller, 1, 0, csds, 1);

@@ -20,7 +20,7 @@ static void test_inventory_add_remove(void** state) {
     assert_int_equal((int)inv.revision, 0); // revision 必须显式归零：poller 靠它察觉档案变更
 
     // 添加电表表1 (TSA: 10000001, 协议: dlt698, 波特率: 9600, 通道: 1)
-    ret = dcu_inventory_add(&inv, "10000001", "dlt698", 9600, 1, NULL);
+    ret = dcu_inventory_add(&inv, "10000001", "dlt698", 9600, 1);
     assert_int_equal(ret, 0);
     assert_int_equal(inv.count, 1);
     assert_int_equal((int)inv.revision, 1);
@@ -36,12 +36,12 @@ static void test_inventory_add_remove(void** state) {
 
     // 重复添加同一只表应该报错，保障唯一性
     uint32_t rev_before = inv.revision;
-    ret = dcu_inventory_add(&inv, "10000001", "dlt698", 9600, 1, NULL);
+    ret = dcu_inventory_add(&inv, "10000001", "dlt698", 9600, 1);
     // 重复添加失败：revision 不得变化（否则 poller 会白做一次退休扫描）
     assert_int_not_equal(ret, 0);
     assert_int_equal((int)inv.revision, (int)rev_before);
     // 添加表2
-    ret = dcu_inventory_add(&inv, "10000002", "dlt645", 2400, 2, NULL);
+    ret = dcu_inventory_add(&inv, "10000002", "dlt645", 2400, 2);
     assert_int_equal(ret, 0);
     assert_int_equal(inv.count, 2);
 
@@ -68,18 +68,18 @@ static void test_inventory_channel_protocol(void** state) {
     assert_null(dcu_inventory_channel_protocol(&inv, 22));
 
     // 同一通道两只 645 表
-    dcu_inventory_add(&inv, "10000001", "DLT645", 9600, 22, NULL);
-    dcu_inventory_add(&inv, "10000002", "DLT645", 9600, 22, NULL);
+    dcu_inventory_add(&inv, "10000001", "DLT645", 9600, 22);
+    dcu_inventory_add(&inv, "10000002", "DLT645", 9600, 22);
     assert_string_equal(dcu_inventory_channel_protocol(&inv, 22), "DLT645");
     // 其它通道仍然空
     assert_null(dcu_inventory_channel_protocol(&inv, 5));
 
     // 通道 5 放一只 698 表: 协议必须来自档案, 而不是通道号 <22 就猜 698
-    dcu_inventory_add(&inv, "10000003", "dlt698", 9600, 5, NULL);
+    dcu_inventory_add(&inv, "10000003", "dlt698", 9600, 5);
     assert_string_equal(dcu_inventory_channel_protocol(&inv, 5), "dlt698");
 
     // 混协议: 取首个, 不崩
-    dcu_inventory_add(&inv, "10000004", "DLT698", 9600, 22, NULL);
+    dcu_inventory_add(&inv, "10000004", "DLT698", 9600, 22);
     assert_string_equal(dcu_inventory_channel_protocol(&inv, 22), "DLT645");
 
     dcu_inventory_destroy(&inv);

@@ -12,6 +12,7 @@
 
 #include "contract_data_types.h"
 #include "dcu_driver_adapter.h"
+#include "modbus_codec.h"
 #include "dcu_router.h"
 #include "driver_manager.h"
 #include "edge_driver.h"
@@ -43,65 +44,42 @@ static void test_dcu_driver_registry(void) {
     printf("  --> Driver registration passed.\n");
 }
 
-static void test_dcu_driver_injection(void) {
-    printf("[TEST] Testing dcu_get_driver_injection...\n");
+static void test_dcu_point_translation(void) {
+    printf("[TEST] Testing dcu point translation (OAD <-> 协议号)...\n");
 
-    /* 1. Unknown protocol */
-    assert(dcu_get_driver_injection(NULL) == NULL);
-    assert(dcu_get_driver_injection("UNKNOWN_PROTO") == NULL);
+    /* [ADR-002] 驱动不再拿点位表，翻译全在产品侧：这里验的就是这条边界。
+     * 驱动侧的输入只有协议号（645 是 DI、Modbus 是地址+个数、698 是 OAD）。 */
 
-    /* 2. DLT698 Injection */
-    const driver_contract_injection_t *inj_698 = dcu_get_driver_injection("DLT698");
-    assert(inj_698 != NULL);
-    assert(inj_698->lookup_by_key != NULL);
-    assert(inj_698->lookup_by_tag != NULL);
-
-    const modbus_map_t *p698 = (const modbus_map_t *)inj_698->lookup_by_key(OAD_VOLTAGE);
-    assert(p698 != NULL);
-    assert(p698->tag_id == OAD_VOLTAGE);
-    assert(p698->scaler > 0.0f);
-
-    /* 2.1 Verify B-phase and C-phase 698 lookups */
-    const modbus_map_t *p698_vb = (const modbus_map_t *)inj_698->lookup_by_key(OAD_VOLTAGE_B);
-    assert(p698_vb != NULL && p698_vb->tag_id == OAD_VOLTAGE_B);
-    const modbus_map_t *p698_vc = (const modbus_map_t *)inj_698->lookup_by_key(OAD_VOLTAGE_C);
-    assert(p698_vc != NULL && p698_vc->tag_id == OAD_VOLTAGE_C);
-    const modbus_map_t *p698_pwr = (const modbus_map_t *)inj_698->lookup_by_key(OAD_ACTIVE_POWER_TOTAL);
-    assert(p698_pwr != NULL && p698_pwr->tag_id == OAD_ACTIVE_POWER_TOTAL);
-    const modbus_map_t *p698_freq = (const modbus_map_t *)inj_698->lookup_by_key(OAD_GRID_FREQUENCY);
-    assert(p698_freq != NULL && p698_freq->tag_id == OAD_GRID_FREQUENCY);
-
-    /* 3. DLT645：不再向驱动暴露契约查找（协议层不认 OAD），映射与 scale 在 cmd 层 */
-    const driver_contract_injection_t *inj_645 = dcu_get_driver_injection("DLT645");
-    assert(inj_645 != NULL);
-    assert(inj_645->lookup_by_key == NULL);
-    assert(inj_645->lookup_by_tag == NULL);
-
-    /* 645 A相电压 DI 0x02010100 映射至 698 OAD_VOLTAGE，两个方向都要一致 */
+    /* 1. DLT645：OAD ↔ DI 双向，且量纲非 0 */
     assert(dcu_driver_adapter_oad_to_proto("DLT645", OAD_VOLTAGE) == 0x02010100);
     assert(dcu_driver_adapter_proto_to_oad("DLT645", 0x02010100) == OAD_VOLTAGE);
     assert(dcu_driver_adapter_scale("DLT645", 0x02010100) > 0.0);
 
-    /* 3.1 B相、C相、频率 */
     assert(dcu_driver_adapter_proto_to_oad("DLT645", 0x02010200) == OAD_VOLTAGE_B);
     assert(dcu_driver_adapter_proto_to_oad("DLT645", 0x02010300) == OAD_VOLTAGE_C);
     assert(dcu_driver_adapter_proto_to_oad("DLT645", 0x02800002) == OAD_GRID_FREQUENCY);
+
     /* 未注册的协议号/未知协议必须返回 0，而不是猜一个 */
     assert(dcu_driver_adapter_proto_to_oad("DLT645", 0xDEADBEEF) == 0);
     assert(dcu_driver_adapter_scale("DLT645", 0xDEADBEEF) == 0.0);
     assert(dcu_driver_adapter_oad_to_proto("UNKNOWN", OAD_VOLTAGE) == 0);
 
-    /* 4. Modbus Injection */
-    const driver_contract_injection_t *inj_mb = dcu_get_driver_injection("ModbusRTU");
-    assert(inj_mb != NULL);
-    assert(inj_mb->lookup_by_key != NULL);
+    /* 2. DLT698：三相与功率、频率都要能翻成协议号 */
+    assert(dcu_driver_adapter_oad_to_proto("DLT698", OAD_VOLTAGE) != 0);
+    assert(dcu_driver_adapter_oad_to_proto("DLT698", OAD_VOLTAGE_B) != 0);
+    assert(dcu_driver_adapter_oad_to_proto("DLT698", OAD_VOLTAGE_C) != 0);
+    assert(dcu_driver_adapter_oad_to_proto("DLT698", OAD_ACTIVE_POWER_TOTAL) != 0);
+    assert(dcu_driver_adapter_oad_to_proto("DLT698", OAD_GRID_FREQUENCY) != 0);
 
-    const modbus_map_t *pmb_vb = (const modbus_map_t *)inj_mb->lookup_by_key(1);
-    assert(pmb_vb != NULL && pmb_vb->tag_id == OAD_VOLTAGE_B);
-    const modbus_map_t *pmb_freq = (const modbus_map_t *)inj_mb->lookup_by_key(28);
-    assert(pmb_freq != NULL && pmb_freq->tag_id == OAD_GRID_FREQUENCY);
+    /* 3. Modbus：点位标识 = 地址 + 寄存器个数，长度不能丢 */
+    uint32_t mb_vb = dcu_driver_adapter_oad_to_proto("ModbusRTU", OAD_VOLTAGE_B);
+    assert(mb_vb != 0);
+    assert(MODBUS_NATIVE_ADDR(mb_vb) == 1);
+    uint32_t mb_freq = dcu_driver_adapter_oad_to_proto("ModbusRTU", OAD_GRID_FREQUENCY);
+    assert(mb_freq != 0);
+    assert(MODBUS_NATIVE_ADDR(mb_freq) == 28);
 
-    printf("  --> Driver injection passed.\n");
+    printf("  --> Point translation passed.\n");
 }
 
 static void test_dcu_slot_mapping(void) {
@@ -131,7 +109,7 @@ int main(void) {
     printf("  DCU Driver Adapter Unit Tests (PoC)   \n");
     printf("========================================\n");
     test_dcu_driver_registry();
-    test_dcu_driver_injection();
+    test_dcu_point_translation();
     test_dcu_slot_mapping();
     printf("ALL TESTS PASSED!\n");
     return 0;

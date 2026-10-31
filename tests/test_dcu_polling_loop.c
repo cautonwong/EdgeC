@@ -67,7 +67,7 @@ static void test_polling_simulation(void** state) {
     // 2. 初始化电表档案并增加 1 只表
     dcu_inventory_t inv;
     dcu_inventory_init(&inv);
-    dcu_inventory_add(&inv, "10000001", "dlt698", 9600, 1, NULL);
+    dcu_inventory_add(&inv, "10000001", "dlt698", 9600, 1);
 
     // 3. 初始化轮询调度引擎，注册定时任务与普通采集方案
     dcu_poller_t poller;
@@ -112,7 +112,7 @@ static void test_polling_source_failure_no_fake_data(void** state) {
 
     dcu_inventory_t inv;
     dcu_inventory_init(&inv);
-    dcu_inventory_add(&inv, "10000002", "dlt698", 9600, 1, NULL);
+    dcu_inventory_add(&inv, "10000002", "dlt698", 9600, 1);
 
     dcu_poller_t poller;
     dcu_poller_init(&poller);

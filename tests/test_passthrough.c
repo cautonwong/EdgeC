@@ -65,7 +65,7 @@ static void test_passthrough_basic(void** state) {
 
     // Create Orchestrator with mock IO on Bus 0
     bus_orchestrator_t* orch = bus_orchestrator_create(hub, arb, drv_mgr, 1, 10, 1024);
-    bus_orchestrator_setup_master(orch, 0, "DLT698", 0, NULL);
+    bus_orchestrator_setup_master(orch, 0, "DLT698", 0);
 
     io_handle_t mock_io = {.ops = &mock_ops};
     bus_orchestrator_attach_io(orch, 0, &mock_io);

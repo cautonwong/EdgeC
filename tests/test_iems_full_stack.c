@@ -180,19 +180,13 @@ static int _mock_iec_accept(void* ctx, uint32_t point_id, double value) {
 static void test_iems_dispatch_flow(void** state) {
     iems_test_ctx_t* ctx = (iems_test_ctx_t*)*state;
 
-    driver_contract_injection_t iec_inj = {
-        .lookup_by_key = (const void* (*)(uint64_t))edge_get_map_iec104,
-        .lookup_by_tag = (const void* (*)(uint32_t))edge_get_map_iec104_by_tag};
-    bus_orchestrator_setup_slave(ctx->orch, 0, "IEC104", 1, &iec_inj);
+    bus_orchestrator_setup_slave(ctx->orch, 0, "IEC104", 1);
     static edge_slave_source_ops_t s_iec_src = {.resolve = NULL, .accept = _mock_iec_accept};
     bus_orchestrator_set_slave_source(ctx->orch, 0, &s_iec_src, ctx);
     ctx->iec_io.ops = &iec_mock_ops;
     bus_orchestrator_attach_io(ctx->orch, 0, &ctx->iec_io);
 
-    driver_contract_injection_t mb_inj = {
-        .lookup_by_key = (const void* (*)(uint64_t))edge_get_map_modbus,
-        .lookup_by_tag = (const void* (*)(uint32_t))edge_get_map_modbus_by_tag};
-    bus_orchestrator_setup_slave(ctx->orch, 1, "ModbusRTU", 1, &mb_inj);
+    bus_orchestrator_setup_slave(ctx->orch, 1, "ModbusRTU", 1);
     /* 从站应答的"当前值"由端口给，驱动不认识点位模型 */
     static edge_slave_source_ops_t s_mb_src = {.resolve = _mock_slave_resolve, .accept = NULL};
     bus_orchestrator_set_slave_source(ctx->orch, 1, &s_mb_src, NULL);

@@ -81,7 +81,7 @@ edge_driver_ctx_t *session_manager_get(session_manager_t *sm, const char *protoc
 }
 
 int session_manager_add_session(session_manager_t *sm, const char *protocol, uint32_t device_id,
-                                const driver_contract_injection_t *inject, void *user_data) {
+                                void *user_data) {
     if (!sm || !protocol) return -1;
     for (int i = 0; i < sm->max_sessions; i++) {
         if (!sm->sessions[i].in_use) {
@@ -89,12 +89,6 @@ int session_manager_add_session(session_manager_t *sm, const char *protocol, uin
             if (!ctx) return -1;
             
             ctx->user_data = user_data;
-            if (inject) {
-                ctx->meta_list = inject->meta_list;
-                ctx->meta_list_len = inject->meta_list_len;
-                ctx->lookup_by_key = inject->lookup_by_key;
-                ctx->lookup_by_tag = inject->lookup_by_tag;
-            }
             ctx->role = PROTOCOL_ROLE_SLAVE;
             
             sm->sessions[i].ctx = ctx;

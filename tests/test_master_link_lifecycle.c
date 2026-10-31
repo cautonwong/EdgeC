@@ -123,8 +123,7 @@ static link_ctx_t *make_ctx(void) {
     ctx->master_io = io_executor_create_from_fd(&ctx->loop, fds[0], &ctx->pool);
     assert_non_null(ctx->master_io);
     bus_orchestrator_attach_io(ctx->orch, 0, ctx->master_io);
-    driver_contract_injection_t inject = {0};
-    int setup_rc = bus_orchestrator_setup_master(ctx->orch, 0, "TestProto", 1, &inject);
+    int setup_rc = bus_orchestrator_setup_master(ctx->orch, 0, "TestProto", 1);
     assert_int_equal(setup_rc, 0);
     return ctx;
 }

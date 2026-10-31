@@ -90,9 +90,9 @@ int bus_orchestrator_attach_io(bus_orchestrator_t *ctx, int bus_id, io_handle_t 
 }
 
 int bus_orchestrator_setup_master(bus_orchestrator_t *ctx, int bus_id, const char *protocol,
-                                  uint32_t device_id, const driver_contract_injection_t *inject) {
+                                  uint32_t device_id) {
     if (!ctx || bus_id < 0 || bus_id >= ctx->max_buses) return -1;
-    bus_engine_t *eng = engine_create_master(ctx->drv_mgr, bus_id, protocol, device_id, ctx->loop, ctx->arb, ctx->hub, ctx->pool, inject);
+    bus_engine_t *eng = engine_create_master(ctx->drv_mgr, bus_id, protocol, device_id, ctx->loop, ctx->arb, ctx->hub, ctx->pool);
     if (!eng) return -1;
 
     ctx->engines[bus_id] = eng;
@@ -102,9 +102,9 @@ int bus_orchestrator_setup_master(bus_orchestrator_t *ctx, int bus_id, const cha
 }
 
 int bus_orchestrator_setup_slave(bus_orchestrator_t *ctx, int bus_id, const char *protocol,
-                                 uint32_t device_id, const driver_contract_injection_t *inject) {
+                                 uint32_t device_id) {
     if (!ctx || bus_id < 0 || bus_id >= ctx->max_buses) return -1;
-    bus_engine_t *eng = engine_create_slave(ctx->drv_mgr, bus_id, protocol, device_id, ctx->loop, ctx->arb, ctx->hub, ctx->pool, inject);
+    bus_engine_t *eng = engine_create_slave(ctx->drv_mgr, bus_id, protocol, device_id, ctx->loop, ctx->arb, ctx->hub, ctx->pool);
     if (!eng) return -1;
 
     ctx->engines[bus_id] = eng;

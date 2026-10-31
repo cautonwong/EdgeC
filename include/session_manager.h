@@ -45,7 +45,7 @@ int session_manager_tick(session_manager_t* sm, int bus_id, net_buf_t** out_txs,
 void session_manager_close(session_manager_t* sm, const char* protocol, uint32_t device_id);
 
 int session_manager_add_session(session_manager_t* sm, const char* protocol, uint32_t device_id,
-                                const driver_contract_injection_t* inject, void* user_data);
+                                void* user_data);
 
 /* [ADR-002 S3-0] 注入从站面端口（取当前值 / 收写入值）。
  * 由组合根调用；request-native 驱动的 req_slave_exchange 用它，

@@ -27,7 +27,7 @@ int dcu_inventory_init(dcu_inventory_t* inv) {
  * @brief 注册新电表，具备去重和边界保障
  */
 int dcu_inventory_add(dcu_inventory_t* inv, const char* addr, const char* proto, uint32_t baud,
-                      uint8_t channel, const driver_contract_injection_t* inject) {
+                      uint8_t channel) {
     if (!inv || !addr || !proto) return -1;
 
     // 1. 去重校验，确保不能有重复的 TSA 地址
@@ -55,7 +55,6 @@ int dcu_inventory_add(dcu_inventory_t* inv, const char* addr, const char* proto,
     m->channel_id = channel;
     m->is_online = true;      // 新增时初始置为在线状态 (ACTIVE)
     m->last_poll_time_s = 0;  // 上一次抄表时间戳初始化为0
-    m->inject = inject;       // [Nexus] 挂接契约注入
 
     inv->count++;
     inv->revision++;
@@ -163,9 +162,6 @@ int dcu_inventory_load_from_db(dcu_inventory_t* inv, const char* db_path) {
         int baud = sqlite3_column_int(stmt, 2);
         int chan = sqlite3_column_int(stmt, 3);
 
-        // 自动查找驱动适配层注入点 (使用 dcu_get_driver_injection 解耦全局单例)
-        const driver_contract_injection_t* inj = dcu_get_driver_injection(proto);
-
         if (inv->count < MAX_METERS) {
             production_meter_t* m = &inv->meters[inv->count++];
             strncpy(m->address, addr, MAX_ADDR_LEN - 1);
@@ -176,7 +172,6 @@ int dcu_inventory_load_from_db(dcu_inventory_t* inv, const char* db_path) {
 
             m->baud_rate = (uint32_t)baud;
             m->channel_id = (uint8_t)chan;
-            m->inject = inj;
             m->is_online = true;
 
             // [PRD 补完] 严防数据库空值

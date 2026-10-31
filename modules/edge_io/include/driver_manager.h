@@ -95,7 +95,7 @@ const edge_driver_t *driver_manager_find(driver_manager_t *mgr, const char *name
 /**
  * @brief 查找模型对应的契约注入包
  */
-const driver_contract_injection_t *edge_model_find(const char *name);
+/* [ADR-002] 已删除：驱动不再查点位表。点位翻译在产品侧的 *_driver_adapter.c。 */
 
 /**
  * @brief 实例化驱动上下文 (Stateful V3)
