@@ -53,7 +53,7 @@ static void test_master_encode_uses_point_id(void** state) {
     memset(priv, 0, sizeof(priv));
 
     uint32_t pid = NATIVE(IEC_TYPE_M_ME_NC_1, 0x4001);
-    assert_int_equal(iec101_driver.req_prepare(priv, 7, pid, NULL, 0, NULL, 0), 0);
+    assert_int_equal(iec101_driver.req_prepare(priv, 7, pid, NULL, 0, NULL, 0, false, 0.0), 0);
 
     uint8_t mem[TEST_BUF];
     net_buf_t out;
@@ -80,7 +80,7 @@ static void test_slave_answers_link_status(void** state) {
     (void)state;
     uint8_t priv[4096]; /* 必须 >= iec101_driver.ctx_size */
     memset(priv, 0, sizeof(priv));
-    assert_int_equal(iec101_driver.req_prepare(priv, 1, NATIVE(IEC_TYPE_M_ME_NC_1, 1), NULL, 0, NULL, 0), 0);
+    assert_int_equal(iec101_driver.req_prepare(priv, 1, NATIVE(IEC_TYPE_M_ME_NC_1, 1), NULL, 0, NULL, 0, false, 0.0), 0);
 
     /* 用协议层 helper 造一个合法的链路状态请求 */
     iec101_link_mgr_t link = {.link_addr = 1, .addr_len = 1};
@@ -108,7 +108,7 @@ static void test_master_tick_builds_link_request(void** state) {
     (void)state;
     uint8_t priv[4096]; /* 必须 >= iec101_driver.ctx_size */
     memset(priv, 0, sizeof(priv));
-    assert_int_equal(iec101_driver.req_prepare(priv, 3, NATIVE(IEC_TYPE_M_SP_NA_1, 1), NULL, 0, NULL, 0), 0);
+    assert_int_equal(iec101_driver.req_prepare(priv, 3, NATIVE(IEC_TYPE_M_SP_NA_1, 1), NULL, 0, NULL, 0, false, 0.0), 0);
 
     net_buf_pool_t* pool = net_buf_pool_new(4, 256, 0);
     assert_non_null(pool);
