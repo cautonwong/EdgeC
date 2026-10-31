@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "datahub.h"
+#include "edge_log.h"
 #include "shmring.h"
 
 #define MAX_DICT_SIZE 64
@@ -234,36 +235,35 @@ static int _oi_5004_read(dcu_object_t* obj, uint8_t attr_id, uint8_t elem_idx, v
 // ==============================================================================
 // 5. OI 0x8000 远程控制拉闸动作 (Class 13) 虚函数实现
 // ==============================================================================
+/* OI 0x8000 方法 1：继电器拉合闸。
+ *
+ * ⚠️ **这个动作没有真正下发到现场**。原来它把动作值写进影子表 + 记一条遥测就
+ * `return 0`，主站看到的是"拉闸成功"，而继电器根本没动——这是最危险的一种错：
+ * 比"不支持"危险得多，因为没人会去复查。
+ *
+ * 真正要做需要 698 的 **ACTION-Request**（服务码 0x07，方法 1），而
+ * `dlt698_codec.c` 里目前只有 GET / SET 的构造器，没有 ACTION，也没有继电器
+ * 控制参数的报文样例可对照。**在拿到样例之前不猜报文格式**，所以这里明确失败。
+ *
+ * 参数 `param` 是**设备的 slot_id**（影子表身份），不是档案数组下标——
+ * 删表会让下标变，用下标查地址会查到别人家去。 */
 static int _oi_8000_execute(dcu_object_t* obj, uint8_t method_id, const void* param, void* result) {
     (void)obj;
+    if (method_id != 1) return -2;
 
-    uint32_t device_id = param ? (uint32_t)(uintptr_t)param : 0;
-    uint8_t action = result ? *(uint8_t*)result : 1;  // Default to 1 (Trip)
+    uint32_t slot = param ? (uint32_t)(uintptr_t)param : 0;
+    uint8_t action = result ? *(uint8_t*)result : 1; /* 1=跳闸 0=合闸 */
 
-    // 方法 1: 继电器跳合闸动作执行
-    if (method_id == 1) {
-        printf("⚡ [LOAD CONTROL] ACTION 8000: Dev %u 执行继电器动作 %d (1:跳闸, 0:合闸)\n",
-               device_id, action);
-
-        // 1. 同步反馈到数据总线
-        if (g_router_bus_ops.publish_realtime) {
-            g_router_bus_ops.publish_realtime(g_router_bus_ops.ctx, 0x80000100, device_id,
-                                              (double)action, uv_hrtime());
-        }
-
-        // 2. 写入存储 (最新状态)
-        if (s_router_inv && device_id < s_router_inv->count) {
-            if (g_router_sink_ops.record_telemetry) {
-                g_router_sink_ops.record_telemetry(g_router_sink_ops.ctx,
-                                                   s_router_inv->meters[device_id].address,
-                                                   device_id, 0x80000100, (double)action);
-            }
-        }
-
-        if (result) *(int*)result = 0;
-        return 0;
+    const production_meter_t* m = dcu_inventory_by_slot(s_router_inv, slot);
+    if (!m) {
+        LOG_WARN(LOG_CAT_CORE, "OI 8000: slot %u 不在档案里，拒绝执行", slot);
+        return -3;
     }
-    return -2;
+
+    LOG_ERROR(LOG_CAT_CORE,
+              "OI 8000: 继电器控制**未下发**（缺 698 ACTION-Request 编码器）：dev=%s action=%u",
+              m->address, action);
+    return -4; /* 明确"未实现"，绝不伪装成功 */
 }
 
 // ==============================================================================
