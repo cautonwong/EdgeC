@@ -15,6 +15,7 @@
 
 #include "dlt698_codec.h"
 #include "dlt645_codec.h"
+#include "driver_dlt698.h"
 #include "driver_manager.h"
 #include "edge_driver.h"
 #include "edge_log.h"
@@ -29,6 +30,9 @@ typedef struct {
     uint8_t sa_addr[DLT698_ADDR_LEN];
     uint8_t sa_len;
     int32_t raw;                   /**< 解码出的原始值 */
+    bool is_write;                 /**< 本次是 SET 还是 GET */
+    uint8_t write_type;            /**< A-XDR 类型标签 */
+    double write_value;            /**< 写入值（raw） */
 } dlt698_req_t;
 
 /* PIID 是协议层序号，不依赖任何全局服务 */
@@ -46,21 +50,43 @@ static int dlt698_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id, 
                               uint32_t meta_list_len, const void *point_desc,
                               size_t point_desc_len,
                               bool is_write, double value) {
-    /* 写路径尚未实现：宁可在这里失败，也不能把写请求当读请求发出去。
-     * 补齐时按协议接对应的写编码 helper（见 ADR002 计划 §S5）。 */
-    if (is_write) {
-        (void)value;
-        LOG_WARN(LOG_CAT_IO, "DLT698: 写请求暂不支持");
-        return -1;
-    }
-    (void)is_write;
-
-    (void)point_desc;
-    (void)point_desc_len;
     (void)meta_list;
     (void)meta_list_len;
     dlt698_req_t *p = (dlt698_req_t *)priv;
     if (!p) return -1;
+
+    if (is_write) {
+        /* 类型由产品给：同一个 OAD 在不同装置上可能是 long-unsigned 也可能是
+         * double-long，驱动猜不了。缺描述或类型不支持就拒绝。 */
+        if (!point_desc || point_desc_len != sizeof(dlt698_write_desc_t)) {
+            LOG_WARN(LOG_CAT_IO, "DLT698: 写请求缺少 A-XDR 类型描述");
+            return -1;
+        }
+        uint8_t type = ((const dlt698_write_desc_t *)point_desc)->type;
+        /* 值域先校验：截断写入比失败危险得多 */
+        if (type == DLT698_WRITE_LONG_UNSIGNED) {
+            if (value < 0.0 || value > 65535.0) {
+                LOG_WARN(LOG_CAT_IO, "DLT698: long-unsigned 越界 %.0f", value);
+                return -1;
+            }
+        } else if (type == DLT698_WRITE_DOUBLE_LONG) {
+            if (value < -2147483648.0 || value > 2147483647.0) {
+                LOG_WARN(LOG_CAT_IO, "DLT698: double-long 越界 %.0f", value);
+                return -1;
+            }
+        } else {
+            LOG_WARN(LOG_CAT_IO, "DLT698: 不支持的 A-XDR 类型 0x%02X", type);
+            return -1;
+        }
+        p->is_write = true;
+        p->write_type = type;
+        p->write_value = value;
+    } else {
+        p->is_write = false;
+        p->write_type = 0;
+        p->write_value = 0.0;
+    }
+
     p->oad = point_id;
     _fill_sa(p, slave_id);
     p->piid = ++s_piid;
@@ -72,9 +98,26 @@ static int dlt698_req_encode(void *priv, void *session, net_buf_t *out) {
     (void)session; /* 无会话状态：这一帧自成一体 */
     dlt698_req_t *p = (dlt698_req_t *)priv;
     if (!p || !out) return -1;
+
     dlt698_addr_t sa = {.len = p->sa_len, .type = 0};
     memcpy(sa.addr, p->sa_addr, p->sa_len);
-    return dlt698_encode_get_request(&sa, p->piid, p->oad, out);
+
+    if (!p->is_write) return dlt698_encode_get_request(&sa, p->piid, p->oad, out);
+
+    /* SET：A-XDR 数据段用 codec 里已有的编码器，不在这里手搓字节序 */
+    uint8_t axdr[8];
+    uint16_t off = 0;
+    int rc;
+    if (p->write_type == DLT698_WRITE_LONG_UNSIGNED) {
+        rc = dlt698_encode_long_unsigned(axdr, sizeof(axdr), &off, (uint16_t)p->write_value);
+    } else if (p->write_type == DLT698_WRITE_DOUBLE_LONG) {
+        rc = dlt698_encode_double_long(axdr, sizeof(axdr), &off, (int32_t)p->write_value);
+    } else {
+        return -1;
+    }
+    if (rc != 0 || off == 0) return -1;
+
+    return dlt698_encode_set_request(&sa, p->piid, p->oad, axdr, off, out);
 }
 
 static int dlt698_req_decode(void *priv, void *session, const uint8_t *buf, size_t len, size_t *consumed,
