@@ -15,9 +15,12 @@ void edge_api_init(bus_orchestrator_t* orch, driver_manager_t* drv_mgr);
 
 /**
  * @brief Submits a high-level request to read a single tag value.
+ *
+ * @param priority 仲裁优先级。**周期抄表必须传 `ARBITER_PRIO_LOW`**——
+ *                 抄表是后台任务，不该和交互式请求抢总线。
  */
 int edge_api_read_tag(int bus_id, const char* protocol, uint32_t slave_id, uint32_t physical_tag_id,
-                      legacy_on_complete_cb cb, void* user_data);
+                      int priority, legacy_on_complete_cb cb, void* user_data);
 
 /**
  * @brief 读一个点位，显式区分「驱动认的标识」与「调用方认的标识」。
@@ -29,10 +32,13 @@ int edge_api_read_tag(int bus_id, const char* protocol, uint32_t slave_id, uint3
  * @param native_id      驱动认识的协议原生点位标识
  * @param result_tag_id  回调里 result->tag_id 用的标识（调用方自己的 tag_id）
  * @param scale          量纲：解码值 × scale 后交给回调；传 0 表示 1.0
+ * @param priority       仲裁优先级。周期抄表传 `ARBITER_PRIO_LOW`；
+ *                       交互式单点读传 `ARBITER_PRIO_NORMAL`
  */
 int edge_api_read_tag_ex(int bus_id, const char* protocol, uint32_t slave_id, uint32_t native_id,
                          uint32_t result_tag_id, double scale, const void* point_desc,
-                         size_t point_desc_len, legacy_on_complete_cb cb, void* user_data);
+                         size_t point_desc_len, int priority, legacy_on_complete_cb cb,
+                         void* user_data);
 
 /**
  * @brief 登记某协议的设备地址表（645 的 6 字节 BCD 表地址等）。

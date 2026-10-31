@@ -61,7 +61,8 @@ static const edge_api_meta_entry_t *_meta_of(const char *protocol) {
 
 int edge_api_read_tag_ex(int bus_id, const char *protocol, uint32_t slave_id, uint32_t native_id,
                          uint32_t result_tag_id, double scale, const void *point_desc,
-                         size_t point_desc_len, legacy_on_complete_cb cb, void *user_data) {
+                         size_t point_desc_len, int priority, legacy_on_complete_cb cb,
+                         void *user_data) {
     if (!g_orch) {
         static uint64_t last_no_orch = 0;
         if (uv_now(uv_default_loop()) - last_no_orch > 1000) {
@@ -92,7 +93,7 @@ int edge_api_read_tag_ex(int bus_id, const char *protocol, uint32_t slave_id, ui
 
     cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));
     cmd->req = req;
-    cmd->priority = ARBITER_PRIO_NORMAL;
+    cmd->priority = priority;
     cmd->signature = 0x55AA;
     cmd->timeout_ms = 2000; // 💡 [Nexus Fix] 修复 0 毫秒立刻导致超时取消的问题
     cmd->on_cleanup = _on_api_cmd_cleanup;
@@ -112,9 +113,9 @@ int edge_api_read_tag_ex(int bus_id, const char *protocol, uint32_t slave_id, ui
 
 /* 兼容入口：老调用方只有一个标识，视作"原生标识 == 结果 tag"，量纲为 1。 */
 int edge_api_read_tag(int bus_id, const char *protocol, uint32_t slave_id, uint32_t physical_tag_id,
-                      legacy_on_complete_cb cb, void *user_data) {
+                      int priority, legacy_on_complete_cb cb, void *user_data) {
     return edge_api_read_tag_ex(bus_id, protocol, slave_id, physical_tag_id, physical_tag_id, 1.0,
-                                NULL, 0, cb, user_data);
+                                NULL, 0, priority, cb, user_data);
 }
 
 int edge_api_write_tag(int bus_id, const char *protocol, uint32_t slave_id,
