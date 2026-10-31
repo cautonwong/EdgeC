@@ -421,17 +421,26 @@ int (*req_prepare)(void *priv, uint32_t slave_id, uint32_t point_id, const void 
 | 协议 | 写支持 | 说明 |
 |---|---|---|
 | ModbusRTU / ModbusTCP | ✅ FC05/06 | 产品实际在用；多寄存器写显式拒绝（请求模型只带一个标量，截断比失败更危险） |
-| **DLT645** | ✅ 控制码 0x14 | 2026-10-31 补齐：宽度来自 `dlt645_write_desc_t`（经 `point_desc` 传），值按 BCD 编进数据段；缺宽度或宽度非 2/4 一律拒绝 |
-| DLT698 / CAN / IEC101 / DLMS | ❌ 显式失败 | `req_prepare` 里 `if (is_write) return -1` + WARN。**宁可失败，也不发读帧** |
+| **DLT645** | ✅ 控制码 0x14 | 2026-10-31：宽度来自 `dlt645_write_desc_t`（经 `point_desc` 传），值按 BCD 编进数据段；缺宽度或宽度非 2/4 一律拒绝 |
+| **DLT698** | ✅ SET-Request | 2026-10-31：`dlt698_encode_set_request()` + `dlt698_write_desc_t`（A-XDR 类型）。只开放 codec 里**已有编码器**的 `long-unsigned` / `double-long`，值域先校验 |
+| CAN / IEC101 / DLMS | ❌ 显式失败 | `req_prepare` 里 `if (is_write) return -1` + WARN。**宁可失败，也不发读帧** |
 | CiA402 | — | 没有 `req_prepare`（纯从站） |
 
-**为什么停在 645**：其余协议的写编码没有可复用的正确实现，硬写等于猜——
+**698 不是"补个 tag 就完"**：
+
+- APDU：`06 | 01 | PIID | OAD(4) | Data`，Data 是**带类型标签**的 A-XDR。
+- 类型由产品给（同一 OAD 在不同装置上可能是 long-unsigned 也可能是 double-long，
+  驱动猜不了）；数据段复用 codec 已有的 `dlt698_encode_long_unsigned` /
+  `dlt698_encode_double_long`，**不在驱动里手搓字节序**。
+- 值域先校验（0..65535 / ±2^31），越界拒绝而不是截断。
+- 帧头/帧尾抽成 `_frame_begin` / `_frame_seal`，与 GET 共用同一套 L/FCS 约定。
+
+**剩余三个的阻塞点**：
 
 | 协议 | 阻塞点 |
 |---|---|
-| DLT698 | `dlt698_codec.c` 是简化实现（源码里就写着 "For simplicity"），没有 SET-Request 编码器；要先补 codec 并拿到报文样例 |
 | IEC101 / IEC104 | `iec_asdu_add_c_sc_na_1/_c_se_nc_1` 已有，缺的是"写请求的 type_id 从哪来"——控制点位与测量点位的类型不同，需要产品在 `native_id` 里带控制类型，并补一条控制点位的用例 |
-| DLMS | 缺 `dlms_cosem_build_set_request` |
+| DLMS | 缺 `dlms_cosem_build_set_request`（cosem 层没有 SET 构造器） |
 | CAN | 数据帧语义由产品定义（哪几个字节是值、字节序），没有统一样例 |
 
 补任何一个之前，先要有**能对照的报文样例**——没有样例的编码器只是"看起来对"。

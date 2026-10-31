@@ -47,6 +47,17 @@ uint16_t dlt698_calculate_fcs(const uint8_t *p, size_t len);
 int dlt698_encode_get_request(const dlt698_addr_t *sa, uint8_t piid, uint32_t oad, net_buf_t *out);
 
 /**
+ * @brief 构造 SET-Request.Normal
+ *
+ * APDU：`06 | 01 | PIID | OAD(4) | Data`，Data 是 A-XDR 编码的**带类型标签**的值。
+ * 类型与宽度由调用方决定（类型是点位模型的知识），驱动只负责拼帧与校验。
+ *
+ * @param data  A-XDR 数据段（首字节是类型标签），dlen 为 0 表示无数据段
+ */
+int dlt698_encode_set_request(const dlt698_addr_t *sa, uint8_t piid, uint32_t oad,
+                              const uint8_t *data, size_t dlen, net_buf_t *out);
+
+/**
  * @brief 构造 GET-Response.Normal 报文并写入 out 缓冲区 (以接地气的中文添加注释)
  * @param sa 从站地址
  * @param piid 服务序列号
