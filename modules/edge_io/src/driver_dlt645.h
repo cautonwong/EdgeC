@@ -31,6 +31,17 @@
 #define DLT645_ADDR_LEN 6
 #define DLT645_DI_LEN   4
 
+/**
+ * @brief 写请求的点位描述（经 `req_prepare` 的 `point_desc` 传入）。
+ *
+ * 645 写数据的报文长度由数据宽度决定（电能量 4 字节、电压/电流 2 字节），
+ * 而 `native_id` 只有 DI ——宽度是**点位模型的知识**，产品侧填，驱动不猜。
+ * 不传或宽度不是 2/4 一律拒绝：写错宽度会把 BCD 写进错误的字节位置。
+ */
+typedef struct {
+    uint8_t data_len; /**< 数据段字节数：2 或 4 */
+} dlt645_write_desc_t;
+
 /** 请求私有数据：驱动认识的全部"点位"信息都在这里 */
 typedef struct {
     uint32_t di;                     /**< 数据标识（645 原生，低字节先上线） */
