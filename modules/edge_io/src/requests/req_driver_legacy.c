@@ -32,7 +32,7 @@ typedef struct {
     size_t point_desc_len;
     /* [ADR-002] request-native 驱动的私有请求数据（点位信息）。
      * 定长内嵌：核心路径不引入动态内存。大小由 driver->req_priv_size 决定。 */
-    uint8_t drv_priv[REQ_DRV_PRIV_MAX];
+    alignas(max_align_t) uint8_t drv_priv[REQ_DRV_PRIV_MAX];
     bool drv_priv_ready;
 } legacy_req_ctx_t;
 

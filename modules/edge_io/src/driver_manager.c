@@ -19,9 +19,17 @@
 
 typedef struct {
     edge_driver_ctx_t ctx;
-    uint8_t priv[DRIVER_PRIV_SIZE];
+    /* Caller-Allocated Storage 的对齐契约：缓冲区必须满足 max_align_t。
+     * 少了 alignas，`alignas(max_align_t)` 的会话结构体（IEC104 的 APCI storage）
+     * 落在非 16 字节边界上——ubsan 直接报 misaligned，实际运行是 UB。 */
+    alignas(max_align_t) uint8_t priv[DRIVER_PRIV_SIZE];
     bool in_use;
 } driver_inst_slot_t;
+
+/* 结构体整体也必须满足 max_align_t，否则 priv 只是"相对结构体对齐"，
+ * 而结构体本身可能落在任意地址（calloc 保证的是 max_align_t，这里双保险）。 */
+_Static_assert(alignof(driver_inst_slot_t) >= alignof(max_align_t),
+               "driver_inst_slot_t 必须按 max_align_t 对齐，否则驱动 priv 会 misaligned");
 
 
 struct driver_manager_s {
@@ -103,10 +111,11 @@ int driver_manager_register(driver_manager_t *mgr, const edge_driver_t *driver) 
                   driver->name ? driver->name : "?");
         return -3;
     }
-    /* 主站三件套要么全有、要么全无：纯从站/纯生产者不需要它们。 */
+    /* prepare + encode 是组请求的最小集，必须成对出现。
+     * decode 只有"读"才需要——纯北向生产者（sparkplug_b）只发不收，不能强求。 */
     bool master = driver->req_prepare || driver->req_encode || driver->req_decode;
-    if (master && (!driver->req_prepare || !driver->req_encode || !driver->req_decode)) {
-        LOG_ERROR(LOG_CAT_IO, "Driver %s: request-native needs prepare+encode+decode",
+    if (master && (!driver->req_prepare || !driver->req_encode)) {
+        LOG_ERROR(LOG_CAT_IO, "Driver %s: request-native needs prepare+encode",
                   driver->name ? driver->name : "?");
         return -4;
     }
@@ -159,14 +168,6 @@ const edge_driver_t *driver_manager_find(driver_manager_t *mgr, const char *name
     return NULL;
 }
 
-static const char *_driver_port_get_tag_name(edge_driver_ctx_t *ctx, uint32_t tag_id) {
-    if (!ctx) return NULL;
-    datahub_t *hub = (datahub_t *)ctx->user_data;
-    if (!hub) return NULL;
-    const edge_tag_meta_t *meta = datahub_get_metadata_by_tag(hub, tag_id);
-    return meta ? meta->name : NULL;
-}
-
 edge_driver_ctx_t *driver_instance_create(driver_manager_t *mgr, const char *protocol,
                                           uint32_t device_id) {
     const edge_driver_t *tmpl = driver_manager_find(mgr, protocol);
@@ -204,7 +205,6 @@ edge_driver_ctx_t *driver_instance_create(driver_manager_t *mgr, const char *pro
     slot->in_use = true;
     slot->ctx.driver = tmpl;
     slot->ctx.device_id = device_id;
-    slot->ctx.get_tag_name = _driver_port_get_tag_name;
 
     if (mgr && mgr->cfg.hub) {
         slot->ctx.user_data = mgr->cfg.hub;

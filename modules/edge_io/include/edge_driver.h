@@ -56,20 +56,10 @@ typedef struct edge_driver_ctx_s {
     int session_state;         /**< 协议特定的会话状态码 */
     uint32_t flags;            /**< 协议运行标志位 */
 
-    // --- 北向出口最后一块（ADR-002 未完成项）---
-    // 只剩这一处：sparkplug_b 组 metric 名要用点位名，而点位名在 datahub 元数据里。
-    // 它没有任何产品注册，等它走 req_tick + 北向端口时一起删。
-    // **不要在这个结构体里再加任何"驱动反查消费侧"的指针** —— 那正是 ADR-002 删掉的东西。
-    const char *(*get_tag_name)(struct edge_driver_ctx_s *ctx, uint32_t tag_id);
-
+    // [ADR-002] 这里已经没有任何"驱动反查消费侧"的指针了。
+    // 需要外部状态就走端口（edge_slave_source_ops_t / edge_north_source_ops_t），
+    // 端口每次调用现传，不进这个结构体。**不要加回来。**
 } edge_driver_ctx_t;
-
-static inline const char *edge_driver_get_tag_name(edge_driver_ctx_t *ctx, uint32_t tag_id) {
-    if (ctx && ctx->get_tag_name) {
-        return ctx->get_tag_name(ctx, tag_id);
-    }
-    return NULL;
-}
 
 /**
  * @brief 协议驱动元模型 (V4.0 状态机版)
