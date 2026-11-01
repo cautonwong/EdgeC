@@ -138,6 +138,12 @@ modules:
         title: 系统配置
         menu: { group: system, order: 20, icon: settings }
         permissions: { allOf: [system.service:read] }
+      - id: core.system.roles
+        path: /system/roles
+        component: system/RolesView.vue
+        title: 角色管理
+        menu: { group: system, order: 22, icon: users }
+        permissions: { allOf: [user.role:read] }
       - id: core.system.time
         path: /system/time
         component: system/TimeView.vue

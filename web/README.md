@@ -90,6 +90,15 @@ Core 永不 import products
 - 告警页（`/events`）订阅 `alarm` 主题：配置回滚、任务取消会真的产生告警并推到页面；
   确认告警是写操作（`core.alarm:write`），服务端同样判定。
 
+## 5.1 用户与角色（§5.5）
+
+- `/system/users`：新建（返回**一次性口令**，只显示一次）、重置口令（踢掉该用户全部会话）、
+  禁用/启用、删除。三条不变量前后端一致：不能禁用/删除自己（`self_protected`）、
+  不能禁用或降级最后一个可用管理员（`last_admin`）、重置口令强制下次改密。
+- `/system/roles`：内置角色只读（权限来自构建期 role-presets）；自定义角色在设备上创建，
+  权限从 Registry 的目录里逐条勾选，**必须是具体 ID**，且不能超过自己的权限（`grant_escalation`）。
+- 台架账号：`opsadmin / OpsAdmin-Pass-2026`（管理员，用于用户管理；`admin` 专门留给首登改密流程）。
+
 ## 6. 常用命令
 
 ```bash
