@@ -47,7 +47,9 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build clang-tidy lcov valgrind libssl-dev
+          # mosquitto：test_mqtt_subscribe 要真跑 MQTT 集成。没有它这条用例只能跳过，
+          # 而跳过等于永远没人验（cmocka 的 group setup 返回非 0 还会被判成失败）。
+          sudo apt-get install -y cmake ninja-build clang-tidy lcov valgrind libssl-dev mosquitto
           if [ "${{ matrix.config.target }}" == "arm64" ]; then
             sudo dpkg --add-architecture arm64
             echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64.list

@@ -145,7 +145,14 @@ static int teardown(void** state) {
 
     uv_walk(&ctx->loop, _on_force_close, NULL);
     printf("[DEBUG] Teardown: Final loop flush...\n");
-    uv_run(&ctx->loop, UV_RUN_DEFAULT);
+    /* **不能用 UV_RUN_DEFAULT**：只要还有任何一个句柄没关（哪怕是被别的测试留下的
+     * timer / 半开的 socket），uv_run 就会一直等下去 —— 本地快机器上"刚好"能跑完，
+     * CI 上就变成挂到 ctest 的 180 秒超时，报"失败"却看不到任何断言。
+     * 改成有界轮询：最多转 200 圈，转不干净就交给 uv_loop_close
+     * （返回 EBUSY 也无妨，进程马上就退）。 */
+    for (int i = 0; i < 200 && uv_loop_alive(&ctx->loop); i++) {
+        uv_run(&ctx->loop, UV_RUN_NOWAIT);
+    }
 
     uv_loop_close(&ctx->loop);
     free(ctx);
