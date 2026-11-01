@@ -165,6 +165,68 @@ const interfacesState = [
   { id: 'eth1', name: 'eth1', mac: '02:00:00:00:00:02', addresses: [], gateway: '', mtu: 1500, state: 'down', speedMbps: null },
 ];
 
+/**
+ * 告警（§8.3）。台架上用"确定性的产生源"而不是定时器：
+ * 配置回滚、任务取消这类动作会真的产生告警 —— 这样 E2E 能验"事件真的推到了页面"，
+ * 而不是等一个随机闹钟。
+ */
+const alarms = [
+  {
+    id: 'al_0001',
+    ts: new Date(now() - 120000).toISOString(),
+    level: 'major',
+    source: 'northbound',
+    code: 'NB-MQTT-DISCONNECT',
+    message: '北向 MQTT 断开 12s 后重连成功',
+    state: 'active',
+    ackBy: null,
+    ackAt: null,
+  },
+  {
+    id: 'al_0002',
+    ts: new Date(now() - 600000).toISOString(),
+    level: 'minor',
+    source: 'collector',
+    code: 'COL-SLAVE-TIMEOUT',
+    message: '2# 表抄读超时（连续 3 次）',
+    state: 'active',
+    ackBy: null,
+    ackAt: null,
+  },
+  {
+    id: 'al_0003',
+    ts: new Date(now() - 3600000).toISOString(),
+    level: 'info',
+    source: 'system',
+    code: 'SYS-BOOT',
+    message: '设备重启完成，自检通过',
+    state: 'cleared',
+    ackBy: null,
+    ackAt: null,
+  },
+];
+let alarmSeq = alarms.length;
+
+const LEVEL_ORDER = { critical: 0, major: 1, minor: 2, warning: 3, info: 4 };
+
+function raiseAlarm({ level, source, code, message }) {
+  alarmSeq += 1;
+  const alarm = {
+    id: `al_${String(alarmSeq).padStart(4, '0')}`,
+    ts: new Date().toISOString(),
+    level,
+    source,
+    code,
+    message,
+    state: 'active',
+    ackBy: null,
+    ackAt: null,
+  };
+  alarms.unshift(alarm);
+  broadcast('alarm', 'alarm', alarm);
+  return alarm;
+}
+
 /** 各配置分区"设备上的当前值"。网络接口从 interfacesState 派生，其余在这里维护。 */
 const configSectionsState = {
   'system.time': { ntpEnabled: true, servers: ['ntp.aliyun.com'], manualTime: '' },
@@ -561,6 +623,30 @@ const handlers = {
     return { taskId: task.id, state: task.state };
   },
 
+  'GET /api/v1/alarms': (ctx) => {
+    const level = ctx.query.level;
+    const state = ctx.query.state;
+    const limit = Number(ctx.query.limit ?? 50);
+    const items = alarms
+      .filter((alarm) => !level || alarm.level === level)
+      .filter((alarm) => !state || alarm.state === state)
+      .sort((a, b) => (LEVEL_ORDER[a.level] ?? 9) - (LEVEL_ORDER[b.level] ?? 9) || (a.ts < b.ts ? 1 : -1))
+      .slice(0, Number.isFinite(limit) ? limit : 50);
+    return { items, total: items.length };
+  },
+
+  'POST /api/v1/alarms/{id}/ack': (ctx) => {
+    const alarm = alarms.find((item) => item.id === ctx.params.id);
+    if (!alarm) throw httpError(404, 'not_found', '告警不存在');
+    if (alarm.state === 'acked') return { ...alarm, idempotent: true };
+    alarm.state = 'acked';
+    alarm.ackBy = ctx.session.userId;
+    alarm.ackAt = new Date().toISOString();
+    audit(ctx, 'alarm.acked', { alarmId: alarm.id });
+    broadcast('alarm', 'alarm', alarm);
+    return { ...alarm };
+  },
+
   'GET /api/v1/logs/system': () => ({
     items: [
       { ts: new Date(now() - 5000).toISOString(), level: 'info', service: 'collector', message: 'modbus poll ok (2 slaves)' },
@@ -683,6 +769,13 @@ const handlers = {
     transaction.rolledBackAt = new Date().toISOString();
     audit(ctx, 'config.rolledback', { transactionId: transaction.id });
     broadcast('config-transaction', 'config-transaction', publicTransactionFields(transaction));
+    // 回滚是"需要人知道"的事件：配置没生效，现场必须看到
+    raiseAlarm({
+      level: 'major',
+      source: 'config',
+      code: 'CFG-ROLLED-BACK',
+      message: `配置分区 ${transaction.sectionId} 已回滚（未在确认窗口内确认或主动取消）`,
+    });
     return { transactionId: transaction.id, state: transaction.state };
   },
 
@@ -701,6 +794,7 @@ const handlers = {
     task.updatedAt = new Date().toISOString();
     audit(ctx, 'task.canceled', { taskId: task.id });
     broadcast('task', 'task', publicTask(task));
+    raiseAlarm({ level: 'info', source: 'task', code: 'TASK-CANCELED', message: `任务 ${task.type} 已取消` });
     return { taskId: task.id, state: task.state };
   },
 

@@ -284,6 +284,33 @@ paths:
         "202": { description: 已受理，返回 taskId }
         "404": { description: 该 release 未启用升级功能 }
 
+  /api/v1/alarms:
+    get:
+      operationId: listAlarms
+      summary: 告警列表（按等级/状态过滤）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [core.alarm:read]
+      x-resource-scope: gateway
+      x-audit-level: none
+      responses:
+        "200": { description: 告警列表 }
+
+  /api/v1/alarms/{id}/ack:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      operationId: ackAlarm
+      summary: 确认告警（幂等）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [core.alarm:write]
+      x-resource-scope: gateway
+      x-audit-level: high
+      responses:
+        "200": { description: 确认后的告警 }
+
   /api/v1/logs/system:
     get:
       operationId: getSystemLogs

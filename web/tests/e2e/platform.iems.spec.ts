@@ -272,3 +272,66 @@ test('实时通道：别的会话确认事务后，本页无需手动刷新就�
   await expect(page.locator('[data-testid="tx-message"]')).toContainText('已确认', { timeout: 15_000 });
   await expect(page.locator('[data-testid="tx-pending"]')).toHaveCount(0);
 });
+
+// ---------------------------------------------------------------- 告警（列表 + 推送 + 确认）
+test('告警页：列表按等级排序，等级/状态过滤可用', async ({ page }) => {
+  await login(page, VIEWER);
+  await page.goto('/#/events');
+  await expect(page.locator('[data-testid="alarms-table"]')).toBeVisible();
+  await expect(page.locator('[data-testid="alarm-message-al_0001"]')).toContainText('MQTT');
+
+  await page.locator('[data-testid="alarm-level-filter"]').selectOption('minor');
+  await expect(page.locator('[data-testid="alarm-message-al_0002"]')).toBeVisible();
+  await expect(page.locator('[data-testid="alarm-message-al_0001"]')).toHaveCount(0);
+
+  await page.locator('[data-testid="alarm-level-filter"]').selectOption('all');
+  await page.locator('[data-testid="alarm-state-filter"]').selectOption('acked');
+  await expect(page.locator('[data-testid="alarms-empty"]')).toBeVisible();
+});
+
+test('告警页：只读账号没有确认按钮，服务端同样拒绝', async ({ page }) => {
+  await login(page, VIEWER);
+  await page.goto('/#/events');
+  await expect(page.locator('[data-testid="alarms-table"]')).toBeVisible();
+  await expect(page.locator('[data-testid="alarm-ack-al_0001"]')).toHaveCount(0);
+
+  const me = await (await page.request.get('/api/v1/auth/me')).json();
+  const denied = await page.request.post('/api/v1/alarms/al_0001/ack', {
+    data: {},
+    headers: { Origin: 'http://127.0.0.1:5173', 'X-CSRF-Token': me.csrfToken },
+  });
+  expect(denied.status()).toBe(403);
+  expect((await denied.json()).code).toBe('permission_denied');
+});
+
+test('告警页：确认告警后状态变为已确认（写操作走服务端判定）', async ({ page }) => {
+  await login(page, ENGINEER_ACCOUNT);
+  await page.goto('/#/events');
+  await page.locator('[data-testid="alarm-ack-al_0002"]').click();
+  await expect(page.locator('[data-testid="alarm-state-filter"]')).toBeVisible();
+  await page.locator('[data-testid="alarm-state-filter"]').selectOption('acked');
+  await expect(page.locator('[data-testid="alarm-message-al_0002"]')).toBeVisible();
+});
+
+test('告警页：配置回滚产生的告警通过实时通道推到页面，无需刷新', async ({ page }) => {
+  await login(page, ENGINEER_ACCOUNT);
+  await page.goto('/#/events');
+  await expect(page.locator('[data-testid="alarms-table"]')).toBeVisible();
+
+  // 前面的用例也制造过回滚，所以这里比较"条数增加"，而不是"某条文本存在"
+  const marker = '已回滚（未在确认窗口内确认或主动取消）';
+  const before = await page.getByText(marker).count();
+
+  // 在另一个页面里制造一次回滚（配置回滚会产生 major 告警）
+  const other = await page.context().newPage();
+  await other.goto('/#/network');
+  await other.locator('[data-testid="edit-eth0"]').click();
+  await other.locator('[data-testid="field-addresses"]').fill('192.168.10.66/24');
+  await other.locator('[data-testid="tx-apply"]').click();
+  await expect(other.locator('[data-testid="tx-pending"]')).toBeVisible();
+  await other.locator('[data-testid="tx-rollback"]').click();
+  await expect(other.locator('[data-testid="tx-message"]')).toContainText('已回滚');
+
+  // 告警页不做任何操作，靠 WS 推送出现新告警
+  await expect(page.getByText(marker)).toHaveCount(before + 1, { timeout: 15_000 });
+});

@@ -71,7 +71,7 @@ static void test_event_stream_hub_routing_and_exports(void **state) {
     char router_content[8192];
     read_file_content("web/core/modules.manifest.yaml", router_content, sizeof(router_content));
     assert_non_null(strstr(router_content, "events"));
-    assert_non_null(strstr(router_content, "EventStreamHub.vue"));
+    assert_non_null(strstr(router_content, "AlarmsView.vue"));
 
     char index_content[8192];
     read_file_content("web/core/src/index.ts", index_content, sizeof(index_content));
