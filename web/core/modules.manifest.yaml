@@ -74,7 +74,9 @@ modules:
     pages:
       - id: core.alarm.stream
         path: /events
-        component: events/EventStreamHub.vue
+        # 数据面从"契约点位轮询"换成 /api/v1/alarms + 实时推送；旧 EventStreamHub
+        # 仍保留在 modules/events 里作为迁移参考，但不再挂路由。
+        component: control/AlarmsView.vue
         title: 告警与事件
         menu: { group: control, order: 10, icon: alert }
         permissions: { allOf: [core.alarm:read] }

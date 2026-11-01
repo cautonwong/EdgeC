@@ -35,7 +35,7 @@ static void read_file_content(const char *rel_path, char *buf, size_t max_len) {
 static void test_event_stream_hub_component_structure(void **state) {
     (void)state;
     char content[65536];
-    read_file_content("web/core/src/modules/events/EventStreamHub.vue", content, sizeof(content));
+    read_file_content("web/core/src/views/events/EventStreamHub.vue", content, sizeof(content));
 
     // Headers & High-Frequency Stream Metrics
     assert_non_null(strstr(content, "SOE EVENT STREAM"));
@@ -71,7 +71,7 @@ static void test_event_stream_hub_routing_and_exports(void **state) {
     char router_content[8192];
     read_file_content("web/core/modules.manifest.yaml", router_content, sizeof(router_content));
     assert_non_null(strstr(router_content, "events"));
-    assert_non_null(strstr(router_content, "EventStreamHub.vue"));
+    assert_non_null(strstr(router_content, "AlarmsView.vue"));
 
     char index_content[8192];
     read_file_content("web/core/src/index.ts", index_content, sizeof(index_content));
