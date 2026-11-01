@@ -117,6 +117,11 @@ if [[ "${NB_E2E:-1}" == "1" ]]; then
             fi
             sleep 0.05
         done
+        # 北向用例要 paho-mqtt（平台的可选依赖组 mqtt）。缺了不会"跳过"，而是失败 ——
+        # 因为产品侧真的连不上 broker。这里先说出来，省得对着"未完成"猜。
+        if ! "$PYTHON" -c "import paho.mqtt.client" >/dev/null 2>&1; then
+            echo "⚠️  缺 paho-mqtt：北向用例会失败（装法：pip install 'paho-mqtt>=1.6'）" >&2
+        fi
         export MQTT_BROKER="tcp://127.0.0.1:$NB_PORT"
         export MQTT_PROTOCOL="${MQTT_PROTOCOL:-MqttJson}"
         export MQTT_GROUP_ID="${MQTT_GROUP_ID:-EdgeOS}"
