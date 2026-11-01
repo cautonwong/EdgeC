@@ -62,6 +62,45 @@ int dlt645_encode_frame(const uint8_t *addr_bcd, uint8_t ctrl, uint32_t di,
     return 0;
 }
 
+int dlt645_build_ctrl_request(const uint8_t *addr_bcd, uint8_t cmd_type,
+                              const uint8_t deadline_bcd[6], const uint8_t password[4],
+                              const uint8_t operator_code[4], net_buf_t *out) {
+    if (!addr_bcd || !password || !operator_code || !out) return -1;
+
+    /* 数据域（未加 33H 前）：密码4 | 操作者代码4 | N1 N2 N3..N8 = 16 字节
+     * 帧：68 A0..A5 68 1C L ... CS 16，L = 8 + 8 = 16 */
+    const size_t data_len = 16;
+    uint8_t data[16];
+    memcpy(data, password, 4);
+    memcpy(data + 4, operator_code, 4);
+    data[8] = cmd_type; /* N1：命令类型 */
+    data[9] = 0x00;     /* N2：保留（标准 7.13 注 1） */
+    for (size_t i = 0; i < 6; i++) {
+        data[10 + i] = deadline_bcd ? deadline_bcd[i] : 0x00;
+    }
+
+    const size_t frame_len = 1 + 6 + 1 + 1 + 1 + data_len + 1 + 1;
+    uint8_t *p = net_buf_add(out, 4 + frame_len);
+    if (!p) return -1;
+    memset(p, 0xFE, 4); /* 前导 FE×4：唤醒接收方（标准 5.3.1） */
+    uint8_t *f = p + 4;
+
+    f[0] = 0x68;
+    memcpy(&f[1], addr_bcd, 6);
+    f[7] = 0x68;
+    f[8] = DLT645_CTRL_TRIP_CONTROL;
+    f[9] = (uint8_t)data_len;
+
+    /* 数据域每字节 +33H（标准 5.2.5，发送方加、接收方减） */
+    for (size_t i = 0; i < data_len; i++) {
+        f[10 + i] = (uint8_t)(data[i] + 0x33);
+    }
+
+    f[10 + data_len] = dlt645_calculate_cs(f, 10 + data_len);
+    f[11 + data_len] = 0x16;
+    return 0;
+}
+
 int dlt645_decode_frame(struct net_buf_simple *in, uint8_t *addr_bcd, uint8_t *ctrl,
                         uint32_t *di, uint8_t **payload_out, size_t *payload_len) {
     // Skip FE

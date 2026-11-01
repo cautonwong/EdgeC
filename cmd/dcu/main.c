@@ -490,7 +490,16 @@ int main(int argc, char** argv) {
     dcu_node_start(g_dcu_node);
 
     uv_timer_init(loop, &g_control_test_timer);
-    uv_timer_start(&g_control_test_timer, _control_test_cb, 30000, 0);
+    /* 演示用的遥控触发。缺省 2 秒（第一轮抄表之后、3 个心跳周期之内），
+     * 让"抄表 → 遥控"这条链在一次运行里就能被验到；
+     * `DCU_CONTROL_DELAY_MS` 可覆盖（0 = 立刻触发，验收里用它把窗口压掉）。 */
+    uint64_t ctrl_delay_ms = 2000;
+    const char* env_ctrl = getenv("DCU_CONTROL_DELAY_MS");
+    if (env_ctrl && env_ctrl[0]) {
+        unsigned long v = strtoul(env_ctrl, NULL, 10);
+        ctrl_delay_ms = (uint64_t)v;
+    }
+    uv_timer_start(&g_control_test_timer, _control_test_cb, ctrl_delay_ms, 0);
 
     static uv_timer_t safety_timer;
     uv_timer_init(loop, &safety_timer);
