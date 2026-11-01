@@ -10,5 +10,5 @@ launch:
   - --port
   - ${PORT}
   - --keep-alive
-devices: configs/devices.yaml
+devices: configs/devices_north.yaml
 select: tag:北向

@@ -8,7 +8,10 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
+#include "dlt645_codec.h"
+#include "edge_api.h"
 #include "edge_log.h"
 
 
@@ -71,6 +74,11 @@ static int _node_count_freezes(void *ctx, uint16_t *out_count) {
 }
 
 extern int dcu_tag_map_fn(uint32_t tag_id, uint32_t device_id);
+
+/** 路由 → 聚合根的适配：签名不同，转一层（路由不持有节点指针，见端口说明）。 */
+static int _node_control_sink(void *ctx, const char *meter_addr, uint16_t control_oi, bool trip) {
+    return dcu_node_execute_control((dcu_node_t *)ctx, meter_addr, control_oi, trip);
+}
 
 dcu_node_t *dcu_node_create(uv_loop_t *loop, const dcu_node_config_t *cfg) {
     if (!loop || !cfg) return NULL;
@@ -170,6 +178,8 @@ dcu_node_t *dcu_node_create(uv_loop_t *loop, const dcu_node_config_t *cfg) {
                                    .read_shadow = _node_read_shadow};
     dcu_router_init_ex(&node->inventory, &node->poller, router_sink, NULL, NULL, &node->evt_3000,
                        &node->evt_3005, router_bus);
+    /* 遥控动作下沉到聚合根：路由只认识对象，发 645 控制帧是领域动作 */
+    dcu_router_set_control_sink(_node_control_sink, node);
 
     /* 6. Setup Poller Periodic Timer */
     node->poller_timer = (uv_timer_t *)calloc(1, sizeof(uv_timer_t));
@@ -336,7 +346,33 @@ int dcu_node_feed_meter_reading(dcu_node_t *node, const char *meter_addr, uint32
     return 0;
 }
 
-int dcu_node_execute_control(dcu_node_t *node, const char *meter_addr, uint16_t control_oi) {
+/**
+ * @brief 把"现在 + offset 秒"折成 645 命令有效截止时间 ss mm hh DD MM YY（BCD）。
+ *
+ * 标准 7.13 只规定 N3…N8 是"命令有效截止时间"，**没定义"无期限"怎么写**。
+ * 填 0 会被从站当成"已过期"（命令直接作废），所以这里给一个真实的未来时刻。
+ */
+static void _deadline_bcd(unsigned offset_sec, uint8_t out[6]) {
+    time_t now = time(NULL);
+    time_t when = now + (time_t)offset_sec;
+    struct tm tmv;
+    memset(&tmv, 0, sizeof(tmv));
+#if defined(_WIN32)
+    localtime_s(&tmv, &when);
+#else
+    localtime_r(&when, &tmv);
+#endif
+    out[0] = (uint8_t)(((tmv.tm_sec / 10) << 4) | (tmv.tm_sec % 10));
+    out[1] = (uint8_t)(((tmv.tm_min / 10) << 4) | (tmv.tm_min % 10));
+    out[2] = (uint8_t)(((tmv.tm_hour / 10) << 4) | (tmv.tm_hour % 10));
+    out[3] = (uint8_t)((((tmv.tm_mday) / 10) << 4) | ((tmv.tm_mday) % 10));
+    out[4] = (uint8_t)((((tmv.tm_mon + 1) / 10) << 4) | ((tmv.tm_mon + 1) % 10));
+    out[5] = (uint8_t)((((tmv.tm_year + 1900) % 100) / 10) << 4 |
+                       (((tmv.tm_year + 1900) % 100) % 10));
+}
+
+int dcu_node_execute_control(dcu_node_t *node, const char *meter_addr, uint16_t control_oi,
+                             bool trip) {
     if (!node || !meter_addr) return -1;
 
     /* 1. 领域前置检查：电表是否存在且在线 */
@@ -365,7 +401,38 @@ int dcu_node_execute_control(dcu_node_t *node, const char *meter_addr, uint16_t 
         node->event_handler(&evt, node->event_user_data);
     }
 
-    LOG_INFO(LOG_CAT_CORE, "DCU Control: Remote trip command dispatched for meter %s", meter_addr);
+    /* 4. 真正下发 645 控制帧（标准 7.13，控制码 1CH）。
+     * 这一步原来缺着：只发了个领域事件就返回 0，等于"命令派出去了但没出门"。
+     * 事件仍然发（微服务侧要记账），但**返回码以帧是否交给总线为准**。 */
+    uint8_t addr_bcd[6];
+    dlt645_u64_to_bcd_addr(strtoull(meter->address, NULL, 10), addr_bcd);
+
+    uint8_t deadline[6];
+    _deadline_bcd(300, deadline); /* 5 分钟内有效 */
+
+    const uint8_t pwd[4] = {DLT645_PWD_LEVEL_PLAIN, 0x00, 0x00, 0x00};
+    const uint8_t op[4] = {0x00, 0x00, 0x00, 0x00};
+
+    if (!node->hub) return -4;
+    net_buf_t *tx = net_buf_alloc(datahub_get_io_pool(node->hub), 0);
+    if (!tx) return -4;
+
+    uint8_t cmd = trip ? DLT645_CMD_TRIP : DLT645_CMD_ALLOW_CLOSE;
+    if (dlt645_build_ctrl_request(addr_bcd, cmd, deadline, pwd, op, tx) != 0) {
+        net_buf_unref(tx);
+        return -4;
+    }
+
+    /* edge_api_raw_io 接管 tx 的所有权（失败时它自己 unref），这里不能再动 */
+    int rc = edge_api_raw_io(meter->channel_id, tx, NULL);
+    if (rc != 0) {
+        LOG_ERROR(LOG_CAT_CORE, "DCU Control: 645 控制帧下发失败 meter=%s ch=%u rc=%d",
+                  meter_addr, (unsigned)meter->channel_id, rc);
+        return -5;
+    }
+
+    LOG_INFO(LOG_CAT_CORE, "DCU Control: 645 控制帧已下发 meter=%s ch=%u cmd=%02X(1A跳闸/1B合闸允许)",
+             meter_addr, (unsigned)meter->channel_id, cmd);
     return 0;
 }
 

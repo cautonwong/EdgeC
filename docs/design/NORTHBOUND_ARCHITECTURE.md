@@ -323,8 +323,9 @@ Modbus 0x06 的应答就是回显，设备什么都没做也会回一模一样�
 点位由产品给：`_dcu_nb_resolve()` 按 OI 决定 A-XDR 类型标签
 （2000/2001/2004 → float32，6000 → long-unsigned），驱动只负责编码。
 
-**验收**：`acceptance/dcu/tests/test_dcu_northbound.py` 三条，全部走平台写的
-`testplatform.protocol.dlt698` 收发（主站视角），断言：
+**验收**：`acceptance/dcu/tests/test_dcu_northbound.py` 三条。前两条走**设备模型**
+（`drivers/dlt698_master_driver.py` + `configs/devices_north.yaml`，
+`meter.read_all().readings`），第三条因为"操作"不是"读一个点"，直接用协议层发一帧：
 
 | 用例 | 断言 |
 |---|---|
@@ -334,10 +335,22 @@ Modbus 0x06 的应答就是回显，设备什么都没做也会回一模一样�
 
 第三条是刻意"验失败"：参数结构没实现，如果回 0，主站会以为继电器动了。
 
-**仍未做（E5b）**：ACTION 的参数解析。标准表 A.9 规定方法 129/130 的参数是
-`array<structure{继电器 OAD, 告警延时, 限电时间, 自动合闸}>`，解它还要再映射到
-"哪只表的继电器"，然后走南向 645 控制帧。这三步都需要现场语义确认，
-不是编码问题 —— 所以现在明确回 DAR=2，而不是猜一个执行路径。
+**南向控制已打通（2026-11-01）**：`docs/DLT_645-2007_多功能电能表通信协议2010.pdf`
+到位后，645 控制帧不再靠猜：
+
+- `dlt645_build_ctrl_request()`：控制码 `1CH`，`68 addr 68 1C L PA P0P1P2 C0..C3 N1..Nm CS 16`，
+  `L = 8 + m`，数据域每字节 +33H（标准 7.13 / 5.2.5）。N1 = `1AH` 跳闸、`1BH` 合闸允许。
+- `dcu_node_execute_control()` 原来**只派发领域事件就返回 0**，总线一个字节都没有；
+  现在真的经 `edge_api_raw_io` 下发，返回码以"帧是否交给总线"为准。
+- 路由到聚合根之间加了 `dcu_router_set_control_sink()` 端口：路由只认识对象，
+  发控制帧是领域动作，必须过聚合根（在线、白名单、闭锁）—— 架构原则 3。
+- 验收：`test_dcu_sends_trip_control_frame` 断言台架收到 `1CH / N1=1AH / 密级 02H` 的帧。
+
+**仍未做（E5b）**：698 ACTION 的**参数**解析。标准表 A.9 规定方法 129/130 的参数是
+`array<structure{继电器 OAD, 告警延时, 限电时间, 自动合闸}>`，而 698 原文里
+**没有这个结构的报文举例**（附录 H.5.1 只给了标量参数的例子），OAD 作为结构字段的
+A-XDR 编码需要现场样例才能确定。所以 698 侧仍回 DAR=2，不猜。
+南向这一段已经能用，缺的只是"从 698 参数里取哪个继电器"这一层。
 
 ## 5. 实施计划
 
@@ -604,8 +617,9 @@ reports/<任务>/summary.json           # 证据与四档结论
 | T1 | 新增角色 `upstream`（语义：DUT 主动连出去的对端，不判合格；挂掉 → 测试无效） | — | `config/manifest.py` 角色枚举 + 校验 |
 | T2a ✅ | MQTT 放行：`paho-mqtt` 已装、`mqtt_json` 规约（上行解码 + 下行编码）、`NorthboundProbe` 观察器、`mqtt_broker` 一次性 broker | — | `protocol/mqtt_json.py` / `tests_support/northbound_probe.py` / `tests_support/mqtt_broker.py` |
 | T2b ⬜ | Sparkplug B 解码（protobuf） | 需 `.proto` schema | `protocol/mqtt_sparkplug.py` |
-| T3a ✅ | 698 编解码（GET / ACTION 请求构造，响应解析含 DAR；帧层 L/HCS/FCS 校验） | — | `protocol/dlt698.py` + `tests_unit/test_protocol_dlt698.py`（10 条，向量抄自标准附录 H） |
-| T3b ⬜ | 698 主站驱动接线（GET-Record / 收 REPORT / 分帧） | T3a | `drivers/dlt698_master_driver.py` |
+| T3a ✅ | 698 编解码（GET / ACTION 请求构造，响应解析含 DAR；帧层 L/HCS/FCS 校验、帧长计算） | — | `protocol/dlt698.py` + `tests_unit/test_protocol_dlt698.py`（12 条，向量抄自标准附录 H） |
+| T3b ✅ | 698 主站**驱动**：`("meter", "dlt698")` 工厂，GET 读属性走设备模型（类型标签与点表不符即报错） | T3a | `drivers/dlt698_master_driver.py`（DCU 北向 3 条用例已在用） |
+| T3c ⬜ | GET-Record（一次读多个 OAD）与 REPORT 接收 | T3b | 按需，今天没有设备要求 |
 | T4 | Modbus TCP master 驱动（复用 `protocol/modbus_tcp.py` 的 `build_read_request`） | — | `drivers/modbus_master_driver.py` |
 | T5 | OPC UA client | EdgeC N5 | `drivers/opcua_client_driver.py` |
 | T6 | E2E 用例 | T1–T5 对应项 | `tests_scenario/northbound_*.py` + `tasks/*.yaml` |

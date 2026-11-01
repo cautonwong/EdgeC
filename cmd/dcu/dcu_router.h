@@ -154,6 +154,19 @@ int dcu_router_set_attr(uint32_t oad, const void* in_val);
 /**
  * @brief ACTION 方法调用分发：根据 OMD 物理指针执行特定的动作函数 (如注册、拉闸、鉴权)
  */
+/**
+ * @brief 遥控动作的下沉端口（组合根注入，实现是聚合根 `dcu_node_execute_control`）。
+ *
+ * 为什么不让路由自己发帧：路由只认识对象与属性，发 645 控制帧是**领域动作**，
+ * 必须过聚合根的前置检查（在线、白名单、闭锁）。路由直连总线就是把
+ * "南向控制严禁穿透"这条破掉了（架构原则 3）。
+ */
+typedef int (*dcu_control_sink_t)(void* ctx, const char* meter_addr, uint16_t control_oi,
+                                  bool trip);
+
+/** 注入下沉端口；未注入时 OI 8000 返回 -4（未装配），不会假装成功。 */
+void dcu_router_set_control_sink(dcu_control_sink_t fn, void* ctx);
+
 int dcu_router_action(uint32_t omd, const void* param, void* result);
 
 /**

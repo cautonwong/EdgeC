@@ -247,12 +247,21 @@ static int _oi_5004_read(dcu_object_t* obj, uint8_t attr_id, uint8_t elem_idx, v
  *
  * 参数 `param` 是**设备的 slot_id**（影子表身份），不是档案数组下标——
  * 删表会让下标变，用下标查地址会查到别人家去。 */
+/* 遥控动作下沉端口：由组合根注入（见 dcu_router_set_control_sink 的说明）。 */
+static dcu_control_sink_t s_control_sink;
+static void* s_control_ctx;
+
+void dcu_router_set_control_sink(dcu_control_sink_t fn, void* ctx) {
+    s_control_sink = fn;
+    s_control_ctx = ctx;
+}
+
 static int _oi_8000_execute(dcu_object_t* obj, uint8_t method_id, const void* param, void* result) {
     (void)obj;
     if (method_id != 1) return -2;
 
     uint32_t slot = param ? (uint32_t)(uintptr_t)param : 0;
-    uint8_t action = result ? *(uint8_t*)result : 1; /* 1=跳闸 0=合闸 */
+    uint8_t action = result ? *(uint8_t*)result : 1; /* 1=跳闸 0=合闸允许 */
 
     const production_meter_t* m = dcu_inventory_by_slot(s_router_inv, slot);
     if (!m) {
@@ -260,10 +269,19 @@ static int _oi_8000_execute(dcu_object_t* obj, uint8_t method_id, const void* pa
         return -3;
     }
 
-    LOG_ERROR(LOG_CAT_CORE,
-              "OI 8000: 继电器控制**未下发**（缺 698 ACTION-Request 编码器）：dev=%s action=%u",
-              m->address, action);
-    return -4; /* 明确"未实现"，绝不伪装成功 */
+    /* 领域动作必须过聚合根：在线状态、遥控白名单、五防闭锁都在那边。
+     * 路由直连总线会把"南向控制严禁穿透"破掉（架构原则 3）。 */
+    if (!s_control_sink) {
+        LOG_ERROR(LOG_CAT_CORE, "OI 8000: 控制下沉端口未注入，拒绝执行 dev=%s", m->address);
+        return -4;
+    }
+
+    int rc = s_control_sink(s_control_ctx, m->address, (uint16_t)OI_REMOTE_CONTROL, action != 0);
+    if (rc != 0) {
+        LOG_WARN(LOG_CAT_CORE, "OI 8000: 聚合根拒绝/下发失败 dev=%s action=%u rc=%d", m->address,
+                 action, rc);
+    }
+    return rc;
 }
 
 // ==============================================================================
