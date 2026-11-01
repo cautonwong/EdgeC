@@ -21,6 +21,7 @@ import {
   withDependencies,
 } from './manifest.mjs';
 import { buildOperations, checkReferences, loadCoreOpenApi, loadProductOpenApi } from './openapi.mjs';
+import { loadSchemas } from './schema.mjs';
 
 function satisfiesCoreSdk(range, version) {
   const wanted = String(range).replace(/^[\^~]/, '');
@@ -131,6 +132,12 @@ export function buildRegistry(productId, { write = true } = {}) {
   const productDoc = loadProductOpenApi(product);
   const { operations, dropped } = buildOperations({ coreDoc, productDoc, catalog, product, problems });
 
+  // ---- 配置 Schema：前端渲染表单、服务端校验，同一份权威定义 ----
+  const { schemas, problems: schemaProblems } = loadSchemas(catalog);
+  for (const item of schemaProblems.items) problems.add(item);
+  // 声明了 writePermission 却没有任何页面/接口用到 → 说明要么 schema 多余，要么权限没接上
+  const schemaWriters = new Set(schemas.map((schema) => schema.writePermission));
+
   checkReferences({ pages, catalog, problems });
 
   // 未使用的权限：只告警不失败（目录可能先于实现落地），但要能在报告里看到。
@@ -141,6 +148,7 @@ export function buildRegistry(productId, { write = true } = {}) {
   }
   for (const op of operations) for (const id of op.permissions) used.add(id);
   for (const role of roles) for (const id of role.permissions) used.add(id);
+  for (const id of schemaWriters) used.add(id);
   // 只统计本产品相关的域：目录是全局的，把别的产品的权限算成"未使用"是噪音。
   const relevantDomains = new Set(['core', 'network', 'system', 'user', 'debug', product.id]);
   const unusedPermissions = catalog.list
@@ -175,6 +183,7 @@ export function buildRegistry(productId, { write = true } = {}) {
       .map((p) => ({ id: p.id, description: p.description, sensitivity: p.sensitivity ?? 'low', dependencies: [...(p.dependencies ?? [])].sort() }))
       .sort((a, b) => a.id.localeCompare(b.id)),
     roles,
+    schemas,
     capabilities: {
       declared: [...(product.product.capabilities ?? [])].sort(),
       entitlements: Object.keys(product.product.entitlements ?? {}).sort(),

@@ -1,7 +1,7 @@
 /**
  * DCU 产品入口（组合根）。与 iEMS 同构：只有 Registry + pages glob 的差别。
  */
-import { createProductApp } from '@edgeos/web-core';
+import { createProductApp } from '@edgeos/web-core/app';
 import { parseRegistry } from '@edgeos/web-core/sdk';
 import registryJson from './generated/registry.json';
 

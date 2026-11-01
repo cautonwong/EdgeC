@@ -40,8 +40,12 @@ export async function checkBoundaries() {
         violations.push(`${rel(file)}: ui 层不得依赖 ${target} 层（${rel(resolved)}）`);
       }
       if (zone === 'modules' && target === 'app') {
-        // 唯一例外：shell 暴露给页面的只读授权上下文（单向依赖 页面 → shell）
-        const allowed = resolved.split(path.sep).join('/').includes('/core/src/app/composables/');
+        // 唯一例外：shell 暴露给页面的两个面 —— 只读授权上下文（composables）与
+        // 可复用的 Shell 组件（components，如配置事务操作条）。方向仍是 页面 → shell。
+        const normalizedTarget = resolved.split(path.sep).join('/');
+        const allowed =
+          normalizedTarget.includes('/core/src/app/composables/') ||
+          normalizedTarget.includes('/core/src/app/components/');
         if (!allowed) violations.push(`${rel(file)}: 页面模块只能依赖 app/composables 的只读上下文（${rel(resolved)}）`);
       }
     }
@@ -53,7 +57,7 @@ export async function checkBoundaries() {
       for (const spec of await importsOf(file)) {
         if (spec === CORE_ENTRY || spec.startsWith(CORE_ENTRY + '/')) {
           const sub = spec.slice(CORE_ENTRY.length + 1);
-          if (sub && !['sdk', 'ui'].includes(sub.split('/')[0])) {
+          if (sub && !['sdk', 'ui', 'app'].includes(sub.split('/')[0])) {
             violations.push(`${rel(file)}: Pack 只能依赖 core 的 sdk/ui 公开入口，不得依赖 ${spec}`);
           }
           continue;

@@ -137,3 +137,99 @@ test('Registry 自检拒绝产品不匹配与缺失摘要', () => {
   assert.throws(() => parseRegistry({ ...base, digests: {} }, 'iems'), /缺少摘要/);
   assert.throws(() => parseRegistry({ ...base, coreSdk: '2.0.0' }, 'iems'), /主版本不兼容/);
 });
+
+// ---------------------------------------------------------------- 配置 Schema 与事务
+const { validateValues, validateField, diffValues, emptyValues } = require('../test-build/schema.js');
+const { viewTransaction, formatRemaining, describeState } = require('../test-build/transaction.js');
+
+const NETWORK_SCHEMA = {
+  schemaVersion: 1,
+  id: 'network.interfaces',
+  title: '网络接口',
+  version: '1.0.0',
+  riskClass: 'R2',
+  writePermission: 'network.interface:write',
+  confirmWindowSeconds: 60,
+  type: 'object',
+  required: ['interfaceId', 'addresses'],
+  properties: {
+    interfaceId: { type: 'string', title: '接口', enum: ['eth0', 'eth1'] },
+    addresses: { type: 'array', title: 'IP 地址', items: { type: 'string', format: 'cidr' }, maxItems: 4 },
+    gateway: { type: 'string', title: '网关', format: 'ipv4' },
+    mtu: { type: 'integer', title: 'MTU', minimum: 576, maximum: 9000 },
+  },
+};
+
+test('Schema 校验：必填 / 格式 / 范围 / 未知字段', () => {
+  assert.deepEqual(validateValues(NETWORK_SCHEMA, { interfaceId: 'eth0', addresses: ['192.168.1.2/24'] }), []);
+
+  const missing = validateValues(NETWORK_SCHEMA, { addresses: [] });
+  assert.ok(missing.some((e) => e.field === 'interfaceId' && e.message === '必填'));
+
+  const badCidr = validateValues(NETWORK_SCHEMA, { interfaceId: 'eth0', addresses: ['192.168.1.2/33'] });
+  assert.ok(badCidr.some((e) => e.field === 'addresses'), '前缀 33 应被判非法');
+
+  const badIp = validateValues(NETWORK_SCHEMA, { interfaceId: 'eth0', addresses: [], gateway: '300.1.1.1' });
+  assert.ok(badIp.some((e) => e.field === 'gateway'));
+
+  const badEnum = validateValues(NETWORK_SCHEMA, { interfaceId: 'eth9', addresses: [] });
+  assert.ok(badEnum.some((e) => e.field === 'interfaceId'));
+
+  const badRange = validateValues(NETWORK_SCHEMA, { interfaceId: 'eth0', addresses: [], mtu: 100 });
+  assert.ok(badRange.some((e) => e.field === 'mtu' && e.message.includes('576')));
+
+  const unknown = validateValues(NETWORK_SCHEMA, { interfaceId: 'eth0', addresses: [], sneaky: 1 });
+  assert.ok(unknown.some((e) => e.field === 'sneaky' && e.message.includes('未声明')));
+
+  assert.equal(validateField(NETWORK_SCHEMA.properties.gateway, ''), null, '空值不算格式错误（由 required 决定）');
+});
+
+test('差异预览只列真正变化的字段', () => {
+  const before = { interfaceId: 'eth0', addresses: ['192.168.10.21/24'], mtu: 1500 };
+  const after = { interfaceId: 'eth0', addresses: ['192.168.10.99/24'], mtu: 1500 };
+  const changes = diffValues(before, after);
+  assert.equal(changes.length, 1);
+  assert.equal(changes[0].field, 'addresses');
+  assert.deepEqual(diffValues(before, { ...before }), []);
+  assert.equal(emptyValues(NETWORK_SCHEMA).addresses.length, 0);
+});
+
+test('事务视图：倒计时、可确认/可回滚、超时', () => {
+  const base = {
+    transactionId: 'tx_1',
+    sectionId: 'network.interfaces',
+    state: 'PENDING_CONFIRM',
+    riskClass: 'R2',
+    values: {},
+    baseRevision: 7,
+    appliedRevision: 8,
+    createdAt: '2026-11-01T00:00:00Z',
+    appliedAt: '2026-11-01T00:00:01Z',
+    confirmedAt: null,
+    rolledBackAt: null,
+    deadline: '2026-11-01T00:01:00Z',
+    confirmWindowSeconds: 60,
+  };
+  const now = Date.parse('2026-11-01T00:00:30Z');
+  const view = viewTransaction(base, false, now);
+  assert.equal(view.phase, 'pending');
+  assert.equal(view.canConfirm, true);
+  assert.equal(view.canRollback, true);
+  assert.equal(view.remainingSeconds, 30);
+  assert.equal(formatRemaining(view.remainingSeconds), '00:30');
+  assert.equal(view.needsAttention, true);
+
+  const expired = viewTransaction(base, false, Date.parse('2026-11-01T00:01:05Z'));
+  assert.equal(expired.expired, true);
+  assert.equal(expired.canConfirm, false, '过期后不允许确认（服务端也会拒）');
+
+  const confirmed = viewTransaction({ ...base, state: 'CONFIRMED' }, false, now);
+  assert.equal(confirmed.phase, 'done');
+  assert.equal(confirmed.canConfirm, false);
+
+  const dirtyOnly = viewTransaction(null, true, now);
+  assert.equal(dirtyOnly.phase, 'dirty');
+  assert.equal(dirtyOnly.label, '有未应用的修改');
+
+  assert.equal(describeState('ROLLBACK_FAILED'), '回滚失败（需要带外恢复）');
+});

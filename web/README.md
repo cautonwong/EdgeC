@@ -23,13 +23,14 @@ web/
 │  └─ src/
 │     ├─ sdk/                   # 类型 + 纯逻辑：权限合成、页面可见性、Registry 自检、请求层
 │     ├─ ui/                    # Design Token（三层）+ L1/L2 组件
-│     ├─ app/                   # App Shell：登录/改密、路由守卫、stores、布局
+│     ├─ app/                   # App Shell：登录/改密、路由守卫、stores、布局、配置事务条
 │     └─ modules/               # Core 通用页面（由旧 core/views 迁入，逐步下沉到 Pack）
 ├─ products/
 │  ├─ iems/  product.yaml · release-scope.yaml · openapi.extension.yaml · pages/
 │  ├─ dcu/   同上
 │  └─ smart_box/                # 仍是独立前端（未接入平台），保留原构建
 ├─ permissions/{catalog,role-presets}.yaml   # 权限目录与角色预置（唯一事实来源）
+├─ schemas/*.json               # 配置 Schema：字段/风险等级/写权限/确认窗口（前后端共用）
 ├─ openapi/core.yaml            # HTTP 契约 + operation 级安全元数据（唯一事实来源）
 ├─ tooling/                     # 构建期：manifest 校验 / Registry 生成 / 边界 / 对比度 / 体积
 ├─ mock-server/                 # webd 的行为替身：真实做授权、会话、事务状态机
@@ -58,7 +59,23 @@ Core 永不 import products
    能力需求、API 策略表、release-scope 摘要与 Registry 摘要。同一输入必然得到同一字节。
 4. **vite build**：页面按 chunk 懒加载；Registry 决定"哪些 chunk 存在"，运行期只做过滤。
 
-## 4. 常用命令
+## 4. 配置事务（R0–R5）
+
+`schemas/<sectionId>.json` 是配置页的唯一事实来源：字段、校验、**风险等级**、写权限、
+确认窗口都写在里面。构建期校验它（字段类型/format、riskClass 与窗口是否匹配、写权限是否
+在目录里），并把整份 schema 写进 Registry；服务端读同一份文件做校验与窗口决策。
+
+```
+编辑 → 应用 → （R2 起）PENDING_CONFIRM 倒计时 → 确认保留 / 超时由设备 watchdog 回滚
+```
+
+- 前端：`useConfigSection()` + `<ConfigTransactionBar>`；前端校验只是提前提示，
+  服务端 422 的 `fieldErrors` 才是结论，会挂回对应输入框。
+- 倒计时只用于显示：关掉浏览器照样回滚，因为 deadline 与回滚在设备侧。
+- 已接页面：网络接口（R2，改 IP/网关/MTU）。其余分区（`system.time` R1、`network.firewall` R3）
+  已有 Schema 与后端规则，页面随 WBUI-043 逐步接入。
+
+## 5. 常用命令
 
 ```bash
 # 构建输入与规则检查（CI 里也跑这一条）
@@ -66,6 +83,7 @@ node tooling/cli.mjs all          # 校验 + 依赖边界 + 对比度 + 为所�
 node tooling/cli.mjs validate
 node tooling/cli.mjs boundaries
 node tooling/cli.mjs contrast     # Design Token 语义配对对比度（WCAG）
+node tooling/cli.mjs schemas      # 配置 Schema 一览（风险等级/窗口/字段）
 node tooling/cli.mjs registry --product iems
 node tooling/cli.mjs size --product iems
 
@@ -88,7 +106,7 @@ npm run test:e2e
 | engineer | `Engineer-Pass-2026` | 现场调试角色 |
 | viewer | `Viewer-Pass-2026` | 只读 |
 
-## 5. 几条不能破的规则
+## 6. 几条不能破的规则
 
 - **前端隐藏不是授权**：`PermissionGate` / 菜单过滤只影响体验；写接口一律服务端判。
 - **能力未知 = 不支持**（fail-closed）：能力快照拿不到时，需要能力的页面与接口都不放行。
@@ -96,13 +114,14 @@ npm run test:e2e
 - **生成物不入库**：`products/*/src/generated/` 由 tooling 生成，禁止手改。
 - **通配符只活在构建输入**：Registry 与运行时请求里只有具体权限 ID。
 
-## 6. 本 PR 的边界（哪些还没做）
+## 7. 边界（哪些还没做）
 
 如实列出，避免"看着像做完"：
 
 - **webd 本体**（Go/C++ 常驻服务、TLS、IPC、审计持久化、任务执行器）未实现；
   `mock-server` 只覆盖 HTTP 语义与授权判定，不能当作设备验证。
-- **配置事务的独立 watchdog**（跨重启恢复、kill -9 演练）未实现；当前只有状态机与 deadline。
+- **配置事务的独立 watchdog**（跨重启恢复、kill -9 演练）未实现；当前只有状态机、deadline 与回滚。
+  另外"刷新页面恢复未确认事务"目前按当前用户查列表实现，不是设备侧推送。
 - **WebSocket 实时通道**未实现（契约里已登记 `GET /api/v1/ws`，服务端返回 426）。
 - **旧页面数据面**仍走 `/api/v1/contracts`（标记 deprecated），随 WBUI-072/074 收敛到 Pack API。
 - **Pack 布局**沿用 `core` + `products/*` 两个 workspace（设计文档写的是 `packages/*`）：

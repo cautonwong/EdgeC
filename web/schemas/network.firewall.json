@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "network.firewall",
+  "title": "防火墙策略",
+  "version": "1.0.0",
+  "riskClass": "R3",
+  "writePermission": "network.firewall:write",
+  "readPermission": "network.firewall:read",
+  "confirmWindowSeconds": 60,
+  "type": "object",
+  "required": ["enabled", "defaultPolicy"],
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "title": "启用防火墙"
+    },
+    "defaultPolicy": {
+      "type": "string",
+      "title": "默认策略",
+      "enum": ["deny", "allow"],
+      "hint": "deny 表示除显式放行外一律拒绝"
+    },
+    "allowSources": {
+      "type": "array",
+      "title": "管理网段白名单",
+      "hint": "CIDR 写法；清空会导致管理面不可达",
+      "items": { "type": "string", "format": "cidr" },
+      "minItems": 0,
+      "maxItems": 8
+    }
+  }
+}

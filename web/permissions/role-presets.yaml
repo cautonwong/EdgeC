@@ -42,6 +42,8 @@ roles:
       - system.diagnostics:execute
       - debug.frame:execute
       - system.capability:read
+      # §8.2：Operator 在"网络与通信"有 1 页只读（网络接口状态），不给写
+      - network.interface:read
 
   - id: engineer
     name: 工程师
@@ -63,6 +65,9 @@ roles:
       - system.time:read
       - system.time:write
       - network.interface:read
+      # §5.3：Engineer 的职责含"限定网络配置" —— 允许改接口/网关（R2 事务 + 确认窗口兜底），
+      # 但不给防火墙与证书：那两类属于安全敏感（R3）。
+      - network.interface:write
       - network.route:read
       - network.cellular:read
       - debug.frame:execute

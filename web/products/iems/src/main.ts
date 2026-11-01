@@ -4,7 +4,7 @@
  * 这里**只做装配**：把构建期生成的 Registry 交给 Core Shell，再把自己 pages 目录的
  * 静态 glob 交出去。没有运行期注册、没有从服务端拉路由、没有插件加载。
  */
-import { createProductApp } from '@edgeos/web-core';
+import { createProductApp } from '@edgeos/web-core/app';
 import { parseRegistry } from '@edgeos/web-core/sdk';
 import registryJson from './generated/registry.json';
 import './style.css';
