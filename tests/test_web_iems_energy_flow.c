@@ -101,7 +101,7 @@ static void test_demand_peak_shaving_and_transformer_redline_monitoring(void **s
 static void test_energy_flow_view_assembly_and_router_export(void **state) {
     (void)state;
     char content[65536];
-    read_file_content("web/core/src/views/energy/EnergyFlowView.vue", content, sizeof(content));
+    read_file_content("web/core/src/modules/energy/EnergyFlowView.vue", content, sizeof(content));
 
     // View component composition
     assert_non_null(strstr(content, "SankeyEnergyFlow"));
@@ -119,7 +119,7 @@ static void test_energy_flow_view_assembly_and_router_export(void **state) {
     assert_non_null(strstr(index_content, "EnergyFlowView"));
 
     char router_content[16384];
-    read_file_content("web/core/src/router/index.ts", router_content, sizeof(router_content));
+    read_file_content("web/core/modules.manifest.yaml", router_content, sizeof(router_content));
     assert_non_null(strstr(router_content, "EnergyFlowView.vue"));
 }
 

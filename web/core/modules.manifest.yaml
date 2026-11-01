@@ -26,6 +26,14 @@ modules:
         title: 概览
         menu: { group: overview, order: 10, icon: grid }
         permissions: { allOf: [core.dashboard:read] }
+      # 旧路由 /energy：能流图页面，重构时漏登记会被 C 测试
+      # （test_web_iems_energy_flow）逮到 —— 这正是"源码级契约测试"的价值。
+      - id: core.energy
+        path: /energy
+        component: energy/EnergyFlowView.vue
+        title: 能流图
+        menu: { group: overview, order: 30, icon: flow }
+        permissions: { allOf: [core.telemetry:read] }
 
   - id: core:data
     title: 采集与数据
@@ -145,7 +153,7 @@ modules:
         menu: { group: diagnostics, order: 10, icon: terminal }
         permissions: { allOf: [system.log:read] }
       - id: core.diagnostics.frames
-        path: /diagnostics/frames
+        path: /dcu/packets
         component: dcu/PacketCapture.vue
         title: 协议报文
         menu: { group: diagnostics, order: 20, icon: radar }
@@ -153,7 +161,7 @@ modules:
         requires:
           capabilities: [software.collector.modbus]
       - id: core.diagnostics.power-quality
-        path: /diagnostics/power-quality
+        path: /dcu/power-quality
         component: dcu/PowerQuality.vue
         title: 电能质量
         menu: { group: diagnostics, order: 30, icon: wave }

@@ -34,7 +34,7 @@ static void read_file_content(const char *rel_path, char *buf, size_t max_len) {
 static void test_channel_topology_component_structure(void **state) {
     (void)state;
     char content[65536];
-    read_file_content("web/core/src/views/devices/ChannelTopologyHeatmap.vue", content,
+    read_file_content("web/core/src/modules/devices/ChannelTopologyHeatmap.vue", content,
                       sizeof(content));
 
     // Headers & Navigation
@@ -69,7 +69,7 @@ static void test_channel_topology_component_structure(void **state) {
 static void test_channel_topology_router_and_export_registration(void **state) {
     (void)state;
     char router_content[8192];
-    read_file_content("web/core/src/router/index.ts", router_content, sizeof(router_content));
+    read_file_content("web/core/modules.manifest.yaml", router_content, sizeof(router_content));
 
     assert_non_null(strstr(router_content, "devices/topology"));
     assert_non_null(strstr(router_content, "ChannelTopology"));

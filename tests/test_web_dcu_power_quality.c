@@ -36,7 +36,7 @@ static void read_file_content(const char *rel_path, char *buf, size_t max_len) {
 static void test_dcu_packet_capture_hex_dump_and_axdr_inspector(void **state) {
     (void)state;
     char content[65536];
-    read_file_content("web/core/src/views/dcu/PacketCapture.vue", content, sizeof(content));
+    read_file_content("web/core/src/modules/dcu/PacketCapture.vue", content, sizeof(content));
 
     // Sniffer headers & protocols
     assert_non_null(strstr(content, "PROTOCOL SNIFFER"));
@@ -57,7 +57,7 @@ static void test_dcu_packet_capture_hex_dump_and_axdr_inspector(void **state) {
 static void test_dcu_power_quality_phasor_and_harmonics(void **state) {
     (void)state;
     char content[65536];
-    read_file_content("web/core/src/views/dcu/PowerQuality.vue", content, sizeof(content));
+    read_file_content("web/core/src/modules/dcu/PowerQuality.vue", content, sizeof(content));
 
     // Phasor polar diagram
     assert_non_null(strstr(content, "PHASOR POLAR DIAGRAM"));
@@ -88,7 +88,7 @@ static void test_dcu_power_quality_phasor_and_harmonics(void **state) {
 static void test_dcu_power_quality_phase_commutation_optimizer(void **state) {
     (void)state;
     char content[65536];
-    read_file_content("web/core/src/views/dcu/PowerQuality.vue", content, sizeof(content));
+    read_file_content("web/core/src/modules/dcu/PowerQuality.vue", content, sizeof(content));
 
     // Phase-switching optimizer
     assert_non_null(strstr(content, "AUTOMATIC PHASE-SWITCHING OPTIMIZER"));
@@ -102,7 +102,7 @@ static void test_dcu_power_quality_phase_commutation_optimizer(void **state) {
 static void test_dcu_router_and_web_core_exports(void **state) {
     (void)state;
     char router_content[8192];
-    read_file_content("web/core/src/router/index.ts", router_content, sizeof(router_content));
+    read_file_content("web/core/modules.manifest.yaml", router_content, sizeof(router_content));
     assert_non_null(strstr(router_content, "dcu/packets"));
     assert_non_null(strstr(router_content, "dcu/power-quality"));
     assert_non_null(strstr(router_content, "PacketCapture.vue"));

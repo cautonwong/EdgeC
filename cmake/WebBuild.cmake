@@ -53,13 +53,17 @@ function(add_web_product PRODUCT_NAME WEB_SRC_DIR)
         ${PRODUCT_WEB_SOURCES}
         ${WEB_CONTRACT_INPUTS}
         ${WEB_TOOLING_SOURCES}
-        "${WEB_SRC_DIR}/product.yaml"
-        "${WEB_SRC_DIR}/release-scope.yaml"
-        "${WEB_SRC_DIR}/openapi.extension.yaml"
         "${WEB_SRC_DIR}/package.json"
         "${WEB_SRC_DIR}/vite.config.ts"
         "${WEB_SRC_DIR}/index.html"
     )
+    # 构建清单类文件只在存在时才算依赖：smart_box 还没接入平台，没有 product.yaml，
+    # 把它写成无条件 DEPENDS 会让 ninja 直接报 "missing and no known rule to make it"。
+    foreach(manifest_file product.yaml release-scope.yaml openapi.extension.yaml)
+        if(EXISTS "${WEB_SRC_DIR}/${manifest_file}")
+            list(APPEND WEB_DEPS "${WEB_SRC_DIR}/${manifest_file}")
+        endif()
+    endforeach()
 
     set(GEN_DIR "${CMAKE_BINARY_DIR}/products/${PRODUCT_NAME}/generated")
 

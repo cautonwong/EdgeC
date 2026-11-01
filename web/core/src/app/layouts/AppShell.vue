@@ -5,18 +5,25 @@
  * 侧栏分组固定六组，条目由静态 Registry ∩ 权限 ∩ 能力 ∩ 许可生成；分组内一条都不
  * 可见时整组隐藏。顶栏的"待应用/断连"类状态用常驻横幅表达。
  */
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useRegistryStore } from '../stores/registry';
 import { useSessionStore } from '../stores/session';
 import { useCapabilityStore } from '../stores/capability';
 import UiBanner from '../../ui/components/Banner.vue';
 import UiButton from '../../ui/components/Button.vue';
+// 全局抽屉（控制台 / AI 副驾）沿用既有实现：它们是 Shell 的能力，不属于任何产品包。
+import WebConsoleDrawer from '../../components/console/WebConsoleDrawer.vue';
+import AICopilotDrawer from '../../components/ai/AICopilotDrawer.vue';
+import { useAICopilot } from '../../services/AIProviderService';
 
 const router = useRouter();
 const registryStore = useRegistryStore();
 const session = useSessionStore();
 const capability = useCapabilityStore();
+
+const { toggleCopilot } = useAICopilot();
+const isConsoleOpen = ref(false);
 
 const productName = computed(() => registryStore.registry?.productName ?? 'EdgeOS');
 const version = computed(() => registryStore.registry?.productVersion ?? '');
@@ -64,6 +71,16 @@ async function logout(): Promise<void> {
           <slot name="topbar" />
         </div>
         <div class="shell__user">
+          <UiButton variant="ghost" size="sm" data-testid="toggle-copilot" @click="toggleCopilot()">AI Copilot</UiButton>
+          <UiButton
+            variant="ghost"
+            size="sm"
+            data-testid="toggle-console"
+            title="Toggle Web Console (Ctrl+`)"
+            @click="isConsoleOpen = !isConsoleOpen"
+          >
+            控制台
+          </UiButton>
           <span class="shell__username" data-testid="topbar-user">{{ session.displayName }}</span>
           <span class="shell__roles">{{ session.roles.join(' / ') }}</span>
           <UiButton variant="ghost" size="sm" data-testid="logout" @click="logout">退出</UiButton>
@@ -78,6 +95,9 @@ async function logout(): Promise<void> {
         <router-view />
       </main>
     </div>
+
+    <WebConsoleDrawer v-model:isOpen="isConsoleOpen" />
+    <AICopilotDrawer />
   </div>
 </template>
 
