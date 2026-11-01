@@ -35,6 +35,8 @@ export default defineConfig({
         // 开发/E2E 把 /api 交给 mock-server（webd 的行为替身）；产品之间端口不同，用环境变量指定
         target: process.env.EDGEOS_API_TARGET ?? 'http://127.0.0.1:8081',
         changeOrigin: false,
+        // /api/v1/ws 是 WebSocket：dev server 必须显式开启 ws 代理，否则升级请求被丢弃
+        ws: true,
       },
     },
   },

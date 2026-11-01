@@ -7,17 +7,38 @@
  *   2. 应用后还剩几秒可以确认（超时是**设备**回滚，不是页面）；
  *   3. 失败/回滚失败时给出可执行的下一步，而不是只报错。
  */
-import { computed, onBeforeUnmount } from 'vue';
+import { computed, onBeforeUnmount, onMounted } from 'vue';
 import { formatRemaining } from '../../sdk/transaction';
 import { useConfigTransactionStore } from '../stores/configTransaction';
+import { useLiveStore } from '../stores/live';
 import UiBanner from '../../ui/components/Banner.vue';
 import UiButton from '../../ui/components/Button.vue';
 
 const store = useConfigTransactionStore();
+const live = useLiveStore();
+
+// 事务状态由服务端推送：别的会话确认/回滚、watchdog 超时回滚，本页都能立刻看到，
+// 不需要用户手动点"刷新状态"。漏消息（seq 不连续）时整体重取。
+let unsubscribe: (() => void) | undefined;
+onMounted(() => {
+  unsubscribe = live.onEvent((message) => {
+    const current = store.transaction;
+    if (!current) return;
+    if (message.type === 'resync') {
+      void store.refresh();
+      return;
+    }
+    const payload = message.payload as { transactionId?: string } | undefined;
+    if (payload?.transactionId === current.transactionId) void store.refresh();
+  });
+});
 const view = computed(() => store.view);
 const showChanges = computed(() => store.changes.length > 0 && view.value.phase !== 'pending');
 
-onBeforeUnmount(() => store.stopTicker());
+onBeforeUnmount(() => {
+  unsubscribe?.();
+  store.stopTicker();
+});
 
 function pretty(value: unknown): string {
   if (Array.isArray(value)) return value.length ? value.join(', ') : '（空）';

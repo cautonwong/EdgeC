@@ -205,3 +205,15 @@ export interface ApiError {
 }
 
 export type PageState = 'visible' | 'forbidden' | 'unsupported' | 'unlicensed' | 'not-built';
+
+// ---- 实时通道（§6.3）----
+export type LiveState = 'idle' | 'connecting' | 'open' | 'reconnecting' | 'closed';
+export type LiveTopic = 'alarm' | 'task' | 'config-transaction' | 'telemetry';
+
+export interface LiveMessage {
+  type: string;
+  seq: number;
+  ts: string;
+  topic: string;
+  payload: Record<string, unknown>;
+}

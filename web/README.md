@@ -76,7 +76,19 @@ Core 永不 import products
   的锁定风险提示）。三个页面共用同一套表单/事务组件，页面里没有"if 这是 R1"这类分支——
   风险等级由 Schema 与事务条决定。
 
-## 5. 常用命令
+## 5. 实时通道（只读推送）
+
+`GET /api/v1/ws` 是**只读**通道（§6.3）：客户端连上后只能 `subscribe` / `unsubscribe`，
+服务端推送 `alarm` / `task` / `config-transaction` / `telemetry`。不引 `ws` 库——按 RFC 6455
+手工实现最小子集（握手 + text/close/ping 帧 + 强制掩码校验），离线设备也装得下。
+
+- 客户端 `sdk/live.ts`：指数退避重连；**重连成功会触发 `resync`**，因为服务端不保留积压，
+  漏掉的消息由消费者整体重取，而不是假装连续。
+- `stores/live.ts`：连接状态 + 最近事件 + 订阅分发；`seq` 不连续时主动要求重取。
+- 顶栏徽标显示 `实时 / 重连中 / 离线`；配置事务条订阅 `config-transaction`，
+  所以"别的窗口确认了"或"watchdog 超时回滚了"，本页不用手动刷新就能看到结果。
+
+## 6. 常用命令
 
 ```bash
 # 构建输入与规则检查（CI 里也跑这一条）
@@ -107,7 +119,7 @@ npm run test:e2e
 | engineer | `Engineer-Pass-2026` | 现场调试角色 |
 | viewer | `Viewer-Pass-2026` | 只读 |
 
-## 6. 几条不能破的规则
+## 7. 几条不能破的规则
 
 - **前端隐藏不是授权**：`PermissionGate` / 菜单过滤只影响体验；写接口一律服务端判。
 - **能力未知 = 不支持**（fail-closed）：能力快照拿不到时，需要能力的页面与接口都不放行。
@@ -115,7 +127,7 @@ npm run test:e2e
 - **生成物不入库**：`products/*/src/generated/` 由 tooling 生成，禁止手改。
 - **通配符只活在构建输入**：Registry 与运行时请求里只有具体权限 ID。
 
-## 7. 边界（哪些还没做）
+## 8. 边界（哪些还没做）
 
 如实列出，避免"看着像做完"：
 
@@ -123,7 +135,8 @@ npm run test:e2e
   `mock-server` 只覆盖 HTTP 语义与授权判定，不能当作设备验证。
 - **配置事务的独立 watchdog**（跨重启恢复、kill -9 演练）未实现；当前只有状态机、deadline 与回滚。
   另外"刷新页面恢复未确认事务"目前按当前用户查列表实现，不是设备侧推送。
-- **WebSocket 实时通道**未实现（契约里已登记 `GET /api/v1/ws`，服务端返回 426）。
+- **WebSocket** 只做了只读推送的骨架（订阅 + 事务/任务事件），告警与遥测的推送源还没接，
+  客户端也没有"断线期间的事件回放"（服务端不保留积压，靠 resync 重取）。
 - **旧页面数据面**仍走 `/api/v1/contracts`（标记 deprecated），随 WBUI-072/074 收敛到 Pack API。
 - **Pack 布局**沿用 `core` + `products/*` 两个 workspace（设计文档写的是 `packages/*`）：
   改成 `packages/*` 需要重装依赖并重生成 lockfile，留作独立任务，不影响本 PR 的分层与门禁。

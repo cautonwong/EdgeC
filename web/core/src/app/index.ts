@@ -6,3 +6,4 @@ export { useSessionStore } from './stores/session';
 export { useCapabilityStore } from './stores/capability';
 export { useRegistryStore } from './stores/registry';
 export { useConfigTransactionStore } from './stores/configTransaction';
+export { useLiveStore } from './stores/live';
