@@ -59,7 +59,10 @@ static pid_t _start_broker(int port) {
         snprintf(p, sizeof(p), "%d", port);
         /* 关掉 mosquitto 自己的日志噪声 */
         freopen("/dev/null", "w", stderr);
+        /* 先按 PATH 找；apt 装的在 /usr/sbin，runner 的 PATH 里不一定有。
+         * 两处都试，别让"装是装了但找不到"变成静默跳过。 */
         execlp("mosquitto", "mosquitto", "-p", p, (char*)NULL);
+        execl("/usr/sbin/mosquitto", "mosquitto", "-p", p, (char*)NULL);
         _exit(127);
     }
     return pid;
@@ -160,12 +163,14 @@ static void test_duplicate_subscribe_updates_callback(void** state) {
 
 static int setup(void** state) {
     (void)state;
-    if (system("command -v mosquitto >/dev/null 2>&1") != 0) {
-        print_message("[SKIP] mosquitto not found, skipping MQTT integration tests\n");
-        return 1; /* 非 0 = 跳过本组 */
-    }
+    /* 这里**不能**用"返回非 0 表示跳过"：cmocka 把 group setup 的非 0 返回判成
+     * `[ FAILED ] GROUP SETUP`（实测 exit=1）。CI 上没有 mosquitto 时，
+     * 这个"跳过"就是一条稳定的红。跳过的判断在 main() 里。 */
     g_broker = _start_broker(TEST_PORT);
-    if (g_broker <= 0) return 1;
+    if (g_broker <= 0) {
+        print_message("[FAIL] mosquitto 在，但 broker 起不来（端口被占？）\n");
+        return -1;
+    }
 
     for (int i = 0; i < WAIT_MS / 50; i++) {
         if (_port_open(TEST_PORT)) return 0;
@@ -173,8 +178,8 @@ static int setup(void** state) {
     }
     _stop_broker(g_broker);
     g_broker = -1;
-    print_message("[SKIP] broker did not come up\n");
-    return 1;
+    print_message("[FAIL] broker 没能在超时内监听端口\n");
+    return -1;
 }
 
 static int teardown(void** state) {
@@ -185,6 +190,15 @@ static int teardown(void** state) {
 }
 
 int main(void) {
+    /* 依赖缺失 = 这一轮没有结论，不是产品不合格：以 0 退出并说明原因。
+     * 放在 main 而不是 group setup，是因为 cmocka 把 setup 的非 0 返回当失败。
+     * CI 里已装 mosquitto（见 .github/workflows/ci.yml），这里只为本地环境兜底。 */
+    if (system("command -v mosquitto >/dev/null 2>&1") != 0 &&
+        access("/usr/sbin/mosquitto", X_OK) != 0) {
+        print_message("[SKIP] 没有 mosquitto，跳过 MQTT 集成用例\n");
+        return 0;
+    }
+
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_subscribe_receives_message),
         cmocka_unit_test(test_wildcard_subscription),

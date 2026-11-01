@@ -150,7 +150,9 @@ int dcu_node_feed_meter_reading(dcu_node_t *node, const char *meter_addr, uint32
  * @brief 下行控制领域方法 (Inbound Command Method)
  * 执行远程拉闸/合闸等安全控制，内置五防与权限前置校验，绝不走 DataHub 穿透
  */
-int dcu_node_execute_control(dcu_node_t *node, const char *meter_addr, uint16_t control_oi);
+/* trip=true 跳闸(1AH)、false 合闸允许(1BH)。下发 645 控制帧，标准 7.13。 */
+int dcu_node_execute_control(dcu_node_t *node, const char *meter_addr, uint16_t control_oi,
+                             bool trip);
 
 /**
  * @brief Destroy the DCU Node and clean up all resources

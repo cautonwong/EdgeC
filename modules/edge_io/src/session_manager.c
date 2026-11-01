@@ -1,5 +1,7 @@
 #include "session_manager.h"
+#include <stdalign.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include "edge_log.h"
@@ -28,7 +30,12 @@ struct session_manager_s {
     /* 没注入过就传 NULL，而不是传一个全零的结构体——后者会让驱动里
      * `if (!src) return -1;` 的守卫失效，一路走到 `src->peek(...)` 才崩。 */
     bool north_src_set;
-    uint8_t slave_scratch[REQ_DRV_PRIV_MAX];
+    /* 驱动会把这块 scratch 强转成自己的请求结构体（里面有 double / 指针），
+     * 所以它必须满足 max_align_t。**少了 alignas 就是 UB**：紧跟在上面的
+     * `bool north_src_set` 只有 1 字节对齐，数组起始落在 8 字节边界外一个字节上，
+     * ubsan 直接报 "member access within misaligned address"，普通构建只是"碰巧能跑"。
+     * `driver_manager.c` 的 priv 早就加了 alignas，这里当时漏了。 */
+    alignas(max_align_t) uint8_t slave_scratch[REQ_DRV_PRIV_MAX];
 };
 
 void session_manager_set_north_source(session_manager_t *sm, const edge_north_source_ops_t *ops,

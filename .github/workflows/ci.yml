@@ -47,7 +47,9 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build clang-tidy lcov valgrind libssl-dev
+          # mosquitto：test_mqtt_subscribe 要真跑 MQTT 集成。没有它这条用例只能跳过，
+          # 而跳过等于永远没人验（cmocka 的 group setup 返回非 0 还会被判成失败）。
+          sudo apt-get install -y cmake ninja-build clang-tidy lcov valgrind libssl-dev mosquitto
           if [ "${{ matrix.config.target }}" == "arm64" ]; then
             sudo dpkg --add-architecture arm64
             echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64.list
@@ -103,7 +105,12 @@ jobs:
           # 所以**不需要** pip install 平台本身（它的后端也不支持可编辑安装）。
           # 只补它声明为运行时依赖的两个包，再把平台路径交给 run.sh——
           # 之前缺的就是 TESTPLATFORM，run.sh 找不到平台直接返回 4（平台错误）。
-          python3 -m pip install --quiet "pytest>=8.0" "pyyaml>=6.0"
+          # 北向用例要用 paho-mqtt（平台的可选依赖组 mqtt）。只装 pytest/pyyaml 的话，
+          # iems_acceptance 的北向 3 条会因缺依赖失败，整轮判"未完成"。
+          python3 -m pip install --quiet "pytest>=8.0" "pyyaml>=6.0" "paho-mqtt>=1.6"
+          # smart_box 冒烟任务要用 Go 网关二进制。CI 上首次编译是冷的，
+          # 放在任务里编译会撞任务的启动超时（现象是 platform_error，不是产品不合格）。
+          (cd go && go build -o ../build/go-bin/smart-box-gateway ./cmd/smart-box-gateway)
           TESTPLATFORM="$TP" ./acceptance/run.sh
 
       # 门禁红了必须能回答"哪个产品、哪条用例、证据在哪":报告与证据都在
