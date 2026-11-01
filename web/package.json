@@ -14,11 +14,11 @@
     "test:unit": "node --test tooling/test/*.test.mjs && npm run test:sdk",
     "mock:iems": "node mock-server/server.mjs --product iems --port 8081",
     "mock:dcu": "node mock-server/server.mjs --product dcu --port 8082",
-    "test:e2e": "playwright test",
-    "test:e2e:iems": "playwright test --project=iems",
+    "test:e2e": "node tooling/cli.mjs registry --all && playwright test",
+    "test:e2e:iems": "node tooling/cli.mjs registry --all && playwright test --project=iems",
     "build:all": "npm run build --prefix products/iems && npm run build --prefix products/dcu && npm run build --prefix products/smart_box",
     "test:sdk": "node core/scripts/build-sdk-tests.mjs && node --test core/test/*.test.cjs",
-    "test:e2e:dcu": "playwright test --project=dcu",
+    "test:e2e:dcu": "node tooling/cli.mjs registry --all && playwright test --project=dcu",
     "test:e2e:smartbox": "playwright test --project=smartbox"
   },
   "devDependencies": {
