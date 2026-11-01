@@ -306,6 +306,23 @@ paths:
       responses:
         "200": { description: 审计分页 }
 
+  /api/v1/config/sections/{sectionId}:
+    parameters:
+      - name: sectionId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      operationId: getConfigSection
+      summary: 读取配置分区当前值（读权限与写权限分开判定）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: []
+      x-permission-source: config-section
+      x-resource-scope: gateway
+      x-audit-level: low
+      responses:
+        "200": { description: 分区当前值与 revision }
+
   /api/v1/config/transactions:
     get:
       operationId: listConfigTransactions

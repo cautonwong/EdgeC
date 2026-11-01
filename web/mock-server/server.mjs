@@ -79,6 +79,7 @@ function sectionRule(sectionId) {
   if (!doc) return null;
   return {
     writePermission: doc.writePermission,
+    readPermission: doc.readPermission ?? null,
     riskClass: doc.riskClass,
     confirmWindowSeconds: doc.confirmWindowSeconds ?? 0,
     // 台架可以用 EDGEOS_CONFIRM_WINDOW_MS 把窗口压短，验证"超时自动回滚"而不用等 60 秒
@@ -162,6 +163,25 @@ const interfacesState = [
   { id: 'eth0', name: 'eth0', mac: '02:00:00:00:00:01', addresses: ['192.168.10.21/24'], gateway: '192.168.10.1', mtu: 1500, state: 'up', speedMbps: 1000 },
   { id: 'eth1', name: 'eth1', mac: '02:00:00:00:00:02', addresses: [], gateway: '', mtu: 1500, state: 'down', speedMbps: null },
 ];
+
+/** 各配置分区"设备上的当前值"。网络接口从 interfacesState 派生，其余在这里维护。 */
+const configSectionsState = {
+  'system.time': { ntpEnabled: true, servers: ['ntp.aliyun.com'], manualTime: '' },
+  'network.firewall': { enabled: true, defaultPolicy: 'deny', allowSources: ['192.168.10.0/24'] },
+};
+
+function sectionValues(sectionId) {
+  if (sectionId === 'network.interfaces') {
+    const target = interfacesState[0];
+    return {
+      interfaceId: target.id,
+      addresses: [...target.addresses],
+      gateway: target.gateway ?? '',
+      mtu: target.mtu ?? 1500,
+    };
+  }
+  return { ...(configSectionsState[sectionId] ?? {}) };
+}
 
 const capabilities = {
   iems: {
@@ -281,12 +301,15 @@ function authorize(ctx, op, session) {
     if (sectionId) {
       const rule = sectionRule(sectionId);
       if (!rule) return { status: 403, code: 'unknown_section', message: `未知配置分区 ${sectionId}` };
-      if (!granted.has(rule.writePermission)) {
+      // 读分区用 readPermission、写用 writePermission：两者不等价（例如 engineer 能读
+      // 防火墙策略但不能改）。缺哪个就报哪个，前端能给出可执行提示。
+      const required = ctx.req.method === 'GET' ? rule.readPermission ?? rule.writePermission : rule.writePermission;
+      if (!granted.has(required)) {
         return {
           status: 403,
           code: 'permission_denied',
-          message: `缺少权限 ${rule.writePermission}`,
-          details: { permission: rule.writePermission, sectionId },
+          message: `缺少权限 ${required}`,
+          details: { permission: required, sectionId },
         };
       }
     }
@@ -570,6 +593,12 @@ const handlers = {
     return { transactionId: transaction.id, state: transaction.state, baseRevision: transaction.baseRevision };
   },
 
+  'GET /api/v1/config/sections/{sectionId}': (ctx) => ({
+    sectionId: ctx.params.sectionId,
+    revision: configRevision,
+    values: sectionValues(ctx.params.sectionId),
+  }),
+
   'GET /api/v1/config/transactions/{id}': (ctx) => publicTransaction(ctx.params.id),
 
   'PUT /api/v1/config/transactions/{id}/sections/{sectionId}': (ctx) => {
@@ -643,6 +672,9 @@ const handlers = {
     transaction.state = 'ROLLING_BACK';
     if (transaction.snapshot) {
       interfacesState.splice(0, interfacesState.length, ...structuredClone(transaction.snapshot));
+    }
+    if (transaction.sectionSnapshot) {
+      configSectionsState[transaction.sectionId] = structuredClone(transaction.sectionSnapshot);
     }
     transaction.state = 'ROLLED_BACK';
     transaction.rolledBackAt = new Date().toISOString();
@@ -749,7 +781,9 @@ function assertSchemaValues(schema, values) {
       errors[name] = '未声明的字段（拒绝写入未知字段）';
       continue;
     }
-    if (value === null || value === undefined) continue;
+    // 空串按"未填"处理（required 已单独判过）：与前端 validateField 的语义保持一致，
+    // 否则会出现"前端放过、后端 422"这种最让人困惑的组合。
+    if (value === null || value === undefined || value === '') continue;
     if (field.enum && !field.enum.includes(value)) {
       errors[name] = `取值必须是 ${field.enum.join(' / ')}`;
       continue;
@@ -780,7 +814,15 @@ function assertSchemaValues(schema, values) {
 
 /** 应用即落设备状态：网络接口是唯一实现了"真写"的分区，其余分区仍是台架占位。 */
 function applyToDeviceState(transaction) {
-  if (transaction.sectionId !== 'network.interfaces') return;
+  if (transaction.sectionId === 'network.interfaces') {
+    applyNetworkInterfaces(transaction);
+    return;
+  }
+  // 其余分区：整段覆盖（台架语义，够用于验证"读回来的确实是新值"）
+  configSectionsState[transaction.sectionId] = { ...transaction.values };
+}
+
+function applyNetworkInterfaces(transaction) {
   const values = transaction.values ?? {};
   const target = interfacesState.find((item) => item.id === values.interfaceId);
   if (!target) return;
@@ -817,6 +859,7 @@ function createTransaction(ctx, sectionId, values) {
     sectionId,
     values,
     snapshot: sectionId === 'network.interfaces' ? structuredClone(interfacesState) : null,
+    sectionSnapshot: sectionId === 'network.interfaces' ? null : structuredClone(configSectionsState[sectionId] ?? {}),
     baseRevision: configRevision,
     revision: configRevision + 1,
     state: 'DRAFT',

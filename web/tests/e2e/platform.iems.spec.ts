@@ -217,3 +217,31 @@ test('配置事务：连读权限都没有的账号，页面直接 403', async (
   await page.goto('/#/network');
   await expect(page.locator('[data-testid="denied-state"]')).toHaveText('forbidden');
 });
+
+// ---------------------------------------------------------------- 风险等级驱动 UI
+test('R1 分区（系统时间）：应用即生效，不弹确认倒计时', async ({ page }) => {
+  await login(page, ENGINEER_ACCOUNT);
+  await page.goto('/#/system/time');
+  await expect(page.locator('[data-testid="schema-form"]')).toBeVisible();
+
+  // 改 NTP 服务器列表（数组字段：一行一个）
+  await page.locator('[data-testid="field-servers"]').fill('ntp1.example.net\nntp2.example.net');
+  await expect(page.locator('[data-testid="tx-dirty"]')).toBeVisible();
+  await page.locator('[data-testid="tx-apply"]').click();
+
+  // R1 没有确认窗口：直接成功，且不出现 pending 横幅
+  await expect(page.locator('[data-testid="tx-message"]')).toContainText('生效');
+  await expect(page.locator('[data-testid="tx-pending"]')).toHaveCount(0);
+
+  // 刷新页面后读回的是新值（证明真的写进去了，不是只改了本地草稿）
+  await page.reload();
+  await expect(page.locator('[data-testid="field-servers"]')).toHaveValue(/ntp1\.example\.net/);
+});
+
+test('R3 分区（防火墙）：engineer 能读不能改，菜单可见但控件禁用', async ({ page }) => {
+  await login(page, ENGINEER_ACCOUNT);
+  // engineer 没有 network.firewall:read → 页面本身 403（读权限与写权限分开判定）
+  await page.goto('/#/network/firewall');
+  await expect(page.locator('[data-testid="denied-state"]')).toHaveText('forbidden');
+  await expect(page.locator('[data-testid="denied-page"]')).toContainText('network.firewall:read');
+});
