@@ -122,6 +122,7 @@ paths:
         "200": { description: 用户列表 }
     post:
       operationId: createUser
+      x-success-status: 201
       summary: 创建用户（不得授予超出自身可授予范围的权限）
       security: [{ sessionCookie: [] }]
       x-required-permissions: [user.account:admin]
@@ -176,6 +177,7 @@ paths:
         "200": { description: 角色列表 }
     post:
       operationId: createRole
+      x-success-status: 201
       summary: 创建自定义角色（授权者只能授予自身可授予的权限）
       security: [{ sessionCookie: [] }]
       x-required-permissions: [user.role:admin]
@@ -307,6 +309,7 @@ paths:
   /api/v1/config/transactions:
     post:
       operationId: createConfigTransaction
+      x-success-status: 201
       summary: 创建配置草稿；所需权限由 sectionId 与 Schema 映射解析
       security: [{ sessionCookie: [] }]
       x-required-permissions: []

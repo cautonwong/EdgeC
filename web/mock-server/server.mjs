@@ -207,7 +207,7 @@ function entitlementActive(key) {
 }
 
 /** 与前端 buildMenu 同一套语义，但**服务端独立计算**——前端结果不参与判定。 */
-function authorize(req, op, session) {
+function authorize(ctx, op, session) {
   if (op.anonymous) return null;
   if (!session) return { status: 401, code: 'unauthenticated', message: '需要登录' };
   const user = users.find((candidate) => candidate.id === session.userId);
@@ -231,7 +231,7 @@ function authorize(req, op, session) {
   }
   // 配置分区权限由 sectionId 解析（§7.2 配置 API 权限解析）
   if (op.permissionSource === 'config-section') {
-    const sectionId = req.body?.sectionId ?? req.params?.sectionId;
+    const sectionId = ctx.body?.sectionId ?? ctx.params?.sectionId;
     if (sectionId) {
       const required = SECTION_PERMISSIONS[sectionId];
       if (!required) return { status: 403, code: 'unknown_section', message: `未知配置分区 ${sectionId}` };
@@ -241,7 +241,7 @@ function authorize(req, op, session) {
     }
   }
   if (op.authorizationPolicy === 'task-cancel-v1') {
-    const task = tasks.get(req.params?.id);
+    const task = tasks.get(ctx.params?.id);
     if (!task) return { status: 404, code: 'not_found', message: '任务不存在' };
     const isOwner = task.createdBy === user.id;
     if (isOwner) {
@@ -850,7 +850,7 @@ const server = http.createServer(async (req, res) => {
       },
     };
 
-    const denial = authorize(req, route.op, session);
+    const denial = authorize(ctx, route.op, session);
     if (denial) {
       audit(ctx, 'authz.denied', { operationId: route.op.operationId, code: denial.code });
       throw httpError(denial.status, denial.code, denial.message, denial.details);
@@ -874,7 +874,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     const result = handler(ctx);
-    const status = req.method === 'POST' && route.op.path.endsWith('/users') ? 201 : result === null ? 204 : 200;
+    const status = result === null ? 204 : route.op.successStatus ?? 200;
     if (result === null) {
       res.writeHead(204, { 'Cache-Control': 'no-store' });
       res.end();

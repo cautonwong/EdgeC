@@ -133,6 +133,7 @@ export function buildOperations({ coreDoc, productDoc, catalog, product, problem
         resourceScope: op['x-resource-scope'],
         capabilities: [...(op['x-required-capabilities'] ?? [])].sort(),
         entitlements: [...(op['x-required-entitlements'] ?? [])].sort(),
+        successStatus: op['x-success-status'] ?? 200,
         auditLevel: op['x-audit-level'] ?? 'none',
         idempotent: op['x-idempotent'] === true,
         authLevel,
