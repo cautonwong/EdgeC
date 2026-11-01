@@ -1,26 +1,12 @@
-export * from './services/ContractLoader';
-export * from './types/tags_type';
-export * from './services/AIProviderService';
-export * from './router';
-export * from './tokens';
-export { default as TagValue } from './components/TagValue.vue';
-export { default as LiveTagCard } from './components/LiveTagCard.vue';
-export { default as SankeyEnergyFlow } from './components/SankeyEnergyFlow.vue';
-export { default as TOUArbitrageWidget } from './components/TOUArbitrageWidget.vue';
-export { default as AntiReversePIDGauge } from './components/AntiReversePIDGauge.vue';
-export { default as DemandPeakShavingWidget } from './components/DemandPeakShavingWidget.vue';
-export { default as AICopilotDrawer } from './components/ai/AICopilotDrawer.vue';
-export { default as McpToolCallCard } from './components/ai/McpToolCallCard.vue';
-export { default as EnergyFlowView } from './views/energy/EnergyFlowView.vue';
-export { default as PacketCapture } from './views/dcu/PacketCapture.vue';
-export { default as PowerQuality } from './views/dcu/PowerQuality.vue';
-export { default as EventStreamHub } from './views/events/EventStreamHub.vue';
-export { default as LogStreamTerminal } from './views/logs/LogStreamTerminal.vue';
-export { default as MetricsMatrix } from './views/metrics/MetricsMatrix.vue';
-export { default as ChannelTopologyHeatmap } from './views/devices/ChannelTopologyHeatmap.vue';
-export { default as WebConsoleDrawer } from './components/console/WebConsoleDrawer.vue';
-export { default as AnsiTerminalView } from './components/console/AnsiTerminalView.vue';
-export { default as InteractiveShell } from './components/console/InteractiveShell.vue';
-export { default as ProtocolSnifferView } from './components/console/ProtocolSnifferView.vue';
-export { default as HexPayloadViewer } from './components/console/HexPayloadViewer.vue';
-export { default as TwoManRuleModal } from './components/console/TwoManRuleModal.vue';
+// @edgeos/web-core 公开入口
+//
+// 依赖规则（由 `tooling boundaries` 强制）：
+//   - Pack 的**页面**只能依赖 `./sdk`（类型 + 纯逻辑）与 `./ui`（组件 + Token）；
+//   - Pack 的**入口 main.ts** 额外可以用 `./app` 的 `createProductApp`（组合根）；
+//   - `./app` 内部实现（stores / router / views）不对外暴露，避免 Pack 伸手改 Shell。
+export * from './sdk';
+export * from './ui';
+export { createProductApp, type ProductAppOptions, type ProductAppHandle } from './app/createProductApp';
+export { useSessionStore } from './app/stores/session';
+export { useCapabilityStore } from './app/stores/capability';
+export { useRegistryStore } from './app/stores/registry';

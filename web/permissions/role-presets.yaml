@@ -1,0 +1,85 @@
+# Core 角色预置（版本化的授权集合，不等于权限目录）
+#
+# 依据：v1.6 §5.3、附录 A 治理规则。
+#   - 预置角色只是模板；最终授权 = 角色并集 ∩ 资源范围 ∩ 能力 ∩ Entitlement。
+#   - 通配符只允许出现在**构建输入**（本文件 / product.yaml），由 tooling 在生成
+#     Registry 时展开为具体权限 ID；运行时请求与 API operation 不允许通配符。
+#   - `admin` 不隐含 read/write/execute 的自动继承，展开后仍是逐个具体 ID。
+#   - 所有角色都授予 `system.capability:read`：能力快照是**页面呈现的前提**，没有它
+#     任何"需要能力"的页面都只能按不支持处理（fail-closed），界面等于不可用。该权限
+#     只暴露能力存在与否，许可明细仍按字段另行授权（§7.2）。
+schemaVersion: 1
+
+roles:
+  - id: viewer
+    name: 查看员
+    builtin: true
+    description: 只读巡检，不含用户、密钥、证书与敏感配置
+    defaultScope: { type: gateway, id: self }
+    permissions:
+      - core.dashboard:read
+      - core.telemetry:read
+      - core.alarm:read
+      - core.task:read
+      - system.log:read
+      - system.capability:read
+
+  - id: operator
+    name: 运维员
+    builtin: true
+    description: 日常运维：告警确认、受控服务操作
+    defaultScope: { type: gateway, id: self }
+    permissions:
+      - core.dashboard:read
+      - core.telemetry:read
+      - core.alarm:read
+      - core.alarm:write
+      - core.task:read
+      - system.log:read
+      - system.log:export
+      - system.service:read
+      - system.service:execute
+      - system.diagnostics:execute
+      - debug.frame:execute
+      - system.capability:read
+
+  - id: engineer
+    name: 工程师
+    builtin: true
+    description: 现场调试与集成：通信、采集、点表、策略、限定网络配置
+    defaultScope: { type: gateway, id: self }
+    permissions:
+      - core.dashboard:read
+      - core.telemetry:read
+      - core.alarm:read
+      - core.alarm:write
+      - core.task:read
+      - system.log:read
+      - system.log:export
+      - system.service:read
+      - system.service:execute
+      - system.diagnostics:execute
+      - system.capability:read
+      - system.time:read
+      - system.time:write
+      - network.interface:read
+      - network.route:read
+      - network.cellular:read
+      - debug.frame:execute
+      - debug.point:read
+      - debug.point:write
+
+  - id: admin
+    name: 管理员
+    builtin: true
+    description: 设备所有者：用户/角色、系统、安全配置、升级与备份恢复
+    defaultScope: { type: gateway, id: self }
+    permissions:
+      - "core.*:read"
+      - core.alarm:write
+      - core.task:cancel
+      - core.audit:export
+      - "network.*:*"
+      - "system.*:*"
+      - "user.*:*"
+      - "debug.*:*"

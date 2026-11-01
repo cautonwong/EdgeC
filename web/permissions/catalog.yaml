@@ -1,0 +1,213 @@
+# 权限目录（唯一事实来源）
+#
+# 依据：WebUI 平台详细设计文档 v1.6 §5.2、附录 A。
+# 规则：
+#   - ID 格式固定 `domain.resource:action`，大小写敏感，禁止简写与别名。
+#   - 动作只有 read / write / execute / admin 四种，且**不隐含继承**：
+#     write 不含 read，execute 不含 read，admin 不含全部动作。确需搭配时在
+#     `dependencies` 里显式声明，由构建检查展开，不靠前端猜。
+#   - 本文件只定义「权限是什么」，不授予任何人；授权集合见 role-presets.yaml
+#     与各产品 product.yaml 的 rolePresets。
+schemaVersion: 1
+
+permissions:
+  # ---- Core ----
+  - id: core.dashboard:read
+    description: 查看概览仪表盘
+    sensitivity: low
+  - id: core.telemetry:read
+    description: 查看实时与历史遥测数据
+    sensitivity: low
+  - id: core.alarm:read
+    description: 查看告警与事件
+    sensitivity: low
+  - id: core.alarm:write
+    description: 确认、屏蔽告警
+    sensitivity: medium
+    dependencies: [core.alarm:read]
+  - id: core.task:read
+    description: 查看长任务状态与产物
+    sensitivity: low
+  - id: core.task:cancel
+    description: 取消他人创建的任务（跨用户分支）
+    sensitivity: high
+    dependencies: [core.task:read]
+  - id: core.audit:read
+    description: 查看安全审计日志
+    sensitivity: high
+  - id: core.audit:export
+    description: 导出安全审计日志
+    sensitivity: high
+    dependencies: [core.audit:read]
+
+  # ---- 网络 ----
+  - id: network.interface:read
+    description: 查看网络接口
+    sensitivity: low
+  - id: network.interface:write
+    description: 修改网络接口（R2 管理通道风险）
+    sensitivity: high
+    dependencies: [network.interface:read]
+  - id: network.route:read
+    description: 查看路由表
+    sensitivity: low
+  - id: network.route:write
+    description: 修改路由表（R2）
+    sensitivity: high
+    dependencies: [network.route:read]
+  - id: network.firewall:read
+    description: 查看防火墙策略
+    sensitivity: medium
+  - id: network.firewall:write
+    description: 修改防火墙策略（R2）
+    sensitivity: high
+    dependencies: [network.firewall:read]
+  - id: network.cellular:read
+    description: 查看蜂窝链路
+    sensitivity: low
+  - id: network.cellular:write
+    description: 修改蜂窝参数（R2）
+    sensitivity: high
+    dependencies: [network.cellular:read]
+
+  # ---- 系统 ----
+  - id: system.capability:read
+    description: 读取设备能力与许可快照
+    sensitivity: low
+  - id: system.time:read
+    description: 查看设备时间与对时状态
+    sensitivity: low
+  - id: system.time:write
+    description: 修改设备时间或对时配置
+    sensitivity: medium
+    dependencies: [system.time:read]
+  - id: system.cert:read
+    description: 查看证书（私钥不可回显）
+    sensitivity: high
+  - id: system.cert:write
+    description: 安装、替换、删除证书
+    sensitivity: high
+    dependencies: [system.cert:read]
+  - id: system.backup:read
+    description: 查看备份列表与元数据
+    sensitivity: medium
+  - id: system.backup:execute
+    description: 创建备份或执行恢复
+    sensitivity: high
+    dependencies: [system.backup:read]
+  - id: system.upgrade:execute
+    description: 执行固件升级
+    sensitivity: high
+    dependencies: [system.capability:read]
+  - id: system.reboot:execute
+    description: 重启设备
+    sensitivity: high
+  - id: system.factory-reset:execute
+    description: 恢复出厂设置（R5 不可逆）
+    sensitivity: high
+  - id: system.service:read
+    description: 查看系统服务状态
+    sensitivity: low
+  - id: system.service:execute
+    description: 启动、停止、重启服务
+    sensitivity: high
+    dependencies: [system.service:read]
+  - id: system.log:read
+    description: 查看系统日志
+    sensitivity: low
+  - id: system.log:export
+    description: 导出系统日志
+    sensitivity: medium
+    dependencies: [system.log:read]
+  - id: system.diagnostics:execute
+    description: 生成诊断包
+    sensitivity: medium
+
+  # ---- 用户与安全 ----
+  - id: user.account:read
+    description: 查看用户账号
+    sensitivity: medium
+  - id: user.account:admin
+    description: 创建、修改、禁用用户账号
+    sensitivity: high
+    dependencies: [user.account:read]
+  - id: user.role:read
+    description: 查看角色与授权
+    sensitivity: medium
+  - id: user.role:admin
+    description: 创建、修改角色与授权
+    sensitivity: high
+    dependencies: [user.role:read]
+  - id: user.session:admin
+    description: 管理并强制下线会话
+    sensitivity: high
+  - id: user.token:admin
+    description: 管理 API Token
+    sensitivity: high
+
+  # ---- 诊断 ----
+  - id: debug.point:read
+    description: 查看点位调试信息
+    sensitivity: medium
+  - id: debug.point:write
+    description: 点位读写调试（写）
+    sensitivity: high
+    dependencies: [debug.point:read]
+  - id: debug.frame:execute
+    description: 抓包与协议报文监视
+    sensitivity: high
+  - id: debug.serial:admin
+    description: 串口调试通道租约管理
+    sensitivity: high
+
+  # ---- iEMS Pack ----
+  - id: iems.datapoint:read
+    description: 查看 iEMS 数据点表
+    sensitivity: low
+  - id: iems.datapoint:write
+    description: 编辑 iEMS 数据点表
+    sensitivity: high
+    dependencies: [iems.datapoint:read]
+  - id: iems.telemetry:read
+    description: 查看 iEMS 遥测（能流、SOC 等）
+    sensitivity: low
+  - id: iems.strategy:read
+    description: 查看削峰填谷与需量策略
+    sensitivity: medium
+  - id: iems.strategy:write
+    description: 编辑策略（R4 业务控制）
+    sensitivity: high
+    dependencies: [iems.strategy:read]
+  - id: iems.cloud:read
+    description: 查看云连接配置
+    sensitivity: medium
+  - id: iems.cloud:write
+    description: 修改云连接配置
+    sensitivity: high
+    dependencies: [iems.cloud:read]
+
+  # ---- DCU Pack ----
+  - id: dcu.meter:read
+    description: 查看电表档案
+    sensitivity: low
+  - id: dcu.meter:write
+    description: 维护电表档案
+    sensitivity: high
+    dependencies: [dcu.meter:read]
+  - id: dcu.task:read
+    description: 查看抄表任务与冻结数据
+    sensitivity: low
+  - id: dcu.task:write
+    description: 创建、修改抄表任务
+    sensitivity: medium
+    dependencies: [dcu.task:read]
+  - id: dcu.channel:read
+    description: 查看 RS485 / PLC / RF 通道
+    sensitivity: low
+  - id: dcu.channel:write
+    description: 修改通道参数（R2）
+    sensitivity: high
+    dependencies: [dcu.channel:read]
+  - id: dcu.frame:read
+    description: 查看 698/645 协议报文
+    sensitivity: medium

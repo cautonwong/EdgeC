@@ -1,0 +1,24 @@
+{
+  "pairs": [
+    { "theme": "light", "fg": "--text-primary", "bg": "--bg-page", "min": 4.5, "usage": "正文/页面背景" },
+    { "theme": "light", "fg": "--text-primary", "bg": "--bg-surface", "min": 4.5, "usage": "正文/卡片" },
+    { "theme": "light", "fg": "--text-secondary", "bg": "--bg-surface", "min": 4.5, "usage": "辅助说明/卡片" },
+    { "theme": "light", "fg": "--color-on-primary", "bg": "--color-primary", "min": 4.5, "usage": "主按钮文字" },
+    { "theme": "light", "fg": "--color-warning", "bg": "--color-warning-bg", "min": 4.5, "usage": "警告文字/警告底" },
+    { "theme": "light", "fg": "--color-danger", "bg": "--bg-surface", "min": 4.5, "usage": "错误文字/卡片" },
+    { "theme": "light", "fg": "--color-success", "bg": "--bg-surface", "min": 4.5, "usage": "正常状态文字/卡片" },
+    { "theme": "light", "fg": "--color-info", "bg": "--bg-surface", "min": 4.5, "usage": "提示文字/卡片" },
+    { "theme": "light", "fg": "--color-offline", "bg": "--bg-surface", "min": 3.0, "usage": "离线状态图标/卡片" },
+    { "theme": "light", "fg": "--border-default", "bg": "--bg-surface", "min": 1.2, "usage": "分隔线（非文本，仅要求可辨识）" },
+
+    { "theme": "dark", "fg": "--text-primary", "bg": "--bg-page", "min": 4.5, "usage": "正文/页面背景" },
+    { "theme": "dark", "fg": "--text-primary", "bg": "--bg-surface", "min": 4.5, "usage": "正文/卡片" },
+    { "theme": "dark", "fg": "--text-secondary", "bg": "--bg-surface", "min": 4.5, "usage": "辅助说明/卡片" },
+    { "theme": "dark", "fg": "--color-on-primary", "bg": "--color-primary", "min": 4.5, "usage": "主按钮文字" },
+    { "theme": "dark", "fg": "--color-warning", "bg": "--color-warning-bg", "min": 4.5, "usage": "警告文字/警告底" },
+    { "theme": "dark", "fg": "--color-danger", "bg": "--bg-surface", "min": 4.5, "usage": "错误文字/卡片" },
+    { "theme": "dark", "fg": "--color-success", "bg": "--bg-surface", "min": 4.5, "usage": "正常状态文字/卡片" },
+    { "theme": "dark", "fg": "--color-info", "bg": "--bg-surface", "min": 4.5, "usage": "提示文字/卡片" },
+    { "theme": "dark", "fg": "--color-offline", "bg": "--bg-surface", "min": 3.0, "usage": "离线状态图标/卡片" }
+  ]
+}

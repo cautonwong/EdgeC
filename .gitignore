@@ -22,6 +22,10 @@ dist/
 playwright-report/
 test-results/
 
+# WebUI 构建期生成产物（由 web/tooling 生成，禁止手工维护/入库）
+web/products/*/src/generated/
+web/core/test-build/
+
 # Local Dependency Root (Un-ignored for binary distribution)
 # .local/
 
@@ -34,7 +38,7 @@ test-results/
 *.log
 logs/
 !docs/evidence/**/tests.log
-!web/core/src/views/logs/
+!web/core/src/modules/logs/
 
 # Assets & Drafts
 image*.png

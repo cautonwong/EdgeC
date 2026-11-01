@@ -1,0 +1,162 @@
+# Core 模块清单（构建输入，不是运行时路由注册指令）
+#
+# 依据 v1.6 §4.2 / §6.2 / 附录 B。
+#   - 一级分组固定六组，产品只能通过 menu.group 挂入，不得新建一级分组。
+#   - 页面必须声明精确权限（allOf/anyOf）；requires 只声明"设备要有什么"。
+#   - component 相对 `core/src/modules/`，构建期校验文件存在；运行期由 vite 的静态
+#     glob 解析，不存在"按字符串加载任意模块"的路径。
+schemaVersion: 1
+coreSdk: 1.6.0
+
+groups:
+  - { id: overview, title: 概览 }
+  - { id: data, title: 采集与数据 }
+  - { id: control, title: 控制与策略 }
+  - { id: network, title: 网络与通信 }
+  - { id: system, title: 系统 }
+  - { id: diagnostics, title: 诊断 }
+
+modules:
+  - id: core:overview
+    title: 概览
+    pages:
+      - id: core.dashboard
+        path: /dashboard
+        component: Dashboard.vue
+        title: 概览
+        menu: { group: overview, order: 10, icon: grid }
+        permissions: { allOf: [core.dashboard:read] }
+
+  - id: core:data
+    title: 采集与数据
+    pages:
+      - id: core.devices
+        path: /devices
+        component: devices/DeviceList.vue
+        title: 设备列表
+        menu: { group: data, order: 10, icon: list }
+        permissions: { allOf: [core.telemetry:read] }
+      - id: core.telemetry.live
+        path: /data
+        component: data/DataCurves.vue
+        title: 实时数据
+        menu: { group: data, order: 20, icon: activity }
+        permissions: { allOf: [core.telemetry:read] }
+      - id: core.telemetry.history
+        path: /data/history
+        component: data/HistoryCurves.vue
+        title: 历史曲线
+        menu: { group: data, order: 30, icon: chart }
+        permissions: { allOf: [core.telemetry:read] }
+      - id: core.metrics
+        path: /metrics
+        component: metrics/MetricsMatrix.vue
+        title: 指标矩阵
+        menu: { group: data, order: 40, icon: gauge }
+        permissions: { allOf: [core.telemetry:read] }
+      - id: core.topology
+        path: /devices/topology
+        component: devices/ChannelTopologyHeatmap.vue
+        title: 通道拓扑
+        menu: { group: network, order: 40, icon: network }
+        permissions: { allOf: [network.interface:read] }
+
+  - id: core:control
+    title: 控制与策略
+    pages:
+      - id: core.alarm.stream
+        path: /events
+        component: events/EventStreamHub.vue
+        title: 告警与事件
+        menu: { group: control, order: 10, icon: alert }
+        permissions: { allOf: [core.alarm:read] }
+      - id: core.scheduling
+        path: /scheduling
+        component: system/Scheduling.vue
+        title: 定时任务
+        menu: { group: control, order: 20, icon: clock }
+        permissions: { allOf: [core.task:read] }
+      - id: core.pipelines
+        path: /pipelines
+        component: pipelines/PipelineList.vue
+        title: 数据管道
+        menu: { group: control, order: 30, icon: flow }
+        permissions: { allOf: [core.telemetry:read] }
+
+  - id: core:network
+    title: 网络与通信
+    pages:
+      - id: core.network.interfaces
+        path: /network
+        component: network/NetworkView.vue
+        title: 网络接口
+        menu: { group: network, order: 10, icon: network }
+        permissions: { allOf: [network.interface:read] }
+      - id: core.network.cellular
+        path: /network/cellular
+        component: network/CellularView.vue
+        title: 蜂窝链路
+        menu: { group: network, order: 20, icon: signal }
+        permissions: { allOf: [network.cellular:read] }
+        requires:
+          capabilities: [hardware.network.cellular]
+      - id: core.network.config
+        path: /network/config
+        component: system/ConfigEditor.vue
+        title: 通信参数
+        menu: { group: network, order: 30, icon: sliders }
+        permissions: { allOf: [network.interface:read] }
+
+  - id: core:system
+    title: 系统
+    pages:
+      - id: core.users
+        path: /system/users
+        component: system/UsersView.vue
+        title: 用户与角色
+        menu: { group: system, order: 10, icon: users }
+        permissions: { allOf: [user.account:read] }
+      - id: core.system.config
+        path: /system/config
+        component: system/SystemConfig.vue
+        title: 系统配置
+        menu: { group: system, order: 20, icon: settings }
+        permissions: { allOf: [system.service:read] }
+      - id: core.system.storage
+        path: /system/storage
+        component: system/Storage.vue
+        title: 存储与数据
+        menu: { group: system, order: 30, icon: database }
+        permissions: { allOf: [system.capability:read] }
+      - id: core.about
+        path: /system/about
+        component: system/AboutView.vue
+        title: 关于
+        menu: { group: system, order: 90, icon: info }
+        permissions: { allOf: [core.dashboard:read] }
+
+  - id: core:diagnostics
+    title: 诊断
+    pages:
+      - id: core.logs.system
+        path: /logs
+        component: logs/LogStreamTerminal.vue
+        title: 系统日志
+        menu: { group: diagnostics, order: 10, icon: terminal }
+        permissions: { allOf: [system.log:read] }
+      - id: core.diagnostics.frames
+        path: /diagnostics/frames
+        component: dcu/PacketCapture.vue
+        title: 协议报文
+        menu: { group: diagnostics, order: 20, icon: radar }
+        permissions: { allOf: [debug.frame:execute] }
+        requires:
+          capabilities: [software.collector.modbus]
+      - id: core.diagnostics.power-quality
+        path: /diagnostics/power-quality
+        component: dcu/PowerQuality.vue
+        title: 电能质量
+        menu: { group: diagnostics, order: 30, icon: wave }
+        permissions: { allOf: [core.telemetry:read] }
+        requires:
+          capabilities: [software.collector.modbus]

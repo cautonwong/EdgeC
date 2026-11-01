@@ -164,7 +164,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        product: [iems, smartbox]
+        product: [iems, dcu, smartbox]
 
     steps:
       - uses: actions/checkout@v4

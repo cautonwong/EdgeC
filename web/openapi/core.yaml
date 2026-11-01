@@ -1,0 +1,499 @@
+# Core HTTP 契约（唯一事实来源）
+#
+# 依据：v1.6 §7.1–§7.4。
+# 规则（由 tooling/openapi 检查强制）：
+#   1. 所有路径必须以 /api/v1 开头。
+#   2. 每个 operation 必须有 security，且：
+#        - 匿名接口必须 `security: []` **并且** 出现在 x-anonymous-allowlist；
+#        - 其余接口必须声明 x-required-permissions（精确 ID，禁止通配符）。
+#   3. 每个 operation 必须声明 x-resource-scope；需要设备能力/许可的声明
+#      x-required-capabilities / x-required-entitlements。
+#   4. 可能产生副作用的创建型操作声明 x-idempotent: true。
+#   5. 高风险操作声明 x-audit-level: high。
+# 前端、Mock、webd 与测试都从本文件读取「路径 → 权限」映射，不各写一份。
+openapi: 3.1.0
+info:
+  title: EdgeOS WebUI Core API
+  version: 1.6.0
+  description: 边缘网关本地 WebUI 平台的 Core 接口基线
+servers:
+  - url: /
+x-anonymous-allowlist:
+  - POST /api/v1/auth/login
+  - GET /api/v1/system/info
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: edgeos_sid
+  schemas:
+    Error:
+      type: object
+      required: [code, message, requestId]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        details: { type: object }
+        requestId: { type: string }
+
+paths:
+  /api/v1/system/info:
+    get:
+      operationId: getSystemInfo
+      summary: 登录页所需的最小产品信息（匿名 allowlist，字段固定）
+      security: []
+      x-required-permissions: []
+      x-resource-scope: none
+      x-audit-level: none
+      responses:
+        "200": { description: 最小产品展示信息 }
+
+  /api/v1/auth/login:
+    post:
+      operationId: login
+      summary: 本地账号登录，成功后轮换会话 ID
+      security: []
+      x-required-permissions: []
+      x-resource-scope: none
+      x-audit-level: high
+      x-rate-limit: auth
+      responses:
+        "200": { description: 登录成功，返回主体摘要与 CSRF token }
+        "401": { description: 凭据无效（错误信息不区分用户是否存在） }
+
+  /api/v1/auth/logout:
+    post:
+      operationId: logout
+      x-auth-level: session
+      summary: 撤销当前会话
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: []
+      x-resource-scope: self
+      x-audit-level: high
+      responses:
+        "204": { description: 已撤销 }
+
+  /api/v1/auth/me:
+    get:
+      operationId: getMe
+      x-auth-level: session
+      summary: 当前主体、角色分配、展开后的权限 ID、范围摘要与授权版本
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: []
+      x-resource-scope: self
+      x-audit-level: none
+      responses:
+        "200": { description: 主体摘要 }
+
+  /api/v1/auth/password:
+    post:
+      operationId: changePassword
+      x-auth-level: session
+      summary: 修改本人口令；成功后撤销其他会话
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: []
+      x-resource-scope: self
+      x-audit-level: high
+      responses:
+        "204": { description: 已修改 }
+
+  /api/v1/system/capabilities:
+    get:
+      operationId: getCapabilities
+      summary: 可信能力与许可快照
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [system.capability:read]
+      x-resource-scope: gateway
+      x-audit-level: none
+      responses:
+        "200": { description: 能力快照 }
+
+  /api/v1/users:
+    get:
+      operationId: listUsers
+      summary: 用户列表
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [user.account:read]
+      x-resource-scope: gateway
+      x-audit-level: low
+      responses:
+        "200": { description: 用户列表 }
+    post:
+      operationId: createUser
+      summary: 创建用户（不得授予超出自身可授予范围的权限）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [user.account:admin]
+      x-resource-scope: gateway
+      x-audit-level: high
+      responses:
+        "201": { description: 已创建 }
+
+  /api/v1/users/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      operationId: getUser
+      summary: 用户详情
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [user.account:read]
+      x-resource-scope: gateway
+      x-audit-level: low
+      responses:
+        "200": { description: 用户详情 }
+    patch:
+      operationId: patchUser
+      summary: 修改用户（角色、状态、直接授权）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [user.account:admin]
+      x-resource-scope: gateway
+      x-audit-level: high
+      responses:
+        "200": { description: 已修改 }
+    delete:
+      operationId: deleteUser
+      summary: 删除用户（禁止删除最后一个可用管理员）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [user.account:admin]
+      x-resource-scope: gateway
+      x-audit-level: high
+      responses:
+        "204": { description: 已删除 }
+
+  /api/v1/roles:
+    get:
+      operationId: listRoles
+      summary: 角色列表与授权集合
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [user.role:read]
+      x-resource-scope: gateway
+      x-audit-level: low
+      responses:
+        "200": { description: 角色列表 }
+    post:
+      operationId: createRole
+      summary: 创建自定义角色（授权者只能授予自身可授予的权限）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [user.role:admin]
+      x-resource-scope: gateway
+      x-audit-level: high
+      responses:
+        "201": { description: 已创建 }
+
+  /api/v1/network/interfaces:
+    get:
+      operationId: listInterfaces
+      summary: 网络接口
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [network.interface:read]
+      x-resource-scope: gateway
+      x-audit-level: none
+      responses:
+        "200": { description: 接口列表 }
+
+  /api/v1/network/interfaces/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    patch:
+      operationId: patchInterface
+      summary: 修改接口（R2 管理通道风险，走配置事务与回滚）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [network.interface:write]
+      x-resource-scope: gateway
+      x-audit-level: high
+      x-risk-class: R2
+      responses:
+        "202": { description: 已创建配置事务，返回 transactionId }
+
+  /api/v1/network/cellular:
+    get:
+      operationId: getCellular
+      summary: 蜂窝链路状态（仅具备蜂窝模块的型号）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [network.cellular:read]
+      x-resource-scope: gateway
+      x-required-capabilities: [hardware.network.cellular]
+      x-audit-level: none
+      responses:
+        "200": { description: 蜂窝状态 }
+
+  /api/v1/system/services:
+    get:
+      operationId: listServices
+      summary: 系统服务状态
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [system.service:read]
+      x-resource-scope: gateway
+      x-audit-level: none
+      responses:
+        "200": { description: 服务列表 }
+
+  /api/v1/system/services/{id}/actions/{action}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+      - name: action
+        in: path
+        required: true
+        schema: { type: string, enum: [start, stop, restart] }
+    post:
+      operationId: serviceAction
+      summary: 服务操作（action 走 allowlist，不接受 shell 命令）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [system.service:execute]
+      x-resource-scope: gateway
+      x-audit-level: high
+      x-idempotent: true
+      responses:
+        "202": { description: 已受理，返回 taskId }
+
+  /api/v1/system/reboot:
+    post:
+      operationId: reboot
+      summary: 重启设备
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [system.reboot:execute]
+      x-resource-scope: gateway
+      x-audit-level: high
+      x-idempotent: true
+      responses:
+        "202": { description: 已受理，返回 taskId }
+
+  /api/v1/system/upgrade:
+    post:
+      operationId: upgradeFirmware
+      summary: 固件升级（release-scope 未启用时该 operation 不生成）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [system.upgrade:execute]
+      x-resource-scope: gateway
+      x-feature: firmwareUpgrade
+      x-audit-level: high
+      x-idempotent: true
+      responses:
+        "202": { description: 已受理，返回 taskId }
+        "404": { description: 该 release 未启用升级功能 }
+
+  /api/v1/logs/system:
+    get:
+      operationId: getSystemLogs
+      summary: 系统日志（分页、限时间跨度）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [system.log:read]
+      x-resource-scope: gateway
+      x-audit-level: none
+      responses:
+        "200": { description: 日志分页 }
+
+  /api/v1/logs/audit:
+    get:
+      operationId: getAuditLogs
+      summary: 安全审计日志（保留策略由设备侧强制）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [core.audit:read]
+      x-resource-scope: gateway
+      x-audit-level: low
+      responses:
+        "200": { description: 审计分页 }
+
+  /api/v1/config/transactions:
+    post:
+      operationId: createConfigTransaction
+      summary: 创建配置草稿；所需权限由 sectionId 与 Schema 映射解析
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: []
+      x-permission-source: config-section
+      x-resource-scope: gateway
+      x-audit-level: high
+      x-idempotent: true
+      responses:
+        "201": { description: 已创建事务 }
+
+  /api/v1/config/transactions/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      operationId: getConfigTransaction
+      summary: 查询事务状态（含 deadline、状态机、回滚结果）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: []
+      x-permission-source: config-section
+      x-resource-scope: gateway
+      x-audit-level: none
+      responses:
+        "200": { description: 事务详情 }
+
+  /api/v1/config/transactions/{id}/sections/{sectionId}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+      - name: sectionId
+        in: path
+        required: true
+        schema: { type: string }
+    put:
+      operationId: putConfigSection
+      summary: 写入配置分区（If-Match/revision，基线冲突返回 409）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: []
+      x-permission-source: config-section
+      x-resource-scope: gateway
+      x-audit-level: high
+      responses:
+        "200": { description: 已写入草稿 }
+        "409": { description: 基线 revision 已变化 }
+
+  /api/v1/config/transactions/{id}/apply:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      operationId: applyConfigTransaction
+      summary: 应用事务（幂等；高风险启动 watchdog）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: []
+      x-permission-source: config-section
+      x-resource-scope: gateway
+      x-audit-level: high
+      x-idempotent: true
+      responses:
+        "200": { description: 状态机推进结果 }
+
+  /api/v1/config/transactions/{id}/confirm:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      operationId: confirmConfigTransaction
+      summary: 确认保留（幂等，绑定事务/用户/会话）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: []
+      x-permission-source: config-section
+      x-resource-scope: gateway
+      x-audit-level: high
+      x-idempotent: true
+      responses:
+        "200": { description: 已确认 }
+
+  /api/v1/config/transactions/{id}/rollback:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      operationId: rollbackConfigTransaction
+      summary: 回滚（幂等；watchdog 可用受限内部身份执行）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: []
+      x-permission-source: config-section
+      x-resource-scope: gateway
+      x-audit-level: high
+      x-idempotent: true
+      responses:
+        "200": { description: 已回滚 }
+
+  /api/v1/tasks:
+    get:
+      operationId: listTasks
+      summary: 任务列表（默认只返回主体可见任务）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [core.task:read]
+      x-resource-scope: gateway
+      x-audit-level: none
+      responses:
+        "200": { description: 任务列表 }
+
+  /api/v1/tasks/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      operationId: getTask
+      summary: 任务状态（持久化记录为准，WS 只是通知）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [core.task:read]
+      x-resource-scope: gateway
+      x-audit-level: none
+      responses:
+        "200": { description: 任务详情 }
+
+  /api/v1/tasks/{id}/cancel:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      operationId: cancelTask
+      summary: 取消任务（owner 自取消 / 管理员跨用户两条分支）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: []
+      x-permission-source: task-cancel-v1
+      x-authorization-policy: task-cancel-v1
+      x-resource-scope: gateway
+      x-audit-level: high
+      responses:
+        "202": { description: 已进入 CANCELING }
+        "409": { description: 当前阶段不可安全取消 }
+
+  /api/v1/ws:
+    get:
+      operationId: openWebSocket
+      x-auth-level: session
+      summary: 实时通道握手（只允许 subscribe / unsubscribe）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: []
+      x-resource-scope: gateway
+      x-protocol: websocket
+      x-audit-level: none
+      responses:
+        "101": { description: 协议升级 }
+
+  # ---- 产品数据接口（当前 UI 仍在用的取数面，逐步收敛到 Pack OpenAPI） ----
+  /api/v1/contracts:
+    get:
+      operationId: getLegacyContract
+      summary: 点位契约（契约驱动 UI 取数，后续由 Pack API 取代）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [core.telemetry:read]
+      x-resource-scope: gateway
+      x-deprecated: true
+      x-audit-level: none
+      responses:
+        "200": { description: 契约 }
+
+  /api/v1/data/latest/{tag}:
+    parameters:
+      - name: tag
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      operationId: getLatestSample
+      summary: 单点位最新值
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [core.telemetry:read]
+      x-resource-scope: gateway
+      x-audit-level: none
+      responses:
+        "200": { description: 最新值 }

@@ -76,5 +76,12 @@ target_link_libraries(${PROD_NAME} PRIVATE
     pthread dl rt m
 )
 
-# 6. 安装配置
+# 6. WebUI（Core + DCU Pack）：Registry 在 npm build 里生成，产物落到
+#    <build>/products/dcu/www 并随安装进入 www/dcu
+if(ENABLE_WEB_BUILD)
+    add_web_product(dcu "${CMAKE_SOURCE_DIR}/web/products/dcu")
+    add_dependencies(${PROD_NAME} web_ui_dcu)
+endif()
+
+# 7. 安装配置
 install_edge_product(${PROD_NAME})

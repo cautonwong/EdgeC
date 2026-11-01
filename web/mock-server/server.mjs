@@ -1,0 +1,944 @@
+#!/usr/bin/env node
+/**
+ * WebUI Mock Server —— 设备侧 webd 的**行为替身**（v1.6 §7.1–§7.5）。
+ *
+ * 它存在的理由不是"让前端跑起来"，而是让 E2E 能验证**服务端判定**：
+ *   - 每个请求的权限/能力/许可/范围判定，来自构建期生成的 registry.json 与 OpenAPI
+ *     元数据，而不是 handler 里手写的 if；
+ *   - 会话、CSRF、Host/Origin、匿名 allowlist、错误模型按文档基线实现；
+ *   - 配置事务状态机、幂等、deadline 与回滚是**真的**状态机，不是假绿。
+ *
+ * 明确不实现（留给 webd）：IPC、TLS、审计持久化、任务执行器、许可证签名校验。
+ * 这些缺失必须在报告里如实体现，不能拿 mock 的绿灯冒充设备验证。
+ *
+ * 用法：
+ *   node mock-server/server.mjs --product iems --port 8081 [--static products/iems/dist]
+ */
+import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
+import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
+import http from 'node:http';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import yaml from 'js-yaml';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const WEB_ROOT = path.dirname(HERE);
+
+const args = parseArgs(process.argv.slice(2));
+const PRODUCT = args.product ?? 'iems';
+const PORT = Number(args.port ?? 8081);
+const HOST = args.host ?? '127.0.0.1';
+const STATIC_DIR = args.static ? path.resolve(WEB_ROOT, args.static) : null;
+const IDLE_TIMEOUT_MS = Number(process.env.EDGEOS_SESSION_IDLE_MS ?? 15 * 60 * 1000);
+const ABSOLUTE_TIMEOUT_MS = Number(process.env.EDGEOS_SESSION_ABSOLUTE_MS ?? 8 * 60 * 60 * 1000);
+const CONFIRM_WINDOW_MS = Number(process.env.EDGEOS_CONFIRM_WINDOW_MS ?? 60 * 1000);
+const HOST_ALLOWLIST = new Set(['127.0.0.1', 'localhost', '[::1]']);
+
+function parseArgs(argv) {
+  const out = {};
+  for (let i = 0; i < argv.length; i += 1) {
+    if (!argv[i].startsWith('--')) continue;
+    const key = argv[i].slice(2);
+    const next = argv[i + 1];
+    if (!next || next.startsWith('--')) out[key] = true;
+    else {
+      out[key] = next;
+      i += 1;
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- registry 装载
+const registryFile = path.join(WEB_ROOT, 'products', PRODUCT, 'src/generated/registry.json');
+if (!existsSync(registryFile)) {
+  console.error(`缺少 registry：${registryFile}\n先跑 node tooling/cli.mjs registry --product ${PRODUCT}`);
+  process.exit(1);
+}
+const registry = JSON.parse(readFileSync(registryFile, 'utf8'));
+const catalog = yaml.load(readFileSync(path.join(WEB_ROOT, 'permissions/catalog.yaml'), 'utf8'));
+
+const permissionDeps = new Map(catalog.permissions.map((p) => [p.id, p.dependencies ?? []]));
+
+// ---------------------------------------------------------------- 设备与账号状态
+const now = () => Date.now();
+
+function hashPassword(password, salt = randomBytes(16).toString('hex')) {
+  return `${salt}:${scryptSync(password, salt, 32).toString('hex')}`;
+}
+
+function verifyPassword(password, stored) {
+  const [salt, digest] = stored.split(':');
+  const candidate = scryptSync(password, salt, 32);
+  const expected = Buffer.from(digest, 'hex');
+  return candidate.length === expected.length && timingSafeEqual(candidate, expected);
+}
+
+/** 设备端账号（内存态）。初始口令只用于首次引导，登录后强制改密（§5.6）。 */
+const users = [
+  {
+    id: 'u_1000',
+    username: 'admin',
+    displayName: '设备管理员',
+    roleIds: ['admin'],
+    status: 'active',
+    mustChangePassword: true,
+    password: hashPassword('Initial-EdgeOS-2026'),
+    lastLogin: null,
+  },
+  {
+    id: 'u_1001',
+    username: 'engineer',
+    displayName: '现场工程师',
+    roleIds: ['engineer'],
+    status: 'active',
+    mustChangePassword: false,
+    password: hashPassword('Engineer-Pass-2026'),
+    lastLogin: null,
+  },
+  {
+    id: 'u_1002',
+    username: 'viewer',
+    displayName: '只读巡检',
+    roleIds: ['viewer'],
+    status: 'active',
+    mustChangePassword: false,
+    password: hashPassword('Viewer-Pass-2026'),
+    lastLogin: null,
+  },
+];
+
+const sessions = new Map();
+const loginFailures = new Map(); // `${username}|${ip}` → {count, lockedUntil}
+const idempotency = new Map(); // key → {digest, response}
+const transactions = new Map();
+const tasks = new Map();
+const auditLog = [];
+let policyRevision = 1;
+let configRevision = 7;
+
+const capabilities = {
+  iems: {
+    productId: 'iems',
+    model: 'IEMS-300-4G',
+    firmware: registry.productVersion,
+    capabilityRevision: 17,
+    schemaVersion: 1,
+    hardware: {
+      'network.ethernet.ports': 2,
+      'io.rs485.ports': 2,
+      'storage.sdcard': true,
+      // 台架型号没有蜂窝模块：用来验证"能力缺失 → 菜单不出现 + API 拒绝"
+      'network.cellular': false,
+    },
+    software: { 'collector.modbus': true, 'collector.iec104': true },
+    entitlements: {
+      'iems.peak-shaving': { state: 'active', expiresAt: null },
+      'iems.cloud-advanced': { state: 'absent', expiresAt: null },
+    },
+    runtimeHealth: { 'collector.modbus': 'healthy' },
+  },
+  dcu: {
+    productId: 'dcu',
+    model: 'DCU-200',
+    firmware: registry.productVersion,
+    capabilityRevision: 9,
+    schemaVersion: 1,
+    hardware: { 'network.ethernet.ports': 1, 'io.rs485.ports': 4, 'network.cellular': true },
+    software: { 'collector.modbus': true, 'collector.dlt698': true },
+    entitlements: {},
+    runtimeHealth: { 'collector.modbus': 'healthy' },
+  },
+};
+
+function capabilitySnapshot() {
+  return capabilities[PRODUCT] ?? capabilities.iems;
+}
+
+// ---------------------------------------------------------------- 授权引擎
+function roleById(id) {
+  return registry.roles.find((role) => role.id === id);
+}
+
+/** 权限闭包：显式依赖一并计入（write 不隐含 read，但目录可以声明依赖）。 */
+function effectivePermissions(user) {
+  const out = new Set();
+  const visit = (id) => {
+    if (out.has(id)) return;
+    out.add(id);
+    for (const dep of permissionDeps.get(id) ?? []) visit(dep);
+  };
+  for (const roleId of user.roleIds) {
+    for (const perm of roleById(roleId)?.permissions ?? []) visit(perm);
+  }
+  return out;
+}
+
+function mePayload(user, session) {
+  return {
+    userId: user.id,
+    username: user.username,
+    displayName: user.displayName,
+    roles: user.roleIds.map((roleId) => ({ roleId, scope: { type: 'gateway', id: 'self' } })),
+    permissions: [...effectivePermissions(user)].sort(),
+    scopes: ['gateway:self'],
+    mustChangePassword: user.mustChangePassword,
+    policyRevision,
+    csrfToken: session.csrf,
+    sessionExpiresAt: new Date(session.absoluteExpiresAt).toISOString(),
+  };
+}
+
+function capabilityAvailable(key) {
+  const snapshot = capabilitySnapshot();
+  const [scope, ...rest] = key.split('.');
+  const value = (snapshot[scope] ?? {})[rest.join('.')];
+  if (value === undefined) return false;
+  if (typeof value === 'number') return value > 0;
+  return value === true;
+}
+
+function entitlementActive(key) {
+  const entry = capabilitySnapshot().entitlements?.[key];
+  if (!entry) return false;
+  if (entry.state !== 'active') return false;
+  if (entry.expiresAt && Date.parse(entry.expiresAt) <= now()) return false;
+  return true;
+}
+
+/** 与前端 buildMenu 同一套语义，但**服务端独立计算**——前端结果不参与判定。 */
+function authorize(req, op, session) {
+  if (op.anonymous) return null;
+  if (!session) return { status: 401, code: 'unauthenticated', message: '需要登录' };
+  const user = users.find((candidate) => candidate.id === session.userId);
+  if (!user || user.status !== 'active') return { status: 401, code: 'session_revoked', message: '会话已失效' };
+
+  const granted = effectivePermissions(user);
+  for (const perm of op.permissions) {
+    if (!granted.has(perm)) {
+      return { status: 403, code: 'permission_denied', message: `缺少权限 ${perm}`, details: { permission: perm } };
+    }
+  }
+  for (const cap of op.capabilities) {
+    if (!capabilityAvailable(cap)) {
+      return { status: 403, code: 'capability_unavailable', message: `当前设备不具备能力 ${cap}`, details: { capability: cap } };
+    }
+  }
+  for (const ent of op.entitlements) {
+    if (!entitlementActive(ent)) {
+      return { status: 403, code: 'entitlement_inactive', message: `功能授权未生效 ${ent}`, details: { entitlement: ent } };
+    }
+  }
+  // 配置分区权限由 sectionId 解析（§7.2 配置 API 权限解析）
+  if (op.permissionSource === 'config-section') {
+    const sectionId = req.body?.sectionId ?? req.params?.sectionId;
+    if (sectionId) {
+      const required = SECTION_PERMISSIONS[sectionId];
+      if (!required) return { status: 403, code: 'unknown_section', message: `未知配置分区 ${sectionId}` };
+      if (!granted.has(required)) {
+        return { status: 403, code: 'permission_denied', message: `缺少权限 ${required}`, details: { permission: required } };
+      }
+    }
+  }
+  if (op.authorizationPolicy === 'task-cancel-v1') {
+    const task = tasks.get(req.params?.id);
+    if (!task) return { status: 404, code: 'not_found', message: '任务不存在' };
+    const isOwner = task.createdBy === user.id;
+    if (isOwner) {
+      if (!task.ownerCancel) return { status: 403, code: 'cancel_not_allowed', message: '该任务类型不允许创建者取消' };
+      if (!granted.has(task.requiredPermission)) {
+        return { status: 403, code: 'permission_denied', message: '已失去执行该任务的权限' };
+      }
+    } else if (!granted.has('core.task:cancel')) {
+      return { status: 403, code: 'permission_denied', message: '跨用户取消需要 core.task:cancel' };
+    }
+    if (!task.cancelableStages.includes(task.stage)) {
+      return { status: 409, code: 'stage_not_cancelable', message: `阶段 ${task.stage} 不可安全取消` };
+    }
+  }
+  return null;
+}
+
+const SECTION_PERMISSIONS = {
+  'network.interfaces': 'network.interface:write',
+  'network.routes': 'network.route:write',
+  'network.firewall': 'network.firewall:write',
+  'system.time': 'system.time:write',
+  'system.certificates': 'system.cert:write',
+};
+
+// ---------------------------------------------------------------- 路由表
+/** 把 `/api/v1/users/{id}` 编译成正则；同一份表既用于匹配也用于授权。 */
+const routes = registry.api.map((op) => {
+  const pattern = new RegExp('^' + compilePath(op.path) + '$');
+  const names = [...op.path.matchAll(/\{([^}]+)\}/g)].map((m) => m[1]);
+  return { op, pattern, names };
+});
+
+/** 把 `/api/v1/users/{id}` 编译成正则片段：先按占位符切分，再逐段转义，避免把 `{}` 转义坏。 */
+function compilePath(routePath) {
+  return routePath
+    .split(/(\{[^}]+\})/)
+    .map((segment) => (/^\{[^}]+\}$/.test(segment) ? '([^/]+)' : segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+    .join('');
+}
+
+const handlers = {
+  'GET /api/v1/system/info': (ctx) => ({
+    productId: registry.productId,
+    displayName: registry.productName,
+    language: 'zh-CN',
+    themeVersion: `${registry.productVersion}-theme1`,
+    loginHint: '首次登录需修改初始口令',
+  }),
+
+  'POST /api/v1/auth/login': (ctx) => {
+    const { username, password } = ctx.body ?? {};
+    const key = `${username}|${ctx.ip}`;
+    const failure = loginFailures.get(key);
+    if (failure?.lockedUntil && failure.lockedUntil > now()) {
+      throw httpError(429, 'too_many_attempts', '登录尝试过于频繁，请稍后再试');
+    }
+    const user = users.find((candidate) => candidate.username === username);
+    if (!user || !verifyPassword(String(password ?? ''), user.password)) {
+      const next = { count: (failure?.count ?? 0) + 1, lockedUntil: 0 };
+      if (next.count >= 5) next.lockedUntil = now() + 30_000;
+      loginFailures.set(key, next);
+      audit(ctx, 'auth.login.failed', { username });
+      // 统一文案，避免账号枚举
+      throw httpError(401, 'invalid_credentials', '用户名或口令错误');
+    }
+    if (user.status !== 'active') throw httpError(403, 'account_disabled', '账号已禁用');
+    loginFailures.delete(key);
+    const session = createSession(user);
+    user.lastLogin = new Date().toISOString();
+    audit(ctx, 'auth.login.success', { userId: user.id });
+    ctx.setSession(session);
+    return { user: mePayload(user, session) };
+  },
+
+  'POST /api/v1/auth/logout': (ctx) => {
+    sessions.delete(ctx.session.sid);
+    ctx.clearSession();
+    return null;
+  },
+
+  'GET /api/v1/auth/me': (ctx) => {
+    const user = users.find((candidate) => candidate.id === ctx.session.userId);
+    return mePayload(user, ctx.session);
+  },
+
+  'POST /api/v1/auth/password': (ctx) => {
+    const user = users.find((candidate) => candidate.id === ctx.session.userId);
+    const { currentPassword, newPassword } = ctx.body ?? {};
+    if (!verifyPassword(String(currentPassword ?? ''), user.password)) {
+      throw httpError(400, 'invalid_current_password', '当前口令不正确');
+    }
+    if (String(newPassword ?? '').length < 12) {
+      throw httpError(400, 'weak_password', '口令长度不足 12 位');
+    }
+    if (newPassword === user.username) throw httpError(400, 'weak_password', '口令不能与用户名相同');
+    user.password = hashPassword(newPassword);
+    user.mustChangePassword = false;
+    // 改密后撤销其他会话，并轮换当前会话（§5.6）
+    for (const [sid, session] of sessions) if (session.userId === user.id && sid !== ctx.session.sid) sessions.delete(sid);
+    rotateSession(ctx.session);
+    audit(ctx, 'auth.password.changed', { userId: user.id });
+    return null;
+  },
+
+  'GET /api/v1/system/capabilities': () => capabilitySnapshot(),
+
+  'GET /api/v1/users': () => ({
+    items: users.map((user) => ({
+      id: user.id,
+      username: user.username,
+      displayName: user.displayName,
+      roles: user.roleIds,
+      status: user.status,
+      mustChangePassword: user.mustChangePassword,
+      lastLogin: user.lastLogin,
+    })),
+  }),
+
+  'POST /api/v1/users': (ctx) => {
+    const { username, roleIds } = ctx.body ?? {};
+    if (!username || users.some((user) => user.username === username)) {
+      throw httpError(409, 'username_taken', '用户名已存在');
+    }
+    const user = {
+      id: `u_${1000 + users.length + 1}`,
+      username,
+      displayName: username,
+      roleIds: Array.isArray(roleIds) && roleIds.length ? roleIds : ['viewer'],
+      status: 'active',
+      mustChangePassword: true,
+      password: hashPassword(randomBytes(12).toString('base64url')),
+      lastLogin: null,
+    };
+    users.push(user);
+    audit(ctx, 'user.created', { userId: user.id, roleIds: user.roleIds });
+    return { id: user.id, username: user.username, mustChangePassword: true };
+  },
+
+  'GET /api/v1/users/{id}': (ctx) => {
+    const user = users.find((candidate) => candidate.id === ctx.params.id);
+    if (!user) throw httpError(404, 'not_found', '用户不存在');
+    return { id: user.id, username: user.username, roles: user.roleIds, status: user.status };
+  },
+
+  'PATCH /api/v1/users/{id}': (ctx) => {
+    const user = users.find((candidate) => candidate.id === ctx.params.id);
+    if (!user) throw httpError(404, 'not_found', '用户不存在');
+    if (ctx.body?.status === 'disabled') {
+      const activeAdmins = users.filter((candidate) => candidate.status === 'active' && candidate.roleIds.includes('admin'));
+      if (user.roleIds.includes('admin') && activeAdmins.length <= 1) {
+        throw httpError(409, 'last_admin', '不能禁用最后一个可用管理员');
+      }
+      user.status = 'disabled';
+    }
+    if (Array.isArray(ctx.body?.roleIds)) user.roleIds = ctx.body.roleIds;
+    audit(ctx, 'user.updated', { userId: user.id });
+    return { id: user.id, status: user.status, roles: user.roleIds };
+  },
+
+  'DELETE /api/v1/users/{id}': (ctx) => {
+    const index = users.findIndex((candidate) => candidate.id === ctx.params.id);
+    if (index < 0) throw httpError(404, 'not_found', '用户不存在');
+    const user = users[index];
+    const activeAdmins = users.filter((candidate) => candidate.status === 'active' && candidate.roleIds.includes('admin'));
+    if (user.roleIds.includes('admin') && activeAdmins.length <= 1) {
+      throw httpError(409, 'last_admin', '不能删除最后一个可用管理员');
+    }
+    users.splice(index, 1);
+    audit(ctx, 'user.deleted', { userId: user.id });
+    return null;
+  },
+
+  'GET /api/v1/roles': () => ({
+    items: registry.roles.map((role) => ({
+      id: role.id,
+      name: role.name,
+      builtin: role.builtin,
+      permissions: role.permissions,
+    })),
+  }),
+
+  'POST /api/v1/roles': (ctx) => {
+    const { id, name, permissions } = ctx.body ?? {};
+    if (!id) throw httpError(400, 'invalid_request', '缺少角色 id');
+    if (registry.roles.some((role) => role.id === id)) throw httpError(409, 'role_exists', '角色已存在');
+    const actor = users.find((candidate) => candidate.id === ctx.session.userId);
+    const granted = effectivePermissions(actor);
+    for (const perm of permissions ?? []) {
+      if (!granted.has(perm)) {
+        throw httpError(403, 'grant_escalation', `不能授予自己没有的权限 ${perm}`);
+      }
+    }
+    registry.roles.push({ id, name: name ?? id, builtin: false, permissions: [...(permissions ?? [])].sort() });
+    return { id };
+  },
+
+  'GET /api/v1/network/interfaces': () => ({
+    items: [
+      { id: 'eth0', name: 'eth0', mac: '02:00:00:00:00:01', addresses: ['192.168.10.21/24'], state: 'up', speedMbps: 1000 },
+      { id: 'eth1', name: 'eth1', mac: '02:00:00:00:00:02', addresses: [], state: 'down', speedMbps: null },
+    ],
+  }),
+
+  'PATCH /api/v1/network/interfaces/{id}': (ctx) => {
+    const transaction = createTransaction(ctx, 'network.interfaces', ctx.body ?? {});
+    return { transactionId: transaction.id, state: transaction.state };
+  },
+
+  'GET /api/v1/network/cellular': () => ({
+    state: 'connected',
+    operator: 'CHN-UNICOM',
+    technology: 'LTE Cat.4',
+    signalDbm: -71,
+    rxBytes: 734003200,
+    txBytes: 41943040,
+    updatedAt: new Date(now() - 8000).toISOString(),
+  }),
+
+  'GET /api/v1/system/services': () => ({
+    items: [
+      { id: 'collector', name: '采集服务', state: 'running', since: new Date(now() - 86400000).toISOString() },
+      { id: 'northbound', name: '北向服务', state: 'running', since: new Date(now() - 86400000).toISOString() },
+      { id: 'webd', name: 'Web 网关', state: 'running', since: new Date(now() - 3600000).toISOString() },
+    ],
+  }),
+
+  'POST /api/v1/system/services/{id}/actions/{action}': (ctx) => {
+    const allowed = ['start', 'stop', 'restart'];
+    if (!allowed.includes(ctx.params.action)) throw httpError(400, 'invalid_action', '不支持的 action');
+    const task = createTask(ctx, {
+      type: `service.${ctx.params.action}`,
+      target: ctx.params.id,
+      requiredPermission: 'system.service:execute',
+      ownerCancel: true,
+      cancelableStages: ['QUEUED', 'RUNNING'],
+    });
+    return { taskId: task.id, state: task.state };
+  },
+
+  'POST /api/v1/system/reboot': (ctx) => {
+    const task = createTask(ctx, { type: 'system.reboot', target: 'gateway', requiredPermission: 'system.reboot:execute', ownerCancel: false, cancelableStages: [] });
+    return { taskId: task.id, state: task.state };
+  },
+
+  'POST /api/v1/system/upgrade': () => {
+    throw httpError(404, 'feature_disabled', '该 release 未启用固件升级');
+  },
+
+  'GET /api/v1/logs/system': () => ({
+    items: [
+      { ts: new Date(now() - 5000).toISOString(), level: 'info', service: 'collector', message: 'modbus poll ok (2 slaves)' },
+      { ts: new Date(now() - 12000).toISOString(), level: 'warn', service: 'northbound', message: 'mqtt reconnect in 2s' },
+    ],
+    nextCursor: null,
+  }),
+
+  'GET /api/v1/logs/audit': () => ({ items: auditLog.slice(-50).reverse(), nextCursor: null }),
+
+  'POST /api/v1/config/transactions': (ctx) => {
+    const sectionId = ctx.body?.sectionId;
+    if (!sectionId) throw httpError(400, 'invalid_request', '缺少 sectionId');
+    const transaction = createTransaction(ctx, sectionId, ctx.body?.values ?? {});
+    return { transactionId: transaction.id, state: transaction.state, baseRevision: transaction.baseRevision };
+  },
+
+  'GET /api/v1/config/transactions/{id}': (ctx) => publicTransaction(ctx.params.id),
+
+  'PUT /api/v1/config/transactions/{id}/sections/{sectionId}': (ctx) => {
+    const transaction = transactions.get(ctx.params.id);
+    if (!transaction) throw httpError(404, 'not_found', '事务不存在');
+    if (transaction.state !== 'DRAFT') throw httpError(409, 'invalid_state', `事务状态 ${transaction.state} 不可写入`);
+    const baseRevision = ctx.body?.baseRevision;
+    if (baseRevision !== undefined && baseRevision !== transaction.baseRevision) {
+      throw httpError(409, 'revision_conflict', '基线版本已变化，请重新加载后编辑');
+    }
+    transaction.values = { ...transaction.values, ...(ctx.body?.values ?? {}) };
+    return { state: transaction.state, revision: transaction.revision };
+  },
+
+  'POST /api/v1/config/transactions/{id}/apply': (ctx) => {
+    const transaction = transactions.get(ctx.params.id);
+    if (!transaction) throw httpError(404, 'not_found', '事务不存在');
+    if (transaction.state === 'PENDING_CONFIRM' || transaction.state === 'CONFIRMED') {
+      return { transactionId: transaction.id, state: transaction.state, idempotent: true };
+    }
+    if (transaction.state !== 'DRAFT' && transaction.state !== 'VALIDATING') {
+      throw httpError(409, 'invalid_state', `事务状态 ${transaction.state} 不可应用`);
+    }
+    transaction.state = 'VALIDATING';
+    transaction.state = 'APPLYING';
+    configRevision += 1;
+    transaction.appliedRevision = configRevision;
+    transaction.appliedAt = new Date().toISOString();
+    // R2：需要确认窗口；deadline 由设备侧 watchdog 负责，浏览器计时器不算数
+    transaction.state = 'PENDING_CONFIRM';
+    transaction.deadline = new Date(now() + CONFIRM_WINDOW_MS).toISOString();
+    audit(ctx, 'config.applied', { transactionId: transaction.id, sectionId: transaction.sectionId });
+    return { transactionId: transaction.id, state: transaction.state, deadline: transaction.deadline };
+  },
+
+  'POST /api/v1/config/transactions/{id}/confirm': (ctx) => {
+    const transaction = transactions.get(ctx.params.id);
+    if (!transaction) throw httpError(404, 'not_found', '事务不存在');
+    if (transaction.state === 'CONFIRMED') return { transactionId: transaction.id, state: 'CONFIRMED', idempotent: true };
+    if (transaction.state !== 'PENDING_CONFIRM') throw httpError(409, 'invalid_state', `事务状态 ${transaction.state} 不可确认`);
+    if (transaction.deadline && Date.parse(transaction.deadline) < now()) {
+      transaction.state = 'ROLLING_BACK';
+      transaction.state = 'ROLLED_BACK';
+      throw httpError(409, 'deadline_expired', '确认窗口已过期，已回滚');
+    }
+    transaction.state = 'CONFIRMED';
+    transaction.confirmedAt = new Date().toISOString();
+    audit(ctx, 'config.confirmed', { transactionId: transaction.id });
+    return { transactionId: transaction.id, state: transaction.state };
+  },
+
+  'POST /api/v1/config/transactions/{id}/rollback': (ctx) => {
+    const transaction = transactions.get(ctx.params.id);
+    if (!transaction) throw httpError(404, 'not_found', '事务不存在');
+    if (transaction.state === 'ROLLED_BACK') return { transactionId: transaction.id, state: 'ROLLED_BACK', idempotent: true };
+    if (!['PENDING_CONFIRM', 'APPLYING', 'CONFIRMED'].includes(transaction.state)) {
+      throw httpError(409, 'invalid_state', `事务状态 ${transaction.state} 不可回滚`);
+    }
+    transaction.state = 'ROLLING_BACK';
+    transaction.state = 'ROLLED_BACK';
+    transaction.rolledBackAt = new Date().toISOString();
+    audit(ctx, 'config.rolledback', { transactionId: transaction.id });
+    return { transactionId: transaction.id, state: transaction.state };
+  },
+
+  'GET /api/v1/tasks': () => ({ items: [...tasks.values()].map(publicTask) }),
+
+  'GET /api/v1/tasks/{id}': (ctx) => {
+    const task = tasks.get(ctx.params.id);
+    if (!task) throw httpError(404, 'not_found', '任务不存在');
+    return publicTask(task);
+  },
+
+  'POST /api/v1/tasks/{id}/cancel': (ctx) => {
+    const task = tasks.get(ctx.params.id);
+    task.state = 'CANCELING';
+    task.state = 'CANCELED';
+    task.updatedAt = new Date().toISOString();
+    audit(ctx, 'task.canceled', { taskId: task.id });
+    return { taskId: task.id, state: task.state };
+  },
+
+  'GET /api/v1/ws': () => {
+    throw httpError(426, 'upgrade_required', '该接口只接受 WebSocket 升级');
+  },
+
+  // ---- 迁移期的取数面（旧页面仍在使用，逐步收敛到 Pack API） ----
+  'GET /api/v1/contracts': () => legacyContract(),
+
+  'GET /api/v1/data/latest/{tag}': (ctx) => ({
+    id: ctx.params.tag,
+    value: Number((220 + Math.sin(now() / 5000) * 3).toFixed(2)),
+    unit: 'V',
+    quality: 'good',
+    ts: new Date().toISOString(),
+  }),
+
+  // ---- Pack 扩展接口 ----
+  'GET /api/v1/iems/telemetry': () => ({
+    soc: 68.4,
+    pvPowerKw: 42.1,
+    gridPowerKw: -12.6,
+    loadPowerKw: 29.5,
+    updatedAt: new Date(now() - 3000).toISOString(),
+  }),
+
+  'GET /api/v1/iems/strategy': () => ({
+    items: [
+      { id: 'peak-shaving', name: '削峰填谷', enabled: true, window: '08:00-11:30 / 18:00-21:00' },
+      { id: 'demand-control', name: '需量控制', enabled: false, window: '—' },
+    ],
+  }),
+
+  'GET /api/v1/dcu/meters': () => ({
+    items: [
+      { id: 'm_0001', address: '00000001', name: '1# 进线表', protocol: 'DLT698.45', online: true, lastReadingAt: new Date(now() - 60000).toISOString() },
+      { id: 'm_0002', address: '00000002', name: '2# 馈线表', protocol: 'DLT645-2007', online: false, lastReadingAt: new Date(now() - 3600000).toISOString() },
+    ],
+  }),
+
+  'GET /api/v1/dcu/frames': () => ({
+    items: [
+      { ts: new Date(now() - 2000).toISOString(), direction: 'rx', channel: 'rs485-1', hex: '68 12 34 56 78 90 12 68 11 04 33 33 34 33 78 16' },
+    ],
+  }),
+};
+
+// ---------------------------------------------------------------- 事务/任务
+function createTransaction(ctx, sectionId, values) {
+  const id = `tx_${randomUUID().slice(0, 8)}`;
+  const transaction = {
+    id,
+    sectionId,
+    values,
+    baseRevision: configRevision,
+    revision: configRevision + 1,
+    state: 'DRAFT',
+    createdBy: ctx.session.userId,
+    createdAt: new Date().toISOString(),
+    deadline: null,
+    appliedRevision: null,
+    appliedAt: null,
+    confirmedAt: null,
+    rolledBackAt: null,
+  };
+  transactions.set(id, transaction);
+  audit(ctx, 'config.draft.created', { transactionId: id, sectionId });
+  return transaction;
+}
+
+function publicTransaction(id) {
+  const transaction = transactions.get(id);
+  if (!transaction) throw httpError(404, 'not_found', '事务不存在');
+  return { ...transaction };
+}
+
+function createTask(ctx, { type, target, requiredPermission, ownerCancel, cancelableStages }) {
+  const id = `task_${randomUUID().slice(0, 8)}`;
+  const task = {
+    id,
+    type,
+    target,
+    state: 'QUEUED',
+    stage: 'QUEUED',
+    progress: 0,
+    createdBy: ctx.session.userId,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    requiredPermission,
+    ownerCancel,
+    cancelableStages,
+    result: null,
+  };
+  tasks.set(id, task);
+  audit(ctx, 'task.created', { taskId: id, type });
+  return task;
+}
+
+function publicTask(task) {
+  const { requiredPermission, ownerCancel, cancelableStages, ...rest } = task;
+  return rest;
+}
+
+// ---------------------------------------------------------------- 会话
+function createSession(user) {
+  const sid = randomBytes(24).toString('base64url');
+  const session = {
+    sid,
+    userId: user.id,
+    csrf: randomBytes(18).toString('base64url'),
+    createdAt: now(),
+    lastSeenAt: now(),
+    absoluteExpiresAt: now() + ABSOLUTE_TIMEOUT_MS,
+  };
+  sessions.set(sid, session);
+  return session;
+}
+
+function rotateSession(session) {
+  session.csrf = randomBytes(18).toString('base64url');
+  session.lastSeenAt = now();
+}
+
+function loadSession(req) {
+  const sid = parseCookies(req.headers.cookie ?? '')['edgeos_sid'];
+  if (!sid) return null;
+  const session = sessions.get(sid);
+  if (!session) return null;
+  if (now() - session.lastSeenAt > IDLE_TIMEOUT_MS || now() > session.absoluteExpiresAt) {
+    sessions.delete(sid);
+    return null;
+  }
+  session.lastSeenAt = now();
+  return session;
+}
+
+function parseCookies(header) {
+  const out = {};
+  for (const part of header.split(';')) {
+    const index = part.indexOf('=');
+    if (index < 0) continue;
+    out[part.slice(0, index).trim()] = decodeURIComponent(part.slice(index + 1).trim());
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- 审计（内存）
+function audit(ctx, action, detail) {
+  auditLog.push({
+    ts: new Date().toISOString(),
+    action,
+    actor: ctx.session?.userId ?? 'anonymous',
+    requestId: ctx.requestId,
+    detail,
+  });
+  if (auditLog.length > 500) auditLog.shift();
+}
+
+// ---------------------------------------------------------------- HTTP
+function httpError(status, code, message, details) {
+  const error = new Error(message);
+  error.status = status;
+  error.code = code;
+  error.details = details;
+  return error;
+}
+
+function sendJson(res, status, payload, extraHeaders = {}) {
+  const body = payload === null ? '' : JSON.stringify(payload);
+  res.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+    ...extraHeaders,
+  });
+  res.end(body);
+}
+
+function sendError(res, status, code, message, requestId, details) {
+  sendJson(res, status, { code, message, details, requestId });
+}
+
+async function readBody(req) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > 1024 * 1024) throw httpError(413, 'payload_too_large', '请求体过大');
+    chunks.push(chunk);
+  }
+  if (chunks.length === 0) return null;
+  const text = Buffer.concat(chunks).toString('utf8');
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw httpError(400, 'invalid_json', '请求体不是合法 JSON');
+  }
+}
+
+function checkHostAndOrigin(req) {
+  const host = (req.headers.host ?? '').split(':')[0];
+  if (!HOST_ALLOWLIST.has(host)) throw httpError(421, 'host_not_allowed', `Host 不在 allowlist: ${host}`);
+
+  const method = req.method ?? 'GET';
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) return;
+  const origin = req.headers.origin;
+  if (!origin) throw httpError(403, 'origin_required', '状态变更请求必须带 Origin');
+  const originHost = new URL(origin).hostname;
+  if (!HOST_ALLOWLIST.has(originHost)) throw httpError(403, 'origin_not_allowed', `Origin 不在 allowlist: ${originHost}`);
+}
+
+function checkCsrf(req, session) {
+  const method = req.method ?? 'GET';
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) return;
+  if (!session) return; // 登录接口无会话，靠 Origin + 限流
+  const token = req.headers['x-csrf-token'];
+  if (token !== session.csrf) throw httpError(403, 'csrf_failed', 'CSRF token 校验失败');
+}
+
+const server = http.createServer(async (req, res) => {
+  const requestId = randomUUID();
+  const started = now();
+  const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+
+  if (!url.pathname.startsWith('/api/')) {
+    return serveStatic(res, url.pathname);
+  }
+
+  try {
+    checkHostAndOrigin(req);
+    const session = loadSession(req);
+    checkCsrf(req, session);
+
+    const route = routes.find((candidate) => candidate.op.method === req.method && candidate.pattern.test(url.pathname));
+    if (!route) throw httpError(404, 'not_found', `未登记的路由: ${req.method} ${url.pathname}`);
+
+    const params = {};
+    const match = route.pattern.exec(url.pathname);
+    route.names.forEach((name, index) => {
+      params[name] = decodeURIComponent(match[index + 1]);
+    });
+
+    const body = ['POST', 'PUT', 'PATCH'].includes(req.method ?? '') ? await readBody(req) : null;
+    const ctx = {
+      req,
+      res,
+      params,
+      body,
+      requestId,
+      session,
+      ip: req.socket.remoteAddress ?? 'unknown',
+      setSession: (created) => {
+        res.setHeader(
+          'Set-Cookie',
+          `edgeos_sid=${created.sid}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${Math.floor(ABSOLUTE_TIMEOUT_MS / 1000)}`,
+        );
+      },
+      clearSession: () => {
+        res.setHeader('Set-Cookie', 'edgeos_sid=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
+      },
+    };
+
+    const denial = authorize(req, route.op, session);
+    if (denial) {
+      audit(ctx, 'authz.denied', { operationId: route.op.operationId, code: denial.code });
+      throw httpError(denial.status, denial.code, denial.message, denial.details);
+    }
+
+    const handler = handlers[`${route.op.method} ${route.op.path}`];
+    if (!handler) throw httpError(501, 'not_implemented', `接口已登记但未实现: ${route.op.operationId}`);
+
+    // 幂等：同 key 同摘要返回同一结果，不同摘要冲突（§7.1 规则 7）
+    const idempotencyKey = req.headers['idempotency-key'];
+    if (idempotencyKey && ['POST', 'PUT'].includes(req.method ?? '')) {
+      const digest = createHash('sha256').update(JSON.stringify(body ?? {})).digest('hex');
+      const previous = idempotency.get(String(idempotencyKey));
+      if (previous) {
+        if (previous.digest !== digest) throw httpError(409, 'idempotency_conflict', '相同幂等键的请求摘要不同');
+        return sendJson(res, previous.status, previous.payload);
+      }
+      const result = handler(ctx);
+      idempotency.set(String(idempotencyKey), { digest, status: 200, payload: result });
+      return sendJson(res, 200, result);
+    }
+
+    const result = handler(ctx);
+    const status = req.method === 'POST' && route.op.path.endsWith('/users') ? 201 : result === null ? 204 : 200;
+    if (result === null) {
+      res.writeHead(204, { 'Cache-Control': 'no-store' });
+      res.end();
+      return;
+    }
+    sendJson(res, status, result);
+  } catch (err) {
+    const status = err.status ?? 500;
+    if (status >= 500) console.error(`[mock] ${req.method} ${url.pathname} → ${status}`, err);
+    sendError(res, status, err.code ?? 'internal_error', err.message ?? '内部错误', requestId, err.details);
+  } finally {
+    if (process.env.EDGEOS_MOCK_LOG) {
+      console.log(`[mock] ${req.method} ${url.pathname} ${now() - started}ms`);
+    }
+  }
+});
+
+function serveStatic(res, pathname) {
+  if (!STATIC_DIR) {
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('未配置 --static，仅提供 API');
+    return;
+  }
+  const safePath = pathname === '/' ? '/index.html' : pathname;
+  const target = path.join(STATIC_DIR, path.normalize(safePath).replace(/^([/\\])+/, ''));
+  if (!target.startsWith(STATIC_DIR) || !existsSync(target) || !statSync(target).isFile()) {
+    // SPA 回退
+    const indexFile = path.join(STATIC_DIR, 'index.html');
+    if (!existsSync(indexFile)) {
+      res.writeHead(404);
+      res.end('not found');
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+    createReadStream(indexFile).pipe(res);
+    return;
+  }
+  const ext = path.extname(target);
+  const type = ext === '.js' ? 'text/javascript' : ext === '.css' ? 'text/css' : ext === '.html' ? 'text/html' : 'application/octet-stream';
+  res.writeHead(200, {
+    'Content-Type': `${type}; charset=utf-8`,
+    'Cache-Control': ext === '.html' ? 'no-store' : 'public, max-age=31536000, immutable',
+  });
+  createReadStream(target).pipe(res);
+}
+
+function legacyContract() {
+  return {
+    product_name: registry.productName,
+    generated_at: new Date().toISOString(),
+    active_tags: [
+      { id: 'VOLTAGE_PHASE_A', name: 'VOLTAGE_PHASE_A', attributes: { ui: { label: 'A 相电压', unit: 'V', group: '电气量', precision: 1 } } },
+      { id: 'CURRENT_PHASE_A', name: 'CURRENT_PHASE_A', attributes: { ui: { label: 'A 相电流', unit: 'A', group: '电气量', precision: 2 } } },
+      { id: 'SOC', name: 'SOC', attributes: { ui: { label: 'SOC', unit: '%', group: '储能', precision: 1 } } },
+    ],
+    all_tags: [],
+    ui_config: { branding: { title: registry.productName, theme: 'dark', logo: '/logo.svg' }, navigation: {} },
+  };
+}
+
+server.listen(PORT, HOST, () => {
+  console.log(`[mock] product=${PRODUCT} listening http://${HOST}:${PORT}  registry=${registry.digests.registry.slice(0, 23)}…`);
+  console.log(`[mock] routes=${routes.length}  static=${STATIC_DIR ?? '(none)'}`);
+});
+
+process.on('SIGTERM', () => server.close(() => process.exit(0)));
+process.on('SIGINT', () => server.close(() => process.exit(0)));

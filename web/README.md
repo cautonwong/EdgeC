@@ -1,54 +1,110 @@
-# EdgeOS Web Infrastructure (Contract-Driven UI)
+# EdgeOS WebUI 平台
 
-EdgeOS Web 是一套基于 **契约驱动 (Contract-Driven)** 理念构建的工业监控前端。它实现了 UI 展现与后端业务逻辑的高度解耦，是整个 SDK 的“视觉中枢”。
+一套 Core 支撑多个产品（iEMS / DCU / SmartBox），每个产品只写自己的 **Product Pack**。
+设计依据：[`边缘网关_WebUI平台详细设计文档_v1.6_最终设计基线.md`](./边缘网关_WebUI平台详细设计文档_v1.6_最终设计基线.md)。
 
-## 1. 核心架构 (Architecture)
+## 1. 这一层解决什么问题
 
-### 🧩 框架组织
-*   **Web Core (`web/core`)**：公共组件库、通用布局 (`AdminLayout`)、路由规则。核心逻辑由 TypeScript 编写，样式基于 Tailwind CSS。
-*   **Web Products (`web/products/`)**：产品级工程（如 `iems`）。它几乎不包含业务页面，仅负责产品个性的声明（Branding）和特定契约的加载。
+旧实现是"契约驱动 UI"：前端启动后从 `/api/v1/contracts` 拉点位表，按 `ui.group` 现场拼菜单。
+它有三个结构性问题，重构就是为了消掉它们：
 
-### 📡 动态渲染链路 (The Telemetry Pipeline)
-1.  **加载阶段**：前端通过 `/api/v1/contracts` 接口获取后端生成的 `contracts.yaml`。
-2.  **契约映射**：`ContractLoader.ts` 自动解析其中的 `active_tags`，根据点位的 `ui.group` 属性动态构建侧边栏菜单和仪表盘布局。
-3.  **数据刷新**：每个测点卡片 (`LiveTagCard`) 独立向后端 Shadow 表发起请求，利用 C 语言无锁内存的高性能实现毫秒级数据同步。
+| 旧问题 | 现在的做法 |
+| --- | --- |
+| 菜单由运行期数据决定 → 权限/能力无从表达 | 菜单由**构建期生成的静态 Registry** ∩ 用户权限 ∩ 设备能力 ∩ 功能许可决定 |
+| 每个产品各写一套 Shell、权限各写一遍 | Core 提供 Shell / 授权呈现 / 组件库；Pack 只声明页面、权限引用与主题 |
+| 前端隐藏被当成安全边界 | 每个 API 由服务端逐请求判定（权限 + 范围 + 能力 + 许可），前端只影响呈现 |
 
----
+## 2. 目录与分层
 
-## 2. 视觉规范 (Visual Identity)
-
-为了匹配工业控制场景的严谨与前卫，UI 采用了以下设计语言：
-*   **沉浸式工业蓝**：侧边栏使用 `Slate-950` 深色系，顶部 Hero 区域采用星空径向渐变。
-*   **玻璃拟态 (Glassmorphism)**：数据卡片采用半透明模糊背景与细腻阴影，提升视觉层次感。
-*   **数据动效**：数值发生变动时，字体颜色会产生 400ms 的闪烁反馈（Flash Effect），帮助操作员实时感知变化。
-*   **响应式侧边栏**：支持点击式完全收缩，为主内容区提供 100% 的展示空间。
-
----
-
-## 3. 开发与部署
-
-### 路径探测机制
-Web UI 具备 **环境感知能力**。后端程序（如 IEMS 二进制）启动时，会自动在以下路径搜索 Web 资源：
-1. `../www` (生产部署路径)
-2. `./build/products/iems/www` (项目根目录开发路径)
-3. `./www` (本地开发路径)
-
-### 构建命令
-CMake 会自动处理 Web 构建，但您也可以手动执行：
-```bash
-cd web/products/iems
-npm install
-npm run build
+```
+web/
+├─ core/                        # @edgeos/web-core（npm workspace，Pack 唯一依赖方向）
+│  ├─ modules.manifest.yaml     # Core 模块与页面清单（构建输入）
+│  └─ src/
+│     ├─ sdk/                   # 类型 + 纯逻辑：权限合成、页面可见性、Registry 自检、请求层
+│     ├─ ui/                    # Design Token（三层）+ L1/L2 组件
+│     ├─ app/                   # App Shell：登录/改密、路由守卫、stores、布局
+│     └─ modules/               # Core 通用页面（由旧 core/views 迁入，逐步下沉到 Pack）
+├─ products/
+│  ├─ iems/  product.yaml · release-scope.yaml · openapi.extension.yaml · pages/
+│  ├─ dcu/   同上
+│  └─ smart_box/                # 仍是独立前端（未接入平台），保留原构建
+├─ permissions/{catalog,role-presets}.yaml   # 权限目录与角色预置（唯一事实来源）
+├─ openapi/core.yaml            # HTTP 契约 + operation 级安全元数据（唯一事实来源）
+├─ tooling/                     # 构建期：manifest 校验 / Registry 生成 / 边界 / 对比度 / 体积
+├─ mock-server/                 # webd 的行为替身：真实做授权、会话、事务状态机
+└─ tests/e2e/                   # Playwright（legacy/ 为迁移期历史用例，已排除）
 ```
 
----
+依赖方向（`tooling boundaries` 强制，违反即构建失败）：
 
-## 4. 契约属性对 Web 的影响
+```
+Product Pack ──→ core/sdk、core/ui            （入口 main.ts 额外可用 core/app 的 createProductApp）
+core/app     ──→ core/sdk、core/ui、core/modules
+core/ui      ──→ core/sdk
+core/sdk     ──→ 无框架依赖（不得 import vue / pinia / axios）——所以它能在 node 里直接单测
+Core 永不 import products
+```
 
-在 `tags.yaml` 或 `extension.yaml` 中配置的 UI 属性将直接决定前端展现：
-*   `ui.group`：决定测点出现在哪个分类下。
-*   `ui.precision`：决定显示几位小数。
-*   `ui.branding.theme`：决定侧边栏是经典蓝还是储能绿。
+## 3. 构建期发生了什么
 
----
-**EdgeOS Web - 重新定义工业软件的审美。**
+`npm run build`（每个产品）= `tooling registry` + `vite build`：
+
+1. **校验构建输入**：`product.yaml`、`release-scope.yaml`、Core 模块清单、权限目录、OpenAPI。
+   悬空权限、重复 ID、未登记的一级分组、缺失的页面组件、匿名接口未进 allowlist —— 全部构建失败。
+2. **裁剪**：功能是否出现 = `product.yaml` 声明 **AND** `release-scope.yaml` 启用。
+   任一关闭即不生成页面 / 接口 / 路由，产物里不留"隐藏的入口"。
+3. **生成静态 Registry**（`src/generated/registry.json`）：路由、权限、角色（通配符已展开）、
+   能力需求、API 策略表、release-scope 摘要与 Registry 摘要。同一输入必然得到同一字节。
+4. **vite build**：页面按 chunk 懒加载；Registry 决定"哪些 chunk 存在"，运行期只做过滤。
+
+## 4. 常用命令
+
+```bash
+# 构建输入与规则检查（CI 里也跑这一条）
+node tooling/cli.mjs all          # 校验 + 依赖边界 + 对比度 + 为所有产品生成 Registry
+node tooling/cli.mjs validate
+node tooling/cli.mjs boundaries
+node tooling/cli.mjs contrast     # Design Token 语义配对对比度（WCAG）
+node tooling/cli.mjs registry --product iems
+node tooling/cli.mjs size --product iems
+
+# 单测（不需要浏览器）
+npm run test:unit                 # tooling 用例 + core/sdk 纯逻辑（tsc 编译后跑 node:test）
+
+# 本地跑起来
+node mock-server/server.mjs --product iems --port 8081
+npm run dev --prefix products/iems        # http://127.0.0.1:5173，/api 代理到 8081
+
+# E2E（真实浏览器 + mock-server）
+npm run test:e2e
+```
+
+种子账号（mock-server，仅用于台架）：
+
+| 账号 | 口令 | 用途 |
+| --- | --- | --- |
+| admin | `Initial-EdgeOS-2026` | 首登强制改密流程 |
+| engineer | `Engineer-Pass-2026` | 现场调试角色 |
+| viewer | `Viewer-Pass-2026` | 只读 |
+
+## 5. 几条不能破的规则
+
+- **前端隐藏不是授权**：`PermissionGate` / 菜单过滤只影响体验；写接口一律服务端判。
+- **能力未知 = 不支持**（fail-closed）：能力快照拿不到时，需要能力的页面与接口都不放行。
+- **运行期不注册路由**：路由只能来自构建期 Registry；服务端不能临时加外部路由。
+- **生成物不入库**：`products/*/src/generated/` 由 tooling 生成，禁止手改。
+- **通配符只活在构建输入**：Registry 与运行时请求里只有具体权限 ID。
+
+## 6. 本 PR 的边界（哪些还没做）
+
+如实列出，避免"看着像做完"：
+
+- **webd 本体**（Go/C++ 常驻服务、TLS、IPC、审计持久化、任务执行器）未实现；
+  `mock-server` 只覆盖 HTTP 语义与授权判定，不能当作设备验证。
+- **配置事务的独立 watchdog**（跨重启恢复、kill -9 演练）未实现；当前只有状态机与 deadline。
+- **WebSocket 实时通道**未实现（契约里已登记 `GET /api/v1/ws`，服务端返回 426）。
+- **旧页面数据面**仍走 `/api/v1/contracts`（标记 deprecated），随 WBUI-072/074 收敛到 Pack API。
+- **Pack 布局**沿用 `core` + `products/*` 两个 workspace（设计文档写的是 `packages/*`）：
+  改成 `packages/*` 需要重装依赖并重生成 lockfile，留作独立任务，不影响本 PR 的分层与门禁。
+- 旧页面历史 E2E 用例在 `tests/e2e/legacy/`，**未修复也未删除**，明确排除在运行之外。
