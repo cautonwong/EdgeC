@@ -12,6 +12,7 @@ import { checkBoundaries } from './lib/boundaries.mjs';
 import { checkContrast } from './lib/contrast.mjs';
 import { listProducts, loadCatalog, loadCoreManifest, loadProduct } from './lib/manifest.mjs';
 import { buildRegistry } from './lib/registry.mjs';
+import { loadSchemas } from './lib/schema.mjs';
 import { checkSize } from './lib/size.mjs';
 
 const argv = process.argv.slice(2);
@@ -99,6 +100,17 @@ async function run() {
         return;
       }
       log(`✓ ${results.length} 组语义配对均达标`);
+      return;
+    }
+    case 'schemas': {
+      const catalog = loadCatalog();
+      const { schemas, problems } = loadSchemas(catalog);
+      problems.throwIfAny();
+      for (const schema of schemas) {
+        const fields = Object.keys(schema.properties ?? {});
+        log(`  ${schema.id.padEnd(22)} ${schema.riskClass}  ${String(schema.confirmWindowSeconds).padStart(3)}s  ${schema.writePermission.padEnd(26)} 字段: ${fields.join(', ')}`);
+      }
+      log(`✓ ${schemas.length} 份配置 Schema 合法`);
       return;
     }
     case 'catalog': {

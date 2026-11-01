@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "network.interfaces",
+  "title": "网络接口",
+  "version": "1.0.0",
+  "riskClass": "R2",
+  "writePermission": "network.interface:write",
+  "readPermission": "network.interface:read",
+  "confirmWindowSeconds": 60,
+  "type": "object",
+  "required": ["interfaceId", "addresses"],
+  "properties": {
+    "interfaceId": {
+      "type": "string",
+      "title": "接口",
+      "enum": ["eth0", "eth1"]
+    },
+    "addresses": {
+      "type": "array",
+      "title": "IP 地址",
+      "hint": "CIDR 写法，例如 192.168.10.21/24；清空表示不配地址",
+      "items": { "type": "string", "format": "cidr" },
+      "minItems": 0,
+      "maxItems": 4
+    },
+    "gateway": {
+      "type": "string",
+      "title": "默认网关",
+      "format": "ipv4"
+    },
+    "mtu": {
+      "type": "integer",
+      "title": "MTU",
+      "unit": "字节",
+      "minimum": 576,
+      "maximum": 9000
+    }
+  }
+}

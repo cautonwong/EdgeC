@@ -15,7 +15,7 @@
  *   node mock-server/server.mjs --product iems --port 8081 [--static products/iems/dist]
  */
 import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
-import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -60,6 +60,33 @@ const catalog = yaml.load(readFileSync(path.join(WEB_ROOT, 'permissions/catalog.
 
 const permissionDeps = new Map(catalog.permissions.map((p) => [p.id, p.dependencies ?? []]));
 
+/**
+ * 配置 Schema：构建期已校验过，这里只负责运行期使用。
+ * 风险等级 → 确认窗口、字段校验、写权限，全部来自这一份文件，避免"前端一套、后端一套"。
+ */
+const schemasDir = path.join(WEB_ROOT, 'schemas');
+const configSchemas = new Map();
+if (existsSync(schemasDir)) {
+  for (const file of readdirSync(schemasDir).filter((name) => name.endsWith('.json'))) {
+    const doc = JSON.parse(readFileSync(path.join(schemasDir, file), 'utf8'));
+    configSchemas.set(doc.id, doc);
+  }
+}
+
+/** sectionId → 规则。未知分区一律拒绝（fail-closed），不允许"没登记就放行"。 */
+function sectionRule(sectionId) {
+  const doc = configSchemas.get(sectionId);
+  if (!doc) return null;
+  return {
+    writePermission: doc.writePermission,
+    riskClass: doc.riskClass,
+    confirmWindowSeconds: doc.confirmWindowSeconds ?? 0,
+    // 台架可以用 EDGEOS_CONFIRM_WINDOW_MS 把窗口压短，验证"超时自动回滚"而不用等 60 秒
+    effectiveWindowMs: Math.min(doc.confirmWindowSeconds ?? 0, CONFIRM_WINDOW_MS / 1000) * 1000,
+    schema: doc,
+  };
+}
+
 // ---------------------------------------------------------------- 设备与账号状态
 const now = () => Date.now();
 
@@ -97,6 +124,16 @@ const users = [
     lastLogin: null,
   },
   {
+    id: 'u_1003',
+    username: 'operator',
+    displayName: '运维值班',
+    roleIds: ['operator'],
+    status: 'active',
+    mustChangePassword: false,
+    password: hashPassword('Operator-Pass-2026'),
+    lastLogin: null,
+  },
+  {
     id: 'u_1002',
     username: 'viewer',
     displayName: '只读巡检',
@@ -116,6 +153,15 @@ const tasks = new Map();
 const auditLog = [];
 let policyRevision = 1;
 let configRevision = 7;
+
+/**
+ * 台架上的"设备状态"。配置事务 apply 之后要真的改到这里 —— 否则 E2E 只能验
+ * "接口返回 200"，验不出"配置到底生效没有"。
+ */
+const interfacesState = [
+  { id: 'eth0', name: 'eth0', mac: '02:00:00:00:00:01', addresses: ['192.168.10.21/24'], gateway: '192.168.10.1', mtu: 1500, state: 'up', speedMbps: 1000 },
+  { id: 'eth1', name: 'eth1', mac: '02:00:00:00:00:02', addresses: [], gateway: '', mtu: 1500, state: 'down', speedMbps: null },
+];
 
 const capabilities = {
   iems: {
@@ -233,10 +279,15 @@ function authorize(ctx, op, session) {
   if (op.permissionSource === 'config-section') {
     const sectionId = ctx.body?.sectionId ?? ctx.params?.sectionId;
     if (sectionId) {
-      const required = SECTION_PERMISSIONS[sectionId];
-      if (!required) return { status: 403, code: 'unknown_section', message: `未知配置分区 ${sectionId}` };
-      if (!granted.has(required)) {
-        return { status: 403, code: 'permission_denied', message: `缺少权限 ${required}`, details: { permission: required } };
+      const rule = sectionRule(sectionId);
+      if (!rule) return { status: 403, code: 'unknown_section', message: `未知配置分区 ${sectionId}` };
+      if (!granted.has(rule.writePermission)) {
+        return {
+          status: 403,
+          code: 'permission_denied',
+          message: `缺少权限 ${rule.writePermission}`,
+          details: { permission: rule.writePermission, sectionId },
+        };
       }
     }
   }
@@ -258,14 +309,6 @@ function authorize(ctx, op, session) {
   }
   return null;
 }
-
-const SECTION_PERMISSIONS = {
-  'network.interfaces': 'network.interface:write',
-  'network.routes': 'network.route:write',
-  'network.firewall': 'network.firewall:write',
-  'system.time': 'system.time:write',
-  'system.certificates': 'system.cert:write',
-};
 
 // ---------------------------------------------------------------- 路由表
 /** 把 `/api/v1/users/{id}` 编译成正则；同一份表既用于匹配也用于授权。 */
@@ -439,12 +482,7 @@ const handlers = {
     return { id };
   },
 
-  'GET /api/v1/network/interfaces': () => ({
-    items: [
-      { id: 'eth0', name: 'eth0', mac: '02:00:00:00:00:01', addresses: ['192.168.10.21/24'], state: 'up', speedMbps: 1000 },
-      { id: 'eth1', name: 'eth1', mac: '02:00:00:00:00:02', addresses: [], state: 'down', speedMbps: null },
-    ],
-  }),
+  'GET /api/v1/network/interfaces': () => ({ items: interfacesState.map((item) => ({ ...item, addresses: [...item.addresses] })) }),
 
   'PATCH /api/v1/network/interfaces/{id}': (ctx) => {
     const transaction = createTransaction(ctx, 'network.interfaces', ctx.body ?? {});
@@ -509,10 +547,26 @@ const handlers = {
 
   'GET /api/v1/logs/audit': () => ({ items: auditLog.slice(-50).reverse(), nextCursor: null }),
 
+  'GET /api/v1/config/transactions': (ctx) => {
+    const sectionId = ctx.query.sectionId;
+    const state = ctx.query.state;
+    const items = [...transactions.values()]
+      .filter((tx) => tx.createdBy === ctx.session.userId)
+      .filter((tx) => !sectionId || tx.sectionId === sectionId)
+      .filter((tx) => !state || tx.state === state)
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+      .map(publicTransactionFields);
+    return { items };
+  },
+
   'POST /api/v1/config/transactions': (ctx) => {
     const sectionId = ctx.body?.sectionId;
     if (!sectionId) throw httpError(400, 'invalid_request', '缺少 sectionId');
-    const transaction = createTransaction(ctx, sectionId, ctx.body?.values ?? {});
+    const rule = sectionRule(sectionId);
+    if (!rule) throw httpError(403, 'unknown_section', `未知配置分区 ${sectionId}`);
+    const values = ctx.body?.values ?? {};
+    assertSchemaValues(rule.schema, values);
+    const transaction = createTransaction(ctx, sectionId, values);
     return { transactionId: transaction.id, state: transaction.state, baseRevision: transaction.baseRevision };
   },
 
@@ -526,7 +580,10 @@ const handlers = {
     if (baseRevision !== undefined && baseRevision !== transaction.baseRevision) {
       throw httpError(409, 'revision_conflict', '基线版本已变化，请重新加载后编辑');
     }
-    transaction.values = { ...transaction.values, ...(ctx.body?.values ?? {}) };
+    const rule = sectionRule(transaction.sectionId);
+    const nextValues = { ...transaction.values, ...(ctx.body?.values ?? {}) };
+    if (rule) assertSchemaValues(rule.schema, nextValues);
+    transaction.values = nextValues;
     return { state: transaction.state, revision: transaction.revision };
   },
 
@@ -544,9 +601,18 @@ const handlers = {
     configRevision += 1;
     transaction.appliedRevision = configRevision;
     transaction.appliedAt = new Date().toISOString();
-    // R2：需要确认窗口；deadline 由设备侧 watchdog 负责，浏览器计时器不算数
-    transaction.state = 'PENDING_CONFIRM';
-    transaction.deadline = new Date(now() + CONFIRM_WINDOW_MS).toISOString();
+    // 风险等级决定要不要确认窗口：R0/R1 直接生效，R2 起必须"应用后 N 秒内确认，否则回滚"。
+    // deadline 由设备侧 watchdog 负责，浏览器计时器只是显示。
+    const rule = sectionRule(transaction.sectionId);
+    const windowMs = rule?.effectiveWindowMs ?? 0;
+    if (windowMs > 0) {
+      transaction.state = 'PENDING_CONFIRM';
+      transaction.deadline = new Date(now() + windowMs).toISOString();
+    } else {
+      transaction.state = 'CONFIRMED';
+      transaction.confirmedAt = new Date().toISOString();
+    }
+    applyToDeviceState(transaction);
     audit(ctx, 'config.applied', { transactionId: transaction.id, sectionId: transaction.sectionId });
     return { transactionId: transaction.id, state: transaction.state, deadline: transaction.deadline };
   },
@@ -575,6 +641,9 @@ const handlers = {
       throw httpError(409, 'invalid_state', `事务状态 ${transaction.state} 不可回滚`);
     }
     transaction.state = 'ROLLING_BACK';
+    if (transaction.snapshot) {
+      interfacesState.splice(0, interfacesState.length, ...structuredClone(transaction.snapshot));
+    }
     transaction.state = 'ROLLED_BACK';
     transaction.rolledBackAt = new Date().toISOString();
     audit(ctx, 'config.rolledback', { transactionId: transaction.id });
@@ -643,6 +712,103 @@ const handlers = {
   }),
 };
 
+// ---------------------------------------------------------------- 配置 Schema 校验
+const IPV4_RE = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+
+function checkFormat(format, value) {
+  if (format === 'ipv4') {
+    const match = IPV4_RE.exec(value);
+    return !!match && match.slice(1).every((part) => Number(part) <= 255);
+  }
+  if (format === 'cidr') {
+    const [address, prefix] = String(value).split('/');
+    if (!IPV4_RE.test(address ?? '')) return false;
+    const bits = Number(prefix);
+    return Number.isInteger(bits) && bits >= 0 && bits <= 32;
+  }
+  if (format === 'hostname') return /^[A-Za-z0-9]([A-Za-z0-9.-]{0,253})$/.test(String(value));
+  if (format === 'rfc3339') return !Number.isNaN(Date.parse(String(value)));
+  return true;
+}
+
+/**
+ * 服务端校验：前端已经校验过一次，但**这里才是结论**。
+ * 错误按字段返回，前端能把红字挂在对应输入框上（而不是一句"参数错误"）。
+ */
+function assertSchemaValues(schema, values) {
+  const errors = {};
+  const properties = schema.properties ?? {};
+  for (const name of schema.required ?? []) {
+    if (values[name] === undefined || values[name] === null || values[name] === '') {
+      errors[name] = '必填';
+    }
+  }
+  for (const [name, value] of Object.entries(values)) {
+    const field = properties[name];
+    if (!field) {
+      errors[name] = '未声明的字段（拒绝写入未知字段）';
+      continue;
+    }
+    if (value === null || value === undefined) continue;
+    if (field.enum && !field.enum.includes(value)) {
+      errors[name] = `取值必须是 ${field.enum.join(' / ')}`;
+      continue;
+    }
+    if (field.type === 'string') {
+      if (typeof value !== 'string') errors[name] = '必须是字符串';
+      else if (field.format && !checkFormat(field.format, value)) errors[name] = `格式不符合 ${field.format}`;
+    } else if (field.type === 'integer') {
+      if (!Number.isInteger(value)) errors[name] = '必须是整数';
+      else if (field.minimum !== undefined && value < field.minimum) errors[name] = `不得小于 ${field.minimum}`;
+      else if (field.maximum !== undefined && value > field.maximum) errors[name] = `不得大于 ${field.maximum}`;
+    } else if (field.type === 'boolean') {
+      if (typeof value !== 'boolean') errors[name] = '必须是布尔值';
+    } else if (field.type === 'array') {
+      if (!Array.isArray(value)) errors[name] = '必须是数组';
+      else if (field.minItems !== undefined && value.length < field.minItems) errors[name] = `至少 ${field.minItems} 项`;
+      else if (field.maxItems !== undefined && value.length > field.maxItems) errors[name] = `最多 ${field.maxItems} 项`;
+      else {
+        const badIndex = value.findIndex((item) => typeof item !== 'string' || (field.items?.format && !checkFormat(field.items.format, item)));
+        if (badIndex >= 0) errors[name] = `第 ${badIndex + 1} 项格式不符合 ${field.items?.format ?? 'string'}`;
+      }
+    }
+  }
+  if (Object.keys(errors).length > 0) {
+    throw httpError(422, 'schema_validation_failed', '配置项校验未通过', { fieldErrors: errors });
+  }
+}
+
+/** 应用即落设备状态：网络接口是唯一实现了"真写"的分区，其余分区仍是台架占位。 */
+function applyToDeviceState(transaction) {
+  if (transaction.sectionId !== 'network.interfaces') return;
+  const values = transaction.values ?? {};
+  const target = interfacesState.find((item) => item.id === values.interfaceId);
+  if (!target) return;
+  if (Array.isArray(values.addresses)) target.addresses = [...values.addresses];
+  if (typeof values.gateway === 'string') target.gateway = values.gateway;
+  if (Number.isInteger(values.mtu)) target.mtu = values.mtu;
+  target.state = target.addresses.length > 0 ? 'up' : 'down';
+}
+
+function publicTransactionFields(transaction) {
+  const rule = sectionRule(transaction.sectionId);
+  return {
+    transactionId: transaction.id,
+    sectionId: transaction.sectionId,
+    state: transaction.state,
+    riskClass: rule?.riskClass ?? 'R0',
+    values: transaction.values,
+    baseRevision: transaction.baseRevision,
+    appliedRevision: transaction.appliedRevision,
+    createdAt: transaction.createdAt,
+    appliedAt: transaction.appliedAt,
+    confirmedAt: transaction.confirmedAt,
+    rolledBackAt: transaction.rolledBackAt,
+    deadline: transaction.deadline,
+    confirmWindowSeconds: rule?.confirmWindowSeconds ?? 0,
+  };
+}
+
 // ---------------------------------------------------------------- 事务/任务
 function createTransaction(ctx, sectionId, values) {
   const id = `tx_${randomUUID().slice(0, 8)}`;
@@ -650,6 +816,7 @@ function createTransaction(ctx, sectionId, values) {
     id,
     sectionId,
     values,
+    snapshot: sectionId === 'network.interfaces' ? structuredClone(interfacesState) : null,
     baseRevision: configRevision,
     revision: configRevision + 1,
     state: 'DRAFT',
@@ -669,7 +836,7 @@ function createTransaction(ctx, sectionId, values) {
 function publicTransaction(id) {
   const transaction = transactions.get(id);
   if (!transaction) throw httpError(404, 'not_found', '事务不存在');
-  return { ...transaction };
+  return publicTransactionFields(transaction);
 }
 
 function createTask(ctx, { type, target, requiredPermission, ownerCancel, cancelableStages }) {
@@ -843,6 +1010,7 @@ const server = http.createServer(async (req, res) => {
       req,
       res,
       params,
+      query: Object.fromEntries(url.searchParams.entries()),
       body,
       requestId,
       session,

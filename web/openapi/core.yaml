@@ -307,6 +307,16 @@ paths:
         "200": { description: 审计分页 }
 
   /api/v1/config/transactions:
+    get:
+      operationId: listConfigTransactions
+      summary: 事务列表（按分区/状态过滤；页面刷新后据此恢复未完成事务）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: []
+      x-permission-source: config-section
+      x-resource-scope: gateway
+      x-audit-level: low
+      responses:
+        "200": { description: 事务列表 }
     post:
       operationId: createConfigTransaction
       x-success-status: 201
