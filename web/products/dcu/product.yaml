@@ -1,0 +1,70 @@
+# DCU Product Pack（构建输入）
+schemaVersion: 1
+id: dcu
+name: DCU 配网终端
+version: 1.4.0
+coreSdk: ^1.6.0
+
+theme:
+  brandColor: '#0F7C8C'
+
+modules:
+  core:overview: { enabled: true }
+  core:data: { enabled: true }
+  core:control: { enabled: true }
+  core:network: { enabled: true }
+  core:system: { enabled: true }
+  core:diagnostics: { enabled: true }
+
+features:
+  firmwareUpgrade: {}
+
+pages:
+  - id: dcu.meters
+    path: /dcu/meters
+    component: pages/MetersView.vue
+    title: 电表档案
+    menu: { group: data, order: 15, icon: meter }
+    permissions: { allOf: [dcu.meter:read] }
+    requires:
+      capabilities: [software.collector.dlt698]
+
+permissions:
+  - { id: dcu.meter:read, description: 查看电表档案, sensitivity: low }
+  - { id: dcu.meter:write, description: 维护电表档案, sensitivity: high, dependencies: [dcu.meter:read] }
+  - { id: dcu.task:read, description: 查看抄表任务, sensitivity: low }
+  - { id: dcu.task:write, description: 维护抄表任务, sensitivity: medium, dependencies: [dcu.task:read] }
+  - { id: dcu.channel:read, description: 查看通道, sensitivity: low }
+  - { id: dcu.channel:write, description: 修改通道参数, sensitivity: high, dependencies: [dcu.channel:read] }
+  - { id: dcu.frame:read, description: 查看 698/645 报文, sensitivity: medium }
+
+rolePresets:
+  viewer:
+    - dcu.meter:read
+    - dcu.task:read
+    - dcu.channel:read
+  operator:
+    - dcu.meter:read
+    - dcu.task:read
+    - dcu.task:write
+    - dcu.channel:read
+  engineer:
+    - dcu.meter:read
+    - dcu.meter:write
+    - dcu.task:read
+    - dcu.task:write
+    - dcu.channel:read
+    - dcu.channel:write
+    - dcu.frame:read
+  admin:
+    - 'dcu.*:*'
+
+capabilities:
+  - hardware.network.cellular
+  - hardware.io.rs485.ports
+  - software.collector.modbus
+  - software.collector.dlt698
+
+entitlements: {}
+
+openapi: openapi.extension.yaml

@@ -1,16 +1,14 @@
 {
   "name": "edgeos-iems-ui",
-  "version": "1.0.0",
+  "version": "2.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node ../../tooling/cli.mjs registry --product iems && vite build",
     "preview": "vite preview",
-    "test:e2e": "playwright test -c ../../playwright.config.ts",
-    "test:e2e:ui": "playwright test -c ../../playwright.config.ts --ui"
+    "test:e2e": "playwright test -c ../../playwright.config.ts"
   },
   "dependencies": {
-    "@edgeos/web-core": "file:../../core",
     "axios": "^1.4.0",
     "echarts": "^6.1.0",
     "js-yaml": "^4.1.0",

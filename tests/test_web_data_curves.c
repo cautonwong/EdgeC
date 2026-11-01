@@ -34,7 +34,7 @@ static void read_file_content(const char *rel_path, char *buf, size_t max_len) {
 static void test_echarts_lttb_sampling_and_webgl_specs(void **state) {
     (void)state;
     char content[65536];
-    read_file_content("web/core/src/views/data/DataCurves.vue", content, sizeof(content));
+    read_file_content("web/core/src/modules/data/DataCurves.vue", content, sizeof(content));
 
     // LTTB downsampling for huge dataset acceleration
     assert_non_null(strstr(content, "sampling: 'lttb'"));
@@ -46,7 +46,7 @@ static void test_echarts_lttb_sampling_and_webgl_specs(void **state) {
 static void test_jetbrains_mono_typography_and_formatting(void **state) {
     (void)state;
     char content[65536];
-    read_file_content("web/core/src/views/data/DataCurves.vue", content, sizeof(content));
+    read_file_content("web/core/src/modules/data/DataCurves.vue", content, sizeof(content));
 
     // JetBrains Mono typography in crosshair and tooltips
     assert_non_null(strstr(content, "fontFamily: 'JetBrains Mono"));
@@ -58,7 +58,7 @@ static void test_jetbrains_mono_typography_and_formatting(void **state) {
 static void test_four_series_microgrid_composition(void **state) {
     (void)state;
     char content[65536];
-    read_file_content("web/core/src/views/data/DataCurves.vue", content, sizeof(content));
+    read_file_content("web/core/src/modules/data/DataCurves.vue", content, sizeof(content));
 
     // 4-series power balance curve tracks
     assert_non_null(strstr(content, "Solar PV"));
@@ -72,7 +72,7 @@ static void test_four_series_microgrid_composition(void **state) {
 static void test_datazoom_and_benchmark_100k(void **state) {
     (void)state;
     char content[65536];
-    read_file_content("web/core/src/views/data/DataCurves.vue", content, sizeof(content));
+    read_file_content("web/core/src/modules/data/DataCurves.vue", content, sizeof(content));
 
     // DataZoom slider & inside zoom, plus 100k benchmark generator
     assert_non_null(strstr(content, "dataZoom:"));
@@ -84,7 +84,7 @@ static void test_datazoom_and_benchmark_100k(void **state) {
 static void test_memory_leak_prevention_lifecycle(void **state) {
     (void)state;
     char content[65536];
-    read_file_content("web/core/src/views/data/DataCurves.vue", content, sizeof(content));
+    read_file_content("web/core/src/modules/data/DataCurves.vue", content, sizeof(content));
 
     // onBeforeUnmount disposes chart and event listeners cleanly
     assert_non_null(strstr(content, "onBeforeUnmount"));

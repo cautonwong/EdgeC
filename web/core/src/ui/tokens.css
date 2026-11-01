@@ -1,0 +1,157 @@
+/* ============================================================================
+ * Design Token —— 三层结构（v1.6 §9.2 / §9.11）
+ *
+ *   L0 基础色板  --palette-*     只放原始色值，业务代码不得直接使用
+ *   L1 语义 Token --color-*      按"用途"命名，主题切换只改这一层
+ *   L2 组件 Token --btn-* 等      组件内部使用，产品换肤不覆盖
+ *
+ * 产品换肤只允许覆盖 L1 中被标记为「可覆盖品牌 Token」的那几个（见文件末尾
+ * `[data-brand]` 段），禁止任意全局 CSS —— 否则一致性无从谈起。
+ *
+ * 对比度：语义前景/背景配对由 `tooling contrast` 逐对计算，低于 4.5:1（大字/图标
+ * 3:1）即构建失败。改色必须同步改 token-pairs.json，改不动就说明这个色不能用。
+ * ========================================================================== */
+
+:root {
+  /* ---- L0 基础色板（原始值，勿直接引用） ---- */
+  --palette-blue-700: #0b6bcb;
+  --palette-blue-500: #4c9aff;
+  --palette-green-700: #1a7f4b;
+  --palette-green-400: #3fbf7f;
+  --palette-amber-900: #8a4b00;
+  --palette-amber-300: #f2a93b;
+  --palette-amber-50: #fff4e5;
+  --palette-amber-950: #3a2b18;
+  --palette-red-700: #c62828;
+  --palette-red-400: #ff6b6b;
+  --palette-teal-700: #0f7c8c;
+  --palette-teal-300: #4fc3d6;
+  --palette-gray-500: #6b7280;
+  --palette-gray-400: #9aa4b2;
+  --palette-gray-50: #f5f7fa;
+  --palette-gray-900: #0f141a;
+  --palette-white: #ffffff;
+  --palette-gray-850: #171d25;
+  --palette-gray-200: #d8dee6;
+  --palette-gray-800: #2a3340;
+  --palette-gray-900-text: #1b2430;
+  --palette-gray-100-text: #e8edf3;
+  --palette-gray-600-text: #5b6677;
+  --palette-gray-300-text: #a3aebd;
+
+  /* ---- L1 语义 Token（浅色主题） ---- */
+  --color-primary: var(--palette-blue-700);
+  --color-primary-hover: #095ab0;
+  --color-on-primary: #ffffff;
+  --color-success: var(--palette-green-700);
+  --color-warning: var(--palette-amber-900);
+  --color-warning-bg: var(--palette-amber-50);
+  --color-danger: var(--palette-red-700);
+  --color-danger-bg: #fdecec;
+  --color-info: var(--palette-teal-700);
+  --color-offline: var(--palette-gray-500);
+  --bg-page: var(--palette-gray-50);
+  --bg-surface: var(--palette-white);
+  --bg-elevated: #ffffff;
+  --border-default: var(--palette-gray-200);
+  --border-strong: #b9c2ce;
+  --text-primary: var(--palette-gray-900-text);
+  --text-secondary: var(--palette-gray-600-text);
+  --text-disabled: var(--palette-gray-500);
+
+  /* ---- 尺寸/间距/圆角/动效 ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --shadow-1: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-2: 0 4px 12px rgba(16, 24, 40, 0.08);
+  --shadow-3: 0 12px 32px rgba(16, 24, 40, 0.12);
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --touch-target: 36px;
+
+  --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', 'Microsoft YaHei', Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'JetBrains Mono', Consolas, 'Liberation Mono', monospace;
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-base: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+
+  /* ---- L2 组件 Token ---- */
+  --btn-height: 36px;
+  --btn-radius: var(--radius-md);
+  --input-height: 36px;
+  --table-row-height: 40px;
+  --sidebar-width: 232px;
+  --topbar-height: 56px;
+}
+
+[data-theme='dark'] {
+  --color-primary: var(--palette-blue-500);
+  --color-primary-hover: #74adff;
+  --color-on-primary: #06121f;
+  --color-success: var(--palette-green-400);
+  --color-warning: var(--palette-amber-300);
+  --color-warning-bg: var(--palette-amber-950);
+  --color-danger: var(--palette-red-400);
+  --color-danger-bg: #3a1d1d;
+  --color-info: var(--palette-teal-300);
+  --color-offline: var(--palette-gray-400);
+  --bg-page: var(--palette-gray-900);
+  --bg-surface: var(--palette-gray-850);
+  --bg-elevated: #1f2630;
+  --border-default: var(--palette-gray-800);
+  --border-strong: #3b4655;
+  --text-primary: var(--palette-gray-100-text);
+  --text-secondary: var(--palette-gray-300-text);
+  --text-disabled: var(--palette-gray-500);
+  /* 深色主题优先用边框表达层级，阴影只留最弱的一级 */
+  --shadow-1: none;
+  --shadow-2: none;
+  --shadow-3: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+/* 产品换肤白名单：只有这几个 Token 可被 Pack 覆盖（v1.6 §9.11） */
+[data-brand] {
+  --color-primary: var(--brand-primary, var(--color-primary));
+  --color-primary-hover: var(--brand-primary-hover, var(--color-primary-hover));
+  --color-on-primary: var(--brand-on-primary, var(--color-on-primary));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+  background: var(--bg-page);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--color-primary);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}

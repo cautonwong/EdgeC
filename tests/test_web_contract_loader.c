@@ -60,7 +60,7 @@ static void test_contract_loader_pinia_store(void **state) {
 static void test_dashboard_vue_contract_driven(void **state) {
     (void)state;
     char content[65536];
-    read_file_content("web/core/src/views/Dashboard.vue", content, sizeof(content));
+    read_file_content("web/core/src/modules/Dashboard.vue", content, sizeof(content));
 
     // Verify dynamic contract-driven rendering without hardcoded physical names
     assert_non_null(strstr(content, "useContractStore()"));

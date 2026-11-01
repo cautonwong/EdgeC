@@ -1,0 +1,11 @@
+{
+  "entryBudgetKb": 300,
+  "chunkBudgetKb": 100,
+  "vendorAllowlist": {
+    "echarts": {
+      "maxKb": 400,
+      "reason": "旧曲线页仍 `import * as echarts`，整包进 vendor chunk。按 §3.2 应改为按需引入（echarts/core + 具体 chart），属页面迁移范围。",
+      "task": "WBUI-072"
+    }
+  }
+}

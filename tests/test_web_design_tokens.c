@@ -87,11 +87,13 @@ static void test_tailwind_configurations(void **state) {
 
 static void test_html_typography_links(void **state) {
     (void)state;
+    // iEMS 已按设计基线 §1.2「现场无外网」去掉 Google Fonts CDN：字体走系统栈 + 本地子集，
+    // 主题由 data-theme 声明（Token 三层结构的入口），不再依赖 Tailwind 的 class="dark"。
     char iems_html[4096];
     read_file_content("web/products/iems/index.html", iems_html, sizeof(iems_html));
-    assert_non_null(strstr(iems_html, "family=Inter"));
-    assert_non_null(strstr(iems_html, "family=JetBrains+Mono"));
-    assert_non_null(strstr(iems_html, "class=\"dark\""));
+    assert_null(strstr(iems_html, "fonts.googleapis.com"));
+    assert_null(strstr(iems_html, "fonts.gstatic.com"));
+    assert_non_null(strstr(iems_html, "data-theme="));
 
     char box_html[4096];
     read_file_content("web/products/smart_box/index.html", box_html, sizeof(box_html));

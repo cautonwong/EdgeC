@@ -1,0 +1,31 @@
+# iEMS 扩展 API（Pack OpenAPI）
+#
+# 路径前缀必须是 /api/v1/<productId>/；每个 operation 必须绑定精确权限。
+openapi: 3.1.0
+info:
+  title: iEMS Pack API
+  version: 2.3.0
+paths:
+  /api/v1/iems/telemetry:
+    get:
+      operationId: getIemsTelemetry
+      summary: 能流实时数据（SOC、光伏、电网、负荷）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [iems.telemetry:read]
+      x-resource-scope: gateway
+      x-required-capabilities: [software.collector.modbus]
+      x-audit-level: none
+      responses:
+        "200": { description: 能流快照 }
+
+  /api/v1/iems/strategy:
+    get:
+      operationId: getIemsStrategy
+      summary: 策略列表
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [iems.strategy:read]
+      x-resource-scope: gateway
+      x-required-entitlements: [iems.peak-shaving]
+      x-audit-level: low
+      responses:
+        "200": { description: 策略列表 }

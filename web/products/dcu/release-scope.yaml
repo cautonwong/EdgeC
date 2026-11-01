@@ -1,0 +1,16 @@
+schemaVersion: 1
+productId: dcu
+releaseId: "1.4.0"
+
+features:
+  firmwareUpgrade:
+    enabled: true
+    adr: ADR-08
+    note: DCU 首发型号支持 A/B 升级；升级入口必须走签名/型号/防回退校验（WBUI-062）
+    tasks: [WBUI-062]
+    requirements: [REQ-UPD-001]
+
+approvals:
+  productOwner: "pending:dcu-product-owner"
+  platformOwner: "pending:webui-platform-owner"
+  securityOwner: "pending:security-owner"

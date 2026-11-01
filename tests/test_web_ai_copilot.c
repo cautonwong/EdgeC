@@ -129,7 +129,7 @@ static void test_ai_copilot_drawer_component(void **state) {
 static void test_admin_layout_and_tag_card_integration(void **state) {
     (void)state;
     char layout_content[32768];
-    read_file_content("web/core/src/layouts/AdminLayout.vue", layout_content,
+    read_file_content("web/core/src/app/layouts/AppShell.vue", layout_content,
                       sizeof(layout_content));
 
     assert_non_null(strstr(layout_content, "AICopilotDrawer"));

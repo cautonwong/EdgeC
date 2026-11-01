@@ -94,7 +94,7 @@ static void test_ansi_terminal_view_structure(void **state) {
 static void test_admin_layout_integration_and_exports(void **state) {
     (void)state;
     char layout_content[16384];
-    read_file_content("web/core/src/layouts/AdminLayout.vue", layout_content,
+    read_file_content("web/core/src/app/layouts/AppShell.vue", layout_content,
                       sizeof(layout_content));
 
     assert_non_null(strstr(layout_content, "WebConsoleDrawer"));

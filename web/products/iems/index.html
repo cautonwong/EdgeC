@@ -1,15 +1,17 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="zh-CN" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>EdgeOS IEMS - Industrial Energy Management System</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="referrer" content="same-origin" />
+    <title>iEMS 能源管理网关</title>
+    <!-- 现场无外网：不引用任何 CDN / Google Fonts，字体走系统栈与本地子集（§1.2） -->
   </head>
-  <body class="bg-[#020617] text-[#f8fafc] antialiased">
-    <div id="app"></div>
+  <body>
+    <div id="app">
+      <!-- 首屏骨架：脚本加载前也不是白屏 -->
+      <div style="padding: 24px; font-family: system-ui, sans-serif; color: #8b93a1">正在加载界面…</div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

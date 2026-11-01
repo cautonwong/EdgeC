@@ -1,0 +1,23 @@
+# iEMS 2.3.0 发布范围（随 release tag 固化）
+#
+# 依据 v1.6 §14.1 / §17.1。规则：
+#   - 功能最终是否暴露 = product.yaml 声明 AND 本文件 enabled；
+#   - enabled: false 时，最终产物不得包含对应页面 / API / Registry / 执行入口；
+#   - enabled: true 时必须关联 tasks 与 requirements（未验证不得标记为已启用）。
+schemaVersion: 1
+productId: iems
+releaseId: "2.3.0"
+
+features:
+  firmwareUpgrade:
+    enabled: false
+    adr: ADR-08
+    reason: 首发版本不开放整包升级；升级入口、API 与 Registry 均不得出现
+    tasks: [WBUI-062]
+    requirements: [REQ-UPD-001]
+
+approvals:
+  # 真实项目里这里放评审记录 ID；本仓库的占位值明确标注为未签核。
+  productOwner: "pending:iems-product-owner"
+  platformOwner: "pending:webui-platform-owner"
+  securityOwner: "pending:security-owner"
