@@ -175,11 +175,23 @@ export const useConfigTransactionStore = defineStore('configTransaction', () => 
     }
   }
 
-  /** 倒计时结束后状态可能已变成 ROLLED_BACK —— 让用户手动刷新，避免"页面说还在等"的假象。 */
+  /**
+   * 重新拉一次事务状态。两个触发来源：用户点"刷新状态"，以及实时通道推来的状态变更
+   * （别的会话确认、watchdog 超时回滚）。这里必须把结果翻译成用户能看懂的提示，
+   * 否则横幅会"悄悄消失"，用户不知道到底生效了还是被回滚了。
+   */
   async function refresh(): Promise<void> {
     if (!transaction.value) return;
     try {
-      transaction.value = { ...(await getTransaction(transaction.value.transactionId)) };
+      const next = await getTransaction(transaction.value.transactionId);
+      transaction.value = { ...next };
+      if (next.state === 'CONFIRMED') {
+        baseline.value = { ...draft.value };
+        message.value = '已确认保留。';
+      } else if (next.state === 'ROLLED_BACK') {
+        draft.value = { ...baseline.value };
+        message.value = '事务已回滚（未在窗口内确认或已取消），配置恢复为应用前的值。';
+      }
     } catch (err) {
       handleError(err);
     }

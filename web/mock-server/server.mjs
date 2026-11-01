@@ -17,6 +17,7 @@
 import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
 import { createReadStream, existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import http from 'node:http';
+import { createHash as createHashForWs } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
@@ -643,6 +644,7 @@ const handlers = {
     }
     applyToDeviceState(transaction);
     audit(ctx, 'config.applied', { transactionId: transaction.id, sectionId: transaction.sectionId });
+    broadcast('config-transaction', 'config-transaction', publicTransactionFields(transaction));
     return { transactionId: transaction.id, state: transaction.state, deadline: transaction.deadline };
   },
 
@@ -659,6 +661,7 @@ const handlers = {
     transaction.state = 'CONFIRMED';
     transaction.confirmedAt = new Date().toISOString();
     audit(ctx, 'config.confirmed', { transactionId: transaction.id });
+    broadcast('config-transaction', 'config-transaction', publicTransactionFields(transaction));
     return { transactionId: transaction.id, state: transaction.state };
   },
 
@@ -679,6 +682,7 @@ const handlers = {
     transaction.state = 'ROLLED_BACK';
     transaction.rolledBackAt = new Date().toISOString();
     audit(ctx, 'config.rolledback', { transactionId: transaction.id });
+    broadcast('config-transaction', 'config-transaction', publicTransactionFields(transaction));
     return { transactionId: transaction.id, state: transaction.state };
   },
 
@@ -696,6 +700,7 @@ const handlers = {
     task.state = 'CANCELED';
     task.updatedAt = new Date().toISOString();
     audit(ctx, 'task.canceled', { taskId: task.id });
+    broadcast('task', 'task', publicTask(task));
     return { taskId: task.id, state: task.state };
   },
 
@@ -901,6 +906,7 @@ function createTask(ctx, { type, target, requiredPermission, ownerCancel, cancel
   };
   tasks.set(id, task);
   audit(ctx, 'task.created', { taskId: id, type });
+  broadcast('task', 'task', publicTask(task));
   return task;
 }
 
@@ -1154,6 +1160,178 @@ function legacyContract() {
     ui_config: { branding: { title: registry.productName, theme: 'dark', logo: '/logo.svg' }, navigation: {} },
   };
 }
+
+
+// ---------------------------------------------------------------- 实时通道（WebSocket）
+//
+// §6.3：只做服务端 → 客户端的**只读**推送，客户端只能 subscribe / unsubscribe。
+// 不引 ws 库（离线设备装不了），按 RFC 6455 手工处理最小子集：
+//   - 握手：Sec-WebSocket-Accept
+//   - 帧：只接受 text / close / ping，客户端帧必须带掩码
+//   - 不支持分片与扩展（客户端发小 JSON，够用；遇到就断开，不猜）
+const WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
+const wsClients = new Set();
+let wsSeq = 0;
+
+function wsAccept(key) {
+  return createHashForWs('sha1').update(key + WS_GUID).digest('base64');
+}
+
+function wsEncode(text) {
+  const payload = Buffer.from(text, 'utf8');
+  const length = payload.length;
+  let header;
+  if (length < 126) {
+    header = Buffer.from([0x81, length]);
+  } else if (length < 65536) {
+    header = Buffer.alloc(4);
+    header[0] = 0x81;
+    header[1] = 126;
+    header.writeUInt16BE(length, 2);
+  } else {
+    header = Buffer.alloc(10);
+    header[0] = 0x81;
+    header[1] = 127;
+    header.writeBigUInt64BE(BigInt(length), 2);
+  }
+  return Buffer.concat([header, payload]);
+}
+
+/** 从累积缓冲区里切出完整帧；返回 { messages, rest }。 */
+function wsDecode(buffer) {
+  const messages = [];
+  let rest = buffer;
+  while (rest.length >= 2) {
+    const opcode = rest[0] & 0x0f;
+    const masked = (rest[1] & 0x80) !== 0;
+    let length = rest[1] & 0x7f;
+    let offset = 2;
+    if (length === 126) {
+      if (rest.length < 4) break;
+      length = rest.readUInt16BE(2);
+      offset = 4;
+    } else if (length === 127) {
+      if (rest.length < 10) break;
+      length = Number(rest.readBigUInt64BE(2));
+      offset = 10;
+    }
+    if (!masked) {
+      messages.push({ opcode, error: 'client frame must be masked' });
+      return { messages, rest: Buffer.alloc(0) };
+    }
+    if (rest.length < offset + 4 + length) break;
+    const mask = rest.subarray(offset, offset + 4);
+    const payload = Buffer.from(rest.subarray(offset + 4, offset + 4 + length));
+    for (let i = 0; i < payload.length; i += 1) payload[i] ^= mask[i % 4];
+    messages.push({ opcode, text: payload.toString('utf8') });
+    rest = rest.subarray(offset + 4 + length);
+  }
+  return { messages, rest };
+}
+
+function wsSend(client, message) {
+  if (client.socket.destroyed) return;
+  client.socket.write(wsEncode(JSON.stringify(message)));
+}
+
+/** 广播：seq 单调递增，客户端可据此判断是否漏消息（漏了就整体重取）。 */
+function broadcast(topic, type, payload) {
+  wsSeq += 1;
+  const message = { type, seq: wsSeq, ts: new Date().toISOString(), topic, payload };
+  for (const client of wsClients) {
+    if (client.topics.has(topic)) wsSend(client, message);
+  }
+}
+
+function handleWsUpgrade(req, socket) {
+  const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+  const reject = (status, reason) => {
+    socket.write(`HTTP/1.1 ${status} ${reason}\r\nConnection: close\r\n\r\n`);
+    socket.destroy();
+  };
+
+  if (url.pathname !== '/api/v1/ws') return reject(404, 'Not Found');
+  const host = (req.headers.host ?? '').split(':')[0];
+  if (!HOST_ALLOWLIST.has(host)) return reject(421, 'Misdirected Request');
+  const origin = req.headers.origin;
+  if (origin && !HOST_ALLOWLIST.has(new URL(origin).hostname)) return reject(403, 'Forbidden');
+  const session = loadSession(req);
+  if (!session) return reject(401, 'Unauthorized');
+  const key = req.headers['sec-websocket-key'];
+  if (!key) return reject(400, 'Bad Request');
+
+  socket.write(
+    [
+      'HTTP/1.1 101 Switching Protocols',
+      'Upgrade: websocket',
+      'Connection: Upgrade',
+      `Sec-WebSocket-Accept: ${wsAccept(key)}`,
+      '\r\n',
+    ].join('\r\n'),
+  );
+
+  const client = { socket, session, topics: new Set(['system']), buffer: Buffer.alloc(0) };
+  wsClients.add(client);
+  wsSend(client, { type: 'welcome', seq: wsSeq, ts: new Date().toISOString(), topic: 'system', payload: { topics: [...client.topics] } });
+
+  socket.on('data', (chunk) => {
+    client.buffer = Buffer.concat([client.buffer, chunk]);
+    const { messages, rest } = wsDecode(client.buffer);
+    client.buffer = rest;
+    for (const message of messages) {
+      if (message.error) {
+        socket.destroy();
+        return;
+      }
+      if (message.opcode === 0x8) {
+        socket.end();
+        return;
+      }
+      if (message.opcode === 0x9) {
+        socket.write(Buffer.from([0x8a, 0x00])); // pong（空载荷）
+        continue;
+      }
+      if (message.opcode !== 0x1) continue;
+      handleWsMessage(client, message.text);
+    }
+  });
+  socket.on('close', () => wsClients.delete(client));
+  socket.on('error', () => wsClients.delete(client));
+}
+
+/** 只接受 subscribe / unsubscribe：这个通道不承载任何写操作（§6.3 规则 4）。 */
+function handleWsMessage(client, text) {
+  let message;
+  try {
+    message = JSON.parse(text);
+  } catch {
+    wsSend(client, { type: 'error', code: 'invalid_json', message: '消息不是合法 JSON' });
+    return;
+  }
+  const allowed = new Set(['alarm', 'task', 'config-transaction', 'telemetry']);
+  const topic = message?.topic;
+  if (!allowed.has(topic)) {
+    wsSend(client, { type: 'error', code: 'unknown_topic', message: `未知订阅主题 ${topic}` });
+    return;
+  }
+  if (message.type === 'subscribe') {
+    client.topics.add(topic);
+  } else if (message.type === 'unsubscribe') {
+    client.topics.delete(topic);
+  } else {
+    wsSend(client, { type: 'error', code: 'unsupported_type', message: '只支持 subscribe / unsubscribe' });
+    return;
+  }
+  wsSend(client, {
+    type: 'subscribed',
+    seq: wsSeq,
+    ts: new Date().toISOString(),
+    topic,
+    payload: { topics: [...client.topics] },
+  });
+}
+
+server.on('upgrade', handleWsUpgrade);
 
 server.listen(PORT, HOST, () => {
   console.log(`[mock] product=${PRODUCT} listening http://${HOST}:${PORT}  registry=${registry.digests.registry.slice(0, 23)}…`);

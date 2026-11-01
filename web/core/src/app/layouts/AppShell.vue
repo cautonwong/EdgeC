@@ -5,11 +5,12 @@
  * 侧栏分组固定六组，条目由静态 Registry ∩ 权限 ∩ 能力 ∩ 许可生成；分组内一条都不
  * 可见时整组隐藏。顶栏的"待应用/断连"类状态用常驻横幅表达。
  */
-import { computed, defineAsyncComponent, ref } from 'vue';
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useRegistryStore } from '../stores/registry';
 import { useSessionStore } from '../stores/session';
 import { useCapabilityStore } from '../stores/capability';
+import { useLiveStore } from '../stores/live';
 import UiBanner from '../../ui/components/Banner.vue';
 import UiButton from '../../ui/components/Button.vue';
 // 全局抽屉（控制台 / AI 副驾）沿用既有实现：它们是 Shell 的能力，不属于任何产品包。
@@ -23,6 +24,7 @@ const router = useRouter();
 const registryStore = useRegistryStore();
 const session = useSessionStore();
 const capability = useCapabilityStore();
+const live = useLiveStore();
 
 const { toggleCopilot } = useAICopilot();
 const isConsoleOpen = ref(false);
@@ -30,6 +32,16 @@ const isConsoleOpen = ref(false);
 const productName = computed(() => registryStore.registry?.productName ?? 'EdgeOS');
 const version = computed(() => registryStore.registry?.productVersion ?? '');
 const releaseId = computed(() => registryStore.registry?.releaseScope.releaseId ?? '');
+
+// 实时通道只在已登录时建立；断开后自动重连，状态直接反映在顶栏徽标上。
+onMounted(() => live.start());
+onBeforeUnmount(() => live.stop());
+
+const liveLabel = computed(() => {
+  if (live.state === 'open') return '实时';
+  if (live.state === 'connecting' || live.state === 'reconnecting') return '重连中';
+  return '离线';
+});
 
 async function logout(): Promise<void> {
   await session.logout();
@@ -73,6 +85,7 @@ async function logout(): Promise<void> {
           <slot name="topbar" />
         </div>
         <div class="shell__user">
+          <span class="shell__live" :class="`shell__live--${live.state}`" :data-testid="'live-badge'">{{ liveLabel }}</span>
           <UiButton variant="ghost" size="sm" data-testid="toggle-copilot" @click="toggleCopilot()">AI Copilot</UiButton>
           <UiButton
             variant="ghost"
@@ -204,6 +217,25 @@ async function logout(): Promise<void> {
 }
 .shell__username {
   font-size: var(--font-size-sm);
+}
+.shell__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: var(--font-size-xs);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+}
+.shell__live--open {
+  color: var(--color-success);
+  border-color: color-mix(in srgb, var(--color-success) 40%, transparent);
+}
+.shell__live--reconnecting,
+.shell__live--connecting {
+  color: var(--color-warning);
+  border-color: color-mix(in srgb, var(--color-warning) 40%, transparent);
 }
 .shell__roles {
   color: var(--text-secondary);

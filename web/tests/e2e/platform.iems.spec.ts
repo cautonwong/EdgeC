@@ -245,3 +245,30 @@ test('R3 分区（防火墙）：engineer 能读不能改，菜单可见但控�
   await expect(page.locator('[data-testid="denied-state"]')).toHaveText('forbidden');
   await expect(page.locator('[data-testid="denied-page"]')).toContainText('network.firewall:read');
 });
+
+// ---------------------------------------------------------------- 实时通道（只读推送）
+test('实时通道：登录后建立连接，顶栏徽标显示"实时"', async ({ page }) => {
+  await login(page, ENGINEER_ACCOUNT);
+  await expect(page.locator('[data-testid="live-badge"]')).toHaveText('实时');
+});
+
+test('实时通道：别的会话确认事务后，本页无需手动刷新就能看到结果', async ({ page }) => {
+  await openNetworkEditor(page);
+  await page.locator('[data-testid="field-addresses"]').fill('192.168.10.88/24');
+  await page.locator('[data-testid="tx-apply"]').click();
+  await expect(page.locator('[data-testid="tx-pending"]')).toBeVisible();
+
+  // 用同一会话的另一条通道确认（模拟"另一个窗口/运维同事确认了"），页面不做任何点击
+  const pending = await (await page.request.get('/api/v1/config/transactions?state=PENDING_CONFIRM')).json();
+  const txId = pending.items[0].transactionId;
+  const me = await (await page.request.get('/api/v1/auth/me')).json();
+  const confirmed = await page.request.post(`/api/v1/config/transactions/${txId}/confirm`, {
+    data: {},
+    headers: { Origin: 'http://127.0.0.1:5173', 'X-CSRF-Token': me.csrfToken },
+  });
+  expect(confirmed.status()).toBe(200);
+
+  // 靠 WebSocket 推送把状态带过来：pending 横幅消失、出现"已确认"
+  await expect(page.locator('[data-testid="tx-message"]')).toContainText('已确认', { timeout: 15_000 });
+  await expect(page.locator('[data-testid="tx-pending"]')).toHaveCount(0);
+});
