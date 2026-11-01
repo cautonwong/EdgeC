@@ -8,4 +8,6 @@ export { default as UiMetricCard } from './components/MetricCard.vue';
 export { default as UiDataTable } from './components/DataTable.vue';
 export { default as UiPermissionGate } from './components/PermissionGate.vue';
 export { default as UiBanner } from './components/Banner.vue';
+export { default as UiSchemaForm } from './components/SchemaForm.vue';
+export type { SchemaFormValue } from './components/SchemaForm.vue';
 export type { Column } from './components/DataTable.vue';

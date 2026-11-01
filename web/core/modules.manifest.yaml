@@ -108,6 +108,12 @@ modules:
         permissions: { allOf: [network.cellular:read] }
         requires:
           capabilities: [hardware.network.cellular]
+      - id: core.network.firewall
+        path: /network/firewall
+        component: network/FirewallView.vue
+        title: 防火墙
+        menu: { group: network, order: 25, icon: shield }
+        permissions: { allOf: [network.firewall:read] }
       - id: core.network.config
         path: /network/config
         component: system/ConfigEditor.vue
@@ -130,6 +136,12 @@ modules:
         title: 系统配置
         menu: { group: system, order: 20, icon: settings }
         permissions: { allOf: [system.service:read] }
+      - id: core.system.time
+        path: /system/time
+        component: system/TimeView.vue
+        title: 系统时间
+        menu: { group: system, order: 25, icon: clock }
+        permissions: { allOf: [system.time:read] }
       - id: core.system.storage
         path: /system/storage
         component: system/Storage.vue
