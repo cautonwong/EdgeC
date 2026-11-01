@@ -106,6 +106,9 @@ jobs:
           # 只补它声明为运行时依赖的两个包，再把平台路径交给 run.sh——
           # 之前缺的就是 TESTPLATFORM，run.sh 找不到平台直接返回 4（平台错误）。
           python3 -m pip install --quiet "pytest>=8.0" "pyyaml>=6.0"
+          # smart_box 冒烟任务要用 Go 网关二进制。CI 上首次编译是冷的，
+          # 放在任务里编译会撞任务的启动超时（现象是 platform_error，不是产品不合格）。
+          (cd go && go build -o ../build/go-bin/smart-box-gateway ./cmd/smart-box-gateway)
           TESTPLATFORM="$TP" ./acceptance/run.sh
 
       # 门禁红了必须能回答"哪个产品、哪条用例、证据在哪":报告与证据都在
