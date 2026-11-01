@@ -487,8 +487,16 @@ const handlers = {
     return { taskId: task.id, state: task.state };
   },
 
-  'POST /api/v1/system/upgrade': () => {
-    throw httpError(404, 'feature_disabled', '该 release 未启用固件升级');
+  // 只有 release-scope 启用了 firmwareUpgrade 的产品才会注册这条路由（iEMS 上它根本不存在）
+  'POST /api/v1/system/upgrade': (ctx) => {
+    const task = createTask(ctx, {
+      type: 'system.upgrade',
+      target: 'firmware',
+      requiredPermission: 'system.upgrade:execute',
+      ownerCancel: false,
+      cancelableStages: [],
+    });
+    return { taskId: task.id, state: task.state };
   },
 
   'GET /api/v1/logs/system': () => ({
@@ -842,6 +850,7 @@ const server = http.createServer(async (req, res) => {
       setSession: (created) => {
         res.setHeader(
           'Set-Cookie',
+          // 台架走明文 HTTP，所以这里没有 Secure；生产 webd 必须加 Secure（§5.6）。
           `edgeos_sid=${created.sid}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${Math.floor(ABSOLUTE_TIMEOUT_MS / 1000)}`,
         );
       },
