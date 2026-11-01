@@ -5,6 +5,7 @@
  * `app/composables`，这样 Shell 的内部结构（store/router/views）可以改而不牵动页面。
  */
 import { computed } from 'vue';
+import { request } from '../../sdk/http';
 import { useConfigTransactionStore } from '../stores/configTransaction';
 import { useRegistryStore } from '../stores/registry';
 
@@ -20,5 +21,16 @@ export function useConfigSection(schemaId: string) {
     return true;
   }
 
-  return { tx: store, schema, open };
+  /** 整段配置页用这个：从设备读当前值 → 建立草稿 → 恢复未确认事务。 */
+  async function load(): Promise<boolean> {
+    if (!schema.value) return false;
+    const section = await request<{ values: Record<string, unknown> }>(
+      `/api/v1/config/sections/${encodeURIComponent(schemaId)}`,
+    );
+    store.open(schema.value, section.values ?? {});
+    await store.resume();
+    return true;
+  }
+
+  return { tx: store, schema, open, load };
 }

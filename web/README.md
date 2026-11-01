@@ -69,11 +69,12 @@ Core 永不 import products
 编辑 → 应用 → （R2 起）PENDING_CONFIRM 倒计时 → 确认保留 / 超时由设备 watchdog 回滚
 ```
 
-- 前端：`useConfigSection()` + `<ConfigTransactionBar>`；前端校验只是提前提示，
-  服务端 422 的 `fieldErrors` 才是结论，会挂回对应输入框。
+- 前端：`useConfigSection()` + `<UiSchemaForm>`（按 Schema 渲染控件）+ `<ConfigTransactionBar>`；
+  前端校验只是提前提示，服务端 422 的 `fieldErrors` 才是结论，会挂回对应输入框。
 - 倒计时只用于显示：关掉浏览器照样回滚，因为 deadline 与回滚在设备侧。
-- 已接页面：网络接口（R2，改 IP/网关/MTU）。其余分区（`system.time` R1、`network.firewall` R3）
-  已有 Schema 与后端规则，页面随 WBUI-043 逐步接入。
+- 已接页面：网络接口（R2）、系统时间（R1，应用即生效）、防火墙（R3，含"默认拒绝 + 白名单为空"
+  的锁定风险提示）。三个页面共用同一套表单/事务组件，页面里没有"if 这是 R1"这类分支——
+  风险等级由 Schema 与事务条决定。
 
 ## 5. 常用命令
 

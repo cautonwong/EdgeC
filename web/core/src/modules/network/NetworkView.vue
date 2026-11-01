@@ -15,6 +15,7 @@ import ConfigTransactionBar from '../../app/components/ConfigTransactionBar.vue'
 import UiBanner from '../../ui/components/Banner.vue';
 import UiButton from '../../ui/components/Button.vue';
 import UiDataTable, { type Column } from '../../ui/components/DataTable.vue';
+import UiSchemaForm from '../../ui/components/SchemaForm.vue';
 import UiStatusBadge from '../../ui/components/StatusBadge.vue';
 
 interface InterfaceRow {
@@ -35,7 +36,6 @@ const rows = ref<InterfaceRow[]>([]);
 const loading = ref(false);
 const error = ref('');
 const editingId = ref<string | null>(null);
-const addressText = ref('');
 
 const canWrite = computed(() => authz.can('network.interface:write'));
 const columns: Column[] = [
@@ -62,7 +62,6 @@ async function load(): Promise<void> {
 
 function startEdit(row: InterfaceRow): void {
   editingId.value = row.id;
-  addressText.value = row.addresses.join('\n');
   open({
     interfaceId: row.id,
     addresses: [...row.addresses],
@@ -75,20 +74,6 @@ function startEdit(row: InterfaceRow): void {
 function cancelEdit(): void {
   editingId.value = null;
   tx.reset();
-}
-
-function syncAddresses(): void {
-  tx.setValue(
-    'addresses',
-    addressText.value
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0),
-  );
-}
-
-function fieldError(name: string): string | undefined {
-  return tx.fieldErrors[name];
 }
 
 // 事务落地后刷新列表：否则"已确认"之后表格里还是旧 IP，用户会以为没生效。
@@ -143,65 +128,17 @@ onBeforeUnmount(() => tx.stopTicker());
       </UiButton>
     </div>
 
-    <form v-if="editingId && schema" class="form" data-testid="network-form" @submit.prevent="tx.apply()">
-      <h2 class="form__title">编辑 {{ editingId }}</h2>
-
-      <label class="field">
-        <span class="field__label">{{ schema.properties.interfaceId.title }}</span>
-        <select
-          class="field__input"
-          :value="tx.draft.interfaceId"
-          data-testid="field-interfaceId"
-          @change="tx.setValue('interfaceId', ($event.target as HTMLSelectElement).value)"
-        >
-          <option v-for="option in schema.properties.interfaceId.enum ?? []" :key="option" :value="option">{{ option }}</option>
-        </select>
-      </label>
-
-      <label class="field">
-        <span class="field__label">{{ schema.properties.addresses.title }}</span>
-        <textarea
-          v-model="addressText"
-          class="field__input field__input--area"
-          rows="3"
-          data-testid="field-addresses"
-          :aria-invalid="fieldError('addresses') ? 'true' : undefined"
-          @input="syncAddresses()"
-        />
-        <span v-if="fieldError('addresses')" class="field__error" data-testid="error-addresses">{{ fieldError('addresses') }}</span>
-        <span v-else class="field__hint">{{ schema.properties.addresses.hint }}</span>
-      </label>
-
-      <label class="field">
-        <span class="field__label">{{ schema.properties.gateway.title }}</span>
-        <input
-          class="field__input"
-          :value="tx.draft.gateway"
-          data-testid="field-gateway"
-          :aria-invalid="fieldError('gateway') ? 'true' : undefined"
-          @input="tx.setValue('gateway', ($event.target as HTMLInputElement).value)"
-        />
-        <span v-if="fieldError('gateway')" class="field__error" data-testid="error-gateway">{{ fieldError('gateway') }}</span>
-      </label>
-
-      <label class="field">
-        <span class="field__label">{{ schema.properties.mtu.title }}（{{ schema.properties.mtu.unit }}）</span>
-        <input
-          class="field__input"
-          type="number"
-          :min="schema.properties.mtu.minimum"
-          :max="schema.properties.mtu.maximum"
-          :value="tx.draft.mtu"
-          data-testid="field-mtu"
-          @input="tx.setValue('mtu', Number(($event.target as HTMLInputElement).value))"
-        />
-        <span v-if="fieldError('mtu')" class="field__error" data-testid="error-mtu">{{ fieldError('mtu') }}</span>
-      </label>
-
-      <div class="form__actions">
-        <UiButton variant="ghost" size="sm" type="button" data-testid="network-cancel" @click="cancelEdit">关闭</UiButton>
-      </div>
-    </form>
+    <div v-if="editingId && schema" class="editor" data-testid="network-form">
+      <h2 class="editor__title">编辑 {{ editingId }}</h2>
+      <UiSchemaForm
+        :schema="schema"
+        :model-value="tx.draft"
+        :errors="tx.fieldErrors"
+        :disabled="!canWrite"
+        @change="tx.setValue"
+      />
+      <UiButton variant="ghost" size="sm" data-testid="network-cancel" @click="cancelEdit">关闭</UiButton>
+    </div>
   </section>
 </template>
 
@@ -227,51 +164,11 @@ onBeforeUnmount(() => tx.stopTicker());
   gap: var(--space-2);
   margin: var(--space-3) 0 var(--space-4);
 }
-.form {
+.editor {
   max-width: 560px;
-  padding: var(--space-4);
-  background: var(--bg-surface);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
 }
-.form__title {
+.editor__title {
   margin: 0 0 var(--space-3);
   font-size: var(--font-size-lg);
-}
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  margin-bottom: var(--space-3);
-}
-.field__label {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-}
-.field__input {
-  min-height: var(--input-height);
-  padding: 0 var(--space-3);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  font: inherit;
-}
-.field__input--area {
-  padding: var(--space-2) var(--space-3);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-sm);
-}
-.field__error {
-  color: var(--color-danger);
-  font-size: var(--font-size-xs);
-}
-.field__hint {
-  color: var(--text-secondary);
-  font-size: var(--font-size-xs);
-}
-.form__actions {
-  display: flex;
-  justify-content: flex-end;
 }
 </style>
