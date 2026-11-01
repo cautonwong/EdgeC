@@ -14,6 +14,18 @@ extern "C" {
 #define DLT698_HEAD 0x68
 #define DLT698_END  0x16
 
+/**
+ * @brief 时间标签：本实现不使用，按标准填 0（含义是"没有时间标签"）。
+ *
+ * 标准 6.3 与附录 H 的**每一个** APDU 末尾都有这个字节。漏掉它不会让报文
+ * "明显坏掉"，而是让服务器把最后一个数据字节当成时间标签 —— 表现为
+ * "类型不匹配 / 数据错"，查起来像编码错误。所以编 APDU 一律显式写它。
+ */
+#define DLT698_NO_TIME_TAG 0x00
+
+/** 响应里"没有跟随上报信息"。 */
+#define DLT698_NO_FOLLOW_REPORT 0x00
+
 // 服务标识 (Service Tags)
 #define DLT698_SVC_GET_REQ      0x05
 #define DLT698_SVC_GET_RES      0x85
@@ -68,6 +80,46 @@ int dlt698_encode_set_request(const dlt698_addr_t *sa, uint8_t piid, uint32_t oa
  */
 int dlt698_encode_get_response(const dlt698_addr_t *sa, uint8_t piid, uint32_t oad, 
                                const uint8_t *data, size_t dlen, net_buf_t *out);
+
+/**
+ * @brief 构造 ACTION-Request.Normal（操作一个对象方法）。
+ *
+ * APDU：`07 | 01 | PIID | OMD(4) | Data | 时间标签`
+ * 其中 OMD = `OI(2) | 方法标识(1) | 操作模式(1)`（标准 6.3.3.12，模式缺省 0）。
+ *
+ * 对照标准附录 H.5.1「执行电能量复位方法」：
+ * `07 01 05 00 10 01 00 0F 00 00` —— OI=0x0010、方法=1、模式=0、
+ * 参数 Data=`0F 00`（integer 0）、末字节 `00` 是没有时间标签。
+ *
+ * @param oi      对象标识（2 字节，大端）
+ * @param method  方法标识（1…255）
+ * @param mode    操作模式，标准里缺省 0
+ * @param data    方法参数的 A-XDR 编码（含类型标签），dlen=0 表示无参数
+ * @param out     输出缓冲区
+ * @return 0 成功，<0 参数非法
+ */
+int dlt698_encode_action_request(const dlt698_addr_t *sa, uint8_t piid, uint16_t oi,
+                                 uint8_t method, uint8_t mode, const uint8_t *data, size_t dlen,
+                                 net_buf_t *out);
+
+/**
+ * @brief 构造 ACTION-Response.Normal（对一次方法操作的应答）。
+ *
+ * APDU：`87 | 01 | PIID-ACD | OMD(4) | DAR | Data OPTIONAL | FollowReport | 时间标签`
+ *
+ * 对照标准附录 H.5.1 的响应：
+ * `87 01 05 00 10 01 00 00 00 00 00` —— DAR=0（成功）、Data OPTIONAL=0（无返回数据）、
+ * FollowReport=0、时间标签=0。
+ *
+ * **DAR 必须如实填**：操作失败却回 0（成功）就是"假成功"，主站会以为继电器动了。
+ * 常见值：0 成功 / 1 硬件失效 / 2 暂时失效 / 3 拒绝读写 / 15 密码错未授权 / 255 其它。
+ *
+ * @param dar   数据访问结果（标准 6.3.3.11）
+ * @param data  操作返回数据的 A-XDR 编码，可为 NULL
+ */
+int dlt698_encode_action_response(const dlt698_addr_t *sa, uint8_t piid, uint16_t oi,
+                                  uint8_t method, uint8_t mode, uint8_t dar, const uint8_t *data,
+                                  size_t dlen, net_buf_t *out);
 
 /**
  * @brief 解析响应报文

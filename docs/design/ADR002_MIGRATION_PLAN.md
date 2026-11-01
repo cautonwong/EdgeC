@@ -76,7 +76,7 @@ grep -rn 'edge_model_find' --include='*.c' --include='*.h' modules cmd
 | ModbusRTU | ✅ | ✅ | ✅ | 0 | 0 | **已完成（S3-b）** |
 | ModbusTCP | — | ✅ | ✅ | 0 | 0 | **已完成（S3-b）** |
 | DLT698 | ✅ | — | — | 0 | 0 | **已完成（S3-c）** |
-| IEC104 | — | ✅ | — | 16 | 5 | **唯一剩余**（等 `session_ctx` 决策） |
+| IEC104 | — | ✅ | — | 0 | 0 | **已完成（S3-d，APCI 状态移入 `session`）** |
 | IEC101 | — | — | — | 0 | 0 | **已完成（S3-c2）** |
 | DLMS | — | — | — | 0 | 0 | **已完成（S3-c3）** |
 | CIA402 | — | — | — | 0 | 0 | **已完成（S3-e）** |
@@ -84,9 +84,40 @@ grep -rn 'edge_model_find' --include='*.c' --include='*.h' modules cmd
 | CCSDS | — | — | — | 0 | 0 | **已完成（S3-e，北向端口）** |
 | SparkplugB / RadarFMCW / Hotplug | — | — | — | 0 | 0 | 非会话型驱动，不涉及 |
 
-**截至 2026-10-31：只剩 IEC104 一个。** 其余 12 个驱动全部纯 codec 化，
-`lookup_by_*` / `read_shadow` / `driver_contract_injection_t` 在驱动目录里已归零；
-最后两处是 `driver_manager.c` 的注入兜底和 `driver_iec104.c`。
+**截至 2026-10-31：13 个驱动全部纯 codec 化，`driver_contract_injection_t` 已从代码里消失。**
+`lookup_by_*` / `read_shadow` / `publish` / `get_tag_name` 在驱动目录里归零；
+`driver_manager.c` 的弱符号兜底与两个产品的 `edge_model_find` 强实现也一并删除。
+第 14 道门禁（`scripts/check_architecture_layers.sh`）负责不让它们回来。
+
+### 2.1 南向读写能力（2026-10-31 逐文件核对）
+
+"纯 codec 化"（不再查表 / 不读影子表）与"读写能真跑通"是两件事，必须分开记——
+前者是架构目标，后者才是功能现状。
+
+| 驱动 | 产品注册 | 读 | 写（SET / 参数） | 控制（ACTION / 遥控） |
+|---|:--:|:--:|:--:|---|
+| ModbusRTU | ✅ | ✅ FC03 | ✅ FC05/06 | —（Modbus 无独立控制类，FC06 即写） |
+| ModbusTCP | ✅ | ✅ FC03 | ✅ FC05/06 | 同上 |
+| DLT645 | ✅ | ✅ | ✅ 控制码 0x14 | — |
+| DLT698 | ✅ | ✅ GET | ✅ SET-Request | ❌ **缺 ACTION-Request 编码器**（OI 8000 明确失败） |
+| IEC104 | ✅ | ✅ | ✅ C_SC / C_DC / C_SE | ✅ 与控制命令同一编码 |
+| CAN | ✅ | ✅ | ❌ `return -1` + WARN | ❌ |
+| IEC101 | —（无产品注册） | ✅ | ✅ | ✅ |
+| DLMS | —（无产品注册） | ✅ | ✅ SET-Request | — |
+
+**结论**：被产品注册的 6 个南向驱动里，读全部通了；**写只剩 CAN 一个未通**；
+另有一处**控制类**缺口——DLT698 的 ACTION-Request（OI 8000 拉合闸）。
+
+两条不能含糊的地方：
+
+- **IEC101 / DLMS 的读写代码已通，但没有任何产品注册**，等于没跑过真实链路。
+  要么产品接上，要么按 `EXCLUDE_FROM_ALL` 处理，**不要当"已验证"记账**。
+- **CAN 的写语义只能产品定**（数据帧里哪几个字节是值、字节序、要不要分帧），
+  驱动无法代劳。样例给出之前保持显式失败，好过猜一个"看起来对"的帧。
+
+> 判定方法提醒：`grep 'if (is_write)'` **不能**区分"拒绝"和"真实现"——
+> CAN 的 `if (is_write) { (void)value; return -1; }` 与 645 的
+> `if (is_write) { ...编码... }` 命中同一条 grep。必须看分支体。
 
 ---
 
@@ -355,13 +386,22 @@ typedef struct {
 CCSDS 是航天遥测协议、HL7 是医疗协议——删掉等于砍掉规划中的产品线。
 虽然当前没有产品注册它们，但这是"还没接"不是"不要了"。
 
-### S3-e 未注册的 5 个驱动（拦路石）
+### S3-e 收尾：未注册的 5 个驱动怎么处置（已迁移，去向待决）
 
-IEC101 / DLMS / CIA402 / HL7 / CCSDS 没有任何产品注册，但都引用注入包。
-两个选项：
+IEC101 / DLMS / CIA402 / HL7 / CCSDS 已完成纯 codec 化，注入引用归零，
+**但它们仍然没有任何产品注册**。也就是说：代码是对的，但没有真实链路验证过。
 
-- **删掉**（推荐）：13 个驱动里 5 个是纯维护成本
-- 或 `EXCLUDE_FROM_ALL` 但**同时把注入引用摘掉**（只不编译不算解决，`grep` 还是会命中）
+处置选项（**尚未拍板**）：
+
+- **接上产品**：IEC101 / DLMS 都是电力行业常用协议，产品线可能要。
+  接上之后才有资格算"已验证"。
+- **`EXCLUDE_FROM_ALL`**：不进默认构建，缩小维护面。但别把"不编译"当解决——
+  文件还在，后续重构照样要照顾它。
+- **删掉**：前面已经否过一次（`AERO_EDGE_PRD.md` 航天 / `IOT_HUB_PRD.md` 医疗
+  在规划里要 CCSDS / HL7），不推荐。
+
+**现在不拍板的原因**：这三条路都不影响 ADR-002 的硬目标（§0 的 9 项已全部达成），
+属于产品排期问题，不该由一次架构改造顺手替产品做决定。
 
 ### S6 北向生产者改纯 codec：`get_tag_name` 退场（2026-10-31）
 

@@ -162,7 +162,7 @@ fi
 # 14. ADR-002：协议驱动必须保持纯 codec
 #     驱动只做「字节 <-> 值」，不查点位表、不读影子表、不写回消费侧。
 #     这条门禁是 ADR-002 的锁：删掉的东西不能再被下一个提交悄悄加回来。
-echo "  [14/14] Checking protocol drivers stay pure codec (ADR-002)..."
+echo "  [14/15] Checking protocol drivers stay pure codec (ADR-002)..."
 DRV_OFFENDERS=$(grep -rn -E 'lookup_by_key|lookup_by_tag|edge_driver_read_shadow|driver_contract_injection_t|edge_model_find' \
     "${REPO_ROOT}"/modules/edge_io/src/driver_*.c \
     "${REPO_ROOT}"/modules/edge_io/src/modbus_*_driver.c 2>/dev/null \
@@ -170,6 +170,26 @@ DRV_OFFENDERS=$(grep -rn -E 'lookup_by_key|lookup_by_tag|edge_driver_read_shadow
 if [ -n "$DRV_OFFENDERS" ]; then
     echo "    ❌ VIOLATION: protocol driver reaches back into the consumer side (ADR-002):"
     echo "$DRV_OFFENDERS" | head -10 | sed 's/^/      /'
+    VIOLATIONS=$((VIOLATIONS + 1))
+fi
+
+# 15. ADR-0011：北向编排不得写死协议与地址
+#     地址由模板渲染（_render_address），协议由注册表（NB_PROTOCOLS）选。
+#     两条都不许再退回"问驱动要 topic""把协议名写死"。
+echo "  [15/15] Checking northbound orchestration stays protocol-agnostic (ADR-0011)..."
+NB_MGR="${REPO_ROOT}/modules/edge_io/src/northbound_mgr.c"
+NB_OFFENDERS=""
+if [ -f "$NB_MGR" ]; then
+    # 15a. 地址不能问驱动要（那等于把 topic 规则塞回驱动）
+    NB_OFFENDERS=$(grep -n 'sparkplug_b_identity' "$NB_MGR" \
+        | grep -v -E '(^|:)[0-9]+:[[:space:]]*(\*|/\*|//)' || true)
+    # 15b. 协议名不能写死在实例创建里（必须走注册表）
+    NB_OFFENDERS="${NB_OFFENDERS}$(grep -nE 'driver_instance_create\([^,]+,[[:space:]]*"' "$NB_MGR" \
+        | grep -v -E '(^|:)[0-9]+:[[:space:]]*(\*|/\*|//)' || true)"
+fi
+if [ -n "$NB_OFFENDERS" ]; then
+    echo "    ❌ VIOLATION: northbound manager hardcodes protocol/address (ADR-0011):"
+    echo "$NB_OFFENDERS" | head -10 | sed 's/^/      /'
     VIOLATIONS=$((VIOLATIONS + 1))
 fi
 

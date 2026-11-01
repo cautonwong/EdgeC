@@ -1,4 +1,5 @@
 #include "session_manager.h"
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include "edge_log.h"
@@ -24,6 +25,9 @@ struct session_manager_s {
     /* [ADR-002] 北向生产者端口：与从站端口并列，用途不同（BATCH/EVENT/标量） */
     edge_north_source_ops_t north_src;
     void *north_src_ctx;
+    /* 没注入过就传 NULL，而不是传一个全零的结构体——后者会让驱动里
+     * `if (!src) return -1;` 的守卫失效，一路走到 `src->peek(...)` 才崩。 */
+    bool north_src_set;
     uint8_t slave_scratch[REQ_DRV_PRIV_MAX];
 };
 
@@ -32,8 +36,10 @@ void session_manager_set_north_source(session_manager_t *sm, const edge_north_so
     if (!sm) return;
     if (ops) {
         sm->north_src = *ops;
+        sm->north_src_set = true;
     } else {
         memset(&sm->north_src, 0, sizeof(sm->north_src));
+        sm->north_src_set = false;
     }
     sm->north_src_ctx = ctx;
 }
@@ -146,7 +152,8 @@ int session_manager_tick(session_manager_t *sm, int bus_id, net_buf_t **out_txs,
             /* request-native 生产者：状态由端口给，驱动不碰 datahub */
             if (ctx->driver->req_tick) {
                 net_buf_t *tx = NULL;
-                if (ctx->driver->req_tick(ctx->priv, &sm->north_src, sm->north_src_ctx, &sm->slave_src,
+                if (ctx->driver->req_tick(ctx->priv, sm->north_src_set ? &sm->north_src : NULL,
+                                          sm->north_src_ctx, &sm->slave_src,
                                           sm->slave_src_ctx, ctx->pool, &tx) == 0 &&
                     tx) {
                     out_txs[tx_count++] = tx;

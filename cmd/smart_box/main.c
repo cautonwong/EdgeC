@@ -13,6 +13,10 @@
 #include "datahub.h"
 #include "edge_composition_root.h"
 #include "edge_log.h"
+#include "edge_north_plane.h"
+#include "mqtt_json_codec.h"
+#include "mqtt_producer.h"
+#include "northbound_mgr.h"
 #include "wasm_app_scheduler.h"
 #include "wasm_mgr.h"
 
@@ -32,6 +36,75 @@ static datahub_t *g_hub = NULL;
 static int g_blink_phase = 0;
 static int g_wd_fd = -1;
 static wasm_scheduler_t *g_sched = NULL;
+
+/* =============================================================================
+ * 北向取数端口（ADR-0011 族 A / N6-5）
+ *
+ * SmartBox 之前**完全没有北向**：数据只在本地影子表里打转，云端看不到。
+ * 这里补上最小可用的一条，分工与 DCU/IEMS 一致：
+ *   值从 datahub 取、名字由产品给，驱动不认识点位模型。
+ * ========================================================================== */
+static int _sb_nb_peek(void *ctx, uint32_t tag_id, pipe_msg_t *out) {
+    datahub_t *hub = (datahub_t *)ctx;
+    if (!hub || !out) return -1;
+    return datahub_read_shadow(hub, tag_id, out);
+}
+
+static const char *_sb_nb_name(void *ctx, uint32_t tag_id) {
+    (void)ctx;
+    const edge_tag_meta_t *meta = smartbox_get_tag_meta(tag_id);
+    return meta ? meta->name : NULL;
+}
+
+/** metric 名 → tag_id（下行要用：云端只给名字）。 */
+static int _sb_nb_resolve_name(void *ctx, const char *name, uint32_t *tag_id) {
+    (void)ctx;
+    if (!name || !tag_id) return -1;
+    uint32_t n = 0;
+    const edge_tag_meta_t *all = smartbox_get_tag_metadata(&n);
+    if (!all) return -1;
+    for (uint32_t i = 0; i < n; i++) {
+        if (all[i].name && strcmp(all[i].name, name) == 0) {
+            *tag_id = (uint32_t)all[i].id;
+            return 0;
+        }
+    }
+    return -1;
+}
+
+/**
+ * @brief 收一条北向下行报文。
+ *
+ * 解析通、**执行未接**：SmartBox 的下行是"指示灯 / 隐私模式 / 语音指令"这类动作，
+ * 必须过 `smartbox_node` 的安全联锁。哪个名字对应哪个聚合根方法属于产品决策，
+ * 在映射表定下来之前明确拒绝，比猜一个执行路径安全。
+ */
+static int _sb_nb_on_downlink(void *ctx, const char *address, const uint8_t *payload,
+                              size_t len) {
+    (void)ctx;
+    char name[64];
+    double value = 0.0;
+    if (mqtt_json_decode_downlink(payload, len, name, sizeof(name), &value) != 0) {
+        LOG_WARN(LOG_CAT_CORE, "SmartBox downlink on '%s': 不是 {p,v} 帧", address);
+        return -1;
+    }
+    LOG_WARN(LOG_CAT_CORE,
+             "SmartBox downlink on '%s': 解析出 %s=%.6g，但**未执行** —— "
+             "缺 名字→聚合根方法 映射（须过 smartbox_node 安全联锁）",
+             address, name, value);
+    return -1;
+}
+
+static const edge_north_source_ops_t *smartbox_north_source_ops(void) {
+    static const edge_north_source_ops_t ops = {
+        .peek = _sb_nb_peek,
+        .name = _sb_nb_name,
+        .resolve_name = _sb_nb_resolve_name,
+        .accept = NULL,
+        .on_downlink = _sb_nb_on_downlink,
+    };
+    return &ops;
+}
 
 static void send_uds_frame(uint8_t msg_type, const uint8_t *payload, uint8_t len) {
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -449,6 +522,32 @@ int main(int argc, char **argv) {
     }
     g_hub = edge_composition_root_get_datahub(comp_root);
 
+    /* 北向：数据不发出去，采集等于没做（ADR-0011）。
+     * SmartBox 之前完全没有北向，这里补上最小可用的一条 MQTT 通道。
+     * db 传 NULL = 没有 SnF 断网缓存（本产品还没接 sqlite 服务）；
+     * 断网期间的数据只在本地，这一点与 DCU/IEMS 不同，属于已知差异。 */
+    static northbound_mgr_t g_north;
+    const char *mqtt_url = getenv("MQTT_BROKER");
+    if (!mqtt_url || !*mqtt_url) mqtt_url = "tcp://127.0.0.1:1883";
+    char sb_client_id[80];
+    snprintf(sb_client_id, sizeof(sb_client_id), "SMARTBOX_%d", (int)getpid());
+    nb_transport_ops_t sb_transport = mqtt_producer_create(mqtt_url, sb_client_id);
+    northbound_mgr_init_ex(&g_north, northbound_source_from_datahub(g_hub), "SmartBox", NULL,
+                           sb_transport);
+    northbound_mgr_set_north_source(&g_north, smartbox_north_source_ops(), g_hub);
+    /* 协议可由部署选（E2E 用 MqttJson：载荷是 JSON，平台侧能解；
+     * 现场默认仍是 Sparkplug B）。换协议时地址模板跟着换。 */
+    const char* nb_proto = getenv("MQTT_PROTOCOL");
+    if (nb_proto && *nb_proto && northbound_mgr_set_protocol(&g_north, nb_proto) != 0) {
+        LOG_WARN(LOG_CAT_CORE, "Northbound: unknown protocol '%s', keeping default", nb_proto);
+    }
+    if (northbound_mgr_start(&g_north) != 0) {
+        LOG_WARN(LOG_CAT_CORE, "Northbound disabled (thread start failed)");
+    } else {
+        LOG_INFO(LOG_CAT_CORE, "🌐 Northbound assembled: broker=%s client=%s", mqtt_url,
+                 sb_client_id);
+    }
+
     // 初始化 GPIO 节点 (通过安全 HAL 适配，避免 shell 注入风险)
     static const char *gpio_dirs[] = {"/sys/class/gpio/gpio23",
                                       "/sys/class/gpio/gpio24",
@@ -512,6 +611,10 @@ int main(int argc, char **argv) {
         LOG_CAT_CORE,
         "Smart Box Loop with HW polling, Wasm Scheduler, Phoenix 10pin IO and drivers initialized");
     int rc = uv_run(loop, UV_RUN_DEFAULT);
+
+    /* 北向线程要显式停：它在自己的 loop 上跑，主 loop 退出不会带它走。 */
+    northbound_mgr_stop(&g_north);
+    northbound_mgr_destroy(&g_north);
 
     if (g_sched) {
         wasm_scheduler_destroy(g_sched);

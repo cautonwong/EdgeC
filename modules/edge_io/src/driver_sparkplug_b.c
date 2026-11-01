@@ -202,6 +202,21 @@ static int spb_req_tick(void *priv_v, const edge_north_source_ops_t *north, void
     return 0;
 }
 
+/**
+ * @brief 传输会话重建：新会话必须重发 NBIRTH，序号从头来。
+ *
+ * `birth_sent` 在 `priv` 里是**持久**的，正是"持久"导致它不会自己复位。
+ * 重连之后主站眼里是一个新节点，不发 NBIRTH 就判定节点已死——之后发多少
+ * NDATA 都不认。所以传输层报告会话变化时，必须由这里把状态清掉。
+ */
+static int spb_req_session_reset(void *priv_v) {
+    spb_ctx_t *priv = (spb_ctx_t *)priv_v;
+    if (!priv) return -1;
+    priv->birth_sent = false;
+    priv->seq = 0;
+    return 0;
+}
+
 const edge_driver_t sparkplug_b_driver = {
     .name = "SparkplugB",
     .ctx_size = sizeof(spb_ctx_t),        /* 序号与主题身份必须跨帧 */
@@ -210,6 +225,7 @@ const edge_driver_t sparkplug_b_driver = {
     .req_prepare = spb_req_prepare,
     .req_encode = spb_req_encode,
     .req_tick = spb_req_tick,
+    .req_session_reset = spb_req_session_reset,
 };
 
 int sparkplug_b_driver_register(driver_manager_t *mgr) {

@@ -23,6 +23,7 @@ import argparse
 import asyncio
 import signal
 import json
+import os
 import socket
 import sqlite3
 import struct
@@ -33,15 +34,21 @@ import time
 from pathlib import Path
 
 from bench import (BRIDGE_PORT, BUS_LOG, BUS_ID, DB_PATH, IEMS_BIN,
-                   NORTH_SOCK, RUN_DIR, SOCK, SLAVE_ID, TAG_CURRENT,
-                   TAG_VOLTAGE, VOLTAGE_REGISTER)
+                   IEMS_SRC_DIRS, NORTH_SOCK, RUN_DIR, SOCK, SLAVE_ID,
+                   TAG_CURRENT, TAG_VOLTAGE, VOLTAGE_REGISTER, describe,
+                   staleness)
 from testplatform.protocol import modbus_rtu
 
 _lock = threading.Lock()
 _fault = {"kind": None, "left": 0}
+# 北向桥的上游错误只喊一次：每帧都喊会把 product.err 刷满，反而看不见别的。
+_bridge_error_reported = False
 # 掉链:服务 N 帧后主动断掉这条南向连接,模拟现场断线(产品不许自己重连)
 _drop = {"after": 0, "done": False}
-_seen = {"requests": 0, "first_request_hex": None, "addresses": []}
+_seen = {"requests": 0, "first_request_hex": None, "addresses": [], "writes": []}
+# 可变寄存器文件：写下去要能读回来，否则"写成功了"只是"应答回显对了"。
+# 0 号是电压镜像（既有用例依赖它恒为台架值），1 号留作可写设定值。
+_regs = {0: VOLTAGE_REGISTER}
 
 
 def _should_drop() -> bool:
@@ -54,6 +61,14 @@ def _should_drop() -> bool:
             json.dumps({"requests": _seen["requests"]}, ensure_ascii=False),
             encoding="utf-8")
         return True
+
+
+def _note_write(address: int, value: int) -> None:
+    """记下主站写进来的值。写应答只是回显，**不能拿它证明写生效了**。"""
+    with _lock:
+        _regs[address] = value
+        _seen["writes"].append({"address": address, "value": value, "at": time.time()})
+        BUS_LOG.write_text(json.dumps(_seen, ensure_ascii=False), encoding="utf-8")
 
 
 def _record(request: bytes, address: int) -> None:
@@ -109,9 +124,22 @@ async def _serve(reader, writer):
                 break
             try:
                 unit, function, address, count = modbus_rtu.parse_read_request(head)
-            except ValueError as exc:
-                _record(head, -1)
-                _fail("parse_read_request", exc)
+            except ValueError as read_exc:
+                # 不是读，就试写：北向闭环要靠"主站写下来 → 产品写下去"这一段。
+                try:
+                    wunit, wfun, waddr, wval = modbus_rtu.parse_write_single_request(head)
+                except ValueError:
+                    _record(head, -1)
+                    _fail("parse_read_request", read_exc)
+                    continue
+                _record(head, waddr)
+                if _should_drop():
+                    break
+                if wunit != SLAVE_ID:
+                    break
+                _note_write(waddr, wval)
+                writer.write(modbus_rtu.build_write_single_response(wunit, waddr, wval))
+                await writer.drain()
                 continue
             _record(head, address)
             if _should_drop():
@@ -120,8 +148,7 @@ async def _serve(reader, writer):
             if unit != SLAVE_ID:
                 break
             payload = b"".join(
-                struct.pack(">H", VOLTAGE_REGISTER if (address + i) == 0 else 0)
-                for i in range(count)
+                struct.pack(">H", _regs.get(address + i, 0)) for i in range(count)
             )
             frame = modbus_rtu.build_read_response(unit, payload, function)
             frame = await _inject_fault(frame, unit, function, count)
@@ -179,6 +206,26 @@ async def _unix_bus() -> None:
         await server.serve_forever()
 
 
+def _note_bridge_error(exc: OSError) -> None:
+    """记下"桥连不上产品 socket"这件事，并只喊一次。
+
+    静默丢弃的代价：平台侧只看到"连上了但没应答"，于是判产品不回应；
+    而真正的原因可能是路径不一致、产品还没绑上、或二进制根本不认这个 env。
+    这两种原因的处理方式完全不同，所以必须把错误本身留下来。
+    """
+    global _bridge_error_reported
+    payload = {"socket": NORTH_SOCK, "error": f"{type(exc).__name__}: {exc}"}
+    try:
+        (RUN_DIR / "bridge_error.json").write_text(
+            json.dumps(payload, ensure_ascii=False), encoding="utf-8"
+        )
+    except OSError:
+        pass
+    if not _bridge_error_reported:
+        _bridge_error_reported = True
+        print(f"⚠️  北向桥连不上 {NORTH_SOCK}: {exc}", file=sys.stderr, flush=True)
+
+
 def _north_bridge() -> None:
     """unix socket → TCP:iems 的北向从站只监听 unix socket,而平台只认 serial/tcp。
 
@@ -208,6 +255,31 @@ def _north_bridge() -> None:
         threading.Thread(target=_serve_tcp, args=(conn,), daemon=True).start()
 
 
+def _connect_upstream() -> socket.socket:
+    """连产品那条 unix socket，短暂重试。
+
+    只试一次太脆：连续跑多个任务时，上一个任务的产品刚被平台 SIGKILL，
+    新的产品可能还没绑上；一次 ECONNREFUSED 就把整帧丢掉，平台看到的是
+    "产品不回应"，而产品其实 200ms 后就正常了（实测：同一任务单跑必过、
+    连跑偶发失败，就是这个）。
+
+    重试窗口刻意短（1 秒）：产品真的没绑，仍然会失败 —— 只是晚一点，
+    不会被这个重试掩盖掉。
+    """
+    deadline = time.time() + 1.0
+    while True:
+        up = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        up.settimeout(2.0)
+        try:
+            up.connect(NORTH_SOCK)
+            return up
+        except OSError:
+            up.close()
+            if time.time() >= deadline:
+                raise
+            time.sleep(0.1)
+
+
 def _serve_tcp(conn: socket.socket) -> None:
     """一条 TCP 连接 = 一串请求/应答,每个请求换一条到 iems 的 unix 连接。
 
@@ -225,12 +297,14 @@ def _serve_tcp(conn: socket.socket) -> None:
             if not req:
                 return
             try:
-                up = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-                up.settimeout(2.0)
-                up.connect(NORTH_SOCK)
+                up = _connect_upstream()
                 up.sendall(req)
-            except OSError:
-                continue  # 上游不在:这一帧就是没应答,平台自己记超时
+            except OSError as exc:
+                # 上游不在:这一帧就是没应答,平台自己记超时。
+                # 但**必须留痕** —— 静默 continue 时现场只能看到"设备不回应",
+                # 而真正的原因是桥连不上产品的 socket(路径不一致 / 产品还没绑上)。
+                _note_bridge_error(exc)
+                continue
             try:
                 while True:
                     try:
@@ -283,6 +357,14 @@ def main() -> int:
         _fault["kind"], _fault["left"] = args.fault, args.fault_frames
     _drop["after"] = args.drop_after
 
+    # 先把"验的是哪份二进制"说清楚，再谈结论。
+    # 曾经对着三周前的二进制跑出绿的结论：env 里的新变量被旧二进制无视，
+    # 现象却像"环境变量没传进去"。所以定位与过期判定必须在启动第一句。
+    print(describe(IEMS_BIN), flush=True)
+    stale = staleness(IEMS_BIN, IEMS_SRC_DIRS)
+    if stale:
+        print(f"⚠️  {stale}", file=sys.stderr, flush=True)
+
     RUN_DIR.mkdir(parents=True, exist_ok=True)
     BUS_LOG.write_text(json.dumps(_seen), encoding="utf-8")
     (RUN_DIR / "faults.json").unlink(missing_ok=True)  # 上一轮的注入记录不能留
@@ -310,11 +392,19 @@ def main() -> int:
         "EDGE_SNAP_PATH": str(RUN_DIR / "snapshot.bin"),
         "EDGE_SHM_NAME": f"/iems_acceptance_{args.port}",
         "OMNIS_BUS_0_DEV": SOCK,
-        # 北向 socket 跟着任务走:共用 /tmp/iems_north_slave.sock 时,两个人同时跑
-        # 验收会互相 unlink 对方的 socket,表现为“产品突然不回应”。
-        "IEMS_NORTH_SOCK": NORTH_SOCK,
-        "MQTT_BROKER": "tcp://127.0.0.1:1883",
+        # 北向从站路径：外部显式给了就用外部的（acceptance/run.sh 按任务隔离），
+        # 否则用台架缺省（= RUN_DIR/north.sock，跟着 IEMS_RUN_DIR 走）。
+        # 两条路都让"产品绑的"和"桥连的"是同一个值 —— 不一致的现象是
+        # "TCP 连得上但产品不回应"，最难查的一类。
+        "IEMS_NORTH_SOCK": os.environ.get("IEMS_NORTH_SOCK") or NORTH_SOCK,
+        # broker 地址由用例侧给（端口随机）：env 是白名单字典，
+        # 写死就等于用例永远连不上它自己起的那个 broker。
+        "MQTT_BROKER": os.environ.get("MQTT_BROKER", "tcp://127.0.0.1:1883"),
     }
+    # 主题身份也由用例侧给：台架并发跑多个产品时不能撞主题。
+    for _k in ("MQTT_NODE_ID", "MQTT_GROUP_ID", "MQTT_PROTOCOL"):
+        if os.environ.get(_k):
+            env[_k] = os.environ[_k]
     if args.expect_boot_fail:
         # 启动闸门:壳自己占住 ${PORT},否则平台的就绪探针会先超时,把
         # 「产品启动失败」记成「平台起不来产品」。同时把 iems 的 REST 挪到
