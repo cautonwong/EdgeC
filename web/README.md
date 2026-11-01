@@ -1,7 +1,7 @@
 # EdgeOS WebUI 平台
 
 一套 Core 支撑多个产品（iEMS / DCU / SmartBox），每个产品只写自己的 **Product Pack**。
-设计依据：[`边缘网关_WebUI平台详细设计文档_v1.6_最终设计基线.md`](./边缘网关_WebUI平台详细设计文档_v1.6_最终设计基线.md)。
+设计依据：[`docs/边缘网关_WebUI平台详细设计文档_v1.6_最终设计基线.md`](./docs/边缘网关_WebUI平台详细设计文档_v1.6_最终设计基线.md)。
 
 ## 1. 这一层解决什么问题
 
