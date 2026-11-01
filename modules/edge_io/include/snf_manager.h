@@ -27,10 +27,24 @@ typedef struct {
  */
 typedef int (*snf_publish_cb)(void *user_data, const PipeMsg *msg);
 
+/**
+ * @brief 在途消息数回调。
+ *
+ * `publish_fn` 返回 0 只代表**入队**，不代表对端收到。SnF 用这个回调判定整批是否
+ * 真的送达：返回 0 才把记录标成 synced。为 NULL 时按"无在途"处理。
+ *
+ * 语义是 at-least-once：没确认的批次下一轮会重发，允许重复，不允许丢。
+ */
+typedef uint32_t (*snf_pending_cb)(void *user_data);
+
+/** 单批最多确认多少条（受 snf_manager_storage_t 的定长缓冲约束） */
+#define SNF_MAX_BATCH 64
+
 typedef struct {
     sqlite_svc_t *db;
     uv_loop_t *loop;
     snf_publish_cb publish_fn;
+    snf_pending_cb pending_fn; /**< 可空 */
     void *user_data;
     uint32_t sync_batch_size;
     uint32_t sync_interval_ms;

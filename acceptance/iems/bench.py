@@ -7,6 +7,7 @@ iems 与 DCU 的形状不同:iems 自己是 Modbus 主站,南向总线 0 挂
 """
 import json
 import os
+import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -16,9 +17,19 @@ DB_PATH = RUN_DIR / "iems.db"
 BUS_LOG = RUN_DIR / "bus.json"
 DROPPED_LOG = RUN_DIR / "dropped.json"
 
-_CANDIDATES = [HERE.parents[1] / "build/products/iems/bin/iems"]
-# 可用 IEMS_BIN 指到另一个构建(验证别人分支时不用换掉本 worktree 的产物)
-IEMS_BIN = Path(os.environ.get("IEMS_BIN") or _CANDIDATES[0])
+# 产品二进制的位置与"是否过期"由 acceptance/build_probe.py 统一判定:
+# 构建根走 EDGEC_BUILD_DIR(CI 用 build/,开发常在 /tmp),产品级仍可用 IEMS_BIN 覆盖。
+# 这里不自己拼路径 —— 写死过一次,结果对着三周前的二进制跑出绿的结论。
+_ACCEPTANCE_ROOT = HERE.parent
+if str(_ACCEPTANCE_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ACCEPTANCE_ROOT))
+from build_probe import describe, resolve_product_binary, staleness  # noqa: E402
+
+_REPO_ROOT = HERE.parents[1]
+# 过期判定只比较产品代码与公共模块:改这两处的 .c/.h 必须重编。
+IEMS_SRC_DIRS = (_REPO_ROOT / "cmd" / "iems", _REPO_ROOT / "modules")
+
+IEMS_BIN = resolve_product_binary("iems", explicit=os.environ.get("IEMS_BIN"))
 
 # 南向总线 0:RS485_Main / UART。总线 1 是 CAN,总线 10 是北向从站,iems 自己封了
 # 北向自轮询(iems_task_loader.c:30 `if (bus_id == 10) return 0;`),台架不管它。
@@ -35,11 +46,17 @@ TAG_CURRENT = 1002
 VOLTAGE = 231.7
 VOLTAGE_REGISTER = int(VOLTAGE * 10)
 
-# 北向从站(iems_app.c:415-431 的 setup_slave 绑的路径,由 IEMS_NORTH_SOCK 决定)。
+# 北向从站(iems_app.c 的 setup_slave 绑的路径,由 IEMS_NORTH_SOCK 决定)。
 # 平台只认 serial / tcp,不认 unix socket,所以台架把这条 unix socket 桥成 TCP:
 # 平台驱动的是 iems 自己对外发布的那份镜像,不是 REST 自说自话。
 # 端口写死是因为 devices.yaml 是静态清单,读不到 ${PORT};换端口两边都要改。
-NORTH_SOCK = "/tmp/iems_north_slave.sock"
+#
+# ⚠️ 排查这条链时**先清掉残留的产品壳进程**：它们占住 BRIDGE_PORT 19211，
+# 新壳的桥起不来，探针连到的是**旧壳的桥**（指向已删除的 socket），
+# 现象是"TCP 连得上但产品不回应"。我曾据此误判成"从站引擎绑的是契约表路径"——
+# 隔离一直是好的，是残留进程在骗人。
+#   ps -eo pid,args | grep "python iems_product"   # 有残留就 kill
+NORTH_SOCK = str(RUN_DIR / "north.sock")
 BRIDGE_PORT = 19211
 
 

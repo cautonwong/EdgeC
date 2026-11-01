@@ -28,6 +28,32 @@ import argparse
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import guard_baseline
 
+
+# Directories that are never "our source". Walking into them produces false
+# positives (a local git worktree holds a full copy of the tree, so every
+# pre-existing violation is reported once per worktree) and costs minutes.
+# Pruned by name during os.walk, so `dirs[:]` stops the descent instead of
+# filtering the results after the fact.
+PRUNE_DIR_NAMES = {
+    ".git",
+    ".hg",
+    ".svn",
+    ".workbuddy-ai",  # local scratch: worktrees, memory, push scripts
+    "node_modules",
+    ".local",         # prebuilt third-party binaries
+    ".cache",
+    "_deps",
+    "third-party",    # vendored, already skipped below - prune it for speed
+}
+
+
+def _walk_pruned(target_dir):
+    """os.walk that does not descend into VCS metadata or local scratch dirs."""
+    for root, dirs, files in os.walk(target_dir):
+        dirs[:] = [d for d in dirs if d not in PRUNE_DIR_NAMES]
+        yield root, dirs, files
+
+
 DEFAULT_MAX_STACK_BYTES = 512
 
 ARRAY_DECL = re.compile(
@@ -130,7 +156,7 @@ def scan_large_stack_buffers_in_source(file_path, repo_root, max_bytes):
 def check_stack_usage(target_dir, max_bytes=DEFAULT_MAX_STACK_BYTES):
     violations = []
     su_found = False
-    for root, _, files in os.walk(target_dir):
+    for root, _, files in _walk_pruned(target_dir):
         for f in files:
             if f.endswith(".su"):
                 su_found = True
@@ -139,7 +165,7 @@ def check_stack_usage(target_dir, max_bytes=DEFAULT_MAX_STACK_BYTES):
     is_fixture_root = os.path.basename(target_dir).startswith(("good_", "bad_"))
 
     if not su_found or "guards" in target_dir:
-        for root, _, files in os.walk(target_dir):
+        for root, _, files in _walk_pruned(target_dir):
             if "third-party" in root:
                 continue
             # Guard fixtures are validated by the refutation suite, never as repo code.

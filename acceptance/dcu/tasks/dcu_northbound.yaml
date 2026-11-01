@@ -1,0 +1,14 @@
+# DCU 北向（族 B，DL/T 698.45 从站）验收。
+#
+# 与 dcu_acceptance 分开是刻意的：那个任务验"南向采集"，产品跑完 3 个心跳周期就自己退；
+# 这个任务要等主站连上 698 从站问属性，用 --keep-alive 让它一直跑，由平台收尾。
+id: dcu-northbound
+product: dcu
+launch:
+  - ${PYTHON}
+  - dcu_product.py
+  - --port
+  - ${PORT}
+  - --keep-alive
+devices: configs/devices.yaml
+select: tag:北向

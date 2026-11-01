@@ -21,12 +21,14 @@ import os
 import socket
 import sqlite3
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
 
-from bench import (BUS_LOG, CHANNELS, DB_PATH, DCU_BIN, DI_VOLTAGE,
-                   METER_ADDRESS, PER_CHANNEL, RUN_DIR, bench_voltage_bytes)
+from bench import (BUS_LOG, CHANNELS, DB_PATH, DCU_BIN, DCU_SRC_DIRS,
+                   DI_VOLTAGE, METER_ADDRESS, PER_CHANNEL, RUN_DIR,
+                   bench_voltage_bytes, describe, staleness)
 from testplatform.protocol import dlt645
 
 _lock = threading.Lock()
@@ -122,7 +124,18 @@ async def _unix_buses(value: bytes) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, required=True)
+    parser.add_argument("--keep-alive", action="store_true",
+                        help="让 DCU 一直跑（缺省跑 3 个心跳周期就自杀）。北向用例要等主站连上来，"
+                             "不能跟 3 秒窗口赛跑")
     args = parser.parse_args()
+
+    # 先把"验的是哪份二进制"说清楚，再谈结论。
+    # 曾经对着三周前的二进制跑出绿的结论：env 里的新变量被旧二进制无视，
+    # 现象却像"环境变量没传进去"。所以定位与过期判定必须在启动第一句。
+    print(describe(DCU_BIN), flush=True)
+    stale = staleness(DCU_BIN, DCU_SRC_DIRS)
+    if stale:
+        print(f"⚠️  {stale}", file=sys.stderr, flush=True)
 
     BUS_LOG.parent.mkdir(parents=True, exist_ok=True)
     BUS_LOG.write_text(json.dumps(_seen), encoding="utf-8")
@@ -140,6 +153,17 @@ def main() -> int:
     ready.wait(5)
 
     env = {"PATH": "/usr/local/bin:/usr/bin:/bin", "EDGEC_DATA_DIR": str(RUN_DIR)}
+
+    # 北向 broker 由用例侧起（端口随机），只能经壳自己的环境传进来。
+    # 必须显式转发：env 是白名单字典，不转发就等于产品永远连默认 1883，
+    # 用例会看到"一条都没发"——那不是产品的问题，是壳把配置丢了。
+    # DCU_NORTH_SOCK：北向 698 从站的 socket，按任务隔离（同 IEMS 的理由）
+    for _k in ("MQTT_BROKER", "MQTT_NODE_ID", "MQTT_GROUP_ID", "MQTT_PROTOCOL", "DCU_NORTH_SOCK",
+               "DCU_HEARTBEAT_CYCLES"):
+        if os.environ.get(_k):
+            env[_k] = os.environ[_k]
+    if args.keep_alive:
+        env["DCU_HEARTBEAT_CYCLES"] = "0"  # 0 = 一直跑，由平台收尾
     proc = subprocess.Popen([DCU_BIN], env=env, cwd=str(RUN_DIR))
     code = proc.wait()
     # DCU 跑 3 个轮询周期后会自己退(退出码 1)。壳不能跟着退:

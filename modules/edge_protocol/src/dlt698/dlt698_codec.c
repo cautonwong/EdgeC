@@ -36,25 +36,36 @@ uint16_t dlt698_calculate_fcs(const uint8_t *p, size_t len) {
  * 帧格式：68 | L(2, LE, 低 14 位) | 43 | SA | CA | HCS(2) | APDU | FCS(2) | 16
  * L 与 FCS 都覆盖"68 之后、FCS 之前"，所以只能在 APDU 写完后回填——
  * 用 len_ptr 把占位符带出去。 */
-static uint8_t *_frame_begin(struct net_buf_simple *b, const dlt698_addr_t *sa,
-                             uint8_t **len_ptr) {
+static uint8_t *_frame_begin(struct net_buf_simple *b, const dlt698_addr_t *sa, uint8_t ctrl,
+                             uint8_t **len_ptr, uint8_t **hcs_ptr) {
     uint8_t *start = b->data + b->len;
     net_buf_simple_add_u8(b, DLT698_HEAD);
     *len_ptr = net_buf_simple_add(b, 2);
-    net_buf_simple_add_u8(b, 0x43); /* Ctrl: DIR=0, PRM=1, Frame=3 (LLC) */
+    net_buf_simple_add_u8(b, ctrl);
     net_buf_simple_add_u8(b, (uint8_t)((sa->type << 6) | (sa->len - 1)));
     net_buf_simple_add_mem(b, sa->addr, sa->len);
     net_buf_simple_add_u8(b, 0x10); /* CA */
-    uint16_t hcs = dlt698_calculate_fcs(start + 1, (size_t)(b->data + b->len - (start + 1)));
-    net_buf_simple_add_le16(b, hcs);
+    /* HCS 只占位，值在 _frame_seal 里填：它要覆盖长度域，而长度域此刻还不知道
+     * （APDU 还没写）。在占位阶段算出来的值自洽、但对端一律判坏帧 —— 实测踩过。 */
+    *hcs_ptr = net_buf_simple_add(b, 2);
     return start;
 }
 
-static void _frame_seal(struct net_buf_simple *b, uint8_t *start, uint8_t *len_ptr) {
+static void _frame_seal(struct net_buf_simple *b, uint8_t *start, uint8_t *len_ptr,
+                        uint8_t *hcs_ptr) {
     size_t total_len = (size_t)(b->data + b->len - start) + 3; /* +2 FCS +1 END */
-    uint16_t l_field = (uint16_t)((total_len - 1) & 0x3FFF);
+    /* 长度域 = 帧长 - 2（标准 5.1.2："除起始字符和结束字符之外的帧字节数"）。
+     * 原来写的是 -1，整帧多算一个字节。用附录 H.1 的登录帧可以一眼看出：
+     * 32 字节的帧，L 是 0x1E=30，不是 31。 */
+    uint16_t l_field = (uint16_t)((total_len - 2) & 0x3FFF);
     len_ptr[0] = (uint8_t)(l_field & 0xFF);
     len_ptr[1] = (uint8_t)(l_field >> 8);
+
+    /* HCS 覆盖帧头除起始字符与自身之外的全部字节，**含长度域**（标准 5.1.5）。
+     * 长度域刚在上面填好，所以必须在这里算，不能提前。 */
+    uint16_t hcs = dlt698_calculate_fcs(start + 1, (size_t)(hcs_ptr - (start + 1)));
+    hcs_ptr[0] = (uint8_t)(hcs & 0xFF);
+    hcs_ptr[1] = (uint8_t)(hcs >> 8);
 
     uint16_t fcs = dlt698_calculate_fcs(start + 1, (size_t)(b->data + b->len - (start + 1)));
     net_buf_simple_add_le16(b, fcs);
@@ -67,104 +78,127 @@ int dlt698_encode_set_request(const dlt698_addr_t *sa, uint8_t piid, uint32_t oa
 
     struct net_buf_simple *b = &out->b;
     uint8_t *len_ptr = NULL;
-    uint8_t *start = _frame_begin(b, sa, &len_ptr);
+    uint8_t *hcs_ptr = NULL;
+    uint8_t *start = _frame_begin(b, sa, 0x43, &len_ptr, &hcs_ptr);
 
-    /* APDU: SET-Request-Normal = 06 | 01 | PIID | OAD(4) | Data(A-XDR，含类型标签) */
+    /* APDU: SET-Request-Normal = 06 | 01 | PIID | OAD(4) | Data(A-XDR，含类型标签) | 时间标签
+     *
+     * 末尾这个 00 不能省：标准附录 H.4.1「设置时钟」的报文是
+     * `06 01 02 40 00 02 00 1C 07E00114101B 0B 00` —— 最后一个 00 就是时间标签。
+     * 漏掉它，服务器会把 Data 的最后一个字节当成时间标签，报"类型不匹配"，
+     * 看起来像编码错误，其实只是少了一个字节。 */
     net_buf_simple_add_u8(b, DLT698_SVC_SET_REQ);
     net_buf_simple_add_u8(b, 0x01); /* Normal */
     net_buf_simple_add_u8(b, piid);
     net_buf_simple_add_be32(b, oad);
     if (dlen > 0) net_buf_simple_add_mem(b, data, dlen);
+    net_buf_simple_add_u8(b, DLT698_NO_TIME_TAG);
 
-    _frame_seal(b, start, len_ptr);
+    _frame_seal(b, start, len_ptr, hcs_ptr);
     return 0;
 }
 
 int dlt698_encode_get_request(const dlt698_addr_t *sa, uint8_t piid, uint32_t oad, net_buf_t *out) {
+    if (!sa || !out) return -1;
     struct net_buf_simple *b = &out->b;
-    uint8_t *start = b->data + b->len;
+    uint8_t *len_ptr = NULL;
+    uint8_t *hcs_ptr = NULL;
+    uint8_t *start = _frame_begin(b, sa, 0x43, &len_ptr, &hcs_ptr);
 
-    net_buf_simple_add_u8(b, DLT698_HEAD);
-    
-    // Length placeholder (2 bytes, with DIR/PRM/L-bit in top bits of first byte)
-    // For simplicity: 0x4XXX (Master to Server)
-    uint8_t *len_ptr = net_buf_simple_add(b, 2);
-    
-    net_buf_simple_add_u8(b, 0x43); // Ctrl: DIR=0, PRM=1, Frame=3 (LLC)
-    
-    // SA (Server Address)
-    net_buf_simple_add_u8(b, (uint8_t)((sa->type << 6) | (sa->len - 1)));
-    net_buf_simple_add_mem(b, sa->addr, sa->len);
-    
-    // CA (Client Address)
-    net_buf_simple_add_u8(b, 0x10); 
-
-    // HCS (Header Check Sequence)
-    uint16_t hcs = dlt698_calculate_fcs(start + 1, (size_t)(b->data + b->len - (start + 1)));
-    net_buf_simple_add_le16(b, hcs);
-
-    // APDU: GET-Request Normal
+    /* APDU: GET-Request-Normal = 05 | 01 | PIID | OAD(4) | 时间标签（附录 H.3.6） */
     net_buf_simple_add_u8(b, DLT698_SVC_GET_REQ);
-    net_buf_simple_add_u8(b, 0x01); // Normal
+    net_buf_simple_add_u8(b, 0x01);
     net_buf_simple_add_u8(b, piid);
     net_buf_simple_add_be32(b, oad);
-    
-    // Optional selective access (0x00 for none)
-    net_buf_simple_add_u8(b, 0x00);
+    net_buf_simple_add_u8(b, DLT698_NO_TIME_TAG);
 
-    // Update length
-    size_t total_len = (size_t)(b->data + b->len - start) + 3; // +2(FCS) + 1(16)
-    uint16_t l_field = (uint16_t)((total_len - 1) & 0x3FFF);
-    len_ptr[0] = (uint8_t)(l_field & 0xFF);
-    len_ptr[1] = (uint8_t)(l_field >> 8);
-
-    // FCS
-    uint16_t fcs = dlt698_calculate_fcs(start + 1, (size_t)(b->data + b->len - (start + 1)));
-    net_buf_simple_add_le16(b, fcs);
-    net_buf_simple_add_u8(b, DLT698_END);
-
+    _frame_seal(b, start, len_ptr, hcs_ptr);
     return 0;
 }
 
-int dlt698_encode_get_response(const dlt698_addr_t *sa, uint8_t piid, uint32_t oad, 
+int dlt698_encode_get_response(const dlt698_addr_t *sa, uint8_t piid, uint32_t oad,
                                const uint8_t *data, size_t dlen, net_buf_t *out) {
+    if (!sa || !out || (dlen > 0 && !data)) return -1;
     struct net_buf_simple *b = &out->b;
-    uint8_t *start = b->data + b->len;
+    uint8_t *len_ptr = NULL;
+    uint8_t *hcs_ptr = NULL;
+    /* Ctrl=0x03：DIR=1（响应方向）、PRM=0 */
+    uint8_t *start = _frame_begin(b, sa, 0x03, &len_ptr, &hcs_ptr);
 
-    net_buf_simple_add_u8(b, DLT698_HEAD);
-    uint8_t *len_ptr = net_buf_simple_add(b, 2);
-    net_buf_simple_add_u8(b, 0x03); // Ctrl: DIR=1 (Response), PRM=0
-
-    // SA
-    net_buf_simple_add_u8(b, (uint8_t)((sa->type << 6) | (sa->len - 1)));
-    net_buf_simple_add_mem(b, sa->addr, sa->len);
-    net_buf_simple_add_u8(b, 0x10); // CA
-
-    // HCS
-    uint16_t hcs = dlt698_calculate_fcs(start + 1, (size_t)(b->data + b->len - (start + 1)));
-    net_buf_simple_add_le16(b, hcs);
-
-    // APDU: GET-Response Normal
-    net_buf_simple_add_u8(b, 0x81); // GET-Response
-    net_buf_simple_add_u8(b, 0x01); // Normal
+    /* APDU: GET-Response-Normal = 85 | 01 | PIID-ACD | OAD(4) | 01 | Data | 00 | 00 */
+    net_buf_simple_add_u8(b, DLT698_SVC_GET_RES);
+    net_buf_simple_add_u8(b, 0x01);
     net_buf_simple_add_u8(b, piid);
     net_buf_simple_add_be32(b, oad);
-    
-    // Result (0x01 for data)
-    net_buf_simple_add_u8(b, 0x01);
-    net_buf_simple_add_mem(b, data, dlen);
+    net_buf_simple_add_u8(b, 0x01); /* Data 存在 */
+    if (dlen > 0) net_buf_simple_add_mem(b, data, dlen);
+    net_buf_simple_add_u8(b, DLT698_NO_FOLLOW_REPORT);
+    net_buf_simple_add_u8(b, DLT698_NO_TIME_TAG);
 
-    // Update length
-    size_t total_len = (size_t)(b->data + b->len - start) + 3;
-    uint16_t l_field = (uint16_t)((total_len - 1) & 0x3FFF);
-    len_ptr[0] = (uint8_t)(l_field & 0xFF);
-    len_ptr[1] = (uint8_t)(l_field >> 8);
+    _frame_seal(b, start, len_ptr, hcs_ptr);
+    return 0;
+}
 
-    // FCS
-    uint16_t fcs = dlt698_calculate_fcs(start + 1, (size_t)(b->data + b->len - (start + 1)));
-    net_buf_simple_add_le16(b, fcs);
-    net_buf_simple_add_u8(b, DLT698_END);
+int dlt698_encode_action_request(const dlt698_addr_t *sa, uint8_t piid, uint16_t oi,
+                                 uint8_t method, uint8_t mode, const uint8_t *data, size_t dlen,
+                                 net_buf_t *out) {
+    if (!sa || !out || (dlen > 0 && !data)) return -1;
+    if (method == 0) return -1; /* 标准 6.3.3.12：方法标识取值 1…255 */
 
+    struct net_buf_simple *b = &out->b;
+    uint8_t *len_ptr = NULL;
+    uint8_t *hcs_ptr = NULL;
+    uint8_t *start = _frame_begin(b, sa, 0x43, &len_ptr, &hcs_ptr);
+
+    /* APDU: ACTION-Request-Normal = 07 | 01 | PIID | OMD(4) | Data | 时间标签
+     * OMD = OI(2, 大端) | 方法标识 | 操作模式（标准 6.3.3.12） */
+    net_buf_simple_add_u8(b, DLT698_SVC_ACTION_REQ);
+    net_buf_simple_add_u8(b, 0x01); /* [1] ActionRequest —— 操作一个对象方法 */
+    net_buf_simple_add_u8(b, piid);
+    net_buf_simple_add_u8(b, (uint8_t)(oi >> 8));
+    net_buf_simple_add_u8(b, (uint8_t)(oi & 0xFF));
+    net_buf_simple_add_u8(b, method);
+    net_buf_simple_add_u8(b, mode);
+    if (dlen > 0) net_buf_simple_add_mem(b, data, dlen);
+    net_buf_simple_add_u8(b, DLT698_NO_TIME_TAG);
+
+    _frame_seal(b, start, len_ptr, hcs_ptr);
+    return 0;
+}
+
+int dlt698_encode_action_response(const dlt698_addr_t *sa, uint8_t piid, uint16_t oi,
+                                  uint8_t method, uint8_t mode, uint8_t dar, const uint8_t *data,
+                                  size_t dlen, net_buf_t *out) {
+    if (!sa || !out || (dlen > 0 && !data)) return -1;
+    if (method == 0) return -1;
+
+    struct net_buf_simple *b = &out->b;
+    uint8_t *len_ptr = NULL;
+    uint8_t *hcs_ptr = NULL;
+    uint8_t *start = _frame_begin(b, sa, 0x43, &len_ptr, &hcs_ptr);
+
+    /* APDU: ACTION-Response-Normal =
+     *   87 | 01 | PIID-ACD | OMD(4) | DAR | Data OPTIONAL | FollowReport | 时间标签
+     * Data OPTIONAL 是"有没有返回数据"的标志字节，不是数据本身：
+     * 无数据填 00，有数据填 01 再跟 A-XDR。 */
+    net_buf_simple_add_u8(b, DLT698_SVC_ACTION_RES);
+    net_buf_simple_add_u8(b, 0x01); /* [1] ActionResponseNormal */
+    net_buf_simple_add_u8(b, piid);
+    net_buf_simple_add_u8(b, (uint8_t)(oi >> 8));
+    net_buf_simple_add_u8(b, (uint8_t)(oi & 0xFF));
+    net_buf_simple_add_u8(b, method);
+    net_buf_simple_add_u8(b, mode);
+    net_buf_simple_add_u8(b, dar);
+    if (dlen > 0) {
+        net_buf_simple_add_u8(b, 0x01);
+        net_buf_simple_add_mem(b, data, dlen);
+    } else {
+        net_buf_simple_add_u8(b, 0x00);
+    }
+    net_buf_simple_add_u8(b, DLT698_NO_FOLLOW_REPORT);
+    net_buf_simple_add_u8(b, DLT698_NO_TIME_TAG);
+
+    _frame_seal(b, start, len_ptr, hcs_ptr);
     return 0;
 }
 

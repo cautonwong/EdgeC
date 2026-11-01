@@ -17,6 +17,13 @@ struct snf_manager_s {
     uv_timer_t sync_timer;
     bool is_syncing;
     bool is_caller_allocated;
+
+    /* 整批确认用的待标记主键。telemetry 是 WITHOUT ROWID 且 PRIMARY KEY(ts, tag_id)，
+     * 所以只能按 (ts, tag_id) 对标记。定长内嵌，避免为核心路径引入动态内存。 */
+    struct {
+        uint64_t ts;
+        uint32_t tag_id;
+    } batch[SNF_MAX_BATCH];
 };
 
 _Static_assert(sizeof(struct snf_manager_s) <= sizeof(snf_manager_storage_t),
@@ -58,7 +65,7 @@ static void _on_sync_timer(uv_timer_t *handle) {
 
     sqlite3_bind_int(stmt, 1, (int)mgr->config.sync_batch_size);
 
-    int count = 0;
+    uint32_t queued = 0; /* 成功入队的条数（不是"已送达"） */
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         PipeMsg msg = {0};
         msg.ts = (uint64_t)sqlite3_column_int64(stmt, 0);
@@ -69,27 +76,65 @@ static void _on_sync_timer(uv_timer_t *handle) {
 
         LOG_DEBUG(LOG_CAT_NB, "SnF: Syncing record Tag=%u TS=%llu", msg.tag_id, (unsigned long long)msg.ts);
 
-        // 2. Try to publish
-        if (mgr->config.publish_fn(mgr->config.user_data, &msg) == 0) {
-            // Success, mark as synced
-            char update_sql[256];
-            snprintf(update_sql, sizeof(update_sql), "UPDATE telemetry SET synced = 1 WHERE ts = %llu AND tag_id = %u;",
-                     (unsigned long long)msg.ts, msg.tag_id);
-            if (sqlite3_exec(db, update_sql, NULL, NULL, NULL) != SQLITE_OK) {
-                LOG_ERROR(LOG_CAT_NB, "SnF: Failed to update synced status: %s", sqlite3_errmsg(db));
-            }
-            count++;
-        } else {
+        // 2. Try to enqueue. 返回 0 只代表"交给传输了"，**不代表对端收到**。
+        if (mgr->config.publish_fn(mgr->config.user_data, &msg) != 0) {
             LOG_WARN(LOG_CAT_NB, "SnF: Publish failed for Tag=%u TS=%llu", msg.tag_id, (unsigned long long)msg.ts);
             break;
         }
+        if (queued < SNF_MAX_BATCH) {
+            mgr->batch[queued].ts = msg.ts;
+            mgr->batch[queued].tag_id = msg.tag_id;
+        }
+        queued++;
     }
 
     sqlite3_finalize(stmt);
-    if (count > 0) {
-        LOG_INFO(LOG_CAT_NB, "SnF: Forwarded %d records to cloud.", count);
+
+    if (queued == 0) {
+        mgr->is_syncing = false;
+        return;
     }
-    
+
+    // 3. 整批确认：只有"没有在途消息"才认为这一批真的送达。
+    //    否则不标 synced，下一轮重发 —— at-least-once，允许重复，不允许丢。
+    uint32_t inflight = mgr->config.pending_fn ? mgr->config.pending_fn(mgr->config.user_data) : 0;
+    if (inflight > 0) {
+        LOG_INFO(LOG_CAT_NB,
+                 "SnF: %u record(s) enqueued, %u still in flight — will confirm next cycle.",
+                 queued, inflight);
+        mgr->is_syncing = false;
+        return;
+    }
+
+    // 4. 标记已确认。按 (ts, tag_id) 主键对更新，不依赖 rowid（表是 WITHOUT ROWID）。
+    sqlite3_stmt *upd;
+    if (sqlite3_prepare_v2(db, "UPDATE telemetry SET synced = 1 WHERE ts = ? AND tag_id = ?;", -1,
+                           &upd, NULL) != SQLITE_OK) {
+        LOG_ERROR(LOG_CAT_NB, "SnF: Failed to prepare confirm statement: %s", sqlite3_errmsg(db));
+        mgr->is_syncing = false;
+        return;
+    }
+
+    uint32_t confirmed = 0;
+    uint32_t limit = (queued < SNF_MAX_BATCH) ? queued : SNF_MAX_BATCH;
+    for (uint32_t i = 0; i < limit; i++) {
+        sqlite3_bind_int64(upd, 1, (sqlite3_int64)mgr->batch[i].ts);
+        sqlite3_bind_int(upd, 2, (int)mgr->batch[i].tag_id);
+        if (sqlite3_step(upd) == SQLITE_DONE) confirmed++;
+        sqlite3_reset(upd);
+    }
+    sqlite3_finalize(upd);
+
+    if (confirmed > 0) {
+        LOG_INFO(LOG_CAT_NB, "SnF: Confirmed %u record(s) delivered.", confirmed);
+    }
+    if (queued > limit) {
+        /* 超出定长缓冲的部分本轮无法确认，留到下一轮；不能静默丢掉标记。 */
+        LOG_WARN(LOG_CAT_NB,
+                 "SnF: %u record(s) enqueued but only %u confirmable this cycle (SNF_MAX_BATCH).",
+                 queued, limit);
+    }
+
     mgr->is_syncing = false;
 }
 
@@ -100,7 +145,9 @@ snf_manager_t *snf_manager_create_in(snf_manager_storage_t *storage, const snf_c
     snf_manager_t *mgr = (snf_manager_t *)storage;
     mgr->is_caller_allocated = true;
     mgr->config = *cfg;
-    if (mgr->config.sync_batch_size == 0) mgr->config.sync_batch_size = 100;
+    if (mgr->config.sync_batch_size == 0) mgr->config.sync_batch_size = SNF_MAX_BATCH;
+    /* 批大小受定长确认缓冲约束：超了没法标记，只会每轮重复发送。 */
+    if (mgr->config.sync_batch_size > SNF_MAX_BATCH) mgr->config.sync_batch_size = SNF_MAX_BATCH;
     if (mgr->config.sync_interval_ms == 0) mgr->config.sync_interval_ms = 5000;
 
     // Ensure 'synced' column exists (migration)

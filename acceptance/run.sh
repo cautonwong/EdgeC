@@ -89,6 +89,46 @@ echo "平台版本: ${HAVE:0:12}${PIN:+ (锁定 ${PIN:0:12})}"
 echo "产品: ${PRODUCTS[*]}"
 echo
 
+# ------------------------------------------------------------------------------
+# 北向 E2E 的 broker（NB_E2E=1 才起）
+#
+# 两个约束，缺一条北向用例就会静默跳过（退出码 3 = 未完成，不是不合格）：
+#   1. 必须**在跑任务之前**起：产品是 run_task.py 在 pytest 之前拉起的，
+#      broker 与 MQTT_BROKER 必须已经就绪，放 conftest 里就晚一步。
+#   2. 必须在这个位置而不是循环之后：本轮踩过——broker 起在任务循环后面，
+#      于是所有北向用例都看不到 broker，跳过 3 条，整轮判"未完成"。
+# ------------------------------------------------------------------------------
+NB_BROKER_PID=""
+if [[ "${NB_E2E:-0}" == "1" ]]; then
+    if ! command -v mosquitto >/dev/null 2>&1; then
+        echo "NB_E2E=1 但本机没有 mosquitto：北向用例会被跳过（这一轮没有北向结论）" >&2
+    else
+        NB_PORT="$("$PYTHON" -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')"
+        mosquitto -p "$NB_PORT" >/dev/null 2>&1 &
+        NB_BROKER_PID=$!
+        # 等它真的开始监听，再让产品启动
+        for _ in $(seq 1 100); do
+            if "$PYTHON" -c "import socket,sys; s=socket.socket(); s.settimeout(0.2); sys.exit(0 if s.connect_ex(('127.0.0.1',$NB_PORT))==0 else 1)"; then
+                break
+            fi
+            sleep 0.05
+        done
+        export MQTT_BROKER="tcp://127.0.0.1:$NB_PORT"
+        export MQTT_PROTOCOL="${MQTT_PROTOCOL:-MqttJson}"
+        export MQTT_GROUP_ID="${MQTT_GROUP_ID:-EdgeOS}"
+        echo "北向 broker 已就绪：$MQTT_BROKER（协议 $MQTT_PROTOCOL）"
+    fi
+fi
+
+_nb_cleanup() {
+    if [[ -n "$NB_BROKER_PID" ]]; then
+        kill "$NB_BROKER_PID" 2>/dev/null || true
+        wait "$NB_BROKER_PID" 2>/dev/null || true
+        NB_BROKER_PID=""
+    fi
+}
+trap _nb_cleanup EXIT INT TERM
+
 # 整轮清空报告目录,不只是逐个产品清:gate 会把 $REPORTS 下所有产品的 summary
 # 一起算,只跑一个产品时(`run.sh dcu`)上一轮别的产品的证据会混进这次门禁。
 rm -rf "$REPORTS"
@@ -118,10 +158,16 @@ for product in "${PRODUCTS[@]}"; do
         # 每个任务一个独立运行目录:共用一个会让上一轮的 sqlite/WAL 被回放,
         # 故障还没注入 REST 就已经有旧读数 —— 用例会绿,但什么都没验到。
         export IEMS_RUN_DIR="$ROOT/runtime/$product/$(basename "$task" .yaml)"
-        # 同一台机器上可能有人同时在跑验收(或开发者自己跑产品),/tmp 下的固定路径
-        # 会互相踩;每个任务一个名字空间,并把北向 socket 一起隔离。
-        export IEMS_NORTH_SOCK="$IEMS_RUN_DIR/north.sock"
+        # 北向从站 socket 也跟着任务走:固定路径时两个任务会互相 unlink
+        # 对方正在监听的 socket,现象是"产品突然不回应"。产品壳会原样转发这个
+        # env(见 iems_product.py 的 env 白名单),台架的桥连的也是同一个值。
         export DCU_RUN_DIR="$ROOT/runtime/$product/$(basename "$task" .yaml)"
+        # 北向主题身份也按任务隔离：不设时产品会退化成 "unknown"，
+        # 多个产品/多个任务同时在线就会撞主题，主站分不清是谁的数据。
+        export MQTT_NODE_ID="${MQTT_NODE_ID:-EdgeC_${product}_$(basename "$task" .yaml)}"
+        export IEMS_NORTH_SOCK="$IEMS_RUN_DIR/north.sock"
+        # DCU 的 698 从站同理：固定路径时两个任务会互相 unlink 对方的 socket。
+        export DCU_NORTH_SOCK="$DCU_RUN_DIR/north.sock"
         rm -rf "$IEMS_RUN_DIR"
         rm -rf "$DCU_RUN_DIR"
         set +e
@@ -134,6 +180,7 @@ for product in "${PRODUCTS[@]}"; do
     done
     echo
 done
+
 
 if [[ ${#product_dirs[@]} -eq 0 ]]; then
     echo "没有可跑的产品(每个被点到的产品目录下都没有 tasks/*.yaml)" >&2

@@ -53,9 +53,11 @@ static void assert_frame_sealed(const net_buf_t* f) {
     assert_int_equal(f->b.data[0], DLT698_HEAD);
     assert_int_equal(f->b.data[f->b.len - 1], DLT698_END);
 
-    /* L 字段 = 整帧长度 - 1（codec 的约定，GET/SET 一致） */
-    uint16_t l = (uint16_t)(f->b.data[1] | (f->b.data[2] << 8));
-    assert_int_equal(l, (uint16_t)(f->b.len - 1));
+    /* L 字段 = 帧长 - 2（标准 5.1.2："除起始字符和结束字符之外的帧字节数"）。
+     * 这里曾经写成 -1，把 codec 的 off-by-one 当成约定锁进了测试 —— 用标准
+     * 附录 H.1 的登录帧就能验：32 字节的帧，L 是 30，不是 31。 */
+    uint16_t l = (uint16_t)((f->b.data[1] | (f->b.data[2] << 8)) & 0x3FFF);
+    assert_int_equal(l, (uint16_t)(f->b.len - 2));
 
     uint16_t want = dlt698_calculate_fcs(f->b.data + 1, (size_t)(f->b.len - 4));
     uint16_t got = (uint16_t)(f->b.data[f->b.len - 3] | (f->b.data[f->b.len - 2] << 8));
@@ -98,8 +100,10 @@ static void test_set_long_unsigned(void** state) {
     assert_int_equal(apdu[7], 0x12); /* long-unsigned 标签 */
     assert_int_equal(apdu[8], (2200 >> 8) & 0xFF);
     assert_int_equal(apdu[9], 2200 & 0xFF);
-    /* SET 没有 GET 那个"选择访问"尾字节：数据段之后就结束了 */
-    assert_int_equal(f->b.len, (size_t)APDU_OFF + 10 + 3);
+    /* SET 的 APDU 末尾是时间标签（无 = 00），见标准附录 H.4.1。
+     * 数据段 10 字节 + 时间标签 1 字节，再加帧尾 FCS(2)+16(1)。 */
+    assert_int_equal(apdu[10], DLT698_NO_TIME_TAG);
+    assert_int_equal(f->b.len, (size_t)APDU_OFF + 11 + 3);
     assert_frame_sealed(f);
 
     net_buf_unref(f);

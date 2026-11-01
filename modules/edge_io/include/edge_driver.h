@@ -9,6 +9,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "edge_north_plane.h"
 #include "edge_slave_plane.h"
 #include "net_buf.h"
 #include "shmring.h"
@@ -198,6 +199,20 @@ struct edge_driver_s {
     int (*req_tick)(void *priv, const edge_north_source_ops_t *north, void *north_ctx,
                     const edge_slave_source_ops_t *slave, void *slave_ctx, net_buf_pool_t *pool,
                     net_buf_t **out_tx);
+
+    /**
+     * @brief 传输会话重建（可选）：重连 / 换链路之后，清掉"本会话内"的状态。
+     *
+     * 为什么必须有：Sparkplug B 的 NBIRTH 是**每会话一次**，驱动用 `birth_sent`
+     * 守住不重发。但重连之后主站眼里是一个新会话，**不发 NBIRTH 就会被判定节点已死**，
+     * 之后发多少 NDATA 都不认。所以传输层报告会话变化时，驱动要能把这类状态清掉。
+     *
+     * 与 `req_priv_size` 的区别：scratch 每请求归零，`ctx_size` 的 `priv` 是持久的，
+     * 恰恰是"持久"导致 `birth_sent` 不会自己复位——所以需要这个显式通知。
+     *
+     * 为 NULL 表示该协议没有会话级状态（纯无状态编解码）。
+     */
+    int (*req_session_reset)(void *priv);
 };
 
 /**

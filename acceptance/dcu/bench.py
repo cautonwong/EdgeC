@@ -4,6 +4,7 @@
 保证"平台认为的表值"和"喂给 DCU 的字节"是同一份。
 """
 import os
+import sys
 from pathlib import Path
 
 import yaml
@@ -17,14 +18,18 @@ RUN_DIR = Path(os.environ.get("DCU_RUN_DIR") or "/tmp/edgec-acceptance-run")
 DB_PATH = RUN_DIR / "dcu_runtime.db"
 BUS_LOG = RUN_DIR / "bus.json"
 
-# DCU 二进制:先看 DCU_BIN(CI 里指构建产物),否则按 CMake 的缺省产物位置找。
-# 只认本仓库根下的 build/:写死别的路径会静默用上过期二进制(踩过一次)。
-_CANDIDATES = [
-    HERE.parents[1] / "build/products/dcu/bin/dcu",   # 仓库根/build
-]
-DCU_BIN = os.environ.get("DCU_BIN") or next(
-    (str(p) for p in _CANDIDATES if p.exists()), str(_CANDIDATES[0])
-)
+# DCU 二进制的位置与"是否过期"由 acceptance/build_probe.py 统一判定:
+# 构建根走 EDGEC_BUILD_DIR(CI 用 build/,开发常在 /tmp),产品级仍可用 DCU_BIN 覆盖。
+# 写死仓库内 build/ 踩过一次:对着三周前的二进制跑,新 env 变量全被无视。
+_ACCEPTANCE_ROOT = HERE.parent
+if str(_ACCEPTANCE_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ACCEPTANCE_ROOT))
+from build_probe import describe, resolve_product_binary, staleness  # noqa: E402
+
+_REPO_ROOT = HERE.parents[1]
+DCU_SRC_DIRS = (_REPO_ROOT / "cmd" / "dcu", _REPO_ROOT / "modules")
+
+DCU_BIN = resolve_product_binary("dcu", explicit=os.environ.get("DCU_BIN"))
 
 # 台架只开 DLT645 通道:main.c 把 0-21 硬编码成 DLT698。
 CHANNELS = list(range(22, 32))

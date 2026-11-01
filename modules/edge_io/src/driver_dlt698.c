@@ -207,23 +207,110 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
         return 1;
     }
 
-    if (svc != DLT698_SVC_GET_REQ || payload_len < 4) return -1;
+    /* 应答必须回**请求里的地址**（sa_rx），不能用 priv 里的 p->sa_addr：
+     * 从站交换这条路根本没走过 req_prepare，priv 是未初始化的，sa_len 为 0 时
+     * 描述符算成 0xFF，整帧长度与 HCS 全错 —— 主站判成坏帧，而值本身是对的。
+     * 实测现象："值解出来对，但帧校验不过"。 */
+    dlt698_addr_t sa = sa_rx;
 
-    uint32_t oad = (uint32_t)((payload[0] << 24) | (payload[1] << 16) | (payload[2] << 8) |
-                              payload[3]);
-    edge_point_value_t v;
-    memset(&v, 0, sizeof(v));
-    if (!src || !src->resolve || src->resolve(src_ctx, oad, NULL, 0, &v) != 0) {
-        /* 无此对象：不应答（698 的异常应答格式复杂，先保持静默，由主站超时） */
-        return -1;
+    if (svc == DLT698_SVC_GET_REQ) {
+        if (payload_len < 4) return -1;
+
+        uint32_t oad = (uint32_t)((payload[0] << 24) | (payload[1] << 16) | (payload[2] << 8) |
+                                  payload[3]);
+        edge_point_value_t v;
+        memset(&v, 0, sizeof(v));
+        if (!src || !src->resolve || src->resolve(src_ctx, oad, NULL, 0, &v) != 0) {
+            /* 无此对象：不应答（698 的异常应答格式复杂，先保持静默，由主站超时） */
+            return -1;
+        }
+
+        /* A-XDR 数据段必须带类型标签（标准 6.3.3.1）。标签由产品给（v.type）；
+         * 没给就按宽度推断 —— 但这只是兜底，`width=2` 到底是 long 还是
+         * long-unsigned 只有产品知道，猜错主站解出来的值就是错的且不报错。 */
+        uint8_t data[8];
+        size_t dlen = 0;
+        uint8_t tag = v.type ? v.type
+                             : (v.width >= 4 ? (uint8_t)DLT698_TAG_DOUBLE_LONG
+                                             : (uint8_t)DLT698_TAG_LONG_UNSIGNED);
+        if (tag == DLT698_TAG_LONG_UNSIGNED) {
+            data[0] = tag;
+            data[1] = (uint8_t)(((uint16_t)v.raw) >> 8);
+            data[2] = (uint8_t)(((uint16_t)v.raw) & 0xFF);
+            dlen = 3;
+        } else if (tag == DLT698_TAG_DOUBLE_LONG) {
+            uint32_t bits = (uint32_t)v.raw;
+            data[0] = tag;
+            data[1] = (uint8_t)(bits >> 24);
+            data[2] = (uint8_t)(bits >> 16);
+            data[3] = (uint8_t)(bits >> 8);
+            data[4] = (uint8_t)(bits & 0xFF);
+            dlen = 5;
+        } else if (tag == DLT698_TAG_FLOAT32) {
+            float f = (float)v.value;
+            uint32_t bits = 0;
+            memcpy(&bits, &f, sizeof(bits));
+            data[0] = tag;
+            data[1] = (uint8_t)(bits >> 24);
+            data[2] = (uint8_t)(bits >> 16);
+            data[3] = (uint8_t)(bits >> 8);
+            data[4] = (uint8_t)(bits & 0xFF);
+            dlen = 5;
+        } else {
+            /* 没有对应编码器的类型不发 —— 发一个"看起来对"的字节序比不应答更糟 */
+            return -1;
+        }
+
+        dlt698_encode_get_response(&sa, piid, oad, data, dlen, out);
+        return 0;
     }
 
-    uint16_t rv = (uint16_t)v.raw;
-    uint8_t data[2] = {(uint8_t)(rv >> 8), (uint8_t)(rv & 0xFF)};
-    dlt698_addr_t sa = {.len = p->sa_len, .type = 0};
-    memcpy(sa.addr, p->sa_addr, p->sa_len);
-    dlt698_encode_get_response(&sa, piid, oad, data, 2, out);
-    return 0;
+    if (svc == DLT698_SVC_ACTION_REQ) {
+        /* ACTION-Request-Normal：payload = OMD(4) | Data | 时间标签（PIID 已由 decode 取出） */
+        if (payload_len < 4) return -1;
+        uint32_t omd = (uint32_t)((payload[0] << 24) | (payload[1] << 16) | (payload[2] << 8) |
+                                  payload[3]);
+
+        double param = 0.0;
+        if (payload_len > 4) {
+            dlt698_data_t d;
+            memset(&d, 0, sizeof(d));
+            uint16_t off = 0;
+            if (dlt698_decode_data(payload + 4, (uint16_t)(payload_len - 4), &off, &d) == 0) {
+                switch (d.tag) {
+                    case DLT698_TAG_INTEGER: param = (double)d.val.i8; break;
+                    case DLT698_TAG_UNSIGNED: param = (double)d.val.u8; break;
+                    case DLT698_TAG_LONG: param = (double)d.val.i16; break;
+                    case DLT698_TAG_LONG_UNSIGNED: param = (double)d.val.u16; break;
+                    case DLT698_TAG_ENUM: param = (double)d.val.u8; break;
+                    default: break;
+                }
+                dlt698_free_data(&d);
+            }
+        }
+
+        /* 优先把参数字节原样交给产品：结构参数（如 OI 8000 方法 129 的
+         * array<structure>）压不成 double，压了就只能猜。 */
+        int rc;
+        if (src && src->accept_action) {
+            rc = src->accept_action(src_ctx, omd, payload + 4, (size_t)(payload_len - 4));
+        } else if (src && src->accept) {
+            rc = src->accept(src_ctx, omd, param);
+        } else {
+            rc = -1;
+        }
+
+        /* DAR 必须如实回：执行失败回 0（成功）就是"假成功"，主站会以为继电器动了。
+         * 非 0 一律回 2（暂时失效）—— 细分原因（未实现 / 越界 / 闭锁）在产品日志里，
+         * 驱动不该认识产品的错误码。 */
+        uint8_t dar = (rc == 0) ? 0 : 2;
+        dlt698_encode_action_response(&sa, piid, (uint16_t)(omd >> 16),
+                                      (uint8_t)((omd >> 8) & 0xFF), (uint8_t)(omd & 0xFF), dar,
+                                      NULL, 0, out);
+        return 0;
+    }
+
+    return -1;
 }
 
 const edge_driver_t dlt698_driver = {
