@@ -19,7 +19,7 @@
     "build:all": "npm run build --prefix products/iems && npm run build --prefix products/dcu && npm run build --prefix products/smart_box",
     "test:sdk": "node core/scripts/build-sdk-tests.mjs && node --test core/test/*.test.cjs",
     "test:e2e:dcu": "node tooling/cli.mjs registry --all && playwright test --project=dcu",
-    "test:e2e:smartbox": "playwright test --project=smartbox"
+    "test:e2e:smartbox": "node tooling/cli.mjs registry --all && playwright test --project=smartbox"
   },
   "devDependencies": {
     "@playwright/test": "^1.50.0"
