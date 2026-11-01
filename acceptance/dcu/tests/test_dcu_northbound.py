@@ -1,13 +1,13 @@
 """DCU 北向（族 B，DL/T 698.45 从站）验收：主站能不能真的读到 DCU 的量。
 
-## 为什么这个文件自己开 socket，而不走平台设备驱动
+## 走设备模型，不自己拼帧
 
-平台设备模型要求"一个规约一个驱动 + 一份点表"，698 主站驱动（T3b）还没写。
-但"DCU 的 698 从站到底通不通"这件事**不依赖**那个驱动 —— 主站就是发一帧问、
-收一帧答。所以这里直接用平台已就绪的 `testplatform.protocol.dlt698` 收发，
-判据仍然是平台写的（不是产品自说自话）。
+平台侧有 698 主站驱动（`drivers/dlt698_master_driver.py`），所以这里和读 Modbus/645
+设备一样：`meter.read_all().readings["电压"]`。好处不只是少写几行 —— 读数进设备模型，
+报告里才有设备级归属（平台规定"没验到设备就不算验过"）。
 
-等 T3b 落地后，这个文件可以退役，换成 devices.yaml 里的一个 dut 设备。
+链路：`dcu_product.py` 把 DCU 的 unix socket 桥成 `127.0.0.1:19212`，
+平台按 `access: tcp` 连上去问属性。
 
 ## 判据
 
@@ -16,8 +16,9 @@
 2. 档案计数 OAD（60000200）读回 40 —— 台架档案就是 40 只表，类型是 long-unsigned
 3. ACTION（OI 8000 方法 129 跳闸）必须回 **DAR=2 暂时失效**，不能回 0
 
-第 3 条是刻意"验失败"的：参数结构（标准表 A.9 的 array<structure>）还没实现，
+第 3 条刻意"验失败"：参数结构（标准表 A.9 的 array<structure>）还没实现，
 如果它回 0，主站会以为继电器动了 —— 那是最危险的假成功。
+它不走设备模型，因为"操作"不是"读一个点"，这里直接用协议层发一帧。
 """
 import os
 import socket
@@ -28,12 +29,13 @@ from testplatform.cases import case
 from testplatform.protocol import dlt698
 
 TOLERANCE_V = 0.5
-OAD_VOLTAGE_A = 0x20000200
-OAD_METER_COUNT = 0x60000200
+BENCH_VOLTAGE = 231.7
+BENCH_METER_COUNT = 40
 TIMEOUT_S = 3.0
 
 
 def _north_sock() -> str:
+    """ACTION 用例要直接发帧，所以需要产品的 unix socket 路径。"""
     path = os.environ.get("DCU_NORTH_SOCK")
     if not path:
         pytest.skip("没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）")
@@ -63,47 +65,33 @@ def test_master_reads_voltage_over_698(meter):
     """主站读 A 相电压：值必须等于台架喂给 DCU 的 231.7V。
 
     这条把「台架 → 南向 645 采集 → 聚合根 → 698 GET-Response」整条链串起来比对。
-    只验"收到一帧"是假绿：类型标签写错时值会整体错位，而帧本身完全合法。
-
-    先用平台自己的 645 驱动读一次台架：一是确认南向是好的（不然 698 读到怪值
-    分不清是谁的问题），二是让这一轮有设备级读数 —— 平台规定"没验到设备就不算验过"。
+    只验"收到一帧"是假绿：类型标签写错时值会整体错位，而帧本身完全合法 ——
+    所以 698 主站驱动在类型标签与点表 encoding 不一致时直接报错。
     """
     meter.connect()
-    bench_v = meter.read_all().readings["电压"]
-    assert abs(bench_v - 231.7) <= TOLERANCE_V, f"台架读数就不对：{bench_v}"
-    frame = _exchange(dlt698.get_request(0x01, OAD_VOLTAGE_A))
-    res = dlt698.parse_get_response(frame.apdu)
-
-    assert res.oad == OAD_VOLTAGE_A, f"回的是别的 OAD：{res.oad:#010x}"
-    scalars = res.scalars()
-    assert scalars, "GET-Response 里没有数据段"
-    tag, raw = scalars[0]
-    assert tag == 0x17, f"电压应当是 float32(0x17)，回的是 {tag:#04x}"
-
-    import struct
-
-    value = struct.unpack(">f", raw)[0]
-    assert abs(value - 231.7) <= TOLERANCE_V, (
-        f"698 读回 {value}，台架给的是 231.7±{TOLERANCE_V} —— "
+    readings = meter.read_all().readings
+    got = readings["电压"]
+    assert abs(got - BENCH_VOLTAGE) <= TOLERANCE_V, (
+        f"698 读回 {got}，台架给的是 {BENCH_VOLTAGE}±{TOLERANCE_V} —— "
         "链路里某一环改了值（量纲、类型标签、或者根本不是同一个 OAD）"
     )
 
 
 @case(id="D_00_00_02_000002", clause="free: 698 应答的 A-XDR 类型标签必须与点位类型一致", tags=["北向"])
 @pytest.mark.contract
-def test_master_reads_archive_count_as_long_unsigned():
-    """档案计数：值 40，类型必须是 long-unsigned(0x12)。
+@pytest.mark.requires_capability("档案计数")
+def test_master_reads_archive_count_as_long_unsigned(meter):
+    """档案计数：值 40，类型必须是 long-unsigned。
 
     单独验这条是因为它和电压的**类型不同**：电压 float32、计数 long-unsigned。
-    从站如果一律按同一个类型编，主站解出来就是垃圾值，而帧校验还是过的。
+    从站如果一律按同一个类型编，主站解出来就是垃圾值，而帧校验还是过的 ——
+    驱动在类型标签与点表不符时直接报错，这条就是那个约束的端到端验证。
     """
-    frame = _exchange(dlt698.get_request(0x01, OAD_METER_COUNT))
-    res = dlt698.parse_get_response(frame.apdu)
-
-    tag, raw = res.scalars()[0]
-    assert tag == 0x12, f"档案计数应当是 long-unsigned(0x12)，回的是 {tag:#04x}"
-    assert int.from_bytes(raw, "big") == 40, (
-        f"档案计数 {int.from_bytes(raw, 'big')}，台架档案是 40 只表"
+    meter.connect()
+    readings = meter.read_all().readings
+    got = readings["档案计数"]
+    assert int(got) == BENCH_METER_COUNT, (
+        f"档案计数 {got}，台架档案是 {BENCH_METER_COUNT} 只表"
     )
 
 

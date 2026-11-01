@@ -323,8 +323,9 @@ Modbus 0x06 的应答就是回显，设备什么都没做也会回一模一样�
 点位由产品给：`_dcu_nb_resolve()` 按 OI 决定 A-XDR 类型标签
 （2000/2001/2004 → float32，6000 → long-unsigned），驱动只负责编码。
 
-**验收**：`acceptance/dcu/tests/test_dcu_northbound.py` 三条，全部走平台写的
-`testplatform.protocol.dlt698` 收发（主站视角），断言：
+**验收**：`acceptance/dcu/tests/test_dcu_northbound.py` 三条。前两条走**设备模型**
+（`drivers/dlt698_master_driver.py` + `configs/devices_north.yaml`，
+`meter.read_all().readings`），第三条因为"操作"不是"读一个点"，直接用协议层发一帧：
 
 | 用例 | 断言 |
 |---|---|
@@ -604,8 +605,9 @@ reports/<任务>/summary.json           # 证据与四档结论
 | T1 | 新增角色 `upstream`（语义：DUT 主动连出去的对端，不判合格；挂掉 → 测试无效） | — | `config/manifest.py` 角色枚举 + 校验 |
 | T2a ✅ | MQTT 放行：`paho-mqtt` 已装、`mqtt_json` 规约（上行解码 + 下行编码）、`NorthboundProbe` 观察器、`mqtt_broker` 一次性 broker | — | `protocol/mqtt_json.py` / `tests_support/northbound_probe.py` / `tests_support/mqtt_broker.py` |
 | T2b ⬜ | Sparkplug B 解码（protobuf） | 需 `.proto` schema | `protocol/mqtt_sparkplug.py` |
-| T3a ✅ | 698 编解码（GET / ACTION 请求构造，响应解析含 DAR；帧层 L/HCS/FCS 校验） | — | `protocol/dlt698.py` + `tests_unit/test_protocol_dlt698.py`（10 条，向量抄自标准附录 H） |
-| T3b ⬜ | 698 主站驱动接线（GET-Record / 收 REPORT / 分帧） | T3a | `drivers/dlt698_master_driver.py` |
+| T3a ✅ | 698 编解码（GET / ACTION 请求构造，响应解析含 DAR；帧层 L/HCS/FCS 校验、帧长计算） | — | `protocol/dlt698.py` + `tests_unit/test_protocol_dlt698.py`（12 条，向量抄自标准附录 H） |
+| T3b ✅ | 698 主站**驱动**：`("meter", "dlt698")` 工厂，GET 读属性走设备模型（类型标签与点表不符即报错） | T3a | `drivers/dlt698_master_driver.py`（DCU 北向 3 条用例已在用） |
+| T3c ⬜ | GET-Record（一次读多个 OAD）与 REPORT 接收 | T3b | 按需，今天没有设备要求 |
 | T4 | Modbus TCP master 驱动（复用 `protocol/modbus_tcp.py` 的 `build_read_request`） | — | `drivers/modbus_master_driver.py` |
 | T5 | OPC UA client | EdgeC N5 | `drivers/opcua_client_driver.py` |
 | T6 | E2E 用例 | T1–T5 对应项 | `tests_scenario/northbound_*.py` + `tasks/*.yaml` |

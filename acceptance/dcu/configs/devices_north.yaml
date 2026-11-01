@@ -1,0 +1,52 @@
+# DCU 北向（族 B，DL/T 698.45）验收用的设备清单。
+#
+# 为什么与 devices.yaml 分开：平台的 `meter` fixture 会按清单里**每台** meter 各展开
+# 一次用例。南向那张表(bench_meter_01)和北向这台(dcu_north_01)混在一份清单里，
+# "读档案计数"这条就会跑到 645 电表上、报 KeyError —— 失败原因和被测对象无关。
+# 一份清单一台 DUT，是这套台架一直的约定。
+#
+# 链路：dcu_product.py 把 DCU 的 unix socket 桥成 127.0.0.1:19212，
+# 平台按 access: tcp 连上去问属性（平台的传输层只认 serial/tcp，不认 unix socket）。
+criteria_profiles:
+  dcu_698_live:
+    - quantity: 电压
+      min: 198
+      max: 242
+    - quantity: 档案计数
+      min: 1
+      max: 64
+
+models:
+  dcu_698_image:
+    type: meter
+    protocol: dlt698
+    criteria: dcu_698_live
+    capabilities: [电压, 档案计数]
+    # OAD 是 32 位，点表里写成十六进制串。A-XDR 类型由 encoding 决定
+    # （float32 = 0x17，long-unsigned = 0x12）；驱动在标签与点表不符时直接报错，
+    # 不会把错类型的字节当值解出来。
+    point_table:
+      电压:
+        address: "20000200"
+        length: 4
+        encoding: float32
+        scale: 1
+        byteorder: big
+        unit: V
+      档案计数:
+        address: "60000200"
+        length: 2
+        encoding: uint
+        scale: 1
+        byteorder: big
+        unit: 只
+
+devices:
+  - id: dcu_north_01
+    model: dcu_698_image
+    role: dut
+    access: tcp
+    bus_address: 1
+    connection:
+      host: 127.0.0.1
+      port: 19212

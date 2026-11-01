@@ -121,6 +121,86 @@ async def _unix_buses(value: bytes) -> None:
     await asyncio.gather(*(_serve(c, value) for c in CHANNELS))
 
 
+# 北向 698 从站的桥：产品只监听 unix socket，而平台的传输层只认 serial/tcp。
+# 端口写死是因为 devices.yaml 是静态清单，读不到 ${PORT}；换端口两边都要改。
+NORTH_BRIDGE_PORT = 19212
+
+
+def _connect_north() -> socket.socket:
+    """连产品的 698 socket，短暂重试。
+
+    只试一次太脆：上一个任务的产品刚被 SIGKILL、新的还没绑上时，一次 ECONNREFUSED
+    就丢整帧，平台看到的是"产品不回应"，而产品 200ms 后就正常了。
+    """
+    path = os.environ.get("DCU_NORTH_SOCK") or str(RUN_DIR / "north.sock")
+    deadline = time.time() + 1.0
+    while True:
+        up = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        up.settimeout(2.0)
+        try:
+            up.connect(path)
+            return up
+        except OSError:
+            up.close()
+            if time.time() >= deadline:
+                raise
+            time.sleep(0.1)
+
+
+def _serve_north(conn: socket.socket) -> None:
+    """一个 TCP 连接对一个 unix 连接，逐帧转发。"""
+    with conn:
+        while True:
+            try:
+                req = conn.recv(4096)
+            except OSError:
+                return
+            if not req:
+                return
+            try:
+                up = _connect_north()
+                up.sendall(req)
+            except OSError:
+                continue
+            try:
+                while True:
+                    try:
+                        chunk = up.recv(4096)
+                    except socket.timeout:
+                        break
+                    if not chunk:
+                        break
+                    try:
+                        conn.sendall(chunk)
+                    except OSError:
+                        return
+                    up.settimeout(0.2)  # 收完一帧就别等下一帧
+            finally:
+                up.close()
+
+
+def _north_bridge() -> None:
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    # 上一轮的壳刚死时端口还没完全放出来：重试，别让一次 bind 失败就把整轮判成"起不来"
+    for _ in range(50):
+        try:
+            server.bind(("127.0.0.1", NORTH_BRIDGE_PORT))
+            server.listen(8)
+            break
+        except OSError:
+            time.sleep(0.2)
+    else:
+        print(f"⚠️  北向桥起不来：127.0.0.1:{NORTH_BRIDGE_PORT} 被占用", flush=True)
+        return
+    while True:
+        try:
+            conn, _ = server.accept()
+        except OSError:
+            return
+        threading.Thread(target=_serve_north, args=(conn,), daemon=True).start()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, required=True)
@@ -164,6 +244,8 @@ def main() -> int:
             env[_k] = os.environ[_k]
     if args.keep_alive:
         env["DCU_HEARTBEAT_CYCLES"] = "0"  # 0 = 一直跑，由平台收尾
+
+    threading.Thread(target=_north_bridge, daemon=True).start()
     proc = subprocess.Popen([DCU_BIN], env=env, cwd=str(RUN_DIR))
     code = proc.wait()
     # DCU 跑 3 个轮询周期后会自己退(退出码 1)。壳不能跟着退:
