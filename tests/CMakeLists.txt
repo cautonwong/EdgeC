@@ -48,6 +48,8 @@ add_edge_test(test_arbiter test_arbiter.c)
 add_edge_test(test_edge_periodic_clock test_edge_periodic_clock.c)
 add_edge_test(test_dlt698_axdr test_dlt698_axdr.c)
 add_edge_test(test_dlt698_action test_dlt698_action.c)
+# 645 控制帧（1CH 跳合闸）：字节级对照标准 7.13，不能靠"跑通"证明
+add_edge_test(test_dlt645_control test_dlt645_control.c)
 add_edge_test(test_dcu_inventory test_dcu_inventory.c)
 add_edge_test(test_dcu_polling_loop test_dcu_polling_loop.c)
 add_edge_test(test_dcu_storage test_dcu_storage.c)

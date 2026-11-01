@@ -35,6 +35,19 @@ _lock = threading.Lock()
 _seen = {"requests": 0, "per_di": {}, "first_request_hex": None}
 
 
+def _record_control(meter: str, cmd: int, frame: bytes) -> None:
+    """记一帧跳合闸/报警/保电命令（标准 7.13，控制码 1CH）。
+
+    为什么要单独记：读请求证明"链路通"，控制帧证明"命令真的出门了"。
+    这两件事必须分开看 —— 产品完全可以一边正常抄表、一边把控制命令吞掉。
+    """
+    with _lock:
+        _seen.setdefault("controls", []).append(
+            {"meter": meter, "cmd": cmd, "at": time.time(), "frame_hex": frame.hex()}
+        )
+        BUS_LOG.write_text(json.dumps(_seen, ensure_ascii=False), encoding="utf-8")
+
+
 def _record(data_id: str, request: bytes) -> None:
     with _lock:
         _seen["requests"] += 1
@@ -87,8 +100,17 @@ async def _serve(chan: int, value: bytes) -> None:
                     break
                 try:
                     address, data_id = dlt645.parse_read_request(head)
-                except ValueError:
-                    _record("<unparsed>", head)
+                except ValueError as read_exc:
+                    # 不是读，就试控制命令（1CH 跳合闸/报警/保电）。这两类帧的数据域
+                    # 开头不一样（DI vs 密码），不能共用一个解析器。
+                    try:
+                        meter, cmd, _data = dlt645.parse_control_request(head)
+                    except ValueError:
+                        _record("<unparsed>", head)
+                        continue
+                    _record_control(meter, cmd, head)
+                    writer.write(dlt645.build_control_response(meter))
+                    await writer.drain()
                     continue
                 _record(data_id, head)
                 payload = value if data_id == DI_VOLTAGE else b"\x00\x00\x00\x00"
@@ -239,7 +261,7 @@ def main() -> int:
     # 用例会看到"一条都没发"——那不是产品的问题，是壳把配置丢了。
     # DCU_NORTH_SOCK：北向 698 从站的 socket，按任务隔离（同 IEMS 的理由）
     for _k in ("MQTT_BROKER", "MQTT_NODE_ID", "MQTT_GROUP_ID", "MQTT_PROTOCOL", "DCU_NORTH_SOCK",
-               "DCU_HEARTBEAT_CYCLES"):
+               "DCU_HEARTBEAT_CYCLES", "DCU_CONTROL_DELAY_MS"):
         if os.environ.get(_k):
             env[_k] = os.environ[_k]
     if args.keep_alive:

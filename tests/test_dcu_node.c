@@ -129,15 +129,22 @@ static void test_dcu_node_domain_methods_and_events(void **state) {
     assert_int_equal(ev_ctx.last_event.type, DCU_EVENT_VOLTAGE_DROP);
     assert_true(ev_ctx.last_event.is_alarm_active);
 
-    /* 6. 测试下行遥控动作 -> 触发 REMOTE_TRIP 动作事件 */
-    rc = dcu_node_execute_control(node, "202610180001", OI_REMOTE_CONTROL);
-    assert_int_equal(rc, 0);
+    /* 6. 下行遥控动作 -> 派发 REMOTE_TRIP 事件，并且**真的去下发 645 控制帧**。
+     *
+     * 本测试没有总线（没调 edge_api_init），所以帧一定发不出去，返回 -5。
+     * 这正是要的语义：事件记了账 ≠ 命令出了门。以前这里断言 0，而实现只发事件、
+     * 什么都不下发 —— 那是最典型的"假成功"。 */
+    rc = dcu_node_execute_control(node, "202610180001", OI_REMOTE_CONTROL, true);
+    /* 本测试没装配总线：-4 = 拿不到发送缓冲，-5 = 总线拒绝。两者都表示"没下发"，
+     * 关键是**不能是 0** —— 0 会让上层以为命令出了门。 */
+    assert_true(rc < 0);
     assert_int_equal(ev_ctx.event_count, 3);
     assert_int_equal(ev_ctx.last_event.type, DCU_EVENT_REMOTE_TRIP);
 
-    /* 7. 测试非法未授权控制指令 -> 拒绝 */
-    rc = dcu_node_execute_control(node, "202610180001", 0x1234);
+    /* 7. 测试非法未授权控制指令 -> 拒绝（连事件都不该发） */
+    rc = dcu_node_execute_control(node, "202610180001", 0x1234, true);
     assert_int_equal(rc, -3);
+    assert_int_equal(ev_ctx.event_count, 3);
 
     dcu_node_destroy(node);
     unlink(db_path);

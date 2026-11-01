@@ -97,3 +97,57 @@ def test_dcu_polls_the_bench_meter(meter):
     assert abs(value - expected) <= TOLERANCE_V, (
         f"DCU 落库 {value:.1f} V,台架读出来的是 {expected:.1f} V(容差 {TOLERANCE_V} V)"
     )
+
+
+def _bus_controls(timeout: float = 12.0) -> list:
+    """等台架记到 645 控制帧（1CH）。返回记录列表（可能为空）。"""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if BUS_LOG.exists():
+            try:
+                data = json.loads(BUS_LOG.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                data = {}
+            controls = data.get("controls") or []
+            if controls:
+                return controls
+        time.sleep(0.3)
+    return []
+
+
+@case(id="DCU_00_00_01_000002_01", clause="free: 遥控命令必须真的下到电表（645 控制帧 1CH）", tags=["验收"])
+@pytest.mark.contract
+def test_dcu_sends_trip_control_frame(meter):
+    """DCU 的遥控动作必须变成**一帧真的 645 控制命令**发到表上。
+
+    为什么这条不能省：`dcu_node_execute_control()` 原来只派发一个领域事件就返回 0，
+    总线上一个字节都没有 —— 上层（698 主站）会以为继电器动了，现场什么都没发生。
+    只验"事件发了"是假绿：事件是内部记账，不是命令出门。
+
+    判据看台架收到的帧本身（标准 7.13）：
+      - 控制码 1CH
+      - N1 = 1AH（跳闸）
+      - 密码首字节 02H（不带安全认证，明文）
+    """
+    meter.connect()
+    meter.read_all()  # 让这一轮有设备级读数
+
+    controls = _bus_controls()
+    assert controls, (
+        "台架一帧 645 控制命令都没收到（/tmp/rs485_*.sock）· "
+        "看 product.out 里有没有 '645 控制帧已下发'："
+        "没有就是聚合根没下发，有就是台架解析失败"
+    )
+
+    last = controls[-1]
+    assert last["cmd"] == 0x1A, f"N1 应为 1AH（跳闸），台架收到 {last['cmd']:#04x}"
+    assert last["meter"] == METER_ADDRESS, (
+        f"命令发给了 {last['meter']}，台架表是 {METER_ADDRESS}"
+    )
+
+    frame = bytes.fromhex(last["frame_hex"])
+    assert frame[0] != 0xFE or frame.lstrip(b"\xfe")[0] == 0x68, "前导符之后必须是帧起始符 68H"
+    body = frame.lstrip(b"\xfe")
+    assert body[8] == 0x1C, f"控制码应为 1CH，收到 {body[8]:#04x}"
+    data = bytes((b - 0x33) & 0xFF for b in body[10:])
+    assert data[0] == 0x02, f"密码首字节应为密级 02H（明文），收到 {data[0]:#04x}"
