@@ -13,6 +13,7 @@ export default defineConfig({
   plugins: [vue()],
   resolve: {
     alias: [
+      { find: '@edgeos/web-core/app', replacement: path.resolve(__dirname, '../../core/src/app/index.ts') },
       { find: '@edgeos/web-core/sdk', replacement: path.resolve(__dirname, '../../core/src/sdk/index.ts') },
       { find: '@edgeos/web-core/ui', replacement: path.resolve(__dirname, '../../core/src/ui/index.ts') },
       { find: '@edgeos/web-core', replacement: path.resolve(__dirname, '../../core/src/index.ts') },

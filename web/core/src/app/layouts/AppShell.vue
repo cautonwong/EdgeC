@@ -5,7 +5,7 @@
  * 侧栏分组固定六组，条目由静态 Registry ∩ 权限 ∩ 能力 ∩ 许可生成；分组内一条都不
  * 可见时整组隐藏。顶栏的"待应用/断连"类状态用常驻横幅表达。
  */
-import { computed, ref } from 'vue';
+import { computed, defineAsyncComponent, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useRegistryStore } from '../stores/registry';
 import { useSessionStore } from '../stores/session';
@@ -13,8 +13,10 @@ import { useCapabilityStore } from '../stores/capability';
 import UiBanner from '../../ui/components/Banner.vue';
 import UiButton from '../../ui/components/Button.vue';
 // 全局抽屉（控制台 / AI 副驾）沿用既有实现：它们是 Shell 的能力，不属于任何产品包。
-import WebConsoleDrawer from '../../components/console/WebConsoleDrawer.vue';
-import AICopilotDrawer from '../../components/ai/AICopilotDrawer.vue';
+// 用异步组件挂载：抽屉只在用户打开时才需要，静态 import 会把终端渲染器和 Markdown
+// 解析器全部塞进首屏 chunk（实测多出 ~45KB gzip），与 §6.8 的首屏预算直接冲突。
+const WebConsoleDrawer = defineAsyncComponent(() => import('../../components/console/WebConsoleDrawer.vue'));
+const AICopilotDrawer = defineAsyncComponent(() => import('../../components/ai/AICopilotDrawer.vue'));
 import { useAICopilot } from '../../services/AIProviderService';
 
 const router = useRouter();

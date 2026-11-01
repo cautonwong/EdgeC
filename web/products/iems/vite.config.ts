@@ -14,6 +14,7 @@ export default defineConfig({
   resolve: {
     // 顺序重要：更具体的子路径别名必须排在包根别名之前
     alias: [
+      { find: '@edgeos/web-core/app', replacement: path.resolve(__dirname, '../../core/src/app/index.ts') },
       { find: '@edgeos/web-core/sdk', replacement: path.resolve(__dirname, '../../core/src/sdk/index.ts') },
       { find: '@edgeos/web-core/ui', replacement: path.resolve(__dirname, '../../core/src/ui/index.ts') },
       { find: '@edgeos/web-core', replacement: path.resolve(__dirname, '../../core/src/index.ts') },

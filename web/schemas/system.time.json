@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "system.time",
+  "title": "系统时间",
+  "version": "1.0.0",
+  "riskClass": "R1",
+  "writePermission": "system.time:write",
+  "readPermission": "system.time:read",
+  "confirmWindowSeconds": 0,
+  "type": "object",
+  "required": ["ntpEnabled"],
+  "properties": {
+    "ntpEnabled": {
+      "type": "boolean",
+      "title": "启用 NTP 对时"
+    },
+    "servers": {
+      "type": "array",
+      "title": "NTP 服务器",
+      "hint": "最多 4 个，按顺序尝试",
+      "items": { "type": "string", "format": "hostname" },
+      "minItems": 0,
+      "maxItems": 4
+    },
+    "manualTime": {
+      "type": "string",
+      "title": "手动校时",
+      "format": "rfc3339",
+      "hint": "仅在关闭 NTP 时生效"
+    }
+  }
+}

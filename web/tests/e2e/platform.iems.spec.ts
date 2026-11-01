@@ -142,3 +142,78 @@ test('关闭的功能不残留路由：升级接口返回未登记', async ({ pa
   expect(response.status()).toBe(404);
   expect((await response.json()).code).toBe('not_found');
 });
+
+// ---------------------------------------------------------------- 配置事务（R2）
+const ENGINEER_ACCOUNT = { username: 'engineer', password: 'Engineer-Pass-2026' };
+
+async function openNetworkEditor(page) {
+  await login(page, ENGINEER_ACCOUNT);
+  await page.goto('/#/network');
+  await expect(page.locator('[data-testid="network-form"]')).toHaveCount(0);
+  await page.locator('[data-testid="edit-eth0"]').click();
+  await expect(page.locator('[data-testid="network-form"]')).toBeVisible();
+}
+
+test('配置事务：非法值在前端就被拦住，不会产生事务', async ({ page }) => {
+  await openNetworkEditor(page);
+  await page.locator('[data-testid="field-addresses"]').fill('192.168.10.99/33');
+  await page.locator('[data-testid="tx-apply"]').click();
+
+  await expect(page.locator('[data-testid="error-addresses"]')).toBeVisible();
+  await expect(page.locator('[data-testid="tx-pending"]')).toHaveCount(0);
+  await expect(page.locator('[data-testid="tx-error"]')).toContainText('Schema');
+});
+
+test('配置事务：应用 → 倒计时确认 → 配置真的落到设备', async ({ page }) => {
+  await openNetworkEditor(page);
+  await page.locator('[data-testid="field-addresses"]').fill('192.168.10.99/24');
+  await page.locator('[data-testid="tx-apply"]').click();
+
+  // 应用后必须进入待确认，并显示倒计时（R2 才有确认窗口）
+  await expect(page.locator('[data-testid="tx-pending"]')).toBeVisible();
+  await expect(page.locator('[data-testid="tx-countdown"]')).toHaveText(/^\d{2}:\d{2}$/);
+  await expect(page.locator('[data-testid="tx-changes"]')).toHaveCount(0, { timeout: 1000 });
+
+  await page.locator('[data-testid="tx-confirm"]').click();
+  await expect(page.locator('[data-testid="tx-message"]')).toContainText('已确认');
+
+  // 设备侧确实改了：列表里出现新地址
+  await expect(page.locator('table')).toContainText('192.168.10.99/24');
+});
+
+test('配置事务：应用后回滚，设备状态回到应用前', async ({ page }) => {
+  await openNetworkEditor(page);
+  await page.locator('[data-testid="field-addresses"]').fill('192.168.10.77/24');
+  await page.locator('[data-testid="tx-apply"]').click();
+  await expect(page.locator('[data-testid="tx-pending"]')).toBeVisible();
+
+  await page.locator('[data-testid="tx-rollback"]').click();
+  await expect(page.locator('[data-testid="tx-message"]')).toContainText('已回滚');
+  await expect(page.locator('table')).not.toContainText('192.168.10.77/24');
+});
+
+test('配置事务：服务端 schema 校验才是结论（422 + fieldErrors）', async ({ page }) => {
+  await login(page, ENGINEER_ACCOUNT);
+  const created = await apiCall(page, 'post', '/api/v1/config/transactions', {
+    sectionId: 'network.interfaces',
+    values: { interfaceId: 'eth0', addresses: ['10.0.0.1/99'] },
+  });
+  expect(created.status()).toBe(422);
+  const body = await created.json();
+  expect(body.code).toBe('schema_validation_failed');
+  expect(body.details.fieldErrors.addresses).toBeTruthy();
+});
+
+test('配置事务：只读账号能看接口状态，但编辑入口是禁用的', async ({ page }) => {
+  // Operator 按 §8.2 只有"网络与通信 1 页只读"：能进页面、能看状态，不能改
+  await login(page, { username: 'operator', password: 'Operator-Pass-2026' });
+  await page.goto('/#/network');
+  await expect(page.locator('[data-testid="edit-eth0"]')).toBeDisabled();
+  await expect(page.locator('[data-testid="network-form"]')).toHaveCount(0);
+});
+
+test('配置事务：连读权限都没有的账号，页面直接 403', async ({ page }) => {
+  await login(page, VIEWER);
+  await page.goto('/#/network');
+  await expect(page.locator('[data-testid="denied-state"]')).toHaveText('forbidden');
+});

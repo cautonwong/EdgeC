@@ -1,36 +1,55 @@
 <script setup lang="ts">
-/** 网络接口（§8.1 网络与通信）。写操作走 R2 事务，这里只做只读呈现 + 入口提示。 */
-import { onMounted, ref } from 'vue';
-import { request, ApiRequestError } from '../../sdk/http';
+/**
+ * 网络接口（§8.1 网络与通信 / §6.4 配置事务）。
+ *
+ * 这个页面是 R2 风险的样板：改 IP/网关可能把自己锁在门外，所以
+ *   编辑 → 应用 → 60 秒内确认 → 否则设备自动回滚。
+ * 表单字段来自 Registry 里的 `network.interfaces` Schema（与后端同一份），
+ * 前端校验只做提前提示，服务端 422 的 fieldErrors 才是结论。
+ */
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { ApiRequestError, request } from '../../sdk/http';
 import { useAuthz } from '../../app/composables/useAuthz';
+import { useConfigSection } from '../../app/composables/useConfigSection';
+import ConfigTransactionBar from '../../app/components/ConfigTransactionBar.vue';
+import UiBanner from '../../ui/components/Banner.vue';
+import UiButton from '../../ui/components/Button.vue';
 import UiDataTable, { type Column } from '../../ui/components/DataTable.vue';
 import UiStatusBadge from '../../ui/components/StatusBadge.vue';
-import UiBanner from '../../ui/components/Banner.vue';
 
 interface InterfaceRow {
   id: string;
   name: string;
   mac: string;
   addresses: string[];
+  gateway?: string;
+  mtu?: number;
   state: 'up' | 'down';
   speedMbps: number | null;
 }
 
 const authz = useAuthz();
+const { tx, schema, open } = useConfigSection('network.interfaces');
+
 const rows = ref<InterfaceRow[]>([]);
 const loading = ref(false);
 const error = ref('');
+const editingId = ref<string | null>(null);
+const addressText = ref('');
 
+const canWrite = computed(() => authz.can('network.interface:write'));
 const columns: Column[] = [
   { key: 'name', title: '接口' },
   { key: 'state', title: '状态' },
   { key: 'addresses', title: '地址' },
+  { key: 'gateway', title: '网关' },
+  { key: 'mtu', title: 'MTU', align: 'right' },
   { key: 'mac', title: 'MAC' },
-  { key: 'speedMbps', title: '速率 (Mbps)', align: 'right' },
 ];
 
-onMounted(async () => {
+async function load(): Promise<void> {
   loading.value = true;
+  error.value = '';
   try {
     const result = await request<{ items: InterfaceRow[] }>('/api/v1/network/interfaces');
     rows.value = result.items;
@@ -39,33 +58,159 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
-});
+}
+
+function startEdit(row: InterfaceRow): void {
+  editingId.value = row.id;
+  addressText.value = row.addresses.join('\n');
+  open({
+    interfaceId: row.id,
+    addresses: [...row.addresses],
+    gateway: row.gateway ?? '',
+    mtu: row.mtu ?? 1500,
+  });
+  void tx.resume();
+}
+
+function cancelEdit(): void {
+  editingId.value = null;
+  tx.reset();
+}
+
+function syncAddresses(): void {
+  tx.setValue(
+    'addresses',
+    addressText.value
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0),
+  );
+}
+
+function fieldError(name: string): string | undefined {
+  return tx.fieldErrors[name];
+}
+
+// 事务落地后刷新列表：否则"已确认"之后表格里还是旧 IP，用户会以为没生效。
+watch(
+  () => tx.transaction?.state,
+  (state) => {
+    if (state === 'CONFIRMED' || state === 'ROLLED_BACK') void load();
+  },
+);
+
+onMounted(load);
+onBeforeUnmount(() => tx.stopTicker());
 </script>
 
 <template>
   <section>
     <header class="head">
-      <h1>网络接口</h1>
-      <p class="head__hint">修改 IP / 网关属于 R2 风险，应用后需在确认窗口内确认，否则自动回滚。</p>
+      <div>
+        <h1>网络接口</h1>
+        <p class="head__hint">
+          修改 IP / 网关属于 <strong>R2（管理通道失联）</strong>：应用后必须在
+          {{ schema?.confirmWindowSeconds ?? 60 }} 秒内确认，否则设备自动回滚。
+        </p>
+      </div>
+      <UiStatusBadge v-if="!canWrite" status="unconfigured" label="只读（缺少 network.interface:write）" />
     </header>
 
     <UiBanner v-if="error" tone="danger" title="读取失败">{{ error }}</UiBanner>
-    <UiBanner v-else-if="!authz.can('network.interface:write')" tone="info" data-testid="readonly-notice">
-      当前账号只有只读权限（network.interface:read）。
-    </UiBanner>
+
+    <ConfigTransactionBar v-if="editingId" />
 
     <UiDataTable :columns="columns" :rows="rows" row-key="id" :loading="loading" caption="接口列表">
       <template #cell-state="{ row }">
         <UiStatusBadge :status="row.state === 'up' ? 'normal' : 'offline'" :label="row.state === 'up' ? '已连接' : '未连接'" />
       </template>
       <template #cell-addresses="{ row }">{{ (row.addresses as string[]).join(', ') || '—' }}</template>
-      <template #cell-speedMbps="{ row }">{{ row.speedMbps ?? '—' }}</template>
+      <template #cell-gateway="{ row }">{{ row.gateway ?? '—' }}</template>
+      <template #cell-mtu="{ row }">{{ row.mtu ?? '—' }}</template>
     </UiDataTable>
+
+    <div class="actions">
+      <UiButton
+        v-for="row in rows"
+        :key="row.id"
+        variant="secondary"
+        size="sm"
+        :disabled="!canWrite"
+        :data-testid="`edit-${row.id}`"
+        @click="startEdit(row)"
+      >
+        编辑 {{ row.name }}
+      </UiButton>
+    </div>
+
+    <form v-if="editingId && schema" class="form" data-testid="network-form" @submit.prevent="tx.apply()">
+      <h2 class="form__title">编辑 {{ editingId }}</h2>
+
+      <label class="field">
+        <span class="field__label">{{ schema.properties.interfaceId.title }}</span>
+        <select
+          class="field__input"
+          :value="tx.draft.interfaceId"
+          data-testid="field-interfaceId"
+          @change="tx.setValue('interfaceId', ($event.target as HTMLSelectElement).value)"
+        >
+          <option v-for="option in schema.properties.interfaceId.enum ?? []" :key="option" :value="option">{{ option }}</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span class="field__label">{{ schema.properties.addresses.title }}</span>
+        <textarea
+          v-model="addressText"
+          class="field__input field__input--area"
+          rows="3"
+          data-testid="field-addresses"
+          :aria-invalid="fieldError('addresses') ? 'true' : undefined"
+          @input="syncAddresses()"
+        />
+        <span v-if="fieldError('addresses')" class="field__error" data-testid="error-addresses">{{ fieldError('addresses') }}</span>
+        <span v-else class="field__hint">{{ schema.properties.addresses.hint }}</span>
+      </label>
+
+      <label class="field">
+        <span class="field__label">{{ schema.properties.gateway.title }}</span>
+        <input
+          class="field__input"
+          :value="tx.draft.gateway"
+          data-testid="field-gateway"
+          :aria-invalid="fieldError('gateway') ? 'true' : undefined"
+          @input="tx.setValue('gateway', ($event.target as HTMLInputElement).value)"
+        />
+        <span v-if="fieldError('gateway')" class="field__error" data-testid="error-gateway">{{ fieldError('gateway') }}</span>
+      </label>
+
+      <label class="field">
+        <span class="field__label">{{ schema.properties.mtu.title }}（{{ schema.properties.mtu.unit }}）</span>
+        <input
+          class="field__input"
+          type="number"
+          :min="schema.properties.mtu.minimum"
+          :max="schema.properties.mtu.maximum"
+          :value="tx.draft.mtu"
+          data-testid="field-mtu"
+          @input="tx.setValue('mtu', Number(($event.target as HTMLInputElement).value))"
+        />
+        <span v-if="fieldError('mtu')" class="field__error" data-testid="error-mtu">{{ fieldError('mtu') }}</span>
+      </label>
+
+      <div class="form__actions">
+        <UiButton variant="ghost" size="sm" type="button" data-testid="network-cancel" @click="cancelEdit">关闭</UiButton>
+      </div>
+    </form>
   </section>
 </template>
 
 <style scoped>
 .head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
   margin-bottom: var(--space-4);
 }
 .head h1 {
@@ -76,5 +221,57 @@ onMounted(async () => {
   margin: 0;
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
+}
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 var(--space-4);
+}
+.form {
+  max-width: 560px;
+  padding: var(--space-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+.form__title {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-lg);
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+.field__label {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+.field__input {
+  min-height: var(--input-height);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+}
+.field__input--area {
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+}
+.field__error {
+  color: var(--color-danger);
+  font-size: var(--font-size-xs);
+}
+.field__hint {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+.form__actions {
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

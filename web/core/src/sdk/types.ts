@@ -76,6 +76,66 @@ export interface OperationDef {
   summary: string;
 }
 
+export type RiskClass = 'R0' | 'R1' | 'R2' | 'R3' | 'R4' | 'R5';
+
+export interface ConfigSchemaField {
+  type: 'string' | 'integer' | 'boolean' | 'array';
+  title: string;
+  hint?: string;
+  unit?: string;
+  format?: string;
+  enum?: (string | number)[];
+  minimum?: number;
+  maximum?: number;
+  minItems?: number;
+  maxItems?: number;
+  items?: { type: 'string'; format?: string };
+}
+
+export interface ConfigSchema {
+  schemaVersion: 1;
+  id: string;
+  title: string;
+  version: string;
+  riskClass: RiskClass;
+  writePermission: string;
+  readPermission?: string;
+  confirmWindowSeconds: number;
+  type: 'object';
+  required?: string[];
+  properties: Record<string, ConfigSchemaField>;
+}
+
+/** Registry 里的配置 Schema：完整字段定义 + 摘要，页面直接据此渲染表单。 */
+export type RegistrySchema = ConfigSchema & { digest: string };
+
+export type TransactionState =
+  | 'DRAFT'
+  | 'VALIDATING'
+  | 'APPLYING'
+  | 'PENDING_CONFIRM'
+  | 'CONFIRMED'
+  | 'ROLLING_BACK'
+  | 'ROLLED_BACK'
+  | 'ROLLBACK_FAILED'
+  | 'FAILED';
+
+export interface ConfigTransaction {
+  transactionId: string;
+  sectionId: string;
+  state: TransactionState;
+  riskClass: RiskClass;
+  values: Record<string, unknown>;
+  baseRevision: number;
+  appliedRevision: number | null;
+  createdAt: string;
+  appliedAt: string | null;
+  confirmedAt: string | null;
+  rolledBackAt: string | null;
+  deadline: string | null;
+  confirmWindowSeconds: number;
+}
+
 export interface Registry {
   schemaVersion: 1;
   productId: string;
@@ -88,6 +148,7 @@ export interface Registry {
   widgets: WidgetDef[];
   permissions: PermissionDef[];
   roles: RoleDef[];
+  schemas: RegistrySchema[];
   capabilities: { declared: string[]; entitlements: string[] };
   api: OperationDef[];
   releaseScope: {
