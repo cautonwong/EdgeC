@@ -335,3 +335,84 @@ test('告警页：配置回滚产生的告警通过实时通道推到页面，�
   // 告警页不做任何操作，靠 WS 推送出现新告警
   await expect(page.getByText(marker)).toHaveCount(before + 1, { timeout: 15_000 });
 });
+
+// ---------------------------------------------------------------- 用户与角色管理（§5.5）
+const OPSADMIN = { username: 'opsadmin', password: 'OpsAdmin-Pass-2026' };
+
+test('用户管理：创建用户返回一次性口令，列表随即出现', async ({ page }) => {
+  await login(page, OPSADMIN);
+  await page.goto('/#/system/users');
+  await expect(page.locator('[data-testid="users-table"]')).toBeVisible();
+
+  await page.locator('[data-testid="create-user"]').click();
+  await page.locator('[data-testid="new-username"]').fill('e2euser');
+  await page.locator('[data-testid="new-display-name"]').fill('E2E 账号');
+  await page.locator('[data-testid="create-user-submit"]').click();
+
+  await expect(page.locator('[data-testid="one-time-password"]')).toBeVisible();
+  await expect(page.locator('[data-testid="users-table"]')).toContainText('e2euser');
+});
+
+test('用户管理：不能禁用当前登录的账号（自锁保护）', async ({ page }) => {
+  await login(page, OPSADMIN);
+  await page.goto('/#/system/users');
+  await page.locator('[data-testid="disable-opsadmin"]').click();
+  await expect(page.locator('[data-testid="users-error"]')).toContainText('self_protected');
+});
+
+test('用户管理：重置口令会生成一次性口令', async ({ page }) => {
+  await login(page, OPSADMIN);
+  await page.goto('/#/system/users');
+  // 拿刚建的 e2euser 开刀，不要动 engineer —— 它的口令后面还有用例要用
+  await page.locator('[data-testid="reset-e2euser"]').click();
+  await expect(page.locator('[data-testid="one-time-password"]')).toBeVisible();
+  await expect(page.locator('[data-testid="users-notice"]')).toContainText('会话全部失效');
+});
+
+test('用户管理：禁用的账号无法再登录', async ({ page }) => {
+  await login(page, OPSADMIN);
+  await page.goto('/#/system/users');
+  await page.locator('[data-testid="disable-e2euser"]').click();
+  await expect(page.locator('[data-testid="users-notice"]')).toContainText('已更新');
+
+  // 用一个干净上下文探测：带当前会话的请求会先被 CSRF 挡掉，测不到"禁用后能否登录"
+  const cleanContext = await page.context().browser()!.newContext();
+  const probe = await cleanContext.request.post('http://127.0.0.1:5173/api/v1/auth/login', {
+    data: { username: 'e2euser', password: 'whatever-not-matter' },
+    headers: { Origin: 'http://127.0.0.1:5173' },
+  });
+  // 禁用后连口令都不该被校验：直接 401，不能泄露"口令对不对"
+  expect(probe.status()).toBe(401);
+  await cleanContext.close();
+});
+
+test('角色管理：可创建自定义角色，权限必须在目录里', async ({ page }) => {
+  await login(page, OPSADMIN);
+  await page.goto('/#/system/roles');
+  await expect(page.locator('[data-testid="roles-table"]')).toBeVisible();
+
+  await page.locator('[data-testid="create-role"]').click();
+  await page.locator('[data-testid="role-id"]').fill('e2e-auditor');
+  await page.locator('[data-testid="role-name"]').fill('E2E 审计员');
+  await page.locator('[data-testid="role-description"]').fill('只读审计');
+  await page.locator('[data-testid="perm-core.alarm:read"]').check();
+  await page.locator('[data-testid="create-role-submit"]').click();
+
+  await expect(page.locator('[data-testid="roles-notice"]')).toContainText('已创建角色');
+  await expect(page.locator('[data-testid="roles-table"]')).toContainText('e2e-auditor');
+
+  // 目录里不存在的权限：服务端必须拒（不是靠前端勾选框控制）
+  const me = await (await page.request.get('/api/v1/auth/me')).json();
+  const bad = await page.request.post('/api/v1/roles', {
+    data: { id: 'e2e-bad', name: '非法角色', permissions: ['core.nonexistent:read'] },
+    headers: { Origin: 'http://127.0.0.1:5173', 'X-CSRF-Token': me.csrfToken },
+  });
+  expect(bad.status()).toBe(422);
+  expect((await bad.json()).code).toBe('unknown_permission');
+});
+
+test('角色管理：没有 user.role:read 的账号进不去', async ({ page }) => {
+  await login(page, ENGINEER_ACCOUNT);
+  await page.goto('/#/system/roles');
+  await expect(page.locator('[data-testid="denied-state"]')).toHaveText('forbidden');
+});

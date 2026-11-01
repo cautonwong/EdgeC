@@ -126,6 +126,16 @@ const users = [
     lastLogin: null,
   },
   {
+    id: 'u_1004',
+    username: 'opsadmin',
+    displayName: '运维管理员',
+    roleIds: ['admin'],
+    status: 'active',
+    mustChangePassword: false,
+    password: hashPassword('OpsAdmin-Pass-2026'),
+    lastLogin: null,
+  },
+  {
     id: 'u_1003',
     username: 'operator',
     displayName: '运维值班',
@@ -491,23 +501,35 @@ const handlers = {
   }),
 
   'POST /api/v1/users': (ctx) => {
-    const { username, roleIds } = ctx.body ?? {};
-    if (!username || users.some((user) => user.username === username)) {
+    const { username, displayName, roleIds, password } = ctx.body ?? {};
+    if (!/^[a-z0-9][a-z0-9._-]{2,31}$/.test(String(username ?? ''))) {
+      throw httpError(422, 'invalid_username', '用户名需 3–32 位，小写字母/数字/._-，且以字母或数字开头');
+    }
+    if (users.some((user) => user.username === username)) {
       throw httpError(409, 'username_taken', '用户名已存在');
     }
+    const nextRoleIds = Array.isArray(roleIds) && roleIds.length ? roleIds : ['viewer'];
+    for (const roleId of nextRoleIds) {
+      if (!registry.roles.some((role) => role.id === roleId)) {
+        throw httpError(422, 'unknown_role', `角色不存在: ${roleId}`);
+      }
+    }
+    if (password !== undefined) assertPasswordStrength(password);
+    const initialPassword = password ?? randomBytes(9).toString('base64url');
     const user = {
       id: `u_${1000 + users.length + 1}`,
       username,
-      displayName: username,
-      roleIds: Array.isArray(roleIds) && roleIds.length ? roleIds : ['viewer'],
+      displayName: displayName || username,
+      roleIds: nextRoleIds,
       status: 'active',
       mustChangePassword: true,
-      password: hashPassword(randomBytes(12).toString('base64url')),
+      password: hashPassword(initialPassword),
       lastLogin: null,
     };
     users.push(user);
     audit(ctx, 'user.created', { userId: user.id, roleIds: user.roleIds });
-    return { id: user.id, username: user.username, mustChangePassword: true };
+    // 初始口令只在这里返回一次：服务端不存明文，页面也不该能再次取到
+    return { id: user.id, username: user.username, mustChangePassword: true, initialPassword };
   },
 
   'GET /api/v1/users/{id}': (ctx) => {
@@ -519,22 +541,64 @@ const handlers = {
   'PATCH /api/v1/users/{id}': (ctx) => {
     const user = users.find((candidate) => candidate.id === ctx.params.id);
     if (!user) throw httpError(404, 'not_found', '用户不存在');
-    if (ctx.body?.status === 'disabled') {
-      const activeAdmins = users.filter((candidate) => candidate.status === 'active' && candidate.roleIds.includes('admin'));
+    const body = ctx.body ?? {};
+    const isSelf = user.id === ctx.session.userId;
+    const activeAdmins = users.filter((candidate) => candidate.status === 'active' && candidate.roleIds.includes('admin'));
+
+    if (body.status === 'disabled') {
+      // 自锁保护：把自己禁用掉，现场就再也进不来了（只能带外恢复）
+      if (isSelf) throw httpError(409, 'self_protected', '不能禁用当前登录的账号');
       if (user.roleIds.includes('admin') && activeAdmins.length <= 1) {
         throw httpError(409, 'last_admin', '不能禁用最后一个可用管理员');
       }
       user.status = 'disabled';
+      revokeSessionsOf(user.id);
+    } else if (body.status === 'active') {
+      user.status = 'active';
     }
-    if (Array.isArray(ctx.body?.roleIds)) user.roleIds = ctx.body.roleIds;
-    audit(ctx, 'user.updated', { userId: user.id });
-    return { id: user.id, status: user.status, roles: user.roleIds };
+
+    if (Array.isArray(body.roleIds)) {
+      for (const roleId of body.roleIds) {
+        if (!registry.roles.some((role) => role.id === roleId)) {
+          throw httpError(422, 'unknown_role', `角色不存在: ${roleId}`);
+        }
+      }
+      const losingAdmin = user.roleIds.includes('admin') && !body.roleIds.includes('admin');
+      if (losingAdmin && user.status === 'active' && activeAdmins.length <= 1) {
+        throw httpError(409, 'last_admin', '不能移除最后一个可用管理员的 admin 角色');
+      }
+      user.roleIds = body.roleIds;
+    }
+
+    if (typeof body.displayName === 'string' && body.displayName.trim()) {
+      user.displayName = body.displayName.trim();
+    }
+
+    let resetPassword;
+    if (body.resetPassword === true) {
+      // 重置口令：生成一次性口令，强制下次登录改密，并把已有会话全部踢掉
+      resetPassword = randomBytes(9).toString('base64url');
+      user.password = hashPassword(resetPassword);
+      user.mustChangePassword = true;
+      revokeSessionsOf(user.id);
+      audit(ctx, 'user.password.reset', { userId: user.id });
+    }
+
+    audit(ctx, 'user.updated', { userId: user.id, status: user.status, roleIds: user.roleIds });
+    return {
+      id: user.id,
+      status: user.status,
+      roles: user.roleIds,
+      displayName: user.displayName,
+      ...(resetPassword ? { resetPassword, mustChangePassword: true } : {}),
+    };
   },
 
   'DELETE /api/v1/users/{id}': (ctx) => {
     const index = users.findIndex((candidate) => candidate.id === ctx.params.id);
     if (index < 0) throw httpError(404, 'not_found', '用户不存在');
     const user = users[index];
+    if (user.id === ctx.session.userId) throw httpError(409, 'self_protected', '不能删除当前登录的账号');
     const activeAdmins = users.filter((candidate) => candidate.status === 'active' && candidate.roleIds.includes('admin'));
     if (user.roleIds.includes('admin') && activeAdmins.length <= 1) {
       throw httpError(409, 'last_admin', '不能删除最后一个可用管理员');
@@ -548,15 +612,29 @@ const handlers = {
     items: registry.roles.map((role) => ({
       id: role.id,
       name: role.name,
+      description: role.description ?? '',
       builtin: role.builtin,
       permissions: role.permissions,
+      permissionCount: role.permissions.length,
     })),
   }),
 
   'POST /api/v1/roles': (ctx) => {
-    const { id, name, permissions } = ctx.body ?? {};
-    if (!id) throw httpError(400, 'invalid_request', '缺少角色 id');
+    const { id, name, description, permissions } = ctx.body ?? {};
+    if (!/^[a-z][a-z0-9-]{2,31}$/.test(String(id ?? ''))) {
+      throw httpError(422, 'invalid_role_id', '角色 id 需 3–32 位小写字母/数字/-，以字母开头');
+    }
+    if (!name) throw httpError(422, 'invalid_role_name', '缺少角色名称');
     if (registry.roles.some((role) => role.id === id)) throw httpError(409, 'role_exists', '角色已存在');
+    if (!Array.isArray(permissions) || permissions.length === 0) {
+      throw httpError(422, 'empty_role', '自定义角色至少要有一条权限');
+    }
+    for (const perm of permissions) {
+      // 通配符只活在构建输入：运行期建角色必须是具体 ID，且必须在目录里
+      if (!catalog.permissions.some((item) => item.id === perm)) {
+        throw httpError(422, 'unknown_permission', `权限不存在: ${perm}`);
+      }
+    }
     const actor = users.find((candidate) => candidate.id === ctx.session.userId);
     const granted = effectivePermissions(actor);
     for (const perm of permissions ?? []) {
@@ -564,8 +642,15 @@ const handlers = {
         throw httpError(403, 'grant_escalation', `不能授予自己没有的权限 ${perm}`);
       }
     }
-    registry.roles.push({ id, name: name ?? id, builtin: false, permissions: [...(permissions ?? [])].sort() });
-    return { id };
+    registry.roles.push({
+      id,
+      name,
+      description: description ?? '',
+      builtin: false,
+      permissions: [...permissions].sort(),
+    });
+    audit(ctx, 'role.created', { roleId: id, permissions: permissions.length });
+    return { id, name, permissions: [...permissions].sort() };
   },
 
   'GET /api/v1/network/interfaces': () => ({ items: interfacesState.map((item) => ({ ...item, addresses: [...item.addresses] })) }),
@@ -1002,6 +1087,20 @@ function createTask(ctx, { type, target, requiredPermission, ownerCancel, cancel
   audit(ctx, 'task.created', { taskId: id, type });
   broadcast('task', 'task', publicTask(task));
   return task;
+}
+
+/** 禁用或重置口令时，把该用户所有会话立即踢掉（§5.6）。 */
+function revokeSessionsOf(userId) {
+  for (const [sid, session] of sessions) {
+    if (session.userId === userId) sessions.delete(sid);
+  }
+}
+
+function assertPasswordStrength(password) {
+  const text = String(password ?? '');
+  if (text.length < 12 || !/[A-Za-z]/.test(text) || !/[0-9]/.test(text)) {
+    throw httpError(400, 'weak_password', '口令至少 12 位，且同时包含字母与数字');
+  }
 }
 
 function publicTask(task) {
