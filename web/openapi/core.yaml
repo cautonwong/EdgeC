@@ -295,6 +295,17 @@ paths:
       responses:
         "200": { description: 点位当前值 }
 
+  /api/v1/telemetry/history:
+    get:
+      operationId: getTelemetryHistory
+      summary: 遥测历史序列（按点位与时间窗）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [core.telemetry:read]
+      x-resource-scope: gateway
+      x-audit-level: none
+      responses:
+        "200": { description: 序列点 }
+
   /api/v1/alarms:
     get:
       operationId: listAlarms
