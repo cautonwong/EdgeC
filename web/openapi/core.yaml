@@ -284,6 +284,17 @@ paths:
         "202": { description: 已受理，返回 taskId }
         "404": { description: 该 release 未启用升级功能 }
 
+  /api/v1/telemetry/current:
+    get:
+      operationId: getCurrentTelemetry
+      summary: 当前遥测快照（按分组过滤）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [core.telemetry:read]
+      x-resource-scope: gateway
+      x-audit-level: none
+      responses:
+        "200": { description: 点位当前值 }
+
   /api/v1/alarms:
     get:
       operationId: listAlarms

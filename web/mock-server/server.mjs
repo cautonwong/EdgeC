@@ -176,6 +176,40 @@ const interfacesState = [
 ];
 
 /**
+ * 遥测点位（§8.2）。数值用确定性的正弦函数生成：同一时刻算出来一样，
+ * 但随时间变化 —— E2E 能验"值真的在动"，又不用等随机数。
+ */
+const telemetryPoints = [
+  { pointId: 'VOLTAGE_PHASE_A', group: '电网', name: 'A 相电压', unit: 'V', base: 231, amp: 3, periodMs: 7000, decimals: 1 },
+  { pointId: 'CURRENT_PHASE_A', group: '电网', name: 'A 相电流', unit: 'A', base: 42, amp: 6, periodMs: 9000, decimals: 1 },
+  { pointId: 'ACTIVE_POWER', group: '电网', name: '有功功率', unit: 'kW', base: -12.6, amp: 4, periodMs: 11000, decimals: 2 },
+  { pointId: 'SOC', group: '储能', name: 'SOC', unit: '%', base: 68, amp: 2, periodMs: 60000, decimals: 1 },
+  { pointId: 'SOH', group: '储能', name: 'SOH', unit: '%', base: 97, amp: 0.2, periodMs: 120000, decimals: 1 },
+  { pointId: 'BATTERY_POWER', group: '储能', name: '电池功率', unit: 'kW', base: 18, amp: 5, periodMs: 8000, decimals: 2 },
+  { pointId: 'PV_POWER', group: '光伏', name: '光伏功率', unit: 'kW', base: 42, amp: 8, periodMs: 15000, decimals: 2 },
+  { pointId: 'LOAD_POWER', group: '负载', name: '负载功率', unit: 'kW', base: 29.5, amp: 3, periodMs: 10000, decimals: 2 },
+];
+
+function telemetryValue(point, at) {
+  const value = point.base + Math.sin(at / point.periodMs) * point.amp;
+  return Number(value.toFixed(point.decimals));
+}
+
+function telemetrySnapshot() {
+  const at = now();
+  const ts = new Date(at).toISOString();
+  return telemetryPoints.map((point) => ({
+    pointId: point.pointId,
+    group: point.group,
+    name: point.name,
+    unit: point.unit,
+    value: telemetryValue(point, at),
+    quality: 'good',
+    ts,
+  }));
+}
+
+/**
  * 告警（§8.3）。台架上用"确定性的产生源"而不是定时器：
  * 配置回滚、任务取消这类动作会真的产生告警 —— 这样 E2E 能验"事件真的推到了页面"，
  * 而不是等一个随机闹钟。
@@ -864,6 +898,12 @@ const handlers = {
     return { transactionId: transaction.id, state: transaction.state };
   },
 
+  'GET /api/v1/telemetry/current': (ctx) => {
+    const group = ctx.query.group;
+    const items = telemetrySnapshot().filter((item) => !group || item.group === group);
+    return { items, total: items.length };
+  },
+
   'GET /api/v1/tasks': () => ({ items: [...tasks.values()].map(publicTask) }),
 
   'GET /api/v1/tasks/{id}': (ctx) => {
@@ -1525,6 +1565,13 @@ function handleWsMessage(client, text) {
 }
 
 server.on('upgrade', handleWsUpgrade);
+
+// 遥测推送：只在有人订阅时跑（§6.8 别让台架空转）。周期 2s，够验证"值在动"。
+setInterval(() => {
+  const subscribed = [...wsClients].some((client) => client.topics.has('telemetry'));
+  if (!subscribed) return;
+  broadcast('telemetry', 'telemetry', { items: telemetrySnapshot() });
+}, 2000);
 
 server.listen(PORT, HOST, () => {
   console.log(`[mock] product=${PRODUCT} listening http://${HOST}:${PORT}  registry=${registry.digests.registry.slice(0, 23)}…`);
