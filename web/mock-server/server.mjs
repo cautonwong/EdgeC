@@ -687,6 +687,54 @@ const handlers = {
     return { id, name, permissions: [...permissions].sort() };
   },
 
+  'PATCH /api/v1/roles/{id}': (ctx) => {
+    const role = registry.roles.find((item) => item.id === ctx.params.id);
+    if (!role) throw httpError(404, 'not_found', '角色不存在');
+    // 内置角色的权限来自构建期 role-presets：运行期改它等于绕过发版流程
+    if (role.builtin) throw httpError(403, 'builtin_role_immutable', '内置角色不可修改，请新建自定义角色');
+
+    const body = ctx.body ?? {};
+    if (body.permissions !== undefined) {
+      if (!Array.isArray(body.permissions) || body.permissions.length === 0) {
+        throw httpError(422, 'empty_role', '自定义角色至少要有一条权限');
+      }
+      for (const perm of body.permissions) {
+        if (!catalog.permissions.some((item) => item.id === perm)) {
+          throw httpError(422, 'unknown_permission', `权限不存在: ${perm}`);
+        }
+      }
+      const actor = users.find((candidate) => candidate.id === ctx.session.userId);
+      const granted = effectivePermissions(actor);
+      for (const perm of body.permissions) {
+        if (!granted.has(perm)) {
+          throw httpError(403, 'grant_escalation', `不能授予自己没有的权限 ${perm}`);
+        }
+      }
+      role.permissions = [...body.permissions].sort();
+    }
+    if (typeof body.name === 'string' && body.name.trim()) role.name = body.name.trim();
+    if (typeof body.description === 'string') role.description = body.description;
+
+    audit(ctx, 'role.updated', { roleId: role.id, permissions: role.permissions.length });
+    // 权限是逐请求从角色算的（effectivePermissions），改完下一次请求就生效，不需要重算会话。
+    return { id: role.id, name: role.name, permissions: role.permissions };
+  },
+
+  'DELETE /api/v1/roles/{id}': (ctx) => {
+    const index = registry.roles.findIndex((item) => item.id === ctx.params.id);
+    if (index < 0) throw httpError(404, 'not_found', '角色不存在');
+    const role = registry.roles[index];
+    if (role.builtin) throw httpError(403, 'builtin_role_immutable', '内置角色不可删除');
+    const holders = users.filter((user) => user.roleIds.includes(role.id));
+    if (holders.length > 0) {
+      // 直接删会让这些用户失去全部权限、静默变成"看不见任何页面"，必须挡住
+      throw httpError(409, 'role_in_use', `还有 ${holders.length} 个账号持有该角色，请先调整他们的角色`);
+    }
+    registry.roles.splice(index, 1);
+    audit(ctx, 'role.deleted', { roleId: role.id });
+    return null;
+  },
+
   'GET /api/v1/network/interfaces': () => ({ items: interfacesState.map((item) => ({ ...item, addresses: [...item.addresses] })) }),
 
   'PATCH /api/v1/network/interfaces/{id}': (ctx) => {
