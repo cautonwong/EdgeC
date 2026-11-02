@@ -126,7 +126,7 @@ static void test_ai_copilot_drawer_component(void **state) {
     assert_non_null(strstr(content, "McpToolCallCard"));
 }
 
-static void test_admin_layout_and_tag_card_integration(void **state) {
+static void test_admin_layout_ai_integration(void **state) {
     (void)state;
     char layout_content[32768];
     read_file_content("web/core/src/app/layouts/AppShell.vue", layout_content,
@@ -137,13 +137,6 @@ static void test_admin_layout_and_tag_card_integration(void **state) {
     assert_non_null(strstr(layout_content, "useAICopilot"));
     assert_non_null(strstr(layout_content, "toggleCopilot"));
 
-    char tag_card_content[32768];
-    read_file_content("web/core/src/components/LiveTagCard.vue", tag_card_content,
-                      sizeof(tag_card_content));
-
-    assert_non_null(strstr(tag_card_content, "diagnoseWithAI"));
-    assert_non_null(strstr(tag_card_content, "AI 诊断"));
-    assert_non_null(strstr(tag_card_content, "openWithContext"));
 }
 
 int main(void) {
@@ -151,7 +144,7 @@ int main(void) {
         cmocka_unit_test(test_ai_provider_service_structure),
         cmocka_unit_test(test_mcp_tool_call_card_component),
         cmocka_unit_test(test_ai_copilot_drawer_component),
-        cmocka_unit_test(test_admin_layout_and_tag_card_integration),
+        cmocka_unit_test(test_admin_layout_ai_integration),
     };
 
     printf("=== Running EdgeOS Industrial AI Copilot (AEP-507) Web Tests ===\n");

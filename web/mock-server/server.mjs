@@ -944,17 +944,6 @@ const handlers = {
     throw httpError(426, 'upgrade_required', '该接口只接受 WebSocket 升级');
   },
 
-  // ---- 迁移期的取数面（旧页面仍在使用，逐步收敛到 Pack API） ----
-  'GET /api/v1/contracts': () => legacyContract(),
-
-  'GET /api/v1/data/latest/{tag}': (ctx) => ({
-    id: ctx.params.tag,
-    value: Number((220 + Math.sin(now() / 5000) * 3).toFixed(2)),
-    unit: 'V',
-    quality: 'good',
-    ts: new Date().toISOString(),
-  }),
-
   // ---- Pack 扩展接口 ----
   'GET /api/v1/iems/telemetry': () => ({
     soc: 68.4,
@@ -1397,19 +1386,7 @@ function serveStatic(res, pathname) {
   createReadStream(target).pipe(res);
 }
 
-function legacyContract() {
-  return {
-    product_name: registry.productName,
-    generated_at: new Date().toISOString(),
-    active_tags: [
-      { id: 'VOLTAGE_PHASE_A', name: 'VOLTAGE_PHASE_A', attributes: { ui: { label: 'A 相电压', unit: 'V', group: '电气量', precision: 1 } } },
-      { id: 'CURRENT_PHASE_A', name: 'CURRENT_PHASE_A', attributes: { ui: { label: 'A 相电流', unit: 'A', group: '电气量', precision: 2 } } },
-      { id: 'SOC', name: 'SOC', attributes: { ui: { label: 'SOC', unit: '%', group: '储能', precision: 1 } } },
-    ],
-    all_tags: [],
-    ui_config: { branding: { title: registry.productName, theme: 'dark', logo: '/logo.svg' }, navigation: {} },
-  };
-}
+
 
 
 // ---------------------------------------------------------------- 实时通道（WebSocket）
