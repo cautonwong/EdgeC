@@ -17,6 +17,7 @@
 import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
 import { createReadStream, existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import http from 'node:http';
+import { loadState, saveState } from './state.mjs';
 import { createHash as createHashForWs } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -898,6 +899,7 @@ const handlers = {
     applyToDeviceState(transaction);
     audit(ctx, 'config.applied', { transactionId: transaction.id, sectionId: transaction.sectionId });
     broadcast('config-transaction', 'config-transaction', publicTransactionFields(transaction));
+    persistNow();
     return { transactionId: transaction.id, state: transaction.state, deadline: transaction.deadline };
   },
 
@@ -915,6 +917,7 @@ const handlers = {
     transaction.confirmedAt = new Date().toISOString();
     audit(ctx, 'config.confirmed', { transactionId: transaction.id });
     broadcast('config-transaction', 'config-transaction', publicTransactionFields(transaction));
+    persistNow();
     return { transactionId: transaction.id, state: transaction.state };
   },
 
@@ -936,6 +939,7 @@ const handlers = {
     transaction.rolledBackAt = new Date().toISOString();
     audit(ctx, 'config.rolledback', { transactionId: transaction.id });
     broadcast('config-transaction', 'config-transaction', publicTransactionFields(transaction));
+    persistNow();
     // 回滚是"需要人知道"的事件：配置没生效，现场必须看到
     raiseAlarm({
       level: 'major',
@@ -1150,6 +1154,7 @@ function createTransaction(ctx, sectionId, values) {
     rolledBackAt: null,
   };
   transactions.set(id, transaction);
+  persistNow();
   audit(ctx, 'config.draft.created', { transactionId: id, sectionId });
   return transaction;
 }
@@ -1614,6 +1619,64 @@ setInterval(() => {
   if (!subscribed) return;
   broadcast('telemetry', 'telemetry', { items: telemetrySnapshot() });
 }, 2000);
+
+// ---------------------------------------------------------------- 台架状态持久化（opt-in）
+//
+// 只有设置 EDGEOS_MOCK_STATE 才落盘。目的只有一个：让**独立 watchdog** 能在
+// API 进程被重启/杀掉时仍然按 deadline 回滚（§6.4）。默认纯内存，避免 E2E 互相污染。
+const STATE_FILE = process.env.EDGEOS_MOCK_STATE ?? '';
+
+function snapshotState() {
+  return {
+    configRevision,
+    interfaces: interfacesState,
+    sections: configSectionsState,
+    alarms,
+    transactions: [...transactions.values()],
+  };
+}
+
+/**
+ * 立刻落盘。事务状态一变就必须写：watchdog 的承诺是"deadline 一定被看到"，
+ * 靠 500ms 的定时器兜底会在"apply 后马上被 kill"这种场景下丢掉窗口。
+ */
+function persistNow() {
+  if (!STATE_FILE) return;
+  try {
+    saveState(STATE_FILE, snapshotState());
+  } catch (err) {
+    console.error('[mock] persist failed:', err?.message ?? err);
+  }
+}
+
+function hydrateState() {
+  if (!STATE_FILE) return;
+  const state = loadState(STATE_FILE);
+  if (!state) return;
+  if (Number.isInteger(state.configRevision)) configRevision = state.configRevision;
+  if (Array.isArray(state.interfaces)) {
+    interfacesState.splice(0, interfacesState.length, ...state.interfaces);
+  }
+  if (state.sections) {
+    for (const key of Object.keys(configSectionsState)) delete configSectionsState[key];
+    Object.assign(configSectionsState, state.sections);
+  }
+  if (Array.isArray(state.alarms)) alarms.splice(0, alarms.length, ...state.alarms);
+  for (const transaction of state.transactions ?? []) transactions.set(transaction.id, transaction);
+  console.log(`[mock] hydrated ${transactions.size} transaction(s) from ${STATE_FILE}`);
+}
+
+hydrateState();
+if (STATE_FILE) {
+  // 不做脏标记：整个状态只有几 KB，500ms 一次全量写比追踪改动更不容易漏
+  setInterval(() => {
+    try {
+      saveState(STATE_FILE, snapshotState());
+    } catch (err) {
+      console.error('[mock] persist failed:', err?.message ?? err);
+    }
+  }, 500);
+}
 
 server.listen(PORT, HOST, () => {
   console.log(`[mock] product=${PRODUCT} listening http://${HOST}:${PORT}  registry=${registry.digests.registry.slice(0, 23)}…`);
