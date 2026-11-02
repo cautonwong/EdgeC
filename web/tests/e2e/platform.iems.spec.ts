@@ -477,3 +477,61 @@ test('历史曲线：选点位查询后返回序列并画出图表', async ({ pa
   await expect(page.locator('[data-testid="history-points"]')).not.toHaveText('0');
   await expect(page.locator('[data-testid="history-chart"] canvas')).toBeVisible();
 });
+
+// ---------------------------------------------------------------- 角色编辑 / 删除
+test('角色管理：自定义角色可编辑，内置角色不给编辑入口', async ({ page }) => {
+  await login(page, OPSADMIN);
+  await page.goto('/#/system/roles');
+
+  // 先建一个
+  await page.locator('[data-testid="create-role"]').click();
+  await page.locator('[data-testid="role-id"]').fill('e2e-edit');
+  await page.locator('[data-testid="role-name"]').fill('E2E 可编辑');
+  await page.locator('[data-testid="perm-core.alarm:read"]').check();
+  await page.locator('[data-testid="create-role-submit"]').click();
+  await expect(page.locator('[data-testid="roles-table"]')).toContainText('e2e-edit');
+
+  // 编辑：加一条权限
+  await page.locator('[data-testid="edit-role-e2e-edit"]').click();
+  await expect(page.locator('[data-testid="role-id"]')).toBeDisabled();
+  await page.locator('[data-testid="perm-core.telemetry:read"]').check();
+  await page.locator('[data-testid="create-role-submit"]').click();
+  await expect(page.locator('[data-testid="roles-notice"]')).toContainText('已更新');
+
+  const roles = await (await page.request.get('/api/v1/roles')).json();
+  const edited = roles.items.find((role: { id: string }) => role.id === 'e2e-edit');
+  expect(edited.permissions).toEqual(['core.alarm:read', 'core.telemetry:read']);
+
+  // 内置角色没有编辑/删除入口
+  await expect(page.locator('[data-testid="edit-role-admin"]')).toHaveCount(0);
+  await expect(page.locator('[data-testid="delete-role-admin"]')).toHaveCount(0);
+});
+
+test('角色管理：内置角色改不动，被持有的角色删不掉', async ({ page }) => {
+  await login(page, OPSADMIN);
+  await page.goto('/#/system/roles');
+  const me = await (await page.request.get('/api/v1/auth/me')).json();
+  const csrf = { Origin: 'http://127.0.0.1:5173', 'X-CSRF-Token': me.csrfToken };
+
+  const builtin = await page.request.patch('/api/v1/roles/admin', {
+    data: { name: '改名试试' },
+    headers: csrf,
+  });
+  expect(builtin.status()).toBe(403);
+  expect((await builtin.json()).code).toBe('builtin_role_immutable');
+
+  // 建角色 + 建持有它的账号，再删角色 → 必须拒绝
+  await page.request.post('/api/v1/roles', {
+    data: { id: 'e2e-in-use', name: 'E2E 占用中', permissions: ['core.alarm:read'] },
+    headers: csrf,
+  });
+  const created = await page.request.post('/api/v1/users', {
+    data: { username: 'e2eholder', roleIds: ['e2e-in-use'] },
+    headers: csrf,
+  });
+  expect(created.status()).toBe(201);
+
+  const inUse = await page.request.delete('/api/v1/roles/e2e-in-use', { headers: csrf });
+  expect(inUse.status()).toBe(409);
+  expect((await inUse.json()).code).toBe('role_in_use');
+});

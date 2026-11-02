@@ -186,6 +186,31 @@ paths:
       responses:
         "201": { description: 已创建 }
 
+  /api/v1/roles/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    patch:
+      operationId: updateRole
+      summary: 修改自定义角色（内置角色不可改）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [user.role:admin]
+      x-resource-scope: gateway
+      x-audit-level: high
+      responses:
+        "200": { description: 已更新 }
+    delete:
+      operationId: deleteRole
+      summary: 删除自定义角色（仍有账号持有时拒绝）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [user.role:admin]
+      x-resource-scope: gateway
+      x-audit-level: high
+      responses:
+        "204": { description: 已删除 }
+
   /api/v1/network/interfaces:
     get:
       operationId: listInterfaces

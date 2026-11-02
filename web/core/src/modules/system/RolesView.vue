@@ -2,9 +2,11 @@
 /**
  * 角色管理（§5.5）。
  *
- * 内置角色只读（它们的权限来自构建期的 role-presets，改了要发版）；
- * 自定义角色在设备上创建，权限必须是**具体 ID** —— 通配符只活在构建输入，
- * 服务端会逐条校验"目录里存在 + 不超过自己的权限"（禁止提权）。
+ * 内置角色只读（权限来自构建期 role-presets，改了要发版）；自定义角色可建、可改、可删。
+ * 权限必须是**具体 ID**：通配符只活在构建输入，服务端逐条校验"目录里存在 + 不超过自己的权限"。
+ *
+ * 关于"权限变更后会话要不要重算"：服务端每次请求都从 roleIds 现算权限
+ * （`effectivePermissions`），所以改完下一次请求就生效，不需要踢会话；页面刷新一次即可看到菜单变化。
  */
 import { computed, onMounted, ref } from 'vue';
 import { request, ApiRequestError } from '../../sdk/http';
@@ -30,6 +32,7 @@ const loading = ref(false);
 const error = ref('');
 const notice = ref('');
 const creating = ref(false);
+const editingId = ref<string | null>(null);
 const draft = ref({ id: '', name: '', description: '', permissions: [] as string[] });
 
 const canAdmin = computed(() => authz.can('user.role:admin'));
@@ -53,6 +56,7 @@ const columns: Column[] = [
   { key: 'description', title: '职责' },
   { key: 'builtin', title: '类型' },
   { key: 'permissionCount', title: '权限数', align: 'right' },
+  { key: 'actions', title: '操作', align: 'right' },
 ];
 
 function describe(err: unknown): string {
@@ -79,21 +83,55 @@ function toggle(permissionId: string, checked: boolean): void {
   draft.value.permissions = [...set].sort();
 }
 
-async function createRole(): Promise<void> {
+function startCreate(): void {
+  editingId.value = null;
+  creating.value = !creating.value;
+  draft.value = { id: '', name: '', description: '', permissions: [] };
+  error.value = '';
+  notice.value = '';
+}
+
+function startEdit(role: RoleRow): void {
+  editingId.value = role.id;
+  creating.value = true;
+  draft.value = {
+    id: role.id,
+    name: role.name,
+    description: role.description,
+    permissions: [...role.permissions],
+  };
+  error.value = '';
+  notice.value = '';
+}
+
+async function submit(): Promise<void> {
   error.value = '';
   notice.value = '';
   try {
-    await request('/api/v1/roles', {
-      method: 'POST',
-      body: {
-        id: draft.value.id.trim(),
-        name: draft.value.name.trim(),
-        description: draft.value.description.trim(),
-        permissions: draft.value.permissions,
-      },
-    });
-    notice.value = `已创建角色 ${draft.value.name}。`;
+    if (editingId.value) {
+      await request(`/api/v1/roles/${editingId.value}`, {
+        method: 'PATCH',
+        body: {
+          name: draft.value.name.trim(),
+          description: draft.value.description.trim(),
+          permissions: draft.value.permissions,
+        },
+      });
+      notice.value = `已更新角色 ${draft.value.name}。下一次请求即按新权限判定。`;
+    } else {
+      await request('/api/v1/roles', {
+        method: 'POST',
+        body: {
+          id: draft.value.id.trim(),
+          name: draft.value.name.trim(),
+          description: draft.value.description.trim(),
+          permissions: draft.value.permissions,
+        },
+      });
+      notice.value = `已创建角色 ${draft.value.name}。`;
+    }
     creating.value = false;
+    editingId.value = null;
     draft.value = { id: '', name: '', description: '', permissions: [] };
     await load();
   } catch (err) {
@@ -101,7 +139,19 @@ async function createRole(): Promise<void> {
   }
 }
 
-/** 提权提示：勾了自己没有的权限，服务端会拒（grant_escalation），这里先标红。 */
+async function remove(role: RoleRow): Promise<void> {
+  error.value = '';
+  notice.value = '';
+  try {
+    await request(`/api/v1/roles/${role.id}`, { method: 'DELETE' });
+    notice.value = `已删除角色 ${role.name}。`;
+    await load();
+  } catch (err) {
+    error.value = describe(err);
+  }
+}
+
+/** 提权提示：勾了自己没有的权限，服务端会拒（grant_escalation），这里先标黄。 */
 function isEscalation(permissionId: string): boolean {
   return !granted.value.has(permissionId);
 }
@@ -116,10 +166,10 @@ onMounted(load);
         <h1>角色管理</h1>
         <p class="head__hint">
           内置角色的权限来自构建期 role-presets（改要发版）；自定义角色只能在目录里挑具体权限，
-          且不能超过你自己的权限。
+          且不能超过你自己的权限。权限是逐请求计算的，改完下一次请求就生效。
         </p>
       </div>
-      <UiButton v-if="canAdmin" variant="primary" data-testid="create-role" @click="creating = !creating">
+      <UiButton v-if="canAdmin" variant="primary" data-testid="create-role" @click="startCreate">
         {{ creating ? '取消' : '新建角色' }}
       </UiButton>
       <span v-else class="head__readonly" data-testid="no-role-admin">只读（缺少 user.role:admin）</span>
@@ -128,11 +178,17 @@ onMounted(load);
     <UiBanner v-if="error" tone="danger" title="操作失败" data-testid="roles-error">{{ error }}</UiBanner>
     <UiBanner v-if="notice" tone="success" data-testid="roles-notice">{{ notice }}</UiBanner>
 
-    <form v-if="creating" class="create" data-testid="create-role-form" @submit.prevent="createRole">
+    <form v-if="creating" class="create" data-testid="create-role-form" @submit.prevent="submit">
       <div class="create__row">
         <label class="field">
           <span class="field__label">角色 ID</span>
-          <input v-model="draft.id" class="field__input" data-testid="role-id" placeholder="小写字母开头" />
+          <input
+            v-model="draft.id"
+            class="field__input"
+            data-testid="role-id"
+            :disabled="!!editingId"
+            placeholder="小写字母开头"
+          />
         </label>
         <label class="field">
           <span class="field__label">名称</span>
@@ -167,9 +223,9 @@ onMounted(load);
           size="sm"
           data-testid="create-role-submit"
           :disabled="!draft.id || !draft.name || draft.permissions.length === 0"
-          @click="createRole"
+          @click="submit"
         >
-          创建
+          {{ editingId ? '保存' : '创建' }}
         </UiButton>
       </div>
     </form>
@@ -180,6 +236,17 @@ onMounted(load);
       </template>
       <template #cell-description="{ row }">{{ row.description || '—' }}</template>
       <template #cell-permissionCount="{ row }">{{ row.permissions.length }}</template>
+      <template #cell-actions="{ row }">
+        <div v-if="canAdmin && !row.builtin" class="row-actions">
+          <UiButton variant="ghost" size="sm" :data-testid="`edit-role-${row.id}`" @click="startEdit(row as unknown as RoleRow)">
+            编辑
+          </UiButton>
+          <UiButton variant="ghost" size="sm" :data-testid="`delete-role-${row.id}`" @click="remove(row as unknown as RoleRow)">
+            删除
+          </UiButton>
+        </div>
+        <span v-else class="muted">—</span>
+      </template>
     </UiDataTable>
   </section>
 </template>
@@ -282,8 +349,16 @@ onMounted(load);
 .picker__desc {
   color: var(--text-secondary);
 }
+.row-actions {
+  display: inline-flex;
+  gap: var(--space-1);
+  justify-content: flex-end;
+}
 .hint {
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
+}
+.muted {
+  color: var(--text-disabled);
 }
 </style>
