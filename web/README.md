@@ -97,6 +97,14 @@ Core 永不 import products
 - 超过 8 秒没有推送就把卡片标记为"已过期"——停更的数值看着像实时的，比没有更危险（§9.3）。
 - 分组过滤与搜索走前端；点位数值由服务端用确定性正弦生成，E2E 能验"值真的在动"。
 
+## 5.05 曲线页（§8.1）
+
+- 实时曲线（`/data`）与历史曲线（`/data/history`）的点位列表来自
+  `GET /api/v1/telemetry/current`，历史序列来自 `GET /api/v1/telemetry/history`
+  （按点位 + 时间窗 + 采样间隔，服务端上限 2000 点）。
+- 页面里的 `axios` 与 `ContractStore` 全部去掉，改走 `sdk/http`——**契约数据面现在没有任何页面消费者**，
+  下一步可以整体删除（`services/ContractLoader.ts`、`TagValue`/`LiveTagCard` 与 `/api/v1/contracts`）。
+
 ## 5.1 用户与角色（§5.5）
 
 - `/system/users`：新建（返回**一次性口令**，只显示一次）、重置口令（踢掉该用户全部会话）、

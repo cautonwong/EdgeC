@@ -14,10 +14,11 @@
         <!-- Tag Selector (Contract Driven) -->
         <select 
           v-model="selectedTagId" 
+          data-testid="history-point-select"
           class="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/30"
         >
-          <option :value="0">Select Telemetry Tag...</option>
-          <option v-for="tag in trendTags" :key="tag.id" :value="tag.id">
+          <option value="">Select Telemetry Point...</option>
+          <option v-for="tag in trendTags" :key="tag.pointId" :value="tag.pointId">
             {{ tag.name }} ({{ tag.unit || 'unit' }})
           </option>
         </select>
@@ -33,6 +34,7 @@
 
         <button 
           @click="fetchData" 
+          data-testid="history-query"
           :disabled="!selectedTagId || loading" 
           class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-xl text-xs font-mono font-bold transition-all shadow flex items-center gap-1.5"
         >
@@ -57,23 +59,24 @@
 
       <div v-show="points.length > 0" class="flex-1 flex flex-col">
         <div class="flex justify-between items-center mb-3 text-xs font-mono text-slate-400">
-          <span>Points Retrieved: <strong class="text-slate-200">{{ points.length.toLocaleString() }}</strong></span>
+          <span>Points Retrieved: <strong class="text-slate-200" data-testid="history-points">{{ points.length.toLocaleString() }}</strong></span>
           <span>Sampling: <strong class="text-indigo-400">LTTB Downsampled</strong></span>
         </div>
-        <div ref="chartContainer" class="w-full h-[400px]"></div>
+        <div ref="chartContainer" data-testid="history-chart" class="w-full h-[400px]"></div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, onBeforeUnmount, watch } from 'vue';
 import * as echarts from 'echarts';
-import axios from 'axios';
-import { useContractStore } from '../../services/ContractLoader';
+import { request } from '../../sdk/http';
+import { useTelemetryPoints } from '../../app/composables/useTelemetryPoints';
 
-const contractStore = useContractStore();
-const selectedTagId = ref(0);
+// 点位来自遥测快照，历史序列来自 /api/v1/telemetry/history —— 不再经过契约点位。
+const { points: telemetryPoints } = useTelemetryPoints();
+const selectedTagId = ref<string>('');
 const timeRange = ref('1h');
 const points = ref<[number, number][]>([]);
 const loading = ref(false);
@@ -81,14 +84,9 @@ const loading = ref(false);
 const chartContainer = ref<HTMLElement | null>(null);
 let chartInstance: echarts.ECharts | null = null;
 
-const trendTags = computed(() => {
-  return contractStore.contract?.tags.filter(t => t.attributes?.northbound?.storage === 'trend') || 
-         Array.from(contractStore.tagMap.values());
-});
+const trendTags = computed(() => telemetryPoints.value);
 
-const selectedTag = computed(() => {
-  return Array.from(contractStore.tagMap.values()).find(t => t.id === selectedTagId.value);
-});
+const selectedTag = computed(() => telemetryPoints.value.find((t) => t.pointId === selectedTagId.value));
 
 function initChart() {
   if (!chartContainer.value) return;
@@ -101,7 +99,7 @@ function initChart() {
 function updateChart() {
   if (!chartInstance || points.value.length === 0) return;
 
-  const tagName = selectedTag.value ? selectedTag.value.name : `Tag #${selectedTagId.value}`;
+  const tagName = selectedTag.value ? selectedTag.value.name : selectedTagId.value || '未选择点位';
   const unit = selectedTag.value?.unit || '';
 
   const option: echarts.EChartsOption = {
@@ -211,9 +209,11 @@ const fetchData = async () => {
     const duration = timeRange.value === '1h' ? 3600000 : (timeRange.value === '6h' ? 21600000 : 86400000);
     const start = end - duration;
     
-    const res = await axios.get(`/api/v1/data/query?tag=${selectedTagId.value}&start=${start}&end=${end}`);
-    if (res.data && res.data.data) {
-      points.value = res.data.data.map((p: any) => [p.ts, p.val]);
+    const res = await request<{ series: { ts: number; value: number }[] }>(
+      `/api/v1/telemetry/history?pointId=${encodeURIComponent(selectedTagId.value)}&from=${start}&to=${end}&interval=${Math.max(1000, Math.round(duration / 500))}`,
+    );
+    if (res.series && res.series.length) {
+      points.value = res.series.map((p) => [p.ts, p.value]);
     } else {
       // Generate realistic continuous telemetry series if backend mock
       const sampleCount = 500;
@@ -253,11 +253,16 @@ function handleResize() {
   chartInstance?.resize();
 }
 
-onMounted(() => {
-  if (contractStore.groups.size === 0) {
-    contractStore.loadContract();
-  }
-});
+// 点位列表到达后自动选中第一个并查一次，省掉"先选再点查询"的空转。
+watch(
+  () => telemetryPoints.value.length,
+  (count) => {
+    if (count === 0 || selectedTagId.value) return;
+    selectedTagId.value = telemetryPoints.value[0].pointId;
+    void fetchData();
+  },
+  { immediate: true },
+);
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize);

@@ -43,10 +43,11 @@
         <select 
           v-if="viewMode === 'single'"
           v-model="selectedTagId" 
+          data-testid="curve-point-select"
           class="bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-mono font-bold text-slate-200 outline-none focus:ring-2 focus:ring-blue-500/30"
         >
-          <option v-for="tag in contractStore.active_tags" :key="tag.id" :value="tag.id">
-            {{ tag.name }} (#{{ tag.id }}) [{{ tag.unit || 'unit' }}]
+          <option v-for="point in telemetryPoints" :key="point.pointId" :value="point.pointId">
+            {{ point.name }} ({{ point.pointId }}) [{{ point.unit || 'unit' }}]
           </option>
         </select>
 
@@ -130,7 +131,7 @@
       </div>
 
       <!-- Chart DOM Mount -->
-      <div ref="chartContainer" class="w-full h-[450px] min-h-[400px]"></div>
+      <div ref="chartContainer" data-testid="curve-chart" class="w-full h-[450px] min-h-[400px]"></div>
 
       <!-- Footer Info -->
       <div class="mt-4 pt-3 border-t border-slate-800/80 flex flex-wrap justify-between items-center text-[11px] font-mono text-slate-500">
@@ -149,15 +150,16 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import * as echarts from 'echarts';
-import axios from 'axios';
-import { useContractStore } from '../../services/ContractLoader';
+import { request } from '../../sdk/http';
+import { useTelemetryPoints } from '../../app/composables/useTelemetryPoints';
 
-const contractStore = useContractStore();
+// 数据面已从契约点位迁到遥测快照：这里只需要"有哪些点位"和"某个点位的最新值"。
+const { points: telemetryPoints } = useTelemetryPoints();
 const chartContainer = ref<HTMLElement | null>(null);
 let chartInstance: echarts.ECharts | null = null;
 
 const viewMode = ref<'multi' | 'single'>('multi');
-const selectedTagId = ref<number>(1001);
+const selectedTagId = ref<string>('');
 const isStreaming = ref(true);
 let streamTimer: any = null;
 
@@ -251,7 +253,7 @@ function getChartOptions(): echarts.EChartsOption {
     }
   ] : [
     {
-      name: `Tag #${selectedTagId.value}`,
+      name: selectedTagId.value || '未选择点位',
       type: 'line',
       sampling: 'lttb',
       showSymbol: false,
@@ -434,9 +436,12 @@ function initDataFeed() {
     // Fetch live data or generate real-time physical simulation
     try {
       if (viewMode.value === 'single' && selectedTagId.value) {
-        const res = await axios.get(`/api/v1/data/latest/${selectedTagId.value}`);
-        if (res.data && res.data.value !== undefined) {
-          singleTagData.value.push([t, Number(res.data.value)]);
+        const snapshot = await request<{ items: { pointId: string; value: number }[] }>(
+          '/api/v1/telemetry/current',
+        );
+        const point = snapshot.items.find((item) => item.pointId === selectedTagId.value);
+        if (point && Number.isFinite(point.value)) {
+          singleTagData.value.push([t, point.value]);
           if (singleTagData.value.length > 5000) singleTagData.value.shift();
         }
       }
@@ -478,6 +483,14 @@ function handleResize() {
 watch(viewMode, () => {
   updateChart();
 });
+
+watch(
+  () => telemetryPoints.value.length,
+  (count) => {
+    if (count > 0 && !selectedTagId.value) selectedTagId.value = telemetryPoints.value[0].pointId;
+  },
+  { immediate: true },
+);
 
 watch(selectedTagId, () => {
   singleTagData.value = [];

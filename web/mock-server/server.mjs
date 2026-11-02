@@ -904,6 +904,23 @@ const handlers = {
     return { items, total: items.length };
   },
 
+  'GET /api/v1/telemetry/history': (ctx) => {
+    const pointId = ctx.query.pointId;
+    const point = telemetryPoints.find((item) => item.pointId === pointId);
+    if (!point) throw httpError(404, 'unknown_point', `未知点位 ${pointId}`);
+    const to = Number(ctx.query.to ?? now());
+    const from = Number(ctx.query.from ?? to - 3600000);
+    const interval = Math.max(1000, Number(ctx.query.interval ?? 60000));
+    // 上限 2000 点：台架不需要百万点，也避免一个请求把进程拖住
+    const count = Math.min(2000, Math.max(2, Math.floor((to - from) / interval)));
+    const series = [];
+    for (let i = 0; i <= count; i += 1) {
+      const ts = Math.round(from + ((to - from) * i) / count);
+      series.push({ ts, value: telemetryValue(point, ts) });
+    }
+    return { pointId, unit: point.unit, name: point.name, from, to, interval, series };
+  },
+
   'GET /api/v1/tasks': () => ({ items: [...tasks.values()].map(publicTask) }),
 
   'GET /api/v1/tasks/{id}': (ctx) => {

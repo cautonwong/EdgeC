@@ -449,3 +449,31 @@ test('概览：数值靠遥测推送自己更新，不刷新页面', async ({ pa
   // 更新时间也在走（说明是推送驱动，不是首屏渲染的静态值）
   await expect(page.locator('.head__hint')).toContainText('更新于');
 });
+
+// ---------------------------------------------------------------- 曲线页（遥测数据面）
+test('实时曲线：点位来自遥测快照，图表可渲染', async ({ page }) => {
+  await login(page, ENGINEER_ACCOUNT);
+  await page.goto('/#/data');
+  await expect(page.locator('[data-testid="curve-chart"] canvas')).toBeVisible();
+
+  // 单点位模式下才会出现点位选择器（多点模式是固定四条曲线）
+  await page.getByRole('button', { name: 'Single Tag Focus' }).click();
+  await expect(page.locator('[data-testid="curve-point-select"]')).toBeVisible();
+
+  // 点位列表来自 /api/v1/telemetry/current，且自动选中第一个
+  await expect(page.locator('[data-testid="curve-point-select"] option')).toHaveCount(8);
+});
+
+test('历史曲线：选点位查询后返回序列并画出图表', async ({ page }) => {
+  await login(page, ENGINEER_ACCOUNT);
+  await page.goto('/#/data/history');
+
+  const select = page.locator('[data-testid="history-point-select"]');
+  await expect(select).toBeVisible();
+  await select.selectOption('SOC');
+  await page.locator('[data-testid="history-query"]').click();
+
+  // 序列来自 /api/v1/telemetry/history：点数 > 0 且图表容器里有 canvas
+  await expect(page.locator('[data-testid="history-points"]')).not.toHaveText('0');
+  await expect(page.locator('[data-testid="history-chart"] canvas')).toBeVisible();
+});
