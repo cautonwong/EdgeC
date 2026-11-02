@@ -57,24 +57,25 @@ static void test_contract_loader_pinia_store(void **state) {
     assert_non_null(strstr(content, "filteredTags: (state)"));
 }
 
-static void test_dashboard_vue_contract_driven(void **state) {
+static void test_dashboard_vue_telemetry_driven(void **state) {
     (void)state;
     char content[65536];
     read_file_content("web/core/src/modules/Dashboard.vue", content, sizeof(content));
 
-    // Verify dynamic contract-driven rendering without hardcoded physical names
-    assert_non_null(strstr(content, "useContractStore()"));
-    assert_non_null(strstr(content, "v-for=\"groupName in contractStore.groupList\""));
-    assert_non_null(strstr(content, "v-for=\"tag in tags\""));
-    assert_non_null(strstr(content, ":key=\"tag.id\""));
-    assert_non_null(strstr(content, "bg-[#020617]"));
+    // 概览页已从"契约点位轮询"迁到遥测快照 + 推送：不再依赖 ContractStore，
+    // 也不再硬编码任何物理点位名（渲染由数据驱动）。
+    assert_non_null(strstr(content, "/api/v1/telemetry/current"));
+    assert_non_null(strstr(content, "useLiveFeed"));
+    assert_non_null(strstr(content, "v-for=\"point in visible\""));
+    assert_non_null(strstr(content, ":key=\"point.pointId\""));
+    assert_null(strstr(content, "contractStore"));
 }
 
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_ts_compiler_backend_ui_metadata),
         cmocka_unit_test(test_contract_loader_pinia_store),
-        cmocka_unit_test(test_dashboard_vue_contract_driven),
+        cmocka_unit_test(test_dashboard_vue_telemetry_driven),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

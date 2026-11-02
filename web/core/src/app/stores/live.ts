@@ -10,7 +10,7 @@ import { ref } from 'vue';
 import type { LiveMessage, LiveState, LiveTopic } from '../../sdk/types';
 import { createLiveChannel, type LiveChannel } from '../../sdk/live';
 
-const TOPICS: LiveTopic[] = ['alarm', 'task', 'config-transaction'];
+const TOPICS: LiveTopic[] = ['alarm', 'task', 'config-transaction', 'telemetry'];
 const MAX_EVENTS = 50;
 
 export const useLiveStore = defineStore('live', () => {

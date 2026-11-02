@@ -416,3 +416,36 @@ test('角色管理：没有 user.role:read 的账号进不去', async ({ page })
   await page.goto('/#/system/roles');
   await expect(page.locator('[data-testid="denied-state"]')).toHaveText('forbidden');
 });
+
+// ---------------------------------------------------------------- 概览（遥测推送）
+test('概览：点位卡按分组展示，分组过滤生效', async ({ page }) => {
+  await login(page, ENGINEER_ACCOUNT);
+  await page.goto('/#/dashboard');
+  await expect(page.locator('[data-testid="metric-grid"]')).toBeVisible();
+  await expect(page.locator('[data-testid="metric-SOC"]')).toBeVisible();
+  await expect(page.locator('[data-testid="metric-VOLTAGE_PHASE_A"]')).toBeVisible();
+
+  await page.locator('[data-testid="group-储能"]').click();
+  await expect(page.locator('[data-testid="metric-SOC"]')).toBeVisible();
+  await expect(page.locator('[data-testid="metric-VOLTAGE_PHASE_A"]')).toHaveCount(0);
+
+  await page.locator('[data-testid="group-all"]').click();
+  await expect(page.locator('[data-testid="metric-VOLTAGE_PHASE_A"]')).toBeVisible();
+});
+
+test('概览：数值靠遥测推送自己更新，不刷新页面', async ({ page }) => {
+  await login(page, ENGINEER_ACCOUNT);
+  await page.goto('/#/dashboard');
+
+  const voltage = page.locator('[data-testid="metric-VOLTAGE_PHASE_A"] .metric__number');
+  await expect(voltage).toBeVisible();
+  const before = await voltage.textContent();
+
+  // 服务端每 2s 推一次快照；7s 周期的正弦，10s 内一定会变
+  await expect
+    .poll(async () => voltage.textContent(), { timeout: 12_000, intervals: [500, 1000, 2000] })
+    .not.toBe(before);
+
+  // 更新时间也在走（说明是推送驱动，不是首屏渲染的静态值）
+  await expect(page.locator('.head__hint')).toContainText('更新于');
+});
