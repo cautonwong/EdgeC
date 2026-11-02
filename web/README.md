@@ -90,6 +90,21 @@ Core 永不 import products
 - 告警页（`/events`）订阅 `alarm` 主题：配置回滚、任务取消会真的产生告警并推到页面；
   确认告警是写操作（`core.alarm:write`），服务端同样判定。
 
+## 4.1 独立 watchdog（§6.4）
+
+确认窗口的承诺是"超时一定回滚"。回滚不能依赖浏览器，也不能依赖 API 进程——所以有一个独立进程：
+
+```bash
+# 台架：让 mock-server 落盘，watchdog 读同一个文件
+EDGEOS_MOCK_STATE=/tmp/edgeos-state.json npm run mock:iems
+npm run mock:watchdog -- --state /tmp/edgeos-state.json
+```
+
+- 事务状态**一变就立刻落盘**（create/apply/confirm/rollback），不靠定时器；
+  "apply 后马上被 kill"正是最容易丢窗口的场景。
+- watchdog 只看 deadline：到点恢复 apply 前的快照、标记 `ROLLED_BACK`、产生 `major` 告警。
+- 默认不落盘（`EDGEOS_MOCK_STATE` 未设置时纯内存），避免 E2E 之间互相污染。
+
 ## 5.0 概览与遥测（§8.1）
 
 - 概览页数据面从「契约点位」换成 `GET /api/v1/telemetry/current` + WebSocket `telemetry` 主题：
