@@ -549,30 +549,3 @@ paths:
         "101": { description: 协议升级 }
 
   # ---- 产品数据接口（当前 UI 仍在用的取数面，逐步收敛到 Pack OpenAPI） ----
-  /api/v1/contracts:
-    get:
-      operationId: getLegacyContract
-      summary: 点位契约（契约驱动 UI 取数，后续由 Pack API 取代）
-      security: [{ sessionCookie: [] }]
-      x-required-permissions: [core.telemetry:read]
-      x-resource-scope: gateway
-      x-deprecated: true
-      x-audit-level: none
-      responses:
-        "200": { description: 契约 }
-
-  /api/v1/data/latest/{tag}:
-    parameters:
-      - name: tag
-        in: path
-        required: true
-        schema: { type: string }
-    get:
-      operationId: getLatestSample
-      summary: 单点位最新值
-      security: [{ sessionCookie: [] }]
-      x-required-permissions: [core.telemetry:read]
-      x-resource-scope: gateway
-      x-audit-level: none
-      responses:
-        "200": { description: 最新值 }

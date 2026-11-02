@@ -778,22 +778,6 @@ target_link_libraries(test_web_design_tokens PRIVATE
 )
 add_test(NAME test_web_design_tokens COMMAND test_web_design_tokens)
 
-# AEP-491 EdgeOS Web 契约驱动与 Pinia ContractLoader 动态聚合测试
-add_executable(test_web_contract_loader test_web_contract_loader.c)
-target_link_libraries(test_web_contract_loader PRIVATE
-    cmocka::cmocka
-    pthread dl rt m
-)
-add_test(NAME test_web_contract_loader COMMAND test_web_contract_loader)
-
-# AEP-492 LiveTagCard 工业级高刷组件与 400ms GSAP 动效及 shallowRef 内存优化测试
-add_executable(test_web_live_tag_card test_web_live_tag_card.c)
-target_link_libraries(test_web_live_tag_card PRIVATE
-    cmocka::cmocka
-    pthread dl rt m
-)
-add_test(NAME test_web_live_tag_card COMMAND test_web_live_tag_card)
-
 # AEP-493 DataCurves ECharts 工业级负荷曲线与 LTTB 动态降采样及十字准星测试
 add_executable(test_web_data_curves test_web_data_curves.c)
 target_link_libraries(test_web_data_curves PRIVATE

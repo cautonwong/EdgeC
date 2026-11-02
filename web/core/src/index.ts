@@ -12,8 +12,6 @@ export * from './ui';
 // core/modules.manifest.yaml 里，通过 Registry 装配；这里保留从包根导出的能力，
 // 避免既有引用（产品入口、既有单测）在同一 PR 里被迫全部改写。
 // 新代码请用 `@edgeos/web-core/ui`（L1/L2 组件）与 `@edgeos/web-core/sdk`（类型/纯逻辑）。
-export { default as TagValue } from './components/TagValue.vue';
-export { default as LiveTagCard } from './components/LiveTagCard.vue';
 export { default as SankeyEnergyFlow } from './components/SankeyEnergyFlow.vue';
 export { default as TOUArbitrageWidget } from './components/TOUArbitrageWidget.vue';
 export { default as AntiReversePIDGauge } from './components/AntiReversePIDGauge.vue';
