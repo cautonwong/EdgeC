@@ -190,6 +190,52 @@ const interfacesState = [
 ];
 
 /**
+ * 可控设备与高危控制命令（§8.4 远程操作）。
+ *
+ * 拉合闸是不可撤销的物理动作，所以命令必须**双人复核**：发起人不能自己批。
+ * 状态机：PENDING_APPROVAL → EXECUTED / REJECTED / EXPIRED。
+ */
+const controlDevices = [
+  { id: 'relay-1', name: '1# 出线开关', location: 'A 区配电柜', state: 'closed', ratedA: 250 },
+  { id: 'relay-2', name: '2# 出线开关', location: 'A 区配电柜', state: 'closed', ratedA: 160 },
+  { id: 'relay-3', name: '电容补偿柜', location: 'B 区配电室', state: 'open', ratedA: 100 },
+];
+
+const controlCommands = new Map();
+const CONTROL_APPROVAL_MS = Number(process.env.EDGEOS_CONTROL_APPROVAL_MS ?? 300_000);
+let controlSeq = 0;
+
+function publicControlCommand(command) {
+  return {
+    id: command.id,
+    deviceId: command.deviceId,
+    deviceName: controlDevices.find((device) => device.id === command.deviceId)?.name ?? command.deviceId,
+    action: command.action,
+    reason: command.reason,
+    state: command.state,
+    requestedBy: command.requestedBy,
+    requestedAt: command.requestedAt,
+    expiresAt: command.expiresAt,
+    decidedBy: command.decidedBy,
+    decidedAt: command.decidedAt,
+    note: command.note,
+  };
+}
+
+/** 过期的待复核命令一律按 EXPIRED 处理：不能永远挂在那里等人点。 */
+function expireControlCommands() {
+  let changed = false;
+  for (const command of controlCommands.values()) {
+    if (command.state === 'PENDING_APPROVAL' && Date.parse(command.expiresAt) <= now()) {
+      command.state = 'EXPIRED';
+      command.decidedAt = new Date().toISOString();
+      changed = true;
+    }
+  }
+  if (changed) persistNow();
+}
+
+/**
  * 遥测点位（§8.2）。数值用确定性的正弦函数生成：同一时刻算出来一样，
  * 但随时间变化 —— E2E 能验"值真的在动"，又不用等随机数。
  */
@@ -993,6 +1039,103 @@ const handlers = {
       message: `配置分区 ${transaction.sectionId} 已回滚（未在确认窗口内确认或主动取消）`,
     });
     return { transactionId: transaction.id, state: transaction.state };
+  },
+
+  'GET /api/v1/control/devices': () => ({
+    items: controlDevices.map((device) => ({ ...device })),
+  }),
+
+  'GET /api/v1/control/commands': () => {
+    expireControlCommands();
+    return {
+      items: [...controlCommands.values()]
+        .sort((a, b) => (a.requestedAt < b.requestedAt ? 1 : -1))
+        .slice(0, 20)
+        .map(publicControlCommand),
+    };
+  },
+
+  'POST /api/v1/control/commands': (ctx) => {
+    const { deviceId, action, reason } = ctx.body ?? {};
+    const device = controlDevices.find((item) => item.id === deviceId);
+    if (!device) throw httpError(404, 'unknown_device', `未知设备 ${deviceId}`);
+    if (!['trip', 'close'].includes(action)) throw httpError(422, 'invalid_action', '动作只能是 trip / close');
+    if (!reason || String(reason).trim().length < 4) {
+      // 高危操作没有理由就没法追溯，也挡不住误触
+      throw httpError(422, 'reason_required', '请填写操作理由（至少 4 个字）');
+    }
+    if (action === 'trip' && device.state === 'open') {
+      throw httpError(409, 'already_in_state', '该开关已处于分闸状态');
+    }
+    if (action === 'close' && device.state === 'closed') {
+      throw httpError(409, 'already_in_state', '该开关已处于合闸状态');
+    }
+    const duplicate = [...controlCommands.values()].find(
+      (item) => item.deviceId === deviceId && item.state === 'PENDING_APPROVAL',
+    );
+    if (duplicate) throw httpError(409, 'command_pending', '该设备已有待复核的命令');
+
+    controlSeq += 1;
+    const command = {
+      id: `cmd_${String(controlSeq).padStart(4, '0')}`,
+      deviceId,
+      action,
+      reason: String(reason).trim(),
+      state: 'PENDING_APPROVAL',
+      requestedBy: ctx.session.userId,
+      requestedAt: new Date().toISOString(),
+      expiresAt: new Date(now() + CONTROL_APPROVAL_MS).toISOString(),
+      decidedBy: null,
+      decidedAt: null,
+      note: null,
+    };
+    controlCommands.set(command.id, command);
+    audit(ctx, 'control.requested', { commandId: command.id, deviceId, action });
+    persistNow();
+    return publicControlCommand(command);
+  },
+
+  'POST /api/v1/control/commands/{id}/approve': (ctx) => {
+    expireControlCommands();
+    const command = controlCommands.get(ctx.params.id);
+    if (!command) throw httpError(404, 'not_found', '命令不存在');
+    if (command.state !== 'PENDING_APPROVAL') {
+      throw httpError(409, 'not_pending', `命令当前状态为 ${command.state}，不能复核`);
+    }
+    // 双人复核的核心：发起人不能自己批（同一账号换个浏览器也一样）
+    if (command.requestedBy === ctx.session.userId) {
+      throw httpError(403, 'self_approval_denied', '不能复核自己发起的控制命令');
+    }
+    const device = controlDevices.find((item) => item.id === command.deviceId);
+    command.state = 'EXECUTED';
+    command.decidedBy = ctx.session.userId;
+    command.decidedAt = new Date().toISOString();
+    if (device) device.state = command.action === 'trip' ? 'open' : 'closed';
+    audit(ctx, 'control.executed', { commandId: command.id, deviceId: command.deviceId, action: command.action });
+    raiseAlarm({
+      level: command.action === 'trip' ? 'major' : 'info',
+      source: 'control',
+      code: command.action === 'trip' ? 'CTL-REMOTE-TRIP' : 'CTL-REMOTE-CLOSE',
+      message: `${command.deviceName ?? command.deviceId} 远程${command.action === 'trip' ? '拉闸' : '合闸'}：${command.reason}`,
+    });
+    persistNow();
+    return publicControlCommand(command);
+  },
+
+  'POST /api/v1/control/commands/{id}/reject': (ctx) => {
+    expireControlCommands();
+    const command = controlCommands.get(ctx.params.id);
+    if (!command) throw httpError(404, 'not_found', '命令不存在');
+    if (command.state !== 'PENDING_APPROVAL') {
+      throw httpError(409, 'not_pending', `命令当前状态为 ${command.state}，不能复核`);
+    }
+    command.state = 'REJECTED';
+    command.decidedBy = ctx.session.userId;
+    command.decidedAt = new Date().toISOString();
+    command.note = String(ctx.body?.note ?? '').slice(0, 200);
+    audit(ctx, 'control.rejected', { commandId: command.id });
+    persistNow();
+    return publicControlCommand(command);
   },
 
   'GET /api/v1/telemetry/current': (ctx) => {

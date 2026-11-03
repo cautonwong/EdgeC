@@ -20,6 +20,8 @@ export function useAuthz() {
   return {
     granted,
     username: computed(() => session.me?.username ?? ''),
+    /** 会话里的用户 ID：页面判断"这条记录是不是我发起的"时用它（username 可能被改）。 */
+    userId: computed(() => session.me?.userId ?? ''),
     roles: computed(() => session.roles),
     /** allOf：全部满足 */
     can: (...ids: string[]) => ids.every((id) => granted.value.has(id)),

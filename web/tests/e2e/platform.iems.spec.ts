@@ -615,3 +615,83 @@ test('在线会话：没有 user.session:admin 的账号进不去', async ({ pag
   await page.goto('/#/system/sessions');
   await expect(page.locator('[data-testid="denied-state"]')).toHaveText('forbidden');
 });
+
+// ---------------------------------------------------------------- 远程控制（双人复核）
+test('远程控制：发起 → 另一人复核 → 执行，设备状态与告警都变了', async ({ page, browser }) => {
+  // 发起人：engineer
+  await login(page, ENGINEER_ACCOUNT);
+  await page.goto('/#/control');
+  await expect(page.locator('[data-testid="control-devices"]')).toBeVisible();
+  await expect(page.locator('[data-testid="device-relay-1"]')).toContainText('合闸');
+
+  await page.locator('[data-testid="trip-relay-1"]').click();
+  await page.locator('[data-testid="control-reason"]').fill('检修需要，工单 WO-2026-031');
+  await page.locator('[data-testid="control-submit"]').click();
+  await expect(page.locator('[data-testid="control-notice"]')).toContainText('等待另一名');
+  // 发起人自己看不到批准按钮
+  await expect(page.locator('[data-testid="control-table"]')).toContainText('等待他人复核');
+
+  // 复核人：opsadmin
+  const approverContext = await browser.newContext();
+  const approver = await approverContext.newPage();
+  await approver.goto('http://127.0.0.1:5173/#/login');
+  await approver.locator('[data-testid="login-username"] input').fill('opsadmin');
+  await approver.locator('[data-testid="login-password"] input').fill('OpsAdmin-Pass-2026');
+  await approver.locator('[data-testid="login-submit"]').click();
+  await approver.goto('http://127.0.0.1:5173/#/control');
+  await expect(approver.locator('[data-testid="control-table"]')).toContainText('待复核');
+
+  await approver.locator('[data-testid="control-table"] button', { hasText: '批准' }).first().click();
+  await expect(approver.locator('[data-testid="control-notice"]')).toContainText('已执行');
+  await expect(approver.locator('[data-testid="device-relay-1"]')).toContainText('分闸');
+
+  // 现场要知道"有人远程拉了闸"：告警页必须有记录
+  await approver.goto('http://127.0.0.1:5173/#/events');
+  await expect(approver.getByText('远程拉闸').first()).toBeVisible({ timeout: 10_000 });
+  await approverContext.close();
+});
+
+test('远程控制：发起人不能自批（服务端拒绝，页面也不给按钮）', async ({ page }) => {
+  await login(page, ENGINEER_ACCOUNT);
+  await page.goto('/#/control');
+
+  // 再发起一条（relay-2 还是合闸状态）
+  await page.locator('[data-testid="trip-relay-2"]').click();
+  await page.locator('[data-testid="control-reason"]').fill('自批测试');
+  await page.locator('[data-testid="control-submit"]').click();
+  await expect(page.locator('[data-testid="control-notice"]')).toContainText('等待另一名');
+
+  // 绕过页面直接调接口：必须 403 self_approval_denied
+  const me = await (await page.request.get('/api/v1/auth/me')).json();
+  const listed = await (await page.request.get('/api/v1/control/commands')).json();
+  const pending = listed.items.find((item: { state: string; deviceId: string }) => item.state === 'PENDING_APPROVAL' && item.deviceId === 'relay-2');
+  expect(pending).toBeTruthy();
+
+  const selfApprove = await page.request.post(`/api/v1/control/commands/${pending.id}/approve`, {
+    data: {},
+    headers: { Origin: 'http://127.0.0.1:5173', 'X-CSRF-Token': me.csrfToken },
+  });
+  expect(selfApprove.status()).toBe(403);
+  expect((await selfApprove.json()).code).toBe('self_approval_denied');
+});
+
+test('远程控制：没有理由不给发起，没有控制权限进不了页面', async ({ page }) => {
+  await login(page, ENGINEER_ACCOUNT);
+  await page.goto('/#/control');
+  const me = await (await page.request.get('/api/v1/auth/me')).json();
+  const noReason = await page.request.post('/api/v1/control/commands', {
+    data: { deviceId: 'relay-3', action: 'close', reason: 'x' },
+    headers: { Origin: 'http://127.0.0.1:5173', 'X-CSRF-Token': me.csrfToken },
+  });
+  expect(noReason.status()).toBe(422);
+  expect((await noReason.json()).code).toBe('reason_required');
+
+  // viewer 没有 core.control:read
+  await page.request.post('/api/v1/auth/logout', {
+    data: {},
+    headers: { Origin: 'http://127.0.0.1:5173', 'X-CSRF-Token': me.csrfToken },
+  });
+  await login(page, VIEWER);
+  await page.goto('/#/control');
+  await expect(page.locator('[data-testid="denied-state"]')).toHaveText('forbidden');
+});
