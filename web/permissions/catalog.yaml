@@ -25,6 +25,13 @@ permissions:
     description: 确认、屏蔽告警
     sensitivity: medium
     dependencies: [core.alarm:read]
+  - id: core.control:read
+    description: 查看可控设备与操作记录
+    sensitivity: medium
+  - id: core.control:execute
+    description: 远程拉合闸等高危控制（需双人复核）
+    sensitivity: high
+    dependencies: [core.control:read]
   - id: core.task:read
     description: 查看长任务状态与产物
     sensitivity: low

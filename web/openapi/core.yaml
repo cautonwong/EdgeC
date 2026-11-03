@@ -336,6 +336,70 @@ paths:
         "202": { description: 已受理，返回 taskId }
         "404": { description: 该 release 未启用升级功能 }
 
+  /api/v1/control/devices:
+    get:
+      operationId: listControlDevices
+      summary: 可控设备列表与当前开关状态
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [core.control:read]
+      x-resource-scope: gateway
+      x-audit-level: low
+      responses:
+        "200": { description: 设备列表 }
+
+  /api/v1/control/commands:
+    get:
+      operationId: listControlCommands
+      summary: 最近的控制命令（含待复核）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [core.control:read]
+      x-resource-scope: gateway
+      x-audit-level: low
+      responses:
+        "200": { description: 命令列表 }
+    post:
+      operationId: requestControlCommand
+      summary: 发起远程控制（拉闸/合闸），需另一人复核
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [core.control:execute]
+      x-resource-scope: gateway
+      x-audit-level: high
+      x-success-status: 201
+      responses:
+        "201": { description: 待复核命令 }
+
+  /api/v1/control/commands/{id}/approve:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      operationId: approveControlCommand
+      summary: 复核并执行（发起人不能自批）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [core.control:execute]
+      x-resource-scope: gateway
+      x-audit-level: high
+      responses:
+        "200": { description: 已执行 }
+
+  /api/v1/control/commands/{id}/reject:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      operationId: rejectControlCommand
+      summary: 驳回控制命令
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [core.control:execute]
+      x-resource-scope: gateway
+      x-audit-level: high
+      responses:
+        "200": { description: 已驳回 }
+
   /api/v1/telemetry/current:
     get:
       operationId: getCurrentTelemetry

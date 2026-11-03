@@ -56,6 +56,8 @@ roles:
       - core.alarm:read
       - core.alarm:write
       - core.task:read
+      - core.control:read
+      - core.control:execute
       - system.log:read
       - system.log:export
       - system.service:read
@@ -83,6 +85,8 @@ roles:
       - "core.*:read"
       - core.alarm:write
       - core.task:cancel
+      - core.control:read
+      - core.control:execute
       - core.audit:export
       - "network.*:*"
       - "system.*:*"
