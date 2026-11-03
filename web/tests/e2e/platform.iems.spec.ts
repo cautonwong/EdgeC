@@ -535,3 +535,25 @@ test('角色管理：内置角色改不动，被持有的角色删不掉', async
   expect(inUse.status()).toBe(409);
   expect((await inUse.json()).code).toBe('role_in_use');
 });
+
+// ---------------------------------------------------------------- 独立 watchdog（超时自动回滚）
+test('配置事务：窗口内不确认，watchdog 自动回滚（不点任何按钮）', async ({ page }) => {
+  await openNetworkEditor(page);
+  await page.locator('[data-testid="field-addresses"]').fill('192.168.10.123/24');
+  await page.locator('[data-testid="tx-apply"]').click();
+
+  // 台架把确认窗口压到 8s（EDGEOS_CONFIRM_WINDOW_MS），watchdog 每 300ms 扫一次
+  await expect(page.locator('[data-testid="tx-pending"]')).toBeVisible();
+
+  // 关键：不做任何操作，等 watchdog 回滚后由推送把结果带回来
+  await expect(page.locator('[data-testid="tx-message"]')).toContainText('已回滚', { timeout: 30_000 });
+  await expect(page.locator('table')).not.toContainText('192.168.10.123/24');
+});
+
+test('配置事务：watchdog 的回滚会留下可追溯的告警', async ({ page }) => {
+  await login(page, ENGINEER_ACCOUNT);
+  await page.goto('/#/events');
+  await expect(page.locator('[data-testid="alarms-table"]')).toBeVisible();
+  // 上一条用例触发的 watchdog 回滚必须留下 major 告警（现场要知道"配置没生效"）
+  await expect(page.getByText('watchdog 已回滚').first()).toBeVisible({ timeout: 15_000 });
+});

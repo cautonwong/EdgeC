@@ -1640,10 +1640,13 @@ function snapshotState() {
  * 立刻落盘。事务状态一变就必须写：watchdog 的承诺是"deadline 一定被看到"，
  * 靠 500ms 的定时器兜底会在"apply 后马上被 kill"这种场景下丢掉窗口。
  */
+let lastPersistAt = 0;
+
 function persistNow() {
   if (!STATE_FILE) return;
   try {
     saveState(STATE_FILE, snapshotState());
+    lastPersistAt = Date.now();
   } catch (err) {
     console.error('[mock] persist failed:', err?.message ?? err);
   }
@@ -1666,8 +1669,38 @@ function hydrateState() {
   console.log(`[mock] hydrated ${transactions.size} transaction(s) from ${STATE_FILE}`);
 }
 
+/**
+ * watchdog 与 server 共享同一个状态文件：watchdog 回滚后会写文件，server 必须
+ * 认这个外部改动，否则接口还在说 PENDING_CONFIRM（页面也就永远等不到结果）。
+ * 用 mtime 判断"这次写入不是我干的"，水合后把状态变化的事务广播出去。
+ */
+function pollExternalState() {
+  if (!STATE_FILE) return;
+  let mtimeMs = 0;
+  try {
+    mtimeMs = statSync(STATE_FILE).mtimeMs;
+  } catch {
+    return;
+  }
+  if (mtimeMs <= lastPersistAt + 50) return;
+
+  const before = new Map([...transactions].map(([id, tx]) => [id, tx.state]));
+  const state = loadState(STATE_FILE);
+  if (!state) return;
+  hydrateState();
+
+  for (const [id, tx] of transactions) {
+    if (before.get(id) !== tx.state) {
+      console.log(`[mock] external state change: ${id} ${before.get(id)} → ${tx.state}`);
+      broadcast('config-transaction', 'config-transaction', publicTransactionFields(tx));
+    }
+  }
+  lastPersistAt = mtimeMs;
+}
+
 hydrateState();
 if (STATE_FILE) {
+  setInterval(pollExternalState, 500);
   // 不做脏标记：整个状态只有几 KB，500ms 一次全量写比追踪改动更不容易漏
   setInterval(() => {
     try {
