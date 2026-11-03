@@ -129,6 +129,17 @@ npm run mock:watchdog -- --state /tmp/edgeos-state.json
   权限从 Registry 的目录里逐条勾选，**必须是具体 ID**，且不能超过自己的权限（`grant_escalation`）。
 - 台架账号：`opsadmin / OpsAdmin-Pass-2026`（管理员，用于用户管理；`admin` 专门留给首登改密流程）。
 
+## 5.9 平台侧验收（tests_web）
+
+浏览器上的呈现由本仓库的 Playwright 用例覆盖；**服务端授权语义**（权限/能力/许可/CSRF/
+配置事务状态机）由 test-platform 的 `tests_web` 判定。一条命令跑完：
+
+```bash
+./acceptance/run_webui.sh          # 生成 Registry → 起 mock-server → 跑 tests_web → 归档证据
+```
+
+CI 里是独立作业 `WebUI Acceptance (test-platform)`，平台按 `acceptance/testplatform.sha` 锁定版本。
+
 ## 6. 常用命令
 
 ```bash

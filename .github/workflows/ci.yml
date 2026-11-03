@@ -221,6 +221,78 @@ jobs:
           retention-days: 14
 
   # ==========================================
+  # Job 2.5: WebUI Platform Acceptance (test-platform tests_web)
+  #
+  # 平台侧判据（授权语义：权限/能力/许可/CSRF/配置事务状态机）。
+  # 浏览器呈现由 frontend-e2e 覆盖，两边不重复。
+  # 之前这套用例合进了平台仓库但 CI 里没人跑 —— 等于没有结论。
+  # ==========================================
+  webui-acceptance:
+    name: WebUI Acceptance (test-platform)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Registry 生成用 tooling/cli.mjs，它依赖 js-yaml（来自 core/products 的 workspace 依赖，
+      # 靠 node_modules 提升拿到）。没装依赖时 node 直接 "Cannot find package 'js-yaml'"，
+      # 第一次跑这个作业就是这么红的。--ignore-scripts 避免顺带跑 playwright 的浏览器下载。
+      - name: Install web deps (registry tooling)
+        run: |
+          cd web
+          npm ci --ignore-scripts --no-audit --no-fund || npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Install platform runtime deps
+        run: python3 -m pip install --quiet "pytest>=8.0" "pyyaml>=6.0"
+
+      - name: Clone test-platform at pinned commit
+        run: |
+          TP="${RUNNER_TEMP}/test-platform"
+          SHA="$(sed -n 's/^\([0-9a-f]\{7,40\}\)$/\1/p' acceptance/testplatform.sha | head -1)"
+          git clone --quiet "https://x-access-token:${{ github.token }}@github.com/cautonwong/test-platform.git" "$TP"
+          git -C "$TP" checkout --quiet "$SHA"
+          echo "TESTPLATFORM=$TP" >> "$GITHUB_ENV"
+          echo "平台版本: $(git -C "$TP" rev-parse --short HEAD)（锁定 ${SHA:0:8}）"
+
+      # 红了必须能回答"哪条用例、为什么"：失败行同时变成 GitHub annotation
+      # （check-run annotations 走 API 可读，日志走 blob 存储不一定取得到）。
+      - name: Run WebUI acceptance
+        run: |
+          set +e
+          ./acceptance/run_webui.sh 2>&1 | tee webui-acceptance.log
+          code=${PIPESTATUS[0]}
+          set -e
+          if [ "$code" -ne 0 ]; then
+            grep -E "^(FAILED|ERROR)|Error:|error:|缺 |找不到 " webui-acceptance.log | head -10 | while IFS= read -r line; do
+              echo "::error title=WebUI acceptance::$line"
+            done
+          fi
+          exit "$code"
+
+      - name: Upload WebUI evidence
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: webui-acceptance-evidence
+          path: |
+            reports/acceptance/webui/
+            webui-acceptance.log
+          retention-days: 14
+
+  # ==========================================
   # Job 3: AI-Augmented Code Review & Quality Gate (Orchestrator)
   # ==========================================
   ai-code-review-gate:
