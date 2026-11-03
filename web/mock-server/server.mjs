@@ -127,6 +127,16 @@ const users = [
     lastLogin: null,
   },
   {
+    id: 'u_1005',
+    username: 'locktest',
+    displayName: '锁定用例账号',
+    roleIds: ['viewer'],
+    status: 'active',
+    mustChangePassword: false,
+    password: hashPassword('LockTest-Pass-2026'),
+    lastLogin: null,
+  },
+  {
     id: 'u_1004',
     username: 'opsadmin',
     displayName: '运维管理员',
@@ -160,6 +170,9 @@ const users = [
 
 const sessions = new Map();
 const loginFailures = new Map(); // `${username}|${ip}` → {count, lockedUntil}
+// 台架可以用环境变量压短，E2E 才不用等 30 秒
+const MAX_LOGIN_FAILURES = Number(process.env.EDGEOS_LOGIN_MAX_FAILURES ?? 5);
+const LOGIN_LOCK_MS = Number(process.env.EDGEOS_LOGIN_LOCK_MS ?? 30_000);
 const idempotency = new Map(); // key → {digest, response}
 const transactions = new Map();
 const tasks = new Map();
@@ -471,16 +484,21 @@ const handlers = {
     const key = `${username}|${ctx.ip}`;
     const failure = loginFailures.get(key);
     if (failure?.lockedUntil && failure.lockedUntil > now()) {
-      throw httpError(429, 'too_many_attempts', '登录尝试过于频繁，请稍后再试');
+      // 锁定期间连"口令对不对"都不该判：否则等于给攻击者一个校验口
+      const retryAfterSeconds = Math.max(1, Math.ceil((failure.lockedUntil - now()) / 1000));
+      throw httpError(429, 'too_many_attempts', `登录尝试过于频繁，请 ${retryAfterSeconds} 秒后再试`, {
+        retryAfterSeconds,
+      });
     }
     const user = users.find((candidate) => candidate.username === username);
     if (!user || !verifyPassword(String(password ?? ''), user.password)) {
       const next = { count: (failure?.count ?? 0) + 1, lockedUntil: 0 };
-      if (next.count >= 5) next.lockedUntil = now() + 30_000;
+      if (next.count >= MAX_LOGIN_FAILURES) next.lockedUntil = now() + LOGIN_LOCK_MS;
       loginFailures.set(key, next);
-      audit(ctx, 'auth.login.failed', { username });
-      // 统一文案，避免账号枚举
-      throw httpError(401, 'invalid_credentials', '用户名或口令错误');
+      audit(ctx, 'auth.login.failed', { username, attempts: next.count });
+      // 统一文案，避免账号枚举；只额外告诉"还剩几次"
+      const attemptsRemaining = Math.max(0, MAX_LOGIN_FAILURES - next.count);
+      throw httpError(401, 'invalid_credentials', '用户名或口令错误', { attemptsRemaining });
     }
     if (user.status !== 'active') throw httpError(403, 'account_disabled', '账号已禁用');
     loginFailures.delete(key);

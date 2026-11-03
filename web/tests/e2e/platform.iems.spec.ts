@@ -557,3 +557,27 @@ test('配置事务：watchdog 的回滚会留下可追溯的告警', async ({ pa
   // 上一条用例触发的 watchdog 回滚必须留下 major 告警（现场要知道"配置没生效"）
   await expect(page.getByText('watchdog 已回滚').first()).toBeVisible({ timeout: 15_000 });
 });
+
+// ---------------------------------------------------------------- 登录失败锁定（§5.6）
+test('登录锁定：连续失败后给出剩余次数，锁定期间连正确口令也拒绝', async ({ page }) => {
+  const ACCOUNT = { username: 'locktest', password: 'LockTest-Pass-2026' };
+  await page.goto('/#/login');
+
+  // 前 4 次：401，文案里带"还可尝试 N 次"
+  for (let i = 0; i < 4; i += 1) {
+    await page.locator('[data-testid="login-username"] input').fill(ACCOUNT.username);
+    await page.locator('[data-testid="login-password"] input').fill(`wrong-${i}`);
+    await page.locator('[data-testid="login-submit"]').click();
+    await expect(page.locator('[data-testid="login-error"]')).toContainText('还可尝试');
+  }
+
+  // 第 5 次失败触发锁定（台架 5 次 / 30s）
+  await page.locator('[data-testid="login-password"] input').fill('wrong-last');
+  await page.locator('[data-testid="login-submit"]').click();
+
+  // 锁定期间即使口令正确也必须拒绝：否则等于给攻击者一个校验口
+  await page.locator('[data-testid="login-password"] input').fill(ACCOUNT.password);
+  await page.locator('[data-testid="login-submit"]').click();
+  await expect(page.locator('[data-testid="login-locked"]')).toContainText('秒后再试');
+  await expect(page.locator('[data-testid="topbar-user"]')).toHaveCount(0);
+});

@@ -3,7 +3,7 @@
  * 登录页（§8.5）：只展示产品显示名、有限型号信息与语言，不暴露用户是否存在、
  * 内部组件版本、序列号或许可证细节。错误信息统一，不做账号枚举。
  */
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ApiRequestError } from '../../sdk/http';
 import { useSessionStore } from '../stores/session';
@@ -18,6 +18,24 @@ const route = useRoute();
 const username = ref('');
 const password = ref('');
 const submitting = ref(false);
+const locked = ref(0);
+let lockTimer: ReturnType<typeof setInterval> | undefined;
+
+function startCountdown(): void {
+  if (lockTimer) clearInterval(lockTimer);
+  lockTimer = setInterval(() => {
+    locked.value = Math.max(0, locked.value - 1);
+    if (locked.value === 0) {
+      clearInterval(lockTimer);
+      lockTimer = undefined;
+      error.value = '';
+    }
+  }, 1000);
+}
+
+onBeforeUnmount(() => {
+  if (lockTimer) clearInterval(lockTimer);
+});
 const error = ref('');
 
 const productName = computed(() => session.systemInfo?.displayName ?? 'EdgeOS');
@@ -39,13 +57,21 @@ async function submit(): Promise<void> {
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/';
     await router.replace(redirect);
   } catch (err) {
-    // 401 一律同一句文案：不区分"用户不存在"和"口令错误"
-    error.value =
-      err instanceof ApiRequestError && err.status === 401
-        ? '用户名或口令错误'
-        : err instanceof Error
-          ? err.message
-          : '登录失败';
+    if (err instanceof ApiRequestError && err.status === 429) {
+      // 锁定期间服务端连口令都不校验，页面就别再引导用户"再试一次"
+      const retryAfter = Number((err.details as { retryAfterSeconds?: number } | undefined)?.retryAfterSeconds ?? 0);
+      locked.value = retryAfter > 0 ? retryAfter : 30;
+      error.value = `尝试次数过多，请 ${locked.value} 秒后再试`;
+      startCountdown();
+      return;
+    }
+    if (err instanceof ApiRequestError && err.status === 401) {
+      // 401 不区分"用户不存在"和"口令错误"（避免账号枚举），只提示还剩几次
+      const remaining = Number((err.details as { attemptsRemaining?: number } | undefined)?.attemptsRemaining ?? -1);
+      error.value = remaining > 0 ? `用户名或口令错误（还可尝试 ${remaining} 次）` : '用户名或口令错误';
+      return;
+    }
+    error.value = err instanceof Error ? err.message : '登录失败';
   } finally {
     submitting.value = false;
   }
@@ -61,7 +87,7 @@ async function submit(): Promise<void> {
         <p class="login__lang">语言 / Language：{{ language }}</p>
       </header>
 
-      <UiBanner v-if="error" tone="danger" data-testid="login-error">{{ error }}</UiBanner>
+      <UiBanner v-if="error" tone="danger" :data-testid="locked > 0 ? 'login-locked' : 'login-error'">{{ error }}</UiBanner>
 
       <form class="login__form" @submit.prevent="submit">
         <UiTextField
