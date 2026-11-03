@@ -581,3 +581,37 @@ test('登录锁定：连续失败后给出剩余次数，锁定期间连正确�
   await expect(page.locator('[data-testid="login-locked"]')).toContainText('秒后再试');
   await expect(page.locator('[data-testid="topbar-user"]')).toHaveCount(0);
 });
+
+// ---------------------------------------------------------------- 在线会话（§5.6）
+test('在线会话：能看到谁在别处登录，撤销后那条会话立刻失效', async ({ page, browser }) => {
+  // 另起一个浏览器上下文，用 engineer 登录，制造"第二个会话"
+  const other = await browser.newContext();
+  const otherPage = await other.newPage();
+  await otherPage.goto('http://127.0.0.1:5173/#/login');
+  await otherPage.locator('[data-testid="login-username"] input').fill(ENGINEER.username);
+  await otherPage.locator('[data-testid="login-password"] input').fill(ENGINEER.password);
+  await otherPage.locator('[data-testid="login-submit"]').click();
+  await expect(otherPage.locator('[data-testid="topbar-user"]')).toBeVisible();
+
+  await login(page, OPSADMIN);
+  await page.goto('/#/system/sessions');
+  await expect(page.locator('[data-testid="sessions-table"]')).toBeVisible();
+  await expect(page.locator('[data-testid="sessions-table"]')).toContainText('engineer');
+  // 自己的会话不允许在这里踢（避免"点一下就退出登录"的误操作）
+  await expect(page.locator('[data-testid="sessions-table"]')).toContainText('当前会话');
+
+  const row = page.locator('[data-testid="sessions-table"] tr', { hasText: 'engineer' }).first();
+  await row.locator('button', { hasText: '撤销' }).click();
+  await expect(page.locator('[data-testid="sessions-notice"]')).toContainText('下一次请求即失效');
+
+  // 被撤销的那条会话：下一次请求就是 401
+  const probe = await otherPage.request.get('http://127.0.0.1:5173/api/v1/auth/me');
+  expect(probe.status()).toBe(401);
+  await other.close();
+});
+
+test('在线会话：没有 user.session:admin 的账号进不去', async ({ page }) => {
+  await login(page, ENGINEER_ACCOUNT);
+  await page.goto('/#/system/sessions');
+  await expect(page.locator('[data-testid="denied-state"]')).toHaveText('forbidden');
+});

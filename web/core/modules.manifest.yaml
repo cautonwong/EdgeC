@@ -138,6 +138,12 @@ modules:
         title: 系统配置
         menu: { group: system, order: 20, icon: settings }
         permissions: { allOf: [system.service:read] }
+      - id: core.system.sessions
+        path: /system/sessions
+        component: system/SessionsView.vue
+        title: 在线会话
+        menu: { group: system, order: 23, icon: monitor }
+        permissions: { allOf: [user.session:admin] }
       - id: core.system.roles
         path: /system/roles
         component: system/RolesView.vue
