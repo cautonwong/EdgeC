@@ -266,8 +266,20 @@ jobs:
           echo "TESTPLATFORM=$TP" >> "$GITHUB_ENV"
           echo "平台版本: $(git -C "$TP" rev-parse --short HEAD)（锁定 ${SHA:0:8}）"
 
+      # 红了必须能回答"哪条用例、为什么"：失败行同时变成 GitHub annotation
+      # （check-run annotations 走 API 可读，日志走 blob 存储不一定取得到）。
       - name: Run WebUI acceptance
-        run: ./acceptance/run_webui.sh
+        run: |
+          set +e
+          ./acceptance/run_webui.sh 2>&1 | tee webui-acceptance.log
+          code=${PIPESTATUS[0]}
+          set -e
+          if [ "$code" -ne 0 ]; then
+            grep -E "^(FAILED|ERROR)|Error:|error:|缺 |找不到 " webui-acceptance.log | head -10 | while IFS= read -r line; do
+              echo "::error title=WebUI acceptance::$line"
+            done
+          fi
+          exit "$code"
 
       - name: Upload WebUI evidence
         if: always()
@@ -275,7 +287,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: webui-acceptance-evidence
-          path: reports/acceptance/webui/
+          path: |
+            reports/acceptance/webui/
+            webui-acceptance.log
           retention-days: 14
 
   # ==========================================
