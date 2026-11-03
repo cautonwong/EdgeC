@@ -502,7 +502,7 @@ const handlers = {
     }
     if (user.status !== 'active') throw httpError(403, 'account_disabled', '账号已禁用');
     loginFailures.delete(key);
-    const session = createSession(user);
+    const session = createSession(user, ctx);
     user.lastLogin = new Date().toISOString();
     audit(ctx, 'auth.login.success', { userId: user.id });
     ctx.setSession(session);
@@ -658,6 +658,33 @@ const handlers = {
     }
     users.splice(index, 1);
     audit(ctx, 'user.deleted', { userId: user.id });
+    return null;
+  },
+
+  'GET /api/v1/sessions': (ctx) => ({
+    items: [...sessions.values()]
+      .map((session) => {
+        const owner = users.find((candidate) => candidate.id === session.userId);
+        return {
+          sid: session.sid.slice(0, 8),
+          username: owner?.username ?? '(已删除)',
+          displayName: owner?.displayName ?? '',
+          ip: session.ip,
+          userAgent: session.userAgent,
+          createdAt: new Date(session.createdAt).toISOString(),
+          lastSeenAt: new Date(session.lastSeenAt).toISOString(),
+          current: session.sid === ctx.session.sid,
+        };
+      })
+      .sort((a, b) => (a.lastSeenAt < b.lastSeenAt ? 1 : -1)),
+  }),
+
+  'DELETE /api/v1/sessions/{sid}': (ctx) => {
+    // 列表里只给前 8 位，这里按前缀匹配：既够定位，又不把完整 sid 暴露出去
+    const target = [...sessions.keys()].find((sid) => sid.startsWith(ctx.params.sid));
+    if (!target) throw httpError(404, 'not_found', '会话不存在或已失效');
+    sessions.delete(target);
+    audit(ctx, 'session.revoked', { sid: target.slice(0, 8) });
     return null;
   },
 
@@ -1226,12 +1253,14 @@ function publicTask(task) {
 }
 
 // ---------------------------------------------------------------- 会话
-function createSession(user) {
+function createSession(user, ctx) {
   const sid = randomBytes(24).toString('base64url');
   const session = {
     sid,
     userId: user.id,
     csrf: randomBytes(18).toString('base64url'),
+    ip: ctx?.ip ?? null,
+    userAgent: (ctx?.req?.headers['user-agent'] ?? '').slice(0, 120),
     createdAt: now(),
     lastSeenAt: now(),
     absoluteExpiresAt: now() + ABSOLUTE_TIMEOUT_MS,
