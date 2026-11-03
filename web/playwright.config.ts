@@ -12,6 +12,9 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './tests/e2e',
+  // 独立 watchdog 没有 HTTP 端口，只能自己起（见 global-setup）
+  globalSetup: './tests/e2e/global-setup.ts',
+  globalTeardown: './tests/e2e/global-teardown.ts',
   testIgnore: ['legacy/**'],
   timeout: 60_000,
   fullyParallel: false,
@@ -46,7 +49,12 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'node mock-server/server.mjs --product iems --port 8081',
+      // 状态落盘 + 压短确认窗口：这样 E2E 能真的等一次"超时自动回滚"（8s），
+      // 而不是只验"点了确认按钮"。状态文件每轮先清掉，避免上一轮的事务残留。
+      command:
+        'mkdir -p test-results/mock && rm -f test-results/mock/iems-state.json && ' +
+        'EDGEOS_MOCK_STATE=test-results/mock/iems-state.json EDGEOS_CONFIRM_WINDOW_MS=8000 ' +
+        'node mock-server/server.mjs --product iems --port 8081',
       url: 'http://127.0.0.1:8081/api/v1/system/info',
       reuseExistingServer: false,
       timeout: 60_000,
