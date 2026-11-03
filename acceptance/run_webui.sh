@@ -53,6 +53,13 @@ if ! command -v node >/dev/null 2>&1; then
     exit 4
 fi
 
+# Registry 工具用 js-yaml（来自 workspace 依赖）。没装 node_modules 时这里就红，
+# 而不是等到 registry 命令里抛一个看不懂的 "Cannot find package"。
+if ! (cd "$ROOT/web" && node -e "require.resolve('js-yaml')") >/dev/null 2>&1; then
+    echo "缺 web 依赖（js-yaml）：先 cd web && npm ci --ignore-scripts" >&2
+    exit 4
+fi
+
 if ! "$PYTHON" -c "import pytest" >/dev/null 2>&1; then
     echo "缺 pytest:装法 $PYTHON -m pip install 'pytest>=8.0' 'pyyaml>=6.0'" >&2
     exit 4

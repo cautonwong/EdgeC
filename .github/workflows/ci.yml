@@ -246,6 +246,14 @@ jobs:
         with:
           python-version: '3.12'
 
+      # Registry 生成用 tooling/cli.mjs，它依赖 js-yaml（来自 core/products 的 workspace 依赖，
+      # 靠 node_modules 提升拿到）。没装依赖时 node 直接 "Cannot find package 'js-yaml'"，
+      # 第一次跑这个作业就是这么红的。--ignore-scripts 避免顺带跑 playwright 的浏览器下载。
+      - name: Install web deps (registry tooling)
+        run: |
+          cd web
+          npm ci --ignore-scripts --no-audit --no-fund || npm install --ignore-scripts --no-audit --no-fund
+
       - name: Install platform runtime deps
         run: python3 -m pip install --quiet "pytest>=8.0" "pyyaml>=6.0"
 
