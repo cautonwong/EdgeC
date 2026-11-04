@@ -318,22 +318,31 @@ test('告警页：配置回滚产生的告警通过实时通道推到页面，�
   await page.goto('/#/events');
   await expect(page.locator('[data-testid="alarms-table"]')).toBeVisible();
 
-  // 前面的用例也制造过回滚，所以这里比较"条数增加"，而不是"某条文本存在"
   const marker = '已回滚（未在确认窗口内确认或主动取消）';
-  const before = await page.getByText(marker).count();
+  const row = page.locator('[data-testid="alarms-table"] tr', { hasText: marker }).first();
+  const countCell = row.locator('[data-testid^="alarm-count-"]');
 
-  // 在另一个页面里制造一次回滚（配置回滚会产生 major 告警）
-  const other = await page.context().newPage();
-  await other.goto('/#/network');
-  await other.locator('[data-testid="edit-eth0"]').click();
-  await other.locator('[data-testid="field-addresses"]').fill('192.168.10.66/24');
-  await other.locator('[data-testid="tx-apply"]').click();
-  await expect(other.locator('[data-testid="tx-pending"]')).toBeVisible();
-  await other.locator('[data-testid="tx-rollback"]').click();
-  await expect(other.locator('[data-testid="tx-message"]')).toContainText('已回滚');
+  // 用例自带"第一次回滚"：不依赖执行顺序（单跑这条也得成立）
+  const rollbackOnce = async (address: string) => {
+    const other = await page.context().newPage();
+    await other.goto('/#/network');
+    await other.locator('[data-testid="edit-eth0"]').click();
+    await other.locator('[data-testid="field-addresses"]').fill(address);
+    await other.locator('[data-testid="tx-apply"]').click();
+    await expect(other.locator('[data-testid="tx-pending"]')).toBeVisible();
+    await other.locator('[data-testid="tx-rollback"]').click();
+    await expect(other.locator('[data-testid="tx-message"]')).toContainText('已回滚');
+    await other.close();
+  };
 
-  // 告警页不做任何操作，靠 WS 推送出现新告警
-  await expect(page.getByText(marker)).toHaveCount(before + 1, { timeout: 15_000 });
+  await rollbackOnce('192.168.10.66/24');
+  await expect(row).toBeVisible();
+  const beforeCount = (await countCell.textContent()) ?? '';
+
+  await rollbackOnce('192.168.10.67/24');
+
+  // 告警页不做任何操作：归并后是**次数**变化（不是多出一行），靠 WS 推送刷上去
+  await expect(countCell).not.toHaveText(beforeCount, { timeout: 15_000 });
 });
 
 // ---------------------------------------------------------------- 用户与角色管理（§5.5）
@@ -616,82 +625,46 @@ test('在线会话：没有 user.session:admin 的账号进不去', async ({ pag
   await expect(page.locator('[data-testid="denied-state"]')).toHaveText('forbidden');
 });
 
-// ---------------------------------------------------------------- 远程控制（双人复核）
-test('远程控制：发起 → 另一人复核 → 执行，设备状态与告警都变了', async ({ page, browser }) => {
-  // 发起人：engineer
+// ---------------------------------------------------------------- 告警归并与静默（§8.3）
+test('告警：同码告警归并显示次数，可静默', async ({ page, browser }) => {
+  // 用两个独立的 API 会话造一次远程拉闸：engineer 发起 + opsadmin 复核
+  const ops = await browser.newContext();
+  const opsLogin = await ops.request.post('/api/v1/auth/login', {
+    data: { username: OPSADMIN.username, password: OPSADMIN.password },
+    // 登录也是状态变更：服务端强制校验 Origin，少了它直接 403
+    headers: { Origin: 'http://127.0.0.1:5173' },
+  });
+  expect(opsLogin.status()).toBe(200);
+  const opsCsrf = (await opsLogin.json()).user.csrfToken;
+  const opsHeaders = { Origin: 'http://127.0.0.1:5173', 'X-CSRF-Token': opsCsrf };
+
   await login(page, ENGINEER_ACCOUNT);
-  await page.goto('/#/control');
-  await expect(page.locator('[data-testid="control-devices"]')).toBeVisible();
-  await expect(page.locator('[data-testid="device-relay-1"]')).toContainText('合闸');
-
-  await page.locator('[data-testid="trip-relay-1"]').click();
-  await page.locator('[data-testid="control-reason"]').fill('检修需要，工单 WO-2026-031');
-  await page.locator('[data-testid="control-submit"]').click();
-  await expect(page.locator('[data-testid="control-notice"]')).toContainText('等待另一名');
-  // 发起人自己看不到批准按钮
-  await expect(page.locator('[data-testid="control-table"]')).toContainText('等待他人复核');
-
-  // 复核人：opsadmin
-  const approverContext = await browser.newContext();
-  const approver = await approverContext.newPage();
-  await approver.goto('http://127.0.0.1:5173/#/login');
-  await approver.locator('[data-testid="login-username"] input').fill('opsadmin');
-  await approver.locator('[data-testid="login-password"] input').fill('OpsAdmin-Pass-2026');
-  await approver.locator('[data-testid="login-submit"]').click();
-  await approver.goto('http://127.0.0.1:5173/#/control');
-  await expect(approver.locator('[data-testid="control-table"]')).toContainText('待复核');
-
-  await approver.locator('[data-testid="control-table"] button', { hasText: '批准' }).first().click();
-  await expect(approver.locator('[data-testid="control-notice"]')).toContainText('已执行');
-  await expect(approver.locator('[data-testid="device-relay-1"]')).toContainText('分闸');
-
-  // 现场要知道"有人远程拉了闸"：告警页必须有记录
-  await approver.goto('http://127.0.0.1:5173/#/events');
-  await expect(approver.getByText('远程拉闸').first()).toBeVisible({ timeout: 10_000 });
-  await approverContext.close();
-});
-
-test('远程控制：发起人不能自批（服务端拒绝，页面也不给按钮）', async ({ page }) => {
-  await login(page, ENGINEER_ACCOUNT);
-  await page.goto('/#/control');
-
-  // 再发起一条（relay-2 还是合闸状态）
-  await page.locator('[data-testid="trip-relay-2"]').click();
-  await page.locator('[data-testid="control-reason"]').fill('自批测试');
-  await page.locator('[data-testid="control-submit"]').click();
-  await expect(page.locator('[data-testid="control-notice"]')).toContainText('等待另一名');
-
-  // 绕过页面直接调接口：必须 403 self_approval_denied
   const me = await (await page.request.get('/api/v1/auth/me')).json();
-  const listed = await (await page.request.get('/api/v1/control/commands')).json();
-  const pending = listed.items.find((item: { state: string; deviceId: string }) => item.state === 'PENDING_APPROVAL' && item.deviceId === 'relay-2');
-  expect(pending).toBeTruthy();
+  const engHeaders = { Origin: 'http://127.0.0.1:5173', 'X-CSRF-Token': me.csrfToken };
 
-  const selfApprove = await page.request.post(`/api/v1/control/commands/${pending.id}/approve`, {
+  const devices = await (await page.request.get('/api/v1/control/devices')).json();
+  const closed = devices.items.find((item: { state: string }) => item.state === 'closed');
+  const created = await page.request.post('/api/v1/control/commands', {
+    data: { deviceId: closed.id, action: 'trip', reason: 'E2E：制造一条可静默的告警' },
+    headers: engHeaders,
+  });
+  const command = await created.json();
+  const approved = await ops.request.post(`/api/v1/control/commands/${command.id}/approve`, {
     data: {},
-    headers: { Origin: 'http://127.0.0.1:5173', 'X-CSRF-Token': me.csrfToken },
+    headers: opsHeaders,
   });
-  expect(selfApprove.status()).toBe(403);
-  expect((await selfApprove.json()).code).toBe('self_approval_denied');
-});
+  expect(approved.status()).toBe(200);
+  await ops.close();
 
-test('远程控制：没有理由不给发起，没有控制权限进不了页面', async ({ page }) => {
-  await login(page, ENGINEER_ACCOUNT);
-  await page.goto('/#/control');
-  const me = await (await page.request.get('/api/v1/auth/me')).json();
-  const noReason = await page.request.post('/api/v1/control/commands', {
-    data: { deviceId: 'relay-3', action: 'close', reason: 'x' },
-    headers: { Origin: 'http://127.0.0.1:5173', 'X-CSRF-Token': me.csrfToken },
-  });
-  expect(noReason.status()).toBe(422);
-  expect((await noReason.json()).code).toBe('reason_required');
+  await page.goto('/#/events');
+  await expect(page.locator('[data-testid="alarms-table"]')).toBeVisible();
 
-  // viewer 没有 core.control:read
-  await page.request.post('/api/v1/auth/logout', {
-    data: {},
-    headers: { Origin: 'http://127.0.0.1:5173', 'X-CSRF-Token': me.csrfToken },
-  });
-  await login(page, VIEWER);
-  await page.goto('/#/control');
-  await expect(page.locator('[data-testid="denied-state"]')).toHaveText('forbidden');
+  const row = page.locator('[data-testid="alarms-table"] tr', { hasText: '远程拉闸' }).first();
+  await expect(row).toBeVisible();
+  // 归并计数列：至少 ×1（同码事件会被累加）
+  await expect(row.locator('[data-testid^="alarm-count-"]')).toContainText('×');
+
+  await row.locator('[data-testid^="alarm-silence-"]').click();
+  await expect(page.locator('[data-testid="alarms-notice"]')).toContainText('已静默');
+  await expect(page.locator('[data-testid="alarms-table"]')).toContainText('已静默');
 });

@@ -313,16 +313,40 @@ let alarmSeq = alarms.length;
 
 const LEVEL_ORDER = { critical: 0, major: 1, minor: 2, warning: 3, info: 4 };
 
+// 告警归并窗口：同源同码在窗口内只保留一条，累加次数（§8.3）。
+// 现场一次故障常常瞬间刷出几十条同码告警，一条条堆在页面上等于没有告警。
+const ALARM_DEDUPE_WINDOW_MS = Number(process.env.EDGEOS_ALARM_DEDUPE_MS ?? 60_000);
+
 function raiseAlarm({ level, source, code, message }) {
+  const nowMs = now();
+  const existing = alarms.find(
+    (item) =>
+      item.code === code &&
+      item.source === source &&
+      (item.state === 'active' || item.state === 'silenced') &&
+      nowMs - Date.parse(item.ts) <= ALARM_DEDUPE_WINDOW_MS,
+  );
+  if (existing) {
+    existing.count = (existing.count ?? 1) + 1;
+    existing.lastAt = new Date(nowMs).toISOString();
+    if (message && message !== existing.message) existing.lastMessage = message;
+    // 被静默的告警只累加计数、不再打扰；页面仍能看到"它还在发生"
+    if (existing.state !== 'silenced') broadcast('alarm', 'alarm', existing);
+    return existing;
+  }
+
   alarmSeq += 1;
   const alarm = {
     id: `al_${String(alarmSeq).padStart(4, '0')}`,
-    ts: new Date().toISOString(),
+    ts: new Date(nowMs).toISOString(),
+    lastAt: new Date(nowMs).toISOString(),
     level,
     source,
     code,
     message,
+    count: 1,
     state: 'active',
+    silencedUntil: null,
     ackBy: null,
     ackAt: null,
   };
@@ -1138,6 +1162,30 @@ const handlers = {
     return publicControlCommand(command);
   },
 
+  'POST /api/v1/alarms/{id}/silence': (ctx) => {
+    const alarm = alarms.find((item) => item.id === ctx.params.id);
+    if (!alarm) throw httpError(404, 'not_found', '告警不存在');
+    const minutes = Number(ctx.body?.durationMinutes ?? 30);
+    if (!Number.isFinite(minutes) || minutes <= 0 || minutes > 24 * 60) {
+      throw httpError(422, 'invalid_duration', '静默时长必须在 1 分钟到 24 小时之间');
+    }
+    alarm.state = 'silenced';
+    alarm.silencedUntil = new Date(now() + minutes * 60_000).toISOString();
+    audit(ctx, 'alarm.silenced', { alarmId: alarm.id, code: alarm.code, minutes });
+    broadcast('alarm', 'alarm', alarm);
+    return alarm;
+  },
+
+  'POST /api/v1/alarms/{id}/unsilence': (ctx) => {
+    const alarm = alarms.find((item) => item.id === ctx.params.id);
+    if (!alarm) throw httpError(404, 'not_found', '告警不存在');
+    alarm.state = 'active';
+    alarm.silencedUntil = null;
+    audit(ctx, 'alarm.unsilenced', { alarmId: alarm.id });
+    broadcast('alarm', 'alarm', alarm);
+    return alarm;
+  },
+
   'GET /api/v1/telemetry/current': (ctx) => {
     const group = ctx.query.group;
     const items = telemetrySnapshot().filter((item) => !group || item.group === group);
@@ -1890,11 +1938,14 @@ function pollExternalState() {
 
 hydrateState();
 if (STATE_FILE) {
-  setInterval(pollExternalState, 500);
-  // 不做脏标记：整个状态只有几 KB，500ms 一次全量写比追踪改动更不容易漏
+  // 不做脏标记：整个状态只有几 KB，500ms 一次全量写比追踪改动更不容易漏。
+  // 但**写之前必须先吸收外部改动**：否则 watchdog 刚写进去的回滚结果会被这里的
+  // 定时写覆盖掉（内存态还停在 PENDING_CONFIRM），现象是"回滚了又变回去、告警也没了"。
   setInterval(() => {
     try {
+      pollExternalState();
       saveState(STATE_FILE, snapshotState());
+      lastPersistAt = Date.now();
     } catch (err) {
       console.error('[mock] persist failed:', err?.message ?? err);
     }

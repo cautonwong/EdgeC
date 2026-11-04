@@ -22,7 +22,10 @@ interface Alarm {
   source: string;
   code: string;
   message: string;
-  state: 'active' | 'acked' | 'cleared';
+  state: 'active' | 'acked' | 'cleared' | 'silenced';
+  count?: number;
+  lastAt?: string;
+  silencedUntil?: string | null;
   ackBy: string | null;
   ackAt: string | null;
 }
@@ -32,6 +35,7 @@ const authz = useAuthz();
 const items = ref<Alarm[]>([]);
 const loading = ref(false);
 const error = ref('');
+const notice = ref('');
 const stateFilter = ref<'all' | 'active' | 'acked'>('all');
 const levelFilter = ref<'all' | Alarm['level']>('all');
 const flashing = ref<string[]>([]);
@@ -42,6 +46,7 @@ const columns: Column[] = [
   { key: 'level', title: '等级' },
   { key: 'source', title: '来源' },
   { key: 'message', title: '描述' },
+  { key: 'count', title: '次数', align: 'right' },
   { key: 'state', title: '状态' },
   { key: 'ack', title: '操作', align: 'right' },
 ];
@@ -81,6 +86,37 @@ async function load(): Promise<void> {
     error.value = err instanceof ApiRequestError ? `${err.code}: ${err.message}` : String(err);
   } finally {
     loading.value = false;
+  }
+}
+
+/**
+ * 静默：同源同码的新告警在窗口内只累加次数，不再打扰。
+ * 现场一次故障常常瞬间刷出几十条同码告警，一条条堆着等于没有告警。
+ */
+async function silence(alarm: Alarm): Promise<void> {
+  error.value = '';
+  notice.value = '';
+  try {
+    const updated = await request<Alarm>(`/api/v1/alarms/${alarm.id}/silence`, {
+      method: 'POST',
+      body: { durationMinutes: 30 },
+    });
+    upsert(updated);
+    notice.value = `已静默 ${alarm.code} 30 分钟；期间同码告警只累加次数。`;
+  } catch (err) {
+    error.value = describe(err);
+  }
+}
+
+async function unsilence(alarm: Alarm): Promise<void> {
+  error.value = '';
+  notice.value = '';
+  try {
+    const updated = await request<Alarm>(`/api/v1/alarms/${alarm.id}/unsilence`, { method: 'POST', body: {} });
+    upsert(updated);
+    notice.value = `已取消静默 ${alarm.code}。`;
+  } catch (err) {
+    error.value = describe(err);
   }
 }
 
@@ -153,6 +189,7 @@ onMounted(load);
     </header>
 
     <UiBanner v-if="error" tone="danger" title="操作失败" data-testid="alarm-error">{{ error }}</UiBanner>
+    <UiBanner v-if="notice" tone="success" data-testid="alarms-notice">{{ notice }}</UiBanner>
 
     <UiDataTable
       :columns="columns"
@@ -174,11 +211,33 @@ onMounted(load);
       </template>
       <template #cell-state="{ row }">
         <UiStatusBadge
-          :status="row.state === 'active' ? 'warning' : row.state === 'acked' ? 'normal' : 'offline'"
-          :label="row.state === 'active' ? '未确认' : row.state === 'acked' ? '已确认' : '已清除'"
+          :status="row.state === 'active' ? 'warning' : row.state === 'silenced' ? 'standby' : row.state === 'acked' ? 'normal' : 'offline'"
+          :label="row.state === 'active' ? '未确认' : row.state === 'silenced' ? '已静默' : row.state === 'acked' ? '已确认' : '已清除'"
         />
       </template>
+      <template #cell-count="{ row }">
+        <span class="mono" :data-testid="`alarm-count-${row.id}`">×{{ row.count ?? 1 }}</span>
+      </template>
       <template #cell-ack="{ row }">
+        <UiButton
+          v-if="canAck && row.state === 'silenced'"
+          variant="ghost"
+          size="sm"
+          :data-testid="`alarm-unsilence-${row.id}`"
+          @click="unsilence(row as unknown as Alarm)"
+        >
+          取消静默
+        </UiButton>
+        <UiButton
+          v-else-if="canAck && row.state === 'active'"
+          variant="ghost"
+          size="sm"
+          :data-testid="`alarm-silence-${row.id}`"
+          @click="silence(row as unknown as Alarm)"
+        >
+          静默 30 分钟
+        </UiButton>
+
         <UiButton
           v-if="canAck && row.state === 'active'"
           variant="secondary"
