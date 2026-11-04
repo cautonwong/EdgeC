@@ -721,3 +721,28 @@ test('告警归档：清台后仍可回溯，并能导出 CSV', async ({ page })
   ]);
   expect(download.suggestedFilename()).toMatch(/alarms-archive-.*\.csv/);
 });
+
+// ---------------------------------------------------------------- 审计日志（§5.7）
+test('审计日志：高危动作留痕，可按动作过滤', async ({ page }) => {
+  await login(page, OPSADMIN);
+  const me = await (await page.request.get('/api/v1/auth/me')).json();
+  const headers = { Origin: 'http://127.0.0.1:5173', 'X-CSRF-Token': me.csrfToken };
+
+  // 制造一条可定位的高危动作记录
+  await page.request.post('/api/v1/notifications/channels/ch_1/test', { data: {}, headers });
+
+  await page.goto('/#/system/audit');
+  await expect(page.locator('[data-testid=audit-table]')).toBeVisible();
+  await expect(page.locator('[data-testid=audit-table]')).toContainText('notification.test');
+  await expect(page.locator('[data-testid=audit-table]')).toContainText('opsadmin');
+
+  await page.locator('[data-testid=audit-action-filter]').selectOption('notification.test');
+  const rows = page.locator('[data-testid=audit-table] tbody tr');
+  await expect(rows.first()).toContainText('notification.test');
+});
+
+test('审计日志：没有 core.audit:read 的账号进不去', async ({ page }) => {
+  await login(page, ENGINEER_ACCOUNT);
+  await page.goto('/#/system/audit');
+  await expect(page.locator('[data-testid=denied-state]')).toHaveText('forbidden');
+});

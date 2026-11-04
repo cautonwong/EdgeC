@@ -830,6 +830,19 @@ const handlers = {
 
   'GET /api/v1/notifications/deliveries': () => ({ items: notificationDeliveries.slice(0, 50) }),
 
+  'GET /api/v1/audit/events': (ctx) => {
+    const limit = Math.min(Number(ctx.query.limit ?? 200), 500);
+    const action = ctx.query.action;
+    const actor = ctx.query.actor;
+    const items = auditLog
+      .filter((event) => !action || event.action === action || event.action.startsWith(String(action)))
+      .filter((event) => !actor || event.actor === actor)
+      .slice()
+      .reverse()
+      .slice(0, limit);
+    return { total: items.length, items };
+  },
+
   'GET /api/v1/sessions': (ctx) => ({
     items: [...sessions.values()]
       .map((session) => {
@@ -1610,10 +1623,15 @@ function parseCookies(header) {
 
 // ---------------------------------------------------------------- 审计（内存）
 function audit(ctx, action, detail) {
+  const userId = ctx.session?.userId ?? null;
+  const actor = users.find((candidate) => candidate.id === userId);
   auditLog.push({
     ts: new Date().toISOString(),
     action,
-    actor: ctx.session?.userId ?? 'anonymous',
+    actor: actor?.username ?? userId ?? 'anonymous',
+    actorId: userId,
+    actorName: actor?.displayName ?? null,
+    ip: ctx.ip ?? null,
     requestId: ctx.requestId,
     detail,
   });

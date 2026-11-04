@@ -150,6 +150,12 @@ modules:
         title: 通知渠道
         menu: { group: system, order: 24, icon: bell }
         permissions: { allOf: [core.alarm:read] }
+      - id: core.system.audit
+        path: /system/audit
+        component: system/AuditView.vue
+        title: 审计日志
+        menu: { group: system, order: 25, icon: file-text }
+        permissions: { allOf: [core.audit:read] }
       - id: core.system.sessions
         path: /system/sessions
         component: system/SessionsView.vue

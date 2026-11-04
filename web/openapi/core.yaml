@@ -265,6 +265,17 @@ paths:
       responses:
         "200": { description: 投递记录 }
 
+  /api/v1/audit/events:
+    get:
+      operationId: listAuditEvents
+      summary: 审计事件（谁、什么时候、做了什么）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [core.audit:read]
+      x-resource-scope: gateway
+      x-audit-level: none
+      responses:
+        "200": { description: 审计事件列表 }
+
   /api/v1/sessions:
     get:
       operationId: listSessions
