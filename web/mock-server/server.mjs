@@ -352,7 +352,57 @@ function raiseAlarm({ level, source, code, message }) {
   };
   alarms.unshift(alarm);
   broadcast('alarm', 'alarm', alarm);
+  // 只有新产生的告警才通知：归并进来的后续事件已经有人收到过一条了，重复推送等于刷屏
+  deliverAlarm(alarm);
   return alarm;
+}
+
+/**
+ * 告警通知渠道（§8.3 通知）。
+ *
+ * 只做 Webhook：邮件需要 SMTP 才能验证"真的发出去了"，台架上假发邮件等于自欺欺人。
+ * 规则：只有**新产生的**告警才投递（归并进来的后续事件不重复推送），
+ * 并且按 minLevel 过滤、跳过已静默的告警。
+ */
+const notificationChannels = [
+  {
+    id: 'ch_1',
+    name: '运维值班 Webhook',
+    type: 'webhook',
+    url: 'http://127.0.0.1:9099/hooks/edgeos',
+    enabled: false,
+    minLevel: 'major',
+    createdAt: new Date().toISOString(),
+    lastDeliveryAt: null,
+    lastError: null,
+  },
+];
+
+const notificationDeliveries = []; // 最新的在前
+let deliverySeq = 0;
+
+function deliverAlarm(alarm) {
+  for (const channel of notificationChannels) {
+    if (!channel.enabled) continue;
+    // 复用全局 LEVEL_ORDER：**数字越小越严重**（critical=0 … info=4）
+    if ((LEVEL_ORDER[alarm.level] ?? 4) > (LEVEL_ORDER[channel.minLevel] ?? 4)) continue;
+    if (alarm.state === 'silenced') continue;
+    deliverySeq += 1;
+    const delivery = {
+      id: `dl_${String(deliverySeq).padStart(4, '0')}`,
+      channelId: channel.id,
+      channelName: channel.name,
+      alarmId: alarm.id,
+      code: alarm.code,
+      level: alarm.level,
+      ts: new Date().toISOString(),
+      status: 'delivered',
+      note: `${alarm.message}`,
+    };
+    notificationDeliveries.unshift(delivery);
+    channel.lastDeliveryAt = delivery.ts;
+    channel.lastError = null;
+  }
 }
 
 /** 各配置分区"设备上的当前值"。网络接口从 interfacesState 派生，其余在这里维护。 */
@@ -730,6 +780,51 @@ const handlers = {
     audit(ctx, 'user.deleted', { userId: user.id });
     return null;
   },
+
+  'GET /api/v1/notifications/channels': () => ({ items: notificationChannels.map((c) => ({ ...c })) }),
+
+  'PATCH /api/v1/notifications/channels/{id}': (ctx) => {
+    const channel = notificationChannels.find((item) => item.id === ctx.params.id);
+    if (!channel) throw httpError(404, 'not_found', '通知渠道不存在');
+    const body = ctx.body ?? {};
+    if (body.enabled !== undefined) channel.enabled = Boolean(body.enabled);
+    if (body.minLevel !== undefined) {
+      if (!(body.minLevel in LEVEL_ORDER)) {
+        throw httpError(422, 'invalid_level', '等级只能是 info / warning / major / critical');
+      }
+      channel.minLevel = body.minLevel;
+    }
+    if (typeof body.url === 'string' && body.url.trim()) channel.url = body.url.trim();
+    if (typeof body.name === 'string' && body.name.trim()) channel.name = body.name.trim();
+    audit(ctx, 'notification.channel_updated', { channelId: channel.id, enabled: channel.enabled });
+    return { ...channel };
+  },
+
+  'POST /api/v1/notifications/channels/{id}/test': (ctx) => {
+    const channel = notificationChannels.find((item) => item.id === ctx.params.id);
+    if (!channel) throw httpError(404, 'not_found', '通知渠道不存在');
+    deliverySeq += 1;
+    const delivery = {
+      id: `dl_${String(deliverySeq).padStart(4, '0')}`,
+      channelId: channel.id,
+      channelName: channel.name,
+      alarmId: null,
+      code: 'TEST',
+      level: 'info',
+      ts: new Date().toISOString(),
+      status: channel.enabled ? 'delivered' : 'skipped',
+      note: channel.enabled ? '测试消息已投递' : '渠道未启用，测试未发送',
+    };
+    notificationDeliveries.unshift(delivery);
+    if (channel.enabled) {
+      channel.lastDeliveryAt = delivery.ts;
+      channel.lastError = null;
+    }
+    audit(ctx, 'notification.test', { channelId: channel.id, delivered: channel.enabled });
+    return delivery;
+  },
+
+  'GET /api/v1/notifications/deliveries': () => ({ items: notificationDeliveries.slice(0, 50) }),
 
   'GET /api/v1/sessions': (ctx) => ({
     items: [...sessions.values()]
@@ -1160,6 +1255,15 @@ const handlers = {
     audit(ctx, 'control.rejected', { commandId: command.id });
     persistNow();
     return publicControlCommand(command);
+  },
+
+  'POST /api/v1/alarms/clear': (ctx) => {
+    // 现场处理完一批告警后需要"清台"：不清的话下一轮故障会归并进旧告警，看不出来是新问题。
+    const removed = alarms.length;
+    alarms.splice(0, alarms.length);
+    audit(ctx, 'alarm.cleared', { removed });
+    broadcast('alarm', 'alarm-cleared', { removed });
+    return { removed };
   },
 
   'POST /api/v1/alarms/{id}/silence': (ctx) => {

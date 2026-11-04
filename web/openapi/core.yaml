@@ -211,6 +211,60 @@ paths:
       responses:
         "204": { description: 已删除 }
 
+  /api/v1/notifications/channels:
+    get:
+      operationId: listNotificationChannels
+      summary: 告警通知渠道
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [core.alarm:read]
+      x-resource-scope: gateway
+      x-audit-level: none
+      responses:
+        "200": { description: 渠道列表 }
+
+  /api/v1/notifications/channels/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    patch:
+      operationId: updateNotificationChannel
+      summary: 启停渠道、调整最低等级与地址
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [core.alarm:write]
+      x-resource-scope: gateway
+      x-audit-level: medium
+      responses:
+        "200": { description: 已更新 }
+
+  /api/v1/notifications/channels/{id}/test:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      operationId: testNotificationChannel
+      summary: 发一条测试消息（未启用的渠道会被标记为 skipped）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [core.alarm:write]
+      x-resource-scope: gateway
+      x-audit-level: low
+      responses:
+        "200": { description: 投递记录 }
+
+  /api/v1/notifications/deliveries:
+    get:
+      operationId: listNotificationDeliveries
+      summary: 最近的通知投递记录
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [core.alarm:read]
+      x-resource-scope: gateway
+      x-audit-level: none
+      responses:
+        "200": { description: 投递记录 }
+
   /api/v1/sessions:
     get:
       operationId: listSessions
@@ -399,6 +453,17 @@ paths:
       x-audit-level: high
       responses:
         "200": { description: 已驳回 }
+
+  /api/v1/alarms/clear:
+    post:
+      operationId: clearAlarms
+      summary: 清空告警列表（现场处理完一批之后清台）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [core.alarm:write]
+      x-resource-scope: gateway
+      x-audit-level: high
+      responses:
+        "200": { description: 已清空 }
 
   /api/v1/alarms/{id}/silence:
     parameters:

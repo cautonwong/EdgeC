@@ -144,6 +144,12 @@ modules:
         title: 系统配置
         menu: { group: system, order: 20, icon: settings }
         permissions: { allOf: [system.service:read] }
+      - id: core.system.notifications
+        path: /system/notifications
+        component: system/NotificationsView.vue
+        title: 通知渠道
+        menu: { group: system, order: 24, icon: bell }
+        permissions: { allOf: [core.alarm:read] }
       - id: core.system.sessions
         path: /system/sessions
         component: system/SessionsView.vue
