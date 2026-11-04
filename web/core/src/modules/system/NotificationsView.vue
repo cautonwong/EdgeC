@@ -33,6 +33,9 @@ interface Delivery {
   level: string;
   ts: string;
   status: string;
+  attempts?: number;
+  httpStatus?: number | null;
+  error?: string | null;
   note: string;
 }
 
@@ -60,6 +63,8 @@ const deliveryColumns: Column[] = [
   { key: 'code', title: '告警码' },
   { key: 'level', title: '等级' },
   { key: 'status', title: '结果' },
+  { key: 'attempts', title: '尝试' },
+  { key: 'error', title: '原因' },
 ];
 
 function describe(err: unknown): string {
@@ -123,15 +128,18 @@ async function test(channel: Channel): Promise<void> {
   error.value = '';
   notice.value = '';
   try {
-    const delivery = await request<Delivery>(`/api/v1/notifications/channels/${channel.id}/test`, {
-      method: 'POST',
-      body: {},
-    });
-    deliveries.value = [delivery, ...deliveries.value];
-    notice.value =
-      delivery.status === 'delivered'
-        ? `测试消息已投递到 ${channel.name}。`
-        : `${channel.name} 未启用，测试没有发送。`;
+    const result = await request<{ accepted?: boolean; status?: string; attempts?: number }>(
+      `/api/v1/notifications/channels/${channel.id}/test`,
+      { method: 'POST', body: {} },
+    );
+    if (result.accepted) {
+      notice.value = `测试已提交（Webhook 异步投递，最多 ${result.attempts ?? 3} 次尝试），稍后看投递记录。`;
+      // 真发 HTTP 可能要几百毫秒到几秒（含重试），延迟刷一次结果
+      window.setTimeout(() => void load(), 1500);
+    } else if (result.status === 'skipped') {
+      await load();
+      notice.value = `${channel.name} 未启用，测试没有发送。`;
+    }
   } catch (err) {
     error.value = describe(err);
   }
@@ -218,8 +226,13 @@ onMounted(load);
     >
       <template #cell-ts="{ row }">{{ fmt(row.ts as string) }}</template>
       <template #cell-status="{ row }">
-        <UiStatusBadge :status="row.status === 'delivered' ? 'normal' : 'standby'" :label="row.status as string" />
+        <UiStatusBadge
+          :status="row.status === 'delivered' ? 'normal' : row.status === 'failed' ? 'warning' : 'standby'"
+          :label="row.status as string"
+        />
       </template>
+      <template #cell-attempts="{ row }"><span class="mono">{{ row.attempts ?? '—' }}</span></template>
+      <template #cell-error="{ row }"><span class="mono">{{ row.error ?? '—' }}</span></template>
     </UiDataTable>
   </section>
 </template>

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { createServer } from 'node:http';
 
 /**
  * iEMS 平台 E2E：验证的是**授权链**，不是"页面长得对"。
@@ -665,27 +666,67 @@ test('告警：同码告警归并显示次数，可静默', async ({ page, brows
 });
 
 // ---------------------------------------------------------------- 通知渠道（§8.3）
-test('通知渠道：启停与发测试消息', async ({ page }) => {
-  await login(page, OPSADMIN);
-  await page.goto('/#/system/notifications');
-  await expect(page.locator('[data-testid="notify-channels"]')).toBeVisible();
-  await expect(page.locator('[data-testid="notify-channels"]')).toContainText('运维值班 Webhook');
+test('通知渠道：Webhook 真发 HTTP，成功与失败都留痕', async ({ page }) => {
+  // 起一个真的接收端，验证「投递成功」不是自己写在数组里的
+  const received: string[] = [];
+  const echo = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => {
+      received.push(body);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end('{"ok":true}');
+    });
+  });
+  await new Promise<void>((resolve) => echo.listen(0, '127.0.0.1', resolve));
+  const port = (echo.address() as { port: number }).port;
 
-  // 初始是停用：发测试会被标记为 skipped
+  await login(page, OPSADMIN);
+  const me = await (await page.request.get('/api/v1/auth/me')).json();
+  const headers = { Origin: 'http://127.0.0.1:5173', 'X-CSRF-Token': me.csrfToken };
+
+  // 走菜单链接而不是 hash goto：后者在会话尚未就绪时会被路由守卫弹回默认页
+  await page.locator('a[href="#/system/notifications"]').click();
+  await expect(page).toHaveURL(/#\/system\/notifications/);
+  await expect(page.locator('[data-testid="notify-channels"]')).toBeVisible();
+
+  // 停用状态：发测试不发请求
   await page.locator('[data-testid="notify-test-ch_1"]').click();
   await expect(page.locator('[data-testid="notify-notice"]')).toContainText('未启用');
-  await expect(page.locator('[data-testid="notify-deliveries"]')).toContainText('skipped');
 
-  // 启用后再发：真的投递
+  // 启用，并把地址指向真的接收端
   await page.locator('[data-testid="notify-toggle-ch_1"]').click();
   await expect(page.locator('[data-testid="notify-channels"]')).toContainText('已启用');
+  await page.request.patch('/api/v1/notifications/channels/ch_1', {
+    data: { url: `http://127.0.0.1:${port}/hook` },
+    headers,
+  });
   await page.locator('[data-testid="notify-test-ch_1"]').click();
-  await expect(page.locator('[data-testid="notify-notice"]')).toContainText('已投递');
-  await expect(page.locator('[data-testid="notify-deliveries"]')).toContainText('TEST');
+  await expect(page.locator('[data-testid="notify-notice"]')).toContainText('异步投递');
+  // 真的收到一次 POST，且投递记录是 delivered（不是自说自话）
+  await expect.poll(() => received.length, { timeout: 15_000 }).toBeGreaterThan(0);
+  await expect.poll(async () => {
+    const list = await (await page.request.get('/api/v1/notifications/deliveries')).json();
+    return list.items.filter((item: { status: string }) => item.status === 'delivered').length;
+  }, { timeout: 15_000 }).toBeGreaterThan(0);
 
-  // 收尾：停用，避免影响后续用例
-  await page.locator('[data-testid="notify-toggle-ch_1"]').click();
-  await expect(page.locator('[data-testid="notify-channels"]')).toContainText('已停用');
+  // 换成一个没人监听的端口：必须失败，且重试 3 次
+  await page.request.patch('/api/v1/notifications/channels/ch_1', {
+    data: { url: 'http://127.0.0.1:1/hook' },
+    headers,
+  });
+  await page.locator('[data-testid="notify-test-ch_1"]').click();
+  await expect.poll(async () => {
+    const list = await (await page.request.get('/api/v1/notifications/deliveries')).json();
+    return list.items.some((item: { status: string; attempts?: number }) => item.status === 'failed' && item.attempts === 3);
+  }, { timeout: 20_000 }).toBe(true);
+
+  // 收尾：还原地址并停用
+  await page.request.patch('/api/v1/notifications/channels/ch_1', {
+    data: { url: 'http://127.0.0.1:9099/hooks/edgeos', enabled: false },
+    headers,
+  });
+  await new Promise<void>((resolve) => echo.close(() => resolve()));
 });
 
 // ---------------------------------------------------------------- 告警归档与导出（§8.3）
