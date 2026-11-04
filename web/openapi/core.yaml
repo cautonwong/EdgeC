@@ -400,6 +400,38 @@ paths:
       responses:
         "200": { description: 已驳回 }
 
+  /api/v1/alarms/{id}/silence:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      operationId: silenceAlarm
+      summary: 静默告警（同源同码在窗口内只累加次数）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [core.alarm:write]
+      x-resource-scope: gateway
+      x-audit-level: medium
+      responses:
+        "200": { description: 已静默 }
+
+  /api/v1/alarms/{id}/unsilence:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      operationId: unsilenceAlarm
+      summary: 取消静默
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [core.alarm:write]
+      x-resource-scope: gateway
+      x-audit-level: medium
+      responses:
+        "200": { description: 已取消静默 }
+
   /api/v1/telemetry/current:
     get:
       operationId: getCurrentTelemetry
