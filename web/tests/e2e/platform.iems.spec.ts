@@ -318,31 +318,26 @@ test('告警页：配置回滚产生的告警通过实时通道推到页面，�
   await page.goto('/#/events');
   await expect(page.locator('[data-testid="alarms-table"]')).toBeVisible();
 
+  // 告警现在会**归并**：同源同码只保留一条、累加次数。
+  // 所以这里判"次数增加"，而不是"多出一条"——后者恰恰是归并要消灭的行为。
   const marker = '已回滚（未在确认窗口内确认或主动取消）';
   const row = page.locator('[data-testid="alarms-table"] tr', { hasText: marker }).first();
-  const countCell = row.locator('[data-testid^="alarm-count-"]');
-
-  // 用例自带"第一次回滚"：不依赖执行顺序（单跑这条也得成立）
-  const rollbackOnce = async (address: string) => {
-    const other = await page.context().newPage();
-    await other.goto('/#/network');
-    await other.locator('[data-testid="edit-eth0"]').click();
-    await other.locator('[data-testid="field-addresses"]').fill(address);
-    await other.locator('[data-testid="tx-apply"]').click();
-    await expect(other.locator('[data-testid="tx-pending"]')).toBeVisible();
-    await other.locator('[data-testid="tx-rollback"]').click();
-    await expect(other.locator('[data-testid="tx-message"]')).toContainText('已回滚');
-    await other.close();
-  };
-
-  await rollbackOnce('192.168.10.66/24');
   await expect(row).toBeVisible();
-  const beforeCount = (await countCell.textContent()) ?? '';
+  const countCell = row.locator('[data-testid^="alarm-count-"]');
+  const beforeCount = await countCell.textContent();
 
-  await rollbackOnce('192.168.10.67/24');
+  // 在另一个页面里制造一次回滚（配置回滚会产生 major 告警）
+  const other = await page.context().newPage();
+  await other.goto('/#/network');
+  await other.locator('[data-testid="edit-eth0"]').click();
+  await other.locator('[data-testid="field-addresses"]').fill('192.168.10.66/24');
+  await other.locator('[data-testid="tx-apply"]').click();
+  await expect(other.locator('[data-testid="tx-pending"]')).toBeVisible();
+  await other.locator('[data-testid="tx-rollback"]').click();
+  await expect(other.locator('[data-testid="tx-message"]')).toContainText('已回滚');
 
-  // 告警页不做任何操作：归并后是**次数**变化（不是多出一行），靠 WS 推送刷上去
-  await expect(countCell).not.toHaveText(beforeCount, { timeout: 15_000 });
+  // 告警页不做任何操作，靠 WS 推送把次数刷上去
+  await expect(countCell).not.toHaveText(beforeCount ?? '', { timeout: 15_000 });
 });
 
 // ---------------------------------------------------------------- 用户与角色管理（§5.5）
@@ -667,4 +662,28 @@ test('告警：同码告警归并显示次数，可静默', async ({ page, brows
   await row.locator('[data-testid^="alarm-silence-"]').click();
   await expect(page.locator('[data-testid="alarms-notice"]')).toContainText('已静默');
   await expect(page.locator('[data-testid="alarms-table"]')).toContainText('已静默');
+});
+
+// ---------------------------------------------------------------- 通知渠道（§8.3）
+test('通知渠道：启停与发测试消息', async ({ page }) => {
+  await login(page, OPSADMIN);
+  await page.goto('/#/system/notifications');
+  await expect(page.locator('[data-testid="notify-channels"]')).toBeVisible();
+  await expect(page.locator('[data-testid="notify-channels"]')).toContainText('运维值班 Webhook');
+
+  // 初始是停用：发测试会被标记为 skipped
+  await page.locator('[data-testid="notify-test-ch_1"]').click();
+  await expect(page.locator('[data-testid="notify-notice"]')).toContainText('未启用');
+  await expect(page.locator('[data-testid="notify-deliveries"]')).toContainText('skipped');
+
+  // 启用后再发：真的投递
+  await page.locator('[data-testid="notify-toggle-ch_1"]').click();
+  await expect(page.locator('[data-testid="notify-channels"]')).toContainText('已启用');
+  await page.locator('[data-testid="notify-test-ch_1"]').click();
+  await expect(page.locator('[data-testid="notify-notice"]')).toContainText('已投递');
+  await expect(page.locator('[data-testid="notify-deliveries"]')).toContainText('TEST');
+
+  // 收尾：停用，避免影响后续用例
+  await page.locator('[data-testid="notify-toggle-ch_1"]').click();
+  await expect(page.locator('[data-testid="notify-channels"]')).toContainText('已停用');
 });
