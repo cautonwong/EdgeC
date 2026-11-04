@@ -144,6 +144,44 @@ function upsert(alarm: Alarm): void {
   }, 4000);
 }
 
+// ---- 归档（清台不等于销毁证据）----
+const showArchive = ref(false);
+const archived = ref<Alarm[]>([]);
+
+async function loadArchive(): Promise<void> {
+  showArchive.value = !showArchive.value;
+  if (!showArchive.value) return;
+  try {
+    const result = await request<{ items: Alarm[] }>('/api/v1/alarms/archive?limit=200');
+    archived.value = result.items;
+  } catch (err) {
+    error.value = describe(err);
+  }
+}
+
+/** 导出 CSV：在浏览器里生成 Blob，不额外开一个后端下载接口（省一条权限面）。 */
+function exportCsv(): void {
+  const header = ['时间', '等级', '来源', '告警码', '描述', '次数', '状态', '归档时间'];
+  const rows = archived.value.map((alarm) => [
+    alarm.ts,
+    alarm.level,
+    alarm.source,
+    alarm.code,
+    alarm.message,
+    String(alarm.count ?? 1),
+    alarm.state,
+    (alarm as unknown as { archivedAt?: string }).archivedAt ?? '',
+  ]);
+  const escape = (value: string) => `"${String(value).replace(/"/g, '""')}"`;
+  const csv = [header, ...rows].map((row) => row.map(escape).join(',')).join('\r\n');
+  const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `alarms-archive-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 function timeOf(ts: string): string {
   const date = new Date(ts);
   return Number.isNaN(date.getTime()) ? ts : date.toLocaleString('zh-CN', { hour12: false });
@@ -156,6 +194,11 @@ useLiveFeed((message) => {
     return;
   }
   if (message.topic !== 'alarm') return;
+  // 清台也要跟着推：否则别的会话清了，这边还留着已经不存在的告警
+  if (message.type === 'alarm-cleared') {
+    items.value = [];
+    return;
+  }
   upsert(message.payload as unknown as Alarm);
 });
 
@@ -184,7 +227,21 @@ onMounted(load);
           <option value="active">未确认</option>
           <option value="acked">已确认</option>
         </select>
+        <div class="head__actions">
+        <UiButton variant="ghost" size="sm" data-testid="alarm-archive-toggle" @click="loadArchive">
+          {{ showArchive ? '收起归档' : '查看归档' }}
+        </UiButton>
+        <UiButton
+          v-if="showArchive"
+          variant="ghost"
+          size="sm"
+          data-testid="alarm-archive-export"
+          @click="exportCsv"
+        >
+          导出 CSV
+        </UiButton>
         <UiButton variant="ghost" size="sm" data-testid="alarm-refresh" @click="load">刷新</UiButton>
+      </div>
       </div>
     </header>
 
@@ -252,6 +309,28 @@ onMounted(load);
     </UiDataTable>
 
     <p v-if="!loading && visible.length === 0" class="empty" data-testid="alarms-empty">当前过滤条件下没有告警</p>
+
+    <template v-if="showArchive">
+      <h2 class="sub">已归档（清台前发生过的）</h2>
+      <UiDataTable
+        :columns="columns"
+        :rows="archived"
+        row-key="id"
+        caption="归档告警"
+        data-testid="alarm-archive-table"
+      >
+        <template #cell-ts="{ row }">{{ timeOf(row.ts as string) }}</template>
+        <template #cell-count="{ row }">
+          <span class="mono">×{{ row.count ?? 1 }}</span>
+        </template>
+        <template #cell-state="{ row }">
+          <UiStatusBadge :status="'standby'" :label="row.state as string" />
+        </template>
+        <template #cell-ack="{ row }">
+          <span class="muted">—</span>
+        </template>
+      </UiDataTable>
+    </template>
   </section>
 </template>
 
@@ -266,6 +345,15 @@ onMounted(load);
 .head h1 {
   margin: 0 0 var(--space-1);
   font-size: var(--font-size-xl);
+}
+.head__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.sub {
+  margin: var(--space-6) 0 var(--space-3);
+  font-size: var(--font-size-lg);
 }
 .head__hint {
   margin: 0;
