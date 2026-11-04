@@ -454,6 +454,17 @@ paths:
       responses:
         "200": { description: 已驳回 }
 
+  /api/v1/alarms/archive:
+    get:
+      operationId: listAlarmArchive
+      summary: 已归档告警（清台后仍可回溯）
+      security: [{ sessionCookie: [] }]
+      x-required-permissions: [core.alarm:read]
+      x-resource-scope: gateway
+      x-audit-level: none
+      responses:
+        "200": { description: 归档列表 }
+
   /api/v1/alarms/clear:
     post:
       operationId: clearAlarms

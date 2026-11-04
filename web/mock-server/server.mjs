@@ -317,6 +317,10 @@ const LEVEL_ORDER = { critical: 0, major: 1, minor: 2, warning: 3, info: 4 };
 // 现场一次故障常常瞬间刷出几十条同码告警，一条条堆在页面上等于没有告警。
 const ALARM_DEDUPE_WINDOW_MS = Number(process.env.EDGEOS_ALARM_DEDUPE_MS ?? 60_000);
 
+// 清台不等于销毁证据：clear 把告警挪进归档，现场仍能回溯"刚才发生了什么"（§8.3）。
+const alarmArchive = [];
+const ALARM_ARCHIVE_LIMIT = Number(process.env.EDGEOS_ALARM_ARCHIVE_LIMIT ?? 2000);
+
 function raiseAlarm({ level, source, code, message }) {
   const nowMs = now();
   const existing = alarms.find(
@@ -1259,11 +1263,23 @@ const handlers = {
 
   'POST /api/v1/alarms/clear': (ctx) => {
     // 现场处理完一批告警后需要"清台"：不清的话下一轮故障会归并进旧告警，看不出来是新问题。
+    // 但清台不等于销毁：先挪进归档，事后仍能回答"刚才那批告警是什么"。
+    const clearedAt = new Date().toISOString();
+    const moved = alarms.map((alarm) => ({ ...alarm, archivedAt: clearedAt }));
+    alarmArchive.unshift(...moved);
+    if (alarmArchive.length > ALARM_ARCHIVE_LIMIT) alarmArchive.length = ALARM_ARCHIVE_LIMIT;
     const removed = alarms.length;
     alarms.splice(0, alarms.length);
-    audit(ctx, 'alarm.cleared', { removed });
+    audit(ctx, 'alarm.cleared', { removed, archived: moved.length });
     broadcast('alarm', 'alarm-cleared', { removed });
-    return { removed };
+    return { removed, archived: moved.length };
+  },
+
+  'GET /api/v1/alarms/archive': (ctx) => {
+    const limit = Math.min(Number(ctx.query.limit ?? 200), ALARM_ARCHIVE_LIMIT);
+    const code = ctx.query.code;
+    const items = code ? alarmArchive.filter((alarm) => alarm.code === code) : alarmArchive;
+    return { total: items.length, items: items.slice(0, limit) };
   },
 
   'POST /api/v1/alarms/{id}/silence': (ctx) => {

@@ -687,3 +687,37 @@ test('通知渠道：启停与发测试消息', async ({ page }) => {
   await page.locator('[data-testid="notify-toggle-ch_1"]').click();
   await expect(page.locator('[data-testid="notify-channels"]')).toContainText('已停用');
 });
+
+// ---------------------------------------------------------------- 告警归档与导出（§8.3）
+test('告警归档：清台后仍可回溯，并能导出 CSV', async ({ page }) => {
+  await login(page, ENGINEER_ACCOUNT);
+  const me = await (await page.request.get('/api/v1/auth/me')).json();
+  const headers = { Origin: 'http://127.0.0.1:5173', 'X-CSRF-Token': me.csrfToken };
+
+  // 制造一条告警：应用 → 回滚
+  const created = await page.request.post('/api/v1/config/transactions', {
+    data: { sectionId: 'network.interfaces', values: { interfaceId: 'eth0', addresses: ['192.168.10.99/24'] } },
+    headers,
+  });
+  const tx = await created.json();
+  await page.request.post(`/api/v1/config/transactions/${tx.transactionId}/apply`, { data: {}, headers });
+  await page.request.post(`/api/v1/config/transactions/${tx.transactionId}/rollback`, { data: {}, headers });
+
+  await page.goto('/#/events');
+  await expect(page.locator('[data-testid=alarms-table]')).toContainText('已回滚');
+
+  // 清台：告警从列表消失，但不是销毁
+  const cleared = await page.request.post('/api/v1/alarms/clear', { data: {}, headers });
+  expect(cleared.status()).toBe(200);
+  await expect(page.locator('[data-testid=alarms-table]')).not.toContainText('已回滚');
+
+  // 归档里还在，且能导出 CSV
+  await page.locator('[data-testid=alarm-archive-toggle]').click();
+  await expect(page.locator('[data-testid=alarm-archive-table]')).toContainText('已回滚');
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.locator('[data-testid=alarm-archive-export]').click(),
+  ]);
+  expect(download.suggestedFilename()).toMatch(/alarms-archive-.*\.csv/);
+});
