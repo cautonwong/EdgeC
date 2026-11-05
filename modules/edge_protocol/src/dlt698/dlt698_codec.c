@@ -202,8 +202,8 @@ int dlt698_encode_action_response(const dlt698_addr_t *sa, uint8_t piid, uint16_
     return 0;
 }
 
-int dlt698_decode_frame(struct net_buf_simple *in, dlt698_addr_t *sa, uint8_t *svc, 
-                        uint8_t *piid, uint8_t **payload_out, size_t *payload_len) {
+int dlt698_decode_frame_ex(struct net_buf_simple *in, dlt698_addr_t *sa, uint8_t *svc, 
+                           uint8_t *choice, uint8_t *piid, uint8_t **payload_out, size_t *payload_len) {
     if (in->len < 12) return 1;
     if (in->data[0] != DLT698_HEAD) return -2;
 
@@ -226,10 +226,50 @@ int dlt698_decode_frame(struct net_buf_simple *in, dlt698_addr_t *sa, uint8_t *s
     // Skip HCS
     uint8_t *apdu_start = in->data + header_len + 2;
     *svc = apdu_start[0];
+    if (choice) *choice = apdu_start[1];
     *piid = apdu_start[2];
     *payload_out = apdu_start + 3;
     *payload_len = (size_t)(in->data + frame_len - 2 - (*payload_out));
 
+    return 0;
+}
+
+int dlt698_decode_frame(struct net_buf_simple *in, dlt698_addr_t *sa, uint8_t *svc,
+                        uint8_t *piid, uint8_t **payload_out, size_t *payload_len) {
+    /* 旧接口不关心 CHOICE，保持所有既有调用点不变 */
+    return dlt698_decode_frame_ex(in, sa, svc, NULL, piid, payload_out, payload_len);
+}
+
+int dlt698_encode_get_response_list(const dlt698_addr_t *sa, uint8_t piid,
+                                    const dlt698_get_item_t *items, size_t n, net_buf_t *out) {
+    if (!sa || !out || !items || n == 0 || n > DLT698_GET_LIST_MAX) return -1;
+
+    struct net_buf_simple *b = &out->b;
+    uint8_t *len_ptr = NULL;
+    uint8_t *hcs_ptr = NULL;
+    /* Ctrl=0x03：DIR=1（响应方向）、PRM=0 */
+    uint8_t *start = _frame_begin(b, sa, 0x03, &len_ptr, &hcs_ptr);
+
+    net_buf_simple_add_u8(b, DLT698_SVC_GET_RES);
+    net_buf_simple_add_u8(b, DLT698_CHOICE_GET_NORMAL_LIST);
+    net_buf_simple_add_u8(b, piid);
+    net_buf_simple_add_u8(b, (uint8_t)n);
+
+    for (size_t i = 0; i < n; i++) {
+        net_buf_simple_add_be32(b, items[i].oad);
+        if (items[i].dar) {
+            net_buf_simple_add_u8(b, 0x00); /* CHOICE [0] DAR */
+            net_buf_simple_add_u8(b, items[i].dar);
+        } else {
+            if (items[i].dlen > 0 && !items[i].data) return -1;
+            net_buf_simple_add_u8(b, DLT698_GET_RESULT_DATA);
+            if (items[i].dlen > 0) net_buf_simple_add_mem(b, items[i].data, items[i].dlen);
+        }
+    }
+
+    net_buf_simple_add_u8(b, DLT698_NO_FOLLOW_REPORT);
+    net_buf_simple_add_u8(b, DLT698_NO_TIME_TAG);
+    _frame_seal(b, start, len_ptr, hcs_ptr);
     return 0;
 }
 

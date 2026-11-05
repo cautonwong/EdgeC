@@ -169,6 +169,31 @@ def _connect_north() -> socket.socket:
             time.sleep(0.1)
 
 
+def _record_north_frame(req: bytes) -> None:
+    """记一帧主站发来的 698 请求，尤其记下 APDU 的 CHOICE 标签。
+
+    为什么需要：一次读整张点表到底是一帧 [2] 还是 N 帧 [1]，从读数上看不出来 ——
+    两种都能拿到正确的值。不记帧就验不了"批量"这件事本身。
+
+    帧头：`68 | L(2) | C(1) | SA描述(1) | SA(n) | CA(1) | HCS(2) | APDU`，
+    所以 APDU 起点 = 8 + SA 长度；`APDU[0]` 是服务码、`APDU[1]` 是 CHOICE。
+    """
+    choice = None
+    try:
+        if req and req[0] == 0x68 and len(req) >= 12:
+            sa_len = (req[4] & 0x0F) + 1
+            apdu_at = 8 + sa_len
+            if apdu_at + 1 < len(req):
+                choice = req[apdu_at + 1]
+    except (IndexError, ValueError):
+        choice = None
+    with _lock:
+        _seen.setdefault("north_frames", []).append(
+            {"choice": choice, "frame_hex": req.hex()}
+        )
+        BUS_LOG.write_text(json.dumps(_seen, ensure_ascii=False), encoding="utf-8")
+
+
 def _serve_north(conn: socket.socket) -> None:
     """一个 TCP 连接对一个 unix 连接，逐帧转发。"""
     with conn:
@@ -179,6 +204,7 @@ def _serve_north(conn: socket.socket) -> None:
                 return
             if not req:
                 return
+            _record_north_frame(req)
             try:
                 up = _connect_north()
                 up.sendall(req)
