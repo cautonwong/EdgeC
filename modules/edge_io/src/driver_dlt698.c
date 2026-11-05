@@ -177,6 +177,46 @@ static int dlt698_req_decode(void *priv, void *session, const uint8_t *buf, size
 
 /* ==================== 从站侧 ==================== */
 
+/**
+ * @brief 把一个点位值编成 A-XDR Data（含类型标签），写进调用方给的 8 字节缓冲。
+ *
+ * 类型标签由产品给（v.type）；没给才按宽度兜底 —— `width=2` 到底是 long 还是
+ * long-unsigned 只有点位模型知道，猜错主站解出的值就是错的且不报错。
+ * 没有对应编码器的类型**不发**：发一个"看起来对"的字节序比明确失败更糟。
+ */
+static int _encode_axdr_value(const edge_point_value_t *v, uint8_t buf[8], size_t *dlen) {
+    uint8_t tag = v->type ? v->type
+                          : (v->width >= 4 ? (uint8_t)DLT698_TAG_DOUBLE_LONG
+                                           : (uint8_t)DLT698_TAG_LONG_UNSIGNED);
+    if (tag == DLT698_TAG_LONG_UNSIGNED) {
+        buf[0] = tag;
+        buf[1] = (uint8_t)(((uint16_t)v->raw) >> 8);
+        buf[2] = (uint8_t)(((uint16_t)v->raw) & 0xFF);
+        *dlen = 3;
+    } else if (tag == DLT698_TAG_DOUBLE_LONG) {
+        uint32_t bits = (uint32_t)v->raw;
+        buf[0] = tag;
+        buf[1] = (uint8_t)(bits >> 24);
+        buf[2] = (uint8_t)(bits >> 16);
+        buf[3] = (uint8_t)(bits >> 8);
+        buf[4] = (uint8_t)(bits & 0xFF);
+        *dlen = 5;
+    } else if (tag == DLT698_TAG_FLOAT32) {
+        float f = (float)v->value;
+        uint32_t bits = 0;
+        memcpy(&bits, &f, sizeof(bits));
+        buf[0] = tag;
+        buf[1] = (uint8_t)(bits >> 24);
+        buf[2] = (uint8_t)(bits >> 16);
+        buf[3] = (uint8_t)(bits >> 8);
+        buf[4] = (uint8_t)(bits & 0xFF);
+        *dlen = 5;
+    } else {
+        return -1;
+    }
+    return 0;
+}
+
 static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *in, size_t in_len,
                                      const edge_slave_source_ops_t *src, void *src_ctx,
                                      net_buf_t *out, size_t *consumed) {
@@ -194,7 +234,8 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
     uint8_t *payload = NULL;
     size_t payload_len = 0;
 
-    int ret = dlt698_decode_frame(&nb, &sa_rx, &svc, &piid, &payload, &payload_len);
+    uint8_t choice = 0;
+    int ret = dlt698_decode_frame_ex(&nb, &sa_rx, &svc, &choice, &piid, &payload, &payload_len);
     if (ret == 1) return EDGE_ERR_INCOMPLETE;
     if (ret < 0) {
         *consumed = 1;
@@ -214,6 +255,43 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
     dlt698_addr_t sa = sa_rx;
 
     if (svc == DLT698_SVC_GET_REQ) {
+        /* [2] GetRequestNormalList：payload = count(1) | OAD(4)×n | 时间标签(1)。
+         * 标准 6.3.8.1.2 表66。逐项都要给结果：读不到的回 DAR，不能少返一项 ——
+         * 主站请求 2 个 OAD 只拿回 1 个读数还判通过，是最典型的假绿。 */
+        if (choice == DLT698_CHOICE_GET_NORMAL_LIST) {
+            if (payload_len < 2) return -1;
+            size_t n = payload[0];
+            if (n == 0 || n > DLT698_GET_LIST_MAX) return -1;
+            /* 长度必须精确匹配：多一字节少一字节都不能"凑着解"，
+             * 错位解出来的值是错的，而帧校验完全正常。 */
+            if (payload_len != 1 + 4 * n + 1) return -1;
+
+            dlt698_get_item_t items[DLT698_GET_LIST_MAX];
+            uint8_t bufs[DLT698_GET_LIST_MAX][8];
+            memset(items, 0, sizeof(items));
+            for (size_t k = 0; k < n; k++) {
+                const uint8_t *p = payload + 1 + 4 * k;
+                uint32_t oad = (uint32_t)((p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3]);
+                edge_point_value_t v;
+                memset(&v, 0, sizeof(v));
+                items[k].oad = oad;
+                if (!src || !src->resolve || src->resolve(src_ctx, oad, NULL, 0, &v) != 0) {
+                    items[k].dar = 6; /* DAR: 对象不存在（标准 6.3.3.11） */
+                    continue;
+                }
+                size_t dlen = 0;
+                if (_encode_axdr_value(&v, bufs[k], &dlen) != 0) {
+                    items[k].dar = 7; /* DAR: 类型不匹配 */
+                    continue;
+                }
+                items[k].data = bufs[k];
+                items[k].dlen = dlen;
+            }
+            return dlt698_encode_get_response_list(&sa, piid, items, n, out);
+        }
+
+        /* [1] GetRequestNormal：payload = OAD(4) | 时间标签(1) */
+        if (choice != DLT698_CHOICE_GET_NORMAL) return -1;
         if (payload_len < 4) return -1;
 
         uint32_t oad = (uint32_t)((payload[0] << 24) | (payload[1] << 16) | (payload[2] << 8) |
@@ -221,45 +299,13 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
         edge_point_value_t v;
         memset(&v, 0, sizeof(v));
         if (!src || !src->resolve || src->resolve(src_ctx, oad, NULL, 0, &v) != 0) {
-            /* 无此对象：不应答（698 的异常应答格式复杂，先保持静默，由主站超时） */
+            /* 无此对象：不应答（[1] 的异常应答格式复杂，先保持静默，由主站超时） */
             return -1;
         }
 
-        /* A-XDR 数据段必须带类型标签（标准 6.3.3.1）。标签由产品给（v.type）；
-         * 没给就按宽度推断 —— 但这只是兜底，`width=2` 到底是 long 还是
-         * long-unsigned 只有产品知道，猜错主站解出来的值就是错的且不报错。 */
         uint8_t data[8];
         size_t dlen = 0;
-        uint8_t tag = v.type ? v.type
-                             : (v.width >= 4 ? (uint8_t)DLT698_TAG_DOUBLE_LONG
-                                             : (uint8_t)DLT698_TAG_LONG_UNSIGNED);
-        if (tag == DLT698_TAG_LONG_UNSIGNED) {
-            data[0] = tag;
-            data[1] = (uint8_t)(((uint16_t)v.raw) >> 8);
-            data[2] = (uint8_t)(((uint16_t)v.raw) & 0xFF);
-            dlen = 3;
-        } else if (tag == DLT698_TAG_DOUBLE_LONG) {
-            uint32_t bits = (uint32_t)v.raw;
-            data[0] = tag;
-            data[1] = (uint8_t)(bits >> 24);
-            data[2] = (uint8_t)(bits >> 16);
-            data[3] = (uint8_t)(bits >> 8);
-            data[4] = (uint8_t)(bits & 0xFF);
-            dlen = 5;
-        } else if (tag == DLT698_TAG_FLOAT32) {
-            float f = (float)v.value;
-            uint32_t bits = 0;
-            memcpy(&bits, &f, sizeof(bits));
-            data[0] = tag;
-            data[1] = (uint8_t)(bits >> 24);
-            data[2] = (uint8_t)(bits >> 16);
-            data[3] = (uint8_t)(bits >> 8);
-            data[4] = (uint8_t)(bits & 0xFF);
-            dlen = 5;
-        } else {
-            /* 没有对应编码器的类型不发 —— 发一个"看起来对"的字节序比不应答更糟 */
-            return -1;
-        }
+        if (_encode_axdr_value(&v, data, &dlen) != 0) return -1;
 
         dlt698_encode_get_response(&sa, piid, oad, data, dlen, out);
         return 0;
