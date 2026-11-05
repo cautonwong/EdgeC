@@ -20,11 +20,13 @@
 如果它回 0，主站会以为继电器动了 —— 那是最危险的假成功。
 它不走设备模型，因为"操作"不是"读一个点"，这里直接用协议层发一帧。
 """
+import json
 import os
 import socket
 
 import pytest
 
+from bench import BUS_LOG
 from testplatform.cases import case
 from testplatform.protocol import dlt698
 
@@ -113,3 +115,43 @@ def test_action_returns_failure_dar_not_fake_success():
     assert res.oi == 0x8000 and res.method == 129, f"回的操作不是 OI8000/129：{res}"
     assert not res.ok, "跳闸还没实现，却回了成功（DAR=0）—— 这是假成功"
     assert res.dar == 2, f"期望 DAR=2（暂时失效），回的是 {res.dar}（{res.error}）"
+
+
+def _north_frames() -> list:
+    """台架北向桥记下的主站请求帧（按任务隔离的 bus.json）。"""
+    if not BUS_LOG.exists():
+        return []
+    try:
+        return json.loads(BUS_LOG.read_text(encoding="utf-8")).get("north_frames", [])
+    except json.JSONDecodeError:
+        return []
+
+
+@case(id="D_00_00_02_000004", clause="free: 读整张点表必须一帧 GET-Request-NormalList 完成", tags=["北向"])
+@pytest.mark.contract
+@pytest.mark.requires_capability("电压")
+def test_master_reads_all_oads_in_one_frame(meter):
+    """一次读多个 OAD，从**读数**上看不出来是一帧还是 N 帧 —— 两种都对。
+
+    标准 6.3.8.1.2 的 `[2] GetRequestNormalList` 就是为省往返准备的：
+    `SEQUENCE { PIID, SEQUENCE OF OAD }`。这条判据看台架实际收到的帧，
+    断言读完整张点表只发了一帧、且 CHOICE=0x02。
+
+    为什么不数"帧数变少"就算完：如果驱动悄悄退回逐点 [1] 读，功能照样可用、
+    读数照样正确，只是批量这件事根本没发生 —— 那是最容易被漏掉的假绿。
+    """
+    meter.connect()
+    before = len(_north_frames())
+    result = meter.read_all()
+    frames = _north_frames()[before:]
+
+    assert "电压" in result.readings and "档案计数" in result.readings, (
+        f"read_all 没交齐整张点表：{result.readings}"
+    )
+    assert len(frames) == 1, (
+        f"读 2 个 OAD 发了 {len(frames)} 帧（期望 1 帧 [2]）："
+        f"{[f['choice'] for f in frames]}"
+    )
+    assert frames[0]["choice"] == 0x02, (
+        f"这一帧的 CHOICE 是 {frames[0]['choice']!r}，不是 [2] NormalList"
+    )

@@ -35,6 +35,16 @@ extern "C" {
 #define DLT698_SVC_ACTION_RES   0x87
 #define DLT698_SVC_REPORT_RES   0x88
 
+/* GET-Request / GET-Response 的 CHOICE 标签（标准 6.3.8 表64 / 表70）。
+ * [1] Normal 读一个对象属性；[2] NormalList 一次读若干个对象属性。
+ * 注意：[3]/[4] Record 是"读记录型对象属性"（冻结量/事件，带选择条件），
+ * 与"一次读多个 OAD"不是一回事，别用错服务。 */
+#define DLT698_CHOICE_GET_NORMAL      0x01
+#define DLT698_CHOICE_GET_NORMAL_LIST 0x02
+#define DLT698_GET_RESULT_DATA        0x01
+/** 一次列表读最多几个 OAD（防御：不让请求里的 count 撑爆栈上暂存）。 */
+#define DLT698_GET_LIST_MAX           8
+
 /**
  * @brief DLT698 地址类型
  */
@@ -80,6 +90,28 @@ int dlt698_encode_set_request(const dlt698_addr_t *sa, uint8_t piid, uint32_t oa
  */
 int dlt698_encode_get_response(const dlt698_addr_t *sa, uint8_t piid, uint32_t oad, 
                                const uint8_t *data, size_t dlen, net_buf_t *out);
+
+/**
+ * @brief GET-Response-NormalList 的一个结果项（标准 6.3.8.2.2 表73）。
+ *
+ * `A-ResultNormal = SEQUENCE { OAD, Get-Result }`，Get-Result 是 CHOICE：
+ * `[0] DAR` 或 `[1] Data`。**读失败的项也要如实回 DAR**，不能悄悄少返一项 ——
+ * 主站请求 2 个 OAD 只拿回 1 个读数还判通过，是最典型的假绿。
+ */
+typedef struct {
+    uint32_t oad;
+    uint8_t dar;          /* 0 = 成功；非 0 时按标准 6.3.3.11 填错误信息 */
+    const uint8_t *data;  /* dar==0 时用，必须含 A-XDR 类型标签 */
+    size_t dlen;
+} dlt698_get_item_t;
+
+/**
+ * @brief 构造 GET-Response-NormalList：
+ * `85 | 02 | PIID-ACD | n | (OAD(4) | 01 | Data) | ... | 00 | 00`
+ * @param items n 个结果，n ∈ [1, DLT698_GET_LIST_MAX]
+ */
+int dlt698_encode_get_response_list(const dlt698_addr_t *sa, uint8_t piid,
+                                    const dlt698_get_item_t *items, size_t n, net_buf_t *out);
 
 /**
  * @brief 构造 ACTION-Request.Normal（操作一个对象方法）。
@@ -133,6 +165,16 @@ int dlt698_encode_action_response(const dlt698_addr_t *sa, uint8_t piid, uint16_
  */
 int dlt698_decode_frame(struct net_buf_simple *in, dlt698_addr_t *sa, uint8_t *svc, 
                         uint8_t *piid, uint8_t **payload_out, size_t *payload_len);
+
+/**
+ * @brief 同上，但把 APDU 的 CHOICE 标签一并输出（[1] Normal / [2] NormalList）。
+ *
+ * 从站要按 choice 分派，靠"payload 长度像不像列表"去猜是不行的：
+ * 猜错时帧校验全过，只有值是错的。
+ */
+int dlt698_decode_frame_ex(struct net_buf_simple *in, dlt698_addr_t *sa, uint8_t *svc,
+                           uint8_t *choice, uint8_t *piid, uint8_t **payload_out,
+                           size_t *payload_len);
 
 /* --- A-XDR 基础数据类型编解码 (TDD Task 1) --- */
 
