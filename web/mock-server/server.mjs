@@ -385,27 +385,113 @@ const notificationChannels = [
 const notificationDeliveries = []; // 最新的在前
 let deliverySeq = 0;
 
+// 通知投递**真的发 HTTP**：之前只往数组里塞一条 "delivered"，那是自欺欺人 ——
+// 地址写错、对端 500、超时都看不出来。现在记录尝试次数、HTTP 状态与错误原因。
+const NOTIFY_MAX_ATTEMPTS = Number(process.env.EDGEOS_NOTIFY_ATTEMPTS ?? 3);
+const NOTIFY_TIMEOUT_MS = Number(process.env.EDGEOS_NOTIFY_TIMEOUT_MS ?? 800);
+const NOTIFY_RETRY_MS = Number(process.env.EDGEOS_NOTIFY_RETRY_MS ?? 100);
+
+const sleepMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function recordDelivery(channel, alarm, result) {
+  deliverySeq += 1;
+  const delivery = {
+    id: `dl_${String(deliverySeq).padStart(4, '0')}`,
+    channelId: channel.id,
+    channelName: channel.name,
+    alarmId: alarm?.id ?? null,
+    code: alarm?.code ?? 'TEST',
+    level: alarm?.level ?? 'info',
+    ts: new Date().toISOString(),
+    status: result.status,
+    attempts: result.attempts,
+    httpStatus: result.httpStatus,
+    error: result.error,
+    note: alarm?.message ?? '测试消息',
+  };
+  notificationDeliveries.unshift(delivery);
+  channel.lastDeliveryAt = delivery.ts;
+  channel.lastError = result.status === 'delivered' ? null : (result.error ?? '投递失败');
+  return delivery;
+}
+
+/**
+ * 先**同步**落一条 pending，再异步把结果写回同一条记录。
+ * 为什么：Webhook 可能要几秒（超时+重试），这期间页面和调用方应该能看到"正在投递"，
+ * 而不是一条记录都没有 —— 一个请求发出去了却查不到任何痕迹，是另一种说不清。
+ */
+function createPendingDelivery(channel, alarm) {
+  deliverySeq += 1;
+  const delivery = {
+    id: `dl_${String(deliverySeq).padStart(4, '0')}`,
+    channelId: channel.id,
+    channelName: channel.name,
+    alarmId: alarm?.id ?? null,
+    code: alarm?.code ?? 'TEST',
+    level: alarm?.level ?? 'info',
+    ts: new Date().toISOString(),
+    status: 'pending',
+    attempts: 0,
+    httpStatus: null,
+    error: null,
+    note: alarm?.message ?? '测试消息',
+  };
+  notificationDeliveries.unshift(delivery);
+  return delivery;
+}
+
+function finalizeDelivery(delivery, channel, result) {
+  delivery.status = result.status;
+  delivery.attempts = result.attempts;
+  delivery.httpStatus = result.httpStatus;
+  delivery.error = result.error;
+  channel.lastDeliveryAt = new Date().toISOString();
+  channel.lastError = result.status === 'delivered' ? null : (result.error ?? '投递失败');
+  return delivery;
+}
+
+/** 返回 {status, attempts, httpStatus, error}，最多 NOTIFY_MAX_ATTEMPTS 次。 */
+async function sendWebhook(channel, alarm) {
+  const payload = JSON.stringify({
+    source: 'edgeos-webui',
+    type: alarm ? 'alarm.raised' : 'test',
+    alarm: alarm ? { id: alarm.id, code: alarm.code, level: alarm.level, message: alarm.message, count: alarm.count } : null,
+  });
+  let attempts = 0;
+  let httpStatus = null;
+  let error = null;
+  for (let index = 0; index < NOTIFY_MAX_ATTEMPTS; index += 1) {
+    attempts += 1;
+    try {
+      const response = await fetch(channel.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+        signal: AbortSignal.timeout(NOTIFY_TIMEOUT_MS),
+      });
+      httpStatus = response.status;
+      if (response.ok) return { status: 'delivered', attempts, httpStatus, error: null };
+      error = `HTTP ${response.status}`;
+    } catch (err) {
+      error = String(err?.message ?? err).slice(0, 200);
+    }
+    if (index < NOTIFY_MAX_ATTEMPTS - 1) await sleepMs(NOTIFY_RETRY_MS * (index + 1));
+  }
+  return { status: 'failed', attempts, httpStatus, error };
+}
+
+/**
+ * fire-and-forget：告警产生不能被一个慢 Webhook 拖住。
+ * 结果写进 deliveries，页面和用例轮询即可（真实系统里也是这个模型）。
+ */
 function deliverAlarm(alarm) {
   for (const channel of notificationChannels) {
     if (!channel.enabled) continue;
     // 复用全局 LEVEL_ORDER：**数字越小越严重**（critical=0 … info=4）
     if ((LEVEL_ORDER[alarm.level] ?? 4) > (LEVEL_ORDER[channel.minLevel] ?? 4)) continue;
     if (alarm.state === 'silenced') continue;
-    deliverySeq += 1;
-    const delivery = {
-      id: `dl_${String(deliverySeq).padStart(4, '0')}`,
-      channelId: channel.id,
-      channelName: channel.name,
-      alarmId: alarm.id,
-      code: alarm.code,
-      level: alarm.level,
-      ts: new Date().toISOString(),
-      status: 'delivered',
-      note: `${alarm.message}`,
-    };
-    notificationDeliveries.unshift(delivery);
-    channel.lastDeliveryAt = delivery.ts;
-    channel.lastError = null;
+    const delivery = createPendingDelivery(channel, alarm);
+    void sendWebhook(channel, alarm).then((result) => finalizeDelivery(delivery, channel, result));
   }
 }
 
@@ -807,25 +893,16 @@ const handlers = {
   'POST /api/v1/notifications/channels/{id}/test': (ctx) => {
     const channel = notificationChannels.find((item) => item.id === ctx.params.id);
     if (!channel) throw httpError(404, 'not_found', '通知渠道不存在');
-    deliverySeq += 1;
-    const delivery = {
-      id: `dl_${String(deliverySeq).padStart(4, '0')}`,
-      channelId: channel.id,
-      channelName: channel.name,
-      alarmId: null,
-      code: 'TEST',
-      level: 'info',
-      ts: new Date().toISOString(),
-      status: channel.enabled ? 'delivered' : 'skipped',
-      note: channel.enabled ? '测试消息已投递' : '渠道未启用，测试未发送',
-    };
-    notificationDeliveries.unshift(delivery);
-    if (channel.enabled) {
-      channel.lastDeliveryAt = delivery.ts;
-      channel.lastError = null;
-    }
     audit(ctx, 'notification.test', { channelId: channel.id, delivered: channel.enabled });
-    return delivery;
+    if (!channel.enabled) {
+      return recordDelivery(channel, null, {
+        status: 'skipped', attempts: 0, httpStatus: null, error: '渠道未启用，测试未发送',
+      });
+    }
+    // 返回"已受理"，真实结果异步写回同一条 records（用例轮询）
+    const delivery = createPendingDelivery(channel, null);
+    void sendWebhook(channel, null).then((result) => finalizeDelivery(delivery, channel, result));
+    return { accepted: true, channelId: channel.id, attempts: NOTIFY_MAX_ATTEMPTS };
   },
 
   'GET /api/v1/notifications/deliveries': () => ({ items: notificationDeliveries.slice(0, 50) }),
