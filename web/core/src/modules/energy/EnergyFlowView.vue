@@ -8,8 +8,8 @@
 
       <div class="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div class="space-y-2">
-          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase tracking-[0.2em]">
-            <span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black">
+            <span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse motion-reduce:animate-none"></span>
             IEMS Microgrid Dispatch Active
           </div>
           <h1 class="text-3xl lg:text-4xl font-black text-white tracking-tight leading-tight">
@@ -22,11 +22,11 @@
 
         <div class="flex flex-wrap items-center gap-4">
           <div class="bg-[#1e293b]/70 backdrop-blur-md border border-[#334155] px-5 py-3 rounded-2xl">
-            <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">PCS Status</div>
+            <div class="text-[9px] font-black text-slate-400">PCS Status</div>
             <div class="text-lg font-black text-emerald-400 font-mono mt-0.5">RUNNING / PQ</div>
           </div>
           <div class="bg-[#1e293b]/70 backdrop-blur-md border border-[#334155] px-5 py-3 rounded-2xl">
-            <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Coordinator</div>
+            <div class="text-[9px] font-black text-slate-400">Coordinator</div>
             <div class="text-lg font-black text-sky-400 font-mono mt-0.5">AUTO / TOU+SHAVING</div>
           </div>
         </div>

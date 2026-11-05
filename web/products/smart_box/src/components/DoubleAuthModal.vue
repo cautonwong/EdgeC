@@ -5,7 +5,7 @@
       class="bg-slate-900 border-2 border-rose-500/80 rounded-3xl p-6 lg:p-8 max-w-lg w-full shadow-[0_0_50px_rgba(239,68,68,0.35)] relative overflow-hidden"
     >
       <!-- Red Warning Top Accent Bar -->
-      <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-rose-600 via-amber-500 to-rose-600 animate-pulse"></div>
+      <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-rose-600 via-amber-500 to-rose-600 animate-pulse motion-reduce:animate-none"></div>
 
       <!-- Header -->
       <div class="flex items-start gap-4 mb-6">
@@ -13,7 +13,7 @@
           ⚠️
         </div>
         <div>
-          <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-[10px] font-black uppercase tracking-widest mb-1 font-mono">
+          <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-[10px] font-black mb-1 font-mono">
             CRITICAL SAFETY INTERLOCK
           </div>
           <h2 class="text-xl font-black text-white tracking-tight font-mono">
@@ -54,7 +54,7 @@
             type="password"
             maxlength="16"
             placeholder="Enter Operator PIN (e.g. 1234)"
-            class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 transition-all text-sm tracking-widest"
+            class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 transition text-sm"
           />
         </div>
 
@@ -69,7 +69,7 @@
             type="password"
             maxlength="16"
             placeholder="Enter Supervisor PIN (e.g. 8888)"
-            class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 transition-all text-sm tracking-widest"
+            class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 transition text-sm"
           />
         </div>
       </div>
@@ -84,7 +84,7 @@
       <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-800">
         <button 
           @click="handleCancel"
-          class="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs font-bold transition-all border border-slate-700"
+          class="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs font-bold transition border border-slate-700"
         >
           取消 (Cancel)
         </button>
@@ -93,7 +93,7 @@
           @click="handleConfirm"
           :disabled="countdown > 0 || !canSubmit"
           :class="[
-            'w-full sm:w-auto px-6 py-2.5 rounded-xl font-mono text-xs font-black transition-all flex items-center justify-center gap-2 shadow-lg',
+            'w-full sm:w-auto px-6 py-2.5 rounded-xl font-mono text-xs font-black transition flex items-center justify-center gap-2 shadow-lg',
             countdown > 0 || !canSubmit 
               ? 'bg-rose-900/40 text-rose-400/50 border border-rose-800/40 cursor-not-allowed' 
               : 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/30 cursor-pointer animate-pulse'

@@ -28,14 +28,14 @@
 
         <button 
           @click="toggleRun" 
-          class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl font-bold transition-all"
+          class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl font-bold transition"
         >
           {{ isRunning ? '⏸ FREEZE' : '▶ RUN' }}
         </button>
 
         <button 
           @click="toggleFullscreen" 
-          class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl font-bold transition-all"
+          class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl font-bold transition"
         >
           ⛶ 全屏投屏
         </button>
@@ -48,7 +48,7 @@
       <div class="absolute inset-0 grid-scope-pattern pointer-events-none opacity-40"></div>
 
       <!-- Live Canvas Element -->
-      <canvas 
+      <canvas aria-hidden="true"
         ref="canvasRef" 
         class="w-full h-full block relative z-10"
       ></canvas>
@@ -80,7 +80,7 @@
     <!-- Scope Control Panel Bar -->
     <div class="mt-4 pt-4 border-t border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-mono">
       <div class="bg-slate-950/60 p-3 rounded-2xl border border-slate-800">
-        <span class="text-[10px] text-slate-500 block mb-1 uppercase">Timebase</span>
+        <span class="text-[10px] text-slate-500 block mb-1">Timebase</span>
         <select v-model="timebase" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-slate-200 focus:outline-none focus:border-emerald-500">
           <option :value="10">10 ms/div</option>
           <option :value="20">20 ms/div</option>
@@ -90,7 +90,7 @@
       </div>
 
       <div class="bg-slate-950/60 p-3 rounded-2xl border border-slate-800">
-        <span class="text-[10px] text-slate-500 block mb-1 uppercase">Voltage Scale</span>
+        <span class="text-[10px] text-slate-500 block mb-1">Voltage Scale</span>
         <select v-model="gain" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-slate-200 focus:outline-none focus:border-emerald-500">
           <option :value="1">1.0x (Standard)</option>
           <option :value="2">2.0x (Zoomed)</option>
@@ -99,7 +99,7 @@
       </div>
 
       <div class="bg-slate-950/60 p-3 rounded-2xl border border-slate-800">
-        <span class="text-[10px] text-slate-500 block mb-1 uppercase">Trigger Mode</span>
+        <span class="text-[10px] text-slate-500 block mb-1">Trigger Mode</span>
         <select v-model="triggerMode" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-slate-200 focus:outline-none focus:border-emerald-500">
           <option value="auto">AUTO (Edge)</option>
           <option value="normal">NORMAL</option>
@@ -108,7 +108,7 @@
       </div>
 
       <div class="bg-slate-950/60 p-3 rounded-2xl border border-slate-800">
-        <span class="text-[10px] text-slate-500 block mb-1 uppercase">Offscreen Buffer</span>
+        <span class="text-[10px] text-slate-500 block mb-1">Offscreen Buffer</span>
         <div class="text-sm font-black text-emerald-400 mt-1">
           DPI 2.0x (4K Synced)
         </div>

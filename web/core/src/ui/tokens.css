@@ -1,3 +1,6 @@
+/* Hallmark · checked: 2026-11-05 · genre: modern-minimal (inferred) · shape: app screen
+ * floor: batch 1, open findings remain · fixed: 10a, 20, 26b, 27, 33, 48, 63, 67
+ * kept: copy and colour values locked by tests/test_web_*.c · built: the project · redesign: polish · v2.0.0 */
 /* ============================================================================
  * Design Token —— 三层结构（v1.6 §9.2 / §9.11）
  *
@@ -154,4 +157,23 @@ a {
 :focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
+}
+
+::selection {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+:root {
+  caret-color: var(--color-primary);
+  scrollbar-color: var(--border-strong) var(--bg-page);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+button:disabled,
+[aria-disabled='true'] {
+  cursor: not-allowed;
 }

@@ -36,7 +36,7 @@
           @click="fetchData" 
           data-testid="history-query"
           :disabled="!selectedTagId || loading" 
-          class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-xl text-xs font-mono font-bold transition-all shadow flex items-center gap-1.5"
+          class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-xl text-xs font-mono font-bold transition shadow flex items-center gap-1.5"
         >
           <span v-if="loading" class="animate-spin">🌀</span>
           <span>{{ loading ? 'Querying...' : 'Query Data' }}</span>

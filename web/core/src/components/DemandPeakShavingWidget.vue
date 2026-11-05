@@ -36,13 +36,13 @@
     <div class="space-y-4 mb-6">
       <div class="flex justify-between items-end text-xs font-mono">
         <div>
-          <div class="text-slate-400 text-[10px] uppercase font-bold">15-Min Rolling Demand</div>
+          <div class="text-slate-400 text-[10px] font-bold">15-Min Rolling Demand</div>
           <div class="text-2xl font-black text-white font-mono mt-0.5">
             {{ rollingDemand.toFixed(1) }} <span class="text-xs text-slate-400">kW</span>
           </div>
         </div>
         <div class="text-right">
-          <div class="text-slate-400 text-[10px] uppercase font-bold">Transformer Load Rate</div>
+          <div class="text-slate-400 text-[10px] font-bold">Transformer Load Rate</div>
           <div 
             :class="[
               'text-2xl font-black font-mono mt-0.5',
@@ -72,7 +72,7 @@
 
         <!-- Active Load Level Bar -->
         <div 
-          class="h-full rounded-lg transition-all duration-500 relative z-0 flex items-center justify-end pr-2"
+          class="h-full rounded-lg transition duration-500 relative z-0 flex items-center justify-end pr-2"
           :style="{
             width: `${Math.min(100, (rollingDemand / 500) * 100)}%`,
             backgroundColor: loadRate > 80 ? '#F59E0B' : '#10B981'
@@ -93,7 +93,7 @@
 
     <!-- Mini History 15-min Intervals Histogram -->
     <div class="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl">
-      <div class="text-[10px] font-mono text-slate-400 font-bold uppercase mb-3 flex justify-between items-center">
+      <div class="text-[10px] font-mono text-slate-400 font-bold mb-3 flex justify-between items-center">
         <span>Today's 15-Min Demand History (Peak Intervals)</span>
         <span class="text-emerald-400">Peak Shaved: 12 Intervals</span>
       </div>
@@ -102,7 +102,7 @@
         <div 
           v-for="(val, idx) in historyDemand" 
           :key="idx" 
-          class="flex-1 bg-slate-800 hover:bg-sky-500 rounded-t transition-all group relative cursor-pointer"
+          class="flex-1 bg-slate-800 hover:bg-sky-500 rounded-t transition group relative cursor-pointer"
           :style="{ 
             height: `${(val / 500) * 100}%`,
             backgroundColor: val > 390 ? '#F59E0B' : (val > 350 ? '#38BDF8' : '#334155')

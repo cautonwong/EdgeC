@@ -35,7 +35,7 @@
 
     <!-- Gauge Visualization Canvas (SVG Arc Meter) -->
     <div class="relative w-full h-[220px] flex items-center justify-center">
-      <svg viewBox="0 0 300 180" class="w-full max-w-[340px] h-full">
+      <svg role="img" aria-label="数据图表" viewBox="0 0 300 180" class="w-full max-w-[340px] h-full">
         <!-- Background Track Arc -->
         <path
           d="M 40 150 A 110 110 0 0 1 260 150"
@@ -80,7 +80,7 @@
           :stroke="gridPower < 0 ? '#EF4444' : (Math.abs(gridPower) < deadband ? '#38BDF8' : '#10B981')"
           stroke-width="16"
           stroke-linecap="round"
-          class="transition-all duration-300"
+          class="transition duration-300"
         />
 
         <!-- Center Needle / Hub -->
@@ -93,7 +93,7 @@
           :stroke="gridPower < 0 ? '#EF4444' : '#F8FAFC'"
           stroke-width="3.5"
           stroke-linecap="round"
-          class="transition-all duration-300"
+          class="transition duration-300"
         />
         <circle cx="150" cy="150" r="5" fill="#38BDF8" />
 

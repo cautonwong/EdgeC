@@ -7,7 +7,7 @@
 
       <div class="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div class="space-y-2">
-          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[10px] font-black uppercase tracking-[0.2em]">
+          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[10px] font-black">
             <span class="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping"></span>
             Millisecond SOE & High-Frequency Stream Hub
           </div>
@@ -128,7 +128,7 @@
       <div class="overflow-x-auto">
         <table class="w-full text-left font-mono text-xs">
           <thead>
-            <tr class="bg-slate-950 border-b border-slate-800 text-slate-400 uppercase text-[10px] tracking-wider">
+            <tr class="bg-slate-950 border-b border-slate-800 text-slate-400 text-[10px]">
               <th class="p-4 w-12 text-center">#</th>
               <th class="p-4 w-32">SOE Timestamp (MTT)</th>
               <th class="p-4 w-28">Severity</th>
@@ -162,7 +162,7 @@
               <td class="p-4 whitespace-nowrap">
                 <span 
                   :class="[
-                    'px-2.5 py-1 rounded-lg text-[10px] font-black border uppercase inline-flex items-center gap-1.5',
+                    'px-2.5 py-1 rounded-lg text-[10px] font-black border inline-flex items-center gap-1.5',
                     getSeverityBadgeClass(evt.severity)
                   ]"
                 >
@@ -243,7 +243,7 @@
       <div class="bg-slate-900 border border-slate-700 rounded-3xl p-6 lg:p-8 max-w-xl w-full shadow-2xl relative font-mono text-xs space-y-6">
         <div class="flex justify-between items-start border-b border-slate-800 pb-4">
           <div>
-            <div class="text-[10px] text-cyan-400 uppercase font-bold tracking-widest">
+            <div class="text-[10px] text-cyan-400 font-bold">
               SOE Sequence of Events Record #{{ selectedEvent.id }}
             </div>
             <h2 class="text-xl font-black text-white mt-1">

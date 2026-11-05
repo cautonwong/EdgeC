@@ -170,8 +170,6 @@ async function logout(): Promise<void> {
   padding: 0 var(--space-3);
   color: var(--text-secondary);
   font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 .nav-item {
   display: block;

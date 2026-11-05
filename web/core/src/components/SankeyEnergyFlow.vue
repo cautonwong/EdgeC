@@ -18,12 +18,12 @@
 
       <div class="flex items-center gap-2">
         <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono font-bold">
-          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse motion-reduce:animate-none"></span>
           <span>GPU ACCELERATED</span>
         </span>
         <button 
           @click="toggleSimulation" 
-          class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-xl text-xs font-mono font-bold transition-all"
+          class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-xl text-xs font-mono font-bold transition"
         >
           {{ isSimulating ? 'Sim: Active' : 'Sim: Paused' }}
         </button>
@@ -32,7 +32,7 @@
 
     <!-- SVG Sankey Canvas -->
     <div class="relative w-full h-[420px] flex items-center justify-center">
-      <svg 
+      <svg role="img" aria-label="数据图表"
         viewBox="0 0 900 420" 
         class="w-full h-full preserve-3d"
         preserveAspectRatio="xMidYMid meet"

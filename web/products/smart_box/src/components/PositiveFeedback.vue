@@ -42,7 +42,7 @@
         <div class="absolute inset-0 bg-gradient-to-tr from-amber-500/10 via-emerald-500/10 to-indigo-500/10 blur-3xl pointer-events-none"></div>
 
         <div class="relative z-10">
-          <div class="inline-block bg-amber-950/80 border border-amber-800/80 text-amber-400 px-4 py-1.5 rounded-full font-mono text-xs font-bold uppercase tracking-widest mb-4">
+          <div class="inline-block bg-amber-950/80 border border-amber-800/80 text-amber-400 px-4 py-1.5 rounded-full font-mono text-xs font-bold mb-4">
             REHAB SESSION COMPLETED // 处方训练结算
           </div>
 
@@ -53,7 +53,7 @@
 
           <!-- 五星好评度 -->
           <div class="flex justify-center gap-2 text-4xl my-4">
-            <span v-for="star in 5" :key="star" class="transition-all duration-300 transform hover:scale-125" :class="star <= starsCount ? 'text-amber-400 drop-shadow-[0_0_12px_rgba(251,191,36,0.6)]' : 'text-slate-700'">
+            <span v-for="star in 5" :key="star" class="transition duration-300 transform hover:scale-125" :class="star <= starsCount ? 'text-amber-400 drop-shadow-[0_0_12px_rgba(251,191,36,0.6)]' : 'text-slate-700'">
               ★
             </span>
           </div>
@@ -61,7 +61,7 @@
           <!-- 完成度圆环与进度 -->
           <div class="w-full max-w-md mx-auto my-4 bg-slate-900 border border-slate-800 rounded-full h-6 p-1 relative overflow-hidden shadow-inner">
             <div 
-              class="h-full rounded-full bg-gradient-to-r from-emerald-500 to-amber-400 transition-all duration-1000 ease-out flex items-center justify-end pr-2 font-mono text-xs font-bold text-slate-950"
+              class="h-full rounded-full bg-gradient-to-r from-emerald-500 to-amber-400 transition duration-1000 ease-out flex items-center justify-end pr-2 font-mono text-xs font-bold text-slate-950"
               :style="{ width: `${displayCompletion}%` }"
             >
               {{ displayCompletion }}%
@@ -142,10 +142,10 @@
         
         <!-- P1 选手卡片 (红/橙主题) -->
         <div 
-          class="bg-slate-950 border-2 rounded-2xl p-6 transition-all duration-300 relative overflow-hidden"
+          class="bg-slate-950 border-2 rounded-2xl p-6 transition duration-300 relative overflow-hidden"
           :class="winner === 'p1' ? 'border-amber-500 shadow-xl shadow-amber-500/20' : 'border-slate-800'"
         >
-          <div v-if="winner === 'p1'" class="absolute top-4 right-4 bg-amber-500 text-slate-950 font-black text-xs px-3 py-1 rounded-full font-mono uppercase tracking-widest shadow-md">
+          <div v-if="winner === 'p1'" class="absolute top-4 right-4 bg-amber-500 text-slate-950 font-black text-xs px-3 py-1 rounded-full font-mono shadow-md">
             👑 本局获胜 (WINNER)
           </div>
 
@@ -162,19 +162,19 @@
           <!-- 核心指标列 -->
           <div class="grid grid-cols-2 gap-4 font-mono">
             <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl text-center">
-              <span class="text-xs text-slate-400 block uppercase">实时得分</span>
+              <span class="text-xs text-slate-400 block">实时得分</span>
               <span class="text-4xl font-black text-amber-400">{{ player1.score }}</span>
             </div>
             <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl text-center">
-              <span class="text-xs text-slate-400 block uppercase">动作完成度</span>
+              <span class="text-xs text-slate-400 block">动作完成度</span>
               <span class="text-4xl font-black text-emerald-400">{{ player1.completion }}%</span>
             </div>
             <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl text-center">
-              <span class="text-xs text-slate-400 block uppercase">踏板步频 (Cadence)</span>
+              <span class="text-xs text-slate-400 block">踏板步频 (Cadence)</span>
               <span class="text-2xl font-bold text-slate-200">{{ player1.cadence }} <span class="text-xs text-slate-500">RPM</span></span>
             </div>
             <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl text-center">
-              <span class="text-xs text-slate-400 block uppercase">下肢拉力 (Force)</span>
+              <span class="text-xs text-slate-400 block">下肢拉力 (Force)</span>
               <span class="text-2xl font-bold text-slate-200">{{ player1.force }} <span class="text-xs text-slate-500">N</span></span>
             </div>
           </div>
@@ -182,10 +182,10 @@
 
         <!-- P2 选手卡片 (蓝/青主题) -->
         <div 
-          class="bg-slate-950 border-2 rounded-2xl p-6 transition-all duration-300 relative overflow-hidden"
+          class="bg-slate-950 border-2 rounded-2xl p-6 transition duration-300 relative overflow-hidden"
           :class="winner === 'p2' ? 'border-cyan-500 shadow-xl shadow-cyan-500/20' : 'border-slate-800'"
         >
-          <div v-if="winner === 'p2'" class="absolute top-4 right-4 bg-cyan-500 text-slate-950 font-black text-xs px-3 py-1 rounded-full font-mono uppercase tracking-widest shadow-md">
+          <div v-if="winner === 'p2'" class="absolute top-4 right-4 bg-cyan-500 text-slate-950 font-black text-xs px-3 py-1 rounded-full font-mono shadow-md">
             👑 本局获胜 (WINNER)
           </div>
 
@@ -202,19 +202,19 @@
           <!-- 核心指标列 -->
           <div class="grid grid-cols-2 gap-4 font-mono">
             <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl text-center">
-              <span class="text-xs text-slate-400 block uppercase">实时得分</span>
+              <span class="text-xs text-slate-400 block">实时得分</span>
               <span class="text-4xl font-black text-cyan-400">{{ player2.score }}</span>
             </div>
             <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl text-center">
-              <span class="text-xs text-slate-400 block uppercase">动作完成度</span>
+              <span class="text-xs text-slate-400 block">动作完成度</span>
               <span class="text-4xl font-black text-emerald-400">{{ player2.completion }}%</span>
             </div>
             <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl text-center">
-              <span class="text-xs text-slate-400 block uppercase">踏板步频 (Cadence)</span>
+              <span class="text-xs text-slate-400 block">踏板步频 (Cadence)</span>
               <span class="text-2xl font-bold text-slate-200">{{ player2.cadence }} <span class="text-xs text-slate-500">RPM</span></span>
             </div>
             <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl text-center">
-              <span class="text-xs text-slate-400 block uppercase">下肢拉力 (Force)</span>
+              <span class="text-xs text-slate-400 block">下肢拉力 (Force)</span>
               <span class="text-2xl font-bold text-slate-200">{{ player2.force }} <span class="text-xs text-slate-500">N</span></span>
             </div>
           </div>
@@ -234,8 +234,8 @@
               <span class="text-cyan-400">李奶奶 ({{ player2.completion }}%)</span>
             </div>
             <div class="h-4 bg-slate-900 rounded-full flex overflow-hidden border border-slate-800">
-              <div class="bg-amber-500 transition-all duration-500" :style="{ width: `${(player1.completion / (player1.completion + player2.completion)) * 100}%` }"></div>
-              <div class="bg-cyan-500 transition-all duration-500" :style="{ width: `${(player2.completion / (player1.completion + player2.completion)) * 100}%` }"></div>
+              <div class="bg-amber-500 transition duration-500" :style="{ width: `${(player1.completion / (player1.completion + player2.completion)) * 100}%` }"></div>
+              <div class="bg-cyan-500 transition duration-500" :style="{ width: `${(player2.completion / (player1.completion + player2.completion)) * 100}%` }"></div>
             </div>
           </div>
         </div>

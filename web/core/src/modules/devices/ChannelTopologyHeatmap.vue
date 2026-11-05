@@ -7,7 +7,7 @@
 
       <div class="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div class="space-y-2">
-          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-[0.2em]">
+          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black">
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
             HPLC & Dual-Mode Physical Mesh Topology
           </div>
@@ -51,7 +51,7 @@
     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 font-mono text-xs">
       <!-- Total Nodes -->
       <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col justify-between">
-        <div class="text-slate-500 uppercase text-[10px] tracking-wider font-bold">Total Nodes</div>
+        <div class="text-slate-500 text-[10px] font-bold">Total Nodes</div>
         <div class="text-2xl lg:text-3xl font-black text-white my-1">{{ topologyStats.totalNodes }}</div>
         <div class="text-[11px] text-slate-400 flex items-center gap-1">
           <span class="text-emerald-400 font-bold">{{ topologyStats.onlineNodes }}</span> Online · <span class="text-rose-400 font-bold">{{ topologyStats.offlineNodes }}</span> Offline
@@ -60,7 +60,7 @@
 
       <!-- Average SNR -->
       <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col justify-between">
-        <div class="text-slate-500 uppercase text-[10px] tracking-wider font-bold">Average SNR</div>
+        <div class="text-slate-500 text-[10px] font-bold">Average SNR</div>
         <div class="text-2xl lg:text-3xl font-black text-emerald-400 my-1">{{ topologyStats.avgSnrDb.toFixed(1) }} <span class="text-xs font-normal text-slate-500">dB</span></div>
         <div class="text-[11px] text-slate-400">
           Min: <span class="text-slate-200 font-bold">{{ topologyStats.minSnrDb }}dB</span> · Max: <span class="text-cyan-400 font-bold">{{ topologyStats.maxSnrDb }}dB</span>
@@ -69,7 +69,7 @@
 
       <!-- Max Relay Hops -->
       <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col justify-between">
-        <div class="text-slate-500 uppercase text-[10px] tracking-wider font-bold">Max Relay Hops</div>
+        <div class="text-slate-500 text-[10px] font-bold">Max Relay Hops</div>
         <div class="text-2xl lg:text-3xl font-black text-blue-400 my-1">{{ topologyStats.maxHops }} <span class="text-xs font-normal text-slate-500">Hops</span></div>
         <div class="text-[11px] text-slate-400">
           CCO Level: 0 · Mesh Depth: {{ topologyStats.maxHops + 1 }}
@@ -78,7 +78,7 @@
 
       <!-- Packet Loss Rate -->
       <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col justify-between">
-        <div class="text-slate-500 uppercase text-[10px] tracking-wider font-bold">Overall Loss Rate</div>
+        <div class="text-slate-500 text-[10px] font-bold">Overall Loss Rate</div>
         <div class="text-2xl lg:text-3xl font-black text-white my-1" :class="topologyStats.avgLossPct > 5 ? 'text-amber-400' : 'text-emerald-400'">
           {{ topologyStats.avgLossPct.toFixed(2) }} <span class="text-xs font-normal text-slate-500">%</span>
         </div>
@@ -89,7 +89,7 @@
 
       <!-- Phase Crosstalk Leakage -->
       <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col justify-between">
-        <div class="text-slate-500 uppercase text-[10px] tracking-wider font-bold">Phase Crosstalk</div>
+        <div class="text-slate-500 text-[10px] font-bold">Phase Crosstalk</div>
         <div class="text-2xl lg:text-3xl font-black text-amber-400 my-1">{{ topologyStats.crosstalkLevelDb.toFixed(1) }} <span class="text-xs font-normal text-slate-500">dB</span></div>
         <div class="text-[11px] text-slate-400">
           Phase A-B Coupl: <span class="text-slate-200 font-bold">Safe</span>
@@ -98,7 +98,7 @@
 
       <!-- Active Technology -->
       <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col justify-between">
-        <div class="text-slate-500 uppercase text-[10px] tracking-wider font-bold">Channel Tech</div>
+        <div class="text-slate-500 text-[10px] font-bold">Channel Tech</div>
         <div class="text-2xl lg:text-3xl font-black text-cyan-400 my-1">HPLC+RF</div>
         <div class="text-[11px] text-slate-400">
           Dual-Mode OFDM (SGCC)
@@ -176,7 +176,7 @@
     <div v-if="activeViewMode === 'topology'" class="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
       <div class="flex items-center justify-between mb-4 font-mono text-xs">
         <div class="flex items-center gap-2">
-          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse motion-reduce:animate-none"></span>
           <span class="font-bold text-slate-300">PHYSICAL MESH TOPOLOGY MAP</span>
           <span class="text-slate-500">({{ filteredNodes.length }} Visible Nodes)</span>
         </div>
@@ -194,7 +194,7 @@
 
       <!-- SVG Topology Visual Canvas -->
       <div class="w-full h-[540px] bg-slate-950/80 rounded-2xl border border-slate-800/80 relative overflow-hidden flex items-center justify-center select-none">
-        <svg class="w-full h-full" viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+        <svg role="img" aria-label="数据图表" class="w-full h-full" viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
           <!-- Background Grid Lines -->
           <defs>
             <pattern id="topoGrid" width="40" height="40" patternUnits="userSpaceOnUse">
@@ -227,7 +227,7 @@
                 :stroke="getLinkColor(link.snrDb)"
                 :stroke-width="getLinkWidth(link.snrDb)"
                 stroke-dasharray="4,4"
-                class="transition-all duration-300 opacity-70"
+                class="transition duration-300 opacity-70"
               />
               <!-- Midpoint SNR Badge -->
               <rect 
@@ -485,7 +485,7 @@
             <div class="space-y-1">
               <div class="flex items-center gap-2">
                 <span 
-                  class="px-2 py-0.5 rounded text-[10px] font-bold uppercase"
+                  class="px-2 py-0.5 rounded text-[10px] font-bold"
                   :class="noise.severity === 'CRITICAL' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'"
                 >
                   {{ noise.type }}
@@ -606,22 +606,22 @@
       <!-- Physical Parameters Grid -->
       <div class="grid grid-cols-2 gap-3">
         <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 space-y-1">
-          <div class="text-slate-500 text-[10px] uppercase">Channel Tech</div>
+          <div class="text-slate-500 text-[10px]">Channel Tech</div>
           <div class="text-sm font-bold text-white">{{ selectedNode.tech }}</div>
           <div class="text-[10px] text-emerald-400">Carrier Phase: {{ selectedNode.phaseLabel }}</div>
         </div>
         <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 space-y-1">
-          <div class="text-slate-500 text-[10px] uppercase">SNR / Signal</div>
+          <div class="text-slate-500 text-[10px]">SNR / Signal</div>
           <div class="text-sm font-bold text-emerald-400">{{ selectedNode.snrDb }} dB</div>
           <div class="text-[10px] text-slate-400">Atten: {{ selectedNode.attenuationDbm }} dBm</div>
         </div>
         <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 space-y-1">
-          <div class="text-slate-500 text-[10px] uppercase">Modulation Scheme</div>
+          <div class="text-slate-500 text-[10px]">Modulation Scheme</div>
           <div class="text-sm font-bold text-cyan-400">{{ selectedNode.modulation }}</div>
           <div class="text-[10px] text-slate-400">BER: {{ selectedNode.ber }}</div>
         </div>
         <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 space-y-1">
-          <div class="text-slate-500 text-[10px] uppercase">Relay Topology</div>
+          <div class="text-slate-500 text-[10px]">Relay Topology</div>
           <div class="text-sm font-bold text-blue-400">{{ selectedNode.hops }} Hops</div>
           <div class="text-[10px] text-slate-400">Parent: {{ selectedNode.parentName || 'None (Root)' }}</div>
         </div>
@@ -659,7 +659,7 @@
             class="flex-1 flex flex-col items-center gap-1 group"
           >
             <div 
-              class="w-full rounded-t transition-all duration-300"
+              class="w-full rounded-t transition duration-300"
               :style="{ height: `${Math.min(100, Math.max(10, subSnr * 2.5))}%`, backgroundColor: getSnrHeatmapColor(subSnr) }"
             ></div>
             <span class="text-[8px] text-slate-500 font-mono">{{ idx }}</span>

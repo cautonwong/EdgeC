@@ -7,7 +7,7 @@
 
       <div class="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div class="space-y-2">
-          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase tracking-[0.2em]">
+          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black">
             <span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping"></span>
             Real-Time System Metrics & Telemetry Matrix
           </div>
@@ -70,7 +70,7 @@
         <!-- Progress Bar -->
         <div class="w-full bg-slate-950 rounded-full h-2.5 overflow-hidden border border-slate-800 mb-3">
           <div 
-            class="h-full rounded-full transition-all duration-500"
+            class="h-full rounded-full transition duration-500"
             :class="getProgressBarColor(metrics.datahub.watermarkPct)"
             :style="{ width: `${metrics.datahub.watermarkPct}%` }"
           ></div>
@@ -98,7 +98,7 @@
         <!-- Progress Bar -->
         <div class="w-full bg-slate-950 rounded-full h-2.5 overflow-hidden border border-slate-800 mb-3">
           <div 
-            class="h-full rounded-full transition-all duration-500"
+            class="h-full rounded-full transition duration-500"
             :class="getProgressBarColor(metrics.system.cpuLoadPct)"
             :style="{ width: `${metrics.system.cpuLoadPct}%` }"
           ></div>
@@ -126,7 +126,7 @@
         <!-- Progress Bar -->
         <div class="w-full bg-slate-950 rounded-full h-2.5 overflow-hidden border border-slate-800 mb-3">
           <div 
-            class="h-full bg-indigo-500 rounded-full transition-all duration-500"
+            class="h-full bg-indigo-500 rounded-full transition duration-500"
             :style="{ width: `${(metrics.system.memoryRssMb / metrics.system.memoryTotalMb) * 100}%` }"
           ></div>
         </div>
@@ -186,7 +186,7 @@
             <span>Now</span>
           </div>
 
-          <svg class="w-full h-32 overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
+          <svg aria-hidden="true" class="w-full h-32 overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
             <!-- Grid Lines -->
             <line x1="0" y1="25" x2="500" y2="25" stroke="#1e293b" stroke-dasharray="4 4" />
             <line x1="0" y1="50" x2="500" y2="50" stroke="#1e293b" stroke-dasharray="4 4" />
@@ -266,7 +266,7 @@
             <span>Now</span>
           </div>
 
-          <svg class="w-full h-32 overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
+          <svg aria-hidden="true" class="w-full h-32 overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
             <!-- Grid Lines -->
             <line x1="0" y1="25" x2="500" y2="25" stroke="#1e293b" stroke-dasharray="4 4" />
             <line x1="0" y1="50" x2="500" y2="50" stroke="#1e293b" stroke-dasharray="4 4" />
@@ -361,7 +361,7 @@
           <span class="w-24 text-slate-400 text-[11px] select-none flex-shrink-0">{{ bucket.range }}</span>
           <div class="flex-1 bg-slate-950 rounded-full h-3 overflow-hidden border border-slate-800 relative">
             <div 
-              class="h-full rounded-full transition-all duration-500"
+              class="h-full rounded-full transition duration-500"
               :class="bucket.barColor"
               :style="{ width: `${bucket.percentage}%` }"
             ></div>

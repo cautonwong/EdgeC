@@ -42,7 +42,7 @@
         <div 
           v-for="slot in hourlySchedule" 
           :key="slot.hour"
-          class="flex-1 h-full relative group transition-all"
+          class="flex-1 h-full relative group transition"
           :style="{ backgroundColor: getTariffColor(slot.tier) }"
           :title="`${slot.hour}:00 - ${slot.hour + 1}:00 | ${slot.tier.toUpperCase()}: ${slot.price} ¥/kWh`"
         >
@@ -54,7 +54,7 @@
 
         <!-- Current Time Indicator Needle -->
         <div 
-          class="absolute top-0 bottom-0 w-1 bg-white shadow-[0_0_8px_#ffffff] z-10 transition-all pointer-events-none"
+          class="absolute top-0 bottom-0 w-1 bg-white shadow-[0_0_8px_#ffffff] z-10 transition pointer-events-none"
           :style="{ left: `${(currentMinutes / 1440) * 100}%` }"
         ></div>
       </div>
@@ -94,7 +94,7 @@
     <!-- Arbitrage Metrics KPI Grid -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <div class="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl">
-        <div class="text-[10px] font-mono text-amber-400 uppercase tracking-wider font-bold mb-1">Daily Revenue</div>
+        <div class="text-[10px] font-mono text-amber-400 font-bold mb-1">Daily Revenue</div>
         <div class="text-2xl font-black font-mono text-white">
           +¥{{ dailyRevenue.toFixed(2) }}
         </div>
@@ -104,7 +104,7 @@
       </div>
 
       <div class="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl">
-        <div class="text-[10px] font-mono text-emerald-400 uppercase tracking-wider font-bold mb-1">Charged (Valley)</div>
+        <div class="text-[10px] font-mono text-emerald-400 font-bold mb-1">Charged (Valley)</div>
         <div class="text-2xl font-black font-mono text-white">
           {{ chargedKwh.toFixed(1) }} <span class="text-xs text-slate-400">kWh</span>
         </div>
@@ -114,7 +114,7 @@
       </div>
 
       <div class="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl">
-        <div class="text-[10px] font-mono text-purple-400 uppercase tracking-wider font-bold mb-1">Discharged (Peak)</div>
+        <div class="text-[10px] font-mono text-purple-400 font-bold mb-1">Discharged (Peak)</div>
         <div class="text-2xl font-black font-mono text-white">
           {{ dischargedKwh.toFixed(1) }} <span class="text-xs text-slate-400">kWh</span>
         </div>
@@ -124,7 +124,7 @@
       </div>
 
       <div class="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl">
-        <div class="text-[10px] font-mono text-sky-400 uppercase tracking-wider font-bold mb-1">Round-Trip RTE</div>
+        <div class="text-[10px] font-mono text-sky-400 font-bold mb-1">Round-Trip RTE</div>
         <div class="text-2xl font-black font-mono text-white">
           {{ ((dischargedKwh / (chargedKwh || 1)) * 100).toFixed(1) }}<span class="text-xs text-slate-400">%</span>
         </div>

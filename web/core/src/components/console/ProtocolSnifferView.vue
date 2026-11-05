@@ -125,7 +125,7 @@
         class="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent border-b lg:border-b-0 lg:border-r border-slate-850"
       >
         <table class="w-full text-left border-collapse text-xs">
-          <thead class="sticky top-0 bg-[#070e1b] border-b border-slate-800 text-[10px] text-slate-500 font-bold uppercase tracking-wider select-none z-10">
+          <thead class="sticky top-0 bg-[#070e1b] border-b border-slate-800 text-[10px] text-slate-500 font-bold select-none z-10">
             <tr>
               <th class="py-2 px-3 w-12 text-center">#</th>
               <th class="py-2 px-3 w-28">MTT Time</th>
@@ -151,7 +151,7 @@
               <!-- Direction -->
               <td class="py-2 px-2 text-center">
                 <span 
-                  class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase"
+                  class="px-1.5 py-0.5 rounded text-[9px] font-black"
                   :class="pkt.direction === 'TX' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'"
                 >
                   {{ pkt.direction }}
@@ -182,7 +182,7 @@
                     CRC ERR
                   </span>
                 </div>
-                <div class="text-[10px] text-amber-400/80 tracking-wider truncate max-w-xl font-mono pt-0.5">
+                <div class="text-[10px] text-amber-400/80 truncate max-w-xl font-mono pt-0.5">
                   {{ pkt.hexString }}
                 </div>
               </td>
@@ -210,7 +210,7 @@
             <div class="flex items-center gap-2">
               <span class="text-cyan-400 font-bold text-sm">{{ selectedPacket.protocol }} Dissection</span>
               <span 
-                class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase"
+                class="px-1.5 py-0.5 rounded text-[10px] font-bold"
                 :class="selectedPacket.direction === 'TX' ? 'bg-blue-500/20 text-blue-400' : 'bg-emerald-500/20 text-emerald-400'"
               >
                 {{ selectedPacket.direction }}

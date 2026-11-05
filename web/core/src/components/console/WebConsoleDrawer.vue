@@ -15,7 +15,7 @@
         'fixed inset-x-0 bottom-0 rounded-t-3xl shadow-2xl'
       ]"
       :style="drawerMode === 'docked' ? { height: `${drawerHeightVh}vh` } : {}"
-      class="bg-[#050b14] border border-slate-800 text-[#f8fafc] flex flex-col overflow-hidden shadow-2xl transition-all duration-200"
+      class="bg-[#050b14] border border-slate-800 text-[#f8fafc] flex flex-col overflow-hidden shadow-2xl transition duration-200"
     >
       <!-- Top Draggable Resize Bar (for Docked Mode) -->
       <div 
@@ -110,7 +110,7 @@
             >
               <span class="text-slate-600 shrink-0">{{ log.time }}</span>
               <span 
-                class="px-1 rounded text-[9px] font-bold uppercase shrink-0"
+                class="px-1 rounded text-[9px] font-bold shrink-0"
                 :class="getLogLevelClass(log.level)"
               >
                 {{ log.level }}
@@ -138,11 +138,11 @@
               v-for="macro in quickMacros" 
               :key="macro.id"
               @click="runMacro(macro)"
-              class="bg-slate-950 border border-slate-800 hover:border-emerald-500/50 p-4 rounded-2xl cursor-pointer transition-all hover:scale-[1.02] shadow-lg group space-y-2"
+              class="bg-slate-950 border border-slate-800 hover:border-emerald-500/50 p-4 rounded-2xl cursor-pointer transition hover:scale-[1.02] shadow-lg group space-y-2"
             >
               <div class="flex items-center justify-between">
                 <span class="text-lg">{{ macro.icon }}</span>
-                <span class="text-[10px] px-2 py-0.5 rounded bg-slate-900 text-slate-400 font-bold uppercase">{{ macro.plane }}</span>
+                <span class="text-[10px] px-2 py-0.5 rounded bg-slate-900 text-slate-400 font-bold">{{ macro.plane }}</span>
               </div>
               <div class="font-bold text-white group-hover:text-emerald-400 transition-colors">{{ macro.name }}</div>
               <p class="text-[11px] text-slate-500 leading-relaxed">{{ macro.description }}</p>

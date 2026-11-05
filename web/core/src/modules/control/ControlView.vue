@@ -175,7 +175,7 @@ onMounted(() => {
         <header class="card__head">
           <div>
             <h2 class="card__title">{{ device.name }}</h2>
-            <p class="card__sub">{{ device.location }} · 额定 {{ device.ratedA }}A</p>
+            <p class="card__sub">{{ device.location }}，额定 {{ device.ratedA }}A</p>
           </div>
           <UiStatusBadge
             :status="device.state === 'closed' ? 'normal' : 'offline'"
