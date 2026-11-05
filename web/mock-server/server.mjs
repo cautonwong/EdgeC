@@ -415,6 +415,41 @@ function recordDelivery(channel, alarm, result) {
   return delivery;
 }
 
+/**
+ * 先**同步**落一条 pending，再异步把结果写回同一条记录。
+ * 为什么：Webhook 可能要几秒（超时+重试），这期间页面和调用方应该能看到"正在投递"，
+ * 而不是一条记录都没有 —— 一个请求发出去了却查不到任何痕迹，是另一种说不清。
+ */
+function createPendingDelivery(channel, alarm) {
+  deliverySeq += 1;
+  const delivery = {
+    id: `dl_${String(deliverySeq).padStart(4, '0')}`,
+    channelId: channel.id,
+    channelName: channel.name,
+    alarmId: alarm?.id ?? null,
+    code: alarm?.code ?? 'TEST',
+    level: alarm?.level ?? 'info',
+    ts: new Date().toISOString(),
+    status: 'pending',
+    attempts: 0,
+    httpStatus: null,
+    error: null,
+    note: alarm?.message ?? '测试消息',
+  };
+  notificationDeliveries.unshift(delivery);
+  return delivery;
+}
+
+function finalizeDelivery(delivery, channel, result) {
+  delivery.status = result.status;
+  delivery.attempts = result.attempts;
+  delivery.httpStatus = result.httpStatus;
+  delivery.error = result.error;
+  channel.lastDeliveryAt = new Date().toISOString();
+  channel.lastError = result.status === 'delivered' ? null : (result.error ?? '投递失败');
+  return delivery;
+}
+
 /** 返回 {status, attempts, httpStatus, error}，最多 NOTIFY_MAX_ATTEMPTS 次。 */
 async function sendWebhook(channel, alarm) {
   const payload = JSON.stringify({
@@ -455,7 +490,8 @@ function deliverAlarm(alarm) {
     // 复用全局 LEVEL_ORDER：**数字越小越严重**（critical=0 … info=4）
     if ((LEVEL_ORDER[alarm.level] ?? 4) > (LEVEL_ORDER[channel.minLevel] ?? 4)) continue;
     if (alarm.state === 'silenced') continue;
-    void sendWebhook(channel, alarm).then((result) => recordDelivery(channel, alarm, result));
+    const delivery = createPendingDelivery(channel, alarm);
+    void sendWebhook(channel, alarm).then((result) => finalizeDelivery(delivery, channel, result));
   }
 }
 
@@ -863,8 +899,9 @@ const handlers = {
         status: 'skipped', attempts: 0, httpStatus: null, error: '渠道未启用，测试未发送',
       });
     }
-    // 返回"已受理"，真实结果异步写进 deliveries（用例轮询）
-    void sendWebhook(channel, null).then((result) => recordDelivery(channel, null, result));
+    // 返回"已受理"，真实结果异步写回同一条 records（用例轮询）
+    const delivery = createPendingDelivery(channel, null);
+    void sendWebhook(channel, null).then((result) => finalizeDelivery(delivery, channel, result));
     return { accepted: true, channelId: channel.id, attempts: NOTIFY_MAX_ATTEMPTS };
   },
 
