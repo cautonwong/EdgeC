@@ -7,10 +7,10 @@
           <h1 class="text-3xl font-black text-slate-100 tracking-tight font-mono">
             DATA <span class="text-blue-500 font-sans font-black">CURVES</span>
           </h1>
-          <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-blue-500/10 text-blue-400 border border-blue-500/20">
+          <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
             LTTB Accelerated
           </span>
-          <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
             60 FPS
           </span>
         </div>
@@ -26,14 +26,14 @@
           <button 
             @click="viewMode = 'multi'"
             :class="viewMode === 'multi' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'"
-            class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+            class="px-3 py-1.5 rounded-lg text-xs font-bold transition"
           >
             4-Series Microgrid
           </button>
           <button 
             @click="viewMode = 'single'"
             :class="viewMode === 'single' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'"
-            class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+            class="px-3 py-1.5 rounded-lg text-xs font-bold transition"
           >
             Single Tag Focus
           </button>
@@ -54,7 +54,7 @@
         <!-- Benchmark 100k Generator -->
         <button 
           @click="loadBenchmark100k"
-          class="px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-mono font-bold transition-all flex items-center gap-1.5"
+          class="px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-mono font-bold transition flex items-center gap-1.5"
           :title="'Generate 100,000 data points to stress test LTTB downsampling'"
         >
           <span>⚡</span>
@@ -65,7 +65,7 @@
         <button 
           @click="toggleStreaming"
           :class="isStreaming ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-slate-800 text-slate-400 border-slate-700'"
-          class="px-3 py-1.5 border rounded-xl text-xs font-mono font-bold transition-all flex items-center gap-1.5"
+          class="px-3 py-1.5 border rounded-xl text-xs font-mono font-bold transition flex items-center gap-1.5"
         >
           <span class="w-2 h-2 rounded-full" :class="isStreaming ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'"></span>
           <span>{{ isStreaming ? 'LIVE STREAM' : 'PAUSED' }}</span>
@@ -81,7 +81,7 @@
         class="bg-slate-900/60 rounded-2xl p-4 border border-slate-800/80 relative overflow-hidden backdrop-blur-sm"
       >
         <div class="flex justify-between items-start">
-          <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{{ kpi.name }}</span>
+          <span class="text-[11px] font-bold text-slate-400">{{ kpi.name }}</span>
           <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: kpi.color }"></span>
         </div>
         <div class="mt-2 flex items-baseline gap-2">

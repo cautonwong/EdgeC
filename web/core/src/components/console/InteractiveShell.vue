@@ -10,7 +10,7 @@
         ></span>
         <span class="text-slate-400">Bridge:</span>
         <span 
-          class="font-bold uppercase"
+          class="font-bold"
           :class="channelMode === 'WS' ? 'text-emerald-400' : (channelMode === 'REST' ? 'text-amber-400' : 'text-rose-400')"
         >
           {{ channelMode === 'WS' ? 'WebSocket (/api/v1/ws/cli)' : (channelMode === 'REST' ? 'REST PTY Fallback' : 'OFFLINE') }}

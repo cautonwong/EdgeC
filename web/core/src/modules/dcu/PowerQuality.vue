@@ -7,8 +7,8 @@
 
       <div class="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div class="space-y-2">
-          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400 text-[10px] font-black uppercase tracking-[0.2em]">
-            <span class="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse"></span>
+          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400 text-[10px] font-black">
+            <span class="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse motion-reduce:animate-none"></span>
             GB/T 15543 & 14549 Power Quality Engine
           </div>
           <h1 class="text-3xl lg:text-4xl font-black text-white tracking-tight leading-tight font-mono">
@@ -62,7 +62,7 @@
 
         <!-- SVG Polar Vector Canvas -->
         <div class="relative flex items-center justify-center p-2">
-          <svg viewBox="-160 -160 320 320" class="w-full max-w-[340px] aspect-square">
+          <svg role="img" aria-label="数据图表" viewBox="-160 -160 320 320" class="w-full max-w-[340px] aspect-square">
             <!-- Concentric Grid Rings -->
             <circle cx="0" cy="0" r="140" fill="none" stroke="#1e293b" stroke-width="1.5" stroke-dasharray="4 4" />
             <circle cx="0" cy="0" r="105" fill="none" stroke="#1e293b" stroke-width="1" />
@@ -200,7 +200,7 @@
             <!-- Positive Sequence U1 -->
             <div class="bg-slate-950 border border-slate-800/80 p-4 rounded-2xl space-y-1 relative overflow-hidden">
               <div class="absolute top-0 right-0 w-16 h-16 bg-emerald-500/10 rounded-full blur-xl"></div>
-              <div class="text-slate-500 text-[10px] uppercase font-bold tracking-wider">Positive Seq (正序 U1)</div>
+              <div class="text-slate-500 text-[10px] font-bold">Positive Seq (正序 U1)</div>
               <div class="text-2xl font-black text-emerald-400">{{ posSeqVoltage.toFixed(1) }} <span class="text-xs text-slate-400">V</span></div>
               <div class="text-[10px] text-slate-400">I1: <strong class="text-emerald-300">{{ posSeqCurrent.toFixed(1) }} A</strong></div>
               <div class="text-[9px] text-slate-500">Fundamental working power</div>
@@ -209,7 +209,7 @@
             <!-- Negative Sequence U2 -->
             <div class="bg-slate-950 border border-slate-800/80 p-4 rounded-2xl space-y-1 relative overflow-hidden">
               <div class="absolute top-0 right-0 w-16 h-16 bg-rose-500/10 rounded-full blur-xl"></div>
-              <div class="text-slate-500 text-[10px] uppercase font-bold tracking-wider">Negative Seq (负序 U2)</div>
+              <div class="text-slate-500 text-[10px] font-bold">Negative Seq (负序 U2)</div>
               <div class="text-2xl font-black" :class="negSeqVoltage > 4.4 ? 'text-rose-400' : 'text-slate-200'">
                 {{ negSeqVoltage.toFixed(2) }} <span class="text-xs text-slate-400">V</span>
               </div>
@@ -222,7 +222,7 @@
             <!-- Zero Sequence U0 -->
             <div class="bg-slate-950 border border-slate-800/80 p-4 rounded-2xl space-y-1 relative overflow-hidden">
               <div class="absolute top-0 right-0 w-16 h-16 bg-amber-500/10 rounded-full blur-xl"></div>
-              <div class="text-slate-500 text-[10px] uppercase font-bold tracking-wider">Zero Seq (零序 U0 / In)</div>
+              <div class="text-slate-500 text-[10px] font-bold">Zero Seq (零序 U0 / In)</div>
               <div class="text-2xl font-black text-amber-400">{{ zeroSeqVoltage.toFixed(2) }} <span class="text-xs text-slate-400">V</span></div>
               <div class="text-[10px] text-slate-400">In (Neutral): <strong class="text-amber-300">{{ neutralCurrent.toFixed(1) }} A</strong></div>
               <div class="text-[9px] text-slate-500">Neutral line current load</div>
@@ -240,7 +240,7 @@
               </div>
               <div class="h-2 bg-slate-900 rounded-full overflow-hidden flex">
                 <div 
-                  class="transition-all duration-500 rounded-full" 
+                  class="transition duration-500 rounded-full"
                   :class="voltageUnbalancePct > 2.0 ? 'bg-rose-500' : 'bg-cyan-400'"
                   :style="{ width: Math.min(100, (voltageUnbalancePct / 4.0) * 100) + '%' }"
                 ></div>
@@ -256,7 +256,7 @@
               </div>
               <div class="h-2 bg-slate-900 rounded-full overflow-hidden flex">
                 <div 
-                  class="transition-all duration-500 rounded-full" 
+                  class="transition duration-500 rounded-full"
                   :class="currentUnbalancePct > 15.0 ? 'bg-amber-500' : 'bg-emerald-400'"
                   :style="{ width: Math.min(100, (currentUnbalancePct / 40.0) * 100) + '%' }"
                 ></div>
@@ -354,7 +354,7 @@
 
             <!-- The Bar -->
             <div 
-              class="w-full rounded-t transition-all duration-300 group-hover:brightness-125"
+              class="w-full rounded-t transition duration-300 group-hover:brightness-125"
               :class="getHarmonicBarColor(order + 1, harmonicPcts[order + 1] || 0.1)"
               :style="{ height: Math.min(100, ((harmonicPcts[order + 1] || 0.1) / 6.0) * 100) + '%' }"
             ></div>
@@ -390,7 +390,7 @@
 
         <!-- Decision Summary Card -->
         <div 
-          class="p-4 rounded-2xl border transition-all font-mono text-xs space-y-3"
+          class="p-4 rounded-2xl border transition font-mono text-xs space-y-3"
           :class="isSwitchRecommended ? 'bg-amber-500/10 border-amber-500/30 text-amber-200' : 'bg-slate-950 border-slate-800 text-slate-400'"
         >
           <div class="flex items-center justify-between font-bold">

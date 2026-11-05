@@ -9,7 +9,7 @@
       <!-- Parameters List -->
       <div class="lg:col-span-2 space-y-4">
         <div v-for="param in parameters" :key="param.key" 
-             class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center hover:border-indigo-200 transition-all group">
+             class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center hover:border-indigo-200 transition group">
           <div>
             <div class="text-sm font-bold text-gray-700 font-mono">{{ param.key }}</div>
             <div class="text-xs text-gray-400 mt-1">Type: {{ param.type }} | Registry: Persistent</div>
@@ -17,8 +17,8 @@
           <div class="flex items-center gap-4">
             <div class="text-lg font-mono font-bold text-indigo-600">{{ param.value }}</div>
             <button @click="openEditor(param)" 
-                    class="p-2 opacity-0 group-hover:opacity-100 bg-gray-50 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    class="p-2 opacity-0 group-hover:opacity-100 bg-gray-50 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition">
+              <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
               </svg>
             </button>
@@ -30,7 +30,7 @@
       <div class="space-y-6">
         <div class="bg-indigo-900 text-white p-6 rounded-xl shadow-lg shadow-indigo-200">
           <h3 class="font-bold mb-3 flex items-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             Audit Notice

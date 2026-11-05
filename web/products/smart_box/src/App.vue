@@ -5,7 +5,7 @@
     <header class="flex flex-col lg:flex-row justify-between items-start lg:items-center border-b border-slate-800 pb-4 mb-6 gap-4">
       <div>
         <div class="flex items-center gap-2">
-          <span class="inline-block w-3 h-3 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span class="inline-block w-3 h-3 rounded-full bg-emerald-400 animate-pulse motion-reduce:animate-none"></span>
           <h1 class="text-2xl lg:text-3xl font-black tracking-tight text-white font-mono">
             SMARTBOX <span class="text-emerald-400 font-sans">REHAB & HEALTH HUB</span>
           </h1>
@@ -43,7 +43,7 @@
         <button 
           @click="requestPrivacyToggle" 
           :class="[
-            'px-4 py-2 rounded-2xl font-mono font-bold text-xs tracking-wider transition uppercase border flex items-center gap-2',
+            'px-4 py-2 rounded-2xl font-mono font-bold text-xs transition border flex items-center gap-2',
             privacyMode 
               ? 'bg-rose-950/80 border-rose-500 text-rose-300 shadow-[0_0_15px_rgba(239,68,68,0.4)]' 
               : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-300'
@@ -60,21 +60,21 @@
       <!-- Top Health KPI Cards -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div class="bg-slate-900/90 border-2 border-slate-800 hover:border-emerald-500/50 rounded-3xl p-6 transition duration-200 backdrop-blur">
-          <div class="text-xs font-bold text-slate-400 font-mono tracking-widest uppercase">🏃 步态运动分析 (Cadence)</div>
+          <div class="text-xs font-bold text-slate-400 font-mono">🏃 步态运动分析 (Cadence)</div>
           <div class="text-4xl lg:text-5xl font-mono font-black text-slate-100 mt-4">112 <span class="text-sm text-slate-400">步/分</span></div>
           <p class="text-xs text-emerald-400 font-mono mt-3">状态：步态高度对称 (非对称度 4.2%)</p>
         </div>
 
         <div class="bg-slate-900/90 border-2 border-slate-800 hover:border-sky-500/50 rounded-3xl p-6 transition duration-200 backdrop-blur">
-          <div class="text-xs font-bold text-slate-400 font-mono tracking-widest uppercase">❤️ 物理实时心率 (BLE)</div>
+          <div class="text-xs font-bold text-slate-400 font-mono">❤️ 物理实时心率 (BLE)</div>
           <div class="text-4xl lg:text-5xl font-mono font-black text-sky-400 mt-4">76 <span class="text-sm text-slate-400">BPM</span></div>
           <p class="text-xs text-slate-500 font-mono mt-3">手环信号：极佳 // 心率波动稳定</p>
         </div>
 
         <div class="bg-slate-900/90 border-2 border-slate-800 hover:border-amber-500/50 rounded-3xl p-6 transition duration-200 backdrop-blur">
-          <div class="text-xs font-bold text-slate-400 font-mono tracking-widest uppercase">💰 本日康复金币 (Coins)</div>
+          <div class="text-xs font-bold text-slate-400 font-mono">💰 本日康复金币 (Coins)</div>
           <div class="text-4xl lg:text-5xl font-mono font-black text-amber-400 mt-4">{{ goldCoins }} <span class="text-sm text-slate-400">金币</span></div>
-          <button @click="redeemTraffic" class="text-xs font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 px-3 py-1.5 rounded-xl mt-3 transition font-mono uppercase shadow">
+          <button @click="redeemTraffic" class="text-xs font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 px-3 py-1.5 rounded-xl mt-3 transition font-mono shadow">
             兑换 10MB 外网流量 (扣减 100 金币)
           </button>
         </div>
@@ -92,7 +92,7 @@
           <div>
             <div class="flex items-center gap-2 mb-4">
               <span class="text-xl">🤖</span>
-              <h2 class="text-lg font-extrabold text-emerald-400 font-mono uppercase">AI 虚拟康复伴侣</h2>
+              <h2 class="text-lg font-extrabold text-emerald-400 font-mono">AI 虚拟康复伴侣</h2>
             </div>
             <div class="bg-slate-950 border border-slate-800 rounded-2xl p-4 h-64 overflow-y-auto mb-4 text-xs font-mono flex flex-col gap-2.5">
               <div v-for="(chat, idx) in chatLogs" :key="idx" :class="[chat.role === 'user' ? 'text-sky-400 text-right' : 'text-slate-300']">

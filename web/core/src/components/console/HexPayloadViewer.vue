@@ -73,7 +73,7 @@
           </div>
 
           <!-- 16 ASCII Characters -->
-          <div class="tracking-widest flex items-center gap-0.5 text-slate-400 select-all">
+          <div class="flex items-center gap-0.5 text-slate-400 select-all">
             <span 
               v-for="(b, colIdx) in row" 
               :key="'asc-' + colIdx"
@@ -120,7 +120,7 @@
       <!-- Segment Meaning -->
       <div v-if="activeByteInfo.segment" class="flex items-center gap-2">
         <span 
-          class="px-2 py-0.5 rounded text-[10px] font-bold uppercase"
+          class="px-2 py-0.5 rounded text-[10px] font-bold"
           :class="getSegmentBadgeClass(activeByteInfo.segment.type)"
         >
           {{ activeByteInfo.segment.name }}

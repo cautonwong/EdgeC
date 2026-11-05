@@ -46,7 +46,7 @@
     <!-- 4K 大屏性能仪表盘 (大字对比度) -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-6 my-6">
       <div class="bg-slate-950 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
-        <div class="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider">实时采样率 (Rate)</div>
+        <div class="text-xs font-mono font-bold text-slate-400">实时采样率 (Rate)</div>
         <div class="text-4xl font-black font-mono text-emerald-400 mt-2">
           {{ actualFreq }} <span class="text-base text-slate-400">Hz</span>
         </div>
@@ -54,7 +54,7 @@
       </div>
 
       <div class="bg-slate-950 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
-        <div class="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider">发包总数 (Total Packets)</div>
+        <div class="text-xs font-mono font-bold text-slate-400">发包总数 (Total Packets)</div>
         <div class="text-4xl font-black font-mono text-cyan-400 mt-2">
           {{ packetCount.toLocaleString() }}
         </div>
@@ -62,7 +62,7 @@
       </div>
 
       <div class="bg-slate-950 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
-        <div class="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider">传输延迟 (Latency)</div>
+        <div class="text-xs font-mono font-bold text-slate-400">传输延迟 (Latency)</div>
         <div class="text-4xl font-black font-mono text-indigo-400 mt-2">
           {{ latencyMs }} <span class="text-base text-slate-400">ms</span>
         </div>
@@ -70,7 +70,7 @@
       </div>
 
       <div class="bg-slate-950 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
-        <div class="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider">HTML5 / Unity 游戏桥</div>
+        <div class="text-xs font-mono font-bold text-slate-400">HTML5 / Unity 游戏桥</div>
         <div class="text-4xl font-black font-mono text-amber-400 mt-2">
           {{ gameFrameStats.fps }} <span class="text-base text-slate-400">FPS</span>
         </div>
@@ -130,7 +130,7 @@
 
             <!-- 游戏目标角色 (根据传感器角度/力度实时位移) -->
             <div 
-              class="relative z-10 transition-all duration-75 flex flex-col items-center"
+              class="relative z-10 transition duration-75 flex flex-col items-center"
               :style="{
                 transform: `translateY(${ (45 - latestPacket.angle_deg) * 2 }px) scale(${ 1 + latestPacket.force_n / 500 })`
               }"

@@ -12,7 +12,7 @@
         </div>
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded bg-rose-500 text-white font-bold text-[10px] uppercase tracking-wider">IEC 62443 SL-3</span>
+            <span class="px-2 py-0.5 rounded bg-rose-500 text-white font-bold text-[10px]">IEC 62443 SL-3</span>
             <span class="text-rose-400 font-bold text-sm">Two-Man Rule Dual Authorization</span>
           </div>
           <p class="text-slate-400 text-[11px] mt-1">
@@ -26,7 +26,7 @@
         <div class="bg-slate-950 border border-rose-500/30 rounded-2xl p-4 space-y-2">
           <div class="flex items-center justify-between text-[11px]">
             <span class="text-slate-400">Target Command:</span>
-            <span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold uppercase text-[10px]">
+            <span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold text-[10px]">
               {{ riskLevel || 'HIGH RISK' }}
             </span>
           </div>
@@ -44,7 +44,7 @@
           <!-- Initiator Display -->
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-slate-400 text-[10px] mb-1 uppercase font-bold">1st Operator (Initiator)</label>
+              <label class="block text-slate-400 text-[10px] mb-1 font-bold">1st Operator (Initiator)</label>
               <input 
                 :value="initiatorUser" 
                 readonly 
@@ -52,7 +52,7 @@
               />
             </div>
             <div>
-              <label class="block text-slate-400 text-[10px] mb-1 uppercase font-bold">Initiator Role</label>
+              <label class="block text-slate-400 text-[10px] mb-1 font-bold">Initiator Role</label>
               <input 
                 :value="initiatorRole" 
                 readonly 
@@ -63,7 +63,7 @@
 
           <!-- Supervisor Username -->
           <div>
-            <label class="block text-slate-300 text-[10px] mb-1 uppercase font-bold flex items-center justify-between">
+            <label class="block text-slate-300 text-[10px] mb-1 font-bold flex items-center justify-between">
               <span>2nd Operator / Supervisor Username <span class="text-rose-400">*</span></span>
               <span class="text-slate-500 text-[9px]">(Must be different engineer/admin)</span>
             </label>
@@ -77,7 +77,7 @@
 
           <!-- Supervisor Passkey or 2FA Token -->
           <div>
-            <label class="block text-slate-300 text-[10px] mb-1 uppercase font-bold flex items-center justify-between">
+            <label class="block text-slate-300 text-[10px] mb-1 font-bold flex items-center justify-between">
               <span>Supervisor Passkey / 6-Digit 2FA Token <span class="text-rose-400">*</span></span>
               <span class="text-slate-500 text-[9px]">(TOTP / 624430 / SUPERVISOR_KEY)</span>
             </label>
@@ -92,7 +92,7 @@
 
           <!-- Operational Reason / Work Order -->
           <div>
-            <label class="block text-slate-300 text-[10px] mb-1 uppercase font-bold">Operational Justification / Work Order</label>
+            <label class="block text-slate-300 text-[10px] mb-1 font-bold">Operational Justification / Work Order</label>
             <input 
               v-model="changeReason" 
               placeholder="e.g. Scheduled maintenance WO-20260906-01"

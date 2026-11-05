@@ -13,13 +13,13 @@
     <transition name="slide-right">
       <div 
         v-if="isOpen" 
-        class="fixed top-0 right-0 bottom-0 z-50 bg-slate-900 border-l border-slate-800 shadow-2xl flex flex-col font-sans text-slate-200 transition-all duration-300 ease-in-out"
+        class="fixed top-0 right-0 bottom-0 z-50 bg-slate-900 border-l border-slate-800 shadow-2xl flex flex-col font-sans text-slate-200 transition duration-300 ease-in-out"
         :style="{ width: isFullScreen ? '100vw' : `${drawerWidthPx}px` }"
       >
         <!-- Top Navigation Header -->
         <div class="h-16 px-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/60 backdrop-blur-md flex-shrink-0 select-none">
           <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20 ring-1 ring-white/20">
+            <div class="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/20 ring-1 ring-white/20">
               <span class="text-white font-black text-sm">⚡</span>
             </div>
             <div>
@@ -80,7 +80,7 @@
 
         <!-- Settings Drawer Overlay -->
         <div v-if="isSettingsOpen" class="p-4 bg-slate-950 border-b border-slate-800 space-y-3 text-xs flex-shrink-0 animate-fadeIn">
-          <div class="font-bold text-slate-200 uppercase tracking-widest text-[11px] flex justify-between">
+          <div class="font-bold text-slate-200 text-[11px] flex justify-between">
             <span>LLM Backend & MCP Settings</span>
             <button @click="isSettingsOpen = false" class="text-slate-400 hover:text-white">✕</button>
           </div>
@@ -166,7 +166,7 @@
 
               <!-- MCP Tool Calls Stream List -->
               <div v-if="msg.toolCalls && msg.toolCalls.length > 0" class="mb-3 space-y-1.5">
-                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Physical ReAct Actions:</div>
+                <div class="text-[10px] font-bold text-slate-400">Physical ReAct Actions:</div>
                 <McpToolCallCard 
                   v-for="tool in msg.toolCalls" 
                   :key="tool.id" 
@@ -186,8 +186,8 @@
           </div>
 
           <!-- Thinking Spinner -->
-          <div v-if="isThinking" class="flex items-center gap-3 p-4 rounded-2xl bg-slate-800/50 border border-slate-800 text-xs text-slate-400 animate-pulse">
-            <svg class="animate-spin h-4 w-4 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <div v-if="isThinking" class="flex items-center gap-3 p-4 rounded-2xl bg-slate-800/50 border border-slate-800 text-xs text-slate-400 animate-pulse motion-reduce:animate-none">
+            <svg role="img" aria-label="数据图表" class="animate-spin h-4 w-4 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
@@ -209,7 +209,7 @@
 
         <!-- Input Box -->
         <div class="p-4 bg-slate-950 border-t border-slate-800 flex-shrink-0">
-          <div class="relative flex items-end gap-2 bg-slate-900 border border-slate-800 rounded-2xl p-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-all">
+          <div class="relative flex items-end gap-2 bg-slate-900 border border-slate-800 rounded-2xl p-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition">
             <textarea
               ref="inputField"
               v-model="inputPrompt"
@@ -225,7 +225,7 @@
               class="p-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-600 text-white transition-colors cursor-pointer flex-shrink-0"
               title="Send Message"
             >
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg role="img" aria-label="数据图表" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
               </svg>
             </button>

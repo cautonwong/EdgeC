@@ -7,7 +7,7 @@
 
       <div class="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div class="space-y-2">
-          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[10px] font-black uppercase tracking-[0.2em]">
+          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[10px] font-black">
             <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping"></span>
             Industrial ANSI High-Speed Terminal & Log Sink
           </div>
@@ -177,7 +177,7 @@
           </span>
 
           <!-- Level Badge -->
-          <span :class="getLevelBadgeClass(log.level)" class="px-1.5 py-0.2 rounded text-[10px] font-black uppercase flex-shrink-0">
+          <span :class="getLevelBadgeClass(log.level)" class="px-1.5 py-0.2 rounded text-[10px] font-black flex-shrink-0">
             {{ log.level }}
           </span>
 
@@ -208,7 +208,7 @@
     <!-- Forensic & Compliance Audit Section -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 font-mono text-xs">
       <div class="bg-slate-900/60 border border-slate-800 rounded-3xl p-5 space-y-2">
-        <div class="text-slate-400 font-bold uppercase tracking-wider flex items-center gap-2">
+        <div class="text-slate-400 font-bold flex items-center gap-2">
           <span>🔒 SHA-256 Checksum</span>
         </div>
         <div class="text-slate-300 break-all font-mono text-[11px] bg-slate-950 p-2.5 rounded-xl border border-slate-800">
@@ -218,7 +218,7 @@
       </div>
 
       <div class="bg-slate-900/60 border border-slate-800 rounded-3xl p-5 space-y-2">
-        <div class="text-slate-400 font-bold uppercase tracking-wider flex items-center gap-2">
+        <div class="text-slate-400 font-bold flex items-center gap-2">
           <span>⚡ Backpressure & Ring Buffer</span>
         </div>
         <div class="flex items-center justify-between text-slate-300 pt-1">
@@ -227,14 +227,14 @@
         </div>
         <div class="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
           <div 
-            class="bg-cyan-500 h-full transition-all duration-300"
+            class="bg-cyan-500 h-full transition duration-300"
             :style="{ width: `${(logs.length / maxBufferLines) * 100}%` }"
           ></div>
         </div>
       </div>
 
       <div class="bg-slate-900/60 border border-slate-800 rounded-3xl p-5 space-y-2">
-        <div class="text-slate-400 font-bold uppercase tracking-wider flex items-center gap-2">
+        <div class="text-slate-400 font-bold flex items-center gap-2">
           <span>🎯 ANSI SGR Decoder</span>
         </div>
         <div class="text-slate-300 text-[11px] space-y-1">

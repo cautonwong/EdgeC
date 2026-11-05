@@ -68,7 +68,7 @@ withDefaults(
 }
 .ui-btn--danger {
   background: var(--color-danger);
-  color: #fff;
+  color: var(--palette-white);
 }
 .ui-btn:disabled {
   opacity: 0.55;

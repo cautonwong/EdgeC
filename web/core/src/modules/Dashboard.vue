@@ -106,7 +106,7 @@ onMounted(() => {
       <div>
         <h1>概览</h1>
         <p class="head__hint">
-          {{ productName }} 实时指标 · 共 {{ points.length }} 个点位
+          {{ productName }} 实时指标，共 {{ points.length }} 个点位
           <span v-if="updatedAt"> · 更新于 {{ updatedAt }}</span>
         </p>
       </div>

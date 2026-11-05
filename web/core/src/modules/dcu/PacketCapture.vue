@@ -7,8 +7,8 @@
 
       <div class="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div class="space-y-2">
-          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[10px] font-black uppercase tracking-[0.2em]">
-            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[10px] font-black">
+            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse motion-reduce:animate-none"></span>
             DCU Southbound Telemetry Sniffer
           </div>
           <h1 class="text-3xl lg:text-4xl font-black text-white tracking-tight leading-tight font-mono">
@@ -84,7 +84,7 @@
       <div class="overflow-x-auto">
         <table class="w-full text-left font-mono text-xs">
           <thead>
-            <tr class="bg-slate-950 border-b border-slate-800 text-slate-400 uppercase text-[10px] tracking-wider">
+            <tr class="bg-slate-950 border-b border-slate-800 text-slate-400 text-[10px]">
               <th class="p-4 w-16">#</th>
               <th class="p-4 w-28">Timestamp</th>
               <th class="p-4 w-20">Dir</th>
@@ -154,7 +154,7 @@
       <div class="bg-slate-900 border border-slate-700 rounded-3xl p-6 lg:p-8 max-w-2xl w-full shadow-2xl relative font-mono text-xs">
         <div class="flex justify-between items-start mb-6 border-b border-slate-800 pb-4">
           <div>
-            <div class="text-[10px] text-cyan-400 uppercase font-bold tracking-widest">
+            <div class="text-[10px] text-cyan-400 font-bold">
               {{ selectedPacket.protocol === '698' ? 'A-XDR DLT698 APDU TREE' : 'DLT645-2007 FRAME INSPECTOR' }}
             </div>
             <h2 class="text-xl font-black text-white mt-1">
@@ -191,7 +191,7 @@
 
           <!-- Raw Stream Breakdown -->
           <div>
-            <div class="text-slate-400 text-[10px] font-bold uppercase mb-2">Color-Coded Hex Breakdown</div>
+            <div class="text-slate-400 text-[10px] font-bold mb-2">Color-Coded Hex Breakdown</div>
             <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800 text-xs leading-relaxed space-y-2">
               <div v-for="(chunk, idx) in selectedPacket.chunks" :key="idx" class="flex justify-between items-center text-[11px]">
                 <span class="text-slate-500 w-36">{{ chunk.role }}:</span>

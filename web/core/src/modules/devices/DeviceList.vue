@@ -3,9 +3,9 @@
     <div class="flex justify-between items-end">
       <div>
         <h1 class="text-3xl font-black text-slate-800 tracking-tight italic">PHYSICAL <span class="text-blue-600 not-italic">DEVICES</span></h1>
-        <p class="text-slate-400 text-sm font-medium mt-1 uppercase tracking-widest">Execution Plane Inventory</p>
+        <p class="text-slate-400 text-sm font-medium mt-1">Execution Plane Inventory</p>
       </div>
-      <button @click="fetchDevices" class="px-6 py-2 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-600 hover:bg-slate-50 transition-all shadow-sm active:scale-95">
+      <button @click="fetchDevices" class="px-6 py-2 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-600 hover:bg-slate-50 transition shadow-sm active:scale-95">
         SCAN BUS
       </button>
     </div>
@@ -16,10 +16,10 @@
         <table class="w-full text-left border-collapse">
           <thead>
             <tr class="bg-slate-50/50 border-b border-slate-100">
-              <th class="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Device Identity</th>
-              <th class="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Protocol Stack</th>
-              <th class="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Comm Status</th>
-              <th class="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Metrics</th>
+              <th class="px-8 py-5 text-[10px] font-black text-slate-400">Device Identity</th>
+              <th class="px-8 py-5 text-[10px] font-black text-slate-400">Protocol Stack</th>
+              <th class="px-8 py-5 text-[10px] font-black text-slate-400">Comm Status</th>
+              <th class="px-8 py-5 text-[10px] font-black text-slate-400 text-right">Metrics</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-50">
@@ -41,14 +41,14 @@
               <td class="px-8 py-6">
                 <div class="flex items-center gap-2">
                   <span class="w-2 h-2 rounded-full" :class="dev.status === 'online' ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-rose-500'"></span>
-                  <span class="text-xs font-bold uppercase tracking-tight" :class="dev.status === 'online' ? 'text-emerald-600' : 'text-rose-500'">
+                  <span class="text-xs font-bold tracking-tight" :class="dev.status === 'online' ? 'text-emerald-600' : 'text-rose-500'">
                     {{ dev.status }}
                   </span>
                 </div>
               </td>
               <td class="px-8 py-6 text-right">
                 <div class="text-xs font-bold text-slate-600 font-mono">{{ dev.errors }} ERR / {{ dev.success || 0 }} OK</div>
-                <div class="text-[9px] text-slate-300 uppercase mt-1">Latency: {{ dev.latency || 12 }}ms</div>
+                <div class="text-[9px] text-slate-300 mt-1">Latency: {{ dev.latency || 12 }}ms</div>
               </td>
             </tr>
           </tbody>
