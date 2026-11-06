@@ -4,6 +4,7 @@
  * 顺序照 §6.1 走：system/info（匿名）→ 登录态判定 → auth/me → capabilities →
  * 生成菜单/路由 → 挂载。任何一步失败都不"猜默认值"，而是把状态交给 UI 显示。
  */
+import '../ui/tokens.css';
 import { createApp, type App as VueApp } from 'vue';
 import { createPinia } from 'pinia';
 import type { Router } from 'vue-router';
