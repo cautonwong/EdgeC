@@ -22,8 +22,6 @@ withDefaults(
   }>(),
   { loading: false, emptyText: '暂无数据' },
 );
-
-const emit = defineEmits<{ rowClick: [Record<string, unknown>] }>();
 </script>
 
 <template>
@@ -54,9 +52,6 @@ const emit = defineEmits<{ rowClick: [Record<string, unknown>] }>();
           v-else
           :key="String(row[rowKey])"
           class="table__row"
-          tabindex="0"
-          @click="emit('rowClick', row)"
-          @keydown.enter="emit('rowClick', row)"
         >
           <td
             v-for="column in columns"

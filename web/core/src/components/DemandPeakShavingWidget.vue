@@ -8,10 +8,10 @@
         </div>
         <div>
           <h2 class="text-xl font-black text-white tracking-tight font-mono flex items-center gap-2">
-            DEMAND <span class="text-sky-500 font-sans">PEAK SHAVING</span>
+            DEMAND <span class="text-sky-500 font-sans">削峰</span>
           </h2>
           <p class="text-xs font-mono text-slate-400">
-            15-Min Rolling Demand Protection & 500kVA Transformer Redline Watch
+            15 分钟滚动需量保护与 500kVA 变压器红线监视
           </p>
         </div>
       </div>
@@ -27,7 +27,7 @@
           <span>{{ isPeakShavingActive ? 'SHAVING ACTIVE (+65kW ESS)' : 'DEMAND NORMAL' }}</span>
         </span>
         <span class="px-3 py-1 bg-slate-800 text-slate-300 border border-slate-700 rounded-xl text-xs font-mono font-bold">
-          Window: 15min MTT
+          窗口：15min MTT
         </span>
       </div>
     </div>
@@ -36,13 +36,13 @@
     <div class="space-y-4 mb-6">
       <div class="flex justify-between items-end text-xs font-mono">
         <div>
-          <div class="text-slate-400 text-[10px] font-bold">15-Min Rolling Demand</div>
+          <div class="text-slate-400 text-xs font-bold">15 分钟滚动需量</div>
           <div class="text-2xl font-black text-white font-mono mt-0.5">
             {{ rollingDemand.toFixed(1) }} <span class="text-xs text-slate-400">kW</span>
           </div>
         </div>
         <div class="text-right">
-          <div class="text-slate-400 text-[10px] font-bold">Transformer Load Rate</div>
+          <div class="text-slate-400 text-xs font-bold">变压器负载率</div>
           <div 
             :class="[
               'text-2xl font-black font-mono mt-0.5',
@@ -64,9 +64,9 @@
         <div class="absolute left-[80%] top-0 bottom-0 w-[20%] bg-rose-500/10"></div>
 
         <!-- 400kW Redline Target Marker -->
-        <div class="absolute left-[80%] top-0 bottom-0 w-0.5 bg-rose-500 shadow-[0_0_6px_#ef4444] z-10">
-          <span class="absolute -top-6 -translate-x-1/2 bg-rose-950/80 border border-rose-500/40 text-rose-300 text-[9px] font-mono px-1 rounded">
-            LIMIT: 400kW
+        <div class="absolute left-[80%] top-0 bottom-0 w-0.5 bg-rose-500 shadow-[0_0_6px_var(--color-danger)] z-10">
+          <span class="absolute -top-6 -translate-x-1/2 bg-rose-950/80 border border-rose-500/40 text-rose-300 text-xs font-mono px-1 rounded">
+            限值：400kW
           </span>
         </div>
 
@@ -75,27 +75,27 @@
           class="h-full rounded-lg transition duration-500 relative z-0 flex items-center justify-end pr-2"
           :style="{
             width: `${Math.min(100, (rollingDemand / 500) * 100)}%`,
-            backgroundColor: loadRate > 80 ? '#F59E0B' : '#10B981'
+            backgroundColor: loadRate > 80 ? 'var(--color-warning)' : 'var(--chart-3)'
           }"
         >
-          <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+          <span class="w-1.5 h-1.5 rounded-full bg-white"></span>
         </div>
       </div>
 
       <!-- Scale Markers -->
-      <div class="flex justify-between text-[10px] font-mono text-slate-500 px-1">
+      <div class="flex justify-between text-xs font-mono text-slate-500 px-1">
         <span>0 kW</span>
-        <span>250 kW (50%)</span>
-        <span class="text-rose-400 font-bold">400 kW (80% REDLINE)</span>
-        <span>500 kVA (MAX)</span>
+        <span>250 kW（50%）</span>
+        <span class="text-rose-400 font-bold">400 kW（80% 红线）</span>
+        <span>500 kVA（上限）</span>
       </div>
     </div>
 
     <!-- Mini History 15-min Intervals Histogram -->
     <div class="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl">
-      <div class="text-[10px] font-mono text-slate-400 font-bold mb-3 flex justify-between items-center">
-        <span>Today's 15-Min Demand History (Peak Intervals)</span>
-        <span class="text-emerald-400">Peak Shaved: 12 Intervals</span>
+      <div class="text-xs font-mono text-slate-400 font-bold mb-3 flex justify-between items-center">
+        <span>今日 15 分钟需量历史（峰值区间）</span>
+        <span class="text-emerald-400">已削峰：12 个区间</span>
       </div>
 
       <div class="h-16 flex items-end gap-1.5 w-full">
@@ -105,11 +105,11 @@
           class="flex-1 bg-slate-800 hover:bg-sky-500 rounded-t transition group relative cursor-pointer"
           :style="{ 
             height: `${(val / 500) * 100}%`,
-            backgroundColor: val > 390 ? '#F59E0B' : (val > 350 ? '#38BDF8' : '#334155')
+            backgroundColor: val > 390 ? 'var(--color-warning)' : (val > 350 ? 'var(--chart-1)' : 'var(--border-default)')
           }"
         >
           <!-- Tooltip -->
-          <div class="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-7 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-700 px-1.5 py-0.5 rounded text-[9px] font-mono text-white whitespace-nowrap z-20 pointer-events-none">
+          <div class="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-7 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-700 px-1.5 py-0.5 rounded text-xs font-mono text-white whitespace-nowrap z-20 pointer-events-none">
             {{ val }}kW
           </div>
         </div>

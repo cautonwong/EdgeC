@@ -1,8 +1,8 @@
 <template>
   <div class="p-6 max-w-7xl mx-auto">
     <div class="mb-8">
-      <h2 class="text-2xl font-bold text-gray-800">System Configuration</h2>
-      <p class="text-sm text-gray-500 mt-1">Manage runtime parameters and control setpoints.</p>
+      <h1 class="text-2xl font-bold">系统配置</h1>
+      <p class="text-sm text-gray-500 mt-1">管理运行时参数与控制设定。</p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -12,7 +12,7 @@
              class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center hover:border-indigo-200 transition group">
           <div>
             <div class="text-sm font-bold text-gray-700 font-mono">{{ param.key }}</div>
-            <div class="text-xs text-gray-400 mt-1">Type: {{ param.type }} | Registry: Persistent</div>
+            <div class="text-xs text-gray-400 mt-1">类型：{{ param.type }} | 注册表：持久化</div>
           </div>
           <div class="flex items-center gap-4">
             <div class="text-lg font-mono font-bold text-indigo-600">{{ param.value }}</div>
@@ -33,11 +33,10 @@
             <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            Audit Notice
+            审计提示
           </h3>
           <p class="text-sm text-indigo-100 leading-relaxed">
-            All parameter changes are logged to the <strong>edge_audit</strong> table in SQLite. 
-            Modifications take effect immediately in the logic engine.
+            所有参数变更都会写入 <strong>edge_audit</strong> 表（SQLite），修改会立即在逻辑引擎中生效。
           </p>
         </div>
       </div>
@@ -46,15 +45,15 @@
     <!-- Edit Modal (Simplified) -->
     <div v-if="editingParam" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
       <div class="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl">
-        <h3 class="text-xl font-bold mb-2">Update Parameter</h3>
+        <h3 class="text-xl font-bold mb-2">更新参数</h3>
         <p class="text-sm text-gray-500 mb-6 font-mono">{{ editingParam.key }}</p>
         
         <input v-model.number="editValue" type="number" step="0.1"
                class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl mb-6 focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-xl" />
         
         <div class="flex gap-3">
-          <button @click="editingParam = null" class="flex-1 py-3 text-gray-500 hover:bg-gray-50 rounded-xl font-medium">Cancel</button>
-          <button @click="saveParam" class="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors">Apply Change</button>
+          <button @click="editingParam = null" class="flex-1 py-3 text-gray-500 hover:bg-gray-50 rounded-xl font-medium">取消</button>
+          <button @click="saveParam" class="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-colors">应用变更</button>
         </div>
       </div>
     </div>

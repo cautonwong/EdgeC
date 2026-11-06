@@ -1,32 +1,27 @@
 <template>
-  <div class="min-h-full bg-[#020617] text-[#f8fafc] p-6 lg:p-10 space-y-8 animate-in fade-in duration-700 font-ui">
+  <div class="min-h-full bg-[var(--bg-page)] text-[var(--text-primary)] p-6 lg:p-10 space-y-8 animate-in fade-in duration-700 font-ui">
     <!-- Top Hero Header -->
-    <section class="relative bg-[#0f172a] rounded-[2.5rem] overflow-hidden shadow-2xl border border-[#334155]/60 p-8 lg:p-10">
-      <div class="absolute top-0 right-0 w-[500px] h-[500px] bg-rose-500/10 rounded-full blur-[120px] -mr-40 -mt-40 pointer-events-none"></div>
-      <div class="absolute bottom-0 left-0 w-[300px] h-[300px] bg-cyan-500/10 rounded-full blur-[80px] -ml-20 -mb-20 pointer-events-none"></div>
-
+    <section class="relative bg-[var(--bg-surface)] rounded-xl overflow-hidden shadow-2xl border border-[var(--border-default)] p-8 lg:p-10">
       <div class="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div class="space-y-2">
-          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[10px] font-black">
-            <span class="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping"></span>
-            Millisecond SOE & High-Frequency Stream Hub
+          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-black">
+            <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+            毫秒级 SOE 事件流
           </div>
-          <h1 class="text-3xl lg:text-4xl font-black text-white tracking-tight leading-tight font-mono">
-            GLOBAL <span class="text-rose-400 font-sans">SOE EVENT STREAM</span>
-          </h1>
+          <h1 class="text-3xl lg:text-4xl font-black tracking-tight leading-tight">告警与事件</h1>
           <p class="text-slate-400 text-xs lg:text-sm font-medium">
-            High-concurrency Sequence of Events (SOE) pipeline, multi-domain alarm waterfall, and acknowledgement audit center.
+            高并发 SOE 管道、多域告警瀑布与确认审计
           </p>
         </div>
 
-        <!-- Global Status Badges & Controls -->
+        <!-- Global 状态 Badges & Controls -->
         <div class="flex flex-wrap items-center gap-3 font-mono text-xs">
           <div class="bg-slate-950/90 border border-slate-800 px-3.5 py-2 rounded-2xl flex items-center gap-2.5 shadow-inner">
-            <span class="text-slate-500">Stream Rate:</span>
+            <span class="text-slate-500">事件速率：</span>
             <span class="text-cyan-400 font-bold">{{ streamRateEps }} eps</span>
           </div>
           <div class="bg-slate-950/90 border border-slate-800 px-3.5 py-2 rounded-2xl flex items-center gap-2.5 shadow-inner">
-            <span class="text-slate-500">Unacked:</span>
+            <span class="text-slate-500">待确认：</span>
             <span :class="unackedCount > 0 ? 'text-rose-400 font-black animate-pulse' : 'text-emerald-400 font-bold'">
               {{ unackedCount }} ALARMS
             </span>
@@ -36,47 +31,47 @@
             :class="isStreaming ? 'bg-cyan-500 hover:bg-cyan-600 text-slate-950 font-black' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'"
             class="px-4 py-2.5 rounded-2xl border border-slate-700 transition flex items-center gap-2 shadow-lg"
           >
-            <span class="w-2 h-2 rounded-full" :class="isStreaming ? 'bg-slate-950 animate-ping' : 'bg-slate-500'"></span>
+            <span class="w-2 h-2 rounded-full" :class="isStreaming ? 'bg-slate-950' : 'bg-slate-500'"></span>
             <span>{{ isStreaming ? '⏸ PAUSE STREAM' : '▶ RESUME STREAM' }}</span>
           </button>
         </div>
       </div>
     </section>
 
-    <!-- Top Action Bar & Multi-Dimensional Filters -->
+    <!-- Top 操作 Bar & Multi-Dimensional Filters -->
     <div class="bg-slate-900/90 border border-slate-800 p-4 rounded-3xl flex flex-wrap items-center justify-between gap-4 font-mono text-xs shadow-2xl">
       <div class="flex flex-wrap items-center gap-3">
         <!-- Domain Filter -->
         <div class="flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
-          <span class="text-slate-500">Domain:</span>
+          <span class="text-slate-500">域：</span>
           <select v-model="filterDomain" class="bg-transparent text-slate-200 focus:outline-none cursor-pointer font-bold">
-            <option value="ALL">ALL (全部域空间)</option>
-            <option value="IEMS_EMS">IEMS (微电网能量管理)</option>
-            <option value="SMARTBOX_SAFETY">SMARTBOX (智能箱变五防)</option>
-            <option value="DCU_CHANNEL">DCU (台区采集网关)</option>
-            <option value="DDS_TOPOLOGY">DDS (分布式网状通信)</option>
+            <option value="ALL">全部域</option>
+            <option value="IEMS_EMS">IEMS（微电网能量管理）</option>
+            <option value="SMARTBOX_SAFETY">SMARTBOX（智能箱变五防）</option>
+            <option value="DCU_CHANNEL">DCU（台区采集网关）</option>
+            <option value="DDS_TOPOLOGY">DDS（分布式网状通信）</option>
           </select>
         </div>
 
-        <!-- Severity Filter -->
+        <!-- 级别 Filter -->
         <div class="flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
-          <span class="text-slate-500">Severity:</span>
-          <select v-model="filterSeverity" class="bg-transparent text-slate-200 focus:outline-none cursor-pointer font-bold">
-            <option value="ALL">ALL (全部级别)</option>
-            <option value="CRITICAL">💥 CRITICAL (严重告警/跳闸)</option>
-            <option value="WARNING">⚠️ WARNING (越限预警)</option>
-            <option value="INFO">ℹ️ INFO (遥信/状态变位)</option>
-            <option value="ACTION">🔀 ACTION (控制/换相动作)</option>
+          <span class="text-slate-500">级别：</span>
+          <select v-model="filter级别" class="bg-transparent text-slate-200 focus:outline-none cursor-pointer font-bold">
+            <option value="ALL">全部级别</option>
+            <option value="CRITICAL">CRITICAL（严重告警/跳闸）</option>
+            <option value="WARNING">WARNING（越限预警）</option>
+            <option value="INFO">INFO（遥信/状态变位）</option>
+            <option value="ACTION">ACTION（控制/换相动作）</option>
           </select>
         </div>
 
-        <!-- ACK Status Filter -->
+        <!-- ACK 状态 Filter -->
         <div class="flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
-          <span class="text-slate-500">Status:</span>
+          <span class="text-slate-500">状态：</span>
           <select v-model="filterAck" class="bg-transparent text-slate-200 focus:outline-none cursor-pointer font-bold">
-            <option value="ALL">ALL (全部状态)</option>
-            <option value="UNACK">UNACKNOWLEDGED (待确认)</option>
-            <option value="ACKED">ACKNOWLEDGED (已确认)</option>
+            <option value="ALL">全部状态</option>
+            <option value="UNACK">未确认</option>
+            <option value="ACKED">已确认</option>
           </select>
         </div>
 
@@ -91,7 +86,7 @@
         </div>
       </div>
 
-      <!-- Action Buttons -->
+      <!-- 操作 Buttons -->
       <div class="flex items-center gap-2.5">
         <button 
           @click="batchAcknowledgeAll" 
@@ -105,13 +100,13 @@
           @click="exportEventsCSV" 
           class="px-3.5 py-2 bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl transition flex items-center gap-1.5"
         >
-          <span>📥 导出 CSV</span>
+          <span>导出 CSV</span>
         </button>
         <button 
           @click="exportEventsJSON" 
           class="px-3.5 py-2 bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl transition flex items-center gap-1.5"
         >
-          <span>📄 JSON 报表</span>
+          <span>JSON 报表</span>
         </button>
         <button 
           @click="clearAllEvents" 
@@ -128,15 +123,15 @@
       <div class="overflow-x-auto">
         <table class="w-full text-left font-mono text-xs">
           <thead>
-            <tr class="bg-slate-950 border-b border-slate-800 text-slate-400 text-[10px]">
+            <tr class="bg-slate-950 border-b border-slate-800 text-slate-400 text-xs">
               <th class="p-4 w-12 text-center">#</th>
-              <th class="p-4 w-32">SOE Timestamp (MTT)</th>
-              <th class="p-4 w-28">Severity</th>
-              <th class="p-4 w-36">Domain Source</th>
-              <th class="p-4 w-48">Device / OAD</th>
-              <th class="p-4">Event Description & Telemetry Delta</th>
-              <th class="p-4 w-28 text-center">Status</th>
-              <th class="p-4 w-32 text-center">Action</th>
+              <th class="p-4 w-32">SOE 时间戳（MTT）</th>
+              <th class="p-4 w-28">级别</th>
+              <th class="p-4 w-36">来源域</th>
+              <th class="p-4 w-48">设备 / OAD</th>
+              <th class="p-4">事件描述与遥测变化</th>
+              <th class="p-4 w-28 text-center">状态</th>
+              <th class="p-4 w-32 text-center">操作</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-800/60">
@@ -155,71 +150,71 @@
               <!-- Timestamp (HH:mm:ss.SSS) -->
               <td class="p-4 whitespace-nowrap text-slate-300 font-bold">
                 <div>{{ evt.timestamp }}</div>
-                <div class="text-[9px] text-slate-500 font-normal mt-0.5">{{ evt.relativeDelta }}</div>
+                <div class="text-xs text-slate-500 font-normal mt-0.5">{{ evt.relativeDelta }}</div>
               </td>
 
-              <!-- Severity Badge -->
+              <!-- 级别 Badge -->
               <td class="p-4 whitespace-nowrap">
                 <span 
                   :class="[
-                    'px-2.5 py-1 rounded-lg text-[10px] font-black border inline-flex items-center gap-1.5',
-                    getSeverityBadgeClass(evt.severity)
+                    'px-2.5 py-1 rounded-lg text-xs font-black border inline-flex items-center gap-1.5',
+                    get级别BadgeClass(evt.severity)
                   ]"
                 >
-                  <span class="w-1.5 h-1.5 rounded-full" :class="getSeverityDotClass(evt.severity)"></span>
+                  <span class="w-1.5 h-1.5 rounded-full" :class="get级别DotClass(evt.severity)"></span>
                   {{ evt.severity }}
                 </span>
               </td>
 
               <!-- Domain -->
               <td class="p-4 whitespace-nowrap">
-                <span class="text-slate-300 bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-[11px]">
+                <span class="text-slate-300 bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-xs">
                   {{ evt.domain }}
                 </span>
               </td>
 
-              <!-- Device / OAD -->
+              <!-- 设备 / OAD -->
               <td class="p-4 whitespace-nowrap">
                 <div class="text-white font-bold">{{ evt.deviceName }}</div>
-                <div class="text-[10px] text-cyan-400 font-mono">{{ evt.oadCode }}</div>
+                <div class="text-xs text-cyan-400 font-mono">{{ evt.oadCode }}</div>
               </td>
 
               <!-- Description & Value -->
               <td class="p-4 leading-relaxed">
                 <div class="text-slate-200 font-medium">{{ evt.description }}</div>
-                <div class="text-[11px] text-slate-400 font-mono mt-0.5 flex flex-wrap items-center gap-2">
+                <div class="text-xs text-slate-400 font-mono mt-0.5 flex flex-wrap items-center gap-2">
                   <span v-if="evt.oldValue" class="text-slate-500 line-through">{{ evt.oldValue }}</span>
-                  <span v-if="evt.oldValue" class="text-slate-600">&rarr;</span>
+                  <span v-if="evt.oldValue" class="text-slate-600">→</span>
                   <span class="text-cyan-300 font-bold">{{ evt.currentValue }}</span>
-                  <span v-if="evt.threshold" class="text-rose-400 text-[10px] bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20">
+                  <span v-if="evt.threshold" class="text-rose-400 text-xs bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20">
                     [Limit: {{ evt.threshold }}]
                   </span>
                 </div>
               </td>
 
-              <!-- Status -->
+              <!-- 状态 -->
               <td class="p-4 text-center whitespace-nowrap">
                 <span 
-                  class="px-2 py-0.5 rounded text-[10px] font-bold"
+                  class="px-2 py-0.5 rounded text-xs font-bold"
                   :class="evt.acknowledged ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-400 border border-rose-500/30 animate-pulse'"
                 >
                   {{ evt.acknowledged ? 'ACKED ✓' : 'UNACK ⚠️' }}
                 </span>
               </td>
 
-              <!-- Action -->
+              <!-- 操作 -->
               <td class="p-4 text-center whitespace-nowrap">
                 <div class="flex items-center justify-center gap-1.5" @click.stop>
                   <button 
                     v-if="!evt.acknowledged"
                     @click="acknowledgeEvent(evt)" 
-                    class="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 border border-amber-500/30 rounded-lg text-[10px] font-bold transition"
+                    class="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-bold transition"
                   >
                     确认
                   </button>
                   <button 
                     @click="openDetail(evt)" 
-                    class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[10px] transition"
+                    class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition"
                   >
                     详情
                   </button>
@@ -230,7 +225,7 @@
             <tr v-if="filteredEvents.length === 0">
               <td colspan="8" class="text-center py-16 text-slate-500 font-mono">
                 <div class="text-2xl mb-2">🔍</div>
-                <div>No SOE events found matching the filter criteria.</div>
+                <div>没有符合筛选条件的 SOE 事件。</div>
               </td>
             </tr>
           </tbody>
@@ -243,43 +238,43 @@
       <div class="bg-slate-900 border border-slate-700 rounded-3xl p-6 lg:p-8 max-w-xl w-full shadow-2xl relative font-mono text-xs space-y-6">
         <div class="flex justify-between items-start border-b border-slate-800 pb-4">
           <div>
-            <div class="text-[10px] text-cyan-400 font-bold">
+            <div class="text-xs text-cyan-400 font-bold">
               SOE Sequence of Events Record #{{ selectedEvent.id }}
             </div>
             <h2 class="text-xl font-black text-white mt-1">
               {{ selectedEvent.description }}
             </h2>
           </div>
-          <button @click="selectedEvent = null" class="text-slate-400 hover:text-white text-lg">✕</button>
+          <button type="button" aria-label="关闭事件详情" title="关闭" @click="selectedEvent = null" class="text-slate-400 hover:text-white text-lg">✕</button>
         </div>
 
         <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-2.5">
           <div class="flex justify-between border-b border-slate-800/60 pb-1.5">
-            <span class="text-slate-500">Timestamp (MTT High-Res):</span>
+            <span class="text-slate-500">时间戳（MTT 高精度）：</span>
             <span class="text-slate-200 font-bold">{{ selectedEvent.timestamp }}</span>
           </div>
           <div class="flex justify-between border-b border-slate-800/60 pb-1.5">
-            <span class="text-slate-500">Domain / Subsystem:</span>
+            <span class="text-slate-500">域 / 子系统：</span>
             <span class="text-cyan-400 font-bold">{{ selectedEvent.domain }}</span>
           </div>
           <div class="flex justify-between border-b border-slate-800/60 pb-1.5">
-            <span class="text-slate-500">Device ID / Name:</span>
+            <span class="text-slate-500">设备 ID / 名称：</span>
             <span class="text-slate-200 font-bold">{{ selectedEvent.deviceName }}</span>
           </div>
           <div class="flex justify-between border-b border-slate-800/60 pb-1.5">
-            <span class="text-slate-500">DL/T 698 OAD / Tag Identifier:</span>
+            <span class="text-slate-500">DL/T 698 OAD / 标签标识：</span>
             <span class="text-amber-400 font-bold">{{ selectedEvent.oadCode }}</span>
           </div>
           <div class="flex justify-between border-b border-slate-800/60 pb-1.5">
-            <span class="text-slate-500">Severity Level:</span>
-            <span :class="getSeverityTextClass(selectedEvent.severity)" class="font-bold">{{ selectedEvent.severity }}</span>
+            <span class="text-slate-500">级别 Level:</span>
+            <span :class="get级别TextClass(selectedEvent.severity)" class="font-bold">{{ selectedEvent.severity }}</span>
           </div>
           <div class="flex justify-between border-b border-slate-800/60 pb-1.5">
-            <span class="text-slate-500">Trigger Value:</span>
+            <span class="text-slate-500">触发值：</span>
             <span class="text-rose-400 font-bold">{{ selectedEvent.currentValue }}</span>
           </div>
           <div class="flex justify-between">
-            <span class="text-slate-500">Audit Status:</span>
+            <span class="text-slate-500">审计状态：</span>
             <span :class="selectedEvent.acknowledged ? 'text-emerald-400' : 'text-rose-400'" class="font-bold">
               {{ selectedEvent.acknowledged ? 'Acknowledged (已确认)' : 'Pending Operator Review (未确认)' }}
             </span>
@@ -328,7 +323,7 @@ export interface SOEEvent {
 const isStreaming = ref(true);
 const streamRateEps = ref(124);
 const filterDomain = ref('ALL');
-const filterSeverity = ref('ALL');
+const filter级别 = ref('ALL');
 const filterAck = ref('ALL');
 const searchQuery = ref('');
 const selectedEvent = ref<SOEEvent | null>(null);
@@ -448,7 +443,7 @@ const unackedCount = computed(() => events.value.filter(e => !e.acknowledged).le
 const filteredEvents = computed(() => {
   return events.value.filter(evt => {
     if (filterDomain.value !== 'ALL' && evt.domain !== filterDomain.value) return false;
-    if (filterSeverity.value !== 'ALL' && evt.severity !== filterSeverity.value) return false;
+    if (filter级别.value !== 'ALL' && evt.severity !== filter级别.value) return false;
     if (filterAck.value === 'UNACK' && evt.acknowledged) return false;
     if (filterAck.value === 'ACKED' && !evt.acknowledged) return false;
     if (searchQuery.value.trim() !== '') {
@@ -460,7 +455,7 @@ const filteredEvents = computed(() => {
   });
 });
 
-function getSeverityBadgeClass(sev: string): string {
+function get级别BadgeClass(sev: string): string {
   switch (sev) {
     case 'CRITICAL':
       return 'bg-rose-500/10 border-rose-500/30 text-rose-400';
@@ -473,16 +468,16 @@ function getSeverityBadgeClass(sev: string): string {
   }
 }
 
-function getSeverityDotClass(sev: string): string {
+function get级别DotClass(sev: string): string {
   switch (sev) {
-    case 'CRITICAL': return 'bg-rose-500 animate-ping';
+    case 'CRITICAL': return 'bg-rose-500';
     case 'WARNING': return 'bg-amber-400';
     case 'ACTION': return 'bg-purple-400';
     default: return 'bg-cyan-400';
   }
 }
 
-function getSeverityTextClass(sev: string): string {
+function get级别TextClass(sev: string): string {
   switch (sev) {
     case 'CRITICAL': return 'text-rose-400';
     case 'WARNING': return 'text-amber-400';
@@ -514,7 +509,7 @@ function clearAllEvents() {
 }
 
 function exportEventsCSV() {
-  const header = "ID,Timestamp,Severity,Domain,Device,OAD,Description,OldValue,CurrentValue,Status\n";
+  const header = "ID,Timestamp,级别,Domain,Device,OAD,Description,OldValue,CurrentValue,状态\n";
   const rows = events.value.map(e => 
     `"${e.id}","${e.timestamp}","${e.severity}","${e.domain}","${e.deviceName}","${e.oadCode}","${e.description}","${e.oldValue || ''}","${e.currentValue}","${e.acknowledged ? 'ACKED' : 'UNACK'}"`
   ).join("\n");

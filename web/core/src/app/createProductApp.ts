@@ -14,6 +14,7 @@ import { createAppRouter, type PageResolver } from './router';
 import { useCapabilityStore } from './stores/capability';
 import { useRegistryStore } from './stores/registry';
 import { useSessionStore } from './stores/session';
+import { initTheme } from './theme';
 
 /** Core 自带页面：构建期由 vite 静态收集，运行期按键查表，不存在"按字符串加载任意模块"。 */
 const coreModules = import.meta.glob('../modules/**/*.vue');
@@ -31,6 +32,7 @@ export interface ProductAppHandle {
 }
 
 export async function createProductApp(options: ProductAppOptions): Promise<ProductAppHandle> {
+  initTheme();
   const app = createApp(App);
   const pinia = createPinia();
   app.use(pinia);

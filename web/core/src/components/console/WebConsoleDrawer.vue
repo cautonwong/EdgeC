@@ -1,5 +1,5 @@
 <template>
-  <div v-if="isOpen" class="relative z-50 select-none">
+  <div v-if="isOpen" ref="dialogRef" class="relative z-50 select-none" role="dialog" aria-modal="true" aria-label="Web 控制台" tabindex="-1">
     <!-- Semi-transparent Backdrop when in full-screen or dimmed mode -->
     <div 
       v-if="drawerMode === 'fullscreen'" 
@@ -15,7 +15,7 @@
         'fixed inset-x-0 bottom-0 rounded-t-3xl shadow-2xl'
       ]"
       :style="drawerMode === 'docked' ? { height: `${drawerHeightVh}vh` } : {}"
-      class="bg-[#050b14] border border-slate-800 text-[#f8fafc] flex flex-col overflow-hidden shadow-2xl transition duration-200"
+      class="bg-[var(--bg-page)] border border-slate-800 text-[var(--text-primary)] flex flex-col overflow-hidden shadow-2xl transition duration-200"
     >
       <!-- Top Draggable Resize Bar (for Docked Mode) -->
       <div 
@@ -31,7 +31,7 @@
         <!-- Left: Product Brand & Active Tabs -->
         <div class="flex items-center gap-3">
           <div class="flex items-center gap-2 pr-3 border-r border-slate-800 text-emerald-400 font-bold">
-            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
             <span class="hidden sm:inline">EdgeOS Global Web Console</span>
             <span class="sm:hidden">Console</span>
           </div>
@@ -53,7 +53,7 @@
 
         <!-- Right: Window Controls & Hotkey Hint -->
         <div class="flex items-center gap-2">
-          <span class="hidden md:inline text-slate-500 text-[10px]">Toggle: <kbd class="px-1 py-0.5 bg-slate-900 rounded border border-slate-800 text-slate-400">Ctrl + `</kbd></span>
+          <span class="hidden md:inline text-slate-500 text-xs">Toggle: <kbd class="px-1 py-0.5 bg-slate-900 rounded border border-slate-800 text-slate-400">Ctrl + `</kbd></span>
 
           <!-- Mode Toggles -->
           <button 
@@ -84,7 +84,7 @@
         </div>
 
         <!-- TAB 2: Live Log Stream Console -->
-        <div v-show="activeTab === 'logs'" class="h-full flex flex-col bg-[#050b14] p-4 font-mono text-xs overflow-hidden">
+        <div v-show="activeTab === 'logs'" class="h-full flex flex-col bg-[var(--bg-page)] p-4 font-mono text-xs overflow-hidden">
           <!-- Log Filter Bar -->
           <div class="flex items-center justify-between pb-3 border-b border-slate-800 text-xs">
             <div class="flex items-center gap-2">
@@ -98,7 +98,7 @@
             </div>
             <div class="flex items-center gap-2">
               <span class="text-emerald-400 font-bold">● Streaming (50Hz)</span>
-              <button @click="liveLogs = []" class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-400 text-[10px]">Clear</button>
+              <button @click="liveLogs = []" class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-400 text-xs">Clear</button>
             </div>
           </div>
           <!-- Log Lines Container -->
@@ -106,11 +106,11 @@
             <div 
               v-for="(log, idx) in filteredLogs" 
               :key="idx" 
-              class="flex items-start gap-2 text-[11px] leading-relaxed"
+              class="flex items-start gap-2 text-xs leading-relaxed"
             >
               <span class="text-slate-600 shrink-0">{{ log.time }}</span>
               <span 
-                class="px-1 rounded text-[9px] font-bold shrink-0"
+                class="px-1 rounded text-xs font-bold shrink-0"
                 :class="getLogLevelClass(log.level)"
               >
                 {{ log.level }}
@@ -127,10 +127,10 @@
         </div>
 
         <!-- TAB 4: Quick Macros -->
-        <div v-show="activeTab === 'macros'" class="h-full bg-[#050b14] p-6 font-mono text-xs overflow-y-auto space-y-6">
+        <div v-show="activeTab === 'macros'" class="h-full bg-[var(--bg-page)] p-6 font-mono text-xs overflow-y-auto space-y-6">
           <div class="text-slate-400">
             <h3 class="text-sm font-bold text-white mb-1">Industrial Quick Diagnosis Macros</h3>
-            <p class="text-[11px]">Click a macro to execute pre-compiled diagnosis and control actions across EdgeOS four planes.</p>
+            <p class="text-xs">Click a macro to execute pre-compiled diagnosis and control actions across EdgeOS four planes.</p>
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -142,11 +142,11 @@
             >
               <div class="flex items-center justify-between">
                 <span class="text-lg">{{ macro.icon }}</span>
-                <span class="text-[10px] px-2 py-0.5 rounded bg-slate-900 text-slate-400 font-bold">{{ macro.plane }}</span>
+                <span class="text-xs px-2 py-0.5 rounded bg-slate-900 text-slate-400 font-bold">{{ macro.plane }}</span>
               </div>
               <div class="font-bold text-white group-hover:text-emerald-400 transition-colors">{{ macro.name }}</div>
-              <p class="text-[11px] text-slate-500 leading-relaxed">{{ macro.description }}</p>
-              <div class="text-[10px] text-cyan-400 font-mono pt-1">CMD: {{ macro.command }}</div>
+              <p class="text-xs text-slate-500 leading-relaxed">{{ macro.description }}</p>
+              <div class="text-xs text-cyan-400 font-mono pt-1">CMD: {{ macro.command }}</div>
             </div>
           </div>
         </div>
@@ -156,7 +156,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, toRef } from 'vue';
+import { useDialogA11y } from '../../app/composables/useDialogA11y';
 import InteractiveShell from './InteractiveShell.vue';
 import ProtocolSnifferView from './ProtocolSnifferView.vue';
 import AnsiTerminalView from './AnsiTerminalView.vue';
@@ -200,6 +201,7 @@ const emit = defineEmits<{
   (e: 'update:isOpen', value: boolean): void;
 }>();
 
+const dialogRef = ref<HTMLElement | null>(null);
 const activeTab = ref<'cli' | 'logs' | 'sniffer' | 'macros'>('cli');
 const drawerMode = ref<'docked' | 'fullscreen' | 'floating'>('docked');
 const drawerHeightVh = ref(45);
@@ -301,6 +303,8 @@ const filteredLogs = computed(() => {
 function closeDrawer() {
   emit('update:isOpen', false);
 }
+
+useDialogA11y(toRef(props, 'isOpen'), dialogRef, closeDrawer);
 
 function cycleDrawerMode() {
   if (drawerMode.value === 'docked') drawerMode.value = 'fullscreen';

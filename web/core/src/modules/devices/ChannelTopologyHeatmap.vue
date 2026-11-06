@@ -1,47 +1,42 @@
 <template>
-  <div class="min-h-full bg-[#020617] text-[#f8fafc] p-6 lg:p-10 space-y-8 animate-in fade-in duration-700 font-ui">
+  <div class="min-h-full bg-[var(--bg-page)] text-[var(--text-primary)] p-6 lg:p-10 space-y-8 animate-in fade-in duration-700 font-ui">
     <!-- Top Hero Header -->
-    <section class="relative bg-[#0f172a] rounded-[2.5rem] overflow-hidden shadow-2xl border border-[#334155]/60 p-8 lg:p-10">
-      <div class="absolute top-0 right-0 w-[500px] h-[500px] bg-emerald-500/10 rounded-full blur-[120px] -mr-40 -mt-40 pointer-events-none"></div>
-      <div class="absolute bottom-0 left-0 w-[300px] h-[300px] bg-cyan-500/10 rounded-full blur-[80px] -ml-20 -mb-20 pointer-events-none"></div>
-
+    <section class="relative bg-[var(--bg-surface)] rounded-xl overflow-hidden shadow-2xl border border-[var(--border-default)] p-8 lg:p-10">
       <div class="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div class="space-y-2">
-          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black">
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-            HPLC & Dual-Mode Physical Mesh Topology
+          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-black">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            HPLC 双模物理拓扑
           </div>
-          <h1 class="text-3xl lg:text-4xl font-black text-white tracking-tight leading-tight font-mono">
-            CHANNEL <span class="text-emerald-400 font-sans">TOPOLOGY & SNR HEATMAP</span>
-          </h1>
+          <h1 class="text-3xl lg:text-4xl font-black tracking-tight leading-tight">通道拓扑</h1>
           <p class="text-slate-400 text-xs lg:text-sm font-medium">
-            Interactive physical communication topology, multi-carrier SNR heatmaps, carrier phase crosstalk radar, and node telemetry for HPLC/RF mesh networks.
+            HPLC/RF 物理通信拓扑、多载波信噪比热力图、相位串扰雷达与节点遥测
           </p>
         </div>
 
         <!-- Polling & Global Control Bar -->
         <div class="flex flex-wrap items-center gap-3 font-mono text-xs">
           <div class="bg-slate-950/90 border border-slate-800 px-3.5 py-2 rounded-2xl flex items-center gap-2.5 shadow-inner">
-            <span class="text-slate-500">Scan Rate:</span>
+            <span class="text-slate-500">扫描周期：</span>
             <select v-model="refreshIntervalMs" class="bg-transparent text-emerald-400 font-bold focus:outline-none cursor-pointer">
-              <option :value="1000">1.0s (Live)</option>
-              <option :value="2000">2.0s (Normal)</option>
-              <option :value="5000">5.0s (Eco)</option>
+              <option :value="1000">1.0s（实时）</option>
+              <option :value="2000">2.0s（常规）</option>
+              <option :value="5000">5.0s（节能）</option>
             </select>
           </div>
-          <button 
-            @click="togglePolling" 
+          <button
+            @click="togglePolling"
             :class="isPolling ? 'bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'"
             class="px-4 py-2.5 rounded-2xl border border-slate-700 transition flex items-center gap-2 shadow-lg cursor-pointer"
           >
-            <span class="w-2 h-2 rounded-full" :class="isPolling ? 'bg-slate-950 animate-ping' : 'bg-slate-500'"></span>
+            <span class="w-2 h-2 rounded-full" :class="isPolling ? 'bg-slate-950' : 'bg-slate-500'"></span>
             <span>{{ isPolling ? '⏸ PAUSE SCAN' : '▶ RESUME SCAN' }}</span>
           </button>
-          <button 
-            @click="exportTopologyReport" 
+          <button
+            @click="exportTopologyReport"
             class="bg-slate-950 hover:bg-slate-800 text-slate-300 px-4 py-2.5 rounded-2xl border border-slate-700 transition font-bold shadow-lg flex items-center gap-1.5 cursor-pointer"
           >
-            <span>📥 Export Audit</span>
+            <span>导出审计</span>
           </button>
         </div>
       </div>
@@ -49,59 +44,59 @@
 
     <!-- Top Key Metrics Cards -->
     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 font-mono text-xs">
-      <!-- Total Nodes -->
+      <!-- 节点总数 -->
       <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col justify-between">
-        <div class="text-slate-500 text-[10px] font-bold">Total Nodes</div>
+        <div class="text-slate-500 text-xs font-bold">节点总数</div>
         <div class="text-2xl lg:text-3xl font-black text-white my-1">{{ topologyStats.totalNodes }}</div>
-        <div class="text-[11px] text-slate-400 flex items-center gap-1">
-          <span class="text-emerald-400 font-bold">{{ topologyStats.onlineNodes }}</span> Online · <span class="text-rose-400 font-bold">{{ topologyStats.offlineNodes }}</span> Offline
+        <div class="text-xs text-slate-400 flex items-center gap-1">
+          <span class="text-emerald-400 font-bold">{{ topologyStats.onlineNodes }}</span> 在线 · <span class="text-rose-400 font-bold">{{ topologyStats.offlineNodes }}</span> 离线
         </div>
       </div>
 
-      <!-- Average SNR -->
+      <!-- 平均信噪比 -->
       <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col justify-between">
-        <div class="text-slate-500 text-[10px] font-bold">Average SNR</div>
+        <div class="text-slate-500 text-xs font-bold">平均信噪比</div>
         <div class="text-2xl lg:text-3xl font-black text-emerald-400 my-1">{{ topologyStats.avgSnrDb.toFixed(1) }} <span class="text-xs font-normal text-slate-500">dB</span></div>
-        <div class="text-[11px] text-slate-400">
-          Min: <span class="text-slate-200 font-bold">{{ topologyStats.minSnrDb }}dB</span> · Max: <span class="text-cyan-400 font-bold">{{ topologyStats.maxSnrDb }}dB</span>
+        <div class="text-xs text-slate-400">
+          最小： <span class="text-slate-200 font-bold">{{ topologyStats.minSnrDb }}dB</span> · 最大： <span class="text-cyan-400 font-bold">{{ topologyStats.maxSnrDb }}dB</span>
         </div>
       </div>
 
-      <!-- Max Relay Hops -->
+      <!-- 最大中继跳数 -->
       <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col justify-between">
-        <div class="text-slate-500 text-[10px] font-bold">Max Relay Hops</div>
-        <div class="text-2xl lg:text-3xl font-black text-blue-400 my-1">{{ topologyStats.maxHops }} <span class="text-xs font-normal text-slate-500">Hops</span></div>
-        <div class="text-[11px] text-slate-400">
-          CCO Level: 0 · Mesh Depth: {{ topologyStats.maxHops + 1 }}
+        <div class="text-slate-500 text-xs font-bold">最大中继跳数</div>
+        <div class="text-2xl lg:text-3xl font-black text-blue-400 my-1">{{ topologyStats.max跳 }} <span class="text-xs font-normal text-slate-500">跳</span></div>
+        <div class="text-xs text-slate-400">
+          CCO Level: 0 · Mesh Depth: {{ topologyStats.max跳 + 1 }}
         </div>
       </div>
 
       <!-- Packet Loss Rate -->
       <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col justify-between">
-        <div class="text-slate-500 text-[10px] font-bold">Overall Loss Rate</div>
+        <div class="text-slate-500 text-xs font-bold">总丢包率</div>
         <div class="text-2xl lg:text-3xl font-black text-white my-1" :class="topologyStats.avgLossPct > 5 ? 'text-amber-400' : 'text-emerald-400'">
           {{ topologyStats.avgLossPct.toFixed(2) }} <span class="text-xs font-normal text-slate-500">%</span>
         </div>
-        <div class="text-[11px] text-slate-400">
-          Retries: <span class="text-slate-200 font-bold">{{ topologyStats.totalRetries }}</span> frames
+        <div class="text-xs text-slate-400">
+          重试： <span class="text-slate-200 font-bold">{{ topologyStats.totalRetries }}</span> 帧
         </div>
       </div>
 
-      <!-- Phase Crosstalk Leakage -->
+      <!-- 相位串扰 Leakage -->
       <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col justify-between">
-        <div class="text-slate-500 text-[10px] font-bold">Phase Crosstalk</div>
+        <div class="text-slate-500 text-xs font-bold">相位串扰</div>
         <div class="text-2xl lg:text-3xl font-black text-amber-400 my-1">{{ topologyStats.crosstalkLevelDb.toFixed(1) }} <span class="text-xs font-normal text-slate-500">dB</span></div>
-        <div class="text-[11px] text-slate-400">
-          Phase A-B Coupl: <span class="text-slate-200 font-bold">Safe</span>
+        <div class="text-xs text-slate-400">
+          A-B 相耦合： <span class="text-slate-200 font-bold">安全</span>
         </div>
       </div>
 
       <!-- Active Technology -->
       <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col justify-between">
-        <div class="text-slate-500 text-[10px] font-bold">Channel Tech</div>
+        <div class="text-slate-500 text-xs font-bold">通道技术</div>
         <div class="text-2xl lg:text-3xl font-black text-cyan-400 my-1">HPLC+RF</div>
-        <div class="text-[11px] text-slate-400">
-          Dual-Mode OFDM (SGCC)
+        <div class="text-xs text-slate-400">
+          双模 OFDM（国网）
         </div>
       </div>
     </div>
@@ -110,8 +105,8 @@
     <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 font-mono text-xs">
       <!-- View Modes -->
       <div class="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
-        <button 
-          v-for="mode in viewModes" 
+        <button
+          v-for="mode in viewModes"
           :key="mode.id"
           @click="activeViewMode = mode.id"
           :class="activeViewMode === mode.id ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-bold' : 'text-slate-400 hover:text-slate-200 border-transparent'"
@@ -126,9 +121,9 @@
       <div class="flex flex-wrap items-center gap-3">
         <!-- Tech Filter -->
         <div class="flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
-          <span class="text-slate-500">Tech:</span>
+          <span class="text-slate-500">技术：</span>
           <select v-model="filterTech" class="bg-transparent text-slate-200 font-bold focus:outline-none cursor-pointer">
-            <option value="ALL">All Technologies</option>
+            <option value="ALL">全部技术</option>
             <option value="HPLC">HPLC (OFDM)</option>
             <option value="RF">Sub-1GHz RF</option>
             <option value="RS485">RS-485</option>
@@ -137,35 +132,35 @@
 
         <!-- Phase Filter -->
         <div class="flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
-          <span class="text-slate-500">Phase:</span>
+          <span class="text-slate-500">相位：</span>
           <select v-model="filterPhase" class="bg-transparent text-slate-200 font-bold focus:outline-none cursor-pointer">
-            <option value="ALL">All Phases</option>
-            <option value="PHASE_A">Phase A (L1)</option>
-            <option value="PHASE_B">Phase B (L2)</option>
-            <option value="PHASE_C">Phase C (L3)</option>
+            <option value="ALL">全部相位</option>
+            <option value="PHASE_A">A 相（L1）</option>
+            <option value="PHASE_B">B 相（L2）</option>
+            <option value="PHASE_C">C 相（L3）</option>
             <option value="WIRELESS">Wireless/RF</option>
           </select>
         </div>
 
         <!-- Quality Filter -->
         <div class="flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
-          <span class="text-slate-500">Quality:</span>
+          <span class="text-slate-500">质量：</span>
           <select v-model="filterQuality" class="bg-transparent text-slate-200 font-bold focus:outline-none cursor-pointer">
-            <option value="ALL">All Qualities</option>
-            <option value="GOOD">Excellent (>20dB)</option>
-            <option value="MEDIUM">Medium (10~20dB)</option>
-            <option value="POOR">Poor (<10dB)</option>
+            <option value="ALL">全部质量</option>
+            <option value="GOOD">良好（大于 20dB）</option>
+            <option value="MEDIUM">中等（10~20dB）</option>
+            <option value="POOR">差（小于 10dB）</option>
           </select>
         </div>
 
         <!-- Search Box -->
         <div class="relative">
-          <input 
-            v-model="searchQuery" 
-            placeholder="Search Device / MAC..." 
+          <input
+            v-model="searchQuery"
+            placeholder="搜索设备 / MAC…"
             class="bg-slate-950 border border-slate-800 px-3.5 py-1.5 rounded-xl text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500/50 w-44 lg:w-56"
           />
-          <span v-if="searchQuery" @click="searchQuery = ''" class="absolute right-2.5 top-2 text-slate-500 hover:text-slate-300 cursor-pointer">×</span>
+          <button v-if="searchQuery" type="button" aria-label="清除搜索" title="清除搜索" @click="searchQuery = ''" class="absolute right-2.5 top-2 border-0 bg-transparent p-0 text-slate-500 hover:text-slate-300 cursor-pointer">×</button>
         </div>
       </div>
     </div>
@@ -177,15 +172,15 @@
       <div class="flex items-center justify-between mb-4 font-mono text-xs">
         <div class="flex items-center gap-2">
           <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse motion-reduce:animate-none"></span>
-          <span class="font-bold text-slate-300">PHYSICAL MESH TOPOLOGY MAP</span>
+          <span class="font-bold text-slate-300">物理网格拓扑图</span>
           <span class="text-slate-500">({{ filteredNodes.length }} Visible Nodes)</span>
         </div>
         <!-- Legend -->
-        <div class="flex flex-wrap items-center gap-4 text-[11px] text-slate-400">
-          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span> SNR > 20dB (Good)</span>
-          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span> 10~20dB (Medium)</span>
-          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> &lt; 10dB (Poor)</span>
-          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span> Central CCO</span>
+        <div class="flex flex-wrap items-center gap-4 text-xs text-slate-400">
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span> SNR > 20dB（良好）</span>
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span> 10~20dB（中等）</span>
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> 小于 10dB（差）</span>
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span> 中央 CCO</span>
           <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span> Phase A</span>
           <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span> Phase B</span>
           <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-orange-500"></span> Phase C</span>
@@ -198,19 +193,19 @@
           <!-- Background Grid Lines -->
           <defs>
             <pattern id="topoGrid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5" stroke-dasharray="2,2"/>
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="var(--border-default)" stroke-width="0.5" stroke-dasharray="2,2"/>
             </pattern>
             <linearGradient id="linkGood" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#10b981" stop-opacity="0.8"/>
-              <stop offset="100%" stop-color="#065f46" stop-opacity="0.3"/>
+              <stop offset="0%" stop-color="var(--chart-3)" stop-opacity="0.8"/>
+              <stop offset="100%" stop-color="var(--color-success-bg)" stop-opacity="0.3"/>
             </linearGradient>
             <linearGradient id="linkMedium" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.8"/>
-              <stop offset="100%" stop-color="#78350f" stop-opacity="0.3"/>
+              <stop offset="0%" stop-color="var(--chart-2)" stop-opacity="0.8"/>
+              <stop offset="100%" stop-color="var(--color-warning-bg)" stop-opacity="0.3"/>
             </linearGradient>
             <linearGradient id="linkPoor" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.8"/>
-              <stop offset="100%" stop-color="#881337" stop-opacity="0.3"/>
+              <stop offset="0%" stop-color="var(--chart-4)" stop-opacity="0.8"/>
+              <stop offset="100%" stop-color="var(--color-danger-bg)" stop-opacity="0.3"/>
             </linearGradient>
           </defs>
           <rect width="100%" height="100%" fill="url(#topoGrid)" />
@@ -219,33 +214,33 @@
           <g class="topology-links">
             <g v-for="link in topologyLinks" :key="link.id">
               <!-- Animated Pulse Particle along link -->
-              <line 
-                :x1="link.sourceX" 
-                :y1="link.sourceY" 
-                :x2="link.targetX" 
-                :y2="link.targetY" 
+              <line
+                :x1="link.sourceX"
+                :y1="link.sourceY"
+                :x2="link.targetX"
+                :y2="link.targetY"
                 :stroke="getLinkColor(link.snrDb)"
                 :stroke-width="getLinkWidth(link.snrDb)"
                 stroke-dasharray="4,4"
                 class="transition duration-300 opacity-70"
               />
               <!-- Midpoint SNR Badge -->
-              <rect 
-                :x="(link.sourceX + link.targetX) / 2 - 16" 
-                :y="(link.sourceY + link.targetY) / 2 - 9" 
-                width="32" 
-                height="18" 
-                rx="4" 
-                fill="#0f172a" 
-                stroke="#334155" 
+              <rect
+                :x="(link.sourceX + link.targetX) / 2 - 16"
+                :y="(link.sourceY + link.targetY) / 2 - 9"
+                width="32"
+                height="18"
+                rx="4"
+                fill="var(--bg-surface)"
+                stroke="var(--border-default)"
                 stroke-width="0.8"
               />
-              <text 
-                :x="(link.sourceX + link.targetX) / 2" 
-                :y="(link.sourceY + link.targetY) / 2 + 3" 
-                fill="#94a3b8" 
-                font-size="9" 
-                font-family="monospace" 
+              <text
+                :x="(link.sourceX + link.targetX) / 2"
+                :y="(link.sourceY + link.targetY) / 2 + 3"
+                fill="var(--text-secondary)"
+                font-size="9"
+                font-family="Edge Mono, Edge Sans, monospace"
                 text-anchor="middle"
                 font-weight="bold"
               >
@@ -256,35 +251,35 @@
 
           <!-- Node Elements -->
           <g class="topology-nodes">
-            <g 
-              v-for="node in filteredNodes" 
+            <g
+              v-for="node in filteredNodes"
               :key="node.id"
               :transform="`translate(${node.x}, ${node.y})`"
               @click="selectNode(node)"
               class="cursor-pointer group"
             >
               <!-- Outer Pulse / Selection Halo -->
-              <circle 
-                v-if="selectedNode?.id === node.id" 
-                r="30" 
-                fill="none" 
-                stroke="#10b981" 
-                stroke-width="2" 
+              <circle
+                v-if="selectedNode?.id === node.id"
+                r="30"
+                fill="none"
+                stroke="var(--chart-3)"
+                stroke-width="2"
                 stroke-dasharray="4,4"
                 class="animate-spin duration-3000"
               />
-              <circle 
-                v-if="node.isRoot" 
-                r="28" 
-                fill="#064e3b" 
-                fill-opacity="0.4" 
-                stroke="#10b981" 
+              <circle
+                v-if="node.isRoot"
+                r="28"
+                fill="var(--color-success-bg)"
+                fill-opacity="0.4"
+                stroke="var(--chart-3)"
                 stroke-width="1.5"
               />
-              
+
               <!-- Main Node Body -->
-              <circle 
-                :r="node.isRoot ? 22 : 16" 
+              <circle
+                :r="node.isRoot ? 22 : 16"
                 :fill="getNodeFillColor(node)"
                 :stroke="getNodeStrokeColor(node)"
                 stroke-width="2.5"
@@ -292,38 +287,38 @@
               />
 
               <!-- Node Icon / Role Character -->
-              <text 
-                x="0" 
-                y="4" 
-                fill="#ffffff" 
-                font-size="10" 
-                font-family="monospace" 
+              <text
+                x="0"
+                y="4"
+                fill="var(--text-primary)"
+                font-size="10"
+                font-family="Edge Mono, Edge Sans, monospace"
                 text-anchor="middle"
-                font-weight="900"
+                font-weight="600"
                 class="pointer-events-none"
               >
                 {{ node.isRoot ? 'CCO' : (node.isProxy ? 'PXY' : 'STA') }}
               </text>
 
               <!-- Node ID & Phase Label Below -->
-              <text 
-                x="0" 
-                :y="node.isRoot ? 36 : 28" 
-                fill="#cbd5e1" 
-                font-size="10" 
-                font-family="monospace" 
+              <text
+                x="0"
+                :y="node.isRoot ? 36 : 28"
+                fill="var(--text-secondary)"
+                font-size="10"
+                font-family="Edge Mono, Edge Sans, monospace"
                 text-anchor="middle"
                 font-weight="bold"
                 class="pointer-events-none"
               >
                 {{ node.name }}
               </text>
-              <text 
-                x="0" 
-                :y="node.isRoot ? 47 : 38" 
-                :fill="getPhaseColor(node.phase)" 
-                font-size="8.5" 
-                font-family="monospace" 
+              <text
+                x="0"
+                :y="node.isRoot ? 47 : 38"
+                :fill="getPhaseColor(node.phase)"
+                font-size="8.5"
+                font-family="Edge Mono, Edge Sans, monospace"
                 text-anchor="middle"
                 class="pointer-events-none"
               >
@@ -334,10 +329,10 @@
         </svg>
 
         <!-- Canvas Zoom/Reset Float Helper -->
-        <div class="absolute bottom-4 right-4 bg-slate-900/90 border border-slate-800 rounded-xl px-3 py-1.5 text-[10px] font-mono text-slate-400 flex items-center gap-2">
-          <span>🎯 Layered Tree Mesh</span>
+        <div class="absolute bottom-4 right-4 bg-slate-900/90 border border-slate-800 rounded-xl px-3 py-1.5 text-xs font-mono text-slate-400 flex items-center gap-2">
+          <span>分层树形网格</span>
           <span>·</span>
-          <span>Click Node to Inspect</span>
+          <span>点击节点查看详情</span>
         </div>
       </div>
     </div>
@@ -347,10 +342,10 @@
       <div class="flex items-center justify-between mb-4 font-mono text-xs">
         <div class="flex items-center gap-2">
           <span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
-          <span class="font-bold text-slate-300">16-OFDM SUB-BAND SNR HEATMAP MATRIX (1.5MHz ~ 12MHz)</span>
+          <span class="font-bold text-slate-300">16-OFDM 子带信噪比热力矩阵（1.5MHz ~ 12MHz）</span>
         </div>
         <!-- Gradient Legend -->
-        <div class="flex items-center gap-2 text-[11px] text-slate-400">
+        <div class="flex items-center gap-2 text-xs text-slate-400">
           <span>&lt; 5dB</span>
           <div class="w-28 h-3 rounded-full bg-gradient-to-r from-rose-600 via-amber-500 via-emerald-500 to-cyan-400"></div>
           <span>&gt; 35dB</span>
@@ -359,21 +354,21 @@
 
       <!-- Heatmap Table Matrix -->
       <div class="overflow-x-auto rounded-2xl border border-slate-800">
-        <table class="w-full text-left font-mono text-[11px] border-collapse bg-slate-950/60">
+        <table class="w-full text-left font-mono text-xs border-collapse bg-slate-950/60">
           <thead>
             <tr class="bg-slate-900/90 text-slate-400 border-b border-slate-800">
               <th class="p-3 sticky left-0 bg-slate-900 z-10">Target Node</th>
               <th class="p-3">Phase</th>
               <th class="p-3">Tech</th>
-              <th v-for="ch in 16" :key="ch" class="p-2 text-center text-[10px]">
+              <th v-for="ch in 16" :key="ch" class="p-2 text-center text-xs">
                 Ch{{ ch - 1 }}<br/><span class="text-slate-600 font-normal">{{ (1.5 + (ch-1)*0.7).toFixed(1) }}M</span>
               </th>
               <th class="p-3 text-right">Avg SNR</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-850">
-            <tr 
-              v-for="node in filteredNodes" 
+            <tr
+              v-for="node in filteredNodes"
               :key="node.id"
               @click="selectNode(node)"
               class="hover:bg-slate-800/50 transition cursor-pointer"
@@ -385,14 +380,14 @@
               </td>
               <td class="p-3" :class="getPhaseColorClass(node.phase)">{{ node.phaseLabel }}</td>
               <td class="p-3 text-slate-400">{{ node.tech }}</td>
-              <td 
-                v-for="(subSnr, idx) in node.subCarrierSnr" 
-                :key="idx" 
+              <td
+                v-for="(subSnr, idx) in node.subCarrierSnr"
+                :key="idx"
                 class="p-1 text-center"
               >
-                <div 
-                  class="w-full py-1 rounded text-[10px] font-bold transition hover:scale-110 shadow-sm"
-                  :style="{ backgroundColor: getSnrHeatmapColor(subSnr), color: subSnr > 15 ? '#020617' : '#ffffff' }"
+                <div
+                  class="w-full py-1 rounded text-xs font-bold transition hover:scale-110 shadow-sm"
+                  :style="{ backgroundColor: getSnrHeatmapColor(subSnr), color: subSnr > 15 ? 'var(--bg-page)' : 'var(--text-primary)' }"
                   :title="`Ch${idx} (${(1.5 + idx*0.7).toFixed(1)}MHz): ${subSnr} dB`"
                 >
                   {{ subSnr }}
@@ -407,16 +402,16 @@
       </div>
     </div>
 
-    <!-- VIEW 3: Phase Crosstalk Radar & Interference Analyzer -->
+    <!-- VIEW 3: 相位串扰 Radar & Interference Analyzer -->
     <div v-else-if="activeViewMode === 'crosstalk'" class="grid grid-cols-1 lg:grid-cols-2 gap-6 font-mono text-xs">
-      <!-- Left: Phase Crosstalk Leakage Matrix -->
+      <!-- Left: 相位串扰 Leakage Matrix -->
       <div class="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-6">
         <div class="flex items-center justify-between">
           <span class="font-bold text-slate-300 flex items-center gap-2">
             <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
             PHASE CROSSTALK LEAKAGE MATRIX (dB)
           </span>
-          <span class="text-slate-500 text-[11px]">Carrier Coupling Isolation</span>
+          <span class="text-slate-500 text-xs">Carrier Coupling Isolation</span>
         </div>
 
         <div class="grid grid-cols-3 gap-4">
@@ -429,7 +424,7 @@
             <div class="w-full bg-slate-900 h-2 rounded-full overflow-hidden">
               <div class="bg-emerald-400 h-full rounded-full" style="width: 35%"></div>
             </div>
-            <div class="text-[10px] text-slate-500">Status: Safe Coupling (&lt;18dB)</div>
+            <div class="text-xs text-slate-500">Status: 安全 Coupling (&lt;18dB)</div>
           </div>
 
           <!-- Phase B -> C -->
@@ -441,7 +436,7 @@
             <div class="w-full bg-slate-900 h-2 rounded-full overflow-hidden">
               <div class="bg-amber-400 h-full rounded-full" style="width: 65%"></div>
             </div>
-            <div class="text-[10px] text-amber-500 font-bold">Warning: High Inter-Phase Leakage</div>
+            <div class="text-xs text-amber-500 font-bold">Warning: High Inter-Phase Leakage</div>
           </div>
 
           <!-- Phase C -> A -->
@@ -453,12 +448,12 @@
             <div class="w-full bg-slate-900 h-2 rounded-full overflow-hidden">
               <div class="bg-emerald-400 h-full rounded-full" style="width: 25%"></div>
             </div>
-            <div class="text-[10px] text-slate-500">Status: Low Coupling (Optimal)</div>
+            <div class="text-xs text-slate-500">Status: Low Coupling (Optimal)</div>
           </div>
         </div>
 
         <!-- Crosstalk Diagnostic Advice -->
-        <div class="bg-slate-950/80 border border-slate-800/80 rounded-2xl p-4 space-y-2 text-[11px] text-slate-400">
+        <div class="bg-slate-950/80 border border-slate-800/80 rounded-2xl p-4 space-y-2 text-xs text-slate-400">
           <div class="font-bold text-slate-200">🔍 Real-Time Crosstalk Root Cause:</div>
           <p>
             Detected capacitive coupling spike between <span class="text-purple-400 font-bold">Phase B</span> and <span class="text-orange-400 font-bold">Phase C</span> at substation feeder #2. Recommended to recalibrate OFDM adaptive notch filters on Ch06-Ch09 to mitigate packet retransmissions.
@@ -473,31 +468,31 @@
             <span class="w-2.5 h-2.5 rounded-full bg-rose-400"></span>
             INVERTER PWM NOISE BURSTS & INTERFERENCE
           </span>
-          <span class="text-slate-500 text-[11px]">Last 60 Minutes</span>
+          <span class="text-slate-500 text-xs">Last 60 Minutes</span>
         </div>
 
         <div class="space-y-3 max-h-[300px] overflow-y-auto pr-1">
-          <div 
-            v-for="noise in noiseEvents" 
+          <div
+            v-for="noise in noiseEvents"
             :key="noise.id"
             class="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex items-start justify-between gap-4"
           >
             <div class="space-y-1">
               <div class="flex items-center gap-2">
-                <span 
-                  class="px-2 py-0.5 rounded text-[10px] font-bold"
+                <span
+                  class="px-2 py-0.5 rounded text-xs font-bold"
                   :class="noise.severity === 'CRITICAL' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'"
                 >
                   {{ noise.type }}
                 </span>
                 <span class="text-slate-200 font-bold">{{ noise.source }}</span>
-                <span class="text-slate-500 text-[10px]">Phase {{ noise.phase }}</span>
+                <span class="text-slate-500 text-xs">Phase {{ noise.phase }}</span>
               </div>
-              <p class="text-[11px] text-slate-400">{{ noise.description }}</p>
+              <p class="text-xs text-slate-400">{{ noise.description }}</p>
             </div>
             <div class="text-right font-mono shrink-0">
               <span class="text-rose-400 font-bold">+{{ noise.noiseFloorRiseDb }} dB Floor</span>
-              <div class="text-slate-500 text-[10px]">{{ noise.timestamp }}</div>
+              <div class="text-slate-500 text-xs">{{ noise.timestamp }}</div>
             </div>
           </div>
         </div>
@@ -515,14 +510,14 @@
 
       <div class="overflow-x-auto rounded-2xl border border-slate-800 font-mono text-xs">
         <table class="w-full text-left divide-y divide-slate-800 bg-slate-950/60">
-          <thead class="bg-slate-900/90 text-slate-400 text-[11px]">
+          <thead class="bg-slate-900/90 text-slate-400 text-xs">
             <tr>
               <th class="p-3.5">Device Name</th>
               <th class="p-3.5">MAC / EUI64</th>
               <th class="p-3.5">Role</th>
               <th class="p-3.5">Tech</th>
               <th class="p-3.5">Phase</th>
-              <th class="p-3.5">Relay Hops</th>
+              <th class="p-3.5">Relay 跳</th>
               <th class="p-3.5">SNR (dB)</th>
               <th class="p-3.5">Attenuation</th>
               <th class="p-3.5">Modulation</th>
@@ -532,8 +527,8 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-850">
-            <tr 
-              v-for="node in filteredNodes" 
+            <tr
+              v-for="node in filteredNodes"
               :key="node.id"
               @click="selectNode(node)"
               class="hover:bg-slate-800/50 transition cursor-pointer"
@@ -543,10 +538,10 @@
                 <span class="w-2 h-2 rounded-full" :class="getNodeStatusDotClass(node)"></span>
                 {{ node.name }}
               </td>
-              <td class="p-3.5 text-slate-400 text-[11px]">{{ node.mac }}</td>
+              <td class="p-3.5 text-slate-400 text-xs">{{ node.mac }}</td>
               <td class="p-3.5">
-                <span 
-                  class="px-2 py-0.5 rounded text-[10px] font-bold"
+                <span
+                  class="px-2 py-0.5 rounded text-xs font-bold"
                   :class="node.isRoot ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : (node.isProxy ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'bg-slate-800 text-slate-300')"
                 >
                   {{ node.role }}
@@ -565,8 +560,8 @@
               </td>
               <td class="p-3.5 text-slate-400">{{ node.retries }}</td>
               <td class="p-3.5 text-right">
-                <button 
-                  @click.stop="selectNode(node)" 
+                <button
+                  @click.stop="selectNode(node)"
                   class="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 font-bold border border-emerald-500/30 cursor-pointer"
                 >
                   Inspect
@@ -579,9 +574,9 @@
     </div>
 
     <!-- RIGHT SLIDE-OVER NODE INSPECTOR DRAWER -->
-    <div 
-      v-if="selectedNode" 
-      class="fixed inset-y-0 right-0 w-full max-w-lg bg-[#0f172a] border-l border-slate-800 shadow-2xl z-50 p-6 lg:p-8 space-y-6 overflow-y-auto font-mono text-xs animate-in slide-in-from-right duration-300"
+    <div
+      v-if="selectedNode"
+      class="fixed inset-y-0 right-0 w-full max-w-lg bg-[var(--bg-surface)] border-l border-slate-800 shadow-2xl z-50 p-6 lg:p-8 space-y-6 overflow-y-auto font-mono text-xs animate-in slide-in-from-right duration-300"
     >
       <!-- Drawer Header -->
       <div class="flex items-center justify-between pb-4 border-b border-slate-800">
@@ -589,14 +584,14 @@
           <div class="flex items-center gap-2">
             <span class="w-2.5 h-2.5 rounded-full" :class="getNodeStatusDotClass(selectedNode)"></span>
             <h2 class="text-xl font-black text-white font-mono">{{ selectedNode.name }}</h2>
-            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
+            <span class="px-2 py-0.5 rounded text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700">
               {{ selectedNode.role }}
             </span>
           </div>
-          <p class="text-slate-400 text-[11px]">MAC: {{ selectedNode.mac }} · Protocol: {{ selectedNode.protocol }}</p>
+          <p class="text-slate-400 text-xs">MAC: {{ selectedNode.mac }} · Protocol: {{ selectedNode.protocol }}</p>
         </div>
-        <button 
-          @click="selectedNode = null" 
+        <button
+          @click="selectedNode = null"
           class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center cursor-pointer transition"
         >
           ✕
@@ -606,24 +601,24 @@
       <!-- Physical Parameters Grid -->
       <div class="grid grid-cols-2 gap-3">
         <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 space-y-1">
-          <div class="text-slate-500 text-[10px]">Channel Tech</div>
+          <div class="text-slate-500 text-xs">通道技术</div>
           <div class="text-sm font-bold text-white">{{ selectedNode.tech }}</div>
-          <div class="text-[10px] text-emerald-400">Carrier Phase: {{ selectedNode.phaseLabel }}</div>
+          <div class="text-xs text-emerald-400">Carrier 相位： {{ selectedNode.phaseLabel }}</div>
         </div>
         <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 space-y-1">
-          <div class="text-slate-500 text-[10px]">SNR / Signal</div>
+          <div class="text-slate-500 text-xs">SNR / Signal</div>
           <div class="text-sm font-bold text-emerald-400">{{ selectedNode.snrDb }} dB</div>
-          <div class="text-[10px] text-slate-400">Atten: {{ selectedNode.attenuationDbm }} dBm</div>
+          <div class="text-xs text-slate-400">Atten: {{ selectedNode.attenuationDbm }} dBm</div>
         </div>
         <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 space-y-1">
-          <div class="text-slate-500 text-[10px]">Modulation Scheme</div>
+          <div class="text-slate-500 text-xs">Modulation Scheme</div>
           <div class="text-sm font-bold text-cyan-400">{{ selectedNode.modulation }}</div>
-          <div class="text-[10px] text-slate-400">BER: {{ selectedNode.ber }}</div>
+          <div class="text-xs text-slate-400">BER: {{ selectedNode.ber }}</div>
         </div>
         <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 space-y-1">
-          <div class="text-slate-500 text-[10px]">Relay Topology</div>
-          <div class="text-sm font-bold text-blue-400">{{ selectedNode.hops }} Hops</div>
-          <div class="text-[10px] text-slate-400">Parent: {{ selectedNode.parentName || 'None (Root)' }}</div>
+          <div class="text-slate-500 text-xs">Relay Topology</div>
+          <div class="text-sm font-bold text-blue-400">{{ selectedNode.hops }} 跳</div>
+          <div class="text-xs text-slate-400">Parent: {{ selectedNode.parentName || 'None (Root)' }}</div>
         </div>
       </div>
 
@@ -631,9 +626,9 @@
       <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-2">
         <div class="text-slate-400 font-bold flex items-center justify-between">
           <span>Routing Path to CCO:</span>
-          <span class="text-emerald-400 text-[11px]">{{ selectedNode.hops === 0 ? 'Direct Gateway' : 'Mesh Route Active' }}</span>
+          <span class="text-emerald-400 text-xs">{{ selectedNode.hops === 0 ? 'Direct Gateway' : 'Mesh Route Active' }}</span>
         </div>
-        <div class="flex items-center gap-2 text-slate-300 text-[11px] overflow-x-auto py-1">
+        <div class="flex items-center gap-2 text-slate-300 text-xs overflow-x-auto py-1">
           <span class="bg-cyan-500/20 text-cyan-400 px-2 py-1 rounded border border-cyan-500/30 font-bold">CCO-01</span>
           <span v-if="selectedNode.hops > 1" class="text-slate-600">→</span>
           <span v-if="selectedNode.hops > 1" class="bg-indigo-500/20 text-indigo-400 px-2 py-1 rounded border border-indigo-500/30">
@@ -650,15 +645,15 @@
       <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
         <div class="flex items-center justify-between text-slate-400 font-bold">
           <span>OFDM Sub-Carrier SNR Profile:</span>
-          <span class="text-slate-500 text-[10px]">Ch00 ~ Ch15</span>
+          <span class="text-slate-500 text-xs">Ch00 ~ Ch15</span>
         </div>
         <div class="flex items-end gap-1.5 h-24 pt-4">
-          <div 
-            v-for="(subSnr, idx) in selectedNode.subCarrierSnr" 
-            :key="idx" 
+          <div
+            v-for="(subSnr, idx) in selectedNode.subCarrierSnr"
+            :key="idx"
             class="flex-1 flex flex-col items-center gap-1 group"
           >
-            <div 
+            <div
               class="w-full rounded-t transition duration-300"
               :style="{ height: `${Math.min(100, Math.max(10, subSnr * 2.5))}%`, backgroundColor: getSnrHeatmapColor(subSnr) }"
             ></div>
@@ -669,14 +664,14 @@
 
       <!-- Action Buttons -->
       <div class="grid grid-cols-2 gap-3 pt-2">
-        <button 
-          @click="triggerPingProbe(selectedNode)" 
+        <button
+          @click="triggerPingProbe(selectedNode)"
           class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black py-2.5 rounded-xl transition shadow-lg flex items-center justify-center gap-2 cursor-pointer"
         >
           <span>⚡ Send Echo Probe</span>
         </button>
-        <button 
-          @click="recalibrateNotch(selectedNode)" 
+        <button
+          @click="recalibrateNotch(selectedNode)"
           class="bg-slate-850 hover:bg-slate-800 text-slate-200 font-bold py-2.5 rounded-xl border border-slate-700 transition flex items-center justify-center gap-2 cursor-pointer"
         >
           <span>🔧 Recalibrate Notch</span>
@@ -1048,7 +1043,7 @@ const filteredNodes = computed(() => {
 const topologyLinks = computed<TopologyLink[]>(() => {
   const links: TopologyLink[] = [];
   const nodeMap = new Map(nodes.value.map(n => [n.name, n]));
-  
+
   for (const node of filteredNodes.value) {
     if (node.parentName && nodeMap.has(node.parentName)) {
       const parent = nodeMap.get(node.parentName)!;
@@ -1076,7 +1071,7 @@ const topologyStats = computed(() => {
   const avgSnr = snrList.reduce((acc, s) => acc + s, 0) / (total || 1);
   const minSnr = Math.min(...snrList);
   const maxSnr = Math.max(...snrList);
-  const maxHops = Math.max(...nodes.value.map(n => n.hops));
+  const max跳 = Math.max(...nodes.value.map(n => n.hops));
   const avgLoss = nodes.value.reduce((acc, n) => acc + n.lossRatePct, 0) / (total || 1);
   const totalRetries = nodes.value.reduce((acc, n) => acc + n.retries, 0);
   const crosstalk = 14.8;
@@ -1088,7 +1083,7 @@ const topologyStats = computed(() => {
     avgSnrDb: avgSnr,
     minSnrDb: minSnr,
     maxSnrDb: maxSnr,
-    maxHops,
+    max跳,
     avgLossPct: avgLoss,
     totalRetries,
     crosstalkLevelDb: crosstalk
@@ -1105,32 +1100,32 @@ function selectNode(node: TopologyNode) {
 }
 
 function getNodeFillColor(node: TopologyNode) {
-  if (node.isRoot) return '#064e3b';
-  if (node.snrDb > 20) return '#065f46';
-  if (node.snrDb > 10) return '#78350f';
-  return '#881337';
+  if (node.isRoot) return 'var(--color-success-bg)';
+  if (node.snrDb > 20) return 'var(--color-success-bg)';
+  if (node.snrDb > 10) return 'var(--color-warning-bg)';
+  return 'var(--color-danger-bg)';
 }
 
 function getNodeStrokeColor(node: TopologyNode) {
-  if (node.isRoot) return '#10b981';
-  if (node.snrDb > 20) return '#34d399';
-  if (node.snrDb > 10) return '#fbbf24';
-  return '#f43f5e';
+  if (node.isRoot) return 'var(--chart-3)';
+  if (node.snrDb > 20) return 'var(--chart-3)';
+  if (node.snrDb > 10) return 'var(--chart-2)';
+  return 'var(--chart-4)';
 }
 
 function getNodeStatusDotClass(node: TopologyNode) {
   if (node.snrDb > 20) return 'bg-emerald-400';
   if (node.snrDb > 10) return 'bg-amber-400';
-  return 'bg-rose-500 animate-ping';
+  return 'bg-rose-500';
 }
 
 function getPhaseColor(phase: TopologyNode['phase']) {
   switch (phase) {
-    case 'PHASE_A': return '#60a5fa';
-    case 'PHASE_B': return '#c084fc';
-    case 'PHASE_C': return '#fb923c';
-    case 'WIRELESS': return '#22d3ee';
-    default: return '#34d399';
+    case 'PHASE_A': return 'var(--chart-1)';
+    case 'PHASE_B': return 'var(--chart-4)';
+    case 'PHASE_C': return 'var(--chart-6)';
+    case 'WIRELESS': return 'var(--chart-1)';
+    default: return 'var(--chart-3)';
   }
 }
 
@@ -1145,9 +1140,9 @@ function getPhaseColorClass(phase: TopologyNode['phase']) {
 }
 
 function getLinkColor(snr: number) {
-  if (snr > 20) return '#10b981';
-  if (snr > 10) return '#f59e0b';
-  return '#f43f5e';
+  if (snr > 20) return 'var(--chart-3)';
+  if (snr > 10) return 'var(--chart-2)';
+  return 'var(--chart-4)';
 }
 
 function getLinkWidth(snr: number) {
@@ -1157,13 +1152,13 @@ function getLinkWidth(snr: number) {
 }
 
 function getSnrHeatmapColor(snr: number) {
-  if (snr <= 5) return '#e11d48';
-  if (snr <= 10) return '#f43f5e';
-  if (snr <= 15) return '#f59e0b';
-  if (snr <= 20) return '#eab308';
-  if (snr <= 25) return '#10b981';
-  if (snr <= 30) return '#059669';
-  return '#06b6d4';
+  if (snr <= 5) return 'var(--color-danger)';
+  if (snr <= 10) return 'var(--chart-4)';
+  if (snr <= 15) return 'var(--chart-2)';
+  if (snr <= 20) return 'var(--chart-2)';
+  if (snr <= 25) return 'var(--chart-3)';
+  if (snr <= 30) return 'var(--chart-3)';
+  return 'var(--chart-1)';
 }
 
 function triggerPingProbe(node: TopologyNode) {

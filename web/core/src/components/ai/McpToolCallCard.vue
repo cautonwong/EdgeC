@@ -18,7 +18,7 @@
 
         <!-- Domain Badge -->
         <span 
-          class="px-1.5 py-0.5 rounded text-[10px] font-bold"
+          class="px-1.5 py-0.5 rounded text-xs font-bold"
           :class="domainColorClass"
         >
           {{ getToolDomain(tool.toolName) }}
@@ -30,7 +30,7 @@
 
       <div class="flex items-center gap-2 flex-shrink-0">
         <!-- Latency / Duration -->
-        <span v-if="tool.durationMs !== undefined" class="text-[10px] text-slate-400 font-mono">
+        <span v-if="tool.durationMs !== undefined" class="text-xs text-slate-400 font-mono">
           {{ tool.durationMs }} ms
         </span>
         
@@ -49,26 +49,26 @@
     <div v-show="isExpanded" class="p-3 border-t border-slate-800 space-y-2.5 bg-slate-950/60">
       <!-- Arguments Section -->
       <div>
-        <div class="flex items-center justify-between text-[10px] text-slate-400 font-semibold mb-1">
+        <div class="flex items-center justify-between text-xs text-slate-400 font-semibold mb-1">
           <span>Parameters</span>
           <button 
             @click.stop="copyJson(tool.args)" 
-            class="text-[10px] text-blue-400 hover:text-blue-300 underline cursor-pointer"
+            class="text-xs text-blue-400 hover:text-blue-300 underline cursor-pointer"
           >
             Copy
           </button>
         </div>
-        <pre class="p-2 rounded-lg bg-slate-900 border border-slate-800 text-[11px] text-slate-300 overflow-x-auto max-h-32">{{ formatJson(tool.args) }}</pre>
+        <pre class="p-2 rounded-lg bg-slate-900 border border-slate-800 text-xs text-slate-300 overflow-x-auto max-h-32">{{ formatJson(tool.args) }}</pre>
       </div>
 
       <!-- Result / Error Section -->
       <div>
-        <div class="flex items-center justify-between text-[10px] text-slate-400 font-semibold mb-1">
+        <div class="flex items-center justify-between text-xs text-slate-400 font-semibold mb-1">
           <span>{{ tool.status === 'error' ? 'Error Output' : 'Physical Return' }}</span>
           <button 
             v-if="tool.result || tool.error"
             @click.stop="copyJson(tool.result || tool.error)" 
-            class="text-[10px] text-blue-400 hover:text-blue-300 underline cursor-pointer"
+            class="text-xs text-blue-400 hover:text-blue-300 underline cursor-pointer"
           >
             Copy
           </button>
@@ -76,15 +76,15 @@
 
         <pre 
           v-if="tool.status === 'error'"
-          class="p-2 rounded-lg bg-rose-950/40 border border-rose-800/50 text-[11px] text-rose-300 overflow-x-auto"
+          class="p-2 rounded-lg bg-rose-950/40 border border-rose-800/50 text-xs text-rose-300 overflow-x-auto"
         >{{ tool.error }}</pre>
 
         <pre 
           v-else-if="tool.result !== undefined"
-          class="p-2 rounded-lg bg-slate-900 border border-slate-800 text-[11px] text-emerald-300 overflow-x-auto max-h-48"
+          class="p-2 rounded-lg bg-slate-900 border border-slate-800 text-xs text-emerald-300 overflow-x-auto max-h-48"
         >{{ formatJson(tool.result) }}</pre>
 
-        <div v-else class="text-[11px] text-slate-500 italic py-1">Executing on physical target...</div>
+        <div v-else class="text-xs text-slate-500 py-1">Executing on physical target...</div>
       </div>
     </div>
   </div>

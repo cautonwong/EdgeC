@@ -1,51 +1,46 @@
 <template>
-  <div class="min-h-full bg-[#020617] text-[#f8fafc] p-6 lg:p-10 space-y-8 animate-in fade-in duration-700 font-ui">
+  <div class="min-h-full bg-[var(--bg-page)] text-[var(--text-primary)] p-6 lg:p-10 space-y-8 animate-in fade-in duration-700 font-ui">
     <!-- Top Hero Header -->
-    <section class="relative bg-[#0f172a] rounded-[2.5rem] overflow-hidden shadow-2xl border border-[#334155]/60 p-8 lg:p-10">
-      <div class="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-500/10 rounded-full blur-[120px] -mr-40 -mt-40 pointer-events-none"></div>
-      <div class="absolute bottom-0 left-0 w-[300px] h-[300px] bg-indigo-500/10 rounded-full blur-[80px] -ml-20 -mb-20 pointer-events-none"></div>
-
+    <section class="relative bg-[var(--bg-surface)] rounded-xl overflow-hidden shadow-2xl border border-[var(--border-default)] p-8 lg:p-10">
       <div class="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div class="space-y-2">
-          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black">
-            <span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping"></span>
-            Real-Time System Metrics & Telemetry Matrix
+          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-black">
+            <span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+            实时系统指标
           </div>
-          <h1 class="text-3xl lg:text-4xl font-black text-white tracking-tight leading-tight font-mono">
-            SYSTEM <span class="text-blue-400 font-sans">METRICS MATRIX</span>
-          </h1>
+          <h1 class="text-3xl lg:text-4xl font-black tracking-tight leading-tight">指标矩阵</h1>
           <p class="text-slate-400 text-xs lg:text-sm font-medium">
-            Full-stack telemetry matrix for DataHub SPSC ringbuffer, Cyclone DDS distributed mesh, DSP stream pipelines, and RT-kernel performance.
+            DataHub SPSC 环形缓冲、Cyclone DDS 分布式网格、DSP 流水线与 RT 内核的实时指标
           </p>
         </div>
 
         <!-- Global Status Badges & Controls -->
         <div class="flex flex-wrap items-center gap-3 font-mono text-xs">
           <div class="bg-slate-950/90 border border-slate-800 px-3.5 py-2 rounded-2xl flex items-center gap-2.5 shadow-inner">
-            <span class="text-slate-500">Sampling Rate:</span>
+            <span class="text-slate-500">采样周期：</span>
             <select v-model="refreshIntervalMs" class="bg-transparent text-cyan-400 font-bold focus:outline-none cursor-pointer">
-              <option :value="1000">1.0s (Fast)</option>
-              <option :value="2000">2.0s (Standard)</option>
-              <option :value="5000">5.0s (Eco)</option>
+              <option :value="1000">1.0s（快速）</option>
+              <option :value="2000">2.0s（标准）</option>
+              <option :value="5000">5.0s（节能）</option>
             </select>
           </div>
           <div class="bg-slate-950/90 border border-slate-800 px-3.5 py-2 rounded-2xl flex items-center gap-2.5 shadow-inner">
-            <span class="text-slate-500">Uptime:</span>
+            <span class="text-slate-500">运行时长：</span>
             <span class="text-emerald-400 font-bold">{{ formattedUptime }}</span>
           </div>
-          <button 
-            @click="togglePolling" 
+          <button
+            @click="togglePolling"
             :class="isPolling ? 'bg-blue-500 hover:bg-blue-600 text-slate-950 font-black' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'"
             class="px-4 py-2.5 rounded-2xl border border-slate-700 transition flex items-center gap-2 shadow-lg cursor-pointer"
           >
-            <span class="w-2 h-2 rounded-full" :class="isPolling ? 'bg-slate-950 animate-ping' : 'bg-slate-500'"></span>
-            <span>{{ isPolling ? '⏸ PAUSE POLLING' : '▶ RESUME POLLING' }}</span>
+            <span class="w-2 h-2 rounded-full" :class="isPolling ? 'bg-slate-950' : 'bg-slate-500'"></span>
+            <span>{{ isPolling ? '⏸ 暂停轮询' : '▶ 恢复轮询' }}</span>
           </button>
-          <button 
-            @click="showPrometheusModal = true" 
+          <button
+            @click="showPrometheusModal = true"
             class="bg-slate-950 hover:bg-slate-800 text-slate-300 px-4 py-2.5 rounded-2xl border border-slate-700 transition font-bold shadow-lg cursor-pointer"
           >
-            📊 OpenMetrics
+            OpenMetrics
           </button>
         </div>
       </div>
@@ -58,7 +53,7 @@
         <div class="flex items-center justify-between text-slate-400 font-bold mb-4">
           <span class="flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
-            DATAHUB SHM WATERMARK
+            DataHub 共享内存水位
           </span>
           <span :class="getWatermarkStatusClass(metrics.datahub.watermarkPct)">
             {{ metrics.datahub.watermarkPct }}%
@@ -69,15 +64,15 @@
         </div>
         <!-- Progress Bar -->
         <div class="w-full bg-slate-950 rounded-full h-2.5 overflow-hidden border border-slate-800 mb-3">
-          <div 
+          <div
             class="h-full rounded-full transition duration-500"
             :class="getProgressBarColor(metrics.datahub.watermarkPct)"
             :style="{ width: `${metrics.datahub.watermarkPct}%` }"
           ></div>
         </div>
-        <div class="flex items-center justify-between text-[11px] text-slate-400">
-          <span>Read Latency: <strong class="text-slate-200">{{ metrics.datahub.readLatencyNs }} ns</strong></span>
-          <span>Drops: <strong class="text-emerald-400">{{ metrics.datahub.dropCount }}</strong></span>
+        <div class="flex items-center justify-between text-xs text-slate-400">
+          <span>读取延迟： <strong class="text-slate-200">{{ metrics.datahub.readLatencyNs }} ns</strong></span>
+          <span>丢弃： <strong class="text-emerald-400">{{ metrics.datahub.dropCount }}</strong></span>
         </div>
       </div>
 
@@ -86,26 +81,26 @@
         <div class="flex items-center justify-between text-slate-400 font-bold mb-4">
           <span class="flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-blue-400"></span>
-            CPU TOTAL LOAD (A53)
+            CPU 总负载（A53）
           </span>
           <span :class="metrics.system.cpuLoadPct > 80 ? 'text-rose-400 font-black' : 'text-emerald-400 font-bold'">
             {{ metrics.system.cpuLoadPct }}%
           </span>
         </div>
         <div class="text-2xl lg:text-3xl font-black text-white mb-2">
-          {{ metrics.system.cpuFreqGhz }} <span class="text-xs text-slate-500 font-normal">GHz · 4 Cores</span>
+          {{ metrics.system.cpuFreqGhz }} <span class="text-xs text-slate-500 font-normal">GHz · 4 核</span>
         </div>
         <!-- Progress Bar -->
         <div class="w-full bg-slate-950 rounded-full h-2.5 overflow-hidden border border-slate-800 mb-3">
-          <div 
+          <div
             class="h-full rounded-full transition duration-500"
             :class="getProgressBarColor(metrics.system.cpuLoadPct)"
             :style="{ width: `${metrics.system.cpuLoadPct}%` }"
           ></div>
         </div>
-        <div class="flex items-center justify-between text-[11px] text-slate-400">
-          <span>Temp: <strong :class="metrics.system.cpuTempC > 70 ? 'text-rose-400' : 'text-slate-200'">{{ metrics.system.cpuTempC }}°C</strong></span>
-          <span>Ctx Switches: <strong class="text-slate-200">{{ metrics.system.contextSwitches }}/s</strong></span>
+        <div class="flex items-center justify-between text-xs text-slate-400">
+          <span>温度： <strong :class="metrics.system.cpuTempC > 70 ? 'text-rose-400' : 'text-slate-200'">{{ metrics.system.cpuTempC }}°C</strong></span>
+          <span>上下文切换： <strong class="text-slate-200">{{ metrics.system.contextSwitches }}/s</strong></span>
         </div>
       </div>
 
@@ -114,7 +109,7 @@
         <div class="flex items-center justify-between text-slate-400 font-bold mb-4">
           <span class="flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
-            MEMORY RSS / SHM
+            内存 RSS / SHM
           </span>
           <span class="text-slate-300 font-bold">
             {{ Math.round((metrics.system.memoryRssMb / metrics.system.memoryTotalMb) * 100) }}%
@@ -125,14 +120,14 @@
         </div>
         <!-- Progress Bar -->
         <div class="w-full bg-slate-950 rounded-full h-2.5 overflow-hidden border border-slate-800 mb-3">
-          <div 
+          <div
             class="h-full bg-indigo-500 rounded-full transition duration-500"
             :style="{ width: `${(metrics.system.memoryRssMb / metrics.system.memoryTotalMb) * 100}%` }"
           ></div>
         </div>
-        <div class="flex items-center justify-between text-[11px] text-slate-400">
-          <span>Memfd Seals: <strong class="text-emerald-400">{{ metrics.system.memfdSealedFds }} FDs</strong></span>
-          <span>Buffer Cache: <strong class="text-slate-200">{{ metrics.system.bufferCacheMb }} MB</strong></span>
+        <div class="flex items-center justify-between text-xs text-slate-400">
+          <span>Memfd 密封： <strong class="text-emerald-400">{{ metrics.system.memfdSealedFds }} FDs</strong></span>
+          <span>缓冲区： <strong class="text-slate-200">{{ metrics.system.bufferCacheMb }} MB</strong></span>
         </div>
       </div>
 
@@ -141,20 +136,20 @@
         <div class="flex items-center justify-between text-slate-400 font-bold mb-4">
           <span class="flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-            CYCLONE DDS MESH
+            Cyclone DDS 网格
           </span>
-          <span class="text-emerald-400 font-bold">ONLINE</span>
+          <span class="text-emerald-400 font-bold">在线</span>
         </div>
         <div class="text-2xl lg:text-3xl font-black text-white mb-2">
-          {{ metrics.dds.activeNodes }} <span class="text-xs text-slate-500 font-normal">Active Nodes</span>
+          {{ metrics.dds.activeNodes }} <span class="text-xs text-slate-500 font-normal">活动节点</span>
         </div>
         <!-- Progress Bar (Packet loss rate) -->
         <div class="w-full bg-slate-950 rounded-full h-2.5 overflow-hidden border border-slate-800 mb-3">
           <div class="h-full bg-emerald-500 rounded-full w-full"></div>
         </div>
-        <div class="flex items-center justify-between text-[11px] text-slate-400">
-          <span>Packet Loss: <strong class="text-emerald-400">{{ metrics.dds.packetLossRate }}%</strong></span>
-          <span>Topics: <strong class="text-slate-200">{{ metrics.dds.topicCount }}</strong></span>
+        <div class="flex items-center justify-between text-xs text-slate-400">
+          <span>丢包： <strong class="text-emerald-400">{{ metrics.dds.packetLossRate }}%</strong></span>
+          <span>主题： <strong class="text-slate-200">{{ metrics.dds.topicCount }}</strong></span>
         </div>
       </div>
     </div>
@@ -162,14 +157,14 @@
     <!-- Middle Section: Real-Time Sparkline Trend Monitors -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 font-mono">
       <!-- DataHub & Stream Engine TPS/Latency Sparkline -->
-      <div class="bg-slate-900/80 border border-slate-800 rounded-[2.5rem] p-6 lg:p-8 space-y-6 shadow-2xl">
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-6 lg:p-8 space-y-6 shadow-2xl">
         <div class="flex items-center justify-between">
           <div class="space-y-1">
             <h3 class="text-lg font-black text-white flex items-center gap-2">
-              <span class="text-cyan-400">⚡</span> DATAHUB SHM & STREAM PIPELINE
+              <span class="text-cyan-400">⚡</span> DataHub 共享内存与流水线
             </h3>
             <p class="text-slate-400 text-xs font-sans">
-              Real-time transaction throughput (TPS) and DSP DAG execution latency over the past 60 seconds.
+              过去 60 秒的实时事务吞吐（TPS）与 DSP DAG 执行延迟。
             </p>
           </div>
           <div class="text-right">
@@ -180,39 +175,39 @@
 
         <!-- SVG Mini Sparkline Chart -->
         <div class="bg-slate-950 border border-slate-800/80 rounded-2xl p-4 h-48 flex flex-col justify-between relative overflow-hidden">
-          <div class="flex items-center justify-between text-[10px] text-slate-500 select-none">
+          <div class="flex items-center justify-between text-xs text-slate-500 select-none">
             <span>30,000 TPS / 200 µs</span>
-            <span>60s Rolling Window</span>
-            <span>Now</span>
+            <span>60s 滚动窗口</span>
+            <span>现在</span>
           </div>
 
           <svg aria-hidden="true" class="w-full h-32 overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
             <!-- Grid Lines -->
-            <line x1="0" y1="25" x2="500" y2="25" stroke="#1e293b" stroke-dasharray="4 4" />
-            <line x1="0" y1="50" x2="500" y2="50" stroke="#1e293b" stroke-dasharray="4 4" />
-            <line x1="0" y1="75" x2="500" y2="75" stroke="#1e293b" stroke-dasharray="4 4" />
+            <line x1="0" y1="25" x2="500" y2="25" stroke="var(--border-default)" stroke-dasharray="4 4" />
+            <line x1="0" y1="50" x2="500" y2="50" stroke="var(--border-default)" stroke-dasharray="4 4" />
+            <line x1="0" y1="75" x2="500" y2="75" stroke="var(--border-default)" stroke-dasharray="4 4" />
 
             <!-- TPS Sparkline Path (Cyan) -->
-            <path 
-              :d="tpsSvgPath" 
-              fill="none" 
-              stroke="#22d3ee" 
-              stroke-width="2.5" 
+            <path
+              :d="tpsSvgPath"
+              fill="none"
+              stroke="var(--chart-1)"
+              stroke-width="2.5"
               stroke-linecap="round"
             />
 
             <!-- DAG Latency Sparkline Path (Indigo) -->
-            <path 
-              :d="dagSvgPath" 
-              fill="none" 
-              stroke="#818cf8" 
-              stroke-width="2" 
+            <path
+              :d="dagSvgPath"
+              fill="none"
+              stroke="var(--chart-4)"
+              stroke-width="2"
               stroke-linecap="round"
               stroke-dasharray="3 3"
             />
           </svg>
 
-          <div class="flex items-center gap-4 text-[10px] select-none">
+          <div class="flex items-center gap-4 text-xs select-none">
             <span class="flex items-center gap-1.5 text-cyan-400">
               <span class="w-2 h-0.5 bg-cyan-400"></span>
               DataHub TPS (Current: {{ metrics.datahub.tps }})
@@ -227,72 +222,72 @@
         <!-- Detailed Metrics Subgrid -->
         <div class="grid grid-cols-3 gap-4 text-xs">
           <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800/80">
-            <span class="text-slate-500 text-[10px] block">CDD Point Tags</span>
+            <span class="text-slate-500 text-xs block">CDD 点位标签</span>
             <span class="text-slate-200 font-bold text-sm">{{ metrics.datahub.totalTags }} Registered</span>
           </div>
           <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800/80">
-            <span class="text-slate-500 text-[10px] block">Stage Queue Depth</span>
+            <span class="text-slate-500 text-xs block">阶段队列深度</span>
             <span class="text-slate-200 font-bold text-sm">{{ metrics.stream.stageQueueDepth }} / 64</span>
           </div>
           <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800/80">
-            <span class="text-slate-500 text-[10px] block">Stream Sample Freq</span>
+            <span class="text-slate-500 text-xs block">流采样频率</span>
             <span class="text-emerald-400 font-bold text-sm">{{ metrics.stream.samplingRateHz }} Hz</span>
           </div>
         </div>
       </div>
 
       <!-- DDS Throughput & RT-Preempt Jitter Sparkline -->
-      <div class="bg-slate-900/80 border border-slate-800 rounded-[2.5rem] p-6 lg:p-8 space-y-6 shadow-2xl">
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-6 lg:p-8 space-y-6 shadow-2xl">
         <div class="flex items-center justify-between">
           <div class="space-y-1">
             <h3 class="text-lg font-black text-white flex items-center gap-2">
-              <span class="text-emerald-400">🌐</span> CYCLONE DDS & RT-PREEMPT JITTER
+              <span class="text-emerald-400">🌐</span> Cyclone DDS 与 RT-PREEMPT 抖动
             </h3>
             <p class="text-slate-400 text-xs font-sans">
-              Distributed RTPS network bandwidth (RX/TX KB/s) and Linux RT kernel task scheduling jitter.
+              分布式 RTPS 网络带宽（RX/TX KB/s）与 Linux RT 内核任务调度抖动。
             </p>
           </div>
           <div class="text-right">
-            <div class="text-emerald-400 text-xl font-black">{{ (metrics.dds.rxRateBytes / 1024).toFixed(1) }} <span class="text-xs text-slate-400 font-normal">KB/s RX</span></div>
+            <div class="text-emerald-400 text-xl font-black">{{ (metrics.dds.rxRateBytes / 1024).toFixed(1) }} <span class="text-xs text-slate-400 font-normal">KB/s 接收</span></div>
             <div class="text-amber-400 text-xs font-bold">{{ metrics.system.rtJitterUs }} µs Max Jitter</div>
           </div>
         </div>
 
         <!-- SVG Mini Sparkline Chart -->
         <div class="bg-slate-950 border border-slate-800/80 rounded-2xl p-4 h-48 flex flex-col justify-between relative overflow-hidden">
-          <div class="flex items-center justify-between text-[10px] text-slate-500 select-none">
+          <div class="flex items-center justify-between text-xs text-slate-500 select-none">
             <span>500 KB/s / 50 µs</span>
-            <span>60s Rolling Window</span>
-            <span>Now</span>
+            <span>60s 滚动窗口</span>
+            <span>现在</span>
           </div>
 
           <svg aria-hidden="true" class="w-full h-32 overflow-visible" viewBox="0 0 500 100" preserveAspectRatio="none">
             <!-- Grid Lines -->
-            <line x1="0" y1="25" x2="500" y2="25" stroke="#1e293b" stroke-dasharray="4 4" />
-            <line x1="0" y1="50" x2="500" y2="50" stroke="#1e293b" stroke-dasharray="4 4" />
-            <line x1="0" y1="75" x2="500" y2="75" stroke="#1e293b" stroke-dasharray="4 4" />
+            <line x1="0" y1="25" x2="500" y2="25" stroke="var(--border-default)" stroke-dasharray="4 4" />
+            <line x1="0" y1="50" x2="500" y2="50" stroke="var(--border-default)" stroke-dasharray="4 4" />
+            <line x1="0" y1="75" x2="500" y2="75" stroke="var(--border-default)" stroke-dasharray="4 4" />
 
             <!-- DDS RX Throughput Sparkline (Emerald) -->
-            <path 
-              :d="ddsRxSvgPath" 
-              fill="none" 
-              stroke="#10b981" 
-              stroke-width="2.5" 
+            <path
+              :d="ddsRxSvgPath"
+              fill="none"
+              stroke="var(--chart-3)"
+              stroke-width="2.5"
               stroke-linecap="round"
             />
 
             <!-- RT-Jitter Sparkline (Amber) -->
-            <path 
-              :d="jitterSvgPath" 
-              fill="none" 
-              stroke="#f59e0b" 
-              stroke-width="2" 
+            <path
+              :d="jitterSvgPath"
+              fill="none"
+              stroke="var(--chart-2)"
+              stroke-width="2"
               stroke-linecap="round"
               stroke-dasharray="3 3"
             />
           </svg>
 
-          <div class="flex items-center gap-4 text-[10px] select-none">
+          <div class="flex items-center gap-4 text-xs select-none">
             <span class="flex items-center gap-1.5 text-emerald-400">
               <span class="w-2 h-0.5 bg-emerald-400"></span>
               DDS Network RX (Current: {{ (metrics.dds.rxRateBytes / 1024).toFixed(1) }} KB/s)
@@ -307,15 +302,15 @@
         <!-- Detailed Metrics Subgrid -->
         <div class="grid grid-cols-3 gap-4 text-xs">
           <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800/80">
-            <span class="text-slate-500 text-[10px] block">DDS TX Bandwidth</span>
+            <span class="text-slate-500 text-xs block">DDS 发送带宽</span>
             <span class="text-slate-200 font-bold text-sm">{{ (metrics.dds.txRateBytes / 1024).toFixed(1) }} KB/s</span>
           </div>
           <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800/80">
-            <span class="text-slate-500 text-[10px] block">Heartbeat Jitter</span>
+            <span class="text-slate-500 text-xs block">心跳抖动</span>
             <span class="text-emerald-400 font-bold text-sm">{{ metrics.dds.heartbeatJitterUs }} µs</span>
           </div>
           <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800/80">
-            <span class="text-slate-500 text-[10px] block">SQLite WAL Checkpoint</span>
+            <span class="text-slate-500 text-xs block">SQLite WAL 检查点</span>
             <span class="text-slate-200 font-bold text-sm">{{ metrics.system.sqliteWalPages }} Pages</span>
           </div>
         </div>
@@ -323,14 +318,14 @@
     </div>
 
     <!-- Bottom Latency Histogram Percentiles & Kernel Profiler Section -->
-    <div class="bg-slate-900/80 border border-slate-800 rounded-[2.5rem] p-6 lg:p-8 space-y-6 shadow-2xl font-mono text-xs">
+    <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-6 lg:p-8 space-y-6 shadow-2xl font-mono text-xs">
       <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <h3 class="text-lg font-black text-white flex items-center gap-2">
-            <span>⏱</span> SHM ZERO-COPY LATENCY HISTOGRAM & PERCENTILES
+            <span>⏱</span> 共享内存零拷贝延迟直方图与分位数
           </h3>
           <p class="text-slate-400 text-xs font-sans">
-            Statistical distribution of atomic memory read/write cycles across 1,000,000 sample transactions.
+            100 万次采样事务中原子内存读写周期的统计分布。
           </p>
         </div>
 
@@ -358,47 +353,47 @@
       <!-- Latency Distribution Bars -->
       <div class="space-y-2.5 pt-2">
         <div v-for="bucket in latencyBuckets" :key="bucket.range" class="flex items-center gap-4">
-          <span class="w-24 text-slate-400 text-[11px] select-none flex-shrink-0">{{ bucket.range }}</span>
+          <span class="w-24 text-slate-400 text-xs select-none flex-shrink-0">{{ bucket.range }}</span>
           <div class="flex-1 bg-slate-950 rounded-full h-3 overflow-hidden border border-slate-800 relative">
-            <div 
+            <div
               class="h-full rounded-full transition duration-500"
               :class="bucket.barColor"
               :style="{ width: `${bucket.percentage}%` }"
             ></div>
           </div>
           <span class="w-16 text-right text-slate-300 font-bold select-none">{{ bucket.percentage }}%</span>
-          <span class="w-24 text-right text-slate-500 text-[10px] select-none">({{ bucket.count.toLocaleString() }})</span>
+          <span class="w-24 text-right text-slate-500 text-xs select-none">({{ bucket.count.toLocaleString() }})</span>
         </div>
       </div>
     </div>
 
     <!-- Prometheus OpenMetrics Raw Export Modal -->
-    <div 
-      v-if="showPrometheusModal" 
+    <div
+      v-if="showPrometheusModal"
       class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-300 font-mono"
     >
       <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full p-6 space-y-4 shadow-2xl text-xs">
         <div class="flex items-center justify-between border-b border-slate-800 pb-3">
           <h4 class="text-base font-black text-white flex items-center gap-2">
-            <span>📊</span> Prometheus / OpenMetrics Raw Payload
+            <span>📊</span> Prometheus / OpenMetrics 原始负载
           </h4>
-          <button 
-            @click="showPrometheusModal = false" 
+          <button
+            @click="showPrometheusModal = false"
             class="text-slate-500 hover:text-slate-300 text-lg font-bold"
           >
             ✕
           </button>
         </div>
 
-        <pre class="bg-slate-950 border border-slate-800 rounded-2xl p-4 text-emerald-400 overflow-x-auto text-[11px] max-h-96 leading-relaxed select-all">{{ rawPrometheusText }}</pre>
+        <pre class="bg-slate-950 border border-slate-800 rounded-2xl p-4 text-emerald-400 overflow-x-auto text-xs max-h-96 leading-relaxed select-all">{{ rawPrometheusText }}</pre>
 
         <div class="flex items-center justify-between pt-2">
-          <span class="text-slate-500 text-[10px]">Endpoint: GET /api/v1/system/metrics</span>
-          <button 
-            @click="copyPrometheusText" 
+          <span class="text-slate-500 text-xs">端点：GET /api/v1/system/metrics</span>
+          <button
+            @click="copyPrometheusText"
             class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl font-bold transition shadow cursor-pointer"
           >
-            📋 Copy to Clipboard
+            复制到剪贴板
           </button>
         </div>
       </div>

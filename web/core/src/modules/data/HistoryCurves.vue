@@ -2,11 +2,9 @@
   <div class="p-6 lg:p-10 space-y-8 animate-in fade-in duration-500 min-h-full">
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
       <div>
-        <h1 class="text-3xl font-black text-slate-100 tracking-tight font-mono">
-          HISTORICAL <span class="text-indigo-500 font-sans font-black">CURVES</span>
-        </h1>
-        <p class="text-slate-400 text-xs font-mono mt-1">
-          Deep SQLite & SnF Compressed Time-Series Playback
+        <h1 class="text-3xl font-black tracking-tight">历史曲线</h1>
+        <p class="text-slate-400 text-xs mt-1">
+          SQLite 与 SnF 压缩时序回放
         </p>
       </div>
       
@@ -17,7 +15,7 @@
           data-testid="history-point-select"
           class="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/30"
         >
-          <option value="">Select Telemetry Point...</option>
+          <option value="">选择遥测点位…</option>
           <option v-for="tag in trendTags" :key="tag.pointId" :value="tag.pointId">
             {{ tag.name }} ({{ tag.unit || 'unit' }})
           </option>
@@ -27,9 +25,9 @@
           v-model="timeRange" 
           class="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/30"
         >
-          <option value="1h">Last 1 Hour</option>
-          <option value="6h">Last 6 Hours</option>
-          <option value="24h">Last 24 Hours</option>
+          <option value="1h">最近 1 小时</option>
+          <option value="6h">最近 6 小时</option>
+          <option value="24h">最近 24 小时</option>
         </select>
 
         <button 
@@ -38,8 +36,8 @@
           :disabled="!selectedTagId || loading" 
           class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-xl text-xs font-mono font-bold transition shadow flex items-center gap-1.5"
         >
-          <span v-if="loading" class="animate-spin">🌀</span>
-          <span>{{ loading ? 'Querying...' : 'Query Data' }}</span>
+          <span v-if="loading" class="animate-spin">◌</span>
+          <span>{{ loading ? '查询中…' : '查询数据' }}</span>
         </button>
       </div>
     </div>
@@ -48,21 +46,20 @@
     <div class="bg-slate-900/90 rounded-3xl p-6 lg:p-8 shadow-2xl border border-slate-800/90 relative min-h-[480px] flex flex-col">
       <div v-if="loading" class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/70 backdrop-blur-sm rounded-3xl">
         <div class="w-10 h-10 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
-        <span class="mt-4 text-xs font-mono text-slate-400">Fetching history from SQLite time-series store...</span>
+        <span class="mt-4 text-xs font-mono text-slate-400">正在从 SQLite 时序库读取历史数据…</span>
       </div>
 
       <div v-else-if="points.length === 0" class="flex-1 flex flex-col items-center justify-center text-slate-500 font-mono text-xs">
-        <span class="text-3xl mb-2">📉</span>
-        <span>No telemetry data queried for the selected range.</span>
-        <span class="text-[10px] text-slate-600 mt-1">Select a tag and click 'Query Data' to render.</span>
+        <span>所选时间范围内没有遥测数据。</span>
+        <span class="text-xs text-slate-600 mt-1">选择点位后点击“查询数据”。</span>
       </div>
 
       <div v-show="points.length > 0" class="flex-1 flex flex-col">
         <div class="flex justify-between items-center mb-3 text-xs font-mono text-slate-400">
-          <span>Points Retrieved: <strong class="text-slate-200" data-testid="history-points">{{ points.length.toLocaleString() }}</strong></span>
-          <span>Sampling: <strong class="text-indigo-400">LTTB Downsampled</strong></span>
+          <span>点数：<strong class="text-slate-200" data-testid="history-points">{{ points.length.toLocaleString() }}</strong></span>
+          <span>采样：<strong class="text-indigo-400">LTTB 降采样</strong></span>
         </div>
-        <div ref="chartContainer" data-testid="history-chart" class="w-full h-[400px]"></div>
+        <div ref="chartContainer" data-testid="history-chart" role="img" aria-label="历史遥测曲线" class="w-full h-[400px]"></div>
       </div>
     </div>
   </div>
@@ -70,9 +67,17 @@
 
 <script setup lang="ts">
 import { ref, computed, onBeforeUnmount, watch } from 'vue';
-import * as echarts from 'echarts';
+import * as echarts from 'echarts/core';
+import { LineChart } from 'echarts/charts';
+import { DataZoomComponent, GridComponent, TooltipComponent } from 'echarts/components';
+import { CanvasRenderer } from 'echarts/renderers';
+import type { EChartsOption } from 'echarts';
 import { request } from '../../sdk/http';
 import { useTelemetryPoints } from '../../app/composables/useTelemetryPoints';
+import { resolvedTheme } from '../../app/composables/useTheme';
+import { chartChrome, chartPalette, withAlpha } from '../../ui/chartTheme';
+
+echarts.use([LineChart, GridComponent, TooltipComponent, DataZoomComponent, CanvasRenderer]);
 
 // 点位来自遥测快照，历史序列来自 /api/v1/telemetry/history —— 不再经过契约点位。
 const { points: telemetryPoints } = useTelemetryPoints();
@@ -101,8 +106,10 @@ function updateChart() {
 
   const tagName = selectedTag.value ? selectedTag.value.name : selectedTagId.value || '未选择点位';
   const unit = selectedTag.value?.unit || '';
+  const [c1] = chartPalette();
+  const chrome = chartChrome();
 
-  const option: echarts.EChartsOption = {
+  const option: EChartsOption = {
     backgroundColor: 'transparent',
     grid: {
       left: '2%',
@@ -116,17 +123,17 @@ function updateChart() {
       axisPointer: {
         type: 'cross',
         label: {
-          fontFamily: 'JetBrains Mono, Menlo, monospace',
-          backgroundColor: '#1E293B',
-          color: '#F8FAFC'
+          fontFamily: 'Edge Mono, Edge Sans, monospace',
+          backgroundColor: chrome.elevated,
+          color: chrome.text
         }
       },
-      backgroundColor: '#0F172A',
-      borderColor: '#334155',
+      backgroundColor: chrome.surface,
+      borderColor: chrome.border,
       borderWidth: 1,
       textStyle: {
-        fontFamily: 'JetBrains Mono, Menlo, monospace',
-        color: '#F1F5F9',
+        fontFamily: 'Edge Mono, Edge Sans, monospace',
+        color: chrome.text,
         fontSize: 12
       },
       formatter: (params: any) => {
@@ -142,28 +149,28 @@ function updateChart() {
     xAxis: {
       type: 'time',
       boundaryGap: false,
-      axisLine: { lineStyle: { color: '#334155' } },
+      axisLine: { lineStyle: { color: chrome.border } },
       axisLabel: {
-        fontFamily: 'JetBrains Mono, Menlo, monospace',
-        color: '#64748B',
-        fontSize: 10
+        fontFamily: 'Edge Mono, Edge Sans, monospace',
+        color: chrome.muted,
+        fontSize: 12
       },
       splitLine: {
         show: true,
-        lineStyle: { color: 'rgba(255, 255, 255, 0.04)' }
+        lineStyle: { color: withAlpha(chrome.text, 0.08) }
       }
     },
     yAxis: {
       type: 'value',
-      axisLine: { lineStyle: { color: '#334155' } },
+      axisLine: { lineStyle: { color: chrome.border } },
       axisLabel: {
-        fontFamily: 'JetBrains Mono, Menlo, monospace',
-        color: '#64748B',
-        fontSize: 10
+        fontFamily: 'Edge Mono, Edge Sans, monospace',
+        color: chrome.muted,
+        fontSize: 12
       },
       splitLine: {
         show: true,
-        lineStyle: { color: 'rgba(255, 255, 255, 0.05)' }
+        lineStyle: { color: withAlpha(chrome.text, 0.08) }
       }
     },
     dataZoom: [
@@ -173,11 +180,11 @@ function updateChart() {
         xAxisIndex: [0],
         bottom: '1%',
         height: 18,
-        backgroundColor: '#0F172A',
-        borderColor: '#1E293B',
-        fillerColor: 'rgba(99, 102, 241, 0.2)',
-        handleStyle: { color: '#6366F1' },
-        textStyle: { fontFamily: 'JetBrains Mono, Menlo, monospace', color: '#64748B', fontSize: 9 }
+        backgroundColor: chrome.surface,
+        borderColor: chrome.border,
+        fillerColor: withAlpha(c1, 0.2),
+        handleStyle: { color: c1 },
+        textStyle: { fontFamily: 'Edge Mono, Edge Sans, monospace', color: chrome.muted, fontSize: 12 }
       }
     ],
     series: [
@@ -186,11 +193,11 @@ function updateChart() {
         type: 'line',
         sampling: 'lttb',
         showSymbol: false,
-        lineStyle: { width: 2, color: '#6366F1' },
+        lineStyle: { width: 2, color: c1 },
         areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(99, 102, 241, 0.35)' },
-            { offset: 1, color: 'rgba(99, 102, 241, 0.0)' }
+            { offset: 0, color: withAlpha(c1, 0.35) },
+            { offset: 1, color: withAlpha(c1, 0) }
           ])
         },
         data: points.value
@@ -263,6 +270,10 @@ watch(
   },
   { immediate: true },
 );
+
+watch(resolvedTheme, () => {
+  updateChart();
+});
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize);

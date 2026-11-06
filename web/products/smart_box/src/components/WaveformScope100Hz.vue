@@ -22,7 +22,7 @@
       <!-- Scope Action Buttons -->
       <div class="flex flex-wrap items-center gap-2 font-mono text-xs">
         <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold">
-          <span class="w-2 h-2 rounded-full" :class="isRunning ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'"></span>
+          <span class="w-2 h-2 rounded-full" :class="isRunning ? 'bg-emerald-400' : 'bg-amber-400'"></span>
           <span>{{ isRunning ? 'SAMPLING: 100Hz (10ms)' : 'FROZEN' }}</span>
         </span>
 
@@ -70,7 +70,7 @@
       </div>
 
       <!-- Scope Live Crosshair Measurements -->
-      <div class="absolute bottom-3 right-4 z-20 text-[11px] font-mono text-slate-400 bg-slate-900/80 backdrop-blur px-3 py-1.5 rounded-xl border border-slate-800 space-x-3">
+      <div class="absolute bottom-3 right-4 z-20 text-xs font-mono text-slate-400 bg-slate-900/80 backdrop-blur px-3 py-1.5 rounded-xl border border-slate-800 space-x-3">
         <span>Vp-p: <strong class="text-slate-100">{{ vpp.toFixed(2) }}V</strong></span>
         <span>Freq: <strong class="text-emerald-400">100.00 Hz</strong></span>
         <span>Period: <strong class="text-sky-400">10.0 ms</strong></span>
@@ -80,7 +80,7 @@
     <!-- Scope Control Panel Bar -->
     <div class="mt-4 pt-4 border-t border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-mono">
       <div class="bg-slate-950/60 p-3 rounded-2xl border border-slate-800">
-        <span class="text-[10px] text-slate-500 block mb-1">Timebase</span>
+        <span class="text-xs text-slate-500 block mb-1">Timebase</span>
         <select v-model="timebase" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-slate-200 focus:outline-none focus:border-emerald-500">
           <option :value="10">10 ms/div</option>
           <option :value="20">20 ms/div</option>
@@ -90,7 +90,7 @@
       </div>
 
       <div class="bg-slate-950/60 p-3 rounded-2xl border border-slate-800">
-        <span class="text-[10px] text-slate-500 block mb-1">Voltage Scale</span>
+        <span class="text-xs text-slate-500 block mb-1">Voltage Scale</span>
         <select v-model="gain" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-slate-200 focus:outline-none focus:border-emerald-500">
           <option :value="1">1.0x (Standard)</option>
           <option :value="2">2.0x (Zoomed)</option>
@@ -99,7 +99,7 @@
       </div>
 
       <div class="bg-slate-950/60 p-3 rounded-2xl border border-slate-800">
-        <span class="text-[10px] text-slate-500 block mb-1">Trigger Mode</span>
+        <span class="text-xs text-slate-500 block mb-1">Trigger Mode</span>
         <select v-model="triggerMode" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-slate-200 focus:outline-none focus:border-emerald-500">
           <option value="auto">AUTO (Edge)</option>
           <option value="normal">NORMAL</option>
@@ -108,7 +108,7 @@
       </div>
 
       <div class="bg-slate-950/60 p-3 rounded-2xl border border-slate-800">
-        <span class="text-[10px] text-slate-500 block mb-1">Offscreen Buffer</span>
+        <span class="text-xs text-slate-500 block mb-1">Offscreen Buffer</span>
         <div class="text-sm font-black text-emerald-400 mt-1">
           DPI 2.0x (4K Synced)
         </div>

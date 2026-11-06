@@ -8,10 +8,10 @@
         </div>
         <div>
           <h2 class="text-xl font-black text-white tracking-tight font-mono flex items-center gap-2">
-            ANTI-REVERSE <span class="text-rose-500 font-sans">100ms PID GAUGE</span>
+            防逆流 <span class="text-rose-500 font-sans">100ms PID 调节</span>
           </h2>
           <p class="text-xs font-mono text-slate-400">
-            Zero-Export Protection & Deadband Power Curtailment Loop
+            零反送保护与死区功率调节回路
           </p>
         </div>
       </div>
@@ -28,7 +28,7 @@
           <span>{{ statusText }}</span>
         </span>
         <span class="px-3 py-1 bg-slate-800 text-slate-300 border border-slate-700 rounded-xl text-xs font-mono font-bold">
-          Loop: 100ms
+          周期：100ms
         </span>
       </div>
     </div>
@@ -40,7 +40,7 @@
         <path
           d="M 40 150 A 110 110 0 0 1 260 150"
           fill="none"
-          stroke="#1E293B"
+          stroke="var(--bg-elevated)"
           stroke-width="16"
           stroke-linecap="round"
         />
@@ -49,7 +49,7 @@
         <path
           d="M 40 150 A 110 110 0 0 1 120 49"
           fill="none"
-          stroke="#EF4444"
+          stroke="var(--color-danger)"
           stroke-width="16"
           stroke-dasharray="2 4"
           opacity="0.4"
@@ -59,7 +59,7 @@
         <path
           d="M 120 49 A 110 110 0 0 1 170 43"
           fill="none"
-          stroke="#38BDF8"
+          stroke="var(--chart-1)"
           stroke-width="18"
           opacity="0.6"
         />
@@ -68,7 +68,7 @@
         <path
           d="M 170 43 A 110 110 0 0 1 260 150"
           fill="none"
-          stroke="#10B981"
+          stroke="var(--chart-3)"
           stroke-width="16"
           opacity="0.3"
         />
@@ -77,37 +77,37 @@
         <path
           :d="describeArc(150, 150, 110, -180, getAngle(gridPower))"
           fill="none"
-          :stroke="gridPower < 0 ? '#EF4444' : (Math.abs(gridPower) < deadband ? '#38BDF8' : '#10B981')"
+          :stroke="gridPower < 0 ? 'var(--color-danger)' : (Math.abs(gridPower) < deadband ? 'var(--chart-1)' : 'var(--chart-3)')"
           stroke-width="16"
           stroke-linecap="round"
           class="transition duration-300"
         />
 
         <!-- Center Needle / Hub -->
-        <circle cx="150" cy="150" r="12" fill="#0F172A" stroke="#64748B" stroke-width="3" />
+        <circle cx="150" cy="150" r="12" fill="var(--bg-surface)" stroke="var(--text-disabled)" stroke-width="3" />
         <line
           x1="150"
           y1="150"
           :x2="150 + 90 * Math.cos(getAngleRad(gridPower))"
           :y2="150 + 90 * Math.sin(getAngleRad(gridPower))"
-          :stroke="gridPower < 0 ? '#EF4444' : '#F8FAFC'"
+          :stroke="gridPower < 0 ? 'var(--color-danger)' : 'var(--text-primary)'"
           stroke-width="3.5"
           stroke-linecap="round"
           class="transition duration-300"
         />
-        <circle cx="150" cy="150" r="5" fill="#38BDF8" />
+        <circle cx="150" cy="150" r="5" fill="var(--chart-1)" />
 
         <!-- Scale Labels -->
-        <text x="35" y="172" fill="#94A3B8" font-family="JetBrains Mono, monospace" font-size="10" text-anchor="middle">-50kW</text>
-        <text x="150" y="32" fill="#38BDF8" font-family="JetBrains Mono, monospace" font-size="10" font-weight="bold" text-anchor="middle">0 (LIMIT)</text>
-        <text x="265" y="172" fill="#94A3B8" font-family="JetBrains Mono, monospace" font-size="10" text-anchor="middle">+100kW</text>
+        <text x="35" y="172" fill="var(--text-secondary)" font-family="Edge Mono, Edge Sans, monospace" font-size="12" text-anchor="middle">-50kW</text>
+        <text x="150" y="32" fill="var(--chart-1)" font-family="Edge Mono, Edge Sans, monospace" font-size="12" font-weight="bold" text-anchor="middle">0（限值）</text>
+        <text x="265" y="172" fill="var(--text-secondary)" font-family="Edge Mono, Edge Sans, monospace" font-size="12" text-anchor="middle">+100kW</text>
 
         <!-- Live Power Big Value Display -->
-        <text x="150" y="115" fill="#FFFFFF" font-family="JetBrains Mono, monospace" font-size="22" font-weight="900" text-anchor="middle">
-          {{ gridPower >= 0 ? '+' : '' }}{{ gridPower.toFixed(1) }} <tspan font-size="12" fill="#94A3B8">kW</tspan>
+        <text x="150" y="115" fill="var(--text-primary)" font-family="Edge Mono, Edge Sans, monospace" font-size="22" font-weight="600" text-anchor="middle">
+          {{ gridPower >= 0 ? '+' : '' }}{{ gridPower.toFixed(1) }} <tspan font-size="12" fill="var(--text-secondary)">kW</tspan>
         </text>
-        <text x="150" y="132" fill="#64748B" font-family="sans-serif" font-size="9" font-weight="bold" text-anchor="middle">
-          PCC POINT POWER
+        <text x="150" y="132" fill="var(--text-disabled)" font-family="Edge Sans, sans-serif" font-size="12" font-weight="bold" text-anchor="middle">
+          并网点功率
         </text>
       </svg>
     </div>
@@ -115,19 +115,19 @@
     <!-- PID Loop Control Telemetry Footer -->
     <div class="mt-2 pt-4 border-t border-slate-800 grid grid-cols-3 gap-3 text-xs font-mono">
       <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">
-        <div class="text-[10px] text-slate-400">PID OUTPUT ΔP</div>
+        <div class="text-xs text-slate-400">PID 输出 ΔP</div>
         <div class="text-base font-black text-white mt-0.5">
-          {{ pidDeltaP.toFixed(1) }} <span class="text-[10px] text-slate-400">kW</span>
+          {{ pidDeltaP.toFixed(1) }} <span class="text-xs text-slate-400">kW</span>
         </div>
       </div>
       <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">
-        <div class="text-[10px] text-slate-400">DEAD-BAND</div>
+        <div class="text-xs text-slate-400">死区</div>
         <div class="text-base font-black text-sky-400 mt-0.5">
-          ±{{ deadband.toFixed(1) }} <span class="text-[10px] text-slate-400">kW</span>
+          ±{{ deadband.toFixed(1) }} <span class="text-xs text-slate-400">kW</span>
         </div>
       </div>
       <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">
-        <div class="text-[10px] text-slate-400">Kp / Ki / Kd</div>
+        <div class="text-xs text-slate-400">Kp / Ki / Kd</div>
         <div class="text-sm font-black text-amber-400 mt-1">
           0.85 / 0.12 / 0.04
         </div>
@@ -148,7 +148,7 @@ const isDeadband = computed(() => Math.abs(gridPower.value) <= deadband.value);
 const isNormal = computed(() => gridPower.value > deadband.value);
 const statusText = computed(() => {
   if (gridPower.value < -0.5) return 'CURTAILMENT ACTIVE';
-  if (isDeadband.value) return 'DEAD-BAND LOCKED';
+  if (isDeadband.value) return '死区 LOCKED';
   return 'IMPORT NORMAL';
 });
 

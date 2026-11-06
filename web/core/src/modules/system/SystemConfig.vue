@@ -1,17 +1,17 @@
 <template>
   <div class="p-8 lg:p-12 space-y-10 animate-in fade-in duration-500">
     <div>
-      <h1 class="text-3xl font-black text-slate-800 tracking-tight italic">SYSTEM <span class="text-rose-600 not-italic">CONFIG</span></h1>
-      <p class="text-slate-400 text-sm font-medium mt-1">Global Parameter Management</p>
+      <h1 class="text-3xl font-black tracking-tight">系统配置</h1>
+      <p class="text-slate-400 text-sm font-medium mt-1">全局参数管理</p>
     </div>
 
     <div class="grid grid-cols-1 gap-8">
-      <div class="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 p-10">
+      <div class="bg-white rounded-xl shadow-xl shadow-slate-200/50 border border-slate-100 p-10">
         <div class="space-y-8">
           <div v-for="param in parameters" :key="param.key" class="flex items-center justify-between group">
             <div class="space-y-1">
               <div class="text-xs font-black text-slate-400">{{ param.key }}</div>
-              <div class="text-[10px] text-slate-300 font-mono italic">TYPE: {{ param.type }}</div>
+              <div class="text-xs text-slate-300 font-mono">类型：{{ param.type }}</div>
             </div>
             
             <div class="flex items-center gap-4">
@@ -22,9 +22,9 @@
               />
               <button 
                 @click="updateParam(param)"
-                class="px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black hover:bg-rose-600 transition shadow-lg shadow-slate-900/10 active:scale-95"
+                class="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-black hover:bg-rose-600 transition shadow-lg shadow-slate-900/10 active:scale-95"
               >
-                Apply
+                应用
               </button>
             </div>
           </div>

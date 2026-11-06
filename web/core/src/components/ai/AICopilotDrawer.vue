@@ -11,8 +11,13 @@
 
     <!-- Slide-over Panel -->
     <transition name="slide-right">
-      <div 
-        v-if="isOpen" 
+      <div
+        v-if="isOpen"
+        ref="dialogRef"
+        role="dialog"
+        aria-modal="true"
+        aria-label="AI 副驾"
+        tabindex="-1"
         class="fixed top-0 right-0 bottom-0 z-50 bg-slate-900 border-l border-slate-800 shadow-2xl flex flex-col font-sans text-slate-200 transition duration-300 ease-in-out"
         :style="{ width: isFullScreen ? '100vw' : `${drawerWidthPx}px` }"
       >
@@ -26,7 +31,7 @@
               <div class="flex items-center gap-2">
                 <span class="font-bold text-sm text-white tracking-tight">EdgeOS AI 工业伴侣</span>
                 <span 
-                  class="px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold flex items-center gap-1 border"
+                  class="px-1.5 py-0.5 rounded-full text-xs font-mono font-bold flex items-center gap-1 border"
                   :class="isMcpConnected ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/10 text-amber-400 border-amber-500/30'"
                   :title="isMcpConnected ? 'MCP WebSocket Connected (Port 8089)' : 'Using Standalone Fallback / Offline Engine'"
                 >
@@ -34,7 +39,7 @@
                   {{ isMcpConnected ? 'MCP LIVE' : 'MCP OFFLINE' }}
                 </span>
               </div>
-              <div class="text-[10px] text-slate-400 font-mono">ReAct Industrial Co-Pilot</div>
+              <div class="text-xs text-slate-400 font-mono">ReAct Industrial Co-Pilot</div>
             </div>
           </div>
 
@@ -80,14 +85,14 @@
 
         <!-- Settings Drawer Overlay -->
         <div v-if="isSettingsOpen" class="p-4 bg-slate-950 border-b border-slate-800 space-y-3 text-xs flex-shrink-0 animate-fadeIn">
-          <div class="font-bold text-slate-200 text-[11px] flex justify-between">
-            <span>LLM Backend & MCP Settings</span>
-            <button @click="isSettingsOpen = false" class="text-slate-400 hover:text-white">✕</button>
+          <div class="font-bold text-slate-200 text-xs flex justify-between">
+            <span>模型后端与 MCP 设置</span>
+            <button type="button" aria-label="关闭设置" title="关闭" @click="isSettingsOpen = false" class="text-slate-400 hover:text-white">✕</button>
           </div>
 
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-slate-400 text-[10px] mb-1">Provider</label>
+              <label class="block text-slate-400 text-xs mb-1">Provider</label>
               <select v-model="config.provider" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-slate-200">
                 <option value="local_edge">Local Edge Embedded (Zero Dependency)</option>
                 <option value="ollama">Ollama (Local LLM: 11434)</option>
@@ -97,25 +102,25 @@
               </select>
             </div>
             <div>
-              <label class="block text-slate-400 text-[10px] mb-1">Model Name</label>
+              <label class="block text-slate-400 text-xs mb-1">Model Name</label>
               <input v-model="config.modelName" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-slate-200 font-mono" />
             </div>
           </div>
 
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-slate-400 text-[10px] mb-1">Endpoint URL</label>
+              <label class="block text-slate-400 text-xs mb-1">Endpoint URL</label>
               <input v-model="config.endpoint" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-slate-200 font-mono" />
             </div>
             <div>
-              <label class="block text-slate-400 text-[10px] mb-1">API Key (Optional)</label>
+              <label class="block text-slate-400 text-xs mb-1">API Key (Optional)</label>
               <input v-model="config.apiKey" type="password" placeholder="sk-..." class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-slate-200 font-mono" />
             </div>
           </div>
 
           <div>
-            <label class="block text-slate-400 text-[10px] mb-1">MCP Server WebSocket URL</label>
-            <input v-model="config.mcpServerWsUrl" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-slate-200 font-mono text-[11px]" />
+            <label class="block text-slate-400 text-xs mb-1">MCP Server WebSocket URL</label>
+            <input v-model="config.mcpServerWsUrl" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-slate-200 font-mono text-xs" />
           </div>
         </div>
 
@@ -131,7 +136,7 @@
               </span>
             </div>
           </div>
-          <button @click="activeContext = null" class="text-slate-500 hover:text-slate-300 text-[11px] underline flex-shrink-0 ml-2">
+          <button @click="activeContext = null" class="text-slate-500 hover:text-slate-300 text-xs underline flex-shrink-0 ml-2">
             Detach
           </button>
         </div>
@@ -158,7 +163,7 @@
               class="max-w-[95%] rounded-2xl rounded-tl-sm bg-slate-800/90 border border-slate-700/60 text-slate-200 px-4 py-3.5 text-xs leading-relaxed shadow-lg shadow-black/20 w-full"
             >
               <!-- Context Tag Attached to Message -->
-              <div v-if="msg.context?.selectedTagName" class="mb-2.5 pb-2 border-b border-slate-700/60 flex items-center gap-2 text-[10px] text-slate-400 font-mono">
+              <div v-if="msg.context?.selectedTagName" class="mb-2.5 pb-2 border-b border-slate-700/60 flex items-center gap-2 text-xs text-slate-400 font-mono">
                 <span class="text-blue-400">⚡ Target:</span>
                 <span class="font-bold text-slate-300">{{ msg.context.selectedTagName }}</span>
                 <span class="text-emerald-400">({{ msg.context.currentValue }} {{ msg.context.unit }})</span>
@@ -166,7 +171,7 @@
 
               <!-- MCP Tool Calls Stream List -->
               <div v-if="msg.toolCalls && msg.toolCalls.length > 0" class="mb-3 space-y-1.5">
-                <div class="text-[10px] font-bold text-slate-400">Physical ReAct Actions:</div>
+                <div class="text-xs font-bold text-slate-400">Physical ReAct Actions:</div>
                 <McpToolCallCard 
                   v-for="tool in msg.toolCalls" 
                   :key="tool.id" 
@@ -178,7 +183,7 @@
               <div class="prose prose-invert prose-xs max-w-none space-y-2 whitespace-pre-wrap leading-relaxed text-slate-200" v-html="renderMarkdown(msg.content)"></div>
 
               <!-- Footer Latency -->
-              <div v-if="msg.metrics?.latencyMs" class="mt-3 pt-2 border-t border-slate-700/40 text-[10px] text-slate-500 font-mono flex items-center justify-between">
+              <div v-if="msg.metrics?.latencyMs" class="mt-3 pt-2 border-t border-slate-700/40 text-xs text-slate-500 font-mono flex items-center justify-between">
                 <span>⏱️ Reasoning Latency: {{ msg.metrics.latencyMs }} ms</span>
                 <span>{{ formatTimestamp(msg.timestamp) }}</span>
               </div>
@@ -196,7 +201,7 @@
         </div>
 
         <!-- Quick Prompts Strip -->
-        <div class="px-5 py-2 bg-slate-950/50 border-t border-slate-800/80 flex items-center gap-2 overflow-x-auto text-[11px] flex-shrink-0 no-scrollbar">
+        <div class="px-5 py-2 bg-slate-950/50 border-t border-slate-800/80 flex items-center gap-2 overflow-x-auto text-xs flex-shrink-0 no-scrollbar">
           <button 
             v-for="macro in quickPrompts" 
             :key="macro.label"
@@ -238,6 +243,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
+import { useDialogA11y } from '../../app/composables/useDialogA11y';
 import { useAICopilot } from '../../services/AIProviderService';
 import McpToolCallCard from './McpToolCallCard.vue';
 
@@ -258,6 +264,7 @@ const isSettingsOpen = ref(false);
 const inputPrompt = ref('');
 const chatContainer = ref<HTMLElement | null>(null);
 const inputField = ref<HTMLTextAreaElement | null>(null);
+const dialogRef = ref<HTMLElement | null>(null);
 
 const quickPrompts = [
   { label: '⚡ 全站异常扫描', prompt: '请对全站测点执行异常巡检扫描 (datahub_scan_abnormal)，并报告异常测点与原因。' },
@@ -270,6 +277,8 @@ const quickPrompts = [
 function closeDrawer() {
   isOpen.value = false;
 }
+
+useDialogA11y(isOpen, dialogRef, closeDrawer, inputField);
 
 function sendQuickPrompt(p: string) {
   sendUserMessage(p);
@@ -321,10 +330,10 @@ function renderMarkdown(raw: string): string {
   html = html.replace(/^#### (.*$)/gim, '<h4 class="text-xs font-bold text-slate-200 mt-2 mb-1">$1</h4>');
 
   // Blockquotes
-  html = html.replace(/^\> (.*$)/gim, '<blockquote class="p-2 rounded-lg bg-slate-900 border-l-2 border-blue-500 text-slate-300 text-[11px] my-1.5">$1</blockquote>');
+  html = html.replace(/^\> (.*$)/gim, '<blockquote class="p-2 rounded-lg bg-slate-900 border-l-2 border-blue-500 text-slate-300 text-xs my-1.5">$1</blockquote>');
 
   // Code inline
-  html = html.replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 rounded bg-slate-950 text-emerald-400 font-mono text-[11px] border border-slate-800">$1</code>');
+  html = html.replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 rounded bg-slate-950 text-emerald-400 font-mono text-xs border border-slate-800">$1</code>');
 
   // Bold
   html = html.replace(/\*\*([^*]+)\*\*/g, '<strong class="font-bold text-slate-100">$1</strong>');
