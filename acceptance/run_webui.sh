@@ -88,9 +88,13 @@ code=$?
 set -e
 
 # 证据归档：缺证据 = evidence_broken，不能当成通过（平台口径）。
-"$PYTHON" "$PLATFORM/tests_web/summarize.py" "$EVIDENCE" || true
+summary_code=0
+"$PYTHON" "$PLATFORM/tests_web/summarize.py" "$EVIDENCE" || summary_code=$?
 
 echo
 echo "证据: $EVIDENCE"
 echo "汇总: $EVIDENCE/summary.json"
+if [ "$code" -eq 0 ] && [ "$summary_code" -ne 0 ]; then
+    code=$summary_code
+fi
 exit "$code"
