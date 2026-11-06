@@ -122,8 +122,8 @@ int dlt698_encode_get_response(const dlt698_addr_t *sa, uint8_t piid, uint32_t o
     struct net_buf_simple *b = &out->b;
     uint8_t *len_ptr = NULL;
     uint8_t *hcs_ptr = NULL;
-    /* Ctrl=0x03：DIR=1（响应方向）、PRM=0 */
-    uint8_t *start = _frame_begin(b, sa, 0x03, &len_ptr, &hcs_ptr);
+    /* Ctrl=0xC3：DIR=1（响应方向）、PRM=1（服务器对客户机请求的响应） */
+    uint8_t *start = _frame_begin(b, sa, 0xC3, &len_ptr, &hcs_ptr);
 
     /* APDU: GET-Response-Normal = 85 | 01 | PIID-ACD | OAD(4) | 01 | Data | 00 | 00 */
     net_buf_simple_add_u8(b, DLT698_SVC_GET_RES);
@@ -175,7 +175,8 @@ int dlt698_encode_action_response(const dlt698_addr_t *sa, uint8_t piid, uint16_
     struct net_buf_simple *b = &out->b;
     uint8_t *len_ptr = NULL;
     uint8_t *hcs_ptr = NULL;
-    uint8_t *start = _frame_begin(b, sa, 0x43, &len_ptr, &hcs_ptr);
+    /* Ctrl=0xC3：DIR=1（响应方向）、PRM=1（服务器对客户机请求的响应） */
+    uint8_t *start = _frame_begin(b, sa, 0xC3, &len_ptr, &hcs_ptr);
 
     /* APDU: ACTION-Response-Normal =
      *   87 | 01 | PIID-ACD | OMD(4) | DAR | Data OPTIONAL | FollowReport | 时间标签
@@ -247,8 +248,8 @@ int dlt698_encode_get_response_list(const dlt698_addr_t *sa, uint8_t piid,
     struct net_buf_simple *b = &out->b;
     uint8_t *len_ptr = NULL;
     uint8_t *hcs_ptr = NULL;
-    /* Ctrl=0x03：DIR=1（响应方向）、PRM=0 */
-    uint8_t *start = _frame_begin(b, sa, 0x03, &len_ptr, &hcs_ptr);
+    /* Ctrl=0xC3：DIR=1（响应方向）、PRM=1（服务器对客户机请求的响应） */
+    uint8_t *start = _frame_begin(b, sa, 0xC3, &len_ptr, &hcs_ptr);
 
     net_buf_simple_add_u8(b, DLT698_SVC_GET_RES);
     net_buf_simple_add_u8(b, DLT698_CHOICE_GET_NORMAL_LIST);

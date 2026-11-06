@@ -1776,10 +1776,62 @@ function checkCsrf(req, session) {
   if (token !== session.csrf) throw httpError(403, 'csrf_failed', 'CSRF token 校验失败');
 }
 
+// ---------------------------------------------------------------- 测试隔离
+//
+// 端到端用例共享一个 mock-server。一条用例改了告警、角色、用户或配置事务之后,
+// 下一条用例看到的就不是初始状态,随机顺序会红而单跑是绿的。这个只给测试用的入口
+// 把内存恢复成启动时的快照。路径不在 /api/ 下,不进匿名 allowlist,也不改对外 API。
+const INITIAL_STATE = structuredClone({
+  users,
+  roles: registry.roles,
+  alarms,
+  alarmSeq,
+  notificationChannels,
+  interfaces: interfacesState,
+  sections: configSectionsState,
+  controlDevices,
+  configRevision,
+  policyRevision,
+});
+
+function resetState() {
+  users.splice(0, users.length, ...structuredClone(INITIAL_STATE.users));
+  registry.roles.splice(0, registry.roles.length, ...structuredClone(INITIAL_STATE.roles));
+  alarms.splice(0, alarms.length, ...structuredClone(INITIAL_STATE.alarms));
+  alarmSeq = INITIAL_STATE.alarmSeq;
+  alarmArchive.length = 0;
+  notificationChannels.splice(
+    0,
+    notificationChannels.length,
+    ...structuredClone(INITIAL_STATE.notificationChannels),
+  );
+  notificationDeliveries.length = 0;
+  interfacesState.splice(0, interfacesState.length, ...structuredClone(INITIAL_STATE.interfaces));
+  for (const key of Object.keys(configSectionsState)) delete configSectionsState[key];
+  Object.assign(configSectionsState, structuredClone(INITIAL_STATE.sections));
+  controlDevices.splice(0, controlDevices.length, ...structuredClone(INITIAL_STATE.controlDevices));
+  configRevision = INITIAL_STATE.configRevision;
+  policyRevision = INITIAL_STATE.policyRevision;
+
+  sessions.clear();
+  loginFailures.clear();
+  idempotency.clear();
+  transactions.clear();
+  tasks.clear();
+  controlCommands.clear();
+  auditLog.length = 0;
+  controlSeq = 0;
+}
+
 const server = http.createServer(async (req, res) => {
   const requestId = randomUUID();
   const started = now();
   const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+
+  if (req.method === 'POST' && url.pathname === '/__test/reset') {
+    resetState();
+    return sendJson(res, 200, { ok: true });
+  }
 
   if (!url.pathname.startsWith('/api/')) {
     return serveStatic(res, url.pathname);
