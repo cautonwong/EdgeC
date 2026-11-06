@@ -11,7 +11,8 @@
 
 #include "ai_temporal_fault_net.h"
 #include "datahub.h"
-#include "edge_algo_datahub_adapter.h"
+#include "edge_algo_stream_adapter.h"
+#include "stream_bus_datahub_adapter.h"
 
 static void test_ai_fault_net_normal_and_transient_classification(void **state) {
     (void)state;
@@ -73,7 +74,8 @@ static void test_ai_fault_net_datahub_sync(void **state) {
     ai_fault_result_t res = {.predicted_class = AI_FAULT_CLASS_SINGLE_PHASE_GROUND,
                              .confidence_pct = 94.8f,
                              .inference_time_us = 45.2f};
-    assert_int_equal(ai_temporal_fault_net_sync_datahub(&res, &hub), 0);
+    stream_bus_port_t bus = stream_bus_datahub_port(&hub);
+    assert_int_equal(ai_temporal_fault_net_sync_stream(&res, &bus), 0);
 
     datahub_destroy(&hub);
     uv_loop_close(&loop);

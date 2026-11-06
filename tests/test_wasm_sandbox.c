@@ -10,6 +10,7 @@
 
 #include "datahub.h"
 #include "wasm_mgr.h"
+#include "stream_bus_datahub_adapter.h"
 
 static void test_wasm_sandbox_divide_by_zero(void** state) {
     (void)state;
@@ -19,7 +20,8 @@ static void test_wasm_sandbox_divide_by_zero(void** state) {
     uv_loop_t* loop = uv_default_loop();
     int rc = datahub_init(&hub, loop, "wasm_sandbox_hub1", 128, 10000, NULL, 0, NULL, NULL, NULL);
     assert_int_equal(rc, 0);
-    wasm_mgr_init(&hub);
+    stream_bus_port_t wasm_bus = stream_bus_datahub_port(&hub);
+    wasm_mgr_init(&wasm_bus);
 
     // 2. Load the division-by-zero app
     const char* wasm_path = "../../tests/virus_divzero.wasm";
@@ -48,7 +50,8 @@ static void test_wasm_sandbox_infinite_loop_timeout(void** state) {
     uv_loop_t* loop = uv_default_loop();
     int rc = datahub_init(&hub, loop, "wasm_sandbox_hub2", 128, 10000, NULL, 0, NULL, NULL, NULL);
     assert_int_equal(rc, 0);
-    wasm_mgr_init(&hub);
+    stream_bus_port_t wasm_bus = stream_bus_datahub_port(&hub);
+    wasm_mgr_init(&wasm_bus);
 
     // 2. Load the infinite-loop app with 50ms timeout
     const char* wasm_path = "../../tests/virus_loop.wasm";

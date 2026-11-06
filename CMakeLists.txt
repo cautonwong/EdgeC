@@ -221,6 +221,7 @@ endif()
 # 5. Modular Packages
 # ==============================================================================
 add_subdirectory(third-party)
+add_subdirectory(foundation)
 add_subdirectory(modules/edge_core)
 add_subdirectory(modules/edge_algo)
 add_subdirectory(modules/edge_protocol)

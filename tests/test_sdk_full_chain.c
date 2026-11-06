@@ -10,6 +10,7 @@
 #include "datahub.h"
 #include "edge_service.h"
 #include "stream_engine.h"
+#include "stream_bus_datahub_adapter.h"
 
 typedef struct {
     datahub_t hub;
@@ -24,7 +25,7 @@ static int setup(void** state) {
     uv_loop_init(&ctx->loop);
     datahub_init(&ctx->hub, &ctx->loop, "tdd_full", 256, 1024, NULL, 0, NULL, NULL, NULL);
     arbiter_init(&ctx->arb, &ctx->loop);
-    ctx->engine = stream_engine_create(&ctx->hub, uv_default_loop(), NULL, NULL);
+    ctx->engine = stream_engine_create_datahub(&ctx->hub, uv_default_loop(), NULL, NULL);
 
     ctx->svc = service_new(&ctx->loop, &ctx->hub, ctx->arb, NULL, ctx->engine, NULL, NULL);
     *state = ctx;

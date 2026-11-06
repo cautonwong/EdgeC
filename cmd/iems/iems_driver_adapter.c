@@ -14,6 +14,12 @@
 #include "contract_data_types.h"
 #include "iec_asdu.h"
 #include "modbus_codec.h"
+typedef struct {
+    uint32_t tag_id;
+    uint32_t offset;
+    uint32_t poll_interval_ms;
+} iems_tag_slot_map_t;
+#include "iems_point_map_generated.h"
 
 /* 外部协议驱动模板声明 */
 extern const edge_driver_t modbus_rtu_driver;
@@ -44,17 +50,6 @@ int iems_driver_registry_init(driver_manager_t *mgr) {
 /* ==============================================================================
  * 2. Modbus RTU 静态测点映射表
  * ============================================================================== */
-static const modbus_map_t s_modbus_points[] = {
-    {.key = 0,   .tag_id = IEMS_TAG_VOLTAGE_PHASE_A,   .dense_idx = 0,  .scaler = 0.1f,  .length = 1, .access = 0x01},
-    {.key = 12,  .tag_id = IEMS_TAG_GRID_POWER,        .dense_idx = 2,  .scaler = 1.0f,  .length = 2, .access = 0x01},
-    {.key = 15,  .tag_id = IEMS_TAG_BATTERY_POWER,     .dense_idx = 9,  .scaler = 0.01f, .length = 1, .access = 0x01},
-    {.key = 52,  .tag_id = IEMS_TAG_GRID_FREQUENCY,    .dense_idx = 3,  .scaler = 0.01f, .length = 1, .access = 0x01},
-    {.key = 255, .tag_id = IEMS_TAG_SOLAR_POWER,       .dense_idx = 10, .scaler = 1.0f,  .length = 1, .access = 0x01},
-    {.key = 256, .tag_id = IEMS_TAG_SOLAR_VOLTS,       .dense_idx = 11, .scaler = 0.1f,  .length = 1, .access = 0x01},
-    {.key = 258, .tag_id = IEMS_TAG_SOLAR_RELAY,       .dense_idx = 12, .scaler = 1.0f,  .length = 1, .access = 0x01},
-    {.key = 261, .tag_id = IEMS_TAG_BATTERY_SOC,       .dense_idx = 7,  .scaler = 1.0f,  .length = 1, .access = 0x01},
-};
-static const size_t s_modbus_points_count = sizeof(s_modbus_points) / sizeof(s_modbus_points[0]);
 
 const void *iems_lookup_modbus_by_key(uint64_t key) {
     for (size_t i = 0; i < s_modbus_points_count; i++) {
@@ -85,13 +80,6 @@ const modbus_map_t *edge_get_map_modbus_by_tag(edge_tag_id_t tag_id) {
 /* ==============================================================================
  * 3. IEC 104 静态测点映射表
  * ============================================================================== */
-static const iec104_map_t s_iec104_points[] = {
-    {.key = 16385, .tag_id = IEMS_TAG_GRID_POWER,        .dense_idx = 2, .scaler = 1.0f, .access = 0x01},
-    {.key = 16386, .tag_id = IEMS_TAG_VOLTAGE_PHASE_A,   .dense_idx = 0, .scaler = 1.0f, .access = 0x01},
-    {.key = 16387, .tag_id = IEMS_TAG_CURRENT_PHASE_A,   .dense_idx = 1, .scaler = 1.0f, .access = 0x01},
-    {.key = 16388, .tag_id = IEMS_TAG_BATTERY_POWER,     .dense_idx = 9, .scaler = 1.0f, .access = 0x01},
-};
-static const size_t s_iec104_points_count = sizeof(s_iec104_points) / sizeof(s_iec104_points[0]);
 
 const void *iems_lookup_iec104_by_key(uint64_t key) {
     for (size_t i = 0; i < s_iec104_points_count; i++) {
@@ -122,11 +110,6 @@ const iec104_map_t *edge_get_map_iec104_by_tag(edge_tag_id_t tag_id) {
 /* ==============================================================================
  * 4. CAN 静态测点映射表 (CATL BMS)
  * ============================================================================== */
-static const modbus_map_t s_can_points[] = {
-    {.key = 0x18FF50E5, .tag_id = IEMS_TAG_BATTERY_SOC,     .dense_idx = 7, .scaler = 0.1f, .length = 1, .access = 0x01},
-    {.key = 0x18FF50E6, .tag_id = IEMS_TAG_BATTERY_CURRENT, .dense_idx = 8, .scaler = 0.1f, .length = 2, .access = 0x01},
-};
-static const size_t s_can_points_count = sizeof(s_can_points) / sizeof(s_can_points[0]);
 
 static const void *iems_lookup_can_by_tag(uint32_t tag_id) {
     for (size_t i = 0; i < s_can_points_count; i++) {
@@ -190,13 +173,6 @@ double iems_driver_adapter_tag_scale(const char *proto, uint32_t tag_id) {
 /* ==============================================================================
  * 5. DL/T 645-2007 静态测点映射表
  * ============================================================================== */
-static const dlt645_map_t s_dlt645_points[] = {
-    {.key = 0x02010100, .tag_id = IEMS_TAG_VOLTAGE_PHASE_A,   .dense_idx = 0, .scaler = 0.1f,   .length = 2, .access = 0x01},
-    {.key = 0x02020100, .tag_id = IEMS_TAG_CURRENT_PHASE_A,   .dense_idx = 1, .scaler = 0.001f, .length = 3, .access = 0x01},
-    {.key = 0x02030000, .tag_id = IEMS_TAG_GRID_POWER,        .dense_idx = 2, .scaler = 0.0001f,.length = 3, .access = 0x01},
-    {.key = 0x00010000, .tag_id = IEMS_TAG_ENERGY_ACTIVE_IMP, .dense_idx = 6, .scaler = 0.01f,  .length = 4, .access = 0x01},
-};
-static const size_t s_dlt645_points_count = sizeof(s_dlt645_points) / sizeof(s_dlt645_points[0]);
 
 /* ==============================================================================
  * 6. 点位翻译（ADR-002）：驱动不再拿点位表，翻译全在产品侧
@@ -205,29 +181,7 @@ static const size_t s_dlt645_points_count = sizeof(s_dlt645_points) / sizeof(s_d
 /* ==============================================================================
  * 7. IEMS 本地测点到 DataHub 影子槽位与轮询周期 (OCP 表驱动映射)
  * ============================================================================== */
-typedef struct {
-    uint32_t tag_id;
-    uint32_t offset;
-    uint32_t poll_interval_ms;
-} iems_tag_slot_map_t;
 
-static const iems_tag_slot_map_t s_iems_tag_slots[] = {
-    {IEMS_TAG_VOLTAGE_PHASE_A,   0,  1000},
-    {IEMS_TAG_CURRENT_PHASE_A,   1,  1000},
-    {IEMS_TAG_GRID_POWER,        2,  1000},
-    {IEMS_TAG_GRID_FREQUENCY,    3,  1000},
-    {IEMS_TAG_ADC_RAW_DATA,      4,  10},
-    {IEMS_TAG_ADC_VOLTAGE_RMS,   5,  100},
-    {IEMS_TAG_ENERGY_ACTIVE_IMP, 6,  10000},
-    {IEMS_TAG_BATTERY_SOC,       7,  1000},
-    {IEMS_TAG_BATTERY_CURRENT,   8,  1000},
-    {IEMS_TAG_BATTERY_POWER,     9,  1000},
-    {IEMS_TAG_SOLAR_POWER,       10, 1000},
-    {IEMS_TAG_SOLAR_VOLTS,       11, 1000},
-    {IEMS_TAG_SOLAR_RELAY,       12, 1000},
-    {IEMS_TAG_PCS_CONTROL,       13, 1000},
-};
-static const size_t s_iems_tag_slots_count = sizeof(s_iems_tag_slots) / sizeof(s_iems_tag_slots[0]);
 
 int iems_tag_map_fn(uint32_t tag_id, uint32_t device_id) {
     for (size_t i = 0; i < s_iems_tag_slots_count; i++) {

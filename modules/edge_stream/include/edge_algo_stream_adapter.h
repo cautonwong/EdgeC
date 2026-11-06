@@ -1,5 +1,5 @@
 /**
- * @file edge_algo_datahub_adapter.h
+ * @file edge_algo_stream_adapter.h
  * @brief 算法层-DataHub 流式防腐适配器 (Anti-Corruption Stream Adapter)
  *
  * 职责：在流引擎平面 (edge_stream) 中作为适配桥梁，将纯数学算法层 (edge_algo)
@@ -10,7 +10,7 @@
 #ifndef EDGE_ALGO_DATAHUB_ADAPTER_H
 #define EDGE_ALGO_DATAHUB_ADAPTER_H
 
-#include "datahub.h"
+#include "stream_bus_port.h"
 #include "edge_algo_port.h"
 
 #include "ai_awq_gptq_gemm.h"
@@ -30,18 +30,18 @@ extern "C" {
 /**
  * @brief 创建面向 DataHub 影子寄存器的算法输出接收器
  */
-edge_algo_sink_t edge_algo_datahub_sink_create(datahub_t *hub);
+edge_algo_sink_t edge_algo_stream_sink_create(const stream_bus_port_t *bus);
 
 /* 适配器辅助同步函数 */
-int ai_awq_sync_datahub(const ai_awq_metrics_t *metrics, datahub_t *hub);
-int ai_dyn_pool_sync_datahub(const ai_dyn_pool_t *pool, datahub_t *hub);
-int ai_fast_gemm_sync_datahub(const ai_fast_gemm_t *gemm, datahub_t *hub);
-int ai_graph_pruner_sync_datahub(const ai_graph_pruner_t *pruner, datahub_t *hub);
-int ai_hetero_pipeline_sync_datahub(const ai_hetero_pipeline_t *pipe, datahub_t *hub);
-int ai_pinn_evaluator_sync_datahub(const ai_pinn_result_t *result, datahub_t *hub);
-int ai_quant_sync_datahub(const ai_quant_params_t *params, datahub_t *hub);
-int ai_slm_kv_cache_sync_datahub(const ai_slm_kv_cache_t *cache, datahub_t *hub);
-int ai_temporal_fault_net_sync_datahub(const ai_fault_result_t *result, datahub_t *hub);
+int ai_awq_sync_stream(const ai_awq_metrics_t *metrics, const stream_bus_port_t *bus);
+int ai_dyn_pool_sync_stream(const ai_dyn_pool_t *pool, const stream_bus_port_t *bus);
+int ai_fast_gemm_sync_stream(const ai_fast_gemm_t *gemm, const stream_bus_port_t *bus);
+int ai_graph_pruner_sync_stream(const ai_graph_pruner_t *pruner, const stream_bus_port_t *bus);
+int ai_hetero_pipeline_sync_stream(const ai_hetero_pipeline_t *pipe, const stream_bus_port_t *bus);
+int ai_pinn_evaluator_sync_stream(const ai_pinn_result_t *result, const stream_bus_port_t *bus);
+int ai_quant_sync_stream(const ai_quant_params_t *params, const stream_bus_port_t *bus);
+int ai_slm_kv_cache_sync_stream(const ai_slm_kv_cache_t *cache, const stream_bus_port_t *bus);
+int ai_temporal_fault_net_sync_stream(const ai_fault_result_t *result, const stream_bus_port_t *bus);
 
 #ifdef __cplusplus
 }

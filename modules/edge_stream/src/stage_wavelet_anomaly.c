@@ -14,6 +14,7 @@
 
 typedef struct {
     double *buffer;
+    double *scratch;
     size_t size;
     size_t cursor;
     uint32_t level;
@@ -41,7 +42,7 @@ static stage_ret_t _wavelet_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
     // 2. 当缓存写满一轮时进行分析 (滑动窗口分析)
     if (ctx->buffer_full && ctx->cursor % (ctx->size / 4) == 0) {
         // 复制一份数据，因为 DWT 是覆盖式的
-        double *tmp = malloc(ctx->size * sizeof(double));
+        double *tmp = ctx->scratch;
         memcpy(tmp, ctx->buffer, ctx->size * sizeof(double));
 
         // 3. 执行 Haar 小波变换
@@ -55,7 +56,6 @@ static stage_ret_t _wavelet_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
             if (val > max_detail) max_detail = val;
         }
 
-        free(tmp);
 
         // 5. 阈值判定
         if (max_detail > ctx->threshold) {
@@ -80,6 +80,7 @@ static void _wavelet_cleanup(void *priv) {
     wavelet_st_t *ctx = (wavelet_st_t *)priv;
     if (ctx) {
         if (ctx->buffer) free(ctx->buffer);
+        if (ctx->scratch) free(ctx->scratch);
         free(ctx);
     }
 }
@@ -97,6 +98,7 @@ pipeline_stage_t *stage_wavelet_anomaly_create(uint32_t alarm_tag, double thresh
     ctx->size = size > 0 ? size : 256;
     ctx->level = level > 0 ? level : 1;
     ctx->buffer = calloc(ctx->size, sizeof(double));
+    ctx->scratch = calloc(ctx->size, sizeof(double));
 
     strncpy(s->name, "WAVELET_ANOMALY", 31);
     s->process = _wavelet_proc;

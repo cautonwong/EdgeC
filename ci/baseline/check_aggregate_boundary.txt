@@ -5,4 +5,3 @@ modules/edge_core/include/datahub.h|OPAQUE_ROOT|datahub_s|#413
 modules/edge_core/include/datahub_router.h|OPAQUE_ROOT|datahub_router_s|#413
 modules/edge_infra/bus_dds/datahub_dds.c|FIELD_ACCESS|datahub_s|#413
 modules/edge_infra/bus_mqtt/datahub_mqtt.c|FIELD_ACCESS|datahub_s|#413
-modules/edge_stream/include/stream_engine_priv.h|OPAQUE_ROOT|stream_engine_s|#413

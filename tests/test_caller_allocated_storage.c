@@ -78,6 +78,7 @@
 #include "impedance_control.h"
 #include "mpc_dispatcher.h"
 #include "npu_enclave.h"
+#include "stream_bus_datahub_adapter.h"
 #include "npu_hal.h"
 #include "npu_pmu.h"
 #include "npu_power_manager.h"
@@ -1457,7 +1458,7 @@ static void test_stream_engine_caller_allocated_storage(void **state) {
 
     uv_loop_t loop;
     uv_loop_init(&loop);
-    stream_engine_t *eng = stream_engine_create_in(&eng_store, NULL, &loop, NULL, NULL);
+    stream_engine_t *eng = stream_engine_create_in_datahub(&eng_store, NULL, &loop, NULL, NULL);
     assert_non_null(eng);
 
     stream_engine_destroy(eng);

@@ -16,6 +16,7 @@
 
 #include "datahub.h"
 #include "wasm_mgr.h"
+#include "stream_bus_datahub_adapter.h"
 
 typedef struct {
     datahub_t hub;
@@ -32,7 +33,8 @@ static int setup_wasm_abi(void **state) {
                           NULL);
     assert_int_equal(rc, 0);
 
-    wasm_mgr_init(&fix->hub);
+    stream_bus_port_t wasm_bus = stream_bus_datahub_port(&fix->hub);
+    wasm_mgr_init(&wasm_bus);
 
     const char *wasm_path = "../../algo/wasm/demo/demo.wasm";
     fix->app = wasm_app_create(wasm_path, 32768, 65536, 100);

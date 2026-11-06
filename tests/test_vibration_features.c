@@ -9,6 +9,7 @@
 
 #include "datahub.h"
 #include "stream_engine.h"
+#include "stream_bus_datahub_adapter.h"
 
 // Forward declaration
 pipeline_stage_t* stage_vibration_features_create(size_t window_size, uint32_t rms_tag,
@@ -20,7 +21,7 @@ static void test_vibration_features_logic(void** state) {
     datahub_t hub;
     datahub_init(&hub, loop, "feat_test", 64, 10000, NULL, 0, NULL, NULL, NULL);
 
-    stream_engine_t* se = stream_engine_create(&hub, loop, NULL, NULL);
+    stream_engine_t* se = stream_engine_create_datahub(&hub, loop, NULL, NULL);
     stream_engine_start(se);
 
     // Create stage: 128 sample window

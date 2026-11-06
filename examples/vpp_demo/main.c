@@ -16,6 +16,7 @@
 #include "northbound_mgr.h"
 #include "sqlite_service.h"
 #include "stream_engine.h"
+#include "stream_bus_datahub_adapter.h"
 
 extern int modbus_driver_register(driver_manager_t* mgr);
 
@@ -46,7 +47,7 @@ int main(int argc, char** argv) {
     sqlite_config_t db_conf = {.db_path = "vpp.db", .strategy = STRATEGY_LITE};
     sqlite_svc_t* db_service = sqlite_svc_create(loop, &db_conf);
     stream_engine_t* stream_engine =
-        stream_engine_create(&hub, uv_default_loop(), NULL, edge_stage_factory_get_registry());
+        stream_engine_create_datahub(&hub, uv_default_loop(), NULL, edge_stage_factory_get_registry());
     edge_params_t* param_mgr = edge_params_create(db_service, &hub);
 
     northbound_mgr_t* north_mgr = calloc(1, sizeof(northbound_mgr_t));

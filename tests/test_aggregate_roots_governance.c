@@ -13,6 +13,7 @@
 
 #include "datahub.h"
 #include "stream_engine.h"
+#include "stream_bus_datahub_adapter.h"
 
 static int g_cleanup_called = 0;
 
@@ -80,7 +81,7 @@ static void test_stream_engine_aggregate_root(void) {
     datahub_init(&hub, &loop, "test_se_hub", 256, 0, NULL, 0, NULL, NULL, NULL);
 
     stream_engine_storage_t engine_storage;
-    stream_engine_t *engine = stream_engine_create_in(&engine_storage, &hub, &loop, NULL, NULL);
+    stream_engine_t *engine = stream_engine_create_in_datahub(&engine_storage, &hub, &loop, NULL, NULL);
     assert(engine != NULL);
 
     // 1. Test trigger setting for new pipeline

@@ -29,6 +29,21 @@ add_library(dcu_app_lib STATIC
     dcu_node.c
 )
 
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(DCU_POINT_MAP_HEADER ${CMAKE_CURRENT_BINARY_DIR}/dcu_point_map_generated.h)
+add_custom_command(
+    OUTPUT ${DCU_POINT_MAP_HEADER}
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/gen_point_map.py
+            --input ${CMAKE_CURRENT_SOURCE_DIR}/config/point_map.json
+            --output ${DCU_POINT_MAP_HEADER}
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/config/point_map.json
+            ${CMAKE_SOURCE_DIR}/scripts/gen_point_map.py
+    COMMENT "Generating DCU point map")
+add_custom_target(dcu_point_map DEPENDS ${DCU_POINT_MAP_HEADER})
+add_dependencies(dcu_app_lib dcu_point_map)
+target_include_directories(dcu_app_lib PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+
+
 # 2. 自治库头文件依赖关系 (已彻底移除 generated 契约目录)
 target_include_directories(dcu_app_lib PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}

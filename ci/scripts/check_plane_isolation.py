@@ -77,7 +77,7 @@ MODULE_ALLOWED = {
         "edge_mgmt",
     },
     "edge_mcp": {"edge_core", "edge_io", "edge_stream", "edge_infra"},
-    "edge_bootstrap": {"edge_core", "edge_infra"},
+    "edge_bootstrap": {"edge_core", "edge_infra", "edge_stream"},
 }
 
 def _scanning_fixture(target_dir: str) -> bool:

@@ -8,10 +8,19 @@
 
 // --- Main context for the JS stage ---
 typedef struct {
+    uv_work_t req;
+    pipeline_t *pipeline;
+    char script_path[128];
+    pipe_msg_t event;
+    // No JSValue here, as it cannot cross threads
+} js_work_ctx_t;
+
+typedef struct {
     js_engine_t *engine;
     JSValue *persistent_state;
     char script_path[128];
     bool is_async;
+    js_work_ctx_t work;
 } js_stage_ctx_t;
 
 // --- Synchronous execution path ---
@@ -52,19 +61,11 @@ static stage_ret_t run_js_sync(pipeline_stage_t *stage, pipe_msg_t *ev) {
 
 // --- Asynchronous execution path ---
 
-typedef struct {
-    uv_work_t req;
-    pipeline_t *pipeline;
-    char script_path[128];
-    pipe_msg_t event;
-    // No JSValue here, as it cannot cross threads
-} js_work_ctx_t;
-
 static void js_work_cb(uv_work_t *req) {
     js_work_ctx_t *work = req->data;
 
     // Create a temporary, isolated JS runtime and context for this thread
-    js_engine_t *temp_engine = js_engine_create(NULL, 1024 * 1024);  // 1MB limit
+    js_engine_t *temp_engine = js_engine_create(NULL, NULL, 1024 * 1024);  // 1MB limit
     if (!temp_engine) return;
 
     // This is a simplified execution, it does not have the full context (e.g. persistent_state)
@@ -78,7 +79,6 @@ static void js_after_work_cb(uv_work_t *req, int status) {
     (void)status;
     js_work_ctx_t *work = req->data;
     stream_engine_resume(work->pipeline);
-    free(work);
 }
 
 // --- Main stage process function ---
@@ -90,7 +90,7 @@ static stage_ret_t js_stage_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
     if (!ctx->is_async) {
         return run_js_sync(stage, ev);
     } else {
-        js_work_ctx_t *work_ctx = malloc(sizeof(js_work_ctx_t));
+        js_work_ctx_t *work_ctx = &ctx->work;
         work_ctx->req.data = work_ctx;
         work_ctx->pipeline = stage->pipeline;
         work_ctx->event = *ev;

@@ -8,7 +8,6 @@
 #include <sys/time.h>
 
 #include "edge_log.h"
-#include "datahub.h"
 #include "stream_engine_priv.h"
 #include "sqlite_service.h"
 #include "wasm_mgr.h"
@@ -105,11 +104,10 @@ static bool _is_pipeline_triggered(pipeline_t *p, uint32_t tag_id) {
 
 static void _on_data_async(uv_async_t *handle) {
     stream_engine_t *engine = handle->data;
-    datahub_t *hub = engine->hub;
     pipe_msg_t msg;
 
     int rc;
-    while ((rc = datahub_read_ring(hub, &engine->bus_read_seq, &msg)) >= 0) {
+    while ((rc = stream_bus_read_ring(&engine->bus, &engine->bus_read_seq, &msg)) >= 0) {
         if (rc > 0) {
             LOG_WARN(LOG_CAT_CORE, "StreamEngine: ShmRing dropped %d messages", rc);
         }
@@ -124,7 +122,7 @@ static void _on_data_async(uv_async_t *handle) {
                 if (p->state == PIPE_STATE_IDLE) {
                     if (result.tag_id != msg.tag_id || result.payload.val.f != msg.payload.val.f) {
                          LOG_INFO(LOG_CAT_CORE, "StreamEngine: Publishing result for Tag %u (Val: %.2f)", result.tag_id, result.payload.val.f);
-                         datahub_publish(engine->hub, &result);
+                         stream_bus_publish(&engine->bus, &result);
                     }
                 }
             }
@@ -361,7 +359,8 @@ int stream_engine_set_pipeline_trigger(stream_engine_t *engine,
 _Static_assert(sizeof(struct stream_engine_s) <= sizeof(stream_engine_storage_t),
                "stream_engine_s size exceeds stream_engine_storage_t");
 
-stream_engine_t *stream_engine_create_in(stream_engine_storage_t *storage, datahub_t *hub,
+stream_engine_t *stream_engine_create_in(stream_engine_storage_t *storage,
+                                         const stream_bus_port_t *bus,
                                          uv_loop_t *loop, void *orch,
                                          const edge_stage_factory_entry_t *registry) {
     (void)loop;
@@ -369,21 +368,19 @@ stream_engine_t *stream_engine_create_in(stream_engine_storage_t *storage, datah
     if (!storage) return NULL;
     stream_engine_t *engine = (stream_engine_t *)storage->raw;
     memset(engine, 0, sizeof(*engine));
-    engine->hub = hub;
+    engine->bus = bus ? *bus : (stream_bus_port_t){0};
     engine->time_src.get_monotonic_ms = _default_get_monotonic_ms;
     engine->time_src.get_calendar_ms = _default_get_calendar_ms;
     engine->registry = registry;
 
-    if (hub) {
-        engine->bus_read_seq = datahub_get_ring_seq(hub);
-    }
+    engine->bus_read_seq = stream_bus_ring_seq(&engine->bus);
 
     uv__queue_init(&engine->pipelines);
     uv_sem_init(&engine->start_sem, 0);
     uv_mutex_init(&engine->pipe_mutex);
 
 #if defined(CONFIG_EDGEC_WASM)
-    wasm_mgr_init(hub);
+    wasm_mgr_init(&engine->bus);
 #endif
 
     return engine;
@@ -391,16 +388,16 @@ stream_engine_t *stream_engine_create_in(stream_engine_storage_t *storage, datah
 
 static stream_engine_storage_t g_default_engine_storage;
 
-stream_engine_t *stream_engine_create_ex(datahub_t *hub, uv_loop_t *loop,
+stream_engine_t *stream_engine_create_ex(const stream_bus_port_t *bus, uv_loop_t *loop,
                                          void *orch,
                                          const edge_stage_factory_entry_t *registry) {
-    return stream_engine_create_in(&g_default_engine_storage, hub, loop, orch, registry);
+    return stream_engine_create_in(&g_default_engine_storage, bus, loop, orch, registry);
 }
 
-stream_engine_t *stream_engine_create(datahub_t *hub, uv_loop_t *loop,
+stream_engine_t *stream_engine_create(const stream_bus_port_t *bus, uv_loop_t *loop,
                                       void *orch,
                                       const edge_stage_factory_entry_t *registry) {
-    return stream_engine_create_ex(hub, loop, orch, registry);
+    return stream_engine_create_ex(bus, loop, orch, registry);
 }
 
 void stream_engine_start(stream_engine_t *engine) {
@@ -408,7 +405,7 @@ void stream_engine_start(stream_engine_t *engine) {
     uv_thread_create(&engine->thread, _stream_engine_thread_entry, engine);
     uv_sem_wait(&engine->start_sem);
     if (engine->notify_inited) {
-        datahub_add_listener(engine->hub, &engine->notify_handle);
+        stream_bus_add_listener(&engine->bus, &engine->notify_handle);
     }
 }
 
@@ -416,7 +413,7 @@ void stream_engine_destroy(stream_engine_t *engine) {
     if (!engine) return;
     if (engine->thread_started) {
         if (engine->notify_inited) {
-            datahub_remove_listener(engine->hub, &engine->notify_handle);
+            stream_bus_remove_listener(&engine->bus, &engine->notify_handle);
         }
         uv_async_send(&engine->stop_async);
         uv_thread_join(&engine->thread);
@@ -552,8 +549,12 @@ stage_health_t pipeline_stage_get_health(pipeline_stage_t *stage) {
     return stage ? stage->health : STAGE_HEALTH_GOOD;
 }
 
+stream_engine_t *pipeline_stage_get_engine(const pipeline_stage_t *stage) {
+    return (stage && stage->pipeline) ? stage->pipeline->engine : NULL;
+}
+
 void stream_engine_push(stream_engine_t *engine, pipe_msg_t *msg) {
-    if (!engine || !engine->hub) return;
+    if (!engine) return;
     struct uv__queue *q;
     uv__queue_foreach(q, &engine->pipelines) {
         pipeline_t *p = uv__queue_data(q, pipeline_t, node);

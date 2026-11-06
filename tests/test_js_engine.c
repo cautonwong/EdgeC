@@ -15,7 +15,7 @@ static void test_js_eval_basic(void** state) {
     // 适配新签名
     datahub_init(&hub, loop, "test_js", 64, 1024, NULL, 0, NULL, NULL, NULL);
 
-    js_engine_t* engine = js_engine_create(NULL, 1024 * 1024);
+    js_engine_t* engine = js_engine_create(NULL, NULL, 1024 * 1024);
     assert_non_null(engine);
 
     js_engine_destroy(engine);

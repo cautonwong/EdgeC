@@ -54,16 +54,18 @@ typedef struct {
 } _tg_st_t;
 
 typedef struct {
-    sqlite_svc_t *db;
-    char table[64];
-} _sink_cfg_t;
-
-typedef struct {
     uv_work_t req;
     pipeline_t *pipeline;
     sqlite_svc_t *db;
     char *sql;
 } _sink_work_ctx_t;
+
+typedef struct {
+    sqlite_svc_t *db;
+    char table[64];
+    _sink_work_ctx_t work;
+    char sql_buf[256];
+} _sink_cfg_t;
 
 typedef struct {
     stream_control_ops_t control_ops;
@@ -197,21 +199,18 @@ static void _sink_after_work_cb(uv_work_t *req, int status) {
     (void)status;
     _sink_work_ctx_t *ctx = req->data;
     stream_engine_resume(ctx->pipeline);
-    free(ctx->sql);
-    free(ctx);
 }
 
 static stage_ret_t _sink_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
     if (ev->type != PIPEMSG_TYPE_SCALAR) return STAGE_OK;
     _sink_cfg_t *c = s->priv_cfg;
-    _sink_work_ctx_t *work_ctx = malloc(sizeof(_sink_work_ctx_t));
+    _sink_work_ctx_t *work_ctx = &c->work;
     work_ctx->req.data = work_ctx;
     work_ctx->pipeline = s->pipeline;
     work_ctx->db = c->db;
-    char sql_buf[256];
-    snprintf(sql_buf, sizeof(sql_buf), "INSERT INTO %s (tag_id, value, ts) VALUES (%u, %f, %lu)",
+    snprintf(c->sql_buf, sizeof(c->sql_buf), "INSERT INTO %s (tag_id, value, ts) VALUES (%u, %f, %lu)",
              c->table, ev->tag_id, ev->payload.val.f, ev->ts);
-    work_ctx->sql = strdup(sql_buf);
+    work_ctx->sql = c->sql_buf;
     uv_queue_work(s->pipeline->engine->loop, &work_ctx->req, _sink_work_cb, _sink_after_work_cb);
     return STAGE_ASYNC;
 }

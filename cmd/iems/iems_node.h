@@ -131,6 +131,22 @@ int iems_node_get_watchdog_stats(iems_node_t *node, iems_loop_watchdog_stats_t *
  */
 int iems_node_reset_watchdog_degrade(iems_node_t *node);
 
+typedef struct {
+    void *ctx;
+    int (*write_tag)(void *ctx, int bus_id, uint32_t tag_id, double value, const char *proto);
+} iems_execution_port_t;
+
+/**
+ * @brief 注入执行类端口。端口只交给聚合根持有，组合根不直接调用原始写接口。
+ */
+int iems_node_set_execution_port(iems_node_t *node, iems_execution_port_t port);
+
+/**
+ * @brief 领域写入口：先过聚合根校验，再经执行端口下发。
+ */
+int iems_node_write_tag(iems_node_t *node, int bus_id, uint32_t tag_id, double value,
+                        const char *proto);
+
 #ifdef __cplusplus
 }
 #endif

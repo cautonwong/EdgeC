@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 typedef struct uv_loop_s uv_loop_t;
-typedef struct datahub_s datahub_t;
 #include "wasm_mgr.h"
 
 #ifdef __cplusplus
@@ -13,7 +12,7 @@ extern "C" {
 
 typedef struct wasm_scheduler_s wasm_scheduler_t;
 
-wasm_scheduler_t *wasm_scheduler_create(datahub_t *hub, uv_loop_t *loop, uint32_t tick_period_ms);
+wasm_scheduler_t *wasm_scheduler_create(uv_loop_t *loop, uint32_t tick_period_ms);
 void wasm_scheduler_destroy(wasm_scheduler_t *sched);
 
 int wasm_scheduler_start(wasm_scheduler_t *sched);

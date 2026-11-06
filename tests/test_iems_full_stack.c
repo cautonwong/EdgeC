@@ -20,6 +20,7 @@
 
 // IEMS Local Driver Adapter (No-Contract)
 #include "iems_driver_adapter.h"
+#include "stream_bus_datahub_adapter.h"
 
 typedef struct {
     uv_loop_t loop;
@@ -105,7 +106,7 @@ static int setup(void** state) {
     static const edge_stage_factory_entry_t test_stages[] = {
         {"mpc_dispatch", stage_mpc_dispatch_create_v2}, {NULL, NULL}};
     printf("[DEBUG] Setup: Creating StreamEngine...\n");
-    ctx->engine = stream_engine_create(&ctx->hub, &ctx->loop, NULL, test_stages);
+    ctx->engine = stream_engine_create_datahub(&ctx->hub, &ctx->loop, NULL, test_stages);
     if (!ctx->engine) {
         printf("[ERROR] Failed to create StreamEngine\n");
         return -1;

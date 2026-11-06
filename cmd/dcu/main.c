@@ -36,6 +36,7 @@
 #include "northbound_mgr.h"
 #include "sqlite_service.h"
 #include "stream_engine.h"
+#include "stream_bus_datahub_adapter.h"
 
 // --- Global Contexts ---
 static dcu_node_t* g_dcu_node = NULL;
@@ -456,7 +457,7 @@ int main(int argc, char** argv) {
     uv_signal_start(&sig_int, on_sig_async, SIGINT);
 
     stream_engine_t* se =
-        stream_engine_create(hub, loop, (struct bus_orchestrator_s*)io_orch, NULL);
+        stream_engine_create_datahub(hub, loop, (struct bus_orchestrator_s*)io_orch, NULL);
     g_running_se = se;
     event_sink_ops_t event_sink = {.ctx = storage,
                                    .archive_event = _event_archive_event,

@@ -5,7 +5,6 @@
 
 #include "stream_engine.h"
 #include "stream_engine_priv.h"
-#include "datahub.h"
 #include "edge_log.h"
 #include <stdlib.h>
 #include <string.h>
@@ -66,10 +65,10 @@ static stage_ret_t _proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
             pipe_msg_init_scalar(&m3, ctx->output_tag_skew, skew, ev->ts);
             
             // 安全发布到 DataHub
-            if (stage->pipeline && stage->pipeline->engine && stage->pipeline->engine->hub) {
-                datahub_publish(stage->pipeline->engine->hub, &m1);
-                datahub_publish(stage->pipeline->engine->hub, &m2);
-                datahub_publish(stage->pipeline->engine->hub, &m3);
+            if (stage->pipeline && stage->pipeline->engine && stage->pipeline->engine->bus.publish) {
+                stream_bus_publish(&stage->pipeline->engine->bus, &m1);
+                stream_bus_publish(&stage->pipeline->engine->bus, &m2);
+                stream_bus_publish(&stage->pipeline->engine->bus, &m3);
             }
         }
         return STAGE_DROP;

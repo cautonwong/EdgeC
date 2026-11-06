@@ -8,8 +8,7 @@
 
 #include "contract_data_types.h"
 #include "shmring.h"
-
-typedef struct datahub_s datahub_t;
+#include "stream_bus_port.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -139,18 +138,19 @@ struct pipeline_loader_ctx_s {
     stream_control_ops_t control_ops; /**< [IoC] 用于指令触发，消费者定义的接口 */
 };
 
-stream_engine_t *stream_engine_create_in(stream_engine_storage_t *storage, datahub_t *hub,
+stream_engine_t *stream_engine_create_in(stream_engine_storage_t *storage,
+                                         const stream_bus_port_t *bus,
                                          uv_loop_t *loop, void *orch,
                                          const edge_stage_factory_entry_t *registry);
 
-stream_engine_t *stream_engine_create(datahub_t *hub, uv_loop_t *loop,
+stream_engine_t *stream_engine_create(const stream_bus_port_t *bus, uv_loop_t *loop,
                                       void *orch,
                                       const edge_stage_factory_entry_t *registry);
 
 /**
  * @brief 在指定 Loop 上创建流引擎 (用于物理隔离 L2 线程)
  */
-stream_engine_t *stream_engine_create_ex(datahub_t *hub, uv_loop_t *loop,
+stream_engine_t *stream_engine_create_ex(const stream_bus_port_t *bus, uv_loop_t *loop,
                                          void *orch,
                                          const edge_stage_factory_entry_t *registry);
 void stream_engine_destroy(stream_engine_t *engine);
@@ -242,6 +242,9 @@ uv_async_t *stream_engine_get_notify_handle(stream_engine_t *engine);
  * @brief [S17] 获取指定算子的健康状态
  */
 stage_health_t pipeline_stage_get_health(pipeline_stage_t *stage);
+
+/** @brief 该算子所属的流引擎；未挂载时返回 NULL。 */
+stream_engine_t *pipeline_stage_get_engine(const pipeline_stage_t *stage);
 
 // --- Standard Stage Factories ---
 pipeline_stage_t *stage_filter_create(uint32_t tag_id);

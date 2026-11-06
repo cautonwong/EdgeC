@@ -12,7 +12,7 @@ EdgeOS 是一个面向高确定性、高并发、长生命周期（10~15年）�
 
 ```mermaid
 graph TD
-    subgraph "Core Domain / Shared Kernel"
+    subgraph "Core Domain / Shared Runtime"
         DataHub["DataHub Context<br/>(影子总线 / SHM / DDS / 契约分发)"]
         EdgeIO["EdgeIO & Driver Context<br/>(南向协议栈 / 驱动管理器 / NetBuf)"]
     end
@@ -34,9 +34,9 @@ graph TD
     end
 
     %% Relationships
-    DCU -->|Shared Kernel / PipeMsg| DataHub
-    IEMS -->|Shared Kernel / PipeMsg| DataHub
-    SmartBox -->|Shared Kernel / PipeMsg| DataHub
+    DCU -->|Shared Runtime / PipeMsg| DataHub
+    IEMS -->|Shared Runtime / PipeMsg| DataHub
+    SmartBox -->|Shared Runtime / PipeMsg| DataHub
 
     EdgeIO -->|Upstream / ACL| DCU
     EdgeIO -->|Upstream / ACL| IEMS
@@ -51,14 +51,14 @@ graph TD
 
 ## 2. 限界上下文定义 (Bounded Contexts)
 
-### 2.1 基础共享内核 (Shared Kernel: DataHub & Core Infrastructure)
+### 2.1 共享运行时 (Shared Runtime: DataHub & Core Infrastructure)
 - **定位**: 跨所有业务子域的高性能物理共享内核与影子内存总线。
 - **职责**:
   - 维护零拷贝 POSIX 共享内存环形缓冲区 (`shm_ring_t`) 与 64 字节原子对齐消息 (`PipeMsg`)；
   - 维护各测点影子内存表 (`shadow_table`) 与 Sequence Lock 无锁读写机制；
   - 提供多后端路由（SHM 单机零拷贝、CycloneDDS 分布式发布订阅、MQTT 云端桥接）；
   - 承载全局契约运行时（TagID 哈希寻址、量纲换算、动态分块 Hot-Schema）。
-- **上下游关系**: 所有产品域（DCU / IEMS / SmartBox）对 DataHub 均为 **Shared Kernel (共享内核)** 关系。
+- **上下游关系**: 所有产品域（DCU / IEMS / SmartBox）对 DataHub 均为 **Shared Runtime (共享运行时)** 关系；组件只通过端口访问，不直接引用 DataHub（ADR-0011）。
 
 ### 2.2 配电智能融合终端上下文 (DCU Context)
 - **业务定位**: 国家电网 / 南方电网低压配电网台区智能化核心节点（能源控制器 / TTU）。
@@ -91,7 +91,7 @@ graph TD
 | 源上下文 | 目标上下文 | 关系模式 | 交互通道 | 契约与防腐机制 |
 |---|---|---|---|---|
 | **EdgeIO (南向驱动)** | **业务产品域 (DCU/IEMS)** | **Upstream-Downstream + ACL** | `NetBuf` / 回调 | 通过生成式注册表与 ACL 防腐层解耦，业务层不直接触碰协议栈原始私有指针 |
-| **业务产品域** | **DataHub (影子总线)** | **Shared Kernel (共享内核)** | SHM / VTable | 严格以 64B `PipeMsg`、全局唯一 TagID 与契约查表库交互 |
+| **业务产品域** | **DataHub (影子总线)** | **Shared Runtime (共享运行时)** | SHM / VTable | 严格以 64B `PipeMsg`、全局唯一 TagID 与契约查表库交互 |
 | **业务产品域** | **Northbound Cloud** | **Customer-Supplier** | RESTful / MQTT / 104 | 统一采用带 MTT 时间戳的标准 Envelope 结构与 IEC 规约帧 |
 
 ---

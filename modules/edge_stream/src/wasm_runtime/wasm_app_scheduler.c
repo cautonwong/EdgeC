@@ -20,7 +20,6 @@ typedef struct {
 } wasm_scheduled_app_t;
 
 struct wasm_scheduler_s {
-    datahub_t *hub;
     uv_loop_t *loop;
     uv_timer_t timer;
     uint32_t tick_period_ms;
@@ -72,13 +71,12 @@ static void wasm_scheduler_tick(uv_timer_t *timer) {
 
 static struct wasm_scheduler_s g_wasm_scheduler;
 
-wasm_scheduler_t *wasm_scheduler_create(datahub_t *hub, uv_loop_t *loop, uint32_t tick_period_ms) {
-    if (!hub || !loop) return NULL;
+wasm_scheduler_t *wasm_scheduler_create(uv_loop_t *loop, uint32_t tick_period_ms) {
+    if (!loop) return NULL;
 
     wasm_scheduler_t *sched = &g_wasm_scheduler;
     memset(sched, 0, sizeof(*sched));
 
-    sched->hub = hub;
     sched->loop = loop;
     sched->tick_period_ms = tick_period_ms > 0 ? tick_period_ms : 1000;
     sched->running = false;

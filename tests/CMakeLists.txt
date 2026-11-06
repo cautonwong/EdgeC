@@ -119,10 +119,13 @@ add_edge_test(test_rest_apps test_rest_apps.c)
 
 # 4. 流处理引擎测试 (Compute Plane)
 add_edge_test(test_stream_engine test_stream_engine.c)
+add_edge_test(test_stream_bus_port test_stream_bus_port.c)
 add_edge_test(test_pipeline_loader test_pipeline_loader.c)
 add_edge_test(test_pipeline_hot_reload test_pipeline_hot_reload.c)
+target_include_directories(test_pipeline_hot_reload PRIVATE ${CMAKE_SOURCE_DIR}/modules/edge_stream/src)
 add_edge_test(test_js_engine test_js_engine.c)
 add_edge_test(test_wasm_stage test_wasm_stage.c)
+target_include_directories(test_wasm_stage PRIVATE ${CMAKE_SOURCE_DIR}/modules/edge_stream/src)
 add_edge_test(test_wasm_host_api test_wasm_host_api.c)
 add_edge_test(test_wasm_scheduler test_wasm_scheduler.c)
 add_edge_test(test_wasm_sandbox test_wasm_sandbox.c)
@@ -234,6 +237,7 @@ add_edge_test(test_northbound_event_driven test_northbound_event_driven.c)
 
 add_edge_test(test_iems_full_stack test_iems_full_stack.c)
 add_edge_test(test_iems_node test_iems_node.c)
+add_edge_test(test_iems_execution_port test_iems_execution_port.c)
 
 # 编译选项加固
 target_link_options(test_integration PRIVATE -Wl,--wrap=io_submit)
@@ -1542,3 +1546,5 @@ foreach(t
         set_tests_properties(${t} PROPERTIES ENVIRONMENT "UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1")
     endif()
 endforeach()
+
+add_edge_test(test_iec_cp56time test_iec_cp56time.c)

@@ -1,0 +1,8 @@
+# Shrink-only composition root line ledger.
+# Format: <path>|<lines>
+cmd/dcu/main.c|519
+cmd/edge_mcp_server/main.c|172
+cmd/iems/iems_app.c|890
+cmd/iems/main.c|99
+cmd/nexus_lab/main.c|156
+cmd/smart_box/main.c|637

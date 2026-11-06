@@ -5,6 +5,7 @@ set(PROD_NAME iems)
 add_library(iems_app_lib STATIC
     iems_node.c
     iems_app.c
+    iems_execution_adapter.c
     iems_driver_adapter.c
     iems_microgrid_coordinator.c
     iems_pcs_controller.c
@@ -15,6 +16,21 @@ add_library(iems_app_lib STATIC
     iems_task_loader.c
 
 )
+
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(IEMS_POINT_MAP_HEADER ${CMAKE_CURRENT_BINARY_DIR}/iems_point_map_generated.h)
+add_custom_command(
+    OUTPUT ${IEMS_POINT_MAP_HEADER}
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/gen_point_map.py
+            --input ${CMAKE_CURRENT_SOURCE_DIR}/config/point_map.json
+            --output ${IEMS_POINT_MAP_HEADER}
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/config/point_map.json
+            ${CMAKE_SOURCE_DIR}/scripts/gen_point_map.py
+    COMMENT "Generating IEMS point map")
+add_custom_target(iems_point_map DEPENDS ${IEMS_POINT_MAP_HEADER})
+add_dependencies(iems_app_lib iems_point_map)
+target_include_directories(iems_app_lib PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+
 
 target_include_directories(iems_app_lib PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}

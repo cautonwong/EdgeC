@@ -7,6 +7,7 @@
 typedef struct uv_loop_s uv_loop_t;
 
 #include "edge_service.h"
+#include "stream_bus_port.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -17,7 +18,7 @@ typedef struct js_engine_s js_engine_t;
 /**
  * @brief Initialize the QuickJS Scripting Service.
  */
-js_engine_t *js_engine_create(service_t *svc, size_t mem_limit);
+js_engine_t *js_engine_create(service_t *svc, const stream_bus_port_t *bus, size_t mem_limit);
 
 /**
  * @brief Run a JavaScript script from a file.

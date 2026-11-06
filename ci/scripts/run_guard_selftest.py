@@ -93,6 +93,34 @@ TEST_MATRIX = [
         "good_target": os.path.join(FIXTURES_DIR, "good_single_responsibility"),
         "bad_target": os.path.join(FIXTURES_DIR, "bad_single_responsibility"),
         "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_component_boundary.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_component_boundary.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_component_boundary"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_component_boundary"),
+        "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_product_build_graph.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_product_build_graph.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_build_graph"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_build_graph"),
+        "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_component_metadata.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_component_metadata.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_component_metadata"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_component_metadata"),
+        "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_composition_root_budget.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_composition_root_budget.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_budget"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_budget"),
+        "arg_flag": "--root"
     }
 ]
 
@@ -238,6 +266,10 @@ def main():
         "check_single_responsibility.py",
         "check_no_dynamic_memory.py",
         "check_stack_usage.py",
+        "check_component_boundary.py",
+        "check_product_build_graph.py",
+        "check_component_metadata.py",
+        "check_composition_root_budget.py",
     ]:
         script_path = os.path.join(SCRIPTS_DIR, script_name)
         flag = "--file" if "dependencies" in script_name or "exemptions" in script_name else "--root"

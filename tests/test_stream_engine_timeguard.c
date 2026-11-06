@@ -7,6 +7,7 @@
 
 #include "datahub.h"
 #include "stream_engine.h"
+#include "stream_bus_datahub_adapter.h"
 
 static void test_timeguard_anti_jump(void** state) {
     (void)state;
@@ -15,7 +16,7 @@ static void test_timeguard_anti_jump(void** state) {
     // 适配新签名
     datahub_init(&hub, loop, "time_bus", 64, 1024, NULL, 0, NULL, NULL, NULL);
 
-    stream_engine_t* engine = stream_engine_create(&hub, loop, NULL, NULL);
+    stream_engine_t* engine = stream_engine_create_datahub(&hub, loop, NULL, NULL);
     stream_engine_start(engine);
     assert_non_null(engine);
 

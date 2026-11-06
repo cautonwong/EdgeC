@@ -4,14 +4,15 @@
 #include <quickjs/quickjs.h>
 
 #include "arbiter.h"
-#include "datahub.h"
 #include "edge_log.h"
 #include "edge_service.h"
+#include "stream_bus_port.h"
 
 typedef struct {
     JSRuntime *rt;
     JSContext *ctx;
     service_t *svc;
+    stream_bus_port_t bus;
 } js_engine_t;
 
 #define JS_EXEC_TIMEOUT_MS 100
@@ -30,17 +31,16 @@ static int js_interrupt_handler(JSRuntime *rt, void *opaque) {
 }
 
 // --- JS Bindings: DataHub.read(tag_id) ---
-static JSValue js_datahub_read(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+static JSValue js_bus_read(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
     (void)this_val;
     if (argc < 1) return JS_EXCEPTION;
     uint32_t tag_id;
     if (JS_ToUint32(ctx, &tag_id, argv[0])) return JS_EXCEPTION;
 
     js_engine_t *engine = JS_GetContextOpaque(ctx);
-    datahub_t *hub = service_get_datahub(engine->svc);
-    
+
     pipe_msg_t msg;
-    if (datahub_read_shadow(hub, tag_id, &msg) == 0) {
+    if (stream_bus_read_shadow(&engine->bus, tag_id, &msg) == 0) {
         return JS_NewFloat64(ctx, msg.payload.val.f);
     }
     return JS_NULL;
@@ -91,7 +91,7 @@ void js_engine_register_globals(JSContext *ctx, service_t *svc) {
     JSValue global_obj = JS_GetGlobalObject(ctx);
     JSValue dcu_obj = JS_NewObject(ctx);
 
-    JS_SetPropertyStr(ctx, dcu_obj, "read", JS_NewCFunction(ctx, js_datahub_read, "read", 1));
+    JS_SetPropertyStr(ctx, dcu_obj, "read", JS_NewCFunction(ctx, js_bus_read, "read", 1));
     JS_SetPropertyStr(ctx, dcu_obj, "getStatuses", JS_NewCFunction(ctx, js_arbiter_get_statuses, "getStatuses", 0));
     JS_SetPropertyStr(ctx, dcu_obj, "submit", JS_NewCFunction(ctx, js_arbiter_submit, "submit", 3));
     
@@ -121,11 +121,12 @@ static uint8_t *js_load_file(JSContext *ctx, size_t *pout_len, const char *filen
     return buf;
 }
 
-js_engine_t *js_engine_create(service_t *svc, size_t mem_limit) {
+js_engine_t *js_engine_create(service_t *svc, const stream_bus_port_t *bus, size_t mem_limit) {
     js_engine_t *engine = calloc(1, sizeof(js_engine_t));
     if (!engine) return NULL;
 
     engine->svc = svc;
+    engine->bus = bus ? *bus : (stream_bus_port_t){0};
     engine->rt = JS_NewRuntime();
     engine->ctx = JS_NewContext(engine->rt);
     JS_SetContextOpaque(engine->ctx, engine);
