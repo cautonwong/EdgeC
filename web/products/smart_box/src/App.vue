@@ -49,7 +49,7 @@
               : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-300'
           ]"
         >
-          <span class="w-2 h-2 rounded-full" :class="privacyMode ? 'bg-rose-500 animate-ping' : 'bg-slate-500'"></span>
+          <span class="w-2 h-2 rounded-full" :class="privacyMode ? 'bg-rose-500' : 'bg-slate-500'"></span>
           <span>{{ privacyMode ? '🔒 隐私硬件已物理断电' : '🔓 开启隐私沙盒 (需双人复核)' }}</span>
         </button>
       </div>
@@ -96,7 +96,7 @@
             </div>
             <div class="bg-slate-950 border border-slate-800 rounded-2xl p-4 h-64 overflow-y-auto mb-4 text-xs font-mono flex flex-col gap-2.5">
               <div v-for="(chat, idx) in chatLogs" :key="idx" :class="[chat.role === 'user' ? 'text-sky-400 text-right' : 'text-slate-300']">
-                <span class="text-slate-600 text-[10px]">[{{ chat.time }}]</span> {{ chat.role === 'user' ? '您' : '小康' }}: {{ chat.text }}
+                <span class="text-slate-600 text-xs">[{{ chat.time }}]</span> {{ chat.role === 'user' ? '您' : '小康' }}: {{ chat.text }}
               </div>
             </div>
           </div>

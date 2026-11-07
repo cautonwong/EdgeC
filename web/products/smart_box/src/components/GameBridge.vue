@@ -146,7 +146,7 @@
             <!-- 目标线 -->
             <div class="absolute w-full border-b-2 border-dashed border-cyan-500/40 top-1/2 left-0 pointer-events-none"></div>
 
-            <div class="absolute bottom-3 right-3 text-[10px] font-mono text-slate-500 bg-slate-950/80 px-2 py-1 rounded border border-slate-800">
+            <div class="absolute bottom-3 right-3 text-xs font-mono text-slate-500 bg-slate-950/80 px-2 py-1 rounded border border-slate-800">
               postMessage API: ACTIVE // Window & BroadcastChannel
             </div>
           </div>

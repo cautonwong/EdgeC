@@ -462,7 +462,7 @@ test('实时曲线：点位来自遥测快照，图表可渲染', async ({ page 
   await expect(page.locator('[data-testid="curve-chart"] canvas')).toBeVisible();
 
   // 单点位模式下才会出现点位选择器（多点模式是固定四条曲线）
-  await page.getByRole('button', { name: 'Single Tag Focus' }).click();
+  await page.locator('[data-testid="curve-single-mode"]').click();
   await expect(page.locator('[data-testid="curve-point-select"]')).toBeVisible();
 
   // 点位列表来自 /api/v1/telemetry/current，且自动选中第一个

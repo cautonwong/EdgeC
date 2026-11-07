@@ -37,20 +37,20 @@ static void test_metrics_matrix_component_structure(void **state) {
     read_file_content("web/core/src/modules/metrics/MetricsMatrix.vue", content, sizeof(content));
 
     // Headers & Top Gauges
-    assert_non_null(strstr(content, "METRICS MATRIX"));
+    assert_non_null(strstr(content, "指标矩阵"));
     assert_non_null(strstr(content, "refreshIntervalMs"));
     assert_non_null(strstr(content, "formattedUptime"));
     assert_non_null(strstr(content, "togglePolling"));
 
     // DataHub Metrics
-    assert_non_null(strstr(content, "DATAHUB SHM WATERMARK"));
+    assert_non_null(strstr(content, "DataHub 共享内存水位"));
     assert_non_null(strstr(content, "watermarkPct"));
     assert_non_null(strstr(content, "readLatencyNs"));
     assert_non_null(strstr(content, "dropCount"));
     assert_non_null(strstr(content, "totalTags"));
 
     // Cyclone DDS Metrics
-    assert_non_null(strstr(content, "CYCLONE DDS MESH"));
+    assert_non_null(strstr(content, "Cyclone DDS 网格"));
     assert_non_null(strstr(content, "activeNodes"));
     assert_non_null(strstr(content, "rxRateBytes"));
     assert_non_null(strstr(content, "txRateBytes"));

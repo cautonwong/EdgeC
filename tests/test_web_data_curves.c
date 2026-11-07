@@ -38,7 +38,7 @@ static void test_echarts_lttb_sampling_and_webgl_specs(void **state) {
 
     // LTTB downsampling for huge dataset acceleration
     assert_non_null(strstr(content, "sampling: 'lttb'"));
-    assert_non_null(strstr(content, "import * as echarts from 'echarts'"));
+    assert_non_null(strstr(content, "import * as echarts from 'echarts/core'"));
     assert_non_null(strstr(content, "areaStyle:"));
     assert_non_null(strstr(content, "LinearGradient"));
 }
@@ -49,7 +49,7 @@ static void test_jetbrains_mono_typography_and_formatting(void **state) {
     read_file_content("web/core/src/modules/data/DataCurves.vue", content, sizeof(content));
 
     // JetBrains Mono typography in crosshair and tooltips
-    assert_non_null(strstr(content, "fontFamily: 'JetBrains Mono"));
+    assert_non_null(strstr(content, "fontFamily: 'Edge Mono"));
     assert_non_null(strstr(content, "type: 'cross'"));
     assert_non_null(strstr(content, "axisPointer:"));
     assert_non_null(strstr(content, "formatter:"));
@@ -61,12 +61,12 @@ static void test_four_series_microgrid_composition(void **state) {
     read_file_content("web/core/src/modules/data/DataCurves.vue", content, sizeof(content));
 
     // 4-series power balance curve tracks
-    assert_non_null(strstr(content, "Solar PV"));
-    assert_non_null(strstr(content, "ESS Battery"));
-    assert_non_null(strstr(content, "Grid Bus"));
-    assert_non_null(strstr(content, "Active Load"));
-    assert_non_null(strstr(content, "#3B82F6"));
-    assert_non_null(strstr(content, "#10B981"));
+    assert_non_null(strstr(content, "光伏"));
+    assert_non_null(strstr(content, "储能"));
+    assert_non_null(strstr(content, "电网"));
+    assert_non_null(strstr(content, "负荷"));
+    assert_non_null(strstr(content, "chartPalette()"));
+    assert_non_null(strstr(content, "withAlpha("));
 }
 
 static void test_datazoom_and_benchmark_100k(void **state) {

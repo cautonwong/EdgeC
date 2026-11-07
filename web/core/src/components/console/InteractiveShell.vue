@@ -1,7 +1,7 @@
 <template>
-  <div class="h-full flex flex-col bg-[#050b14] text-[#f8fafc] font-mono text-xs overflow-hidden select-text relative">
+  <div class="h-full flex flex-col bg-[var(--bg-page)] text-[var(--text-primary)] font-mono text-xs overflow-hidden select-text relative">
     <!-- Shell Header Bar / Connection & RBAC Status -->
-    <div class="px-4 py-2 bg-slate-950/90 border-b border-slate-900 flex flex-wrap items-center justify-between gap-3 text-[11px]">
+    <div class="px-4 py-2 bg-slate-950/90 border-b border-slate-900 flex flex-wrap items-center justify-between gap-3 text-xs">
       <!-- Left: Channel Status -->
       <div class="flex items-center gap-2">
         <span 
@@ -20,14 +20,14 @@
       <!-- Center / Right: RBAC Role Switcher & Operator Identity -->
       <div class="flex items-center gap-3">
         <div class="flex items-center gap-1.5 bg-slate-900/90 px-2 py-0.5 rounded-lg border border-slate-800">
-          <span class="text-slate-400 text-[10px]">User:</span>
-          <span class="text-white font-bold text-[10px]">{{ currentUser }}</span>
+          <span class="text-slate-400 text-xs">User:</span>
+          <span class="text-white font-bold text-xs">{{ currentUser }}</span>
           <span class="text-slate-600">|</span>
-          <span class="text-slate-400 text-[10px]">Role:</span>
+          <span class="text-slate-400 text-xs">Role:</span>
           <select 
             v-model="currentRole" 
             @change="handleRoleChange"
-            class="bg-slate-950 text-[10px] font-bold px-1.5 py-0.5 rounded border border-slate-700 outline-none cursor-pointer"
+            class="bg-slate-950 text-xs font-bold px-1.5 py-0.5 rounded border border-slate-700 outline-none cursor-pointer"
             :class="getRoleBadgeClass(currentRole)"
           >
             <option value="Observer">Observer (Readonly Web)</option>
@@ -37,7 +37,7 @@
           </select>
         </div>
 
-        <div class="hidden lg:flex items-center gap-2 text-slate-500 text-[10px]">
+        <div class="hidden lg:flex items-center gap-2 text-slate-500 text-xs">
           <span>Interrupt: <kbd class="px-1 py-0.5 bg-slate-900 rounded text-slate-400 border border-slate-800">Ctrl+C</kbd></span>
           <span>Clear: <kbd class="px-1 py-0.5 bg-slate-900 rounded text-slate-400 border border-slate-800">Ctrl+L</kbd></span>
           <span>Autocomplete: <kbd class="px-1 py-0.5 bg-slate-900 rounded text-slate-400 border border-slate-800">Tab</kbd></span>
@@ -74,7 +74,7 @@
       <div class="text-slate-500 pb-2 border-b border-slate-900 mb-3 space-y-0.5">
         <div class="text-emerald-400 font-bold flex items-center justify-between">
           <span>EdgeOS Industrial Interactive Web Shell Bridge [RBAC Active: {{ currentRole }}]</span>
-          <span class="text-[10px] text-slate-500">IEC 62443 SL-3 & Two-Man Rule Enabled</span>
+          <span class="text-xs text-slate-500">IEC 62443 SL-3 & Two-Man Rule Enabled</span>
         </div>
         <div>Type <span class="text-cyan-400 font-bold">help</span> for commands, <span class="text-amber-400 font-bold">audit</span> for WAL trail, or <span class="text-purple-400 font-bold">auth whoami</span> for credentials.</div>
       </div>
@@ -84,9 +84,9 @@
         <div class="flex items-center gap-2 text-slate-300">
           <span class="text-emerald-400 font-black">{{ promptPrefix }}</span>
           <span class="font-bold text-white">{{ entry.command }}</span>
-          <span v-if="entry.twoManApproved" class="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 text-[9px] font-bold">2-MAN OK</span>
-          <span v-if="entry.rbacBlocked" class="px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-400 text-[9px] font-bold">RBAC BLOCKED</span>
-          <span class="text-[10px] text-slate-600 ml-auto">{{ entry.timestamp }}</span>
+          <span v-if="entry.twoManApproved" class="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 text-xs font-bold">2-MAN OK</span>
+          <span v-if="entry.rbacBlocked" class="px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-400 text-xs font-bold">RBAC BLOCKED</span>
+          <span class="text-xs text-slate-600 ml-auto">{{ entry.timestamp }}</span>
         </div>
         <div 
           v-if="entry.output" 
@@ -122,7 +122,7 @@
       <div class="flex items-center gap-2">
         <button 
           @click="clearScreen" 
-          class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 text-[10px] transition cursor-pointer"
+          class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 text-xs transition cursor-pointer"
         >
           Clear
         </button>

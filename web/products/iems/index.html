@@ -1,11 +1,22 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="light">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="referrer" content="same-origin" />
     <title>iEMS 能源管理网关</title>
-    <!-- 现场无外网：不引用任何 CDN / Google Fonts，字体走系统栈与本地子集（§1.2） -->
+    <script>
+      // Read the same key as core/src/app/theme.ts before first paint.
+      (function () {
+        try {
+          var preference = localStorage.getItem('edgeos.theme') || 'system';
+          var dark = preference === 'dark' || (preference === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+        } catch (error) {
+          document.documentElement.dataset.theme = 'light';
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="app">

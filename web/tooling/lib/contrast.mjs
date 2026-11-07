@@ -4,6 +4,7 @@
 // token-pairs.json 里声明的语义配对逐对算 WCAG 对比度。改色不改成对关系，
 // 构建就红——这是唯一能防住"主色换成好看但看不清"的办法。
 import { readFileSync } from 'node:fs';
+import { listProducts, loadProduct } from './manifest.mjs';
 import { webPath } from './util.mjs';
 
 const TOKENS_CSS = 'core/src/ui/tokens.css';
@@ -92,6 +93,32 @@ export function checkContrast() {
     results.push(row);
     if (ratio + 1e-9 < pair.min) {
       violations.push(`${pair.theme}: ${pair.fg} on ${pair.bg} = ${row.ratio}:1 < ${pair.min}:1（${pair.usage}）`);
+    }
+  }
+
+  // Product brands replace the primary fill, so verify the best available on-colour.
+  for (const productId of listProducts()) {
+    const { product } = loadProduct(productId);
+    const brand = product.theme?.brandColor;
+    if (!brand) continue;
+    const rgb = toRgb(brand);
+    if (!rgb) {
+      violations.push(`${productId}: 无法解析品牌色 ${brand}`);
+      continue;
+    }
+    const onWhite = contrastRatio(rgb, [255, 255, 255]);
+    const onDark = contrastRatio(rgb, [6, 18, 31]);
+    const best = Math.max(onWhite, onDark);
+    results.push({
+      theme: 'brand',
+      fg: onWhite >= onDark ? '#ffffff' : '#06121f',
+      bg: brand,
+      ratio: Number(best.toFixed(2)),
+      min: 4.5,
+      usage: `${productId} 主按钮文字`,
+    });
+    if (best + 1e-9 < 4.5) {
+      violations.push(`${productId}: 品牌色 ${brand} 的最高对比度 ${best.toFixed(2)}:1 < 4.5:1`);
     }
   }
   return { results, violations };

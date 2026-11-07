@@ -11,6 +11,8 @@ const resolvePkg = (pkg: string) => {
 
 export default defineConfig({
   plugins: [vue()],
+  // 每个产品独立缓存：单仓提升 node_modules 时避免两个 dev server 互相覆盖依赖预构建。
+  cacheDir: path.resolve(__dirname, 'node_modules/.vite-iems'),
   resolve: {
     // 顺序重要：更具体的子路径别名必须排在包根别名之前
     alias: [

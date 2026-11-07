@@ -1,5 +1,5 @@
 <template>
-  <div class="h-full flex flex-col bg-[#050b14] text-[#f8fafc] font-mono text-xs overflow-hidden select-text">
+  <div class="h-full flex flex-col bg-[var(--bg-page)] text-[var(--text-primary)] font-mono text-xs overflow-hidden select-text">
     <!-- Top Stream Controls & Statistics Bar -->
     <header class="px-4 py-2.5 bg-slate-950 border-b border-slate-850 flex flex-wrap items-center justify-between gap-3 shrink-0 text-xs">
       <!-- Left: Status & Counters -->
@@ -13,7 +13,7 @@
             {{ isStreaming ? 'Live Sniffer (50Hz)' : 'Capture Paused' }}
           </span>
         </div>
-        <div class="hidden sm:flex items-center gap-2 text-slate-500 text-[11px] border-l border-slate-800 pl-3">
+        <div class="hidden sm:flex items-center gap-2 text-slate-500 text-xs border-l border-slate-800 pl-3">
           <span>Frames: <strong class="text-slate-300">{{ totalFrames }}</strong></span>
           <span>Filtered: <strong class="text-cyan-400">{{ filteredPackets.length }}</strong></span>
           <span>Rate: <strong class="text-emerald-400">{{ throughputKbps.toFixed(1) }} KB/s</strong></span>
@@ -74,7 +74,7 @@
       <div class="flex flex-wrap items-center gap-3">
         <!-- Physical Channel Filter -->
         <div class="flex items-center gap-1.5">
-          <span class="text-slate-500 text-[11px]">Channel:</span>
+          <span class="text-slate-500 text-xs">Channel:</span>
           <select v-model="selectedChannel" class="bg-slate-900 border border-slate-800 text-slate-200 rounded px-2 py-1 text-xs">
             <option value="ALL">ALL Channels</option>
             <option value="RS485-0">RS485-0 / COM1</option>
@@ -86,7 +86,7 @@
 
         <!-- Protocol Filter -->
         <div class="flex items-center gap-1.5">
-          <span class="text-slate-500 text-[11px]">Protocol:</span>
+          <span class="text-slate-500 text-xs">Protocol:</span>
           <select v-model="selectedProtocol" class="bg-slate-900 border border-slate-800 text-slate-200 rounded px-2 py-1 text-xs">
             <option value="ALL">ALL Protocols</option>
             <option value="DLT645-2007">DL/T 645-2007</option>
@@ -98,7 +98,7 @@
 
         <!-- Direction Filter -->
         <div class="flex items-center gap-1.5">
-          <span class="text-slate-500 text-[11px]">Dir:</span>
+          <span class="text-slate-500 text-xs">Dir:</span>
           <select v-model="selectedDirection" class="bg-slate-900 border border-slate-800 text-slate-200 rounded px-2 py-1 text-xs">
             <option value="ALL">ALL (TX+RX)</option>
             <option value="TX">TX (Transmit)</option>
@@ -125,7 +125,7 @@
         class="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent border-b lg:border-b-0 lg:border-r border-slate-850"
       >
         <table class="w-full text-left border-collapse text-xs">
-          <thead class="sticky top-0 bg-[#070e1b] border-b border-slate-800 text-[10px] text-slate-500 font-bold select-none z-10">
+          <thead class="sticky top-0 bg-[#070e1b] border-b border-slate-800 text-xs text-slate-500 font-bold select-none z-10">
             <tr>
               <th class="py-2 px-3 w-12 text-center">#</th>
               <th class="py-2 px-3 w-28">MTT Time</th>
@@ -145,44 +145,44 @@
               :class="selectedPacket?.id === pkt.id ? 'bg-cyan-950/40 border-l-2 border-cyan-400' : ''"
             >
               <!-- Index -->
-              <td class="py-2 px-3 text-slate-600 text-center text-[10px]">{{ idx + 1 }}</td>
+              <td class="py-2 px-3 text-slate-600 text-center text-xs">{{ idx + 1 }}</td>
               <!-- MTT Time -->
-              <td class="py-2 px-3 text-slate-400 text-[11px] whitespace-nowrap">{{ pkt.time }}</td>
+              <td class="py-2 px-3 text-slate-400 text-xs whitespace-nowrap">{{ pkt.time }}</td>
               <!-- Direction -->
               <td class="py-2 px-2 text-center">
                 <span 
-                  class="px-1.5 py-0.5 rounded text-[9px] font-black"
+                  class="px-1.5 py-0.5 rounded text-xs font-black"
                   :class="pkt.direction === 'TX' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'"
                 >
                   {{ pkt.direction }}
                 </span>
               </td>
               <!-- Channel -->
-              <td class="py-2 px-2 text-slate-400 text-[11px] whitespace-nowrap">{{ pkt.channel }}</td>
+              <td class="py-2 px-2 text-slate-400 text-xs whitespace-nowrap">{{ pkt.channel }}</td>
               <!-- Protocol -->
               <td class="py-2 px-2 whitespace-nowrap">
-                <span class="text-cyan-400 font-bold text-[11px]">{{ pkt.protocol }}</span>
+                <span class="text-cyan-400 font-bold text-xs">{{ pkt.protocol }}</span>
               </td>
               <!-- Length -->
-              <td class="py-2 px-2 text-center text-slate-500 text-[11px]">{{ pkt.rawBytes.length }}B</td>
+              <td class="py-2 px-2 text-center text-slate-500 text-xs">{{ pkt.rawBytes.length }}B</td>
               <!-- Summary & Hex -->
               <td class="py-2 px-3">
-                <div class="font-bold text-slate-200 text-[11px] flex items-center gap-2">
+                <div class="font-bold text-slate-200 text-xs flex items-center gap-2">
                   <span>{{ pkt.decodedSummary }}</span>
                   <span 
                     v-if="pkt.isValidChecksum" 
-                    class="text-[9px] px-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                    class="text-xs px-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
                   >
                     CRC OK
                   </span>
                   <span 
                     v-else 
-                    class="text-[9px] px-1 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                    class="text-xs px-1 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20"
                   >
                     CRC ERR
                   </span>
                 </div>
-                <div class="text-[10px] text-amber-400/80 truncate max-w-xl font-mono pt-0.5">
+                <div class="text-xs text-amber-400/80 truncate max-w-xl font-mono pt-0.5">
                   {{ pkt.hexString }}
                 </div>
               </td>
@@ -192,7 +192,7 @@
             <tr v-if="filteredPackets.length === 0">
               <td colspan="7" class="py-12 text-center text-slate-600 space-y-2">
                 <div>📡 No protocol frames captured matching the current filters.</div>
-                <div class="text-[11px] text-slate-700">Check physical channel connections or resume the capture stream.</div>
+                <div class="text-xs text-slate-700">Check physical channel connections or resume the capture stream.</div>
               </td>
             </tr>
           </tbody>
@@ -202,7 +202,7 @@
       <!-- Right / Bottom: Selected Frame Dissection & Hex Inspector Drawer -->
       <div 
         v-if="selectedPacket" 
-        class="w-full lg:w-[480px] xl:w-[560px] bg-[#050b14] flex flex-col shrink-0 overflow-y-auto p-4 space-y-4 border-t lg:border-t-0 scrollbar-thin"
+        class="w-full lg:w-[480px] xl:w-[560px] bg-[var(--bg-page)] flex flex-col shrink-0 overflow-y-auto p-4 space-y-4 border-t lg:border-t-0 scrollbar-thin"
       >
         <!-- Dissection Overview Card -->
         <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
@@ -210,7 +210,7 @@
             <div class="flex items-center gap-2">
               <span class="text-cyan-400 font-bold text-sm">{{ selectedPacket.protocol }} Dissection</span>
               <span 
-                class="px-1.5 py-0.5 rounded text-[10px] font-bold"
+                class="px-1.5 py-0.5 rounded text-xs font-bold"
                 :class="selectedPacket.direction === 'TX' ? 'bg-blue-500/20 text-blue-400' : 'bg-emerald-500/20 text-emerald-400'"
               >
                 {{ selectedPacket.direction }}
@@ -224,7 +224,7 @@
             </button>
           </div>
 
-          <div class="grid grid-cols-2 gap-2 text-[11px] text-slate-400 pt-1 border-t border-slate-900">
+          <div class="grid grid-cols-2 gap-2 text-xs text-slate-400 pt-1 border-t border-slate-900">
             <div>Channel: <strong class="text-white">{{ selectedPacket.channel }}</strong></div>
             <div>Length: <strong class="text-white">{{ selectedPacket.rawBytes.length }} Bytes</strong></div>
             <div>Timestamp: <strong class="text-white">{{ selectedPacket.time }}</strong></div>
@@ -250,16 +250,16 @@
             <div 
               v-for="(seg, sIdx) in selectedPacket.segments" 
               :key="sIdx"
-              class="p-2 rounded-xl bg-slate-900/60 border border-slate-850 flex items-center justify-between text-[11px]"
+              class="p-2 rounded-xl bg-slate-900/60 border border-slate-850 flex items-center justify-between text-xs"
             >
               <div class="space-y-0.5">
                 <div class="font-bold text-slate-200 flex items-center gap-2">
                   <span class="w-1.5 h-1.5 rounded-full" :class="getSegmentDotColor(seg.type)"></span>
                   <span>{{ seg.name }}</span>
                 </div>
-                <div class="text-slate-500 text-[10px] pl-3.5">{{ seg.description }}</div>
+                <div class="text-slate-500 text-xs pl-3.5">{{ seg.description }}</div>
               </div>
-              <div class="text-right text-[10px] text-slate-500">
+              <div class="text-right text-xs text-slate-500">
                 <div>Offset: 0x{{ seg.start_offset.toString(16).padStart(2, '0').toUpperCase() }}</div>
                 <div>Len: {{ seg.length }}B</div>
               </div>

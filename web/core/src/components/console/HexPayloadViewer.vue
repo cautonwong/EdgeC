@@ -1,14 +1,14 @@
 <template>
   <div class="bg-[#030712] border border-slate-800/80 rounded-2xl p-4 font-mono text-xs text-slate-300 space-y-4 select-text">
     <!-- Header Controls & Legend -->
-    <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800 text-[11px]">
+    <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800 text-xs">
       <div class="flex items-center gap-2">
         <span class="text-cyan-400 font-bold">Hex / ASCII Inspector</span>
         <span class="text-slate-500">({{ rawBytes.length }} Bytes)</span>
       </div>
 
       <!-- Protocol Segment Color Legend -->
-      <div class="flex flex-wrap items-center gap-2 text-[10px]">
+      <div class="flex flex-wrap items-center gap-2 text-xs">
         <span class="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">Header</span>
         <span class="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">Address</span>
         <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">Function</span>
@@ -20,7 +20,7 @@
       <div class="flex items-center gap-2">
         <button 
           @click="copyHexString" 
-          class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-[10px] transition cursor-pointer flex items-center gap-1"
+          class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs transition cursor-pointer flex items-center gap-1"
         >
           <span>📋</span>
           <span>{{ copied ? 'Copied!' : 'Copy Hex' }}</span>
@@ -32,7 +32,7 @@
     <div class="overflow-x-auto scrollbar-thin">
       <div class="min-w-[640px] space-y-1">
         <!-- Grid Header Row -->
-        <div class="grid grid-cols-[60px_1fr_180px] gap-4 text-[10px] font-bold text-slate-500 pb-1 border-b border-slate-900">
+        <div class="grid grid-cols-[60px_1fr_180px] gap-4 text-xs font-bold text-slate-500 pb-1 border-b border-slate-900">
           <div>OFFSET</div>
           <div class="grid grid-cols-16 gap-1 text-center">
             <span v-for="i in 16" :key="i">{{ (i - 1).toString(16).toUpperCase() }}</span>
@@ -92,7 +92,7 @@
     <!-- Active Byte Inspector / Tooltip Bar -->
     <div 
       v-if="activeByteInfo" 
-      class="p-3 bg-slate-950 rounded-xl border border-slate-800 flex flex-wrap items-center justify-between gap-4 text-[11px] animate-fadeIn"
+      class="p-3 bg-slate-950 rounded-xl border border-slate-800 flex flex-wrap items-center justify-between gap-4 text-xs animate-fadeIn"
     >
       <div class="flex items-center gap-4">
         <div>
@@ -120,12 +120,12 @@
       <!-- Segment Meaning -->
       <div v-if="activeByteInfo.segment" class="flex items-center gap-2">
         <span 
-          class="px-2 py-0.5 rounded text-[10px] font-bold"
+          class="px-2 py-0.5 rounded text-xs font-bold"
           :class="getSegmentBadgeClass(activeByteInfo.segment.type)"
         >
           {{ activeByteInfo.segment.name }}
         </span>
-        <span class="text-slate-400 text-[10px]">{{ activeByteInfo.segment.description }}</span>
+        <span class="text-slate-400 text-xs">{{ activeByteInfo.segment.description }}</span>
       </div>
     </div>
   </div>

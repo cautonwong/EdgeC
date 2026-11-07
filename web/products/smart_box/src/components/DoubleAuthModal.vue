@@ -13,7 +13,7 @@
           ⚠️
         </div>
         <div>
-          <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-[10px] font-black mb-1 font-mono">
+          <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-black mb-1 font-mono">
             CRITICAL SAFETY INTERLOCK
           </div>
           <h2 class="text-xl font-black text-white tracking-tight font-mono">
@@ -47,7 +47,7 @@
         <div>
           <label class="block text-slate-300 font-bold mb-1.5 flex items-center justify-between">
             <span>👤 操作员凭证 (Operator PIN / RFID):</span>
-            <span v-if="opValid" class="text-emerald-400 text-[10px]">✓ VERIFIED</span>
+            <span v-if="opValid" class="text-emerald-400 text-xs">✓ VERIFIED</span>
           </label>
           <input 
             v-model="operatorPin"
@@ -62,7 +62,7 @@
         <div>
           <label class="block text-slate-300 font-bold mb-1.5 flex items-center justify-between">
             <span>🛡️ 监护主管凭证 (Supervisor PIN / Key):</span>
-            <span v-if="supValid" class="text-emerald-400 text-[10px]">✓ VERIFIED</span>
+            <span v-if="supValid" class="text-emerald-400 text-xs">✓ VERIFIED</span>
           </label>
           <input 
             v-model="supervisorPin"

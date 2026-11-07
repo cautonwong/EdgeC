@@ -2,28 +2,28 @@
   <div class="p-8 lg:p-12 space-y-10 animate-in fade-in duration-500">
     <div class="flex justify-between items-end">
       <div>
-        <h1 class="text-3xl font-black text-slate-800 tracking-tight italic">COMPUTE <span class="text-indigo-600 not-italic">PIPELINES</span></h1>
-        <p class="text-slate-400 text-sm font-medium mt-1">Stream Processing Engines</p>
+        <h1 class="text-3xl font-black tracking-tight">数据管道</h1>
+        <p class="text-slate-400 text-sm font-medium mt-1">流处理引擎</p>
       </div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-      <div v-for="p in pipelines" :key="p.id" class="bg-white rounded-[2.5rem] p-8 shadow-xl shadow-slate-200/50 border border-slate-100 flex flex-col justify-between">
+      <div v-for="p in pipelines" :key="p.id" class="bg-white rounded-xl p-8 shadow-xl shadow-slate-200/50 border border-slate-100 flex flex-col justify-between">
         <div class="space-y-6">
           <div class="flex justify-between items-start">
             <div class="space-y-1">
               <h3 class="text-xl font-black text-slate-800 tracking-tight">{{ p.id }}</h3>
-              <div class="text-[10px] font-bold text-slate-400 flex items-center gap-2">
-                Trigger: <span class="text-indigo-500">Tag #{{ p.trigger_tag || 'Any' }}</span>
+              <div class="text-xs font-bold text-slate-400 flex items-center gap-2">
+                触发： <span class="text-indigo-500">标签 #{{ p.trigger_tag || '任意' }}</span>
               </div>
             </div>
-            <div class="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[9px] font-black">Running</div>
+            <div class="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-xs font-black">运行中</div>
           </div>
 
           <!-- Pipeline Visualization -->
           <div class="flex items-center gap-3">
             <div v-for="(stage, idx) in p.stages" :key="idx" class="flex items-center gap-3">
-              <div class="px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[10px] font-bold text-slate-600 shadow-sm">
+              <div class="px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold text-slate-600 shadow-sm">
                 {{ stage.name }}
               </div>
               <svg aria-hidden="true" v-if="idx < p.stages.length - 1" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -33,7 +33,7 @@
           </div>
         </div>
 
-        <div class="mt-8 pt-6 border-t border-slate-50 flex justify-between items-center text-[10px] font-black">
+        <div class="mt-8 pt-6 border-t border-slate-50 flex justify-between items-center text-xs font-black">
           <span class="text-slate-400">Throughput: {{ p.total_events || 0 }} msg</span>
           <span class="text-indigo-500">Latency: {{ p.latency || 0.5 }}ms</span>
         </div>

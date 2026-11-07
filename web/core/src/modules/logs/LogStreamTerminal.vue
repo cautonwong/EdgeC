@@ -1,32 +1,27 @@
 <template>
-  <div class="min-h-full bg-[#020617] text-[#f8fafc] p-6 lg:p-10 space-y-8 animate-in fade-in duration-700 font-ui">
+  <div class="min-h-full bg-[var(--bg-page)] text-[var(--text-primary)] p-6 lg:p-10 space-y-8 animate-in fade-in duration-700 font-ui">
     <!-- Top Hero Header -->
-    <section class="relative bg-[#0f172a] rounded-[2.5rem] overflow-hidden shadow-2xl border border-[#334155]/60 p-8 lg:p-10">
-      <div class="absolute top-0 right-0 w-[500px] h-[500px] bg-cyan-500/10 rounded-full blur-[120px] -mr-40 -mt-40 pointer-events-none"></div>
-      <div class="absolute bottom-0 left-0 w-[300px] h-[300px] bg-emerald-500/10 rounded-full blur-[80px] -ml-20 -mb-20 pointer-events-none"></div>
-
+    <section class="relative bg-[var(--bg-surface)] rounded-xl overflow-hidden shadow-2xl border border-[var(--border-default)] p-8 lg:p-10">
       <div class="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div class="space-y-2">
-          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[10px] font-black">
-            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping"></span>
-            Industrial ANSI High-Speed Terminal & Log Sink
+          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-black">
+            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+            工业 ANSI 高速终端
           </div>
-          <h1 class="text-3xl lg:text-4xl font-black text-white tracking-tight leading-tight font-mono">
-            LIVE <span class="text-cyan-400 font-sans">LOG STREAM CONSOLE</span>
-          </h1>
+          <h1 class="text-3xl lg:text-4xl font-black tracking-tight leading-tight">系统日志</h1>
           <p class="text-slate-400 text-xs lg:text-sm font-medium">
-            Real-time zlog ANSI terminal output, multi-domain subsystem audit trails, and forensic export toolkit.
+            zlog ANSI 终端输出、多域子系统审计与取证导出
           </p>
         </div>
 
         <!-- Global Status Badges & Controls -->
         <div class="flex flex-wrap items-center gap-3 font-mono text-xs">
           <div class="bg-slate-950/90 border border-slate-800 px-3.5 py-2 rounded-2xl flex items-center gap-2.5 shadow-inner">
-            <span class="text-slate-500">Log Ingestion:</span>
+            <span class="text-slate-500">日志速率：</span>
             <span class="text-cyan-400 font-bold">{{ streamRateLps }} lines/s</span>
           </div>
           <div class="bg-slate-950/90 border border-slate-800 px-3.5 py-2 rounded-2xl flex items-center gap-2.5 shadow-inner">
-            <span class="text-slate-500">Buffer Size:</span>
+            <span class="text-slate-500">缓冲区：</span>
             <span class="text-emerald-400 font-bold">{{ logs.length }} / {{ maxBufferLines }}</span>
           </div>
           <button 
@@ -34,7 +29,7 @@
             :class="isStreaming ? 'bg-cyan-500 hover:bg-cyan-600 text-slate-950 font-black' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'"
             class="px-4 py-2.5 rounded-2xl border border-slate-700 transition flex items-center gap-2 shadow-lg cursor-pointer"
           >
-            <span class="w-2 h-2 rounded-full" :class="isStreaming ? 'bg-slate-950 animate-ping' : 'bg-slate-500'"></span>
+            <span class="w-2 h-2 rounded-full" :class="isStreaming ? 'bg-slate-950' : 'bg-slate-500'"></span>
             <span>{{ isStreaming ? '⏸ PAUSE STREAM' : '▶ RESUME STREAM' }}</span>
           </button>
         </div>
@@ -46,7 +41,7 @@
       <div class="flex flex-wrap items-center gap-3">
         <!-- Severity Level Filter -->
         <div class="flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
-          <span class="text-slate-500">Level:</span>
+          <span class="text-slate-500">级别：</span>
           <select v-model="filterLevel" class="bg-transparent text-slate-200 focus:outline-none cursor-pointer font-bold">
             <option value="ALL">ALL (全部日志级别)</option>
             <option value="DEBUG">DEBUG (调试追踪)</option>
@@ -59,7 +54,7 @@
 
         <!-- Module Domain Filter -->
         <div class="flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
-          <span class="text-slate-500">Domain:</span>
+          <span class="text-slate-500">域：</span>
           <select v-model="filterDomain" class="bg-transparent text-slate-200 focus:outline-none cursor-pointer font-bold">
             <option value="ALL">ALL (全部模块域)</option>
             <option value="BUS">[BUS] (DataHub / SHM / Cyclone DDS)</option>
@@ -74,7 +69,7 @@
 
         <!-- Terminal Theme Switcher -->
         <div class="flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
-          <span class="text-slate-500">Theme:</span>
+          <span class="text-slate-500">主题：</span>
           <select v-model="selectedTheme" class="bg-transparent text-slate-200 focus:outline-none cursor-pointer font-bold">
             <option value="cyber">Cyber Dark (深邃工业)</option>
             <option value="matrix">Matrix Green (黑客绿光)</option>
@@ -95,7 +90,7 @@
             @click="isRegexMode = !isRegexMode" 
             :class="isRegexMode ? 'bg-cyan-500 text-slate-950 font-black' : 'bg-slate-800 text-slate-400'"
             title="Toggle Regular Expression Mode"
-            class="ml-2 px-2 py-1 rounded-lg text-[10px] font-mono transition"
+            class="ml-2 px-2 py-1 rounded-lg text-xs font-mono transition"
           >
             .*
           </button>
@@ -167,7 +162,7 @@
           class="flex items-start gap-3 hover:bg-white/[0.03] px-2 py-0.5 rounded transition-colors group"
         >
           <!-- Line Index -->
-          <span class="text-slate-600 text-[10px] w-12 text-right select-none flex-shrink-0 font-light group-hover:text-slate-400">
+          <span class="text-slate-600 text-xs w-12 text-right select-none flex-shrink-0 font-light group-hover:text-slate-400">
             {{ idx + 1 }}
           </span>
 
@@ -177,7 +172,7 @@
           </span>
 
           <!-- Level Badge -->
-          <span :class="getLevelBadgeClass(log.level)" class="px-1.5 py-0.2 rounded text-[10px] font-black flex-shrink-0">
+          <span :class="getLevelBadgeClass(log.level)" class="px-1.5 py-0.2 rounded text-xs font-black flex-shrink-0">
             {{ log.level }}
           </span>
 
@@ -211,10 +206,10 @@
         <div class="text-slate-400 font-bold flex items-center gap-2">
           <span>🔒 SHA-256 Checksum</span>
         </div>
-        <div class="text-slate-300 break-all font-mono text-[11px] bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+        <div class="text-slate-300 break-all font-mono text-xs bg-slate-950 p-2.5 rounded-xl border border-slate-800">
           {{ streamSha256Checksum }}
         </div>
-        <p class="text-slate-500 text-[10px]">Tamper-evident hash generated from real-time log sequence buffer.</p>
+        <p class="text-slate-500 text-xs">Tamper-evident hash generated from real-time log sequence buffer.</p>
       </div>
 
       <div class="bg-slate-900/60 border border-slate-800 rounded-3xl p-5 space-y-2">
@@ -237,7 +232,7 @@
         <div class="text-slate-400 font-bold flex items-center gap-2">
           <span>🎯 ANSI SGR Decoder</span>
         </div>
-        <div class="text-slate-300 text-[11px] space-y-1">
+        <div class="text-slate-300 text-xs space-y-1">
           <div>Supported: <strong>16 ANSI Colors + 256-Color Palette</strong></div>
           <div class="text-emerald-400 font-bold">Decoded: \x1b[31m .. \x1b[37m & SGR 1..4</div>
         </div>
@@ -301,9 +296,9 @@ function getLevelBadgeClass(level: LogEntry['level']): string {
 const themeClasses = computed(() => {
   switch (selectedTheme.value) {
     case 'matrix':
-      return 'bg-[#021208] text-[#22c55e] border-[#15803d]/40';
+      return 'bg-[#021208] text-[var(--color-success)] border-[#15803d]/40';
     case 'amber':
-      return 'bg-[#180e04] text-[#f59e0b] border-[#b45309]/40';
+      return 'bg-[#180e04] text-[var(--color-warning)] border-[#b45309]/40';
     case 'monokai':
       return 'bg-[#1e1e1e] text-[#f8f8f2] border-[#444]/40';
     case 'cyber':

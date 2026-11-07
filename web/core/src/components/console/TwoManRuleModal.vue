@@ -1,9 +1,9 @@
 <template>
   <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md select-none font-mono text-xs">
     <!-- Modal Card Container -->
-    <div class="w-full max-w-lg bg-[#080e1a] border-2 border-rose-500/80 rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div ref="dialogRef" role="dialog" aria-modal="true" aria-labelledby="two-man-title" tabindex="-1" class="w-full max-w-lg bg-[var(--bg-surface)] border-2 border-rose-500/80 rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
       <!-- Hazard Warning Striped Banner -->
-      <div class="h-3 w-full bg-[repeating-linear-gradient(45deg,#f43f5e,#f43f5e_12px,#0f172a_12px,#0f172a_24px)]"></div>
+      <div class="h-3 w-full bg-[repeating-linear-gradient(45deg,var(--color-danger),var(--color-danger)_12px,var(--bg-page)_12px,var(--bg-page)_24px)]"></div>
 
       <!-- Header -->
       <div class="p-6 border-b border-rose-900/40 bg-rose-950/20 flex items-start gap-4">
@@ -12,11 +12,11 @@
         </div>
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded bg-rose-500 text-white font-bold text-[10px]">IEC 62443 SL-3</span>
-            <span class="text-rose-400 font-bold text-sm">Two-Man Rule Dual Authorization</span>
+            <span class="px-2 py-0.5 rounded bg-rose-500 text-white font-bold text-xs">IEC 62443 SL-3</span>
+            <span id="two-man-title" class="text-rose-400 font-bold text-sm">双人复核授权</span>
           </div>
-          <p class="text-slate-400 text-[11px] mt-1">
-            High-risk operational command detected. Physical second-person supervisor authorization is mandatory before dispatch.
+          <p class="text-slate-400 text-xs mt-1">
+            检测到高危操作，必须由第二名监护人员授权后才能下发。
           </p>
         </div>
       </div>
@@ -24,16 +24,16 @@
       <!-- Command & Risk Inspection Box -->
       <div class="p-6 space-y-4">
         <div class="bg-slate-950 border border-rose-500/30 rounded-2xl p-4 space-y-2">
-          <div class="flex items-center justify-between text-[11px]">
-            <span class="text-slate-400">Target Command:</span>
-            <span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold text-[10px]">
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-slate-400">目标命令：</span>
+            <span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold text-xs">
               {{ riskLevel || 'HIGH RISK' }}
             </span>
           </div>
           <div class="p-2.5 bg-black/60 rounded-xl border border-slate-800 text-rose-300 font-bold break-all">
             {{ targetCommand }}
           </div>
-          <div v-if="riskReason" class="text-[11px] text-amber-400/90 flex items-center gap-1.5">
+          <div v-if="riskReason" class="text-xs text-amber-400/90 flex items-center gap-1.5">
             <span>ℹ️</span>
             <span>{{ riskReason }}</span>
           </div>
@@ -44,7 +44,7 @@
           <!-- Initiator Display -->
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-slate-400 text-[10px] mb-1 font-bold">1st Operator (Initiator)</label>
+              <label class="block text-slate-400 text-xs mb-1 font-bold">第一操作员（发起人）</label>
               <input 
                 :value="initiatorUser" 
                 readonly 
@@ -52,7 +52,7 @@
               />
             </div>
             <div>
-              <label class="block text-slate-400 text-[10px] mb-1 font-bold">Initiator Role</label>
+              <label class="block text-slate-400 text-xs mb-1 font-bold">发起人角色</label>
               <input 
                 :value="initiatorRole" 
                 readonly 
@@ -63,12 +63,13 @@
 
           <!-- Supervisor Username -->
           <div>
-            <label class="block text-slate-300 text-[10px] mb-1 font-bold flex items-center justify-between">
-              <span>2nd Operator / Supervisor Username <span class="text-rose-400">*</span></span>
-              <span class="text-slate-500 text-[9px]">(Must be different engineer/admin)</span>
+            <label class="block text-slate-300 text-xs mb-1 font-bold flex items-center justify-between">
+              <span>第二操作员 / 监护用户名 <span class="text-rose-400">*</span></span>
+              <span class="text-slate-500 text-xs">（必须不同于发起人）</span>
             </label>
-            <input 
-              v-model="supervisorUser" 
+            <input
+              ref="supervisorInput"
+              v-model="supervisorUser"
               placeholder="e.g. supervisor_admin or lead_eng"
               class="w-full bg-slate-900/90 border border-slate-700 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 rounded-xl px-3 py-2 text-white font-mono text-xs placeholder-slate-600 outline-none transition"
               autocomplete="off"
@@ -77,9 +78,9 @@
 
           <!-- Supervisor Passkey or 2FA Token -->
           <div>
-            <label class="block text-slate-300 text-[10px] mb-1 font-bold flex items-center justify-between">
-              <span>Supervisor Passkey / 6-Digit 2FA Token <span class="text-rose-400">*</span></span>
-              <span class="text-slate-500 text-[9px]">(TOTP / 624430 / SUPERVISOR_KEY)</span>
+            <label class="block text-slate-300 text-xs mb-1 font-bold flex items-center justify-between">
+              <span>监护人口令 / 6 位动态码 <span class="text-rose-400">*</span></span>
+              <span class="text-slate-500 text-xs">(TOTP / 624430 / SUPERVISOR_KEY)</span>
             </label>
             <input 
               v-model="supervisorToken" 
@@ -92,7 +93,7 @@
 
           <!-- Operational Reason / Work Order -->
           <div>
-            <label class="block text-slate-300 text-[10px] mb-1 font-bold">Operational Justification / Work Order</label>
+            <label class="block text-slate-300 text-xs mb-1 font-bold">操作原因 / 工单号</label>
             <input 
               v-model="changeReason" 
               placeholder="e.g. Scheduled maintenance WO-20260906-01"
@@ -101,7 +102,7 @@
           </div>
 
           <!-- Error Alert Banner -->
-          <div v-if="validationError" class="p-2.5 rounded-xl bg-rose-500/20 border border-rose-500/50 text-rose-300 text-[11px] flex items-center gap-2">
+          <div v-if="validationError" class="p-2.5 rounded-xl bg-rose-500/20 border border-rose-500/50 text-rose-300 text-xs flex items-center gap-2">
             <span>❌</span>
             <span>{{ validationError }}</span>
           </div>
@@ -110,9 +111,9 @@
 
       <!-- Footer & Actions with 60s Timeout -->
       <div class="p-6 bg-slate-950/80 border-t border-slate-900 flex items-center justify-between gap-4">
-        <div class="flex items-center gap-2 text-slate-400 text-[11px]">
-          <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-          <span>Timeout in <strong class="text-amber-400 font-bold">{{ remainingSeconds }}s</strong></span>
+        <div class="flex items-center gap-2 text-slate-400 text-xs">
+          <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+          <span>剩余 <strong class="text-amber-400 font-bold">{{ remainingSeconds }}s</strong></span>
         </div>
 
         <div class="flex items-center gap-3">
@@ -120,7 +121,7 @@
             @click="handleCancel"
             class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 transition cursor-pointer"
           >
-            Abort / Cancel
+            取消
           </button>
 
           <button 
@@ -129,8 +130,7 @@
             :class="canSubmit ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-900/50 cursor-pointer' : 'bg-rose-950/40 text-rose-400/40 border-rose-900/30 cursor-not-allowed'"
             class="px-5 py-2 rounded-xl border border-rose-500 font-bold transition flex items-center gap-2"
           >
-            <span>🔐</span>
-            <span>Dual Authorize & Execute</span>
+            <span>双人授权并执行</span>
           </button>
         </div>
       </div>
@@ -139,7 +139,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, toRef } from 'vue';
+import { useDialogA11y } from '../../app/composables/useDialogA11y';
 
 const props = defineProps<{
   isOpen: boolean;
@@ -155,6 +156,8 @@ const emit = defineEmits<{
   (e: 'cancel'): void;
 }>();
 
+const dialogRef = ref<HTMLElement | null>(null);
+const supervisorInput = ref<HTMLInputElement | null>(null);
 const supervisorUser = ref('');
 const supervisorToken = ref('');
 const changeReason = ref('Operational Maintenance');
@@ -189,7 +192,7 @@ function handleAuthorize() {
   const sup = supervisorUser.value.trim().toLowerCase();
 
   if (op === sup) {
-    validationError.value = `Two-Man Rule Error: Supervisor cannot be identical to the initiator (${props.initiatorUser}).`;
+    validationError.value = `双人复核校验失败：监护人不能与发起人相同（${props.initiatorUser}）。`;
     return;
   }
 
@@ -207,6 +210,8 @@ function handleCancel() {
   validationError.value = '';
   emit('cancel');
 }
+
+useDialogA11y(toRef(props, 'isOpen'), dialogRef, handleCancel, supervisorInput);
 
 watch(() => props.isOpen, (newVal) => {
   if (newVal) {
