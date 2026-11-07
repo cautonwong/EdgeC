@@ -65,7 +65,7 @@ static void js_work_cb(uv_work_t *req) {
     js_work_ctx_t *work = req->data;
 
     // Create a temporary, isolated JS runtime and context for this thread
-    js_engine_t *temp_engine = js_engine_create(NULL, NULL, 1024 * 1024);  // 1MB limit
+    js_engine_t *temp_engine = js_engine_create(NULL, NULL, NULL, 1024 * 1024);  // 1MB limit
     if (!temp_engine) return;
 
     // This is a simplified execution, it does not have the full context (e.g. persistent_state)
