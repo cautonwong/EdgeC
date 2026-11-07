@@ -18,6 +18,8 @@ add_library(iems_app_lib STATIC
     iems_poll_scheduler.c
     iems_southbound_adapter.c
     iems_internal_bus_adapter.c
+    iems_ui_channel.c
+    iems_north_listener.c
 )
 
 

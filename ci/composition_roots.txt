@@ -15,6 +15,8 @@ cmd/iems/iems_app.c
 # Wiring adapter, not a second lifecycle root: attaches southbound UDS sockets to the
 # orchestrator the composition root already built.
 cmd/iems/iems_southbound_adapter.c
+# North slave wiring adapter: attaches accepted UDS clients to the existing orchestrator.
+cmd/iems/iems_north_listener.c
 cmd/dcu/main.c
 cmd/smart_box/main.c
 cmd/edge_mcp_server/main.c
