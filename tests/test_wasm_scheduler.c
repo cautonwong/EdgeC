@@ -11,6 +11,7 @@
 #include "datahub.h"
 #include "wasm_app_scheduler.h"
 #include "wasm_mgr.h"
+#include "stream_bus_datahub_adapter.h"
 
 static void test_wasm_scheduler_lifecycle(void** state) {
     (void)state;
@@ -28,10 +29,11 @@ static void test_wasm_scheduler_lifecycle(void** state) {
     assert_int_equal(rc, 0);
 
     // 3. Initialize WASM Manager with DataHub context
-    wasm_mgr_init(&hub);
+    stream_bus_port_t wasm_bus = stream_bus_datahub_port(&hub);
+    wasm_mgr_init(&wasm_bus);
 
     // 4. Create WASM Scheduler with 10ms period
-    wasm_scheduler_t* sched = wasm_scheduler_create(&hub, loop, 10);
+    wasm_scheduler_t* sched = wasm_scheduler_create(loop, 10);
     assert_non_null(sched);
 
     // 5. Load and schedule demo.wasm
@@ -91,10 +93,11 @@ static void test_wasm_scheduler_reload(void** state) {
     assert_int_equal(rc, 0);
 
     // 2. Initialize WASM Manager
-    wasm_mgr_init(&hub);
+    stream_bus_port_t wasm_bus = stream_bus_datahub_port(&hub);
+    wasm_mgr_init(&wasm_bus);
 
     // 3. Create WASM Scheduler
-    wasm_scheduler_t* sched = wasm_scheduler_create(&hub, loop, 10);
+    wasm_scheduler_t* sched = wasm_scheduler_create(loop, 10);
     assert_non_null(sched);
 
     // 4. Load demo.wasm
@@ -127,10 +130,11 @@ static void test_wasm_scheduler_per_app_periods_and_budgets(void** state) {
     int rc = datahub_init(&hub, loop, "wasm_per_app_hub", 128, 10000, NULL, 0, NULL, NULL, NULL);
     assert_int_equal(rc, 0);
 
-    wasm_mgr_init(&hub);
+    stream_bus_port_t wasm_bus = stream_bus_datahub_port(&hub);
+    wasm_mgr_init(&wasm_bus);
 
     // 基准 tick 为 5ms
-    wasm_scheduler_t* sched = wasm_scheduler_create(&hub, loop, 5);
+    wasm_scheduler_t* sched = wasm_scheduler_create(loop, 5);
     assert_non_null(sched);
 
     const char* wasm_path = "../../algo/wasm/demo/demo.wasm";

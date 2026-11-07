@@ -11,8 +11,9 @@
 
 #include "datahub.h"
 #include "stream_engine.h"
+#include "stream_bus_datahub_adapter.h"
 
-extern void stream_engine_register_sim_pipeline(stream_engine_t* engine, datahub_t* hub,
+extern void stream_engine_register_sim_pipeline(stream_engine_t* engine, const stream_bus_port_t* bus,
                                                 uint32_t trigger_tag, uint32_t target_tag);
 
 static void test_adc_dsp_full_chain(void** state) {
@@ -22,10 +23,11 @@ static void test_adc_dsp_full_chain(void** state) {
     // 即使不传元数据，Ring Buffer 也能工作
     datahub_t hub;
     datahub_init(&hub, loop, "test", 128, 128, NULL, 0, NULL, NULL, NULL);
-    stream_engine_t* se = stream_engine_create(&hub, uv_default_loop(), NULL, NULL);
+    stream_engine_t* se = stream_engine_create_datahub(&hub, uv_default_loop(), NULL, NULL);
 
     printf("[STEP 2] Registering Simulation Pipeline (Trigger=12001, Target=1001)...\n");
-    stream_engine_register_sim_pipeline(se, &hub, 12001, 1001);
+    stream_bus_port_t sim_bus = stream_bus_datahub_port(&hub);
+    stream_engine_register_sim_pipeline(se, &sim_bus, 12001, 1001);
 
     printf("[STEP 3] Mocking ADC DMA: Writing signal with 10%% 3rd harmonic...\n");
     int fd = memfd_create("proof_shm", 0);

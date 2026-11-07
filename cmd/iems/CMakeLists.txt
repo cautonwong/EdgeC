@@ -5,6 +5,7 @@ set(PROD_NAME iems)
 add_library(iems_app_lib STATIC
     iems_node.c
     iems_app.c
+    iems_execution_adapter.c
     iems_driver_adapter.c
     iems_microgrid_coordinator.c
     iems_pcs_controller.c
@@ -15,6 +16,11 @@ add_library(iems_app_lib STATIC
     iems_task_loader.c
 
 )
+
+
+
+
+
 
 target_include_directories(iems_app_lib PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}

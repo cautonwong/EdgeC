@@ -29,6 +29,7 @@
 
 #include <sys/socket.h>
 #include <sys/un.h>
+#include "stream_bus_datahub_adapter.h"
 
 #define UDS_PATH "/tmp/smart_box_ipc.sock"
 
@@ -223,7 +224,9 @@ static void timer_hw_poll_cb(uv_timer_t *handle) {
     // 1. 读取 AXP209 I2C 电池监测 (地址 0x34)
     int i2c_fd = open("/dev/i2c-1", O_RDWR);
     double power_src = 0.0;
-    double battery_soc = 85.0;  // Default/Mock SOC (%)
+    double battery_soc = 0.0;
+    bool power_valid = false;
+    bool soc_valid = false;
     if (i2c_fd >= 0) {
         if (ioctl(i2c_fd, I2C_SLAVE, 0x34) >= 0) {
             unsigned char reg = 0x01;  // Power Status Reg
@@ -234,6 +237,7 @@ static void timer_hw_poll_cb(uv_timer_t *handle) {
                     if ((status_byte & 0x18) == 0) {
                         power_src = 1.0;  // Battery
                     }
+                    power_valid = true;
                 }
             }
             // 读取 0x33 寄存器 (Battery capacity percentage)
@@ -242,22 +246,30 @@ static void timer_hw_poll_cb(uv_timer_t *handle) {
                 unsigned char soc_byte = 0;
                 if (read(i2c_fd, &soc_byte, 1) == 1) {
                     battery_soc = (double)(soc_byte & 0x7F);
+                    soc_valid = true;
                 }
             }
         }
         close(i2c_fd);
     }
-    pipe_msg_t msg_p;
-    pipe_msg_init_scalar(&msg_p, TAG_SYS_POWER_SOURCE, power_src, uv_hrtime());
-    datahub_write_shadow(g_hub, &msg_p);
+    if (power_valid) {
+        pipe_msg_t msg_p;
+        pipe_msg_init_scalar(&msg_p, TAG_SYS_POWER_SOURCE, power_src, uv_hrtime());
+        datahub_write_shadow(g_hub, &msg_p);
+    } else {
+        LOG_DEBUG(LOG_CAT_CORE, "AXP209: power status unavailable; tag not published");
+    }
 
-    // 写入 DataHub BATTERY_SOC 标签
-    pipe_msg_t msg_soc;
-    pipe_msg_init_scalar(&msg_soc, TAG_BATTERY_SOC, battery_soc, uv_hrtime());
-    datahub_write_shadow(g_hub, &msg_soc);
+    if (soc_valid) {
+        pipe_msg_t msg_soc;
+        pipe_msg_init_scalar(&msg_soc, TAG_BATTERY_SOC, battery_soc, uv_hrtime());
+        datahub_write_shadow(g_hub, &msg_soc);
+    } else {
+        LOG_DEBUG(LOG_CAT_CORE, "AXP209: battery SOC unavailable; tag not published");
+    }
 
     // 低电量预警 (SOC < 15.0%)
-    if (battery_soc < 15.0) {
+    if (soc_valid && battery_soc < 15.0) {
         LOG_WARN(LOG_CAT_CORE, "AXP209: Low battery warning! Battery SOC: %.1f%% (< 15.0%%)",
                  battery_soc);
         char alert_buf[64];
@@ -386,10 +398,8 @@ static void timer_modbus_poll_cb(uv_timer_t *handle) {
         unsigned char query[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x02, 0xC4, 0x0B};
         write(uart_fd, query, sizeof(query));
 
-        double completion = 85.0;  // 模拟达成率 85%
-        pipe_msg_t msg;
-        pipe_msg_init_scalar(&msg, TAG_REHAB_COMPLETION_RATE, completion, uv_hrtime());
-        datahub_write_shadow(g_hub, &msg);
+        LOG_WARN(LOG_CAT_CORE,
+                 "Rehab Modbus: response parsing not implemented; completion rate not published");
         close(uart_fd);
     }
 }
@@ -574,8 +584,9 @@ int main(int argc, char **argv) {
     uv_fs_event_start(&sos_event, poll_sos_cb, GPIO_SOS_EDGE, 0);
 
     // Task 3: WASM Micro-Runtime 初始化沙箱容器调度器 (限制堆 256KB、栈 64KB、运行耗时门禁为 10ms)
-    wasm_mgr_init(g_hub);
-    g_sched = wasm_scheduler_create(g_hub, loop, 10);  // 10ms 心跳 (100Hz)
+    stream_bus_port_t wasm_bus = stream_bus_datahub_port(g_hub);
+    wasm_mgr_init(&wasm_bus);
+    g_sched = wasm_scheduler_create(loop, 10);  // 10ms 心跳 (100Hz)
     if (g_sched) {
         // 限制堆 256KB (262144字节)，栈 64KB (65536字节)，执行超时 10ms
         wasm_scheduler_load_app(g_sched, "rehab_companion", "/data/apps/rehab_companion.wasm",

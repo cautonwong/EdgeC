@@ -7,16 +7,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "datahub.h"
+#include "radar_bus_port.h"
 #include "driver_radar_fmcw.h"
 #include "fmcw_dsp_neon.h"
-
-static int dummy_map_fn(uint32_t tag_id) {
-    if (tag_id >= 12021 && tag_id <= 12025) {
-        return (int)(tag_id - 12021);
-    }
-    return -1;
-}
 
 static uint16_t calc_crc16(const uint8_t *data, size_t len) {
     uint16_t crc = 0xFFFF;
@@ -33,20 +26,33 @@ static uint16_t calc_crc16(const uint8_t *data, size_t len) {
     return crc;
 }
 
+typedef struct {
+    pipe_msg_t msgs[8];
+    int count;
+} fake_radar_bus_t;
+
+static int fake_write_shadow(void *ctx, const pipe_msg_t *msg) {
+    fake_radar_bus_t *bus = ctx;
+    if (bus->count >= 8) return -1;
+    bus->msgs[bus->count++] = *msg;
+    return 0;
+}
+
+static const pipe_msg_t *find_msg(const fake_radar_bus_t *bus, uint32_t tag) {
+    for (int i = 0; i < bus->count; i++) {
+        if (bus->msgs[i].tag_id == tag) return &bus->msgs[i];
+    }
+    return NULL;
+}
+
 static void test_fmcw_radar_driver_parser(void **state) {
     (void)state;
 
-    // Initialize mock datahub with shadow array
-    datahub_t hub;
-    memset(&hub, 0, sizeof(hub));
-    hub.map_fn = dummy_map_fn;
-    hub.shadow_capacity = 10;
-    hub.shadow_table = calloc(10, sizeof(pipe_msg_t));
+    fake_radar_bus_t fake = {0};
+    radar_bus_port_t port = {.ctx = &fake, .write_shadow = fake_write_shadow};
 
-    // Initialize driver
     assert_int_equal(driver_radar_fmcw_init(), 0);
 
-    // Build mock FMCW Frame: Dist=2500mm (2.5m), Vel=150cm/s (1.5m/s), MicroAmp=350 (0.35)
     fmcw_radar_frame_t frame;
     frame.magic[0] = 0xAA;
     frame.magic[1] = 0x55;
@@ -59,26 +65,18 @@ static void test_fmcw_radar_driver_parser(void **state) {
     frame.target_cnt = 1;
     frame.checksum = calc_crc16((const uint8_t *)&frame, sizeof(frame) - 2);
 
-    // Parse packet
-    int ret = driver_radar_fmcw_parse_frame((const uint8_t *)&frame, sizeof(frame), &hub);
-    assert_int_equal(ret, 0);
+    assert_int_equal(driver_radar_fmcw_parse_frame((const uint8_t *)&frame, sizeof(frame), &port), 0);
+    assert_int_equal(fake.count, 3);
 
-    // Verify DataHub Tag 12021 (Distance)
-    pipe_msg_t msg_dist;
-    assert_int_equal(datahub_read_shadow(&hub, 12021, &msg_dist), 0);
-    assert_float_equal(msg_dist.payload.val.f, 2.500, 0.001);
-
-    // Verify DataHub Tag 12022 (Velocity)
-    pipe_msg_t msg_vel;
-    assert_int_equal(datahub_read_shadow(&hub, 12022, &msg_vel), 0);
-    assert_float_equal(msg_vel.payload.val.f, 1.50, 0.001);
-
-    // Verify DataHub Tag 12023 (Micro-motion Amplitude)
-    pipe_msg_t msg_amp;
-    assert_int_equal(datahub_read_shadow(&hub, 12023, &msg_amp), 0);
-    assert_float_equal(msg_amp.payload.val.f, 0.350, 0.001);
-
-    free(hub.shadow_table);
+    const pipe_msg_t *dist = find_msg(&fake, 12021);
+    const pipe_msg_t *vel = find_msg(&fake, 12022);
+    const pipe_msg_t *amp = find_msg(&fake, 12023);
+    assert_non_null(dist);
+    assert_non_null(vel);
+    assert_non_null(amp);
+    assert_float_equal(dist->payload.val.f, 2.500, 0.001);
+    assert_float_equal(vel->payload.val.f, 1.50, 0.001);
+    assert_float_equal(amp->payload.val.f, 0.350, 0.001);
 }
 
 static void test_fmcw_neon_simd_dsp(void **state) {

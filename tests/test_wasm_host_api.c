@@ -10,6 +10,7 @@
 
 #include "datahub.h"
 #include "wasm_mgr.h"
+#include "stream_bus_datahub_adapter.h"
 
 static void test_wasm_host_api(void** state) {
     (void)state;
@@ -27,7 +28,8 @@ static void test_wasm_host_api(void** state) {
     assert_int_equal(rc, 0);
 
     // 3. Initialize WASM Manager with DataHub context
-    wasm_mgr_init(&hub);
+    stream_bus_port_t wasm_bus = stream_bus_datahub_port(&hub);
+    wasm_mgr_init(&wasm_bus);
 
     // 4. Load demo.wasm (Make sure path is relative to test executable)
     const char* wasm_path = "../../algo/wasm/demo/demo.wasm";

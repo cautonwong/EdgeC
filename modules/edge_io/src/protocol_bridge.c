@@ -21,7 +21,7 @@ typedef struct {
 
 struct protocol_bridge_s {
     uv_loop_t *loop;
-    datahub_t *hub;
+    protocol_bridge_bus_port_t bus;
     bus_orchestrator_t *orch;
     uv_async_t notify;
     uint64_t last_seq;
@@ -44,7 +44,7 @@ static void _on_data_async(uv_async_t *handle) {
     protocol_bridge_t *bridge = (protocol_bridge_t *)handle->data;
     pipe_msg_t msg;
 
-    while (datahub_read_ring(bridge->hub, &bridge->last_seq, &msg) == 0) {
+    while (protocol_bridge_bus_read_ring(&bridge->bus, &bridge->last_seq, &msg) == 0) {
         // [Nexus] 自动控制路由 (Northbound -> Southbound)
         // 生产环境应过滤 SourceID，防止自循环
         if (msg.attr.source_id == 0xFE) continue; 
@@ -67,12 +67,14 @@ static void _on_data_async(uv_async_t *handle) {
     }
 }
 
-protocol_bridge_t *protocol_bridge_create_in(protocol_bridge_storage_t *storage, uv_loop_t *loop, datahub_t *hub, bus_orchestrator_t *orch) {
-    if (!storage || !loop || !hub || !orch) return NULL;
+protocol_bridge_t *protocol_bridge_create_in(protocol_bridge_storage_t *storage, uv_loop_t *loop,
+                                              const protocol_bridge_bus_port_t *bus,
+                                              bus_orchestrator_t *orch) {
+    if (!storage || !loop || !bus || !orch) return NULL;
     memset(storage, 0, sizeof(*storage));
     protocol_bridge_t *bridge = (protocol_bridge_t *)storage;
     bridge->loop = loop;
-    bridge->hub = hub;
+    bridge->bus = *bus;
     bridge->orch = orch;
     
     uv_async_init(loop, &bridge->notify, _on_data_async);
@@ -81,8 +83,9 @@ protocol_bridge_t *protocol_bridge_create_in(protocol_bridge_storage_t *storage,
     return bridge;
 }
 
-protocol_bridge_t *protocol_bridge_create(uv_loop_t *loop, datahub_t *hub, bus_orchestrator_t *orch) {
-    return protocol_bridge_create_in(&g_default_bridge_storage, loop, hub, orch);
+protocol_bridge_t *protocol_bridge_create(uv_loop_t *loop, const protocol_bridge_bus_port_t *bus,
+                                           bus_orchestrator_t *orch) {
+    return protocol_bridge_create_in(&g_default_bridge_storage, loop, bus, orch);
 }
 
 int protocol_bridge_start(protocol_bridge_t *bridge) {
@@ -90,7 +93,7 @@ int protocol_bridge_start(protocol_bridge_t *bridge) {
     // 注入演示映射：Tag 1001 (北向控制) -> Bus 0, Dev 1 (南向设备)
     bridge->maps[bridge->map_count++] = (bridge_map_t){.tag_id = 1001, .target_bus_id = 0, .target_dev_id = 1};
     
-    return datahub_add_listener(bridge->hub, &bridge->notify);
+    return protocol_bridge_bus_add_listener(&bridge->bus, &bridge->notify);
 }
 
 static void _bridge_close_cb(uv_handle_t *handle) {
@@ -99,6 +102,6 @@ static void _bridge_close_cb(uv_handle_t *handle) {
 
 void protocol_bridge_destroy(protocol_bridge_t *bridge) {
     if (!bridge) return;
-    datahub_remove_listener(bridge->hub, &bridge->notify);
+    protocol_bridge_bus_remove_listener(&bridge->bus, &bridge->notify);
     uv_close((uv_handle_t *)&bridge->notify, _bridge_close_cb);
 }

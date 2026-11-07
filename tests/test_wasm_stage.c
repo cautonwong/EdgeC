@@ -12,6 +12,7 @@
 #include "stream_engine.h"
 #include "stream_engine_priv.h"
 #include "wasm_mgr.h"
+#include "stream_bus_datahub_adapter.h"
 
 extern pipeline_stage_t* stage_wasm_create_v2(const edge_stage_def_t* def,
                                               pipeline_loader_ctx_t* loader_ctx);
@@ -40,7 +41,7 @@ static int setup(void** state) {
     wasm_test_ctx_t* ctx = calloc(1, sizeof(wasm_test_ctx_t));
     ctx->loop = uv_default_loop();
     datahub_init(&ctx->hub, ctx->loop, "wasm_test", 128, 10000, NULL, 0, NULL, NULL, NULL);
-    ctx->se = stream_engine_create(&ctx->hub, ctx->loop, NULL, NULL);
+    ctx->se = stream_engine_create_datahub(&ctx->hub, ctx->loop, NULL, NULL);
     stream_engine_start(ctx->se);
     *state = ctx;
 

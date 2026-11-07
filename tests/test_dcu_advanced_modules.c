@@ -17,6 +17,7 @@
 #include "dcu_security.h"
 #include "dcu_storage.h"
 #include "stream_engine.h"
+#include "stream_bus_datahub_adapter.h"
 
 static int _mock_count_freezes(void* ctx, uint16_t* out_count) {
     return dcu_storage_count_freezes((dcu_storage_t*)ctx, out_count);
@@ -216,7 +217,7 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     // ==============================================================================
     // (hub已在上方初始化)
 
-    stream_engine_t* stream_engine = stream_engine_create(&hub, loop, NULL, NULL);
+    stream_engine_t* stream_engine = stream_engine_create_datahub(&hub, loop, NULL, NULL);
     pipeline_t* evt_pipeline = stream_engine_add_pipeline(stream_engine, "TEST_EVT_PIPELINE", 0);
 
     // 装配越限判定与快照记录管线

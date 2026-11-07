@@ -44,7 +44,10 @@ typedef struct {
 /**
  * @brief Create and assemble a DCU Node Aggregate Root
  */
-dcu_node_t *dcu_node_create(uv_loop_t *loop, const dcu_node_config_t *cfg);
+size_t dcu_node_storage_size(const dcu_node_config_t *cfg);
+
+dcu_node_t *dcu_node_create_in(void *storage, size_t storage_size, uv_loop_t *loop,
+                               const dcu_node_config_t *cfg);
 
 /**
  * @brief Start the DCU Node polling loop and event engines

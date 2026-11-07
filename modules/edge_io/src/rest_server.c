@@ -18,7 +18,6 @@
 #include "sqlite_service.h"
 #include "edge_app_mgr.h"
 #include "stream_engine.h"
-#include "stream_engine_priv.h"
 
 #define HTTP_RESPONSE_FMT                \
     "HTTP/1.1 200 OK\r\n"                \

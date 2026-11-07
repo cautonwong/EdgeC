@@ -42,8 +42,8 @@ static stage_ret_t _proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
         
         pipe_msg_t out;
         pipe_msg_init_scalar(&out, ctx->output_tag_rul, rul, ev->ts);
-        if (stage->pipeline && stage->pipeline->engine && stage->pipeline->engine->hub) {
-            datahub_publish(stage->pipeline->engine->hub, &out);
+        if (stage->pipeline && stage->pipeline->engine && stage->pipeline->engine->bus.publish) {
+            stream_bus_publish(&stage->pipeline->engine->bus, &out);
         }
         
         return STAGE_OK;

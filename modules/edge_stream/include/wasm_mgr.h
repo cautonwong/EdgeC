@@ -3,8 +3,7 @@
 
 #include <stdint.h>
 #include "shmring.h"
-
-typedef struct datahub_s datahub_t;
+#include "stream_bus_port.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -15,7 +14,7 @@ typedef struct wasm_app_s wasm_app_t;
 /**
  * @brief 初始化全局 WASM 运行时
  */
-int wasm_mgr_init(datahub_t *hub);
+int wasm_mgr_init(const stream_bus_port_t *bus);
 
 /**
  * @brief 清理全局 WASM 运行时

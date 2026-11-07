@@ -28,6 +28,10 @@
 #include "mqtt_json_codec.h"
 #include "edge_service.h"
 #include "iems_driver_adapter.h"
+#include "iems_execution_adapter.h"
+#include "adc_datahub_adapter.h"
+#include "adc_driver.h"
+#include "stream_bus_datahub_adapter.h"
 #include "iems_task_loader.h"
 #include "io_executor.h"
 #include "modbus_codec.h"
@@ -68,12 +72,13 @@ typedef struct {
 
 typedef struct {
     int fd;
-    datahub_t* hub;
+    adc_bus_port_t bus;
 } adc_thread_ctx_t;
 
 struct iems_app_s {
     uv_loop_t* loop;
     iems_node_t* node;
+    iems_node_storage_t node_storage;
     service_t* svc;
     datahub_t* hub;
     arbiter_t* arb;
@@ -281,43 +286,11 @@ static int _iems_stream_submit_control(void* ctx, int bus_id, uint32_t tag_id, d
     iems_app_t* app = (iems_app_t*)ctx;
     if (!app || !app->node) return -1;
 
-    // 💡 [ARCH-GATE] 商业储能 PCS 功率设定或应急控制必须经由聚合根领域方法校验
-    if (tag_id == IEMS_TAG_PCS_CONTROL) {
-        double actual_kw = 0.0;
-        int rc = iems_node_dispatch_power(app->node, value, &actual_kw);
-        if (rc < 0) {
-            LOG_WARN(LOG_CAT_CORE, "IEMS control write rejected by aggregate root (rc=%d)", rc);
-            return rc;
-        }
-        value = actual_kw;
-    } else {
-        if (app->hub) {
-            pipe_msg_t ctrl_msg = {0};
-            pipe_msg_init_scalar(&ctrl_msg, tag_id, value, uv_hrtime());
-            datahub_publish(app->hub, &ctrl_msg);
-        }
+    int rc = iems_node_write_tag(app->node, bus_id, tag_id, value, proto);
+    if (rc < 0) {
+        LOG_WARN(LOG_CAT_CORE, "IEMS control write rejected by aggregate root (rc=%d)", rc);
     }
-
-    /* 经领域授权与约束校验后，下发物理总线。
-     *
-     * 这里必须把 **tag → 原生点位 id + 原始值** 换掉：驱动是纯 codec，不认识点位模型
-     * （ADR-002），所以"tag 1001 就是 0 号寄存器、工程值是 0.1 倍"这条知识只能在这里用。
-     * 不换的后果是两个都错，而且设备照样回显（Modbus 0x06 应答是回显）：
-     *   发到寄存器 1001 而不是 0；原始值 220 而不是 2200。
-     * 读路径（_iems_north_resolve）一直是换算过的，写路径漏了 —— 一读一写不对齐。 */
-    uint32_t native_id = tag_id;
-    double raw = value;
-    const modbus_map_t* map = edge_get_map_modbus_by_tag(tag_id);
-    if (map) {
-        native_id = (uint32_t)map->key;
-        double sc = (map->scaler > 0.0) ? (double)map->scaler : 1.0;
-        raw = (double)lround(value / sc); /* 同上：截断会少一格 */
-    } else {
-        LOG_WARN(LOG_CAT_CORE,
-                 "IEMS control: tag %u 不在 modbus 点位表里，按原生 id 下发（地址可能与预期不符）",
-                 tag_id);
-    }
-    return edge_api_write_tag(bus_id, proto, 1, native_id, raw, NULL, NULL);
+    return rc;
 }
 
 static void on_ui_connect(uv_stream_t* server, int status) {
@@ -565,11 +538,9 @@ int iems_app_connect_buses(iems_app_t* app, int* configured) {
     return rc;
 }
 
-extern void adc_driver_handle_connection(int sock_fd, datahub_t* hub);
-
 static void _adc_thread_entry(void* arg) {
     adc_thread_ctx_t* ctx = (adc_thread_ctx_t*)arg;
-    adc_driver_handle_connection(ctx->fd, ctx->hub);
+    adc_driver_handle_connection(ctx->fd, &ctx->bus);
     g_adc_running = false;
     free(ctx);
 }
@@ -596,7 +567,7 @@ static void _try_connect_internal_buses(uv_timer_t* handle) {
             if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) == 0) {
                 adc_thread_ctx_t* ctx = malloc(sizeof(adc_thread_ctx_t));
                 ctx->fd = fd;
-                ctx->hub = app->hub;
+                ctx->bus = adc_datahub_port(app->hub);
                 g_adc_running = true;
                 uv_thread_create(&app->adc_tid, _adc_thread_entry, ctx);
             } else {
@@ -643,13 +614,14 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
         .transformer_capacity_kva = 630.0,
         .demand_limit_kw = 500.0
     };
-    app->node = iems_node_create(loop, &node_cfg);
+    app->node = iems_node_create_in(&app->node_storage, loop, &node_cfg);
     if (!app->node) {
         LOG_ERROR(LOG_CAT_CORE, "IEMS Assembler: Failed to create iems_node aggregate root");
         free(app);
         return NULL;
     }
     app->hub = iems_node_get_datahub(app->node);
+    iems_node_set_execution_port(app->node, iems_execution_port_create(app));
 
     // =========================================================================
     // Phase 2: DataHub 高可靠服务 (Metrics, WAL, Snapshots, Compaction)
@@ -697,7 +669,7 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     app->db_service = sqlite_svc_create(loop, &db_conf);
 
     app->stream_eng =
-        stream_engine_create(app->hub, NULL, app->orch, edge_stage_factory_get_registry());
+        stream_engine_create_datahub(app->hub, NULL, app->orch, edge_stage_factory_get_registry());
     pipeline_loader_ctx_t loader_ctx = {
         .db = app->db_service,
         .control_ops = {.ctx = app, .submit_control = _iems_stream_submit_control},
@@ -711,7 +683,8 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     // =========================================================================
     // Phase 5: 微运行时与北向通信 (WASM & Northbound MQTT)
     // =========================================================================
-    wasm_mgr_init(app->hub);
+    stream_bus_port_t wasm_bus = stream_bus_datahub_port(app->hub);
+    wasm_mgr_init(&wasm_bus);
 
     app->north = (northbound_mgr_t*)calloc(1, sizeof(northbound_mgr_t));
     const char* mqtt_url = (cfg && cfg->mqtt_url) ? cfg->mqtt_url : "tcp://localhost:1883";

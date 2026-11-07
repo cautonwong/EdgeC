@@ -10,6 +10,7 @@
 
 #include "datahub.h"
 #include "stream_engine.h"
+#include "stream_bus_datahub_adapter.h"
 
 extern pipeline_stage_t* stage_vibration_features_create(size_t window_size, uint32_t rms_tag,
                                                          uint32_t kurt_tag, uint32_t skew_tag);
@@ -25,7 +26,7 @@ static int setup(void** state) {
     test_ctx_t* ctx = calloc(1, sizeof(test_ctx_t));
     ctx->loop = uv_default_loop();
     datahub_init(&ctx->hub, ctx->loop, "vibra_test", 128, 10000, NULL, 0, NULL, NULL, NULL);
-    ctx->se = stream_engine_create(&ctx->hub, ctx->loop, NULL, NULL);
+    ctx->se = stream_engine_create_datahub(&ctx->hub, ctx->loop, NULL, NULL);
     stream_engine_start(ctx->se);
     *state = ctx;
     return 0;

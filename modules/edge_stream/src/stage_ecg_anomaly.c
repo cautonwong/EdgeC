@@ -14,6 +14,7 @@
 
 typedef struct {
     double *buffer;
+    double *scratch;
     size_t size;
     size_t cursor;
     uint32_t level;
@@ -35,7 +36,7 @@ static stage_ret_t _ecg_anomaly_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
 
     // 2. Perform sliding window analysis (e.g., every size/4 samples)
     if (ctx->buffer_full && ctx->cursor % (ctx->size / 4) == 0) {
-        double *tmp = malloc(ctx->size * sizeof(double));
+        double *tmp = ctx->scratch;
         // Rearrange circular buffer to linear
         size_t head = ctx->cursor;
         for (size_t i = 0; i < ctx->size; i++) {
@@ -56,7 +57,6 @@ static stage_ret_t _ecg_anomaly_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
             energy += tmp[i] * tmp[i];
         }
 
-        free(tmp);
 
         // 5. Detect anomaly against threshold
         if (energy > ctx->energy_threshold) {
@@ -79,6 +79,7 @@ static void _ecg_anomaly_cleanup(void *priv) {
     ecg_anomaly_ctx_t *ctx = (ecg_anomaly_ctx_t *)priv;
     if (ctx) {
         if (ctx->buffer) free(ctx->buffer);
+        if (ctx->scratch) free(ctx->scratch);
         free(ctx);
     }
 }
@@ -99,6 +100,7 @@ pipeline_stage_t *stage_ecg_anomaly_create(size_t buffer_size, uint32_t level, d
     ctx->energy_threshold = threshold > 0 ? threshold : 100.0;
     ctx->alarm_tag = alarm_tag;
     ctx->buffer = calloc(ctx->size, sizeof(double));
+    ctx->scratch = calloc(ctx->size, sizeof(double));
 
     strncpy(s->name, "ECG_ANOMALY", 31);
     s->process = _ecg_anomaly_proc;

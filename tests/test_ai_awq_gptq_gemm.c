@@ -11,7 +11,8 @@
 
 #include "ai_awq_gptq_gemm.h"
 #include "datahub.h"
-#include "edge_algo_datahub_adapter.h"
+#include "edge_algo_stream_adapter.h"
+#include "stream_bus_datahub_adapter.h"
 
 static void test_ai_awq_pack_and_fused_gemv(void **state) {
     (void)state;
@@ -94,7 +95,8 @@ static void test_ai_awq_datahub_sync(void **state) {
                           .gflops = 45.8f,
                           .effective_bw_gbps = 12.4f,
                           .latency_ns = 1500};
-    assert_int_equal(ai_awq_sync_datahub(&m, &hub), 0);
+    stream_bus_port_t bus = stream_bus_datahub_port(&hub);
+    assert_int_equal(ai_awq_sync_stream(&m, &bus), 0);
 
     datahub_destroy(&hub);
     uv_loop_close(&loop);

@@ -27,7 +27,6 @@ endif()
 if(CONFIG_EDGEC_PROTO_IEC104)
     list(APPEND PROTO_SOURCES
         src/iec_common/iec_asdu_codec.c
-        src/iec_common/iec_cp56time.c
         src/iec104/iec104_apci.c
         src/iec101/iec101_link.c
     )
@@ -39,5 +38,5 @@ add_library(edge_protocol STATIC
 )
 
 target_include_directories(edge_protocol PUBLIC include)
-target_link_libraries(edge_protocol PUBLIC edge_core)
+target_link_libraries(edge_protocol PUBLIC edge_core edge_foundation)
 

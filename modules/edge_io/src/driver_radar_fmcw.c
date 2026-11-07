@@ -24,8 +24,9 @@ int driver_radar_fmcw_init(void) {
     return 0;
 }
 
-int driver_radar_fmcw_parse_frame(const uint8_t *buf, size_t len, datahub_t *hub) {
-    if (!buf || len < sizeof(fmcw_radar_frame_t) || !hub) {
+int driver_radar_fmcw_parse_frame(const uint8_t *buf, size_t len,
+                                  const radar_bus_port_t *bus) {
+    if (!buf || len < sizeof(fmcw_radar_frame_t) || !bus) {
         return -1;
     }
 
@@ -57,14 +58,14 @@ int driver_radar_fmcw_parse_frame(const uint8_t *buf, size_t len, datahub_t *hub
     pipe_msg_init_scalar(&msg_vel, 12022, vel_ms, ts);
     pipe_msg_init_scalar(&msg_amp, 12023, micro_amp, ts);
 
-    datahub_write_shadow(hub, &msg_dist);
-    datahub_write_shadow(hub, &msg_vel);
-    datahub_write_shadow(hub, &msg_amp);
+    radar_bus_write_shadow(bus, &msg_dist);
+    radar_bus_write_shadow(bus, &msg_vel);
+    radar_bus_write_shadow(bus, &msg_amp);
 
     return 0;
 }
 
-int driver_radar_fmcw_poll(datahub_t *hub) {
-    (void)hub;
+int driver_radar_fmcw_poll(const radar_bus_port_t *bus) {
+    (void)bus;
     return 0;
 }

@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "datahub.h"
 #include "edge_log.h"
 #include "stream_engine.h"
 #include "stream_engine_priv.h"
@@ -54,7 +53,7 @@ static stage_ret_t _energy_integrator_proc(pipeline_stage_t *s, pipe_msg_t *msg)
         // 实时更新 DataHub，让 UI 能看到
         pipe_msg_t state_msg;
         pipe_msg_init_scalar(&state_msg, ctx->state_tag_id, ctx->accumulated_kWh, msg->ts);
-        datahub_publish(s->pipeline->engine->hub, &state_msg);
+        stream_bus_publish(&s->pipeline->engine->bus, &state_msg);
     }
 
     // 模式 2: 系统事件触发 (掉电保存 / 上电恢复)

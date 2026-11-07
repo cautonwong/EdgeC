@@ -39,7 +39,7 @@ struct stream_engine_s {
     uv_loop_t *loop;
     uv_loop_t compute_loop_inst;
     pipeline_t pipe_pool[MAX_PIPELINES_PER_ENGINE];
-    datahub_t *hub;
+    stream_bus_port_t bus;
     uv_thread_t thread;
     bool thread_started;
 

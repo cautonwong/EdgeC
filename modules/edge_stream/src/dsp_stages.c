@@ -7,13 +7,12 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-#include "datahub.h"
 #include "stream_engine.h"
 
 typedef struct {
     uint32_t target_tag;
     uint32_t thd_tag;
-    datahub_t *hub;
+    stream_bus_port_t bus;
 } dsp_cfg_t;
 
 stage_ret_t dsp_rms_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
@@ -49,15 +48,15 @@ stage_ret_t dsp_rms_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
         thd = sqrt(rms * rms - v1_rms * v1_rms) / v1_rms;
     }
 
-    if (cfg->hub) {
+    if (cfg->bus.publish) {
         pipe_msg_t res_rms = {0};
         pipe_msg_init_scalar(&res_rms, cfg->target_tag, rms, ev->ts);
-        datahub_publish(cfg->hub, &res_rms);
+        stream_bus_publish(&cfg->bus, &res_rms);
         
         if (cfg->thd_tag > 0) {
             pipe_msg_t res_thd = {0};
             pipe_msg_init_scalar(&res_thd, cfg->thd_tag, thd, ev->ts);
-            datahub_publish(cfg->hub, &res_thd);
+            stream_bus_publish(&cfg->bus, &res_thd);
         }
     }
     return STAGE_OK;
@@ -82,7 +81,8 @@ stage_ret_t dma_source_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
 }
 
 // [Sprint 4] 公开的仿真管线注册接口
-void stream_engine_register_sim_pipeline(stream_engine_t *engine, datahub_t *hub,
+void stream_engine_register_sim_pipeline(stream_engine_t *engine,
+                                         const stream_bus_port_t *bus,
                                          uint32_t trigger_tag, uint32_t target_tag) {
     pipeline_t *p = stream_engine_add_pipeline(engine, "omnis_sim", trigger_tag);
     pipeline_add_stage(p, "dma", dma_source_proc, NULL, NULL, NULL, NULL);
@@ -91,6 +91,6 @@ void stream_engine_register_sim_pipeline(stream_engine_t *engine, datahub_t *hub
     cfg->target_tag = target_tag;
     // 假设 THD tag 是 target_tag + 1（例如 RMS 是 201，THD 就是 202）
     cfg->thd_tag = target_tag + 1; 
-    cfg->hub = hub;
+    cfg->bus = bus ? *bus : (stream_bus_port_t){0};
     pipeline_add_stage(p, "rms_thd", dsp_rms_proc, NULL, NULL, cfg, free);
 }

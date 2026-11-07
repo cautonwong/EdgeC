@@ -11,7 +11,8 @@
 
 #include "ai_quant_calibrator.h"
 #include "datahub.h"
-#include "edge_algo_datahub_adapter.h"
+#include "edge_algo_stream_adapter.h"
+#include "stream_bus_datahub_adapter.h"
 
 static void test_ai_quant_int8_symmetric_and_kl_divergence(void **state) {
     (void)state;
@@ -89,7 +90,8 @@ static void test_ai_quant_fp8_encoding_and_datahub_sync(void **state) {
         datahub_init(&hub, &loop, "/test_ai_quant_hub", 32, 64, NULL, 0, NULL, NULL, NULL), 0);
 
     ai_quant_params_t p = {.mse_loss = 0.0012f, .snr_db = 42.5f, .saturation_pct = 0.05f};
-    assert_int_equal(ai_quant_sync_datahub(&p, &hub), 0);
+    stream_bus_port_t bus = stream_bus_datahub_port(&hub);
+    assert_int_equal(ai_quant_sync_stream(&p, &bus), 0);
 
     datahub_destroy(&hub);
     uv_loop_close(&loop);

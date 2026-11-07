@@ -1,0 +1,16 @@
+name=edge_stream
+version=0.1.0
+maturity=incubating
+owner=@owner
+subdomain=core
+language=c
+abi_stability=source-only
+foundation=>=0.1 <1
+ports_required=stream_bus
+ports_optional=
+allowed_owners=ROOT,edge_algo,edge_core,edge_infra
+rom_bytes_max=0
+ram_bytes_max=0
+stack_bytes_max=0
+heap=none
+lts=false

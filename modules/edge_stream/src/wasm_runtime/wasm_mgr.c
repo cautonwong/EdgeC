@@ -1,5 +1,4 @@
 #include "wasm_mgr.h"
-#include "datahub.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,15 +17,15 @@
 /* Default public key path relative to CWD (used by wasm_app_create) */
 #define DEFAULT_PUBKEY_PATH "keys/edgec_signing_public.pem"
 
-static datahub_t *g_hub = NULL;
+static stream_bus_port_t g_bus;
 static bool g_wasm_inited = false;
 
 // --- Host Exports (ABI) ---
 static int wasm_host_get_tag(wasm_exec_env_t exec_env, uint32_t tag_id, double *host_ptr) {
     (void)exec_env;
-    if (!g_hub || !host_ptr) return -1;
+    if (!g_bus.read_shadow || !host_ptr) return -1;
     pipe_msg_t msg;
-    if (datahub_read_shadow(g_hub, tag_id, &msg) == 0) {
+    if (stream_bus_read_shadow(&g_bus, tag_id, &msg) == 0) {
         if (msg.type == PIPEMSG_TYPE_SCALAR) {
             *host_ptr = msg.payload.val.f;
             return 0;
@@ -37,10 +36,10 @@ static int wasm_host_get_tag(wasm_exec_env_t exec_env, uint32_t tag_id, double *
 
 static int wasm_host_set_tag(wasm_exec_env_t exec_env, uint32_t tag_id, double value) {
     (void)exec_env;
-    if (!g_hub) return -1;
+    if (!g_bus.write_shadow) return -1;
     pipe_msg_t msg;
     pipe_msg_init_scalar(&msg, tag_id, value, uv_hrtime());
-    return datahub_write_shadow(g_hub, &msg);
+    return stream_bus_write_shadow(&g_bus, &msg);
 }
 
 static void wasm_host_log(wasm_exec_env_t exec_env, uint32_t level, const char *host_msg) {
@@ -148,12 +147,11 @@ static int verify_wasm_signature(const char *wasm_path, const char *pubkey_path,
     return ok;
 }
 
-int wasm_mgr_init(datahub_t *hub) {
+int wasm_mgr_init(const stream_bus_port_t *bus) {
+    g_bus = bus ? *bus : (stream_bus_port_t){0};
     if (g_wasm_inited) {
-        g_hub = hub;
         return 0;
     }
-    g_hub = hub;
     RuntimeInitArgs init_args;
     memset(&init_args, 0, sizeof(RuntimeInitArgs));
     init_args.mem_alloc_type = Alloc_With_System_Allocator;

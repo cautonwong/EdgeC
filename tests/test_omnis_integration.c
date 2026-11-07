@@ -16,6 +16,7 @@
 #include "contract_data_types.h"
 #include "datahub.h"
 #include "stream_engine.h"
+#include "stream_bus_datahub_adapter.h"
 
 static const edge_tag_meta_t mock_metadata[] = {
     {.id = 1001, .name = "VOLTAGE_PHASE_A", .type = "float"},
@@ -64,7 +65,7 @@ static int setup(void** state) {
                  NULL);
     arbiter_init(&ctx->arb, &ctx->loop);
     ctx->orch = bus_orchestrator_create(&ctx->hub, ctx->arb, NULL, 8, 16, 256);
-    ctx->engine = stream_engine_create(&ctx->hub, uv_default_loop(), NULL, NULL);
+    ctx->engine = stream_engine_create_datahub(&ctx->hub, uv_default_loop(), NULL, NULL);
 
     uv_timer_init(&ctx->loop, &ctx->timeout);
     ctx->timeout.data = ctx;

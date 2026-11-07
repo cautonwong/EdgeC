@@ -12,6 +12,7 @@
 #include "bus_orchestrator.h"
 #include "datahub.h"
 #include "protocol_bridge.h"
+#include "protocol_bridge_datahub_adapter.h"
 
 static void test_bridge_downlink_routing(void** state) {
     (void)state;
@@ -27,7 +28,8 @@ static void test_bridge_downlink_routing(void** state) {
 
     bus_orchestrator_t* orch = bus_orchestrator_create(&hub, arb, NULL, 4, 32, 512);
 
-    protocol_bridge_t* bridge = protocol_bridge_create(loop, &hub, orch);
+    protocol_bridge_bus_port_t bus = protocol_bridge_datahub_port(&hub);
+    protocol_bridge_t* bridge = protocol_bridge_create(loop, &bus, orch);
     assert_non_null(bridge);
     protocol_bridge_start(bridge);
 

@@ -8,7 +8,6 @@
 #include "datahub.h"
 #include "dcu_inventory.h"
 #include "edge_log.h"
-#include "stream_engine_priv.h"
 
 // ==============================================================================
 // 1. 失压与过流流式监控判定算子 (stage_event_monitor) 实现
@@ -68,7 +67,7 @@ static stage_ret_t _monitor_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
                         "🚨🚨🚨 [ALARM TRIGGER] Dev %u (TSA: %s) Voltage %.1fV below threshold! "
                         "Writing to DB...\n",
                         dev, addr, voltage);
-                    stream_engine_push(stage->pipeline->engine, &event_msg);
+                    stream_engine_push(pipeline_stage_get_engine(stage), &event_msg);
                 }
             } else {
                 if (ctx->v_event_triggered[dev]) {
@@ -81,7 +80,7 @@ static stage_ret_t _monitor_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
                     event_msg.device_id = dev;
                     event_msg.payload.val.f = -voltage;
                     printf("💚 [RECOVER] Dev %u: Voltage Restored to %.1fV.\n", dev, voltage);
-                    stream_engine_push(stage->pipeline->engine, &event_msg);
+                    stream_engine_push(pipeline_stage_get_engine(stage), &event_msg);
                 }
                 ctx->v_overlimit_start_ts[dev] = 0;
             }
@@ -112,7 +111,7 @@ static stage_ret_t _monitor_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
                     event_msg.device_id = dev;
                     event_msg.payload.val.f = current;
 
-                    stream_engine_push(stage->pipeline->engine, &event_msg);
+                    stream_engine_push(pipeline_stage_get_engine(stage), &event_msg);
                 }
             } else {
                 if (ctx->c_event_triggered[dev]) {
@@ -124,7 +123,7 @@ static stage_ret_t _monitor_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
                     event_msg.ts = now_ns;
                     event_msg.device_id = dev;
                     event_msg.payload.val.f = -current;
-                    stream_engine_push(stage->pipeline->engine, &event_msg);
+                    stream_engine_push(pipeline_stage_get_engine(stage), &event_msg);
                 }
                 ctx->c_overlimit_start_ts[dev] = 0;
             }

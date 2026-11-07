@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "datahub.h"
 #include "edge_log.h"
 #include "stream_engine.h"
 #include "stream_engine_priv.h"
@@ -52,7 +51,7 @@ static stage_ret_t _dsp_rms_proc(pipeline_stage_t *s, pipe_msg_t *msg) {
         printf("\033[36m[DSP-RMS] Computed RMS from %zu samples: %.2f V\033[0m\n", count, rms);
     }
 
-    datahub_publish(s->pipeline->engine->hub, &out_msg);
+    stream_bus_publish(&s->pipeline->engine->bus, &out_msg);
 
     return STAGE_OK;
 }

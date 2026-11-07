@@ -78,11 +78,13 @@
 #include "impedance_control.h"
 #include "mpc_dispatcher.h"
 #include "npu_enclave.h"
+#include "stream_bus_datahub_adapter.h"
 #include "npu_hal.h"
 #include "npu_pmu.h"
 #include "npu_power_manager.h"
 #include "persistence_mgr.h"
 #include "protocol_bridge.h"
+#include "protocol_bridge_datahub_adapter.h"
 #include "rest_server.h"
 #include "shmring.h"
 #include "snf_manager.h"
@@ -785,7 +787,9 @@ static void test_protocol_bridge_caller_allocated_storage(void **state) {
 
     protocol_bridge_storage_t bridge_storage;
     memset(&bridge_storage, 0x22, sizeof(bridge_storage));
-    protocol_bridge_t *bridge = protocol_bridge_create_in(&bridge_storage, &loop, &hub, orch);
+    protocol_bridge_bus_port_t bridge_bus = protocol_bridge_datahub_port(&hub);
+    protocol_bridge_t *bridge =
+        protocol_bridge_create_in(&bridge_storage, &loop, &bridge_bus, orch);
     assert_non_null(bridge);
     assert_ptr_equal(bridge, (void *)bridge_storage.raw);
 
@@ -1457,7 +1461,7 @@ static void test_stream_engine_caller_allocated_storage(void **state) {
 
     uv_loop_t loop;
     uv_loop_init(&loop);
-    stream_engine_t *eng = stream_engine_create_in(&eng_store, NULL, &loop, NULL, NULL);
+    stream_engine_t *eng = stream_engine_create_in_datahub(&eng_store, NULL, &loop, NULL, NULL);
     assert_non_null(eng);
 
     stream_engine_destroy(eng);

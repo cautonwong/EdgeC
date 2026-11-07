@@ -17,6 +17,7 @@
 
 typedef struct {
     uv_loop_t loop;
+    void *node_mem;
     smartbox_node_t *node;
 } test_fixture_t;
 
@@ -31,7 +32,9 @@ static int setup_node(void **state) {
         .transformer_rated_kva = 630.0,
     };
 
-    fix->node = smartbox_node_create(&fix->loop, &cfg);
+    size_t node_size = smartbox_node_storage_size(&cfg);
+    fix->node_mem = malloc(node_size);
+    fix->node = smartbox_node_create_in(fix->node_mem, node_size, &fix->loop, &cfg);
     assert_non_null(fix->node);
 
     int rc = smartbox_node_start(fix->node);
@@ -46,6 +49,7 @@ static int teardown_node(void **state) {
     if (fix) {
         if (fix->node) {
             smartbox_node_destroy(fix->node);
+            free(fix->node_mem);
         }
         uv_run(&fix->loop, UV_RUN_NOWAIT);
         uv_loop_close(&fix->loop);

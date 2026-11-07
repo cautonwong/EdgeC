@@ -29,6 +29,9 @@ add_library(dcu_app_lib STATIC
     dcu_node.c
 )
 
+
+
+
 # 2. 自治库头文件依赖关系 (已彻底移除 generated 契约目录)
 target_include_directories(dcu_app_lib PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}

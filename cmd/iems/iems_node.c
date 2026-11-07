@@ -29,16 +29,24 @@ struct iems_node_s {
 
     /* 控制环路看门狗与延迟预算 (AEP-407) */
     iems_loop_watchdog_stats_t wd_stats;
+    iems_execution_port_t execution;
 
     bool running;
 };
 
-iems_node_t *iems_node_create(uv_loop_t *loop, const iems_node_config_t *cfg) {
-    if (!loop || !cfg) return NULL;
+size_t iems_node_storage_size(const iems_node_config_t *cfg) {
+    return cfg ? sizeof(iems_node_storage_t) : 0;
+}
 
-    iems_node_t *node = (iems_node_t *)calloc(1, sizeof(iems_node_t));
-    if (!node) return NULL;
+_Static_assert(sizeof(struct iems_node_s) <= sizeof(iems_node_storage_t),
+               "iems_node_s exceeds iems_node_storage_t");
 
+iems_node_t *iems_node_create_in(iems_node_storage_t *storage, uv_loop_t *loop,
+                                 const iems_node_config_t *cfg) {
+    if (!storage || !loop || !cfg) return NULL;
+
+    iems_node_t *node = (iems_node_t *)storage->raw;
+    memset(node, 0, sizeof(*node));
     node->loop = loop;
     node->cfg = *cfg;
     if (!node->cfg.product_name) node->cfg.product_name = "IEMS";
@@ -64,7 +72,6 @@ iems_node_t *iems_node_create(uv_loop_t *loop, const iems_node_config_t *cfg) {
     node->comp_root = edge_composition_root_create_in(&node->comp_storage, &comp_cfg);
     if (!node->comp_root) {
         LOG_ERROR(LOG_CAT_CORE, "IEMS Node: Failed to instantiate Composition Root");
-        free(node);
         return NULL;
     }
     node->hub = edge_composition_root_get_datahub(node->comp_root);
@@ -101,7 +108,6 @@ void iems_node_destroy(iems_node_t *node) {
         node->comp_root = NULL;
         node->hub = NULL;
     }
-    free(node);
 }
 
 int iems_node_start(iems_node_t *node) {
@@ -167,6 +173,30 @@ static inline void _iems_node_record_cycle(iems_node_t *node, uint64_t t_start) 
                   (unsigned long long)elapsed_us, (unsigned long long)node->wd_stats.watchdog_budget_us,
                   node->wd_stats.watchdog_trips);
     }
+}
+
+int iems_node_set_execution_port(iems_node_t *node, iems_execution_port_t port) {
+    if (!node) return -1;
+    node->execution = port;
+    return 0;
+}
+
+int iems_node_write_tag(iems_node_t *node, int bus_id, uint32_t tag_id, double value,
+                        const char *proto) {
+    if (!node || !node->execution.write_tag) return -1;
+
+    if (tag_id == IEMS_TAG_PCS_CONTROL) {
+        double actual_kw = 0.0;
+        int rc = iems_node_dispatch_power(node, value, &actual_kw);
+        if (rc < 0) return rc;
+        value = actual_kw;
+    } else if (node->hub) {
+        pipe_msg_t ctrl_msg = {0};
+        pipe_msg_init_scalar(&ctrl_msg, tag_id, value, uv_hrtime());
+        datahub_publish(node->hub, &ctrl_msg);
+    }
+
+    return node->execution.write_tag(node->execution.ctx, bus_id, tag_id, value, proto);
 }
 
 int iems_node_dispatch_power(iems_node_t *node, double target_kw, double *out_actual_kw) {

@@ -26,16 +26,13 @@ struct dcu_node_s {
     dcu_storage_t storage;
     dcu_event_obj_t evt_3000;
     dcu_event_obj_t evt_3005;
-    uv_timer_t *poller_timer;
+    uv_timer_t poller_timer;
+    bool poller_timer_inited;
     dcu_event_handler_t event_handler;
     void *event_user_data;
     bool running;
     uint32_t saved_since_take; /* 上一轮以来 record_reading 成功落库的条数 */
 };
-
-static void _timer_close_cb(uv_handle_t *handle) {
-    free(handle);
-}
 
 static void _dcu_node_poller_timer_cb(uv_timer_t *handle) {
     dcu_node_t *node = (dcu_node_t *)handle->data;
@@ -80,12 +77,16 @@ static int _node_control_sink(void *ctx, const char *meter_addr, uint16_t contro
     return dcu_node_execute_control((dcu_node_t *)ctx, meter_addr, control_oi, trip);
 }
 
-dcu_node_t *dcu_node_create(uv_loop_t *loop, const dcu_node_config_t *cfg) {
-    if (!loop || !cfg) return NULL;
+size_t dcu_node_storage_size(const dcu_node_config_t *cfg) {
+    return cfg ? sizeof(struct dcu_node_s) : 0;
+}
 
-    dcu_node_t *node = (dcu_node_t *)calloc(1, sizeof(dcu_node_t));
-    if (!node) return NULL;
+dcu_node_t *dcu_node_create_in(void *storage, size_t storage_size, uv_loop_t *loop,
+                               const dcu_node_config_t *cfg) {
+    if (!storage || storage_size < sizeof(struct dcu_node_s) || !loop || !cfg) return NULL;
 
+    dcu_node_t *node = (dcu_node_t *)storage;
+    memset(node, 0, sizeof(*node));
     node->loop = loop;
     node->cfg = *cfg;
     if (!node->cfg.product_name) node->cfg.product_name = "DCU";
@@ -117,7 +118,6 @@ dcu_node_t *dcu_node_create(uv_loop_t *loop, const dcu_node_config_t *cfg) {
     node->comp_root = edge_composition_root_create_in(&node->comp_storage, &comp_cfg);
     if (!node->comp_root) {
         LOG_ERROR(LOG_CAT_CORE, "DCU Node: Failed to instantiate Composition Root");
-        free(node);
         return NULL;
     }
 
@@ -130,7 +130,6 @@ dcu_node_t *dcu_node_create(uv_loop_t *loop, const dcu_node_config_t *cfg) {
             LOG_ERROR(LOG_CAT_CORE, "DCU Node: Failed to initialize storage at %s",
                       node->cfg.db_path);
             edge_composition_root_destroy(node->comp_root);
-            free(node);
             return NULL;
         }
 
@@ -182,11 +181,9 @@ dcu_node_t *dcu_node_create(uv_loop_t *loop, const dcu_node_config_t *cfg) {
     dcu_router_set_control_sink(_node_control_sink, node);
 
     /* 6. Setup Poller Periodic Timer */
-    node->poller_timer = (uv_timer_t *)calloc(1, sizeof(uv_timer_t));
-    if (node->poller_timer) {
-        uv_timer_init(loop, node->poller_timer);
-        node->poller_timer->data = node;
-    }
+    uv_timer_init(loop, &node->poller_timer);
+    node->poller_timer.data = node;
+    node->poller_timer_inited = true;
 
     LOG_INFO(LOG_CAT_CORE, "DCU Node Aggregate Root assembled successfully (Meters: %d)",
              node->inventory.count);
@@ -202,8 +199,8 @@ void dcu_node_set_source_ops(dcu_node_t *node, poller_source_ops_t source_ops) {
 int dcu_node_start(dcu_node_t *node) {
     if (!node || node->running) return -1;
     node->running = true;
-    if (node->poller_timer) {
-        uv_timer_start(node->poller_timer, _dcu_node_poller_timer_cb, 0,
+    if (node->poller_timer_inited) {
+        uv_timer_start(&node->poller_timer, _dcu_node_poller_timer_cb, 0,
                        node->cfg.poll_interval_ms);
     }
     LOG_INFO(LOG_CAT_CORE, "DCU Node started with polling interval %u ms",
@@ -214,8 +211,8 @@ int dcu_node_start(dcu_node_t *node) {
 int dcu_node_stop(dcu_node_t *node) {
     if (!node || !node->running) return -1;
     node->running = false;
-    if (node->poller_timer) {
-        uv_timer_stop(node->poller_timer);
+    if (node->poller_timer_inited) {
+        uv_timer_stop(&node->poller_timer);
     }
     dcu_storage_flush(&node->storage);
     LOG_INFO(LOG_CAT_CORE, "DCU Node stopped successfully");
@@ -441,15 +438,14 @@ void dcu_node_destroy(dcu_node_t *node) {
     if (node->running) {
         dcu_node_stop(node);
     }
-    if (node->poller_timer) {
-        uv_timer_stop(node->poller_timer);
-        uv_close((uv_handle_t *)node->poller_timer, _timer_close_cb);
-        node->poller_timer = NULL;
+    if (node->poller_timer_inited) {
+        uv_timer_stop(&node->poller_timer);
+        uv_close((uv_handle_t *)&node->poller_timer, NULL);
+        node->poller_timer_inited = false;
     }
     dcu_storage_destroy(&node->storage);
     edge_composition_root_destroy(node->comp_root);
     if (node->loop) {
         uv_run(node->loop, UV_RUN_NOWAIT);
     }
-    free(node);
 }

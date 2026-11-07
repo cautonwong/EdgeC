@@ -10,6 +10,7 @@
 
 #include "datahub.h"
 #include "wasm_mgr.h"
+#include "stream_bus_datahub_adapter.h"
 
 /**
  * Hand-crafted 72-byte yielding WASM loop
@@ -33,7 +34,8 @@ static void test_wasm_timeout_watchdog(void** state) {
     uv_loop_t* loop = uv_default_loop();
     datahub_init(&hub, loop, "wasm_test", 128, 10000, NULL, 0, NULL, NULL, NULL);
 
-    wasm_mgr_init(&hub);
+    stream_bus_port_t wasm_bus = stream_bus_datahub_port(&hub);
+    wasm_mgr_init(&wasm_bus);
 
     // Create container with 100ms timeout to be safe
     wasm_app_t* app = wasm_app_create(path, 16384, 16384, 100);

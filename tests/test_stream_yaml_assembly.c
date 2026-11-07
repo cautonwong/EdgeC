@@ -12,6 +12,7 @@
 
 #include "datahub.h"
 #include "stream_engine.h"
+#include "stream_bus_datahub_adapter.h"
 
 // --- Custom Gain Stage for Dynamic Factory Test ---
 
@@ -63,7 +64,7 @@ static void test_declarative_dag_assembly_and_execution(void **state) {
     int rc = datahub_init(&hub, NULL, "stream_dag_test", 64, 0x10000, NULL, 0, NULL, NULL, NULL);
     assert_int_equal(rc, 0);
 
-    stream_engine_t *engine = stream_engine_create(&hub, NULL, NULL, NULL);
+    stream_engine_t *engine = stream_engine_create_datahub(&hub, NULL, NULL, NULL);
     assert_non_null(engine);
 
     const char *contract_json =
@@ -115,7 +116,7 @@ static void test_dag_cycle_detection_rejected(void **state) {
     int rc = datahub_init(&hub, NULL, "stream_cycle_test", 64, 0x10000, NULL, 0, NULL, NULL, NULL);
     assert_int_equal(rc, 0);
 
-    stream_engine_t *engine = stream_engine_create(&hub, NULL, NULL, NULL);
+    stream_engine_t *engine = stream_engine_create_datahub(&hub, NULL, NULL, NULL);
     assert_non_null(engine);
 
     // 构造循环依赖有向图：node_A -> node_B -> node_A
@@ -150,7 +151,7 @@ static void test_custom_stage_factory_registration(void **state) {
         datahub_init(&hub, NULL, "stream_factory_test", 64, 0x10000, NULL, 0, NULL, NULL, NULL);
     assert_int_equal(rc, 0);
 
-    stream_engine_t *engine = stream_engine_create(&hub, NULL, NULL, NULL);
+    stream_engine_t *engine = stream_engine_create_datahub(&hub, NULL, NULL, NULL);
     assert_non_null(engine);
 
     // 动态注册自定义算子工厂
