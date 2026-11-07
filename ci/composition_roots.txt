@@ -21,3 +21,5 @@ cmd/edge_mcp_server/main.c
 cmd/nexus_lab/main.c
 # DCU north wiring adapter: transport/session plumbing, not a second lifecycle root.
 cmd/dcu/dcu_north_adapter.c
+# DCU southbound wiring adapter: RS485 channel sockets → orchestrator, not a lifecycle root.
+cmd/dcu/dcu_bus_adapter.c
