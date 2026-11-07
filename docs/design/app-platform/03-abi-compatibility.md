@@ -9,12 +9,24 @@
 | 版本 | 语义 | 谁声明 | 例子 |
 | --- | --- | --- | --- |
 | `abi` | Host ABI 的函数集与语义 | WIT 包 | 1.2 |
-| `sdk` | 应用面向的开发包版本，通常与 abi 同号 | 清单 `sdk` | 1.2 |
+| `sdk` | 应用面向的开发包版本 | 清单 `sdk` | 1.2 |
 | `contribSchema` | 每种贡献类型的 payload 结构 | 注册表 | `telemetry.points/v1` |
 | `permModel` | 能力与权限点模型 | 平台 | 1 |
-| `runtime` | 运行时实现与其自身版本 | 宿主 | wamr-2.1.0 |
+| `runtime_engine` | 运行时实现与其自身版本 | 宿主 | wamr-2.1.0 |
 
-宿主公布一个元组 `platform = (host, abi, contribSchema, permModel)`。应用只声明 `minHost` 与 `sdk`，其余由宿主元组决定。
+`sdk` 与 `abi` 是独立版本对象，不假定同号。SDK 可以在不改变 ABI 的情况下修 bug 或加辅助 API，ABI 也可以在不发新 SDK 的情况下收紧语义。两者各自按兼容规则校验，绑定的对应关系由 SDK 发布说明登记。
+
+清单把语言、执行档位与运行时引擎分开声明，语言名不得兼作运行时或隔离档位：
+
+```yaml
+language: c                 # c | cpp | rust | go | python | js
+execution_profile: wasm     # wasm | sidecar | shared（由宿主策略准入，不是自由选择）
+runtime_engine: auto        # auto 或宿主支持的引擎名与版本
+sdk: "1.2"
+minHost: "1.6"
+```
+
+宿主公布一个元组 `platform = (host, abi, contribSchema, permModel, engines)`。安装与加载都按元组校验，不接受"语言名等于运行时"的简写。
 
 ## 2. 兼容规则
 
@@ -42,17 +54,20 @@ ABI 主版本不兼容，次版本向后兼容且只增函数。
 
 - 清单能解析，字段完整。
 - `sdk` 落在兼容区间。
-- `runtime` 在宿主支持的运行时列表里。
+- `language` 是已知语言。
+- `execution_profile` 是宿主允许的档位，且与该语言的准入策略一致。
+- `runtime_engine` 为空、为 `auto`，或指向宿主已安装且版本匹配的引擎。
 - `contribSchema` 的每个 `type/schema_version` 宿主都认识。
 - 能力在 v1 开放集内，范围不含通配符。
 - 配额字段在允许范围内。
 
 **加载时检查**（动态，失败即拒绝启动，应用标记 `faulted`）：
 
-- 运行时握手返回宿主 `platform` 元组。
+- 运行时握手返回宿主 `platform` 元组与引擎版本。
 - 应用绑定里的 ABI 主版本与宿主一致。
+- `execution_profile` 与运行时引擎仍在宿主允许列表内。
 - 贡献快照里该应用的贡献 schema 版本仍被支持。
-- 授权快照可用。
+- 授权快照可用，且 grant 绑定的版本与包摘要与本次加载一致。
 
 为什么要两层：安装可能离线完成、可能在旧宿主上进行，U 盘拷到新宿主后静态检查已经不成立。只做安装时检查会漏。
 
@@ -65,15 +80,15 @@ ABI 主版本不兼容，次版本向后兼容且只增函数。
 - 生成器的版本与 WIT 包版本一起锁定在 `tools/abi/pins.json`，升级生成器需要单独提交。
 - 手改检测：除重新生成比对之外，再加一条"生成文件不得出现在人工改动的 PR 里"的检查，用文件头标记判断。
 
-三种语言路径：
+各语言路径，档位由 `execution_profile` 决定，不由语言名决定：
 
-| 语言 | 工具 | 产物 | 档位 |
+| 语言 | 工具 | 产物 | 典型档位 |
 | --- | --- | --- | --- |
-| C | clang wasm32 + wit-bindgen C | WASM | A |
-| C++ | 同上，`-fno-exceptions -fno-rtti` | WASM | A |
-| Rust | wit-bindgen Rust，`panic=abort` | WASM | A |
-| Go | wit-bindgen Go 或按同一 WIT 生成 RPC 客户端 | 原生二进制 | B |
-| Python | componentize-py 或生成 sidecar 客户端 | sidecar | B |
+| C | clang wasm32 + wit-bindgen C | WASM | `wasm` |
+| C++ | 同上，`-fno-exceptions -fno-rtti` | WASM | `wasm` |
+| Rust | wit-bindgen Rust，`panic=abort` | WASM | `wasm` |
+| Go | wit-bindgen Go 或按同一 WIT 生成 RPC 客户端 | 原生二进制 | `sidecar` |
+| Python | componentize-py 或生成 sidecar 客户端 | sidecar | `sidecar` |
 
 Go 不默认编 WASM。实测一个最小 Go 应用编 wasip1 剥符号后 1,642,824 字节，gzip 492,130 字节；同一逻辑的 C 产物 281 字节。差约 5,800 倍，因此 Go 走原生 sidecar，ABI 通过 RPC 暴露，函数签名与 WIT 一致。
 
@@ -121,6 +136,8 @@ Go 不默认编 WASM。实测一个最小 Go 应用编 wasip1 剥符号后 1,642
 8. 回滚到已移除 ABI 的版本被拒，提示可读。
 9. 同一份 C 应用在宿主 ABI 1.2 与 1.3 上行为一致。
 10. Go sidecar 与 C WASM 应用通过同一套 conformance 用例。
+11. 清单声明 `language: go` 但 `execution_profile: wasm`，且宿主策略不允许该组合时，安装被拒。
+12. `sdk 1.2` 配 `abi 1.3` 且 SDK 发布说明未登记该对应关系时，安装被拒并给出可读原因。
 
 ## 9. 未决
 
