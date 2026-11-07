@@ -7,6 +7,22 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import type { PageDef, PageState, Registry } from '../../sdk/types';
+
+function relativeLuminance(hex: string): number {
+  const value = hex.replace('#', '');
+  const channels = [0, 2, 4].map((offset) => parseInt(value.slice(offset, offset + 2), 16) / 255);
+  const linear = (channel: number) =>
+    channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  return 0.2126 * linear(channels[0]) + 0.7152 * linear(channels[1]) + 0.0722 * linear(channels[2]);
+}
+
+/** Pick whichever of the two on-colour tokens reads better on the brand fill. */
+function brandOnPrimary(brand: string): '#ffffff' | '#06121f' {
+  const luminance = relativeLuminance(brand);
+  const onWhite = 1.05 / (luminance + 0.05);
+  const onDark = (luminance + 0.05) / (relativeLuminance('#06121f') + 0.05);
+  return onWhite >= onDark ? '#ffffff' : '#06121f';
+}
 import {
   buildMenu,
   explainPage,
@@ -47,6 +63,12 @@ export const useRegistryStore = defineStore('registry', () => {
     registry.value = next;
     document.documentElement.dataset.brand = next.productId;
     document.documentElement.style.setProperty('--brand-primary', next.theme.brandColor);
+    const hex = next.theme.brandColor.replace('#', '');
+    document.documentElement.style.setProperty(
+      '--brand-primary-rgb',
+      [0, 2, 4].map((offset) => parseInt(hex.slice(offset, offset + 2), 16)).join(' '),
+    );
+    document.documentElement.style.setProperty('--brand-on-primary', brandOnPrimary(next.theme.brandColor));
   }
 
   return { registry, context, menu, groups, pageByPath, stateOf, denialOf, setRegistry };

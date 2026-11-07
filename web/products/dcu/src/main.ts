@@ -4,6 +4,7 @@
 import { createProductApp } from '@edgeos/web-core/app';
 import { parseRegistry } from '@edgeos/web-core/sdk';
 import registryJson from './generated/registry.json';
+import './style.css';
 
 const registry = parseRegistry(registryJson, 'dcu');
 const pages = import.meta.glob('../pages/**/*.vue');

@@ -164,6 +164,7 @@ onMounted(() => {
 <style scoped>
 .head {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-4);
@@ -180,10 +181,12 @@ onMounted(() => {
 }
 .head__actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
 }
 .search {
+  min-width: 0;
   min-height: var(--input-height);
   padding: 0 var(--space-3);
   border: 1px solid var(--border-default);

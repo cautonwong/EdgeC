@@ -39,7 +39,7 @@ static void test_dcu_packet_capture_hex_dump_and_axdr_inspector(void **state) {
     read_file_content("web/core/src/modules/dcu/PacketCapture.vue", content, sizeof(content));
 
     // Sniffer headers & protocols
-    assert_non_null(strstr(content, "PROTOCOL SNIFFER"));
+    assert_non_null(strstr(content, "协议报文"));
     assert_non_null(strstr(content, "DL/T 645"));
     assert_non_null(strstr(content, "698.45-2017"));
     assert_non_null(strstr(content, "A-XDR"));
@@ -60,7 +60,7 @@ static void test_dcu_power_quality_phasor_and_harmonics(void **state) {
     read_file_content("web/core/src/modules/dcu/PowerQuality.vue", content, sizeof(content));
 
     // Phasor polar diagram
-    assert_non_null(strstr(content, "PHASOR POLAR DIAGRAM"));
+    assert_non_null(strstr(content, "相量极坐标图"));
     assert_non_null(strstr(content, "getPhasorX"));
     assert_non_null(strstr(content, "getPhasorY"));
     assert_non_null(strstr(content, "voltageA"));
@@ -69,7 +69,7 @@ static void test_dcu_power_quality_phasor_and_harmonics(void **state) {
     assert_non_null(strstr(content, "currentA"));
 
     // Symmetrical sequence decomposition
-    assert_non_null(strstr(content, "SYMMETRICAL SEQUENCE DECOMPOSITION"));
+    assert_non_null(strstr(content, "对称分量分解"));
     assert_non_null(strstr(content, "GB/T 15543"));
     assert_non_null(strstr(content, "posSeqVoltage"));
     assert_non_null(strstr(content, "negSeqVoltage"));
@@ -77,7 +77,7 @@ static void test_dcu_power_quality_phasor_and_harmonics(void **state) {
     assert_non_null(strstr(content, "neutralCurrent"));
 
     // 2~31th Harmonic Spectrum & GB/T 14549
-    assert_non_null(strstr(content, "2~31st HARMONIC SPECTRUM"));
+    assert_non_null(strstr(content, "2~31 次谐波频谱分析"));
     assert_non_null(strstr(content, "GB/T 14549-1993"));
     assert_non_null(strstr(content, "thdVoltageTotal"));
     assert_non_null(strstr(content, "thdOddPct"));
@@ -91,7 +91,7 @@ static void test_dcu_power_quality_phase_commutation_optimizer(void **state) {
     read_file_content("web/core/src/modules/dcu/PowerQuality.vue", content, sizeof(content));
 
     // Phase-switching optimizer
-    assert_non_null(strstr(content, "AUTOMATIC PHASE-SWITCHING OPTIMIZER"));
+    assert_non_null(strstr(content, "自动换相优化器"));
     assert_non_null(strstr(content, "switchableBranches"));
     assert_non_null(strstr(content, "isSwitchRecommended"));
     assert_non_null(strstr(content, "projectedUnbalancePct"));

@@ -1,5 +1,5 @@
 <template>
-  <div class="h-full flex flex-col bg-[#050b14] text-[#f8fafc] font-mono text-xs overflow-hidden select-text">
+  <div class="h-full flex flex-col bg-[var(--bg-page)] text-[var(--text-primary)] font-mono text-xs overflow-hidden select-text">
     <!-- Terminal Output Screen -->
     <div 
       ref="termOutputRef" 
@@ -8,7 +8,7 @@
       <!-- Welcome Banner -->
       <div class="text-slate-500 pb-2 border-b border-slate-900 mb-3 space-y-0.5">
         <div class="text-emerald-400 font-bold">EdgeOS Industrial Real-Time Web Interactive CLI [Version 2.4.0-RT]</div>
-        <div>Type <span class="text-cyan-400 font-bold">help</span> or <span class="text-cyan-400 font-bold">?</span> for available commands. Press <kbd class="px-1 py-0.5 bg-slate-900 rounded text-slate-400 text-[10px]">Tab</kbd> for auto-completion, <kbd class="px-1 py-0.5 bg-slate-900 rounded text-slate-400 text-[10px]">↑/↓</kbd> for history.</div>
+        <div>Type <span class="text-cyan-400 font-bold">help</span> or <span class="text-cyan-400 font-bold">?</span> for available commands. Press <kbd class="px-1 py-0.5 bg-slate-900 rounded text-slate-400 text-xs">Tab</kbd> for auto-completion, <kbd class="px-1 py-0.5 bg-slate-900 rounded text-slate-400 text-xs">↑/↓</kbd> for history.</div>
       </div>
 
       <!-- Command History Output Lines -->
@@ -17,7 +17,7 @@
         <div class="flex items-center gap-2 text-slate-300">
           <span class="text-emerald-400 font-black">{{ promptPrefix }}</span>
           <span class="font-bold text-white">{{ entry.command }}</span>
-          <span class="text-[10px] text-slate-600 ml-auto">{{ entry.timestamp }}</span>
+          <span class="text-xs text-slate-600 ml-auto">{{ entry.timestamp }}</span>
         </div>
         <!-- Command Output (ANSI color formatted) -->
         <div 
@@ -46,7 +46,7 @@
       <div class="flex items-center gap-2">
         <button 
           @click="clearScreen" 
-          class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 text-[10px] transition cursor-pointer"
+          class="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 text-xs transition cursor-pointer"
           title="Clear Screen (Ctrl+L)"
         >
           Clear

@@ -1,5 +1,8 @@
 /**
- * test_web_design_tokens.c - Verification of EdgeOS Web Design System Tokens (AEP-490)
+ * test_web_design_tokens.c - Verification of the EdgeOS Web token system.
+ *
+ * The single source of truth is web/core/src/ui/tokens.css. Product Tailwind
+ * configs only bridge the legacy palette to those tokens.
  */
 
 #include <cmocka.h>
@@ -30,84 +33,84 @@ static void read_file_content(const char *rel_path, char *buf, size_t max_len) {
     fclose(fp);
 }
 
-static void test_tokens_ts_structure(void **state) {
+static void test_token_source_semantics(void **state) {
     (void)state;
-    char content[8192];
-    read_file_content("web/core/src/tokens.ts", content, sizeof(content));
+    char content[65536];
+    read_file_content("web/core/src/ui/tokens.css", content, sizeof(content));
 
-    // Base OLED Palette
-    assert_non_null(strstr(content, "base: '#020617'"));
-    assert_non_null(strstr(content, "surface: '#0f172a'"));
-    assert_non_null(strstr(content, "elevated: '#1e293b'"));
-
-    // Domain Status
-    assert_non_null(strstr(content, "normal: '#10b981'"));
-    assert_non_null(strstr(content, "warning: '#f59e0b'"));
-    assert_non_null(strstr(content, "fault: '#ef4444'"));
-
-    // Power Flow Vectors
-    assert_non_null(strstr(content, "grid: '#38bdf8'"));
-    assert_non_null(strstr(content, "pv: '#fbbf24'"));
-    assert_non_null(strstr(content, "essCharge: '#34d399'"));
-    assert_non_null(strstr(content, "essDischarge: '#f97316'"));
-
-    // Dual-track Typography
-    assert_non_null(strstr(content, "Inter"));
-    assert_non_null(strstr(content, "JetBrains Mono"));
+    assert_non_null(strstr(content, "--color-primary:"));
+    assert_non_null(strstr(content, "--bg-page:"));
+    assert_non_null(strstr(content, "--bg-surface:"));
+    assert_non_null(strstr(content, "--color-success:"));
+    assert_non_null(strstr(content, "--color-warning:"));
+    assert_non_null(strstr(content, "--color-danger:"));
+    assert_non_null(strstr(content, "--color-primary-rgb:"));
+    assert_non_null(strstr(content, "--chart-1:"));
+    assert_non_null(strstr(content, "'Edge Sans'"));
+    assert_non_null(strstr(content, "'Edge Mono'"));
+    assert_non_null(strstr(content, "'Edge Emoji'"));
 }
 
-static void test_tokens_css_variables(void **state) {
+static void test_token_source_dark_theme_and_fonts(void **state) {
     (void)state;
-    char content[8192];
-    read_file_content("web/core/src/styles/tokens.css", content, sizeof(content));
+    char content[65536];
+    read_file_content("web/core/src/ui/tokens.css", content, sizeof(content));
 
-    assert_non_null(strstr(content, "--edge-bg-base: #020617;"));
-    assert_non_null(strstr(content, "--edge-bg-surface: #0f172a;"));
-    assert_non_null(strstr(content, "--edge-status-normal: #10b981;"));
-    assert_non_null(strstr(content, "--edge-status-fault: #ef4444;"));
-    assert_non_null(strstr(content, "--edge-flow-grid: #38bdf8;"));
-    assert_non_null(strstr(content, "--font-ui: 'Inter'"));
-    assert_non_null(strstr(content, "--font-mono: 'JetBrains Mono'"));
-    assert_non_null(strstr(content, "font-feature-settings: 'tnum' on, 'zero' on;"));
+    assert_non_null(strstr(content, "[data-theme='dark']"));
+    assert_non_null(strstr(content, "color-scheme: dark"));
+    assert_non_null(strstr(content, "--bg-page-rgb:"));
+    assert_non_null(strstr(content, "[data-brand]"));
+    assert_non_null(strstr(content, "--brand-on-primary"));
+    assert_non_null(strstr(content, "@font-face"));
+    assert_non_null(strstr(content, "edge-sans-400.woff2"));
+    assert_non_null(strstr(content, "edge-mono-400.woff2"));
 }
 
-static void test_tailwind_configurations(void **state) {
+static void test_tailwind_preset_bridge(void **state) {
     (void)state;
-    char iems_cfg[8192];
+    char preset[16384];
+    read_file_content("web/tooling/tailwind.preset.cjs", preset, sizeof(preset));
+    assert_non_null(strstr(preset, "var(--"));
+    assert_non_null(strstr(preset, "Edge Sans"));
+    assert_non_null(strstr(preset, "Edge Mono"));
+    assert_non_null(strstr(preset, "color-success"));
+    assert_non_null(strstr(preset, "bg-surface"));
+
+    char iems_cfg[4096];
     read_file_content("web/products/iems/tailwind.config.cjs", iems_cfg, sizeof(iems_cfg));
-    assert_non_null(strstr(iems_cfg, "'#020617'"));
-    assert_non_null(strstr(iems_cfg, "JetBrains Mono"));
-    assert_non_null(strstr(iems_cfg, "Inter"));
+    assert_non_null(strstr(iems_cfg, "tailwind.preset.cjs"));
 
-    char box_cfg[8192];
+    char box_cfg[4096];
     read_file_content("web/products/smart_box/tailwind.config.cjs", box_cfg, sizeof(box_cfg));
-    assert_non_null(strstr(box_cfg, "'#020617'"));
-    assert_non_null(strstr(box_cfg, "JetBrains Mono"));
+    assert_non_null(strstr(box_cfg, "tailwind.preset.cjs"));
+
+    char dcu_cfg[4096];
+    read_file_content("web/products/dcu/tailwind.config.cjs", dcu_cfg, sizeof(dcu_cfg));
+    assert_non_null(strstr(dcu_cfg, "tailwind.preset.cjs"));
 }
 
-static void test_html_typography_links(void **state) {
+static void test_html_theme_entrypoints(void **state) {
     (void)state;
-    // iEMS 已按设计基线 §1.2「现场无外网」去掉 Google Fonts CDN：字体走系统栈 + 本地子集，
-    // 主题由 data-theme 声明（Token 三层结构的入口），不再依赖 Tailwind 的 class="dark"。
-    char iems_html[4096];
+    char iems_html[8192];
     read_file_content("web/products/iems/index.html", iems_html, sizeof(iems_html));
     assert_null(strstr(iems_html, "fonts.googleapis.com"));
     assert_null(strstr(iems_html, "fonts.gstatic.com"));
-    assert_non_null(strstr(iems_html, "data-theme="));
+    assert_non_null(strstr(iems_html, "dataset.theme"));
+    assert_non_null(strstr(iems_html, "edgeos.theme"));
 
     char box_html[4096];
     read_file_content("web/products/smart_box/index.html", box_html, sizeof(box_html));
-    assert_non_null(strstr(box_html, "family=Inter"));
-    assert_non_null(strstr(box_html, "family=JetBrains+Mono"));
-    assert_non_null(strstr(box_html, "class=\"dark\""));
+    assert_null(strstr(box_html, "fonts.googleapis.com"));
+    assert_null(strstr(box_html, "class=\"dark\""));
+    assert_non_null(strstr(box_html, "data-theme=\"dark\""));
 }
 
 int main(void) {
     const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_tokens_ts_structure),
-        cmocka_unit_test(test_tokens_css_variables),
-        cmocka_unit_test(test_tailwind_configurations),
-        cmocka_unit_test(test_html_typography_links),
+        cmocka_unit_test(test_token_source_semantics),
+        cmocka_unit_test(test_token_source_dark_theme_and_fonts),
+        cmocka_unit_test(test_tailwind_preset_bridge),
+        cmocka_unit_test(test_html_theme_entrypoints),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

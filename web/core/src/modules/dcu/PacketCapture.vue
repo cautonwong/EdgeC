@@ -1,21 +1,16 @@
 <template>
-  <div class="min-h-full bg-[#020617] text-[#f8fafc] p-6 lg:p-10 space-y-8 animate-in fade-in duration-700 font-ui">
+  <div class="min-h-full bg-[var(--bg-page)] text-[var(--text-primary)] p-6 lg:p-10 space-y-8 animate-in fade-in duration-700 font-ui">
     <!-- Top Hero Header -->
-    <section class="relative bg-[#0f172a] rounded-[2.5rem] overflow-hidden shadow-2xl border border-[#334155]/60 p-8 lg:p-10">
-      <div class="absolute top-0 right-0 w-[500px] h-[500px] bg-cyan-500/10 rounded-full blur-[120px] -mr-40 -mt-40 pointer-events-none"></div>
-      <div class="absolute bottom-0 left-0 w-[300px] h-[300px] bg-emerald-500/10 rounded-full blur-[80px] -ml-20 -mb-20 pointer-events-none"></div>
-
+    <section class="relative bg-[var(--bg-surface)] rounded-xl overflow-hidden shadow-2xl border border-[var(--border-default)] p-8 lg:p-10">
       <div class="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div class="space-y-2">
-          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[10px] font-black">
+          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-black">
             <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse motion-reduce:animate-none"></span>
-            DCU Southbound Telemetry Sniffer
+            DCU 南向报文监听
           </div>
-          <h1 class="text-3xl lg:text-4xl font-black text-white tracking-tight leading-tight font-mono">
-            DL/T 645 & 698 <span class="text-cyan-400 font-sans">PROTOCOL SNIFFER</span>
-          </h1>
+          <h1 class="text-3xl lg:text-4xl font-black tracking-tight leading-tight">协议报文</h1>
           <p class="text-slate-400 text-xs lg:text-sm font-medium">
-            Real-time Hex Dump frame parsing, A-XDR object tree inspector, and RS485/HPLC bus stream diagnostics.
+            DL/T 645 与 698 报文解析、A-XDR 对象树与 RS485/HPLC 总线诊断
           </p>
         </div>
 
@@ -25,7 +20,7 @@
             :class="isCapturing ? 'bg-cyan-500 hover:bg-cyan-600 text-slate-950 font-black' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'"
             class="px-4 py-2.5 rounded-2xl border border-slate-700 transition flex items-center gap-2 shadow-lg"
           >
-            <span class="w-2 h-2 rounded-full" :class="isCapturing ? 'bg-slate-950 animate-ping' : 'bg-slate-500'"></span>
+            <span class="w-2 h-2 rounded-full" :class="isCapturing ? 'bg-slate-950' : 'bg-slate-500'"></span>
             <span>{{ isCapturing ? '⏸ PAUSE SNIFFER' : '▶ RESUME SNIFFER' }}</span>
           </button>
           <button 
@@ -41,21 +36,21 @@
     <!-- Filter & Statistics Bar -->
     <div class="bg-slate-900/90 border border-slate-800 p-4 rounded-2xl flex flex-wrap items-center justify-between gap-4 font-mono text-xs">
       <div class="flex flex-wrap items-center gap-3">
-        <!-- Protocol Filter -->
+        <!-- 规约 Filter -->
         <div class="flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
-          <span class="text-slate-500">Protocol:</span>
+          <span class="text-slate-500">规约：</span>
           <select v-model="filterProtocol" class="bg-transparent text-slate-200 focus:outline-none cursor-pointer">
-            <option value="ALL">ALL (全部规约)</option>
+            <option value="ALL">全部规约</option>
             <option value="698">DL/T 698.45-2017 (A-XDR)</option>
             <option value="645">DL/T 645-2007 (HEX)</option>
           </select>
         </div>
 
-        <!-- Direction Filter -->
+        <!-- 方向ection Filter -->
         <div class="flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
-          <span class="text-slate-500">Direction:</span>
+          <span class="text-slate-500">方向：</span>
           <select v-model="filterDirection" class="bg-transparent text-slate-200 focus:outline-none cursor-pointer">
-            <option value="ALL">ALL (全部方向)</option>
+            <option value="ALL">全部方向</option>
             <option value="TX">TX (主叫请求)</option>
             <option value="RX">RX (从站响应)</option>
           </select>
@@ -66,14 +61,14 @@
           <input 
             v-model="searchAddress"
             type="text" 
-            placeholder="Filter Meter Address..." 
+            placeholder="筛选电表地址…"
             class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-cyan-500 w-44"
           />
         </div>
       </div>
 
-      <div class="flex items-center gap-4 text-slate-400 text-[11px]">
-        <span>Captured: <strong class="text-cyan-400">{{ packets.length }}</strong> pkts</span>
+      <div class="flex items-center gap-4 text-slate-400 text-xs">
+        <span>已捕获： <strong class="text-cyan-400">{{ packets.length }}</strong> 包</span>
         <span>DLT698: <strong class="text-emerald-400">{{ count698 }}</strong></span>
         <span>DLT645: <strong class="text-amber-400">{{ count645 }}</strong></span>
       </div>
@@ -84,15 +79,15 @@
       <div class="overflow-x-auto">
         <table class="w-full text-left font-mono text-xs">
           <thead>
-            <tr class="bg-slate-950 border-b border-slate-800 text-slate-400 text-[10px]">
+            <tr class="bg-slate-950 border-b border-slate-800 text-slate-400 text-xs">
               <th class="p-4 w-16">#</th>
-              <th class="p-4 w-28">Timestamp</th>
-              <th class="p-4 w-20">Dir</th>
-              <th class="p-4 w-28">Protocol</th>
-              <th class="p-4 w-36">Meter Address</th>
-              <th class="p-4 w-44">Function / OAD</th>
-              <th class="p-4">Raw Hex Stream (Colorized)</th>
-              <th class="p-4 w-20 text-center">Action</th>
+              <th class="p-4 w-28">时间戳</th>
+              <th class="p-4 w-20">方向</th>
+              <th class="p-4 w-28">规约</th>
+              <th class="p-4 w-36">电表地址</th>
+              <th class="p-4 w-44">功能 / OAD</th>
+              <th class="p-4">原始十六进制流（着色）</th>
+              <th class="p-4 w-20 text-center">操作</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-800/60">
@@ -108,7 +103,7 @@
               <td class="p-4 whitespace-nowrap">
                 <span 
                   :class="[
-                    'px-2 py-0.5 rounded text-[10px] font-bold border',
+                    'px-2 py-0.5 rounded text-xs font-bold border',
                     pkt.direction === 'TX' ? 'bg-sky-500/10 border-sky-500/30 text-sky-400' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
                   ]"
                 >
@@ -124,7 +119,7 @@
               <td class="p-4 whitespace-nowrap">
                 <span class="text-cyan-300">{{ pkt.functionName }}</span>
               </td>
-              <td class="p-4 font-mono text-[11px] leading-relaxed break-all">
+              <td class="p-4 font-mono text-xs leading-relaxed break-all">
                 <span 
                   v-for="(chunk, cIdx) in pkt.chunks" 
                   :key="cIdx"
@@ -138,7 +133,7 @@
               <td class="p-4 text-center">
                 <button 
                   @click.stop="selectPacket(pkt)"
-                  class="text-[10px] bg-slate-800 group-hover:bg-cyan-500 group-hover:text-slate-950 text-slate-300 px-2.5 py-1 rounded-lg transition"
+                  class="text-xs bg-slate-800 group-hover:bg-cyan-500 group-hover:text-slate-950 text-slate-300 px-2.5 py-1 rounded-lg transition"
                 >
                   解析
                 </button>
@@ -154,46 +149,46 @@
       <div class="bg-slate-900 border border-slate-700 rounded-3xl p-6 lg:p-8 max-w-2xl w-full shadow-2xl relative font-mono text-xs">
         <div class="flex justify-between items-start mb-6 border-b border-slate-800 pb-4">
           <div>
-            <div class="text-[10px] text-cyan-400 font-bold">
+            <div class="text-xs text-cyan-400 font-bold">
               {{ selectedPacket.protocol === '698' ? 'A-XDR DLT698 APDU TREE' : 'DLT645-2007 FRAME INSPECTOR' }}
             </div>
             <h2 class="text-xl font-black text-white mt-1">
-              Frame #{{ selectedPacket.id }} Details
+              报文 #{{ selectedPacket.id }} 详情
             </h2>
           </div>
-          <button @click="selectedPacket = null" class="text-slate-400 hover:text-white text-base">✕</button>
+          <button type="button" aria-label="关闭报文详情" title="关闭" @click="selectedPacket = null" class="text-slate-400 hover:text-white text-base">✕</button>
         </div>
 
         <!-- Frame Breakdown Tree -->
         <div class="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
           <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-2">
             <div class="flex justify-between border-b border-slate-800/60 pb-1.5">
-              <span class="text-slate-500">Meter Address:</span>
+              <span class="text-slate-500">电表地址:</span>
               <span class="text-slate-200 font-bold">{{ selectedPacket.address }}</span>
             </div>
             <div class="flex justify-between border-b border-slate-800/60 pb-1.5">
-              <span class="text-slate-500">APDU Service:</span>
+              <span class="text-slate-500">APDU 服务：</span>
               <span class="text-emerald-400 font-bold">{{ selectedPacket.functionName }}</span>
             </div>
             <div class="flex justify-between border-b border-slate-800/60 pb-1.5">
-              <span class="text-slate-500">OAD / Data Identifier:</span>
+              <span class="text-slate-500">OAD / 数据标识：</span>
               <span class="text-amber-400 font-bold">{{ selectedPacket.oadCode }}</span>
             </div>
             <div class="flex justify-between border-b border-slate-800/60 pb-1.5">
-              <span class="text-slate-500">Decoded Physical Value:</span>
+              <span class="text-slate-500">解析物理量：</span>
               <span class="text-cyan-300 font-bold text-sm">{{ selectedPacket.decodedValue }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-slate-500">Frame Check Sequence:</span>
+              <span class="text-slate-500">帧校验序列：</span>
               <span class="text-emerald-400">FCS VALID (0x{{ selectedPacket.fcs }}) ✓</span>
             </div>
           </div>
 
           <!-- Raw Stream Breakdown -->
           <div>
-            <div class="text-slate-400 text-[10px] font-bold mb-2">Color-Coded Hex Breakdown</div>
+            <div class="text-slate-400 text-xs font-bold mb-2">着色十六进制分解</div>
             <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800 text-xs leading-relaxed space-y-2">
-              <div v-for="(chunk, idx) in selectedPacket.chunks" :key="idx" class="flex justify-between items-center text-[11px]">
+              <div v-for="(chunk, idx) in selectedPacket.chunks" :key="idx" class="flex justify-between items-center text-xs">
                 <span class="text-slate-500 w-36">{{ chunk.role }}:</span>
                 <span :class="chunk.colorClass" class="font-bold">{{ chunk.hex }}</span>
               </div>

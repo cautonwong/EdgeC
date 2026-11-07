@@ -13,7 +13,7 @@ withDefaults(
 </script>
 
 <template>
-  <div class="banner" :class="`banner--${tone}`" role="status">
+  <div class="banner" :class="`banner--${tone}`" :role="tone === 'danger' || tone === 'warning' ? 'alert' : 'status'">
     <div class="banner__body">
       <strong v-if="title" class="banner__title">{{ title }}</strong>
       <slot />

@@ -36,12 +36,12 @@ static void test_sankey_power_flow_gpu_acceleration_and_bidirectional_mapping(vo
     read_file_content("web/core/src/components/SankeyEnergyFlow.vue", content, sizeof(content));
 
     // Dynamic SVG Sankey topology nodes
-    assert_non_null(strstr(content, "SOLAR PV"));
-    assert_non_null(strstr(content, "UTILITY GRID"));
-    assert_non_null(strstr(content, "ESS BESS"));
-    assert_non_null(strstr(content, "MG BUS"));
-    assert_non_null(strstr(content, "LOAD"));
-    assert_non_null(strstr(content, "EV CHARGER"));
+    assert_non_null(strstr(content, "光伏"));
+    assert_non_null(strstr(content, "电网"));
+    assert_non_null(strstr(content, "储能"));
+    assert_non_null(strstr(content, "母线"));
+    assert_non_null(strstr(content, "负荷"));
+    assert_non_null(strstr(content, "充电桩"));
 
     // GPU hardware acceleration & bidirectional flow classes
     assert_non_null(strstr(content, "stroke-dasharray"));
@@ -64,10 +64,10 @@ static void test_tou_arbitrage_gantt_and_four_tier_tariff_schedule(void **state)
     assert_non_null(strstr(content, "CRITICAL PEAK (尖)"));
 
     // 24H Gantt bar & economic calculations
-    assert_non_null(strstr(content, "24H TOU Tariff Distribution"));
+    assert_non_null(strstr(content, "24 小时分时电价分布"));
     assert_non_null(strstr(content, "hourlySchedule"));
     assert_non_null(strstr(content, "dailyRevenue"));
-    assert_non_null(strstr(content, "Round-Trip RTE"));
+    assert_non_null(strstr(content, "往返效率"));
 }
 
 static void test_anti_reverse_pid_deadband_and_curtailment_loop(void **state) {
@@ -76,12 +76,12 @@ static void test_anti_reverse_pid_deadband_and_curtailment_loop(void **state) {
     read_file_content("web/core/src/components/AntiReversePIDGauge.vue", content, sizeof(content));
 
     // 100ms PID deadband & zero-export protection
-    assert_non_null(strstr(content, "Loop: 100ms"));
-    assert_non_null(strstr(content, "DEAD-BAND"));
+    assert_non_null(strstr(content, "周期：100ms"));
+    assert_non_null(strstr(content, "死区"));
     assert_non_null(strstr(content, "CURTAILMENT ACTIVE"));
     assert_non_null(strstr(content, "Kp / Ki / Kd"));
     assert_non_null(strstr(content, "describeArc"));
-    assert_non_null(strstr(content, "PCC POINT POWER"));
+    assert_non_null(strstr(content, "并网点功率"));
 }
 
 static void test_demand_peak_shaving_and_transformer_redline_monitoring(void **state) {
@@ -91,10 +91,10 @@ static void test_demand_peak_shaving_and_transformer_redline_monitoring(void **s
                       sizeof(content));
 
     // 15-min rolling demand & 500kVA transformer protection
-    assert_non_null(strstr(content, "15-Min Rolling Demand"));
-    assert_non_null(strstr(content, "Transformer Load Rate"));
-    assert_non_null(strstr(content, "400 kW (80% REDLINE)"));
-    assert_non_null(strstr(content, "500 kVA (MAX)"));
+    assert_non_null(strstr(content, "15 分钟滚动需量"));
+    assert_non_null(strstr(content, "变压器负载率"));
+    assert_non_null(strstr(content, "400 kW（80% 红线）"));
+    assert_non_null(strstr(content, "500 kVA（上限）"));
     assert_non_null(strstr(content, "historyDemand"));
 }
 

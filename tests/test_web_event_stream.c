@@ -38,7 +38,7 @@ static void test_event_stream_hub_component_structure(void **state) {
     read_file_content("web/core/src/modules/events/EventStreamHub.vue", content, sizeof(content));
 
     // Headers & High-Frequency Stream Metrics
-    assert_non_null(strstr(content, "SOE EVENT STREAM"));
+    assert_non_null(strstr(content, "告警与事件"));
     assert_non_null(strstr(content, "streamRateEps"));
     assert_non_null(strstr(content, "unackedCount"));
     assert_non_null(strstr(content, "toggleStream"));
