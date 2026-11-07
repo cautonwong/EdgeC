@@ -16,6 +16,7 @@
 #include "edgeos/edge_mcp_dispatcher.h"
 #include "edgeos/mcp_transport.h"
 #include "../../modules/edge_core/src/datahub_priv.h"
+#include "edge_mcp_datahub_adapter.h"
 
 static uv_loop_t *g_loop = NULL;
 static uv_signal_t g_sigint;
@@ -88,8 +89,9 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    edge_mcp_env_t env = {
-        .hub = hub, .drv_mgr = NULL, .stream_eng = NULL, .storage_drv = NULL, .loop = g_loop};
+    edge_mcp_env_t env = {.bus = edge_mcp_datahub_port(hub),
+                         .drv_mgr = NULL, .stream_eng = NULL,
+                         .storage_drv = NULL, .loop = g_loop};
 
     edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(&env);
     if (!disp) {

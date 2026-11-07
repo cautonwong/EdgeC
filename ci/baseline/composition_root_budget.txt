@@ -1,8 +1,8 @@
 # Shrink-only composition root line ledger.
 # Format: <path>|<lines>
-# 2026-11-07: edge_mcp_server/main.c 172 -> 173; private datahub header for caller-owned storage.
+# 2026-11-07: edge_mcp_server/main.c 173 -> 175; MCP bus port adapter wiring.
 cmd/dcu/main.c|544
-cmd/edge_mcp_server/main.c|173
+cmd/edge_mcp_server/main.c|175
 cmd/iems/iems_app.c|758
 cmd/iems/main.c|99
 cmd/nexus_lab/main.c|156

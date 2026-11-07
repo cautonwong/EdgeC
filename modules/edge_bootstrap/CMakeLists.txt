@@ -9,6 +9,7 @@ add_library(edge_bootstrap STATIC
     src/adc_datahub_adapter.c
     src/js_arbiter_service_adapter.c
     src/stream_sqlite_adapter.c
+    src/edge_mcp_datahub_adapter.c
 )
 
 target_include_directories(edge_bootstrap PUBLIC
@@ -17,6 +18,7 @@ target_include_directories(edge_bootstrap PUBLIC
     ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
     ${CMAKE_SOURCE_DIR}/modules/edge_stream/include
     ${CMAKE_SOURCE_DIR}/modules/edge_io/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_mcp/include
 )
 
 target_link_libraries(edge_bootstrap PUBLIC

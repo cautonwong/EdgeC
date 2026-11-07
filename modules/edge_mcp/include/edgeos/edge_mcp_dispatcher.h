@@ -16,7 +16,7 @@
 #include <cjson/cJSON.h>
 typedef struct uv_loop_s uv_loop_t;
 
-#include "datahub.h"
+#include "edgeos/edge_mcp_bus_port.h"
 #include "driver_manager.h"
 #include "edge_driver.h"
 #include "stream_engine.h"
@@ -65,7 +65,7 @@ typedef struct {
  * @brief MCP Dispatcher Environment Context
  */
 typedef struct {
-    datahub_t *hub;
+    edge_mcp_bus_port_t bus;
     driver_manager_t *drv_mgr;
     stream_engine_t *stream_eng;
     storage_driver_t *storage_drv;

@@ -14,7 +14,6 @@
 
 #include "edgeos/edge_mcp_industry_tools.h"
 #include "edgeos/edge_mcp_bus.h"
-#include "datahub.h"
 #include "edge_log.h"
 
 /* 1. ess_emergency_stop (L2 Critical Action) */
@@ -218,9 +217,9 @@ int handle_tag_batch_read_scaled(edge_mcp_dispatcher_t *disp,
         uint64_t ts = (uint64_t)uv_hrtime();
 
         const edge_mcp_env_t *env = edge_mcp_dispatcher_get_env(disp);
-        if (env && env->hub) {
+        if (env && env->bus.read_shadow) {
             pipe_msg_t msg = {0};
-            if (datahub_read_shadow(env->hub, tid, &msg) == 0) {
+            if (edge_mcp_bus_read_shadow(&env->bus, tid, &msg) == 0) {
                 val = (float)msg.payload.val.f;
                 quality = msg.quality;
                 ts = msg.ts;

@@ -16,6 +16,7 @@ COMPONENTS = {
     "edge_protocol": {"datahub.h", "datahub_router.h"},
     "edge_algo": {"datahub.h", "datahub_router.h"},
     "edge_mgmt": {"datahub.h", "datahub_router.h"},
+    "edge_mcp": {"datahub.h", "datahub_router.h"},
 }
 
 SYSTEM_HEADERS = {"autoconf.h", "wasm_export.h"}
@@ -27,6 +28,8 @@ FILE_FORBIDDEN = {
     "modules/edge_io/include/driver_radar_fmcw.h": {"datahub.h"},
     "modules/edge_io/src/adc_driver.c": {"datahub.h"},
     "modules/edge_io/include/adc_driver.h": {"datahub.h"},
+    "modules/edge_mcp/src/edge_mcp_dispatcher.c": {"datahub.h"},
+    "modules/edge_mcp/include/edgeos/edge_mcp_dispatcher.h": {"datahub.h"},
 }
 BASELINE = os.path.join("ci", "baseline", "component_boundary.txt")
 INCLUDE_RE = re.compile(r'^[ \t]*#\s*include\s+"([^"]+)"', re.MULTILINE)
