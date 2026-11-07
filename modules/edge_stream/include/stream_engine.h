@@ -136,6 +136,8 @@ struct pipeline_loader_ctx_s {
     js_engine_t *js_engine;
     edge_params_t *params;
     stream_control_ops_t control_ops; /**< [IoC] 用于指令触发，消费者定义的接口 */
+    const char *audit_secret;          /**< VPP 审计签名密钥，组合根注入 */
+    bool production;                   /**< 是否生产环境，组合根注入 */
 };
 
 stream_engine_t *stream_engine_create_in(stream_engine_storage_t *storage,

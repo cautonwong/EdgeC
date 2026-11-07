@@ -131,6 +131,11 @@ static void on_poll_complete(int status, const pipe_msg_t* result, void* user_da
 /**
  * @brief [Domain Boundary Guard] 控制写路径强制经聚合根 (Issue #400)
  */
+static bool _iems_production_env(void) {
+    const char *env = getenv("EDGE_ENV");
+    return env && (strcmp(env, "production") == 0 || strcmp(env, "prod") == 0);
+}
+
 static int _iems_stream_submit_control(void* ctx, int bus_id, uint32_t tag_id, double value,
                                        const char* proto) {
     iems_app_t* app = (iems_app_t*)ctx;
@@ -526,6 +531,8 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     pipeline_loader_ctx_t loader_ctx = {
         .db = stream_sqlite_port_from_sqlite(app->db_service),
         .control_ops = {.ctx = app, .submit_control = _iems_stream_submit_control},
+        .audit_secret = getenv("VPP_AUDIT_SECRET"),
+        .production = _iems_production_env(),
         .params = NULL
     };
     uint32_t pipeline_count = 0;
