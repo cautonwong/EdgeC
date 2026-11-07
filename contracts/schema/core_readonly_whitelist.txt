@@ -47,3 +47,4 @@ modules/edge_core/src/datahub_shm.c              # datahub opacity
 modules/edge_core/src/edge_mesh.c                # datahub opacity
 modules/edge_core/src/edge_port.c                # datahub opacity
 modules/edge_core/src/edge_service.c             # datahub opacity
+modules/edge_core/src/datahub_priv.h             # datahub opacity
