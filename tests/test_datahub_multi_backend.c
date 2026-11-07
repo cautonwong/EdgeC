@@ -35,10 +35,11 @@ int main(void) {
     config.shm_config.ring_slots = 64;
     config.shm_config.shadow_capacity = 2048;
 
-    datahub_router_t router;
-    int rc = datahub_router_init(&router, loop, &config, NULL, 0, NULL, NULL, NULL);
+    datahub_router_storage_t router_storage;
+    datahub_router_t *router = (datahub_router_t *)&router_storage;
+    int rc = datahub_router_init(router, loop, &config, NULL, 0, NULL, NULL, NULL);
     assert(rc == 0);
-    assert(router.write_policy == DATAHUB_ROUTER_POLICY_BEST_EFFORT);
+    assert(datahub_router_get_policy(router) == DATAHUB_ROUTER_POLICY_BEST_EFFORT);
     printf("  [PASS] DataHub Router Initialized with Best-Effort Policy\n");
 
     pipe_msg_t test_msg;
@@ -46,22 +47,22 @@ int main(void) {
     test_msg.tag_id = 1001;
     test_msg.payload.val.f = 220.5f;
 
-    rc = datahub_router_publish(&router, &test_msg);
+    rc = datahub_router_publish(router, &test_msg);
     assert(rc == 0);
     printf("  [PASS] Best-Effort Concurrent Publish Fan-Out\n");
 
-    rc = datahub_router_write_shadow(&router, &test_msg);
+    rc = datahub_router_write_shadow(router, &test_msg);
     assert(rc == 0);
     printf("  [PASS] Best-Effort Concurrent Write Shadow Fan-Out\n");
 
     pipe_msg_t read_msg;
     memset(&read_msg, 0, sizeof(read_msg));
-    rc = datahub_router_read_shadow(&router, 1001, &read_msg);
+    rc = datahub_router_read_shadow(router, 1001, &read_msg);
     assert(rc == 0);
     assert(read_msg.tag_id == 1001);
     printf("  [PASS] Low-Latency Primary Shadow Read\n");
 
-    datahub_router_destroy(&router);
+    datahub_router_destroy(router);
     printf("  [PASS] Router Destroyed Cleanly\n");
 
     // 2. 测试 ALL_REQUIRED 强一致性策略
@@ -75,17 +76,17 @@ int main(void) {
     config.shm_config.ring_slots = 64;
     config.shm_config.shadow_capacity = 2048;
 
-    rc = datahub_router_init(&router, loop, &config, NULL, 0, NULL, NULL, NULL);
+    rc = datahub_router_init(router, loop, &config, NULL, 0, NULL, NULL, NULL);
     assert(rc == 0);
-    assert(router.write_policy == DATAHUB_ROUTER_POLICY_ALL_REQUIRED);
+    assert(datahub_router_get_policy(router) == DATAHUB_ROUTER_POLICY_ALL_REQUIRED);
 
-    rc = datahub_router_publish(&router, &test_msg);
+    rc = datahub_router_publish(router, &test_msg);
     assert(rc == 0);
-    rc = datahub_router_write_shadow(&router, &test_msg);
+    rc = datahub_router_write_shadow(router, &test_msg);
     assert(rc == 0);
     printf("  [PASS] ALL_REQUIRED Consistency Policy verified with 100%% active backends\n");
 
-    datahub_router_destroy(&router);
+    datahub_router_destroy(router);
 
     // 3. 测试 DDS Backend 独立初始化与 Shadow Read
     datahub_t dds_hub;
@@ -125,17 +126,17 @@ int main(void) {
     config.shm_config.ring_slots = 64;
     config.shm_config.shadow_capacity = 2048;
 
-    rc = datahub_router_init(&router, loop, &config, NULL, 0, NULL, NULL, NULL);
+    rc = datahub_router_init(router, loop, &config, NULL, 0, NULL, NULL, NULL);
     assert(rc == 0);
-    assert(router.shm_active == true);
-    assert(router.dds_active == false);  // DDS 应优雅降级为非活跃
+    assert(datahub_router_shm_active(router) == true);
+    assert(datahub_router_dds_active(router) == false);  // DDS 应优雅降级为非活跃
     printf("  [PASS] Graceful Degradation: Router successfully active with DDS disabled\n");
 
-    rc = datahub_router_publish(&router, &test_msg);
+    rc = datahub_router_publish(router, &test_msg);
     assert(rc == 0);
     printf("  [PASS] Best-Effort Publish succeeds when DDS is disabled (routed via active SHM)\n");
 
-    datahub_router_destroy(&router);
+    datahub_router_destroy(router);
 
     // 5. 测试 DATAHUB_BACKEND_HYBRID 经由 datahub_init_with_config 统一 Seam 初始化与写入
     datahub_t hybrid_hub;

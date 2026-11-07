@@ -41,8 +41,9 @@ static void test_shm_zerocopy_microsecond_latency(void **state) {
     config.shm_config.ring_slots = 64;
     config.shm_config.shadow_capacity = 2048;
 
-    datahub_router_t router;
-    assert_int_equal(datahub_router_init(&router, &loop, &config, NULL, 0, NULL, NULL, NULL), 0);
+    datahub_router_storage_t router_storage;
+    datahub_router_t *router = (datahub_router_t *)&router_storage;
+    assert_int_equal(datahub_router_init(router, &loop, &config, NULL, 0, NULL, NULL, NULL), 0);
 
     const int iterations = 10000;
     pipe_msg_t msg = {
@@ -55,11 +56,11 @@ static void test_shm_zerocopy_microsecond_latency(void **state) {
     uint64_t start_ns = get_time_ns();
     for (int i = 0; i < iterations; i++) {
         msg.payload.val.f = (float)(220.0 + (double)(i % 100) * 0.1);
-        int rc = datahub_router_write_shadow(&router, &msg);
+        int rc = datahub_router_write_shadow(router, &msg);
         assert_int_equal(rc, 0);
 
         pipe_msg_t read_msg;
-        rc = datahub_router_read_shadow(&router, 2001, &read_msg);
+        rc = datahub_router_read_shadow(router, 2001, &read_msg);
         assert_int_equal(rc, 0);
     }
     uint64_t end_ns = get_time_ns();
@@ -73,7 +74,7 @@ static void test_shm_zerocopy_microsecond_latency(void **state) {
     // 严密断言：单机共享内存读写平均耗时必须严格 <= 5.0 微秒 (AEP-453 工业指标)
     assert_true(avg_us_per_op <= 5.0);
 
-    datahub_router_destroy(&router);
+    datahub_router_destroy(router);
     uv_loop_close(&loop);
 }
 
@@ -95,8 +96,9 @@ static void test_dual_track_transparent_routing(void **state) {
     config.shm_config.ring_slots = 64;
     config.shm_config.shadow_capacity = 2048;
 
-    datahub_router_t router;
-    assert_int_equal(datahub_router_init(&router, &loop, &config, NULL, 0, NULL, NULL, NULL), 0);
+    datahub_router_storage_t router_storage;
+    datahub_router_t *router = (datahub_router_t *)&router_storage;
+    assert_int_equal(datahub_router_init(router, &loop, &config, NULL, 0, NULL, NULL, NULL), 0);
 
     // 发布双轨消息：本地 SHM 亚微秒写入，DDS 组播异步广播
     pipe_msg_t msg = {
@@ -106,16 +108,16 @@ static void test_dual_track_transparent_routing(void **state) {
         .payload.val.f = 230.2f,
     };
 
-    assert_int_equal(datahub_router_publish(&router, &msg), 0);
-    assert_int_equal(datahub_router_write_shadow(&router, &msg), 0);
+    assert_int_equal(datahub_router_publish(router, &msg), 0);
+    assert_int_equal(datahub_router_write_shadow(router, &msg), 0);
 
     // 验证本地快车道 (SHM) 立即能够读取该数值
     pipe_msg_t read_msg;
-    int rc = datahub_router_read_shadow(&router, 1002, &read_msg);
+    int rc = datahub_router_read_shadow(router, 1002, &read_msg);
     assert_int_equal(rc, 0);
     assert_true(read_msg.payload.val.f > 230.0f);
 
-    datahub_router_destroy(&router);
+    datahub_router_destroy(router);
     uv_loop_close(&loop);
 }
 
@@ -134,8 +136,9 @@ static void test_dual_track_graceful_degradation_without_dds(void **state) {
     config.shm_config.ring_slots = 64;
     config.shm_config.shadow_capacity = 2048;
 
-    datahub_router_t router;
-    assert_int_equal(datahub_router_init(&router, &loop, &config, NULL, 0, NULL, NULL, NULL), 0);
+    datahub_router_storage_t router_storage;
+    datahub_router_t *router = (datahub_router_t *)&router_storage;
+    assert_int_equal(datahub_router_init(router, &loop, &config, NULL, 0, NULL, NULL, NULL), 0);
 
     // 验证：即使 DDS 禁用，本地业务逻辑仍然 100% 正常运行，不阻塞、不中断
     pipe_msg_t msg = {
@@ -144,14 +147,14 @@ static void test_dual_track_graceful_degradation_without_dds(void **state) {
         .ts = 2000000ULL,
         .payload.val.f = 50.01f,
     };
-    assert_int_equal(datahub_router_publish(&router, &msg), 0);
-    assert_int_equal(datahub_router_write_shadow(&router, &msg), 0);
+    assert_int_equal(datahub_router_publish(router, &msg), 0);
+    assert_int_equal(datahub_router_write_shadow(router, &msg), 0);
 
     pipe_msg_t out_msg;
-    assert_int_equal(datahub_router_read_shadow(&router, 1003, &out_msg), 0);
+    assert_int_equal(datahub_router_read_shadow(router, 1003, &out_msg), 0);
     assert_true(out_msg.payload.val.f > 50.0f);
 
-    datahub_router_destroy(&router);
+    datahub_router_destroy(router);
     uv_loop_close(&loop);
 }
 

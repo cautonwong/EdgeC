@@ -1,6 +1,9 @@
 #ifndef EDGE_DATAHUB_ROUTER_H
 #define EDGE_DATAHUB_ROUTER_H
 
+#include <stdalign.h>
+#include <stddef.h>
+
 #include "datahub.h"
 
 #ifdef __cplusplus
@@ -26,15 +29,9 @@ typedef struct {
 
 typedef struct datahub_router_s datahub_router_t;
 
-struct datahub_router_s {
-    datahub_t shm_hub;
-    datahub_t dds_hub;
-    datahub_t mqtt_hub;
-    bool shm_active;
-    bool dds_active;
-    bool mqtt_active;
-    datahub_router_policy_t write_policy;
-};
+typedef struct {
+    alignas(max_align_t) uint8_t raw[3 * sizeof(datahub_t) + 64];
+} datahub_router_storage_t;
 
 /**
  * @brief Initialize Three-Backend Concurrent DataHub Router
@@ -67,6 +64,10 @@ void datahub_router_destroy(datahub_router_t *router);
 /**
  * @brief [Composite Backend] 复合多后端路由 VTable 实例
  */
+datahub_router_policy_t datahub_router_get_policy(const datahub_router_t *router);
+bool datahub_router_shm_active(const datahub_router_t *router);
+bool datahub_router_dds_active(const datahub_router_t *router);
+
 extern const datahub_ops_t g_datahub_router_ops;
 
 #ifdef __cplusplus
