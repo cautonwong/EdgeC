@@ -79,7 +79,7 @@ static void test_app_lifecycle_and_boot_restore(void **state) {
     sqlite_svc_t *db = sqlite_svc_create(loop, &cfg);
     assert_non_null(db);
 
-    edge_app_mgr_t *mgr = edge_app_mgr_create(loop, NULL, db, NULL);
+    edge_app_mgr_t *mgr = edge_app_mgr_create(loop, db, NULL);
     assert_non_null(mgr);
 
     // Install App
@@ -167,7 +167,7 @@ static void test_app_mgr_custom_repo(void **state) {
                             .delete_app = _mock_delete_app,
                             .list_apps = _mock_list_apps};
 
-    edge_app_mgr_t *mgr = edge_app_mgr_create_with_repo(loop, NULL, &repo, NULL);
+    edge_app_mgr_t *mgr = edge_app_mgr_create_with_repo(loop, &repo, NULL);
     assert_non_null(mgr);
 
     app_manifest_t m = {0};

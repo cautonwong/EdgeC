@@ -15,6 +15,7 @@ COMPONENTS = {
     "edge_stream": {"datahub.h", "datahub_router.h"},
     "edge_protocol": {"datahub.h", "datahub_router.h"},
     "edge_algo": {"datahub.h", "datahub_router.h"},
+    "edge_mgmt": {"datahub.h", "datahub_router.h"},
 }
 
 SYSTEM_HEADERS = {"autoconf.h", "wasm_export.h"}

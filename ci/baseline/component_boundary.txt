@@ -9,3 +9,6 @@ edge_protocol|ROOT
 edge_protocol|edge_core
 edge_algo|edge_core
 edge_algo|edge_infra
+edge_mgmt|edge_core
+edge_mgmt|edge_infra
+edge_mgmt|ROOT

@@ -51,7 +51,7 @@ static void test_rest_apps_api_endpoints(void **state) {
     sqlite_svc_t *db = sqlite_svc_create(loop, &cfg);
     assert_non_null(db);
 
-    edge_app_mgr_t *app_mgr = edge_app_mgr_create(loop, NULL, db, NULL);
+    edge_app_mgr_t *app_mgr = edge_app_mgr_create(loop, db, NULL);
     assert_non_null(app_mgr);
 
     datahub_t *hub = calloc(1, sizeof(datahub_t));
