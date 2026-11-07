@@ -448,6 +448,17 @@ static void _on_task_close(uv_handle_t* handle) {
     free(task);
 }
 
+static pipeline_loader_ctx_t _iems_loader_ctx(iems_app_t* app) {
+    pipeline_loader_ctx_t ctx = {
+        .db = stream_sqlite_port_from_sqlite(app->db_service),
+        .control_ops = {.ctx = app, .submit_control = _iems_stream_submit_control},
+        .audit_secret = getenv("VPP_AUDIT_SECRET"),
+        .production = _iems_production_env(),
+        .params = NULL
+    };
+    return ctx;
+}
+
 iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     if (!loop) return NULL;
 
@@ -528,13 +539,7 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
 
     app->stream_eng =
         stream_engine_create_datahub(app->hub, NULL, app->orch, edge_stage_factory_get_registry());
-    pipeline_loader_ctx_t loader_ctx = {
-        .db = stream_sqlite_port_from_sqlite(app->db_service),
-        .control_ops = {.ctx = app, .submit_control = _iems_stream_submit_control},
-        .audit_secret = getenv("VPP_AUDIT_SECRET"),
-        .production = _iems_production_env(),
-        .params = NULL
-    };
+    pipeline_loader_ctx_t loader_ctx = _iems_loader_ctx(app);
     uint32_t pipeline_count = 0;
     const edge_pipeline_def_t* pipelines = iems_get_pipelines(&pipeline_count);
     stream_engine_load_static_metadata(app->stream_eng, pipelines, (int)pipeline_count, &loader_ctx);

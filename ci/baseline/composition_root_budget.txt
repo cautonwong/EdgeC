@@ -1,9 +1,9 @@
 # Shrink-only composition root line ledger.
 # Format: <path>|<lines>
-# 2026-11-07: iems_app.c 745 -> 746; +1 include for the stream sqlite adapter port.
+# 2026-11-07: iems_app.c 746 -> 758; loader ctx helper extracted to keep iems_app_assemble under the SRP limit.
 cmd/dcu/main.c|544
 cmd/edge_mcp_server/main.c|172
-cmd/iems/iems_app.c|746
+cmd/iems/iems_app.c|758
 cmd/iems/main.c|99
 cmd/nexus_lab/main.c|156
 cmd/smart_box/main.c|637
