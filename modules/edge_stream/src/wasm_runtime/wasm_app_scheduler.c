@@ -9,6 +9,7 @@
 typedef struct {
     char name[64];
     wasm_app_t *app;
+    void *app_mem;
     bool active;
     bool in_use;
     uint32_t period_ms;
@@ -106,6 +107,8 @@ void wasm_scheduler_destroy(wasm_scheduler_t *sched) {
         if (curr->in_use && curr->app) {
             wasm_app_destroy(curr->app);
             curr->app = NULL;
+            free(curr->app_mem);
+            curr->app_mem = NULL;
         }
         curr->in_use = false;
         curr->active = false;
@@ -188,8 +191,13 @@ int wasm_scheduler_load_app_ex(wasm_scheduler_t *sched, const char *name, const 
     }
 
     // Create WASM container
-    wasm_app_t *wasm_app = wasm_app_create(wasm_path, heap_size, stack_size, timeout_ms);
+    size_t app_size = wasm_app_storage_size();
+    void *app_mem = malloc(app_size);
+    wasm_app_t *wasm_app =
+        app_mem ? wasm_app_create_in(app_mem, app_size, wasm_path, heap_size, stack_size, timeout_ms)
+                : NULL;
     if (!wasm_app) {
+        free(app_mem);
         LOG_ERROR(LOG_CAT_CORE, "WASM Scheduler: Failed to create app '%s' from path '%s'", name, wasm_path);
         uv_mutex_unlock(&sched->lock);
         return -1;
@@ -199,6 +207,7 @@ int wasm_scheduler_load_app_ex(wasm_scheduler_t *sched, const char *name, const 
     memset(slot, 0, sizeof(*slot));
     strncpy(slot->name, name, sizeof(slot->name) - 1);
     slot->app = wasm_app;
+    slot->app_mem = app_mem;
     slot->active = true;
     slot->in_use = true;
     slot->period_ms = period_ms > 0 ? period_ms : sched->tick_period_ms;
@@ -248,6 +257,8 @@ int wasm_scheduler_unload_app(wasm_scheduler_t *sched, const char *name) {
             if (curr->app) {
                 wasm_app_destroy(curr->app);
                 curr->app = NULL;
+                free(curr->app_mem);
+                curr->app_mem = NULL;
             }
             curr->in_use = false;
             curr->active = false;
@@ -282,8 +293,14 @@ int wasm_scheduler_reload_app(wasm_scheduler_t *sched, const char *name, const c
     }
 
     // Create new WASM container first to ensure it's valid before discarding the old one
-    wasm_app_t *new_wasm_app = wasm_app_create(wasm_path, heap_size, stack_size, timeout_ms);
+    size_t app_size = wasm_app_storage_size();
+    void *new_app_mem = malloc(app_size);
+    wasm_app_t *new_wasm_app =
+        new_app_mem ? wasm_app_create_in(new_app_mem, app_size, wasm_path, heap_size, stack_size,
+                                         timeout_ms)
+                    : NULL;
     if (!new_wasm_app) {
+        free(new_app_mem);
         LOG_ERROR(LOG_CAT_CORE, "WASM Scheduler: Failed to create new app container for reload of '%s'", name);
         uv_mutex_unlock(&sched->lock);
         return -1;
@@ -292,9 +309,11 @@ int wasm_scheduler_reload_app(wasm_scheduler_t *sched, const char *name, const c
     // Destroy old container
     if (curr->app) {
         wasm_app_destroy(curr->app);
+        free(curr->app_mem);
     }
-    
+
     curr->app = new_wasm_app;
+    curr->app_mem = new_app_mem;
     curr->active = true;
 
     LOG_INFO(LOG_CAT_CORE, "WASM Scheduler: App '%s' hot-reloaded successfully", name);

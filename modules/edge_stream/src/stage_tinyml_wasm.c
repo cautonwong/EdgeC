@@ -18,6 +18,7 @@
 typedef struct {
     char entry_func[64];
     wasm_app_t *app;
+    void *app_mem;
     float window[MAX_TINYML_WINDOW];
     size_t window_size;
     size_t cursor;
@@ -95,6 +96,8 @@ static void tinyml_stage_cleanup(void *ptr) {
         }
         wasm_app_destroy(ctx->app);
         ctx->app = NULL;
+        free(ctx->app_mem);
+        ctx->app_mem = NULL;
     }
 }
 
@@ -119,8 +122,15 @@ pipeline_stage_t *stage_tinyml_wasm_create(const edge_stage_def_t *def, pipeline
     ctx->output_tag = (uint32_t)def->params.u1;
 
     // 创建安全容器 (128KB 堆，用于 TFLite)
-    ctx->app = wasm_app_create(def->params.s1, 128 * 1024, 64 * 1024, 200);
+    size_t app_size = wasm_app_storage_size();
+    ctx->app_mem = malloc(app_size);
+    ctx->app = ctx->app_mem
+                   ? wasm_app_create_in(ctx->app_mem, app_size, def->params.s1, 128 * 1024,
+                                        64 * 1024, 200)
+                   : NULL;
     if (!ctx->app) {
+        free(ctx->app_mem);
+        ctx->app_mem = NULL;
         return NULL;
     }
 

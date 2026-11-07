@@ -22,6 +22,7 @@ typedef struct {
     datahub_t hub;
     uv_loop_t *loop;
     wasm_app_t *app;
+    void *app_mem;
 } test_wasm_abi_fixture_t;
 
 static int setup_wasm_abi(void **state) {
@@ -37,7 +38,9 @@ static int setup_wasm_abi(void **state) {
     wasm_mgr_init(&wasm_bus);
 
     const char *wasm_path = "../../algo/wasm/demo/demo.wasm";
-    fix->app = wasm_app_create(wasm_path, 32768, 65536, 100);
+    size_t app_size = wasm_app_storage_size();
+    fix->app_mem = malloc(app_size);
+    fix->app = wasm_app_create_in(fix->app_mem, app_size, wasm_path, 32768, 65536, 100);
     assert_non_null(fix->app);
 
     *state = fix;
@@ -49,6 +52,7 @@ static int teardown_wasm_abi(void **state) {
     if (fix) {
         if (fix->app) {
             wasm_app_destroy(fix->app);
+            free(fix->app_mem);
             fix->app = NULL;
         }
         wasm_mgr_cleanup();

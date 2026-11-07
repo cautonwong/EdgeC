@@ -18,6 +18,8 @@
 #define DEFAULT_PUBKEY_PATH "keys/edgec_signing_public.pem"
 
 static stream_bus_port_t g_bus;
+static wasm_app_t *g_compat_app;
+static void *g_compat_mem;
 static bool g_wasm_inited = false;
 
 // --- Host Exports (ABI) ---
@@ -165,6 +167,12 @@ int wasm_mgr_init(const stream_bus_port_t *bus) {
 }
 
 void wasm_mgr_cleanup(void) {
+    if (g_compat_app) {
+        wasm_app_destroy(g_compat_app);
+        g_compat_app = NULL;
+    }
+    free(g_compat_mem);
+    g_compat_mem = NULL;
     if (g_wasm_inited) {
         wasm_runtime_destroy();
         g_wasm_inited = false;
@@ -177,9 +185,17 @@ void wasm_mgr_cleanup(void) {
  * @param pubkey_path  public key PEM path (only used when verify_path is non-NULL)
  * @param require_verify  if true, fail when sig/pubkey files are missing
  */
-static wasm_app_t *wasm_app_create_internal(const char *wasm_path, uint32_t heap_size,
+size_t wasm_app_storage_size(void) {
+    return sizeof(wasm_app_t);
+}
+
+static wasm_app_t *wasm_app_create_internal(void *storage, size_t storage_size,
+                                            const char *wasm_path, uint32_t heap_size,
                                             uint32_t stack_size, uint32_t timeout_ms,
                                             const char *pubkey_path, bool require_verify) {
+    if (!storage || storage_size < sizeof(wasm_app_t)) return NULL;
+    wasm_app_t *app = storage;
+    memset(app, 0, sizeof(*app));
     uint32_t wasm_size;
     uint8_t *buf = (uint8_t *)read_file_to_buffer(wasm_path, &wasm_size);
     if (!buf) return NULL;
@@ -204,7 +220,6 @@ static wasm_app_t *wasm_app_create_internal(const char *wasm_path, uint32_t heap
         }
     }
 
-    wasm_app_t *app = calloc(1, sizeof(wasm_app_t));
     app->wasm_buf = buf;
     app->heap_size = heap_size;
     app->stack_size = stack_size > 0 ? stack_size : 64 * 1024;
@@ -214,29 +229,30 @@ static wasm_app_t *wasm_app_create_internal(const char *wasm_path, uint32_t heap
     app->module = wasm_runtime_load(buf, wasm_size, error_buf, sizeof(error_buf));
     if (!app->module) {
         LOG_ERROR(LOG_CAT_CORE, "WASM Load Failed: %s", error_buf);
-        free(buf); free(app); return NULL;
+        free(buf); return NULL;
     }
 
     app->inst = wasm_runtime_instantiate(app->module, app->stack_size, app->heap_size, error_buf, sizeof(error_buf));
     if (!app->inst) {
         LOG_ERROR(LOG_CAT_CORE, "WASM Instantiate Failed: %s", error_buf);
-        wasm_runtime_unload(app->module); free(buf); free(app); return NULL;
+        wasm_runtime_unload(app->module); free(buf); return NULL;
     }
 
     return app;
 }
 
-wasm_app_t *wasm_app_create(const char *wasm_path, uint32_t heap_size, uint32_t stack_size, uint32_t timeout_ms) {
-    return wasm_app_create_internal(wasm_path, heap_size, stack_size, timeout_ms,
-                                    DEFAULT_PUBKEY_PATH, false);
+wasm_app_t *wasm_app_create_in(void *storage, size_t storage_size, const char *wasm_path,
+                               uint32_t heap_size, uint32_t stack_size, uint32_t timeout_ms) {
+    return wasm_app_create_internal(storage, storage_size, wasm_path, heap_size, stack_size,
+                                    timeout_ms, DEFAULT_PUBKEY_PATH, false);
 }
 
-wasm_app_t *wasm_app_create_verify(const char *wasm_path, uint32_t heap_size,
-                                   uint32_t stack_size, uint32_t timeout_ms,
-                                   const char *pubkey_path) {
+wasm_app_t *wasm_app_create_verify_in(void *storage, size_t storage_size, const char *wasm_path,
+                                      uint32_t heap_size, uint32_t stack_size, uint32_t timeout_ms,
+                                      const char *pubkey_path) {
     if (!pubkey_path) return NULL;
-    return wasm_app_create_internal(wasm_path, heap_size, stack_size, timeout_ms,
-                                    pubkey_path, true);
+    return wasm_app_create_internal(storage, storage_size, wasm_path, heap_size, stack_size,
+                                    timeout_ms, pubkey_path, true);
 }
 
 typedef struct {
@@ -343,12 +359,16 @@ void wasm_app_destroy(wasm_app_t *app) {
     if (app->inst) wasm_runtime_deinstantiate(app->inst);
     if (app->module) wasm_runtime_unload(app->module);
     if (app->wasm_buf) free(app->wasm_buf);
-    free(app);
 }
 
 // 兼容旧接口 (使用单例模拟)
-static wasm_app_t *g_compat_app = NULL;
 int wasm_mgr_exec(const char *path, const char *func_name, pipe_msg_t *msg) {
-    if (!g_compat_app) g_compat_app = wasm_app_create(path, 0, 0, 100);
+    if (!g_compat_app) {
+        size_t app_size = wasm_app_storage_size();
+        g_compat_mem = malloc(app_size);
+        g_compat_app = g_compat_mem
+                           ? wasm_app_create_in(g_compat_mem, app_size, path, 0, 0, 100)
+                           : NULL;
+    }
     return wasm_app_exec(g_compat_app, func_name, msg);
 }

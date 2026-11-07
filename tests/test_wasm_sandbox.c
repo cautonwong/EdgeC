@@ -25,7 +25,9 @@ static void test_wasm_sandbox_divide_by_zero(void** state) {
 
     // 2. Load the division-by-zero app
     const char* wasm_path = "../../tests/virus_divzero.wasm";
-    wasm_app_t* app = wasm_app_create(wasm_path, 8192, 8192, 100);
+    size_t app_size = wasm_app_storage_size();
+    void *app_mem = malloc(app_size);
+    wasm_app_t* app = wasm_app_create_in(app_mem, app_size, wasm_path, 8192, 8192, 100);
     assert_non_null(app);
 
     // 3. Execute the function and verify it returns -1 (trap caught) without crashing the host
@@ -36,6 +38,7 @@ static void test_wasm_sandbox_divide_by_zero(void** state) {
 
     // 4. Cleanup
     wasm_app_destroy(app);
+    free(app_mem);
     wasm_mgr_cleanup();
     datahub_destroy(&hub);
     while (uv_run(loop, UV_RUN_NOWAIT))
@@ -55,7 +58,9 @@ static void test_wasm_sandbox_infinite_loop_timeout(void** state) {
 
     // 2. Load the infinite-loop app with 50ms timeout
     const char* wasm_path = "../../tests/virus_loop.wasm";
-    wasm_app_t* app = wasm_app_create(wasm_path, 8192, 8192, 50);
+    size_t app_size = wasm_app_storage_size();
+    void *app_mem = malloc(app_size);
+    wasm_app_t* app = wasm_app_create_in(app_mem, app_size, wasm_path, 8192, 8192, 50);
     assert_non_null(app);
 
     // 3. Measure execution duration
@@ -74,6 +79,7 @@ static void test_wasm_sandbox_infinite_loop_timeout(void** state) {
 
     // 5. Cleanup
     wasm_app_destroy(app);
+    free(app_mem);
     wasm_mgr_cleanup();
     datahub_destroy(&hub);
     while (uv_run(loop, UV_RUN_NOWAIT))

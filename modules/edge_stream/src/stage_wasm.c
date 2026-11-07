@@ -15,6 +15,7 @@
 typedef struct {
     char entry_func[64];
     wasm_app_t *app;
+    void *app_mem;
 } wasm_stage_ctx_t;
 
 static stage_ret_t wasm_stage_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
@@ -31,6 +32,7 @@ static stage_ret_t wasm_stage_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
 static void wasm_stage_cleanup(void *ptr) {
     wasm_stage_ctx_t *ctx = (wasm_stage_ctx_t *)ptr;
     if (ctx->app) wasm_app_destroy(ctx->app);
+    free(ctx->app_mem);
     free(ctx);
 }
 
@@ -54,8 +56,13 @@ pipeline_stage_t *stage_wasm_create_v2(const edge_stage_def_t *def, pipeline_loa
     uint32_t stack = (uint32_t)def->params.f2;
     uint32_t timeout = (uint32_t)def->params.f3;
 
-    ctx->app = wasm_app_create(def->params.s1, heap, stack, timeout);
+    size_t app_size = wasm_app_storage_size();
+    ctx->app_mem = malloc(app_size);
+    ctx->app = ctx->app_mem
+                   ? wasm_app_create_in(ctx->app_mem, app_size, def->params.s1, heap, stack, timeout)
+                   : NULL;
     if (!ctx->app) {
+        free(ctx->app_mem);
         free(ctx); free(s); return NULL;
     }
 
