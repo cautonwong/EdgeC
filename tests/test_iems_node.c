@@ -17,6 +17,7 @@
 
 typedef struct {
     uv_loop_t loop;
+    iems_node_storage_t storage;
     iems_node_t *node;
 } test_fixture_t;
 
@@ -37,7 +38,7 @@ static int setup_node(void **state) {
         .demand_limit_kw = 500.0,
     };
 
-    fix->node = iems_node_create(&fix->loop, &cfg);
+    fix->node = iems_node_create_in(&fix->storage, &fix->loop, &cfg);
     assert_non_null(fix->node);
 
     int rc = iems_node_start(fix->node);

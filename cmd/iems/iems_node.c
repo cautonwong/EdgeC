@@ -34,12 +34,19 @@ struct iems_node_s {
     bool running;
 };
 
-iems_node_t *iems_node_create(uv_loop_t *loop, const iems_node_config_t *cfg) {
-    if (!loop || !cfg) return NULL;
+size_t iems_node_storage_size(const iems_node_config_t *cfg) {
+    return cfg ? sizeof(iems_node_storage_t) : 0;
+}
 
-    iems_node_t *node = (iems_node_t *)calloc(1, sizeof(iems_node_t));
-    if (!node) return NULL;
+_Static_assert(sizeof(struct iems_node_s) <= sizeof(iems_node_storage_t),
+               "iems_node_s exceeds iems_node_storage_t");
 
+iems_node_t *iems_node_create_in(iems_node_storage_t *storage, uv_loop_t *loop,
+                                 const iems_node_config_t *cfg) {
+    if (!storage || !loop || !cfg) return NULL;
+
+    iems_node_t *node = (iems_node_t *)storage->raw;
+    memset(node, 0, sizeof(*node));
     node->loop = loop;
     node->cfg = *cfg;
     if (!node->cfg.product_name) node->cfg.product_name = "IEMS";
@@ -65,7 +72,6 @@ iems_node_t *iems_node_create(uv_loop_t *loop, const iems_node_config_t *cfg) {
     node->comp_root = edge_composition_root_create_in(&node->comp_storage, &comp_cfg);
     if (!node->comp_root) {
         LOG_ERROR(LOG_CAT_CORE, "IEMS Node: Failed to instantiate Composition Root");
-        free(node);
         return NULL;
     }
     node->hub = edge_composition_root_get_datahub(node->comp_root);
@@ -102,7 +108,6 @@ void iems_node_destroy(iems_node_t *node) {
         node->comp_root = NULL;
         node->hub = NULL;
     }
-    free(node);
 }
 
 int iems_node_start(iems_node_t *node) {

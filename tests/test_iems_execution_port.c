@@ -38,7 +38,8 @@ static void test_write_goes_through_injected_port(void **state) {
         .shm_name = shm_name,
         .datahub_capacity = 128,
     };
-    iems_node_t *node = iems_node_create(&loop, &cfg);
+    iems_node_storage_t storage;
+    iems_node_t *node = iems_node_create_in(&storage, &loop, &cfg);
     assert_non_null(node);
 
     fake_exec_t exec = {0};

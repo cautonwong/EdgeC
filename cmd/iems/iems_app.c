@@ -76,6 +76,7 @@ typedef struct {
 struct iems_app_s {
     uv_loop_t* loop;
     iems_node_t* node;
+    iems_node_storage_t node_storage;
     service_t* svc;
     datahub_t* hub;
     arbiter_t* arb;
@@ -613,7 +614,7 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
         .transformer_capacity_kva = 630.0,
         .demand_limit_kw = 500.0
     };
-    app->node = iems_node_create(loop, &node_cfg);
+    app->node = iems_node_create_in(&app->node_storage, loop, &node_cfg);
     if (!app->node) {
         LOG_ERROR(LOG_CAT_CORE, "IEMS Assembler: Failed to create iems_node aggregate root");
         free(app);

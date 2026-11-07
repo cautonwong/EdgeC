@@ -6,7 +6,9 @@
 #ifndef IEMS_NODE_H
 #define IEMS_NODE_H
 
+#include <stdalign.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <uv.h>
 
@@ -37,7 +39,14 @@ typedef struct {
 /**
  * @brief 创建并组装 IEMS 聚合根
  */
-iems_node_t *iems_node_create(uv_loop_t *loop, const iems_node_config_t *cfg);
+typedef struct {
+    alignas(max_align_t) uint8_t raw[16384];
+} iems_node_storage_t;
+
+size_t iems_node_storage_size(const iems_node_config_t *cfg);
+
+iems_node_t *iems_node_create_in(iems_node_storage_t *storage, uv_loop_t *loop,
+                                 const iems_node_config_t *cfg);
 
 /**
  * @brief 销毁 IEMS 聚合根并释放所有资源
