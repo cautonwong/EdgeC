@@ -1,9 +1,9 @@
 # Shrink-only composition root line ledger.
 # Format: <path>|<lines>
-# 2026-11-07: cmd/dcu/main.c grew for caller-provided node storage; main stays under the SRP limit via _create_dcu_node.
+# 2026-11-07: iems_app.c 891 -> 745; north adapter moved to iems_north_adapter.c.
 cmd/dcu/main.c|544
 cmd/edge_mcp_server/main.c|172
-cmd/iems/iems_app.c|891
+cmd/iems/iems_app.c|745
 cmd/iems/main.c|99
 cmd/nexus_lab/main.c|156
 cmd/smart_box/main.c|637

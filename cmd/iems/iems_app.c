@@ -29,6 +29,7 @@
 #include "edge_service.h"
 #include "iems_driver_adapter.h"
 #include "iems_execution_adapter.h"
+#include "iems_north_adapter.h"
 #include "adc_datahub_adapter.h"
 #include "adc_driver.h"
 #include "stream_bus_datahub_adapter.h"
@@ -86,6 +87,7 @@ struct iems_app_s {
     driver_manager_t* drv_mgr;
     stream_engine_t* stream_eng;
     northbound_mgr_t* north;
+    iems_north_ctx_t north_adapter;
     sqlite_svc_t* db_service;
     char* db_path;
 
@@ -108,159 +110,6 @@ struct iems_app_s {
 };
 
 volatile bool g_adc_running = false;
-
-/* [ADR-002 S3-0] 北向从站面：主站读寄存器时，值从本地镜像取。
- *
- * 驱动不再自己 read_shadow；它只解请求，值由这里经端口给。
- * point_id = MODBUS_NATIVE(addr, 1)，用 addr 反查点位表拿到 tag 与量纲。 */
-/* =============================================================================
- * 北向取数端口（ADR-0011 族 A / N2-4）
- *
- * 族 A 往云端推，需要两样东西：当前值 + metric 名。两者都由产品给——
- * 驱动不认识 IEMS 的点位模型，也不该去反查 datahub 元数据。
- * ========================================================================== */
-static int _iems_nb_peek(void* ctx, uint32_t tag_id, pipe_msg_t* out) {
-    iems_app_t* app = (iems_app_t*)ctx;
-    if (!app || !app->hub || !out) return -1;
-    return datahub_read_shadow(app->hub, tag_id, out);
-}
-
-static const char* _iems_nb_name(void* ctx, uint32_t tag_id) {
-    (void)ctx;
-    const edge_tag_meta_t* meta = iems_get_tag_meta(tag_id);
-    return meta ? meta->name : NULL;
-}
-
-/** metric 名 → tag_id（下行要用：云端只给名字）。 */
-static int _iems_nb_resolve_name(void* ctx, const char* name, uint32_t* tag_id) {
-    (void)ctx;
-    if (!name || !tag_id) return -1;
-    for (size_t i = 0; i < g_tag_metadata_len; i++) {
-        if (g_tag_metadata[i].name && strcmp(g_tag_metadata[i].name, name) == 0) {
-            *tag_id = (uint32_t)g_tag_metadata[i].id;
-            return 0;
-        }
-    }
-    return -1;
-}
-
-/**
- * @brief 收一条北向下行报文。
- *
- * 解析通、**执行未接**：IEMS 的下行是"调度功率 / 充放电指令"这类动作，
- * 必须经 `iems_node` 聚合根（SOC 包络、防逆流闭锁都在那里），
- * 不能直接写影子表。哪些名字对应哪个聚合根方法属于产品决策，
- * 这里先明确拒绝，把"该填什么"写在日志里。
- */
-/* 前置声明：本函数在 _iems_stream_submit_control 定义之前用到它。
- * 不加这行，C 会先按非 static 隐式声明，随后 static 定义就报"follows non-static"。 */
-static int _iems_stream_submit_control(void* ctx, int bus_id, uint32_t tag_id, double value,
-                                       const char* proto);
-
-static int _iems_nb_on_downlink(void* ctx, const char* address, const uint8_t* payload,
-                                size_t len) {
-    iems_app_t* app = (iems_app_t*)ctx;
-    if (!app || !app->north) return -1;
-
-    char name[64];
-    double value = 0.0;
-    if (mqtt_json_decode_downlink(payload, len, name, sizeof(name), &value) != 0) {
-        LOG_WARN(LOG_CAT_NB, "IEMS downlink on '%s': 不是 {p,v} 帧", address);
-        (void)northbound_mgr_publish_ack(app->north, 0, NULL, false);
-        return -1;
-    }
-
-    /* 名字 → 点位：云端只认名字，标识是产品的事（有界上下文，ADR-0010） */
-    uint32_t tag_id = 0;
-    if (_iems_nb_resolve_name(app, name, &tag_id) != 0) {
-        LOG_WARN(LOG_CAT_NB, "IEMS downlink on '%s': 点位 '%s' 不在点位表里，拒绝", address,
-                 name);
-        (void)northbound_mgr_publish_ack(app->north, 0, name, false);
-        return -1;
-    }
-
-    /* 走控制端口而不是直接写影子表：PCS 功率设定要过 SOC 包络与防逆流闭锁
-     * （iems_node_dispatch_power），绕过去就是拿储能设备冒险（架构原则 3）。 */
-    int rc = _iems_stream_submit_control(app, 0, tag_id, value, "ModbusRTU");
-    (void)northbound_mgr_publish_ack(app->north, tag_id, name, rc == 0);
-
-    if (rc == 0) {
-        LOG_INFO(LOG_CAT_NB, "IEMS downlink on '%s': %s(tag %u) = %.6g 已下发南向", address,
-                 name, tag_id, value);
-    } else {
-        LOG_WARN(LOG_CAT_NB, "IEMS downlink on '%s': %s(tag %u) = %.6g 被拒绝（rc=%d）", address,
-                 name, tag_id, value, rc);
-    }
-    return rc;
-}
-
-/**
- * @brief 北向从站收到主站写寄存器：折成工程值，经控制端口下到南向总线。
- *
- * 这是"平台 → 北向 → 南向 → 设备"闭环的中间那一段。没有它，主站写下来只会拿到
- * 一个回显（Modbus 0x06 的应答就是回显），设备侧什么都没发生 —— 而那正是
- * "假成功"：主站以为写进去了，现场没动。
- *
- * 分层纪律（架构原则 3）：**不许**直接写影子表，那会绕过 SOC 包络与防逆流闭锁。
- * 走 `_iems_stream_submit_control`：它内部对 PCS 功率设定调 `iems_node_dispatch_power`
- * 做领域校验，再 `edge_api_write_tag` 下发到物理总线。
- */
-static int _iems_north_accept(void* ctx, uint32_t point_id, double value) {
-    iems_app_t* app = (iems_app_t*)ctx;
-    if (!app || !app->node) return -1;
-
-    uint16_t addr = MODBUS_NATIVE_ADDR(point_id);
-    const modbus_map_t* map = edge_get_map_modbus(addr);
-    if (!map) {
-        LOG_WARN(LOG_CAT_NB, "IEMS north write: 寄存器 %u 没有点位映射，拒绝",
-                 (unsigned)addr);
-        return -1;
-    }
-
-    /* 与 _iems_north_resolve 同一套换算，方向相反：resolve 是 eng/scaler，这里是 raw*scaler */
-    double sc = (map->scaler > 0.0) ? (double)map->scaler : 1.0;
-    double eng = value * sc;
-
-    int rc = _iems_stream_submit_control(app, 0, map->tag_id, eng, "ModbusRTU");
-    LOG_INFO(LOG_CAT_NB, "IEMS north write: addr=%u tag=%u raw=%.0f eng=%.6g -> southbound rc=%d",
-             (unsigned)addr, map->tag_id, value, eng, rc);
-    return rc;
-}
-
-static const edge_north_source_ops_t* _iems_nb_ops(void) {
-    static const edge_north_source_ops_t ops = {
-        .peek = _iems_nb_peek,
-        .name = _iems_nb_name,
-        .resolve_name = _iems_nb_resolve_name,
-        .accept = NULL, /* 见 _iems_nb_on_downlink：执行路径待产品定映射 */
-        .on_downlink = _iems_nb_on_downlink,
-    };
-    return &ops;
-}
-
-static int _iems_north_resolve(void* ctx, uint32_t point_id, const void* point_desc,
-                               size_t point_desc_len, edge_point_value_t* out) {    (void)point_desc;
-    (void)point_desc_len;
-    iems_app_t* app = (iems_app_t*)ctx;
-    if (!app || !app->hub || !out) return -1;
-
-    uint16_t addr = MODBUS_NATIVE_ADDR(point_id);
-    const modbus_map_t* map = edge_get_map_modbus(addr);
-    if (!map) return -1;
-
-    pipe_msg_t msg;
-    if (datahub_read_shadow(app->hub, map->tag_id, &msg) != 0) return -1;
-
-    double eng = msg.payload.val.f;
-    double sc = (map->scaler > 0.0) ? (double)map->scaler : 1.0;
-    /* RTU 约定：工程值 = raw × scaler。**必须四舍五入**：231.7/0.1 在 double 里是
-     * 2316.9999…，直接截断得 2316，主站看到 231.6 —— 差 1 个 LSB，肉眼像噪声，
-     * 实际是每次都少一格。 */
-    out->raw = (int32_t)lround(eng / sc);
-    out->width = 1;
-    out->value = eng;
-    return 0;
-}
 
 static void on_poll_complete(int status, const pipe_msg_t* result, void* user_data) {
     // user_data 是聚合根(比 arbiter 活得久),不是 poll task —— 关停时 task 会先被释放。
@@ -621,6 +470,10 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
         return NULL;
     }
     app->hub = iems_node_get_datahub(app->node);
+    app->north_adapter.node = app->node;
+    app->north_adapter.hub = app->hub;
+    app->north_adapter.submit_control = _iems_stream_submit_control;
+    app->north_adapter.submit_ctx = app;
     iems_node_set_execution_port(app->node, iems_execution_port_create(app));
 
     // =========================================================================
@@ -654,9 +507,8 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
         } else if (strcmp(conn->category, "NORTHBOUND") == 0) {
             bus_orchestrator_setup_slave(app->orch, conn->id, "ModbusRTU", 1);
             /* 从站应答的"当前值"由产品给：驱动不认识点位模型 */
-            static const edge_slave_source_ops_t s_north_src = {
-                .resolve = _iems_north_resolve, .accept = _iems_north_accept};
-            bus_orchestrator_set_slave_source(app->orch, conn->id, &s_north_src, app);
+            bus_orchestrator_set_slave_source(app->orch, conn->id, iems_north_slave_ops(),
+                                              &app->north_adapter);
         }
     }
 
@@ -692,7 +544,9 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     nb_source_ops_t nb_source = northbound_source_from_datahub(app->hub);
     northbound_mgr_init_ex(app->north, nb_source, "IEMS_V4", app->db_service, transport);
     /* 北向取数端口：metric 名与当前值由产品给，驱动不反查 datahub。 */
-    northbound_mgr_set_north_source(app->north, _iems_nb_ops(), app);
+    app->north_adapter.north = app->north;
+    northbound_mgr_set_north_source(app->north, iems_north_source_ops(),
+                                    &app->north_adapter);
     /* 协议可由部署选（E2E 用 MqttJson：载荷是 JSON，平台侧能解；
      * 现场默认仍是 Sparkplug B）。换协议时地址模板跟着换。 */
     const char* nb_proto = getenv("MQTT_PROTOCOL");
