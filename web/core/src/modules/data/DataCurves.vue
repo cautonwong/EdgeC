@@ -148,6 +148,7 @@ import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import * as echarts from 'echarts/core';
 import { LineChart } from 'echarts/charts';
 import { DataZoomComponent, GridComponent, TooltipComponent } from 'echarts/components';
+import { LegacyGridContainLabel } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
 import type { EChartsOption, SeriesOption } from 'echarts';
 import { request } from '../../sdk/http';
@@ -155,7 +156,7 @@ import { useTelemetryPoints } from '../../app/composables/useTelemetryPoints';
 import { resolvedTheme } from '../../app/composables/useTheme';
 import { chartChrome, chartPalette, withAlpha } from '../../ui/chartTheme';
 
-echarts.use([LineChart, GridComponent, TooltipComponent, DataZoomComponent, CanvasRenderer]);
+echarts.use([LineChart, GridComponent, TooltipComponent, DataZoomComponent, CanvasRenderer, LegacyGridContainLabel]);
 
 // 数据面已从契约点位迁到遥测快照：这里只需要"有哪些点位"和"某个点位的最新值"。
 const { points: telemetryPoints } = useTelemetryPoints();

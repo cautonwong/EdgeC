@@ -70,6 +70,7 @@ import { ref, computed, onBeforeUnmount, watch } from 'vue';
 import * as echarts from 'echarts/core';
 import { LineChart } from 'echarts/charts';
 import { DataZoomComponent, GridComponent, TooltipComponent } from 'echarts/components';
+import { LegacyGridContainLabel } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
 import type { EChartsOption } from 'echarts';
 import { request } from '../../sdk/http';
@@ -77,7 +78,7 @@ import { useTelemetryPoints } from '../../app/composables/useTelemetryPoints';
 import { resolvedTheme } from '../../app/composables/useTheme';
 import { chartChrome, chartPalette, withAlpha } from '../../ui/chartTheme';
 
-echarts.use([LineChart, GridComponent, TooltipComponent, DataZoomComponent, CanvasRenderer]);
+echarts.use([LineChart, GridComponent, TooltipComponent, DataZoomComponent, CanvasRenderer, LegacyGridContainLabel]);
 
 // 点位来自遥测快照，历史序列来自 /api/v1/telemetry/history —— 不再经过契约点位。
 const { points: telemetryPoints } = useTelemetryPoints();

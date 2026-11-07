@@ -65,9 +65,9 @@
       <!-- 最大中继跳数 -->
       <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col justify-between">
         <div class="text-slate-500 text-xs font-bold">最大中继跳数</div>
-        <div class="text-2xl lg:text-3xl font-black text-blue-400 my-1">{{ topologyStats.max跳 }} <span class="text-xs font-normal text-slate-500">跳</span></div>
+        <div class="text-2xl lg:text-3xl font-black text-blue-400 my-1">{{ topologyStats.maxHops }} <span class="text-xs font-normal text-slate-500">跳</span></div>
         <div class="text-xs text-slate-400">
-          CCO Level: 0 · Mesh Depth: {{ topologyStats.max跳 + 1 }}
+          CCO Level: 0 · Mesh Depth: {{ topologyStats.maxHops + 1 }}
         </div>
       </div>
 
@@ -1071,7 +1071,7 @@ const topologyStats = computed(() => {
   const avgSnr = snrList.reduce((acc, s) => acc + s, 0) / (total || 1);
   const minSnr = Math.min(...snrList);
   const maxSnr = Math.max(...snrList);
-  const max跳 = Math.max(...nodes.value.map(n => n.hops));
+  const maxHops = Math.max(...nodes.value.map(n => n.hops));
   const avgLoss = nodes.value.reduce((acc, n) => acc + n.lossRatePct, 0) / (total || 1);
   const totalRetries = nodes.value.reduce((acc, n) => acc + n.retries, 0);
   const crosstalk = 14.8;
@@ -1083,7 +1083,7 @@ const topologyStats = computed(() => {
     avgSnrDb: avgSnr,
     minSnrDb: minSnr,
     maxSnrDb: maxSnr,
-    max跳,
+    maxHops,
     avgLossPct: avgLoss,
     totalRetries,
     crosstalkLevelDb: crosstalk

@@ -36,7 +36,7 @@ static void test_log_stream_terminal_component_structure(void **state) {
     read_file_content("web/core/src/modules/logs/LogStreamTerminal.vue", content, sizeof(content));
 
     // Headers & High-Frequency Stream Metrics
-    assert_non_null(strstr(content, "LOG STREAM CONSOLE"));
+    assert_non_null(strstr(content, "系统日志"));
     assert_non_null(strstr(content, "streamRateLps"));
     assert_non_null(strstr(content, "maxBufferLines"));
     assert_non_null(strstr(content, "toggleStreaming"));

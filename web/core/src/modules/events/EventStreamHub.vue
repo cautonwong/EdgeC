@@ -56,7 +56,7 @@
         <!-- 级别 Filter -->
         <div class="flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
           <span class="text-slate-500">级别：</span>
-          <select v-model="filter级别" class="bg-transparent text-slate-200 focus:outline-none cursor-pointer font-bold">
+          <select v-model="filterSeverity" class="bg-transparent text-slate-200 focus:outline-none cursor-pointer font-bold">
             <option value="ALL">全部级别</option>
             <option value="CRITICAL">CRITICAL（严重告警/跳闸）</option>
             <option value="WARNING">WARNING（越限预警）</option>
@@ -158,10 +158,10 @@
                 <span 
                   :class="[
                     'px-2.5 py-1 rounded-lg text-xs font-black border inline-flex items-center gap-1.5',
-                    get级别BadgeClass(evt.severity)
+                    getSeverityBadgeClass(evt.severity)
                   ]"
                 >
-                  <span class="w-1.5 h-1.5 rounded-full" :class="get级别DotClass(evt.severity)"></span>
+                  <span class="w-1.5 h-1.5 rounded-full" :class="getSeverityDotClass(evt.severity)"></span>
                   {{ evt.severity }}
                 </span>
               </td>
@@ -267,7 +267,7 @@
           </div>
           <div class="flex justify-between border-b border-slate-800/60 pb-1.5">
             <span class="text-slate-500">级别 Level:</span>
-            <span :class="get级别TextClass(selectedEvent.severity)" class="font-bold">{{ selectedEvent.severity }}</span>
+            <span :class="getSeverityTextClass(selectedEvent.severity)" class="font-bold">{{ selectedEvent.severity }}</span>
           </div>
           <div class="flex justify-between border-b border-slate-800/60 pb-1.5">
             <span class="text-slate-500">触发值：</span>
@@ -323,7 +323,7 @@ export interface SOEEvent {
 const isStreaming = ref(true);
 const streamRateEps = ref(124);
 const filterDomain = ref('ALL');
-const filter级别 = ref('ALL');
+const filterSeverity = ref('ALL');
 const filterAck = ref('ALL');
 const searchQuery = ref('');
 const selectedEvent = ref<SOEEvent | null>(null);
@@ -443,7 +443,7 @@ const unackedCount = computed(() => events.value.filter(e => !e.acknowledged).le
 const filteredEvents = computed(() => {
   return events.value.filter(evt => {
     if (filterDomain.value !== 'ALL' && evt.domain !== filterDomain.value) return false;
-    if (filter级别.value !== 'ALL' && evt.severity !== filter级别.value) return false;
+    if (filterSeverity.value !== 'ALL' && evt.severity !== filterSeverity.value) return false;
     if (filterAck.value === 'UNACK' && evt.acknowledged) return false;
     if (filterAck.value === 'ACKED' && !evt.acknowledged) return false;
     if (searchQuery.value.trim() !== '') {
@@ -455,7 +455,7 @@ const filteredEvents = computed(() => {
   });
 });
 
-function get级别BadgeClass(sev: string): string {
+function getSeverityBadgeClass(sev: string): string {
   switch (sev) {
     case 'CRITICAL':
       return 'bg-rose-500/10 border-rose-500/30 text-rose-400';
@@ -468,7 +468,7 @@ function get级别BadgeClass(sev: string): string {
   }
 }
 
-function get级别DotClass(sev: string): string {
+function getSeverityDotClass(sev: string): string {
   switch (sev) {
     case 'CRITICAL': return 'bg-rose-500';
     case 'WARNING': return 'bg-amber-400';
@@ -477,7 +477,7 @@ function get级别DotClass(sev: string): string {
   }
 }
 
-function get级别TextClass(sev: string): string {
+function getSeverityTextClass(sev: string): string {
   switch (sev) {
     case 'CRITICAL': return 'text-rose-400';
     case 'WARNING': return 'text-amber-400';

@@ -39,7 +39,7 @@
         <!-- 规约 Filter -->
         <div class="flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
           <span class="text-slate-500">规约：</span>
-          <select v-model="filter规约" class="bg-transparent text-slate-200 focus:outline-none cursor-pointer">
+          <select v-model="filterProtocol" class="bg-transparent text-slate-200 focus:outline-none cursor-pointer">
             <option value="ALL">全部规约</option>
             <option value="698">DL/T 698.45-2017 (A-XDR)</option>
             <option value="645">DL/T 645-2007 (HEX)</option>
@@ -49,7 +49,7 @@
         <!-- 方向ection Filter -->
         <div class="flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
           <span class="text-slate-500">方向：</span>
-          <select v-model="filter方向ection" class="bg-transparent text-slate-200 focus:outline-none cursor-pointer">
+          <select v-model="filterDirection" class="bg-transparent text-slate-200 focus:outline-none cursor-pointer">
             <option value="ALL">全部方向</option>
             <option value="TX">TX (主叫请求)</option>
             <option value="RX">RX (从站响应)</option>
@@ -229,8 +229,8 @@ interface Packet {
 }
 
 const isCapturing = ref(true);
-const filter规约 = ref('ALL');
-const filter方向ection = ref('ALL');
+const filterProtocol = ref('ALL');
+const filterDirection = ref('ALL');
 const searchAddress = ref('');
 const selectedPacket = ref<Packet | null>(null);
 let streamTimer: any = null;
@@ -310,8 +310,8 @@ const count645 = computed(() => packets.value.filter(p => p.protocol === '645').
 
 const filteredPackets = computed(() => {
   return packets.value.filter(p => {
-    if (filter规约.value !== 'ALL' && p.protocol !== filter规约.value) return false;
-    if (filter方向ection.value !== 'ALL' && p.direction !== filter方向ection.value) return false;
+    if (filterProtocol.value !== 'ALL' && p.protocol !== filterProtocol.value) return false;
+    if (filterDirection.value !== 'ALL' && p.direction !== filterDirection.value) return false;
     if (searchAddress.value && !p.address.includes(searchAddress.value)) return false;
     return true;
   });

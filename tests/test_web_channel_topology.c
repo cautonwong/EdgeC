@@ -38,8 +38,8 @@ static void test_channel_topology_component_structure(void **state) {
                       sizeof(content));
 
     // Headers & Navigation
-    assert_non_null(strstr(content, "TOPOLOGY & SNR HEATMAP"));
-    assert_non_null(strstr(content, "HPLC & Dual-Mode Physical Mesh Topology"));
+    assert_non_null(strstr(content, "通道拓扑"));
+    assert_non_null(strstr(content, "HPLC 双模物理拓扑"));
     assert_non_null(strstr(content, "viewModes"));
     assert_non_null(strstr(content, "activeViewMode"));
 
@@ -52,8 +52,8 @@ static void test_channel_topology_component_structure(void **state) {
     assert_non_null(strstr(content, "crosstalkLevelDb"));
 
     // Multi-View Modes
-    assert_non_null(strstr(content, "PHYSICAL MESH TOPOLOGY MAP"));
-    assert_non_null(strstr(content, "16-OFDM SUB-BAND SNR HEATMAP MATRIX"));
+    assert_non_null(strstr(content, "物理网格拓扑图"));
+    assert_non_null(strstr(content, "16-OFDM 子带信噪比热力矩阵"));
     assert_non_null(strstr(content, "PHASE CROSSTALK LEAKAGE MATRIX"));
     assert_non_null(strstr(content, "INVERTER PWM NOISE BURSTS"));
     assert_non_null(strstr(content, "PHYSICAL CHANNEL TELEMETRY ROSTER"));
