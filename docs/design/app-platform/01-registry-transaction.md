@@ -12,13 +12,15 @@
 
 **单一写者。** 只有 `app-manager` 进程写注册表。它持有 SQLite 的 `BEGIN IMMEDIATE`，同一时刻只处理一个事务。并发安装请求排队，超时返回 `busy`，不做并行合并。
 
-**读者不碰 SQLite。** 每次提交后，`app-manager` 生成一份不可变快照文件 `/run/edgeos/registry/gen-<N>.json`，先写临时文件，`fsync`，再 `rename` 成最终名，最后更新指针 `/run/edgeos/registry/current`（内容是一个数字，同样原子 rename）。
+**数据库是持久事实源，快照是缓存。** 每次提交后，`app-manager` 生成一份不可变快照文件 `/run/edgeos/registry/gen-<N>.json`，先写临时文件，`fsync`，再 `rename` 成最终名，最后更新指针 `/run/edgeos/registry/current`（内容是一个数字，同样原子 rename）。`/run` 下的文件可以丢失，重启后从数据库重建，重建完成前不对外提供旧代。
 
 - DataHub、北向、UI、告警、调度各自读 `current` 指向的快照，只读，不加锁。
 - 读者缓存必须按 generation 标记。generation 变化即失效。
 - 快照是不可变的，读者不需要担心读到半份数据。
 
-这样把"跨组件一致"降成了"一个文件指针的原子替换"。SQLite 事务只保证注册表自身，快照发布保证读者看到的是同一代。
+原子 rename 只保证**单个读者**读到完整的一代，不保证所有读者在同一时刻切换。每个消费者必须在状态里报告自己当前的 generation，装配层据此判断是否收敛；收敛前不得对外宣称安装或升级完成。
+
+SQLite 使用 ADR-0007 规定的 `synchronous=NORMAL`。WAL 模式下掉电可能丢失最近的已提交事务，但数据库本身一致。因此本文件不承诺"已确认提交必保留"，只承诺"恢复后不是完整的提交前状态，就是完整的提交后状态，不会出现混代"。若业务要求更强的耐久性，必须单独提交 ADR，不得在应用平台文档里默认提高同步级别。
 
 ## 3. 数据模型
 
@@ -68,8 +70,10 @@ txn_step
 
 grant
   app_id        TEXT
+  app_version   TEXT            -- 授权绑定版本，升级不继承
+  package_digest TEXT           -- 签名包摘要，防止同版本号换包
   capability    TEXT
-  scope         TEXT            -- JSON，点位或主题范围
+  scope         TEXT            -- JSON，由产品 ACL 解析，不含全局 TagID
   granted_by    TEXT
   granted_at    INTEGER
   expires_at    INTEGER
@@ -101,14 +105,16 @@ staged ──commit──> active ──uninstall/upgrade──> retired
 
 | 步 | 做什么 | 事务边界 | 失败后 |
 | --- | --- | --- | --- |
-| 1 validate | 验签、schema、sdk、能力、配额、冲突 | 无写入 | 什么都没发生 |
+| 1 validate | 验签、schema、abi/sdk、能力、配额、冲突 | 无写入 | 什么都没发生 |
 | 2 stage | 写 `app_version(staged)` 与 `contribution(staged)` | 单个 SQLite 事务 | 整步回滚，删除该 txn 的 staged 行 |
-| 3 commit | 把该 txn 的 staged 行改 `active`，写 `app_version(committed)`，generation+1，写 txn_step(commit) | 单个 SQLite 事务 | SQLite 回滚；staged 行留待启动清理 |
-| 4 publish | 生成快照 `gen-N.json`，原子替换 current | 文件系统原子 rename | 重试；失败不改变注册表，读者仍看旧代 |
-| 5 activate | 启动运行时，健康检查 | 不在事务内 | 转 `rollback_pending`，走补偿 |
+| 3 commit | 把该 txn 的 staged 行改 `active`，写 `app_version(committed)`，generation+1，切换 `active_version` | 单个 SQLite 事务 | SQLite 回滚；staged 行留待启动清理 |
+| 4 activate | 启动运行时，健康检查 | 不在事务内 | 转 `rollback_pending`，走补偿 |
+| 5 publish | 生成快照 `gen-N.json`，原子替换 current | 文件系统原子 rename | 重试；失败不改变注册表，读者仍看旧代 |
 | 6 finalize | `app.state=active`，txn done | 单个 SQLite 事务 | 重启后由对账修复 |
 
-第 3 步和第 5 步之间**不可能原子**。运行时启动是外部动作，数据库管不到。所以这里必须是 saga，不能宣称两阶段提交。文档和评审口径都要这么写。
+**激活可见性的选择。** 本基线采用"激活成功后才发布该代快照"：读者在应用健康之前看不到它的贡献。这样避免"页面已出现但应用启动失败"的中间态。代价是安装完成时间延后到激活之后。该选择是 P0 要验证的假设之一，若实测发现需要先发布再激活，必须同时定义失败时的可见性回退，不能只改顺序。
+
+第 3 步和第 4 步之间**不可能原子**。运行时启动是外部动作，数据库管不到。所以这里必须是 saga，不能宣称两阶段提交。文档和评审口径都要这么写。
 
 ## 6. 中断点与恢复矩阵
 
@@ -118,19 +124,20 @@ staged ──commit──> active ──uninstall/upgrade──> retired
 | 步骤 2 中 | SQLite 回滚，无 staged 行 | 无 | 未安装 |
 | 步骤 2 后、3 前 | 有 `staged` 行，txn open | 启动扫描：删除超过 60 秒的 staged 行，txn 标 aborted | 未安装 |
 | 步骤 3 中 | SQLite 回滚 | 同上一行 | 未安装 |
-| 步骤 3 后、4 前 | 注册表已 active，快照仍是旧代 | 启动扫描：generation 比 current 大则重新发布快照 | 应用已装，读者短暂看旧数据 |
-| 步骤 4 后、5 前 | 注册表与快照都是新代，运行时未起 | 启动对账：`app.state=installed` 且有 active 贡献，则尝试启动 | 安装完成，启动稍晚 |
-| 步骤 5 中 | `activating` | 启动对账：重试启动一次，失败转 `rollback_pending` | 失败则回到上一版本或未安装 |
-| 步骤 6 前 | 运行时已健康，`activating` | 启动对账：补写 `active` | 正常 |
-| 补偿中 | `compensating` | 重放补偿步骤，幂等 | 最终成为 retired |
+| 步骤 3 后、4 前 | 数据库已提交新代，快照仍是旧代 | 启动对账：`state=committed` 的版本重试激活一次 | 读者看不到新应用 |
+| 步骤 4 中 | `activating`，快照仍是旧代 | 启动对账：重试激活一次，失败转补偿 | 读者看不到新应用 |
+| 步骤 4 后、5 前 | 运行时已在跑，快照仍是旧代 | 启动对账：确认运行时健康后发布快照 | 应用可用，页面稍晚出现 |
+| 步骤 5 后、6 前 | 快照已是新代，`state=committed` | 启动对账：补写 `active` | 正常 |
+| 步骤 6 后 | 全部完成 | 无 | 正常 |
+| 补偿中 | `compensating` | 重放补偿步骤，幂等，推进新 generation 并重新发布 | 最终成为 retired |
 
-启动对账是唯一允许"猜"的地方，规则固定：`activating` 一律重试一次；仍失败则补偿；`compensating` 一律重放；`open` 且超过 TTL 一律 abort。
+启动对账是唯一允许"猜"的地方，规则固定：`committed` 或 `activating` 一律重试一次；仍失败则补偿；`compensating` 一律重放；`open` 且超过 TTL 一律 abort。恢复后允许丢失最近的提交（ADR-0007 的 `synchronous=NORMAL`），但不允许出现混代。
 
 ## 7. 补偿不是回滚代次
 
-补偿只做一件事：把新版本的贡献标 `retired`，把 `app.active_version` 指回上一版本（如果有），然后推进 generation。
+补偿只做一件事：把新版本的贡献标 `retired`，把 `app.active_version` 指回上一版本（如果有），推进 generation，并发布这一代的新快照。
 
-不做的三件事：不删除行、不回退 generation、不撤销已经发布的快照。读者可能已经基于新代做了一次读取，回退代次会让读者状态倒退，比多一次前向提交更难推理。
+不做的三件事：不删除行、不回退 generation、不删除已经发布的旧快照文件。读者可能已经基于新代做过一次读取，回退代次会让读者状态倒退，比多一次前向提交更难推理。
 
 ## 8. 升级与回滚
 
@@ -138,8 +145,8 @@ staged ──commit──> active ──uninstall/upgrade──> retired
 
 1. 新版本以新的 `app_version` 行写入，贡献以新 `app_version` 暂存。
 2. 提交时 `active_version` 指向新版本，generation+1。
-3. 激活健康检查通过后，旧版本行标 `retired`，但保留一个版本用于回滚。
-4. 旧版本的 grant 不被自动继承。新版本必须重新列出能力，管理员批准沿用旧决定时也要写一条新记录，注明 `inherited_from`。
+3. 激活健康检查通过后发布快照，旧版本行标 `retired`，但保留一个版本用于回滚。
+4. 旧版本的 grant 不被自动继承。grant 绑定 `app_version` 与包摘要，新版本必须重新列出能力；管理员批准沿用旧决定时也要写一条新记录，注明 `inherited_from`。
 
 回滚：
 
@@ -158,9 +165,9 @@ staged ──commit──> active ──uninstall/upgrade──> retired
 3. 贡献标 `retired`，保留行。
 4. `app.state=uninstalled`，包目录在宽限期后删除。
 
-点位不删除。DataHub 保留 tombstone 元数据，`lifecycle=retired`。历史曲线仍能解析点位名，北向停止上送，写入一律拒绝。UI 路由从快照中消失。
+点位不删除，但保留位置取决于 P0 选定的落地路径：由产品 ACL 承载时，产品侧历史存储保留解析映射；由 DataHub 扩展承载时，DataHub 保留 tombstone 元数据，`lifecycle=retired`。两种情况下历史曲线都能解析点位名，北向停止上送，写入一律拒绝，UI 路由从快照中消失。
 
-删点位会让历史查询出现空洞，所以明确不删。
+删映射会让历史查询出现空洞，所以明确不删。
 
 ## 10. 并发
 
@@ -175,14 +182,16 @@ staged ──commit──> active ──uninstall/upgrade──> retired
 
 1. 步骤 2 注入失败，注册表无任何残留。
 2. 步骤 3 注入失败，无 active 贡献，无新 generation。
-3. 步骤 3 后 kill -9，重启后快照重新发布，读者看到新代。
-4. 步骤 5 注入启动失败，应用回到 `rollback_pending`，补偿后旧版本仍可用。
+3. 步骤 3 后 kill -9，重启后从数据库重建快照，读者看到完整的一代。
+4. 步骤 4 注入启动失败，应用回到 `rollback_pending`，补偿后旧版本仍可用，且新代从未对读者可见。
 5. 补偿执行到一半 kill -9，重启后重放完成，结果一致。
 6. 升级后回滚，贡献集合与回滚前逐条相等。
 7. 卸载后历史查询仍能解析点位名，写点位被拒绝。
 8. 两个并发安装同一应用，一个成功，一个得到 `already_installed`。
-9. 快照文件在写入一半时断电，current 仍指向旧代，新文件启动时被清理。
-10. 启动对账在 12 种中断点组合上各跑一次，最终状态与预期一致。
+9. 快照文件在写入一半时断电，current 仍指向旧代，新文件启动时被清理，并从数据库重建。
+10. 启动对账在 10 个中断点组合上各跑一次，最终状态与预期一致，且不存在混代。
+11. 每个消费者暴露自己的 generation；在全部消费者收敛前，装配层不得报告安装完成。
+12. 删除 `/run/edgeos/registry` 后重启，快照与指针从数据库完整重建。
 
 ## 12. 未决
 
