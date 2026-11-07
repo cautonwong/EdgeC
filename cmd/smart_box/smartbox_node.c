@@ -26,12 +26,16 @@ struct smartbox_node_s {
     bool running;
 };
 
-smartbox_node_t *smartbox_node_create(uv_loop_t *loop, const smartbox_node_config_t *cfg) {
-    if (!loop || !cfg) return NULL;
+size_t smartbox_node_storage_size(const smartbox_node_config_t *cfg) {
+    return cfg ? sizeof(struct smartbox_node_s) : 0;
+}
 
-    smartbox_node_t *node = (smartbox_node_t *)calloc(1, sizeof(smartbox_node_t));
-    if (!node) return NULL;
+smartbox_node_t *smartbox_node_create_in(void *storage, size_t storage_size, uv_loop_t *loop,
+                                         const smartbox_node_config_t *cfg) {
+    if (!storage || storage_size < sizeof(struct smartbox_node_s) || !loop || !cfg) return NULL;
 
+    smartbox_node_t *node = (smartbox_node_t *)storage;
+    memset(node, 0, sizeof(*node));
     node->loop = loop;
     node->cfg = *cfg;
     if (!node->cfg.product_name) node->cfg.product_name = "smart_box";
@@ -55,7 +59,6 @@ smartbox_node_t *smartbox_node_create(uv_loop_t *loop, const smartbox_node_confi
     node->comp_root = edge_composition_root_create_in(&node->comp_storage, &comp_cfg);
     if (!node->comp_root) {
         LOG_ERROR(LOG_CAT_CORE, "SmartBox Node: Failed to instantiate Composition Root");
-        free(node);
         return NULL;
     }
     node->hub = edge_composition_root_get_datahub(node->comp_root);
@@ -79,7 +82,6 @@ void smartbox_node_destroy(smartbox_node_t *node) {
         node->comp_root = NULL;
         node->hub = NULL;
     }
-    free(node);
 }
 
 int smartbox_node_start(smartbox_node_t *node) {

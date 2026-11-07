@@ -32,7 +32,10 @@ typedef struct {
 /**
  * @brief 创建并组装 SmartBox 聚合根
  */
-smartbox_node_t *smartbox_node_create(uv_loop_t *loop, const smartbox_node_config_t *cfg);
+size_t smartbox_node_storage_size(const smartbox_node_config_t *cfg);
+
+smartbox_node_t *smartbox_node_create_in(void *storage, size_t storage_size, uv_loop_t *loop,
+                                         const smartbox_node_config_t *cfg);
 
 /**
  * @brief 销毁 SmartBox 聚合根并释放所有资源
