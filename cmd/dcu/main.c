@@ -40,6 +40,7 @@
 
 // --- Global Contexts ---
 static dcu_node_t* g_dcu_node = NULL;
+static void *g_dcu_node_mem = NULL;
 
 static service_t* g_running_svc = NULL;
 void* g_running_se = NULL;  // Exported for poller
@@ -328,6 +329,19 @@ static void _northbound_attach(datahub_t* hub) {
              getenv("MQTT_GROUP_ID"), node_id);
 }
 
+static int _create_dcu_node(uv_loop_t *loop, const dcu_node_config_t *cfg) {
+    size_t storage_size = dcu_node_storage_size(cfg);
+    g_dcu_node_mem = malloc(storage_size);
+    if (!g_dcu_node_mem) return -1;
+    g_dcu_node = dcu_node_create_in(g_dcu_node_mem, storage_size, loop, cfg);
+    if (!g_dcu_node) {
+        free(g_dcu_node_mem);
+        g_dcu_node_mem = NULL;
+        return -1;
+    }
+    return 0;
+}
+
 int main(int argc, char** argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
     (void)argc;
@@ -370,8 +384,7 @@ int main(int argc, char** argv) {
                                   .datahub_capacity = 32768,
                                   .poll_interval_ms = 5000,
                                   .source_ops = src_ops};
-    g_dcu_node = dcu_node_create(loop, &node_cfg);
-    if (!g_dcu_node) {
+    if (_create_dcu_node(loop, &node_cfg) != 0) {
         LOG_ERROR(LOG_CAT_SCHED, "❌ FATAL: Failed to initialize DCU node.");
         return -1;
     }
@@ -381,6 +394,10 @@ int main(int argc, char** argv) {
         LOG_ERROR(LOG_CAT_SCHED, "❌ FATAL: Failed to load meters (Count: %d).",
                   inv ? inv->count : 0);
         dcu_node_destroy(g_dcu_node);
+
+        free(g_dcu_node_mem);
+
+        g_dcu_node_mem = NULL;
         return -2;
     }
     LOG_INFO(LOG_CAT_SCHED, "📖 [ARCHIVE] Loaded %d meters from Digital Twin database.", inv->count);
@@ -397,6 +414,10 @@ int main(int argc, char** argv) {
         if (!bus_source) {
             LOG_ERROR(LOG_CAT_SCHED, "❌ FATAL: bus source alloc failed");
             dcu_node_destroy(g_dcu_node);
+
+            free(g_dcu_node_mem);
+
+            g_dcu_node_mem = NULL;
             return -1;
         }
         dcu_node_set_source_ops(g_dcu_node, dcu_bus_source_ops(bus_source));
@@ -513,6 +534,10 @@ int main(int argc, char** argv) {
     dcu_bus_source_stop(bus_source); // 先停源再拆聚合根：源持有 hub/inv 指针
     bus_source = NULL;
     dcu_node_destroy(g_dcu_node);
+
+    free(g_dcu_node_mem);
+
+    g_dcu_node_mem = NULL;
     northbound_mgr_destroy(&g_north);
     mqtt_producer_destroy(&g_nb_transport);
     return ret;

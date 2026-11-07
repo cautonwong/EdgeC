@@ -45,7 +45,9 @@ static void test_dcu_node_lifecycle(void **state) {
                              .datahub_capacity = 1024,
                              .poll_interval_ms = 100};
 
-    dcu_node_t *node = dcu_node_create(loop, &cfg);
+    size_t node_storage_size = dcu_node_storage_size(&cfg);
+    void *node_mem = malloc(node_storage_size);
+    dcu_node_t *node = dcu_node_create_in(node_mem, node_storage_size, loop, &cfg);
     assert_non_null(node);
 
     assert_non_null(dcu_node_get_inventory(node));
@@ -68,6 +70,8 @@ static void test_dcu_node_lifecycle(void **state) {
 
     /* Clean destruction */
     dcu_node_destroy(node);
+
+    free(node_mem);
     unlink(db_path);
 }
 
@@ -94,7 +98,9 @@ static void test_dcu_node_domain_methods_and_events(void **state) {
                              .datahub_capacity = 1024,
                              .poll_interval_ms = 100};
 
-    dcu_node_t *node = dcu_node_create(loop, &cfg);
+    size_t node_storage_size = dcu_node_storage_size(&cfg);
+    void *node_mem = malloc(node_storage_size);
+    dcu_node_t *node = dcu_node_create_in(node_mem, node_storage_size, loop, &cfg);
     assert_non_null(node);
 
     /* 1. 注册档案电表 */
@@ -147,6 +153,9 @@ static void test_dcu_node_domain_methods_and_events(void **state) {
     assert_int_equal(ev_ctx.event_count, 3);
 
     dcu_node_destroy(node);
+
+
+    free(node_mem);
     unlink(db_path);
 }
 
@@ -171,7 +180,9 @@ static void test_dcu_node_set_source_ops_is_used(void **state) {
                              .db_path = db_path,
                              .datahub_capacity = 1024,
                              .poll_interval_ms = 100};
-    dcu_node_t *node = dcu_node_create(loop, &cfg);
+    size_t node_storage_size = dcu_node_storage_size(&cfg);
+    void *node_mem = malloc(node_storage_size);
+    dcu_node_t *node = dcu_node_create_in(node_mem, node_storage_size, loop, &cfg);
     assert_non_null(node);
 
     dcu_inventory_add(dcu_node_get_inventory(node), "SRC_0001", "dlt698", 9600, 1);
@@ -186,6 +197,8 @@ static void test_dcu_node_set_source_ops_is_used(void **state) {
 
     assert_int_equal(dcu_node_stop(node), 0);
     dcu_node_destroy(node);
+
+    free(node_mem);
     unlink(db_path);
 }
 

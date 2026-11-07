@@ -1,7 +1,7 @@
 # Shrink-only composition root line ledger.
 # Format: <path>|<lines>
-# 2026-11-07: iems_app.c 890 -> 891; caller-allocated node storage replaces internal calloc.
-cmd/dcu/main.c|519
+# 2026-11-07: cmd/dcu/main.c grew for caller-provided node storage; main stays under the SRP limit via _create_dcu_node.
+cmd/dcu/main.c|544
 cmd/edge_mcp_server/main.c|172
 cmd/iems/iems_app.c|891
 cmd/iems/main.c|99
