@@ -27,3 +27,12 @@ modules/edge_core/src/datahub.c        # #413
 modules/edge_core/include/contract_data_types.h    # #415 ADR-002
 modules/edge_core/include/contract_registry.h      # #415 ADR-002
 modules/edge_core/src/contract_registry.c          # #415 ADR-002
+
+# PR #506 - datahub_router 不透明化（组件化重构，调用方分配存储）。
+#
+# 结构体移入 src/datahub_router_priv.h；公开头不再暴露 datahub_router_s。
+# publish/read/destroy 的签名不变；新增策略/后端状态访问器。
+# 影响面：公开 ABI 去掉结构体布局，测试改用 datahub_router_storage_t。
+modules/edge_core/include/datahub_router.h      # PR #506 component refactor
+modules/edge_core/src/datahub_router.c          # PR #506 component refactor
+modules/edge_core/src/datahub_router_priv.h     # PR #506 component refactor
