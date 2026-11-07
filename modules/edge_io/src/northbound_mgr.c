@@ -610,11 +610,8 @@ int northbound_mgr_init_ex(northbound_mgr_t* mgr, nb_source_ops_t source, const 
     snprintf(mgr->address_template, sizeof(mgr->address_template), "%s",
              NB_DEFAULT_ADDRESS_TEMPLATE);
 
-    /* 节点身份缺省取环境变量：台架并发跑两台设备时不能撞主题。 */
-    const char* g = getenv("MQTT_GROUP_ID");
-    const char* n = getenv("MQTT_NODE_ID");
-    snprintf(mgr->group_id, sizeof(mgr->group_id), "%s", g ? g : "");
-    snprintf(mgr->node_id, sizeof(mgr->node_id), "%s", n ? n : "");
+    /* 节点身份由产品通过 northbound_mgr_set_address() 显式给：
+     * 组合根读一次 env，这里不再猜。 */
 
     uv__queue_init(&mgr->req_queue);
     uv_mutex_init(&mgr->req_lock);
@@ -640,6 +637,23 @@ int northbound_mgr_add_transport(northbound_mgr_t* mgr, nb_transport_ops_t trans
     return 0;
 }
 
+/* 主题层级只允许可安全拼进 `spBv1.0/<group>/NDATA/<node>` 的字符集：
+ * 含 '/' '+' '#' 或空格的值会让主题被拆层或变成通配，一律拒绝并告警。 */
+static void _set_topic_level(char *dst, size_t dst_size, const char *value, const char *what) {
+    if (!value || !value[0]) return;
+    for (const char *p = value; *p; p++) {
+        char c = *p;
+        bool legal = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                     (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.';
+        if (!legal) {
+            LOG_WARN(LOG_CAT_NB, "Northbound: illegal %s '%s' ignored (topic would break)", what,
+                     value);
+            return;
+        }
+    }
+    snprintf(dst, dst_size, "%s", value);
+}
+
 void northbound_mgr_set_address(northbound_mgr_t* mgr, const char* address_template,
                                 const char* group_id, const char* node_id) {
     if (!mgr) return;
@@ -648,12 +662,8 @@ void northbound_mgr_set_address(northbound_mgr_t* mgr, const char* address_templ
         snprintf(mgr->address_template, sizeof(mgr->address_template), "%s", address_template);
         mgr->address_explicit = true; /* 显式配过就不再被协议缺省覆盖 */
     }
-    if (group_id && group_id[0]) {
-        snprintf(mgr->group_id, sizeof(mgr->group_id), "%s", group_id);
-    }
-    if (node_id && node_id[0]) {
-        snprintf(mgr->node_id, sizeof(mgr->node_id), "%s", node_id);
-    }
+    _set_topic_level(mgr->group_id, sizeof(mgr->group_id), group_id, "group id");
+    _set_topic_level(mgr->node_id, sizeof(mgr->node_id), node_id, "node id");
 
     /* 渲染一次给人看：模板写错（拼错占位符）在这里就能发现，不用等主站说收不到。 */
     char sample[256];

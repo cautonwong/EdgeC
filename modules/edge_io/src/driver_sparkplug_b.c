@@ -14,7 +14,6 @@
  * - `spb_req_t`（`req_priv_size`）：请求 scratch，这一次要发的 metric
  */
 
-#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <MQTTAsync.h>
@@ -24,10 +23,8 @@
 #include "edge_log.h"
 #include "sparkplug_b.h"
 
-/** 设备级会话：主题身份与序号必须跨帧保留 */
+/** 设备级会话：序号必须跨帧保留 */
 typedef struct {
-    char group_id[64];
-    char edge_node_id[64];
     uint64_t seq;
     bool birth_sent;
 } spb_ctx_t;
@@ -97,53 +94,9 @@ static void _spb_encode_payload(spb_ctx_t *ctx, const char *name, double val, ui
     }
 }
 
-/* 主题层级只允许可安全拼进 `spBv1.0/<group>/NDATA/<node>` 的字符集：
- * 空值、含 '/' '+' '#' 或空格的值会让主题被拆层或变成通配，一律回落缺省并告警。 */
-static void _copy_topic_level(char *dst, size_t dst_size, const char *env, const char *fallback) {
-    const char *src = fallback;
-    if (env && env[0]) {
-        bool ok = true;
-        for (const char *p = env; *p; p++) {
-            char c = *p;
-            bool legal = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-                         (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.';
-            if (!legal) {
-                ok = false;
-                break;
-            }
-        }
-        if (ok) {
-            src = env;
-        } else {
-            LOG_WARN(LOG_CAT_NB, "Sparkplug: illegal topic level '%s', falling back to '%s'", env,
-                     fallback);
-        }
-    }
-    snprintf(dst, dst_size, "%s", src);
-}
-
 static int spb_on_init(edge_driver_ctx_t *ctx) {
     spb_ctx_t *priv = (spb_ctx_t *)ctx->priv;
     memset(priv, 0, sizeof(*priv));
-
-    // 主题身份走 env：同一台机器并发跑多个节点时，硬编码会让它们撞主题。
-    // 缺省值保持原样，未设置 env 的产品（iems）主题不变。
-    _copy_topic_level(priv->group_id, sizeof(priv->group_id), getenv("MQTT_GROUP_ID"),
-                      "EdgeOS_IEMS");
-    _copy_topic_level(priv->edge_node_id, sizeof(priv->edge_node_id), getenv("MQTT_NODE_ID"),
-                      "IEMS_Node_A");
-
-    LOG_INFO(LOG_CAT_NB, "Sparkplug B: Driver initialized for Node %s", priv->edge_node_id);
-    return 0;
-}
-
-/* 主题身份访问器：北向管理器用它拼 topic，不再 cast ctx->priv */
-int sparkplug_b_identity(const void *session, char *group, size_t group_sz, char *node,
-                         size_t node_sz) {
-    const spb_ctx_t *priv = (const spb_ctx_t *)session;
-    if (!priv || !group || !node || group_sz == 0 || node_sz == 0) return -1;
-    snprintf(group, group_sz, "%s", priv->group_id);
-    snprintf(node, node_sz, "%s", priv->edge_node_id);
     return 0;
 }
 

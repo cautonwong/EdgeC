@@ -94,6 +94,9 @@ void smartbox_north_attach(datahub_t *hub) {
     nb_transport_ops_t sb_transport = mqtt_producer_create(mqtt_url, sb_client_id);
     northbound_mgr_init_ex(&g_north, northbound_source_from_datahub(hub), "SmartBox", NULL,
                            sb_transport);
+    /* 主题身份在这里读一次 env 并交给北向管理器，深层模块不再自己 getenv。 */
+    northbound_mgr_set_address(&g_north, NULL, getenv("MQTT_GROUP_ID"),
+                               getenv("MQTT_NODE_ID"));
     northbound_mgr_set_north_source(&g_north, smartbox_north_source_ops(), hub);
     /* 协议可由部署选（E2E 用 MqttJson：载荷是 JSON，平台侧能解；
      * 现场默认仍是 Sparkplug B）。换协议时地址模板跟着换。 */

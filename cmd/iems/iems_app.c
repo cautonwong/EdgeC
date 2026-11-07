@@ -220,6 +220,9 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     nb_transport_ops_t transport = mqtt_producer_create(mqtt_url, "IEMS_EDGE_NODE");
     nb_source_ops_t nb_source = northbound_source_from_datahub(app->hub);
     northbound_mgr_init_ex(app->north, nb_source, "IEMS_V4", app->db_service, transport);
+    /* 主题身份在这里读一次 env 并交给北向管理器，深层模块不再自己 getenv。 */
+    northbound_mgr_set_address(app->north, NULL, getenv("MQTT_GROUP_ID"),
+                               getenv("MQTT_NODE_ID"));
     /* 北向取数端口：metric 名与当前值由产品给，驱动不反查 datahub。 */
     app->north_adapter.north = app->north;
     northbound_mgr_set_north_source(app->north, iems_north_source_ops(),

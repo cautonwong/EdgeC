@@ -153,12 +153,13 @@ static nb_transport_ops_t g_nb_transport;
  */
 void dcu_north_cloud_attach(datahub_t* hub) {
     // 北向：数据不发出去，采集等于没做。传输层由 edge_io 提供，组合根只负责装配。
-    // 主题身份走 env（`driver_sparkplug_b.c` 读取），MULTI-NODE 台架并发跑两台 DCU 不能撞主题。
+    // 主题身份在这里读一次 env 并交给北向管理器：MULTI-NODE 台架并发跑两台 DCU 不能撞主题。
     const char* mqtt_url = getenv("MQTT_BROKER");
     if (!mqtt_url || !*mqtt_url) mqtt_url = "tcp://127.0.0.1:1883";
-    if (!getenv("MQTT_GROUP_ID")) setenv("MQTT_GROUP_ID", "EdgeOS", 1);
-    if (!getenv("MQTT_NODE_ID")) setenv("MQTT_NODE_ID", "DCU_Node_A", 1);
+    const char* group_id = getenv("MQTT_GROUP_ID");
+    if (!group_id || !*group_id) group_id = "EdgeOS";
     const char* node_id = getenv("MQTT_NODE_ID");
+    if (!node_id || !*node_id) node_id = "DCU_Node_A";
     char mqtt_client_id[80];
     snprintf(mqtt_client_id, sizeof(mqtt_client_id), "%s_%d", node_id, (int)getpid());
     /* 数据源由工厂组：read_next + 事件唤醒。手拼容易漏掉 subscribe_notify，
@@ -166,6 +167,7 @@ void dcu_north_cloud_attach(datahub_t* hub) {
     nb_source_ops_t nb_source = northbound_source_from_datahub(hub);
     g_nb_transport = mqtt_producer_create(mqtt_url, mqtt_client_id);
     northbound_mgr_init_ex(&g_north, nb_source, "DCU", NULL, g_nb_transport);
+    northbound_mgr_set_address(&g_north, NULL, group_id, node_id);
     /* 北向取数端口：metric 名与当前值都由产品给，驱动不反查 datahub。
      * 不注入的话驱动只能把点位编成 tag_<数字>，主站看不出是什么量。 */
     northbound_mgr_set_north_source(&g_north, dcu_north_source_ops(), hub);
@@ -176,7 +178,7 @@ void dcu_north_cloud_attach(datahub_t* hub) {
         LOG_WARN(LOG_CAT_NB, "Northbound: unknown protocol '%s', keeping default", nb_proto);
     }
     LOG_INFO(LOG_CAT_NB, "🌐 Northbound assembled: broker=%s group=%s node=%s", mqtt_url,
-             getenv("MQTT_GROUP_ID"), node_id);
+             group_id, node_id);
 }
 
 

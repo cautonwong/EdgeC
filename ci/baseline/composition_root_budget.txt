@@ -5,11 +5,12 @@
 # 2026-11-07: cmd/iems/iems_app.c 758 -> 446; poll scheduler, southbound bus and internal ADC adapters extracted.
 # 2026-11-07: cmd/dcu/main.c 380 -> 213; RS485 channels, pipelines and heartbeat extracted.
 # 2026-11-07: cmd/iems/iems_app.c 446 -> 325; UI companion channel and north slave listener extracted.
-cmd/dcu/dcu_north_adapter.c|194
+# 2026-11-07: 北向主题身份改由组合根显式传入 (+2/+3): northbound_mgr 不再自己 getenv。
+cmd/dcu/dcu_north_adapter.c|196
 cmd/dcu/dcu_bus_adapter.c|43
 cmd/dcu/main.c|213
 cmd/edge_mcp_server/main.c|175
-cmd/iems/iems_app.c|325
+cmd/iems/iems_app.c|328
 cmd/iems/iems_north_listener.c|112
 cmd/iems/iems_southbound_adapter.c|133
 cmd/iems/main.c|99
