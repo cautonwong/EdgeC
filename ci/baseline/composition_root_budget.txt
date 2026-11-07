@@ -1,10 +1,11 @@
 # Shrink-only composition root line ledger.
 # Format: <path>|<lines>
 # 2026-11-07: cmd/dcu/main.c 544 -> 380; north adapter extracted. Wiring adapter listed separately.
+# 2026-11-07: cmd/smart_box/main.c 637 -> 88; hardware/NFC/Modbus/BLE/north adapters extracted.
 cmd/dcu/dcu_north_adapter.c|194
 cmd/dcu/main.c|380
 cmd/edge_mcp_server/main.c|175
 cmd/iems/iems_app.c|758
 cmd/iems/main.c|99
 cmd/nexus_lab/main.c|156
-cmd/smart_box/main.c|637
+cmd/smart_box/main.c|88
