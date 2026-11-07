@@ -13,7 +13,6 @@
 
 #include "edgeos/edge_mcp_dispatcher.h"
 #include "edgeos/edge_mcp_industry_tools.h"
-#include "datahub.h"
 #include "driver_manager.h"
 #include "edge_driver.h"
 #include "stream_engine.h"
@@ -49,9 +48,9 @@ static int handle_datahub_read_tags(edge_mcp_dispatcher_t *disp, const cJSON *pa
             cJSON *tag_obj = cJSON_CreateObject();
             cJSON_AddNumberToObject(tag_obj, "tag_id", tid);
 
-            if (disp->env.hub) {
+            if (disp->env.bus.read_shadow) {
                 pipe_msg_t msg = {0};
-                if (datahub_read_shadow(disp->env.hub, tid, &msg) == 0) {
+                if (edge_mcp_bus_read_shadow(&disp->env.bus, tid, &msg) == 0) {
                     cJSON_AddNumberToObject(tag_obj, "value", msg.payload.val.f);
                     cJSON_AddNumberToObject(tag_obj, "quality", msg.quality);
                     cJSON_AddNumberToObject(tag_obj, "timestamp", (double)msg.ts);
@@ -97,7 +96,7 @@ static int handle_datahub_write_tag(edge_mcp_dispatcher_t *disp, const cJSON *pa
     cJSON_AddNumberToObject(res, "tag_id", tid);
     cJSON_AddNumberToObject(res, "written_value", val);
 
-    if (disp->env.hub) {
+    if (disp->env.bus.write_shadow) {
         pipe_msg_t msg = {
             .tag_id = tid,
             .payload = { .val = { .f = val } },
@@ -105,7 +104,7 @@ static int handle_datahub_write_tag(edge_mcp_dispatcher_t *disp, const cJSON *pa
             .type = PIPEMSG_TYPE_SCALAR,
             .ts = (uint64_t)uv_hrtime() / 1000000ULL
         };
-        int rc = datahub_write_shadow(disp->env.hub, &msg);
+        int rc = edge_mcp_bus_write_shadow(&disp->env.bus, &msg);
         cJSON_AddBoolToObject(res, "success", (rc == 0));
         cJSON_AddNumberToObject(res, "code", rc);
     } else {
@@ -151,10 +150,10 @@ static int handle_datahub_scan_abnormal(edge_mcp_dispatcher_t *disp, const cJSON
     cJSON_AddItemToObject(res, "abnormal_tags", abnormal_list);
 
     int count = 0;
-    if (disp->env.hub) {
+    if (disp->env.bus.read_shadow) {
         for (uint32_t tid = 1; tid < 256; tid++) {
             pipe_msg_t msg = {0};
-            if (datahub_read_shadow(disp->env.hub, tid, &msg) == 0) {
+            if (edge_mcp_bus_read_shadow(&disp->env.bus, tid, &msg) == 0) {
                 if (msg.quality != 0) {
                     cJSON *item = cJSON_CreateObject();
                     cJSON_AddNumberToObject(item, "tag_id", tid);

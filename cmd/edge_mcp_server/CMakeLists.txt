@@ -9,6 +9,7 @@ target_include_directories(edge-mcp-server PRIVATE
     ${CMAKE_SOURCE_DIR}/modules/edge_io/include
     ${CMAKE_SOURCE_DIR}/modules/edge_stream/include
     ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_bootstrap/include
 )
 
 target_link_libraries(edge-mcp-server PRIVATE
@@ -17,6 +18,7 @@ target_link_libraries(edge-mcp-server PRIVATE
     edge_io
     edge_stream
     edge_infra
+    edge_bootstrap
     cjson
     libuv::uv_a
     pthread dl rt m

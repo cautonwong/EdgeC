@@ -17,6 +17,7 @@
 #include "datahub.h"
 #include "edgeos/edge_mcp_dispatcher.h"
 #include "datahub_priv.h"
+#include "edge_mcp_datahub_adapter.h"
 
 static datahub_t *create_test_hub(uv_loop_t *loop, const char *name) {
     datahub_t *hub = (datahub_t *)calloc(1, sizeof(datahub_t));
@@ -41,8 +42,9 @@ static void test_dispatcher_create_destroy(void) {
     datahub_t *hub = create_test_hub(loop, "/test_mcp_disp_1");
     assert(hub != NULL);
 
-    edge_mcp_env_t env = {
-        .hub = hub, .drv_mgr = NULL, .stream_eng = NULL, .storage_drv = NULL, .loop = loop};
+    edge_mcp_env_t env = {.bus = edge_mcp_datahub_port(hub),
+                         .drv_mgr = NULL, .stream_eng = NULL,
+                         .storage_drv = NULL, .loop = loop};
 
     edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(&env);
     assert(disp != NULL);
@@ -111,7 +113,7 @@ static void test_jsonrpc_tools_list_and_call(void) {
                        .ts = 1000000ULL};
     assert(datahub_write_shadow(hub, &msg1) == 0);
 
-    edge_mcp_env_t env = {.hub = hub, .loop = loop};
+    edge_mcp_env_t env = {.bus = edge_mcp_datahub_port(hub), .loop = loop};
     edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(&env);
     assert(disp != NULL);
 
@@ -250,7 +252,7 @@ static void test_direct_c_api_and_benchmark(void) {
     printf("[TEST] Testing direct C API tool invocation & latency benchmark...\n");
     uv_loop_t *loop = uv_default_loop();
     datahub_t *hub = create_test_hub(loop, "/test_mcp_disp_3");
-    edge_mcp_env_t env = {.hub = hub, .loop = loop};
+    edge_mcp_env_t env = {.bus = edge_mcp_datahub_port(hub), .loop = loop};
     edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(&env);
 
     /* Direct C call */

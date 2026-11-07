@@ -921,6 +921,7 @@ add_test(NAME test_web_console_rbac_audit COMMAND test_web_console_rbac_audit)
 add_executable(test_mcp_dispatcher test_mcp_dispatcher.c)
 target_include_directories(test_mcp_dispatcher PRIVATE
     ${CMAKE_SOURCE_DIR}/modules/edge_mcp/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_bootstrap/include
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
     ${CMAKE_SOURCE_DIR}/modules/edge_io/include
     ${CMAKE_SOURCE_DIR}/modules/edge_stream/include
@@ -935,6 +936,7 @@ target_link_libraries(test_mcp_dispatcher PRIVATE
     cjson
     libuv::uv_a
     pthread dl rt m
+    edge_bootstrap
 )
 add_test(NAME test_mcp_dispatcher COMMAND test_mcp_dispatcher)
 
