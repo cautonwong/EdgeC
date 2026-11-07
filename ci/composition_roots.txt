@@ -16,3 +16,5 @@ cmd/dcu/main.c
 cmd/smart_box/main.c
 cmd/edge_mcp_server/main.c
 cmd/nexus_lab/main.c
+# DCU north wiring adapter: transport/session plumbing, not a second lifecycle root.
+cmd/dcu/dcu_north_adapter.c
