@@ -14,6 +14,7 @@
 #include "datahub.h"
 #include "stream_engine.h"
 #include "stream_bus_datahub_adapter.h"
+#include "datahub_priv.h"
 
 static int g_cleanup_called = 0;
 

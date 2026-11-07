@@ -15,6 +15,7 @@
 #include "edgeos/edge_mcp_bus.h"
 #include "edgeos/edge_mcp_dispatcher.h"
 #include "edgeos/mcp_transport.h"
+#include "../../modules/edge_core/src/datahub_priv.h"
 
 static uv_loop_t *g_loop = NULL;
 static uv_signal_t g_sigint;

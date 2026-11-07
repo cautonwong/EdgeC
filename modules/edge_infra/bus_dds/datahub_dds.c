@@ -13,6 +13,7 @@
 #include "dds/dds.h"
 #include "dlt698_objects.h"
 #include "dlt698_objects.c"
+extern const datahub_ops_t g_datahub_dds_ops;
 
 typedef struct {
     dds_entity_t participant;
@@ -83,12 +84,7 @@ static inline void _pipe_msg_to_dlt698(const pipe_msg_t *msg, dlt698_Dlt698Attri
 static int dds_init_impl(datahub_t *hub, const datahub_config_t *config) {
     if (!hub) return -1;
 
-    hub->total_publishes = 0;
-    hub->network_packets_tx = 0;
-    hub->network_packets_rx = 0;
-    hub->metrics_shadow_writes = 0;
-    hub->total_shadow_reads = 0;
-    hub->backend_drops = 0;
+    datahub_backend_reset_counters(hub);
 
     dds_backend_ctx_t *ctx = calloc(1, sizeof(dds_backend_ctx_t));
     if (!ctx) return -1;
@@ -129,53 +125,52 @@ static int dds_init_impl(datahub_t *hub, const datahub_config_t *config) {
         LOG_INFO(LOG_CAT_CORE, "Cyclone DDS Participant & Four-Remote QoS initialized on Domain %u", domain_id);
     }
 
-    hub->backend_ctx = ctx;
-    hub->backend_type = DATAHUB_BACKEND_DDS;
+    datahub_backend_bind(hub, DATAHUB_BACKEND_DDS, &g_datahub_dds_ops, ctx);
     return 0;
 }
 
 int datahub_dds_publish_yc(datahub_t *hub, const pipe_msg_t *msg) {
     if (!hub || !msg) return -1;
-    dds_backend_ctx_t *ctx = (dds_backend_ctx_t *)hub->backend_ctx;
+    dds_backend_ctx_t *ctx = (dds_backend_ctx_t *)datahub_backend_ctx(hub);
     if (ctx && ctx->is_initialized && ctx->writer_yc > 0) {
         dlt698_Dlt698AttributeData sample;
         _pipe_msg_to_dlt698(msg, &sample);
         dds_write(ctx->writer_yc, &sample);
-        hub->total_publishes++;
-        hub->network_packets_tx++;
+        datahub_backend_count_publish(hub);
+        datahub_backend_count_tx(hub, 1);
         return 0;
     }
-    hub->total_publishes++;
+    datahub_backend_count_publish(hub);
     return 0;
 }
 
 int datahub_dds_publish_yx(datahub_t *hub, const pipe_msg_t *msg) {
     if (!hub || !msg) return -1;
-    dds_backend_ctx_t *ctx = (dds_backend_ctx_t *)hub->backend_ctx;
+    dds_backend_ctx_t *ctx = (dds_backend_ctx_t *)datahub_backend_ctx(hub);
     if (ctx && ctx->is_initialized && ctx->writer_yx > 0) {
         dlt698_Dlt698AttributeData sample;
         _pipe_msg_to_dlt698(msg, &sample);
         dds_write(ctx->writer_yx, &sample);
-        hub->total_publishes++;
-        hub->network_packets_tx++;
+        datahub_backend_count_publish(hub);
+        datahub_backend_count_tx(hub, 1);
         return 0;
     }
-    hub->total_publishes++;
+    datahub_backend_count_publish(hub);
     return 0;
 }
 
 int datahub_dds_publish_yk(datahub_t *hub, const pipe_msg_t *msg) {
     if (!hub || !msg) return -1;
-    dds_backend_ctx_t *ctx = (dds_backend_ctx_t *)hub->backend_ctx;
+    dds_backend_ctx_t *ctx = (dds_backend_ctx_t *)datahub_backend_ctx(hub);
     if (ctx && ctx->is_initialized && ctx->writer_yk > 0) {
         dlt698_Dlt698AttributeData sample;
         _pipe_msg_to_dlt698(msg, &sample);
         dds_write(ctx->writer_yk, &sample);
-        hub->total_publishes++;
-        hub->network_packets_tx++;
+        datahub_backend_count_publish(hub);
+        datahub_backend_count_tx(hub, 1);
         return 0;
     }
-    hub->total_publishes++;
+    datahub_backend_count_publish(hub);
     return 0;
 }
 
@@ -196,9 +191,9 @@ static int dds_write_shadow_impl(datahub_t *hub, const pipe_msg_t *msg) {
 
 static int dds_read_shadow_impl(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out_msg) {
     if (!hub || !out_msg) return -1;
-    hub->total_shadow_reads++;
+    datahub_backend_count_shadow_read(hub);
 
-    dds_backend_ctx_t *ctx = (dds_backend_ctx_t *)hub->backend_ctx;
+    dds_backend_ctx_t *ctx = (dds_backend_ctx_t *)datahub_backend_ctx(hub);
     if (!ctx || !ctx->is_initialized || ctx->reader_yc <= 0) {
         return -38; /* -ENOTSUP */
     }
@@ -221,8 +216,7 @@ static int dds_read_shadow_impl(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out
 
 static int dds_subscribe_impl(datahub_t *hub, datahub_on_data_cb cb, void *user_data) {
     if (!hub) return -1;
-    hub->legacy_cb = cb;
-    hub->legacy_user_data = user_data;
+    datahub_backend_set_legacy(hub, cb, user_data);
     return 0;
 }
 
@@ -232,24 +226,19 @@ static int dds_query_snapshot_impl(datahub_t *hub, uint32_t tag_id, pipe_msg_t *
 
 static int dds_get_stats_impl(datahub_t *hub, datahub_backend_stats_t *stats) {
     if (!hub || !stats) return -1;
-    stats->total_publishes = hub->total_publishes;
-    stats->total_shadow_writes = hub->metrics_shadow_writes;
-    stats->total_shadow_reads = hub->total_shadow_reads;
-    stats->network_packets_tx = hub->network_packets_tx;
-    stats->network_packets_rx = hub->network_packets_rx;
-    stats->drops = hub->backend_drops;
+    datahub_backend_get_stats(hub, stats);
     return 0;
 }
 
 static void dds_destroy_impl(datahub_t *hub) {
     if (!hub) return;
-    dds_backend_ctx_t *ctx = (dds_backend_ctx_t *)hub->backend_ctx;
+    dds_backend_ctx_t *ctx = (dds_backend_ctx_t *)datahub_backend_ctx(hub);
     if (ctx) {
         if (ctx->is_initialized && ctx->participant > 0) {
             dds_delete(ctx->participant);
         }
         free(ctx);
-        hub->backend_ctx = NULL;
+        datahub_backend_unbind(hub);
     }
 }
 
@@ -266,6 +255,5 @@ const datahub_ops_t g_datahub_dds_ops = {
 
 int datahub_dds_init(datahub_t *hub, const datahub_config_t *config) {
     if (!hub) return -1;
-    hub->ops = &g_datahub_dds_ops;
     return dds_init_impl(hub, config);
 }

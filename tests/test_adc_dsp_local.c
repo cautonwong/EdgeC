@@ -12,6 +12,7 @@
 #include "datahub.h"
 #include "stream_engine.h"
 #include "stream_bus_datahub_adapter.h"
+#include "datahub_priv.h"
 
 extern void stream_engine_register_sim_pipeline(stream_engine_t* engine, const stream_bus_port_t* bus,
                                                 uint32_t trigger_tag, uint32_t target_tag);

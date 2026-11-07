@@ -1,4 +1,5 @@
 #include "edge_mesh.h"
+#include "datahub_priv.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

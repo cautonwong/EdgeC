@@ -12,6 +12,7 @@
 #include "driver_manager.h"
 #include "edge_driver.h"
 #include "edge_slave_plane.h"
+#include "datahub_priv.h"
 
 /* [ADR-002] 两个端口都由测试实现——驱动不再 read_shadow、不再产生 pipe_msg_t。
  * 点位标识是 COB-ID（0x180/0x280 收，0x200/0x300 发），不是 tag_id。 */

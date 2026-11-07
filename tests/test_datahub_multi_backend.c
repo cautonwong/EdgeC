@@ -10,6 +10,7 @@
 #include "datahub_dds.h"
 #include "datahub_mqtt.h"
 #include "datahub_router.h"
+#include "datahub_priv.h"
 
 int main(void) {
     printf(

@@ -18,6 +18,7 @@
 
 #include "../examples/custom_algo/include/custom_soc_filter.h"
 #include "../examples/custom_driver/include/custom_inverter_driver.h"
+#include "datahub_priv.h"
 
 /* -------------------------------------------------------------------------- */
 /* Helper Functions                                                           */

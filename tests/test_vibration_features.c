@@ -10,6 +10,7 @@
 #include "datahub.h"
 #include "stream_engine.h"
 #include "stream_bus_datahub_adapter.h"
+#include "datahub_priv.h"
 
 // Forward declaration
 pipeline_stage_t* stage_vibration_features_create(size_t window_size, uint32_t rms_tag,

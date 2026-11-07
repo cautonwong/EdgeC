@@ -18,6 +18,7 @@
 #include "datahub_dds.h"
 #include "dds/dds.h"
 #include "dlt698_objects.h"
+#include "datahub_priv.h"
 
 static void test_four_remote_qos_policy_properties(void **state) {
     (void)state;

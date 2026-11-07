@@ -4,6 +4,7 @@
  */
 
 #include "edge_service.h"
+#include "datahub_priv.h"
 #include <uv.h>
 
 #include <stdlib.h>

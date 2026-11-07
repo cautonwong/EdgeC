@@ -36,3 +36,14 @@ modules/edge_core/src/contract_registry.c          # #415 ADR-002
 modules/edge_core/include/datahub_router.h      # PR #506 component refactor
 modules/edge_core/src/datahub_router.c          # PR #506 component refactor
 modules/edge_core/src/datahub_router_priv.h     # PR #506 component refactor
+
+# 2026-11-07 - datahub_s 不透明化（组件化重构，PR 待开）。
+#
+# 结构体移入 src/datahub_priv.h；公开头只保留 datahub_t 与 datahub_storage_t。
+# 新增 datahub_backend_* 访问器，DDS/MQTT 适配器不再解引用 datahub_t。
+# 影响面：公开 ABI 去掉结构体布局；API 签名不变；聚合边界账本归零。
+modules/edge_core/include/datahub.h              # datahub opacity
+modules/edge_core/src/datahub_shm.c              # datahub opacity
+modules/edge_core/src/edge_mesh.c                # datahub opacity
+modules/edge_core/src/edge_port.c                # datahub opacity
+modules/edge_core/src/edge_service.c             # datahub opacity

@@ -13,6 +13,7 @@
 #include "datahub.h"
 #include "protocol_bridge.h"
 #include "protocol_bridge_datahub_adapter.h"
+#include "datahub_priv.h"
 
 static void test_bridge_downlink_routing(void** state) {
     (void)state;

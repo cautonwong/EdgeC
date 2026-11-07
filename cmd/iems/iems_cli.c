@@ -18,6 +18,7 @@
 #include "edgeos/edge_mcp_bus.h"
 #include "edgeos/edge_mcp_dispatcher.h"
 #include "edgeos/edge_mcp_industry_tools.h"
+#include "../../modules/edge_core/src/datahub_priv.h"
 
 static void print_usage(const char *prog) {
     printf("EdgeOS IEMS Industrial Management CLI & MCP Copilot Console\n");

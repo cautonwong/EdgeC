@@ -6,6 +6,7 @@
 #include <uv.h>
 
 #include "datahub.h"
+#include "datahub_priv.h"
 
 static void test_shadow_read_consistency(void** state) {
     (void)state;

@@ -15,6 +15,7 @@
 #include "edge_driver.h"
 #include "io_executor.h"
 #include "net_buf.h"
+#include "datahub_priv.h"
 
 extern edge_driver_t modbus_rtu_driver;
 

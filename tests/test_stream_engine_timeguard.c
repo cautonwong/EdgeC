@@ -8,6 +8,7 @@
 #include "datahub.h"
 #include "stream_engine.h"
 #include "stream_bus_datahub_adapter.h"
+#include "datahub_priv.h"
 
 static void test_timeguard_anti_jump(void** state) {
     (void)state;

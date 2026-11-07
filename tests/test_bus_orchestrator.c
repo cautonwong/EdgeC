@@ -10,6 +10,7 @@
 #include "bus_orchestrator.h"
 #include "datahub.h"
 #include "driver_manager.h"
+#include "datahub_priv.h"
 
 static void on_walk_print(uv_handle_t* handle, void* arg) {
     (void)arg;

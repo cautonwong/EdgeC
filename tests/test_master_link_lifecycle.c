@@ -17,6 +17,7 @@
 #include "edge_request.h"
 #include "io_executor.h"
 #include "net_buf.h"
+#include "datahub_priv.h"
 
 /**
  * @file test_master_link_lifecycle.c

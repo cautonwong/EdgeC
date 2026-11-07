@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include "datahub.h"
+#include "datahub_priv.h"
 #include "datahub_shm.h"
 #include "datahub_router.h"
 #include <stdio.h>
@@ -39,6 +40,9 @@ static void _legacy_async_cb(uv_async_t *handle) {
         hub->legacy_cb(hub, hub->legacy_user_data);
     }
 }
+
+_Static_assert(sizeof(struct datahub_s) <= sizeof(datahub_storage_t),
+               "datahub_s exceeds datahub_storage_t");
 
 int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slots,
                  uint32_t shadow_capacity, const edge_tag_meta_t *metadata, uint32_t metadata_len,
@@ -331,6 +335,50 @@ int datahub_unsubscribe(datahub_t *hub, int sub_id) {
     return -1; // Not found
 }
 
+
+
+void datahub_backend_bind(datahub_t *hub, datahub_backend_type_t type,
+                          const datahub_ops_t *ops, void *backend_ctx) {
+    if (!hub) return;
+    hub->backend_type = type;
+    hub->ops = ops;
+    hub->backend_ctx = backend_ctx;
+}
+
+void *datahub_backend_ctx(const datahub_t *hub) { return hub ? hub->backend_ctx : NULL; }
+void datahub_backend_unbind(datahub_t *hub) { if (hub) hub->backend_ctx = NULL; }
+
+void datahub_backend_reset_counters(datahub_t *hub) {
+    if (!hub) return;
+    atomic_store(&hub->total_publishes, 0);
+    atomic_store(&hub->total_shadow_reads, 0);
+    atomic_store(&hub->network_packets_tx, 0);
+    atomic_store(&hub->network_packets_rx, 0);
+    atomic_store(&hub->metrics_shadow_writes, 0);
+    atomic_store(&hub->backend_drops, 0);
+}
+
+void datahub_backend_count_publish(datahub_t *hub) { if (hub) atomic_fetch_add(&hub->total_publishes, 1); }
+void datahub_backend_count_shadow_read(datahub_t *hub) { if (hub) atomic_fetch_add(&hub->total_shadow_reads, 1); }
+void datahub_backend_count_tx(datahub_t *hub, uint64_t count) { if (hub) atomic_fetch_add(&hub->network_packets_tx, count); }
+void datahub_backend_count_rx(datahub_t *hub, uint64_t count) { if (hub) atomic_fetch_add(&hub->network_packets_rx, count); }
+void datahub_backend_count_drop(datahub_t *hub) { if (hub) atomic_fetch_add(&hub->backend_drops, 1); }
+
+void datahub_backend_set_legacy(datahub_t *hub, datahub_on_data_cb cb, void *user_data) {
+    if (!hub) return;
+    hub->legacy_cb = cb;
+    hub->legacy_user_data = user_data;
+}
+
+void datahub_backend_get_stats(const datahub_t *hub, datahub_backend_stats_t *stats) {
+    if (!hub || !stats) return;
+    stats->total_publishes = atomic_load(&hub->total_publishes);
+    stats->total_shadow_writes = atomic_load(&hub->metrics_shadow_writes);
+    stats->total_shadow_reads = atomic_load(&hub->total_shadow_reads);
+    stats->network_packets_tx = atomic_load(&hub->network_packets_tx);
+    stats->network_packets_rx = atomic_load(&hub->network_packets_rx);
+    stats->drops = atomic_load(&hub->backend_drops);
+}
 
 int datahub_get_stats(datahub_t *hub, datahub_backend_stats_t *stats) {
     if (!hub || !stats) return -1;

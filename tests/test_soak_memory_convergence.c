@@ -13,6 +13,7 @@
 #include <unistd.h>
 
 #include "datahub.h"
+#include "datahub_priv.h"
 
 
 /* sanitizer 自带分配器与隔离区，RSS 由它主导：ASan/TSan 下测到的增长是

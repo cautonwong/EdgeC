@@ -16,6 +16,7 @@
 
 #include "datahub.h"
 #include "edgeos/edge_mcp_dispatcher.h"
+#include "datahub_priv.h"
 
 static datahub_t *create_test_hub(uv_loop_t *loop, const char *name) {
     datahub_t *hub = (datahub_t *)calloc(1, sizeof(datahub_t));

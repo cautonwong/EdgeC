@@ -17,6 +17,7 @@
 
 // STRICT: Secondary Developer Application ONLY includes public SDK entry point
 #include <edgeos/edgeos.h>
+#include "datahub_priv.h"
 
 /* -------------------------------------------------------------------------- */
 /* Helper Functions                                                           */

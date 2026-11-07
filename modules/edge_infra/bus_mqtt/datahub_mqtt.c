@@ -7,6 +7,7 @@
 
 #include "edge_log.h"
 #include "MQTTAsync.h"
+extern const datahub_ops_t g_datahub_mqtt_ops;
 
 typedef struct {
     MQTTAsync client;
@@ -34,14 +35,13 @@ static int mqtt_init_impl(datahub_t *hub, const datahub_config_t *config) {
         LOG_INFO(CORE, "Paho MQTT DataHub initialized for server %s", ctx->server_uri);
     }
 
-    hub->backend_ctx = ctx;
-    hub->backend_type = DATAHUB_BACKEND_HYBRID;
+    datahub_backend_bind(hub, DATAHUB_BACKEND_HYBRID, &g_datahub_mqtt_ops, ctx);
     return 0;
 }
 
 static int mqtt_publish_impl(datahub_t *hub, const pipe_msg_t *msg) {
     if (!hub || !msg) return -1;
-    mqtt_backend_ctx_t *ctx = (mqtt_backend_ctx_t *)hub->backend_ctx;
+    mqtt_backend_ctx_t *ctx = (mqtt_backend_ctx_t *)datahub_backend_ctx(hub);
     if (ctx && ctx->is_connected) {
         char topic[128];
         snprintf(topic, sizeof(topic), "edgeos/datahub/tags/%u", msg->tag_id);
@@ -55,11 +55,11 @@ static int mqtt_publish_impl(datahub_t *hub, const pipe_msg_t *msg) {
         MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
         MQTTAsync_sendMessage(ctx->client, topic, &pubmsg, &opts);
 
-        hub->total_publishes++;
-        hub->network_packets_tx++;
+        datahub_backend_count_publish(hub);
+        datahub_backend_count_tx(hub, 1);
         return 0;
     }
-    hub->total_publishes++;
+    datahub_backend_count_publish(hub);
     return 0;
 }
 
@@ -69,15 +69,14 @@ static int mqtt_write_shadow_impl(datahub_t *hub, const pipe_msg_t *msg) {
 
 static int mqtt_read_shadow_impl(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out_msg) {
     if (!hub || !out_msg) return -1;
-    hub->total_shadow_reads++;
+    datahub_backend_count_shadow_read(hub);
     (void)tag_id;
     return 0;
 }
 
 static int mqtt_subscribe_impl(datahub_t *hub, datahub_on_data_cb cb, void *user_data) {
     if (!hub) return -1;
-    hub->legacy_cb = cb;
-    hub->legacy_user_data = user_data;
+    datahub_backend_set_legacy(hub, cb, user_data);
     return 0;
 }
 
@@ -87,24 +86,19 @@ static int mqtt_query_snapshot_impl(datahub_t *hub, uint32_t tag_id, pipe_msg_t 
 
 static int mqtt_get_stats_impl(datahub_t *hub, datahub_backend_stats_t *stats) {
     if (!hub || !stats) return -1;
-    stats->total_publishes = hub->total_publishes;
-    stats->total_shadow_writes = hub->metrics_shadow_writes;
-    stats->total_shadow_reads = hub->total_shadow_reads;
-    stats->network_packets_tx = hub->network_packets_tx;
-    stats->network_packets_rx = hub->network_packets_rx;
-    stats->drops = hub->backend_drops;
+    datahub_backend_get_stats(hub, stats);
     return 0;
 }
 
 static void mqtt_destroy_impl(datahub_t *hub) {
     if (!hub) return;
-    mqtt_backend_ctx_t *ctx = (mqtt_backend_ctx_t *)hub->backend_ctx;
+    mqtt_backend_ctx_t *ctx = (mqtt_backend_ctx_t *)datahub_backend_ctx(hub);
     if (ctx) {
         if (ctx->is_connected && ctx->client) {
             MQTTAsync_destroy(&ctx->client);
         }
         free(ctx);
-        hub->backend_ctx = NULL;
+        datahub_backend_unbind(hub);
     }
 }
 
@@ -121,6 +115,5 @@ const datahub_ops_t g_datahub_mqtt_ops = {
 
 int datahub_mqtt_init(datahub_t *hub, const datahub_config_t *config) {
     if (!hub) return -1;
-    hub->ops = &g_datahub_mqtt_ops;
     return mqtt_init_impl(hub, config);
 }

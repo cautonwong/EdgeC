@@ -16,6 +16,7 @@
 #include "battery_fo_ecm_ekf.h"
 #include "edge_composition_root.h"
 #include "edge_port.h"
+#include "datahub_priv.h"
 
 /* -------------------------------------------------------------------------- */
 /* Test Cases                                                                 */

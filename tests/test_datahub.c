@@ -9,6 +9,7 @@
 #include <uv.h>
 
 #include "datahub.h"
+#include "datahub_priv.h"
 
 typedef struct {
     uv_loop_t loop;

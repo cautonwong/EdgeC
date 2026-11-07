@@ -94,7 +94,7 @@ static int _init_container_resources(edge_composition_container_t *container, co
     pthread_mutex_init(&container->lock, NULL);
 
     /* 1. Allocate & Initialize Foundation: DataHub shadow memory bus */
-    container->hub = (datahub_t *)calloc(1, sizeof(datahub_t));
+    container->hub = (datahub_t *)calloc(1, sizeof(datahub_storage_t));
     if (!container->hub) {
         pthread_mutex_destroy(&container->lock);
         return -3;

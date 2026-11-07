@@ -14,6 +14,7 @@
 
 #include "smartbox_driver_adapter.h"
 #include "smartbox_node.h"
+#include "datahub_priv.h"
 
 typedef struct {
     uv_loop_t loop;

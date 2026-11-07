@@ -23,6 +23,7 @@
 #include "edge_driver.h"
 #include "net_buf.h"
 #include "shmring.h"
+#include "datahub_priv.h"
 
 /* -------------------------------------------------------------------------- */
 /* 1. Simulated 2nd-Party Custom BESS Driver Implementation                   */

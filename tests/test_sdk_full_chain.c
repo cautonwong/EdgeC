@@ -11,6 +11,7 @@
 #include "edge_service.h"
 #include "stream_engine.h"
 #include "stream_bus_datahub_adapter.h"
+#include "datahub_priv.h"
 
 typedef struct {
     datahub_t hub;

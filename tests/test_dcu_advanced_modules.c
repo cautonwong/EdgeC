@@ -18,6 +18,7 @@
 #include "dcu_storage.h"
 #include "stream_engine.h"
 #include "stream_bus_datahub_adapter.h"
+#include "datahub_priv.h"
 
 static int _mock_count_freezes(void* ctx, uint16_t* out_count) {
     return dcu_storage_count_freezes((dcu_storage_t*)ctx, out_count);

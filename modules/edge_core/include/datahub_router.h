@@ -30,7 +30,7 @@ typedef struct {
 typedef struct datahub_router_s datahub_router_t;
 
 typedef struct {
-    alignas(max_align_t) uint8_t raw[3 * sizeof(datahub_t) + 64];
+    alignas(max_align_t) uint8_t raw[3 * DATAHUB_STORAGE_BYTES];
 } datahub_router_storage_t;
 
 /**

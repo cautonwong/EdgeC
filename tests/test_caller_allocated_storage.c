@@ -78,6 +78,7 @@
 #include "impedance_control.h"
 #include "mpc_dispatcher.h"
 #include "npu_enclave.h"
+#include "datahub_priv.h"
 #include "stream_bus_datahub_adapter.h"
 #include "npu_hal.h"
 #include "npu_pmu.h"
