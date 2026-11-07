@@ -13,6 +13,7 @@
 #include "edge_service.h"
 #include "rest_server.h"
 #include "sqlite_service.h"
+#include "datahub_priv.h"
 
 static void _on_close_cb(uv_handle_t *handle, void *arg) {
     (void)arg;

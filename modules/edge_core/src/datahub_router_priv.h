@@ -1,12 +1,13 @@
 #ifndef DATAHUB_ROUTER_PRIV_H
 #define DATAHUB_ROUTER_PRIV_H
 
+#include "datahub_priv.h"
 #include "datahub_router.h"
 
 struct datahub_router_s {
-    datahub_t shm_hub;
-    datahub_t dds_hub;
-    datahub_t mqtt_hub;
+    struct datahub_s shm_hub;
+    struct datahub_s dds_hub;
+    struct datahub_s mqtt_hub;
     bool shm_active;
     bool dds_active;
     bool mqtt_active;

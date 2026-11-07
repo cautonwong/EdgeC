@@ -13,6 +13,7 @@
 #include "stream_engine_priv.h"
 #include "wasm_mgr.h"
 #include "stream_bus_datahub_adapter.h"
+#include "datahub_priv.h"
 
 extern pipeline_stage_t* stage_wasm_create_v2(const edge_stage_def_t* def,
                                               pipeline_loader_ctx_t* loader_ctx);

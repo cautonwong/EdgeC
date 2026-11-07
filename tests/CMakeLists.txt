@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
 project(EdgeC_Tests C)
 
+include_directories(${CMAKE_SOURCE_DIR}/modules/edge_core/src)
+
 # 统一测试构建宏
 macro(add_edge_test TEST_NAME)
     add_executable(${TEST_NAME} ${ARGN})
@@ -21,6 +23,8 @@ macro(add_edge_test TEST_NAME)
         cmocka::cmocka
         pthread dl rt m
     )
+    target_include_directories(${TEST_NAME} PRIVATE
+        ${CMAKE_SOURCE_DIR}/modules/edge_core/src)
     add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
     set_tests_properties(${TEST_NAME} PROPERTIES TIMEOUT 180)
     if(ENABLE_ASAN)

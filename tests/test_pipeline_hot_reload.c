@@ -9,6 +9,7 @@
 #include "stream_engine.h"
 #include "stream_engine_priv.h"
 #include "stream_bus_datahub_adapter.h"
+#include "datahub_priv.h"
 
 static void test_pipeline_hot_reload_logic(void** state) {
     (void)state;

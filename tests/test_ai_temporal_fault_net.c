@@ -13,6 +13,7 @@
 #include "datahub.h"
 #include "edge_algo_stream_adapter.h"
 #include "stream_bus_datahub_adapter.h"
+#include "datahub_priv.h"
 
 static void test_ai_fault_net_normal_and_transient_classification(void **state) {
     (void)state;

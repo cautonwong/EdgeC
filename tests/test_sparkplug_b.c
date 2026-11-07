@@ -10,6 +10,7 @@
 #include "driver_manager.h"
 #include "edge_driver.h"
 #include "sparkplug_b.h"
+#include "datahub_priv.h"
 
 // Forward declaration
 int sparkplug_b_driver_register(driver_manager_t* mgr);

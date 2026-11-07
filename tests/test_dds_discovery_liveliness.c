@@ -16,6 +16,7 @@
 
 #include "datahub.h"
 #include "dds_topology_monitor.h"
+#include "datahub_priv.h"
 
 static void test_multi_node_dynamic_discovery(void **state) {
     (void)state;

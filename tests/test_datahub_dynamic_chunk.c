@@ -7,6 +7,7 @@
 #include <stdlib.h>
 
 #include "datahub.h"
+#include "datahub_priv.h"
 
 static void test_datahub_chunk_allocation_and_schema_switch(void **state) {
     (void)state;

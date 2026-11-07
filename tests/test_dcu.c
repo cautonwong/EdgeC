@@ -6,6 +6,7 @@
 #include <uv.h>
 
 #include "datahub.h"
+#include "datahub_priv.h"
 
 typedef struct {
     datahub_t* hub;

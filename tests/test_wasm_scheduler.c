@@ -12,6 +12,7 @@
 #include "wasm_app_scheduler.h"
 #include "wasm_mgr.h"
 #include "stream_bus_datahub_adapter.h"
+#include "datahub_priv.h"
 
 static void test_wasm_scheduler_lifecycle(void** state) {
     (void)state;

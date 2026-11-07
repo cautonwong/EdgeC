@@ -7,6 +7,7 @@
 
 #include "datahub.h"
 #include "js_engine.h"
+#include "datahub_priv.h"
 
 static void test_js_eval_basic(void** state) {
     (void)state;

@@ -17,6 +17,7 @@
 #include "datahub_dds.h"
 #include "dds/dds.h"
 #include "dlt698_objects.h"
+#include "datahub_priv.h"
 
 static void test_dds_qos_matrix_creation(void **state) {
     (void)state;

@@ -17,6 +17,7 @@
 #include <time.h>
 
 #include "datahub.h"
+#include "datahub_priv.h"
 
 typedef struct {
     int call_count;

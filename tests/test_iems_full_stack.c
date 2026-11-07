@@ -21,6 +21,7 @@
 // IEMS Local Driver Adapter (No-Contract)
 #include "iems_driver_adapter.h"
 #include "stream_bus_datahub_adapter.h"
+#include "datahub_priv.h"
 
 typedef struct {
     uv_loop_t loop;

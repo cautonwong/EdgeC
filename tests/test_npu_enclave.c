@@ -12,6 +12,7 @@
 #include "datahub.h"
 #include "npu_enclave.h"
 #include "npu_hal.h"
+#include "datahub_priv.h"
 
 static void test_npu_enclave_package_and_decrypt_success(void **state) {
     (void)state;

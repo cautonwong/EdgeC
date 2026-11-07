@@ -10,6 +10,7 @@
 #include "dcu_inventory.h"
 #include "dcu_poller.h"
 #include "dcu_router.h"
+#include "datahub_priv.h"
 
 static datahub_t g_hub;
 static int received_publish_count = 0;

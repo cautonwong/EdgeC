@@ -12,6 +12,7 @@
 
 #include "datahub.h"
 #include "npu_pmu.h"
+#include "datahub_priv.h"
 
 static void test_npu_pmu_lifecycle_and_profiling(void **state) {
     (void)state;

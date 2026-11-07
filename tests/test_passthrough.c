@@ -11,6 +11,7 @@
 #include "driver_manager.h"
 #include "io_executor.h"
 #include "passthrough_mgr.h"
+#include "datahub_priv.h"
 
 // Mock IO handle
 static int mock_write_count = 0;

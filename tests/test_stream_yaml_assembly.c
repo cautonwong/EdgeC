@@ -13,6 +13,7 @@
 #include "datahub.h"
 #include "stream_engine.h"
 #include "stream_bus_datahub_adapter.h"
+#include "datahub_priv.h"
 
 // --- Custom Gain Stage for Dynamic Factory Test ---
 

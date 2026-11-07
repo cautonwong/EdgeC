@@ -11,6 +11,7 @@
 #include "datahub.h"
 #include "wasm_mgr.h"
 #include "stream_bus_datahub_adapter.h"
+#include "datahub_priv.h"
 
 /**
  * Hand-crafted 72-byte yielding WASM loop

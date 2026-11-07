@@ -14,6 +14,7 @@
 
 #include "iems_driver_adapter.h"
 #include "iems_node.h"
+#include "datahub_priv.h"
 
 typedef struct {
     uv_loop_t loop;

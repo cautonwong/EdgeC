@@ -8,6 +8,7 @@
 #include "datahub.h"
 #include "stream_engine.h"
 #include "stream_bus_datahub_adapter.h"
+#include "datahub_priv.h"
 
 static void test_engine_basic_flow(void** state) {
     (void)state;

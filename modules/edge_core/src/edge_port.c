@@ -4,6 +4,7 @@
  */
 
 #include "edge_port.h"
+#include "datahub_priv.h"
 #include "datahub.h"
 #include "datahub_ops.h"
 #include <stdio.h>

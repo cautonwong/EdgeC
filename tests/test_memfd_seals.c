@@ -10,6 +10,7 @@
 #include <uv.h>
 
 #include "datahub.h"
+#include "datahub_priv.h"
 
 static void test_memfd_sealing_logic(void** state) {
     (void)state;

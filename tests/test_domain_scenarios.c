@@ -19,6 +19,7 @@
 #include "datahub.h"
 #include "edge_anti_corruption.h"
 #include "shmring.h"
+#include "datahub_priv.h"
 
 /* -------------------------------------------------------------------------- */
 /* Tag ID and Mapping Helper                                                  */

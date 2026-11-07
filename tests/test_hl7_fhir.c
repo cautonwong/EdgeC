@@ -10,6 +10,7 @@
 #include "driver_manager.h"
 #include "edge_driver.h"
 #include "edge_slave_plane.h"
+#include "datahub_priv.h"
 
 /* [ADR-002] 北向生产者端口：测试扮演"组合根/消费方"，从本地镜像取状态。
  * 驱动不再自己 read_shadow —— 这正是这次改造要验的东西。 */

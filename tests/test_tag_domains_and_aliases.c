@@ -16,6 +16,7 @@
 
 #include "datahub.h"
 #include "shmring.h"
+#include "datahub_priv.h"
 
 /* -------------------------------------------------------------------------- */
 /* Domain Boundary Definitions                                                */

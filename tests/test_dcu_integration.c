@@ -12,6 +12,7 @@
 #include "dcu_poller.h"
 #include "dcu_router.h"
 #include "dcu_storage.h"
+#include "datahub_priv.h"
 
 // 全局集成测试主体
 static void test_dcu_full_pipeline_integration(void** state) {

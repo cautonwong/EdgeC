@@ -9,6 +9,7 @@
 
 #include "datahub.h"
 #include "npu_power_manager.h"
+#include "datahub_priv.h"
 
 static void test_npu_power_state_machine_and_timeouts(void **state) {
     (void)state;

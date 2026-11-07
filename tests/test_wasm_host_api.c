@@ -11,6 +11,7 @@
 #include "datahub.h"
 #include "wasm_mgr.h"
 #include "stream_bus_datahub_adapter.h"
+#include "datahub_priv.h"
 
 static void test_wasm_host_api(void** state) {
     (void)state;

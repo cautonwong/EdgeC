@@ -1,8 +1,8 @@
 # Shrink-only composition root line ledger.
 # Format: <path>|<lines>
-# 2026-11-07: iems_app.c 746 -> 758; loader ctx helper extracted to keep iems_app_assemble under the SRP limit.
+# 2026-11-07: edge_mcp_server/main.c 172 -> 173; private datahub header for caller-owned storage.
 cmd/dcu/main.c|544
-cmd/edge_mcp_server/main.c|172
+cmd/edge_mcp_server/main.c|173
 cmd/iems/iems_app.c|758
 cmd/iems/main.c|99
 cmd/nexus_lab/main.c|156

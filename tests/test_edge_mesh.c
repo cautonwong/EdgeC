@@ -8,6 +8,7 @@
 
 #include "datahub.h"
 #include "edge_mesh.h"
+#include "datahub_priv.h"
 
 static void test_mesh_delta_and_merkle_reconcile(void **state) {
     (void)state;
