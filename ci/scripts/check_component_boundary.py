@@ -19,6 +19,11 @@ COMPONENTS = {
 }
 
 SYSTEM_HEADERS = {"autoconf.h", "wasm_export.h"}
+
+FILE_FORBIDDEN = {
+    "modules/edge_io/src/protocol_bridge.c": {"datahub.h"},
+    "modules/edge_io/include/protocol_bridge.h": {"datahub.h"},
+}
 BASELINE = os.path.join("ci", "baseline", "component_boundary.txt")
 INCLUDE_RE = re.compile(r'^[ \t]*#\s*include\s+"([^"]+)"', re.MULTILINE)
 
@@ -98,6 +103,16 @@ def scan(root):
                         pinned.add((component, owner))
                     else:
                         violations.append(f"{rel}|{include}|OWNER:{owner}")
+
+    for rel, forbidden in FILE_FORBIDDEN.items():
+        path = os.path.join(root, rel)
+        if not os.path.exists(path):
+            continue
+        with open(path, encoding="utf-8", errors="ignore") as handle:
+            text = handle.read()
+        for include in INCLUDE_RE.findall(text):
+            if os.path.basename(include) in forbidden:
+                violations.append(f"{rel}|{include}|FORBIDDEN")
 
     return violations, pinned
 

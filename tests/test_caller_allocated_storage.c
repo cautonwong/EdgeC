@@ -84,6 +84,7 @@
 #include "npu_power_manager.h"
 #include "persistence_mgr.h"
 #include "protocol_bridge.h"
+#include "protocol_bridge_datahub_adapter.h"
 #include "rest_server.h"
 #include "shmring.h"
 #include "snf_manager.h"
@@ -786,7 +787,9 @@ static void test_protocol_bridge_caller_allocated_storage(void **state) {
 
     protocol_bridge_storage_t bridge_storage;
     memset(&bridge_storage, 0x22, sizeof(bridge_storage));
-    protocol_bridge_t *bridge = protocol_bridge_create_in(&bridge_storage, &loop, &hub, orch);
+    protocol_bridge_bus_port_t bridge_bus = protocol_bridge_datahub_port(&hub);
+    protocol_bridge_t *bridge =
+        protocol_bridge_create_in(&bridge_storage, &loop, &bridge_bus, orch);
     assert_non_null(bridge);
     assert_ptr_equal(bridge, (void *)bridge_storage.raw);
 

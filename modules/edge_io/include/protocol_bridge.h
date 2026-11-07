@@ -6,7 +6,7 @@ typedef struct uv_loop_s uv_loop_t;
 #include <stddef.h>
 #include <stdint.h>
 #include "bus_orchestrator.h"
-#include "datahub.h"
+#include "protocol_bridge_bus_port.h"
 
 typedef struct protocol_bridge_s protocol_bridge_t;
 
@@ -18,12 +18,15 @@ typedef struct {
 /**
  * @brief 创建协议桥接器 (基于调用方分配存储)
  */
-protocol_bridge_t *protocol_bridge_create_in(protocol_bridge_storage_t *storage, uv_loop_t *loop, datahub_t *hub, bus_orchestrator_t *orch);
+protocol_bridge_t *protocol_bridge_create_in(protocol_bridge_storage_t *storage, uv_loop_t *loop,
+                                              const protocol_bridge_bus_port_t *bus,
+                                              bus_orchestrator_t *orch);
 
 /**
  * @brief 创建协议桥接器
  */
-protocol_bridge_t *protocol_bridge_create(uv_loop_t *loop, datahub_t *hub, bus_orchestrator_t *orch);
+protocol_bridge_t *protocol_bridge_create(uv_loop_t *loop, const protocol_bridge_bus_port_t *bus,
+                                           bus_orchestrator_t *orch);
 
 /**
  * @brief 启动桥接逻辑 (订阅 DataHub 并开始路由)
