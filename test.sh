@@ -44,11 +44,8 @@ stop_all() {
     echo -e "${Y}  🧹 Nuclear Cleanup...${NC}"
     # 仅杀掉 iems 二进制程序，不杀掉包含 iems 字符串的脚本路径
     pkill -9 "^iems$" || true
-    pkill -9 -f "actors/" || true
-    pkill -9 -f "adc_simulator" || true
-    rm -rf /tmp/vbus*.sock /tmp/v_adc*.sock /tmp/iems*.sock /tmp/matrix_adc_ctrl.sock
-    rm -rf /dev/shm/matrix_shm_* || true
-    rm -f matrix_server.log iems_run.log
+    rm -rf /tmp/vbus*.sock /tmp/v_adc*.sock /tmp/iems*.sock
+    rm -f iems_run.log
 }
 
 run_unit_tests() {
