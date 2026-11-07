@@ -23,6 +23,8 @@ SYSTEM_HEADERS = {"autoconf.h", "wasm_export.h"}
 FILE_FORBIDDEN = {
     "modules/edge_io/src/protocol_bridge.c": {"datahub.h"},
     "modules/edge_io/include/protocol_bridge.h": {"datahub.h"},
+    "modules/edge_io/src/driver_radar_fmcw.c": {"datahub.h"},
+    "modules/edge_io/include/driver_radar_fmcw.h": {"datahub.h"},
 }
 BASELINE = os.path.join("ci", "baseline", "component_boundary.txt")
 INCLUDE_RE = re.compile(r'^[ \t]*#\s*include\s+"([^"]+)"', re.MULTILINE)

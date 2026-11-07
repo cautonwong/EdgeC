@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include "datahub.h"
+#include "radar_bus_port.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,8 +26,9 @@ typedef struct __attribute__((packed)) {
 } fmcw_radar_frame_t;
 
 int driver_radar_fmcw_init(void);
-int driver_radar_fmcw_parse_frame(const uint8_t *buf, size_t len, datahub_t *hub);
-int driver_radar_fmcw_poll(datahub_t *hub);
+int driver_radar_fmcw_parse_frame(const uint8_t *buf, size_t len,
+                                  const radar_bus_port_t *bus);
+int driver_radar_fmcw_poll(const radar_bus_port_t *bus);
 
 #ifdef __cplusplus
 }
