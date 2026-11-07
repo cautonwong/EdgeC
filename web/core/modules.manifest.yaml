@@ -132,6 +132,12 @@ modules:
   - id: core:system
     title: 系统
     pages:
+      - id: core.apps
+        path: /apps
+        component: apps/AppStore.vue
+        title: 应用商店
+        menu: { group: system, order: 5, icon: grid }
+        permissions: { allOf: [core.app:read] }
       - id: core.users
         path: /system/users
         component: system/UsersView.vue

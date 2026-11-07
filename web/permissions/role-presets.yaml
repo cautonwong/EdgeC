@@ -21,6 +21,7 @@ roles:
       - core.telemetry:read
       - core.alarm:read
       - core.task:read
+      - core.app:read
       - system.log:read
       - system.capability:read
 
@@ -35,6 +36,7 @@ roles:
       - core.alarm:read
       - core.alarm:write
       - core.task:read
+      - core.app:read
       - system.log:read
       - system.log:export
       - system.service:read
@@ -56,6 +58,8 @@ roles:
       - core.alarm:read
       - core.alarm:write
       - core.task:read
+      - core.app:read
+      - core.app:execute
       - core.control:read
       - core.control:execute
       - system.log:read
@@ -83,6 +87,7 @@ roles:
     defaultScope: { type: gateway, id: self }
     permissions:
       - "core.*:read"
+      - core.app:execute
       - core.alarm:write
       - core.task:cancel
       - core.control:read
