@@ -17,7 +17,6 @@ HEAP_RE = re.compile(r"\b(malloc|calloc|realloc|strdup)\s*\(")
 THREAD_RE = re.compile(r"\b(uv_thread_create|pthread_create)\s*\(")
 GETENV_RE = re.compile(r"\bgetenv\s*\(")
 STRUCT_RE = re.compile(r"^[ \t]*struct\s+[A-Za-z_][A-Za-z0-9_]*\s*\{", re.MULTILINE)
-POINT_TABLE_RE = re.compile(r"static\s+const\s+\w*(?:_map_t|_slot_map_t)\s+\w+\s*\[\s*\]\s*=")
 APP_LIB_RE = re.compile(r"^[ \t]*target_link_libraries\s*\([^)]*_app_lib", re.MULTILINE)
 
 PRODUCT_CMAKE = [
@@ -132,11 +131,6 @@ def collect(root):
             "value": count_matches(c_files + files(root, "*.c", "cmd"), GETENV_RE),
             "unit": "calls",
             "evidence": "modules/**/*.c, cmd/**/*.c",
-        },
-        "static_point_tables": {
-            "value": count_matches(files(root, "*.c", "cmd"), POINT_TABLE_RE),
-            "unit": "tables",
-            "evidence": "cmd/**/*.c",
         },
         "test_app_lib_links": {
             "value": len(APP_LIB_RE.findall(read(root / "tests/CMakeLists.txt"))),

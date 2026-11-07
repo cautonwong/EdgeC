@@ -1548,3 +1548,5 @@ foreach(t
 endforeach()
 
 add_edge_test(test_iec_cp56time test_iec_cp56time.c)
+
+add_edge_test(test_iems_connectivity test_iems_connectivity.c)

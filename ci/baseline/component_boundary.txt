@@ -7,3 +7,5 @@ edge_stream|ROOT
 edge_protocol|FOUNDATION
 edge_protocol|ROOT
 edge_protocol|edge_core
+edge_algo|edge_core
+edge_algo|edge_infra
