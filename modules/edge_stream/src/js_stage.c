@@ -65,14 +65,22 @@ static void js_work_cb(uv_work_t *req) {
     js_work_ctx_t *work = req->data;
 
     // Create a temporary, isolated JS runtime and context for this thread
-    js_engine_t *temp_engine = js_engine_create(NULL, NULL, NULL, 1024 * 1024);  // 1MB limit
-    if (!temp_engine) return;
+    size_t engine_size = js_engine_storage_size();
+    void *engine_mem = malloc(engine_size);
+    if (!engine_mem) return;
+    js_engine_t *temp_engine =
+        js_engine_create_in(engine_mem, engine_size, NULL, NULL, NULL, 1024 * 1024);
+    if (!temp_engine) {
+        free(engine_mem);
+        return;
+    }
 
     // This is a simplified execution, it does not have the full context (e.g. persistent_state)
     // A more advanced version might serialize/deserialize state or use thread-safe JS values.
     js_engine_run_file(temp_engine, work->script_path);
 
     js_engine_destroy(temp_engine);
+    free(engine_mem);
 }
 
 static void js_after_work_cb(uv_work_t *req, int status) {

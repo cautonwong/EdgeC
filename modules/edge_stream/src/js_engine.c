@@ -121,11 +121,16 @@ static uint8_t *js_load_file(JSContext *ctx, size_t *pout_len, const char *filen
     return buf;
 }
 
-js_engine_t *js_engine_create(uv_loop_t *loop, const js_arbiter_port_t *arb,
-                              const stream_bus_port_t *bus, size_t mem_limit) {
-    js_engine_t *engine = calloc(1, sizeof(js_engine_t));
-    if (!engine) return NULL;
+size_t js_engine_storage_size(void) {
+    return sizeof(js_engine_t);
+}
 
+js_engine_t *js_engine_create_in(void *storage, size_t storage_size, uv_loop_t *loop,
+                                 const js_arbiter_port_t *arb,
+                                 const stream_bus_port_t *bus, size_t mem_limit) {
+    if (!storage || storage_size < sizeof(js_engine_t)) return NULL;
+    js_engine_t *engine = storage;
+    memset(engine, 0, sizeof(*engine));
     engine->loop = loop;
     engine->arb = arb ? *arb : (js_arbiter_port_t){0};
     engine->bus = bus ? *bus : (stream_bus_port_t){0};
@@ -194,5 +199,4 @@ void js_engine_destroy(js_engine_t *engine) {
     JS_RunGC(engine->rt);
     JS_FreeContext(engine->ctx);
     JS_FreeRuntime(engine->rt);
-    free(engine);
 }
