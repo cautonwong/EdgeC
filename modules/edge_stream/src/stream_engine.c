@@ -9,7 +9,6 @@
 
 #include "edge_log.h"
 #include "stream_engine_priv.h"
-#include "sqlite_service.h"
 #include "wasm_mgr.h"
 
 // --- Stage Factory Declarations ---
@@ -22,7 +21,8 @@ extern pipeline_stage_t *stage_peak_shaving_create(double threshold_w, uint32_t 
 extern pipeline_stage_t *stage_accumulate_create(void);
 extern pipeline_stage_t *stage_periodic_freeze_create(int kind);
 extern pipeline_stage_t *stage_time_guard_create(void);
-extern pipeline_stage_t *stage_sqlite_sink_create(sqlite_svc_t *db, const char *table);
+extern pipeline_stage_t *stage_sqlite_sink_create(const stream_sqlite_port_t *db,
+                                                   const char *table);
 extern pipeline_stage_t *stage_js_rule_create(js_engine_t *engine, const char *script_path,
                                               bool is_async);
 extern pipeline_stage_t *stage_battery_guard_create(battery_limit_t *limits);
@@ -495,54 +495,6 @@ void stream_engine_resume(pipeline_t *p) {
     }
     p->state = PIPE_STATE_IDLE;
     p->resume_point = NULL;
-}
-
-int stream_engine_checkpoint_save(stream_engine_t *engine, sqlite_svc_t *db) {
-    if (!engine || !db) return -1;
-    struct uv__queue *q;
-    uint8_t state_buf[512];
-    uv__queue_foreach(q, &engine->pipelines) {
-        pipeline_t *p = uv__queue_data(q, pipeline_t, node);
-        pipeline_stage_t *s = p->head;
-        int stage_idx = 0;
-        while (s) {
-            if (s->save_state) {
-                int len = s->save_state(s, state_buf, sizeof(state_buf));
-                if (len > 0) {
-                    char product_key[128];
-                    snprintf(product_key, sizeof(product_key), "STATE:%s", p->id);
-                    sqlite_svc_set_param(db, product_key, (uint32_t)stage_idx, state_buf, (size_t)len);
-                }
-            }
-            s = s->next[0];
-            stage_idx++;
-        }
-    }
-    return 0;
-}
-
-int stream_engine_checkpoint_restore(stream_engine_t *engine, sqlite_svc_t *db) {
-    if (!engine || !db) return -1;
-    struct uv__queue *q;
-    uint8_t state_buf[512];
-    uv__queue_foreach(q, &engine->pipelines) {
-        pipeline_t *p = uv__queue_data(q, pipeline_t, node);
-        pipeline_stage_t *s = p->head;
-        int stage_idx = 0;
-        while (s) {
-            if (s->load_state) {
-                char product_key[128];
-                snprintf(product_key, sizeof(product_key), "STATE:%s", p->id);
-                int len = sqlite_svc_get_param(db, product_key, (uint32_t)stage_idx, state_buf, sizeof(state_buf));
-                if (len > 0) {
-                    s->load_state(s, state_buf, (size_t)len);
-                }
-            }
-            s = s->next[0];
-            stage_idx++;
-        }
-    }
-    return 0;
 }
 
 stage_health_t pipeline_stage_get_health(pipeline_stage_t *stage) {

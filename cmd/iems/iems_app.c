@@ -33,6 +33,7 @@
 #include "adc_datahub_adapter.h"
 #include "adc_driver.h"
 #include "stream_bus_datahub_adapter.h"
+#include "stream_sqlite_adapter.h"
 #include "iems_task_loader.h"
 #include "io_executor.h"
 #include "modbus_codec.h"
@@ -523,7 +524,7 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     app->stream_eng =
         stream_engine_create_datahub(app->hub, NULL, app->orch, edge_stage_factory_get_registry());
     pipeline_loader_ctx_t loader_ctx = {
-        .db = app->db_service,
+        .db = stream_sqlite_port_from_sqlite(app->db_service),
         .control_ops = {.ctx = app, .submit_control = _iems_stream_submit_control},
         .params = NULL
     };
