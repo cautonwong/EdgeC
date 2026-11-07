@@ -29,6 +29,8 @@
 #include "edge_service.h"
 #include "iems_driver_adapter.h"
 #include "iems_execution_adapter.h"
+#include "adc_datahub_adapter.h"
+#include "adc_driver.h"
 #include "stream_bus_datahub_adapter.h"
 #include "iems_task_loader.h"
 #include "io_executor.h"
@@ -70,7 +72,7 @@ typedef struct {
 
 typedef struct {
     int fd;
-    datahub_t* hub;
+    adc_bus_port_t bus;
 } adc_thread_ctx_t;
 
 struct iems_app_s {
@@ -536,11 +538,9 @@ int iems_app_connect_buses(iems_app_t* app, int* configured) {
     return rc;
 }
 
-extern void adc_driver_handle_connection(int sock_fd, datahub_t* hub);
-
 static void _adc_thread_entry(void* arg) {
     adc_thread_ctx_t* ctx = (adc_thread_ctx_t*)arg;
-    adc_driver_handle_connection(ctx->fd, ctx->hub);
+    adc_driver_handle_connection(ctx->fd, &ctx->bus);
     g_adc_running = false;
     free(ctx);
 }
@@ -567,7 +567,7 @@ static void _try_connect_internal_buses(uv_timer_t* handle) {
             if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) == 0) {
                 adc_thread_ctx_t* ctx = malloc(sizeof(adc_thread_ctx_t));
                 ctx->fd = fd;
-                ctx->hub = app->hub;
+                ctx->bus = adc_datahub_port(app->hub);
                 g_adc_running = true;
                 uv_thread_create(&app->adc_tid, _adc_thread_entry, ctx);
             } else {

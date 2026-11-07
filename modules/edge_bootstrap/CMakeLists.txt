@@ -6,6 +6,7 @@ add_library(edge_bootstrap STATIC
     src/stream_bus_datahub_adapter.c
     src/protocol_bridge_datahub_adapter.c
     src/radar_datahub_adapter.c
+    src/adc_datahub_adapter.c
 )
 
 target_include_directories(edge_bootstrap PUBLIC

@@ -8,9 +8,8 @@
 #include <sys/un.h>
 #include <unistd.h>
 
-#include "datahub.h"
+#include "adc_driver.h"
 #include "edge_log.h"
-#include "shmring.h"
 
 #define MAX_ADC_BUFFERS 16
 
@@ -29,7 +28,8 @@ typedef struct {
  */
 extern volatile bool g_adc_running;
 
-void adc_driver_handle_connection(int sock_fd, datahub_t *hub) {
+void adc_driver_handle_connection(int sock_fd, const adc_bus_port_t *bus) {
+    if (!bus) return;
     adc_client_ctx_t ctx = {0};
     for (int i = 0; i < MAX_ADC_BUFFERS; i++) ctx.fds[i] = -1;
 
@@ -102,7 +102,7 @@ void adc_driver_handle_connection(int sock_fd, datahub_t *hub) {
                 ctx.ptrs[buf_idx] =
                     mmap(NULL, ctx.block_size * 4, PROT_READ, MAP_SHARED, received_fd, 0);
                 // 注册到 DataHub
-                datahub_register_ref(hub, header_msg.tag_id, received_fd, ctx.block_size * 4);
+                adc_bus_register_ref(bus, header_msg.tag_id, received_fd, ctx.block_size * 4);
             } else {
                 // 已经映射过，直接关闭重复的 FD 避免资源耗尽。
                 // 注意：在 Linux SCM_RIGHTS 中，每次 recvmsg 都会产生一个新的 FD 指向相同文件。
@@ -116,7 +116,7 @@ void adc_driver_handle_connection(int sock_fd, datahub_t *hub) {
             header_msg.payload.ref.fd = ctx.fds[buf_idx];
 
             // 3. 发布到 DataHub
-            datahub_publish(hub, &header_msg);
+            adc_bus_publish(bus, &header_msg);
         }
     }
 
