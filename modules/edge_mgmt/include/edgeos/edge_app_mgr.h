@@ -68,14 +68,18 @@ typedef struct edge_app_mgr_s edge_app_mgr_t;
 /**
  * @brief 基于抽象仓储创建并初始化应用管理器 (IoC / Clean Architecture)
  */
-edge_app_mgr_t *edge_app_mgr_create_with_repo(uv_loop_t *loop,
-                                              const edge_app_repo_t *repo,
-                                              void *stream_engine);
+size_t edge_app_mgr_storage_size(void);
+
+edge_app_mgr_t *edge_app_mgr_create_with_repo_in(void *storage, size_t storage_size,
+                                                 uv_loop_t *loop,
+                                                 const edge_app_repo_t *repo,
+                                                 void *stream_engine);
 
 /**
  * @brief 创建并初始化应用管理器 (兼容包装)
  */
-edge_app_mgr_t *edge_app_mgr_create(uv_loop_t *loop, sqlite_svc_t *db, void *stream_engine);
+edge_app_mgr_t *edge_app_mgr_create_in(void *storage, size_t storage_size, uv_loop_t *loop,
+                                       sqlite_svc_t *db, void *stream_engine);
 
 /**
  * @brief 销毁应用管理器

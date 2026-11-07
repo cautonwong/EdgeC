@@ -51,7 +51,9 @@ static void test_rest_apps_api_endpoints(void **state) {
     sqlite_svc_t *db = sqlite_svc_create(loop, &cfg);
     assert_non_null(db);
 
-    edge_app_mgr_t *app_mgr = edge_app_mgr_create(loop, db, NULL);
+    size_t app_mgr_size = edge_app_mgr_storage_size();
+    void *app_mgr_mem = malloc(app_mgr_size);
+    edge_app_mgr_t *app_mgr = edge_app_mgr_create_in(app_mgr_mem, app_mgr_size, loop, db, NULL);
     assert_non_null(app_mgr);
 
     datahub_t *hub = calloc(1, sizeof(datahub_t));
@@ -106,6 +108,7 @@ static void test_rest_apps_api_endpoints(void **state) {
 
     service_delete(svc);
     edge_app_mgr_destroy(app_mgr);
+    free(app_mgr_mem);
     sqlite_svc_destroy(db);
     free(hub);
     unlink(db_path);

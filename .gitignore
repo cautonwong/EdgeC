@@ -88,3 +88,6 @@ changed_files.txt
 # clawpatch 的切片缓存与报告,不进仓库
 /.clawpatch/
 /runtime/
+
+# 测试生成的 WASM 应用目录，不入库
+/edgeos_test_apps/
