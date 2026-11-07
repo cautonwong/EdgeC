@@ -2,10 +2,12 @@
 # Format: <path>|<lines>
 # 2026-11-07: cmd/dcu/main.c 544 -> 380; north adapter extracted. Wiring adapter listed separately.
 # 2026-11-07: cmd/smart_box/main.c 637 -> 88; hardware/NFC/Modbus/BLE/north adapters extracted.
+# 2026-11-07: cmd/iems/iems_app.c 758 -> 446; poll scheduler, southbound bus and internal ADC adapters extracted.
 cmd/dcu/dcu_north_adapter.c|194
 cmd/dcu/main.c|380
 cmd/edge_mcp_server/main.c|175
-cmd/iems/iems_app.c|758
+cmd/iems/iems_app.c|446
+cmd/iems/iems_southbound_adapter.c|133
 cmd/iems/main.c|99
 cmd/nexus_lab/main.c|156
 cmd/smart_box/main.c|88
