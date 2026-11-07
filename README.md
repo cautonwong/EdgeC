@@ -148,27 +148,21 @@ EdgeC 协议栈具备完整的双向对称架构，分别支撑下行主动抄�
 
 ---
 
-## 📅 5. 仿真环境/测试系统与本地UI
+## 📅 5. 验收台架与本地UI
 
-仿真环境与核心产品之间的关系，我们可以将其划分为三个主要平面：控制面 (Control Plane)、仿真面 (Simulation Plane) 和 产品面 (Product Plane)。
+验收与核心产品之间划分为三个平面：验收面 (Acceptance Plane)、产品面 (Product Plane) 和 监控面 (Monitoring Plane)。
 
 ```mermaid
 
 graph TB
-  subgraph "Control Plane (User/Dev Interface)"
-      CLI["Matrix CLI (God Mode)<br/>Python/CMD"]
-      TEST["Matrix Test (Pytest)<br/>Automated Scenarios"]
+  subgraph "Acceptance Plane (test-platform)"
+      ACC["acceptance/<br/>清单 / 台架 / 用例"]
+      PLAT["test-platform<br/>(判定 / 证据 / 门禁)"]
   end
 
-  subgraph "Simulation Plane (Virtual World)"
-      SRV["Matrix Server<br/>(UDS Relay & Orchestrator)"]
-
-      subgraph "Virtual Actors"
-          MB_ACT["Modbus Actor<br/>(sim_meter)"]
-          ADC_ACT["ADC Actor<br/>(waveform_gen)"]
-      end
-
-      VBUS["Virtual Bus (UDS/Shared Memory)<br/>/tmp/vbus0.sock"]
+  subgraph "Bench (in-repo simulators)"
+      SLAVE["Modbus RTU 从站<br/>(台架侧)"]
+      VBUS["虚拟总线 (UDS)<br/>/tmp/vbus0.sock"]
   end
 
   subgraph "Product Plane (EdgeOS Core)"
@@ -186,15 +180,11 @@ graph TB
   end
 
   %% Relationships
-  CLI -- HTTP/JSON --> SRV
-  TEST -- HTTP/JSON --> SRV
-  TEST -- Orchestrate --> IEMS
+  ACC -- 启动并驱动 --> SLAVE
+  ACC -- 断言 REST / 北向 --> IEMS
+  PLAT -- 判定与归因 --> ACC
 
-  SRV -- Spawn/Control --> MB_ACT
-  SRV -- Spawn/Control --> ADC_ACT
-
-  MB_ACT -- Pipe --> VBUS
-  ADC_ACT -- memfd --> DH
+  SLAVE -- Pipe --> VBUS
 
   VBUS -- Serial Protocol --> DRV
   DRV -- Publish --> DH
@@ -203,20 +193,14 @@ graph TB
 
   IEMS -- Discovery Socket --> IEMS_CLI
   DH -- Shared Memory --> IEMS_CLI
-
-  %% Metadata Driving
-  MANIFEST[("omnis_manifest.json<br/>(World & Bus Manifest)")]
-  MANIFEST -.-> SRV
-  MANIFEST -.-> IEMS
-  MANIFEST -.-> CLI
 ```
 
 角色详细说明：
 
-1. Simulation Plane (仿真面 - Matrix)
+1. Acceptance Plane (验收面)
 
-- Matrix Server: 充当“物理世界”的管理器。它创建 UDS Relay (虚拟交换机)，并根据仿真拓扑配置加载对应的 Actors。
-- Actors (Actors/simulators): 模拟真实硬件行为。例如 modbus.py 模拟一个电表，它监听虚拟总线并响应 IEMS 的请求。
+- `acceptance/`: 每个产品一个目录，放台架 (`bench.py`)、用例 (`*_product.py`) 与清单。台架负责建虚拟总线、起从站、并判定产品二进制是否过期。
+- `test-platform`: 独立的判定/证据/归因门禁，版本由 `acceptance/testplatform.sha` 锁定；升级 = 改这一行的一次 PR。
 - Virtual Bus: 使用 Unix Domain Socket 模拟 RS485/CAN 总线，使 C 端代码无需修改即可运行。
 
 2. Product Plane (产品面 - EdgeOS)
@@ -225,10 +209,10 @@ graph TB
 - DataHub: 高性能 Outbound 发布与影子存储通道。提供 POSIX SHM Ring 零拷贝进程间通信与 SeqLock 瞬时快照。
 - Stream Engine: 处理业务逻辑。例如“发现电压 > 264V 则拉掉继电器”的 REFLEX 逻辑就在此运行。
 
-3. Control Plane (控制面 - CLI & Test)
+3. 验收判定（test-platform）
 
-- Matrix CLI: 允许开发人员手动干预仿真世界。例如：set METER_MAIN VOLTAGE 280V。它不直接修改 IEMS，而是修改 Actor 的寄存器，观察 IEMS 是否能检测到并触发保护。
-- Matrix Test: 自动化的“剧本”执行器。它加载 YAML 场景，控制时间轴，并对 DataHub 的状态进行断言。
+- 台架用例直接改从站寄存器（例如把电压抬到 280V），观察 IEMS 是否检测到并触发保护。
+- 判定、证据与归因都在平台里；本仓库只提供台架与用例。
 
 4. Monitoring Plane (监控面 - iems-cli)
 
@@ -237,8 +221,8 @@ graph TB
 
 数据流向示例（过压保护场景）：
 
-1.  Matrix CLI 发送 set VOLTAGE 285。
-2.  Matrix Server 更新 Modbus Actor 的虚拟寄存器。
+1.  验收台架（`acceptance/`，test-platform）发送 set VOLTAGE 285。
+2.  台架的 Modbus 从站更新虚拟寄存器。
 3.  IEMS Drivers 轮询总线，读到 285V，写入 DataHub。
 4.  Stream Engine 被唤醒，触发 REFLEX 逻辑，产生“关断继电器”指令。
 5.  IEMS Drivers 执行指令，通过虚拟总线写入 Modbus Actor。
@@ -260,10 +244,7 @@ graph TB
 
 ### 6.2 信号合成与工况引擎 (Python Side)
 
-`adc_simulator.py` 演进为可扩展的波形引擎，支持多种真实电力工况模拟：
-
-- **叠加算子**：支持基础正弦波、指定阶数谐波、高斯白噪声的向量化叠加（基于 NumPy）。
-- **动态控制**：通过 `matrix-cli` 或自动化脚本，可以在运行时动态调整频率（Freq Shift）、幅值（Surge/Sag）或谐波含量。
+波形仿真端随 `tools/matrix` 一并移出本仓库，现由 `test-platform` 提供；本节 6.1 / 6.3 描述的生产侧机制不受影响。
 
 ### 6.3 原生 DSP 算子与管线逻辑
 
