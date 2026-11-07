@@ -29,8 +29,10 @@
 #include "iems_execution_adapter.h"
 #include "iems_internal_bus_adapter.h"
 #include "iems_north_adapter.h"
+#include "iems_north_listener.h"
 #include "iems_poll_scheduler.h"
 #include "iems_southbound_adapter.h"
+#include "iems_ui_channel.h"
 #include "stream_bus_datahub_adapter.h"
 #include "stream_sqlite_adapter.h"
 #include "io_executor.h"
@@ -42,11 +44,6 @@
 #include "sqlite_service.h"
 #include "stream_engine.h"
 #include "wasm_mgr.h"
-
-typedef struct {
-    int bus_id;
-    int bus_idx;
-} north_accept_ctx_t;
 
 struct iems_app_s {
     uv_loop_t* loop;
@@ -72,9 +69,8 @@ struct iems_app_s {
     bool monitor_initialized;
     uv_timer_t timer_monitor;
 
-    uv_pipe_t* ui_srv;
-    uv_pipe_t* north_srv[IEMS_MAX_VBUS];
-    north_accept_ctx_t north_ctx[IEMS_MAX_VBUS];
+    iems_ui_channel_t ui;
+    iems_north_listener_t north_listener;
 };
 
 /**
@@ -95,46 +91,6 @@ static int _iems_stream_submit_control(void* ctx, int bus_id, uint32_t tag_id, d
         LOG_WARN(LOG_CAT_CORE, "IEMS control write rejected by aggregate root (rc=%d)", rc);
     }
     return rc;
-}
-
-static void on_ui_connect(uv_stream_t* server, int status) {
-    if (status < 0) return;
-    iems_app_t* app = (iems_app_t*)server->data;
-    uv_pipe_t* client = malloc(sizeof(uv_pipe_t));
-    uv_pipe_init(server->loop, client, 0);
-    if (uv_accept(server, (uv_stream_t*)client) == 0 && app && app->hub) {
-        int cfd;
-        uv_fileno((const uv_handle_t*)client, &cfd);
-        edge_fd_send(cfd, datahub_get_ring_fd(app->hub));
-        edge_fd_send(cfd, datahub_get_shadow_fd(app->hub));
-    }
-    uv_close((uv_handle_t*)client, (uv_close_cb)free);
-}
-
-static void _on_north_connect(uv_stream_t* server, int status) {
-    if (status < 0) return;
-    north_accept_ctx_t* ctx = (north_accept_ctx_t*)server->data;
-    iems_app_t* app = (iems_app_t*)server->loop->data;
-    uv_pipe_t* client = malloc(sizeof(uv_pipe_t));
-    uv_pipe_init(server->loop, client, 0);
-    if (uv_accept(server, (uv_stream_t*)client) == 0 && app && app->orch) {
-        int fd;
-        uv_fileno((const uv_handle_t*)client, &fd);
-        int new_fd = dup(fd);
-        if (new_fd >= 0) {
-            int flags = fcntl(new_fd, F_GETFL, 0);
-            fcntl(new_fd, F_SETFL, flags | O_NONBLOCK);
-            io_handle_t* h =
-                io_executor_create_from_fd(server->loop, new_fd, datahub_get_io_pool(app->hub));
-            if (h) {
-                bus_orchestrator_attach_io(app->orch, ctx->bus_id, h);
-                if (h->ops && h->ops->enable_read) h->ops->enable_read(h, true);
-            } else {
-                close(new_fd);
-            }
-        }
-    }
-    uv_close((uv_handle_t*)client, (uv_close_cb)free);
 }
 
 int iems_app_connect_buses(iems_app_t* app, int* configured) {
@@ -285,81 +241,10 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
 
     const char* ui_path =
         (cfg && cfg->ui_sock && cfg->ui_sock[0]) ? cfg->ui_sock : EDGE_UI_SOCKET_PATH;
-    app->ui_srv = (uv_pipe_t*)malloc(sizeof(uv_pipe_t));
-    uv_pipe_init(loop, app->ui_srv, 0);
-    app->ui_srv->data = app;
-    unlink(ui_path);
-    int ui_bind = uv_pipe_bind(app->ui_srv, ui_path);
-    int ui_listen =
-        (ui_bind == 0) ? uv_listen((uv_stream_t*)app->ui_srv, 128, on_ui_connect) : 0;
-    if (ui_bind == 0 && ui_listen == 0) {
-        printf("\033[32m[IEMS-INIT] UI Companion Socket listening at %s\033[0m\n", ui_path);
-    } else {
-        // 路径太长/目录不存在/被占:UI 面板会看不到数据,得让现场直接看见原因
-        LOG_ERROR(LOG_CAT_CORE, "IEMS-INIT: UI Companion Socket FAILED at %s (bind=%s)", ui_path,
-                  uv_strerror(ui_bind));
-        if (ui_bind == 0) LOG_ERROR(LOG_CAT_CORE, "IEMS-INIT: UI listen FAILED: %s",
-                                    uv_strerror(ui_listen));
-        if (ui_bind == 0) unlink(ui_path);  // bind 成功、listen 失败会留下没人听的 socket 文件
-        uv_close((uv_handle_t*)app->ui_srv, (uv_close_cb)free);
-        app->ui_srv = NULL;
-    }
+    iems_ui_channel_start(&app->ui, loop, app->hub, ui_path);
 
-    int north_bound_seen = 0;
-    for (uint32_t i = 0; i < conn_count; i++) {
-        const edge_connectivity_t* c = &conns[i];
-        if (strcmp(c->category, "NORTHBOUND") == 0 && c->id < IEMS_MAX_VBUS) {
-            // cfg->north_sock 只覆盖第一条 NORTHBOUND(单总线是常态);其余条目用契约表
-            // 自带的 simulation_path,否则第二条会 unlink 掉第一条正在监听的 socket
-            bool from_env = (north_bound_seen == 0 && cfg && cfg->north_sock && cfg->north_sock[0]);
-            const char* path = NULL;
-            if (from_env) {
-                path = cfg->north_sock;
-            } else if (c->simulation_path && c->simulation_path[0]) {
-                path = c->simulation_path;
-                if (north_bound_seen > 0) {
-                    LOG_WARN(LOG_CAT_CORE,
-                             "IEMS-INIT: NORTHBOUND bus %d uses contract path %s "
-                             "(IEMS_NORTH_SOCK 只覆盖第一条北向总线)",
-                             (int)c->id, path);
-                }
-            } else if (north_bound_seen == 0) {
-                path = "/tmp/iems_north_slave.sock";
-            } else {
-                // 共用同一个 socket 会让后面的 unlink 掉前面正在监听的文件,宁可不监听
-                LOG_ERROR(LOG_CAT_CORE,
-                          "IEMS-INIT: NORTHBOUND bus %d has no path in contract table; skipped "
-                          "(refusing to share another bus's socket)",
-                          (int)c->id);
-                continue;
-            }
-            north_bound_seen++;
-
-            app->north_srv[c->id] = (uv_pipe_t*)malloc(sizeof(uv_pipe_t));
-            uv_pipe_init(loop, app->north_srv[c->id], 0);
-            unlink(path);
-
-            int nb_bind = uv_pipe_bind(app->north_srv[c->id], path);
-            int nb_listen = (nb_bind == 0)
-                                ? uv_listen((uv_stream_t*)app->north_srv[c->id], 128,
-                                            _on_north_connect)
-                                : nb_bind;
-            if (nb_bind == 0 && nb_listen == 0) {
-                app->north_ctx[c->id].bus_id = c->id;
-                app->north_ctx[c->id].bus_idx = c->id % IEMS_MAX_VBUS;
-                app->north_srv[c->id]->data = &app->north_ctx[c->id];
-                app->bus_state[app->north_ctx[c->id].bus_idx] = BUS_STATE_LISTENING;
-                printf("\033[32m[IEMS-INIT] Northbound Slave LISTENING at %s\033[0m\n", path);
-            } else {
-                LOG_ERROR(LOG_CAT_CORE,
-                          "IEMS-INIT: Northbound Slave FAILED at %s (bind=%s, listen=%s)", path,
-                          uv_strerror(nb_bind), uv_strerror(nb_listen));
-                if (nb_bind == 0) unlink(path);
-                uv_close((uv_handle_t*)app->north_srv[c->id], (uv_close_cb)free);
-                app->north_srv[c->id] = NULL;
-            }
-        }
-    }
+    iems_north_listener_start(&app->north_listener, loop, app->hub, app->orch,
+                              (cfg ? cfg->north_sock : NULL), app->bus_state);
 
     return app;
 }
@@ -409,14 +294,8 @@ void iems_app_destroy(iems_app_t* app) {
     }
     iems_internal_bus_stop(&app->internal_bus);
 
-    if (app->ui_srv) {
-        uv_close((uv_handle_t*)app->ui_srv, (uv_close_cb)free);
-    }
-    for (int i = 0; i < IEMS_MAX_VBUS; i++) {
-        if (app->north_srv[i]) {
-            uv_close((uv_handle_t*)app->north_srv[i], (uv_close_cb)free);
-        }
-    }
+    iems_ui_channel_close(&app->ui);
+    iems_north_listener_close(&app->north_listener);
 
     uv_run(app->loop, UV_RUN_NOWAIT);
 
