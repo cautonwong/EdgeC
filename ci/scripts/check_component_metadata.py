@@ -1,20 +1,38 @@
 #!/usr/bin/env python3
-"""Validate component.yaml against the machine-readable architecture record."""
+"""Validate component.meta against the machine-readable architecture record."""
 
 import argparse
 import os
 import re
 import sys
 
-import yaml
-
-REQUIRED = ["name", "version", "maturity", "owner", "subdomain", "api", "requires", "budgets", "support"]
+REQUIRED = [
+    "name", "version", "maturity", "owner", "subdomain", "language", "abi_stability",
+    "foundation", "ports_required", "allowed_owners", "rom_bytes_max", "ram_bytes_max",
+    "stack_bytes_max", "heap", "lts",
+]
 MATURITY = {"incubating", "stable", "maintenance", "deprecated"}
 SUBDOMAIN = {"core", "supporting"}
 ABI = {"source-only", "abi-stable"}
 HEAP = {"none", "bounded"}
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 BASELINE = os.path.join("ci", "baseline", "component_boundary.txt")
+
+
+def load_meta(path):
+    data = {}
+    with open(path, encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            key, _, value = line.partition("=")
+            data[key.strip()] = value.strip()
+    return data
+
+
+def split_list(value):
+    return [item.strip() for item in value.split(",") if item.strip()]
 
 
 def baseline_owners(root, component):
@@ -34,59 +52,48 @@ def baseline_owners(root, component):
 
 def validate(path, root):
     component = os.path.basename(os.path.dirname(path))
+    data = load_meta(path)
     problems = []
-    with open(path, encoding="utf-8") as handle:
-        data = yaml.safe_load(handle) or {}
-
     for key in REQUIRED:
         if key not in data:
             problems.append(f"missing field: {key}")
     if data.get("name") != component:
         problems.append(f"name must be {component}")
-    if not SEMVER.match(str(data.get("version", ""))):
+    if not SEMVER.match(data.get("version", "")):
         problems.append("version must be MAJOR.MINOR.PATCH")
     if data.get("maturity") not in MATURITY:
         problems.append("maturity is invalid")
-    if not str(data.get("owner", "")).strip():
+    if not data.get("owner"):
         problems.append("owner is required")
     if data.get("subdomain") not in SUBDOMAIN:
         problems.append("subdomain must be core or supporting")
-
-    api = data.get("api") or {}
-    if not api.get("language"):
-        problems.append("api.language is required")
-    if api.get("abi_stability") not in ABI:
-        problems.append("api.abi_stability is invalid")
-
-    requires = data.get("requires") or {}
-    ports = requires.get("ports") or {}
-    if not isinstance(ports.get("required", []), list):
-        problems.append("requires.ports.required must be a list")
-    if not requires.get("foundation"):
-        problems.append("requires.foundation is required")
-
-    budgets = data.get("budgets") or {}
+    if not data.get("language"):
+        problems.append("language is required")
+    if data.get("abi_stability") not in ABI:
+        problems.append("abi_stability is invalid")
+    if not data.get("foundation"):
+        problems.append("foundation is required")
     for key in ("rom_bytes_max", "ram_bytes_max", "stack_bytes_max"):
-        if not isinstance(budgets.get(key), int):
-            problems.append(f"budgets.{key} must be an integer")
-    if budgets.get("heap") not in HEAP:
-        problems.append("budgets.heap must be none or bounded")
+        try:
+            int(data.get(key, ""))
+        except ValueError:
+            problems.append(f"{key} must be an integer")
+    if data.get("heap") not in HEAP:
+        problems.append("heap must be none or bounded")
+    if data.get("lts") not in {"true", "false"}:
+        problems.append("lts must be true or false")
 
-    if not isinstance((data.get("support") or {}).get("lts"), bool):
-        problems.append("support.lts must be a boolean")
-
-    declared = set(requires.get("allowed_owners", []))
+    declared = set(split_list(data.get("allowed_owners", "")))
     recorded = baseline_owners(root, component)
     if recorded and declared != recorded:
         problems.append(
             f"allowed_owners {sorted(declared)} do not match baseline {sorted(recorded)}"
         )
-
     return problems
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Validate component.yaml files.")
+    parser = argparse.ArgumentParser(description="Validate component.meta files.")
     parser.add_argument("--root", default=".", help="repository root")
     args = parser.parse_args()
     root = os.path.abspath(args.root)
@@ -94,10 +101,10 @@ def main():
     problems = []
     modules = os.path.join(root, "modules")
     for module in sorted(os.listdir(modules)) if os.path.isdir(modules) else []:
-        path = os.path.join(modules, module, "component.yaml")
+        path = os.path.join(modules, module, "component.meta")
         if os.path.exists(path):
             for problem in validate(path, root):
-                problems.append(f"modules/{module}/component.yaml|{problem}")
+                problems.append(f"modules/{module}/component.meta|{problem}")
 
     if problems:
         print("❌ [COMPONENT_METADATA_GUARD] violations:")
