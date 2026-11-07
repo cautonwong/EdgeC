@@ -28,6 +28,9 @@ add_library(dcu_app_lib STATIC
     dcu_driver_adapter.c
     dcu_node.c
     dcu_north_adapter.c
+    dcu_bus_adapter.c
+    dcu_pipeline_adapter.c
+    dcu_heartbeat.c
 )
 
 

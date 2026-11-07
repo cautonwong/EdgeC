@@ -1,28 +1,25 @@
 #include <errno.h>
-#include <fcntl.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <time.h>
 #include <unistd.h>
 #include <uv.h>
 
 #include "arbiter.h"
 #include "bus_orchestrator.h"
+#include "dcu_bus_adapter.h"
 #include "dcu_driver_adapter.h"
 #include "datahub.h"
-#include "dcu_event_monitor.h"
 #include "dcu_bus_source.h"
+#include "dcu_heartbeat.h"
 #include "dcu_inventory.h"
 #include "dcu_node.h"
 #include "dcu_north_adapter.h"
 #include "dcu_north_source.h"
+#include "dcu_pipeline_adapter.h"
 #include "dcu_poller.h"
-#include "dcu_router.h"
 #include "dcu_storage.h"
 #include "edge_api.h"
 #include "dcu_twin_source.h"
@@ -30,9 +27,7 @@
 #include "edge_driver.h"
 #include "edge_log.h"
 #include "edge_slave_plane.h"
-#include "io_executor.h"
 #include "edge_service.h"
-#include "io_executor.h"
 #include "mqtt_producer.h"
 #include "northbound_mgr.h"
 #include "sqlite_service.h"
@@ -45,14 +40,6 @@ static void *g_dcu_node_mem = NULL;
 
 static service_t* g_running_svc = NULL;
 void* g_running_se = NULL;  // Exported for poller
-static uv_timer_t g_freeze_trigger_timer;
-
-typedef struct {
-    datahub_t* hub;
-    stream_engine_t* se;
-} sync_ctx_t;
-
-static sync_ctx_t g_sync_ctx;
 
 static void on_sig_async(uv_signal_t* handle, int sig) {
     (void)handle;
@@ -72,99 +59,6 @@ static void on_safety_timeout(uv_timer_t* handle) {
     }
     if (g_running_svc) service_stop(g_running_svc);
 }
-
-static int g_test_cycles = 0;
-
-static void _freeze_trigger_cb(uv_timer_t* handle) {
-    sync_ctx_t* ctx = (sync_ctx_t*)handle->data;
-    dcu_inventory_t* inv = dcu_node_get_inventory(g_dcu_node);
-    dcu_storage_t* storage = dcu_node_get_storage(g_dcu_node);
-    if (!inv || !storage) return;
-
-    /* 落库已在 dcu_node_record_reading()（驱动回调直达聚合根）里完成，
-     * 这里只做轮次收尾：刷盘 + 冻结管线。不再反查 shadow。 */
-    int saved = (int)dcu_node_take_saved(g_dcu_node);
-
-    if (saved > 0) {
-        dcu_storage_flush(storage);
-        LOG_INFO(LOG_CAT_SCHED, "✅ [STORAGE] SUCCESS! Captured %d meters truth data.", saved);
-        printf("💓 [HEARTBEAT] Marathon Cycle %d Completed. Database Flushed.\n", g_test_cycles + 1);
-
-        // 💡 [Industrial Fix] 开启大事务保护 5xxx 冻结管线的高频批量写入，防止 SQLite 疯狂分配/释放
-        // heap 导致 C 库崩溃
-        dcu_storage_begin_trans(storage);
-
-        for (int i = 0; i < inv->count; i++) {
-            pipe_msg_t trigger;
-            memset(&trigger, 0, sizeof(pipe_msg_t));
-            trigger.tag_id = OAD_DAILY_FREEZE;
-            trigger.type = PIPEMSG_TYPE_SCALAR;
-            trigger.device_id = (uint32_t)i;
-            trigger.ts = (uint64_t)time(NULL);
-            if (ctx->se) stream_engine_push(ctx->se, &trigger);
-
-            // 💡 [8xxx Protocol Verification] 随机触发跳闸控制，验证控制闭环
-            if (i > 0 && i % 200 == 0) {
-                uint32_t relay_omd = (0x8000U << 16) | 0x0100;
-                uint8_t action =
-                    (g_test_cycles % 2 == 0) ? 1 : 0;  // 0/2 cycle Trip, 1 cycle Restore
-                printf("🎛️ [RELAY] Dev %d: Triggering Action %d (OI 8000 Attr 1)\n", i,
-                       action);
-                dcu_router_action(relay_omd, (void*)(uintptr_t)i, &action);
-            }
-        }
-
-        dcu_storage_commit_trans(storage);
-    }
-
-    g_test_cycles++;
-
-    /* 演示模式默认跑 3 个心跳周期就自杀（Marathon）。验收要读北向 / 等主站连上来，
-     * 不能跟一个 3 秒窗口赛跑 —— 那样的用例会"有时绿有时红"，且红的时候像产品坏了。
-     * `DCU_HEARTBEAT_CYCLES=0` 表示一直跑，由平台收尾。 */
-    static int max_cycles = -1;
-    if (max_cycles < 0) {
-        const char* env_cycles = getenv("DCU_HEARTBEAT_CYCLES");
-        max_cycles = (env_cycles && env_cycles[0]) ? atoi(env_cycles) : 3;
-    }
-    if (max_cycles > 0 && g_test_cycles >= max_cycles) {
-        LOG_INFO(LOG_CAT_SCHED, "🏁 [TEST] Marathon Completed. Self-terminating...");
-        on_safety_timeout(NULL);
-    }
-}
-
-static uv_timer_t g_control_test_timer;
-
-static void _control_test_cb(uv_timer_t* handle) {
-    (void)handle;
-    LOG_INFO(LOG_CAT_BUS, "🏁 [TEST] Triggering Remote Control ACTION (8000) for Meter 10000001...");
-    uint32_t omd = (0x8000U << 16) | 0x0100;
-    dcu_router_action(omd, NULL, NULL);
-}
-
-// === [Consumer-Driven Interfaces] Wrappers ===
-static int _event_archive_event(void* ctx, const char* addr, uint16_t event_code,
-                                uint64_t start_time, uint64_t end_time, float snapshot_val) {
-    return dcu_storage_write_event((dcu_storage_t*)ctx, addr, event_code, start_time, end_time,
-                                   snapshot_val);
-}
-
-static int _event_archive_freeze(void* ctx, const char* addr, uint32_t freeze_oad,
-                                 uint64_t freeze_time, uint32_t src_oad, double value) {
-    return dcu_storage_write_freeze((dcu_storage_t*)ctx, addr, freeze_oad, freeze_time, src_oad,
-                                    value);
-}
-
-/* ==============================================================================
- * 北向 698 从站（族 B）：配网主站连上来 GET 属性、下 ACTION。
- *
- * 与 IEMS 的 Modbus 从站同一套机制：uv_pipe 监听 + accept 后 attach_io +
- * slave source 由产品实现。差别只在协议与点位标识（DCU 用 OAD）。
- *
- * 为什么不做成"通道档案里的一条 NORTHBOUND"：DCU 的通道档案是南向 RS485 表，
- * 北向从站是本机固定能力（一台终端只有一个 698 服务口），塞进档案反而要
- * 为它编一个假通道号。路径由 `DCU_NORTH_SOCK` 给，缺省 /tmp/dcu_north_slave.sock。
- * ============================================================================== */
 
 static int _create_dcu_node(uv_loop_t *loop, const dcu_node_config_t *cfg) {
     size_t storage_size = dcu_node_storage_size(cfg);
@@ -273,33 +167,7 @@ int main(int argc, char** argv) {
     edge_api_init(io_orch, drv_mgr);
     arbiter_resume(arbiter_ctx);
 
-    for (int i = 0; i < 32; i++) {
-        // 协议来自档案，不按通道号猜；空通道不建主站、不连 socket。
-        const char* proto = dcu_inventory_channel_protocol(inv, (uint8_t)i);
-        if (!proto) continue;
-        /* [ADR-002] 驱动不再需要点位表注入；这里只确认协议确实注册过 */
-        if (!driver_manager_find(drv_mgr, proto)) {
-            LOG_ERROR(LOG_CAT_SCHED, "❌ channel %d: protocol '%s' has no registered driver", i,
-                      proto);
-            continue;
-        }
-        bus_orchestrator_setup_master(io_orch, i, proto, 0);
-        char path[64];
-        snprintf(path, sizeof(path), "/tmp/rs485_%d.sock", i);
-        struct sockaddr_un addr;
-        memset(&addr, 0, sizeof(addr));
-        addr.sun_family = AF_UNIX;
-        strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
-        int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-        if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) >= 0) {
-            int flags = fcntl(fd, F_GETFL, 0);
-            fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-            io_handle_t* h = io_executor_create_from_fd(loop, fd, datahub_get_io_pool(hub));
-            bus_orchestrator_attach_io(io_orch, i, h);
-        } else {
-            close(fd);
-        }
-    }
+    dcu_bus_attach_channels(loop, hub, io_orch, drv_mgr, inv);
 
     dcu_north_slave_attach(loop, hub, io_orch);
     dcu_north_cloud_attach(hub);
@@ -317,48 +185,13 @@ int main(int argc, char** argv) {
     stream_engine_t* se =
         stream_engine_create_datahub(hub, loop, (struct bus_orchestrator_s*)io_orch, NULL);
     g_running_se = se;
-    event_sink_ops_t event_sink = {.ctx = storage,
-                                   .archive_event = _event_archive_event,
-                                   .archive_freeze = _event_archive_freeze};
-
-    pipeline_t* evt_pipe = stream_engine_add_pipeline(se, "EVENT_PIPELINE", 0);
-    pipeline_stage_t* m_stage = stage_event_monitor_create(inv, dcu_node_get_event_3000(g_dcu_node),
-                                                           dcu_node_get_event_3005(g_dcu_node));
-    pipeline_add_stage(evt_pipe, m_stage->name, m_stage->process, m_stage->priv_state,
-                       m_stage->cleanup_state, NULL, NULL);
-    free(m_stage);
-    pipeline_stage_t* l_stage = stage_event_logger_create(
-        inv, dcu_node_get_event_3000(g_dcu_node), dcu_node_get_event_3005(g_dcu_node), hub, event_sink);
-    pipeline_add_stage(evt_pipe, l_stage->name, l_stage->process, l_stage->priv_state,
-                       l_stage->cleanup_state, NULL, NULL);
-    free(l_stage);
-
-    pipeline_t* frz_pipe = stream_engine_add_pipeline(se, "FREEZE_PIPELINE", 0);
-    pipeline_stage_t* f_stage = stage_periodic_freeze_create_ex(inv, hub, event_sink);
-    pipeline_add_stage(frz_pipe, f_stage->name, f_stage->process, f_stage->priv_state,
-                       f_stage->cleanup_state, NULL, NULL);
-    free(f_stage);
-
-    uv_timer_init(loop, &g_freeze_trigger_timer);
-    g_freeze_trigger_timer.data = &g_sync_ctx;
-    g_sync_ctx.hub = hub;
-    g_sync_ctx.se = se;
-    uv_timer_start(&g_freeze_trigger_timer, _freeze_trigger_cb, 5000, 5000);
+    dcu_pipelines_attach(se, hub, inv, g_dcu_node, storage);
 
     // [Industrial Loop] 启动业务采集轮询
     dcu_node_start(g_dcu_node);
 
-    uv_timer_init(loop, &g_control_test_timer);
-    /* 演示用的遥控触发。缺省 2 秒（第一轮抄表之后、3 个心跳周期之内），
-     * 让"抄表 → 遥控"这条链在一次运行里就能被验到；
-     * `DCU_CONTROL_DELAY_MS` 可覆盖（0 = 立刻触发，验收里用它把窗口压掉）。 */
-    uint64_t ctrl_delay_ms = 2000;
-    const char* env_ctrl = getenv("DCU_CONTROL_DELAY_MS");
-    if (env_ctrl && env_ctrl[0]) {
-        unsigned long v = strtoul(env_ctrl, NULL, 10);
-        ctrl_delay_ms = (uint64_t)v;
-    }
-    uv_timer_start(&g_control_test_timer, _control_test_cb, ctrl_delay_ms, 0);
+    dcu_heartbeat_t heartbeat;
+    dcu_heartbeat_start(&heartbeat, loop, g_dcu_node, se, svc);
 
     static uv_timer_t safety_timer;
     uv_timer_init(loop, &safety_timer);
