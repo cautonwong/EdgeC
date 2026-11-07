@@ -5,13 +5,14 @@
 
 #include "arbiter.h"
 #include "edge_log.h"
-#include "edge_service.h"
+#include "js_arbiter_port.h"
 #include "stream_bus_port.h"
 
 typedef struct {
     JSRuntime *rt;
     JSContext *ctx;
-    service_t *svc;
+    uv_loop_t *loop;
+    js_arbiter_port_t arb;
     stream_bus_port_t bus;
 } js_engine_t;
 
@@ -51,11 +52,10 @@ static JSValue js_arbiter_get_statuses(JSContext *ctx, JSValueConst this_val, in
                                        JSValueConst *argv) {
     (void)this_val; (void)argc; (void)argv;
     js_engine_t *engine = JS_GetContextOpaque(ctx);
-    arbiter_t *arb = service_get_arbiter(engine->svc);
-    if (!arb) return JS_NULL;
+    if (!engine->arb.get_statuses) return JS_NULL;
 
     arbiter_bus_status_t stats[ARBITER_MAX_BUSES];
-    int count = arbiter_get_statuses(arb, stats, ARBITER_MAX_BUSES);
+    int count = js_arbiter_port_get_statuses(&engine->arb, stats, ARBITER_MAX_BUSES);
 
     JSValue arr = JS_NewArray(ctx);
     for (int i = 0; i < count; i++) {
@@ -78,16 +78,16 @@ static JSValue js_arbiter_submit(JSContext *ctx, JSValueConst this_val, int argc
     JS_ToFloat64(ctx, &value, argv[2]);
 
     js_engine_t *engine = JS_GetContextOpaque(ctx);
-    arbiter_t *arb = service_get_arbiter(engine->svc);
-    
+    if (!engine->arb.submit) return JS_UNDEFINED;
+
     cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));
     cmd_msg_init_write(cmd, tag_id, value, ARBITER_PRIO_NORMAL);
-    
-    arbiter_submit_cmd(arb, bus_id, cmd);
+
+    js_arbiter_port_submit(&engine->arb, bus_id, cmd);
     return JS_UNDEFINED;
 }
 
-void js_engine_register_globals(JSContext *ctx, service_t *svc) {
+void js_engine_register_globals(JSContext *ctx) {
     JSValue global_obj = JS_GetGlobalObject(ctx);
     JSValue dcu_obj = JS_NewObject(ctx);
 
@@ -121,11 +121,18 @@ static uint8_t *js_load_file(JSContext *ctx, size_t *pout_len, const char *filen
     return buf;
 }
 
-js_engine_t *js_engine_create(service_t *svc, const stream_bus_port_t *bus, size_t mem_limit) {
-    js_engine_t *engine = calloc(1, sizeof(js_engine_t));
-    if (!engine) return NULL;
+size_t js_engine_storage_size(void) {
+    return sizeof(js_engine_t);
+}
 
-    engine->svc = svc;
+js_engine_t *js_engine_create_in(void *storage, size_t storage_size, uv_loop_t *loop,
+                                 const js_arbiter_port_t *arb,
+                                 const stream_bus_port_t *bus, size_t mem_limit) {
+    if (!storage || storage_size < sizeof(js_engine_t)) return NULL;
+    js_engine_t *engine = storage;
+    memset(engine, 0, sizeof(*engine));
+    engine->loop = loop;
+    engine->arb = arb ? *arb : (js_arbiter_port_t){0};
     engine->bus = bus ? *bus : (stream_bus_port_t){0};
     engine->rt = JS_NewRuntime();
     engine->ctx = JS_NewContext(engine->rt);
@@ -137,7 +144,7 @@ js_engine_t *js_engine_create(service_t *svc, const stream_bus_port_t *bus, size
         JS_SetMemoryLimit(engine->rt, 1024 * 1024);  // Default 1MB
     }
 
-    js_engine_register_globals(engine->ctx, svc);
+    js_engine_register_globals(engine->ctx);
     return engine;
 }
 
@@ -180,7 +187,7 @@ int js_engine_run_file(js_engine_t *engine, const char *file_path) {
 }
 
 uv_loop_t *js_engine_get_loop(js_engine_t *engine) {
-    return engine ? service_get_loop(engine->svc) : NULL;
+    return engine ? engine->loop : NULL;
 }
 
 JSContext *js_engine_get_context(js_engine_t *engine) {
@@ -192,5 +199,4 @@ void js_engine_destroy(js_engine_t *engine) {
     JS_RunGC(engine->rt);
     JS_FreeContext(engine->ctx);
     JS_FreeRuntime(engine->rt);
-    free(engine);
 }

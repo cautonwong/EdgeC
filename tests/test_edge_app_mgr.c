@@ -79,7 +79,9 @@ static void test_app_lifecycle_and_boot_restore(void **state) {
     sqlite_svc_t *db = sqlite_svc_create(loop, &cfg);
     assert_non_null(db);
 
-    edge_app_mgr_t *mgr = edge_app_mgr_create(loop, db, NULL);
+    size_t mgr_size = edge_app_mgr_storage_size();
+    void *mgr_mem = malloc(mgr_size);
+    edge_app_mgr_t *mgr = edge_app_mgr_create_in(mgr_mem, mgr_size, loop, db, NULL);
     assert_non_null(mgr);
 
     // Install App
@@ -115,6 +117,7 @@ static void test_app_lifecycle_and_boot_restore(void **state) {
     assert_int_equal(rc, -1);
 
     edge_app_mgr_destroy(mgr);
+    free(mgr_mem);
     sqlite_svc_destroy(db);
     unlink(db_path);
 }
@@ -167,7 +170,9 @@ static void test_app_mgr_custom_repo(void **state) {
                             .delete_app = _mock_delete_app,
                             .list_apps = _mock_list_apps};
 
-    edge_app_mgr_t *mgr = edge_app_mgr_create_with_repo(loop, &repo, NULL);
+    size_t mgr_size = edge_app_mgr_storage_size();
+    void *mgr_mem = malloc(mgr_size);
+    edge_app_mgr_t *mgr = edge_app_mgr_create_with_repo_in(mgr_mem, mgr_size, loop, &repo, NULL);
     assert_non_null(mgr);
 
     app_manifest_t m = {0};
@@ -191,6 +196,7 @@ static void test_app_mgr_custom_repo(void **state) {
     assert_int_equal(mock_ctx.has_app, 0);
 
     edge_app_mgr_destroy(mgr);
+    free(mgr_mem);
 }
 
 int main(void) {

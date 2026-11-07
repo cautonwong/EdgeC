@@ -146,12 +146,17 @@ static int _sqlite_repo_list_apps(void *ctx, app_manifest_t *out_apps, int max_c
     return sqlite_svc_list_apps((sqlite_svc_t *)ctx, out_apps, max_count);
 }
 
-edge_app_mgr_t *edge_app_mgr_create_with_repo(uv_loop_t *loop,
-                                              const edge_app_repo_t *repo,
-                                              void *stream_engine) {
-    if (!repo) return NULL;
-    edge_app_mgr_t *mgr = calloc(1, sizeof(edge_app_mgr_t));
-    if (!mgr) return NULL;
+size_t edge_app_mgr_storage_size(void) {
+    return sizeof(struct edge_app_mgr_s);
+}
+
+edge_app_mgr_t *edge_app_mgr_create_with_repo_in(void *storage, size_t storage_size,
+                                                 uv_loop_t *loop,
+                                                 const edge_app_repo_t *repo,
+                                                 void *stream_engine) {
+    if (!storage || storage_size < sizeof(struct edge_app_mgr_s) || !repo) return NULL;
+    edge_app_mgr_t *mgr = storage;
+    memset(mgr, 0, sizeof(*mgr));
     mgr->loop = loop;
     mgr->repo = *repo;
     mgr->stream_engine = stream_engine;
@@ -159,7 +164,8 @@ edge_app_mgr_t *edge_app_mgr_create_with_repo(uv_loop_t *loop,
     return mgr;
 }
 
-edge_app_mgr_t *edge_app_mgr_create(uv_loop_t *loop, sqlite_svc_t *db, void *stream_engine) {
+edge_app_mgr_t *edge_app_mgr_create_in(void *storage, size_t storage_size, uv_loop_t *loop,
+                                       sqlite_svc_t *db, void *stream_engine) {
     edge_app_repo_t repo = {
         .ctx = db,
         .save_app = _sqlite_repo_save_app,
@@ -167,12 +173,11 @@ edge_app_mgr_t *edge_app_mgr_create(uv_loop_t *loop, sqlite_svc_t *db, void *str
         .delete_app = _sqlite_repo_delete_app,
         .list_apps = _sqlite_repo_list_apps
     };
-    return edge_app_mgr_create_with_repo(loop, &repo, stream_engine);
+    return edge_app_mgr_create_with_repo_in(storage, storage_size, loop, &repo, stream_engine);
 }
 
 void edge_app_mgr_destroy(edge_app_mgr_t *mgr) {
     if (!mgr) return;
-    free(mgr);
 }
 
 int edge_app_mgr_install(edge_app_mgr_t *mgr, const app_manifest_t *manifest, const void *wasm_data, size_t wasm_len) {

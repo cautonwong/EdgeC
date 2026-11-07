@@ -9,7 +9,7 @@
 
 extern pipeline_stage_t *stage_filter_create(uint32_t tag_id);
 extern pipeline_stage_t *stage_accumulate_create(void);
-extern pipeline_stage_t *stage_sqlite_sink_create(sqlite_svc_t *db, const char *table);
+extern pipeline_stage_t *stage_sqlite_sink_create(const stream_sqlite_port_t *db, const char *table);
 extern pipeline_stage_t *stage_transform_create(double alpha, double beta);
 extern pipeline_stage_t *stage_ema_create(double alpha);
 extern pipeline_stage_t *stage_clamp_create(double min, double max);
@@ -137,7 +137,7 @@ static pipeline_stage_t *build_stage(const char *type, cJSON *config, pipeline_l
     }
     if (strcmp(type, "sqlite_sink") == 0) {
         cJSON *item = cJSON_GetObjectItem(config, "table");
-        return stage_sqlite_sink_create(ctx->db, item ? item->valuestring : "history");
+        return stage_sqlite_sink_create(&ctx->db, item ? item->valuestring : "history");
     }
     if (strcmp(type, "js_rule") == 0) {
         cJSON *item = cJSON_GetObjectItem(config, "script_path");

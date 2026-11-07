@@ -1,4 +1,5 @@
 #include "datahub_router.h"
+#include "datahub_router_priv.h"
 #include "datahub.h"
 
 #include <stdio.h>
@@ -6,6 +7,9 @@
 #include <string.h>
 
 #include "edge_log.h"
+
+_Static_assert(sizeof(struct datahub_router_s) <= sizeof(datahub_router_storage_t),
+               "datahub_router_s exceeds datahub_router_storage_t");
 
 int datahub_router_init(datahub_router_t *router, uv_loop_t *loop, const datahub_router_config_t *config,
                        const edge_tag_meta_t *metadata, uint32_t metadata_len,
@@ -55,6 +59,18 @@ int datahub_router_init(datahub_router_t *router, uv_loop_t *loop, const datahub
     }
 
     return 0;
+}
+
+datahub_router_policy_t datahub_router_get_policy(const datahub_router_t *router) {
+    return router ? router->write_policy : DATAHUB_ROUTER_POLICY_BEST_EFFORT;
+}
+
+bool datahub_router_shm_active(const datahub_router_t *router) {
+    return router ? router->shm_active : false;
+}
+
+bool datahub_router_dds_active(const datahub_router_t *router) {
+    return router ? router->dds_active : false;
 }
 
 int datahub_router_publish(datahub_router_t *router, const pipe_msg_t *msg) {

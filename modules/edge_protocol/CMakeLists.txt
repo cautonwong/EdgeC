@@ -5,8 +5,6 @@ set(PROTO_SOURCES
     src/dlt645/dlt645_codec.c
     src/dlt698/dlt698_codec.c
     src/protocol_converter.c
-    src/simd_cdd_codec.c
-    src/multibus_bridge.c
     src/edge_uns_engine.c
 )
 

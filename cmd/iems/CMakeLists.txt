@@ -6,6 +6,7 @@ add_library(iems_app_lib STATIC
     iems_node.c
     iems_app.c
     iems_execution_adapter.c
+    iems_north_adapter.c
     iems_driver_adapter.c
     iems_microgrid_coordinator.c
     iems_pcs_controller.c

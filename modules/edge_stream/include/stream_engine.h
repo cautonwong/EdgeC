@@ -9,12 +9,12 @@
 #include "contract_data_types.h"
 #include "shmring.h"
 #include "stream_bus_port.h"
+#include "stream_sqlite_port.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct sqlite_svc_s sqlite_svc_t;
 typedef struct js_engine_s js_engine_t;
 typedef struct battery_limit_s battery_limit_t;
 typedef struct edge_params_s edge_params_t;
@@ -132,10 +132,12 @@ typedef struct {
 
 // pipeline_loader_ctx_t 的定义必须匹配 contract_data_types.h 中的前置声明
 struct pipeline_loader_ctx_s {
-    sqlite_svc_t *db;
+    stream_sqlite_port_t db;
     js_engine_t *js_engine;
     edge_params_t *params;
     stream_control_ops_t control_ops; /**< [IoC] 用于指令触发，消费者定义的接口 */
+    const char *audit_secret;          /**< VPP 审计签名密钥，组合根注入 */
+    bool production;                   /**< 是否生产环境，组合根注入 */
 };
 
 stream_engine_t *stream_engine_create_in(stream_engine_storage_t *storage,
@@ -256,7 +258,7 @@ pipeline_stage_t *stage_peak_shaving_create(double threshold_w, uint32_t ctrl_ta
 pipeline_stage_t *stage_accumulate_create(void);
 pipeline_stage_t *stage_periodic_freeze_create(int kind);
 pipeline_stage_t *stage_time_guard_create(void);
-pipeline_stage_t *stage_sqlite_sink_create(sqlite_svc_t *db, const char *table);
+pipeline_stage_t *stage_sqlite_sink_create(const stream_sqlite_port_t *db, const char *table);
 pipeline_stage_t *stage_js_rule_create(js_engine_t *engine, const char *script_path, bool is_async);
 pipeline_stage_t *stage_wasm_create(const char *wasm_path, const char *entry_func);
 pipeline_stage_t *stage_battery_guard_create(battery_limit_t *limits);

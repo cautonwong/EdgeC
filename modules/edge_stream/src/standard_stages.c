@@ -6,7 +6,6 @@
 #include "algo_peak_shaving.h"
 #include "battery_strategy.h"
 #include "edge_log.h"
-#include "sqlite_service.h"
 #include "stream_engine.h"
 #include "stream_engine_priv.h"
 #include "edge_dsp.h"
@@ -56,12 +55,12 @@ typedef struct {
 typedef struct {
     uv_work_t req;
     pipeline_t *pipeline;
-    sqlite_svc_t *db;
+    stream_sqlite_port_t db;
     char *sql;
 } _sink_work_ctx_t;
 
 typedef struct {
-    sqlite_svc_t *db;
+    stream_sqlite_port_t db;
     char table[64];
     _sink_work_ctx_t work;
     char sql_buf[256];
@@ -192,7 +191,7 @@ static stage_ret_t _tg_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
 
 static void _sink_work_cb(uv_work_t *req) {
     _sink_work_ctx_t *ctx = req->data;
-    sqlite_svc_exec(ctx->db, ctx->sql, NULL, NULL);
+    stream_sqlite_exec(&ctx->db, ctx->sql);
 }
 
 static void _sink_after_work_cb(uv_work_t *req, int status) {
@@ -436,7 +435,7 @@ static bool _is_safe_table_name(const char *name) {
 }
 
 pipeline_stage_t *stage_sqlite_sink_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
-    if (!ctx->db || !def->params.s1) return NULL;
+    if (!ctx->db.exec || !def->params.s1) return NULL;
     if (!_is_safe_table_name(def->params.s1)) {
         LOG_ERROR(LOG_CAT_CORE, "SQLite Sink: Invalid table name '%s'", def->params.s1);
         return NULL;
@@ -451,7 +450,7 @@ pipeline_stage_t *stage_sqlite_sink_create_v2(const edge_stage_def_t *def, pipel
     s->cleanup_cfg = free;
     char sql[256];
     snprintf(sql, sizeof(sql), "CREATE TABLE IF NOT EXISTS %s (tag_id INTEGER, value REAL, ts INTEGER)", c->table);
-    sqlite_svc_exec(c->db, sql, NULL, NULL);
+    stream_sqlite_exec(&c->db, sql);
     return s;
 }
 
@@ -603,8 +602,8 @@ pipeline_stage_t *stage_time_guard_create(void) {
     return stage_time_guard_create_v2(&def, NULL);
 }
 
-pipeline_stage_t *stage_sqlite_sink_create(sqlite_svc_t *db, const char *table) {
-    pipeline_loader_ctx_t ctx = {0}; ctx.db = db;
+pipeline_stage_t *stage_sqlite_sink_create(const stream_sqlite_port_t *db, const char *table) {
+    pipeline_loader_ctx_t ctx = {0}; ctx.db = db ? *db : (stream_sqlite_port_t){0};
     edge_stage_def_t def = {0}; def.params.s1 = table;
     return stage_sqlite_sink_create_v2(&def, &ctx);
 }

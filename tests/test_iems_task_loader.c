@@ -14,7 +14,7 @@
 #include "sqlite_service.h"
 #include "stream_engine.h"
 
-extern pipeline_stage_t *stage_vpp_logger_create(sqlite_svc_t *db);
+extern pipeline_stage_t *stage_vpp_logger_create(const char *secret, bool production);
 
 static int g_callback_task_count = 0;
 static uint32_t g_last_tag_id = 0;
@@ -95,13 +95,13 @@ static void test_stage_vpp_logger_edge_env_guard(void **state) {
     // Case 1: EDGE_ENV=production without VPP_AUDIT_SECRET -> Fail-fast (returns NULL)
     setenv("EDGE_ENV", "production", 1);
     unsetenv("VPP_AUDIT_SECRET");
-    pipeline_stage_t *stage_prod_missing = stage_vpp_logger_create(svc);
+    pipeline_stage_t *stage_prod_missing = stage_vpp_logger_create(NULL, true);
     assert_null(stage_prod_missing);
 
     // Case 2: EDGE_ENV=development without VPP_AUDIT_SECRET -> Dev fallback (returns valid stage)
     setenv("EDGE_ENV", "development", 1);
     unsetenv("VPP_AUDIT_SECRET");
-    pipeline_stage_t *stage_dev = stage_vpp_logger_create(svc);
+    pipeline_stage_t *stage_dev = stage_vpp_logger_create(NULL, false);
     assert_non_null(stage_dev);
     assert_string_equal(stage_dev->name, "VPP_LOGGER");
     if (stage_dev->cleanup_state) {
@@ -112,7 +112,7 @@ static void test_stage_vpp_logger_edge_env_guard(void **state) {
     // Case 3: EDGE_ENV=production with valid VPP_AUDIT_SECRET -> Success
     setenv("EDGE_ENV", "production", 1);
     setenv("VPP_AUDIT_SECRET", "custom_prod_vpp_secret_2026", 1);
-    pipeline_stage_t *stage_prod_valid = stage_vpp_logger_create(svc);
+    pipeline_stage_t *stage_prod_valid = stage_vpp_logger_create("custom_prod_vpp_secret_2026", true);
     assert_non_null(stage_prod_valid);
     assert_string_equal(stage_prod_valid->name, "VPP_LOGGER");
     if (stage_prod_valid->cleanup_state) {

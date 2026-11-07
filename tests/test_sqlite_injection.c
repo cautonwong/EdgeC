@@ -10,6 +10,7 @@
 
 #include "sqlite_service.h"
 #include "stream_engine.h"
+#include "stream_sqlite_adapter.h"
 
 // standard_stages.c 中的算子工厂
 extern pipeline_stage_t* stage_sqlite_sink_create_v2(const edge_stage_def_t* def,
@@ -54,7 +55,7 @@ static void test_sqlite_sink_injection_blocked(void** state) {
     def.params.s1 = malicious_table;
 
     pipeline_loader_ctx_t ctx = {0};
-    ctx.db = svc;
+    ctx.db = stream_sqlite_port_from_sqlite(svc);
 
     pipeline_stage_t* sink = stage_sqlite_sink_create_v2(&def, &ctx);
     // 预期创建失败
@@ -90,7 +91,7 @@ static void test_sqlite_sink_valid_works(void** state) {
     def.params.s1 = valid_table;
 
     pipeline_loader_ctx_t ctx = {0};
-    ctx.db = svc;
+    ctx.db = stream_sqlite_port_from_sqlite(svc);
 
     pipeline_stage_t* sink = stage_sqlite_sink_create_v2(&def, &ctx);
     assert_non_null(sink);
