@@ -5,6 +5,11 @@ add_library(smartbox_app_lib STATIC
     smartbox_driver_adapter.c
     smartbox_five_safety_interlock.c
     smartbox_thermal_aging.c
+    smartbox_north_adapter.c
+    smartbox_hw_io_adapter.c
+    smartbox_peripheral_adapter.c
+    smartbox_ble_adapter.c
+    smartbox_uds_ipc.c
 )
 target_include_directories(smartbox_app_lib PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}

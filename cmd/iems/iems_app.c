@@ -12,8 +12,6 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
-#include <sys/socket.h>
-#include <sys/un.h>
 #include <unistd.h>
 #include <uv.h>
 
@@ -29,53 +27,26 @@
 #include "edge_service.h"
 #include "iems_driver_adapter.h"
 #include "iems_execution_adapter.h"
+#include "iems_internal_bus_adapter.h"
 #include "iems_north_adapter.h"
-#include "adc_datahub_adapter.h"
-#include "adc_driver.h"
+#include "iems_poll_scheduler.h"
+#include "iems_southbound_adapter.h"
 #include "stream_bus_datahub_adapter.h"
 #include "stream_sqlite_adapter.h"
-#include "iems_task_loader.h"
 #include "io_executor.h"
 #include "modbus_codec.h"
 #include "mqtt_producer.h"
 #include "northbound_mgr.h"
-#include "queue.h"
 #include "rest_server.h"
 #include "sched_time.h"
 #include "sqlite_service.h"
 #include "stream_engine.h"
 #include "wasm_mgr.h"
 
-#define MAX_VBUS 32
-
-typedef enum {
-    BUS_STATE_DISCONNECTED = 0,
-    BUS_STATE_CONNECTING,
-    BUS_STATE_CONNECTED,
-    BUS_STATE_LISTENING
-} bus_conn_state_t;
-
-typedef struct {
-    int bus_id;
-    uint32_t slave_id;
-    uint32_t tag_id;
-    int dense_idx;
-    char protocol[16];
-    uint32_t interval_ms;
-    uv_periodic_t scheduler;
-    iems_node_t* agg_root;
-    struct uv__queue node;
-} iems_poll_task_t;
-
 typedef struct {
     int bus_id;
     int bus_idx;
 } north_accept_ctx_t;
-
-typedef struct {
-    int fd;
-    adc_bus_port_t bus;
-} adc_thread_ctx_t;
 
 struct iems_app_s {
     uv_loop_t* loop;
@@ -92,41 +63,19 @@ struct iems_app_s {
     sqlite_svc_t* db_service;
     char* db_path;
 
-    struct uv__queue poll_task_head;
-    bool assets_loaded;
-    bus_conn_state_t bus_state[MAX_VBUS];
+    iems_poll_scheduler_t poll;
+    iems_internal_bus_t internal_bus;
 
-    uv_timer_t* timer_load_tasks;
-    uv_timer_t timer_internal;
-    bool timers_initialized;
     bool buses_attempted;
+    bus_conn_state_t bus_state[IEMS_MAX_VBUS];
+
+    bool monitor_initialized;
     uv_timer_t timer_monitor;
 
-    volatile bool adc_running;
-    uv_thread_t adc_tid;
-
     uv_pipe_t* ui_srv;
-    uv_pipe_t* north_srv[MAX_VBUS];
-    north_accept_ctx_t north_ctx[MAX_VBUS];
+    uv_pipe_t* north_srv[IEMS_MAX_VBUS];
+    north_accept_ctx_t north_ctx[IEMS_MAX_VBUS];
 };
-
-volatile bool g_adc_running = false;
-
-static void on_poll_complete(int status, const pipe_msg_t* result, void* user_data) {
-    // user_data 是聚合根(比 arbiter 活得久),不是 poll task —— 关停时 task 会先被释放。
-    iems_node_t* node = (iems_node_t*)user_data;
-    if (status != 0 || !result || !node) return;
-    if (result->type != PIPEMSG_TYPE_SCALAR) return;
-    // 镜像只能由聚合根写;这里只转交采样,不做任何堆分配。
-    if (iems_node_ingest_sample(node, result->tag_id, result->payload.val.f) != 0) {
-        static uint64_t last_warn_ns;  // 热路径:失败日志全局限流到 60s 一次
-        uint64_t now = uv_hrtime();
-        if (now - last_warn_ns > 60ULL * 1000000000ULL) {
-            last_warn_ns = now;
-            LOG_WARN(LOG_CAT_CORE, "IEMS ingest failed for tag %u", result->tag_id);
-        }
-    }
-}
 
 /**
  * @brief [Domain Boundary Guard] 控制写路径强制经聚合根 (Issue #400)
@@ -162,83 +111,6 @@ static void on_ui_connect(uv_stream_t* server, int status) {
     uv_close((uv_handle_t*)client, (uv_close_cb)free);
 }
 
-static void on_poll_task_trigger(uv_periodic_t* handle) {
-    iems_poll_task_t* task = (iems_poll_task_t*)handle->data;
-    if (!task) return;
-
-    uint32_t conn_count = 0;
-    const edge_connectivity_t* conns = iems_get_connectivity(&conn_count);
-    if (!conns) return;
-
-    bool is_southbound = false;
-    for (uint32_t i = 0; i < conn_count; i++) {
-        if (conns[i].id == task->bus_id &&
-            strcmp(conns[i].category, "SOUTHBOUND") == 0) {
-            is_southbound = true;
-            break;
-        }
-    }
-
-    if (is_southbound) {
-        /* [ADR-002] 驱动只认原生点位（CAN 是 CAN ID），回调只认产品 tag_id，
-         * 量纲也由产品给。三件事都在这一层做完，驱动不查表、不标定。 */
-        uint32_t native_id = iems_driver_adapter_native_id(task->protocol, task->tag_id);
-        double scale = iems_driver_adapter_tag_scale(task->protocol, task->tag_id);
-        /* 周期采集是后台任务：低优先级 */
-        edge_api_read_tag_ex(task->bus_id, task->protocol, task->slave_id, native_id, task->tag_id,
-                             scale, NULL, 0, ARBITER_PRIO_LOW, on_poll_complete, task->agg_root);
-    }
-}
-
-static void _on_iems_task_loaded(const iems_loaded_task_t* loaded, void* user_data) {
-    iems_app_t* app = (iems_app_t*)user_data;
-    if (!loaded || !app) return;
-
-    struct uv__queue* q;
-    uv__queue_foreach(q, &app->poll_task_head) {
-        iems_poll_task_t* existing = uv__queue_data(q, iems_poll_task_t, node);
-        if (existing->bus_id == loaded->bus_id && existing->slave_id == loaded->slave_id &&
-            existing->tag_id == loaded->tag_id)
-            return;
-    }
-
-    iems_poll_task_t* task = calloc(1, sizeof(iems_poll_task_t));
-    task->bus_id = loaded->bus_id;
-    task->slave_id = loaded->slave_id;
-    task->tag_id = loaded->tag_id;
-    task->dense_idx = edge_tag_get_compact_index(loaded->tag_id);
-    task->agg_root = app->node;
-    strncpy(task->protocol, loaded->protocol, 15);
-    task->interval_ms = 1000;
-
-    const edge_tag_meta_t* meta = iems_get_tag_meta(loaded->tag_id);
-    if (meta && meta->poll_interval_ms > 0) {
-        task->interval_ms = meta->poll_interval_ms;
-    }
-
-    printf("📝 [POLL REGISTER] Tag: %u, Bus: %d, Protocol: %s, Interval: %d\n", task->tag_id,
-           task->bus_id, task->protocol, task->interval_ms);
-
-    uv__queue_insert_tail(&app->poll_task_head, &task->node);
-    uv_periodic_init(app->loop, &task->scheduler);
-    task->scheduler.data = task;
-    uv_periodic_set(&task->scheduler, 0, (double)task->interval_ms, NULL);
-    uv_periodic_start(&task->scheduler, on_poll_task_trigger);
-}
-
-static void iems_load_tasks_timer_cb(uv_timer_t* handle) {
-    iems_app_t* app = (iems_app_t*)handle->data;
-    if (!app || !app->db_service) return;
-
-    int loaded = iems_poll_tasks_load(app->db_service, _on_iems_task_loaded, app);
-    if (loaded > 0) {
-        app->assets_loaded = true;
-        uv_timer_stop(handle);
-        uv_close((uv_handle_t*)handle, (uv_close_cb)free);
-        app->timer_load_tasks = NULL;
-    }
-}
-
 static void _on_north_connect(uv_stream_t* server, int status) {
     if (status < 0) return;
     north_accept_ctx_t* ctx = (north_accept_ctx_t*)server->data;
@@ -265,171 +137,13 @@ static void _on_north_connect(uv_stream_t* server, int status) {
     uv_close((uv_handle_t*)client, (uv_close_cb)free);
 }
 
-// 摘要行里「分母 = 连上数 + 缺失数」必须恒成立,否则验收证据对不上;
-// 所以每一条没连上的 SOUTHBOUND 条目都必须走这里登记
-static void _note_missing(char* buf, size_t cap, int* count, int* listed, int bus_idx,
-                          const char* label) {
-    (*count)++;
-    size_t used = strlen(buf);
-    if (used + 1 >= cap) return;
-    int n = snprintf(buf + used, cap - used, "%sbus %d %s", used ? ", " : "", bus_idx, label);
-    if (n > 0 && used + (size_t)n < cap) {
-        (*listed)++;
-    } else {
-        buf[used] = '\0';  // 这一条放不下就回滚,末尾统一补 "..."
-    }
-}
-
-static int _connect_southbound_buses(iems_app_t* app, int* configured) {
-    if (configured) *configured = 0;
-    if (!app) return -1;
-
-    uint32_t conn_count = 0;
-    const edge_connectivity_t* conns = iems_get_connectivity(&conn_count);
-    if (!conns) return -1;  // 契约表都拿不到 = 装配坏了,交给组合根 abort
-
-    int connected = 0;
-    int declared = 0;
-    int missing_count = 0;
-    int missing_listed = 0;
-    char missing[512];
-    missing[0] = '\0';
-    for (uint32_t i = 0; i < conn_count; i++) {
-        const edge_connectivity_t* c = &conns[i];
-        if (strcmp(c->category, "SOUTHBOUND") != 0) continue;
-        if (configured) (*configured)++;
-        declared++;
-        const char* label = c->label ? c->label : "?";
-        if (c->id < 0 || c->id >= MAX_VBUS) {
-            LOG_WARN(LOG_CAT_CORE, "Startup: SOUTHBOUND %s has out-of-range id %d, ignored", label,
-                     c->id);
-            _note_missing(missing, sizeof(missing), &missing_count, &missing_listed, (int)c->id,
-                          label);
-            continue;
-        }
-
-        int bus_idx = (int)c->id;
-        if (app->bus_state[bus_idx] == BUS_STATE_CONNECTED) {
-            connected++;
-            continue;
-        }
-        if (app->bus_state[bus_idx] != BUS_STATE_DISCONNECTED) {
-            _note_missing(missing, sizeof(missing), &missing_count, &missing_listed, bus_idx,
-                          label);
-            continue;
-        }
-
-        const char* env_path = NULL;
-        {
-            char env_key[32];
-            snprintf(env_key, sizeof(env_key), "OMNIS_BUS_%d_DEV", bus_idx);
-            env_path = getenv(env_key);
-        }
-        const char* path = env_path ? env_path : edge_resolve_bus_path(c->id);
-
-        const char* search_paths[3];
-        search_paths[0] = env_path;
-        search_paths[1] = path;
-        char fallback_path[64];
-        snprintf(fallback_path, sizeof(fallback_path), "/tmp/vbus%d.sock", bus_idx);
-        search_paths[2] = fallback_path;
-
-        for (int p_idx = 0; p_idx < 3; p_idx++) {
-            const char* cur_path = search_paths[p_idx];
-            if (!cur_path || cur_path[0] == '\0') continue;
-
-            int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-            if (fd < 0) continue;
-
-            struct sockaddr_un addr;
-            memset(&addr, 0, sizeof(addr));
-            addr.sun_family = AF_UNIX;
-            strncpy(addr.sun_path, cur_path, sizeof(addr.sun_path) - 1);
-
-            if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) == 0) {
-                io_handle_t* h =
-                    io_executor_create_from_fd(app->loop, fd, datahub_get_io_pool(app->hub));
-                if (h) {
-                    bus_orchestrator_attach_io(app->orch, c->id, h);
-                    if (h->ops && h->ops->enable_read) h->ops->enable_read(h, true);
-                    app->bus_state[bus_idx] = BUS_STATE_CONNECTED;
-                    connected++;
-                    printf("\033[32m[PHYSICS-SUCCESS] Bus %d CONNECTED via PATH: %s\033[0m\n",
-                           bus_idx, cur_path);
-                    break;
-                } else {
-                    close(fd);
-                }
-            } else {
-                close(fd);
-            }
-        }
-
-        if (app->bus_state[bus_idx] != BUS_STATE_CONNECTED) {
-            LOG_WARN(LOG_CAT_CORE, "Startup: southbound bus %d (%s) NOT connected, no retry",
-                     bus_idx, label);
-            _note_missing(missing, sizeof(missing), &missing_count, &missing_listed, bus_idx,
-                          label);
-        }
-    }
-    if (missing_count > missing_listed && strlen(missing) + 6 < sizeof(missing)) {
-        strcat(missing, missing_listed ? ", ..." : "...");
-    }
-    // 运维要看的是「缺哪路」,不是「有几路」;格式固定便于 grep 与验收证据比对
-    if (missing_count > 0) {
-        LOG_INFO(LOG_CAT_CORE, "[IEMS-INIT] southbound: %d/%d connected (%s missing)", connected,
-                 declared, missing);
-    } else {
-        LOG_INFO(LOG_CAT_CORE, "[IEMS-INIT] southbound: %d/%d connected", connected, declared);
-    }
-    return connected;
-}
-
 int iems_app_connect_buses(iems_app_t* app, int* configured) {
     if (configured) *configured = 0;
     if (!app) return -1;
-    int rc = _connect_southbound_buses(app, configured);
+    int rc =
+        iems_southbound_connect(app->loop, app->hub, app->orch, app->bus_state, configured);
     app->buses_attempted = (rc >= 0);  // 只在装配契约可用时才算「连过了」
     return rc;
-}
-
-static void _adc_thread_entry(void* arg) {
-    adc_thread_ctx_t* ctx = (adc_thread_ctx_t*)arg;
-    adc_driver_handle_connection(ctx->fd, &ctx->bus);
-    g_adc_running = false;
-    free(ctx);
-}
-
-static void _try_connect_internal_buses(uv_timer_t* handle) {
-    iems_app_t* app = (iems_app_t*)handle->data;
-    if (!app || g_adc_running) return;
-
-    uint32_t conn_count = 0;
-    const edge_connectivity_t* conns = iems_get_connectivity(&conn_count);
-    if (!conns) return;
-
-    for (uint32_t i = 0; i < conn_count; i++) {
-        const edge_connectivity_t* c = &conns[i];
-        if (strcmp(c->category, "INTERNAL") != 0 || g_adc_running) continue;
-        const char* path = edge_resolve_bus_path(c->id);
-        if (path && access(path, F_OK) == 0) {
-            int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-            if (fd < 0) continue;
-            struct sockaddr_un addr;
-            memset(&addr, 0, sizeof(addr));
-            addr.sun_family = AF_UNIX;
-            strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
-            if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) == 0) {
-                adc_thread_ctx_t* ctx = malloc(sizeof(adc_thread_ctx_t));
-                ctx->fd = fd;
-                ctx->bus = adc_datahub_port(app->hub);
-                g_adc_running = true;
-                uv_thread_create(&app->adc_tid, _adc_thread_entry, ctx);
-            } else {
-                close(fd);
-            }
-        }
-    }
 }
 
 static void _monitor_shadow_tick(uv_timer_t* handle) {
@@ -440,12 +154,6 @@ static void _monitor_shadow_tick(uv_timer_t* handle) {
             printf("\033[36m[HEARTBEAT] Shadow Tag 1001 = %.2f\033[0m\n", msg.payload.val.f);
         }
     }
-}
-
-static void _on_task_close(uv_handle_t* handle) {
-    uv_periodic_t* periodic = (uv_periodic_t*)handle->data;
-    iems_poll_task_t* task = (iems_poll_task_t*)periodic->data;
-    free(task);
 }
 
 static pipeline_loader_ctx_t _iems_loader_ctx(iems_app_t* app) {
@@ -467,7 +175,6 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
 
     app->loop = loop;
     loop->data = app;
-    uv__queue_init(&app->poll_task_head);
 
     // =========================================================================
     // Phase 1: 实例化 IEMS 聚合根 (Aggregate Root)
@@ -536,6 +243,7 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     app->db_path = strdup(db_file);
     sqlite_config_t db_conf = {.db_path = app->db_path, .strategy = STRATEGY_LITE};
     app->db_service = sqlite_svc_create(loop, &db_conf);
+    iems_poll_scheduler_init(&app->poll, loop, app->node, app->db_service);
 
     app->stream_eng =
         stream_engine_create_datahub(app->hub, NULL, app->orch, edge_stage_factory_get_registry());
@@ -600,7 +308,7 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     int north_bound_seen = 0;
     for (uint32_t i = 0; i < conn_count; i++) {
         const edge_connectivity_t* c = &conns[i];
-        if (strcmp(c->category, "NORTHBOUND") == 0 && c->id < MAX_VBUS) {
+        if (strcmp(c->category, "NORTHBOUND") == 0 && c->id < IEMS_MAX_VBUS) {
             // cfg->north_sock 只覆盖第一条 NORTHBOUND(单总线是常态);其余条目用契约表
             // 自带的 simulation_path,否则第二条会 unlink 掉第一条正在监听的 socket
             bool from_env = (north_bound_seen == 0 && cfg && cfg->north_sock && cfg->north_sock[0]);
@@ -638,7 +346,7 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
                                 : nb_bind;
             if (nb_bind == 0 && nb_listen == 0) {
                 app->north_ctx[c->id].bus_id = c->id;
-                app->north_ctx[c->id].bus_idx = c->id % MAX_VBUS;
+                app->north_ctx[c->id].bus_idx = c->id % IEMS_MAX_VBUS;
                 app->north_srv[c->id]->data = &app->north_ctx[c->id];
                 app->bus_state[app->north_ctx[c->id].bus_idx] = BUS_STATE_LISTENING;
                 printf("\033[32m[IEMS-INIT] Northbound Slave LISTENING at %s\033[0m\n", path);
@@ -669,19 +377,14 @@ int iems_app_start(iems_app_t* app) {
 
     iems_node_start(app->node);
 
-    app->timer_load_tasks = (uv_timer_t*)malloc(sizeof(uv_timer_t));
-    uv_timer_init(app->loop, app->timer_load_tasks);
-    app->timer_load_tasks->data = app;
-    uv_timer_start(app->timer_load_tasks, iems_load_tasks_timer_cb, 50, 200);
+    iems_poll_scheduler_start(&app->poll);
 
     uv_timer_init(app->loop, &app->timer_monitor);
     app->timer_monitor.data = app;
+    app->monitor_initialized = true;  // 此刻起 destroy 必须关掉这个已 uv_init 的 timer
     uv_timer_start(&app->timer_monitor, _monitor_shadow_tick, 1000, 1000);
 
-    uv_timer_init(app->loop, &app->timer_internal);
-    app->timer_internal.data = app;
-    app->timers_initialized = true;  // 此刻起 destroy 必须关掉这些已 uv_init 的 timer
-    uv_timer_start(&app->timer_internal, _try_connect_internal_buses, 0, 500);
+    iems_internal_bus_start(&app->internal_bus, app->loop, app->hub);
 
     arbiter_resume(app->arb);
     LOG_INFO(LOG_CAT_CORE, "IEMS Application started successfully");
@@ -696,32 +399,20 @@ int iems_app_run(iems_app_t* app) {
 void iems_app_destroy(iems_app_t* app) {
     if (!app) return;
 
-    if (app->timer_load_tasks) {
-        uv_timer_stop(app->timer_load_tasks);
-        uv_close((uv_handle_t*)app->timer_load_tasks, (uv_close_cb)free);
-    }
-    // timer_monitor / timer_internal 的 uv_init 在 iems_app_start 里;
+    iems_poll_scheduler_stop(&app->poll);
+
+    // timer_monitor 的 uv_init 在 iems_app_start 里;
     // 启动前就调用 destroy 时(组合根在 connect 失败后退场)不能 uv_close 未初始化的 handle。
-    if (app->timers_initialized) {
+    if (app->monitor_initialized) {
         uv_timer_stop(&app->timer_monitor);
         uv_close((uv_handle_t*)&app->timer_monitor, NULL);
-
-        uv_timer_stop(&app->timer_internal);
-        uv_close((uv_handle_t*)&app->timer_internal, NULL);
     }
-
-    while (!uv__queue_empty(&app->poll_task_head)) {
-        struct uv__queue* q = uv__queue_head(&app->poll_task_head);
-        iems_poll_task_t* task = uv__queue_data(q, iems_poll_task_t, node);
-        uv__queue_remove(q);
-        uv_periodic_stop(&task->scheduler);
-        uv_close((uv_handle_t*)&task->scheduler.timer, _on_task_close);
-    }
+    iems_internal_bus_stop(&app->internal_bus);
 
     if (app->ui_srv) {
         uv_close((uv_handle_t*)app->ui_srv, (uv_close_cb)free);
     }
-    for (int i = 0; i < MAX_VBUS; i++) {
+    for (int i = 0; i < IEMS_MAX_VBUS; i++) {
         if (app->north_srv[i]) {
             uv_close((uv_handle_t*)app->north_srv[i], (uv_close_cb)free);
         }
@@ -729,10 +420,7 @@ void iems_app_destroy(iems_app_t* app) {
 
     uv_run(app->loop, UV_RUN_NOWAIT);
 
-    if (g_adc_running) {
-        g_adc_running = false;
-        uv_thread_join(&app->adc_tid);
-    }
+    iems_internal_bus_join(&app->internal_bus);
 
     if (app->stream_eng) stream_engine_destroy(app->stream_eng);
     wasm_mgr_cleanup();
