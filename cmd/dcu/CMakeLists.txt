@@ -27,6 +27,7 @@ add_library(dcu_app_lib STATIC
     dcu_topology_phase_id.c
     dcu_driver_adapter.c
     dcu_node.c
+    dcu_north_adapter.c
 )
 
 

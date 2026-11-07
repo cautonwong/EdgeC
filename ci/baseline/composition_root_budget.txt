@@ -1,7 +1,8 @@
 # Shrink-only composition root line ledger.
 # Format: <path>|<lines>
-# 2026-11-07: edge_mcp_server/main.c 173 -> 175; MCP bus port adapter wiring.
-cmd/dcu/main.c|544
+# 2026-11-07: cmd/dcu/main.c 544 -> 380; north adapter extracted. Wiring adapter listed separately.
+cmd/dcu/dcu_north_adapter.c|194
+cmd/dcu/main.c|380
 cmd/edge_mcp_server/main.c|175
 cmd/iems/iems_app.c|758
 cmd/iems/main.c|99
