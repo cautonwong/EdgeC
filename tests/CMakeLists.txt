@@ -867,6 +867,14 @@ target_link_libraries(test_web_channel_topology PRIVATE
 )
 add_test(NAME test_web_channel_topology COMMAND test_web_channel_topology)
 
+# Edge app store page, catalog, and permission registration
+add_executable(test_web_app_store test_web_app_store.c)
+target_link_libraries(test_web_app_store PRIVATE
+    cmocka::cmocka
+    pthread dl rt m
+)
+add_test(NAME test_web_app_store COMMAND test_web_app_store)
+
 # AEP-501 全局抽屉式 Web 交互控制台与快捷按键召唤底座测试
 add_executable(test_web_console_drawer test_web_console_drawer.c)
 target_include_directories(test_web_console_drawer PRIVATE

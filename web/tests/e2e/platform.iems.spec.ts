@@ -483,6 +483,36 @@ test('历史曲线：选点位查询后返回序列并画出图表', async ({ pa
   await expect(page.locator('[data-testid="history-chart"] canvas')).toBeVisible();
 });
 
+// ---------------------------------------------------------------- 应用商店
+test('应用商店：工程师可安装应用，刷新后状态保留', async ({ page }) => {
+  await login(page, ENGINEER_ACCOUNT);
+  await page.goto('/#/apps');
+  await expect(page.getByRole('heading', { name: '应用商店' })).toBeVisible();
+  await expect(page.locator('[data-testid="app-card"]')).toHaveCount(12);
+
+  await page.locator('[data-testid="app-search"]').fill('需量');
+  await expect(page.locator('[data-testid="app-card"]')).toHaveCount(1);
+  await page.locator('[data-testid="app-search"]').fill('');
+
+  await page.locator('[data-testid="install-demand_forecast"]').click();
+  await expect(page.locator('[data-testid="state-demand_forecast"]')).toHaveText('已安装');
+
+  await page.locator('[data-app-id="demand_forecast"] .app-card__details').click();
+  await expect(page.locator('[data-testid="app-drawer"]')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[data-testid="app-drawer"]')).toHaveCount(0);
+
+  await page.reload();
+  await expect(page.locator('[data-testid="state-demand_forecast"]')).toHaveText('已安装');
+});
+
+test('应用商店：viewer 只能浏览', async ({ page }) => {
+  await login(page, VIEWER);
+  await page.goto('/#/apps');
+  await expect(page.getByRole('heading', { name: '应用商店' })).toBeVisible();
+  await expect(page.locator('[data-testid="install-demand_forecast"]')).toBeDisabled();
+});
+
 // ---------------------------------------------------------------- 角色编辑 / 删除
 test('角色管理：自定义角色可编辑，内置角色不给编辑入口', async ({ page }) => {
   await login(page, OPSADMIN);

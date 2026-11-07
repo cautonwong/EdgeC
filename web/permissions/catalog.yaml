@@ -15,6 +15,13 @@ permissions:
   - id: core.dashboard:read
     description: 查看概览仪表盘
     sensitivity: low
+  - id: core.app:read
+    description: 查看应用商店与已安装应用
+    sensitivity: low
+  - id: core.app:execute
+    description: 安装、启停、卸载 WASM 应用
+    sensitivity: high
+    dependencies: [core.app:read]
   - id: core.telemetry:read
     description: 查看实时与历史遥测数据
     sensitivity: low
