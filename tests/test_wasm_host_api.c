@@ -33,7 +33,9 @@ static void test_wasm_host_api(void** state) {
 
     // 4. Load demo.wasm (Make sure path is relative to test executable)
     const char* wasm_path = "../../algo/wasm/demo/demo.wasm";
-    wasm_app_t* app = wasm_app_create(wasm_path, 16384, 16384, 100);
+    size_t app_size = wasm_app_storage_size();
+    void *app_mem = malloc(app_size);
+    wasm_app_t* app = wasm_app_create_in(app_mem, app_size, wasm_path, 16384, 16384, 100);
     assert_non_null(app);
 
     // 5. Execute the "on_tick" exported function
@@ -51,6 +53,7 @@ static void test_wasm_host_api(void** state) {
 
     // 7. Cleanup
     wasm_app_destroy(app);
+    free(app_mem);
     wasm_mgr_cleanup();
     datahub_destroy(&hub);
     while (uv_run(loop, UV_RUN_NOWAIT))

@@ -38,7 +38,9 @@ static void test_wasm_timeout_watchdog(void** state) {
     wasm_mgr_init(&wasm_bus);
 
     // Create container with 100ms timeout to be safe
-    wasm_app_t* app = wasm_app_create(path, 16384, 16384, 100);
+    size_t app_size = wasm_app_storage_size();
+    void *app_mem = malloc(app_size);
+    wasm_app_t* app = wasm_app_create_in(app_mem, app_size, path, 16384, 16384, 100);
     assert_non_null(app);
 
     printf("Starting infinite yielding loop in WASM (Watchdog set to 100ms)...\n");
@@ -54,6 +56,7 @@ static void test_wasm_timeout_watchdog(void** state) {
     assert_int_equal(rc, -1);
 
     wasm_app_destroy(app);
+    free(app_mem);
     wasm_mgr_cleanup();
     datahub_destroy(&hub);
     unlink(path);

@@ -28,7 +28,10 @@ void wasm_mgr_cleanup(void);
  * @param stack_size 栈大小 (字节)
  * @param timeout_ms 执行超时时间 (0 表示不限)
  */
-wasm_app_t *wasm_app_create(const char *wasm_path, uint32_t heap_size, uint32_t stack_size, uint32_t timeout_ms);
+size_t wasm_app_storage_size(void);
+
+wasm_app_t *wasm_app_create_in(void *storage, size_t storage_size, const char *wasm_path,
+                               uint32_t heap_size, uint32_t stack_size, uint32_t timeout_ms);
 
 /**
  * @brief 创建 WASM 应用容器并强制校验签名
@@ -39,7 +42,9 @@ wasm_app_t *wasm_app_create(const char *wasm_path, uint32_t heap_size, uint32_t 
  * @param pubkey_path RSA 公钥 PEM 文件路径
  * @return wasm_app_t* 成功时返回实例, 签名无效或文件缺失时返回 NULL
  */
-wasm_app_t *wasm_app_create_verify(const char *wasm_path, uint32_t heap_size, uint32_t stack_size, uint32_t timeout_ms, const char *pubkey_path);
+wasm_app_t *wasm_app_create_verify_in(void *storage, size_t storage_size, const char *wasm_path,
+                                      uint32_t heap_size, uint32_t stack_size, uint32_t timeout_ms,
+                                      const char *pubkey_path);
 
 /**
  * @brief 在容器中执行函数 (无参数)
