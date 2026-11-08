@@ -14,17 +14,21 @@
 
 ## 2. 范围
 
-| 维度 | P0 取值 | 明确不做 |
-| --- | --- | --- |
-| 执行档位 | `execution_profile: wasm`，一个运行时引擎（WAMR 或 wasmtime，按第 04 号文档的判据二选一） | QuickJS、Go sidecar、Python |
-| 语言 | C | C++、Rust、Go |
-| 贡献类型 | `telemetry.points`，只读 | `ui.pages`、`northbound.metrics`、`alarm.rules`、`schedule.jobs`、`protocol.handlers` |
-| 能力 | `tags.read` 单点位、`log` | `tags.write`、`alarm.raise`、`net.egress` |
-| 参数 | 清单 `settings` schema、默认值、`settings.get`、`appctl settings set` | WebUI 设置页、参数分组、依赖参数的页面 |
-| 事件 | 平台到应用的四类：`settings.changed`、`grant.changed`、`upstream.available`、`upstream.unavailable` | 应用之间的事件、持久重放、自定义主题 |
-| 界面 | 无应用页面，只有一个只读的状态接口 | 应用商店前端、详情页 |
-| 签名 | 一个测试密钥，真实验签 | 密钥轮换、证书链 |
-| 分布 | 本地安装包，不经网络 | 商店后端、远程下载 |
+分两层，先 core 后 ext。core 只验证三个假设，ext 是满足日常使用必须但可以先缺的部分。
+
+| 维度 | 分层 | 取值 | 明确不做 |
+| --- | --- | --- | --- |
+| 执行档位 | core | `execution_profile: wasm`，一个运行时引擎（WAMR 或 wasmtime，按 04 号文档判据二选一） | QuickJS、Go sidecar、Python |
+| 语言 | core | C | C++、Rust、Go |
+| 贡献类型 | core | `telemetry.points`，含 `point_publish` 只写自身命名空间 | `ui.pages`、`northbound.metrics`、`alarm.rules`、`schedule.jobs`、`protocol.handlers` |
+| 能力 | core | `tags.read` 单点位、`points.publish` 自身命名空间、`log` | `tags.write`、`alarm.raise`、`net.egress` |
+| 签名 | core | 一个测试密钥，真实验签 | 密钥轮换、证书链 |
+| 分布 | core | 本地安装包，不经网络 | 商店后端、远程下载 |
+| 参数 | ext | 清单 `settings` schema、默认值、`setting_get`、`appctl settings set` | WebUI 设置页、参数分组 |
+| 事件 | ext | `settings.changed`、`grant.changed`、`upstream.available`、`upstream.unavailable` | 应用之间的事件、持久重放 |
+| 界面 | ext | 无应用页面，只有一个只读的状态接口 | 应用商店前端、详情页 |
+
+`points.publish` 进 core，是因为验收里"卸载后历史解析点位名"与"故障后点位质量"都需要应用先发布点位；没有发布，这两条无从验证。`tags.write`（写产品点位）仍然不开放。
 
 ## 3. 组件
 
@@ -73,7 +77,7 @@ appctl snapshot                        # 打印当前 generation 与贡献摘要
 ## 5. 交付物
 
 1. `app.yaml` 的 JSON Schema v1。
-2. WIT 包 v1，只含 `tag_read`、`log`、`now_ms`。
+2. WIT 包 v1 的 P0 子集，函数名以 03 号 ABI 总表为准：`point_resolve`、`point_read`、`point_subscribe`、`point_publish`、`log`、`now`，以及导出 `app_init`、`app_on_event`、`app_stop`；`setting_get` 在 ext 层加入。不再使用 `tag_read`、`now_ms` 这类旧名。
 3. C 绑定，由 WIT 生成，CI 校验不可手改。
 4. 注册表 schema 与快照格式说明。
 5. 参数 schema 与 `app_settings` 存储，含默认值初始化与字段级校验。
@@ -111,10 +115,10 @@ appctl snapshot                        # 打印当前 generation 与贡献摘要
 | 20 | 消费者落后时状态为"收敛中"，全部到达目标 generation 后才显示完成 | 状态 JSON 与各消费者 `applied_generation` |
 | 21 | 手工停掉一个运行中的应用，调谐循环 30 秒内恢复 | 时间戳与状态 JSON |
 | 22 | 单应用 Host 调用超预算返回 `denied_quota`，其他应用不受影响 | 错误码与相邻应用日志 |
-| 23 | 安装后首次启动读到全部默认参数，无需先配置 | 应用日志与状态 JSON |
-| 24 | 参数类型错误、越界、未声明的键被拒，返回字段级错误 | HTTP 或命令行错误码 |
-| 25 | `secret` 字段通过接口只返回"已设置"，不返回明文 | 接口响应 |
-| 26 | 升级时参数迁移演练失败，升级被阻断，旧版本仍可用 | 升级退出码与状态 |
+| 23 (ext) | 安装后首次启动读到全部默认参数，无需先配置 | 应用日志与状态 JSON |
+| 24 (ext) | 参数类型错误、越界、未声明的键被拒，返回字段级错误 | HTTP 或命令行错误码 |
+| 25 (ext) | `secret` 字段通过接口只返回"已设置"，不返回明文 | 接口响应 |
+| 26 (ext) | 升级时参数迁移演练失败，升级被阻断，旧版本仍可用 | 升级退出码与状态 |
 | 27 | 安装应用 B 前后，应用 A 的包摘要、参数行、KV 行逐字节不变 | 安装前后摘要对比 |
 | 28 | 磁盘写满时安装失败，现有代不受影响，错误可读 | 磁盘占用与状态 JSON |
 | 29 | 墙钟发生跳变时，应用使用的单调时钟不跳，超时与间隔判断不受影响 | 应用日志中的两种时钟 |
@@ -127,15 +131,13 @@ appctl snapshot                        # 打印当前 generation 与贡献摘要
 
 ## 7. 退出条件
 
-全部满足才进入 P1：
+分两道门。
 
-- 验收清单全过，证据归档。
-- 故障注入脚本可在 CI 中重复运行，结果稳定。
-- 没有一项检查依赖人工判断。
-- 注册表在 10 个中断点上的最终状态与第 01 号文档的矩阵完全一致。
-- 目标板上侧写一次：CPU 占用、内存占用、安装耗时、启动耗时、恢复耗时。数字归档，不写进承诺。
+**P0-core 门**（先过）：三个假设的验收全过，证据归档；故障注入可重复；没有一项依赖人工判断；注册表在所有中断点上的最终状态与 01 号矩阵一致；目标板侧写一次 CPU、内存、安装、启动、恢复耗时。
 
-任何一条不满足，P0 范围不变，先修机制，不加功能。
+**P0-ext 门**（core 之后）：参数、密钥脱敏、事件三类验收全过。
+
+任何一条不满足，范围不变，先修机制，不加功能。core 未过不进 ext，ext 未过不进 P1。
 
 ## 8. 明确不在 P0 内
 
