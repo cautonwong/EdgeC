@@ -1,7 +1,7 @@
 # 现状勘察：北向与南向通信
 
 基线：分支 `main` | 提交 `78ea72107f32c8f1ec4fc3523610bc26e390e79e` | 日期 2026-11-02 | 评审人 待定
-形态：主干加配置（涉及产品：`dcu`、`iems`、`smart_box`；`evse` / `hems` / `sg` 的北向为空壳）
+形态：主干加配置（涉及产品：`dcu`、`iems`、`smart_box`；`evse` / `hems` / `sg` 已从仓库删除）
 
 置信度标注：**已验证** = 直接读代码或文档；**推断** = 由代码推导；**待验证** = 未确认。
 
@@ -288,7 +288,7 @@ sequenceDiagram
 | DCU | ModbusRTU / DLT645 / DLT698 | 档案协议主站；DLT698 从站 | MQTT（SparkplugB / MqttJson） | DLT698 从站 | 无（db=NULL） |
 | IEMS | ModbusRTU / ModbusTCP / IEC104 / CAN / DLT645 | **全部 SOUTHBOUND 连接硬编码 ModbusRTU 主站**；ModbusRTU 从站 | MQTT | ModbusRTU 从站（总线 10） | 有 |
 | SmartBox | ModbusRTU / ModbusTCP / CAN（注册表存在，`main.c` 未调用注册） | **定时器直接写串口 + 常量写影子，不走驱动栈** | MQTT | 无 | 无（db=NULL） |
-| evse / hems / sg / vpp_demo | 未见注册 | — | 仅 `northbound_mgr_init` 空传输，不发送 | 无 | 推断：有 db 时只积压不发送 |
+| vpp_demo（examples） | 未见注册 | — | 仅 `northbound_mgr_init` 空传输，不发送 | 无 | 推断：有 db 时只积压不发送 |
 
 配置面：
 

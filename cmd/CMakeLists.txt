@@ -1,6 +1,0 @@
-add_subdirectory(iems)
-add_subdirectory(nexus_lab)
-# add_subdirectory(sg)
-# add_subdirectory(dcu)
-# add_subdirectory(evse)
-# add_subdirectory(hems)
