@@ -167,10 +167,11 @@ static void test_wasm_scheduler_per_app_periods_and_budgets(void** state) {
     assert_int_equal(wasm_scheduler_get_app_stats(sched, "slow_app", &slow_ticks, &slow_overruns),
                      0);
 
-    // 验证：慢 App 不推迟快 App！快 App 运行频次显著高于慢 App (约 5 倍关系)
+    // 验证：慢 App 不推迟快 App。周期比是 5:1，判据用两者的比值，不钉绝对次数——
+    // UBSan 与 CI 负载下 usleep 实际睡眠远长于 5ms，绝对 tick 数会随墙钟漂移。
     assert_true(fast_ticks >= 5);
-    assert_true(slow_ticks >= 1 && slow_ticks <= 4);
-    assert_true(fast_ticks > slow_ticks);
+    assert_true(slow_ticks >= 1);
+    assert_true(fast_ticks >= slow_ticks * 2);
 
     wasm_scheduler_unload_app(sched, "fast_app");
     wasm_scheduler_unload_app(sched, "slow_app");
