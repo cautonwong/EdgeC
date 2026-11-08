@@ -10,6 +10,7 @@
 #include "datahub.h"
 #include "driver_manager.h"
 #include "io_executor.h"
+#include "io_handle_priv.h"
 #include "passthrough_mgr.h"
 #include "datahub_priv.h"
 

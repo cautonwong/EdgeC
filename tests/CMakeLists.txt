@@ -24,7 +24,8 @@ macro(add_edge_test TEST_NAME)
         pthread dl rt m
     )
     target_include_directories(${TEST_NAME} PRIVATE
-        ${CMAKE_SOURCE_DIR}/modules/edge_core/src)
+        ${CMAKE_SOURCE_DIR}/modules/edge_core/src
+        ${CMAKE_SOURCE_DIR}/modules/edge_io/src)
     add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
     set_tests_properties(${TEST_NAME} PROPERTIES TIMEOUT 180)
     if(ENABLE_ASAN)

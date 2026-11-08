@@ -7,6 +7,7 @@
 #include "session_manager.h"
 #include "arbiter.h"
 #include "io_executor.h"
+#include "io_handle_priv.h"
 #include "edge_guard.h"
 
 #define MAX_PROTO_PER_BUS 4

@@ -9,6 +9,7 @@
 
 #include "edge_log.h"
 #include "io_executor.h"
+#include "io_handle_priv.h"
 
 static net_buf_pool_t* g_pool = NULL;
 static bool g_rx_received = false;

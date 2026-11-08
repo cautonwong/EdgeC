@@ -48,12 +48,6 @@ typedef struct {
     void (*destroy)(io_handle_t *h);
 } io_ops_t;
 
-struct io_handle_s {
-    const io_ops_t *ops;
-    void (*cb)(io_handle_t *h, io_event_t evt, void *payload, void *user_data);
-    void *user_data;
-};
-
 typedef struct {
     io_type_t type;
     union {
@@ -86,6 +80,14 @@ io_handle_t *io_executor_create(uv_loop_t *loop, const io_config_t *cfg, net_buf
 void io_executor_cleanup(void);
 io_handle_t *io_executor_create_from_fd(uv_loop_t *loop, int fd, net_buf_pool_t *pool);
 void io_executor_http_request(uv_loop_t *loop, const char *url, const char *method);
+
+/**
+ * @brief 开/关该句柄的读事件。
+ *
+ * 产品层只需要这一个动作；驱动的 ops 表是 edge_io 的内部约定。
+ * 驱动没实现 enable_read 时返回 -1，不崩。
+ */
+int io_handle_enable_read(io_handle_t *h, bool enable);
 
 #ifdef __cplusplus
 }

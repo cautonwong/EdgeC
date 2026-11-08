@@ -17,6 +17,7 @@
 
 #include "edge_log.h"
 #include "io_executor.h"
+#include "io_handle_priv.h"
 
 /* --- 0. Libcurl Multi-Socket 集成 --- */
 
@@ -148,6 +149,11 @@ static void _ensure_curl_init(uv_loop_t* loop) {
 
 static void _on_curl_ctx_close(uv_handle_t* handle) {
     free(handle->data);
+}
+
+int io_handle_enable_read(io_handle_t *h, bool enable) {
+    if (!h || !h->ops || !h->ops->enable_read) return -1;
+    return h->ops->enable_read(h, enable);
 }
 
 void io_executor_cleanup(void) {

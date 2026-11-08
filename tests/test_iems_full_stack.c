@@ -13,6 +13,7 @@
 #include "contract_data_types.h"
 #include "datahub.h"
 #include "driver_manager.h"
+#include "io_handle_priv.h"
 #include "iec104_apci.h"
 #include "iec_asdu.h"
 #include "modbus_codec.h"
