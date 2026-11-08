@@ -116,6 +116,13 @@ TEST_MATRIX = [
         "arg_flag": "--root"
     },
     {
+        "guard_name": "check_baseline_caps.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_baseline_caps.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_baseline_caps"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_baseline_caps"),
+        "arg_flag": "--root"
+    },
+    {
         "guard_name": "check_composition_root_budget.py",
         "script": os.path.join(SCRIPTS_DIR, "check_composition_root_budget.py"),
         "good_target": os.path.join(FIXTURES_DIR, "good_budget"),
@@ -270,6 +277,7 @@ def main():
         "check_product_build_graph.py",
         "check_component_metadata.py",
         "check_composition_root_budget.py",
+        "check_baseline_caps.py",
     ]:
         script_path = os.path.join(SCRIPTS_DIR, script_name)
         flag = "--file" if "dependencies" in script_name or "exemptions" in script_name else "--root"
