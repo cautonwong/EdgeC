@@ -10,11 +10,11 @@ VS Code 的插件有自己的设置、状态和 webview。这套模型值得抄�
 
 | 层 | 形态 | 应用要做什么 | 平台保证 |
 | --- | --- | --- | --- |
-| L0 自动生成 | 应用详情页、设置表单 | 只在清单里声明 schema | 不用写任何界面代码 |
-| L1 声明式 | 应用页面、首页卡片 | 写布局 JSON，用白名单组件 | 无脚本、无样式、无越权数据 |
-| L2 沙箱 webview | 自定义面板 | 提供签名的静态包 | 隔离在 opaque origin，只能走窄 RPC |
+| U0 自动生成 | 应用详情页、设置表单 | 只在清单里声明 schema | 不用写任何界面代码 |
+| U1 声明式 | 应用页面、首页卡片 | 写布局 JSON，用白名单组件 | 无脚本、无样式、无越权数据 |
+| U2 沙箱 webview | 自定义面板 | 提供签名的静态包 | 隔离在 opaque origin，只能走窄 RPC |
 
-P0 不实现任何一层界面。P1 做 L0 与 L1，P2 做 L2。
+P0 不实现任何一层界面。P1 做 U0 与 U1，P2 做 U2。
 
 ## 2. 应用不能拥有的
 
@@ -28,7 +28,7 @@ P0 不实现任何一层界面。P1 做 L0 与 L1，P2 做 L2。
 
 这条边界是为了让现场操作面保持一个样子。应用可以有自己的面板，但不能让整个界面变成十个风格。
 
-## 3. L0：自动生成
+## 3. U0：自动生成
 
 安装后自动出现，不需要清单之外的任何东西：
 
@@ -39,7 +39,7 @@ P0 不实现任何一层界面。P1 做 L0 与 L1，P2 做 L2。
 
 应用详情页的入口固定在"应用"分组，不需要产品页面注册，也不需要改 WebUI。
 
-## 4. L1：声明式页面与卡片
+## 4. U1：声明式页面与卡片
 
 清单里写布局，平台用白名单组件渲染。
 
@@ -94,7 +94,7 @@ contributes:
 - 操作按钮只能映射到清单里声明的动作，动作由平台 API 执行并做权限校验，不在浏览器里跑应用代码。
 - 布局未知组件、未知字段一律拒绝渲染并记录错误，不做"尽量显示"。
 
-## 5. L2：沙箱 webview
+## 5. U2：沙箱 webview
 
 需要自定义交互的应用（例如相量图、拓扑编辑器）可以用 webview。它对应 VS Code 的 webview 面板，不是整页替换。
 
@@ -125,10 +125,13 @@ src="/apps-static/<app-id>/<version>/index.html?token=<一次性>"
 ```
 
 - **不加 `allow-same-origin`**。webview 运行在 opaque origin，读不到平台 Cookie、localStorage 和同源 API。
-- 响应头带严格 CSP：`default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; frame-ancestors 'self'`。
+- **不加 `allow-top-navigation` 与 `allow-popups`**。webview 不能把顶层导航到别的页面，也不能弹窗。需要打开链接时，通过 RPC 请求平台处理。
+- 响应头带严格 CSP：`default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'`。
 - `connect-src 'none'` 表示 webview 不能发网络请求。需要数据就走 postMessage。
 - 静态资源由平台服务，带 `Content-Type`、`X-Content-Type-Options: nosniff`，不携带 Cookie。
 - 一次性 token 绑定用户会话、应用与版本，短期有效，只用于加载资源，不能换取 API 权限。
+
+**平台边框。** webview 不能裸铺满屏。平台在它外面固定渲染一条归属栏，显示应用名、版本与"自定义界面"标记，样式由平台控制，应用无法隐藏或覆盖。这条防的是伪造登录页或伪装成平台功能。全屏展示只允许在用户显式点击后进入，退出按钮始终由平台绘制。
 
 ### 通信
 
@@ -137,6 +140,7 @@ src="/apps-static/<app-id>/<version>/index.html?token=<一次性>"
 - 父页面校验 `event.source === iframe.contentWindow`，不信任 `event.origin`（opaque origin 为 `null`）。
 - 消息带 `version`、`id`、`type`、`payload`。未知 `type` 丢弃并计数。
 - 请求响应按 `id` 配对，超时丢弃。
+- **限速**：每个 webview 每秒消息数与在途请求数都有上限，超限拒绝并计数。没有限速，一个死循环 webview 可以把主线程打满。
 - 平台不接受 webview 传来的 HTML、脚本或任意查询，只接受白名单方法。
 
 RPC 方法白名单：
@@ -182,24 +186,24 @@ app.action.invoke(actionId, args)   # 需清单已声明且用户有权限
 | --- | --- | --- |
 | `contributes.configuration` | `settings` schema 生成表单 | 无运行时设置弹窗，管理员配置 |
 | `globalState` / `secrets` | `app_kv` / `app_secret` | 无 workspace 概念，按设备隔离 |
-| `contributes.views` | L1 `ui.pages` / `ui.widgets` | 组件白名单，不允许自定义树控件 |
-| webview | L2 沙箱 iframe | 无 Node 集成，无网络，无同源 |
+| `contributes.views` | U1 `ui.pages` / `ui.widgets` | 组件白名单，不允许自定义树控件 |
+| webview | U2 沙箱 iframe | 无 Node 集成，无网络，无同源 |
 | `contributes.commands` | `ui.actions` | 只能调用已声明的应用动作，不能执行任意命令 |
 | 扩展宿主进程 | app-host / sidecar | 已在第 04 号文档定义 |
 
 ## 9. 分阶段
 
 - P0：不做界面，只有命令行与状态接口。理由是先验证事务、授权与隔离。
-- P1：L0 自动详情页与设置页，L1 只读页面与首页卡片。入口条件：06 号文档的参数模型跑通。
-- P2：L2 webview。入口条件：CSP、opaque origin、RPC 白名单三项安全测试通过。
+- P1：U0 自动详情页与设置页，U1 只读页面与首页卡片。入口条件：06 号文档的参数模型跑通。
+- P2：U2 webview。入口条件：CSP、opaque origin、RPC 白名单三项安全测试通过。
 
 ## 10. 验收
 
 1. 安装应用后，应用详情页与设置页自动出现，未改 WebUI 代码。
 2. 卸载后页面、卡片、静态资源目录全部消失。
-3. L1 页面引用未授权点位，页面显示无权限，不返回空值。
-4. L1 布局含未知组件或未知字段，拒绝渲染并记录错误。
-5. L1 操作按钮只能触发清单声明的动作，未声明的动作被拒。
+3. U1 页面引用未授权点位，页面显示无权限，不返回空值。
+4. U1 布局含未知组件或未知字段，拒绝渲染并记录错误。
+5. U1 操作按钮只能触发清单声明的动作，未声明的动作被拒。
 6. webview 无法访问平台 Cookie 与同源 API，尝试时被 CSP 或 origin 隔离阻断。
 7. webview 发起外部网络请求，被 `connect-src 'none'` 阻断。
 8. 非 iframe 窗口向父页面发送消息，被丢弃。
@@ -209,10 +213,13 @@ app.action.invoke(actionId, args)   # 需清单已声明且用户有权限
 12. 升级后旧静态资源 URL 失效，新版本生效；回滚后旧 URL 恢复。
 13. 主题切换后 webview 收到通知并使用新 token。
 14. 应用详情页明确标记"自定义界面"，不可隐藏。
+15. webview 尝试 `window.top.location = ...` 或 `window.open`，被 sandbox 阻断。
+16. webview 每秒发送超限消息，超出部分被拒绝并计数，平台页面仍可操作。
+17. webview 内的应用无法覆盖或隐藏平台归属栏与退出按钮。
 
 ## 11. 未决
 
-- L1 组件目录是否需要树形控件与地图控件，取决于真实页面需求。
+- U1 组件目录是否需要树形控件与地图控件，取决于真实页面需求。
 - webview 是否允许内置 WASM（例如本地图表加速），目前不允许，避免再开一层运行时。
 - 命名查询的分页与聚合语义，是否在 P1 就支持，还是只给原始点位。
 - 自定义界面与平台生成页面能否混排在同一个应用页，还是必须分 tab。
