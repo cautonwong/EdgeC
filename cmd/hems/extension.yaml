@@ -1,9 +1,0 @@
-product: "HEMS_Gateway_Lite"
-# DLT645 映射验证 (DI -> VOLTAGE_PHASE_A)
-includes:
-  - "contracts/bindings/modbus/huawei_sun2000.yaml"
-
-# 启用全局测点
-enabled_tags:
-  - VOLTAGE_PHASE_A
-  - ROOM_HUMIDITY

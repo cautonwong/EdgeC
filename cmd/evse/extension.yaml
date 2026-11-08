@@ -1,8 +1,0 @@
-product: "EVSE_SmartCharger_V1"
-# DLMS 映射验证 (OBIS -> EV_CHARGE_POWER)
-includes:
-  - "contracts/bindings/dlms/chint_dtsu.yaml"
-
-# 启用全局测点
-enabled_tags:
-  - PLUG_OVERTEMP

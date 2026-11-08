@@ -616,7 +616,7 @@ int northbound_mgr_init_ex(northbound_mgr_t* mgr, nb_source_ops_t source, const 
     uv__queue_init(&mgr->req_queue);
     uv_mutex_init(&mgr->req_lock);
 
-    /* 没有 publish 的传输等于没接（evse/hems/sg 走兼容 init），不进数组，
+    /* 没有 publish 的传输等于没接（vpp_demo 走兼容 init），不进数组，
      * 这样 _any_connected 直接返回 false，数据老实走 SnF。 */
     if (transport.publish) {
         northbound_mgr_add_transport(mgr, transport);
