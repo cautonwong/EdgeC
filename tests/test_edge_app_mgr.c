@@ -199,9 +199,23 @@ static void test_app_mgr_custom_repo(void **state) {
     free(mgr_mem);
 }
 
+static void test_default_manifest_wasm_path(void **state) {
+    (void)state;
+    app_manifest_t m;
+
+    setenv("EDGE_APPS_DIR", "/opt/edgeos/apps", 1);
+    assert_int_equal(edge_app_mgr_construct_default_manifest("demo.wasm", &m), 0);
+    assert_string_equal(m.wasm_path, "/opt/edgeos/apps/demo/app.wasm");
+
+    unsetenv("EDGE_APPS_DIR");
+    assert_int_equal(edge_app_mgr_construct_default_manifest("demo.wasm", &m), 0);
+    assert_string_equal(m.wasm_path, "/var/edgeos/apps/demo/app.wasm");
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_manifest_parse_and_default),
+        cmocka_unit_test(test_default_manifest_wasm_path),
         cmocka_unit_test_setup_teardown(test_app_lifecycle_and_boot_restore, setup, teardown),
         cmocka_unit_test_setup_teardown(test_app_mgr_custom_repo, setup, teardown),
     };

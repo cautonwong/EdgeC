@@ -99,14 +99,16 @@ int edge_app_mgr_parse_manifest_json(const char *json_str, app_manifest_t *out_m
     return 0;
 }
 
+/* 应用目录与 wasm 落盘路径只有这一处定义：安装和默认清单必须算出同一条路径。 */
+static void _default_wasm_path(const char *app_id, char *out, size_t cap) {
+    const char *apps_dir = getenv("EDGE_APPS_DIR");
+    if (!apps_dir || apps_dir[0] == '\0') apps_dir = "/var/edgeos/apps";
+    snprintf(out, cap, "%s/%s/app.wasm", apps_dir, app_id);
+}
+
 int edge_app_mgr_construct_default_manifest(const char *filename_or_id, app_manifest_t *out_manifest) {
     if (!filename_or_id || !out_manifest) return -1;
     memset(out_manifest, 0, sizeof(app_manifest_t));
-
-    const char *apps_dir = getenv("EDGE_APPS_DIR");
-    if (!apps_dir || apps_dir[0] == '\0') {
-        apps_dir = "/var/edgeos/apps";
-    }
 
     char clean_id[64];
     snprintf(clean_id, sizeof(clean_id), "%s", filename_or_id);
@@ -117,7 +119,7 @@ int edge_app_mgr_construct_default_manifest(const char *filename_or_id, app_mani
     snprintf(out_manifest->name, sizeof(out_manifest->name), "%s App", clean_id);
     snprintf(out_manifest->version, sizeof(out_manifest->version), "1.0.0");
     snprintf(out_manifest->author, sizeof(out_manifest->author), "EdgeOS Auto");
-    snprintf(out_manifest->wasm_path, sizeof(out_manifest->wasm_path), "%s/%s/app.wasm", apps_dir, clean_id);
+    _default_wasm_path(clean_id, out_manifest->wasm_path, sizeof(out_manifest->wasm_path));
     out_manifest->trigger_tag = 1001;
     snprintf(out_manifest->entry_func, sizeof(out_manifest->entry_func), "on_event");
     out_manifest->fault_policy = FAULT_POLICY_AUTO_RESTART;
@@ -185,11 +187,7 @@ int edge_app_mgr_install(edge_app_mgr_t *mgr, const app_manifest_t *manifest, co
 
     app_manifest_t m = *manifest;
     if (m.wasm_path[0] == '\0') {
-        const char *apps_dir = getenv("EDGE_APPS_DIR");
-        if (!apps_dir || apps_dir[0] == '\0') {
-            apps_dir = "/var/edgeos/apps";
-        }
-        snprintf(m.wasm_path, sizeof(m.wasm_path), "%s/%s/app.wasm", apps_dir, m.id);
+        _default_wasm_path(m.id, m.wasm_path, sizeof(m.wasm_path));
     }
 
     char dir_path[256];

@@ -18,7 +18,7 @@
 | `modules/edge_mcp` | component | MCP 服务与工具分发 | 依赖 4 个模块 | 定义工具端口 |
 | `cmd/dcu`、`cmd/iems`、`cmd/smart_box` | product / 组合根 | 已进构建的交付物 | 三个根 | 继续瘦身，保持预算账本只减不增 |
 | `cmd/edge_mcp_server`、`cmd/nexus_lab` | product / 组合根 | 已进构建的交付物 | 两个根 | 明确交付边界 |
-| `cmd/evse`、`cmd/hems`、`cmd/sg` | 未交付的桩 | 只有 `main.c`，未进构建 | 不计交付物 | 要么接入构建，要么删除 |
+| `cmd/evse`、`cmd/hems`、`cmd/sg` | 已删除 | 未进构建，且依赖已删的 `contracts.h` | 不计交付物 | 已按本行结论删除 |
 
 **点表。** ADR-0010 规定点表由产品防腐层用极简静态 C 结构体维护，不引入 JSON/YAML 配置层；manifest 不作为运行时输入。
 
