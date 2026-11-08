@@ -43,8 +43,7 @@ static void test_dispatcher_create_destroy(void) {
     assert(hub != NULL);
 
     edge_mcp_env_t env = {.bus = edge_mcp_datahub_port(hub),
-                         .drv_mgr = NULL, .stream_eng = NULL,
-                         .storage_drv = NULL, .loop = loop};
+                         .loop = loop};
 
     edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(&env);
     assert(disp != NULL);

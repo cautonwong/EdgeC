@@ -17,10 +17,6 @@
 typedef struct uv_loop_s uv_loop_t;
 
 #include "edgeos/edge_mcp_bus_port.h"
-#include "driver_manager.h"
-#include "edge_driver.h"
-#include "stream_engine.h"
-#include "storage_ops.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -66,9 +62,6 @@ typedef struct {
  */
 typedef struct {
     edge_mcp_bus_port_t bus;
-    driver_manager_t *drv_mgr;
-    stream_engine_t *stream_eng;
-    storage_driver_t *storage_drv;
     uv_loop_t *loop;
 } edge_mcp_env_t;
 
