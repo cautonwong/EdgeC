@@ -17,6 +17,7 @@
 #include "edge_version.h"
 #include "sqlite_service.h"
 #include "edge_app_mgr.h"
+#include "edgeos/app_registry_store.h"
 #include "stream_engine.h"
 
 #define HTTP_RESPONSE_FMT                \
@@ -331,7 +332,7 @@ static char *handle_stream_topology(service_t *svc) {
 static char *handle_apps_list(service_t *svc) {
     sqlite_svc_t *db = service_get_storage(svc);
     app_manifest_t apps[64];
-    int count = db ? sqlite_svc_list_apps(db, apps, 64) : 0;
+    int count = db ? app_registry_list(db, apps, 64) : 0;
 
     cJSON *arr = cJSON_CreateArray();
     for (int i = 0; i < count; i++) {
@@ -371,9 +372,9 @@ static char *handle_apps_start(service_t *svc, const char *body) {
         sqlite_svc_t *db = service_get_storage(svc);
         if (db) {
             app_manifest_t m;
-            if (sqlite_svc_get_app(db, id_item->valuestring, &m) == 0) {
+            if (app_registry_get(db, id_item->valuestring, &m) == 0) {
                 m.state = APP_STATE_RUNNING;
-                rc = sqlite_svc_save_app(db, &m);
+                rc = app_registry_save(db, &m);
             }
         }
     }
@@ -399,9 +400,9 @@ static char *handle_apps_stop(service_t *svc, const char *body) {
         sqlite_svc_t *db = service_get_storage(svc);
         if (db) {
             app_manifest_t m;
-            if (sqlite_svc_get_app(db, id_item->valuestring, &m) == 0) {
+            if (app_registry_get(db, id_item->valuestring, &m) == 0) {
                 m.state = APP_STATE_STOPPED;
-                rc = sqlite_svc_save_app(db, &m);
+                rc = app_registry_save(db, &m);
             }
         }
     }
@@ -461,7 +462,7 @@ static char *handle_apps_upload(service_t *svc, const char *body) {
         sqlite_svc_t *db = service_get_storage(svc);
         if (db) {
             manifest.state = APP_STATE_RUNNING;
-            sqlite_svc_save_app(db, &manifest);
+            app_registry_save(db, &manifest);
         }
     }
 

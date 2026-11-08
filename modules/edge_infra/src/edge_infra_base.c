@@ -79,26 +79,6 @@ void *sqlite_svc_get_db_handle(sqlite_svc_t *svc) {
     return NULL;
 }
 
-int sqlite_svc_save_app(sqlite_svc_t *svc, const void *manifest_ptr) {
-    (void)svc; (void)manifest_ptr;
-    return -1;
-}
-
-int sqlite_svc_get_app(sqlite_svc_t *svc, const char *app_id, void *out_manifest_ptr) {
-    (void)svc; (void)app_id; (void)out_manifest_ptr;
-    return -1;
-}
-
-int sqlite_svc_delete_app(sqlite_svc_t *svc, const char *app_id) {
-    (void)svc; (void)app_id;
-    return -1;
-}
-
-int sqlite_svc_list_apps(sqlite_svc_t *svc, void *manifests_array_ptr, int max_count) {
-    (void)svc; (void)manifests_array_ptr; (void)max_count;
-    return 0; // count = 0
-}
-
 const storage_ops_t g_sqlite_storage_ops = {0};
 
 storage_driver_t *storage_driver_sqlite_create(uv_loop_t *loop, const storage_config_t *cfg) {

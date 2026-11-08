@@ -45,10 +45,6 @@ typedef struct {
     int snf_flush_called;
     int set_param_called;
     int get_param_called;
-    int save_app_called;
-    int get_app_called;
-    int delete_app_called;
-    int list_apps_called;
     int destroy_called;
 } mock_storage_ctx_t;
 
@@ -200,36 +196,6 @@ static int mock_storage_get_param(storage_driver_t *drv, const char *product, ui
     return 0;
 }
 
-static int mock_storage_save_app(storage_driver_t *drv, const void *manifest_ptr) {
-    (void)manifest_ptr;
-    mock_storage_ctx_t *ctx = (mock_storage_ctx_t *)drv->priv_ctx;
-    ctx->save_app_called++;
-    return 0;
-}
-
-static int mock_storage_get_app(storage_driver_t *drv, const char *app_id, void *out_manifest_ptr) {
-    (void)app_id;
-    (void)out_manifest_ptr;
-    mock_storage_ctx_t *ctx = (mock_storage_ctx_t *)drv->priv_ctx;
-    ctx->get_app_called++;
-    return 0;
-}
-
-static int mock_storage_delete_app(storage_driver_t *drv, const char *app_id) {
-    (void)app_id;
-    mock_storage_ctx_t *ctx = (mock_storage_ctx_t *)drv->priv_ctx;
-    ctx->delete_app_called++;
-    return 0;
-}
-
-static int mock_storage_list_apps(storage_driver_t *drv, void *manifests_array_ptr, int max_count) {
-    (void)manifests_array_ptr;
-    (void)max_count;
-    mock_storage_ctx_t *ctx = (mock_storage_ctx_t *)drv->priv_ctx;
-    ctx->list_apps_called++;
-    return 1;
-}
-
 static void *mock_storage_get_native(storage_driver_t *drv) {
     return drv->priv_ctx;
 }
@@ -260,10 +226,6 @@ static const storage_ops_t g_mock_storage_ops = {
     .snf_flush = mock_storage_snf_flush,
     .set_param = mock_storage_set_param,
     .get_param = mock_storage_get_param,
-    .save_app = mock_storage_save_app,
-    .get_app = mock_storage_get_app,
-    .delete_app = mock_storage_delete_app,
-    .list_apps = mock_storage_list_apps,
     .get_native_handle = mock_storage_get_native,
 };
 
@@ -364,16 +326,6 @@ static void test_storage_ops_vtable(void) {
     double out_val = 0;
     assert(drv.ops->get_param(&drv, "DCU", 5001, &out_val, sizeof(out_val)) == 0);
     assert(ctx.get_param_called == 1);
-
-    /* 8. Apps */
-    assert(drv.ops->save_app(&drv, NULL) == 0);
-    assert(ctx.save_app_called == 1);
-    assert(drv.ops->get_app(&drv, "app_01", NULL) == 0);
-    assert(ctx.get_app_called == 1);
-    assert(drv.ops->list_apps(&drv, NULL, 10) == 1);
-    assert(ctx.list_apps_called == 1);
-    assert(drv.ops->delete_app(&drv, "app_01") == 0);
-    assert(ctx.delete_app_called == 1);
 
     /* 9. Native handle & Destroy */
     assert(drv.ops->get_native_handle(&drv) == &ctx);

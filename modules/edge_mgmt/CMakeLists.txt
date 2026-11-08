@@ -6,6 +6,7 @@ add_library(edge_mgmt STATIC
     src/auth/console_rbac.c
     src/audit/console_audit.c
     src/edge_app_mgr.c
+    src/app_registry_store.c
 )
 
 target_include_directories(edge_mgmt PUBLIC
