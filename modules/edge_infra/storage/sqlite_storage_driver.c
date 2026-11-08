@@ -252,26 +252,6 @@ static int _sqlite_driver_get_param(storage_driver_t *drv, const char *product, 
     return sqlite_svc_get_param((sqlite_svc_t *)drv->priv_ctx, product, tag_id, buf, buf_len);
 }
 
-static int _sqlite_driver_save_app(storage_driver_t *drv, const void *manifest_ptr) {
-    if (!drv || !drv->priv_ctx) return -1;
-    return sqlite_svc_save_app((sqlite_svc_t *)drv->priv_ctx, manifest_ptr);
-}
-
-static int _sqlite_driver_get_app(storage_driver_t *drv, const char *app_id, void *out_manifest_ptr) {
-    if (!drv || !drv->priv_ctx) return -1;
-    return sqlite_svc_get_app((sqlite_svc_t *)drv->priv_ctx, app_id, out_manifest_ptr);
-}
-
-static int _sqlite_driver_delete_app(storage_driver_t *drv, const char *app_id) {
-    if (!drv || !drv->priv_ctx) return -1;
-    return sqlite_svc_delete_app((sqlite_svc_t *)drv->priv_ctx, app_id);
-}
-
-static int _sqlite_driver_list_apps(storage_driver_t *drv, void *manifests_array_ptr, int max_count) {
-    if (!drv || !drv->priv_ctx) return 0;
-    return sqlite_svc_list_apps((sqlite_svc_t *)drv->priv_ctx, manifests_array_ptr, max_count);
-}
-
 static void *_sqlite_driver_get_native(storage_driver_t *drv) {
     if (!drv || !drv->priv_ctx) return NULL;
     return sqlite_svc_get_db_handle((sqlite_svc_t *)drv->priv_ctx);
@@ -298,11 +278,7 @@ const storage_ops_t g_sqlite_storage_ops = {
     .snf_flush = _sqlite_driver_snf_flush,
     .set_param = _sqlite_driver_set_param,
     .get_param = _sqlite_driver_get_param,
-    .save_app = _sqlite_driver_save_app,
-    .get_app = _sqlite_driver_get_app,
-    .delete_app = _sqlite_driver_delete_app,
-    .list_apps = _sqlite_driver_list_apps,
-    .get_native_handle = _sqlite_driver_get_native,
+                    .get_native_handle = _sqlite_driver_get_native,
 };
 
 storage_driver_t *storage_driver_sqlite_create(uv_loop_t *loop, const storage_config_t *cfg) {

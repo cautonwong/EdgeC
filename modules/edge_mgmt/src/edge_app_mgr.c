@@ -5,6 +5,8 @@
 
 #include "edgeos/edge_app_mgr.h"
 #include "sqlite_service.h"
+
+#include "edgeos/app_registry_store.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -133,19 +135,19 @@ int edge_app_mgr_construct_default_manifest(const char *filename_or_id, app_mani
 }
 
 static int _sqlite_repo_save_app(void *ctx, const app_manifest_t *manifest) {
-    return sqlite_svc_save_app((sqlite_svc_t *)ctx, manifest);
+    return app_registry_save((sqlite_svc_t *)ctx, manifest);
 }
 
 static int _sqlite_repo_get_app(void *ctx, const char *app_id, app_manifest_t *out_manifest) {
-    return sqlite_svc_get_app((sqlite_svc_t *)ctx, app_id, out_manifest);
+    return app_registry_get((sqlite_svc_t *)ctx, app_id, out_manifest);
 }
 
 static int _sqlite_repo_delete_app(void *ctx, const char *app_id) {
-    return sqlite_svc_delete_app((sqlite_svc_t *)ctx, app_id);
+    return app_registry_delete((sqlite_svc_t *)ctx, app_id);
 }
 
 static int _sqlite_repo_list_apps(void *ctx, app_manifest_t *out_apps, int max_count) {
-    return sqlite_svc_list_apps((sqlite_svc_t *)ctx, out_apps, max_count);
+    return app_registry_list((sqlite_svc_t *)ctx, out_apps, max_count);
 }
 
 size_t edge_app_mgr_storage_size(void) {

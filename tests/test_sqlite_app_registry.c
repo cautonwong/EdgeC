@@ -10,6 +10,7 @@
 
 #include "edge_app_mgr.h"
 #include "sqlite_service.h"
+#include "edgeos/app_registry_store.h"
 
 static void _on_close_cb(uv_handle_t *handle, void *arg) {
     (void)arg;
@@ -60,12 +61,12 @@ static void test_sqlite_app_registry_crud(void **state) {
     manifest_in.restart_count = 2;
     manifest_in.created_at = 1770000000000ULL;
 
-    int rc = sqlite_svc_save_app(svc, &manifest_in);
+    int rc = app_registry_save(svc, &manifest_in);
     assert_int_equal(rc, 0);
 
     // 2. Get App Manifest
     app_manifest_t manifest_out;
-    rc = sqlite_svc_get_app(svc, "voltage_guard", &manifest_out);
+    rc = app_registry_get(svc, "voltage_guard", &manifest_out);
     assert_int_equal(rc, 0);
     assert_string_equal(manifest_out.id, "voltage_guard");
     assert_string_equal(manifest_out.name, "Voltage Guard App");
@@ -82,19 +83,19 @@ static void test_sqlite_app_registry_crud(void **state) {
 
     // 3. List Apps
     app_manifest_t app_list[10];
-    int count = sqlite_svc_list_apps(svc, app_list, 10);
+    int count = app_registry_list(svc, app_list, 10);
     assert_int_equal(count, 1);
     assert_string_equal(app_list[0].id, "voltage_guard");
 
     // 4. Delete App
-    rc = sqlite_svc_delete_app(svc, "voltage_guard");
+    rc = app_registry_delete(svc, "voltage_guard");
     assert_int_equal(rc, 0);
 
     // Verify deletion
-    rc = sqlite_svc_get_app(svc, "voltage_guard", &manifest_out);
+    rc = app_registry_get(svc, "voltage_guard", &manifest_out);
     assert_int_equal(rc, -1);
 
-    count = sqlite_svc_list_apps(svc, app_list, 10);
+    count = app_registry_list(svc, app_list, 10);
     assert_int_equal(count, 0);
 
     sqlite_svc_destroy(svc);

@@ -96,13 +96,7 @@ typedef struct storage_ops_s {
     int (*set_param)(storage_driver_t *drv, const char *product, uint32_t tag_id, const void *val, size_t val_len);
     int (*get_param)(storage_driver_t *drv, const char *product, uint32_t tag_id, void *buf, size_t buf_len);
 
-    /* 9. 应用注册表管理 (App Registry CRUD) */
-    int (*save_app)(storage_driver_t *drv, const void *manifest_ptr);
-    int (*get_app)(storage_driver_t *drv, const char *app_id, void *out_manifest_ptr);
-    int (*delete_app)(storage_driver_t *drv, const char *app_id);
-    int (*list_apps)(storage_driver_t *drv, void *manifests_array_ptr, int max_count);
-
-    /* 10. 原生句柄逃逸门 (Native Handle) */
+    /* 9. 原生句柄逃逸门 (Native Handle) */
     void *(*get_native_handle)(storage_driver_t *drv);
 } storage_ops_t;
 
