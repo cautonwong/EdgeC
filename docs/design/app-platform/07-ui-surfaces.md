@@ -84,7 +84,7 @@ contributes:
 | `time-series` | 时序图 | 点位，需历史权限 |
 | `table` | 表格 | 命名查询，服务端分页 |
 | `form` | 表单 | 设置 schema |
-| `actions` | 操作按钮 | 已声明的应用动作 |
+| `actions`（v1 之外） | 操作按钮 | 已声明的应用动作 |
 
 规则：
 
@@ -92,6 +92,7 @@ contributes:
 - 每个页面、每个数据源各校验一次权限。页面可见但数据越权时，页面显示无权限，不返回空值。
 - 应用不能提供 URL、脚本、样式、内联 HTML。文本字段按纯文本渲染。
 - 操作按钮只能映射到清单里声明的动作，动作由平台 API 执行并做权限校验，不在浏览器里跑应用代码。
+- **动作要等 ABI 有执行入口才能开。** 当前 ABI 导出只有 `app_init`、`app_on_event`、`app_stop`，没有接收动作的入口。`actions` 与 U2 的 `app.action.invoke` 在 ABI 增加动作事件（例如 `app_on_event` 的 `action` 类型）之前不启用。先用事件类型承载，不新开一个导出，避免两套回调。
 - 布局未知组件、未知字段一律拒绝渲染并记录错误，不做"尽量显示"。
 
 ## 5. U2：沙箱 webview
@@ -121,7 +122,7 @@ ui/
 
 ```
 sandbox="allow-scripts"
-src="/apps-static/<app-id>/<version>/index.html?token=<一次性>"
+src="/apps-static/<app-id>/<version>/<token>/index.html"
 ```
 
 - **不加 `allow-same-origin`**。webview 运行在 opaque origin，读不到平台 Cookie、localStorage 和同源 API。
@@ -129,7 +130,9 @@ src="/apps-static/<app-id>/<version>/index.html?token=<一次性>"
 - 响应头带严格 CSP：`default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'`。
 - `connect-src 'none'` 表示 webview 不能发网络请求。需要数据就走 postMessage。
 - 静态资源由平台服务，带 `Content-Type`、`X-Content-Type-Options: nosniff`，不携带 Cookie。
-- 一次性 token 绑定用户会话、应用与版本，短期有效，只用于加载资源，不能换取 API 权限。
+- 一次性 token 放在**路径段**，不放查询串。查询串会进 Referer、访问日志与浏览器历史；路径段同样会进日志，所以 token 用后即失效、只绑定一次加载，且日志对路径段打码。
+- 响应头加 `Referrer-Policy: no-referrer` 与 `Permissions-Policy`，关闭相机、麦克风、地理位置、WebRTC 等不需要的能力。
+- 子资源同样走这个 token 段，不带 Cookie；token 失效后子资源一并失效。
 
 **平台边框。** webview 不能裸铺满屏。平台在它外面固定渲染一条归属栏，显示应用名、版本与"自定义界面"标记，样式由平台控制，应用无法隐藏或覆盖。这条防的是伪造登录页或伪装成平台功能。全屏展示只允许在用户显式点击后进入，退出按钮始终由平台绘制。
 
@@ -216,6 +219,9 @@ app.action.invoke(actionId, args)   # 需清单已声明且用户有权限
 15. webview 尝试 `window.top.location = ...` 或 `window.open`，被 sandbox 阻断。
 16. webview 每秒发送超限消息，超出部分被拒绝并计数，平台页面仍可操作。
 17. webview 内的应用无法覆盖或隐藏平台归属栏与退出按钮。
+18. token 用后即失效，重复加载被拒；访问日志里 token 已打码。
+19. webview 尝试 WebRTC、DNS 预取等旁路外联，被 `Permissions-Policy` 或测试抓包证明阻断。
+20. 子资源请求不带 Cookie，且随 token 失效一并失效。
 
 ## 11. 未决
 

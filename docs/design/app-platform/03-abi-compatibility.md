@@ -162,7 +162,9 @@ DENIED_QUOTA  NOT_FOUND  STALE  BUSY  INVALID  INTERNAL
 - 公钥轮换：支持同时信任新旧两把公钥，轮换期内两者都可验签，轮换完成后移除旧钥。轮换过程需要一次带外确认，不能由包自己声明。
 - 可选 SBOM：包内附带依赖清单，安装时记录，不做强制校验。现场离线环境里，SBOM 的价值在追溯，不在准入。
 
-**应用标识绑定发布者。** `app_id` 在首次安装时绑定发布者公钥指纹，写入注册表并进审计。后续版本必须由同一发布者签名。换发布者等同于新应用，必须换新 `app_id`，不能继承旧 id 的历史点位映射与已有授权。没有这条绑定，卸载后别人注册同名 id 就能接走历史数据。
+**应用标识绑定发布者。** 引入 `publisher_id`，它是一把长期身份密钥；`app_id` 首次安装时绑定 `publisher_id`，写入注册表并进审计。每次发布用 `publisher_id` 的当前签名密钥，密钥链由旧钥签新钥，轮换不需要换 `publisher_id`，也不需要换 `app_id`。吊销按签名密钥指纹生效，不按 `publisher_id`。
+
+只有 `publisher_id` 本身被转移时才需要换 `app_id`，因为新发布者不能继承旧 id 的历史点位映射与已有授权。没有这层区分，发布者自己轮换签名密钥会被当成"另一个发布者"，把正常运维变成迁移事件。
 
 **信任根与吊销。** 设备内置一组受信公钥，随固件更新；额外公钥只能由管理员通过带外方式导入，不能由包声明。吊销列表是一个签名文件，支持离线导入，记录被吊销的密钥指纹与时间；导入后立即生效并写审计。`min_security_version` 是单调下限，低于它的版本即使签名有效也拒绝安装。
 
@@ -185,7 +187,7 @@ DENIED_QUOTA  NOT_FOUND  STALE  BUSY  INVALID  INTERNAL
 | C++ | 同上，`-fno-exceptions -fno-rtti` | WASM | `wasm` |
 | Rust | wit-bindgen Rust，`panic=abort` | WASM | `wasm` |
 | Go | wit-bindgen Go 或按同一 WIT 生成 RPC 客户端 | 原生二进制 | `sidecar` |
-| Python | componentize-py 或生成 sidecar 客户端 | sidecar | `sidecar` |
+| Python（v1 之外） | componentize-py 或生成 sidecar 客户端 | sidecar | `sidecar` |
 
 Go 不默认编 WASM。实测一个最小 Go 应用编 wasip1 剥符号后 1,642,824 字节，gzip 492,130 字节；同一逻辑的 C 产物 281 字节。差约 5,800 倍，因此标准 Go 走原生 sidecar，ABI 通过 RPC 暴露，函数签名与 WIT 一致。
 
@@ -221,7 +223,7 @@ v1 的 `telemetry.points` 采用 `backward`，因为消费方会随宿主一起�
 
 - 保留上一个 `app_version` 的包与 manifest。
 - 保留上一个 ABI 主版本的运行时，至少一个弃用窗口。
-- 回滚只切 `active_version` 与 generation，不重新构建。
+- 回滚只切 `desired_version` 与 `published_version`，推进一个新 generation，不重新构建。
 - 若旧版本依赖的 ABI 已不在宿主里，回滚被拒，并明确提示"不可回滚，需降级宿主"。
 
 ## 7. 兼容矩阵怎么测
