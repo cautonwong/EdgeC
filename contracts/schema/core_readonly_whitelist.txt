@@ -48,3 +48,12 @@ modules/edge_core/src/edge_mesh.c                # datahub opacity
 modules/edge_core/src/edge_port.c                # datahub opacity
 modules/edge_core/src/edge_service.c             # datahub opacity
 modules/edge_core/src/datahub_priv.h             # datahub opacity
+
+# 2026-11-08 - 日志接口下沉到 foundation（组件化重构）。
+#
+# edge_log.h 只有标准库 include 和一个不透明的 edge_log_t，是声明式端口头，
+# 不含 IO、不含状态；实现仍在 edge_core。留在 edge_core 名下会让每个组件
+# 为了写日志而背一条「依赖 core」的边界豁免。
+# 影响面：纯移动，无 ABI 变更；消费方经 edge_common_interface 的 include
+# 路径解析，不需要逐个改 CMake。
+modules/edge_core/include/edge_log.h             # foundation log port

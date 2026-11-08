@@ -3,14 +3,10 @@
 edge_stream|edge_algo
 edge_stream|edge_core
 edge_stream|ROOT
-edge_protocol|FOUNDATION
 edge_protocol|ROOT
 edge_protocol|edge_core
 edge_algo|edge_core
-edge_algo|edge_infra
-edge_mgmt|edge_core
 edge_mgmt|edge_infra
-edge_mgmt|ROOT
 edge_mcp|edge_core
 edge_mcp|edge_io
 edge_mcp|edge_stream

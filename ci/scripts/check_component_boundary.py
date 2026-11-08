@@ -137,6 +137,15 @@ def main():
             print(f"   - {item}")
         return 1
 
+    stale = sorted(load_baseline(root) - pinned)
+    if stale:
+        print(
+            f"⚠️  [COMPONENT_BOUNDARY_GUARD] {len(stale)} baseline entr"
+            f"{'y' if len(stale) == 1 else 'ies'} no longer reproduce — delete them:"
+        )
+        for component, owner in stale:
+            print(f"   - {component}|{owner}")
+
     owners = ", ".join(sorted({owner for _, owner in pinned}))
     print(f"✅ [COMPONENT_BOUNDARY_GUARD] clean. Baseline owners: {owners or 'none'}")
     return 0
