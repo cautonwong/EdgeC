@@ -2,8 +2,6 @@
 # Format: <component>|<owner>
 edge_stream|edge_algo
 edge_stream|edge_core
-edge_stream|ROOT
-edge_protocol|ROOT
 edge_protocol|edge_core
 edge_algo|edge_core
 edge_mgmt|edge_infra
