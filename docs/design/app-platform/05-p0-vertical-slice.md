@@ -21,6 +21,7 @@
 | 贡献类型 | `telemetry.points`，只读 | `ui.pages`、`northbound.metrics`、`alarm.rules`、`schedule.jobs`、`protocol.handlers` |
 | 能力 | `tags.read` 单点位、`log` | `tags.write`、`alarm.raise`、`net.egress` |
 | 参数 | 清单 `settings` schema、默认值、`settings.get`、`appctl settings set` | WebUI 设置页、参数分组、依赖参数的页面 |
+| 事件 | 平台到应用的四类：`settings.changed`、`grant.changed`、`upstream.available`、`upstream.unavailable` | 应用之间的事件、持久重放、自定义主题 |
 | 界面 | 无应用页面，只有一个只读的状态接口 | 应用商店前端、详情页 |
 | 签名 | 一个测试密钥，真实验签 | 密钥轮换、证书链 |
 | 分布 | 本地安装包，不经网络 | 商店后端、远程下载 |
@@ -122,7 +123,7 @@ appctl snapshot                        # 打印当前 generation 与贡献摘要
 
 全部满足才进入 P1：
 
-- 27 项验收全过，证据归档。
+- 29 项验收全过，证据归档。
 - 故障注入脚本可在 CI 中重复运行，结果稳定。
 - 没有一项检查依赖人工判断。
 - 注册表在 10 个中断点上的最终状态与第 01 号文档的矩阵完全一致。
