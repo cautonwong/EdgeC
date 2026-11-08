@@ -179,8 +179,9 @@ endif()
 # 4. Common Build Options (Interface Target)
 # ==============================================================================
 add_library(edge_common_interface INTERFACE)
-target_include_directories(edge_common_interface INTERFACE 
-    include 
+target_include_directories(edge_common_interface INTERFACE
+    include
+    "${CMAKE_SOURCE_DIR}/foundation/include"
     "${CMAKE_BINARY_DIR}"
     SYSTEM "${LOCAL_ROOT}/include"
 )
