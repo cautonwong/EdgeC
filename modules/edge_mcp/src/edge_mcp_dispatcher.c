@@ -13,10 +13,6 @@
 
 #include "edgeos/edge_mcp_dispatcher.h"
 #include "edgeos/edge_mcp_industry_tools.h"
-#include "driver_manager.h"
-#include "edge_driver.h"
-#include "stream_engine.h"
-#include "storage_ops.h"
 #include "edge_log.h"
 
 #define MAX_MCP_TOOLS 64

@@ -90,8 +90,7 @@ int main(int argc, char **argv) {
     }
 
     edge_mcp_env_t env = {.bus = edge_mcp_datahub_port(hub),
-                         .drv_mgr = NULL, .stream_eng = NULL,
-                         .storage_drv = NULL, .loop = g_loop};
+                         .loop = g_loop};
 
     edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(&env);
     if (!disp) {

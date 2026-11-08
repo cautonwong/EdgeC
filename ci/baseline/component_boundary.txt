@@ -6,6 +6,3 @@ edge_protocol|edge_core
 edge_algo|edge_core
 edge_mgmt|edge_infra
 edge_mcp|edge_core
-edge_mcp|edge_io
-edge_mcp|edge_stream
-edge_mcp|edge_infra
