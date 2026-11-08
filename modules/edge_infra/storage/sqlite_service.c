@@ -600,8 +600,15 @@ int sqlite_svc_exec(sqlite_svc_t *svc, const char *sql, sqlite_exec_cb cb, void 
     if (!svc || !sql) return -1;
     uv_work_t *req = malloc(sizeof(uv_work_t));
     exec_task_t *task = calloc(1, sizeof(exec_task_t));
+    char *sql_copy = strdup(sql);
+    if (!req || !task || !sql_copy) {
+        free(req);
+        free(task);
+        free(sql_copy);
+        return -1;
+    }
     task->svc = svc;
-    task->sql = strdup(sql);
+    task->sql = sql_copy;
     task->cb = cb;
     task->user_data = user_data;
     req->data = task;
