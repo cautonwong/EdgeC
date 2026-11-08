@@ -72,17 +72,63 @@ ABI 主版本不兼容，次版本向后兼容且只增函数。
 
 为什么要两层：安装可能离线完成、可能在旧宿主上进行，U 盘拷到新宿主后静态检查已经不成立。只做安装时检查会漏。
 
-### 导入白名单
+### ABI 总表
 
-WAMR 允许模块声明任意 import。白名单是唯一允许的集合：
+所有文档中的能力、设置、事件都从这张表推导。表外的导入一律拒绝。
 
-| 模块 | 允许的导入 | 说明 |
+**宿主导入（模块 `edgeos`）**
+
+| 函数 | 签名要点 | 能力 | 说明 |
+| --- | --- | --- | --- |
+| `point_resolve` | `(name_ptr, len, out_handle*)` | `tags.read` | 解析点位名，授权在此校验；句柄带授权代次 |
+| `point_read` | `(handle, out_sample*)` | `tags.read` | 返回值、质量、时间戳 |
+| `point_subscribe` | `(handle, deadband, min_interval_ms)` | `tags.read` | 订阅变化；回调通过 `app_on_event` 投递 |
+| `point_publish` | `(handle, const sample*)` | `points.publish` | 只能写自己命名空间 `app.<id>.*` |
+| `setting_get` | `(key_ptr, len, out_ptr, cap)` | 内置 | 读自己的参数，默认值已解析 |
+| `setting_watch` | `()` | 内置 | 参数变化通过事件投递 |
+| `kv_get` / `kv_set` | `(key, value, len, flags)` | 内置，受配额 | 自己的命名空间 |
+| `log` | `(level, ptr, len)` | 内置 | 有速率上限 |
+| `now` | `(out_mono_ms*, out_wall_ms*)` | 内置 | 两种时钟分开 |
+
+**应用导出**
+
+| 函数 | 时机 | 说明 |
 | --- | --- | --- |
-| `edgeos` | `tag_read`、`log`、`now_ms` | 新的 Host ABI |
-| `wasi_snapshot_preview1` | `clock_time_get`、`random_get` | 只给时间与随机数 |
-| 其他 | 无 | 一律拒绝 |
+| `app_init` | 实例加载后、接收事件前 | 读设置、解析点位句柄 |
+| `app_on_event` | 点位变化、平台事件、定时 | 单线程串行调用，不重入 |
+| `app_stop` | 停止前 | 落盘，限时返回 |
 
-v1 明确拒绝：`wasi_snapshot_preview1` 的文件、socket、环境变量、进程相关导入；`wasi:threads` 与共享内存；`memory64`；任何自定义 import。拒绝发生在实例化之前，错误码 `denied_import`。
+事件载荷统一为 `{type, id, mono_ms, wall_ms, payload}`。类型含点位变化、设置变化、授权变化、上游可用或不可用、代次变化、即将停止。
+
+**错误码**
+
+```
+DENIED_NOT_GRANTED  DENIED_SCOPE  DENIED_REVOKED  DENIED_POLICY
+DENIED_QUOTA  NOT_FOUND  STALE  BUSY  INVALID  INTERNAL
+```
+
+**规则**
+
+- 所有指针与长度由宿主做边界检查；单次载荷有上限（初值 64KB）。
+- 同一应用同一时刻只有一个调用在执行；订阅回调不重入。
+- 返回码不跨边界抛原生异常；trap 统一映射为 `INTERNAL` 并计一次故障。
+- 内存归宿主所有，应用只读；需要保留的值由应用自己复制。
+- 授权撤销后，已有句柄在下一次调用返回 `DENIED_REVOKED`，不依赖应用重新解析。
+
+**能力与函数的对应**
+
+| 能力 | 允许的函数 | 范围 |
+| --- | --- | --- |
+| `tags.read` | resolve / read / subscribe | 批准的点位名 |
+| `points.publish` | publish | 仅 `app.<id>.*` |
+| `settings.read` / `settings.write` | setting_get / watch；写入只经 API | 自己的键 |
+| `kv` | kv_get / kv_set | 自己的命名空间 |
+
+`points.publish` 与 `tags.write` 是两件事。前者只能写自己命名空间的派生点位，后者写产品点位，属于遥控类高风险，P0 不开放。混成一个能力会让"发自己的计算结果"和"改现场设备值"共用一条审批。
+
+**WASI 白名单**
+
+只允许 `clock_time_get` 与 `random_get`。拒绝文件、socket、环境变量、进程相关导入；拒绝 `wasi:threads`、共享内存、`memory64` 与任何自定义 import。拒绝发生在实例化之前，错误码 `DENIED_IMPORT`。
 
 这项检查防的是"沙箱里再开一扇门"。只靠线性内存隔离、不在加载时拒绝越界 import，等于把沙箱交给模块自觉。
 
@@ -116,6 +162,12 @@ v1 明确拒绝：`wasi_snapshot_preview1` 的文件、socket、环境变量、�
 - 公钥轮换：支持同时信任新旧两把公钥，轮换期内两者都可验签，轮换完成后移除旧钥。轮换过程需要一次带外确认，不能由包自己声明。
 - 可选 SBOM：包内附带依赖清单，安装时记录，不做强制校验。现场离线环境里，SBOM 的价值在追溯，不在准入。
 
+**应用标识绑定发布者。** `app_id` 在首次安装时绑定发布者公钥指纹，写入注册表并进审计。后续版本必须由同一发布者签名。换发布者等同于新应用，必须换新 `app_id`，不能继承旧 id 的历史点位映射与已有授权。没有这条绑定，卸载后别人注册同名 id 就能接走历史数据。
+
+**信任根与吊销。** 设备内置一组受信公钥，随固件更新；额外公钥只能由管理员通过带外方式导入，不能由包声明。吊销列表是一个签名文件，支持离线导入，记录被吊销的密钥指纹与时间；导入后立即生效并写审计。`min_security_version` 是单调下限，低于它的版本即使签名有效也拒绝安装。
+
+**运行时选型与 WIT 的关系。** WIT 是接口描述，不等于必须使用 Component Model。WAMR 对 Component Model 的支持有限，若选 WAMR，就把 WIT 当 IDL，生成 core-wasm 绑定；若选 wasmtime，才可以使用 Component Model 与 `componentize-py`。这个选择必须在选型 ADR 里按当前版本核实，不能在不同文档里各说一套。Go 的 RPC 客户端需要自建 WIT 到 RPC 的生成器，成本要计入实施预算。
+
 ## 4. 生成绑定与 CI
 
 绑定由 WIT 生成，不允许手改。
@@ -135,7 +187,11 @@ v1 明确拒绝：`wasi_snapshot_preview1` 的文件、socket、环境变量、�
 | Go | wit-bindgen Go 或按同一 WIT 生成 RPC 客户端 | 原生二进制 | `sidecar` |
 | Python | componentize-py 或生成 sidecar 客户端 | sidecar | `sidecar` |
 
-Go 不默认编 WASM。实测一个最小 Go 应用编 wasip1 剥符号后 1,642,824 字节，gzip 492,130 字节；同一逻辑的 C 产物 281 字节。差约 5,800 倍，因此 Go 走原生 sidecar，ABI 通过 RPC 暴露，函数签名与 WIT 一致。
+Go 不默认编 WASM。实测一个最小 Go 应用编 wasip1 剥符号后 1,642,824 字节，gzip 492,130 字节；同一逻辑的 C 产物 281 字节。差约 5,800 倍，因此标准 Go 走原生 sidecar，ABI 通过 RPC 暴露，函数签名与 WIT 一致。
+
+TinyGo 是另一个编译器与运行时，产物通常几十 KB，可以走 A 档。它与标准 Go 不是同一件事，不能因为都叫 Go 就放在同一档。选 TinyGo 的代价是标准库子集与 goroutine 行为受限，需要单独验证。
+
+体积数据只说明 hello 级差异，不足以单独决定档位。真正的判据是 RSS、启动时间和 RPC 往返，这三项必须在 P-1 spike 里测，不能拿体积代替。
 
 ## 5. 贡献 schema 迁移
 
@@ -181,6 +237,8 @@ v1 的 `telemetry.points` 采用 `backward`，因为消费方会随宿主一起�
 3. 当前 ABI × 上一贡献 schema，迁移演练。
 4. 未覆盖组合在发布说明里标 `unverified`，不得写"支持"。
 
+标签要出现在三个地方，不只写在发布说明：安装界面对未覆盖组合显示"未验证"；`appctl status` 输出 `compat: verified | unverified`；升级提示里同样标注。只在文档里标注，现场看不到，等于没标。
+
 ## 8. 验收
 
 1. `sdk 2.x` 的应用在 `abi 1.x` 宿主上被拒，错误码明确。
@@ -195,6 +253,12 @@ v1 的 `telemetry.points` 采用 `backward`，因为消费方会随宿主一起�
 10. Go sidecar 与 C WASM 应用通过同一套 conformance 用例。
 11. 清单声明 `language: go` 但 `execution_profile: wasm`，且宿主策略不允许该组合时，安装被拒。
 12. `sdk 1.2` 配 `abi 1.3` 且 SDK 发布说明未登记该对应关系时，安装被拒并给出可读原因。
+13. 用不同发布者密钥签同名 `app_id` 的包，安装被拒。
+14. 导入吊销列表后，被吊销密钥签名的包立即拒绝安装与启动。
+15. 低于 `min_security_version` 的包即使签名有效也被拒。
+16. 调用 ABI 总表之外的导入，模块在实例化前被拒。
+17. `point_publish` 写非本应用命名空间的点位，返回 `DENIED_SCOPE`。
+18. 撤销授权后，已持有的句柄下一次调用返回 `DENIED_REVOKED`。
 
 ## 9. 未决
 

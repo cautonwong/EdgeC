@@ -121,6 +121,7 @@ WebUI 的设置页由 schema 生成，不改前端代码。这是"装一个应�
 - `persist` 标记决定备份与恢复：`persist=1` 进备份，`persist=0` 视为缓存，重启或恢复后可以丢。
 - 大于单值上限的二进制放 `/var/edgeos/data/apps/<app-id>/files/`，路径由宿主分配，应用拿到的是句柄，不是任意路径。目录配额独立计算。
 - 时间序列不进 KV。需要历史的数据必须以点位发布，由历史存储负责降采样与保留。
+- **写速率上限**：每个应用有每秒写次数与每秒字节数上限，以及每日写入总量上限。超限写失败并告警，不排队。理由是 eMMC 的擦写寿命，不是吞吐。批量写入由宿主合并后落盘，应用不能要求"每次写都立即 fsync"。
 
 ## 5. 升级、降级与迁移
 
@@ -149,8 +150,10 @@ contributes:
     - name: sag_count            # 完整名 app.voltage_guard.sag_count
       type: number
       unit: 次
+      contractVersion: 1         # 类型、单位、语义的契约版本
       retention: latest          # latest | latest+history
       stability: stable          # stable | experimental
+      source: derived            # measured | derived，便于区分实测与计算值
 ```
 
 消费方在清单里声明自己要什么，以及期望类型：
@@ -166,10 +169,13 @@ requires:
 
 规则：
 
-- 名称与类型必须完全匹配，v1 不做隐式类型转换。类型不符拒绝订阅，返回 `denied_type_mismatch`，而不是给一个看起来像数字的字符串。
+- 名称、类型与 `contractVersion` 必须完全匹配，v1 不做隐式类型转换。类型不符拒绝订阅，返回 `denied_type_mismatch`，而不是给一个看起来像数字的字符串。
 - `stability: experimental` 的点位可以被消费，但安装时提示"上游可能变化"。
 - 授权仍然走第 02 号文档：消费方申请 `tags.read`，管理员批准 `app.<publisher>.<point>` 范围。
 - 点位的 `retention` 决定消费方能否读历史。只声明 `latest` 的点位只能拿当前值。
+- **数据契约不是运行依赖。** 消费方可以在发布方缺席时启动并处于 `degraded`，这是数据契约；第 04 号文档禁止的是"运行依赖"，即启动顺序、互相等待、共享进程。两者不冲突。
+- 发布方升级时若改单位、类型或语义，必须提升 `contractVersion`。旧版本消费方在升级时收到提示，未重新批准的读取返回 `denied_contract_changed`，不静默换算。
+- 卸载发布方之前做影响分析：列出仍在消费该应用点位的应用，提示管理员；卸载后消费方转 `degraded`，不会崩溃。
 
 ### 后装应用怎么拿到已有数据
 
@@ -236,8 +242,11 @@ requires:
 8. 发布方未安装时，消费方以 `degraded` 启动，安装不失败；发布方上线后自动恢复。
 9. 安装应用 B 前后，应用 A 的包摘要、参数行、KV 行完全不变。
 10. 应用尝试读另一个应用的 KV 或参数，返回 `denied_not_granted`。
-11. 点位类型不匹配时订阅被拒，返回 `denied_type_mismatch`。
-12. 超过存储配额写入失败并告警，不淘汰旧数据。
+11. 点位类型或 `contractVersion` 不匹配时订阅被拒，返回 `denied_type_mismatch` 或 `denied_contract_changed`。
+12. 超过存储配额或写速率上限时写入失败并告警，不淘汰旧数据，不排队。
+13. 发布方改单位并提升 `contractVersion` 后，未重新批准的消费方读取被拒，不静默换算。
+14. 卸载发布方前，影响分析列出所有消费方；卸载后它们转 `degraded`，不崩溃。
+15. 应用故障后，其点位带 `stale` 或 `bad` 质量，页面不显示为实时值。
 
 ## 11. 未决
 
