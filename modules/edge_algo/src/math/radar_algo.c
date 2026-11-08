@@ -14,8 +14,10 @@
 
 int radar_tracker_update(radar_target_t *targets, uint32_t max_targets,
                          const double *detections_x, const double *detections_y,
-                         uint32_t det_count, double dt) {
-    if (!targets || !detections_x || !detections_y) return -1;
+                         uint32_t det_count, bool *det_associated, uint32_t det_capacity,
+                         double dt) {
+    if (!targets || !detections_x || !detections_y || !det_associated) return -1;
+    if (det_count > det_capacity) return -1;
 
     // 1. Prediction step for all active targets
     for (uint32_t i = 0; i < max_targets; i++) {
@@ -31,8 +33,8 @@ int radar_tracker_update(radar_target_t *targets, uint32_t max_targets,
     }
 
     // 2. Data Association (GNN - Global Nearest Neighbor)
-    bool *det_associated = calloc(det_count, sizeof(bool));
-    
+    memset(det_associated, 0, det_count * sizeof(bool));
+
     for (uint32_t i = 0; i < max_targets; i++) {
         if (!targets[i].active) continue;
         
@@ -90,7 +92,6 @@ int radar_tracker_update(radar_target_t *targets, uint32_t max_targets,
         }
     }
 
-    free(det_associated);
     return 0;
 }
 
