@@ -64,9 +64,30 @@ static void test_radar_tracker_basic(void** state) {
     if (stage->cleanup_state) stage->cleanup_state(stage->priv_state);
 }
 
+static void test_radar_tracker_rejects_oversized_frame(void** state) {
+    (void)state;
+
+    pipeline_stage_t* stage = stage_radar_tracker_create(5001);
+    assert_non_null(stage);
+
+    // 257 detections, one past the stage's 256-detection scratch capacity.
+    static double detections[2 * 257];
+    pipe_msg_t ev = {0};
+    ev.type = PIPEMSG_TYPE_BATCH;
+    ev.tag_id = 1001;
+    ev.payload.batch.ptr = detections;
+    ev.payload.batch.count = 2 * 257;
+    ev.ts = 1000;
+
+    assert_int_equal(stage->process(stage, &ev), STAGE_DROP);
+
+    if (stage->cleanup_state) stage->cleanup_state(stage->priv_state);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_radar_tracker_basic),
+        cmocka_unit_test(test_radar_tracker_rejects_oversized_frame),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

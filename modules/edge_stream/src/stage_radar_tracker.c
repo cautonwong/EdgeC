@@ -10,9 +10,13 @@
 #include <string.h>
 
 #define MAX_TRACKS 32
+/* shortcut: 单帧点迹上限固定为 256，超出即丢弃该帧；生产端出现更大批次时，
+ * 改成按批次容量分配缓冲。 */
+#define MAX_DETECTIONS 256
 
 typedef struct {
     radar_target_t tracks[MAX_TRACKS];
+    bool det_associated[MAX_DETECTIONS];
     uint32_t output_tag;
     uint64_t last_ts;
 } radar_tracker_ctx_t;
@@ -30,7 +34,13 @@ static stage_ret_t _radar_tracker_proc(pipeline_stage_t *stage, pipe_msg_t *ev) 
         double dt = (ctx->last_ts == 0) ? 0.05 : (double)(now - ctx->last_ts) / 1000.0;
         ctx->last_ts = now;
 
-        radar_tracker_update(ctx->tracks, MAX_TRACKS, det_x, det_y, det_count, dt);
+        if (radar_tracker_update(ctx->tracks, MAX_TRACKS, det_x, det_y, det_count,
+                                 ctx->det_associated, MAX_DETECTIONS, dt) != 0) {
+            LOG_WARN(LOG_CAT_CORE,
+                     "Radar Tracker: frame rejected (%u detections, capacity %d)",
+                     det_count, MAX_DETECTIONS);
+            return STAGE_DROP;
+        }
 
         // 构造输出：活跃的目标
         // 此处简化处理：我们将活跃的目标写回 Batch

@@ -42,14 +42,18 @@ typedef struct {
 /**
  * @brief 更新雷达追踪器状态 (使用 GNN 关联 + KF 更新)
  * @param targets 当前已存在的追踪目标数组
- * @param target_count 目标数组长度
- * @param detections 当前帧探测到的新点迹 (x, y 数组)
+ * @param max_targets 目标数组长度
+ * @param detections_x 当前帧点迹的 x 坐标
+ * @param detections_y 当前帧点迹的 y 坐标
  * @param det_count 新点迹数量
+ * @param det_associated 调用方提供的关联标记缓冲，长度至少 det_count
+ * @param det_capacity det_associated 的容量；det_count 超出时返回 -1，不做静默截断
  * @param dt 采样间隔
  */
 int radar_tracker_update(radar_target_t *targets, uint32_t max_targets,
                          const double *detections_x, const double *detections_y,
-                         uint32_t det_count, double dt);
+                         uint32_t det_count, bool *det_associated, uint32_t det_capacity,
+                         double dt);
 
 #ifdef __cplusplus
 }
