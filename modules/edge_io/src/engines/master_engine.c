@@ -6,6 +6,7 @@
 #include "edge_log.h"
 #include "edge_request.h"
 #include "io_executor.h"
+#include "io_handle_priv.h"
 #include "session_manager.h"
 
 /**

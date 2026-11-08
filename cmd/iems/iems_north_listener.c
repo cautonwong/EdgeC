@@ -27,7 +27,7 @@ static void _on_north_connect(uv_stream_t *server, int status) {
                 io_executor_create_from_fd(server->loop, new_fd, datahub_get_io_pool(ctx->hub));
             if (h) {
                 bus_orchestrator_attach_io(ctx->orch, ctx->bus_id, h);
-                if (h->ops && h->ops->enable_read) h->ops->enable_read(h, true);
+                io_handle_enable_read(h, true);
             } else {
                 close(new_fd);
             }

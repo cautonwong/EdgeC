@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include "edge_log.h"
 #include "io_executor.h"
+#include "io_handle_priv.h"
 
 #define MAX_PASSTHROUGH_SERVERS 8
 

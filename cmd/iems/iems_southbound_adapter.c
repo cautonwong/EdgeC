@@ -98,7 +98,7 @@ int iems_southbound_connect(uv_loop_t *loop, datahub_t *hub, bus_orchestrator_t 
                 io_handle_t *h = io_executor_create_from_fd(loop, fd, datahub_get_io_pool(hub));
                 if (h) {
                     bus_orchestrator_attach_io(orch, c->id, h);
-                    if (h->ops && h->ops->enable_read) h->ops->enable_read(h, true);
+                    io_handle_enable_read(h, true);
                     bus_state[bus_idx] = BUS_STATE_CONNECTED;
                     connected++;
                     printf("\033[32m[PHYSICS-SUCCESS] Bus %d CONNECTED via PATH: %s\033[0m\n",

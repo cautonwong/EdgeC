@@ -1,4 +1,5 @@
 #include "io_executor.h"
+#include "io_handle_priv.h"
 #include "open62541.h"
 #include "edge_log.h"
 #include <stdlib.h>
