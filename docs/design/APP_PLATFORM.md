@@ -38,6 +38,7 @@
 - `modules/edge_io/include/edge_north_plane.h` 的北向端口已有 `peek`、`name`、`resolve_name`、`accept`、`on_downlink`，北向编排不认识产品点位模型。
 - `go/cmd/edge-gateway/main.go` 已有服务注册：服务上报 `Tags` 与 `UIConfigs`，网关融合后由 `/api/v1/ui/bootstrap` 下发。这是贡献注册表的雏形，但当前没有类型、版本和校验。
 - `web/core/src/modules` 的页面、`modules.manifest.yaml` 的构建期注册表、`permissions/catalog.yaml` 的权限目录，已经定义了页面、权限、能力怎么被表达。
+- `modules/edge_stream/src/wasm_runtime` 已有 WAMR 宿主与看门狗，但现有 ABI 是模块 `"env"` 加全局数字 TagID（见 `docs/wasm_micro_app_guide.md` 与 `examples/wasm/*`）。这套 ABI 与 ADR-0010 冲突，新平台不能沿用它，P0 必须先决定拒绝还是兼容。
 
 要做的是把这个弱约定升级成有类型、有版本、有事务的注册表，而不是另起一套。
 
@@ -151,6 +152,10 @@ P0 固定关闭只读自动授权，所有 P0 grant 都经 `appctl` 显式批准
 
 **升级**：新版本以新 `app_version` 暂存，两个版本贡献并存但只有新版本处于 `active`；健康检查通过后把旧版本标 `retired`，保留一个版本用于回滚。
 
+**稳态调谐。** 安装事务只覆盖"变更那一刻"。除此之外还需要一个 level-triggered 的调谐循环，周期性地把期望状态与观测状态对齐：该跑没跑就启动，不该跑却在跑就停止，版本不符就切换，授权已撤销就拒绝。没有它，一次丢失的事件或一次手工操作就会让系统停在中间态。细节见 `app-platform/01-registry-transaction.md`。
+
+**消费者收敛。** 快照保证单个读者读到完整的一代，不保证所有读者都读到了。每个消费者持久化 `applied_generation`，注册表汇总出最小值；安装完成的定义是全部消费者追平目标代，而不是快照文件已替换。
+
 上述机制是设计目标，没有实现，也没有故障注入测试。P0 不应把它当作已解决。事务细则还须与本节统一 generation 单调性、激活可见性、授权绑定及重启重建规则。
 
 ## 9. 贡献类型：v1 候选只考虑两类
@@ -203,7 +208,9 @@ v1 的一致性测试只覆盖 WASM 宿主。QuickJS 和 sidecar 的契约在各
 
 **契约只有一份。** 用 WIT 定义 Host ABI，C/C++/Rust 用 `wit-bindgen` 生成绑定，Go 用同一份 IDL 生成 RPC 客户端，Python 用 `componentize-py` 或生成 sidecar 客户端。绑定是生成物，不进人工修改；WIT 的语义化版本就是清单里的 `sdk`。
 
-**C / C++**：第一类公民，走 A 档。用 clang `--target=wasm32` 或 WASI SDK 构建。C++ 必须关闭异常与 RTTI（`-fno-exceptions -fno-rtti`），否则产物和运行时开销都会膨胀；标准库只用头文件子集或 libc++ 的裁剪构建。最小应用实测 281 字节（C，`-nostdlib -O2`）。C++ 的实际体积尚未测量。
+**现有 ABI 不能沿用。** 仓库现在的 WASM 微应用用模块 `"env"` 加全局数字 TagID，`docs/wasm_micro_app_guide.md` 与 `examples/wasm/*` 都是这个写法。它与 ADR-0010 冲突。新平台的 ABI 是 `abi: 1`，旧模块要么被拒绝，要么走一个独立的兼容层，二者在 P0 前必须选定。旧指南要同步标注 legacy，否则新人会照着写装不进新平台的应用。
+
+**C / C++**：第一类公民，走 A 档。用 clang `--target=wasm32` 或 WASI SDK 构建。C++ 必须关闭异常与 RTTI（`-fno-exceptions -fno-rtti`），否则产物和运行时开销都会膨胀；标准库只用头文件子集或 libc++ 的裁剪构建。最小应用实测 281 字节（C，`-nostdlib -O2`）。C++ 的实际体积尚未测量。仓库现有指南也推荐 C/C++ 与 TinyGo，理由是产物小、无 GC 停顿，与本机实测一致。
 
 **Rust**：走 A 档，`wasm32-wasip1` 或 `wasm32-unknown-unknown`，`panic=abort`，`opt-level=z`。本机未安装该 target，体积未测。
 
@@ -255,7 +262,7 @@ v1 的一致性测试只覆盖 WASM 宿主。QuickJS 和 sidecar 的契约在各
 11. 卸载：应用贡献标 `retired`，产品侧历史查询仍能解析既有点位；P0 不涉及 UI 或北向展示。
 12. 掉电：在提交与激活之间断电，重启后从持久注册表重建快照，恢复为完整旧代或完整新代，不留下混代贡献。
 
-**验收标准**：以上是纵切的主干路径。完整的 16 项验收、命令与证据格式见 `app-platform/05-p0-vertical-slice.md`，以那份为准。每条都要有日志或测试作为证据；任何一条失败，先修机制，不扩范围。
+**验收标准**：以上是纵切的主干路径。完整的 22 项验收、命令与证据格式见 `app-platform/05-p0-vertical-slice.md`，以那份为准。每条都要有日志或测试作为证据；任何一条失败，先修机制，不扩范围。
 
 只有这条纵切通过，第 9 节的贡献类型才逐个放开；第 11 节的一致性矩阵才逐个填；Python 与 Go 才进入正式支持列表。
 
