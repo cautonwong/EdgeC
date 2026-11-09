@@ -85,3 +85,20 @@ foundation/include/contract_registry.h       # L0 migration
 # 2026-11-09 adapter relocation (user-directed refactor): port adapters belong
 # with the composition root, not the core runtime.
 modules/edge_core/src/edge_port.c             # adapter relocation
+
+# 2026-11-09 L0 migration (user-directed refactor): the remaining core headers and
+# sources that leave the runtime for foundation.
+#
+# net_buf / hal_crypto / edge_log implementations move to foundation, so their
+# declarations and definitions leave modules/edge_core. shmring.h and
+# edge_service.h keep their names but drop the inline helpers that moved.
+# 影响面：公开 ABI 只减不增；datahub_t 与聚合边界不动。
+modules/edge_core/CMakeLists.txt              # L0 migration
+modules/edge_core/include/edge_service.h      # L0 migration
+modules/edge_core/include/shmring.h           # L0 migration
+modules/edge_core/include/net_buf.h           # L0 migration (deleted)
+modules/edge_core/include/hal_crypto.h        # L0 migration (deleted)
+modules/edge_core/src/net_buf.c               # L0 migration (deleted)
+modules/edge_core/src/hal_crypto.c            # L0 migration (deleted)
+modules/edge_core/src/edge_log.c              # L0 migration (deleted)
+modules/edge_core/src/edge_version.c          # L0 migration (modified)

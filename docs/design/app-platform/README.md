@@ -15,6 +15,23 @@
 | [07 应用界面](07-ui-surfaces.md) | 应用能有自己的界面吗，能到什么程度，边界与隔离怎么做 | 待评审 |
 | [08 事件模型](08-events.md) | 要不要通用事件总线，手机端与 VS Code 怎么做，现有通道够不够 | 待评审 |
 | [09 迁移与废弃](09-migration.md) | 旧 WASM 运行时、旧 ABI、QuickJS、已装应用与商店页面怎么处置 | 待评审 |
+| [10 产品点位剖面](10-product-points.md) | 应用怎么跨产品引用产品点位，与 ADR-0010 的边界 | 待评审 |
+| [11 进程拓扑](11-process-topology.md) | 主进程、app-host、sidecar 的数据通道、身份与授权强制点 | 待评审 |
+
+## 2026-11-09 评审已定
+
+这一轮讨论确认了六件事，下文各文档已按此修订；未改的仍按原文待评审。
+
+1. **目标产品是 DCU**，首个应用是第一方只读的电压越限/暂降统计应用。`dcu` 是 ADR-0010 的 PoC，698 OAD 给产品剖面提供真实内容。
+2. **主进程是产品进程（C 的 `dcu`），不是 Go 网关。** `go/cmd/edge-gateway` 只在 dev mesh 出现，生产镜像 ENTRYPOINT 是产品可执行文件；它无认证、无类型/版本、仓库内无客户端。
+3. **应用点位走"注册表名字 + DataHub 槽位"**：注册表分配槽位，产品进程计算 `app_tag = app_base + slot`，DataHub 用 `map_fn < 0 → idx = tag_id` 的既有回退承载值。除容量常量与产品 `map_fn` 让位外，不改 DataHub。
+4. **进程拓扑是 2 个常驻 + 1 个命令行**：app-manager 并入产品进程；app-host 独立并由产品进程拉起；不单独写 supervisor。
+5. **授权身份以本机账号为准**，Edge-Ops 只做策略下发；现有 `console_rbac`/`console_audit` 是桩（双人复核接受任意 6 位数字和四个硬编码口令），不能复用，只能沿用角色名。
+6. **界面注入用固定通用路由 + 注册表数据**，不动态加载应用前端代码；核心权限仍走构建期 `permissions/catalog.yaml`，应用权限点来自注册表快照，合并为 `permission_source`。应用历史按 `(app_id, point_name, contract_version)` 存独立历史表，不按 DataHub 槽位。
+
+运行态不进注册表：`restarting`/`faulted`/`isolated`/重启次数留在产品进程内存，经状态接口读取；只持久化一张很小的故障连击表，防整机重启清零。详见 11 号文档。
+
+**第二轮补充收敛（2026-11-09）。** 包格式 `.eapp`（Ed25519 签 payload）；`desired_state` 持久化与崩溃退避恢复；sidecar uid 20000–29999 不复用；`appctl` 设备账号登录；正常退出 5s 回调 + 2s SIGTERM；grant 按能力+范围继承；角色权限与能力 grant 两层；`PermissionSource` 内存缓存 + `authz_generation`；历史 raw 7d / 1m 90d、每应用 128MB；剖面带 `min/max/scale`；默认 WAMR；弃用窗口 12 个月；应用区 4096 槽；应用间只读依赖深度 ≤4；备份 tar.zst；`edge-web` 默认 HTTPS；审计分级保留；口令 12 字符 / Argon2id；WIT 单一来源 + 生成入库；SDK 按“生成绑定 + 薄适配器”交付，顺序 C → Rust/Go/Python → JS。各文档正文已按此修订。
 
 ## 这组文档的写法约束
 
@@ -24,7 +41,7 @@
 
 ## 与现有 ADR 和代码的关系
 
-- **ADR-0010** 废除全局数字 TagID。应用点位不得注册新的全局 TagID，默认命名 `app.<app-id>.<point-name>`，由产品层解析。
+- **ADR-0010** 废除全局数字 TagID，点表由产品静态 C 结构体维护。应用点位不得注册全局 TagID，命名 `app.<app-id>.<point-name>`，与产品静态点表是两个命名空间；解析在 infra，产品只提供静态剖面。这需要一份 ADR 修订，草案见 [10 产品点位剖面](10-product-points.md)。
 - **ADR-0011** 把 DataHub 归 infra，组件只能通过端口访问。应用宿主不得直接引用 `datahub.h`。
 - **ADR-0007** 使用 `synchronous=NORMAL`。掉电可能丢失最近的已提交事务，但数据库一致；本组文档不承诺"已确认提交必保留"。
 - `modules/edge_mgmt` 已有应用清单与状态机，本组文档扩展它，不替换。
@@ -33,6 +50,10 @@
 - `web/core` 的权限目录与角色预置是授权模型的落点。
 
 **若目标设计偏离上述 ADR，必须先提交 ADR 修订提案**，写明代码改动、迁移、回滚与验收，不能被本组文档静默覆盖。
+
+当前需要三份修订：应用点位的动态命名空间与产品剖面（10）、撤销与审计的 FULL 例外（01）、控制库与数据分库（06）。三份修订提交并评审前，P0 不冻结实现；点位承载路径本身已于 2026-11-09 选定，见 10 号文档与 ADR-0012。
+
+**核验后的现状修正（2026-11-09）。** 文档里"现有支点"有几处比代码薄：`edge_app_mgr` 没有被任何产品构造，`start/stop` 只改数据库状态、不加载 WASM；真正活着的应用路径是 IEMS 的 REST 上传 → `stage_wasm` pipeline。北向端口的 `accept` 在 DCU/IEMS/SmartBox 三个实现里都是 NULL。Go 网关注册接口无认证、无类型/版本、内存态，仓库内没有客户端发布到它。`console_rbac`/`console_audit` 有定义、无调用。这些不能当作"增量改造"的基线。
 
 ## 借鉴的业界做法
 
@@ -43,14 +64,14 @@
 | level-triggered 调谐 | Kubernetes controller | 01 稳态调谐 | 单机，30 秒周期，不引入 etcd |
 | 扩展宿主与 UI 分离 | VS Code extension host | 04 / APP_PLATFORM | 只抄边界，不抄单进程共享宿主 |
 | 运行时权限与可撤销授权 | Android / iOS | 02 权限生命周期 | 无运行时弹窗，改为安装期批准与可查可撤 |
-| 能力安全，拒绝环境授权 | object-capability | 02 执行点 | grant 绑定实例、版本、包摘要 |
+| 能力安全，拒绝环境授权 | object-capability | 02 执行点 | grant 绑定 `(app_id, capability, scope)`；句柄带授权代次 |
 | 防回滚与密钥轮换 | TUF | 03 供应链 | 只取版本地板与双钥轮换，不做完整仓库元数据 |
 | 签名工件与来源 | SLSA / in-toto | 03 供应链 | 签名必选，SBOM 可选，离线环境不强制 |
 | 软硬两层内存限制与压力信号 | cgroup v2 / PSI | 04 B 档 | 加 `memory.high` 与 PSI 告警 |
 | 重启强度与退避 | systemd | 04 故障处理 | 加抖动，避免同时重启 |
 | schema 兼容模式 | Avro / protobuf | 03 贡献 schema | 显式声明 backward / forward / full / none |
 | 导入白名单 | WASI / WAMR 实践 | 03 加载检查 | 只给时钟与随机数，其余拒绝 |
-| 至少一次投递加幂等应用 | Kafka consumer | 01 消费者偏移 | 快照加偏移，不引入消息中间件 |
+| 尽力投递加状态重读 | Kafka consumer 的反面教材 | 08 事件模型 | 明确可能丢失或重复，状态可重读 |
 | 舱壁隔离 | resilience patterns | 04 事件与背压 | 按档位隔离线程与队列 |
 | 指标命名约定 | OpenTelemetry | 04 资源计量 | 统一 `app_id`、`app_version`、`execution_profile` 标签 |
 
@@ -60,7 +81,7 @@
 
 运行时选型、中断抢占延迟、真实掉电行为、ABI 形状这四个问题，看文档得不出结论，只能动手。所以在冻结之前先做一次**限时、一次性、代码不进主干**的 spike，只回答：
 
-1. WAMR 与 wasmtime 在目标板上的 RSS、启动时间、是否支持所选中断机制。
+1. WAMR 四项门槛在目标板上的实测：RSS、启动时间、epoch 中断、AOT；wasmtime 仅作备选。
 2. 死循环实例被中断的实际延迟分布。
 3. `kill -9`、dm-flakey、硬件断电三种方式下的数据库状态。
 4. ABI 草案能否跑通 `app_init`、点位订阅、`app_on_event`、`point_publish` 与设置读取。
@@ -70,7 +91,7 @@
 
 ## 预算先于测量
 
-在测之前先按目标板定预算，否则测出来的数字没有判断标准。初值待与产品确认：
+在测之前先按目标板定预算，否则测出来的数字没有判断标准。目标板为 Rockchip aarch64，具体型号/镜像待提供（2026-11-09），当前按 2GB RAM 参考板给初值：
 
 | 项 | 预算内容 |
 | --- | --- |
@@ -87,10 +108,10 @@
 
 ## 实施门槛
 
-1. 九份文档全部通过评审。
+1. 十一份文档全部通过评审。
 2. P-1 spike 的五个问题有结论，并回写文档与选型 ADR。
-3. **P0 冻结前选定应用点位承载路径**：产品 ACL 映射，或 DataHub 扩展。选定路径若偏离 ADR-0010/0011，先提交 ADR 修订。
-4. **P0 冻结前选定旧 `env` ABI 的处理方式**：拒绝旧模块，或保留兼容层。推荐拒绝，但必须有迁移方案。
+3. **应用点位承载路径已选定（2026-11-09）**：注册表名字 + DataHub 槽位，产品 `map_fn` 让位；偏离 ADR-0010/0011 的修订见 10 号文档与 ADR-0012。
+4. **旧 `env` ABI 处理已定（2026-11-09）**：拒绝旧模块，迁移方案见 09 号文档，不保留永久兼容层。
 5. 05 的验收清单在目标板上全部通过，证据归档。
 
 五条都满足才进入 P1。任何一份打回，P0 范围不变，先补设计。
