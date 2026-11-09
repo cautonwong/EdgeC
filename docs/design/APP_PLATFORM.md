@@ -76,6 +76,10 @@
 
 **跨进程的授权强制点。** app-host 不在产品进程里，`point_read` 必须跨进程。通道、身份令牌与最终授权判定见 `app-platform/11-process-topology.md`。最终判定只在产品进程，app-host 内的检查是纵深防御。
 
+**两条路径都需要 ADR 修订。** 应用点位是产品静态点表之外的动态命名空间，这一条要在 ADR 修订里写清楚，否则与"点表静态、manifest 不进运行时"冲突。修订要覆盖三点：动态命名空间的存在、与产品静态点表的边界、解析发生在 infra 层。草案与产品点位剖面见 `app-platform/10-product-points.md`。
+
+**跨进程的授权强制点。** app-host 与 sidecar 不在网关主进程里，`point_read` 必须跨进程。通道、身份令牌与最终授权判定见 `app-platform/11-process-topology.md`。在它定稿前，不实现 A 档的数据通道。
+
 ## 5. 目标架构
 
 层间只有一条不变式：
