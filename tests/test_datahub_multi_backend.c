@@ -12,6 +12,62 @@
 #include "datahub_router.h"
 #include "datahub_priv.h"
 
+static int g_dds_publish_calls;
+static int g_mqtt_publish_calls;
+static int g_dds_publish_rc;
+static int g_mqtt_publish_rc;
+
+static int _mock_remote_init(datahub_t *hub, const datahub_backend_config_t *config) {
+    (void)hub;
+    (void)config;
+    return 0;
+}
+
+static int _mock_dds_publish(datahub_t *hub, const PipeMsg *msg) {
+    (void)hub;
+    (void)msg;
+    g_dds_publish_calls++;
+    return g_dds_publish_rc;
+}
+
+static int _mock_mqtt_publish(datahub_t *hub, const PipeMsg *msg) {
+    (void)hub;
+    (void)msg;
+    g_mqtt_publish_calls++;
+    return g_mqtt_publish_rc;
+}
+
+static int _mock_remote_write_shadow(datahub_t *hub, const PipeMsg *msg) {
+    (void)hub;
+    (void)msg;
+    return 0;
+}
+
+static int _mock_remote_read_shadow(datahub_t *hub, uint32_t tag_id, PipeMsg *out_msg) {
+    (void)hub;
+    (void)tag_id;
+    (void)out_msg;
+    return -1;
+}
+
+static void _mock_remote_destroy(datahub_t *hub) { (void)hub; }
+
+static const datahub_ops_t s_mock_dds_ops = {
+    .init = _mock_remote_init,
+    .publish = _mock_dds_publish,
+    .write_shadow = _mock_remote_write_shadow,
+    .read_shadow = _mock_remote_read_shadow,
+    .destroy = _mock_remote_destroy,
+};
+
+static const datahub_ops_t s_mock_mqtt_ops = {
+    .init = _mock_remote_init,
+    .publish = _mock_mqtt_publish,
+    .write_shadow = _mock_remote_write_shadow,
+    .read_shadow = _mock_remote_read_shadow,
+    .destroy = _mock_remote_destroy,
+};
+
 int main(void) {
     printf(
         "=== Testing Three-Backend DataHub Architecture & Consistency Policy (Issue #325) ===\n");
@@ -160,6 +216,51 @@ int main(void) {
 
     datahub_destroy(&hybrid_hub);
     printf("  [PASS] Hybrid DataHub destroyed cleanly\n");
+
+    // 6. 去重后的三后端 fan-out：DDS/MQTT mock ops 验证策略与调用次数
+    memset(&config, 0, sizeof(config));
+    config.enable_shm = false;
+    config.enable_dds = true;
+    config.enable_mqtt = true;
+    config.dds_ops = &s_mock_dds_ops;
+    config.mqtt_ops = &s_mock_mqtt_ops;
+    config.write_policy = DATAHUB_ROUTER_POLICY_ALL_REQUIRED;
+
+    rc = datahub_router_init(router, loop, &config, NULL, 0, NULL, NULL, NULL);
+    assert(rc == 0);
+    assert(datahub_router_shm_active(router) == false);
+    assert(datahub_router_dds_active(router) == true);
+
+    g_dds_publish_calls = 0;
+    g_mqtt_publish_calls = 0;
+    g_dds_publish_rc = 0;
+    g_mqtt_publish_rc = 0;
+    rc = datahub_router_publish(router, &test_msg);
+    assert(rc == 0);
+    assert(g_dds_publish_calls == 1);
+    assert(g_mqtt_publish_calls == 1);
+
+    g_dds_publish_calls = 0;
+    g_mqtt_publish_calls = 0;
+    g_mqtt_publish_rc = -5;
+    rc = datahub_router_publish(router, &test_msg);
+    assert(rc == -5);
+    assert(g_dds_publish_calls == 1);
+    assert(g_mqtt_publish_calls == 1);
+
+    datahub_router_destroy(router);
+
+    config.write_policy = DATAHUB_ROUTER_POLICY_BEST_EFFORT;
+    rc = datahub_router_init(router, loop, &config, NULL, 0, NULL, NULL, NULL);
+    assert(rc == 0);
+    g_dds_publish_calls = 0;
+    g_mqtt_publish_calls = 0;
+    rc = datahub_router_publish(router, &test_msg);
+    assert(rc == 0);  // DDS 成功即可放行
+    assert(g_dds_publish_calls == 1);
+    assert(g_mqtt_publish_calls == 1);
+    datahub_router_destroy(router);
+    printf("  [PASS] Three-backend fan-out dedup preserves ALL_REQUIRED and BEST_EFFORT\n");
 
     printf("=== All DataHub Consistency & DDS Shadow Read Tests Passed Successfully! ===\n");
     return 0;

@@ -42,10 +42,10 @@ target_include_directories(dcu_app_lib PUBLIC
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/modules/edge_bootstrap/include
     ${CMAKE_SOURCE_DIR}/modules/edge_io/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_north/include
+    ${CMAKE_SOURCE_DIR}/adapters/mqtt_transport/include
     ${CMAKE_SOURCE_DIR}/modules/edge_stream/include
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
-    ${CMAKE_SOURCE_DIR}/modules/edge_protocol/include
-    ${CMAKE_SOURCE_DIR}/modules/edge_security/include
 )
 
 # 3. 自治库链接外部依赖
@@ -53,11 +53,13 @@ target_link_libraries(dcu_app_lib PUBLIC
     edge_bootstrap
     edge_infra
     edge_io
+    edge_north
+    mqtt_transport
     edge_stream
-    edge_security
     edge_core
-    edge_protocol
+    edge_codec
     edge_algo
+    edge_infra
     SQLite::SQLite3
     libuv::uv_a
 )

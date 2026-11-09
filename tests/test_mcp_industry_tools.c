@@ -18,10 +18,17 @@
 #include "edgeos/edge_mcp_dispatcher.h"
 #include "edgeos/edge_mcp_industry_tools.h"
 
+static edge_mcp_dispatcher_t *create_industry_dispatcher(void) {
+    edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(NULL);
+    assert_non_null(disp);
+    assert_int_equal(edge_mcp_register_industry_tools(disp), 0);
+    return disp;
+}
+
 /* 1. Test DCU Power Quality Analysis Tool */
 static void test_mcp_tool_power_quality_normal(void **state) {
     (void)state;
-    edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(NULL);
+    edge_mcp_dispatcher_t *disp = create_industry_dispatcher();
     assert_non_null(disp);
 
     const char *params =
@@ -57,7 +64,7 @@ static void test_mcp_tool_power_quality_normal(void **state) {
 
 static void test_mcp_tool_power_quality_critical_commutation(void **state) {
     (void)state;
-    edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(NULL);
+    edge_mcp_dispatcher_t *disp = create_industry_dispatcher();
     assert_non_null(disp);
 
     const char *params =
@@ -99,7 +106,7 @@ static void test_mcp_tool_power_quality_critical_commutation(void **state) {
 /* 2. Test SmartBox Transformer Thermal & Life Evaluation Tool */
 static void test_mcp_tool_transformer_life_normal(void **state) {
     (void)state;
-    edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(NULL);
+    edge_mcp_dispatcher_t *disp = create_industry_dispatcher();
     assert_non_null(disp);
 
     const char *params =
@@ -134,7 +141,7 @@ static void test_mcp_tool_transformer_life_normal(void **state) {
 
 static void test_mcp_tool_transformer_life_overload_critical(void **state) {
     (void)state;
-    edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(NULL);
+    edge_mcp_dispatcher_t *disp = create_industry_dispatcher();
     assert_non_null(disp);
 
     const char *params =
@@ -174,7 +181,7 @@ static void test_mcp_tool_transformer_life_overload_critical(void **state) {
 /* 3. Test IEMS TOU Arbitrage Scheduler Tool */
 static void test_mcp_tool_tou_arbitrage_optimization(void **state) {
     (void)state;
-    edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(NULL);
+    edge_mcp_dispatcher_t *disp = create_industry_dispatcher();
     assert_non_null(disp);
 
     const char *params =
@@ -221,7 +228,7 @@ static void test_mcp_tool_tou_arbitrage_optimization(void **state) {
 /* 4. Test Electrical Five-Anti Safety Interlocking Simulator */
 static void test_mcp_tool_electrical_five_anti_interlock(void **state) {
     (void)state;
-    edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(NULL);
+    edge_mcp_dispatcher_t *disp = create_industry_dispatcher();
     assert_non_null(disp);
 
     /* Case A: Disconnector operation under heavy load (Violates Rule 2) */
@@ -295,7 +302,7 @@ static void test_mcp_tool_electrical_five_anti_interlock(void **state) {
 /* 5. Test JSON-RPC 2.0 Full List & Call Dispatch Integration */
 static void test_mcp_json_rpc_tools_list_and_call(void **state) {
     (void)state;
-    edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(NULL);
+    edge_mcp_dispatcher_t *disp = create_industry_dispatcher();
     assert_non_null(disp);
 
     /* Test tools/list */
@@ -310,8 +317,8 @@ static void test_mcp_json_rpc_tools_list_and_call(void **state) {
     cJSON *tools = cJSON_GetObjectItem(result, "tools");
     assert_non_null(tools);
     assert_true(cJSON_IsArray(tools));
-    /* 13 default tools + 4 industry algorithm tools = 17 tools */
-    assert_int_equal(cJSON_GetArraySize(tools), 17);
+    /* 4 default DataHub tools + 4 industry algorithm tools = 8 tools */
+    assert_int_equal(cJSON_GetArraySize(tools), 8);
 
     cJSON_Delete(resp_obj);
     free(list_resp);
@@ -340,7 +347,7 @@ static void test_mcp_json_rpc_tools_list_and_call(void **state) {
 /* 6. 测试变压器寿命评估工具 NaN 脏数据注入防御 */
 static void test_mcp_tool_transformer_life_nan_defense(void **state) {
     (void)state;
-    edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(NULL);
+    edge_mcp_dispatcher_t *disp = create_industry_dispatcher();
     assert_non_null(disp);
 
     /* 6.1 顶层油温为 NaN 时必须返回错误，绝不能穿透为 NORMAL */
@@ -378,7 +385,7 @@ static void test_mcp_tool_transformer_life_nan_defense(void **state) {
 /* 7. 测试电能质量分析真实物理谐波谱透传与异常输入防御 */
 static void test_mcp_tool_power_quality_real_spectrum_and_nan_defense(void **state) {
     (void)state;
-    edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(NULL);
+    edge_mcp_dispatcher_t *disp = create_industry_dispatcher();
     assert_non_null(disp);
 
     /* 7.1 传入实际物理采样谐波谱 */

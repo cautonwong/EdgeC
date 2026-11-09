@@ -61,7 +61,8 @@ static void test_passthrough_basic(void** state) {
     arbiter_resume(arb);
 
     // Create real driver manager and register dlt698
-    driver_manager_t* drv_mgr = driver_manager_create();
+    driver_manager_storage_t drv_mgr_storage = {0};
+    driver_manager_t* drv_mgr = driver_manager_create_in(&drv_mgr_storage);
     extern const edge_driver_t dlt698_driver;
     driver_manager_register(drv_mgr, &dlt698_driver);
 

@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 3.10)
 project(EdgeC_Tests C)
 
 include_directories(${CMAKE_SOURCE_DIR}/modules/edge_core/src)
+include_directories(${CMAKE_SOURCE_DIR}/adapters/mcp_industry/include)
+include_directories(${CMAKE_SOURCE_DIR}/adapters/io_drivers/src)
+include_directories(${CMAKE_SOURCE_DIR}/adapters/stream_algo/include)
+include_directories(${CMAKE_SOURCE_DIR}/modules/edge_north/include)
+include_directories(${CMAKE_SOURCE_DIR}/adapters/mqtt_transport/include)
 
 # 统一测试构建宏
 macro(add_edge_test TEST_NAME)
@@ -9,14 +14,18 @@ macro(add_edge_test TEST_NAME)
     target_link_libraries(${TEST_NAME} PRIVATE
         -Wl,--start-group
         edge_infra
+        edge_infra_security
         edge_io
+        edge_north
+        mqtt_transport
         edge_stream
-        edge_security
+        edge_security_policy
         edge_core
         edge_mgmt
         edge_bootstrap
-        edge_protocol
+        edge_codec
         edge_algo
+        edge_algo_stream
         iems_app_lib
         -Wl,--end-group
         edge_common_interface
@@ -66,11 +75,10 @@ add_edge_test(test_dcu_north_source test_dcu_north_source.c)
 add_edge_test(test_dcu_advanced_modules test_dcu_advanced_modules.c)
 add_edge_test(test_dcu_business_engines test_dcu_business_engines.c)
 target_include_directories(test_dcu_business_engines PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
-target_link_libraries(test_dcu_business_engines PRIVATE dcu_app_lib edge_security)
+target_link_libraries(test_dcu_business_engines PRIVATE dcu_app_lib edge_infra edge_security_policy)
 
 add_edge_test(test_dcu_phase1_delivery test_dcu_phase1_delivery.c)
-target_include_directories(test_dcu_phase1_delivery PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu" "${CMAKE_SOURCE_DIR}/modules/edge_security/include")
-target_link_libraries(test_dcu_phase1_delivery PRIVATE dcu_app_lib edge_security)
+target_link_libraries(test_dcu_phase1_delivery PRIVATE dcu_app_lib edge_infra edge_infra_security edge_security_policy)
 
 add_edge_test(test_dcu_node test_dcu_node.c)
 target_include_directories(test_dcu_node PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu" "${CMAKE_SOURCE_DIR}/modules/edge_bootstrap/include")
@@ -78,7 +86,7 @@ target_link_libraries(test_dcu_node PRIVATE dcu_app_lib edge_bootstrap)
 
 add_edge_test(test_dlt698_conformance_suite test_dlt698_conformance_suite.c)
 target_include_directories(test_dlt698_conformance_suite PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
-target_link_libraries(test_dlt698_conformance_suite PRIVATE dcu_app_lib edge_security)
+target_link_libraries(test_dlt698_conformance_suite PRIVATE dcu_app_lib edge_infra edge_security_policy)
 
 
 
@@ -87,6 +95,7 @@ target_link_libraries(test_dlt698_conformance_suite PRIVATE dcu_app_lib edge_sec
 # 2. 数据总线测试 (Data Plane)
 add_edge_test(test_datahub test_datahub.c)
 add_edge_test(test_datahub_shadow test_datahub_shadow.c)
+add_edge_test(test_datahub_attach test_datahub_attach.c)
 add_edge_test(test_datahub_multi_backend test_datahub_multi_backend.c)
 add_edge_test(test_passthrough test_passthrough.c)
 add_edge_test(test_memfd_seals test_memfd_seals.c)
@@ -198,9 +207,9 @@ target_link_libraries(test_scheduler PRIVATE
     -Wl,--start-group
     edge_io
     edge_stream
-    edge_security
+    edge_security_policy
     edge_core
-    edge_protocol
+    edge_codec
     edge_algo
     iems_app_lib
     -Wl,--end-group
@@ -220,9 +229,9 @@ target_link_libraries(test_northbound_mqtt PRIVATE
     -Wl,--start-group
     edge_io
     edge_stream
-    edge_security
+    edge_security_policy
     edge_core
-    edge_protocol
+    edge_codec
     edge_algo
     iems_app_lib
     -Wl,--end-group
@@ -257,8 +266,8 @@ target_link_libraries(test_dcu_router PRIVATE dcu_app_lib)
 target_include_directories(test_dcu_north_source PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
 target_link_libraries(test_dcu_north_source PRIVATE dcu_app_lib)
 target_link_libraries(test_dcu_poller PRIVATE dcu_app_lib)
-# IEC101 request-native 契约测试：只依赖 edge_io + edge_protocol
-target_link_libraries(test_driver_iec101 PRIVATE edge_io edge_protocol)
+# IEC101 request-native 契约测试：只依赖 edge_io + edge_codec
+target_link_libraries(test_driver_iec101 PRIVATE edge_io edge_codec)
 
 # DL/T 645 纯 codec（ADR-002 S1）：只依赖 edge_io，不依赖任何产品
 target_include_directories(test_dlt645_codec PRIVATE ${CMAKE_SOURCE_DIR}/modules/edge_io/src)
@@ -348,7 +357,7 @@ target_link_libraries(test_infra_interfaces PRIVATE edge_infra)
 # AEP-204 任务装载与环境安全回退定向单测
 add_edge_test(test_iems_task_loader test_iems_task_loader.c)
 target_include_directories(test_iems_task_loader PRIVATE ${CMAKE_SOURCE_DIR}/cmd/iems ${CMAKE_SOURCE_DIR}/modules/edge_stream/include)
-target_link_libraries(test_iems_task_loader PRIVATE iems_app_lib edge_stream edge_security edge_infra SQLite::SQLite3)
+target_link_libraries(test_iems_task_loader PRIVATE iems_app_lib edge_stream edge_infra edge_infra_security edge_security_policy SQLite::SQLite3)
 
 # AEP-301 / AEP-302 契约生成式驱动注册表测试 (IEMS, DCU, SmartBox 参数化覆盖)
 add_edge_test(test_driver_registry test_driver_registry.c)
@@ -362,9 +371,9 @@ target_link_libraries(test_driver_registry_dcu PRIVATE
     edge_infra
     edge_io
     edge_stream
-    edge_security
+    edge_security_policy
     edge_core
-    edge_protocol
+    edge_codec
     edge_algo
     -Wl,--end-group
     edge_common_interface
@@ -390,9 +399,9 @@ target_link_libraries(test_dx_scaffolding PRIVATE
     edge_infra
     edge_io
     edge_stream
-    edge_security
+    edge_security_policy
     edge_core
-    edge_protocol
+    edge_codec
     edge_algo
     iems_app_lib
     -Wl,--end-group
@@ -409,9 +418,9 @@ target_link_libraries(test_tag_domains_and_aliases PRIVATE
     edge_infra
     edge_io
     edge_stream
-    edge_security
+    edge_security_policy
     edge_core
-    edge_protocol
+    edge_codec
     edge_algo
     iems_app_lib
     -Wl,--end-group
@@ -428,9 +437,9 @@ target_link_libraries(test_anti_corruption_engine PRIVATE
     edge_infra
     edge_io
     edge_stream
-    edge_security
+    edge_security_policy
     edge_core
-    edge_protocol
+    edge_codec
     edge_algo
     iems_app_lib
     -Wl,--end-group
@@ -447,9 +456,9 @@ target_link_libraries(test_domain_scenarios PRIVATE
     edge_infra
     edge_io
     edge_stream
-    edge_security
+    edge_security_policy
     edge_core
-    edge_protocol
+    edge_codec
     edge_algo
     iems_app_lib
     -Wl,--end-group
@@ -466,9 +475,9 @@ target_link_libraries(test_tag_collision_checker PRIVATE
     edge_infra
     edge_io
     edge_stream
-    edge_security
+    edge_security_policy
     edge_core
-    edge_protocol
+    edge_codec
     edge_algo
     iems_app_lib
     -Wl,--end-group
@@ -485,9 +494,9 @@ target_link_libraries(test_sdk_public_headers PRIVATE
     edge_infra
     edge_io
     edge_stream
-    edge_security
+    edge_security_policy
     edge_core
-    edge_protocol
+    edge_codec
     edge_algo
     iems_app_lib
     -Wl,--end-group
@@ -508,9 +517,9 @@ target_link_libraries(test_examples_integration PRIVATE
     edge_infra
     edge_io
     edge_stream
-    edge_security
+    edge_security_policy
     edge_core
-    edge_protocol
+    edge_codec
     edge_algo
     iems_app_lib
     -Wl,--end-group
@@ -529,7 +538,7 @@ target_link_libraries(test_cli_migrate PRIVATE
     edge_infra
     edge_io
     edge_stream
-    edge_security
+    edge_security_policy
     edge_core
     edge_algo
     iems_app_lib
@@ -547,7 +556,7 @@ target_link_libraries(test_developer_manuals PRIVATE
     edge_infra
     edge_io
     edge_stream
-    edge_security
+    edge_security_policy
     edge_core
     edge_algo
     iems_app_lib
@@ -565,7 +574,7 @@ target_link_libraries(test_datahub_subscription PRIVATE
     edge_infra
     edge_io
     edge_stream
-    edge_security
+    edge_security_policy
     edge_core
     edge_algo
     iems_app_lib
@@ -587,7 +596,7 @@ target_link_libraries(test_telemetry_store_crash PRIVATE
     edge_infra
     edge_io
     edge_stream
-    edge_security
+    edge_security_policy
     edge_core
     edge_algo
     iems_app_lib
@@ -605,7 +614,7 @@ target_link_libraries(test_stream_yaml_assembly PRIVATE
     edge_infra
     edge_io
     edge_stream
-    edge_security
+    edge_security_policy
     edge_core
     edge_algo
     iems_app_lib
@@ -627,7 +636,7 @@ target_link_libraries(test_datahub_dds_mesh PRIVATE
     edge_infra
     edge_io
     edge_stream
-    edge_security
+    edge_security_policy
     edge_core
     edge_algo
     iems_app_lib
@@ -665,7 +674,7 @@ target_link_libraries(test_dds_qos_matrix PRIVATE
     edge_infra
     edge_io
     edge_stream
-    edge_security
+    edge_security_policy
     edge_core
     edge_algo
     iems_app_lib
@@ -690,7 +699,7 @@ target_link_libraries(test_dds_shm_zerocopy_perf PRIVATE
     edge_infra
     edge_io
     edge_stream
-    edge_security
+    edge_security_policy
     edge_core
     edge_algo
     iems_app_lib
@@ -713,7 +722,7 @@ target_link_libraries(test_iems_energy_strategy PRIVATE
     edge_infra
     edge_io
     edge_stream
-    edge_security
+    edge_security_policy
     edge_core
     edge_algo
     iems_app_lib
@@ -734,7 +743,7 @@ target_link_libraries(test_dcu_power_quality PRIVATE
     edge_infra
     edge_io
     edge_stream
-    edge_security
+    edge_security_policy
     edge_core
     edge_algo
     dcu_app_lib
@@ -763,7 +772,7 @@ target_link_libraries(test_dds_discovery_liveliness PRIVATE
     edge_infra
     edge_io
     edge_stream
-    edge_security
+    edge_security_policy
     edge_core
     edge_algo
     -Wl,--end-group
@@ -973,6 +982,7 @@ add_test(NAME test_mcp_server_protocol COMMAND test_mcp_server_protocol)
 add_executable(test_mcp_uds test_mcp_uds.c)
 target_include_directories(test_mcp_uds PRIVATE
     ${CMAKE_SOURCE_DIR}/modules/edge_mcp/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_bootstrap/include
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
     ${CMAKE_SOURCE_DIR}/modules/edge_io/include
     ${CMAKE_SOURCE_DIR}/modules/edge_stream/include
@@ -980,6 +990,8 @@ target_include_directories(test_mcp_uds PRIVATE
 )
 target_link_libraries(test_mcp_uds PRIVATE
     edge_mcp
+    edge_mcp_industry
+    edge_bootstrap
     edge_core
     edge_io
     edge_stream
@@ -1002,6 +1014,7 @@ add_test(NAME test_web_ai_copilot COMMAND test_web_ai_copilot)
 add_executable(test_mcp_industry_tools test_mcp_industry_tools.c)
 target_include_directories(test_mcp_industry_tools PRIVATE
     ${CMAKE_SOURCE_DIR}/modules/edge_mcp/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_bootstrap/include
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
     ${CMAKE_SOURCE_DIR}/modules/edge_io/include
     ${CMAKE_SOURCE_DIR}/modules/edge_stream/include
@@ -1009,6 +1022,8 @@ target_include_directories(test_mcp_industry_tools PRIVATE
 )
 target_link_libraries(test_mcp_industry_tools PRIVATE
     edge_mcp
+    edge_mcp_industry
+    edge_bootstrap
     edge_core
     edge_io
     edge_stream
@@ -1186,6 +1201,7 @@ add_test(NAME test_mcp_bus_security COMMAND test_mcp_bus_security)
 add_executable(test_mcp_microservices_integration test_mcp_microservices_integration.c)
 target_include_directories(test_mcp_microservices_integration PRIVATE
     ${CMAKE_SOURCE_DIR}/modules/edge_mcp/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_bootstrap/include
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
     ${CMAKE_SOURCE_DIR}/modules/edge_io/include
     ${CMAKE_SOURCE_DIR}/modules/edge_stream/include
@@ -1193,6 +1209,8 @@ target_include_directories(test_mcp_microservices_integration PRIVATE
 )
 target_link_libraries(test_mcp_microservices_integration PRIVATE
     edge_mcp
+    edge_mcp_industry
+    edge_bootstrap
     edge_core
     edge_io
     edge_stream
@@ -1391,8 +1409,6 @@ target_include_directories(test_caller_allocated_storage PRIVATE
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
     ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
     ${CMAKE_SOURCE_DIR}/modules/edge_io/include
-    ${CMAKE_SOURCE_DIR}/modules/edge_security/include
-    ${CMAKE_SOURCE_DIR}/modules/edge_protocol/include
 )
 target_link_libraries(test_caller_allocated_storage PRIVATE
     -Wl,--start-group
@@ -1402,8 +1418,8 @@ target_link_libraries(test_caller_allocated_storage PRIVATE
     edge_core
     edge_infra
     edge_io
-    edge_security
-    edge_protocol
+    edge_security_policy
+    edge_codec
     iems_app_lib
     -Wl,--end-group
     cmocka::cmocka
@@ -1528,8 +1544,7 @@ target_include_directories(test_northbound_dual_track_snf PRIVATE "${CMAKE_SOURC
 add_test(NAME test_northbound_dual_track_snf COMMAND test_northbound_dual_track_snf)
 
 add_executable(test_iec104_type_test_suite test_iec104_type_test_suite.c)
-target_include_directories(test_iec104_type_test_suite PRIVATE "${CMAKE_SOURCE_DIR}/modules/edge_protocol/include" "${CMAKE_SOURCE_DIR}/modules/edge_io/include")
-target_link_libraries(test_iec104_type_test_suite PRIVATE edge_protocol edge_core)
+target_link_libraries(test_iec104_type_test_suite PRIVATE edge_codec edge_core)
 add_test(NAME test_iec104_type_test_suite COMMAND test_iec104_type_test_suite)
 
 add_executable(test_storage_powercut_resilience test_storage_powercut_resilience.c "${CMAKE_SOURCE_DIR}/tools/fault_injector/storage_powercut_fault_injector.c")

@@ -9,70 +9,11 @@ typedef struct uv_loop_s uv_loop_t;
 
 #include "edge_common.h"
 #include "edge_request.h"
+#include "arbiter_types.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#define ARBITER_MAX_BUSES 64
-#define ARBITER_DEFAULT_TIMEOUT_MS 1500
-#define ARBITER_MAX_QUEUE_PER_BUS  128
-
-typedef enum {
-    ARBITER_PRIO_LOW = 0,
-    ARBITER_PRIO_NORMAL = 50,
-    ARBITER_PRIO_HIGH = 100,
-    ARBITER_PRIO_EMERGENCY = 200
-} cmd_priority_t;
-
-typedef enum {
-    CMD_STATUS_SUCCESS = 0,
-    CMD_STATUS_IO_ERROR = -1,
-    CMD_STATUS_PROTO_ERROR = -2,
-    CMD_STATUS_TIMEOUT = -3,
-    CMD_STATUS_QUEUE_FULL = -4,
-    CMD_STATUS_RATE_LIMITED = -5
-} cmd_status_t;
-
-typedef enum {
-    CMD_ACTION_READ,
-    CMD_ACTION_WRITE,
-    CMD_ACTION_RAW,
-    CMD_ACTION_OTA,
-    CMD_ACTION_POLL
-} cmd_action_t;
-
-typedef struct cmd_msg {
-    char req_id[64];
-    char protocol[16];
-    uint8_t priority;
-    cmd_action_t action;
-
-    uint32_t tag_id;
-    uint32_t device_id; // [Nexus-Pro] 实例 ID 支持
-    double value;
-    
-    edge_req_t *req; // 【修正】对齐 edge_request.h 的类型名
-    void *params;       
-    void *user_data;    
-
-    uint32_t signature;
-    uint32_t timeout_ms;
-    uint64_t submit_ts;
-    uint64_t deadline_ns;
-
-    void (*on_start)(struct cmd_msg *msg);
-    void (*on_complete)(struct cmd_msg *msg, int status);
-    void (*on_cleanup)(struct cmd_msg *msg); // 恢复清理回调
-    struct cmd_msg *next;
-} cmd_msg_t;
-
-typedef struct {
-    int bus_id;
-    bool is_busy;
-    int queue_len;
-    uint64_t dropped_count;
-} arbiter_bus_status_t;
 
 /**
  * @brief [Issue #384] 调用方预分配仲裁器存储 (Caller-Allocated Storage)
@@ -115,25 +56,6 @@ void arbiter_set_bus_queue_limit(arbiter_t *arb, int bus_id, uint32_t max_queue)
 void arbiter_set_bus_min_gap(arbiter_t *arb, int bus_id, uint32_t gap_us);
 uint64_t arbiter_get_bus_dropped_count(arbiter_t *arb, int bus_id);
 int arbiter_check_timeouts(arbiter_t *arb);
-
-// --- 辅助初始化函数 (Helper Init Functions) ---
-static inline void cmd_msg_init_read(cmd_msg_t *msg, uint32_t tag_id, uint8_t priority) {
-    memset(msg, 0, sizeof(*msg));
-    msg->action = CMD_ACTION_READ;
-    msg->tag_id = tag_id;
-    msg->priority = priority;
-    msg->timeout_ms = ARBITER_DEFAULT_TIMEOUT_MS;
-}
-
-static inline void cmd_msg_init_write(cmd_msg_t *msg, uint32_t tag_id, double val, uint8_t priority) {
-    memset(msg, 0, sizeof(*msg));
-    msg->action = CMD_ACTION_WRITE;
-    msg->tag_id = tag_id;
-    msg->value = val;
-    msg->priority = priority;
-    msg->timeout_ms = ARBITER_DEFAULT_TIMEOUT_MS;
-}
-
 
 // 💡 [Consumer-Driven] 执行器抽象：Arbiter 不再直接依赖 io_executor
 typedef struct {

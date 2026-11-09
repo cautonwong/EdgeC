@@ -6,7 +6,7 @@ target_link_libraries(nexus_lab PRIVATE
     edge_algo
     edge_io 
     edge_stream 
-    edge_security
+    edge_infra
     -Wl,--end-group
 )
 install(TARGETS nexus_lab DESTINATION bin)

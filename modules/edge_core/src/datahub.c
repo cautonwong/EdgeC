@@ -43,6 +43,8 @@ static void _legacy_async_cb(uv_async_t *handle) {
 
 _Static_assert(sizeof(struct datahub_s) <= sizeof(datahub_storage_t),
                "datahub_s exceeds datahub_storage_t");
+_Static_assert(alignof(struct datahub_s) <= alignof(datahub_storage_t),
+               "datahub_storage_t is under-aligned for datahub_s");
 
 int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slots,
                  uint32_t shadow_capacity, const edge_tag_meta_t *metadata, uint32_t metadata_len,

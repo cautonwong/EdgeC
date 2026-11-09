@@ -15,6 +15,7 @@
 typedef struct {
     double *buffer;
     double *scratch;
+    double *dwt_scratch;
     size_t size;
     size_t cursor;
     uint32_t level;
@@ -46,7 +47,7 @@ static stage_ret_t _wavelet_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
         memcpy(tmp, ctx->buffer, ctx->size * sizeof(double));
 
         // 3. 执行 Haar 小波变换
-        dsp_dwt_haar(tmp, ctx->size, ctx->level);
+        dsp_dwt_haar(tmp, ctx->size, ctx->level, ctx->dwt_scratch);
 
         // 4. 分析高频分量 (细节系数)
         // 对于 1 层分解，后一半 [n/2, n-1] 是细节系数
@@ -81,6 +82,7 @@ static void _wavelet_cleanup(void *priv) {
     if (ctx) {
         if (ctx->buffer) free(ctx->buffer);
         if (ctx->scratch) free(ctx->scratch);
+        if (ctx->dwt_scratch) free(ctx->dwt_scratch);
         free(ctx);
     }
 }
@@ -92,6 +94,11 @@ static void _wavelet_cleanup(void *priv) {
 pipeline_stage_t *stage_wavelet_anomaly_create(uint32_t alarm_tag, double threshold, size_t size, uint32_t level) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
     wavelet_st_t *ctx = calloc(1, sizeof(wavelet_st_t));
+    if (!s || !ctx) {
+        free(s);
+        free(ctx);
+        return NULL;
+    }
 
     ctx->alarm_tag = alarm_tag;
     ctx->threshold = threshold > 0 ? threshold : 1.0;
@@ -99,6 +106,12 @@ pipeline_stage_t *stage_wavelet_anomaly_create(uint32_t alarm_tag, double thresh
     ctx->level = level > 0 ? level : 1;
     ctx->buffer = calloc(ctx->size, sizeof(double));
     ctx->scratch = calloc(ctx->size, sizeof(double));
+    ctx->dwt_scratch = calloc(ctx->size, sizeof(double));
+    if (!ctx->buffer || !ctx->scratch || !ctx->dwt_scratch) {
+        _wavelet_cleanup(ctx);
+        free(s);
+        return NULL;
+    }
 
     strncpy(s->name, "WAVELET_ANOMALY", 31);
     s->process = _wavelet_proc;

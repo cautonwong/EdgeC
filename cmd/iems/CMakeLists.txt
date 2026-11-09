@@ -5,6 +5,7 @@ set(PROD_NAME iems)
 add_library(iems_app_lib STATIC
     iems_node.c
     iems_app.c
+    iems_app_manager_adapter.c
     iems_execution_adapter.c
     iems_north_adapter.c
     iems_driver_adapter.c
@@ -31,23 +32,29 @@ target_include_directories(iems_app_lib PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/modules/edge_bootstrap/include
+    ${CMAKE_SOURCE_DIR}/adapters/mcp_industry/include
     ${CMAKE_SOURCE_DIR}/modules/edge_io/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_north/include
+    ${CMAKE_SOURCE_DIR}/adapters/mqtt_transport/include
     ${CMAKE_SOURCE_DIR}/modules/edge_stream/include
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
-    ${CMAKE_SOURCE_DIR}/modules/edge_protocol/include
-    ${CMAKE_SOURCE_DIR}/modules/edge_security/include
     ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
     ${CMAKE_SOURCE_DIR}/modules/edge_algo/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_mgmt/include
 )
 
 target_link_libraries(iems_app_lib PUBLIC
     edge_bootstrap
     edge_io
+    edge_north
+    mqtt_transport
     edge_core
-    edge_protocol
+    edge_codec
     edge_stream
     edge_infra
+    edge_infra_security
     edge_algo
+    edge_mgmt
 )
 
 add_executable(iems main.c)
@@ -59,14 +66,15 @@ target_link_libraries(iems PRIVATE
     iems_app_lib
     edge_bootstrap
     edge_infra
-    edge_io 
+    edge_infra_security
+    edge_io
+    edge_north
     -Wl,--whole-archive
     edge_stream 
     edge_algo
     -Wl,--no-whole-archive
-    edge_security
     edge_core
-    edge_protocol
+    edge_codec
     SQLite::SQLite3
     PahoMQTT::PahoMQTT
     -Wl,--end-group
@@ -80,14 +88,17 @@ set_target_properties(iems-cli PROPERTIES
 target_link_libraries(iems-cli PRIVATE
     -Wl,--start-group
     iems_app_lib
+    edge_bootstrap
     edge_mcp
+    edge_mcp_industry
     edge_infra
+    edge_infra_security
     edge_io
+    edge_north
     edge_stream
     edge_algo
-    edge_security
     edge_core
-    edge_protocol
+    edge_codec
     SQLite::SQLite3
     PahoMQTT::PahoMQTT
     -Wl,--end-group

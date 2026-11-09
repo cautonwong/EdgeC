@@ -31,6 +31,7 @@ typedef struct {
     stream_engine_t* engine;
     bus_orchestrator_t* orch;
     driver_manager_t* drv_mgr;
+    driver_manager_storage_t drv_mgr_storage;
     net_buf_pool_t pool;
     io_handle_t iec_io;
     io_handle_t mb_io;
@@ -91,7 +92,7 @@ static int setup(void** state) {
     arbiter_init(&ctx->arb, &ctx->loop);
     arbiter_resume(ctx->arb);
 
-    ctx->drv_mgr = driver_manager_create();
+    ctx->drv_mgr = driver_manager_create_in(&ctx->drv_mgr_storage);
     extern int iec104_driver_register(driver_manager_t * mgr);
     extern int modbus_driver_register(driver_manager_t * mgr);
     iec104_driver_register(ctx->drv_mgr);
@@ -211,7 +212,7 @@ static void test_iems_dispatch_flow(void** state) {
          .next_indices = {-1, -1, -1, -1}}};
     edge_pipeline_def_t mpc_pipe = {
         .id = "mpc_logic", .trigger_tag = 1001, .stages = stages, .stage_count = 1};
-    pipeline_loader_ctx_t l_ctx = {.db = {0}, .js_engine = NULL, .params = NULL};
+    pipeline_loader_ctx_t l_ctx = {.db = {0}, .js_engine = NULL};
     stream_engine_load_static_metadata(ctx->engine, &mpc_pipe, 1, &l_ctx);
 
     // [Nexus] Use the orchestrator's pool for test allocations

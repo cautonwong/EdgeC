@@ -14,6 +14,7 @@
 #include "edge_slave_plane.h"
 #include "io_executor.h"
 #include "mqtt_producer.h"
+#include "northbound_driver_adapter.h"
 #include "northbound_mgr.h"
 
 typedef struct {
@@ -176,6 +177,9 @@ void dcu_north_cloud_attach(datahub_t* hub) {
     const char* nb_proto = getenv("MQTT_PROTOCOL");
     if (nb_proto && *nb_proto && northbound_mgr_set_protocol(&g_north, nb_proto) != 0) {
         LOG_WARN(LOG_CAT_NB, "Northbound: unknown protocol '%s', keeping default", nb_proto);
+    }
+    if (northbound_attach_default_driver(&g_north) != 0) {
+        LOG_WARN(LOG_CAT_NB, "Northbound: driver not attached, channel stays idle");
     }
     LOG_INFO(LOG_CAT_NB, "🌐 Northbound assembled: broker=%s group=%s node=%s", mqtt_url,
              group_id, node_id);

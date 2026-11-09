@@ -230,42 +230,39 @@ int battery_spatial_matrix_get_cell_features(const battery_spatial_matrix_t *ctx
     return 0;
 }
 
-int battery_spatial_matrix_process_frame(battery_spatial_matrix_t *ctx,
-                                        const float *voltages,
-                                        const float *temperatures,
-                                        const float *currents,
-                                        uint32_t num_cells,
-                                        uint64_t timestamp_ms,
-                                        battery_spatial_frame_result_t *out_result) {
-    if (!ctx || !voltages || !temperatures || !out_result) {
-        return -1;
-    }
-    if (num_cells != ctx->config.num_cells) {
-        return -2;
-    }
+/**
+ * @brief Pack-level statistics accumulated over one frame. Stack value object owned by
+ *        the caller; never stored in the aggregate root.
+ */
+typedef struct {
+    uint32_t valid_v_count;
+    uint32_t valid_t_count;
+    double v_sum;
+    double t_sum;
+    float v_mean;
+    float t_mean;
+    float v_std;
+    float t_std;
+    float v_min, v_max;
+    float t_min, t_max;
+    uint32_t v_min_idx, v_max_idx;
+    uint32_t t_min_idx, t_max_idx;
+    float max_dtdt;
+    uint32_t max_dtdt_idx;
+    float max_d2vdt2;
+    uint32_t max_d2vdt2_idx;
+} spatial_frame_stats_t;
 
-    uint64_t t_start = get_time_monotonic_us();
-    memset(out_result, 0, sizeof(battery_spatial_frame_result_t));
-    out_result->total_cells = num_cells;
-    out_result->timestamp_ms = timestamp_ms;
-    out_result->overall_tr_stage = BATTERY_TR_STAGE_NORMAL;
-
+static void spatial_ingest_frame(battery_spatial_matrix_t *ctx,
+                                 const float *voltages,
+                                 const float *temperatures,
+                                 const float *currents,
+                                 uint32_t num_cells,
+                                 uint64_t timestamp_ms,
+                                 spatial_frame_stats_t *stats) {
     float r0 = ctx->config.internal_r0_mohm * 0.001f; // convert mOhm to Ohm
 
     // First Pass: Copy to flat contiguous arrays, update sliding windows, calculate time differentials
-    uint32_t valid_v_count = 0;
-    uint32_t valid_t_count = 0;
-    double v_sum = 0.0;
-    double t_sum = 0.0;
-    float v_min = 1e9f, v_max = -1e9f;
-    float t_min = 1e9f, t_max = -1e9f;
-    uint32_t v_min_idx = 0, v_max_idx = 0;
-    uint32_t t_min_idx = 0, t_max_idx = 0;
-    float max_dtdt = -1e9f;
-    uint32_t max_dtdt_idx = 0;
-    float max_d2vdt2 = 0.0f;
-    uint32_t max_d2vdt2_idx = 0;
-
     for (uint32_t i = 0; i < num_cells; i++) {
         float v = voltages[i];
         float t = temperatures[i];
@@ -282,16 +279,16 @@ int battery_spatial_matrix_process_frame(battery_spatial_matrix_t *ctx,
 
         // Statistics accumulation
         if (v_valid) {
-            v_sum += (double)v;
-            valid_v_count++;
-            if (v < v_min) { v_min = v; v_min_idx = i; }
-            if (v > v_max) { v_max = v; v_max_idx = i; }
+            stats->v_sum += (double)v;
+            stats->valid_v_count++;
+            if (v < stats->v_min) { stats->v_min = v; stats->v_min_idx = i; }
+            if (v > stats->v_max) { stats->v_max = v; stats->v_max_idx = i; }
         }
         if (t_valid) {
-            t_sum += (double)t;
-            valid_t_count++;
-            if (t < t_min) { t_min = t; t_min_idx = i; }
-            if (t > t_max) { t_max = t; t_max_idx = i; }
+            stats->t_sum += (double)t;
+            stats->valid_t_count++;
+            if (t < stats->t_min) { stats->t_min = t; stats->t_min_idx = i; }
+            if (t > stats->t_max) { stats->t_max = t; stats->t_max_idx = i; }
         }
 
         // Update sliding window ringbuffer
@@ -348,13 +345,13 @@ int battery_spatial_matrix_process_frame(battery_spatial_matrix_t *ctx,
             }
         }
 
-        if (t_valid && dt_dt > max_dtdt) {
-            max_dtdt = dt_dt;
-            max_dtdt_idx = i;
+        if (t_valid && dt_dt > stats->max_dtdt) {
+            stats->max_dtdt = dt_dt;
+            stats->max_dtdt_idx = i;
         }
-        if (v_valid && fabsf(d2v_dt2) > max_d2vdt2) {
-            max_d2vdt2 = fabsf(d2v_dt2);
-            max_d2vdt2_idx = i;
+        if (v_valid && fabsf(d2v_dt2) > stats->max_d2vdt2) {
+            stats->max_d2vdt2 = fabsf(d2v_dt2);
+            stats->max_d2vdt2_idx = i;
         }
 
         battery_cell_features_t *f = &ctx->features[i];
@@ -370,10 +367,16 @@ int battery_spatial_matrix_process_frame(battery_spatial_matrix_t *ctx,
         f->spatial_temp_grad = 0.0f; // calculated in pass 2
         f->tr_stage = BATTERY_TR_STAGE_NORMAL;
     }
+}
 
+static void spatial_finalize_pack_stats(spatial_frame_stats_t *stats,
+                                        const float *voltages,
+                                        const float *temperatures,
+                                        uint32_t num_cells,
+                                        battery_spatial_frame_result_t *out_result) {
     // Mean & Standard Deviation
-    float v_mean = (valid_v_count > 0) ? (float)(v_sum / (double)valid_v_count) : 0.0f;
-    float t_mean = (valid_t_count > 0) ? (float)(t_sum / (double)valid_t_count) : 0.0f;
+    stats->v_mean = (stats->valid_v_count > 0) ? (float)(stats->v_sum / (double)stats->valid_v_count) : 0.0f;
+    stats->t_mean = (stats->valid_t_count > 0) ? (float)(stats->t_sum / (double)stats->valid_t_count) : 0.0f;
     double v_var_sum = 0.0;
     double t_var_sum = 0.0;
 
@@ -381,41 +384,53 @@ int battery_spatial_matrix_process_frame(battery_spatial_matrix_t *ctx,
         float v = voltages[i];
         float t = temperatures[i];
         if (is_valid_sensor_val(v)) {
-            double v_diff = (double)v - (double)v_mean;
+            double v_diff = (double)v - (double)stats->v_mean;
             v_var_sum += v_diff * v_diff;
         }
         if (is_valid_sensor_val(t)) {
-            double t_diff = (double)t - (double)t_mean;
+            double t_diff = (double)t - (double)stats->t_mean;
             t_var_sum += t_diff * t_diff;
         }
     }
-    float v_std = (valid_v_count > 0) ? sqrtf((float)(v_var_sum / (double)valid_v_count)) : 0.0f;
-    float t_std = (valid_t_count > 0) ? sqrtf((float)(t_var_sum / (double)valid_t_count)) : 0.0f;
+    stats->v_std = (stats->valid_v_count > 0) ? sqrtf((float)(v_var_sum / (double)stats->valid_v_count)) : 0.0f;
+    stats->t_std = (stats->valid_t_count > 0) ? sqrtf((float)(t_var_sum / (double)stats->valid_t_count)) : 0.0f;
 
-    if (valid_v_count == 0) { v_min = 0.0f; v_max = 0.0f; }
-    if (valid_t_count == 0) { t_min = 0.0f; t_max = 0.0f; }
-    if (max_dtdt < -1e8f) max_dtdt = 0.0f;
+    if (stats->valid_v_count == 0) { stats->v_min = 0.0f; stats->v_max = 0.0f; }
+    if (stats->valid_t_count == 0) { stats->t_min = 0.0f; stats->t_max = 0.0f; }
+    if (stats->max_dtdt < -1e8f) stats->max_dtdt = 0.0f;
 
-    out_result->v_min = v_min;
-    out_result->v_max = v_max;
-    out_result->v_mean = v_mean;
-    out_result->v_std = v_std;
-    out_result->v_median = (v_min + v_max) * 0.5f; // Fast mid-point baseline
-    out_result->v_min_cell_idx = v_min_idx;
-    out_result->v_max_cell_idx = v_max_idx;
+    out_result->v_min = stats->v_min;
+    out_result->v_max = stats->v_max;
+    out_result->v_mean = stats->v_mean;
+    out_result->v_std = stats->v_std;
+    out_result->v_median = (stats->v_min + stats->v_max) * 0.5f; // Fast mid-point baseline
+    out_result->v_min_cell_idx = stats->v_min_idx;
+    out_result->v_max_cell_idx = stats->v_max_idx;
 
-    out_result->t_min = t_min;
-    out_result->t_max = t_max;
-    out_result->t_mean = t_mean;
-    out_result->t_std = t_std;
-    out_result->t_median = (t_min + t_max) * 0.5f;
-    out_result->t_min_cell_idx = t_min_idx;
-    out_result->t_max_cell_idx = t_max_idx;
+    out_result->t_min = stats->t_min;
+    out_result->t_max = stats->t_max;
+    out_result->t_mean = stats->t_mean;
+    out_result->t_std = stats->t_std;
+    out_result->t_median = (stats->t_min + stats->t_max) * 0.5f;
+    out_result->t_min_cell_idx = stats->t_min_idx;
+    out_result->t_max_cell_idx = stats->t_max_idx;
 
-    out_result->max_dT_dt = max_dtdt;
-    out_result->max_dT_dt_cell_idx = max_dtdt_idx;
-    out_result->max_d2V_dt2 = max_d2vdt2;
-    out_result->max_d2V_dt2_cell_idx = max_d2vdt2_idx;
+    out_result->max_dT_dt = stats->max_dtdt;
+    out_result->max_dT_dt_cell_idx = stats->max_dtdt_idx;
+    out_result->max_d2V_dt2 = stats->max_d2vdt2;
+    out_result->max_d2V_dt2_cell_idx = stats->max_d2vdt2_idx;
+}
+
+static void spatial_evaluate_cells(battery_spatial_matrix_t *ctx,
+                                   const float *voltages,
+                                   const float *temperatures,
+                                   uint32_t num_cells,
+                                   const spatial_frame_stats_t *stats,
+                                   battery_spatial_frame_result_t *out_result) {
+    float v_mean = stats->v_mean;
+    float t_mean = stats->t_mean;
+    float v_std = stats->v_std;
+    float t_std = stats->t_std;
 
     // Second Pass: Spatial Laplacian Gradients, Polarization Overpotential, Diffusion Vectors, Stage Classification & Hotspots
     for (uint32_t i = 0; i < num_cells; i++) {
@@ -532,7 +547,9 @@ int battery_spatial_matrix_process_frame(battery_spatial_matrix_t *ctx,
             }
         }
     }
+}
 
+static void spatial_sort_results(battery_spatial_frame_result_t *out_result) {
     // Sort Hotspots descending by (stage descending, then temperature descending)
     for (uint32_t a = 0; a < out_result->num_hotspots; a++) {
         for (uint32_t b = a + 1; b < out_result->num_hotspots; b++) {
@@ -573,6 +590,40 @@ int battery_spatial_matrix_process_frame(battery_spatial_matrix_t *ctx,
             }
         }
     }
+}
+
+int battery_spatial_matrix_process_frame(battery_spatial_matrix_t *ctx,
+                                        const float *voltages,
+                                        const float *temperatures,
+                                        const float *currents,
+                                        uint32_t num_cells,
+                                        uint64_t timestamp_ms,
+                                        battery_spatial_frame_result_t *out_result) {
+    if (!ctx || !voltages || !temperatures || !out_result) {
+        return -1;
+    }
+    if (num_cells != ctx->config.num_cells) {
+        return -2;
+    }
+
+    uint64_t t_start = get_time_monotonic_us();
+    memset(out_result, 0, sizeof(battery_spatial_frame_result_t));
+    out_result->total_cells = num_cells;
+    out_result->timestamp_ms = timestamp_ms;
+    out_result->overall_tr_stage = BATTERY_TR_STAGE_NORMAL;
+
+    spatial_frame_stats_t stats = {
+        .v_min = 1e9f,
+        .v_max = -1e9f,
+        .t_min = 1e9f,
+        .t_max = -1e9f,
+        .max_dtdt = -1e9f,
+    };
+
+    spatial_ingest_frame(ctx, voltages, temperatures, currents, num_cells, timestamp_ms, &stats);
+    spatial_finalize_pack_stats(&stats, voltages, temperatures, num_cells, out_result);
+    spatial_evaluate_cells(ctx, voltages, temperatures, num_cells, &stats, out_result);
+    spatial_sort_results(out_result);
 
     uint64_t t_end = get_time_monotonic_us();
     out_result->compute_duration_us = t_end - t_start;

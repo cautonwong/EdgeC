@@ -7,7 +7,7 @@ subdomain=supporting
 language=c
 abi_stability=source-only
 foundation=>=0.1 <1
-ports_required=bus
+ports_required=tool
 ports_optional=
 allowed_owners=edge_core,edge_io,edge_stream,edge_infra
 rom_bytes_max=0

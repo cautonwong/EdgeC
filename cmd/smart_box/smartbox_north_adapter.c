@@ -7,6 +7,7 @@
 #include "edge_north_plane.h"
 #include "mqtt_json_codec.h"
 #include "mqtt_producer.h"
+#include "northbound_driver_adapter.h"
 #include "northbound_mgr.h"
 #include "smartbox_driver_adapter.h"
 #include "smartbox_north_adapter.h"
@@ -103,6 +104,9 @@ void smartbox_north_attach(datahub_t *hub) {
     const char *nb_proto = getenv("MQTT_PROTOCOL");
     if (nb_proto && *nb_proto && northbound_mgr_set_protocol(&g_north, nb_proto) != 0) {
         LOG_WARN(LOG_CAT_CORE, "Northbound: unknown protocol '%s', keeping default", nb_proto);
+    }
+    if (northbound_attach_default_driver(&g_north) != 0) {
+        LOG_WARN(LOG_CAT_CORE, "Northbound: driver not attached, channel stays idle");
     }
     if (northbound_mgr_start(&g_north) != 0) {
         LOG_WARN(LOG_CAT_CORE, "Northbound disabled (thread start failed)");

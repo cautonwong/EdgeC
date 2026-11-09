@@ -47,21 +47,16 @@ static void test_ai_provider_service_structure(void **state) {
     assert_non_null(strstr(content, "openai"));
     assert_non_null(strstr(content, "local_edge"));
 
-    // 13 Industrial MCP Tools Definitions
+    // 8 MCP tools exposed by edge-mcp-server (4 generic + 4 industry)
     assert_non_null(strstr(content, "INDUSTRIAL_MCP_TOOLS"));
     assert_non_null(strstr(content, "datahub_read_tags"));
     assert_non_null(strstr(content, "datahub_write_tag"));
     assert_non_null(strstr(content, "datahub_get_tag_meta"));
     assert_non_null(strstr(content, "datahub_scan_abnormal"));
-    assert_non_null(strstr(content, "io_list_channels"));
-    assert_non_null(strstr(content, "io_get_channel_health"));
-    assert_non_null(strstr(content, "io_trace_raw_packets"));
-    assert_non_null(strstr(content, "pipeline_get_dag_status"));
-    assert_non_null(strstr(content, "pipeline_query_metrics"));
-    assert_non_null(strstr(content, "dds_list_discovered_nodes"));
-    assert_non_null(strstr(content, "dds_inspect_topics"));
-    assert_non_null(strstr(content, "storage_query_soe_events"));
-    assert_non_null(strstr(content, "storage_query_waveform"));
+    assert_non_null(strstr(content, "dcu_analyze_power_quality"));
+    assert_non_null(strstr(content, "smartbox_eval_transformer_life"));
+    assert_non_null(strstr(content, "iems_optimize_tou_schedule"));
+    assert_non_null(strstr(content, "security_simulate_interlock"));
 
     // Core ReAct Agent Engine Methods
     assert_non_null(strstr(content, "callMcpTool"));
@@ -82,10 +77,10 @@ static void test_mcp_tool_call_card_component(void **state) {
     assert_non_null(strstr(content, "getToolDomain"));
     assert_non_null(strstr(content, "domainColorClass"));
     assert_non_null(strstr(content, "DataHub"));
-    assert_non_null(strstr(content, "IO Bus"));
-    assert_non_null(strstr(content, "Pipeline"));
-    assert_non_null(strstr(content, "DDS Mesh"));
-    assert_non_null(strstr(content, "Storage"));
+    assert_non_null(strstr(content, "Power Quality"));
+    assert_non_null(strstr(content, "Transformer"));
+    assert_non_null(strstr(content, "Energy"));
+    assert_non_null(strstr(content, "Safety"));
 
     // Collapsible & Copy Actions
     assert_non_null(strstr(content, "isExpanded"));
@@ -117,8 +112,10 @@ static void test_ai_copilot_drawer_component(void **state) {
     // Quick Prompts
     assert_non_null(strstr(content, "quickPrompts"));
     assert_non_null(strstr(content, "全站异常扫描"));
-    assert_non_null(strstr(content, "储能策略诊断"));
-    assert_non_null(strstr(content, "SOE 事故反演"));
+    assert_non_null(strstr(content, "储能峰谷策略"));
+    assert_non_null(strstr(content, "变压器寿命评估"));
+    assert_non_null(strstr(content, "五防操作校验"));
+    assert_non_null(strstr(content, "三相电能质量"));
 
     // Hotkeys & Markdown
     assert_non_null(strstr(content, "handleKeyDown"));

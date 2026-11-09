@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <uv.h>
 
+#include "app_repo_sqlite.h"
 #include "edge_app_mgr.h"
 #include "sqlite_service.h"
 
@@ -81,7 +82,8 @@ static void test_app_lifecycle_and_boot_restore(void **state) {
 
     size_t mgr_size = edge_app_mgr_storage_size();
     void *mgr_mem = malloc(mgr_size);
-    edge_app_mgr_t *mgr = edge_app_mgr_create_in(mgr_mem, mgr_size, loop, db, NULL);
+    edge_app_repo_t repo = app_repo_sqlite(db);
+    edge_app_mgr_t *mgr = edge_app_mgr_create_with_repo_in(mgr_mem, mgr_size, loop, &repo, NULL);
     assert_non_null(mgr);
 
     // Install App

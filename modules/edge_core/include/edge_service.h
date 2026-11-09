@@ -31,7 +31,7 @@ typedef struct {
  * @brief 在调用方预分配内存中创建服务编排器 (Zero-Alloc)
  */
 service_t *service_create_in(service_storage_t *storage, uv_loop_t *loop, datahub_t *hub, arbiter_t *arb,
-                             sqlite_svc_t *db, stream_engine_t *engine, edge_params_t *params, void *north);
+                             sqlite_svc_t *db, stream_engine_t *engine, edge_params_t *params);
 
 typedef void (*emergency_hook_fn)(void *user_data);
 
@@ -51,10 +51,9 @@ typedef void (*link_monitor_fn)(net_link_t new_link, void *user_data);
  * @param db 外部创建的 SQLite 服务 (可选)
  * @param engine 外部创建的流引擎 (可选)
  * @param params 外部创建的参数服务 (可选)
- * @param north 外部创建的北向管理器 (可选)
  */
 service_t *service_new(uv_loop_t *loop, datahub_t *hub, arbiter_t *arb, sqlite_svc_t *db,
-                       stream_engine_t *engine, edge_params_t *params, void *north);
+                       stream_engine_t *engine, edge_params_t *params);
 
 void service_delete(service_t *svc);
 void service_destroy(service_t *svc);
@@ -81,8 +80,8 @@ stream_engine_t *service_get_stream_engine(service_t *svc);
 arbiter_t *service_get_arbiter(service_t *svc);
 edge_params_t *service_get_params(service_t *svc);
 const char *service_get_contract_path(service_t *svc);
-void *service_get_app_mgr(service_t *svc);
-void service_set_app_mgr(service_t *svc, void *mgr);
+void *service_get_control_port(service_t *svc);
+void service_set_control_port(service_t *svc, void *port);
 
 int service_post_cmd(service_t *svc, cmd_msg_t *cmd);
 /**

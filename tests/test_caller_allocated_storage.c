@@ -1356,7 +1356,7 @@ static void test_edge_service_caller_allocated_storage(void **state) {
     arbiter_t *dummy_arb = arbiter_create_in(&dummy_arb_store, &loop);
 
     service_t *svc =
-        service_create_in(&store, &loop, &dummy_hub, dummy_arb, NULL, NULL, NULL, NULL);
+        service_create_in(&store, &loop, &dummy_hub, dummy_arb, NULL, NULL, NULL);
     assert_non_null(svc);
     assert_ptr_equal(svc, (service_t *)&store);
     assert_ptr_equal(service_get_loop(svc), &loop);

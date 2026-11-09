@@ -223,6 +223,271 @@ static int compare_soc_asc(const void *a, const void *b)
     return (ca->cell_id > cb->cell_id) - (ca->cell_id < cb->cell_id);
 }
 
+typedef struct {
+    double v_min;
+    double v_max;
+    double v_mean;
+    double soc_min;
+    double soc_max;
+    double soc_mean;
+    double v_diff_mv;
+    double soc_diff_pct;
+    uint16_t valid_cells;
+    bool safe_to_balance[BATTERY_BAL_MAX_CELLS];
+} balancer_measure_t;
+
+typedef struct {
+    double power_transferred_w;
+    double power_dissipated_w;
+    double charge_diff_ah;
+    uint8_t active_channels;
+    uint8_t active_pairs;
+} balancer_totals_t;
+
+static void balancer_measure_pack(battery_balancer_t *bal, balancer_measure_t *m)
+{
+    uint16_t n = bal->config.cell_count;
+    double v_min = 1e9, v_max = -1e9, v_sum = 0.0;
+    double soc_min = 1e9, soc_max = -1e9, soc_sum = 0.0;
+    uint16_t valid_cells = 0;
+
+    memset(m, 0, sizeof(*m));
+
+    for (uint16_t i = 0; i < n; i++) {
+        bal->plan.commands[i].cell_id = i;
+        bal->plan.commands[i].action = BATTERY_BAL_ACTION_IDLE;
+        bal->plan.commands[i].interlocked = false;
+        m->safe_to_balance[i] = true;
+    }
+
+    for (uint16_t i = 0; i < n; i++) {
+        double v = bal->cells[i].voltage_v;
+        double s = bal->cells[i].soc;
+        double t = bal->cells[i].temperature_c;
+        double soh = bal->cells[i].soh;
+
+        if (!isfinite(v) || !isfinite(s) || !isfinite(t) || !isfinite(soh) ||
+            v < bal->config.cell_min_volt_v || v > bal->config.cell_max_volt_v ||
+            t < bal->config.temp_min_c || t > bal->config.temp_max_c) {
+            m->safe_to_balance[i] = false;
+            bal->plan.commands[i].interlocked = true;
+            continue;
+        }
+
+        if (v < v_min) v_min = v;
+        if (v > v_max) v_max = v;
+        v_sum += v;
+
+        if (s < soc_min) soc_min = s;
+        if (s > soc_max) soc_max = s;
+        soc_sum += s;
+        valid_cells++;
+    }
+
+    m->v_min = v_min;
+    m->v_max = v_max;
+    m->v_mean = (valid_cells > 0) ? (v_sum / (double)valid_cells) : 3.30;
+    m->soc_min = soc_min;
+    m->soc_max = soc_max;
+    m->soc_mean = (valid_cells > 0) ? (soc_sum / (double)valid_cells) : 0.50;
+    m->v_diff_mv = (valid_cells >= 2) ? ((v_max - v_min) * 1000.0) : 0.0;
+    m->soc_diff_pct = (valid_cells >= 2) ? ((soc_max - soc_min) * 100.0) : 0.0;
+    m->valid_cells = valid_cells;
+
+    if (m->v_min > 1e8) m->v_min = 0.0;
+    if (m->v_max < -1e8) m->v_max = 0.0;
+
+    bal->plan.max_voltage_v = m->v_max;
+    bal->plan.min_voltage_v = m->v_min;
+    bal->plan.voltage_diff_mv = m->v_diff_mv;
+    bal->plan.avg_soc = m->soc_mean;
+    bal->plan.max_soc_diff_pct = m->soc_diff_pct;
+}
+
+static bool balancer_should_start(battery_balancer_t *bal, const balancer_measure_t *m)
+{
+    bool trigger = (m->v_diff_mv >= bal->config.start_voltage_diff_mv) ||
+                   (m->soc_diff_pct >= bal->config.start_soc_diff_pct);
+
+    if ((!trigger && m->v_diff_mv <= bal->config.stop_voltage_diff_mv &&
+         m->soc_diff_pct <= bal->config.stop_soc_diff_pct) ||
+        m->valid_cells < 2) {
+        bal->plan.is_balancing_active = false;
+        bal->plan.energy_efficiency_score = 1.0;
+        bal->plan.valid = true;
+        return false;
+    }
+
+    bal->plan.is_balancing_active = true;
+    return true;
+}
+
+static void balancer_plan_passive(battery_balancer_t *bal, const balancer_measure_t *m,
+                                  balancer_totals_t *totals)
+{
+    uint16_t n = bal->config.cell_count;
+
+    for (uint16_t i = 0; i < n; i++) {
+        if (!m->safe_to_balance[i]) continue;
+        if (totals->active_channels >= bal->config.max_concurrent_channels) break;
+
+        double diff_v = bal->cells[i].voltage_v -
+                        (m->v_mean + bal->config.stop_voltage_diff_mv * 1e-3);
+        if (diff_v > 0.0) {
+            if (bal->config.adjacent_interlock && i > 0 &&
+                bal->plan.commands[i - 1].action == BATTERY_BAL_ACTION_DISCHARGE_PASSIVE) {
+                bal->plan.commands[i].interlocked = true;
+                continue;
+            }
+
+            double i_bleed = bal->cells[i].voltage_v / bal->config.bleed_resistor_ohm;
+            double p_diss = i_bleed * bal->cells[i].voltage_v;
+            double duty = diff_v / (bal->config.start_voltage_diff_mv * 1e-3);
+            if (duty > 1.0) duty = 1.0;
+            if (duty < 0.1) duty = 0.1;
+
+            bal->plan.commands[i].action = BATTERY_BAL_ACTION_DISCHARGE_PASSIVE;
+            bal->plan.commands[i].duty_cycle = duty;
+            bal->plan.commands[i].target_current_a = -i_bleed * duty;
+            bal->plan.commands[i].power_dissipated_w = p_diss * duty;
+
+            totals->power_dissipated_w += p_diss * duty;
+            totals->charge_diff_ah +=
+                (bal->cells[i].soc - m->soc_mean) * bal->config.nominal_capacity_ah;
+            totals->active_channels++;
+        }
+    }
+}
+
+static void balancer_plan_active(battery_balancer_t *bal, const balancer_measure_t *m,
+                                 balancer_totals_t *totals)
+{
+    uint16_t n = bal->config.cell_count;
+    cell_sort_item_t high_cells[BATTERY_BAL_MAX_CELLS];
+    cell_sort_item_t low_cells[BATTERY_BAL_MAX_CELLS];
+    uint16_t high_count = 0, low_count = 0;
+
+    for (uint16_t i = 0; i < n; i++) {
+        if (!m->safe_to_balance[i]) continue;
+        if (bal->cells[i].soc > m->soc_mean + (bal->config.stop_soc_diff_pct * 0.01 * 0.5)) {
+            high_cells[high_count].cell_id = i;
+            high_cells[high_count].soc = bal->cells[i].soc;
+            high_cells[high_count].voltage_v = bal->cells[i].voltage_v;
+            high_count++;
+        } else if (bal->cells[i].soc <
+                   m->soc_mean - (bal->config.stop_soc_diff_pct * 0.01 * 0.5)) {
+            low_cells[low_count].cell_id = i;
+            low_cells[low_count].soc = bal->cells[i].soc;
+            low_cells[low_count].voltage_v = bal->cells[i].voltage_v;
+            low_count++;
+        }
+    }
+
+    qsort(high_cells, high_count, sizeof(cell_sort_item_t), compare_soc_desc);
+    qsort(low_cells, low_count, sizeof(cell_sort_item_t), compare_soc_asc);
+
+    uint16_t max_pairs = (high_count < low_count) ? high_count : low_count;
+    if (max_pairs > (bal->config.max_concurrent_channels / 2)) {
+        max_pairs = (bal->config.max_concurrent_channels / 2);
+    }
+
+    for (uint16_t p = 0; p < max_pairs; p++) {
+        uint16_t src_id = high_cells[p].cell_id;
+        uint16_t dst_id = low_cells[p].cell_id;
+
+        if (bal->config.adjacent_interlock && abs((int)src_id - (int)dst_id) == 1) {
+            continue;
+        }
+
+        double delta_soc = high_cells[p].soc - low_cells[p].soc;
+        double soc_scale = bal->config.start_soc_diff_pct * 0.01;
+        if (soc_scale <= 1e-4 || !isfinite(soc_scale)) soc_scale = 0.015;
+        double i_transfer = bal->config.max_active_current_a * (delta_soc / soc_scale);
+        if (i_transfer > bal->config.max_active_current_a) {
+            i_transfer = bal->config.max_active_current_a;
+        }
+        if (i_transfer < 0.20) {
+            i_transfer = 0.20;
+        }
+
+        double soh_weight = (bal->cells[src_id].soh + bal->cells[dst_id].soh) * 0.5;
+        if (soh_weight < 0.85) {
+            i_transfer *= 0.70;
+        }
+
+        double r_total_ohm =
+            (bal->cells[src_id].r0_mohm + bal->cells[dst_id].r0_mohm) * 1e-3;
+        double eff = 0.92 - (r_total_ohm * 10.0);
+        if (eff < 0.75) eff = 0.75;
+        if (eff > 0.95) eff = 0.95;
+
+        double p_src = i_transfer * bal->cells[src_id].voltage_v;
+        double p_dst = p_src * eff;
+        double p_loss = p_src - p_dst + (i_transfer * i_transfer * r_total_ohm);
+
+        bal->plan.commands[src_id].action = BATTERY_BAL_ACTION_ACTIVE_SOURCE;
+        bal->plan.commands[src_id].target_current_a = -i_transfer;
+        bal->plan.commands[src_id].duty_cycle = 1.0;
+        bal->plan.commands[src_id].power_dissipated_w = p_loss * 0.5;
+
+        bal->plan.commands[dst_id].action = BATTERY_BAL_ACTION_ACTIVE_TARGET;
+        bal->plan.commands[dst_id].target_current_a = i_transfer * eff;
+        bal->plan.commands[dst_id].duty_cycle = 1.0;
+        bal->plan.commands[dst_id].power_dissipated_w = p_loss * 0.5;
+
+        bal->plan.pairs[totals->active_pairs].source_cell_id = src_id;
+        bal->plan.pairs[totals->active_pairs].target_cell_id = dst_id;
+        bal->plan.pairs[totals->active_pairs].transfer_current_a = i_transfer;
+        bal->plan.pairs[totals->active_pairs].transfer_power_w = p_src;
+        bal->plan.pairs[totals->active_pairs].efficiency = eff;
+
+        totals->power_transferred_w += p_dst;
+        totals->power_dissipated_w += p_loss;
+        totals->charge_diff_ah += delta_soc * bal->config.nominal_capacity_ah;
+
+        totals->active_pairs++;
+        totals->active_channels += 2;
+    }
+}
+
+static void balancer_finalize_plan(battery_balancer_t *bal, const balancer_totals_t *totals,
+                                   double dt)
+{
+    uint16_t n = bal->config.cell_count;
+    double effective_current = 0.0;
+    for (uint16_t i = 0; i < n; i++) {
+        if (bal->plan.commands[i].action != BATTERY_BAL_ACTION_IDLE) {
+            effective_current += fabs(bal->plan.commands[i].target_current_a);
+        }
+    }
+
+    double time_to_bal_s = 0.0;
+    if (effective_current > 0.05 && totals->charge_diff_ah > 0.0) {
+        time_to_bal_s = (totals->charge_diff_ah / effective_current) * 3600.0;
+    }
+
+    double energy_transferred_wh = totals->power_transferred_w * (dt / 3600.0);
+    double energy_dissipated_wh = totals->power_dissipated_w * (dt / 3600.0);
+    bal->cum_transferred_wh += energy_transferred_wh;
+    bal->cum_dissipated_wh += energy_dissipated_wh;
+
+    double eff_score = 1.0;
+    if (totals->power_transferred_w + totals->power_dissipated_w > 1e-3) {
+        eff_score = totals->power_transferred_w /
+                    (totals->power_transferred_w + totals->power_dissipated_w);
+    } else if (bal->config.mode == BATTERY_BAL_MODE_PASSIVE) {
+        eff_score = 0.20;
+    }
+
+    bal->plan.active_channels_count = totals->active_channels;
+    bal->plan.active_pairs_count = totals->active_pairs;
+    bal->plan.estimated_time_to_balance_s = time_to_bal_s;
+    bal->plan.total_energy_transferred_wh = bal->cum_transferred_wh;
+    bal->plan.total_energy_dissipated_wh = bal->cum_dissipated_wh;
+    bal->plan.energy_efficiency_score = eff_score;
+    bal->plan.valid = true;
+}
+
 int battery_balancer_plan_step(battery_balancer_t *bal, double cur_timestamp_s)
 {
     if (!bal || bal->config.mode == BATTERY_BAL_MODE_DISABLED) {
@@ -248,237 +513,24 @@ int battery_balancer_plan_step(battery_balancer_t *bal, double cur_timestamp_s)
 
     memset(&bal->plan, 0, sizeof(bal->plan));
 
-    /* 初始化所有通道为 IDLE */
-    bool safe_to_balance[BATTERY_BAL_MAX_CELLS];
-    for (uint16_t i = 0; i < n; i++) {
-        bal->plan.commands[i].cell_id = i;
-        bal->plan.commands[i].action = BATTERY_BAL_ACTION_IDLE;
-        bal->plan.commands[i].interlocked = false;
-        safe_to_balance[i] = true;
-    }
+    balancer_measure_t measure;
+    balancer_measure_pack(bal, &measure);
 
-    /* 1. 统计整组极值、均值与离散度，拦截 NaN / Inf 脏数据 */
-    double v_min = 1e9, v_max = -1e9, v_sum = 0.0;
-    double soc_min = 1e9, soc_max = -1e9, soc_sum = 0.0;
-    uint16_t valid_cells = 0;
-
-    for (uint16_t i = 0; i < n; i++) {
-        double v = bal->cells[i].voltage_v;
-        double s = bal->cells[i].soc;
-        double t = bal->cells[i].temperature_c;
-        double soh = bal->cells[i].soh;
-
-        if (!isfinite(v) || !isfinite(s) || !isfinite(t) || !isfinite(soh) ||
-            v < bal->config.cell_min_volt_v || v > bal->config.cell_max_volt_v ||
-            t < bal->config.temp_min_c || t > bal->config.temp_max_c) {
-            safe_to_balance[i] = false;
-            bal->plan.commands[i].interlocked = true;
-            continue;
-        }
-
-        if (v < v_min) v_min = v;
-        if (v > v_max) v_max = v;
-        v_sum += v;
-
-        if (s < soc_min) soc_min = s;
-        if (s > soc_max) soc_max = s;
-        soc_sum += s;
-        valid_cells++;
-    }
-
-    double v_mean = (valid_cells > 0) ? (v_sum / (double)valid_cells) : 3.30;
-    double soc_mean = (valid_cells > 0) ? (soc_sum / (double)valid_cells) : 0.50;
-    double v_diff_mv = (valid_cells >= 2) ? ((v_max - v_min) * 1000.0) : 0.0;
-    double soc_diff_pct = (valid_cells >= 2) ? ((soc_max - soc_min) * 100.0) : 0.0;
-
-    if (v_min > 1e8) v_min = 0.0;
-    if (v_max < -1e8) v_max = 0.0;
-
-    bal->plan.max_voltage_v = v_max;
-    bal->plan.min_voltage_v = v_min;
-    bal->plan.voltage_diff_mv = v_diff_mv;
-    bal->plan.avg_soc = soc_mean;
-    bal->plan.max_soc_diff_pct = soc_diff_pct;
-
-    /* 2. 判断是否满足启动门限 (满足任意电压差或 SOC 极差) */
-    bool trigger = (v_diff_mv >= bal->config.start_voltage_diff_mv) ||
-                   (soc_diff_pct >= bal->config.start_soc_diff_pct);
-
-    if ((!trigger && v_diff_mv <= bal->config.stop_voltage_diff_mv &&
-         soc_diff_pct <= bal->config.stop_soc_diff_pct) || valid_cells < 2) {
-        bal->plan.is_balancing_active = false;
-        bal->plan.energy_efficiency_score = 1.0;
-        bal->plan.valid = true;
+    if (!balancer_should_start(bal, &measure)) {
         return 0;
     }
 
-    bal->plan.is_balancing_active = true;
+    balancer_totals_t totals;
+    memset(&totals, 0, sizeof(totals));
 
-    double total_power_transferred = 0.0;
-    double total_power_dissipated = 0.0;
-    double total_charge_diff_ah = 0.0;
-    uint8_t active_ch_count = 0;
-    uint8_t active_pairs = 0;
-
-    /* 4. 模式 A: 被动阻性放电均衡规划 */
     if (bal->config.mode == BATTERY_BAL_MODE_PASSIVE) {
-        for (uint16_t i = 0; i < n; i++) {
-            if (!safe_to_balance[i]) continue;
-            if (active_ch_count >= bal->config.max_concurrent_channels) break;
-
-            double diff_v = bal->cells[i].voltage_v - (v_mean + bal->config.stop_voltage_diff_mv * 1e-3);
-            if (diff_v > 0.0) {
-                /* 硬件相邻互锁检查 */
-                if (bal->config.adjacent_interlock && i > 0 &&
-                    bal->plan.commands[i - 1].action == BATTERY_BAL_ACTION_DISCHARGE_PASSIVE) {
-                    bal->plan.commands[i].interlocked = true;
-                    continue;
-                }
-
-                double i_bleed = bal->cells[i].voltage_v / bal->config.bleed_resistor_ohm;
-                double p_diss = i_bleed * bal->cells[i].voltage_v;
-                double duty = diff_v / (bal->config.start_voltage_diff_mv * 1e-3);
-                if (duty > 1.0) duty = 1.0;
-                if (duty < 0.1) duty = 0.1;
-
-                bal->plan.commands[i].action = BATTERY_BAL_ACTION_DISCHARGE_PASSIVE;
-                bal->plan.commands[i].duty_cycle = duty;
-                bal->plan.commands[i].target_current_a = -i_bleed * duty;
-                bal->plan.commands[i].power_dissipated_w = p_diss * duty;
-
-                total_power_dissipated += p_diss * duty;
-                total_charge_diff_ah += (bal->cells[i].soc - soc_mean) * bal->config.nominal_capacity_ah;
-                active_ch_count++;
-            }
-        }
-    }
-    /* 5. 模式 B/C: 双向主动 / 混合最优能效配对均衡规划 */
-    else if (bal->config.mode == BATTERY_BAL_MODE_ACTIVE_PAIRWISE ||
-             bal->config.mode == BATTERY_BAL_MODE_HYBRID_OPTIMAL) {
-        cell_sort_item_t high_cells[BATTERY_BAL_MAX_CELLS];
-        cell_sort_item_t low_cells[BATTERY_BAL_MAX_CELLS];
-        uint16_t high_count = 0, low_count = 0;
-
-        for (uint16_t i = 0; i < n; i++) {
-            if (!safe_to_balance[i]) continue;
-            if (bal->cells[i].soc > soc_mean + (bal->config.stop_soc_diff_pct * 0.01 * 0.5)) {
-                high_cells[high_count].cell_id = i;
-                high_cells[high_count].soc = bal->cells[i].soc;
-                high_cells[high_count].voltage_v = bal->cells[i].voltage_v;
-                high_count++;
-            } else if (bal->cells[i].soc < soc_mean - (bal->config.stop_soc_diff_pct * 0.01 * 0.5)) {
-                low_cells[low_count].cell_id = i;
-                low_cells[low_count].soc = bal->cells[i].soc;
-                low_cells[low_count].voltage_v = bal->cells[i].voltage_v;
-                low_count++;
-            }
-        }
-
-        qsort(high_cells, high_count, sizeof(cell_sort_item_t), compare_soc_desc);
-        qsort(low_cells, low_count, sizeof(cell_sort_item_t), compare_soc_asc);
-
-        uint16_t max_pairs = (high_count < low_count) ? high_count : low_count;
-        if (max_pairs > (bal->config.max_concurrent_channels / 2)) {
-            max_pairs = (bal->config.max_concurrent_channels / 2);
-        }
-
-        for (uint16_t p = 0; p < max_pairs; p++) {
-            uint16_t src_id = high_cells[p].cell_id;
-            uint16_t dst_id = low_cells[p].cell_id;
-
-            /* 检查相邻通道硬件互锁 */
-            if (bal->config.adjacent_interlock && abs((int)src_id - (int)dst_id) == 1) {
-                continue;
-            }
-
-            double delta_soc = high_cells[p].soc - low_cells[p].soc;
-            double soc_scale = bal->config.start_soc_diff_pct * 0.01;
-            if (soc_scale <= 1e-4 || !isfinite(soc_scale)) soc_scale = 0.015;
-            double i_transfer = bal->config.max_active_current_a * (delta_soc / soc_scale);
-            if (i_transfer > bal->config.max_active_current_a) {
-                i_transfer = bal->config.max_active_current_a;
-            }
-            if (i_transfer < 0.20) {
-                i_transfer = 0.20;
-            }
-
-            /* SOH 寿命权重调制 (对老化电芯限制大电流冲击) */
-            double soh_weight = (bal->cells[src_id].soh + bal->cells[dst_id].soh) * 0.5;
-            if (soh_weight < 0.85) {
-                i_transfer *= 0.70;
-            }
-
-            /* 能效计算 (考虑 DC-DC 转换器拓扑 90% 基础能效与内阻发热) */
-            double r_total_ohm = (bal->cells[src_id].r0_mohm + bal->cells[dst_id].r0_mohm) * 1e-3;
-            double eff = 0.92 - (r_total_ohm * 10.0);
-            if (eff < 0.75) eff = 0.75;
-            if (eff > 0.95) eff = 0.95;
-
-            double p_src = i_transfer * bal->cells[src_id].voltage_v;
-            double p_dst = p_src * eff;
-            double p_loss = p_src - p_dst + (i_transfer * i_transfer * r_total_ohm);
-
-            /* 设置控制命令 */
-            bal->plan.commands[src_id].action = BATTERY_BAL_ACTION_ACTIVE_SOURCE;
-            bal->plan.commands[src_id].target_current_a = -i_transfer;
-            bal->plan.commands[src_id].duty_cycle = 1.0;
-            bal->plan.commands[src_id].power_dissipated_w = p_loss * 0.5;
-
-            bal->plan.commands[dst_id].action = BATTERY_BAL_ACTION_ACTIVE_TARGET;
-            bal->plan.commands[dst_id].target_current_a = i_transfer * eff;
-            bal->plan.commands[dst_id].duty_cycle = 1.0;
-            bal->plan.commands[dst_id].power_dissipated_w = p_loss * 0.5;
-
-            /* 记录配对信息 */
-            bal->plan.pairs[active_pairs].source_cell_id = src_id;
-            bal->plan.pairs[active_pairs].target_cell_id = dst_id;
-            bal->plan.pairs[active_pairs].transfer_current_a = i_transfer;
-            bal->plan.pairs[active_pairs].transfer_power_w = p_src;
-            bal->plan.pairs[active_pairs].efficiency = eff;
-
-            total_power_transferred += p_dst;
-            total_power_dissipated += p_loss;
-            total_charge_diff_ah += delta_soc * bal->config.nominal_capacity_ah;
-
-            active_pairs++;
-            active_ch_count += 2;
-        }
+        balancer_plan_passive(bal, &measure, &totals);
+    } else if (bal->config.mode == BATTERY_BAL_MODE_ACTIVE_PAIRWISE ||
+               bal->config.mode == BATTERY_BAL_MODE_HYBRID_OPTIMAL) {
+        balancer_plan_active(bal, &measure, &totals);
     }
 
-    /* 6. 估算平衡所需时间与能效综合得分 */
-    double effective_current = 0.0;
-    for (uint16_t i = 0; i < n; i++) {
-        if (bal->plan.commands[i].action != BATTERY_BAL_ACTION_IDLE) {
-            effective_current += fabs(bal->plan.commands[i].target_current_a);
-        }
-    }
-
-    double time_to_bal_s = 0.0;
-    if (effective_current > 0.05 && total_charge_diff_ah > 0.0) {
-        time_to_bal_s = (total_charge_diff_ah / effective_current) * 3600.0;
-    }
-
-    /* 累计能量积分 */
-    double energy_transferred_wh = total_power_transferred * (dt / 3600.0);
-    double energy_dissipated_wh = total_power_dissipated * (dt / 3600.0);
-    bal->cum_transferred_wh += energy_transferred_wh;
-    bal->cum_dissipated_wh += energy_dissipated_wh;
-
-    double eff_score = 1.0;
-    if (total_power_transferred + total_power_dissipated > 1e-3) {
-        eff_score = total_power_transferred / (total_power_transferred + total_power_dissipated);
-    } else if (bal->config.mode == BATTERY_BAL_MODE_PASSIVE) {
-        eff_score = 0.20; /* 被动放电全为发热损耗 */
-    }
-
-    bal->plan.active_channels_count = active_ch_count;
-    bal->plan.active_pairs_count = active_pairs;
-    bal->plan.estimated_time_to_balance_s = time_to_bal_s;
-    bal->plan.total_energy_transferred_wh = bal->cum_transferred_wh;
-    bal->plan.total_energy_dissipated_wh = bal->cum_dissipated_wh;
-    bal->plan.energy_efficiency_score = eff_score;
-    bal->plan.valid = true;
-
+    balancer_finalize_plan(bal, &totals, dt);
     return 0;
 }
 

@@ -28,7 +28,7 @@ static int setup(void** state) {
     arbiter_init(&ctx->arb, &ctx->loop);
     ctx->engine = stream_engine_create_datahub(&ctx->hub, uv_default_loop(), NULL, NULL);
 
-    ctx->svc = service_new(&ctx->loop, &ctx->hub, ctx->arb, NULL, ctx->engine, NULL, NULL);
+    ctx->svc = service_new(&ctx->loop, &ctx->hub, ctx->arb, NULL, ctx->engine, NULL);
     *state = ctx;
     return 0;
 }

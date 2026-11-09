@@ -34,6 +34,7 @@ if [[ -z "$PLATFORM" ]]; then
     exit 4
 fi
 PLATFORM="$(cd "$PLATFORM" && pwd)"
+export TESTPLATFORM="$PLATFORM"
 
 PYTHON="${PYTHON:-$PLATFORM/.venv/bin/python}"
 [[ -x "$PYTHON" ]] || PYTHON="$(command -v python3)"

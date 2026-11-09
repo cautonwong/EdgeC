@@ -22,6 +22,7 @@
 
 #include "edge_north_plane.h"
 #include "mqtt_json_codec.h"
+#include "northbound_driver_adapter.h"
 #include "northbound_mgr.h"
 
 /* ---- 1. 解析 ---- */
@@ -165,6 +166,7 @@ static void test_orchestrator_forwards_raw_bytes(void** state) {
     static const edge_north_source_ops_t port = {.on_downlink = mock_on_downlink};
     northbound_mgr_set_north_source(&mgr, &port, NULL);
 
+    assert_int_equal(northbound_attach_default_driver(&mgr), 0);
     assert_int_equal(northbound_mgr_start(&mgr), 0);
 
     /* 订阅发生在 poll 里（100ms 一次），等它发生 */

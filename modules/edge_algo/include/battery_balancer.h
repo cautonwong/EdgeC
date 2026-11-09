@@ -122,7 +122,7 @@ typedef struct {
 } battery_bal_plan_t;
 
 #include <stdalign.h>
-#include "edge_port.h"
+#include "edge_port_types.h"
 
 /**
  * @brief 消费者定义接口 (Consumer-Defined Ports - AEP-751 / AEP-752)

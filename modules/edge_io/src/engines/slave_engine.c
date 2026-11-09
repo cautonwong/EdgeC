@@ -8,7 +8,7 @@
 #include "arbiter.h"
 #include "io_executor.h"
 #include "io_handle_priv.h"
-#include "edge_guard.h"
+#include "edge_io_guard_port.h"
 
 #define MAX_PROTO_PER_BUS 4
 
@@ -74,10 +74,12 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
                     }
                     // --- Edge-Guard: Deep Packet Inspection ---
                     if (async_msgs[i].type == PIPEMSG_TYPE_SCALAR) {
-                        dpi_result_t res = dpi_validate_telemetry(async_msgs[i].tag_id, async_msgs[i].payload.val.f);
-                        if (res != DPI_PASS) {
-                            LOG_WARN(LOG_CAT_CORE, "SlaveEngine: Telemetry for Tag %u BLOCKED by Edge-Guard (Reason: %d)", 
-                                     async_msgs[i].tag_id, (int)res);
+                        const edge_io_guard_port_t *guard = edge_io_get_guard_port();
+                        if (guard && guard->validate_telemetry &&
+                            guard->validate_telemetry(guard->ctx, async_msgs[i].tag_id,
+                                                      async_msgs[i].payload.val.f) != 0) {
+                            LOG_WARN(LOG_CAT_CORE, "SlaveEngine: Telemetry for Tag %u BLOCKED by guard port",
+                                     async_msgs[i].tag_id);
                             continue; // Skip publishing
                         }
                     }

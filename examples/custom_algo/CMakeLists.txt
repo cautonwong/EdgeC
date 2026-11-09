@@ -8,6 +8,8 @@ target_include_directories(custom_soc_filter PUBLIC
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
+    ${CMAKE_SOURCE_DIR}/adapters/io_drivers/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_io/include
 )
 
 target_link_libraries(custom_soc_filter PRIVATE

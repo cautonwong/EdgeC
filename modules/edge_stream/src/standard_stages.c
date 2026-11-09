@@ -3,15 +3,15 @@
 #include <string.h>
 #include <math.h>
 
-#include "algo_peak_shaving.h"
-#include "battery_strategy.h"
+#include "edge_peak_shaving.h"
+#include "edge_battery_types.h"
 #include "edge_log.h"
 #include "stream_engine.h"
 #include "stream_engine_priv.h"
 #include "edge_dsp.h"
 #include "edge_control.h"
 #include "edge_motor.h"
-#include "arbiter.h"
+#include "arbiter_types.h"
 
 // --- Private Config Structs ---
 

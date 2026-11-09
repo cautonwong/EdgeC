@@ -1,7 +1,7 @@
 #ifndef JS_ARBITER_PORT_H
 #define JS_ARBITER_PORT_H
 
-#include "arbiter.h"
+#include "arbiter_types.h"
 
 #ifdef __cplusplus
 extern "C" {

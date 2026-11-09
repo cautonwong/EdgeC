@@ -11,7 +11,7 @@
 #include <stddef.h>
 #include <pthread.h>
 #include "contract_data_types.h"
-#include "shmring.h"
+#include "pipe_msg.h"
 
 #ifdef __cplusplus
 extern "C" {

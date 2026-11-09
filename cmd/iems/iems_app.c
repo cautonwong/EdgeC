@@ -25,6 +25,7 @@
 #include "edge_log.h"
 #include "mqtt_json_codec.h"
 #include "edge_service.h"
+#include "iems_app_manager_adapter.h"
 #include "iems_driver_adapter.h"
 #include "iems_execution_adapter.h"
 #include "iems_internal_bus_adapter.h"
@@ -38,6 +39,7 @@
 #include "io_executor.h"
 #include "modbus_codec.h"
 #include "mqtt_producer.h"
+#include "northbound_driver_adapter.h"
 #include "northbound_mgr.h"
 #include "rest_server.h"
 #include "sched_time.h"
@@ -54,11 +56,16 @@ struct iems_app_s {
     arbiter_t* arb;
     bus_orchestrator_t* orch;
     driver_manager_t* drv_mgr;
+    driver_manager_storage_t drv_mgr_storage;
     stream_engine_t* stream_eng;
     northbound_mgr_t* north;
     iems_north_ctx_t north_adapter;
     sqlite_svc_t* db_service;
     char* db_path;
+    edge_app_mgr_t* app_mgr;
+    void* app_mgr_mem;
+    iems_control_ctx_t control_ctx;
+    rest_control_port_t control;
 
     iems_poll_scheduler_t poll;
     iems_internal_bus_t internal_bus;
@@ -117,8 +124,7 @@ static pipeline_loader_ctx_t _iems_loader_ctx(iems_app_t* app) {
         .db = stream_sqlite_port_from_sqlite(app->db_service),
         .control_ops = {.ctx = app, .submit_control = _iems_stream_submit_control},
         .audit_secret = getenv("VPP_AUDIT_SECRET"),
-        .production = _iems_production_env(),
-        .params = NULL
+        .production = _iems_production_env()
     };
     return ctx;
 }
@@ -171,7 +177,7 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     // Phase 3: 南向调度总线与驱动管理器 (Bus Orchestrator & Driver Manager)
     // =========================================================================
     arbiter_init(&app->arb, loop);
-    app->drv_mgr = driver_manager_create();
+    app->drv_mgr = driver_manager_create_in(&app->drv_mgr_storage);
     iems_driver_registry_init(app->drv_mgr);
 
     app->orch = bus_orchestrator_create(app->hub, app->arb, app->drv_mgr, 256, 256, 2048);
@@ -237,8 +243,15 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     // =========================================================================
     // Phase 6: 系统服务、REST API 与 UI 伴随通道
     // =========================================================================
-    app->svc = service_new(loop, app->hub, app->arb, app->db_service, app->stream_eng, NULL,
-                           app->north);
+    app->svc = service_new(loop, app->hub, app->arb, app->db_service, app->stream_eng, NULL);
+    app->app_mgr = iems_app_manager_create(loop, app->db_service, app->stream_eng,
+                                           &app->app_mgr_mem);
+    if (app->app_mgr) {
+        iems_control_port_init(&app->control, &app->control_ctx, app->app_mgr,
+                               app->stream_eng);
+        service_set_control_port(app->svc, &app->control);
+    }
+
     int rest_port = (cfg && cfg->rest_port > 0) ? cfg->rest_port : 9091;
     rest_server_create(loop, app->svc, rest_port);
 
@@ -281,6 +294,10 @@ int iems_app_start(iems_app_t* app) {
 
 int iems_app_run(iems_app_t* app) {
     if (!app || !app->svc) return -1;
+    if (app->north && northbound_attach_default_driver(app->north) != 0) {
+        LOG_WARN(LOG_CAT_NB, "Northbound: driver not attached, channel stays idle");
+    }
+    if (app->north) northbound_mgr_start(app->north);
     return service_run(app->svc);
 }
 
@@ -306,6 +323,8 @@ void iems_app_destroy(iems_app_t* app) {
 
     if (app->stream_eng) stream_engine_destroy(app->stream_eng);
     wasm_mgr_cleanup();
+    iems_app_manager_destroy(app->app_mgr, app->app_mgr_mem);
+    if (app->north) northbound_mgr_stop(app->north);
     if (app->svc) service_delete(app->svc);
     if (app->db_service) sqlite_svc_destroy(app->db_service);
     if (app->orch) bus_orchestrator_destroy(app->orch);

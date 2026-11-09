@@ -45,11 +45,11 @@ ASSEMBLY_FUNCS = [
     "io_executor_create",
     "io_executor_create_from_fd",
     "io_executor_create_uart",
-    "driver_manager_create",
+    "driver_manager_create_in",
     "arbiter_create_in",
     "driver_instance_create",
     "protocol_bridge_create",
-    "edge_app_mgr_create",
+    "edge_app_mgr_create_with_repo_in",
 ]
 
 PRUNE_DIRS = {
@@ -87,11 +87,15 @@ def _defining_modules(repo_root):
     owner = {}
     patterns = [
         os.path.join(repo_root, "modules", "*", "src", "**", "*.c"),
+        os.path.join(repo_root, "adapters", "*", "src", "**", "*.c"),
     ]
+    adapter_owners = {"io_drivers": "edge_io"}
     for pattern in patterns:
         for src in glob.glob(pattern, recursive=True):
             rel = os.path.relpath(src, repo_root).replace("\\", "/")
             module = rel.split("/")[1]
+            if rel.startswith("adapters/"):
+                module = adapter_owners.get(module, f"adapters/{module}")
             try:
                 text = open(src, "r", encoding="utf-8", errors="ignore").read()
             except OSError:
@@ -150,6 +154,8 @@ def check_file(file_path, repo_root, owner_map, sanctioned):
         for fn in CALL_RE.findall(line):
             owner = owner_map.get(fn)
             if owner and rel_path.startswith(f"modules/{owner}/"):
+                continue
+            if owner and rel_path.startswith(f"adapters/{'io_drivers' if owner == 'edge_io' else owner}/"):
                 continue
             if in_bootstrap or is_sanctioned:
                 continue

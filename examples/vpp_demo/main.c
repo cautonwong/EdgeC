@@ -13,6 +13,7 @@
 #include "edge_log.h"
 #include "edge_params.h"
 #include "edge_service.h"
+#include "northbound_driver_adapter.h"
 #include "northbound_mgr.h"
 #include "sqlite_service.h"
 #include "stream_engine.h"
@@ -34,7 +35,8 @@ int main(int argc, char** argv) {
 
     arbiter_t* arbiter = NULL;
     arbiter_init(&arbiter, loop);
-    driver_manager_t* drv_mgr = driver_manager_create();
+    driver_manager_storage_t drv_mgr_storage = {0};
+    driver_manager_t* drv_mgr = driver_manager_create_in(&drv_mgr_storage);
     modbus_driver_register(drv_mgr);
 
     datahub_t hub;
@@ -54,12 +56,13 @@ int main(int argc, char** argv) {
     northbound_mgr_init(north_mgr, loop, &hub, "vpp_demo", db_service);
 
     service_t* svc =
-        service_new(loop, &hub, arbiter, db_service, stream_engine, param_mgr, north_mgr);
+        service_new(loop, &hub, arbiter, db_service, stream_engine, param_mgr);
     g_running_svc = svc;
-    north_mgr->user_data = svc;
 
     signal(SIGTERM, on_sigterm);
     bus_orchestrator_run(io_orch);
+    northbound_attach_default_driver(north_mgr);
+    northbound_mgr_start(north_mgr);
     int exit_code = service_run(svc);
 
     service_delete(svc);

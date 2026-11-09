@@ -15,10 +15,7 @@
 #include "edge_params.h"
 #include "edge_service.h"
 #include "edge_version.h"
-#include "sqlite_service.h"
-#include "edge_app_mgr.h"
-#include "edgeos/app_registry_store.h"
-#include "stream_engine.h"
+#include "rest_control_port.h"
 
 #define HTTP_RESPONSE_FMT                \
     "HTTP/1.1 200 OK\r\n"                \
@@ -134,9 +131,10 @@ static char *handle_system_stats(service_t *svc) {
     }
 
     // 3. Pipeline (Stage 11.2)
-    stream_engine_t *engine = service_get_stream_engine(svc);
-    if (engine) {
-        char *engine_json = stream_engine_dump_json(engine);
+    const rest_control_port_t *control =
+        (const rest_control_port_t *)service_get_control_port(svc);
+    if (control && control->stream_topology_json) {
+        char *engine_json = control->stream_topology_json(control->ctx);
         if (engine_json) {
             cJSON *ej = cJSON_Parse(engine_json);
             if (ej) cJSON_AddItemToObject(root, "engine", ej);
@@ -321,38 +319,20 @@ static char *handle_buffer_snapshot(service_t *svc) {
 }
 
 static char *handle_stream_topology(service_t *svc) {
-    stream_engine_t *engine = service_get_stream_engine(svc);
-    if (engine) {
-        char *json = stream_engine_dump_json(engine);
+    const rest_control_port_t *control =
+        (const rest_control_port_t *)service_get_control_port(svc);
+    if (control && control->stream_topology_json) {
+        char *json = control->stream_topology_json(control->ctx);
         if (json) return json;
     }
     return strdup("{\"error\":\"engine_not_ready\"}");
 }
 
 static char *handle_apps_list(service_t *svc) {
-    sqlite_svc_t *db = service_get_storage(svc);
-    app_manifest_t apps[64];
-    int count = db ? app_registry_list(db, apps, 64) : 0;
-
-    cJSON *arr = cJSON_CreateArray();
-    for (int i = 0; i < count; i++) {
-        cJSON *item = cJSON_CreateObject();
-        cJSON_AddStringToObject(item, "id", apps[i].id);
-        cJSON_AddStringToObject(item, "name", apps[i].name);
-        cJSON_AddStringToObject(item, "version", apps[i].version);
-        cJSON_AddStringToObject(item, "author", apps[i].author);
-        cJSON_AddStringToObject(item, "wasm_path", apps[i].wasm_path);
-        cJSON_AddNumberToObject(item, "trigger_tag", apps[i].trigger_tag);
-        cJSON_AddStringToObject(item, "entry_func", apps[i].entry_func);
-        cJSON_AddStringToObject(item, "fault_policy", apps[i].fault_policy == FAULT_POLICY_ISOLATE_AND_ALARM ? "isolate_and_alarm" : "auto_restart");
-        cJSON_AddNumberToObject(item, "state", apps[i].state);
-        cJSON_AddNumberToObject(item, "restart_count", apps[i].restart_count);
-        cJSON_AddItemToArray(arr, item);
-    }
-
-    char *json = cJSON_PrintUnformatted(arr);
-    cJSON_Delete(arr);
-    return json;
+    const rest_control_port_t *control =
+        (const rest_control_port_t *)service_get_control_port(svc);
+    char *json = (control && control->apps_json) ? control->apps_json(control->ctx) : NULL;
+    return json ? json : strdup("[]");
 }
 
 static char *handle_apps_start(service_t *svc, const char *body) {
@@ -364,23 +344,15 @@ static char *handle_apps_start(service_t *svc, const char *body) {
         return strdup("{\"status\":\"error\",\"reason\":\"missing_app_id\"}");
     }
 
-    edge_app_mgr_t *mgr = (edge_app_mgr_t *)service_get_app_mgr(svc);
-    int rc = -1;
-    if (mgr) {
-        rc = edge_app_mgr_start(mgr, id_item->valuestring);
-    } else {
-        sqlite_svc_t *db = service_get_storage(svc);
-        if (db) {
-            app_manifest_t m;
-            if (app_registry_get(db, id_item->valuestring, &m) == 0) {
-                m.state = APP_STATE_RUNNING;
-                rc = app_registry_save(db, &m);
-            }
-        }
-    }
+    const rest_control_port_t *control =
+        (const rest_control_port_t *)service_get_control_port(svc);
+    int rc = (control && control->start_app)
+                 ? control->start_app(control->ctx, id_item->valuestring)
+                 : -1;
 
     cJSON_Delete(root);
-    return rc == 0 ? strdup("{\"status\":\"ok\"}") : strdup("{\"status\":\"error\",\"reason\":\"start_failed\"}");
+    return rc == 0 ? strdup("{\"status\":\"ok\"}")
+                   : strdup("{\"status\":\"error\",\"reason\":\"start_failed\"}");
 }
 
 static char *handle_apps_stop(service_t *svc, const char *body) {
@@ -392,23 +364,15 @@ static char *handle_apps_stop(service_t *svc, const char *body) {
         return strdup("{\"status\":\"error\",\"reason\":\"missing_app_id\"}");
     }
 
-    edge_app_mgr_t *mgr = (edge_app_mgr_t *)service_get_app_mgr(svc);
-    int rc = -1;
-    if (mgr) {
-        rc = edge_app_mgr_stop(mgr, id_item->valuestring);
-    } else {
-        sqlite_svc_t *db = service_get_storage(svc);
-        if (db) {
-            app_manifest_t m;
-            if (app_registry_get(db, id_item->valuestring, &m) == 0) {
-                m.state = APP_STATE_STOPPED;
-                rc = app_registry_save(db, &m);
-            }
-        }
-    }
+    const rest_control_port_t *control =
+        (const rest_control_port_t *)service_get_control_port(svc);
+    int rc = (control && control->stop_app)
+                 ? control->stop_app(control->ctx, id_item->valuestring)
+                 : -1;
 
     cJSON_Delete(root);
-    return rc == 0 ? strdup("{\"status\":\"ok\"}") : strdup("{\"status\":\"error\",\"reason\":\"stop_failed\"}");
+    return rc == 0 ? strdup("{\"status\":\"ok\"}")
+                   : strdup("{\"status\":\"error\",\"reason\":\"stop_failed\"}");
 }
 
 static char *handle_apps_upload(service_t *svc, const char *body) {
@@ -419,26 +383,15 @@ static char *handle_apps_upload(service_t *svc, const char *body) {
     cJSON *trigger_item = cJSON_GetObjectItem(root, "trigger_tag");
     cJSON *entry_item = cJSON_GetObjectItem(root, "entry_func");
     cJSON *payload_item = cJSON_GetObjectItem(root, "payload_hex");
+    cJSON *manifest_item = cJSON_GetObjectItem(root, "manifest");
 
     if (!name_item || !payload_item) {
         cJSON_Delete(root);
         return strdup("{\"status\":\"error\",\"reason\":\"missing_fields\"}");
     }
 
-    const char *name = name_item->valuestring;
     const char *hex = payload_item->valuestring;
     size_t hex_len = strlen(hex);
-
-    app_manifest_t manifest;
-    cJSON *manifest_item = cJSON_GetObjectItem(root, "manifest");
-    if (manifest_item && manifest_item->valuestring) {
-        edge_app_mgr_parse_manifest_json(manifest_item->valuestring, &manifest);
-    } else {
-        edge_app_mgr_construct_default_manifest(name, &manifest);
-        if (trigger_item) manifest.trigger_tag = (uint32_t)trigger_item->valueint;
-        if (entry_item && entry_item->valuestring) snprintf(manifest.entry_func, sizeof(manifest.entry_func), "%s", entry_item->valuestring);
-    }
-
     uint8_t *wasm_buf = malloc(hex_len / 2 + 1);
     size_t wasm_len = 0;
     if (wasm_buf) {
@@ -449,40 +402,28 @@ static char *handle_apps_upload(service_t *svc, const char *body) {
         }
     }
 
-    edge_app_mgr_t *mgr = (edge_app_mgr_t *)service_get_app_mgr(svc);
-    if (mgr) {
-        int install_rc = edge_app_mgr_install(mgr, &manifest, wasm_buf, wasm_len);
-        if (install_rc != 0) {
-            free(wasm_buf);
-            cJSON_Delete(root);
-            return strdup("{\"status\":\"error\",\"reason\":\"install_failed\"}");
-        }
-        edge_app_mgr_start(mgr, manifest.id);
-    } else {
-        sqlite_svc_t *db = service_get_storage(svc);
-        if (db) {
-            manifest.state = APP_STATE_RUNNING;
-            app_registry_save(db, &manifest);
-        }
+    const rest_control_port_t *control =
+        (const rest_control_port_t *)service_get_control_port(svc);
+    if (!control || !control->install_app) {
+        free(wasm_buf);
+        cJSON_Delete(root);
+        return strdup("{\"status\":\"error\",\"reason\":\"app_manager_unavailable\"}");
     }
+    int rc = control->install_app(control->ctx,
+                                  manifest_item ? manifest_item->valuestring : NULL,
+                                  name_item->valuestring,
+                                  trigger_item ? (uint32_t)trigger_item->valueint : 0,
+                                  entry_item ? entry_item->valuestring : NULL,
+                                  wasm_buf, wasm_len);
 
-    if (wasm_buf) free(wasm_buf);
-
-    stream_engine_t *engine = service_get_stream_engine(svc);
-    if (engine) {
-        pipeline_stage_t *st = stage_wasm_create(manifest.wasm_path, manifest.entry_func);
-        if (st) {
-            stream_engine_set_pipeline_trigger(engine, manifest.id, manifest.trigger_tag);
-            stream_engine_replace_pipeline_stage(engine, manifest.id, st);
-            free(st);
-        }
-    }
-
+    free(wasm_buf);
     cJSON_Delete(root);
-    return strdup("{\"status\":\"ok\"}");
+    return rc == 0 ? strdup("{\"status\":\"ok\"}")
+                   : strdup("{\"status\":\"error\",\"reason\":\"install_failed\"}");
 }
 
 char *rest_dispatch(service_t *svc, const char *method, const char *path, const char *body) {
+    // rt-alloc-ok: management-plane REST router, not an execution callback; cJSON allocates internally
     if (!svc) {
         fprintf(stderr, "[REST] ERROR: Dispatch called with NULL service context!\n");
         return strdup("{\"error\":\"no_context\"}");

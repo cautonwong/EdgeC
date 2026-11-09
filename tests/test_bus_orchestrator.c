@@ -30,7 +30,8 @@ static void test_bus_orchestrator_dynamic_create(void** state) {
 
     arbiter_t* arb = NULL;
     arbiter_init(&arb, &loop);
-    driver_manager_t* mgr = driver_manager_create();
+    driver_manager_storage_t mgr_storage = {0};
+    driver_manager_t* mgr = driver_manager_create_in(&mgr_storage);
 
     bus_orchestrator_t* ctx = bus_orchestrator_create(&hub, arb, mgr, 8, 32, 2048);
     assert_non_null(ctx);

@@ -113,9 +113,9 @@ target_link_libraries(${PROD_NAME} PRIVATE
     edge_io
     edge_stream
     edge_algo
-    edge_security
+    edge_security_policy
     edge_core
-    edge_protocol
+    edge_codec
     contract_${PROD_NAME}
     -Wl,--end-group
     edge_common_interface
@@ -177,7 +177,8 @@ int main(int argc, char* argv[]) {
     }
 
     // 3. 初始化驱动管理器并注入生成式驱动注册表 (零手工 extern)
-    driver_manager_t* drv_mgr = driver_manager_create();
+    driver_manager_storage_t drv_mgr_storage = {0};
+    driver_manager_t* drv_mgr = driver_manager_create_in(&drv_mgr_storage);
     if (!drv_mgr) {
         fprintf(stderr, "[-] Failed to create driver manager\n");
         datahub_destroy(dh);

@@ -32,6 +32,7 @@ HOTPATH_NAME = re.compile(
 )
 CONSTRUCTOR_NAME = re.compile(r"\b(\w+_(?:create|init|new|alloc|load|open|ctor)\w*)\s*\(")
 ALLOC_CALL = re.compile(r"\b(?:malloc|calloc|realloc|valloc|aligned_alloc|strdup|strndup)\s*\(")
+RT_ALLOC_OK = re.compile(r"^\s*//\s*rt-alloc-ok:\s*\S")
 
 PRUNE_DIRS = {
     ".git",
@@ -78,11 +79,23 @@ def check_file(file_path, repo_root):
 
     # Strip line comments so commented-out code cannot trigger the guard.
     stripped = re.sub(r"//[^\n]*", "", text)
+    # Remove block comments for marker detection, keeping their newlines so
+    # line numbers stay aligned. A marker inside /* ... */ is not a line comment.
+    no_block = re.sub(
+        r"/\*.*?\*/", lambda match: "\n" * match.group(0).count("\n"), text, flags=re.S
+    )
+    orig_lines = no_block.splitlines()
 
     for name, offset, body in _iter_function_bodies(stripped):
         if CONSTRUCTOR_NAME.search(name):
             continue
         if not HOTPATH_NAME.search(name + "("):
+            continue
+        start_line = stripped.count("\n", 0, offset) + 1
+        if any(
+            RT_ALLOC_OK.search(orig_lines[i])
+            for i in range(start_line - 1, min(start_line + 2, len(orig_lines)))
+        ):
             continue
         for alloc in ALLOC_CALL.finditer(body):
             line_no = stripped.count("\n", 0, offset + alloc.start()) + 1

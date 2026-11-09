@@ -61,23 +61,22 @@ PATH_RULES = [
 # ---------------------------------------------------------------------------
 MODULE_ALLOWED = {
     "edge_core": set(),
-    "edge_algo": {"edge_core"},
-    "edge_protocol": {"edge_core"},
-    "edge_security": {"edge_core"},
-    "edge_stream": {"edge_core", "edge_algo"},
+    "edge_algo": set(),
+    "edge_security_policy": set(),
+    "edge_stream": {"edge_algo"},
     "edge_infra": {"edge_core"},
-    "edge_mgmt": {"edge_core", "edge_infra"},
+    "edge_infra_security": {"edge_core"},
+    "edge_mgmt": set(),
     "edge_io": {
         "edge_core",
         "edge_algo",
-        "edge_protocol",
         "edge_stream",
-        "edge_security",
         "edge_infra",
         "edge_mgmt",
     },
-    "edge_mcp": {"edge_core", "edge_io", "edge_stream", "edge_infra"},
-    "edge_bootstrap": {"edge_core", "edge_infra", "edge_stream", "edge_io", "edge_mcp"},
+    "edge_north": {"edge_core", "edge_infra"},
+    "edge_mcp": set(),
+    "edge_bootstrap": {"edge_core", "edge_infra", "edge_stream", "edge_io", "edge_mcp", "edge_mgmt", "edge_north"},
 }
 
 def _scanning_fixture(target_dir: str) -> bool:

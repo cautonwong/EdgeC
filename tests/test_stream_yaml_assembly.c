@@ -57,6 +57,22 @@ static pipeline_stage_t *custom_gain_factory(const char *name, void *config_json
     return stage;
 }
 
+static int stub_sqlite_exec(void *ctx, const char *sql) {
+    (void)ctx;
+    (void)sql;
+    return 0;
+}
+
+static int stub_submit_control(void *ctx, int bus_id, uint32_t tag_id, double value,
+                               const char *proto) {
+    (void)ctx;
+    (void)bus_id;
+    (void)tag_id;
+    (void)value;
+    (void)proto;
+    return 0;
+}
+
 // --- Test Cases ---
 
 static void test_declarative_dag_assembly_and_execution(void **state) {
@@ -191,11 +207,107 @@ static void test_custom_stage_factory_registration(void **state) {
     datahub_destroy(&hub);
 }
 
+static void test_builtin_stage_types_load(void **state) {
+    (void)state;
+    datahub_t hub;
+    int rc = datahub_init(&hub, NULL, "stream_builtin_types", 64, 0x10000, NULL, 0, NULL, NULL, NULL);
+    assert_int_equal(rc, 0);
+
+    stream_engine_t *engine = stream_engine_create_datahub(&hub, NULL, NULL, NULL);
+    assert_non_null(engine);
+
+    static const struct {
+        const char *type;
+        const char *params;
+    } cases[] = {
+        {"energy_integrator", "{\"state_tag\": 101}"},
+        {"dsp_rms", "{\"state_tag\": 102}"},
+        {"filter", "{\"tag_id\": 103}"},
+        {"periodic_freeze", "{\"kind\": 1}"},
+        {"time_guard", "{}"},
+        {"battery_guard", "{\"max_soc\": 95.0, \"min_soc\": 10.0, \"max_charge_w\": 5000.0, "
+                          "\"max_discharge_w\": 5000.0}"},
+        {"transform", "{\"alpha\": 1.1, \"beta\": 5.0}"},
+        {"ema", "{\"alpha\": 0.5}"},
+        {"clamp", "{\"min\": 0.0, \"max\": 100.0}"},
+        {"peak_shave", "{\"threshold\": 5000.0, \"ctrl_tag\": 104}"},
+        {"accumulate", "{}"},
+        {"sqlite_sink", "{\"table\": \"history\"}"},
+        {"reflex", "{\"bus_id\": 1, \"protocol\": \"modbus\", \"target_tag\": 105, "
+                   "\"threshold\": 10.0, \"greater_than\": true, \"action_value\": 1.0}"},
+    };
+
+    pipeline_loader_ctx_t ctx = {0};
+    ctx.db.exec = stub_sqlite_exec;
+    ctx.control_ops.submit_control = stub_submit_control;
+
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        char contract[1024];
+        snprintf(contract, sizeof(contract),
+                 "{ \"pipelines\": [ { \"id\": \"builtin_%s\", \"trigger_tag\": %u, "
+                 "\"nodes\": [ { \"name\": \"node_%s\", \"type\": \"%s\", \"params\": %s } ] } ] }",
+                 cases[i].type, 3001u + (unsigned)i, cases[i].type, cases[i].type, cases[i].params);
+        rc = stream_engine_load_yaml_contract(engine, contract, &ctx);
+        assert_int_equal(rc, 0);
+
+        char *dot = stream_engine_export_dot(engine);
+        assert_non_null(dot);
+        char node_name[128];
+        snprintf(node_name, sizeof(node_name), "node_%s", cases[i].type);
+        assert_non_null(strstr(dot, node_name));
+        free(dot);
+    }
+
+    stream_engine_destroy(engine);
+    datahub_destroy(&hub);
+}
+
+static void test_context_dependent_stage_types_skip_without_ports(void **state) {
+    (void)state;
+    datahub_t hub;
+    int rc = datahub_init(&hub, NULL, "stream_builtin_skip", 64, 0x10000, NULL, 0, NULL, NULL, NULL);
+    assert_int_equal(rc, 0);
+
+    stream_engine_t *engine = stream_engine_create_datahub(&hub, NULL, NULL, NULL);
+    assert_non_null(engine);
+
+    const char *contract =
+        "{"
+        "  \"pipelines\": ["
+        "    {"
+        "      \"id\": \"context_skip\","
+        "      \"trigger_tag\": 3002,"
+        "      \"nodes\": ["
+        "        { \"name\": \"js_rule_1\", \"type\": \"js_rule\", \"params\": "
+        "{ \"script_path\": \"algo/js/normal.js\" } },"
+        "        { \"name\": \"wasm_executor_1\", \"type\": \"wasm_executor\", \"params\": "
+        "{ \"module\": \"missing.wasm\", \"entry\": \"on_event\" } }"
+        "      ]"
+        "    }"
+        "  ]"
+        "}";
+
+    pipeline_loader_ctx_t ctx = {0};
+    rc = stream_engine_load_yaml_contract(engine, contract, &ctx);
+    assert_int_equal(rc, 0);
+
+    char *dot = stream_engine_export_dot(engine);
+    assert_non_null(dot);
+    assert_null(strstr(dot, "js_rule_1"));
+    assert_null(strstr(dot, "wasm_executor_1"));
+    free(dot);
+
+    stream_engine_destroy(engine);
+    datahub_destroy(&hub);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_declarative_dag_assembly_and_execution),
         cmocka_unit_test(test_dag_cycle_detection_rejected),
         cmocka_unit_test(test_custom_stage_factory_registration),
+        cmocka_unit_test(test_builtin_stage_types_load),
+        cmocka_unit_test(test_context_dependent_stage_types_skip_without_ports),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

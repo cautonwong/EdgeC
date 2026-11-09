@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <uv.h>
 
-#include "shmring.h"
+#include "pipe_msg.h"
 
 #ifdef __cplusplus
 extern "C" {

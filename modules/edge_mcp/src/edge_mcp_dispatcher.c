@@ -12,12 +12,6 @@
 #include <cjson/cJSON.h>
 
 #include "edgeos/edge_mcp_dispatcher.h"
-#include "edgeos/edge_mcp_industry_tools.h"
-#include "driver_manager.h"
-#include "edge_driver.h"
-#include "stream_engine.h"
-#include "storage_ops.h"
-#include "edge_log.h"
 
 #define MAX_MCP_TOOLS 64
 
@@ -28,7 +22,7 @@ struct edge_mcp_dispatcher_s {
     uv_mutex_t lock;
 };
 
-/* ---------------- 13 Built-in Industrial Tool Handlers ---------------- */
+/* ---------------- 4 Built-in DataHub Tool Handlers ---------------- */
 
 /* 1. datahub_read_tags */
 static int handle_datahub_read_tags(edge_mcp_dispatcher_t *disp, const cJSON *params, cJSON **out_result, char *err_msg, size_t err_len) {
@@ -48,13 +42,13 @@ static int handle_datahub_read_tags(edge_mcp_dispatcher_t *disp, const cJSON *pa
             cJSON *tag_obj = cJSON_CreateObject();
             cJSON_AddNumberToObject(tag_obj, "tag_id", tid);
 
-            if (disp->env.bus.read_shadow) {
-                pipe_msg_t msg = {0};
-                if (edge_mcp_bus_read_shadow(&disp->env.bus, tid, &msg) == 0) {
-                    cJSON_AddNumberToObject(tag_obj, "value", msg.payload.val.f);
-                    cJSON_AddNumberToObject(tag_obj, "quality", msg.quality);
-                    cJSON_AddNumberToObject(tag_obj, "timestamp", (double)msg.ts);
-                    cJSON_AddNumberToObject(tag_obj, "type", msg.type);
+            if (disp->env.tools.read_tag) {
+                edge_mcp_tag_value_t value = {0};
+                if (edge_mcp_tool_read_tag(&disp->env.tools, tid, &value) == 0) {
+                    cJSON_AddNumberToObject(tag_obj, "value", value.value);
+                    cJSON_AddNumberToObject(tag_obj, "quality", value.quality);
+                    cJSON_AddNumberToObject(tag_obj, "timestamp", (double)value.timestamp_ms);
+                    cJSON_AddNumberToObject(tag_obj, "type", value.type);
                 } else {
                     cJSON_AddNullToObject(tag_obj, "value");
                     cJSON_AddStringToObject(tag_obj, "status", "not_found");
@@ -96,15 +90,15 @@ static int handle_datahub_write_tag(edge_mcp_dispatcher_t *disp, const cJSON *pa
     cJSON_AddNumberToObject(res, "tag_id", tid);
     cJSON_AddNumberToObject(res, "written_value", val);
 
-    if (disp->env.bus.write_shadow) {
-        pipe_msg_t msg = {
+    if (disp->env.tools.write_tag) {
+        edge_mcp_tag_value_t value = {
             .tag_id = tid,
-            .payload = { .val = { .f = val } },
+            .value = val,
             .quality = q,
-            .type = PIPEMSG_TYPE_SCALAR,
-            .ts = (uint64_t)uv_hrtime() / 1000000ULL
+            .type = EDGE_MCP_TAG_TYPE_SCALAR,
+            .timestamp_ms = (uint64_t)uv_hrtime() / 1000000ULL
         };
-        int rc = edge_mcp_bus_write_shadow(&disp->env.bus, &msg);
+        int rc = edge_mcp_tool_write_tag(&disp->env.tools, &value);
         cJSON_AddBoolToObject(res, "success", (rc == 0));
         cJSON_AddNumberToObject(res, "code", rc);
     } else {
@@ -118,25 +112,32 @@ static int handle_datahub_write_tag(edge_mcp_dispatcher_t *disp, const cJSON *pa
 
 /* 3. datahub_get_tag_meta */
 static int handle_datahub_get_tag_meta(edge_mcp_dispatcher_t *disp, const cJSON *params, cJSON **out_result, char *err_msg, size_t err_len) {
-    (void)disp; (void)err_len;
     const cJSON *tag_id_item = cJSON_GetObjectItem(params, "tag_id");
     if (!tag_id_item || !cJSON_IsNumber(tag_id_item)) {
         snprintf(err_msg, err_len, "Missing numeric 'tag_id'");
         return MCP_RPC_INVALID_PARAMS;
     }
 
-    uint32_t tid = (uint32_t)tag_id_item->valueint;
-    cJSON *res = cJSON_CreateObject();
-    cJSON_AddNumberToObject(res, "tag_id", tid);
+    if (!disp->env.tools.get_tag_meta) {
+        snprintf(err_msg, err_len, "Tag metadata provider is not available");
+        return MCP_RPC_TOOL_EXEC_ERROR;
+    }
 
-    char tag_name[64];
-    snprintf(tag_name, sizeof(tag_name), "TAG_%04X", tid);
-    cJSON_AddStringToObject(res, "name", tag_name);
-    cJSON_AddStringToObject(res, "unit", (tid >= 0x1000 && tid < 0x2000) ? "V" :
-                                         (tid >= 0x2000 && tid < 0x3000) ? "A" :
-                                         (tid >= 0x3000 && tid < 0x4000) ? "kW" : "Hz");
-    cJSON_AddNumberToObject(res, "scale", 0.01);
-    cJSON_AddStringToObject(res, "domain", (tid < 0x2000) ? "GRID" : (tid < 0x4000) ? "ESS" : "PV");
+    uint32_t tid = (uint32_t)tag_id_item->valueint;
+    edge_mcp_tag_meta_t meta = {0};
+    if (edge_mcp_tool_get_tag_meta(&disp->env.tools, tid, &meta) != 0) {
+        snprintf(err_msg, err_len, "Tag metadata not found");
+        return MCP_RPC_TOOL_EXEC_ERROR;
+    }
+
+    cJSON *res = cJSON_CreateObject();
+    if (!res) return MCP_RPC_INTERNAL_ERROR;
+    cJSON_AddNumberToObject(res, "tag_id", meta.tag_id);
+    cJSON_AddStringToObject(res, "name", meta.name);
+    cJSON_AddStringToObject(res, "unit", meta.unit);
+    cJSON_AddStringToObject(res, "category", meta.category);
+    cJSON_AddNumberToObject(res, "min", meta.min_value);
+    cJSON_AddNumberToObject(res, "max", meta.max_value);
 
     *out_result = res;
     return 0;
@@ -150,15 +151,15 @@ static int handle_datahub_scan_abnormal(edge_mcp_dispatcher_t *disp, const cJSON
     cJSON_AddItemToObject(res, "abnormal_tags", abnormal_list);
 
     int count = 0;
-    if (disp->env.bus.read_shadow) {
+    if (disp->env.tools.read_tag) {
         for (uint32_t tid = 1; tid < 256; tid++) {
-            pipe_msg_t msg = {0};
-            if (edge_mcp_bus_read_shadow(&disp->env.bus, tid, &msg) == 0) {
-                if (msg.quality != 0) {
+            edge_mcp_tag_value_t value = {0};
+            if (edge_mcp_tool_read_tag(&disp->env.tools, tid, &value) == 0) {
+                if (value.quality != 0) {
                     cJSON *item = cJSON_CreateObject();
                     cJSON_AddNumberToObject(item, "tag_id", tid);
-                    cJSON_AddNumberToObject(item, "value", msg.payload.val.f);
-                    cJSON_AddNumberToObject(item, "quality", msg.quality);
+                    cJSON_AddNumberToObject(item, "value", value.value);
+                    cJSON_AddNumberToObject(item, "quality", value.quality);
                     cJSON_AddItemToArray(abnormal_list, item);
                     count++;
                 }
@@ -166,216 +167,6 @@ static int handle_datahub_scan_abnormal(edge_mcp_dispatcher_t *disp, const cJSON
         }
     }
     cJSON_AddNumberToObject(res, "abnormal_count", count);
-
-    *out_result = res;
-    return 0;
-}
-
-/* 5. io_list_channels */
-static int handle_io_list_channels(edge_mcp_dispatcher_t *disp, const cJSON *params, cJSON **out_result, char *err_msg, size_t err_len) {
-    (void)disp; (void)params; (void)err_msg; (void)err_len;
-    cJSON *res = cJSON_CreateObject();
-    cJSON *channels = cJSON_CreateArray();
-    cJSON_AddItemToObject(res, "channels", channels);
-
-    const char *mock_ch[] = {"RS485-1 (Modbus-RTU)", "RS485-2 (DL/T 645)", "ETH-1 (IEC 60870-5-104)", "CAN-1 (BMS)"};
-    for (int i = 0; i < 4; i++) {
-        cJSON *ch = cJSON_CreateObject();
-        cJSON_AddNumberToObject(ch, "channel_id", i + 1);
-        cJSON_AddStringToObject(ch, "name", mock_ch[i]);
-        cJSON_AddStringToObject(ch, "status", "ONLINE");
-        cJSON_AddNumberToObject(ch, "baud_or_port", (i < 2) ? 9600 : 2404);
-        cJSON_AddItemToArray(channels, ch);
-    }
-    cJSON_AddNumberToObject(res, "total_channels", 4);
-
-    *out_result = res;
-    return 0;
-}
-
-/* 6. io_get_channel_health */
-static int handle_io_get_channel_health(edge_mcp_dispatcher_t *disp, const cJSON *params, cJSON **out_result, char *err_msg, size_t err_len) {
-    (void)disp; (void)err_msg; (void)err_len;
-    const cJSON *ch_id_item = cJSON_GetObjectItem(params, "channel_id");
-    int ch_id = (ch_id_item && cJSON_IsNumber(ch_id_item)) ? ch_id_item->valueint : 1;
-
-    cJSON *res = cJSON_CreateObject();
-    cJSON_AddNumberToObject(res, "channel_id", ch_id);
-    cJSON_AddNumberToObject(res, "rx_packets", 12450);
-    cJSON_AddNumberToObject(res, "tx_packets", 12448);
-    cJSON_AddNumberToObject(res, "crc_errors", 2);
-    cJSON_AddNumberToObject(res, "timeouts", 0);
-    cJSON_AddNumberToObject(res, "packet_loss_rate_ppm", 160);
-    cJSON_AddStringToObject(res, "health_grade", "EXCELLENT");
-
-    *out_result = res;
-    return 0;
-}
-
-/* 7. io_trace_raw_packets */
-static int handle_io_trace_raw_packets(edge_mcp_dispatcher_t *disp, const cJSON *params, cJSON **out_result, char *err_msg, size_t err_len) {
-    (void)disp; (void)err_msg; (void)err_len;
-    const cJSON *limit_item = cJSON_GetObjectItem(params, "limit");
-    int limit = (limit_item && cJSON_IsNumber(limit_item)) ? limit_item->valueint : 5;
-    if (limit <= 0) limit = 5;
-    if (limit > 50) limit = 50;
-
-    cJSON *res = cJSON_CreateObject();
-    cJSON *traces = cJSON_CreateArray();
-    cJSON_AddItemToObject(res, "packets", traces);
-
-    for (int i = 0; i < limit; i++) {
-        cJSON *pkt = cJSON_CreateObject();
-        cJSON_AddNumberToObject(pkt, "seq", 1000 + i);
-        cJSON_AddStringToObject(pkt, "direction", (i % 2 == 0) ? "TX" : "RX");
-        cJSON_AddStringToObject(pkt, "hex_dump", (i % 2 == 0) ? "01 03 00 00 00 02 C4 0B" : "01 03 04 09 51 00 00 7B 12");
-        cJSON_AddNumberToObject(pkt, "len", (i % 2 == 0) ? 8 : 9);
-        cJSON_AddItemToArray(traces, pkt);
-    }
-    cJSON_AddNumberToObject(res, "count", limit);
-
-    *out_result = res;
-    return 0;
-}
-
-/* 8. pipeline_get_dag_status */
-static int handle_pipeline_get_dag_status(edge_mcp_dispatcher_t *disp, const cJSON *params, cJSON **out_result, char *err_msg, size_t err_len) {
-    (void)disp; (void)params; (void)err_msg; (void)err_len;
-    cJSON *res = cJSON_CreateObject();
-    cJSON *nodes = cJSON_CreateArray();
-    cJSON_AddItemToObject(res, "nodes", nodes);
-
-    const char *stage_names[] = {"source_adc", "dsp_fft_stage", "rms_calc_stage", "mpc_island_stage", "sink_datahub"};
-    for (int i = 0; i < 5; i++) {
-        cJSON *node = cJSON_CreateObject();
-        cJSON_AddStringToObject(node, "stage_id", stage_names[i]);
-        cJSON_AddStringToObject(node, "status", "RUNNING");
-        cJSON_AddNumberToObject(node, "queue_depth", 0);
-        cJSON_AddNumberToObject(node, "processed_count", 45000 + i * 100);
-        cJSON_AddItemToArray(nodes, node);
-    }
-    cJSON_AddStringToObject(res, "dag_state", "HEALTHY");
-
-    *out_result = res;
-    return 0;
-}
-
-/* 9. pipeline_query_metrics */
-static int handle_pipeline_query_metrics(edge_mcp_dispatcher_t *disp, const cJSON *params, cJSON **out_result, char *err_msg, size_t err_len) {
-    (void)disp; (void)params; (void)err_msg; (void)err_len;
-    cJSON *res = cJSON_CreateObject();
-    cJSON_AddNumberToObject(res, "throughput_msgs_per_sec", 1000.0);
-    cJSON_AddNumberToObject(res, "avg_latency_us", 42.5);
-    cJSON_AddNumberToObject(res, "max_latency_us", 118.0);
-    cJSON_AddNumberToObject(res, "dropped_msgs", 0);
-    cJSON_AddNumberToObject(res, "cpu_usage_pct", 1.8);
-
-    *out_result = res;
-    return 0;
-}
-
-/* 10. dds_list_discovered_nodes */
-static int handle_dds_list_discovered_nodes(edge_mcp_dispatcher_t *disp, const cJSON *params, cJSON **out_result, char *err_msg, size_t err_len) {
-    (void)disp; (void)params; (void)err_msg; (void)err_len;
-    cJSON *res = cJSON_CreateObject();
-    cJSON *nodes = cJSON_CreateArray();
-    cJSON_AddItemToObject(res, "discovered_nodes", nodes);
-
-    cJSON *n1 = cJSON_CreateObject();
-    cJSON_AddStringToObject(n1, "node_guid", "010f3c4e:00000001:00000001");
-    cJSON_AddStringToObject(n1, "product_name", "DCU_Standard_V1");
-    cJSON_AddStringToObject(n1, "ip_address", "192.168.1.101");
-    cJSON_AddStringToObject(n1, "liveliness", "ALIVE");
-    cJSON_AddItemToArray(nodes, n1);
-
-    cJSON *n2 = cJSON_CreateObject();
-    cJSON_AddStringToObject(n2, "node_guid", "010f3c4e:00000002:00000001");
-    cJSON_AddStringToObject(n2, "product_name", "IEMS_Commercial_V1");
-    cJSON_AddStringToObject(n2, "ip_address", "192.168.1.102");
-    cJSON_AddStringToObject(n2, "liveliness", "ALIVE");
-    cJSON_AddItemToArray(nodes, n2);
-
-    cJSON_AddNumberToObject(res, "total_discovered", 2);
-
-    *out_result = res;
-    return 0;
-}
-
-/* 11. dds_inspect_topics */
-static int handle_dds_inspect_topics(edge_mcp_dispatcher_t *disp, const cJSON *params, cJSON **out_result, char *err_msg, size_t err_len) {
-    (void)disp; (void)params; (void)err_msg; (void)err_len;
-    cJSON *res = cJSON_CreateObject();
-    cJSON *topics = cJSON_CreateArray();
-    cJSON_AddItemToObject(res, "topics", topics);
-
-    const char *top_names[] = {"EdgeOS/DCU/Telemetry", "EdgeOS/IEMS/Control", "EdgeOS/Global/Events"};
-    const char *qos_list[] = {"VOLATILE / BEST_EFFORT", "RELIABLE / TRANSIENT_LOCAL", "RELIABLE / TRANSIENT_LOCAL"};
-
-    for (int i = 0; i < 3; i++) {
-        cJSON *t = cJSON_CreateObject();
-        cJSON_AddStringToObject(t, "name", top_names[i]);
-        cJSON_AddStringToObject(t, "type_name", "EdgeOS::PipeMsg");
-        cJSON_AddStringToObject(t, "qos_profile", qos_list[i]);
-        cJSON_AddNumberToObject(t, "reader_count", 2);
-        cJSON_AddNumberToObject(t, "writer_count", 1);
-        cJSON_AddItemToArray(topics, t);
-    }
-    cJSON_AddNumberToObject(res, "topic_count", 3);
-
-    *out_result = res;
-    return 0;
-}
-
-/* 12. storage_query_soe_events */
-static int handle_storage_query_soe_events(edge_mcp_dispatcher_t *disp, const cJSON *params, cJSON **out_result, char *err_msg, size_t err_len) {
-    (void)disp; (void)err_msg; (void)err_len;
-    const cJSON *limit_item = cJSON_GetObjectItem(params, "limit");
-    int limit = (limit_item && cJSON_IsNumber(limit_item)) ? limit_item->valueint : 10;
-    if (limit <= 0) limit = 10;
-    if (limit > 100) limit = 100;
-
-    cJSON *res = cJSON_CreateObject();
-    cJSON *events = cJSON_CreateArray();
-    cJSON_AddItemToObject(res, "soe_events", events);
-
-    cJSON *ev1 = cJSON_CreateObject();
-    cJSON_AddNumberToObject(ev1, "event_id", 3011);
-    cJSON_AddStringToObject(ev1, "event_name", "GRID_POWER_OUTAGE");
-    cJSON_AddNumberToObject(ev1, "timestamp", 1725700000120ULL);
-    cJSON_AddStringToObject(ev1, "severity", "CRITICAL");
-    cJSON_AddStringToObject(ev1, "detail", "Phase A/B/C loss detected at busbar");
-    cJSON_AddItemToArray(events, ev1);
-
-    cJSON *ev2 = cJSON_CreateObject();
-    cJSON_AddNumberToObject(ev2, "event_id", 3008);
-    cJSON_AddStringToObject(ev2, "event_name", "VOLTAGE_UNBALANCE_ALARM");
-    cJSON_AddNumberToObject(ev2, "timestamp", 1725700030500ULL);
-    cJSON_AddStringToObject(ev2, "severity", "WARNING");
-    cJSON_AddStringToObject(ev2, "detail", "Negative sequence unbalance 4.2% exceeds threshold 2.0%");
-    cJSON_AddItemToArray(events, ev2);
-
-    cJSON_AddNumberToObject(res, "total_events", 2);
-
-    *out_result = res;
-    return 0;
-}
-
-/* 13. storage_query_waveform */
-static int handle_storage_query_waveform(edge_mcp_dispatcher_t *disp, const cJSON *params, cJSON **out_result, char *err_msg, size_t err_len) {
-    (void)disp; (void)err_msg; (void)err_len;
-    const cJSON *channel_item = cJSON_GetObjectItem(params, "channel");
-    const char *channel = (channel_item && cJSON_IsString(channel_item)) ? channel_item->valuestring : "U_A";
-
-    cJSON *res = cJSON_CreateObject();
-    cJSON_AddStringToObject(res, "channel", channel);
-    cJSON_AddNumberToObject(res, "sampling_rate_hz", 12800);
-    cJSON_AddNumberToObject(res, "total_samples", 256);
-
-    cJSON *samples = cJSON_CreateArray();
-    cJSON_AddItemToObject(res, "samples", samples);
-    for (int i = 0; i < 32; i++) {
-        cJSON_AddItemToArray(samples, cJSON_CreateNumber((double)i * 10.0));
-    }
 
     *out_result = res;
     return 0;
@@ -398,7 +189,7 @@ static const edge_mcp_tool_def_t g_default_tools[] = {
     },
     {
         .name = "datahub_get_tag_meta",
-        .description = "Get static contract metadata (name, scaling factor, engineering unit, domain) for a Tag ID",
+        .description = "Get static contract metadata (name, engineering unit, category, physical range) for a Tag ID",
         .input_schema_json = "{\"type\":\"object\",\"properties\":{\"tag_id\":{\"type\":\"integer\"}},\"required\":[\"tag_id\"]}",
         .handler = handle_datahub_get_tag_meta
     },
@@ -408,60 +199,6 @@ static const edge_mcp_tool_def_t g_default_tools[] = {
         .input_schema_json = "{\"type\":\"object\",\"properties\":{}}",
         .handler = handle_datahub_scan_abnormal
     },
-    {
-        .name = "io_list_channels",
-        .description = "List all registered southbound communication channels (RS485, CAN, Ethernet, Modbus, 104)",
-        .input_schema_json = "{\"type\":\"object\",\"properties\":{}}",
-        .handler = handle_io_list_channels
-    },
-    {
-        .name = "io_get_channel_health",
-        .description = "Get detailed packet statistics, CRC errors, timeouts and health grade for a channel",
-        .input_schema_json = "{\"type\":\"object\",\"properties\":{\"channel_id\":{\"type\":\"integer\"}},\"required\":[\"channel_id\"]}",
-        .handler = handle_io_get_channel_health
-    },
-    {
-        .name = "io_trace_raw_packets",
-        .description = "Inspect recent hex-dump raw frame captures on south/northbound channels",
-        .input_schema_json = "{\"type\":\"object\",\"properties\":{\"limit\":{\"type\":\"integer\",\"default\":5}}}",
-        .handler = handle_io_trace_raw_packets
-    },
-    {
-        .name = "pipeline_get_dag_status",
-        .description = "Inspect execution state, queue depths, and throughput across Stream Engine DAG nodes",
-        .input_schema_json = "{\"type\":\"object\",\"properties\":{}}",
-        .handler = handle_pipeline_get_dag_status
-    },
-    {
-        .name = "pipeline_query_metrics",
-        .description = "Get DSP/Stream processing latency distribution, drop counts, and CPU overhead",
-        .input_schema_json = "{\"type\":\"object\",\"properties\":{}}",
-        .handler = handle_pipeline_query_metrics
-    },
-    {
-        .name = "dds_list_discovered_nodes",
-        .description = "List distributed mesh nodes discovered via Eclipse Cyclone DDS RTPS liveliness",
-        .input_schema_json = "{\"type\":\"object\",\"properties\":{}}",
-        .handler = handle_dds_list_discovered_nodes
-    },
-    {
-        .name = "dds_inspect_topics",
-        .description = "Inspect published and subscribed DDS topics, types, QoS profiles, and reader counts",
-        .input_schema_json = "{\"type\":\"object\",\"properties\":{}}",
-        .handler = handle_dds_inspect_topics
-    },
-    {
-        .name = "storage_query_soe_events",
-        .description = "Query Sequence of Events (SOE) fault and alarm historical records from SQLite WAL storage",
-        .input_schema_json = "{\"type\":\"object\",\"properties\":{\"limit\":{\"type\":\"integer\",\"default\":10}}}",
-        .handler = handle_storage_query_soe_events
-    },
-    {
-        .name = "storage_query_waveform",
-        .description = "Query transient COMTRADE waveform samples for electrical fault diagnosis",
-        .input_schema_json = "{\"type\":\"object\",\"properties\":{\"channel\":{\"type\":\"string\",\"default\":\"U_A\"}}}",
-        .handler = handle_storage_query_waveform
-    }
 };
 
 /* ---------------- Dispatcher Lifecycle & Registration ---------------- */
@@ -475,14 +212,12 @@ edge_mcp_dispatcher_t *edge_mcp_dispatcher_create(const edge_mcp_env_t *env) {
     }
     uv_mutex_init(&disp->lock);
 
-    /* Register all 13 standard default tools */
+    /* Register the standard DataHub tools. Product-specific tool packs are
+     * registered by the composition root after creation. */
     size_t num_defaults = sizeof(g_default_tools) / sizeof(g_default_tools[0]);
     for (size_t i = 0; i < num_defaults; i++) {
         edge_mcp_register_tool(disp, &g_default_tools[i]);
     }
-
-    /* Register 4 industry specialized tools (AEP-508) */
-    edge_mcp_register_industry_tools(disp);
 
     return disp;
 }

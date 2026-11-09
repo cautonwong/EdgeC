@@ -14,6 +14,7 @@
 #include "edge_log.h"
 #include "edgeos/edge_mcp_bus.h"
 #include "edgeos/edge_mcp_dispatcher.h"
+#include "edgeos/edge_mcp_industry_tools.h"
 #include "edgeos/mcp_transport.h"
 #include "../../modules/edge_core/src/datahub_priv.h"
 #include "edge_mcp_datahub_adapter.h"
@@ -89,13 +90,18 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    edge_mcp_env_t env = {.bus = edge_mcp_datahub_port(hub),
-                         .drv_mgr = NULL, .stream_eng = NULL,
-                         .storage_drv = NULL, .loop = g_loop};
+    edge_mcp_env_t env = {.tools = edge_mcp_datahub_tool_port(hub), .loop = g_loop};
 
     edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(&env);
     if (!disp) {
         fprintf(stderr, "Failed to create MCP Dispatcher\n");
+        datahub_destroy(hub);
+        free(hub);
+        return 1;
+    }
+    if (edge_mcp_register_industry_tools(disp) != 0) {
+        fprintf(stderr, "Failed to register industry MCP tools\n");
+        edge_mcp_dispatcher_destroy(disp);
         datahub_destroy(hub);
         free(hub);
         return 1;

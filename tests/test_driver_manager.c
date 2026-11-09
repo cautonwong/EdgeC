@@ -14,11 +14,12 @@ static edge_driver_t mock_protocol = {
 
 typedef struct {
     driver_manager_t* mgr;
+    driver_manager_storage_t mgr_storage;
 } test_state_t;
 
 static int setup(void** state) {
     test_state_t* ts = calloc(1, sizeof(test_state_t));
-    ts->mgr = driver_manager_create();
+    ts->mgr = driver_manager_create_in(&ts->mgr_storage);
     driver_manager_register(ts->mgr, &mock_protocol);
     *state = ts;
     return 0;

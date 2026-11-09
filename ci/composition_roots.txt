@@ -25,3 +25,6 @@ cmd/nexus_lab/main.c
 cmd/dcu/dcu_north_adapter.c
 # DCU southbound wiring adapter: RS485 channel sockets → orchestrator, not a lifecycle root.
 cmd/dcu/dcu_bus_adapter.c
+
+# App manager wiring adapter: builds the edge_app_repo_t sqlite adapter and the manager.
+cmd/iems/iems_app_manager_adapter.c

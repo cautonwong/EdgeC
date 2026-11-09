@@ -324,7 +324,7 @@ uint32_t fo_ecm_ekf_get_step_count(const fo_ecm_ekf_t *ekf) {
 /* -------------------------------------------------------------------------- */
 /* Consumer-Defined Port Driven Interface (AEP-751)                          */
 /* -------------------------------------------------------------------------- */
-#include "edge_port.h"
+#include "edge_port_types.h"
 
 bool fo_ecm_ekf_step_ports(fo_ecm_ekf_t *ekf,
                            const struct edge_reader_port *reader,

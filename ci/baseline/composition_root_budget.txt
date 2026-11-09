@@ -6,13 +6,21 @@
 # 2026-11-07: cmd/dcu/main.c 380 -> 213; RS485 channels, pipelines and heartbeat extracted.
 # 2026-11-07: cmd/iems/iems_app.c 446 -> 325; UI companion channel and north slave listener extracted.
 # 2026-11-07: 北向主题身份改由组合根显式传入 (+2/+3): northbound_mgr 不再自己 getenv。
-cmd/dcu/dcu_north_adapter.c|196
+# 2026-11-09: cmd/edge_mcp_server/main.c 175 -> 174; 头文件清理后根缩小。
+# 2026-11-09: cmd/iems/iems_app.c 328 -> 336; app manager 走 iems_app_manager_adapter 装配。
+# 2026-11-09: cmd/iems/iems_app.c 336 -> 342; app control port (rest_control_port_t) 初始化接线。
+# 2026-11-09: cmd/dcu/main.c 213 -> 214; driver manager 改为调用方存储 (driver_manager_create_in)。
+# 2026-11-09: cmd/edge_mcp_server/main.c 174 -> 182; 行业 MCP 工具包改为组合根显式注册。
+# 2026-11-09: 北向驱动实例化从 edge_north 挪回组合根 (+4/+4)；
+#            modules/edge_north/src/northbound_mgr.c 不再计入根预算。
+cmd/dcu/dcu_north_adapter.c|200
 cmd/dcu/dcu_bus_adapter.c|43
-cmd/dcu/main.c|213
-cmd/edge_mcp_server/main.c|175
-cmd/iems/iems_app.c|328
+cmd/dcu/main.c|218
+cmd/edge_mcp_server/main.c|182
+cmd/iems/iems_app.c|347
 cmd/iems/iems_north_listener.c|112
 cmd/iems/iems_southbound_adapter.c|133
 cmd/iems/main.c|99
 cmd/nexus_lab/main.c|156
 cmd/smart_box/main.c|88
+# 2026-11-09: core service 不再持有北向管理器；产品组合根显式 start/stop 北向 (+4 DCU, +1 IEMS)。

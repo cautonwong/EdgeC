@@ -15,6 +15,7 @@
 typedef struct {
     double *buffer;
     double *scratch;
+    double *dwt_scratch;
     size_t size;
     size_t cursor;
     uint32_t level;
@@ -44,7 +45,7 @@ static stage_ret_t _ecg_anomaly_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
         }
 
         // 3. Execute Haar DWT
-        dsp_dwt_haar(tmp, ctx->size, ctx->level);
+        dsp_dwt_haar(tmp, ctx->size, ctx->level, ctx->dwt_scratch);
 
         // 4. Calculate energy of the high-frequency detail bands
         // Detail coefficients for level 1 are in [size/2, size-1]
@@ -80,6 +81,7 @@ static void _ecg_anomaly_cleanup(void *priv) {
     if (ctx) {
         if (ctx->buffer) free(ctx->buffer);
         if (ctx->scratch) free(ctx->scratch);
+        if (ctx->dwt_scratch) free(ctx->dwt_scratch);
         free(ctx);
     }
 }
@@ -94,6 +96,11 @@ static void _ecg_anomaly_cleanup(void *priv) {
 pipeline_stage_t *stage_ecg_anomaly_create(size_t buffer_size, uint32_t level, double threshold, uint32_t alarm_tag) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
     ecg_anomaly_ctx_t *ctx = calloc(1, sizeof(ecg_anomaly_ctx_t));
+    if (!s || !ctx) {
+        free(s);
+        free(ctx);
+        return NULL;
+    }
 
     ctx->size = buffer_size > 0 ? buffer_size : 256;
     ctx->level = level > 0 ? level : 2;
@@ -101,6 +108,12 @@ pipeline_stage_t *stage_ecg_anomaly_create(size_t buffer_size, uint32_t level, d
     ctx->alarm_tag = alarm_tag;
     ctx->buffer = calloc(ctx->size, sizeof(double));
     ctx->scratch = calloc(ctx->size, sizeof(double));
+    ctx->dwt_scratch = calloc(ctx->size, sizeof(double));
+    if (!ctx->buffer || !ctx->scratch || !ctx->dwt_scratch) {
+        _ecg_anomaly_cleanup(ctx);
+        free(s);
+        return NULL;
+    }
 
     strncpy(s->name, "ECG_ANOMALY", 31);
     s->process = _ecg_anomaly_proc;

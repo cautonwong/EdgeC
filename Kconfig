@@ -10,7 +10,6 @@ config EDGEC_TIER
 source "modules/edge_core/Kconfig"
 source "modules/edge_infra/Kconfig"
 source "modules/edge_algo/Kconfig"
-source "modules/edge_protocol/Kconfig"
-source "modules/edge_security/Kconfig"
+source "foundation/Kconfig"
 source "modules/edge_stream/Kconfig"
 source "modules/edge_io/Kconfig"

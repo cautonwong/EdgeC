@@ -132,10 +132,10 @@ void demo_transformations_encyclopedia() {
            z_den[1]);
 
     // B. 小波变换 (Haar DWT)
-    double data[8] = {10, 12, 15, 14, 100, 12, 13, 11};  // 100 是一个突变/故障点
+    double data[8] = {10, 12, 15, 14, 100, 12, 13, 11}, dwt_scratch[8] = {0};  // 100 是一个突变/故障点
     printf("  - 原始信号: ");
     for (int i = 0; i < 8; i++) printf("%.0f ", data[i]);
-    dsp_dwt_haar(data, 8, 1);
+    dsp_dwt_haar(data, 8, 1, dwt_scratch);
     printf("\n  - Haar 小波分解: \033[33m捕捉到细节分量突变强度 %.1f\033[0m\n", data[6]);
 }
 

@@ -97,6 +97,16 @@ int datahub_init(datahub_t *hub, uv_loop_t *loop, const char *name, uint32_t slo
                  datahub_wakeup_filter_cb wakeup_fn);
 
 /**
+ * @brief Attach to an existing SHM shadow without creating or truncating it.
+ *
+ * Read/write shadow only: no ring, no async handles, no timers. The caller owns
+ * the storage behind `hub`. datahub_destroy() unmaps and closes, never unlinks.
+ * Returns -1 when the segment does not exist or its size is not a whole number
+ * of pipe_msg_t slots.
+ */
+int datahub_attach(datahub_t *hub, const char *name);
+
+/**
  * @brief [ADR-0005] 初始化 DataHub (配置驱动)
  */
 int datahub_init_with_config(datahub_t *hub, uv_loop_t *loop, const datahub_config_t *config,

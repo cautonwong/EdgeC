@@ -209,7 +209,6 @@ def run_clang_tidy_check(files: List[str], compile_commands_dir: str = "build") 
                     "-I.",
                     "-Iinclude",
                     "-Imodules/edge_core/include",
-                    "-Imodules/edge_security/include",
                     "-Imodules/edge_stream/include",
                     "-Imodules/edge_io/include",
                     "-Imodules/edge_infra/include",

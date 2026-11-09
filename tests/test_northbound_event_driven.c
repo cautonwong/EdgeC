@@ -24,6 +24,7 @@
 #include <unistd.h>
 
 #include "edge_north_plane.h"
+#include "northbound_driver_adapter.h"
 #include "northbound_mgr.h"
 
 /* ---- 假数据源：手工塞消息，手工触发唤醒 ---- */
@@ -116,6 +117,7 @@ static void test_notify_beats_polling(void** state) {
     northbound_mgr_set_address(&mgr, "edge/{node}/{kind}", "G", "N1");
 
     clock_gettime(CLOCK_MONOTONIC, &g_t0);
+    assert_int_equal(northbound_attach_default_driver(&mgr), 0);
     assert_int_equal(northbound_mgr_start(&mgr), 0);
 
     /* 等唤醒回调注册上（在线程入口里做） */
@@ -152,6 +154,7 @@ static void test_polling_fallback_still_works(void** state) {
 
     assert_int_equal(northbound_mgr_init_ex(&mgr, src, "test", NULL, t), 0);
     northbound_mgr_set_address(&mgr, "edge/{node}/{kind}", "G", "N1");
+    assert_int_equal(northbound_attach_default_driver(&mgr), 0);
     assert_int_equal(northbound_mgr_start(&mgr), 0);
 
     fs_push(&fs, 1002, 7.0);

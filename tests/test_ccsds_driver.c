@@ -28,7 +28,8 @@ static void test_ccsds_packet_format(void** state) {
     datahub_t hub;
     datahub_init(&hub, loop, "test_ccsds", 64, 10000, NULL, 0, NULL, NULL, NULL);
 
-    driver_manager_t* mgr = driver_manager_create();
+    driver_manager_storage_t mgr_storage = {0};
+    driver_manager_t* mgr = driver_manager_create_in(&mgr_storage);
     ccsds_driver_register(mgr);
 
     // Node ID 1024 (APID)

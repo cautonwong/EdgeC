@@ -21,7 +21,8 @@ set(INFRA_SOURCES
     npu/npu_power_manager.c
     src/edge_bus_resilience.c
 )
-set(INFRA_PUBLIC_LIBS edge_common_interface)
+
+set(INFRA_PUBLIC_LIBS edge_common_interface edge_core)
 set(INFRA_PRIVATE_LIBS libuv::uv_a zlog::zlog)
 
 # Storage: SQLite Service & Driver (Kconfig: CONFIG_EDGE_INFRA_SQLITE)

@@ -102,10 +102,10 @@ const isExpanded = ref(false);
 
 function getToolDomain(name: string): string {
   if (name.startsWith('datahub_')) return 'DataHub';
-  if (name.startsWith('io_')) return 'IO Bus';
-  if (name.startsWith('pipeline_')) return 'Pipeline';
-  if (name.startsWith('dds_')) return 'DDS Mesh';
-  if (name.startsWith('storage_')) return 'Storage';
+  if (name.startsWith('dcu_')) return 'Power Quality';
+  if (name.startsWith('smartbox_')) return 'Transformer';
+  if (name.startsWith('iems_')) return 'Energy';
+  if (name.startsWith('security_')) return 'Safety';
   return 'System';
 }
 
@@ -113,10 +113,10 @@ const domainColorClass = computed(() => {
   const domain = getToolDomain(props.tool.toolName);
   switch (domain) {
     case 'DataHub': return 'bg-blue-500/20 text-blue-300 border border-blue-500/30';
-    case 'IO Bus': return 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
-    case 'Pipeline': return 'bg-purple-500/20 text-purple-300 border border-purple-500/30';
-    case 'DDS Mesh': return 'bg-amber-500/20 text-amber-300 border border-amber-500/30';
-    case 'Storage': return 'bg-rose-500/20 text-rose-300 border border-rose-500/30';
+    case 'Power Quality': return 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+    case 'Transformer': return 'bg-amber-500/20 text-amber-300 border border-amber-500/30';
+    case 'Energy': return 'bg-purple-500/20 text-purple-300 border border-purple-500/30';
+    case 'Safety': return 'bg-rose-500/20 text-rose-300 border border-rose-500/30';
     default: return 'bg-slate-700 text-slate-300';
   }
 });

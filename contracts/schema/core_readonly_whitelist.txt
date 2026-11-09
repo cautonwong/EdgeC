@@ -1,6 +1,6 @@
 # Rule R-08 - modules/edge_core change approvals
 #
-# `modules/edge_core` and `include/contract_data_types.h` are protected assets:
+# `modules/edge_core` and `foundation/include/contract_data_types.h` are protected assets:
 # changes require explicit architecture sign-off. This file IS that sign-off.
 #
 # Format: one path per line, `#` starts a comment. Every entry must name the
@@ -25,6 +25,7 @@ modules/edge_core/src/datahub.c        # #413
 # 影响面：纯删除，无新增 ABI。edge_model_info_t 保留（只去掉 injection 字段），
 # 契约句柄的 models/model_count 不变，聚合封装边界不动。
 modules/edge_core/include/contract_data_types.h    # #415 ADR-002
+foundation/include/contract_data_types.h           # 2026-11-09 L0 migration (user-directed refactor)
 modules/edge_core/include/contract_registry.h      # #415 ADR-002
 modules/edge_core/src/contract_registry.c          # #415 ADR-002
 
@@ -57,3 +58,30 @@ modules/edge_core/src/datahub_priv.h             # datahub opacity
 # 影响面：纯移动，无 ABI 变更；消费方经 edge_common_interface 的 include
 # 路径解析，不需要逐个改 CMake。
 modules/edge_core/include/edge_log.h             # foundation log port
+
+# 2026-11-09 L0 migration (user-directed refactor): common/request/TLV are pure
+# foundation headers; the old edge_core paths are deleted in the same wave.
+modules/edge_core/include/edge_common.h      # L0 migration
+modules/edge_core/include/edge_request.h     # L0 migration
+modules/edge_core/include/edge_tlv.h         # L0 migration
+modules/edge_core/src/edge_tlv.c             # L0 migration
+foundation/include/edge_common.h             # L0 migration
+foundation/include/edge_request.h            # L0 migration
+foundation/include/edge_tlv.h                # L0 migration
+
+# 2026-11-09 L0 migration (user-directed refactor): port/arbiter/version headers.
+modules/edge_core/include/edge_port.h         # L0 migration
+modules/edge_core/include/arbiter.h           # L0 migration
+modules/edge_core/include/edge_version.h      # L0 migration
+foundation/include/edge_port.h                # L0 migration
+foundation/include/arbiter.h                  # L0 migration
+foundation/include/edge_version.h             # L0 migration
+
+# 2026-11-09 L0 migration (user-directed refactor): contract registry table.
+modules/edge_core/include/contract_registry.h # L0 migration
+modules/edge_core/src/contract_registry.c    # L0 migration
+foundation/include/contract_registry.h       # L0 migration
+
+# 2026-11-09 adapter relocation (user-directed refactor): port adapters belong
+# with the composition root, not the core runtime.
+modules/edge_core/src/edge_port.c             # adapter relocation

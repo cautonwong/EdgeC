@@ -4,9 +4,6 @@
  */
 
 #include "edgeos/edge_app_mgr.h"
-#include "sqlite_service.h"
-
-#include "edgeos/app_registry_store.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,14 +12,33 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <cjson/cJSON.h>
-
-#include "edge_log.h"
+#include <stdarg.h>
 
 struct edge_app_mgr_s {
     uv_loop_t *loop;
     edge_app_repo_t repo;
     void *stream_engine;
+    edge_app_logger_t logger;
 };
+
+static void app_log(edge_app_mgr_t *mgr, int level, const char *fmt, ...) {
+    if (!mgr || !mgr->logger.log) return;
+    char message[256];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(message, sizeof(message), fmt, args);
+    va_end(args);
+    mgr->logger.log(mgr->logger.ctx, level, message);
+}
+
+void edge_app_mgr_set_logger(edge_app_mgr_t *mgr, const edge_app_logger_t *logger) {
+    if (!mgr) return;
+    if (logger) {
+        mgr->logger = *logger;
+    } else {
+        memset(&mgr->logger, 0, sizeof(mgr->logger));
+    }
+}
 
 static void _mkdir_p(const char *dir) {
     char tmp[256];
@@ -46,7 +62,7 @@ int edge_app_mgr_parse_manifest_json(const char *json_str, app_manifest_t *out_m
     if (!json_str || !out_manifest) return -1;
     cJSON *root = cJSON_Parse(json_str);
     if (!root) {
-        LOG_ERROR(LOG_CAT_CORE, "AppMgr: Invalid JSON manifest");
+        fprintf(stderr, "AppMgr: Invalid JSON manifest\n");
         return -1;
     }
 
@@ -134,22 +150,6 @@ int edge_app_mgr_construct_default_manifest(const char *filename_or_id, app_mani
     return 0;
 }
 
-static int _sqlite_repo_save_app(void *ctx, const app_manifest_t *manifest) {
-    return app_registry_save((sqlite_svc_t *)ctx, manifest);
-}
-
-static int _sqlite_repo_get_app(void *ctx, const char *app_id, app_manifest_t *out_manifest) {
-    return app_registry_get((sqlite_svc_t *)ctx, app_id, out_manifest);
-}
-
-static int _sqlite_repo_delete_app(void *ctx, const char *app_id) {
-    return app_registry_delete((sqlite_svc_t *)ctx, app_id);
-}
-
-static int _sqlite_repo_list_apps(void *ctx, app_manifest_t *out_apps, int max_count) {
-    return app_registry_list((sqlite_svc_t *)ctx, out_apps, max_count);
-}
-
 size_t edge_app_mgr_storage_size(void) {
     return sizeof(struct edge_app_mgr_s);
 }
@@ -164,20 +164,11 @@ edge_app_mgr_t *edge_app_mgr_create_with_repo_in(void *storage, size_t storage_s
     mgr->loop = loop;
     mgr->repo = *repo;
     mgr->stream_engine = stream_engine;
-    LOG_INFO(LOG_CAT_CORE, "AppMgr: Initialized with repository successfully");
     return mgr;
 }
 
-edge_app_mgr_t *edge_app_mgr_create_in(void *storage, size_t storage_size, uv_loop_t *loop,
-                                       sqlite_svc_t *db, void *stream_engine) {
-    edge_app_repo_t repo = {
-        .ctx = db,
-        .save_app = _sqlite_repo_save_app,
-        .get_app = _sqlite_repo_get_app,
-        .delete_app = _sqlite_repo_delete_app,
-        .list_apps = _sqlite_repo_list_apps
-    };
-    return edge_app_mgr_create_with_repo_in(storage, storage_size, loop, &repo, stream_engine);
+const edge_app_repo_t *edge_app_mgr_get_repo(const edge_app_mgr_t *mgr) {
+    return mgr ? &mgr->repo : NULL;
 }
 
 void edge_app_mgr_destroy(edge_app_mgr_t *mgr) {
@@ -213,7 +204,7 @@ int edge_app_mgr_install(edge_app_mgr_t *mgr, const app_manifest_t *manifest, co
             f = fopen(m.wasm_path, "wb");
         }
         if (!f) {
-            LOG_ERROR(LOG_CAT_CORE, "AppMgr: Failed to write WASM file to %s", m.wasm_path);
+            app_log(mgr, 3, "AppMgr: Failed to write WASM file to %s", m.wasm_path);
             return -1;
         }
         fwrite(wasm_data, 1, wasm_len, f);
@@ -223,7 +214,7 @@ int edge_app_mgr_install(edge_app_mgr_t *mgr, const app_manifest_t *manifest, co
     m.state = APP_STATE_INSTALLED;
     int rc = mgr->repo.save_app ? mgr->repo.save_app(mgr->repo.ctx, &m) : -1;
     if (rc == 0) {
-        LOG_INFO(LOG_CAT_CORE, "AppMgr: Installed app %s successfully at %s", m.id, m.wasm_path);
+        app_log(mgr, 1, "AppMgr: Installed app %s successfully at %s", m.id, m.wasm_path);
     }
     return rc;
 }
@@ -232,13 +223,13 @@ int edge_app_mgr_start(edge_app_mgr_t *mgr, const char *app_id) {
     if (!mgr || !app_id) return -1;
     app_manifest_t m;
     if (!mgr->repo.get_app || mgr->repo.get_app(mgr->repo.ctx, app_id, &m) != 0) {
-        LOG_ERROR(LOG_CAT_CORE, "AppMgr: App %s not found in registry", app_id);
+        app_log(mgr, 3, "AppMgr: App %s not found in registry", app_id);
         return -1;
     }
 
     m.state = APP_STATE_RUNNING;
     if (mgr->repo.save_app) mgr->repo.save_app(mgr->repo.ctx, &m);
-    LOG_INFO(LOG_CAT_CORE, "AppMgr: Started app %s", app_id);
+    app_log(mgr, 1, "AppMgr: Started app %s", app_id);
     return 0;
 }
 
@@ -251,7 +242,7 @@ int edge_app_mgr_stop(edge_app_mgr_t *mgr, const char *app_id) {
 
     m.state = APP_STATE_STOPPED;
     if (mgr->repo.save_app) mgr->repo.save_app(mgr->repo.ctx, &m);
-    LOG_INFO(LOG_CAT_CORE, "AppMgr: Stopped app %s", app_id);
+    app_log(mgr, 1, "AppMgr: Stopped app %s", app_id);
     return 0;
 }
 
@@ -265,7 +256,7 @@ int edge_app_mgr_uninstall(edge_app_mgr_t *mgr, const char *app_id) {
     }
 
     if (mgr->repo.delete_app) mgr->repo.delete_app(mgr->repo.ctx, app_id);
-    LOG_INFO(LOG_CAT_CORE, "AppMgr: Uninstalled app %s", app_id);
+    app_log(mgr, 1, "AppMgr: Uninstalled app %s", app_id);
     return 0;
 }
 
@@ -277,12 +268,12 @@ int edge_app_mgr_boot_restore(edge_app_mgr_t *mgr) {
 
     for (int i = 0; i < count; i++) {
         if (apps[i].state == APP_STATE_RUNNING) {
-            LOG_INFO(LOG_CAT_CORE, "AppMgr: Boot restoring RUNNING app %s", apps[i].id);
+            app_log(mgr, 1, "AppMgr: Boot restoring RUNNING app %s", apps[i].id);
             edge_app_mgr_start(mgr, apps[i].id);
             restored++;
         }
     }
-    LOG_INFO(LOG_CAT_CORE, "AppMgr: Boot restore complete, restored %d apps", restored);
+    app_log(mgr, 1, "AppMgr: Boot restore complete, restored %d apps", restored);
     return restored;
 }
 

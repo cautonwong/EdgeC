@@ -72,7 +72,7 @@ typedef struct {
 } cell_isc_state_t;
 
 #include <stdalign.h>
-#include "edge_port.h"
+#include "edge_port_types.h"
 
 /**
  * @brief 消费者定义接口 (Consumer-Defined Ports - AEP-751 / AEP-752)

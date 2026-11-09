@@ -16,18 +16,20 @@ target_include_directories(smartbox_app_lib PUBLIC
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/modules/edge_bootstrap/include
     ${CMAKE_SOURCE_DIR}/modules/edge_io/include
+    ${CMAKE_SOURCE_DIR}/modules/edge_north/include
+    ${CMAKE_SOURCE_DIR}/adapters/mqtt_transport/include
     ${CMAKE_SOURCE_DIR}/modules/edge_stream/include
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
-    ${CMAKE_SOURCE_DIR}/modules/edge_protocol/include
-    ${CMAKE_SOURCE_DIR}/modules/edge_security/include
     ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
     ${CMAKE_SOURCE_DIR}/modules/edge_algo/include
 )
 target_link_libraries(smartbox_app_lib PUBLIC
     edge_bootstrap
     edge_io
+    edge_north
+    mqtt_transport
     edge_core
-    edge_protocol
+    edge_codec
     edge_stream
     edge_infra
     edge_algo
@@ -43,13 +45,13 @@ target_link_libraries(smart_box PRIVATE
     edge_bootstrap
     edge_infra
     edge_io
+    edge_north
     -Wl,--whole-archive
     edge_stream
     edge_algo
     -Wl,--no-whole-archive
-    edge_security
     edge_core
-    edge_protocol
+    edge_codec
     -Wl,--end-group
     crypto
     ssl
