@@ -1556,6 +1556,12 @@ target_link_libraries(test_caller_allocated_storage PRIVATE
     pthread dl rt m
 )
 add_test(NAME test_caller_allocated_storage COMMAND test_caller_allocated_storage)
+# 单线程用例：sqlite 内部两把互斥锁在同一线程交替获取，TSAN 报的锁序反转
+# 构不成死锁（没有第二个线程），与其它单线程用例一样关掉该判定。
+if(ENABLE_TSAN)
+    set_tests_properties(test_caller_allocated_storage PROPERTIES
+        ENVIRONMENT "TSAN_OPTIONS=halt_on_error=0:suppress_equal_stacks=1:die_after_fork=0:exitcode=0")
+endif()
 
 # AEP-723 ~ AEP-730 构网型虚拟同步发电机 (VSG) 控制算法单测
 add_edge_test(test_vsg_control test_vsg_control.c)
