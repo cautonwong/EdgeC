@@ -9,6 +9,7 @@ target_include_directories(custom_inverter_driver PUBLIC
     ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
     ${CMAKE_SOURCE_DIR}/modules/edge_io/include
+    ${CMAKE_SOURCE_DIR}/adapters/io_drivers/include
 )
 
 target_link_libraries(custom_inverter_driver PRIVATE

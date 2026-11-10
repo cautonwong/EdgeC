@@ -6,7 +6,7 @@
 #include <stdint.h>
 typedef struct uv_loop_s uv_loop_t;
 
-#include "shmring.h"  // For PipeMsg
+#include "pipe_msg.h"  // For PipeMsg
 #include "contract_data_types.h"
 
 #ifdef __cplusplus

@@ -40,7 +40,8 @@ static void test_driver_registry_lifecycle_and_lookup(void) {
     assert(edge_driver_registry_init(NULL) == -1);
 
     /* 2. Create driver manager */
-    driver_manager_t *mgr = driver_manager_create();
+    driver_manager_storage_t mgr_storage = {0};
+    driver_manager_t* mgr = driver_manager_create_in(&mgr_storage);
     assert(mgr != NULL);
 
     /* 3. Initialize registry table into manager */
@@ -73,7 +74,8 @@ static void test_driver_registry_lifecycle_and_lookup(void) {
 static void test_driver_manager_register_table_strict_errors(void) {
     printf("[TEST] Testing driver_manager_register_table strict error propagation...\n");
 
-    driver_manager_t *mgr = driver_manager_create();
+    driver_manager_storage_t mgr_storage = {0};
+    driver_manager_t* mgr = driver_manager_create_in(&mgr_storage);
     assert(mgr != NULL);
 
     /* 1. NULL pointer checks */

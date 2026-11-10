@@ -16,7 +16,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdalign.h>
-#include "edge_port.h"
+#include "edge_port_types.h"
 
 #ifdef __cplusplus
 extern "C" {

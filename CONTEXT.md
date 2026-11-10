@@ -42,13 +42,31 @@ A single processing unit in the StreamEngine Pipeline. Categories:
 - **Custom Stage**: user-defined via WASM or QuickJS
 
 ### Edge App
-A WebAssembly (WASM) binary that runs inside the EdgeC sandbox. Apps are:
-- Securely isolated (memory-bounded via WAMR)
-- Loaded/unloaded at runtime without restarts
-- Sold/distributed through the *Algorithm Marketplace*
-- Triggered by DataHub tag events
+A signed package (manifest plus application logic) installed after market on an EdgeC node. Its logic runs outside the product process: WASM apps run in the *app-host*, Go/Python apps run in per-app sidecars. An Edge App is isolated according to its *Execution Profile*, can be installed/uninstalled at runtime, and is distributed through the *Algorithm Marketplace*. It contributes typed *Contributions* (points, settings, pages); it does not run in the product process and does not address points by global numeric TagID.
 
-Not: "WASM App" (redundant — all Edge Apps are WASM). Not: "插件" (ambiguous).
+Not: "WASM App" (not all Edge Apps are WASM; sidecar apps are not). Not: "插件" (ambiguous).
+
+---
+
+## Application Platform
+
+### Product Point
+A data point defined statically by a product build, identified by the product's native scheme (DL/T 698 OAD, register offset, BMS cell). Product points are listed in a versioned *Product Profile* and are read-only at runtime. They are not the same namespace as App Points.
+
+### App Point
+A data point published by an Edge App under the name `app.<app-id>.<point-name>`. The name is the public identity and is owned by the app registry; the registry assigns an internal slot, and DataHub carries the value. Apps, UI and northbound address it by name, never by the internal slot.
+
+### Product Profile
+A versioned, static list of a product's points (name, type, unit, native identifier), published with the product build. Apps reference product points through the profile; the profile is read-only at runtime and is not parsed from YAML/JSON on the device.
+
+### Contribution
+A typed declaration an Edge App makes to the platform: a set of points, a settings schema, a page layout, or another registered type. Contributions are data, not executable hooks. The platform consumes them by type and does not know application names.
+
+### Execution Profile
+The isolation tier an app runs in: `wasm` (shared app-host, instance-level isolation), `sidecar` (one process per app), or `shared` (same process, no fault isolation). Declared in the manifest and admitted by host policy; the language name is not the profile.
+
+### Grant
+An administrator's approval of a capability request, bound to `app_id`, `app_version`, package digest, capability and scope. A declaration in the manifest is only a request; a Grant is what authorizes a call, and the host re-checks it on every call.
 
 ---
 
@@ -127,7 +145,7 @@ The centralized cloud control plane for fleet management. Provides device monito
 MCU-targeted build (Cortex-M4). DataHub + StreamEngine (basic filters only) + Southbound/Northbound protocol stack. No algorithmic math library. No WASM.
 
 ### Professional Tier
-Application processor build (Cortex-M7/R5/A). Basic + full `edge_algo` library (linalg, DSP, control theory). Includes Edge-Guard DPI.
+Application processor build (Cortex-M7/R5/A). Basic + full algorithm components (`edge_ai`, `edge_battery`, `edge_health`, `edge_power`, `edge_runtime`; linalg, DSP, control theory). Includes Edge-Guard DPI.
 
 ### Enterprise Tier
 Full build (Cortex-A53/x86_64). Professional + WASM sandbox + Edge App lifecycle management + TinyML inference.

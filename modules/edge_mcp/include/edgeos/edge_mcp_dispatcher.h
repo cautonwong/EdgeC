@@ -16,7 +16,7 @@
 #include <cjson/cJSON.h>
 typedef struct uv_loop_s uv_loop_t;
 
-#include "edgeos/edge_mcp_bus_port.h"
+#include "edgeos/edge_mcp_tool_port.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -61,7 +61,8 @@ typedef struct {
  * @brief MCP Dispatcher Environment Context
  */
 typedef struct {
-    edge_mcp_bus_port_t bus;
+    edge_mcp_tool_port_t tools;
+    bool hide_tag_meta; /* set when the product has no static contract metadata */
     uv_loop_t *loop;
 } edge_mcp_env_t;
 

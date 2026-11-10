@@ -25,6 +25,7 @@
 #define MAX_MEM_RECORDS 65536
 #define DEFAULT_SNF_CAPACITY 10000
 #define COMPRESS_CHUNK_SIZE 128
+#define COMPRESS_SCRATCH_BYTES 4096
 
 typedef struct __attribute__((packed)) {
     uint32_t magic;
@@ -55,6 +56,7 @@ struct edge_telemetry_store_s {
     // Gorilla 压缩临时缓冲
     ts_sample_t sample_chunk[COMPRESS_CHUNK_SIZE];
     size_t sample_chunk_count;
+    uint8_t *compress_scratch;
 
     // 统计指标
     edge_telemetry_store_stats_t stats;
@@ -167,11 +169,14 @@ static int _wal_recover(edge_telemetry_store_t *store) {
 
 static void _flush_gorilla_chunk_locked(edge_telemetry_store_t *store) {
     if (!store->cfg.enable_gorilla_compression || store->sample_chunk_count == 0) return;
+    if (!store->compress_scratch) {
+        store->sample_chunk_count = 0;
+        return;
+    }
 
-    uint8_t comp_buf[4096];
     size_t comp_len = 0;
     int rc = ts_compress_batch(store->sample_chunk, store->sample_chunk_count,
-                               comp_buf, sizeof(comp_buf), &comp_len);
+                               store->compress_scratch, COMPRESS_SCRATCH_BYTES, &comp_len);
     if (rc == 0) {
         store->stats.compression_bytes_in += store->sample_chunk_count * sizeof(ts_sample_t);
         store->stats.compression_bytes_out += comp_len;
@@ -239,6 +244,15 @@ static void _telemetry_store_init_common(edge_telemetry_store_t *store,
     if (store->cfg.batch_size == 0) store->cfg.batch_size = 500;
     if (store->cfg.flush_interval_ms == 0) store->cfg.flush_interval_ms = 1000;
     if (store->cfg.snf_max_offline_records == 0) store->cfg.snf_max_offline_records = DEFAULT_SNF_CAPACITY;
+
+    if (store->cfg.enable_gorilla_compression) {
+        store->compress_scratch = malloc(COMPRESS_SCRATCH_BYTES);
+        if (!store->compress_scratch) {
+            LOG_WARN(LOG_CAT_CORE,
+                     "[TelemetryStore] Gorilla scratch allocation failed; compression disabled");
+            store->cfg.enable_gorilla_compression = false;
+        }
+    }
 
     store->loop = loop;
     store->wal_fd = -1;
@@ -475,6 +489,11 @@ void edge_telemetry_store_destroy(edge_telemetry_store_t *store) {
     }
     store->mem_records = NULL;
     store->snf_queue = NULL;
+
+    if (store->compress_scratch) {
+        free(store->compress_scratch);
+        store->compress_scratch = NULL;
+    }
 
     if (store->lock_init) {
         uv_mutex_destroy(&store->lock);

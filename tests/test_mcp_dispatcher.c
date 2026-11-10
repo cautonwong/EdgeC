@@ -19,11 +19,32 @@
 #include "datahub_priv.h"
 #include "edge_mcp_datahub_adapter.h"
 
+static const edge_tag_meta_t k_test_metadata[] = {
+    {
+        .id = 0x1001,
+        .name = "TAG_1001",
+        .type = "float",
+        .unit = "V",
+        .category = "GRID",
+        .min = 0.0,
+        .max = 300.0,
+    },
+    {
+        .id = 0x1002,
+        .name = "PHASE_B_VOLTAGE",
+        .type = "float",
+        .unit = "V",
+        .category = "GRID",
+        .min = 0.0,
+        .max = 300.0,
+    },
+};
+
 static datahub_t *create_test_hub(uv_loop_t *loop, const char *name) {
     datahub_t *hub = (datahub_t *)calloc(1, sizeof(datahub_t));
     if (!hub) return NULL;
     shm_unlink(name);
-    if (datahub_init(hub, loop, name, 128, 65536, NULL, 0, NULL, NULL, NULL) != 0) {
+    if (datahub_init(hub, loop, name, 128, 65536, k_test_metadata, 2, NULL, NULL, NULL) != 0) {
         free(hub);
         return NULL;
     }
@@ -36,13 +57,73 @@ static void destroy_test_hub(datahub_t *hub) {
     free(hub);
 }
 
+static int fake_read_tag(void *ctx, uint32_t tag_id, edge_mcp_tag_value_t *out) {
+    (void)ctx;
+    if (tag_id != 0x1001 || !out) return -1;
+    *out = (edge_mcp_tag_value_t){
+        .tag_id = tag_id,
+        .value = 42.5,
+        .quality = 0,
+        .type = EDGE_MCP_TAG_TYPE_SCALAR,
+        .timestamp_ms = 1234,
+    };
+    return 0;
+}
+
+static int fake_write_tag(void *ctx, const edge_mcp_tag_value_t *value) {
+    if (!ctx || !value) return -1;
+    *(edge_mcp_tag_value_t *)ctx = *value;
+    return 0;
+}
+
+static void test_dispatcher_with_fake_tool_port(void) {
+    printf("[TEST] Testing tool port seam without DataHub...\n");
+    edge_mcp_tag_value_t written = {0};
+    edge_mcp_env_t env = {
+        .tools = {.ctx = &written, .read_tag = fake_read_tag, .write_tag = fake_write_tag},
+    };
+    edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(&env);
+    assert(disp != NULL);
+
+    char *resp = edge_mcp_dispatch_json(
+        disp,
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":"
+        "\"datahub_read_tags\",\"arguments\":{\"tag_ids\":[4097]}}}");
+    assert(resp != NULL);
+    assert(strstr(resp, "42.5") != NULL);
+    free(resp);
+
+    resp = edge_mcp_dispatch_json(
+        disp,
+        "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":"
+        "\"datahub_write_tag\",\"arguments\":{\"tag_id\":4098,\"value\":50.0}}}");
+    assert(resp != NULL);
+    cJSON *resp_json = cJSON_Parse(resp);
+    assert(resp_json != NULL);
+    cJSON *res_obj = cJSON_GetObjectItem(resp_json, "result");
+    assert(res_obj != NULL);
+    cJSON *content_arr = cJSON_GetObjectItem(res_obj, "content");
+    assert(content_arr != NULL);
+    cJSON *text_item = cJSON_GetObjectItem(cJSON_GetArrayItem(content_arr, 0), "text");
+    assert(text_item != NULL);
+    assert(strstr(text_item->valuestring, "\"success\":true") != NULL);
+    cJSON_Delete(resp_json);
+    free(resp);
+    assert(written.tag_id == 4098);
+    assert(written.value == 50.0);
+    assert(written.type == EDGE_MCP_TAG_TYPE_SCALAR);
+
+    edge_mcp_dispatcher_destroy(disp);
+    printf("  --> Tool port seam verified without DataHub.\n");
+}
+
 static void test_dispatcher_create_destroy(void) {
     printf("[TEST] Testing MCP Dispatcher lifecycle & default tools registration...\n");
     uv_loop_t *loop = uv_default_loop();
     datahub_t *hub = create_test_hub(loop, "/test_mcp_disp_1");
     assert(hub != NULL);
 
-    edge_mcp_env_t env = {.bus = edge_mcp_datahub_port(hub),
+    edge_mcp_env_t env = {.tools = edge_mcp_datahub_tool_port(hub),
                          .loop = loop};
 
     edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(&env);
@@ -52,8 +133,8 @@ static void test_dispatcher_create_destroy(void) {
     assert(tools != NULL);
     assert(cJSON_IsArray(tools));
     int tool_count = cJSON_GetArraySize(tools);
-    assert(tool_count == 17);
-    printf("  --> Verified %d default industrial MCP tools registered.\n", tool_count);
+    assert(tool_count == 4);
+    printf("  --> Verified %d generic MCP tools registered.\n", tool_count);
     cJSON_Delete(tools);
 
     edge_mcp_dispatcher_destroy(disp);
@@ -112,7 +193,7 @@ static void test_jsonrpc_tools_list_and_call(void) {
                        .ts = 1000000ULL};
     assert(datahub_write_shadow(hub, &msg1) == 0);
 
-    edge_mcp_env_t env = {.bus = edge_mcp_datahub_port(hub), .loop = loop};
+    edge_mcp_env_t env = {.tools = edge_mcp_datahub_tool_port(hub), .loop = loop};
     edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(&env);
     assert(disp != NULL);
 
@@ -125,7 +206,7 @@ static void test_jsonrpc_tools_list_and_call(void) {
     cJSON *res_obj = cJSON_GetObjectItem(resp_json, "result");
     assert(res_obj != NULL);
     cJSON *tools_arr = cJSON_GetObjectItem(res_obj, "tools");
-    assert(tools_arr && cJSON_GetArraySize(tools_arr) == 17);
+    assert(tools_arr && cJSON_GetArraySize(tools_arr) == 4);
     cJSON_Delete(resp_json);
     free(resp);
 
@@ -170,33 +251,12 @@ static void test_jsonrpc_tools_list_and_call(void) {
     assert(datahub_read_shadow(hub, 4098, &read_back) == 0);
     assert(read_back.payload.val.f > 49.97f && read_back.payload.val.f < 49.99f);
 
-    /* 4. tools/call other domain tools (io, pipeline, dds, storage) */
-    const char *io_req =
+    /* 4. 演示工具已从组件移除，调用应返回 METHOD_NOT_FOUND */
+    resp = edge_mcp_dispatch_json(
+        disp,
         "{\"jsonrpc\":\"2.0\",\"id\":13,\"method\":\"tools/"
-        "call\",\"params\":{\"name\":\"io_list_channels\",\"arguments\":{}}}";
-    resp = edge_mcp_dispatch_json(disp, io_req);
-    assert(resp != NULL && strstr(resp, "RS485-1"));
-    free(resp);
-
-    const char *pipe_req =
-        "{\"jsonrpc\":\"2.0\",\"id\":14,\"method\":\"tools/"
-        "call\",\"params\":{\"name\":\"pipeline_query_metrics\",\"arguments\":{}}}";
-    resp = edge_mcp_dispatch_json(disp, pipe_req);
-    assert(resp != NULL && strstr(resp, "avg_latency_us"));
-    free(resp);
-
-    const char *dds_req =
-        "{\"jsonrpc\":\"2.0\",\"id\":15,\"method\":\"tools/"
-        "call\",\"params\":{\"name\":\"dds_inspect_topics\",\"arguments\":{}}}";
-    resp = edge_mcp_dispatch_json(disp, dds_req);
-    assert(resp != NULL && strstr(resp, "EdgeOS/DCU/Telemetry"));
-    free(resp);
-
-    const char *soe_req =
-        "{\"jsonrpc\":\"2.0\",\"id\":16,\"method\":\"tools/"
-        "call\",\"params\":{\"name\":\"storage_query_soe_events\",\"arguments\":{\"limit\":5}}}";
-    resp = edge_mcp_dispatch_json(disp, soe_req);
-    assert(resp != NULL && strstr(resp, "GRID_POWER_OUTAGE"));
+        "call\",\"params\":{\"name\":\"io_list_channels\",\"arguments\":{}}}");
+    assert(resp != NULL && strstr(resp, "-32601"));
     free(resp);
 
     edge_mcp_dispatcher_destroy(disp);
@@ -251,7 +311,7 @@ static void test_direct_c_api_and_benchmark(void) {
     printf("[TEST] Testing direct C API tool invocation & latency benchmark...\n");
     uv_loop_t *loop = uv_default_loop();
     datahub_t *hub = create_test_hub(loop, "/test_mcp_disp_3");
-    edge_mcp_env_t env = {.bus = edge_mcp_datahub_port(hub), .loop = loop};
+    edge_mcp_env_t env = {.tools = edge_mcp_datahub_tool_port(hub), .loop = loop};
     edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(&env);
 
     /* Direct C call */
@@ -260,6 +320,15 @@ static void test_direct_c_api_and_benchmark(void) {
     assert(rc == 0);
     assert(res_str != NULL);
     assert(strstr(res_str, "TAG_1001"));
+    free(res_str);
+    res_str = NULL;
+    rc = edge_mcp_call_tool(disp, "datahub_get_tag_meta", "{\"tag_id\":4098}", &res_str);
+    assert(rc == 0);
+    assert(strstr(res_str, "PHASE_B_VOLTAGE") != NULL);
+    free(res_str);
+    res_str = NULL;
+    rc = edge_mcp_call_tool(disp, "datahub_get_tag_meta", "{\"tag_id\":9999}", &res_str);
+    assert(rc != 0 || (res_str && strstr(res_str, "not found")));
     free(res_str);
 
     /* High frequency dispatch benchmark: 1000 calls */
@@ -285,6 +354,7 @@ static void test_direct_c_api_and_benchmark(void) {
 int main(void) {
     printf("=== EdgeOS Industrial MCP Dispatcher Unit Tests (AEP-506) ===\n");
     test_dispatcher_create_destroy();
+    test_dispatcher_with_fake_tool_port();
     test_jsonrpc_initialize_and_ping();
     test_jsonrpc_tools_list_and_call();
     test_jsonrpc_error_handling();

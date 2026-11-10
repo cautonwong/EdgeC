@@ -1,6 +1,6 @@
 # 07 应用界面：生成、声明、沙箱三层
 
-状态：设计基线，待评审。未实现。
+状态：第二轮修订（2026-11-09/10），待复审。未实现。
 
 ## 1. 应用能拥有什么界面
 
@@ -34,8 +34,38 @@ P0 不实现任何一层界面。P1 做 U0 与 U1，P2 做 U2。
 
 - 应用详情页：名称、版本、作者、签名摘要、运行状态、重启次数。
 - 设置页：由第 06 号文档的 `settings` schema 生成，字段级校验与服务端错误回填。
-- 数据页：点位列表、当前值、KV 用量、日志尾部。
+- 数据页：点位列表、当前值、KV 用量、日志尾部。日志尾部默认读 64KB 内存环；`diagnostics.persistLogs=true` 时读持久化文件。超限丢弃计数一并显示。
 - 权限页：已授予、待批准、已撤销三类，可逐项撤销。
+
+**渲染机制（2026-11-09 已选定）。** "自动出现"不等于安装时注册新路由。外壳固定提供三个通用路由：
+
+- `/apps/:appId`：详情页，由注册表快照里的应用元数据渲染。
+- `/apps/:appId/settings`：设置页，由 `settings` schema 生成。
+- `/apps/:appId/pages/:pageId`：U1 声明式页面，由白名单组件渲染。
+
+安装只写注册表快照，不写前端代码、不触发构建。现有 Web 用 `import.meta.glob` 在构建期收集页面（`web/core/src/app/createProductApp.ts:20`），`modules.manifest.yaml:6-8` 明确不存在按字符串加载模块的路径；因此不能走动态 `import()`，也不能在设备上跑 vite。应用不存在或未安装时，路由显示空态，不 404。导航菜单的"应用"分组同样来自快照，按 `app.<id>:read` 过滤。
+
+**生成页与自定义页分 tab（2026-11-09 已定）。** 应用页固定两个 tab："概览/设置"由平台生成，"自定义"放 L1/L2 页面；两者不混排。`/apps/:id` 是生成页，`/apps/:id/pages/:pageId` 是声明式页，自定义 webview 只在 `pageId` 下。应用不能修改生成页的 tab、按钮或表单字段，也不能替换整个详情页；不做自定义界面时可以只留设置页。权限各自校验：生成页用 `app.<id>:read/configure`，声明式页每个数据源单独校验，webview 每次 RPC 校验会话、应用身份与命名空间。
+
+**引导契约（2026-11-09 已定）。** `/api/v1/ui/bootstrap` 在现有 `tags` / `ui_configs` 之外增加：
+
+```json
+{
+  "generation": 42,
+  "authz_generation": 7,
+  "apps": [{ "id": "voltage_guard", "name": "电压越限统计", "version": "1.0.0", "pages": [] }],
+  "app_permissions": [{ "id": "app.voltage_guard:read", "roles": ["operator"] }],
+  "app_pages": [{ "app": "voltage_guard", "path": "/apps/voltage_guard/pages/voltage-guard", "title": "电压越限" }]
+}
+```
+
+- SPA 启动时把 `app_permissions` 合并进 authz store，把 `app_pages` 挂到固定路由；`registry.json` 只保留核心页面。
+- generation 变化时，通过现有 `/api/v1/ws` 或 SSE 通知 SPA 重新 bootstrap，不刷新整页。
+- `authz_generation` 独立于注册表 generation：角色授予/撤销、应用安装/卸载都 bump 它；SPA 在 bootstrap、WS 重连、收到 403 时比较并刷新。
+- 前端只实现一个内存 `PermissionSource`：`generation`、`can(permission)`、`appCan(appId, 'read'|'control'|'configure')`、`refresh()`；权限不落 localStorage。
+- 失败关闭：bootstrap 失败或 generation 不匹配时 `can()` 返回 false，页面显示"权限加载中"，不沿用旧值。
+- 未登录或权限不足时，只返回该用户可见的应用段，不泄漏应用清单。
+- 卸载后应用段消失；已打开的 URL 显示"已卸载"。
 
 应用详情页的入口固定在"应用"分组，不需要产品页面注册，也不需要改 WebUI。
 
@@ -82,17 +112,20 @@ contributes:
 | `metric-row` | 指标组 | 点位或命名查询 |
 | `status-list` | 状态列表 | 点位或命名查询 |
 | `time-series` | 时序图 | 点位，需历史权限 |
-| `table` | 表格 | 命名查询，服务端分页 |
+| `table`（P1） | 表格 | 命名查询，服务端分页 |
 | `form` | 表单 | 设置 schema |
-| `actions`（v1 之外） | 操作按钮 | 已声明的应用动作 |
+| `actions` | 操作按钮 | 已声明的应用动作 |
+
+**v1 组件目录（2026-11-10 已定）。** 只保留 `metric-row`、`status-list`、`time-series`、`form`、`actions` 五个；`table` 放 P1。不加树形控件与地图：台区/设备层级用 `status-list` 分组或 `table` 父子列表达，拓扑图/地图走 U2 webview 且默认无网络。新组件必须带 schema、渲染器、权限语义、验收用例，单独评审；`ui.components` 版本随 ABI 次版本，未知组件拒绝渲染。
 
 规则：
 
 - `source` 只能是点位名或清单里声明过的命名查询。平台在服务端解析成值再下发，前端拿不到任意查询能力。
-- 每个页面、每个数据源各校验一次权限。页面可见但数据越权时，页面显示无权限，不返回空值。
+- **v1 只给原始点位（2026-11-09 已定）**：数据源只能是点位名，取最近 N 条，`limit` 上限 1000，按时间倒序；不做分页游标、不做查询层聚合。需要聚合先用应用自己发布的聚合点，或读历史接口的 1m 序列。命名查询留 P1，参数化时间窗与聚合函数白名单，不能变成任意 SQL。
+- 每个页面、每个数据源各校验一次权限。页面可见但数据越权时，页面显示无权限，不返回空值。权限判定来自 `permission_source`（接口与缓存见 §3 引导契约）：核心权限仍由 `permissions/catalog.yaml` 构建期展开，应用权限点来自注册表快照，运行时查询。
 - 应用不能提供 URL、脚本、样式、内联 HTML。文本字段按纯文本渲染。
 - 操作按钮只能映射到清单里声明的动作，动作由平台 API 执行并做权限校验，不在浏览器里跑应用代码。
-- **动作要等 ABI 有执行入口才能开。** 当前 ABI 导出只有 `app_init`、`app_on_event`、`app_stop`，没有接收动作的入口。`actions` 与 U2 的 `app.action.invoke` 在 ABI 增加动作事件（例如 `app_on_event` 的 `action` 类型）之前不启用。先用事件类型承载，不新开一个导出，避免两套回调。
+- **动作入口（2026-11-09 已定）。** 清单 `ui.actions` 声明 `{ id, label, confirm, permission }`；用户触发后宿主校验用户权限、实例运行状态与清单声明，通过则投递 `app_on_event(type=action.invoke)`。v1 触发即完成，不返回执行结果；结果由应用发布成点位或写日志/审计。
 - 布局未知组件、未知字段一律拒绝渲染并记录错误，不做"尽量显示"。
 
 ## 5. U2：沙箱 webview
@@ -111,9 +144,9 @@ ui/
   assets/...
 ```
 
-- `ui/` 内所有文件都进清单摘要，签名覆盖。
+- `ui/` 内所有文件都在 payload 内，随 payload 一起被签名。
 - 禁止外链 CDN、远程字体、远程图片。所有资源在包内。
-- 包体上限（初值 2MB）与文件数上限在安装时校验。
+- `ui/` 子树上限（初值 2MB）与文件数上限在安装时校验；整包上限见 03 号文档（32MB）。
 - 不允许 source map，不允许 `eval` 之外的动态代码加载（CSP 已禁止）。
 
 ### 隔离
@@ -202,7 +235,7 @@ app.action.invoke(actionId, args)   # 需清单已声明且用户有权限
 
 ## 10. 验收
 
-1. 安装应用后，应用详情页与设置页自动出现，未改 WebUI 代码。
+1. 安装应用后，应用详情页与设置页自动出现，未改 WebUI 构建产物；通用路由由外壳提供，安装只写注册表快照。
 2. 卸载后页面、卡片、静态资源目录全部消失。
 3. U1 页面引用未授权点位，页面显示无权限，不返回空值。
 4. U1 布局含未知组件或未知字段，拒绝渲染并记录错误。
@@ -225,7 +258,4 @@ app.action.invoke(actionId, args)   # 需清单已声明且用户有权限
 
 ## 11. 未决
 
-- U1 组件目录是否需要树形控件与地图控件，取决于真实页面需求。
-- webview 是否允许内置 WASM（例如本地图表加速），目前不允许，避免再开一层运行时。
-- 命名查询的分页与聚合语义，是否在 P1 就支持，还是只给原始点位。
-- 自定义界面与平台生成页面能否混排在同一个应用页，还是必须分 tab。
+无。U1 组件目录、webview WASM、命名查询、生成页/自定义页混排、`permission_source` 已于 2026-11-09/10 收敛。

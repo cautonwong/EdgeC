@@ -31,7 +31,7 @@ typedef struct {
  * @brief 在调用方预分配内存中创建服务编排器 (Zero-Alloc)
  */
 service_t *service_create_in(service_storage_t *storage, uv_loop_t *loop, datahub_t *hub, arbiter_t *arb,
-                             sqlite_svc_t *db, stream_engine_t *engine, edge_params_t *params, void *north);
+                             stream_engine_t *engine, edge_params_t *params);
 
 typedef void (*emergency_hook_fn)(void *user_data);
 
@@ -51,10 +51,9 @@ typedef void (*link_monitor_fn)(net_link_t new_link, void *user_data);
  * @param db 外部创建的 SQLite 服务 (可选)
  * @param engine 外部创建的流引擎 (可选)
  * @param params 外部创建的参数服务 (可选)
- * @param north 外部创建的北向管理器 (可选)
  */
-service_t *service_new(uv_loop_t *loop, datahub_t *hub, arbiter_t *arb, sqlite_svc_t *db,
-                       stream_engine_t *engine, edge_params_t *params, void *north);
+service_t *service_new(uv_loop_t *loop, datahub_t *hub, arbiter_t *arb,
+                       stream_engine_t *engine, edge_params_t *params);
 
 void service_delete(service_t *svc);
 void service_destroy(service_t *svc);
@@ -76,13 +75,12 @@ void service_report_link_status(service_t *svc, net_link_t link, bool is_up);
 // --- Getters ---
 uv_loop_t *service_get_loop(service_t *svc);
 datahub_t *service_get_datahub(service_t *svc);
-sqlite_svc_t *service_get_storage(service_t *svc);
 stream_engine_t *service_get_stream_engine(service_t *svc);
 arbiter_t *service_get_arbiter(service_t *svc);
 edge_params_t *service_get_params(service_t *svc);
 const char *service_get_contract_path(service_t *svc);
-void *service_get_app_mgr(service_t *svc);
-void service_set_app_mgr(service_t *svc, void *mgr);
+void *service_get_control_port(service_t *svc);
+void service_set_control_port(service_t *svc, void *port);
 
 int service_post_cmd(service_t *svc, cmd_msg_t *cmd);
 /**
@@ -119,14 +117,6 @@ uint64_t service_get_now_ms(service_t *svc);
  * @brief [S12] 创建远程维护隧道 (TCP 端口映射到物理总线)
  */
 void service_create_tunnel(service_t *svc, int tcp_port, int bus_id);
-
-/**
- * @brief [S4] 触发历史数据导出补发 (断网续传逻辑)
- * @param table 目标表名
- * @param cb 发送回调 (通常封装为 MQTT Publish)
- */
-typedef void (*export_publish_fn)(uint32_t tag, double val);
-int service_trigger_export(service_t *svc, const char *table, export_publish_fn cb);
 
 int service_run(service_t *svc);
 void service_stop(service_t *svc);

@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <uv.h>
 
+#include "app_repo_sqlite.h"
 #include "edge_app_mgr.h"
 #include "sqlite_service.h"
 
@@ -68,6 +69,12 @@ static void test_manifest_parse_and_default(void **state) {
     assert_string_equal(m2.id, "voltage_alarm");
     assert_string_equal(m2.name, "voltage_alarm App");
     assert_int_equal(m2.fault_policy, FAULT_POLICY_AUTO_RESTART);
+
+    // 3. Path traversal in id must be rejected at every manifest entry.
+    app_manifest_t bad;
+    assert_int_equal(edge_app_mgr_parse_manifest_json("{\"id\":\"../../tmp/pwn\"}", &bad), -1);
+    assert_int_equal(edge_app_mgr_construct_default_manifest("../pwn.wasm", &bad), -1);
+    assert_int_equal(edge_app_mgr_construct_default_manifest("a/b.wasm", &bad), -1);
 }
 
 static void test_app_lifecycle_and_boot_restore(void **state) {
@@ -81,7 +88,8 @@ static void test_app_lifecycle_and_boot_restore(void **state) {
 
     size_t mgr_size = edge_app_mgr_storage_size();
     void *mgr_mem = malloc(mgr_size);
-    edge_app_mgr_t *mgr = edge_app_mgr_create_in(mgr_mem, mgr_size, loop, db, NULL);
+    edge_app_repo_t repo = app_repo_sqlite(db);
+    edge_app_mgr_t *mgr = edge_app_mgr_create_with_repo_in(mgr_mem, mgr_size, loop, &repo, NULL);
     assert_non_null(mgr);
 
     // Install App

@@ -14,6 +14,9 @@
 #include "edge_params.h"
 #include "edge_service.h"
 #include "northbound_mgr.h"
+#include "north_source_datahub_adapter.h"
+#include "snf_sqlite_adapter.h"
+#include "edge_params_sqlite_adapter.h"
 #include "sqlite_service.h"
 #include "stream_engine.h"
 #include "stream_bus_datahub_adapter.h"
@@ -34,7 +37,8 @@ int main(int argc, char** argv) {
 
     arbiter_t* arbiter = NULL;
     arbiter_init(&arbiter, loop);
-    driver_manager_t* drv_mgr = driver_manager_create();
+    driver_manager_storage_t drv_mgr_storage = {0};
+    driver_manager_t* drv_mgr = driver_manager_create_in(&drv_mgr_storage);
     modbus_driver_register(drv_mgr);
 
     datahub_t hub;
@@ -48,18 +52,22 @@ int main(int argc, char** argv) {
     sqlite_svc_t* db_service = sqlite_svc_create(loop, &db_conf);
     stream_engine_t* stream_engine =
         stream_engine_create_datahub(&hub, uv_default_loop(), NULL, edge_stage_factory_get_registry());
-    edge_params_t* param_mgr = edge_params_create(db_service, &hub);
+    edge_params_store_t param_store = edge_params_sqlite_store(db_service);
+    edge_params_t* param_mgr = edge_params_create(&param_store, &hub);
 
     northbound_mgr_t* north_mgr = calloc(1, sizeof(northbound_mgr_t));
-    northbound_mgr_init(north_mgr, loop, &hub, "vpp_demo", db_service);
+    snf_store_port_t snf_store = snf_sqlite_store_port(db_service);
+    nb_source_ops_t nb_source = northbound_source_from_datahub(&hub);
+    nb_transport_ops_t transport = {0};
+    northbound_mgr_init_ex(north_mgr, nb_source, "vpp_demo", &snf_store, transport);
 
     service_t* svc =
-        service_new(loop, &hub, arbiter, db_service, stream_engine, param_mgr, north_mgr);
+        service_new(loop, &hub, arbiter, stream_engine, param_mgr);
     g_running_svc = svc;
-    north_mgr->user_data = svc;
 
     signal(SIGTERM, on_sigterm);
     bus_orchestrator_run(io_orch);
+    northbound_mgr_start(north_mgr);
     int exit_code = service_run(svc);
 
     service_delete(svc);

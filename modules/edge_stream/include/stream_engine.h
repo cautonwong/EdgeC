@@ -4,10 +4,11 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdalign.h>
+#include <stdatomic.h>
 #include <uv.h>
 
 #include "contract_data_types.h"
-#include "shmring.h"
+#include "pipe_msg.h"
 #include "stream_bus_port.h"
 #include "stream_sqlite_port.h"
 
@@ -17,7 +18,6 @@ extern "C" {
 
 typedef struct js_engine_s js_engine_t;
 typedef struct battery_limit_s battery_limit_t;
-typedef struct edge_params_s edge_params_t;
 
 typedef struct {
     uint64_t (*get_monotonic_ms)(void);
@@ -134,7 +134,6 @@ typedef struct {
 struct pipeline_loader_ctx_s {
     stream_sqlite_port_t db;
     js_engine_t *js_engine;
-    edge_params_t *params;
     stream_control_ops_t control_ops; /**< [IoC] 用于指令触发，消费者定义的接口 */
     const char *audit_secret;          /**< VPP 审计签名密钥，组合根注入 */
     bool production;                   /**< 是否生产环境，组合根注入 */

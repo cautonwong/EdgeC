@@ -25,6 +25,7 @@ typedef struct {
     arbiter_t* arb;
     bus_orchestrator_t* orch;
     driver_manager_t* drv_mgr;
+    driver_manager_storage_t drv_mgr_storage;
     net_buf_pool_t pool;
 
     int received_count;
@@ -55,7 +56,7 @@ static int setup(void** state) {
     arbiter_init(&ctx->arb, &ctx->loop);
 
     net_buf_pool_init(&ctx->pool, 32, 256, 0, NULL, NULL);
-    ctx->drv_mgr = driver_manager_create();
+    ctx->drv_mgr = driver_manager_create_in(&ctx->drv_mgr_storage);
     driver_manager_register(ctx->drv_mgr, &modbus_rtu_driver);
 
     ctx->orch = bus_orchestrator_create(&ctx->hub, ctx->arb, ctx->drv_mgr, 8, 32, 256);

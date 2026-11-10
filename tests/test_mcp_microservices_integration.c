@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <uv.h>
 
 #include "edgeos/edge_mcp_bus.h"
 #include "edgeos/edge_mcp_dispatcher.h"
@@ -46,25 +47,47 @@ static void test_mcp_microservices_registration_and_aggregation(void **state) {
 
     /* IEMS 储能工具 */
     assert_non_null(strstr(resp, "iems_optimize_tou_schedule"));
-    assert_non_null(strstr(resp, "ess_emergency_stop"));
-    assert_non_null(strstr(resp, "iems_get_battery_status"));
 
     /* SmartBox 配电工具 */
     assert_non_null(strstr(resp, "smartbox_eval_transformer_life"));
-    assert_non_null(strstr(resp, "smartbox_get_topology"));
     assert_non_null(strstr(resp, "security_simulate_interlock"));
 
     /* DCU 采集工具 */
     assert_non_null(strstr(resp, "dcu_analyze_power_quality"));
     assert_non_null(strstr(resp, "tag_batch_read_scaled"));
 
+    assert_null(strstr(resp, "ess_emergency_stop"));
+    assert_null(strstr(resp, "iems_get_battery_status"));
+    assert_null(strstr(resp, "smartbox_get_topology"));
+
     free(resp);
     mcp_bus_hub_destroy(hub);
 }
 
+static int fake_read_tag(void *ctx, uint32_t tag_id, edge_mcp_tag_value_t *out) {
+    (void)ctx;
+    if (!out) return -1;
+    double value;
+    switch (tag_id) {
+        case 1001: value = 220.5; break;
+        case 1002: value = 49.98; break;
+        case 2001: value = 75.0; break;
+        default: return -1;
+    }
+    *out = (edge_mcp_tag_value_t){
+        .tag_id = tag_id,
+        .value = value,
+        .quality = 0,
+        .type = EDGE_MCP_TAG_TYPE_SCALAR,
+        .timestamp_ms = 1234,
+    };
+    return 0;
+}
+
 static void test_mcp_microservices_cascade_execution(void **state) {
     (void)state;
-    mcp_bus_hub_t *hub = mcp_bus_hub_create(NULL);
+    edge_mcp_env_t env = {.tools = {.read_tag = fake_read_tag}};
+    mcp_bus_hub_t *hub = mcp_bus_hub_create(&env);
     assert_non_null(hub);
     assert_int_equal(edge_mcp_register_all_microservices(hub, NULL), 0);
 
@@ -105,33 +128,7 @@ static void test_mcp_microservices_cascade_execution(void **state) {
     assert_null(strstr(resp3, "\"error\""));
     free(resp3);
 
-    /* 4. 调用 IEMS 电池簇物理状态查询 (Fast Track SHM) */
-    char *resp4 = edge_mcp_dispatch_json(
-        mcp_bus_get_dispatcher(hub),
-        "{\"jsonrpc\":\"2.0\",\"id\":104,\"method\":\"tools/call\",\"params\":{"
-        "\"name\":\"iems_get_battery_status\","
-        "\"arguments\":{\"cluster_id\":\"RACK_01\",\"fast_track\":true}}}");
-    assert_non_null(resp4);
-    assert_non_null(strstr(resp4, "shm://datahub/offset=0x2000"));
-    assert_non_null(strstr(resp4, "soc_pct"));
-    assert_non_null(strstr(resp4, "cell_max_v"));
-    assert_null(strstr(resp4, "\"error\""));
-    free(resp4);
-
-    /* 5. 调用 SmartBox 拓扑与分支相位查询 */
-    char *resp5 = edge_mcp_dispatch_json(
-        mcp_bus_get_dispatcher(hub),
-        "{\"jsonrpc\":\"2.0\",\"id\":105,\"method\":\"tools/call\",\"params\":{"
-        "\"name\":\"smartbox_get_topology\","
-        "\"arguments\":{\"transformer_id\":\"TRANSFORMER_T01\",\"include_branches\":true}}}");
-    assert_non_null(resp5);
-    assert_non_null(strstr(resp5, "total_branches"));
-    assert_non_null(strstr(resp5, "Phase_A"));
-    assert_non_null(strstr(resp5, "shm://datahub/offset=0x3000"));
-    assert_null(strstr(resp5, "\"error\""));
-    free(resp5);
-
-    /* 6. 调用 DCU 点位批量读取与字节序重排 (CDAB) */
+    /* 4. 调用 DCU 点位批量读取与字节序重排 (CDAB) */
     char *resp6 = edge_mcp_dispatch_json(
         mcp_bus_get_dispatcher(hub),
         "{\"jsonrpc\":\"2.0\",\"id\":106,\"method\":\"tools/call\",\"params\":{"
@@ -141,26 +138,20 @@ static void test_mcp_microservices_cascade_execution(void **state) {
     assert_non_null(resp6);
     assert_non_null(strstr(resp6, "scaled_value"));
     assert_non_null(strstr(resp6, "raw_hex"));
-    assert_non_null(strstr(resp6, "shm://datahub/offset=0x1000"));
+    assert_non_null(strstr(resp6, "49.979"));
+    assert_non_null(strstr(resp6, "0x8000435C"));
+    assert_null(strstr(resp6, "shm://"));
     assert_null(strstr(resp6, "\"error\""));
     free(resp6);
 
-    /* 7. 调用 ESS 储能急停动作 (L2 特权) */
-    mcp_security_context_t sec_l2 = {.client_id = "iems_emergency_copilot",
-                                     .operator_id = "engineer_01",
-                                     .role_level = MCP_SEC_L2_CRITICAL_ACTION,
-                                     .request_timestamp_ns = (uint64_t)uv_hrtime()};
-    char *resp7 = mcp_bus_dispatch_with_security(
-        hub,
+    /* 5. 未注册点位必须返回 tag_not_available，而不是伪造读数 */
+    char *resp_missing = edge_mcp_dispatch_json(
+        mcp_bus_get_dispatcher(hub),
         "{\"jsonrpc\":\"2.0\",\"id\":107,\"method\":\"tools/call\",\"params\":{"
-        "\"name\":\"ess_emergency_stop\","
-        "\"arguments\":{\"system_id\":\"ESS_01\",\"reason\":\"GRID_SURGE_DETECTED\"}}}",
-        &sec_l2);
-    assert_non_null(resp7);
-    assert_non_null(strstr(resp7, "EMERGENCY_STOP"));
-    assert_non_null(strstr(resp7, "TRIPPED"));
-    assert_null(strstr(resp7, "\"error\""));
-    free(resp7);
+        "\"name\":\"tag_batch_read_scaled\",\"arguments\":{\"tag_ids\":[9999]}}}");
+    assert_non_null(resp_missing);
+    assert_non_null(strstr(resp_missing, "tag_not_available"));
+    free(resp_missing);
 
     mcp_bus_hub_destroy(hub);
 }

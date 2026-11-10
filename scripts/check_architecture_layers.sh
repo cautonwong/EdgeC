@@ -12,8 +12,8 @@ echo "🛡️  [ARCH-GATE] Running Clean Architecture & Dependency Inversion Lay
 VIOLATIONS=0
 
 # 1. 算法层头文件不得直接包含具体的 datahub.h 或 <uv.h>
-echo "  [1/7] Checking modules/edge_algo public headers..."
-for f in "${REPO_ROOT}"/modules/edge_algo/include/*.h; do
+echo "  [1/7] Checking algorithm component public headers..."
+for f in "${REPO_ROOT}"/modules/edge_{ai,battery,health,power,runtime}/include/*.h; do
     if grep -E '^[[:space:]]*#[[:space:]]*include[[:space:]]+["<]datahub\.h[">]' "$f" >/dev/null 2>&1; then
         echo "    ❌ VIOLATION: Algorithm header $(basename "$f") includes concrete datahub.h"
         VIOLATIONS=$((VIOLATIONS + 1))
@@ -25,8 +25,8 @@ for f in "${REPO_ROOT}"/modules/edge_algo/include/*.h; do
 done
 
 # 2. 外部公开端口 edge_port.h 不得直接包含 datahub.h
-echo "  [2/7] Checking modules/edge_core/include/edge_port.h..."
-if grep -E '^[[:space:]]*#[[:space:]]*include[[:space:]]+["<]datahub\.h[">]' "${REPO_ROOT}/modules/edge_core/include/edge_port.h" >/dev/null 2>&1; then
+echo "  [2/7] Checking foundation/include/edge_port.h..."
+if grep -E '^[[:space:]]*#[[:space:]]*include[[:space:]]+["<]datahub\.h[">]' "${REPO_ROOT}/foundation/include/edge_port.h" >/dev/null 2>&1; then
     echo "    ❌ VIOLATION: edge_port.h includes datahub.h directly"
     VIOLATIONS=$((VIOLATIONS + 1))
 fi
@@ -72,8 +72,8 @@ for h in "${DECOUPLED_PUBLIC_HEADERS[@]}"; do
 done
 
 # 5. 算法实现源文件不得直接包含具体的 datahub.h
-echo "  [5/7] Checking modules/edge_algo implementation source files..."
-for f in "${REPO_ROOT}"/modules/edge_algo/src/*.c; do
+echo "  [5/7] Checking algorithm component implementation source files..."
+for f in "${REPO_ROOT}"/modules/edge_{ai,battery,health,power,runtime}/src/*.c; do
     base=$(basename "$f")
     if grep -E '^[[:space:]]*#[[:space:]]*include[[:space:]]+["<]datahub\.h[">]' "$f" >/dev/null 2>&1; then
         echo "    ❌ VIOLATION: Algorithm source file ${base} includes concrete datahub.h directly (must use consumer ports)"

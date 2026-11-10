@@ -18,7 +18,7 @@ def roots(root):
     with open(path, encoding="utf-8") as handle:
         for line in handle:
             line = line.strip()
-            if line and not line.startswith("#") and line.startswith("cmd/"):
+            if line and not line.startswith("#"):
                 result.append(line)
     return result
 

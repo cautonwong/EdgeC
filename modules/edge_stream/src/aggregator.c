@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include "edge_common_types.h"
 #include <stdlib.h>
 #include <string.h>
 

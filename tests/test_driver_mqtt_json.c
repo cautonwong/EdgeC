@@ -34,7 +34,8 @@ static const char* buf_text(net_buf_t* nb, char* dst, size_t dst_sz) {
 
 static void test_encode_ndata(void** state) {
     (void)state;
-    driver_manager_t* mgr = driver_manager_create();
+    driver_manager_storage_t mgr_storage = {0};
+    driver_manager_t* mgr = driver_manager_create_in(&mgr_storage);
     assert_non_null(mgr);
     assert_int_equal(mqtt_json_driver_register(mgr), 0);
 
@@ -67,7 +68,8 @@ static void test_encode_ndata(void** state) {
 
 static void test_encode_keeps_precision(void** state) {
     (void)state;
-    driver_manager_t* mgr = driver_manager_create();
+    driver_manager_storage_t mgr_storage = {0};
+    driver_manager_t* mgr = driver_manager_create_in(&mgr_storage);
     mqtt_json_driver_register(mgr);
     edge_driver_ctx_t* ctx = driver_instance_create(mgr, "MqttJson", 1);
     assert_non_null(ctx);
@@ -97,7 +99,8 @@ static void test_encode_keeps_precision(void** state) {
 
 static void test_rejects_unsafe_name(void** state) {
     (void)state;
-    driver_manager_t* mgr = driver_manager_create();
+    driver_manager_storage_t mgr_storage = {0};
+    driver_manager_t* mgr = driver_manager_create_in(&mgr_storage);
     mqtt_json_driver_register(mgr);
     edge_driver_ctx_t* ctx = driver_instance_create(mgr, "MqttJson", 1);
     assert_non_null(ctx);
@@ -122,7 +125,8 @@ static void test_rejects_unsafe_name(void** state) {
 
 static void test_birth_once_per_session(void** state) {
     (void)state;
-    driver_manager_t* mgr = driver_manager_create();
+    driver_manager_storage_t mgr_storage = {0};
+    driver_manager_t* mgr = driver_manager_create_in(&mgr_storage);
     mqtt_json_driver_register(mgr);
     edge_driver_ctx_t* ctx = driver_instance_create(mgr, "MqttJson", 1);
     assert_non_null(ctx);

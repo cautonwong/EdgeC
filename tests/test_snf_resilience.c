@@ -11,6 +11,7 @@
 
 #include "edge_log.h"
 #include "snf_manager.h"
+#include "snf_sqlite_adapter.h"
 #include "sqlite_service.h"
 
 static int g_publish_count = 0;
@@ -35,7 +36,8 @@ static void test_snf_offline_buffering(void** state) {
     sqlite_svc_t* db = sqlite_svc_create(loop, &db_cfg);
     assert_non_null(db);
 
-    snf_config_t snf_cfg = {.db = db,
+    snf_store_port_t store = snf_sqlite_store_port(db);
+    snf_config_t snf_cfg = {.store = &store,
                             .loop = loop,
                             .publish_fn = mock_publish,
                             .sync_batch_size = 10,

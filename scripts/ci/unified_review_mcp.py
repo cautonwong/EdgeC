@@ -209,11 +209,14 @@ def run_clang_tidy_check(files: List[str], compile_commands_dir: str = "build") 
                     "-I.",
                     "-Iinclude",
                     "-Imodules/edge_core/include",
-                    "-Imodules/edge_security/include",
                     "-Imodules/edge_stream/include",
                     "-Imodules/edge_io/include",
                     "-Imodules/edge_infra/include",
-                    "-Imodules/edge_algo/include",
+                    "-Imodules/edge_ai/include",
+                    "-Imodules/edge_battery/include",
+                    "-Imodules/edge_health/include",
+                    "-Imodules/edge_power/include",
+                    "-Imodules/edge_runtime/include",
                     "-Itests",
                 ])
             p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=60)

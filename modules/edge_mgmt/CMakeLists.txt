@@ -6,17 +6,13 @@ add_library(edge_mgmt STATIC
     src/auth/console_rbac.c
     src/audit/console_audit.c
     src/edge_app_mgr.c
-    src/app_registry_store.c
 )
 
 target_include_directories(edge_mgmt PUBLIC
     include
-    ${CMAKE_SOURCE_DIR}/modules/edge_core/include
-    ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
 )
 
 target_link_libraries(edge_mgmt PUBLIC
     edge_common_interface
-    edge_core
-    edge_infra
+    libuv::uv_a
 )

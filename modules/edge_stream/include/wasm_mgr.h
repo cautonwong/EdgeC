@@ -2,7 +2,7 @@
 #define EDGE_WASM_MGR_H
 
 #include <stdint.h>
-#include "shmring.h"
+#include "pipe_msg.h"
 #include "stream_bus_port.h"
 
 #ifdef __cplusplus

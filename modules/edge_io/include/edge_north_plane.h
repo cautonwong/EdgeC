@@ -85,7 +85,7 @@ struct edge_north_source_ops_s {
      *
      * **分层纪律**：产品可以调用协议层已有的解析函数
      * （如 `dlt698_decode_frame` / `dlt698_decode_data`），
-     * 但**不要**把字节解析逻辑复制进 `cmd/` —— 那是协议知识，属于 `edge_protocol`。
+     * 但**不要**把字节解析逻辑复制进 `cmd/` —— 那是协议知识，属于 `foundation/edge_codec`。
      * 产品负责的是"解析出来的字段 → 哪个聚合根方法"。
      *
      * @param address 传输层给的地址（MQTT topic / OPC UA NodeId）

@@ -13,16 +13,12 @@
 #include "datahub.h"
 #include "edge_log.h"
 
-// 前向声明外部持久化服务接口 (解耦 edge_infra/sqlite_service.h)
-typedef void (*sqlite_exec_cb)(void *user_data, int status, char **errmsg);
-int sqlite_svc_exec(sqlite_svc_t *svc, const char *sql, sqlite_exec_cb cb, void *user_data);
-
 // 紧凑型缓存：仅存放当前产品激活的参数
 static edge_param_value_t *g_compact_cache = NULL;
 static int g_compact_count = 0;
 
 struct edge_params_s {
-    sqlite_svc_t *db;
+    const edge_params_store_t *store;
     datahub_t *hub;
     const edge_param_info_t *meta_table;
     int meta_count;
@@ -44,37 +40,13 @@ static void _sync_to_datahub(edge_params_t *ctx, int idx) {
     datahub_publish(ctx->hub, &msg);
 }
 
-edge_params_t *edge_params_create(sqlite_svc_t *db, datahub_t *hub) {
+edge_params_t *edge_params_create(const edge_params_store_t *store, datahub_t *hub) {
     edge_params_t *ctx = calloc(1, sizeof(struct edge_params_s));
-    ctx->db = db;
+    if (!ctx) return NULL;
+    ctx->store = store;
     ctx->hub = hub;
-
-    const char *create_table_sql =
-        "CREATE TABLE IF NOT EXISTS system_params ("
-        "  id INTEGER PRIMARY KEY,"
-        "  name TEXT UNIQUE,"
-        "  val_float REAL,"
-        "  val_int INTEGER"
-        ");";
-    sqlite_svc_exec(db, create_table_sql, NULL, NULL);
-
+    if (store && store->ensure_schema) store->ensure_schema(store->ctx);
     return ctx;
-}
-
-typedef struct {
-    edge_param_info_t m;
-    edge_param_value_t *v;
-} param_load_ctx_t;
-
-static void _on_param_load(void *user_data, int cols, char **vals) {
-    param_load_ctx_t *ctx = (param_load_ctx_t *)user_data;
-    if (cols >= 2 && vals[0] && vals[1]) {
-        if (ctx->m.type == PARAM_TYPE_FLOAT) {
-            ctx->v->f = atof(vals[0]);
-        } else {
-            ctx->v->i = atoll(vals[1]);
-        }
-    }
 }
 
 void edge_params_register_metadata(edge_params_t *ctx, const edge_param_info_t *table, int count) {
@@ -93,27 +65,32 @@ void edge_params_register_metadata(edge_params_t *ctx, const edge_param_info_t *
     for (int i = 0; i < count; i++) {
         g_compact_cache[i] = table[i].def_val;
 
-        char insert_sql[512];
-        if (table[i].type == PARAM_TYPE_FLOAT) {
-            snprintf(insert_sql, sizeof(insert_sql),
-                     "INSERT OR IGNORE INTO system_params (name, val_float) VALUES ('%s', %.4f);",
-                     table[i].name, table[i].def_val.f);
-        } else {
-            snprintf(insert_sql, sizeof(insert_sql),
-                     "INSERT OR IGNORE INTO system_params (name, val_int) VALUES ('%s', %ld);",
-                     table[i].name, (long)table[i].def_val.i);
+        if (ctx->store) {
+            if (table[i].type == PARAM_TYPE_FLOAT) {
+                if (ctx->store->insert_default_float)
+                    ctx->store->insert_default_float(ctx->store->ctx, table[i].name,
+                                                     table[i].def_val.f);
+            } else if (ctx->store->insert_default_int) {
+                ctx->store->insert_default_int(ctx->store->ctx, table[i].name, table[i].def_val.i);
+            }
         }
-        sqlite_svc_exec(ctx->db, insert_sql, NULL, NULL);
     }
 
     // [核心修复] 从数据库回读真实值 (覆盖默认值)
     for (int i = 0; i < count; i++) {
-        char select_sql[256];
-        snprintf(select_sql, sizeof(select_sql),
-                 "SELECT val_float, val_int FROM system_params WHERE name='%s';", table[i].name);
-
-        param_load_ctx_t lctx = {.m = table[i], .v = &g_compact_cache[i]};
-        sqlite_svc_exec(ctx->db, select_sql, _on_param_load, &lctx);
+        if (ctx->store) {
+            if (table[i].type == PARAM_TYPE_FLOAT) {
+                if (ctx->store->load_float) {
+                    double value = 0;
+                    if (ctx->store->load_float(ctx->store->ctx, table[i].name, &value) == 0)
+                        g_compact_cache[i].f = value;
+                }
+            } else if (ctx->store->load_int) {
+                int64_t value = 0;
+                if (ctx->store->load_int(ctx->store->ctx, table[i].name, &value) == 0)
+                    g_compact_cache[i].i = value;
+            }
+        }
 
         // 同步到 DataHub Shadow
         _sync_to_datahub(ctx, i);
@@ -146,10 +123,8 @@ edge_status_t edge_param_set_float(edge_params_t *ctx, const char *key, double v
                 return EDGE_ERR_INVALID_PARAM;
             }
             g_compact_cache[i].f = val;
-            char sql[256];
-            snprintf(sql, sizeof(sql), "UPDATE system_params SET val_float=%.4f WHERE name='%s';",
-                     val, key);
-            sqlite_svc_exec(ctx->db, sql, NULL, NULL);
+            if (ctx->store && ctx->store->save_float)
+                ctx->store->save_float(ctx->store->ctx, key, val);
             _sync_to_datahub(ctx, i);
             return EDGE_OK;
         }

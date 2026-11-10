@@ -7,11 +7,6 @@
       "max_ram_kb": 64,
       "max_stack_frame_bytes": 512
     },
-    "edge_algo": {
-      "max_flash_kb": 512,
-      "max_ram_kb": 128,
-      "max_stack_frame_bytes": 512
-    },
     "edge_stream": {
       "max_flash_kb": 128,
       "max_ram_kb": 64,

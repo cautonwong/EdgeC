@@ -104,7 +104,7 @@ static char *read_file_to_buffer(const char *path, uint32_t *size) {
 static int verify_wasm_signature(const char *wasm_path, const char *pubkey_path,
                                  const uint8_t *wasm_buf, uint32_t wasm_size) {
     /* Build .wasm.sig path */
-    char sig_path[1024];
+    char sig_path[1024]; // stack-ok: 1 KiB path scratch, one-shot at module load, not an RT callback
     int ret = snprintf(sig_path, sizeof(sig_path), "%s.sig", wasm_path);
     if (ret < 0 || (size_t)ret >= sizeof(sig_path)) return -1;
 

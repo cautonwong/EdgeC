@@ -1,0 +1,226 @@
+#include "driver_manager.h"
+
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include <uv.h>
+
+#include "datahub.h"
+#include "edge_driver.h"
+#include "edge_log.h"
+#include "net_buf.h"
+
+#define MAX_DRIVERS 32
+#define MAX_POLL_TARGETS 32
+#define MAX_DRIVER_INSTANCES 32
+#define DRIVER_PRIV_SIZE 1024
+#define MAX_POLL_TAGS 64
+#define MAX_DISPATCH_MSGS 64
+
+typedef struct {
+    edge_driver_ctx_t ctx;
+    /* Caller-Allocated Storage 的对齐契约：缓冲区必须满足 max_align_t。
+     * 少了 alignas，`alignas(max_align_t)` 的会话结构体（IEC104 的 APCI storage）
+     * 落在非 16 字节边界上——ubsan 直接报 misaligned，实际运行是 UB。 */
+    alignas(max_align_t) uint8_t priv[DRIVER_PRIV_SIZE];
+    bool in_use;
+} driver_inst_slot_t;
+
+/* 结构体整体也必须满足 max_align_t，否则 priv 只是"相对结构体对齐"，
+ * 而结构体本身可能落在任意地址（calloc 保证的是 max_align_t，这里双保险）。 */
+_Static_assert(alignof(driver_inst_slot_t) >= alignof(max_align_t),
+               "driver_inst_slot_t 必须按 max_align_t 对齐，否则驱动 priv 会 misaligned");
+
+struct driver_manager_s {
+    const edge_driver_t *drivers[MAX_DRIVERS];
+    int count;
+
+    // Orchestrator 运行时状态
+    bool orchestrator_running;
+    edge_orchestrator_cfg_t cfg;
+    net_buf_pool_t *fallback_pool;
+    driver_inst_slot_t inst_slots[MAX_DRIVER_INSTANCES];
+    uv_mutex_t lock;
+    bool lock_init;
+    bool is_static;
+};
+
+_Static_assert(sizeof(struct driver_manager_s) <= sizeof(driver_manager_storage_t),
+               "driver_manager_s size exceeds driver_manager_storage_t");
+
+static driver_inst_slot_t g_fallback_inst_slots[MAX_DRIVER_INSTANCES];
+
+static uint64_t _now_ms(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    return (uint64_t)ts.tv_sec * 1000ULL + (uint64_t)ts.tv_nsec / 1000000ULL;
+}
+
+driver_manager_t *driver_manager_create_in(driver_manager_storage_t *storage) {
+    if (!storage) return NULL;
+    driver_manager_t *mgr = (driver_manager_t *)storage->raw;
+    memset(mgr, 0, sizeof(*mgr));
+    uv_mutex_init(&mgr->lock);
+    mgr->lock_init = true;
+    mgr->is_static = true;
+    return mgr;
+}
+
+
+void driver_manager_destroy(driver_manager_t *mgr) {
+    if (!mgr) return;
+
+    /* [ADR-002] 内置轮询器已删除：它是第三套轮询实现，与 dcu_poller /
+     * edge_api 重复且直接调 legacy 槽位。会话与实例由各自引擎/组合根管理。 */
+    if (mgr->fallback_pool) {
+        net_buf_pool_destroy(mgr->fallback_pool);
+        mgr->fallback_pool = NULL;
+    }
+
+    if (mgr->lock_init) {
+        uv_mutex_destroy(&mgr->lock);
+        mgr->lock_init = false;
+    }
+
+    if (!mgr->is_static) {
+        free(mgr);
+    }
+}
+
+int driver_manager_register(driver_manager_t *mgr, const edge_driver_t *driver) {
+    if (!mgr || !driver) return -1;
+    if (mgr->count >= MAX_DRIVERS) return -2;
+
+    /* [ADR-002] 两套接口互斥：要么 legacy 四件套，要么 request-native。
+     * 混用会让"这个驱动到底认 TagID 还是认点位"变成不可判定，
+     * 迁移期最容易出的就是这种半新半旧。 */
+    bool legacy = driver->encode_request || driver->decode_response || driver->handle_rx;
+    bool native = driver->req_prepare || driver->req_encode || driver->req_decode ||
+                  driver->req_slave_exchange || driver->req_tick;
+    if (legacy && native) {
+        LOG_ERROR(LOG_CAT_IO, "Driver %s mixes legacy and request-native slots (ADR-002)",
+                  driver->name ? driver->name : "?");
+        return -3;
+    }
+    /* prepare + encode 是组请求的最小集，必须成对出现。
+     * decode 只有"读"才需要——纯北向生产者（sparkplug_b）只发不收，不能强求。 */
+    bool master = driver->req_prepare || driver->req_encode || driver->req_decode;
+    if (master && (!driver->req_prepare || !driver->req_encode)) {
+        LOG_ERROR(LOG_CAT_IO, "Driver %s: request-native needs prepare+encode",
+                  driver->name ? driver->name : "?");
+        return -4;
+    }
+    /* 只有主站路径用请求私有缓冲；纯从站/纯生产者靠 ctx_size 的持久上下文。 */
+    if (master && (driver->req_priv_size == 0 || driver->req_priv_size > REQ_DRV_PRIV_MAX)) {
+        LOG_ERROR(LOG_CAT_IO, "Driver %s: req_priv_size %zu out of range (max %d)",
+                  driver->name ? driver->name : "?", driver->req_priv_size, REQ_DRV_PRIV_MAX);
+        return -5;
+    }
+
+    for (int i = 0; i < mgr->count; i++) {
+        if (strcmp(mgr->drivers[i]->name, driver->name) == 0) return 0;
+    }
+
+    mgr->drivers[mgr->count++] = driver;
+    LOG_INFO(LOG_CAT_IO, "Registered Protocol Template: %s", driver->name);
+    return 0;
+}
+
+int driver_manager_register_table(driver_manager_t *mgr, const edge_driver_reg_entry_t *registry, size_t count) {
+    if (!mgr || !registry) return -1;
+    int error_count = 0;
+    for (size_t i = 0; i < count; i++) {
+        if (!registry[i].driver) {
+            LOG_ERROR(LOG_CAT_IO, "Driver registry entry [%zu] (%s) has NULL driver pointer",
+                      i, registry[i].protocol_name ? registry[i].protocol_name : "UNKNOWN");
+            error_count++;
+            continue;
+        }
+        int rc = driver_manager_register(mgr, registry[i].driver);
+        if (rc != 0) {
+            LOG_ERROR(LOG_CAT_IO, "Failed to register driver '%s' (rc=%d)",
+                      registry[i].driver->name ? registry[i].driver->name : "UNKNOWN", rc);
+            error_count++;
+        }
+    }
+    return (error_count == 0) ? 0 : -1;
+}
+
+const edge_driver_t *driver_manager_find(driver_manager_t *mgr, const char *name) {
+    if (!mgr || !name) return NULL;
+    for (int i = 0; i < mgr->count; i++) {
+        if (strcmp(mgr->drivers[i]->name, name) == 0) return mgr->drivers[i];
+    }
+    if (strcmp(name, "MODBUS") == 0 || strcmp(name, "Modbus") == 0) {
+        for (int i = 0; i < mgr->count; i++) {
+            if (strcmp(mgr->drivers[i]->name, "ModbusRTU") == 0) return mgr->drivers[i];
+        }
+    }
+    return NULL;
+}
+
+edge_driver_ctx_t *driver_instance_create(driver_manager_t *mgr, const char *protocol,
+                                          uint32_t device_id) {
+    const edge_driver_t *tmpl = driver_manager_find(mgr, protocol);
+    if (!tmpl) {
+        printf("[DRV_INST_FAIL] driver_manager_find failed for '%s'! mgr=%p, count=%d\n",
+               protocol, (void*)mgr, mgr ? mgr->count : -1);
+        if (mgr) {
+            for (int i = 0; i < mgr->count; i++) {
+                printf("  registered driver[%d]: '%s'\n", i, mgr->drivers[i] ? mgr->drivers[i]->name : "null");
+            }
+        }
+        return NULL;
+    }
+
+    driver_inst_slot_t *slot = NULL;
+    if (mgr) {
+        for (int i = 0; i < MAX_DRIVER_INSTANCES; i++) {
+            if (!mgr->inst_slots[i].in_use) {
+                slot = &mgr->inst_slots[i];
+                break;
+            }
+        }
+    }
+    if (!slot) {
+        for (int i = 0; i < MAX_DRIVER_INSTANCES; i++) {
+            if (!g_fallback_inst_slots[i].in_use) {
+                slot = &g_fallback_inst_slots[i];
+                break;
+            }
+        }
+    }
+    if (!slot) return NULL;
+
+    memset(slot, 0, sizeof(*slot));
+    slot->in_use = true;
+    slot->ctx.driver = tmpl;
+    slot->ctx.device_id = device_id;
+
+    if (mgr && mgr->cfg.hub) {
+        slot->ctx.user_data = mgr->cfg.hub;
+    }
+    if (tmpl->ctx_size > 0) {
+        if (tmpl->ctx_size > DRIVER_PRIV_SIZE) {
+            /* 静默失败最难查：表现为"会话建不出来"，日志里什么都没有 */
+            LOG_ERROR(LOG_CAT_IO, "Driver %s: ctx_size %zu exceeds DRIVER_PRIV_SIZE (%d)",
+                      tmpl->name ? tmpl->name : "?", tmpl->ctx_size, DRIVER_PRIV_SIZE);
+            slot->in_use = false;
+            return NULL;
+        }
+        slot->ctx.priv = slot->priv;
+        memset(slot->priv, 0, DRIVER_PRIV_SIZE);
+    }
+    if (tmpl->on_init) tmpl->on_init(&slot->ctx);
+
+    return &slot->ctx;
+}
+
+void driver_instance_destroy(edge_driver_ctx_t *ctx, const char *protocol) {
+    (void)protocol;
+    if (!ctx) return;
+    if (ctx->driver && ctx->driver->on_cleanup) ctx->driver->on_cleanup(ctx);
+    driver_inst_slot_t *slot = (driver_inst_slot_t *)ctx;
+    slot->in_use = false;
+    ctx->priv = NULL;
+}

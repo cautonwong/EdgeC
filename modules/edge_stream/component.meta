@@ -9,9 +9,9 @@ abi_stability=source-only
 foundation=>=0.1 <1
 ports_required=stream_bus
 ports_optional=
-allowed_owners=edge_algo,edge_core
+allowed_owners=
 rom_bytes_max=0
 ram_bytes_max=0
 stack_bytes_max=0
-heap=none
+heap=bounded
 lts=false

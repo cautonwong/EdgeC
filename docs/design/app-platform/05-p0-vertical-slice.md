@@ -1,6 +1,6 @@
 # 05 P0 最小可验证切片
 
-状态：设计基线，待评审。未实现。
+状态：第二轮修订（2026-11-09/10），待复审。未实现。
 
 ## 1. 目的
 
@@ -18,10 +18,10 @@
 
 | 维度 | 分层 | 取值 | 明确不做 |
 | --- | --- | --- | --- |
-| 执行档位 | core | `execution_profile: wasm`，一个运行时引擎（WAMR 或 wasmtime，按 04 号文档判据二选一） | QuickJS、Go sidecar、Python |
+| 执行档位 | core | `execution_profile: wasm`，默认 vendored WAMR（wasmtime 仅作备选后端，见 04 号文档） | QuickJS、Go sidecar、Python |
 | 语言 | core | C | C++、Rust、Go |
 | 贡献类型 | core | `telemetry.points`，含 `point_publish` 只写自身命名空间 | `ui.pages`、`northbound.metrics`、`alarm.rules`、`schedule.jobs`、`protocol.handlers` |
-| 能力 | core | `tags.read` 单点位、`points.publish` 自身命名空间、`log` | `tags.write`、`alarm.raise`、`net.egress` |
+| 能力 | core | `tags.read` 单点位、`points.publish` 自身命名空间、`log` | `tags.write`、`alarms.raise`、`net.egress` |
 | 签名 | core | 一个测试密钥，真实验签 | 密钥轮换、证书链 |
 | 分布 | core | 本地安装包，不经网络 | 商店后端、远程下载 |
 | 参数 | ext | 清单 `settings` schema、默认值、`setting_get`、`appctl settings set` | WebUI 设置页、参数分组 |
@@ -32,28 +32,24 @@
 
 ## 3. 组件
 
-四个新组件，全部是最小实现。
+两个常驻 + 一个命令行，全部最小实现。
 
-1. `app-manager`：单写者，负责安装、批准、启动、停止、卸载、回滚，写注册表与快照。
-2. `app-host`：WASM 宿主进程，加载实例，提供 Host ABI，做配额与故障处理。
-3. `registry-snapshot`：从注册表生成 `gen-N.json` 并原子发布，供只读消费。
-4. `appctl`：命令行，用于安装、批准、启停、查看状态。P0 不做 WebUI。
+1. `app-manager`：**产品进程内的模块**，不是独立进程。单写者，负责安装、批准、启动、停止、卸载、回滚，写注册表与快照，运行调谐与状态接口。
+2. `app-host`：独立进程，由产品进程 `posix_spawn` 拉起并继承一对 `socketpair`；加载 WASM 实例，提供 Host ABI，做配额与故障处理。
+3. `appctl`：命令行，经 unix socket 调产品进程，用于安装、批准、启停、查看状态。P0 不做 WebUI。
+4. `registry-snapshot`：app-manager 内的一个函数，生成 `gen-N.json` 并原子发布，不是独立组件。
 
-**P0 开始前必须先定两件事，未定不写代码。**
+不单独实现 supervisor：app-host 的存活由产品进程负责；产品进程退出时 app-host 随 `PR_SET_PDEATHSIG` 退出。
 
-第一，应用点位目录由谁承载，二选一并补 ADR 修订：
+**已定的前提（2026-11-09）：**
 
-1. 产品 ACL 映射。应用点位留在注册表，产品适配器把 `app.<id>.<point>` 解析到既有产品点位。P0 只改产品适配器，不动 DataHub。
-2. DataHub 扩展。应用点位进 DataHub，需要扩展端口、存储与重启恢复，并提交 ADR-0010/0011 修订。
+- **主进程**是产品进程（P0 为 `dcu`），不是 Go 网关。`go/cmd/edge-gateway` 只在 dev mesh 中存在，生产镜像不启动。
+- **应用点位承载**：注册表给每个点分配槽位，产品进程计算 `app_tag = app_base + slot`；DataHub 在 `map_fn` 返回 `<0` 时回退为 `idx = tag_id`，因此值走既有影子表与 ring。除容量常量与产品 `map_fn` 的让位规则外，不改 DataHub 结构。
+- **进程间通道**：继承的 `socketpair`，每实例令牌，句柄带 `grant_generation`。
 
-第二，现有 `env` ABI 怎么处理。仓库现有 `examples/wasm/*` 用的是 `ext_datahub_read(1001, ...)` 加全局数字 TagID，与 ADR-0010 冲突：
+**旧 `env` ABI（2026-11-09 已定）：拒绝。** 未声明 `abi: 1` 的模块安装即拒，错误码 `DENIED_ABI`，不提供兼容层。`examples/wasm/*` 用 `ext_datahub_read(1001, ...)` 加全局数字 TagID，与 ADR-0010 冲突；示例与指南标 `legacy`，P0 交付一个最小迁移示例。现场若盘出真实旧应用，再单独评审兼容层。
 
-1. **拒绝旧模块（推荐）**。未声明 `abi: 1` 的模块安装即拒，示例与指南同步标记 legacy。
-2. **兼容层**。为旧模块提供 `env` 适配器，把数字 TagID 按产品映射。代价是把刚废掉的全局数字标识重新引回来，必须单独评审。
-
-两条路都要求既有产品点位身份保持不变，注册表不创建全局数字 TagID。
-
-除选定路径外，P0 对现有代码的改动只允许一处：启动流程增加 app-manager 与 app-host 的拉起。其他子系统不动。
+除上述已定路径外，P0 对现有代码的改动只允许：产品进程启动流程增加 app-manager 初始化与 app-host 拉起；产品 `map_fn` 增加 `tag_id >= app_base` 的让位；影子表容量常量与 Go 侧同步。其他子系统不动。
 
 ## 4. 接口
 
@@ -78,16 +74,21 @@ appctl snapshot                        # 打印当前 generation 与贡献摘要
 
 1. `app.yaml` 的 JSON Schema v1。
 2. WIT 包 v1 的 P0 子集，函数名以 03 号 ABI 总表为准：`point_resolve`、`point_read`、`point_subscribe`、`point_publish`、`log`、`now`，以及导出 `app_init`、`app_on_event`、`app_stop`；`setting_get` 在 ext 层加入。不再使用 `tag_read`、`now_ms` 这类旧名。
-3. C 绑定，由 WIT 生成，CI 校验不可手改。
+3. C 绑定，由 WIT 生成，CI 校验不可手改。**P0 只交付 C 绑定与 C 示例应用；Rust/Go/Python 在 P1，JS 在 P2，不提前承诺。**
 4. 注册表 schema 与快照格式说明。
 5. 参数 schema 与 `app_settings` 存储，含默认值初始化与字段级校验。
 6. 包校验器：验签、解包限制、导入白名单，作为独立模块，可单测。
 7. 一个示例 C 应用：订阅一个点位，值超阈值时写日志。
 8. 一个 legacy 反例：用旧 `env` ABI 编译的模块，用于验证被拒。
-9. 验收脚本，逐条执行第 6 节的检查并输出证据文件。
-10. 一份故障注入脚本，覆盖第 01 号文档列出的 10 个中断点。
+9. test-platform 的 `edgec-app` 任务与适配器：拉起产品进程与 app-host，执行第 6 节检查，证据落 JSONL，`gate` 判四档结论。
+10. 故障注入适配器（test-platform 插件），覆盖第 01 号文档列出的中断点矩阵。
+11. DCU `dcu@1` 产品剖面 v1，至少包含 `area.voltage.min/avg/max` 三个台区聚合点；聚合由 DCU 产品侧计算，应用平台只消费剖面。
+12. `edgeos-sim` 开发宿主（P1）：同一 app-host/WAMR、假剖面与内存 DataHub，供 SDK 作者本地运行；不模拟授权，不进生产镜像。
+13. `edgeos-pack` 打包工具（P1）：校验前置、确定性 tar.zst、Ed25519 签名，输出 `.eapp`；设备不打包。
 
 ## 6. 验收项与证据
+
+**用例分两层（2026-11-09 已定）。** ABI conformance 放 EdgeC `tests/`（cmocka + WAMR 宿主，快、进 CI）；端到端验收放 test-platform（进程拉起、故障注入、evidence/gate，四档结论）。两边不重复：`tests/` 断言机制，test-platform 断言“装上去能用、坏了能恢复、证据可查”。
 
 每一条都要有可复现的命令和输出，不接受"人工观察"。
 
@@ -105,14 +106,14 @@ appctl snapshot                        # 打印当前 generation 与贡献摘要
 | 10 | `kill -9 app-host` 后 5 秒内恢复，应用重新激活 | 时间戳与状态 JSON |
 | 11 | 安装时在第 3 步与第 4 步之间**真实断电**（dm-flakey 或断电继电器，不用 `kill -9`），重启后从数据库重建快照，恢复为完整的旧代或完整的新代 | 重启前后的数据库与快照摘要对比 |
 | 12 | 补偿执行到一半真实断电，重启后重放完成 | 快照摘要与 txn 日志 |
-| 13 | 升级后回滚，贡献集合与升级前逐条相等，且新版本 grant 不生效 | 快照 diff 与授权状态 |
+| 13 | 升级后回滚，贡献集合与升级前逐条相等；继承的 grant 生效，新增/扩大的 grant 在批准前不生效 | 快照 diff 与授权状态 |
 | 14 | 卸载后产品侧历史仍能解析点位名，写入被拒 | 历史查询返回与写入错误码 |
 | 15 | 两个并发安装，一个成功一个 `already_installed` | 两次退出码 |
 | 16 | 手改 C 绑定，CI 失败 | CI 日志 |
-| 17 | 未声明 `abi: 1` 的旧 `env` 模块被拒（或按兼容层规则处理） | 退出码与审计 |
+| 17 | 未声明 `abi: 1` 的旧 `env` 模块被拒，返回 `DENIED_ABI` | 退出码与审计 |
 | 18 | 模块声明未在白名单内的 import，加载被拒，返回 `denied_import` | 错误码与进程状态 |
 | 19 | 超大解压包与深层 JSON 被拒，且未解压落盘 | 磁盘占用与退出码 |
-| 20 | 消费者落后时状态为"收敛中"，全部到达目标 generation 后才显示完成 | 状态 JSON 与各消费者 `applied_generation` |
+| 20 | 有消费者时：落后显示"收敛中"，全部到达目标 generation 才显示完成；无消费者时（P0 只有 appctl）安装完成不声称"已收敛" | 状态 JSON 与各消费者 `applied_generation` |
 | 21 | 手工停掉一个运行中的应用，调谐循环 30 秒内恢复 | 时间戳与状态 JSON |
 | 22 | 单应用 Host 调用超预算返回 `denied_quota`，其他应用不受影响 | 错误码与相邻应用日志 |
 | 23 (ext) | 安装后首次启动读到全部默认参数，无需先配置 | 应用日志与状态 JSON |
@@ -123,9 +124,10 @@ appctl snapshot                        # 打印当前 generation 与贡献摘要
 | 28 | 磁盘写满时安装失败，现有代不受影响，错误可读 | 磁盘占用与状态 JSON |
 | 29 | 墙钟发生跳变时，应用使用的单调时钟不跳，超时与间隔判断不受影响 | 应用日志中的两种时钟 |
 | 30 | grant 表被外部损坏，启动拒绝服务并提示恢复，不静默放行 | 启动退出码与审计 |
-| 31 | 毒应用导致 app-host 两次重启后进入 `isolated`，不再自动拉起 | 状态 JSON 与重启计数 |
+| 31 | 宿主级崩溃 3 次/5 分钟进入 degraded 并停止重拉；可归因到同一实例的毒应用 2 次/10 分钟进入 `isolated` | 状态 JSON 与重启计数 |
 | 32 | 日志洪泛下事件队列有界，调谐循环仍按周期运行 | 队列长度与调谐时间戳 |
 | 33 | 应用故障后其点位质量变为 `stale` 或 `bad`，页面不显示为实时值 | 点位质量与页面状态 |
+| 34 | `requires.points` 未被 `tags.read` 覆盖，或授权范围包含未声明的点位，安装返回 `INVALID_MANIFEST` | 退出码与错误码 |
 
 第 11 到 13 条是 P0 的核心，第 17 到 20 条是安全与一致性的底线，第 27 条是"不改别的应用"的直接证据。
 
@@ -154,5 +156,5 @@ appctl snapshot                        # 打印当前 generation 与贡献摘要
 
 - 目标板上的 WASM 运行时可能不支持所选的中断机制，选型需要在第一天确认，否则整个 A 档要重做。
 - 掉电注入在真实硬件上可能不可控，需要可编程电源或内核级注入，测试环境要先具备。
-- DataHub 点位表改成可增删注册表，可能影响现有北向与历史查询的启动顺序，需要在 P0 内先做一次兼容性验证。
+- 兼容性风险：DataHub 结构不改，注册表维护应用点位名字与槽位，产品 `map_fn` 对 `tag_id >= app_base` 让位；北向与历史查询继续按现有产品点位工作，需要在 P0 内做一次兼容性验证。
 - 5 秒恢复目标是判断，不是测量。若实测明显更慢，需要重新评估"宿主进程崩溃可接受"这一前提。

@@ -10,7 +10,7 @@
 
 #include "edge_app_mgr.h"
 #include "sqlite_service.h"
-#include "edgeos/app_registry_store.h"
+#include "app_repo_sqlite.h"
 
 static void _on_close_cb(uv_handle_t *handle, void *arg) {
     (void)arg;
@@ -42,6 +42,7 @@ static void test_sqlite_app_registry_crud(void **state) {
     sqlite_config_t cfg = {.strategy = STRATEGY_LITE, .db_path = db_path};
     sqlite_svc_t *svc = sqlite_svc_create(loop, &cfg);
     assert_non_null(svc);
+    edge_app_repo_t repo = app_repo_sqlite(svc);
 
     // 1. Save App Manifest
     app_manifest_t manifest_in;
@@ -61,12 +62,12 @@ static void test_sqlite_app_registry_crud(void **state) {
     manifest_in.restart_count = 2;
     manifest_in.created_at = 1770000000000ULL;
 
-    int rc = app_registry_save(svc, &manifest_in);
+    int rc = repo.save_app(repo.ctx, &manifest_in);
     assert_int_equal(rc, 0);
 
     // 2. Get App Manifest
     app_manifest_t manifest_out;
-    rc = app_registry_get(svc, "voltage_guard", &manifest_out);
+    rc = repo.get_app(repo.ctx, "voltage_guard", &manifest_out);
     assert_int_equal(rc, 0);
     assert_string_equal(manifest_out.id, "voltage_guard");
     assert_string_equal(manifest_out.name, "Voltage Guard App");
@@ -83,19 +84,19 @@ static void test_sqlite_app_registry_crud(void **state) {
 
     // 3. List Apps
     app_manifest_t app_list[10];
-    int count = app_registry_list(svc, app_list, 10);
+    int count = repo.list_apps(repo.ctx, app_list, 10);
     assert_int_equal(count, 1);
     assert_string_equal(app_list[0].id, "voltage_guard");
 
     // 4. Delete App
-    rc = app_registry_delete(svc, "voltage_guard");
+    rc = repo.delete_app(repo.ctx, "voltage_guard");
     assert_int_equal(rc, 0);
 
     // Verify deletion
-    rc = app_registry_get(svc, "voltage_guard", &manifest_out);
+    rc = repo.get_app(repo.ctx, "voltage_guard", &manifest_out);
     assert_int_equal(rc, -1);
 
-    count = app_registry_list(svc, app_list, 10);
+    count = repo.list_apps(repo.ctx, app_list, 10);
     assert_int_equal(count, 0);
 
     sqlite_svc_destroy(svc);

@@ -30,6 +30,7 @@
 
 #include "edge_log.h"
 #include "snf_manager.h"
+#include "snf_sqlite_adapter.h"
 #include "sqlite_service.h"
 
 /* ---- 可控的 mock 传输 ---------------------------------------------------- */
@@ -102,6 +103,7 @@ static void pump(uv_loop_t* loop, int iterations) {
 /* 每个用例独立的存储：snf_manager_create() 用的是全局 static 存储，
  * 用例之间会互相踩，所以这里一律用 create_in。 */
 static snf_manager_storage_t g_storage;
+static snf_store_port_t g_store;
 
 static snf_manager_t* make_snf(sqlite_svc_t* db, uv_loop_t* loop, uint32_t pending,
                                int publish_rc) {
@@ -109,7 +111,8 @@ static snf_manager_t* make_snf(sqlite_svc_t* db, uv_loop_t* loop, uint32_t pendi
     g_pending = pending;
     g_publish_calls = 0;
 
-    snf_config_t cfg = {.db = db,
+    g_store = snf_sqlite_store_port(db);
+    snf_config_t cfg = {.store = &g_store,
                         .loop = loop,
                         .publish_fn = mock_publish,
                         .pending_fn = mock_pending,

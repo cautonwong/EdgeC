@@ -8,6 +8,8 @@
 #include "dma_buf_pool.h"
 #include "edge_anti_corruption.h"
 #include "edge_log.h"
+#include "edge_guard.h"
+#include "edge_io_guard_port.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -88,6 +90,17 @@ int edge_port_adapter_from_dma_pool(edge_memory_port_t *out_mem, dma_buf_pool_t 
     out_mem->ctx = &s_default_dma_ad;
     return 0;
 }
+
+
+static int _dpi_guard_telemetry(void *ctx, uint32_t tag_id, double value) {
+    (void)ctx;
+    return dpi_validate_telemetry(tag_id, value) == DPI_PASS ? 0 : -1;
+}
+
+static const edge_io_guard_port_t s_dpi_guard = {
+    .ctx = NULL,
+    .validate_telemetry = _dpi_guard_telemetry,
+};
 
 static int _init_container_resources(edge_composition_container_t *container, const edge_composition_config_t *cfg) {
     container->config = *cfg;
@@ -207,6 +220,7 @@ static int _init_container_resources(edge_composition_container_t *container, co
     container->metrics.initialized = true;
 
     container->initialized = true;
+    edge_io_set_guard_port(&s_dpi_guard);
     return 0;
 }
 

@@ -27,7 +27,8 @@ static void test_fhir_json_export(void** state) {
     datahub_t hub;
     datahub_init(&hub, loop, "test_fhir", 64, 10000, NULL, 0, NULL, NULL, NULL);
 
-    driver_manager_t* mgr = driver_manager_create();
+    driver_manager_storage_t mgr_storage = {0};
+    driver_manager_t* mgr = driver_manager_create_in(&mgr_storage);
     hl7_fhir_driver_register(mgr);
 
     // Node ID 42 (Patient Monitor)

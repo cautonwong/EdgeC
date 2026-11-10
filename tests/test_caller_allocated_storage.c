@@ -89,6 +89,7 @@
 #include "rest_server.h"
 #include "shmring.h"
 #include "snf_manager.h"
+#include "snf_sqlite_adapter.h"
 #include "sqlite_service.h"
 #include "stream_engine.h"
 #include "vsg_control.h"
@@ -820,7 +821,8 @@ static void test_snf_manager_caller_allocated_storage(void **state) {
 
     snf_manager_storage_t snf_storage;
     memset(&snf_storage, 0x33, sizeof(snf_storage));
-    snf_config_t cfg = {.db = db,
+    snf_store_port_t store = snf_sqlite_store_port(db);
+    snf_config_t cfg = {.store = &store,
                         .loop = &loop,
                         .publish_fn = _dummy_snf_pub,
                         .sync_batch_size = 50,
@@ -1356,7 +1358,7 @@ static void test_edge_service_caller_allocated_storage(void **state) {
     arbiter_t *dummy_arb = arbiter_create_in(&dummy_arb_store, &loop);
 
     service_t *svc =
-        service_create_in(&store, &loop, &dummy_hub, dummy_arb, NULL, NULL, NULL, NULL);
+        service_create_in(&store, &loop, &dummy_hub, dummy_arb, NULL, NULL);
     assert_non_null(svc);
     assert_ptr_equal(svc, (service_t *)&store);
     assert_ptr_equal(service_get_loop(svc), &loop);
