@@ -126,7 +126,8 @@ static const edge_driver_t g_custom_bess_driver = {
 
 static void test_dx_driver_registration_and_lookup(void **state) {
     (void)state;
-    driver_manager_t *mgr = driver_manager_create();
+    driver_manager_storage_t mgr_storage = {0};
+    driver_manager_t* mgr = driver_manager_create_in(&mgr_storage);
     assert_non_null(mgr);
 
     // 1. Declare generated-style driver registry table containing the custom driver
@@ -149,7 +150,8 @@ static void test_dx_driver_registration_and_lookup(void **state) {
 
 static void test_dx_device_lifecycle_and_io(void **state) {
     (void)state;
-    driver_manager_t *mgr = driver_manager_create();
+    driver_manager_storage_t mgr_storage = {0};
+    driver_manager_t* mgr = driver_manager_create_in(&mgr_storage);
     assert_non_null(mgr);
 
     static const edge_driver_reg_entry_t custom_registry[] = {
@@ -218,7 +220,8 @@ static void test_dx_datahub_telemetry_integration(void **state) {
     int dh_rc = datahub_init(&hub, &loop, "dx_shm_hub", 1024, 1024, NULL, 0, NULL, NULL, NULL);
     assert_int_equal(dh_rc, 0);
 
-    driver_manager_t *mgr = driver_manager_create();
+    driver_manager_storage_t mgr_storage = {0};
+    driver_manager_t* mgr = driver_manager_create_in(&mgr_storage);
     assert_non_null(mgr);
 
     static const edge_driver_reg_entry_t custom_registry[] = {
@@ -272,7 +275,8 @@ static void test_dx_datahub_telemetry_integration(void **state) {
 
 static void test_dx_error_handling_and_edge_cases(void **state) {
     (void)state;
-    driver_manager_t *mgr = driver_manager_create();
+    driver_manager_storage_t mgr_storage = {0};
+    driver_manager_t* mgr = driver_manager_create_in(&mgr_storage);
     assert_non_null(mgr);
 
     // 1. Lookup non-existent driver

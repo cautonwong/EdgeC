@@ -25,8 +25,9 @@ PRODUCT_CMAKE = [
     Path("cmd/smart_box/CMakeLists.txt"),
 ]
 MODULE_NAMES = [
-    "edge_bootstrap", "edge_io", "edge_core", "edge_protocol",
-    "edge_stream", "edge_infra", "edge_algo", "edge_security",
+    "edge_bootstrap", "edge_io", "edge_core", "edge_codec",
+    "edge_stream", "edge_infra", "edge_infra_security", "edge_security_policy",
+    "edge_ai", "edge_battery", "edge_health", "edge_power", "edge_runtime",
 ]
 
 

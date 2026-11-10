@@ -157,7 +157,8 @@ int main(int argc, char** argv) {
 
     arbiter_t* arbiter_ctx = NULL;
     arbiter_init(&arbiter_ctx, loop);
-    driver_manager_t* drv_mgr = driver_manager_create();
+    driver_manager_storage_t drv_mgr_storage = {0};
+    driver_manager_t* drv_mgr = driver_manager_create_in(&drv_mgr_storage);
     dcu_driver_registry_init(drv_mgr);
 
     bus_orchestrator_t* io_orch =
@@ -172,7 +173,7 @@ int main(int argc, char** argv) {
     dcu_north_slave_attach(loop, hub, io_orch);
     dcu_north_cloud_attach(hub);
 
-    service_t* svc = service_new(loop, hub, arbiter_ctx, NULL, NULL, NULL, dcu_north_mgr());
+    service_t* svc = service_new(loop, hub, arbiter_ctx, NULL, NULL);
     g_running_svc = svc;
 
     // [Safe Signals]
@@ -198,6 +199,10 @@ int main(int argc, char** argv) {
     uv_timer_start(&safety_timer, on_safety_timeout, 60000, 0);
 
     bus_orchestrator_run(io_orch);
+    {
+        northbound_mgr_t* north = dcu_north_mgr();
+        if (north) northbound_mgr_start(north);
+    }
     int ret = service_run(svc);
     // 先停北向线程再拆它读的 datahub，否则 uv 线程会读已释放的 hub。
     dcu_north_stop();

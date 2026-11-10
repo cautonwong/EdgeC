@@ -39,10 +39,31 @@ TEST_MATRIX = [
         "arg_flag": "--root"
     },
     {
+        "guard_name": "check_no_dynamic_memory.py (rt-alloc-ok)",
+        "script": os.path.join(SCRIPTS_DIR, "check_no_dynamic_memory.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_rt_alloc_ok"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_rt_alloc_bare"),
+        "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_no_dynamic_memory.py (rt-alloc-ok block comment)",
+        "script": os.path.join(SCRIPTS_DIR, "check_no_dynamic_memory.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_rt_alloc_ok"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_rt_alloc_block"),
+        "arg_flag": "--root"
+    },
+    {
         "guard_name": "check_stack_usage.py",
         "script": os.path.join(SCRIPTS_DIR, "check_stack_usage.py"),
         "good_target": os.path.join(FIXTURES_DIR, "good_stack_usage"),
         "bad_target": os.path.join(FIXTURES_DIR, "bad_stack_usage"),
+        "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_stack_usage.py (opt-out)",
+        "script": os.path.join(SCRIPTS_DIR, "check_stack_usage.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_stack_optout"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_stack_optout"),
         "arg_flag": "--root"
     },
     {
@@ -92,6 +113,13 @@ TEST_MATRIX = [
         "script": os.path.join(SCRIPTS_DIR, "check_single_responsibility.py"),
         "good_target": os.path.join(FIXTURES_DIR, "good_single_responsibility"),
         "bad_target": os.path.join(FIXTURES_DIR, "bad_single_responsibility"),
+        "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_single_responsibility.py (multiline)",
+        "script": os.path.join(SCRIPTS_DIR, "check_single_responsibility.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_single_responsibility"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_srp_multiline"),
         "arg_flag": "--root"
     },
     {
@@ -145,7 +173,7 @@ INJECTION_MATRIX = [
     ("i01", "hub->shadow_table field penetration",
      "check_aggregate_boundary.py", "i01_aggregate_field_penetration", "gap", "#413"),
     ("i02", "library module calls datahub_init()",
-     "check_composition_root.py", "i02_library_assembles_datahub", "gap", "#417"),
+     "check_composition_root.py", "i02_library_assembles_datahub", "caught", "#417"),
     ("i03", "plain malloc in a non-critical helper",
      "check_no_dynamic_memory.py", "i03_plain_heap_alloc", "gap", "#412"),
     ("i04", "single-line _create_in() that allocates",

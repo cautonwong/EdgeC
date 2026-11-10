@@ -15,6 +15,7 @@
 #include "io_executor.h"
 #include "mqtt_producer.h"
 #include "northbound_mgr.h"
+#include "north_source_datahub_adapter.h"
 
 typedef struct {
     bus_orchestrator_t* orch;

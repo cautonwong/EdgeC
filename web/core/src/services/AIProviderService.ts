@@ -68,7 +68,7 @@ export const DEFAULT_AI_CONFIG: AIModelConfig = {
   autoExecuteTools: true,
 };
 
-// 13 Standard Industrial MCP Tool Definitions
+// MCP tool catalog exposed by edge-mcp-server: 4 generic DataHub tools + 4 AEP-508 industry tools.
 export const INDUSTRIAL_MCP_TOOLS = [
   {
     name: 'datahub_read_tags',
@@ -95,60 +95,46 @@ export const INDUSTRIAL_MCP_TOOLS = [
     parameters: { type: 'object', properties: {} },
   },
   {
-    name: 'io_list_channels',
-    domain: 'IO',
-    description: 'List all active southbound communication channels (RS485, CAN, ETH, DLT698, IEC104).',
-    parameters: { type: 'object', properties: {} },
+    name: 'dcu_analyze_power_quality',
+    domain: 'Power Quality',
+    description: 'Analyze three-phase voltage unbalance, 31st harmonic THD, and phase commutation recommendations.',
+    parameters: { type: 'object', properties: { phase_a_v: { type: 'number' }, phase_b_v: { type: 'number' }, phase_c_v: { type: 'number' }, current_thd: { type: 'number' } }, required: ['phase_a_v', 'phase_b_v', 'phase_c_v'] },
   },
   {
-    name: 'io_get_channel_health',
-    domain: 'IO',
-    description: 'Query detailed health statistics (packet loss rate, CRC errors, timeouts) for a channel.',
-    parameters: { type: 'object', properties: { channel_id: { type: 'integer' } } },
+    name: 'smartbox_eval_transformer_life',
+    domain: 'Transformer',
+    description: 'Evaluate transformer hot-spot temperature, insulation aging factor and remaining lifespan.',
+    parameters: { type: 'object', properties: { load_ratio: { type: 'number' }, ambient_temp_c: { type: 'number' }, current_top_oil_c: { type: 'number' } }, required: ['load_ratio', 'ambient_temp_c', 'current_top_oil_c'] },
   },
   {
-    name: 'io_trace_raw_packets',
-    domain: 'IO',
-    description: 'Capture real-time raw TX/RX protocol packet hex dumps for deep sniffer diagnostics.',
-    parameters: { type: 'object', properties: { limit: { type: 'integer' } } },
+    name: 'iems_optimize_tou_schedule',
+    domain: 'Energy',
+    description: 'Optimize ESS charge/discharge against peak-valley tariffs, PV and load forecasts.',
+    parameters: { type: 'object', properties: { soc_pct: { type: 'number' }, pv_forecast_kw: { type: 'number' }, load_forecast_kw: { type: 'number' } }, required: ['soc_pct'] },
   },
   {
-    name: 'pipeline_get_dag_status',
-    domain: 'Pipeline',
-    description: 'Inspect compute pipeline DAG stages (DSP FFT, RMS, MPC, CEP) and execution state.',
-    parameters: { type: 'object', properties: {} },
-  },
-  {
-    name: 'pipeline_query_metrics',
-    domain: 'Pipeline',
-    description: 'Fetch throughput, queue watermarks, and processing latency for compute pipelines.',
-    parameters: { type: 'object', properties: {} },
-  },
-  {
-    name: 'dds_list_discovered_nodes',
-    domain: 'DDS',
-    description: 'Discover all Cyclone DDS distributed mesh nodes and DCU/TTU peers.',
-    parameters: { type: 'object', properties: {} },
-  },
-  {
-    name: 'dds_inspect_topics',
-    domain: 'DDS',
-    description: 'Inspect active DDS topics, QoS reliability settings, and writer/reader counts.',
-    parameters: { type: 'object', properties: {} },
-  },
-  {
-    name: 'storage_query_soe_events',
-    domain: 'Storage',
-    description: 'Query historical Sequence-of-Events (SOE) fault alarms with millisecond timestamps.',
-    parameters: { type: 'object', properties: { limit: { type: 'integer' }, severity: { type: 'string' } } },
-  },
-  {
-    name: 'storage_query_waveform',
-    domain: 'Storage',
-    description: 'Fetch high-speed transient waveform recordings for harmonic & power quality analysis.',
-    parameters: { type: 'object', properties: { channel: { type: 'string' } } },
+    name: 'security_simulate_interlock',
+    domain: 'Safety',
+    description: 'Validate breaker/disconnector/earth-switch operations against electrical five-anti interlock rules.',
+    parameters: { type: 'object', properties: { breaker_id: { type: 'string' }, target_state: { type: 'string', enum: ['OPEN', 'CLOSE'] } }, required: ['breaker_id', 'target_state'] },
   },
 ];
+
+
+function unwrapMcpResult(payload: any): any {
+  const content = payload?.content;
+  if (Array.isArray(content)) {
+    const textPart = content.find((item: any) => item?.type === 'text' && typeof item?.text === 'string');
+    if (textPart) {
+      try {
+        return JSON.parse(textPart.text);
+      } catch {
+        return textPart.text;
+      }
+    }
+  }
+  return payload;
+}
 
 class AIProviderService {
   private config: AIModelConfig;
@@ -250,7 +236,7 @@ class AIProviderService {
         this.ws.send(JSON.stringify(reqPayload));
         const res = await resultPromise;
         const durationMs = Math.round((performance.now() - start) * 100) / 100;
-        return { result: res, durationMs };
+        return { result: unwrapMcpResult(res), durationMs };
       } catch (wsErr) {
         // Fallback to HTTP
       }
@@ -261,77 +247,15 @@ class AIProviderService {
       const response = await axios.post(this.config.mcpServerHttpUrl, reqPayload, { timeout: 5000 });
       const durationMs = Math.round((performance.now() - start) * 100) / 100;
       if (response.data?.error) {
-        throw new Error(response.data.error.message || 'MCP HTTP Error');
+        const err: any = new Error(response.data.error.message || 'MCP HTTP Error');
+        err.isMcpToolError = true;
+        throw err;
       }
-      return { result: response.data?.result || response.data, durationMs };
+      return { result: unwrapMcpResult(response.data?.result || response.data), durationMs };
     } catch (httpErr: any) {
-      // 3. Built-in Local Simulation fallback if MCP server is offline during standalone dev
-      const durationMs = Math.round((performance.now() - start) * 100) / 100;
-      const simResult = this.simulateToolResult(toolName, args);
-      return { result: simResult, durationMs };
-    }
-  }
-
-  private simulateToolResult(toolName: string, args: Record<string, any>): any {
-    switch (toolName) {
-      case 'datahub_read_tags': {
-        const tids = args.tag_ids || [4097, 4098];
-        return {
-          tags: tids.map((tid: number) => ({
-            tag_id: tid,
-            value: tid === 4097 ? 220.5 : tid === 4098 ? 49.98 : 1500.0,
-            quality: 0,
-            timestamp: Date.now(),
-            type: 1,
-          })),
-        };
-      }
-      case 'datahub_write_tag':
-        return { tag_id: args.tag_id, written_value: args.value, success: true, code: 0 };
-      case 'datahub_get_tag_meta':
-        return { tag_id: args.tag_id, name: `TAG_${args.tag_id.toString(16).toUpperCase()}`, unit: 'V', scale: 0.01, domain: 'GRID' };
-      case 'datahub_scan_abnormal':
-        return { abnormal_tags: [], abnormal_count: 0 };
-      case 'io_list_channels':
-        return {
-          channels: [
-            { channel_id: 1, name: 'RS485-1 (Modbus-RTU)', status: 'ONLINE', baud_or_port: 9600 },
-            { channel_id: 2, name: 'RS485-2 (DL/T 645)', status: 'ONLINE', baud_or_port: 9600 },
-            { channel_id: 3, name: 'ETH-1 (IEC 60870-5-104)', status: 'ONLINE', baud_or_port: 2404 },
-            { channel_id: 4, name: 'CAN-1 (BMS)', status: 'ONLINE', baud_or_port: 500000 },
-          ],
-          total_channels: 4,
-        };
-      case 'io_get_channel_health':
-        return { channel_id: args.channel_id || 1, rx_packets: 12450, tx_packets: 12448, crc_errors: 0, packet_loss_rate_ppm: 0, health_grade: 'EXCELLENT' };
-      case 'io_trace_raw_packets':
-        return {
-          packets: [
-            { seq: 1001, direction: 'TX', hex_dump: '01 03 00 00 00 02 C4 0B', len: 8 },
-            { seq: 1002, direction: 'RX', hex_dump: '01 03 04 09 51 00 00 7B 12', len: 9 },
-          ],
-          count: 2,
-        };
-      case 'pipeline_get_dag_status':
-        return {
-          nodes: [
-            { stage: 'source_adc', status: 'RUNNING', fps: 12800 },
-            { stage: 'dsp_fft_stage', status: 'RUNNING', fps: 100 },
-            { stage: 'rms_calc_stage', status: 'RUNNING', fps: 100 },
-            { stage: 'mpc_island_stage', status: 'RUNNING', fps: 10 },
-            { stage: 'sink_datahub', status: 'RUNNING', fps: 100 },
-          ],
-          dag_health: 'NORMAL',
-        };
-      case 'storage_query_soe_events':
-        return {
-          soe_events: [
-            { event_id: 3011, event_name: 'GRID_POWER_OUTAGE', timestamp: Date.now() - 60000, severity: 'INFO', detail: 'Grid voltage transient nominal' },
-          ],
-          total_events: 1,
-        };
-      default:
-        return { status: 'success', message: `Simulated result for ${toolName}` };
+      if (httpErr?.isMcpToolError) throw httpErr;
+      const detail = httpErr?.message || 'MCP server unreachable';
+      throw new Error(`MCP tool ${toolName} failed: WebSocket and HTTP unavailable (${detail})`);
     }
   }
 
@@ -350,27 +274,53 @@ class AIProviderService {
     const normalizedPrompt = userPrompt.toLowerCase();
     const toolsToCall: { name: string; args: Record<string, any> }[] = [];
 
+    const extra = context?.extraData || {};
+    const hasNumber = (v: any) => typeof v === 'number' && Number.isFinite(v);
     if (normalizedPrompt.includes('扫描') || normalizedPrompt.includes('异常') || normalizedPrompt.includes('abnormal') || normalizedPrompt.includes('巡检')) {
       toolsToCall.push({ name: 'datahub_scan_abnormal', args: {} });
-      toolsToCall.push({ name: 'io_list_channels', args: {} });
+    } else if (normalizedPrompt.includes('电能质量') || normalizedPrompt.includes('三相') || normalizedPrompt.includes('不平衡') || normalizedPrompt.includes('谐波')) {
+      if (hasNumber(extra.phase_a_v) && hasNumber(extra.phase_b_v) && hasNumber(extra.phase_c_v)) {
+        toolsToCall.push({
+          name: 'dcu_analyze_power_quality',
+          args: { phase_a_v: extra.phase_a_v, phase_b_v: extra.phase_b_v, phase_c_v: extra.phase_c_v, current_thd: extra.current_thd },
+        });
+      }
+    } else if (normalizedPrompt.includes('变压器') || normalizedPrompt.includes('寿命') || normalizedPrompt.includes('transformer')) {
+      if (hasNumber(extra.load_ratio) && hasNumber(extra.ambient_temp_c) && hasNumber(extra.current_top_oil_c)) {
+        toolsToCall.push({
+          name: 'smartbox_eval_transformer_life',
+          args: { load_ratio: extra.load_ratio, ambient_temp_c: extra.ambient_temp_c, current_top_oil_c: extra.current_top_oil_c },
+        });
+      }
+    } else if (normalizedPrompt.includes('储能') || normalizedPrompt.includes('峰谷') || normalizedPrompt.includes('tou') || normalizedPrompt.includes('套利')) {
+      const soc = extra.soc_pct !== undefined ? extra.soc_pct : context?.currentValue;
+      if (hasNumber(soc)) {
+        toolsToCall.push({
+          name: 'iems_optimize_tou_schedule',
+          args: { soc_pct: soc, pv_forecast_kw: extra.pv_forecast_kw, load_forecast_kw: extra.load_forecast_kw },
+        });
+      }
+    } else if (normalizedPrompt.includes('五防') || normalizedPrompt.includes('互锁') || normalizedPrompt.includes('interlock')) {
+      if (typeof extra.breaker_id === 'string' && (extra.target_state === 'OPEN' || extra.target_state === 'CLOSE')) {
+        toolsToCall.push({
+          name: 'security_simulate_interlock',
+          args: { breaker_id: extra.breaker_id, target_state: extra.target_state },
+        });
+      }
     } else if (normalizedPrompt.includes('电压') || normalizedPrompt.includes('测点') || normalizedPrompt.includes('tag') || normalizedPrompt.includes('read')) {
       const tagId = context?.selectedTagId || 0x1001;
       toolsToCall.push({ name: 'datahub_read_tags', args: { tag_ids: [tagId] } });
       toolsToCall.push({ name: 'datahub_get_tag_meta', args: { tag_id: tagId } });
-    } else if (normalizedPrompt.includes('通道') || normalizedPrompt.includes('通信') || normalizedPrompt.includes('channel') || normalizedPrompt.includes('crc')) {
-      toolsToCall.push({ name: 'io_list_channels', args: {} });
-      toolsToCall.push({ name: 'io_get_channel_health', args: { channel_id: 1 } });
-    } else if (normalizedPrompt.includes('soe') || normalizedPrompt.includes('告警') || normalizedPrompt.includes('事故') || normalizedPrompt.includes('event')) {
-      toolsToCall.push({ name: 'storage_query_soe_events', args: { limit: 5 } });
-    } else if (normalizedPrompt.includes('波形') || normalizedPrompt.includes('谐波') || normalizedPrompt.includes('waveform')) {
-      toolsToCall.push({ name: 'storage_query_waveform', args: { channel: 'U_A' } });
-    } else if (normalizedPrompt.includes('dag') || normalizedPrompt.includes('流计算') || normalizedPrompt.includes('pipeline')) {
-      toolsToCall.push({ name: 'pipeline_get_dag_status', args: {} });
-      toolsToCall.push({ name: 'pipeline_query_metrics', args: {} });
     } else if (context?.selectedTagId !== undefined) {
       toolsToCall.push({ name: 'datahub_read_tags', args: { tag_ids: [context.selectedTagId] } });
     }
 
+    const wantsTagRead = /电压|测点|tag|读取|变压器|电能质量|储能|五防/.test(normalizedPrompt);
+    if (toolsToCall.length === 0 && (context?.selectedTagId !== undefined || wantsTagRead)) {
+      const tagId = context?.selectedTagId ?? 0x1001;
+      toolsToCall.push({ name: 'datahub_read_tags', args: { tag_ids: [tagId] } });
+      toolsToCall.push({ name: 'datahub_get_tag_meta', args: { tag_id: tagId } });
+    }
     // Execute MCP Tools in ReAct Cycle
     for (const item of toolsToCall) {
       const toolCallRecord: McpToolCall = {
@@ -445,10 +395,17 @@ class AIProviderService {
     } else if (hasAbnormal) {
       sections.push(`1. **异常告警发现**：全站扫描检测到异常测点，建议立即核查南向通信链路质量与一次断路器状态。`);
       sections.push(`2. **联动建议**：可在下方控制台中执行保护复归或触发 SOE 故障录波。`);
+    } else if (tools.some(t => t.status === 'success')) {
+      const successes = tools.filter(t => t.status === 'success');
+      sections.push(`1. **工具执行结果**：${successes.map(t => `\`${t.toolName}\``).join('、')} 已返回物理链路数据。`);
+      sections.push(`2. **结果摘要**：${successes.map(t => `${t.toolName}: ${JSON.stringify(t.result ?? null).slice(0, 180)}`).join('；')}`);
+    } else if (tools.some(t => t.status === 'error')) {
+      const errors = tools.filter(t => t.status === 'error').map(t => `${t.toolName}: ${t.error || 'failed'}`);
+      sections.push(`1. **MCP 调用失败**：${errors.join('; ')}`);
+      sections.push(`2. **建议**：确认 edge-mcp-server 已启动、8089 WebSocket/HTTP 可达，并检查工具参数是否完整。`);
     } else {
-      sections.push(`1. **全站状态评估**：南向 RS485/CAN/104 通道处于 \`ONLINE\` 状态，DataHub 影子矩阵数据流健康。`);
-      sections.push(`2. **流计算 DAG**：DSP FFT 与 RMS 算子运行平稳，端到端计算延迟维持在亚毫秒级。`);
-      sections.push(`3. **建议行动**：系统运行符合预期，现场工程师可根据负荷曲线按需调度储能充放电。`);
+      sections.push(`1. **未获得物理遥测**：当前请求没有触发可执行的 MCP 工具，或缺少工具所需参数。`);
+      sections.push(`2. **建议**：提供测点 ID、三相电压、变压器负荷/温度或储能 SOC 等上下文后重试。`);
     }
 
     return sections.join('\n');
@@ -463,7 +420,7 @@ const chatMessages = ref<ChatMessage[]>([
   {
     id: 'msg_welcome',
     role: 'assistant',
-    content: '👋 您好！我是 **EdgeOS 工业 AI 伴侣**。\n\n我已直连 EdgeOS `edge-mcp-server`，支持：\n- ⚡ **全站测点秒级问诊** (`datahub_read_tags`, `scan_abnormal`)\n- 🔍 **通道通信与报文抓包** (`io_trace_raw_packets`)\n- 📈 **流计算 DAG 与时序波形分析**\n- 🚨 **SOE 事故反演与控制策略建议**\n\n您可以直接提问，或在任意看板中点击 **[ ⚡ AI 诊断 ]** 进行看图问诊！',
+    content: '👋 您好！我是 **EdgeOS 工业 AI 伴侣**。\n\n我已直连 EdgeOS `edge-mcp-server`，支持：\n- ⚡ **全站测点问诊** (`datahub_read_tags`, `datahub_scan_abnormal`)\n- 🔌 **三相电能质量与换相建议** (`dcu_analyze_power_quality`)\n- 🌡️ **变压器热寿命评估** (`smartbox_eval_transformer_life`)\n- 🔋 **储能峰谷套利策略** (`iems_optimize_tou_schedule`)\n- 🛡️ **电气五防操作校验** (`security_simulate_interlock`)\n\n您可以直接提问，或在任意看板中点击 **[ ⚡ AI 诊断 ]** 进行看图问诊！',
     timestamp: Date.now(),
   },
 ]);

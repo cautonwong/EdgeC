@@ -25,3 +25,15 @@ cmd/nexus_lab/main.c
 cmd/dcu/dcu_north_adapter.c
 # DCU southbound wiring adapter: RS485 channel sockets → orchestrator, not a lifecycle root.
 cmd/dcu/dcu_bus_adapter.c
+
+# App manager wiring adapter: builds the edge_app_repo_t sqlite adapter and the manager.
+cmd/iems/iems_app_manager_adapter.c
+
+# Northbound adapter owns its protocol driver instance; not a second product lifecycle root.
+modules/edge_north/src/northbound_mgr.c
+
+# DataHub bridge adapter owns the stream-engine-to-bus adapter, not a product lifecycle root.
+adapters/datahub_bridges/src/stream_bus_datahub_adapter.c
+
+# Session manager owns per-device driver instances; it is a wiring adapter for the bus, not a product root.
+modules/edge_session/src/session_manager.c

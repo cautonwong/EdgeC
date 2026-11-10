@@ -19,11 +19,19 @@ set_target_properties(${PROD_NAME} PROPERTIES
 )
 
 # 4. 链接依赖
+target_include_directories(${PROD_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/modules/edge_north/include ${CMAKE_SOURCE_DIR}/modules/edge_bootstrap/include)
+
 target_link_libraries(${PROD_NAME} PRIVATE 
+    edge_north
+    edge_bootstrap
     edge_main_loop
     edge_stream_engine
     edge_main_loop
-    edge_algo
+    edge_ai
+    edge_battery
+    edge_health
+    edge_power
+    edge_runtime
     contract_${PROD_NAME}
     pthread dl rt m
 )

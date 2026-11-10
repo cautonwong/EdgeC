@@ -5,8 +5,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 typedef struct uv_loop_s uv_loop_t;
-struct sqlite_svc_s;
-typedef struct sqlite_svc_s sqlite_svc_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -66,6 +64,19 @@ typedef struct app_manifest_s {
 typedef struct edge_app_mgr_s edge_app_mgr_t;
 
 /**
+ * @brief 应用管理器自有日志端口；未注入时保持静默。
+ */
+typedef struct edge_app_logger_s {
+    void (*log)(void *ctx, int level, const char *message);
+    void *ctx;
+} edge_app_logger_t;
+
+/**
+ * @brief 注入日志端口 (可选；组合根接 edge_log 或控制台)
+ */
+void edge_app_mgr_set_logger(edge_app_mgr_t *mgr, const edge_app_logger_t *logger);
+
+/**
  * @brief 基于抽象仓储创建并初始化应用管理器 (IoC / Clean Architecture)
  */
 size_t edge_app_mgr_storage_size(void);
@@ -76,10 +87,9 @@ edge_app_mgr_t *edge_app_mgr_create_with_repo_in(void *storage, size_t storage_s
                                                  void *stream_engine);
 
 /**
- * @brief 创建并初始化应用管理器 (兼容包装)
+ * @brief 读取管理器持有的仓储端口 (列表/持久化调用方使用)
  */
-edge_app_mgr_t *edge_app_mgr_create_in(void *storage, size_t storage_size, uv_loop_t *loop,
-                                       sqlite_svc_t *db, void *stream_engine);
+const edge_app_repo_t *edge_app_mgr_get_repo(const edge_app_mgr_t *mgr);
 
 /**
  * @brief 销毁应用管理器

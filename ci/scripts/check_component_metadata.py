@@ -99,12 +99,17 @@ def main():
     root = os.path.abspath(args.root)
 
     problems = []
-    modules = os.path.join(root, "modules")
-    for module in sorted(os.listdir(modules)) if os.path.isdir(modules) else []:
-        path = os.path.join(modules, module, "component.meta")
-        if os.path.exists(path):
+    is_fixture = os.path.basename(root).startswith(("good_", "bad_"))
+    for unit_kind in ("modules", "adapters"):
+        units = os.path.join(root, unit_kind)
+        for module in sorted(os.listdir(units)) if os.path.isdir(units) else []:
+            path = os.path.join(units, module, "component.meta")
+            if not os.path.exists(path):
+                if not is_fixture:
+                    problems.append(f"{unit_kind}/{module}|missing component.meta")
+                continue
             for problem in validate(path, root):
-                problems.append(f"modules/{module}/component.meta|{problem}")
+                problems.append(f"{unit_kind}/{module}/component.meta|{problem}")
 
     if problems:
         print("❌ [COMPONENT_METADATA_GUARD] violations:")

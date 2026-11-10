@@ -3,7 +3,7 @@
 #include <string.h>
 #include <quickjs/quickjs.h>
 
-#include "arbiter.h"
+#include "arbiter_types.h"
 #include "edge_log.h"
 #include "js_arbiter_port.h"
 #include "stream_bus_port.h"

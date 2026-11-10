@@ -3,7 +3,7 @@
 #include <math.h>
 
 #include "stream_engine.h"
-#include "shmring.h"
+#include "pipe_msg.h"
 #include "edge_log.h"
 
 // 💡 [EMQX eKuiper Pattern - Step 2.1] 100Hz 滑动窗口卡尔曼滤波算子

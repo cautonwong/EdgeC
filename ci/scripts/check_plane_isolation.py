@@ -35,21 +35,21 @@ import guard_baseline
 PATH_RULES = [
     (
         r"^modules/edge_core/",
-        r'#include\s+["<](?:edge_algo/|edge_stream/|driver_.*\.h|cmd/|products/)',
+        r'#include\s+["<](?:edge_(?:algo|ai|battery|health|power|runtime)/|edge_stream/|driver_.*\.h|cmd/|products/)',
         "CORE_UPWARD",
         "Foundation (edge_core) cannot include Compute/Execution/Product headers",
     ),
     (
-        r"^modules/edge_algo/",
+        r"^modules/edge_(?:ai|battery|health|power|runtime)/",
         r'#include\s+["<](?:drivers/|cmd/|driver_radar_fmcw\.h|dcu_.*\.h)',
         "ALGO_SOUTHBOUND",
-        "Compute (edge_algo) cannot include Southbound concrete driver headers",
+        "Compute algorithm components cannot include Southbound concrete driver headers",
     ),
     (
         # The drivers live in modules/edge_io/src/drivers and modules/edge_io/src/driver_*.c.
         # The previous pattern pointed at modules/edge_io/drivers, a directory that does
         # not exist, so this rule could never match (#410 audit §6.3).
-        r"^modules/edge_io/(?:src/)?(?:drivers/|driver_)",
+        r"^(?:modules/edge_io/(?:src/)?(?:drivers/|driver_)|adapters/io_drivers/)",
         r'#include\s+["<](?:cmd/|iems_.*\.h|dcu_soe_.*\.h|smartbox_.*\.h)',
         "DRIVER_UPWARD",
         "Southbound Execution Drivers cannot depend on Application-level product headers",
@@ -61,23 +61,23 @@ PATH_RULES = [
 # ---------------------------------------------------------------------------
 MODULE_ALLOWED = {
     "edge_core": set(),
-    "edge_algo": {"edge_core"},
-    "edge_protocol": {"edge_core"},
-    "edge_security": {"edge_core"},
-    "edge_stream": {"edge_core", "edge_algo"},
+    "edge_security_policy": set(),
+    "edge_stream": set(),
     "edge_infra": {"edge_core"},
-    "edge_mgmt": {"edge_core", "edge_infra"},
+    "edge_infra_security": {"edge_core"},
+    "edge_mgmt": set(),
     "edge_io": {
         "edge_core",
-        "edge_algo",
-        "edge_protocol",
         "edge_stream",
-        "edge_security",
         "edge_infra",
         "edge_mgmt",
+        "edge_session",
     },
-    "edge_mcp": {"edge_core", "edge_io", "edge_stream", "edge_infra"},
-    "edge_bootstrap": {"edge_core", "edge_infra", "edge_stream", "edge_io", "edge_mcp"},
+    "edge_north": {"edge_io"},
+    "edge_api": {"edge_io"},
+    "edge_session": {"edge_io"},
+    "edge_mcp": set(),
+    "edge_bootstrap": {"edge_core", "edge_infra", "edge_infra_security", "edge_stream", "edge_io", "edge_mcp", "edge_mgmt", "edge_north"},
 }
 
 def _scanning_fixture(target_dir: str) -> bool:
@@ -114,6 +114,11 @@ def _build_owner_map(repo_root):
         rel = os.path.relpath(h, repo_root).replace("\\", "/")
         mod = rel.split("/")[1]
         owner.setdefault(os.path.basename(h), set()).add(mod)
+    for h in glob.glob(os.path.join(repo_root, "adapters", "*", "include", "**", "*.h"), recursive=True):
+        rel = os.path.relpath(h, repo_root).replace("\\", "/")
+        adapter = rel.split("/")[1]
+        owner_name = "edge_io" if adapter in {"io_drivers", "linux_platform"} else adapter
+        owner.setdefault(os.path.basename(h), set()).add(owner_name)
     for h in glob.glob(os.path.join(repo_root, "include", "**", "*.h"), recursive=True):
         owner.setdefault(os.path.basename(h), set()).add("ROOT")
     return owner

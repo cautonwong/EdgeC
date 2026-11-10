@@ -2,7 +2,7 @@
 """
 check_app_isolation.py - Algorithm & Pure Domain App Isolation Guard (AEP-792)
 
-Verifies that high-performance compute algorithms (edge_algo) and contracts
+Verifies that high-performance algorithm components (edge_ai / edge_battery / edge_health / edge_power / edge_runtime) and contracts
 are completely decoupled from RTOS internals and raw platform hardware handles.
 """
 
@@ -18,26 +18,29 @@ FORBIDDEN_APP_PATTERNS = [
 
 def check_app_isolation(target_dir):
     violations = []
-    algo_dir = os.path.join(target_dir, "modules", "edge_algo")
-    if not os.path.exists(algo_dir):
-        # Support running on fixtures
-        algo_dir = target_dir
+    algorithm_components = ("edge_ai", "edge_battery", "edge_health", "edge_power", "edge_runtime")
+    algo_dirs = [os.path.join(target_dir, "modules", name) for name in algorithm_components]
+    algo_dirs = [path for path in algo_dirs if os.path.isdir(path)]
+    if not algo_dirs:
+        # Support legacy fixtures that place a module under the scan root.
+        algo_dirs = [target_dir]
 
-    for root, _, files in os.walk(algo_dir):
-        for f in files:
-            if f.endswith(('.c', '.h')):
-                full_path = os.path.join(root, f)
-                rel_path = os.path.relpath(full_path, target_dir).replace('\\', '/')
-                with open(full_path, 'r', encoding='utf-8', errors='ignore') as fp:
-                    for line_idx, line in enumerate(fp, 1):
-                        for pat, desc in FORBIDDEN_APP_PATTERNS:
-                            if re.search(pat, line):
-                                violations.append({
-                                    "file": rel_path,
-                                    "line": line_idx,
-                                    "content": line.strip(),
-                                    "rule": desc
-                                })
+    for algo_dir in algo_dirs:
+        for root, _, files in os.walk(algo_dir):
+            for f in files:
+                if f.endswith(('.c', '.h')):
+                    full_path = os.path.join(root, f)
+                    rel_path = os.path.relpath(full_path, target_dir).replace('\\', '/')
+                    with open(full_path, 'r', encoding='utf-8', errors='ignore') as fp:
+                        for line_idx, line in enumerate(fp, 1):
+                            for pat, desc in FORBIDDEN_APP_PATTERNS:
+                                if re.search(pat, line):
+                                    violations.append({
+                                        "file": rel_path,
+                                        "line": line_idx,
+                                        "content": line.strip(),
+                                        "rule": desc
+                                    })
     return violations
 
 def main():

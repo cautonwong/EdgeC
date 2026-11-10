@@ -45,11 +45,11 @@ ASSEMBLY_FUNCS = [
     "io_executor_create",
     "io_executor_create_from_fd",
     "io_executor_create_uart",
-    "driver_manager_create",
+    "driver_manager_create_in",
     "arbiter_create_in",
     "driver_instance_create",
     "protocol_bridge_create",
-    "edge_app_mgr_create",
+    "edge_app_mgr_create_with_repo_in",
 ]
 
 PRUNE_DIRS = {
@@ -87,11 +87,15 @@ def _defining_modules(repo_root):
     owner = {}
     patterns = [
         os.path.join(repo_root, "modules", "*", "src", "**", "*.c"),
+        os.path.join(repo_root, "adapters", "*", "src", "**", "*.c"),
     ]
+    adapter_owners = {"io_drivers": "edge_io", "linux_platform": "edge_io"}
     for pattern in patterns:
         for src in glob.glob(pattern, recursive=True):
             rel = os.path.relpath(src, repo_root).replace("\\", "/")
             module = rel.split("/")[1]
+            if rel.startswith("adapters/"):
+                module = adapter_owners.get(module, f"adapters/{module}")
             try:
                 text = open(src, "r", encoding="utf-8", errors="ignore").read()
             except OSError:
@@ -151,6 +155,10 @@ def check_file(file_path, repo_root, owner_map, sanctioned):
             owner = owner_map.get(fn)
             if owner and rel_path.startswith(f"modules/{owner}/"):
                 continue
+            if owner and rel_path.startswith(f"adapters/{'io_drivers' if owner == 'edge_io' else owner}/"):
+                continue
+            if owner == "edge_io" and rel_path.startswith("adapters/linux_platform/"):
+                continue
             if in_bootstrap or is_sanctioned:
                 continue
             violations.append(
@@ -176,7 +184,7 @@ def check_directory(target_dir):
     violations = []
     for root, dirs, files in os.walk(target_dir):
         dirs[:] = [d for d in dirs if not d.startswith(".") and d not in PRUNE_DIRS]
-        is_fixture = os.path.basename(target_dir).startswith(("good_", "bad_"))
+        is_fixture = "/fixtures" in target_dir.replace("\\", "/")
         if "fixtures" in root and not is_fixture:
             continue
         if "tests" in root and "fixtures" not in root and "guards" not in root:
@@ -199,7 +207,7 @@ def main():
     root_dir = os.path.abspath(args.root)
     violations = check_directory(root_dir)
     baseline_path = args.baseline or guard_baseline.baseline_path_for(__file__)
-    is_fixture = os.path.basename(root_dir).startswith(("good_", "bad_"))
+    is_fixture = "/fixtures" in root_dir.replace("\\", "/")
     return guard_baseline.apply(
         violations,
         baseline_path,

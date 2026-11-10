@@ -9,9 +9,19 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <stdint.h>
 
 #include "edge_log.h"
 #include "edge_metrics.h"
+
+static void _shadow_path(const char *name, char *out, size_t out_size) {
+    const char *safe_name = name;
+    if (safe_name[0] == '/') safe_name++;
+    snprintf(out, out_size, "/edgeos_shadow_%s", safe_name);
+    for (char *p = out + 1; *p; p++) {
+        if (*p == '/') *p = '_';
+    }
+}
 
 static void _shm_legacy_async_cb(uv_async_t *handle) {
     datahub_t *hub = (datahub_t *)handle->data;
@@ -45,16 +55,8 @@ int datahub_shm_init(datahub_t *hub, const datahub_config_t *config) {
 
     // 💡 [Nexus-Go] 使用 POSIX SHM 映射影子表，支持 Golang 零拷贝挂载
     char shm_path[256];
-    const char *safe_name = name;
-    if (safe_name[0] == '/') safe_name++; // 跳过开头的斜杠，避免 // 路径
-    
-    snprintf(shm_path, sizeof(shm_path), "/edgeos_shadow_%s", safe_name);
-    
-    // 进一步清理路径中的非法斜杠
-    for (char *p = shm_path + 1; *p; p++) {
-        if (*p == '/') *p = '_';
-    }
-    
+    _shadow_path(name, shm_path, sizeof(shm_path));
+
     hub->shadow_size = capacity * sizeof(pipe_msg_t);
     hub->shadow_fd = shm_open(shm_path, O_RDWR | O_CREAT | O_TRUNC, 0666);
     if (hub->shadow_fd < 0) {
@@ -101,6 +103,65 @@ int datahub_shm_init(datahub_t *hub, const datahub_config_t *config) {
         hub->legacy_async.data = hub;
         uv_async_init(hub->loop, &hub->legacy_async, _shm_legacy_async_cb);
     }
+    return 0;
+}
+
+int datahub_attach(datahub_t *hub, const char *name) {
+    if (!hub || !name || !name[0]) return -1;
+
+    memset(hub, 0, sizeof(datahub_t));
+    hub->backend_type = DATAHUB_BACKEND_SHM;
+    hub->ops = &g_datahub_shm_ops;
+    hub->wal_fd = -1;
+    hub->shadow_fd = -1;
+
+    char shm_path[256];
+    _shadow_path(name, shm_path, sizeof(shm_path));
+
+    int fd = shm_open(shm_path, O_RDWR, 0666);
+    if (fd < 0) {
+        LOG_ERROR(LOG_CAT_BUS, "Failed to attach to shadow %s: %s", shm_path, strerror(errno));
+        return -1;
+    }
+
+    struct stat st;
+    if (fstat(fd, &st) < 0) {
+        LOG_ERROR(LOG_CAT_BUS, "Failed to stat shadow %s: %s", shm_path, strerror(errno));
+        close(fd);
+        return -1;
+    }
+    if (st.st_size <= 0 || (size_t)st.st_size % sizeof(pipe_msg_t) != 0 ||
+        (uint64_t)st.st_size / sizeof(pipe_msg_t) > UINT32_MAX) {
+        LOG_ERROR(LOG_CAT_BUS, "Invalid shadow segment %s (size=%lld)", shm_path,
+                  (long long)st.st_size);
+        close(fd);
+        return -1;
+    }
+
+    size_t shadow_size = (size_t)st.st_size;
+    void *table = mmap(NULL, shadow_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (table == MAP_FAILED) {
+        LOG_ERROR(LOG_CAT_BUS, "Failed to mmap shadow %s: %s", shm_path, strerror(errno));
+        close(fd);
+        return -1;
+    }
+
+    hub->shadow_fd = fd;
+    hub->shadow_size = shadow_size;
+    hub->shadow_capacity = (uint32_t)(shadow_size / sizeof(pipe_msg_t));
+    hub->shadow_table = (pipe_msg_t *)table;
+    if (uv_mutex_init(&hub->shadow_lock) != 0) {
+        munmap(table, shadow_size);
+        close(fd);
+        return -1;
+    }
+    if (uv_mutex_init(&hub->sub_lock) != 0) {
+        uv_mutex_destroy(&hub->shadow_lock);
+        munmap(table, shadow_size);
+        close(fd);
+        return -1;
+    }
+    hub->next_sub_id = 1;
     return 0;
 }
 

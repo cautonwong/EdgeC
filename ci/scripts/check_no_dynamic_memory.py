@@ -26,12 +26,14 @@ import argparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import guard_baseline
+from check_single_responsibility import _strip_comments_and_strings
 
 HOTPATH_NAME = re.compile(
     r"\b(\w+_(?:step|update|process|eval|execute|isr|callback|proc|run|handle|tick|dispatch|poll|recv|on_event))\s*\("
 )
 CONSTRUCTOR_NAME = re.compile(r"\b(\w+_(?:create|init|new|alloc|load|open|ctor)\w*)\s*\(")
 ALLOC_CALL = re.compile(r"\b(?:malloc|calloc|realloc|valloc|aligned_alloc|strdup|strndup)\s*\(")
+RT_ALLOC_OK = re.compile(r"^\s*//\s*rt-alloc-ok:\s*\S")
 
 PRUNE_DIRS = {
     ".git",
@@ -76,13 +78,26 @@ def check_file(file_path, repo_root):
     except OSError:
         return violations
 
-    # Strip line comments so commented-out code cannot trigger the guard.
-    stripped = re.sub(r"//[^\n]*", "", text)
+    # Strip comments and literals together; a URL or a quoted '/*' must not
+    # truncate the rest of the line or hide a real allocation.
+    stripped = _strip_comments_and_strings(text)
+    # Remove block comments for marker detection, keeping their newlines so
+    # line numbers stay aligned. A marker inside /* ... */ is not a line comment.
+    no_block = re.sub(
+        r"/\*.*?\*/", lambda match: "\n" * match.group(0).count("\n"), text, flags=re.S
+    )
+    orig_lines = no_block.splitlines()
 
     for name, offset, body in _iter_function_bodies(stripped):
         if CONSTRUCTOR_NAME.search(name):
             continue
         if not HOTPATH_NAME.search(name + "("):
+            continue
+        start_line = stripped.count("\n", 0, offset) + 1
+        if any(
+            RT_ALLOC_OK.search(orig_lines[i])
+            for i in range(start_line - 1, min(start_line + 2, len(orig_lines)))
+        ):
             continue
         for alloc in ALLOC_CALL.finditer(body):
             line_no = stripped.count("\n", 0, offset + alloc.start()) + 1
@@ -101,7 +116,7 @@ def check_file(file_path, repo_root):
 
 def check_dynamic_memory(target_dir):
     target_dir = os.path.abspath(target_dir)
-    is_fixture = os.path.basename(target_dir).startswith(("good_", "bad_"))
+    is_fixture = "/fixtures" in target_dir.replace("\\", "/")
     violations = []
     for root, dirs, files in os.walk(target_dir):
         dirs[:] = [d for d in dirs if not d.startswith(".") and d not in PRUNE_DIRS]
@@ -125,7 +140,7 @@ def main():
     root_dir = os.path.abspath(args.root)
     violations = check_dynamic_memory(root_dir)
     baseline_path = args.baseline or guard_baseline.baseline_path_for(__file__)
-    is_fixture = os.path.basename(root_dir).startswith(("good_", "bad_"))
+    is_fixture = "/fixtures" in root_dir.replace("\\", "/")
     return guard_baseline.apply(
         violations,
         baseline_path,

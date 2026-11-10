@@ -56,7 +56,8 @@ static void test_cia402_pdo_flow(void** state) {
     // Capacity 8192 to support tags 6001-6004
     datahub_init(&hub, loop, "test_cia", 64, 8192, NULL, 0, NULL, NULL, NULL);
 
-    driver_manager_t* mgr = driver_manager_create();
+    driver_manager_storage_t mgr_storage = {0};
+    driver_manager_t* mgr = driver_manager_create_in(&mgr_storage);
     cia402_driver_register(mgr);
 
     // Node ID 5

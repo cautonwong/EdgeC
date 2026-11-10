@@ -9,7 +9,9 @@
 #include <unistd.h>
 #include <uv.h>
 
+#include "app_repo_sqlite.h"
 #include "edge_app_mgr.h"
+#include "iems_app_manager_adapter.h"
 #include "edge_service.h"
 #include "rest_server.h"
 #include "sqlite_service.h"
@@ -54,15 +56,20 @@ static void test_rest_apps_api_endpoints(void **state) {
 
     size_t app_mgr_size = edge_app_mgr_storage_size();
     void *app_mgr_mem = malloc(app_mgr_size);
-    edge_app_mgr_t *app_mgr = edge_app_mgr_create_in(app_mgr_mem, app_mgr_size, loop, db, NULL);
+    edge_app_repo_t app_repo = app_repo_sqlite(db);
+    edge_app_mgr_t *app_mgr = edge_app_mgr_create_with_repo_in(app_mgr_mem, app_mgr_size, loop,
+                                                              &app_repo, NULL);
     assert_non_null(app_mgr);
 
     datahub_t *hub = calloc(1, sizeof(datahub_t));
     arbiter_t *arb = (arbiter_t *)0x1234;
 
-    service_t *svc = service_new(loop, hub, arb, db, NULL, NULL, NULL);
+    service_t *svc = service_new(loop, hub, arb, NULL, NULL);
     assert_non_null(svc);
-    service_set_app_mgr(svc, app_mgr);
+    iems_control_ctx_t control_ctx;
+    rest_control_port_t control;
+    iems_control_port_init(&control, &control_ctx, app_mgr, NULL);
+    service_set_control_port(svc, &control);
 
     // 1. Test POST /api/v1/apps/upload
     const char *upload_body =

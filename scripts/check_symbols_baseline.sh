@@ -8,39 +8,53 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 BUILD_DIR="${ROOT_DIR}/build"
 
-echo "🔍 [ARCH-GATE] Checking libedge_io.a exported symbols..."
+check_archive_symbols() {
+    local archive="$1"
+    local label="$2"
+    shift 2
 
-if [ ! -f "${BUILD_DIR}/modules/edge_io/libedge_io.a" ]; then
-    echo "❌ [ARCH-GATE FAIL] ${BUILD_DIR}/modules/edge_io/libedge_io.a not found! Please run build first."
-    exit 1
-fi
-
-ALL_SYMBOLS=$(nm -g "${BUILD_DIR}/modules/edge_io/libedge_io.a")
-
-# 核心符号完整性断言
-REQUIRED_IO_SYMBOLS=(
-    "northbound_mgr_init_ex"
-    "northbound_mgr_start"
-    "northbound_mgr_stop"
-    "northbound_mgr_destroy"
-    "io_executor_create"
-    "io_executor_cleanup"
-    "io_executor_http_request"
-)
-
-MISSING_SYMBOLS=()
-for sym in "${REQUIRED_IO_SYMBOLS[@]}"; do
-    if ! echo "$ALL_SYMBOLS" | grep -q "[TDRB] ${sym}$"; then
-        MISSING_SYMBOLS+=("$sym")
+    if [ ! -f "${archive}" ]; then
+        echo "❌ [ARCH-GATE FAIL] ${archive} not found! Please run build first."
+        return 1
     fi
-done
 
-if [ ${#MISSING_SYMBOLS[@]} -gt 0 ]; then
-    echo "❌ [ARCH-GATE FAIL] Missing essential global symbols in libedge_io.a:"
-    for sym in "${MISSING_SYMBOLS[@]}"; do
-        echo "   - ${sym}"
+    local all_symbols
+    all_symbols=$(nm -g "${archive}")
+    local missing=()
+    local sym
+
+    for sym in "$@"; do
+        if ! echo "${all_symbols}" | grep -q "[TDRB] ${sym}$"; then
+            missing+=("${sym}")
+        fi
     done
-    exit 1
-fi
 
-echo "✅ [ARCH-GATE PASS] All ${#REQUIRED_IO_SYMBOLS[@]} essential symbols verified in libedge_io.a."
+    if [ ${#missing[@]} -gt 0 ]; then
+        echo "❌ [ARCH-GATE FAIL] Missing essential global symbols in ${label}:"
+        for sym in "${missing[@]}"; do
+            echo "   - ${sym}"
+        done
+        return 1
+    fi
+
+    echo "✅ [ARCH-GATE PASS] All $# essential symbols verified in ${label}."
+}
+
+echo "🔍 [ARCH-GATE] Checking edge_io and edge_north exported symbols..."
+
+check_archive_symbols "${BUILD_DIR}/modules/edge_io/libedge_io.a" "libedge_io.a" \
+    "bus_orchestrator_create"
+check_archive_symbols "${BUILD_DIR}/modules/edge_api/libedge_api.a" "libedge_api.a" \
+    "edge_api_init"
+
+check_archive_symbols "${BUILD_DIR}/adapters/linux_platform/libedge_linux_platform.a" \
+    "libedge_linux_platform.a" \
+    "io_executor_create" \
+    "io_executor_cleanup" \
+    "io_executor_http_request"
+
+check_archive_symbols "${BUILD_DIR}/modules/edge_north/libedge_north.a" "libedge_north.a" \
+    "northbound_mgr_init_ex" \
+    "northbound_mgr_start" \
+    "northbound_mgr_stop" \
+    "northbound_mgr_destroy"

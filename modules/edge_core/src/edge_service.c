@@ -13,16 +13,13 @@
 #include <unistd.h>
 
 #include "edge_log.h"
-#include "northbound_mgr.h"
 
 struct service_s {
     uv_loop_t *loop;  // [注入] 外部 Loop
     datahub_t *hub;   // [注入] 外部 DataHub
-    sqlite_svc_t *db;
     stream_engine_t *engine;
     arbiter_t *arb;
     edge_params_t *params;
-    northbound_mgr_t *north;
 
     char *contract_path;
 
@@ -49,26 +46,19 @@ struct service_s {
     uint64_t time_offset_ms;
 
     // App Manager 模块
-    void *app_mgr;
+    void *control_port;
     bool is_allocated;
 };
 
 // --- Lifecycle ---
 
-static void _service_init_common(service_t *svc, uv_loop_t *loop, datahub_t *hub, arbiter_t *arb, sqlite_svc_t *db,
-                                 stream_engine_t *engine, edge_params_t *params, void *north) {
+static void _service_init_common(service_t *svc, uv_loop_t *loop, datahub_t *hub, arbiter_t *arb,
+                                 stream_engine_t *engine, edge_params_t *params) {
     svc->loop = loop;
     svc->hub = hub;
     svc->arb = arb;
-    svc->db = db;
     svc->engine = engine;
     svc->params = params;
-    svc->north = (northbound_mgr_t *)north;  // 允许为 NULL
-
-    // [Fix] 注入北向上下文，解除北向线程的自旋等待
-    if (svc->north) {
-        svc->north->user_data = svc;
-    }
 
     // 初始化默认状态
     svc->link_status[LINK_PRIMARY] = true;
@@ -89,35 +79,29 @@ static void _service_init_common(service_t *svc, uv_loop_t *loop, datahub_t *hub
 }
 
 service_t *service_create_in(service_storage_t *storage, uv_loop_t *loop, datahub_t *hub, arbiter_t *arb,
-                             sqlite_svc_t *db, stream_engine_t *engine, edge_params_t *params, void *north) {
+                             stream_engine_t *engine, edge_params_t *params) {
     if (!storage || !loop) return NULL;
     _Static_assert(sizeof(struct service_s) <= sizeof(service_storage_t), "service_t exceeds storage");
     service_t *svc = (service_t *)storage;
     memset(svc, 0, sizeof(service_t));
     svc->is_allocated = false;
-    _service_init_common(svc, loop, hub, arb, db, engine, params, north);
+    _service_init_common(svc, loop, hub, arb, engine, params);
     return svc;
 }
 
-service_t *service_new(uv_loop_t *loop, datahub_t *hub, arbiter_t *arb, sqlite_svc_t *db,
-                       stream_engine_t *engine, edge_params_t *params, void *north) {
+service_t *service_new(uv_loop_t *loop, datahub_t *hub, arbiter_t *arb,
+                       stream_engine_t *engine, edge_params_t *params) {
     if (!loop || !hub || !arb) return NULL;
 
     service_t *svc = calloc(1, sizeof(service_t));
     if (!svc) return NULL;
     svc->is_allocated = true;
-    _service_init_common(svc, loop, hub, arb, db, engine, params, north);
+    _service_init_common(svc, loop, hub, arb, engine, params);
     return svc;
 }
 
 void service_delete(service_t *svc) {
     if (!svc) return;
-
-    // 1. 优先停止并清理北向管理器（因为它有独立线程）
-    if (svc->north) {
-        northbound_mgr_stop(svc->north);
-        // northbound_mgr_destroy(svc->north); // 如果有的话
-    }
 
     // [所有权变更]：只清理 Service 自身创建的资源，不触碰注入的组件
     if (svc->ipc_pipe && !uv_is_closing((uv_handle_t *)svc->ipc_pipe)) {
@@ -250,29 +234,6 @@ int service_bootstrap(service_t *svc, const char *manifest_path) {
     return -1;
 }
 
-typedef int (*sqlite_svc_query_cb)(void *user_data, pipe_msg_t *msg);
-int sqlite_svc_query(sqlite_svc_t *svc, uint64_t start_ts, uint64_t end_ts, sqlite_svc_query_cb cb, void *user_data);
-
-typedef struct {
-    export_publish_fn cb;
-    int count;
-} export_ctx_t;
-static int _export_query_cb(void *user_data, pipe_msg_t *msg) {
-    export_ctx_t *ctx = user_data;
-    if (msg->type == PIPEMSG_TYPE_SCALAR) {
-        ctx->cb(msg->tag_id, msg->payload.val.f);
-        ctx->count++;
-    }
-    return 0;
-}
-int service_trigger_export(service_t *svc, const char *table, export_publish_fn cb) {
-    if (!svc || !svc->db || !cb) return -1;
-    (void)table;
-    export_ctx_t ctx = {.cb = cb, .count = 0};
-    sqlite_svc_query(svc->db, 0, 0xFFFFFFFFFFFFFFFFULL, _export_query_cb, &ctx);
-    return 0;
-}
-
 static void _smoke_timer_cb(uv_timer_t *handle) {
     service_t *svc = (service_t *)handle->data;
     LOG_WARN(LOG_CAT_CORE, "Smoke Test TIMEOUT: No data received in 5s. Failing.");
@@ -305,7 +266,6 @@ void service_enable_smoke_test(service_t *svc) {
 
 int service_run(service_t *svc) {
     if (!svc || !svc->hub) return -1;
-    if (svc->north) northbound_mgr_start(svc->north);
     return uv_run(svc->hub->loop, UV_RUN_DEFAULT);
 }
 void service_stop(service_t *svc) {
@@ -342,9 +302,6 @@ uv_loop_t *service_get_loop(service_t *svc) {
 datahub_t *service_get_datahub(service_t *svc) {
     return svc->hub;
 }
-sqlite_svc_t *service_get_storage(service_t *svc) {
-    return svc->db;
-}
 stream_engine_t *service_get_stream_engine(service_t *svc) {
     return svc->engine;
 }
@@ -362,9 +319,9 @@ int service_post_cmd(service_t *svc, cmd_msg_t *cmd) {
     if (cmd->signature != 0x55AA) return -13;
     return arbiter_submit_cmd(svc->arb, 0, cmd);
 }
-void *service_get_app_mgr(service_t *svc) {
-    return svc ? svc->app_mgr : NULL;
+void *service_get_control_port(service_t *svc) {
+    return svc ? svc->control_port : NULL;
 }
-void service_set_app_mgr(service_t *svc, void *mgr) {
-    if (svc) svc->app_mgr = mgr;
+void service_set_control_port(service_t *svc, void *port) {
+    if (svc) svc->control_port = port;
 }

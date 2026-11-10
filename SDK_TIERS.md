@@ -35,7 +35,7 @@ EdgeC provides a scalable licensing model designed to meet the diverse needs of 
 
 ## Licensing Mechanism
 The EdgeC runtime utilizes a C-level macro pruning system (`EDGEC_TIER_BASIC`, `EDGEC_TIER_PROFESSIONAL`, `EDGEC_TIER_ENTERPRISE`). At compile time, the binary is heavily optimized:
-- **Basic Tier:** Strips out the `edge_algo` mathematical libraries and the `WAMR` WebAssembly engine, resulting in a microscopic footprint suitable for constrained MCU environments (Cortex-M4).
+- **Basic Tier:** Strips out the algorithm component libraries and the `WAMR` WebAssembly engine, resulting in a microscopic footprint suitable for constrained MCU environments (Cortex-M4).
 - **Professional Tier:** Includes all linear algebra and signal processing modules, catering to demanding sensor-fusion and real-time control (Cortex-M7/R5).
 - **Enterprise Tier:** Unlocks the full potential of EdgeC, allowing dynamic loading of third-party logic and AI models via the secure WASM sandbox (Cortex-A53/x86_64).
 

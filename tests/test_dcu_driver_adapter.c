@@ -24,7 +24,8 @@ static void test_dcu_driver_registry(void) {
     assert(dcu_driver_registry_init(NULL) == -1);
 
     /* 2. Success registration */
-    driver_manager_t *mgr = driver_manager_create();
+    driver_manager_storage_t mgr_storage = {0};
+    driver_manager_t* mgr = driver_manager_create_in(&mgr_storage);
     assert(mgr != NULL);
     assert(dcu_driver_registry_init(mgr) == 0);
 

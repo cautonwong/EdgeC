@@ -18,7 +18,6 @@
 #include "edgeos/edge_mcp_bus.h"
 #include "edgeos/edge_mcp_dispatcher.h"
 #include "edgeos/edge_mcp_industry_tools.h"
-#include "../../modules/edge_core/src/datahub_priv.h"
 
 static void print_usage(const char *prog) {
     printf("EdgeOS IEMS Industrial Management CLI & MCP Copilot Console\n");
@@ -52,10 +51,6 @@ static void print_usage(const char *prog) {
     printf(
         "  %s mcp call iems_optimize_tou_schedule '{\"soc_pct\": 65.0, \"pv_forecast_kw\": "
         "40.0}'\n",
-        prog);
-    printf(
-        "  %s mcp call ess_emergency_stop '{\"system_id\": \"ESS_01\", \"reason\": "
-        "\"GRID_SURGE\"}'\n",
         prog);
 }
 
@@ -258,22 +253,24 @@ static int handle_mcp_audit(int limit) {
 
 static int handle_tag_read(uint32_t tag_id) {
     const char *shm_name = getenv("EDGE_SHM_NAME") ? getenv("EDGE_SHM_NAME") : EDGE_SHM_BUS_NAME;
-    uv_loop_t *loop = uv_default_loop();
-    datahub_t hub = {0};
-    if (datahub_init(&hub, loop, shm_name, 1024, 65536, NULL, 0, NULL, NULL, NULL) != 0) {
-        fprintf(stderr, "Failed to connect to DataHub SHM at %s\n", shm_name);
+    datahub_storage_t storage;
+    datahub_t *hub = (datahub_t *)&storage;
+    if (datahub_attach(hub, shm_name) != 0) {
+        fprintf(stderr, "Failed to attach to DataHub shadow at %s (is the IEMS node running?)\n",
+                shm_name);
         return 1;
     }
+    datahub_set_tag_mapper_v2(hub, iems_tag_map_fn);
 
     pipe_msg_t msg = {0};
-    if (datahub_read_shadow(&hub, tag_id, &msg) == 0) {
+    if (datahub_read_shadow(hub, tag_id, &msg) == 0) {
         printf("Tag [0x%04X / %u]: Value=%.4f Quality=0x%02X Timestamp=%lu\n", tag_id, tag_id,
                msg.payload.val.f, msg.quality, (unsigned long)msg.ts);
     } else {
         printf("Tag [0x%04X / %u]: NOT FOUND or uninitialized.\n", tag_id, tag_id);
     }
 
-    datahub_destroy(&hub);
+    datahub_destroy(hub);
     return 0;
 }
 

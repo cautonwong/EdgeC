@@ -6,8 +6,8 @@
 #ifndef EDGEOS_SDK_DRIVER_H
 #define EDGEOS_SDK_DRIVER_H
 
-#include "../../modules/edge_io/include/driver_manager.h"
-#include "../../modules/edge_io/include/edge_driver.h"
+#include "driver_manager.h"
+#include "edge_driver.h"
 #include "edgeos/types.h"
 
 #ifdef __cplusplus

@@ -6,22 +6,17 @@ add_library(edge_core STATIC
     src/datahub.c
     src/datahub_shm.c
     src/datahub_router.c
-    src/net_buf.c
-    src/edge_log.c
-    src/contract_registry.c
     src/arbiter.c
     src/edge_params.c
     src/edge_os_zephyr.c
     src/edge_service.c
     src/edge_mesh.c
     src/edge_metrics.c      # 💡 [ADR-0001] 系统 Metrics 通道
-    src/edge_tlv.c
     src/timesync.c
     src/shm_waitset.c
     src/thermal_throttle.c
     src/device_twin.c
     src/wasm_host_bridge.c
-    src/edge_port.c
     src/edge_sched_deadline.c
     src/edge_pcp_mutex.c
     src/edge_edf_scheduler.c
@@ -37,7 +32,6 @@ add_library(edge_core STATIC
     src/edge_amp_ipc.c
     src/edge_swarm_offload.c
     src/edge_periodic_clock.c
-    src/hal_crypto.c
 )
 
 # PUBLIC: 链接 edge_core 的 Target 也能 include 这些头文件
@@ -46,6 +40,6 @@ target_include_directories(edge_core PUBLIC
 )
 
 # PRIVATE: 依赖项
-target_link_libraries(edge_core PUBLIC edge_common_interface)
+target_link_libraries(edge_core PUBLIC edge_common_interface edge_netbuf edge_crypto edge_log edge_foundation)
 target_link_libraries(edge_core PRIVATE libuv::uv_a cjson zlog::zlog)
 

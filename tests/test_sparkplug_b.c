@@ -21,7 +21,8 @@ static void test_spb_encoding(void** state) {
     datahub_t hub;
     datahub_init(&hub, loop, "test_spb", 64, 128, NULL, 0, NULL, NULL, NULL);
 
-    driver_manager_t* mgr = driver_manager_create();
+    driver_manager_storage_t mgr_storage = {0};
+    driver_manager_t* mgr = driver_manager_create_in(&mgr_storage);
     sparkplug_b_driver_register(mgr);
 
     edge_driver_ctx_t* ctx = driver_instance_create(mgr, "SparkplugB", 1);
@@ -85,7 +86,8 @@ static void test_spb_session_reset_resends_birth(void** state) {
     datahub_t hub;
     datahub_init(&hub, loop, "test_spb_birth", 64, 128, NULL, 0, NULL, NULL, NULL);
 
-    driver_manager_t* mgr = driver_manager_create();
+    driver_manager_storage_t mgr_storage = {0};
+    driver_manager_t* mgr = driver_manager_create_in(&mgr_storage);
     sparkplug_b_driver_register(mgr);
 
     edge_driver_ctx_t* ctx = driver_instance_create(mgr, "SparkplugB", 1);

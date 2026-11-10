@@ -268,10 +268,10 @@ const dialogRef = ref<HTMLElement | null>(null);
 
 const quickPrompts = [
   { label: '⚡ 全站异常扫描', prompt: '请对全站测点执行异常巡检扫描 (datahub_scan_abnormal)，并报告异常测点与原因。' },
-  { label: '🔍 储能策略诊断', prompt: '请诊断当前储能系统的充放电与防逆流控制策略是否符合工况要求。' },
-  { label: '📡 南向通道健康度', prompt: '请列出当前所有南向通信通道并评估报文误码率与通信质量。' },
-  { label: '🚨 SOE 事故反演', prompt: '请查询最近 5 条 SOE 毫秒级故障告警事件并提供排障建议。' },
-  { label: '📊 采样波形分析', prompt: '请读取 U_A 相瞬态录波数据并评估谐波畸变情况。' },
+  { label: '🔋 储能峰谷策略', prompt: '请基于当前 SOC 上下文评估储能峰谷套利与充放电策略 (iems_optimize_tou_schedule)。' },
+  { label: '🌡️ 变压器寿命评估', prompt: '请基于当前负荷率、环境温度与顶层油温评估变压器热寿命 (smartbox_eval_transformer_life)。' },
+  { label: '🛡️ 五防操作校验', prompt: '请校验当前断路器操作是否违反电气五防规则 (security_simulate_interlock)。' },
+  { label: '🔌 三相电能质量', prompt: '请基于当前三相电压与 THD 评估不平衡度与换相建议 (dcu_analyze_power_quality)。' },
 ];
 
 function closeDrawer() {

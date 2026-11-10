@@ -1,0 +1,17 @@
+name=datahub_bridges
+version=0.1.0
+maturity=incubating
+owner=@cautonwong
+backup_owner=unassigned
+subdomain=supporting
+language=c
+abi_stability=source-only
+foundation=>=0.1 <1
+ports_required=
+ports_optional=
+allowed_owners=
+rom_bytes_max=0
+ram_bytes_max=0
+stack_bytes_max=0
+heap=bounded
+lts=false

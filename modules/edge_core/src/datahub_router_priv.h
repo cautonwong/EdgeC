@@ -4,13 +4,20 @@
 #include "datahub_priv.h"
 #include "datahub_router.h"
 
+enum {
+    DATAHUB_ROUTER_BACKEND_SHM = 0,
+    DATAHUB_ROUTER_BACKEND_DDS,
+    DATAHUB_ROUTER_BACKEND_MQTT,
+    DATAHUB_ROUTER_BACKEND_COUNT
+};
+
+typedef struct {
+    struct datahub_s hub;
+    bool active;
+} datahub_router_backend_t;
+
 struct datahub_router_s {
-    struct datahub_s shm_hub;
-    struct datahub_s dds_hub;
-    struct datahub_s mqtt_hub;
-    bool shm_active;
-    bool dds_active;
-    bool mqtt_active;
+    datahub_router_backend_t backends[DATAHUB_ROUTER_BACKEND_COUNT];
     datahub_router_policy_t write_policy;
 };
 

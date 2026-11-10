@@ -32,7 +32,7 @@ static void test_end_to_end_flow(void** state) {
 
     // 修正：注入所有核心组件
     ctx.svc =
-        service_new(ctx.loop, &ctx.data_hub, ctx.arbiter, NULL, ctx.stream_engine, NULL, NULL);
+        service_new(ctx.loop, &ctx.data_hub, ctx.arbiter, ctx.stream_engine, NULL);
     assert_non_null(ctx.svc);
 
     pipe_msg_t msg;

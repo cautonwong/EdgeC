@@ -33,6 +33,7 @@ typedef struct {
     arbiter_t *arb;
     bus_orchestrator_t *orch;
     driver_manager_t *drv_mgr;
+    driver_manager_storage_t drv_mgr_storage;
     net_buf_pool_t pool;
     datahub_t hub;
     io_handle_t *master_io;
@@ -113,7 +114,7 @@ static link_ctx_t *make_ctx(void) {
     assert_int_equal(arbiter_init(&ctx->arb, &ctx->loop), 0);
     arbiter_resume(ctx->arb);
     assert_int_equal(net_buf_pool_init(&ctx->pool, 16, 256, 0, NULL, NULL), 0);
-    ctx->drv_mgr = driver_manager_create();
+    ctx->drv_mgr = driver_manager_create_in(&ctx->drv_mgr_storage);
     assert_non_null(ctx->drv_mgr);
     ctx->orch = bus_orchestrator_create(&ctx->hub, ctx->arb, ctx->drv_mgr, 4, 16, 256);
     assert_non_null(ctx->orch);

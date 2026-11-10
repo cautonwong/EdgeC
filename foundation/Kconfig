@@ -1,0 +1,47 @@
+# foundation/Kconfig
+
+menu "Edge_Protocol (Industrial Stack)"
+
+config EDGEC_PROTO_MODBUS
+    bool "Modbus RTU/TCP"
+    default y
+
+config EDGEC_PROTO_IEC104
+    bool "IEC 60870-5-104"
+    default y
+
+config EDGEC_PROTO_SPARKPLUG_B
+    bool "MQTT Sparkplug B"
+    default y
+
+config EDGEC_PROTO_CCSDS
+    bool "CCSDS Space Packet Telemetry"
+    default y
+
+config EDGEC_PROTO_DLMS
+    bool "DLMS/COSEM (IEC 62056)"
+    default y
+
+endmenu
+
+menu "Edge_Algo (Algorithm Math)"
+
+config EDGEC_ALGO_LINALG
+    bool "Enable Linear Algebra Module (GSL/Builtin)"
+    default y
+
+config EDGEC_ALGO_DSP
+    bool "Enable Digital Signal Processing Module"
+    default y
+
+config EDGEC_ALGO_AHRS
+    bool "Enable AHRS Quaternion Solver"
+    depends on EDGEC_ALGO_LINALG
+    default y
+
+config EDGEC_ALGO_VIBRA
+    bool "Enable Vibra-Sense (RMS, Kurtosis, RUL)"
+    depends on EDGEC_ALGO_DSP && EDGEC_ALGO_LINALG
+    default y
+
+endmenu

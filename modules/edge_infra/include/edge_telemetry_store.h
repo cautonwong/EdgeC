@@ -13,7 +13,7 @@
 typedef struct uv_loop_s uv_loop_t;
 
 #include "contract_data_types.h"
-#include "shmring.h"
+#include "pipe_msg.h"
 
 #ifdef __cplusplus
 extern "C" {

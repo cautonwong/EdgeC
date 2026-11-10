@@ -104,7 +104,7 @@ static char *read_file_to_buffer(const char *path, uint32_t *size) {
 static int verify_wasm_signature(const char *wasm_path, const char *pubkey_path,
                                  const uint8_t *wasm_buf, uint32_t wasm_size) {
     /* Build .wasm.sig path */
-    char sig_path[1024];
+    char sig_path[1024]; // stack-ok: 1 KiB path scratch, one-shot at module load, not an RT callback
     int ret = snprintf(sig_path, sizeof(sig_path), "%s.sig", wasm_path);
     if (ret < 0 || (size_t)ret >= sizeof(sig_path)) return -1;
 
@@ -303,7 +303,13 @@ int wasm_app_exec_args(wasm_app_t *app, const char *func_name, uint32_t argc, ui
     }
 
     bool success = wasm_runtime_call_wasm(exec_env, func, argc, argv);
-    
+    /* terminate() 让被中断的调用正常返回，异常还挂在那里；只看返回值会把超时
+     * 当成成功。异常存在即视为失败。 */
+    if (success && wasm_runtime_get_exception(app->inst)) {
+        wasm_runtime_clear_exception(app->inst);
+        success = false;
+    }
+
     if (app->timeout_ms > 0) {
         uv_mutex_lock(&wd.lock);
         wd.done = true;

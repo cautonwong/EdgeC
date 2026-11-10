@@ -8,6 +8,7 @@
 #include "mqtt_json_codec.h"
 #include "mqtt_producer.h"
 #include "northbound_mgr.h"
+#include "north_source_datahub_adapter.h"
 #include "smartbox_driver_adapter.h"
 #include "smartbox_north_adapter.h"
 

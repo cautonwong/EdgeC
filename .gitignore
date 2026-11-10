@@ -57,7 +57,7 @@ go/demo_shm
 go/smart-box-gateway
 go/cmd/*/*
 !go/cmd/*/*.go
-check_go_shm
+examples/go_shm_writer/go_shm_writer
 tests/test_wasm_signature
 tools/contract-compiler-v2/contract-compiler*
 tools/contract-compiler/contract-compiler*

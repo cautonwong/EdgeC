@@ -21,6 +21,7 @@
 #include <uv.h>
 
 #include "edgeos/edge_mcp_dispatcher.h"
+#include "edgeos/edge_mcp_industry_tools.h"
 #include "edgeos/mcp_transport.h"
 
 #define TEST_UDS_PATH "/tmp/test_edge_mcp_bus.sock"
@@ -297,6 +298,7 @@ int main(void) {
     edge_mcp_env_t env = {.loop = &loop};
     edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(&env);
     assert(disp != NULL);
+    assert(edge_mcp_register_industry_tools(disp) == 0);
 
     mcp_transport_t *uds_trans = mcp_transport_uds_create(&loop, disp, TEST_UDS_PATH);
     assert(uds_trans != NULL);
