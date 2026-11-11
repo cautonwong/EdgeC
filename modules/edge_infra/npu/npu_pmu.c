@@ -4,7 +4,7 @@
  */
 
 #include "npu_pmu.h"
-#include "datahub.h"
+#include "edge_datahub_write_port.h"
 
 #include <string.h>
 #include <time.h>
@@ -384,8 +384,8 @@ size_t npu_pmu_get_top_hotspots(const npu_pmu_t *pmu, npu_pmu_hotspot_t *out_hot
     return result_count;
 }
 
-int npu_pmu_sync_datahub(const npu_pmu_t *pmu, datahub_t *hub) {
-    if (!pmu || !hub) {
+int npu_pmu_sync_datahub(const npu_pmu_t *pmu, const edge_datahub_write_port_t *port) {
+    if (!pmu || !port || !port->write_shadow) {
         return -1;
     }
 
@@ -396,13 +396,13 @@ int npu_pmu_sync_datahub(const npu_pmu_t *pmu, datahub_t *hub) {
 
     pipe_msg_t msg;
     pipe_msg_init_scalar(&msg, TAG_NPU_PMU_EXEC_CYCLES, (double)(stats.total_cycles & 0x7FFFFFFF), 0);
-    datahub_write_shadow(hub, &msg);
+    port->write_shadow(port->ctx, &msg);
 
     pipe_msg_init_scalar(&msg, TAG_NPU_PMU_CACHE_MISS_PCT, (double)stats.avg_l2_miss_pct, 0);
-    datahub_write_shadow(hub, &msg);
+    port->write_shadow(port->ctx, &msg);
 
     pipe_msg_init_scalar(&msg, TAG_NPU_PMU_MAC_UTIL_PCT, (double)stats.avg_mac_util_pct, 0);
-    datahub_write_shadow(hub, &msg);
+    port->write_shadow(port->ctx, &msg);
 
     return 0;
 }

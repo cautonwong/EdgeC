@@ -25,6 +25,7 @@ target_include_directories(smartbox_app_lib PUBLIC
 target_link_libraries(smartbox_app_lib PUBLIC
     edge_bootstrap
     edge_io
+    edge_io_drivers
     edge_north
     mqtt_transport
     edge_core

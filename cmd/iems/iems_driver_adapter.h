@@ -9,7 +9,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include "driver_manager.h"
+#include "edge_driver_registry_port.h"
 #include "edge_driver.h"
 
 #ifdef __cplusplus
@@ -43,7 +43,7 @@ extern "C" {
 /**
  * @brief 初始化并注册 IEMS 储能系统所需的工业协议驱动模板 (ModbusRTU, IEC104, CAN, DLT645)
  */
-int iems_driver_registry_init(driver_manager_t *mgr);
+int iems_driver_registry_init(const edge_driver_registry_port_t *registry);
 
 /* [ADR-002] 点位标识翻译与量纲：产品侧负责，驱动不再查表。
  *   native_id：tag_id → 驱动认识的原生标识（CAN 是 CAN ID，其余暂等值）
@@ -99,7 +99,7 @@ const edge_stage_factory_entry_t *edge_stage_factory_get_registry(void);
 edge_tag_id_t edge_lookup_modbus(uint64_t addr, float *scale);
 edge_tag_id_t edge_lookup_dlt645(uint64_t di, float *scale);
 int edge_contract_self_test(void);
-int edge_driver_registry_init(driver_manager_t *mgr);
+int edge_driver_registry_init(const edge_driver_registry_port_t *registry);
 
 extern const edge_driver_reg_entry_t *g_edge_driver_registry;
 extern const size_t g_edge_driver_registry_count;

@@ -32,9 +32,9 @@ static const edge_driver_reg_entry_t s_dcu_driver_registry[] = {
 static const size_t s_dcu_driver_registry_count =
     sizeof(s_dcu_driver_registry) / sizeof(s_dcu_driver_registry[0]);
 
-int dcu_driver_registry_init(driver_manager_t *mgr) {
-    if (!mgr) return -1;
-    return driver_manager_register_table(mgr, s_dcu_driver_registry, s_dcu_driver_registry_count);
+int dcu_driver_registry_init(const edge_driver_registry_port_t *registry) {
+    if (!registry || !registry->register_table) return -1;
+    return registry->register_table(registry->ctx, s_dcu_driver_registry, s_dcu_driver_registry_count);
 }
 
 /* ==============================================================================

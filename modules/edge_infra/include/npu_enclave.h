@@ -17,7 +17,8 @@
 
 #include "npu_hal.h"
 
-typedef struct datahub_s datahub_t;
+
+#include "edge_datahub_write_port.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -155,7 +156,7 @@ int npu_enclave_get_status(const npu_enclave_t *enclave,
 /**
  * @brief Synchronize Enclave security state to DataHub
  */
-int npu_enclave_sync_datahub(const npu_enclave_t *enclave, datahub_t *hub);
+int npu_enclave_sync_datahub(const npu_enclave_t *enclave, const edge_datahub_write_port_t *port);
 
 /**
  * @brief Helper utility: Encrypt and sign plaintext model package

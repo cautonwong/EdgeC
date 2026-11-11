@@ -10,7 +10,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-#include "driver_manager.h"
+#include "edge_driver_registry_port.h"
 #include "edge_driver.h"
 #include "contract_data_types.h"
 
@@ -60,7 +60,7 @@ extern "C" {
 /**
  * @brief 初始化并注册 SmartBox 驱动模板
  */
-int smartbox_driver_registry_init(driver_manager_t *mgr);
+int smartbox_driver_registry_init(const edge_driver_registry_port_t *registry);
 
 /**
  * @brief SmartBox 本地测点到 DataHub 影子槽位 O(1) 映射函数
@@ -78,7 +78,7 @@ extern const edge_tag_meta_t *g_tag_metadata;
 extern const size_t g_tag_metadata_len;
 int edge_tag_get_compact_index(uint32_t tag_id);
 const edge_tag_meta_t *contract_tag_get_meta(edge_tag_id_t tag_id);
-int edge_driver_registry_init(driver_manager_t *mgr);
+int edge_driver_registry_init(const edge_driver_registry_port_t *registry);
 extern const edge_driver_reg_entry_t *g_edge_driver_registry;
 extern const size_t g_edge_driver_registry_count;
 

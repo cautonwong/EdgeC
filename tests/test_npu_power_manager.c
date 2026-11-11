@@ -8,6 +8,7 @@
 #include <sys/mman.h>
 
 #include "datahub.h"
+#include "datahub_write_adapter.h"
 #include "npu_power_manager.h"
 #include "datahub_priv.h"
 
@@ -109,7 +110,8 @@ static void test_npu_dvfs_thermal_throttling_and_datahub_sync(void **state) {
     shm_unlink("/test_npu_power_hub");
     assert_int_equal(
         datahub_init(&hub, &loop, "/test_npu_power_hub", 32, 64, NULL, 0, NULL, NULL, NULL), 0);
-    assert_int_equal(npu_power_mgr_sync_datahub(mgr, &hub), 0);
+    edge_datahub_write_port_t port = edge_datahub_write_port(&hub);
+    assert_int_equal(npu_power_mgr_sync_datahub(mgr, &port), 0);
     datahub_destroy(&hub);
     uv_loop_close(&loop);
     shm_unlink("/test_npu_power_hub");

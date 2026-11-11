@@ -16,7 +16,7 @@ echo "🔍 Checking PR diff against ${BASE_REF} for protected core modifications
 
 WHITELIST_FILE="${ROOT_DIR}/contracts/schema/core_readonly_whitelist.txt"
 
-CHANGED_CORE_FILES=$(git -C "${ROOT_DIR}" diff --name-only "${BASE_REF}"...HEAD -- modules/edge_core/ foundation/include/contract_data_types.h foundation/include/edge_common.h foundation/include/edge_request.h foundation/include/edge_tlv.h foundation/include/edge_port.h foundation/include/edge_version.h foundation/include/contract_registry.h || true)
+CHANGED_CORE_FILES=$(git -C "${ROOT_DIR}" diff --name-only "${BASE_REF}"...HEAD -- modules/edge_core/ foundation/include/contract_data_types.h foundation/include/edge_common.h foundation/include/edge_request.h foundation/include/edge_tlv.h foundation/include/edge_port.h foundation/include/edge_port_types.h foundation/include/edge_version.h foundation/include/contract_registry.h || true)
 
 UNAUTHORIZED_CHANGES=()
 if [ -n "$CHANGED_CORE_FILES" ]; then
@@ -36,7 +36,7 @@ if [ ${#UNAUTHORIZED_CHANGES[@]} -gt 0 ]; then
         echo "   ❌ $f"
     done
     echo ""
-    echo "🚨 Rule R-08 Violation: 'modules/edge_core' and 'foundation/include/contract_data_types.h foundation/include/edge_common.h foundation/include/edge_request.h foundation/include/edge_tlv.h foundation/include/edge_port.h foundation/include/edge_version.h foundation/include/contract_registry.h' are read-only assets."
+    echo "🚨 Rule R-08 Violation: 'modules/edge_core' and 'foundation/include/contract_data_types.h foundation/include/edge_common.h foundation/include/edge_request.h foundation/include/edge_tlv.h foundation/include/edge_port.h foundation/include/edge_port_types.h foundation/include/edge_version.h foundation/include/contract_registry.h' are read-only assets."
     echo "👉 Modifications require explicit Architecture Committee double sign-off in contracts/schema/core_readonly_whitelist.txt."
     if [ "${STRICT_CORE_GATE:-0}" = "1" ]; then
         echo "❌ Strict mode enabled: Failing build!"

@@ -4,15 +4,15 @@
  */
 
 #include "dds_topology_monitor.h"
-#include "datahub.h"
+#include "edge_datahub_write_port.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-int dds_topology_monitor_init(dds_topology_monitor_t *mon, datahub_t *hub, uint64_t lease_ms) {
+int dds_topology_monitor_init(dds_topology_monitor_t *mon, const edge_datahub_write_port_t *port, uint64_t lease_ms) {
     if (!mon) return -1;
     memset(mon, 0, sizeof(dds_topology_monitor_t));
-    mon->hub = hub;
+    if (port) mon->port = *port;
     mon->liveliness_lease_ms = (lease_ms > 0) ? lease_ms : DDS_DEFAULT_LIVELINESS_LEASE_MS;
     return 0;
 }
@@ -89,7 +89,7 @@ int dds_topology_monitor_check_liveliness(dds_topology_monitor_t *mon, uint64_t 
                 mon->total_liveliness_lost_events++;
 
                 // 自愈治理: 将对应关联点位打上 QUALITY_INVALID 标志
-                if (mon->hub && node->tag_domain_start > 0 && node->tag_domain_end >= node->tag_domain_start) {
+                if (mon->port.write_shadow && node->tag_domain_start > 0 && node->tag_domain_end >= node->tag_domain_start) {
                     for (uint32_t tag = node->tag_domain_start; tag <= node->tag_domain_end; tag++) {
                         pipe_msg_t invalid_msg = {
                             .tag_id = tag,
@@ -98,7 +98,7 @@ int dds_topology_monitor_check_liveliness(dds_topology_monitor_t *mon, uint64_t 
                             .quality = 0x02, // QUALITY_INVALID
                             .payload.val.f = 0.0
                         };
-                        datahub_write_shadow(mon->hub, &invalid_msg);
+                        mon->port.write_shadow(mon->port.ctx, &invalid_msg);
                     }
                 }
 

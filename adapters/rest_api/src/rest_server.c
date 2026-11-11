@@ -385,21 +385,37 @@ static char *handle_apps_upload(service_t *svc, const char *body) {
     cJSON *payload_item = cJSON_GetObjectItem(root, "payload_hex");
     cJSON *manifest_item = cJSON_GetObjectItem(root, "manifest");
 
-    if (!name_item || !payload_item) {
+    if (!name_item || !name_item->valuestring || !payload_item || !payload_item->valuestring) {
         cJSON_Delete(root);
-        return strdup("{\"status\":\"error\",\"reason\":\"missing_fields\"}");
+        return strdup("{\"status\":\"error\",\"reason\":\"invalid_payload\"}");
+    }
+    if ((manifest_item && !manifest_item->valuestring) ||
+        (entry_item && !entry_item->valuestring) ||
+        (trigger_item && !cJSON_IsNumber(trigger_item))) {
+        cJSON_Delete(root);
+        return strdup("{\"status\":\"error\",\"reason\":\"invalid_payload\"}");
     }
 
     const char *hex = payload_item->valuestring;
     size_t hex_len = strlen(hex);
+    if (hex_len == 0 || (hex_len % 2) != 0) {
+        cJSON_Delete(root);
+        return strdup("{\"status\":\"error\",\"reason\":\"invalid_payload\"}");
+    }
     uint8_t *wasm_buf = malloc(hex_len / 2 + 1);
+    if (!wasm_buf) {
+        cJSON_Delete(root);
+        return strdup("{\"status\":\"error\",\"reason\":\"out_of_memory\"}");
+    }
     size_t wasm_len = 0;
-    if (wasm_buf) {
-        for (size_t i = 0; i < hex_len; i += 2) {
-            unsigned int b;
-            sscanf(hex + i, "%02x", &b);
-            wasm_buf[wasm_len++] = (uint8_t)b;
+    for (size_t i = 0; i < hex_len; i += 2) {
+        unsigned int b = 0;
+        if (sscanf(hex + i, "%2x", &b) != 1) {
+            free(wasm_buf);
+            cJSON_Delete(root);
+            return strdup("{\"status\":\"error\",\"reason\":\"invalid_payload\"}");
         }
+        wasm_buf[wasm_len++] = (uint8_t)b;
     }
 
     const rest_control_port_t *control =

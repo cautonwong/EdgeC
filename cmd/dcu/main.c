@@ -9,6 +9,7 @@
 
 #include "arbiter.h"
 #include "bus_orchestrator.h"
+#include "bus_datahub_adapter.h"
 #include "dcu_bus_adapter.h"
 #include "dcu_driver_adapter.h"
 #include "datahub.h"
@@ -23,7 +24,7 @@
 #include "dcu_storage.h"
 #include "edge_api.h"
 #include "dcu_twin_source.h"
-#include "driver_manager.h"
+#include "edge_driver_runtime.h"
 #include "edge_driver.h"
 #include "edge_log.h"
 #include "edge_slave_plane.h"
@@ -157,18 +158,21 @@ int main(int argc, char** argv) {
 
     arbiter_t* arbiter_ctx = NULL;
     arbiter_init(&arbiter_ctx, loop);
-    driver_manager_storage_t drv_mgr_storage = {0};
-    driver_manager_t* drv_mgr = driver_manager_create_in(&drv_mgr_storage);
-    dcu_driver_registry_init(drv_mgr);
+    edge_driver_runtime_t driver_runtime;
+    if (edge_driver_runtime_init(&driver_runtime) != 0) {
+        LOG_ERROR(LOG_CAT_CORE, "Failed to create driver runtime");
+        return -1;
+    }
+    dcu_driver_registry_init(&driver_runtime.registry);
 
     bus_orchestrator_t* io_orch =
-        bus_orchestrator_create(hub, arbiter_ctx, drv_mgr, 64, 8192, 4096);
+        bus_orchestrator_create_hub_default(hub, arbiter_ctx, &driver_runtime.session, 64, 8192, 4096);
     datahub_bind_io_pool(hub, bus_orchestrator_get_pool(io_orch));
     // 装配必须做全：把 orchestrator/驱动管理器登记到对外门面，否则 edge_api_read_tag 恒返回 -1
-    edge_api_init(io_orch, drv_mgr);
+    edge_api_init(io_orch);
     arbiter_resume(arbiter_ctx);
 
-    dcu_bus_attach_channels(loop, hub, io_orch, drv_mgr, inv);
+    dcu_bus_attach_channels(loop, hub, io_orch, driver_runtime.manager, inv);
 
     dcu_north_slave_attach(loop, hub, io_orch);
     dcu_north_cloud_attach(hub);
@@ -214,5 +218,6 @@ int main(int argc, char** argv) {
 
     g_dcu_node_mem = NULL;
     dcu_north_destroy();
+    edge_driver_runtime_destroy(&driver_runtime);
     return ret;
 }

@@ -38,11 +38,21 @@
 static int g_publish_rc;      /* publish_fn 的返回值 */
 static uint32_t g_pending;    /* pending_fn 报的在途条数 */
 static int g_publish_calls;
+static uint32_t g_pending_after_publish;
+static uint32_t g_failures;
+static uint32_t g_fail_on_publish;
+
+static uint32_t mock_take_failures(void* ud) {
+    (void)ud;
+    return __atomic_exchange_n(&g_failures, 0, __ATOMIC_SEQ_CST);
+}
 
 static int mock_publish(void* ud, const PipeMsg* msg) {
     (void)ud;
     (void)msg;
     g_publish_calls++;
+    if (g_pending_after_publish) g_pending = g_pending_after_publish;
+    if (g_fail_on_publish) g_failures = g_fail_on_publish;
     return g_publish_rc;
 }
 
@@ -110,12 +120,16 @@ static snf_manager_t* make_snf(sqlite_svc_t* db, uv_loop_t* loop, uint32_t pendi
     g_publish_rc = publish_rc;
     g_pending = pending;
     g_publish_calls = 0;
+    g_pending_after_publish = 0;
+    g_failures = 0;
+    g_fail_on_publish = 0;
 
     g_store = snf_sqlite_store_port(db);
     snf_config_t cfg = {.store = &g_store,
                         .loop = loop,
                         .publish_fn = mock_publish,
                         .pending_fn = mock_pending,
+                        .failures_fn = mock_take_failures,
                         .sync_batch_size = 10,
                         .sync_interval_ms = 20};
     return snf_manager_create_in(&g_storage, &cfg);
@@ -214,11 +228,94 @@ static void test_publish_failure_keeps_unsynced(void** state) {
     teardown(mgr, db, loop);
 }
 
+
+/**
+ * 有在途消息时，同一批不能每个 timer 都重新 publish。
+ * 旧实现会在 pending 不清零时每 20ms 重复发送同一批。
+ */
+static void test_inflight_does_not_republish(void** state) {
+    (void)state;
+    uv_loop_t* loop = uv_default_loop();
+    sqlite_svc_t* db = make_db(loop, "snf_confirm_no_dup.db");
+    assert_non_null(db);
+
+    snf_manager_t* mgr = make_snf(db, loop, /*pending=*/1, /*rc=*/0);
+    assert_non_null(mgr);
+
+    buffer_n(mgr, 3, 1004);
+    snf_manager_set_online(mgr, true);
+    pump(loop, 40);
+    int first_calls = g_publish_calls;
+    assert_true(first_calls >= 3);
+
+    pump(loop, 40);
+    assert_int_equal(g_publish_calls, first_calls);
+    assert_int_equal(count_synced(db), 0);
+
+    g_pending = 0;
+    pump(loop, 40);
+    assert_int_equal(count_synced(db), 3);
+    assert_int_equal(g_publish_calls, first_calls);
+
+    teardown(mgr, db, loop);
+}
+
+static void test_publish_failure_blocks_confirm(void** state) {
+    (void)state;
+    uv_loop_t* loop = uv_default_loop();
+    sqlite_svc_t* db = make_db(loop, "snf_confirm_failure.db");
+    assert_non_null(db);
+
+    snf_manager_t* mgr = make_snf(db, loop, /*pending=*/0, /*rc=*/0);
+    assert_non_null(mgr);
+    g_fail_on_publish = 1;
+
+    buffer_n(mgr, 2, 1006);
+    snf_manager_set_online(mgr, true);
+    pump(loop, 40);
+    assert_int_equal(count_synced(db), 0);
+    assert_int_equal(count_unsynced(db), 2);
+
+    g_fail_on_publish = 0;
+    pump(loop, 40);
+    assert_int_equal(count_synced(db), 2);
+
+    teardown(mgr, db, loop);
+}
+
+static void test_pending_after_publish_blocks_confirm(void** state) {
+    (void)state;
+    uv_loop_t* loop = uv_default_loop();
+    sqlite_svc_t* db = make_db(loop, "snf_confirm_after_publish.db");
+    assert_non_null(db);
+
+    snf_manager_t* mgr = make_snf(db, loop, /*pending=*/0, /*rc=*/0);
+    assert_non_null(mgr);
+    g_pending_after_publish = 2;
+
+    buffer_n(mgr, 2, 1005);
+    snf_manager_set_online(mgr, true);
+    pump(loop, 40);
+
+    assert_true(g_publish_calls >= 2);
+    assert_int_equal(count_synced(db), 0);
+    assert_int_equal(count_unsynced(db), 2);
+
+    g_pending = 0;
+    pump(loop, 40);
+    assert_int_equal(count_synced(db), 2);
+
+    teardown(mgr, db, loop);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_inflight_blocks_confirm),
+        cmocka_unit_test(test_publish_failure_blocks_confirm),
+        cmocka_unit_test(test_pending_after_publish_blocks_confirm),
         cmocka_unit_test(test_confirms_after_inflight_clears),
         cmocka_unit_test(test_publish_failure_keeps_unsynced),
+        cmocka_unit_test(test_inflight_does_not_republish),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

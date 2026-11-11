@@ -12,7 +12,6 @@
 #include "../engines/engine_priv_internal.h"
 
 typedef struct {
-    driver_manager_t *dm;
     edge_driver_ctx_t *drv_ctx;
     char protocol[16];
     uint32_t slave_id;
@@ -182,7 +181,7 @@ static const request_ops_t legacy_ops = {
     .teardown = legacy_teardown,
 };
 
-edge_req_t *req_legacy_driver_create(driver_manager_t *dm, const char *protocol, uint32_t slave_id,
+edge_req_t *req_legacy_driver_create(const char *protocol, uint32_t slave_id,
                                      cmd_action_t action, uint32_t native_id, uint32_t result_tag_id,
                                      double scale, double value, const void *meta_list,
                                      uint32_t meta_list_len, const void *point_desc,
@@ -190,7 +189,6 @@ edge_req_t *req_legacy_driver_create(driver_manager_t *dm, const char *protocol,
                                      void *user_data) {
     edge_req_t *req = calloc(1, sizeof(edge_req_t));
     legacy_req_ctx_t *ctx = calloc(1, sizeof(legacy_req_ctx_t));
-    ctx->dm = dm;
     ctx->slave_id = slave_id;
     ctx->action = action;
     ctx->tag_id = native_id;

@@ -22,6 +22,7 @@ typedef struct {
     MQTTAsync client;
     volatile bool connected;
     volatile uint32_t inflight; /* 已入队、尚未被 broker 确认的条数 */
+    volatile uint32_t failures; /* PUBACK 失败、尚未被上层取走的条数 */
     volatile uint32_t epoch;    /* 会话代数：每次重连 +1 */
 
     /* 订阅表。Paho 的 cleansession=1 会让服务端在重连后丢掉订阅关系，
@@ -139,7 +140,10 @@ static void _pub_settled(void* context, MQTTAsync_successData* response) {
 static void _pub_failed(void* context, MQTTAsync_failureData* response) {
     (void)response;
     mqtt_ctx_t* ctx = (mqtt_ctx_t*)context;
-    if (ctx) __atomic_sub_fetch(&ctx->inflight, 1, __ATOMIC_SEQ_CST);
+    if (ctx) {
+        __atomic_sub_fetch(&ctx->inflight, 1, __ATOMIC_SEQ_CST);
+        __atomic_add_fetch(&ctx->failures, 1, __ATOMIC_SEQ_CST);
+    }
 }
 
 /**
@@ -227,6 +231,11 @@ static uint32_t _mqtt_pending(void* ctx) {
     return mctx ? __atomic_load_n(&mctx->inflight, __ATOMIC_SEQ_CST) : 0;
 }
 
+static uint32_t _mqtt_take_failures(void* ctx) {
+    mqtt_ctx_t* mctx = (mqtt_ctx_t*)ctx;
+    return mctx ? __atomic_exchange_n(&mctx->failures, 0, __ATOMIC_SEQ_CST) : 0;
+}
+
 static uint32_t _mqtt_session_epoch(void* ctx) {
     mqtt_ctx_t* mctx = (mqtt_ctx_t*)ctx;
     return mctx ? __atomic_load_n(&mctx->epoch, __ATOMIC_SEQ_CST) : 0;
@@ -271,6 +280,7 @@ nb_transport_ops_t mqtt_producer_create(const char* url, const char* client_id) 
     ops.subscribe = _mqtt_subscribe;
     ops.is_connected = _mqtt_is_connected;
     ops.pending = _mqtt_pending;
+    ops.take_failures = _mqtt_take_failures;
     ops.session_epoch = _mqtt_session_epoch;
     return ops;
 }

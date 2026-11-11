@@ -8,15 +8,20 @@ include_directories(${CMAKE_SOURCE_DIR}/adapters/stream_algo/include)
 include_directories(${CMAKE_SOURCE_DIR}/modules/edge_north/include)
 include_directories(${CMAKE_SOURCE_DIR}/adapters/mqtt_transport/include)
 include_directories(${CMAKE_SOURCE_DIR}/adapters/rest_api/include)
+include_directories(${CMAKE_SOURCE_DIR}/adapters/datahub_bridges/include)
 
 # 统一测试构建宏
 macro(add_edge_test TEST_NAME)
     add_executable(${TEST_NAME} ${ARGN})
+    if(NOT DEFINED TEST_DEPS)
+        set(TEST_DEPS edge_ai edge_battery edge_health edge_power edge_runtime)
+    endif()
     target_link_libraries(${TEST_NAME} PRIVATE
         -Wl,--start-group
         edge_infra
         edge_infra_security
         edge_io
+        edge_io_drivers
         edge_api
         edge_rest_api
         edge_north
@@ -27,11 +32,7 @@ macro(add_edge_test TEST_NAME)
         edge_mgmt
         edge_bootstrap
         edge_codec
-        edge_ai
-        edge_battery
-        edge_health
-        edge_power
-        edge_runtime
+        ${TEST_DEPS}
         edge_algo_stream
         iems_app_lib
         -Wl,--end-group
@@ -39,6 +40,7 @@ macro(add_edge_test TEST_NAME)
         cmocka::cmocka
         pthread dl rt m
     )
+    unset(TEST_DEPS)
     target_include_directories(${TEST_NAME} PRIVATE
         ${CMAKE_SOURCE_DIR}/modules/edge_core/src
         ${CMAKE_SOURCE_DIR}/modules/edge_io/src)
@@ -155,7 +157,9 @@ add_edge_test(test_sqlite_injection test_sqlite_injection.c)
 
 # 5. 标准算子与算法测试 (Stages & Algos)
 add_edge_test(test_linalg test_linalg.c)
+set(TEST_DEPS edge_runtime)
 add_edge_test(test_algorithm_sum test_algorithm_sum.c)
+set(TEST_DEPS edge_battery)
 add_edge_test(test_battery_algo test_battery_algo.c)
 add_edge_test(test_iems_business_engines test_iems_business_engines.c)
 target_include_directories(test_iems_business_engines PRIVATE "${CMAKE_SOURCE_DIR}/cmd/iems")
@@ -191,6 +195,7 @@ add_edge_test(test_license_engine test_license_engine.c)
 add_edge_test(test_ws_binary test_ws_binary.c)
 add_edge_test(test_edge_guard test_edge_guard.c)
 add_edge_test(test_edge_params_store test_edge_params_store.c)
+add_edge_test(test_northbound_restart test_northbound_restart.c)
 add_edge_test(test_northbound_snf_online test_northbound_snf_online.c)
 add_edge_test(test_snf_resilience test_snf_resilience.c)
 add_edge_test(test_snf_delivery_confirm test_snf_delivery_confirm.c)
@@ -295,37 +300,55 @@ target_link_options(test_dcu_scale_benchmark PRIVATE -Wl,--allow-multiple-defini
 target_link_libraries(test_dcu PRIVATE dcu_app_lib)
 target_link_libraries(test_dcu_advanced_modules PRIVATE dcu_app_lib)
 
+set(TEST_DEPS edge_health)
 add_edge_test(test_fall_detection test_fall_detection.c)
 add_edge_test(test_sos_dscp test_sos_dscp.c)
 add_edge_test(test_wasm_watchdog test_wasm_watchdog.c)
+set(TEST_DEPS edge_health)
 add_edge_test(test_emg_dsp test_emg_dsp.c)
 add_edge_test(test_timesync test_timesync.c)
 add_edge_test(test_protocol_converter test_protocol_converter.c)
 add_edge_test(test_edge_acl test_edge_acl.c)
+set(TEST_DEPS edge_health)
 add_edge_test(test_rehab_kinematics test_rehab_kinematics.c)
+set(TEST_DEPS edge_health)
 add_edge_test(test_motion_wavelet test_motion_wavelet.c)
+set(TEST_DEPS edge_health)
 add_edge_test(test_hrv_analyzer test_hrv_analyzer.c)
+set(TEST_DEPS edge_health)
 add_edge_test(test_ppg_spo2 test_ppg_spo2.c)
+set(TEST_DEPS edge_health)
 add_edge_test(test_bia_estimator test_bia_estimator.c)
+set(TEST_DEPS edge_health)
 add_edge_test(test_ecg_arrhythmia test_ecg_arrhythmia.c)
+set(TEST_DEPS edge_health)
 add_edge_test(test_tremor_analyzer test_tremor_analyzer.c)
+set(TEST_DEPS edge_health)
 add_edge_test(test_gait_balance test_gait_balance.c)
+set(TEST_DEPS edge_health)
 add_edge_test(test_apnea_detector test_apnea_detector.c)
+set(TEST_DEPS edge_health)
 add_edge_test(test_dicom_parser test_dicom_parser.c)
+set(TEST_DEPS edge_runtime)
 add_edge_test(test_federated_aggregator test_federated_aggregator.c)
 add_edge_test(test_shm_waitset test_shm_waitset.c)
 add_edge_test(test_thermal_throttle test_thermal_throttle.c)
 add_edge_test(test_device_twin test_device_twin.c)
 add_edge_test(test_driver_hotplug test_driver_hotplug.c)
+set(TEST_DEPS edge_health)
 add_edge_test(test_impedance_control test_impedance_control.c)
+set(TEST_DEPS edge_health)
 add_edge_test(test_gait_safety test_gait_safety.c)
+set(TEST_DEPS edge_power)
 add_edge_test(test_facility_coordinator test_facility_coordinator.c)
 add_edge_test(test_simd_cdd_codec test_simd_cdd_codec.c)
 add_edge_test(test_multibus_bridge test_multibus_bridge.c)
 add_edge_test(test_stream_sql_dag test_stream_sql_dag.c)
 add_edge_test(test_wasm_host_bridge test_wasm_host_bridge.c)
+set(TEST_DEPS edge_runtime)
 add_edge_test(test_edge_cep_engine test_edge_cep_engine.c)
 add_edge_test(test_timeseries_compressor test_timeseries_compressor.c)
+set(TEST_DEPS edge_runtime)
 add_edge_test(test_onnx_host_guard test_onnx_host_guard.c)
 # Automated OMG IDL 4.2 compilation target for clean builds
 set(IDLC_BIN "${CMAKE_SOURCE_DIR}/.local/linux-x86_64/bin/idlc")
@@ -797,6 +820,11 @@ target_link_libraries(test_dds_shm_zerocopy_perf PRIVATE
     pthread dl rt m
 )
 add_test(NAME test_dds_shm_zerocopy_perf COMMAND test_dds_shm_zerocopy_perf)
+# 插桩构建下每次操作的开销被 instrument 放大，微秒级预算不再代表真实延迟。
+if(ENABLE_ASAN OR ENABLE_TSAN)
+    target_compile_definitions(test_dds_shm_zerocopy_perf PRIVATE EDGE_SANITIZER_BUILD=1)
+    target_compile_definitions(test_dcu_scale_benchmark PRIVATE EDGE_SANITIZER_BUILD=1)
+endif()
 endif()
 
 # AEP-440 IEMS 工商业储能需量控制、分时电价排程与 100ms 快速防逆流测试
@@ -859,6 +887,7 @@ target_link_libraries(test_smartbox_interlock_thermal PRIVATE smartbox_app_lib)
 # AEP-452 Cyclone DDS 节点动态自发现、Liveliness 监听与分布式拓扑自愈测试
 add_executable(test_dds_discovery_liveliness test_dds_discovery_liveliness.c)
 target_include_directories(test_dds_discovery_liveliness PRIVATE
+    ${CMAKE_SOURCE_DIR}/adapters/datahub_bridges/include
     ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
 )
@@ -869,6 +898,7 @@ target_link_libraries(test_dds_discovery_liveliness PRIVATE
     edge_stream
     edge_security_policy
     edge_core
+    edge_datahub_bridges
     edge_ai
     edge_battery
     edge_health
@@ -1140,12 +1170,7 @@ target_include_directories(test_battery_fo_ecm_ekf PRIVATE
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
 )
 target_link_libraries(test_battery_fo_ecm_ekf PRIVATE
-    edge_ai
     edge_battery
-    edge_health
-    edge_power
-    edge_runtime
-    edge_core
     cmocka::cmocka
     pthread dl rt m
 )
@@ -1157,12 +1182,7 @@ target_include_directories(test_battery_micro_isc PRIVATE
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
 )
 target_link_libraries(test_battery_micro_isc PRIVATE
-    edge_ai
     edge_battery
-    edge_health
-    edge_power
-    edge_runtime
-    edge_core
     cmocka::cmocka
     pthread dl rt m
 )
@@ -1174,12 +1194,7 @@ target_include_directories(test_battery_spatial_matrix PRIVATE
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
 )
 target_link_libraries(test_battery_spatial_matrix PRIVATE
-    edge_ai
     edge_battery
-    edge_health
-    edge_power
-    edge_runtime
-    edge_core
     cmocka::cmocka
     pthread dl rt m
 )
@@ -1191,12 +1206,7 @@ target_include_directories(test_battery_eis PRIVATE
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
 )
 target_link_libraries(test_battery_eis PRIVATE
-    edge_ai
     edge_battery
-    edge_health
-    edge_power
-    edge_runtime
-    edge_core
     cmocka::cmocka
     pthread dl rt m
 )
@@ -1208,12 +1218,7 @@ target_include_directories(test_battery_soh_fusion PRIVATE
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
 )
 target_link_libraries(test_battery_soh_fusion PRIVATE
-    edge_ai
     edge_battery
-    edge_health
-    edge_power
-    edge_runtime
-    edge_core
     cmocka::cmocka
     pthread dl rt m
 )
@@ -1225,12 +1230,7 @@ target_include_directories(test_battery_balancer PRIVATE
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
 )
 target_link_libraries(test_battery_balancer PRIVATE
-    edge_ai
     edge_battery
-    edge_health
-    edge_power
-    edge_runtime
-    edge_core
     cmocka::cmocka
     pthread dl rt m
 )
@@ -1242,12 +1242,7 @@ target_include_directories(test_battery_gas_early_warning PRIVATE
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
 )
 target_link_libraries(test_battery_gas_early_warning PRIVATE
-    edge_ai
     edge_battery
-    edge_health
-    edge_power
-    edge_runtime
-    edge_core
     cmocka::cmocka
     pthread dl rt m
 )
@@ -1259,12 +1254,7 @@ target_include_directories(test_battery_pulse_heating PRIVATE
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
 )
 target_link_libraries(test_battery_pulse_heating PRIVATE
-    edge_ai
     edge_battery
-    edge_health
-    edge_power
-    edge_runtime
-    edge_core
     cmocka::cmocka
     pthread dl rt m
 )
@@ -1276,12 +1266,7 @@ target_include_directories(test_battery_thermal_mesh PRIVATE
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
 )
 target_link_libraries(test_battery_thermal_mesh PRIVATE
-    edge_ai
     edge_battery
-    edge_health
-    edge_power
-    edge_runtime
-    edge_core
     cmocka::cmocka
     pthread dl rt m
 )
@@ -1293,12 +1278,7 @@ target_include_directories(test_battery_sop_dynamic_bounds PRIVATE
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
 )
 target_link_libraries(test_battery_sop_dynamic_bounds PRIVATE
-    edge_ai
     edge_battery
-    edge_health
-    edge_power
-    edge_runtime
-    edge_core
     cmocka::cmocka
     pthread dl rt m
 )
@@ -1466,12 +1446,14 @@ add_test(NAME test_npu_self_healing COMMAND test_npu_self_healing)
 # AEP-748: NPU PMU Hardware Performance Counters Test (Issue #278)
 add_executable(test_npu_pmu test_npu_pmu.c)
 target_include_directories(test_npu_pmu PRIVATE
+    ${CMAKE_SOURCE_DIR}/adapters/datahub_bridges/include
     ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
 )
 target_link_libraries(test_npu_pmu PRIVATE
     edge_infra
     edge_core
+    edge_datahub_bridges
     cmocka::cmocka
     pthread dl rt m
 )
@@ -1480,12 +1462,14 @@ add_test(NAME test_npu_pmu COMMAND test_npu_pmu)
 # AEP-749: NPU Model Encryption & Secure Enclave Test (Issue #279)
 add_executable(test_npu_enclave test_npu_enclave.c)
 target_include_directories(test_npu_enclave PRIVATE
+    ${CMAKE_SOURCE_DIR}/adapters/datahub_bridges/include
     ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
 )
 target_link_libraries(test_npu_enclave PRIVATE
     edge_infra
     edge_core
+    edge_datahub_bridges
     cmocka::cmocka
     pthread dl rt m
 )
@@ -1494,12 +1478,14 @@ add_test(NAME test_npu_enclave COMMAND test_npu_enclave)
 # AEP-750: NPU Power Manager & Dynamic Clock Gating Test (Issue #280)
 add_executable(test_npu_power_manager test_npu_power_manager.c)
 target_include_directories(test_npu_power_manager PRIVATE
+    ${CMAKE_SOURCE_DIR}/adapters/datahub_bridges/include
     ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
     ${CMAKE_SOURCE_DIR}/modules/edge_core/include
 )
 target_link_libraries(test_npu_power_manager PRIVATE
     edge_infra
     edge_core
+    edge_datahub_bridges
     cmocka::cmocka
     pthread dl rt m
 )
@@ -1570,6 +1556,8 @@ if(ENABLE_TSAN)
 endif()
 
 # AEP-723 ~ AEP-730 构网型虚拟同步发电机 (VSG) 控制算法单测
+set(TEST_DEPS edge_power)
+add_edge_test(test_vsg_golden_trace test_vsg_golden_trace.c)
 add_edge_test(test_vsg_control test_vsg_control.c)
 
 # AEP-720 确定性任务调度死线监控与熔断器单测
@@ -1597,24 +1585,31 @@ add_edge_test(test_coop_guard test_coop_guard.c)
 add_edge_test(test_mixed_criticality test_mixed_criticality.c)
 
 # AEP-702 INT8/FP8 对称与非对称量化校准器单测
+set(TEST_DEPS edge_ai)
 add_edge_test(test_ai_quant_calibrator test_ai_quant_calibrator.c)
 
 # AEP-703 边缘端 4-bit (AWQ/GPTQ) 紧凑权重量化与 GEMV 单测
+set(TEST_DEPS edge_ai)
 add_edge_test(test_ai_awq_gptq_gemm test_ai_awq_gptq_gemm.c)
 
 # AEP-704 工业时序多尺度 1D-CNN + BiLSTM 故障诊断单测
+set(TEST_DEPS edge_ai)
 add_edge_test(test_ai_temporal_fault_net test_ai_temporal_fault_net.c)
 
 # AEP-706 动态张量形状内存池静态预分配器单测
+set(TEST_DEPS edge_ai)
 add_edge_test(test_ai_dynamic_tensor_pool test_ai_dynamic_tensor_pool.c)
 
 # AEP-707 边缘端轻量小语言模型 (SLM) KV-Cache 压缩与滑动窗口注意力单测
+set(TEST_DEPS edge_ai)
 add_edge_test(test_ai_slm_kv_cache test_ai_slm_kv_cache.c)
 
 # AEP-708 神经网络计算图拓扑剪枝与死算子无死锁剔除单测
+set(TEST_DEPS edge_ai)
 add_edge_test(test_ai_graph_pruner test_ai_graph_pruner.c)
 
 # AEP-705 基于 CMSIS-NN 的 ARM Cortex 极速矩阵乘法 (GEMM) 汇编优化单测
+set(TEST_DEPS edge_ai)
 add_edge_test(test_ai_fast_gemm test_ai_fast_gemm.c)
 
 # AEP-611 SIL-3 级三模冗余 (TMR) 锁步容错与无扰故障转移测试 (Issue #230)
@@ -1636,12 +1631,14 @@ add_edge_test(test_tsn_engine test_tsn_engine.c)
 add_edge_test(test_amp_ipc_ring test_amp_ipc_ring.c)
 
 # AEP-607 VSG 构网型虚拟同步机与 FFR 快速调频单测
+set(TEST_DEPS edge_power)
 add_edge_test(test_vsg_ffr test_vsg_ffr.c)
 
 # AEP-606 基于 DDS/TSN 的 Swarm AI 协同调度与任务卸载单测
 add_edge_test(test_swarm_ai_offloading test_swarm_ai_offloading.c)
 
 # AEP-604 量化算子融合与无锁模型热插拔单测
+set(TEST_DEPS edge_runtime)
 add_edge_test(test_operator_fusion test_operator_fusion.c)
 
 # AEP-608 储能电芯热失控 PINN 早期预警单测
@@ -1656,9 +1653,11 @@ add_edge_test(test_cdd_tensor_schema test_cdd_tensor_schema.c)
 
 
 # AEP-709 工业端侧物理引导神经网络 (PINN) 质量守恒惩罚项求导器单测
+set(TEST_DEPS edge_ai)
 add_edge_test(test_ai_pinn_evaluator test_ai_pinn_evaluator.c)
 
 # AEP-710 异构多后端 (NPU/GPU/CPU) 算子级自动切分与流水线编排器单测
+set(TEST_DEPS edge_ai)
 add_edge_test(test_ai_hetero_pipeline test_ai_hetero_pipeline.c)
 
 # ARCH-GOV: 聚合根封装治理单测 (Issue #369, #370)

@@ -5,6 +5,7 @@
 # driver manager.
 add_library(edge_io_drivers STATIC
     src/adc_driver.c
+    src/north_driver_adapter.c
     src/driver_can.c
     src/driver_ccsds.c
     src/driver_cia402.c
@@ -24,8 +25,10 @@ add_library(edge_io_drivers STATIC
 )
 
 target_include_directories(edge_io_drivers PUBLIC
+    ${CMAKE_SOURCE_DIR}/modules/edge_north/include
     include
     ${CMAKE_SOURCE_DIR}/modules/edge_io/include
+    ${CMAKE_SOURCE_DIR}/foundation/include
 )
 target_link_libraries(edge_io_drivers PUBLIC
     edge_core

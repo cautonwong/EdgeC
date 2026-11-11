@@ -402,7 +402,7 @@ A-XDR 编码需要现场样例才能确定。所以 698 侧仍回 DAR=2，不猜
 
 | 改动 | 落点 |
 |---|---|
-| 新头文件 | `modules/edge_io/include/edge_north_plane.h`（从 `edge_slave_plane.h` 拆出） |
+| 新头文件 | `foundation/include/edge_north_plane.h`（从 `edge_slave_plane.h` 拆出） |
 | 注入 API | `include/northbound_mgr.h` + `northbound_mgr.c` |
 | DCU 端口 | `cmd/dcu/dcu_north_source.{c,h}`（新文件），`main.c` 注入 |
 | IEMS 端口 | `cmd/iems/iems_app.c`，复用 `iems_get_tag_meta()` 取名字 |

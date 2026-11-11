@@ -85,6 +85,18 @@ static void test_rest_apps_api_endpoints(void **state) {
     assert_non_null(strstr(resp, "\"status\":\"ok\""));
     free(resp);
 
+    // 1b. Invalid field types and odd-length hex must be rejected, not crash.
+    resp = rest_dispatch(svc, "POST", "/api/v1/apps/upload",
+                         "{\"name\":\"bad\",\"payload_hex\":123}");
+    assert_non_null(resp);
+    assert_non_null(strstr(resp, "invalid_payload"));
+    free(resp);
+    resp = rest_dispatch(svc, "POST", "/api/v1/apps/upload",
+                         "{\"name\":\"bad\",\"payload_hex\":\"abc\"}");
+    assert_non_null(resp);
+    assert_non_null(strstr(resp, "invalid_payload"));
+    free(resp);
+
     // 2. Test GET /api/v1/apps/list
     resp = rest_dispatch(svc, "GET", "/api/v1/apps/list", "");
     assert_non_null(resp);

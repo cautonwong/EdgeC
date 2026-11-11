@@ -36,6 +36,9 @@ typedef int (*snf_publish_cb)(void *user_data, const PipeMsg *msg);
  */
 typedef uint32_t (*snf_pending_cb)(void *user_data);
 
+/** 取走并清零传输层失败计数。返回 >0 时本轮不确认。 */
+typedef uint32_t (*snf_failures_cb)(void *user_data);
+
 /** 单批最多确认多少条（受 snf_manager_storage_t 的定长缓冲约束） */
 #define SNF_MAX_BATCH 64
 
@@ -64,6 +67,7 @@ typedef struct {
     uv_loop_t *loop;
     snf_publish_cb publish_fn;
     snf_pending_cb pending_fn; /**< 可空 */
+    snf_failures_cb failures_fn; /**< 可空 */
     void *user_data;
     uint32_t sync_batch_size;
     uint32_t sync_interval_ms;

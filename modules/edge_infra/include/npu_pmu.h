@@ -17,7 +17,8 @@
 #include <stdbool.h>
 #include <stdalign.h>
 
-typedef struct datahub_s datahub_t;
+
+#include "edge_datahub_write_port.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -182,7 +183,7 @@ size_t npu_pmu_get_top_hotspots(const npu_pmu_t *pmu, npu_pmu_hotspot_t *out_hot
 /**
  * @brief Synchronize aggregated PMU metrics with DataHub shadow bus
  */
-int npu_pmu_sync_datahub(const npu_pmu_t *pmu, datahub_t *hub);
+int npu_pmu_sync_datahub(const npu_pmu_t *pmu, const edge_datahub_write_port_t *port);
 
 /**
  * @brief Reset PMU counters and trace history

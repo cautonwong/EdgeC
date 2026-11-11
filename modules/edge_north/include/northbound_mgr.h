@@ -10,6 +10,7 @@
 #include "edge_request.h"
 #include "pipe_msg.h"
 #include "snf_manager.h"
+#include "north_driver_port.h"
 
 // 💡 [Golang 原则] 使用者定义传输契约
 typedef struct {
@@ -40,6 +41,14 @@ typedef struct {
      * 为 NULL 时视为"无在途"（同步型传输，比如本地文件/共享内存）。
      */
     uint32_t (*pending)(void* ctx);
+
+    /**
+     * @brief 取走并清零"传输层已判失败"的条数。可选。
+     *
+     * PUBACK 失败和成功都会让 pending 归零；SnF 必须单独看到失败，
+     * 否则会把未送达的批次标成 synced。
+     */
+    uint32_t (*take_failures)(void* ctx);
 
     /**
      * @brief 会话代数：每次成功建立（或重建）连接 +1。
@@ -132,9 +141,8 @@ typedef struct {
      * 组合根可能在 start 之后才注入北向端口，那时也该订得上。 */
     bool downlink_subscribed;
 
-    struct driver_manager_s* drv_mgr;
-    alignas(max_align_t) unsigned char drv_mgr_storage[65536];
-    struct edge_driver_ctx_s* nb_driver;
+    north_driver_port_t driver_port;
+    north_driver_t* nb_driver;
     /* [ADR-002] 北向生产者端口：由组合根注入，驱动不碰 datahub。
      * 存指针而不是内嵌，避免根目录头文件依赖 edge_io 的 include 路径。 */
     const struct edge_north_source_ops_s* north_src;
@@ -152,6 +160,13 @@ typedef struct {
 // 物理闭环初始化：注入 source 和一路 transport 实现
 int northbound_mgr_init_ex(northbound_mgr_t* mgr, nb_source_ops_t source, const char* product_name,
                            const snf_store_port_t* store, nb_transport_ops_t transport);
+
+/**
+ * @brief 注入消费者定义的北向驱动端口。必须在 start 之前调用。
+ *
+ * 端口实现由组合根选择，edge_north 不再认识 driver_manager 或具体协议。
+ */
+void northbound_mgr_set_driver_port(northbound_mgr_t* mgr, north_driver_port_t port);
 
 /**
  * @brief 再挂一路传输（多路并存）。

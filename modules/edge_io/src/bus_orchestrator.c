@@ -9,9 +9,9 @@
 static void _on_pool_audit(uv_timer_t *handle);
 
 struct bus_orchestrator_s {
-    datahub_t *hub;
+    edge_bus_datahub_port_t bus;
     arbiter_t *arb;
-    driver_manager_t *drv_mgr;
+    edge_driver_session_port_t drv_port;
     uv_loop_t *loop;
     net_buf_pool_t *pool;
 
@@ -48,15 +48,16 @@ _Static_assert(sizeof(struct bus_orchestrator_s) <= sizeof(bus_orchestrator_stor
 static bus_orchestrator_storage_t g_default_orch_storage;
 
 bus_orchestrator_t *bus_orchestrator_create_in(bus_orchestrator_storage_t *storage,
-                                               datahub_t *hub, arbiter_t *arb, driver_manager_t *mgr,
-                                               int max_buses, uint32_t pool_size, uint32_t buf_size) {
-    if (!storage || !hub) return NULL;
+                                               const edge_bus_datahub_port_t *bus, arbiter_t *arb,
+                                               const edge_driver_session_port_t *driver_port, int max_buses,
+                                               uint32_t pool_size, uint32_t buf_size) {
+    if (!storage || !bus || !bus->get_loop || !bus->publish) return NULL;
     bus_orchestrator_t *ctx = (bus_orchestrator_t *)storage->raw;
     memset(ctx, 0, sizeof(*ctx));
-    ctx->hub = hub;
+    ctx->bus = *bus;
     ctx->arb = arb;
-    ctx->drv_mgr = mgr;
-    ctx->loop = datahub_get_loop(hub);
+    if (driver_port) ctx->drv_port = *driver_port;
+    ctx->loop = bus->get_loop(bus->ctx);
     ctx->max_buses = (max_buses > ARBITER_MAX_BUSES) ? ARBITER_MAX_BUSES : max_buses;
     ctx->pool = net_buf_pool_new(pool_size, (uint16_t)buf_size, 0);
 
@@ -67,9 +68,11 @@ bus_orchestrator_t *bus_orchestrator_create_in(bus_orchestrator_storage_t *stora
     return ctx;
 }
 
-bus_orchestrator_t *bus_orchestrator_create(datahub_t *hub, arbiter_t *arb, driver_manager_t *mgr,
-                                            int max_buses, uint32_t pool_size, uint32_t buf_size) {
-    return bus_orchestrator_create_in(&g_default_orch_storage, hub, arb, mgr, max_buses, pool_size, buf_size);
+bus_orchestrator_t *bus_orchestrator_create(const edge_bus_datahub_port_t *bus, arbiter_t *arb,
+                                            const edge_driver_session_port_t *driver_port, int max_buses,
+                                            uint32_t pool_size, uint32_t buf_size) {
+    return bus_orchestrator_create_in(&g_default_orch_storage, bus, arb, driver_port, max_buses, pool_size,
+                                      buf_size);
 }
 
 int bus_orchestrator_attach_io(bus_orchestrator_t *ctx, int bus_id, io_handle_t *io) {
@@ -94,7 +97,7 @@ int bus_orchestrator_attach_io(bus_orchestrator_t *ctx, int bus_id, io_handle_t 
 int bus_orchestrator_setup_master(bus_orchestrator_t *ctx, int bus_id, const char *protocol,
                                   uint32_t device_id) {
     if (!ctx || bus_id < 0 || bus_id >= ctx->max_buses) return -1;
-    bus_engine_t *eng = engine_create_master(ctx->drv_mgr, bus_id, protocol, device_id, ctx->loop, ctx->arb, ctx->hub, ctx->pool);
+    bus_engine_t *eng = engine_create_master(&ctx->drv_port, bus_id, protocol, device_id, ctx->loop, ctx->arb, &ctx->bus, ctx->pool);
     if (!eng) return -1;
 
     ctx->engines[bus_id] = eng;
@@ -106,7 +109,7 @@ int bus_orchestrator_setup_master(bus_orchestrator_t *ctx, int bus_id, const cha
 int bus_orchestrator_setup_slave(bus_orchestrator_t *ctx, int bus_id, const char *protocol,
                                  uint32_t device_id) {
     if (!ctx || bus_id < 0 || bus_id >= ctx->max_buses) return -1;
-    bus_engine_t *eng = engine_create_slave(ctx->drv_mgr, bus_id, protocol, device_id, ctx->loop, ctx->arb, ctx->hub, ctx->pool);
+    bus_engine_t *eng = engine_create_slave(&ctx->drv_port, bus_id, protocol, device_id, ctx->loop, ctx->arb, &ctx->bus, ctx->pool);
     if (!eng) return -1;
 
     ctx->engines[bus_id] = eng;
@@ -145,8 +148,8 @@ int bus_orchestrator_run(bus_orchestrator_t *ctx) {
     return uv_timer_start(&ctx->audit_timer, _on_pool_audit, 10000, 10000);
 }
 
-datahub_t *bus_orchestrator_get_hub(bus_orchestrator_t *ctx) {
-    return ctx ? ctx->hub : NULL;
+const edge_bus_datahub_port_t *bus_orchestrator_get_bus_port(bus_orchestrator_t *ctx) {
+    return ctx ? &ctx->bus : NULL;
 }
 
 struct net_buf_pool *bus_orchestrator_get_pool(bus_orchestrator_t *ctx) {

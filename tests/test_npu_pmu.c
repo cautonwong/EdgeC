@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include "datahub.h"
+#include "datahub_write_adapter.h"
 #include "npu_pmu.h"
 #include "datahub_priv.h"
 
@@ -126,8 +127,9 @@ static void test_npu_pmu_jitter_anomaly_and_datahub_sync(void **state) {
     shm_unlink("/test_npu_pmu_hub");
     assert_int_equal(
         datahub_init(&hub, &loop, "/test_npu_pmu_hub", 32, 64, NULL, 0, NULL, NULL, NULL), 0);
+    edge_datahub_write_port_t port = edge_datahub_write_port(&hub);
 
-    rc = npu_pmu_sync_datahub(pmu, &hub);
+    rc = npu_pmu_sync_datahub(pmu, &port);
     assert_int_equal(rc, 0);
 
     datahub_destroy(&hub);

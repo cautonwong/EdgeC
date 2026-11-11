@@ -14,6 +14,7 @@ typedef struct {
     bus_engine_t base;
     uv_loop_t *loop;
     arbiter_t *arb;
+    edge_bus_datahub_port_t bus;
     net_buf_pool_t *pool;
     io_handle_t *io;
     uv_timer_t timer;

@@ -14,7 +14,7 @@ typedef struct {
 } session_entry_t;
 
 struct session_manager_s {
-    driver_manager_t *driver_mgr;
+    edge_driver_session_port_t driver_port;
     session_entry_t *sessions;
     int max_sessions;
     int current_count;
@@ -62,9 +62,9 @@ void session_manager_set_slave_source(session_manager_t *sm, const edge_slave_so
     sm->slave_src_ctx = ctx;
 }
 
-session_manager_t *session_manager_create(driver_manager_t *mgr, int max_sessions) {
+session_manager_t *session_manager_create(const edge_driver_session_port_t *port, int max_sessions) {
     session_manager_t *sm = calloc(1, sizeof(session_manager_t));
-    sm->driver_mgr = mgr;
+    if (port) sm->driver_port = *port;
     sm->max_sessions = max_sessions;
     sm->sessions = calloc((size_t)max_sessions, sizeof(session_entry_t));
     return sm;
@@ -74,7 +74,7 @@ void session_manager_destroy(session_manager_t *sm) {
     if (!sm) return;
     for (int i = 0; i < sm->max_sessions; i++) {
         if (sm->sessions[i].in_use) {
-            driver_instance_destroy(sm->sessions[i].ctx, sm->sessions[i].protocol);
+            if (sm->driver_port.destroy) sm->driver_port.destroy(sm->sessions[i].ctx);
         }
     }
     free(sm->sessions);
@@ -98,7 +98,10 @@ int session_manager_add_session(session_manager_t *sm, const char *protocol, uin
     if (!sm || !protocol) return -1;
     for (int i = 0; i < sm->max_sessions; i++) {
         if (!sm->sessions[i].in_use) {
-            edge_driver_ctx_t *ctx = driver_instance_create(sm->driver_mgr, protocol, device_id);
+            edge_driver_ctx_t *ctx = sm->driver_port.create
+                                          ? sm->driver_port.create(sm->driver_port.ctx, protocol,
+                                                                   device_id)
+                                          : NULL;
             if (!ctx) return -1;
             
             ctx->user_data = user_data;
@@ -185,7 +188,7 @@ void session_manager_close(session_manager_t *sm, const char *protocol, uint32_t
         if (sm->sessions[i].in_use && 
             sm->sessions[i].device_id == device_id &&
             strcmp(sm->sessions[i].protocol, protocol) == 0) {
-            driver_instance_destroy(sm->sessions[i].ctx, sm->sessions[i].protocol);
+            if (sm->driver_port.destroy) sm->driver_port.destroy(sm->sessions[i].ctx);
             sm->sessions[i].in_use = false;
             sm->current_count--;
             LOG_INFO(LOG_CAT_IO, "Session Closed: %s:%u", protocol, device_id);

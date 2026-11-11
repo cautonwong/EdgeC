@@ -12,7 +12,8 @@
 #include "edge_north_plane.h"
 #include "edge_slave_plane.h"
 #include "net_buf.h"
-#include "shmring.h"
+#include "edge_common.h"
+#include "pipe_msg.h"
 
 #ifdef __cplusplus
 extern "C" {

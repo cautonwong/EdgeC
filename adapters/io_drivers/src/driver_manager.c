@@ -32,6 +32,8 @@ _Static_assert(alignof(driver_inst_slot_t) >= alignof(max_align_t),
                "driver_inst_slot_t 必须按 max_align_t 对齐，否则驱动 priv 会 misaligned");
 
 struct driver_manager_s {
+    edge_driver_session_port_t session_port;
+    edge_driver_registry_port_t registry_port;
     const edge_driver_t *drivers[MAX_DRIVERS];
     int count;
 
@@ -56,6 +58,30 @@ static uint64_t _now_ms(void) {
     return (uint64_t)ts.tv_sec * 1000ULL + (uint64_t)ts.tv_nsec / 1000000ULL;
 }
 
+static edge_driver_ctx_t *_session_create(void *ctx, const char *protocol, uint32_t device_id) {
+    return driver_instance_create((driver_manager_t *)ctx, protocol, device_id);
+}
+
+static void _session_destroy(edge_driver_ctx_t *session) {
+    if (session && session->driver) driver_instance_destroy(session, session->driver->name);
+}
+
+const edge_driver_session_port_t *driver_manager_session_port_ptr(driver_manager_t *mgr) {
+    return mgr ? &mgr->session_port : NULL;
+}
+
+static int _registry_register(void *ctx, const edge_driver_t *driver) {
+    return driver_manager_register((driver_manager_t *)ctx, driver);
+}
+
+static int _registry_register_table(void *ctx, const edge_driver_reg_entry_t *table, size_t count) {
+    return driver_manager_register_table((driver_manager_t *)ctx, table, count);
+}
+
+const edge_driver_registry_port_t *driver_manager_registry_port_ptr(driver_manager_t *mgr) {
+    return mgr ? &mgr->registry_port : NULL;
+}
+
 driver_manager_t *driver_manager_create_in(driver_manager_storage_t *storage) {
     if (!storage) return NULL;
     driver_manager_t *mgr = (driver_manager_t *)storage->raw;
@@ -63,6 +89,11 @@ driver_manager_t *driver_manager_create_in(driver_manager_storage_t *storage) {
     uv_mutex_init(&mgr->lock);
     mgr->lock_init = true;
     mgr->is_static = true;
+    mgr->session_port = (edge_driver_session_port_t){
+        .ctx = mgr, .create = _session_create, .destroy = _session_destroy};
+    mgr->registry_port = (edge_driver_registry_port_t){
+        .ctx = mgr, .register_driver = _registry_register,
+        .register_table = _registry_register_table};
     return mgr;
 }
 
@@ -223,4 +254,10 @@ void driver_instance_destroy(edge_driver_ctx_t *ctx, const char *protocol) {
     driver_inst_slot_t *slot = (driver_inst_slot_t *)ctx;
     slot->in_use = false;
     ctx->priv = NULL;
+}
+
+edge_driver_session_port_t driver_manager_session_port(driver_manager_t *mgr) {
+    edge_driver_session_port_t port = {.ctx = mgr, .create = _session_create,
+                                       .destroy = _session_destroy};
+    return port;
 }

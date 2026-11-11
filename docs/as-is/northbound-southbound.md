@@ -81,7 +81,7 @@ flowchart LR
 
 - `modules/edge_protocol` 只允许依赖 `edge_core`；`modules/edge_io` 允许依赖 `core/algo/protocol/stream/security/infra/mgmt`（门禁 `ci/scripts/check_plane_isolation.py:62-81`，已验证）。
 - `cmd/<product>` 可以 include 协议 codec 头并直接使用 DataHub；`modules/` 内的驱动不得 include `cmd/` 或 `datahub.h`（`scripts/check_architecture_layers.sh:84-107`，已验证）。
-- 北向取数与从站取数均通过消费方定义的端口注入：`edge_north_source_ops_t`（`modules/edge_io/include/edge_north_plane.h`）、`edge_slave_source_ops_t`（`edge_slave_plane.h`），实现在 `cmd/`。
+- 北向取数与从站取数均通过消费方定义的端口注入：`edge_north_source_ops_t`（`foundation/include/edge_north_plane.h`）、`edge_slave_source_ops_t`（`edge_slave_plane.h`），实现在 `cmd/`。
 
 ### 2.3 现存违规依赖与文档漂移（只登记）
 

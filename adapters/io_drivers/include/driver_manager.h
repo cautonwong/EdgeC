@@ -4,6 +4,8 @@
 typedef struct uv_loop_s uv_loop_t;
 #include "contract_data_types.h"
 #include "edge_driver.h"
+#include "edge_driver_registry_port.h"
+#include "edge_driver_session_port.h"
 #include "io_executor.h"
 
 // 前向声明 DataHub 与内存池
@@ -62,6 +64,15 @@ typedef struct {
  * @brief 在调用方提供的内存就地创建驱动管理器实例 (Zero-Alloc)
  */
 driver_manager_t *driver_manager_create_in(driver_manager_storage_t *storage);
+
+/** Wrap a manager as the session lifecycle port consumed by edge_session. */
+edge_driver_session_port_t driver_manager_session_port(driver_manager_t *mgr);
+
+/** Stable pointer to the manager-owned port (lifetime = manager). */
+const edge_driver_session_port_t *driver_manager_session_port_ptr(driver_manager_t *mgr);
+
+/** Stable pointer to the manager-owned driver registration port. */
+const edge_driver_registry_port_t *driver_manager_registry_port_ptr(driver_manager_t *mgr);
 
 /**
  * @brief 销毁管理器

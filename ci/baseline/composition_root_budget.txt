@@ -11,11 +11,11 @@
 # 2026-11-09: cmd/iems/iems_app.c 336 -> 342; app control port (rest_control_port_t) 初始化接线。
 # 2026-11-09: cmd/dcu/main.c 213 -> 214; driver manager 改为调用方存储 (driver_manager_create_in)。
 # 2026-11-09: cmd/edge_mcp_server/main.c 174 -> 182; 行业 MCP 工具包改为组合根显式注册。
-cmd/dcu/dcu_north_adapter.c|197
+cmd/dcu/dcu_north_adapter.c|201
 cmd/dcu/dcu_bus_adapter.c|43
-cmd/dcu/main.c|218
+cmd/dcu/main.c|223
 cmd/edge_mcp_server/main.c|183
-cmd/iems/iems_app.c|346
+cmd/iems/iems_app.c|386
 cmd/iems/iems_north_listener.c|112
 cmd/iems/iems_southbound_adapter.c|133
 cmd/iems/main.c|99
@@ -27,3 +27,8 @@ cmd/smart_box/main.c|88
 modules/edge_north/src/northbound_mgr.c|711
 # 2026-11-10: edge_mcp_server hides tag-meta tool for metadata-less hub (+1).
 # 2026-11-10: iems_app.c 348 -> 346 after control port wiring cleanup.
+# 2026-11-11: north driver port injection in iEMS/DCU adapters (+4 each).
+# 2026-11-11: iEMS pipeline config port injection (+31).
+# 2026-11-11: driver session port wiring (+1 DCU, +2 iEMS).
+# 2026-11-11: driver runtime owned by composition root (+3 DCU, +2 iEMS).
+# 2026-11-11: bus datahub port wrapper include adds one line (DCU 222->223, IEMS 385->386).

@@ -266,10 +266,10 @@ static void _master_detach(bus_engine_t *self) {
     free(self);
 }
 
-bus_engine_t *engine_create_master(driver_manager_t *mgr, int bus_id, const char *protocol,
+bus_engine_t *engine_create_master(const edge_driver_session_port_t *driver_port, int bus_id, const char *protocol,
                                    uint32_t device_id, uv_loop_t *loop, arbiter_t *arb,
-                                   datahub_t *hub, net_buf_pool_t *pool) {
-    (void)protocol; (void)hub; (void)device_id;
+                                   const edge_bus_datahub_port_t *bus, net_buf_pool_t *pool) {
+    (void)protocol; (void)bus; (void)device_id;
     bus_engine_t *eng = calloc(1, sizeof(bus_engine_t));
     master_priv_t *priv = calloc(1, sizeof(master_priv_t));
     priv->loop = loop;
@@ -281,7 +281,7 @@ bus_engine_t *engine_create_master(driver_manager_t *mgr, int bus_id, const char
     priv->rx_acc.__buf = priv->rx_static_data;
     priv->rx_acc.size = 4096;
     priv->rx_acc.len = 0;
-    priv->session_mgr = session_manager_create(mgr, 128); // [Professional] 提升通道设备容量，支持 2000 只表均匀分布
+    priv->session_mgr = session_manager_create(driver_port, 128); // [Professional] 提升通道设备容量，支持 2000 只表均匀分布
     uv_timer_init(loop, &priv->timer);
     priv->timer.data = priv;
     

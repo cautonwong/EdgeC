@@ -18,6 +18,7 @@
 #include <string.h>
 
 #include "northbound_mgr.h"
+#include "north_driver_test_port.h"
 
 static void test_default_template(void** state) {
     (void)state;

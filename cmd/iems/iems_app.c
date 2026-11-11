@@ -17,14 +17,18 @@
 
 #include "arbiter.h"
 #include "bus_orchestrator.h"
+#include "bus_datahub_adapter.h"
 #include "datahub.h"
 #include "edge_north_plane.h"
 #include "edge_slave_plane.h"
 #include "driver_manager.h"
 #include "edge_api.h"
+#include "edge_driver_runtime.h"
 #include "edge_log.h"
 #include "mqtt_json_codec.h"
 #include "edge_service.h"
+#include "edge_params_sqlite_adapter.h"
+#include "edge_params.h"
 #include "iems_app_manager_adapter.h"
 #include "iems_driver_adapter.h"
 #include "iems_execution_adapter.h"
@@ -40,6 +44,7 @@
 #include "modbus_codec.h"
 #include "mqtt_producer.h"
 #include "northbound_mgr.h"
+#include "north_driver_adapter.h"
 #include "north_source_datahub_adapter.h"
 #include "snf_sqlite_adapter.h"
 #include "rest_server.h"
@@ -56,16 +61,18 @@ struct iems_app_s {
     datahub_t* hub;
     arbiter_t* arb;
     bus_orchestrator_t* orch;
-    driver_manager_t* drv_mgr;
+    edge_driver_runtime_t driver_runtime;
     snf_store_port_t snf_store;
-    driver_manager_storage_t drv_mgr_storage;
     stream_engine_t* stream_eng;
     northbound_mgr_t* north;
+    north_driver_adapter_storage_t north_driver_storage;
     iems_north_ctx_t north_adapter;
     sqlite_svc_t* db_service;
     char* db_path;
     edge_app_mgr_t* app_mgr;
     void* app_mgr_mem;
+    edge_params_t* pipeline_params;
+    edge_params_store_t pipeline_param_store;
     iems_control_ctx_t control_ctx;
     rest_control_port_t control;
 
@@ -121,10 +128,27 @@ static void _monitor_shadow_tick(uv_timer_t* handle) {
     }
 }
 
+static const edge_param_info_t k_iems_pipeline_params[] = {
+    {.name = "batt_max_soc", .type = PARAM_TYPE_FLOAT, .def_val.f = 95.0, .id = 1,
+     .unit = "%", .min = 0.0, .max = 100.0, .desc = "Battery max SOC"},
+    {.name = "batt_min_soc", .type = PARAM_TYPE_FLOAT, .def_val.f = 10.0, .id = 2,
+     .unit = "%", .min = 0.0, .max = 100.0, .desc = "Battery min SOC"},
+    {.name = "batt_max_charge", .type = PARAM_TYPE_FLOAT, .def_val.f = 5000.0, .id = 3,
+     .unit = "W", .min = 0.0, .max = 1e9, .desc = "Battery max charge power"},
+    {.name = "batt_max_discharge", .type = PARAM_TYPE_FLOAT, .def_val.f = 5000.0, .id = 4,
+     .unit = "W", .min = 0.0, .max = 1e9, .desc = "Battery max discharge power"},
+};
+
+static double _iems_pipeline_config_double(void *ctx, const char *key, double def_val) {
+    return edge_param_get_float((edge_params_t *)ctx, key, def_val);
+}
+
 static pipeline_loader_ctx_t _iems_loader_ctx(iems_app_t* app) {
     pipeline_loader_ctx_t ctx = {
         .db = stream_sqlite_port_from_sqlite(app->db_service),
         .control_ops = {.ctx = app, .submit_control = _iems_stream_submit_control},
+        .config = {.ctx = app->pipeline_params,
+                   .get_double = _iems_pipeline_config_double},
         .audit_secret = getenv("VPP_AUDIT_SECRET"),
         .production = _iems_production_env()
     };
@@ -179,12 +203,16 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     // Phase 3: 南向调度总线与驱动管理器 (Bus Orchestrator & Driver Manager)
     // =========================================================================
     arbiter_init(&app->arb, loop);
-    app->drv_mgr = driver_manager_create_in(&app->drv_mgr_storage);
-    iems_driver_registry_init(app->drv_mgr);
+    if (edge_driver_runtime_init(&app->driver_runtime) != 0) {
+        LOG_ERROR(LOG_CAT_CORE, "Failed to create driver runtime");
+        return NULL;
+    }
+    iems_driver_registry_init(&app->driver_runtime.registry);
 
-    app->orch = bus_orchestrator_create(app->hub, app->arb, app->drv_mgr, 256, 256, 2048);
+    app->orch = bus_orchestrator_create_hub_default(app->hub, app->arb, &app->driver_runtime.session, 256,
+                                        256, 2048);
     datahub_bind_io_pool(app->hub, bus_orchestrator_get_pool(app->orch));
-    edge_api_init(app->orch, app->drv_mgr);
+    edge_api_init(app->orch);
 
     uint32_t conn_count = 0;
     const edge_connectivity_t* conns = iems_get_connectivity(&conn_count);
@@ -207,6 +235,15 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     app->db_path = strdup(db_file);
     sqlite_config_t db_conf = {.db_path = app->db_path, .strategy = STRATEGY_LITE};
     app->db_service = sqlite_svc_create(loop, &db_conf);
+    if (app->db_service) {
+        app->pipeline_param_store = edge_params_sqlite_store(app->db_service);
+        app->pipeline_params = edge_params_create(&app->pipeline_param_store, NULL);
+        if (app->pipeline_params) {
+            edge_params_register_metadata(app->pipeline_params, k_iems_pipeline_params,
+                                          (int)(sizeof(k_iems_pipeline_params) /
+                                                sizeof(k_iems_pipeline_params[0])));
+        }
+    }
     iems_poll_scheduler_init(&app->poll, loop, app->node, app->db_service);
 
     app->stream_eng =
@@ -230,6 +267,8 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     if (app->db_service) app->snf_store = snf_sqlite_store_port(app->db_service);
     northbound_mgr_init_ex(app->north, nb_source, "IEMS_V4",
                            app->db_service ? &app->snf_store : NULL, transport);
+    northbound_mgr_set_driver_port(app->north,
+                                   north_driver_adapter_init(&app->north_driver_storage));
     /* 主题身份在这里读一次 env 并交给北向管理器，深层模块不再自己 getenv。 */
     northbound_mgr_set_address(app->north, NULL, getenv("MQTT_GROUP_ID"),
                                getenv("MQTT_NODE_ID"));
@@ -325,10 +364,11 @@ void iems_app_destroy(iems_app_t* app) {
     iems_app_manager_destroy(app->app_mgr, app->app_mgr_mem);
     if (app->north) northbound_mgr_stop(app->north);
     if (app->svc) service_delete(app->svc);
+    if (app->pipeline_params) edge_params_destroy(app->pipeline_params);
     if (app->db_service) sqlite_svc_destroy(app->db_service);
     if (app->orch) bus_orchestrator_destroy(app->orch);
     if (app->arb) arbiter_destroy(app->arb);
-    if (app->drv_mgr) driver_manager_destroy(app->drv_mgr);
+    edge_driver_runtime_destroy(&app->driver_runtime);
     if (app->north) free(app->north);
     if (app->db_path) free(app->db_path);
 

@@ -16,6 +16,7 @@
 
 #include "datahub.h"
 #include "dds_topology_monitor.h"
+#include "datahub_write_adapter.h"
 #include "datahub_priv.h"
 
 static void test_multi_node_dynamic_discovery(void **state) {
@@ -89,7 +90,8 @@ static void test_datahub_shadow_automatic_invalidation(void **state) {
     assert_int_equal(rc, 0);
 
     dds_topology_monitor_t mon;
-    rc = dds_topology_monitor_init(&mon, &hub, 1000);  // 1000ms 租约
+    edge_datahub_write_port_t port = edge_datahub_write_port(&hub);
+    rc = dds_topology_monitor_init(&mon, &port, 1000);  // 1000ms 租约
     assert_int_equal(rc, 0);
 
     uint32_t target_tag = 1001;

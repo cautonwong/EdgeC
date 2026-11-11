@@ -4,7 +4,7 @@
  */
 
 #include "npu_power_manager.h"
-#include "datahub.h"
+#include "edge_datahub_write_port.h"
 
 #include <string.h>
 #include <time.h>
@@ -286,8 +286,8 @@ int npu_power_mgr_get_metrics(const npu_power_mgr_t *mgr, npu_power_metrics_t *o
     return 0;
 }
 
-int npu_power_mgr_sync_datahub(const npu_power_mgr_t *mgr, datahub_t *hub) {
-    if (!mgr || !hub) {
+int npu_power_mgr_sync_datahub(const npu_power_mgr_t *mgr, const edge_datahub_write_port_t *port) {
+    if (!mgr || !port || !port->write_shadow) {
         return -1;
     }
 
@@ -295,13 +295,13 @@ int npu_power_mgr_sync_datahub(const npu_power_mgr_t *mgr, datahub_t *hub) {
 
     pipe_msg_t msg;
     pipe_msg_init_scalar(&msg, TAG_NPU_POWER_STATE, (double)self->current_state, 0);
-    datahub_write_shadow(hub, &msg);
+    port->write_shadow(port->ctx, &msg);
 
     pipe_msg_init_scalar(&msg, TAG_NPU_DYNAMIC_POWER_MW, (double)self->current_power_mw, 0);
-    datahub_write_shadow(hub, &msg);
+    port->write_shadow(port->ctx, &msg);
 
     pipe_msg_init_scalar(&msg, TAG_NPU_WAKEUP_LATENCY_US, (double)self->last_wakeup_latency_us, 0);
-    datahub_write_shadow(hub, &msg);
+    port->write_shadow(port->ctx, &msg);
 
     return 0;
 }

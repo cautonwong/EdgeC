@@ -5,25 +5,25 @@
 
 | 单元 | 分类 | 依据 | 当前状态 | 下一个动作 |
 |---|---|---|---|---|
-| `foundation/` | foundation | 纯 CP56Time2a/CRC/端口类型/64B PipeMsg/命令与仲裁值类型/contract 数据类型/registry/common/request/TLV/port/version；`edge_netbuf` 缓冲池、`edge_crypto` ops 注册表、`edge_codec` 纯字节 codec/UNS engine、`edge_math` 矩阵/DSP/控制算法、`edge_log` 日志实现 | 已建立；`net_buf`/`hal_crypto`/全部纯协议 codec/纯数学 DSP/PipeMsg/arbiter 值类型/日志实现/contract 纯类型/registry/common/request/TLV/port/version 已下沉 | 继续迁入无 IO 的纯算法 |
+| `foundation/` | foundation | 纯 CP56Time2a/CRC/端口类型/64B PipeMsg/命令与仲裁值类型/contract 数据类型/registry/common/request/TLV/port/version/驱动接口、驱动会话端口与驱动注册端口；`edge_netbuf` 缓冲池、`edge_crypto` ops 注册表、`edge_codec` 纯字节 codec/UNS engine、`edge_math` 矩阵/DSP/控制算法、`edge_log` 日志实现 | 已建立；`net_buf`/`hal_crypto`/全部纯协议 codec/纯数学 DSP/PipeMsg/arbiter 值类型/日志实现/contract 纯类型/registry/common/request/TLV/port/version 已下沉 | 继续迁入无 IO 的纯算法 |
 | `modules/edge_core` | infra | DataHub、SHM、运行时 | 被 8 个产品链接；contract/registry/common/request/TLV/port/version 纯头已下沉 foundation；端口适配器已迁至 edge_bootstrap；`edge_service` 不再持有或启动北向管理器，也不再持有 SQLite 存储或导出历史数据；`edge_params` 经 `edge_params_store_t` 持久化，核心已无 SQLite 引用 | 把剩余纯值类型抽到 foundation；DataHub 只经端口暴露 |
-| `modules/edge_infra` | infra | SQLite、DDS、网络、存储、防篡改 | 稳定；安全机制已拆到 edge_infra_security，且不再 PUBLIC 转发 | 保持不反向依赖组件 |
-| `modules/edge_infra_security` | infra | license、ESAM、SOS、DPI 包检测 | 独立 infra 模块；iems/测试显式链接，DPI 通过 edge_io guard port 注入 | 保持机制与策略分离 |
-| `modules/edge_bootstrap` | infra / 组合支持 | 组合根装配 | 只剩 `edge_composition_root`；DataHub 桥、SQLite、端口适配器均已独立到 `adapters/` | 保持组合根只做生命周期与装配 |
+| `modules/edge_infra` | infra | SQLite、DDS、网络、存储、防篡改 | 稳定；安全机制已拆到 edge_infra_security，且不再 PUBLIC 转发；NPU 与 DDS 拓扑写遥测改走 `edge_datahub_write_port_t` | 保持不反向依赖组件 |
+| `modules/edge_infra_security` | infra | license、ESAM、SOS、DPI 包检测 | 独立 infra 模块；iems/测试显式链接，DPI 通过 edge_io guard port 注入；DPI 初始化不再接收 DataHub | 保持机制与策略分离 |
+| `modules/edge_bootstrap` | infra / 组合支持 | 组合根装配 | 持有 `edge_driver_runtime`（manager 存储、注册端口、会话端口），其余 DataHub 桥、SQLite、端口适配器均已独立到 `adapters/` | 保持组合根只做生命周期与装配 |
 | `adapters/mcp_industry` | adapter | AEP-508 行业 MCP 工具与微服务 Provider | 独立 `edge_mcp_industry` 库，产品按需链接 | 保持工具包按需注册 |
 | `adapters/rest_api` | adapter | 管理面 HTTP/REST 与 web server | `rest_server`/`web_server` 从 edge_io 移出，独立 `edge_rest_api` 库；iEMS 与测试按需链接 | 保持传输适配器不进入领域组件 |
-| `adapters/datahub_bridges` | adapter | DataHub 与流、协议桥、北向、ADC/雷达的桥接 | 从 edge_bootstrap 移出，独立 `edge_datahub_bridges` 库；组合根与测试按需链接 | 保持桥接适配器不进入组件 |
+| `adapters/datahub_bridges` | adapter | DataHub 与流、协议桥、北向、ADC/雷达、bus 的桥接 | 从 edge_bootstrap 移出，独立 `edge_datahub_bridges` 库；组合根与测试按需链接 | 保持桥接适配器不进入组件 |
 | `adapters/sqlite_adapters` | adapter | app repo、stream、SnF、params、persistence 的 SQLite 实现 | 从 edge_bootstrap/edge_io 移出，独立 `edge_sqlite_adapters` 库 | 保持持久化适配器不进入组件 |
 | `adapters/edge_ports` | adapter | consumer port 的标准胶水与 mock 实现 | 从 edge_bootstrap 移出，独立 `edge_port_adapters` 库 | 保持端口实现不进入组合根 |
 | `adapters/linux_platform` | adapter | Linux io_executor、TSN、BSP HAL | 从 edge_io 移出，独立 `edge_linux_platform` 库；edge_io 链接该实现 | 其他平台按同一接口提供实现 |
-| `adapters/io_drivers` | adapter | 南向协议驱动实现与驱动管理器 | 驱动源和 `driver_manager` 已从 edge_io 迁出，作为 `edge_io_drivers` STATIC 库由 edge_io 链接；manager 用调用方存储创建，无堆工厂 | 驱动注册端口化后可独立链接 |
+| `adapters/io_drivers` | adapter | 南向协议驱动实现与驱动管理器 | 驱动源和 `driver_manager` 已从 edge_io 迁出为 `edge_io_drivers` STATIC 库；manager 用调用方存储创建，无堆工厂；`edge_driver_session_port_t` 和 `edge_driver_registry_port_t` 分别暴露生命周期与注册；产品只依赖端口，产品与测试显式链接本适配器 | 保持端口适配器按需链接 |
 | `modules/edge_protocol` | 已删除 | 纯 codec、converter 与 UNS engine 已并入 `foundation/edge_codec` | 模块不再存在；Kconfig 迁至 `foundation/Kconfig` | 无 |
 | `modules/edge_security` | 已删除 | 认证/密钥机制在 edge_infra，网络 ACL 策略在 edge_security_policy | 兼容聚合目标已移除，消费者直接链接 edge_infra/edge_security_policy | 无 |
 | `modules/edge_security_policy` | component | 网络访问控制策略（ACL） | 独立组件，仅依赖 foundation；按源 IP/掩码、端口、协议匹配 ALLOW/DROP | 策略经端口暴露 |
-| `modules/edge_session` | component（支撑子域） | 从站会话管理与驱动实例生命周期 | 从 edge_io 独立，`edge_slave_plane` 端口下沉 foundation；组合根/总线适配器注入 | 保持会话不直接取数 |
-| `modules/edge_api` | component（支撑子域） | 产品级读/写/原始 IO 门面 | 从 edge_io 独立，依赖 edge_io 与 driver manager；产品显式链接 | 保持门面只做参数校验与转发 |
-| `modules/edge_north` | component（支撑子域） | 北向协议管理与 SnF | 从 `edge_io` 独立：`northbound_mgr` 与 `snf_manager` 归本模块；MQTT 传输在 `adapters/mqtt_transport`；SnF 与 DataHub 数据源均经端口注入，不再依赖 edge_core/edge_infra | 保持端口适配器在 bootstrap |
-| `modules/edge_io` | 拆分：infra + component | 编排/引擎属 infra；REST/web、MQTT agent、Linux 执行器分别在 adapters；驱动与协议桥属 component；公开 API 门面在 edge_api；会话在 edge_session；SQLite persistence 已移出 | 驱动实现与 `driver_manager` 已物理迁至 `adapters/io_drivers`，以 STATIC 库编入 edge_io；安全校验改走 `edge_io_guard_port_t`，不再链接 edge_infra_security；REST 服务已移出 | 驱动注册端口化后可彻底分离 |
+| `modules/edge_session` | component（支撑子域） | 从站会话管理与驱动实例生命周期 | 从 edge_io 独立，`edge_slave_plane` 端口下沉 foundation；驱动生命周期经 `edge_driver_session_port_t` 注入，不再链接 edge_io_drivers | 保持会话不直接取数，也不依赖驱动实现 |
+| `modules/edge_api` | component（支撑子域） | 产品级读/写/原始 IO 门面 | 从 edge_io 独立，初始化只接收 bus_orchestrator，不再持有或接收 driver manager；产品显式链接 | 保持门面只做参数校验与转发 |
+| `modules/edge_north` | component（支撑子域） | 北向协议管理与 SnF | 从 `edge_io` 独立：`northbound_mgr` 与 `snf_manager` 归本模块；MQTT 传输在 `adapters/mqtt_transport`；SnF、DataHub 数据源和北向驱动均经端口注入，不再依赖 edge_core/edge_infra/io_drivers | 保持端口适配器在 bootstrap |
+| `modules/edge_io` | 拆分：infra + component | 编排/引擎属 infra，经 `edge_bus_datahub_port_t` 访问 DataHub；REST/web、MQTT agent、Linux 执行器分别在 adapters；驱动与协议桥属 component；公开 API 门面在 edge_api；会话在 edge_session；SQLite persistence 已移出 | 驱动实现与 `driver_manager` 已物理迁至 `adapters/io_drivers`；edge_io/edge_session 通过 `edge_driver_session_port_t` 使用驱动生命周期，不再链接驱动适配器；安全校验改走 `edge_io_guard_port_t`，REST 服务已移出 | 保持适配器由产品显式链接 |
 | `modules/edge_stream` | component | 流计算与算子 | datahub 引用 0；公共头不再 include `shmring.h`/`edge_port.h`/`arbiter.h`；直接链接 `edge_log`/`edge_math`，不再 include 或链接 edge_algo/edge_core/edge_infra；算法流适配器移至 `adapters/stream_algo` | 补 `component.yaml` 预算度量 |
 | `modules/edge_ai` | component（核心子域） | AI 推理、量化、张量池与 PINN 算法 | 从 edge_algo 独立；`edge_algo_port.h` 下沉 foundation；`edge_algo` 通过 PUBLIC 链接复用 | 保持 AI 算法不反向依赖业务组件 |
 | `modules/edge_battery` | component（核心子域） | 电池建模、SOH/EIS、均衡、热管理与策略 | 从 edge_algo 独立；仅依赖 foundation/edge_math；edge_algo 聚合链接 | 保持电池算法不反向依赖总线/存储 |

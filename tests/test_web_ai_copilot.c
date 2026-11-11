@@ -47,11 +47,13 @@ static void test_ai_provider_service_structure(void **state) {
     assert_non_null(strstr(content, "openai"));
     assert_non_null(strstr(content, "local_edge"));
 
-    // 8 MCP tools exposed by edge-mcp-server (4 generic + 4 industry)
+    // 7 MCP tools exposed by edge-mcp-server (3 generic + 4 industry).
+    // datahub_get_tag_meta is hidden by the server because this product has no
+    // static contract metadata, so the frontend catalog must not advertise it.
     assert_non_null(strstr(content, "INDUSTRIAL_MCP_TOOLS"));
     assert_non_null(strstr(content, "datahub_read_tags"));
     assert_non_null(strstr(content, "datahub_write_tag"));
-    assert_non_null(strstr(content, "datahub_get_tag_meta"));
+    assert_null(strstr(content, "datahub_get_tag_meta"));
     assert_non_null(strstr(content, "datahub_scan_abnormal"));
     assert_non_null(strstr(content, "dcu_analyze_power_quality"));
     assert_non_null(strstr(content, "smartbox_eval_transformer_life"));

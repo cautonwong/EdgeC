@@ -7,6 +7,7 @@
 
 #include "arbiter.h"
 #include "bus_orchestrator.h"
+#include "bus_datahub_adapter.h"
 #include "contracts.h"
 #include "datahub.h"
 #include "driver_manager.h"
@@ -14,6 +15,7 @@
 #include "edge_params.h"
 #include "edge_service.h"
 #include "northbound_mgr.h"
+#include "north_driver_adapter.h"
 #include "north_source_datahub_adapter.h"
 #include "snf_sqlite_adapter.h"
 #include "edge_params_sqlite_adapter.h"
@@ -45,7 +47,7 @@ int main(int argc, char** argv) {
     datahub_init(&hub, loop, "vpp_demo", 1024, g_tag_metadata_len, g_tag_metadata,
                  g_tag_metadata_len, NULL, edge_tag_get_compact_index, edge_router_needs_wakeup);
 
-    bus_orchestrator_t* io_orch = bus_orchestrator_create(&hub, arbiter, drv_mgr, 8, 32, 2048);
+    bus_orchestrator_t* io_orch = bus_orchestrator_create_hub_default(&hub, arbiter, driver_manager_session_port_ptr(drv_mgr), 8, 32, 2048);
     hub.io_pool = bus_orchestrator_get_pool(io_orch);
 
     sqlite_config_t db_conf = {.db_path = "vpp.db", .strategy = STRATEGY_LITE};
@@ -60,6 +62,9 @@ int main(int argc, char** argv) {
     nb_source_ops_t nb_source = northbound_source_from_datahub(&hub);
     nb_transport_ops_t transport = {0};
     northbound_mgr_init_ex(north_mgr, nb_source, "vpp_demo", &snf_store, transport);
+    static north_driver_adapter_storage_t north_driver_storage;
+    northbound_mgr_set_driver_port(north_mgr,
+                                   north_driver_adapter_init(&north_driver_storage));
 
     service_t* svc =
         service_new(loop, &hub, arbiter, stream_engine, param_mgr);
