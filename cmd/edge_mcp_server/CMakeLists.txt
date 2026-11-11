@@ -11,11 +11,13 @@ target_include_directories(edge-mcp-server PRIVATE
     ${CMAKE_SOURCE_DIR}/modules/edge_infra/include
     ${CMAKE_SOURCE_DIR}/modules/edge_bootstrap/include
     ${CMAKE_SOURCE_DIR}/adapters/mcp_industry/include
+    ${CMAKE_SOURCE_DIR}/adapters/datahub_bridges/include
 )
 
 target_link_libraries(edge-mcp-server PRIVATE
     edge_mcp
     edge_mcp_industry
+    edge_datahub_bridges
     edge_core
     edge_io
     edge_stream

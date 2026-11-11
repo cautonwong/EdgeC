@@ -16,6 +16,7 @@ struct snf_manager_s {
     uv_timer_t sync_timer;
     bool is_syncing;
     bool is_caller_allocated;
+    uint32_t batch_count; /* records published but not yet confirmed */
 
     /* 整批确认用的待标记主键。telemetry 是 WITHOUT ROWID 且 PRIMARY KEY(ts, tag_id)，
      * 所以只能按 (ts, tag_id) 对标记。定长内嵌，避免为核心路径引入动态内存。 */
@@ -34,6 +35,27 @@ static void _on_sync_timer(uv_timer_t *handle) {
     mgr->is_syncing = true;
     const snf_store_port_t *store = mgr->config.store;
     if (!store || !store->read_unsynced) {
+        mgr->is_syncing = false;
+        return;
+    }
+
+    uint32_t inflight =
+        mgr->config.pending_fn ? mgr->config.pending_fn(mgr->config.user_data) : 0;
+    if (mgr->batch_count > 0) {
+        if (inflight > 0) {
+            LOG_INFO(LOG_CAT_NB,
+                     "SnF: %u record(s) still in flight — keep the batch, do not republish.",
+                     inflight);
+            mgr->is_syncing = false;
+            return;
+        }
+        if (store->mark_synced &&
+            store->mark_synced(store->ctx, mgr->batch, mgr->batch_count) != 0) {
+            LOG_ERROR(LOG_CAT_NB, "SnF: Failed to mark records synced; retry next cycle");
+            mgr->is_syncing = false;
+            return;
+        }
+        mgr->batch_count = 0;
         mgr->is_syncing = false;
         return;
     }
@@ -78,25 +100,34 @@ static void _on_sync_timer(uv_timer_t *handle) {
         return;
     }
 
-    uint32_t inflight = mgr->config.pending_fn ? mgr->config.pending_fn(mgr->config.user_data) : 0;
-    if (inflight > 0) {
+    mgr->batch_count = (queued < SNF_MAX_BATCH) ? queued : SNF_MAX_BATCH;
+    /* Re-sample after publishing: pending_fn may only become non-zero once
+     * the transport has accepted the queued frames. */
+    uint32_t failed =
+        mgr->config.failures_fn ? mgr->config.failures_fn(mgr->config.user_data) : 0;
+    if (failed > 0) {
+        LOG_WARN(LOG_CAT_NB, "SnF: %u publish(es) failed — retry the batch next cycle.", failed);
+        mgr->batch_count = 0;
+        mgr->is_syncing = false;
+        return;
+    }
+    uint32_t inflight_after =
+        mgr->config.pending_fn ? mgr->config.pending_fn(mgr->config.user_data) : 0;
+    if (inflight_after > 0) {
         LOG_INFO(LOG_CAT_NB,
-                 "SnF: %u record(s) enqueued, %u still in flight — will confirm next cycle.",
-                 queued, inflight);
+                 "SnF: %u record(s) enqueued, %u still in flight — confirm after ACK.",
+                 queued, inflight_after);
         mgr->is_syncing = false;
         return;
     }
 
-    uint32_t limit = (queued < SNF_MAX_BATCH) ? queued : SNF_MAX_BATCH;
-    if (store->mark_synced && store->mark_synced(store->ctx, mgr->batch, limit) != 0) {
-        LOG_ERROR(LOG_CAT_NB, "SnF: Failed to mark records synced");
+    if (store->mark_synced &&
+        store->mark_synced(store->ctx, mgr->batch, mgr->batch_count) != 0) {
+        LOG_ERROR(LOG_CAT_NB, "SnF: Failed to mark records synced; retry next cycle");
+        mgr->is_syncing = false;
+        return;
     }
-    if (queued > limit) {
-        LOG_WARN(LOG_CAT_NB,
-                 "SnF: %u record(s) enqueued but only %u confirmable this cycle (SNF_MAX_BATCH).",
-                 queued, limit);
-    }
-
+    mgr->batch_count = 0;
     mgr->is_syncing = false;
 }
 

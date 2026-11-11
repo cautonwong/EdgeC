@@ -52,7 +52,7 @@
 ## 4. 现有可复用的支点
 
 - `modules/edge_mgmt/include/edgeos/edge_app_mgr.h` 已有应用清单、状态机、安装/启动/停止/卸载/开机恢复。
-- `modules/edge_io/include/edge_north_plane.h` 的北向端口已有 `peek`、`name`、`resolve_name`、`accept`、`on_downlink`，北向编排不认识产品点位模型。
+- `foundation/include/edge_north_plane.h` 的北向端口已有 `peek`、`name`、`resolve_name`、`accept`、`on_downlink`，北向编排不认识产品点位模型。
 - `go/cmd/edge-gateway/main.go` 已有服务注册：服务上报 `Tags` 与 `UIConfigs`，网关融合后由 `/api/v1/ui/bootstrap` 下发。这是贡献注册表的雏形，但当前没有类型、版本和校验。
 - `web/core/src/modules` 的页面、`modules.manifest.yaml` 的构建期注册表、`permissions/catalog.yaml` 的权限目录，已经定义了页面、权限、能力怎么被表达。
 - `modules/edge_stream/src/wasm_runtime` 已有 WAMR 宿主与看门狗，但现有 ABI 是模块 `"env"` 加全局数字 TagID（见 `docs/wasm_micro_app_guide.md` 与 `examples/wasm/*`）。这套 ABI 与 ADR-0010 冲突，新平台安装即拒绝（`DENIED_ABI`），不提供兼容层；迁移见 09 号文档。

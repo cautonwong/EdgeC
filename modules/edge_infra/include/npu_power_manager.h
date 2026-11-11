@@ -16,7 +16,8 @@
 #include <stdalign.h>
 
 #include "npu_hal.h"
-typedef struct datahub_s datahub_t;
+
+#include "edge_datahub_write_port.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -134,7 +135,7 @@ int npu_power_mgr_get_metrics(const npu_power_mgr_t *mgr, npu_power_metrics_t *o
 /**
  * @brief Synchronize power state and energy metrics with DataHub shadow bus
  */
-int npu_power_mgr_sync_datahub(const npu_power_mgr_t *mgr, datahub_t *hub);
+int npu_power_mgr_sync_datahub(const npu_power_mgr_t *mgr, const edge_datahub_write_port_t *port);
 
 /**
  * @brief Reset power and energy accumulators

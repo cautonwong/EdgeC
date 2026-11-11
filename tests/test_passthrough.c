@@ -1,3 +1,4 @@
+#include "bus_datahub_adapter.h"
 #include <cmocka.h>
 #include <setjmp.h>
 #include <stdarg.h>
@@ -54,7 +55,7 @@ static void test_passthrough_basic(void** state) {
 
     // Need a dummy DataHub for Orchestrator
     datahub_t* hub = calloc(1, sizeof(datahub_t));
-    datahub_init(hub, loop, "test", 64, 64, NULL, 0, NULL, NULL, NULL);
+    assert_int_equal(datahub_init(hub, loop, "passthrough_bus", 64, 64, NULL, 0, NULL, NULL, NULL), 0);
 
     arbiter_t* arb;
     arbiter_init(&arb, loop);
@@ -67,7 +68,7 @@ static void test_passthrough_basic(void** state) {
     driver_manager_register(drv_mgr, &dlt698_driver);
 
     // Create Orchestrator with mock IO on Bus 0
-    bus_orchestrator_t* orch = bus_orchestrator_create(hub, arb, drv_mgr, 1, 10, 1024);
+    bus_orchestrator_t* orch = bus_orchestrator_create_hub_default(hub, arb, driver_manager_session_port_ptr(drv_mgr), 1, 10, 1024);
     bus_orchestrator_setup_master(orch, 0, "DLT698", 0);
 
     io_handle_t mock_io = {.ops = &mock_ops};
@@ -142,6 +143,7 @@ static void test_passthrough_basic(void** state) {
     bus_orchestrator_destroy(orch);
     arbiter_destroy(arb);
     datahub_destroy(hub);
+    shm_unlink("/dev/shm/edgeos_shadow_passthrough_bus");
 
     // 💡 [Nexus Fix] 强制驱使排空默认 loop，确保被 close 的 tcp/async handles
     // 物理彻底关闭，消除内存悬挂

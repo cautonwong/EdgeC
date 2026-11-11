@@ -37,3 +37,6 @@ adapters/datahub_bridges/src/stream_bus_datahub_adapter.c
 
 # Session manager owns per-device driver instances; it is a wiring adapter for the bus, not a product root.
 modules/edge_session/src/session_manager.c
+
+# DataHub-backed bus convenience factory; the adapter owns the port, not a product lifecycle root.
+adapters/datahub_bridges/src/bus_datahub_adapter.c

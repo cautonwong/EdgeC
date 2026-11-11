@@ -83,12 +83,6 @@ export const INDUSTRIAL_MCP_TOOLS = [
     parameters: { type: 'object', properties: { tag_id: { type: 'integer' }, value: { type: 'number' }, quality: { type: 'integer' } }, required: ['tag_id', 'value'] },
   },
   {
-    name: 'datahub_get_tag_meta',
-    domain: 'DataHub',
-    description: 'Retrieve engineering metadata (name, unit, scaling factor, physical domain) for a Tag.',
-    parameters: { type: 'object', properties: { tag_id: { type: 'integer' } }, required: ['tag_id'] },
-  },
-  {
     name: 'datahub_scan_abnormal',
     domain: 'DataHub',
     description: 'Perform a full-table scan across all physical tags to identify non-zero quality alarms or abnormal readings.',
@@ -270,71 +264,134 @@ class AIProviderService {
     const startTime = performance.now();
     const executedTools: McpToolCall[] = [];
 
-    // Determine tool calls needed based on prompt intent (ReAct Decision)
+    // Determine tool calls needed based on prompt intent. Intents are
+    // independent: a prompt like “扫描三相电能质量异常” must trigger both the
+    // full-table scan and the three-phase analysis.
     const normalizedPrompt = userPrompt.toLowerCase();
     const toolsToCall: { name: string; args: Record<string, any> }[] = [];
 
     const extra = context?.extraData || {};
     const hasNumber = (v: any) => typeof v === 'number' && Number.isFinite(v);
-    if (normalizedPrompt.includes('扫描') || normalizedPrompt.includes('异常') || normalizedPrompt.includes('abnormal') || normalizedPrompt.includes('巡检')) {
+    const numeric = (v: any) => {
+      if (v === null || v === undefined) return undefined;
+      if (typeof v === 'boolean') return undefined;
+      if (typeof v === 'string' && v.trim() === '') return undefined;
+      const n = typeof v === 'number' ? v : Number(v);
+      return Number.isFinite(n) ? n : undefined;
+    };
+    const phaseTagIds = Array.isArray(extra.phase_tag_ids)
+      ? extra.phase_tag_ids.filter((v: any) => typeof v === 'number')
+      : [0x1001, 0x1002, 0x1003];
+    const wantsScan =
+      normalizedPrompt.includes('扫描') ||
+      normalizedPrompt.includes('异常') ||
+      normalizedPrompt.includes('abnormal') ||
+      normalizedPrompt.includes('巡检');
+    const wantsPowerQuality =
+      normalizedPrompt.includes('电能质量') ||
+      normalizedPrompt.includes('三相') ||
+      normalizedPrompt.includes('不平衡') ||
+      normalizedPrompt.includes('谐波');
+    const wantsTransformer =
+      normalizedPrompt.includes('变压器') ||
+      normalizedPrompt.includes('寿命') ||
+      normalizedPrompt.includes('transformer');
+    const wantsStorage =
+      normalizedPrompt.includes('储能') ||
+      normalizedPrompt.includes('峰谷') ||
+      normalizedPrompt.includes('tou') ||
+      normalizedPrompt.includes('套利');
+    const wantsInterlock =
+      normalizedPrompt.includes('五防') ||
+      normalizedPrompt.includes('互锁') ||
+      normalizedPrompt.includes('interlock');
+    const wantsTagRead =
+      normalizedPrompt.includes('电压') ||
+      normalizedPrompt.includes('测点') ||
+      normalizedPrompt.includes('tag') ||
+      normalizedPrompt.includes('read') ||
+      normalizedPrompt.includes('读取');
+
+    let readQueued = false;
+    const queueRead = (tagIds: number[]) => {
+      if (readQueued) return;
+      readQueued = true;
+      toolsToCall.push({ name: 'datahub_read_tags', args: { tag_ids: tagIds } });
+    };
+
+    if (wantsScan) {
       toolsToCall.push({ name: 'datahub_scan_abnormal', args: {} });
-    } else if (normalizedPrompt.includes('电能质量') || normalizedPrompt.includes('三相') || normalizedPrompt.includes('不平衡') || normalizedPrompt.includes('谐波')) {
-      if (hasNumber(extra.phase_a_v) && hasNumber(extra.phase_b_v) && hasNumber(extra.phase_c_v)) {
+    }
+
+    const phaseA = numeric(extra.phase_a_v);
+    const phaseB = numeric(extra.phase_b_v);
+    const phaseC = numeric(extra.phase_c_v);
+    let needsPowerQualityTelemetry = false;
+    if (wantsPowerQuality) {
+      if (hasNumber(phaseA) && hasNumber(phaseB) && hasNumber(phaseC)) {
         toolsToCall.push({
           name: 'dcu_analyze_power_quality',
-          args: { phase_a_v: extra.phase_a_v, phase_b_v: extra.phase_b_v, phase_c_v: extra.phase_c_v, current_thd: extra.current_thd },
+          args: { phase_a_v: phaseA, phase_b_v: phaseB, phase_c_v: phaseC, current_thd: extra.current_thd },
         });
+      } else {
+        queueRead(phaseTagIds);
+        needsPowerQualityTelemetry = true;
       }
-    } else if (normalizedPrompt.includes('变压器') || normalizedPrompt.includes('寿命') || normalizedPrompt.includes('transformer')) {
+    }
+
+    if (wantsTransformer) {
       if (hasNumber(extra.load_ratio) && hasNumber(extra.ambient_temp_c) && hasNumber(extra.current_top_oil_c)) {
         toolsToCall.push({
           name: 'smartbox_eval_transformer_life',
           args: { load_ratio: extra.load_ratio, ambient_temp_c: extra.ambient_temp_c, current_top_oil_c: extra.current_top_oil_c },
         });
+      } else if (!wantsTagRead) {
+        queueRead([context?.selectedTagId ?? 0x1001]);
       }
-    } else if (normalizedPrompt.includes('储能') || normalizedPrompt.includes('峰谷') || normalizedPrompt.includes('tou') || normalizedPrompt.includes('套利')) {
-      const soc = extra.soc_pct !== undefined ? extra.soc_pct : context?.currentValue;
-      if (hasNumber(soc)) {
+    }
+
+    if (wantsStorage) {
+      const soc = numeric(extra.soc_pct !== undefined ? extra.soc_pct : context?.currentValue);
+      if (soc !== undefined) {
         toolsToCall.push({
           name: 'iems_optimize_tou_schedule',
           args: { soc_pct: soc, pv_forecast_kw: extra.pv_forecast_kw, load_forecast_kw: extra.load_forecast_kw },
         });
+      } else {
+        queueRead([context?.selectedTagId ?? 0x1001]);
       }
-    } else if (normalizedPrompt.includes('五防') || normalizedPrompt.includes('互锁') || normalizedPrompt.includes('interlock')) {
+    }
+
+    if (wantsInterlock) {
       if (typeof extra.breaker_id === 'string' && (extra.target_state === 'OPEN' || extra.target_state === 'CLOSE')) {
         toolsToCall.push({
           name: 'security_simulate_interlock',
           args: { breaker_id: extra.breaker_id, target_state: extra.target_state },
         });
+      } else {
+        queueRead([context?.selectedTagId ?? 0x1001]);
       }
-    } else if (normalizedPrompt.includes('电压') || normalizedPrompt.includes('测点') || normalizedPrompt.includes('tag') || normalizedPrompt.includes('read')) {
-      const tagId = context?.selectedTagId || 0x1001;
-      toolsToCall.push({ name: 'datahub_read_tags', args: { tag_ids: [tagId] } });
-      toolsToCall.push({ name: 'datahub_get_tag_meta', args: { tag_id: tagId } });
-    } else if (context?.selectedTagId !== undefined) {
-      toolsToCall.push({ name: 'datahub_read_tags', args: { tag_ids: [context.selectedTagId] } });
     }
 
-    const wantsTagRead = /电压|测点|tag|读取|变压器|电能质量|储能|五防/.test(normalizedPrompt);
-    if (toolsToCall.length === 0 && (context?.selectedTagId !== undefined || wantsTagRead)) {
-      const tagId = context?.selectedTagId ?? 0x1001;
-      toolsToCall.push({ name: 'datahub_read_tags', args: { tag_ids: [tagId] } });
-      toolsToCall.push({ name: 'datahub_get_tag_meta', args: { tag_id: tagId } });
+    const wantsImplicitRead = wantsTagRead && !wantsScan;
+    if (wantsImplicitRead || (toolsToCall.length === 0 && context?.selectedTagId !== undefined)) {
+      queueRead([context?.selectedTagId ?? 0x1001]);
     }
-    // Execute MCP Tools in ReAct Cycle
-    for (const item of toolsToCall) {
+
+    // Execute the first wave. Telemetry reads are executed before any deferred
+    // analysis so its arguments come from real values rather than assumptions.
+    const runTool = async (toolName: string, args: Record<string, any>): Promise<McpToolCall> => {
       const toolCallRecord: McpToolCall = {
         id: 'tc_' + Math.random().toString(36).substring(2, 9),
-        toolName: item.name,
-        args: item.args,
+        toolName,
+        args,
         status: 'executing',
         timestamp: Date.now(),
       };
       executedTools.push(toolCallRecord);
       if (onToolProgress) onToolProgress(toolCallRecord);
-
       try {
-        const { result, durationMs } = await this.callMcpTool(item.name, item.args);
+        const { result, durationMs } = await this.callMcpTool(toolName, args);
         toolCallRecord.status = 'success';
         toolCallRecord.result = result;
         toolCallRecord.durationMs = durationMs;
@@ -343,6 +400,36 @@ class AIProviderService {
         toolCallRecord.error = err.message || 'Tool execution failed';
       }
       if (onToolProgress) onToolProgress(toolCallRecord);
+      return toolCallRecord;
+    };
+
+    for (const item of toolsToCall) {
+      await runTool(item.name, item.args);
+    }
+
+    if (needsPowerQualityTelemetry) {
+      const readTool = executedTools.find(
+        (tool) => tool.toolName === 'datahub_read_tags' && tool.status === 'success'
+      );
+      const readTags = Array.isArray(readTool?.result?.tags) ? readTool.result.tags : [];
+      const phaseTags = phaseTagIds;
+      const byId = new Map<number, number>();
+      for (const tag of readTags) {
+        const id = numeric(tag?.tag_id);
+        const value = numeric(tag?.value);
+        if (id !== undefined && value !== undefined) byId.set(id, value);
+      }
+      const pa = numeric(extra.phase_a_v) ?? byId.get(phaseTags[0]);
+      const pb = numeric(extra.phase_b_v) ?? byId.get(phaseTags[1]);
+      const pc = numeric(extra.phase_c_v) ?? byId.get(phaseTags[2]);
+      if (pa !== undefined && pb !== undefined && pc !== undefined) {
+        await runTool('dcu_analyze_power_quality', {
+          phase_a_v: pa,
+          phase_b_v: pb,
+          phase_c_v: pc,
+          current_thd: extra.current_thd,
+        });
+      }
     }
 
     // Synthesize final response

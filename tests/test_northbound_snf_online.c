@@ -9,6 +9,7 @@
 #include <uv.h>
 
 #include "northbound_mgr.h"
+#include "north_driver_test_port.h"
 #include "snf_manager.h"
 
 static atomic_bool g_marked;
@@ -97,6 +98,7 @@ static void test_snf_online_without_user_data(void) {
     atomic_store(&g_published, 0);
 
     assert(northbound_mgr_init_ex(&mgr, source, "test", &store, transport) == 0);
+    northbound_mgr_set_driver_port(&mgr, test_north_driver_port());
     assert(northbound_mgr_start(&mgr) == 0);
     uv_sleep(6500);
     northbound_mgr_stop(&mgr);

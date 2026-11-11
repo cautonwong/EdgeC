@@ -23,7 +23,7 @@ static void test_adc_dsp_full_chain(void** state) {
     uv_loop_t* loop = uv_default_loop();
     // 即使不传元数据，Ring Buffer 也能工作
     datahub_t hub;
-    datahub_init(&hub, loop, "test", 128, 128, NULL, 0, NULL, NULL, NULL);
+    assert_int_equal(datahub_init(&hub, loop, "adc_dsp_bus", 128, 128, NULL, 0, NULL, NULL, NULL), 0);
     stream_engine_t* se = stream_engine_create_datahub(&hub, uv_default_loop(), NULL, NULL);
 
     printf("[STEP 2] Registering Simulation Pipeline (Trigger=12001, Target=1001)...\n");

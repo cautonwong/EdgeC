@@ -7,7 +7,7 @@
 #define DCU_DRIVER_ADAPTER_H
 
 #include "dcu_inventory.h"
-#include "driver_manager.h"
+#include "edge_driver_registry_port.h"
 #include "edge_driver.h"
 
 #ifdef __cplusplus
@@ -20,7 +20,7 @@ extern "C" {
  * @param mgr 驱动管理器实例
  * @return 0 成功, -1 失败
  */
-int dcu_driver_registry_init(driver_manager_t *mgr);
+int dcu_driver_registry_init(const edge_driver_registry_port_t *registry);
 
 /** @brief 注入仪表档案，让 DLT645 驱动按 device_id 取真实表地址（不再是广播 0x99） */
 void dcu_driver_adapter_set_meters(const production_meter_t *meters, uint32_t count);

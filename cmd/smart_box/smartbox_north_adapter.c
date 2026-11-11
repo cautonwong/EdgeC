@@ -8,11 +8,13 @@
 #include "mqtt_json_codec.h"
 #include "mqtt_producer.h"
 #include "northbound_mgr.h"
+#include "north_driver_adapter.h"
 #include "north_source_datahub_adapter.h"
 #include "smartbox_driver_adapter.h"
 #include "smartbox_north_adapter.h"
 
 static northbound_mgr_t g_north;
+static north_driver_adapter_storage_t g_north_driver_storage;
 
 /* =============================================================================
  * 北向取数端口（ADR-0011 族 A / N6-5）
@@ -95,6 +97,8 @@ void smartbox_north_attach(datahub_t *hub) {
     nb_transport_ops_t sb_transport = mqtt_producer_create(mqtt_url, sb_client_id);
     northbound_mgr_init_ex(&g_north, northbound_source_from_datahub(hub), "SmartBox", NULL,
                            sb_transport);
+    northbound_mgr_set_driver_port(&g_north,
+                                   north_driver_adapter_init(&g_north_driver_storage));
     /* 主题身份在这里读一次 env 并交给北向管理器，深层模块不再自己 getenv。 */
     northbound_mgr_set_address(&g_north, NULL, getenv("MQTT_GROUP_ID"),
                                getenv("MQTT_NODE_ID"));

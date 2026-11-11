@@ -10,6 +10,7 @@
 
 #include "arbiter.h"
 #include "bus_orchestrator.h"
+#include "bus_datahub_adapter.h"
 #include "datahub.h"
 #include "protocol_bridge.h"
 #include "protocol_bridge_datahub_adapter.h"
@@ -27,7 +28,7 @@ static void test_bridge_downlink_routing(void** state) {
     arbiter_init(&arb, loop);
     arbiter_resume(arb);
 
-    bus_orchestrator_t* orch = bus_orchestrator_create(&hub, arb, NULL, 4, 32, 512);
+    bus_orchestrator_t* orch = bus_orchestrator_create_hub_default(&hub, arb, NULL, 4, 32, 512);
 
     protocol_bridge_bus_port_t bus = protocol_bridge_datahub_port(&hub);
     protocol_bridge_t* bridge = protocol_bridge_create(loop, &bus, orch);

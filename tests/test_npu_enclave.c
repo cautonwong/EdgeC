@@ -11,6 +11,7 @@
 
 #include "datahub.h"
 #include "npu_enclave.h"
+#include "datahub_write_adapter.h"
 #include "npu_hal.h"
 #include "datahub_priv.h"
 
@@ -123,7 +124,8 @@ static void test_npu_enclave_tamper_detection_and_security(void **state) {
     shm_unlink("/test_npu_enclave_hub");
     assert_int_equal(
         datahub_init(&hub, &loop, "/test_npu_enclave_hub", 32, 64, NULL, 0, NULL, NULL, NULL), 0);
-    assert_int_equal(npu_enclave_sync_datahub(enclave, &hub), 0);
+    edge_datahub_write_port_t port = edge_datahub_write_port(&hub);
+    assert_int_equal(npu_enclave_sync_datahub(enclave, &port), 0);
     datahub_destroy(&hub);
     uv_loop_close(&loop);
     shm_unlink("/test_npu_enclave_hub");

@@ -10,6 +10,7 @@
 #include "arbiter.h"
 #include "bus_engine.h"
 #include "bus_orchestrator.h"
+#include "bus_datahub_adapter.h"
 #include "datahub.h"
 #include "driver_manager.h"
 #include "edge_driver.h"
@@ -59,7 +60,7 @@ static int setup(void** state) {
     ctx->drv_mgr = driver_manager_create_in(&ctx->drv_mgr_storage);
     driver_manager_register(ctx->drv_mgr, &modbus_rtu_driver);
 
-    ctx->orch = bus_orchestrator_create(&ctx->hub, ctx->arb, ctx->drv_mgr, 8, 32, 256);
+    ctx->orch = bus_orchestrator_create_hub_default(&ctx->hub, ctx->arb, driver_manager_session_port_ptr(ctx->drv_mgr), 8, 32, 256);
 
     int fds[2];
     if (socketpair(AF_UNIX, SOCK_STREAM, 0, fds) < 0) return -1;

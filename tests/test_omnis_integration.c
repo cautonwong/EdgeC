@@ -13,6 +13,7 @@
 
 #include "arbiter.h"
 #include "bus_orchestrator.h"
+#include "bus_datahub_adapter.h"
 #include "contract_data_types.h"
 #include "datahub.h"
 #include "stream_engine.h"
@@ -65,7 +66,7 @@ static int setup(void** state) {
     datahub_init(&ctx->hub, &ctx->loop, "omnis_bus", 64, 1024, mock_metadata, 2, &ctx->pool, NULL,
                  NULL);
     arbiter_init(&ctx->arb, &ctx->loop);
-    ctx->orch = bus_orchestrator_create(&ctx->hub, ctx->arb, NULL, 8, 16, 256);
+    ctx->orch = bus_orchestrator_create_hub_default(&ctx->hub, ctx->arb, NULL, 8, 16, 256);
     ctx->engine = stream_engine_create_datahub(&ctx->hub, uv_default_loop(), NULL, NULL);
 
     uv_timer_init(&ctx->loop, &ctx->timeout);

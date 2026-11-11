@@ -15,6 +15,7 @@
 #include "io_executor.h"
 #include "mqtt_producer.h"
 #include "northbound_mgr.h"
+#include "north_driver_adapter.h"
 #include "north_source_datahub_adapter.h"
 
 typedef struct {
@@ -144,6 +145,7 @@ void dcu_north_slave_attach(uv_loop_t* loop, datahub_t* hub, bus_orchestrator_t*
 /* 北向编排实例与传输。文件作用域：装配在 helper 里做，
  * service_new 与收尾（stop/destroy）都还要用它们。 */
 static northbound_mgr_t g_north;
+static north_driver_adapter_storage_t g_north_driver_storage;
 static nb_transport_ops_t g_nb_transport;
 
 /**
@@ -168,6 +170,8 @@ void dcu_north_cloud_attach(datahub_t* hub) {
     nb_source_ops_t nb_source = northbound_source_from_datahub(hub);
     g_nb_transport = mqtt_producer_create(mqtt_url, mqtt_client_id);
     northbound_mgr_init_ex(&g_north, nb_source, "DCU", NULL, g_nb_transport);
+    northbound_mgr_set_driver_port(&g_north,
+                                   north_driver_adapter_init(&g_north_driver_storage));
     northbound_mgr_set_address(&g_north, NULL, group_id, node_id);
     /* 北向取数端口：metric 名与当前值都由产品给，驱动不反查 datahub。
      * 不注入的话驱动只能把点位编成 tag_<数字>，主站看不出是什么量。 */

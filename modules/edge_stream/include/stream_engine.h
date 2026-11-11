@@ -130,9 +130,17 @@ typedef struct {
     stream_control_cb submit_control;
 } stream_control_ops_t;
 
+// Consumer-defined configuration fallback. Products inject this at the composition
+// root so the pipeline loader stays independent of edge_params/DataHub.
+typedef struct {
+    void *ctx;
+    double (*get_double)(void *ctx, const char *key, double default_value);
+} pipeline_config_port_t;
+
 // pipeline_loader_ctx_t 的定义必须匹配 contract_data_types.h 中的前置声明
 struct pipeline_loader_ctx_s {
     stream_sqlite_port_t db;
+    pipeline_config_port_t config;
     js_engine_t *js_engine;
     stream_control_ops_t control_ops; /**< [IoC] 用于指令触发，消费者定义的接口 */
     const char *audit_secret;          /**< VPP 审计签名密钥，组合根注入 */

@@ -21,7 +21,7 @@ typedef struct {
 typedef struct {
     int bus_id;
     io_handle_t *io;
-    datahub_t *hub;
+    edge_bus_datahub_port_t bus;
     uv_loop_t *loop;
     net_buf_pool_t *pool;
     arbiter_t *arb;
@@ -83,7 +83,7 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
                             continue; // Skip publishing
                         }
                     }
-                    datahub_publish(priv->hub, &async_msgs[i]);
+                    priv->bus.publish(priv->bus.ctx, &async_msgs[i]);
                 }
             }
         } else {
@@ -136,24 +136,24 @@ static int _slave_set_source(bus_engine_t *self, const edge_slave_source_ops_t *
     return 0;
 }
 
-bus_engine_t *engine_create_slave(driver_manager_t *mgr, int bus_id, const char *protocol,
+bus_engine_t *engine_create_slave(const edge_driver_session_port_t *driver_port, int bus_id, const char *protocol,
                                   uint32_t device_id, uv_loop_t *loop, arbiter_t *arb,
-                                  datahub_t *hub, net_buf_pool_t *pool) {
+                                  const edge_bus_datahub_port_t *bus, net_buf_pool_t *pool) {
     bus_engine_t *self = calloc(1, sizeof(bus_engine_t));
     slave_priv_t *priv = calloc(1, sizeof(slave_priv_t));
     
     priv->bus_id = bus_id;
-    priv->hub = hub;
+    if (bus) priv->bus = *bus;
     priv->loop = loop;
     priv->pool = pool;
     net_buf_pool_ref(pool);
     priv->arb = arb;
-    priv->session_mgr = session_manager_create(mgr, 8);
+    priv->session_mgr = session_manager_create(driver_port, 8);
     priv->rx_acc = net_buf_alloc(pool, 0);
     if (priv->rx_acc) net_buf_simple_reset(&priv->rx_acc->b);
 
     if (protocol) {
-        session_manager_add_session(priv->session_mgr, protocol, device_id, hub);
+        session_manager_add_session(priv->session_mgr, protocol, device_id, priv->bus.ctx);
     }
 
     uv_timer_init(loop, &priv->timer);
@@ -170,5 +170,5 @@ bus_engine_t *engine_create_slave(driver_manager_t *mgr, int bus_id, const char 
 
 int engine_slave_add_protocol(bus_engine_t *self, const char *protocol, uint32_t device_id) {
     slave_priv_t *priv = (slave_priv_t *)self->user_data;
-    return session_manager_add_session(priv->session_mgr, protocol, device_id, priv->hub);
+    return session_manager_add_session(priv->session_mgr, protocol, device_id, priv->bus.ctx);
 }

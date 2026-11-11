@@ -4,14 +4,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "driver_manager.h"
 
 static bus_orchestrator_t *g_orch = NULL;
-static driver_manager_t *g_drv_mgr = NULL;
 
-void edge_api_init(bus_orchestrator_t *orch, driver_manager_t *drv_mgr) {
+void edge_api_init(bus_orchestrator_t *orch) {
     g_orch = orch;
-    g_drv_mgr = drv_mgr;
 }
 
 static void _on_api_cmd_cleanup(cmd_msg_t *cmd) {
@@ -77,15 +74,14 @@ int edge_api_read_tag_ex(int bus_id, const char *protocol, uint32_t slave_id, ui
     const edge_api_meta_entry_t *meta = _meta_of(protocol);
 
     edge_req_t *req = req_legacy_driver_create(
-        g_drv_mgr, protocol, slave_id, CMD_ACTION_READ, native_id, result_tag_id, scale, 0.0,
+        protocol, slave_id, CMD_ACTION_READ, native_id, result_tag_id, scale, 0.0,
         meta ? meta->meta : NULL, meta ? meta->count : 0, point_desc, point_desc_len, cb,
         user_data);
     if (!req) {
         static uint64_t last_no_req = 0;
         if (uv_now(uv_default_loop()) - last_no_req > 1000) {
-            printf("[API-ERROR] reason=req-create-failed bus=%d proto=%s slave=%u tag=%08x "
-                   "drv_mgr=%p\n",
-                   bus_id, protocol ? protocol : "?", slave_id, native_id, (void *)g_drv_mgr);
+            printf("[API-ERROR] reason=req-create-failed bus=%d proto=%s slave=%u tag=%08x\n",
+                   bus_id, protocol ? protocol : "?", slave_id, native_id);
             last_no_req = uv_now(uv_default_loop());
         }
         return -1;
@@ -125,7 +121,7 @@ int edge_api_write_tag(int bus_id, const char *protocol, uint32_t slave_id,
     const edge_api_meta_entry_t *meta = _meta_of(protocol);
 
     edge_req_t *req = req_legacy_driver_create(
-        g_drv_mgr, protocol, slave_id, CMD_ACTION_WRITE, physical_tag_id, physical_tag_id, 1.0,
+        protocol, slave_id, CMD_ACTION_WRITE, physical_tag_id, physical_tag_id, 1.0,
         value, meta ? meta->meta : NULL, meta ? meta->count : 0, NULL, 0, cb, user_data);
     if (!req) return -1;
 

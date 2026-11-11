@@ -25,7 +25,7 @@
 
 #include <stdint.h>
 
-#include "shmring.h" /* pipe_msg_t */
+#include "pipe_msg.h"
 
 #ifdef __cplusplus
 extern "C" {

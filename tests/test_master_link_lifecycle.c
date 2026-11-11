@@ -12,6 +12,7 @@
 #include "arbiter.h"
 #include "bus_engine.h"
 #include "bus_orchestrator.h"
+#include "bus_datahub_adapter.h"
 #include "datahub.h"
 #include "driver_manager.h"
 #include "edge_request.h"
@@ -116,7 +117,7 @@ static link_ctx_t *make_ctx(void) {
     assert_int_equal(net_buf_pool_init(&ctx->pool, 16, 256, 0, NULL, NULL), 0);
     ctx->drv_mgr = driver_manager_create_in(&ctx->drv_mgr_storage);
     assert_non_null(ctx->drv_mgr);
-    ctx->orch = bus_orchestrator_create(&ctx->hub, ctx->arb, ctx->drv_mgr, 4, 16, 256);
+    ctx->orch = bus_orchestrator_create_hub_default(&ctx->hub, ctx->arb, driver_manager_session_port_ptr(ctx->drv_mgr), 4, 16, 256);
     assert_non_null(ctx->orch);
 
     int fds[2];

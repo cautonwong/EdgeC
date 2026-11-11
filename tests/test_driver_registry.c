@@ -45,7 +45,7 @@ static void test_driver_registry_lifecycle_and_lookup(void) {
     assert(mgr != NULL);
 
     /* 3. Initialize registry table into manager */
-    int rc = edge_driver_registry_init(mgr);
+    int rc = edge_driver_registry_init(driver_manager_registry_port_ptr(mgr));
     assert(rc == 0);
     (void)rc;
 

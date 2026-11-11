@@ -5,6 +5,8 @@ add_library(edge_datahub_bridges STATIC
     src/radar_datahub_adapter.c
     src/adc_datahub_adapter.c
     src/js_arbiter_service_adapter.c
+    src/bus_datahub_adapter.c
+    src/datahub_write_adapter.c
     src/edge_mcp_datahub_adapter.c
 )
 

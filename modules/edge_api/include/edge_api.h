@@ -5,13 +5,13 @@
 #include "req_driver_legacy.h"
 #include "req_raw_io.h"
 
+
 /**
  * @brief Initializes the high-level IO API with the core orchestrator.
  *
  * @param orch The main bus orchestrator instance.
- * @param drv_mgr The main driver manager instance.
  */
-void edge_api_init(bus_orchestrator_t* orch, driver_manager_t* drv_mgr);
+void edge_api_init(bus_orchestrator_t* orch);
 
 /**
  * @brief Submits a high-level request to read a single tag value.

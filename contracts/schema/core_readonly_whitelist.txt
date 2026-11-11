@@ -110,3 +110,18 @@ modules/edge_core/src/edge_params.c            # params store port
 # 2026-11-10 - component.meta is the machine-readable inventory required by the
 # component metadata gate; adding it does not change edge_core code or ABI.
 modules/edge_core/component.meta              # component metadata
+
+# 2026-11-11 - edge_port_types.h is the public ABI type split introduced by the
+# component refactor (moved out of edge_port.h). It stays under R-08 review.
+foundation/include/edge_port_types.h            # public ABI types
+
+# 2026-11-11 - SHM lifecycle hardening. datahub_shm no longer truncates a live
+# segment; datahub.c adds flock around cross-process shadow reads/writes.
+modules/edge_core/src/datahub_shm.c             # SHM lifecycle hardening
+modules/edge_core/src/datahub.c                 # cross-process shadow lock
+
+# 2026-11-11 - P1-3 shared-memory header and seqlock ABI. The public header
+# defines the 32-byte versioned layout; datahub_priv.h carries the mapping and
+# owner bookkeeping needed by the implementation.
+modules/edge_core/include/datahub_shm.h         # SHM header ABI
+modules/edge_core/src/datahub_priv.h            # SHM mapping state

@@ -23,6 +23,7 @@
 #include "edge_north_plane.h"
 #include "mqtt_json_codec.h"
 #include "northbound_mgr.h"
+#include "north_driver_test_port.h"
 
 /* ---- 1. 解析 ---- */
 
@@ -160,6 +161,7 @@ static void test_orchestrator_forwards_raw_bytes(void** state) {
     };
 
     assert_int_equal(northbound_mgr_init_ex(&mgr, src, "test", NULL, t), 0);
+    northbound_mgr_set_driver_port(&mgr, test_north_driver_port());
     northbound_mgr_set_address(&mgr, "edge/{node}/{kind}", "G", "N1");
 
     static const edge_north_source_ops_t port = {.on_downlink = mock_on_downlink};

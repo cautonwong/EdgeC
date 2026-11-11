@@ -10,6 +10,7 @@
 
 #include "arbiter.h"
 #include "bus_orchestrator.h"
+#include "bus_datahub_adapter.h"
 #include "contract_data_types.h"
 #include "datahub.h"
 #include "driver_manager.h"
@@ -102,7 +103,7 @@ static int setup(void** state) {
     datahub_init(&ctx->hub, &ctx->loop, "iems_test", 128, 1024, g_tag_metadata, g_tag_metadata_len,
                  NULL, (datahub_tag_map_cb)edge_tag_get_compact_index, NULL);
 
-    ctx->orch = bus_orchestrator_create(&ctx->hub, ctx->arb, ctx->drv_mgr, 2, 64, 1024);
+    ctx->orch = bus_orchestrator_create_hub_default(&ctx->hub, ctx->arb, driver_manager_session_port_ptr(ctx->drv_mgr), 2, 64, 1024);
 
     extern pipeline_stage_t* stage_mpc_dispatch_create_v2(const edge_stage_def_t* def,
                                                           pipeline_loader_ctx_t* ctx);

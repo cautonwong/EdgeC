@@ -22,10 +22,15 @@ extern pipeline_stage_t *stage_reflex_logic_create(stream_control_ops_t control_
                                                    double threshold, bool greater_than,
                                                    double action_val);
 
-// 辅助：从 JSON 或全局参数获取 double 值
-static double get_cfg_double(cJSON *json, const char *key, double def_val) {
+// 辅助：JSON 优先，缺失时走消费者注入的全局配置端口。
+static double get_cfg_double(cJSON *json, const char *key, pipeline_loader_ctx_t *ctx,
+                             const char *port_key, double def_val) {
     cJSON *item = cJSON_GetObjectItem(json, key);
-    return item ? item->valuedouble : def_val;
+    if (item) return item->valuedouble;
+    if (ctx && ctx->config.get_double) {
+        return ctx->config.get_double(ctx->config.ctx, port_key, def_val);
+    }
+    return def_val;
 }
 
 #define MAX_CUSTOM_STAGE_FACTORIES 32
@@ -56,7 +61,6 @@ extern pipeline_stage_t *stage_dsp_rms_create(uint32_t output_tag_id);
 typedef pipeline_stage_t *(*builtin_stage_build_fn)(cJSON *config, pipeline_loader_ctx_t *ctx);
 
 static pipeline_stage_t *build_energy_integrator(cJSON *config, pipeline_loader_ctx_t *ctx) {
-    (void)ctx;
     cJSON *item = cJSON_GetObjectItem(config, "state_tag");
     return stage_energy_integrator_create(item ? (uint32_t)item->valuedouble : 0);
 }
@@ -88,13 +92,12 @@ static pipeline_stage_t *build_time_guard(cJSON *config, pipeline_loader_ctx_t *
 static pipeline_stage_t *build_battery_guard(cJSON *config, pipeline_loader_ctx_t *ctx) {
     battery_limit_t *limits = calloc(1, sizeof(battery_limit_t));
     if (!limits) return NULL;
-    limits->max_soc =
-        (float)get_cfg_double(config, "max_soc", 95.0);
-    limits->min_soc =
-        (float)get_cfg_double(config, "min_soc", 10.0);
+    limits->max_soc = (float)get_cfg_double(config, "max_soc", ctx, "batt_max_soc", 95.0);
+    limits->min_soc = (float)get_cfg_double(config, "min_soc", ctx, "batt_min_soc", 10.0);
     limits->max_charge_pwr =
-        (float)get_cfg_double(config, "max_charge_w", 5000.0);
-    limits->max_discharge_pwr = (float)get_cfg_double(config, "max_discharge_w", 5000.0);
+        (float)get_cfg_double(config, "max_charge_w", ctx, "batt_max_charge", 5000.0);
+    limits->max_discharge_pwr =
+        (float)get_cfg_double(config, "max_discharge_w", ctx, "batt_max_discharge", 5000.0);
     return stage_battery_guard_create(limits);
 }
 

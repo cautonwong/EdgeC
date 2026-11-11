@@ -8,7 +8,6 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "datahub.h"
 #include "edge_request.h"
 #include "arbiter_types.h" // Add for cmd_msg_t
 
@@ -39,12 +38,12 @@ typedef struct {
 /**
  * @brief 在调用方提供的内存就地初始化 DPI 校验引擎 (Zero-Alloc)
  */
-int dpi_engine_init_in(edge_guard_dpi_storage_t *storage, datahub_t *hub);
+int dpi_engine_init_in(edge_guard_dpi_storage_t *storage);
 
 /**
  * @brief 初始化 DPI 校验引擎 (兼容单例)
  */
-int dpi_engine_init(datahub_t *hub);
+int dpi_engine_init(void);
 
 /**
  * @brief 校验写入指令 (Master 模式下发)

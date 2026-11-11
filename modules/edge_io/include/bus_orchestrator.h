@@ -5,13 +5,10 @@
 
 #include "arbiter.h"
 #include "contract_data_types.h"
-#include "datahub.h"
+#include "edge_bus_datahub_port.h"
 #include "edge_slave_plane.h"
 #include "io_executor.h"
-
-// 前向声明驱动管理器，避免循环包含
-struct driver_manager_s;
-typedef struct driver_manager_s driver_manager_t;
+#include "edge_driver_session_port.h"
 
 #include <stddef.h>
 #include <stdalign.h>
@@ -30,11 +27,13 @@ typedef struct {
 } bus_orch_monitor_tags_t;
 
 bus_orchestrator_t *bus_orchestrator_create_in(bus_orchestrator_storage_t *storage,
-                                               datahub_t *hub, arbiter_t *arb, driver_manager_t *mgr,
+                                               const edge_bus_datahub_port_t *bus, arbiter_t *arb,
+                                               const edge_driver_session_port_t *driver_port,
                                                int max_buses, uint32_t pool_size, uint32_t buf_size);
 
-bus_orchestrator_t *bus_orchestrator_create(datahub_t *hub, arbiter_t *arb, driver_manager_t *mgr,
-                                            int max_buses, uint32_t pool_size, uint32_t buf_size);
+bus_orchestrator_t *bus_orchestrator_create(const edge_bus_datahub_port_t *bus, arbiter_t *arb,
+                                            const edge_driver_session_port_t *driver_port, int max_buses,
+                                            uint32_t pool_size, uint32_t buf_size);
 
 void bus_orchestrator_set_monitor_tags(bus_orchestrator_t *ctx,
                                        const bus_orch_monitor_tags_t *tags);
@@ -49,7 +48,7 @@ int bus_orchestrator_set_slave_source(bus_orchestrator_t *ctx, int bus_id,
 
 io_handle_t *bus_orchestrator_get_io(bus_orchestrator_t *ctx, int bus_id);
 
-datahub_t *bus_orchestrator_get_hub(bus_orchestrator_t *ctx);
+const edge_bus_datahub_port_t *bus_orchestrator_get_bus_port(bus_orchestrator_t *ctx);
 
 /**
  * @brief 配置总线为 Master 模式并注入契约

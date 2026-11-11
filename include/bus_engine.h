@@ -6,14 +6,14 @@ typedef struct uv_loop_s uv_loop_t;
 #include "contract_data_types.h"
 #include "edge_slave_plane.h"
 #include "net_buf.h"
+#include "edge_driver_session_port.h"
+#include "edge_bus_datahub_port.h"
 
 // --- Forward Declarations (Decoupling Planes) ---
 typedef struct bus_engine_s bus_engine_t;
 typedef struct arbiter arbiter_t;
 typedef struct cmd_msg cmd_msg_t;
 typedef struct io_handle_s io_handle_t;
-typedef struct driver_manager_s driver_manager_t;
-typedef struct datahub_s datahub_t;
 
 struct bus_engine_s {
     // 绑定物理层。Engine 在这里注册 io_callback。
@@ -41,13 +41,13 @@ struct bus_engine_s {
 
 // Factory functions
 // [ADR-002] 不再注入点位表：驱动是纯 codec，点位翻译在产品侧完成
-bus_engine_t* engine_create_master(driver_manager_t* mgr, int bus_id, const char* protocol,
+bus_engine_t* engine_create_master(const edge_driver_session_port_t* driver_port, int bus_id, const char* protocol,
                                    uint32_t device_id, uv_loop_t* loop, arbiter_t* arb,
-                                   datahub_t* hub, net_buf_pool_t* pool);
+                                   const edge_bus_datahub_port_t* bus, net_buf_pool_t* pool);
 
-bus_engine_t* engine_create_slave(driver_manager_t* mgr, int bus_id, const char* protocol,
+bus_engine_t* engine_create_slave(const edge_driver_session_port_t* driver_port, int bus_id, const char* protocol,
                                   uint32_t device_id, uv_loop_t* loop, arbiter_t* arb,
-                                  datahub_t* hub, net_buf_pool_t* pool);
+                                  const edge_bus_datahub_port_t* bus, net_buf_pool_t* pool);
 
 /**
  * @brief 向从站引擎添加额外的协议支持 (Phase 4: 多协议混跑)

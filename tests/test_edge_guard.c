@@ -36,7 +36,7 @@ static crypto_ops_t mbedtls_ops = {.name = "mock_crypto", .hmac_calculate = mock
 
 static void test_dpi_range_protection(void** state) {
     (void)state;
-    dpi_engine_init(NULL);
+    dpi_engine_init();
 
     // 1. 合法范围内写入 (50%)
     cmd_msg_t* cmd_ok = calloc(1, sizeof(cmd_msg_t));
@@ -53,7 +53,7 @@ static void test_dpi_range_protection(void** state) {
 
 static void test_dpi_rate_of_change(void** state) {
     (void)state;
-    dpi_engine_init(NULL);
+    dpi_engine_init();
 
     // 第一次写入 10%
     assert_int_equal(dpi_validate_telemetry(5001, 10.0), DPI_PASS);

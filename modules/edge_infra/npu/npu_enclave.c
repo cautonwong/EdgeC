@@ -4,7 +4,7 @@
  */
 
 #include "npu_enclave.h"
-#include "datahub.h"
+#include "edge_datahub_write_port.h"
 
 #include <string.h>
 #include <time.h>
@@ -461,8 +461,8 @@ int npu_enclave_get_status(const npu_enclave_t *enclave,
     return 0;
 }
 
-int npu_enclave_sync_datahub(const npu_enclave_t *enclave, datahub_t *hub) {
-    if (!enclave || !hub) {
+int npu_enclave_sync_datahub(const npu_enclave_t *enclave, const edge_datahub_write_port_t *port) {
+    if (!enclave || !port || !port->write_shadow) {
         return -1;
     }
 
@@ -470,13 +470,13 @@ int npu_enclave_sync_datahub(const npu_enclave_t *enclave, datahub_t *hub) {
 
     pipe_msg_t msg;
     pipe_msg_init_scalar(&msg, TAG_NPU_ENCLAVE_AUTH_STATUS, (double)self->last_auth_status, 0);
-    datahub_write_shadow(hub, &msg);
+    port->write_shadow(port->ctx, &msg);
 
     pipe_msg_init_scalar(&msg, TAG_NPU_ENCLAVE_DECRYPT_TIME_US, (double)self->last_decrypt_time_us, 0);
-    datahub_write_shadow(hub, &msg);
+    port->write_shadow(port->ctx, &msg);
 
     pipe_msg_init_scalar(&msg, TAG_NPU_ENCLAVE_TAMPER_COUNT, (double)self->tamper_count, 0);
-    datahub_write_shadow(hub, &msg);
+    port->write_shadow(port->ctx, &msg);
 
     return 0;
 }

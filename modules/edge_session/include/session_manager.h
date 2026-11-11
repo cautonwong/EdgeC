@@ -1,18 +1,18 @@
 #ifndef SESSION_MANAGER_H
 #define SESSION_MANAGER_H
 
-#include "driver_manager.h"
 #include "edge_driver.h"
+#include "edge_driver_session_port.h"
 #include "edge_slave_plane.h"
 
 typedef struct session_manager_s session_manager_t;
 
 /**
  * @brief 创建会话管理器
- * @param mgr 驱动管理器 (用于获取驱动模板)
+ * @param port 驱动生命周期端口 (由适配器提供)
  * @param max_sessions 最大持久化会话数
  */
-session_manager_t* session_manager_create(driver_manager_t* mgr, int max_sessions);
+session_manager_t* session_manager_create(const edge_driver_session_port_t* port, int max_sessions);
 
 /**
  * @brief 销毁管理器并释放所有会话

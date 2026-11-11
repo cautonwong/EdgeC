@@ -9,6 +9,7 @@
 #include <math.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <sys/file.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/stat.h>
@@ -126,11 +127,19 @@ int datahub_write_shadow_idx(datahub_t *hub, int idx, const pipe_msg_t *msg) {
     atomic_fetch_add_explicit(&hub->metrics_shadow_writes, 1, memory_order_relaxed);
 
     uv_mutex_lock(&hub->shadow_lock);
+    if (hub->shadow_fd >= 0) flock(hub->shadow_fd, LOCK_EX);
     if (!hub->shadow_table) {
+        if (hub->shadow_fd >= 0) flock(hub->shadow_fd, LOCK_UN);
         uv_mutex_unlock(&hub->shadow_lock);
         return -1;
     }
+    if (hub->shadow_seq) {
+        __atomic_fetch_add(&hub->shadow_seq[0], 1, __ATOMIC_ACQ_REL);
+    }
     hub->shadow_table[idx] = *msg;
+    if (hub->shadow_seq) {
+        __atomic_fetch_add(&hub->shadow_seq[0], 1, __ATOMIC_RELEASE);
+    }
     
     // 💡 [WAL] Write to Write-Ahead Log if enabled
     if (hub->wal_fd >= 0) {
@@ -139,6 +148,7 @@ int datahub_write_shadow_idx(datahub_t *hub, int idx, const pipe_msg_t *msg) {
             // Write failed, but we shouldn't block memory update
         }
     }
+    if (hub->shadow_fd >= 0) flock(hub->shadow_fd, LOCK_UN);
     uv_mutex_unlock(&hub->shadow_lock);
 
     // --- [ARCH-DEEP-01] Fine-Grained Subscription Zero-Copy Dispatch ---
@@ -245,7 +255,25 @@ int datahub_read_shadow_idx(datahub_t *hub, uint32_t idx, pipe_msg_t *out) {
         uv_mutex_unlock(&hub->shadow_lock);
         return -1;
     }
+    if (hub->shadow_legacy && hub->shadow_fd >= 0) flock(hub->shadow_fd, LOCK_SH);
+    if (hub->shadow_seq) {
+        for (int retry = 0; retry < 8; retry++) {
+            uint64_t before = __atomic_load_n(&hub->shadow_seq[0], __ATOMIC_ACQUIRE);
+            if (before & 1u) continue;
+            *out = hub->shadow_table[idx];
+            uint64_t after = __atomic_load_n(&hub->shadow_seq[0], __ATOMIC_ACQUIRE);
+            if (before == after) {
+                if (hub->shadow_legacy && hub->shadow_fd >= 0) flock(hub->shadow_fd, LOCK_UN);
+                uv_mutex_unlock(&hub->shadow_lock);
+                return 0;
+            }
+        }
+        if (hub->shadow_legacy && hub->shadow_fd >= 0) flock(hub->shadow_fd, LOCK_UN);
+        uv_mutex_unlock(&hub->shadow_lock);
+        return -1;
+    }
     *out = hub->shadow_table[idx];
+    if (hub->shadow_legacy && hub->shadow_fd >= 0) flock(hub->shadow_fd, LOCK_UN);
     uv_mutex_unlock(&hub->shadow_lock);
     return 0;
 }
@@ -472,7 +500,9 @@ int datahub_save_snapshot(datahub_t *hub, const char *path) {
     if (!hub || !path) return -1;
 
     uv_mutex_lock(&hub->shadow_lock);
+    if (hub->shadow_fd >= 0) flock(hub->shadow_fd, LOCK_SH);
     if (!hub->shadow_table || hub->shadow_capacity == 0) {
+        if (hub->shadow_fd >= 0) flock(hub->shadow_fd, LOCK_UN);
         uv_mutex_unlock(&hub->shadow_lock);
         return -1;
     }
@@ -481,11 +511,13 @@ int datahub_save_snapshot(datahub_t *hub, const char *path) {
     size_t bytes = capacity * sizeof(pipe_msg_t);
     pipe_msg_t *buf = malloc(bytes);
     if (!buf) {
+        if (hub->shadow_fd >= 0) flock(hub->shadow_fd, LOCK_UN);
         uv_mutex_unlock(&hub->shadow_lock);
         return -1;
     }
 
     memcpy(buf, hub->shadow_table, bytes);
+    if (hub->shadow_fd >= 0) flock(hub->shadow_fd, LOCK_UN);
     uv_mutex_unlock(&hub->shadow_lock);
 
     char tmp_path[512];
@@ -521,12 +553,15 @@ int datahub_load_snapshot(datahub_t *hub, const char *path) {
     FILE *fp = fopen(path, "rb");
     if (!fp) return -1;
     uv_mutex_lock(&hub->shadow_lock);
+    if (hub->shadow_fd >= 0) flock(hub->shadow_fd, LOCK_EX);
     if (!hub->shadow_table) {
+        if (hub->shadow_fd >= 0) flock(hub->shadow_fd, LOCK_UN);
         uv_mutex_unlock(&hub->shadow_lock);
         fclose(fp);
         return -1;
     }
     size_t nread = fread(hub->shadow_table, sizeof(pipe_msg_t), hub->shadow_capacity, fp);
+    if (hub->shadow_fd >= 0) flock(hub->shadow_fd, LOCK_UN);
     uv_mutex_unlock(&hub->shadow_lock);
     fclose(fp);
     return (nread == hub->shadow_capacity) ? 0 : -1;

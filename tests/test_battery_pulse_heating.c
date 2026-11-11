@@ -366,6 +366,52 @@ static void test_pulse_heat_zero_deg_startup_and_nan_defense(void **state) {
     assert_true(isfinite(out.estimated_core_temp_c));
 }
 
+
+static void test_pulse_heat_voltage_fault_and_no_auto_restart(void **state) {
+    (void)state;
+    pulse_heat_engine_storage_t store;
+    pulse_heat_engine_t *engine = pulse_heat_engine_create_in(&store, NULL);
+    assert_non_null(engine);
+
+    pulse_heat_cell_telemetry_t telem = {.cell_count = 16,
+                                         .temp_count = 4,
+                                         .ambient_temp_c = -20.0f,
+                                         .pack_soc = 0.50f,
+                                         .inverter_ready = true,
+                                         .actual_current_rms_a = 0.0f,
+                                         .actual_frequency_hz = 0.0f};
+    for (int i = 0; i < 16; i++) telem.cell_voltages[i] = 3.30f;
+    for (int i = 0; i < 4; i++) telem.cell_temps[i] = -20.0f;
+
+    assert_int_equal(pulse_heat_engine_start(engine), 0);
+    pulse_heat_control_output_t out;
+    assert_int_equal(pulse_heat_engine_step(engine, &telem, 0.1f, &out), 0);
+
+    /* Overvoltage must latch FAULT and open the inverter. */
+    telem.cell_voltages[3] = 4.20f;
+    assert_int_equal(pulse_heat_engine_step(engine, &telem, 0.1f, &out), 0);
+    assert_int_equal(out.state, PULSE_HEAT_STATE_FAULT);
+    assert_int_equal(out.fault, PULSE_HEAT_FAULT_CELL_OVERVOLTAGE);
+    assert_false(out.inverter_enable);
+
+    /* Normal telemetry must not silently restart the heating cycle. */
+    telem.cell_voltages[3] = 3.30f;
+    for (int i = 0; i < 20; i++) {
+        assert_int_equal(pulse_heat_engine_step(engine, &telem, 0.1f, &out), 0);
+        assert_int_equal(out.state, PULSE_HEAT_STATE_FAULT);
+        assert_false(out.inverter_enable);
+    }
+
+    /* A faulted engine remains latched until reset. */
+    pulse_heat_engine_reset(engine);
+    telem.cell_voltages[3] = 1.90f;
+    assert_int_equal(pulse_heat_engine_start(engine), 0);
+    assert_int_equal(pulse_heat_engine_step(engine, &telem, 0.1f, &out), 0);
+    assert_int_equal(out.state, PULSE_HEAT_STATE_FAULT);
+    assert_int_equal(out.fault, PULSE_HEAT_FAULT_CELL_UNDERVOLTAGE);
+    assert_false(out.inverter_enable);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_pulse_heat_init_and_config),
@@ -376,6 +422,7 @@ int main(void) {
         cmocka_unit_test(test_pulse_heat_thermal_gradient_homogenize),
         cmocka_unit_test(test_pulse_heat_overtemp_and_timeout_faults),
         cmocka_unit_test(test_pulse_heat_zero_deg_startup_and_nan_defense),
+        cmocka_unit_test(test_pulse_heat_voltage_fault_and_no_auto_restart),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

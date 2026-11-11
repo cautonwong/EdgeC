@@ -8,11 +8,8 @@
 #include <unistd.h>
 
 #include "contract_data_types.h"
-#include "driver_manager.h"
-#include "edge_driver.h"
 #include "edge_log.h"
 #include "snf_manager.h"
-#include "sparkplug_b.h"
 
 #ifndef uv__queue_data
 #define uv__queue_data(q, type, link) (type*)((char*)q - offsetof(type, link))
@@ -41,9 +38,6 @@
         (q)->prev = (q);  \
     } while (0)
 #endif
-
-extern int sparkplug_b_driver_register(driver_manager_t* mgr);
-extern int mqtt_json_driver_register(driver_manager_t* mgr);
 
 #define NB_DEFAULT_ADDRESS_TEMPLATE "spBv1.0/{group}/{kind}/{node}"
 
@@ -177,30 +171,20 @@ static int _push_to_transport_direct_named(northbound_mgr_t* mgr, uint32_t tag_i
      * 与南向 OI 8000 的"假成功"是同一个病。 */
     if (!_any_connected(mgr)) return -1;
 
-    edge_driver_ctx_t* ctx = (edge_driver_ctx_t*)mgr->nb_driver;
-    net_buf_t* nb = net_buf_alloc(ctx->pool, 0);
-    int rc = -1;
-    if (nb) {
-        /* [ADR-002] 北向生产者走 native 槽位：metric 名由端口给，驱动不查 datahub。
-         * scratch 是请求级的，prepare 与 encode 背靠背调用，放栈上就够。 */
-        alignas(max_align_t) uint8_t scratch[REQ_DRV_PRIV_MAX];
-        memset(scratch, 0, sizeof(scratch));
-        const char* name = name_override;
-        if (!name && mgr->north_src && mgr->north_src->name) {
-            name = mgr->north_src->name(mgr->north_src_ctx, tag_id);
-        }
-        bool ok = ctx->driver->req_prepare &&
-                  ctx->driver->req_prepare(scratch, 1, tag_id, NULL, 0, name,
-                                           name ? strlen(name) + 1 : 0, true, val) == 0 &&
-                  ctx->driver->req_encode && ctx->driver->req_encode(scratch, ctx->priv, nb) == 0;
-        if (ok) {
-            char address[256];
-            _render_address(mgr, "NDATA", name, address, sizeof(address));
-            rc = _publish_all(mgr, address, nb->b.data, nb->b.len);
-        }
-        net_buf_unref(nb);
+    const char* name = name_override;
+    if (!name && mgr->north_src && mgr->north_src->name) {
+        name = mgr->north_src->name(mgr->north_src_ctx, tag_id);
     }
-    return rc;
+    const uint8_t* payload = NULL;
+    size_t payload_len = 0;
+    if (!mgr->driver_port.encode_value ||
+        mgr->driver_port.encode_value(mgr->driver_port.ctx, mgr->nb_driver, tag_id, val, name,
+                                      &payload, &payload_len) != 0) {
+        return -1;
+    }
+    char address[256];
+    _render_address(mgr, "NDATA", name, address, sizeof(address));
+    return _publish_all(mgr, address, payload, payload_len);
 }
 
 static int _push_to_transport_direct(northbound_mgr_t* mgr, uint32_t tag_id, double val,
@@ -291,6 +275,17 @@ static uint32_t _snf_pending_wrapper(void* user_data) {
     return mgr ? _pending_total(mgr) : 0;
 }
 
+static uint32_t _snf_failures_wrapper(void* user_data) {
+    northbound_mgr_t* mgr = (northbound_mgr_t*)user_data;
+    if (!mgr) return 0;
+    uint32_t total = 0;
+    for (uint32_t i = 0; i < mgr->transport_count; i++) {
+        const nb_transport_ops_t* t = &mgr->transports[i];
+        if (t->take_failures) total += t->take_failures(t->ctx);
+    }
+    return total;
+}
+
 /**
  * @brief 传输会话重建时，把北向驱动的会话级状态清掉。
  *
@@ -310,9 +305,8 @@ static void _sync_session_epoch(northbound_mgr_t* mgr) {
 
     mgr->last_epoch = epoch;
 
-    edge_driver_ctx_t* ctx = (edge_driver_ctx_t*)mgr->nb_driver;
-    if (ctx->driver && ctx->driver->req_session_reset) {
-        ctx->driver->req_session_reset(ctx->priv);
+    if (mgr->driver_port.reset_session) {
+        mgr->driver_port.reset_session(mgr->driver_port.ctx, mgr->nb_driver);
     }
     LOG_INFO(LOG_CAT_NB,
              "Northbound: transport session rebuilt (epoch sig %u) — driver session state reset.",
@@ -349,19 +343,14 @@ static void on_data_notify_timer(uv_timer_t* handle) {
         snf_manager_set_online(mgr->snf, is_online);
     }
 
-    if (is_online && mgr->nb_driver) {
-        edge_driver_ctx_t* ctx = (edge_driver_ctx_t*)mgr->nb_driver;
-        /* request-native 生产者：状态由端口给，驱动不碰 datahub */
-        if (ctx->driver->req_tick) {
-            net_buf_t* tick_buf = NULL;
-            if (ctx->driver->req_tick(ctx->priv, mgr->north_src, mgr->north_src_ctx, NULL, NULL,
-                                      ctx->pool, &tick_buf) == 0 &&
-                tick_buf) {
-                char address[256];
-                _render_address(mgr, "NBIRTH", NULL, address, sizeof(address));
-                _publish_all(mgr, address, tick_buf->b.data, tick_buf->b.len);
-                net_buf_unref(tick_buf);
-            }
+    if (is_online && mgr->nb_driver && mgr->driver_port.encode_tick) {
+        const uint8_t* payload = NULL;
+        size_t payload_len = 0;
+        if (mgr->driver_port.encode_tick(mgr->driver_port.ctx, mgr->nb_driver, mgr->north_src,
+                                         mgr->north_src_ctx, &payload, &payload_len) == 0) {
+            char address[256];
+            _render_address(mgr, "NBIRTH", NULL, address, sizeof(address));
+            _publish_all(mgr, address, payload, payload_len);
         }
     }
 
@@ -420,17 +409,16 @@ static void on_north_stop(uv_async_t* handle) {
  * ========================================================================== */
 typedef struct {
     const char* name;
-    int (*reg)(driver_manager_t* mgr);
     /* 该协议缺省的地址模板。换协议时地址规则必须跟着换 ——
      * Sparkplug 的主题里要 kind，JSON 的 topic 树完全不同。 */
     const char* default_address;
 } nb_protocol_entry_t;
 
 static const nb_protocol_entry_t NB_PROTOCOLS[] = {
-    {"SparkplugB", sparkplug_b_driver_register, "spBv1.0/{group}/{kind}/{node}"},
+    {"SparkplugB", "spBv1.0/{group}/{kind}/{node}"},
     /* 第二个协议是**对照样本**：地址规则、载荷格式、BIRTH 语义都与 Sparkplug 不同，
      * 用来证明换协议不需要改编排层。只有一个协议时"可插拔"没法验证。 */
-    {"MqttJson", mqtt_json_driver_register, "edge/{node}/{kind}"},
+    {"MqttJson", "edge/{node}/{kind}"},
 };
 
 static const nb_protocol_entry_t* _find_protocol(const char* name) {
@@ -453,29 +441,21 @@ static int _create_nb_driver(northbound_mgr_t* mgr) {
         LOG_ERROR(LOG_CAT_NB, "Northbound: unknown protocol '%s'", mgr->protocol_name);
         return -1;
     }
-
-    _Static_assert(sizeof(((northbound_mgr_t*)0)->drv_mgr_storage) == sizeof(driver_manager_storage_t),
-               "northbound storage must match driver manager storage");
-    mgr->drv_mgr = driver_manager_create_in((driver_manager_storage_t*)mgr->drv_mgr_storage);
-    if (!mgr->drv_mgr) return -1;
-
-    if (p->reg(mgr->drv_mgr) != 0) {
-        LOG_ERROR(LOG_CAT_NB, "Northbound: protocol '%s' failed to register", p->name);
-        driver_manager_destroy(mgr->drv_mgr);
-        mgr->drv_mgr = NULL;
+    if (!mgr->driver_port.attach) {
+        LOG_ERROR(LOG_CAT_NB, "Northbound: driver port is not injected");
         return -1;
     }
-
-    mgr->nb_driver = driver_instance_create(mgr->drv_mgr, p->name, 1);
-    if (!mgr->nb_driver) {
-        LOG_ERROR(LOG_CAT_NB, "Northbound: cannot create driver instance '%s'", p->name);
-        driver_manager_destroy(mgr->drv_mgr);
-        mgr->drv_mgr = NULL;
+    if (mgr->driver_port.attach(mgr->driver_port.ctx, p->name, &mgr->nb_driver) != 0) {
+        LOG_ERROR(LOG_CAT_NB, "Northbound: driver port cannot create '%s'", p->name);
+        mgr->nb_driver = NULL;
         return -1;
     }
-
-    mgr->nb_driver->pool = net_buf_pool_new(32, 1024, 0);
     return 0;
+}
+
+void northbound_mgr_set_driver_port(northbound_mgr_t* mgr, north_driver_port_t port) {
+    if (!mgr) return;
+    mgr->driver_port = port;
 }
 
 static void north_thread_entry(void* arg) {
@@ -486,8 +466,6 @@ static void north_thread_entry(void* arg) {
         LOG_ERROR(LOG_CAT_NB, "Northbound: no driver, thread will not run");
         return;
     }
-
-    ((edge_driver_ctx_t*)mgr->nb_driver)->user_data = mgr->source.ctx;
 
     mgr->loop = &mgr->loop_storage;
     uv_loop_init(mgr->loop);
@@ -522,6 +500,7 @@ static void north_thread_entry(void* arg) {
                                 .loop = mgr->loop,
                                 .publish_fn = _snf_publish_wrapper,
                                 .pending_fn = _snf_pending_wrapper,
+                                .failures_fn = _snf_failures_wrapper,
                                 .user_data = mgr,
                                 .sync_batch_size = SNF_MAX_BATCH,
                                 .sync_interval_ms = 5000};
@@ -662,18 +641,17 @@ void northbound_mgr_stop(northbound_mgr_t* mgr) {
     if (mgr->loop) uv_async_send(&mgr->stop_async);
     uv_thread_join(&mgr->thread);
     mgr->thread_started = false;
+    if (mgr->nb_driver && mgr->driver_port.detach) {
+        mgr->driver_port.detach(mgr->driver_port.ctx, mgr->nb_driver);
+        mgr->nb_driver = NULL;
+    }
 }
 
 void northbound_mgr_destroy(northbound_mgr_t* mgr) {
     if (!mgr) return;
-    if (mgr->nb_driver) {
-        if (mgr->nb_driver->pool) net_buf_pool_unref(mgr->nb_driver->pool);
-        driver_instance_destroy(mgr->nb_driver, mgr->protocol_name);
+    if (mgr->nb_driver && mgr->driver_port.detach) {
+        mgr->driver_port.detach(mgr->driver_port.ctx, mgr->nb_driver);
         mgr->nb_driver = NULL;
-    }
-    if (mgr->drv_mgr) {
-        driver_manager_destroy(mgr->drv_mgr);
-        mgr->drv_mgr = NULL;
     }
     uv_mutex_destroy(&mgr->req_lock);
 }

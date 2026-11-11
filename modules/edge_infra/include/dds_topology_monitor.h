@@ -6,6 +6,8 @@
 #ifndef DDS_TOPOLOGY_MONITOR_H
 #define DDS_TOPOLOGY_MONITOR_H
 
+#include "edge_datahub_write_port.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -14,7 +16,6 @@ extern "C" {
 #include <stdbool.h>
 #include <stddef.h>
 
-typedef struct datahub_s datahub_t;
 
 #define DDS_TOPOLOGY_MAX_NODES 32
 #define DDS_DEFAULT_LIVELINESS_LEASE_MS 2000ULL
@@ -36,7 +37,7 @@ typedef struct {
     dds_node_info_t nodes[DDS_TOPOLOGY_MAX_NODES];
     uint32_t node_count;
     uint64_t liveliness_lease_ms;
-    datahub_t *hub;
+    edge_datahub_write_port_t port;
     dds_node_event_fn on_node_event;
     void *user_data;
     uint32_t online_nodes_count;
@@ -46,7 +47,7 @@ typedef struct {
 /**
  * @brief 初始化 DDS 拓扑健康与失活监控器
  */
-int dds_topology_monitor_init(dds_topology_monitor_t *mon, datahub_t *hub, uint64_t lease_ms);
+int dds_topology_monitor_init(dds_topology_monitor_t *mon, const edge_datahub_write_port_t *port, uint64_t lease_ms);
 
 /**
  * @brief 注册或发现新分布式节点 (带 Partition 隔离空间与关联点位域)

@@ -44,6 +44,7 @@
 #include "battery_thermal_mesh.h"
 #include "battery_thermal_pinn.h"
 #include "bus_orchestrator.h"
+#include "bus_datahub_adapter.h"
 #include "datahub.h"
 #include "driver_hotplug.h"
 #include "driver_manager.h"
@@ -717,7 +718,7 @@ static void test_dpi_engine_caller_allocated_storage(void **state) {
     (void)state;
     edge_guard_dpi_storage_t storage;
     memset(&storage, 0xEE, sizeof(storage));
-    int rc = dpi_engine_init_in(&storage, NULL);
+    int rc = dpi_engine_init_in(&storage);
     assert_int_equal(rc, 0);
 }
 
@@ -735,10 +736,10 @@ static void test_bus_orchestrator_caller_allocated_storage(void **state) {
 
     bus_orchestrator_storage_t storage;
     memset(&storage, 0xDD, sizeof(storage));
-    bus_orchestrator_t *orch = bus_orchestrator_create_in(&storage, &hub, arb, mgr, 4, 32, 256);
+    bus_orchestrator_t *orch = bus_orchestrator_create_hub(&storage, &hub, arb, driver_manager_session_port_ptr(mgr), 4, 32, 256);
     assert_non_null(orch);
     assert_ptr_equal(orch, (void *)storage.raw);
-    assert_ptr_equal(bus_orchestrator_get_hub(orch), &hub);
+    assert_ptr_equal(bus_orchestrator_get_bus_port(orch)->ctx, &hub);
 
     bus_orchestrator_destroy(orch);
     driver_manager_destroy(mgr);
@@ -784,7 +785,7 @@ static void test_protocol_bridge_caller_allocated_storage(void **state) {
 
     bus_orchestrator_storage_t orch_storage;
     bus_orchestrator_t *orch =
-        bus_orchestrator_create_in(&orch_storage, &hub, arb, mgr, 4, 32, 256);
+        bus_orchestrator_create_hub(&orch_storage, &hub, arb, driver_manager_session_port_ptr(mgr), 4, 32, 256);
     assert_non_null(orch);
 
     protocol_bridge_storage_t bridge_storage;

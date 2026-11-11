@@ -27,7 +27,7 @@ static void test_dcu_driver_registry(void) {
     driver_manager_storage_t mgr_storage = {0};
     driver_manager_t* mgr = driver_manager_create_in(&mgr_storage);
     assert(mgr != NULL);
-    assert(dcu_driver_registry_init(mgr) == 0);
+    assert(dcu_driver_registry_init(driver_manager_registry_port_ptr(mgr)) == 0);
 
     /* 3. Verify driver discovery */
     const edge_driver_t *dlt698 = driver_manager_find(mgr, "DLT698");

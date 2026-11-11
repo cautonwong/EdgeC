@@ -25,6 +25,7 @@
 
 #include "edge_north_plane.h"
 #include "northbound_mgr.h"
+#include "north_driver_test_port.h"
 
 /* ---- 假数据源：手工塞消息，手工触发唤醒 ---- */
 
@@ -113,6 +114,7 @@ static void test_notify_beats_polling(void** state) {
     nb_transport_ops_t t = {.ctx = &ft, .publish = ft_publish, .is_connected = ft_connected};
 
     assert_int_equal(northbound_mgr_init_ex(&mgr, src, "test", NULL, t), 0);
+    northbound_mgr_set_driver_port(&mgr, test_north_driver_port());
     northbound_mgr_set_address(&mgr, "edge/{node}/{kind}", "G", "N1");
 
     clock_gettime(CLOCK_MONOTONIC, &g_t0);
@@ -151,6 +153,7 @@ static void test_polling_fallback_still_works(void** state) {
     nb_transport_ops_t t = {.ctx = &ft, .publish = ft_publish, .is_connected = ft_connected};
 
     assert_int_equal(northbound_mgr_init_ex(&mgr, src, "test", NULL, t), 0);
+    northbound_mgr_set_driver_port(&mgr, test_north_driver_port());
     northbound_mgr_set_address(&mgr, "edge/{node}/{kind}", "G", "N1");
     assert_int_equal(northbound_mgr_start(&mgr), 0);
 

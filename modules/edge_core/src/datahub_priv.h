@@ -2,6 +2,7 @@
 #define DATAHUB_PRIV_H
 
 #include "datahub.h"
+#include "datahub_shm.h"
 
 struct datahub_s {
     datahub_backend_type_t backend_type;
@@ -16,10 +17,14 @@ struct datahub_s {
     uint32_t metadata_count;
 
     pipe_msg_t *shadow_table;
-    atomic_uint *shadow_seq;  // [新增] 用于实现每槽位的 Sequence Lock
+    uint64_t *shadow_seq;
+    datahub_shm_header_t *shadow_header;
     int shadow_fd;
     size_t shadow_size;
     uint32_t shadow_capacity;
+    bool shadow_owner;
+    bool shadow_legacy;
+    char shadow_shm_name[256];
 
     // --- [Dynamic Chunking & Hot Schema] ---
     atomic_uintptr_t active_schema; /**< 原子动态契约指针 (schema_version_t*) */

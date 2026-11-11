@@ -8,6 +8,7 @@
 
 #include "arbiter.h"
 #include "bus_orchestrator.h"
+#include "bus_datahub_adapter.h"
 #include "datahub.h"
 #include "driver_manager.h"
 #include "datahub_priv.h"
@@ -33,7 +34,7 @@ static void test_bus_orchestrator_dynamic_create(void** state) {
     driver_manager_storage_t mgr_storage = {0};
     driver_manager_t* mgr = driver_manager_create_in(&mgr_storage);
 
-    bus_orchestrator_t* ctx = bus_orchestrator_create(&hub, arb, mgr, 8, 32, 2048);
+    bus_orchestrator_t* ctx = bus_orchestrator_create_hub_default(&hub, arb, driver_manager_session_port_ptr(mgr), 8, 32, 2048);
     assert_non_null(ctx);
 
     fprintf(stderr, "[DEBUG] Created Orchestrator, now destroying...\n");

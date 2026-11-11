@@ -46,6 +46,7 @@ target_include_directories(iems_app_lib PUBLIC
 target_link_libraries(iems_app_lib PUBLIC
     edge_bootstrap
     edge_io
+    edge_io_drivers
     edge_api
     edge_rest_api
     edge_north
