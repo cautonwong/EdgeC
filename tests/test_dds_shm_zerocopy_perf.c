@@ -72,7 +72,12 @@ static void test_shm_zerocopy_microsecond_latency(void **state) {
            iterations, total_us, avg_us_per_op);
 
     // 严密断言：单机共享内存读写平均耗时必须严格 <= 5.0 微秒 (AEP-453 工业指标)
+#if defined(EDGE_SANITIZER_BUILD)
+    // 插桩构建放大每次操作的耗时，这个预算只对未插桩构建成立。
+    (void)avg_us_per_op;
+#else
     assert_true(avg_us_per_op <= 5.0);
+#endif
 
     datahub_router_destroy(router);
     uv_loop_close(&loop);

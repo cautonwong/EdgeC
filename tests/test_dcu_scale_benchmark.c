@@ -147,7 +147,12 @@ static void test_scale_benchmark_p99_latency(void** state) {
     printf("   - Submits issued: %" PRIu64 "\n", g_value_seq);
 
     // 一步只提交"每通道一项"，不得阻塞事件循环
+#if defined(EDGE_SANITIZER_BUILD)
+    // 插桩构建下延迟被放大，阈值只对未插桩构建有意义。
+    (void)p99_ms;
+#else
     assert_true(p99_ms < 5.0);
+#endif
     assert_true(g_value_seq > 0);
 
     dcu_poller_destroy(&poller);

@@ -820,6 +820,11 @@ target_link_libraries(test_dds_shm_zerocopy_perf PRIVATE
     pthread dl rt m
 )
 add_test(NAME test_dds_shm_zerocopy_perf COMMAND test_dds_shm_zerocopy_perf)
+# 插桩构建下每次操作的开销被 instrument 放大，微秒级预算不再代表真实延迟。
+if(ENABLE_ASAN OR ENABLE_TSAN)
+    target_compile_definitions(test_dds_shm_zerocopy_perf PRIVATE EDGE_SANITIZER_BUILD=1)
+    target_compile_definitions(test_dcu_scale_benchmark PRIVATE EDGE_SANITIZER_BUILD=1)
+endif()
 endif()
 
 # AEP-440 IEMS 工商业储能需量控制、分时电价排程与 100ms 快速防逆流测试
