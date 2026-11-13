@@ -3,17 +3,22 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
+	"edgeos.go/internal/apptask"
+	"edgeos.go/internal/platformbackup"
 	"edgeos.go/pkg/api"
 	"edgeos.go/pkg/shm"
 	"edgeos.go/pkg/tags"
@@ -22,15 +27,19 @@ import (
 const ServiceName = "edge_api_core"
 
 var (
-	matrix         *shm.ShadowMatrix
-	mockLock       sync.RWMutex
-	mockEnabled    bool
-	mockValues     = make(map[uint32]float64)
-	mockWatchers   = make([]chan *shm.PipeMsg, 0)
-	watchersLock   sync.Mutex
+	matrix          *shm.ShadowMatrix
+	mockLock        sync.RWMutex
+	mockEnabled     bool
+	mockValues      = make(map[uint32]float64)
+	mockWatchers    = make([]chan *shm.PipeMsg, 0)
+	watchersLock    sync.Mutex
 	mockCancel      context.CancelFunc
 	currentLogLevel = "info"
 	logLevelMutex   sync.RWMutex
+	// maintenanceMode rejects every write while a restore is rewriting the
+	// control database. It is set before the copy and cleared only after the
+	// restored database and fresh session tokens are in place.
+	maintenanceMode atomic.Bool
 )
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -385,50 +394,187 @@ func handleLogging(w http.ResponseWriter, r *http.Request) {
 	api.RespondJSON(w, http.StatusOK, 0, "Log level updated successfully", map[string]string{"current_level": level}, ServiceName)
 }
 
+func databasePath() string {
+	if path := os.Getenv("EDGE_DB_PATH"); path != "" {
+		return path
+	}
+	return "iems.db"
+}
+
+func backupBaseDir() string {
+	if dir := os.Getenv("EDGE_BACKUP_DIR"); dir != "" {
+		return dir
+	}
+	return "/var/lib/edgeos/backups"
+}
+
+func platformVersion() string {
+	if version := os.Getenv("EDGE_PLATFORM_VERSION"); version != "" {
+		return version
+	}
+	return platformbackup.DefaultPlatformVersion
+}
+
+func supportedSchemaVersion() int {
+	if value := os.Getenv("EDGE_SCHEMA_VERSION"); value != "" {
+		if version, err := strconv.Atoi(value); err == nil && version > 0 {
+			return version
+		}
+	}
+	return platformbackup.DefaultSchemaVersion
+}
+
+func rotateSessionTokens() error {
+	path := os.Getenv("EDGE_SESSION_TOKEN_FILE")
+	if path == "" {
+		return nil
+	}
+	return platformbackup.RotateTokenFile(path)
+}
+
 func handleBackup(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		api.RespondError(w, http.StatusMethodNotAllowed, "Method not allowed", ServiceName)
 		return
 	}
 
-	dbPath := "/workspaces/edgeos/EdgeC/build/products/iems/bin/iems.db"
-	backupPath := "/tmp/edgeos_backup.db"
+	backupPath := filepath.Join(backupBaseDir(),
+		"backup-"+time.Now().UTC().Format("20060102T150405.000000000Z"))
 
-	var backupType string
-	var err error
-
-	if _, err = os.Stat(dbPath); err == nil {
-		var input []byte
-		input, err = os.ReadFile(dbPath)
-		if err == nil {
-			err = os.WriteFile(backupPath, input, 0644)
+	key := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
+	if key == "" {
+		var body struct {
+			IdempotencyKey string `json:"idempotency_key"`
 		}
-		backupType = "SQLite database copy"
-	} else {
-		backupPath = "/tmp/edgeos_snapshot.json"
-		mockLock.RLock()
-		snapshotData, err2 := json.MarshalIndent(mockValues, "", "  ")
-		mockLock.RUnlock()
-
-		if err2 == nil {
-			err = os.WriteFile(backupPath, snapshotData, 0644)
-		} else {
-			err = err2
-		}
-		backupType = "Mock values JSON snapshot"
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		key = strings.TrimSpace(body.IdempotencyKey)
+	}
+	if key == "" {
+		key = fmt.Sprintf("backup-%d", time.Now().UnixNano())
 	}
 
+	task, replayed, err := apptask.Submit(databasePath(), apptask.KindBackup, key, time.Now())
 	if err != nil {
+		api.RespondError(w, http.StatusInternalServerError,
+			"Failed to record backup task: "+err.Error(), ServiceName)
+		return
+	}
+	if replayed {
+		switch task.State {
+		case apptask.StateSucceeded:
+			api.RespondJSON(w, http.StatusOK, 0, "Backup already completed",
+				map[string]interface{}{"replayed": true, "task_id": task.ID}, ServiceName)
+		case apptask.StateFailed:
+			api.RespondError(w, http.StatusConflict,
+				"Backup with this idempotency key already failed", ServiceName)
+		default:
+			api.RespondError(w, http.StatusConflict, "Backup already in progress", ServiceName)
+		}
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
+	defer cancel()
+
+	manifest, err := platformbackup.Create(ctx, platformbackup.CreateOptions{
+		DBPath:          databasePath(),
+		DestDir:         backupPath,
+		PlatformVersion: platformVersion(),
+	})
+	if err != nil {
+		_ = apptask.Finish(databasePath(), task.ID, apptask.StateFailed, err.Error(), time.Now())
 		api.RespondError(w, http.StatusInternalServerError, "Failed to create backup: "+err.Error(), ServiceName)
 		return
 	}
 
-	log.Printf("[SYSTEM] Backup completed successfully. Type: %s, Destination: %s", backupType, backupPath)
+	result, _ := json.Marshal(map[string]string{"backup_path": backupPath})
+	_ = apptask.Finish(databasePath(), task.ID, apptask.StateSucceeded, string(result), time.Now())
 
-	api.RespondJSON(w, http.StatusOK, 0, "Backup completed successfully", map[string]string{
-		"backup_type": backupType,
+	log.Printf("[SYSTEM] Backup completed: %s (schema %d, %d file(s))",
+		backupPath, manifest.SchemaVersion, len(manifest.Files))
+
+	api.RespondJSON(w, http.StatusOK, 0, "Backup completed successfully", map[string]interface{}{
+		"backup_type": "sqlite_online_backup",
 		"backup_path": backupPath,
+		"task_id":     task.ID,
+		"manifest":    manifest,
 	}, ServiceName)
+}
+
+func handleRestore(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		api.RespondError(w, http.StatusMethodNotAllowed, "Method not allowed", ServiceName)
+		return
+	}
+
+	var req struct {
+		BackupPath string `json:"backup_path"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.BackupPath == "" {
+		api.RespondError(w, http.StatusBadRequest, "Invalid request payload", ServiceName)
+		return
+	}
+	if !maintenanceMode.CompareAndSwap(false, true) {
+		api.RespondError(w, http.StatusLocked, "Restore already in progress", ServiceName)
+		return
+	}
+	keepMaintenance := false
+	defer func() {
+		if !keepMaintenance {
+			maintenanceMode.Store(false)
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
+	defer cancel()
+
+	preRestoreDir := filepath.Join(backupBaseDir(),
+		"pre-restore-"+time.Now().UTC().Format("20060102T150405.000000000Z"))
+	result, err := platformbackup.Restore(ctx, platformbackup.RestoreOptions{
+		BackupDir:              req.BackupPath,
+		DBPath:                 databasePath(),
+		PlatformVersion:        platformVersion(),
+		SupportedSchemaVersion: supportedSchemaVersion(),
+		PreRestoreBackupDir:    preRestoreDir,
+		RotateTokens:           rotateSessionTokens,
+	})
+	if err != nil {
+		// A failed copy rolls back; keep maintenance only when the database
+		// was restored but old session tokens could not be replaced.
+		keepMaintenance = errors.Is(err, platformbackup.ErrTokenRotation)
+		status := http.StatusInternalServerError
+		switch {
+		case errors.Is(err, platformbackup.ErrBackupTooNew):
+			status = http.StatusConflict
+		case errors.Is(err, platformbackup.ErrInvalidManifest),
+			errors.Is(err, platformbackup.ErrUnsupportedFormat),
+			errors.Is(err, platformbackup.ErrHashMismatch):
+			status = http.StatusBadRequest
+		}
+		api.RespondError(w, status, "Restore failed: "+err.Error(), ServiceName)
+		return
+	}
+
+	log.Printf("[SYSTEM] Restore completed from %s; session tokens rotated: %v",
+		req.BackupPath, result.SessionTokensRotated)
+	api.RespondJSON(w, http.StatusOK, 0, "Restore completed successfully", result, ServiceName)
+}
+
+// maintenanceGuard returns 423 for writes while a restore is in progress.
+// Reads stay available so the UI can show maintenance state.
+func maintenanceGuard(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet, http.MethodHead, http.MethodOptions:
+		default:
+			if maintenanceMode.Load() {
+				api.RespondError(w, http.StatusLocked,
+					"Maintenance mode: write operations are disabled during restore", ServiceName)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // 💡 [ADR-0001] Prometheus-format metrics endpoint
@@ -496,13 +642,14 @@ func main() {
 	mux.HandleFunc("/api/v1/actor/batch/set", handleBatchSet)
 	mux.HandleFunc("/api/v1/system/logging", handleLogging)
 	mux.HandleFunc("/api/v1/system/backup", handleBackup)
+	mux.HandleFunc("/api/v1/system/restore", handleRestore)
 	mux.HandleFunc("/api/v1/system/metrics", handleMetrics)
 
 	// Wrap with middlewares
 	recovery := func(next http.Handler) http.Handler {
 		return api.RecoveryMiddleware(next, ServiceName)
 	}
-	handler := api.Chain(mux, api.LoggerMiddleware, recovery)
+	handler := api.Chain(mux, api.LoggerMiddleware, recovery, maintenanceGuard)
 
 	server := &http.Server{
 		Addr:    ":8080",

@@ -6,6 +6,9 @@ add_library(iems_app_lib STATIC
     iems_node.c
     iems_app.c
     iems_app_manager_adapter.c
+    iems_app_runtime.c
+    iems_app_host_ports.c
+    iems_pressure_adapter.c
     iems_execution_adapter.c
     iems_north_adapter.c
     iems_driver_adapter.c
@@ -62,6 +65,8 @@ target_link_libraries(iems_app_lib PUBLIC
     edge_power
     edge_runtime
     edge_mgmt
+    edge_app_host
+    edge_linux_platform
 )
 
 add_executable(iems main.c)

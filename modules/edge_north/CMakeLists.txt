@@ -14,5 +14,6 @@ target_link_libraries(edge_north PUBLIC
     edge_codec
     edge_log
     edge_common_interface
+    edge_foundation
 )
 target_link_libraries(edge_north PRIVATE libuv::uv_a cjson CURL::libcurl SQLite::SQLite3)

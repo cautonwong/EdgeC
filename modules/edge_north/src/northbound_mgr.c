@@ -9,6 +9,7 @@
 
 #include "contract_data_types.h"
 #include "edge_log.h"
+#include "edge_thread_port.h"
 #include "snf_manager.h"
 
 #ifndef uv__queue_data
@@ -630,7 +631,7 @@ int northbound_mgr_render_address(northbound_mgr_t* mgr, const char* kind, const
 
 int northbound_mgr_start(northbound_mgr_t* mgr) {
     if (!mgr || mgr->loop || mgr->thread_started) return -1;
-    if (uv_thread_create(&mgr->thread, north_thread_entry, mgr) != 0) return -1;
+    if (edge_thread_create(&mgr->thread, north_thread_entry, mgr) != 0) return -1;
     mgr->thread_started = true;
     return 0;
 }
@@ -639,7 +640,7 @@ void northbound_mgr_stop(northbound_mgr_t* mgr) {
     if (!mgr || !mgr->thread_started) return;
     /* loop 为 NULL 说明线程已自行退出（驱动建不起来），照样要 join。 */
     if (mgr->loop) uv_async_send(&mgr->stop_async);
-    uv_thread_join(&mgr->thread);
+    edge_thread_join(&mgr->thread);
     mgr->thread_started = false;
     if (mgr->nb_driver && mgr->driver_port.detach) {
         mgr->driver_port.detach(mgr->driver_port.ctx, mgr->nb_driver);

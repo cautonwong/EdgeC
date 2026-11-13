@@ -30,6 +30,7 @@ if(CONFIG_EDGE_INFRA_SQLITE)
     list(APPEND INFRA_SOURCES
         storage/sqlite_service.c
         storage/sqlite_storage_driver.c
+        src/edge_time_trust.c
     )
     list(APPEND INFRA_PRIVATE_LIBS SQLite::SQLite3)
 endif()

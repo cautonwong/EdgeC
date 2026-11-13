@@ -8,6 +8,7 @@
 #include <sys/time.h>
 
 #include "edge_log.h"
+#include "edge_thread_port.h"
 #include "stream_engine_priv.h"
 #include "wasm_mgr.h"
 
@@ -154,6 +155,7 @@ pipeline_stage_t *stream_stage_alloc_node(void) {
     uint32_t idx = (g_stage_pool_idx++) % MAX_STREAM_STAGES;
     pipeline_stage_t *s = &g_stage_pool[idx];
     memset(s, 0, sizeof(*s));
+    s->node_pooled = true;
     return s;
 }
 
@@ -260,6 +262,21 @@ pipeline_stage_t *pipeline_add_stage(pipeline_t *p, const char *name, stage_proc
     else {
         pipeline_stage_t *last = p->head;
         while(last->next[0]) last = last->next[0];
+        last->next[0] = s;
+    }
+    if (p->engine) uv_mutex_unlock(&p->engine->pipe_mutex);
+    return s;
+}
+
+pipeline_stage_t *pipeline_add_stage_node(pipeline_t *p, pipeline_stage_t *s) {
+    if (!p || !s) return NULL;
+    s->pipeline = p;
+    if (p->engine) uv_mutex_lock(&p->engine->pipe_mutex);
+    if (!p->head)
+        p->head = s;
+    else {
+        pipeline_stage_t *last = p->head;
+        while (last->next[0]) last = last->next[0];
         last->next[0] = s;
     }
     if (p->engine) uv_mutex_unlock(&p->engine->pipe_mutex);
@@ -402,7 +419,7 @@ stream_engine_t *stream_engine_create(const stream_bus_port_t *bus, uv_loop_t *l
 
 void stream_engine_start(stream_engine_t *engine) {
     if (!engine || engine->thread_started) return;
-    uv_thread_create(&engine->thread, _stream_engine_thread_entry, engine);
+    if (edge_thread_create(&engine->thread, _stream_engine_thread_entry, engine) != 0) return;
     uv_sem_wait(&engine->start_sem);
     if (engine->notify_inited) {
         stream_bus_add_listener(&engine->bus, &engine->notify_handle);
@@ -416,7 +433,7 @@ void stream_engine_destroy(stream_engine_t *engine) {
             stream_bus_remove_listener(&engine->bus, &engine->notify_handle);
         }
         uv_async_send(&engine->stop_async);
-        uv_thread_join(&engine->thread);
+        edge_thread_join(&engine->thread);
         engine->thread_started = false;
     }
 

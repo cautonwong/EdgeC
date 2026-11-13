@@ -13,6 +13,9 @@ typedef struct uv_loop_s uv_loop_t;
 extern "C" {
 #endif
 
+/** Schema version this binary migrates to; backup restore refuses newer bundles. */
+int sqlite_service_schema_version(void);
+
 // 存储策略定义
 typedef enum {
     STRATEGY_LITE = 1,         // 覆盖写，省空间
@@ -46,8 +49,17 @@ typedef struct {
 
 // --- API ---
 
+/** sqlite_svc_create_ex 错误码：库版本高于程序支持的版本，拒绝启动。 */
+#define SQLITE_SVC_ERR_SCHEMA_TOO_NEW (-2)
+
 // 创建并初始化服务 (包含自动迁移、Pragma 调优)
 sqlite_svc_t *sqlite_svc_create(uv_loop_t *loop, sqlite_config_t *cfg);
+
+/**
+ * @brief 同 sqlite_svc_create，并返回失败原因
+ * @param out_error 成功为 0；库版本过新为 SQLITE_SVC_ERR_SCHEMA_TOO_NEW；其余失败为 -1
+ */
+sqlite_svc_t *sqlite_svc_create_ex(uv_loop_t *loop, sqlite_config_t *cfg, int *out_error);
 
 /**
  * @brief [Issue #366] 在调用方预分配内存中创建 SQLite 服务 (Zero-Alloc)

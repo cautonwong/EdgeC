@@ -5,7 +5,10 @@ add_library(edge_foundation STATIC
     src/multibus_bridge.c
     src/edge_tlv.c
     src/edge_app_root.c
+    src/edge_launcher_spec.c
     src/contract_registry.c
+    src/edge_wasm_imports.c
+    src/edge_thread_port.c
 )
 target_include_directories(edge_foundation PUBLIC include)
 

@@ -6,6 +6,8 @@
 #include <string.h>
 #include <uv.h>
 
+#include "edge_thread_port.h"
+
 struct algo_ctx_s {
     uv_loop_t *loop;
 
@@ -130,7 +132,7 @@ int algo_init(algo_ctx_t **out_ctx, uv_loop_t *loop, size_t capacity, algo_resul
     }
 
     ctx->running = true;
-    if (uv_thread_create(&ctx->thread, worker_thread, ctx) != 0) {
+    if (edge_thread_create(&ctx->thread, worker_thread, ctx) != 0) {
         uv_close((uv_handle_t *)&ctx->async_result, NULL);
         uv_cond_destroy(&ctx->cond);
         uv_mutex_destroy(&ctx->lock);
@@ -177,7 +179,7 @@ void algo_destroy(algo_ctx_t *ctx) {
     uv_cond_signal(&ctx->cond);
     uv_mutex_unlock(&ctx->lock);
 
-    uv_thread_join(&ctx->thread);
+    edge_thread_join(&ctx->thread);
 
     // Cleanup resources
     // The handle close callback (on_async_close) will free the memory

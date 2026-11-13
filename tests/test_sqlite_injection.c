@@ -116,7 +116,7 @@ static void test_sqlite_sink_valid_works(void** state) {
 
     // 清理
     if (sink->cleanup_cfg) sink->cleanup_cfg(sink->priv_cfg);
-    free(sink);
+    if (!sink->node_pooled) free(sink);
 }
 
 int main(void) {

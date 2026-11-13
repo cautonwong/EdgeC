@@ -1,4 +1,5 @@
 #include <cmocka.h>
+#include "thread_port_uv.h"
 #include <math.h>
 #include <setjmp.h>
 #include <stdarg.h>
@@ -287,6 +288,7 @@ static void test_iems_dispatch_flow(void** state) {
 }
 
 int main(void) {
+    edge_thread_port_install_uv();
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_iems_dispatch_flow, setup, teardown),
     };

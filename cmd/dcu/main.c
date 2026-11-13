@@ -1,4 +1,5 @@
 #include <errno.h>
+#include "thread_port_uv.h"
 #include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -75,6 +76,7 @@ static int _create_dcu_node(uv_loop_t *loop, const dcu_node_config_t *cfg) {
 }
 
 int main(int argc, char** argv) {
+    edge_thread_port_install_uv();
     setvbuf(stdout, NULL, _IONBF, 0);
     (void)argc;
     (void)argv;

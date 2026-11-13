@@ -1,4 +1,5 @@
 #include <cmocka.h>
+#include "thread_port_uv.h"
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -88,6 +89,7 @@ static void test_wasm_sandbox_infinite_loop_timeout(void** state) {
 }
 
 int main(void) {
+    edge_thread_port_install_uv();
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_wasm_sandbox_divide_by_zero),
         cmocka_unit_test(test_wasm_sandbox_infinite_loop_timeout),

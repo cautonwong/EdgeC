@@ -122,6 +122,29 @@
             <label class="block text-slate-400 text-xs mb-1">MCP Server WebSocket URL</label>
             <input v-model="config.mcpServerWsUrl" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-slate-200 font-mono text-xs" />
           </div>
+
+          <div class="border-t border-slate-800 pt-3">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-slate-300 font-semibold">MCP 工具目录</span>
+              <div class="flex items-center gap-2">
+                <span
+                  data-testid="tool-catalog-source"
+                  class="px-1.5 py-0.5 rounded text-xs font-mono"
+                  :class="toolsSource === 'server' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'"
+                >
+                  {{ toolsSource === 'server' ? '服务端 tools/list' : '静态回退' }}
+                </span>
+                <button type="button" data-testid="refresh-tools" @click="refreshTools" class="text-blue-400 hover:text-blue-300 underline">刷新</button>
+              </div>
+            </div>
+            <div data-testid="mcp-tool-catalog" class="max-h-36 overflow-y-auto space-y-1">
+              <div v-for="tool in tools" :key="tool.name" class="flex gap-2 leading-snug">
+                <span class="font-mono text-blue-300 flex-shrink-0">{{ tool.name }}</span>
+                <span class="text-slate-500 truncate">{{ tool.description }}</span>
+              </div>
+              <div v-if="tools.length === 0" class="text-slate-500">尚未获取到工具目录</div>
+            </div>
+          </div>
         </div>
 
         <!-- Context Pill Strip -->
@@ -205,7 +228,7 @@
           <button 
             v-for="macro in quickPrompts" 
             :key="macro.label"
-            @click="sendQuickPrompt(macro.prompt)"
+            @click="sendQuickPrompt(macro)"
             class="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 whitespace-nowrap transition-colors flex-shrink-0 cursor-pointer"
           >
             {{ macro.label }}
@@ -256,6 +279,9 @@ const {
   clearHistory,
   config,
   isMcpConnected,
+  tools,
+  toolsSource,
+  refreshTools,
 } = useAICopilot();
 
 const drawerWidthPx = ref(520);
@@ -266,12 +292,14 @@ const chatContainer = ref<HTMLElement | null>(null);
 const inputField = ref<HTMLTextAreaElement | null>(null);
 const dialogRef = ref<HTMLElement | null>(null);
 
-const quickPrompts = [
-  { label: '⚡ 全站异常扫描', prompt: '请对全站测点执行异常巡检扫描 (datahub_scan_abnormal)，并报告异常测点与原因。' },
-  { label: '🔋 储能峰谷策略', prompt: '请基于当前 SOC 上下文评估储能峰谷套利与充放电策略 (iems_optimize_tou_schedule)。' },
-  { label: '🌡️ 变压器寿命评估', prompt: '请基于当前负荷率、环境温度与顶层油温评估变压器热寿命 (smartbox_eval_transformer_life)。' },
-  { label: '🛡️ 五防操作校验', prompt: '请校验当前断路器操作是否违反电气五防规则 (security_simulate_interlock)。' },
-  { label: '🔌 三相电能质量', prompt: '请基于当前三相电压与 THD 评估不平衡度与换相建议 (dcu_analyze_power_quality)。' },
+// Each quick prompt advertises its tool and the sample arguments it will send.
+// The values are written in the prompt text, so the user sees what is assumed.
+const quickPrompts: { label: string; prompt: string; tool: string; args: Record<string, any> }[] = [
+  { label: '⚡ 全站异常扫描', prompt: '请对全站测点执行异常巡检扫描 (datahub_scan_abnormal)，并报告异常测点与原因。', tool: 'datahub_scan_abnormal', args: {} },
+  { label: '🔋 储能峰谷策略', prompt: '请按示例参数评估储能峰谷套利与充放电策略 (iems_optimize_tou_schedule)。示例：SOC 62%。', tool: 'iems_optimize_tou_schedule', args: { soc_pct: 62 } },
+  { label: '🌡️ 变压器寿命评估', prompt: '请按示例参数评估变压器热寿命 (smartbox_eval_transformer_life)。示例：负荷率 0.75，环境温度 25°C，顶层油温 55°C。', tool: 'smartbox_eval_transformer_life', args: { load_ratio: 0.75, ambient_temp_c: 25, current_top_oil_c: 55 } },
+  { label: '🛡️ 五防操作校验', prompt: '请校验断路器示例操作是否违反电气五防规则 (security_simulate_interlock)。示例：B1 从 CLOSE 到 OPEN。', tool: 'security_simulate_interlock', args: { breaker_id: 'B1', target_state: 'OPEN' } },
+  { label: '🔌 三相电能质量', prompt: '请按示例参数评估三相不平衡与换相建议 (dcu_analyze_power_quality)。示例：A 相 220.5 V，B 相 219.8 V，C 相 221.2 V，THD 3.5%。', tool: 'dcu_analyze_power_quality', args: { phase_a_v: 220.5, phase_b_v: 219.8, phase_c_v: 221.2, current_thd: 3.5 } },
 ];
 
 function closeDrawer() {
@@ -280,8 +308,8 @@ function closeDrawer() {
 
 useDialogA11y(isOpen, dialogRef, closeDrawer, inputField);
 
-function sendQuickPrompt(p: string) {
-  sendUserMessage(p);
+function sendQuickPrompt(macro: (typeof quickPrompts)[number]) {
+  sendUserMessage(macro.prompt, { name: macro.tool, args: macro.args });
 }
 
 function handleSubmit() {

@@ -10,8 +10,8 @@ foundation=>=0.1 <1
 ports_required=app_repo
 ports_optional=
 allowed_owners=
-rom_bytes_max=0
-ram_bytes_max=0
+rom_bytes_max=159744
+ram_bytes_max=1302528
 stack_bytes_max=0
 heap=none
 lts=false

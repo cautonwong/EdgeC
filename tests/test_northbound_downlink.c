@@ -14,6 +14,7 @@
  */
 
 #include <cmocka.h>
+#include "thread_port_uv.h"
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -189,6 +190,7 @@ static void test_orchestrator_forwards_raw_bytes(void** state) {
 }
 
 int main(void) {
+    edge_thread_port_install_uv();
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_decode_valid),
         cmocka_unit_test(test_decode_key_order_and_whitespace),

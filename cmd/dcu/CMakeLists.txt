@@ -57,6 +57,7 @@ target_link_libraries(dcu_app_lib PUBLIC
     edge_north
     mqtt_transport
     edge_stream
+    edge_linux_platform
     edge_core
     edge_codec
     edge_ai

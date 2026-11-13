@@ -1,0 +1,5 @@
+# Shrink-only counts for modules/**/*.c. Lower a count in the same change that
+# removes the call; raising one needs a composition-root move, not a new budget.
+getenv_calls=0
+heap_calls=176
+thread_creations=0

@@ -29,6 +29,12 @@ sqlite_svc_t *sqlite_svc_create(uv_loop_t *loop, sqlite_config_t *cfg) {
     return NULL;
 }
 
+sqlite_svc_t *sqlite_svc_create_ex(uv_loop_t *loop, sqlite_config_t *cfg, int *out_error) {
+    (void)loop; (void)cfg;
+    if (out_error) *out_error = -1;
+    return NULL;
+}
+
 int sqlite_svc_init_from_contract(sqlite_svc_t *svc, const edge_contract_t *contract) {
     (void)svc; (void)contract;
     return -1;

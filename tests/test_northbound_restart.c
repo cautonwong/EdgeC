@@ -1,4 +1,5 @@
 #include <cmocka.h>
+#include "thread_port_uv.h"
 #include <stdarg.h>
 #include <stddef.h>
 #include <unistd.h>
@@ -30,6 +31,7 @@ static void test_restart_reattaches_driver(void **state) {
 }
 
 int main(void) {
+    edge_thread_port_install_uv();
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_restart_reattaches_driver),
     };

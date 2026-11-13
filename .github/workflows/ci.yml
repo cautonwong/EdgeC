@@ -132,6 +132,10 @@ jobs:
           # (must reject) and on the live tree (must pass). Live failures compare
           # against the shrink-only ledgers in ci/baseline/ (#411).
           python3 ci/scripts/run_guard_selftest.py
+          python3 ci/scripts/check_sbom.py --out build/sbom
+          python3 ci/scripts/check_component_budgets.py --root . --build build
+          python3 ci/scripts/check_resource_discipline.py --root .
+          ./ci/scripts/check_component_targets.sh build
           ./scripts/check_no_old_src.sh
           ./scripts/check_symbols_baseline.sh
           STRICT_CORE_GATE=1 ./scripts/check_core_symbols.sh
@@ -161,6 +165,7 @@ jobs:
             build/*.tar.gz
             build/*.deb
             build/size_report.txt
+            build/sbom/
 
   # ==========================================
   # Job 2: Multi-Product Frontend E2E Matrix (Playwright)

@@ -5,6 +5,8 @@
 #include <unistd.h>
 #include <stdbool.h>
 #include "edge_log.h"
+#include "edge_thread_port.h"
+#include "edge_wasm_imports.h"
 #include "wasm_export.h"
 
 /* OpenSSL headers conflict with edge_log.h's '#define UI LOG_CAT_UI' */
@@ -159,7 +161,7 @@ int wasm_mgr_init(const stream_bus_port_t *bus) {
     init_args.mem_alloc_type = Alloc_With_System_Allocator;
     init_args.native_module_name = "env";
     init_args.native_symbols = native_symbols;
-    init_args.n_native_symbols = 3;
+    init_args.n_native_symbols = sizeof(native_symbols) / sizeof(native_symbols[0]);
     if (!wasm_runtime_full_init(&init_args)) return -1;
     g_wasm_inited = true;
     LOG_INFO(LOG_CAT_CORE, "WASM: Secure Runtime initialized");
@@ -224,6 +226,13 @@ static wasm_app_t *wasm_app_create_internal(void *storage, size_t storage_size,
     app->heap_size = heap_size;
     app->stack_size = stack_size > 0 ? stack_size : 64 * 1024;
     app->timeout_ms = timeout_ms;
+
+    char import_reason[EDGE_WASM_IMPORT_REASON_SIZE];
+    if (edge_wasm_imports_validate(buf, wasm_size, import_reason, sizeof(import_reason)) != 0) {
+        LOG_ERROR(LOG_CAT_CORE, "WASM Import Denied: %s", import_reason);
+        free(buf);
+        return NULL;
+    }
 
     char error_buf[128];
     app->module = wasm_runtime_load(buf, wasm_size, error_buf, sizeof(error_buf));
@@ -297,9 +306,12 @@ int wasm_app_exec_args(wasm_app_t *app, const char *func_name, uint32_t argc, ui
     // [Nexus] Watchdog 机制 (多线程监控)
     wasm_watchdog_t wd = {.inst = app->inst, .timeout_ms = app->timeout_ms, .done = false};
     uv_thread_t wd_thread;
+    bool wd_lock_inited = false;
+    bool wd_started = false;
     if (app->timeout_ms > 0) {
         uv_mutex_init(&wd.lock);
-        uv_thread_create(&wd_thread, _watchdog_thread, &wd);
+        wd_lock_inited = true;
+        wd_started = edge_thread_create(&wd_thread, _watchdog_thread, &wd) == 0;
     }
 
     bool success = wasm_runtime_call_wasm(exec_env, func, argc, argv);
@@ -310,13 +322,13 @@ int wasm_app_exec_args(wasm_app_t *app, const char *func_name, uint32_t argc, ui
         success = false;
     }
 
-    if (app->timeout_ms > 0) {
+    if (wd_started) {
         uv_mutex_lock(&wd.lock);
         wd.done = true;
         uv_mutex_unlock(&wd.lock);
-        uv_thread_join(&wd_thread);
-        uv_mutex_destroy(&wd.lock);
+        edge_thread_join(&wd_thread);
     }
+    if (wd_lock_inited) uv_mutex_destroy(&wd.lock);
 
     wasm_runtime_destroy_exec_env(exec_env);
     return success ? 0 : -1;

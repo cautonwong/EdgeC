@@ -8,6 +8,7 @@
  */
 
 #include <curl/curl.h>
+#include "thread_port_uv.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <uv.h>
@@ -23,6 +24,7 @@ static void on_signal_exit(uv_signal_t* handle, int signum) {
 }
 
 int main(int argc, char* argv[]) {
+    edge_thread_port_install_uv();
     (void)argc;
     (void)argv;
 
@@ -49,6 +51,10 @@ int main(int argc, char* argv[]) {
     if (north_sock && !north_sock[0]) north_sock = NULL;  // 空串当没设,别把空路径传下去
     const char* ui_sock = getenv("IEMS_UI_SOCK");
     if (ui_sock && !ui_sock[0]) ui_sock = NULL;
+    // EDGE_REST_BIND: 管理面绑定地址,缺省 127.0.0.1;EDGE_REST_LEGACY_UPLOAD=1 仅在迁移期重开旧上传入口
+    const char* rest_bind = getenv("EDGE_REST_BIND");
+    if (rest_bind && !rest_bind[0]) rest_bind = NULL;
+    const char* rest_legacy = getenv("EDGE_REST_LEGACY_UPLOAD");
     iems_app_config_t cfg = {
         .db_path = getenv("EDGE_DB_PATH"),
         .shm_name = getenv("EDGE_SHM_NAME"),
@@ -56,6 +62,8 @@ int main(int argc, char* argv[]) {
         .snap_path = getenv("EDGE_SNAP_PATH"),
         .mqtt_url = getenv("MQTT_BROKER"),
         .rest_port = getenv("EDGE_REST_PORT") ? atoi(getenv("EDGE_REST_PORT")) : 9091,
+        .rest_bind = rest_bind,
+        .rest_legacy_upload = rest_legacy && atoi(rest_legacy) != 0,
         .north_sock = north_sock,
         .ui_sock = ui_sock
     };

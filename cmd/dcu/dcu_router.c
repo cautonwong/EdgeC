@@ -24,6 +24,9 @@ static dcu_inventory_t* s_router_inv = NULL;
  */
 int dcu_tag_map_fn(uint32_t tag_id, uint32_t device_id) {
     if (tag_id == 0) return -1;
+    /* 应用点位区只在 [APP_BASE, APP_BASE + 4096) 内。产品既有 tag 使用
+     * 0x2xxxxxxx 形态的 OAD 值，不能按 >= APP_BASE 一刀切。 */
+    if (tag_id >= DCU_APP_BASE && tag_id < DCU_APP_BASE + DCU_APP_SLOT_TOTAL) return -1;
     uint32_t slot = 0;
     if (tag_id == 1001 || tag_id == 1004 || tag_id == OAD_VOLTAGE) {
         slot = 0;

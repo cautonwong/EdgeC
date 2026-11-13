@@ -37,6 +37,11 @@ export default defineConfig({
       testMatch: /platform\.iems\.spec\.ts/,
     },
     {
+      name: 'ai',
+      use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:5173' },
+      testMatch: /ai_copilot\.spec\.ts/,
+    },
+    {
       name: 'dcu',
       use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:5175' },
       testMatch: /platform\.dcu\.spec\.ts/,

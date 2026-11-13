@@ -23,6 +23,9 @@ typedef struct {
     js_work_ctx_t work;
 } js_stage_ctx_t;
 
+_Static_assert(sizeof(js_stage_ctx_t) <= 2048, "js stage ctx exceeds stage state storage");
+_Static_assert(sizeof(JSValue) <= 256, "JSValue exceeds stage cfg storage");
+
 // --- Synchronous execution path ---
 static stage_ret_t run_js_sync(pipeline_stage_t *stage, pipe_msg_t *ev) {
     js_stage_ctx_t *ctx = (js_stage_ctx_t *)stage->priv_cfg;
@@ -114,25 +117,24 @@ static void js_stage_cleanup(void *ptr) {
     // This cleanup runs on the compute thread, so it's safe to free JSValue
     JSContext *js_ctx = js_engine_get_context(ctx->engine);
     JS_FreeValue(js_ctx, *ctx->persistent_state);
-    free(ctx->persistent_state);
-    free(ctx);
 }
 
 pipeline_stage_t *stage_js_rule_create(js_engine_t *engine, const char *script_path,
                                        bool is_async) {
     if (!engine) return NULL;
-    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    pipeline_stage_t *s = stream_stage_alloc_node();
     strncpy(s->name, "js_rule", 31);
     s->process = js_stage_proc;
 
-    js_stage_ctx_t *ctx = calloc(1, sizeof(js_stage_ctx_t));
+    js_stage_ctx_t *ctx = (js_stage_ctx_t *)s->storage_state;
+    memset(ctx, 0, sizeof(*ctx));
     ctx->engine = engine;
     strncpy(ctx->script_path, script_path, 127);
     ctx->is_async = is_async;
 
     // The persistent state is only used for sync mode for now
     JSContext *js_ctx = js_engine_get_context(engine);
-    ctx->persistent_state = malloc(sizeof(JSValue));
+    ctx->persistent_state = (JSValue *)s->storage_cfg;
     *ctx->persistent_state = JS_NewObject(js_ctx);
 
     // Pre-load the script into the main engine context for sync execution

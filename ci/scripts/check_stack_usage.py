@@ -87,10 +87,14 @@ def parse_su_file(su_path, max_bytes):
 
 
 def _element_size(line):
-    if "double" in line or "uint64_t" in line or "int64_t" in line or "size_t" in line or "float" not in line and "64" in line:
+    match = re.match(r"\s*(\w+)", line)
+    type_name = match.group(1) if match else ""
+    if type_name in ("double", "uint64_t", "int64_t", "size_t"):
         return 8
-    if "float" in line or "32" in line:
+    if type_name in ("float", "uint32_t", "int32_t"):
         return 4
+    if type_name in ("uint16_t", "int16_t"):
+        return 2
     return 1
 
 

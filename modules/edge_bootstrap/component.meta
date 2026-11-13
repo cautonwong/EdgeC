@@ -10,8 +10,8 @@ foundation=>=0.1 <1
 ports_required=
 ports_optional=
 allowed_owners=
-rom_bytes_max=0
-ram_bytes_max=0
+rom_bytes_max=9216
+ram_bytes_max=3072
 stack_bytes_max=0
 heap=bounded
 lts=false

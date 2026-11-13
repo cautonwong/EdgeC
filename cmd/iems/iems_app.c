@@ -25,17 +25,20 @@
 #include "edge_api.h"
 #include "edge_driver_runtime.h"
 #include "edge_log.h"
+#include "edgeos/edge_app_mgr.h"
 #include "mqtt_json_codec.h"
 #include "edge_service.h"
 #include "edge_params_sqlite_adapter.h"
 #include "edge_params.h"
 #include "iems_app_manager_adapter.h"
+#include "iems_app_runtime.h"
 #include "iems_driver_adapter.h"
 #include "iems_execution_adapter.h"
 #include "iems_internal_bus_adapter.h"
 #include "iems_north_adapter.h"
 #include "iems_north_listener.h"
 #include "iems_poll_scheduler.h"
+#include "iems_pressure_adapter.h"
 #include "iems_southbound_adapter.h"
 #include "iems_ui_channel.h"
 #include "stream_bus_datahub_adapter.h"
@@ -48,10 +51,19 @@
 #include "north_source_datahub_adapter.h"
 #include "snf_sqlite_adapter.h"
 #include "rest_server.h"
+#include "rest_uds_server.h"
 #include "sched_time.h"
 #include "sqlite_service.h"
 #include "stream_engine.h"
 #include "wasm_mgr.h"
+
+static void _on_app_fault(void* ctx, const char* app_id, int64_t status, int term_signal) {
+    iems_control_app_faulted((iems_control_ctx_t*)ctx, app_id, status, term_signal);
+}
+
+static void _on_app_restarted(void* ctx, const char* app_id) {
+    iems_control_app_restarted((iems_control_ctx_t*)ctx, app_id);
+}
 
 struct iems_app_s {
     uv_loop_t* loop;
@@ -72,6 +84,7 @@ struct iems_app_s {
     edge_app_mgr_t* app_mgr;
     void* app_mgr_mem;
     edge_params_t* pipeline_params;
+    edge_params_storage_t pipeline_params_storage;
     edge_params_store_t pipeline_param_store;
     iems_control_ctx_t control_ctx;
     rest_control_port_t control;
@@ -85,9 +98,77 @@ struct iems_app_s {
     bool monitor_initialized;
     uv_timer_t timer_monitor;
 
+    bool pressure_initialized;
+    app_pressure_t pressure;
+    app_pressure_port_t pressure_port;
+    iems_pressure_ctx_t pressure_ctx;
+    uv_timer_t timer_pressure;
+
+    bool reconcile_initialized;
+    uv_timer_t timer_reconcile;
+    uint64_t last_time_sync_ms;
+
     iems_ui_channel_t ui;
     iems_north_listener_t north_listener;
+    rest_uds_server_t* ctl_server;
+    iems_app_runtime_t* app_runtime;
 };
+
+static void _on_pressure_timer(uv_timer_t* timer) {
+    iems_app_t* app = (iems_app_t*)timer->data;
+    if (!app || !app->pressure_initialized) return;
+    iems_pressure_tick(&app->pressure, uv_now(app->loop));
+}
+
+static int _reconcile_app_running(void* ctx, const char* app_id) {
+    iems_app_t* app = (iems_app_t*)ctx;
+    if (!app->app_runtime) return 1; /* without a runtime the registry is all we have */
+    return iems_app_runtime_is_running(app->app_runtime, app_id);
+}
+
+static int _reconcile_app_start(void* ctx, const char* app_id) {
+    iems_app_t* app = (iems_app_t*)ctx;
+    return app->control.start_app ? app->control.start_app(app->control.ctx, app_id) : -1;
+}
+
+static int _reconcile_app_stop(void* ctx, const char* app_id) {
+    iems_app_t* app = (iems_app_t*)ctx;
+    return app->control.stop_app ? app->control.stop_app(app->control.ctx, app_id) : -1;
+}
+
+/* The OS time daemon reports a completed sync by writing the epoch to a small
+ * file (EDGEC_TIME_SYNC_FILE, default /run/edgeos/time_sync). The product only
+ * consumes it; it never talks to NTP itself. */
+static void _poll_time_sync(iems_app_t* app) {
+    if (!app || !app->control.time_mark) return;
+    const char* path = getenv("EDGEC_TIME_SYNC_FILE");
+    if (!path || !path[0]) path = "/run/edgeos/time_sync";
+    FILE* f = fopen(path, "r");
+    if (!f) return;
+    unsigned long long value = 0;
+    int fields = fscanf(f, "%llu", &value);
+    fclose(f);
+    if (fields != 1 || value == 0) return;
+    uint64_t epoch_ms = value < 100000000000ull ? (uint64_t)value * 1000ull : (uint64_t)value;
+    if (epoch_ms <= app->last_time_sync_ms) return;
+    if (app->control.time_mark(app->control.ctx, epoch_ms, NULL, 0) == 0) {
+        app->last_time_sync_ms = epoch_ms;
+        LOG_INFO(LOG_CAT_CORE, "time: synced at %llu", (unsigned long long)epoch_ms);
+    }
+}
+
+static void _on_reconcile_timer(uv_timer_t* timer) {
+    iems_app_t* app = (iems_app_t*)timer->data;
+    if (!app) return;
+    _poll_time_sync(app);
+    if (!app->app_mgr || edge_app_mgr_is_busy(app->app_mgr)) return;
+    int acted = 0;
+    if (edge_app_mgr_reconcile(app->app_mgr, _reconcile_app_running, _reconcile_app_start,
+                               _reconcile_app_stop, app, &acted) == 0 &&
+        acted > 0) {
+        LOG_INFO(LOG_CAT_CORE, "reconcile: converged %d app(s)", acted);
+    }
+}
 
 /**
  * @brief [Domain Boundary Guard] 控制写路径强制经聚合根 (Issue #400)
@@ -153,6 +234,32 @@ static pipeline_loader_ctx_t _iems_loader_ctx(iems_app_t* app) {
         .production = _iems_production_env()
     };
     return ctx;
+}
+
+static void _reactivate_desired_apps(iems_app_t* app);
+
+static void _start_app_management(iems_app_t* app) {
+    _poll_time_sync(app);
+    int recovered = edge_app_mgr_recover_packages(app->app_mgr);
+    if (recovered > 0) {
+        LOG_WARN(LOG_CAT_CORE, "reconcile: recovered %d package(s) from interrupted upgrades",
+                 recovered);
+    }
+    _reactivate_desired_apps(app);
+}
+
+/* desired_state survives a host restart; bring those apps back without a manual start. */
+static void _reactivate_desired_apps(iems_app_t* app) {
+    if (!app || !app->app_mgr || !app->control.start_app) return;
+    const edge_app_repo_t* repo = edge_app_mgr_get_repo(app->app_mgr);
+    if (!repo || !repo->list_apps) return;
+    app_manifest_t apps[64];
+    int count = repo->list_apps(repo->ctx, apps, 64);
+    for (int i = 0; i < count; i++) {
+        if (!apps[i].desired_state) continue;
+        if (apps[i].state == APP_STATE_UNINSTALLED || apps[i].state == APP_STATE_FAULTED) continue;
+        app->control.start_app(app->control.ctx, apps[i].id);
+    }
 }
 
 iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
@@ -237,7 +344,7 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     app->db_service = sqlite_svc_create(loop, &db_conf);
     if (app->db_service) {
         app->pipeline_param_store = edge_params_sqlite_store(app->db_service);
-        app->pipeline_params = edge_params_create(&app->pipeline_param_store, NULL);
+        app->pipeline_params = edge_params_create_in(&app->pipeline_params_storage, &app->pipeline_param_store, NULL);
         if (app->pipeline_params) {
             edge_params_register_metadata(app->pipeline_params, k_iems_pipeline_params,
                                           (int)(sizeof(k_iems_pipeline_params) /
@@ -290,11 +397,60 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     app->app_mgr = iems_app_manager_create(loop, app->db_service, app->stream_eng,
                                            &app->app_mgr_mem);
     iems_control_port_init(&app->control, &app->control_ctx, app->app_mgr,
-                           app->stream_eng);
+                           app->stream_eng, app->db_service);
     service_set_control_port(app->svc, &app->control);
 
+    uint32_t app_tag_count = 0;
+    const edge_tag_meta_t* app_tags = iems_get_tag_metadata(&app_tag_count);
+    iems_app_runtime_config_t runtime_cfg = {
+        .hub = app->hub,
+        .db = app->db_service,
+        .tags = app_tags,
+        .tag_count = app_tag_count,
+        .app_base = 131072u,
+        .on_fault = _on_app_fault,
+        .on_fault_ctx = &app->control_ctx,
+        .on_restarted = _on_app_restarted,
+        .on_restarted_ctx = &app->control_ctx,
+    };
+    app->app_runtime = iems_app_runtime_create(loop, &runtime_cfg);
+    if (!app->app_runtime) {
+        LOG_WARN(LOG_CAT_CORE, "AppHost: runtime unavailable; apps fall back to the in-process stage");
+    }
+    iems_control_set_app_runtime(&app->control_ctx, app->app_runtime);
+
+    iems_pressure_init(&app->pressure, &app->pressure_port, &app->pressure_ctx, app->app_mgr,
+                       app->app_runtime, &app->control);
+    app->pressure_initialized = true;
+    uv_timer_init(loop, &app->timer_pressure);
+    app->timer_pressure.data = app;
+    uv_timer_start(&app->timer_pressure, _on_pressure_timer, 3000, 3000);
+
+    uv_timer_init(loop, &app->timer_reconcile);
+    app->timer_reconcile.data = app;
+    uint64_t reconcile_ms = 30000;
+    const char* reconcile_env = getenv("EDGEC_RECONCILE_INTERVAL_MS");
+    if (reconcile_env && reconcile_env[0]) {
+        unsigned long value = strtoul(reconcile_env, NULL, 10);
+        if (value >= 100) reconcile_ms = value;
+    }
+    uv_timer_start(&app->timer_reconcile, _on_reconcile_timer, reconcile_ms, reconcile_ms);
+    app->reconcile_initialized = true;
+
     int rest_port = (cfg && cfg->rest_port > 0) ? cfg->rest_port : 9091;
-    rest_server_create(loop, app->svc, rest_port);
+    rest_limits_t rest_limits;
+    rest_limits_default(&rest_limits);
+    if (cfg && cfg->rest_bind) rest_limits.bind_addr = cfg->rest_bind;
+    /* 旧 raw wasm 上传入口默认关闭；只有显式配置才恢复，供迁移期使用。 */
+    rest_server_set_legacy_upload(cfg && cfg->rest_legacy_upload);
+    rest_server_create_in_ex(NULL, loop, app->svc, rest_port, &rest_limits);
+
+    const char* ctl_sock = getenv("EDGEC_APPCTL_SOCK");
+    if (!ctl_sock || !ctl_sock[0]) ctl_sock = "/tmp/edgeos_appctl.sock";
+    app->ctl_server = rest_uds_server_start(loop, app->svc, ctl_sock);
+    if (!app->ctl_server) {
+        LOG_WARN(LOG_CAT_CORE, "appctl: management socket unavailable at %s", ctl_sock);
+    }
 
     const char* ui_path =
         (cfg && cfg->ui_sock && cfg->ui_sock[0]) ? cfg->ui_sock : EDGE_UI_SOCKET_PATH;
@@ -303,6 +459,7 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     iems_north_listener_start(&app->north_listener, loop, app->hub, app->orch,
                               (cfg ? cfg->north_sock : NULL), app->bus_state);
 
+    _start_app_management(app);
     return app;
 }
 
@@ -350,12 +507,28 @@ void iems_app_destroy(iems_app_t* app) {
         uv_timer_stop(&app->timer_monitor);
         uv_close((uv_handle_t*)&app->timer_monitor, NULL);
     }
+    if (app->pressure_initialized) {
+        uv_timer_stop(&app->timer_pressure);
+        uv_close((uv_handle_t*)&app->timer_pressure, NULL);
+    }
+    if (app->reconcile_initialized) {
+        uv_timer_stop(&app->timer_reconcile);
+        uv_close((uv_handle_t*)&app->timer_reconcile, NULL);
+    }
     iems_internal_bus_stop(&app->internal_bus);
 
     iems_ui_channel_close(&app->ui);
     iems_north_listener_close(&app->north_listener);
+    rest_uds_server_stop(app->ctl_server);
+    app->ctl_server = NULL;
 
     uv_run(app->loop, UV_RUN_NOWAIT);
+
+    /* 异步 app 任务完成回调还会用 app_mgr 与 stream_engine，先排空再拆。 */
+    while (edge_app_mgr_is_busy(app->app_mgr)) uv_run(app->loop, UV_RUN_ONCE);
+
+    iems_app_runtime_destroy(app->app_runtime);
+    app->app_runtime = NULL;
 
     iems_internal_bus_join(&app->internal_bus);
 

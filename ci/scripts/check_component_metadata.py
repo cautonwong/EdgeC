@@ -82,6 +82,15 @@ def validate(path, root):
         problems.append("heap must be none or bounded")
     if data.get("lts") not in {"true", "false"}:
         problems.append("lts must be true or false")
+    if data.get("maturity") == "stable":
+        try:
+            budgeted = int(data.get("rom_bytes_max", "0")) > 0 and int(data.get("ram_bytes_max", "0")) > 0
+        except ValueError:
+            budgeted = False
+        if not budgeted:
+            problems.append("stable components need real ROM/RAM budgets")
+        if data.get("backup_owner", "unassigned") == "unassigned":
+            problems.append("stable components need a backup_owner")
 
     declared = set(split_list(data.get("allowed_owners", "")))
     recorded = baseline_owners(root, component)

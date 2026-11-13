@@ -11,4 +11,4 @@ target_include_directories(edge_runtime PUBLIC
     include
     ${CMAKE_SOURCE_DIR}/foundation/include
 )
-target_link_libraries(edge_runtime PUBLIC edge_math libuv::uv_a)
+target_link_libraries(edge_runtime PUBLIC edge_math edge_foundation libuv::uv_a)

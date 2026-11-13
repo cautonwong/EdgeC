@@ -1,0 +1,84 @@
+// EdgeC app host ABI v1. Frozen 2026-11-12; changes require a new package version.
+package edgeos:app@1.0.0;
+
+interface types {
+  type point-handle = u32;
+
+  enum access {
+    read,
+    publish,
+  }
+
+  enum quality {
+    good,
+    bad,
+    uncertain,
+  }
+
+  enum log-level {
+    debug,
+    info,
+    warn,
+    error,
+  }
+
+  variant point-value {
+    float(f64),
+    integer(s64),
+    boolean(bool),
+    text(string),
+  }
+
+  record binding {
+    handle: point-handle,
+    access: access,
+  }
+
+  record sample {
+    value: point-value,
+    quality: quality,
+    source-ts: option<u64>,
+  }
+
+  record event {
+    kind: string,
+    point: option<point-handle>,
+    payload: option<string>,
+  }
+
+  enum error-code {
+    denied-not-granted,
+    denied-scope,
+    denied-expired,
+    denied-revoked,
+    denied-policy,
+    denied-quota,
+    denied-package-mismatch,
+    denied-abi,
+    invalid-manifest,
+    not-found,
+    stale,
+    busy,
+    invalid,
+    internal,
+  }
+}
+
+interface host {
+  use types.{binding, error-code, log-level, point-handle, sample};
+
+  point-resolve: func(name: string) -> result<binding, error-code>;
+  point-read: func(handle: point-handle) -> result<sample, error-code>;
+  point-subscribe: func(handle: point-handle, deadband: f64, min-interval-ms: u32, max-interval-ms: u32) -> result<u32, error-code>;
+  point-publish: func(handle: point-handle, sample: sample) -> result<_, error-code>;
+  log: func(level: log-level, message: string);
+  now: func() -> u64;
+}
+
+world app-v1 {
+  use types.{event};
+  import host;
+  export app-init: func();
+  export app-on-event: func(event: event);
+  export app-stop: func();
+}

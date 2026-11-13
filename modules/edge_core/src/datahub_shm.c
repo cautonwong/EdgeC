@@ -85,17 +85,27 @@ int datahub_shm_init(datahub_t *hub, const datahub_config_t *config) {
         return -1;
     }
     bool created_now = seg_stat.st_size == 0;
-    bool legacy = false;
-    size_t map_size = total_size;
     if (!created_now && (size_t)seg_stat.st_size != total_size) {
-        size_t legacy_size = (size_t)seg_stat.st_size;
-        if (legacy_size > 0 && legacy_size % sizeof(pipe_msg_t) == 0 &&
-            legacy_size / sizeof(pipe_msg_t) == capacity) {
-            legacy = true;
-            map_size = legacy_size;
+        size_t stale_size = (size_t)seg_stat.st_size;
+        if (stale_size > 0 && stale_size % sizeof(pipe_msg_t) == 0 &&
+            stale_size / sizeof(pipe_msg_t) == capacity) {
+            // Headerless segment from the pre-header layout. Shadow values are
+            // volatile, so rebuild under the current header instead of keeping
+            // a legacy read path.
             LOG_WARN(LOG_CAT_BUS,
-                     "SHM shadow %s uses the legacy headerless layout; continuing in legacy mode",
-                     shm_path);
+                     "SHM shadow %s uses the legacy headerless layout; rebuilding", shm_path);
+            shm_unlink(shm_path);
+            close(hub->shadow_fd);
+            hub->shadow_fd = shm_open(shm_path, O_RDWR | O_CREAT | O_EXCL, 0666);
+            if (hub->shadow_fd < 0 || flock(hub->shadow_fd, LOCK_EX) < 0) {
+                LOG_ERROR(LOG_CAT_BUS, "Failed to rebuild SHM shadow %s: %s", shm_path,
+                          strerror(errno));
+                if (hub->shadow_fd >= 0) close(hub->shadow_fd);
+                hub->shadow_fd = -1;
+                shmring_destroy(&hub->ring);
+                return -1;
+            }
+            created_now = true;
         } else {
             LOG_ERROR(LOG_CAT_BUS,
                       "SHM shadow %s size %lld does not match layout %zu; refusing to truncate",
@@ -116,7 +126,7 @@ int datahub_shm_init(datahub_t *hub, const datahub_config_t *config) {
         return -1;
     }
 
-    void *mapping = mmap(NULL, map_size, PROT_READ | PROT_WRITE, MAP_SHARED, hub->shadow_fd, 0);
+    void *mapping = mmap(NULL, total_size, PROT_READ | PROT_WRITE, MAP_SHARED, hub->shadow_fd, 0);
     if (mapping == MAP_FAILED) {
         flock(hub->shadow_fd, LOCK_UN);
         close(hub->shadow_fd);
@@ -136,15 +146,15 @@ int datahub_shm_init(datahub_t *hub, const datahub_config_t *config) {
         header->record_size = (uint32_t)sizeof(pipe_msg_t);
         header->data_offset = data_offset;
         header->sequence = 0;
-    } else if (!legacy && (header->magic != DATAHUB_SHM_MAGIC ||
+    } else if (header->magic != DATAHUB_SHM_MAGIC ||
                header->abi_version != DATAHUB_SHM_ABI_VERSION ||
                header->header_size != DATAHUB_SHM_HEADER_SIZE ||
                header->capacity != capacity ||
                header->record_size != sizeof(pipe_msg_t) ||
-               header->data_offset != data_offset)) {
+               header->data_offset != data_offset) {
         LOG_ERROR(LOG_CAT_BUS, "SHM shadow %s has an incompatible header", shm_path);
         flock(hub->shadow_fd, LOCK_UN);
-        munmap(mapping, map_size);
+        munmap(mapping, total_size);
         close(hub->shadow_fd);
         hub->shadow_fd = -1;
         shmring_destroy(&hub->ring);
@@ -153,12 +163,10 @@ int datahub_shm_init(datahub_t *hub, const datahub_config_t *config) {
 
     hub->shadow_owner = true;
     snprintf(hub->shadow_shm_name, sizeof(hub->shadow_shm_name), "%s", shm_path);
-    hub->shadow_legacy = legacy;
-    hub->shadow_header = legacy ? NULL : header;
-    hub->shadow_seq = legacy ? NULL : &header->sequence;
-    hub->shadow_table = legacy ? (pipe_msg_t *)mapping
-                               : (pipe_msg_t *)((uint8_t *)mapping + data_offset);
-    hub->shadow_size = map_size;
+    hub->shadow_header = header;
+    hub->shadow_seq = &header->sequence;
+    hub->shadow_table = (pipe_msg_t *)((uint8_t *)mapping + data_offset);
+    hub->shadow_size = total_size;
     hub->shadow_capacity = capacity;
     flock(hub->shadow_fd, LOCK_UN);
     // 初始化影子锁与细粒度订阅锁
@@ -226,37 +234,25 @@ int datahub_attach(datahub_t *hub, const char *name) {
     }
 
     datahub_shm_header_t *header = (datahub_shm_header_t *)mapping;
-    bool legacy = false;
     if (header->magic != DATAHUB_SHM_MAGIC || header->abi_version != DATAHUB_SHM_ABI_VERSION ||
         header->header_size != DATAHUB_SHM_HEADER_SIZE ||
         header->record_size != sizeof(pipe_msg_t) || header->capacity == 0 ||
         header->data_offset != DATAHUB_SHM_HEADER_SIZE ||
         (size_t)header->data_offset + (size_t)header->capacity * sizeof(pipe_msg_t) != shadow_size) {
-        if (shadow_size % sizeof(pipe_msg_t) == 0 &&
-            shadow_size / sizeof(pipe_msg_t) <= UINT32_MAX) {
-            legacy = true;
-        } else {
-            LOG_ERROR(LOG_CAT_BUS, "Invalid shadow header in %s", shm_path);
-            munmap(mapping, shadow_size);
-            close(fd);
-            return -1;
-        }
+        LOG_ERROR(LOG_CAT_BUS, "Invalid shadow header in %s", shm_path);
+        munmap(mapping, shadow_size);
+        close(fd);
+        return -1;
     }
 
     hub->shadow_fd = fd;
     hub->shadow_size = shadow_size;
-    hub->shadow_capacity = legacy ? (uint32_t)(shadow_size / sizeof(pipe_msg_t)) : header->capacity;
-    hub->shadow_header = legacy ? NULL : header;
-    hub->shadow_legacy = legacy;
+    hub->shadow_capacity = header->capacity;
+    hub->shadow_header = header;
     hub->shadow_owner = false;
     snprintf(hub->shadow_shm_name, sizeof(hub->shadow_shm_name), "%s", shm_path);
-    hub->shadow_seq = legacy ? NULL : &header->sequence;
-    hub->shadow_table = legacy ? (pipe_msg_t *)mapping
-                               : (pipe_msg_t *)((uint8_t *)mapping + header->data_offset);
-    if (legacy) {
-        LOG_WARN(LOG_CAT_BUS, "Attached legacy headerless shadow %s (%u slots)", shm_path,
-                 hub->shadow_capacity);
-    }
+    hub->shadow_seq = &header->sequence;
+    hub->shadow_table = (pipe_msg_t *)((uint8_t *)mapping + header->data_offset);
     if (uv_mutex_init(&hub->shadow_lock) != 0) {
         munmap(mapping, shadow_size);
         close(fd);

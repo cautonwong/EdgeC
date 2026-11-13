@@ -1,6 +1,7 @@
 /* Regression: northbound must drive SnF online state even without a service owner. */
 #undef NDEBUG
 #include <assert.h>
+#include "thread_port_uv.h"
 #include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -108,6 +109,7 @@ static void test_snf_online_without_user_data(void) {
 }
 
 int main(void) {
+    edge_thread_port_install_uv();
     test_snf_online_without_user_data();
     printf("northbound SnF online regression passed\n");
     return 0;

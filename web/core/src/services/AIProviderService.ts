@@ -32,6 +32,19 @@ export interface McpToolCall {
   timestamp: number;
 }
 
+export interface McpToolDefinition {
+  name: string;
+  description: string;
+  domain?: string;
+  parameters?: Record<string, any>;
+  inputSchema?: Record<string, any>;
+}
+
+export interface ToolHint {
+  name: string;
+  args: Record<string, any>;
+}
+
 export interface ChatContext {
   pageTitle?: string;
   productDomain?: string;
@@ -68,8 +81,9 @@ export const DEFAULT_AI_CONFIG: AIModelConfig = {
   autoExecuteTools: true,
 };
 
-// MCP tool catalog exposed by edge-mcp-server: 4 generic DataHub tools + 4 AEP-508 industry tools.
-export const INDUSTRIAL_MCP_TOOLS = [
+// Offline fallback catalog. The live catalog comes from edge-mcp-server `tools/list`
+// and is cached; this list only answers when the server has never responded.
+export const INDUSTRIAL_MCP_TOOLS: McpToolDefinition[] = [
   {
     name: 'datahub_read_tags',
     domain: 'DataHub',
@@ -136,9 +150,16 @@ class AIProviderService {
   private rpcIdCounter = 1;
   private pendingRpcCallbacks = new Map<number, { resolve: (res: any) => void; reject: (err: any) => void }>();
   public isConnected = ref(false);
+  public tools = ref<McpToolDefinition[]>([...INDUSTRIAL_MCP_TOOLS]);
+  public toolsSource = ref<'server' | 'static'>('static');
+  private toolsFetchedAt = 0;
+  private toolsInflight: Promise<McpToolDefinition[]> | null = null;
+  private static readonly TOOLS_TTL_MS = 60_000;
+  private static readonly TOOLS_CACHE_KEY = 'edgeos.mcp.tools.v1';
 
   constructor(cfg: Partial<AIModelConfig> = {}) {
     this.config = reactive({ ...DEFAULT_AI_CONFIG, ...cfg });
+    this.hydrateToolCache();
     this.initMcpWsConnection();
   }
 
@@ -164,6 +185,7 @@ class AIProviderService {
 
       this.ws.onopen = () => {
         this.isConnected.value = true;
+        void this.fetchTools(true);
       };
 
       this.ws.onclose = () => {
@@ -199,21 +221,92 @@ class AIProviderService {
     }
   }
 
+  private hydrateToolCache(): void {
+    try {
+      const raw = localStorage.getItem(AIProviderService.TOOLS_CACHE_KEY);
+      if (!raw) return;
+      const cached = JSON.parse(raw);
+      if (!Array.isArray(cached?.tools) || cached.tools.length === 0) return;
+      const tools = cached.tools.filter(
+        (tool: any) => typeof tool?.name === 'string' && tool.name.length > 0
+      ) as McpToolDefinition[];
+      if (tools.length === 0) return;
+      this.tools.value = tools;
+      this.toolsSource.value = 'server';
+      this.toolsFetchedAt = typeof cached.at === 'number' ? cached.at : 0;
+    } catch {
+      // Cache is an accelerator, never a requirement.
+    }
+  }
+
+  private persistToolCache(tools: McpToolDefinition[]): void {
+    try {
+      localStorage.setItem(
+        AIProviderService.TOOLS_CACHE_KEY,
+        JSON.stringify({ at: Date.now(), tools })
+      );
+    } catch {
+      // Private mode or full storage must not break the copilot.
+    }
+  }
+
+  private toolDomain(name: string): string {
+    const known = INDUSTRIAL_MCP_TOOLS.find((tool) => tool.name === name);
+    if (known && known.domain) return known.domain;
+    if (name.startsWith('datahub_')) return 'DataHub';
+    if (name.startsWith('dcu_')) return 'Power Quality';
+    if (name.startsWith('smartbox_')) return 'Transformer';
+    if (name.startsWith('iems_')) return 'Energy';
+    if (name.startsWith('security_')) return 'Safety';
+    return 'MCP';
+  }
+
   /**
-   * Invoke MCP tool via WebSocket (falling back to HTTP POST)
+   * Fetch the live tool catalog from edge-mcp-server `tools/list` and cache it.
+   * The static catalog stays as the offline fallback; the server list wins.
    */
-  public async callMcpTool(toolName: string, args: Record<string, any> = {}): Promise<{ result: any; durationMs: number }> {
-    const start = performance.now();
+  public async fetchTools(force = false): Promise<McpToolDefinition[]> {
+    const fresh =
+      this.toolsSource.value === 'server' &&
+      Date.now() - this.toolsFetchedAt < AIProviderService.TOOLS_TTL_MS;
+    if (!force && fresh) return this.tools.value;
+    if (this.toolsInflight) return this.toolsInflight;
+
+    this.toolsInflight = (async () => {
+      try {
+        const result = await this.rpcRequest('tools/list', {});
+        const rawTools = Array.isArray(result?.tools) ? result.tools : [];
+        const mapped: McpToolDefinition[] = [];
+        for (const raw of rawTools) {
+          const name = typeof raw?.name === 'string' ? raw.name.trim() : '';
+          if (!name) continue;
+          mapped.push({
+            name,
+            description: typeof raw?.description === 'string' ? raw.description : '',
+            inputSchema: raw?.inputSchema,
+            domain: this.toolDomain(name),
+          });
+        }
+        if (mapped.length > 0) {
+          this.tools.value = mapped;
+          this.toolsSource.value = 'server';
+          this.toolsFetchedAt = Date.now();
+          this.persistToolCache(mapped);
+        }
+        return this.tools.value;
+      } catch {
+        // Keep the last server list, or the static catalog, when the server is down.
+        return this.tools.value;
+      } finally {
+        this.toolsInflight = null;
+      }
+    })();
+    return this.toolsInflight;
+  }
+
+  private async rpcRequest(method: string, params: Record<string, any> = {}): Promise<any> {
     const rpcId = ++this.rpcIdCounter;
-    const reqPayload = {
-      jsonrpc: '2.0',
-      id: rpcId,
-      method: 'tools/call',
-      params: {
-        name: toolName,
-        arguments: args,
-      },
-    };
+    const reqPayload = { jsonrpc: '2.0', id: rpcId, method, params };
 
     // 1. Try WebSocket
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
@@ -223,34 +316,41 @@ class AIProviderService {
           setTimeout(() => {
             if (this.pendingRpcCallbacks.has(rpcId)) {
               this.pendingRpcCallbacks.delete(rpcId);
-              reject(new Error('MCP Tool call timed out (5000ms)'));
+              reject(new Error(`MCP ${method} timed out (5000ms)`));
             }
           }, 5000);
         });
         this.ws.send(JSON.stringify(reqPayload));
-        const res = await resultPromise;
-        const durationMs = Math.round((performance.now() - start) * 100) / 100;
-        return { result: unwrapMcpResult(res), durationMs };
-      } catch (wsErr) {
-        // Fallback to HTTP
+        return await resultPromise;
+      } catch {
+        // Fall through to HTTP.
       }
     }
 
-    // 2. HTTP Fallback
+    // 2. HTTP fallback
     try {
       const response = await axios.post(this.config.mcpServerHttpUrl, reqPayload, { timeout: 5000 });
-      const durationMs = Math.round((performance.now() - start) * 100) / 100;
       if (response.data?.error) {
         const err: any = new Error(response.data.error.message || 'MCP HTTP Error');
         err.isMcpToolError = true;
         throw err;
       }
-      return { result: unwrapMcpResult(response.data?.result || response.data), durationMs };
+      return response.data?.result ?? response.data;
     } catch (httpErr: any) {
       if (httpErr?.isMcpToolError) throw httpErr;
       const detail = httpErr?.message || 'MCP server unreachable';
-      throw new Error(`MCP tool ${toolName} failed: WebSocket and HTTP unavailable (${detail})`);
+      throw new Error(`MCP ${method} failed: WebSocket and HTTP unavailable (${detail})`);
     }
+  }
+
+  /**
+   * Invoke MCP tool via WebSocket (falling back to HTTP POST)
+   */
+  public async callMcpTool(toolName: string, args: Record<string, any> = {}): Promise<{ result: any; durationMs: number }> {
+    const start = performance.now();
+    const result = await this.rpcRequest('tools/call', { name: toolName, arguments: args });
+    const durationMs = Math.round((performance.now() - start) * 100) / 100;
+    return { result: unwrapMcpResult(result), durationMs };
   }
 
   /**
@@ -259,10 +359,50 @@ class AIProviderService {
   public async executeChat(
     userPrompt: string,
     context?: ChatContext,
-    onToolProgress?: (tool: McpToolCall) => void
+    onToolProgress?: (tool: McpToolCall) => void,
+    hint?: ToolHint
   ): Promise<ChatMessage> {
     const startTime = performance.now();
     const executedTools: McpToolCall[] = [];
+
+    const runTool = async (toolName: string, args: Record<string, any>): Promise<McpToolCall> => {
+      const toolCallRecord: McpToolCall = {
+        id: 'tc_' + Math.random().toString(36).substring(2, 9),
+        toolName,
+        args,
+        status: 'executing',
+        timestamp: Date.now(),
+      };
+      executedTools.push(toolCallRecord);
+      if (onToolProgress) onToolProgress(toolCallRecord);
+      try {
+        const { result, durationMs } = await this.callMcpTool(toolName, args);
+        toolCallRecord.status = 'success';
+        toolCallRecord.result = result;
+        toolCallRecord.durationMs = durationMs;
+      } catch (err: any) {
+        toolCallRecord.status = 'error';
+        toolCallRecord.error = err.message || 'Tool execution failed';
+      }
+      if (onToolProgress) onToolProgress(toolCallRecord);
+      return toolCallRecord;
+    };
+
+    // A quick prompt carries the exact tool and sample arguments it advertises.
+    // Run it as declared instead of re-deriving intent from the prompt text.
+    if (hint && hint.name) {
+      await runTool(hint.name, hint.args || {});
+      const finalContent = this.synthesizeDiagnosis(userPrompt, context, executedTools);
+      return {
+        id: 'msg_' + Date.now(),
+        role: 'assistant',
+        content: finalContent,
+        timestamp: Date.now(),
+        toolCalls: executedTools,
+        context,
+        metrics: { latencyMs: Math.round((performance.now() - startTime) * 100) / 100 },
+      };
+    }
 
     // Determine tool calls needed based on prompt intent. Intents are
     // independent: a prompt like “扫描三相电能质量异常” must trigger both the
@@ -380,29 +520,6 @@ class AIProviderService {
 
     // Execute the first wave. Telemetry reads are executed before any deferred
     // analysis so its arguments come from real values rather than assumptions.
-    const runTool = async (toolName: string, args: Record<string, any>): Promise<McpToolCall> => {
-      const toolCallRecord: McpToolCall = {
-        id: 'tc_' + Math.random().toString(36).substring(2, 9),
-        toolName,
-        args,
-        status: 'executing',
-        timestamp: Date.now(),
-      };
-      executedTools.push(toolCallRecord);
-      if (onToolProgress) onToolProgress(toolCallRecord);
-      try {
-        const { result, durationMs } = await this.callMcpTool(toolName, args);
-        toolCallRecord.status = 'success';
-        toolCallRecord.result = result;
-        toolCallRecord.durationMs = durationMs;
-      } catch (err: any) {
-        toolCallRecord.status = 'error';
-        toolCallRecord.error = err.message || 'Tool execution failed';
-      }
-      if (onToolProgress) onToolProgress(toolCallRecord);
-      return toolCallRecord;
-    };
-
     for (const item of toolsToCall) {
       await runTool(item.name, item.args);
     }
@@ -507,7 +624,7 @@ const chatMessages = ref<ChatMessage[]>([
   {
     id: 'msg_welcome',
     role: 'assistant',
-    content: '👋 您好！我是 **EdgeOS 工业 AI 伴侣**。\n\n我已直连 EdgeOS `edge-mcp-server`，支持：\n- ⚡ **全站测点问诊** (`datahub_read_tags`, `datahub_scan_abnormal`)\n- 🔌 **三相电能质量与换相建议** (`dcu_analyze_power_quality`)\n- 🌡️ **变压器热寿命评估** (`smartbox_eval_transformer_life`)\n- 🔋 **储能峰谷套利策略** (`iems_optimize_tou_schedule`)\n- 🛡️ **电气五防操作校验** (`security_simulate_interlock`)\n\n您可以直接提问，或在任意看板中点击 **[ ⚡ AI 诊断 ]** 进行看图问诊！',
+    content: '👋 您好！我是 **EdgeOS 工业 AI 伴侣**。\n\n我已直连 EdgeOS `edge-mcp-server`，工具目录从服务端 `tools/list` 拉取并缓存。\n\n您可以直接提问，或在任意看板中点击 **[ ⚡ AI 诊断 ]** 进行看图问诊！',
     timestamp: Date.now(),
   },
 ]);
@@ -527,7 +644,7 @@ export function useAICopilot() {
     }
   }
 
-  async function sendUserMessage(text: string) {
+  async function sendUserMessage(text: string, hint?: ToolHint) {
     if (!text.trim() || isThinking.value) return;
 
     const userMsg: ChatMessage = {
@@ -547,7 +664,8 @@ export function useAICopilot() {
         activeContext.value || undefined,
         (progressTool) => {
           // Tool progress update
-        }
+        },
+        hint
       );
       chatMessages.value.push(assistantMsg);
     } catch (err: any) {
@@ -584,6 +702,9 @@ export function useAICopilot() {
     clearHistory,
     config: aiProviderService.getConfig(),
     isMcpConnected: aiProviderService.isConnected,
+    tools: aiProviderService.tools,
+    toolsSource: aiProviderService.toolsSource,
+    refreshTools: () => aiProviderService.fetchTools(true),
     callMcpTool: (tool: string, args: any) => aiProviderService.callMcpTool(tool, args),
   };
 }

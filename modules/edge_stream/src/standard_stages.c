@@ -96,6 +96,23 @@ typedef struct {
     uint32_t meas_dim;
 } _kf_st_t;
 
+#define STAGE_CFG_CAP 256
+#define STAGE_STATE_CAP 2048
+_Static_assert(sizeof(_range_cfg_t) <= STAGE_CFG_CAP, "range cfg exceeds stage cfg storage");
+_Static_assert(sizeof(_trans_cfg_t) <= STAGE_CFG_CAP, "transform cfg exceeds stage cfg storage");
+_Static_assert(sizeof(_ema_cfg_t) <= STAGE_CFG_CAP, "ema cfg exceeds stage cfg storage");
+_Static_assert(sizeof(_clamp_cfg_t) <= STAGE_CFG_CAP, "clamp cfg exceeds stage cfg storage");
+_Static_assert(sizeof(_reflex_cfg_t) <= STAGE_CFG_CAP, "reflex cfg exceeds stage cfg storage");
+_Static_assert(sizeof(battery_limit_t) <= STAGE_CFG_CAP, "battery limits exceed stage cfg storage");
+_Static_assert(sizeof(_ema_st_t) <= STAGE_STATE_CAP, "ema state exceeds stage state storage");
+_Static_assert(sizeof(_shave_cfg_t) <= STAGE_STATE_CAP, "shave cfg exceeds stage state storage");
+_Static_assert(sizeof(_freeze_st_t) <= STAGE_STATE_CAP, "freeze state exceeds stage state storage");
+_Static_assert(sizeof(_tg_st_t) <= STAGE_STATE_CAP, "time guard state exceeds stage state storage");
+_Static_assert(sizeof(_sink_cfg_t) <= STAGE_STATE_CAP, "sink cfg exceeds stage state storage");
+_Static_assert(sizeof(_ma_st_t) <= STAGE_STATE_CAP, "ma state exceeds stage state storage");
+_Static_assert(sizeof(_rbe_st_t) <= STAGE_STATE_CAP, "rbe state exceeds stage state storage");
+_Static_assert(sizeof(_kf_st_t) <= STAGE_STATE_CAP, "kf state exceeds stage state storage");
+
 // --- Process Callbacks ---
 
 static stage_ret_t _filter_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
@@ -237,7 +254,6 @@ static stage_ret_t _reflex_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
 static void _ma_cleanup(void *p) {
     _ma_st_t *st = p;
     if (st->window) free(st->window);
-    free(st);
 }
 
 static stage_ret_t _ma_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
@@ -298,7 +314,6 @@ static void _kf_cleanup(void *p) {
     edge_matrix_free(st->kf.x); edge_matrix_free(st->kf.P);
     edge_matrix_free(st->kf.Q); edge_matrix_free(st->kf.R);
     edge_matrix_free(st->kf.K);
-    free(st);
 }
 
 static stage_ret_t _foc_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
@@ -314,112 +329,104 @@ static stage_ret_t _foc_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
 
 // --- V2 Factories (Primary) ---
 
+static pipeline_stage_t *_stage_node(const char *name, stage_proc_fn proc) {
+    pipeline_stage_t *s = stream_stage_alloc_node();
+    strncpy(s->name, name, 31);
+    s->process = proc;
+    return s;
+}
+
 pipeline_stage_t *stage_filter_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
     (void)ctx;
     uint32_t tag_id = (uint32_t)def->params.u1;
-    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
-    strncpy(s->name, "filter", 31);
-    s->process = _filter_proc;
+    pipeline_stage_t *s = _stage_node("filter", _filter_proc);
     s->priv_cfg = (void *)(uintptr_t)tag_id;
     return s;
 }
 
 pipeline_stage_t *stage_filter_range_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
     (void)ctx;
-    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
-    strncpy(s->name, "filter_range", 31);
-    s->process = _range_proc;
-    _range_cfg_t *c = malloc(sizeof(_range_cfg_t));
+    pipeline_stage_t *s = _stage_node("filter_range", _range_proc);
+    _range_cfg_t *c = (_range_cfg_t *)s->storage_cfg;
+    memset(c, 0, sizeof(*c));
     c->min = def->params.f1;
     c->max = def->params.f2;
     s->priv_cfg = c;
-    s->cleanup_cfg = free;
     return s;
 }
 
 pipeline_stage_t *stage_transform_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
     (void)ctx;
-    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
-    strncpy(s->name, "transform", 31);
-    s->process = _trans_proc;
-    _trans_cfg_t *c = malloc(sizeof(_trans_cfg_t));
+    pipeline_stage_t *s = _stage_node("transform", _trans_proc);
+    _trans_cfg_t *c = (_trans_cfg_t *)s->storage_cfg;
+    memset(c, 0, sizeof(*c));
     c->a = def->params.f1;
     c->b = def->params.f2;
     s->priv_cfg = c;
-    s->cleanup_cfg = free;
     return s;
 }
 
 pipeline_stage_t *stage_ema_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
     (void)ctx;
-    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
-    strncpy(s->name, "ema", 31);
-    s->process = _ema_proc;
-    _ema_cfg_t *c = malloc(sizeof(_ema_cfg_t));
+    pipeline_stage_t *s = _stage_node("ema", _ema_proc);
+    _ema_cfg_t *c = (_ema_cfg_t *)s->storage_cfg;
+    _ema_st_t *st = (_ema_st_t *)s->storage_state;
+    memset(c, 0, sizeof(*c));
+    memset(st, 0, sizeof(*st));
     c->alpha = def->params.f1;
     s->priv_cfg = c;
-    s->cleanup_cfg = free;
-    s->priv_state = calloc(1, sizeof(_ema_st_t));
-    s->cleanup_state = free;
+    s->priv_state = st;
     return s;
 }
 
 pipeline_stage_t *stage_clamp_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
     (void)ctx;
-    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
-    strncpy(s->name, "clamp", 31);
-    s->process = _clamp_proc;
-    _clamp_cfg_t *c = malloc(sizeof(_clamp_cfg_t));
+    pipeline_stage_t *s = _stage_node("clamp", _clamp_proc);
+    _clamp_cfg_t *c = (_clamp_cfg_t *)s->storage_cfg;
+    memset(c, 0, sizeof(*c));
     c->min = def->params.f1;
     c->max = def->params.f2;
     s->priv_cfg = c;
-    s->cleanup_cfg = free;
     return s;
 }
 
 pipeline_stage_t *stage_peak_shave_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
     (void)ctx;
-    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
-    strncpy(s->name, "peak_shave", 31);
-    s->process = _shave_proc;
-    _shave_cfg_t *c = calloc(1, sizeof(_shave_cfg_t));
+    pipeline_stage_t *s = _stage_node("peak_shave", _shave_proc);
+    _shave_cfg_t *c = (_shave_cfg_t *)s->storage_state;
+    memset(c, 0, sizeof(*c));
     c->algo.upper_threshold = def->params.f1;
     c->algo.max_discharge = 5000.0;
     c->ctrl_tag = (uint32_t)def->params.u1;
     s->priv_cfg = c;
-    s->cleanup_cfg = free;
     return s;
 }
 
 pipeline_stage_t *stage_accumulate_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
     (void)ctx; (void)def;
-    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
-    strncpy(s->name, "accumulate", 31);
-    s->process = _acc_proc;
-    s->priv_state = calloc(1, sizeof(double));
-    s->cleanup_state = free;
+    pipeline_stage_t *s = _stage_node("accumulate", _acc_proc);
+    double *acc = (double *)s->storage_state;
+    *acc = 0.0;
+    s->priv_state = acc;
     return s;
 }
 
 pipeline_stage_t *stage_freeze_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
     (void)ctx;
-    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
-    strncpy(s->name, "freeze", 31);
-    s->process = _freeze_proc;
-    _freeze_st_t *st = calloc(1, sizeof(_freeze_st_t));
+    pipeline_stage_t *s = _stage_node("freeze", _freeze_proc);
+    _freeze_st_t *st = (_freeze_st_t *)s->storage_state;
+    memset(st, 0, sizeof(*st));
     st->kind = (int)def->params.u1;
     s->priv_state = st;
-    s->cleanup_state = free;
     return s;
 }
 
 pipeline_stage_t *stage_time_guard_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
     (void)ctx; (void)def;
-    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
-    strncpy(s->name, "time_guard", 31);
-    s->process = _tg_proc;
-    s->priv_state = calloc(1, sizeof(_tg_st_t));
-    s->cleanup_state = free;
+    pipeline_stage_t *s = _stage_node("time_guard", _tg_proc);
+    _tg_st_t *st = (_tg_st_t *)s->storage_state;
+    memset(st, 0, sizeof(*st));
+    s->priv_state = st;
     return s;
 }
 
@@ -440,14 +447,12 @@ pipeline_stage_t *stage_sqlite_sink_create_v2(const edge_stage_def_t *def, pipel
         LOG_ERROR(LOG_CAT_CORE, "SQLite Sink: Invalid table name '%s'", def->params.s1);
         return NULL;
     }
-    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
-    strncpy(s->name, "sqlite_sink", 31);
-    s->process = _sink_proc;
-    _sink_cfg_t *c = malloc(sizeof(_sink_cfg_t));
+    pipeline_stage_t *s = _stage_node("sqlite_sink", _sink_proc);
+    _sink_cfg_t *c = (_sink_cfg_t *)s->storage_state;
+    memset(c, 0, sizeof(*c));
     c->db = ctx->db;
     strncpy(c->table, def->params.s1, 63);
     s->priv_cfg = c;
-    s->cleanup_cfg = free;
     char sql[256];
     snprintf(sql, sizeof(sql), "CREATE TABLE IF NOT EXISTS %s (tag_id INTEGER, value REAL, ts INTEGER)", c->table);
     stream_sqlite_exec(&c->db, sql);
@@ -456,10 +461,9 @@ pipeline_stage_t *stage_sqlite_sink_create_v2(const edge_stage_def_t *def, pipel
 
 pipeline_stage_t *stage_reflex_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
     if (!ctx->control_ops.submit_control) return NULL;
-    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
-    strncpy(s->name, "reflex", 31);
-    s->process = _reflex_proc;
-    _reflex_cfg_t *c = calloc(1, sizeof(_reflex_cfg_t));
+    pipeline_stage_t *s = _stage_node("reflex", _reflex_proc);
+    _reflex_cfg_t *c = (_reflex_cfg_t *)s->storage_cfg;
+    memset(c, 0, sizeof(*c));
     c->control_ops = ctx->control_ops;
     c->bus_id = 0;
     if (def->params.s1) strncpy(c->proto, def->params.s1, 15);
@@ -468,7 +472,6 @@ pipeline_stage_t *stage_reflex_create_v2(const edge_stage_def_t *def, pipeline_l
     c->greater_than = (def->params.f2 > 0.5);
     c->action_value = def->params.f3;
     s->priv_cfg = c;
-    s->cleanup_cfg = free;
     return s;
 }
 
@@ -476,10 +479,9 @@ pipeline_stage_t *stage_moving_average_create_v2(const edge_stage_def_t *def, pi
     (void)ctx;
     uint32_t window_size = (uint32_t)def->params.u1;
     if (window_size == 0) window_size = 1;
-    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
-    strncpy(s->name, "moving_average", 31);
-    s->process = _ma_proc;
-    _ma_st_t *st = calloc(1, sizeof(_ma_st_t));
+    pipeline_stage_t *s = _stage_node("moving_average", _ma_proc);
+    _ma_st_t *st = (_ma_st_t *)s->storage_state;
+    memset(st, 0, sizeof(*st));
     st->size = window_size;
     st->window = calloc(window_size, sizeof(double));
     s->priv_state = st;
@@ -489,13 +491,11 @@ pipeline_stage_t *stage_moving_average_create_v2(const edge_stage_def_t *def, pi
 
 pipeline_stage_t *stage_rbe_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
     (void)ctx;
-    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
-    strncpy(s->name, "rbe", 31);
-    s->process = _rbe_proc;
-    _rbe_st_t *st = calloc(1, sizeof(_rbe_st_t));
+    pipeline_stage_t *s = _stage_node("rbe", _rbe_proc);
+    _rbe_st_t *st = (_rbe_st_t *)s->storage_state;
+    memset(st, 0, sizeof(*st));
     st->threshold_pct = def->params.f1;
     s->priv_state = st;
-    s->cleanup_state = free;
     return s;
 }
 
@@ -503,9 +503,7 @@ pipeline_stage_t *stage_fir_filter_create_v2(const edge_stage_def_t *def, pipeli
     (void)ctx; (void)def;
     double dummy_taps[] = {0.2, 0.2, 0.2, 0.2, 0.2};
     dsp_fir_t *fir = dsp_fir_create(dummy_taps, 5);
-    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
-    strncpy(s->name, "fir_filter", 31);
-    s->process = _fir_proc;
+    pipeline_stage_t *s = _stage_node("fir_filter", _fir_proc);
     s->priv_state = fir;
     s->cleanup_state = (stage_cleanup_fn)dsp_fir_free;
     return s;
@@ -514,16 +512,15 @@ pipeline_stage_t *stage_fir_filter_create_v2(const edge_stage_def_t *def, pipeli
 pipeline_stage_t *stage_kf_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
     (void)ctx;
     uint32_t n = (uint32_t)def->params.u1 ? (uint32_t)def->params.u1 : 1;
-    _kf_st_t *st = calloc(1, sizeof(_kf_st_t));
+    pipeline_stage_t *s = _stage_node("kalman_filter", _kf_proc);
+    _kf_st_t *st = (_kf_st_t *)s->storage_state;
+    memset(st, 0, sizeof(*st));
     st->state_dim = n;
     st->meas_dim = 1;
     control_kf_init(&st->kf, n, 1);
     edge_matrix_identity(st->kf.P);
     edge_matrix_identity(st->kf.Q);
     edge_matrix_identity(st->kf.R);
-    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
-    strncpy(s->name, "kalman_filter", 31);
-    s->process = _kf_proc;
     s->priv_state = st;
     s->cleanup_state = _kf_cleanup;
     return s;
@@ -531,19 +528,20 @@ pipeline_stage_t *stage_kf_create_v2(const edge_stage_def_t *def, pipeline_loade
 
 pipeline_stage_t *stage_foc_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
     (void)ctx;
-    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
-    strncpy(s->name, "foc_svpwm", 31);
-    s->process = _foc_proc;
+    pipeline_stage_t *s = _stage_node("foc_svpwm", _foc_proc);
     s->priv_cfg = (void *)(uintptr_t)def->params.f1;
     return s;
 }
 
 pipeline_stage_t *stage_battery_guard_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
     (void)ctx;
-    battery_limit_t *limits = calloc(1, sizeof(battery_limit_t));
+    pipeline_stage_t *s = _stage_node("batt_guard", _batt_proc);
+    battery_limit_t *limits = (battery_limit_t *)s->storage_cfg;
+    memset(limits, 0, sizeof(*limits));
     limits->max_charge_pwr = (float)def->params.f1;
     limits->max_discharge_pwr = (float)def->params.f2;
-    return stage_battery_guard_create(limits);
+    s->priv_cfg = limits;
+    return s;
 }
 
 // --- V1 Wrappers (Compatibility) ---

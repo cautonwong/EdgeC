@@ -74,6 +74,13 @@ TEST_MATRIX = [
         "arg_flag": "--file"
     },
     {
+        "guard_name": "check_sbom.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_sbom.py"),
+        "good_target": REPO_ROOT,
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_sbom"),
+        "arg_flag": "--root"
+    },
+    {
         "guard_name": "check_exemptions.py",
         "script": os.path.join(SCRIPTS_DIR, "check_exemptions.py"),
         "good_target": os.path.join(REPO_ROOT, "ci", "exemptions.json"),
@@ -304,8 +311,11 @@ def main():
         "check_component_boundary.py",
         "check_product_build_graph.py",
         "check_component_metadata.py",
+        "check_public_structs.py",
+        "check_resource_discipline.py",
         "check_composition_root_budget.py",
         "check_baseline_caps.py",
+        "check_sdk_wit.py",
     ]:
         script_path = os.path.join(SCRIPTS_DIR, script_name)
         flag = "--file" if "dependencies" in script_name or "exemptions" in script_name else "--root"

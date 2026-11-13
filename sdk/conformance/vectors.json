@@ -1,0 +1,124 @@
+{
+  "abi_version": "1.0.0",
+  "sdk_version": "1.0.0",
+  "framing": {
+    "length_prefix_bytes": 4,
+    "byte_order": "big-endian",
+    "encoding": "utf-8 json",
+    "request": {"id": 1, "fn": "point_read", "args": {"handle": 7}},
+    "response_ok": {"id": 1, "ok": true, "result": {"value": {"float": 220.5}, "quality": "good", "source_ts": 1720000000000}},
+    "response_error": {"id": 1, "ok": false, "code": "denied_scope"}
+  },
+  "error_codes": [
+    "denied_not_granted",
+    "denied_scope",
+    "denied_expired",
+    "denied_revoked",
+    "denied_policy",
+    "denied_quota",
+    "denied_package_mismatch",
+    "denied_abi",
+    "invalid_manifest",
+    "not_found",
+    "stale",
+    "busy",
+    "invalid",
+    "internal"
+  ],
+  "vectors": [
+    {
+      "name": "resolve_read_product_point",
+      "event": {"kind": "point_change", "point": 7, "payload": null},
+      "steps": [
+        {"fn": "point_resolve", "args": {"name": "U_A"}, "expect": {"ok": true, "result": {"handle": 7, "access": "read"}}},
+        {"fn": "point_read", "args": {"handle": 7}, "expect": {"ok": true, "result": {"value": {"float": 220.5}, "quality": "good", "source_ts": 1720000000000}}},
+        {"fn": "log", "args": {"level": "info", "message": "read U_A=220.5"}, "expect": {"ok": true, "result": {}}}
+      ],
+      "expect_log": ["read U_A=220.5"]
+    },
+    {
+      "name": "resolve_own_point_publish_text",
+      "event": {"kind": "tick", "point": null, "payload": null},
+      "steps": [
+        {"fn": "point_resolve", "args": {"name": "app.demo.value"}, "expect": {"ok": true, "result": {"handle": 9, "access": "publish"}}},
+        {"fn": "point_publish", "args": {"handle": 9, "sample": {"value": {"text": "ready"}, "quality": "good", "source_ts": 0}}, "expect": {"ok": true, "result": {}}}
+      ],
+      "expect_log": []
+    },
+    {
+      "name": "subscribe_with_keepalive",
+      "event": {"kind": "point_change", "point": 8, "payload": null},
+      "steps": [
+        {"fn": "point_resolve", "args": {"name": "U_B"}, "expect": {"ok": true, "result": {"handle": 8, "access": "read"}}},
+        {"fn": "point_subscribe", "args": {"handle": 8, "deadband": 0.5, "min_interval_ms": 100, "max_interval_ms": 1000}, "expect": {"ok": true, "result": {"subscription": 3}}}
+      ],
+      "expect_log": []
+    },
+    {
+      "name": "now_and_debug_log",
+      "event": {"kind": "tick", "point": null, "payload": null},
+      "steps": [
+        {"fn": "now", "args": {}, "expect": {"ok": true, "result": {"now_ms": 1720000000123}}},
+        {"fn": "log", "args": {"level": "debug", "message": "tick"}, "expect": {"ok": true, "result": {}}}
+      ],
+      "expect_log": ["tick"]
+    },
+    {
+      "name": "denied_not_granted_resolve",
+      "event": {"kind": "point_change", "point": null, "payload": null},
+      "steps": [
+        {"fn": "point_resolve", "args": {"name": "U_C"}, "expect": {"ok": false, "code": "denied_not_granted"}}
+      ],
+      "expect_log": []
+    },
+    {
+      "name": "denied_scope_publish_on_read_handle",
+      "event": {"kind": "tick", "point": null, "payload": null},
+      "steps": [
+        {"fn": "point_resolve", "args": {"name": "U_A"}, "expect": {"ok": true, "result": {"handle": 7, "access": "read"}}},
+        {"fn": "point_publish", "args": {"handle": 7, "sample": {"value": {"float": 1.5}, "quality": "good", "source_ts": 0}}, "expect": {"ok": false, "code": "denied_scope"}}
+      ],
+      "expect_log": []
+    },
+    {
+      "name": "denied_expired_read",
+      "event": {"kind": "point_change", "point": 7, "payload": null},
+      "steps": [
+        {"fn": "point_read", "args": {"handle": 7}, "expect": {"ok": false, "code": "denied_expired"}}
+      ],
+      "expect_log": []
+    },
+    {
+      "name": "denied_revoked_read",
+      "event": {"kind": "point_change", "point": 7, "payload": null},
+      "steps": [
+        {"fn": "point_read", "args": {"handle": 7}, "expect": {"ok": false, "code": "denied_revoked"}}
+      ],
+      "expect_log": []
+    },
+    {
+      "name": "denied_policy_publish",
+      "event": {"kind": "tick", "point": null, "payload": null},
+      "steps": [
+        {"fn": "point_publish", "args": {"handle": 9, "sample": {"value": {"boolean": true}, "quality": "good", "source_ts": 0}}, "expect": {"ok": false, "code": "denied_policy"}}
+      ],
+      "expect_log": []
+    },
+    {
+      "name": "invalid_manifest_resolve",
+      "event": {"kind": "point_change", "point": null, "payload": null},
+      "steps": [
+        {"fn": "point_resolve", "args": {"name": "U_A"}, "expect": {"ok": false, "code": "invalid_manifest"}}
+      ],
+      "expect_log": []
+    },
+    {
+      "name": "denied_abi_resolve_legacy_module",
+      "event": {"kind": "point_change", "point": null, "payload": null},
+      "steps": [
+        {"fn": "point_resolve", "args": {"name": "U_A"}, "expect": {"ok": false, "code": "denied_abi"}}
+      ],
+      "expect_log": []
+    }
+  ]
+}
