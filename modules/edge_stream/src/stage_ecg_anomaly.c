@@ -24,6 +24,8 @@ typedef struct {
     bool buffer_full;
 } ecg_anomaly_ctx_t;
 
+_Static_assert(sizeof(ecg_anomaly_ctx_t) <= 2048, "ecg ctx exceeds stage state storage");
+
 static stage_ret_t _ecg_anomaly_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
     ecg_anomaly_ctx_t *ctx = (ecg_anomaly_ctx_t *)stage->priv_state;
     if (!ctx || ev->type != PIPEMSG_TYPE_SCALAR) return STAGE_ERROR;
@@ -78,12 +80,7 @@ static stage_ret_t _ecg_anomaly_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
 
 static void _ecg_anomaly_cleanup(void *priv) {
     ecg_anomaly_ctx_t *ctx = (ecg_anomaly_ctx_t *)priv;
-    if (ctx) {
-        if (ctx->buffer) free(ctx->buffer);
-        if (ctx->scratch) free(ctx->scratch);
-        if (ctx->dwt_scratch) free(ctx->dwt_scratch);
-        free(ctx);
-    }
+    if (ctx && ctx->buffer) free(ctx->buffer);
 }
 
 /**
@@ -94,26 +91,19 @@ static void _ecg_anomaly_cleanup(void *priv) {
  * @param alarm_tag 报警输出 Tag
  */
 pipeline_stage_t *stage_ecg_anomaly_create(size_t buffer_size, uint32_t level, double threshold, uint32_t alarm_tag) {
-    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
-    ecg_anomaly_ctx_t *ctx = calloc(1, sizeof(ecg_anomaly_ctx_t));
-    if (!s || !ctx) {
-        free(s);
-        free(ctx);
-        return NULL;
-    }
+    pipeline_stage_t *s = stream_stage_alloc_node();
+    ecg_anomaly_ctx_t *ctx = (ecg_anomaly_ctx_t *)s->storage_state;
+    memset(ctx, 0, sizeof(*ctx));
 
     ctx->size = buffer_size > 0 ? buffer_size : 256;
     ctx->level = level > 0 ? level : 2;
     ctx->energy_threshold = threshold > 0 ? threshold : 100.0;
     ctx->alarm_tag = alarm_tag;
-    ctx->buffer = calloc(ctx->size, sizeof(double));
-    ctx->scratch = calloc(ctx->size, sizeof(double));
-    ctx->dwt_scratch = calloc(ctx->size, sizeof(double));
-    if (!ctx->buffer || !ctx->scratch || !ctx->dwt_scratch) {
-        _ecg_anomaly_cleanup(ctx);
-        free(s);
-        return NULL;
-    }
+    double *mem = calloc(ctx->size * 3, sizeof(double));
+    if (!mem) return NULL;
+    ctx->buffer = mem;
+    ctx->scratch = mem + ctx->size;
+    ctx->dwt_scratch = mem + ctx->size * 2;
 
     strncpy(s->name, "ECG_ANOMALY", 31);
     s->process = _ecg_anomaly_proc;

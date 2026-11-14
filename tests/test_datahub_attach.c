@@ -139,7 +139,7 @@ static void test_init_rejects_size_mismatch(void **state) {
     assert_int_equal(uv_loop_close(&loop), 0);
 }
 
-static void test_init_accepts_legacy_headerless_segment(void **state) {
+static void test_init_rebuilds_stale_headerless_segment(void **state) {
     (void)state;
     uv_loop_t loop;
     assert_int_equal(uv_loop_init(&loop), 0);
@@ -162,16 +162,54 @@ static void test_init_accepts_legacy_headerless_segment(void **state) {
     datahub_storage_t storage;
     datahub_t *hub = (datahub_t *)&storage;
     assert_int_equal(datahub_init(hub, &loop, name, 64, 4, NULL, 0, NULL, NULL, NULL), 0);
+    struct stat st;
+    assert_int_equal(fstat(datahub_get_shadow_fd(hub), &st), 0);
+    assert_int_equal(st.st_size, (off_t)(DATAHUB_SHM_HEADER_SIZE + 4 * sizeof(pipe_msg_t)));
     pipe_msg_t out;
     assert_int_equal(datahub_read_shadow(hub, 2, &out), 0);
-    assert_float_equal(out.payload.val.f, 77.0, 0.001);
+    assert_int_equal(out.tag_id, 0);
     datahub_destroy(hub);
     shm_unlink(path);
     drain_loop(&loop);
     assert_int_equal(uv_loop_close(&loop), 0);
 }
 
-static void test_attach_legacy_headerless_segment(void **state) {
+static void test_rebuilt_segment_survives_reopen(void **state) {
+    (void)state;
+    uv_loop_t loop;
+    assert_int_equal(uv_loop_init(&loop), 0);
+    char name[64];
+    snprintf(name, sizeof(name), "legacy_rebuild_%d", (int)getpid());
+    char path[128];
+    shadow_path(name, path, sizeof(path));
+    shm_unlink(path);
+
+    int fd = shm_open(path, O_CREAT | O_RDWR, 0600);
+    assert_true(fd >= 0);
+    off_t size = (off_t)(4 * sizeof(pipe_msg_t));
+    assert_int_equal(ftruncate(fd, size), 0);
+    close(fd);
+
+    datahub_storage_t first_storage;
+    datahub_t *first = (datahub_t *)&first_storage;
+    assert_int_equal(datahub_init(first, &loop, name, 64, 4, NULL, 0, NULL, NULL, NULL), 0);
+    struct stat st;
+    assert_int_equal(fstat(datahub_get_shadow_fd(first), &st), 0);
+    assert_int_equal(st.st_size, (off_t)(DATAHUB_SHM_HEADER_SIZE + 4 * sizeof(pipe_msg_t)));
+    datahub_destroy(first);
+
+    datahub_storage_t second_storage;
+    datahub_t *second = (datahub_t *)&second_storage;
+    assert_int_equal(datahub_init(second, &loop, name, 64, 4, NULL, 0, NULL, NULL, NULL), 0);
+    assert_int_equal(fstat(datahub_get_shadow_fd(second), &st), 0);
+    assert_int_equal(st.st_size, (off_t)(DATAHUB_SHM_HEADER_SIZE + 4 * sizeof(pipe_msg_t)));
+    datahub_destroy(second);
+    shm_unlink(path);
+    drain_loop(&loop);
+    assert_int_equal(uv_loop_close(&loop), 0);
+}
+
+static void test_attach_rejects_headerless_segment(void **state) {
     (void)state;
     char name[64];
     snprintf(name, sizeof(name), "attach_legacy_%d", (int)getpid());
@@ -191,19 +229,16 @@ static void test_attach_legacy_headerless_segment(void **state) {
 
     datahub_storage_t storage;
     datahub_t *hub = (datahub_t *)&storage;
-    assert_int_equal(datahub_attach(hub, name), 0);
-    pipe_msg_t out;
-    assert_int_equal(datahub_read_shadow(hub, 1, &out), 0);
-    assert_float_equal(out.payload.val.f, 123.0, 0.001);
-    datahub_destroy(hub);
+    assert_int_equal(datahub_attach(hub, name), -1);
     shm_unlink(path);
 }
 
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_init_after_init_preserves_shadow),
-        cmocka_unit_test(test_init_accepts_legacy_headerless_segment),
-        cmocka_unit_test(test_attach_legacy_headerless_segment),
+        cmocka_unit_test(test_init_rebuilds_stale_headerless_segment),
+        cmocka_unit_test(test_rebuilt_segment_survives_reopen),
+        cmocka_unit_test(test_attach_rejects_headerless_segment),
         cmocka_unit_test(test_attach_preserves_existing_shadow),
         cmocka_unit_test(test_attach_missing_segment_fails),
         cmocka_unit_test(test_init_rejects_size_mismatch),

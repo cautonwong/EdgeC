@@ -23,7 +23,6 @@ struct datahub_s {
     size_t shadow_size;
     uint32_t shadow_capacity;
     bool shadow_owner;
-    bool shadow_legacy;
     char shadow_shm_name[256];
 
     // --- [Dynamic Chunking & Hot Schema] ---

@@ -6,6 +6,8 @@
 #include <string.h>
 #include <uv.h>
 
+#include "app_points_sqlite.h"
+#include "datahub_priv.h"
 #include "dcu_inventory.h"
 #include "dcu_poller.h"
 #include "dcu_router.h"
@@ -141,21 +143,57 @@ static void test_dcu_router_dispatch(void** state) {
 static void test_slot_upper_bound_fits_capacity(void** state) {
     (void)state;
 
-    /* 用公式自己的最大 tag_slot 去顶：任何 OAD 的 slot 都 < SLOTS_PER_DEVICE */
+    /* 产品点位的最大 tag 仍是 OAD 形态，必须映射回产品区。 */
     int worst = dcu_tag_map_fn(0xFFFFFFFFu, MAX_METERS - 1);
     assert_true(worst >= 0);
-    assert_true((size_t)worst < (size_t)MAX_METERS * DCU_SLOTS_PER_DEVICE);
+    assert_true((size_t)worst < (size_t)DCU_APP_BASE);
 
     /* 常用点位也要在范围内（防止某天改公式时把上界顶出容量） */
     int v = dcu_tag_map_fn(0x20000200u, MAX_METERS - 1);
     assert_true(v >= 0);
-    assert_true((size_t)v < (size_t)MAX_METERS * DCU_SLOTS_PER_DEVICE);
+    assert_true((size_t)v < (size_t)DCU_APP_BASE);
+
+    /* 应用点位区返回 -1，DataHub 用 idx = tag_id 承载；容量覆盖最后一个应用槽。 */
+    assert_int_equal(dcu_tag_map_fn(DCU_APP_BASE, 0), -1);
+    assert_int_equal(dcu_tag_map_fn(DCU_APP_BASE + DCU_APP_SLOT_TOTAL - 1, 7), -1);
+    assert_true(dcu_tag_map_fn(DCU_APP_BASE + DCU_APP_SLOT_TOTAL, 0) >= 0);
+    assert_true((size_t)DCU_APP_BASE + DCU_APP_SLOT_TOTAL <= (size_t)DCU_SHADOW_CAPACITY);
+    _Static_assert(DCU_APP_SLOT_TOTAL == APP_POINT_SLOT_TOTAL,
+                   "DCU app slots must match the registry slot total");
+}
+
+/* 应用点位不经过槽位公式：DataHub 以 idx = tag_id 写影子表，且容量覆盖最后一个槽。 */
+static void test_app_tag_shadow_fallback(void** state) {
+    (void)state;
+    uv_loop_t loop;
+    assert_int_equal(uv_loop_init(&loop), 0);
+    datahub_t *hub = calloc(1, sizeof(datahub_t));
+    assert_non_null(hub);
+    assert_int_equal(datahub_init(hub, &loop, "test_dcu_app_tags", 64, DCU_SHADOW_CAPACITY, NULL,
+                                  0, NULL, NULL, NULL),
+                     0);
+    datahub_set_tag_mapper_v2(hub, dcu_tag_map_fn);
+
+    pipe_msg_t msg;
+    pipe_msg_init_scalar(&msg, DCU_APP_BASE + 5, 12.5, uv_hrtime());
+    assert_int_equal(datahub_write_shadow(hub, &msg), 0);
+
+    pipe_msg_t out;
+    memset(&out, 0, sizeof(out));
+    assert_int_equal(datahub_read_shadow(hub, DCU_APP_BASE + 5, &out), 0);
+    assert_true(out.payload.val.f == 12.5);
+
+    datahub_destroy(hub);
+    free(hub);
+    uv_run(&loop, UV_RUN_DEFAULT);
+    uv_loop_close(&loop);
 }
 
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_dcu_router_dispatch),
         cmocka_unit_test(test_slot_upper_bound_fits_capacity),
+        cmocka_unit_test(test_app_tag_shadow_fallback),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

@@ -1,0 +1,17 @@
+name=edge_app_host
+version=0.1.0
+maturity=incubating
+owner=@cautonwong
+backup_owner=unassigned
+subdomain=supporting
+language=c
+abi_stability=source-only
+foundation=>=0.1 <1
+ports_required=app_host_ports
+ports_optional=
+allowed_owners=
+rom_bytes_max=12288
+ram_bytes_max=1024
+stack_bytes_max=0
+heap=none
+lts=false

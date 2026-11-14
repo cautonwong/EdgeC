@@ -21,6 +21,16 @@ extern "C" {
 typedef struct service_s service_t;
 
 /**
+ * @brief 控制面服务的 DataHub 访问端口。组合根负责从具体 DataHub 适配。
+ */
+typedef struct {
+    void *ctx;
+    uv_loop_t *(*get_loop)(void *ctx);
+    int (*read_ring)(void *ctx, uint64_t *inout_seq, pipe_msg_t *out_msg);
+    void (*subscribe)(void *ctx, datahub_on_data_cb cb, void *user_data);
+} edge_service_datahub_port_t;
+
+/**
  * @brief [Issue #367] 微服务核心预分配存储 (Caller-Allocated Storage)
  */
 typedef struct {

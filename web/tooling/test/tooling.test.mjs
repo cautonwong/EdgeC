@@ -3,7 +3,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { canonicalJson, digestOf, sha256 } from '../lib/util.mjs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { canonicalJson, digestOf, listFiles, sha256 } from '../lib/util.mjs';
 import { buildRegistry } from '../lib/registry.mjs';
 import { loadCatalog, loadCoreManifest, loadProduct, expandPermissions } from '../lib/manifest.mjs';
 import { checkBoundaries } from '../lib/boundaries.mjs';
@@ -117,4 +121,22 @@ test('Core 模块清单与产品清单可加载且互相一致', () => {
 test('通配符展开对未知域返回空集而不是抛错', () => {
   const catalog = loadCatalog();
   assert.deepEqual(expandPermissions(['unknown.*:*'], catalog, null, 'test'), []);
+});
+
+test('源码树遍历跳过 node_modules、dist 与 generated', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'edge-listfiles-'));
+  try {
+    mkdirSync(join(root, 'src', 'generated'), { recursive: true });
+    mkdirSync(join(root, 'dist'), { recursive: true });
+    mkdirSync(join(root, 'node_modules'), { recursive: true });
+    writeFileSync(join(root, 'src', 'page.ts'), 'export {};\n');
+    writeFileSync(join(root, 'src', 'generated', 'registry.json'), '{}\n');
+    writeFileSync(join(root, 'dist', 'app.js'), 'console.log(1);\n');
+    writeFileSync(join(root, 'node_modules', 'dep.ts'), 'export {};\n');
+
+    const files = await listFiles(root, (file) => /\.(ts|js|json)$/.test(file));
+    assert.deepEqual(files, [join(root, 'src', 'page.ts')]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

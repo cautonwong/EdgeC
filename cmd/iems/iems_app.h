@@ -30,6 +30,11 @@ typedef struct {
     const char *snap_path;
     const char *mqtt_url;
     int rest_port;
+    // REST 管理面绑定地址;NULL = 127.0.0.1。由组合根从 EDGE_REST_BIND 读一次传进来。
+    const char *rest_bind;
+    // 旧 /api/v1/apps/upload (raw wasm) 入口;默认 false,仅迁移期由
+    // EDGE_REST_LEGACY_UPLOAD=1 显式开启。
+    bool rest_legacy_upload;
     // 北向 Modbus 从站的 UDS 路径;NULL = 契约表里的 simulation_path(再空则退回
     // /tmp/iems_north_slave.sock,仅第一条北向总线;第二条无路径会报错跳过)。
     // 只覆盖**第一条** NORTHBOUND 总线,多条时其余按契约表各自的 simulation_path。

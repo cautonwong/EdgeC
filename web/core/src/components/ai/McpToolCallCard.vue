@@ -1,5 +1,10 @@
 <template>
-  <div class="rounded-xl border border-slate-700/60 bg-slate-900/90 overflow-hidden text-xs shadow-md my-2 font-mono">
+  <div
+    data-testid="mcp-tool-call"
+    :data-tool-name="tool.toolName"
+    :data-status="tool.status"
+    class="rounded-xl border border-slate-700/60 bg-slate-900/90 overflow-hidden text-xs shadow-md my-2 font-mono"
+  >
     <!-- Header Bar -->
     <div 
       class="px-3 py-2 bg-slate-800/80 flex items-center justify-between cursor-pointer select-none hover:bg-slate-800 transition-colors"

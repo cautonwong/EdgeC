@@ -1,0 +1,12 @@
+# Public struct audit baseline. Format: path|name|class
+# Classes: value, interface, handle, legacy. See docs/design/PUBLIC_STRUCT_AUDIT.md.
+include/bus_engine.h|bus_engine_s|interface
+include/edge_ui.h|ui_hal_s|interface
+include/edge_ui.h|ui_page_s|interface
+include/edge_ui.h|ui_service_s|legacy
+include/sched_time.h|uv_periodic_s|handle
+modules/edge_infra/include/npu_hal.h|npu_device|handle
+modules/edge_infra/include/storage_ops.h|storage_driver_s|interface
+modules/edge_mcp/include/edgeos/mcp_transport.h|mcp_transport_s|interface
+modules/edge_stream/include/stream_engine.h|pipeline_stage_s|handle
+modules/edge_stream/include/stream_engine.h|pipeline_loader_ctx_s|value

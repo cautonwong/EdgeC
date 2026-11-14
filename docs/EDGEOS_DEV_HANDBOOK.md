@@ -69,6 +69,14 @@ graph TD
 ./test.sh
 ```
 
+#### Sanitizer 矩阵
+
+- 开关是 `-DENABLE_ASAN=ON`、`-DENABLE_UBSAN=ON`、`-DENABLE_TSAN=ON`。
+- CI 在 `ubuntu-22.04` 上跑 `x86_64_asan`、`x86_64_tsan`、`x86_64_ubsan` 三个矩阵，都执行 `ctest`。
+- 本地 WSL2（内核 6.6）上 TSAN 起不来，报 `FATAL: ThreadSanitizer: unexpected memory mapping`。
+  `setarch $(uname -m) -R` 被容器 seccomp 拒绝（`failed to set personality`），把 `vm.mmap_rnd_bits` 调到 28 也没有消除冲突。
+  本地只跑 ASAN 和 UBSAN，TSAN 以 CI 的 `x86_64_tsan` 任务为准；本地这条失败不算代码回归。
+
 #### ARM64 (Aarch64) 交叉编译 (CPack 生成包)
 ```bash
 # 进入构建目录，加载交叉编译工具链

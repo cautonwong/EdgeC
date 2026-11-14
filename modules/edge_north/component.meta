@@ -10,8 +10,8 @@ foundation=>=0.1 <1
 ports_required=nb_source,snf_store
 ports_optional=
 allowed_owners=
-rom_bytes_max=0
-ram_bytes_max=0
+rom_bytes_max=24576
+ram_bytes_max=13312
 stack_bytes_max=0
 heap=none
 lts=false

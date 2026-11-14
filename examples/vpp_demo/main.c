@@ -55,7 +55,9 @@ int main(int argc, char** argv) {
     stream_engine_t* stream_engine =
         stream_engine_create_datahub(&hub, uv_default_loop(), NULL, edge_stage_factory_get_registry());
     edge_params_store_t param_store = edge_params_sqlite_store(db_service);
-    edge_params_t* param_mgr = edge_params_create(&param_store, &hub);
+    edge_bus_datahub_port_t param_port = edge_bus_datahub_port(&hub);
+    edge_params_storage_t param_storage;
+    edge_params_t* param_mgr = edge_params_create_in(&param_storage, &param_store, &param_port);
 
     northbound_mgr_t* north_mgr = calloc(1, sizeof(northbound_mgr_t));
     snf_store_port_t snf_store = snf_sqlite_store_port(db_service);

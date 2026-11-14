@@ -8,13 +8,17 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define IIR_MAX_ORDER 32
+
 typedef struct {
-    double *b;       // 分子系数
-    double *a;       // 分母系数 (a0 默认为 1.0)
-    double *x_hist;  // 输入历史
-    double *y_hist;  // 输出历史
-    uint32_t order;  // 阶数
+    double b[IIR_MAX_ORDER + 1];      // 分子系数
+    double a[IIR_MAX_ORDER + 1];      // 分母系数 (a0 默认为 1.0)
+    double x_hist[IIR_MAX_ORDER];     // 输入历史
+    double y_hist[IIR_MAX_ORDER];     // 输出历史
+    uint32_t order;                   // 阶数
 } iir_filter_ctx_t;
+
+_Static_assert(sizeof(iir_filter_ctx_t) <= 2048, "iir ctx exceeds stage state storage");
 
 static stage_ret_t _iir_filter_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
     iir_filter_ctx_t *ctx = (iir_filter_ctx_t *)stage->priv_state;
@@ -42,12 +46,7 @@ static stage_ret_t _iir_filter_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
 }
 
 static void _iir_filter_cleanup(void *priv) {
-    iir_filter_ctx_t *ctx = (iir_filter_ctx_t *)priv;
-    if (ctx) {
-        free(ctx->b); free(ctx->a);
-        free(ctx->x_hist); free(ctx->y_hist);
-        free(ctx);
-    }
+    (void)priv;
 }
 
 /**
@@ -57,22 +56,19 @@ static void _iir_filter_cleanup(void *priv) {
  * @param a 分母系数数组 (长度 order + 1, a[0] 忽略)
  */
 pipeline_stage_t *stage_iir_filter_create(uint32_t order, const double *b, const double *a) {
-    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
-    iir_filter_ctx_t *ctx = calloc(1, sizeof(iir_filter_ctx_t));
-    
+    if (order == 0 || order > IIR_MAX_ORDER || !b || !a) return NULL;
+    pipeline_stage_t *s = stream_stage_alloc_node();
+    iir_filter_ctx_t *ctx = (iir_filter_ctx_t *)s->storage_state;
+    memset(ctx, 0, sizeof(*ctx));
+
     ctx->order = order;
-    ctx->b = malloc((order + 1) * sizeof(double));
-    ctx->a = malloc((order + 1) * sizeof(double));
-    ctx->x_hist = calloc(order, sizeof(double));
-    ctx->y_hist = calloc(order, sizeof(double));
-    
     memcpy(ctx->b, b, (order + 1) * sizeof(double));
     memcpy(ctx->a, a, (order + 1) * sizeof(double));
-    
+
     snprintf(s->name, 31, "IIR_Filter_%u", order);
     s->process = _iir_filter_proc;
     s->priv_state = ctx;
-    s->cleanup_state = _iir_filter_cleanup;
-    
+    s->cleanup_state = NULL;
+
     return s;
 }

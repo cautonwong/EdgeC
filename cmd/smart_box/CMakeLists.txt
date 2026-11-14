@@ -31,6 +31,7 @@ target_link_libraries(smartbox_app_lib PUBLIC
     edge_core
     edge_codec
     edge_stream
+    edge_linux_platform
     edge_infra
     edge_ai
     edge_battery

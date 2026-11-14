@@ -18,8 +18,8 @@
 // remaining reason edge_infra depends on edge_mgmt; tracked as bounded-context debt
 // in #414 (they belong with the app manager, not with the storage engine).
 
-// 数据库架构版本 (V5: 支持 App Registry 持久化)
-#define EDGE_DB_SCHEMA_VERSION 5
+// 数据库架构版本 (V9: 轻量任务)
+#define EDGE_DB_SCHEMA_VERSION 14
 
 typedef struct {
     PipeMsg *buffer;
@@ -116,60 +116,226 @@ static void _ensure_shard_exists(sqlite_svc_t *svc, const char *table_name) {
 }
 
 // --- 2. 模式迁移 (Migration) ---
+//
+// 迁移只增不改：已发布的迁移 SQL 不可再编辑，否则 schema_migration 中的 checksum 会对不上。
+// 需要变更结构时追加新版本，不要改写旧版本。
+
+typedef struct {
+    int version;
+    const char *name;
+    const char *sql;
+} db_migration_t;
+
+static const db_migration_t k_migrations[] = {
+    {1, "telemetry_inventory",
+     "CREATE TABLE IF NOT EXISTS telemetry (ts INT, tag_id INT, val REAL, q INT, synced INT "
+     "DEFAULT 0, PRIMARY KEY(ts, tag_id)) WITHOUT ROWID;"
+     "CREATE TABLE IF NOT EXISTS inventory (id TEXT PRIMARY KEY, type TEXT, addr INT, protocol "
+     "TEXT, enabled INT DEFAULT 1);"},
+    {2, "edge_settings",
+     "CREATE TABLE IF NOT EXISTS edge_settings (product TEXT, tag_id INT, val BLOB, PRIMARY "
+     "KEY(product, tag_id));"},
+    {3, "telemetry_tag_index",
+     "CREATE INDEX IF NOT EXISTS idx_telemetry_tag ON telemetry(tag_id);"},
+    // v3 原实现 DROP 了 edge_settings，会丢数据；v1/v2 建的表本来就有 BLOB 亲和性，这里只做幂等补建。
+    {4, "edge_settings_blob_shape",
+     "CREATE TABLE IF NOT EXISTS edge_settings (product TEXT, tag_id INT, val BLOB, PRIMARY "
+     "KEY(product, tag_id));"},
+    {5, "app_registry",
+     "CREATE TABLE IF NOT EXISTS app_registry ("
+     "id TEXT PRIMARY KEY, name TEXT, version TEXT, author TEXT, wasm_path TEXT, trigger_tag INT, "
+     "entry_func TEXT, fault_policy INT, heap_limit_kb INT, timeout_ms INT, state INT, "
+     "restart_count INT, created_at INT);"},
+    {6, "app_grant_authz",
+     "CREATE TABLE IF NOT EXISTS app_grant ("
+     "app_id TEXT NOT NULL, capability TEXT NOT NULL, scope_json TEXT, state INTEGER, purpose TEXT, "
+     "expires_at INTEGER, sensitivity_max INTEGER, granted_by TEXT, granted_at INTEGER, "
+     "revoked_at INTEGER, PRIMARY KEY(app_id, capability));"
+     "CREATE TABLE IF NOT EXISTS publisher_trust ("
+     "publisher_id TEXT PRIMARY KEY, trust_level INTEGER, verified INTEGER);"
+     "CREATE TABLE IF NOT EXISTS point_profile (scope TEXT PRIMARY KEY, sensitivity INTEGER);"},
+    {7, "app_pressure_fields",
+     "ALTER TABLE app_registry ADD COLUMN priority INTEGER NOT NULL DEFAULT 0;"
+     "ALTER TABLE app_registry ADD COLUMN keep_alive INTEGER NOT NULL DEFAULT 0;"
+     "ALTER TABLE app_registry ADD COLUMN desired_state INTEGER NOT NULL DEFAULT 1;"
+     "ALTER TABLE app_registry ADD COLUMN last_active_ms INTEGER NOT NULL DEFAULT 0;"},
+    {8, "app_secret",
+     "CREATE TABLE IF NOT EXISTS app_secret ("
+     "app_id TEXT NOT NULL, name TEXT NOT NULL, value BLOB NOT NULL, PRIMARY KEY(app_id, name));"},
+    {9, "app_task",
+     "CREATE TABLE IF NOT EXISTS app_task ("
+     "id TEXT PRIMARY KEY, kind INTEGER NOT NULL, idempotency_key TEXT NOT NULL UNIQUE, "
+     "state INTEGER NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, "
+     "result_json TEXT);"},
+    {10, "app_registry_prev_version",
+     "ALTER TABLE app_registry ADD COLUMN prev_version TEXT NOT NULL DEFAULT '';"
+     "ALTER TABLE app_registry ADD COLUMN prev_manifest_json TEXT NOT NULL DEFAULT '';"
+     "ALTER TABLE app_registry ADD COLUMN prev_wasm_path TEXT NOT NULL DEFAULT '';"},
+    {11, "registry_generation",
+     "CREATE TABLE IF NOT EXISTS registry_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);"
+     "INSERT OR IGNORE INTO registry_meta (key, value) VALUES ('generation', '0');"
+     "CREATE TRIGGER IF NOT EXISTS app_registry_gen_insert AFTER INSERT ON app_registry BEGIN "
+     "UPDATE registry_meta SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) "
+     "WHERE key = 'generation'; END;"
+     "CREATE TRIGGER IF NOT EXISTS app_registry_gen_update AFTER UPDATE ON app_registry BEGIN "
+     "UPDATE registry_meta SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) "
+     "WHERE key = 'generation'; END;"
+     "CREATE TRIGGER IF NOT EXISTS app_registry_gen_delete AFTER DELETE ON app_registry BEGIN "
+     "UPDATE registry_meta SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) "
+     "WHERE key = 'generation'; END;"
+     "CREATE TRIGGER IF NOT EXISTS app_grant_gen_insert AFTER INSERT ON app_grant BEGIN "
+     "UPDATE registry_meta SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) "
+     "WHERE key = 'generation'; END;"
+     "CREATE TRIGGER IF NOT EXISTS app_grant_gen_update AFTER UPDATE ON app_grant BEGIN "
+     "UPDATE registry_meta SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) "
+     "WHERE key = 'generation'; END;"
+     "CREATE TRIGGER IF NOT EXISTS app_grant_gen_delete AFTER DELETE ON app_grant BEGIN "
+     "UPDATE registry_meta SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) "
+     "WHERE key = 'generation'; END;"},
+    {12, "app_point_slots",
+     "CREATE TABLE IF NOT EXISTS app_point ("
+     "app_id TEXT NOT NULL, name TEXT NOT NULL, slot INTEGER NOT NULL, type INTEGER NOT NULL, "
+     "unit TEXT, contract_version INTEGER NOT NULL, retention INTEGER NOT NULL, "
+     "stale_after_ms INTEGER NOT NULL, stability INTEGER NOT NULL, source INTEGER NOT NULL, "
+     "PRIMARY KEY(app_id, name));"
+     "CREATE UNIQUE INDEX IF NOT EXISTS idx_app_point_slot ON app_point(slot);"
+     "CREATE TABLE IF NOT EXISTS app_slot_alloc (app_id TEXT PRIMARY KEY, "
+     "base_slot INTEGER NOT NULL UNIQUE, slot_count INTEGER NOT NULL);"
+     "CREATE TRIGGER IF NOT EXISTS app_point_gen_insert AFTER INSERT ON app_point BEGIN "
+     "UPDATE registry_meta SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) "
+     "WHERE key = 'generation'; END;"
+     "CREATE TRIGGER IF NOT EXISTS app_point_gen_update AFTER UPDATE ON app_point BEGIN "
+     "UPDATE registry_meta SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) "
+     "WHERE key = 'generation'; END;"
+     "CREATE TRIGGER IF NOT EXISTS app_point_gen_delete AFTER DELETE ON app_point BEGIN "
+     "UPDATE registry_meta SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) "
+     "WHERE key = 'generation'; END;"},
+    {13, "app_fault_window",
+     "ALTER TABLE app_registry ADD COLUMN last_fault_ms INTEGER NOT NULL DEFAULT 0;"},
+    {14, "system_time_trust",
+     "CREATE TABLE IF NOT EXISTS system_time (key TEXT PRIMARY KEY, value INTEGER NOT NULL);"},
+};
+
+int sqlite_service_schema_version(void) {
+    return EDGE_DB_SCHEMA_VERSION;
+}
+
+#define DB_MIGRATION_COUNT (sizeof(k_migrations) / sizeof(k_migrations[0]))
+
+_Static_assert(sizeof(k_migrations) / sizeof(k_migrations[0]) == EDGE_DB_SCHEMA_VERSION,
+               "k_migrations must cover every schema version");
+
+static const char *k_migration_table_sql =
+    "CREATE TABLE IF NOT EXISTS schema_migration (version INTEGER PRIMARY KEY, name TEXT NOT "
+    "NULL, checksum TEXT NOT NULL, applied_at INTEGER NOT NULL);";
+
+// FNV-1a 64: 固定迁移内容指纹，防止已发布的迁移被改写。
+static void _migration_checksum(const db_migration_t *m, char out[17]) {
+    uint64_t h = 14695981039346656037ULL;
+    for (const char *p = m->name; *p; p++) {
+        h ^= (uint8_t)*p;
+        h *= 1099511628211ULL;
+    }
+    for (const char *p = m->sql; *p; p++) {
+        h ^= (uint8_t)*p;
+        h *= 1099511628211ULL;
+    }
+    snprintf(out, 17, "%016llx", (unsigned long long)h);
+}
+
+static int _record_migration(sqlite_svc_t *svc, const db_migration_t *m, int applied_at) {
+    sqlite3_stmt *stmt;
+    if (sqlite3_prepare_v2(svc->db,
+                           "INSERT OR IGNORE INTO schema_migration (version, name, checksum, "
+                           "applied_at) VALUES (?, ?, ?, ?);",
+                           -1, &stmt, NULL) != SQLITE_OK)
+        return -1;
+    char checksum[17];
+    _migration_checksum(m, checksum);
+    sqlite3_bind_int(stmt, 1, m->version);
+    sqlite3_bind_text(stmt, 2, m->name, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 3, checksum, -1, SQLITE_STATIC);
+    sqlite3_bind_int64(stmt, 4, (sqlite3_int64)applied_at);
+    int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    return (rc == SQLITE_DONE) ? 0 : -1;
+}
+
+static int _verify_migration_records(sqlite_svc_t *svc) {
+    sqlite3_stmt *stmt;
+    if (sqlite3_prepare_v2(svc->db, "SELECT version, checksum FROM schema_migration;", -1, &stmt,
+                           NULL) != SQLITE_OK)
+        return -1;
+    int rc = 0;
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        int version = sqlite3_column_int(stmt, 0);
+        const char *recorded = (const char *)sqlite3_column_text(stmt, 1);
+        for (size_t i = 0; i < DB_MIGRATION_COUNT; i++) {
+            if (k_migrations[i].version != version) continue;
+            char expected[17];
+            _migration_checksum(&k_migrations[i], expected);
+            if (!recorded || strcmp(recorded, expected) != 0) {
+                LOG_ERROR(LOG_CAT_CORE,
+                          "DB: Migration v%d (%s) checksum mismatch (recorded %s, expected %s), "
+                          "refusing to open",
+                          version, k_migrations[i].name, recorded ? recorded : "(null)", expected);
+                rc = -1;
+            }
+            break;
+        }
+        if (rc != 0) break;
+    }
+    sqlite3_finalize(stmt);
+    return rc;
+}
+
+// 旧库（schema_migration 表出现之前）没有记录，按 user_version 补齐；INSERT OR IGNORE 不会覆盖已有记录。
+static int _backfill_migration_records(sqlite_svc_t *svc, int current_ver) {
+    for (size_t i = 0; i < DB_MIGRATION_COUNT; i++) {
+        if (k_migrations[i].version > current_ver) continue;
+        if (_record_migration(svc, &k_migrations[i], (int)time(NULL)) != 0) return -1;
+    }
+    return 0;
+}
 
 static int _db_run_migration(sqlite_svc_t *svc, int current_ver) {
     char *err = NULL;
-    int ret = 0;
     LOG_INFO(LOG_CAT_CORE, "DB: Current version %d, migrating to %d", current_ver,
              EDGE_DB_SCHEMA_VERSION);
 
-    switch (current_ver) {
-        case 0:
-            ret |= sqlite3_exec(svc->db,
-                                "CREATE TABLE IF NOT EXISTS telemetry (ts INT, tag_id INT, val "
-                                "REAL, q INT, synced INT DEFAULT 0, PRIMARY KEY(ts, tag_id)) WITHOUT ROWID;"
-                                "CREATE TABLE IF NOT EXISTS inventory (id TEXT PRIMARY KEY, type "
-                                "TEXT, addr INT, protocol TEXT, enabled INT DEFAULT 1);",
-                                NULL, NULL, &err);
-            // fallthrough
-        case 1:
-            ret |= sqlite3_exec(svc->db,
-                                "CREATE TABLE IF NOT EXISTS edge_settings (product TEXT, tag_id "
-                                "INT, val BLOB, PRIMARY KEY(product, tag_id));",
-                                NULL, NULL, &err);
-            // fallthrough
-        case 2:
-            ret |= sqlite3_exec(
-                svc->db, "CREATE INDEX IF NOT EXISTS idx_telemetry_tag ON telemetry(tag_id);", NULL,
-                NULL, &err);
-            // fallthrough
-        case 3:
-            // 确保 edge_settings 的 val 确实是 BLOB
-            ret |= sqlite3_exec(svc->db,
-                                "DROP TABLE IF EXISTS edge_settings;"
-                                "CREATE TABLE edge_settings (product TEXT, tag_id INT, val BLOB, "
-                                "PRIMARY KEY(product, tag_id));",
-                                NULL, NULL, &err);
-            // fallthrough
-        case 4:
-            ret |= sqlite3_exec(svc->db,
-                                "CREATE TABLE IF NOT EXISTS app_registry ("
-                                "id TEXT PRIMARY KEY, name TEXT, version TEXT, author TEXT, "
-                                "wasm_path TEXT, trigger_tag INT, entry_func TEXT, fault_policy INT, "
-                                "heap_limit_kb INT, timeout_ms INT, state INT, restart_count INT, created_at INT);",
-                                NULL, NULL, &err);
-            break;
+    if (sqlite3_exec(svc->db, "BEGIN IMMEDIATE;", NULL, NULL, &err) != SQLITE_OK) {
+        LOG_ERROR(LOG_CAT_CORE, "DB: Cannot begin migration: %s", err ? err : "Unknown");
+        sqlite3_free(err);
+        return -1;
     }
 
-    if (ret != 0) {
-        LOG_ERROR(LOG_CAT_CORE, "DB Migration Error: %s", err ? err : "Unknown");
-        if (err) sqlite3_free(err);
-        return -1;
+    for (size_t i = 0; i < DB_MIGRATION_COUNT; i++) {
+        const db_migration_t *m = &k_migrations[i];
+        if (m->version <= current_ver) continue;
+        if (sqlite3_exec(svc->db, m->sql, NULL, NULL, &err) != SQLITE_OK) {
+            LOG_ERROR(LOG_CAT_CORE, "DB Migration v%d (%s) failed: %s", m->version, m->name,
+                      err ? err : "Unknown");
+            sqlite3_free(err);
+            sqlite3_exec(svc->db, "ROLLBACK;", NULL, NULL, NULL);
+            return -1;
+        }
+        if (_record_migration(svc, m, (int)time(NULL)) != 0) {
+            LOG_ERROR(LOG_CAT_CORE, "DB: Cannot record migration v%d (%s)", m->version, m->name);
+            sqlite3_exec(svc->db, "ROLLBACK;", NULL, NULL, NULL);
+            return -1;
+        }
+        LOG_INFO(LOG_CAT_CORE, "DB: Applied migration v%d (%s)", m->version, m->name);
     }
 
     char sql[64];
     snprintf(sql, sizeof(sql), "PRAGMA user_version=%d;", EDGE_DB_SCHEMA_VERSION);
-    sqlite3_exec(svc->db, sql, NULL, NULL, NULL);
+    if (sqlite3_exec(svc->db, sql, NULL, NULL, &err) != SQLITE_OK ||
+        sqlite3_exec(svc->db, "COMMIT;", NULL, NULL, &err) != SQLITE_OK) {
+        LOG_ERROR(LOG_CAT_CORE, "DB: Cannot commit migration: %s", err ? err : "Unknown");
+        sqlite3_free(err);
+        sqlite3_exec(svc->db, "ROLLBACK;", NULL, NULL, NULL);
+        return -1;
+    }
     return 0;
 }
 
@@ -179,6 +345,25 @@ static int _migrate_schema(sqlite_svc_t *svc) {
     if (sqlite3_prepare_v2(svc->db, "PRAGMA user_version;", -1, &stmt, NULL) == SQLITE_OK) {
         if (sqlite3_step(stmt) == SQLITE_ROW) current_ver = sqlite3_column_int(stmt, 0);
         sqlite3_finalize(stmt);
+    }
+
+    // 先于任何写入拒绝过新的库，避免旧程序改写新库。
+    if (current_ver > EDGE_DB_SCHEMA_VERSION) {
+        LOG_ERROR(LOG_CAT_CORE, "DB: Schema version %d is newer than supported %d, refusing to open",
+                  current_ver, EDGE_DB_SCHEMA_VERSION);
+        return SQLITE_SVC_ERR_SCHEMA_TOO_NEW;
+    }
+
+    char *err = NULL;
+    if (sqlite3_exec(svc->db, k_migration_table_sql, NULL, NULL, &err) != SQLITE_OK) {
+        LOG_ERROR(LOG_CAT_CORE, "DB: Cannot create schema_migration: %s", err ? err : "Unknown");
+        sqlite3_free(err);
+        return -1;
+    }
+    if (_verify_migration_records(svc) != 0) return -1;
+    if (_backfill_migration_records(svc, current_ver) != 0) {
+        LOG_ERROR(LOG_CAT_CORE, "DB: Cannot backfill schema_migration");
+        return -1;
     }
     if (current_ver < EDGE_DB_SCHEMA_VERSION) return _db_run_migration(svc, current_ver);
     return 0;
@@ -288,8 +473,12 @@ sqlite_svc_t *sqlite_svc_create_in(sqlite_svc_storage_t *storage, uv_loop_t *loo
     if (sqlite3_open(cfg->db_path, &svc->db) != SQLITE_OK) {
         return NULL;
     }
+    if (_migrate_schema(svc) != 0) {
+        sqlite3_close(svc->db);
+        svc->db = NULL;
+        return NULL;
+    }
     sqlite3_exec(svc->db, "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA temp_store=MEMORY; PRAGMA wal_autocheckpoint=1000;", NULL, NULL, NULL);
-    _migrate_schema(svc);
     if (cfg->strategy == STRATEGY_SERIES || cfg->strategy == STRATEGY_SHARDING) {
         /* Caller-allocated storage contract: a placement constructor must not fall back
          * to the heap. Missing buffers are a programming error, not a reason to malloc
@@ -322,19 +511,34 @@ sqlite_svc_t *sqlite_svc_create_in(sqlite_svc_storage_t *storage, uv_loop_t *loo
     return svc;
 }
 
-sqlite_svc_t *sqlite_svc_create(uv_loop_t *loop, sqlite_config_t *cfg) {
-    if (!cfg) return NULL;
+sqlite_svc_t *sqlite_svc_create_ex(uv_loop_t *loop, sqlite_config_t *cfg, int *out_error) {
+    if (out_error) *out_error = 0;
+    if (!cfg) {
+        if (out_error) *out_error = -1;
+        return NULL;
+    }
     sqlite_svc_t *svc = calloc(1, sizeof(sqlite_svc_t));
-    if (!svc) return NULL;
+    if (!svc) {
+        if (out_error) *out_error = -1;
+        return NULL;
+    }
     svc->is_allocated = true;
     svc->loop = loop;
     svc->config = *cfg;
     if (sqlite3_open(cfg->db_path, &svc->db) != SQLITE_OK) {
+        if (svc->db) sqlite3_close(svc->db);
         free(svc);
+        if (out_error) *out_error = -1;
+        return NULL;
+    }
+    int migrate_rc = _migrate_schema(svc);
+    if (migrate_rc != 0) {
+        sqlite3_close(svc->db);
+        free(svc);
+        if (out_error) *out_error = migrate_rc;
         return NULL;
     }
     sqlite3_exec(svc->db, "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA temp_store=MEMORY; PRAGMA wal_autocheckpoint=1000;", NULL, NULL, NULL);
-    _migrate_schema(svc);
     if (cfg->strategy == STRATEGY_SERIES || cfg->strategy == STRATEGY_SHARDING) {
         svc->active_buf = &svc->static_active_buf;
         svc->flush_buf = &svc->static_flush_buf;
@@ -358,6 +562,10 @@ sqlite_svc_t *sqlite_svc_create(uv_loop_t *loop, sqlite_config_t *cfg) {
 
     atomic_init(&svc->is_busy, false);
     return svc;
+}
+
+sqlite_svc_t *sqlite_svc_create(uv_loop_t *loop, sqlite_config_t *cfg) {
+    return sqlite_svc_create_ex(loop, cfg, NULL);
 }
 
 int sqlite_svc_set_param(sqlite_svc_t *svc, const char *product, uint32_t tag_id, const void *val,
@@ -492,7 +700,7 @@ int sqlite_svc_init_from_contract(sqlite_svc_t *svc, const edge_contract_t *cont
              contract->name);
 
     // 1. 确保基础表结构存在 (利用已有的迁移逻辑)
-    _migrate_schema(svc);
+    if (_migrate_schema(svc) != 0) return -1;
 
     // 2. 注入元数据标记
     sqlite3_exec(svc->db, "CREATE TABLE IF NOT EXISTS matrix_meta (key TEXT PRIMARY KEY, val TEXT);",

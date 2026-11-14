@@ -4,7 +4,7 @@
  */
 
 #include "edge_service.h"
-#include "datahub_priv.h"
+#include "datahub.h"
 #include <uv.h>
 
 #include <stdlib.h>
@@ -14,9 +14,20 @@
 
 #include "edge_log.h"
 
+static uv_loop_t *_hub_port_get_loop(void *ctx) { return datahub_get_loop((datahub_t *)ctx); }
+
+static int _hub_port_read_ring(void *ctx, uint64_t *inout_seq, pipe_msg_t *out_msg) {
+    return datahub_read_ring((datahub_t *)ctx, inout_seq, out_msg);
+}
+
+static void _hub_port_subscribe(void *ctx, datahub_on_data_cb cb, void *user_data) {
+    datahub_subscribe((datahub_t *)ctx, cb, user_data);
+}
+
 struct service_s {
     uv_loop_t *loop;  // [注入] 外部 Loop
-    datahub_t *hub;   // [注入] 外部 DataHub
+    datahub_t *hub;   // [注入] 外部 DataHub (service_get_datahub 兼容访问器)
+    edge_service_datahub_port_t datahub_port;
     stream_engine_t *engine;
     arbiter_t *arb;
     edge_params_t *params;
@@ -56,6 +67,14 @@ static void _service_init_common(service_t *svc, uv_loop_t *loop, datahub_t *hub
                                  stream_engine_t *engine, edge_params_t *params) {
     svc->loop = loop;
     svc->hub = hub;
+    if (hub) {
+        svc->datahub_port = (edge_service_datahub_port_t){
+            .ctx = hub,
+            .get_loop = _hub_port_get_loop,
+            .read_ring = _hub_port_read_ring,
+            .subscribe = _hub_port_subscribe,
+        };
+    }
     svc->arb = arb;
     svc->engine = engine;
     svc->params = params;
@@ -134,7 +153,7 @@ static void _ipc_forward_cb(datahub_t *hub, void *user_data) {
     if (!svc->ipc_pipe || uv_is_closing((uv_handle_t *)svc->ipc_pipe)) return;
     pipe_msg_t msg;
     static uint64_t last_seq = 0;
-    while (datahub_read_ring(svc->hub, &last_seq, &msg) == 0) {
+    while (svc->datahub_port.read_ring(svc->datahub_port.ctx, &last_seq, &msg) == 0) {
         uv_buf_t buf = uv_buf_init((char *)&msg, sizeof(msg));
         uv_write_t *req = malloc(sizeof(uv_write_t));
         uv_write(req, (uv_stream_t *)svc->ipc_pipe, &buf, 1, _on_ipc_write);
@@ -145,12 +164,12 @@ static void _on_ipc_connect(uv_connect_t *req, int status) {
     free(req);
 }
 void service_add_ipc_bridge(service_t *svc, const char *uds_path) {
-    if (!svc || !svc->hub || !uds_path) return;
+    if (!svc || !svc->datahub_port.ctx || !uds_path) return;
     svc->ipc_pipe = malloc(sizeof(uv_pipe_t));
-    uv_pipe_init(svc->hub->loop, svc->ipc_pipe, 0);
+    uv_pipe_init(svc->datahub_port.get_loop(svc->datahub_port.ctx), svc->ipc_pipe, 0);
     uv_connect_t *conn = malloc(sizeof(uv_connect_t));
     uv_pipe_connect(conn, svc->ipc_pipe, uds_path, _on_ipc_connect);
-    datahub_subscribe(svc->hub, _ipc_forward_cb, svc);
+    svc->datahub_port.subscribe(svc->datahub_port.ctx, _ipc_forward_cb, svc);
 }
 
 // --- Utils ---
@@ -200,9 +219,9 @@ static void _on_new_tunnel_conn(uv_stream_t *server, int status) {
 }
 
 void service_create_tunnel(service_t *svc, int tcp_port, int bus_id) {
-    if (!svc || !svc->hub) return;
+    if (!svc || !svc->datahub_port.ctx) return;
     svc->tunnel_server = malloc(sizeof(uv_tcp_t));
-    uv_tcp_init(svc->hub->loop, svc->tunnel_server);
+    uv_tcp_init(svc->datahub_port.get_loop(svc->datahub_port.ctx), svc->tunnel_server);
     svc->tunnel_server->data = svc;
     svc->tunnel_bus_id = bus_id;
     struct sockaddr_in addr;
@@ -212,12 +231,12 @@ void service_create_tunnel(service_t *svc, int tcp_port, int bus_id) {
 }
 
 void service_sync_time(service_t *svc, uint64_t calendar_ms) {
-    if (!svc || !svc->hub) return;
-    svc->time_offset_ms = calendar_ms - uv_now(svc->hub->loop);
+    if (!svc || !svc->datahub_port.ctx) return;
+    svc->time_offset_ms = calendar_ms - uv_now(svc->datahub_port.get_loop(svc->datahub_port.ctx));
 }
 uint64_t service_get_now_ms(service_t *svc) {
-    if (!svc || !svc->hub) return (uint64_t)time(NULL) * 1000;
-    return uv_now(svc->hub->loop) + svc->time_offset_ms;
+    if (!svc || !svc->datahub_port.ctx) return (uint64_t)time(NULL) * 1000;
+    return uv_now(svc->datahub_port.get_loop(svc->datahub_port.ctx)) + svc->time_offset_ms;
 }
 int service_scan_bus(service_t *svc, int bus_id) {
     (void)bus_id;
@@ -250,9 +269,9 @@ static void _smoke_data_cb(datahub_t *hub, void *user_data) {
 }
 
 void service_enable_smoke_test(service_t *svc) {
-    if (svc && svc->hub) {
+    if (svc && svc->datahub_port.ctx) {
         // 1. 订阅数据，收到即视为成功
-        datahub_subscribe(svc->hub, _smoke_data_cb, svc);
+        svc->datahub_port.subscribe(svc->datahub_port.ctx, _smoke_data_cb, svc);
 
         // 2. 启动 5s 超时看门狗
         uv_timer_t *smoke_timer = malloc(sizeof(uv_timer_t));
@@ -265,13 +284,16 @@ void service_enable_smoke_test(service_t *svc) {
 }
 
 int service_run(service_t *svc) {
-    if (!svc || !svc->hub) return -1;
-    return uv_run(svc->hub->loop, UV_RUN_DEFAULT);
+    if (!svc || !svc->datahub_port.ctx) return -1;
+    return uv_run(svc->datahub_port.get_loop(svc->datahub_port.ctx), UV_RUN_DEFAULT);
 }
 void service_stop(service_t *svc) {
     if (!svc) return;
     if (svc->emergency_hook) svc->emergency_hook(svc->emergency_user_data);
-    if (svc->hub && svc->hub->loop) uv_stop(svc->hub->loop);
+    uv_loop_t *loop = svc->datahub_port.get_loop
+                          ? svc->datahub_port.get_loop(svc->datahub_port.ctx)
+                          : NULL;
+    if (loop) uv_stop(loop);
 }
 
 void service_set_contract_path(service_t *svc, const char *path) {
@@ -297,7 +319,10 @@ void service_report_link_status(service_t *svc, net_link_t link, bool is_up) {
 }
 uv_loop_t *service_get_loop(service_t *svc) {
     if (!svc) return NULL;
-    return svc->loop ? svc->loop : (svc->hub ? svc->hub->loop : NULL);
+    return svc->loop ? svc->loop
+                     : (svc->datahub_port.get_loop
+                            ? svc->datahub_port.get_loop(svc->datahub_port.ctx)
+                            : NULL);
 }
 datahub_t *service_get_datahub(service_t *svc) {
     return svc->hub;

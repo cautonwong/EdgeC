@@ -1,4 +1,5 @@
 #include <cmocka.h>
+#include "thread_port_uv.h"
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -139,6 +140,7 @@ static void test_engine_uses_only_the_port(void **state) {
 }
 
 int main(void) {
+    edge_thread_port_install_uv();
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_engine_uses_only_the_port),
     };

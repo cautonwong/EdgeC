@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
 project(EdgeC_Tests C)
 
+find_package(OpenSSL REQUIRED)
+
 include_directories(${CMAKE_SOURCE_DIR}/modules/edge_core/src)
 include_directories(${CMAKE_SOURCE_DIR}/adapters/mcp_industry/include)
 include_directories(${CMAKE_SOURCE_DIR}/adapters/io_drivers/src)
@@ -31,6 +33,7 @@ macro(add_edge_test TEST_NAME)
         edge_core
         edge_mgmt
         edge_bootstrap
+        edge_linux_platform
         edge_codec
         ${TEST_DEPS}
         edge_algo_stream
@@ -111,7 +114,52 @@ add_edge_test(test_memfd_seals test_memfd_seals.c)
 add_edge_test(test_fuzz_datahub test_fuzz_datahub.c)
 add_edge_test(test_sqlite_service test_sqlite_service.c)
 add_edge_test(test_sqlite_app_registry test_sqlite_app_registry.c)
+add_edge_test(test_sqlite_migration test_sqlite_migration.c)
 add_edge_test(test_edge_app_mgr test_edge_app_mgr.c)
+add_edge_test(test_app_manifest test_app_manifest.c)
+add_edge_test(test_app_pressure test_app_pressure.c)
+add_edge_test(test_edge_authz test_edge_authz.c)
+add_edge_test(test_edge_authz_sqlite test_edge_authz_sqlite.c)
+add_edge_test(test_app_secret test_app_secret.c)
+add_edge_test(test_app_task test_app_task.c)
+add_edge_test(test_app_backfill test_app_backfill.c)
+add_edge_test(test_edge_wasm_imports test_edge_wasm_imports.c)
+add_edge_test(test_edge_eapp test_edge_eapp.c)
+add_edge_test(test_edge_backup test_edge_backup.c)
+add_edge_test(test_app_export test_app_export.c)
+add_edge_test(test_time_trust test_time_trust.c)
+target_link_libraries(test_edge_backup PRIVATE edge_sqlite_adapters)
+target_link_libraries(test_app_export PRIVATE edge_sqlite_adapters)
+target_link_libraries(test_edge_eapp PRIVATE OpenSSL::Crypto)
+add_edge_test(test_edge_eapp_build test_edge_eapp_build.c)
+target_link_libraries(test_edge_eapp_build PRIVATE OpenSSL::Crypto)
+add_test(NAME test_edgeos_pack_cli
+         COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/test_edgeos_pack_cli.sh
+                 $<TARGET_FILE:edgeos-pack>)
+add_edge_test(test_rest_uds test_rest_uds.c)
+set_property(TEST test_rest_uds APPEND PROPERTY
+    ENVIRONMENT "EDGEC_APPCTL_PATH=$<TARGET_FILE:appctl>")
+add_edge_test(test_app_points test_app_points.c)
+add_edge_test(test_app_host_server test_app_host_server.c
+              ${CMAKE_SOURCE_DIR}/sdk/c/edge_app_sdk.c)
+target_include_directories(test_app_host_server PRIVATE ${CMAKE_SOURCE_DIR}/sdk/c)
+target_link_libraries(test_app_host_server PRIVATE edge_app_host)
+add_edge_test(test_iems_app_host_ports test_iems_app_host_ports.c
+              ${CMAKE_SOURCE_DIR}/sdk/c/edge_app_sdk.c)
+target_include_directories(test_iems_app_host_ports PRIVATE ${CMAKE_SOURCE_DIR}/sdk/c)
+add_edge_test(test_app_host_process test_app_host_process.c)
+target_link_libraries(test_app_host_process PRIVATE edge_app_host)
+set_property(TEST test_app_host_process APPEND PROPERTY
+    ENVIRONMENT "EDGEC_APP_HOST_PATH=$<TARGET_FILE:app-host>;EDGEC_ABI_PROBE_WASM=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/abi_probe.wasm")
+add_edge_test(test_iems_app_runtime test_iems_app_runtime.c)
+set_property(TEST test_iems_app_runtime APPEND PROPERTY
+    ENVIRONMENT "EDGEC_APP_HOST_PATH=$<TARGET_FILE:app-host>;EDGEC_ABI_PROBE_WASM=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/abi_probe.wasm")
+add_edge_test(test_registry_snapshot test_registry_snapshot.c)
+add_edge_test(test_edge_launcher test_edge_launcher.c)
+target_link_libraries(test_edge_launcher PRIVATE edge_linux_platform)
+add_dependencies(test_edge_launcher edgeos-launcher)
+set_property(TEST test_edge_launcher APPEND PROPERTY
+    ENVIRONMENT "EDGEC_LAUNCHER_PATH=$<TARGET_FILE:edgeos-launcher>")
 add_edge_test(test_datahub_dynamic_chunk test_datahub_dynamic_chunk.c)
 add_edge_test(test_stream_dag test_stream_dag.c)
 add_edge_test(test_edge_mesh test_edge_mesh.c)
@@ -139,6 +187,7 @@ add_edge_test(test_radar_fmcw test_radar_fmcw.c)
 add_edge_test(test_io_http test_io_http.c)
 target_link_libraries(test_io_http PRIVATE CURL::libcurl)
 add_edge_test(test_rest_apps test_rest_apps.c)
+add_edge_test(test_rest_limits test_rest_limits.c)
 
 # 4. 流处理引擎测试 (Compute Plane)
 add_edge_test(test_stream_engine test_stream_engine.c)
@@ -1696,6 +1745,11 @@ add_executable(test_soak_memory_convergence test_soak_memory_convergence.c)
 target_link_libraries(test_soak_memory_convergence PRIVATE edge_core)
 add_test(NAME test_soak_memory_convergence COMMAND test_soak_memory_convergence)
 
+add_executable(test_sdk_conformance test_sdk_conformance.c "${CMAKE_SOURCE_DIR}/sdk/c/edge_app_sdk.c")
+target_include_directories(test_sdk_conformance PRIVATE "${CMAKE_SOURCE_DIR}/sdk/c")
+target_link_libraries(test_sdk_conformance PRIVATE cjson pthread)
+add_test(NAME test_sdk_conformance COMMAND test_sdk_conformance)
+
 foreach(t
     test_dcu_mutex_marathon
     test_dcu_topology_phase_id
@@ -1704,6 +1758,7 @@ foreach(t
     test_iec104_type_test_suite
     test_storage_powercut_resilience
     test_soak_memory_convergence
+    test_sdk_conformance
 )
     set_tests_properties(${t} PROPERTIES TIMEOUT 180)
     if(ENABLE_ASAN)
@@ -1726,3 +1781,8 @@ if(ENABLE_ASAN)
     get_property(_edge_all_tests DIRECTORY PROPERTY TESTS)
     set_tests_properties(${_edge_all_tests} PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:halt_on_error=1")
 endif()
+
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+add_test(NAME app_platform_e2e COMMAND ${Python3_EXECUTABLE}
+         ${CMAKE_CURRENT_SOURCE_DIR}/e2e/app_platform_e2e.py --build ${CMAKE_BINARY_DIR})
+set_tests_properties(app_platform_e2e PROPERTIES TIMEOUT 180)

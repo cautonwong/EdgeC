@@ -41,7 +41,7 @@ target_include_directories(edge_stream PUBLIC include)
 target_include_directories(edge_stream PRIVATE
     src/wasm_runtime
 )
-target_link_libraries(edge_stream PUBLIC edge_log edge_math edge_common_interface)
+target_link_libraries(edge_stream PUBLIC edge_log edge_math edge_common_interface edge_foundation)
 find_package(OpenSSL REQUIRED)
 target_link_libraries(edge_stream PRIVATE QuickJS::QuickJS iwasm::vmlib OpenSSL::Crypto)
 

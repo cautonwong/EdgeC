@@ -49,3 +49,7 @@
 **目录。** 目录名不是规范；门禁按文件映射，物理重排不是完成条件（提案 §11.4）。
 
 **规则。** 组件只依赖 foundation、自身端口和白名单内的纯第三方库；infra 不认识组件；组合根是唯一同时认识组件与 infra 的代码。执行类端口只注入持有对应不变量的聚合根。分类变化必须更新本文件和相应的门禁基线。
+
+**成熟度晋升。** `incubating` 升 `stable` 必须同时满足：真实 ROM/RAM 预算、独立构建目标、组件自有测试、`ports_required` 与 include/链接一致、至少一个产品在用。`stable` 组件需要 `backup_owner`，改动按双评审处理。`deprecated` 只保留迁移窗口。
+
+**领域与结构体。** 三个产品的限界上下文、聚合、仓储、领域事件和端口映射见 `docs/design/DOMAIN_CONTEXT_MAP.md`。公共结构体逐个审计见 `docs/design/PUBLIC_STRUCT_AUDIT.md`；新增公共 struct 必须同时更新审计文档和基线。

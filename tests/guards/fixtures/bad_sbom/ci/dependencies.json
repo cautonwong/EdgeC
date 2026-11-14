@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "dependencies": [
+    {
+      "name": "unlicensed-bad-library",
+      "version": "1.0.0",
+      "repository": "https://github.com/example/bad-lib",
+      "license": ""
+    }
+  ]
+}

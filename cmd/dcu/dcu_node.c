@@ -92,16 +92,16 @@ dcu_node_t *dcu_node_create_in(void *storage, size_t storage_size, uv_loop_t *lo
     if (!node->cfg.product_name) node->cfg.product_name = "DCU";
     if (!node->cfg.poll_interval_ms) node->cfg.poll_interval_ms = 1000;
     /* 影子表按槽位公式索引：slot = device_id * DCU_SLOTS_PER_DEVICE + tag_slot。
-     * 容量必须容得下 MAX_METERS 只表，否则 idx 越界、写入被静默丢弃
-     * （32768 只够 1024 只表，而 MAX_METERS 是 4096）。 */
+     * 容量必须容得下 MAX_METERS 只表，还要容纳 app_base 之后的 4096 个应用槽位，
+     * 否则 idx 越界、写入被静默丢弃。 */
     if (!node->cfg.datahub_capacity) {
-        node->cfg.datahub_capacity = MAX_METERS * DCU_SLOTS_PER_DEVICE;
+        node->cfg.datahub_capacity = DCU_SHADOW_CAPACITY;
     }
     if (!node->cfg.ring_capacity) node->cfg.ring_capacity = 32768;
-    if (node->cfg.datahub_capacity < (size_t)MAX_METERS * DCU_SLOTS_PER_DEVICE) {
+    if (node->cfg.datahub_capacity < (size_t)DCU_SHADOW_CAPACITY) {
         LOG_WARN(LOG_CAT_SCHED,
-                 "datahub_capacity=%zu < MAX_METERS*SLOTS=%d：高位表的影子值会被丢弃",
-                 node->cfg.datahub_capacity, MAX_METERS * DCU_SLOTS_PER_DEVICE);
+                 "datahub_capacity=%zu < DCU_SHADOW_CAPACITY=%d：产品或应用点位的影子值会被丢弃",
+                 node->cfg.datahub_capacity, DCU_SHADOW_CAPACITY);
     }
 
     /* 1. Assemble Foundation via Edge Composition Root */

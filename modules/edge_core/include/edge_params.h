@@ -1,8 +1,11 @@
 #ifndef EDGE_PARAMS_H
 #define EDGE_PARAMS_H
 
+#include <stdalign.h>
+#include <stddef.h>
+
 #include "contract_data_types.h"
-#include "datahub.h"
+#include "edge_bus_datahub_port.h"
 #include "edge_common.h"
 
 #ifdef __cplusplus
@@ -25,10 +28,19 @@ typedef struct edge_params_store_s {
 } edge_params_store_t;
 
 /**
- * @brief 创建参数服务实例
+ * @brief 调用方预分配的参数服务存储。
+ */
+typedef struct {
+    alignas(max_align_t) uint8_t raw[128];
+} edge_params_storage_t;
+
+/**
+ * @brief 在调用方存储中创建参数服务实例
  * 它会自动执行“元数据同步”流程：代码定义 <-> 持久化存储对齐
  */
-edge_params_t *edge_params_create(const edge_params_store_t *store, datahub_t *hub);
+edge_params_t *edge_params_create_in(edge_params_storage_t *storage,
+                                     const edge_params_store_t *store,
+                                     const edge_bus_datahub_port_t *publish_port);
 
 /**
  * @brief 注册应用层的参数元数据 (解耦核心)

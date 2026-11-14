@@ -33,7 +33,8 @@ static void test_null_float_keeps_declared_default(void **state) {
     assert_non_null(db);
 
     edge_params_store_t store = edge_params_sqlite_store(db);
-    edge_params_t *params = edge_params_create(&store, NULL);
+    edge_params_storage_t storage;
+    edge_params_t *params = edge_params_create_in(&storage, &store, NULL);
     assert_non_null(params);
     assert_int_equal(store.insert_default_int(store.ctx, "voltage_a", 999), 0);
 
@@ -57,7 +58,8 @@ static void test_params_roundtrip_through_store(void **state) {
     assert_non_null(db);
 
     edge_params_store_t store = edge_params_sqlite_store(db);
-    edge_params_t *params = edge_params_create(&store, NULL);
+    edge_params_storage_t storage;
+    edge_params_t *params = edge_params_create_in(&storage, &store, NULL);
     assert_non_null(params);
     edge_params_register_metadata(params, k_params, 1);
     pump(&loop);
@@ -67,7 +69,8 @@ static void test_params_roundtrip_through_store(void **state) {
     assert_float_equal(edge_params_get_float(0), 231.0f, 0.001);
     edge_params_destroy(params);
 
-    edge_params_t *reloaded = edge_params_create(&store, NULL);
+    edge_params_storage_t reloaded_storage;
+    edge_params_t *reloaded = edge_params_create_in(&reloaded_storage, &store, NULL);
     assert_non_null(reloaded);
     edge_params_register_metadata(reloaded, k_params, 1);
     pump(&loop);

@@ -60,6 +60,12 @@ static void test_ai_provider_service_structure(void **state) {
     assert_non_null(strstr(content, "iems_optimize_tou_schedule"));
     assert_non_null(strstr(content, "security_simulate_interlock"));
 
+    // Live catalog: tools/list + cache; the static list stays the offline fallback.
+    assert_non_null(strstr(content, "tools/list"));
+    assert_non_null(strstr(content, "fetchTools"));
+    assert_non_null(strstr(content, "toolsSource"));
+    assert_non_null(strstr(content, "localStorage"));
+
     // Removed demo tools must not reappear.
     assert_null(strstr(content, "ess_emergency_stop"));
     assert_null(strstr(content, "iems_get_battery_status"));
@@ -97,6 +103,10 @@ static void test_mcp_tool_call_card_component(void **state) {
     assert_non_null(strstr(content, "isExpanded"));
     assert_non_null(strstr(content, "copyJson"));
     assert_non_null(strstr(content, "formatJson"));
+
+    // Stable E2E selectors for the tool-call stream
+    assert_non_null(strstr(content, "data-tool-name"));
+    assert_non_null(strstr(content, "data-status"));
 }
 
 static void test_ai_copilot_drawer_component(void **state) {
@@ -115,6 +125,11 @@ static void test_ai_copilot_drawer_component(void **state) {
     assert_non_null(strstr(content, "config.provider"));
     assert_non_null(strstr(content, "config.endpoint"));
     assert_non_null(strstr(content, "config.apiKey"));
+
+    // Server-driven tool catalog with an explicit refresh
+    assert_non_null(strstr(content, "MCP 工具目录"));
+    assert_non_null(strstr(content, "refreshTools"));
+    assert_non_null(strstr(content, "toolsSource"));
 
     // Context Pill Strip
     assert_non_null(strstr(content, "activeContext"));

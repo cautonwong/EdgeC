@@ -13,14 +13,15 @@
 # 2026-11-09: cmd/edge_mcp_server/main.c 174 -> 182; 行业 MCP 工具包改为组合根显式注册。
 cmd/dcu/dcu_north_adapter.c|201
 cmd/dcu/dcu_bus_adapter.c|43
-cmd/dcu/main.c|223
+cmd/dcu/main.c|225
 cmd/edge_mcp_server/main.c|183
-cmd/iems/iems_app.c|386
+# 2026-11-13: cmd/iems/iems_app.c 558 -> 559；参数服务改用调用方存储。
+cmd/iems/iems_app.c|559
 cmd/iems/iems_north_listener.c|112
 cmd/iems/iems_southbound_adapter.c|133
-cmd/iems/main.c|99
+cmd/iems/main.c|107
 cmd/nexus_lab/main.c|156
-cmd/smart_box/main.c|88
+cmd/smart_box/main.c|90
 # 2026-11-09: core service 不再持有北向管理器；产品组合根显式 start/stop 北向 (+4 DCU, +1 IEMS)。
 # 2026-11-10: cmd/iems/iems_app.c 343 -> 347; SnF store port injection (+4).
 # 2026-11-10: north source adapter moved to bootstrap; product include adds one line (DCU 196->197, IEMS 347->348).
@@ -32,3 +33,29 @@ modules/edge_north/src/northbound_mgr.c|711
 # 2026-11-11: driver session port wiring (+1 DCU, +2 iEMS).
 # 2026-11-11: driver runtime owned by composition root (+3 DCU, +2 iEMS).
 # 2026-11-11: bus datahub port wrapper include adds one line (DCU 222->223, IEMS 385->386).
+# 2026-11-12: REST limits wiring adds 5 lines to iEMS app and main.
+# 2026-11-12: cmd/iems/iems_app.c 391 -> 395; app-manager 关停前排空异步任务。
+# 2026-11-12: cmd/iems/iems_app.c 395 -> 418; 内存压力定时器与 port 接线。
+# 2026-11-13: cmd/iems/iems_app_manager_adapter.c 基线 517；grant/secret/task 管理面回调接线。
+# 2026-11-13: cmd/iems/iems_app_manager_adapter.c 517 -> 715；升级换包、回滚重载与任务终态回调。
+# 2026-11-13: cmd/iems/iems_app_manager_adapter.c 715 -> 769；注册表快照发布与状态回调。
+# 2026-11-13: cmd/iems/iems_app_manager_adapter.c 769 -> 805；消费者心跳与收敛判定。
+# 2026-11-13: cmd/iems/iems_app_manager_adapter.c 805 -> 870；.eapp 包安装入口与签名公钥装载。
+# 2026-11-13: cmd/iems/iems_app_manager_adapter.c 870 -> 895；卸载入口与本地管理通道；iems_app.c 418 -> 429。
+# 2026-11-13: cmd/iems/iems_app_manager_adapter.c 895 -> 942；appctl 契约对齐：升级包、预期公钥、按应用状态与快照代次。
+# 2026-11-13: cmd/iems/iems_app_manager_adapter.c 942 -> 987；应用点位槽位分配、安装/升级注册与卸载回收。
+# 2026-11-13: cmd/iems/iems_app_manager_adapter.c 987 -> 1044；app-host 启动/停止接线；iems_app.c 429 -> 449。
+# 2026-11-13: cmd/iems/iems_app_manager_adapter.c 1044 -> 1055；app-host 异常退出落 FAULTED；iems_app.c 449 -> 456。
+# 2026-11-13: cmd/iems/iems_app_manager_adapter.c 1055 -> 1083；故障策略自动重启：退避调度与重生回调；iems_app.c 456 -> 462。
+# 2026-11-13: cmd/iems/iems_app_manager_adapter.c 1083 -> 1086；故障窗口与 1/2/4/8/16s 退避表。
+# 2026-11-13: cmd/iems/iems_app.c 462 -> 477；启动时按 desired_state 重新激活应用。
+# 2026-11-13: cmd/iems/iems_app.c 477 -> 522；期望状态周期对账定时器与回调。
+# 2026-11-13: cmd/iems/iems_app.c 522 -> 531；启动时恢复中断的升级包。
+# 2026-11-13: cmd/iems/iems_app.c 531 -> 558；OS 时间同步上报文件的消费。
+# 2026-11-13: cmd/iems/iems_app_manager_adapter.c 1086 -> 1132；卸载 PURGE 删除 secrets、授权与包目录。
+# 2026-11-13: cmd/iems/iems_app_manager_adapter.c 1132 -> 1149；卸载 EXPORT 归档与导出路径校验。
+# 2026-11-13: cmd/iems/iems_app_manager_adapter.c 1149 -> 1209；时间可信状态接口与安装/升级门禁。
+# 2026-11-13: cmd/iems/iems_app_manager_adapter.c 1209 -> 1251；发布者密钥环装载与签名者断言。
+# 2026-11-13: cmd/iems/iems_app_manager_adapter.c 1251 -> 1289；安装/升级写入发布者信任并校验发布者身份。
+# 2026-11-13: cmd/iems/iems_app_manager_adapter.c 1289 -> 1294；应用目录与崩溃注入由组合根注入。
+cmd/iems/iems_app_manager_adapter.c|1294

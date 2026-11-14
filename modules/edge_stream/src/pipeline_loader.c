@@ -226,6 +226,16 @@ static pipeline_stage_t *build_stage(const char *type, cJSON *config, pipeline_l
     return NULL;
 }
 
+static void _append_stage(pipeline_t *p, pipeline_stage_t *s) {
+    if (s->node_pooled) {
+        pipeline_add_stage_node(p, s);
+        return;
+    }
+    pipeline_add_stage(p, s->name, s->process, s->priv_state, s->cleanup_state,
+                       s->priv_cfg, s->cleanup_cfg);
+    free(s);
+}
+
 int stream_engine_load_config(stream_engine_t *engine, const char *json_path,
                               pipeline_loader_ctx_t *ctx) {
     FILE *f = fopen(json_path, "rb");
@@ -261,9 +271,7 @@ int stream_engine_load_config(stream_engine_t *engine, const char *json_path,
             cJSON *cfg_json = cJSON_GetObjectItem(s_json, "config");
             pipeline_stage_t *s = build_stage(type, cfg_json, ctx);
             if (s) {
-                pipeline_add_stage(p, s->name, s->process, s->priv_state, s->cleanup_state,
-                                   s->priv_cfg, s->cleanup_cfg);
-                free(s);
+                _append_stage(p, s);
             }
         }
     }
@@ -429,7 +437,7 @@ int stream_engine_load_yaml_contract(stream_engine_t *engine, const char *yaml_c
                         if (meta[i].stage->cleanup_cfg && meta[i].stage->priv_cfg) {
                             meta[i].stage->cleanup_cfg(meta[i].stage->priv_cfg);
                         }
-                        free(meta[i].stage);
+                        if (!meta[i].stage->node_pooled) free(meta[i].stage);
                     }
                 }
                 cJSON_Delete(root);
@@ -473,9 +481,7 @@ int stream_engine_load_yaml_contract(stream_engine_t *engine, const char *yaml_c
                 if (!cfg_json) cfg_json = cJSON_GetObjectItem(s_json, "params");
                 pipeline_stage_t *s = build_stage(type, cfg_json, ctx);
                 if (s) {
-                    pipeline_add_stage(p, s->name, s->process, s->priv_state, s->cleanup_state,
-                                       s->priv_cfg, s->cleanup_cfg);
-                    free(s);
+                    _append_stage(p, s);
                 }
             }
         }

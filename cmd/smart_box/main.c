@@ -1,4 +1,5 @@
 #include <uv.h>
+#include "thread_port_uv.h"
 
 #include "datahub.h"
 #include "edge_composition_root.h"
@@ -13,6 +14,7 @@
 #include "wasm_mgr.h"
 
 int main(int argc, char **argv) {
+    edge_thread_port_install_uv();
     (void)argc;
     (void)argv;
     LOG_INFO(LOG_CAT_CORE, "=== Starting Smart Box Controller ===");

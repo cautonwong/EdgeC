@@ -68,6 +68,7 @@ struct pipeline_stage_s {
     char name[32];
     uv_loop_t *loop;              // Loop for scheduling async work
     struct pipeline_s *pipeline;  // Back-pointer to parent
+    bool node_pooled;             /**< 来自静态池，加载器直接挂接，不按堆块释放 */
     stage_proc_fn process;
     void *priv_state;
     void *priv_cfg;
@@ -171,6 +172,8 @@ pipeline_t *stream_engine_add_pipeline(stream_engine_t *engine, const char *id,
 pipeline_stage_t *pipeline_add_stage(pipeline_t *p, const char *name, stage_proc_fn proc,
                                      void *priv_state, stage_cleanup_fn cleanup_state,
                                      void *priv_cfg, stage_cleanup_fn cleanup_cfg);
+/** 挂接静态池节点；不复制字段，也不释放节点。 */
+pipeline_stage_t *pipeline_add_stage_node(pipeline_t *p, pipeline_stage_t *s);
 
 /**
  * @brief [DDD 聚合根安全封装] 清空指定管线的所有算子节点 (内部线程安全处理)

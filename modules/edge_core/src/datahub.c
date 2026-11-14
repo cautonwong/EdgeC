@@ -255,7 +255,6 @@ int datahub_read_shadow_idx(datahub_t *hub, uint32_t idx, pipe_msg_t *out) {
         uv_mutex_unlock(&hub->shadow_lock);
         return -1;
     }
-    if (hub->shadow_legacy && hub->shadow_fd >= 0) flock(hub->shadow_fd, LOCK_SH);
     if (hub->shadow_seq) {
         for (int retry = 0; retry < 8; retry++) {
             uint64_t before = __atomic_load_n(&hub->shadow_seq[0], __ATOMIC_ACQUIRE);
@@ -263,17 +262,14 @@ int datahub_read_shadow_idx(datahub_t *hub, uint32_t idx, pipe_msg_t *out) {
             *out = hub->shadow_table[idx];
             uint64_t after = __atomic_load_n(&hub->shadow_seq[0], __ATOMIC_ACQUIRE);
             if (before == after) {
-                if (hub->shadow_legacy && hub->shadow_fd >= 0) flock(hub->shadow_fd, LOCK_UN);
                 uv_mutex_unlock(&hub->shadow_lock);
                 return 0;
             }
         }
-        if (hub->shadow_legacy && hub->shadow_fd >= 0) flock(hub->shadow_fd, LOCK_UN);
         uv_mutex_unlock(&hub->shadow_lock);
         return -1;
     }
     *out = hub->shadow_table[idx];
-    if (hub->shadow_legacy && hub->shadow_fd >= 0) flock(hub->shadow_fd, LOCK_UN);
     uv_mutex_unlock(&hub->shadow_lock);
     return 0;
 }

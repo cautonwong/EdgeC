@@ -24,6 +24,8 @@ typedef struct {
     bool buffer_full;
 } wavelet_st_t;
 
+_Static_assert(sizeof(wavelet_st_t) <= 2048, "wavelet ctx exceeds stage state storage");
+
 /**
  * @brief 小波异常检测处理
  * 输入: 标量采样
@@ -79,12 +81,7 @@ static stage_ret_t _wavelet_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
 
 static void _wavelet_cleanup(void *priv) {
     wavelet_st_t *ctx = (wavelet_st_t *)priv;
-    if (ctx) {
-        if (ctx->buffer) free(ctx->buffer);
-        if (ctx->scratch) free(ctx->scratch);
-        if (ctx->dwt_scratch) free(ctx->dwt_scratch);
-        free(ctx);
-    }
+    if (ctx && ctx->buffer) free(ctx->buffer);
 }
 
 /**
@@ -92,26 +89,19 @@ static void _wavelet_cleanup(void *priv) {
  * 参数: u1=alarm_tag, f1=threshold, f2=size(power of 2), f3=level
  */
 pipeline_stage_t *stage_wavelet_anomaly_create(uint32_t alarm_tag, double threshold, size_t size, uint32_t level) {
-    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
-    wavelet_st_t *ctx = calloc(1, sizeof(wavelet_st_t));
-    if (!s || !ctx) {
-        free(s);
-        free(ctx);
-        return NULL;
-    }
+    pipeline_stage_t *s = stream_stage_alloc_node();
+    wavelet_st_t *ctx = (wavelet_st_t *)s->storage_state;
+    memset(ctx, 0, sizeof(*ctx));
 
     ctx->alarm_tag = alarm_tag;
     ctx->threshold = threshold > 0 ? threshold : 1.0;
     ctx->size = size > 0 ? size : 256;
     ctx->level = level > 0 ? level : 1;
-    ctx->buffer = calloc(ctx->size, sizeof(double));
-    ctx->scratch = calloc(ctx->size, sizeof(double));
-    ctx->dwt_scratch = calloc(ctx->size, sizeof(double));
-    if (!ctx->buffer || !ctx->scratch || !ctx->dwt_scratch) {
-        _wavelet_cleanup(ctx);
-        free(s);
-        return NULL;
-    }
+    double *mem = calloc(ctx->size * 3, sizeof(double));
+    if (!mem) return NULL;
+    ctx->buffer = mem;
+    ctx->scratch = mem + ctx->size;
+    ctx->dwt_scratch = mem + ctx->size * 2;
 
     strncpy(s->name, "WAVELET_ANOMALY", 31);
     s->process = _wavelet_proc;

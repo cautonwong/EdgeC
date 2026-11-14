@@ -1,4 +1,5 @@
 #include <cmocka.h>
+#include "thread_port_uv.h"
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -117,6 +118,7 @@ static int teardown(void** state) {
 }
 
 int main(void) {
+    edge_thread_port_install_uv();
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_algo_fusion_500, setup, teardown),
         cmocka_unit_test_setup_teardown(test_algo_auto_flush, setup, teardown),

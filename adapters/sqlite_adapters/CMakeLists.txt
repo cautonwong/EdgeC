@@ -1,9 +1,19 @@
 add_library(edge_sqlite_adapters STATIC
     src/app_repo_sqlite.c
+    src/app_points_sqlite.c
+    src/edge_authz_sqlite.c
     src/stream_sqlite_adapter.c
     src/snf_sqlite_adapter.c
     src/edge_params_sqlite_adapter.c
+    src/edge_secret_sqlite.c
+    src/edge_app_task_sqlite.c
+    src/edge_registry_snapshot.c
+    src/edge_backup.c
+    src/edge_tar.c
+    src/edge_digest.c
+    src/edge_app_export.c
 )
+find_package(OpenSSL REQUIRED)
 
 target_include_directories(edge_sqlite_adapters PUBLIC
     include
@@ -28,4 +38,4 @@ target_link_libraries(edge_sqlite_adapters PUBLIC
     edge_log
     edge_common_interface
 )
-target_link_libraries(edge_sqlite_adapters PRIVATE SQLite::SQLite3)
+target_link_libraries(edge_sqlite_adapters PRIVATE SQLite::SQLite3 cjson OpenSSL::Crypto)

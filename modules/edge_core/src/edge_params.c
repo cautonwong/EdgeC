@@ -10,22 +10,20 @@
 #include <string.h>
 #include <uv.h>
 
-#include "datahub.h"
 #include "edge_log.h"
-
 // 紧凑型缓存：仅存放当前产品激活的参数
 static edge_param_value_t *g_compact_cache = NULL;
 static int g_compact_count = 0;
 
 struct edge_params_s {
     const edge_params_store_t *store;
-    datahub_t *hub;
+    edge_bus_datahub_port_t publish_port;
     const edge_param_info_t *meta_table;
     int meta_count;
 };
 
 static void _sync_to_datahub(edge_params_t *ctx, int idx) {
-    if (!ctx || !ctx->hub || !g_compact_cache || idx >= g_compact_count) return;
+    if (!ctx || !ctx->publish_port.publish || !g_compact_cache || idx >= g_compact_count) return;
     const edge_param_info_t *meta = &ctx->meta_table[idx];
     pipe_msg_t msg = {0};
     msg.ts = uv_hrtime();
@@ -37,14 +35,19 @@ static void _sync_to_datahub(edge_params_t *ctx, int idx) {
         msg.type = PIPEMSG_TYPE_SCALAR;  // 统一用标量简化处理，或按需完善类型
         msg.payload.val.i = g_compact_cache[idx].i;
     }
-    datahub_publish(ctx->hub, &msg);
+    ctx->publish_port.publish(ctx->publish_port.ctx, &msg);
 }
 
-edge_params_t *edge_params_create(const edge_params_store_t *store, datahub_t *hub) {
-    edge_params_t *ctx = calloc(1, sizeof(struct edge_params_s));
-    if (!ctx) return NULL;
+edge_params_t *edge_params_create_in(edge_params_storage_t *storage,
+                                     const edge_params_store_t *store,
+                                     const edge_bus_datahub_port_t *publish_port) {
+    if (!storage) return NULL;
+    _Static_assert(sizeof(struct edge_params_s) <= sizeof(edge_params_storage_t),
+                   "edge_params_storage_t too small");
+    edge_params_t *ctx = (edge_params_t *)storage;
+    memset(ctx, 0, sizeof(*ctx));
     ctx->store = store;
-    ctx->hub = hub;
+    if (publish_port) ctx->publish_port = *publish_port;
     if (store && store->ensure_schema) store->ensure_schema(store->ctx);
     return ctx;
 }
@@ -147,12 +150,11 @@ int edge_params_restore_single(edge_params_t *ctx, edge_param_id_t id) {
 }
 
 void edge_params_destroy(edge_params_t *ctx) {
-    if (ctx) {
-        if (g_compact_cache) {
-            free(g_compact_cache);
-            g_compact_cache = NULL;
-            g_compact_count = 0;
-        }
-        free(ctx);
+    if (!ctx) return;
+    if (g_compact_cache) {
+        free(g_compact_cache);
+        g_compact_cache = NULL;
+        g_compact_count = 0;
     }
+    /* 存储由调用方持有，这里不释放 ctx。 */
 }

@@ -17,6 +17,14 @@
  * 改这个值要同步改容量推导，否则就是数据丢失。 */
 #define DCU_SLOTS_PER_DEVICE 32
 
+/* 应用点位区：tag_id 落在 [DCU_APP_BASE, DCU_APP_BASE + DCU_APP_SLOT_TOTAL)
+ * 时不走 device_id * SLOTS + slot 公式，map_fn 返回 -1，DataHub 以 idx = tag_id
+ * 承载。产品 tag 可以大于 DCU_APP_BASE（OAD 形态），但必须避开这 4096 个值。
+ * 槽位总数必须与 app_points_sqlite.h 的 APP_POINT_SLOT_TOTAL 一致。 */
+#define DCU_APP_BASE (MAX_METERS * DCU_SLOTS_PER_DEVICE)
+#define DCU_APP_SLOT_TOTAL 4096
+#define DCU_SHADOW_CAPACITY (DCU_APP_BASE + DCU_APP_SLOT_TOTAL)
+
 #define IC_VARIABLE 3      // 变量接口类 (如电压、电流、电能量)
 #define IC_EVENT 7         // 事件对象接口类 (如失压 3000, 过流 3005)
 #define IC_RECORD 9        // 记录/冻结数据接口类 (如日冻结 5004)

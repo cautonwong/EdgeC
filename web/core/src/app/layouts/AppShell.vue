@@ -28,7 +28,7 @@ const session = useSessionStore();
 const capability = useCapabilityStore();
 const live = useLiveStore();
 
-const { toggleCopilot } = useAICopilot();
+const { isCopilotOpen, toggleCopilot, openWithContext } = useAICopilot();
 const isConsoleOpen = ref(false);
 const mobileNavOpen = ref(false);
 
@@ -61,6 +61,21 @@ watch(
 
 function onShellKeydown(event: KeyboardEvent): void {
   if (event.key === 'Escape' && mobileNavOpen.value) mobileNavOpen.value = false;
+}
+
+function openCopilotWithPageContext(): void {
+  if (isCopilotOpen.value) {
+    toggleCopilot(false);
+    return;
+  }
+  const pageTitle =
+    typeof route.meta?.title === 'string' ? route.meta.title : String(route.name ?? '');
+  const queryTag = Number(route.query.tag);
+  openWithContext({
+    productDomain: productName.value,
+    pageTitle,
+    selectedTagId: Number.isFinite(queryTag) && queryTag > 0 ? queryTag : undefined,
+  });
 }
 
 const liveLabel = computed(() => {
@@ -143,7 +158,7 @@ async function logout(): Promise<void> {
             {{ themeLabel }}
           </button>
           <span class="shell__live" :class="`shell__live--${live.state}`" :data-testid="'live-badge'">{{ liveLabel }}</span>
-          <UiButton variant="ghost" size="sm" data-testid="toggle-copilot" @click="toggleCopilot()">AI Copilot</UiButton>
+          <UiButton variant="ghost" size="sm" data-testid="toggle-copilot" @click="openCopilotWithPageContext()">AI Copilot</UiButton>
           <UiButton
             variant="ghost"
             size="sm"
