@@ -70,6 +70,10 @@ static void send_heartbeat(edge_agent_t *agent) {
         agent->hb_data.metrics_watermark,
         agent->hb_data.metrics_drops,
         agent->hb_data.active_buses);
+    if (n < 0 || (size_t)n >= sizeof(payload)) {
+        LOG_WARN(LOG_CAT_NB, "[Edge-Agent] Heartbeat payload truncated, dropping");
+        return;
+    }
 
     MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
     opts.context = agent;

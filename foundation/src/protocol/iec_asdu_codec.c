@@ -44,14 +44,24 @@ static void _encode_ioa(struct net_buf_simple *b, uint32_t ioa, uint8_t len) {
     }
 }
 
-static uint32_t _decode_ioa(struct net_buf_simple *b, uint8_t len) {
-    if (len == 1) return net_buf_simple_pull_u8(b);
-    if (len == 2) return net_buf_simple_pull_le16(b);
-    if (len == 3) {
-        uint8_t *p = net_buf_simple_pull(b, 3);
-        return (uint32_t)(p[0] | (p[1] << 8) | (p[2] << 16));
+static int _decode_ioa(struct net_buf_simple *b, uint8_t len, uint32_t *out) {
+    if (len == 1) {
+        if (b->len < 1) return -1;
+        *out = net_buf_simple_pull_u8(b);
+        return 0;
     }
-    return 0;
+    if (len == 2) {
+        if (b->len < 2) return -1;
+        *out = net_buf_simple_pull_le16(b);
+        return 0;
+    }
+    if (len == 3) {
+        if (b->len < 3) return -1;
+        uint8_t *p = net_buf_simple_pull(b, 3);
+        *out = (uint32_t)(p[0] | (p[1] << 8) | (p[2] << 16));
+        return 0;
+    }
+    return -1;
 }
 
 int iec_asdu_add_m_sp_na_1(net_buf_t *buf, uint32_t ioa, bool val, iec_qds_t qds, bool sq,
@@ -66,9 +76,9 @@ int iec_asdu_add_m_sp_na_1(net_buf_t *buf, uint32_t ioa, bool val, iec_qds_t qds
 
 int iec_asdu_parse_m_sp_na_1(struct net_buf_simple *b, uint32_t *ioa, bool *val, iec_qds_t *qds,
                              bool sq, bool is_first, const iec_addr_config_t *conf) {
-    if (!sq || is_first)
-        *ioa = _decode_ioa(b, conf->ioa_len);
-    else
+    if (!sq || is_first) {
+        if (_decode_ioa(b, conf->ioa_len, ioa) != 0) return -1;
+    } else
         (*ioa)++;
     if (b->len < 1) return -1;
     uint8_t siq = net_buf_simple_pull_u8(b);
@@ -77,8 +87,10 @@ int iec_asdu_parse_m_sp_na_1(struct net_buf_simple *b, uint32_t *ioa, bool *val,
     return 0;
 }
 
-int iec_asdu_add_m_dp_na_1(net_buf_t *buf, uint32_t ioa, uint8_t val, iec_qds_t qds, bool sq,
-                           bool is_first, const iec_addr_config_t *conf) {
+
+/* File-local prototypes. */
+int iec_asdu_add_m_dp_na_1(net_buf_t *buf, uint32_t ioa, uint8_t val, iec_qds_t qds, bool sq, bool is_first, const iec_addr_config_t *conf);
+int iec_asdu_add_m_dp_na_1(net_buf_t *buf, uint32_t ioa, uint8_t val, iec_qds_t qds, bool sq,                           bool is_first, const iec_addr_config_t *conf) {
     struct net_buf_simple *b = &buf->b;
     if (!sq || is_first) _encode_ioa(b, ioa, conf->ioa_len);
     uint8_t diq = (uint8_t)(val & 0x03);
@@ -103,9 +115,9 @@ int iec_asdu_add_m_me_nc_1(net_buf_t *buf, uint32_t ioa, float val, iec_qds_t qd
 
 int iec_asdu_parse_m_me_nc_1(struct net_buf_simple *b, uint32_t *ioa, float *val, iec_qds_t *qds,
                              bool sq, bool is_first, const iec_addr_config_t *conf) {
-    if (!sq || is_first)
-        *ioa = _decode_ioa(b, conf->ioa_len);
-    else
+    if (!sq || is_first) {
+        if (_decode_ioa(b, conf->ioa_len, ioa) != 0) return -1;
+    } else
         (*ioa)++;
     if (b->len < 5) return -1;
     union {
@@ -194,7 +206,8 @@ int iec_asdu_add_any(net_buf_t *buf, uint8_t type_id, uint32_t ioa, double val, 
 
 int iec_asdu_parse_header(struct net_buf_simple *b, iec_type_id_t *type, bool *sq, uint8_t *count,
                           iec_cot_t *cot, uint16_t *casdu, const iec_addr_config_t *conf) {
-    if (b->len < 4) return -1;
+    size_t need = 2 + (conf->cot_len == 1 ? 1 : 2) + (conf->casdu_len == 1 ? 1 : 2);
+    if (b->len < need) return -1;
     *type = (iec_type_id_t)net_buf_simple_pull_u8(b);
     uint8_t vsq = net_buf_simple_pull_u8(b);
     *sq = (vsq & 0x80) != 0;

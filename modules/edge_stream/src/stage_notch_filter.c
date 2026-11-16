@@ -53,7 +53,8 @@ static stage_ret_t _notch_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
     } 
     else if (ev->type == PIPEMSG_TYPE_BATCH) {
         double *data = (double *)ev->payload.batch.ptr;
-        for (uint32_t i = 0; i < ev->payload.batch.count; i++) {
+        if (!data || ev->payload.batch.count <= 0) return STAGE_ERROR;
+        for (int i = 0; i < ev->payload.batch.count; i++) {
             data[i] = dsp_iir_process(ctx->iir, data[i]);
         }
         ev->tag_id = ctx->output_tag;
@@ -80,7 +81,12 @@ static void _notch_cleanup(void *priv) {
  */
 pipeline_stage_t *stage_notch_filter_create(double f0, double fs, double q_factor, uint32_t output_tag) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    if (!s) return NULL;
     notch_filter_ctx_t *ctx = calloc(1, sizeof(notch_filter_ctx_t));
+    if (!ctx) {
+        free(s);
+        return NULL;
+    }
 
     ctx->output_tag = output_tag;
 

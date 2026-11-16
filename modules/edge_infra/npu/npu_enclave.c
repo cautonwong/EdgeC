@@ -102,7 +102,7 @@ static void sha256_final(sha256_ctx_t *ctx, uint8_t hash[32]) {
     sha256_transform(ctx, ctx->buffer);
     for (i = 0; i < 4; ++i) {
         for (int j = 0; j < 8; ++j) {
-            hash[j * 4 + i] = (uint8_t)((ctx->state[j] >> (24 - i * 8)) & 0x000000ff);
+            hash[(uint32_t)j * 4 + i] = (uint8_t)((ctx->state[j] >> (24 - i * 8)) & 0x000000ff);
         }
     }
 }
@@ -510,7 +510,7 @@ int npu_enclave_package_model(uint32_t model_id,
 
     /* Generate IV */
     for (int i = 0; i < NPU_ENCLAVE_IV_SIZE; i++) {
-        hdr.iv[i] = (uint8_t)((model_id + i * 37 + plaintext_len) & 0xFF);
+        hdr.iv[i] = (uint8_t)(((uint32_t)model_id + (uint32_t)i * 37u + (uint32_t)plaintext_len) & 0xFF);
     }
 
     /* Plaintext SHA-256 */

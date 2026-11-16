@@ -15,7 +15,12 @@ static char *read_file_to_buffer(const char *path, size_t *size) {
     FILE *f = fopen(path, "rb");
     if (!f) return NULL;
     fseek(f, 0, SEEK_END);
-    *size = (size_t)ftell(f);
+    long len = ftell(f);
+    if (len <= 0) {
+        fclose(f);
+        return NULL;
+    }
+    *size = (size_t)len;
     fseek(f, 0, SEEK_SET);
     char *buf = malloc(*size);
     if (!buf) {

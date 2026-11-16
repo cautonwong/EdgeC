@@ -9,6 +9,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <uv.h>
 
 #include "arbiter.h"
@@ -53,6 +54,7 @@ static int _test_stream_submit_control(void* ctx, int bus_id, uint32_t tag_id, d
     cmd->value = value;
     cmd->priority = ARBITER_PRIO_HIGH;
     strncpy(cmd->protocol, proto, 15);
+    cmd->protocol[sizeof(cmd->protocol) - 1] = '\0';
     snprintf(cmd->req_id, sizeof(cmd->req_id), "REFLEX_%u", tag_id);
     bus_orchestrator_submit_cmd(orch, bus_id, cmd);
     return 0;

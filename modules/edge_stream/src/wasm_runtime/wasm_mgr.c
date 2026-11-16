@@ -90,7 +90,12 @@ static char *read_file_to_buffer(const char *path, uint32_t *size) {
     FILE *f = fopen(path, "rb");
     if (!f) return NULL;
     fseek(f, 0, SEEK_END);
-    *size = (uint32_t)ftell(f);
+    long len = ftell(f);
+    if (len < 0 || (unsigned long)len > UINT32_MAX) {
+        fclose(f);
+        return NULL;
+    }
+    *size = (uint32_t)len;
     fseek(f, 0, SEEK_SET);
     char *buf = malloc(*size);
     if (!buf) { fclose(f); return NULL; }
@@ -315,18 +320,22 @@ int wasm_app_exec_args(wasm_app_t *app, const char *func_name, uint32_t argc, ui
     }
 
     bool success = wasm_runtime_call_wasm(exec_env, func, argc, argv);
-    /* terminate() 让被中断的调用正常返回，异常还挂在那里；只看返回值会把超时
-     * 当成成功。异常存在即视为失败。 */
-    if (success && wasm_runtime_get_exception(app->inst)) {
-        wasm_runtime_clear_exception(app->inst);
-        success = false;
-    }
 
+    /* Stop the watchdog before judging success. Calling the exception check
+     * first races with a watchdog that fires just after the wasm call returns:
+     * it terminates the instance but the main thread already read "no
+     * exception" and reports success. */
     if (wd_started) {
         uv_mutex_lock(&wd.lock);
         wd.done = true;
         uv_mutex_unlock(&wd.lock);
         edge_thread_join(&wd_thread);
+    }
+    /* terminate() 让被中断的调用正常返回，异常还挂在那里；只看返回值会把超时
+     * 当成成功。异常存在即视为失败。 */
+    if (success && wasm_runtime_get_exception(app->inst)) {
+        wasm_runtime_clear_exception(app->inst);
+        success = false;
     }
     if (wd_lock_inited) uv_mutex_destroy(&wd.lock);
 

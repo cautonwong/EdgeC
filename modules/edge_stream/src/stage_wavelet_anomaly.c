@@ -111,8 +111,10 @@ pipeline_stage_t *stage_wavelet_anomaly_create(uint32_t alarm_tag, double thresh
     return s;
 }
 
-pipeline_stage_t *stage_wavelet_anomaly_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
-    (void)ctx;
+
+/* File-local prototypes. */
+pipeline_stage_t *stage_wavelet_anomaly_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_wavelet_anomaly_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {    (void)ctx;
     return stage_wavelet_anomaly_create((uint32_t)def->params.u1, def->params.f1, 
                                        (size_t)def->params.f2, (uint32_t)def->params.f3);
 }

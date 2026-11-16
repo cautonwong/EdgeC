@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "edge_app_sdk.h"
+#include "generated/edge_app_abi_functions.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -395,7 +396,7 @@ const char *edge_app_point_resolve(edge_app_sdk_t *sdk, const char *name,
     int n = snprintf(sdk->args, sizeof sdk->args, "{\"name\":\"%s\"}", escaped);
     if (n < 0 || (size_t)n >= sizeof sdk->args) return set_error(sdk, "protocol");
 
-    const char *err = edge_app_sdk_call(sdk, "point_resolve", sdk->args,
+    const char *err = edge_app_sdk_call(sdk, EDGE_APP_FN_POINT_RESOLVE, sdk->args,
                                         sdk->result, sizeof sdk->result);
     if (err != NULL) return err;
 
@@ -415,7 +416,7 @@ const char *edge_app_point_read(edge_app_sdk_t *sdk, uint32_t handle,
     int n = snprintf(sdk->args, sizeof sdk->args, "{\"handle\":%u}", handle);
     if (n < 0 || (size_t)n >= sizeof sdk->args) return set_error(sdk, "protocol");
 
-    const char *err = edge_app_sdk_call(sdk, "point_read", sdk->args,
+    const char *err = edge_app_sdk_call(sdk, EDGE_APP_FN_POINT_READ, sdk->args,
                                         sdk->result, sizeof sdk->result);
     if (err != NULL) return err;
 
@@ -442,7 +443,7 @@ const char *edge_app_point_subscribe(edge_app_sdk_t *sdk, uint32_t handle,
                      handle, deadband, min_interval_ms, max_interval_ms);
     if (n < 0 || (size_t)n >= sizeof sdk->args) return set_error(sdk, "protocol");
 
-    const char *err = edge_app_sdk_call(sdk, "point_subscribe", sdk->args,
+    const char *err = edge_app_sdk_call(sdk, EDGE_APP_FN_POINT_SUBSCRIBE, sdk->args,
                                         sdk->result, sizeof sdk->result);
     if (err != NULL) return err;
 
@@ -464,7 +465,7 @@ const char *edge_app_point_publish(edge_app_sdk_t *sdk, uint32_t handle,
                      "{\"handle\":%u,\"sample\":%s}", handle, sample_json);
     if (n < 0 || (size_t)n >= sizeof sdk->args) return set_error(sdk, "protocol");
 
-    return edge_app_sdk_call(sdk, "point_publish", sdk->args, sdk->result,
+    return edge_app_sdk_call(sdk, EDGE_APP_FN_POINT_PUBLISH, sdk->args, sdk->result,
                              sizeof sdk->result);
 }
 
@@ -481,12 +482,12 @@ const char *edge_app_log(edge_app_sdk_t *sdk, const char *level,
                      message_json);
     if (n < 0 || (size_t)n >= sizeof sdk->args) return set_error(sdk, "protocol");
 
-    return edge_app_sdk_call(sdk, "log", sdk->args, sdk->result,
+    return edge_app_sdk_call(sdk, EDGE_APP_FN_LOG, sdk->args, sdk->result,
                              sizeof sdk->result);
 }
 
 const char *edge_app_now(edge_app_sdk_t *sdk, uint64_t *now_ms) {
-    const char *err = edge_app_sdk_call(sdk, "now", "{}", sdk->result,
+    const char *err = edge_app_sdk_call(sdk, EDGE_APP_FN_NOW, "{}", sdk->result,
                                         sizeof sdk->result);
     if (err != NULL) return err;
 

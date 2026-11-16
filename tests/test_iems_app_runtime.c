@@ -5,6 +5,7 @@
 
 #include <cmocka.h>
 #include <math.h>
+#include <signal.h>
 #include <sqlite3.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -203,7 +204,7 @@ static void test_control_start_spawns_app_host(void **state) {
     for (int i = 0; i < 3000 && edge_app_mgr_is_busy(mgr); i++) { uv_run(&loop, UV_RUN_NOWAIT); usleep(1000); }
     assert_int_equal(wait_for_publish(&loop, hub, 3000, 221.5), 0);
 
-    for (int attempt = 1; attempt <= IEMS_APP_RESTART_CAP + 1; attempt++) {
+    for (uint32_t attempt = 1; attempt <= IEMS_APP_RESTART_CAP + 1; attempt++) {
         int pid = iems_app_runtime_pid(runtime, "demo");
         assert_true(pid > 0);
         assert_int_equal(kill(pid, SIGKILL), 0);
@@ -287,6 +288,8 @@ static void test_control_start_spawns_app_host(void **state) {
 }
 
 int main(void) {
+    /* 应用崩溃后 IPC 对端已关闭，写入不能把测试进程打死。 */
+    signal(SIGPIPE, SIG_IGN);
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_control_start_spawns_app_host),
     };

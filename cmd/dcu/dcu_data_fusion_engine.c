@@ -72,7 +72,7 @@ int dcu_fusion_process_analytics(dcu_data_fusion_engine_t* engine, double master
         if (fabs(m->instantaneous_voltage_v - master_u) <= 8.0) {
             m->identified_phase = 1;  // Phase A
         } else {
-            m->identified_phase = (m->device_id % 3) + 1;
+            m->identified_phase = (uint8_t)((m->device_id % 3) + 1);
         }
 
         // 3. Multi-source theft detection:

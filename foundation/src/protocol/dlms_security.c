@@ -141,8 +141,10 @@ int dlms_security_remove(net_buf_t *apdu, dlms_security_level_t *out_level,
 
 /* --- 高级扩展接口 (供后续升级使用) --- */
 
-int dlms_security_update_key(const uint8_t *kek, size_t kek_len, const uint8_t *wrapped_key,
-                             size_t wrapped_len, uint8_t *out_plain_key) {
+
+/* File-local prototypes. */
+int dlms_security_update_key(const uint8_t *kek, size_t kek_len, const uint8_t *wrapped_key, size_t wrapped_len, uint8_t *out_plain_key);
+int dlms_security_update_key(const uint8_t *kek, size_t kek_len, const uint8_t *wrapped_key,                             size_t wrapped_len, uint8_t *out_plain_key) {
     const crypto_ops_t *crypto = hal_crypto_get_ops();
     if (!crypto || !crypto->aes_key_unwrap) return -1;
 

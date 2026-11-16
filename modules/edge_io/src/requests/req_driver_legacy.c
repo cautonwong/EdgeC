@@ -188,7 +188,17 @@ edge_req_t *req_legacy_driver_create(const char *protocol, uint32_t slave_id,
                                      size_t point_desc_len, legacy_on_complete_cb user_cb,
                                      void *user_data) {
     edge_req_t *req = calloc(1, sizeof(edge_req_t));
+    if (!req) return NULL;
     legacy_req_ctx_t *ctx = calloc(1, sizeof(legacy_req_ctx_t));
+    if (!ctx) {
+        free(req);
+        return NULL;
+    }
+    if (!protocol) {
+        free(ctx);
+        free(req);
+        return NULL;
+    }
     ctx->slave_id = slave_id;
     ctx->action = action;
     ctx->tag_id = native_id;
@@ -200,6 +210,7 @@ edge_req_t *req_legacy_driver_create(const char *protocol, uint32_t slave_id,
     ctx->point_desc_len = point_desc_len;
     ctx->meta_list_len = meta_list_len;
     strncpy(ctx->protocol, protocol, 15);
+    ctx->protocol[sizeof(ctx->protocol) - 1] = '\0';
     ctx->on_complete = user_cb;
     ctx->user_data = user_data;
     req->ops = &legacy_ops;

@@ -1,0 +1,9 @@
+[1/3] Building C object foundation/CMakeFiles/edge_foundation.dir/src/net_buf.c.o
+/home/edge/EdgeC/foundation/src/net_buf.c:199:12: warning: unused variable 'guard' [-Wunused-variable]
+[2/3] Building C object modules/CMakeFiles/edge_stream.dir/src/stage_copy.c.o
+In file included from /usr/include/string.h:535,
+                 from modules/edge_stream/src/stage_copy.c:4:
+In function 'strncpy',
+    inlined from 'stage_copy_name' at modules/edge_stream/src/stage_copy.c:40:5:
+/usr/include/x86_64-linux-gnu/bits/string_fortified.h:95:10: warning: '__builtin_strncpy' output may be truncated copying 31 bytes from a string of length 31 [-Wstringop-truncation]
+[3/3] Linking C static library modules/libedge_stream.a

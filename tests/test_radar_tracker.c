@@ -84,10 +84,51 @@ static void test_radar_tracker_rejects_oversized_frame(void** state) {
     if (stage->cleanup_state) stage->cleanup_state(stage->priv_state);
 }
 
+static void test_radar_tracker_clamps_output_to_buffer(void** state) {
+    (void)state;
+
+    pipeline_stage_t* stage = stage_radar_tracker_create(5001);
+    assert_non_null(stage);
+
+    // 两帧相同点迹，建立两个稳定航迹
+    double detections[4] = {10.0, 20.0, -5.0, -10.0};
+    pipe_msg_t ev = {0};
+    ev.type = PIPEMSG_TYPE_BATCH;
+    ev.tag_id = 1001;
+    ev.payload.batch.ptr = detections;
+    ev.payload.batch.count = 4;
+
+    ev.ts = 1000;
+    stage->process(stage, &ev);
+    ev.ts = 1100;
+    ev.payload.batch.count = 4;  // 第一帧输出 0 个目标，重置输入长度
+    assert_int_equal(stage->process(stage, &ev), STAGE_OK);
+
+    // 单检测帧的缓冲只有 2 个 double，输出必须截断而不是越界写入
+    struct {
+        double data[2];
+        double canary;
+    } small = {{12.0, 22.0}, 12345.0};
+    ev.payload.batch.ptr = small.data;
+    ev.payload.batch.count = 2;
+    ev.ts = 1200;
+
+    assert_int_equal(stage->process(stage, &ev), STAGE_OK);
+    assert_int_equal(ev.payload.batch.count, 2);
+    assert_true(small.canary == 12345.0);
+
+    ev.payload.batch.ptr = NULL;
+    ev.payload.batch.count = 2;
+    assert_int_equal(stage->process(stage, &ev), STAGE_ERROR);
+
+    if (stage->cleanup_state) stage->cleanup_state(stage->priv_state);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_radar_tracker_basic),
         cmocka_unit_test(test_radar_tracker_rejects_oversized_frame),
+        cmocka_unit_test(test_radar_tracker_clamps_output_to_buffer),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

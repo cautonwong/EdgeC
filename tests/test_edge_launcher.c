@@ -112,15 +112,19 @@ static int touch_empty(const char *path) {
 
 static int make_cgroup_leaf(const char *app_id) {
     char dir[PATH_MAX];
-    snprintf(dir, sizeof(dir), "%s/edgeos/%s", g_cgroup_root, app_id);
+    int n = snprintf(dir, sizeof(dir), "%s/edgeos/%s", g_cgroup_root, app_id);
+    if (n < 0 || (size_t)n >= sizeof(dir)) return -1;
     char parent[PATH_MAX];
-    snprintf(parent, sizeof(parent), "%s/edgeos", g_cgroup_root);
+    n = snprintf(parent, sizeof(parent), "%s/edgeos", g_cgroup_root);
+    if (n < 0 || (size_t)n >= sizeof(parent)) return -1;
     mkdir(parent, 0755);
     if (mkdir(dir, 0755) != 0 && errno != EEXIST) return -1;
-    static const char *files[] = {"cgroup.procs", "memory.max", "pids.max", "memory.oom.group"};
+    static const char *files[] = {"cgroup.procs", "memory.max", "pids.max", "memory.oom.group",
+                                  "cpu.max"};
     for (size_t i = 0; i < sizeof(files) / sizeof(files[0]); i++) {
         char path[PATH_MAX];
-        snprintf(path, sizeof(path), "%s/%s", dir, files[i]);
+        n = snprintf(path, sizeof(path), "%s/%s", dir, files[i]);
+        if (n < 0 || (size_t)n >= sizeof(path)) return -1;
         if (touch_empty(path) != 0) return -1;
     }
     return 0;
@@ -139,15 +143,18 @@ static int setup(void **state) {
     if (!mkdtemp(g_tmp)) return -1;
     chmod(g_tmp, 0755);
 
-    snprintf(g_apps_root, sizeof(g_apps_root), "%s/apps", g_tmp);
-    snprintf(g_cgroup_root, sizeof(g_cgroup_root), "%s/cgroup", g_tmp);
+    int n = snprintf(g_apps_root, sizeof(g_apps_root), "%s/apps", g_tmp);
+    if (n < 0 || (size_t)n >= sizeof(g_apps_root)) return -1;
+    n = snprintf(g_cgroup_root, sizeof(g_cgroup_root), "%s/cgroup", g_tmp);
+    if (n < 0 || (size_t)n >= sizeof(g_cgroup_root)) return -1;
     mkdir(g_apps_root, 0755);
     mkdir(g_cgroup_root, 0755);
     if (setenv("EDGEC_APPS_ROOT", g_apps_root, 1) != 0) return -1;
     if (setenv("EDGEC_CGROUP_ROOT", g_cgroup_root, 1) != 0) return -1;
 
     char helper[PATH_MAX];
-    snprintf(helper, sizeof(helper), "%s/edgeos-launcher", g_tmp);
+    n = snprintf(helper, sizeof(helper), "%s/edgeos-launcher", g_tmp);
+    if (n < 0 || (size_t)n >= sizeof(helper)) return -1;
     const char *env_helper = getenv("EDGEC_LAUNCHER_PATH");
     if (!env_helper || env_helper[0] == '\0') {
         char exe[PATH_MAX];
@@ -157,7 +164,8 @@ static int setup(void **state) {
         char *slash = strrchr(exe, '/');
         if (!slash) return -1;
         *slash = '\0';
-        snprintf(helper, sizeof(helper), "%s/../cmd/edgeos-launcher/edgeos-launcher", exe);
+        n = snprintf(helper, sizeof(helper), "%s/../cmd/edgeos-launcher/edgeos-launcher", exe);
+        if (n < 0 || (size_t)n >= sizeof(helper)) return -1;
         if (setenv("EDGEC_LAUNCHER_PATH", helper, 1) != 0) return -1;
     }
     if (access(getenv("EDGEC_LAUNCHER_PATH"), X_OK) != 0) {
@@ -175,28 +183,35 @@ static int setup(void **state) {
 
     for (size_t i = 0; i < sizeof(g_apps) / sizeof(g_apps[0]); i++) {
         char dir[PATH_MAX];
-        snprintf(dir, sizeof(dir), "%s/%s", g_apps_root, g_apps[i]);
+        n = snprintf(dir, sizeof(dir), "%s/%s", g_apps_root, g_apps[i]);
+        if (n < 0 || (size_t)n >= sizeof(dir)) return -1;
         if (mkdir(dir, 0755) != 0 && errno != EEXIST) return -1;
         char target[PATH_MAX];
-        snprintf(target, sizeof(target), "%s/app-host", dir);
+        n = snprintf(target, sizeof(target), "%s/app-host", dir);
+        if (n < 0 || (size_t)n >= sizeof(target)) return -1;
         if (copy_file(strcmp(g_apps[i], "demo") == 0 ? sleep_bin : exe, target) != 0) return -1;
         if (make_cgroup_leaf(g_apps[i]) != 0) return -1;
     }
 
     char evil[PATH_MAX];
-    snprintf(evil, sizeof(evil), "%s/evil", g_apps_root);
+    n = snprintf(evil, sizeof(evil), "%s/evil", g_apps_root);
+    if (n < 0 || (size_t)n >= sizeof(evil)) return -1;
     mkdir(evil, 0755);
     char link[PATH_MAX];
-    snprintf(link, sizeof(link), "%s/app-host", evil);
+    n = snprintf(link, sizeof(link), "%s/app-host", evil);
+    if (n < 0 || (size_t)n >= sizeof(link)) return -1;
     if (symlink("/bin/true", link) != 0) return -1;
 
     char cross[PATH_MAX];
-    snprintf(cross, sizeof(cross), "%s/cross", g_apps_root);
+    n = snprintf(cross, sizeof(cross), "%s/cross", g_apps_root);
+    if (n < 0 || (size_t)n >= sizeof(cross)) return -1;
     mkdir(cross, 0755);
     char cross_link[PATH_MAX];
-    snprintf(cross_link, sizeof(cross_link), "%s/app-host", cross);
+    n = snprintf(cross_link, sizeof(cross_link), "%s/app-host", cross);
+    if (n < 0 || (size_t)n >= sizeof(cross_link)) return -1;
     char demo_target[PATH_MAX];
-    snprintf(demo_target, sizeof(demo_target), "%s/demo/app-host", g_apps_root);
+    n = snprintf(demo_target, sizeof(demo_target), "%s/demo/app-host", g_apps_root);
+    if (n < 0 || (size_t)n >= sizeof(demo_target)) return -1;
     if (symlink(demo_target, cross_link) != 0) return -1;
 
     g_root = geteuid() == 0;
@@ -219,6 +234,7 @@ static launch_spec_t base_spec(const char *app_id) {
     spec.gid = EDGEC_LAUNCH_UID_MIN;
     spec.seccomp_profile = EDGEC_LAUNCH_SECCOMP_OFF;
     spec.pids_max = 8;
+    spec.cpu_ms_per_sec = 500;
     spec.mem_max_bytes = 4u * 1024u * 1024u;
     snprintf(spec.cgroup_path, sizeof(spec.cgroup_path), "edgeos/%s", app_id);
     return spec;
@@ -339,13 +355,20 @@ static void test_sandbox_runtime_flags(void **state) {
 
     char cg_path[PATH_MAX];
     char cg_value[64];
-    snprintf(cg_path, sizeof(cg_path), "%s/edgeos/probe/memory.max", g_cgroup_root);
+    int n = snprintf(cg_path, sizeof(cg_path), "%s/edgeos/probe/memory.max", g_cgroup_root);
+    assert_true(n >= 0 && (size_t)n < sizeof(cg_path));
     assert_int_equal(read_text(cg_path, cg_value, sizeof(cg_value)), 0);
     assert_int_equal(atoi(cg_value), (int)spec.mem_max_bytes);
-    snprintf(cg_path, sizeof(cg_path), "%s/edgeos/probe/pids.max", g_cgroup_root);
+    n = snprintf(cg_path, sizeof(cg_path), "%s/edgeos/probe/pids.max", g_cgroup_root);
+    assert_true(n >= 0 && (size_t)n < sizeof(cg_path));
     assert_int_equal(read_text(cg_path, cg_value, sizeof(cg_value)), 0);
     assert_int_equal(atoi(cg_value), (int)spec.pids_max);
-    snprintf(cg_path, sizeof(cg_path), "%s/edgeos/probe/cgroup.procs", g_cgroup_root);
+    n = snprintf(cg_path, sizeof(cg_path), "%s/edgeos/probe/cpu.max", g_cgroup_root);
+    assert_true(n >= 0 && (size_t)n < sizeof(cg_path));
+    assert_int_equal(read_text(cg_path, cg_value, sizeof(cg_value)), 0);
+    assert_true(strncmp(cg_value, "500000 1000000", 14) == 0);
+    n = snprintf(cg_path, sizeof(cg_path), "%s/edgeos/probe/cgroup.procs", g_cgroup_root);
+    assert_true(n >= 0 && (size_t)n < sizeof(cg_path));
     assert_int_equal(read_text(cg_path, cg_value, sizeof(cg_value)), 0);
     assert_int_equal(atoi(cg_value), (int)result.pid);
     assert_int_equal(result.degraded & EDGEC_LAUNCH_DEGRADED_CGROUP, 0);
@@ -359,7 +382,15 @@ static int run_probe(const char *mode, launch_result_t *result) {
     spec.seccomp_profile = EDGEC_LAUNCH_SECCOMP_MINIMAL;
     const char *args[] = {"--launcher-probe", mode};
     spec.argv_count = 2;
+    /* Launcher 只向 app-host 传白名单环境；ASAN 构建的探针必须显式拿到
+     * detect_leaks=0，否则 LSan 在 minimal seccomp 下读不到 /proc 而自毁。 */
+#if defined(__SANITIZE_ADDRESS__)
+    const char *env[] = {"ASAN_OPTIONS=detect_leaks=0:halt_on_error=1"};
+    spec.env_count = 1;
+    if (edge_launcher_spawn(&spec, args, env, NULL, result) != EDGEC_LAUNCH_OK) return -1;
+#else
     if (edge_launcher_spawn(&spec, args, NULL, NULL, result) != EDGEC_LAUNCH_OK) return -1;
+#endif
     int status = 0;
     if (waitpid(result->pid, &status, 0) != result->pid) return -1;
     if (!WIFEXITED(status)) return -1;
@@ -440,6 +471,31 @@ static void test_product_death_kills_app_host(void **state) {
     assert_int_equal(alive, 0);
 }
 
+static void test_require_isolation_fails_closed(void **state) {
+    (void)state;
+    if (!g_root) {
+        skip();
+        return;
+    }
+    char saved[PATH_MAX];
+    const char *old = getenv("EDGEC_CGROUP_ROOT");
+    snprintf(saved, sizeof(saved), "%s", old ? old : "");
+    assert_int_equal(setenv("EDGEC_CGROUP_ROOT", "/proc/edgec-launcher-denied", 1), 0);
+
+    launch_spec_t spec = base_spec("probe");
+    spec.flags = EDGEC_LAUNCH_FLAG_REQUIRE_ISOLATION;
+    launch_result_t result;
+    int rc = edge_launcher_spawn(&spec, NULL, NULL, NULL, &result);
+    assert_int_not_equal(rc, EDGEC_LAUNCH_OK);
+    assert_int_equal(result.pid, 0);
+
+    if (saved[0]) {
+        assert_int_equal(setenv("EDGEC_CGROUP_ROOT", saved, 1), 0);
+    } else {
+        unsetenv("EDGEC_CGROUP_ROOT");
+    }
+}
+
 int main(int argc, char **argv) {
     if (argc >= 3 && strcmp(argv[1], "--launcher-probe") == 0) {
         return launcher_probe(argv[2], argc >= 4 ? argv[3] : NULL);
@@ -452,6 +508,7 @@ int main(int argc, char **argv) {
         cmocka_unit_test(test_nonroot_caller_refused),
         cmocka_unit_test(test_derives_fixed_target),
         cmocka_unit_test(test_sandbox_runtime_flags),
+        cmocka_unit_test(test_require_isolation_fails_closed),
         cmocka_unit_test(test_seccomp_denies_socket),
         cmocka_unit_test(test_readonly_root),
         cmocka_unit_test(test_product_death_kills_app_host),

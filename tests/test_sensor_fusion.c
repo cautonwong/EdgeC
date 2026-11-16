@@ -54,7 +54,7 @@ static void test_sensor_fusion_imu_gps(void** state) {
     // 2. Push GPS: Observed Pos = 0.55m
     ev.type = PIPEMSG_TYPE_BATCH;
     ev.tag_id = 200;  // GPS
-    ev.payload.batch.count = 1;
+    ev.payload.batch.count = 2;
     ev.payload.batch.ptr = vec_data;
     vec_data[0] = 0.55;
     ev.ts = 1000;
@@ -79,6 +79,7 @@ static void test_sensor_fusion_imu_gps(void** state) {
 
     // Trigger correction with mock GPS to read state
     ev.tag_id = 200;
+    ev.payload.batch.count = 2;
     vec_data[0] = 2.0;
     stage->process(stage, &ev);
 
@@ -89,9 +90,30 @@ static void test_sensor_fusion_imu_gps(void** state) {
     assert_true(fused_pos > 1.5 && fused_pos < 2.5);
 }
 
+static void test_sensor_fusion_rejects_bad_batch(void** state) {
+    test_ctx_t* ctx = *state;
+    pipeline_stage_t* stage = ctx->stage;
+
+    pipe_msg_t ev = {0};
+    double vec_data[2] = {0};
+    ev.type = PIPEMSG_TYPE_BATCH;
+
+    ev.tag_id = 100;
+    ev.payload.batch.ptr = NULL;
+    ev.payload.batch.count = 1;
+    assert_int_equal(stage->process(stage, &ev), STAGE_ERROR);
+
+    // 输出 [位置, 速度] 需要 2 个 double 的容量
+    ev.tag_id = 200;
+    ev.payload.batch.ptr = vec_data;
+    ev.payload.batch.count = 1;
+    assert_int_equal(stage->process(stage, &ev), STAGE_ERROR);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_sensor_fusion_imu_gps, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_sensor_fusion_rejects_bad_batch, setup, teardown),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

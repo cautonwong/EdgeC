@@ -364,6 +364,8 @@ const edge_driver_t dlt645_driver = {
     .req_slave_exchange = dlt645_req_slave_exchange,
 };
 
-int dlt645_driver_register(driver_manager_t *mgr) {
-    return driver_manager_register(mgr, &dlt645_driver);
+
+/* File-local prototypes. */
+int dlt645_driver_register(driver_manager_t *mgr);
+int dlt645_driver_register(driver_manager_t *mgr) {    return driver_manager_register(mgr, &dlt645_driver);
 }

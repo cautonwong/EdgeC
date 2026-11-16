@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 #include <uv.h>
 
 #include "datahub.h"
@@ -250,7 +251,7 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     // 💡 B. 电压骤降为 150V (<176.0V 阈值)
     // 模拟高频越限持续时间 1s -> 2s -> 3s -> 4s -> 5s (失压延时 5 秒触发)
     for (int i = 0; i <= 6; i++) {
-        scalar_msg.ts = base_ts + (uint64_t)i * 1000000000ULL;
+        scalar_msg.ts = base_ts + (uint64_t)i * (uint64_t)1000000000ULL;
         scalar_msg.payload.val.f = 150.0f;
         stream_engine_push(stream_engine, &scalar_msg);
 

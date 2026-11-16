@@ -13,7 +13,6 @@
 
 static void test_pipeline_hot_reload_logic(void** state) {
     (void)state;
-    uv_loop_t* loop = uv_default_loop();
     datahub_t hub;
     // 适配新签名
     datahub_init(&hub, uv_default_loop(), "test_reload_bus", 64, 1024, NULL, 0, NULL, NULL, NULL);

@@ -53,7 +53,7 @@ static void test_ahrs_quaternion_gimbal_lock_free(void** state) {
     double gx = (M_PI / 2.0);
     for (int i = 0; i < steps; i++) {
         ev.tag_id = 100;  // Reset tag ID
-        ev.payload.batch.count = 3;
+        ev.payload.batch.count = 4;
         vec_data[0] = gx;
         vec_data[1] = 0.0;
         vec_data[2] = 0.0;
@@ -79,7 +79,7 @@ static void test_ahrs_quaternion_gimbal_lock_free(void** state) {
     double gy = (M_PI / 2.0);
     for (int i = 0; i < steps; i++) {
         ev.tag_id = 100;  // Reset tag ID
-        ev.payload.batch.count = 3;
+        ev.payload.batch.count = 4;
         vec_data[0] = 0.0;
         vec_data[1] = gy;
         vec_data[2] = 0.0;
@@ -106,9 +106,29 @@ static void test_ahrs_quaternion_gimbal_lock_free(void** state) {
     assert_float_equal(z, 0.5, 0.01);
 }
 
+static void test_ahrs_quaternion_rejects_bad_batch(void** state) {
+    test_ctx_t* ctx = *state;
+    pipeline_stage_t* stage = ctx->stage;
+
+    pipe_msg_t ev = {0};
+    double vec_data[4] = {0};
+    ev.type = PIPEMSG_TYPE_BATCH;
+    ev.tag_id = 100;
+    ev.payload.batch.ptr = vec_data;
+
+    // 输出四元数需要 4 个 double 的容量
+    ev.payload.batch.count = 3;
+    assert_int_equal(stage->process(stage, &ev), STAGE_ERROR);
+
+    ev.payload.batch.count = 4;
+    ev.payload.batch.ptr = NULL;
+    assert_int_equal(stage->process(stage, &ev), STAGE_ERROR);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_ahrs_quaternion_gimbal_lock_free, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_ahrs_quaternion_rejects_bad_batch, setup, teardown),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

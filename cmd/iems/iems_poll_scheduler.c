@@ -79,12 +79,14 @@ static void _on_iems_task_loaded(const iems_loaded_task_t *loaded, void *user_da
     }
 
     iems_poll_task_t *task = calloc(1, sizeof(iems_poll_task_t));
+    if (!task) return;
     task->bus_id = loaded->bus_id;
     task->slave_id = loaded->slave_id;
     task->tag_id = loaded->tag_id;
     task->dense_idx = edge_tag_get_compact_index(loaded->tag_id);
     task->agg_root = s->node;
-    strncpy(task->protocol, loaded->protocol, 15);
+    snprintf(task->protocol, sizeof(task->protocol), "%.*s",
+             (int)(sizeof(task->protocol) - 1), loaded->protocol);
     task->interval_ms = 1000;
 
     const edge_tag_meta_t *meta = iems_get_tag_meta(loaded->tag_id);

@@ -149,6 +149,32 @@ static void test_iec104_telecontrol_double_confirmation(void) {
     printf("  -> PASSED: Telecontrol Select and Execute commands verified.\n");
 }
 
+static void test_iec104_asdu_rejects_truncated_ioa(void) {
+    struct net_buf_simple b;
+    uint8_t raw[2] = {0x01, 0x00};  // IOA 需要 3 字节，这里只有 2 字节
+    net_buf_simple_init_with_data(&b, raw, sizeof(raw));
+    b.len = sizeof(raw);
+
+    uint32_t ioa = 0;
+    bool val = false;
+    float f = 0;
+    iec_qds_t qds = {0};
+
+    assert(iec_asdu_parse_m_sp_na_1(&b, &ioa, &val, &qds, false, true, &IEC_ADDR_CONF_104) == -1);
+    assert(iec_asdu_parse_m_me_nc_1(&b, &ioa, &f, &qds, false, true, &IEC_ADDR_CONF_104) == -1);
+
+    // 104 头部需要 2 + 2 + 2 = 6 字节
+    uint8_t short_hdr[5] = {0};
+    net_buf_simple_init_with_data(&b, short_hdr, sizeof(short_hdr));
+    b.len = sizeof(short_hdr);
+    iec_type_id_t type;
+    bool sq = false;
+    uint8_t count = 0;
+    iec_cot_t cot;
+    uint16_t casdu = 0;
+    assert(iec_asdu_parse_header(&b, &type, &sq, &count, &cot, &casdu, &IEC_ADDR_CONF_104) == -1);
+}
+
 int main(void) {
     printf("=================================================================\n");
     printf("     AEP-430: IEC 104 State Grid Type Test Automation Suite     \n");
@@ -157,6 +183,7 @@ int main(void) {
     test_iec104_apci_handshake_matrix();
     test_iec104_asdu_general_interrogation_full_flow();
     test_iec104_telecontrol_double_confirmation();
+    test_iec104_asdu_rejects_truncated_ioa();
 
     printf("\nAll AEP-430 IEC 104 Type Testing test cases PASSED!\n");
     return 0;

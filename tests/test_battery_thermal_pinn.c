@@ -59,7 +59,8 @@ static void test_pinn_normal_operation_and_zero_false_alarm(void) {
     /* Simulate normal 10 samples (dT/dt = 0, Joule heat normal, T = 28°C) */
     for (int i = 0; i < 10; i++) {
         int ret =
-            battery_thermal_pinn_feed_sample(&pinn, 1, 3.25f, 140.0f, 28.0f, 1000 + i * 100, &risk);
+            battery_thermal_pinn_feed_sample(&pinn, 1, 3.25f, 140.0f, 28.0f,
+                                             (uint64_t)(1000 + i * 100), &risk);
         assert(ret == 0);
     }
 
@@ -95,7 +96,7 @@ static void test_pinn_micro_isc_early_warning_detection(void) {
 
     for (int i = 0; i < 5; i++) {
         float t = 26.0f + (float)i * 0.005f;
-        battery_thermal_pinn_feed_sample(&pinn, 2, 3.30f, 0.0f, t, 1200 + i * 100, &risk);
+        battery_thermal_pinn_feed_sample(&pinn, 2, 3.30f, 0.0f, t, (uint64_t)(1200 + i * 100), &risk);
     }
 
     /* Verify abnormal thermal generation was solved */

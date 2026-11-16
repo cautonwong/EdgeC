@@ -73,10 +73,32 @@ static void test_fuzz_overflow_packet(void** state) {
     uint8_t* data_out = NULL;
     size_t data_len = 0;
     int rc = modbus_rtu_decode_req_frame(&in->b, &slave_id, &fc, &data_out, &data_len);
-    // 预期不崩溃，且能正确拒绝或处理
-    assert_true(rc <= 0 || rc > 0);
+    // 契约：0 成功、1 数据不足、-1 CRC 错误、-2 格式错误。
+    assert_int_in_range((int)rc, -2, 1);
 
     net_buf_unref(in);
+}
+
+// 5. 随机字节流 (Fuzz Random)：固定种子可复现，配合 ASAN/UBSAN 验证解码器
+static void test_fuzz_random_bytes(void** state) {
+    net_buf_pool_t* pool = (net_buf_pool_t*)*state;
+    const char* env_seed = getenv("EDGE_FUZZ_SEED");
+    srand(env_seed ? (unsigned int)strtoul(env_seed, NULL, 0) : 1u);
+
+    for (int iter = 0; iter < 1000; iter++) {
+        net_buf_t* in = net_buf_alloc(pool, 0);
+        size_t len = (size_t)(rand() % 300);
+        for (size_t i = 0; i < len; i++) {
+            net_buf_simple_add_u8(&in->b, (uint8_t)rand());
+        }
+
+        uint8_t slave_id = 0, fc = 0;
+        uint8_t* data_out = NULL;
+        size_t data_len = 0;
+        int rc = modbus_rtu_decode_req_frame(&in->b, &slave_id, &fc, &data_out, &data_len);
+        assert_int_in_range((int)rc, -2, 1);
+        net_buf_unref(in);
+    }
 }
 
 // 4. 写多个寄存器 (FC=16) 时 ByteCount 字段极度不匹配 (Fuzz Mismatched ByteCount)
@@ -104,6 +126,7 @@ int main(void) {
         cmocka_unit_test_setup_teardown(test_fuzz_random_noise_crc, setup, teardown),
         cmocka_unit_test_setup_teardown(test_fuzz_overflow_packet, setup, teardown),
         cmocka_unit_test_setup_teardown(test_fuzz_fc16_mismatched_bytecount, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_fuzz_random_bytes, setup, teardown),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

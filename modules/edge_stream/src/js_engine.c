@@ -5,10 +5,11 @@
 
 #include "arbiter_types.h"
 #include "edge_log.h"
+#include "js_engine.h"
 #include "js_arbiter_port.h"
 #include "stream_bus_port.h"
 
-typedef struct {
+typedef struct js_engine_s {
     JSRuntime *rt;
     JSContext *ctx;
     uv_loop_t *loop;
@@ -81,14 +82,20 @@ static JSValue js_arbiter_submit(JSContext *ctx, JSValueConst this_val, int argc
     if (!engine->arb.submit) return JS_UNDEFINED;
 
     cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));
+    if (!cmd) return JS_EXCEPTION;
     cmd_msg_init_write(cmd, tag_id, value, ARBITER_PRIO_NORMAL);
 
-    js_arbiter_port_submit(&engine->arb, bus_id, cmd);
+    if (js_arbiter_port_submit(&engine->arb, bus_id, cmd) != 0) {
+        if (cmd->on_cleanup) cmd->on_cleanup(cmd);
+        free(cmd);
+    }
     return JS_UNDEFINED;
 }
 
-void js_engine_register_globals(JSContext *ctx) {
-    JSValue global_obj = JS_GetGlobalObject(ctx);
+
+/* File-local prototypes. */
+void js_engine_register_globals(JSContext *ctx);
+void js_engine_register_globals(JSContext *ctx) {    JSValue global_obj = JS_GetGlobalObject(ctx);
     JSValue dcu_obj = JS_NewObject(ctx);
 
     JS_SetPropertyStr(ctx, dcu_obj, "read", JS_NewCFunction(ctx, js_bus_read, "read", 1));

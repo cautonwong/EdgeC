@@ -29,7 +29,7 @@
 #include "shmring.h"
 
 // --- [SECTION 1] 线性代数：数值计算高级词条 ---
-void demo_linalg_advanced() {
+static void demo_linalg_advanced(void) {
     printf("\n\033[1;34m[Encyclopedia 1] 线性代数高级词条 (Cholesky / SVD / LS)\033[0m\n");
 
     // A. Cholesky 分解 (用于协方差矩阵加速)
@@ -48,7 +48,7 @@ void demo_linalg_advanced() {
 }
 
 // --- [SECTION 2] 信号处理与雷达 ---
-void demo_dsp_and_radar() {
+static void demo_dsp_and_radar(void) {
     printf(
         "\n\033[1;34m[Encyclopedia 2] 信号处理与雷达感测 (2D FFT / CFAR / Correlation)\033[0m\n");
 
@@ -70,7 +70,7 @@ void demo_dsp_and_radar() {
 }
 
 // --- [SECTION 3] 现代控制理论 ---
-void demo_control_advanced() {
+static void demo_control_advanced(void) {
     printf("\n\033[1;34m[Encyclopedia 3] 现代控制理论 (LQR / EKF / MPC Formulation)\033[0m\n");
 
     // EKF 预测校正
@@ -120,7 +120,7 @@ void demo_control_advanced() {
 }
 
 // --- [SECTION 4] 域变换：从 Laplace 到 Z 到 Wavelet ---
-void demo_transformations_encyclopedia() {
+static void demo_transformations_encyclopedia(void) {
     printf("\n\033[1;34m[Encyclopedia 4] 域变换词条 (Laplace / Z / Wavelet)\033[0m\n");
 
     // A. Laplace -> Z (Bilinear Transform)
@@ -139,7 +139,7 @@ void demo_transformations_encyclopedia() {
     printf("\n  - Haar 小波分解: \033[33m捕捉到细节分量突变强度 %.1f\033[0m\n", data[6]);
 }
 
-int main() {
+int main(void) {
     printf("\033[36m======================================================================\n");
     printf("      Nexus Lab V6.0 Encyclopedia: EdgeC 工业算法百科全书 (Final)\n");
     printf("======================================================================\033[0m\n");

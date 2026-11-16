@@ -1,0 +1,16 @@
+{
+  "abi_version": "1.0.0",
+  "vectors": [
+    {
+      "name": "every_host_function",
+      "steps": [
+        {"fn": "point_resolve", "expect": {"ok": true}},
+        {"fn": "point_read", "expect": {"ok": true}},
+        {"fn": "point_subscribe", "expect": {"ok": true}},
+        {"fn": "point_publish", "expect": {"ok": true}},
+        {"fn": "log", "expect": {"ok": true}},
+        {"fn": "now", "expect": {"ok": true}}
+      ]
+    }
+  ]
+}

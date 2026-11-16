@@ -4,6 +4,7 @@
  */
 
 #include "edge_pcp_mutex.h"
+#include <stdio.h>
 #include <string.h>
 #include <errno.h>
 #include <time.h>
@@ -42,7 +43,8 @@ edge_pcp_mutex_t *edge_pcp_mutex_create_in(edge_pcp_mutex_storage_t *store,
 
     // Initialize stats
     impl->stats.mutex_id = cfg->mutex_id;
-    strncpy(impl->stats.name, cfg->name, sizeof(impl->stats.name) - 1);
+    snprintf(impl->stats.name, sizeof(impl->stats.name), "%.*s",
+             (int)(sizeof(impl->stats.name) - 1), cfg->name);
     impl->stats.protocol = cfg->protocol;
     impl->stats.prio_ceiling = cfg->prio_ceiling;
 

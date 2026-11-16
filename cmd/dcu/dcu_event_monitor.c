@@ -141,7 +141,12 @@ static void _monitor_cleanup(void* priv) {
 pipeline_stage_t* stage_event_monitor_create(dcu_inventory_t* inv, dcu_event_obj_t* evt_3000,
                                              dcu_event_obj_t* evt_3005) {
     pipeline_stage_t* s = calloc(1, sizeof(pipeline_stage_t));
+    if (!s) return NULL;
     monitor_stage_ctx_t* ctx = calloc(1, sizeof(monitor_stage_ctx_t));
+    if (!ctx) {
+        free(s);
+        return NULL;
+    }
 
     ctx->inv = inv;
     ctx->evt_3000 = evt_3000;
@@ -259,7 +264,12 @@ pipeline_stage_t* stage_event_logger_create(dcu_inventory_t* inv, dcu_event_obj_
                                             dcu_event_obj_t* evt_3005, datahub_t* hub,
                                             event_sink_ops_t sink_ops) {
     pipeline_stage_t* s = calloc(1, sizeof(pipeline_stage_t));
+    if (!s) return NULL;
     logger_stage_ctx_t* ctx = calloc(1, sizeof(logger_stage_ctx_t));
+    if (!ctx) {
+        free(s);
+        return NULL;
+    }
 
     ctx->inv = inv;
     ctx->evt_3000 = evt_3000;
@@ -333,7 +343,12 @@ static void _freeze_cleanup(void* priv) {
 pipeline_stage_t* stage_periodic_freeze_create_ex(dcu_inventory_t* inv, datahub_t* hub,
                                                   event_sink_ops_t sink_ops) {
     pipeline_stage_t* s = calloc(1, sizeof(pipeline_stage_t));
+    if (!s) return NULL;
     freeze_stage_ctx_t* ctx = calloc(1, sizeof(freeze_stage_ctx_t));
+    if (!ctx) {
+        free(s);
+        return NULL;
+    }
 
     ctx->inv = inv;
     ctx->hub = hub;

@@ -28,10 +28,12 @@ typedef struct {
 } stream_bus_port_t;
 
 static inline int stream_bus_publish(const stream_bus_port_t *bus, const pipe_msg_t *msg) {
+    if (msg && msg->type == PIPEMSG_TYPE_BATCH) return -1; /* BATCH 只在进程内同步有效 */
     return (bus && bus->publish) ? bus->publish(bus->ctx, msg) : -1;
 }
 
 static inline int stream_bus_write_shadow(const stream_bus_port_t *bus, const pipe_msg_t *msg) {
+    if (msg && msg->type == PIPEMSG_TYPE_BATCH) return -1; /* BATCH 只在进程内同步有效 */
     return (bus && bus->write_shadow) ? bus->write_shadow(bus->ctx, msg) : -1;
 }
 

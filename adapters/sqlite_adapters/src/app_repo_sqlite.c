@@ -138,6 +138,70 @@ static int _repo_list(void *ctx, app_manifest_t *out_apps, int max_count) {
     return count;
 }
 
+static int _repo_save_limits(void *ctx, const char *app_id, const app_limits_t *limits) {
+    sqlite_svc_t *svc = (sqlite_svc_t *)ctx;
+    if (!svc || !app_id || !limits) return -1;
+    sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle(svc);
+    if (!db) return -1;
+    const char *sql =
+        "INSERT OR REPLACE INTO app_limits "
+        "(app_id, heap_kb, storage_kb, cpu_ms_per_sec, calls_per_sec, publish_per_sec, pids_max) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?);";
+    sqlite3_stmt *stmt;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) return -1;
+    sqlite3_bind_text(stmt, 1, app_id, -1, SQLITE_STATIC);
+    sqlite3_bind_int64(stmt, 2, (sqlite3_int64)limits->heap_kb);
+    sqlite3_bind_int64(stmt, 3, (sqlite3_int64)limits->storage_kb);
+    sqlite3_bind_int64(stmt, 4, (sqlite3_int64)limits->cpu_ms_per_sec);
+    sqlite3_bind_int64(stmt, 5, (sqlite3_int64)limits->calls_per_sec);
+    sqlite3_bind_int64(stmt, 6, (sqlite3_int64)limits->publish_per_sec);
+    sqlite3_bind_int64(stmt, 7, (sqlite3_int64)limits->pids_max);
+    int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    return rc == SQLITE_DONE ? 0 : -1;
+}
+
+static int _repo_get_limits(void *ctx, const char *app_id, app_limits_t *out_limits) {
+    sqlite_svc_t *svc = (sqlite_svc_t *)ctx;
+    if (!svc || !app_id || !out_limits) return -1;
+    memset(out_limits, 0, sizeof(*out_limits));
+    sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle(svc);
+    if (!db) return -1;
+    sqlite3_stmt *stmt;
+    if (sqlite3_prepare_v2(db,
+                           "SELECT heap_kb, storage_kb, cpu_ms_per_sec, calls_per_sec, "
+                           "publish_per_sec, pids_max FROM app_limits WHERE app_id = ?;",
+                           -1, &stmt, NULL) != SQLITE_OK)
+        return -1;
+    sqlite3_bind_text(stmt, 1, app_id, -1, SQLITE_STATIC);
+    int rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        out_limits->heap_kb = (uint32_t)sqlite3_column_int64(stmt, 0);
+        out_limits->storage_kb = (uint32_t)sqlite3_column_int64(stmt, 1);
+        out_limits->cpu_ms_per_sec = (uint32_t)sqlite3_column_int64(stmt, 2);
+        out_limits->calls_per_sec = (uint32_t)sqlite3_column_int64(stmt, 3);
+        out_limits->publish_per_sec = (uint32_t)sqlite3_column_int64(stmt, 4);
+        out_limits->pids_max = (uint32_t)sqlite3_column_int64(stmt, 5);
+    }
+    sqlite3_finalize(stmt);
+    return (rc == SQLITE_ROW || rc == SQLITE_DONE) ? 0 : -1;
+}
+
+static int _repo_delete_limits(void *ctx, const char *app_id) {
+    sqlite_svc_t *svc = (sqlite_svc_t *)ctx;
+    if (!svc || !app_id) return -1;
+    sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle(svc);
+    if (!db) return -1;
+    sqlite3_stmt *stmt;
+    if (sqlite3_prepare_v2(db, "DELETE FROM app_limits WHERE app_id = ?;", -1, &stmt, NULL) !=
+        SQLITE_OK)
+        return -1;
+    sqlite3_bind_text(stmt, 1, app_id, -1, SQLITE_STATIC);
+    int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    return rc == SQLITE_DONE ? 0 : -1;
+}
+
 edge_app_repo_t app_repo_sqlite(sqlite_svc_t *db) {
     edge_app_repo_t repo = {
         .ctx = db,
@@ -145,6 +209,9 @@ edge_app_repo_t app_repo_sqlite(sqlite_svc_t *db) {
         .get_app = _repo_get,
         .delete_app = _repo_delete,
         .list_apps = _repo_list,
+        .save_limits = _repo_save_limits,
+        .get_limits = _repo_get_limits,
+        .delete_limits = _repo_delete_limits,
     };
     return repo;
 }

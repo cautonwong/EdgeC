@@ -1,5 +1,6 @@
 add_executable(app-host
     main.c
+    no_exec_filter.c
     ${CMAKE_SOURCE_DIR}/sdk/c/edge_app_sdk.c
 )
 

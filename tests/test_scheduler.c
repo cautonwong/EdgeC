@@ -7,7 +7,7 @@
 #include "sched_time.h"
 
 // 模拟时间函数声明
-void mock_set_time(wall_time_t w, mono_time_t m);
+#include "mock_time.h"
 
 static void test_calendar_alignments(void** state) {
     (void)state;

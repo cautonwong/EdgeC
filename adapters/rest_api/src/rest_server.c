@@ -70,29 +70,6 @@ struct rest_server_s {
     rest_client_t clients[REST_MAX_CLIENTS];
 };
 
-// --- SQL 回调 ---
-typedef struct {
-    cJSON *array;
-    int count;
-} query_ctx_t;
-static int on_sqlite_row(void *user_data, PipeMsg *msg) {
-    query_ctx_t *ctx = (query_ctx_t *)user_data;
-    cJSON *item = cJSON_CreateObject();
-    cJSON_AddNumberToObject(item, "ts", (double)msg->ts);
-    cJSON_AddNumberToObject(item, "val", msg->payload.val.f);
-    cJSON_AddItemToArray(ctx->array, item);
-    ctx->count++;
-    return 0;
-}
-
-static uint64_t get_query_param_uint(const char *path, const char *key, uint64_t default_val) {
-    char search_key[32];
-    snprintf(search_key, sizeof(search_key), "%s=", key);
-    char *p = strstr(path, search_key);
-    if (!p) return default_val;
-    return (uint64_t)atoll(p + strlen(search_key));
-}
-
 // --- API Handlers ---
 
 static char *handle_system_health(service_t *svc) {
@@ -175,11 +152,13 @@ static char *handle_contracts_get(service_t *svc) {
     if (!f) return strdup("{\"error\":\"read_failed\"}");
     fseek(f, 0, SEEK_END);
     long len = ftell(f);
+    if (len < 0) { fclose(f); return strdup("{\"error\":\"read_failed\"}"); }
     fseek(f, 0, SEEK_SET);
     char *buf = malloc((size_t)len + 1);
-    fread(buf, 1, (size_t)len, f);
+    if (!buf) { fclose(f); return strdup("{\"error\":\"read_failed\"}"); }
+    size_t got = fread(buf, 1, (size_t)len, f);
     fclose(f);
-    buf[len] = '\0';
+    buf[got] = '\0';
     return buf;
 }
 
@@ -236,6 +215,7 @@ static char *handle_data_latest(service_t *svc, uint32_t tag_id) {
 #include "edge_api.h"
 
 static char *handle_data_write(service_t *svc, const char *body) {
+    (void)svc;
     if (!g_rest_write_enabled)
         return strdup("{\"status\":\"error\",\"reason\":\"write_disabled\"}");
 
@@ -290,13 +270,25 @@ static char *handle_io_raw(service_t *svc, const char *body) {
         cJSON_Delete(root);
         return strdup("{\"status\":\"error\",\"reason\":\"missing_fields\"}");
     }
+    if (!cJSON_IsString(payload_item) || !payload_item->valuestring) {
+        cJSON_Delete(root);
+        return strdup("{\"status\":\"error\",\"reason\":\"invalid_payload\"}");
+    }
 
     int bus_id = bus_item->valueint;
     const char *hex = payload_item->valuestring;
     size_t hex_len = strlen(hex);
+    if (hex_len % 2 != 0) {
+        cJSON_Delete(root);
+        return strdup("{\"status\":\"error\",\"reason\":\"invalid_hex\"}");
+    }
 
     datahub_t *hub = service_get_datahub(svc);
     net_buf_t *tx = net_buf_alloc(datahub_get_io_pool(hub), 0);
+    if (!tx) {
+        cJSON_Delete(root);
+        return strdup("{\"status\":\"error\",\"reason\":\"out_of_memory\"}");
+    }
 
     for (size_t i = 0; i < hex_len; i += 2) {
         unsigned int b;
@@ -315,6 +307,10 @@ static char *handle_io_raw_latest(void) {
     cJSON *root = cJSON_CreateObject();
     if (g_last_raw_rx_len > 0) {
         char *hex = malloc(g_last_raw_rx_len * 2 + 1);
+        if (!hex) {
+            cJSON_Delete(root);
+            return strdup("{\"status\":\"error\",\"reason\":\"out_of_memory\"}");
+        }
         for (size_t i = 0; i < g_last_raw_rx_len; i++) {
             sprintf(hex + i * 2, "%02X", g_last_raw_rx[i]);
         }

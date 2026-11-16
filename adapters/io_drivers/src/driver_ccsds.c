@@ -55,7 +55,11 @@ static int ccsds_req_tick(void *priv_v, const edge_north_source_ops_t *src, void
         uint8_t payload_buf[128];
         
         if (msg.type == PIPEMSG_TYPE_BATCH) {
-            payload_len = msg.payload.batch.count * sizeof(double);
+            if (!msg.payload.batch.ptr || msg.payload.batch.count <= 0 ||
+                (size_t)msg.payload.batch.count > sizeof(payload_buf) / sizeof(double)) {
+                return -1;
+            }
+            payload_len = (uint32_t)((size_t)msg.payload.batch.count * sizeof(double));
             memcpy(payload_buf, msg.payload.batch.ptr, payload_len);
         } else if (msg.type == PIPEMSG_TYPE_SCALAR) {
             payload_len = sizeof(double);
@@ -77,13 +81,20 @@ static int ccsds_req_tick(void *priv_v, const edge_north_source_ops_t *src, void
         priv->seq_count++;
         
         // Length = Data Field Length - 1
-        hdr.data_length = htons(payload_len - 1);
+        if (payload_len == 0 || payload_len > UINT16_MAX) return -1;
+        hdr.data_length = htons((uint16_t)(payload_len - 1));
         
         // Allocate buffer and pack
-        *out_tx = net_buf_alloc(pool, sizeof(ccsds_primary_header_t) + payload_len);
+        size_t packet_len = sizeof(ccsds_primary_header_t) + payload_len;
+        *out_tx = net_buf_alloc(pool, 0);
+        if (!*out_tx || packet_len > (*out_tx)->b.size) {
+            if (*out_tx) net_buf_unref(*out_tx);
+            *out_tx = NULL;
+            return -1;
+        }
         memcpy((*out_tx)->b.data, &hdr, sizeof(ccsds_primary_header_t));
         memcpy((*out_tx)->b.data + sizeof(ccsds_primary_header_t), payload_buf, payload_len);
-        (*out_tx)->b.len = sizeof(ccsds_primary_header_t) + payload_len;
+        (*out_tx)->b.len = (uint16_t)packet_len;
         
         needs_tx = true;
     }

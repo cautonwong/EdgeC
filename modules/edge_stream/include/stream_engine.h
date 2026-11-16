@@ -280,6 +280,49 @@ pipeline_stage_t *stage_reflex_logic_create(stream_control_ops_t control_ops, ui
 pipeline_stage_t *stage_moving_average_create(uint32_t window_size);
 pipeline_stage_t *stage_rbe_create(double threshold_pct);
 
+// --- Stage factories (declared so definitions and callers share one signature) ---
+void stream_engine_register_sim_pipeline(stream_engine_t *engine, const stream_bus_port_t *bus, uint32_t trigger_tag, uint32_t target_tag);
+pipeline_stage_t *stage_energy_integrator_create(uint32_t state_tag_id);
+pipeline_stage_t *stage_energy_integrator_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_sqlite_sink_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+const edge_stage_factory_entry_t *edge_stage_factory_get_registry(void);
+pipeline_stage_t *stage_advanced_pid_create(double kp, double ki, double kd, double setpoint, double out_min, double out_max, uint32_t out_tag);
+pipeline_stage_t *stage_ahrs_quaternion_create(uint32_t gyro_tag, uint32_t output_tag);
+pipeline_stage_t *stage_ahrs_quaternion_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *loader_ctx);
+pipeline_stage_t *stage_anomaly_baseline_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *loader_ctx);
+pipeline_stage_t *stage_compactor_create(uint32_t target_tag, uint32_t max_elements, uint32_t output_tag);
+pipeline_stage_t *stage_compactor_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *loader_ctx);
+pipeline_stage_t *stage_dsp_rms_create(uint32_t output_tag_id);
+pipeline_stage_t *stage_dsp_rms_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_ecg_anomaly_create(size_t buffer_size, uint32_t level, double threshold, uint32_t alarm_tag);
+pipeline_stage_t *stage_ecg_anomaly_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *loader_ctx);
+pipeline_stage_t *stage_ekf_soc_create(uint32_t current_tag, uint32_t voltage_tag, uint32_t soc_out_tag);
+pipeline_stage_t *stage_ekf_soc_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_foc_core_create(uint32_t output_tag, double v_dc, double dt, double kp_i, double ki_i);
+pipeline_stage_t *stage_iir_filter_create(uint32_t order, const double *b, const double *a);
+pipeline_stage_t *stage_kinematics_create(uint32_t output_tag, double l1, double l2);
+pipeline_stage_t *stage_kinematics_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_radar_tracker_create(uint32_t output_tag);
+pipeline_stage_t *stage_radar_tracker_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *loader_ctx);
+pipeline_stage_t *stage_notch_filter_create(double f0, double fs, double q_factor, uint32_t output_tag);
+pipeline_stage_t *stage_notch_filter_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *loader_ctx);
+pipeline_stage_t *stage_mpc_dispatcher_create(uint32_t soc_tag, uint32_t out_pcs_tag, double dt, double capacity_ah, double target_soc);
+pipeline_stage_t *stage_mpc_dispatch_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_rul_prediction_create(uint32_t rul_tag);
+pipeline_stage_t *stage_rul_prediction_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *loader_ctx);
+pipeline_stage_t *stage_sensor_fusion_create(uint32_t imu_tag, uint32_t gps_tag, uint32_t out_tag);
+pipeline_stage_t *stage_sensor_fusion_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_transfer_fn_create(const edge_stage_def_t *def);
+pipeline_stage_t *stage_tinyml_wasm_create(const edge_stage_def_t *def, pipeline_loader_ctx_t *loader_ctx);
+pipeline_stage_t *stage_vibration_features_create(size_t window_size, uint32_t rms_tag, uint32_t kurt_tag, uint32_t skew_tag);
+pipeline_stage_t *stage_wasm_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *loader_ctx);
+pipeline_stage_t *stage_vpp_logger_create(const char *secret, bool production);
+pipeline_stage_t *stage_vpp_logger_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *loader_ctx);
+pipeline_stage_t *stage_wavelet_anomaly_create(uint32_t alarm_tag, double threshold, size_t size, uint32_t level);
+
+pipeline_stage_t *stage_aggregator_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_linear_system_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_tf_s2z_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
 #ifdef __cplusplus
 }
 #endif

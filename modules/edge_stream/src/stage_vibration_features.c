@@ -20,6 +20,9 @@ typedef struct {
 } vibra_features_ctx_t;
 
 static void calc_stats(const double *data, size_t n, double *rms, double *kurt, double *skew) {
+    *rms = 0.0;
+    *kurt = 0.0;
+    *skew = 0.0;
     if (n == 0) return;
     double sum = 0.0, sum_sq = 0.0;
     
@@ -86,10 +89,20 @@ static void _cleanup(void *priv) {
 
 pipeline_stage_t *stage_vibration_features_create(size_t window_size, uint32_t rms_tag, uint32_t kurt_tag, uint32_t skew_tag) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    if (!s) return NULL;
     vibra_features_ctx_t *ctx = calloc(1, sizeof(vibra_features_ctx_t));
-    
+    if (!ctx) {
+        free(s);
+        return NULL;
+    }
+
     ctx->window_size = window_size > 0 ? window_size : 128;
     ctx->window = calloc(ctx->window_size, sizeof(double));
+    if (!ctx->window) {
+        free(ctx);
+        free(s);
+        return NULL;
+    }
     ctx->output_tag_rms = rms_tag;
     ctx->output_tag_kurt = kurt_tag;
     ctx->output_tag_skew = skew_tag;
@@ -101,7 +114,9 @@ pipeline_stage_t *stage_vibration_features_create(size_t window_size, uint32_t r
     return s;
 }
 
-pipeline_stage_t *stage_vibration_features_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *loader_ctx) {
-    (void)loader_ctx;
+
+/* File-local prototypes. */
+pipeline_stage_t *stage_vibration_features_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *loader_ctx);
+pipeline_stage_t *stage_vibration_features_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *loader_ctx) {    (void)loader_ctx;
     return stage_vibration_features_create((size_t)def->params.f1, (uint32_t)def->params.u1, (uint32_t)def->params.u2, (uint32_t)def->params.u3);
 }

@@ -73,10 +73,17 @@ static void client_close(uds_client_t *client) {
 }
 
 static int frame_reserve(uds_client_t *client, size_t extra) {
+    if (extra > REST_UDS_MAX_FRAME || client->frame_len > REST_UDS_MAX_FRAME - extra) return -1;
     size_t need = client->frame_len + extra;
     if (need <= client->frame_cap) return 0;
     size_t cap = client->frame_cap ? client->frame_cap : 4096;
-    while (cap < need) cap *= 2;
+    while (cap < need) {
+        if (cap > REST_UDS_MAX_FRAME / 2) {
+            cap = REST_UDS_MAX_FRAME;
+            break;
+        }
+        cap *= 2;
+    }
     uint8_t *grown = realloc(client->frame, cap);
     if (!grown) return -1;
     client->frame = grown;

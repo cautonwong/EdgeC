@@ -29,13 +29,13 @@ static void test_ekf_soc_convergence(void** state) {
     // 1. Push current 0A
     ev.tag_id = 1;
     ev.payload.val.f = 0.0;
-    ev.ts = 1000;
+    ev.ts = 1000000000ULL;
     assert_int_equal(soc_stage->process(soc_stage, &ev), STAGE_DROP);
 
     // 2. Push voltage 3.6V
     ev.tag_id = 2;
     ev.payload.val.f = 3.6;
-    ev.ts = 2000;  // dt = 1s
+    ev.ts = 2000000000ULL;  // dt = 1s
     assert_int_equal(soc_stage->process(soc_stage, &ev), STAGE_OK);
     assert_int_equal(ev.tag_id, 3);
 
@@ -56,7 +56,7 @@ static void test_ekf_soc_convergence(void** state) {
         // Push current 10A
         ev.tag_id = 1;
         ev.payload.val.f = 10.0;
-        ev.ts += (uint64_t)(dt * 1000);
+        ev.ts += (uint64_t)(dt * 1e9);
         soc_stage->process(soc_stage, &ev);
 
         // Update Simulated Battery Model:
@@ -67,7 +67,7 @@ static void test_ekf_soc_convergence(void** state) {
         // V = OCV(SOC) - Vp - I*R0
         ev.tag_id = 2;
         ev.payload.val.f = (3.0 + 1.2 * true_soc) - true_vp - 10.0 * r0;
-        ev.ts += (uint64_t)(dt * 1000);
+        ev.ts += (uint64_t)(dt * 1e9);
         soc_stage->process(soc_stage, &ev);
 
         if (i % 600 == 0) {

@@ -25,9 +25,10 @@ struct edge_params_s {
 static void _sync_to_datahub(edge_params_t *ctx, int idx) {
     if (!ctx || !ctx->publish_port.publish || !g_compact_cache || idx >= g_compact_count) return;
     const edge_param_info_t *meta = &ctx->meta_table[idx];
+    if (meta->tag_id == 0) return;
     pipe_msg_t msg = {0};
     msg.ts = uv_hrtime();
-    msg.tag_id = meta->id;
+    msg.tag_id = meta->tag_id;
     if (meta->type == PARAM_TYPE_FLOAT) {
         msg.type = PIPEMSG_TYPE_SCALAR;
         msg.payload.val.f = g_compact_cache[idx].f;
@@ -54,6 +55,14 @@ edge_params_t *edge_params_create_in(edge_params_storage_t *storage,
 
 void edge_params_register_metadata(edge_params_t *ctx, const edge_param_info_t *table, int count) {
     if (!ctx || count <= 0) return;
+    for (int i = 0; i < count; i++) {
+        if (table[i].id != (uint32_t)i) {
+            LOG_ERROR(LOG_CAT_CORE,
+                      "edge_params: metadata id %u at index %d; ids must equal registration order",
+                      table[i].id, i);
+            return;
+        }
+    }
     ctx->meta_table = table;
     ctx->meta_count = count;
 

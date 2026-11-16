@@ -57,7 +57,7 @@ static void child_phase_one(int fd) {
     memset(&sample, 0, sizeof(sample));
     err = edge_app_point_read(sdk, 1001, &sample);
     if (err || sample.value.number != 220.5 || strcmp(sample.quality, "good") != 0) _exit(12);
-    if (sample.source_ts != 1720000000000ULL) _exit(13);
+    if (sample.source_ts != 5000ULL) _exit(13);
 
     err = edge_app_point_resolve(sdk, "app.demo.value", &handle, &access);
     if (err || handle != APP_BASE || strcmp(access, "publish") != 0) _exit(14);
@@ -159,7 +159,7 @@ static void test_host_ports_end_to_end(void **state) {
                                   NULL),
                      0);
     pipe_msg_t seed;
-    pipe_msg_init_scalar(&seed, 1001, 220.5, 1720000000000ULL);
+    pipe_msg_init_scalar(&seed, 1001, 220.5, 5000000000ULL);
     assert_int_equal(datahub_write_shadow(hub, &seed), 0);
 
     iems_app_host_ctx_t ctx = {

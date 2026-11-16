@@ -63,6 +63,9 @@ typedef struct {
                    size_t reason_size);
     void (*log)(void *ctx, int level, const char *message);
     uint64_t (*now_ms)(void *ctx);
+    /** Per-second host-call and publish budgets; 0 = unlimited. */
+    uint32_t calls_per_sec;
+    uint32_t publish_per_sec;
 } app_host_ports_t;
 
 typedef struct app_host_server_s app_host_server_t;

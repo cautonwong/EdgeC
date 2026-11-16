@@ -1,5 +1,6 @@
 #include "edge_sched_deadline.h"
 
+#include <stdio.h>
 #include <string.h>
 #include <time.h>
 
@@ -86,7 +87,8 @@ int edge_sched_deadline_register_task(edge_sched_deadline_monitor_t *mon,
             }
             memset(&slot->stats, 0, sizeof(slot->stats));
             slot->stats.task_id = cfg->task_id;
-            strncpy(slot->stats.name, cfg->name, sizeof(slot->stats.name) - 1);
+            snprintf(slot->stats.name, sizeof(slot->stats.name), "%.*s",
+                     (int)(sizeof(slot->stats.name) - 1), cfg->name);
             slot->stats.state = EDGE_SCHED_STATE_NORMAL;
             slot->stats.min_duration_us = UINT64_MAX;
             slot->expected_next_start_us = 0;

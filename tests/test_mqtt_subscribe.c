@@ -58,7 +58,9 @@ static pid_t _start_broker(int port) {
         char p[16];
         snprintf(p, sizeof(p), "%d", port);
         /* 关掉 mosquitto 自己的日志噪声 */
-        freopen("/dev/null", "w", stderr);
+        if (freopen("/dev/null", "w", stderr) == NULL) {
+            _exit(127);
+        }
         /* 先按 PATH 找；apt 装的在 /usr/sbin，runner 的 PATH 里不一定有。
          * 两处都试，别让"装是装了但找不到"变成静默跳过。 */
         execlp("mosquitto", "mosquitto", "-p", p, (char*)NULL);

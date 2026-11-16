@@ -66,16 +66,55 @@ jobs:
 
 
       - name: Configure & Build
+        shell: bash
         run: |
+          # pipefail keeps a failed compile from being masked by tee.
+          set -o pipefail
           mkdir build && cd build
           cmake .. -GNinja -DCMAKE_BUILD_TYPE=Release ${{ matrix.config.cmake_args }}
-          cmake --build . -j$(nproc)
+          cmake --build . -j$(nproc) 2>&1 | tee build.log
+
+      - name: Check Build Warnings (x86_64 only)
+        if: matrix.config.target == 'x86_64'
+        run: python3 ci/scripts/check_build_warnings.py --log build/build.log --root .
+
+      - name: GCC Static Analyzer (x86_64 only)
+        if: matrix.config.target == 'x86_64'
+        run: python3 ci/scripts/run_fanalyzer.py --build-dir build --jobs 4
+
+      - name: Relax ASLR entropy for TSAN (x86_64_tsan only)
+        if: matrix.config.target == 'x86_64_tsan'
+        run: |
+          # TSAN maps a fixed shadow layout that collides with 32-bit mmap
+          # randomization on Linux 6.6+. Runners allow sudo, so lower the
+          # entropy to the documented compatible value instead of skipping
+          # the sanitizer.
+          if [ -e /proc/sys/vm/mmap_rnd_bits ]; then sudo sysctl -w vm.mmap_rnd_bits=28; fi
 
       - name: Run Tests (x86_64 only)
         if: matrix.config.run_tests
         run: |
           export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${{ github.workspace }}/.local/linux-x86_64/lib
-          cd build && ctest --output-on-failure
+          cd build && ctest --output-on-failure -E '^app_platform_e2e$'
+
+      - name: Run Performance Gates (x86_64 only)
+        if: matrix.config.target == 'x86_64'
+        run: |
+          # Wall-clock budgets run in their own step, with thresholds calibrated
+          # for shared runners (4x the local default). The default suite prints
+          # the numbers but does not fail on scheduler noise.
+          export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${{ github.workspace }}/.local/linux-x86_64/lib
+          cd build
+          EDGE_PERF_GATE=1 EDGE_PERF_P99_MS=20 EDGE_PERF_AVG_US=20 \
+            ctest -R '^(test_dcu_scale_benchmark|test_dds_shm_zerocopy_perf)$' --output-on-failure
+
+      - name: Run Privileged E2E (x86_64 only)
+        if: matrix.config.run_tests
+        run: |
+          export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${{ github.workspace }}/.local/linux-x86_64/lib
+          cd build
+          sudo -E env PATH="$PATH" LD_LIBRARY_PATH="$LD_LIBRARY_PATH" ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 \
+            ctest -R '^app_platform_e2e$' --output-on-failure
 
 
       - name: Generate Code Coverage (x86_64 only)
@@ -85,6 +124,8 @@ jobs:
           lcov --capture --directory . --output-file coverage.info --ignore-errors gcov,source
           lcov --remove coverage.info '/usr/*' '*/tests/*' '*/third-party/*' --output-file coverage_clean.info --ignore-errors gcov,source
           lcov --list coverage_clean.info || true
+          python3 "${{ github.workspace }}/ci/scripts/check_coverage.py" \
+            --info coverage_clean.info --root "${{ github.workspace }}"
 
       - name: Run Go Unit Tests (x86_64 only)
         if: matrix.config.target == 'x86_64'

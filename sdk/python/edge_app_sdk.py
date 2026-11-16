@@ -7,6 +7,15 @@ prefix followed by UTF-8 JSON. See sdk/README.md for the contract.
 import json
 import struct
 
+from edge_app_abi import (
+    FN_LOG,
+    FN_NOW,
+    FN_POINT_PUBLISH,
+    FN_POINT_READ,
+    FN_POINT_RESOLVE,
+    FN_POINT_SUBSCRIBE,
+)
+
 ABI_VERSION = "1.0.0"
 
 
@@ -95,16 +104,16 @@ class AppSdk:
         return response.get("result", {})
 
     def point_resolve(self, name):
-        result = self._call("point_resolve", {"name": name})
+        result = self._call(FN_POINT_RESOLVE, {"name": name})
         return result["handle"], result["access"]
 
     def point_read(self, handle):
-        result = self._call("point_read", {"handle": handle})
+        result = self._call(FN_POINT_READ, {"handle": handle})
         return decode_value(result["value"]), result["quality"], result.get("source_ts", 0)
 
     def point_subscribe(self, handle, deadband=0.0, min_interval_ms=0, max_interval_ms=0):
         result = self._call(
-            "point_subscribe",
+            FN_POINT_SUBSCRIBE,
             {
                 "handle": handle,
                 "deadband": deadband,
@@ -116,7 +125,7 @@ class AppSdk:
 
     def point_publish(self, handle, value, quality="good", source_ts=0):
         self._call(
-            "point_publish",
+            FN_POINT_PUBLISH,
             {
                 "handle": handle,
                 "sample": {
@@ -128,7 +137,7 @@ class AppSdk:
         )
 
     def log(self, level, message):
-        self._call("log", {"level": level, "message": message})
+        self._call(FN_LOG, {"level": level, "message": message})
 
     def now(self):
-        return self._call("now", {})["now_ms"]
+        return self._call(FN_NOW, {})["now_ms"]

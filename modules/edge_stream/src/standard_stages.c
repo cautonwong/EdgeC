@@ -192,7 +192,7 @@ static stage_ret_t _freeze_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
 
 static stage_ret_t _tg_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
     _tg_st_t *st = s->priv_state;
-    uint64_t now = uv_hrtime() / 1000000;
+    uint64_t now = uv_hrtime();  // ns, same base as ev->ts
     if (!st->inited) {
         st->last_mono = now;
         st->last_cal = ev->ts;
@@ -200,7 +200,7 @@ static stage_ret_t _tg_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
         return STAGE_OK;
     }
     int64_t drift = (int64_t)(ev->ts - st->last_cal) - (int64_t)(now - st->last_mono);
-    if (drift > 5000 || drift < -5000) ev->quality = 0x01;
+    if (drift > 5000000000LL || drift < -5000000000LL) ev->quality = 0x01;
     st->last_mono = now;
     st->last_cal = ev->ts;
     return STAGE_OK;
@@ -208,7 +208,10 @@ static stage_ret_t _tg_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
 
 static void _sink_work_cb(uv_work_t *req) {
     _sink_work_ctx_t *ctx = req->data;
-    stream_sqlite_exec(&ctx->db, ctx->sql);
+    int rc = stream_sqlite_exec(&ctx->db, ctx->sql);
+    if (rc != 0) {
+        LOG_WARN(LOG_CAT_CORE, "SQLite Sink: exec failed rc=%d sql=%s", rc, ctx->sql);
+    }
 }
 
 static void _sink_after_work_cb(uv_work_t *req, int status) {
@@ -332,20 +335,42 @@ static stage_ret_t _foc_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
 static pipeline_stage_t *_stage_node(const char *name, stage_proc_fn proc) {
     pipeline_stage_t *s = stream_stage_alloc_node();
     strncpy(s->name, name, 31);
+    s->name[sizeof(s->name) - 1] = '\0';
     s->process = proc;
     return s;
 }
 
-pipeline_stage_t *stage_filter_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
-    (void)ctx;
+
+/* File-local prototypes. */
+pipeline_stage_t *stage_filter_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_filter_range_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_transform_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_ema_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_clamp_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_peak_shave_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_accumulate_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_freeze_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_time_guard_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_reflex_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_moving_average_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_rbe_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_fir_filter_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_kf_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_foc_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_battery_guard_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+__attribute__((weak)) pipeline_stage_t *stage_aggregator_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+__attribute__((weak)) pipeline_stage_t *stage_linear_system_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+__attribute__((weak)) pipeline_stage_t *stage_tf_s2z_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_iir_filter_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_advanced_pid_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_filter_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {    (void)ctx;
     uint32_t tag_id = (uint32_t)def->params.u1;
     pipeline_stage_t *s = _stage_node("filter", _filter_proc);
     s->priv_cfg = (void *)(uintptr_t)tag_id;
     return s;
 }
 
-pipeline_stage_t *stage_filter_range_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
-    (void)ctx;
+pipeline_stage_t *stage_filter_range_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {    (void)ctx;
     pipeline_stage_t *s = _stage_node("filter_range", _range_proc);
     _range_cfg_t *c = (_range_cfg_t *)s->storage_cfg;
     memset(c, 0, sizeof(*c));
@@ -355,8 +380,7 @@ pipeline_stage_t *stage_filter_range_create_v2(const edge_stage_def_t *def, pipe
     return s;
 }
 
-pipeline_stage_t *stage_transform_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
-    (void)ctx;
+pipeline_stage_t *stage_transform_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {    (void)ctx;
     pipeline_stage_t *s = _stage_node("transform", _trans_proc);
     _trans_cfg_t *c = (_trans_cfg_t *)s->storage_cfg;
     memset(c, 0, sizeof(*c));
@@ -366,8 +390,7 @@ pipeline_stage_t *stage_transform_create_v2(const edge_stage_def_t *def, pipelin
     return s;
 }
 
-pipeline_stage_t *stage_ema_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
-    (void)ctx;
+pipeline_stage_t *stage_ema_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {    (void)ctx;
     pipeline_stage_t *s = _stage_node("ema", _ema_proc);
     _ema_cfg_t *c = (_ema_cfg_t *)s->storage_cfg;
     _ema_st_t *st = (_ema_st_t *)s->storage_state;
@@ -379,8 +402,7 @@ pipeline_stage_t *stage_ema_create_v2(const edge_stage_def_t *def, pipeline_load
     return s;
 }
 
-pipeline_stage_t *stage_clamp_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
-    (void)ctx;
+pipeline_stage_t *stage_clamp_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {    (void)ctx;
     pipeline_stage_t *s = _stage_node("clamp", _clamp_proc);
     _clamp_cfg_t *c = (_clamp_cfg_t *)s->storage_cfg;
     memset(c, 0, sizeof(*c));
@@ -390,8 +412,7 @@ pipeline_stage_t *stage_clamp_create_v2(const edge_stage_def_t *def, pipeline_lo
     return s;
 }
 
-pipeline_stage_t *stage_peak_shave_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
-    (void)ctx;
+pipeline_stage_t *stage_peak_shave_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {    (void)ctx;
     pipeline_stage_t *s = _stage_node("peak_shave", _shave_proc);
     _shave_cfg_t *c = (_shave_cfg_t *)s->storage_state;
     memset(c, 0, sizeof(*c));
@@ -402,8 +423,7 @@ pipeline_stage_t *stage_peak_shave_create_v2(const edge_stage_def_t *def, pipeli
     return s;
 }
 
-pipeline_stage_t *stage_accumulate_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
-    (void)ctx; (void)def;
+pipeline_stage_t *stage_accumulate_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {    (void)ctx; (void)def;
     pipeline_stage_t *s = _stage_node("accumulate", _acc_proc);
     double *acc = (double *)s->storage_state;
     *acc = 0.0;
@@ -411,8 +431,7 @@ pipeline_stage_t *stage_accumulate_create_v2(const edge_stage_def_t *def, pipeli
     return s;
 }
 
-pipeline_stage_t *stage_freeze_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
-    (void)ctx;
+pipeline_stage_t *stage_freeze_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {    (void)ctx;
     pipeline_stage_t *s = _stage_node("freeze", _freeze_proc);
     _freeze_st_t *st = (_freeze_st_t *)s->storage_state;
     memset(st, 0, sizeof(*st));
@@ -421,8 +440,7 @@ pipeline_stage_t *stage_freeze_create_v2(const edge_stage_def_t *def, pipeline_l
     return s;
 }
 
-pipeline_stage_t *stage_time_guard_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
-    (void)ctx; (void)def;
+pipeline_stage_t *stage_time_guard_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {    (void)ctx; (void)def;
     pipeline_stage_t *s = _stage_node("time_guard", _tg_proc);
     _tg_st_t *st = (_tg_st_t *)s->storage_state;
     memset(st, 0, sizeof(*st));
@@ -452,21 +470,27 @@ pipeline_stage_t *stage_sqlite_sink_create_v2(const edge_stage_def_t *def, pipel
     memset(c, 0, sizeof(*c));
     c->db = ctx->db;
     strncpy(c->table, def->params.s1, 63);
+    c->table[sizeof(c->table) - 1] = '\0';
     s->priv_cfg = c;
     char sql[256];
     snprintf(sql, sizeof(sql), "CREATE TABLE IF NOT EXISTS %s (tag_id INTEGER, value REAL, ts INTEGER)", c->table);
-    stream_sqlite_exec(&c->db, sql);
+    if (stream_sqlite_exec(&c->db, sql) != 0) {
+        LOG_ERROR(LOG_CAT_CORE, "SQLite Sink: cannot create table '%s'", c->table);
+        return NULL;
+    }
     return s;
 }
 
-pipeline_stage_t *stage_reflex_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
-    if (!ctx->control_ops.submit_control) return NULL;
+pipeline_stage_t *stage_reflex_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {    if (!ctx->control_ops.submit_control) return NULL;
     pipeline_stage_t *s = _stage_node("reflex", _reflex_proc);
     _reflex_cfg_t *c = (_reflex_cfg_t *)s->storage_cfg;
     memset(c, 0, sizeof(*c));
     c->control_ops = ctx->control_ops;
     c->bus_id = 0;
-    if (def->params.s1) strncpy(c->proto, def->params.s1, 15);
+    if (def->params.s1) {
+        strncpy(c->proto, def->params.s1, 15);
+        c->proto[sizeof(c->proto) - 1] = '\0';
+    }
     c->target_tag = (uint32_t)def->params.u1;
     c->threshold = def->params.f1;
     c->greater_than = (def->params.f2 > 0.5);
@@ -475,8 +499,7 @@ pipeline_stage_t *stage_reflex_create_v2(const edge_stage_def_t *def, pipeline_l
     return s;
 }
 
-pipeline_stage_t *stage_moving_average_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
-    (void)ctx;
+pipeline_stage_t *stage_moving_average_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {    (void)ctx;
     uint32_t window_size = (uint32_t)def->params.u1;
     if (window_size == 0) window_size = 1;
     pipeline_stage_t *s = _stage_node("moving_average", _ma_proc);
@@ -489,8 +512,7 @@ pipeline_stage_t *stage_moving_average_create_v2(const edge_stage_def_t *def, pi
     return s;
 }
 
-pipeline_stage_t *stage_rbe_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
-    (void)ctx;
+pipeline_stage_t *stage_rbe_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {    (void)ctx;
     pipeline_stage_t *s = _stage_node("rbe", _rbe_proc);
     _rbe_st_t *st = (_rbe_st_t *)s->storage_state;
     memset(st, 0, sizeof(*st));
@@ -499,8 +521,7 @@ pipeline_stage_t *stage_rbe_create_v2(const edge_stage_def_t *def, pipeline_load
     return s;
 }
 
-pipeline_stage_t *stage_fir_filter_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
-    (void)ctx; (void)def;
+pipeline_stage_t *stage_fir_filter_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {    (void)ctx; (void)def;
     double dummy_taps[] = {0.2, 0.2, 0.2, 0.2, 0.2};
     dsp_fir_t *fir = dsp_fir_create(dummy_taps, 5);
     pipeline_stage_t *s = _stage_node("fir_filter", _fir_proc);
@@ -509,8 +530,7 @@ pipeline_stage_t *stage_fir_filter_create_v2(const edge_stage_def_t *def, pipeli
     return s;
 }
 
-pipeline_stage_t *stage_kf_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
-    (void)ctx;
+pipeline_stage_t *stage_kf_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {    (void)ctx;
     uint32_t n = (uint32_t)def->params.u1 ? (uint32_t)def->params.u1 : 1;
     pipeline_stage_t *s = _stage_node("kalman_filter", _kf_proc);
     _kf_st_t *st = (_kf_st_t *)s->storage_state;
@@ -526,15 +546,13 @@ pipeline_stage_t *stage_kf_create_v2(const edge_stage_def_t *def, pipeline_loade
     return s;
 }
 
-pipeline_stage_t *stage_foc_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
-    (void)ctx;
+pipeline_stage_t *stage_foc_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {    (void)ctx;
     pipeline_stage_t *s = _stage_node("foc_svpwm", _foc_proc);
     s->priv_cfg = (void *)(uintptr_t)def->params.f1;
     return s;
 }
 
-pipeline_stage_t *stage_battery_guard_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
-    (void)ctx;
+pipeline_stage_t *stage_battery_guard_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {    (void)ctx;
     pipeline_stage_t *s = _stage_node("batt_guard", _batt_proc);
     battery_limit_t *limits = (battery_limit_t *)s->storage_cfg;
     memset(limits, 0, sizeof(*limits));
@@ -548,6 +566,7 @@ pipeline_stage_t *stage_battery_guard_create_v2(const edge_stage_def_t *def, pip
 
 pipeline_stage_t *stage_battery_guard_create(battery_limit_t *limits) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    if (!s) return NULL;
     strncpy(s->name, "batt_guard", 31);
     s->process = _batt_proc;
     s->priv_cfg = limits;
@@ -640,8 +659,7 @@ __attribute__((weak)) pipeline_stage_t *stage_tf_s2z_create_v2(const edge_stage_
 
 pipeline_stage_t *stage_iir_filter_create(uint32_t order, const double *b, const double *a);
 
-pipeline_stage_t *stage_iir_filter_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
-    (void)ctx;
+pipeline_stage_t *stage_iir_filter_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {    (void)ctx;
     // [Fix C6] 移除硬编码，使用传入参数 f1=b0, f2=b1, f3=a1
     uint32_t order = (uint32_t)def->params.u1;
     if (order != 1) return NULL; // 目前仅支持 1 阶通过此接口
@@ -652,8 +670,7 @@ pipeline_stage_t *stage_iir_filter_create_v2(const edge_stage_def_t *def, pipeli
 
 pipeline_stage_t *stage_advanced_pid_create(double kp, double ki, double kd, double setpoint, double out_min, double out_max, uint32_t out_tag);
 
-pipeline_stage_t *stage_advanced_pid_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
-    (void)ctx;
+pipeline_stage_t *stage_advanced_pid_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {    (void)ctx;
     double setpoint = def->params.s1 ? atof(def->params.s1) : 50.0;
     double out_min = -100.0;
     double out_max = 100.0;
@@ -667,12 +684,6 @@ pipeline_stage_t *stage_kf_create_v2(const edge_stage_def_t *def, pipeline_loade
 pipeline_stage_t *stage_foc_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
 pipeline_stage_t *stage_fir_filter_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
 pipeline_stage_t *stage_battery_guard_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
-
-#ifndef CONFIG_EDGEC_ALGO_LINALG
-#warning "CONFIG_EDGEC_ALGO_LINALG is NOT defined!"
-#else
-#warning "CONFIG_EDGEC_ALGO_LINALG IS DEFINED!"
-#endif
 
 #if defined(CONFIG_EDGEC_ALGO_LINALG)
 pipeline_stage_t *stage_ekf_soc_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);

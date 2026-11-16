@@ -19,7 +19,8 @@ cmd/edge_mcp_server/main.c|183
 cmd/iems/iems_app.c|559
 cmd/iems/iems_north_listener.c|112
 cmd/iems/iems_southbound_adapter.c|133
-cmd/iems/main.c|107
+cmd/iems/main.c|109
+# 2026-11-16: 组合根忽略 SIGPIPE（+1 调用 +1 include），应用崩溃后的 IPC 写入不得打死网关。
 cmd/nexus_lab/main.c|156
 cmd/smart_box/main.c|90
 # 2026-11-09: core service 不再持有北向管理器；产品组合根显式 start/stop 北向 (+4 DCU, +1 IEMS)。
@@ -58,4 +59,6 @@ modules/edge_north/src/northbound_mgr.c|711
 # 2026-11-13: cmd/iems/iems_app_manager_adapter.c 1209 -> 1251；发布者密钥环装载与签名者断言。
 # 2026-11-13: cmd/iems/iems_app_manager_adapter.c 1251 -> 1289；安装/升级写入发布者信任并校验发布者身份。
 # 2026-11-13: cmd/iems/iems_app_manager_adapter.c 1289 -> 1294；应用目录与崩溃注入由组合根注入。
-cmd/iems/iems_app_manager_adapter.c|1294
+# 2026-11-14: cmd/iems/iems_app_manager_adapter.c 1294 -> 1315；PURGE 删除结果检查与授权分页。
+# 2026-11-14: cmd/iems/iems_app_manager_adapter.c 1315 -> 1374；资源限制持久化、拒绝未实现项与启动接线。
+cmd/iems/iems_app_manager_adapter.c|1374

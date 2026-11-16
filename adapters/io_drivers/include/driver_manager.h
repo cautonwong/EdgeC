@@ -128,4 +128,23 @@ void driver_instance_destroy(edge_driver_ctx_t *ctx, const char *protocol);
  */
 int driver_manager_reset_circuit_breaker(driver_manager_t *mgr, uint32_t device_id);
 
+
+
+
+/* --- Built-in driver registration entry points --- */
+int can_driver_register(driver_manager_t *mgr);
+int ccsds_driver_register(driver_manager_t *mgr);
+int cia402_driver_register(driver_manager_t *mgr);
+int dlms_driver_register(driver_manager_t *mgr);
+int dlt645_driver_register(driver_manager_t *mgr);
+int dlt698_driver_register(driver_manager_t *mgr);
+int hl7_fhir_driver_register(driver_manager_t *mgr);
+int iec101_driver_register(driver_manager_t *mgr);
+int iec104_driver_register(driver_manager_t *mgr);
+int modbus_driver_register(driver_manager_t *mgr);
+int modbus_rtu_driver_register(driver_manager_t *mgr);
+int modbus_tcp_driver_register(driver_manager_t *mgr);
+int mqtt_json_driver_register(driver_manager_t *mgr);
+int sparkplug_b_driver_register(driver_manager_t *mgr);
+
 #endif

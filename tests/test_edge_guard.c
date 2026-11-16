@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include <unistd.h>
 
 #include "arbiter.h"
 #include "contract_registry.h"
@@ -13,26 +13,17 @@
 // Mock 契约元数据
 static const edge_tag_meta_t mock_meta = {
     .id = 5001, .name = "CRITICAL_VALVE_CONTROL", .min = 0.0, .max = 100.0, .unit = "%"};
+/* 独立 tag：dpi_engine_init() 对已初始化引擎是幂等的，不会清空 5001 的上一次
+ * 采样；速率用例换 slot，避免第一次写入被上一个用例的 50% 当成跳变。 */
+static const edge_tag_meta_t mock_meta_rate = {
+    .id = 5002, .name = "CRITICAL_VALVE_RATE", .min = 0.0, .max = 100.0, .unit = "%"};
 
 // 模拟 contract_tag_get_meta
 const edge_tag_meta_t* contract_tag_get_meta(edge_tag_id_t id) {
     if (id == 5001) return &mock_meta;
+    if (id == 5002) return &mock_meta_rate;
     return NULL;
 }
-
-// 模拟 mbedtls_ops (由于我们没有链接真实 mbedtls，此处使用 Mock)
-#include "hal_crypto.h"
-static int mock_hmac(crypto_hash_algo_t algo, const crypto_key_t* key, const uint8_t* input,
-                     size_t ilen, uint8_t* output) {
-    (void)algo;
-    (void)key;
-    (void)input;
-    (void)ilen;
-    memset(output, 0xAA, 32);  // 返回固定 Fake 签名
-    return 0;
-}
-
-static crypto_ops_t mbedtls_ops = {.name = "mock_crypto", .hmac_calculate = mock_hmac};
 
 static void test_dpi_range_protection(void** state) {
     (void)state;
@@ -56,7 +47,7 @@ static void test_dpi_rate_of_change(void** state) {
     dpi_engine_init();
 
     // 第一次写入 10%
-    assert_int_equal(dpi_validate_telemetry(5001, 10.0), DPI_PASS);
+    assert_int_equal(dpi_validate_telemetry(5002, 10.0), DPI_PASS);
 
     // 我们需要模拟时间流逝。由于 dpi_validate_telemetry 内部使用 uv_now()，
     // 我们无法直接控制它。但我们可以等待 10ms。
@@ -64,7 +55,7 @@ static void test_dpi_rate_of_change(void** state) {
     usleep(10000);
 
     // 立即写入 90% (瞬间跳变 80%，超过 50%/s 的默认逻辑阈值)
-    assert_int_equal(dpi_validate_telemetry(5001, 90.0), DPI_BLOCK_RATE);
+    assert_int_equal(dpi_validate_telemetry(5002, 90.0), DPI_BLOCK_RATE);
 }
 
 int main(void) {

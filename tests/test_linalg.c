@@ -6,7 +6,7 @@
 
 #include "edge_linalg.h"
 
-void test_matrix_basic() {
+static void test_matrix_basic(void) {
     printf("[Test] Running Linalg Basic Test...\n");
     edge_matrix_t* a = edge_matrix_alloc(2, 2);
     edge_matrix_t* b = edge_matrix_alloc(2, 2);
@@ -43,7 +43,7 @@ void test_matrix_basic() {
     edge_matrix_free(c);
 }
 
-void test_matrix_inversion() {
+static void test_matrix_inversion(void) {
     printf("[Test] Running Linalg Inversion Test...\n");
     edge_matrix_t* m = edge_matrix_alloc(2, 2);
     edge_matrix_t* inv = edge_matrix_alloc(2, 2);
@@ -81,9 +81,29 @@ void test_matrix_inversion() {
     edge_matrix_free(id);
 }
 
-int main() {
+static void test_matrix_null_safety(void) {
+    printf("[Test] Running Linalg Null Safety Test...\n");
+    edge_matrix_t* m = edge_matrix_alloc(1, 1);
+    assert(m != NULL);
+
+    assert(edge_matrix_identity(NULL) == -1);
+    assert(edge_matrix_set(NULL, 0, 0, 1.0) == -1);
+    assert(isnan(edge_matrix_get(NULL, 0, 0)));
+    assert(edge_matrix_add(NULL, m, m) == -1);
+    assert(edge_matrix_mul(m, NULL, m) == -1);
+    assert(edge_matrix_copy(m, NULL) == -1);
+    assert(edge_matrix_transpose(NULL, m) == -1);
+    assert(edge_matrix_scale(NULL, 2.0) == -1);
+    assert(edge_matrix_cholesky(NULL, m) == -1);
+
+    edge_matrix_free(m);
+    printf("  - Null Safety OK\n");
+}
+
+int main(void) {
     test_matrix_basic();
     test_matrix_inversion();
+    test_matrix_null_safety();
     printf("[Test] All Linalg tests passed!\n");
     return 0;
 }

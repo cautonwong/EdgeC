@@ -87,10 +87,12 @@ int dlms_decode_variant(dlms_decoder_t *dec, dlms_variant_t *out) {
     switch (out->type) {
         case DLMS_TYPE_UINT8:
         case DLMS_TYPE_ENUM:
+            if (dec->buf->len < 1) return -1;
             out->length = 1;
             out->payload = net_buf_simple_pull(dec->buf, 1);
             break;
         case DLMS_TYPE_UINT16:
+            if (dec->buf->len < 2) return -1;
             out->length = 2;
             out->payload = net_buf_simple_pull(dec->buf, 2);
             break;
@@ -108,6 +110,8 @@ int dlms_decode_variant(dlms_decoder_t *dec, dlms_variant_t *out) {
             } else if (l == 0x82) {
                 if (dec->buf->len < 2) return -1;
                 out->length = net_buf_simple_pull_be16(dec->buf);
+            } else {
+                return -1;
             }
             if (out->type == DLMS_TYPE_OCTET_STRING || out->type == DLMS_TYPE_VISIBLE_STRING) {
                 if (dec->buf->len < out->length) return -3;

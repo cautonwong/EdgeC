@@ -270,8 +270,9 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
             uint8_t bufs[DLT698_GET_LIST_MAX][8];
             memset(items, 0, sizeof(items));
             for (size_t k = 0; k < n; k++) {
-                const uint8_t *p = payload + 1 + 4 * k;
-                uint32_t oad = (uint32_t)((p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3]);
+                const uint8_t *oad_bytes = payload + 1 + 4 * k;
+                uint32_t oad = (uint32_t)((oad_bytes[0] << 24) | (oad_bytes[1] << 16) |
+                                          (oad_bytes[2] << 8) | oad_bytes[3]);
                 edge_point_value_t v;
                 memset(&v, 0, sizeof(v));
                 items[k].oad = oad;
@@ -369,6 +370,8 @@ const edge_driver_t dlt698_driver = {
     .req_slave_exchange = dlt698_req_slave_exchange,
 };
 
-int dlt698_driver_register(driver_manager_t *mgr) {
-    return driver_manager_register(mgr, &dlt698_driver);
+
+/* File-local prototypes. */
+int dlt698_driver_register(driver_manager_t *mgr);
+int dlt698_driver_register(driver_manager_t *mgr) {    return driver_manager_register(mgr, &dlt698_driver);
 }

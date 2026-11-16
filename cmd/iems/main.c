@@ -9,6 +9,7 @@
 
 #include <curl/curl.h>
 #include "thread_port_uv.h"
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <uv.h>
@@ -25,6 +26,7 @@ static void on_signal_exit(uv_signal_t* handle, int signum) {
 
 int main(int argc, char* argv[]) {
     edge_thread_port_install_uv();
+    signal(SIGPIPE, SIG_IGN);  // 应用进程崩溃后写 IPC 不得打死网关
     (void)argc;
     (void)argv;
 

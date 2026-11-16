@@ -2,6 +2,7 @@
 
 #include "edge_common.h"
 #include "sched_time.h"
+#include "mock_time.h"
 
 static wall_time_t g_mock_wall = 0;
 static mono_time_t g_mock_mono = 0;

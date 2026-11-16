@@ -126,6 +126,8 @@ int edge_launcher_spawn(const launch_spec_t *spec, const char *const args[],
         return EDGEC_LAUNCH_ERR_SYSTEM;
     }
 
+    char fd_arg[16];
+    snprintf(fd_arg, sizeof(fd_arg), "%d", EDGEC_LAUNCH_STATUS_FD);
     pid_t pid = fork();
     if (pid < 0) {
         close(sv[0]);
@@ -154,10 +156,8 @@ int edge_launcher_spawn(const launch_spec_t *spec, const char *const args[],
             (void)fcntl(EDGEC_LAUNCH_FD_BASE + (int)i, F_SETFD, 0);
         }
         (void)prctl(PR_SET_PDEATHSIG, SIGKILL);
-        char fd_arg[16];
-        snprintf(fd_arg, sizeof(fd_arg), "%d", EDGEC_LAUNCH_STATUS_FD);
         char *child_argv[] = {helper, fd_arg, NULL};
-        execv(helper, child_argv);
+        execve(helper, child_argv, environ);
         report_and_exit(EDGEC_LAUNCH_STATUS_FD, EDGEC_LAUNCH_ERR_EXEC, 0);
     }
 

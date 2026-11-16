@@ -86,8 +86,10 @@ static double _calculate_next_align(double now_ms, double baseline_offset_sec,
     return (anchor + periods * interval_sec) * 1000.0;
 }
 
-double sched_policy_14h_from_000030(uv_periodic_t* handle, double now_ms) {
-    (void)handle;
+
+/* File-local prototypes. */
+double sched_policy_14h_from_000030(uv_periodic_t* handle, double now_ms);
+double sched_policy_14h_from_000030(uv_periodic_t* handle, double now_ms) {    (void)handle;
     return _calculate_next_align(now_ms, 30.0, 14.0 * 3600.0);
 }
 

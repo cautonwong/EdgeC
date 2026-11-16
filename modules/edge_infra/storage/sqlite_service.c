@@ -14,12 +14,9 @@
 #include <stdatomic.h>
 
 #include "edge_log.h"
-// Provides app_manifest_t. The manifest persistence helpers in this file are the
-// remaining reason edge_infra depends on edge_mgmt; tracked as bounded-context debt
-// in #414 (they belong with the app manager, not with the storage engine).
 
 // 数据库架构版本 (V9: 轻量任务)
-#define EDGE_DB_SCHEMA_VERSION 14
+#define EDGE_DB_SCHEMA_VERSION 15
 
 typedef struct {
     PipeMsg *buffer;
@@ -29,6 +26,7 @@ typedef struct {
 
 struct sqlite_svc_s {
     sqlite3 *db;
+    sqlite3 *flush_db; /**< 仅刷新 worker 使用；:memory: 时复用 db */
     uv_loop_t *loop;
     sqlite_config_t config;
     data_batch_t *active_buf;
@@ -103,15 +101,15 @@ static void _get_shard_table(uint64_t ts, char *out) {
     snprintf(out, 64, "telemetry_%04d%02d", t.tm_year + 1900, t.tm_mon + 1);
 }
 
-static void _ensure_shard_exists(sqlite_svc_t *svc, const char *table_name) {
-    if (strcmp(table_name, svc->current_shard) == 0) return;
+static void _ensure_shard_exists(sqlite3 *db, const char *table_name, char *current_shard) {
+    if (strcmp(table_name, current_shard) == 0) return;
     char sql[256];
     snprintf(sql, sizeof(sql),
              "CREATE TABLE IF NOT EXISTS %s (ts INT, tag_id INT, val REAL, q INT, synced INT DEFAULT 0, PRIMARY KEY(ts, "
              "tag_id)) WITHOUT ROWID;",
              table_name);
-    if (sqlite3_exec(svc->db, sql, 0, 0, 0) == SQLITE_OK) {
-        strcpy(svc->current_shard, table_name);
+    if (sqlite3_exec(db, sql, 0, 0, 0) == SQLITE_OK) {
+        strcpy(current_shard, table_name);
     }
 }
 
@@ -214,6 +212,12 @@ static const db_migration_t k_migrations[] = {
      "ALTER TABLE app_registry ADD COLUMN last_fault_ms INTEGER NOT NULL DEFAULT 0;"},
     {14, "system_time_trust",
      "CREATE TABLE IF NOT EXISTS system_time (key TEXT PRIMARY KEY, value INTEGER NOT NULL);"},
+    {15, "app_limits",
+     "CREATE TABLE IF NOT EXISTS app_limits ("
+     "app_id TEXT PRIMARY KEY, heap_kb INTEGER NOT NULL DEFAULT 0, "
+     "storage_kb INTEGER NOT NULL DEFAULT 0, cpu_ms_per_sec INTEGER NOT NULL DEFAULT 0, "
+     "calls_per_sec INTEGER NOT NULL DEFAULT 0, publish_per_sec INTEGER NOT NULL DEFAULT 0, "
+     "pids_max INTEGER NOT NULL DEFAULT 0);"},
 };
 
 int sqlite_service_schema_version(void) {
@@ -371,10 +375,30 @@ static int _migrate_schema(sqlite_svc_t *svc) {
 
 // --- 3. 异步/同步冲刷逻辑 ---
 
-static void _flush_batch_internal(sqlite_svc_t *svc, data_batch_t *batch) {
-    if (!svc || !svc->db || !batch || batch->count == 0) return;
+/* 刷新 worker 用自己的连接。共用 loop 连接会让 worker 的 BEGIN/COMMIT
+ * 把 loop 线程的一条语句卷进同一个事务；:memory: 无法跨连接共享，退回 db。 */
+static sqlite3 *flush_connection(sqlite_svc_t *svc) {
+    if (svc->flush_db) return svc->flush_db;
+    if (svc->config.db_path[0] == '\0' || strcmp(svc->config.db_path, ":memory:") == 0) {
+        return svc->db;
+    }
+    sqlite3 *db = NULL;
+    if (sqlite3_open(svc->config.db_path, &db) != SQLITE_OK) {
+        LOG_ERROR(LOG_CAT_CORE, "DB: flush connection open failed: %s",
+                  db ? sqlite3_errmsg(db) : "out of memory");
+        if (db) sqlite3_close(db);
+        return svc->db;
+    }
+    sqlite3_busy_timeout(db, 5000);
+    sqlite3_exec(db, "PRAGMA synchronous=NORMAL; PRAGMA temp_store=MEMORY;", NULL, NULL, NULL);
+    svc->flush_db = db;
+    return db;
+}
 
-    sqlite3_exec(svc->db, "BEGIN IMMEDIATE;", 0, 0, 0);
+static void _flush_batch_internal(sqlite_svc_t *svc, sqlite3 *db, data_batch_t *batch) {
+    if (!svc || !db || !batch || batch->count == 0) return;
+
+    sqlite3_exec(db, "BEGIN IMMEDIATE;", 0, 0, 0);
 
     // [AET-2.1 Optimization] 预编译语句在循环外定义，减少解析开销
     sqlite3_stmt *stmt = NULL;
@@ -386,7 +410,7 @@ static void _flush_batch_internal(sqlite_svc_t *svc, data_batch_t *batch) {
         char shard_name[64];
         if (svc->config.strategy == STRATEGY_SHARDING) {
             _get_shard_table(msg->ts, shard_name);
-            _ensure_shard_exists(svc, shard_name);
+            _ensure_shard_exists(db, shard_name, svc->current_shard);
             table = shard_name;
         }
 
@@ -394,7 +418,7 @@ static void _flush_batch_internal(sqlite_svc_t *svc, data_batch_t *batch) {
             if (stmt) sqlite3_finalize(stmt);
             char sql[256];
             snprintf(sql, sizeof(sql), "INSERT OR REPLACE INTO %s (ts, tag_id, val, q) VALUES (?,?,?,?)", table);
-            if (sqlite3_prepare_v2(svc->db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+            if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
                 continue;
             }
             current_table = table;
@@ -410,14 +434,14 @@ static void _flush_batch_internal(sqlite_svc_t *svc, data_batch_t *batch) {
     }
 
     if (stmt) sqlite3_finalize(stmt);
-    sqlite3_exec(svc->db, "COMMIT;", 0, 0, 0);
+    sqlite3_exec(db, "COMMIT;", 0, 0, 0);
 }
 
 static void _worker_flush_cb(uv_work_t *req) {
     sqlite_svc_t *svc = (sqlite_svc_t *)req->data;
     data_batch_t *batch = svc->flush_buf;
     if (!batch || batch->count == 0) return;
-    _flush_batch_internal(svc, batch);
+    _flush_batch_internal(svc, flush_connection(svc), batch);
 }
 
 int sqlite_svc_flush(sqlite_svc_t *svc) {
@@ -425,7 +449,7 @@ int sqlite_svc_flush(sqlite_svc_t *svc) {
     if (svc->active_buf) {
         uv_mutex_lock(&svc->buf_lock);
         if (svc->active_buf->count > 0) {
-            _flush_batch_internal(svc, svc->active_buf);
+            _flush_batch_internal(svc, svc->db, svc->active_buf);
             svc->active_buf->count = 0;
         }
         uv_mutex_unlock(&svc->buf_lock);
@@ -473,6 +497,7 @@ sqlite_svc_t *sqlite_svc_create_in(sqlite_svc_storage_t *storage, uv_loop_t *loo
     if (sqlite3_open(cfg->db_path, &svc->db) != SQLITE_OK) {
         return NULL;
     }
+    sqlite3_busy_timeout(svc->db, 5000);
     if (_migrate_schema(svc) != 0) {
         sqlite3_close(svc->db);
         svc->db = NULL;
@@ -531,6 +556,7 @@ sqlite_svc_t *sqlite_svc_create_ex(uv_loop_t *loop, sqlite_config_t *cfg, int *o
         if (out_error) *out_error = -1;
         return NULL;
     }
+    sqlite3_busy_timeout(svc->db, 5000);
     int migrate_rc = _migrate_schema(svc);
     if (migrate_rc != 0) {
         sqlite3_close(svc->db);
@@ -777,6 +803,10 @@ void sqlite_svc_destroy(sqlite_svc_t *svc) {
         uv_run(svc->loop, UV_RUN_ONCE);
     }
 
+    if (svc->flush_db) {
+        sqlite3_close(svc->flush_db);
+        svc->flush_db = NULL;
+    }
     if (svc->db) sqlite3_close(svc->db);
     if (svc->is_allocated) {
         free(svc);

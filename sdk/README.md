@@ -7,15 +7,30 @@ the same conformance vectors.
 ## Status
 
 - `sdk/wit/app.v1.wit` is frozen at `edgeos:app@1.0.0`.
-- This slice has no app-host, no WIT compiler, and no generated bindings.
-- `sdk/c/edge_app_sdk.h` and `sdk/c/edge_app_sdk.c` are hand-written. A
-  generator replaces them later; until then `ci/scripts/check_sdk_wit.py`
-  hashes the WIT file and fails when the hash embedded in the header as
-  `EDGE_APP_WIT_SHA256` differs.
+- Function names, wasm symbols and status are generated from
+  `sdk/abi/functions.json` into each language's ABI table. The framing and JSON
+  codecs remain hand-written.
+- `sdk/c/edge_app_sdk.h` and `sdk/c/edge_app_sdk.c` are hand-written.
+  `ci/scripts/check_sdk_wit.py` hashes the WIT file and fails when the hash
+  embedded in the header as `EDGE_APP_WIT_SHA256` differs.
 - Native sidecars (C, Python, Go) connect over an inherited socketpair. The JS
   adapter is intended for the in-process QuickJS host; its runner uses a Unix
   socket to exercise the same framing.
 - No SDK includes `datahub.h` or touches shared memory.
+
+## Generated tables
+
+`sdk/abi/functions.json` is the single function list. Edit it, then run:
+
+```bash
+python3 tools/gen_sdk.py --root .
+```
+
+The generator writes `sdk/c/generated/edge_app_abi_functions.h`,
+`sdk/python/edge_app_abi.py`, `sdk/go/edge_app_abi.go` and
+`sdk/js/edge_app_abi.mjs`, and cross-checks the spec against the WIT and
+`sdk/abi_status.json`. `tools/gen_sdk.py --check` runs in ctest as
+`test_sdk_generated`; a stale table fails the build.
 
 ## Contract
 
@@ -30,9 +45,9 @@ Host functions, WIT name to JSON `fn`:
 | `log(level, message)` | `log` | `{}` |
 | `now()` | `now` | `{now_ms}` |
 
-Exports: `app_init`, `app_on_event(event)`, `app_stop`. The future app-host
-decodes a host request and calls the SDK's `dispatch`; the SDK invokes the
-callback registered for that export. This slice does not start a reader thread.
+Exports: `app_init`, `app_on_event(event)`, `app_stop`. The SDK can dispatch
+all three; app-host currently calls only `app_init` and `app_stop`, and host to
+app event delivery is not wired yet.
 
 Error codes: `denied_not_granted`, `denied_scope`, `denied_expired`,
 `denied_revoked`, `denied_policy`, `denied_quota`,

@@ -40,7 +40,7 @@ typedef struct {
 } PipeMsgAttr;
 
 typedef struct {
-    uint64_t ts;          // 0..7
+    uint64_t ts;          // 0..7  monotonic nanoseconds (uv_hrtime); stages convert to ms/s
     uint32_t tag_id;      // 8..11
     uint32_t device_id;   // 12..15
     uint16_t type;        // 16..17

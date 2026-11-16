@@ -61,10 +61,39 @@ static void test_dlms_encode_large_octet_string(void** state) {
     net_buf_pool_destroy(&pool);
 }
 
+static void test_dlms_decode_rejects_truncated_variant(void** state) {
+    (void)state;
+    dlms_decoder_t dec;
+    dlms_variant_t v;
+    struct net_buf_simple b;
+
+    // UINT16 标签后只有 1 字节
+    uint8_t u16[] = {DLMS_TYPE_UINT16, 0x12};
+    net_buf_simple_init_with_data(&b, u16, sizeof(u16));
+    b.len = sizeof(u16);
+    dlms_decoder_init(&dec, &b);
+    assert_int_equal(dlms_decode_variant(&dec, &v), -1);
+
+    // OCTET STRING 声明 5 字节，只给 2 字节
+    uint8_t os[] = {DLMS_TYPE_OCTET_STRING, 5, 0xAA, 0xBB};
+    net_buf_simple_init_with_data(&b, os, sizeof(os));
+    b.len = sizeof(os);
+    dlms_decoder_init(&dec, &b);
+    assert_int_equal(dlms_decode_variant(&dec, &v), -3);
+
+    // 不支持的长度编码 0x83
+    uint8_t bad_len[] = {DLMS_TYPE_OCTET_STRING, 0x83, 0x01};
+    net_buf_simple_init_with_data(&b, bad_len, sizeof(bad_len));
+    b.len = sizeof(bad_len);
+    dlms_decoder_init(&dec, &b);
+    assert_int_equal(dlms_decode_variant(&dec, &v), -1);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_dlms_encode_nested_structure),
         cmocka_unit_test(test_dlms_encode_large_octet_string),
+        cmocka_unit_test(test_dlms_decode_rejects_truncated_variant),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

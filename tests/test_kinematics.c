@@ -61,9 +61,27 @@ static void test_kinematics_ik_scara(void** state) {
     if (stage->cleanup_state) stage->cleanup_state(stage->priv_state);
 }
 
+static void test_kinematics_rejects_null_batch(void** state) {
+    (void)state;
+
+    pipeline_stage_t* stage = stage_kinematics_create(8888, 0.4, 0.3);
+    assert_non_null(stage);
+
+    pipe_msg_t ev = {0};
+    ev.type = PIPEMSG_TYPE_BATCH;
+    ev.tag_id = 1001;
+    ev.payload.batch.count = 4;
+    ev.payload.batch.ptr = NULL;
+
+    assert_int_equal(stage->process(stage, &ev), STAGE_ERROR);
+
+    if (stage->cleanup_state) stage->cleanup_state(stage->priv_state);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_kinematics_ik_scara),
+        cmocka_unit_test(test_kinematics_rejects_null_batch),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

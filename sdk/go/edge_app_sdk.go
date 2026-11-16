@@ -12,8 +12,6 @@ import (
 	"io"
 )
 
-const ABIVersion = "1.0.0"
-
 // Error keeps the original host error code, including DENIED_* values.
 type Error struct {
 	Code string
@@ -117,7 +115,7 @@ func (c *Client) call(fn string, args any) (json.RawMessage, error) {
 }
 
 func (c *Client) PointResolve(name string) (uint32, string, error) {
-	raw, err := c.call("point_resolve", map[string]any{"name": name})
+	raw, err := c.call(FnPointResolve, map[string]any{"name": name})
 	if err != nil {
 		return 0, "", err
 	}
@@ -132,7 +130,7 @@ func (c *Client) PointResolve(name string) (uint32, string, error) {
 }
 
 func (c *Client) PointRead(handle uint32) (Sample, error) {
-	raw, err := c.call("point_read", map[string]any{"handle": handle})
+	raw, err := c.call(FnPointRead, map[string]any{"handle": handle})
 	if err != nil {
 		return Sample{}, err
 	}
@@ -152,7 +150,7 @@ func (c *Client) PointRead(handle uint32) (Sample, error) {
 }
 
 func (c *Client) PointSubscribe(handle uint32, deadband float64, minIntervalMS, maxIntervalMS uint32) (uint32, error) {
-	raw, err := c.call("point_subscribe", map[string]any{
+	raw, err := c.call(FnPointSubscribe, map[string]any{
 		"handle":          handle,
 		"deadband":        deadband,
 		"min_interval_ms": minIntervalMS,
@@ -179,7 +177,7 @@ func (c *Client) PointPublish(handle uint32, sample Sample) error {
 	if quality == "" {
 		quality = "good"
 	}
-	_, err = c.call("point_publish", map[string]any{
+	_, err = c.call(FnPointPublish, map[string]any{
 		"handle": handle,
 		"sample": map[string]any{
 			"value":     value,
@@ -191,12 +189,12 @@ func (c *Client) PointPublish(handle uint32, sample Sample) error {
 }
 
 func (c *Client) Log(level, message string) error {
-	_, err := c.call("log", map[string]any{"level": level, "message": message})
+	_, err := c.call(FnLog, map[string]any{"level": level, "message": message})
 	return err
 }
 
 func (c *Client) Now() (uint64, error) {
-	raw, err := c.call("now", map[string]any{})
+	raw, err := c.call(FnNow, map[string]any{})
 	if err != nil {
 		return 0, err
 	}

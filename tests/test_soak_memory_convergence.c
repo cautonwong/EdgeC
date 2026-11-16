@@ -28,6 +28,7 @@
 #  endif
 #endif
 
+#ifndef SOAK_RSS_UNRELIABLE
 static long get_current_rss_kb(void) {
     FILE *fp = fopen("/proc/self/statm", "r");
     if (!fp) return 0;
@@ -40,7 +41,9 @@ static long get_current_rss_kb(void) {
     long page_size_kb = sysconf(_SC_PAGESIZE) / 1024;
     return resident_pages * page_size_kb;
 }
+#endif
 
+#ifndef SOAK_RSS_UNRELIABLE
 static void test_soak_memory_rss_convergence(void) {
     printf("[TEST] 100,000 High-Frequency Message Push & RSS Stability...\n");
 
@@ -85,6 +88,7 @@ static void test_soak_memory_rss_convergence(void) {
     datahub_destroy(&hub);
     printf("  -> PASSED: Memory convergence verified (ΔRSS < 2.0%%) with zero unbounded growth.\n");
 }
+#endif
 
 int main(void) {
     printf("=================================================================\n");
@@ -92,7 +96,7 @@ int main(void) {
     printf("=================================================================\n");
 
 #ifdef SOAK_RSS_UNRELIABLE
-    printf("[SKIPPED] RSS convergence is not measurable under ASan/TSan://n");
+    printf("[SKIPPED] RSS convergence is not measurable under ASan/TSan:\n");
     printf("          the sanitizer's allocator + quarantine dominate RSS, so a 2%%\n");
     printf("          threshold would be measuring the tool, not our code.\n");
     printf("          Run the Release build for this assertion.\n");

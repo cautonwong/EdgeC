@@ -40,6 +40,10 @@ typedef struct {
     char wasm_path[256];
     uint32_t heap_kb;
     uint32_t stack_kb;
+    uint32_t pids_max;
+    uint32_t cpu_ms_per_sec;
+    uint32_t calls_per_sec;
+    uint32_t publish_per_sec;
 } restart_timer_t;
 
 struct iems_app_runtime_s {
@@ -155,11 +159,11 @@ iems_app_runtime_t *iems_app_runtime_create(uv_loop_t *loop, const iems_app_runt
         rt->sigchld.data = rt;
         if (uv_signal_init(loop, &rt->sigchld) != 0 ||
             uv_signal_start(&rt->sigchld, on_sigchld, SIGCHLD) != 0) {
-            LOG_WARN(LOG_CAT_CORE, "AppHost: SIGCHLD watcher unavailable; launcher disabled");
-            rt->use_launcher = 0;
-        } else {
-            rt->sigchld_active = 1;
+            LOG_ERROR(LOG_CAT_CORE, "AppHost: SIGCHLD watcher unavailable; refusing to run without the launcher");
+            free(rt);
+            return NULL;
         }
+        rt->sigchld_active = 1;
     }
     return rt;
 }
@@ -201,12 +205,14 @@ static void on_timer_close(uv_handle_t *handle) {
 static void on_restart_timer(uv_timer_t *timer) {
     restart_timer_t *restart = (restart_timer_t *)timer->data;
     iems_app_runtime_t *rt = restart->rt;
+    int rc = iems_app_runtime_start_ex(rt, restart->app_id, restart->wasm_path, restart->heap_kb,
+                                       restart->stack_kb, restart->pids_max,
+                                       restart->cpu_ms_per_sec, restart->calls_per_sec,
+                                       restart->publish_per_sec);
     for (int i = 0; i < IEMS_APP_RUNTIME_MAX; i++) {
         if (rt->restarts[i] == restart) rt->restarts[i] = NULL;
     }
-    if (iems_app_runtime_start(rt, restart->app_id, restart->wasm_path, restart->heap_kb,
-                               restart->stack_kb) == 0 &&
-        rt->cfg.on_restarted) {
+    if (rc == 0 && rt->cfg.on_restarted) {
         rt->cfg.on_restarted(rt->cfg.on_restarted_ctx, restart->app_id);
     }
     uv_close((uv_handle_t *)timer, on_timer_close);
@@ -215,6 +221,15 @@ static void on_restart_timer(uv_timer_t *timer) {
 int iems_app_runtime_restart_later(iems_app_runtime_t *rt, const char *app_id,
                                    const char *wasm_path, uint32_t delay_ms, uint32_t heap_kb,
                                    uint32_t stack_kb) {
+    return iems_app_runtime_restart_later_ex(rt, app_id, wasm_path, delay_ms, heap_kb, stack_kb,
+                                             0, 0, 0, 0);
+}
+
+int iems_app_runtime_restart_later_ex(iems_app_runtime_t *rt, const char *app_id,
+                                      const char *wasm_path, uint32_t delay_ms, uint32_t heap_kb,
+                                      uint32_t stack_kb, uint32_t pids_max,
+                                      uint32_t cpu_ms_per_sec, uint32_t calls_per_sec,
+                                      uint32_t publish_per_sec) {
     if (!rt || !app_id || !wasm_path) return -1;
     for (int i = 0; i < IEMS_APP_RUNTIME_MAX; i++) {
         if (rt->restarts[i] && strcmp(rt->restarts[i]->app_id, app_id) == 0) return 0;
@@ -235,6 +250,10 @@ int iems_app_runtime_restart_later(iems_app_runtime_t *rt, const char *app_id,
     snprintf(restart->wasm_path, sizeof(restart->wasm_path), "%s", wasm_path);
     restart->heap_kb = heap_kb;
     restart->stack_kb = stack_kb;
+    restart->pids_max = pids_max;
+    restart->cpu_ms_per_sec = cpu_ms_per_sec;
+    restart->calls_per_sec = calls_per_sec;
+    restart->publish_per_sec = publish_per_sec;
     uv_timer_init(rt->loop, &restart->timer);
     restart->timer.data = restart;
     rt->restarts[slot] = restart;
@@ -280,7 +299,8 @@ static int ensure_launcher_target(iems_app_runtime_t *rt, app_runtime_t *app) {
 }
 
 static int start_via_launcher(iems_app_runtime_t *rt, app_runtime_t *app, int abi_fd,
-                              uint32_t heap_kb, uint32_t stack_kb) {
+                              uint32_t heap_kb, uint32_t stack_kb, uint32_t pids_max,
+                              uint32_t cpu_ms_per_sec) {
     if (ensure_launcher_target(rt, app) != 0) {
         LOG_WARN(LOG_CAT_CORE, "AppHost: launcher target unavailable for %s", app->app_id);
         return -1;
@@ -298,7 +318,12 @@ static int start_via_launcher(iems_app_runtime_t *rt, app_runtime_t *app, int ab
     spec.uid = EDGEC_LAUNCH_UID_MIN + hash % span;
     spec.gid = spec.uid;
     spec.seccomp_profile = EDGEC_LAUNCH_SECCOMP_MINIMAL;
-    spec.pids_max = 32;
+    const char *require = getenv("EDGEC_LAUNCHER_REQUIRE_ISOLATION");
+    if (!(require && strcmp(require, "0") == 0)) {
+        spec.flags |= EDGEC_LAUNCH_FLAG_REQUIRE_ISOLATION;
+    }
+    spec.pids_max = pids_max ? pids_max : 32;
+    spec.cpu_ms_per_sec = cpu_ms_per_sec;
     spec.mem_max_bytes = (uint64_t)(heap_kb ? heap_kb : 64) * 1024ULL + (64ULL << 20);
     spec.fd_count = 1;
 
@@ -327,6 +352,13 @@ static int start_via_launcher(iems_app_runtime_t *rt, app_runtime_t *app, int ab
 
 int iems_app_runtime_start(iems_app_runtime_t *rt, const char *app_id, const char *wasm_path,
                            uint32_t heap_kb, uint32_t stack_kb) {
+    return iems_app_runtime_start_ex(rt, app_id, wasm_path, heap_kb, stack_kb, 0, 0, 0, 0);
+}
+
+int iems_app_runtime_start_ex(iems_app_runtime_t *rt, const char *app_id, const char *wasm_path,
+                              uint32_t heap_kb, uint32_t stack_kb, uint32_t pids_max,
+                              uint32_t cpu_ms_per_sec, uint32_t calls_per_sec,
+                              uint32_t publish_per_sec) {
     if (!rt || !app_id || !app_id[0] || !wasm_path || !wasm_path[0]) return -1;
     if (find_app(rt, app_id)) return 0;
 
@@ -363,6 +395,8 @@ int iems_app_runtime_start(iems_app_runtime_t *rt, const char *app_id, const cha
         .app_base = rt->cfg.app_base,
     };
     iems_app_host_ports_init(&app->ports, &app->ports_ctx);
+    app->ports.calls_per_sec = calls_per_sec;
+    app->ports.publish_per_sec = publish_per_sec;
     app->server = app_host_server_create_ex(rt->loop, fds[0], &app->ports,
                                             on_abi_server_closed, app);
     if (!app->server) {
@@ -376,7 +410,8 @@ int iems_app_runtime_start(iems_app_runtime_t *rt, const char *app_id, const cha
     fcntl(fds[0], F_SETFD, FD_CLOEXEC);
 
     if (rt->use_launcher) {
-        int rc = start_via_launcher(rt, app, fds[1], heap_kb, stack_kb);
+        int rc = start_via_launcher(rt, app, fds[1], heap_kb, stack_kb, pids_max,
+                                    cpu_ms_per_sec);
         close(fds[1]);
         if (rc != 0) {
             app->process_closed = 1;
@@ -437,11 +472,6 @@ const char *iems_app_runtime_app_host_path(const iems_app_runtime_t *rt) {
 void iems_app_runtime_destroy(iems_app_runtime_t *rt) {
     if (!rt) return;
     iems_app_runtime_stop_all(rt);
-    if (rt->sigchld_active) {
-        uv_signal_stop(&rt->sigchld);
-        uv_close((uv_handle_t *)&rt->sigchld, NULL);
-        rt->sigchld_active = 0;
-    }
     for (int i = 0; i < IEMS_APP_RUNTIME_MAX; i++) {
         if (rt->restarts[i]) {
             uv_timer_stop(&rt->restarts[i]->timer);
@@ -449,6 +479,8 @@ void iems_app_runtime_destroy(iems_app_runtime_t *rt) {
             rt->restarts[i] = NULL;
         }
     }
+    /* Keep the SIGCHLD watcher alive until every launcher child is reaped;
+     * closing it here would leave zombies and leak app_runtime_t. */
     for (int attempt = 0; attempt < 200; attempt++) {
         uv_run(rt->loop, UV_RUN_NOWAIT);
         int running = 0;
@@ -467,6 +499,12 @@ void iems_app_runtime_destroy(iems_app_runtime_t *rt) {
             }
         }
         usleep(10000);
+    }
+    if (rt->sigchld_active) {
+        uv_signal_stop(&rt->sigchld);
+        uv_close((uv_handle_t *)&rt->sigchld, NULL);
+        rt->sigchld_active = 0;
+        uv_run(rt->loop, UV_RUN_NOWAIT);
     }
     free(rt);
 }

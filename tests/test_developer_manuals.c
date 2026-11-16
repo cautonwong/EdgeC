@@ -52,7 +52,8 @@ static bool file_exists_and_contains(const char *path, const char *keyword) {
 
 static void test_manual_documents_exist(void **state) {
     (void)state;
-    char root[1024];
+    /* cwd holds at most 1023 chars; leave room for the "/../.." suffix. */
+    char root[1024 + 6];
     get_repo_root(root, sizeof(root));
 
     char guide_path[2048];
@@ -70,7 +71,7 @@ static void test_manual_documents_exist(void **state) {
 
 static void test_manual_sdk_headers_available(void **state) {
     (void)state;
-    char root[1024];
+    char root[1024 + 6];
     get_repo_root(root, sizeof(root));
 
     char path[2048];
@@ -89,7 +90,7 @@ static void test_manual_sdk_headers_available(void **state) {
 
 static void test_quickstart_scaffold_flow(void **state) {
     (void)state;
-    char root[1024];
+    char root[1024 + 6];
     get_repo_root(root, sizeof(root));
 
     // Run quickstart create-product command directly against repo root

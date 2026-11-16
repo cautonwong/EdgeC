@@ -9,6 +9,7 @@
 #include <gsl/gsl_linalg.h>
 #include <gsl/gsl_eigen.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 
 #include <stdbool.h>
@@ -19,6 +20,10 @@ struct edge_matrix_s {
     gsl_matrix static_g;
     double inline_data[EDGE_MATRIX_STATIC_CAPACITY];
 };
+
+static bool _gsl_ok(const edge_matrix_t *m) {
+    return m && m->g;
+}
 
 edge_matrix_t *edge_matrix_init(edge_matrix_storage_t *storage, uint32_t rows, uint32_t cols) {
     if (!storage) return NULL;
@@ -68,58 +73,67 @@ int edge_matrix_solve_ls_in(const edge_matrix_t *a, const edge_matrix_t *b, edge
 }
 
 int edge_matrix_set(edge_matrix_t *m, uint32_t r, uint32_t c, double val) {
-    if (!m || r >= m->g->size1 || c >= m->g->size2) return -1;
+    if (!_gsl_ok(m) || r >= m->g->size1 || c >= m->g->size2) return -1;
     gsl_matrix_set(m->g, r, c, val);
     return 0;
 }
 
 double edge_matrix_get(const edge_matrix_t *m, uint32_t r, uint32_t c) {
-    if (!m || r >= m->g->size1 || c >= m->g->size2) return 0.0;
+    if (!_gsl_ok(m)) return NAN;
+    if (r >= m->g->size1 || c >= m->g->size2) return 0.0;
     return gsl_matrix_get(m->g, r, c);
 }
 
 uint32_t edge_matrix_rows(const edge_matrix_t *m) {
-    return m ? (uint32_t)m->g->size1 : 0;
+    return _gsl_ok(m) ? (uint32_t)m->g->size1 : 0;
 }
 
 uint32_t edge_matrix_cols(const edge_matrix_t *m) {
-    return m ? (uint32_t)m->g->size2 : 0;
+    return _gsl_ok(m) ? (uint32_t)m->g->size2 : 0;
 }
 
 int edge_matrix_add(const edge_matrix_t *a, const edge_matrix_t *b, edge_matrix_t *res) {
+    if (!_gsl_ok(a) || !_gsl_ok(b) || !_gsl_ok(res)) return -1;
     gsl_matrix_memcpy(res->g, a->g);
     return gsl_matrix_add(res->g, b->g);
 }
 
 int edge_matrix_sub(const edge_matrix_t *a, const edge_matrix_t *b, edge_matrix_t *res) {
+    if (!_gsl_ok(a) || !_gsl_ok(b) || !_gsl_ok(res)) return -1;
     gsl_matrix_memcpy(res->g, a->g);
     return gsl_matrix_sub(res->g, b->g);
 }
 
 int edge_matrix_mul(const edge_matrix_t *a, const edge_matrix_t *b, edge_matrix_t *res) {
+    if (!_gsl_ok(a) || !_gsl_ok(b) || !_gsl_ok(res)) return -1;
     return gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, a->g, b->g, 0.0, res->g);
 }
 
 int edge_matrix_mul_vec(const edge_matrix_t *a, const edge_matrix_t *v, edge_matrix_t *res) {
+    if (!_gsl_ok(a) || !_gsl_ok(v) || !_gsl_ok(res)) return -1;
     gsl_vector_view v_view = gsl_matrix_column(v->g, 0);
     gsl_vector_view res_view = gsl_matrix_column(res->g, 0);
     return gsl_blas_dgemv(CblasNoTrans, 1.0, a->g, &v_view.vector, 0.0, &res_view.vector);
 }
 
 int edge_matrix_identity(edge_matrix_t *m) {
+    if (!_gsl_ok(m)) return -1;
     gsl_matrix_set_identity(m->g);
     return 0;
 }
 
 int edge_matrix_copy(edge_matrix_t *dst, const edge_matrix_t *src) {
+    if (!_gsl_ok(dst) || !_gsl_ok(src)) return -1;
     return gsl_matrix_memcpy(dst->g, src->g);
 }
 
 int edge_matrix_transpose(const edge_matrix_t *m, edge_matrix_t *res) {
+    if (!_gsl_ok(m) || !_gsl_ok(res)) return -1;
     return gsl_matrix_transpose_memcpy(res->g, m->g);
 }
 
 double edge_matrix_det(const edge_matrix_t *m) {
+    if (!_gsl_ok(m)) return NAN;
     if (m->g->size1 != m->g->size2) return NAN;
     size_t n = m->g->size1;
     gsl_matrix *tmp = gsl_matrix_alloc(n, n);
@@ -134,6 +148,7 @@ double edge_matrix_det(const edge_matrix_t *m) {
 }
 
 double edge_matrix_norm(const edge_matrix_t *m, int kind) {
+    if (!_gsl_ok(m)) return NAN;
     if (kind == 0) { // Frobenius
         double sum = 0;
         for(size_t i=0; i<m->g->size1; i++) {
@@ -151,6 +166,7 @@ double edge_matrix_norm(const edge_matrix_t *m, int kind) {
 }
 
 double edge_matrix_dot(const edge_matrix_t *a, const edge_matrix_t *b) {
+    if (!_gsl_ok(a) || !_gsl_ok(b)) return NAN;
     gsl_vector_view va = gsl_matrix_column(a->g, 0);
     gsl_vector_view vb = gsl_matrix_column(b->g, 0);
     double res;
@@ -159,10 +175,12 @@ double edge_matrix_dot(const edge_matrix_t *a, const edge_matrix_t *b) {
 }
 
 int edge_matrix_scale(edge_matrix_t *m, double scale) {
+    if (!_gsl_ok(m)) return -1;
     return gsl_matrix_scale(m->g, scale);
 }
 
 int edge_matrix_inv(const edge_matrix_t *m, edge_matrix_t *res) {
+    if (!_gsl_ok(m) || !_gsl_ok(res)) return -1;
     if (m->g->size1 != m->g->size2) return -1;
     size_t n = m->g->size1;
     gsl_matrix *tmp = gsl_matrix_alloc(n, n);
@@ -177,6 +195,7 @@ int edge_matrix_inv(const edge_matrix_t *m, edge_matrix_t *res) {
 }
 
 int edge_matrix_cholesky(const edge_matrix_t *a, edge_matrix_t *l) {
+    if (!_gsl_ok(a) || !_gsl_ok(l)) return -1;
     if (a->g->size1 != a->g->size2) return -1;
     gsl_matrix_memcpy(l->g, a->g);
     int ret = gsl_linalg_cholesky_decomp1(l->g);
@@ -190,6 +209,7 @@ int edge_matrix_cholesky(const edge_matrix_t *a, edge_matrix_t *l) {
 }
 
 int edge_matrix_qr(const edge_matrix_t *a, edge_matrix_t *q, edge_matrix_t *r) {
+    if (!_gsl_ok(a) || !_gsl_ok(q) || !_gsl_ok(r)) return -1;
     size_t m = a->g->size1;
     size_t n = a->g->size2;
     gsl_matrix *tmp = gsl_matrix_alloc(m, n);
@@ -203,6 +223,7 @@ int edge_matrix_qr(const edge_matrix_t *a, edge_matrix_t *q, edge_matrix_t *r) {
 }
 
 int edge_matrix_svd(const edge_matrix_t *a, edge_matrix_t *u, edge_matrix_t *s, edge_matrix_t *v) {
+    if (!_gsl_ok(a) || !_gsl_ok(u) || !_gsl_ok(s) || !_gsl_ok(v)) return -1;
     size_t m = a->g->size1;
     size_t n = a->g->size2;
     // GSL computes thin SVD in-place: A(MxN) -> U(MxN), S(Nx1), V(NxN)
@@ -223,6 +244,7 @@ int edge_matrix_svd(const edge_matrix_t *a, edge_matrix_t *u, edge_matrix_t *s, 
 }
 
 int edge_matrix_solve_ls(const edge_matrix_t *a, const edge_matrix_t *b, edge_matrix_t *x) {
+    if (!_gsl_ok(a) || !_gsl_ok(b) || !_gsl_ok(x)) return -1;
     size_t m = a->g->size1;
     size_t n = a->g->size2;
     gsl_vector_view b_vec = gsl_matrix_column(b->g, 0);
@@ -240,6 +262,7 @@ int edge_matrix_solve_ls(const edge_matrix_t *a, const edge_matrix_t *b, edge_ma
 }
 
 int edge_matrix_eigenvalues(const edge_matrix_t *m, double *res_re, double *res_im) {
+    if (!_gsl_ok(m) || !res_re || !res_im) return -1;
     if (m->g->size1 != m->g->size2) return -1;
     size_t n = m->g->size1;
     gsl_matrix *tmp = gsl_matrix_alloc(n, n);

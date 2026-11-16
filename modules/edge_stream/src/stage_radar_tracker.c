@@ -25,43 +25,48 @@ static stage_ret_t _radar_tracker_proc(pipeline_stage_t *stage, pipe_msg_t *ev) 
     radar_tracker_ctx_t *ctx = (radar_tracker_ctx_t *)stage->priv_state;
     
     // 期望输入是检测到的点迹 (x, y 数组对)
-    if (ev->type == PIPEMSG_TYPE_BATCH && ev->payload.batch.count > 0) {
-        uint32_t det_count = ev->payload.batch.count / 2;
-        double *det_x = (double *)ev->payload.batch.ptr;
-        double *det_y = det_x + det_count;
+    if (ev->type != PIPEMSG_TYPE_BATCH) return STAGE_DROP;
+    if (ev->payload.batch.count <= 0 || !ev->payload.batch.ptr) return STAGE_ERROR;
 
-        uint64_t now = ev->ts;
-        double dt = (ctx->last_ts == 0) ? 0.05 : (double)(now - ctx->last_ts) / 1000.0;
-        ctx->last_ts = now;
+    uint32_t out_cap = (uint32_t)ev->payload.batch.count;
+    uint32_t det_count = out_cap / 2;
+    double *det_x = (double *)ev->payload.batch.ptr;
+    double *det_y = det_x + det_count;
 
-        if (radar_tracker_update(ctx->tracks, MAX_TRACKS, det_x, det_y, det_count,
-                                 ctx->det_associated, MAX_DETECTIONS, dt) != 0) {
-            LOG_WARN(LOG_CAT_CORE,
-                     "Radar Tracker: frame rejected (%u detections, capacity %d)",
-                     det_count, MAX_DETECTIONS);
-            return STAGE_DROP;
-        }
+    uint64_t now = ev->ts;
+    double dt = (ctx->last_ts == 0) ? 0.05 : (double)(now - ctx->last_ts) / 1000.0;
+    if (dt <= 0) dt = 0.05;
+    ctx->last_ts = now;
 
-        // 构造输出：活跃的目标
-        // 此处简化处理：我们将活跃的目标写回 Batch
-        uint32_t active_count = 0;
-        double *out_ptr = (double *)ev->payload.batch.ptr;
-        
-        for (int i = 0; i < MAX_TRACKS; i++) {
-            if (ctx->tracks[i].active && ctx->tracks[i].hits >= 2) {
-                out_ptr[active_count * 2] = ctx->tracks[i].x;
-                out_ptr[active_count * 2 + 1] = ctx->tracks[i].y;
-                active_count++;
-            }
-        }
-        
-        ev->payload.batch.count = active_count * 2;
-        ev->tag_id = ctx->output_tag;
-        
-        return (active_count > 0) ? STAGE_OK : STAGE_DROP;
+    if (radar_tracker_update(ctx->tracks, MAX_TRACKS, det_x, det_y, det_count,
+                             ctx->det_associated, MAX_DETECTIONS, dt) != 0) {
+        LOG_WARN(LOG_CAT_CORE,
+                 "Radar Tracker: frame rejected (%u detections, capacity %d)",
+                 det_count, MAX_DETECTIONS);
+        return STAGE_DROP;
     }
 
-    return STAGE_DROP;
+    // 构造输出：活跃的目标
+    // 输出复用输入缓冲，容量只能由 count 推断，超出部分截断
+    uint32_t active_count = 0;
+    double *out_ptr = (double *)ev->payload.batch.ptr;
+
+    for (int i = 0; i < MAX_TRACKS; i++) {
+        if (!(ctx->tracks[i].active && ctx->tracks[i].hits >= 2)) continue;
+        if ((active_count + 1) * 2 > out_cap) {
+            LOG_WARN(LOG_CAT_CORE,
+                     "Radar Tracker: output truncated to %u doubles", out_cap);
+            break;
+        }
+        out_ptr[active_count * 2] = ctx->tracks[i].x;
+        out_ptr[active_count * 2 + 1] = ctx->tracks[i].y;
+        active_count++;
+    }
+
+    ev->payload.batch.count = (int)(active_count * 2);
+    ev->tag_id = ctx->output_tag;
+
+    return (active_count > 0) ? STAGE_OK : STAGE_DROP;
 }
 
 static void _radar_tracker_cleanup(void *priv) {
@@ -70,7 +75,12 @@ static void _radar_tracker_cleanup(void *priv) {
 
 pipeline_stage_t *stage_radar_tracker_create(uint32_t output_tag) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    if (!s) return NULL;
     radar_tracker_ctx_t *ctx = calloc(1, sizeof(radar_tracker_ctx_t));
+    if (!ctx) {
+        free(s);
+        return NULL;
+    }
     
     ctx->output_tag = output_tag;
     

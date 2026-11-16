@@ -254,6 +254,8 @@ const edge_driver_t modbus_tcp_driver = {
     .req_slave_exchange = mb_tcp_req_slave_exchange,
 };
 
-int modbus_tcp_driver_register(driver_manager_t *mgr) {
-    return driver_manager_register(mgr, &modbus_tcp_driver);
+
+/* File-local prototypes. */
+int modbus_tcp_driver_register(driver_manager_t *mgr);
+int modbus_tcp_driver_register(driver_manager_t *mgr) {    return driver_manager_register(mgr, &modbus_tcp_driver);
 }

@@ -30,7 +30,9 @@ static stage_ret_t _ahrs_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
     ahrs_ctx_t *ctx = (ahrs_ctx_t *)stage->priv_state;
     if (!ctx) return STAGE_ERROR;
 
-    if (ev->tag_id == ctx->gyro_tag && ev->type == PIPEMSG_TYPE_BATCH && ev->payload.batch.count >= 3) {
+    if (ev->tag_id == ctx->gyro_tag && ev->type == PIPEMSG_TYPE_BATCH) {
+        // 输入三轴角速度，输出四元数覆盖同一缓冲，count 需容纳 4 个 double
+        if (!ev->payload.batch.ptr || ev->payload.batch.count < 4) return STAGE_ERROR;
         uint64_t now = ev->ts;
         double dt = (ctx->last_ts == 0) ? 0.01 : (double)(now - ctx->last_ts) / 1000.0;
         if (dt <= 0) dt = 0.001;
@@ -84,14 +86,22 @@ static void _ahrs_cleanup(void *priv) {
  */
 pipeline_stage_t *stage_ahrs_quaternion_create(uint32_t gyro_tag, uint32_t output_tag) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    if (!s) return NULL;
     ahrs_ctx_t *ctx = calloc(1, sizeof(ahrs_ctx_t));
+    if (!ctx) {
+        free(s);
+        return NULL;
+    }
 
     ctx->gyro_tag = gyro_tag;
     ctx->output_tag = output_tag;
 
     ctx->q = edge_matrix_alloc(4, 1);
+    if (!ctx->q) { _ahrs_cleanup(ctx); free(s); return NULL; }
     ctx->dq = edge_matrix_alloc(4, 1);
+    if (!ctx->dq) { _ahrs_cleanup(ctx); free(s); return NULL; }
     ctx->q_new = edge_matrix_alloc(4, 1);
+    if (!ctx->q_new) { _ahrs_cleanup(ctx); free(s); return NULL; }
     
     // 初始化为单位四元数
     edge_matrix_set(ctx->q, 0, 0, 1.0);

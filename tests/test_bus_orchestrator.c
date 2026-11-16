@@ -13,12 +13,6 @@
 #include "driver_manager.h"
 #include "datahub_priv.h"
 
-static void on_walk_print(uv_handle_t* handle, void* arg) {
-    (void)arg;
-    fprintf(stderr, "[DEBUG] Pending handle: %p, type: %d, closing: %d\n", (void*)handle,
-            handle->type, uv_is_closing(handle));
-}
-
 static void test_bus_orchestrator_dynamic_create(void** state) {
     (void)state;
     fprintf(stderr, "[DEBUG] Start test_bus_orchestrator_dynamic_create\n");

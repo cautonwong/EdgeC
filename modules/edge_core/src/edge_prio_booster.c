@@ -111,7 +111,7 @@ int edge_prio_booster_register_task(edge_prio_booster_t *booster, const edge_boo
 
     edge_boost_task_slot_t *slot = &booster->tasks[booster->task_count++];
     slot->task_id = tcfg->task_id;
-    strncpy(slot->name, tcfg->name, sizeof(slot->name) - 1);
+    snprintf(slot->name, sizeof(slot->name), "%.*s", (int)(sizeof(slot->name) - 1), tcfg->name);
     slot->base_priority = (tcfg->base_priority > 0) ? tcfg->base_priority : 1;
     slot->current_priority = slot->base_priority;
     slot->peak_boost_priority = slot->base_priority;

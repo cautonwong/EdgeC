@@ -219,6 +219,25 @@ static void test_idempotent_replay_window(void **state) {
     assert_int_equal(mem.count, 1);
 }
 
+static void test_replay_rejects_different_kind(void **state) {
+    (void)state;
+    mem_store_t mem = {0};
+    edge_app_task_store_t store = _mem_port(&mem);
+    edge_app_task_t task;
+    int replayed = 0;
+
+    assert_int_equal(
+        edge_app_task_submit(&store, EDGE_APP_TASK_INSTALL, "shared", 1000, &task, &replayed),
+        EDGE_APP_TASK_OK);
+    assert_int_equal(task.kind, EDGE_APP_TASK_INSTALL);
+
+    /* The same key must not replay an INSTALL as a BACKUP. */
+    assert_int_equal(
+        edge_app_task_submit(&store, EDGE_APP_TASK_BACKUP, "shared", 1000, &task, &replayed),
+        EDGE_APP_TASK_INVALID);
+    assert_int_equal(mem.count, 1);
+}
+
 static void test_finish_rejects_terminal_transition(void **state) {
     (void)state;
     mem_store_t mem = {0};
@@ -371,6 +390,7 @@ int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_kind_and_key_validation, setup, teardown),
         cmocka_unit_test_setup_teardown(test_idempotent_replay_window, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_replay_rejects_different_kind, setup, teardown),
         cmocka_unit_test_setup_teardown(test_finish_rejects_terminal_transition, setup, teardown),
         cmocka_unit_test_setup_teardown(test_purge_removes_only_old_terminal_tasks, setup,
                                         teardown),

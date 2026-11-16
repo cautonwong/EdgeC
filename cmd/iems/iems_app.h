@@ -98,6 +98,13 @@ void iems_app_destroy(iems_app_t *app);
  */
 iems_node_t *iems_app_get_node(iems_app_t *app);
 
+
+/* DataHub 影子布局：产品 tag 在 app_base 以下，应用点位在其上；容量必须覆盖
+ * 全部应用槽位，否则 host_publish 会被影子越界检查丢弃。 */
+#define IEMS_APP_BASE 131072u
+#define IEMS_APP_SLOT_TOTAL (16u * 256u)
+#define IEMS_DATAHUB_CAPACITY (IEMS_APP_BASE + IEMS_APP_SLOT_TOTAL)
+
 #ifdef __cplusplus
 }
 #endif

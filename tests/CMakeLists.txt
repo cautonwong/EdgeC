@@ -109,6 +109,7 @@ add_edge_test(test_datahub test_datahub.c)
 add_edge_test(test_datahub_shadow test_datahub_shadow.c)
 add_edge_test(test_datahub_attach test_datahub_attach.c)
 add_edge_test(test_datahub_multi_backend test_datahub_multi_backend.c)
+add_edge_test(test_datahub_shm_legacy test_datahub_shm_legacy.c)
 add_edge_test(test_passthrough test_passthrough.c)
 add_edge_test(test_memfd_seals test_memfd_seals.c)
 add_edge_test(test_fuzz_datahub test_fuzz_datahub.c)
@@ -116,6 +117,10 @@ add_edge_test(test_sqlite_service test_sqlite_service.c)
 add_edge_test(test_sqlite_app_registry test_sqlite_app_registry.c)
 add_edge_test(test_sqlite_migration test_sqlite_migration.c)
 add_edge_test(test_edge_app_mgr test_edge_app_mgr.c)
+# 插桩构建下 loop CPU 和调度抖动被放大，5ms 预算不再代表真实延迟。
+if(ENABLE_ASAN OR ENABLE_TSAN)
+    target_compile_definitions(test_edge_app_mgr PRIVATE EDGE_SANITIZER_BUILD=1)
+endif()
 add_edge_test(test_app_manifest test_app_manifest.c)
 add_edge_test(test_app_pressure test_app_pressure.c)
 add_edge_test(test_edge_authz test_edge_authz.c)
@@ -139,11 +144,19 @@ add_test(NAME test_edgeos_pack_cli
 add_edge_test(test_rest_uds test_rest_uds.c)
 set_property(TEST test_rest_uds APPEND PROPERTY
     ENVIRONMENT "EDGEC_APPCTL_PATH=$<TARGET_FILE:appctl>")
+add_edge_test(test_web_server_path test_web_server_path.c)
 add_edge_test(test_app_points test_app_points.c)
 add_edge_test(test_app_host_server test_app_host_server.c
               ${CMAKE_SOURCE_DIR}/sdk/c/edge_app_sdk.c)
 target_include_directories(test_app_host_server PRIVATE ${CMAKE_SOURCE_DIR}/sdk/c)
 target_link_libraries(test_app_host_server PRIVATE edge_app_host)
+add_edge_test(test_sdk_real_host_conformance test_sdk_real_host_conformance.c
+              ${CMAKE_SOURCE_DIR}/sdk/c/edge_app_sdk.c)
+target_include_directories(test_sdk_real_host_conformance PRIVATE ${CMAKE_SOURCE_DIR}/sdk/c)
+target_link_libraries(test_sdk_real_host_conformance PRIVATE edge_app_host cjson)
+target_compile_definitions(test_sdk_real_host_conformance PRIVATE
+    EDGEC_VECTORS="${CMAKE_SOURCE_DIR}/sdk/conformance/vectors.json"
+    EDGEC_ABI_STATUS="${CMAKE_SOURCE_DIR}/sdk/abi_status.json")
 add_edge_test(test_iems_app_host_ports test_iems_app_host_ports.c
               ${CMAKE_SOURCE_DIR}/sdk/c/edge_app_sdk.c)
 target_include_directories(test_iems_app_host_ports PRIVATE ${CMAKE_SOURCE_DIR}/sdk/c)
@@ -160,11 +173,16 @@ target_link_libraries(test_edge_launcher PRIVATE edge_linux_platform)
 add_dependencies(test_edge_launcher edgeos-launcher)
 set_property(TEST test_edge_launcher APPEND PROPERTY
     ENVIRONMENT "EDGEC_LAUNCHER_PATH=$<TARGET_FILE:edgeos-launcher>")
+add_edge_test(test_no_exec_filter test_no_exec_filter.c
+              ${CMAKE_SOURCE_DIR}/cmd/app-host/no_exec_filter.c)
+target_include_directories(test_no_exec_filter PRIVATE ${CMAKE_SOURCE_DIR}/cmd/app-host)
 add_edge_test(test_datahub_dynamic_chunk test_datahub_dynamic_chunk.c)
 add_edge_test(test_stream_dag test_stream_dag.c)
 add_edge_test(test_edge_mesh test_edge_mesh.c)
 add_edge_test(test_fuzz_iec104 test_fuzz_iec104.c)
 	add_edge_test(test_fuzz_dlms_dlt698 test_fuzz_dlms_dlt698.c)
+add_edge_test(test_dlms_codec test_dlms_codec.c)
+add_edge_test(test_dlms_hdlc test_dlms_hdlc.c)
 add_edge_test(test_dlms_security_validation test_dlms_security_validation.c)
 add_edge_test(test_dlms_set test_dlms_set.c)
 target_include_directories(test_dlms_set PRIVATE ${CMAKE_SOURCE_DIR}/modules/edge_io/src)
@@ -191,6 +209,9 @@ add_edge_test(test_rest_limits test_rest_limits.c)
 
 # 4. 流处理引擎测试 (Compute Plane)
 add_edge_test(test_stream_engine test_stream_engine.c)
+add_edge_test(test_stream_batch_ownership test_stream_batch_ownership.c)
+add_edge_test(test_stage_factory_extension test_stage_factory_extension.c)
+target_link_libraries(test_stage_factory_extension PRIVATE cjson)
 add_edge_test(test_stream_bus_port test_stream_bus_port.c)
 add_edge_test(test_pipeline_loader test_pipeline_loader.c)
 add_edge_test(test_pipeline_hot_reload test_pipeline_hot_reload.c)
@@ -261,6 +282,7 @@ add_edge_test(test_smart_box_hw test_smart_box_hw.c)
 add_edge_test(test_integration test_integration.c)
 add_edge_test(test_sdk_full_chain test_sdk_full_chain.c)
 add_edge_test(test_bus_orchestrator test_bus_orchestrator.c)
+add_edge_test(test_protocol_loopback test_protocol_loopback.c)
 add_edge_test(test_omnis_integration test_omnis_integration.c)
 add_edge_test(test_dcu test_dcu.c)
 
@@ -1749,6 +1771,9 @@ add_executable(test_sdk_conformance test_sdk_conformance.c "${CMAKE_SOURCE_DIR}/
 target_include_directories(test_sdk_conformance PRIVATE "${CMAKE_SOURCE_DIR}/sdk/c")
 target_link_libraries(test_sdk_conformance PRIVATE cjson pthread)
 add_test(NAME test_sdk_conformance COMMAND test_sdk_conformance)
+add_test(NAME test_sdk_generated
+         COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/gen_sdk.py
+                 --root ${CMAKE_SOURCE_DIR} --check)
 
 foreach(t
     test_dcu_mutex_marathon
@@ -1777,9 +1802,11 @@ add_edge_test(test_iec_cp56time test_iec_cp56time.c)
 add_edge_test(test_iems_connectivity test_iems_connectivity.c)
 
 # Plain add_test() targets must get the same sanitizer policy as add_edge_test().
+# Append so per-test ENVIRONMENT values (EDGEC_APPCTL_PATH, EDGEC_APP_HOST_PATH,
+# EDGEC_ABI_PROBE_WASM) survive the ASAN pass.
 if(ENABLE_ASAN)
     get_property(_edge_all_tests DIRECTORY PROPERTY TESTS)
-    set_tests_properties(${_edge_all_tests} PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:halt_on_error=1")
+    set_property(TEST ${_edge_all_tests} APPEND PROPERTY ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:halt_on_error=1")
 endif()
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)

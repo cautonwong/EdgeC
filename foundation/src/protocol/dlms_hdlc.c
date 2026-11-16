@@ -166,6 +166,7 @@ int dlms_hdlc_depacketize(dlms_hdlc_manager_t *mgr, struct net_buf_simple *in, n
     bool is_segment = (f_format & 0x0800) != 0;
 
     if (in->len < f_len) return 1;
+    if (f_len < 9) return 1;
 
     uint8_t control = f[4];
     int h_l = 5;
@@ -175,6 +176,8 @@ int dlms_hdlc_depacketize(dlms_hdlc_manager_t *mgr, struct net_buf_simple *in, n
     size_t p_len = (size_t)f_len - (size_t)h_l - 4;
     if (p_len > 0) {
         if (!mgr->reassembly_buf) mgr->reassembly_buf = net_buf_alloc(pool, 0);
+        if (!mgr->reassembly_buf) return -1;
+        if (net_buf_simple_tailroom(&mgr->reassembly_buf->b) < p_len) return -1;
         net_buf_simple_add_mem(&mgr->reassembly_buf->b, f + h_l + 2, p_len);
     }
 

@@ -20,8 +20,9 @@ static void timer_nfc_poll_cb(uv_timer_t *handle) {
     if (spi_fd >= 0) {
         unsigned char nfc_cmd[] = {0x00, 0x00, 0xFF, 0x04, 0xFC, 0xD4,
                                    0x4A, 0x01, 0x00, 0xE1, 0x00};
-        write(spi_fd, nfc_cmd, sizeof(nfc_cmd));
+        ssize_t written = write(spi_fd, nfc_cmd, sizeof(nfc_cmd));
         close(spi_fd);
+        if (written != (ssize_t)sizeof(nfc_cmd)) return;
 
         LOG_INFO(LOG_CAT_CORE,
                  "NFC SPI Driver: Active wristband certificate scanned successfully!");
@@ -43,7 +44,11 @@ static void timer_modbus_poll_cb(uv_timer_t *handle) {
     int uart_fd = open("/dev/ttyYS1", O_RDWR | O_NOCTTY | O_NDELAY);
     if (uart_fd >= 0) {
         unsigned char query[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x02, 0xC4, 0x0B};
-        write(uart_fd, query, sizeof(query));
+        ssize_t written = write(uart_fd, query, sizeof(query));
+        if (written != (ssize_t)sizeof(query)) {
+            close(uart_fd);
+            return;
+        }
 
         LOG_WARN(LOG_CAT_CORE,
                  "Rehab Modbus: response parsing not implemented; completion rate not published");

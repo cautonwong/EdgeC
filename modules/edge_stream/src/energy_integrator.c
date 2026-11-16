@@ -83,10 +83,15 @@ static void _energy_integrator_cleanup(void *p) {
  */
 pipeline_stage_t *stage_energy_integrator_create(uint32_t state_tag_id) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    if (!s) return NULL;
     strncpy(s->name, "energy_integrator", 31);
     s->process = _energy_integrator_proc;
 
     energy_ctx_t *ctx = calloc(1, sizeof(energy_ctx_t));
+    if (!ctx) {
+        free(s);
+        return NULL;
+    }
     ctx->state_tag_id = state_tag_id;
 
     s->priv_state = ctx;

@@ -22,6 +22,9 @@ extern "C" {
 #define EDGE_HISTORY_APP_ID_SIZE 64
 #define EDGE_HISTORY_CURSOR_SIZE 64
 #define EDGE_BACKFILL_PAGE_SIZE 32u
+/** Upper bounds for one backfill; live rows above the buffer limit return NOMEM. */
+#define EDGE_BACKFILL_MAX_BUFFER 4096u
+#define EDGE_BACKFILL_MAX_SEEN 4096u
 
 typedef struct {
     char point[EDGE_HISTORY_POINT_SIZE];

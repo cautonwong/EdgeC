@@ -65,7 +65,7 @@ static void test_npu_lifecycle_init_deinit(void **state) {
 
     npu_metrics_t metrics;
     assert_int_equal(npu_get_telemetry_metrics(&dev, &metrics), 0);
-    assert_in_range(metrics.core_temp_c, 40.0f, 45.0f);
+    assert_int_in_range(metrics.core_temp_c, 40.0f, 45.0f);
     assert_int_equal(metrics.frequency_mhz, 800);
     assert_int_equal(metrics.device_status, NPU_STATUS_READY);
     assert_int_equal(metrics.zero_copy_buffers, 0);
@@ -222,7 +222,7 @@ static void test_npu_inference_execution_and_accuracy(void **state) {
     npu_free_tensor_buffer(&dev, &in_buf);
     npu_free_tensor_buffer(&dev, &out_buf);
     npu_unload_model(&dev, model);
-    npu_device_deinit(&dev), 0;
+    assert_int_equal(npu_device_deinit(&dev), 0);
 }
 
 static void test_npu_thermal_throttle_and_reset(void **state) {

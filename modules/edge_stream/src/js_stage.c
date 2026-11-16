@@ -105,7 +105,8 @@ static stage_ret_t js_stage_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
         work_ctx->req.data = work_ctx;
         work_ctx->pipeline = stage->pipeline;
         work_ctx->event = *ev;
-        strncpy(work_ctx->script_path, ctx->script_path, 127);
+        snprintf(work_ctx->script_path, sizeof(work_ctx->script_path), "%.*s",
+                 (int)(sizeof(work_ctx->script_path) - 1), ctx->script_path);
 
         uv_queue_work(stage->loop, &work_ctx->req, js_work_cb, js_after_work_cb);
         return STAGE_ASYNC;
@@ -130,6 +131,7 @@ pipeline_stage_t *stage_js_rule_create(js_engine_t *engine, const char *script_p
     memset(ctx, 0, sizeof(*ctx));
     ctx->engine = engine;
     strncpy(ctx->script_path, script_path, 127);
+    ctx->script_path[sizeof(ctx->script_path) - 1] = '\0';
     ctx->is_async = is_async;
 
     // The persistent state is only used for sync mode for now
@@ -145,6 +147,8 @@ pipeline_stage_t *stage_js_rule_create(js_engine_t *engine, const char *script_p
     return s;
 }
 
-pipeline_stage_t *stage_js_rule_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {
-    return stage_js_rule_create(ctx->js_engine, def->params.s1, false);
+
+/* File-local prototypes. */
+pipeline_stage_t *stage_js_rule_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx);
+pipeline_stage_t *stage_js_rule_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *ctx) {    return stage_js_rule_create(ctx->js_engine, def->params.s1, false);
 }

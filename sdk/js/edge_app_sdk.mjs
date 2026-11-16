@@ -1,5 +1,14 @@
 import net from "node:net";
 
+import {
+  FN_LOG,
+  FN_NOW,
+  FN_POINT_PUBLISH,
+  FN_POINT_READ,
+  FN_POINT_RESOLVE,
+  FN_POINT_SUBSCRIBE,
+} from "./edge_app_abi.mjs";
+
 export const ABI_VERSION = "1.0.0";
 
 export class SdkError extends Error {
@@ -110,12 +119,12 @@ export class AppSdk {
   }
 
   async pointResolve(name) {
-    const result = await this._call("point_resolve", { name });
+    const result = await this._call(FN_POINT_RESOLVE, { name });
     return { handle: result.handle, access: result.access };
   }
 
   async pointRead(handle) {
-    const result = await this._call("point_read", { handle });
+    const result = await this._call(FN_POINT_READ, { handle });
     return {
       value: decodeValue(result.value),
       quality: result.quality,
@@ -124,7 +133,7 @@ export class AppSdk {
   }
 
   async pointSubscribe(handle, deadband = 0, minIntervalMs = 0, maxIntervalMs = 0) {
-    const result = await this._call("point_subscribe", {
+    const result = await this._call(FN_POINT_SUBSCRIBE, {
       handle,
       deadband,
       min_interval_ms: minIntervalMs,
@@ -134,17 +143,17 @@ export class AppSdk {
   }
 
   async pointPublish(handle, value, quality = "good", sourceTs = 0) {
-    await this._call("point_publish", {
+    await this._call(FN_POINT_PUBLISH, {
       handle,
       sample: { value: encodeValue(value), quality, source_ts: sourceTs },
     });
   }
 
   async log(level, message) {
-    await this._call("log", { level, message });
+    await this._call(FN_LOG, { level, message });
   }
 
   async now() {
-    return (await this._call("now", {})).now_ms;
+    return (await this._call(FN_NOW, {})).now_ms;
   }
 }

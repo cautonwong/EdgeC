@@ -169,11 +169,8 @@ static void on_new_connection(uv_stream_t *server, int status) {
         uv_pipe_t *reject_pipe = (uv_pipe_t *)malloc(sizeof(uv_pipe_t));
         if (reject_pipe) {
             uv_pipe_init(trans->loop, reject_pipe, 0);
-            if (uv_accept(server, (uv_stream_t *)reject_pipe) == 0) {
-                uv_close((uv_handle_t *)reject_pipe, (uv_close_cb)free);
-            } else {
-                uv_close((uv_handle_t *)reject_pipe, (uv_close_cb)free);
-            }
+            (void)uv_accept(server, (uv_stream_t *)reject_pipe);
+            uv_close((uv_handle_t *)reject_pipe, (uv_close_cb)free);
         }
         return;
     }

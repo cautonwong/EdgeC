@@ -15,8 +15,11 @@ typedef struct {
     stream_bus_port_t bus;
 } dsp_cfg_t;
 
-stage_ret_t dsp_rms_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
-    if (!ev->payload.ref.ptr) return STAGE_DROP;
+
+/* File-local prototypes. */
+stage_ret_t dsp_rms_proc(pipeline_stage_t *s, pipe_msg_t *ev);
+stage_ret_t dma_source_proc(pipeline_stage_t *s, pipe_msg_t *ev);
+stage_ret_t dsp_rms_proc(pipeline_stage_t *s, pipe_msg_t *ev) {    if (!ev->payload.ref.ptr) return STAGE_DROP;
     dsp_cfg_t *cfg = (dsp_cfg_t *)s->priv_cfg;
     if (!cfg) return STAGE_DROP;
 
@@ -62,8 +65,7 @@ stage_ret_t dsp_rms_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
     return STAGE_OK;
 }
 
-stage_ret_t dma_source_proc(pipeline_stage_t *s, pipe_msg_t *ev) {
-    (void)s;
+stage_ret_t dma_source_proc(pipeline_stage_t *s, pipe_msg_t *ev) {    (void)s;
     static int current_fd = -1;
     static void *map_ptr = NULL;
     if (ev->payload.ref.fd > 0 && ev->payload.ref.fd != current_fd) {
@@ -88,6 +90,7 @@ void stream_engine_register_sim_pipeline(stream_engine_t *engine,
     pipeline_add_stage(p, "dma", dma_source_proc, NULL, NULL, NULL, NULL);
 
     dsp_cfg_t *cfg = malloc(sizeof(dsp_cfg_t));
+    if (!cfg) return;
     cfg->target_tag = target_tag;
     // 假设 THD tag 是 target_tag + 1（例如 RMS 是 201，THD 就是 202）
     cfg->thd_tag = target_tag + 1; 

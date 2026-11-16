@@ -3,6 +3,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <uv.h>
 
@@ -89,6 +90,12 @@ static void test_dcu_router_dispatch(void** state) {
     ret = dcu_router_get_attr(((uint32_t)OI_METER_ARCHIVE << 16) | 0x0200, &meter_count);
     assert_int_equal(ret, 0);
     assert_int_equal(meter_count, 1);
+
+    // 5b. 未实现的批量添加(方法 2)与更新(方法 3)必须明确拒绝，不得伪装成功
+    ret = dcu_router_action(((uint32_t)OI_METER_ARCHIVE << 16) | 0x0200, NULL, NULL);
+    assert_int_equal(ret, -4);
+    ret = dcu_router_action(((uint32_t)OI_METER_ARCHIVE << 16) | 0x0300, NULL, NULL);
+    assert_int_equal(ret, -4);
 
     // 6. 验证实时变量读取 OI 0x2000 (A相电压) -> 应返回 220.5V
     float voltage = 0.0f;

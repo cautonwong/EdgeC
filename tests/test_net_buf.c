@@ -45,7 +45,7 @@ static void test_net_buf_ref_count(void** state) {
 // 3. 测试 simple 缓冲区的推入和拉取
 static void test_net_buf_simple_ops(void** state) {
     (void)state;
-    struct net_buf_pool* pool = net_buf_pool_new(2, 64, 0);
+    struct net_buf_pool* pool = net_buf_pool_new(2, 128, 0);
     net_buf_t* buf = net_buf_alloc(pool, 0);
 
     // Push 4 bytes
@@ -65,10 +65,12 @@ static void test_net_buf_simple_ops(void** state) {
 // 4. 测试空间不足时的安全检查
 static void test_net_buf_overflow_protection(void** state) {
     (void)state;
-    struct net_buf_pool* pool = net_buf_pool_new(1, 16, 0);
+    // 池保留 64 字节头部，80 字节缓冲的可用空间正好是 16
+    struct net_buf_pool* pool = net_buf_pool_new(1, 80, 0);
     net_buf_t* buf = net_buf_alloc(pool, 0);
+    assert_int_equal(net_buf_simple_tailroom(&buf->b), 16);
 
-    // Push 16 bytes (OK)
+    // 写满可用空间（再多会触发调试断言）
     void* ptr = net_buf_simple_add(&buf->b, 16);
     assert_non_null(ptr);
     assert_int_equal(buf->b.len, 16);

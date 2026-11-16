@@ -16,6 +16,7 @@
 #include <unistd.h>
 
 #include "edge_app_sdk.h"
+#include "no_exec_filter.h"
 #include "wasm_export.h"
 
 static edge_app_sdk_t *g_sdk;
@@ -210,6 +211,9 @@ static int run_app(const char *wasm_path, int fd, uint32_t heap_kb, uint32_t sta
 
 int main(int argc, char **argv) {
     signal(SIGPIPE, SIG_IGN);
+    if (app_host_install_no_exec_filter() != 0) {
+        fprintf(stderr, "app-host: no-exec seccomp filter unavailable: %s\n", strerror(errno));
+    }
 
     const char *wasm_path = NULL;
     int fd = -1;

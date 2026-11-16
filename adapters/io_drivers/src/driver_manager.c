@@ -52,12 +52,6 @@ _Static_assert(sizeof(struct driver_manager_s) <= sizeof(driver_manager_storage_
 
 static driver_inst_slot_t g_fallback_inst_slots[MAX_DRIVER_INSTANCES];
 
-static uint64_t _now_ms(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-    return (uint64_t)ts.tv_sec * 1000ULL + (uint64_t)ts.tv_nsec / 1000000ULL;
-}
-
 static edge_driver_ctx_t *_session_create(void *ctx, const char *protocol, uint32_t device_id) {
     return driver_instance_create((driver_manager_t *)ctx, protocol, device_id);
 }

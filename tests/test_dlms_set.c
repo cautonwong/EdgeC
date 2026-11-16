@@ -137,10 +137,34 @@ static void test_driver_write_validation(void** state) {
                          0);
 }
 
+static void test_response_rejects_short_and_block(void** state) {
+    (void)state;
+
+    dlms_cosem_ctx_t ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.state = COSEM_STATE_ASSOCIATED;
+
+    dlms_variant_t var;
+    struct net_buf_simple nb;
+
+    // GET-Response 缺少 invoke id
+    uint8_t short_get[] = {DLMS_SERVICE_GET_RESPONSE, 0x01};
+    net_buf_simple_init_with_data(&nb, short_get, sizeof(short_get));
+    nb.len = sizeof(short_get);
+    assert_int_equal(dlms_cosem_decode_response(&ctx, &nb, &var), -1);
+
+    // with-datablock 明确返回不支持，而不是解引用空重组缓冲
+    uint8_t block[] = {DLMS_SERVICE_GET_RESPONSE, 0x02, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00};
+    net_buf_simple_init_with_data(&nb, block, sizeof(block));
+    nb.len = sizeof(block);
+    assert_int_equal(dlms_cosem_decode_response(&ctx, &nb, &var), -4);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_set_request_layout),
         cmocka_unit_test(test_set_response_decodes),
+        cmocka_unit_test(test_response_rejects_short_and_block),
         cmocka_unit_test(test_driver_write_validation),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);

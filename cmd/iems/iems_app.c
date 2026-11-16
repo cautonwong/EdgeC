@@ -209,14 +209,13 @@ static void _monitor_shadow_tick(uv_timer_t* handle) {
     }
 }
 
-static const edge_param_info_t k_iems_pipeline_params[] = {
-    {.name = "batt_max_soc", .type = PARAM_TYPE_FLOAT, .def_val.f = 95.0, .id = 1,
+static const edge_param_info_t k_iems_pipeline_params[] = {    {.name = "batt_max_soc", .type = PARAM_TYPE_FLOAT, .def_val.f = 95.0, .id = 0, .tag_id = 1,
      .unit = "%", .min = 0.0, .max = 100.0, .desc = "Battery max SOC"},
-    {.name = "batt_min_soc", .type = PARAM_TYPE_FLOAT, .def_val.f = 10.0, .id = 2,
+    {.name = "batt_min_soc", .type = PARAM_TYPE_FLOAT, .def_val.f = 10.0, .id = 1, .tag_id = 2,
      .unit = "%", .min = 0.0, .max = 100.0, .desc = "Battery min SOC"},
-    {.name = "batt_max_charge", .type = PARAM_TYPE_FLOAT, .def_val.f = 5000.0, .id = 3,
+    {.name = "batt_max_charge", .type = PARAM_TYPE_FLOAT, .def_val.f = 5000.0, .id = 2, .tag_id = 3,
      .unit = "W", .min = 0.0, .max = 1e9, .desc = "Battery max charge power"},
-    {.name = "batt_max_discharge", .type = PARAM_TYPE_FLOAT, .def_val.f = 5000.0, .id = 4,
+    {.name = "batt_max_discharge", .type = PARAM_TYPE_FLOAT, .def_val.f = 5000.0, .id = 3, .tag_id = 4,
      .unit = "W", .min = 0.0, .max = 1e9, .desc = "Battery max discharge power"},
 };
 
@@ -277,7 +276,7 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     iems_node_config_t node_cfg = {
         .product_name = "IEMS",
         .shm_name = (cfg && cfg->shm_name) ? cfg->shm_name : EDGE_SHM_BUS_NAME,
-        .datahub_capacity = 1024,
+        .datahub_capacity = IEMS_DATAHUB_CAPACITY,
         .max_pcs_power_kw = 500.0,
         .transformer_capacity_kva = 630.0,
         .demand_limit_kw = 500.0
@@ -407,7 +406,7 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
         .db = app->db_service,
         .tags = app_tags,
         .tag_count = app_tag_count,
-        .app_base = 131072u,
+        .app_base = IEMS_APP_BASE,
         .on_fault = _on_app_fault,
         .on_fault_ctx = &app->control_ctx,
         .on_restarted = _on_app_restarted,

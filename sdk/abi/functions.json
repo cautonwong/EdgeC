@@ -1,0 +1,41 @@
+{
+  "abi_version": "1.0.0",
+  "functions": [
+    {
+      "name": "point_resolve",
+      "wit": "point-resolve",
+      "wasm_symbol": "point_resolve",
+      "status": "implemented"
+    },
+    {
+      "name": "point_read",
+      "wit": "point-read",
+      "wasm_symbol": "point_read",
+      "status": "implemented"
+    },
+    {
+      "name": "point_subscribe",
+      "wit": "point-subscribe",
+      "wasm_symbol": null,
+      "status": "not_supported"
+    },
+    {
+      "name": "point_publish",
+      "wit": "point-publish",
+      "wasm_symbol": "point_publish",
+      "status": "implemented"
+    },
+    {
+      "name": "log",
+      "wit": "log",
+      "wasm_symbol": "app_log",
+      "status": "implemented"
+    },
+    {
+      "name": "now",
+      "wit": "now",
+      "wasm_symbol": "app_now",
+      "status": "implemented"
+    }
+  ]
+}

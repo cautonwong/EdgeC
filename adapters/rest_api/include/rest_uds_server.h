@@ -28,6 +28,7 @@ typedef struct uv_loop_s uv_loop_t;
 #define REST_UDS_MAX_METHOD 16
 #define REST_UDS_MAX_PATH 128
 #define REST_UDS_MAX_BODY (8u * 1024u * 1024u)
+#define REST_UDS_MAX_FRAME (16u + REST_UDS_MAX_METHOD + REST_UDS_MAX_PATH + REST_UDS_MAX_BODY)
 
 typedef struct rest_uds_server_s rest_uds_server_t;
 

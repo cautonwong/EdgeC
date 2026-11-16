@@ -2,6 +2,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "edgeos/app_manifest.h"
 
@@ -289,19 +290,19 @@ static void test_rejects_old_abi_and_bad_publish_namespace(void **state) {
     assert_string_equal(reason, "points.publish outside app namespace");
 }
 
-static const char *points_manifest_template =
-    "{\"abi\":1,\"id\":\"demo-app\",\"version\":\"1.0.0\",\"language\":\"c\","
-    "\"execution_profile\":\"wasm\",\"entry\":\"app.wasm\","
-    "\"limits\":{\"heapKb\":1,\"storageKb\":1,\"cpuMsPerSec\":1,\"callsPerSec\":1,"
-    "\"publishPerSec\":1},"
-    "\"capabilities\":{\"points\":{\"publish\":[\"app.demo-app.sag_count\"],"
-    "\"reason\":\"own points\"}},"
-    "\"contributes\":{\"telemetry\":{\"points\":[%s]}}}";
+#define POINTS_MANIFEST_TEMPLATE                                                        \
+    "{\"abi\":1,\"id\":\"demo-app\",\"version\":\"1.0.0\",\"language\":\"c\","      \
+    "\"execution_profile\":\"wasm\",\"entry\":\"app.wasm\","                        \
+    "\"limits\":{\"heapKb\":1,\"storageKb\":1,\"cpuMsPerSec\":1,\"callsPerSec\":1," \
+    "\"publishPerSec\":1},"                                                         \
+    "\"capabilities\":{\"points\":{\"publish\":[\"app.demo-app.sag_count\"],"      \
+    "\"reason\":\"own points\"}},"                                                  \
+    "\"contributes\":{\"telemetry\":{\"points\":[%s]}}}"
 
 static void test_contributed_points_parse(void **state) {
     (void)state;
     char buf[1024];
-    snprintf(buf, sizeof(buf), points_manifest_template,
+    snprintf(buf, sizeof(buf), POINTS_MANIFEST_TEMPLATE,
              "{\"name\":\"sag_count\",\"type\":\"number\",\"unit\":\"count\",\"contractVersion\":1,"
              "\"retention\":\"latest\",\"staleAfterMs\":5000,\"stability\":\"stable\","
              "\"source\":\"derived\"}");
@@ -322,7 +323,7 @@ static void test_contributed_points_parse(void **state) {
 static void test_contributed_point_defaults(void **state) {
     (void)state;
     char buf[1024];
-    snprintf(buf, sizeof(buf), points_manifest_template,
+    snprintf(buf, sizeof(buf), POINTS_MANIFEST_TEMPLATE,
              "{\"name\":\"sag_count\",\"type\":\"integer\",\"contractVersion\":2}");
     char reason[160];
     app_spec_t spec;
@@ -352,7 +353,7 @@ static void test_contributed_points_must_be_covered(void **state) {
 
 static void expect_point_rejected(const char *point_json, const char *expected) {
     char buf[1024];
-    snprintf(buf, sizeof(buf), points_manifest_template, point_json);
+    snprintf(buf, sizeof(buf), POINTS_MANIFEST_TEMPLATE, point_json);
     char reason[200];
     int rc = edge_app_manifest_validate_json(buf, reason, sizeof(reason));
     assert_int_equal(rc, -1);

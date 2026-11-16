@@ -1,0 +1,21 @@
+package edgeos:app@1.0.0;
+
+interface types {
+  enum error-code {
+    not-found,
+    invalid,
+    internal,
+  }
+}
+
+interface host {
+  use types.{error-code};
+
+  point-resolve: func(name: string) -> result<u32, error-code>;
+  point-read: func(handle: u32) -> result<u32, error-code>;
+  point-subscribe: func(handle: u32, deadband: f64, min-interval-ms: u32, max-interval-ms: u32) -> result<u32, error-code>;
+  point-publish: func(handle: u32, sample: u32) -> result<_, error-code>;
+  point-write: func(handle: u32, sample: u32) -> result<_, error-code>;
+  log: func(level: u32, message: string);
+  now: func() -> u64;
+}

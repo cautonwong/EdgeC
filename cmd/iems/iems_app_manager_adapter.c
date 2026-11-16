@@ -68,6 +68,9 @@ edge_app_mgr_t *iems_app_manager_create(uv_loop_t *loop, sqlite_svc_t *db,
     if (getenv("EDGEC_TEST_CRASH_AFTER_PACKAGE_WRITE")) {
         edge_app_mgr_set_crash_after_package_write(mgr, true);
     }
+    if (getenv("EDGEC_TEST_CRASH_AFTER_UPGRADE_SWAP")) {
+        edge_app_mgr_set_crash_after_upgrade_swap(mgr, true);
+    }
     LOG_INFO(LOG_CAT_CORE, "AppMgr: Initialized with repository successfully");
 
     if (storage_out) *storage_out = storage;
@@ -223,9 +226,21 @@ static void _iems_start_done(int rc, const char *app_id, const char *reason, voi
     }
 
     if (start->control->app_runtime) {
-        uint32_t heap_kb = manifest.heap_limit_kb > 0 ? manifest.heap_limit_kb : 64;
-        if (iems_app_runtime_start(start->control->app_runtime, app_id, manifest.wasm_path, heap_kb,
-                                   64) != 0) {
+        app_limits_t limits;
+        if (edge_app_mgr_get_limits(start->control->mgr, app_id, &limits) != 0) {
+            if (start->task_id[0]) {
+                _finish_task(start->control, start->task_id, EDGE_APP_TASK_FAILED,
+                             "limits read failed");
+            }
+            free(start);
+            return;
+        }
+        uint32_t heap_kb = limits.heap_kb > 0 ? limits.heap_kb
+                                              : (manifest.heap_limit_kb > 0 ? manifest.heap_limit_kb
+                                                                            : 64);
+        if (iems_app_runtime_start_ex(start->control->app_runtime, app_id, manifest.wasm_path,
+                                      heap_kb, 64, limits.pids_max, limits.cpu_ms_per_sec,
+                                      limits.calls_per_sec, limits.publish_per_sec) != 0) {
             LOG_WARN(LOG_CAT_CORE, "AppHost: start failed for %s", app_id);
             edge_app_mgr_stop(start->control->mgr, app_id);
             if (start->task_id[0]) {
@@ -261,6 +276,13 @@ static void _iems_install_done(int rc, const char *app_id, const char *reason, v
         LOG_WARN(LOG_CAT_CORE, "AppMgr: point registration failed for %s: %s", app_id,
                  points_reason);
         _finish_task(job->control, job->task_id, EDGE_APP_TASK_FAILED, points_reason);
+        free(job);
+        return;
+    }
+
+    if (edge_app_mgr_set_limits(job->control->mgr, app_id, &job->spec.limits) != 0) {
+        LOG_WARN(LOG_CAT_CORE, "AppMgr: limits save failed for %s", app_id);
+        _finish_task(job->control, job->task_id, EDGE_APP_TASK_FAILED, "limits save failed");
         free(job);
         return;
     }
@@ -319,22 +341,37 @@ typedef struct {
 } iems_uninstall_ctx_t;
 
 /* PURGE 的私有数据层：secrets、授权、包目录。点位槽位在上面的回调里释放；
- * 历史与任务台账按保留策略留下。 */
-static void _purge_private_data(iems_control_ctx_t *control, const char *app_id) {
+ * 历史与任务台账按保留策略留下。返回 0 表示私有数据确认清空。 */
+static int _purge_private_data(iems_control_ctx_t *control, const char *app_id) {
+    int rc = 0;
     edge_secret_store_t secrets = edge_secret_sqlite(control->db);
     char names[64][EDGE_SECRET_NAME_SIZE];
     size_t count = 0;
-    if (edge_secret_list(&secrets, app_id, names, 64, &count) == EDGE_SECRET_OK) {
-        for (size_t i = 0; i < count; i++) edge_secret_delete(&secrets, app_id, names[i]);
+    if (edge_secret_list(&secrets, app_id, names, 64, &count) != EDGE_SECRET_OK) {
+        rc = -1;
+    } else {
+        for (size_t i = 0; i < count; i++) {
+            if (edge_secret_delete(&secrets, app_id, names[i]) != EDGE_SECRET_OK) rc = -1;
+        }
     }
 
     edge_authz_store_t authz = edge_authz_sqlite_store(control->db);
-    edge_app_grant_t grants[32];
-    size_t grants_count = 0;
-    if (authz.list_grants &&
-        authz.list_grants(authz.ctx, app_id, grants, 32, &grants_count) == 0) {
-        for (size_t i = 0; i < grants_count; i++) {
-            authz.delete_grant(authz.ctx, app_id, grants[i].capability);
+    if (!authz.list_grants || !authz.delete_grant) {
+        rc = -1;
+    } else {
+        /* SQLite has no per-app grant cap; page until the list is empty. */
+        for (int round = 0; round < 64; round++) {
+            edge_app_grant_t grants[32];
+            size_t grants_count = 0;
+            if (authz.list_grants(authz.ctx, app_id, grants, 32, &grants_count) != 0) {
+                rc = -1;
+                break;
+            }
+            if (grants_count == 0) break;
+            for (size_t i = 0; i < grants_count; i++) {
+                if (authz.delete_grant(authz.ctx, app_id, grants[i].capability) != 0) rc = -1;
+            }
+            if (grants_count < 32) break;
         }
     }
 
@@ -342,11 +379,13 @@ static void _purge_private_data(iems_control_ctx_t *control, const char *app_id)
     if (!apps_dir || !apps_dir[0]) apps_dir = "/var/edgeos/apps";
     char path[512];
     snprintf(path, sizeof(path), "%s/%s/app-host", apps_dir, app_id);
-    unlink(path);
+    if (unlink(path) != 0 && errno != ENOENT) rc = -1;
     snprintf(path, sizeof(path), "%s/%s", apps_dir, app_id);
     if (rmdir(path) != 0 && errno != ENOENT) {
         LOG_WARN(LOG_CAT_CORE, "AppMgr: purge left %s: %s", path, strerror(errno));
+        rc = -1;
     }
+    return rc;
 }
 
 static void _iems_uninstall_done(int rc, const char *app_id, const char *reason, void *ctx) {
@@ -359,7 +398,11 @@ static void _iems_uninstall_done(int rc, const char *app_id, const char *reason,
         app_points_release(control->db, app_id);
         if (job->disposition == APP_UNINSTALL_PURGE ||
             job->disposition == APP_UNINSTALL_EXPORT) {
-            _purge_private_data(control, app_id);
+            if (_purge_private_data(control, app_id) != 0) {
+                LOG_ERROR(LOG_CAT_CORE,
+                          "AppMgr: purge incomplete for %s; uninstall is already committed",
+                          app_id);
+            }
         }
     }
     _publish_snapshot(control);
@@ -453,6 +496,15 @@ static int _control_time_mark(void *ctx, uint64_t epoch_ms, char *reason, size_t
     return rc;
 }
 
+static int _limits_supported(const app_limits_t *limits, char *reason, size_t cap) {
+    if (!limits) return 0;
+    if (limits->storage_kb > 0) {
+        snprintf(reason, cap, "storageKb is not supported yet");
+        return -1;
+    }
+    return 0;
+}
+
 static int _control_install_app(void *ctx, const char *manifest_json, const char *name,
                                 uint32_t trigger_tag, const char *entry_func,
                                 const void *wasm, size_t wasm_len,
@@ -487,12 +539,18 @@ static int _control_install_app(void *ctx, const char *manifest_json, const char
         free(job);
         return -1;
     }
+    if (_limits_supported(&job->spec.limits, reason, sizeof(reason)) != 0) {
+        LOG_WARN(LOG_CAT_CORE, "AppMgr: install denied: %s", reason);
+        free(job);
+        return -1;
+    }
 
     if (edge_app_mgr_parse_manifest_json(manifest_json, &job->manifest) != 0) {
         LOG_WARN(LOG_CAT_CORE, "AppMgr: install denied: manifest has no usable id");
         free(job);
         return -1;
     }
+    if (job->spec.limits.heap_kb > 0) job->manifest.heap_limit_kb = job->spec.limits.heap_kb;
     if (app_points_check(control->db, job->manifest.id, job->spec.points, job->spec.points_count,
                          reason, sizeof(reason)) != 0) {
         LOG_WARN(LOG_CAT_CORE, "AppMgr: install denied: %s", reason);
@@ -835,6 +893,13 @@ static void _iems_upgrade_done(int rc, const char *app_id, const char *reason, v
         return;
     }
 
+    if (edge_app_mgr_set_limits(job->control->mgr, app_id, &job->spec.limits) != 0) {
+        LOG_WARN(LOG_CAT_CORE, "AppMgr: limits save failed for %s", app_id);
+        _finish_task(job->control, job->task_id, EDGE_APP_TASK_FAILED, "limits save failed");
+        free(job);
+        return;
+    }
+
     if (job->was_running) {
         if (job->control->app_runtime) iems_app_runtime_stop(job->control->app_runtime, app_id);
         iems_start_ctx_t *start = calloc(1, sizeof(*start));
@@ -911,11 +976,16 @@ static int _control_upgrade_app(void *ctx, const char *manifest_json, const void
         LOG_WARN(LOG_CAT_CORE, "AppMgr: upgrade denied: %s", reason);
         return -1;
     }
+    if (_limits_supported(&spec.limits, reason, sizeof(reason)) != 0) {
+        LOG_WARN(LOG_CAT_CORE, "AppMgr: upgrade denied: %s", reason);
+        return -1;
+    }
     app_manifest_t manifest;
     if (edge_app_mgr_parse_manifest_json(manifest_json, &manifest) != 0) {
         LOG_WARN(LOG_CAT_CORE, "AppMgr: upgrade denied: manifest has no usable id");
         return -1;
     }
+    if (spec.limits.heap_kb > 0) manifest.heap_limit_kb = spec.limits.heap_kb;
     if (app_points_check(control->db, manifest.id, spec.points, spec.points_count, reason,
                          sizeof(reason)) != 0) {
         LOG_WARN(LOG_CAT_CORE, "AppMgr: upgrade denied: %s", reason);
@@ -1141,7 +1211,7 @@ static char *_control_registry_status(void *ctx, const char *app_id) {
     if (!control || !control->db) return NULL;
 
     edge_registry_consumer_t view[IEMS_REGISTRY_CONSUMERS_MAX];
-    uint64_t now = _now_ms();
+    uint64_t now = (uint64_t)_now_ms();
     for (size_t i = 0; i < control->consumer_count; i++) {
         memset(&view[i], 0, sizeof(view[i]));
         snprintf(view[i].name, sizeof(view[i].name), "%s", control->consumers[i].name);
@@ -1158,7 +1228,7 @@ static int _control_consumer_heartbeat(void *ctx, const char *name,
     iems_control_ctx_t *control = (iems_control_ctx_t *)ctx;
     if (!control || !name || !name[0]) return -1;
 
-    uint64_t now = _now_ms();
+    uint64_t now = (uint64_t)_now_ms();
     for (size_t i = 0; i < control->consumer_count; i++) {
         if (strcmp(control->consumers[i].name, name) == 0) {
             control->consumers[i].applied_generation = applied_generation;
@@ -1273,8 +1343,15 @@ void iems_control_app_faulted(iems_control_ctx_t *ctx, const char *app_id, int64
         /* +/-20% so a host restart cannot bring every app up in the same tick */
         delay = (uint32_t)((uint64_t)delay * (80u + (uint32_t)rand() % 41u) / 100u);
         uint32_t heap_kb = manifest.heap_limit_kb > 0 ? manifest.heap_limit_kb : 64;
-        if (iems_app_runtime_restart_later(ctx->app_runtime, app_id, manifest.wasm_path, delay,
-                                           heap_kb, 64) == 0) {
+        app_limits_t limits;
+        if (edge_app_mgr_get_limits(ctx->mgr, app_id, &limits) != 0) {
+            memset(&limits, 0, sizeof(limits));
+        }
+        if (limits.heap_kb > 0) heap_kb = limits.heap_kb;
+        if (iems_app_runtime_restart_later_ex(ctx->app_runtime, app_id, manifest.wasm_path, delay,
+                                              heap_kb, 64, limits.pids_max,
+                                              limits.cpu_ms_per_sec, limits.calls_per_sec,
+                                              limits.publish_per_sec) == 0) {
             LOG_INFO(LOG_CAT_CORE, "AppHost: restarting %s in %u ms (attempt %d)", app_id, delay,
                      manifest.restart_count);
         } else {

@@ -5,7 +5,9 @@
  */
 
 #include <cmocka.h>
+#include <inttypes.h>
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
@@ -76,12 +78,19 @@ static void test_npu_pmu_lifecycle_and_profiling(void **state) {
     npu_pmu_hotspot_t hotspots[4];
     size_t count = npu_pmu_get_top_hotspots(pmu, hotspots, 4);
     assert_int_equal(count, 2);
-    /* matmul_head (3000us) should rank higher than conv2d_stem (500us) */
-    assert_int_equal(hotspots[0].op_id, 102);
-    assert_string_equal(hotspots[0].op_name, "matmul_head");
-    assert_int_equal(hotspots[1].op_id, 101);
-    assert_string_equal(hotspots[1].op_name, "conv2d_stem");
-    assert_true(hotspots[0].time_share_pct > hotspots[1].time_share_pct);
+    /* 排序依赖 usleep 量出的墙钟延迟。负载下 500us 的样例可能被拖到比
+     * 3000us 还长，这时排名断言测的是调度噪声，不是聚合逻辑；打印跳过。 */
+    if (rec2.latency_ns > 3 * rec1.latency_ns) {
+        assert_int_equal(hotspots[0].op_id, 102);
+        assert_string_equal(hotspots[0].op_name, "matmul_head");
+        assert_int_equal(hotspots[1].op_id, 101);
+        assert_string_equal(hotspots[1].op_name, "conv2d_stem");
+        assert_true(hotspots[0].time_share_pct > hotspots[1].time_share_pct);
+    } else {
+        printf("[SKIPPED] hotspot ordering: scheduling noise (rec1=%" PRIu64 "ns rec2=%" PRIu64
+               "ns)\n",
+               rec1.latency_ns, rec2.latency_ns);
+    }
 }
 
 static void test_npu_pmu_jitter_anomaly_and_datahub_sync(void **state) {
@@ -133,7 +142,8 @@ static void test_npu_pmu_jitter_anomaly_and_datahub_sync(void **state) {
     assert_int_equal(rc, 0);
 
     datahub_destroy(&hub);
-    uv_loop_close(&loop);
+    uv_run(&loop, UV_RUN_NOWAIT); /* 让 uv_close 的回收回调执行完 */
+    assert_int_equal(uv_loop_close(&loop), 0);
     shm_unlink("/test_npu_pmu_hub");
 
     /* Reset */

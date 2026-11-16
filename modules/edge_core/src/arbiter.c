@@ -332,7 +332,7 @@ int arbiter_get_statuses(arbiter_t *arb, arbiter_bus_status_t *out_stats, int ma
     for (int i = 0; i < ARBITER_MAX_BUSES && i < max_count; i++) {
         out_stats[count].bus_id = i;
         out_stats[count].is_busy = (arb->buses[i].owner != NULL);
-        out_stats[count].queue_len = arb->buses[i].queue_len;
+        out_stats[count].queue_len = (int)arb->buses[i].queue_len;
         out_stats[count].dropped_count = arb->buses[i].dropped_count;
         count++;
     }

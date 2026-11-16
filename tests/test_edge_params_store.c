@@ -82,10 +82,26 @@ static void test_params_roundtrip_through_store(void **state) {
     uv_loop_close(&loop);
 }
 
+static void test_rejects_non_contiguous_ids(void **state) {
+    (void)state;
+    edge_params_storage_t storage;
+    edge_params_t *params = edge_params_create_in(&storage, NULL, NULL);
+    assert_non_null(params);
+
+    edge_param_info_t bad[] = {
+        {.name = "bad", .type = PARAM_TYPE_FLOAT, .def_val = {.f = 1.0}, .id = 1},
+    };
+    edge_params_register_metadata(params, bad, 1);
+    /* 注册被拒绝后，按名字查询必须回落到调用方给的默认值。 */
+    assert_float_equal(edge_param_get_float(params, "bad", 123.0), 123.0, 0.001);
+    edge_params_destroy(params);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_params_roundtrip_through_store),
         cmocka_unit_test(test_null_float_keeps_declared_default),
+        cmocka_unit_test(test_rejects_non_contiguous_ids),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

@@ -14,9 +14,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-const char *edge_infra_get_version(void) {
-    return "2.0.0-modular";
-}
 
 /* ---------------- Fallback Stubs when Backends are Disabled via Kconfig ---------------- */
 

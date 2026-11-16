@@ -204,10 +204,29 @@ static void test_source_failure_keeps_buffer_for_retry(void **state) {
     edge_backfill_destroy(&bf);
 }
 
+static void test_buffer_limit_returns_nomem(void **state) {
+    (void)state;
+    fake_source_t source = {0};
+    fake_sink_t sink = {0};
+    app_backfill_t bf = {0};
+    bf.source = (edge_history_source_t){.ctx = &source, .query = _src_query};
+    bf.sink = (edge_backfill_sink_t){.ctx = &sink, .deliver = _sink_deliver};
+
+    assert_int_equal(edge_backfill_begin(&bf, "app.demo", "cv1", 0), EDGE_BACKFILL_OK);
+    for (size_t i = 0; i < EDGE_BACKFILL_MAX_BUFFER; i++) {
+        assert_int_equal(_live(&bf, "p1", (int64_t)i + 1, i), EDGE_BACKFILL_OK);
+    }
+    assert_int_equal(_live(&bf, "p1", (int64_t)EDGE_BACKFILL_MAX_BUFFER + 1,
+                           EDGE_BACKFILL_MAX_BUFFER),
+                     EDGE_BACKFILL_NOMEM);
+    edge_backfill_destroy(&bf);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_boundary_dedup_and_live),
         cmocka_unit_test(test_source_failure_keeps_buffer_for_retry),
+        cmocka_unit_test(test_buffer_limit_returns_nomem),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

@@ -94,12 +94,12 @@ static void test_v3_upgrade_preserves_edge_settings(void **state) {
     assert_non_null(svc);
     sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle(svc);
 
-    assert_int_equal(_scalar_int(db, "PRAGMA user_version;"), 14);
+    assert_int_equal(_scalar_int(db, "PRAGMA user_version;"), 15);
     assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM edge_settings;"), 2);
     assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM app_registry;"), 0);
     assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM app_grant;"), 0);
     assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM app_task;"), 0);
-    assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM schema_migration;"), 14);
+    assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM schema_migration;"), 15);
     assert_int_equal(_scalar_int(db,
                                  "SELECT COUNT(*) FROM pragma_table_info('app_registry') "
                                  "WHERE name IN ('prev_version','prev_manifest_json',"
@@ -136,7 +136,7 @@ static void test_v4_upgrade_preserves_app_registry(void **state) {
     assert_non_null(svc);
     sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle(svc);
 
-    assert_int_equal(_scalar_int(db, "PRAGMA user_version;"), 14);
+    assert_int_equal(_scalar_int(db, "PRAGMA user_version;"), 15);
     assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM app_registry;"), 1);
     assert_int_equal(_scalar_int(db, "SELECT trigger_tag FROM app_registry WHERE id='demo';"), 42);
     assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM edge_settings;"), 1);
@@ -160,7 +160,7 @@ static void test_too_new_schema_rejected(void **state) {
     _exec(raw,
           "CREATE TABLE canary (v INT);"
           "INSERT INTO canary VALUES (7);"
-          "PRAGMA user_version=15;");
+          "PRAGMA user_version=16;");
     sqlite3_close(raw);
 
     sqlite_config_t cfg = {.strategy = STRATEGY_LITE, .db_path = path};
@@ -171,7 +171,7 @@ static void test_too_new_schema_rejected(void **state) {
     assert_null(sqlite_svc_create(loop, &cfg));
 
     assert_int_equal(sqlite3_open(path, &raw), SQLITE_OK);
-    assert_int_equal(_scalar_int(raw, "PRAGMA user_version;"), 15);
+    assert_int_equal(_scalar_int(raw, "PRAGMA user_version;"), 16);
     assert_int_equal(_scalar_int(raw, "SELECT v FROM canary;"), 7);
     assert_int_equal(_scalar_int(raw,
                                  "SELECT COUNT(*) FROM sqlite_master WHERE type='table' "
@@ -191,7 +191,7 @@ static void test_checksum_mismatch_rejected(void **state) {
     sqlite_svc_t *svc = sqlite_svc_create(loop, &cfg);
     assert_non_null(svc);
     sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle(svc);
-    assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM schema_migration;"), 14);
+    assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM schema_migration;"), 15);
     sqlite_svc_destroy(svc);
 
     sqlite3 *raw = NULL;
@@ -205,7 +205,7 @@ static void test_checksum_mismatch_rejected(void **state) {
     assert_int_equal(err, -1);
 
     assert_int_equal(sqlite3_open(path, &raw), SQLITE_OK);
-    assert_int_equal(_scalar_int(raw, "PRAGMA user_version;"), 14);
+    assert_int_equal(_scalar_int(raw, "PRAGMA user_version;"), 15);
     sqlite3_close(raw);
     unlink(path);
 }
