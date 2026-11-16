@@ -326,7 +326,7 @@ static void test_denied_import_signed(void **state) {
 
 static void test_bad_args(void **state) {
     (void)state;
-    uint8_t pub[32];
+    uint8_t pub[32] = {0};
     edge_eapp_package_t out;
     char reason[EDGE_EAPP_REASON_SIZE];
     assert_int_equal(validate_with(NULL, 0, pub, &out, reason, sizeof(reason)), -1);

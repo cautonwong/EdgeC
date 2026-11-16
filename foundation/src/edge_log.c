@@ -21,7 +21,10 @@ edge_log_t *edge_log_create(const char *conf_path, bool console_only) {
     if (!logger) return NULL;
     
     logger->console_only = console_only;
-    if (conf_path) strncpy(logger->conf_path, conf_path, 255);
+    if (conf_path) {
+        strncpy(logger->conf_path, conf_path, 255);
+        logger->conf_path[sizeof(logger->conf_path) - 1] = '\0';
+    }
     
     if (!console_only && conf_path && conf_path[0] != '\0') {
         int rc = zlog_init(conf_path);

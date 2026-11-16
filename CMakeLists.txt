@@ -193,7 +193,13 @@ option(ENABLE_COVERAGE "Enable code coverage reporting" OFF)
 target_compile_options(edge_common_interface INTERFACE -Wall -Wextra -Wformat=2 -Wconversion
     # 函数指针类型不匹配是**静默 UB**：多传的参数被忽略、少传的读到垃圾。
     # IEC104 的 req_prepare 就因此少两个形参而没被发现（写请求一直在发读帧）。
-    -Werror=incompatible-pointer-types)
+    -Werror=incompatible-pointer-types
+    # 低成本高信号的 C 约束：K&R 声明、重复分支/条件、跨初始化 goto、
+    # 变量遮蔽、VLA、指针算术与未定义宏。
+    -Wstrict-prototypes -Wold-style-definition
+    -Wduplicated-cond -Wduplicated-branches -Wlogical-op
+    -Wjump-misses-init -Wshadow -Wvla -Wpointer-arith -Wundef
+    -Wmissing-prototypes)
 if(COVERAGE OR ENABLE_COVERAGE)
     target_compile_options(edge_common_interface INTERFACE --coverage)
     target_link_options(edge_common_interface INTERFACE --coverage)

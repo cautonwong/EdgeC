@@ -96,7 +96,7 @@ static void on_cmd_cleanup(cmd_msg_t *msg) { (void)msg; }
 
 /* 推一段事件循环:既要 uv 的 IO,也要引擎自己那条 uv_timer */
 static void pump(uv_loop_t *loop, int ms) {
-    uint64_t deadline = uv_hrtime() + (uint64_t)ms * 1000000ULL;
+    uint64_t deadline = uv_hrtime() + (uint64_t)ms * (uint64_t)1000000;
     while (uv_hrtime() < deadline) {
         uv_run(loop, UV_RUN_NOWAIT);
         uv_sleep(1);

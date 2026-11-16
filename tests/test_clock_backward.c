@@ -7,7 +7,7 @@
 #include "sched_time.h"
 
 // External mock control
-void mock_set_time(wall_time_t w, mono_time_t m);
+#include "mock_time.h"
 
 static int fire_count = 0;
 

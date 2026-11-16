@@ -27,7 +27,6 @@ static stage_ret_t _proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
     // 假设输入是来自 vibration_feature_stage 的 RMS 值
     if (ev->type == PIPEMSG_TYPE_SCALAR) {
         LOG_INFO(LOG_CAT_CORE, "RUL Prediction: Processing Input %.2f (Tag %u)", ev->payload.val.f, ev->tag_id);
-        double z = ev->payload.val.f; // 观测值
         
         // EKF 预测与修正 (简化逻辑)
         // x_pred = F * x
@@ -63,14 +62,25 @@ static void _cleanup(void *priv) {
 
 pipeline_stage_t *stage_rul_prediction_create(uint32_t rul_tag) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    if (!s) return NULL;
     rul_ctx_t *ctx = calloc(1, sizeof(rul_ctx_t));
+    if (!ctx) {
+        free(s);
+        return NULL;
+    }
     
     ctx->x = edge_matrix_alloc(2, 1);
+    if (!ctx->x) { _cleanup(ctx); free(s); return NULL; }
     ctx->P = edge_matrix_alloc(2, 2);
+    if (!ctx->P) { _cleanup(ctx); free(s); return NULL; }
     ctx->Q = edge_matrix_alloc(2, 2);
+    if (!ctx->Q) { _cleanup(ctx); free(s); return NULL; }
     ctx->R = edge_matrix_alloc(1, 1);
+    if (!ctx->R) { _cleanup(ctx); free(s); return NULL; }
     ctx->F = edge_matrix_alloc(2, 2);
+    if (!ctx->F) { _cleanup(ctx); free(s); return NULL; }
     ctx->H = edge_matrix_alloc(1, 2);
+    if (!ctx->H) { _cleanup(ctx); free(s); return NULL; }
     
     ctx->output_tag_rul = rul_tag;
     

@@ -75,6 +75,11 @@ static void _pipeline_process(pipeline_t *p, pipe_msg_t *msg) {
         }
 
         if (ret == STAGE_ASYNC) {
+            if (msg->type == PIPEMSG_TYPE_BATCH) {
+                LOG_ERROR(LOG_CAT_CORE,
+                          "StreamEngine: async stage cannot retain a BATCH payload; dropping");
+                break;
+            }
             p->state = PIPE_STATE_SUSPENDED;
             p->resume_point = s;
             p->current_event = *msg;
@@ -250,6 +255,7 @@ pipeline_stage_t *pipeline_add_stage(pipeline_t *p, const char *name, stage_proc
                                      void *priv_cfg, stage_cleanup_fn cleanup_cfg) {
     pipeline_stage_t *s = stream_stage_alloc_node();
     strncpy(s->name, name, 31);
+    s->name[sizeof(s->name) - 1] = '\0';
     s->pipeline = p;
     s->process = proc;
     s->priv_state = priv_state;
@@ -479,6 +485,7 @@ pipeline_t *stream_engine_add_pipeline(stream_engine_t *engine, const char *id,
     memset(p, 0, sizeof(*p));
     p->in_use = true;
     strncpy(p->id, id, 63);
+    p->id[sizeof(p->id) - 1] = '\0';
     p->trigger_tag = trigger_tag;
     p->engine = engine;
     uv_mutex_lock(&engine->pipe_mutex);
@@ -498,6 +505,11 @@ void stream_engine_resume(pipeline_t *p) {
         }
         stage_ret_t ret = s->process(s, &p->current_event);
         if (ret == STAGE_ASYNC) {
+            if (p->current_event.type == PIPEMSG_TYPE_BATCH) {
+                LOG_ERROR(LOG_CAT_CORE,
+                          "StreamEngine: async stage cannot retain a BATCH payload on resume; dropping");
+                break;
+            }
             p->state = PIPE_STATE_SUSPENDED;
             p->resume_point = s;
             return;
@@ -523,7 +535,15 @@ stream_engine_t *pipeline_stage_get_engine(const pipeline_stage_t *stage) {
 }
 
 void stream_engine_push(stream_engine_t *engine, pipe_msg_t *msg) {
-    if (!engine) return;
+    if (!engine || !msg) return;
+    /* BATCH 所有权契约：ptr 指向本次 push 内的调用方缓冲，count 必须为正。
+     * 畸形 BATCH 在边界处拒绝，别让每个 stage 各写一份防御。 */
+    if (msg->type == PIPEMSG_TYPE_BATCH &&
+        (msg->payload.batch.ptr == NULL || msg->payload.batch.count <= 0)) {
+        LOG_ERROR(LOG_CAT_CORE, "StreamEngine: rejecting malformed BATCH (ptr=%p count=%d)",
+                  msg->payload.batch.ptr, msg->payload.batch.count);
+        return;
+    }
     struct uv__queue *q;
     uv__queue_foreach(q, &engine->pipelines) {
         pipeline_t *p = uv__queue_data(q, pipeline_t, node);

@@ -187,12 +187,35 @@ static void test_decode_ex_reports_choice(void **state) {
     net_buf_unref(single);
 }
 
+static void test_decode_rejects_truncated_frames(void **state) {
+    (void)state;
+    dlt698_addr_t sa;
+    uint8_t svc = 0, choice = 0, piid = 0;
+    uint8_t *payload = NULL;
+    size_t payload_len = 0;
+    struct net_buf_simple nb;
+
+    // L=0：帧长域指向结束符之前，旧代码会算出负下标
+    uint8_t tiny[12] = {0x68, 0x16, 0x00, 0x68, 0, 0, 0, 0, 0, 0, 0, 0};
+    net_buf_simple_init_with_data(&nb, tiny, sizeof(tiny));
+    nb.len = sizeof(tiny);
+    assert_true(dlt698_decode_frame_ex(&nb, &sa, &svc, &choice, &piid, &payload, &payload_len) != 0);
+
+    // SA 长度 16，但整帧只有 13 字节
+    uint8_t short_sa[13] = {0x68, 0x0B, 0x00, 0x68, 0x0F, 0, 0, 0, 0, 0, 0, 0, 0x16};
+    net_buf_simple_init_with_data(&nb, short_sa, sizeof(short_sa));
+    nb.len = sizeof(short_sa);
+    assert_int_equal(
+        dlt698_decode_frame_ex(&nb, &sa, &svc, &choice, &piid, &payload, &payload_len), 1);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_list_response_matches_standard_layout),
         cmocka_unit_test(test_failed_item_is_reported_as_dar),
         cmocka_unit_test(test_rejects_bad_arguments),
         cmocka_unit_test(test_decode_ex_reports_choice),
+        cmocka_unit_test(test_decode_rejects_truncated_frames),
     };
     return cmocka_run_group_tests_name("dlt698_get_list", tests, setup, teardown);
 }

@@ -4,6 +4,9 @@
 
 #include "simd_cdd_codec.h"
 
+/* libFuzzer entry point (declared before the definition for -Wmissing-prototypes). */
+int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size);
+
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     cdd_schema_t schema;
     cdd_schema_init(&schema);

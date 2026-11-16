@@ -57,8 +57,13 @@ static void _vpp_logger_cleanup(void *priv) {
 
 pipeline_stage_t *stage_vpp_logger_create(const char *secret, bool production) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    if (!s) return NULL;
     vpp_logger_ctx_t *ctx = calloc(1, sizeof(vpp_logger_ctx_t));
-    
+    if (!ctx) {
+        free(s);
+        return NULL;
+    }
+
     if (!secret || strlen(secret) == 0) {
         if (production) {
             LOG_ERROR(LOG_CAT_CORE, "FATAL: VPP_AUDIT_SECRET missing in production!");

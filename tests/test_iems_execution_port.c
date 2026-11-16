@@ -8,6 +8,7 @@
 #include <uv.h>
 
 #include "iems_node.h"
+#include "iems_driver_adapter.h"
 
 typedef struct {
     int calls;
@@ -58,9 +59,48 @@ static void test_write_goes_through_injected_port(void **state) {
     uv_loop_close(&loop);
 }
 
+static void test_reject_and_trip_write_zero(void **state) {
+    (void)state;
+    uv_loop_t loop;
+    uv_loop_init(&loop);
+
+    char shm_name[64];
+    snprintf(shm_name, sizeof(shm_name), "IEMS_EXEC_TRIP_%d", (int)getpid());
+    iems_node_config_t cfg = {
+        .product_name = "IEMS_TEST",
+        .shm_name = shm_name,
+        .datahub_capacity = 128,
+    };
+    iems_node_storage_t storage;
+    iems_node_t *node = iems_node_create_in(&storage, &loop, &cfg);
+    assert_non_null(node);
+
+    fake_exec_t exec = {0};
+    assert_int_equal(iems_node_set_execution_port(
+                         node, (iems_execution_port_t){.ctx = &exec, .write_tag = fake_write}),
+                     0);
+
+    assert_int_equal(iems_node_emergency_trip(node, "test trip"), 0);
+    assert_int_equal(exec.calls, 1);
+    assert_int_equal(exec.tag_id, IEMS_TAG_PCS_CONTROL);
+    assert_true(exec.value == 0.0);
+
+    exec.calls = 0;
+    int rc = iems_node_write_tag(node, 0, IEMS_TAG_PCS_CONTROL, 100.0, "ModbusRTU");
+    assert_int_equal(rc, -2); /* fire interlock */
+    assert_int_equal(exec.calls, 1);
+    assert_int_equal(exec.tag_id, IEMS_TAG_PCS_CONTROL);
+    assert_true(exec.value == 0.0);
+
+    iems_node_destroy(node);
+    uv_run(&loop, UV_RUN_NOWAIT);
+    uv_loop_close(&loop);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_write_goes_through_injected_port),
+        cmocka_unit_test(test_reject_and_trip_write_zero),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

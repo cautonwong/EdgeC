@@ -54,7 +54,8 @@ static const edge_tag_meta_t *product_tag_by_name(const iems_app_host_ctx_t *ctx
 
 /* Shadow timestamps are nanoseconds; the app ABI uses milliseconds. */
 static uint64_t shadow_ts_to_ms(uint64_t ts) {
-    return ts > 100000000000000ULL ? ts / 1000000ULL : ts;
+    /* Shadow timestamps are nanoseconds; the app ABI uses milliseconds. */
+    return ts / 1000000ULL;
 }
 
 static uint8_t quality_from_shadow(uint8_t quality) {
@@ -110,7 +111,8 @@ static int host_read(void *ctx, uint32_t handle, app_host_sample_t *out, char *r
             /* An app reads its own points only through a write handle. */
             return fail(reason, reason_size, "denied_scope");
         }
-        snprintf(scope, sizeof(scope), "app.%s.%s", owner, name);
+        int n = snprintf(scope, sizeof(scope), "app.%s.%s", owner, name);
+        if (n < 0 || (size_t)n >= sizeof(scope)) return fail(reason, reason_size, "scope_too_long");
     } else {
         const edge_tag_meta_t *tag = product_tag_by_id(self, handle);
         if (!tag || !tag->name) return fail(reason, reason_size, "not_found");
@@ -150,7 +152,8 @@ static int host_publish(void *ctx, uint32_t handle, const app_host_sample_t *sam
     if (strcmp(owner, self->app_id) != 0) return fail(reason, reason_size, "denied_scope");
 
     char scope[APP_SPEC_POINT_FULL_SIZE];
-    snprintf(scope, sizeof(scope), "app.%s.%s", owner, name);
+    int n = snprintf(scope, sizeof(scope), "app.%s.%s", owner, name);
+    if (n < 0 || (size_t)n >= sizeof(scope)) return fail(reason, reason_size, "scope_too_long");
     if (authz_check(self, "points.publish", scope, reason, reason_size) != 0) return -1;
 
     pipe_msg_t msg;

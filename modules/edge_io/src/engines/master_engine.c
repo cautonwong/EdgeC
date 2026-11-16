@@ -159,6 +159,12 @@ static void _master_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *u
             LOG_WARN(LOG_CAT_BUS, "Bus %d: RX Accumulator Overflow, resetting...", priv->bus_id);
             net_buf_simple_reset(&priv->rx_acc);
         }
+        if (net_buf_simple_tailroom(&priv->rx_acc) < rx->b.len) {
+            LOG_WARN(LOG_CAT_BUS, "Bus %d: RX chunk larger than accumulator, dropping %zu bytes",
+                     priv->bus_id, rx->b.len);
+            net_buf_unref(rx);
+            return;
+        }
         net_buf_simple_add_mem(&priv->rx_acc, rx->b.data, rx->b.len);
         net_buf_unref(rx);
 
@@ -271,7 +277,12 @@ bus_engine_t *engine_create_master(const edge_driver_session_port_t *driver_port
                                    const edge_bus_datahub_port_t *bus, net_buf_pool_t *pool) {
     (void)protocol; (void)bus; (void)device_id;
     bus_engine_t *eng = calloc(1, sizeof(bus_engine_t));
+    if (!eng) return NULL;
     master_priv_t *priv = calloc(1, sizeof(master_priv_t));
+    if (!priv) {
+        free(eng);
+        return NULL;
+    }
     priv->loop = loop;
     priv->arb = arb;
     priv->pool = pool;

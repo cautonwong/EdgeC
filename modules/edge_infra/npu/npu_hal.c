@@ -4,6 +4,7 @@
  */
 
 #include "npu_hal.h"
+#include "npu_self_healing.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>

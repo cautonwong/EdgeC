@@ -47,12 +47,12 @@ static stage_ret_t _ekf_soc_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
     ekf_soc_ctx_t *ctx = (ekf_soc_ctx_t *)stage->priv_state;
     if (!ctx || ev->type != PIPEMSG_TYPE_SCALAR) return STAGE_ERROR;
 
-    uint64_t now_ms = ev->ts;
+    uint64_t now_ns = ev->ts;
     double dt = 0.0;
     if (ctx->last_ts != 0) {
-        dt = (double)(now_ms - ctx->last_ts) / 1000.0;
+        dt = (double)(now_ns - ctx->last_ts) / 1e9;  // ns -> s
     }
-    ctx->last_ts = now_ms;
+    ctx->last_ts = now_ns;
 
     if (ev->tag_id == ctx->current_tag) {
         ctx->last_current = ev->payload.val.f;
@@ -132,7 +132,12 @@ static void _ekf_soc_cleanup(void *priv) {
  */
 pipeline_stage_t *stage_ekf_soc_create(uint32_t current_tag, uint32_t voltage_tag, uint32_t soc_out_tag) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    if (!s) return NULL;
     ekf_soc_ctx_t *ctx = calloc(1, sizeof(ekf_soc_ctx_t));
+    if (!ctx) {
+        free(s);
+        return NULL;
+    }
     
     ctx->current_tag = current_tag;
     ctx->voltage_tag = voltage_tag;
@@ -140,24 +145,33 @@ pipeline_stage_t *stage_ekf_soc_create(uint32_t current_tag, uint32_t voltage_ta
     
     ctx->ekf.n = 2; // SOC, Vp
     ctx->ekf.x = edge_matrix_alloc(2, 1);
+    if (!ctx->ekf.x) { _ekf_soc_cleanup(ctx); free(s); return NULL; }
     edge_matrix_set(ctx->ekf.x, 0, 0, 0.5); // 初始 SOC 50%
     edge_matrix_set(ctx->ekf.x, 1, 0, 0.0); // 初始 Vp
     
     ctx->ekf.P = edge_matrix_alloc(2, 2);
+    if (!ctx->ekf.P) { _ekf_soc_cleanup(ctx); free(s); return NULL; }
     edge_matrix_identity(ctx->ekf.P);
     
     ctx->ekf.Q = edge_matrix_alloc(2, 2);
+    if (!ctx->ekf.Q) { _ekf_soc_cleanup(ctx); free(s); return NULL; }
     edge_matrix_identity(ctx->ekf.Q);
     edge_matrix_scale(ctx->ekf.Q, 1e-5);
     
     ctx->ekf.R = edge_matrix_alloc(1, 1);
+    if (!ctx->ekf.R) { _ekf_soc_cleanup(ctx); free(s); return NULL; }
     edge_matrix_set(ctx->ekf.R, 0, 0, 1e-2);
     
     ctx->F = edge_matrix_alloc(2, 2);
+    if (!ctx->F) { _ekf_soc_cleanup(ctx); free(s); return NULL; }
     ctx->B = edge_matrix_alloc(2, 1);
+    if (!ctx->B) { _ekf_soc_cleanup(ctx); free(s); return NULL; }
     ctx->u = edge_matrix_alloc(1, 1);
+    if (!ctx->u) { _ekf_soc_cleanup(ctx); free(s); return NULL; }
     ctx->H = edge_matrix_alloc(1, 2);
+    if (!ctx->H) { _ekf_soc_cleanup(ctx); free(s); return NULL; }
     ctx->y = edge_matrix_alloc(1, 1);
+    if (!ctx->y) { _ekf_soc_cleanup(ctx); free(s); return NULL; }
     
     snprintf(s->name, 31, "EKF_SOC");
     s->process = _ekf_soc_proc;

@@ -1,0 +1,2 @@
+# Fixture for ci/scripts/check_coverage.py self-test.
+ALL|70

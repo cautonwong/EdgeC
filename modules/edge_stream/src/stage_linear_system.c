@@ -25,6 +25,11 @@ static stage_ret_t _linear_system_proc(pipeline_stage_t *stage, pipe_msg_t *ev) 
     // x = A*x + B*u
     edge_matrix_t *ax = edge_matrix_alloc(rows, 1);
     edge_matrix_t *bu = edge_matrix_alloc(rows, 1);
+    if (!ax || !bu) {
+        edge_matrix_free(ax);
+        edge_matrix_free(bu);
+        return STAGE_ERROR;
+    }
     
     edge_matrix_mul(ctx->A, ctx->x, ax);
     
@@ -53,13 +58,23 @@ static void _linear_system_cleanup(void *priv) {
     }
 }
 
-pipeline_stage_t *stage_linear_system_create(uint32_t dim, uint32_t out_tag) {
-    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+
+/* File-local prototypes. */
+pipeline_stage_t *stage_linear_system_create(uint32_t dim, uint32_t out_tag);
+pipeline_stage_t *stage_linear_system_create(uint32_t dim, uint32_t out_tag) {    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    if (!s) return NULL;
     linear_system_ctx_t *ctx = calloc(1, sizeof(linear_system_ctx_t));
+    if (!ctx) {
+        free(s);
+        return NULL;
+    }
     
     ctx->A = edge_matrix_alloc(dim, dim);
+    if (!ctx->A) { _linear_system_cleanup(ctx); free(s); return NULL; }
     ctx->B = edge_matrix_alloc(dim, 1);
+    if (!ctx->B) { _linear_system_cleanup(ctx); free(s); return NULL; }
     ctx->x = edge_matrix_alloc(dim, 1);
+    if (!ctx->x) { _linear_system_cleanup(ctx); free(s); return NULL; }
     ctx->output_tag = out_tag;
     
     for(uint32_t i=0; i<dim; i++) edge_matrix_set(ctx->A, i, i, 1.0);

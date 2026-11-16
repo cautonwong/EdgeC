@@ -177,7 +177,7 @@ void service_add_ipc_bridge(service_t *svc, const char *uds_path) {
 static void _on_tunnel_alloc(uv_handle_t *h, size_t suggested, uv_buf_t *buf) {
     (void)h;
     buf->base = malloc(suggested);
-    buf->len = (unsigned int)suggested;
+    buf->len = buf->base ? (unsigned int)suggested : 0;
 }
 
 static void _on_tunnel_cmd_cleanup(cmd_msg_t *cmd) {
@@ -188,14 +188,26 @@ static void _on_tunnel_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *
     service_t *svc = client->data;
     if (nread > 0) {
         cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));
+        if (!cmd) {
+            free(buf->base);
+            return;
+        }
         cmd->action = CMD_ACTION_RAW;
         cmd->priority = ARBITER_PRIO_EMERGENCY;
         cmd->signature = 0x55AA;
         cmd->on_cleanup = _on_tunnel_cmd_cleanup;
         cmd->params = malloc((size_t)nread);
+        if (!cmd->params) {
+            free(cmd);
+            free(buf->base);
+            return;
+        }
         memcpy(cmd->params, buf->base, (size_t)nread);
         cmd->value = (double)nread;
-        service_post_cmd(svc, cmd);
+        if (service_post_cmd(svc, cmd) != 0) {
+            _on_tunnel_cmd_cleanup(cmd);
+            free(cmd);
+        }
     }
     if (nread < 0) {
         if (!uv_is_closing((uv_handle_t *)client)) {
@@ -209,6 +221,7 @@ static void _on_new_tunnel_conn(uv_stream_t *server, int status) {
     if (status < 0) return;
     service_t *svc = server->data;
     uv_tcp_t *client = malloc(sizeof(uv_tcp_t));
+    if (!client) return;
     uv_tcp_init(server->loop, client);
     client->data = svc;
     if (uv_accept(server, (uv_stream_t *)client) == 0) {
@@ -221,6 +234,7 @@ static void _on_new_tunnel_conn(uv_stream_t *server, int status) {
 void service_create_tunnel(service_t *svc, int tcp_port, int bus_id) {
     if (!svc || !svc->datahub_port.ctx) return;
     svc->tunnel_server = malloc(sizeof(uv_tcp_t));
+    if (!svc->tunnel_server) return;
     uv_tcp_init(svc->datahub_port.get_loop(svc->datahub_port.ctx), svc->tunnel_server);
     svc->tunnel_server->data = svc;
     svc->tunnel_bus_id = bus_id;

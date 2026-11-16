@@ -1,0 +1,59 @@
+{
+  "abi": "edgeos:app@1.0.0",
+  "functions": {
+    "point-resolve": {
+      "c_sdk": "edge_app_point_resolve",
+      "host": "implemented",
+      "wasm_symbol": "point_resolve",
+      "whitelist": true,
+      "conformance_expects": "success"
+    },
+    "point-read": {
+      "c_sdk": "edge_app_point_read",
+      "host": "implemented",
+      "wasm_symbol": "point_read",
+      "whitelist": true,
+      "conformance_expects": "success"
+    },
+    "point-subscribe": {
+      "c_sdk": "edge_app_point_subscribe",
+      "host": "not_supported",
+      "wasm_symbol": null,
+      "whitelist": false,
+      "conformance_expects": "success",
+      "known_gap": "host dispatch returns not_supported; conformance vector subscribe_with_keepalive still expects success"
+    },
+    "point-publish": {
+      "c_sdk": "edge_app_point_publish",
+      "host": "implemented",
+      "wasm_symbol": "point_publish",
+      "whitelist": true,
+      "conformance_expects": "success"
+    },
+    "log": {
+      "c_sdk": "edge_app_log",
+      "host": "implemented",
+      "wasm_symbol": "app_log",
+      "whitelist": true,
+      "conformance_expects": "success"
+    },
+    "now": {
+      "c_sdk": "edge_app_now",
+      "host": "implemented",
+      "wasm_symbol": "app_now",
+      "whitelist": true,
+      "conformance_expects": "success"
+    }
+  },
+  "extra_host_json": {
+    "setting_get": "not_supported",
+    "setting_watch": "not_supported",
+    "kv_get": "not_supported",
+    "kv_set": "not_supported"
+  },
+  "notes": [
+    "not_supported is returned by host dispatch for point_subscribe and the extra_host_json names, but it is not a member of the WIT error-code enum. Recorded here; no new error code was added to the frozen ABI.",
+    "conformance_expects records the outcome of the function's primary happy-path conformance vector; error-path vectors do not change it.",
+    "wasm_symbol is the native symbol registered in cmd/app-host/main.c and whitelisted in foundation/src/edge_wasm_imports.c. null means the function has no wasm import yet."
+  ]
+}

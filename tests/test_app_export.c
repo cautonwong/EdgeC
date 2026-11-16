@@ -3,6 +3,8 @@
  * @brief App export archive contents on a real migrated database.
  */
 
+#define _GNU_SOURCE
+
 #include <cmocka.h>
 #include <stdio.h>
 #include <stdlib.h>

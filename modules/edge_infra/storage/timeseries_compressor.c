@@ -123,7 +123,7 @@ int ts_decompress_batch(const uint8_t *in_buf, size_t compressed_len, ts_sample_
             memcpy(&xor_val, ptr + offset, sizeof(xor_val));
             offset += sizeof(xor_val);
 
-            uint64_t ts = prev_ts + delta;
+            uint64_t ts = (uint64_t)((int64_t)prev_ts + delta);
             uint64_t bits = prev_bits ^ xor_val;
             double val;
             memcpy(&val, &bits, sizeof(val));
@@ -143,7 +143,7 @@ int ts_decompress_batch(const uint8_t *in_buf, size_t compressed_len, ts_sample_
             offset += sizeof(xor_val);
 
             int64_t curr_delta = prev_delta + dod;
-            uint64_t ts = prev_ts + curr_delta;
+            uint64_t ts = (uint64_t)((int64_t)prev_ts + curr_delta);
             uint64_t bits = prev_bits ^ xor_val;
             double val;
             memcpy(&val, &bits, sizeof(val));

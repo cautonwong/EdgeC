@@ -24,6 +24,16 @@ static void _shadow_path(const char *name, char *out, size_t out_size) {
     }
 }
 
+/* The shm inode lock dies with the fd, so it cannot serialize a rebuild that
+ * unlinks and recreates the name. A separate lock file survives the unlink. */
+static void _lock_release(int *fd) {
+    if (*fd >= 0) {
+        flock(*fd, LOCK_UN);
+        close(*fd);
+        *fd = -1;
+    }
+}
+
 static void _shm_legacy_async_cb(uv_async_t *handle) {
     datahub_t *hub = (datahub_t *)handle->data;
     if (hub && hub->legacy_cb) {
@@ -61,16 +71,20 @@ int datahub_shm_init(datahub_t *hub, const datahub_config_t *config) {
     const size_t data_offset = DATAHUB_SHM_HEADER_SIZE;
     const size_t total_size = data_offset + (size_t)capacity * sizeof(pipe_msg_t);
 
-    hub->shadow_fd = shm_open(shm_path, O_RDWR | O_CREAT, 0666);
-    if (hub->shadow_fd < 0) {
-        LOG_ERROR(LOG_CAT_BUS, "Failed to create SHM shadow table: %s", strerror(errno));
+    char lock_name[272];
+    snprintf(lock_name, sizeof(lock_name), "%s.lock", shm_path);
+    int lock_fd = shm_open(lock_name, O_RDWR | O_CREAT | O_CLOEXEC, 0666);
+    if (lock_fd < 0 || flock(lock_fd, LOCK_EX) < 0) {
+        LOG_ERROR(LOG_CAT_BUS, "Failed to lock SHM shadow %s: %s", lock_name, strerror(errno));
+        _lock_release(&lock_fd);
         shmring_destroy(&hub->ring);
         return -1;
     }
-    if (flock(hub->shadow_fd, LOCK_EX) < 0) {
-        LOG_ERROR(LOG_CAT_BUS, "Failed to lock SHM shadow %s: %s", shm_path, strerror(errno));
-        close(hub->shadow_fd);
-        hub->shadow_fd = -1;
+
+    hub->shadow_fd = shm_open(shm_path, O_RDWR | O_CREAT, 0666);
+    if (hub->shadow_fd < 0) {
+        LOG_ERROR(LOG_CAT_BUS, "Failed to create SHM shadow table: %s", strerror(errno));
+        _lock_release(&lock_fd);
         shmring_destroy(&hub->ring);
         return -1;
     }
@@ -78,7 +92,7 @@ int datahub_shm_init(datahub_t *hub, const datahub_config_t *config) {
     struct stat seg_stat;
     if (fstat(hub->shadow_fd, &seg_stat) < 0) {
         LOG_ERROR(LOG_CAT_BUS, "Failed to stat SHM shadow %s: %s", shm_path, strerror(errno));
-        flock(hub->shadow_fd, LOCK_UN);
+        _lock_release(&lock_fd);
         close(hub->shadow_fd);
         hub->shadow_fd = -1;
         shmring_destroy(&hub->ring);
@@ -93,14 +107,18 @@ int datahub_shm_init(datahub_t *hub, const datahub_config_t *config) {
             // volatile, so rebuild under the current header instead of keeping
             // a legacy read path.
             LOG_WARN(LOG_CAT_BUS,
-                     "SHM shadow %s uses the legacy headerless layout; rebuilding", shm_path);
-            shm_unlink(shm_path);
-            close(hub->shadow_fd);
-            hub->shadow_fd = shm_open(shm_path, O_RDWR | O_CREAT | O_EXCL, 0666);
-            if (hub->shadow_fd < 0 || flock(hub->shadow_fd, LOCK_EX) < 0) {
-                LOG_ERROR(LOG_CAT_BUS, "Failed to rebuild SHM shadow %s: %s", shm_path,
+                     "SHM shadow %s uses the legacy headerless layout; rebuilding in place",
+                     shm_path);
+            /* Keep the inode. shm_unlink plus O_EXCL lets a second process
+             * rebuild a different inode from under the first. Consumers that
+             * already mapped the old headerless segment still write at offset
+             * 0, so stop them before upgrading across this layout. A session-
+             * generation handshake is tracked separately. */
+            if (ftruncate(hub->shadow_fd, (off_t)total_size) != 0) {
+                LOG_ERROR(LOG_CAT_BUS, "Failed to resize SHM shadow %s: %s", shm_path,
                           strerror(errno));
-                if (hub->shadow_fd >= 0) close(hub->shadow_fd);
+                _lock_release(&lock_fd);
+                close(hub->shadow_fd);
                 hub->shadow_fd = -1;
                 shmring_destroy(&hub->ring);
                 return -1;
@@ -110,7 +128,7 @@ int datahub_shm_init(datahub_t *hub, const datahub_config_t *config) {
             LOG_ERROR(LOG_CAT_BUS,
                       "SHM shadow %s size %lld does not match layout %zu; refusing to truncate",
                       shm_path, (long long)seg_stat.st_size, total_size);
-            flock(hub->shadow_fd, LOCK_UN);
+            _lock_release(&lock_fd);
             close(hub->shadow_fd);
             hub->shadow_fd = -1;
             shmring_destroy(&hub->ring);
@@ -118,7 +136,7 @@ int datahub_shm_init(datahub_t *hub, const datahub_config_t *config) {
         }
     }
     if (created_now && ftruncate(hub->shadow_fd, (off_t)total_size) < 0) {
-        flock(hub->shadow_fd, LOCK_UN);
+        _lock_release(&lock_fd);
         close(hub->shadow_fd);
         hub->shadow_fd = -1;
         shm_unlink(shm_path);
@@ -128,7 +146,7 @@ int datahub_shm_init(datahub_t *hub, const datahub_config_t *config) {
 
     void *mapping = mmap(NULL, total_size, PROT_READ | PROT_WRITE, MAP_SHARED, hub->shadow_fd, 0);
     if (mapping == MAP_FAILED) {
-        flock(hub->shadow_fd, LOCK_UN);
+        _lock_release(&lock_fd);
         close(hub->shadow_fd);
         hub->shadow_fd = -1;
         if (created_now) shm_unlink(shm_path);
@@ -153,7 +171,7 @@ int datahub_shm_init(datahub_t *hub, const datahub_config_t *config) {
                header->record_size != sizeof(pipe_msg_t) ||
                header->data_offset != data_offset) {
         LOG_ERROR(LOG_CAT_BUS, "SHM shadow %s has an incompatible header", shm_path);
-        flock(hub->shadow_fd, LOCK_UN);
+        _lock_release(&lock_fd);
         munmap(mapping, total_size);
         close(hub->shadow_fd);
         hub->shadow_fd = -1;
@@ -168,7 +186,7 @@ int datahub_shm_init(datahub_t *hub, const datahub_config_t *config) {
     hub->shadow_table = (pipe_msg_t *)((uint8_t *)mapping + data_offset);
     hub->shadow_size = total_size;
     hub->shadow_capacity = capacity;
-    flock(hub->shadow_fd, LOCK_UN);
+    _lock_release(&lock_fd);
     // 初始化影子锁与细粒度订阅锁
     uv_mutex_init(&hub->shadow_lock);
     uv_mutex_init(&hub->sub_lock);
@@ -306,8 +324,10 @@ int datahub_shm_read_shadow(datahub_t *hub, uint32_t tag_id, pipe_msg_t *out_msg
     return datahub_read_shadow_idx(hub, (uint32_t)idx, out_msg);
 }
 
-int datahub_shm_read_shadow_device(datahub_t *hub, uint32_t tag_id, uint32_t device_id, pipe_msg_t *out_msg) {
-    if (!hub || !out_msg) return -1;
+
+/* File-local prototypes. */
+int datahub_shm_read_shadow_device(datahub_t *hub, uint32_t tag_id, uint32_t device_id, pipe_msg_t *out_msg);
+int datahub_shm_read_shadow_device(datahub_t *hub, uint32_t tag_id, uint32_t device_id, pipe_msg_t *out_msg) {    if (!hub || !out_msg) return -1;
     atomic_fetch_add_explicit(&hub->total_shadow_reads, 1, memory_order_relaxed);
     int idx = -1;
     if (hub->map_fn_v2) {

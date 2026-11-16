@@ -46,6 +46,12 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
     if (evt == IO_EVENT_RX) {
         net_buf_t *rx = (net_buf_t *)payload;
         if (priv->rx_acc) {
+            if (net_buf_simple_tailroom(&priv->rx_acc->b) < rx->b.len) {
+                LOG_WARN(LOG_CAT_BUS, "SlaveEngine: RX chunk larger than accumulator, dropping %zu bytes",
+                         (size_t)rx->b.len);
+                net_buf_unref(rx);
+                return;
+            }
             net_buf_simple_add_mem(&priv->rx_acc->b, rx->b.data, rx->b.len);
             net_buf_unref(rx);
             
@@ -140,8 +146,13 @@ bus_engine_t *engine_create_slave(const edge_driver_session_port_t *driver_port,
                                   uint32_t device_id, uv_loop_t *loop, arbiter_t *arb,
                                   const edge_bus_datahub_port_t *bus, net_buf_pool_t *pool) {
     bus_engine_t *self = calloc(1, sizeof(bus_engine_t));
+    if (!self) return NULL;
     slave_priv_t *priv = calloc(1, sizeof(slave_priv_t));
-    
+    if (!priv) {
+        free(self);
+        return NULL;
+    }
+
     priv->bus_id = bus_id;
     if (bus) priv->bus = *bus;
     priv->loop = loop;

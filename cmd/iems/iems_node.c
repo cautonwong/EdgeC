@@ -61,7 +61,9 @@ iems_node_t *iems_node_create_in(iems_node_storage_t *storage, uv_loop_t *loop,
         .product_name = node->cfg.product_name,
         .loop = node->loop,
         .shm_name = node->cfg.shm_name,
-        .ring_capacity = node->cfg.datahub_capacity * 4,
+        /* ring 与 shadow 是两种容量：shadow 要覆盖应用槽位，ring 只需事件缓冲。
+         * 以前按 shadow*4 推导，应用槽区一扩大就超过 SHMRING_MAX_SLOTS。 */
+        .ring_capacity = 4096,
         .datahub_capacity = node->cfg.datahub_capacity,
         .map_fn_v2 = iems_tag_map_fn,
         .memory_pool_buffer_size = 2048,
@@ -188,7 +190,12 @@ int iems_node_write_tag(iems_node_t *node, int bus_id, uint32_t tag_id, double v
     if (tag_id == IEMS_TAG_PCS_CONTROL) {
         double actual_kw = 0.0;
         int rc = iems_node_dispatch_power(node, value, &actual_kw);
-        if (rc < 0) return rc;
+        if (rc < 0) {
+            /* 安全拒绝不能只是“什么都不做”：主动把零功率写下去，
+             * 否则设备会保持上一条设定值。 */
+            (void)node->execution.write_tag(node->execution.ctx, bus_id, tag_id, 0.0, proto);
+            return rc;
+        }
         value = actual_kw;
     } else if (node->hub) {
         pipe_msg_t ctrl_msg = {0};
@@ -293,6 +300,10 @@ int iems_node_emergency_trip(iems_node_t *node, const char *reason) {
         pipe_msg_init_scalar(&msg, IEMS_TAG_PCS_CONTROL, 0.0, uv_hrtime());
         datahub_publish(node->hub, &msg);
     }
+    if (node->execution.write_tag) {
+        (void)node->execution.write_tag(node->execution.ctx, 0, IEMS_TAG_PCS_CONTROL, 0.0,
+                                        "ModbusRTU");
+    }
     _iems_node_record_cycle(node, t_start);
     return 0;
 }
@@ -323,7 +334,8 @@ int iems_node_update_bms_rack(iems_node_t *node, uint8_t rack_id, double voltage
 int iems_node_ingest_sample(iems_node_t *node, uint32_t tag_id, double value) {
     if (!node || !node->hub || tag_id == 0) return -1;
     pipe_msg_t msg;
-    // shortcut: device_id 留 0,镜像按 tag 全局;接多机同 tag 时再加参数。
+    /* shortcut: 镜像按 tag 全局(device_id 留 0),与所有读者用的 read_shadow 一致;
+     * 多机共用同一 tag 时需要读者一起改成按设备读。 */
     pipe_msg_init_scalar(&msg, tag_id, value, uv_hrtime());
     return datahub_publish(node->hub, &msg);
 }

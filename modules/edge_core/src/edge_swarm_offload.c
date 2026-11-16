@@ -4,13 +4,15 @@
  */
 
 #include "edge_swarm_offload.h"
+#include <stdio.h>
 #include <string.h>
 
 int edge_swarm_engine_init(edge_swarm_engine_t *engine, const char *self_uuid) {
     if (!engine || !self_uuid) return -1;
     memset(engine, 0, sizeof(edge_swarm_engine_t));
 
-    strncpy(engine->self_uuid, self_uuid, sizeof(engine->self_uuid) - 1);
+    snprintf(engine->self_uuid, sizeof(engine->self_uuid), "%.*s",
+             (int)(sizeof(engine->self_uuid) - 1), self_uuid);
 
     /* Register self as node 0 */
     edge_swarm_node_status_t self_node = {
@@ -22,7 +24,8 @@ int edge_swarm_engine_init(edge_swarm_engine_t *engine, const char *self_uuid) {
         .is_online = true,
         .is_self = true
     };
-    strncpy(self_node.node_uuid, self_uuid, sizeof(self_node.node_uuid) - 1);
+    snprintf(self_node.node_uuid, sizeof(self_node.node_uuid), "%.*s",
+             (int)(sizeof(self_node.node_uuid) - 1), self_uuid);
     memcpy(&engine->nodes[0], &self_node, sizeof(edge_swarm_node_status_t));
     engine->node_count = 1;
     engine->telemetry.active_node_count = 1;
@@ -65,7 +68,8 @@ int edge_swarm_schedule_task(edge_swarm_engine_t *engine, const edge_swarm_task_
     /* 1. Safety critical tasks must run locally */
     if (task->is_safety_critical) {
         out_result->decision = SWARM_ROUTE_LOCAL;
-        strncpy(out_result->target_node_uuid, engine->self_uuid, SWARM_NODE_UUID_LEN);
+        snprintf(out_result->target_node_uuid, sizeof(out_result->target_node_uuid), "%.*s",
+                 (int)(sizeof(out_result->target_node_uuid) - 1), engine->self_uuid);
         out_result->estimated_latency_us = 500;
         engine->telemetry.tasks_executed_locally++;
         return 0;
@@ -74,7 +78,8 @@ int edge_swarm_schedule_task(edge_swarm_engine_t *engine, const edge_swarm_task_
     /* 2. If under network partition, fall back to local rule degradation */
     if (engine->is_isolated_partition) {
         out_result->decision = SWARM_ROUTE_DEGRADED;
-        strncpy(out_result->target_node_uuid, engine->self_uuid, SWARM_NODE_UUID_LEN);
+        snprintf(out_result->target_node_uuid, sizeof(out_result->target_node_uuid), "%.*s",
+                 (int)(sizeof(out_result->target_node_uuid) - 1), engine->self_uuid);
         out_result->estimated_latency_us = 200;
         engine->telemetry.tasks_degraded_count++;
         return 0;
@@ -84,7 +89,8 @@ int edge_swarm_schedule_task(edge_swarm_engine_t *engine, const edge_swarm_task_
     edge_swarm_node_status_t *self = &engine->nodes[0];
     if (self->cpu_load_percent < 75 && self->npu_available_tops >= task->required_tops) {
         out_result->decision = SWARM_ROUTE_LOCAL;
-        strncpy(out_result->target_node_uuid, engine->self_uuid, SWARM_NODE_UUID_LEN);
+        snprintf(out_result->target_node_uuid, sizeof(out_result->target_node_uuid), "%.*s",
+                 (int)(sizeof(out_result->target_node_uuid) - 1), engine->self_uuid);
         out_result->estimated_latency_us = 1000;
         engine->telemetry.tasks_executed_locally++;
         return 0;
@@ -116,7 +122,9 @@ int edge_swarm_schedule_task(edge_swarm_engine_t *engine, const edge_swarm_task_
 
     if (best_node_idx >= 0) {
         out_result->decision = SWARM_ROUTE_OFFLOAD;
-        strncpy(out_result->target_node_uuid, engine->nodes[best_node_idx].node_uuid, SWARM_NODE_UUID_LEN);
+        snprintf(out_result->target_node_uuid, sizeof(out_result->target_node_uuid), "%.*s",
+                 (int)(sizeof(out_result->target_node_uuid) - 1),
+                 engine->nodes[best_node_idx].node_uuid);
         out_result->estimated_latency_us = engine->nodes[best_node_idx].avg_rtt_us * 2 + 1000;
         engine->telemetry.tasks_offloaded_success++;
         return 0;
@@ -124,7 +132,8 @@ int edge_swarm_schedule_task(edge_swarm_engine_t *engine, const edge_swarm_task_
 
     /* No peer available or RTT exceeds deadline -> degraded local execution */
     out_result->decision = SWARM_ROUTE_DEGRADED;
-    strncpy(out_result->target_node_uuid, engine->self_uuid, SWARM_NODE_UUID_LEN);
+    snprintf(out_result->target_node_uuid, sizeof(out_result->target_node_uuid), "%.*s",
+             (int)(sizeof(out_result->target_node_uuid) - 1), engine->self_uuid);
     out_result->estimated_latency_us = 300;
     engine->telemetry.tasks_degraded_count++;
     return 0;

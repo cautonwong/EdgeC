@@ -81,9 +81,15 @@ static int fhir_req_tick(void *priv_v, const edge_north_source_ops_t *src, void 
             uint32_t energy = msg.payload.event.param;
             generate_fhir_risk_assessment(payload, sizeof(payload), priv->node_id, energy);
             
-            *out_tx = net_buf_alloc(pool, strlen(payload) + 1);
-            memcpy((*out_tx)->b.data, payload, strlen(payload));
-            (*out_tx)->b.len = strlen(payload);
+            size_t payload_len = strlen(payload);
+            *out_tx = net_buf_alloc(pool, 0);
+            if (!*out_tx || payload_len + 1 > (*out_tx)->b.size) {
+                if (*out_tx) net_buf_unref(*out_tx);
+                *out_tx = NULL;
+                return -1;
+            }
+            memcpy((*out_tx)->b.data, payload, payload_len);
+            (*out_tx)->b.len = (uint16_t)payload_len;
             
             LOG_INFO(LOG_CAT_IO, "FHIR: Exporting RiskAssessment -> %s", priv->mqtt_topic);
             

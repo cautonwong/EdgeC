@@ -61,7 +61,8 @@ typedef struct {
     double max;
     const char *desc;
     bool reboot_required;
-    uint32_t id;
+    uint32_t id;      /**< 紧凑缓存下标；必须等于注册顺序，0 起。 */
+    uint32_t tag_id;  /**< 同步到 DataHub 时使用的 tag；0 表示不同步。 */
 } edge_param_info_t;
 
 // --- 数据处理管道元数据 ---

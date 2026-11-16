@@ -96,7 +96,7 @@ static int dissect_dlt645(const uint8_t *raw, size_t len, sniffer_packet_t *out_
     seg_idx++;
 
     // 5: Payload Data (+0x33 encoded)
-    if (data_len > 0 && 10 + data_len <= len - 2) {
+    if (data_len > 0 && len >= 2 && (size_t)(10 + data_len) <= len - 2) {
         out_pkt->segments[seg_idx].type = SNIFFER_SEG_PAYLOAD;
         out_pkt->segments[seg_idx].start_offset = 10;
         out_pkt->segments[seg_idx].length = data_len;
@@ -353,7 +353,7 @@ int sniffer_format_json(const sniffer_packet_t *pkt, char *out_json, size_t max_
     char hex_str[SNIFFER_MAX_RAW_LEN * 3 + 1];
     size_t hex_pos = 0;
     for (size_t i = 0; i < pkt->raw_len && hex_pos < sizeof(hex_str) - 4; i++) {
-        hex_pos += snprintf(hex_str + hex_pos, sizeof(hex_str) - hex_pos, "%02X ", pkt->raw_bytes[i]);
+        hex_pos += (size_t)snprintf(hex_str + hex_pos, sizeof(hex_str) - hex_pos, "%02X ", pkt->raw_bytes[i]);
     }
     if (hex_pos > 0 && hex_str[hex_pos - 1] == ' ') hex_str[hex_pos - 1] = '\0';
     else hex_str[hex_pos] = '\0';

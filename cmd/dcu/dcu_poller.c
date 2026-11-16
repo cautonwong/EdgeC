@@ -259,8 +259,10 @@ static void _on_read_done(void* ud, int status, double value) {
 }
 
 /* 推进一条链：要么提交下一项，要么换下一块表，要么无事可做 */
-void _dcu_chain_pump(dcu_poller_t* poller, dcu_chain_t* c) {
-    dcu_inventory_t* inv = poller->inv;
+
+/* File-local prototypes. */
+void _dcu_chain_pump(dcu_poller_t* poller, dcu_chain_t* c);
+void _dcu_chain_pump(dcu_poller_t* poller, dcu_chain_t* c) {    dcu_inventory_t* inv = poller->inv;
     if (!inv || inv->count == 0) return;
     if (c->depth == 0) c->depth = 1;
     if (c->pumping) return;   /* 同步回调重入：交给外层循环继续 */

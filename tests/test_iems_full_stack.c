@@ -101,8 +101,9 @@ static int setup(void** state) {
     modbus_driver_register(ctx->drv_mgr);
 
     // [Nexus] Hub and Orch should have independent pools for reliable unit testing
-    datahub_init(&ctx->hub, &ctx->loop, "iems_test", 128, 1024, g_tag_metadata, g_tag_metadata_len,
-                 NULL, (datahub_tag_map_cb)edge_tag_get_compact_index, NULL);
+    datahub_init(&ctx->hub, &ctx->loop, "iems_test", 128, 1024, g_tag_metadata,
+                 (uint32_t)g_tag_metadata_len, NULL,
+                 (datahub_tag_map_cb)edge_tag_get_compact_index, NULL);
 
     ctx->orch = bus_orchestrator_create_hub_default(&ctx->hub, ctx->arb, driver_manager_session_port_ptr(ctx->drv_mgr), 2, 64, 1024);
 

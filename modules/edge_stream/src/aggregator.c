@@ -13,8 +13,12 @@ typedef struct {
     uint64_t last_ts;
 } aggregator_state_t;
 
-stage_ret_t stage_accumulator(pipeline_stage_t *stage, pipe_msg_t *ev) {
-    if (ev->type != PIPEMSG_TYPE_SCALAR) return STAGE_OK;
+
+/* File-local prototypes. */
+stage_ret_t stage_accumulator(pipeline_stage_t *stage, pipe_msg_t *ev);
+stage_ret_t stage_freeze_handler(pipeline_stage_t *stage, pipe_msg_t *ev);
+void add_minute_aggregator_pipeline(stream_engine_t *engine, uint32_t tag_id);
+stage_ret_t stage_accumulator(pipeline_stage_t *stage, pipe_msg_t *ev) {    if (ev->type != PIPEMSG_TYPE_SCALAR) return STAGE_OK;
     aggregator_state_t *state = (aggregator_state_t *)stage->priv_state;
     state->current_acc += ev->payload.val.f;
     state->sample_count++;
@@ -22,8 +26,7 @@ stage_ret_t stage_accumulator(pipeline_stage_t *stage, pipe_msg_t *ev) {
     return STAGE_OK;
 }
 
-stage_ret_t stage_freeze_handler(pipeline_stage_t *stage, pipe_msg_t *ev) {
-    // 假设时间脉冲通过 EVENT 类型下发，且 event_id = USER_CUSTOM(100), param = 1
+stage_ret_t stage_freeze_handler(pipeline_stage_t *stage, pipe_msg_t *ev) {    // 假设时间脉冲通过 EVENT 类型下发，且 event_id = USER_CUSTOM(100), param = 1
     if (ev->type != PIPEMSG_TYPE_EVENT || ev->payload.event.event_id != SYS_EVENT_USER_CUSTOM ||
         ev->payload.event.param != 1) {
         return STAGE_OK;
@@ -40,13 +43,3 @@ stage_ret_t stage_freeze_handler(pipeline_stage_t *stage, pipe_msg_t *ev) {
     return STAGE_OK;
 }
 
-void add_minute_aggregator_pipeline(stream_engine_t *engine, uint32_t tag_id) {
-    char pipe_id[32];
-    snprintf(pipe_id, 32, "agg_pipe_%u", tag_id);
-    pipeline_t *p = stream_engine_add_pipeline(engine, pipe_id, tag_id);
-    if (!p) return;
-    aggregator_state_t *state = calloc(1, sizeof(aggregator_state_t));
-    state->tag_id = tag_id;
-    pipeline_add_stage(p, "acc", stage_accumulator, state, NULL, NULL, NULL);
-    pipeline_add_stage(p, "freeze", stage_freeze_handler, state, free, NULL, NULL);
-}

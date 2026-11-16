@@ -20,6 +20,7 @@
  *   EDGEC_LAUNCHER_PATH  helper binary; default /usr/libexec/edgeos/edgeos-launcher
  *   EDGEC_APPS_ROOT      app package root; default /var/edgeos/apps
  *   EDGEC_CGROUP_ROOT    cgroup v2 root; default /sys/fs/cgroup
+ *   EDGEC_LAUNCHER_REQUIRE_ISOLATION  0 disables fail-closed isolation; tests/dev only
  */
 
 #include <stddef.h>
@@ -61,6 +62,10 @@ typedef enum {
 #define EDGEC_LAUNCH_DEGRADED_MOUNT (1u << 1)
 #define EDGEC_LAUNCH_DEGRADED_SECCOMP (1u << 2)
 
+/** flags bit: production mode refuses to start when a hardening step fails. */
+#define EDGEC_LAUNCH_FLAG_REQUIRE_ISOLATION (1u << 0)
+#define EDGEC_LAUNCH_FLAG_ALL EDGEC_LAUNCH_FLAG_REQUIRE_ISOLATION
+
 typedef enum {
     EDGEC_LAUNCH_SECCOMP_OFF = 0,
     EDGEC_LAUNCH_SECCOMP_MINIMAL = 1
@@ -84,6 +89,7 @@ typedef struct {
     uint32_t env_count;
     uint32_t fd_count;
     uint32_t pids_max;
+    uint32_t cpu_ms_per_sec; /**< 0 = no CPU quota */
     uint64_t mem_max_bytes;
     uint32_t flags; /**< reserved, must be 0 */
     uint32_t reserved;

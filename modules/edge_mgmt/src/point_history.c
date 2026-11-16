@@ -17,8 +17,10 @@ static bool _valid_text(const char *text, size_t size) {
 }
 
 static int _buffer_push(app_backfill_t *bf, const edge_history_row_t *row) {
+    if (bf->buffered >= EDGE_BACKFILL_MAX_BUFFER) return -1;
     if (bf->buffered == bf->buffer_cap) {
         size_t cap = bf->buffer_cap ? bf->buffer_cap * 2 : 8;
+        if (cap > EDGE_BACKFILL_MAX_BUFFER) cap = EDGE_BACKFILL_MAX_BUFFER;
         edge_history_row_t *next = realloc(bf->buffer, cap * sizeof(*next));
         if (!next) return -1;
         bf->buffer = next;
@@ -41,8 +43,10 @@ static bool _seen_has(const app_backfill_t *bf, const edge_history_row_t *row) {
 static int _seen_add(app_backfill_t *bf, const edge_history_row_t *row) {
     // shortcut: one key per delivered backfill row in RAM; move on-disk if one
     // backfill can exceed memory.
+    if (bf->seen_count >= EDGE_BACKFILL_MAX_SEEN) return -1;
     if (bf->seen_count == bf->seen_cap) {
         size_t cap = bf->seen_cap ? bf->seen_cap * 2 : 16;
+        if (cap > EDGE_BACKFILL_MAX_SEEN) cap = EDGE_BACKFILL_MAX_SEEN;
         edge_history_key_t *next = realloc(bf->seen, cap * sizeof(*next));
         if (!next) return -1;
         bf->seen = next;

@@ -77,6 +77,22 @@ static void test_ccsds_packet_format(void** state) {
     // Length = 8 bytes - 1 = 7
     assert_int_equal(len, 7);
 
+    // A batch larger than the 128-byte payload buffer is rejected before the
+    // copy, and a negative count is rejected for the same reason.
+    double values[17] = {0};
+    pipe_msg_t batch;
+    net_buf_t* bad_tx = NULL;
+    pipe_msg_init_batch(&batch, 200, values, 17, uv_hrtime());
+    datahub_publish(&hub, &batch);
+    assert_int_equal(
+        ctx->driver->req_tick(ctx->priv, &s_src, &hub, NULL, NULL, ctx->pool, &bad_tx), -1);
+    assert_null(bad_tx);
+    pipe_msg_init_batch(&batch, 200, values, -1, uv_hrtime());
+    datahub_publish(&hub, &batch);
+    assert_int_equal(
+        ctx->driver->req_tick(ctx->priv, &s_src, &hub, NULL, NULL, ctx->pool, &bad_tx), -1);
+    assert_null(bad_tx);
+
     // Cleanup
     if (out_tx) net_buf_unref(out_tx);
     net_buf_pool_unref(ctx->pool);

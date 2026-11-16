@@ -7,6 +7,7 @@
 #include <sqlite3.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <uv.h>
 
@@ -49,6 +50,9 @@ static void test_backup_round_trip(void **state) {
 
     char reason[EDGE_BACKUP_REASON_SIZE];
     assert_int_equal(edge_backup_create(kDb, kBundle, reason, sizeof(reason)), 0);
+    struct stat st;
+    assert_int_equal(stat(kBundle, &st), 0);
+    assert_int_equal(st.st_mode & 0777, 0600);
     assert_int_equal(edge_backup_verify(kBundle, reason, sizeof(reason)), 0);
 
     FILE *f = fopen(kBundle, "rb");
@@ -75,7 +79,17 @@ static void test_backup_round_trip(void **state) {
     fclose(f);
     assert_int_not_equal(edge_backup_verify(kTampered, reason, sizeof(reason)), 0);
 
+    /* A live WAL means the database is online; restore must refuse. */
+    const char *restored_wal = "test_edge_backup_restored.db-wal";
+    FILE *wal = fopen(restored_wal, "wb");
+    assert_non_null(wal);
+    fclose(wal);
+    assert_int_not_equal(edge_backup_restore(kBundle, kRestored, reason, sizeof(reason)), 0);
+    unlink(restored_wal);
+
     assert_int_equal(edge_backup_restore(kBundle, kRestored, reason, sizeof(reason)), 0);
+    assert_int_equal(stat(kRestored, &st), 0);
+    assert_int_equal(st.st_mode & 0777, 0600);
     sqlite3 *restored = NULL;
     assert_int_equal(sqlite3_open(kRestored, &restored), SQLITE_OK);
     sqlite3_stmt *stmt = NULL;

@@ -30,6 +30,36 @@ static int fail(char *reason, size_t size, const char *text) {
     return -1;
 }
 
+/* Backups contain the whole platform database. Create them 0600 from the
+ * start so a umask 022 host never exposes a readable bundle. */
+static FILE *fopen_private(const char *path, const char *mode) {
+    int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    if (fd < 0) return NULL;
+    if (fchmod(fd, 0600) != 0) {
+        close(fd);
+        return NULL;
+    }
+    FILE *f = fdopen(fd, mode);
+    if (!f) close(fd);
+    return f;
+}
+
+static void fsync_parent(const char *path) {
+    char dir[512];
+    snprintf(dir, sizeof(dir), "%s", path);
+    char *slash = strrchr(dir, '/');
+    if (slash) {
+        *slash = '\0';
+    } else {
+        snprintf(dir, sizeof(dir), ".");
+    }
+    int fd = open(dir, O_RDONLY | O_DIRECTORY);
+    if (fd >= 0) {
+        (void)fsync(fd);
+        close(fd);
+    }
+}
+
 static int write_padding(FILE *out, size_t size) {
     size_t pad = (TAR_BLOCK - size % TAR_BLOCK) % TAR_BLOCK;
     if (pad) {
@@ -121,7 +151,9 @@ static int tar_next(tar_entry_t *entry) {
 
     snprintf(entry->name, sizeof(entry->name), "%s", header.name);
     entry->size = strtoull(header.size, NULL, 8);
-    entry->data_offset = ftell(entry->f);
+    long data_offset = ftell(entry->f);
+    if (data_offset < 0) return -1;
+    entry->data_offset = data_offset;
     if (fseeko(entry->f, (off_t)(entry->size + ((TAR_BLOCK - entry->size % TAR_BLOCK) % TAR_BLOCK)),
                SEEK_CUR) != 0)
         return -1;
@@ -210,7 +242,7 @@ static int copy_member(const char *path, const char *wanted, const char *dest) {
     int done = -1;
     while ((rc = tar_next(&entry)) == 0) {
         if (strcmp(entry.name, wanted) != 0) continue;
-        FILE *out = fopen(dest, "wb");
+        FILE *out = fopen_private(dest, "wb");
         if (!out) break;
         if (fseek(f, entry.data_offset, SEEK_SET) != 0) {
             fclose(out);
@@ -224,7 +256,7 @@ static int copy_member(const char *path, const char *wanted, const char *dest) {
             left -= chunk;
         }
         int ok = left == 0 && fflush(out) == 0 && fsync(fileno(out)) == 0;
-        fclose(out);
+        if (fclose(out) != 0) ok = 0;
         if (ok) done = 0;
         break;
     }
@@ -252,12 +284,13 @@ static int parse_schema_version(const char *db_path) {
 static int sqlite_snapshot(const char *src_path, const char *dst_path) {
     sqlite3 *src = NULL;
     sqlite3 *dst = NULL;
+    sqlite3_backup *backup = NULL;
     int rc = -1;
     if (sqlite3_open_v2(src_path, &src, SQLITE_OPEN_READONLY, NULL) != SQLITE_OK) goto out;
     if (sqlite3_open_v2(dst_path, &dst, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL) !=
         SQLITE_OK)
         goto out;
-    sqlite3_backup *backup = sqlite3_backup_init(dst, "main", src, "main");
+    backup = sqlite3_backup_init(dst, "main", src, "main");
     if (!backup) goto out;
     sqlite3_backup_step(backup, -1);
     if (sqlite3_backup_finish(backup) != SQLITE_OK) goto out;
@@ -319,7 +352,7 @@ int edge_backup_create(const char *db_path, const char *out_path, char *reason,
 
     char manifest_path[512];
     snprintf(manifest_path, sizeof(manifest_path), "%s.manifest.tmp", out_path);
-    FILE *mf = fopen(manifest_path, "wb");
+    FILE *mf = fopen_private(manifest_path, "wb");
     size_t manifest_len = strlen(manifest_text);
     if (!mf || fwrite(manifest_text, 1, manifest_len, mf) != manifest_len) {
         if (mf) fclose(mf);
@@ -331,7 +364,7 @@ int edge_backup_create(const char *db_path, const char *out_path, char *reason,
     fclose(mf);
     free(manifest_text);
 
-    FILE *out = fopen(bundle, "wb");
+    FILE *out = fopen_private(bundle, "wb");
     if (!out) {
         unlink(snapshot);
         unlink(manifest_path);
@@ -355,6 +388,7 @@ int edge_backup_create(const char *db_path, const char *out_path, char *reason,
         unlink(bundle);
         return fail(reason, reason_size, "bundle rename failed");
     }
+    fsync_parent(out_path);
     return 0;
 }
 
@@ -418,6 +452,18 @@ int edge_backup_restore(const char *bundle_path, const char *db_path, char *reas
     if (!bundle_path || !db_path) return fail(reason, reason_size, "missing path");
     if (edge_backup_verify(bundle_path, reason, reason_size) != 0) return -1;
 
+    /* Restore is offline. A live WAL or SHM means another process still owns
+     * the database; replacing the main file under it would corrupt state. */
+    char side[512];
+    if (snprintf(side, sizeof(side), "%s-wal", db_path) < (int)sizeof(side) &&
+        access(side, F_OK) == 0) {
+        return fail(reason, reason_size, "database is online; stop the product process first");
+    }
+    if (snprintf(side, sizeof(side), "%s-shm", db_path) < (int)sizeof(side) &&
+        access(side, F_OK) == 0) {
+        return fail(reason, reason_size, "database is online; stop the product process first");
+    }
+
     char tmp[512];
     char previous[512];
     if (snprintf(tmp, sizeof(tmp), "%s.restore.tmp", db_path) >= (int)sizeof(tmp) ||
@@ -429,19 +475,20 @@ int edge_backup_restore(const char *bundle_path, const char *db_path, char *reas
         unlink(tmp);
         return fail(reason, reason_size, "database extract failed");
     }
+    bool moved_old = false;
     if (access(db_path, F_OK) == 0) {
         unlink(previous);
         if (rename(db_path, previous) != 0) {
             unlink(tmp);
             return fail(reason, reason_size, "cannot move the current database aside");
         }
+        moved_old = true;
     }
     if (rename(tmp, db_path) != 0) {
         unlink(tmp);
+        if (moved_old) rename(previous, db_path);
         return fail(reason, reason_size, "cannot install the restored database");
     }
-    char side[512];
-    if (snprintf(side, sizeof(side), "%s-wal", db_path) < (int)sizeof(side)) unlink(side);
-    if (snprintf(side, sizeof(side), "%s-shm", db_path) < (int)sizeof(side)) unlink(side);
+    fsync_parent(db_path);
     return 0;
 }

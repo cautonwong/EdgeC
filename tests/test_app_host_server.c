@@ -192,9 +192,124 @@ static void test_host_abi_server(void **state) {
     assert_int_equal(uv_loop_close(&loop), 0);
 }
 
+static void child_calls_rate_limited(int fd) {
+    edge_app_sdk_t *sdk = edge_app_sdk_create(fd);
+    if (!sdk) _exit(10);
+    uint32_t handle = 0;
+    const char *access = NULL;
+    if (edge_app_point_resolve(sdk, "U_A", &handle, &access)) _exit(11);
+    if (edge_app_point_resolve(sdk, "U_A", &handle, &access)) _exit(12);
+    const char *err = edge_app_point_resolve(sdk, "U_A", &handle, &access);
+    if (!err || strcmp(err, "rate_limited") != 0) _exit(13);
+    edge_app_sdk_destroy(sdk);
+    _exit(0);
+}
+
+static void child_publish_rate_limited(int fd) {
+    edge_app_sdk_t *sdk = edge_app_sdk_create(fd);
+    if (!sdk) _exit(10);
+    edge_app_sample_t publish;
+    memset(&publish, 0, sizeof(publish));
+    publish.value.kind = EDGE_APP_VALUE_FLOAT;
+    publish.value.number = 1.0;
+    publish.quality = "good";
+    publish.source_ts = 1720000000456ULL;
+    if (edge_app_point_publish(sdk, 12, &publish)) _exit(11);
+    const char *err = edge_app_point_publish(sdk, 12, &publish);
+    if (!err || strcmp(err, "rate_limited") != 0) _exit(12);
+    edge_app_sdk_destroy(sdk);
+    _exit(0);
+}
+
+static void child_subscribe_not_supported(int fd) {
+    edge_app_sdk_t *sdk = edge_app_sdk_create(fd);
+    if (!sdk) _exit(10);
+    uint32_t subscription = 0;
+    const char *err = edge_app_point_subscribe(sdk, 7, 0.0, 0, 0, &subscription);
+    if (!err || strcmp(err, "not_supported") != 0) _exit(11);
+    const char *fns[] = {"setting_get", "setting_watch", "kv_get", "kv_set"};
+    char result[128];
+    for (size_t i = 0; i < sizeof(fns) / sizeof(fns[0]); i++) {
+        err = edge_app_sdk_call(sdk, fns[i], "{}", result, sizeof(result));
+        if (!err || strcmp(err, "not_supported") != 0) _exit(12);
+    }
+    edge_app_sdk_destroy(sdk);
+    _exit(0);
+}
+
+static void run_rate_case(void (*child)(int), uint32_t calls_per_sec, uint32_t publish_per_sec) {
+    uv_loop_t loop;
+    assert_int_equal(uv_loop_init(&loop), 0);
+    int fds[2];
+    assert_int_equal(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
+    fake_ports_t fake;
+    memset(&fake, 0, sizeof(fake));
+    app_host_ports_t ports = {
+        .ctx = &fake,
+        .resolve = fake_resolve,
+        .read = fake_read,
+        .publish = fake_publish,
+        .log = fake_log,
+        .now_ms = fake_now,
+        .calls_per_sec = calls_per_sec,
+        .publish_per_sec = publish_per_sec,
+    };
+    app_host_server_t *server = app_host_server_create(&loop, fds[0], &ports);
+    assert_non_null(server);
+    pid_t pid = fork();
+    assert_true(pid >= 0);
+    if (pid == 0) {
+        close(fds[0]);
+        child(fds[1]);
+    }
+    close(fds[1]);
+    int status = run_loop_until(&loop, pid, 5000);
+    assert_true(status != -1);
+    assert_int_equal(WEXITSTATUS(status), 0);
+    app_host_server_destroy(server);
+    for (int i = 0; i < 20; i++) uv_run(&loop, UV_RUN_NOWAIT);
+    assert_int_equal(uv_loop_close(&loop), 0);
+}
+
+static void test_host_call_rate_limit(void **state) {
+    (void)state;
+    run_rate_case(child_calls_rate_limited, 2, 0);
+}
+
+static void test_host_publish_rate_limit(void **state) {
+    (void)state;
+    run_rate_case(child_publish_rate_limited, 0, 1);
+}
+
+static void test_host_subscribe_not_supported(void **state) {
+    (void)state;
+    run_rate_case(child_subscribe_not_supported, 0, 0);
+}
+
+static void test_host_rate_limit_requires_clock(void **state) {
+    (void)state;
+    uv_loop_t loop;
+    assert_int_equal(uv_loop_init(&loop), 0);
+
+    app_host_ports_t ports = {0};
+    ports.calls_per_sec = 1;
+
+    int fds[2];
+    assert_int_equal(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
+    assert_null(app_host_server_create(&loop, fds[0], &ports));
+
+    close(fds[0]);
+    close(fds[1]);
+    assert_int_equal(uv_loop_close(&loop), 0);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_host_abi_server),
+        cmocka_unit_test(test_host_call_rate_limit),
+        cmocka_unit_test(test_host_publish_rate_limit),
+        cmocka_unit_test(test_host_subscribe_not_supported),
+        cmocka_unit_test(test_host_rate_limit_requires_clock),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

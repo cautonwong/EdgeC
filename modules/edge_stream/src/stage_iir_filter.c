@@ -45,10 +45,6 @@ static stage_ret_t _iir_filter_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
     return STAGE_OK;
 }
 
-static void _iir_filter_cleanup(void *priv) {
-    (void)priv;
-}
-
 /**
  * @brief 创建 IIR 滤波器算子
  * @param order 阶数

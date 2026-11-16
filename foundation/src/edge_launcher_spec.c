@@ -68,7 +68,9 @@ int edge_launcher_validate_spec(const launch_spec_t *spec) {
     }
     if (spec->seccomp_profile > EDGEC_LAUNCH_SECCOMP_MINIMAL) return EDGEC_LAUNCH_ERR_ARG;
     if (spec->mem_max_bytes == 0 || spec->pids_max == 0) return EDGEC_LAUNCH_ERR_ARG;
-    if (spec->flags != 0 || spec->reserved != 0) return EDGEC_LAUNCH_ERR_ARG;
+    if ((spec->flags & ~EDGEC_LAUNCH_FLAG_ALL) != 0 || spec->reserved != 0) {
+        return EDGEC_LAUNCH_ERR_ARG;
+    }
     if (spec->cgroup_path[0] != '\0' &&
         !valid_relative_path(spec->cgroup_path, sizeof(spec->cgroup_path))) {
         return EDGEC_LAUNCH_ERR_PATH;

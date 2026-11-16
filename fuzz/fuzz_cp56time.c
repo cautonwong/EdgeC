@@ -5,6 +5,9 @@
 
 #include "iec_cp56time.h"
 
+/* libFuzzer entry point (declared before the definition for -Wmissing-prototypes). */
+int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size);
+
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     if (size < sizeof(iec_cp56time_t)) return 0;
 

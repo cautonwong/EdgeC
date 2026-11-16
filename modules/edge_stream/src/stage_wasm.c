@@ -45,11 +45,17 @@ pipeline_stage_t *stage_wasm_create_v2(const edge_stage_def_t *def, pipeline_loa
     if (!def->params.s1) return NULL;
 
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    if (!s) return NULL;
     strncpy(s->name, "WASM_SECURE", 31);
     s->process = wasm_stage_proc;
 
     wasm_stage_ctx_t *ctx = calloc(1, sizeof(wasm_stage_ctx_t));
+    if (!ctx) {
+        free(s);
+        return NULL;
+    }
     strncpy(ctx->entry_func, def->params.s2 ? def->params.s2 : "on_event", 63);
+    ctx->entry_func[sizeof(ctx->entry_func) - 1] = '\0';
     
     // [Nexus] 从契约读取安全参数
     uint32_t heap = (uint32_t)def->params.f1;

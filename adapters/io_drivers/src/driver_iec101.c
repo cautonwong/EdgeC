@@ -342,6 +342,8 @@ const edge_driver_t iec101_driver = {
     .req_tick = iec101_req_tick,
 };
 
-int iec101_driver_register(driver_manager_t *mgr) {
-    return driver_manager_register(mgr, &iec101_driver);
+
+/* File-local prototypes. */
+int iec101_driver_register(driver_manager_t *mgr);
+int iec101_driver_register(driver_manager_t *mgr) {    return driver_manager_register(mgr, &iec101_driver);
 }

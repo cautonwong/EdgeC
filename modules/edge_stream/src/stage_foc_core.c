@@ -34,7 +34,8 @@ typedef struct {
  */
 static stage_ret_t _foc_core_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
     foc_core_ctx_t *ctx = (foc_core_ctx_t *)stage->priv_state;
-    if (!ctx || ev->type != PIPEMSG_TYPE_BATCH || ev->payload.batch.count < 5) {
+    if (!ctx || ev->type != PIPEMSG_TYPE_BATCH || !ev->payload.batch.ptr ||
+        ev->payload.batch.count < 5) {
         return STAGE_ERROR;
     }
 
@@ -88,7 +89,12 @@ static void _foc_core_cleanup(void *priv) {
  */
 pipeline_stage_t *stage_foc_core_create(uint32_t output_tag, double v_dc, double dt, double kp_i, double ki_i) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    if (!s) return NULL;
     foc_core_ctx_t *ctx = calloc(1, sizeof(foc_core_ctx_t));
+    if (!ctx) {
+        free(s);
+        return NULL;
+    }
 
     ctx->output_tag = output_tag;
     ctx->v_dc = v_dc > 0 ? v_dc : 24.0;
@@ -111,7 +117,9 @@ pipeline_stage_t *stage_foc_core_create(uint32_t output_tag, double v_dc, double
     return s;
 }
 
-pipeline_stage_t *stage_foc_core_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *loader_ctx) {
-    (void)loader_ctx;
+
+/* File-local prototypes. */
+pipeline_stage_t *stage_foc_core_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *loader_ctx);
+pipeline_stage_t *stage_foc_core_create_v2(const edge_stage_def_t *def, pipeline_loader_ctx_t *loader_ctx) {    (void)loader_ctx;
     return stage_foc_core_create((uint32_t)def->params.u1, def->params.f1, def->params.f2, def->params.f3, def->params.f3 / 10.0);
 }

@@ -89,7 +89,7 @@ int edge_api_read_tag_ex(int bus_id, const char *protocol, uint32_t slave_id, ui
 
     cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));
     cmd->req = req;
-    cmd->priority = priority;
+    cmd->priority = (uint8_t)priority;
     cmd->signature = 0x55AA;
     cmd->timeout_ms = 2000; // 💡 [Nexus Fix] 修复 0 毫秒立刻导致超时取消的问题
     cmd->on_cleanup = _on_api_cmd_cleanup;

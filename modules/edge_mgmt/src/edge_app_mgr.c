@@ -4,7 +4,9 @@
  */
 
 #include "edgeos/edge_app_mgr.h"
+#include <dirent.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,6 +18,12 @@
 #include <stdarg.h>
 #include "edge_wasm_imports.h"
 #include <uv.h>
+
+static int _write_file_sync(const char *path, const void *data, size_t len);
+static void _fsync_parent(const char *path);
+static int _write_pending(const char *target, const char *new_version, char *reason,
+                          size_t reason_cap);
+static void _remove_pending(const char *target);
 
 typedef enum {
     APP_JOB_INSTALL = 0,
@@ -58,6 +66,7 @@ struct edge_app_mgr_s {
     uint64_t fault_window_ms;
     char apps_dir[256];
     bool crash_after_package_write; /**< 仅测试注入使用 */
+    bool crash_after_upgrade_swap;  /**< 仅测试注入使用 */
     app_job_t job; /**< 单槽；job_active 表示已入槽，只在 loop 线程读写。 */
     bool job_active;
 };
@@ -117,9 +126,10 @@ static void _mkdir_p(const char *dir) {
 }
 
 /* 应用目录与 wasm 落盘路径只有这一处定义：安装和默认清单必须算出同一条路径。 */
-static void _default_wasm_path(const char *apps_dir, const char *app_id, char *out, size_t cap) {
+static int _default_wasm_path(const char *apps_dir, const char *app_id, char *out, size_t cap) {
     if (!apps_dir || apps_dir[0] == '\0') apps_dir = "/var/edgeos/apps";
-    snprintf(out, cap, "%s/%s/app.wasm", apps_dir, app_id);
+    int n = snprintf(out, cap, "%s/%s/app.wasm", apps_dir, app_id);
+    return (n >= 0 && (size_t)n < cap) ? 0 : -1;
 }
 
 int edge_app_mgr_parse_manifest_json(const char *json_str, app_manifest_t *out_manifest) {
@@ -246,6 +256,10 @@ void edge_app_mgr_set_crash_after_package_write(edge_app_mgr_t *mgr, bool enable
     if (mgr) mgr->crash_after_package_write = enabled;
 }
 
+void edge_app_mgr_set_crash_after_upgrade_swap(edge_app_mgr_t *mgr, bool enabled) {
+    if (mgr) mgr->crash_after_upgrade_swap = enabled;
+}
+
 void edge_app_mgr_set_fault_window_ms(edge_app_mgr_t *mgr, uint64_t window_ms) {
     if (mgr) mgr->fault_window_ms = window_ms;
 }
@@ -267,7 +281,10 @@ static int _install_impl(edge_app_mgr_t *mgr, const app_manifest_t *manifest,
                          char *reason, size_t reason_cap) {
     app_manifest_t m = *manifest;
     if (m.wasm_path[0] == '\0') {
-        _default_wasm_path(mgr->apps_dir, m.id, m.wasm_path, sizeof(m.wasm_path));
+        if (_default_wasm_path(mgr->apps_dir, m.id, m.wasm_path, sizeof(m.wasm_path)) != 0) {
+            if (reason) snprintf(reason, reason_cap, "wasm path too long");
+            return -1;
+        }
     }
 
     if (wasm_data && wasm_len > 0) {
@@ -288,27 +305,36 @@ static int _install_impl(edge_app_mgr_t *mgr, const app_manifest_t *manifest,
     }
 
     if (wasm_data && wasm_len > 0) {
-        FILE *f = fopen(m.wasm_path, "wb");
-        if (!f && strncmp(m.wasm_path, "/var/edgeos/apps", 16) == 0) {
-            snprintf(m.wasm_path, sizeof(m.wasm_path), "/tmp/edgeos/apps/%s/app.wasm", m.id);
-            snprintf(dir_path, sizeof(dir_path), "%s", m.wasm_path);
-            char *s2 = strrchr(dir_path, '/');
-            if (s2) {
-                *s2 = '\0';
-                _mkdir_p(dir_path);
+        char new_path[264];
+        snprintf(new_path, sizeof(new_path), "%s.new", m.wasm_path);
+        if (_write_file_sync(new_path, wasm_data, wasm_len) != 0) {
+            if (strncmp(m.wasm_path, "/var/edgeos/apps", 16) == 0) {
+                snprintf(m.wasm_path, sizeof(m.wasm_path), "/tmp/edgeos/apps/%s/app.wasm", m.id);
+                snprintf(dir_path, sizeof(dir_path), "%s", m.wasm_path);
+                char *s2 = strrchr(dir_path, '/');
+                if (s2) {
+                    *s2 = '\0';
+                    _mkdir_p(dir_path);
+                }
+                snprintf(new_path, sizeof(new_path), "%s.new", m.wasm_path);
             }
-            f = fopen(m.wasm_path, "wb");
+            if (_write_file_sync(new_path, wasm_data, wasm_len) != 0) {
+                unlink(new_path);
+                if (reason) snprintf(reason, reason_cap, "wasm write failed: %.120s", m.wasm_path);
+                return -1;
+            }
         }
-        if (!f) {
-            if (reason) snprintf(reason, reason_cap, "wasm write failed: %s", m.wasm_path);
+        if (_write_pending(m.wasm_path, m.version, reason, reason_cap) != 0) {
+            unlink(new_path);
             return -1;
         }
-        size_t written = fwrite(wasm_data, 1, wasm_len, f);
-        fclose(f);
-        if (written != wasm_len) {
-            if (reason) snprintf(reason, reason_cap, "wasm write incomplete: %s", m.wasm_path);
+        if (rename(new_path, m.wasm_path) != 0) {
+            unlink(new_path);
+            _remove_pending(m.wasm_path);
+            if (reason) snprintf(reason, reason_cap, "wasm rename failed: %.120s", m.wasm_path);
             return -1;
         }
+        _fsync_parent(m.wasm_path);
     }
 
     /* Crash-injection point for the install consistency test: the package is
@@ -318,9 +344,11 @@ static int _install_impl(edge_app_mgr_t *mgr, const app_manifest_t *manifest,
     m.state = APP_STATE_INSTALLED;
     int rc = mgr->repo.save_app ? mgr->repo.save_app(mgr->repo.ctx, &m) : -1;
     if (rc != 0) {
+        _remove_pending(m.wasm_path);
         if (reason) snprintf(reason, reason_cap, "repository save failed");
         return rc;
     }
+    _remove_pending(m.wasm_path);
     if (reason) reason[0] = '\0';
     return 0;
 }
@@ -352,7 +380,10 @@ static int _start_impl(edge_app_mgr_t *mgr, const char *app_id, char *reason, si
     m.state = APP_STATE_RUNNING;
     m.desired_state = true;
     m.last_active_ms = (uint64_t)uv_now(mgr->loop);
-    if (mgr->repo.save_app) mgr->repo.save_app(mgr->repo.ctx, &m);
+    if (!mgr->repo.save_app || mgr->repo.save_app(mgr->repo.ctx, &m) != 0) {
+        if (reason) snprintf(reason, reason_cap, "registry save failed");
+        return -1;
+    }
     if (reason) reason[0] = '\0';
     return 0;
 }
@@ -390,6 +421,75 @@ static int _write_file_sync(const char *path, const void *data, size_t len) {
     return (written == len && rc == 0) ? 0 : -1;
 }
 
+static void _fsync_parent(const char *path) {
+    char dir[512];
+    int n = snprintf(dir, sizeof(dir), "%s", path);
+    if (n < 0 || (size_t)n >= sizeof(dir)) return;
+    char *slash = strrchr(dir, '/');
+    if (slash) {
+        *slash = '\0';
+    } else {
+        snprintf(dir, sizeof(dir), ".");
+    }
+    int fd = open(dir, O_RDONLY | O_DIRECTORY);
+    if (fd >= 0) {
+        (void)fsync(fd);
+        close(fd);
+    }
+}
+
+/* 换包和 Registry 提交之间的崩溃标记。写在换包之前并 fsync，提交后删除；
+ * 恢复时按 Registry 版本决定保留新包还是回滚旧包。 */
+static void _pending_path(const char *target, char *out, size_t cap) {
+    /* 8 是 ".pending" 的长度；precision 保证结果总是 NUL 结尾且不超 cap。 */
+    int room = cap > 9 ? (int)(cap - 9) : 0;
+    snprintf(out, cap, "%.*s.pending", room, target);
+}
+
+static int _write_pending(const char *target, const char *new_version, char *reason,
+                          size_t reason_cap) {
+    char pending[272];
+    char body[96];
+    _pending_path(target, pending, sizeof(pending));
+    int n = snprintf(body, sizeof(body), "new=%s\n", new_version);
+    if (n <= 0 || (size_t)n >= sizeof(body)) {
+        _set_reason(reason, reason_cap, "version too large for pending marker");
+        return -1;
+    }
+    if (_write_file_sync(pending, body, (size_t)n) != 0) {
+        unlink(pending);
+        _set_reason(reason, reason_cap, "pending marker write failed");
+        return -1;
+    }
+    _fsync_parent(pending);
+    return 0;
+}
+
+static void _remove_pending(const char *target) {
+    char pending[272];
+    _pending_path(target, pending, sizeof(pending));
+    if (unlink(pending) == 0) _fsync_parent(pending);
+}
+
+static int _read_pending_version(const char *pending, char *out, size_t cap) {
+    char buf[128];
+    FILE *f = fopen(pending, "r");
+    if (!f) return -1;
+    size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+    fclose(f);
+    buf[n] = '\0';
+    const char *p = strstr(buf, "new=");
+    if (!p) return -1;
+    p += 4;
+    size_t i = 0;
+    while (p[i] && p[i] != '\n' && p[i] != '\r' && i + 1 < cap) {
+        out[i] = p[i];
+        i++;
+    }
+    out[i] = '\0';
+    return out[0] ? 0 : -1;
+}
+
 /* Atomically replace target with wasm_data, keeping the old file at prev_path.
  * On any failure the old package is back in place and .new is gone. */
 static int _swap_package(const char *target, const char *new_path, const char *prev_path,
@@ -415,6 +515,7 @@ static int _swap_package(const char *target, const char *new_path, const char *p
         _set_reason(reason, reason_cap, "package swap failed");
         return -1;
     }
+    _fsync_parent(target);
     return 0;
 }
 
@@ -582,18 +683,31 @@ static int _upgrade_impl(edge_app_mgr_t *mgr, const app_manifest_t *manifest,
 
     char target_path[256];
     snprintf(target_path, sizeof(target_path), "%s", old.wasm_path);
-    if (target_path[0] == '\0') _default_wasm_path(mgr->apps_dir, old.id, target_path, sizeof(target_path));
+    if (target_path[0] == '\0' &&
+        _default_wasm_path(mgr->apps_dir, old.id, target_path, sizeof(target_path)) != 0) {
+        free(old_json);
+        _set_reason(reason, reason_cap, "wasm path too long");
+        return -1;
+    }
 
     if (wasm_data && wasm_len > 0) {
         char new_path[264];
         char prev_path[264];
         snprintf(new_path, sizeof(new_path), "%s.new", target_path);
         snprintf(prev_path, sizeof(prev_path), "%s.prev", target_path);
-        if (_swap_package(target_path, new_path, prev_path, wasm_data, wasm_len, reason,
-                          reason_cap) != 0) {
+        if (_write_pending(target_path, manifest->version, reason, reason_cap) != 0) {
             free(old_json);
             return -1;
         }
+        if (_swap_package(target_path, new_path, prev_path, wasm_data, wasm_len, reason,
+                          reason_cap) != 0) {
+            _remove_pending(target_path);
+            free(old_json);
+            return -1;
+        }
+        /* Crash-injection point: the new package is in place, the registry row
+         * still holds the old version. Only tests set this env var. */
+        if (mgr->crash_after_upgrade_swap) _exit(71);
     }
 
     app_manifest_t updated = old;
@@ -624,23 +738,25 @@ static int _upgrade_impl(edge_app_mgr_t *mgr, const app_manifest_t *manifest,
             snprintf(prev_path, sizeof(prev_path), "%s.prev", updated.prev_wasm_path);
             if (access(prev_path, F_OK) == 0) rename(prev_path, updated.wasm_path);
         }
+        _remove_pending(target_path);
         _set_reason(reason, reason_cap, "registry save failed");
         return -1;
     }
+    _remove_pending(target_path);
 
     if (grants && capabilities) {
-        edge_app_grant_t snapshot[16];
-        bool snapshot_found[16];
+        edge_app_grant_t grant_snapshot[16];
+        bool grant_found[16];
         for (size_t i = 0; i < capability_count; i++) {
-            snapshot_found[i] = false;
+            grant_found[i] = false;
             if (!grants->get_grant) continue;
             int found = grants->get_grant(grants->ctx, manifest->id, capabilities[i].capability,
-                                          &snapshot[i]);
+                                          &grant_snapshot[i]);
             if (found < 0) {
                 _set_reason(reason, reason_cap, "grant store unavailable");
                 return -1;
             }
-            snapshot_found[i] = found == 1;
+            grant_found[i] = found == 1;
         }
         uint64_t now = (uint64_t)time(NULL);
         for (size_t i = 0; i < capability_count; i++) {
@@ -649,8 +765,8 @@ static int _upgrade_impl(edge_app_mgr_t *mgr, const app_manifest_t *manifest,
             if (rc != EDGE_AUTHZ_INHERIT_STORE_ERROR && rc != EDGE_AUTHZ_INHERIT_INVALID) continue;
 
             for (size_t j = 0; j <= i && j < capability_count; j++) {
-                if (snapshot_found[j]) {
-                    grants->save_grant(grants->ctx, &snapshot[j]);
+                if (grant_found[j]) {
+                    grants->save_grant(grants->ctx, &grant_snapshot[j]);
                 } else if (grants->delete_grant) {
                     grants->delete_grant(grants->ctx, manifest->id, capabilities[j].capability);
                 }
@@ -661,6 +777,7 @@ static int _upgrade_impl(edge_app_mgr_t *mgr, const app_manifest_t *manifest,
                 if (access(prev_path, F_OK) == 0) rename(prev_path, updated.wasm_path);
             }
             if (mgr->repo.save_app) mgr->repo.save_app(mgr->repo.ctx, &old);
+            _remove_pending(target_path);
             _set_reason(reason, reason_cap, "grant inheritance failed");
             return -1;
         }
@@ -767,6 +884,19 @@ int edge_app_mgr_start(edge_app_mgr_t *mgr, const char *app_id) {
     return rc;
 }
 
+int edge_app_mgr_set_limits(edge_app_mgr_t *mgr, const char *app_id, const app_limits_t *limits) {
+    if (!mgr || !app_id || !app_id[0] || !limits) return -1;
+    if (!mgr->repo.save_limits) return 0;
+    return mgr->repo.save_limits(mgr->repo.ctx, app_id, limits);
+}
+
+int edge_app_mgr_get_limits(edge_app_mgr_t *mgr, const char *app_id, app_limits_t *out_limits) {
+    if (!mgr || !app_id || !out_limits) return -1;
+    memset(out_limits, 0, sizeof(*out_limits));
+    if (!mgr->repo.get_limits) return 0;
+    return mgr->repo.get_limits(mgr->repo.ctx, app_id, out_limits);
+}
+
 static int _stop_impl(edge_app_mgr_t *mgr, const char *app_id, char *reason, size_t reason_cap,
                       bool clear_desired) {
     app_manifest_t m;
@@ -781,7 +911,10 @@ static int _stop_impl(edge_app_mgr_t *mgr, const char *app_id, char *reason, siz
 
     m.state = APP_STATE_STOPPED;
     if (clear_desired) m.desired_state = false;
-    if (mgr->repo.save_app) mgr->repo.save_app(mgr->repo.ctx, &m);
+    if (!mgr->repo.save_app || mgr->repo.save_app(mgr->repo.ctx, &m) != 0) {
+        if (reason) snprintf(reason, reason_cap, "registry save failed");
+        return -1;
+    }
     if (reason) reason[0] = '\0';
     return 0;
 }
@@ -820,6 +953,7 @@ static void _audit_uninstall(edge_app_mgr_t *mgr, const char *app_id, const char
 static int _uninstall_impl(edge_app_mgr_t *mgr, const char *app_id,
                            const app_uninstall_opts_t *opts, char *version_out,
                            size_t version_cap, char *reason, size_t reason_cap) {
+    (void)opts;
     app_manifest_t m;
     if (!mgr->repo.get_app || mgr->repo.get_app(mgr->repo.ctx, app_id, &m) != 0) {
         if (reason) snprintf(reason, reason_cap, "app not found in registry");
@@ -840,9 +974,10 @@ static int _uninstall_impl(edge_app_mgr_t *mgr, const char *app_id,
         return rc;
     }
     if (m.wasm_path[0] && unlink(m.wasm_path) != 0 && errno != ENOENT) {
-        if (reason) snprintf(reason, reason_cap, "package delete failed: %s", m.wasm_path);
+        if (reason) snprintf(reason, reason_cap, "package delete failed: %.120s", m.wasm_path);
         return -1;
     }
+    if (mgr->repo.delete_limits) mgr->repo.delete_limits(mgr->repo.ctx, app_id);
     if (reason) reason[0] = '\0';
     return 0;
 }
@@ -1103,6 +1238,43 @@ int edge_app_mgr_uninstall_async(edge_app_mgr_t *mgr, const char *app_id,
     return edge_app_mgr_uninstall_async_ex(mgr, app_id, NULL, cb, ctx);
 }
 
+/* 安装崩溃留下的孤儿包没有 Registry 行，按目录扫描清理。升级标记对应的行
+ * 会先在上面按版本处理，这里跳过仍被 Registry 引用的路径。 */
+static int _recover_orphan_installs(edge_app_mgr_t *mgr, const app_manifest_t *apps, int count) {
+    DIR *d = opendir(mgr->apps_dir);
+    if (!d) return 0;
+    int recovered = 0;
+    struct dirent *entry;
+    while ((entry = readdir(d)) != NULL) {
+        if (entry->d_name[0] == '.') continue;
+        char dir[520];  // stack-ok: bounded by apps_dir[256] + NAME_MAX; startup recovery only
+        char wasm[sizeof(dir) + 16];
+        char side[sizeof(wasm) + 16];
+        snprintf(dir, sizeof(dir), "%s/%s", mgr->apps_dir, entry->d_name);
+        snprintf(wasm, sizeof(wasm), "%s/app.wasm", dir);
+        snprintf(side, sizeof(side), "%s.pending", wasm);
+        if (access(side, F_OK) != 0) continue;
+        bool referenced = false;
+        for (int i = 0; i < count; i++) {
+            if (strcmp(apps[i].wasm_path, wasm) == 0) {
+                referenced = true;
+                break;
+            }
+        }
+        if (referenced) continue;
+        unlink(wasm);
+        snprintf(side, sizeof(side), "%s.new", wasm);
+        unlink(side);
+        snprintf(side, sizeof(side), "%s.pending", wasm);
+        unlink(side);
+        rmdir(dir);
+        app_log(mgr, 2, "AppMgr: removed orphan package %s", wasm);
+        recovered++;
+    }
+    closedir(d);
+    return recovered;
+}
+
 int edge_app_mgr_recover_packages(edge_app_mgr_t *mgr) {
     if (!mgr || !mgr->repo.list_apps) return 0;
     app_manifest_t apps[64];
@@ -1110,10 +1282,37 @@ int edge_app_mgr_recover_packages(edge_app_mgr_t *mgr) {
     int recovered = 0;
     for (int i = 0; i < count; i++) {
         if (apps[i].wasm_path[0] == '\0') continue;
+        char pending[272];
+        _pending_path(apps[i].wasm_path, pending, sizeof(pending));
+        bool pending_committed = false;
+        if (access(pending, F_OK) == 0) {
+            char pending_version[64];
+            bool committed =
+                _read_pending_version(pending, pending_version, sizeof(pending_version)) == 0 &&
+                strcmp(apps[i].version, pending_version) == 0;
+            if (!committed) {
+                char prev[264];
+                snprintf(prev, sizeof(prev), "%s.prev", apps[i].wasm_path);
+                if (access(prev, F_OK) == 0 && rename(prev, apps[i].wasm_path) == 0) {
+                    _fsync_parent(apps[i].wasm_path);
+                    app_log(mgr, 2, "AppMgr: rolled back interrupted upgrade %s",
+                            apps[i].wasm_path);
+                    recovered++;
+                }
+            } else {
+                pending_committed = true;
+            }
+            unlink(pending);
+            _fsync_parent(pending);
+        }
         char side[264];
         snprintf(side, sizeof(side), "%s.new", apps[i].wasm_path);
         unlink(side);
         if (access(apps[i].wasm_path, F_OK) == 0) continue;
+        if (pending_committed) {
+            app_log(mgr, 4, "AppMgr: committed upgrade has no package at %s", apps[i].wasm_path);
+            continue;
+        }
         snprintf(side, sizeof(side), "%s.prev", apps[i].wasm_path);
         if (access(side, F_OK) == 0 && rename(side, apps[i].wasm_path) == 0) {
             app_log(mgr, 2, "AppMgr: recovered package %s after an interrupted upgrade",
@@ -1121,6 +1320,7 @@ int edge_app_mgr_recover_packages(edge_app_mgr_t *mgr) {
             recovered++;
         }
     }
+    recovered += _recover_orphan_installs(mgr, apps, count);
     return recovered;
 }
 

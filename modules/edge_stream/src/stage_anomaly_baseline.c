@@ -68,9 +68,16 @@ static void _cleanup(void *priv) {
     if (priv) free(priv);
 }
 
-pipeline_stage_t *stage_anomaly_baseline_create(uint32_t target_tag, uint32_t learning_samples, double threshold_sigma, uint32_t alarm_tag) {
-    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+
+/* File-local prototypes. */
+pipeline_stage_t *stage_anomaly_baseline_create(uint32_t target_tag, uint32_t learning_samples, double threshold_sigma, uint32_t alarm_tag);
+pipeline_stage_t *stage_anomaly_baseline_create(uint32_t target_tag, uint32_t learning_samples, double threshold_sigma, uint32_t alarm_tag) {    pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    if (!s) return NULL;
     baseline_ctx_t *ctx = calloc(1, sizeof(baseline_ctx_t));
+    if (!ctx) {
+        free(s);
+        return NULL;
+    }
     
     ctx->target_tag = target_tag;
     ctx->learning_samples = learning_samples > 0 ? learning_samples : 100;

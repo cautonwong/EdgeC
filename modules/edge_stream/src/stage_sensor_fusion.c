@@ -33,6 +33,7 @@ static stage_ret_t _fusion_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
     ctx->last_ts = now;
 
     if (ev->tag_id == ctx->imu_tag && ev->type == PIPEMSG_TYPE_BATCH) {
+        if (!ev->payload.batch.ptr || ev->payload.batch.count < 1) return STAGE_ERROR;
         double *data = (double *)ev->payload.batch.ptr;
         double acc = data[0];
         
@@ -51,11 +52,14 @@ static stage_ret_t _fusion_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
         return STAGE_DROP;
     } 
     else if (ev->tag_id == ctx->gps_tag && ev->type == PIPEMSG_TYPE_BATCH) {
+        // 输出 [位置, 速度] 覆盖输入缓冲，count 需容纳 2 个 double
+        if (!ev->payload.batch.ptr || ev->payload.batch.count < 2) return STAGE_ERROR;
         double *data = (double *)ev->payload.batch.ptr;
         edge_matrix_set(ctx->z, 0, 0, data[0]); // Observed Pos
         
         // 3. 计算残差并校正
         edge_matrix_t *hx = edge_matrix_alloc(1, 1);
+        if (!hx) return STAGE_ERROR;
         edge_matrix_mul(ctx->H, ctx->ekf.x, hx);
         edge_matrix_sub(ctx->z, hx, hx); // reuse hx for residual y
         
@@ -90,7 +94,12 @@ static void _fusion_cleanup(void *priv) {
 
 pipeline_stage_t *stage_sensor_fusion_create(uint32_t imu_tag, uint32_t gps_tag, uint32_t out_tag) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    if (!s) return NULL;
     fusion_st_t *ctx = calloc(1, sizeof(fusion_st_t));
+    if (!ctx) {
+        free(s);
+        return NULL;
+    }
 
     ctx->imu_tag = imu_tag;
     ctx->gps_tag = gps_tag;
@@ -98,9 +107,13 @@ pipeline_stage_t *stage_sensor_fusion_create(uint32_t imu_tag, uint32_t gps_tag,
 
     ctx->ekf.n = 2;
     ctx->ekf.x = edge_matrix_alloc(2, 1);
+    if (!ctx->ekf.x) { _fusion_cleanup(ctx); free(s); return NULL; }
     ctx->ekf.P = edge_matrix_alloc(2, 2);
+    if (!ctx->ekf.P) { _fusion_cleanup(ctx); free(s); return NULL; }
     ctx->ekf.Q = edge_matrix_alloc(2, 2);
+    if (!ctx->ekf.Q) { _fusion_cleanup(ctx); free(s); return NULL; }
     ctx->ekf.R = edge_matrix_alloc(1, 1);
+    if (!ctx->ekf.R) { _fusion_cleanup(ctx); free(s); return NULL; }
     
     edge_matrix_identity(ctx->ekf.P);
     edge_matrix_scale(ctx->ekf.P, 1.0);
@@ -109,12 +122,17 @@ pipeline_stage_t *stage_sensor_fusion_create(uint32_t imu_tag, uint32_t gps_tag,
     edge_matrix_set(ctx->ekf.R, 0, 0, 0.1); 
 
     ctx->F = edge_matrix_alloc(2, 2);
+    if (!ctx->F) { _fusion_cleanup(ctx); free(s); return NULL; }
     edge_matrix_identity(ctx->F);
     ctx->H = edge_matrix_alloc(1, 2);
+    if (!ctx->H) { _fusion_cleanup(ctx); free(s); return NULL; }
     edge_matrix_set(ctx->H, 0, 0, 1.0);
     ctx->B = edge_matrix_alloc(2, 1);
+    if (!ctx->B) { _fusion_cleanup(ctx); free(s); return NULL; }
     ctx->u = edge_matrix_alloc(1, 1);
+    if (!ctx->u) { _fusion_cleanup(ctx); free(s); return NULL; }
     ctx->z = edge_matrix_alloc(1, 1);
+    if (!ctx->z) { _fusion_cleanup(ctx); free(s); return NULL; }
 
     strncpy(s->name, "SENSOR_FUSION", 31);
     s->process = _fusion_proc;

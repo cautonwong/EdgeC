@@ -99,7 +99,7 @@ int edge_coop_guard_register_task(edge_coop_guard_t *guard, const edge_coop_task
 
     edge_coop_task_slot_t *slot = &guard->tasks[guard->task_count++];
     slot->task_id = tcfg->task_id;
-    strncpy(slot->name, tcfg->name, sizeof(slot->name) - 1);
+    snprintf(slot->name, sizeof(slot->name), "%.*s", (int)(sizeof(slot->name) - 1), tcfg->name);
     slot->state = EDGE_COOP_STATE_HEALTHY;
     slot->timeslice_budget_us = (tcfg->timeslice_budget_us > 0) ? tcfg->timeslice_budget_us : guard->config.default_budget_us;
     slot->max_degrade_overruns = (tcfg->max_consecutive_overruns_to_degrade > 0) ? tcfg->max_consecutive_overruns_to_degrade : guard->config.default_degrade_threshold;

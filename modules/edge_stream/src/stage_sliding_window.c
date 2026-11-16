@@ -50,8 +50,10 @@ static void _sliding_window_cleanup(void *priv_data) {
     }
 }
 
-pipeline_stage_t *stage_sliding_window_create(int window_size, double q, double r) {
-    pipeline_stage_t *stage = (pipeline_stage_t *)calloc(1, sizeof(pipeline_stage_t));
+
+/* File-local prototypes. */
+pipeline_stage_t *stage_sliding_window_create(int window_size, double q, double r);
+pipeline_stage_t *stage_sliding_window_create(int window_size, double q, double r) {    pipeline_stage_t *stage = (pipeline_stage_t *)calloc(1, sizeof(pipeline_stage_t));
     if (!stage) return NULL;
 
     sliding_window_ctx_t *ctx = (sliding_window_ctx_t *)calloc(1, sizeof(sliding_window_ctx_t));

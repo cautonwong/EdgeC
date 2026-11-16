@@ -32,10 +32,11 @@ static void test_adc_dsp_full_chain(void** state) {
 
     printf("[STEP 3] Mocking ADC DMA: Writing signal with 10%% 3rd harmonic...\n");
     int fd = memfd_create("proof_shm", 0);
-    ftruncate(fd, 4096);
+    assert_int_equal(ftruncate(fd, 4096), 0);
     float* ptr = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     for (int i = 0; i < 200; i++) {
-        ptr[i] = 100.0f * sin(2.0 * M_PI * i / 200.0) + 10.0f * sin(2.0 * M_PI * i / 200.0 * 3.0);
+        ptr[i] = (float)(100.0f * sin(2.0 * M_PI * i / 200.0) +
+                         10.0f * sin(2.0 * M_PI * i / 200.0 * 3.0));
     }
 
     printf("[STEP 4] Simulating UDS Pulse: Pushing Tag 12001 to StreamEngine...\n");
@@ -56,10 +57,10 @@ static void test_adc_dsp_full_chain(void** state) {
         if (shm_ring_read(&hub.ring, &seq, &result) == 0) {
             if (result.tag_id == 1001) {
                 found_rms = true;
-                rms_val = result.payload.val.f;
+                rms_val = (float)result.payload.val.f;
             } else if (result.tag_id == 1002) {
                 found_thd = true;
-                thd_val = result.payload.val.f;
+                thd_val = (float)result.payload.val.f;
             }
         }
     }

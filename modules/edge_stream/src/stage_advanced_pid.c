@@ -18,12 +18,12 @@ static stage_ret_t _pid_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
     advanced_pid_ctx_t *ctx = (advanced_pid_ctx_t *)stage->priv_state;
     if (!ctx || ev->type != PIPEMSG_TYPE_SCALAR) return STAGE_ERROR;
 
-    uint64_t now_ms = ev->ts;
+    uint64_t now_ns = ev->ts;
     double dt = 0.0;
     if (ctx->last_ts != 0) {
-        dt = (double)(now_ms - ctx->last_ts) / 1000.0; // convert ms to seconds
+        dt = (double)(now_ns - ctx->last_ts) / 1e9;  // ns -> s
     }
-    ctx->last_ts = now_ms;
+    ctx->last_ts = now_ns;
 
     // First sample doesn't have a valid dt, so we just set last_input and return 0 (or drop)
     if (dt <= 0.0) {
@@ -49,7 +49,12 @@ static void _pid_cleanup(void *priv) {
  */
 pipeline_stage_t *stage_advanced_pid_create(double kp, double ki, double kd, double setpoint, double out_min, double out_max, uint32_t out_tag) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    if (!s) return NULL;
     advanced_pid_ctx_t *ctx = calloc(1, sizeof(advanced_pid_ctx_t));
+    if (!ctx) {
+        free(s);
+        return NULL;
+    }
     
     control_pid_init(&ctx->pid, kp, ki, kd);
     ctx->pid.setpoint = setpoint;

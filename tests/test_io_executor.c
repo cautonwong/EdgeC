@@ -7,6 +7,7 @@
 #include <uv.h>
 
 #include "io_executor.h"
+#include "io_executor_linux.h"
 
 /**
  * 验证物理通道创建 (Linux 适配层)

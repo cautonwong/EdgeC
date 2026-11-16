@@ -113,4 +113,7 @@ struct storage_driver_s {
 }
 #endif
 
+/* Built-in SQLite backend factory. */
+storage_driver_t *storage_driver_sqlite_create(uv_loop_t *loop, const storage_config_t *cfg);
+
 #endif /* EDGE_INFRA_STORAGE_OPS_H */

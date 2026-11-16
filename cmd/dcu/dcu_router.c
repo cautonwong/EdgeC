@@ -68,7 +68,7 @@ int dcu_obj_snapshot(uint16_t oi, uint32_t device_id, void* out_msgs, int max_co
         dcu_event_obj_t* evt = (dcu_event_obj_t*)obj->instance_ptr;
         for (int i = 0; i < evt->snapshot_count && captured < max_count; i++) {
             uint32_t oad = evt->snapshot_oads[i];
-            void* dest = p_out + (captured * g_router_bus_ops.msg_size);
+            void* dest = p_out + (size_t)captured * g_router_bus_ops.msg_size;
             if (g_router_bus_ops.read_shadow(g_router_bus_ops.ctx, oad, device_id, dest) == 0) {
                 captured++;
             }
@@ -110,15 +110,13 @@ static int _oi_6000_execute(dcu_object_t* obj, uint8_t method_id, const void* pa
         if (result) *(int*)result = ret;
         return ret;
     }
-    // [PRD Alignment] 方法 2: 批量添加 (AddBatch)
+    // [PRD Alignment] 方法 2: 批量添加 (AddBatch) 尚未实现
     if (method_id == 2) {
-        // TODO: parse list of addresses
-        return 0;
+        return -4;  // 方法存在但拒绝执行：不得返回 0 让主站误以为已写入
     }
-    // [PRD Alignment] 方法 3: 更新基本/扩展信息 (Update)
+    // [PRD Alignment] 方法 3: 更新基本/扩展信息 (Update) 尚未实现
     if (method_id == 3) {
-        // TODO: update specific meter
-        return 0;
+        return -4;  // 方法存在但拒绝执行：不得返回 0 让主站误以为已更新
     }
     // [PRD Alignment] 方法 4: 按序号或地址删除 (Delete)
     if (method_id == 4) {

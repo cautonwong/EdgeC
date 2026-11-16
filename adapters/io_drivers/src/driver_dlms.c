@@ -230,6 +230,10 @@ static int dlms_req_slave_exchange(void *priv_v, void *session, const uint8_t *i
         return EDGE_ERR_INCOMPLETE;
     }
     if (rc != 0 || !apdu_in) return -1;
+    if (apdu_in->b.len < 1) {
+        net_buf_unref(apdu_in);
+        return -1;
+    }
     *consumed = nb.len;
 
     uint8_t tag = apdu_in->b.data[0];
@@ -371,6 +375,8 @@ const edge_driver_t dlms_driver = {
     .req_tick = dlms_req_tick,
 };
 
-int dlms_driver_register(driver_manager_t *mgr) {
-    return driver_manager_register(mgr, &dlms_driver);
+
+/* File-local prototypes. */
+int dlms_driver_register(driver_manager_t *mgr);
+int dlms_driver_register(driver_manager_t *mgr) {    return driver_manager_register(mgr, &dlms_driver);
 }

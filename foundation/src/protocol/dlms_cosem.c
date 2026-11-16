@@ -130,47 +130,24 @@ int dlms_cosem_decode_response(dlms_cosem_ctx_t *ctx, struct net_buf_simple *apd
     uint8_t service_tag = net_buf_simple_pull_u8(apdu);
 
     if (service_tag == DLMS_SERVICE_GET_RESPONSE) {
+        if (apdu->len < 2) return -1;  // response type + invoke id
         uint8_t response_type = net_buf_simple_pull_u8(apdu);
         net_buf_simple_pull_u8(apdu);  // Invoke ID
 
         if (response_type == 0x01) {  // Normal
+            if (apdu->len < 1) return -1;
             uint8_t result = net_buf_simple_pull_u8(apdu);
             if (result != 0x00) return -2;
             dlms_decoder_t dec;
             dlms_decoder_init(&dec, apdu);
             return dlms_decode_variant(&dec, out);
         } else if (response_type == 0x02) {  // with datablock
-            uint8_t last_block = net_buf_simple_pull_u8(apdu);
-            uint32_t block_num = net_buf_simple_pull_be32(apdu);
-            uint8_t result = net_buf_simple_pull_u8(apdu);
-            if (result != 0x00) return -3;
-
-            dlms_decoder_t dec;
-            dlms_decoder_init(&dec, apdu);
-            dlms_variant_t block_var;
-            if (dlms_decode_variant(&dec, &block_var) != 0) return -4;
-
-            if (block_num == 1) {
-                if (ctx->accumulated_buf) net_buf_unref(ctx->accumulated_buf);
-                ctx->accumulated_buf = net_buf_alloc(NULL, 0);
-            }
-            if (ctx->accumulated_buf) {
-                net_buf_simple_add_mem(&ctx->accumulated_buf->b, block_var.payload,
-                                       block_var.length);
-            }
-
-            ctx->classic_block.active = !last_block;
-            ctx->classic_block.current_block = block_num;
-
-            if (last_block) {
-                dlms_decoder_t final_dec;
-                dlms_decoder_init(&final_dec, &ctx->accumulated_buf->b);
-                return dlms_decode_variant(&final_dec, out);
-            } else {
-                return 1;  // Need GET-Next
-            }
+            /* 重组需要可增长的缓冲，当前 ctx 没有可用内存池；明确拒绝而不是解引用空指针 */
+            return -4;
         }
+        return -1;
     } else if (service_tag == DLMS_SERVICE_SET_RESPONSE) {
+        if (apdu->len < 3) return -1;
         /* SET-Response ::= SEQUENCE { invoke-id, result } —— 没有值，成功即 0 */
         net_buf_simple_pull_u8(apdu); /* response type: 01 = normal */
         net_buf_simple_pull_u8(apdu); /* invoke id */
@@ -179,7 +156,10 @@ int dlms_cosem_decode_response(dlms_cosem_ctx_t *ctx, struct net_buf_simple *apd
         memset(out, 0, sizeof(*out));
         return 0;
     } else if (service_tag == 194) {  // Event-Notification
+        if (apdu->len < 1) return -1;
         uint8_t time_present = net_buf_simple_pull_u8(apdu);
+        size_t need = (time_present ? 12 : 0) + 2 + 6 + 1;
+        if (apdu->len < need) return -1;
         if (time_present) net_buf_simple_pull(apdu, 12);
         net_buf_simple_pull_be16(apdu);  // Class ID
         net_buf_simple_pull(apdu, 6);    // OBIS
@@ -294,7 +274,8 @@ int dlms_cosem_build_aare(dlms_cosem_ctx_t *ctx, net_buf_t *out) {
 
 int dlms_cosem_parse_get_request(struct net_buf_simple *in, uint16_t *class_id, uint8_t *obis,
                                  uint8_t *attr_id) {
-    if (in->len < 10) return -1;
+    // tag + invoke-id + priority + class-id(2) + OBIS(6) + attribute-id
+    if (in->len < 12) return -1;
     uint8_t tag = net_buf_simple_pull_u8(in);
     if (tag != DLMS_SERVICE_GET_REQUEST) return -1;
     net_buf_simple_pull_u8(in);

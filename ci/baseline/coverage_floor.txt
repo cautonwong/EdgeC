@@ -1,0 +1,15 @@
+# Line-coverage floors for the product sources (tests/third-party excluded).
+#
+# Measured 2026-11-16 on the CI-equivalent Release/COVERAGE build, with a
+# margin below the observed value. Raising a floor is progress; lowering one
+# is an architecture decision and must be justified in the commit.
+#
+# Format: <scope>|<floor percent>
+ALL|70
+foundation|85
+modules/edge_core|70
+modules/edge_io|55
+modules/edge_stream|60
+modules/edge_mgmt|80
+adapters|60
+cmd|70

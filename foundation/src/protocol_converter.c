@@ -1,6 +1,7 @@
 #include "protocol_converter.h"
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 void protocol_converter_init(protocol_converter_t *conv, protocol_format_t src, protocol_format_t dst) {
     if (!conv) return;

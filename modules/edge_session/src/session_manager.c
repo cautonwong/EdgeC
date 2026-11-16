@@ -64,9 +64,14 @@ void session_manager_set_slave_source(session_manager_t *sm, const edge_slave_so
 
 session_manager_t *session_manager_create(const edge_driver_session_port_t *port, int max_sessions) {
     session_manager_t *sm = calloc(1, sizeof(session_manager_t));
+    if (!sm) return NULL;
     if (port) sm->driver_port = *port;
     sm->max_sessions = max_sessions;
     sm->sessions = calloc((size_t)max_sessions, sizeof(session_entry_t));
+    if (!sm->sessions) {
+        free(sm);
+        return NULL;
+    }
     return sm;
 }
 
@@ -109,6 +114,7 @@ int session_manager_add_session(session_manager_t *sm, const char *protocol, uin
             
             sm->sessions[i].ctx = ctx;
             strncpy(sm->sessions[i].protocol, protocol, 15);
+            sm->sessions[i].protocol[sizeof(sm->sessions[i].protocol) - 1] = '\0';
             sm->sessions[i].device_id = device_id;
             sm->sessions[i].in_use = true;
             sm->current_count++;

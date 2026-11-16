@@ -12,6 +12,8 @@
 
 #define ECG_ALARM_EVENT_ID 0xE002
 
+#define ECG_MAX_WINDOW 65536
+
 typedef struct {
     double *buffer;
     double *scratch;
@@ -52,7 +54,8 @@ static stage_ret_t _ecg_anomaly_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
         // 4. Calculate energy of the high-frequency detail bands
         // Detail coefficients for level 1 are in [size/2, size-1]
         // For level > 1, the details are from [size/(2^level), size-1]
-        size_t detail_start = ctx->size / (1 << ctx->level);
+        size_t detail_start = ctx->size;
+        for (uint32_t l = 0; l < ctx->level && detail_start >= 2; l++) detail_start /= 2;
         if (detail_start == 0) detail_start = 1;
 
         double energy = 0.0;
@@ -91,6 +94,11 @@ static void _ecg_anomaly_cleanup(void *priv) {
  * @param alarm_tag 报警输出 Tag
  */
 pipeline_stage_t *stage_ecg_anomaly_create(size_t buffer_size, uint32_t level, double threshold, uint32_t alarm_tag) {
+    if (buffer_size > ECG_MAX_WINDOW || (buffer_size > 0 && buffer_size < 4)) {
+        LOG_ERROR(LOG_CAT_CORE, "ECG Anomaly: window %zu outside [4, %d]", buffer_size,
+                  ECG_MAX_WINDOW);
+        return NULL;
+    }
     pipeline_stage_t *s = stream_stage_alloc_node();
     ecg_anomaly_ctx_t *ctx = (ecg_anomaly_ctx_t *)s->storage_state;
     memset(ctx, 0, sizeof(*ctx));

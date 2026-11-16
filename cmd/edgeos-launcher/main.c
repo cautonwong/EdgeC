@@ -147,8 +147,9 @@ static int mkdir_p(const char *path) {
     return 0;
 }
 
-/* cgroup v2 limits; a platform without them is reported as degraded, not fatal. */
-static void setup_cgroup(const launch_spec_t *spec) {
+/* cgroup v2 limits; a platform without them is reported as degraded, not fatal,
+ * unless the caller requires isolation. */
+static int setup_cgroup(const launch_spec_t *spec) {
     const char *root = getenv("EDGEC_CGROUP_ROOT");
     if (!root || root[0] != '/') root = "/sys/fs/cgroup";
 
@@ -160,7 +161,7 @@ static void setup_cgroup(const launch_spec_t *spec) {
         if (n < 0 || (size_t)n >= sizeof(leaf)) {
             errno = ENAMETOOLONG;
             degrade(EDGEC_LAUNCH_DEGRADED_CGROUP, "cgroup path");
-            return;
+            return -1;
         }
     }
 
@@ -169,65 +170,77 @@ static void setup_cgroup(const launch_spec_t *spec) {
     if (n < 0 || (size_t)n >= sizeof(path)) {
         errno = ENAMETOOLONG;
         degrade(EDGEC_LAUNCH_DEGRADED_CGROUP, "cgroup path");
-        return;
+        return -1;
     }
     if (mkdir_p(path) != 0) {
         degrade(EDGEC_LAUNCH_DEGRADED_CGROUP, "cgroup mkdir");
-        return;
+        return -1;
     }
 
     char value[32];
     snprintf(value, sizeof(value), "%llu\n", (unsigned long long)spec->mem_max_bytes);
     if (write_text(path, "memory.max", value) != 0) {
         degrade(EDGEC_LAUNCH_DEGRADED_CGROUP, "memory.max");
-        return;
+        return -1;
     }
     snprintf(value, sizeof(value), "%u\n", spec->pids_max);
     if (write_text(path, "pids.max", value) != 0) {
         degrade(EDGEC_LAUNCH_DEGRADED_CGROUP, "pids.max");
-        return;
+        return -1;
+    }
+    if (spec->cpu_ms_per_sec > 0) {
+        unsigned long long quota = (unsigned long long)spec->cpu_ms_per_sec * 1000ULL;
+        snprintf(value, sizeof(value), "%llu 1000000\n", quota);
+        if (write_text(path, "cpu.max", value) != 0) {
+            degrade(EDGEC_LAUNCH_DEGRADED_CGROUP, "cpu.max");
+            return -1;
+        }
     }
     if (write_text(path, "memory.oom.group", "1\n") != 0) {
         degrade(EDGEC_LAUNCH_DEGRADED_CGROUP, "memory.oom.group");
-        return;
+        return -1;
     }
     snprintf(value, sizeof(value), "%d\n", (int)getpid());
     if (write_text(path, "cgroup.procs", value) != 0) {
         degrade(EDGEC_LAUNCH_DEGRADED_CGROUP, "cgroup.procs");
+        return -1;
     }
+    return 0;
 }
 
 /* Read-only root plus a writable data dir, inside a private mount namespace. */
-static void setup_mounts(const launch_spec_t *spec) {
+static int setup_mounts(const launch_spec_t *spec) {
     struct stat st;
     if (spec->data_dir[0] != '\0') {
         if (stat(spec->data_dir, &st) != 0 || !S_ISDIR(st.st_mode)) {
             errno = ENOENT;
             degrade(EDGEC_LAUNCH_DEGRADED_MOUNT, "data dir");
-            return;
+            return -1;
         }
     }
     if (unshare(CLONE_NEWNS) != 0) {
         degrade(EDGEC_LAUNCH_DEGRADED_MOUNT, "mount namespace");
-        return;
+        return -1;
     }
     if (mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL) != 0) {
         degrade(EDGEC_LAUNCH_DEGRADED_MOUNT, "mount propagation");
-        return;
+        return -1;
     }
     if (mount(NULL, "/", NULL, MS_BIND | MS_REMOUNT | MS_RDONLY, NULL) != 0) {
         degrade(EDGEC_LAUNCH_DEGRADED_MOUNT, "read-only root");
-        return;
+        return -1;
     }
     if (spec->data_dir[0] != '\0') {
         if (mount(spec->data_dir, spec->data_dir, NULL, MS_BIND, NULL) != 0) {
             degrade(EDGEC_LAUNCH_DEGRADED_MOUNT, "data bind");
-            return;
+            return -1;
         }
         if (mount(NULL, spec->data_dir, NULL, MS_BIND | MS_REMOUNT, NULL) != 0) {
             degrade(EDGEC_LAUNCH_DEGRADED_MOUNT, "data read-write");
+            return -1;
         }
     }
+    return 0;
 }
 
 static int drop_privileges(const launch_spec_t *spec) {
@@ -453,8 +466,15 @@ int main(int argc, char **argv) {
         return 1;
     }
     /* cgroup first: the read-only root below must not hide a test/root fs cgroup. */
-    setup_cgroup(&spec);
-    setup_mounts(&spec);
+    int require_isolation = (spec.flags & EDGEC_LAUNCH_FLAG_REQUIRE_ISOLATION) != 0;
+    if (setup_cgroup(&spec) != 0 && require_isolation) {
+        report(status_fd, EDGEC_LAUNCH_ERR_SYSTEM);
+        return 1;
+    }
+    if (setup_mounts(&spec) != 0 && require_isolation) {
+        report(status_fd, EDGEC_LAUNCH_ERR_SYSTEM);
+        return 1;
+    }
 
     rc = drop_privileges(&spec);
     if (rc != EDGEC_LAUNCH_OK) {
@@ -470,6 +490,10 @@ int main(int argc, char **argv) {
     if (spec.seccomp_profile == EDGEC_LAUNCH_SECCOMP_MINIMAL) {
         if (install_seccomp_minimal() != 0) {
             degrade(EDGEC_LAUNCH_DEGRADED_SECCOMP, "seccomp");
+            if (require_isolation) {
+                report(status_fd, EDGEC_LAUNCH_ERR_SYSTEM);
+                return 1;
+            }
         }
     }
 

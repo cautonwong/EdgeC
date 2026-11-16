@@ -452,6 +452,15 @@ static int validate_preview(cJSON *preview, const app_manifest_policy_t *policy,
     return 0;
 }
 
+static int read_u32_optional(cJSON *item, uint32_t *out, const char *msg, char *reason,
+                             size_t size) {
+    if (!item) {
+        if (out) *out = 0;
+        return 0;
+    }
+    return read_u32(item, out, 1.0, APP_U32_MAX_VALUE, msg, reason, size);
+}
+
 static int validate_limits(cJSON *limits, app_limits_t *out, char *reason, size_t size) {
     if (!cJSON_IsObject(limits)) return fail(reason, size, "limits must be an object");
     if (read_u32(cJSON_GetObjectItemCaseSensitive(limits, "heapKb"), out ? &out->heap_kb : NULL,
@@ -459,24 +468,24 @@ static int validate_limits(cJSON *limits, app_limits_t *out, char *reason, size_
                  size) != 0) {
         return -1;
     }
-    if (read_u32(cJSON_GetObjectItemCaseSensitive(limits, "storageKb"),
-                 out ? &out->storage_kb : NULL, 1.0, APP_U32_MAX_VALUE,
-                 "limits.storageKb must be a positive integer", reason, size) != 0) {
+    if (read_u32_optional(cJSON_GetObjectItemCaseSensitive(limits, "storageKb"),
+                          out ? &out->storage_kb : NULL,
+                          "limits.storageKb must be a positive integer", reason, size) != 0) {
         return -1;
     }
-    if (read_u32(cJSON_GetObjectItemCaseSensitive(limits, "cpuMsPerSec"),
-                 out ? &out->cpu_ms_per_sec : NULL, 1.0, APP_U32_MAX_VALUE,
-                 "limits.cpuMsPerSec must be a positive integer", reason, size) != 0) {
+    if (read_u32_optional(cJSON_GetObjectItemCaseSensitive(limits, "cpuMsPerSec"),
+                          out ? &out->cpu_ms_per_sec : NULL,
+                          "limits.cpuMsPerSec must be a positive integer", reason, size) != 0) {
         return -1;
     }
-    if (read_u32(cJSON_GetObjectItemCaseSensitive(limits, "callsPerSec"),
-                 out ? &out->calls_per_sec : NULL, 1.0, APP_U32_MAX_VALUE,
-                 "limits.callsPerSec must be a positive integer", reason, size) != 0) {
+    if (read_u32_optional(cJSON_GetObjectItemCaseSensitive(limits, "callsPerSec"),
+                          out ? &out->calls_per_sec : NULL,
+                          "limits.callsPerSec must be a positive integer", reason, size) != 0) {
         return -1;
     }
-    if (read_u32(cJSON_GetObjectItemCaseSensitive(limits, "publishPerSec"),
-                 out ? &out->publish_per_sec : NULL, 1.0, APP_U32_MAX_VALUE,
-                 "limits.publishPerSec must be a positive integer", reason, size) != 0) {
+    if (read_u32_optional(cJSON_GetObjectItemCaseSensitive(limits, "publishPerSec"),
+                          out ? &out->publish_per_sec : NULL,
+                          "limits.publishPerSec must be a positive integer", reason, size) != 0) {
         return -1;
     }
     cJSON *pids = cJSON_GetObjectItemCaseSensitive(limits, "pidsMax");

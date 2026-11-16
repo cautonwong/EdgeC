@@ -44,20 +44,30 @@ static void _on_client_close(uv_handle_t *handle) {
     LOG_INFO(LOG_CAT_BUS, "Passthrough: Session closed on Bus %d. Regular polling resumed.", srv->bus_id);
 }
 
+static void _on_write_done(uv_write_t *req, int status) {
+    (void)status;
+    free(req);
+}
+
 static void _on_io_event(io_handle_t *h, io_event_t evt, void *payload, void *user_data) {
+    (void)h;
     passthrough_server_t *srv = (passthrough_server_t *)user_data;
     if (evt == IO_EVENT_RX && srv->session_active) {
         net_buf_t *buf = (net_buf_t *)payload;
         uv_write_t *req = malloc(sizeof(uv_write_t));
+        if (!req) return;
         uv_buf_t uvb = uv_buf_init((char *)buf->b.data, buf->b.len);
         req->data = buf;
-        uv_write(req, (uv_stream_t *)&srv->client, &uvb, 1, NULL); 
+        if (uv_write(req, (uv_stream_t *)&srv->client, &uvb, 1, _on_write_done) != 0) {
+            free(req);
+        }
     }
 }
 
 static void _alloc_cb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf) {
+    (void)handle;
     buf->base = malloc(suggested_size);
-    buf->len = suggested_size;
+    buf->len = buf->base ? suggested_size : 0;
 }
 
 static void _on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
@@ -123,6 +133,7 @@ static void _on_new_connection(uv_stream_t *server, int status) {
 
 passthrough_mgr_t *passthrough_mgr_create(uv_loop_t *loop, bus_orchestrator_t *orch, arbiter_t *arb) {
     passthrough_mgr_t *mgr = calloc(1, sizeof(passthrough_mgr_t));
+    if (!mgr) return NULL;
     mgr->loop = loop;
     mgr->orch = orch;
     mgr->arb = arb;

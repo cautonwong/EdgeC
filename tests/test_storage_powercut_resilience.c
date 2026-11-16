@@ -21,10 +21,15 @@ static void test_powercut_and_crash_consistency(void) {
     printf("[TEST] Running %d Power-Cut & Torn-Write Crash Consistency Tests...\n",
            POWERCUT_ITERATIONS);
 
-    const char *db_file = "test_powercut_wal.db";
+    char db_file[128];
+    char wal_file[144];
+    char shm_file[144];
+    snprintf(db_file, sizeof(db_file), "test_powercut_wal_%ld.db", (long)getpid());
+    snprintf(wal_file, sizeof(wal_file), "%s-wal", db_file);
+    snprintf(shm_file, sizeof(shm_file), "%s-shm", db_file);
     unlink(db_file);
-    unlink("test_powercut_wal.db-wal");
-    unlink("test_powercut_wal.db-shm");
+    unlink(wal_file);
+    unlink(shm_file);
 
     storage_fault_injector_t injector;
     storage_fault_injector_init(&injector);
@@ -85,6 +90,9 @@ static void test_powercut_and_crash_consistency(void) {
 
             sqlite3_stmt *stmt;
             rc = sqlite3_prepare_v2(db, "PRAGMA integrity_check;", -1, &stmt, NULL);
+            if (rc != SQLITE_OK) {
+                fprintf(stderr, "iter=%d prepare failed: rc=%d %s\n", iter, rc, sqlite3_errmsg(db));
+            }
             assert(rc == SQLITE_OK);
             assert(sqlite3_step(stmt) == SQLITE_ROW);
             const char *res = (const char *)sqlite3_column_text(stmt, 0);
@@ -106,8 +114,8 @@ static void test_powercut_and_crash_consistency(void) {
     assert(successful_replays == simulated_crashes);
 
     unlink(db_file);
-    unlink("test_powercut_wal.db-wal");
-    unlink("test_powercut_wal.db-shm");
+    unlink(wal_file);
+    unlink(shm_file);
 
     printf("  -> PASSED: 1000 power-cut iterations verified with 100%% crash consistency.\n");
 }

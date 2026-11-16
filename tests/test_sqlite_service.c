@@ -113,7 +113,47 @@ static void test_transactions(void** state) {
     sqlite_svc_destroy(svc);
 }
 
-// --- 4. 测试：异步 SQL 执行 (Cover: exec) ---
+static void test_flush_worker_persists(void** state) {
+    uv_loop_t* loop = (uv_loop_t*)*state;
+    const char* db_path = "test_flush_worker.db";
+    unlink(db_path);
+
+    sqlite_config_t cfg = {
+        .strategy = STRATEGY_SHARDING, .db_path = db_path, .flush_interval_ms = 50};
+    sqlite_svc_t* svc = sqlite_svc_create(loop, &cfg);
+    assert_non_null(svc);
+
+    uint64_t now = 1704240000000ULL;
+    for (int i = 0; i < 2; i++) {
+        PipeMsg msg = {.ts = now + (uint64_t)i, .tag_id = 1001, .quality = 0,
+                       .type = PIPEMSG_TYPE_SCALAR};
+        msg.payload.val.f = 1.0f + (float)i;
+        assert_int_equal(sqlite_svc_insert(svc, &msg), 0);
+    }
+
+    int rows = 0;
+    for (int i = 0; i < 100 && rows < 2; i++) {
+        uv_run(loop, UV_RUN_NOWAIT);
+        usleep(10000);
+        sqlite3* raw = NULL;
+        if (sqlite3_open(db_path, &raw) != SQLITE_OK) {
+            if (raw) sqlite3_close(raw);
+            continue;
+        }
+        sqlite3_stmt* stmt = NULL;
+        if (sqlite3_prepare_v2(raw, "SELECT count(*) FROM telemetry_202401;", -1, &stmt, NULL) ==
+            SQLITE_OK) {
+            if (sqlite3_step(stmt) == SQLITE_ROW) rows = sqlite3_column_int(stmt, 0);
+            sqlite3_finalize(stmt);
+        }
+        sqlite3_close(raw);
+    }
+    assert_int_equal(rows, 2);
+
+    sqlite_svc_destroy(svc);
+    unlink(db_path);
+}
+
 static int _async_exec_done = 0;
 static void _async_exec_cb(void* user_data, int status, char** errmsg) {
     (void)user_data;
@@ -170,7 +210,7 @@ static void test_migration_logic(void** state) {
     sqlite_svc_t* svc = sqlite_svc_create(loop, &cfg);
 
     sqlite3* db = sqlite_svc_get_db_handle(svc);
-    assert_int_equal(get_user_version(db), 14);  // 验证已达到最新版本 (V14: 时间可信)
+    assert_int_equal(get_user_version(db), 15);  // 验证已达到最新版本 (V15: 资源限制)
 
     sqlite_svc_destroy(svc);
     unlink(db_path);
@@ -181,6 +221,7 @@ int main(void) {
         cmocka_unit_test_setup_teardown(test_lifecycle_and_strategies, setup, teardown),
         cmocka_unit_test_setup_teardown(test_insert_and_query, setup, teardown),
         cmocka_unit_test_setup_teardown(test_transactions, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_flush_worker_persists, setup, teardown),
         cmocka_unit_test_setup_teardown(test_async_exec, setup, teardown),
         cmocka_unit_test_setup_teardown(test_param_blob_persistence, setup, teardown),
         cmocka_unit_test_setup_teardown(test_migration_logic, setup, teardown),

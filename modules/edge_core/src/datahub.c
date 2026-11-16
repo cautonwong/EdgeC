@@ -118,7 +118,7 @@ int datahub_write_shadow_idx(datahub_t *hub, int idx, const pipe_msg_t *msg) {
             warned = true;
             printf("[DataHub] shadow idx out of range: idx=%d capacity=%zu "
                    "(槽位容量不足，写入被丢弃；检查 datahub_capacity 是否 >= 设备数×每设备槽位)\n",
-                   idx, hub->shadow_capacity);
+                   idx, (size_t)hub->shadow_capacity);
         }
         return -1;
     }

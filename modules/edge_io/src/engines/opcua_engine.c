@@ -66,8 +66,10 @@ static void _opcua_destroy(io_handle_t *h) {
     uv_close((uv_handle_t *)&ctx->timer, _opcua_on_timer_close);
 }
 
-io_handle_t *opcua_engine_create(uv_loop_t *loop, const char *endpoint) {
-    opcua_handle_ctx_t *ctx = calloc(1, sizeof(opcua_handle_ctx_t));
+
+/* File-local prototypes. */
+io_handle_t *opcua_engine_create(uv_loop_t *loop, const char *endpoint);
+io_handle_t *opcua_engine_create(uv_loop_t *loop, const char *endpoint) {    opcua_handle_ctx_t *ctx = calloc(1, sizeof(opcua_handle_ctx_t));
     if (!ctx) return NULL;
 
     ctx->loop = loop;

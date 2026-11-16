@@ -4,6 +4,7 @@
  */
 
 #include "net_buf.h"
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -98,6 +99,7 @@ net_buf_t *net_buf_pool_get(net_buf_pool_t *pool, uint16_t id) {
 net_buf_t *net_buf_alloc(net_buf_pool_t *pool, int64_t timeout_ms) {
     if (!pool) return NULL;
     uv_mutex_lock(&pool->lock);
+    assert(pool->uninit_count <= pool->buf_count);
     net_buf_t *buf = NULL;
     while (true) {
         if (pool->free_list) {
@@ -107,6 +109,7 @@ net_buf_t *net_buf_alloc(net_buf_pool_t *pool, int64_t timeout_ms) {
         }
         if (pool->uninit_count > 0) {
             buf = net_buf_pool_get(pool, (uint16_t)(pool->buf_count - pool->uninit_count));
+            if (!buf) break; /* corrupted count: fail the allocation, not the caller */
             buf->pool = pool;
             buf->b.size = pool->buf_size;
             size_t payload_offset = (sizeof(struct net_buf) + pool->user_data_size + 7) & (size_t)~7;
@@ -195,6 +198,8 @@ void net_buf_simple_reset(struct net_buf_simple *buf) {
 }
 
 void *net_buf_simple_add(struct net_buf_simple *buf, size_t len) {
+    assert(buf != NULL);
+    assert(len <= net_buf_simple_tailroom(buf));
     void *ptr = buf->data + buf->len;
     buf->len = (uint16_t)(buf->len + len);
     return ptr;

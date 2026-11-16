@@ -48,7 +48,7 @@ static int _list_candidates(void *ctx, app_reclaim_candidate_t *out, size_t max,
         if (apps[i].state == APP_STATE_UNINSTALLED) continue;
         app_reclaim_candidate_t *candidate = &out[*count];
         memset(candidate, 0, sizeof(*candidate));
-        snprintf(candidate->app_id, sizeof(candidate->app_id), "%s", apps[i].id);
+        snprintf(candidate->app_id, sizeof(candidate->app_id), "%.63s", apps[i].id);
         candidate->priority = apps[i].priority;
         candidate->keep_alive = apps[i].keep_alive;
         candidate->last_active_ms = apps[i].last_active_ms;

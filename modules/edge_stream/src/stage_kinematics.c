@@ -24,7 +24,8 @@ typedef struct {
  */
 static stage_ret_t _kinematics_proc(pipeline_stage_t *stage, pipe_msg_t *ev) {
     kinematics_st_t *ctx = (kinematics_st_t *)stage->priv_state;
-    if (!ctx || ev->type != PIPEMSG_TYPE_BATCH || ev->payload.batch.count < 4) {
+    if (!ctx || ev->type != PIPEMSG_TYPE_BATCH || !ev->payload.batch.ptr ||
+        ev->payload.batch.count < 4) {
         return STAGE_ERROR;
     }
 
@@ -82,7 +83,12 @@ static void _kinematics_cleanup(void *priv) {
  */
 pipeline_stage_t *stage_kinematics_create(uint32_t output_tag, double l1, double l2) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    if (!s) return NULL;
     kinematics_st_t *ctx = calloc(1, sizeof(kinematics_st_t));
+    if (!ctx) {
+        free(s);
+        return NULL;
+    }
 
     ctx->output_tag = output_tag;
     ctx->l1 = l1 > 0 ? l1 : 0.4;

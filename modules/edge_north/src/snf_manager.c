@@ -80,7 +80,8 @@ static void _on_sync_timer(uv_timer_t *handle) {
         msg.ts = records[i].ts;
         msg.tag_id = records[i].tag_id;
         msg.payload.val.f = records[i].value;
-        msg.quality = records[i].quality;
+        /* quality 在 PipeMsg 是 8 位；上溢会把坏质量绕回好质量，饱和到 255。 */
+        msg.quality = (uint8_t)(records[i].quality > 255u ? 255u : records[i].quality);
         msg.type = PIPEMSG_TYPE_SCALAR;
 
         LOG_DEBUG(LOG_CAT_NB, "SnF: Syncing record Tag=%u TS=%llu", msg.tag_id,

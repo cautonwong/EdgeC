@@ -129,11 +129,34 @@ static void test_dlms_access_violation_blocked(void** state) {
     free(ctx.priv);
 }
 
+static void test_dlms_parse_short_get_rejected(void** state) {
+    (void)state;
+    uint16_t cid = 0;
+    uint8_t obis[6] = {0};
+    uint8_t attr = 0;
+    struct net_buf_simple b;
+
+    uint8_t short_apdu[11] = {DLMS_SERVICE_GET_REQUEST};
+    net_buf_simple_init_with_data(&b, short_apdu, sizeof(short_apdu));
+    b.len = sizeof(short_apdu);
+    assert_int_equal(dlms_cosem_parse_get_request(&b, &cid, obis, &attr), -1);
+
+    uint8_t ok_apdu[12] = {DLMS_SERVICE_GET_REQUEST, 0x01, 0xC1, 0x00, 0x01,
+                           1, 2, 3, 4, 5, 6, 0x02};
+    net_buf_simple_init_with_data(&b, ok_apdu, sizeof(ok_apdu));
+    b.len = sizeof(ok_apdu);
+    assert_int_equal(dlms_cosem_parse_get_request(&b, &cid, obis, &attr), 0);
+    assert_int_equal(cid, 1);
+    assert_int_equal(attr, 2);
+    assert_int_equal(obis[0], 1);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_dlms_handshake_no_ciphering, setup, teardown),
         cmocka_unit_test_setup_teardown(test_dlms_handshake_with_ciphering, setup, teardown),
         cmocka_unit_test_setup_teardown(test_dlms_access_violation_blocked, setup, teardown),
+        cmocka_unit_test(test_dlms_parse_short_get_rejected),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

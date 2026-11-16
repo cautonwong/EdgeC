@@ -11,6 +11,7 @@ Implements the "Testing the Gates" paradigm:
 import sys
 import os
 import subprocess
+import tempfile
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 FIXTURES_DIR = os.path.join(REPO_ROOT, "tests", "guards", "fixtures")
@@ -163,6 +164,92 @@ TEST_MATRIX = [
         "good_target": os.path.join(FIXTURES_DIR, "good_budget"),
         "bad_target": os.path.join(FIXTURES_DIR, "bad_budget"),
         "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_net_buf_alloc_timeout.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_net_buf_alloc_timeout.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_net_buf_timeout"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_net_buf_timeout"),
+        "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_net_buf_alloc_timeout.py (null pool)",
+        "script": os.path.join(SCRIPTS_DIR, "check_net_buf_alloc_timeout.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_net_buf_timeout"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_net_buf_null_pool"),
+        "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_script_permissions.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_script_permissions.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_script_permissions"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_script_permissions"),
+        "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_test_registration.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_test_registration.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_test_registration"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_test_registration"),
+        "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_app_host_no_exec.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_app_host_no_exec.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_app_host_no_exec"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_app_host_no_exec"),
+        "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_stage_registry.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_stage_registry.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_stage_registry"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_stage_registry"),
+        "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_app_abi_surface.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_app_abi_surface.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_abi_surface"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_abi_surface"),
+        "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_crypto_boundary.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_crypto_boundary.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_crypto_boundary"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_crypto_boundary"),
+        "arg_flag": "--root"
+    },
+    {
+        # Takes a captured build log instead of a source tree; the CI build step
+        # tees it to build/build.log and runs this guard right after the build.
+        "guard_name": "check_build_warnings.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_build_warnings.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_build_warnings", "build.log"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_build_warnings", "build.log"),
+        "arg_flag": "--log"
+    },
+    {
+        "guard_name": "check_strncpy_bounds.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_strncpy_bounds.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_strncpy_bounds"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_strncpy_bounds"),
+        "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_ftell_checked.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_ftell_checked.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_ftell_checked"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_ftell_checked"),
+        "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_alloc_null.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_alloc_null.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_alloc_null"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_alloc_null"),
+        "arg_flag": "--root"
     }
 ]
 
@@ -252,6 +339,33 @@ def main():
                 print(msg)
                 failures.append(msg)
 
+    # ---- Coverage floor gate: good info passes, low info fails ---------------
+    print("\n" + "=" * 80)
+    print("📈 [COVERAGE_GATE] Testing coverage floor sensitivity")
+    print("=" * 80)
+    coverage_script = os.path.join(SCRIPTS_DIR, "check_coverage.py")
+    coverage_baseline = os.path.join(FIXTURES_DIR, "coverage_floor.txt")
+    for label, hit, total, expect_rc in (("good", 9, 10, 0), ("bad", 5, 10, 1)):
+        fd, info_path = tempfile.mkstemp(suffix=".info")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(f"SF:{os.path.join(REPO_ROOT, 'ci', 'coverage_fixture', 'a.c')}\n")
+            for i in range(total):
+                f.write(f"DA:{i + 1},{1 if i < hit else 0}\n")
+            f.write("end_of_record\n")
+        total_tests += 1
+        rc, out, err = run_cmd([
+            sys.executable, coverage_script, "--info", info_path,
+            "--root", REPO_ROOT, "--baseline", coverage_baseline,
+        ])
+        os.unlink(info_path)
+        if (expect_rc == 0 and rc == 0) or (expect_rc != 0 and rc != 0):
+            print(f"  ✅ [PASS] check_coverage.py ({label} fixture, rc={rc})")
+            passed_tests += 1
+        else:
+            msg = f"❌ [FAIL] check_coverage.py misjudged {label} fixture (rc={rc}):\n{out}\n{err}"
+            print(msg)
+            failures.append(msg)
+
     print("=" * 80)
     print(f"📊 Refutation Test Results: {passed_tests}/{total_tests} passed (100% sensitivity)")
     print("=" * 80)
@@ -316,6 +430,16 @@ def main():
         "check_composition_root_budget.py",
         "check_baseline_caps.py",
         "check_sdk_wit.py",
+        "check_net_buf_alloc_timeout.py",
+        "check_script_permissions.py",
+        "check_test_registration.py",
+        "check_app_host_no_exec.py",
+        "check_stage_registry.py",
+        "check_app_abi_surface.py",
+        "check_crypto_boundary.py",
+        "check_strncpy_bounds.py",
+        "check_ftell_checked.py",
+        "check_alloc_null.py",
     ]:
         script_path = os.path.join(SCRIPTS_DIR, script_name)
         flag = "--file" if "dependencies" in script_name or "exemptions" in script_name else "--root"

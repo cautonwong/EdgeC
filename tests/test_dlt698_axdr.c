@@ -99,11 +99,54 @@ static void test_axdr_date_time_s(void** state) {
     assert_int_equal(dec_sec, 45);
 }
 
+static void test_decode_rejects_truncated_tags(void** state) {
+    (void)state;
+    dlt698_data_t res;
+    uint16_t offset;
+
+    // 数组标签后缺少元素数量
+    uint8_t arr[] = {DLT698_TAG_ARRAY};
+    offset = 0;
+    assert_int_equal(dlt698_decode_data(arr, sizeof(arr), &offset, &res), -1);
+
+    // 整数标签后缺少实际值
+    uint8_t i8[] = {DLT698_TAG_INTEGER};
+    offset = 0;
+    assert_int_equal(dlt698_decode_data(i8, sizeof(i8), &offset, &res), -1);
+
+    // 可见字符串长度域声明 3 字节，但只给了 1 字节
+    uint8_t str[] = {DLT698_TAG_VISIBLE_STRING, 3, 'a'};
+    offset = 0;
+    assert_int_equal(dlt698_decode_data(str, sizeof(str), &offset, &res), -1);
+
+    // 元素数量超过 64 个静态槽
+    uint8_t big[] = {DLT698_TAG_ARRAY, 65};
+    offset = 0;
+    assert_int_equal(dlt698_decode_data(big, sizeof(big), &offset, &res), -1);
+}
+
+static void test_decode_truncates_long_string(void** state) {
+    (void)state;
+    uint8_t raw[2 + 100];
+    raw[0] = DLT698_TAG_VISIBLE_STRING;
+    raw[1] = 100;
+    for (int i = 0; i < 100; i++) raw[2 + i] = 'A';
+
+    dlt698_data_t res;
+    uint16_t offset = 0;
+    assert_int_equal(dlt698_decode_data(raw, sizeof(raw), &offset, &res), 0);
+    assert_int_equal(res.val.str.len, MAX_DLT698_STRING_LEN - 1);
+    assert_int_equal(res.val.str.buf[res.val.str.len], '\0');
+    assert_int_equal(offset, 2 + 100);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_axdr_long_unsigned),
         cmocka_unit_test(test_axdr_double_long),
         cmocka_unit_test(test_axdr_date_time_s),
+        cmocka_unit_test(test_decode_rejects_truncated_tags),
+        cmocka_unit_test(test_decode_truncates_long_string),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

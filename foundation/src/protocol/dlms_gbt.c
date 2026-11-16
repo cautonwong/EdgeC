@@ -17,8 +17,11 @@ typedef struct {
 /**
  * @brief 构建 GBT 确认帧
  */
-int dlms_gbt_build_ack(dlms_gbt_ctx_t *gbt, net_buf_t *out) {
-    struct net_buf_simple *b = &out->b;
+
+/* File-local prototypes. */
+int dlms_gbt_build_ack(dlms_gbt_ctx_t *gbt, net_buf_t *out);
+int dlms_gbt_handle_block(dlms_gbt_ctx_t *gbt, struct net_buf_simple *block_data);
+int dlms_gbt_build_ack(dlms_gbt_ctx_t *gbt, net_buf_t *out) {    struct net_buf_simple *b = &out->b;
     net_buf_simple_add_u8(b, 0xE6);  // GBT Service Tag
     net_buf_simple_add_u8(b, 0x01);  // ACK subtype
     net_buf_simple_add_be32(b, gbt->block_index);
@@ -28,8 +31,7 @@ int dlms_gbt_build_ack(dlms_gbt_ctx_t *gbt, net_buf_t *out) {
 /**
  * @brief 处理接收到的 GBT 数据块
  */
-int dlms_gbt_handle_block(dlms_gbt_ctx_t *gbt, struct net_buf_simple *block_data) {
-    uint32_t received_idx = net_buf_simple_pull_be32(block_data);
+int dlms_gbt_handle_block(dlms_gbt_ctx_t *gbt, struct net_buf_simple *block_data) {    uint32_t received_idx = net_buf_simple_pull_be32(block_data);
 
     if (received_idx != gbt->block_index + 1) {
         PROTO_LOG_WARN("GBT: Out of sequence block %u", received_idx);

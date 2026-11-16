@@ -141,12 +141,12 @@ uint32_t dcu_driver_adapter_oad_to_proto(const char *proto, uint32_t oad) {
     if (!proto) return 0;
     if (strcasecmp(proto, "DLT645") == 0) {
         for (size_t i = 0; i < s_dlt645_points_count; i++)
-            if (s_dlt645_points[i].tag_id == oad) return s_dlt645_points[i].key;
+            if (s_dlt645_points[i].tag_id == oad) return (uint32_t)s_dlt645_points[i].key;
         return 0;
     }
     if (strcasecmp(proto, "DLT698") == 0) {
         for (size_t i = 0; i < sizeof(s_dlt698_points) / sizeof(s_dlt698_points[0]); i++)
-            if (s_dlt698_points[i].tag_id == oad) return s_dlt698_points[i].key;
+            if (s_dlt698_points[i].tag_id == oad) return (uint32_t)s_dlt698_points[i].key;
         return 0;
     }
     if (strcasecmp(proto, "ModbusRTU") == 0 || strcasecmp(proto, "Modbus") == 0) {

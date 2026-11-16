@@ -51,6 +51,7 @@ edge_app_task_result_t edge_app_task_submit(const edge_app_task_store_t *store,
     int found = store->find_by_key(store->ctx, idempotency_key, &existing);
     if (found < 0) return EDGE_APP_TASK_STORE;
     if (found == 1 && now - existing.created_at <= EDGE_APP_TASK_IDEMPOTENCY_MS) {
+        if (existing.kind != kind) return EDGE_APP_TASK_INVALID;
         *out = existing;
         *replayed = 1;
         return EDGE_APP_TASK_OK;

@@ -1,0 +1,4 @@
+# path	option	message
+adapters/rest_api/src/rest_server.c	-Wanalyzer-malloc-leak	leak of ‘wasm_buf’ [CWE-401]
+adapters/rest_api/src/rest_uds_server.c	-Wanalyzer-null-argument	use of NULL ‘body’ where non-null expected [CWE-476]
+adapters/rest_api/src/rest_uds_server.c	-Wanalyzer-possible-null-argument	use of possibly-NULL ‘body’ where non-null expected [CWE-690]

@@ -54,7 +54,7 @@ static void test_hplc_100_meters_batch_accuracy(void) {
         samples[i].meter_box_id = 1 + (i % 16);  // 16 meter boxes
 
         // Alternate phases: A, B, C
-        int ph_idx = i % 3;
+        int ph_idx = (int)(i % 3);
         double base_ref = 0.0;
         if (ph_idx == 0) {
             ground_truth[i] = PHASE_A;

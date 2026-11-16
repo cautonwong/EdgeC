@@ -229,9 +229,9 @@ static void poll_sos_cb(uv_fs_event_t *handle, const char *filename, int events,
     int fd = open(GPIO_SOS_EDGE, O_RDONLY);
     if (fd >= 0) {
         char ch = '1';
-        read(fd, &ch, 1);
+        ssize_t got = read(fd, &ch, 1);
         close(fd);
-        if (ch == '0') {
+        if (got == 1 && ch == '0') {
             LOG_WARN(LOG_CAT_CORE, "HARDWARE BUTTON: Physical SOS Triggered!");
             pipe_msg_t msg;
             pipe_msg_init_scalar(&msg, TAG_BOX_VOICE_COMMAND, 2.0,

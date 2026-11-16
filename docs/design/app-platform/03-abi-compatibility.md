@@ -131,7 +131,7 @@ ABI 主版本不兼容，次版本向后兼容且只增函数。
 | --- | --- | --- | --- |
 | `point_resolve` | `(name_ptr, len, out_handle*)` | `tags.read` / `points.publish` | 解析点位名并返回带权限位的句柄：产品点位与他人应用点位查 `tags.read`，自己 `app.<id>.*` 查 `points.publish` 并返回只写句柄。`point_read` / `point_subscribe` 在只写句柄上返回 `DENIED_SCOPE`；句柄带授权代次 |
 | `point_read` | `(handle, out_sample*)` | `tags.read` | 返回值、质量、时间戳 |
-| `point_subscribe` | `(handle, deadband, min_interval_ms, max_interval_ms)` | `tags.read` | 订阅变化；`max_interval_ms > 0` 时按 keep-alive 至少每 N 毫秒投递一次；回调通过 `app_on_event` 投递 |
+| `point_subscribe` | `(handle, deadband, min_interval_ms, max_interval_ms)` | `tags.read` | 设计目标，当前实现未提供事件链路，固定返回 `NOT_SUPPORTED`；`max_interval_ms > 0` 时按 keep-alive 至少每 N 毫秒投递一次，回调通过 `app_on_event` 投递 |
 | `point_publish` | `(handle, const sample*)` | `points.publish` | 只能写自己命名空间 `app.<id>.*` |
 | `setting_get` | `(key_ptr, len, out_ptr, cap)` | 内置 | 读自己的参数，默认值已解析 |
 | `setting_watch` | `()` | 内置 | 参数变化通过事件投递 |
@@ -139,6 +139,8 @@ ABI 主版本不兼容，次版本向后兼容且只增函数。
 | `log` | `(level, ptr, len)` | 内置 | 每应用 100 行/秒、单行 4KB；64KB 内存环；可选持久化 1MB×2 轮转 |
 | `now` | `(out_mono_ms*, out_wall_ms*)` | 内置 | 两种时钟分开 |
 | — | — | — | **没有运行时 `timer_set`**；周期执行见下方"订阅与定时" |
+
+当前实现中 `point_subscribe`、`setting_get`、`setting_watch`、`kv_get`、`kv_set` 固定返回 `NOT_SUPPORTED`，不返回 `internal` 或 `invalid`。
 
 **应用导出**
 

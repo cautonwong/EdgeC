@@ -18,6 +18,10 @@ struct edge_matrix_s {
     double inline_data[EDGE_MATRIX_STATIC_CAPACITY];
 };
 
+static bool _matrix_ok(const edge_matrix_t *m) {
+    return m && m->data;
+}
+
 edge_matrix_t *edge_matrix_init(edge_matrix_storage_t *storage, uint32_t rows, uint32_t cols) {
     if (!storage) return NULL;
     _Static_assert(sizeof(edge_matrix_t) <= sizeof(edge_matrix_storage_t), "edge_matrix_t exceeds storage");
@@ -30,6 +34,7 @@ edge_matrix_t *edge_matrix_init(edge_matrix_storage_t *storage, uint32_t rows, u
         memset(m->data, 0, rows * cols * sizeof(double));
     } else {
         m->data = calloc(rows * cols, sizeof(double));
+        if (!m->data) return NULL;
     }
     return m;
 }
@@ -45,6 +50,10 @@ edge_matrix_t* edge_matrix_alloc(uint32_t rows, uint32_t cols) {
         memset(m->data, 0, rows * cols * sizeof(double));
     } else {
         m->data = calloc(rows * cols, sizeof(double));
+        if (!m->data) {
+            free(m);
+            return NULL;
+        }
     }
     return m;
 }
@@ -61,13 +70,13 @@ void edge_matrix_free(edge_matrix_t *m) {
 }
 
 int edge_matrix_set(edge_matrix_t *m, uint32_t r, uint32_t c, double val) {
-    if (!m || r >= m->rows || c >= m->cols) return -1;
+    if (!m || !m->data || r >= m->rows || c >= m->cols) return -1;
     m->data[r * m->cols + c] = val;
     return 0;
 }
 
 double edge_matrix_get(const edge_matrix_t *m, uint32_t r, uint32_t c) {
-    if (!m || r >= m->rows || c >= m->cols) return NAN;
+    if (!m || !m->data || r >= m->rows || c >= m->cols) return NAN;
     return m->data[r * m->cols + c];
 }
 
@@ -80,6 +89,7 @@ uint32_t edge_matrix_cols(const edge_matrix_t *m) {
 }
 
 int edge_matrix_add(const edge_matrix_t *a, const edge_matrix_t *b, edge_matrix_t *res) {
+    if (!_matrix_ok(a) || !_matrix_ok(b) || !_matrix_ok(res)) return -1;
     if (a->rows != b->rows || a->cols != b->cols || a->rows != res->rows || a->cols != res->cols)
         return -1;
     for (uint32_t i = 0; i < a->rows * a->cols; i++) {
@@ -89,6 +99,7 @@ int edge_matrix_add(const edge_matrix_t *a, const edge_matrix_t *b, edge_matrix_
 }
 
 int edge_matrix_sub(const edge_matrix_t *a, const edge_matrix_t *b, edge_matrix_t *res) {
+    if (!_matrix_ok(a) || !_matrix_ok(b) || !_matrix_ok(res)) return -1;
     if (a->rows != b->rows || a->cols != b->cols || a->rows != res->rows || a->cols != res->cols)
         return -1;
     for (uint32_t i = 0; i < a->rows * a->cols; i++) {
@@ -98,6 +109,7 @@ int edge_matrix_sub(const edge_matrix_t *a, const edge_matrix_t *b, edge_matrix_
 }
 
 int edge_matrix_mul(const edge_matrix_t *a, const edge_matrix_t *b, edge_matrix_t *res) {
+    if (!_matrix_ok(a) || !_matrix_ok(b) || !_matrix_ok(res)) return -1;
     if (a->cols != b->rows || a->rows != res->rows || b->cols != res->cols)
         return -1;
     for (uint32_t i = 0; i < a->rows; i++) {
@@ -117,7 +129,7 @@ int edge_matrix_mul_vec(const edge_matrix_t *a, const edge_matrix_t *v, edge_mat
 }
 
 int edge_matrix_identity(edge_matrix_t *m) {
-    if (!m || m->rows != m->cols) return -1;
+    if (!_matrix_ok(m) || m->rows != m->cols) return -1;
     memset(m->data, 0, m->rows * m->cols * sizeof(double));
     for (uint32_t i = 0; i < m->rows; i++) {
         m->data[i * m->cols + i] = 1.0;
@@ -126,12 +138,14 @@ int edge_matrix_identity(edge_matrix_t *m) {
 }
 
 int edge_matrix_copy(edge_matrix_t *dst, const edge_matrix_t *src) {
-    if (!dst || !src || dst->rows != src->rows || dst->cols != src->cols) return -1;
+    if (!_matrix_ok(dst) || !_matrix_ok(src) || dst->rows != src->rows || dst->cols != src->cols)
+        return -1;
     memcpy(dst->data, src->data, src->rows * src->cols * sizeof(double));
     return 0;
 }
 
 int edge_matrix_transpose(const edge_matrix_t *m, edge_matrix_t *res) {
+    if (!_matrix_ok(m) || !_matrix_ok(res)) return -1;
     if (m->rows != res->cols || m->cols != res->rows) return -1;
     for (uint32_t i = 0; i < m->rows; i++) {
         for (uint32_t j = 0; j < m->cols; j++) {
@@ -142,6 +156,7 @@ int edge_matrix_transpose(const edge_matrix_t *m, edge_matrix_t *res) {
 }
 
 int edge_matrix_inv(const edge_matrix_t *m, edge_matrix_t *res) {
+    if (!_matrix_ok(m) || !_matrix_ok(res)) return -1;
     if (m->rows != m->cols || m->rows != res->rows || m->cols != res->cols) return -1;
     uint32_t n = m->rows;
     double stack_a[64]; /* 8x8 doubles = 512 B; larger systems use the malloc fallback */
@@ -190,6 +205,7 @@ int edge_matrix_inv_in(const edge_matrix_t *m, edge_matrix_t *res) {
  * @brief QR 分解 (使用 Gram-Schmidt 过程，工业界通常首选 Householder，此处 GS 较简洁)
  */
 int edge_matrix_qr(const edge_matrix_t *a, edge_matrix_t *q, edge_matrix_t *r) {
+    if (!_matrix_ok(a) || !_matrix_ok(q) || !_matrix_ok(r)) return -1;
     uint32_t m = a->rows;
     uint32_t n = a->cols;
     if (q->rows != m || q->cols != n || r->rows != n || r->cols != n) return -1;
@@ -226,17 +242,22 @@ int edge_matrix_qr(const edge_matrix_t *a, edge_matrix_t *q, edge_matrix_t *r) {
 }
 
 int edge_matrix_solve_ls(const edge_matrix_t *a, const edge_matrix_t *b, edge_matrix_t *x) {
+    if (!_matrix_ok(a) || !_matrix_ok(b) || !_matrix_ok(x)) return -1;
     // Ax = b -> QRx = b -> Rx = Q^T b
     uint32_t m = a->rows;
     uint32_t n = a->cols;
     edge_matrix_storage_t sq, sr, sqt, sqtb;
     edge_matrix_t *q = edge_matrix_init(&sq, m, n);
     edge_matrix_t *r = edge_matrix_init(&sr, n, n);
+    edge_matrix_t *qt = edge_matrix_init(&sqt, n, m);
+    edge_matrix_t *qtb = edge_matrix_init(&sqtb, n, 1);
+    if (!q || !r || !qt || !qtb) {
+        edge_matrix_free(q); edge_matrix_free(r); edge_matrix_free(qt); edge_matrix_free(qtb);
+        return -1;
+    }
     edge_matrix_qr(a, q, r);
 
-    edge_matrix_t *qt = edge_matrix_init(&sqt, n, m);
     edge_matrix_transpose(q, qt);
-    edge_matrix_t *qtb = edge_matrix_init(&sqtb, n, 1);
     edge_matrix_mul(qt, b, qtb);
 
     // 回代法解 Rx = qtb (R 是上三角矩阵)
@@ -258,6 +279,7 @@ int edge_matrix_solve_ls_in(const edge_matrix_t *a, const edge_matrix_t *b, edge
 }
 
 int edge_matrix_svd(const edge_matrix_t *a, edge_matrix_t *u, edge_matrix_t *s, edge_matrix_t *v) {
+    if (!_matrix_ok(a) || !_matrix_ok(u) || !_matrix_ok(s) || !_matrix_ok(v)) return -1;
     // 简易 Jacobi SVD 实现 (针对小型矩阵)
     uint32_t m = a->rows;
     uint32_t n = a->cols;
@@ -312,7 +334,7 @@ int edge_matrix_svd(const edge_matrix_t *a, edge_matrix_t *u, edge_matrix_t *s, 
 }
 
 int edge_matrix_scale(edge_matrix_t *m, double scale) {
-    if (!m) return -1;
+    if (!_matrix_ok(m)) return -1;
     for (uint32_t i = 0; i < m->rows * m->cols; i++) {
         m->data[i] *= scale;
     }
@@ -320,7 +342,9 @@ int edge_matrix_scale(edge_matrix_t *m, double scale) {
 }
 
 int edge_matrix_cholesky(const edge_matrix_t *a, edge_matrix_t *l) {
-    if (!a || !l || a->rows != a->cols || l->rows != a->rows || l->cols != a->cols) return -1;
+    if (!_matrix_ok(a) || !_matrix_ok(l) || a->rows != a->cols || l->rows != a->rows ||
+        l->cols != a->cols)
+        return -1;
     uint32_t n = a->rows;
     memset(l->data, 0, l->rows * l->cols * sizeof(double));
     for (uint32_t i = 0; i < n; i++) {

@@ -153,7 +153,7 @@ static void test_arbiter_bounded_queue_and_priority_drop(void** state) {
 
     for (int i = 0; i < 5; i++) {
         cmds[i] = calloc(1, sizeof(cmd_msg_t));
-        cmd_msg_init_write(cmds[i], 1000 + i, (double)i, ARBITER_PRIO_LOW);
+        cmd_msg_init_write(cmds[i], (uint32_t)(1000 + i), (double)i, ARBITER_PRIO_LOW);
         cmds[i]->on_cleanup = on_cleanup;
         int rc = arbiter_submit_cmd(arb, 0, cmds[i]);
         assert_int_equal(rc, 0);

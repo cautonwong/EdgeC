@@ -1,10 +1,21 @@
 #ifndef WEB_SERVER_H
 #define WEB_SERVER_H
 
+#include <stddef.h>
+
 typedef struct uv_loop_s uv_loop_t;
 
 // Opaque handle
 typedef struct web_server_s web_server_t;
+
+/**
+ * @brief Resolve a request path to a file under doc_root.
+ *
+ * Rejects `..` segments and paths whose realpath escapes doc_root (symlinks
+ * included). Returns 0 and writes an absolute path on success, -1 otherwise.
+ */
+int web_server_resolve_path(const char *doc_root, const char *request_path, char *out,
+                            size_t out_size);
 
 /**
  * @brief API Handler callback type

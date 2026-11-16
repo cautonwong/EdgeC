@@ -204,7 +204,9 @@ void shm_ring_write(shm_ring_t *ring, const PipeMsg *msg) {
     // [ADR-0001] 信号 eventfd 唤醒等待者（Go watcher 等）
     if (ring->event_fd >= 0) {
         uint64_t val = 1;
-        (void)write(ring->event_fd, &val, sizeof(val));
+        if (write(ring->event_fd, &val, sizeof(val)) < 0) {
+            /* 唤醒是尽力而为：eventfd 写失败不影响已提交的槽位。 */
+        }
     }
 }
 

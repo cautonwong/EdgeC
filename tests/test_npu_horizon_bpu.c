@@ -60,7 +60,7 @@ static void test_horizon_lifecycle_init_deinit(void **state) {
 
     npu_metrics_t metrics;
     assert_int_equal(npu_get_telemetry_metrics(&dev, &metrics), 0);
-    assert_in_range(metrics.core_temp_c, 38.0f, 45.0f);
+    assert_int_in_range(metrics.core_temp_c, 38.0f, 45.0f);
     assert_int_equal(metrics.frequency_mhz, 1200);
     assert_int_equal(metrics.device_status, NPU_STATUS_READY);
     assert_int_equal(metrics.zero_copy_buffers, 0);

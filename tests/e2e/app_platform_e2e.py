@@ -157,6 +157,7 @@ def main():
             OMNIS_BUS_1_DEV=str(root / "vbus1.sock"),
             EDGEC_APP_HOST_PATH=str(app_host),
             EDGEC_LAUNCHER_PATH=str(launcher),
+            EDGEC_LAUNCHER_REQUIRE_ISOLATION="0",
             EDGEC_APPS_ROOT=str(root / "apps"),
             EDGEC_PACKAGE_KEYRING_FILE=str(root / "keyring"),
             EDGEC_APP_RESTART_DELAY_MS="20",
@@ -164,7 +165,9 @@ def main():
             EDGEC_TIME_SYNC_FILE=str(root / "time_sync"),
         )
         command = [str(iems)]
-        if shutil.which("stdbuf"):
+        # stdbuf injects libstdbuf via LD_PRELOAD, which displaces the ASan
+        # runtime and aborts the instrumented binary.
+        if shutil.which("stdbuf") and not os.environ.get("ASAN_OPTIONS"):
             command = ["stdbuf", "-oL", "-eL"] + command
         return subprocess.Popen(
             command, stdout=log, stderr=subprocess.STDOUT, env=env
@@ -212,7 +215,6 @@ def main():
                     "entry": "app.wasm",
                     "limits": {
                         "heapKb": 64,
-                        "storageKb": 64,
                         "cpuMsPerSec": 50,
                         "callsPerSec": 100,
                         "publishPerSec": 10,
@@ -242,6 +244,28 @@ def main():
         pub_a = (root / "keys/edgec-eapp.pub").read_text().strip()
         pub_b = (root / "keys_b/edgec-eapp.pub").read_text().strip()
         (root / "keyring").write_text(f"acme 2 1 {pub_a}\nbeta 1 0 {pub_b}\n")
+        manifest_v2 = json.loads(manifest.read_text())
+        manifest_v2["version"] = "1.1.0"
+        manifest_v2_path = root / "manifest-v2.json"
+        manifest_v2_path.write_text(json.dumps(manifest_v2))
+        package_v2 = root / "abi-probe-v2.eapp"
+        subprocess.run(
+            [
+                str(pack),
+                "build",
+                "--manifest",
+                str(manifest_v2_path),
+                "--wasm",
+                str(probe),
+                "--seed",
+                str(root / "keys/edgec-eapp.seed"),
+                "--out",
+                str(package_v2),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
         package_b = root / "abi-probe-b.eapp"
         subprocess.run(
             [
@@ -346,6 +370,48 @@ def main():
             raise Failure("app-host did not get no_new_privs")
         if int(app_host_status(child[0], "CapEff:"), 16) != 0:
             raise Failure("app-host kept capabilities")
+
+        # Crash-consistency: the product dies after the package swap and before
+        # the registry commit. A restart must keep the old version, then a
+        # normal upgrade must succeed.
+        stop_iems(proc)
+        proc = start_iems({"EDGEC_TEST_CRASH_AFTER_UPGRADE_SWAP": "1"})
+        wait_for(lambda: (root / "appctl.sock").exists(), 10, "appctl socket")
+        wait_for(lambda: appctl_json(appctl, str(root / "appctl.sock"), "status"), 10, "status")
+        wait_for(
+            lambda: appctl_json(appctl, str(root / "appctl.sock"), "time")["state"] == "trusted",
+            10,
+            "trusted clock before the upgrade",
+        )
+        try:
+            subprocess.run(
+                [str(appctl), "upgrade", APP_ID, str(package_v2),
+                 "--sock", str(root / "appctl.sock")],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        except subprocess.SubprocessError:
+            pass
+        wait_for(lambda: proc.poll() is not None, 10, "crash after upgrade swap")
+        stop_iems(proc)
+        proc = start_iems()
+        wait_for(lambda: (root / "appctl.sock").exists(), 10, "appctl socket")
+        wait_for(lambda: appctl_json(appctl, str(root / "appctl.sock"), "status"), 10, "status")
+        app = wait_for(lambda: installed(), 10, "registry after upgrade crash")
+        if app["version"] != "1.0.0":
+            raise Failure(f"upgrade crash committed version {app['version']}")
+        appctl_json(appctl, str(root / "appctl.sock"), "upgrade", APP_ID, str(package_v2))
+        wait_for(
+            lambda: installed()["version"] == "1.1.0",
+            10,
+            "upgrade after crash recovery",
+        )
+        child = wait_for(
+            lambda: app_host_children(proc.pid) if installed()["state"] == 2 else None,
+            15,
+            "app after upgrade",
+        )
 
         for attempt in range(1, RESTART_CAP + 2):
             old_pid = child[0]

@@ -4,6 +4,7 @@
  */
 
 #include "edge_tsn_engine.h"
+#include <stdlib.h>
 #include <string.h>
 #include <math.h>
 

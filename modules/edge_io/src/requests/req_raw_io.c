@@ -62,7 +62,12 @@ static const request_ops_t raw_ops = {.setup = raw_setup,
 
 edge_req_t *req_raw_io_create(net_buf_t *tx_buf, raw_io_on_complete_cb cb) {
     edge_req_t *req = calloc(1, sizeof(edge_req_t));
+    if (!req) return NULL;
     raw_req_ctx_t *ctx = calloc(1, sizeof(raw_req_ctx_t));
+    if (!ctx) {
+        free(req);
+        return NULL;
+    }
     ctx->tx_buf = net_buf_ref(tx_buf);
     ctx->rx_buf = NULL;
     ctx->cb = cb;

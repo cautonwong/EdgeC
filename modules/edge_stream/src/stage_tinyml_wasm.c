@@ -116,6 +116,7 @@ pipeline_stage_t *stage_tinyml_wasm_create(const edge_stage_def_t *def, pipeline
     tinyml_ctx_t *ctx = (tinyml_ctx_t *)s->storage_state;
     memset(ctx, 0, sizeof(*ctx));
     strncpy(ctx->entry_func, def->params.s2 ? def->params.s2 : "inference", 63);
+    ctx->entry_func[sizeof(ctx->entry_func) - 1] = '\0';
     
     ctx->window_size = (size_t)def->params.f1;
     if (ctx->window_size == 0 || ctx->window_size > MAX_TINYML_WINDOW) ctx->window_size = 128;

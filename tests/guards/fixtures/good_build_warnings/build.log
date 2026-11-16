@@ -1,0 +1,3 @@
+[1/3] Building C object foundation/CMakeFiles/edge_foundation.dir/src/net_buf.c.o
+[2/3] Building C object modules/CMakeFiles/edge_stream.dir/src/stream_engine.c.o
+[3/3] Linking C static library modules/libedge_stream.a

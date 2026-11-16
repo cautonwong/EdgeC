@@ -5,6 +5,7 @@
 
 #include "edge_app_host.h"
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,6 +28,9 @@ struct app_host_server_s {
     int closing;
     app_host_closed_cb_t on_closed;
     void *closed_ctx;
+    uint64_t rate_window_ms;
+    uint32_t calls_in_window;
+    uint32_t publishes_in_window;
 };
 
 static uint32_t read_be32(const uint8_t *p) {
@@ -74,7 +78,7 @@ static int valid_error_code(const char *code) {
         "denied_policy",      "denied_quota",     "denied_package_mismatch",
         "denied_abi",         "invalid_manifest", "not_found",      "stale",
         "busy",               "invalid",          "internal",       "protocol",
-        "transport",          NULL};
+        "transport",          "rate_limited",     "not_supported",  NULL};
     for (int i = 0; known[i]; i++) {
         if (strcmp(code, known[i]) == 0) return 1;
     }
@@ -301,6 +305,25 @@ static void handle_now(app_host_server_t *srv, uint64_t id) {
     send_json(srv, buffer);
 }
 
+static bool rate_allow(app_host_server_t *srv, const char *fn) {
+    uint32_t call_limit = srv->ports->calls_per_sec;
+    uint32_t publish_limit = srv->ports->publish_per_sec;
+    if (call_limit == 0 && publish_limit == 0) return true;
+    uint64_t now = srv->ports->now_ms ? srv->ports->now_ms(srv->ports->ctx) : 0;
+    if (srv->rate_window_ms == 0 || now < srv->rate_window_ms ||
+        now - srv->rate_window_ms >= 1000) {
+        srv->rate_window_ms = now;
+        srv->calls_in_window = 0;
+        srv->publishes_in_window = 0;
+    }
+    bool publish = strcmp(fn, "point_publish") == 0;
+    if (call_limit > 0 && srv->calls_in_window >= call_limit) return false;
+    if (publish && publish_limit > 0 && srv->publishes_in_window >= publish_limit) return false;
+    srv->calls_in_window++;
+    if (publish) srv->publishes_in_window++;
+    return true;
+}
+
 static void handle_frame(app_host_server_t *srv, const char *json, size_t len) {
     char *copy = malloc(len + 1);
     if (!copy) return;
@@ -319,6 +342,8 @@ static void handle_frame(app_host_server_t *srv, const char *json, size_t len) {
     cJSON *args = cJSON_GetObjectItemCaseSensitive(root, "args");
     if (!cJSON_IsString(fn) || !fn->valuestring) {
         send_error(srv, id, "invalid");
+    } else if (!rate_allow(srv, fn->valuestring)) {
+        send_error(srv, id, "rate_limited");
     } else if (strcmp(fn->valuestring, "point_resolve") == 0) {
         handle_resolve(srv, id, args);
     } else if (strcmp(fn->valuestring, "point_read") == 0) {
@@ -330,7 +355,12 @@ static void handle_frame(app_host_server_t *srv, const char *json, size_t len) {
     } else if (strcmp(fn->valuestring, "now") == 0) {
         handle_now(srv, id);
     } else if (strcmp(fn->valuestring, "point_subscribe") == 0) {
-        send_error(srv, id, "internal");
+        send_error(srv, id, "not_supported");
+    } else if (strcmp(fn->valuestring, "setting_get") == 0 ||
+               strcmp(fn->valuestring, "setting_watch") == 0 ||
+               strcmp(fn->valuestring, "kv_get") == 0 ||
+               strcmp(fn->valuestring, "kv_set") == 0) {
+        send_error(srv, id, "not_supported");
     } else {
         send_error(srv, id, "invalid");
     }
@@ -413,6 +443,8 @@ app_host_server_t *app_host_server_create_ex(uv_loop_t *loop, int fd,
                                              const app_host_ports_t *ports,
                                              app_host_closed_cb_t on_closed, void *closed_ctx) {
     if (!loop || fd < 0 || !ports) return NULL;
+    // 限流需要单调时钟；缺少时钟端口时拒绝启动，避免静默变成不限流
+    if ((ports->calls_per_sec > 0 || ports->publish_per_sec > 0) && !ports->now_ms) return NULL;
     app_host_server_t *srv = calloc(1, sizeof(*srv));
     if (!srv) return NULL;
     srv->ports = ports;

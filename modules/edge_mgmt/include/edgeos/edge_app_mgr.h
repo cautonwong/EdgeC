@@ -6,6 +6,7 @@
 #include <stddef.h>
 
 #include "edgeos/edge_authz.h"
+#include "edgeos/app_manifest.h"
 typedef struct uv_loop_s uv_loop_t;
 
 #ifdef __cplusplus
@@ -23,6 +24,10 @@ typedef struct edge_app_repo_s {
     int (*get_app)(void *ctx, const char *app_id, app_manifest_t *out_manifest);
     int (*delete_app)(void *ctx, const char *app_id);
     int (*list_apps)(void *ctx, app_manifest_t *out_apps, int max_count);
+    /** Optional resource-limit store; NULL keeps the legacy no-limit behavior. */
+    int (*save_limits)(void *ctx, const char *app_id, const app_limits_t *limits);
+    int (*get_limits)(void *ctx, const char *app_id, app_limits_t *out_limits);
+    int (*delete_limits)(void *ctx, const char *app_id);
 } edge_app_repo_t;
 
 /**
@@ -111,6 +116,9 @@ void edge_app_mgr_set_apps_dir(edge_app_mgr_t *mgr, const char *dir);
 /** 安装崩溃注入点，仅测试使用。 */
 void edge_app_mgr_set_crash_after_package_write(edge_app_mgr_t *mgr, bool enabled);
 
+/** 升级换包后、Registry 提交前的崩溃注入点，仅测试使用。 */
+void edge_app_mgr_set_crash_after_upgrade_swap(edge_app_mgr_t *mgr, bool enabled);
+
 /**
  * @brief 异步任务完成回调，在 loop 线程调用。
  * @param rc 0 成功，其他失败
@@ -165,7 +173,10 @@ int edge_app_mgr_install(edge_app_mgr_t *mgr, const app_manifest_t *manifest, co
  * @brief 启动应用
  */
 int edge_app_mgr_start(edge_app_mgr_t *mgr, const char *app_id);
-
+/** Persist the manifest resource limits for an app. No-op without a limits port. */
+int edge_app_mgr_set_limits(edge_app_mgr_t *mgr, const char *app_id, const app_limits_t *limits);
+/** Read the limits; zeroed defaults when the repo has no row or no limits port. */
+int edge_app_mgr_get_limits(edge_app_mgr_t *mgr, const char *app_id, app_limits_t *out_limits);
 /**
  * @brief 停止应用
  */

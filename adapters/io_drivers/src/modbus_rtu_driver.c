@@ -238,8 +238,10 @@ const edge_driver_t modbus_rtu_driver = {
     .req_slave_exchange = mb_rtu_req_slave_exchange,
 };
 
-int modbus_rtu_driver_register(driver_manager_t *mgr) {
-    return driver_manager_register(mgr, &modbus_rtu_driver);
+
+/* File-local prototypes. */
+int modbus_rtu_driver_register(driver_manager_t *mgr);
+int modbus_rtu_driver_register(driver_manager_t *mgr) {    return driver_manager_register(mgr, &modbus_rtu_driver);
 }
 
 /* 兼容别名：老调用方（tests/test_iems_full_stack.c 等）用的是这个名字。 */

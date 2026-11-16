@@ -77,6 +77,24 @@ foundation/include/edge_port.h                # L0 migration
 foundation/include/arbiter.h                  # L0 migration
 foundation/include/edge_version.h             # L0 migration
 
+# 2026-11-16 编译告警清零（user-directed tech-debt cleanup）。
+#
+# 只改实现：删除未使用的静态函数、显式化收窄转换、snprintf 替换有截断风险的
+# strncpy、eventfd 写返回值检查。无公开头、无结构体布局、无 ABI 变更。
+modules/edge_core/src/arbiter.c               # warning cleanup
+modules/edge_core/src/edge_coop_guard.c       # warning cleanup
+modules/edge_core/src/edge_cpu_affinity.c     # warning cleanup
+modules/edge_core/src/edge_pcp_mutex.c        # warning cleanup
+modules/edge_core/src/edge_prio_booster.c     # warning cleanup
+modules/edge_core/src/edge_sched_deadline.c   # warning cleanup
+modules/edge_core/src/edge_swarm_offload.c    # warning cleanup
+modules/edge_core/src/shmring.c               # warning cleanup
+
+# 2026-11-16 分配失败路径加固（user-directed tech-debt cleanup）。
+# edge_service 的 tunnel 建连在 malloc 失败时解引用空指针；只加 NULL 检查，
+# 无签名/布局/ABI 变更。
+modules/edge_core/src/edge_service.c          # OOM hardening
+
 # 2026-11-09 L0 migration (user-directed refactor): contract registry table.
 modules/edge_core/include/contract_registry.h # L0 migration
 modules/edge_core/src/contract_registry.c    # L0 migration

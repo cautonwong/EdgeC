@@ -107,6 +107,8 @@ const edge_driver_t can_driver = {
     .req_decode = can_req_decode,
 };
 
-int can_driver_register(driver_manager_t *mgr) {
-    return driver_manager_register(mgr, &can_driver);
+
+/* File-local prototypes. */
+int can_driver_register(driver_manager_t *mgr);
+int can_driver_register(driver_manager_t *mgr) {    return driver_manager_register(mgr, &can_driver);
 }

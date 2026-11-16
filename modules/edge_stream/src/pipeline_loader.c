@@ -1,4 +1,5 @@
 #include <cjson/cJSON.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -50,6 +51,8 @@ int stream_engine_register_stage_factory(const char *type_name, stage_factory_cr
     }
     if (g_custom_stage_factory_count >= MAX_CUSTOM_STAGE_FACTORIES) return -2;
     strncpy(g_custom_stage_factories[g_custom_stage_factory_count].type_name, type_name, 31);
+    g_custom_stage_factories[g_custom_stage_factory_count]
+        .type_name[sizeof(g_custom_stage_factories[0].type_name) - 1] = '\0';
     g_custom_stage_factories[g_custom_stage_factory_count].factory_fn = factory_fn;
     g_custom_stage_factory_count++;
     return 0;
@@ -61,6 +64,7 @@ extern pipeline_stage_t *stage_dsp_rms_create(uint32_t output_tag_id);
 typedef pipeline_stage_t *(*builtin_stage_build_fn)(cJSON *config, pipeline_loader_ctx_t *ctx);
 
 static pipeline_stage_t *build_energy_integrator(cJSON *config, pipeline_loader_ctx_t *ctx) {
+    (void)ctx;
     cJSON *item = cJSON_GetObjectItem(config, "state_tag");
     return stage_energy_integrator_create(item ? (uint32_t)item->valuedouble : 0);
 }
@@ -242,11 +246,13 @@ int stream_engine_load_config(stream_engine_t *engine, const char *json_path,
     if (!f) return -1;
     fseek(f, 0, SEEK_END);
     long len = ftell(f);
+    if (len < 0) { fclose(f); return -1; }
     fseek(f, 0, SEEK_SET);
     char *data = malloc((size_t)len + 1);
-    fread(data, 1, (size_t)len, f);
+    if (!data) { fclose(f); return -1; }
+    size_t got = fread(data, 1, (size_t)len, f);
     fclose(f);
-    data[len] = '\0';
+    data[got] = '\0';
 
     cJSON *root = cJSON_Parse(data);
     free(data);
@@ -378,12 +384,14 @@ int stream_engine_load_yaml_contract(stream_engine_t *engine, const char *yaml_c
 
                 if (name_item && name_item->valuestring) {
                     strncpy(meta[idx].name, name_item->valuestring, 31);
+                    meta[idx].name[sizeof(meta[idx].name) - 1] = '\0';
                 } else {
                     snprintf(meta[idx].name, 31, "node_%d", idx);
                 }
 
                 if (type_item && type_item->valuestring) {
                     strncpy(meta[idx].type, type_item->valuestring, 31);
+                    meta[idx].type[sizeof(meta[idx].type) - 1] = '\0';
                 }
                 meta[idx].config = cfg_item;
 
@@ -393,6 +401,8 @@ int stream_engine_load_yaml_contract(stream_engine_t *engine, const char *yaml_c
                     cJSON_ArrayForEach(in_name, inputs_json) {
                         if (meta[idx].input_count < 4 && in_name->valuestring) {
                             strncpy(meta[idx].input_names[meta[idx].input_count], in_name->valuestring, 31);
+                            meta[idx].input_names[meta[idx].input_count]
+                                [sizeof(meta[idx].input_names[0]) - 1] = '\0';
                             meta[idx].input_count++;
                         }
                     }
@@ -401,7 +411,8 @@ int stream_engine_load_yaml_contract(stream_engine_t *engine, const char *yaml_c
                 // 实例化 stage
                 meta[idx].stage = build_stage(meta[idx].type, meta[idx].config, ctx);
                 if (meta[idx].stage) {
-                    strncpy(meta[idx].stage->name, meta[idx].name, sizeof(meta[idx].stage->name) - 1);
+                    snprintf(meta[idx].stage->name, sizeof(meta[idx].stage->name), "%.*s",
+                             (int)(sizeof(meta[idx].stage->name) - 1), meta[idx].name);
                 }
                 graph.nodes[idx].stage = meta[idx].stage;
                 idx++;
@@ -498,6 +509,10 @@ int stream_engine_load_yaml_file(stream_engine_t *engine, const char *yaml_path,
     if (!f) return -1;
     fseek(f, 0, SEEK_END);
     long len = ftell(f);
+    if (len < 0) {
+        fclose(f);
+        return -1;
+    }
     fseek(f, 0, SEEK_SET);
     char *data = malloc((size_t)len + 1);
     if (!data) {
@@ -513,27 +528,46 @@ int stream_engine_load_yaml_file(stream_engine_t *engine, const char *yaml_path,
     return rc;
 }
 
+enum { DOT_BUF_SIZE = 8192 };
+
+/* snprintf 返回“想写多长”，直接累加 pos 会越过缓冲，令 8192-pos 下溢。
+ * 这里把 pos 夹在 [0, cap-1]，截断时保证 NUL 结尾。 */
+static size_t _dot_append(char *buf, size_t cap, size_t pos, const char *fmt, ...) {
+    if (pos >= cap - 1) return cap - 1;
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(buf + pos, cap - pos, fmt, ap);
+    va_end(ap);
+    if (n < 0) return cap - 1;
+    pos += (size_t)n;
+    return pos < cap ? pos : cap - 1;
+}
+
 char *stream_engine_export_dot(stream_engine_t *engine) {
     if (!engine) return NULL;
-    char *buf = malloc(8192);
+    char *buf = malloc(DOT_BUF_SIZE);
     if (!buf) return NULL;
     size_t pos = 0;
-    pos += (size_t)snprintf(buf + pos, 8192 - pos, "digraph StreamEngine {\n  rankdir=LR;\n  node [shape=box, style=rounded];\n");
+    pos = _dot_append(buf, DOT_BUF_SIZE, pos,
+                      "digraph StreamEngine {\n  rankdir=LR;\n  node [shape=box, style=rounded];\n");
 
     uv_mutex_lock(&engine->pipe_mutex);
     struct uv__queue *q;
     uv__queue_foreach(q, &engine->pipelines) {
         pipeline_t *p = uv__queue_data(q, pipeline_t, node);
-        pos += (size_t)snprintf(buf + pos, 8192 - pos, "  \"pipe_%s\" [shape=ellipse, label=\"Pipeline: %s\\nTrigger: 0x%X\"];\n",
-                                p->id, p->id, p->trigger_tag);
+        pos = _dot_append(buf, DOT_BUF_SIZE, pos,
+                          "  \"pipe_%s\" [shape=ellipse, label=\"Pipeline: %s\\nTrigger: 0x%X\"];\n",
+                          p->id, p->id, p->trigger_tag);
         if (p->head) {
-            pos += (size_t)snprintf(buf + pos, 8192 - pos, "  \"pipe_%s\" -> \"%s\";\n", p->id, p->head->name);
+            pos = _dot_append(buf, DOT_BUF_SIZE, pos, "  \"pipe_%s\" -> \"%s\";\n", p->id,
+                              p->head->name);
             pipeline_stage_t *s = p->head;
             while (s && pos < 8000) {
                 for (int b = 0; b < 4; b++) {
                     if (s->next[b]) {
-                        pos += (size_t)snprintf(buf + pos, 8192 - pos, "  \"%s\" -> \"%s\" [label=\"next[%d]\"];\n",
-                                                s->name, s->next[b]->name, b);
+                        pos = _dot_append(buf, DOT_BUF_SIZE, pos,
+                                          "  \"%s\" -> \"%s\" [label=\"next[%d]\"];\n", s->name,
+                                          s->next[b]->name, b);
                     }
                 }
                 s = s->next[0];
@@ -542,6 +576,6 @@ char *stream_engine_export_dot(stream_engine_t *engine) {
     }
     uv_mutex_unlock(&engine->pipe_mutex);
 
-    pos += (size_t)snprintf(buf + pos, 8192 - pos, "}\n");
+    _dot_append(buf, DOT_BUF_SIZE, pos, "}\n");
     return buf;
 }

@@ -50,9 +50,28 @@ static void test_foc_latency_benchmark(void** state) {
     free(foc);
 }
 
+static void test_foc_rejects_null_batch(void** state) {
+    (void)state;
+
+    pipeline_stage_t* foc = stage_foc_core_create(7001, 24.0, 0.0001, 2.0, 20.0);
+    assert_non_null(foc);
+
+    pipe_msg_t ev = {0};
+    ev.type = PIPEMSG_TYPE_BATCH;
+    ev.tag_id = 7000;
+    ev.payload.batch.count = 5;
+    ev.payload.batch.ptr = NULL;
+
+    assert_int_equal(foc->process(foc, &ev), STAGE_ERROR);
+
+    if (foc->cleanup_state) foc->cleanup_state(foc->priv_state);
+    free(foc);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_foc_latency_benchmark),
+        cmocka_unit_test(test_foc_rejects_null_batch),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

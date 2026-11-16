@@ -6,6 +6,7 @@
 #include <linux/can/raw.h>
 #include <net/if.h>
 #include <netinet/in.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
@@ -17,6 +18,7 @@
 
 #include "edge_log.h"
 #include "io_executor.h"
+#include "io_executor_linux.h"
 #include "io_handle_priv.h"
 
 /* --- 0. Libcurl Multi-Socket 集成 --- */
@@ -115,6 +117,7 @@ static int _curl_socket_cb(CURL* easy, curl_socket_t s, int action, void* userp,
     if (action == CURL_POLL_IN || action == CURL_POLL_OUT || action == CURL_POLL_INOUT) {
         if (!poll_ctx) {
             poll_ctx = calloc(1, sizeof(curl_poll_ctx_t));
+            if (!poll_ctx) return -1;
             poll_ctx->sockfd = s;
             uv_poll_init(ctx->loop, &poll_ctx->poll_handle, s);
             poll_ctx->poll_handle.data = poll_ctx;
@@ -137,8 +140,14 @@ static int _curl_socket_cb(CURL* easy, curl_socket_t s, int action, void* userp,
 static void _ensure_curl_init(uv_loop_t* loop) {
     if (g_curl_ctx) return;
     g_curl_ctx = calloc(1, sizeof(curl_multi_ctx_t));
+    if (!g_curl_ctx) return;
     g_curl_ctx->loop = loop;
     g_curl_ctx->multi = curl_multi_init();
+    if (!g_curl_ctx->multi) {
+        free(g_curl_ctx);
+        g_curl_ctx = NULL;
+        return;
+    }
     uv_timer_init(loop, &g_curl_ctx->timer);
     g_curl_ctx->timer.data = g_curl_ctx;
     curl_multi_setopt(g_curl_ctx->multi, CURLMOPT_SOCKETFUNCTION, _curl_socket_cb);
@@ -181,14 +190,14 @@ static void _on_uv_poll(uv_poll_t* handle, int status, int events) {
         do {
             ret = recv(impl->fd, buf, sizeof(buf), MSG_DONTWAIT);
             if (ret > 0) {
-                net_buf_t* nb = net_buf_alloc(impl->pool, ret);
-                if (nb) {
-                    memcpy(nb->b.data, buf, ret);
+                net_buf_t* nb = net_buf_alloc(impl->pool, 0);
+                if (nb && (size_t)ret <= nb->b.size) {
+                    memcpy(nb->b.data, buf, (size_t)ret);
                     nb->b.len = (uint16_t)ret;
                     if (impl->base.cb)
                         impl->base.cb(&impl->base, IO_EVENT_RX, nb, impl->base.user_data);
-                    net_buf_unref(nb);
                 }
+                if (nb) net_buf_unref(nb);
             } else if (ret == 0 ||
                        (ret < 0 && errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)) {
                 if (impl->base.cb)
@@ -325,6 +334,7 @@ static int _udp_enable_read(io_handle_t* h, bool enable) {
 static int _udp_write_async(io_handle_t* h, net_buf_t* buf) {
     linux_io_handle_t* impl = (linux_io_handle_t*)h;
     uv_udp_send_t* req = malloc(sizeof(uv_udp_send_t));
+    if (!req) return -1;
     req->data = impl;
     uv_buf_t b = uv_buf_init((char*)buf->b.data, buf->b.len);
     return uv_udp_send(req, &impl->handle.udp, &b, 1, (const struct sockaddr*)&impl->udp_dest,
@@ -424,24 +434,17 @@ static void _on_mqtt_connect_failure(void* context, MQTTAsync_failureData* respo
 
 static int _on_mqtt_msg_arrived(void* context, char* topicName, int topicLen,
                                 MQTTAsync_message* message) {
+    (void)topicLen;
     mqtt_ctx_t* ctx = (mqtt_ctx_t*)context;
     net_buf_t* nb = net_buf_alloc(ctx->impl->pool, 0);
     if (nb) {
-        net_buf_append_bytes(nb, (uint8_t*)message->payload, message->payloadlen);
+        net_buf_append_bytes(nb, (uint8_t*)message->payload, (size_t)message->payloadlen);
         ctx->impl->base.cb(&ctx->impl->base, IO_EVENT_RX, nb, ctx->impl->base.user_data);
         net_buf_unref(nb);
     }
     MQTTAsync_freeMessage(&message);
     MQTTAsync_free(topicName);
     return 1;
-}
-
-static void _on_mqtt_poll(uv_poll_t* handle, int status, int events) {
-    (void)events;
-    linux_io_handle_t* impl = (linux_io_handle_t*)handle->data;
-    if (status < 0) {
-        impl->base.cb(&impl->base, IO_EVENT_ERROR, NULL, impl->base.user_data);
-    }
 }
 
 static int _mqtt_enable_read(io_handle_t* h, bool enable) {
@@ -475,6 +478,7 @@ static int _mqtt_ioctl(io_handle_t* h, int cmd, void* arg) {
     switch (cmd) {
         case IO_CTL_MQTT_SET_TOPIC:
             strncpy(ctx->current_topic, (const char*)arg, 127);
+            ctx->current_topic[sizeof(ctx->current_topic) - 1] = '\0';
             return 0;
         case IO_CTL_MQTT_SUBSCRIBE:
             return MQTTAsync_subscribe(ctx->client, (const char*)arg, 1, NULL);
@@ -534,6 +538,7 @@ static const io_ops_t udp_ops = {.enable_read = _udp_enable_read,
 
 io_handle_t* io_executor_create(uv_loop_t* loop, const io_config_t* cfg, net_buf_pool_t* pool) {
     linux_io_handle_t* impl = calloc(1, sizeof(linux_io_handle_t));
+    if (!impl) return NULL;
     impl->pool = pool;
     impl->type = cfg->type;
     impl->fd = -1;
@@ -561,6 +566,10 @@ io_handle_t* io_executor_create(uv_loop_t* loop, const io_config_t* cfg, net_buf
         }
         case IO_TYPE_HTTP: {
             _ensure_curl_init(loop);
+            if (!g_curl_ctx) {
+                free(impl);
+                return NULL;
+            }
             impl->handle.curl = curl_easy_init();
             if (!impl->handle.curl) {
                 free(impl);
@@ -578,6 +587,10 @@ io_handle_t* io_executor_create(uv_loop_t* loop, const io_config_t* cfg, net_buf
         }
         case IO_TYPE_MQTT: {
             mqtt_ctx_t* mctx = calloc(1, sizeof(mqtt_ctx_t));
+            if (!mctx) {
+                free(impl);
+                return NULL;
+            }
             mctx->impl = impl;
             int rc =
                 MQTTAsync_create(&mctx->client, cfg->params.mqtt.broker, cfg->params.mqtt.client_id,
@@ -588,7 +601,8 @@ io_handle_t* io_executor_create(uv_loop_t* loop, const io_config_t* cfg, net_buf
                 return NULL;
             }
             MQTTAsync_setCallbacks(mctx->client, mctx, NULL, _on_mqtt_msg_arrived, NULL);
-            strncpy(mctx->current_topic, cfg->params.mqtt.topic, 127);
+            snprintf(mctx->current_topic, sizeof(mctx->current_topic), "%.*s",
+                     (int)(sizeof(mctx->current_topic) - 1), cfg->params.mqtt.topic);
             impl->handle.poll.data = mctx;
             impl->base.ops = &mqtt_ops;
             break;
@@ -632,6 +646,7 @@ io_handle_t* io_executor_create_uart(uv_loop_t* loop, const char* dev_path, uint
     io_config_t cfg = {.type = IO_TYPE_UART};
 
     strncpy(cfg.params.uart.dev, dev_path, 63);
+    cfg.params.uart.dev[sizeof(cfg.params.uart.dev) - 1] = '\0';
 
     cfg.params.uart.baud = baud;
 
@@ -647,7 +662,9 @@ static void _on_http_simple_cb(io_handle_t* h, io_event_t evt, void* payload, vo
 void io_executor_http_request(uv_loop_t* loop, const char* url, const char* method) {
     io_config_t cfg = {.type = IO_TYPE_HTTP};
     strncpy(cfg.params.http.url, url, 255);
+    cfg.params.http.url[sizeof(cfg.params.http.url) - 1] = '\0';
     strncpy(cfg.params.http.method, method, 15);
+    cfg.params.http.method[sizeof(cfg.params.http.method) - 1] = '\0';
     io_handle_t* h = io_executor_create(loop, &cfg, NULL);
     if (h) {
         h->cb = _on_http_simple_cb;

@@ -66,9 +66,29 @@ static void test_notch_filter_60hz(void** state) {
     if (stage->cleanup_state) stage->cleanup_state(stage->priv_state);
 }
 
+static void test_notch_filter_rejects_bad_batch(void** state) {
+    (void)state;
+    pipeline_stage_t* stage = stage_notch_filter_create(60.0, 1000.0, 30.0, 1002);
+    assert_non_null(stage);
+
+    pipe_msg_t ev = {0};
+    ev.type = PIPEMSG_TYPE_BATCH;
+    double data[4] = {0};
+    ev.payload.batch.ptr = data;
+    ev.payload.batch.count = -1;
+    assert_int_equal(stage->process(stage, &ev), STAGE_ERROR);
+
+    ev.payload.batch.ptr = NULL;
+    ev.payload.batch.count = 2;
+    assert_int_equal(stage->process(stage, &ev), STAGE_ERROR);
+
+    if (stage->cleanup_state) stage->cleanup_state(stage->priv_state);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_notch_filter_60hz),
+        cmocka_unit_test(test_notch_filter_rejects_bad_batch),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

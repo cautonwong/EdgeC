@@ -63,9 +63,28 @@ static void test_ecg_anomaly_detection(void** state) {
     if (stage->cleanup_state) stage->cleanup_state(stage->priv_state);
 }
 
+static void test_ecg_anomaly_rejects_bad_window(void** state) {
+    (void)state;
+
+    assert_null(stage_ecg_anomaly_create(2, 2, 150.0, 9999));
+    assert_null(stage_ecg_anomaly_create(65537, 2, 150.0, 9999));
+
+    // level 远大于 log2(window) 时不能移位溢出
+    pipeline_stage_t* stage = stage_ecg_anomaly_create(4, 40, 150.0, 9999);
+    assert_non_null(stage);
+    pipe_msg_t ev = {0};
+    ev.type = PIPEMSG_TYPE_SCALAR;
+    for (int i = 0; i < 8; i++) {
+        ev.payload.val.f = 1.0;
+        stage->process(stage, &ev);
+    }
+    if (stage->cleanup_state) stage->cleanup_state(stage->priv_state);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_ecg_anomaly_detection),
+        cmocka_unit_test(test_ecg_anomaly_rejects_bad_window),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

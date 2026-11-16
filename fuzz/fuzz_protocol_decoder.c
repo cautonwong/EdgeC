@@ -28,13 +28,16 @@ static int test_iec104_apci_parse(const uint8_t *data, size_t size) {
     /* 0x68 APCI 启动字符 */
     if (data[0] != 0x68) return 0;
     uint8_t len = data[1];
-    if (len + 2 > size) return 0;
+    if ((size_t)len + 2 > size) return 0;
     return 1;
 }
 
 /**
  * @brief LLVMFuzzerTestOneInput 模糊测试主入口
  */
+/* libFuzzer entry point (declared before the definition for -Wmissing-prototypes). */
+int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size);
+
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     if (size == 0 || size > MAX_FUZZ_MSG_LEN) {
         return 0;

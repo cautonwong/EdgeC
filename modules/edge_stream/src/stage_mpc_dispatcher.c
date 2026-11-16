@@ -76,7 +76,12 @@ static void _mpc_dispatcher_cleanup(void *priv) {
  */
 pipeline_stage_t *stage_mpc_dispatcher_create(uint32_t soc_tag, uint32_t out_pcs_tag, double dt, double capacity_ah, double target_soc) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    if (!s) return NULL;
     mpc_dispatcher_ctx_t *ctx = calloc(1, sizeof(mpc_dispatcher_ctx_t));
+    if (!ctx) {
+        free(s);
+        return NULL;
+    }
 
     ctx->soc_tag = soc_tag;
     ctx->out_pcs_tag = out_pcs_tag;
@@ -89,26 +94,36 @@ pipeline_stage_t *stage_mpc_dispatcher_create(uint32_t soc_tag, uint32_t out_pcs
     // SOC(k+1) = SOC(k) + (P * dt) / (Capacity * Voltage * 3600)
     // 简化: B = dt / Capacity_Ah_in_seconds
     ctx->A = edge_matrix_alloc(1, 1);
+    if (!ctx->A) { _mpc_dispatcher_cleanup(ctx); free(s); return NULL; }
     edge_matrix_set(ctx->A, 0, 0, 1.0);
     ctx->B = edge_matrix_alloc(1, 1);
+    if (!ctx->B) { _mpc_dispatcher_cleanup(ctx); free(s); return NULL; }
     edge_matrix_set(ctx->B, 0, 0, ctx->dt / (ctx->capacity_ah * 3600.0));
 
     // 权重矩阵
     ctx->Q = edge_matrix_alloc(1, 1);
+    if (!ctx->Q) { _mpc_dispatcher_cleanup(ctx); free(s); return NULL; }
     edge_matrix_set(ctx->Q, 0, 0, 1000.0); // 惩罚 SOC 偏差
     ctx->R = edge_matrix_alloc(1, 1);
+    if (!ctx->R) { _mpc_dispatcher_cleanup(ctx); free(s); return NULL; }
     edge_matrix_set(ctx->R, 0, 0, 0.1);    // 惩罚控制能量
 
     // 约束 (演示: -100kW <= P <= 100kW)
     ctx->A_cons = edge_matrix_alloc(2, ctx->horizon); // 简化为全 0，即无约束
+    if (!ctx->A_cons) { _mpc_dispatcher_cleanup(ctx); free(s); return NULL; }
     ctx->b_cons = edge_matrix_alloc(2, 1);
+    if (!ctx->b_cons) { _mpc_dispatcher_cleanup(ctx); free(s); return NULL; }
     edge_matrix_set(ctx->b_cons, 0, 0, 1e9);
     edge_matrix_set(ctx->b_cons, 1, 0, 1e9);
 
     ctx->x0 = edge_matrix_alloc(1, 1);
+    if (!ctx->x0) { _mpc_dispatcher_cleanup(ctx); free(s); return NULL; }
     ctx->H = edge_matrix_alloc(ctx->horizon, ctx->horizon);
+    if (!ctx->H) { _mpc_dispatcher_cleanup(ctx); free(s); return NULL; }
     ctx->f = edge_matrix_alloc(ctx->horizon, 1);
+    if (!ctx->f) { _mpc_dispatcher_cleanup(ctx); free(s); return NULL; }
     ctx->u_opt = edge_matrix_alloc(ctx->horizon, 1);
+    if (!ctx->u_opt) { _mpc_dispatcher_cleanup(ctx); free(s); return NULL; }
 
     snprintf(s->name, 31, "MPC_DISPATCH");
     s->process = _mpc_dispatcher_proc;

@@ -62,10 +62,15 @@ static void _dsp_rms_cleanup(void *p) {
 
 pipeline_stage_t *stage_dsp_rms_create(uint32_t output_tag_id) {
     pipeline_stage_t *s = calloc(1, sizeof(pipeline_stage_t));
+    if (!s) return NULL;
     strncpy(s->name, "dsp_rms", 31);
     s->process = _dsp_rms_proc;
 
     dsp_rms_ctx_t *ctx = calloc(1, sizeof(dsp_rms_ctx_t));
+    if (!ctx) {
+        free(s);
+        return NULL;
+    }
     ctx->output_tag_id = output_tag_id;
 
     s->priv_state = ctx;

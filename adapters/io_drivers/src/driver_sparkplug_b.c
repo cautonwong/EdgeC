@@ -54,7 +54,9 @@ static void _encode_metric_float(struct net_buf_simple *b, const char *name, flo
     spb_encode_varint(&metric_b, SPB_TYPE_FLOAT);
     // 4. Value
     spb_encode_tag(&metric_b, SPB_METRIC_FLOAT_VAL, 5); // 32-bit
-    net_buf_simple_add_le32(&metric_b, *(uint32_t *)&val);
+    uint32_t val_bits;
+    memcpy(&val_bits, &val, sizeof(val_bits));
+    net_buf_simple_add_le32(&metric_b, val_bits);
 
     // Wrap as length-delimited in parent
     spb_encode_tag(b, SPB_FIELD_METRICS, 2);

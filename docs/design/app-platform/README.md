@@ -17,6 +17,7 @@
 | [09 迁移与废弃](09-migration.md) | 旧 WASM 运行时、旧 ABI、QuickJS、已装应用与商店页面怎么处置 | 待评审 |
 | [10 产品点位剖面](10-product-points.md) | 应用怎么跨产品引用产品点位，与 ADR-0010 的边界 | 待评审 |
 | [11 进程拓扑](11-process-topology.md) | 主进程、app-host、sidecar 的数据通道、身份与授权强制点 | 待评审 |
+| [12 执行模型](12-execution-model.md) | 数据流管道与应用运行时如何分工，为什么不另做 App Functions SDK | 已定（2026-11-15） |
 
 ## 2026-11-09 评审已定
 

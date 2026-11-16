@@ -16,13 +16,13 @@ int dcu_twin_source_read(void *ctx, uint32_t meter_idx, uint32_t tag_id, double 
     dcu_twin_source_t *source = (dcu_twin_source_t *)ctx;
 
     double delta = (meter_idx % 10) * 0.2;
-    if (tag_id == OAD_VOLTAGE || tag_id == 0x20000200) {
+    if (tag_id == OAD_VOLTAGE) {
         *out_val = source->base_voltage + delta;
         return 0;
-    } else if (tag_id == OAD_CURRENT || tag_id == 0x20010200) {
+    } else if (tag_id == OAD_CURRENT) {
         *out_val = source->base_current + (meter_idx % 5) * 0.1;
         return 0;
-    } else if (tag_id == OAD_ACTIVE_ENERGY || tag_id == 0x00100200) {
+    } else if (tag_id == OAD_ACTIVE_ENERGY) {
         *out_val = 1000.0 + (double)meter_idx * 12.5;
         return 0;
     } else {

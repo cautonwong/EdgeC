@@ -88,8 +88,8 @@ static cJSON *build_grants(sqlite3 *db, const char *app_id) {
             cJSON_AddStringToObject(grant, "scope_json", scope ? (const char *)scope : "");
         }
         cJSON_AddNumberToObject(grant, "state", sqlite3_column_int(stmt, 2));
-        cJSON_AddNumberToObject(grant, "expires_at", sqlite3_column_int64(stmt, 3));
-        cJSON_AddNumberToObject(grant, "revoked_at", sqlite3_column_int64(stmt, 4));
+        cJSON_AddNumberToObject(grant, "expires_at", (double)sqlite3_column_int64(stmt, 3));
+        cJSON_AddNumberToObject(grant, "revoked_at", (double)sqlite3_column_int64(stmt, 4));
         cJSON_AddItemToArray(grants, grant);
     }
     sqlite3_finalize(stmt);

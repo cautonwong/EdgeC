@@ -226,11 +226,11 @@ static int child_unauthorized(const char *path) {
     uint8_t header[16];
     memcpy(header, REST_UDS_MAGIC, 4);
     put_u32(header + 4, 3);
-    put_u32(header + 8, 19);
+    put_u32(header + 8, (uint32_t)(sizeof("/api/v1/apps/list") - 1));
     put_u32(header + 12, 0);
     ssize_t n = -1;
     if (write_all(fd, header, sizeof(header)) == 0 && write_all(fd, "GET", 3) == 0 &&
-        write_all(fd, "/api/v1/apps/list", 19) == 0) {
+        write_all(fd, "/api/v1/apps/list", sizeof("/api/v1/apps/list") - 1) == 0) {
         char byte;
         n = read(fd, &byte, 1);
     }

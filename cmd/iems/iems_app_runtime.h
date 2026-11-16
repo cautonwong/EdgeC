@@ -45,6 +45,11 @@ void iems_app_runtime_destroy(iems_app_runtime_t *rt);
 
 int iems_app_runtime_start(iems_app_runtime_t *rt, const char *app_id, const char *wasm_path,
                            uint32_t heap_kb, uint32_t stack_kb);
+/** Start with the manifest resource limits. 0 disables a limit. */
+int iems_app_runtime_start_ex(iems_app_runtime_t *rt, const char *app_id, const char *wasm_path,
+                              uint32_t heap_kb, uint32_t stack_kb, uint32_t pids_max,
+                              uint32_t cpu_ms_per_sec, uint32_t calls_per_sec,
+                              uint32_t publish_per_sec);
 void iems_app_runtime_stop(iems_app_runtime_t *rt, const char *app_id);
 void iems_app_runtime_stop_all(iems_app_runtime_t *rt);
 int iems_app_runtime_is_running(iems_app_runtime_t *rt, const char *app_id);
@@ -62,5 +67,10 @@ const char *iems_app_runtime_app_host_path(const iems_app_runtime_t *rt);
 int iems_app_runtime_restart_later(iems_app_runtime_t *rt, const char *app_id,
                                    const char *wasm_path, uint32_t delay_ms, uint32_t heap_kb,
                                    uint32_t stack_kb);
+int iems_app_runtime_restart_later_ex(iems_app_runtime_t *rt, const char *app_id,
+                                      const char *wasm_path, uint32_t delay_ms, uint32_t heap_kb,
+                                      uint32_t stack_kb, uint32_t pids_max,
+                                      uint32_t cpu_ms_per_sec, uint32_t calls_per_sec,
+                                      uint32_t publish_per_sec);
 
 #endif /* IEMS_APP_RUNTIME_H */

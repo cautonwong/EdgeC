@@ -54,7 +54,7 @@ static void detect_cpu_topology(edge_cpu_topology_t *topo) {
     CPU_ZERO(&cpuset);
     if (sched_getaffinity(0, sizeof(cpuset), &cpuset) == 0) {
         for (long i = 0; i < nproc && i < 64; i++) {
-            if (CPU_ISSET(i, &cpuset)) {
+            if (CPU_ISSET((unsigned)i, &cpuset)) {
                 mask |= (1ULL << (uint64_t)i);
             }
         }

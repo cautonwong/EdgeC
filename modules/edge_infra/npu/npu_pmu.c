@@ -6,6 +6,7 @@
 #include "npu_pmu.h"
 #include "edge_datahub_write_port.h"
 
+#include <stdio.h>
 #include <string.h>
 #include <time.h>
 #include <math.h>
@@ -96,8 +97,8 @@ static op_accumulator_t *find_or_create_accumulator(npu_pmu_internal_t *self, ui
         acc->op_id = op_id;
         acc->op_type = op_type;
         if (op_name) {
-            strncpy(acc->op_name, op_name, sizeof(acc->op_name) - 1);
-            acc->op_name[sizeof(acc->op_name) - 1] = '\0';
+            snprintf(acc->op_name, sizeof(acc->op_name), "%.*s",
+                     (int)(sizeof(acc->op_name) - 1), op_name);
         }
         acc->min_latency_ns = UINT64_MAX;
         return acc;
@@ -198,7 +199,8 @@ int npu_pmu_op_end(npu_pmu_t *pmu, uint64_t token,
     memset(&rec, 0, sizeof(rec));
     rec.op_id = self->active_op.op_id;
     rec.op_type = self->active_op.op_type;
-    strncpy(rec.op_name, self->active_op.op_name, sizeof(rec.op_name) - 1);
+    snprintf(rec.op_name, sizeof(rec.op_name), "%.*s", (int)(sizeof(rec.op_name) - 1),
+             self->active_op.op_name);
     rec.start_time_ns = start_ns;
     rec.end_time_ns = now_ns;
     rec.latency_ns = latency_ns;

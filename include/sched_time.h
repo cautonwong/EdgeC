@@ -2,6 +2,7 @@
 #define SCHED_TIME_H
 
 #include <stdint.h>
+#include "edge_common_types.h"
 #include <uv.h>
 
 typedef struct uv_periodic_s uv_periodic_t;
@@ -59,5 +60,10 @@ void uv_periodic_stop(uv_periodic_t* handle);
 /* --- 标准策略库 (模仿 libev 常见模式) --- */
 double sched_policy_at_minute(uv_periodic_t* handle, double now);
 double sched_policy_at_hour(uv_periodic_t* handle, double now);
+
+/* Clock sources: weak defaults in modules/edge_io/src/sched_port.c; tests and
+ * products may override them with strong definitions. */
+wall_time_t sched_wall_now(void);
+mono_time_t sched_mono_now(void);
 
 #endif

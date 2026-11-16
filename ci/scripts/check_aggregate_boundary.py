@@ -50,6 +50,19 @@ LEGACY_FIELD_RULES = [
     ),
 ]
 
+# Product control writes must enter through the aggregate root's execution port.
+# The IEMS composition root wires exactly one implementation; anything else in cmd/
+# would bypass fire/BMS/SOC/watchdog arbitration.
+WRITE_PATH_RULES = [
+    (
+        "EDGE_API_WRITE",
+        re.compile(r"\bedge_api_write_tag\s*\("),
+        {"cmd/iems/iems_execution_adapter.c"},
+        "cmd/ may only call edge_api_write_tag from the IEMS execution adapter",
+    ),
+]
+
+
 # Public value types that are intentionally transparent. These are data structures, not
 # aggregate roots: they carry no cross-field invariants enforced by their owning module.
 TRANSPARENT_VALUE_TYPES = {"net_buf", "net_buf_simple"}
@@ -271,6 +284,27 @@ def check_directory(target_dir):
                                         rel, "FIELD_ACCESS", agg_name
                                     ),
                                     "issue": "#413",
+                                }
+                            )
+
+            # Product write-path rule: applies to real code and fixtures.
+            if rel.startswith("cmd/"):
+                for rule_id, pattern, allowed, msg in WRITE_PATH_RULES:
+                    if rel in allowed:
+                        continue
+                    for idx, line in enumerate(lines, 1):
+                        clean = re.sub(r"//.*", "", line)
+                        if pattern.search(clean):
+                            violations.append(
+                                {
+                                    "file": rel,
+                                    "location": f"{rel}:{idx}",
+                                    "rule_id": "WRITE_PATH",
+                                    "detail": f"[{rule_id}] {msg}: {line.strip()}",
+                                    "fingerprint": guard_baseline.fingerprint(
+                                        rel, "WRITE_PATH", rule_id
+                                    ),
+                                    "issue": "foundation-hardening",
                                 }
                             )
 

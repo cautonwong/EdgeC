@@ -28,8 +28,7 @@
 static const char *valid_manifest =
     "{\"abi\":1,\"id\":\"voltage-guard\",\"version\":\"1.0.0\",\"language\":\"c\","
     "\"execution_profile\":\"wasm\",\"entry\":\"app.wasm\","
-    "\"limits\":{\"heapKb\":256,\"storageKb\":64,\"cpuMsPerSec\":50,"
-    "\"callsPerSec\":100,\"publishPerSec\":10},"
+    "\"limits\":{\"heapKb\":256,\"cpuMsPerSec\":50},"
     "\"capabilities\":{\"tags\":{\"read\":[\"U_A\"],\"write\":[]},\"log\":true}}";
 
 static void _on_close_cb(uv_handle_t *handle, void *arg) {
@@ -67,6 +66,28 @@ static void _trust_clock(sqlite_svc_t *db) {
                      0);
 }
 
+/* Force UNTRUSTED regardless of /dev/rtc presence: wall time is below the
+ * trusted floor. CI hosts often have an RTC, which would otherwise classify a
+ * fresh database as DEGRADED and let the install through. */
+static void _force_untrusted_clock(sqlite_svc_t *db) {
+    sqlite3 *handle = (sqlite3 *)sqlite_svc_get_db_handle(db);
+    assert_non_null(handle);
+    assert_int_equal(sqlite3_exec(handle,
+        "INSERT OR REPLACE INTO system_time (key, value) VALUES ('trusted_floor_ms', 9999999999999);",
+        NULL, NULL, NULL), SQLITE_OK);
+    assert_int_equal(sqlite3_exec(handle,
+        "INSERT OR REPLACE INTO system_time (key, value) VALUES ('last_sync_ms', 0);",
+        NULL, NULL, NULL), SQLITE_OK);
+}
+
+static void _clear_untrusted_clock(sqlite_svc_t *db) {
+    sqlite3 *handle = (sqlite3 *)sqlite_svc_get_db_handle(db);
+    assert_non_null(handle);
+    assert_int_equal(sqlite3_exec(handle,
+        "DELETE FROM system_time WHERE key = 'trusted_floor_ms';",
+        NULL, NULL, NULL), SQLITE_OK);
+}
+
 static void _drain_app_jobs(edge_app_mgr_t *mgr, uv_loop_t *loop) {
     while (edge_app_mgr_is_busy(mgr)) uv_run(loop, UV_RUN_ONCE);
 }
@@ -90,8 +111,7 @@ static char *_upgrade_manifest(const char *version, const char *read_scopes) {
     snprintf(buf, 1024,
              "{\"abi\":1,\"id\":\"voltage-guard\",\"version\":\"%s\",\"language\":\"c\","
              "\"execution_profile\":\"wasm\",\"entry\":\"app.wasm\","
-             "\"limits\":{\"heapKb\":256,\"storageKb\":64,\"cpuMsPerSec\":50,"
-             "\"callsPerSec\":100,\"publishPerSec\":10},"
+             "\"limits\":{\"heapKb\":256,\"cpuMsPerSec\":50},"
              "\"capabilities\":{\"tags\":{\"read\":%s,\"write\":[]},\"log\":true}}",
              version, read_scopes);
     return buf;
@@ -450,8 +470,7 @@ static void test_raw_wasm_and_legacy_abi_rejected(void **state) {
     snprintf(legacy_manifest, sizeof(legacy_manifest),
              "{\"id\":\"%s\",\"version\":\"1.0.0\",\"language\":\"c\","
              "\"execution_profile\":\"wasm\",\"entry\":\"app.wasm\","
-             "\"limits\":{\"heapKb\":1,\"storageKb\":1,\"cpuMsPerSec\":1,"
-             "\"callsPerSec\":1,\"publishPerSec\":1}}",
+             "\"limits\":{\"heapKb\":1,\"cpuMsPerSec\":1}}",
              legacy_id);
     assert_int_equal(control.install_app(control.ctx, legacy_manifest, legacy_id, 1001, "on_event",
                                          wasm, sizeof(wasm), NULL),
@@ -616,8 +635,7 @@ static char *_manifest_for(const char *id, const char *version) {
     snprintf(buf, 1024,
              "{\"abi\":1,\"id\":\"%s\",\"version\":\"%s\",\"language\":\"c\","
              "\"execution_profile\":\"wasm\",\"entry\":\"app.wasm\","
-             "\"limits\":{\"heapKb\":256,\"storageKb\":64,\"cpuMsPerSec\":50,"
-             "\"callsPerSec\":100,\"publishPerSec\":10},"
+             "\"limits\":{\"heapKb\":256,\"cpuMsPerSec\":50},"
              "\"capabilities\":{\"tags\":{\"read\":[\"U_A\"],\"write\":[]},\"log\":true}}",
              id, version);
     return buf;
@@ -868,8 +886,7 @@ static void test_rest_apps_package_key_file(void **state) {
 static const char *points_manifest =
     "{\"abi\":1,\"id\":\"points-app\",\"version\":\"1.0.0\",\"language\":\"c\","
     "\"execution_profile\":\"wasm\",\"entry\":\"app.wasm\","
-    "\"limits\":{\"heapKb\":1,\"storageKb\":1,\"cpuMsPerSec\":1,\"callsPerSec\":1,"
-    "\"publishPerSec\":1},"
+    "\"limits\":{\"heapKb\":1,\"cpuMsPerSec\":1},"
     "\"capabilities\":{\"points\":{\"publish\":[\"app.points-app.sag_count\"],"
     "\"reason\":\"own points\"}},"
     "\"contributes\":{\"telemetry\":{\"points\":[{\"name\":\"sag_count\","
@@ -980,6 +997,18 @@ static void test_rest_apps_uninstall_purge(void **state) {
     assert_non_null(strstr(resp, "\"status\":\"ok\""));
     free(resp);
 
+    /* 33 extra grants force the PURGE loop past the old fixed 32-slot array. */
+    sqlite3 *handle = (sqlite3 *)sqlite_svc_get_db_handle(db);
+    assert_non_null(handle);
+    for (int i = 0; i < 33; i++) {
+        char sql[256];
+        snprintf(sql, sizeof(sql),
+                 "INSERT OR REPLACE INTO app_grant (app_id, capability, purpose, granted_at) "
+                 "VALUES ('purge-app', 'cap.extra.%02d', 'purge test', 1);",
+                 i);
+        assert_int_equal(sqlite3_exec(handle, sql, NULL, NULL, NULL), SQLITE_OK);
+    }
+
     edge_secret_store_t secrets = edge_secret_sqlite(db);
     char names[8][EDGE_SECRET_NAME_SIZE];
     size_t secret_count = 0;
@@ -987,10 +1016,10 @@ static void test_rest_apps_uninstall_purge(void **state) {
                      EDGE_SECRET_OK);
     assert_int_equal(secret_count, 1);
     edge_authz_store_t authz = edge_authz_sqlite_store(db);
-    edge_app_grant_t grants[8];
+    edge_app_grant_t grants[64];
     size_t grant_count = 0;
-    assert_int_equal(authz.list_grants(authz.ctx, "purge-app", grants, 8, &grant_count), 0);
-    assert_int_equal(grant_count, 1);
+    assert_int_equal(authz.list_grants(authz.ctx, "purge-app", grants, 64, &grant_count), 0);
+    assert_int_equal(grant_count, 34);
 
     resp = rest_dispatch(svc, "POST", "/api/v1/apps/uninstall",
                          "{\"app_id\":\"purge-app\",\"disposition\":\"purge\"}");
@@ -1007,7 +1036,7 @@ static void test_rest_apps_uninstall_purge(void **state) {
                      EDGE_SECRET_OK);
     assert_int_equal(secret_count, 0);
     grant_count = 0;
-    assert_int_equal(authz.list_grants(authz.ctx, "purge-app", grants, 8, &grant_count), 0);
+    assert_int_equal(authz.list_grants(authz.ctx, "purge-app", grants, 64, &grant_count), 0);
     assert_int_equal(grant_count, 0);
     assert_int_equal(access(app_dir, F_OK), -1);
 
@@ -1047,6 +1076,7 @@ static void test_rest_apps_install_requires_trusted_clock(void **state) {
     sqlite_config_t cfg = {.strategy = STRATEGY_LITE, .db_path = db_path};
     sqlite_svc_t *db = sqlite_svc_create(loop, &cfg);
     assert_non_null(db);
+    _force_untrusted_clock(db);
 
     size_t mgr_size = edge_app_mgr_storage_size();
     void *mgr_mem = malloc(mgr_size);
@@ -1077,6 +1107,7 @@ static void test_rest_apps_install_requires_trusted_clock(void **state) {
     assert_int_not_equal(edge_app_mgr_get_app(mgr, "clock-app", &m), 0);
     assert_int_not_equal(access(TEST_APPS_DIR "/clock-app/app.wasm", F_OK), 0);
 
+    _clear_untrusted_clock(db);
     _trust_clock(db);
     body = _upload_body("clock-app", manifest, "0061736d01000000000141", "clock-key-2");
     assert_non_null(body);
@@ -1087,6 +1118,20 @@ static void test_rest_apps_install_requires_trusted_clock(void **state) {
     free(resp);
     _drain_app_jobs(mgr, loop);
     assert_int_equal(edge_app_mgr_get_app(mgr, "clock-app", &m), 0);
+
+    const char *storage_manifest =
+        "{\"abi\":1,\"id\":\"storage-app\",\"version\":\"1.0.0\",\"language\":\"c\","
+        "\"execution_profile\":\"wasm\",\"entry\":\"app.wasm\","
+        "\"limits\":{\"heapKb\":64,\"storageKb\":64,\"cpuMsPerSec\":50},"
+        "\"capabilities\":{\"tags\":{\"read\":[\"U_A\"],\"write\":[]},\"log\":true}}";
+    body = _upload_body("storage-app", storage_manifest, "0061736d01000000000141",
+                        "clock-key-3");
+    assert_non_null(body);
+    resp = rest_dispatch(svc, "POST", "/api/v1/apps/upload", body);
+    free(body);
+    assert_non_null(resp);
+    assert_non_null(strstr(resp, "\"status\":\"error\""));
+    free(resp);
 }
 
 int main(void) {

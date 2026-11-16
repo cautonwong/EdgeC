@@ -203,7 +203,7 @@ int dlt698_encode_action_response(const dlt698_addr_t *sa, uint8_t piid, uint16_
     return 0;
 }
 
-int dlt698_decode_frame_ex(struct net_buf_simple *in, dlt698_addr_t *sa, uint8_t *svc, 
+int dlt698_decode_frame_ex(struct net_buf_simple *in, dlt698_addr_t *sa, uint8_t *svc,
                            uint8_t *choice, uint8_t *piid, uint8_t **payload_out, size_t *payload_len) {
     if (in->len < 12) return 1;
     if (in->data[0] != DLT698_HEAD) return -2;
@@ -213,14 +213,17 @@ int dlt698_decode_frame_ex(struct net_buf_simple *in, dlt698_addr_t *sa, uint8_t
     if (in->len < frame_len + 1) return 1;
     if (in->data[frame_len] != DLT698_END) return -2;
 
+    // SA Decode：先确认帧内确实有 SA、CA、HCS 和至少 3 字节 APDU
+    uint8_t sa_cfg = in->data[4];
+    uint8_t sa_len = (uint8_t)((sa_cfg & 0x0F) + 1);
+    if (frame_len < (size_t)(13 + sa_len)) return 1;
+
     // FCS Check
     uint16_t fcs_rx = (uint16_t)(in->data[frame_len - 2] | (in->data[frame_len - 1] << 8));
     if (dlt698_calculate_fcs(in->data + 1, frame_len - 3) != fcs_rx) return -1;
 
-    // SA Decode
-    uint8_t sa_cfg = in->data[4];
     sa->type = (uint8_t)(sa_cfg >> 6);
-    sa->len = (uint8_t)((sa_cfg & 0x0F) + 1);
+    sa->len = sa_len;
     memcpy(sa->addr, &in->data[5], sa->len);
 
     size_t header_len = (size_t)(5 + sa->len + 1); // 68,L,L,C,SA,CA
@@ -303,7 +306,9 @@ int dlt698_decode_data(const uint8_t *buf, uint16_t len, uint16_t *offset, dlt69
 
         case DLT698_TAG_ARRAY:
         case DLT698_TAG_STRUCTURE: {
+            if (*offset >= len) return -1;
             uint8_t count = buf[(*offset)++];
+            if (count > 64) return -1;
             res->val.container.count = count;
             if (count > 0) {
                 if (g_dlt698_pool_idx + count > 64) {
@@ -337,10 +342,11 @@ int dlt698_decode_data(const uint8_t *buf, uint16_t len, uint16_t *offset, dlt69
 
         case DLT698_TAG_OCTET_STRING:
         case DLT698_TAG_VISIBLE_STRING: {
+            if (*offset >= len) return -1;
             uint8_t slen = buf[(*offset)++];
             if (*offset + slen > len) return -1;
-            res->val.str.len = slen;
             uint8_t copy_len = (slen >= MAX_DLT698_STRING_LEN) ? (MAX_DLT698_STRING_LEN - 1) : slen;
+            res->val.str.len = copy_len;
             memcpy(res->val.str.buf, &buf[*offset], copy_len);
             res->val.str.buf[copy_len] = '\0';
             res->val.str.ptr = res->val.str.buf;
@@ -349,10 +355,12 @@ int dlt698_decode_data(const uint8_t *buf, uint16_t len, uint16_t *offset, dlt69
         }
 
         case DLT698_TAG_INTEGER: // int8
+            if (*offset >= len) return -1;
             res->val.i8 = (int8_t)buf[(*offset)++];
             return 0;
 
         case DLT698_TAG_UNSIGNED: // uint8
+            if (*offset >= len) return -1;
             res->val.u8 = buf[(*offset)++];
             return 0;
 
@@ -369,6 +377,7 @@ int dlt698_decode_data(const uint8_t *buf, uint16_t len, uint16_t *offset, dlt69
             return 0;
 
         case DLT698_TAG_ENUM:
+            if (*offset >= len) return -1;
             res->val.u8 = buf[(*offset)++];
             return 0;
 

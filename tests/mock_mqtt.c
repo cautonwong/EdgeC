@@ -13,8 +13,10 @@ char g_mock_mqtt_topic[256] = {0};
 char g_mock_mqtt_payload[512] = {0};
 int g_mock_mqtt_send_count = 0;
 
-void mock_mqtt_reset(void) {
-    memset(g_mock_mqtt_topic, 0, sizeof(g_mock_mqtt_topic));
+
+/* File-local prototypes. */
+void mock_mqtt_reset(void);
+void mock_mqtt_reset(void) {    memset(g_mock_mqtt_topic, 0, sizeof(g_mock_mqtt_topic));
     memset(g_mock_mqtt_payload, 0, sizeof(g_mock_mqtt_payload));
     g_mock_mqtt_send_count = 0;
 }
@@ -54,6 +56,7 @@ int MQTTAsync_send(MQTTAsync handle, const char* destinationName, int payloadlen
     (void)response;
 
     strncpy(g_mock_mqtt_topic, destinationName, 255);
+    g_mock_mqtt_topic[sizeof(g_mock_mqtt_topic) - 1] = '\0';
 
     // Payload 可能是二进制，但我们只测试 JSON 字符串
     int copy_len = payloadlen < 511 ? payloadlen : 511;
