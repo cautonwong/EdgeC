@@ -41,7 +41,7 @@ static size_t build_module(uint8_t *buf, size_t capacity, const char *const *mod
 static void test_allowed_import(void **state) {
     (void)state;
     const char *allowed[] = {"host_get_tag", "point_resolve", "point_read", "point_publish",
-                             "app_log", "app_now"};
+                             "app_log", "app_now", "setting_get"};
     for (size_t i = 0; i < sizeof(allowed) / sizeof(allowed[0]); i++) {
         uint8_t module[128];
         const char *modules[] = {"env"};

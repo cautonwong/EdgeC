@@ -1,15 +1,23 @@
 # Line-coverage floors for the product sources (tests/third-party excluded).
 #
-# Measured 2026-11-16 on the CI-equivalent Release/COVERAGE build, with a
+# Measured 2026-11-17 on the CI-equivalent Release/COVERAGE build, with a
 # margin below the observed value. Raising a floor is progress; lowering one
 # is an architecture decision and must be justified in the commit.
 #
+# 2026-11-17 修正：先前 ALL 83.9% 的测量包含了验收台架运行过的产品进程
+# 覆盖率；CI 的覆盖率步骤在验收之前。按全新 build 目录、只跑 ctest 的
+# CI 等价构建重测为 ALL 74.3%、cmd 76.9%、edge_mgmt 87.0%（86.96）。
+# 这三个目录的下限按实测留约 1 点余量下调，其余目录不变。
+#
+# 同日第二批后重测：SDK 测试接入插桩，ALL 75.6%、cmd 77.6%、
+# edge_mgmt 87.6%、adapters 67.5%，下限按新实测上调。
+#
 # Format: <scope>|<floor percent>
-ALL|70
-foundation|85
-modules/edge_core|70
-modules/edge_io|55
-modules/edge_stream|60
-modules/edge_mgmt|80
-adapters|60
-cmd|70
+ALL|74.5
+foundation|87
+modules/edge_core|75
+modules/edge_io|60
+modules/edge_stream|65
+modules/edge_mgmt|87.0
+adapters|66.5
+cmd|76.5

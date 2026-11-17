@@ -1,6 +1,6 @@
 # 08 事件模型：不造通用总线
 
-状态：第二轮修订（2026-11-09/10），待复审。未实现。
+状态：第二轮修订（2026-11-09/10），待复审。v1 已实现 `grant_changed`（2026-11-17）、`settings_changed`（2026-11-17）与 `app_will_stop`（2026-11-17），其余平台事件未实现。
 
 ## 1. 结论
 
@@ -47,7 +47,7 @@
 
 `tick` 不是平台状态事件，而是清单可选字段 `tick_ms` 产生的定时唤醒；它与上表共用 `app_on_event` 与每应用队列，计入 Host 调用预算，且不重入（上一次未返回则跳过并计数）。点位事件在 `payload` 里额外带 `reason`：`change` / `keepalive` / `quality`，见 03 号文档"订阅与定时"。
 
-统一信封：
+完整信封（ABI v2 的目标；v1 只投递 WIT `event` 记录 `{kind, point, payload}`）：
 
 ```
 event_id    ULID，应用用于幂等
@@ -59,7 +59,27 @@ app_id      目标应用
 payload     类型化载荷
 ```
 
-事件通过 ABI 定义的 `app_on_event` 投递，载荷与错误码见 03 号文档的 ABI 总表。两种时钟必须分开给，只给墙钟会让应用在时间跳变时做出错误判断。
+v1 的 `app_on_event` 载荷是 `{kind, point, payload}`，`payload` 是 JSON 字符串。点位事件在字符串里带 `{value, quality, source_ts, reason}`，`reason` 取 `change` / `keepalive` / `quality`。上面信封里的 `event_id`、`version`、`mono_ms`、`wall_ms` 留待 ABI v2；`event_id` 不能放在帧顶层，因为帧的 `id` 已被 JSON-RPC 请求号占用。
+
+事件通过 ABI 定义的 `app_on_event` 投递，载荷与错误码见 03 号文档的 ABI 总表。进入 v2 后，两种时钟必须分开给，只给墙钟会让应用在时间跳变时做出错误判断。
+
+### v1 平台事件：`grant_changed`、`settings_changed` 与 `app_will_stop`
+
+v1 先实现三个平台事件，验证"平台到应用"这条通道。它们与点位事件共用同一个每应用队列和 `app_on_event` 帧，`point` 为 `null`，没有订阅，也不按 handle 合并：
+
+| `kind` | `payload` | 触发时机 |
+| --- | --- | --- |
+| `grant_changed` | `{"handle": H, "reason": "<error code>"}` | 投递前的 `allow` 复检发现授权已撤销；宿主在释放订阅、取消 DataHub 订阅之前入队 |
+| `settings_changed` | `{"key": "<键名>"}` | 操作者经控制面成功写入设置后；应用先调用 `setting_watch` 才投递，写入失败与应用停止都不投递 |
+| `app_will_stop` | `{"reason": "operator", "deadline_ms": N}` | 操作者经控制面停止运行中的应用；宿主先入队，等待应用 ack 或自行退出最多 N 毫秒，超时才走既有的 SIGTERM 与关通道路径 |
+
+第 4 节表中的 `grant.changed` 是目标事件名；v1 线上的 `kind` 用下划线形式 `grant_changed`，与 WIT 函数命名一致。`reason` 取 WIT 错误码（撤销场景为 `denied_revoked`），应用据此判断是撤销而不是上游故障。`settings.changed` 同理，v1 线上 `kind` 为 `settings_changed`；`payload` 只含键名、不含值，应用据此重新 `setting_get`。
+
+`app.will_stop` 同样沿用下划线形式，v1 线上 `kind` 为 `app_will_stop`。`reason` 是停止来源，v1 只有 `operator`（控制面 `stop_app`）；`deadline_ms` 是宿主在入队时给出的等待预算，v1 固定为 2000，事件若在队列里等待，实际剩余时间会更短，宿主仍按自己的截止时间终止。应用收到后应落盘并尽快退出或确认事件；宿主在收到该事件的 ack（应用对 `app_on_event` 的同 `id`、无 `fn` 响应帧）或进程退出后立即终止，不等满 2000ms。故障、替换（安装、升级、回滚）、卸载、资源回收与重启失败路径不发该事件，直接按原路径终止；产品关停（`iems_app_runtime_destroy`）也不等待，因为事件循环即将结束。等待截止时间由运行时自己的定时器计算，不依赖服务器的 5000ms ack 超时。
+
+宿主入口是 `app_host_server_post_platform_event(srv, kind, payload_json)`。队列由互斥锁保护，任意线程都可以入队；投递仍只发生在 loop 线程，并和点位事件一样等待上一帧的 ack。`kind` 限定为 `[A-Za-z0-9_.-]` 且小于 32 字节，`payload_json` 小于 128 字节；平台事件不合并，队列满时与点位事件一样丢最旧并计入丢弃数。`settings_changed` 经 `app_host_server_post_settings_changed(srv, key)` 入队；它先检查本连接是否调用过 `setting_watch`，未关注时返回失败且不入队。
+
+v1 的平台事件投递覆盖授权撤销 `grant_changed`、操作者写入后的 `settings_changed`、操作者停止时的 `app_will_stop` 与清单 `tick_ms` 产生的 `tick`；`upstream.available`、`upstream.unavailable`、`registry.generation` 与 `action.invoke` 同样留待后续。
 
 投递语义：
 
@@ -132,4 +152,4 @@ payload     类型化载荷
 
 ## 10. 未决
 
-- MQTT 复用作为未来触发条件下的候选，需要先评估离线设备的凭据管理。其余（`app.will_stop` 5000ms、队列 256、平台事件不镜像成点位）已于 2026-11-09 收敛。
+- MQTT 复用作为未来触发条件下的候选，需要先评估离线设备的凭据管理。`app_will_stop` 的等待在 v1 取 2000ms（2026-11-17 实现时从 2026-11-09 记下的 5000ms 收紧，降低 appctl 停止延迟）；队列 256、平台事件不镜像成点位已于 2026-11-09 收敛。

@@ -12,7 +12,7 @@
 #define EDGE_APP_FN_POINT_READ "point_read"
 #define EDGE_APP_WASM_POINT_READ "point_read"
 #define EDGE_APP_FN_POINT_SUBSCRIBE "point_subscribe"
-#define EDGE_APP_WASM_POINT_SUBSCRIBE NULL
+#define EDGE_APP_WASM_POINT_SUBSCRIBE "point_subscribe"
 #define EDGE_APP_FN_POINT_PUBLISH "point_publish"
 #define EDGE_APP_WASM_POINT_PUBLISH "point_publish"
 #define EDGE_APP_FN_LOG "log"
@@ -30,7 +30,7 @@ typedef struct {
 static const edge_app_abi_function_t edge_app_abi_functions[] = {
     {"point_resolve", "point-resolve", "point_resolve", true},
     {"point_read", "point-read", "point_read", true},
-    {"point_subscribe", "point-subscribe", NULL, false},
+    {"point_subscribe", "point-subscribe", "point_subscribe", true},
     {"point_publish", "point-publish", "point_publish", true},
     {"log", "log", "app_log", true},
     {"now", "now", "app_now", true},

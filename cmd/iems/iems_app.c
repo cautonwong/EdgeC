@@ -23,6 +23,7 @@
 #include "edge_slave_plane.h"
 #include "driver_manager.h"
 #include "edge_api.h"
+#include "edge_authz_sqlite.h"
 #include "edge_driver_runtime.h"
 #include "edge_log.h"
 #include "edgeos/edge_app_mgr.h"
@@ -239,7 +240,8 @@ static void _reactivate_desired_apps(iems_app_t* app);
 
 static void _start_app_management(iems_app_t* app) {
     _poll_time_sync(app);
-    int recovered = edge_app_mgr_recover_packages(app->app_mgr);
+    edge_authz_store_t grants = edge_authz_sqlite_store(app->db_service);
+    int recovered = edge_app_mgr_recover_packages(app->app_mgr, &grants);
     if (recovered > 0) {
         LOG_WARN(LOG_CAT_CORE, "reconcile: recovered %d package(s) from interrupted upgrades",
                  recovered);

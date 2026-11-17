@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 #include <uv.h>
@@ -78,7 +79,8 @@ static void test_manifest_parse_and_default(void **state) {
         "\"entry_func\": \"process_temp\","
         "\"fault_policy\": \"isolate_and_alarm\","
         "\"heap_limit_kb\": 1024,"
-        "\"timeout_ms\": 200"
+        "\"timeout_ms\": 200,"
+        "\"tick_ms\": 300"
         "}";
 
     app_manifest_t m1;
@@ -93,6 +95,7 @@ static void test_manifest_parse_and_default(void **state) {
     assert_int_equal(m1.fault_policy, FAULT_POLICY_ISOLATE_AND_ALARM);
     assert_int_equal(m1.heap_limit_kb, 1024);
     assert_int_equal(m1.timeout_ms, 200);
+    assert_int_equal(m1.tick_ms, 300);
 
     // 2. Default Manifest for raw .wasm
     app_manifest_t m2;
@@ -101,12 +104,25 @@ static void test_manifest_parse_and_default(void **state) {
     assert_string_equal(m2.id, "voltage_alarm");
     assert_string_equal(m2.name, "voltage_alarm App");
     assert_int_equal(m2.fault_policy, FAULT_POLICY_AUTO_RESTART);
+    assert_int_equal(m2.tick_ms, 0);
 
     // 3. Path traversal in id must be rejected at every manifest entry.
     app_manifest_t bad;
     assert_int_equal(edge_app_mgr_parse_manifest_json("{\"id\":\"../../tmp/pwn\"}", &bad), -1);
     assert_int_equal(edge_app_mgr_construct_default_manifest("../pwn.wasm", &bad), -1);
     assert_int_equal(edge_app_mgr_construct_default_manifest("a/b.wasm", &bad), -1);
+
+    // 4. tick_ms accepts 0 and 50..60000, rejects everything else.
+    assert_int_equal(edge_app_mgr_parse_manifest_json("{\"id\":\"a\",\"tick_ms\":0}", &bad), 0);
+    assert_int_equal(bad.tick_ms, 0);
+    assert_int_equal(edge_app_mgr_parse_manifest_json("{\"id\":\"a\",\"tick_ms\":50}", &bad), 0);
+    assert_int_equal(bad.tick_ms, 50);
+    assert_int_equal(edge_app_mgr_parse_manifest_json("{\"id\":\"a\",\"tick_ms\":60000}", &bad),
+                     0);
+    assert_int_equal(bad.tick_ms, 60000);
+    assert_int_equal(edge_app_mgr_parse_manifest_json("{\"id\":\"a\",\"tick_ms\":49}", &bad), -1);
+    assert_int_equal(edge_app_mgr_parse_manifest_json("{\"id\":\"a\",\"tick_ms\":60001}", &bad),
+                     -1);
 }
 
 static void test_app_lifecycle_and_boot_restore(void **state) {
@@ -785,6 +801,7 @@ static void test_upgrade_inherits_and_rejects_downgrade(void **state) {
     snprintf(installed.id, sizeof(installed.id), "app.demo");
     snprintf(installed.name, sizeof(installed.name), "Demo");
     snprintf(installed.version, sizeof(installed.version), "1.0.0");
+    snprintf(installed.wasm_path, sizeof(installed.wasm_path), "test_inherit_app.wasm");
     installed.state = APP_STATE_RUNNING;
     installed.desired_state = true;
     assert_int_equal(repo.save_app(repo.ctx, &installed), 0);
@@ -875,10 +892,12 @@ static void test_upgrade_package_swap_and_rollback(void **state) {
                                        0x00, 0x00, 0x00, 0x01, 'B'};
     app_manifest_t installed;
     assert_int_equal(edge_app_mgr_construct_default_manifest("swap_app", &installed), 0);
+    installed.tick_ms = 100;
     snprintf(installed.wasm_path, sizeof(installed.wasm_path), "%s/swap_app/app.wasm", apps_dir);
     assert_int_equal(edge_app_mgr_install(mgr, &installed, payload_a, sizeof(payload_a)), 0);
 
     app_manifest_t next = installed;
+    next.tick_ms = 250;
     snprintf(next.version, sizeof(next.version), "1.1.0");
     job_wait_t w = {0};
     w.loop_thread = uv_thread_self();
@@ -898,6 +917,8 @@ static void test_upgrade_package_swap_and_rollback(void **state) {
     assert_string_equal(check.prev_version, "1.0.0");
     assert_string_equal(check.prev_wasm_path, installed.wasm_path);
     assert_non_null(strstr(check.prev_manifest_json, "\"version\":\"1.0.0\""));
+    assert_int_equal(check.tick_ms, 250);
+    assert_non_null(strstr(check.prev_manifest_json, "\"tick_ms\":100"));
 
     char prev_path[272];
     snprintf(prev_path, sizeof(prev_path), "%s.prev", installed.wasm_path);
@@ -920,6 +941,7 @@ static void test_upgrade_package_swap_and_rollback(void **state) {
     assert_string_equal(check.prev_version, "");
     assert_string_equal(check.prev_wasm_path, "");
     assert_string_equal(check.prev_manifest_json, "");
+    assert_int_equal(check.tick_ms, 100);
 
     /* No snapshot left: a second rollback reports the empty prev slot. */
     memset(&w, 0, sizeof(w));
@@ -976,6 +998,41 @@ static void test_upgrade_package_swap_and_rollback(void **state) {
     free(mgr_mem);
     sqlite_svc_destroy(db);
     unlink(db_path);
+}
+
+/* A pre-tick_ms registry snapshot has no key; restoring it must read tick_ms 0. */
+static void test_rollback_old_row_reads_tick_zero(void **state) {
+    uv_loop_t *loop = (uv_loop_t *)*state;
+    mock_app_repo_ctx_t mock = {0};
+    edge_app_repo_t repo = {.ctx = &mock,
+                            .save_app = _mock_save_app,
+                            .get_app = _mock_get_app,
+                            .delete_app = _mock_delete_app,
+                            .list_apps = _mock_list_apps};
+    size_t mgr_size = edge_app_mgr_storage_size();
+    void *mgr_mem = malloc(mgr_size);
+    edge_app_mgr_t *mgr = edge_app_mgr_create_with_repo_in(mgr_mem, mgr_size, loop, &repo, NULL);
+    assert_non_null(mgr);
+
+    app_manifest_t current = {0};
+    snprintf(current.id, sizeof(current.id), "old.row");
+    snprintf(current.version, sizeof(current.version), "1.1.0");
+    snprintf(current.prev_version, sizeof(current.prev_version), "1.0.0");
+    current.tick_ms = 400;
+    snprintf(current.prev_manifest_json, sizeof(current.prev_manifest_json),
+             "{\"id\":\"old.row\",\"version\":\"1.0.0\",\"name\":\"Old\"}");
+    assert_int_equal(repo.save_app(repo.ctx, &current), 0);
+
+    job_wait_t w = {0};
+    w.loop_thread = uv_thread_self();
+    assert_int_equal(edge_app_mgr_rollback_async(mgr, "old.row", _wait_job_cb, &w), 0);
+    _wait_job(loop, &w);
+    assert_int_equal(w.rc, 0);
+    assert_string_equal(mock.app.version, "1.0.0");
+    assert_int_equal(mock.app.tick_ms, 0);
+
+    edge_app_mgr_destroy(mgr);
+    free(mgr_mem);
 }
 
 typedef struct {
@@ -1097,6 +1154,8 @@ static void test_reconcile_converges_drift(void **state) {
 static void test_recover_crashed_upgrade(void **state);
 static void test_recover_pending_upgrade(void **state);
 static void test_recover_orphan_install(void **state);
+static void test_upgrade_crash_recover_grants(void **state);
+static void test_upgrade_crash_recover_grants_metadata_only(void **state);
 
 int main(void) {
     const struct CMUnitTest tests[] = {
@@ -1113,11 +1172,15 @@ int main(void) {
         cmocka_unit_test(test_recover_crashed_upgrade),
         cmocka_unit_test(test_recover_pending_upgrade),
         cmocka_unit_test(test_recover_orphan_install),
+        cmocka_unit_test_setup_teardown(test_upgrade_crash_recover_grants, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_upgrade_crash_recover_grants_metadata_only, setup,
+                                        teardown),
         cmocka_unit_test_setup_teardown(test_async_uninstall_keep_offloop, setup, teardown),
         cmocka_unit_test_setup_teardown(test_async_install_loop_lag_and_busy, setup, teardown),
         cmocka_unit_test_setup_teardown(test_upgrade_inherits_and_rejects_downgrade, setup,
                                         teardown),
         cmocka_unit_test_setup_teardown(test_upgrade_package_swap_and_rollback, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_rollback_old_row_reads_tick_zero, setup, teardown),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
@@ -1148,7 +1211,7 @@ static void test_recover_crashed_upgrade(void **state) {
     unlink("test_recover_app.wasm.new");
     _write_text("test_recover_app.wasm.prev", "OLD");
     _write_text("test_recover_app.wasm.new", "JUNK");
-    assert_int_equal(edge_app_mgr_recover_packages(mgr), 1);
+    assert_int_equal(edge_app_mgr_recover_packages(mgr, NULL), 1);
     assert_int_equal(access("test_recover_app.wasm", F_OK), 0);
     assert_int_not_equal(access("test_recover_app.wasm.new", F_OK), 0);
     FILE *f = fopen("test_recover_app.wasm", "rb");
@@ -1160,7 +1223,7 @@ static void test_recover_crashed_upgrade(void **state) {
 
     _write_text("test_recover_app.wasm", "NEW");
     _write_text("test_recover_app.wasm.prev", "OLD2");
-    assert_int_equal(edge_app_mgr_recover_packages(mgr), 0);
+    assert_int_equal(edge_app_mgr_recover_packages(mgr, NULL), 0);
     f = fopen("test_recover_app.wasm", "rb");
     assert_non_null(f);
     memset(buf, 0, sizeof(buf));
@@ -1200,7 +1263,7 @@ static void test_recover_pending_upgrade(void **state) {
     _write_text("test_pending_app.wasm.pending", "new=1.1.0\n");
 
     /* Registry still says 1.0.0: the swap happened but the commit did not. */
-    assert_int_equal(edge_app_mgr_recover_packages(mgr), 1);
+    assert_int_equal(edge_app_mgr_recover_packages(mgr, NULL), 1);
     assert_int_equal(access("test_pending_app.wasm.pending", F_OK), -1);
     FILE *f = fopen(wasm, "rb");
     assert_non_null(f);
@@ -1214,7 +1277,7 @@ static void test_recover_pending_upgrade(void **state) {
     _write_text(wasm, "NEW2");
     _write_text("test_pending_app.wasm.prev", "OLD2");
     _write_text("test_pending_app.wasm.pending", "new=1.1.0\n");
-    assert_int_equal(edge_app_mgr_recover_packages(mgr), 0);
+    assert_int_equal(edge_app_mgr_recover_packages(mgr, NULL), 0);
     assert_int_equal(access("test_pending_app.wasm.pending", F_OK), -1);
     f = fopen(wasm, "rb");
     assert_non_null(f);
@@ -1250,7 +1313,7 @@ static void test_recover_orphan_install(void **state) {
     _write_text("test_orphan_apps/ghost/app.wasm", "PACKAGE");
     _write_text("test_orphan_apps/ghost/app.wasm.pending", "new=1.0.0\n");
 
-    assert_int_equal(edge_app_mgr_recover_packages(mgr), 1);
+    assert_int_equal(edge_app_mgr_recover_packages(mgr, NULL), 1);
     assert_int_equal(access("test_orphan_apps/ghost/app.wasm", F_OK), -1);
     assert_int_equal(access("test_orphan_apps/ghost/app.wasm.pending", F_OK), -1);
 
@@ -1258,4 +1321,251 @@ static void test_recover_orphan_install(void **state) {
     rmdir("test_orphan_apps");
     edge_app_mgr_destroy(mgr);
     free(mgr_mem);
+}
+
+/* Child half of the crash test: run the upgrade so the injection point kills
+ * this process after the registry commit and before the grant block. */
+static void _crash_after_registry_commit_child(const char *db_path, const char *apps_dir,
+                                               const unsigned char *payload, size_t payload_len) {
+    uv_loop_t loop;
+    if (uv_loop_init(&loop) != 0) _exit(20);
+    sqlite_config_t cfg = {.strategy = STRATEGY_LITE, .db_path = db_path};
+    sqlite_svc_t *db = sqlite_svc_create(&loop, &cfg);
+    if (!db) _exit(21);
+    edge_app_repo_t repo = app_repo_sqlite(db);
+    size_t mgr_size = edge_app_mgr_storage_size();
+    void *mgr_mem = malloc(mgr_size);
+    edge_app_mgr_t *mgr =
+        edge_app_mgr_create_with_repo_in(mgr_mem, mgr_size, &loop, &repo, NULL);
+    if (!mgr) _exit(22);
+    edge_app_mgr_set_apps_dir(mgr, apps_dir);
+    edge_app_mgr_set_crash_after_registry_commit(mgr, true);
+
+    app_manifest_t current;
+    if (edge_app_mgr_get_app(mgr, "crash_app", &current) != 0) _exit(23);
+    app_manifest_t next = current;
+    snprintf(next.version, sizeof(next.version), "1.1.0");
+    app_capability_scope_t caps[1] = {0};
+    snprintf(caps[0].capability, sizeof(caps[0].capability), "tags.read");
+    snprintf(caps[0].scope_json, sizeof(caps[0].scope_json), "[\"U_A\"]");
+    edge_authz_store_t grants = edge_authz_sqlite_store(db);
+    char reason[160];
+    int rc = edge_app_mgr_upgrade(mgr, &next, payload, payload_len, caps, 1, &grants, reason,
+                                  sizeof(reason));
+    (void)rc;
+    _exit(24); /* the injection point must fire before the upgrade returns */
+}
+
+static void test_upgrade_crash_recover_grants(void **state) {
+    uv_loop_t *loop = (uv_loop_t *)*state;
+    const char *db_path = "test_app_mgr_grant_crash.db";
+    const char *apps_dir = "edgeos_test_apps_grant_crash";
+    const char *wasm_path = "edgeos_test_apps_grant_crash/crash_app/app.wasm";
+    const char *prev_path = "edgeos_test_apps_grant_crash/crash_app/app.wasm.prev";
+    const char *pending_path = "edgeos_test_apps_grant_crash/crash_app/app.wasm.pending";
+    const char *grants_path = "edgeos_test_apps_grant_crash/crash_app/app.wasm.pending.grants";
+    const char *done_path =
+        "edgeos_test_apps_grant_crash/crash_app/app.wasm.pending.grants.done";
+    unlink(db_path);
+    unlink(wasm_path);
+    unlink(prev_path);
+    unlink(pending_path);
+    unlink(grants_path);
+    unlink(done_path);
+
+    sqlite_config_t cfg = {.strategy = STRATEGY_LITE, .db_path = db_path};
+    sqlite_svc_t *db = sqlite_svc_create(loop, &cfg);
+    assert_non_null(db);
+    size_t mgr_size = edge_app_mgr_storage_size();
+    void *mgr_mem = malloc(mgr_size);
+    edge_app_repo_t repo = app_repo_sqlite(db);
+    edge_app_mgr_t *mgr = edge_app_mgr_create_with_repo_in(mgr_mem, mgr_size, loop, &repo, NULL);
+    assert_non_null(mgr);
+    edge_app_mgr_set_apps_dir(mgr, apps_dir);
+
+    const unsigned char payload_old[] = {0x00, 0x61, 0x73, 0x6d, 0x01, 0x00,
+                                         0x00, 0x00, 0x00, 0x01, 'A'};
+    const unsigned char payload_new[] = {0x00, 0x61, 0x73, 0x6d, 0x01, 0x00,
+                                         0x00, 0x00, 0x00, 0x01, 'B'};
+    app_manifest_t installed;
+    assert_int_equal(edge_app_mgr_construct_default_manifest("crash_app", &installed), 0);
+    snprintf(installed.wasm_path, sizeof(installed.wasm_path), "%s", wasm_path);
+    assert_int_equal(edge_app_mgr_install(mgr, &installed, payload_old, sizeof(payload_old)), 0);
+
+    edge_authz_store_t grants = edge_authz_sqlite_store(db);
+    edge_app_grant_t grant = {0};
+    snprintf(grant.app_id, sizeof(grant.app_id), "crash_app");
+    snprintf(grant.capability, sizeof(grant.capability), "tags.read");
+    snprintf(grant.scope_json, sizeof(grant.scope_json), "[\"U_A\",\"U_B\"]");
+    snprintf(grant.purpose, sizeof(grant.purpose), "display");
+    grant.sensitivity_max = 1;
+    assert_int_equal(edge_authz_approve_grant(&grants, &grant, 10), EDGE_AUTHZ_OK);
+
+    edge_app_mgr_destroy(mgr);
+    free(mgr_mem);
+    sqlite_svc_destroy(db);
+
+    pid_t pid = fork();
+    assert_true(pid >= 0);
+    if (pid == 0) {
+        _crash_after_registry_commit_child(db_path, apps_dir, payload_new, sizeof(payload_new));
+    }
+    int status = 0;
+    assert_int_equal(waitpid(pid, &status, 0), pid);
+    assert_true(WIFEXITED(status));
+    assert_int_equal(WEXITSTATUS(status), 72);
+
+    /* Reopen the registry and repair the interrupted upgrade. */
+    db = sqlite_svc_create(loop, &cfg);
+    assert_non_null(db);
+    grants = edge_authz_sqlite_store(db);
+    /* Simulate the grant block stopping halfway: recovery must replay the
+     * pre-upgrade snapshot over this row, not merely leave it alone. */
+    edge_app_grant_t partial = grant;
+    snprintf(partial.scope_json, sizeof(partial.scope_json), "[\"U_A\"]");
+    assert_int_equal(edge_authz_approve_grant(&grants, &partial, 20), EDGE_AUTHZ_OK);
+
+    repo = app_repo_sqlite(db);
+    mgr_mem = malloc(mgr_size);
+    mgr = edge_app_mgr_create_with_repo_in(mgr_mem, mgr_size, loop, &repo, NULL);
+    assert_non_null(mgr);
+    edge_app_mgr_set_apps_dir(mgr, apps_dir);
+    assert_int_equal(edge_app_mgr_recover_packages(mgr, &grants), 1);
+
+    unsigned char got[32];
+    assert_int_equal(_read_file(wasm_path, got, sizeof(got)), (int)sizeof(payload_old));
+    assert_memory_equal(got, payload_old, sizeof(payload_old));
+
+    app_manifest_t recovered;
+    assert_int_equal(edge_app_mgr_get_app(mgr, "crash_app", &recovered), 0);
+    assert_string_equal(recovered.version, "1.0.0");
+
+    edge_app_grant_t restored;
+    assert_int_equal(grants.get_grant(grants.ctx, "crash_app", "tags.read", &restored), 1);
+    assert_string_equal(restored.scope_json, "[\"U_A\",\"U_B\"]");
+    assert_int_equal(restored.state, EDGE_GRANT_GRANTED);
+    assert_int_equal(restored.granted_at, 10);
+
+    assert_int_not_equal(access(pending_path, F_OK), 0);
+    assert_int_not_equal(access(grants_path, F_OK), 0);
+    assert_int_not_equal(access(done_path, F_OK), 0);
+
+    edge_app_mgr_destroy(mgr);
+    free(mgr_mem);
+    sqlite_svc_destroy(db);
+    unlink(wasm_path);
+    unlink(prev_path);
+    rmdir("edgeos_test_apps_grant_crash/crash_app");
+    rmdir(apps_dir);
+    unlink(db_path);
+}
+
+/* Metadata-only upgrades write the same sidecars; a crash after the registry
+ * commit must roll the old row and grants back without touching a package. */
+static void test_upgrade_crash_recover_grants_metadata_only(void **state) {
+    uv_loop_t *loop = (uv_loop_t *)*state;
+    const char *db_path = "test_app_mgr_metadata_crash.db";
+    const char *apps_dir = "edgeos_test_apps_metadata_crash";
+    const char *wasm_path = "edgeos_test_apps_metadata_crash/crash_app/app.wasm";
+    const char *prev_path = "edgeos_test_apps_metadata_crash/crash_app/app.wasm.prev";
+    const char *pending_path = "edgeos_test_apps_metadata_crash/crash_app/app.wasm.pending";
+    const char *grants_path = "edgeos_test_apps_metadata_crash/crash_app/app.wasm.pending.grants";
+    const char *done_path =
+        "edgeos_test_apps_metadata_crash/crash_app/app.wasm.pending.grants.done";
+    unlink(db_path);
+    unlink(wasm_path);
+    unlink(prev_path);
+    unlink(pending_path);
+    unlink(grants_path);
+    unlink(done_path);
+
+    sqlite_config_t cfg = {.strategy = STRATEGY_LITE, .db_path = db_path};
+    sqlite_svc_t *db = sqlite_svc_create(loop, &cfg);
+    assert_non_null(db);
+    size_t mgr_size = edge_app_mgr_storage_size();
+    void *mgr_mem = malloc(mgr_size);
+    edge_app_repo_t repo = app_repo_sqlite(db);
+    edge_app_mgr_t *mgr = edge_app_mgr_create_with_repo_in(mgr_mem, mgr_size, loop, &repo, NULL);
+    assert_non_null(mgr);
+    edge_app_mgr_set_apps_dir(mgr, apps_dir);
+
+    const unsigned char payload_old[] = {0x00, 0x61, 0x73, 0x6d, 0x01, 0x00,
+                                         0x00, 0x00, 0x00, 0x01, 'A'};
+    app_manifest_t installed;
+    assert_int_equal(edge_app_mgr_construct_default_manifest("crash_app", &installed), 0);
+    snprintf(installed.wasm_path, sizeof(installed.wasm_path), "%s", wasm_path);
+    assert_int_equal(edge_app_mgr_install(mgr, &installed, payload_old, sizeof(payload_old)), 0);
+
+    edge_authz_store_t grants = edge_authz_sqlite_store(db);
+    edge_app_grant_t grant = {0};
+    snprintf(grant.app_id, sizeof(grant.app_id), "crash_app");
+    snprintf(grant.capability, sizeof(grant.capability), "tags.read");
+    snprintf(grant.scope_json, sizeof(grant.scope_json), "[\"U_A\",\"U_B\"]");
+    snprintf(grant.purpose, sizeof(grant.purpose), "display");
+    grant.sensitivity_max = 1;
+    assert_int_equal(edge_authz_approve_grant(&grants, &grant, 10), EDGE_AUTHZ_OK);
+
+    edge_app_mgr_destroy(mgr);
+    free(mgr_mem);
+    sqlite_svc_destroy(db);
+
+    pid_t pid = fork();
+    assert_true(pid >= 0);
+    if (pid == 0) {
+        _crash_after_registry_commit_child(db_path, apps_dir, NULL, 0);
+    }
+    int status = 0;
+    assert_int_equal(waitpid(pid, &status, 0), pid);
+    assert_true(WIFEXITED(status));
+    assert_int_equal(WEXITSTATUS(status), 72);
+
+    /* The metadata-only path must leave the full sidecar set behind. */
+    assert_int_equal(access(pending_path, F_OK), 0);
+    assert_int_equal(access(grants_path, F_OK), 0);
+    assert_int_not_equal(access(done_path, F_OK), 0);
+
+    db = sqlite_svc_create(loop, &cfg);
+    assert_non_null(db);
+    grants = edge_authz_sqlite_store(db);
+    /* Simulate the grant block stopping halfway. */
+    edge_app_grant_t partial = grant;
+    snprintf(partial.scope_json, sizeof(partial.scope_json), "[\"U_A\"]");
+    assert_int_equal(edge_authz_approve_grant(&grants, &partial, 20), EDGE_AUTHZ_OK);
+
+    repo = app_repo_sqlite(db);
+    mgr_mem = malloc(mgr_size);
+    mgr = edge_app_mgr_create_with_repo_in(mgr_mem, mgr_size, loop, &repo, NULL);
+    assert_non_null(mgr);
+    edge_app_mgr_set_apps_dir(mgr, apps_dir);
+    assert_int_equal(edge_app_mgr_recover_packages(mgr, &grants), 1);
+
+    unsigned char got[32];
+    assert_int_equal(_read_file(wasm_path, got, sizeof(got)), (int)sizeof(payload_old));
+    assert_memory_equal(got, payload_old, sizeof(payload_old));
+
+    app_manifest_t recovered;
+    assert_int_equal(edge_app_mgr_get_app(mgr, "crash_app", &recovered), 0);
+    assert_string_equal(recovered.version, "1.0.0");
+    assert_string_equal(recovered.prev_version, "");
+
+    edge_app_grant_t restored;
+    assert_int_equal(grants.get_grant(grants.ctx, "crash_app", "tags.read", &restored), 1);
+    assert_string_equal(restored.scope_json, "[\"U_A\",\"U_B\"]");
+    assert_int_equal(restored.state, EDGE_GRANT_GRANTED);
+    assert_int_equal(restored.granted_at, 10);
+
+    assert_int_not_equal(access(pending_path, F_OK), 0);
+    assert_int_not_equal(access(grants_path, F_OK), 0);
+    assert_int_not_equal(access(done_path, F_OK), 0);
+    /* No package backup exists, so recovery must not rename one over the package. */
+    assert_int_not_equal(access(prev_path, F_OK), 0);
+
+    edge_app_mgr_destroy(mgr);
+    free(mgr_mem);
+    sqlite_svc_destroy(db);
+    unlink(wasm_path);
+    unlink(prev_path);
+    rmdir("edgeos_test_apps_metadata_crash/crash_app");
+    rmdir(apps_dir);
+    unlink(db_path);
 }

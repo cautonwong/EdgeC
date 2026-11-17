@@ -14,7 +14,7 @@
     "id, name, version, author, wasm_path, trigger_tag, entry_func, fault_policy, "          \
     "heap_limit_kb, timeout_ms, state, restart_count, created_at, priority, keep_alive, "    \
     "desired_state, last_active_ms, prev_version, prev_manifest_json, prev_wasm_path, "     \
-    "last_fault_ms"
+    "last_fault_ms, tick_ms"
 
 static void _read_row(sqlite3_stmt *stmt, app_manifest_t *m) {
     memset(m, 0, sizeof(*m));
@@ -44,6 +44,7 @@ static void _read_row(sqlite3_stmt *stmt, app_manifest_t *m) {
     text = sqlite3_column_text(stmt, 19);
     snprintf(m->prev_wasm_path, sizeof(m->prev_wasm_path), "%s", text ? (const char *)text : "");
     m->last_fault_ms = (uint64_t)sqlite3_column_int64(stmt, 20);
+    m->tick_ms = (uint32_t)sqlite3_column_int(stmt, 21);
 }
 
 static int _repo_save(void *ctx, const app_manifest_t *m) {
@@ -54,7 +55,7 @@ static int _repo_save(void *ctx, const app_manifest_t *m) {
 
     const char *sql =
         "INSERT OR REPLACE INTO app_registry (" APP_REGISTRY_COLUMNS ") "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
     sqlite3_stmt *stmt;
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) return -1;
 
@@ -79,6 +80,7 @@ static int _repo_save(void *ctx, const app_manifest_t *m) {
     sqlite3_bind_text(stmt, 19, m->prev_manifest_json, -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 20, m->prev_wasm_path, -1, SQLITE_STATIC);
     sqlite3_bind_int64(stmt, 21, (sqlite3_int64)m->last_fault_ms);
+    sqlite3_bind_int(stmt, 22, (int)m->tick_ms);
 
     int rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);

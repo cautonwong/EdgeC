@@ -186,6 +186,10 @@ def check(root):
         if entry.get("known_gap"):
             warnings.append(f"known gap [{name}]: {entry['known_gap']}")
 
+    # An implemented extra_host_json name is a hand-written wasm import too, so
+    # it claims the native symbol and whitelist entry like a WIT function does.
+    claimed_symbols |= {name for name, status in extra.items() if status == "implemented"}
+
     for symbol in sorted(wasm_symbols - claimed_symbols):
         errors.append(f"cmd/app-host/main.c registers '{symbol}', which no ledger function claims")
     for name in sorted(whitelist - claimed_symbols):

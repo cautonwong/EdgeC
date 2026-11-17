@@ -21,4 +21,7 @@ char *rest_apps_package(service_t *svc, const char *body);
 /** Upgrade route: verifies a signed `.eapp` and swaps the app package. */
 char *rest_apps_upgrade_package(service_t *svc, const char *body);
 
+/** Settings admin route: validates one value against the manifest schema. */
+char *rest_apps_settings_set(service_t *svc, const char *body);
+
 #endif /* REST_INTERNAL_H */

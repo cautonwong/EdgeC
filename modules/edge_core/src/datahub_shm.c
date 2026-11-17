@@ -100,40 +100,18 @@ int datahub_shm_init(datahub_t *hub, const datahub_config_t *config) {
     }
     bool created_now = seg_stat.st_size == 0;
     if (!created_now && (size_t)seg_stat.st_size != total_size) {
-        size_t stale_size = (size_t)seg_stat.st_size;
-        if (stale_size > 0 && stale_size % sizeof(pipe_msg_t) == 0 &&
-            stale_size / sizeof(pipe_msg_t) == capacity) {
-            // Headerless segment from the pre-header layout. Shadow values are
-            // volatile, so rebuild under the current header instead of keeping
-            // a legacy read path.
-            LOG_WARN(LOG_CAT_BUS,
-                     "SHM shadow %s uses the legacy headerless layout; rebuilding in place",
-                     shm_path);
-            /* Keep the inode. shm_unlink plus O_EXCL lets a second process
-             * rebuild a different inode from under the first. Consumers that
-             * already mapped the old headerless segment still write at offset
-             * 0, so stop them before upgrading across this layout. A session-
-             * generation handshake is tracked separately. */
-            if (ftruncate(hub->shadow_fd, (off_t)total_size) != 0) {
-                LOG_ERROR(LOG_CAT_BUS, "Failed to resize SHM shadow %s: %s", shm_path,
-                          strerror(errno));
-                _lock_release(&lock_fd);
-                close(hub->shadow_fd);
-                hub->shadow_fd = -1;
-                shmring_destroy(&hub->ring);
-                return -1;
-            }
-            created_now = true;
-        } else {
-            LOG_ERROR(LOG_CAT_BUS,
-                      "SHM shadow %s size %lld does not match layout %zu; refusing to truncate",
-                      shm_path, (long long)seg_stat.st_size, total_size);
-            _lock_release(&lock_fd);
-            close(hub->shadow_fd);
-            hub->shadow_fd = -1;
-            shmring_destroy(&hub->ring);
-            return -1;
-        }
+        /* A headerless segment from the pre-header layout cannot be rebuilt in
+         * place: consumers already mapped it keep writing at offset 0, so the
+         * new header would be overwritten. Refuse instead of corrupting. */
+        LOG_ERROR(LOG_CAT_BUS,
+                  "SHM shadow %s size %lld does not match layout %zu; refusing to migrate. "
+                  "Stop consumers and remove the segment before upgrading.",
+                  shm_path, (long long)seg_stat.st_size, total_size);
+        _lock_release(&lock_fd);
+        close(hub->shadow_fd);
+        hub->shadow_fd = -1;
+        shmring_destroy(&hub->ring);
+        return -1;
     }
     if (created_now && ftruncate(hub->shadow_fd, (off_t)total_size) < 0) {
         _lock_release(&lock_fd);
@@ -164,12 +142,15 @@ int datahub_shm_init(datahub_t *hub, const datahub_config_t *config) {
         header->record_size = (uint32_t)sizeof(pipe_msg_t);
         header->data_offset = data_offset;
         header->sequence = 0;
+        header->generation = uv_hrtime();
+        if (header->generation == 0) header->generation = 1;
     } else if (header->magic != DATAHUB_SHM_MAGIC ||
                header->abi_version != DATAHUB_SHM_ABI_VERSION ||
                header->header_size != DATAHUB_SHM_HEADER_SIZE ||
                header->capacity != capacity ||
                header->record_size != sizeof(pipe_msg_t) ||
-               header->data_offset != data_offset) {
+               header->data_offset != data_offset ||
+               header->generation == 0) {
         LOG_ERROR(LOG_CAT_BUS, "SHM shadow %s has an incompatible header", shm_path);
         _lock_release(&lock_fd);
         munmap(mapping, total_size);
@@ -255,7 +236,7 @@ int datahub_attach(datahub_t *hub, const char *name) {
     if (header->magic != DATAHUB_SHM_MAGIC || header->abi_version != DATAHUB_SHM_ABI_VERSION ||
         header->header_size != DATAHUB_SHM_HEADER_SIZE ||
         header->record_size != sizeof(pipe_msg_t) || header->capacity == 0 ||
-        header->data_offset != DATAHUB_SHM_HEADER_SIZE ||
+        header->data_offset != DATAHUB_SHM_HEADER_SIZE || header->generation == 0 ||
         (size_t)header->data_offset + (size_t)header->capacity * sizeof(pipe_msg_t) != shadow_size) {
         LOG_ERROR(LOG_CAT_BUS, "Invalid shadow header in %s", shm_path);
         munmap(mapping, shadow_size);

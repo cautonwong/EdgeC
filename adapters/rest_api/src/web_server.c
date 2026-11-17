@@ -1,10 +1,11 @@
 #include "web_server.h"
 
+#include <arpa/inet.h>
 #include <fcntl.h>
-#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <uv.h>
 
@@ -17,38 +18,49 @@ struct web_server_s {
     void *api_user_data;
 };
 
-int web_server_resolve_path(const char *doc_root, const char *request_path, char *out,
-                            size_t out_size) {
-    if (!doc_root || !request_path || !out || out_size == 0) return -1;
+/* Open one path component relative to its parent directory. O_NOFOLLOW makes
+ * every symlink component fail, so the walk can only reach real entries.
+ * O_NONBLOCK keeps a FIFO from blocking the loop before fstat rejects it. */
+static int open_component(int dir_fd, const char *name, size_t len, int final) {
+    char name_buf[256];
+    if (len == 0 || len >= sizeof(name_buf)) return -1;
+    memcpy(name_buf, name, len);
+    name_buf[len] = '\0';
+    if ((len == 1 && name_buf[0] == '.') || (len == 2 && name_buf[0] == '.' && name_buf[1] == '.'))
+        return -1;
 
-    const char *p = request_path;
-    while (*p) {
-        while (*p == '/') p++;
-        const char *segment = p;
-        while (*p && *p != '/') p++;
-        if ((size_t)(p - segment) == 2 && segment[0] == '.' && segment[1] == '.') return -1;
+    int flags = O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK;
+    if (!final) flags |= O_DIRECTORY;
+    return openat(dir_fd, name_buf, flags);
+}
+
+int web_server_open_path(const char *doc_root, const char *request_path) {
+    if (!doc_root || !request_path || request_path[0] != '/') return -1;
+
+    const char *p = request_path + 1;
+    if (*p == '/') return -1;
+    if (*p == '\0') p = "index.html";
+
+    int dir_fd = open(doc_root, O_RDONLY | O_CLOEXEC | O_DIRECTORY);
+    if (dir_fd < 0) return -1;
+
+    for (;;) {
+        const char *slash = strchr(p, '/');
+        size_t len = slash ? (size_t)(slash - p) : strlen(p);
+        int fd = open_component(dir_fd, p, len, slash == NULL);
+        close(dir_fd);
+        if (fd < 0) return -1;
+        if (!slash) {
+            struct stat st;
+            if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)) {
+                close(fd);
+                return -1;
+            }
+            return fd;
+        }
+        dir_fd = fd;
+        p = slash + 1;
     }
-
-    char root_real[PATH_MAX];
-    if (!realpath(doc_root, root_real)) return -1;
-
-    const char *relative = request_path;
-    while (*relative == '/') relative++;
-    if (*relative == '\0') relative = "index.html";
-
-    char candidate[PATH_MAX];
-    int n = snprintf(candidate, sizeof(candidate), "%s/%s", root_real, relative);
-    if (n < 0 || (size_t)n >= sizeof(candidate)) return -1;
-
-    char resolved[PATH_MAX];
-    if (!realpath(candidate, resolved)) return -1;
-    size_t root_len = strlen(root_real);
-    if (strncmp(resolved, root_real, root_len) != 0) return -1;
-    if (resolved[root_len] != '/' && resolved[root_len] != '\0') return -1;
-
-    n = snprintf(out, out_size, "%s", resolved);
-    if (n < 0 || (size_t)n >= out_size) return -1;
-    return 0;
 }
 
 static void on_alloc(uv_handle_t *h, size_t s, uv_buf_t *b) {
@@ -96,7 +108,6 @@ static void send_status(uv_stream_t *c, const char *status) {
     }
 }
 
-
 static void on_read(uv_stream_t *c, ssize_t n, const uv_buf_t *b) {
     if (n > 0) {
         web_server_t *srv = (web_server_t *)c->data;
@@ -104,7 +115,14 @@ static void on_read(uv_stream_t *c, ssize_t n, const uv_buf_t *b) {
         // b->base 来自 libuv 的裸缓冲，不保证 NUL 结尾，先复制再解析
         char request[512];
         size_t nread = (size_t)n;
-        size_t copy = nread < sizeof(request) - 1 ? nread : sizeof(request) - 1;
+        if (nread >= sizeof(request)) {
+            /* A truncated request would make the path and body disagree with what
+             * the client sent; reject it instead of parsing a prefix. */
+            free(b->base);
+            send_status(c, "413 Payload Too Large");
+            return;
+        }
+        size_t copy = nread;
         memcpy(request, b->base, copy);
         request[copy] = '\0';
 
@@ -123,7 +141,12 @@ static void on_read(uv_stream_t *c, ssize_t n, const uv_buf_t *b) {
         // 1.1 API 路由拦截 (如果配置了 API Handler 且路径以 /api 开头)
         if (srv->api_handler && strncmp(path, "/api/", 5) == 0) {
             char *body = strstr(request, "\r\n\r\n");
-            if (body) body += 4;
+            if (!body) {
+                free(b->base);
+                send_status(c, "400 Bad Request");
+                return;
+            }
+            body += 4;
 
             char *json = srv->api_handler(srv->api_user_data, path, body);
             if (!json) {
@@ -165,7 +188,6 @@ static void on_read(uv_stream_t *c, ssize_t n, const uv_buf_t *b) {
         }
 
         // 2. 映射路径到物理文件
-        char full_path[512];
         char base_dir[256];
 
         // 确保 doc_root 即使为空也能指向当前目录
@@ -184,12 +206,7 @@ static void on_read(uv_stream_t *c, ssize_t n, const uv_buf_t *b) {
         size_t blen = strlen(base_dir);
         if (blen > 0 && base_dir[blen - 1] == '/') base_dir[blen - 1] = '\0';
 
-        int fd = -1;
-        if (web_server_resolve_path(base_dir, path, full_path, sizeof(full_path)) == 0) {
-            uv_fs_t open_req;
-            fd = uv_fs_open(c->loop, &open_req, full_path, O_RDONLY, 0, NULL);
-            uv_fs_req_cleanup(&open_req);
-        }
+        int fd = web_server_open_path(base_dir, path);
 
         if (fd >= 0) {
             uv_fs_t stat_req;
@@ -239,7 +256,7 @@ static void on_read(uv_stream_t *c, ssize_t n, const uv_buf_t *b) {
                      "Content-Length: %zu\r\n"
                      "Access-Control-Allow-Origin: *\r\n"
                      "Connection: close\r\n\r\n",
-                     get_mime_type(full_path), size);
+                     get_mime_type(path), size);
 
             uv_write_t *wr_req = (uv_write_t *)malloc(sizeof(*wr_req));
             size_t head_len = strlen(head);
@@ -265,8 +282,7 @@ static void on_read(uv_stream_t *c, ssize_t n, const uv_buf_t *b) {
         } else {
             char cwd[256];
             if (getcwd(cwd, sizeof(cwd)) == NULL) strcpy(cwd, "unknown");
-            LOG_ERROR(LOG_CAT_CORE, "Failed to open %s (Requested: %s). CWD: %s", full_path, path,
-                      cwd);
+            LOG_ERROR(LOG_CAT_CORE, "Failed to open %s (root: %s). CWD: %s", path, base_dir, cwd);
             send_status(c, "404 Not Found");
         }
     } else if (n < 0) {
@@ -312,6 +328,16 @@ web_server_t *web_server_create(uv_loop_t *l, int p, const char *doc_root) {
                  srv->doc_root);
     }
     return srv;
+}
+
+int web_server_port(const web_server_t *srv) {
+    if (!srv) return -1;
+    struct sockaddr_in addr;
+    int len = sizeof(addr);
+    if (uv_tcp_getsockname((uv_tcp_t *)&srv->server, (struct sockaddr *)&addr, &len) != 0) {
+        return -1;
+    }
+    return (int)ntohs(addr.sin_port);
 }
 
 void web_server_set_api_handler(web_server_t *srv, web_api_handler_pt handler, void *user_data) {

@@ -120,7 +120,8 @@ static void test_control_start_spawns_app_host(void **state) {
     sqlite3_stmt *stmt;
     assert_int_equal(sqlite3_prepare_v2(raw,
                                         "INSERT INTO app_registry(id, version, state, wasm_path, "
-                                        "heap_limit_kb) VALUES('demo','1.0.0',1,?1,64);",
+                                        "heap_limit_kb, tick_ms) "
+                                        "VALUES('demo','1.0.0',1,?1,64,50);",
                                         -1, &stmt, NULL),
                      SQLITE_OK);
     sqlite3_bind_text(stmt, 1, wasm_path, -1, SQLITE_STATIC);
@@ -165,6 +166,8 @@ static void test_control_start_spawns_app_host(void **state) {
     service_set_control_port(svc, &control);
 
     setenv("EDGEC_LAUNCHER", "0", 1);
+    /* Direct spawn is the explicit degraded path in this container. */
+    setenv("EDGEC_APP_HOST_ALLOW_DEGRADED", "1", 1);
     iems_app_runtime_config_t runtime_cfg = {
         .hub = hub,
         .db = db,
@@ -186,6 +189,21 @@ static void test_control_start_spawns_app_host(void **state) {
     assert_int_equal(iems_app_runtime_is_running(runtime, "demo"), 1);
     assert_int_equal(wait_for_publish(&loop, hub, 3000, 221.5), 0);
 
+    /* The manifest tick_ms reaches the per-app server and the probe acks it. */
+    uint64_t ticks = 0;
+    uint64_t skipped = 0;
+    int saw_tick = 0;
+    for (int i = 0; i < 300; i++) {
+        uv_run(&loop, UV_RUN_NOWAIT);
+        if (iems_app_runtime_tick_counters(runtime, "demo", &ticks, &skipped) == 0 &&
+            ticks >= 1) {
+            saw_tick = 1;
+            break;
+        }
+        usleep(10000);
+    }
+    assert_int_equal(saw_tick, 1);
+
     assert_int_equal(control.stop_app(control.ctx, "demo"), 0);
     for (int i = 0; i < 3000 && edge_app_mgr_is_busy(mgr); i++) { uv_run(&loop, UV_RUN_NOWAIT); usleep(1000); }
     for (int i = 0; i < 1000 && iems_app_runtime_is_running(runtime, "demo"); i++) {
@@ -194,12 +212,26 @@ static void test_control_start_spawns_app_host(void **state) {
     }
     assert_int_equal(iems_app_runtime_is_running(runtime, "demo"), 0);
 
+    /* The probe acks app_will_stop, so stop terminates before the deadline. */
+    uint64_t stop_sent = 0;
+    uint64_t stop_acked = 0;
+    uint64_t stop_expired = 0;
+    iems_app_runtime_stop_counters(runtime, &stop_sent, &stop_acked, &stop_expired);
+    assert_int_equal(stop_sent, 1);
+    assert_int_equal(stop_acked, 1);
+    assert_int_equal(stop_expired, 0);
+    /* A second stop after the app is gone joins the first and sends nothing. */
+    iems_app_runtime_stop(runtime, "demo");
+    iems_app_runtime_stop_counters(runtime, &stop_sent, &stop_acked, &stop_expired);
+    assert_int_equal(stop_sent, 1);
+
     app_manifest_t manifest;
     assert_int_equal(edge_app_mgr_get_app(mgr, "demo", &manifest), 0);
     assert_int_equal(manifest.state, APP_STATE_STOPPED);
 
     /* A crashing app-host is isolated, then restarted up to the cap. */
     setenv("EDGEC_APP_RESTART_DELAY_MS", "20", 1);
+    uint64_t fault_sent = stop_sent;
     assert_int_equal(control.start_app(control.ctx, "demo"), 0);
     for (int i = 0; i < 3000 && edge_app_mgr_is_busy(mgr); i++) { uv_run(&loop, UV_RUN_NOWAIT); usleep(1000); }
     assert_int_equal(wait_for_publish(&loop, hub, 3000, 221.5), 0);
@@ -240,6 +272,10 @@ static void test_control_start_spawns_app_host(void **state) {
             assert_int_equal(isolated, 1);
         }
     }
+
+    /* Faults terminate the app without an app_will_stop event. */
+    iems_app_runtime_stop_counters(runtime, &stop_sent, &stop_acked, &stop_expired);
+    assert_int_equal(stop_sent, fault_sent);
 
     /* A fault after the window starts a new streak, not a continuation. */
     edge_app_mgr_set_fault_window_ms(mgr, 1);
@@ -287,11 +323,87 @@ static void test_control_start_spawns_app_host(void **state) {
     assert_int_equal(uv_loop_close(&loop), 0);
 }
 
+/* A child that never reads or acks app_will_stop: the runtime must wait for
+ * its own deadline and then take the existing SIGTERM path. */
+static void test_stop_deadline_ignores_ack(void **state) {
+    (void)state;
+    const char *fake_host = getenv("EDGEC_FAKE_APP_HOST_PATH");
+    assert_non_null(fake_host);
+
+    uv_loop_t loop;
+    assert_int_equal(uv_loop_init(&loop), 0);
+
+    const char *db_path = "test_iems_app_runtime_stop.db";
+    unlink(db_path);
+    sqlite_config_t sqlite_cfg = {.strategy = STRATEGY_LITE, .db_path = db_path};
+    sqlite_svc_t *db = sqlite_svc_create(&loop, &sqlite_cfg);
+    assert_non_null(db);
+
+    datahub_t *hub = calloc(1, sizeof(datahub_t));
+    assert_non_null(hub);
+    char shm_name[64];
+    snprintf(shm_name, sizeof(shm_name), "test_app_stop_%d", (int)getpid());
+    char shm_path[96];
+    snprintf(shm_path, sizeof(shm_path), "/edgeos_shadow_%s", shm_name);
+    shm_unlink(shm_path);
+    assert_int_equal(datahub_init(hub, &loop, shm_name, 64, APP_BASE + 4096, NULL, 0, NULL, NULL,
+                                  NULL),
+                     0);
+
+    setenv("EDGEC_LAUNCHER", "0", 1);
+    iems_app_runtime_config_t runtime_cfg = {
+        .hub = hub,
+        .db = db,
+        .tags = kTags,
+        .tag_count = 1,
+        .app_base = APP_BASE,
+        .app_host_path = fake_host,
+    };
+    iems_app_runtime_t *runtime = iems_app_runtime_create(&loop, &runtime_cfg);
+    assert_non_null(runtime);
+    /* The fake host ignores argv, so the wasm path is never opened. */
+    assert_int_equal(iems_app_runtime_start(runtime, "demo", "/nonexistent.wasm", 64, 64), 0);
+    assert_int_equal(iems_app_runtime_is_running(runtime, "demo"), 1);
+
+    uint64_t sent_before = 0;
+    uint64_t acked_before = 0;
+    uint64_t expired_before = 0;
+    iems_app_runtime_stop_counters(runtime, &sent_before, &acked_before, &expired_before);
+    uint64_t started_ns = uv_hrtime();
+    iems_app_runtime_stop(runtime, "demo");
+    iems_app_runtime_stop(runtime, "demo"); /* joins the wait, sends nothing */
+    for (int i = 0; i < 1000 && iems_app_runtime_is_running(runtime, "demo"); i++) {
+        uv_run(&loop, UV_RUN_NOWAIT);
+        usleep(10000);
+    }
+    uint64_t elapsed_ms = (uv_hrtime() - started_ns) / 1000000ULL;
+    assert_int_equal(iems_app_runtime_is_running(runtime, "demo"), 0);
+
+    uint64_t sent_after = 0;
+    uint64_t acked_after = 0;
+    uint64_t expired_after = 0;
+    iems_app_runtime_stop_counters(runtime, &sent_after, &acked_after, &expired_after);
+    assert_int_equal(sent_after, sent_before + 1);
+    assert_int_equal(acked_after, acked_before);
+    assert_int_equal(expired_after, expired_before + 1);
+    assert_true(elapsed_ms >= 1000); /* the bounded wait really elapsed */
+
+    iems_app_runtime_destroy(runtime);
+    sqlite_svc_destroy(db);
+    datahub_destroy(hub);
+    free(hub);
+    unlink(db_path);
+    uv_walk(&loop, close_handle, NULL);
+    for (int i = 0; i < 100; i++) uv_run(&loop, UV_RUN_NOWAIT);
+    assert_int_equal(uv_loop_close(&loop), 0);
+}
+
 int main(void) {
     /* 应用崩溃后 IPC 对端已关闭，写入不能把测试进程打死。 */
     signal(SIGPIPE, SIG_IGN);
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_control_start_spawns_app_host),
+        cmocka_unit_test(test_stop_deadline_ignores_ack),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

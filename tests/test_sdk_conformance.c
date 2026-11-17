@@ -398,14 +398,15 @@ static int run_step(app_t *app, const cJSON *step) {
     return 0;
 }
 
-static void app_on_event(void *ctx, const char *event_json) {
+static int app_on_event(void *ctx, const char *event_json) {
     (void)event_json;
     app_t *app = ctx;
     app->events++;
     const cJSON *step = NULL;
     cJSON_ArrayForEach(step, app->steps) {
-        if (!run_step(app, step)) return;
+        if (!run_step(app, step)) return 1;
     }
+    return 0;
 }
 
 static int dispatch_ok(edge_app_sdk_t *sdk, const char *request, int want_id,
@@ -512,7 +513,100 @@ static int run_vector(const cJSON *vector) {
     return ok;
 }
 
+typedef struct {
+    int fd;
+    char failure[512];
+} stash_host_t;
+
+static void *stash_host_thread(void *arg) {
+    stash_host_t *host = arg;
+    char frame[4096];
+    if (recv_frame(host->fd, frame, sizeof frame) < 0) {
+        set_failure(host->failure, sizeof host->failure, "no first call");
+        return NULL;
+    }
+    if (send_frame(host->fd,
+                   "{\"id\":1,\"fn\":\"app_on_event\",\"args\":{\"kind\":\"point_change\","
+                   "\"point\":7,\"payload\":null}}") != 0) {
+        set_failure(host->failure, sizeof host->failure, "event write failed");
+        return NULL;
+    }
+    if (send_frame(host->fd,
+                   "{\"id\":1,\"ok\":true,\"result\":{\"value\":{\"float\":1.5},"
+                   "\"quality\":\"good\",\"source_ts\":7}}") != 0) {
+        set_failure(host->failure, sizeof host->failure, "first response write failed");
+        return NULL;
+    }
+    if (recv_frame(host->fd, frame, sizeof frame) < 0) {
+        set_failure(host->failure, sizeof host->failure, "no second call");
+        return NULL;
+    }
+    if (send_frame(host->fd,
+                   "{\"id\":2,\"ok\":true,\"result\":{\"value\":{\"float\":2.5},"
+                   "\"quality\":\"good\",\"source_ts\":8}}") != 0) {
+        set_failure(host->failure, sizeof host->failure, "second response write failed");
+    }
+    return NULL;
+}
+
+static int run_stash_case(void) {
+    int sockets[2];
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) != 0) return 0;
+    struct timeval timeout = {2, 0};
+    setsockopt(sockets[0], SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof timeout);
+    setsockopt(sockets[1], SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof timeout);
+
+    stash_host_t host = {0};
+    host.fd = sockets[1];
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, stash_host_thread, &host) != 0) {
+        close(sockets[0]);
+        close(sockets[1]);
+        return 0;
+    }
+
+    edge_app_sdk_t *sdk = edge_app_sdk_create(sockets[0]);
+    int ok = sdk != NULL;
+    edge_app_sample_t sample;
+    const char *err = ok ? edge_app_point_read(sdk, 7, &sample) : "no sdk";
+    if (ok && (err != NULL || sample.value.kind != EDGE_APP_VALUE_FLOAT ||
+               sample.value.number != 1.5)) {
+        fprintf(stderr, "FAIL event stash: call got %s\n", err != NULL ? err : "wrong value");
+        ok = 0;
+    }
+
+    char frame[4096];
+    if (ok && edge_app_sdk_next_frame(sdk, frame, sizeof frame) != 0) {
+        fprintf(stderr, "FAIL event stash: next_frame failed\n");
+        ok = 0;
+    }
+    if (ok && (strstr(frame, "\"fn\":\"app_on_event\"") == NULL ||
+               strstr(frame, "\"point\":7") == NULL)) {
+        fprintf(stderr, "FAIL event stash: wrong frame %s\n", frame);
+        ok = 0;
+    }
+    if (ok) {
+        err = edge_app_point_read(sdk, 7, &sample);
+        if (err != NULL || sample.value.number != 2.5) {
+            fprintf(stderr, "FAIL event stash: second call got %s\n",
+                    err != NULL ? err : "wrong value");
+            ok = 0;
+        }
+    }
+
+    if (sdk != NULL) edge_app_sdk_destroy(sdk);
+    pthread_join(thread, NULL);
+    if (host.failure[0] != '\0') {
+        fprintf(stderr, "FAIL event stash: %s\n", host.failure);
+        ok = 0;
+    }
+    close(sockets[1]);
+    return ok;
+}
+
 int main(void) {
+    int rc = run_stash_case() ? 0 : 1;
+
     char *text = read_source_file("sdk/conformance/vectors.json");
     if (text == NULL) {
         fprintf(stderr, "cannot find sdk/conformance/vectors.json\n");
@@ -539,5 +633,5 @@ int main(void) {
     cJSON_Delete(root);
 
     printf("sdk conformance (c): %d/%d vectors passed\n", passed, total);
-    return passed == total ? 0 : 1;
+    return (rc == 0 && passed == total) ? 0 : 1;
 }

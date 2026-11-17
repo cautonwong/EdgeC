@@ -306,6 +306,7 @@ static int usage(void) {
             "  appctl uninstall <app> [--disposition keep|purge|export] [--export-path FILE]\n"
             "  appctl upgrade <app> <pkg>\n"
             "  appctl status [<app>]\n"
+            "  appctl settings set <app> <key> <json-value>\n"
             "  appctl time [--trust]\n"
             "  appctl snapshot\n"
             "  appctl list | grants [--app ID]\n");
@@ -666,6 +667,43 @@ static int cmd_grants(int argc, char **argv) {
     return report(status, response);
 }
 
+/* The value is raw JSON text; the product validates it against the schema. */
+static int cmd_settings(int argc, char **argv) {
+    if (argc < 3 || strcmp(argv[2], "set") != 0) return usage();
+    const char *pos[3] = {0};
+    const char *sock = NULL;
+    int count = 0;
+    for (int i = 3; i < argc; i++) {
+        if (strcmp(argv[i], "--sock") == 0 && i + 1 < argc) {
+            sock = argv[++i];
+        } else if (count < 3) {
+            pos[count++] = argv[i];
+        } else {
+            return usage();
+        }
+    }
+    if (count != 3) return usage();
+
+    sb_t body = {0};
+    sb_adds(&body, "{\"app_id\":");
+    sb_add_json_string(&body, pos[0]);
+    sb_adds(&body, ",\"key\":");
+    sb_add_json_string(&body, pos[1]);
+    sb_adds(&body, ",\"value\":");
+    sb_adds(&body, pos[2]);
+    sb_adds(&body, "}");
+
+    int status = 0;
+    char *response = NULL;
+    if (ctl_call(socket_path(sock), "POST", "/api/v1/apps/settings/set", body.data, body.len,
+                 &status, &response) != 0) {
+        free(body.data);
+        return 1;
+    }
+    free(body.data);
+    return report(status, response);
+}
+
 typedef struct {
     const char *name;
     int (*run)(int argc, char **argv);
@@ -676,7 +714,7 @@ static const appctl_command_t k_commands[] = {
     {"list", cmd_list},       {"start", cmd_start}, {"stop", cmd_stop},
     {"rollback", cmd_rollback}, {"uninstall", cmd_uninstall}, {"upgrade", cmd_upgrade},
     {"grant", cmd_grant},     {"revoke", cmd_revoke}, {"grants", cmd_grants},
-    {"snapshot", cmd_snapshot},
+    {"snapshot", cmd_snapshot}, {"settings", cmd_settings},
 };
 
 int main(int argc, char **argv) {

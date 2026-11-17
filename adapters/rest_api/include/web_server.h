@@ -1,21 +1,22 @@
 #ifndef WEB_SERVER_H
 #define WEB_SERVER_H
 
-#include <stddef.h>
-
 typedef struct uv_loop_s uv_loop_t;
 
 // Opaque handle
 typedef struct web_server_s web_server_t;
 
 /**
- * @brief Resolve a request path to a file under doc_root.
+ * @brief Open a request path as a file under doc_root.
  *
- * Rejects `..` segments and paths whose realpath escapes doc_root (symlinks
- * included). Returns 0 and writes an absolute path on success, -1 otherwise.
+ * The descriptor comes from walking request_path one component at a time with
+ * openat(O_NOFOLLOW) from a directory fd for doc_root, so no symlink component
+ * can redirect the open. Only origin-form paths ("/...") that name a regular
+ * file under doc_root are accepted.
+ *
+ * @return A read-only fd on success, -1 when the path is rejected or missing.
  */
-int web_server_resolve_path(const char *doc_root, const char *request_path, char *out,
-                            size_t out_size);
+int web_server_open_path(const char *doc_root, const char *request_path);
 
 /**
  * @brief API Handler callback type
@@ -34,6 +35,8 @@ typedef char *(*web_api_handler_pt)(void *user_data, const char *path, const cha
  * @param doc_root Path to the index.html to serve.
  */
 web_server_t *web_server_create(uv_loop_t *loop, int port, const char *doc_root);
+/** Actual bound port; pass 0 to create() to get an ephemeral port. */
+int web_server_port(const web_server_t *srv);
 
 /**
  * @brief Set API handler to enable /api routing on web port

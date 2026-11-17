@@ -118,10 +118,11 @@ add_edge_test(test_sqlite_app_registry test_sqlite_app_registry.c)
 add_edge_test(test_sqlite_migration test_sqlite_migration.c)
 add_edge_test(test_edge_app_mgr test_edge_app_mgr.c)
 # 插桩构建下 loop CPU 和调度抖动被放大，5ms 预算不再代表真实延迟。
-if(ENABLE_ASAN OR ENABLE_TSAN)
+if(ENABLE_ASAN OR ENABLE_TSAN OR ENABLE_UBSAN)
     target_compile_definitions(test_edge_app_mgr PRIVATE EDGE_SANITIZER_BUILD=1)
 endif()
 add_edge_test(test_app_manifest test_app_manifest.c)
+add_edge_test(test_app_settings test_app_settings.c)
 add_edge_test(test_app_pressure test_app_pressure.c)
 add_edge_test(test_edge_authz test_edge_authz.c)
 add_edge_test(test_edge_authz_sqlite test_edge_authz_sqlite.c)
@@ -145,11 +146,16 @@ add_edge_test(test_rest_uds test_rest_uds.c)
 set_property(TEST test_rest_uds APPEND PROPERTY
     ENVIRONMENT "EDGEC_APPCTL_PATH=$<TARGET_FILE:appctl>")
 add_edge_test(test_web_server_path test_web_server_path.c)
+add_edge_test(test_web_server_limits test_web_server_limits.c)
 add_edge_test(test_app_points test_app_points.c)
 add_edge_test(test_app_host_server test_app_host_server.c
               ${CMAKE_SOURCE_DIR}/sdk/c/edge_app_sdk.c)
 target_include_directories(test_app_host_server PRIVATE ${CMAKE_SOURCE_DIR}/sdk/c)
-target_link_libraries(test_app_host_server PRIVATE edge_app_host)
+target_link_libraries(test_app_host_server PRIVATE edge_app_host cjson)
+add_edge_test(test_oom_injection test_oom_injection.c)
+target_link_libraries(test_oom_injection PRIVATE edge_app_host)
+target_link_options(test_oom_injection PRIVATE -Wl,--wrap=malloc -Wl,--wrap=calloc
+                    -Wl,--wrap=realloc)
 add_edge_test(test_sdk_real_host_conformance test_sdk_real_host_conformance.c
               ${CMAKE_SOURCE_DIR}/sdk/c/edge_app_sdk.c)
 target_include_directories(test_sdk_real_host_conformance PRIVATE ${CMAKE_SOURCE_DIR}/sdk/c)
@@ -160,13 +166,16 @@ target_compile_definitions(test_sdk_real_host_conformance PRIVATE
 add_edge_test(test_iems_app_host_ports test_iems_app_host_ports.c
               ${CMAKE_SOURCE_DIR}/sdk/c/edge_app_sdk.c)
 target_include_directories(test_iems_app_host_ports PRIVATE ${CMAKE_SOURCE_DIR}/sdk/c)
+target_link_libraries(test_iems_app_host_ports PRIVATE cjson)
 add_edge_test(test_app_host_process test_app_host_process.c)
 target_link_libraries(test_app_host_process PRIVATE edge_app_host)
 set_property(TEST test_app_host_process APPEND PROPERTY
     ENVIRONMENT "EDGEC_APP_HOST_PATH=$<TARGET_FILE:app-host>;EDGEC_ABI_PROBE_WASM=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/abi_probe.wasm")
+add_executable(test_fake_app_host fake_app_host.c)
 add_edge_test(test_iems_app_runtime test_iems_app_runtime.c)
+add_dependencies(test_iems_app_runtime test_fake_app_host)
 set_property(TEST test_iems_app_runtime APPEND PROPERTY
-    ENVIRONMENT "EDGEC_APP_HOST_PATH=$<TARGET_FILE:app-host>;EDGEC_ABI_PROBE_WASM=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/abi_probe.wasm")
+    ENVIRONMENT "EDGEC_APP_HOST_PATH=$<TARGET_FILE:app-host>;EDGEC_ABI_PROBE_WASM=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/abi_probe.wasm;EDGEC_FAKE_APP_HOST_PATH=$<TARGET_FILE:test_fake_app_host>")
 add_edge_test(test_registry_snapshot test_registry_snapshot.c)
 add_edge_test(test_edge_launcher test_edge_launcher.c)
 target_link_libraries(test_edge_launcher PRIVATE edge_linux_platform)
@@ -892,7 +901,7 @@ target_link_libraries(test_dds_shm_zerocopy_perf PRIVATE
 )
 add_test(NAME test_dds_shm_zerocopy_perf COMMAND test_dds_shm_zerocopy_perf)
 # 插桩构建下每次操作的开销被 instrument 放大，微秒级预算不再代表真实延迟。
-if(ENABLE_ASAN OR ENABLE_TSAN)
+if(ENABLE_ASAN OR ENABLE_TSAN OR ENABLE_UBSAN)
     target_compile_definitions(test_dds_shm_zerocopy_perf PRIVATE EDGE_SANITIZER_BUILD=1)
     target_compile_definitions(test_dcu_scale_benchmark PRIVATE EDGE_SANITIZER_BUILD=1)
 endif()
@@ -1769,7 +1778,7 @@ add_test(NAME test_soak_memory_convergence COMMAND test_soak_memory_convergence)
 
 add_executable(test_sdk_conformance test_sdk_conformance.c "${CMAKE_SOURCE_DIR}/sdk/c/edge_app_sdk.c")
 target_include_directories(test_sdk_conformance PRIVATE "${CMAKE_SOURCE_DIR}/sdk/c")
-target_link_libraries(test_sdk_conformance PRIVATE cjson pthread)
+target_link_libraries(test_sdk_conformance PRIVATE cjson pthread edge_common_interface)
 add_test(NAME test_sdk_conformance COMMAND test_sdk_conformance)
 add_test(NAME test_sdk_generated
          COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/gen_sdk.py
@@ -1812,4 +1821,5 @@ endif()
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 add_test(NAME app_platform_e2e COMMAND ${Python3_EXECUTABLE}
          ${CMAKE_CURRENT_SOURCE_DIR}/e2e/app_platform_e2e.py --build ${CMAKE_BINARY_DIR})
-set_tests_properties(app_platform_e2e PROPERTIES TIMEOUT 180)
+set_tests_properties(app_platform_e2e PROPERTIES TIMEOUT 180
+    ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:halt_on_error=1")

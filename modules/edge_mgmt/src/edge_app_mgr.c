@@ -4,6 +4,7 @@
  */
 
 #include "edgeos/edge_app_mgr.h"
+#include "app_upgrade_grants.h"
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -24,6 +25,8 @@ static void _fsync_parent(const char *path);
 static int _write_pending(const char *target, const char *new_version, char *reason,
                           size_t reason_cap);
 static void _remove_pending(const char *target);
+static void _json_read_string(const cJSON *o, const char *key, char *out, size_t cap);
+static void _json_read_uint64(const cJSON *o, const char *key, uint64_t *out);
 
 typedef enum {
     APP_JOB_INSTALL = 0,
@@ -67,6 +70,7 @@ struct edge_app_mgr_s {
     char apps_dir[256];
     bool crash_after_package_write; /**< 仅测试注入使用 */
     bool crash_after_upgrade_swap;  /**< 仅测试注入使用 */
+    bool crash_after_registry_commit; /**< 仅测试注入使用 */
     app_job_t job; /**< 单槽；job_active 表示已入槽，只在 loop 线程读写。 */
     bool job_active;
 };
@@ -184,6 +188,17 @@ int edge_app_mgr_parse_manifest_json(const char *json_str, app_manifest_t *out_m
     if (item) out_manifest->timeout_ms = (uint32_t)item->valueint;
     else out_manifest->timeout_ms = 100;
 
+    item = cJSON_GetObjectItem(root, "tick_ms");
+    if (item) {
+        double value = cJSON_IsNumber(item) ? item->valuedouble : -1.0;
+        if (!cJSON_IsNumber(item) || value < 0.0 || value > 60000.0 ||
+            value != (double)(uint32_t)value || (value != 0.0 && value < 50.0)) {
+            cJSON_Delete(root);
+            return -1;
+        }
+        out_manifest->tick_ms = (uint32_t)value;
+    }
+
     out_manifest->state = APP_STATE_STOPPED;
     out_manifest->restart_count = 0;
     out_manifest->created_at = (uint64_t)time(NULL);
@@ -258,6 +273,10 @@ void edge_app_mgr_set_crash_after_package_write(edge_app_mgr_t *mgr, bool enable
 
 void edge_app_mgr_set_crash_after_upgrade_swap(edge_app_mgr_t *mgr, bool enabled) {
     if (mgr) mgr->crash_after_upgrade_swap = enabled;
+}
+
+void edge_app_mgr_set_crash_after_registry_commit(edge_app_mgr_t *mgr, bool enabled) {
+    if (mgr) mgr->crash_after_registry_commit = enabled;
 }
 
 void edge_app_mgr_set_fault_window_ms(edge_app_mgr_t *mgr, uint64_t window_ms) {
@@ -490,6 +509,15 @@ static int _read_pending_version(const char *pending, char *out, size_t cap) {
     return out[0] ? 0 : -1;
 }
 
+/* Repair a package interrupted by an upgrade. True when no backup is left or the
+ * old bytes are back in place. */
+static bool _restore_package(const char *wasm_path) {
+    char prev[264];
+    snprintf(prev, sizeof(prev), "%s.prev", wasm_path);
+    if (access(prev, F_OK) != 0) return true;
+    return rename(prev, wasm_path) == 0;
+}
+
 /* Atomically replace target with wasm_data, keeping the old file at prev_path.
  * On any failure the old package is back in place and .new is gone. */
 static int _swap_package(const char *target, const char *new_path, const char *prev_path,
@@ -533,6 +561,7 @@ static char *_manifest_to_json(const app_manifest_t *m) {
     cJSON_AddNumberToObject(o, "fault_policy", (double)m->fault_policy);
     cJSON_AddNumberToObject(o, "heap_limit_kb", (double)m->heap_limit_kb);
     cJSON_AddNumberToObject(o, "timeout_ms", (double)m->timeout_ms);
+    cJSON_AddNumberToObject(o, "tick_ms", (double)m->tick_ms);
     cJSON_AddNumberToObject(o, "state", (double)m->state);
     cJSON_AddNumberToObject(o, "restart_count", (double)m->restart_count);
     cJSON_AddNumberToObject(o, "last_fault_ms", (double)m->last_fault_ms);
@@ -586,6 +615,8 @@ static int _manifest_from_json(const char *json, app_manifest_t *m) {
     m->heap_limit_kb = (uint32_t)number;
     _json_read_uint64(o, "timeout_ms", &number);
     m->timeout_ms = (uint32_t)number;
+    _json_read_uint64(o, "tick_ms", &number);
+    m->tick_ms = (uint32_t)number;
     _json_read_uint64(o, "state", &number);
     m->state = (app_state_t)number;
     _json_read_uint64(o, "restart_count", &number);
@@ -600,6 +631,19 @@ static int _manifest_from_json(const char *json, app_manifest_t *m) {
 
     cJSON_Delete(o);
     return m->id[0] ? 0 : -1;
+}
+
+/* Recovery only scans registry rows with a wasm_path, so a metadata-only
+ * upgrade needs one to leave its markers next to. */
+static int _upgrade_marker_path(const app_manifest_t *old, const char *apps_dir, char *out,
+                                size_t cap, char *reason, size_t reason_cap) {
+    snprintf(out, cap, "%s", old->wasm_path);
+    if (out[0]) return 0;
+    if (_default_wasm_path(apps_dir, old->id, out, cap) != 0) {
+        _set_reason(reason, reason_cap, "wasm path too long");
+        return -1;
+    }
+    return 0;
 }
 
 /* 文件换包、旧行快照与仓储提交；同步 API 与 worker 线程共用。 */
@@ -627,13 +671,20 @@ static int _upgrade_impl(edge_app_mgr_t *mgr, const app_manifest_t *manifest,
         return -1;
     }
 
-    if (grants && capabilities && capability_count > 16) {
+    if (grants && capabilities && capability_count > APP_JOB_MAX_CAPABILITIES) {
         _set_reason(reason, reason_cap, "too many capabilities");
         return -1;
     }
-    /* Validate inheritance without writing: a failed package swap must not
-     * leave grants changed. The real apply runs after the registry commit. */
+    /* Snapshot and validate without writing: a failed package swap must not
+     * leave grants changed. The snapshot is what the recovery sidecar records. */
+    edge_app_grant_t grant_snapshot[APP_JOB_MAX_CAPABILITIES];
+    bool grant_found[APP_JOB_MAX_CAPABILITIES];
+    memset(grant_found, 0, sizeof(grant_found));
     if (grants && capabilities) {
+        if (!grants->get_grant) {
+            _set_reason(reason, reason_cap, "grant store unavailable");
+            return -1;
+        }
         for (size_t i = 0; i < capability_count; i++) {
             edge_app_grant_t existing;
             memset(&existing, 0, sizeof(existing));
@@ -641,15 +692,17 @@ static int _upgrade_impl(edge_app_mgr_t *mgr, const app_manifest_t *manifest,
             snprintf(existing.capability, sizeof(existing.capability), "%s",
                      capabilities[i].capability);
             snprintf(existing.scope_json, sizeof(existing.scope_json), "[]");
-            if (grants->get_grant) {
-                edge_app_grant_t row;
-                int found = grants->get_grant(grants->ctx, manifest->id,
-                                              capabilities[i].capability, &row);
-                if (found < 0) {
-                    _set_reason(reason, reason_cap, "grant store unavailable");
-                    return -1;
-                }
-                if (found == 1) existing = row;
+            edge_app_grant_t row;
+            int found = grants->get_grant(grants->ctx, manifest->id,
+                                          capabilities[i].capability, &row);
+            if (found < 0) {
+                _set_reason(reason, reason_cap, "grant store unavailable");
+                return -1;
+            }
+            if (found == 1) {
+                existing = row;
+                grant_snapshot[i] = row;
+                grant_found[i] = true;
             }
             edge_app_grant_t probe;
             if (edge_authz_inherit_grant(&existing, capabilities[i].scope_json, &probe) ==
@@ -660,7 +713,8 @@ static int _upgrade_impl(edge_app_mgr_t *mgr, const app_manifest_t *manifest,
         }
     }
 
-    if (wasm_data && wasm_len > 0) {
+    bool has_package = wasm_data && wasm_len > 0;
+    if (has_package) {
         char import_reason[EDGE_WASM_IMPORT_REASON_SIZE];
         if (edge_wasm_imports_validate(wasm_data, wasm_len, import_reason,
                                        sizeof(import_reason)) != 0) {
@@ -682,23 +736,21 @@ static int _upgrade_impl(edge_app_mgr_t *mgr, const app_manifest_t *manifest,
     }
 
     char target_path[256];
-    snprintf(target_path, sizeof(target_path), "%s", old.wasm_path);
-    if (target_path[0] == '\0' &&
-        _default_wasm_path(mgr->apps_dir, old.id, target_path, sizeof(target_path)) != 0) {
+    if (_upgrade_marker_path(&old, mgr->apps_dir, target_path, sizeof(target_path),
+                             reason, reason_cap) != 0) {
         free(old_json);
-        _set_reason(reason, reason_cap, "wasm path too long");
         return -1;
     }
 
-    if (wasm_data && wasm_len > 0) {
+    if (_write_pending(target_path, manifest->version, reason, reason_cap) != 0) {
+        free(old_json);
+        return -1;
+    }
+    if (has_package) {
         char new_path[264];
         char prev_path[264];
         snprintf(new_path, sizeof(new_path), "%s.new", target_path);
         snprintf(prev_path, sizeof(prev_path), "%s.prev", target_path);
-        if (_write_pending(target_path, manifest->version, reason, reason_cap) != 0) {
-            free(old_json);
-            return -1;
-        }
         if (_swap_package(target_path, new_path, prev_path, wasm_data, wasm_len, reason,
                           reason_cap) != 0) {
             _remove_pending(target_path);
@@ -708,6 +760,15 @@ static int _upgrade_impl(edge_app_mgr_t *mgr, const app_manifest_t *manifest,
         /* Crash-injection point: the new package is in place, the registry row
          * still holds the old version. Only tests set this env var. */
         if (mgr->crash_after_upgrade_swap) _exit(71);
+    }
+    /* Recovery replays this snapshot when the process stops before the grant
+     * block; metadata-only upgrades need it to roll the registry row back too. */
+    if (grants && capabilities &&
+        app_upgrade_grants_write_snapshot(target_path, capabilities, grant_snapshot, grant_found,
+                              capability_count, reason, reason_cap) != 0) {
+        if (!has_package || _restore_package(target_path)) app_upgrade_markers_remove(target_path);
+        free(old_json);
+        return -1;
     }
 
     app_manifest_t updated = old;
@@ -719,13 +780,14 @@ static int _upgrade_impl(edge_app_mgr_t *mgr, const app_manifest_t *manifest,
     updated.fault_policy = manifest->fault_policy;
     updated.heap_limit_kb = manifest->heap_limit_kb;
     updated.timeout_ms = manifest->timeout_ms;
+    updated.tick_ms = manifest->tick_ms;
     updated.priority = manifest->priority;
     updated.keep_alive = manifest->keep_alive;
     snprintf(updated.prev_version, sizeof(updated.prev_version), "%s", old.version);
     snprintf(updated.prev_manifest_json, sizeof(updated.prev_manifest_json), "%s", old_json);
     /* A metadata-only upgrade has no package to roll back. */
     updated.prev_wasm_path[0] = '\0';
-    if (wasm_data && wasm_len > 0) {
+    if (has_package) {
         snprintf(updated.wasm_path, sizeof(updated.wasm_path), "%s", target_path);
         snprintf(updated.prev_wasm_path, sizeof(updated.prev_wasm_path), "%s", target_path);
     }
@@ -733,56 +795,51 @@ static int _upgrade_impl(edge_app_mgr_t *mgr, const app_manifest_t *manifest,
 
     if (!mgr->repo.save_app || mgr->repo.save_app(mgr->repo.ctx, &updated) != 0) {
         /* Keep package and registry consistent: put the old bytes back. */
-        if (updated.prev_wasm_path[0]) {
-            char prev_path[264];
-            snprintf(prev_path, sizeof(prev_path), "%s.prev", updated.prev_wasm_path);
-            if (access(prev_path, F_OK) == 0) rename(prev_path, updated.wasm_path);
-        }
-        _remove_pending(target_path);
+        bool rolled_back =
+            updated.prev_wasm_path[0] == '\0' || _restore_package(updated.wasm_path);
+        /* If the rollback failed, keep the markers so the recovery path
+         * retries it on the next start. */
+        if (rolled_back) app_upgrade_markers_remove(target_path);
         _set_reason(reason, reason_cap, "registry save failed");
         return -1;
     }
-    _remove_pending(target_path);
+    /* Crash-injection point: the registry row is committed, the grant block has
+     * not run. Only tests set this env var. */
+    if (mgr->crash_after_registry_commit) _exit(72);
 
     if (grants && capabilities) {
-        edge_app_grant_t grant_snapshot[16];
-        bool grant_found[16];
-        for (size_t i = 0; i < capability_count; i++) {
-            grant_found[i] = false;
-            if (!grants->get_grant) continue;
-            int found = grants->get_grant(grants->ctx, manifest->id, capabilities[i].capability,
-                                          &grant_snapshot[i]);
-            if (found < 0) {
-                _set_reason(reason, reason_cap, "grant store unavailable");
-                return -1;
-            }
-            grant_found[i] = found == 1;
-        }
         uint64_t now = (uint64_t)time(NULL);
+        bool grants_ok = true;
         for (size_t i = 0; i < capability_count; i++) {
             edge_authz_inherit_t rc = edge_authz_inherit_upgrade(
                 grants, manifest->id, capabilities[i].capability, capabilities[i].scope_json, now);
-            if (rc != EDGE_AUTHZ_INHERIT_STORE_ERROR && rc != EDGE_AUTHZ_INHERIT_INVALID) continue;
-
-            for (size_t j = 0; j <= i && j < capability_count; j++) {
-                if (grant_found[j]) {
-                    grants->save_grant(grants->ctx, &grant_snapshot[j]);
-                } else if (grants->delete_grant) {
-                    grants->delete_grant(grants->ctx, manifest->id, capabilities[j].capability);
-                }
+            if (rc == EDGE_AUTHZ_INHERIT_STORE_ERROR || rc == EDGE_AUTHZ_INHERIT_INVALID) {
+                grants_ok = false;
+                break;
             }
-            if (updated.prev_wasm_path[0]) {
-                char prev_path[264];
-                snprintf(prev_path, sizeof(prev_path), "%s.prev", updated.prev_wasm_path);
-                if (access(prev_path, F_OK) == 0) rename(prev_path, updated.wasm_path);
+        }
+        /* The done marker is the only evidence that the grant block finished. */
+        if (grants_ok) {
+            grants_ok = app_upgrade_grants_write_done(target_path) == 0;
+        }
+        if (!grants_ok) {
+            bool rolled_back =
+                app_upgrade_grants_restore(grants, manifest->id, capabilities, grant_snapshot,
+                                           grant_found, capability_count) == 0;
+            if (rolled_back && updated.prev_wasm_path[0]) {
+                rolled_back = _restore_package(updated.wasm_path);
             }
-            if (mgr->repo.save_app) mgr->repo.save_app(mgr->repo.ctx, &old);
-            _remove_pending(target_path);
+            if (rolled_back) {
+                rolled_back = mgr->repo.save_app && mgr->repo.save_app(mgr->repo.ctx, &old) == 0;
+            }
+            /* Any failed restore leaves the markers for recovery. */
+            if (rolled_back) app_upgrade_markers_remove(target_path);
             _set_reason(reason, reason_cap, "grant inheritance failed");
             return -1;
         }
     }
 
+    app_upgrade_markers_remove(target_path);
     _set_reason(reason, reason_cap, "");
     return 0;
 }
@@ -1249,7 +1306,7 @@ static int _recover_orphan_installs(edge_app_mgr_t *mgr, const app_manifest_t *a
         if (entry->d_name[0] == '.') continue;
         char dir[520];  // stack-ok: bounded by apps_dir[256] + NAME_MAX; startup recovery only
         char wasm[sizeof(dir) + 16];
-        char side[sizeof(wasm) + 16];
+        char side[sizeof(wasm) + 24];
         snprintf(dir, sizeof(dir), "%s/%s", mgr->apps_dir, entry->d_name);
         snprintf(wasm, sizeof(wasm), "%s/app.wasm", dir);
         snprintf(side, sizeof(side), "%s.pending", wasm);
@@ -1267,6 +1324,10 @@ static int _recover_orphan_installs(edge_app_mgr_t *mgr, const app_manifest_t *a
         unlink(side);
         snprintf(side, sizeof(side), "%s.pending", wasm);
         unlink(side);
+        snprintf(side, sizeof(side), "%s.pending.grants", wasm);
+        unlink(side);
+        snprintf(side, sizeof(side), "%s.pending.grants.done", wasm);
+        unlink(side);
         rmdir(dir);
         app_log(mgr, 2, "AppMgr: removed orphan package %s", wasm);
         recovered++;
@@ -1275,7 +1336,7 @@ static int _recover_orphan_installs(edge_app_mgr_t *mgr, const app_manifest_t *a
     return recovered;
 }
 
-int edge_app_mgr_recover_packages(edge_app_mgr_t *mgr) {
+int edge_app_mgr_recover_packages(edge_app_mgr_t *mgr, const edge_authz_store_t *grants) {
     if (!mgr || !mgr->repo.list_apps) return 0;
     app_manifest_t apps[64];
     int count = mgr->repo.list_apps(mgr->repo.ctx, apps, 64);
@@ -1287,23 +1348,53 @@ int edge_app_mgr_recover_packages(edge_app_mgr_t *mgr) {
         bool pending_committed = false;
         if (access(pending, F_OK) == 0) {
             char pending_version[64];
-            bool committed =
-                _read_pending_version(pending, pending_version, sizeof(pending_version)) == 0 &&
-                strcmp(apps[i].version, pending_version) == 0;
-            if (!committed) {
-                char prev[264];
-                snprintf(prev, sizeof(prev), "%s.prev", apps[i].wasm_path);
-                if (access(prev, F_OK) == 0 && rename(prev, apps[i].wasm_path) == 0) {
-                    _fsync_parent(apps[i].wasm_path);
+            bool have_version =
+                _read_pending_version(pending, pending_version, sizeof(pending_version)) == 0;
+            char grants_path[288];
+            char done_path[296];
+            app_upgrade_grants_path(apps[i].wasm_path, grants_path, sizeof(grants_path));
+            app_upgrade_grants_done_path(apps[i].wasm_path, done_path, sizeof(done_path));
+
+            if (access(done_path, F_OK) == 0) {
+                /* The grant block finished; the upgrade is committed. */
+                pending_committed = true;
+                app_upgrade_markers_remove(apps[i].wasm_path);
+            } else if (access(grants_path, F_OK) == 0) {
+                /* Registry committed, grant phase did not. Put grants, package,
+                 * and registry row back; a failed step keeps the markers so the
+                 * next start retries. */
+                bool restored =
+                    app_upgrade_grants_restore_snapshot(grants, apps[i].id, grants_path) == 0;
+                if (restored) {
+                    if (have_version && strcmp(apps[i].version, pending_version) == 0) {
+                        char reason[160];
+                        restored = _rollback_impl(mgr, apps[i].id, reason, sizeof(reason)) == 0;
+                    } else {
+                        restored = _restore_package(apps[i].wasm_path);
+                    }
+                }
+                if (restored) {
+                    app_upgrade_markers_remove(apps[i].wasm_path);
+                    app_log(mgr, 2, "AppMgr: rolled back interrupted upgrade with grants %s",
+                            apps[i].wasm_path);
+                    recovered++;
+                } else {
+                    app_log(mgr, 4, "AppMgr: grant rollback incomplete for %s; markers kept",
+                            apps[i].wasm_path);
+                }
+            } else {
+                /* Install crash or grantless upgrade: the registry version decides. */
+                bool committed = have_version && strcmp(apps[i].version, pending_version) == 0;
+                if (committed) {
+                    pending_committed = true;
+                    app_upgrade_markers_remove(apps[i].wasm_path);
+                } else if (_restore_package(apps[i].wasm_path)) {
+                    app_upgrade_markers_remove(apps[i].wasm_path);
                     app_log(mgr, 2, "AppMgr: rolled back interrupted upgrade %s",
                             apps[i].wasm_path);
                     recovered++;
                 }
-            } else {
-                pending_committed = true;
             }
-            unlink(pending);
-            _fsync_parent(pending);
         }
         char side[264];
         snprintf(side, sizeof(side), "%s.new", apps[i].wasm_path);

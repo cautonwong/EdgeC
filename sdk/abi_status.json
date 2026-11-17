@@ -17,11 +17,10 @@
     },
     "point-subscribe": {
       "c_sdk": "edge_app_point_subscribe",
-      "host": "not_supported",
-      "wasm_symbol": null,
-      "whitelist": false,
-      "conformance_expects": "success",
-      "known_gap": "host dispatch returns not_supported; conformance vector subscribe_with_keepalive still expects success"
+      "host": "implemented",
+      "wasm_symbol": "point_subscribe",
+      "whitelist": true,
+      "conformance_expects": "success"
     },
     "point-publish": {
       "c_sdk": "edge_app_point_publish",
@@ -46,13 +45,15 @@
     }
   },
   "extra_host_json": {
-    "setting_get": "not_supported",
-    "setting_watch": "not_supported",
+    "setting_get": "implemented",
+    "setting_watch": "implemented",
     "kv_get": "not_supported",
     "kv_set": "not_supported"
   },
   "notes": [
-    "not_supported is returned by host dispatch for point_subscribe and the extra_host_json names, but it is not a member of the WIT error-code enum. Recorded here; no new error code was added to the frozen ABI.",
+    "not_supported is returned by host dispatch for the remaining extra_host_json names, but it is not a member of the WIT error-code enum. Recorded here; no new error code was added to the frozen ABI.",
+    "setting_get is an ext-layer hand-written import: the WIT package stays frozen and the host call uses the C-style (key_ptr, len, out_ptr, cap) shape recorded in the 03 ABI table.",
+    "setting_watch is an ext-layer hand-written import with no WIT signature. It records a per-connection settings watch; operator writes then deliver settings_changed with payload {\"key\":\"<key>\"}. It returns not_supported when the host port has no settings store.",
     "conformance_expects records the outcome of the function's primary happy-path conformance vector; error-path vectors do not change it.",
     "wasm_symbol is the native symbol registered in cmd/app-host/main.c and whitelisted in foundation/src/edge_wasm_imports.c. null means the function has no wasm import yet."
   ]

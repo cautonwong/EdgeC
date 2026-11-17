@@ -1,0 +1,6 @@
+world app-v1 {
+  export app-init: func();
+  export app-on-event: func(event: event);
+  export app-stop: func();
+  export app-tick: func();
+}

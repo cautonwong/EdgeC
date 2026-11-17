@@ -70,7 +70,7 @@ static int _reclaim_stop(void *ctx, const char *app_id, reclaim_reason_t reason)
     (void)reason;
     iems_pressure_ctx_t *pressure = (iems_pressure_ctx_t *)ctx;
     if (!pressure || !pressure->mgr) return -1;
-    if (pressure->runtime) iems_app_runtime_stop(pressure->runtime, app_id);
+    if (pressure->runtime) iems_app_runtime_stop_now(pressure->runtime, app_id);
     return edge_app_mgr_reclaim_stop_async(pressure->mgr, app_id, NULL, NULL);
 }
 

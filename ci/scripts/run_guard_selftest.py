@@ -250,6 +250,27 @@ TEST_MATRIX = [
         "good_target": os.path.join(FIXTURES_DIR, "good_alloc_null"),
         "bad_target": os.path.join(FIXTURES_DIR, "bad_alloc_null"),
         "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_sanitizer_perf_gates.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_sanitizer_perf_gates.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_sanitizer_perf"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_sanitizer_perf"),
+        "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_app_export_dispatch.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_app_export_dispatch.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_app_export_dispatch"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_app_export_dispatch"),
+        "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_sdk_signature.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_sdk_signature.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_sdk_signature"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_sdk_signature"),
+        "arg_flag": "--root"
     }
 ]
 
@@ -440,6 +461,9 @@ def main():
         "check_strncpy_bounds.py",
         "check_ftell_checked.py",
         "check_alloc_null.py",
+        "check_sanitizer_perf_gates.py",
+        "check_app_export_dispatch.py",
+        "check_sdk_signature.py",
     ]:
         script_path = os.path.join(SCRIPTS_DIR, script_name)
         flag = "--file" if "dependencies" in script_name or "exemptions" in script_name else "--root"

@@ -33,9 +33,13 @@ static const struct {
     /* app-host ABI, registered by cmd/app-host/main.c */
     {"env", "point_resolve"},
     {"env", "point_read"},
+    {"env", "point_subscribe"},
     {"env", "point_publish"},
     {"env", "app_log"},
     {"env", "app_now"},
+    /* Ext ABI imports, hand-written and not in the frozen WIT package. */
+    {"env", "setting_get"},
+    {"env", "setting_watch"},
 };
 
 static int read_u8(reader_t *r, uint8_t *out) {

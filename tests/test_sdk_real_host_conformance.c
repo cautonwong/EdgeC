@@ -4,8 +4,8 @@
  *
  * tests/test_sdk_conformance.c answers the vectors with a scripted fake host, so
  * subscribe_with_keepalive passes there by construction. This test runs the same
- * SDK calls through app_host_server and pins the point_subscribe gap recorded in
- * sdk/abi_status.json.
+ * SDK calls through app_host_server and checks that the ledger's subscribe entry
+ * is implemented.
  */
 
 #define _POSIX_C_SOURCE 200809L
@@ -38,6 +38,8 @@ static const char *const executed_vectors[] = {
 
 typedef struct {
     int publish_calls;
+    int subscribe_calls;
+    int unsubscribe_calls;
     int log_count;
     char logs[LOG_LINES][LOG_CHARS];
     app_host_sample_t last_sample;
@@ -88,6 +90,27 @@ static int fake_publish(void *ctx, uint32_t handle, const app_host_sample_t *sam
         return -1;
     }
     fake->last_sample = *sample;
+    return 0;
+}
+
+static int fake_subscribe(void *ctx, uint32_t handle, app_host_event_cb_t on_event,
+                          void *event_ctx, int32_t *out_sub_id, char *reason,
+                          size_t reason_size) {
+    fake_ports_t *fake = ctx;
+    (void)handle;
+    (void)on_event;
+    (void)event_ctx;
+    (void)reason;
+    (void)reason_size;
+    fake->subscribe_calls++;
+    *out_sub_id = 1;
+    return 0;
+}
+
+static int fake_unsubscribe(void *ctx, int32_t sub_id) {
+    fake_ports_t *fake = ctx;
+    (void)sub_id;
+    fake->unsubscribe_calls++;
     return 0;
 }
 
@@ -279,7 +302,7 @@ static int run_vector(edge_app_sdk_t *sdk, const cJSON *vector) {
     return 1;
 }
 
-static int run_subscribe_gap(edge_app_sdk_t *sdk, const cJSON *vector) {
+static int run_subscribe(edge_app_sdk_t *sdk, const cJSON *vector) {
     const char *name = cJSON_GetObjectItem(vector, "name")->valuestring;
     const cJSON *steps = cJSON_GetObjectItem(vector, "steps");
     if (cJSON_GetArraySize(steps) != 2) {
@@ -288,22 +311,16 @@ static int run_subscribe_gap(edge_app_sdk_t *sdk, const cJSON *vector) {
     if (!run_step(sdk, name, 0, cJSON_GetArrayItem(steps, 0))) return 0;
 
     const cJSON *args = cJSON_GetObjectItem(cJSON_GetArrayItem(steps, 1), "args");
-    const cJSON *host = cJSON_GetObjectItem(
-        cJSON_GetObjectItem(cJSON_GetObjectItem(g_abi, "functions"), "point-subscribe"), "host");
     uint32_t subscription = 0;
     const char *err = edge_app_point_subscribe(
         sdk, (uint32_t)cJSON_GetObjectItem(args, "handle")->valuedouble,
         cJSON_GetObjectItem(args, "deadband")->valuedouble,
         (uint32_t)cJSON_GetObjectItem(args, "min_interval_ms")->valuedouble,
         (uint32_t)cJSON_GetObjectItem(args, "max_interval_ms")->valuedouble, &subscription);
-    if (!cJSON_IsString(host)) {
-        return step_fail(name, 1, "abi ledger has no point-subscribe host");
-    }
-    if (err == NULL || strcmp(err, host->valuestring) != 0) {
-        return step_fail(name, 1, "point_subscribe got %s want ledger host %s",
-                         err != NULL ? err : "success", host->valuestring);
-    }
-    printf("PASS %s (host gap: %s)\n", name, host->valuestring);
+    if (err != NULL) return step_fail(name, 1, "point_subscribe: %s", err);
+    /* The vector's mock host returns 3; the real host derives the id from its table. */
+    if (subscription == 0) return step_fail(name, 1, "subscription is 0");
+    printf("PASS %s\n", name);
     return 1;
 }
 
@@ -312,6 +329,8 @@ static int run_extra_host_calls(edge_app_sdk_t *sdk) {
     const cJSON *entry = NULL;
     int ok = 1;
     for (entry = extra != NULL ? extra->child : NULL; entry != NULL; entry = entry->next) {
+        /* Implemented extras have their own host path and are not error probes. */
+        if (cJSON_IsString(entry) && strcmp(entry->valuestring, "implemented") == 0) continue;
         char result[128];
         const char *err = edge_app_sdk_call(sdk, entry->string, "{}", result, sizeof(result));
         if (!cJSON_IsString(entry) || err == NULL || strcmp(err, entry->valuestring) != 0) {
@@ -338,7 +357,7 @@ static void child_client(int fd) {
     }
 
     const cJSON *subscribe = find_vector(vector_list(), "subscribe_with_keepalive");
-    if (subscribe == NULL || !run_subscribe_gap(sdk, subscribe)) _exit(13);
+    if (subscribe == NULL || !run_subscribe(sdk, subscribe)) _exit(13);
     if (!run_extra_host_calls(sdk)) _exit(14);
 
     edge_app_sdk_destroy(sdk);
@@ -403,6 +422,8 @@ static void test_vectors_through_real_host(void **state) {
         .resolve = fake_resolve,
         .read = fake_read,
         .publish = fake_publish,
+        .subscribe = fake_subscribe,
+        .unsubscribe = fake_unsubscribe,
         .log = fake_log,
         .now_ms = fake_now,
     };
@@ -463,7 +484,7 @@ static void test_every_implemented_function_has_a_vector(void **state) {
     }
 }
 
-static void test_subscribe_gap_is_recorded(void **state) {
+static void test_subscribe_ledger_is_implemented(void **state) {
     (void)state;
     const cJSON *vector = find_vector(vector_list(), "subscribe_with_keepalive");
     assert_non_null(vector);
@@ -479,6 +500,7 @@ static void test_subscribe_gap_is_recorded(void **state) {
     const cJSON *host = cJSON_GetObjectItem(
         cJSON_GetObjectItem(cJSON_GetObjectItem(g_abi, "functions"), "point-subscribe"), "host");
     assert_true(cJSON_IsString(host));
+    assert_string_equal(host->valuestring, "implemented");
 }
 
 int main(void) {
@@ -492,7 +514,7 @@ int main(void) {
 
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_every_implemented_function_has_a_vector),
-        cmocka_unit_test(test_subscribe_gap_is_recorded),
+        cmocka_unit_test(test_subscribe_ledger_is_implemented),
         cmocka_unit_test(test_vectors_through_real_host),
     };
     int rc = cmocka_run_group_tests(tests, NULL, NULL);

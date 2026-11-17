@@ -5,7 +5,9 @@ The probe imports the Host ABI and implements app_init:
   1. point_resolve("app.demo.value") -> handle, access
   2. point_read(1001) -> value
   3. point_publish(handle, value + 1.0)
-  4. app_log(1, "probe done")
+  4. point_subscribe(1001, 0.0, 0, 1000) -> subscription
+  5. app_log(1, "probe done")
+and app_on_event(ptr, len), which logs the event args JSON.
 
 There is no wasm toolchain in this environment, so the module is encoded by
 hand. Re-run after changing the ABI: python3 tests/gen_abi_probe_wasm.py
@@ -65,18 +67,21 @@ def main() -> None:
         functype([I32, I32, I32, I32], [I32]),             # 1: point_read
         functype([I32, F64, I32, I64], [I32]),             # 2: point_publish
         functype([I32, I32, I32], [I32]),                  # 3: point_resolve
-        functype([I32, I32], []),                          # 4: app_log
+        functype([I32, I32], []),                          # 4: app_log, app_on_event
+        functype([I32, F64, I32, I32, I32], [I32]),        # 5: point_subscribe
     ]
     imports = [
         name("env") + name("point_resolve") + b"\x00" + leb(3),
         name("env") + name("point_read") + b"\x00" + leb(1),
         name("env") + name("point_publish") + b"\x00" + leb(2),
         name("env") + name("app_log") + b"\x00" + leb(4),
+        name("env") + name("point_subscribe") + b"\x00" + leb(5),
     ]
-    functions = [leb(0)]
+    functions = [leb(0), leb(4)]
     memory = b"\x01\x00\x01"
     exports = [
-        name("app_init") + b"\x00" + leb(4),
+        name("app_init") + b"\x00" + leb(5),
+        name("app_on_event") + b"\x00" + leb(6),
         name("memory") + b"\x02" + leb(0),
     ]
 
@@ -89,9 +94,16 @@ def main() -> None:
     body += b"\x44" + struct.pack("<d", 1.0) + b"\xa0"            # f64.add
     body += b"\x41" + sleb(0) + b"\x42" + sleb(0)                 # quality 0, ts 0
     body += b"\x10" + leb(2) + b"\x1a"                            # point_publish
+    body += (b"\x41" + sleb(1001) + b"\x44" + struct.pack("<d", 0.0) + b"\x41" +
+             sleb(0) + b"\x41" + sleb(1000) + b"\x41" + sleb(20) + b"\x10" + leb(4) +
+             b"\x1a")                                             # point_subscribe
     body += b"\x41" + sleb(1) + b"\x41" + sleb(80) + b"\x10" + leb(3)  # app_log
     body += b"\x0b"
-    code = [leb(len(body)) + body]
+
+    event_body = b"\x00"  # no locals
+    event_body += b"\x41" + sleb(1) + b"\x20" + leb(0) + b"\x10" + leb(3)  # app_log(1, ptr)
+    event_body += b"\x0b"
+    code = [leb(len(body)) + body, leb(len(event_body)) + event_body]
 
     data = b"\x02" + b"\x02" + leb(0) + b"\x41" + sleb(64) + b"\x0b" + name("app.demo.value\x00")
     data += b"\x02" + leb(0) + b"\x41" + sleb(80) + b"\x0b" + name("probe done\x00")

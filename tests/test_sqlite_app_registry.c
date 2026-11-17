@@ -58,6 +58,7 @@ static void test_sqlite_app_registry_crud(void **state) {
     manifest_in.fault_policy = FAULT_POLICY_AUTO_RESTART;
     manifest_in.heap_limit_kb = 512;
     manifest_in.timeout_ms = 50;
+    manifest_in.tick_ms = 250;
     manifest_in.state = APP_STATE_RUNNING;
     manifest_in.restart_count = 2;
     manifest_in.created_at = 1770000000000ULL;
@@ -79,6 +80,7 @@ static void test_sqlite_app_registry_crud(void **state) {
     assert_int_equal(manifest_out.fault_policy, FAULT_POLICY_AUTO_RESTART);
     assert_int_equal(manifest_out.heap_limit_kb, 512);
     assert_int_equal(manifest_out.timeout_ms, 50);
+    assert_int_equal(manifest_out.tick_ms, 250);
     assert_int_equal(manifest_out.state, APP_STATE_RUNNING);
     assert_int_equal(manifest_out.restart_count, 2);
 

@@ -15,6 +15,7 @@
 
 #include "app_repo_sqlite.h"
 #include "app_points_sqlite.h"
+#include "app_settings_sqlite.h"
 #include "iems_app_runtime.h"
 #include "edge_app_task_sqlite.h"
 #include "edge_authz_sqlite.h"
@@ -23,6 +24,7 @@
 #include "edge_log.h"
 #include "edgeos/app_manifest.h"
 #include "edgeos/app_secret.h"
+#include "edgeos/app_settings.h"
 #include "edgeos/app_task.h"
 #include "edge_time_trust.h"
 #include "edgeos/edge_app_export.h"
@@ -70,6 +72,9 @@ edge_app_mgr_t *iems_app_manager_create(uv_loop_t *loop, sqlite_svc_t *db,
     }
     if (getenv("EDGEC_TEST_CRASH_AFTER_UPGRADE_SWAP")) {
         edge_app_mgr_set_crash_after_upgrade_swap(mgr, true);
+    }
+    if (getenv("EDGEC_TEST_CRASH_AFTER_REGISTRY_COMMIT")) {
+        edge_app_mgr_set_crash_after_registry_commit(mgr, true);
     }
     LOG_INFO(LOG_CAT_CORE, "AppMgr: Initialized with repository successfully");
 
@@ -121,7 +126,37 @@ typedef struct {
     app_manifest_t manifest;
     app_spec_t spec;
     char task_id[EDGE_APP_TASK_ID_SIZE];
+    char *settings_json; /**< canonical schema, NULL when the manifest has none */
 } iems_install_job_ctx_t;
+
+/* Returns 1 with a canonical schema, 0 when the manifest has no settings,
+ * -1 when the schema cannot be normalized. */
+static int _manifest_settings_json(const char *manifest_json, char **out, char *reason,
+                                   size_t reason_size) {
+    *out = NULL;
+    cJSON *root = cJSON_Parse(manifest_json);
+    if (!root) return -1;
+    int result = 0;
+    cJSON *settings = cJSON_GetObjectItemCaseSensitive(root, "settings");
+    if (cJSON_IsObject(settings)) {
+        char *printed = cJSON_PrintUnformatted(settings);
+        if (!printed) {
+            result = -1;
+        } else {
+            *out = edge_app_settings_normalize_json(printed, reason, reason_size);
+            result = *out ? 1 : -1;
+            free(printed);
+        }
+    }
+    cJSON_Delete(root);
+    return result;
+}
+
+static void _install_job_free(iems_install_job_ctx_t *job) {
+    if (!job) return;
+    free(job->settings_json);
+    free(job);
+}
 
 /* 台账终态；无 task_id 表示该请求没有台账行。 */
 static void _finish_task(iems_control_ctx_t *control, const char *task_id,
@@ -235,12 +270,12 @@ static void _iems_start_done(int rc, const char *app_id, const char *reason, voi
             free(start);
             return;
         }
-        uint32_t heap_kb = limits.heap_kb > 0 ? limits.heap_kb
-                                              : (manifest.heap_limit_kb > 0 ? manifest.heap_limit_kb
-                                                                            : 64);
+        uint32_t heap_kb = limits.heap_kb ? limits.heap_kb
+                                          : (manifest.heap_limit_kb ? manifest.heap_limit_kb : 64);
         if (iems_app_runtime_start_ex(start->control->app_runtime, app_id, manifest.wasm_path,
                                       heap_kb, 64, limits.pids_max, limits.cpu_ms_per_sec,
-                                      limits.calls_per_sec, limits.publish_per_sec) != 0) {
+                                      limits.calls_per_sec, limits.publish_per_sec,
+                                      manifest.tick_ms) != 0) {
             LOG_WARN(LOG_CAT_CORE, "AppHost: start failed for %s", app_id);
             edge_app_mgr_stop(start->control->mgr, app_id);
             if (start->task_id[0]) {
@@ -266,7 +301,15 @@ static void _iems_install_done(int rc, const char *app_id, const char *reason, v
     if (rc != 0) {
         LOG_WARN(LOG_CAT_CORE, "AppMgr: async install failed for %s: %s", app_id, reason);
         _finish_task(job->control, job->task_id, EDGE_APP_TASK_FAILED, reason);
-        free(job);
+        _install_job_free(job);
+        return;
+    }
+
+    if (app_settings_schema_save(job->control->db, app_id, job->settings_json) != 0) {
+        LOG_WARN(LOG_CAT_CORE, "AppMgr: settings schema save failed for %s", app_id);
+        _finish_task(job->control, job->task_id, EDGE_APP_TASK_FAILED,
+                     "settings schema save failed");
+        _install_job_free(job);
         return;
     }
 
@@ -276,23 +319,23 @@ static void _iems_install_done(int rc, const char *app_id, const char *reason, v
         LOG_WARN(LOG_CAT_CORE, "AppMgr: point registration failed for %s: %s", app_id,
                  points_reason);
         _finish_task(job->control, job->task_id, EDGE_APP_TASK_FAILED, points_reason);
-        free(job);
+        _install_job_free(job);
         return;
     }
 
     if (edge_app_mgr_set_limits(job->control->mgr, app_id, &job->spec.limits) != 0) {
         LOG_WARN(LOG_CAT_CORE, "AppMgr: limits save failed for %s", app_id);
         _finish_task(job->control, job->task_id, EDGE_APP_TASK_FAILED, "limits save failed");
-        free(job);
+        _install_job_free(job);
         return;
     }
 
-    if (job->control->app_runtime) iems_app_runtime_stop(job->control->app_runtime, app_id);
+    if (job->control->app_runtime) iems_app_runtime_stop_now(job->control->app_runtime, app_id);
 
     iems_start_ctx_t *start = calloc(1, sizeof(*start));
     if (!start) {
         _finish_task(job->control, job->task_id, EDGE_APP_TASK_FAILED, "out of memory");
-        free(job);
+        _install_job_free(job);
         return;
     }
     start->control = job->control;
@@ -303,7 +346,7 @@ static void _iems_install_done(int rc, const char *app_id, const char *reason, v
         _finish_task(job->control, job->task_id, EDGE_APP_TASK_FAILED, "start queue failed");
         free(start);
     }
-    free(job);
+    _install_job_free(job);
 }
 
 static void _iems_state_done(int rc, const char *app_id, const char *reason, void *ctx) {
@@ -355,6 +398,8 @@ static int _purge_private_data(iems_control_ctx_t *control, const char *app_id) 
         }
     }
 
+    if (app_settings_remove(control->db, app_id) != 0) rc = -1;
+
     edge_authz_store_t authz = edge_authz_sqlite_store(control->db);
     if (!authz.list_grants || !authz.delete_grant) {
         rc = -1;
@@ -394,7 +439,7 @@ static void _iems_uninstall_done(int rc, const char *app_id, const char *reason,
     if (rc != 0) {
         LOG_WARN(LOG_CAT_CORE, "AppMgr: uninstall failed for %s: %s", app_id, reason);
     } else {
-        if (control->app_runtime) iems_app_runtime_stop(control->app_runtime, app_id);
+        if (control->app_runtime) iems_app_runtime_stop_now(control->app_runtime, app_id);
         app_points_release(control->db, app_id);
         if (job->disposition == APP_UNINSTALL_PURGE ||
             job->disposition == APP_UNINSTALL_EXPORT) {
@@ -434,7 +479,7 @@ static int _control_uninstall_app(void *ctx, const char *app_id, const char *dis
             return -1;
         }
     }
-    if (control->app_runtime) iems_app_runtime_stop(control->app_runtime, app_id);
+    if (control->app_runtime) iems_app_runtime_stop_now(control->app_runtime, app_id);
     iems_uninstall_ctx_t *job = calloc(1, sizeof(*job));
     if (!job) return -1;
     job->control = control;
@@ -536,40 +581,47 @@ static int _control_install_app(void *ctx, const char *manifest_json, const char
     char reason[160];
     if (edge_app_manifest_parse(manifest_json, &job->spec, reason, sizeof(reason)) != 0) {
         LOG_WARN(LOG_CAT_CORE, "AppMgr: install denied: %s", reason);
-        free(job);
+        _install_job_free(job);
         return -1;
     }
     if (_limits_supported(&job->spec.limits, reason, sizeof(reason)) != 0) {
         LOG_WARN(LOG_CAT_CORE, "AppMgr: install denied: %s", reason);
-        free(job);
+        _install_job_free(job);
         return -1;
     }
 
     if (edge_app_mgr_parse_manifest_json(manifest_json, &job->manifest) != 0) {
         LOG_WARN(LOG_CAT_CORE, "AppMgr: install denied: manifest has no usable id");
-        free(job);
+        _install_job_free(job);
+        return -1;
+    }
+    char settings_reason[APP_SETTING_REASON_SIZE] = "";
+    if (_manifest_settings_json(manifest_json, &job->settings_json, settings_reason,
+                                sizeof(settings_reason)) < 0) {
+        LOG_WARN(LOG_CAT_CORE, "AppMgr: install denied: %s", settings_reason);
+        _install_job_free(job);
         return -1;
     }
     if (job->spec.limits.heap_kb > 0) job->manifest.heap_limit_kb = job->spec.limits.heap_kb;
     if (app_points_check(control->db, job->manifest.id, job->spec.points, job->spec.points_count,
                          reason, sizeof(reason)) != 0) {
         LOG_WARN(LOG_CAT_CORE, "AppMgr: install denied: %s", reason);
-        free(job);
+        _install_job_free(job);
         return -1;
     }
 
     edge_app_task_t task;
     task_begin_t begin = _task_begin(control, EDGE_APP_TASK_INSTALL, idempotency_key, &task);
     if (begin == TASK_BEGIN_ERROR) {
-        free(job);
+        _install_job_free(job);
         return -1;
     }
     if (begin == TASK_BEGIN_REPLAY_FAIL) {
-        free(job);
+        _install_job_free(job);
         return -1;
     }
     if (begin == TASK_BEGIN_REPLAY_OK) {
-        free(job);
+        _install_job_free(job);
         return 0;
     }
     snprintf(job->task_id, sizeof(job->task_id), "%s", task.id);
@@ -578,7 +630,7 @@ static int _control_install_app(void *ctx, const char *manifest_json, const char
                                         _iems_install_done, job);
     if (rc != 0) {
         _finish_task(control, job->task_id, EDGE_APP_TASK_FAILED, "install queue failed");
-        free(job);
+        _install_job_free(job);
     }
     return rc;
 }
@@ -872,14 +924,29 @@ typedef struct {
     app_manifest_t manifest;
     app_spec_t spec;
     bool was_running;
+    char *settings_json; /**< canonical schema, NULL when the manifest has none */
 } iems_upgrade_job_ctx_t;
+
+static void _upgrade_job_free(iems_upgrade_job_ctx_t *job) {
+    if (!job) return;
+    free(job->settings_json);
+    free(job);
+}
 
 static void _iems_upgrade_done(int rc, const char *app_id, const char *reason, void *ctx) {
     iems_upgrade_job_ctx_t *job = (iems_upgrade_job_ctx_t *)ctx;
     if (rc != 0) {
         LOG_WARN(LOG_CAT_CORE, "AppMgr: async upgrade failed for %s: %s", app_id, reason);
         _finish_task(job->control, job->task_id, EDGE_APP_TASK_FAILED, reason);
-        free(job);
+        _upgrade_job_free(job);
+        return;
+    }
+
+    if (app_settings_schema_save(job->control->db, app_id, job->settings_json) != 0) {
+        LOG_WARN(LOG_CAT_CORE, "AppMgr: settings schema save failed for %s", app_id);
+        _finish_task(job->control, job->task_id, EDGE_APP_TASK_FAILED,
+                     "settings schema save failed");
+        _upgrade_job_free(job);
         return;
     }
 
@@ -889,23 +956,23 @@ static void _iems_upgrade_done(int rc, const char *app_id, const char *reason, v
         LOG_WARN(LOG_CAT_CORE, "AppMgr: point registration failed for %s: %s", app_id,
                  points_reason);
         _finish_task(job->control, job->task_id, EDGE_APP_TASK_FAILED, points_reason);
-        free(job);
+        _upgrade_job_free(job);
         return;
     }
 
     if (edge_app_mgr_set_limits(job->control->mgr, app_id, &job->spec.limits) != 0) {
         LOG_WARN(LOG_CAT_CORE, "AppMgr: limits save failed for %s", app_id);
         _finish_task(job->control, job->task_id, EDGE_APP_TASK_FAILED, "limits save failed");
-        free(job);
+        _upgrade_job_free(job);
         return;
     }
 
     if (job->was_running) {
-        if (job->control->app_runtime) iems_app_runtime_stop(job->control->app_runtime, app_id);
+        iems_app_runtime_stop_now(job->control->app_runtime, app_id);
         iems_start_ctx_t *start = calloc(1, sizeof(*start));
         if (!start) {
             _finish_task(job->control, job->task_id, EDGE_APP_TASK_FAILED, "out of memory");
-            free(job);
+            _upgrade_job_free(job);
             return;
         }
         start->control = job->control;
@@ -916,13 +983,13 @@ static void _iems_upgrade_done(int rc, const char *app_id, const char *reason, v
             _finish_task(job->control, job->task_id, EDGE_APP_TASK_FAILED, "reload queue failed");
             free(start);
         }
-        free(job);
+        _upgrade_job_free(job);
         return;
     }
     LOG_INFO(LOG_CAT_CORE, "AppMgr: upgraded %s", app_id);
     _publish_snapshot(job->control);
     _finish_task(job->control, job->task_id, EDGE_APP_TASK_SUCCEEDED, NULL);
-    free(job);
+    _upgrade_job_free(job);
 }
 
 typedef struct {
@@ -946,7 +1013,7 @@ static void _iems_rollback_done(int rc, const char *app_id, const char *reason, 
         free(job);
         return;
     }
-    if (job->control->app_runtime) iems_app_runtime_stop(job->control->app_runtime, app_id);
+    if (job->control->app_runtime) iems_app_runtime_stop_now(job->control->app_runtime, app_id);
     iems_start_ctx_t *start = calloc(1, sizeof(*start));
     if (!start) {
         free(job);
@@ -992,11 +1059,28 @@ static int _control_upgrade_app(void *ctx, const char *manifest_json, const void
         return -1;
     }
 
+    char *settings_json = NULL;
+    char settings_reason[APP_SETTING_REASON_SIZE] = "";
+    if (_manifest_settings_json(manifest_json, &settings_json, settings_reason,
+                                sizeof(settings_reason)) < 0) {
+        LOG_WARN(LOG_CAT_CORE, "AppMgr: upgrade denied: %s", settings_reason);
+        return -1;
+    }
+
     edge_app_task_t task;
     task_begin_t begin = _task_begin(control, EDGE_APP_TASK_UPGRADE, idempotency_key, &task);
-    if (begin == TASK_BEGIN_ERROR) return -1;
-    if (begin == TASK_BEGIN_REPLAY_FAIL) return -1;
-    if (begin == TASK_BEGIN_REPLAY_OK) return 0;
+    if (begin == TASK_BEGIN_ERROR) {
+        free(settings_json);
+        return -1;
+    }
+    if (begin == TASK_BEGIN_REPLAY_FAIL) {
+        free(settings_json);
+        return -1;
+    }
+    if (begin == TASK_BEGIN_REPLAY_OK) {
+        free(settings_json);
+        return 0;
+    }
 
     app_capability_scope_t capabilities[2];
     memset(capabilities, 0, sizeof(capabilities));
@@ -1019,6 +1103,7 @@ static int _control_upgrade_app(void *ctx, const char *manifest_json, const void
 
     iems_upgrade_job_ctx_t *job = calloc(1, sizeof(*job));
     if (!job) {
+        free(settings_json);
         _finish_task(control, task.id, EDGE_APP_TASK_FAILED, "out of memory");
         return -1;
     }
@@ -1026,6 +1111,7 @@ static int _control_upgrade_app(void *ctx, const char *manifest_json, const void
     job->manifest = manifest;
     job->spec = spec;
     job->was_running = was_running;
+    job->settings_json = settings_json;
     snprintf(job->task_id, sizeof(job->task_id), "%s", task.id);
 
     edge_authz_store_t store = edge_authz_sqlite_store(control->db);
@@ -1035,7 +1121,7 @@ static int _control_upgrade_app(void *ctx, const char *manifest_json, const void
         LOG_WARN(LOG_CAT_CORE, "AppMgr: upgrade queue failed for %s: %s", manifest.id,
                  rc == EDGE_APP_MGR_BUSY ? "busy" : "error");
         _finish_task(control, task.id, EDGE_APP_TASK_FAILED, "upgrade queue failed");
-        free(job);
+        _upgrade_job_free(job);
     }
     return rc;
 }
@@ -1089,6 +1175,18 @@ static char *_control_secret_list(void *ctx, const char *app_id) {
     char *json = cJSON_PrintUnformatted(arr);
     cJSON_Delete(arr);
     return json ? json : strdup("[]");
+}
+
+static int _control_settings_set(void *ctx, const char *app_id, const char *key,
+                                 const char *value_json, char *reason, size_t reason_size) {
+    iems_control_ctx_t *control = (iems_control_ctx_t *)ctx;
+    if (!control || !control->db || !app_id || !key || !value_json) return -1;
+    int rc = app_settings_value_set(control->db, app_id, key, value_json, reason, reason_size);
+    /* The appctl response describes the store write, not whether the app heard it. */
+    if (rc == 0 && control->app_runtime) {
+        (void)iems_app_runtime_notify_settings_changed(control->app_runtime, app_id, key);
+    }
+    return rc;
 }
 
 static int64_t _now_ms(void) {
@@ -1308,6 +1406,7 @@ void iems_control_port_init(rest_control_port_t *port, iems_control_ctx_t *ctx,
     port->secret_set = _control_secret_set;
     port->secret_delete = _control_secret_delete;
     port->secret_list = _control_secret_list;
+    port->settings_set = _control_settings_set;
     port->task_submit = _control_task_submit;
     port->task_status = _control_task_status;
     port->task_finish = _control_task_finish;
@@ -1351,7 +1450,7 @@ void iems_control_app_faulted(iems_control_ctx_t *ctx, const char *app_id, int64
         if (iems_app_runtime_restart_later_ex(ctx->app_runtime, app_id, manifest.wasm_path, delay,
                                               heap_kb, 64, limits.pids_max,
                                               limits.cpu_ms_per_sec, limits.calls_per_sec,
-                                              limits.publish_per_sec) == 0) {
+                                              limits.publish_per_sec, manifest.tick_ms) == 0) {
             LOG_INFO(LOG_CAT_CORE, "AppHost: restarting %s in %u ms (attempt %d)", app_id, delay,
                      manifest.restart_count);
         } else {
@@ -1366,6 +1465,6 @@ void iems_control_app_restarted(iems_control_ctx_t *ctx, const char *app_id) {
     if (edge_app_mgr_start(ctx->mgr, app_id) == 0) {
         _publish_snapshot(ctx);
     } else if (ctx->app_runtime) {
-        iems_app_runtime_stop(ctx->app_runtime, app_id);
+        iems_app_runtime_stop_now(ctx->app_runtime, app_id);
     }
 }

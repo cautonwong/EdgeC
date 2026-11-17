@@ -936,6 +936,8 @@ char *rest_dispatch_ex(service_t *svc, const char *method, const char *path, con
         if (strncmp(path, "/api/v1/apps/upgrade_package", 29) == 0)
             return rest_apps_upgrade_package(svc, body);
         if (strncmp(path, "/api/v1/apps/upgrade", 21) == 0) return handle_apps_upgrade(svc, body);
+        if (strncmp(path, "/api/v1/apps/settings/set", 25) == 0)
+            return rest_apps_settings_set(svc, body);
         if (strncmp(path, "/api/v1/apps/secret/delete", 26) == 0)
             return handle_apps_secret_delete(svc, body);
         if (strncmp(path, "/api/v1/apps/secret/list", 24) == 0)

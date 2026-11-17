@@ -107,6 +107,15 @@ typedef struct {
     char *(*secret_list)(void *ctx, const char *app_id);
 
     /**
+     * Set one app setting. value_json is one JSON value (string, number,
+     * boolean or array of strings) and is validated against the manifest
+     * schema. Returns 0, otherwise -1 and a short code in reason: no_schema,
+     * unknown_key, readonly, type_mismatch, out_of_range, invalid_value.
+     */
+    int (*settings_set)(void *ctx, const char *app_id, const char *key, const char *value_json,
+                        char *reason, size_t reason_size);
+
+    /**
      * Task ledger admin path. Submit returns malloc'd JSON with the task and a
      * "replayed" flag; status returns malloc'd task JSON or NULL; finish returns
      * 0 on success; purge returns malloc'd JSON with the removed count.

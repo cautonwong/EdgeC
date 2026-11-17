@@ -87,6 +87,37 @@ static void test_optional_fields_take_defaults(void **state) {
     assert_int_equal(spec.preview_count, 0);
 }
 
+static void test_tick_ms_accepts_absent_zero_and_bounds(void **state) {
+    (void)state;
+    static const char *values[] = {"0", "50", "100", "60000"};
+    char buf[512];
+    char reason[128];
+    app_spec_t spec;
+    build_manifest(buf, sizeof(buf), "", "");
+    assert_int_equal(edge_app_manifest_parse(buf, &spec, reason, sizeof(reason)), 0);
+    for (size_t i = 0; i < sizeof(values) / sizeof(values[0]); i++) {
+        char extra[32];
+        snprintf(extra, sizeof(extra), ",\"tick_ms\":%s", values[i]);
+        build_manifest(buf, sizeof(buf), "", extra);
+        assert_int_equal(edge_app_manifest_parse(buf, &spec, reason, sizeof(reason)), 0);
+    }
+}
+
+static void test_rejects_invalid_tick_ms(void **state) {
+    (void)state;
+    static const char *values[] = {"49", "60001", "-1", "50.5", "\"100\""};
+    char buf[512];
+    char reason[128];
+    app_spec_t spec;
+    for (size_t i = 0; i < sizeof(values) / sizeof(values[0]); i++) {
+        char extra[32];
+        snprintf(extra, sizeof(extra), ",\"tick_ms\":%s", values[i]);
+        build_manifest(buf, sizeof(buf), "", extra);
+        assert_int_equal(edge_app_manifest_parse(buf, &spec, reason, sizeof(reason)), -1);
+        assert_string_equal(reason, "tick_ms must be 0 or between 50 and 60000");
+    }
+}
+
 static void test_rejects_invalid_arch(void **state) {
     (void)state;
     char buf[512];
@@ -383,10 +414,68 @@ static void test_contributed_points_rejections(void **state) {
         "duplicate point name");
 }
 
+static void test_settings_schema_parse(void **state) {
+    (void)state;
+    char buf[2048];
+    char reason[200];
+    app_spec_t spec;
+    const char *nested =
+        ",\"settings\":{\"schemaVersion\":1,\"fields\":{"
+        "\"threshold\":{\"type\":\"number\",\"default\":240,\"minimum\":180,\"maximum\":300},"
+        "\"mode\":{\"type\":\"string\",\"enum\":[\"warn\",\"trip\"],\"default\":\"warn\"},"
+        "\"hosts\":{\"type\":\"array<string>\",\"default\":[\"a\"],\"maxLength\":3},"
+        "\"apiKey\":{\"type\":\"string\",\"secret\":true,\"readonly\":false},"
+        "\"sample\":{\"type\":\"integer\",\"default\":1000,\"requiresRestart\":false,"
+        "\"unit\":\"ms\",\"group\":\"sampling\",\"order\":2,\"title\":\"period\","
+        "\"description\":\"sample period\"}}}";
+    build_manifest(buf, sizeof(buf), "", nested);
+    assert_int_equal(edge_app_manifest_parse(buf, &spec, reason, sizeof(reason)), 0);
+
+    build_manifest(buf, sizeof(buf), "",
+                   ",\"settings\":{\"level\":{\"type\":\"integer\",\"default\":1}}");
+    assert_int_equal(edge_app_manifest_parse(buf, &spec, reason, sizeof(reason)), 0);
+}
+
+static void expect_settings_rejected(const char *settings, const char *expected) {
+    char buf[2048];
+    char extra[1600];
+    snprintf(extra, sizeof(extra), ",\"settings\":%s", settings);
+    build_manifest(buf, sizeof(buf), "", extra);
+    char reason[200];
+    int rc = edge_app_manifest_validate_json(buf, reason, sizeof(reason));
+    assert_int_equal(rc, -1);
+    assert_non_null(strstr(reason, expected));
+}
+
+static void test_settings_schema_rejections(void **state) {
+    (void)state;
+    expect_settings_rejected("{\"a\":{\"type\":\"string\",\"pattern\":\"x\"}}", "pattern");
+    expect_settings_rejected("{\"a\":{\"type\":\"string\",\"$ref\":\"#/x\"}}", "$ref");
+    expect_settings_rejected("{\"a\":{\"type\":\"string\",\"oneOf\":[]}}", "oneOf");
+    expect_settings_rejected("{\"a\":{\"type\":\"string\",\"allOf\":[]}}", "allOf");
+    expect_settings_rejected("{\"a\":{\"type\":\"string\",\"patternProperties\":{}}}",
+                             "patternProperties");
+    expect_settings_rejected("{\"a\":{\"type\":\"object\"}}", "type is invalid");
+    expect_settings_rejected("{\"a\":{\"type\":\"integer\",\"default\":\"1\"}}",
+                             "type_mismatch");
+    expect_settings_rejected("{\"a\":{\"type\":\"integer\",\"default\":11,\"maximum\":10}}",
+                             "out_of_range");
+    expect_settings_rejected("{\"a\":{\"type\":\"string\",\"enum\":[\"x\"],\"default\":\"y\"}}",
+                             "invalid_value");
+    expect_settings_rejected("{\"a\":{\"type\":\"string\",\"minimum\":1}}", "numeric type");
+    expect_settings_rejected("{\"a\":{\"type\":\"number\",\"minLength\":1}}", "string type");
+    expect_settings_rejected("{\"schemaVersion\":2,\"fields\":{\"a\":{\"type\":\"string\"}}}",
+                             "schemaVersion");
+    expect_settings_rejected("{\"a\":{\"type\":\"string\"},\"not a key\":{\"type\":\"string\"}}",
+                             "invalid character");
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_valid_manifest),
         cmocka_unit_test(test_optional_fields_take_defaults),
+        cmocka_unit_test(test_tick_ms_accepts_absent_zero_and_bounds),
+        cmocka_unit_test(test_rejects_invalid_tick_ms),
         cmocka_unit_test(test_rejects_invalid_arch),
         cmocka_unit_test(test_rejects_invalid_priority),
         cmocka_unit_test(test_rejects_invalid_pids_max),
@@ -401,6 +490,8 @@ int main(void) {
         cmocka_unit_test(test_contributed_point_defaults),
         cmocka_unit_test(test_contributed_points_must_be_covered),
         cmocka_unit_test(test_contributed_points_rejections),
+        cmocka_unit_test(test_settings_schema_parse),
+        cmocka_unit_test(test_settings_schema_rejections),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
