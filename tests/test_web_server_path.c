@@ -169,7 +169,8 @@ static int pump_response(uv_loop_t *loop, int fd, char *out, size_t cap) {
             continue;
         }
         if (n == 0) break;
-        if (errno != EAGAIN) break; /* EWOULDBLOCK is the same value on Linux. */
+        /* A signal is not an answer: retry, the loop gets another turn. */
+        if (errno != EAGAIN && errno != EINTR) break;
         usleep(1000);
     }
     return used > 0;
