@@ -36,11 +36,14 @@ typedef struct {
     char scope[64];
     char purpose[64];
     char status_app[32];
+    char setting_key[32];
+    char setting_value[64];
     int install_calls;
     int uninstall_calls;
     int start_calls;
     int upgrade_calls;
     int grant_calls;
+    int settings_calls;
     int status_calls;
     int snapshot_calls;
 } fake_ctl_t;
@@ -122,6 +125,20 @@ static char *fake_registry_snapshot(void *ctx) {
 static char *fake_apps_json(void *ctx) {
     (void)ctx;
     return strdup("[\"demo\"]");
+}
+
+static int fake_settings_set(void *ctx, const char *app_id, const char *key,
+                             const char *value_json, char *reason, size_t reason_size) {
+    (void)app_id;
+    fake_ctl_t *fake = (fake_ctl_t *)ctx;
+    fake->settings_calls++;
+    snprintf(fake->setting_key, sizeof(fake->setting_key), "%s", key ? key : "");
+    snprintf(fake->setting_value, sizeof(fake->setting_value), "%s", value_json ? value_json : "");
+    if (key && strcmp(key, "ro") == 0) {
+        snprintf(reason, reason_size, "readonly");
+        return -1;
+    }
+    return 0;
 }
 
 static void put_u32(uint8_t *p, uint32_t value) {
@@ -314,6 +331,7 @@ static void test_uds_management_channel(void **state) {
     control.registry_status_json = fake_status_json;
     control.registry_snapshot = fake_registry_snapshot;
     control.apps_json = fake_apps_json;
+    control.settings_set = fake_settings_set;
     service_set_control_port(svc, &control);
 
     rest_uds_server_t *srv = rest_uds_server_start(&loop, svc, path);
@@ -409,6 +427,20 @@ static void test_uds_management_channel(void **state) {
     assert_string_equal(fake.capability, "tags.read");
     assert_string_equal(fake.scope, "[\"U_A\",\"U_B\"]");
     assert_string_equal(fake.purpose, "say \"hi\"");
+
+    char *settings_args[] = {"appctl", "settings", "set", "demo", "threshold", "30", NULL};
+    assert_int_equal(run_appctl(&loop, path, settings_args, &output), 0);
+    assert_non_null(strstr(output, "\"status\":\"ok\""));
+    free(output);
+    assert_int_equal(fake.settings_calls, 1);
+    assert_string_equal(fake.setting_key, "threshold");
+    assert_string_equal(fake.setting_value, "30");
+
+    char *settings_reject[] = {"appctl", "settings", "set", "demo", "ro", "\"x\"", NULL};
+    assert_int_equal(run_appctl(&loop, path, settings_reject, &output), 2);
+    assert_non_null(strstr(output, "readonly"));
+    free(output);
+    assert_int_equal(fake.settings_calls, 2);
 
     char *uninstall_args[] = {"appctl", "uninstall", "demo", "--disposition", "keep", NULL};
     assert_int_equal(run_appctl(&loop, path, uninstall_args, &output), 0);

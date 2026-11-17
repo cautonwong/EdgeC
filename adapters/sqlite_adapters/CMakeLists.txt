@@ -1,6 +1,7 @@
 add_library(edge_sqlite_adapters STATIC
     src/app_repo_sqlite.c
     src/app_points_sqlite.c
+    src/app_settings_sqlite.c
     src/edge_authz_sqlite.c
     src/stream_sqlite_adapter.c
     src/snf_sqlite_adapter.c

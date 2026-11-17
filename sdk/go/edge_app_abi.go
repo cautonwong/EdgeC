@@ -9,7 +9,7 @@ const WasmPointResolve = "point_resolve"
 const FnPointRead = "point_read"
 const WasmPointRead = "point_read"
 const FnPointSubscribe = "point_subscribe"
-const WasmPointSubscribe = ""
+const WasmPointSubscribe = "point_subscribe"
 const FnPointPublish = "point_publish"
 const WasmPointPublish = "point_publish"
 const FnLog = "log"
@@ -27,7 +27,7 @@ type ABIFunction struct {
 var ABIFunctions = []ABIFunction{
 	{"point_resolve", "point-resolve", "point_resolve", true},
 	{"point_read", "point-read", "point_read", true},
-	{"point_subscribe", "point-subscribe", "", false},
+	{"point_subscribe", "point-subscribe", "point_subscribe", true},
 	{"point_publish", "point-publish", "point_publish", true},
 	{"log", "log", "app_log", true},
 	{"now", "now", "app_now", true},

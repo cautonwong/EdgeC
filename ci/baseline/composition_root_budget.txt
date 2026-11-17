@@ -16,7 +16,8 @@ cmd/dcu/dcu_bus_adapter.c|43
 cmd/dcu/main.c|225
 cmd/edge_mcp_server/main.c|183
 # 2026-11-13: cmd/iems/iems_app.c 558 -> 559；参数服务改用调用方存储。
-cmd/iems/iems_app.c|559
+# 2026-11-17: cmd/iems/iems_app.c 559 -> 560；升级恢复注入 authz store，用于 grant 快照回放。
+cmd/iems/iems_app.c|560
 cmd/iems/iems_north_listener.c|112
 cmd/iems/iems_southbound_adapter.c|133
 cmd/iems/main.c|109
@@ -61,4 +62,6 @@ modules/edge_north/src/northbound_mgr.c|711
 # 2026-11-13: cmd/iems/iems_app_manager_adapter.c 1289 -> 1294；应用目录与崩溃注入由组合根注入。
 # 2026-11-14: cmd/iems/iems_app_manager_adapter.c 1294 -> 1315；PURGE 删除结果检查与授权分页。
 # 2026-11-14: cmd/iems/iems_app_manager_adapter.c 1315 -> 1374；资源限制持久化、拒绝未实现项与启动接线。
-cmd/iems/iems_app_manager_adapter.c|1374
+# 2026-11-17: cmd/iems/iems_app_manager_adapter.c 1374 -> 1465；参数 schema 随安装/升级持久化、setting_get 端口与 appctl settings set 回调。
+# 2026-11-17: cmd/iems/iems_app_manager_adapter.c 1465 -> 1470；settings set 成功后经 runtime 通知运行中的应用。
+cmd/iems/iems_app_manager_adapter.c|1470

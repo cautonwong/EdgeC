@@ -31,7 +31,7 @@ EdgeC 有两个执行面，职责不重叠。
 - 一个进程只加载一个 WASM 实例，通过继承的 socketpair 与产品通信。
 - 只暴露 WIT `app.v1` 定义的 Host ABI：`point-resolve`、`point-read`、`point-subscribe`、`point-publish`、`log`、`now`，以及 `app-init`、`app-on-event`、`app-stop` 三个导出。
 - 不链接 DataHub 和 SQLite；所有数据访问经 `app_host_ports_t` 由组合根注入。
-- `point_subscribe` 和 `app_on_event` 的投递链路尚未实现，宿主当前返回 `not_supported`。这是运行时的已知缺口，不是本决定要解决的内容。
+- `point_subscribe` 与 `app_on_event` 的投递链路已实现：订阅、每应用事件队列、ack、keepalive、授权复查与平台事件（`grant_changed`、`settings_changed`、`app_will_stop`、`tick`）都在宿主完成。
 
 ## 4. 为什么不做 App Functions SDK
 
@@ -65,6 +65,6 @@ EdgeC 有两个执行面，职责不重叠。
 
 ## 7. 未决
 
-- `point_subscribe` 与 `app_on_event` 的投递链路是否进入 ABI v1，仍未决定。
+- 平台事件已实现 `grant_changed`、`settings_changed`、`app_will_stop` 与 `tick`；`upstream.*`、`registry.generation`、`action.invoke` 与完整信封 v2 仍未实现。
 - 应用清单的 `contributes.pipelines` 只是未来路径，没有字段、schema 或验收。
 - 管道的自定义 stage 是否能由应用包提供，取决于沙箱和授权模型，当前不允许。

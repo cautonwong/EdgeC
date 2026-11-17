@@ -94,12 +94,12 @@ static void test_v3_upgrade_preserves_edge_settings(void **state) {
     assert_non_null(svc);
     sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle(svc);
 
-    assert_int_equal(_scalar_int(db, "PRAGMA user_version;"), 15);
+    assert_int_equal(_scalar_int(db, "PRAGMA user_version;"), 17);
     assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM edge_settings;"), 2);
     assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM app_registry;"), 0);
     assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM app_grant;"), 0);
     assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM app_task;"), 0);
-    assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM schema_migration;"), 15);
+    assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM schema_migration;"), 17);
     assert_int_equal(_scalar_int(db,
                                  "SELECT COUNT(*) FROM pragma_table_info('app_registry') "
                                  "WHERE name IN ('prev_version','prev_manifest_json',"
@@ -136,9 +136,10 @@ static void test_v4_upgrade_preserves_app_registry(void **state) {
     assert_non_null(svc);
     sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle(svc);
 
-    assert_int_equal(_scalar_int(db, "PRAGMA user_version;"), 15);
+    assert_int_equal(_scalar_int(db, "PRAGMA user_version;"), 17);
     assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM app_registry;"), 1);
     assert_int_equal(_scalar_int(db, "SELECT trigger_tag FROM app_registry WHERE id='demo';"), 42);
+    assert_int_equal(_scalar_int(db, "SELECT tick_ms FROM app_registry WHERE id='demo';"), 0);
     assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM edge_settings;"), 1);
 
     char name[32];
@@ -160,7 +161,7 @@ static void test_too_new_schema_rejected(void **state) {
     _exec(raw,
           "CREATE TABLE canary (v INT);"
           "INSERT INTO canary VALUES (7);"
-          "PRAGMA user_version=16;");
+          "PRAGMA user_version=18;");
     sqlite3_close(raw);
 
     sqlite_config_t cfg = {.strategy = STRATEGY_LITE, .db_path = path};
@@ -171,7 +172,7 @@ static void test_too_new_schema_rejected(void **state) {
     assert_null(sqlite_svc_create(loop, &cfg));
 
     assert_int_equal(sqlite3_open(path, &raw), SQLITE_OK);
-    assert_int_equal(_scalar_int(raw, "PRAGMA user_version;"), 16);
+    assert_int_equal(_scalar_int(raw, "PRAGMA user_version;"), 18);
     assert_int_equal(_scalar_int(raw, "SELECT v FROM canary;"), 7);
     assert_int_equal(_scalar_int(raw,
                                  "SELECT COUNT(*) FROM sqlite_master WHERE type='table' "
@@ -191,7 +192,7 @@ static void test_checksum_mismatch_rejected(void **state) {
     sqlite_svc_t *svc = sqlite_svc_create(loop, &cfg);
     assert_non_null(svc);
     sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle(svc);
-    assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM schema_migration;"), 15);
+    assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM schema_migration;"), 17);
     sqlite_svc_destroy(svc);
 
     sqlite3 *raw = NULL;
@@ -205,8 +206,47 @@ static void test_checksum_mismatch_rejected(void **state) {
     assert_int_equal(err, -1);
 
     assert_int_equal(sqlite3_open(path, &raw), SQLITE_OK);
-    assert_int_equal(_scalar_int(raw, "PRAGMA user_version;"), 15);
+    assert_int_equal(_scalar_int(raw, "PRAGMA user_version;"), 17);
     sqlite3_close(raw);
+    unlink(path);
+}
+
+/* 回归：v16 库升级到 v17 时新增参数表，既有注册表行不丢。 */
+static void test_v16_upgrade_adds_app_settings(void **state) {
+    uv_loop_t *loop = (uv_loop_t *)*state;
+    const char *path = "test_sqlite_migration_v16.db";
+    unlink(path);
+
+    sqlite_config_t cfg = {.strategy = STRATEGY_LITE, .db_path = path};
+    sqlite_svc_t *svc = sqlite_svc_create(loop, &cfg);
+    assert_non_null(svc);
+    sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle(svc);
+    _exec(db,
+          "INSERT INTO app_registry (id, name, version, state) "
+          "VALUES ('keep', 'Keep App', '1.0.0', 1);");
+    sqlite_svc_destroy(svc);
+
+    sqlite3 *raw = NULL;
+    assert_int_equal(sqlite3_open(path, &raw), SQLITE_OK);
+    _exec(raw,
+          "DROP TABLE app_settings;"
+          "DROP TABLE app_setting_schema;"
+          "DELETE FROM schema_migration WHERE version=17;"
+          "PRAGMA user_version=16;");
+    sqlite3_close(raw);
+
+    svc = sqlite_svc_create(loop, &cfg);
+    assert_non_null(svc);
+    db = (sqlite3 *)sqlite_svc_get_db_handle(svc);
+    assert_int_equal(_scalar_int(db, "PRAGMA user_version;"), 17);
+    assert_int_equal(
+        _scalar_int(db,
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN "
+                    "('app_settings','app_setting_schema');"),
+        2);
+    assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM app_registry WHERE id='keep';"), 1);
+
+    sqlite_svc_destroy(svc);
     unlink(path);
 }
 
@@ -214,6 +254,7 @@ int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_v3_upgrade_preserves_edge_settings, setup, teardown),
         cmocka_unit_test_setup_teardown(test_v4_upgrade_preserves_app_registry, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_v16_upgrade_adds_app_settings, setup, teardown),
         cmocka_unit_test_setup_teardown(test_too_new_schema_rejected, setup, teardown),
         cmocka_unit_test_setup_teardown(test_checksum_mismatch_rejected, setup, teardown),
     };

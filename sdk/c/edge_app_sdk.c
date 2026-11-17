@@ -19,6 +19,8 @@ struct edge_app_sdk {
     void *ctx;
     char tx[8192];
     char rx[4096];
+    char stash[4096];
+    int has_stash;
     char result[4096];
     char args[4096];
     char value[512];
@@ -151,6 +153,58 @@ static int json_string_field(const char *json, const char *key, char *out,
     const char *p = find_key(json, key);
     if (p == NULL) return -1;
     return parse_string(&p, out, cap);
+}
+
+/* End (exclusive) of the JSON value at p, or NULL. Host responses are trusted. */
+static const char *json_value_end(const char *p) {
+    if (*p == '"') {
+        for (p++; *p != '\0'; p++) {
+            if (*p == '\\' && p[1] != '\0') {
+                p++;
+            } else if (*p == '"') {
+                return p + 1;
+            }
+        }
+        return NULL;
+    }
+    if (*p == '{' || *p == '[') {
+        char open = *p;
+        char close = open == '{' ? '}' : ']';
+        int depth = 0;
+        int in_string = 0;
+        int escaped = 0;
+        for (; *p != '\0'; p++) {
+            char c = *p;
+            if (in_string) {
+                if (escaped) escaped = 0;
+                else if (c == '\\') escaped = 1;
+                else if (c == '"') in_string = 0;
+                continue;
+            }
+            if (c == '"') in_string = 1;
+            else if (c == open) depth++;
+            else if (c == close && --depth == 0) return p + 1;
+        }
+        return NULL;
+    }
+    const char *q = p;
+    while (*q != '\0' && *q != ',' && *q != '}' && *q != ']' && *q != ' ' && *q != '\n' &&
+           *q != '\r' && *q != '\t') {
+        q++;
+    }
+    return q > p ? q : NULL;
+}
+
+static int copy_json_value(const char *json, const char *key, char *out, size_t cap) {
+    const char *p = find_key(json, key);
+    if (p == NULL) return -1;
+    const char *end = json_value_end(p);
+    if (end == NULL) return -1;
+    size_t len = (size_t)(end - p);
+    if (len + 1 > cap) return -1;
+    memcpy(out, p, len);
+    out[len] = '\0';
+    return 0;
 }
 
 static int copy_json_object(const char *json, const char *key, char *out,
@@ -326,13 +380,14 @@ int edge_app_sdk_dispatch(edge_app_sdk_t *sdk, const char *request_json,
     if (fn_pos == NULL || parse_string(&fn_pos, fn, sizeof fn) != 0) return -1;
 
     int handled = 1;
+    int failed = 0;
     if (strcmp(fn, "app_init") == 0) {
         if (sdk->init != NULL) sdk->init(sdk->ctx);
     } else if (strcmp(fn, "app_on_event") == 0) {
         if (copy_json_object(request_json, "args", sdk->args, sizeof sdk->args) != 0) {
             return -1;
         }
-        if (sdk->on_event != NULL) sdk->on_event(sdk->ctx, sdk->args);
+        if (sdk->on_event != NULL && sdk->on_event(sdk->ctx, sdk->args) != 0) failed = 1;
     } else if (strcmp(fn, "app_stop") == 0) {
         if (sdk->stop != NULL) sdk->stop(sdk->ctx);
     } else {
@@ -340,7 +395,11 @@ int edge_app_sdk_dispatch(edge_app_sdk_t *sdk, const char *request_json,
     }
 
     int n;
-    if (handled) {
+    if (handled && failed) {
+        n = snprintf(response_json, response_cap,
+                     "{\"id\":%llu,\"ok\":false,\"code\":\"internal\"}",
+                     (unsigned long long)id);
+    } else if (handled) {
         n = snprintf(response_json, response_cap,
                      "{\"id\":%llu,\"ok\":true,\"result\":{}}",
                      (unsigned long long)id);
@@ -350,6 +409,24 @@ int edge_app_sdk_dispatch(edge_app_sdk_t *sdk, const char *request_json,
                      (unsigned long long)id);
     }
     return (n < 0 || (size_t)n >= response_cap) ? -1 : 0;
+}
+
+int edge_app_sdk_next_frame(edge_app_sdk_t *sdk, char *out, size_t cap) {
+    if (sdk == NULL || out == NULL || cap == 0) return -1;
+    if (sdk->has_stash) {
+        size_t len = strlen(sdk->stash);
+        if (len + 1 > cap) return -1;
+        memcpy(out, sdk->stash, len + 1);
+        sdk->has_stash = 0;
+        return 0;
+    }
+    if (recv_frame(sdk->fd, out, cap) < 0) return -1;
+    return 0;
+}
+
+int edge_app_sdk_send_frame(edge_app_sdk_t *sdk, const char *json) {
+    if (sdk == NULL || json == NULL) return -1;
+    return send_frame(sdk->fd, json);
 }
 
 const char *edge_app_sdk_call(edge_app_sdk_t *sdk, const char *fn,
@@ -362,13 +439,29 @@ const char *edge_app_sdk_call(edge_app_sdk_t *sdk, const char *fn,
                      (unsigned long long)id, fn, args_json);
     if (n < 0 || (size_t)n >= sizeof sdk->tx) return set_error(sdk, "protocol");
     if (send_frame(sdk->fd, sdk->tx) != 0) return set_error(sdk, "transport");
-    if (recv_frame(sdk->fd, sdk->rx, sizeof sdk->rx) < 0) {
-        return set_error(sdk, "transport");
-    }
-
     uint64_t response_id = 0;
-    if (json_u64_field(sdk->rx, "id", &response_id) != 0 || response_id != id) {
-        return set_error(sdk, "protocol");
+    for (;;) {
+        if (recv_frame(sdk->fd, sdk->rx, sizeof sdk->rx) < 0) {
+            return set_error(sdk, "transport");
+        }
+        /* Identify events by fn, not id: the host's event ids and our call ids
+         * are independent sequences and may collide. */
+        char frame_fn[32];
+        const char *fn_pos = find_key(sdk->rx, "fn");
+        int is_event = fn_pos != NULL && parse_string(&fn_pos, frame_fn, sizeof frame_fn) == 0 &&
+                       strcmp(frame_fn, "app_on_event") == 0;
+        if (is_event) {
+            if (sdk->has_stash) return set_error(sdk, "protocol");
+            size_t len = strlen(sdk->rx);
+            if (len + 1 > sizeof sdk->stash) return set_error(sdk, "protocol");
+            memcpy(sdk->stash, sdk->rx, len + 1);
+            sdk->has_stash = 1;
+            continue;
+        }
+        if (json_u64_field(sdk->rx, "id", &response_id) != 0 || response_id != id) {
+            return set_error(sdk, "protocol");
+        }
+        break;
     }
     const char *ok = find_key(sdk->rx, "ok");
     if (ok == NULL) return set_error(sdk, "protocol");
@@ -497,4 +590,30 @@ const char *edge_app_now(edge_app_sdk_t *sdk, uint64_t *now_ms) {
     }
     *now_ms = value;
     return NULL;
+}
+
+const char *edge_app_setting_get(edge_app_sdk_t *sdk, const char *key,
+                                 char *value_json, size_t cap) {
+    if (sdk == NULL || key == NULL || value_json == NULL || cap == 0) {
+        return sdk != NULL ? set_error(sdk, "protocol") : "protocol";
+    }
+    char escaped[128];
+    if (append_escaped(escaped, sizeof escaped, key) != 0) {
+        return set_error(sdk, "protocol");
+    }
+    int n = snprintf(sdk->args, sizeof sdk->args, "{\"key\":\"%s\"}", escaped);
+    if (n < 0 || (size_t)n >= sizeof sdk->args) return set_error(sdk, "protocol");
+
+    const char *err = edge_app_sdk_call(sdk, "setting_get", sdk->args, sdk->result,
+                                        sizeof sdk->result);
+    if (err != NULL) return err;
+    if (copy_json_value(sdk->result, "value", value_json, cap) != 0) {
+        return set_error(sdk, "protocol");
+    }
+    return NULL;
+}
+
+const char *edge_app_setting_watch(edge_app_sdk_t *sdk) {
+    if (sdk == NULL) return "protocol";
+    return edge_app_sdk_call(sdk, "setting_watch", "{}", sdk->result, sizeof(sdk->result));
 }

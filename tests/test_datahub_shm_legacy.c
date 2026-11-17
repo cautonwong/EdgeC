@@ -16,7 +16,7 @@
 #include "datahub_priv.h"
 #include "datahub_shm.h"
 
-static void test_legacy_shadow_rebuild(void **state) {
+static void test_legacy_shadow_rejected(void **state) {
     (void)state;
     const char *shm = "/edgeos_shadow_test_legacy";
     const char *lock = "/edgeos_shadow_test_legacy.lock";
@@ -27,8 +27,6 @@ static void test_legacy_shadow_rebuild(void **state) {
     int fd = shm_open(shm, O_RDWR | O_CREAT | O_EXCL, 0666);
     assert_true(fd >= 0);
     assert_int_equal(ftruncate(fd, (off_t)(capacity * sizeof(pipe_msg_t))), 0);
-    struct stat before;
-    assert_int_equal(fstat(fd, &before), 0);
     close(fd);
 
     datahub_t hub;
@@ -39,6 +37,13 @@ static void test_legacy_shadow_rebuild(void **state) {
     snprintf(cfg.shm_name, sizeof(cfg.shm_name), "test_legacy");
     cfg.shadow_capacity = capacity;
     cfg.ring_slots = 8;
+    /* A headerless segment must be rejected: consumers mapped it at offset 0,
+     * so rebuilding in place would corrupt the new header. */
+    assert_int_equal(datahub_shm_init(&hub, &cfg), -1);
+
+    /* Explicit cleanup is the documented migration step. */
+    assert_int_equal(shm_unlink(shm), 0);
+    memset(&hub, 0, sizeof(hub));
     assert_int_equal(datahub_shm_init(&hub, &cfg), 0);
 
     pipe_msg_t msg;
@@ -58,7 +63,7 @@ static void test_legacy_shadow_rebuild(void **state) {
     struct stat after;
     assert_int_equal(fstat(after_fd, &after), 0);
     close(after_fd);
-    assert_int_equal(after.st_ino, before.st_ino);
+    assert_true((size_t)after.st_size > capacity * sizeof(pipe_msg_t));
 
     datahub_shm_destroy(&hub);
 
@@ -68,7 +73,7 @@ static void test_legacy_shadow_rebuild(void **state) {
 
 int main(void) {
     const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_legacy_shadow_rebuild),
+        cmocka_unit_test(test_legacy_shadow_rejected),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

@@ -210,7 +210,7 @@ static void test_migration_logic(void** state) {
     sqlite_svc_t* svc = sqlite_svc_create(loop, &cfg);
 
     sqlite3* db = sqlite_svc_get_db_handle(svc);
-    assert_int_equal(get_user_version(db), 15);  // 验证已达到最新版本 (V15: 资源限制)
+    assert_int_equal(get_user_version(db), 17);  // 验证已达到最新版本 (V17: app_settings)
 
     sqlite_svc_destroy(svc);
     unlink(db_path);

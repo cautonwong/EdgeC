@@ -23,6 +23,16 @@ static void drain_loop(uv_loop_t *loop) {
         ;
 }
 
+static uint64_t shadow_generation(int fd) {
+    struct stat st;
+    assert_int_equal(fstat(fd, &st), 0);
+    void *mapping = mmap(NULL, (size_t)st.st_size, PROT_READ, MAP_SHARED, fd, 0);
+    assert_true(mapping != MAP_FAILED);
+    uint64_t generation = ((const datahub_shm_header_t *)mapping)->generation;
+    munmap(mapping, (size_t)st.st_size);
+    return generation;
+}
+
 static void test_init_after_init_preserves_shadow(void **state) {
     (void)state;
     uv_loop_t loop;
@@ -139,7 +149,7 @@ static void test_init_rejects_size_mismatch(void **state) {
     assert_int_equal(uv_loop_close(&loop), 0);
 }
 
-static void test_init_rebuilds_stale_headerless_segment(void **state) {
+static void test_init_rejects_stale_headerless_segment(void **state) {
     (void)state;
     uv_loop_t loop;
     assert_int_equal(uv_loop_init(&loop), 0);
@@ -161,6 +171,12 @@ static void test_init_rebuilds_stale_headerless_segment(void **state) {
 
     datahub_storage_t storage;
     datahub_t *hub = (datahub_t *)&storage;
+    /* A headerless segment is rejected: consumers mapped it at offset 0. */
+    assert_int_equal(datahub_init(hub, &loop, name, 64, 4, NULL, 0, NULL, NULL, NULL), -1);
+
+    /* Explicit cleanup is the migration step. */
+    assert_int_equal(shm_unlink(path), 0);
+    memset(&storage, 0, sizeof(storage));
     assert_int_equal(datahub_init(hub, &loop, name, 64, 4, NULL, 0, NULL, NULL, NULL), 0);
     struct stat st;
     assert_int_equal(fstat(datahub_get_shadow_fd(hub), &st), 0);
@@ -174,7 +190,7 @@ static void test_init_rebuilds_stale_headerless_segment(void **state) {
     assert_int_equal(uv_loop_close(&loop), 0);
 }
 
-static void test_rebuilt_segment_survives_reopen(void **state) {
+static void test_cleaned_segment_survives_reopen(void **state) {
     (void)state;
     uv_loop_t loop;
     assert_int_equal(uv_loop_init(&loop), 0);
@@ -192,6 +208,9 @@ static void test_rebuilt_segment_survives_reopen(void **state) {
 
     datahub_storage_t first_storage;
     datahub_t *first = (datahub_t *)&first_storage;
+    assert_int_equal(datahub_init(first, &loop, name, 64, 4, NULL, 0, NULL, NULL, NULL), -1);
+    assert_int_equal(shm_unlink(path), 0);
+    memset(&first_storage, 0, sizeof(first_storage));
     assert_int_equal(datahub_init(first, &loop, name, 64, 4, NULL, 0, NULL, NULL, NULL), 0);
     struct stat st;
     assert_int_equal(fstat(datahub_get_shadow_fd(first), &st), 0);
@@ -233,15 +252,83 @@ static void test_attach_rejects_headerless_segment(void **state) {
     shm_unlink(path);
 }
 
+static void test_generation_set_and_rebuild_changes(void **state) {
+    (void)state;
+    uv_loop_t loop;
+    assert_int_equal(uv_loop_init(&loop), 0);
+    char name[64];
+    snprintf(name, sizeof(name), "generation_%d", (int)getpid());
+    char path[128];
+    shadow_path(name, path, sizeof(path));
+    shm_unlink(path);
+
+    datahub_storage_t owner_storage;
+    datahub_t *owner = (datahub_t *)&owner_storage;
+    assert_int_equal(datahub_init(owner, &loop, name, 64, 16, NULL, 0, NULL, NULL, NULL), 0);
+    uint64_t first = shadow_generation(datahub_get_shadow_fd(owner));
+    assert_true(first != 0);
+
+    datahub_storage_t reader_storage;
+    datahub_t *reader = (datahub_t *)&reader_storage;
+    assert_int_equal(datahub_attach(reader, name), 0);
+    assert_int_equal(shadow_generation(datahub_get_shadow_fd(reader)), first);
+    datahub_destroy(reader);
+    datahub_destroy(owner);
+    shm_unlink(path); /* the owner may already have removed it */
+
+    datahub_storage_t rebuilt_storage;
+    datahub_t *rebuilt = (datahub_t *)&rebuilt_storage;
+    assert_int_equal(datahub_init(rebuilt, &loop, name, 64, 16, NULL, 0, NULL, NULL, NULL), 0);
+    uint64_t second = shadow_generation(datahub_get_shadow_fd(rebuilt));
+    assert_true(second != 0);
+    assert_int_not_equal(second, first);
+    datahub_destroy(rebuilt);
+    shm_unlink(path);
+    drain_loop(&loop);
+    assert_int_equal(uv_loop_close(&loop), 0);
+}
+
+static void test_attach_rejects_zero_generation(void **state) {
+    (void)state;
+    uv_loop_t loop;
+    assert_int_equal(uv_loop_init(&loop), 0);
+    char name[64];
+    snprintf(name, sizeof(name), "generation_zero_%d", (int)getpid());
+    char path[128];
+    shadow_path(name, path, sizeof(path));
+    shm_unlink(path);
+
+    datahub_storage_t owner_storage;
+    datahub_t *owner = (datahub_t *)&owner_storage;
+    assert_int_equal(datahub_init(owner, &loop, name, 64, 4, NULL, 0, NULL, NULL, NULL), 0);
+    struct stat st;
+    assert_int_equal(fstat(datahub_get_shadow_fd(owner), &st), 0);
+    void *mapping = mmap(NULL, (size_t)st.st_size, PROT_READ | PROT_WRITE, MAP_SHARED,
+                         datahub_get_shadow_fd(owner), 0);
+    assert_true(mapping != MAP_FAILED);
+    ((datahub_shm_header_t *)mapping)->generation = 0;
+    munmap(mapping, (size_t)st.st_size);
+
+    datahub_storage_t reader_storage;
+    datahub_t *reader = (datahub_t *)&reader_storage;
+    assert_int_equal(datahub_attach(reader, name), -1);
+    datahub_destroy(owner);
+    shm_unlink(path);
+    drain_loop(&loop);
+    assert_int_equal(uv_loop_close(&loop), 0);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_init_after_init_preserves_shadow),
-        cmocka_unit_test(test_init_rebuilds_stale_headerless_segment),
-        cmocka_unit_test(test_rebuilt_segment_survives_reopen),
+        cmocka_unit_test(test_init_rejects_stale_headerless_segment),
+        cmocka_unit_test(test_cleaned_segment_survives_reopen),
         cmocka_unit_test(test_attach_rejects_headerless_segment),
         cmocka_unit_test(test_attach_preserves_existing_shadow),
         cmocka_unit_test(test_attach_missing_segment_fails),
         cmocka_unit_test(test_init_rejects_size_mismatch),
+        cmocka_unit_test(test_generation_set_and_rebuild_changes),
+        cmocka_unit_test(test_attach_rejects_zero_generation),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

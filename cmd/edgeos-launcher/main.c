@@ -505,7 +505,7 @@ int main(int argc, char **argv) {
     for (uint32_t i = 0; i < spec.argv_count; i++) exec_argv[i + 1] = args[i];
     exec_argv[spec.argv_count + 1] = NULL;
 
-    char *exec_env[EDGEC_LAUNCH_ARG_MAX + 4];
+    char *exec_env[EDGEC_LAUNCH_ARG_MAX + 5];
     uint32_t env_count = 0;
     for (uint32_t i = 0; i < spec.env_count; i++) exec_env[env_count++] = env[i];
     exec_env[env_count++] = (char *)"PATH=/usr/bin:/bin";
@@ -517,6 +517,9 @@ int main(int argc, char **argv) {
         exec_env[env_count++] = home;
         exec_env[env_count++] = tmpdir;
     }
+    /* The launcher could not build the isolation boundary; tell app-host so it
+     * can run without the no-exec filter instead of failing closed. */
+    if (g_degraded) exec_env[env_count++] = (char *)"EDGEC_APP_HOST_ALLOW_DEGRADED=1";
     exec_env[env_count] = NULL;
 
     if (report(status_fd, EDGEC_LAUNCH_OK) < 0) return 1;

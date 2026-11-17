@@ -131,16 +131,18 @@ ABI 主版本不兼容，次版本向后兼容且只增函数。
 | --- | --- | --- | --- |
 | `point_resolve` | `(name_ptr, len, out_handle*)` | `tags.read` / `points.publish` | 解析点位名并返回带权限位的句柄：产品点位与他人应用点位查 `tags.read`，自己 `app.<id>.*` 查 `points.publish` 并返回只写句柄。`point_read` / `point_subscribe` 在只写句柄上返回 `DENIED_SCOPE`；句柄带授权代次 |
 | `point_read` | `(handle, out_sample*)` | `tags.read` | 返回值、质量、时间戳 |
-| `point_subscribe` | `(handle, deadband, min_interval_ms, max_interval_ms)` | `tags.read` | 设计目标，当前实现未提供事件链路，固定返回 `NOT_SUPPORTED`；`max_interval_ms > 0` 时按 keep-alive 至少每 N 毫秒投递一次，回调通过 `app_on_event` 投递 |
+| `point_subscribe` | `(handle, deadband, min_interval_ms, max_interval_ms)` | `tags.read` | 已实现；`max_interval_ms > 0` 时按 keep-alive 至少每 N 毫秒投递一次，回调通过 `app_on_event` 投递；订阅生命周期到连接结束，授权撤销后停止投递 |
 | `point_publish` | `(handle, const sample*)` | `points.publish` | 只能写自己命名空间 `app.<id>.*` |
 | `setting_get` | `(key_ptr, len, out_ptr, cap)` | 内置 | 读自己的参数，默认值已解析 |
-| `setting_watch` | `()` | 内置 | 参数变化通过事件投递 |
+| `setting_watch` | `()` | 内置 | 已实现（ext 导入，无参数）。记录本连接关注设置；操作者写入成功后投递 `settings_changed` 平台事件 |
 | `kv_get` / `kv_set` | `(key, value, len, flags)` | 内置，受配额 | 自己的命名空间 |
 | `log` | `(level, ptr, len)` | 内置 | 每应用 100 行/秒、单行 4KB；64KB 内存环；可选持久化 1MB×2 轮转 |
 | `now` | `(out_mono_ms*, out_wall_ms*)` | 内置 | 两种时钟分开 |
 | — | — | — | **没有运行时 `timer_set`**；周期执行见下方"订阅与定时" |
 
-当前实现中 `point_subscribe`、`setting_get`、`setting_watch`、`kv_get`、`kv_set` 固定返回 `NOT_SUPPORTED`，不返回 `internal` 或 `invalid`。
+当前实现中 `kv_get`、`kv_set` 固定返回 `NOT_SUPPORTED`；`setting_watch` 在宿主端口没有设置支持时返回 `NOT_SUPPORTED`，不返回 `internal` 或 `invalid`。
+
+`setting_watch` 是 ext 层的手写导入，不进冻结的 WIT 包。它只记录"本连接关注设置"，按连接幂等；无参数，成功返回空结果。操作者写入成功后，宿主经平台事件队列投递 v1 线上 `kind` 为 `settings_changed` 的事件：`point` 为 `null`，`payload` 是 JSON 字符串 `{"key":"<键名>"}`，只含键名不含值，应用收到后重新 `setting_get`。
 
 **应用导出**
 
@@ -152,7 +154,9 @@ ABI 主版本不兼容，次版本向后兼容且只增函数。
 | `app_migrate_settings` | 升级激活前（可选） | 旧 settings → 新 settings，纯函数，限时限资源 |
 | `app_migrate_data` | 升级激活前（可选） | `persist=1` 的 KV → 新格式，纯函数 |
 
-事件载荷统一为 `{type, id, mono_ms, wall_ms, payload}`。类型含点位变化、设置变化、授权变化、上游可用或不可用、代次变化、即将停止、定时 tick、用户动作 action。点位事件额外带 `reason`：`change`（越过死区）、`keepalive`（到 `max_interval_ms` 但值没变）、`quality`（质量变化，永远投递，不受死区限制）。
+v1 的 `app_on_event` 载荷是 WIT `event` 记录 `{kind, point, payload}`，`payload` 是 JSON 字符串。点位事件在字符串里带 `{value, quality, source_ts, reason}`：`change`（越过死区）、`keepalive`（到 `max_interval_ms` 但值没变）、`quality`（质量变化，永远投递，不受死区限制）。`{type, id, mono_ms, wall_ms, payload}` 是 v2 的完整信封；`event_id` 不能放在帧顶层，因为帧的 `id` 已被 JSON-RPC 请求号占用。平台事件与点位事件共用同一条 `app_on_event` 队列（v1 已实现 `grant_changed`、`settings_changed`、`app_will_stop` 与 `tick`，`point` 为 null）。
+
+Guest 侧的导出约定（v1，非 C SDK 必须遵守）：应用导出 `app_on_event(i32 ptr, i32 len) -> i32`。宿主把 `{kind, point, payload}` 的 JSON 文本写进 guest 线性内存的 `ptr`，`len` 是字节数，不含结尾 NUL；宿主分配 `len + 1` 并写入 NUL。WAMR 2.4.3 的 `wasm_application_execute_func` 以十进制字符串传 i32 参数，宿主实现见 `cmd/app-host/main.c` 的 `child_on_event`。导出返回值不参与成功判定；宿主以执行是否 trap 为准，trap 或分配失败时由宿主补一个 internal ack。C SDK 应用通过 `edge_app_sdk_dispatch` 处理同一份 JSON 文本。
 
 ### 订阅与定时
 

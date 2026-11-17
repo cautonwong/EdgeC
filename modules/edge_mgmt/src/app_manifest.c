@@ -3,7 +3,10 @@
 #include <cjson/cJSON.h>
 #include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+
+#include "edgeos/app_settings.h"
 
 #define APP_PRIORITY_MAX 10
 #define APP_PIDS_MAX_LIMIT 1024
@@ -452,6 +455,15 @@ static int validate_preview(cJSON *preview, const app_manifest_policy_t *policy,
     return 0;
 }
 
+static int validate_settings(cJSON *settings, char *reason, size_t size) {
+    if (!settings) return 0;
+    char *printed = cJSON_PrintUnformatted(settings);
+    if (!printed) return fail(reason, size, "settings is too large");
+    int rc = edge_app_settings_validate_json(printed, reason, size);
+    free(printed);
+    return rc;
+}
+
 static int read_u32_optional(cJSON *item, uint32_t *out, const char *msg, char *reason,
                              size_t size) {
     if (!item) {
@@ -587,6 +599,14 @@ int edge_app_manifest_parse_with_policy(const char *json, const app_manifest_pol
         rc = store_string(out->entry, APP_SPEC_ENTRY_SIZE, entry->valuestring, "entry", reason,
                           reason_size);
     }
+    cJSON *tick_ms = cJSON_GetObjectItemCaseSensitive(root, "tick_ms");
+    if (rc == 0 && tick_ms) {
+        double value = cJSON_IsNumber(tick_ms) ? tick_ms->valuedouble : 0.0;
+        if (!cJSON_IsNumber(tick_ms) || value < 0.0 || value > 60000.0 ||
+            value != (double)(uint32_t)value || (value != 0.0 && value < 50.0)) {
+            rc = fail(reason, reason_size, "tick_ms must be 0 or between 50 and 60000");
+        }
+    }
     if (rc == 0) {
         rc = validate_limits(cJSON_GetObjectItemCaseSensitive(root, "limits"),
                              out ? &out->limits : NULL, reason, reason_size);
@@ -631,6 +651,10 @@ int edge_app_manifest_parse_with_policy(const char *json, const app_manifest_pol
     if (rc == 0) {
         rc = validate_preview(cJSON_GetObjectItemCaseSensitive(root, "preview"), policy, out,
                               reason, reason_size);
+    }
+    if (rc == 0) {
+        rc = validate_settings(cJSON_GetObjectItemCaseSensitive(root, "settings"), reason,
+                               reason_size);
     }
     cJSON *resources = cJSON_GetObjectItemCaseSensitive(root, "resources");
     if (rc == 0 && resources) {

@@ -220,6 +220,19 @@ def main():
                         "publishPerSec": 10,
                         "pidsMax": 4,
                     },
+                    "settings": {
+                        "schemaVersion": 1,
+                        "fields": {
+                            "level": {
+                                "type": "integer",
+                                "default": 5,
+                                "minimum": 0,
+                                "maximum": 10,
+                            },
+                            "threshold": {"type": "number", "default": 100.0},
+                            "ro": {"type": "string", "readonly": True, "default": "fixed"},
+                        },
+                    },
                 }
             )
         )
@@ -350,6 +363,21 @@ def main():
             raise Failure(f"unexpected install state: {app}")
         if not (root / "apps" / APP_ID / "app.wasm").exists():
             raise Failure("installed wasm file missing")
+
+        # The install persisted the manifest schema; the operator can set a
+        # declared key, and readonly, unknown, or out-of-range keys are rejected.
+        appctl_json(appctl, str(root / "appctl.sock"), "settings", "set", APP_ID,
+                    "threshold", "250")
+        for key, value in (("ro", "\"locked\""), ("unknown", "1"), ("level", "11")):
+            rejected_set = subprocess.run(
+                [str(appctl), "settings", "set", APP_ID, key, value,
+                 "--sock", str(root / "appctl.sock")],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if rejected_set.returncode == 0:
+                raise Failure(f"settings set accepted {key}={value}")
         import sqlite3
 
         con = sqlite3.connect(str(root / "iems.db"), timeout=5)
@@ -414,6 +442,14 @@ def main():
         )
 
         for attempt in range(1, RESTART_CAP + 2):
+            # Refresh the child PID: the upgrade and reconcile paths can replace it
+            # between the capture above and the kill, and a stale PID would leave the
+            # current app running with restart_count 0.
+            child = wait_for(
+                lambda: app_host_children(proc.pid) if installed()["state"] == 2 else None,
+                5,
+                f"app before restart {attempt}",
+            )
             old_pid = child[0]
             os.kill(old_pid, signal.SIGKILL)
             if attempt <= RESTART_CAP:

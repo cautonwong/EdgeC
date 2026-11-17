@@ -93,8 +93,9 @@ typedef struct {
 
 /**
  * Typed app.yaml manifest. Covers the validated identity and resource fields;
- * optional sections without a consumer yet (contributes, requires, settings)
- * are accepted by the validator but not modeled here.
+ * optional sections without a consumer yet (contributes, requires) are accepted
+ * by the validator but not modeled here. `settings` is validated against the
+ * schema subset in edgeos/app_settings.h and persisted by the registry caller.
  */
 typedef struct {
     int abi;

@@ -82,6 +82,7 @@ typedef struct app_manifest_s {
     fault_policy_t fault_policy; /**< 故障处理策略 */
     uint32_t heap_limit_kb;   /**< 堆内存限制 (KB) */
     uint32_t timeout_ms;      /**< 单次演算看门狗超时 (ms) */
+    uint32_t tick_ms;         /**< 清单 tick_ms；0 表示不投递定时事件 */
     app_state_t state;        /**< 当前运行状态 */
     uint32_t restart_count;   /**< current fault-streak length inside the window */
     uint64_t last_fault_ms;   /**< epoch ms of the last fault; 0 when none yet */
@@ -118,6 +119,9 @@ void edge_app_mgr_set_crash_after_package_write(edge_app_mgr_t *mgr, bool enable
 
 /** 升级换包后、Registry 提交前的崩溃注入点，仅测试使用。 */
 void edge_app_mgr_set_crash_after_upgrade_swap(edge_app_mgr_t *mgr, bool enabled);
+
+/** Registry 提交后、grant 继承前的崩溃注入点，仅测试使用。 */
+void edge_app_mgr_set_crash_after_registry_commit(edge_app_mgr_t *mgr, bool enabled);
 
 /**
  * @brief 异步任务完成回调，在 loop 线程调用。
@@ -207,12 +211,17 @@ typedef int (*edge_app_control_fn)(void *ctx, const char *app_id);
  * `acted` receives the number of converged apps; it may be NULL.
  */
 /**
- * Repair packages interrupted by a crash during an upgrade. The upgrade swaps
- * the package through `<wasm>.new` and `<wasm>.prev`; if the target is gone
- * but the `.prev` copy survived, move it back. Stale `.new` leftovers are
- * removed. Returns the number of repaired apps.
+ * Repair an upgrade interrupted by a crash. The upgrade swaps the package
+ * through `<wasm>.new` and `<wasm>.prev`, snapshots the pre-upgrade grants in
+ * `<wasm>.pending.grants`, and writes `<wasm>.pending.grants.done` once the
+ * grant block finishes. If the pending marker survives without the done marker,
+ * the grants, package, and registry row roll back together; a failed step keeps
+ * the markers so the next start retries. A done marker keeps the new package and
+ * registry row and only clears the markers. Stale `.new` leftovers are removed.
+ * `grants` may be NULL only when no snapshot was ever recorded. Returns the
+ * number of repaired apps.
  */
-int edge_app_mgr_recover_packages(edge_app_mgr_t *mgr);
+int edge_app_mgr_recover_packages(edge_app_mgr_t *mgr, const edge_authz_store_t *grants);
 
 int edge_app_mgr_reconcile(edge_app_mgr_t *mgr, edge_app_control_fn is_running,
                            edge_app_control_fn start, edge_app_control_fn stop, void *ctx,

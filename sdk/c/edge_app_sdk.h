@@ -42,7 +42,9 @@ typedef struct {
 typedef struct edge_app_sdk edge_app_sdk_t;
 
 typedef void (*edge_app_init_fn)(void *ctx);
-typedef void (*edge_app_event_fn)(void *ctx, const char *event_json);
+/* Return 0 when the event was handled; nonzero makes dispatch answer
+ * {"id":E,"ok":false,"code":"internal"}. */
+typedef int (*edge_app_event_fn)(void *ctx, const char *event_json);
 typedef void (*edge_app_stop_fn)(void *ctx);
 
 /* Takes ownership of fd. Returns NULL only when allocation fails. */
@@ -59,6 +61,14 @@ void edge_app_sdk_set_exports(edge_app_sdk_t *sdk, edge_app_init_fn init,
  * the response JSON. Returns 0 on success, -1 on malformed input or short buffer. */
 int edge_app_sdk_dispatch(edge_app_sdk_t *sdk, const char *request_json,
                           char *response_json, size_t response_cap);
+
+/* Receive the next host-to-app frame: one stashed during a preceding host call
+ * first, then the next wire frame. Returns 0 on success, -1 on transport error
+ * or short buffer. */
+int edge_app_sdk_next_frame(edge_app_sdk_t *sdk, char *out, size_t cap);
+
+/* Write one already-framed JSON response. Returns 0 on success. */
+int edge_app_sdk_send_frame(edge_app_sdk_t *sdk, const char *json);
 
 /* Raw host call. Returns NULL and fills result_json on success; otherwise returns
  * the host error code (or "protocol" / "transport"). The pointer stays valid until
@@ -80,6 +90,17 @@ const char *edge_app_point_publish(edge_app_sdk_t *sdk, uint32_t handle,
 const char *edge_app_log(edge_app_sdk_t *sdk, const char *level,
                          const char *message);
 const char *edge_app_now(edge_app_sdk_t *sdk, uint64_t *now_ms);
+
+/* Ext ABI: copy the app's own setting as JSON text into value_json.
+ * Returns NULL on success, otherwise "not_set" when no value or default exists,
+ * "not_found" for an undeclared key, or another host error code. */
+const char *edge_app_setting_get(edge_app_sdk_t *sdk, const char *key,
+                                 char *value_json, size_t cap);
+
+/* Ext ABI: ask the host to deliver settings_changed events for later writes.
+ * Returns NULL on success, otherwise a host error code ("not_supported" when
+ * the host product has no settings store). Idempotent per connection. */
+const char *edge_app_setting_watch(edge_app_sdk_t *sdk);
 
 #ifdef __cplusplus
 }

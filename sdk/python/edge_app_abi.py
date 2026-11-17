@@ -7,7 +7,7 @@ WASM_POINT_RESOLVE = 'point_resolve'
 FN_POINT_READ = "point_read"
 WASM_POINT_READ = 'point_read'
 FN_POINT_SUBSCRIBE = "point_subscribe"
-WASM_POINT_SUBSCRIBE = None
+WASM_POINT_SUBSCRIBE = 'point_subscribe'
 FN_POINT_PUBLISH = "point_publish"
 WASM_POINT_PUBLISH = 'point_publish'
 FN_LOG = "log"
@@ -18,7 +18,7 @@ WASM_NOW = 'app_now'
 ABI_FUNCTIONS = [
     {"name": 'point_resolve', "wit": 'point-resolve', "wasm_symbol": 'point_resolve', "implemented": True},
     {"name": 'point_read', "wit": 'point-read', "wasm_symbol": 'point_read', "implemented": True},
-    {"name": 'point_subscribe', "wit": 'point-subscribe', "wasm_symbol": None, "implemented": False},
+    {"name": 'point_subscribe', "wit": 'point-subscribe', "wasm_symbol": 'point_subscribe', "implemented": True},
     {"name": 'point_publish', "wit": 'point-publish', "wasm_symbol": 'point_publish', "implemented": True},
     {"name": 'log', "wit": 'log', "wasm_symbol": 'app_log', "implemented": True},
     {"name": 'now', "wit": 'now', "wasm_symbol": 'app_now', "implemented": True},

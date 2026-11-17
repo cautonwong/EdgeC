@@ -16,7 +16,7 @@
 #include "edge_log.h"
 
 // 数据库架构版本 (V9: 轻量任务)
-#define EDGE_DB_SCHEMA_VERSION 15
+#define EDGE_DB_SCHEMA_VERSION 17
 
 typedef struct {
     PipeMsg *buffer;
@@ -218,6 +218,14 @@ static const db_migration_t k_migrations[] = {
      "storage_kb INTEGER NOT NULL DEFAULT 0, cpu_ms_per_sec INTEGER NOT NULL DEFAULT 0, "
      "calls_per_sec INTEGER NOT NULL DEFAULT 0, publish_per_sec INTEGER NOT NULL DEFAULT 0, "
      "pids_max INTEGER NOT NULL DEFAULT 0);"},
+    {16, "app_tick_ms",
+     "ALTER TABLE app_registry ADD COLUMN tick_ms INTEGER NOT NULL DEFAULT 0;"},
+    {17, "app_settings",
+     "CREATE TABLE IF NOT EXISTS app_setting_schema ("
+     "app_id TEXT PRIMARY KEY, schema_json TEXT NOT NULL);"
+     "CREATE TABLE IF NOT EXISTS app_settings ("
+     "app_id TEXT NOT NULL, key TEXT NOT NULL, value_json TEXT NOT NULL, "
+     "PRIMARY KEY(app_id, key));"},
 };
 
 int sqlite_service_schema_version(void) {

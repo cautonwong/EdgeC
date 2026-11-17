@@ -8,7 +8,9 @@ add_library(edge_mgmt STATIC
     src/auth/console_rbac.c
     src/audit/console_audit.c
     src/edge_app_mgr.c
+    src/app_upgrade_grants.c
     src/app_manifest.c
+    src/app_settings.c
     src/edge_authz.c
     src/edge_eapp.c
     src/app_pressure.c

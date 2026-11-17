@@ -16,8 +16,8 @@
     {
       "name": "point_subscribe",
       "wit": "point-subscribe",
-      "wasm_symbol": null,
-      "status": "not_supported"
+      "wasm_symbol": "point_subscribe",
+      "status": "implemented"
     },
     {
       "name": "point_publish",

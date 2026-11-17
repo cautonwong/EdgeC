@@ -20,6 +20,8 @@
 #include "wasm_export.h"
 
 static edge_app_sdk_t *g_sdk;
+static wasm_module_inst_t g_inst;
+static int g_has_event_export;
 static volatile sig_atomic_t g_stop;
 
 static void on_signal(int sig) {
@@ -35,6 +37,9 @@ static int error_index(const char *code) {
         "busy",               "invalid",          "internal",
     };
     if (code) {
+        /* Ext ABI only: not in the frozen WIT error enum, appended after it. */
+        if (strcmp(code, "not_set") == 0) return 15;
+        if (strcmp(code, "not_supported") == 0) return 16;
         for (size_t i = 0; i < sizeof(codes) / sizeof(codes[0]); i++) {
             if (strcmp(code, codes[i]) == 0) return (int)i + 1;
         }
@@ -75,6 +80,16 @@ static int abi_point_read(wasm_exec_env_t env, uint32_t handle, double *value, u
     return 0;
 }
 
+static int abi_point_subscribe(wasm_exec_env_t env, uint32_t handle, double deadband,
+                               uint32_t min_interval_ms, uint32_t max_interval_ms,
+                               uint32_t *subscription) {
+    (void)env;
+    if (!g_sdk || !subscription || !g_has_event_export) return 13;
+    const char *err = edge_app_point_subscribe(g_sdk, handle, deadband, min_interval_ms,
+                                               max_interval_ms, subscription);
+    return err ? error_index(err) : 0;
+}
+
 static int abi_point_publish(wasm_exec_env_t env, uint32_t handle, double value, uint32_t quality,
                              uint64_t source_ts) {
     (void)env;
@@ -103,12 +118,38 @@ static uint64_t abi_now(wasm_exec_env_t env) {
     return 0;
 }
 
+/* Ext ABI: (key_ptr, key_len, out_ptr, cap) -> JSON text plus a status code. */
+#define APP_HOST_SETTING_KEY_MAX 64
+
+static int abi_setting_get(wasm_exec_env_t env, const char *key, uint32_t key_len, char *out,
+                           uint32_t cap) {
+    (void)env;
+    if (!g_sdk || !key || !out) return 13;
+    if (key_len == 0) return 13;
+    if (key_len >= APP_HOST_SETTING_KEY_MAX) return 10;
+    char name[APP_HOST_SETTING_KEY_MAX];
+    memcpy(name, key, key_len);
+    name[key_len] = '\0';
+    const char *err = edge_app_setting_get(g_sdk, name, out, cap);
+    return err ? error_index(err) : 0;
+}
+
+static int abi_setting_watch(wasm_exec_env_t env) {
+    (void)env;
+    if (!g_sdk) return 13;
+    const char *err = edge_app_setting_watch(g_sdk);
+    return err ? error_index(err) : 0;
+}
+
 static NativeSymbol kSymbols[] = {
     {"point_resolve", abi_point_resolve, "(***)i", NULL},
     {"point_read", abi_point_read, "(i***)i", NULL},
+    {"point_subscribe", abi_point_subscribe, "(iFii*)i", NULL},
     {"point_publish", abi_point_publish, "(iFiI)i", NULL},
     {"app_log", abi_log, "(i*)", NULL},
     {"app_now", abi_now, "()I", NULL},
+    {"setting_get", abi_setting_get, "(*i*i)i", NULL},
+    {"setting_watch", abi_setting_watch, "()i", NULL},
 };
 
 static uint8_t *read_file(const char *path, uint32_t *size_out) {
@@ -133,6 +174,32 @@ static uint8_t *read_file(const char *path, uint32_t *size_out) {
     fclose(file);
     *size_out = (uint32_t)size;
     return buffer;
+}
+
+/* v1 export convention: app_on_event(ptr, len), UTF-8 JSON in guest memory. */
+static int child_on_event(void *ctx, const char *event_json) {
+    (void)ctx;
+    if (!g_inst || !event_json || !g_has_event_export) return -1;
+    size_t len = strlen(event_json);
+    if (len >= UINT32_MAX) return -1;
+    void *native = NULL;
+    uint64_t ptr = wasm_runtime_module_malloc(g_inst, (uint64_t)len + 1, &native);
+    if (ptr == 0 || native == NULL) return -1;
+    memcpy(native, event_json, len + 1);
+
+    /* This WAMR takes execute_func argv as decimal strings, one per wasm arg. */
+    char ptr_text[16];
+    char len_text[16];
+    snprintf(ptr_text, sizeof ptr_text, "%u", (unsigned)ptr);
+    snprintf(len_text, sizeof len_text, "%u", (unsigned)len);
+    char *argv[2] = {ptr_text, len_text};
+    bool ok = wasm_application_execute_func(g_inst, "app_on_event", 2, argv);
+    wasm_runtime_module_free(g_inst, ptr);
+    if (!ok) {
+        wasm_runtime_clear_exception(g_inst);
+        return -1;
+    }
+    return 0;
 }
 
 static int run_app(const char *wasm_path, int fd, uint32_t heap_kb, uint32_t stack_kb) {
@@ -170,6 +237,9 @@ static int run_app(const char *wasm_path, int fd, uint32_t heap_kb, uint32_t sta
         return 4;
     }
 
+    g_inst = inst;
+    g_has_event_export = wasm_runtime_lookup_function(inst, "app_on_event") != NULL;
+
     g_sdk = edge_app_sdk_create(fd);
     if (!g_sdk) {
         wasm_runtime_deinstantiate(inst);
@@ -178,6 +248,7 @@ static int run_app(const char *wasm_path, int fd, uint32_t heap_kb, uint32_t sta
         wasm_runtime_destroy();
         return 5;
     }
+    edge_app_sdk_set_exports(g_sdk, NULL, child_on_event, NULL, NULL);
 
     int rc = 0;
     if (wasm_runtime_lookup_function(inst, "app_init")) {
@@ -189,12 +260,22 @@ static int run_app(const char *wasm_path, int fd, uint32_t heap_kb, uint32_t sta
         }
     }
 
-    while (rc == 0 && !g_stop) {
-        char byte;
-        ssize_t n = read(fd, &byte, 1);
-        if (n < 0 && errno == EINTR) continue;
-        if (n <= 0) break;
+    /* The event frame can exceed the stack-buffer budget; keep both buffers on
+     * the heap for the life of the child loop. */
+    char *frame = malloc(4096);
+    char *response = malloc(256);
+    if (!frame || !response) {
+        fprintf(stderr, "app-host: out of memory for frame buffers\n");
+        rc = 7;
+        goto frame_out;
     }
+    while (rc == 0 && !g_stop && edge_app_sdk_next_frame(g_sdk, frame, 4096) == 0) {
+        if (edge_app_sdk_dispatch(g_sdk, frame, response, 256) != 0) break;
+        if (edge_app_sdk_send_frame(g_sdk, response) != 0) break;
+    }
+frame_out:
+    free(frame);
+    free(response);
 
     if (wasm_runtime_lookup_function(inst, "app_stop")) {
         wasm_application_execute_func(inst, "app_stop", 0, NULL);
@@ -203,6 +284,7 @@ static int run_app(const char *wasm_path, int fd, uint32_t heap_kb, uint32_t sta
     edge_app_sdk_destroy(g_sdk);
     g_sdk = NULL;
     wasm_runtime_deinstantiate(inst);
+    g_inst = NULL;
     wasm_runtime_unload(module);
     free(wasm_bytes);
     wasm_runtime_destroy();
@@ -212,7 +294,13 @@ static int run_app(const char *wasm_path, int fd, uint32_t heap_kb, uint32_t sta
 int main(int argc, char **argv) {
     signal(SIGPIPE, SIG_IGN);
     if (app_host_install_no_exec_filter() != 0) {
-        fprintf(stderr, "app-host: no-exec seccomp filter unavailable: %s\n", strerror(errno));
+        const char *allow_degraded = getenv("EDGEC_APP_HOST_ALLOW_DEGRADED");
+        if (!allow_degraded || strcmp(allow_degraded, "1") != 0) {
+            fprintf(stderr, "app-host: failed to install no-exec filter: %s\n", strerror(errno));
+            return EXIT_FAILURE;
+        }
+        fprintf(stderr, "app-host: no-exec seccomp filter unavailable (degraded): %s\n",
+                strerror(errno));
     }
 
     const char *wasm_path = NULL;

@@ -20,6 +20,12 @@
 #include "edge_log.h"
 #include "iems_app_host_ports.h"
 
+typedef enum {
+    APP_RUNTIME_RUNNING = 0,
+    APP_RUNTIME_STOPPING, /**< app_will_stop queued; waiting for ack, exit or deadline */
+    APP_RUNTIME_STOPPED,  /**< termination path taken; the exit callback still owns removal */
+} app_runtime_state_t;
+
 typedef struct {
     iems_app_runtime_t *owner;
     char app_id[64];
@@ -29,7 +35,10 @@ typedef struct {
     app_host_server_t *server;
     iems_app_host_ctx_t ports_ctx;
     app_host_ports_t ports;
-    int stopping;
+    app_runtime_state_t state;
+    uint64_t stop_deadline_ms;
+    uint8_t stop_acked;
+    char stop_reason[APP_HOST_REASON_SIZE];
     int process_closed;
 } app_runtime_t;
 
@@ -44,6 +53,7 @@ typedef struct {
     uint32_t cpu_ms_per_sec;
     uint32_t calls_per_sec;
     uint32_t publish_per_sec;
+    uint32_t tick_ms;
 } restart_timer_t;
 
 struct iems_app_runtime_s {
@@ -54,6 +64,10 @@ struct iems_app_runtime_s {
     int use_launcher;
     int sigchld_active;
     uv_signal_t sigchld;
+    uv_timer_t stop_timer;
+    uint64_t will_stop_sent;
+    uint64_t will_stop_acked;
+    uint64_t will_stop_expired;
     app_runtime_t *apps[IEMS_APP_RUNTIME_MAX];
     restart_timer_t *restarts[IEMS_APP_RUNTIME_MAX];
 };
@@ -73,6 +87,7 @@ static void maybe_free_app(app_runtime_t *app) {
 static void on_abi_server_closed(void *ctx) {
     app_runtime_t *app = (app_runtime_t *)ctx;
     app->server = NULL;
+    memset(app->ports_ctx.subscriptions, 0, sizeof(app->ports_ctx.subscriptions));
     maybe_free_app(app);
 }
 
@@ -84,13 +99,14 @@ static void on_process_close(uv_handle_t *handle) {
 
 static void finish_app(iems_app_runtime_t *rt, app_runtime_t *app, int64_t exit_status,
                        int term_signal, int via_uv) {
-    if (!app->stopping) {
+    if (app->state == APP_RUNTIME_RUNNING) {
         LOG_WARN(LOG_CAT_CORE, "AppHost: %s exited unexpectedly (status=%lld signal=%d)",
                  app->app_id, (long long)exit_status, term_signal);
         if (rt->cfg.on_fault) {
             rt->cfg.on_fault(rt->cfg.on_fault_ctx, app->app_id, exit_status, term_signal);
         }
     }
+    app->state = APP_RUNTIME_STOPPED;
     for (int i = 0; i < IEMS_APP_RUNTIME_MAX; i++) {
         if (rt->apps[i] == app) rt->apps[i] = NULL;
     }
@@ -165,13 +181,17 @@ iems_app_runtime_t *iems_app_runtime_create(uv_loop_t *loop, const iems_app_runt
         }
         rt->sigchld_active = 1;
     }
+    if (uv_timer_init(loop, &rt->stop_timer) != 0) {
+        free(rt);
+        return NULL;
+    }
+    rt->stop_timer.data = rt;
     return rt;
 }
 
-void iems_app_runtime_stop(iems_app_runtime_t *rt, const char *app_id) {
-    app_runtime_t *app = find_app(rt, app_id);
-    if (!app) return;
-    app->stopping = 1;
+static void stop_terminate(app_runtime_t *app) {
+    if (app->state == APP_RUNTIME_STOPPED) return;
+    app->state = APP_RUNTIME_STOPPED;
     if (app->launcher_pid > 0) {
         kill(app->launcher_pid, SIGTERM);
     } else {
@@ -180,10 +200,81 @@ void iems_app_runtime_stop(iems_app_runtime_t *rt, const char *app_id) {
     if (app->server) app_host_server_destroy(app->server);
 }
 
+static void on_stop_timer(uv_timer_t *timer);
+
+/* One runtime timer for the earliest pending deadline. It is independent of
+ * the server's own ack timeout, so a withheld ack cannot extend the stop. */
+static void arm_stop_timer(iems_app_runtime_t *rt) {
+    uint64_t now = uv_now(rt->loop);
+    uint64_t earliest = 0;
+    for (int i = 0; i < IEMS_APP_RUNTIME_MAX; i++) {
+        app_runtime_t *app = rt->apps[i];
+        if (!app || app->state != APP_RUNTIME_STOPPING) continue;
+        if (earliest == 0 || app->stop_deadline_ms < earliest) earliest = app->stop_deadline_ms;
+    }
+    if (earliest == 0) {
+        uv_timer_stop(&rt->stop_timer);
+        return;
+    }
+    uv_timer_start(&rt->stop_timer, on_stop_timer, earliest > now ? earliest - now : 0, 0);
+}
+
+static void on_stop_timer(uv_timer_t *timer) {
+    iems_app_runtime_t *rt = (iems_app_runtime_t *)timer->data;
+    uint64_t now = uv_now(rt->loop);
+    for (int i = 0; i < IEMS_APP_RUNTIME_MAX; i++) {
+        app_runtime_t *app = rt->apps[i];
+        if (!app || app->state != APP_RUNTIME_STOPPING) continue;
+        if (now < app->stop_deadline_ms) continue;
+        if (!app->stop_acked) {
+            rt->will_stop_expired++;
+            LOG_WARN(LOG_CAT_CORE, "AppHost: %s did not ack app_will_stop (%s) within %u ms",
+                     app->app_id, app->stop_reason, IEMS_APP_STOP_GRACE_MS);
+        }
+        stop_terminate(app);
+    }
+    arm_stop_timer(rt);
+}
+
+/* Deferred to the timer: this runs inside the server's read callback. */
+static void on_app_will_stop_acked(void *ctx, const char *kind) {
+    app_runtime_t *app = (app_runtime_t *)ctx;
+    if (!kind || strcmp(kind, "app_will_stop") != 0) return;
+    if (app->state != APP_RUNTIME_STOPPING) return;
+    app->owner->will_stop_acked++;
+    app->stop_acked = 1;
+    app->stop_deadline_ms = uv_now(app->owner->loop);
+    arm_stop_timer(app->owner);
+}
+
+void iems_app_runtime_stop(iems_app_runtime_t *rt, const char *app_id) {
+    app_runtime_t *app = find_app(rt, app_id);
+    if (!app || app->state != APP_RUNTIME_RUNNING) return;
+    app->state = APP_RUNTIME_STOPPING;
+    app->stop_deadline_ms = uv_now(rt->loop) + IEMS_APP_STOP_GRACE_MS;
+    snprintf(app->stop_reason, sizeof(app->stop_reason), "%s", "operator");
+
+    char payload[96];
+    int n = snprintf(payload, sizeof(payload), "{\"reason\":\"%s\",\"deadline_ms\":%u}",
+                     app->stop_reason, IEMS_APP_STOP_GRACE_MS);
+    if (n < 0 || (size_t)n >= sizeof(payload) || !app->server ||
+        app_host_server_post_platform_event(app->server, "app_will_stop", payload) != 0) {
+        stop_terminate(app); /* cannot notify: no point waiting for an ack */
+        return;
+    }
+    rt->will_stop_sent++;
+    arm_stop_timer(rt);
+}
+
+void iems_app_runtime_stop_now(iems_app_runtime_t *rt, const char *app_id) {
+    app_runtime_t *app = find_app(rt, app_id);
+    if (app) stop_terminate(app);
+}
+
 void iems_app_runtime_stop_all(iems_app_runtime_t *rt) {
     if (!rt) return;
     for (int i = 0; i < IEMS_APP_RUNTIME_MAX; i++) {
-        if (rt->apps[i]) iems_app_runtime_stop(rt, rt->apps[i]->app_id);
+        if (rt->apps[i]) iems_app_runtime_stop_now(rt, rt->apps[i]->app_id);
     }
 }
 
@@ -198,6 +289,28 @@ int iems_app_runtime_pid(iems_app_runtime_t *rt, const char *app_id) {
     return (int)app->process.pid;
 }
 
+int iems_app_runtime_tick_counters(iems_app_runtime_t *rt, const char *app_id,
+                                   uint64_t *enqueued, uint64_t *skipped) {
+    app_runtime_t *app = find_app(rt, app_id);
+    if (!app || !app->server) return -1;
+    app_host_server_tick_counters(app->server, enqueued, skipped);
+    return 0;
+}
+
+void iems_app_runtime_stop_counters(const iems_app_runtime_t *rt, uint64_t *sent, uint64_t *acked,
+                                    uint64_t *expired) {
+    if (sent) *sent = rt ? rt->will_stop_sent : 0;
+    if (acked) *acked = rt ? rt->will_stop_acked : 0;
+    if (expired) *expired = rt ? rt->will_stop_expired : 0;
+}
+
+int iems_app_runtime_notify_settings_changed(iems_app_runtime_t *rt, const char *app_id,
+                                             const char *key) {
+    app_runtime_t *app = find_app(rt, app_id);
+    if (!app || !app->server) return -1;
+    return app_host_server_post_settings_changed(app->server, key);
+}
+
 static void on_timer_close(uv_handle_t *handle) {
     free(handle->data);
 }
@@ -208,7 +321,7 @@ static void on_restart_timer(uv_timer_t *timer) {
     int rc = iems_app_runtime_start_ex(rt, restart->app_id, restart->wasm_path, restart->heap_kb,
                                        restart->stack_kb, restart->pids_max,
                                        restart->cpu_ms_per_sec, restart->calls_per_sec,
-                                       restart->publish_per_sec);
+                                       restart->publish_per_sec, restart->tick_ms);
     for (int i = 0; i < IEMS_APP_RUNTIME_MAX; i++) {
         if (rt->restarts[i] == restart) rt->restarts[i] = NULL;
     }
@@ -222,14 +335,14 @@ int iems_app_runtime_restart_later(iems_app_runtime_t *rt, const char *app_id,
                                    const char *wasm_path, uint32_t delay_ms, uint32_t heap_kb,
                                    uint32_t stack_kb) {
     return iems_app_runtime_restart_later_ex(rt, app_id, wasm_path, delay_ms, heap_kb, stack_kb,
-                                             0, 0, 0, 0);
+                                             0, 0, 0, 0, 0);
 }
 
 int iems_app_runtime_restart_later_ex(iems_app_runtime_t *rt, const char *app_id,
                                       const char *wasm_path, uint32_t delay_ms, uint32_t heap_kb,
                                       uint32_t stack_kb, uint32_t pids_max,
                                       uint32_t cpu_ms_per_sec, uint32_t calls_per_sec,
-                                      uint32_t publish_per_sec) {
+                                      uint32_t publish_per_sec, uint32_t tick_ms) {
     if (!rt || !app_id || !wasm_path) return -1;
     for (int i = 0; i < IEMS_APP_RUNTIME_MAX; i++) {
         if (rt->restarts[i] && strcmp(rt->restarts[i]->app_id, app_id) == 0) return 0;
@@ -254,6 +367,7 @@ int iems_app_runtime_restart_later_ex(iems_app_runtime_t *rt, const char *app_id
     restart->cpu_ms_per_sec = cpu_ms_per_sec;
     restart->calls_per_sec = calls_per_sec;
     restart->publish_per_sec = publish_per_sec;
+    restart->tick_ms = tick_ms;
     uv_timer_init(rt->loop, &restart->timer);
     restart->timer.data = restart;
     rt->restarts[slot] = restart;
@@ -352,13 +466,13 @@ static int start_via_launcher(iems_app_runtime_t *rt, app_runtime_t *app, int ab
 
 int iems_app_runtime_start(iems_app_runtime_t *rt, const char *app_id, const char *wasm_path,
                            uint32_t heap_kb, uint32_t stack_kb) {
-    return iems_app_runtime_start_ex(rt, app_id, wasm_path, heap_kb, stack_kb, 0, 0, 0, 0);
+    return iems_app_runtime_start_ex(rt, app_id, wasm_path, heap_kb, stack_kb, 0, 0, 0, 0, 0);
 }
 
 int iems_app_runtime_start_ex(iems_app_runtime_t *rt, const char *app_id, const char *wasm_path,
                               uint32_t heap_kb, uint32_t stack_kb, uint32_t pids_max,
                               uint32_t cpu_ms_per_sec, uint32_t calls_per_sec,
-                              uint32_t publish_per_sec) {
+                              uint32_t publish_per_sec, uint32_t tick_ms) {
     if (!rt || !app_id || !app_id[0] || !wasm_path || !wasm_path[0]) return -1;
     if (find_app(rt, app_id)) return 0;
 
@@ -397,6 +511,7 @@ int iems_app_runtime_start_ex(iems_app_runtime_t *rt, const char *app_id, const 
     iems_app_host_ports_init(&app->ports, &app->ports_ctx);
     app->ports.calls_per_sec = calls_per_sec;
     app->ports.publish_per_sec = publish_per_sec;
+    app->ports.tick_ms = tick_ms;
     app->server = app_host_server_create_ex(rt->loop, fds[0], &app->ports,
                                             on_abi_server_closed, app);
     if (!app->server) {
@@ -405,6 +520,7 @@ int iems_app_runtime_start_ex(iems_app_runtime_t *rt, const char *app_id, const 
         free(app);
         return -1;
     }
+    app_host_server_set_event_ack_cb(app->server, on_app_will_stop_acked, app);
     /* libuv may clear CLOEXEC when it adopts the fd; the child also closes it
      * explicitly via --close-fd, so EOF arrives on stop either way. */
     fcntl(fds[0], F_SETFD, FD_CLOEXEC);
@@ -471,7 +587,10 @@ const char *iems_app_runtime_app_host_path(const iems_app_runtime_t *rt) {
 
 void iems_app_runtime_destroy(iems_app_runtime_t *rt) {
     if (!rt) return;
+    /* Product shutdown skips the app_will_stop wait: the loop is going away. */
     iems_app_runtime_stop_all(rt);
+    uv_timer_stop(&rt->stop_timer);
+    uv_close((uv_handle_t *)&rt->stop_timer, NULL);
     for (int i = 0; i < IEMS_APP_RUNTIME_MAX; i++) {
         if (rt->restarts[i]) {
             uv_timer_stop(&rt->restarts[i]->timer);

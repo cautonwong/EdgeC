@@ -7,7 +7,7 @@ export const WASM_POINT_RESOLVE = "point_resolve";
 export const FN_POINT_READ = "point_read";
 export const WASM_POINT_READ = "point_read";
 export const FN_POINT_SUBSCRIBE = "point_subscribe";
-export const WASM_POINT_SUBSCRIBE = null;
+export const WASM_POINT_SUBSCRIBE = "point_subscribe";
 export const FN_POINT_PUBLISH = "point_publish";
 export const WASM_POINT_PUBLISH = "point_publish";
 export const FN_LOG = "log";
@@ -18,7 +18,7 @@ export const WASM_NOW = "app_now";
 export const ABI_FUNCTIONS = [
   { name: "point_resolve", wit: "point-resolve", wasmSymbol: "point_resolve", implemented: true },
   { name: "point_read", wit: "point-read", wasmSymbol: "point_read", implemented: true },
-  { name: "point_subscribe", wit: "point-subscribe", wasmSymbol: null, implemented: false },
+  { name: "point_subscribe", wit: "point-subscribe", wasmSymbol: "point_subscribe", implemented: true },
   { name: "point_publish", wit: "point-publish", wasmSymbol: "point_publish", implemented: true },
   { name: "log", wit: "log", wasmSymbol: "app_log", implemented: true },
   { name: "now", wit: "now", wasmSymbol: "app_now", implemented: true },
