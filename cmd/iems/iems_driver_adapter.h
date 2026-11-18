@@ -45,6 +45,14 @@ extern "C" {
  */
 int iems_driver_registry_init(const edge_driver_registry_port_t *registry);
 
+/**
+ * @brief 把库存协议串归一化为驱动注册表里的规范名
+ * @param raw 数据库原始值，可为 NULL
+ * @param out 至少 16 字节，仅成功时写入
+ * @return 0 成功；-1 表示空值、未知值或仅支持 1997 的 DLT645
+ */
+int iems_driver_protocol_canonical(const char *raw, char out[16]);
+
 /* [ADR-002] 点位标识翻译与量纲：产品侧负责，驱动不再查表。
  *   native_id：tag_id → 驱动认识的原生标识（CAN 是 CAN ID，其余暂等值）
  *   tag_scale：该点位的工程量系数；legacy 驱动仍自己标定，故返回 1.0 */

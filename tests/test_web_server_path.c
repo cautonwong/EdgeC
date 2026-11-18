@@ -183,8 +183,14 @@ static void fetch(uv_loop_t *loop, int port, const char *request, char *out, siz
     close(fd);
 }
 
-static void drain_loop(uv_loop_t *loop) {
-    for (int i = 0; i < 100; i++) uv_run(loop, UV_RUN_NOWAIT);
+static void drain_until_closed(uv_loop_t *loop) {
+    int rc = UV_EBUSY;
+    for (int i = 0; i < 1000 && rc != 0; i++) {
+        uv_run(loop, UV_RUN_NOWAIT);
+        rc = uv_loop_close(loop);
+        if (rc != 0) usleep(1000);
+    }
+    assert_int_equal(rc, 0);
 }
 
 static void test_http_serves_files_and_rejects_symlinks(void **state) {
@@ -213,8 +219,7 @@ static void test_http_serves_files_and_rejects_symlinks(void **state) {
     assert_true(strncmp(out, "HTTP/1.1 404", 12) == 0);
 
     web_server_destroy(srv);
-    drain_loop(&loop);
-    assert_int_equal(uv_loop_close(&loop), 0);
+    drain_until_closed(&loop);
 }
 
 int main(void) {

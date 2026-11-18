@@ -22,6 +22,7 @@ typedef enum {
 typedef enum {
     IO_TYPE_UART,
     IO_TYPE_UDS,
+    IO_TYPE_TCP,
     IO_TYPE_UDP,
     IO_TYPE_HTTP,
     IO_TYPE_MQTT, /**< [新增] MQTT IO 类型 */
@@ -58,6 +59,10 @@ typedef struct {
         struct {
             char path[128];
         } uds;
+        struct {
+            char host[64];
+            uint16_t port;
+        } tcp;
         struct {
             char local_ip[32];
             uint16_t local_port;

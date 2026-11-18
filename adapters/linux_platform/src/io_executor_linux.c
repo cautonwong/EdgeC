@@ -5,12 +5,15 @@
 #include <linux/can.h>
 #include <linux/can/raw.h>
 #include <net/if.h>
+#include <netdb.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <sys/un.h>
 #include <termios.h>
 #include <unistd.h>
@@ -177,6 +180,21 @@ void io_executor_cleanup(void) {
 
 /* --- 1. 基于 Poll (FD) 的通用处理 (UART, CAN, UDS) --- */
 
+static speed_t _uart_baud_to_speed(uint32_t baud) {
+    switch (baud) {
+        case 19200:
+            return B19200;
+        case 38400:
+            return B38400;
+        case 57600:
+            return B57600;
+        case 115200:
+            return B115200;
+        default:
+            return B9600;
+    }
+}
+
 static void _on_uv_poll(uv_poll_t* handle, int status, int events) {
     linux_io_handle_t* impl = (linux_io_handle_t*)handle->data;
     if (status < 0) {
@@ -188,7 +206,9 @@ static void _on_uv_poll(uv_poll_t* handle, int status, int events) {
         uint8_t buf[256];
         ssize_t ret;
         do {
-            ret = recv(impl->fd, buf, sizeof(buf), MSG_DONTWAIT);
+            /* tty 不是 socket，recv() 会返回 ENOTSOCK；UART fd 必须用 read() */
+            ret = impl->type == IO_TYPE_UART ? read(impl->fd, buf, sizeof(buf))
+                                             : recv(impl->fd, buf, sizeof(buf), MSG_DONTWAIT);
             if (ret > 0) {
                 net_buf_t* nb = net_buf_alloc(impl->pool, 0);
                 if (nb && (size_t)ret <= nb->b.size) {
@@ -252,7 +272,8 @@ static int _poll_ioctl(io_handle_t* h, int cmd, void* arg) {
         uint8_t trash[256];
         ssize_t ret;
         do {
-            ret = recv(impl->fd, trash, sizeof(trash), MSG_DONTWAIT);
+            ret = impl->type == IO_TYPE_UART ? read(impl->fd, trash, sizeof(trash))
+                                             : recv(impl->fd, trash, sizeof(trash), MSG_DONTWAIT);
         } while (ret > 0);
         return 0;
     }
@@ -260,24 +281,7 @@ static int _poll_ioctl(io_handle_t* h, int cmd, void* arg) {
         uint32_t baud = *(uint32_t*)arg;
         struct termios options;
         if (tcgetattr(impl->fd, &options) != 0) return -errno;
-        speed_t speed = B9600;
-        switch (baud) {
-            case 19200:
-                speed = B19200;
-                break;
-            case 38400:
-                speed = B38400;
-                break;
-            case 57600:
-                speed = B57600;
-                break;
-            case 115200:
-                speed = B115200;
-                break;
-            default:
-                speed = B9600;
-                break;
-        }
+        speed_t speed = _uart_baud_to_speed(baud);
         cfsetispeed(&options, speed);
         cfsetospeed(&options, speed);
         if (tcsetattr(impl->fd, TCSANOW, &options) != 0) return -errno;
@@ -536,6 +540,55 @@ static const io_ops_t udp_ops = {.enable_read = _udp_enable_read,
                                  .ioctl = NULL,
                                  .destroy = _linux_destroy};
 
+static int _tcp_connect_fd(const char* host, uint16_t port) {
+    struct addrinfo hints;
+    struct addrinfo* res = NULL;
+    char port_str[6];
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    snprintf(port_str, sizeof(port_str), "%u", (unsigned)port);
+    if (getaddrinfo(host, port_str, &hints, &res) != 0) return -1;
+
+    int fd = -1;
+    for (struct addrinfo* ai = res; ai; ai = ai->ai_next) {
+        fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+        if (fd < 0) continue;
+        int flags = fcntl(fd, F_GETFL, 0);
+        if (flags < 0 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+            close(fd);
+            fd = -1;
+            continue;
+        }
+        /* SO_SNDTIMEO 不约束 connect；非阻塞 connect 加 1 秒 poll 才是真正的启动上限 */
+        int rc = connect(fd, ai->ai_addr, ai->ai_addrlen);
+        if (rc != 0) {
+            if (errno != EINPROGRESS) {
+                close(fd);
+                fd = -1;
+                continue;
+            }
+            struct pollfd pfd = {.fd = fd, .events = POLLOUT};
+            int prc;
+            do {
+                prc = poll(&pfd, 1, 1000);
+            } while (prc < 0 && errno == EINTR);
+            int soerr = 0;
+            socklen_t len = sizeof(soerr);
+            if (prc <= 0 || getsockopt(fd, SOL_SOCKET, SO_ERROR, &soerr, &len) != 0 ||
+                soerr != 0) {
+                close(fd);
+                fd = -1;
+                continue;
+            }
+        }
+        break;
+    }
+    freeaddrinfo(res);
+    return fd;
+}
+
 io_handle_t* io_executor_create(uv_loop_t* loop, const io_config_t* cfg, net_buf_pool_t* pool) {
     linux_io_handle_t* impl = calloc(1, sizeof(linux_io_handle_t));
     if (!impl) return NULL;
@@ -549,9 +602,47 @@ io_handle_t* io_executor_create(uv_loop_t* loop, const io_config_t* cfg, net_buf
                 free(impl);
                 return NULL;
             }
+            /* 默认 canonical 模式会扣住无换行的数据；创建时就把 tty 设为 raw 并应用波特率 */
+            struct termios tio;
+            if (tcgetattr(fd, &tio) != 0) {
+                close(fd);
+                free(impl);
+                return NULL;
+            }
+            cfmakeraw(&tio);
+            speed_t speed = _uart_baud_to_speed(cfg->params.uart.baud);
+            cfsetispeed(&tio, speed);
+            cfsetospeed(&tio, speed);
+            if (tcsetattr(fd, TCSANOW, &tio) != 0) {
+                close(fd);
+                free(impl);
+                return NULL;
+            }
             impl->fd = fd;
             impl->base.ops = &poll_ops;
             uv_poll_init(loop, &impl->handle.poll, fd);
+            impl->handle.poll.data = impl;
+            break;
+        }
+        case IO_TYPE_TCP: {
+            int fd = _tcp_connect_fd(cfg->params.tcp.host, cfg->params.tcp.port);
+            if (fd < 0) {
+                free(impl);
+                return NULL;
+            }
+            int flags = fcntl(fd, F_GETFL, 0);
+            if (flags < 0 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+                close(fd);
+                free(impl);
+                return NULL;
+            }
+            impl->fd = fd;
+            impl->base.ops = &poll_ops;
+            if (uv_poll_init(loop, &impl->handle.poll, fd) < 0) {
+                close(fd);
+                free(impl);
+                return NULL;
+            }
             impl->handle.poll.data = impl;
             break;
         }
@@ -622,6 +713,7 @@ io_handle_t* io_executor_create_from_fd(uv_loop_t* loop, int fd, net_buf_pool_t*
 
     impl->fd = fd;
     impl->pool = pool;
+    impl->type = IO_TYPE_CUSTOM;
     impl->base.ops = &poll_ops;
 
     int rc = uv_poll_init(loop, &impl->handle.poll, fd);
@@ -649,6 +741,20 @@ io_handle_t* io_executor_create_uart(uv_loop_t* loop, const char* dev_path, uint
     cfg.params.uart.dev[sizeof(cfg.params.uart.dev) - 1] = '\0';
 
     cfg.params.uart.baud = baud;
+
+    return io_executor_create(loop, &cfg, pool);
+}
+
+io_handle_t* io_executor_create_tcp(uv_loop_t* loop, const char* host, uint16_t port,
+                                    net_buf_pool_t* pool) {
+    if (!host) return NULL;
+
+    io_config_t cfg = {.type = IO_TYPE_TCP};
+
+    strncpy(cfg.params.tcp.host, host, sizeof(cfg.params.tcp.host) - 1);
+    cfg.params.tcp.host[sizeof(cfg.params.tcp.host) - 1] = '\0';
+
+    cfg.params.tcp.port = port;
 
     return io_executor_create(loop, &cfg, pool);
 }

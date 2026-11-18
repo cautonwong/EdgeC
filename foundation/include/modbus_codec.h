@@ -2,6 +2,7 @@
 #define EDGE_MODBUS_CODEC_H
 
 #include <stdint.h>
+#include <stdbool.h>
 #include "net_buf.h"
 
 #ifdef __cplusplus
@@ -35,6 +36,17 @@ uint16_t modbus_calculate_crc(const uint8_t *buf, size_t len);
 
 int modbus_rtu_encode_read(uint8_t slave_id, uint8_t fc, uint16_t addr, uint16_t quantity, net_buf_t *out);
 int modbus_rtu_encode_write_single(uint8_t slave_id, uint16_t addr, uint16_t value, net_buf_t *out);
+int modbus_rtu_encode_write_multiple(uint8_t slave_id, uint16_t addr, uint16_t quantity,
+                                     const uint16_t *values, net_buf_t *out);
+
+/* CRC 字节序变体：hi_crc = true 时高字节先发。iems_v3 的默认 modbus_rtu
+ * 就是这个顺序（src/libmodbus/modbus-rtu.c:156-170），标准 Modbus 是低字节先发。 */
+int modbus_rtu_encode_read_ex(uint8_t slave_id, uint8_t fc, uint16_t addr, uint16_t quantity,
+                              bool hi_crc, net_buf_t *out);
+int modbus_rtu_encode_write_single_ex(uint8_t slave_id, uint16_t addr, uint16_t value,
+                                      bool hi_crc, net_buf_t *out);
+int modbus_rtu_encode_write_multiple_ex(uint8_t slave_id, uint16_t addr, uint16_t quantity,
+                                        const uint16_t *values, bool hi_crc, net_buf_t *out);
 int modbus_rtu_encode_exception(uint8_t slave_id, uint8_t fc, uint8_t ex_code, net_buf_t *out);
 
 /* --- 解析逻辑 (RTU) --- */
@@ -45,6 +57,10 @@ int modbus_rtu_encode_exception(uint8_t slave_id, uint8_t fc, uint8_t ex_code, n
  */
 int modbus_rtu_decode_frame(struct net_buf_simple *in, uint8_t *slave_id, uint8_t *fc, 
                             uint8_t **data_out, size_t *data_len);
+
+/* 主站应答解码的 CRC 字节序变体，见上。 */
+int modbus_rtu_decode_frame_ex(struct net_buf_simple *in, bool hi_crc, uint8_t *slave_id,
+                               uint8_t *fc, uint8_t **data_out, size_t *data_len);
 
 /**
  * @brief 解析 RTU 请求帧并验证 CRC (从站使用)
@@ -85,6 +101,8 @@ int modbus_tcp_decode_mbap(struct net_buf_simple *in, uint16_t *tid, uint8_t *sl
  */
 int modbus_tcp_encode_read(uint16_t tid, uint8_t slave_id, uint8_t fc, uint16_t addr, uint16_t quantity, net_buf_t *out);
 int modbus_tcp_encode_write_single(uint16_t tid, uint8_t slave_id, uint16_t addr, uint16_t value, net_buf_t *out);
+int modbus_tcp_encode_write_multiple(uint16_t tid, uint8_t slave_id, uint16_t addr, uint16_t quantity,
+                                     const uint16_t *values, net_buf_t *out);
 int modbus_tcp_encode_exception(uint16_t tid, uint8_t slave_id, uint8_t fc, uint8_t ex_code, net_buf_t *out);
 
 /**

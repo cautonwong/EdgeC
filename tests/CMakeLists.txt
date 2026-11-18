@@ -1809,6 +1809,12 @@ endforeach()
 add_edge_test(test_iec_cp56time test_iec_cp56time.c)
 
 add_edge_test(test_iems_connectivity test_iems_connectivity.c)
+add_edge_test(test_iems_southbound_transport test_iems_southbound_transport.c)
+add_edge_test(test_iems_southbound_uart_pty test_iems_southbound_uart_pty.c)
+add_edge_test(test_iems_modbus_rtu_uart_pty test_iems_modbus_rtu_uart_pty.c)
+add_edge_test(test_iems_modbus_tcp_loopback test_iems_modbus_tcp_loopback.c)
+add_edge_test(test_iems_dlt645_uart_pty test_iems_dlt645_uart_pty.c)
+add_edge_test(test_datahub_subscription_capacity test_datahub_subscription_capacity.c)
 
 # Plain add_test() targets must get the same sanitizer policy as add_edge_test().
 # Append so per-test ENVIRONMENT values (EDGEC_APPCTL_PATH, EDGEC_APP_HOST_PATH,

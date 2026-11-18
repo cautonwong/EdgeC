@@ -55,26 +55,41 @@ static int mb_rtu_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id, 
     p->raw_n = 0;
     p->is_write = is_write;
     p->value = value;
-    /* 单寄存器写：一个地址只写一个寄存器，多写需要连续的 raw 数组，
-     * 当前请求模型只带一个标量，所以显式拒绝而不是截断。 */
-    if (is_write && p->quantity != 1) return -1;
+    /* 写只支持 1 个寄存器（FC06）或 2 个（FC16 拼 32 位量）；更多寄存器需要
+     * 数组请求模型，当前只带一个标量，显式拒绝而不是截断。 */
+    if (is_write && p->quantity > 2) return -1;
     return 0;
+}
+
+static int mb_rtu_req_encode_impl(void *priv, bool hi_crc, net_buf_t *out) {
+    modbus_rtu_req_t *p = (modbus_rtu_req_t *)priv;
+    if (!p || !out) return -1;
+    if (p->is_write) {
+        if (p->quantity == 2) {
+            /* 32 位量按 ABCD 拆两个寄存器，与读路径的合包顺序相反 */
+            uint32_t v = (uint32_t)p->value;
+            uint16_t regs[2] = {(uint16_t)(v >> 16), (uint16_t)(v & 0xFFFF)};
+            return modbus_rtu_encode_write_multiple_ex(p->slave_id, p->addr, 2, regs, hi_crc, out);
+        }
+        return modbus_rtu_encode_write_single_ex(p->slave_id, p->addr, (uint16_t)p->value, hi_crc,
+                                                 out);
+    }
+    return modbus_rtu_encode_read_ex(p->slave_id, MODBUS_FC_READ_HOLDING_REGS, p->addr, p->quantity,
+                                     hi_crc, out);
 }
 
 static int mb_rtu_req_encode(void *priv, void *session, net_buf_t *out) {
     (void)session; /* 无会话状态：这一帧自成一体 */
-    modbus_rtu_req_t *p = (modbus_rtu_req_t *)priv;
-    if (!p || !out) return -1;
-    if (p->is_write) {
-        return modbus_rtu_encode_write_single(p->slave_id, p->addr, (uint16_t)p->value, out);
-    }
-    return modbus_rtu_encode_read(p->slave_id, MODBUS_FC_READ_HOLDING_REGS, p->addr, p->quantity,
-                                  out);
+    return mb_rtu_req_encode_impl(priv, false, out);
 }
 
-static int mb_rtu_req_decode(void *priv, void *session, const uint8_t *buf, size_t len, size_t *consumed,
-                             double *out_value) {
-    (void)session; /* 无会话状态：这一帧自成一体 */
+static int mb_rtu_req_encode_hi(void *priv, void *session, net_buf_t *out) {
+    (void)session;
+    return mb_rtu_req_encode_impl(priv, true, out);
+}
+
+static int mb_rtu_req_decode_impl(void *priv, const uint8_t *buf, size_t len, size_t *consumed,
+                                  double *out_value, bool hi_crc) {
     modbus_rtu_req_t *p = (modbus_rtu_req_t *)priv;
     if (!p || !buf || !consumed) return -1;
     *consumed = 0;
@@ -88,7 +103,7 @@ static int mb_rtu_req_decode(void *priv, void *session, const uint8_t *buf, size
     uint8_t slave = 0, fc = 0;
     uint8_t *data = NULL;
     size_t data_len = 0;
-    int rc = modbus_rtu_decode_frame(&nb, &slave, &fc, &data, &data_len);
+    int rc = modbus_rtu_decode_frame_ex(&nb, hi_crc, &slave, &fc, &data, &data_len);
     if (rc == 1) return EDGE_ERR_INCOMPLETE;
     if (rc < 0) {
         *consumed = 1; /* CRC 错：跳一格重找帧首，别把后面的好帧一起丢 */
@@ -102,6 +117,28 @@ static int mb_rtu_req_decode(void *priv, void *session, const uint8_t *buf, size
     if (fc & 0x80) {
         LOG_WARN(LOG_CAT_IO, "ModbusRTU slave %u exception: 0x%02X", slave,
                  data_len ? data[0] : 0);
+        return -1;
+    }
+    /* 写应答不能结算读请求，反之亦然：迟到的写回显会把后续读填成 0 */
+    if (p->is_write) {
+        if (fc == MODBUS_FC_WRITE_SINGLE_REG) {
+            /* 写应答是原帧回显：地址或值对不上说明从站没照做，不能当成功 */
+            if (data_len < 4) return -1;
+            uint16_t addr = (uint16_t)((data[0] << 8) | data[1]);
+            uint16_t raw = (uint16_t)((data[2] << 8) | data[3]);
+            if (addr != p->addr || raw != (uint16_t)p->value) return -1;
+            if (out_value) *out_value = (double)raw;
+            return 0;
+        }
+        if (fc == MODBUS_FC_WRITE_MULTIPLE_REGS) {
+            /* FC16 应答只回地址与数量，不回写值 */
+            if (data_len < 4) return -1;
+            uint16_t addr = (uint16_t)((data[0] << 8) | data[1]);
+            uint16_t count = (uint16_t)((data[2] << 8) | data[3]);
+            if (addr != p->addr || count != p->quantity) return -1;
+            if (out_value) *out_value = 0.0;
+            return 0;
+        }
         return -1;
     }
     if (fc != MODBUS_FC_READ_HOLDING_REGS && fc != MODBUS_FC_READ_INPUT_REGS) return -1;
@@ -130,6 +167,18 @@ static int mb_rtu_req_decode(void *priv, void *session, const uint8_t *buf, size
     }
     if (out_value) *out_value = v;
     return 0;
+}
+
+static int mb_rtu_req_decode(void *priv, void *session, const uint8_t *buf, size_t len,
+                             size_t *consumed, double *out_value) {
+    (void)session; /* 无会话状态：这一帧自成一体 */
+    return mb_rtu_req_decode_impl(priv, buf, len, consumed, out_value, false);
+}
+
+static int mb_rtu_req_decode_hi(void *priv, void *session, const uint8_t *buf, size_t len,
+                                size_t *consumed, double *out_value) {
+    (void)session;
+    return mb_rtu_req_decode_impl(priv, buf, len, consumed, out_value, true);
 }
 
 /* ==================== 从站侧 ==================== */
@@ -238,10 +287,29 @@ const edge_driver_t modbus_rtu_driver = {
     .req_slave_exchange = mb_rtu_req_slave_exchange,
 };
 
+/* iems_v3 的默认 modbus_rtu 是 CRC 高字节先发（src/libmodbus/modbus-rtu.c:156-170），
+ * 与本文件的 ModbusRTU（标准低字节先发）互为字节序。迁移配置按 v3 类型映射
+ * 到这两个名字，不改变 `ModbusRTU` 的既有语义。 */
+const edge_driver_t modbus_rtu_hicrc_driver = {
+    .name = "ModbusRTUHiCRC",
+    .ctx_size = 0,
+    .req_priv_size = sizeof(modbus_rtu_req_t),
+    .req_prepare = mb_rtu_req_prepare,
+    .req_encode = mb_rtu_req_encode_hi,
+    .req_decode = mb_rtu_req_decode_hi,
+    .req_slave_exchange = mb_rtu_req_slave_exchange,
+};
+
 
 /* File-local prototypes. */
 int modbus_rtu_driver_register(driver_manager_t *mgr);
 int modbus_rtu_driver_register(driver_manager_t *mgr) {    return driver_manager_register(mgr, &modbus_rtu_driver);
+}
+
+/* 高字节先发 CRC 变体，供南向协议选择注册。 */
+int modbus_rtu_hicrc_driver_register(driver_manager_t *mgr);
+int modbus_rtu_hicrc_driver_register(driver_manager_t *mgr) {
+    return driver_manager_register(mgr, &modbus_rtu_hicrc_driver);
 }
 
 /* 兼容别名：老调用方（tests/test_iems_full_stack.c 等）用的是这个名字。 */
