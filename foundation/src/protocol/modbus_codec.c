@@ -44,7 +44,20 @@ uint16_t modbus_calculate_crc(const uint8_t *buf, size_t len) {
     return crc;
 }
 
-static int _modbus_rtu_encode_generic(uint8_t slave_id, uint8_t fc, uint16_t p1, uint16_t p2, net_buf_t *out) {
+/* 标准 Modbus 低字节先发；hi_crc 是从 iems_v3 默认 modbus_rtu 继承的高字节先发 */
+static void _put_crc(uint8_t *p, size_t body_len, bool hi_crc) {
+    uint16_t crc = modbus_calculate_crc(p, body_len);
+    p[body_len] = (uint8_t)(hi_crc ? (crc >> 8) : (crc & 0xFF));
+    p[body_len + 1] = (uint8_t)(hi_crc ? (crc & 0xFF) : (crc >> 8));
+}
+
+static uint16_t _get_crc(const uint8_t *p, size_t frame_len, bool hi_crc) {
+    return hi_crc ? (uint16_t)((p[frame_len - 2] << 8) | p[frame_len - 1])
+                  : (uint16_t)(p[frame_len - 2] | (p[frame_len - 1] << 8));
+}
+
+static int _modbus_rtu_encode_generic(uint8_t slave_id, uint8_t fc, uint16_t p1, uint16_t p2,
+                                      bool hi_crc, net_buf_t *out) {
     uint8_t *p = net_buf_add(out, 8);
     p[0] = slave_id;
     p[1] = fc;
@@ -52,19 +65,52 @@ static int _modbus_rtu_encode_generic(uint8_t slave_id, uint8_t fc, uint16_t p1,
     p[3] = (uint8_t)(p1 & 0xFF);
     p[4] = (uint8_t)(p2 >> 8);
     p[5] = (uint8_t)(p2 & 0xFF);
-
-    uint16_t crc = modbus_calculate_crc(p, 6);
-    p[6] = (uint8_t)(crc & 0xFF);
-    p[7] = (uint8_t)(crc >> 8);
+    _put_crc(p, 6, hi_crc);
     return 0;
 }
 
+int modbus_rtu_encode_read_ex(uint8_t slave_id, uint8_t fc, uint16_t addr, uint16_t quantity,
+                              bool hi_crc, net_buf_t *out) {
+    return _modbus_rtu_encode_generic(slave_id, fc, addr, quantity, hi_crc, out);
+}
+
+int modbus_rtu_encode_write_single_ex(uint8_t slave_id, uint16_t addr, uint16_t value, bool hi_crc,
+                                      net_buf_t *out) {
+    return _modbus_rtu_encode_generic(slave_id, MODBUS_FC_WRITE_SINGLE_REG, addr, value, hi_crc,
+                                      out);
+}
+
 int modbus_rtu_encode_read(uint8_t slave_id, uint8_t fc, uint16_t addr, uint16_t quantity, net_buf_t *out) {
-    return _modbus_rtu_encode_generic(slave_id, fc, addr, quantity, out);
+    return modbus_rtu_encode_read_ex(slave_id, fc, addr, quantity, false, out);
 }
 
 int modbus_rtu_encode_write_single(uint8_t slave_id, uint16_t addr, uint16_t value, net_buf_t *out) {
-    return _modbus_rtu_encode_generic(slave_id, MODBUS_FC_WRITE_SINGLE_REG, addr, value, out);
+    return modbus_rtu_encode_write_single_ex(slave_id, addr, value, false, out);
+}
+
+int modbus_rtu_encode_write_multiple_ex(uint8_t slave_id, uint16_t addr, uint16_t quantity,
+                                        const uint16_t *values, bool hi_crc, net_buf_t *out) {
+    if (!values || quantity == 0 || quantity > 123) return -1;
+    size_t body_len = 7 + 2 * (size_t)quantity; /* slave/fc/addr/qty/byte_count + values */
+    uint8_t *p = net_buf_add(out, body_len + 2);
+    p[0] = slave_id;
+    p[1] = MODBUS_FC_WRITE_MULTIPLE_REGS;
+    p[2] = (uint8_t)(addr >> 8);
+    p[3] = (uint8_t)(addr & 0xFF);
+    p[4] = (uint8_t)(quantity >> 8);
+    p[5] = (uint8_t)(quantity & 0xFF);
+    p[6] = (uint8_t)(quantity * 2);
+    for (uint16_t i = 0; i < quantity; i++) {
+        p[7 + 2 * i] = (uint8_t)(values[i] >> 8);
+        p[8 + 2 * i] = (uint8_t)(values[i] & 0xFF);
+    }
+    _put_crc(p, body_len, hi_crc);
+    return 0;
+}
+
+int modbus_rtu_encode_write_multiple(uint8_t slave_id, uint16_t addr, uint16_t quantity,
+                                     const uint16_t *values, net_buf_t *out) {
+    return modbus_rtu_encode_write_multiple_ex(slave_id, addr, quantity, values, false, out);
 }
 
 int modbus_rtu_encode_exception(uint8_t slave_id, uint8_t fc, uint8_t ex_code, net_buf_t *out) {
@@ -78,8 +124,8 @@ int modbus_rtu_encode_exception(uint8_t slave_id, uint8_t fc, uint8_t ex_code, n
     return 0;
 }
 
-int modbus_rtu_decode_frame(struct net_buf_simple *in, uint8_t *slave_id, uint8_t *fc,
-                            uint8_t **data_out, size_t *data_len) {
+int modbus_rtu_decode_frame_ex(struct net_buf_simple *in, bool hi_crc, uint8_t *slave_id,
+                               uint8_t *fc, uint8_t **data_out, size_t *data_len) {
     if (in->len < 4) return 1; // Incomplete
 
     uint8_t *p = in->data;
@@ -109,7 +155,7 @@ int modbus_rtu_decode_frame(struct net_buf_simple *in, uint8_t *slave_id, uint8_
                         return 1; // Incomplete
                     }
                     uint16_t crc_calc = modbus_calculate_crc(p, resp_len - 2);
-                    uint16_t crc_rx = (uint16_t)(p[resp_len - 2] | (p[resp_len - 1] << 8));
+                    uint16_t crc_rx = _get_crc(p, resp_len, hi_crc);
                     if (crc_calc == crc_rx) {
                         frame_len = resp_len;
                     } else {
@@ -129,7 +175,7 @@ int modbus_rtu_decode_frame(struct net_buf_simple *in, uint8_t *slave_id, uint8_
             case MODBUS_FC_WRITE_MULTIPLE_REGS:
                 if (in->len >= 8) {
                     uint16_t crc_calc = modbus_calculate_crc(p, 6);
-                    uint16_t crc_rx = (uint16_t)(p[6] | (p[7] << 8));
+                    uint16_t crc_rx = _get_crc(p, 8, hi_crc);
                     if (crc_calc == crc_rx) {
                         frame_len = 8;
                     } else {
@@ -148,7 +194,7 @@ int modbus_rtu_decode_frame(struct net_buf_simple *in, uint8_t *slave_id, uint8_
     if (frame_len == 0 || in->len < frame_len) return 1;
 
     uint16_t crc_calc = modbus_calculate_crc(p, frame_len - 2);
-    uint16_t crc_rx = (uint16_t)(p[frame_len - 2] | (p[frame_len - 1] << 8));
+    uint16_t crc_rx = _get_crc(p, frame_len, hi_crc);
     if (crc_calc != crc_rx) {
         fprintf(stderr, "❌ [MODBUS_GLOBAL_CRC] Len: %zu, Calc: %04X, RX: %04X\n", frame_len, crc_calc, crc_rx);
         return -1;
@@ -166,6 +212,11 @@ int modbus_rtu_decode_frame(struct net_buf_simple *in, uint8_t *slave_id, uint8_
     }
 
     return 0;
+}
+
+int modbus_rtu_decode_frame(struct net_buf_simple *in, uint8_t *slave_id, uint8_t *fc,
+                            uint8_t **data_out, size_t *data_len) {
+    return modbus_rtu_decode_frame_ex(in, false, slave_id, fc, data_out, data_len);
 }
 
 int modbus_rtu_decode_req_frame(struct net_buf_simple *in, uint8_t *slave_id, uint8_t *fc, 
@@ -236,7 +287,8 @@ int modbus_tcp_decode_mbap(struct net_buf_simple *in, uint16_t *tid, uint8_t *sl
 
     uint16_t total_len = (uint16_t)((p[4] << 8) | p[5]);
     if (total_len < 1) return -1;
-    if (in->len < (size_t)(MODBUS_TCP_HEADER_LEN + total_len)) return 1;
+    /* MBAP length 字段从 unit id 起算，不含前 6 字节；帧长 = 6 + total_len */
+    if (in->len < (size_t)(MODBUS_TCP_HEADER_LEN - 1 + total_len)) return 1;
 
     *slave_id = p[6];
     *pdu_len = (size_t)(total_len - 1);
@@ -268,6 +320,28 @@ int modbus_tcp_encode_write_single(uint16_t tid, uint8_t slave_id, uint16_t addr
     p[4] = (uint8_t)(value & 0xFF);
 
     modbus_tcp_encode_mbap(tid, slave_id, 5, out);
+    net_buf_simple_add_mem(&out->b, pdu->b.data, pdu->b.len);
+    net_buf_unref(pdu);
+    return 0;
+}
+
+int modbus_tcp_encode_write_multiple(uint16_t tid, uint8_t slave_id, uint16_t addr,
+                                     uint16_t quantity, const uint16_t *values, net_buf_t *out) {
+    if (!values || quantity == 0 || quantity > 123) return -1;
+    net_buf_t *pdu = net_buf_alloc(out->pool, 0);
+    uint8_t *p = net_buf_add(pdu, 6 + 2 * (size_t)quantity);
+    p[0] = MODBUS_FC_WRITE_MULTIPLE_REGS;
+    p[1] = (uint8_t)(addr >> 8);
+    p[2] = (uint8_t)(addr & 0xFF);
+    p[3] = (uint8_t)(quantity >> 8);
+    p[4] = (uint8_t)(quantity & 0xFF);
+    p[5] = (uint8_t)(quantity * 2);
+    for (uint16_t i = 0; i < quantity; i++) {
+        p[6 + 2 * i] = (uint8_t)(values[i] >> 8);
+        p[7 + 2 * i] = (uint8_t)(values[i] & 0xFF);
+    }
+
+    modbus_tcp_encode_mbap(tid, slave_id, (uint16_t)pdu->b.len, out);
     net_buf_simple_add_mem(&out->b, pdu->b.data, pdu->b.len);
     net_buf_unref(pdu);
     return 0;

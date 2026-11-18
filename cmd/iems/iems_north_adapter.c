@@ -33,6 +33,12 @@ static int _resolve_name(void *ctx_v, const char *name, uint32_t *tag_id) {
     return -1;
 }
 
+/* 控制写要落在点位实际所在的 bus 与协议上；没有轮询任务就没有路由，拒绝。 */
+static int _route_for_tag(iems_north_ctx_t *ctx, uint32_t tag_id, int *bus_id, char proto[16]) {
+    if (!ctx || !ctx->route_for_tag) return -1;
+    return ctx->route_for_tag(ctx->route_ctx, tag_id, bus_id, proto);
+}
+
 static int _on_downlink(void *ctx_v, const char *address, const uint8_t *payload, size_t len) {
     iems_north_ctx_t *ctx = (iems_north_ctx_t *)ctx_v;
     if (!ctx || !ctx->north) return -1;
@@ -54,7 +60,15 @@ static int _on_downlink(void *ctx_v, const char *address, const uint8_t *payload
         return -1;
     }
 
-    int rc = ctx->submit_control(ctx->submit_ctx, 0, tag_id, value, "ModbusRTU");
+    int bus_id = 0;
+    char proto[16] = "";
+    if (_route_for_tag(ctx, tag_id, &bus_id, proto) != 0) {
+        LOG_WARN(LOG_CAT_NB, "IEMS downlink on '%s': tag %u 没有轮询路由，拒绝", address, tag_id);
+        (void)northbound_mgr_publish_ack(north, tag_id, name, false);
+        return -1;
+    }
+
+    int rc = ctx->submit_control(ctx->submit_ctx, bus_id, tag_id, value, proto);
     (void)northbound_mgr_publish_ack(north, tag_id, name, rc == 0);
     return rc;
 }
@@ -72,7 +86,13 @@ static int _accept(void *ctx_v, uint32_t point_id, double value) {
 
     double sc = (map->scaler > 0.0) ? (double)map->scaler : 1.0;
     double eng = value * sc;
-    int rc = ctx->submit_control(ctx->submit_ctx, 0, map->tag_id, eng, "ModbusRTU");
+    int bus_id = 0;
+    char proto[16] = "";
+    if (_route_for_tag(ctx, map->tag_id, &bus_id, proto) != 0) {
+        LOG_WARN(LOG_CAT_NB, "IEMS north write: tag %u 没有轮询路由，拒绝", map->tag_id);
+        return -1;
+    }
+    int rc = ctx->submit_control(ctx->submit_ctx, bus_id, map->tag_id, eng, proto);
     LOG_INFO(LOG_CAT_NB, "IEMS north write: addr=%u tag=%u raw=%.0f eng=%.6g -> rc=%d",
              (unsigned)addr, map->tag_id, value, eng, rc);
     return rc;

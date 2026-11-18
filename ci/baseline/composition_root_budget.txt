@@ -17,9 +17,12 @@ cmd/dcu/main.c|225
 cmd/edge_mcp_server/main.c|183
 # 2026-11-13: cmd/iems/iems_app.c 558 -> 559；参数服务改用调用方存储。
 # 2026-11-17: cmd/iems/iems_app.c 559 -> 560；升级恢复注入 authz store，用于 grant 快照回放。
-cmd/iems/iems_app.c|560
+# 2026-11-18: cmd/iems/iems_app.c 560 -> 572；北向控制写按点位路由，注入 route_for_tag 端口。
+cmd/iems/iems_app.c|572
 cmd/iems/iems_north_listener.c|112
-cmd/iems/iems_southbound_adapter.c|133
+# 2026-11-18: cmd/iems/iems_southbound_adapter.c 133 -> 178；南向按 conn->type 选 UART，CAN 真设备明确未实现，UDS 路径保留。
+# 2026-11-18: cmd/iems/iems_southbound_adapter.c 178 -> 199；Modbus TCP 设备走 tcp://host:port，连不上仍计入缺失摘要。
+cmd/iems/iems_southbound_adapter.c|199
 cmd/iems/main.c|109
 # 2026-11-16: 组合根忽略 SIGPIPE（+1 调用 +1 include），应用崩溃后的 IPC 写入不得打死网关。
 cmd/nexus_lab/main.c|156
@@ -27,7 +30,8 @@ cmd/smart_box/main.c|90
 # 2026-11-09: core service 不再持有北向管理器；产品组合根显式 start/stop 北向 (+4 DCU, +1 IEMS)。
 # 2026-11-10: cmd/iems/iems_app.c 343 -> 347; SnF store port injection (+4).
 # 2026-11-10: north source adapter moved to bootstrap; product include adds one line (DCU 196->197, IEMS 347->348).
-modules/edge_north/src/northbound_mgr.c|711
+# 2026-11-18: northbound_mgr.c 711 -> 690；账本跟随实际行数，本次为收紧。
+modules/edge_north/src/northbound_mgr.c|690
 # 2026-11-10: edge_mcp_server hides tag-meta tool for metadata-less hub (+1).
 # 2026-11-10: iems_app.c 348 -> 346 after control port wiring cleanup.
 # 2026-11-11: north driver port injection in iEMS/DCU adapters (+4 each).

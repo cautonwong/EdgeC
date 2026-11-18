@@ -5,6 +5,7 @@
 
 #include "iems_driver_adapter.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -17,6 +18,7 @@
 
 /* 外部协议驱动模板声明 */
 extern const edge_driver_t modbus_rtu_driver;
+extern const edge_driver_t modbus_rtu_hicrc_driver;
 extern const edge_driver_t modbus_tcp_driver;
 extern const edge_driver_t iec104_driver;
 extern const edge_driver_t can_driver;
@@ -27,6 +29,7 @@ extern const edge_driver_t dlt645_driver;
  * ============================================================================== */
 static const edge_driver_reg_entry_t s_iems_driver_registry[] = {
     EDGE_DRIVER_ENTRY("ModbusRTU", modbus_rtu_driver),
+    EDGE_DRIVER_ENTRY("ModbusRTUHiCRC", modbus_rtu_hicrc_driver),
     EDGE_DRIVER_ENTRY("ModbusTCP", modbus_tcp_driver),
     EDGE_DRIVER_ENTRY("IEC104", iec104_driver),
     EDGE_DRIVER_ENTRY("CAN", can_driver),
@@ -39,6 +42,41 @@ static const size_t s_iems_driver_registry_count =
 int iems_driver_registry_init(const edge_driver_registry_port_t *registry) {
     if (!registry || !registry->register_table) return -1;
     return registry->register_table(registry->ctx, s_iems_driver_registry, s_iems_driver_registry_count);
+}
+
+/* 规范名必须与 s_iems_driver_registry 一致：会话层按名字查驱动。 */
+int iems_driver_protocol_canonical(const char *raw, char out[16]) {
+    static const struct {
+        const char *alias;
+        const char *canonical;
+    } aliases[] = {
+        {"MODBUS", "ModbusRTU"},     {"ModbusRTU", "ModbusRTU"},
+        /* iems_v3 的配置串：默认 modbus_rtu 是高字节先发 CRC，modbus_rtu_rcrc
+         * 才是标准低字节先发（src/libmodbus/modbus-rtu.c:156-172）。 */
+        {"modbus_rtu", "ModbusRTUHiCRC"},
+        {"modbus_rtu_rcrc", "ModbusRTU"},
+        {"ModbusRTUHiCRC", "ModbusRTUHiCRC"},
+        {"ModbusTCP", "ModbusTCP"},  {"IEC104", "IEC104"},
+        {"CAN", "CAN"},              {"DLT645", "DLT645"},
+        {"DLT645-2007", "DLT645"},
+    };
+    if (!raw || !out) return -1;
+
+    while (isspace((unsigned char)*raw)) raw++;
+    size_t len = strlen(raw);
+    while (len > 0 && isspace((unsigned char)raw[len - 1])) len--;
+    if (len == 0 || len >= 16) return -1;
+
+    char trimmed[16];
+    memcpy(trimmed, raw, len);
+    trimmed[len] = '\0';
+    for (size_t i = 0; i < sizeof(aliases) / sizeof(aliases[0]); i++) {
+        if (strcasecmp(trimmed, aliases[i].alias) == 0) {
+            strcpy(out, aliases[i].canonical);
+            return 0;
+        }
+    }
+    return -1;
 }
 
 /* ==============================================================================
@@ -137,6 +175,8 @@ static const void *iems_lookup_can_by_tag(uint32_t tag_id) {
     return NULL;
 }
 
+static const dlt645_map_t *iems_lookup_dlt645_by_tag(uint32_t tag_id);
+
 /* [ADR-002] 产品的点位标识 → 驱动认识的原生标识。
  * 645 的 DI 已由 dcu_driver_adapter_oad_to_proto 换好；CAN 的 CAN ID 在这里换。
  * 翻译必须在产品侧完成——驱动拿不到点位表，也不该拿到。 */
@@ -149,9 +189,15 @@ uint32_t iems_driver_adapter_native_id(const char *proto, uint32_t tag_id) {
     /* Modbus 已全部 request-native：点位 = 寄存器地址 + 寄存器个数。
      * 协议串有三种写法（ModbusRTU / ModbusTCP / MODBUS），都要覆盖。 */
     if (strcasecmp(proto, "ModbusTCP") == 0 || strcasecmp(proto, "ModbusRTU") == 0 ||
-        strcasecmp(proto, "Modbus") == 0) {
+        strcasecmp(proto, "ModbusRTUHiCRC") == 0 || strcasecmp(proto, "Modbus") == 0) {
         const modbus_map_t *m = (const modbus_map_t *)iems_lookup_modbus_by_tag(tag_id);
         if (m) return MODBUS_NATIVE((uint32_t)m->key, m->length ? m->length : 1);
+    }
+    /* DLT645 的点位是 DI；点表缺失时维持 tag_id，会发出无效 DI，现场表现为
+     * 异常应答或超时（DCU 侧同类翻译返回 0，两产品行为不同）。 */
+    if (strcasecmp(proto, "DLT645") == 0) {
+        const dlt645_map_t *m = iems_lookup_dlt645_by_tag(tag_id);
+        if (m) return (uint32_t)m->key;
     }
     /* IEC104 组 ASDU 要「类型标识 + IOA」，与 IEC101 同一套 32 位编码。
      * 表里没配 type_id 时按短浮点测量值（M_ME_NC_1）走。 */
@@ -178,11 +224,18 @@ double iems_driver_adapter_tag_scale(const char *proto, uint32_t tag_id) {
         /* Modbus：工程值 = raw / scaler，所以这里给倒数 */
         if (m && m->scaler > 0.0) return 1.0 / m->scaler;
     }
-    if (strcasecmp(proto, "ModbusRTU") == 0 || strcasecmp(proto, "Modbus") == 0) {
+    if (strcasecmp(proto, "ModbusRTU") == 0 || strcasecmp(proto, "ModbusRTUHiCRC") == 0 ||
+        strcasecmp(proto, "Modbus") == 0) {
         const modbus_map_t *m = (const modbus_map_t *)iems_lookup_modbus_by_tag(tag_id);
         /* ModbusRTU 的旧约定是 ×scaler（与 TCP 相反）。历史差异，不在这次
          * 改造里纠正——改数值口径要单独验证现场，混在重构里最危险。 */
         if (m && m->scaler > 0.0) return m->scaler;
+    }
+    if (strcasecmp(proto, "DLT645") == 0) {
+        /* DLT645-2007 的 DI 数据格式自带小数位（电压 XXX.X、功率 XX.XXXX），
+         * 驱动只回 BCD 整数，×scaler 才能还原工程值，与点表口径一致。 */
+        const dlt645_map_t *m = iems_lookup_dlt645_by_tag(tag_id);
+        if (m && m->scaler > 0.0f) return (double)m->scaler;
     }
     return 1.0;
 }
@@ -190,10 +243,12 @@ double iems_driver_adapter_tag_scale(const char *proto, uint32_t tag_id) {
 /* ==============================================================================
  * 5. DL/T 645-2007 静态测点映射表
  * ============================================================================== */
+/* DI 的数据格式自带小数位（电压 XXX.X V、电流 XXX.XXX A、有功功率 XX.XXXX kW、
+ * 电能 XXXXXX.XX kWh），scaler 把 BCD 整数换算到 tag 契约用的单位（W/V/A/kWh）。 */
 static const dlt645_map_t s_dlt645_points[] = {
     {.key = 0x02010100, .tag_id = IEMS_TAG_VOLTAGE_PHASE_A,   .dense_idx = 0, .scaler = 0.1f,   .length = 2, .access = 0x01},
     {.key = 0x02020100, .tag_id = IEMS_TAG_CURRENT_PHASE_A,   .dense_idx = 1, .scaler = 0.001f, .length = 3, .access = 0x01},
-    {.key = 0x02030000, .tag_id = IEMS_TAG_GRID_POWER,        .dense_idx = 2, .scaler = 0.0001f,.length = 3, .access = 0x01},
+    {.key = 0x02030000, .tag_id = IEMS_TAG_GRID_POWER,        .dense_idx = 2, .scaler = 0.1f,   .length = 3, .access = 0x01},
     {.key = 0x00010000, .tag_id = IEMS_TAG_ENERGY_ACTIVE_IMP, .dense_idx = 6, .scaler = 0.01f,  .length = 4, .access = 0x01},
 };
 static const size_t s_dlt645_points_count = sizeof(s_dlt645_points) / sizeof(s_dlt645_points[0]);
@@ -406,6 +461,13 @@ edge_tag_id_t edge_lookup_modbus(uint64_t addr, float *scale) {
         return (edge_tag_id_t)p->tag_id;
     }
     return 0;
+}
+
+static const dlt645_map_t *iems_lookup_dlt645_by_tag(uint32_t tag_id) {
+    for (size_t i = 0; i < s_dlt645_points_count; i++) {
+        if (s_dlt645_points[i].tag_id == tag_id) return &s_dlt645_points[i];
+    }
+    return NULL;
 }
 
 edge_tag_id_t edge_lookup_dlt645(uint64_t di, float *scale) {

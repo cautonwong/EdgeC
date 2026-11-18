@@ -295,7 +295,7 @@ sequenceDiagram
 | 产品 | 南向配置 | 北向配置 |
 |---|---|---|
 | DCU | SQLite `meter_inventory`（协议/波特率/通道）；轮询周期硬编码 5000 ms；`manifest.yaml` 由模拟器读取，产品代码不解析 | `MQTT_BROKER` 默认 `tcp://127.0.0.1:1883`；group/node 默认 `EdgeOS` / `DCU_Node_A`；`MQTT_PROTOCOL`；`DCU_NORTH_SOCK` |
-| IEMS | 静态连接表 + `OMNIS_BUS_<id>_DEV` 环境变量；`config/device_profile.json`；`manifest.yaml` / `world.yaml` / `omnis_manifest.json` 供模拟器与验收使用 | `mqtt_url` 默认 `tcp://localhost:1883`；`MQTT_PROTOCOL`；`IEMS_NORTH_SOCK` |
+| IEMS | 静态连接表 + `OMNIS_BUS_<id>_DEV` 环境变量；`config/device_profile.json`；`manifest.yaml` / `world.yaml` 供模拟器与验收使用 | `mqtt_url` 默认 `tcp://localhost:1883`；`MQTT_PROTOCOL`；`IEMS_NORTH_SOCK` |
 | SmartBox | 驱动注册表 + 静态槽位表；串口轮询硬编码 | `MQTT_BROKER`；`MQTT_PROTOCOL` |
 
 **配置面现状**：三份 `prj.conf` 基本不生效；产品代码不解析各自 `manifest.yaml`；协议/端点大量通过环境变量与代码默认值决定（已验证）。这与"主干加配置"的目标形态存在差距，但属于产品排期问题，本文只登记。

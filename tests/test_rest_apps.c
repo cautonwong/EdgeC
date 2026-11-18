@@ -61,8 +61,13 @@ static int teardown(void **state) {
 
 static void _trust_clock(sqlite_svc_t *db) {
     char reason[EDGE_TIME_TRUST_REASON_SIZE];
-    assert_int_equal(edge_time_trust_mark(db, edge_time_now_wall_ms(),
-                                          edge_time_now_monotonic_ms(), reason, sizeof(reason)),
+    /* WSL 的墙钟会小幅回跳；floor 若正好取"现在"，下一次读时钟比 floor 小时
+     * 安装会被判成 clock is untrusted（2026-11-18 全量跑复现过一次）。回退
+     * 5 秒做 floor，测试关心的不是这种亚秒级抖动。 */
+    uint64_t wall = edge_time_now_wall_ms();
+    assert_true(wall > 5000);
+    assert_int_equal(edge_time_trust_mark(db, wall - 5000, edge_time_now_monotonic_ms(), reason,
+                                          sizeof(reason)),
                      0);
 }
 

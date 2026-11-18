@@ -20,6 +20,9 @@ typedef struct {
     int (*submit_control)(void *ctx, int bus_id, uint32_t tag_id, double value,
                           const char *proto);
     void *submit_ctx;
+    /* 控制写的路由：按 tag 反查 bus 与协议，失败则拒绝，不再写死 bus 0。 */
+    int (*route_for_tag)(void *ctx, uint32_t tag_id, int *bus_id, char proto[16]);
+    void *route_ctx;
 } iems_north_ctx_t;
 
 const edge_north_source_ops_t *iems_north_source_ops(void);

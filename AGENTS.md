@@ -65,3 +65,24 @@ Multi-context: `CONTEXT-MAP.md` at the root points to per-context `CONTEXT.md` f
 - [x] 禁用 API 与写法 → `check_build_warnings.py` / `check_strncpy_bounds.py` / `check_ftell_checked.py` / `check_app_host_no_exec.py` / `check_net_buf_alloc_timeout.py` / `check_alloc_null.py`
 - [x] 命名与格式 → `.clang-format` / `.clang-tidy`
 - [x] 并发与性能预算 → CI 独立 `Run Performance Gates` 步骤（`EDGE_PERF_GATE=1`，阈值 `EDGE_PERF_P99_MS` / `EDGE_PERF_AVG_US`）；默认全量测试只打印延迟、不因调度噪声变红
+
+## 角色与分工
+
+假如你是`reviewer`或`verifier`,负责派活 调度 验证 验收 合并 和清理
+
+假如你是`dev`,日常提交不必逐个跑`ocr`(单次成本高);收工时对当日全部改动跑一次`ocr review`, 其使用方法见`/home/edge/ocr-open-code-review-usage-2026-11-18.md`
+
+## 收工流程
+
+当用户说"收工"时,你要按照以下步骤做:
+- 该合并的合并
+- 跑一遍本地CI
+- 对当日全部改动跑一次 `ocr review --audience agent`,建议 `--from <当日起点>`(日常提交不逐次跑)
+- 该清理的清理
+- 编写详细的交接文档到/home/edge目录下 文件名带有项目名+日期
+- 制作相对于远端最新的.patch 要求别人apply你的patch之后能跟你本地一模一样
+
+
+## 错误 → 守卫
+
+每修一个错误，在同一次改动里加一条可执行的守卫或正反夹具，并登记到 `ci/scripts/run_guard_selftest.py`。只写交接文档不算完成。

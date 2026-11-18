@@ -6,6 +6,8 @@
 #include <string.h>
 
 #include "contract_data_types.h"
+#include "edge_log.h"
+#include "iems_driver_adapter.h"
 
 typedef struct {
     iems_task_registered_cb on_task;
@@ -22,7 +24,6 @@ static int _load_tasks_sql_cb(void *user_data, int argc, char **argv, char **col
     uint32_t slave_id = argv[1] ? (uint32_t)atoi(argv[1]) : 1;
     if (slave_id == 0) slave_id = 1;
     uint32_t tag_id = argv[2] ? (uint32_t)atoi(argv[2]) : 0;
-    const char *proto = "MODBUS";
 
     // 封杀北向虚假轮询。Bus 10 仅供镜像，不准自发读写。
     if (bus_id == 10) return 0;
@@ -33,12 +34,44 @@ static int _load_tasks_sql_cb(void *user_data, int argc, char **argv, char **col
     task.slave_id = slave_id;
     task.tag_id = tag_id;
     task.dense_idx = 0;
-    strncpy(task.protocol, proto, sizeof(task.protocol) - 1);
     task.interval_ms = 1000;
+
+    if (iems_driver_protocol_canonical(argv[3], task.protocol) != 0) {
+        LOG_WARN(LOG_CAT_CORE, "IEMS task skipped: bus=%d slave=%u tag=%u protocol='%s'", bus_id,
+                 slave_id, tag_id, argv[3] ? argv[3] : "(null)");
+        return 0;
+    }
 
     ctx->on_task(&task, ctx->user_data);
     ctx->loaded_count++;
     return 0;
+}
+
+int iems_poll_task_route(sqlite_svc_t *db_svc, uint32_t tag_id, int *bus_id, char proto[16]) {
+    if (!db_svc || !bus_id || !proto) return -1;
+    sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle(db_svc);
+    if (!db) return -1;
+
+    const char *sql =
+        "SELECT t.bus_id, i.protocol FROM poll_tasks t INNER JOIN inventory i "
+        "ON t.device_id = i.id WHERE t.tag_id = ? AND t.bus_id <> 10 "
+        "ORDER BY t.bus_id LIMIT 1;";
+    sqlite3_stmt *stmt = NULL;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) return -1;
+    sqlite3_bind_int(stmt, 1, (int)tag_id);
+
+    int rc = -1;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        const char *raw = (const char *)sqlite3_column_text(stmt, 1);
+        char canonical[16];
+        if (iems_driver_protocol_canonical(raw, canonical) == 0) {
+            *bus_id = sqlite3_column_int(stmt, 0);
+            snprintf(proto, 16, "%s", canonical);
+            rc = 0;
+        }
+    }
+    sqlite3_finalize(stmt);
+    return rc;
 }
 
 int iems_poll_tasks_load(sqlite_svc_t *db_svc, iems_task_registered_cb on_task, void *user_data) {

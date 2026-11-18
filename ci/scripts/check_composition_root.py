@@ -45,6 +45,7 @@ ASSEMBLY_FUNCS = [
     "io_executor_create",
     "io_executor_create_from_fd",
     "io_executor_create_uart",
+    "io_executor_create_tcp",
     "driver_manager_create_in",
     "arbiter_create_in",
     "driver_instance_create",

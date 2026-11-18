@@ -30,6 +30,16 @@ typedef void (*iems_task_registered_cb)(const iems_loaded_task_t *task, void *us
  */
 int iems_poll_tasks_load(sqlite_svc_t *db_svc, iems_task_registered_cb on_task, void *user_data);
 
+/**
+ * @brief 按 tag 反查轮询任务的路由（bus + 规范协议名）。
+ *
+ * 北向控制写用它决定“这个点在哪条总线上”，取代写死 bus 0/ModbusRTU。
+ * bus 10 是北向镜像，不参与。
+ *
+ * @return 0 找到；-1 没有路由或参数/查询失败
+ */
+int iems_poll_task_route(sqlite_svc_t *db_svc, uint32_t tag_id, int *bus_id, char proto[16]);
+
 #ifdef __cplusplus
 }
 #endif

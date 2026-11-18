@@ -70,8 +70,9 @@ static int mb_tcp_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id, 
     p->raw_n = 0;
     p->is_write = is_write;
     p->value = value;
-    /* 单寄存器写：多写需要连续 raw 数组，请求模型只带一个标量，显式拒绝 */
-    if (is_write && p->quantity != 1) return -1;
+    /* 写只支持 1 个寄存器（FC06）或 2 个（FC16 拼 32 位量）；更多寄存器需要
+     * 数组请求模型，当前只带一个标量，显式拒绝而不是截断。 */
+    if (is_write && p->quantity > 2) return -1;
     return 0;
 }
 
@@ -80,6 +81,12 @@ static int mb_tcp_req_encode(void *priv, void *session, net_buf_t *out) {
     modbus_tcp_req_t *p = (modbus_tcp_req_t *)priv;
     if (!p || !out) return -1;
     if (p->is_write) {
+        if (p->quantity == 2) {
+            /* 32 位量按 ABCD 拆两个寄存器，与读路径的合包顺序相反 */
+            uint32_t v = (uint32_t)p->value;
+            uint16_t regs[2] = {(uint16_t)(v >> 16), (uint16_t)(v & 0xFFFF)};
+            return modbus_tcp_encode_write_multiple(p->tid, p->slave_id, p->addr, 2, regs, out);
+        }
         return modbus_tcp_encode_write_single(p->tid, p->slave_id, p->addr, (uint16_t)p->value,
                                               out);
     }
@@ -106,10 +113,12 @@ static int mb_tcp_req_decode(void *priv, void *session, const uint8_t *buf, size
     int rc = modbus_tcp_decode_mbap(&nb, &tid, &slave, &pdu_len);
     if (rc != 0) return (rc == 1) ? EDGE_ERR_INCOMPLETE : -1;
 
-    *consumed = MODBUS_TCP_HEADER_LEN + pdu_len + 1;
+    *consumed = MODBUS_TCP_HEADER_LEN + pdu_len;
 
     /* 不是本会话的从站：不认，让调用方继续找 */
     if (p->slave_id != 0 && slave != p->slave_id) return EDGE_ERR_INCOMPLETE;
+    /* 事务号对不上是上一笔请求的迟到应答，跳过而不是拿它结算当前请求 */
+    if (tid != p->tid) return EDGE_ERR_INCOMPLETE;
 
     net_buf_simple_pull(&nb, MODBUS_TCP_HEADER_LEN);
     if (pdu_len < 2) return -1;
@@ -117,6 +126,28 @@ static int mb_tcp_req_decode(void *priv, void *session, const uint8_t *buf, size
     uint8_t fc = nb.data[0];
     if (fc & 0x80) {
         LOG_WARN(LOG_CAT_IO, "ModbusTCP: exception fc=0x%02X code=%d", fc, nb.data[1]);
+        return -1;
+    }
+    /* 写应答不能结算读请求，反之亦然 */
+    if (p->is_write) {
+        if (fc == MODBUS_FC_WRITE_SINGLE_REG) {
+            /* 写应答是原帧回显：地址或值对不上说明从站没照做，不能当成功 */
+            if (pdu_len < 5) return -1;
+            uint16_t addr = (uint16_t)((nb.data[1] << 8) | nb.data[2]);
+            uint16_t raw = (uint16_t)((nb.data[3] << 8) | nb.data[4]);
+            if (addr != p->addr || raw != (uint16_t)p->value) return -1;
+            if (out_value) *out_value = (double)raw;
+            return 0;
+        }
+        if (fc == MODBUS_FC_WRITE_MULTIPLE_REGS) {
+            /* FC16 应答只回地址与数量，不回写值 */
+            if (pdu_len < 5) return -1;
+            uint16_t addr = (uint16_t)((nb.data[1] << 8) | nb.data[2]);
+            uint16_t count = (uint16_t)((nb.data[3] << 8) | nb.data[4]);
+            if (addr != p->addr || count != p->quantity) return -1;
+            if (out_value) *out_value = 0.0;
+            return 0;
+        }
         return -1;
     }
     if (fc != MODBUS_FC_READ_HOLDING_REGS && fc != MODBUS_FC_READ_INPUT_REGS) return -1;
@@ -133,8 +164,15 @@ static int mb_tcp_req_decode(void *priv, void *session, const uint8_t *buf, size
     for (uint16_t i = 0; i < n; i++) {
         p->raw[i] = (uint16_t)((nb.data[2 + 2 * i] << 8) | nb.data[3 + 2 * i]);
     }
-    /* 只回原始寄存器值；工程值 = raw / scaler，由调用方按点位表换算 */
-    if (out_value) *out_value = p->raw_n ? (double)p->raw[0] : 0.0;
+    /* 只回原始寄存器值。32 位量（2 个寄存器）按 ABCD 合包，与 RTU 驱动一致；
+     * 工程值由调用方按点位表换算。 */
+    if (out_value) {
+        if (p->raw_n >= 2 && p->quantity == 2) {
+            *out_value = (double)(((uint32_t)p->raw[0] << 16) | p->raw[1]);
+        } else {
+            *out_value = p->raw_n ? (double)p->raw[0] : 0.0;
+        }
+    }
     return 0;
 }
 
@@ -160,7 +198,7 @@ static int mb_tcp_req_slave_exchange(void *priv, void *session, const uint8_t *i
     int rc = modbus_tcp_decode_mbap(&nb, &tid, &slave, &pdu_len);
     if (rc != 0) return (rc == 1) ? EDGE_ERR_INCOMPLETE : -1;
 
-    *consumed = MODBUS_TCP_HEADER_LEN + pdu_len + 1;
+    *consumed = MODBUS_TCP_HEADER_LEN + pdu_len;
 
     /* 只应答本机地址；地址不匹配就当不是给我的，跳过去 */
     if (p->slave_id != 0 && slave != p->slave_id) return 1;

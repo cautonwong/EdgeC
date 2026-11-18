@@ -37,6 +37,7 @@
 #include "iems_execution_adapter.h"
 #include "iems_internal_bus_adapter.h"
 #include "iems_north_adapter.h"
+#include "iems_task_loader.h"
 #include "iems_north_listener.h"
 #include "iems_poll_scheduler.h"
 #include "iems_pressure_adapter.h"
@@ -177,6 +178,17 @@ static void _on_reconcile_timer(uv_timer_t* timer) {
 static bool _iems_production_env(void) {
     const char *env = getenv("EDGE_ENV");
     return env && (strcmp(env, "production") == 0 || strcmp(env, "prod") == 0);
+}
+
+static int _iems_north_route_for_tag(void *ctx, uint32_t tag_id, int *bus_id, char proto[16]) {
+    return iems_poll_task_route((sqlite_svc_t *)ctx, tag_id, bus_id, proto);
+}
+
+/* 北向控制写的取数与路由都在产品侧：driver 不认识点位模型。 */
+static void _iems_north_bind(iems_north_ctx_t *adapter, void *north, sqlite_svc_t *db) {
+    adapter->north = north;
+    adapter->route_for_tag = _iems_north_route_for_tag;
+    adapter->route_ctx = db;
 }
 
 static int _iems_stream_submit_control(void* ctx, int bus_id, uint32_t tag_id, double value,
@@ -381,7 +393,7 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     northbound_mgr_set_address(app->north, NULL, getenv("MQTT_GROUP_ID"),
                                getenv("MQTT_NODE_ID"));
     /* 北向取数端口：metric 名与当前值由产品给，驱动不反查 datahub。 */
-    app->north_adapter.north = app->north;
+    _iems_north_bind(&app->north_adapter, app->north, app->db_service);
     northbound_mgr_set_north_source(app->north, iems_north_source_ops(),
                                     &app->north_adapter);
     /* 协议可由部署选（E2E 用 MqttJson：载荷是 JSON，平台侧能解；
