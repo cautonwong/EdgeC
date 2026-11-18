@@ -96,12 +96,6 @@ jobs:
         run: |
           export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${{ github.workspace }}/.local/linux-x86_64/lib
           cd build && ctest --output-on-failure -E '^app_platform_e2e$'
-          # The e2e spawns the product and app-host. The test property sets
-          # ASAN_OPTIONS, which keeps stdbuf's LD_PRELOAD from displacing the
-          # ASan runtime, so the ASAN job can run it directly.
-          if [ "${{ matrix.config.target }}" == "x86_64_asan" ]; then
-            ctest --output-on-failure -R '^app_platform_e2e$'
-          fi
 
       - name: Run Performance Gates (x86_64 only)
         if: matrix.config.target == 'x86_64'

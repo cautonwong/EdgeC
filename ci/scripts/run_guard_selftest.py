@@ -280,6 +280,13 @@ TEST_MATRIX = [
         "arg_flag": "--root"
     },
     {
+        "guard_name": "check_privileged_test_runs.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_privileged_test_runs.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_privileged_test_runs"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_privileged_test_runs"),
+        "arg_flag": "--root"
+    },
+    {
         "guard_name": "check_test_io_eintr.py",
         "script": os.path.join(SCRIPTS_DIR, "check_test_io_eintr.py"),
         "good_target": os.path.join(FIXTURES_DIR, "good_test_io_eintr"),
@@ -493,6 +500,7 @@ def main():
         "check_app_export_dispatch.py",
         "check_sdk_signature.py",
         "check_protocol_selection.py",
+        "check_privileged_test_runs.py",
     ]:
         script_path = os.path.join(SCRIPTS_DIR, script_name)
         flag = "--file" if "dependencies" in script_name or "exemptions" in script_name else "--root"
