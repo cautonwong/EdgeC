@@ -160,6 +160,43 @@ static void test_modbus_tcp_mbap_accepts_full_frame(void** state) {
     assert_int_equal(modbus_tcp_decode_mbap(&nb, &tid, &slave, &pdu_len), 1);
 }
 
+/* MBAP 坏帧必须确定性拒绝：协议号非 0、length=0、length 超过 254
+ * （unit id + PDU 253）都要返回协议错误而不是 INCOMPLETE。修复前超长
+ * 声明只能等 2s 事务超时才能重同步。 */
+static void test_modbus_tcp_mbap_rejects_bad_frames(void** state) {
+    (void)state;
+    uint16_t tid = 0;
+    uint8_t slave = 0;
+    size_t pdu_len = 0;
+    struct net_buf_simple nb;
+
+    uint8_t proto_bad[] = {0x00, 0x2A, 0x00, 0x01, 0x00, 0x05, 0x01, 0x03, 0x02, 0x12, 0x34};
+    net_buf_simple_init_with_data(&nb, proto_bad, sizeof(proto_bad));
+    nb.len = sizeof(proto_bad);
+    assert_int_equal(modbus_tcp_decode_mbap(&nb, &tid, &slave, &pdu_len), -1);
+
+    uint8_t len_zero[] = {0x00, 0x2A, 0x00, 0x00, 0x00, 0x00, 0x01};
+    net_buf_simple_init_with_data(&nb, len_zero, sizeof(len_zero));
+    nb.len = sizeof(len_zero);
+    assert_int_equal(modbus_tcp_decode_mbap(&nb, &tid, &slave, &pdu_len), -1);
+
+    /* 完整 261 字节帧，声明 length=255：PDU 超限，必须拒绝 */
+    uint8_t overlong[MODBUS_TCP_HEADER_LEN - 1 + 255];
+    memset(overlong, 0, sizeof(overlong));
+    overlong[1] = 0x2A;
+    overlong[5] = 255;
+    overlong[6] = 1;
+    net_buf_simple_init_with_data(&nb, overlong, sizeof(overlong));
+    nb.len = sizeof(overlong);
+    assert_int_equal(modbus_tcp_decode_mbap(&nb, &tid, &slave, &pdu_len), -1);
+
+    /* 声明 60000 字节、实际只有 7 字节：确定性协议错误，不是 INCOMPLETE */
+    uint8_t huge_len[] = {0x00, 0x2A, 0x00, 0x00, 0xEA, 0x60, 0x01};
+    net_buf_simple_init_with_data(&nb, huge_len, sizeof(huge_len));
+    nb.len = sizeof(huge_len);
+    assert_int_equal(modbus_tcp_decode_mbap(&nb, &tid, &slave, &pdu_len), -1);
+}
+
 /* TCP 多寄存器读要像 RTU 一样按 ABCD 合包。修复前只回 raw[0]，32 位量的
  * 高字被丢掉，读回 0，写入也就无从校验。 */
 static void test_modbus_tcp_read_combines_two_regs(void** state) {
@@ -208,6 +245,143 @@ static void test_modbus_tcp_read_skips_stale_tid(void** state) {
     assert_int_equal(modbus_tcp_driver.req_decode(priv, NULL, resp, sizeof(resp), &consumed, &value),
                      EDGE_ERR_INCOMPLETE);
     assert_int_equal(consumed, sizeof(resp));
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+}
+
+/* 读应答 byte_count 必须是偶数且等于 quantity*2。修复前奇数被向下取整，
+ * byte_count=1 会以 raw_n=0、值 0.0 成功结算，畸形帧被当成"值 0"。 */
+static void test_modbus_tcp_read_rejects_bad_byte_count(void** state) {
+    (void)state;
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 4, 256, 0, NULL, NULL), 0);
+
+    alignas(max_align_t) uint8_t priv[256];
+    memset(priv, 0, sizeof(priv));
+    assert_int_equal(modbus_tcp_driver.req_prepare(priv, 1, MODBUS_NATIVE(5, 1), NULL, 0, NULL, 0,
+                                                   false, 0.0),
+                     0);
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_int_equal(modbus_tcp_driver.req_encode(priv, NULL, out), 0);
+
+    size_t consumed = 0;
+    double value = 0.0;
+    /* byte_count=1：奇数 */
+    uint8_t odd[] = {out->b.data[0], out->b.data[1], 0, 0, 0, 4, 1, 3, 1, 0x12};
+    assert_int_equal(modbus_tcp_driver.req_decode(priv, NULL, odd, sizeof(odd), &consumed, &value),
+                     -1);
+
+    /* quantity=1 却回 4 字节（2 个寄存器） */
+    uint8_t wide[] = {out->b.data[0], out->b.data[1], 0, 0, 0, 7, 1, 3,
+                      4,             0x00,           0x01, 0x86, 0xA0};
+    assert_int_equal(modbus_tcp_driver.req_decode(priv, NULL, wide, sizeof(wide), &consumed, &value),
+                     -1);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+}
+
+/* TCP 是字节流：一帧可能分多次到达，也可能一次到达多帧。驱动必须用
+ * consumed 告诉调用方消费了多少，INCOMPLETE 时也要消费掉已完整的前导帧，
+ * 否则粘包里的迟到帧会永远卡住当前请求。 */
+static void test_modbus_tcp_read_split_and_coalesced(void** state) {
+    (void)state;
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 4, 256, 0, NULL, NULL), 0);
+
+    alignas(max_align_t) uint8_t priv[256];
+    memset(priv, 0, sizeof(priv));
+    assert_int_equal(modbus_tcp_driver.req_prepare(priv, 1, MODBUS_NATIVE(5, 1), NULL, 0, NULL, 0,
+                                                   false, 0.0),
+                     0);
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_int_equal(modbus_tcp_driver.req_encode(priv, NULL, out), 0);
+
+    uint8_t resp[] = {out->b.data[0], out->b.data[1], 0, 0, 0, 5, 1, 3, 2, 0x12, 0x34};
+    size_t consumed = 0;
+    double value = 0.0;
+
+    /* 拆包：前 5 字节不足一个 MBAP 头，报 INCOMPLETE 且不消费 */
+    assert_int_equal(modbus_tcp_driver.req_decode(priv, NULL, resp, 5, &consumed, &value),
+                     EDGE_ERR_INCOMPLETE);
+    assert_int_equal(consumed, 0);
+    assert_int_equal(modbus_tcp_driver.req_decode(priv, NULL, resp, sizeof(resp), &consumed, &value),
+                     0);
+    assert_int_equal(consumed, sizeof(resp));
+    assert_true(value == 0x1234);
+
+    /* 粘包：匹配帧在前、迟到帧在后，只结算第一帧 */
+    uint8_t two[22];
+    memcpy(two, resp, sizeof(resp));
+    memcpy(two + sizeof(resp), resp, sizeof(resp));
+    two[sizeof(resp)] ^= 0x01; /* 第二帧换一个事务号，模拟迟到应答 */
+    assert_int_equal(modbus_tcp_driver.req_decode(priv, NULL, two, sizeof(two), &consumed, &value),
+                     0);
+    assert_int_equal(consumed, sizeof(resp));
+    assert_true(value == 0x1234);
+
+    /* 粘包：迟到帧在前、匹配帧在后，先消费前导帧，再用剩下的成功 */
+    uint8_t stale_first[22];
+    memcpy(stale_first, resp, sizeof(resp));
+    memcpy(stale_first + sizeof(resp), resp, sizeof(resp));
+    stale_first[0] ^= 0x01;
+    assert_int_equal(modbus_tcp_driver.req_decode(priv, NULL, stale_first, sizeof(stale_first),
+                                                  &consumed, &value),
+                     EDGE_ERR_INCOMPLETE);
+    assert_int_equal(consumed, sizeof(resp));
+    assert_int_equal(modbus_tcp_driver.req_decode(priv, NULL, stale_first + sizeof(resp),
+                                                  sizeof(resp), &consumed, &value),
+                     0);
+    assert_true(value == 0x1234);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+}
+
+/* 事务号 uint16_t 回绕：0xFFFF 的下一笔是 0。TID 0 的应答必须结算，
+ * 其余（包括 0xFFFF）都是迟到帧。 */
+static void test_modbus_tcp_tid_wrap(void** state) {
+    (void)state;
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 4, 256, 0, NULL, NULL), 0);
+
+    alignas(max_align_t) uint8_t priv[256];
+    memset(priv, 0, sizeof(priv));
+
+    uint16_t tid = 0;
+    for (int i = 0; i < 0x10000; i++) {
+        assert_int_equal(modbus_tcp_driver.req_prepare(priv, 1, MODBUS_NATIVE(5, 1), NULL, 0, NULL,
+                                                       0, false, 0.0),
+                         0);
+        net_buf_t* out = net_buf_alloc(&pool, 0);
+        assert_non_null(out);
+        assert_int_equal(modbus_tcp_driver.req_encode(priv, NULL, out), 0);
+        tid = (uint16_t)((out->b.data[0] << 8) | out->b.data[1]);
+        net_buf_unref(out);
+        if (tid == 0xFFFF) break;
+    }
+    assert_int_equal(tid, 0xFFFF);
+
+    assert_int_equal(modbus_tcp_driver.req_prepare(priv, 1, MODBUS_NATIVE(5, 1), NULL, 0, NULL, 0,
+                                                   false, 0.0),
+                     0);
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_int_equal(modbus_tcp_driver.req_encode(priv, NULL, out), 0);
+    assert_int_equal(out->b.data[0], 0);
+    assert_int_equal(out->b.data[1], 0);
+
+    size_t consumed = 0;
+    double value = 0.0;
+    uint8_t resp_ff[] = {0xFF, 0xFF, 0, 0, 0, 5, 1, 3, 2, 0x12, 0x34};
+    assert_int_equal(modbus_tcp_driver.req_decode(priv, NULL, resp_ff, sizeof(resp_ff), &consumed,
+                                                  &value),
+                     EDGE_ERR_INCOMPLETE);
+    uint8_t resp_0[] = {0x00, 0x00, 0, 0, 0, 5, 1, 3, 2, 0x12, 0x34};
+    assert_int_equal(modbus_tcp_driver.req_decode(priv, NULL, resp_0, sizeof(resp_0), &consumed,
+                                                  &value),
+                     0);
+    assert_true(value == 0x1234);
+
     net_buf_unref(out);
     net_buf_pool_destroy(&pool);
 }
@@ -309,8 +483,12 @@ int main(void) {
         cmocka_unit_test(test_modbus_rtu_write_rejects_multi_reg),
         cmocka_unit_test(test_modbus_rtu_write32_encodes_fc16),
         cmocka_unit_test(test_modbus_tcp_mbap_accepts_full_frame),
+        cmocka_unit_test(test_modbus_tcp_mbap_rejects_bad_frames),
         cmocka_unit_test(test_modbus_tcp_read_combines_two_regs),
         cmocka_unit_test(test_modbus_tcp_read_skips_stale_tid),
+        cmocka_unit_test(test_modbus_tcp_read_rejects_bad_byte_count),
+        cmocka_unit_test(test_modbus_tcp_read_split_and_coalesced),
+        cmocka_unit_test(test_modbus_tcp_tid_wrap),
         cmocka_unit_test(test_modbus_rtu_read_rejects_write_echo),
         cmocka_unit_test(test_modbus_rtu_hicrc_wire_order),
         cmocka_unit_test(test_modbus_rtu_hicrc_driver_encodes),

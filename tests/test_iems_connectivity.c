@@ -18,7 +18,7 @@ static void test_product_local_connectivity(void **state) {
     (void)state;
     uint32_t count = 0;
     const edge_connectivity_t *channels = iems_get_connectivity(&count);
-    assert_int_equal(count, 4);
+    assert_int_equal(count, 5);
 
     const edge_connectivity_t *adc = find_channel(channels, count, 200);
     assert_non_null(adc);
@@ -31,6 +31,12 @@ static void test_product_local_connectivity(void **state) {
     assert_non_null(north);
     assert_string_equal(north->category, "NORTHBOUND");
     assert_string_equal(north->production_path, "/dev/ttyS2");
+
+    /* IEC104 是 TCP 端点，不是 UDS 路径；id 必须在 IEMS_MAX_VBUS 内。 */
+    const edge_connectivity_t *iec = find_channel(channels, count, 11);
+    assert_non_null(iec);
+    assert_string_equal(iec->category, "NORTHBOUND");
+    assert_string_equal(iec->type, "IEC104");
 }
 
 int main(void) {

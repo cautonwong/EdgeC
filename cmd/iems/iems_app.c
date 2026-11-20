@@ -37,6 +37,7 @@
 #include "iems_execution_adapter.h"
 #include "iems_internal_bus_adapter.h"
 #include "iems_north_adapter.h"
+#include "iems_north_iec104.h"
 #include "iems_task_loader.h"
 #include "iems_north_listener.h"
 #include "iems_poll_scheduler.h"
@@ -89,14 +90,14 @@ struct iems_app_s {
     edge_params_storage_t pipeline_params_storage;
     edge_params_store_t pipeline_param_store;
     iems_control_ctx_t control_ctx;
+    iems_control_write_ctx_t control_write_ctx;
     rest_control_port_t control;
 
     iems_poll_scheduler_t poll;
     iems_internal_bus_t internal_bus;
 
     bool buses_attempted;
-    bus_conn_state_t bus_state[IEMS_MAX_VBUS];
-
+    iems_bus_wiring_t wiring;
     bool monitor_initialized;
     uv_timer_t timer_monitor;
 
@@ -112,6 +113,7 @@ struct iems_app_s {
 
     iems_ui_channel_t ui;
     iems_north_listener_t north_listener;
+    iems_north_iec104_t north_iec104;
     rest_uds_server_t* ctl_server;
     iems_app_runtime_t* app_runtime;
 };
@@ -180,34 +182,18 @@ static bool _iems_production_env(void) {
     return env && (strcmp(env, "production") == 0 || strcmp(env, "prod") == 0);
 }
 
-static int _iems_north_route_for_tag(void *ctx, uint32_t tag_id, int *bus_id, char proto[16]) {
-    return iems_poll_task_route((sqlite_svc_t *)ctx, tag_id, bus_id, proto);
-}
-
 /* 北向控制写的取数与路由都在产品侧：driver 不认识点位模型。 */
 static void _iems_north_bind(iems_north_ctx_t *adapter, void *north, sqlite_svc_t *db) {
     adapter->north = north;
-    adapter->route_for_tag = _iems_north_route_for_tag;
+    adapter->route_for_tag = iems_control_route_for_tag;
     adapter->route_ctx = db;
-}
-
-static int _iems_stream_submit_control(void* ctx, int bus_id, uint32_t tag_id, double value,
-                                       const char* proto) {
-    iems_app_t* app = (iems_app_t*)ctx;
-    if (!app || !app->node) return -1;
-
-    int rc = iems_node_write_tag(app->node, bus_id, tag_id, value, proto);
-    if (rc < 0) {
-        LOG_WARN(LOG_CAT_CORE, "IEMS control write rejected by aggregate root (rc=%d)", rc);
-    }
-    return rc;
 }
 
 int iems_app_connect_buses(iems_app_t* app, int* configured) {
     if (configured) *configured = 0;
     if (!app) return -1;
-    int rc =
-        iems_southbound_connect(app->loop, app->hub, app->orch, app->bus_state, configured);
+    int rc = iems_southbound_connect_in(app->loop, app->hub, app->orch, app->wiring.state,
+                                        app->wiring.link, NULL, configured);
     app->buses_attempted = (rc >= 0);  // 只在装配契约可用时才算「连过了」
     return rc;
 }
@@ -237,9 +223,11 @@ static double _iems_pipeline_config_double(void *ctx, const char *key, double de
 }
 
 static pipeline_loader_ctx_t _iems_loader_ctx(iems_app_t* app) {
+    app->control_write_ctx = (iems_control_write_ctx_t){.node = app->node, .db = app->db_service};
     pipeline_loader_ctx_t ctx = {
         .db = stream_sqlite_port_from_sqlite(app->db_service),
-        .control_ops = {.ctx = app, .submit_control = _iems_stream_submit_control},
+        .control_ops = {.ctx = &app->control_write_ctx,
+                        .submit_control = iems_control_submit_by_tag},
         .config = {.ctx = app->pipeline_params,
                    .get_double = _iems_pipeline_config_double},
         .audit_secret = getenv("VPP_AUDIT_SECRET"),
@@ -275,6 +263,24 @@ static void _reactivate_desired_apps(iems_app_t* app) {
     }
 }
 
+/* 南向主站与 Modbus 北向从站；IEC104 北向需要 db 路由，由 iems_north_iec104_init 接线。 */
+static void _setup_buses(iems_app_t* app) {
+    uint32_t conn_count = 0;
+    const edge_connectivity_t* conns = iems_get_connectivity(&conn_count);
+    for (uint32_t i = 0; i < conn_count; i++) {
+        const edge_connectivity_t* conn = &conns[i];
+        if (strcmp(conn->category, "SOUTHBOUND") == 0) {
+            bus_orchestrator_setup_master(app->orch, conn->id, "ModbusRTU", (uint32_t)conn->id);
+        } else if (strcmp(conn->category, "NORTHBOUND") == 0) {
+            if (conn->type && strcmp(conn->type, "IEC104") == 0) continue;
+            bus_orchestrator_setup_slave(app->orch, conn->id, "ModbusRTU", 1);
+            /* 从站应答的"当前值"由产品给：驱动不认识点位模型 */
+            bus_orchestrator_set_slave_source(app->orch, conn->id, iems_north_slave_ops(),
+                                              &app->north_adapter);
+        }
+    }
+}
+
 iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     if (!loop) return NULL;
 
@@ -304,8 +310,8 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     app->hub = iems_node_get_datahub(app->node);
     app->north_adapter.node = app->node;
     app->north_adapter.hub = app->hub;
-    app->north_adapter.submit_control = _iems_stream_submit_control;
-    app->north_adapter.submit_ctx = app;
+    app->north_adapter.submit_control = iems_control_submit;
+    app->north_adapter.submit_ctx = app->node;
     iems_node_set_execution_port(app->node, iems_execution_port_create(app));
 
     // =========================================================================
@@ -315,8 +321,7 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     const char* wal_path = (cfg && cfg->wal_path) ? cfg->wal_path : "/tmp/edgeos_wal.log";
     const char* snap_path = (cfg && cfg->snap_path) ? cfg->snap_path : "/tmp/edgeos_snapshot.bin";
     datahub_load_snapshot(app->hub, snap_path);
-    datahub_enable_wal(app->hub, wal_path);
-    datahub_replay_wal(app->hub);
+    (void)iems_app_wal_start(app->hub, wal_path);
     datahub_start_compaction(app->hub, 300000, snap_path);
 
     // =========================================================================
@@ -334,19 +339,7 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     datahub_bind_io_pool(app->hub, bus_orchestrator_get_pool(app->orch));
     edge_api_init(app->orch);
 
-    uint32_t conn_count = 0;
-    const edge_connectivity_t* conns = iems_get_connectivity(&conn_count);
-    for (uint32_t i = 0; i < conn_count; i++) {
-        const edge_connectivity_t* conn = &conns[i];
-        if (strcmp(conn->category, "SOUTHBOUND") == 0) {
-            bus_orchestrator_setup_master(app->orch, conn->id, "ModbusRTU", (uint32_t)conn->id);
-        } else if (strcmp(conn->category, "NORTHBOUND") == 0) {
-            bus_orchestrator_setup_slave(app->orch, conn->id, "ModbusRTU", 1);
-            /* 从站应答的"当前值"由产品给：驱动不认识点位模型 */
-            bus_orchestrator_set_slave_source(app->orch, conn->id, iems_north_slave_ops(),
-                                              &app->north_adapter);
-        }
-    }
+    _setup_buses(app);
 
     // =========================================================================
     // Phase 4: 本地持久化与流计算引擎 (SQLite & StreamEngine)
@@ -456,7 +449,11 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     if (cfg && cfg->rest_bind) rest_limits.bind_addr = cfg->rest_bind;
     /* 旧 raw wasm 上传入口默认关闭；只有显式配置才恢复，供迁移期使用。 */
     rest_server_set_legacy_upload(cfg && cfg->rest_legacy_upload);
-    rest_server_create_in_ex(NULL, loop, app->svc, rest_port, &rest_limits);
+    if (!rest_server_create_in_ex(NULL, loop, app->svc, rest_port, &rest_limits)) {
+        /* 管理面起不来就是启动失败;具体绑定错误已由 rest_server 打印。 */
+        iems_app_destroy(app);
+        return NULL;
+    }
 
     const char* ctl_sock = getenv("EDGEC_APPCTL_SOCK");
     if (!ctl_sock || !ctl_sock[0]) ctl_sock = "/tmp/edgeos_appctl.sock";
@@ -469,8 +466,16 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
         (cfg && cfg->ui_sock && cfg->ui_sock[0]) ? cfg->ui_sock : EDGE_UI_SOCKET_PATH;
     iems_ui_channel_start(&app->ui, loop, app->hub, ui_path);
 
+    /* IEC104 是 TCP 端点；路由与取值依赖 db/聚合根，故在两者就绪后接线。 */
+    const char* iec_host = getenv("IEMS_IEC104_HOST");
+    const char* iec_port_env = getenv("IEMS_IEC104_PORT");
+    if (iems_north_iec104_init(&app->north_iec104, loop, app->hub, app->orch, app->node,
+                               app->db_service, iec_host ? iec_host : "0.0.0.0",
+                               (iec_port_env && *iec_port_env) ? atoi(iec_port_env) : 2404) != 0)
+        LOG_ERROR(LOG_CAT_CORE, "IEMS-INIT: IEC104 northbound listener unavailable");
+
     iems_north_listener_start(&app->north_listener, loop, app->hub, app->orch,
-                              (cfg ? cfg->north_sock : NULL), app->bus_state);
+                              (cfg ? cfg->north_sock : NULL), app->wiring.state);
 
     _start_app_management(app);
     return app;
@@ -532,9 +537,10 @@ void iems_app_destroy(iems_app_t* app) {
 
     iems_ui_channel_close(&app->ui);
     iems_north_listener_close(&app->north_listener);
+    iems_north_iec104_close(&app->north_iec104);
     rest_uds_server_stop(app->ctl_server);
     app->ctl_server = NULL;
-
+    iems_tcp_link_close_all(app->wiring.link, IEMS_MAX_VBUS);
     uv_run(app->loop, UV_RUN_NOWAIT);
 
     /* 异步 app 任务完成回调还会用 app_mgr 与 stream_engine，先排空再拆。 */

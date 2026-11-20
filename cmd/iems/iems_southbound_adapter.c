@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -45,8 +46,27 @@ iems_bus_transport_t iems_southbound_transport_for(const char *type, const char 
     return IEMS_BUS_UDS;
 }
 
+int iems_southbound_parse_baud(const char *value, uint32_t *baud_out) {
+    if (!value || !baud_out) return -1;
+    errno = 0;
+    char *end = NULL;
+    unsigned long parsed = strtoul(value, &end, 10);
+    if (end == value || *end != '\0' || errno == ERANGE || parsed > (unsigned long)UINT32_MAX) {
+        return -1;
+    }
+    if (!io_executor_uart_baud_supported((uint32_t)parsed)) return -1;
+    *baud_out = (uint32_t)parsed;
+    return 0;
+}
+
 int iems_southbound_connect(uv_loop_t *loop, datahub_t *hub, bus_orchestrator_t *orch,
                             bus_conn_state_t *bus_state, int *configured) {
+    return iems_southbound_connect_in(loop, hub, orch, bus_state, NULL, NULL, configured);
+}
+
+int iems_southbound_connect_in(uv_loop_t *loop, datahub_t *hub, bus_orchestrator_t *orch,
+                               bus_conn_state_t *bus_state, iems_tcp_link_slot_t *link_slots,
+                               const iems_tcp_link_config_t *link_cfg, int *configured) {
     if (configured) *configured = 0;
     if (!loop || !hub || !orch || !bus_state) return -1;
 
@@ -54,7 +74,7 @@ int iems_southbound_connect(uv_loop_t *loop, datahub_t *hub, bus_orchestrator_t 
     const edge_connectivity_t *conns = iems_get_connectivity(&conn_count);
     if (!conns) return -1;  // 契约表都拿不到 = 装配坏了,交给组合根 abort
 
-    int connected = 0;
+    int started = 0;
     int declared = 0;
     int missing_count = 0;
     int missing_listed = 0;
@@ -76,7 +96,11 @@ int iems_southbound_connect(uv_loop_t *loop, datahub_t *hub, bus_orchestrator_t 
 
         int bus_idx = (int)c->id;
         if (bus_state[bus_idx] == BUS_STATE_CONNECTED) {
-            connected++;
+            started++;
+            continue;
+        }
+        if (link_slots && link_slots[bus_idx].link) {
+            started++;  // 重连中的 link 已启动，不再建第二个
             continue;
         }
         if (bus_state[bus_idx] != BUS_STATE_DISCONNECTED) {
@@ -102,40 +126,32 @@ int iems_southbound_connect(uv_loop_t *loop, datahub_t *hub, bus_orchestrator_t 
                           label);
             continue;
         }
+        bool bus_ok = false;
         if (transport == IEMS_BUS_TCP) {
-            char host[64];
-            unsigned port = 0;
-            if (sscanf(path + 6, "%63[^:]:%u", host, &port) != 2 || port == 0 || port > 65535) {
-                LOG_WARN(LOG_CAT_CORE, "Startup: southbound bus %d (%s) has invalid TCP address %s",
-                         bus_idx, label, path);
-            } else {
-                io_handle_t *h = io_executor_create_tcp(loop, host, (uint16_t)port,
-                                                        datahub_get_io_pool(hub));
-                if (h) {
-                    bus_orchestrator_attach_io(orch, c->id, h);
-                    io_handle_enable_read(h, true);
-                    bus_state[bus_idx] = BUS_STATE_CONNECTED;
-                    connected++;
-                    printf("\033[32m[PHYSICS-SUCCESS] Bus %d CONNECTED via TCP: %s:%u\033[0m\n",
-                           bus_idx, host, port);
-                }
-            }
+            bus_ok = iems_tcp_link_start_bus(loop, orch, bus_idx, label, path, &bus_state[bus_idx],
+                                             link_slots ? &link_slots[bus_idx] : NULL, link_cfg,
+                                             io_executor_create_tcp, datahub_get_io_pool(hub));
         } else if (transport == IEMS_BUS_UART) {
             // 过渡配置:真实设备的波特率尚未进契约表,先按总线用环境变量覆盖
             uint32_t baud = 9600;
             char baud_key[32];
             snprintf(baud_key, sizeof(baud_key), "OMNIS_BUS_%d_BAUD", bus_idx);
             const char *baud_env = getenv(baud_key);
-            if (baud_env) {
-                unsigned long parsed = strtoul(baud_env, NULL, 10);
-                if (parsed != 0) baud = (uint32_t)parsed;
+            if (baud_env && iems_southbound_parse_baud(baud_env, &baud) != 0) {
+                LOG_ERROR(LOG_CAT_CORE,
+                          "Startup: southbound bus %d (%s) has invalid %s='%s' "
+                          "(supported: 2400/9600/19200/38400/57600/115200)",
+                          bus_idx, label, baud_key, baud_env);
+                _note_missing(missing, sizeof(missing), &missing_count, &missing_listed, bus_idx,
+                              label);
+                continue;
             }
             io_handle_t *h = io_executor_create_uart(loop, path, baud, datahub_get_io_pool(hub));
             if (h) {
-                bus_orchestrator_attach_io(orch, c->id, h);
+                bus_orchestrator_attach_io(orch, bus_idx, h);
                 io_handle_enable_read(h, true);
                 bus_state[bus_idx] = BUS_STATE_CONNECTED;
-                connected++;
+                bus_ok = true;
                 printf("\033[32m[PHYSICS-SUCCESS] Bus %d CONNECTED via UART: %s\033[0m\n", bus_idx,
                        path);
             }
@@ -162,10 +178,10 @@ int iems_southbound_connect(uv_loop_t *loop, datahub_t *hub, bus_orchestrator_t 
                 if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == 0) {
                     io_handle_t *h = io_executor_create_from_fd(loop, fd, datahub_get_io_pool(hub));
                     if (h) {
-                        bus_orchestrator_attach_io(orch, c->id, h);
+                        bus_orchestrator_attach_io(orch, bus_idx, h);
                         io_handle_enable_read(h, true);
                         bus_state[bus_idx] = BUS_STATE_CONNECTED;
-                        connected++;
+                        bus_ok = true;
                         printf("\033[32m[PHYSICS-SUCCESS] Bus %d CONNECTED via PATH: %s\033[0m\n",
                                bus_idx, cur_path);
                         break;
@@ -178,9 +194,9 @@ int iems_southbound_connect(uv_loop_t *loop, datahub_t *hub, bus_orchestrator_t 
             }
         }
 
-        if (bus_state[bus_idx] != BUS_STATE_CONNECTED) {
-            LOG_WARN(LOG_CAT_CORE, "Startup: southbound bus %d (%s) NOT connected, no retry",
-                     bus_idx, label);
+        started += bus_ok ? 1 : 0;
+        if (!bus_ok) {
+            LOG_WARN(LOG_CAT_CORE, "Startup: southbound bus %d (%s) NOT connected", bus_idx, label);
             _note_missing(missing, sizeof(missing), &missing_count, &missing_listed, bus_idx,
                           label);
         }
@@ -190,10 +206,10 @@ int iems_southbound_connect(uv_loop_t *loop, datahub_t *hub, bus_orchestrator_t 
     }
     // 运维要看的是「缺哪路」,不是「有几路」;格式固定便于 grep 与验收证据比对
     if (missing_count > 0) {
-        LOG_INFO(LOG_CAT_CORE, "[IEMS-INIT] southbound: %d/%d connected (%s missing)", connected,
+        LOG_INFO(LOG_CAT_CORE, "[IEMS-INIT] southbound: %d/%d started (%s missing)", started,
                  declared, missing);
     } else {
-        LOG_INFO(LOG_CAT_CORE, "[IEMS-INIT] southbound: %d/%d connected", connected, declared);
+        LOG_INFO(LOG_CAT_CORE, "[IEMS-INIT] southbound: %d/%d started", started, declared);
     }
-    return connected;
+    return started;
 }

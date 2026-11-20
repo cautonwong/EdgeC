@@ -6,6 +6,7 @@
 #include <math.h>
 #include <netinet/in.h>
 #include <setjmp.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -25,6 +26,7 @@
 #include "driver_manager.h"
 #include "edge_api.h"
 #include "iems_southbound_adapter.h"
+#include "io_executor_linux.h"
 #include "io_handle_priv.h"
 #include "modbus_codec.h"
 
@@ -55,8 +57,14 @@ typedef struct {
 
     int listen_fd;
     int conn_fd;
+    int accept_count;
     uv_timer_t slave_tick;
     uv_timer_t watchdog;
+    uv_timer_t reconnect_tick;
+
+    iems_bus_wiring_t wiring;
+    bool second_sent;
+    int second_rc;
 
     uint8_t req[64];
     size_t req_len;
@@ -65,6 +73,11 @@ typedef struct {
     bool frame_ok;
     bool write_ok;
     bool rtu_frames;
+    bool split_resp;           /* 读响应拆成两次 tick 写，模拟 TCP 拆包 */
+    uint8_t resp_tail[16];     /* 第二次 tick 补发的剩余字节 */
+    size_t resp_tail_len;
+    unsigned ack_addr;         /* FC16 应答回显的地址/数量，测试可改成不匹配 */
+    unsigned ack_qty;
     unsigned read_count;
     uint16_t read_regs[2];
     bool frame_bad;
@@ -103,6 +116,19 @@ static void _on_slave_tick(uv_timer_t *handle) {
     tcp_ctx_t *c = (tcp_ctx_t *)handle->data;
     if (c->responded || c->frame_bad) return;
 
+    /* 拆包应答的后半段：下一 tick 补发，中间让主站先收到一次不完整帧 */
+    if (c->resp_tail_len > 0) {
+        ssize_t n = write(c->conn_fd, c->resp_tail, c->resp_tail_len);
+        if (n != (ssize_t)c->resp_tail_len) {
+            c->frame_bad = true;
+            _dump_frame(c, "split response tail write failed");
+            return;
+        }
+        c->resp_tail_len = 0;
+        c->responded = true;
+        return;
+    }
+
     if (c->conn_fd < 0) {
         int fd = accept(c->listen_fd, NULL, NULL);
         if (fd < 0) {
@@ -111,6 +137,7 @@ static void _on_slave_tick(uv_timer_t *handle) {
             _dump_frame(c, "accept failed");
             return;
         }
+        c->accept_count++;
         int flags = fcntl(fd, F_GETFL, 0);
         if (flags < 0 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
             close(fd);
@@ -207,9 +234,18 @@ static void _on_slave_tick(uv_timer_t *handle) {
             _dump_frame(c, "unexpected write32 payload");
             return;
         }
-        uint8_t ack[12] = {c->req[0], c->req[1], 0, 0, 0, 6,
-                           TCP_SLAVE, MODBUS_FC_WRITE_MULTIPLE_REGS,
-                           0,         TCP_REG,  0, 2};
+        uint8_t ack[12] = {c->req[0],
+                           c->req[1],
+                           0,
+                           0,
+                           0,
+                           6,
+                           TCP_SLAVE,
+                           MODBUS_FC_WRITE_MULTIPLE_REGS,
+                           (uint8_t)(c->ack_addr >> 8),
+                           (uint8_t)(c->ack_addr & 0xFF),
+                           (uint8_t)(c->ack_qty >> 8),
+                           (uint8_t)(c->ack_qty & 0xFF)};
         if (write(c->conn_fd, ack, sizeof(ack)) == (ssize_t)sizeof(ack)) {
             c->responded = true;
         } else {
@@ -240,6 +276,16 @@ static void _on_slave_tick(uv_timer_t *handle) {
         resp[resp_len++] = (uint8_t)(c->read_regs[i] >> 8);
         resp[resp_len++] = (uint8_t)(c->read_regs[i] & 0xFF);
     }
+    if (c->split_resp) {
+        /* 先发前 5 字节（不足一个 MBAP 头），余下下一 tick 补发 */
+        memcpy(c->resp_tail, resp + 5, resp_len - 5);
+        c->resp_tail_len = resp_len - 5;
+        if (write(c->conn_fd, resp, 5) != 5) {
+            c->frame_bad = true;
+            _dump_frame(c, "split response head write failed");
+        }
+        return;
+    }
     if (write(c->conn_fd, resp, resp_len) == (ssize_t)resp_len) {
         c->responded = true;
     } else {
@@ -267,6 +313,31 @@ static void _on_watchdog(uv_timer_t *handle) {
     uv_stop(&c->loop);
 }
 
+/* 服务端主动断开：conn_fd 复位让 tick 重新 accept，帧累积从 0 开始。 */
+static void _slave_drop(tcp_ctx_t *c) {
+    if (c->conn_fd >= 0) {
+        close(c->conn_fd);
+        c->conn_fd = -1;
+    }
+    c->req_len = 0;
+    c->req_frames = 0;
+    c->responded = false;
+    c->frame_ok = false;
+    c->frame_bad = false;
+}
+
+/* 重连完成后提交第二笔读；提交失败直接停表，让用例给出明确断言。 */
+static void _on_reconnect_tick(uv_timer_t *handle) {
+    tcp_ctx_t *c = (tcp_ctx_t *)handle->data;
+    if (c->second_sent) return;
+    if (c->accept_count < 2 || c->wiring.state[0] != BUS_STATE_CONNECTED) return;
+    c->second_sent = true;
+    c->second_rc = edge_api_read_tag_ex(0, "ModbusTCP", TCP_SLAVE,
+                                        MODBUS_NATIVE(TCP_REG, 1), TCP_RESULT_TAG, TCP_SCALE, NULL,
+                                        0, ARBITER_PRIO_NORMAL, _on_read_done, c);
+    if (c->second_rc != 0) uv_stop(&c->loop);
+}
+
 static int setup_common(void **state, const char *protocol, bool rtu_frames) {
     tcp_ctx_t *c = calloc(1, sizeof(*c));
     assert_non_null(c);
@@ -275,6 +346,8 @@ static int setup_common(void **state, const char *protocol, bool rtu_frames) {
     c->rtu_frames = rtu_frames;
     c->read_count = 1;
     c->read_regs[0] = TCP_RAW;
+    c->ack_addr = TCP_REG;
+    c->ack_qty = 2;
 
     c->listen_fd = socket(AF_INET, SOCK_STREAM, 0);
     assert_true(c->listen_fd >= 0);
@@ -320,17 +393,22 @@ static int setup_common(void **state, const char *protocol, bool rtu_frames) {
     snprintf(dev, sizeof(dev), "tcp://127.0.0.1:%u", (unsigned)ntohs(addr.sin_port));
     assert_int_equal(setenv("OMNIS_BUS_0_DEV", dev, 1), 0);
 
-    bus_conn_state_t bus_state[IEMS_MAX_VBUS] = {BUS_STATE_DISCONNECTED};
     int configured = 0;
-    iems_southbound_connect(&c->loop, &c->hub, c->orch, bus_state, &configured);
+    /* 重连用例要求退避在 20/40ms 内完成，否则默认 1s 起步会让用例变慢 */
+    iems_tcp_link_config_t link_cfg = {.backoff_base_ms = 20, .backoff_cap_ms = 40};
+    iems_southbound_connect_in(&c->loop, &c->hub, c->orch, c->wiring.state, c->wiring.link,
+                               &link_cfg, &configured);
     unsetenv("OMNIS_BUS_0_DEV");
 
     assert_true(configured >= 1);
-    assert_int_equal(bus_state[0], BUS_STATE_CONNECTED);
+    assert_int_equal(c->wiring.state[0], BUS_STATE_CONNECTED);
 
     assert_int_equal(uv_timer_init(&c->loop, &c->slave_tick), 0);
     c->slave_tick.data = c;
     assert_int_equal(uv_timer_start(&c->slave_tick, _on_slave_tick, 1, 1), 0);
+
+    assert_int_equal(uv_timer_init(&c->loop, &c->reconnect_tick), 0);
+    c->reconnect_tick.data = c;
 
     assert_int_equal(uv_timer_init(&c->loop, &c->watchdog), 0);
     c->watchdog.data = c;
@@ -370,6 +448,60 @@ static void test_modbus_tcp_read_over_loopback(void **state) {
     assert_int_equal(c->cb_tag, TCP_RESULT_TAG);
     /* 0x1234 * 0.1，期望值按协议与量纲写死，不从被测常量反推 */
     assert_true(fabs(c->cb_value - 466.0) < 1e-9);
+}
+
+/* 断线重连端到端：服务端 close 并重新 accept，link 在退避窗口内重连，
+ * 第二笔读沿新连接完成且帧正确。 */
+static void test_modbus_tcp_reconnects_after_peer_close(void **state) {
+    tcp_ctx_t *c = (tcp_ctx_t *)*state;
+
+    assert_int_equal(
+        edge_api_read_tag_ex(0, "ModbusTCP", TCP_SLAVE, MODBUS_NATIVE(TCP_REG, 1), TCP_RESULT_TAG,
+                             TCP_SCALE, NULL, 0, ARBITER_PRIO_NORMAL, _on_read_done, c),
+        0);
+    uv_run(&c->loop, UV_RUN_DEFAULT);
+    if (c->timed_out || c->cb_status != 0 || !c->frame_ok)
+        _dump_frame(c, "first read did not round-trip");
+    assert_false(c->timed_out);
+    assert_int_equal(c->cb_count, 1);
+    assert_int_equal(c->cb_status, 0);
+    assert_int_equal(c->accept_count, 1);
+
+    _slave_drop(c);
+    c->second_sent = false;
+    c->second_rc = -1;
+
+    /* 引擎在事务完成后会停读；对端关闭要等下一笔命令重新开读才可见
+     * （写失败或 EOF 都行）。这笔探针命令预期失败，只用来触发链路错误。 */
+    assert_int_equal(
+        edge_api_read_tag_ex(0, "ModbusTCP", TCP_SLAVE, MODBUS_NATIVE(TCP_REG, 1), TCP_RESULT_TAG,
+                             TCP_SCALE, NULL, 0, ARBITER_PRIO_NORMAL, _on_read_done, c),
+        0);
+    c->timed_out = false;
+    assert_int_equal(uv_timer_start(&c->watchdog, _on_watchdog, 3000, 0), 0);
+    uv_run(&c->loop, UV_RUN_DEFAULT);
+    assert_false(c->timed_out);
+    assert_int_equal(c->cb_count, 2);
+
+    /* 链路进入 BACKOFF 并重连；第二次 accept 后提交真正要验的读 */
+    assert_int_equal(uv_timer_start(&c->reconnect_tick, _on_reconnect_tick, 1, 1), 0);
+    assert_int_equal(uv_timer_start(&c->watchdog, _on_watchdog, 3000, 0), 0);
+    uv_run(&c->loop, UV_RUN_DEFAULT);
+    uv_timer_stop(&c->reconnect_tick);
+
+    if (c->timed_out || c->second_rc != 0 || c->cb_status != 0 || !c->frame_ok)
+        _dump_frame(c, "second read after reconnect did not round-trip");
+
+    assert_false(c->timed_out);
+    assert_int_equal(c->second_rc, 0);
+    assert_int_equal(c->accept_count, 2);
+    assert_int_equal(c->req_frames, 1);  /* 复位后只数第二帧 */
+    assert_true(c->frame_ok);
+    assert_int_equal(c->cb_count, 3);
+    assert_int_equal(c->cb_status, 0);
+    assert_int_equal(c->cb_tag, TCP_RESULT_TAG);
+    assert_true(fabs(c->cb_value - 466.0) < 1e-9);
+    assert_int_equal(c->wiring.state[0], BUS_STATE_CONNECTED);
 }
 
 /* 控制下发：FC06 应答原样回显，主站 req_decode 必须认它，否则写永远超时。 */
@@ -468,6 +600,68 @@ static void test_modbus_tcp_read_two_regs_combined(void **state) {
     assert_true(fabs(c->cb_value - 100000.0) < 1e-9);
 }
 
+/* TCP 拆包：响应分两个 tick 到达。主站靠 RX 累积器重组，结果必须与整帧一致。 */
+static void test_modbus_tcp_read_split_response(void **state) {
+    tcp_ctx_t *c = (tcp_ctx_t *)*state;
+    c->split_resp = true;
+
+    assert_int_equal(
+        edge_api_read_tag_ex(0, "ModbusTCP", TCP_SLAVE, MODBUS_NATIVE(TCP_REG, 1), TCP_RESULT_TAG,
+                             TCP_SCALE, NULL, 0, ARBITER_PRIO_NORMAL, _on_read_done, c),
+        0);
+
+    uv_run(&c->loop, UV_RUN_DEFAULT);
+
+    if (c->timed_out || c->cb_status != 0 || !c->frame_ok)
+        _dump_frame(c, "split response did not round-trip");
+
+    assert_false(c->timed_out);
+    assert_int_equal(c->req_frames, 1);
+    assert_true(c->frame_ok);
+    assert_int_equal(c->cb_count, 1);
+    assert_int_equal(c->cb_status, 0);
+    assert_true(fabs(c->cb_value - 466.0) < 1e-9);
+}
+
+/* FC16 应答数量与请求不符：从站没照做，不能当成功。
+ * 回显固定用 ack_qty，默认等于请求的 2。 */
+static void test_modbus_tcp_write32_ack_qty_mismatch(void **state) {
+    tcp_ctx_t *c = (tcp_ctx_t *)*state;
+    c->ack_qty = 3;
+
+    assert_int_equal(edge_api_write_tag(0, "ModbusTCP", TCP_SLAVE, MODBUS_NATIVE(TCP_REG, 2),
+                                        0x12345678, _on_read_done, c),
+                     0);
+
+    uv_run(&c->loop, UV_RUN_DEFAULT);
+
+    if (c->timed_out) _dump_frame(c, "mismatched ack did not settle");
+
+    assert_false(c->timed_out);
+    assert_int_equal(c->req_frames, 1);
+    assert_int_equal(c->cb_count, 1);
+    assert_int_equal(c->cb_status, CMD_STATUS_PROTO_ERROR);
+}
+
+/* FC16 应答地址与请求不符：同样必须拒绝。 */
+static void test_modbus_tcp_write32_ack_addr_mismatch(void **state) {
+    tcp_ctx_t *c = (tcp_ctx_t *)*state;
+    c->ack_addr = TCP_REG + 1;
+
+    assert_int_equal(edge_api_write_tag(0, "ModbusTCP", TCP_SLAVE, MODBUS_NATIVE(TCP_REG, 2),
+                                        0x12345678, _on_read_done, c),
+                     0);
+
+    uv_run(&c->loop, UV_RUN_DEFAULT);
+
+    if (c->timed_out) _dump_frame(c, "mismatched ack address did not settle");
+
+    assert_false(c->timed_out);
+    assert_int_equal(c->req_frames, 1);
+    assert_int_equal(c->cb_count, 1);
+    assert_int_equal(c->cb_status, CMD_STATUS_PROTO_ERROR);
+}
+
 static void _close_handle(uv_handle_t *handle, void *arg) {
     (void)arg;
     if (!uv_is_closing(handle)) uv_close(handle, NULL);
@@ -479,6 +673,7 @@ static int teardown(void **state) {
 
     uv_timer_stop(&c->slave_tick);
     uv_timer_stop(&c->watchdog);
+    uv_timer_stop(&c->reconnect_tick);
 
     if (c->cb_count == 0 && c->orch) {
         /* 用例提前停表（坏帧）时命令还挂在引擎里。先放行驱动自己的 2000ms
@@ -489,9 +684,9 @@ static int teardown(void **state) {
         uv_timer_stop(&c->watchdog);
     }
 
-    /* orchestrator 不拥有 IO 生命周期，先自己关；close 回调要等 loop 转一圈 */
-    io_handle_t *h = bus_orchestrator_get_io(c->orch, 0);
-    if (h) h->ops->destroy(h);
+    /* link 拥有 IO 生命周期；close 回调要等 loop 转一圈 */
+    iems_tcp_link_close(c->wiring.link[0].link);
+    c->wiring.link[0].link = NULL;
     if (c->orch) bus_orchestrator_destroy(c->orch);
     if (c->arb) arbiter_destroy(c->arb);
     if (c->drv_mgr) driver_manager_destroy(c->drv_mgr);
@@ -511,11 +706,179 @@ static int teardown(void **state) {
     return 0;
 }
 
+/* 空闲对端关闭的回归：修复前 _on_uv_poll 只报 ERROR 不停 watcher，libuv 每次
+ * 循环都再收到一次 EOF，CPU 100% 空转到下一笔请求。这里不经过编排器，直接盯
+ * io_executor 的回调计数，有界跑 100ms 后错误只允许报一次。 */
+typedef struct {
+    uv_loop_t *loop;
+    int errors;
+} eof_ctx_t;
+
+static void _on_eof_event(io_handle_t *h, io_event_t evt, void *payload, void *user_data) {
+    (void)h;
+    (void)payload;
+    eof_ctx_t *c = (eof_ctx_t *)user_data;
+    if (evt == IO_EVENT_ERROR) c->errors++;
+}
+
+static void _on_eof_stop(uv_timer_t *handle) { uv_stop(handle->loop); }
+
+static void test_io_tcp_eof_reports_once(void **state) {
+    (void)state;
+
+    int listen_fd = socket(AF_INET, SOCK_STREAM, 0);
+    assert_true(listen_fd >= 0);
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_port = 0;
+    assert_int_equal(bind(listen_fd, (struct sockaddr *)&addr, sizeof(addr)), 0);
+    assert_int_equal(listen(listen_fd, 4), 0);
+    socklen_t addr_len = sizeof(addr);
+    assert_int_equal(getsockname(listen_fd, (struct sockaddr *)&addr, &addr_len), 0);
+
+    uv_loop_t loop;
+    assert_int_equal(uv_loop_init(&loop), 0);
+    net_buf_pool_t *pool = net_buf_pool_new(4, 256, 0);
+    assert_non_null(pool);
+
+    io_handle_t *h = io_executor_create_tcp(&loop, "127.0.0.1", ntohs(addr.sin_port), pool);
+    assert_non_null(h);
+    int peer_fd = accept(listen_fd, NULL, NULL);
+    assert_true(peer_fd >= 0);
+    close(listen_fd);
+
+    eof_ctx_t c = {.loop = &loop};
+    h->cb = _on_eof_event;
+    h->user_data = &c;
+    assert_int_equal(io_handle_enable_read(h, true), 0);
+
+    close(peer_fd);
+
+    uv_timer_t stop;
+    assert_int_equal(uv_timer_init(&loop, &stop), 0);
+    assert_int_equal(uv_timer_start(&stop, _on_eof_stop, 100, 0), 0);
+    uv_run(&loop, UV_RUN_DEFAULT);
+    uv_timer_stop(&stop);
+    uv_close((uv_handle_t *)&stop, NULL);
+
+    h->ops->destroy(h);
+    uv_run(&loop, UV_RUN_DEFAULT);
+
+    net_buf_pool_destroy(pool);
+    int rc = uv_loop_close(&loop);
+    if (rc != 0) fprintf(stderr, "uv_loop_close failed: %s\n", uv_strerror(rc));
+    assert_int_equal(rc, 0);
+
+    assert_int_equal(c.errors, 1);
+}
+
+/* 部分写回归：一次 write() 只发一部分时，剩余字节必须继续发、整帧发完才报
+ * TX_DONE。修复前直接清 pending_tx 并报 TX_DONE，线上留下截断帧。
+ * TCP 分支在这里逼不出部分写：本机客户端发送缓冲约 1.3MB，而 net_buf 的
+ * len 是 uint16_t（帧上限 65535），一次 write 总能全收。tty 的缓冲只有几 KB，
+ * 用 pty 在不读对端时确定性触发同一个 writable 分支。 */
+#define PARTIAL_TX_BYTES 60000
+
+typedef struct {
+    uv_loop_t *loop;
+    int master_fd;
+    size_t got;
+    int tx_done;
+    int errors;
+} partial_ctx_t;
+
+static void _on_partial_event(io_handle_t *h, io_event_t evt, void *payload, void *user_data) {
+    (void)h;
+    (void)payload;
+    partial_ctx_t *c = (partial_ctx_t *)user_data;
+    if (evt == IO_EVENT_TX_DONE) c->tx_done++;
+    else if (evt == IO_EVENT_ERROR) c->errors++;
+}
+
+static void _on_partial_drain(uv_timer_t *handle) {
+    partial_ctx_t *c = (partial_ctx_t *)handle->data;
+    uint8_t buf[8192];
+    for (;;) {
+        ssize_t n = read(c->master_fd, buf, sizeof(buf));
+        if (n <= 0) break;
+        c->got += (size_t)n;
+    }
+    if (c->got == PARTIAL_TX_BYTES && c->tx_done == 1) uv_stop(c->loop);
+}
+
+static void _on_partial_timeout(uv_timer_t *handle) { uv_stop(handle->loop); }
+
+static void test_io_uart_partial_write_finishes(void **state) {
+    (void)state;
+
+    int master_fd = posix_openpt(O_RDWR | O_NOCTTY | O_NONBLOCK);
+    assert_true(master_fd >= 0);
+    assert_int_equal(grantpt(master_fd), 0);
+    assert_int_equal(unlockpt(master_fd), 0);
+    const char *slave_name = ptsname(master_fd);
+    assert_non_null(slave_name);
+
+    uv_loop_t loop;
+    assert_int_equal(uv_loop_init(&loop), 0);
+    net_buf_pool_t *pool = net_buf_pool_new(4, PARTIAL_TX_BYTES, 0);
+    assert_non_null(pool);
+
+    io_handle_t *h = io_executor_create_uart(&loop, slave_name, 115200, pool);
+    assert_non_null(h);
+
+    partial_ctx_t c = {.loop = &loop, .master_fd = master_fd};
+    h->cb = _on_partial_event;
+    h->user_data = &c;
+
+    net_buf_t *tx = net_buf_alloc(pool, 0);
+    assert_non_null(tx);
+    for (size_t i = 0; i < PARTIAL_TX_BYTES; i++) tx->b.data[i] = (uint8_t)(i * 7u);
+    tx->b.len = PARTIAL_TX_BYTES;
+    assert_int_equal(h->ops->write_async(h, tx), 0);
+    net_buf_unref(tx);
+
+    uv_timer_t drain, watchdog;
+    assert_int_equal(uv_timer_init(&loop, &drain), 0);
+    drain.data = &c;
+    assert_int_equal(uv_timer_start(&drain, _on_partial_drain, 1, 1), 0);
+    assert_int_equal(uv_timer_init(&loop, &watchdog), 0);
+    watchdog.data = &c;
+    assert_int_equal(uv_timer_start(&watchdog, _on_partial_timeout, 3000, 0), 0);
+
+    uv_run(&loop, UV_RUN_DEFAULT);
+
+    uv_timer_stop(&drain);
+    uv_timer_stop(&watchdog);
+    uv_close((uv_handle_t *)&drain, NULL);
+    uv_close((uv_handle_t *)&watchdog, NULL);
+    h->ops->destroy(h);
+    uv_run(&loop, UV_RUN_DEFAULT);
+    close(master_fd);
+    net_buf_pool_destroy(pool);
+    int rc = uv_loop_close(&loop);
+    if (rc != 0) fprintf(stderr, "uv_loop_close failed: %s\n", uv_strerror(rc));
+    assert_int_equal(rc, 0);
+
+    assert_int_equal(c.errors, 0);
+    assert_int_equal(c.tx_done, 1);
+    assert_int_equal(c.got, PARTIAL_TX_BYTES);
+}
+
 int main(void) {
+    signal(SIGPIPE, SIG_IGN);
     const struct CMUnitTest tests[] = {
+        cmocka_unit_test(test_io_tcp_eof_reports_once),
+        cmocka_unit_test(test_io_uart_partial_write_finishes),
         cmocka_unit_test_setup_teardown(test_modbus_tcp_read_over_loopback, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_modbus_tcp_reconnects_after_peer_close, setup,
+                                        teardown),
         cmocka_unit_test_setup_teardown(test_modbus_tcp_write_over_loopback, setup, teardown),
         cmocka_unit_test_setup_teardown(test_modbus_tcp_write32_over_loopback, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_modbus_tcp_read_split_response, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_modbus_tcp_write32_ack_qty_mismatch, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_modbus_tcp_write32_ack_addr_mismatch, setup, teardown),
         cmocka_unit_test_setup_teardown(test_modbus_rtu_over_tcp_read, setup_rtu_over_tcp,
                                         teardown),
         cmocka_unit_test_setup_teardown(test_modbus_tcp_read_two_regs_combined, setup, teardown),

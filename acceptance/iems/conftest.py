@@ -71,6 +71,31 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
             )
 
 
+def pytest_collection_modifyitems(config, items):
+    """按本次产品壳的南向传输剔掉不匹配的用例。
+
+    `iems_acceptance` 是 UDS 任务,但它的 --select 是 tag:验收,而传输用例
+    也带验收标签;不剔的话它们会在 UDS 壳上跑,判据文不对题。传输档位由产品壳
+    写进 RUN_DIR/transport.txt,用例用 @pytest.mark.transport 声明自己需要的档位。
+    这是"这一轮不选它"(与 --select 同类),不是"跑了再跳过" —— 跳过会计入
+    未测,让任务结论变灰。
+    """
+    from bench import RUN_DIR
+
+    try:
+        active = (RUN_DIR / "transport.txt").read_text(encoding="utf-8").strip()
+    except OSError:
+        return
+    if not active:
+        return
+    items[:] = [
+        item for item in items
+        if (marker := item.get_closest_marker("transport")) is None
+        or not marker.args
+        or marker.args[0] == active
+    ]
+
+
 def _make_type_fixture(device_type: str):
     def _driver(request, composition_root):
         try:

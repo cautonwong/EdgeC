@@ -229,6 +229,15 @@ static void test_rest_apps_api_endpoints(void **state) {
     assert_int_equal(rc, 0);
     assert_int_equal(m.state, APP_STATE_RUNNING);
 
+    // 4b. An unregistered app id must be rejected at the boundary, not queued
+    // as a job that fails after REST already answered ok.
+    resp = rest_dispatch(svc, "POST", "/api/v1/apps/start", "{\"app_id\":\"ghost\"}");
+    assert_non_null(resp);
+    assert_non_null(strstr(resp, "\"status\":\"error\""));
+    assert_non_null(strstr(resp, "not_found"));
+    free(resp);
+    assert_int_equal(edge_app_mgr_is_busy(app_mgr), 0);
+
     // 5. Grant admin API: approve, list, revoke, then revoke again fails.
     resp = rest_dispatch(svc, "POST", "/api/v1/apps/grant",
                          "{\"app_id\":\"voltage-guard\",\"capability\":\"tags.read\","

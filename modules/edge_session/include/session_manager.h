@@ -11,8 +11,10 @@ typedef struct session_manager_s session_manager_t;
  * @brief 创建会话管理器
  * @param port 驱动生命周期端口 (由适配器提供)
  * @param max_sessions 最大持久化会话数
+ * @param pool 会话取用的内存池 (req_tick 自己组帧时用)
  */
-session_manager_t* session_manager_create(const edge_driver_session_port_t* port, int max_sessions);
+session_manager_t* session_manager_create(const edge_driver_session_port_t* port, int max_sessions,
+                                          net_buf_pool_t* pool);
 
 /**
  * @brief 销毁管理器并释放所有会话
@@ -46,6 +48,14 @@ void session_manager_close(session_manager_t* sm, const char* protocol, uint32_t
 
 int session_manager_add_session(session_manager_t* sm, const char* protocol, uint32_t device_id,
                                 void* user_data);
+
+/**
+ * @brief 传输会话重建：对每个活动会话重跑驱动 on_init，清掉跨帧状态。
+ *
+ * 新连接接管同一条链路时调用（如从站引擎 attach 新 io）。APCI 序号、
+ * 传送激活标记必须从新会话的 0 开始，不能沿用上一条连接的值。
+ */
+int session_manager_reset_sessions(session_manager_t* sm);
 
 /* [ADR-002 S3-0] 注入从站面端口（取当前值 / 收写入值）。
  * 由组合根调用；request-native 驱动的 req_slave_exchange 用它，

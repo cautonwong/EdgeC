@@ -4,7 +4,9 @@
 # WebUI 构建接线（v1.6 §4.4 / §11.1）
 #
 # 三件事必须按顺序发生，否则"构建产物"和"构建输入"会悄悄不一致：
-#   1. `npm install` 全局一次（npm workspaces 共用 node_modules，并行构建会打架）；
+#   1. `npm ci` 全局一次（npm workspaces 共用 node_modules，并行构建会打架；
+#      ci 只按 package-lock.json 安装，不会改写已提交的锁文件 —— npm install
+#      会顺手升级/补齐锁文件，构建后工作树变脏，agent 每次都手工还原）；
 #   2. 每个产品先跑 `tooling registry` 生成静态 Registry（这一步在产品的 npm build
 #      脚本里，失败即中止，不会带着过期 Registry 去 vite build）；
 #   3. `vite build` 产出 dist，再整体拷到 `<build>/products/<p>/www`。
@@ -18,7 +20,7 @@ set(WEB_NPM_STAMP "${CMAKE_BINARY_DIR}/web_npm_install.stamp")
 if(NOT TARGET web_npm_install)
     add_custom_command(
         OUTPUT "${WEB_NPM_STAMP}"
-        COMMAND sh -c "if [ ! -d node_modules ]; then npm install --ignore-scripts; fi; if [ \"$(uname -m)\" = \"aarch64\" ]; then if [ ! -d node_modules/@rollup/rollup-linux-arm64-gnu ]; then npm install --save-optional @rollup/rollup-linux-arm64-gnu --ignore-scripts || true; fi; if [ ! -d node_modules/@esbuild/linux-arm64 ]; then npm install --save-optional @esbuild/linux-arm64 --ignore-scripts || true; fi; fi"
+        COMMAND sh -c "if [ ! -d node_modules ]; then npm ci --ignore-scripts; fi; if [ \"$(uname -m)\" = \"aarch64\" ]; then if [ ! -d node_modules/@rollup/rollup-linux-arm64-gnu ]; then npm install --no-save --package-lock=false @rollup/rollup-linux-arm64-gnu --ignore-scripts || true; fi; if [ ! -d node_modules/@esbuild/linux-arm64 ]; then npm install --no-save --package-lock=false @esbuild/linux-arm64 --ignore-scripts || true; fi; fi"
         COMMAND ${CMAKE_COMMAND} -E touch "${WEB_NPM_STAMP}"
         WORKING_DIRECTORY "${WEB_WORKSPACE_DIR}"
         COMMENT "Installing web workspace dependencies (once)..."

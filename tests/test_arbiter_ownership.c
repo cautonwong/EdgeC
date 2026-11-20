@@ -97,9 +97,15 @@ static void test_owns_cmd_false_after_timeout_sweep(void** state) {
     // 关键断言:cmd 已经没了,引擎再问必须得到 false —— 绝不能在这之后解引用它
     assert_false(arbiter_owns_cmd(arb, 0, cmd));
 
-    // 再发一条照常能跑:执行器/仲裁器没被这条命令的死亡带走
+    // 再发一条照常能跑:执行器/仲裁器没被这条命令的死亡带走。
+    // 上一条超时留下 1ms 恢复窗口,等这条真的上线再结算(排队中的命令不是 owner)。
     cmd_msg_t* next = make_cmd();
     assert_int_equal(arbiter_submit_cmd(arb, 0, next), 0);
+    for (int i = 0; i < 20 && !arbiter_owns_cmd(arb, 0, next); i++) {
+        uv_sleep(1);
+        uv_run(g_loop, UV_RUN_NOWAIT);
+    }
+    assert_true(arbiter_owns_cmd(arb, 0, next));
     arbiter_on_io_done(arb, 0, next, CMD_STATUS_SUCCESS);
     assert_int_equal(g_completed, 2);
 }

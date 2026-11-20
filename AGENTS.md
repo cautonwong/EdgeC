@@ -57,6 +57,8 @@ Multi-context: `CONTEXT-MAP.md` at the root points to per-context `CONTEXT.md` f
 - 架构与资源：`check_plane_isolation.py`、`check_component_boundary.py`、`check_composition_root.py`、`check_public_structs.py`、`check_caller_allocated_storage.py`、`check_no_dynamic_memory.py`、`check_stack_usage.py`、`check_resource_discipline.py`
 - 覆盖率：`ci/scripts/check_coverage.py`（按目录的 line coverage 下限，`ci/baseline/coverage_floor.txt`；下限只升不降）
 - 运行时：ASAN/UBSAN/TSAN（CI matrix）、`ci/scripts/run_guard_selftest.py`
+- 控制写与 CI 一致性：`check_iems_control_slave.py`（禁止把从站地址写死）、`check_protocol_selection.py`、`check_ci_gate_parity.py`、`check_test_io_eintr.py`、`check_privileged_test_runs.py`
+- 状态行可观测性：`check_iems_stdout_line_buffered.py`（产品 stdout 必须 `setvbuf(_IOLBF)`；验收台架不得用 `stdbuf` 掩盖产品缓冲缺陷）
 - 格式：`.clang-format`、`.clang-tidy`、`scripts/format.sh`
 
 ### 迁移清单（代码落地、自动化就位后删除对应条目）
@@ -86,3 +88,13 @@ Multi-context: `CONTEXT-MAP.md` at the root points to per-context `CONTEXT.md` f
 ## 错误 → 守卫
 
 每修一个错误，在同一次改动里加一条可执行的守卫或正反夹具，并登记到 `ci/scripts/run_guard_selftest.py`。只写交接文档不算完成。
+
+### 规则 → 执行者
+
+| 规则 | 执行者（可复现） |
+| --- | --- |
+| 产品状态行接管道必须及时可见，验收不得用外部 wrapper 掩盖 | `check_iems_stdout_line_buffered.py`（正反夹具 + live）；`cmd/iems/main.c` 的 `setvbuf(stdout, NULL, _IOLBF, 0)` |
+| 同一协议族的量纲与帧规则只能有一处来源，禁止按传输分支复制 | `tests/test_iems_task_loader.c::test_tag_scale_modbus_family_is_one_calibration`；`tests/test_modbus_*` 的 RTU/TCP 对拍 |
+| 构建不得改写已跟踪文件 | `cmake/WebBuild.cmake` 用 `npm ci`；干净 worktree 构建后 `git status` 为空（`506297c9` 已 A/B 验证：旧 `npm install` 弄脏锁文件） |
+| 合并后必须在目标分支重跑守卫（单批通过不等于合并后通过） | `run_guard_selftest.py` 在合并后的 main 上跑；SRP 1500 行曾在三批合并后触发 |
+| 行为、日志、启动语义变更必须同步同文件注释、设计文档状态与验收合同文字 | 人工 review（判断类，无可执行的真相来源） |

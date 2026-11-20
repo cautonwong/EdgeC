@@ -10,5 +10,9 @@ launch:
   - iems_product.py
   - --port
   - ${PORT}
+  # tag:验收 也选中 I_00_00_04_(控制写路由):它要求 unit 3 上有 tag 1003 的
+  # 唯一轮询路由,所以这条总线上必须先挂两个从站。单从站只够验采集。
+  - --slaves
+  - 1,3
 devices: configs/devices.yaml
 select: tag:验收

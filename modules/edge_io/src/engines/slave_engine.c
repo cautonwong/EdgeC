@@ -11,6 +11,7 @@
 #include "edge_io_guard_port.h"
 
 #define MAX_PROTO_PER_BUS 4
+#define SLAVE_MAX_SESSIONS 8
 
 typedef struct {
     char name[16];
@@ -99,11 +100,22 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
 }
 
 static void _slave_on_timer(uv_timer_t *handle) {
-    (void)handle;
+    slave_priv_t *priv = (slave_priv_t *)handle->data;
+    if (!priv || !priv->io || !priv->io->ops || !priv->io->ops->write_async) return;
+
+    net_buf_t *txs[SLAVE_MAX_SESSIONS];
+    int n = session_manager_tick(priv->session_mgr, priv->bus_id, txs, SLAVE_MAX_SESSIONS);
+    for (int i = 0; i < n; i++) {
+        priv->io->ops->write_async(priv->io, txs[i]);
+        net_buf_unref(txs[i]);
+    }
 }
 
 static void _slave_attach(bus_engine_t *self, io_handle_t *io) {
     slave_priv_t *priv = (slave_priv_t *)self->user_data;
+    /* 新连接接管：会话按 protocol/device 复用，上一条连接的 APCI 序号与
+     * 传送激活标记都在会话里，必须清掉；否则新主站收到的 N(S) 从中间开始。 */
+    session_manager_reset_sessions(priv->session_mgr);
     priv->io = io;
     io->cb = _slave_io_cb;
     io->user_data = priv;
@@ -159,7 +171,7 @@ bus_engine_t *engine_create_slave(const edge_driver_session_port_t *driver_port,
     priv->pool = pool;
     net_buf_pool_ref(pool);
     priv->arb = arb;
-    priv->session_mgr = session_manager_create(driver_port, 8);
+    priv->session_mgr = session_manager_create(driver_port, SLAVE_MAX_SESSIONS, pool);
     priv->rx_acc = net_buf_alloc(pool, 0);
     if (priv->rx_acc) net_buf_simple_reset(&priv->rx_acc->b);
 

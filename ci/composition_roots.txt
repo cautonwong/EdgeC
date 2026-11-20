@@ -17,6 +17,8 @@ cmd/iems/iems_app.c
 cmd/iems/iems_southbound_adapter.c
 # North slave wiring adapter: attaches accepted UDS clients to the existing orchestrator.
 cmd/iems/iems_north_listener.c
+# IEC104 North wiring adapter: attaches accepted TCP clients to the existing orchestrator.
+cmd/iems/iems_north_iec104.c
 cmd/dcu/main.c
 cmd/smart_box/main.c
 cmd/edge_mcp_server/main.c

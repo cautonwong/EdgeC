@@ -52,7 +52,11 @@ typedef struct linux_io_handle_s {
     int fd;
     net_buf_pool_t* pool;
     net_buf_t* pending_tx;
+    size_t tx_off; /* pending_tx 已发出的字节数：非阻塞 fd 允许部分写 */
     io_type_t type;
+    /* 产品层的链路存亡观察者：与 base.cb（引擎消费数据）分开 */
+    void (*link_cb)(io_handle_t* h, io_event_t evt, void* user_data);
+    void* link_user_data;
 
     struct sockaddr_in udp_dest;
     net_buf_t* udp_rx_nb;
@@ -168,6 +172,25 @@ int io_handle_enable_read(io_handle_t *h, bool enable) {
     return h->ops->enable_read(h, enable);
 }
 
+void io_handle_destroy(io_handle_t *h) {
+    if (!h || !h->ops || !h->ops->destroy) return;
+    h->ops->destroy(h);
+}
+
+void io_handle_set_link_cb(io_handle_t *h,
+                           void (*cb)(io_handle_t *h, io_event_t evt, void *user_data),
+                           void *user_data) {
+    if (!h) return;
+    linux_io_handle_t *impl = (linux_io_handle_t *)h;
+    impl->link_cb = cb;
+    impl->link_user_data = user_data;
+}
+
+/* 引擎的 cb 先结算，链路观察者后拿事件；正常数据路径不经过这里。 */
+static void _notify_link(linux_io_handle_t *impl) {
+    if (impl->link_cb) impl->link_cb(&impl->base, IO_EVENT_ERROR, impl->link_user_data);
+}
+
 void io_executor_cleanup(void) {
     if (g_curl_ctx) {
         uv_timer_stop(&g_curl_ctx->timer);
@@ -182,6 +205,10 @@ void io_executor_cleanup(void) {
 
 static speed_t _uart_baud_to_speed(uint32_t baud) {
     switch (baud) {
+        case 2400:
+            return B2400;
+        case 9600:
+            return B9600;
         case 19200:
             return B19200;
         case 38400:
@@ -191,14 +218,23 @@ static speed_t _uart_baud_to_speed(uint32_t baud) {
         case 115200:
             return B115200;
         default:
-            return B9600;
+            /* 0 不是合法线速: 调用方必须拒绝, 静默退回 9600 会改错 wire speed */
+            return (speed_t)0;
     }
+}
+
+bool io_executor_uart_baud_supported(uint32_t baud) {
+    return _uart_baud_to_speed(baud) != (speed_t)0;
 }
 
 static void _on_uv_poll(uv_poll_t* handle, int status, int events) {
     linux_io_handle_t* impl = (linux_io_handle_t*)handle->data;
     if (status < 0) {
+        /* 先停 watcher 再回调：错误条件不会自愈，继续武装会让 libuv 每轮重报；
+         * 回调可能销毁句柄，之后不能再碰 impl */
+        uv_poll_stop(handle);
         impl->base.cb(&impl->base, IO_EVENT_ERROR, NULL, impl->base.user_data);
+        _notify_link(impl);
         return;
     }
 
@@ -220,26 +256,48 @@ static void _on_uv_poll(uv_poll_t* handle, int status, int events) {
                 if (nb) net_buf_unref(nb);
             } else if (ret == 0 ||
                        (ret < 0 && errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)) {
+                /* 对端关闭/硬错误：EOF 会让 fd 一直可读。先停读再回调，否则每次
+                 * loop 迭代都重报一次错误空转 CPU；回调后不再碰 impl */
+                uv_poll_stop(handle);
                 if (impl->base.cb)
                     impl->base.cb(&impl->base, IO_EVENT_ERROR, NULL, impl->base.user_data);
+                _notify_link(impl);
+                return;
             }
         } while (ret > 0);
     }
 
     if (events & UV_WRITABLE) {
         if (impl->pending_tx) {
-            ssize_t n = write(impl->fd, impl->pending_tx->b.data, impl->pending_tx->b.len);
+            net_buf_t* buf = impl->pending_tx;
+            size_t off = impl->tx_off;
+            ssize_t n = write(impl->fd, buf->b.data + off, (size_t)buf->b.len - off);
+            if (n > 0 && off + (size_t)n < buf->b.len) {
+                /* 非阻塞 socket/tty 可能只发一部分：保留未发段、保持可写，
+                 * 整帧发完才报 TX_DONE；提前结算会在线上留下截断帧 */
+                impl->tx_off = off + (size_t)n;
+                return;
+            }
             if (n > 0) {
-                fprintf(stderr, "[IO-TX] FD:%d Sent %zd bytes SUCCESS\n", impl->fd, n);
-                net_buf_t* buf = impl->pending_tx;
+                fprintf(stderr, "[IO-TX] FD:%d Sent %zu bytes SUCCESS\n", impl->fd,
+                        off + (size_t)n);
                 impl->pending_tx = NULL;
+                impl->tx_off = 0;
                 // 恢复只读监听
                 uv_poll_start(handle, UV_READABLE, _on_uv_poll);
                 impl->base.cb(&impl->base, IO_EVENT_TX_DONE, NULL, impl->base.user_data);
                 net_buf_unref(buf);
             } else if (n < 0 && errno != EAGAIN && errno != EINTR) {
                 fprintf(stderr, "[IO-TX-ERR] FD:%d Write Failed: %s\n", impl->fd, strerror(errno));
+                /* 硬错误后不会再有 TX_DONE:这一帧的所有权在这里结清,否则永远挂在池外 */
+                net_buf_unref(impl->pending_tx);
+                impl->pending_tx = NULL;
+                impl->tx_off = 0;
+                /* 写侧硬错误同样不会自愈：先停再回调，避免可写事件空转 */
+                uv_poll_stop(handle);
                 impl->base.cb(&impl->base, IO_EVENT_ERROR, NULL, impl->base.user_data);
+                _notify_link(impl);
+                return;
             }
         } else {
             uv_poll_start(handle, UV_READABLE, _on_uv_poll);
@@ -257,7 +315,25 @@ static int _poll_write_async(io_handle_t* h, net_buf_t* buf) {
     linux_io_handle_t* impl = (linux_io_handle_t*)h;
     if (impl->pending_tx) return -EBUSY;
     impl->pending_tx = net_buf_ref(buf);
-    return uv_poll_start(&impl->handle.poll, UV_READABLE | UV_WRITABLE, _on_uv_poll);
+    impl->tx_off = 0;
+    /* 写帧期间只等可写:半双工事务里,帧没写完就收到的字节属于上一条命令,
+     * 这时开读会被当成这一条命令的应答(串 tag)。整帧写完后 _on_uv_poll
+     * 自己切回只读。 */
+    return uv_poll_start(&impl->handle.poll, UV_WRITABLE, _on_uv_poll);
+}
+
+/* 排空已到达内核 RX 队列、但还没被读回调取走的字节。
+ * 只用于事务边界(开新帧前 / 超时收尾后):这些字节属于已经结算的事务,
+ * 留给下一条命令就会被当成它的应答(RTU 读应答没有寄存器地址可校验)。 */
+static void _drain_rx(linux_io_handle_t* impl) {
+    if (impl->type == IO_TYPE_UART && tcflush(impl->fd, TCIFLUSH) == 0) return;
+    uint8_t trash[256];
+    ssize_t ret;
+    do {
+        /* tty 不是 socket，recv() 会返回 ENOTSOCK；UART fd 必须用 read() */
+        ret = impl->type == IO_TYPE_UART ? read(impl->fd, trash, sizeof(trash))
+                                         : recv(impl->fd, trash, sizeof(trash), MSG_DONTWAIT);
+    } while (ret > 0);
 }
 
 static int _poll_ioctl(io_handle_t* h, int cmd, void* arg) {
@@ -269,12 +345,11 @@ static int _poll_ioctl(io_handle_t* h, int cmd, void* arg) {
             impl->pending_tx = NULL;
         }
         // Drain OS RX buffer non-blockingly to prevent sequence mismatch from delayed responses
-        uint8_t trash[256];
-        ssize_t ret;
-        do {
-            ret = impl->type == IO_TYPE_UART ? read(impl->fd, trash, sizeof(trash))
-                                             : recv(impl->fd, trash, sizeof(trash), MSG_DONTWAIT);
-        } while (ret > 0);
+        _drain_rx(impl);
+        return 0;
+    }
+    if (cmd == IO_CTL_DISCARD_RX) {
+        _drain_rx(impl);
         return 0;
     }
     if (cmd == IO_CTL_SET_BAUD && impl->type == IO_TYPE_UART) {
@@ -282,6 +357,7 @@ static int _poll_ioctl(io_handle_t* h, int cmd, void* arg) {
         struct termios options;
         if (tcgetattr(impl->fd, &options) != 0) return -errno;
         speed_t speed = _uart_baud_to_speed(baud);
+        if (speed == (speed_t)0) return -EINVAL;
         cfsetispeed(&options, speed);
         cfsetospeed(&options, speed);
         if (tcsetattr(impl->fd, TCSANOW, &options) != 0) return -errno;
@@ -611,6 +687,13 @@ io_handle_t* io_executor_create(uv_loop_t* loop, const io_config_t* cfg, net_buf
             }
             cfmakeraw(&tio);
             speed_t speed = _uart_baud_to_speed(cfg->params.uart.baud);
+            if (speed == (speed_t)0) {
+                LOG_ERROR(LOG_CAT_IO, "io_executor: unsupported UART baud %u for %s",
+                          cfg->params.uart.baud, cfg->params.uart.dev);
+                close(fd);
+                free(impl);
+                return NULL;
+            }
             cfsetispeed(&tio, speed);
             cfsetospeed(&tio, speed);
             if (tcsetattr(fd, TCSANOW, &tio) != 0) {
@@ -620,7 +703,11 @@ io_handle_t* io_executor_create(uv_loop_t* loop, const io_config_t* cfg, net_buf
             }
             impl->fd = fd;
             impl->base.ops = &poll_ops;
-            uv_poll_init(loop, &impl->handle.poll, fd);
+            if (uv_poll_init(loop, &impl->handle.poll, fd) < 0) {
+                close(fd);
+                free(impl);
+                return NULL;
+            }
             impl->handle.poll.data = impl;
             break;
         }

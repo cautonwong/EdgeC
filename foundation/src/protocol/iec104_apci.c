@@ -34,6 +34,13 @@ struct iec104_apci_mgr {
 _Static_assert(sizeof(struct iec104_apci_mgr) <= sizeof(iec104_apci_mgr_storage_t),
                "iec104_apci_mgr_storage_t size is insufficient");
 
+static bool _release_frame(iec104_apci_mgr_t *mgr, int slot) {
+    if (!mgr->unacked_frames[slot]) return false;
+    net_buf_unref(mgr->unacked_frames[slot]);
+    mgr->unacked_frames[slot] = NULL;
+    return true;
+}
+
 static void _reclaim_acked_frames(iec104_apci_mgr_t *mgr, uint16_t nr) {
     // 处理回绕情况下的序号比较 (RFC 风格或简单的 15位对齐比较)
     uint16_t current_nr = mgr->acked_nr;
@@ -41,11 +48,7 @@ static void _reclaim_acked_frames(iec104_apci_mgr_t *mgr, uint16_t nr) {
 
     while (current_nr != nr) {
         int slot = current_nr % 32;
-        if (mgr->unacked_frames[slot]) {
-            net_buf_unref(mgr->unacked_frames[slot]);
-            mgr->unacked_frames[slot] = NULL;
-            reclaimed++;
-        }
+        if (_release_frame(mgr, slot)) reclaimed++;
         current_nr = (uint16_t)((current_nr + 1) & 0x7FFF);
 
         // 安全限制，防止死循环
@@ -79,6 +82,9 @@ iec104_state_t iec104_apci_get_state(const iec104_apci_mgr_t *mgr) {
 void iec104_apci_set_state(iec104_apci_mgr_t *mgr, iec104_state_t state) {
     if (mgr) {
         mgr->state = state;
+        /* STARTDT 成功即进入空闲计时：此后即使没发过 I 帧，20s 无活动也要
+         * 主动 TESTFR，否则从站在无数据链路上永远不保活。 */
+        if (state == IEC104_STATE_CONNECTED) mgr->t3_start_ts = uv_hrtime() / 1000000;
     }
 }
 
@@ -93,6 +99,9 @@ uint16_t iec104_apci_get_nr(const iec104_apci_mgr_t *mgr) {
 void iec104_apci_set_nr(iec104_apci_mgr_t *mgr, uint16_t nr) {
     if (mgr) {
         mgr->nr = nr;
+        /* 收到 I 帧就欠一个确认：t2 到期还没有回 I 帧（I 帧自带 N(R)）就补 S 帧。
+         * 以前这里不置位，t2 永远是 0，S 帧从不发出。 */
+        if (mgr->t2_start_ts == 0) mgr->t2_start_ts = uv_hrtime() / 1000000;
     }
 }
 
@@ -102,6 +111,15 @@ void iec104_apci_init(iec104_apci_mgr_t *mgr) {
     mgr->state = IEC104_STATE_DISCONNECTED;
     mgr->k = 12;
     mgr->w = 8;
+}
+
+void iec104_apci_release_unacked(iec104_apci_mgr_t *mgr) {
+    if (!mgr) return;
+    for (size_t i = 0; i < sizeof(mgr->unacked_frames) / sizeof(mgr->unacked_frames[0]); i++) {
+        _release_frame(mgr, (int)i);
+    }
+    /* 序号必须从 0 重来：新主站接管后不认上一会话的 N(S)/N(R) */
+    iec104_apci_init(mgr);
 }
 
 static void _build_apci_header(uint8_t *p, uint8_t len, uint16_t control1, uint16_t control2) {
@@ -150,13 +168,18 @@ int iec104_apci_build_s(iec104_apci_mgr_t *mgr, net_buf_t *out) {
 
     _build_apci_header(p, 4, 0x0001, (uint16_t)(mgr->nr << 1));
 
-    // 发送 S 帧后，重置 t2 计时
+    // 发送 S 帧后，重置 t2 计时；链路有活动，t3 空闲计时也从头算
     mgr->t2_start_ts = 0;
+    mgr->t3_start_ts = uv_hrtime() / 1000000;
     return 0;
 }
 
 void iec104_apci_handle_nr(iec104_apci_mgr_t *mgr, uint16_t nr) {
     _reclaim_acked_frames(mgr, nr);
+}
+
+void iec104_apci_note_activity(iec104_apci_mgr_t *mgr) {
+    if (mgr) mgr->t3_start_ts = uv_hrtime() / 1000000;
 }
 
 int iec104_apci_wrap_i(iec104_apci_mgr_t *mgr, net_buf_t *asdu) {
@@ -183,6 +206,8 @@ int iec104_apci_wrap_i(iec104_apci_mgr_t *mgr, net_buf_t *asdu) {
     // 4. 时序与序号
     if (mgr->t1_start_ts == 0) mgr->t1_start_ts = uv_hrtime() / 1000000;
     mgr->t3_start_ts = uv_hrtime() / 1000000;
+    /* 这个 I 帧的 N(R) 已经确认了收到的 I 帧，不需要再补 S 帧 */
+    mgr->t2_start_ts = 0;
     mgr->ns = (uint16_t)((mgr->ns + 1) & 0x7FFF);
 
     return 0;
@@ -192,6 +217,9 @@ iec104_apci_event_t iec104_apci_tick(iec104_apci_mgr_t *mgr, uint64_t now) {
     if (mgr->state == IEC104_STATE_DISCONNECTED) return IEC104_EVENT_NONE;
 
     // 1. t1 监测 (15s)
+    /* t1 到期先返回，t2/t3 分支在其后判。T1_TIMEOUT 由 driver_iec104 消费：
+     * close_link 断开客户端并把会话复位为 DISCONNECTED，因此 t1 不会一直遮蔽
+     * t2/t3。 */
     if (mgr->t1_start_ts > 0 && (now - mgr->t1_start_ts) > 15000) {
         return IEC104_EVENT_T1_TIMEOUT;
     }

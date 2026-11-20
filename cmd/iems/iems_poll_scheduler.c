@@ -28,8 +28,9 @@ static void on_poll_complete(int status, const pipe_msg_t *result, void *user_da
     iems_node_t *node = (iems_node_t *)user_data;
     if (status != 0 || !result || !node) return;
     if (result->type != PIPEMSG_TYPE_SCALAR) return;
-    // 镜像只能由聚合根写;这里只转交采样,不做任何堆分配。
-    if (iems_node_ingest_sample(node, result->tag_id, result->payload.val.f) != 0) {
+    // 镜像只能由聚合根写;这里只转交采样,不做任何堆分配。result->ts 是读帧编码
+    // 时刻(采样时刻),不是结果到达时刻 —— 聚合根据此丢弃迟到的旧采样。
+    if (iems_node_ingest_sample(node, result->tag_id, result->payload.val.f, result->ts) != 0) {
         static uint64_t last_warn_ns;  // 热路径:失败日志全局限流到 60s 一次
         uint64_t now = uv_hrtime();
         if (now - last_warn_ns > 60ULL * 1000000000ULL) {

@@ -56,6 +56,16 @@ int edge_api_write_tag(int bus_id, const char* protocol, uint32_t slave_id,
                        void* user_data);
 
 /**
+ * @brief 写一个点位，显式携带点位描述（DLT645 写宽度等）。
+ *
+ * `edge_api_write_tag()` 是它的兼容包装（point_desc=NULL/0）。point_desc 的
+ * 生命周期由调用方保证：请求层在总线异步 setup 时才读它。
+ */
+int edge_api_write_tag_ex(int bus_id, const char* protocol, uint32_t slave_id,
+                          uint32_t physical_tag_id, double value, const void* point_desc,
+                          size_t point_desc_len, legacy_on_complete_cb cb, void* user_data);
+
+/**
  * @brief Submits a raw I/O passthrough request.
  */
 int edge_api_raw_io(int bus_id, net_buf_t* tx_buf, raw_io_on_complete_cb cb);

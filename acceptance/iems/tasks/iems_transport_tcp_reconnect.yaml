@@ -1,0 +1,19 @@
+# TCP 断链重连:壳在 127.0.0.1 的随机端口监听,--drop-after 8 让台架在服务
+# 8 帧后主动关连接(首轮轮询必已完成)。产品必须按退避重连、进程不重启,
+# 并在新连接上恢复周期轮询 —— 停在断链态或靠重启恢复都会红。
+# --record-startup 把产品 stdout 落到 iems.log:connection lost/retry 与
+# 第二次 CONNECTED 是产品自己打的,用例只认这两行,不自编文案。
+id: iems-transport-tcp-reconnect
+product: iems
+launch:
+  - ${PYTHON}
+  - iems_product.py
+  - --port
+  - ${PORT}
+  - --transport
+  - tcp
+  - --drop-after
+  - "8"
+  - --record-startup
+devices: configs/devices.yaml
+select: case:I_00_00_06_000004

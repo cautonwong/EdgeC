@@ -199,12 +199,16 @@ static void test_master_survives_repeated_timeout(void **state) {
     link_ctx_t *ctx = make_ctx();
     edge_req_t req = {.ops = &k_fake_ops};
 
-    /* 第一条:让 arbiter 的到期扫描先动手(引擎定时器 5s 后才到),
-     * 锁住 _on_arbiter_settled 这条路径 */
-    cmd_msg_t *slow = make_cmd(&req, 5000);
-    slow->deadline_ns = uv_hrtime() + 1000000ULL; /* 1ms */
+    /* 第一条:把 owner 的截止期拨到过去再手动触发 arbiter 扫描,锁住
+     * _on_arbiter_settled 这条路径(引擎发帧时会把 deadline 改到上线时刻,
+     * 不能再靠 1ms 的提交截止期让 arbiter 扫描抢先)。超时同样是 100ms:
+     * 它同时决定超时后的恢复窗口,用 5s 会让第二条在后面干等 5s。 */
+    cmd_msg_t *slow = make_cmd(&req, 100);
     assert_int_equal(bus_orchestrator_submit_cmd(ctx->orch, 0, slow), 0);
-    pump(&ctx->loop, 400);
+    pump(&ctx->loop, 30); /* 让请求真的发出去,引擎挂上 current_cmd */
+    slow->deadline_ns = uv_hrtime() - 1;
+    arbiter_check_timeouts(ctx->arb);
+    pump(&ctx->loop, 30);
     assert_int_equal(g_done, 1);
     assert_int_equal(g_finish, 1);
     assert_int_equal(g_last_status, CMD_STATUS_TIMEOUT);
@@ -253,12 +257,65 @@ static void test_master_settles_queued_commands_on_one_bus(void **state) {
     teardown_ctx(ctx);
 }
 
+/* 排队等过超时的命令,轮到它上线时必须拿到完整的事务超时预算。
+ * 修复前 arbiter 用提交时刻的 deadline:队列里等满 100ms 的命令一上线
+ * 就被判超时,它之后的应答会落到下一条命令头上(串 tag)。 */
+static void test_queued_command_gets_full_timeout_on_wire(void **state) {
+    (void)state;
+    g_done = 0;
+    g_done_status = 0;
+    g_finish = 0;
+    g_last_status = 0;
+    g_decode_mode = 1; /* 第一条只发不收,占住总线到超时 */
+
+    link_ctx_t *ctx = make_ctx();
+    edge_req_t req = {.ops = &k_fake_ops};
+
+    assert_int_equal(bus_orchestrator_submit_cmd(ctx->orch, 0, make_cmd(&req, 100)), 0);
+    assert_int_equal(bus_orchestrator_submit_cmd(ctx->orch, 0, make_cmd(&req, 100)), 0);
+
+    for (int waited = 0; waited < 300 && g_done < 1; waited += 5) {
+        uv_run(&ctx->loop, UV_RUN_NOWAIT);
+        uv_sleep(5);
+    }
+    assert_int_equal(g_done, 1);
+    assert_int_equal(g_last_status, CMD_STATUS_TIMEOUT);
+
+    /* 第二条已在队里等了约 100ms,还要再过一条 100ms 的超时恢复窗口才上线。
+     * 等对端真的收到它的请求字节,再在自己的事务预算内(40ms 后)应答 ——
+     * 上线前发出去的字节会被开帧前的 DISCARD_RX 丢掉,那验不到预算。 */
+    g_decode_mode = 0;
+    int seen_bytes = 0;
+    for (int waited = 0; waited < 400 && seen_bytes < 2; waited += 5) {
+        uv_run(&ctx->loop, UV_RUN_NOWAIT);
+        uint8_t byte;
+        if (recv(ctx->peer_fd, &byte, 1, MSG_DONTWAIT) == 1) {
+            seen_bytes++;
+        } else {
+            uv_sleep(5);
+        }
+    }
+    assert_int_equal(seen_bytes, 2); /* 第一条 + 恢复窗口后的第二条 */
+    uv_sleep(40);
+    uv_run(&ctx->loop, UV_RUN_NOWAIT);
+    assert_int_equal(send(ctx->peer_fd, "X", 1, 0), 1);
+    for (int waited = 0; waited < 200 && g_done < 2; waited += 5) {
+        uv_run(&ctx->loop, UV_RUN_NOWAIT);
+        uv_sleep(5);
+    }
+    assert_int_equal(g_done, 2);
+    assert_int_equal(g_last_status, CMD_STATUS_SUCCESS);
+
+    teardown_ctx(ctx);
+}
+
 int main(void) {
     /* 对端关闭后再写会 EPIPE:不忽略 SIGPIPE 会把测试进程直接打断 */
     signal(SIGPIPE, SIG_IGN);
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_master_survives_peer_close),
         cmocka_unit_test(test_master_survives_repeated_timeout),
+        cmocka_unit_test(test_queued_command_gets_full_timeout_on_wire),
         cmocka_unit_test(test_master_settles_queued_commands_on_one_bus),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);

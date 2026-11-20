@@ -63,6 +63,10 @@ typedef enum {
     IEC_COT_DEACT_CON = 9, /**< 停止激活确认 */
     IEC_COT_ACT_TERM = 10, /**< 激活终止 */
     IEC_COT_INTROGEN = 20, /**< 响应站召唤 (总传) */
+    IEC_COT_UNKNOWN_TYPE_ID = 44, /**< 未知类型标识 */
+    IEC_COT_UNKNOWN_COT = 45,     /**< 未知传输原因 */
+    IEC_COT_UNKNOWN_CA = 46,      /**< 未知公共地址 */
+    IEC_COT_UNKNOWN_IOA = 47,     /**< 未知信息对象地址 */
 } iec_cot_t;
 
 /**
@@ -134,6 +138,14 @@ void iec_asdu_init(net_buf_t *buf, iec_type_id_t type, bool sq, uint8_t count, i
 int iec_asdu_parse_header(struct net_buf_simple *b, iec_type_id_t *type, bool *sq, uint8_t *count,
                           iec_cot_t *cot, uint16_t *casdu, const iec_addr_config_t *conf);
 
+/**
+ * @brief 就地改写已组好的 ASDU 的 COT（回显请求时只换确认码，其余字节不动）
+ *
+ * @param negative 置 P/N 位（否定确认）。104 的 COT 第二字节是 OA，保留请求值。
+ */
+void iec_asdu_set_cot(struct net_buf_simple *b, iec_cot_t cot, bool negative,
+                      const iec_addr_config_t *conf);
+
 /* M_SP_NA_1 (单点遙信) */
 
 int iec_asdu_add_m_sp_na_1(net_buf_t *buf, uint32_t ioa, bool val, iec_qds_t qds,
@@ -154,6 +166,8 @@ int iec_asdu_parse_m_me_nc_1(struct net_buf_simple *b, uint32_t *ioa, float *val
 /* C_IC_NA_1 (总召唤) */
 int iec_asdu_add_c_ic_na_1(net_buf_t *buf, uint32_t ioa, uint8_t qoi,
                            const iec_addr_config_t *conf);
+int iec_asdu_parse_c_ic_na_1(struct net_buf_simple *b, uint32_t *ioa, uint8_t *qoi,
+                             const iec_addr_config_t *conf);
 
 /* C_SC_NA_1 (单命令) */
 int iec_asdu_add_c_sc_na_1(net_buf_t *buf, uint32_t ioa, bool val, bool select,

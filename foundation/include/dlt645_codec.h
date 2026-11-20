@@ -32,6 +32,19 @@ extern "C" {
 #define DLT645_PWD_LEVEL_PLAIN          0x02
 
 /**
+ * @brief 写请求的点位描述（随 edge_api_write_tag_ex 的 point_desc 传给驱动）。
+ *
+ * 645 写数据段的报文长度由数据宽度决定（电压/电流 2 字节、电能量 4 字节），
+ * 而 native_id 只有 DI —— 宽度是点位模型的知识，由产品侧填，驱动不猜。
+ * 缺描述或宽度不是 2/4 一律拒绝：把 BCD 写到错误的字节位置比失败更糟。
+ *
+ * 放在公开头是因为构造它的是消费方（产品侧），驱动只按同一布局读取。
+ */
+typedef struct {
+    uint8_t data_len; /**< 数据段字节数：2 或 4 */
+} dlt645_write_desc_t;
+
+/**
  * @brief DLT645 纯协议内核接口 (Zero-Dependency)
  */
 

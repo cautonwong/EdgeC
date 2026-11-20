@@ -61,6 +61,15 @@ void iec104_apci_set_nr(iec104_apci_mgr_t *mgr, uint16_t nr);
 void iec104_apci_init(iec104_apci_mgr_t *mgr);
 
 /**
+ * @brief 释放全部未确认 I 帧的 net_buf 备份，并把窗口/定时器恢复到新建状态
+ *
+ * 会话复位（新主站接管）前必须调用：备份槽里的引用是这些缓冲的唯一持有者，
+ * 直接丢弃管理器（memset / 重建）会泄漏 net_buf 池。调用后管理器等同
+ * iec104_apci_init 之后的状态。
+ */
+void iec104_apci_release_unacked(iec104_apci_mgr_t *mgr);
+
+/**
  * @brief 构建 U 帧 (STARTDT, STOPDT, TESTFR)
  */
 typedef enum {
@@ -83,6 +92,11 @@ int iec104_apci_build_s(iec104_apci_mgr_t *mgr, net_buf_t *out);
  * @brief 处理收到的确认号 N(R)
  */
 void iec104_apci_handle_nr(iec104_apci_mgr_t *mgr, uint16_t nr);
+
+/**
+ * @brief 收到任意 APDU 时刷新 t3 空闲基线（链路活动）
+ */
+void iec104_apci_note_activity(iec104_apci_mgr_t *mgr);
 
 /**
  * @brief 在 I 帧发送前执行 APCI 封包 (Zero-Copy)

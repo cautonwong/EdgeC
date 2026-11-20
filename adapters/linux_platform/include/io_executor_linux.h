@@ -12,6 +12,9 @@ io_handle_t *io_executor_create_uart(uv_loop_t *loop, const char *dev_path, uint
 io_handle_t *io_executor_create_tcp(uv_loop_t *loop, const char *host, uint16_t port,
                                     net_buf_pool_t *pool);
 
+/* 创建前就能判定线速是否可配置; 不支持的速率必须让调用方拒绝, 不能静默退回。 */
+bool io_executor_uart_baud_supported(uint32_t baud);
+
 #ifdef __cplusplus
 }
 #endif

@@ -1,0 +1,19 @@
+# Modbus TCP(MBAP):壳在 127.0.0.1 的随机端口按 7 字节 MBAP 头收发挥发,
+# OMNIS_BUS_0_DEV=tcp://…;inventory.protocol 写 ModbusTCP,产品据此选
+# ModbusTCP 驱动(而不是总线上的 ModbusRTU 驱动)。同样是 tcp:// 地址,
+# 上一份任务验 RTU 帧,这一份验 MBAP 帧 —— 协议选错时两边的判据互相咬住。
+#
+# 用例已真实通过:帧层、南向写与读值量纲都在同一条链路上断言。
+# 轮询读值按点表 raw×scaler 换算,台架 2317 还原为 231.7V(合同容差 ±0.5V)。
+id: iems-transport-mbap
+product: iems
+launch:
+  - ${PYTHON}
+  - iems_product.py
+  - --port
+  - ${PORT}
+  - --transport
+  - mbap
+  - --record-startup
+devices: configs/devices.yaml
+select: case:I_00_00_06_000003

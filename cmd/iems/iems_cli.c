@@ -54,15 +54,15 @@ static void print_usage(const char *prog) {
         prog);
 }
 
-static mcp_bus_hub_t *create_initialized_hub(void) {
-    mcp_bus_hub_t *hub = mcp_bus_hub_create(NULL);
+static mcp_bus_hub_t *create_initialized_hub(const edge_mcp_env_t *env) {
+    mcp_bus_hub_t *hub = mcp_bus_hub_create(env);
     if (!hub) return NULL;
-    edge_mcp_register_all_microservices(hub, NULL);
+    edge_mcp_register_all_microservices(hub, env);
     return hub;
 }
 
 static int handle_mcp_list(void) {
-    mcp_bus_hub_t *hub = create_initialized_hub();
+    mcp_bus_hub_t *hub = create_initialized_hub(NULL);
     if (!hub) {
         fprintf(stderr, "Error: Failed to initialize MCP bus hub.\n");
         return 1;
@@ -70,11 +70,15 @@ static int handle_mcp_list(void) {
 
     cJSON *providers = NULL;
     int pcount = mcp_bus_get_providers_json(hub, &providers);
+    cJSON *tool_list = edge_mcp_list_tools_json(mcp_bus_get_dispatcher(hub));
+    int tool_count = tool_list ? cJSON_GetArraySize(tool_list) : 0;
+    cJSON_Delete(tool_list);
 
     printf(
         "=========================================================================================="
         "==============\n");
-    printf(" EdgeOS Shared MCP Neural Bus - Registered Providers & Tools (%d Providers)\n", pcount);
+    printf(" EdgeOS Shared MCP Neural Bus - Registered Providers & Tools (%d Providers, %d Tools)\n",
+           pcount, tool_count);
     printf(
         "=========================================================================================="
         "==============\n");
@@ -134,19 +138,27 @@ static int handle_mcp_list(void) {
     return 0;
 }
 
-static int handle_mcp_call(const char *tool_name, const char *args_json, const char *operator_id,
-                           mcp_security_level_t sec_level) {
-    if (!tool_name) {
-        fprintf(stderr, "Error: Missing tool name for 'mcp call'.\n");
-        return 1;
-    }
+/* The tool result travels inside result.content[0].text as a JSON string. Any
+ * tool that reports success:false did not do its job, even though the outer
+ * JSON-RPC response is well-formed. */
+static int result_reports_success(const cJSON *resp_obj, int *out_code) {
+    const cJSON *result = cJSON_GetObjectItem(resp_obj, "result");
+    const cJSON *content = result ? cJSON_GetObjectItem(result, "content") : NULL;
+    const cJSON *text =
+        content ? cJSON_GetObjectItem(cJSON_GetArrayItem(content, 0), "text") : NULL;
+    if (!text || !cJSON_IsString(text)) return 0;
+    cJSON *payload = cJSON_Parse(text->valuestring);
+    if (!payload) return 0;
+    const cJSON *code = cJSON_GetObjectItem(payload, "code");
+    if (out_code && code && cJSON_IsNumber(code)) *out_code = code->valueint;
+    int ok = cJSON_IsTrue(cJSON_GetObjectItem(payload, "success"));
+    cJSON_Delete(payload);
+    return ok;
+}
 
-    mcp_bus_hub_t *hub = create_initialized_hub();
-    if (!hub) {
-        fprintf(stderr, "Error: Failed to initialize MCP bus hub.\n");
-        return 1;
-    }
-
+static int dispatch_and_report(mcp_bus_hub_t *hub, const char *tool_name, const char *args_json,
+                               const char *operator_id, mcp_security_level_t sec_level,
+                               bool require_success) {
     const char *env_token = getenv("EDGEOS_SUPERVISOR_TOKEN");
     mcp_security_context_t sec_ctx = {.client_id = "iems-cli",
                                       .operator_id = operator_id ? operator_id : "cli_operator",
@@ -182,13 +194,30 @@ static int handle_mcp_call(const char *tool_name, const char *args_json, const c
 
     if (!resp_str) {
         fprintf(stderr, "Error: No response returned from MCP bus.\n");
-        mcp_bus_hub_destroy(hub);
         return 1;
     }
 
     /* Format response JSON for clean terminal display */
+    int rc = 0;
     cJSON *resp_obj = cJSON_Parse(resp_str);
     if (resp_obj) {
+        const cJSON *err = cJSON_GetObjectItem(resp_obj, "error");
+        if (err) {
+            rc = 1;
+            if (require_success) {
+                const cJSON *code = cJSON_GetObjectItem(err, "code");
+                const cJSON *msg = cJSON_GetObjectItem(err, "message");
+                fprintf(stderr, "Error: %s failed: %s (code %d)\n", tool_name,
+                        (msg && cJSON_IsString(msg)) ? msg->valuestring : "request rejected",
+                        (code && cJSON_IsNumber(code)) ? code->valueint : MCP_RPC_TOOL_EXEC_ERROR);
+            }
+        } else if (require_success) {
+            int tool_code = MCP_RPC_TOOL_EXEC_ERROR;
+            if (!result_reports_success(resp_obj, &tool_code)) {
+                rc = 1;
+                fprintf(stderr, "Error: %s failed (code %d)\n", tool_name, tool_code);
+            }
+        }
         char *pretty_resp = cJSON_Print(resp_obj);
         if (pretty_resp) {
             printf("%s\n", pretty_resp);
@@ -199,16 +228,34 @@ static int handle_mcp_call(const char *tool_name, const char *args_json, const c
         cJSON_Delete(resp_obj);
     } else {
         printf("%s\n", resp_str);
+        rc = 1;
     }
 
     free(resp_str);
+    return rc;
+}
+
+static int handle_mcp_call(const char *tool_name, const char *args_json, const char *operator_id,
+                           mcp_security_level_t sec_level) {
+    if (!tool_name) {
+        fprintf(stderr, "Error: Missing tool name for 'mcp call'.\n");
+        return 1;
+    }
+
+    mcp_bus_hub_t *hub = create_initialized_hub(NULL);
+    if (!hub) {
+        fprintf(stderr, "Error: Failed to initialize MCP bus hub.\n");
+        return 1;
+    }
+
+    int rc = dispatch_and_report(hub, tool_name, args_json, operator_id, sec_level, false);
     mcp_bus_hub_destroy(hub);
-    return 0;
+    return rc;
 }
 
 static int handle_mcp_audit(int limit) {
     if (limit <= 0) limit = 20;
-    mcp_bus_hub_t *hub = create_initialized_hub();
+    mcp_bus_hub_t *hub = create_initialized_hub(NULL);
     if (!hub) return 1;
 
     cJSON *logs = NULL;
@@ -274,6 +321,69 @@ static int handle_tag_read(uint32_t tag_id) {
     return 0;
 }
 
+/* Write port: same shadow write as the product adapter
+ * adapters/datahub_bridges/src/edge_mcp_datahub_adapter.c. */
+static int cli_write_tag(void *ctx, const edge_mcp_tag_value_t *value) {
+    if (!ctx || !value) return -1;
+    pipe_msg_t msg = {
+        .tag_id = value->tag_id,
+        .payload = {.val = {.f = value->value}},
+        .quality = value->quality,
+        .type = value->type,
+        .ts = value->timestamp_ms,
+    };
+    return datahub_write_shadow((datahub_t *)ctx, &msg);
+}
+
+/* Existence and metadata come only from the product's static point table;
+ * tags outside iems_get_tag_meta() return -1, so the dispatcher rejects the
+ * write with -32000 even if DataHub happens to hold a value for that slot. */
+static int cli_get_tag_meta(void *ctx, uint32_t tag_id, edge_mcp_tag_meta_t *out) {
+    (void)ctx;
+    if (!out) return -1;
+    const edge_tag_meta_t *meta = iems_get_tag_meta(tag_id);
+    if (!meta) return -1;
+    memset(out, 0, sizeof(*out));
+    out->tag_id = meta->id;
+    snprintf(out->name, sizeof(out->name), "%s", meta->name ? meta->name : "");
+    snprintf(out->unit, sizeof(out->unit), "%s", meta->unit ? meta->unit : "");
+    snprintf(out->category, sizeof(out->category), "%s", meta->category ? meta->category : "");
+    out->min_value = meta->min;
+    out->max_value = meta->max;
+    return 0;
+}
+
+static int handle_tag_write(uint32_t tag_id, const char *value_str) {
+    const char *shm_name = getenv("EDGE_SHM_NAME") ? getenv("EDGE_SHM_NAME") : EDGE_SHM_BUS_NAME;
+    datahub_storage_t storage;
+    datahub_t *datahub = (datahub_t *)&storage;
+    if (datahub_attach(datahub, shm_name) != 0) {
+        fprintf(stderr, "Failed to attach to DataHub shadow at %s (is the IEMS node running?)\n",
+                shm_name);
+        return 1;
+    }
+    datahub_set_tag_mapper_v2(datahub, iems_tag_map_fn);
+
+    edge_mcp_env_t env = {
+        .tools = {.ctx = datahub, .write_tag = cli_write_tag, .get_tag_meta = cli_get_tag_meta},
+        .hide_tag_meta = false,
+    };
+    mcp_bus_hub_t *hub = create_initialized_hub(&env);
+    if (!hub) {
+        fprintf(stderr, "Error: Failed to initialize MCP bus hub.\n");
+        datahub_destroy(datahub);
+        return 1;
+    }
+
+    char call_args[128];
+    snprintf(call_args, sizeof(call_args), "{\"tag_id\": %u, \"value\": %s}", tag_id, value_str);
+    int rc = dispatch_and_report(hub, "datahub_write_tag", call_args, "operator",
+                                 MCP_SEC_L1_PARAM_TUNING, true);
+    mcp_bus_hub_destroy(hub);
+    datahub_destroy(datahub);
+    return rc;
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
         print_usage(argv[0]);
@@ -318,10 +428,7 @@ int main(int argc, char **argv) {
         if (strcmp(sub, "read") == 0) {
             return handle_tag_read(tid);
         } else if (strcmp(sub, "write") == 0 && argc >= 5) {
-            char call_args[128];
-            snprintf(call_args, sizeof(call_args), "{\"tag_id\": %u, \"value\": %s}", tid, argv[4]);
-            return handle_mcp_call("datahub_write_tag", call_args, "operator",
-                                   MCP_SEC_L1_PARAM_TUNING);
+            return handle_tag_write(tid, argv[4]);
         }
     } else if (strcmp(cmd, "status") == 0) {
         printf("EdgeOS IEMS Node: ONLINE | MCP Bus: ACTIVE | DataHub: SYNCHRONIZED\n");

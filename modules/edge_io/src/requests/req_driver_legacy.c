@@ -20,6 +20,10 @@ typedef struct {
     uint32_t result_tag_id; /* 回调认的标识（产品自己的 tag_id） */
     double scale;           /* 解码值量纲，<=0 视为 1.0 */
     double value;
+    /* 采样时刻 = 读帧编码发出时（uv_hrtime 纳秒，与 pipe_msg_t.ts 同单位）。
+     * 结果消息用它而不是解码完成时刻：轮询结果可能晚到，控制写却发生在两个时刻
+     * 之间，只有采样时刻能表达“这个值是什么时候从线上读到的”。 */
+    uint64_t sample_ts;
     legacy_on_complete_cb on_complete;
     void *user_data;
     pipe_msg_t result_msg;
@@ -81,6 +85,9 @@ static int legacy_encode(edge_req_t *req, net_buf_t *buf) {
         return REQ_STATUS_ERROR;
     }
 
+    /* arbiter 每总线串行派发：encode 之后紧接着写帧，所以这是请求真正上线的时刻。 */
+    ctx->sample_ts = uv_hrtime();
+
     if (ctx->drv_ctx->driver->req_encode) {
         if (!ctx->drv_priv_ready) return REQ_STATUS_ERROR;
         /* session = 设备级持久上下文（ctx_size 字节），跨请求保留 APCI 序号等会话状态 */
@@ -120,7 +127,7 @@ static int legacy_decode(edge_req_t *req, net_buf_t *buf, size_t *consumed) {
         memset(&ctx->result_msg, 0, sizeof(pipe_msg_t));
         /* 驱动只回原始值；标识与量纲由调用方给（ADR-002：驱动不认 tag_id、不管标定） */
         pipe_msg_init_scalar(&ctx->result_msg, (edge_tag_id_t)ctx->result_tag_id,
-                             value * ctx->scale, uv_hrtime());
+                             value * ctx->scale, ctx->sample_ts);
         ctx->result_msg.device_id = ctx->slave_id;
         return REQ_STATUS_DONE;
     }

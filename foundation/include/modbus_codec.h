@@ -47,6 +47,8 @@ int modbus_rtu_encode_write_single_ex(uint8_t slave_id, uint16_t addr, uint16_t 
                                       bool hi_crc, net_buf_t *out);
 int modbus_rtu_encode_write_multiple_ex(uint8_t slave_id, uint16_t addr, uint16_t quantity,
                                         const uint16_t *values, bool hi_crc, net_buf_t *out);
+int modbus_rtu_encode_exception_ex(uint8_t slave_id, uint8_t fc, uint8_t ex_code, bool hi_crc,
+                                   net_buf_t *out);
 int modbus_rtu_encode_exception(uint8_t slave_id, uint8_t fc, uint8_t ex_code, net_buf_t *out);
 
 /* --- 解析逻辑 (RTU) --- */
@@ -66,7 +68,10 @@ int modbus_rtu_decode_frame_ex(struct net_buf_simple *in, bool hi_crc, uint8_t *
  * @brief 解析 RTU 请求帧并验证 CRC (从站使用)
  * @return 0 成功, 1 数据不足, -1 CRC 错误, -2 格式错误
  */
-int modbus_rtu_decode_req_frame(struct net_buf_simple *in, uint8_t *slave_id, uint8_t *fc, 
+/* 从站请求解码的 CRC 字节序变体，见上。 */
+int modbus_rtu_decode_req_frame_ex(struct net_buf_simple *in, bool hi_crc, uint8_t *slave_id,
+                                   uint8_t *fc, uint8_t **data_out, size_t *data_len);
+int modbus_rtu_decode_req_frame(struct net_buf_simple *in, uint8_t *slave_id, uint8_t *fc,
                                 uint8_t **data_out, size_t *data_len);
 
 /* --- Modbus TCP / MBAP --- */

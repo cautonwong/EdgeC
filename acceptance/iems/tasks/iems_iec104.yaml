@@ -1,0 +1,15 @@
+# 北向 IEC104 端到端:产品自己起契约表 bus 11 的 TCP 监听,用例用项目内的
+# 最小主站(iec104_client.py)按 IEMS-NB-IEC104 条款逐帧断言。
+#
+# kind: smoke —— test-platform 没有 IEC104 驱动且只读,自定义客户端不产生
+# 平台设备证据,门禁不能把这条算成某台设备的准入结论(见 README 的覆盖表)。
+id: iems-iec104
+product: iems
+kind: smoke
+launch:
+  - ${PYTHON}
+  - iems_product.py
+  - --port
+  - ${PORT}
+devices: configs/devices_empty.yaml
+select: case:I_00_00_05_

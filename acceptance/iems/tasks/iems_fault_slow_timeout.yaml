@@ -1,0 +1,19 @@
+id: iems-fault-slow-timeout
+# 3s 应答超过 2s 事务超时:超时结算后总线要留恢复窗口,让迟到帧落进内核 RX,
+# 由下一事务开帧前的 DISCARD_RX 丢掉,而不是被当成下一事务的应答解码。
+product: iems
+kind: smoke
+launch:
+  - ${PYTHON}
+  - iems_product.py
+  - --port
+  - ${PORT}
+  - --fault
+  - slow
+  - --slow-ms
+  - "3000"
+  - --fault-frames
+  - "3"
+  - --record-startup
+devices: configs/devices.yaml
+select: case:I_00_00_01_000023

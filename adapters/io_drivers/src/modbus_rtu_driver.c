@@ -10,6 +10,7 @@
  *   3. 32 位量（quantity==2）按 ABCD 合包，与旧实现一致
  */
 
+#include <math.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -55,9 +56,18 @@ static int mb_rtu_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id, 
     p->raw_n = 0;
     p->is_write = is_write;
     p->value = value;
-    /* 写只支持 1 个寄存器（FC06）或 2 个（FC16 拼 32 位量）；更多寄存器需要
-     * 数组请求模型，当前只带一个标量，显式拒绝而不是截断。 */
-    if (is_write && p->quantity > 2) return -1;
+    /* 写只支持 1 个寄存器（FC06）或 2 个（FC16 拼 32 位量）；非有限值或越界
+     * 值的 double→uint 转换未定义，负值会回绕，显式拒绝而不是截断。 */
+    if (is_write) {
+        if (!isfinite(value)) return -1;
+        if (p->quantity == 1) {
+            if (value < 0.0 || value > 65535.0) return -1;
+        } else if (p->quantity == 2) {
+            if (value < 0.0 || value > 4294967295.0) return -1;
+        } else {
+            return -1;
+        }
+    }
     return 0;
 }
 
@@ -184,19 +194,20 @@ static int mb_rtu_req_decode_hi(void *priv, void *session, const uint8_t *buf, s
 /* ==================== 从站侧 ==================== */
 
 static void _seal_rtu(net_buf_t *out, uint8_t slave, uint8_t fc, const uint8_t *body,
-                      size_t body_len) {
+                      size_t body_len, bool hi_crc) {
     uint8_t *p = net_buf_add(out, 2 + body_len + 2);
     p[0] = slave;
     p[1] = fc;
     if (body_len) memcpy(&p[2], body, body_len);
     uint16_t crc = modbus_calculate_crc(p, 2 + body_len);
-    p[2 + body_len] = (uint8_t)(crc & 0xFF); /* CRC 低字节先 */
-    p[3 + body_len] = (uint8_t)(crc >> 8);
+    p[2 + body_len] = (uint8_t)(hi_crc ? (crc >> 8) : (crc & 0xFF));
+    p[3 + body_len] = (uint8_t)(hi_crc ? (crc & 0xFF) : (crc >> 8));
 }
 
-static int mb_rtu_req_slave_exchange(void *priv, void *session, const uint8_t *in, size_t in_len,
-                                     const edge_slave_source_ops_t *src, void *src_ctx,
-                                     net_buf_t *out, size_t *consumed) {
+static int mb_rtu_req_slave_exchange_impl(void *priv, void *session, const uint8_t *in,
+                                          size_t in_len, const edge_slave_source_ops_t *src,
+                                          void *src_ctx, net_buf_t *out, size_t *consumed,
+                                          bool hi_crc) {
     (void)session; /* 无跨帧状态：一问一答自成一体 */
     modbus_rtu_req_t *p = (modbus_rtu_req_t *)priv;
     if (!p || !in || !out || !consumed) return -1;
@@ -211,7 +222,7 @@ static int mb_rtu_req_slave_exchange(void *priv, void *session, const uint8_t *i
     uint8_t slave = 0, fc = 0;
     uint8_t *data = NULL;
     size_t data_len = 0;
-    int rc = modbus_rtu_decode_req_frame(&nb, &slave, &fc, &data, &data_len);
+    int rc = modbus_rtu_decode_req_frame_ex(&nb, hi_crc, &slave, &fc, &data, &data_len);
     if (rc == 1) return EDGE_ERR_INCOMPLETE;
     if (rc < 0) {
         *consumed = 1;
@@ -224,13 +235,13 @@ static int mb_rtu_req_slave_exchange(void *priv, void *session, const uint8_t *i
 
     if (fc == MODBUS_FC_READ_HOLDING_REGS || fc == MODBUS_FC_READ_INPUT_REGS) {
         if (data_len < 4) {
-            modbus_rtu_encode_exception(slave, fc, MODBUS_EX_ILLEGAL_DATA_VALUE, out);
+            modbus_rtu_encode_exception_ex(slave, fc, MODBUS_EX_ILLEGAL_DATA_VALUE, hi_crc, out);
             return 0;
         }
         uint16_t addr = (uint16_t)((data[0] << 8) | data[1]);
         uint16_t count = (uint16_t)((data[2] << 8) | data[3]);
         if (count == 0 || count > MB_MAX_REGS) {
-            modbus_rtu_encode_exception(slave, fc, MODBUS_EX_ILLEGAL_DATA_VALUE, out);
+            modbus_rtu_encode_exception_ex(slave, fc, MODBUS_EX_ILLEGAL_DATA_VALUE, hi_crc, out);
             return 0;
         }
 
@@ -246,7 +257,7 @@ static int mb_rtu_req_slave_exchange(void *priv, void *session, const uint8_t *i
             body[n++] = (uint8_t)(raw >> 8);
             body[n++] = (uint8_t)(raw & 0xFF);
         }
-        _seal_rtu(out, slave, fc, body, n);
+        _seal_rtu(out, slave, fc, body, n, hi_crc);
         return 0;
     }
 
@@ -254,8 +265,15 @@ static int mb_rtu_req_slave_exchange(void *priv, void *session, const uint8_t *i
         if (data_len < 4) return -1;
         uint16_t addr = (uint16_t)((data[0] << 8) | data[1]);
         uint16_t raw = (uint16_t)((data[2] << 8) | data[3]);
-        if (src && src->accept) (void)src->accept(src_ctx, MODBUS_NATIVE(addr, 1), (double)raw);
-        _seal_rtu(out, slave, fc, data, 4); /* 应答是回显 */
+        int accept_rc = (src && src->accept)
+                            ? src->accept(src_ctx, MODBUS_NATIVE(addr, 1), (double)raw)
+                            : -1;
+        if (accept_rc < 0) {
+            /* 回显是假成功：主站会以为写生效了。端口没接或拒绝时如实回异常。 */
+            modbus_rtu_encode_exception_ex(slave, fc, MODBUS_EX_ILLEGAL_DATA_ADDRESS, hi_crc, out);
+            return 0;
+        }
+        _seal_rtu(out, slave, fc, data, 4, hi_crc);
         return 0;
     }
 
@@ -264,17 +282,41 @@ static int mb_rtu_req_slave_exchange(void *priv, void *session, const uint8_t *i
         uint16_t addr = (uint16_t)((data[0] << 8) | data[1]);
         uint16_t count = (uint16_t)((data[2] << 8) | data[3]);
         if ((size_t)(5 + 2 * count) > data_len) return -1;
+        bool rejected = false;
         for (uint16_t i = 0; i < count; i++) {
             uint16_t raw = (uint16_t)((data[5 + 2 * i] << 8) | data[6 + 2 * i]);
-            if (src && src->accept)
-                (void)src->accept(src_ctx, MODBUS_NATIVE(addr + i, 1), (double)raw);
+            int accept_rc = (src && src->accept)
+                                ? src->accept(src_ctx, MODBUS_NATIVE(addr + i, 1), (double)raw)
+                                : -1;
+            if (accept_rc < 0) {
+                rejected = true;
+                break;
+            }
         }
-        _seal_rtu(out, slave, fc, data, 4); /* 应答：地址 + 数量 */
+        if (rejected) {
+            modbus_rtu_encode_exception_ex(slave, fc, MODBUS_EX_ILLEGAL_DATA_ADDRESS, hi_crc, out);
+            return 0;
+        }
+        _seal_rtu(out, slave, fc, data, 4, hi_crc); /* 应答：地址 + 数量 */
         return 0;
     }
 
-    modbus_rtu_encode_exception(slave, fc, MODBUS_EX_ILLEGAL_FUNCTION, out);
+    modbus_rtu_encode_exception_ex(slave, fc, MODBUS_EX_ILLEGAL_FUNCTION, hi_crc, out);
     return 0;
+}
+
+static int mb_rtu_req_slave_exchange(void *priv, void *session, const uint8_t *in, size_t in_len,
+                                     const edge_slave_source_ops_t *src, void *src_ctx,
+                                     net_buf_t *out, size_t *consumed) {
+    return mb_rtu_req_slave_exchange_impl(priv, session, in, in_len, src, src_ctx, out, consumed,
+                                          false);
+}
+
+static int mb_rtu_req_slave_exchange_hi(void *priv, void *session, const uint8_t *in,
+                                        size_t in_len, const edge_slave_source_ops_t *src,
+                                        void *src_ctx, net_buf_t *out, size_t *consumed) {
+    return mb_rtu_req_slave_exchange_impl(priv, session, in, in_len, src, src_ctx, out, consumed,
+                                          true);
 }
 
 const edge_driver_t modbus_rtu_driver = {
@@ -297,7 +339,7 @@ const edge_driver_t modbus_rtu_hicrc_driver = {
     .req_prepare = mb_rtu_req_prepare,
     .req_encode = mb_rtu_req_encode_hi,
     .req_decode = mb_rtu_req_decode_hi,
-    .req_slave_exchange = mb_rtu_req_slave_exchange,
+    .req_slave_exchange = mb_rtu_req_slave_exchange_hi,
 };
 
 

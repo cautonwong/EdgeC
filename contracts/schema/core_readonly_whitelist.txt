@@ -143,3 +143,14 @@ modules/edge_core/src/datahub.c                 # cross-process shadow lock
 # owner bookkeeping needed by the implementation.
 modules/edge_core/include/datahub_shm.h         # SHM header ABI
 modules/edge_core/src/datahub_priv.h            # SHM mapping state
+
+# R-39 - 超时恢复窗口：bus_slot_t 增加 recovery_until_ns（64 条总线 × 8B），
+# 调用方分配的 arbiter_storage_t 随之 4608 -> 5120；公开函数签名不变。
+modules/edge_core/include/arbiter.h    # R-39
+
+# R-31 (WAL C2) - 进程崩溃恢复三处缺口：写失败计数与首次限频日志、回放截尾、
+# 产品启动失败明确降级。公开接口只新增 datahub_disable_wal 供组合根关闭 WAL；
+# datahub_s 是私有不透明结构，仅新增一个失败计数字段，公开结构体布局不变。
+modules/edge_core/include/datahub.h            # R-31 WAL crash recovery
+modules/edge_core/src/datahub.c                # R-31 WAL crash recovery
+modules/edge_core/src/datahub_priv.h           # R-31 WAL crash recovery
