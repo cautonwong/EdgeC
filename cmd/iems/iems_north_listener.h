@@ -9,11 +9,13 @@
 #ifndef IEMS_NORTH_LISTENER_H
 #define IEMS_NORTH_LISTENER_H
 
+#include <stdbool.h>
 #include <uv.h>
 
 #include "bus_orchestrator.h"
 #include "datahub.h"
 #include "iems_southbound_adapter.h"
+#include "io_executor.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,6 +25,11 @@ typedef struct {
     bus_orchestrator_t *orch;
     datahub_t *hub;
     int bus_id;
+    /* 从站是单客户端语义:同一时刻只服务一路。断链后句柄不立即销毁(引擎仍
+     * 指向它),留到下一次连接或 listener 关闭时释放。 */
+    io_handle_t *active_io;
+    int active_fd; /* active_io 占用的 fd 号,用于在新连接时探测旧客户端是否已关 */
+    bool active_stale;
 } iems_north_accept_ctx_t;
 
 typedef struct {

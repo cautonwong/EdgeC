@@ -183,8 +183,13 @@ int iems_node_set_execution_port(iems_node_t *node, iems_execution_port_t port) 
     return 0;
 }
 
-int iems_node_write_tag(iems_node_t *node, int bus_id, uint32_t tag_id, double value,
-                        const char *proto) {
+/* 安全跳闸路径没有点位路由可用，沿用 PCS 既有接线：bus 0 / 从站 1 / ModbusRTU。 */
+#define IEMS_SAFETY_PCS_BUS 0
+#define IEMS_SAFETY_PCS_SLAVE 1
+#define IEMS_SAFETY_PCS_PROTO "ModbusRTU"
+
+int iems_node_write_tag(iems_node_t *node, int bus_id, uint32_t slave_id, uint32_t tag_id,
+                        double value, const char *proto) {
     if (!node || !node->execution.write_tag) return -1;
 
     if (tag_id == IEMS_TAG_PCS_CONTROL) {
@@ -193,7 +198,8 @@ int iems_node_write_tag(iems_node_t *node, int bus_id, uint32_t tag_id, double v
         if (rc < 0) {
             /* 安全拒绝不能只是“什么都不做”：主动把零功率写下去，
              * 否则设备会保持上一条设定值。 */
-            (void)node->execution.write_tag(node->execution.ctx, bus_id, tag_id, 0.0, proto);
+            (void)node->execution.write_tag(node->execution.ctx, bus_id, slave_id, tag_id, 0.0,
+                                            proto);
             return rc;
         }
         value = actual_kw;
@@ -203,7 +209,7 @@ int iems_node_write_tag(iems_node_t *node, int bus_id, uint32_t tag_id, double v
         datahub_publish(node->hub, &ctrl_msg);
     }
 
-    return node->execution.write_tag(node->execution.ctx, bus_id, tag_id, value, proto);
+    return node->execution.write_tag(node->execution.ctx, bus_id, slave_id, tag_id, value, proto);
 }
 
 int iems_node_dispatch_power(iems_node_t *node, double target_kw, double *out_actual_kw) {
@@ -301,8 +307,9 @@ int iems_node_emergency_trip(iems_node_t *node, const char *reason) {
         datahub_publish(node->hub, &msg);
     }
     if (node->execution.write_tag) {
-        (void)node->execution.write_tag(node->execution.ctx, 0, IEMS_TAG_PCS_CONTROL, 0.0,
-                                        "ModbusRTU");
+        (void)node->execution.write_tag(node->execution.ctx, IEMS_SAFETY_PCS_BUS,
+                                        IEMS_SAFETY_PCS_SLAVE, IEMS_TAG_PCS_CONTROL, 0.0,
+                                        IEMS_SAFETY_PCS_PROTO);
     }
     _iems_node_record_cycle(node, t_start);
     return 0;
@@ -331,12 +338,21 @@ int iems_node_update_bms_rack(iems_node_t *node, uint8_t rack_id, double voltage
     return rc;
 }
 
-int iems_node_ingest_sample(iems_node_t *node, uint32_t tag_id, double value) {
+int iems_node_ingest_sample(iems_node_t *node, uint32_t tag_id, double value,
+                            uint64_t sample_ts) {
     if (!node || !node->hub || tag_id == 0) return -1;
+    /* sample_ts 是采样(读帧编码发出)时刻,不是结果完成时刻。控制写在提交南向帧
+     * 之前就用 uv_hrtime 乐观写 shadow;若轮询读帧先于控制写编码、结果却晚到,
+     * 它的采样更旧,必须丢弃,否则旧值覆盖新控制值。
+     * 守卫只放在 IEMS ingest 边界:DataHub 是各写入方(CLI 毫秒 ts、反腐蚀 ts=0)
+     * 共用的入口,在那里比较新旧会误拒合法写入。 */
+    pipe_msg_t cur;
+    if (datahub_read_shadow(node->hub, tag_id, &cur) != 0) return -1;
+    if (cur.ts > sample_ts) return 0;
     pipe_msg_t msg;
     /* shortcut: 镜像按 tag 全局(device_id 留 0),与所有读者用的 read_shadow 一致;
      * 多机共用同一 tag 时需要读者一起改成按设备读。 */
-    pipe_msg_init_scalar(&msg, tag_id, value, uv_hrtime());
+    pipe_msg_init_scalar(&msg, tag_id, value, sample_ts);
     return datahub_publish(node->hub, &msg);
 }
 

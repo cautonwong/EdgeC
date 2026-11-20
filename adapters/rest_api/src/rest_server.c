@@ -5,6 +5,8 @@
 #include <arpa/inet.h>
 #include <cjson/cJSON.h>
 #include <ctype.h>
+#include <errno.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,7 +20,6 @@
 #include "edge_log.h"
 #include "edge_params.h"
 #include "edge_service.h"
-#include "edge_version.h"
 #include "rest_control_port.h"
 
 #define REST_MAX_CLIENTS REST_DEFAULT_MAX_CLIENTS
@@ -64,6 +65,8 @@ struct rest_server_s {
     uv_timer_t timeout_timer;
     bool is_allocated;
     bool timer_init;
+    bool aborting_start;
+    int pending_closes;
     rest_limits_t limits;
     char bind_addr[REST_MAX_BIND_ADDR];
     char cors_origin[REST_MAX_CORS_ORIGIN];
@@ -71,79 +74,6 @@ struct rest_server_s {
 };
 
 // --- API Handlers ---
-
-static char *handle_system_health(service_t *svc) {
-    cJSON *root = cJSON_CreateObject();
-    cJSON_AddStringToObject(root, "status", "ok");
-    cJSON_AddNumberToObject(root, "uptime", (double)uv_now(service_get_loop(svc)) / 1000);
-    cJSON_AddStringToObject(root, "version", (const char *)edge_get_version());
-
-    datahub_t *hub = service_get_datahub(svc);
-    struct net_buf_pool *io_pool = datahub_get_io_pool(hub);
-    if (io_pool) {
-        net_buf_pool_stats_t stats;
-        net_buf_pool_audit(io_pool, 0, &stats);
-        cJSON *pool = cJSON_AddObjectToObject(root, "net_buf_pool");
-        cJSON_AddNumberToObject(pool, "total", stats.total_count);
-        cJSON_AddNumberToObject(pool, "free", stats.free_count);
-        cJSON_AddNumberToObject(pool, "peak", stats.peak_usage);
-    }
-    char *out = cJSON_PrintUnformatted(root);
-    cJSON_Delete(root);
-    return out;
-}
-
-static char *handle_system_stats(service_t *svc) {
-    cJSON *root = cJSON_CreateObject();
-
-    // 注入无法伪造的生命证明：高精度 Uptime
-
-    double uptime = (double)uv_now(service_get_loop(svc)) / 1000.0;
-
-    cJSON_AddNumberToObject(root, "uptime_sec_proof", uptime);
-
-    cJSON_AddStringToObject(root, "engine_status", "ALIVE_AND_KICKING");
-
-    // 1. DataHub
-
-    datahub_t *hub = service_get_datahub(svc);
-    if (hub) {
-        cJSON *dh = cJSON_AddObjectToObject(root, "datahub");
-        cJSON_AddNumberToObject(dh, "total_writes", (double)datahub_get_ring_total_writes(hub));
-        cJSON_AddNumberToObject(dh, "listener_count", (double)datahub_get_listener_count(hub));
-    }
-
-    // 2. Arbiter
-    arbiter_t *arb = service_get_arbiter(svc);
-    if (arb) {
-        arbiter_bus_status_t bus_stats[32];  // 限制上报点位数量，防止栈溢出
-        int count = arbiter_get_statuses(arb, bus_stats, 32);
-        cJSON *bus_arr = cJSON_AddArrayToObject(root, "buses");
-        for (int i = 0; i < count; i++) {
-            cJSON *b = cJSON_CreateObject();
-            cJSON_AddNumberToObject(b, "id", bus_stats[i].bus_id);
-            cJSON_AddBoolToObject(b, "busy", bus_stats[i].is_busy);
-            cJSON_AddNumberToObject(b, "queue", bus_stats[i].queue_len);
-            cJSON_AddItemToArray(bus_arr, b);
-        }
-    }
-
-    // 3. Pipeline (Stage 11.2)
-    const rest_control_port_t *control =
-        (const rest_control_port_t *)service_get_control_port(svc);
-    if (control && control->stream_topology_json) {
-        char *engine_json = control->stream_topology_json(control->ctx);
-        if (engine_json) {
-            cJSON *ej = cJSON_Parse(engine_json);
-            if (ej) cJSON_AddItemToObject(root, "engine", ej);
-            free(engine_json);
-        }
-    }
-
-    char *out = cJSON_PrintUnformatted(root);
-    cJSON_Delete(root);
-    return out;
-}
 
 static char *handle_contracts_get(service_t *svc) {
     const char *path = service_get_contract_path(svc);
@@ -194,7 +124,9 @@ static char *handle_data_latest(service_t *svc, uint32_t tag_id) {
     PipeMsg msg;
     cJSON *root = cJSON_CreateObject();
     int rc = datahub_read_shadow(hub, tag_id, &msg);
-    if (rc == 0) {
+    /* A zero-filled shadow slot reads back as tag 0: the read succeeding does
+     * not prove the requested tag was ever published. */
+    if (rc == 0 && msg.tag_id == tag_id) {
         LOG_INFO(LOG_CAT_CORE, "[TRACE-REST] Req Tag %u -> Found in Shadow: Tag %u, Val %.2f",
                  tag_id, msg.tag_id, msg.payload.val.f);
         cJSON_AddNumberToObject(root, "tag_id", msg.tag_id);
@@ -203,13 +135,27 @@ static char *handle_data_latest(service_t *svc, uint32_t tag_id) {
             (msg.type == PIPEMSG_TYPE_SCALAR) ? msg.payload.val.f : (double)msg.payload.val.i);
         cJSON_AddNumberToObject(root, "ts", (double)msg.ts);
     } else {
-        LOG_WARN(LOG_CAT_CORE, "[TRACE-REST] Req Tag %u -> NOT FOUND in Shadow (rc=%d)", tag_id,
-                 rc);
-        cJSON_AddStringToObject(root, "status", "not_found");
+        LOG_WARN(LOG_CAT_CORE, "[TRACE-REST] Req Tag %u -> NOT FOUND in Shadow (rc=%d, slot=%u)",
+                 tag_id, rc, rc == 0 ? msg.tag_id : 0);
+        cJSON_AddStringToObject(root, "error", "not_found");
     }
     char *out = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
     return out;
+}
+
+/* Strict tag-id parse at the HTTP boundary: atoi would fold "abc", "0" and
+ * "12x" onto tag 0 and answer with an unrelated slot. */
+static bool parse_data_latest_tag(const char *text, uint32_t *out) {
+    if (!text || !*text) return false;
+    errno = 0;
+    char *end = NULL;
+    unsigned long value = strtoul(text, &end, 10);
+    if (errno != 0 || end == text || *end != '\0' || value == 0 || value > UINT32_MAX) {
+        return false;
+    }
+    *out = (uint32_t)value;
+    return true;
 }
 
 #include "edge_api.h"
@@ -374,8 +320,10 @@ static char *handle_apps_start(service_t *svc, const char *body) {
                  : -1;
 
     cJSON_Delete(root);
-    return rc == 0 ? strdup("{\"status\":\"ok\"}")
-                   : strdup("{\"status\":\"error\",\"reason\":\"start_failed\"}");
+    if (rc == 0) return strdup("{\"status\":\"ok\"}");
+    /* -ENOENT: the port rejected an unregistered app id before queueing a job. */
+    return rc == -ENOENT ? strdup("{\"status\":\"error\",\"reason\":\"not_found\"}")
+                         : strdup("{\"status\":\"error\",\"reason\":\"start_failed\"}");
 }
 
 static char *handle_apps_stop(service_t *svc, const char *body) {
@@ -958,8 +906,8 @@ char *rest_dispatch_ex(service_t *svc, const char *method, const char *path, con
     }
 
     if (strncmp(path, "/api/v1/system/time", 19) == 0) return handle_system_time_get(svc);
-    if (strncmp(path, "/api/v1/system/health", 21) == 0) return handle_system_health(svc);
-    if (strncmp(path, "/api/v1/system/stats", 20) == 0) return handle_system_stats(svc);
+    if (strncmp(path, "/api/v1/system/health", 21) == 0) return rest_system_health(svc);
+    if (strncmp(path, "/api/v1/system/stats", 20) == 0) return rest_system_stats(svc);
     if (strncmp(path, "/api/v1/contracts", 17) == 0) return handle_contracts_get(svc);
     if (strncmp(path, "/api/v1/devices", 15) == 0) return handle_devices_get(svc);
     if (strncmp(path, "/api/v1/io/raw/latest", 21) == 0) return handle_io_raw_latest();
@@ -970,8 +918,11 @@ char *rest_dispatch_ex(service_t *svc, const char *method, const char *path, con
         return handle_apps_registry_status(svc, path + 20);
     if (strncmp(path, "/api/v1/apps/status", 20) == 0)
         return handle_apps_registry_status(svc, NULL);
-    if (strncmp(path, "/api/v1/data/latest/", 20) == 0)
-        return handle_data_latest(svc, (uint32_t)atoi(path + 20));
+    if (strncmp(path, "/api/v1/data/latest/", 20) == 0) {
+        uint32_t tag_id;
+        if (!parse_data_latest_tag(path + 20, &tag_id)) return strdup("{\"error\":\"not_found\"}");
+        return handle_data_latest(svc, tag_id);
+    }
     return strdup("{\"error\":\"not_found\"}");
 }
 
@@ -1039,7 +990,7 @@ static void client_respond(rest_client_t *client, int status, const char *json) 
     size_t json_len = strlen(json);
     const char *cors =
         client->server->limits.allow_cors_origin ? client->server->limits.allow_cors_origin : "";
-    const char *allow = (status == 405) ? "Allow: GET, POST\r\n" : "";
+    const char *allow = (status == 405) ? "Allow: GET, HEAD, POST\r\n" : "";
     // 512 覆盖状态行、CORS、长度和其他固定头，余量足够。
     size_t need = 512 + strlen(cors) + json_len;
     char *buf;
@@ -1076,10 +1027,14 @@ static void client_respond(rest_client_t *client, int status, const char *json) 
         }
         return;
     }
-    memcpy(buf + n, json, json_len);
+    size_t send_len = (size_t)n;
+    if (strcmp(client->state.method, "HEAD") != 0) {
+        memcpy(buf + n, json, json_len);
+        send_len += json_len;
+    }
     client->close_after_write = true;
     client->write_req.data = client;
-    uv_buf_t write_buf = uv_buf_init(buf, (unsigned int)((size_t)n + json_len));
+    uv_buf_t write_buf = uv_buf_init(buf, (unsigned int)send_len);
     if (uv_write(&client->write_req, (uv_stream_t *)&client->tcp, &write_buf, 1, on_write) != 0 &&
         !uv_is_closing((uv_handle_t *)&client->tcp)) {
         uv_close((uv_handle_t *)&client->tcp, on_client_close);
@@ -1149,7 +1104,10 @@ static int parse_request_head(rest_client_state_t *st, char *head, const rest_li
     for (const char *p = st->method; *p; p++) {
         if (!isupper((unsigned char)*p)) return 400;
     }
-    if (strcmp(st->method, "GET") != 0 && strcmp(st->method, "POST") != 0) return 405;
+    if (strcmp(st->method, "GET") != 0 && strcmp(st->method, "POST") != 0 &&
+        strcmp(st->method, "HEAD") != 0) {
+        return 405;
+    }
 
     bool have_content_length = false;
     char *end = head + strlen(head);
@@ -1179,7 +1137,11 @@ static int parse_request_head(rest_client_state_t *st, char *head, const rest_li
 
 static void client_dispatch(rest_client_t *client) {
     int status = 200;
-    char *json = rest_dispatch_ex(client->server->svc, client->state.method, client->state.path,
+    /* HEAD is GET without the response body; routing runs the GET handler so
+     * headers (Content-Length included) match what GET would return. */
+    const char *method =
+        strcmp(client->state.method, "HEAD") == 0 ? "GET" : client->state.method;
+    char *json = rest_dispatch_ex(client->server->svc, method, client->state.path,
                                   client->body_buf ? client->body_buf : "", &status);
     client_respond(client, status, json ? json : "{}");
     free(json);
@@ -1355,6 +1317,27 @@ static void rest_server_apply_limits(rest_server_t *srv, const rest_limits_t *in
     }
 }
 
+/* Both handles live inside rest_server_t, so a heap-allocated server may only
+ * be freed after libuv has finished closing every one of them. */
+static void _on_aborted_handle_closed(uv_handle_t *h) {
+    rest_server_t *srv = (rest_server_t *)h->data;
+    if (!srv || !srv->aborting_start) return;
+    if (--srv->pending_closes == 0 && srv->is_allocated) free(srv);
+}
+
+/* Startup failure is fatal to the caller; release the loop handles here so a
+ * failed create leaves nothing running behind it. */
+static void _rest_server_abort_start(rest_server_t *srv) {
+    srv->aborting_start = true;
+    srv->pending_closes = 0;
+    if (srv->timer_init) {
+        srv->pending_closes++;
+        uv_close((uv_handle_t *)&srv->timeout_timer, _on_aborted_handle_closed);
+    }
+    srv->pending_closes++;
+    uv_close((uv_handle_t *)&srv->server, _on_aborted_handle_closed);
+}
+
 static int _rest_server_bind_and_listen(rest_server_t *srv, uv_loop_t *loop, service_t *svc,
                                         int port) {
     srv->loop = loop;
@@ -1371,18 +1354,21 @@ static int _rest_server_bind_and_listen(rest_server_t *srv, uv_loop_t *loop, ser
     if (rc != 0) {
         fprintf(stderr, "[REST] Invalid bind address '%s': %s\n", srv->limits.bind_addr,
                 uv_strerror(rc));
+        _rest_server_abort_start(srv);
         return rc;
     }
     rc = uv_tcp_bind(&srv->server, (const struct sockaddr *)&addr, 0);
     if (rc != 0) {
         fprintf(stderr, "[REST] Failed to bind %s:%d: %s\n", srv->limits.bind_addr, port,
                 uv_strerror(rc));
+        _rest_server_abort_start(srv);
         return rc;
     }
     rc = uv_listen((uv_stream_t *)&srv->server, 128, on_new_connection);
     if (rc != 0) {
         fprintf(stderr, "[REST] Failed to listen on %s:%d: %s\n", srv->limits.bind_addr, port,
                 uv_strerror(rc));
+        _rest_server_abort_start(srv);
         return rc;
     }
 
@@ -1421,7 +1407,8 @@ rest_server_t *rest_server_create_in_ex(rest_server_storage_t *storage, uv_loop_
         srv->is_allocated = true;
     }
     rest_server_apply_limits(srv, limits);
-    _rest_server_bind_and_listen(srv, loop, svc, port);
+    if (_rest_server_bind_and_listen(srv, loop, svc, port) != 0) return NULL;
+    rest_system_mark_start(loop);
     return srv;
 }
 

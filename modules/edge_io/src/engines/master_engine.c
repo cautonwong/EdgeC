@@ -36,12 +36,19 @@ static int _on_arbiter_settled(void *ctx, int bus_id, cmd_msg_t *msg, int status
     // 否则驱动收到重复结果。只有"引擎还握着它"才说明这份结算是 arbiter 替我做的。
     if (priv->current_cmd != msg) return 0;
 
+    // arbiter 的到期扫描代引擎结算(超时/队列满):这条路径没有引擎定时器日志,
+    // 不在这里留痕,事后无法从产品日志复盘迟到应答是从哪次结算后开始串的。
+    LOG_WARN(LOG_CAT_BUS, "Bus %d: arbiter settled %s cmd=%p status=%d while engine still owned it",
+             priv->bus_id, msg->req_id, (void *)msg, status);
+
     priv->current_cmd = NULL;
     uv_timer_stop(&priv->timer);
     if (priv->io && priv->io->ops) {
         // 和另外两条收尾路径一样先冲一次:队列里的 pending_tx 只有 FLUSH 会释放
         if (priv->io->ops->ioctl) priv->io->ops->ioctl(priv->io, IO_CTL_FLUSH, NULL);
         if (priv->io->ops->enable_read) priv->io->ops->enable_read(priv->io, false);
+        // 停读后再排空一次:迟到帧可能恰好在这两步之间进了内核缓冲
+        if (priv->io->ops->ioctl) priv->io->ops->ioctl(priv->io, IO_CTL_DISCARD_RX, NULL);
     }
     net_buf_simple_reset(&priv->rx_acc);
 
@@ -76,8 +83,10 @@ static void _master_on_timeout(uv_timer_t *handle) {
         priv->current_cmd = NULL;
         priv->io->ops->ioctl(priv->io, IO_CTL_FLUSH, NULL);
         priv->io->ops->enable_read(priv->io, false);
+        // 停读后把内核 RX 一起丢掉:这次事务的迟到应答不许留给下一条命令
+        priv->io->ops->ioctl(priv->io, IO_CTL_DISCARD_RX, NULL);
         net_buf_simple_reset(&priv->rx_acc);
-        
+
         if (timed_out_cmd->req && timed_out_cmd->req->ops->on_finish)
             timed_out_cmd->req->ops->on_finish(timed_out_cmd->req, CMD_STATUS_TIMEOUT);
         
@@ -173,7 +182,7 @@ static void _master_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *u
             net_buf_t wrap = {0};
             wrap.pool = priv->pool;
             memcpy(&wrap.b, &priv->rx_acc, sizeof(struct net_buf_simple));
-            
+
             int rc = priv->current_cmd->req->ops->decode(priv->current_cmd->req, &wrap, &consumed);
             if (consumed > 0) {
                 net_buf_simple_pull(&priv->rx_acc, consumed);
@@ -200,6 +209,8 @@ static void _master_run_command(bus_engine_t *self, cmd_msg_t *cmd) {
     net_buf_simple_reset(&priv->rx_acc);
     if (priv->io && priv->io->ops && priv->io->ops->ioctl) {
         priv->io->ops->ioctl(priv->io, IO_CTL_FLUSH, NULL);
+        // 本事务只认自己发出之后到达的字节:队列里可能躺着上一条命令的迟到应答
+        priv->io->ops->ioctl(priv->io, IO_CTL_DISCARD_RX, NULL);
     }
 
     if (!cmd->req->ops || !cmd->req->ops->setup || !cmd->req->ops->encode || !cmd->req->ops->decode) {
@@ -220,14 +231,23 @@ static void _master_run_command(bus_engine_t *self, cmd_msg_t *cmd) {
     }
 
     if (cmd->req->ops->encode(cmd->req, tx) == 0 && tx->b.len > 0) {
+        // 事务超时从帧真正上线起算。排队时间不能吃掉设备的应答预算:带着
+        // 提交时刻的 deadline 上线,响应会在下一事务开读后才到;RTU 读应答
+        // 没有寄存器地址,只能被下一条命令误认成自己的应答(串 tag)。
+        cmd->deadline_ns = uv_hrtime() + (uint64_t)cmd->timeout_ms * 1000000ULL;
         // [Safety] 启动原子级单次超时
         // 真正发出去才占 current_cmd:失败路径会在下面直接归还给 arbiter 并释放 cmd,
         // 先占就是给 priv 留一个悬垂指针(断链时 SIGSEGV 的根因)
         priv->current_cmd = cmd;
         uv_timer_start(&priv->timer, _master_on_timeout, cmd->timeout_ms, 0);
         priv->io->ops->enable_read(priv->io, true);
-        priv->io->ops->write_async(priv->io, tx);
+        int wrc = priv->io->ops->write_async(priv->io, tx);
         net_buf_unref(tx);
+        if (wrc != 0) {
+            // 帧根本没上线:不能等一个永远不会来的应答,当场按 IO 错误结算
+            LOG_ERROR(LOG_CAT_BUS, "Bus %d: write_async failed (%d)", priv->bus_id, wrc);
+            _process_req_result(priv, REQ_STATUS_ERROR);
+        }
     } else {
         if (tx) net_buf_unref(tx);
         arbiter_on_io_done(priv->arb, priv->bus_id, cmd, CMD_STATUS_PROTO_ERROR);
@@ -292,7 +312,7 @@ bus_engine_t *engine_create_master(const edge_driver_session_port_t *driver_port
     priv->rx_acc.__buf = priv->rx_static_data;
     priv->rx_acc.size = 4096;
     priv->rx_acc.len = 0;
-    priv->session_mgr = session_manager_create(driver_port, 128); // [Professional] 提升通道设备容量，支持 2000 只表均匀分布
+    priv->session_mgr = session_manager_create(driver_port, 128, pool); // [Professional] 提升通道设备容量，支持 2000 只表均匀分布
     uv_timer_init(loop, &priv->timer);
     priv->timer.data = priv;
     

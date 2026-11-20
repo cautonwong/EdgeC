@@ -74,7 +74,7 @@ static void test_fuzz_mismatched_length(void** state) {
 
     net_buf_t* in = net_buf_alloc(pool, 0);
     net_buf_simple_add_u8(&in->b, 0x68);
-    net_buf_simple_add_u8(&in->b, 255); /* 声明 255，实际只有 6 字节 */
+    net_buf_simple_add_u8(&in->b, 20); /* 声明 20，实际只有 6 字节：还没收全 */
     net_buf_simple_add_mem(&in->b, "\x01\x00\x00\x00", 4);
     net_buf_t* out = net_buf_alloc(pool, 0);
 
@@ -139,12 +139,61 @@ static void test_fuzz_illegal_type_id(void** state) {
     free(session);
 }
 
+/* --- 5. 长度域非法：<4 会让 asdu_len 下溢，>253 超出协议上限 --- */
+static void test_fuzz_invalid_apci_length(void** state) {
+    net_buf_pool_t* pool = (net_buf_pool_t*)*state;
+    void* session = make_session(pool);
+    net_buf_t* in = net_buf_alloc(pool, 0);
+    net_buf_t* out = net_buf_alloc(pool, 0);
+    size_t consumed = 0;
+
+    /* 68 | 03 | 07 00 00 00：声明长度 3 < 4，控制字节长得像 STARTDT ACT。
+     * 旧实现 asdu_len = 3 - 4 下溢成 255，按 255 字节解 ASDU 就是越界读；
+     * 而按控制字节猜帧会把它当 STARTDT 回 CON。必须整帧拒绝、不应答。 */
+    static const uint8_t short_apci[6] = {0x68, 0x03, 0x07, 0x00, 0x00, 0x00};
+    net_buf_simple_add_mem(&in->b, short_apci, sizeof(short_apci));
+    int rc = iec104_driver.req_slave_exchange(NULL, session, in->b.data, in->b.len, NULL, NULL,
+                                              out, &consumed);
+    /* 畸形帧在边界处丢掉：不解析、不应答，只消费帧头两字节 */
+    assert_int_equal(rc, 0);
+    assert_int_equal(consumed, 2);
+    assert_int_equal(out->b.len, 0);
+
+    /* 68 | FE | …：声明 254 > 253。旧实现会等 256 字节，把连接楔住。 */
+    static const uint8_t long_apci[6] = {0x68, 0xFE, 0x00, 0x00, 0x00, 0x00};
+    net_buf_simple_reset(&in->b);
+    net_buf_simple_add_mem(&in->b, long_apci, sizeof(long_apci));
+    consumed = 0;
+    rc = iec104_driver.req_slave_exchange(NULL, session, in->b.data, in->b.len, NULL, NULL, out,
+                                          &consumed);
+    assert_int_equal(rc, 0);
+    assert_int_equal(consumed, 2);
+    assert_int_equal(out->b.len, 0);
+
+    /* 被拒的帧不许污染会话：紧接着的合法帧照常应答 */
+    static const uint8_t startdt_act[6] = {0x68, 0x04, 0x07, 0x00, 0x00, 0x00};
+    static const uint8_t startdt_con[6] = {0x68, 0x04, 0x0B, 0x00, 0x00, 0x00};
+    net_buf_simple_reset(&in->b);
+    net_buf_simple_add_mem(&in->b, startdt_act, sizeof(startdt_act));
+    consumed = 0;
+    rc = iec104_driver.req_slave_exchange(NULL, session, in->b.data, in->b.len, NULL, NULL, out,
+                                          &consumed);
+    assert_int_equal(rc, 0);
+    assert_int_equal(out->b.len, sizeof(startdt_con));
+    assert_memory_equal(out->b.data, startdt_con, sizeof(startdt_con));
+
+    net_buf_unref(in);
+    net_buf_unref(out);
+    free(session);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_fuzz_short_packet, setup, teardown),
         cmocka_unit_test_setup_teardown(test_fuzz_mismatched_length, setup, teardown),
         cmocka_unit_test_setup_teardown(test_fuzz_invalid_ack_nr, setup, teardown),
         cmocka_unit_test_setup_teardown(test_fuzz_illegal_type_id, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_fuzz_invalid_apci_length, setup, teardown),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

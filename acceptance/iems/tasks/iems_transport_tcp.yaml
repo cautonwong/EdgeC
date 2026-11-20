@@ -1,0 +1,14 @@
+# TCP 传输:壳在 127.0.0.1 的随机端口监听,OMNIS_BUS_0_DEV=tcp://…
+# 让产品主动连上来。总线 0 的协议仍是 ModbusRTU,所以线上是 RTU 帧(无 MBAP)
+# —— 验的是"tcp:// 只换传输,不换帧格式",以及 TCP 流上的拆包/合包。
+id: iems-transport-tcp
+product: iems
+launch:
+  - ${PYTHON}
+  - iems_product.py
+  - --port
+  - ${PORT}
+  - --transport
+  - tcp
+devices: configs/devices.yaml
+select: case:I_00_00_06_000002

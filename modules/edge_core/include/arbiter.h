@@ -19,9 +19,9 @@ extern "C" {
  * @brief [Issue #384] 调用方预分配仲裁器存储 (Caller-Allocated Storage)
  */
 typedef struct {
-    /* 4608 = 原 4096 + 帧间静默所需的第二个 uv_timer_t（约 152B）+ 余量。
+    /* 5120 = 原 4608 + 64 条总线 × 8B 的超时恢复窗口。
      * 改这个值必须同步看 arbiter.c 里的 _Static_assert：它是唯一的尺寸契约。 */
-    alignas(max_align_t) uint8_t raw[4608];
+    alignas(max_align_t) uint8_t raw[5120];
 } arbiter_storage_t;
 
 typedef struct arbiter arbiter_t;

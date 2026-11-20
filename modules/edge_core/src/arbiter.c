@@ -16,6 +16,9 @@ typedef struct {
     /* 帧间静默：min_gap_us=0 表示不限制；last_tx_end_ns 记录上一帧结束时刻 */
     uint32_t min_gap_us;
     uint64_t last_tx_end_ns;
+    /* 超时恢复窗口：真实超时结算后，迟到应答可能还在路上。窗口内不派发下一条，
+     * 让迟到字节先落进内核 RX，由下一事务开帧前的 DISCARD_RX 丢掉。 */
+    uint64_t recovery_until_ns;
 } bus_slot_t;
 
 struct arbiter {
@@ -173,9 +176,22 @@ static void _dispatch_next_locked(arbiter_t *arb, int bus_id) {
         return; // Exclusive bus blocks non-emergency commands
     }
 
+    uint64_t now_ns = uv_hrtime();
+
+    /* 超时恢复窗口：窗口内派发会让下一帧先上线，迟到应答随后到达就会被当成
+     * 它的应答(RTU 读应答没有寄存器地址可校验)。等迟到字节全部落进内核 RX，
+     * 下一事务开帧前的 DISCARD_RX 才有东西可丢。与 min_gap 各按绝对时刻判，
+     * 取先到者，不叠加。 */
+    if (slot->recovery_until_ns != 0) {
+        if (now_ns < slot->recovery_until_ns) {
+            _arm_gap_timer_locked(arb, (slot->recovery_until_ns - now_ns) / 1000000ULL + 1);
+            return;
+        }
+        slot->recovery_until_ns = 0;
+    }
+
     /* 帧间静默：从上一帧**结束**算起，不是从上一帧发起算起。
      * 从发起算会让下一帧压在上一帧的尾巴上——645 从站会把它当粘包。 */
-    uint64_t now_ns = uv_hrtime();
     if (slot->min_gap_us > 0 && slot->last_tx_end_ns > 0) {
         uint64_t ready_at = slot->last_tx_end_ns + (uint64_t)slot->min_gap_us * 1000ULL;
         if (now_ns < ready_at) {
@@ -305,7 +321,14 @@ void arbiter_on_io_done(arbiter_t *arb, int bus_id, cmd_msg_t *msg, int status) 
         arb->buses[bus_id].owner = NULL;
     }
     /* 这一帧到此结束：帧间静默从这里开始计时 */
-    arb->buses[bus_id].last_tx_end_ns = uv_hrtime();
+    uint64_t now_ns = uv_hrtime();
+    arb->buses[bus_id].last_tx_end_ns = now_ns;
+    /* 引擎自己的超时定时器也走这条结算路径：同样要给总线留出迟到应答的
+     * 到达时间，否则紧接着派发的命令会把它当成自己的应答。 */
+    if (status == CMD_STATUS_TIMEOUT) {
+        uint32_t to = (msg->timeout_ms > 0) ? msg->timeout_ms : ARBITER_DEFAULT_TIMEOUT_MS;
+        arb->buses[bus_id].recovery_until_ns = now_ns + (uint64_t)to * 1000000ULL;
+    }
     uv_mutex_unlock(&arb->lock);
 
     // 💡 [Consumer-Driven] 优先通过 executor 回调处理
@@ -380,6 +403,10 @@ int arbiter_check_timeouts(arbiter_t *arb) {
                 /* 超时也意味着"这一帧结束了"：帧间静默同样要从这里重新计时，
                  * 否则超时后的下一帧会立刻压在残留的回波上。 */
                 slot->last_tx_end_ns = now_ns;
+                /* 必须在 _dispatch_next_locked 之前写窗口:它在下一条命令
+                 * 派发时会检查这个时刻;晚一步写,下一帧就已经上线了。 */
+                slot->recovery_until_ns =
+                    now_ns + (uint64_t)owner->timeout_ms * 1000000ULL;
 
                 _dispatch_next_locked(arb, i);
             }

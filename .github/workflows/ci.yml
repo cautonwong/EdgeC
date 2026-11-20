@@ -97,6 +97,17 @@ jobs:
           export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${{ github.workspace }}/.local/linux-x86_64/lib
           cd build && ctest --output-on-failure -E '^app_platform_e2e$'
 
+      - name: Parity Harness Gate (x86_64 only)
+        if: matrix.config.target == 'x86_64'
+        run: |
+          cc -std=gnu11 -O2 -Wall -Wextra \
+            -o tools/migration/parity/edgec_target/edgec_modbus_target \
+            tools/migration/parity/edgec_target/edgec_modbus_target.c \
+            -Ifoundation/include -I.local/linux-x86_64/include \
+            build/foundation/libedge_codec.a build/foundation/libedge_netbuf.a \
+            .local/linux-x86_64/lib/libuv.a -lm
+          python3 tools/migration/parity/run_parity.py selftest
+
       - name: Run Performance Gates (x86_64 only)
         if: matrix.config.target == 'x86_64'
         run: |

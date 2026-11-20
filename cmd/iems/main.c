@@ -25,6 +25,8 @@ static void on_signal_exit(uv_signal_t* handle, int signum) {
 }
 
 int main(int argc, char* argv[]) {
+    // stdout 接管道时默认块缓冲:PHYSICS-SUCCESS 这类裸 printf 会压到下一次 flush 才落盘,读日志的用例等不到。整行写完即刷。
+    setvbuf(stdout, NULL, _IOLBF, 0);
     edge_thread_port_install_uv();
     signal(SIGPIPE, SIG_IGN);  // 应用进程崩溃后写 IPC 不得打死网关
     (void)argc;

@@ -281,6 +281,133 @@ static void test_arbiter_timeout_forced_release(void** state) {
     uv_loop_close(&loop);
 }
 
+/* ---- 超时恢复窗口 ---------------------------------------------------------
+ * 真实超时后，迟到应答仍可能在内核 RX 里；下一事务开帧前才会 DISCARD_RX。
+ * 所以超时结算后总线必须先停一拍，否则下一帧会在迟到应答到达前就上线，
+ * 迟到帧随后被当成它的应答解码(RTU 读应答没有寄存器地址可校验)。
+ */
+typedef struct {
+    int started;
+    uint64_t started_ns;
+} recovery_ctx_t;
+
+static int recovery_record_execute(void* ctx, int bus_id, cmd_msg_t* cmd) {
+    (void)bus_id;
+    (void)cmd;
+    recovery_ctx_t* rec = (recovery_ctx_t*)ctx;
+    rec->started++;
+    rec->started_ns = uv_hrtime();
+    return 0;
+}
+
+static void test_arbiter_timeout_recovery_window(void** state) {
+    (void)state;
+    uv_loop_t loop;
+    uv_loop_init(&loop);
+    arbiter_t* arb = NULL;
+    arbiter_init(&arb, &loop);
+    arbiter_resume(arb);
+
+    timeout_test_ctx_t tctx = {0};
+    arb_executor_ops_t ops = {.ctx = &tctx, .execute = never_finish_execute};
+    arbiter_set_executor(arb, ops);
+
+    cmd_msg_t* hung = calloc(1, sizeof(cmd_msg_t));
+    cmd_msg_init_read(hung, 1001, ARBITER_PRIO_NORMAL);
+    hung->timeout_ms = 100;
+    hung->user_data = &tctx;
+    hung->on_complete = on_timeout_complete;
+    hung->on_cleanup = on_cleanup;
+    assert_int_equal(arbiter_submit_cmd(arb, 0, hung), 0);
+    assert_int_equal(tctx.started, 1);
+
+    for (int i = 0; i < 300 && tctx.completed == 0; i++) {
+        uv_run(&loop, UV_RUN_NOWAIT);
+        usleep(2000);
+    }
+    // 超时结算照常发生：窗口只延迟派发，不影响 on_complete(TIMEOUT)
+    assert_int_equal(tctx.completed, 1);
+    assert_int_equal(tctx.status, CMD_STATUS_TIMEOUT);
+
+    recovery_ctx_t rec = {0};
+    arb_executor_ops_t rec_ops = {.ctx = &rec, .execute = recovery_record_execute};
+    arbiter_set_executor(arb, rec_ops);
+
+    cmd_msg_t* next = calloc(1, sizeof(cmd_msg_t));
+    cmd_msg_init_read(next, 1002, ARBITER_PRIO_NORMAL);
+    next->timeout_ms = 1000;
+    next->on_cleanup = on_cleanup;
+    uint64_t submitted_at = uv_hrtime();
+    assert_int_equal(arbiter_submit_cmd(arb, 0, next), 0);
+
+    // 窗口内不得派发
+    assert_int_equal(rec.started, 0);
+    for (int i = 0; i < 15; i++) {
+        uv_run(&loop, UV_RUN_NOWAIT);
+        usleep(2000);
+    }
+    assert_int_equal(rec.started, 0);
+
+    // 窗口过后必须派发（窗口 100ms，结算到检测之间最多一个 20ms 扫描周期）
+    for (int i = 0; i < 300 && rec.started == 0; i++) {
+        uv_run(&loop, UV_RUN_NOWAIT);
+        usleep(2000);
+    }
+    assert_int_equal(rec.started, 1);
+    assert_true(rec.started_ns - submitted_at >= 70000000ULL);
+
+    arbiter_on_io_done(arb, 0, next, CMD_STATUS_SUCCESS);
+    arbiter_destroy(arb);
+    uv_loop_close(&loop);
+}
+
+static void test_arbiter_on_io_done_timeout_sets_recovery(void** state) {
+    (void)state;
+    uv_loop_t loop;
+    uv_loop_init(&loop);
+    arbiter_t* arb = NULL;
+    arbiter_init(&arb, &loop);
+    arbiter_resume(arb);
+
+    recovery_ctx_t rec = {0};
+    arb_executor_ops_t ops = {.ctx = &rec, .execute = recovery_record_execute};
+    arbiter_set_executor(arb, ops);
+
+    cmd_msg_t* winner = calloc(1, sizeof(cmd_msg_t));
+    cmd_msg_init_read(winner, 1001, ARBITER_PRIO_NORMAL);
+    winner->timeout_ms = 100;
+    winner->on_cleanup = on_cleanup;
+    assert_int_equal(arbiter_submit_cmd(arb, 0, winner), 0);
+    assert_int_equal(rec.started, 1);
+
+    cmd_msg_t* next = calloc(1, sizeof(cmd_msg_t));
+    cmd_msg_init_read(next, 1002, ARBITER_PRIO_NORMAL);
+    next->timeout_ms = 1000;
+    next->on_cleanup = on_cleanup;
+    assert_int_equal(arbiter_submit_cmd(arb, 0, next), 0);
+
+    // 引擎定时器路径：引擎自己结算超时，窗口必须在这次 on_io_done 里落下
+    uint64_t settled_at = uv_hrtime();
+    arbiter_on_io_done(arb, 0, winner, CMD_STATUS_TIMEOUT);
+    assert_int_equal(rec.started, 1);
+    for (int i = 0; i < 15; i++) {
+        uv_run(&loop, UV_RUN_NOWAIT);
+        usleep(2000);
+    }
+    assert_int_equal(rec.started, 1);
+
+    for (int i = 0; i < 300 && rec.started < 2; i++) {
+        uv_run(&loop, UV_RUN_NOWAIT);
+        usleep(2000);
+    }
+    assert_int_equal(rec.started, 2);
+    assert_true(rec.started_ns - settled_at >= 70000000ULL);
+
+    arbiter_on_io_done(arb, 0, next, CMD_STATUS_SUCCESS);
+    arbiter_destroy(arb);
+    uv_loop_close(&loop);
+}
+
 static int s_edf_order[4] = {0};
 static int s_edf_count = 0;
 
@@ -492,7 +619,7 @@ static void test_arbiter_min_gap(void** state) {
     memset(&c, 0, sizeof(c));
     uv_loop_init(&c.loop);
 
-    /* 用调用方分配存储：同时验证 4608 的 storage 契约成立 */
+    /* 用调用方分配存储：同时验证 5120 的 storage 契约成立 */
     arbiter_storage_t storage;
     arbiter_t* arb = arbiter_create_in(&storage, &c.loop);
     assert_non_null(arb);
@@ -537,6 +664,8 @@ int main(void) {
         cmocka_unit_test(test_arbiter_bounded_queue_and_priority_drop),
         cmocka_unit_test(test_arbiter_caller_allocated),
         cmocka_unit_test(test_arbiter_timeout_forced_release),
+        cmocka_unit_test(test_arbiter_timeout_recovery_window),
+        cmocka_unit_test(test_arbiter_on_io_done_timeout_sets_recovery),
         cmocka_unit_test(test_arbiter_edf_ordering),
         cmocka_unit_test(test_arbiter_aging_anti_starvation),
         cmocka_unit_test(test_arbiter_min_gap),

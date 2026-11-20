@@ -13,6 +13,7 @@
 #include <string.h>
 
 #include "contract_data_types.h"
+#include "edge_log.h"
 #include "iec_asdu.h"
 #include "modbus_codec.h"
 
@@ -124,10 +125,10 @@ const modbus_map_t *edge_get_map_modbus_by_tag(edge_tag_id_t tag_id) {
  * 3. IEC 104 静态测点映射表
  * ============================================================================== */
 static const iec104_map_t s_iec104_points[] = {
-    {.key = 16385, .tag_id = IEMS_TAG_GRID_POWER,        .dense_idx = 2, .scaler = 1.0f, .access = 0x01},
-    {.key = 16386, .tag_id = IEMS_TAG_VOLTAGE_PHASE_A,   .dense_idx = 0, .scaler = 1.0f, .access = 0x01},
-    {.key = 16387, .tag_id = IEMS_TAG_CURRENT_PHASE_A,   .dense_idx = 1, .scaler = 1.0f, .access = 0x01},
-    {.key = 16388, .tag_id = IEMS_TAG_BATTERY_POWER,     .dense_idx = 9, .scaler = 1.0f, .access = 0x01},
+    {.key = 16385, .tag_id = IEMS_TAG_GRID_POWER,        .dense_idx = 2, .scaler = 1.0f, .dead_band = 1.0f, .access = 0x01},
+    {.key = 16386, .tag_id = IEMS_TAG_VOLTAGE_PHASE_A,   .dense_idx = 0, .scaler = 1.0f, .dead_band = 0.5f, .access = 0x01},
+    {.key = 16387, .tag_id = IEMS_TAG_CURRENT_PHASE_A,   .dense_idx = 1, .scaler = 1.0f, .dead_band = 0.5f, .access = 0x01},
+    {.key = 16388, .tag_id = IEMS_TAG_BATTERY_POWER,     .dense_idx = 9, .scaler = 1.0f, .dead_band = 1.0f, .access = 0x01},
 };
 static const size_t s_iec104_points_count = sizeof(s_iec104_points) / sizeof(s_iec104_points[0]);
 
@@ -147,6 +148,58 @@ const void *iems_lookup_iec104_by_tag(uint32_t tag_id) {
         }
     }
     return NULL;
+}
+
+/* 总召唤要遍历全部点位；驱动只拿到回调，表本身留在产品侧。 */
+const iec104_map_t *iems_get_iec104_map(size_t *count) {
+    if (count) *count = s_iec104_points_count;
+    return s_iec104_points;
+}
+
+/* ==============================================================================
+ * 3b. IEC 104 控制点表（遥控/遥调）
+ * ============================================================================== */
+
+iec104_control_space_t iems_iec104_control_space(uint32_t ioa) {
+    if (ioa >= IEC104_REMOTE_REGU_BASE) return IEC104_CONTROL_SPACE_REMOTE_REGU;
+    if (ioa >= IEC104_REMOTE_CTRL_BASE) return IEC104_CONTROL_SPACE_REMOTE_CTRL;
+    return IEC104_CONTROL_SPACE_NONE;
+}
+
+/* 现场 xlsx 未入库，控制点表暂只有哨兵行（IOA 0 不是合法控制点）。
+ * 补表格式：{ .ioa = 24577 + 20*section + n, .tag_id = ... }。 */
+static const iec104_control_map_t s_iec104_controls[] = {
+    {.ioa = 0, .tag_id = 0},
+};
+
+const iec104_control_map_t *iems_lookup_iec104_control(uint32_t ioa) {
+    if (ioa == 0) return NULL;
+    for (size_t i = 0; i < sizeof(s_iec104_controls) / sizeof(s_iec104_controls[0]); i++) {
+        if (s_iec104_controls[i].ioa == ioa) return &s_iec104_controls[i];
+    }
+    return NULL;
+}
+
+int iems_iec104_control_tag(uint32_t ioa, edge_tag_id_t *tag_id) {
+    if (iems_iec104_control_space(ioa) == IEC104_CONTROL_SPACE_NONE) {
+        LOG_WARN(LOG_CAT_NB, "IEMS IEC104 write: IOA %u 不在遥控/遥调地址段，拒绝",
+                 (unsigned)ioa);
+        return -1;
+    }
+    const iec104_control_map_t *map = iems_lookup_iec104_control(ioa);
+    if (!map) {
+        LOG_WARN(LOG_CAT_NB, "IEMS IEC104 write: 控制点表没有 IOA %u（现场 xlsx 未入库），拒绝",
+                 (unsigned)ioa);
+        return -1;
+    }
+    if (tag_id) *tag_id = map->tag_id;
+    return 0;
+}
+
+double iems_iec104_deadband(void *ctx, uint32_t point_id) {
+    (void)ctx;
+    const iec104_map_t *map = edge_get_map_iec104(IEC_NATIVE_IOA(point_id));
+    return map ? (double)map->dead_band : -1.0;
 }
 
 /* 兼容外部全栈测试符号 */
@@ -174,8 +227,6 @@ static const void *iems_lookup_can_by_tag(uint32_t tag_id) {
     }
     return NULL;
 }
-
-static const dlt645_map_t *iems_lookup_dlt645_by_tag(uint32_t tag_id);
 
 /* [ADR-002] 产品的点位标识 → 驱动认识的原生标识。
  * 645 的 DI 已由 dcu_driver_adapter_oad_to_proto 换好；CAN 的 CAN ID 在这里换。
@@ -219,16 +270,14 @@ double iems_driver_adapter_tag_scale(const char *proto, uint32_t tag_id) {
         const modbus_map_t *m = (const modbus_map_t *)iems_lookup_can_by_tag(tag_id);
         if (m && m->scaler > 0.0) return m->scaler;   /* CAN：工程值 = raw × scaler */
     }
-    if (strcasecmp(proto, "ModbusTCP") == 0) {
+    /* Modbus 家族（RTU/TCP 只是帧格式不同）共用同一张点位表与同一口径：
+     * 工程值 = raw × scaler。读路径 req_driver_legacy 乘这个系数，写路径
+     * iems_exec_translate_write 做 raw = value / scaler，两者必须互逆。
+     * 某类表计的寄存器已是工程值时，在点表把 scaler 配成 1，不要按协议
+     * 分支改口径。 */
+    if (strcasecmp(proto, "ModbusTCP") == 0 || strcasecmp(proto, "ModbusRTU") == 0 ||
+        strcasecmp(proto, "ModbusRTUHiCRC") == 0 || strcasecmp(proto, "Modbus") == 0) {
         const modbus_map_t *m = (const modbus_map_t *)iems_lookup_modbus_by_tag(tag_id);
-        /* Modbus：工程值 = raw / scaler，所以这里给倒数 */
-        if (m && m->scaler > 0.0) return 1.0 / m->scaler;
-    }
-    if (strcasecmp(proto, "ModbusRTU") == 0 || strcasecmp(proto, "ModbusRTUHiCRC") == 0 ||
-        strcasecmp(proto, "Modbus") == 0) {
-        const modbus_map_t *m = (const modbus_map_t *)iems_lookup_modbus_by_tag(tag_id);
-        /* ModbusRTU 的旧约定是 ×scaler（与 TCP 相反）。历史差异，不在这次
-         * 改造里纠正——改数值口径要单独验证现场，混在重构里最危险。 */
         if (m && m->scaler > 0.0) return m->scaler;
     }
     if (strcasecmp(proto, "DLT645") == 0) {
@@ -330,6 +379,14 @@ static const edge_connectivity_t s_iems_connectivity[] = {
         .type = "UART",
         .simulation_path = "/tmp/iems_north_slave.sock",
         .production_path = "/dev/ttyS2",
+    },
+    {
+        .id = 11,
+        .label = "Northbound_IEC104",
+        .category = "NORTHBOUND",
+        .type = "IEC104",
+        .simulation_path = "tcp://127.0.0.1:2404",
+        .production_path = "tcp://0.0.0.0:2404",
     },
     {
         .id = 200,
@@ -463,7 +520,7 @@ edge_tag_id_t edge_lookup_modbus(uint64_t addr, float *scale) {
     return 0;
 }
 
-static const dlt645_map_t *iems_lookup_dlt645_by_tag(uint32_t tag_id) {
+const dlt645_map_t *iems_lookup_dlt645_by_tag(uint32_t tag_id) {
     for (size_t i = 0; i < s_dlt645_points_count; i++) {
         if (s_dlt645_points[i].tag_id == tag_id) return &s_dlt645_points[i];
     }

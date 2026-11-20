@@ -93,9 +93,64 @@ static void test_uart_bus_attaches_pty(void **state) {
     assert_int_equal(uv_loop_close(&loop), 0);
 }
 
+/* 非法 OMNIS_BUS_n_BAUD 必须拒绝整条总线: 9600abc 旧实现会被 strtoul 截成
+ * 9600, 数值合法但未支持的速率则会被驱动静默退回 9600, 两者都改错 wire speed。 */
+static void test_uart_bus_rejects_invalid_baud(void **state) {
+    (void)state;
+
+    int master = posix_openpt(O_RDWR | O_NOCTTY | O_NONBLOCK);
+    assert_true(master >= 0);
+    assert_int_equal(grantpt(master), 0);
+    assert_int_equal(unlockpt(master), 0);
+    const char *slave_name = ptsname(master);
+    assert_non_null(slave_name);
+
+    uv_loop_t loop;
+    assert_int_equal(uv_loop_init(&loop), 0);
+
+    datahub_t hub;
+    char shm_name[64];
+    snprintf(shm_name, sizeof(shm_name), "iems_sb_uart_baud_%d", (int)getpid());
+    assert_int_equal(datahub_init(&hub, &loop, shm_name, 16, 32, NULL, 0, NULL, NULL, NULL), 0);
+
+    bus_orchestrator_t *orch = bus_orchestrator_create_hub_default(&hub, NULL, NULL, 2, 8, 256);
+    assert_non_null(orch);
+    datahub_bind_io_pool(&hub, bus_orchestrator_get_pool(orch));
+
+    assert_int_equal(setenv("OMNIS_BUS_0_DEV", slave_name, 1), 0);
+
+    bus_conn_state_t bus_state[IEMS_MAX_VBUS] = {BUS_STATE_DISCONNECTED};
+    int configured = 0;
+
+    assert_int_equal(setenv("OMNIS_BUS_0_BAUD", "9600abc", 1), 0);
+    iems_southbound_connect(&loop, &hub, orch, bus_state, &configured);
+    assert_true(configured >= 1);
+    assert_int_equal(bus_state[0], BUS_STATE_DISCONNECTED);
+    assert_null(bus_orchestrator_get_io(orch, 0));
+
+    assert_int_equal(setenv("OMNIS_BUS_0_BAUD", "1234", 1), 0);
+    iems_southbound_connect(&loop, &hub, orch, bus_state, &configured);
+    assert_int_equal(bus_state[0], BUS_STATE_DISCONNECTED);
+    assert_null(bus_orchestrator_get_io(orch, 0));
+
+    unsetenv("OMNIS_BUS_0_DEV");
+    unsetenv("OMNIS_BUS_0_BAUD");
+    close(master);
+
+    net_buf_pool_t *pool = bus_orchestrator_get_pool(orch);
+    bus_orchestrator_destroy(orch);
+    net_buf_pool_destroy(pool);
+    datahub_destroy(&hub);
+
+    uv_walk(&loop, _close_handle, NULL);
+    for (int i = 0; i < 200 && uv_loop_alive(&loop); i++) uv_run(&loop, UV_RUN_NOWAIT);
+    assert_int_equal(uv_loop_close(&loop), 0);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_uart_bus_attaches_pty),
+        cmocka_unit_test(test_uart_bus_rejects_invalid_baud),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

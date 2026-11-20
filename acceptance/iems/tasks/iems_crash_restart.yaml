@@ -1,0 +1,17 @@
+# 崩溃重启:与 iems_restart 同一套启动闸门与观察器,但停产品走 SIGKILL
+# (RUN_DIR/crash.request),验掉电现场 —— 没有收尾、没有手动 flush。
+# 重启后产品必须自己回放 WAL、重连总线继续轮询,并在新 MQTT 会话重发 BIRTH。
+#
+# EDGE_WAL_PATH / EDGE_SNAP_PATH 都在 RUN_DIR 内,restarts.json 记录
+# mode=crash、exit_code=-9 与前后进程号。
+id: iems-crash-restart
+product: iems
+launch:
+  - ${PYTHON}
+  - iems_product.py
+  - --port
+  - ${PORT}
+  - --start-gate
+  - --record-startup
+devices: configs/devices.yaml
+select: case:I_00_00_07_000002

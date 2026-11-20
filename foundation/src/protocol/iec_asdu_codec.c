@@ -137,6 +137,14 @@ int iec_asdu_add_c_ic_na_1(net_buf_t *buf, uint32_t ioa, uint8_t qoi,
     return 0;
 }
 
+int iec_asdu_parse_c_ic_na_1(struct net_buf_simple *b, uint32_t *ioa, uint8_t *qoi,
+                             const iec_addr_config_t *conf) {
+    if (_decode_ioa(b, conf->ioa_len, ioa) != 0) return -1;
+    if (b->len < 1) return -1;
+    *qoi = net_buf_simple_pull_u8(b);
+    return 0;
+}
+
 int iec_asdu_add_c_sc_na_1(net_buf_t *buf, uint32_t ioa, bool val, bool select,
                            const iec_addr_config_t *conf) {
     _encode_ioa(&buf->b, ioa, conf->ioa_len);
@@ -202,6 +210,17 @@ int iec_asdu_add_any(net_buf_t *buf, uint8_t type_id, uint32_t ioa, double val, 
             PROTO_LOG_ERROR("IEC ASDU: Unsupported TypeID %d", type_id);
             return -1;
     }
+}
+
+void iec_asdu_set_cot(struct net_buf_simple *b, iec_cot_t cot, bool negative,
+                      const iec_addr_config_t *conf) {
+    /* ASDU 头：type(1) + vsq(1) + COT + CASDU。只改 COT 第一字节
+     * （T + P/N + cause）；104 的第二字节是 OA，保持请求值。 */
+    size_t off = 2;
+    size_t len = conf->cot_len == 1 ? 1u : 2u;
+    if (b->len < off + len) return;
+    uint8_t preserve = b->data[off] & 0x80; /* T 位沿用请求 */
+    b->data[off] = (uint8_t)(preserve | ((uint8_t)cot & 0x3F) | (negative ? 0x40 : 0x00));
 }
 
 int iec_asdu_parse_header(struct net_buf_simple *b, iec_type_id_t *type, bool *sq, uint8_t *count,

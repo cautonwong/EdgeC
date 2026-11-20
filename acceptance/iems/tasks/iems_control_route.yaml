@@ -1,0 +1,13 @@
+# 控制写路由:总线上挂两个从站(unit 1 采集、unit 3 控制),验北向写落到
+# poll_tasks/inventory 解出来的从站,以及无路由的写被 Modbus 异常拒绝。
+id: iems-control-route
+product: iems
+launch:
+  - ${PYTHON}
+  - iems_product.py
+  - --port
+  - ${PORT}
+  - --slaves
+  - 1,3
+devices: configs/devices.yaml
+select: case:I_00_00_04_

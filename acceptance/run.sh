@@ -47,6 +47,18 @@ if ! "$PYTHON" -c "import testplatform" 2>/dev/null; then
     exit 4
 fi
 
+# 同一台机器只允许一轮验收:两轮并发时 _clean_sockets 会 pkill 对方的壳,
+# 北向桥又写死 127.0.0.1:19211 —— 后启动的一轮会把先启动的产品杀掉/接走写,
+# 表现为"北向写没到南向"的假红。后到的一轮排队,不互杀。
+LOCK_FILE="${TMPDIR:-/tmp}/edgec-acceptance.lock"
+if command -v flock >/dev/null 2>&1; then
+    exec 9>"$LOCK_FILE"
+    if ! flock -w "${ACCEPTANCE_LOCK_TIMEOUT:-900}" 9; then
+        echo "另一轮验收还在跑(锁 $LOCK_FILE,等待 ${ACCEPTANCE_LOCK_TIMEOUT:-900}s 仍未释放)" >&2
+        exit 4
+    fi
+fi
+
 # 平台独立进化,EdgeC 不跟着漂:核对锁定的版本(改这一行就是一次升级 PR)。
 PIN_FILE="$HERE/testplatform.sha"
 PIN="$(sed -n 's/^\([0-9a-f]\{7,40\}\)$/\1/p' "$PIN_FILE" 2>/dev/null | head -1)"

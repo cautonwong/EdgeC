@@ -2,9 +2,25 @@
 
 set(PROD_NAME iems)
 
+# 厂商语义 vtable 框架：只依赖消费者定义的 tag I/O 端口
+add_library(iems_vendor STATIC
+    vendor/iems_vendor_semantics.c
+    vendor/iems_vendor_pcs_a.c
+    vendor/iems_vendor_pcs_b.c
+    vendor/iems_vendor_nonpcs.c
+)
+target_include_directories(iems_vendor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/vendor)
+
+# P1-02 点位模型骨架：点键槽位校验与已知名表，静态、无动态分配
+add_library(iems_points STATIC
+    points/iems_point_model.c
+)
+target_include_directories(iems_points PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/points)
+
 add_library(iems_app_lib STATIC
     iems_node.c
     iems_app.c
+    iems_wal_start.c
     iems_app_manager_adapter.c
     iems_app_runtime.c
     iems_app_host_ports.c
@@ -21,9 +37,11 @@ add_library(iems_app_lib STATIC
     iems_task_loader.c
     iems_poll_scheduler.c
     iems_southbound_adapter.c
+    iems_tcp_link.c
     iems_internal_bus_adapter.c
     iems_ui_channel.c
     iems_north_listener.c
+    iems_north_iec104.c
 )
 
 
@@ -67,6 +85,7 @@ target_link_libraries(iems_app_lib PUBLIC
     edge_mgmt
     edge_app_host
     edge_linux_platform
+    iems_vendor
 )
 
 add_executable(iems main.c)

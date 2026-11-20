@@ -5,6 +5,7 @@
 
 #include "iems_app_manager_adapter.h"
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -359,6 +360,9 @@ static void _iems_state_done(int rc, const char *app_id, const char *reason, voi
 static int _control_start_app(void *ctx, const char *app_id) {
     iems_control_ctx_t *control = (iems_control_ctx_t *)ctx;
     if (!control || !control->mgr || !app_id) return -1;
+
+    app_manifest_t manifest;
+    if (edge_app_mgr_get_app(control->mgr, app_id, &manifest) != 0) return -ENOENT;
 
     iems_start_ctx_t *start = calloc(1, sizeof(*start));
     if (!start) return -1;

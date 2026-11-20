@@ -52,6 +52,7 @@ struct datahub_s {
     // --- [WAL] Write-Ahead Log ---
     int wal_fd;
     char wal_path[256];
+    atomic_uint_fast64_t wal_write_failures;
     
     // --- [Compaction] Snapshot Compaction ---
     uv_timer_t compaction_timer;

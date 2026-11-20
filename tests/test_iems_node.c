@@ -228,6 +228,17 @@ static void test_iems_node_control_loop_latency_watchdog(void **state) {
     assert_float_equal(degraded_kw, 60.0, 0.001);
 }
 
+static int fake_write(void *ctx, int bus_id, uint32_t slave_id, uint32_t tag_id, double value,
+                      const char *proto) {
+    (void)ctx;
+    (void)bus_id;
+    (void)slave_id;
+    (void)tag_id;
+    (void)value;
+    (void)proto;
+    return 0;
+}
+
 /* 7. 南向采样镜像写入口:写进去能读出来,非法入参被拒 */
 static void test_iems_node_ingest_sample(void **state) {
     test_fixture_t *fix = (test_fixture_t *)*state;
@@ -240,7 +251,8 @@ static void test_iems_node_ingest_sample(void **state) {
     assert_int_equal(datahub_read_shadow(hub, 42, &before), 0);
     assert_int_equal(before.ts, 0);
 
-    assert_int_equal(iems_node_ingest_sample(node, IEMS_TAG_VOLTAGE_PHASE_A, 231.7), 0);
+    assert_int_equal(iems_node_ingest_sample(node, IEMS_TAG_VOLTAGE_PHASE_A, 231.7, uv_hrtime()),
+                     0);
 
     pipe_msg_t out;
     assert_int_equal(datahub_read_shadow(hub, IEMS_TAG_VOLTAGE_PHASE_A, &out), 0);
@@ -248,10 +260,45 @@ static void test_iems_node_ingest_sample(void **state) {
     assert_true(out.ts > 0);
     assert_float_equal(out.payload.val.f, 231.7, 0.001);
 
-    assert_int_equal(iems_node_ingest_sample(NULL, IEMS_TAG_VOLTAGE_PHASE_A, 1.0), -1);
-    assert_int_equal(iems_node_ingest_sample(node, 0, 1.0), -1);
+    assert_int_equal(iems_node_ingest_sample(NULL, IEMS_TAG_VOLTAGE_PHASE_A, 1.0, 1), -1);
+    assert_int_equal(iems_node_ingest_sample(node, 0, 1.0, 1), -1);
     // 不在 tag 映射里且超出 shadow 容量的 tag:写入失败要能看出来
-    assert_int_equal(iems_node_ingest_sample(node, 9999, 1.0), -1);
+    assert_int_equal(iems_node_ingest_sample(node, 9999, 1.0, 1), -1);
+}
+
+/* 8. 迟到的轮询采样不得覆盖更晚的控制写;采样确实更新时仍要生效 */
+static void test_iems_node_stale_sample_does_not_overwrite_control(void **state) {
+    test_fixture_t *fix = (test_fixture_t *)*state;
+    iems_node_t *node = fix->node;
+    datahub_t *hub = iems_node_get_datahub(node);
+    assert_non_null(hub);
+
+    iems_execution_port_t port = {.ctx = NULL, .write_tag = fake_write};
+    assert_int_equal(iems_node_set_execution_port(node, port), 0);
+
+    // 控制写先落 shadow,ts 是写提交时刻
+    assert_int_equal(
+        iems_node_write_tag(node, 0, 1, IEMS_TAG_VOLTAGE_PHASE_A, 220.0, "ModbusRTU"), 0);
+    pipe_msg_t after_write;
+    assert_int_equal(datahub_read_shadow(hub, IEMS_TAG_VOLTAGE_PHASE_A, &after_write), 0);
+    assert_float_equal(after_write.payload.val.f, 220.0, 0.001);
+    assert_true(after_write.ts > 0);
+
+    // 读帧在控制写之前就已编码发出,结果现在才回来:采样更旧,必须丢弃
+    assert_int_equal(iems_node_ingest_sample(node, IEMS_TAG_VOLTAGE_PHASE_A, 231.7,
+                                             after_write.ts - 1),
+                     0);
+    pipe_msg_t stale;
+    assert_int_equal(datahub_read_shadow(hub, IEMS_TAG_VOLTAGE_PHASE_A, &stale), 0);
+    assert_float_equal(stale.payload.val.f, 220.0, 0.001);
+
+    // 采样发生在控制写之后:新读数必须生效,守卫不能变成永久保控制值
+    assert_int_equal(iems_node_ingest_sample(node, IEMS_TAG_VOLTAGE_PHASE_A, 222.0,
+                                             after_write.ts + 1),
+                     0);
+    pipe_msg_t fresh;
+    assert_int_equal(datahub_read_shadow(hub, IEMS_TAG_VOLTAGE_PHASE_A, &fresh), 0);
+    assert_float_equal(fresh.payload.val.f, 222.0, 0.001);
 }
 
 int main(void) {
@@ -263,6 +310,8 @@ int main(void) {
         cmocka_unit_test_setup_teardown(test_iems_node_fire_safety_trip, setup_node, teardown_node),
         cmocka_unit_test_setup_teardown(test_iems_node_control_loop_latency_watchdog, setup_node, teardown_node),
         cmocka_unit_test_setup_teardown(test_iems_node_ingest_sample, setup_node, teardown_node),
+        cmocka_unit_test_setup_teardown(test_iems_node_stale_sample_does_not_overwrite_control,
+                                        setup_node, teardown_node),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

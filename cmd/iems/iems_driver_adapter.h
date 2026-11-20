@@ -55,7 +55,8 @@ int iems_driver_protocol_canonical(const char *raw, char out[16]);
 
 /* [ADR-002] 点位标识翻译与量纲：产品侧负责，驱动不再查表。
  *   native_id：tag_id → 驱动认识的原生标识（CAN 是 CAN ID，其余暂等值）
- *   tag_scale：该点位的工程量系数；legacy 驱动仍自己标定，故返回 1.0 */
+ *   tag_scale：该点位的工程量系数，来自点表 scaler；Modbus 家族统一
+ *   raw×scaler。读路径乘它、写路径除以它，两者互逆，TCP/RTU 不按协议分叉。 */
 uint32_t iems_driver_adapter_native_id(const char *proto, uint32_t tag_id);
 double iems_driver_adapter_tag_scale(const char *proto, uint32_t tag_id);
 
@@ -120,8 +121,41 @@ const void *iems_lookup_iec104_by_tag(uint32_t tag_id);
 
 const modbus_map_t *edge_get_map_modbus(uint64_t key);
 const modbus_map_t *edge_get_map_modbus_by_tag(edge_tag_id_t tag_id);
+const dlt645_map_t *iems_lookup_dlt645_by_tag(uint32_t tag_id);
 const iec104_map_t *edge_get_map_iec104(uint64_t key);
 const iec104_map_t *edge_get_map_iec104_by_tag(edge_tag_id_t tag_id);
+/* 静态 IEC104 点表（IOA 16385..16388）；总召唤按此枚举。 */
+const iec104_map_t *iems_get_iec104_map(size_t *count);
+
+/* v3 的遥控/遥调地址分段（iems_v3/src/automatic_north/north_automatic.h:38-41、
+ * iec104_create.c:64-67）：
+ *   RemoteCtrl = 24577 + 20*section + n
+ *   RemoteRegu = 25089 + 500*section + n
+ * section 是设备分段号。具体点表由现场 xlsx 生成，仓库没有该表；在补表之前
+ * 所有控制 IOA 都按未映射拒绝（COT=47）。 */
+#define IEC104_REMOTE_CTRL_BASE 24577u
+#define IEC104_REMOTE_CTRL_RESERVE 20u
+#define IEC104_REMOTE_REGU_BASE 25089u
+#define IEC104_REMOTE_REGU_RESERVE 500u
+
+typedef enum {
+    IEC104_CONTROL_SPACE_NONE = 0,
+    IEC104_CONTROL_SPACE_REMOTE_CTRL,
+    IEC104_CONTROL_SPACE_REMOTE_REGU,
+} iec104_control_space_t;
+
+/* 控制点位：IOA → 产品 tag。补表时逐点登记。 */
+typedef struct {
+    uint32_t ioa;
+    edge_tag_id_t tag_id;
+} iec104_control_map_t;
+
+iec104_control_space_t iems_iec104_control_space(uint32_t ioa);
+const iec104_control_map_t *iems_lookup_iec104_control(uint32_t ioa);
+/* 命令 IOA 是否落在控制段且有控制点映射；成功时写出 tag_id。 */
+int iems_iec104_control_tag(uint32_t ioa, edge_tag_id_t *tag_id);
+/* 自发上报的按点死区（edge_slave_source_ops_t.deadband 的实现）。 */
+double iems_iec104_deadband(void *ctx, uint32_t point_id);
 
 #ifdef __cplusplus
 }

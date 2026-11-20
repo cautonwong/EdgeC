@@ -23,6 +23,8 @@
 #include "dlt645_codec.h"
 #include "driver_manager.h"
 #include "edge_api.h"
+#include "iems_driver_adapter.h"
+#include "iems_execution_adapter.h"
 #include "iems_southbound_adapter.h"
 #include "io_handle_priv.h"
 
@@ -30,7 +32,8 @@
  * 一台表计，请求帧必须带正确的 6 字节表地址与 DI，应答沿同一 fd 回去。
  * 表地址登记、DI 编码、BCD 解码、回调量纲任何一环断掉都会红。 */
 
-#define DLT645_REQ_LEN 16
+#define DLT645_READ_REQ_LEN 16
+#define DLT645_WRITE_REQ_LEN 18
 #define METER_DI 0x02010100u
 #define METER_RAW 2201 /* 220.1 V，BCD 0x01 0x22 */
 #define METER_SCALE 0.1
@@ -57,6 +60,12 @@ typedef struct {
     bool frame_bad;
     bool responded;
     bool timed_out;
+    bool submitted; /* 用例提过命令：teardown 要等引擎结算 */
+
+    uint8_t write_frame[32];
+    size_t write_frame_len;
+    int write_frames;
+    bool write_ok;
 
     int cb_count;
     int cb_status;
@@ -75,10 +84,36 @@ static void _dump_frame(const pty_ctx_t *c, const char *why) {
     fprintf(stderr, "\n");
 }
 
-/* 从站：收满一帧读请求，校地址/DI/CS，回 2201 的 BCD 应答 */
+static uint32_t _di_of(const uint8_t *frame) {
+    uint32_t di = 0;
+    for (int i = 0; i < 4; i++) di |= (uint32_t)(uint8_t)(frame[10 + i] - 0x33) << (8 * i);
+    return di;
+}
+
+static void _put_head(uint8_t *frame, size_t *p, const uint8_t *addr, uint8_t ctrl, uint8_t l) {
+    frame[(*p)++] = 0x68;
+    memcpy(frame + *p, addr, 6);
+    *p += 6;
+    frame[(*p)++] = 0x68;
+    frame[(*p)++] = ctrl;
+    frame[(*p)++] = l;
+}
+
+static void _put_di(uint8_t *frame, size_t *p, uint32_t di) {
+    for (int i = 0; i < 4; i++) frame[(*p)++] = (uint8_t)(((di >> (8 * i)) & 0xFF) + 0x33);
+}
+
+static void _seal(uint8_t *frame, size_t *p) {
+    frame[*p] = dlt645_calculate_cs(frame, *p);
+    (*p)++;
+    frame[(*p)++] = 0x16;
+}
+
+/* 从站：按控制码应答读（0x11）与写（0x14）。写帧必须带正确表地址、DI 与
+ * BCD 2201；任何一项不对就不回，让主站按超时失败。 */
 static void _on_slave_tick(uv_timer_t *handle) {
     pty_ctx_t *c = (pty_ctx_t *)handle->data;
-    if (c->responded || c->frame_bad) return;
+    if (c->frame_bad) return;
 
     ssize_t n = read(c->master_fd, c->req + c->req_len, sizeof(c->req) - c->req_len);
     if (n < 0) {
@@ -89,41 +124,81 @@ static void _on_slave_tick(uv_timer_t *handle) {
     }
     if (n == 0) return;
     c->req_len += (size_t)n;
-    if (c->req_len < DLT645_REQ_LEN) return;
+    if (c->req_len < 10) return;
+    if (c->req[0] != 0x68 || c->req[7] != 0x68) {
+        c->frame_bad = true;
+        _dump_frame(c, "bad frame head");
+        return;
+    }
+    size_t total = (size_t)c->req[9] + 12;
+    if (c->req_len < total) return;
+    if (c->req[total - 1] != 0x16 ||
+        dlt645_calculate_cs(c->req, total - 2) != c->req[total - 2]) {
+        c->frame_bad = true;
+        _dump_frame(c, "bad checksum");
+        return;
+    }
+
+    uint8_t ctrl = c->req[8];
+    bool addr_ok = memcmp(c->req + 1, c->addr_bcd, sizeof(c->addr_bcd)) == 0;
+
+    if (ctrl == DLT645_CTRL_WRITE_DATA) {
+        uint8_t b0 = (uint8_t)(c->req[14] - 0x33);
+        uint8_t b1 = (uint8_t)(c->req[15] - 0x33);
+        int32_t raw = (int32_t)((b0 >> 4) * 10 + (b0 & 0x0F)) +
+                      (int32_t)((b1 >> 4) * 10 + (b1 & 0x0F)) * 100;
+
+        c->req_frames++;
+        c->write_frames++;
+        c->write_frame_len = total;
+        memcpy(c->write_frame, c->req, total);
+        c->addr_ok = addr_ok;
+        c->di_ok = _di_of(c->req) == METER_DI;
+        c->write_ok = addr_ok && c->di_ok && c->req[9] == 6 && raw == METER_RAW;
+        if (!c->write_ok) {
+            c->frame_bad = true;
+            _dump_frame(c, "unexpected write frame");
+            return;
+        }
+
+        uint8_t ack[16];
+        size_t p = 0;
+        _put_head(ack, &p, c->addr_bcd, DLT645_CTRL_WRITE_RESPONSE, 4);
+        _put_di(ack, &p, METER_DI);
+        _seal(ack, &p);
+        if (write(c->master_fd, ack, p) == (ssize_t)p) {
+            c->responded = true;
+            c->req_len = 0; /* 后面可能还有一条读要应答 */
+        } else {
+            c->frame_bad = true;
+            _dump_frame(c, "write ack failed");
+        }
+        return;
+    }
+
+    if (ctrl != DLT645_CTRL_READ_DATA) {
+        c->frame_bad = true;
+        _dump_frame(c, "unexpected control code");
+        return;
+    }
 
     c->req_frames++;
-    c->addr_ok = memcmp(c->req + 1, c->addr_bcd, sizeof(c->addr_bcd)) == 0;
-    uint8_t di_bytes[4];
-    for (int i = 0; i < 4; i++) di_bytes[i] = (uint8_t)(c->req[10 + i] - 0x33);
-    uint32_t di = 0;
-    for (int i = 0; i < 4; i++) di |= (uint32_t)di_bytes[i] << (8 * i);
-    c->di_ok = di == METER_DI;
-    bool cs_ok = dlt645_calculate_cs(c->req, DLT645_REQ_LEN - 2) == c->req[DLT645_REQ_LEN - 2];
-    if (c->req[0] != 0x68 || c->req[7] != 0x68 || c->req[8] != DLT645_CTRL_READ_DATA ||
-        c->req[9] != 4 || !c->addr_ok || !c->di_ok || !cs_ok || c->req[DLT645_REQ_LEN - 1] != 0x16) {
+    c->addr_ok = addr_ok;
+    c->di_ok = _di_of(c->req) == METER_DI;
+    if (!c->addr_ok || !c->di_ok || c->req[9] != 4) {
         c->frame_bad = true;
-        _dump_frame(c, "unexpected request frame");
+        _dump_frame(c, "unexpected read frame");
         return;
     }
 
     uint8_t resp[24];
     size_t p = 0;
-    resp[p++] = 0x68;
-    memcpy(resp + p, c->addr_bcd, sizeof(c->addr_bcd));
-    p += sizeof(c->addr_bcd);
-    resp[p++] = 0x68;
-    resp[p++] = DLT645_CTRL_READ_RESPONSE;
-    resp[p++] = 6; /* DI 4 + 数据 2 */
-    resp[p++] = (uint8_t)((METER_DI & 0xFF) + 0x33);
-    resp[p++] = (uint8_t)(((METER_DI >> 8) & 0xFF) + 0x33);
-    resp[p++] = (uint8_t)(((METER_DI >> 16) & 0xFF) + 0x33);
-    resp[p++] = (uint8_t)(((METER_DI >> 24) & 0xFF) + 0x33);
+    _put_head(resp, &p, c->addr_bcd, DLT645_CTRL_READ_RESPONSE, 6); /* DI 4 + 数据 2 */
+    _put_di(resp, &p, METER_DI);
     /* 2201 → BCD 0x01 0x22，再按 DLT645 每字节 +0x33 */
     resp[p++] = (uint8_t)((((METER_RAW % 100) / 10) << 4 | (METER_RAW % 10)) + 0x33);
     resp[p++] = (uint8_t)(((((METER_RAW / 100) % 100) / 10) << 4 | ((METER_RAW / 100) % 10)) + 0x33);
-    resp[p] = dlt645_calculate_cs(resp, p);
-    p++;
-    resp[p++] = 0x16;
+    _seal(resp, &p);
     if (write(c->master_fd, resp, p) == (ssize_t)p) {
         c->responded = true;
     } else {
@@ -221,6 +296,7 @@ static void test_dlt645_read_over_uart_pty(void **state) {
         edge_api_read_tag_ex(0, "DLT645", 0, METER_DI, METER_TAG, METER_SCALE, NULL, 0,
                              ARBITER_PRIO_NORMAL, _on_read_done, c),
         0);
+    c->submitted = true;
 
     uv_run(&c->loop, UV_RUN_DEFAULT);
 
@@ -231,11 +307,53 @@ static void test_dlt645_read_over_uart_pty(void **state) {
     assert_int_equal(c->req_frames, 1);
     assert_true(c->addr_ok);
     assert_true(c->di_ok);
-    assert_int_equal(c->req_len, DLT645_REQ_LEN);
+    assert_int_equal(c->req_len, DLT645_READ_REQ_LEN);
     assert_int_equal(c->cb_count, 1);
     assert_int_equal(c->cb_status, 0);
     assert_int_equal(c->cb_tag, METER_TAG);
     assert_true(fabs(c->cb_value - (double)METER_RAW * METER_SCALE) < 1e-9);
+}
+
+/* P1 回归：北向写 220.1 V 必须落到 DI 0x02010100、BCD 2201、2 字节宽度，
+ * 表计回写应答。旧实现 point_desc 为 NULL 时驱动拒绝，总线上根本没有写帧。 */
+static void test_dlt645_write_over_uart_pty(void **state) {
+    pty_ctx_t *c = (pty_ctx_t *)*state;
+
+    iems_execution_port_t port = iems_execution_port_create(NULL);
+    assert_non_null(port.write_tag);
+    assert_int_equal(port.write_tag(port.ctx, 0, 0, METER_TAG, 220.1, "DLT645"), 0);
+    c->submitted = true;
+    /* 同一总线上的读作为屏障：写事务结算后才轮到它，循环在回调里停 */
+    assert_int_equal(edge_api_read_tag_ex(0, "DLT645", 0, METER_DI, METER_TAG, METER_SCALE,
+                                          NULL, 0, ARBITER_PRIO_NORMAL, _on_read_done, c),
+                     0);
+
+    uv_run(&c->loop, UV_RUN_DEFAULT);
+
+    if (c->timed_out || c->cb_status != 0 || !c->write_ok)
+        _dump_frame(c, "dlt645 write did not round-trip");
+
+    assert_false(c->timed_out);
+    assert_int_equal(c->write_frames, 1);
+    assert_true(c->write_ok);
+    assert_int_equal(c->write_frame_len, DLT645_WRITE_REQ_LEN);
+    assert_int_equal(c->write_frame[8], DLT645_CTRL_WRITE_DATA);
+    assert_int_equal(c->write_frame[9], 6);
+    assert_int_equal(c->write_frame[14], (uint8_t)(0x01 + 0x33));
+    assert_int_equal(c->write_frame[15], (uint8_t)(0x22 + 0x33));
+    assert_int_equal(c->cb_count, 1);
+    assert_int_equal(c->cb_status, 0);
+}
+
+/* 点表宽度 3 字节（1003 电网功率）645 驱动不支持：提交前拒绝，总线上不应出现写帧。 */
+static void test_dlt645_write_rejects_unknown_width(void **state) {
+    pty_ctx_t *c = (pty_ctx_t *)*state;
+
+    iems_execution_port_t port = iems_execution_port_create(NULL);
+    assert_non_null(port.write_tag);
+    assert_int_equal(port.write_tag(port.ctx, 0, 0, IEMS_TAG_GRID_POWER, 12.3, "DLT645"), -1);
+    assert_int_equal(c->write_frames, 0);
+    assert_int_equal(c->req_frames, 0);
 }
 
 static void _close_handle(uv_handle_t *handle, void *arg) {
@@ -250,7 +368,7 @@ static int teardown(void **state) {
     uv_timer_stop(&c->slave_tick);
     uv_timer_stop(&c->watchdog);
 
-    if (c->cb_count == 0 && c->orch) {
+    if (c->cb_count == 0 && c->submitted && c->orch) {
         /* 用例提前停表时命令还挂在引擎里，先放行驱动自己的事务超时 */
         c->timed_out = false;
         uv_timer_start(&c->watchdog, _on_watchdog, 4000, 0);
@@ -280,6 +398,8 @@ static int teardown(void **state) {
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_dlt645_read_over_uart_pty, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_dlt645_write_over_uart_pty, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_dlt645_write_rejects_unknown_width, setup, teardown),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

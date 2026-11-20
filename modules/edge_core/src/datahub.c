@@ -143,9 +143,17 @@ int datahub_write_shadow_idx(datahub_t *hub, int idx, const pipe_msg_t *msg) {
     
     // 💡 [WAL] Write to Write-Ahead Log if enabled
     if (hub->wal_fd >= 0) {
-        // Error ignored intentionally in fast path; robust systems might log once
-        if (write(hub->wal_fd, msg, sizeof(pipe_msg_t)) != sizeof(pipe_msg_t)) {
-            // Write failed, but we shouldn't block memory update
+        ssize_t written = write(hub->wal_fd, msg, sizeof(pipe_msg_t));
+        if (written != (ssize_t)sizeof(pipe_msg_t)) {
+            int err = errno;
+            uint64_t failures =
+                atomic_fetch_add_explicit(&hub->wal_write_failures, 1, memory_order_relaxed) + 1;
+            if (failures == 1) {
+                LOG_WARN(LOG_CAT_CORE,
+                         "DataHub WAL write failed (%zd/%zu bytes: %s); later failures only counted",
+                         written, sizeof(pipe_msg_t),
+                         written < 0 ? strerror(err) : "short write");
+            }
         }
     }
     if (hub->shadow_fd >= 0) flock(hub->shadow_fd, LOCK_UN);
@@ -585,20 +593,47 @@ int datahub_enable_wal(datahub_t *hub, const char *path) {
     return 0;
 }
 
+void datahub_disable_wal(datahub_t *hub) {
+    if (!hub) return;
+    uv_mutex_lock(&hub->shadow_lock);
+    if (hub->wal_fd >= 0) {
+        close(hub->wal_fd);
+        hub->wal_fd = -1;
+    }
+    hub->wal_path[0] = '\0';
+    uv_mutex_unlock(&hub->shadow_lock);
+}
+
 int datahub_replay_wal(datahub_t *hub) {
     if (!hub || hub->wal_path[0] == '\0') return -1;
-    
+
     uv_mutex_lock(&hub->shadow_lock);
-    int fd = open(hub->wal_path, O_RDONLY);
+    // O_RDWR: a torn tail must be truncated so the next O_APPEND write starts on
+    // a record boundary; a read-only fd cannot ftruncate.
+    int fd = open(hub->wal_path, O_RDWR);
     if (fd < 0) {
+        int err = errno;
+        if (err == ENOENT) {
+            printf("[DataHub] No existing WAL file to replay: %s\n", hub->wal_path);
+            uv_mutex_unlock(&hub->shadow_lock);
+            return 0; // Not an error if file doesn't exist yet
+        }
+        LOG_ERROR(LOG_CAT_CORE, "DataHub WAL replay failed to open %s: %s",
+                  hub->wal_path, strerror(err));
         uv_mutex_unlock(&hub->shadow_lock);
-        printf("[DataHub] No existing WAL file to replay: %s\n", hub->wal_path);
-        return 0; // Not an error if file doesn't exist yet
+        return -1;
     }
-    
+
     pipe_msg_t msg;
     int replayed_count = 0;
-    while (read(fd, &msg, sizeof(pipe_msg_t)) == sizeof(pipe_msg_t)) {
+    off_t valid_end = 0;
+    ssize_t nread;
+    for (;;) {
+        do {
+            nread = read(fd, &msg, sizeof(pipe_msg_t));
+        } while (nread < 0 && errno == EINTR);
+        if (nread != (ssize_t)sizeof(pipe_msg_t)) break;
+
         int idx = -1;
         if (hub->map_fn_v2) {
             idx = hub->map_fn_v2(msg.tag_id, msg.device_id);
@@ -606,13 +641,32 @@ int datahub_replay_wal(datahub_t *hub) {
             idx = hub->map_fn(msg.tag_id);
         }
         if (idx < 0) idx = (int)msg.tag_id;
-        
+
         if (idx >= 0 && idx < (int)hub->shadow_capacity && hub->shadow_table) {
             hub->shadow_table[idx] = msg;
             replayed_count++;
         }
+        valid_end += (off_t)sizeof(pipe_msg_t);
     }
-    
+
+    if (nread > 0) {
+        if (ftruncate(fd, valid_end) != 0) {
+            LOG_ERROR(LOG_CAT_CORE, "DataHub WAL replay failed to truncate %s: %s",
+                      hub->wal_path, strerror(errno));
+            close(fd);
+            uv_mutex_unlock(&hub->shadow_lock);
+            return -1;
+        }
+        LOG_WARN(LOG_CAT_CORE, "DataHub WAL dropped %zd-byte torn tail, truncated to %lld",
+                 nread, (long long)valid_end);
+    } else if (nread < 0) {
+        LOG_ERROR(LOG_CAT_CORE, "DataHub WAL replay read failed for %s: %s",
+                  hub->wal_path, strerror(errno));
+        close(fd);
+        uv_mutex_unlock(&hub->shadow_lock);
+        return -1;
+    }
+
     close(fd);
     uv_mutex_unlock(&hub->shadow_lock);
     printf("[DataHub] WAL replayed successfully, loaded %d events\n", replayed_count);

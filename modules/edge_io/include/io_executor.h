@@ -32,6 +32,7 @@ typedef enum {
 // 控制指令定义
 #define IO_CTL_SET_BAUD 1
 #define IO_CTL_FLUSH 2
+#define IO_CTL_DISCARD_RX 3 /**< 丢弃已到达内核但还没读出的字节(事务边界隔离) */
 #define IO_CTL_HTTP_SET_URL 10
 #define IO_CTL_HTTP_SET_METHOD 11
 #define IO_CTL_HTTP_ADD_HEADER 12
@@ -93,6 +94,19 @@ void io_executor_http_request(uv_loop_t *loop, const char *url, const char *meth
  * 驱动没实现 enable_read 时返回 -1，不崩。
  */
 int io_handle_enable_read(io_handle_t *h, bool enable);
+
+/** @brief 释放句柄（驱动内部的 ops->destroy；产品层不直接碰 ops 表）。 */
+void io_handle_destroy(io_handle_t *h);
+
+/**
+ * @brief 注册链路存亡回调（产品层用）。
+ *
+ * 只上报 IO_EVENT_ERROR，且在句柄数据回调 cb 之后调用；正常 RX/TX_DONE 不触发。
+ * 每个新建句柄都必须注册，否则断线只有引擎知道、产品看不到。
+ */
+void io_handle_set_link_cb(io_handle_t *h,
+                           void (*cb)(io_handle_t *h, io_event_t evt, void *user_data),
+                           void *user_data);
 
 #ifdef __cplusplus
 }

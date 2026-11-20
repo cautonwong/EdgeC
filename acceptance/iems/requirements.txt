@@ -1,0 +1,10 @@
+# iems 验收的 Python 依赖。平台代码本身不在这里安装:acceptance/run.sh 按
+# TESTPLATFORM 指到平台仓库,只把平台的 src 放进 PYTHONPATH。
+#
+# 安装:pip install -r acceptance/iems/requirements.txt
+pytest>=8.0
+paho-mqtt>=1.6
+pyyaml>=6.0
+
+# 北向 MQTT 用例还需要 broker:apt install mosquitto。
+# acceptance/run.sh 会自己在随机端口起一个(mosquitto -p <port>),不用常驻服务。

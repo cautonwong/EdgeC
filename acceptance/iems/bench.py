@@ -16,6 +16,8 @@ RUN_DIR = Path(os.environ.get("IEMS_RUN_DIR") or "/tmp/edgec-iems-run")
 DB_PATH = RUN_DIR / "iems.db"
 BUS_LOG = RUN_DIR / "bus.json"
 DROPPED_LOG = RUN_DIR / "dropped.json"
+# 北向 IEC104 的监听端口:产品壳挑空闲端口后落这里,用例读它去连。
+IEC104_PORT_FILE = RUN_DIR / "iec104_port.txt"
 
 # 产品二进制的位置与"是否过期"由 acceptance/build_probe.py 统一判定:
 # 构建根走 EDGEC_BUILD_DIR(CI 用 build/,开发常在 /tmp),产品级仍可用 IEMS_BIN 覆盖。
@@ -39,12 +41,23 @@ SOCK = str(Path(os.environ.get("IEMS_RUN_DIR") or "/tmp/edgec-iems-run") / "vbus
 BUS_ID = 0
 SLAVE_ID = 1
 
+# 多从站台架:设备 1 是采集用的表(1001/1002),设备 3 是控制写要落到的表(1003)。
+# 判"控制写路由到正确的从站"必须至少两个从站 —— 只有一个时,写死从站 1 也能绿。
+SLAVE_POWER = 3
+
 # 台架真值。tag 1001 = VOLTAGE_PHASE_A(cmd/iems/iems_driver_adapter.c:362)。
 # 寄存器 0 给 231.7V,0.1 分辨率 → 2317。
 TAG_VOLTAGE = 1001
 TAG_CURRENT = 1002
 VOLTAGE = 231.7
 VOLTAGE_REGISTER = int(VOLTAGE * 10)
+
+# 控制写路由用例:产品侧 tag 1003(GRID_POWER)的 Modbus 点位是地址 12、2 个寄存器,
+# 北向镜像点在同一地址;tag 1004(GRID_FREQUENCY)没有轮询任务,用来验"无路由必须拒绝"。
+TAG_POWER = 1003
+ADDRESS_POWER = 12
+ADDRESS_FREQUENCY = 52
+TAGS_BY_SLAVE = {SLAVE_ID: (TAG_VOLTAGE, TAG_CURRENT), SLAVE_POWER: (TAG_POWER,)}
 
 # 北向从站(iems_app.c 的 setup_slave 绑的路径,由 IEMS_NORTH_SOCK 决定)。
 # 平台只认 serial / tcp,不认 unix socket,所以台架把这条 unix socket 桥成 TCP:
@@ -97,3 +110,7 @@ def latest(port: int, tag_id: int) -> dict:
 
 def port_of() -> int:
     return int((RUN_DIR / "port.txt").read_text(encoding="utf-8").strip())
+
+
+def iec104_port_of() -> int:
+    return int(IEC104_PORT_FILE.read_text(encoding="utf-8").strip())

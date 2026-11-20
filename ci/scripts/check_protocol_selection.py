@@ -3,13 +3,17 @@
 
 iEMS keeps the protocol per inventory device. A literal here silently sends
 every task to the same driver and hides a bad inventory row, so the loader must
-read the SQL protocol column (argv[3]).
+read the SQL protocol column (argv[3]). Comments are stripped first: an
+`argv[3]` mention in a comment is not a use, and a commented-out literal is not
+a violation.
 """
 
 import argparse
 import os
 import re
 import sys
+
+import c_source_scan
 
 STRING_RE = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"')
 PROTOCOL_RE = re.compile(
@@ -21,10 +25,10 @@ ARGV3_RE = re.compile(r"\bargv\s*\[\s*3\s*\]")
 
 def scan(path):
     with open(path, encoding="utf-8", errors="replace") as handle:
-        lines = handle.read().splitlines()
+        text = c_source_scan.strip_comments(handle.read())
     literals = []
     has_argv3 = False
-    for number, line in enumerate(lines, 1):
+    for number, line in enumerate(text.splitlines(), 1):
         for match in STRING_RE.finditer(line):
             if PROTOCOL_RE.match(match.group(0)):
                 literals.append((number, match.group(0)))

@@ -114,15 +114,17 @@ int edge_api_read_tag(int bus_id, const char *protocol, uint32_t slave_id, uint3
                                 NULL, 0, priority, cb, user_data);
 }
 
-int edge_api_write_tag(int bus_id, const char *protocol, uint32_t slave_id,
-                       uint32_t physical_tag_id, double value, legacy_on_complete_cb cb, void *user_data) {
+int edge_api_write_tag_ex(int bus_id, const char *protocol, uint32_t slave_id,
+                          uint32_t physical_tag_id, double value, const void *point_desc,
+                          size_t point_desc_len, legacy_on_complete_cb cb, void *user_data) {
     if (!g_orch) return -1;
 
     const edge_api_meta_entry_t *meta = _meta_of(protocol);
 
     edge_req_t *req = req_legacy_driver_create(
-        protocol, slave_id, CMD_ACTION_WRITE, physical_tag_id, physical_tag_id, 1.0,
-        value, meta ? meta->meta : NULL, meta ? meta->count : 0, NULL, 0, cb, user_data);
+        protocol, slave_id, CMD_ACTION_WRITE, physical_tag_id, physical_tag_id, 1.0, value,
+        meta ? meta->meta : NULL, meta ? meta->count : 0, point_desc, point_desc_len, cb,
+        user_data);
     if (!req) return -1;
 
     cmd_msg_t *cmd = calloc(1, sizeof(cmd_msg_t));
@@ -134,6 +136,13 @@ int edge_api_write_tag(int bus_id, const char *protocol, uint32_t slave_id,
     strncpy(cmd->req_id, "LEGACY_WRITE", sizeof(cmd->req_id) - 1);
 
     return bus_orchestrator_submit_cmd(g_orch, bus_id, cmd);
+}
+
+int edge_api_write_tag(int bus_id, const char *protocol, uint32_t slave_id,
+                       uint32_t physical_tag_id, double value, legacy_on_complete_cb cb,
+                       void *user_data) {
+    return edge_api_write_tag_ex(bus_id, protocol, slave_id, physical_tag_id, value, NULL, 0, cb,
+                                 user_data);
 }
 
 int edge_api_raw_io(int bus_id, net_buf_t *tx_buf, raw_io_on_complete_cb cb) {

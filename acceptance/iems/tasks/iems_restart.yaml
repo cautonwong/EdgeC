@@ -1,0 +1,18 @@
+# 重启/BIRTH/快照恢复:产品先停在启动闸门上,等用例把 MQTT 观察器订上
+# (BIRTH 每会话只发一次,订阅晚一步就看不到首个上线帧)。用例随后写
+# RUN_DIR/restart.request,壳按 SIGTERM → 3 秒后强杀的路径停产品,再以
+# 同一 env 重启,并把进程号与退出码记进 RUN_DIR/restarts.json。
+#
+# EDGE_WAL_PATH / EDGE_SNAP_PATH 都在 RUN_DIR 内:重启后产品回放 WAL,
+# 最后一次采集值必须还能从 REST、北向镜像与遥测三条路读到。
+id: iems-restart
+product: iems
+launch:
+  - ${PYTHON}
+  - iems_product.py
+  - --port
+  - ${PORT}
+  - --start-gate
+  - --record-startup
+devices: configs/devices.yaml
+select: case:I_00_00_07_000001

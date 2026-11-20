@@ -63,6 +63,32 @@ static void test_tcp_type_is_case_insensitive(void **state) {
     assert_int_equal(iems_southbound_transport_for("tcp", "tcp://10.0.0.5:502"), IEMS_BUS_TCP);
 }
 
+static void test_baud_accepts_supported_rate(void **state) {
+    (void)state;
+    uint32_t baud = 0;
+    assert_int_equal(iems_southbound_parse_baud("115200", &baud), 0);
+    assert_int_equal(baud, 115200u);
+    /* DLT645 现场按 2400 配置, 必须留在支持集合里 */
+    assert_int_equal(iems_southbound_parse_baud("2400", &baud), 0);
+    assert_int_equal(baud, 2400u);
+}
+
+static void test_baud_rejects_trailing_junk(void **state) {
+    (void)state;
+    uint32_t baud = 0;
+    assert_int_not_equal(iems_southbound_parse_baud("9600abc", &baud), 0);
+    assert_int_not_equal(iems_southbound_parse_baud("", &baud), 0);
+    assert_int_not_equal(iems_southbound_parse_baud("115200 ", &baud), 0);
+}
+
+static void test_baud_rejects_unsupported_rate(void **state) {
+    (void)state;
+    uint32_t baud = 0;
+    assert_int_not_equal(iems_southbound_parse_baud("1234", &baud), 0);
+    assert_int_not_equal(iems_southbound_parse_baud("0", &baud), 0);
+    assert_int_not_equal(iems_southbound_parse_baud("-9600", &baud), 0);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_uart_device_path),
@@ -76,6 +102,9 @@ int main(void) {
         cmocka_unit_test(test_tcp_path_wins_over_declared_type),
         cmocka_unit_test(test_tcp_without_scheme_stays_uds),
         cmocka_unit_test(test_tcp_type_is_case_insensitive),
+        cmocka_unit_test(test_baud_accepts_supported_rate),
+        cmocka_unit_test(test_baud_rejects_trailing_junk),
+        cmocka_unit_test(test_baud_rejects_unsupported_rate),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

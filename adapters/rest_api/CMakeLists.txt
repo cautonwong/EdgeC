@@ -1,5 +1,6 @@
 add_library(edge_rest_api STATIC
     src/rest_server.c
+    src/rest_system.c
     src/rest_apps_package.c
     src/rest_apps_settings.c
     src/rest_uds_server.c

@@ -209,6 +209,11 @@ int datahub_load_snapshot(datahub_t *hub, const char *path);
 int datahub_enable_wal(datahub_t *hub, const char *path);
 
 /**
+ * @brief [WAL] 关闭 WAL：关闭追加 fd 并清空路径，之后的写入不再落盘
+ */
+void datahub_disable_wal(datahub_t *hub);
+
+/**
  * @brief [WAL] 重放 WAL 日志，恢复影子表状态
  */
 int datahub_replay_wal(datahub_t *hub);

@@ -18,6 +18,7 @@
  * 不涉及任何 TagID —— 这正是 ADR-002 要的形态。
  */
 
+#include <math.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -70,9 +71,18 @@ static int mb_tcp_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id, 
     p->raw_n = 0;
     p->is_write = is_write;
     p->value = value;
-    /* 写只支持 1 个寄存器（FC06）或 2 个（FC16 拼 32 位量）；更多寄存器需要
-     * 数组请求模型，当前只带一个标量，显式拒绝而不是截断。 */
-    if (is_write && p->quantity > 2) return -1;
+    /* 写只支持 1 个寄存器（FC06）或 2 个（FC16 拼 32 位量）；非有限值或越界
+     * 值的 double→uint 转换未定义，负值会回绕，显式拒绝而不是截断。 */
+    if (is_write) {
+        if (!isfinite(value)) return -1;
+        if (p->quantity == 1) {
+            if (value < 0.0 || value > 65535.0) return -1;
+        } else if (p->quantity == 2) {
+            if (value < 0.0 || value > 4294967295.0) return -1;
+        } else {
+            return -1;
+        }
+    }
     return 0;
 }
 
@@ -154,6 +164,8 @@ static int mb_tcp_req_decode(void *priv, void *session, const uint8_t *buf, size
     if (pdu_len < 3) return -1;
 
     uint8_t byte_count = nb.data[1];
+    /* 奇数或与请求数量不符的应答说明帧坏了；向下取整会把畸形帧当成"值 0"成功结算 */
+    if (byte_count % 2 != 0 || (size_t)byte_count != (size_t)2 * p->quantity) return -1;
     if ((size_t)(2 + byte_count) > pdu_len) return -1;
 
     uint16_t n = (uint16_t)(byte_count / 2);
@@ -248,7 +260,13 @@ static int mb_tcp_req_slave_exchange(void *priv, void *session, const uint8_t *i
             uint16_t raw = (uint16_t)((nb.data[3] << 8) | nb.data[4]);
             uint32_t pid = ((1u << 16) | (uint32_t)addr);
             /* 端口收到的是**原始寄存器值**：产品按自己的点位表换算工程值 */
-            if (src && src->accept) (void)src->accept(src_ctx, pid, (double)raw);
+            int accept_rc =
+                (src && src->accept) ? src->accept(src_ctx, pid, (double)raw) : -1;
+            if (accept_rc < 0) {
+                /* 回显是假成功：主站会以为写生效了。端口没接或拒绝时如实回异常。 */
+                modbus_tcp_encode_exception(tid, slave, fc, MODBUS_EX_ILLEGAL_DATA_ADDRESS, out);
+                return 0;
+            }
             modbus_tcp_encode_write_resp(tid, slave, addr, raw, out);
             return 0;
         }
@@ -262,7 +280,13 @@ static int mb_tcp_req_slave_exchange(void *priv, void *session, const uint8_t *i
             for (uint16_t i = 0; i < quantity; i++) {
                 uint16_t raw = (uint16_t)((nb.data[6 + 2 * i] << 8) | nb.data[7 + 2 * i]);
                 uint32_t pid = ((1u << 16) | (uint32_t)(addr + i));
-                if (src && src->accept) (void)src->accept(src_ctx, pid, (double)raw);
+                int accept_rc =
+                    (src && src->accept) ? src->accept(src_ctx, pid, (double)raw) : -1;
+                if (accept_rc < 0) {
+                    modbus_tcp_encode_exception(tid, slave, fc, MODBUS_EX_ILLEGAL_DATA_ADDRESS,
+                                               out);
+                    return 0;
+                }
             }
 
             uint8_t body[5];

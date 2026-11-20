@@ -209,12 +209,14 @@ target_include_directories(test_driver_dlt698 PRIVATE ${CMAKE_SOURCE_DIR}/module
 add_edge_test(test_driver_iec104 test_driver_iec104.c)
 add_edge_test(test_driver_v3 test_driver_v3.c)
 add_edge_test(test_modbus_v3 test_modbus_v3.c)
+add_edge_test(test_modbus_write_guard test_modbus_write_guard.c)
 add_edge_test(test_fuzz_modbus test_fuzz_modbus.c)
 add_edge_test(test_radar_fmcw test_radar_fmcw.c)
 add_edge_test(test_io_http test_io_http.c)
 target_link_libraries(test_io_http PRIVATE CURL::libcurl)
 add_edge_test(test_rest_apps test_rest_apps.c)
 add_edge_test(test_rest_limits test_rest_limits.c)
+add_edge_test(test_rest_boundaries test_rest_boundaries.c)
 
 # 4. 流处理引擎测试 (Compute Plane)
 add_edge_test(test_stream_engine test_stream_engine.c)
@@ -257,6 +259,7 @@ add_edge_test(test_wavelet_anomaly test_wavelet_anomaly.c)
 add_edge_test(test_kinematics test_kinematics.c)
 add_edge_test(test_dcu_poller test_dcu_poller.c)
 add_edge_test(test_dlt645_codec test_dlt645_codec.c)
+add_edge_test(test_ydt1363_codec test_ydt1363_codec.c)
 add_edge_test(test_driver_iec101 test_driver_iec101.c)
 add_edge_test(test_dcu_scale_benchmark test_dcu_scale_benchmark.c)
 add_edge_test(test_protocol_bridge test_protocol_bridge.c)
@@ -474,10 +477,22 @@ endif()
 add_edge_test(test_infra_interfaces test_infra_interfaces.c)
 target_link_libraries(test_infra_interfaces PRIVATE edge_infra)
 
+# 控制写闭环：tag -> 轮询路由 -> 聚合根 -> 执行端口，钉住北向适配器接线
+add_edge_test(test_iems_control_route_e2e test_iems_control_route_e2e.c)
+target_link_libraries(test_iems_control_route_e2e PRIVATE SQLite::SQLite3)
+
 # AEP-204 任务装载与环境安全回退定向单测
 add_edge_test(test_iems_task_loader test_iems_task_loader.c)
 target_include_directories(test_iems_task_loader PRIVATE ${CMAKE_SOURCE_DIR}/cmd/iems ${CMAKE_SOURCE_DIR}/modules/edge_stream/include)
 target_link_libraries(test_iems_task_loader PRIVATE iems_app_lib edge_stream edge_infra edge_infra_security edge_security_policy SQLite::SQLite3)
+
+# P3-00 厂商语义 vtable 框架：注册表、六类策略与 tag 端口行为
+add_edge_test(test_iems_vendor_semantics test_iems_vendor_semantics.c)
+target_link_libraries(test_iems_vendor_semantics PRIVATE iems_vendor)
+
+# P1-02 点位模型骨架：名称往返、槽位边界与旧名依赖登记
+add_edge_test(test_iems_point_model test_iems_point_model.c)
+target_link_libraries(test_iems_point_model PRIVATE iems_points)
 
 # AEP-301 / AEP-302 契约生成式驱动注册表测试 (IEMS, DCU, SmartBox 参数化覆盖)
 add_edge_test(test_driver_registry test_driver_registry.c)
@@ -1809,10 +1824,12 @@ endforeach()
 add_edge_test(test_iec_cp56time test_iec_cp56time.c)
 
 add_edge_test(test_iems_connectivity test_iems_connectivity.c)
+add_edge_test(test_iems_north_iec104 test_iems_iec104_north.c)
 add_edge_test(test_iems_southbound_transport test_iems_southbound_transport.c)
 add_edge_test(test_iems_southbound_uart_pty test_iems_southbound_uart_pty.c)
 add_edge_test(test_iems_modbus_rtu_uart_pty test_iems_modbus_rtu_uart_pty.c)
 add_edge_test(test_iems_modbus_tcp_loopback test_iems_modbus_tcp_loopback.c)
+add_edge_test(test_iems_tcp_link test_iems_tcp_link.c)
 add_edge_test(test_iems_dlt645_uart_pty test_iems_dlt645_uart_pty.c)
 add_edge_test(test_datahub_subscription_capacity test_datahub_subscription_capacity.c)
 
@@ -1825,6 +1842,13 @@ if(ENABLE_ASAN)
 endif()
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
+add_test(NAME test_iems_cli_mcp
+         COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/test_iems_cli_mcp.sh $<TARGET_FILE:iems-cli>)
+set_tests_properties(test_iems_cli_mcp PROPERTIES TIMEOUT 60)
+add_edge_test(test_iems_cli_write test_iems_cli_write.c)
+add_dependencies(test_iems_cli_write iems-cli)
+set_property(TEST test_iems_cli_write APPEND PROPERTY
+    ENVIRONMENT "IEMS_CLI=$<TARGET_FILE:iems-cli>")
 add_test(NAME app_platform_e2e COMMAND ${Python3_EXECUTABLE}
          ${CMAKE_CURRENT_SOURCE_DIR}/e2e/app_platform_e2e.py --build ${CMAKE_BINARY_DIR})
 set_tests_properties(app_platform_e2e PROPERTIES TIMEOUT 180

@@ -249,8 +249,52 @@ static void test_method_not_allowed_405(void **state) {
     rest_fixture_t f;
     fixture_start(&f, NULL);
 
-    expect_status(&f, "PUT /api/v1/devices HTTP/1.1\r\nHost: localhost\r\n\r\n",
-                  "HTTP/1.1 405");
+    int fd = connect_client(&f);
+    const char *put = "PUT /api/v1/devices HTTP/1.1\r\nHost: localhost\r\n\r\n";
+    send_all(fd, put, strlen(put));
+    char resp[8192];
+    assert_true(read_response(&f, fd, resp, sizeof(resp), 2000) > 0);
+    assert_non_null(strstr(resp, "HTTP/1.1 405"));
+    assert_non_null(strstr(resp, "Allow: GET, HEAD, POST"));
+    close(fd);
+
+    fixture_stop(&f);
+}
+
+static size_t response_body_len(const char *resp) {
+    const char *body = strstr(resp, "\r\n\r\n");
+    return body ? strlen(body + 4) : 0;
+}
+
+static long response_content_length(const char *resp) {
+    const char *header = strstr(resp, "Content-Length: ");
+    return header ? strtol(header + strlen("Content-Length: "), NULL, 10) : -1;
+}
+
+static void test_head_uses_get_route_without_body(void **state) {
+    (void)state;
+    rest_fixture_t f;
+    fixture_start(&f, NULL);
+
+    int fd = connect_client(&f);
+    const char *get = "GET /api/v1/devices HTTP/1.1\r\nHost: localhost\r\n\r\n";
+    send_all(fd, get, strlen(get));
+    char get_resp[8192];
+    assert_true(read_response(&f, fd, get_resp, sizeof(get_resp), 2000) > 0);
+    assert_non_null(strstr(get_resp, "HTTP/1.1 200"));
+    close(fd);
+    size_t get_body_len = response_body_len(get_resp);
+    assert_true(get_body_len > 0);
+
+    fd = connect_client(&f);
+    const char *head = "HEAD /api/v1/devices HTTP/1.1\r\nHost: localhost\r\n\r\n";
+    send_all(fd, head, strlen(head));
+    char head_resp[8192];
+    assert_true(read_response(&f, fd, head_resp, sizeof(head_resp), 2000) > 0);
+    assert_non_null(strstr(head_resp, "HTTP/1.1 200"));
+    assert_int_equal(response_body_len(head_resp), 0);
+    assert_int_equal(response_content_length(head_resp), (long)get_body_len);
+    close(fd);
 
     fixture_stop(&f);
 }
@@ -289,6 +333,7 @@ int main(void) {
         cmocka_unit_test(test_slow_request_408),
         cmocka_unit_test(test_invalid_request_400),
         cmocka_unit_test(test_method_not_allowed_405),
+        cmocka_unit_test(test_head_uses_get_route_without_body),
         cmocka_unit_test(test_legacy_upload_closed_410),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);

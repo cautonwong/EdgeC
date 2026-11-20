@@ -18,6 +18,7 @@ struct session_manager_s {
     session_entry_t *sessions;
     int max_sessions;
     int current_count;
+    net_buf_pool_t *pool;
 
     /* [ADR-002 S3-0] 从站面端口：由组合根注入，供 request-native 驱动的
      * req_slave_exchange 取数/收数。端口不进 edge_driver_ctx_t —— 进了 ctx，
@@ -62,11 +63,13 @@ void session_manager_set_slave_source(session_manager_t *sm, const edge_slave_so
     sm->slave_src_ctx = ctx;
 }
 
-session_manager_t *session_manager_create(const edge_driver_session_port_t *port, int max_sessions) {
+session_manager_t *session_manager_create(const edge_driver_session_port_t *port, int max_sessions,
+                                          net_buf_pool_t *pool) {
     session_manager_t *sm = calloc(1, sizeof(session_manager_t));
     if (!sm) return NULL;
     if (port) sm->driver_port = *port;
     sm->max_sessions = max_sessions;
+    sm->pool = pool;
     sm->sessions = calloc((size_t)max_sessions, sizeof(session_entry_t));
     if (!sm->sessions) {
         free(sm);
@@ -111,6 +114,11 @@ int session_manager_add_session(session_manager_t *sm, const char *protocol, uin
             
             ctx->user_data = user_data;
             ctx->role = PROTOCOL_ROLE_SLAVE;
+            ctx->pool = sm->pool;
+            /* create() 里的 on_init 跑在角色/池确定之前（那时 role 还是 0=MASTER），
+             * 按角色分流的驱动（IEC104 用它决定是否主动建链）会初始化错。
+             * on_init 都是幂等的，拿到真实角色后再跑一次。 */
+            if (ctx->driver && ctx->driver->on_init) ctx->driver->on_init(ctx);
             
             sm->sessions[i].ctx = ctx;
             strncpy(sm->sessions[i].protocol, protocol, 15);
@@ -123,6 +131,18 @@ int session_manager_add_session(session_manager_t *sm, const char *protocol, uin
         }
     }
     return -1;
+}
+
+int session_manager_reset_sessions(session_manager_t *sm) {
+    if (!sm) return -1;
+    for (int i = 0; i < sm->max_sessions; i++) {
+        if (!sm->sessions[i].in_use) continue;
+        edge_driver_ctx_t *ctx = sm->sessions[i].ctx;
+        /* on_init 幂等：驱动在这里只清本会话的跨帧状态（序号、激活标记、
+         * 关联状态），不碰角色与设备配置。 */
+        if (ctx->driver && ctx->driver->on_init) ctx->driver->on_init(ctx);
+    }
+    return 0;
 }
 
 int session_manager_handle_rx(session_manager_t *sm, net_buf_t *rx, net_buf_t *resp_out,

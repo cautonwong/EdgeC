@@ -43,6 +43,26 @@ models:
         unit: V
         # 平台侧要显式声明可写才允许下发（manifest.py:625）
         writable: true
+      # 控制写路由用例（I_00_00_04_000001）：平台 length 是**字节**，2 字节 = 1 个
+      # 寄存器；产品侧 tag 1003 的 Modbus 点位是地址 12 + 2 个寄存器（32 位），
+      # 所以北向这一写是 FC06，产品再按自己的点位表下发成南向 FC16 [0, 42]。
+      # 判据落在南向总线记录（bus.json），不在这条镜像的位宽上。
+      有功功率:
+        address: 12
+        length: 2
+        encoding: uint
+        scale: 1
+        unit: W
+        writable: true
+      # 负例：产品点位表里有地址 52（tag 1004），但台架不 provision 它的
+      # poll_task —— 没有唯一轮询路由时，北向从站必须回 Modbus 异常，不许回显成功。
+      频率:
+        address: 52
+        length: 1
+        encoding: uint
+        scale: 1
+        unit: Hz
+        writable: true
 
 devices:
   - id: iems_north_01

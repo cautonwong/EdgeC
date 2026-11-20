@@ -117,6 +117,132 @@ static void test_dispatcher_with_fake_tool_port(void) {
     printf("  --> Tool port seam verified without DataHub.\n");
 }
 
+typedef struct {
+    int write_calls;
+    edge_mcp_tag_value_t last;
+} fake_write_port_t;
+
+static int fake_write_counted(void *ctx, const edge_mcp_tag_value_t *value) {
+    fake_write_port_t *port = (fake_write_port_t *)ctx;
+    if (!port || !value) return -1;
+    port->write_calls++;
+    port->last = *value;
+    return 0;
+}
+
+static int fake_meta_only_4097(void *ctx, uint32_t tag_id, edge_mcp_tag_meta_t *out) {
+    (void)ctx;
+    if (tag_id != 0x1001 || !out) return -1;
+    memset(out, 0, sizeof(*out));
+    out->tag_id = tag_id;
+    return 0;
+}
+
+static cJSON *tool_text_payload(const char *resp) {
+    cJSON *root = cJSON_Parse(resp);
+    assert(root);
+    cJSON *result = cJSON_GetObjectItem(root, "result");
+    assert(result);
+    cJSON *content = cJSON_GetObjectItem(result, "content");
+    assert(content);
+    cJSON *text = cJSON_GetObjectItem(cJSON_GetArrayItem(content, 0), "text");
+    assert(text);
+    cJSON *payload = cJSON_Parse(text->valuestring);
+    assert(payload);
+    cJSON_Delete(root);
+    return payload;
+}
+
+static void test_write_unknown_tag_rejected(void) {
+    printf("[TEST] Testing unknown-tag writes fail and never reach the write port...\n");
+    fake_write_port_t port = {0};
+    edge_mcp_env_t env = {
+        .tools = {
+            .ctx = &port,
+            .write_tag = fake_write_counted,
+            .get_tag_meta = fake_meta_only_4097,
+        },
+    };
+    edge_mcp_dispatcher_t *disp = edge_mcp_dispatcher_create(&env);
+    assert(disp);
+
+    char *resp = edge_mcp_dispatch_json(
+        disp,
+        "{\"jsonrpc\":\"2.0\",\"id\":21,\"method\":\"tools/call\",\"params\":{\"name\":"
+        "\"datahub_write_tag\",\"arguments\":{\"tag_id\":9999,\"value\":1.0}}}");
+    assert(resp);
+    cJSON *payload = tool_text_payload(resp);
+    cJSON *success = cJSON_GetObjectItem(payload, "success");
+    assert(cJSON_IsBool(success));
+    assert(!cJSON_IsTrue(success));
+    cJSON *code = cJSON_GetObjectItem(payload, "code");
+    assert(cJSON_IsNumber(code));
+    assert(code->valueint != 0);
+    assert(port.write_calls == 0);
+    cJSON_Delete(payload);
+    free(resp);
+
+    /* Pair the rejection with a known tag, so the test can see a write happen. */
+    resp = edge_mcp_dispatch_json(
+        disp,
+        "{\"jsonrpc\":\"2.0\",\"id\":22,\"method\":\"tools/call\",\"params\":{\"name\":"
+        "\"datahub_write_tag\",\"arguments\":{\"tag_id\":4097,\"value\":50.0}}}");
+    assert(resp);
+    payload = tool_text_payload(resp);
+    success = cJSON_GetObjectItem(payload, "success");
+    assert(cJSON_IsTrue(success));
+    assert(port.write_calls == 1);
+    assert(port.last.tag_id == 4097);
+    cJSON_Delete(payload);
+    free(resp);
+
+    edge_mcp_dispatcher_destroy(disp);
+
+    /* No write port at all: nothing was written, so reporting success would be
+     * a lie (this is the iems-cli path). */
+    disp = edge_mcp_dispatcher_create(NULL);
+    assert(disp);
+    resp = edge_mcp_dispatch_json(
+        disp,
+        "{\"jsonrpc\":\"2.0\",\"id\":23,\"method\":\"tools/call\",\"params\":{\"name\":"
+        "\"datahub_write_tag\",\"arguments\":{\"tag_id\":4097,\"value\":50.0}}}");
+    assert(resp);
+    payload = tool_text_payload(resp);
+    success = cJSON_GetObjectItem(payload, "success");
+    assert(cJSON_IsBool(success));
+    assert(!cJSON_IsTrue(success));
+    code = cJSON_GetObjectItem(payload, "code");
+    assert(cJSON_IsNumber(code));
+    assert(code->valueint != 0);
+    cJSON_Delete(payload);
+    free(resp);
+    edge_mcp_dispatcher_destroy(disp);
+
+    /* A product without a tag registry (edge-mcp-server) declares it with
+     * hide_tag_meta; the dispatcher must not invent one and reject every
+     * write. The write port is the only authority there. */
+    fake_write_port_t no_registry = {0};
+    edge_mcp_env_t no_registry_env = {
+        .tools = {.ctx = &no_registry, .write_tag = fake_write_counted},
+        .hide_tag_meta = true,
+    };
+    disp = edge_mcp_dispatcher_create(&no_registry_env);
+    assert(disp);
+    resp = edge_mcp_dispatch_json(
+        disp,
+        "{\"jsonrpc\":\"2.0\",\"id\":24,\"method\":\"tools/call\",\"params\":{\"name\":"
+        "\"datahub_write_tag\",\"arguments\":{\"tag_id\":4097,\"value\":50.0}}}");
+    assert(resp);
+    payload = tool_text_payload(resp);
+    success = cJSON_GetObjectItem(payload, "success");
+    assert(cJSON_IsTrue(success));
+    assert(no_registry.write_calls == 1);
+    cJSON_Delete(payload);
+    free(resp);
+    edge_mcp_dispatcher_destroy(disp);
+    printf("  --> Unknown-tag and no-port writes rejected without calling write.\n");
+}
+
 static void test_dispatcher_create_destroy(void) {
     printf("[TEST] Testing MCP Dispatcher lifecycle & default tools registration...\n");
     uv_loop_t *loop = uv_default_loop();
@@ -355,6 +481,7 @@ int main(void) {
     printf("=== EdgeOS Industrial MCP Dispatcher Unit Tests (AEP-506) ===\n");
     test_dispatcher_create_destroy();
     test_dispatcher_with_fake_tool_port();
+    test_write_unknown_tag_rejected();
     test_jsonrpc_initialize_and_ping();
     test_jsonrpc_tools_list_and_call();
     test_jsonrpc_error_handling();

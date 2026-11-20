@@ -1,0 +1,19 @@
+id: iems-fault-slow-pollback
+# 1.2s 应答低于 2s 超时,但两条 1s 轮询会把命令压进队列:迟到应答必须被排空,
+# 不许被下一个事务当成自己的应答解码(RTU 读应答没有寄存器地址,串了就是串 tag)。
+product: iems
+kind: smoke
+launch:
+  - ${PYTHON}
+  - iems_product.py
+  - --port
+  - ${PORT}
+  - --fault
+  - slow
+  - --slow-ms
+  - "1200"
+  - --fault-frames
+  - "100"
+  - --record-startup
+devices: configs/devices.yaml
+select: case:I_00_00_01_000022

@@ -280,6 +280,20 @@ TEST_MATRIX = [
         "arg_flag": "--root"
     },
     {
+        "guard_name": "check_ci_gate_parity.py (dropped argument)",
+        "script": os.path.join(SCRIPTS_DIR, "check_ci_gate_parity.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_ci_gate_parity"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_ci_gate_parity_args"),
+        "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_ci_gate_parity.py (dropped environment assignment)",
+        "script": os.path.join(SCRIPTS_DIR, "check_ci_gate_parity.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_ci_gate_parity"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_ci_gate_parity_env"),
+        "arg_flag": "--root"
+    },
+    {
         "guard_name": "check_privileged_test_runs.py",
         "script": os.path.join(SCRIPTS_DIR, "check_privileged_test_runs.py"),
         "good_target": os.path.join(FIXTURES_DIR, "good_privileged_test_runs"),
@@ -301,10 +315,45 @@ TEST_MATRIX = [
         "arg_flag": "--root"
     },
     {
+        "guard_name": "check_test_io_eintr.py (EINTR branch)",
+        "script": os.path.join(SCRIPTS_DIR, "check_test_io_eintr.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_test_io_eintr_branch"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_test_io_eintr_branch"),
+        "arg_flag": "--root"
+    },
+    {
         "guard_name": "check_protocol_selection.py",
         "script": os.path.join(SCRIPTS_DIR, "check_protocol_selection.py"),
         "good_target": os.path.join(FIXTURES_DIR, "good_protocol_selection"),
         "bad_target": os.path.join(FIXTURES_DIR, "bad_protocol_selection"),
+        "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_protocol_selection.py (comments)",
+        "script": os.path.join(SCRIPTS_DIR, "check_protocol_selection.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_protocol_selection_comment"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_protocol_selection_comment"),
+        "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_iems_control_slave.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_iems_control_slave.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_iems_control_slave"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_iems_control_slave"),
+        "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_iems_stdout_line_buffered.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_iems_stdout_line_buffered.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_iems_stdout_line_buffer"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_iems_stdout_line_buffer"),
+        "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_iems_control_slave.py (hex literal)",
+        "script": os.path.join(SCRIPTS_DIR, "check_iems_control_slave.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_iems_control_slave"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_iems_control_slave_hex"),
         "arg_flag": "--root"
     }
 ]
@@ -501,6 +550,8 @@ def main():
         "check_sdk_signature.py",
         "check_protocol_selection.py",
         "check_privileged_test_runs.py",
+        "check_iems_control_slave.py",
+        "check_iems_stdout_line_buffered.py",
     ]:
         script_path = os.path.join(SCRIPTS_DIR, script_name)
         flag = "--file" if "dependencies" in script_name or "exemptions" in script_name else "--root"

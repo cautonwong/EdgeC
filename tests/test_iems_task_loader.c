@@ -12,6 +12,7 @@
 
 #include "edge_guard.h"
 #include "iems_driver_adapter.h"
+#include "iems_execution_adapter.h"
 #include "modbus_codec.h"
 #include "iems_task_loader.h"
 #include "sqlite_service.h"
@@ -109,24 +110,52 @@ static void test_iems_task_loading_direct_product_code(void **state) {
     assert_int_equal(g_callback_task_count, 2);
     assert_int_equal(g_last_tag_id, 1002);
 
-    /* 北向控制写的路由：bus 来自 poll_tasks，协议规范化 */
-    int bus = -1;
-    char proto[16] = {0};
-    assert_int_equal(iems_poll_task_route(svc, 1001, &bus, proto), 0);
-    assert_int_equal(bus, 0);
-    assert_string_equal(proto, "ModbusRTU");
+    /* 北向控制写的路由：bus / 从站地址来自 poll_tasks + inventory，协议规范化 */
+    iems_device_route_t route;
+    memset(&route, 0, sizeof(route));
+    assert_int_equal(iems_poll_task_route(svc, 1001, &route), 0);
+    assert_int_equal(route.bus_id, 0);
+    assert_int_equal(route.slave_id, 1);
+    assert_string_equal(route.protocol, "ModbusRTU");
     /* bus 10 是北向镜像，不参与控制写 */
-    assert_int_equal(iems_poll_task_route(svc, 9999, &bus, proto), -1);
-    assert_int_equal(iems_poll_task_route(svc, 4242, &bus, proto), -1);
+    assert_int_equal(iems_poll_task_route(svc, 9999, &route), -1);
+    assert_int_equal(iems_poll_task_route(svc, 4242, &route), -1);
 
     rc = sqlite3_exec(raw_db,
                       "INSERT INTO inventory (id, addr, protocol) VALUES (3, '03', 'modbus_rtu');"
                       "INSERT INTO poll_tasks (bus_id, device_id, tag_id) VALUES (3, 3, 1003);",
                       NULL, NULL, NULL);
     assert_int_equal(rc, SQLITE_OK);
-    assert_int_equal(iems_poll_task_route(svc, 1003, &bus, proto), 0);
-    assert_int_equal(bus, 3);
-    assert_string_equal(proto, "ModbusRTUHiCRC");
+    assert_int_equal(iems_poll_task_route(svc, 1003, &route), 0);
+    assert_int_equal(route.bus_id, 3);
+    assert_int_equal(route.slave_id, 3);
+    assert_string_equal(route.protocol, "ModbusRTUHiCRC");
+
+    /* addr 按整数解析；0 沿用 loader 的默认从站 1 */
+    rc = sqlite3_exec(raw_db,
+                      "INSERT INTO inventory (id, addr, protocol) VALUES (4, '0', 'MODBUS');"
+                      "INSERT INTO poll_tasks (bus_id, device_id, tag_id) VALUES (0, 4, 1004);",
+                      NULL, NULL, NULL);
+    assert_int_equal(rc, SQLITE_OK);
+    assert_int_equal(iems_poll_task_route(svc, 1004, &route), 0);
+    assert_int_equal(route.slave_id, 1);
+
+    /* 同一设备重复登记轮询任务：仍是同一台设备，路由可用 */
+    rc = sqlite3_exec(raw_db,
+                      "INSERT INTO poll_tasks (bus_id, device_id, tag_id) VALUES (0, 2, 1002);",
+                      NULL, NULL, NULL);
+    assert_int_equal(rc, SQLITE_OK);
+    assert_int_equal(iems_poll_task_route(svc, 1002, &route), 0);
+    assert_int_equal(route.bus_id, 0);
+    assert_int_equal(route.slave_id, 2);
+    assert_string_equal(route.protocol, "ModbusRTU");
+
+    /* 同一 tag 映射到两台不同设备：无法确定写哪台，拒绝 */
+    rc = sqlite3_exec(raw_db,
+                      "INSERT INTO poll_tasks (bus_id, device_id, tag_id) VALUES (3, 1, 1001);",
+                      NULL, NULL, NULL);
+    assert_int_equal(rc, SQLITE_OK);
+    assert_int_equal(iems_poll_task_route(svc, 1001, &route), -2);
 
     sqlite_svc_destroy(svc);
     unlink(db_path);
@@ -194,6 +223,27 @@ static void test_native_id_translation(void **state) {
     assert_true(fabs(iems_driver_adapter_tag_scale("DLT645", IEMS_TAG_GRID_POWER) - 0.1) < 1e-6);
     /* 用一个明确不在点表里的 tag，避免用真实 tag 加偏移拼出意外撞号的值 */
     assert_true(fabs(iems_driver_adapter_tag_scale("DLT645", 0xFFFFu) - 1.0) < 1e-6);
+}
+
+/* 读路径乘 tag_scale，写路径除以同一系数；TCP 与 RTU 共用一张点表，口径必须
+ * 一致。台架给寄存器 2317 时必须还原成 231.7V，而不是 23170。 */
+static void test_tag_scale_modbus_family_is_one_calibration(void **state) {
+    (void)state;
+    const double rtu = iems_driver_adapter_tag_scale("ModbusRTU", IEMS_TAG_VOLTAGE_PHASE_A);
+    const double tcp = iems_driver_adapter_tag_scale("ModbusTCP", IEMS_TAG_VOLTAGE_PHASE_A);
+    assert_true(fabs(rtu - 0.1) < 1e-6);
+    assert_true(fabs(tcp - rtu) < 1e-9);
+
+    /* 写 231.7V 下发寄存器 2317；按同一系数读回仍是 231.7V */
+    uint32_t native_id = 0;
+    double raw = 0.0;
+    const void *desc = NULL;
+    size_t desc_len = 0;
+    assert_int_equal(iems_exec_translate_write("ModbusTCP", IEMS_TAG_VOLTAGE_PHASE_A, 231.7,
+                                               &native_id, &raw, &desc, &desc_len),
+                     0);
+    assert_true(fabs(raw - 2317.0) < 1e-9);
+    assert_true(fabs(raw * tcp - 231.7) < 1e-3);
 }
 
 static void test_protocol_canonical(void **state) {
@@ -276,6 +326,7 @@ int main(void) {
         cmocka_unit_test(test_iems_task_loading_direct_product_code),
         cmocka_unit_test(test_stage_vpp_logger_edge_env_guard),
         cmocka_unit_test(test_native_id_translation),
+        cmocka_unit_test(test_tag_scale_modbus_family_is_one_calibration),
         cmocka_unit_test(test_protocol_canonical),
         cmocka_unit_test(test_protocol_selection_from_inventory),
     };

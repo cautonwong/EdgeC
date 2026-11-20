@@ -85,6 +85,13 @@ typedef struct {
      */
     int (*enumerate)(void *ctx, void (*fn)(void *ud, uint32_t point_id), void *ud);
     /**
+     * @brief 点位死区（工程值）。
+     *
+     * 自发上报用它区分「小变化静默」与「大变化上报」。返回 0 表示只要变化
+     * 就报；返回 <0 表示该点没有死区配置（驱动按 0 处理）。实现可为 NULL。
+     */
+    double (*deadband)(void *ctx, uint32_t point_id);
+    /**
      * @brief 收一次"对象方法操作"，参数是原始 A-XDR 字节。
      *
      * 为什么不能复用 `accept` 的 double：698 的方法参数经常是结构，例如
@@ -95,6 +102,17 @@ typedef struct {
      * 未实现时返回非 0 —— 驱动据此回 DAR=2（暂时失效），**不许回 0**。
      */
     int (*accept_action)(void *ctx, uint32_t omd, const uint8_t *axdr, size_t axdr_len);
+
+    /**
+     * @brief 主动断开当前主站链路（协议定时器到期时用）。
+     *
+     * IEC104 的 t1（I 帧 15s 未被确认）在协议上没有"重发"以外的恢复手段；
+     * 本产品单客户端、无重发队列，正确反应是断开链路让主站重连。驱动不认识
+     * socket，由产品在这里 shutdown 活动连接，让 io 层收到 EOF 并标记 stale。
+     *
+     * @return 0 = 已发出关闭；-1 = 没有活动连接（驱动忽略返回值）
+     */
+    int (*close_link)(void *ctx);
 } edge_slave_source_ops_t;
 
 #ifdef __cplusplus

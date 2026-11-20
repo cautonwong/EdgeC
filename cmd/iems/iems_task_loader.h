@@ -21,6 +21,14 @@ typedef struct {
 
 typedef void (*iems_task_registered_cb)(const iems_loaded_task_t *task, void *user_data);
 
+/* 一条控制写的目标设备：北向写入必须落实到 (bus, 从站地址, 协议) 三元组，
+ * 只带 bus 和协议会把同一条 RS485 总线上的其它表计写错。 */
+typedef struct {
+    int bus_id;
+    uint32_t slave_id;
+    char protocol[16];
+} iems_device_route_t;
+
 /**
  * @brief 从统一 SQLite 服务加载测点轮询任务
  * @param db_svc 统一 SQLite 服务实例
@@ -31,14 +39,15 @@ typedef void (*iems_task_registered_cb)(const iems_loaded_task_t *task, void *us
 int iems_poll_tasks_load(sqlite_svc_t *db_svc, iems_task_registered_cb on_task, void *user_data);
 
 /**
- * @brief 按 tag 反查轮询任务的路由（bus + 规范协议名）。
+ * @brief 按 tag 反查控制写的目标设备路由（bus + 从站地址 + 规范协议名）。
  *
- * 北向控制写用它决定“这个点在哪条总线上”，取代写死 bus 0/ModbusRTU。
- * bus 10 是北向镜像，不参与。
+ * 北向控制写用它决定“这个点在哪台设备上”，取代写死 bus 0 / 从站 1。
+ * bus 10 是北向镜像，不参与。同一个 tag 映射到多个不同设备时拒绝写入。
  *
- * @return 0 找到；-1 没有路由或参数/查询失败
+ * @return 0 找到唯一路由；-2 映射到多个不同设备（拒绝控制写）；
+ *         -1 没有路由或参数/查询失败
  */
-int iems_poll_task_route(sqlite_svc_t *db_svc, uint32_t tag_id, int *bus_id, char proto[16]);
+int iems_poll_task_route(sqlite_svc_t *db_svc, uint32_t tag_id, iems_device_route_t *route);
 
 #ifdef __cplusplus
 }

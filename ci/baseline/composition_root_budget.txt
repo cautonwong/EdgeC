@@ -18,12 +18,22 @@ cmd/edge_mcp_server/main.c|183
 # 2026-11-13: cmd/iems/iems_app.c 558 -> 559；参数服务改用调用方存储。
 # 2026-11-17: cmd/iems/iems_app.c 559 -> 560；升级恢复注入 authz store，用于 grant 快照回放。
 # 2026-11-18: cmd/iems/iems_app.c 560 -> 572；北向控制写按点位路由，注入 route_for_tag 端口。
-cmd/iems/iems_app.c|572
-cmd/iems/iems_north_listener.c|112
+# 2026-11-19: cmd/iems/iems_app.c 572 -> 595 -> 559；控制写接线移入北向适配器，最终收紧。
+# 2026-11-19: cmd/iems/iems_app.c 559 -> 576；IEC104 北向 TCP 端点按 type 接线（env 只在组合根读一次），总线装配抽成 _setup_buses 守住单函数行数。
+# 2026-11-19: cmd/iems/iems_north_listener.c 112 -> 114；UDS 监听跳过 IEC104 条目，同一张契约表不重复绑端点。
+# 2026-11-20: cmd/iems/iems_north_listener.c 114 -> 170；北向 UDS 断链释放 io 句柄（fd 不再随连接增长），拒绝第二路并发客户端，accept 时短暂探测旧 fd 状态，避免快速重连被误拒。
+# 2026-11-19: cmd/iems/iems_app.c 576 -> 579；REST 监听失败沿启动链返回，管理面起不来即启动失败。
+# 2026-11-20: cmd/iems/iems_app.c 579 -> 578；WAL 启动降级移入 iems_wal_start.c，组合根只留一行调用。
+cmd/iems/iems_app.c|578
+cmd/iems/iems_north_listener.c|170
+# 2026-11-19: cmd/iems/iems_north_iec104.c 基线 203；IEC104 TCP 监听 + 从站 source ops 接线适配器。
+cmd/iems/iems_north_iec104.c|203
 # 2026-11-18: cmd/iems/iems_southbound_adapter.c 133 -> 178；南向按 conn->type 选 UART，CAN 真设备明确未实现，UDS 路径保留。
 # 2026-11-18: cmd/iems/iems_southbound_adapter.c 178 -> 199；Modbus TCP 设备走 tcp://host:port，连不上仍计入缺失摘要。
-cmd/iems/iems_southbound_adapter.c|199
-cmd/iems/main.c|109
+# 2026-11-19: cmd/iems/iems_southbound_adapter.c 199 -> 218；BAUD 环境变量严格解析，非法/未支持速率拒绝整条总线并日志。
+cmd/iems/iems_southbound_adapter.c|218
+# 2026-11-19: cmd/iems/main.c 109 -> 111；stdout 行缓冲 (setvbuf _IOLBF)，裸 printf 状态行不再等下一次 flush 才落盘。
+cmd/iems/main.c|111
 # 2026-11-16: 组合根忽略 SIGPIPE（+1 调用 +1 include），应用崩溃后的 IPC 写入不得打死网关。
 cmd/nexus_lab/main.c|156
 cmd/smart_box/main.c|90
@@ -68,4 +78,5 @@ modules/edge_north/src/northbound_mgr.c|690
 # 2026-11-14: cmd/iems/iems_app_manager_adapter.c 1315 -> 1374；资源限制持久化、拒绝未实现项与启动接线。
 # 2026-11-17: cmd/iems/iems_app_manager_adapter.c 1374 -> 1465；参数 schema 随安装/升级持久化、setting_get 端口与 appctl settings set 回调。
 # 2026-11-17: cmd/iems/iems_app_manager_adapter.c 1465 -> 1470；settings set 成功后经 runtime 通知运行中的应用。
-cmd/iems/iems_app_manager_adapter.c|1470
+# 2026-11-19: cmd/iems/iems_app_manager_adapter.c 1470 -> 1474；未知 app_id 在排队前拒绝 (-ENOENT)，REST 报 not_found。
+cmd/iems/iems_app_manager_adapter.c|1474

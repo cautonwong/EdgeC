@@ -90,6 +90,20 @@ static int handle_datahub_write_tag(edge_mcp_dispatcher_t *disp, const cJSON *pa
     cJSON_AddNumberToObject(res, "tag_id", tid);
     cJSON_AddNumberToObject(res, "written_value", val);
 
+    /* The metadata port is the product's declaration of which tags exist.
+     * A write to an unknown tag must fail here, not in DataHub, or the
+     * caller sees success for a write that landed nowhere. hide_tag_meta
+     * means the product has no tag registry, so there is nothing to judge. */
+    if (!disp->env.hide_tag_meta && disp->env.tools.get_tag_meta) {
+        edge_mcp_tag_meta_t meta = {0};
+        if (edge_mcp_tool_get_tag_meta(&disp->env.tools, tid, &meta) != 0) {
+            cJSON_AddBoolToObject(res, "success", false);
+            cJSON_AddNumberToObject(res, "code", MCP_RPC_TOOL_EXEC_ERROR);
+            *out_result = res;
+            return 0;
+        }
+    }
+
     if (disp->env.tools.write_tag) {
         edge_mcp_tag_value_t value = {
             .tag_id = tid,
@@ -102,8 +116,10 @@ static int handle_datahub_write_tag(edge_mcp_dispatcher_t *disp, const cJSON *pa
         cJSON_AddBoolToObject(res, "success", (rc == 0));
         cJSON_AddNumberToObject(res, "code", rc);
     } else {
-        cJSON_AddBoolToObject(res, "success", true);
-        cJSON_AddNumberToObject(res, "code", 0);
+        /* No write port means nothing was written; success here would tell a
+         * CLI or agent the opposite of what happened. */
+        cJSON_AddBoolToObject(res, "success", false);
+        cJSON_AddNumberToObject(res, "code", MCP_RPC_TOOL_EXEC_ERROR);
     }
 
     *out_result = res;

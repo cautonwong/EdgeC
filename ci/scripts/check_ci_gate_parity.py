@@ -2,16 +2,32 @@
 """Keep the local architecture-gate runner in sync with the CI step.
 
 The x86_64 CI job runs one ordered list of gate commands. A local runner that
-silently drops one of them verifies less than CI while looking green.
+silently drops one of them verifies less than CI while looking green. Comparing
+only script paths misses a dropped argument (`--build`) or a dropped
+environment assignment (`STRICT_CORE_GATE=1`), so each gate line is compared as
+(environment assignments, argv) after shell quoting is resolved.
+
+Arguments that contain a shell expansion ($...) become wildcards, which is what
+lets `build` match `"$BUILD_DIR/sbom"` and the GitHub base-SHA expression match
+`"$BASE_REF"`.
+
+Known limit: a wildcard hides which variable feeds an argument, so a local
+runner that passes the wrong variable in the same position with the same
+argument count still passes. Resolving the variables would duplicate shell
+semantics here; the literal arguments, their positions and the count are the
+conservative check.
 """
 
 import argparse
 import os
 import re
+import shlex
 import sys
 
 STEP_NAME = "Run Architecture & Anti-Entropy Gates (x86_64 only)"
-SCRIPT_RE = re.compile(r"(?<![\w/])((?:\./)?(?:ci/)?scripts/[A-Za-z0-9_./-]+\.(?:py|sh))")
+SCRIPT_RE = re.compile(r"^(?:\./)?(?:ci/)?scripts/[A-Za-z0-9_./-]+\.(?:py|sh)$")
+ENV_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+EXPANSION_RE = re.compile(r"\$")
 
 
 def ci_step_body(text):
@@ -47,12 +63,42 @@ def gate_entries(lines):
     for line in lines:
         if line.startswith("#"):
             continue
-        for match in SCRIPT_RE.finditer(line):
-            path = match.group(1)
-            if path.startswith("./"):
-                path = path[2:]
-            entries.append((path, "STRICT_CORE_GATE=1" in line))
+        try:
+            tokens = shlex.split(line)
+        except ValueError:
+            tokens = line.split()
+        env = []
+        while tokens and ENV_RE.match(tokens[0]):
+            env.append(tokens.pop(0))
+        env.sort()
+        argv = []
+        gate_script = False
+        for token in tokens:
+            if token.startswith("./"):
+                token = token[2:]
+            if SCRIPT_RE.match(token):
+                gate_script = True
+            argv.append("*" if EXPANSION_RE.search(token) else token)
+        if not gate_script:
+            continue
+        entries.append((tuple(env), tuple(argv)))
     return entries
+
+
+def describe(entry):
+    env, argv = entry
+    return " ".join([*env, *argv])
+
+
+def same_gate(ci_entry, local_entry):
+    ci_env, ci_argv = ci_entry
+    local_env, local_argv = local_entry
+    if ci_env != local_env or len(ci_argv) != len(local_argv):
+        return False
+    return all(
+        ci == local or ci == "*" or local == "*"
+        for ci, local in zip(ci_argv, local_argv)
+    )
 
 
 def main():
@@ -68,26 +114,30 @@ def main():
         print("❌ [CI_GATE_PARITY] missing file(s): " + ", ".join(missing))
         return 1
 
-    ci_body = ci_step_body(open(ci_path, encoding="utf-8").read())
+    with open(ci_path, encoding="utf-8") as handle:
+        ci_body = ci_step_body(handle.read())
     if ci_body is None:
         print("❌ [CI_GATE_PARITY] cannot find the architecture gate step in ci.yml")
         return 1
 
     ci_entries = gate_entries(ci_body)
-    local_entries = gate_entries(open(local_path, encoding="utf-8").read().splitlines())
+    with open(local_path, encoding="utf-8") as handle:
+        local_entries = gate_entries(handle.read().splitlines())
 
-    if ci_entries == local_entries:
+    if len(ci_entries) == len(local_entries) and all(
+        same_gate(entry, local) for entry, local in zip(ci_entries, local_entries)
+    ):
         print(f"✅ [CI_GATE_PARITY] local runner matches CI ({len(ci_entries)} gates)")
         return 0
 
     problems = []
     for index, (entry, local) in enumerate(zip(ci_entries, local_entries)):
-        if entry != local:
-            problems.append(f"  #{index + 1}: CI={entry} local={local}")
+        if not same_gate(entry, local):
+            problems.append(f"  #{index + 1}: CI=[{describe(entry)}] local=[{describe(local)}]")
     for entry in ci_entries[len(local_entries):]:
-        problems.append(f"  missing locally: {entry}")
+        problems.append(f"  missing locally: [{describe(entry)}]")
     for entry in local_entries[len(ci_entries):]:
-        problems.append(f"  local-only gate: {entry}")
+        problems.append(f"  local-only gate: [{describe(entry)}]")
     print("❌ [CI_GATE_PARITY] local runner drifted from the CI gate step:")
     print("\n".join(problems))
     return 1

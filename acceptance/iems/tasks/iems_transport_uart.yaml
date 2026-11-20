@@ -1,0 +1,17 @@
+# 真实 UART 传输:产品壳建一对 PTY,把从设备端当作 /dev/pts/N 交给产品
+# (OMNIS_BUS_0_DEV + OMNIS_BUS_0_BAUD=9600),在产品这一侧就是一次真实的
+# open/tcsetattr/RTU 收发的 UART 连接。UDS 任务走不到这段选路。
+#
+# 北向仍是同一份 devices.yaml(镜像从站经 19211 桥),所以写闭环的判据
+# 与 UDS 验收一致:北向 220.0V → 南向 FC06 地址 0 值 2200。
+id: iems-transport-uart
+product: iems
+launch:
+  - ${PYTHON}
+  - iems_product.py
+  - --port
+  - ${PORT}
+  - --transport
+  - uart
+devices: configs/devices.yaml
+select: case:I_00_00_06_000001

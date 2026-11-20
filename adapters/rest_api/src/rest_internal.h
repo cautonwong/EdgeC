@@ -15,6 +15,15 @@
 /** Decode an even-length hex payload; caller frees. NULL when invalid. */
 uint8_t *rest_hex_decode(const char *hex, size_t *out_len);
 
+/** Record the instant the REST plane started; health reports uptime from it. */
+void rest_system_mark_start(uv_loop_t *loop);
+
+/** Health route: process uptime, SDK version, and pool stats. */
+char *rest_system_health(service_t *svc);
+
+/** Stats route: uptime proof plus DataHub, bus, and pipeline state. */
+char *rest_system_stats(service_t *svc);
+
 /** Install route: verifies and installs a signed `.eapp` package. */
 char *rest_apps_package(service_t *svc, const char *body);
 

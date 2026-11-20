@@ -45,6 +45,17 @@ typedef struct {
 } iems_app_config_t;
 
 /**
+ * @brief 启动 WAL：打开并回放；任一步失败时记录错误并关闭 WAL（明确降级）
+ *
+ * 只关闭持久化能力，不中断产品启动。
+ *
+ * @param hub DataHub 实例
+ * @param wal_path WAL 文件路径
+ * @return 0 WAL 已启用，-1 已降级为无 WAL
+ */
+int iems_app_wal_start(datahub_t *hub, const char *wal_path);
+
+/**
  * @brief 装配 IEMS 应用程序各个组件 (聚合根、总线编排器、流计算引擎、北向服务)
  *
  * @param loop libuv 事件循环
@@ -54,18 +65,20 @@ typedef struct {
 iems_app_t *iems_app_assemble(uv_loop_t *loop, const iems_app_config_t *cfg);
 
 /**
- * @brief 启动时连一次南向物理总线(组合根调用,只连一次、不重试)
+ * @brief 启动南向物理总线(组合根调用)
  *
- * 谁发起:组合根。哪个总线没连上,启动日志会明确报出来,不再无限重连。
+ * 谁发起:组合根。TCP 总线经 iems_tcp_link 状态机启动,首次连不上进入 BACKOFF
+ * 并按指数退避重连;UART/UDS 仍只在启动时连一次。启动日志会写明缺哪几路。
  *
  * @param app 应用程序句柄
- * @param configured 出参:契约表里配置的南向总线数(可为 NULL)。用来区分「没配南向总线」和「配了但全连不上」
- * @return 连上的南向总线数(含此前已连上的);<0 参数非法或装配契约表缺失
+ * @param configured 出参:契约表里配置的南向总线数(可为 NULL)。用来区分「没配南向总线」和「配了但一路都没启动」
+ * @return 已启动的南向总线数(TCP 的 CONNECTED 与 BACKOFF 都算);<0 参数非法或装配契约表缺失
  *
  * 必须在 iems_app_start() 之前调用一次,iems_app_start() 会拒绝未连过总线的半装配启动。
- * 语义:配了南向总线就要求至少连上一路;部分连上照常启动,缺的那几路只 WARN 不致命
- *       (缺 CAN 的机器不该起不来)。全都没连上才算启动失败,由组合根 abort。
- *       能拿到装配契约表时打一行摘要:[IEMS-INIT] southbound: <connected>/<configured> connected
+ * 语义:配了南向总线就要求至少启动一路;部分启动照常运行,缺的那几路只 WARN 不致命
+ *       (缺 CAN 的机器不该起不来)。TCP 设备启动时离线只进 BACKOFF,不再让组合根 abort;
+ *       一路都没启动才算启动失败,由组合根 abort。
+ *       能拿到装配契约表时打一行摘要:[IEMS-INIT] southbound: <started>/<configured> started
  *       (契约表本身取不到属于装配坏了,由组合根打 FATAL,这里不出摘要)
  */
 int iems_app_connect_buses(iems_app_t *app, int *configured);

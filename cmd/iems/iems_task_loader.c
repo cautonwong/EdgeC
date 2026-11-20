@@ -47,29 +47,52 @@ static int _load_tasks_sql_cb(void *user_data, int argc, char **argv, char **col
     return 0;
 }
 
-int iems_poll_task_route(sqlite_svc_t *db_svc, uint32_t tag_id, int *bus_id, char proto[16]) {
-    if (!db_svc || !bus_id || !proto) return -1;
+int iems_poll_task_route(sqlite_svc_t *db_svc, uint32_t tag_id, iems_device_route_t *route) {
+    if (!db_svc || !route) return -1;
     sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle(db_svc);
     if (!db) return -1;
 
     const char *sql =
-        "SELECT t.bus_id, i.protocol FROM poll_tasks t INNER JOIN inventory i "
-        "ON t.device_id = i.id WHERE t.tag_id = ? AND t.bus_id <> 10 "
-        "ORDER BY t.bus_id LIMIT 1;";
+        "SELECT t.bus_id, i.addr, i.protocol FROM poll_tasks t INNER JOIN inventory i "
+        "ON t.device_id = i.id WHERE t.tag_id = ? AND t.bus_id <> 10;";
     sqlite3_stmt *stmt = NULL;
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) return -1;
     sqlite3_bind_int(stmt, 1, (int)tag_id);
 
     int rc = -1;
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
-        const char *raw = (const char *)sqlite3_column_text(stmt, 1);
+    bool have_route = false;
+    iems_device_route_t found = {0};
+    int step;
+    while ((step = sqlite3_step(stmt)) == SQLITE_ROW) {
         char canonical[16];
-        if (iems_driver_protocol_canonical(raw, canonical) == 0) {
-            *bus_id = sqlite3_column_int(stmt, 0);
-            snprintf(proto, 16, "%s", canonical);
+        const char *raw = (const char *)sqlite3_column_text(stmt, 2);
+        if (iems_driver_protocol_canonical(raw, canonical) != 0) {
+            LOG_WARN(LOG_CAT_CORE, "IEMS route: tag %u 的协议 '%s' 无法识别，忽略该映射", tag_id,
+                     raw ? raw : "(null)");
+            continue;
+        }
+        int bus_id = sqlite3_column_int(stmt, 0);
+        uint32_t slave_id = (uint32_t)sqlite3_column_int(stmt, 1);
+        if (slave_id == 0) slave_id = 1;
+
+        if (!have_route) {
+            found.bus_id = bus_id;
+            found.slave_id = slave_id;
+            snprintf(found.protocol, sizeof(found.protocol), "%s", canonical);
+            have_route = true;
             rc = 0;
+        } else if (found.bus_id != bus_id || found.slave_id != slave_id ||
+                   strcmp(found.protocol, canonical) != 0) {
+            LOG_WARN(LOG_CAT_CORE,
+                     "IEMS route: tag %u 映射到多个设备 (bus %d/%d, slave %u/%u)，拒绝控制写",
+                     tag_id, found.bus_id, bus_id, found.slave_id, slave_id);
+            rc = -2;
+            break;
         }
     }
+    if (step != SQLITE_ROW && step != SQLITE_DONE) rc = -1;
+
+    if (rc == 0) *route = found;
     sqlite3_finalize(stmt);
     return rc;
 }

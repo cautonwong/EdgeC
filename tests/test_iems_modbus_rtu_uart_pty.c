@@ -20,6 +20,8 @@
 #include "datahub_priv.h"
 #include "driver_manager.h"
 #include "edge_api.h"
+#include "iems_driver_adapter.h"
+#include "iems_execution_adapter.h"
 #include "iems_southbound_adapter.h"
 #include "io_handle_priv.h"
 #include "modbus_codec.h"
@@ -54,6 +56,10 @@ typedef struct {
     int req_frames;
     bool hi_crc; /* 驱动变体：CRC 高字节先发 */
     uint8_t fc_seen;
+    uint8_t expect_slave;      /* PTY 从站只应答这个地址 */
+    uint16_t expect_write_value; /* FC06 合法负载的唯一写值 */
+    uint8_t write_frame[32];   /* 首帧 FC06 写请求存证（req 缓冲会复用给后续读） */
+    size_t write_frame_len;
     bool crc_ok;
     bool write_ok;
     bool frame_bad;
@@ -94,7 +100,7 @@ static void _dump_frame(const pty_ctx_t *c, const char *why) {
 /* 本测试同时扮演从站。PTY master 非阻塞，每次 tick 尽力收满一帧请求。 */
 static void _on_slave_tick(uv_timer_t *handle) {
     pty_ctx_t *c = (pty_ctx_t *)handle->data;
-    if (c->responded || c->frame_bad) return;
+    if (c->frame_bad) return;
 
     ssize_t n = read(c->master_fd, c->req + c->req_len, sizeof(c->req) - c->req_len);
     if (n < 0) {
@@ -114,7 +120,7 @@ static void _on_slave_tick(uv_timer_t *handle) {
     c->crc_ok = _rx_crc(c, c->req, c->req_len) == crc;
     uint8_t fc = c->req[1];
     c->fc_seen = fc;
-    if (c->req[0] != RTU_SLAVE || !c->crc_ok ||
+    if (c->req[0] != c->expect_slave || !c->crc_ok ||
         (fc != MODBUS_FC_READ_HOLDING_REGS && fc != MODBUS_FC_WRITE_SINGLE_REG &&
          fc != MODBUS_FC_WRITE_MULTIPLE_REGS)) {
         /* 不回坏请求：让驱动的 2000ms 超时结算，失败原因留在上面的转储里 */
@@ -125,15 +131,18 @@ static void _on_slave_tick(uv_timer_t *handle) {
 
     if (fc == MODBUS_FC_WRITE_SINGLE_REG) {
         /* FC06 应答就是原帧回显，写值与 CRC 都原样回来 */
-        c->write_ok = c->req[2] == 0x00 && c->req[3] == RTU_REG && c->req[4] == 0x12 &&
-                      c->req[5] == 0x34;
+        c->write_ok = c->req[2] == 0x00 && c->req[3] == RTU_REG &&
+                      (uint16_t)((c->req[4] << 8) | c->req[5]) == c->expect_write_value;
         if (!c->write_ok) {
             c->frame_bad = true;
             _dump_frame(c, "unexpected write payload");
             return;
         }
+        c->write_frame_len = c->req_len;
+        memcpy(c->write_frame, c->req, c->req_len);
         if (write(c->master_fd, c->req, RTU_REQ_LEN) == (ssize_t)RTU_REQ_LEN) {
             c->responded = true;
+            c->req_len = 0; /* 后面可能还有一条读要应答 */
         } else {
             c->frame_bad = true;
             _dump_frame(c, "write echo failed");
@@ -151,8 +160,8 @@ static void _on_slave_tick(uv_timer_t *handle) {
             return;
         }
         /* FC16 应答只回地址与数量 */
-        uint8_t ack[8] = {RTU_SLAVE, MODBUS_FC_WRITE_MULTIPLE_REGS, 0x00, RTU_REG,
-                          0x00,      0x02,                        0,    0};
+        uint8_t ack[8] = {c->req[0], MODBUS_FC_WRITE_MULTIPLE_REGS, 0x00, RTU_REG,
+                          0x00,      0x02,                         0,    0};
         _wire_crc(c, ack, 6);
         if (write(c->master_fd, ack, sizeof(ack)) == (ssize_t)sizeof(ack)) {
             c->responded = true;
@@ -163,7 +172,7 @@ static void _on_slave_tick(uv_timer_t *handle) {
         return;
     }
 
-    uint8_t resp[RTU_RESP_LEN] = {RTU_SLAVE,
+    uint8_t resp[RTU_RESP_LEN] = {c->req[0],
                                   MODBUS_FC_READ_HOLDING_REGS,
                                   2,
                                   (uint8_t)(RTU_RAW >> 8),
@@ -203,6 +212,8 @@ static int setup_common(void **state, const char *protocol, bool hi_crc) {
     assert_non_null(c);
     c->master_fd = -1;
     c->hi_crc = hi_crc;
+    c->expect_slave = RTU_SLAVE;
+    c->expect_write_value = RTU_RAW;
 
     int master = posix_openpt(O_RDWR | O_NOCTTY | O_NONBLOCK);
     assert_true(master >= 0);
@@ -365,6 +376,39 @@ static void test_modbus_rtu_hicrc_read_over_uart_pty(void **state) {
     assert_true(fabs(c->cb_value - (double)RTU_RAW * RTU_SCALE) < 1e-9);
 }
 
+/* P1 回归：北向写必须落在轮询路由给出的从站地址上。从站只认 slave 3，
+ * 控制写经执行适配器下发；旧实现写死 slave 1 时这条用例会红。 */
+static void test_modbus_rtu_write_slave_route_over_uart_pty(void **state) {
+    pty_ctx_t *c = (pty_ctx_t *)*state;
+    c->expect_slave = 3;
+    c->expect_write_value = 2201; /* 220.1 V / scaler 0.1 */
+
+    iems_execution_port_t port = iems_execution_port_create(NULL);
+    assert_non_null(port.write_tag);
+    /* 执行适配器按点位表翻译：1001 → 寄存器 0，1 个寄存器，raw 2201 */
+    assert_int_equal(port.write_tag(port.ctx, 0, 3, IEMS_TAG_VOLTAGE_PHASE_A, 220.1, "ModbusRTU"),
+                     0);
+    /* 同一总线上的读作为屏障：写事务结算后才轮到它，循环在回调里停 */
+    assert_int_equal(edge_api_read_tag_ex(0, "ModbusRTU", 3, MODBUS_NATIVE(RTU_REG, 1),
+                                          RTU_RESULT_TAG, RTU_SCALE, NULL, 0, ARBITER_PRIO_NORMAL,
+                                          _on_read_done, c),
+                     0);
+
+    uv_run(&c->loop, UV_RUN_DEFAULT);
+
+    if (c->timed_out || c->cb_status != 0 || !c->write_ok || c->write_frame_len == 0)
+        _dump_frame(c, "slave-routed write did not round-trip");
+
+    assert_false(c->timed_out);
+    assert_int_equal(c->write_frame_len, RTU_REQ_LEN);
+    assert_int_equal(c->write_frame[0], 3);
+    assert_int_equal(c->write_frame[1], MODBUS_FC_WRITE_SINGLE_REG);
+    assert_int_equal((c->write_frame[4] << 8) | c->write_frame[5], 2201);
+    assert_true(c->write_ok);
+    assert_int_equal(c->cb_count, 1);
+    assert_int_equal(c->cb_status, 0);
+}
+
 static void _close_handle(uv_handle_t *handle, void *arg) {
     (void)arg;
     if (!uv_is_closing(handle)) uv_close(handle, NULL);
@@ -412,6 +456,8 @@ int main(void) {
         cmocka_unit_test_setup_teardown(test_modbus_rtu_read_over_uart_pty, setup, teardown),
         cmocka_unit_test_setup_teardown(test_modbus_rtu_write_over_uart_pty, setup, teardown),
         cmocka_unit_test_setup_teardown(test_modbus_rtu_write32_over_uart_pty, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_modbus_rtu_write_slave_route_over_uart_pty, setup,
+                                        teardown),
         cmocka_unit_test_setup_teardown(test_modbus_rtu_hicrc_read_over_uart_pty, setup_hicrc,
                                         teardown),
     };

@@ -103,16 +103,20 @@ int iems_node_update_bms_rack(iems_node_t *node, uint8_t rack_id, double voltage
 /**
  * @brief 南向轮询采样的镜像写入口 (镜像聚合的唯一写路径)
  *
- * 不变量:ts 由聚合根在采集时刻打(进程内单调递增);未采集过的 tag 读到 ts==0。
+ * 不变量:sample_ts 是采样(读帧编码发出)时刻,单位与 pipe_msg_t.ts 相同(uv_hrtime 纳秒);
+ * 比 shadow 当前内容更旧的采样被丢弃,迟到的轮询结果不能覆盖更晚的控制写。
+ * 未采集过的 tag 读到 ts==0。
  * 局限:镜像按 tag 唯一,不带 device_id —— 多机共用同一 tag 会互相覆盖。
  * 调用方须在轮询回调里调用,热路径无堆分配。
  *
  * @param node 聚合根句柄
  * @param tag_id 采集点
  * @param value 采样值
- * @return 0 成功, <0 参数非法或镜像写入失败
+ * @param sample_ts 采样时刻(请求编码发出时,不是结果到达时)
+ * @return 0 成功(含旧采样被丢弃), <0 参数非法或镜像写入失败
  */
-int iems_node_ingest_sample(iems_node_t *node, uint32_t tag_id, double value);
+int iems_node_ingest_sample(iems_node_t *node, uint32_t tag_id, double value,
+                            uint64_t sample_ts);
 
 /**
  * @brief IEMS 控制环路延迟预算与看门狗统计 (AEP-407)
@@ -142,7 +146,8 @@ int iems_node_reset_watchdog_degrade(iems_node_t *node);
 
 typedef struct {
     void *ctx;
-    int (*write_tag)(void *ctx, int bus_id, uint32_t tag_id, double value, const char *proto);
+    int (*write_tag)(void *ctx, int bus_id, uint32_t slave_id, uint32_t tag_id, double value,
+                     const char *proto);
 } iems_execution_port_t;
 
 /**
@@ -152,9 +157,11 @@ int iems_node_set_execution_port(iems_node_t *node, iems_execution_port_t port);
 
 /**
  * @brief 领域写入口：先过聚合根校验，再经执行端口下发。
+ *
+ * slave_id 是点位的物理设备地址，由调用方的轮询路由决定；聚合根不猜默认值。
  */
-int iems_node_write_tag(iems_node_t *node, int bus_id, uint32_t tag_id, double value,
-                        const char *proto);
+int iems_node_write_tag(iems_node_t *node, int bus_id, uint32_t slave_id, uint32_t tag_id,
+                        double value, const char *proto);
 
 #ifdef __cplusplus
 }

@@ -21,11 +21,13 @@ broker → 平台解码」整条链串起来比对。只验"收到了消息"是�
 不是产品不合格）。
 """
 import os
+import socket
+import struct
 import time
 
 import pytest
 
-from bench import VOLTAGE, bus_seen
+from bench import NORTH_SOCK, RUN_DIR, VOLTAGE, bus_seen, port_of, rest
 from testplatform.cases import case
 
 TOLERANCE_V = 0.5
@@ -214,3 +216,147 @@ def test_unknown_point_gets_failure_ack(northbound_probe, northbound_publisher):
     )
     ack = _wait_ack(northbound_probe, "NO_SUCH_POINT")
     assert ack == 0.0, f"不存在的点位回了成功回执（{ack}）—— 主站会以为真写下去了"
+
+
+# ==============================================================================
+# 北向 UDS 从站的生命周期（不依赖 MQTT broker）
+#
+# 每次 accept 都新建一个 io handle；断开后不销毁时，产品 fd 随连接次数线性增长，
+# 长跑后耗尽句柄。从站是单客户端语义（与 IEC104 一致）：第二路必须被拒，
+# 且不能把第一路顶掉。
+# ==============================================================================
+
+NORTH_UNIT = 1
+VOLTAGE_RAW = int(round(VOLTAGE * 10))
+
+
+def _north_sock() -> str:
+    if not os.path.exists(NORTH_SOCK):
+        pytest.skip(f"北向 UDS 还没绑上:{NORTH_SOCK}(产品没起来?)")
+    return NORTH_SOCK
+
+
+def _product_pid() -> int:
+    path = RUN_DIR / "product.pid"
+    deadline = time.time() + 10
+    while time.time() < deadline:
+        try:
+            return int(path.read_text(encoding="utf-8").strip())
+        except (OSError, ValueError):
+            time.sleep(0.05)
+    pytest.fail(f"产品壳没有写出进程号({path})")
+
+
+def _fd_count(pid: int) -> int:
+    return len(os.listdir(f"/proc/{pid}/fd"))
+
+
+def _crc16(payload: bytes) -> int:
+    crc = 0xFFFF
+    for byte in payload:
+        crc ^= byte
+        for _ in range(8):
+            crc = (crc >> 1) ^ 0xA001 if crc & 1 else crc >> 1
+    return crc
+
+
+def _read_voltage_frame(sock: socket.socket) -> int:
+    """在已连接的主站 socket 上发 FC03 读寄存器 0，返回原始值(0.1V)。"""
+    body = struct.pack(">BBHH", NORTH_UNIT, 3, 0, 1)
+    sock.sendall(body + struct.pack("<H", _crc16(body)))
+    sock.settimeout(4.0)
+    buf = b""
+    while len(buf) < 5:
+        chunk = sock.recv(64)
+        assert chunk, "北向从站关了连接，没有回帧"
+        buf += chunk
+    total = 3 + buf[2] + 2
+    while len(buf) < total:
+        chunk = sock.recv(64)
+        assert chunk, "北向从站回帧被截断"
+        buf += chunk
+    assert buf[1] == 3, f"不是 FC03 应答:{buf.hex()}"
+    assert struct.unpack("<H", buf[-2:])[0] == _crc16(buf[:-2]), f"应答 CRC 错:{buf.hex()}"
+    return int.from_bytes(buf[3:5], "big")
+
+
+def _wait_voltage(sock: socket.socket, timeout: float = 5.0) -> int:
+    """等镜像跟上台架值；首次请求可能早于产品 attach，超时就重发。"""
+    deadline = time.time() + timeout
+    last = None
+    while time.time() < deadline:
+        try:
+            last = _read_voltage_frame(sock)
+        except socket.timeout:
+            last = "超时"
+            continue
+        if last == VOLTAGE_RAW:
+            return last
+        time.sleep(0.5)
+    pytest.fail(f"北向从站没回台架电压 {VOLTAGE_RAW}（最后一次:{last}）")
+
+
+@case(id="I_00_00_03_000007", clause="IEMS-NB-UDS-1", tags=["验收", "北向"])
+@pytest.mark.contract
+def test_north_uds_reconnect_does_not_leak_fds():
+    """连续 5 次连接/断开北向 UDS：产品的 fd 不许跟着连接次数涨。
+
+    断开后句柄留到下一次连接（或关闭）才释放，所以最后一次可能残留 1 个：
+    允许 ±1；泄漏时每次 +1，5 次后差距一眼可见。
+    """
+    path = _north_sock()
+    pid = _product_pid()
+    assert "error" not in rest(port_of(), "/api/v1/system/health"), "连接前 REST 就不可用"
+    time.sleep(0.3)  # 让健康检查自己的连接先关掉，基线只算稳态
+
+    before = _fd_count(pid)
+    for _ in range(5):
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(2.0)
+        try:
+            sock.connect(path)
+            time.sleep(0.2)  # 让产品 accept；否则下一路会撞上单客户端拒绝
+        finally:
+            sock.close()
+        time.sleep(0.2)  # 让产品处理 EOF，下一次连接才会回收上一个句柄
+
+    time.sleep(0.5)
+    after = _fd_count(pid)
+    assert abs(after - before) <= 1, (
+        f"5 次连接/断开后产品 fd 从 {before} 变成 {after}:北向 UDS 断链没有释放 io handle"
+    )
+    assert "error" not in rest(port_of(), "/api/v1/system/health"), "连接风暴后 REST 不可用了"
+
+
+@case(id="I_00_00_03_000008", clause="IEMS-NB-UDS-1", tags=["验收", "北向"])
+@pytest.mark.contract
+def test_north_uds_refuses_a_second_client():
+    """第一路活着时第二路并发连接必须被对端关闭，且第一路仍能读。
+
+    与 IEC104 的单客户端语义一致。若产品把第二路接上并顶掉第一路，
+    主站看到的是"连接还在但不再回帧"——比直接断开更难排查。
+    """
+    path = _north_sock()
+    first = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    first.settimeout(4.0)
+    first.connect(path)
+    try:
+        assert _wait_voltage(first) == VOLTAGE_RAW
+
+        second = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        second.settimeout(2.0)
+        second.connect(path)
+        try:
+            try:
+                rejected = second.recv(1) == b""
+            except ConnectionResetError:
+                rejected = True
+            except socket.timeout:
+                rejected = False
+        finally:
+            second.close()
+        assert rejected, "第二路并发客户端没有被拒（产品同时接受了两个客户端）"
+
+        assert _wait_voltage(first) == VOLTAGE_RAW, "第二路被拒后第一路不能继续读数"
+    finally:
+        first.close()
