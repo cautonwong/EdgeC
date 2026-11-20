@@ -12,7 +12,7 @@ EdgeC 是面向工业边缘设备的 C11 运行时与 SDK，提供产品进程�
 
 ```mermaid
 graph LR
-    Dev[产品 / 应用开��者] -->|构建产品、SDK 应用| EdgeC[EdgeC 设备运行时]
+    Dev[产品 / 应用开发者] -->|构建产品、SDK 应用| EdgeC[EdgeC 设备运行时]
     Operator[操作员 / 运维] -->|浏览器访问管理界面| EdgeC
     Field[现场设备<br/>表计、PLC、BMS、PCS] <-->|工业协议与控制| EdgeC
     EdgeC <-->|遥测、告警、控制| Platform[SCADA / 云平台]
@@ -233,18 +233,21 @@ C4Deployment
 
 ## 构建与测试
 
-核心使用 CMake 构建，默认启用 Web 前端构建。需要 CMake、Ninja、C11 编译器、Python 3，以及 `CMakeLists.txt` 中查找的本地/第三方依赖（包括 libuv、cJSON、SQLite、zlog、Paho MQTT、CURL、QuickJS、iwasm、cmocka 和 OpenSSL）。依赖安装与目标平台有关；交叉编译请使用 `cmake/toolchains/` 中对应的工具链文件。
+核心使用 CMake 构建，默认启用 Web 前端构建。需要 CMake、Ninja、C11 编译器、Python 3，以及 `CMakeLists.txt` 中查找的本地/第三方依赖（包括 libuv、cJSON、SQLite、ZLIB、zlog、Paho MQTT、CURL、QuickJS、iwasm、cmocka 和 OpenSSL）。依赖安装与目标平台有关。交叉编译请使用 `cmake/toolchains/` 中对应的工具链文件。
 
 ```bash
 # 配置并构建 C 核心；关闭前端可避免此步骤调用 Web 构建
-cmake -S . -B build -G Ninja -DENABLE_WEB_BUILD=OFF
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_WEB_BUILD=OFF
 cmake --build build -j2
 
 # 运行 CTest 测试
 ctest --test-dir build --output-on-failure
+
+# 运行架构与卫生守卫（正反夹具 + 活树检查）
+python3 ci/scripts/run_guard_selftest.py
 ```
 
-若要运行 Web 前端测试或构建，请先进入 `web/`，使用仓库锁文件安装依赖，再查看 `web/package.json` 中的脚本：
+若要运行 Web 前端测试或构建，请进入 `web/` 并用仓库锁文件安装依赖：
 
 ```bash
 cd web
@@ -253,7 +256,7 @@ npm run test:unit
 npm run build:all
 ```
 
-`./test.sh` 提供已配置 `build/` 的 C 单元测试入口；产品验收由独立的 `test-platform` 按 `acceptance/testplatform.sha` 固定版本驱动：
+`./test.sh` 提供已配置 `build/` 的 C 单元测试入口。产品验收由独立的 `test-platform` 按 `acceptance/testplatform.sha` 固定版本驱动：
 
 ```bash
 ./test.sh
