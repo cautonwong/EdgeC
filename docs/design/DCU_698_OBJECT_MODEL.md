@@ -161,14 +161,14 @@ int dcu_698_call(uint32_t omd, const uint8_t *param, size_t param_len,
 
 对象模型的 `read` 处理器把完整 A-XDR 写进 `out->buf`，包括类型标签。标量类写一个标量，Class 10 写 `array structure`，Class 9 写 `array structure{冻结时间, 数据}`。`dcu_value_t` 保留为标量便捷结构，不是端口契约。
 
-端口新增两个可选回调，形状与现有 `accept_action` 一致。
+端口新增两个可选回调，形状与现有 `accept_action` 一致。字段签名、回落语义与兼容性结论见 `docs/adr/0013-698-slave-axdr-port.md`。
 
 ```c
 int (*resolve_axdr)(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, size_t *len);
 int (*accept_axdr)(void *ctx, uint32_t oad, const uint8_t *axdr, size_t len);
 ```
 
-驱动对 698 的 GET 先调 `resolve_axdr`，没有实现时回落到标量 `resolve`。SET 先调 `accept_axdr`，没有实现时回落到标量 `accept`。这样 IEC104 与 Modbus 的标量路径不变，698 的结构路径有独立通道，驱动仍然不认识点位模型。
+驱动对 698 的 GET 先调 `resolve_axdr`，回调为 NULL 时才回落到标量 `resolve`；SET 先调 `accept_axdr`，回调为 NULL 时才回落到标量 `accept`。回调已实现但返回非 0 是真实失败，不得再回落——否则结构属性会在一次解码错误后悄悄退化成截断值。这样 IEC104 与 Modbus 的标量路径不变，698 的结构路径有独立通道，驱动仍然不认识点位模型。
 
 单条属性的 A-XDR 上限设为 `DCU_698_AXDR_MAX`，首版 2048 字节。超过上限的记录型属性走 GetRecord 分页，不把整张表塞进一个响应。缓冲由调用方提供，不引入动态内存。
 

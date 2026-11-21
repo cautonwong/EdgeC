@@ -1,0 +1,12 @@
+commit f24814a58db48d3641a577c4ac00974edb2b3f2d
+Author: 800900 <992878191@qq.com>
+Date:   Sat Nov 21 16:15:04 2026 +0800
+
+    docs(DCU-D1-12): add 698 slave A-XDR port ADR
+    
+    Co-Authored-By: Claude Code <noreply@anthropic.com>
+
+ docs/adr/0013-698-slave-axdr-port.md    | 161 ++++++++++++++++++++++++++++++++
+ docs/design/DCU_698_OBJECT_MODEL.md     |   4 +-
+ docs/design/slave_plane_architecture.md |  31 ++++++
+ 3 files changed, 194 insertions(+), 2 deletions(-)
