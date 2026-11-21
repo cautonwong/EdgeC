@@ -26,7 +26,7 @@
 | 属性号 | 类定义表中的属性编号 | `uint8_t attr_id` |
 | 元素索引 | 数组属性的元素下标，0 表示整体或第一元素 | `uint8_t elem_idx` |
 | 方法号 | 类定义表中的方法编号，如 127 表示 Add | `uint8_t method_id` |
-| DAR | 数据访问结果，0 成功，5 对象未定义，2 暂时失效等 | `uint8_t dar` |
+| DAR | 数据访问结果，0 成功，4 对象未定义，5 对象接口类不符合，6 对象不存在，7 类型不匹配，2 暂时失效等 | `uint8_t dar` |
 | 质量 | good、bad、uncertain 三态，不接受厂商自定义码 | `uint8_t quality` |
 
 OAD 的拆包规则固定为 `oi = oad >> 16`、`attr_id = (oad >> 8) & 0xFF`、`elem_idx = oad & 0xFF`。OMD 的拆包规则固定为 `oi = omd >> 16`、`method_id = (omd >> 8) & 0xFF`、`mode = omd & 0xFF`。拆包只在一个函数里做，其他模块不重复位运算。
@@ -90,7 +90,7 @@ static inline void dcu_mask_set(uint8_t mask[32], uint8_t id) {
 }
 ```
 
-`attr_mask` 与 `method_mask` 让“不支持”变成显式事实。缺属性返回 DAR=5，缺方法返回 DAR=5，不静默成功。门面的 `get_attr/set_attr/action` 必须走 `dcu_698_read/write/call` 的同一套 mask 预检，不得绕过。
+`attr_mask` 与 `method_mask` 让“不支持”变成显式事实。缺属性或方法返回 DAR=5（对象接口类不符合），缺 OI 返回 DAR=4（对象未定义），按表实例不存在返回 DAR=6（对象不存在），不静默成功。门面的 `get_attr/set_attr/action` 必须走 `dcu_698_read/write/call` 的同一套 mask 预检，不得绕过。
 
 ### 4.2 处理器签名
 
@@ -231,8 +231,12 @@ int (*accept_axdr)(void *ctx, uint32_t oad, const uint8_t *axdr, size_t len);
 | 硬件故障 | 1 |
 | 暂时失效，例如目标表离线 | 2 |
 | 读写被拒绝，例如权限不足或闭锁 | 3 |
-| 对象未定义，例如 OI 不在对象表 | 5 |
-| 类型不匹配或参数错误 | 5，并记录具体原因到日志 |
+| 对象未定义，例如 OI 不在对象表 | 4 |
+| 对象接口类不符合，例如属性或方法未实现 | 5 |
+| 对象不存在，例如按表实例不存在 | 6 |
+| 类型不匹配 | 7，并记录具体原因到日志 |
+| 越界 | 8 |
+| 密码错或未授权 | 15 |
 | 资源不足，例如记录表满 | 2 |
 
 错误不静默。北向出错时回明确的 DAR，主站才不会只看到超时。
