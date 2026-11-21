@@ -1,0 +1,21 @@
+commit 893f84b14a25eba6c1cb8970757fdcb81ed563c0
+Author: 800900 <992878191@qq.com>
+Date:   Sat Nov 21 16:05:17 2026 +0800
+
+    fix(DCU-D0-03): line-buffer DCU stdout and generalize the product guard
+    
+    Co-Authored-By: Claude Code <noreply@anthropic.com>
+
+ ci/baseline/composition_root_budget.txt            |  7 ++++---
+ ci/scripts/check_iems_stdout_line_buffered.py      | 22 +++++++++++++++-------
+ cmd/app-host/main.c                                |  1 +
+ cmd/dcu/main.c                                     |  2 +-
+ cmd/edge_mcp_server/main.c                         |  1 +
+ cmd/edgeos-launcher/main.c                         |  1 +
+ cmd/nexus_lab/main.c                               |  1 +
+ cmd/smart_box/main.c                               |  2 ++
+ .../acceptance/dcu/dcu_product.py                  |  3 +++
+ .../bad_iems_stdout_line_buffer/cmd/dcu/main.c     |  6 ++++++
+ .../acceptance/dcu/dcu_product.py                  |  3 +++
+ .../good_iems_stdout_line_buffer/cmd/dcu/main.c    |  6 ++++++
+ 12 files changed, 44 insertions(+), 11 deletions(-)

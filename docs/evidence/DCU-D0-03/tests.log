@@ -1,0 +1,41 @@
+=== commit (pre-commit worktree) ===
+d0eb1f43 merge: DCU-D0-02 gate demo heartbeat behavior behind DCU_DEMO_MODE
+
+=== build: cmake --build build -j8 ===
+[9/12] Linking C executable cmd/edge_mcp_server/edge-mcp-server
+[10/12] Linking C executable cmd/nexus_lab/nexus_lab
+[11/12] Linking C executable products/smart_box/bin/smart_box
+[12/12] Linking C executable products/dcu/bin/dcu
+warnings: 0
+
+=== guard live: --root . ===
+exit=0
+
+=== guard good fixture ===
+exit=0
+
+=== guard bad fixture ===
+❌ [STDOUT_LINE_BUFFERED] cmd/dcu/main.c 缺少 setvbuf(stdout, NULL, _IOLBF, 0)
+❌ [STDOUT_LINE_BUFFERED] cmd/iems/main.c 缺少 setvbuf(stdout, NULL, _IOLBF, 0)
+❌ [STDOUT_LINE_BUFFERED] acceptance/iems/iems_product.py 仍依赖 stdbuf，掩盖产品缓冲缺陷
+exit=1
+
+=== A/B: DCU forced back to _IONBF ===
+❌ [STDOUT_LINE_BUFFERED] cmd/dcu/main.c 缺少 setvbuf(stdout, NULL, _IOLBF, 0)
+red_exit=1
+=== A/B: restored _IOLBF ===
+green_exit=0
+
+=== run_guard_selftest.py --root . ===
+  ✅ [PASS] check_iems_stdout_line_buffered.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_iems_stdout_line_buffered.py (Refutation / Bad Fixture correctly caught and rejected)
+📊 Injection coverage: 6 caught / 2 known gap(s) of 8 probes
+  ✅ [LIVE_PASS] check_iems_stdout_line_buffered.py
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+exit=0
+
+=== ctest -R dcu ===
+
+100% tests passed, 0 tests failed out of 19
+
+Total Test time (real) =  16.02 sec
