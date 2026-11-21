@@ -787,7 +787,8 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-12 | 已合并 | `dcu/D1-12-axdr-port-adr` | `076e0e04` | `docs/evidence/DCU-D1-12/` | ADR-0013 已合并，状态 Proposed；14 个初始化点全为 designated，无位置初始化；架构签字待补 |
 | D1-13 | 已合并 | `dcu/D1-13-axdr-port` | `68f4de69` | `docs/evidence/DCU-D1-13/` | 合并提交 `68f4de69`；合并后 28/28、守卫、验收 2+4 全过；流式逐项编码，单缓冲复用，无 8×2048；`/no-comments` 删 23 行、DAR 字面量改常量 |
 | D1-14 | 已合并 | `dcu/D1-14-set` | `b5b95f62` | `docs/evidence/DCU-D1-14/` | 合并提交 `b5b95f62`；SET-Request、`accept_axdr` 写入、SET-Response DAR；拒绝非标量回落假成功；LONG64 无 UB；DENIED 3 与 CLASS_MISMATCH 5 分开；合并后告警、28/28、ASAN、守卫、验收全过 |
-| D1-15 | 进行中 | `dcu/D1-15a-record-codec` | `f78ac2fa` | `docs/evidence/DCU-D1-15a/` | 拆两半：D1-15a 先做 codec 层 GetRecord/RSD（Selector 0 与 2，其余明确拒绝）；驱动与端口接线随后 |
+| D1-15 | 部分合并 | `dcu/D1-15a-record-codec` | `87185420` | `docs/evidence/DCU-D1-15a/` | D1-15a codec 层已合并：GetRecord 解码、RSD [0]/[2]、RCSD、表74 流式响应、H.3.3 向量；驱动与端口接线见 D1-15b |
+| D1-15b | 未开始 | - | - | - | 驱动 GET [3] 分支、记录查询端口、分页；依赖 D1-15a |
 | D1-16 | 未开始 | - | - | - | - |
 | D1-17 | 未开始 | - | - | - | - |
 | D2 到 D5 | 阻塞 | - | - | - | 依赖 COM 组件，见 11.3 B6 |
@@ -822,6 +823,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | 2026-11-21 | D0-09 | 已合并 | `docs/evidence/DCU-D0-09/` | 合并提交 `6638ce23`；class_id 四处修正，F100 入目录，快照按处理器族；复核恢复了 2 条被过度删除的 why 注释 |
 | 2026-11-21 | D1-14 | 已合并 | `docs/evidence/DCU-D1-14/` | 合并提交 `b5b95f62`；SET 分支、`EDGE_SLAVE_SRC_DENIED`、codec 增加 BOOLEAN/LONG64/FLOAT 解码；复核退回三处：非标量回落、LONG64 UB、DAR 混用 |
 | 2026-11-21 | D1-10 | 已合并 | `docs/evidence/DCU-D1-10/` | 合并提交 `5a4fda20`；夹具随生成器 `--check` 一起校验；守卫自检临时根补 fixture；29/29 |
+| 2026-11-22 | D1-15a | 已合并 | `docs/evidence/DCU-D1-15a/` | 合并提交 `87185420`；H.3.3 响应逐字节复现；RSD [1]/[3..10] 明确返回不支持；29/29、0 skip、ASAN、守卫、验收通过 |
 
 ### 12.4 并行工作树
 
