@@ -28,7 +28,6 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def catalog_paths(root: Path) -> tuple[Path, Path, Path]:
-    """解析源与两份产物相对给定根的路径。相对路径由 CLI 的 --root 决定。"""
     return (
         root / "docs" / "698_parsed.md",
         root / "docs" / "design" / "DCU_698_OI_CATALOG.md",

@@ -455,7 +455,6 @@ def main():
                 print(msg)
                 failures.append(msg)
 
-    # ---- DCU 698 catalog gate: real docs copy, one line corrupted ----------
     # 目录门禁不能只用一把小夹具：生成器对 26 个类与 400 行以上有断言，小夹具
     # 走不到那段逻辑。所以复制真实的 docs 到临时目录，改坏目录里一行，要求拒收。
     print("\n" + "=" * 80)
