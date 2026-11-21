@@ -442,17 +442,19 @@ int dlt698_decode_data(const uint8_t *buf, uint16_t len, uint16_t *offset, dlt69
             return 0;
         }
 
-        case DLT698_TAG_DOUBLE_LONG:  // int32
+        case DLT698_TAG_DOUBLE_LONG: {  // int32
             if (*offset + 4 > len) return -1;
-            res->val.i32 = (int32_t)((buf[*offset] << 24) | (buf[*offset + 1] << 16) |
-                                     (buf[*offset + 2] << 8) | buf[*offset + 3]);
+            uint32_t x = (uint32_t)buf[*offset] << 24 | (uint32_t)buf[*offset + 1] << 16 |
+                         (uint32_t)buf[*offset + 2] << 8 | buf[*offset + 3];
+            memcpy(&res->val.i32, &x, sizeof(x));
             *offset += 4;
             return 0;
+        }
 
         case DLT698_TAG_DOUBLE_LONG_UNSIGNED:  // uint32
             if (*offset + 4 > len) return -1;
-            res->val.u32 = (uint32_t)((buf[*offset] << 24) | (buf[*offset + 1] << 16) |
-                                      (buf[*offset + 2] << 8) | buf[*offset + 3]);
+            res->val.u32 = (uint32_t)buf[*offset] << 24 | (uint32_t)buf[*offset + 1] << 16 |
+                           (uint32_t)buf[*offset + 2] << 8 | buf[*offset + 3];
             *offset += 4;
             return 0;
 
@@ -502,19 +504,23 @@ int dlt698_decode_data(const uint8_t *buf, uint16_t len, uint16_t *offset, dlt69
             res->val.u8 = buf[(*offset)++] ? 1 : 0;
             return 0;
 
-        case DLT698_TAG_LONG64:
+        case DLT698_TAG_LONG64: {
             if (*offset + 8 > len) return -1;
-            res->val.i64 = 0;
-            for (int i = 0; i < 8; i++) res->val.i64 = (res->val.i64 << 8) | buf[*offset + i];
+            uint64_t x = 0;
+            for (int i = 0; i < 8; i++) x = (x << 8) | buf[*offset + i];
+            memcpy(&res->val.i64, &x, sizeof(x));
             *offset += 8;
             return 0;
+        }
 
-        case DLT698_TAG_LONG64_UNSIGNED:
+        case DLT698_TAG_LONG64_UNSIGNED: {
             if (*offset + 8 > len) return -1;
-            res->val.u64 = 0;
-            for (int i = 0; i < 8; i++) res->val.u64 = (res->val.u64 << 8) | buf[*offset + i];
+            uint64_t x = 0;
+            for (int i = 0; i < 8; i++) x = (x << 8) | buf[*offset + i];
+            res->val.u64 = x;
             *offset += 8;
             return 0;
+        }
 
         case DLT698_TAG_FLOAT32: {
             if (*offset + 4 > len) return -1;

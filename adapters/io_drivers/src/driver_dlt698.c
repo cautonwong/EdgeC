@@ -268,42 +268,55 @@ static int _handle_set_request(const dlt698_addr_t *sa, uint8_t piid, const uint
         uint16_t off = 0;
         if (dlt698_decode_data(payload + 4, (uint16_t)(payload_len - 4), &off, &d) == 0) {
             double value = 0.0;
+            bool scalar = false;
             switch (d.tag) {
                 case DLT698_TAG_INTEGER:
                     value = (double)d.val.i8;
+                    scalar = true;
                     break;
                 case DLT698_TAG_UNSIGNED:
                     value = (double)d.val.u8;
+                    scalar = true;
                     break;
                 case DLT698_TAG_LONG:
                     value = (double)d.val.i16;
+                    scalar = true;
                     break;
                 case DLT698_TAG_LONG_UNSIGNED:
                     value = (double)d.val.u16;
+                    scalar = true;
                     break;
                 case DLT698_TAG_ENUM:
                     value = (double)d.val.u8;
+                    scalar = true;
                     break;
                 case DLT698_TAG_BOOLEAN:
                     value = (double)d.val.u8;
+                    scalar = true;
                     break;
                 case DLT698_TAG_DOUBLE_LONG:
                     value = (double)d.val.i32;
+                    scalar = true;
                     break;
                 case DLT698_TAG_DOUBLE_LONG_UNSIGNED:
                     value = (double)d.val.u32;
+                    scalar = true;
                     break;
                 case DLT698_TAG_LONG64:
                     value = (double)d.val.i64;
+                    scalar = true;
                     break;
                 case DLT698_TAG_LONG64_UNSIGNED:
                     value = (double)d.val.u64;
+                    scalar = true;
                     break;
                 case DLT698_TAG_FLOAT32:
                     value = (double)d.val.f32;
+                    scalar = true;
                     break;
                 case DLT698_TAG_FLOAT64:
                     value = d.val.f64;
+                    scalar = true;
                     break;
                 default:
                     break;
@@ -312,8 +325,10 @@ static int _handle_set_request(const dlt698_addr_t *sa, uint8_t piid, const uint
 
             if (src && src->accept_axdr) {
                 rc = src->accept_axdr(src_ctx, oad, payload + 4, off);
-            } else if (src && src->accept) {
+            } else if (src && src->accept && scalar) {
                 rc = src->accept(src_ctx, oad, value);
+            } else if (src && src->accept) {
+                rc = EDGE_SLAVE_SRC_TYPE_MISMATCH;
             } else {
                 rc = EDGE_SLAVE_SRC_NOT_FOUND;
             }

@@ -153,6 +153,9 @@ static void test_product_accept_set_paths(void **state) {
     assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x2000, 2), like_float, sizeof(like_float)),
                      EDGE_SLAVE_SRC_DENIED);
 
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_CHANNEL_CONFIG, 4), baud, sizeof(baud)),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+
     assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x9999, 2), baud, sizeof(baud)),
                      EDGE_SLAVE_SRC_NOT_FOUND);
 
@@ -573,11 +576,13 @@ static int set_accept(void *ctx, uint32_t oad, const uint8_t *axdr, size_t len) 
 static const edge_slave_source_ops_t k_set_src = {.accept_axdr = set_accept};
 
 static double g_scalar_value;
+static int g_scalar_calls;
 
 static int scalar_accept(void *ctx, uint32_t oad, double value) {
     (void)ctx;
     (void)oad;
     g_scalar_value = value;
+    g_scalar_calls++;
     return 0;
 }
 
@@ -677,10 +682,37 @@ static void test_set_scalar_fallback(void **state) {
     size_t frame_len = build_set(frame, MK_OAD(OI_CHANNEL_CONFIG, 2), value, sizeof(value), true);
 
     g_scalar_value = 0.0;
+    g_scalar_calls = 0;
     net_buf_pool_t *pool = NULL;
     net_buf_t *out = run_set(frame, frame_len, &k_scalar_accept_src, &pool);
     assert_int_equal(out->b.data[16], DLT698_DAR_SUCCESS);
     assert_float_equal((float)g_scalar_value, 2400.0f, 0.001f);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(pool);
+
+    const uint8_t neg[] = {0x14, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; /* long64 -1 */
+    frame_len = build_set(frame, MK_OAD(OI_CHANNEL_CONFIG, 2), neg, sizeof(neg), true);
+    out = run_set(frame, frame_len, &k_scalar_accept_src, &pool);
+    assert_int_equal(out->b.data[16], DLT698_DAR_SUCCESS);
+    assert_float_equal((float)g_scalar_value, -1.0f, 0.001f);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(pool);
+}
+
+static void test_set_scalar_fallback_rejects_structure(void **state) {
+    (void)state;
+    const uint8_t structure[] = {0x02, 0x01, 0x12, 0x00, 0x01};
+    uint8_t frame[128];
+    size_t frame_len =
+        build_set(frame, MK_OAD(OI_CHANNEL_CONFIG, 2), structure, sizeof(structure), true);
+
+    g_scalar_calls = 0;
+    net_buf_pool_t *pool = NULL;
+    net_buf_t *out = run_set(frame, frame_len, &k_scalar_accept_src, &pool);
+    assert_int_equal(out->b.data[16], DLT698_DAR_TYPE_MISMATCH);
+    assert_int_equal(g_scalar_calls, 0);
 
     net_buf_unref(out);
     net_buf_pool_destroy(pool);
@@ -702,6 +734,7 @@ int main(void) {
         cmocka_unit_test(test_set_response_dar_paths),
         cmocka_unit_test(test_set_missing_data_dar7),
         cmocka_unit_test(test_set_scalar_fallback),
+        cmocka_unit_test(test_set_scalar_fallback_rejects_structure),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

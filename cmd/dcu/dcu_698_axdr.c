@@ -195,7 +195,8 @@ int dcu_north_accept_axdr(void* ctx, uint32_t oad, const uint8_t* axdr, size_t l
     uint8_t attr_id = (uint8_t)((oad >> 8) & 0xFF);
     const dcu_698_object_t* obj = dcu_698_find(oi);
     if (!obj) return EDGE_SLAVE_SRC_NOT_FOUND;
-    if (!obj->write || !dcu_mask_test(obj->attr_mask, attr_id)) return EDGE_SLAVE_SRC_DENIED;
+    if (!dcu_mask_test(obj->attr_mask, attr_id)) return EDGE_SLAVE_SRC_CLASS_MISMATCH;
+    if (!obj->write) return EDGE_SLAVE_SRC_DENIED;
 
     write_kind_t kind;
     if (_write_kind_for(oi, attr_id, &kind) != 0) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
