@@ -43,6 +43,7 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 | `dcu/D0-08-asan-frame-lifetime` | D0-08 | merged `9e458af6` | ASAN 330/330, dlt698 6/6; post-merge main ASAN 6/6 |
 | `dcu/D1-10-catalog-consistency` | D1-10 | blocked on D0-09 | table/catalog classes disagree on F100/F200/3000/3005 |
 | `dcu/D0-09-class-ids` | D0-09 | active, edgec-dev-0 | fix four class_ids and the CJK-dropped F100 catalog row |
+| `dcu/D1-14-set` | D1-14 | active, dcu-dev | SET-Request, accept_axdr write, SET-Response DAR |
 | `dcu/D0-08-frame-len` | D0-08a | merged `438ed230` | explicit `uint16_t` bound; warning gate 0 new |
 
 ## Landing log
