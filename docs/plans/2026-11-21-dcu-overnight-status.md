@@ -43,7 +43,7 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 | `dcu/D0-08-asan-frame-lifetime` | D0-08 | merged `9e458af6` | ASAN 330/330, dlt698 6/6; post-merge main ASAN 6/6 |
 | `dcu/D1-10-catalog-consistency` | D1-10 | blocked on D0-09 | table/catalog classes disagree on F100/F200/3000/3005 |
 | `dcu/D0-09-class-ids` | D0-09 | merged `6638ce23` | four class_ids, F100 in catalog, snapshot by handler family; post-merge all gates green |
-| `dcu/D1-10-catalog-consistency` | D1-10 | active, edgec-dev-0 | strict table/catalog consistency on the corrected base |
+| `dcu/D1-10-catalog-consistency` | D1-10 | merged `5a4fda20` | generated fixture + strict table/catalog test; post-merge 29/29 |
 | `dcu/D1-05-resolve-table` | D1-05 | active, dcu-dev | one OAD→type source for scalar resolve and A-XDR |
 | `dcu/D1-14-set` | D1-14 | active, dcu-dev | SET-Request, accept_axdr write, SET-Response DAR |
 | `dcu/D0-08-frame-len` | D0-08a | merged `438ed230` | explicit `uint16_t` bound; warning gate 0 new |
@@ -73,6 +73,7 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 | 2026-11-21 | D1-10 | resumed | strict assertions on the corrected base; known gap: 3000/3005 masks still use Class 7 numbers |
 | 2026-11-21 | D1-14 | merged `b5b95f62` | SET path; review returned 3 fixes (non-scalar fallback, LONG64 UB, DENIED vs CLASS_MISMATCH); post-merge all gates green |
 | 2026-11-21 | D1-05 | dispatched | single OAD→type source; acceptance expands to 2001/2004/6012/5004 |
+| 2026-11-21 | D1-10 | merged `5a4fda20` | 514-OI fixture validated by --check; red/green on a deliberate F200 class change; post-merge 29/29 |
 | 2026-11-21 | D1-10 | blocked | table/catalog consistency cannot pass honestly until D0-09 lands; no exemption list |
 | 2026-11-21 | D0-05b | code verified, waiting | DAR mapping and GET-Normal DAR response good; needs ADR/design sync and rebase onto D0-08 |
 
