@@ -21,7 +21,10 @@ import { loadState, saveState } from './state.mjs';
 import { createHash as createHashForWs } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import yaml from 'js-yaml';
+import * as yamlModule from 'js-yaml';
+
+// js-yaml 5 是纯 ESM，没有 default 导出；4.x 是 CJS，有 default。
+const yaml = yamlModule.default ?? yamlModule;
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const WEB_ROOT = path.dirname(HERE);
