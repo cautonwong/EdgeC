@@ -92,3 +92,43 @@ classDiagram
 | **事件顺序记录** | Sequence of Events (SOE) | `dcu_soe_event_t` | Struct + Timestamp | 带有毫秒/微秒级时间标标的开关变位或告警历史记录 |
 | **国密安全单元** | ESAM Security Module | `edge_esam_driver_t` | APDU / ISO7816 | 国网标准化加密芯片，负责 SM2/3/4 APDU 认证与验签 |
 | **时段费率** | TOU Tariff | `dcu_tariff_engine_t` | DLT698 `0x4000` | 尖峰平谷不同时段的阶梯电价与计费模板 |
+
+---
+
+## 4. 当前实现与 698 覆盖状态
+
+本节只写与代码一致的事实，细节见所列文件与设计文档。计划与排期不在本文件维护。
+
+### 4.1 模块分组
+
+| 分组 | 文件 | 职责 |
+|---|---|---|
+| 组合根 | `cmd/dcu/main.c`、`dcu_node.c` | 装配、生命周期、聚合根 |
+| 采集 | `dcu_inventory.c`、`dcu_poller.c`、`dcu_driver_adapter.c`、`dcu_bus_adapter.c`、`dcu_bus_source.c` | 档案加载、轮询、驱动注入、总线 |
+| 存储 | `dcu_storage.c` | 最新值、冻结、事件、档案（SQLite） |
+| 698 北向 | `dcu_north_adapter.c`、`dcu_north_source.c`、`dcu_router.c`、`dcu_698_object_model.c`、`dcu_698_var.c` | 从站通道、对象表、类型化读取、云北向取数 |
+| 业务 | `dcu_topology_lineloss.c`、`dcu_topology_phase_id.c`、`dcu_outage_detector.c`、`dcu_soe_event_engine.c`、`dcu_event_monitor.c`、`dcu_load_control.c`、`dcu_peripheral_telecontrol.c` | 线损、拓扑、停电、SOE、负荷控制、四遥 |
+| 运维 | `dcu_heartbeat.c`、`dcu_app_daemon.c`、`dcu_discovery.c`、`dcu_security.c` | 心跳、守护、发现、安全 |
+
+### 4.2 698 北向覆盖
+
+从站在 `cmd/dcu/dcu_north_adapter.c:112` 装配，UDS 监听 `DCU_NORTH_SOCK`（缺省 `/tmp/dcu_north_slave.sock`）；云北向在同一文件的 `dcu_north_cloud_attach`。两者都在 `cmd/dcu/main.c:179-180` 接线。
+
+| 服务 | 状态 | 依据 |
+|---|---|---|
+| 帧校验（HCS 与 FCS） | 已实现 | `foundation/src/protocol/dlt698_codec.c` |
+| GET-Request-Normal | 已实现 | `adapters/io_drivers/src/driver_dlt698.c:295` |
+| GET-Request-NormalList | 已实现，逐项回 DAR | 同文件 `:261` |
+| ACTION | 驱动已实现；DCU 产品钩子对方法回失败，按 DAR=2 应答 | `:315`、`cmd/dcu/dcu_north_adapter.c:74` |
+| SET-Request | 未实现（D1-14） | 驱动无 SET 分支 |
+| GET-Record 与 RSD | 未实现（D1-15） | 无对应代码 |
+| REPORT.notification | 未实现（D1-16） | 无对应代码 |
+| Class 20 与 4400 应用连接 | 未实现（D1-17） | 无对应代码 |
+
+对象表在 `dcu_698_object_model.{h,c}`（17 个 OI），类型化读取在 `dcu_698_var.{h,c}`，从站 A-XDR 端口见 ADR `docs/adr/0013-698-slave-axdr-port.md`。
+
+### 4.3 设计文档
+
+- 北向现状与缺口：`docs/design/NORTHBOUND_ARCHITECTURE.md` 4.4 节
+- 对象模型与 A-XDR：`docs/design/DCU_698_OBJECT_MODEL.md`
+- 迁移与排期：`docs/plans/2026-11-21-dcu-698-production-plan.md`
