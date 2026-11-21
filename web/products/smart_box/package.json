@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "vue": "^3.5.46",
-    "pinia": "^2.1.7"
+    "pinia": "^4.1.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.11",
@@ -22,7 +22,7 @@
     "postcss": "^8.4.31"
   },
   "optionalDependencies": {
-    "@rollup/rollup-linux-arm64-gnu": "^4.6.0",
-    "@rollup/rollup-linux-x64-gnu": "^4.6.0"
+    "@rollup/rollup-linux-arm64-gnu": "^4.68.5",
+    "@rollup/rollup-linux-x64-gnu": "^4.68.5"
   }
 }

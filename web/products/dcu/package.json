@@ -9,11 +9,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "axios": "^1.4.0",
-    "js-yaml": "^4.1.0",
-    "pinia": "^2.1.0",
+    "axios": "^1.21.1",
+    "js-yaml": "^5.5.0",
+    "pinia": "^4.1.0",
     "vue": "^3.3.0",
-    "vue-router": "^4.2.0"
+    "vue-router": "^5.5.1"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^4.2.0",
@@ -24,7 +24,7 @@
     "vite": "^4.3.0"
   },
   "optionalDependencies": {
-    "@esbuild/linux-arm64": "0.18.20",
-    "@esbuild/linux-x64": "0.18.20"
+    "@esbuild/linux-arm64": "0.28.2",
+    "@esbuild/linux-x64": "0.28.2"
   }
 }
