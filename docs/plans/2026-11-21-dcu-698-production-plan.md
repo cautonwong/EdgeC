@@ -367,6 +367,7 @@ P1 分两段。P1A 是目录、对象模型与标量北向，23 人日，可立�
 | L5 运行时 | ASAN、UBSAN、TSAN、掉电、长稳、资源泄漏 | `./test.sh --asan`、`./test.sh --ubsan`、`TSAN_OPTIONS`、掉电夹具、24h 与 72h soak | 现场会崩或会漏 |
 | L6 性能 | 4096 表规模、P99、平均延迟、写放大 | `test_dcu_scale_benchmark`、`EDGE_PERF_GATE=1` | 现场抄读超时 |
 | L7 安全 | 未授权读写、重放、MAC 失败、Class 20 ACL、控制闭锁 | `test_dcu_698_security`、验收安全场景 | 主站或被攻击者可越权 |
+| L8 注释卫生 | 合入前跑 `/no-comments`（comment-sicko），删叙述性、复述代码、过期注释，保留非显然的 why 与标准规则 | `/no-comments`、`git diff --check` | 注释误导、历史噪声、过期符号 |
 
 验证规则只有一句。一个 PR 只有单元、运行时、验收三类证据都齐了才算验过。测试通过不是完成，证据可复现才是完成。
 
@@ -472,6 +473,7 @@ P1 分两段。P1A 是目录、对象模型与标量北向，23 人日，可立�
 9. 未授权读写、重放、MAC 失败、控制闭锁四类安全用例通过。
 10. 文档与代码一致，`README`、`CONTEXT.md`、`NORTHBOUND_ARCHITECTURE.md`、`PUBLIC_STRUCT_AUDIT.md` 已同步。
 11. 发布报告在 `docs/evidence/DCU-P6/summary.md`，含每条判据的命令与结果。
+12. 所有合入 PR 都有 `/no-comments` 记录，注释噪声与过期符号已清理。
 
 ## 8. 分阶段实施计划
 
@@ -608,7 +610,7 @@ issue 正文直接复制该任务行，再补四块：
 类覆盖：<Class 编号，或 none>
 文件：<本任务会改哪些文件>
 依赖：<任务号，或 none>
-完成定义：构建干净 + 目标测试绿 + 运行时证据 + 守卫通过
+完成定义：构建干净 + 目标测试绿 + 运行时证据 + 守卫通过 + `/no-comments` 通过
 ```
 
 ### 9.2 分支、提交与 PR
@@ -641,6 +643,7 @@ docs/evidence/DCU-<ID>/summary.md     # 改了什么、为什么、完成定义�
 docs/evidence/DCU-<ID>/tests.log      # 构建与目标测试输出
 docs/evidence/DCU-<ID>/runtime.log    # 验收或模拟主站抓包
 docs/evidence/DCU-<ID>/diffstat.txt   # git show --stat
+docs/evidence/DCU-<ID>/comments.md    # /no-comments 审查结果：删除、保留、HOLD
 ```
 
 证据要求按任务类型：
@@ -667,7 +670,7 @@ docs/evidence/DCU-<ID>/diffstat.txt   # git show --stat
 1. 调度器读第 8 节，找 `ready` 且依赖已合并的任务。
 2. 按 9.2 开工，先跑一次基线测试，记录起点 SHA。
 3. 完成后按 9.4 打包证据，开 PR。
-4. 独立评审 + 目标分支重跑 `run_guard_selftest.py` 与 `./test.sh`。
+4. 独立评审 + `/no-comments`（comment-sicko）注释审查 + 目标分支重跑 `run_guard_selftest.py` 与 `./test.sh`。
 5. 合并后重跑守卫。单批通过不等于合并后通过。
 6. 每个阶段结束时按第 7.6 节的阶段判据检查，未过不启动下一阶段的新任务。
 
