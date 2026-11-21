@@ -777,7 +777,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-02 | 待验收 | `main` | `8d8089bf` | `docs/design/DCU_698_OBJECT_MODEL.md` | 设计文档已提交，待架构评审 |
 | D1-03 | 已合并 | `dcu/D1-03-object-model` | `81730385` | `docs/evidence/DCU-D1-03/` | router 664→76 行；256 位 mask，门面走预检；object_model 709 行待 D1-04 拆；合并后 26/26 测试、守卫、验收全过 |
 | D1-04 | 已合并 | `dcu/D1-04-var-handlers` | `100f9a41` | `docs/evidence/DCU-D1-04/` | 27/27 目标测试、守卫、验收 2+4 通过；200A/200F 与 attr2/attr4 类型对齐；`/no-comments` 删 5 条并修 `IC_VARIABLE` 过期示例；704 行待后续拆 |
-| D1-05 | 未开始 | - | - | - | 依赖 D1-13 已合并，可派 |
+| D1-05 | 进行中 | `dcu/D1-05-resolve-table` | `5c7f5851` | `docs/evidence/DCU-D1-05/` | dcu-dev 执行中；OAD→类型单一来源，标量与 A-XDR 共用；验收扩到 2001/2004/6012/5004 |
 | D1-06 | 阻塞 | - | - | - | 依赖 D1-13、D1-14 |
 | D1-07 | 阻塞 | - | - | - | 依赖 D1-13、D1-15 |
 | D1-08 | 未开始 | - | - | - | - |
@@ -786,7 +786,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-11 | 阻塞 | - | - | - | 依赖 D1-06、D1-07 |
 | D1-12 | 已合并 | `dcu/D1-12-axdr-port-adr` | `076e0e04` | `docs/evidence/DCU-D1-12/` | ADR-0013 已合并，状态 Proposed；14 个初始化点全为 designated，无位置初始化；架构签字待补 |
 | D1-13 | 已合并 | `dcu/D1-13-axdr-port` | `68f4de69` | `docs/evidence/DCU-D1-13/` | 合并提交 `68f4de69`；合并后 28/28、守卫、验收 2+4 全过；流式逐项编码，单缓冲复用，无 8×2048；`/no-comments` 删 23 行、DAR 字面量改常量 |
-| D1-14 | 进行中 | `dcu/D1-14-set` | `42b076a1` | `docs/evidence/DCU-D1-14/` | dcu-dev 执行中；SET-Request 分支、`accept_axdr` 写入、SET-Response DAR，越权回 3 |
+| D1-14 | 已合并 | `dcu/D1-14-set` | `b5b95f62` | `docs/evidence/DCU-D1-14/` | 合并提交 `b5b95f62`；SET-Request、`accept_axdr` 写入、SET-Response DAR；拒绝非标量回落假成功；LONG64 无 UB；DENIED 3 与 CLASS_MISMATCH 5 分开；合并后告警、28/28、ASAN、守卫、验收全过 |
 | D1-15 | 未开始 | - | - | - | - |
 | D1-16 | 未开始 | - | - | - | - |
 | D1-17 | 未开始 | - | - | - | - |
@@ -820,6 +820,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | 2026-11-21 | D0-08a | 已合并 | `docs/evidence/DCU-D0-08/` | 合并提交 `438ed230`；clean build 的 `-Wconversion` 归零；`check_build_warnings.py` 0 new |
 | 2026-11-21 | D0-05b | 已合并 | `docs/evidence/DCU-D0-05b/` | 合并提交 `731b1331`；28/28、ASAN 6/6、告警门禁、守卫、验收 2+4；ADR-0013 2.1 记录失败码与 DAR 映射 |
 | 2026-11-21 | D0-09 | 已合并 | `docs/evidence/DCU-D0-09/` | 合并提交 `6638ce23`；class_id 四处修正，F100 入目录，快照按处理器族；复核恢复了 2 条被过度删除的 why 注释 |
+| 2026-11-21 | D1-14 | 已合并 | `docs/evidence/DCU-D1-14/` | 合并提交 `b5b95f62`；SET 分支、`EDGE_SLAVE_SRC_DENIED`、codec 增加 BOOLEAN/LONG64/FLOAT 解码；复核退回三处：非标量回落、LONG64 UB、DAR 混用 |
 
 ### 12.4 并行工作树
 

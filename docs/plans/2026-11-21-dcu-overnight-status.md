@@ -44,6 +44,7 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 | `dcu/D1-10-catalog-consistency` | D1-10 | blocked on D0-09 | table/catalog classes disagree on F100/F200/3000/3005 |
 | `dcu/D0-09-class-ids` | D0-09 | merged `6638ce23` | four class_ids, F100 in catalog, snapshot by handler family; post-merge all gates green |
 | `dcu/D1-10-catalog-consistency` | D1-10 | active, edgec-dev-0 | strict table/catalog consistency on the corrected base |
+| `dcu/D1-05-resolve-table` | D1-05 | active, dcu-dev | one OAD→type source for scalar resolve and A-XDR |
 | `dcu/D1-14-set` | D1-14 | active, dcu-dev | SET-Request, accept_axdr write, SET-Response DAR |
 | `dcu/D0-08-frame-len` | D0-08a | merged `438ed230` | explicit `uint16_t` bound; warning gate 0 new |
 
@@ -70,6 +71,8 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 | 2026-11-21 | D0-09 | dispatched | D1-10 found real class_id drift: F100 10->21, F200 10->22, 3000/3005 7->24; catalog drops F100 because its name is ASCII |
 | 2026-11-21 | D0-09 | merged `6638ce23` | catalog 513->514 with F100; comment review restored 2 over-deleted why notes; post-merge build/warning/catalog/28/28/guards/acceptance green |
 | 2026-11-21 | D1-10 | resumed | strict assertions on the corrected base; known gap: 3000/3005 masks still use Class 7 numbers |
+| 2026-11-21 | D1-14 | merged `b5b95f62` | SET path; review returned 3 fixes (non-scalar fallback, LONG64 UB, DENIED vs CLASS_MISMATCH); post-merge all gates green |
+| 2026-11-21 | D1-05 | dispatched | single OAD→type source; acceptance expands to 2001/2004/6012/5004 |
 | 2026-11-21 | D1-10 | blocked | table/catalog consistency cannot pass honestly until D0-09 lands; no exemption list |
 | 2026-11-21 | D0-05b | code verified, waiting | DAR mapping and GET-Normal DAR response good; needs ADR/design sync and rebase onto D0-08 |
 
