@@ -6,7 +6,10 @@ import { readFileSync, existsSync, statSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import yaml from 'js-yaml';
+import * as yamlModule from 'js-yaml';
+
+// js-yaml 5 是纯 ESM，没有 default 导出；4.x 是 CJS，有 default。
+const yaml = yamlModule.default ?? yamlModule;
 
 export const TOOLING_DIR = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 export const WEB_ROOT = path.dirname(TOOLING_DIR);
