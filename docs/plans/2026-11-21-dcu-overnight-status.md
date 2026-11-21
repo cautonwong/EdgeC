@@ -35,7 +35,8 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 | `dcu/D0-05a-hcs` | D0-05a | merged `ff845789` | done |
 | `dcu/D1-13-axdr-port` | D1-13 | verified after fix | 28/28, guards, acceptance passed; streaming per-item A-XDR, `EDGE_SLAVE_AXDR_MAX`; `/no-comments` running |
 | `dcu/D0-06-docs` | D0-06 | merged `50feb55e` | done |
-| `dcu/D0-01-readme` | D0-01 | active, edgec-dev-0 | rewrite DCU README against the current architecture |
+| `dcu/D0-01-readme` | D0-01 | merged `ea775f3f` | done |
+| `dcu/D0-07-catalog-ci` | D0-07 | active, edgec-dev-0 | gate the 698 catalog `--check` in CI and the guard selftest |
 | `dcu/D0-05b-dar` | D0-05b | queued after D1-13 | align DAR 4/5/6/7 in driver/adapter |
 
 ## Landing log
