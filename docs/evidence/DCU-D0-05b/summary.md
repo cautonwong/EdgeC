@@ -15,7 +15,9 @@
 | `cmd/dcu/dcu_698_axdr.c` | 取数失败返回具体原因：对象不存在 / 类型宽度不匹配；`accept_axdr` 返回暂时失效。 |
 | `tests/test_dcu_698_axdr.c` | 每个 DAR 路径一条字节级断言；缓冲不足改为断言 DAR 应答。 |
 | `tests/test_dlt698_conformance_suite.c` | 新增 GET-Response-Normal DAR 字节向量。 |
-| `cmd/dcu/README.md` | 删除“GET Normal 静默超时”的过期说明，改为按 DAR 应答。 |
+| `cmd/dcu/README.md` | 删除“GET Normal 静默超时”的过期说明；GET-Normal 行改为“失败回 DAR”，并更新行号。 |
+| `docs/adr/0013-698-slave-axdr-port.md` | 新增 2.1 节：`EDGE_SLAVE_SRC_*` 与 DAR 的映射、旧 -1 兼容、其它协议仍按非 0 失败。状态仍为 Proposed。 |
+| `docs/design/DCU_698_OBJECT_MODEL.md` §5.3 | 补一行指向 `edge_slave_src_rc_t` 与旧 -1 按 6 处理。 |
 
 未改对象表内容，未新增 OI。
 

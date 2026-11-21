@@ -35,9 +35,9 @@ DCU 是台区侧配电终端，向北对配网主站讲 DL/T 698.45（服务端�
 | 项 | 状态 | 依据 |
 | --- | --- | --- |
 | 帧校验（HCS 与 FCS） | 已实现 | `foundation/src/protocol/dlt698_codec.c:230-236` |
-| GET-Request-Normal | 已实现 | `adapters/io_drivers/src/driver_dlt698.c:295` |
-| GET-Request-NormalList | 已实现，逐项回 DAR | 同文件 `:261` |
-| ACTION | 驱动分支已实现；产品钩子回失败，按 DAR=2 应答 | `:315`、`cmd/dcu/dcu_north_adapter.c:74` |
+| GET-Request-Normal | 已实现，失败回 DAR | `adapters/io_drivers/src/driver_dlt698.c:346` |
+| GET-Request-NormalList | 已实现，逐项回 DAR | 同文件 `:295` |
+| ACTION | 驱动分支已实现；产品钩子回失败，按 DAR=2 应答 | `:384`、`cmd/dcu/dcu_north_adapter.c:75` |
 | SET-Request | 未实现 | D1-14 |
 | GET-Record 与 RSD | 未实现 | D1-15 |
 | REPORT.notification | 未实现 | D1-16 |
