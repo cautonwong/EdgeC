@@ -1,8 +1,3 @@
-/**
- * @file dcu_698_object_model.c
- * @brief DCU 698 静态对象表与类处理器
- */
-
 #include "dcu_698_object_model.h"
 
 #include <stdint.h>
@@ -13,7 +8,6 @@
 #include "dcu_698_var.h"
 #include "edge_log.h"
 
-/* 256 位位图的静态初始化：按字节下标与位号填，避免手算十六进制。 */
 #define BIT(id) ((uint8_t)(1U << ((id)&7)))
 #define BYTE(id) ((id) >> 3)
 
@@ -181,7 +175,6 @@ static int _oi_6000_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t e
     if (!inv || !out_val) return -1;
 
     if (attr_id == 2) {
-        // 档案只在 uv 循环线程上被读写，这里不需要锁（见 dcu_inventory.h 的线程所有权说明）
         *(uint16_t *)out_val = inv->count;
         return 0;
     }
@@ -200,10 +193,10 @@ static int _oi_6000_execute(const dcu_698_object_t *obj, uint8_t method_id, cons
         return ret;
     }
     if (method_id == 2) {
-        return -4;  // 方法存在但拒绝执行：不得返回 0 让主站误以为已写入
+        return -4;
     }
     if (method_id == 3) {
-        return -4;  // 方法存在但拒绝执行：不得返回 0 让主站误以为已更新
+        return -4;
     }
     if (method_id == 4) {
         const char *addr = (const char *)param;
@@ -214,12 +207,11 @@ static int _oi_6000_execute(const dcu_698_object_t *obj, uint8_t method_id, cons
     if (method_id == 5) {
         memset(inv->meters, 0, sizeof(inv->meters));
         inv->count = 0;
-        inv->revision++;  // 清档也是一次变更：poller 靠它退休表级状态
+        inv->revision++;
         if (result) *(int *)result = 0;
         return 0;
     }
 
-    // [Legacy/Testing mapping] 保留原来的 127/128 映射以免中断外部测试用例
     if (method_id == 127) {
         int ret = dcu_inventory_add(inv, (const char *)param, "DLT698", 9600, 1);
         if (result) *(int *)result = ret;
@@ -257,7 +249,7 @@ static int _oi_6012_execute(const dcu_698_object_t *obj, uint8_t method_id, cons
     if (method_id == 1) {
         const dcu_scheme_t *s = (const dcu_scheme_t *)param;
         if (s->type != SCHEME_TYPE_NORMAL)
-            return -1;  // Only support routing NORMAL schemes through this legacy path
+            return -1;
         int ret = dcu_poller_add_scheme(poller, s->scheme_id, s->data.normal.capture_mode,
                                         s->data.normal.csd_list, s->data.normal.csd_count);
         if (result) *(int *)result = ret;
@@ -283,8 +275,6 @@ static int _oi_5004_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t e
     return -2;
 }
 
-/* Class 9 方法 3/4/5/7/8 已登记进 mask，但实现随 D1-15 的 GetRecord/RSD 落地。
- * 现在明确回 -4（存在但拒绝执行），不得返回 0 让主站误以为冻结已执行。 */
 static int _oi_5004_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
                             void *result) {
     (void)obj;
@@ -310,8 +300,6 @@ static int _oi_8000_execute(const dcu_698_object_t *obj, uint8_t method_id, cons
         return -3;
     }
 
-    /* 领域动作必须过聚合根：在线状态、遥控白名单、五防闭锁都在那边。
-     * 路由直连总线会把"南向控制严禁穿透"破掉（架构原则 3）。 */
     if (!s_control_sink) {
         LOG_ERROR(LOG_CAT_CORE, "OI 8000: 控制下沉端口未注入，拒绝执行 dev=%s", m->address);
         return -4;
@@ -627,7 +615,6 @@ int dcu_698_snapshot(uint16_t oi, uint32_t device_id, void *out_msgs, int max_co
             }
         }
     } else if (obj->class_id == IC_RECORD) {
-        // 目前先返回空，后续对接 Attr 3 结构体数组
     }
 
     return captured;

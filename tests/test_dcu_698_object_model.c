@@ -1,8 +1,3 @@
-/**
- * @file test_dcu_698_object_model.c
- * @brief 静态 698 对象表：查表、256 位 mask 与分发。
- */
-
 #include <cmocka.h>
 #include <setjmp.h>
 #include <stdarg.h>
@@ -35,7 +30,6 @@ static const uint8_t k_method_127[] = {127};
 static const uint8_t k_method_6000[] = {1, 2, 3, 4, 5, 127, 128};
 static const uint8_t k_method_5004[] = {3, 4, 5, 7, 8};
 
-/* 12 个 OI 及其 mask 必须与处理器实现保持一致。 */
 static const expected_object_t k_expected[] = {
     {OI_METER_ARCHIVE, IC_ACQUISITION, DCU_OBJ_SHARED, k_attr_2, 1, k_method_6000, 7},
     {OI_TASK_SCHEDULER, IC_ACQUISITION, DCU_OBJ_SHARED, k_attr_2, 1, k_method_1, 1},
@@ -95,7 +89,6 @@ static void test_all_ois_resolvable_with_class_and_mask(void **state) {
         assert_mask_matches(obj->attr_mask, k_expected[i].attrs, k_expected[i].attr_count);
         assert_mask_matches(obj->method_mask, k_expected[i].methods, k_expected[i].method_count);
 
-        /* 宽 id 的边界：属性 18 与不存在的属性 200 都不得被误置位。 */
         assert_false(dcu_mask_test(obj->attr_mask, 18));
         assert_false(dcu_mask_test(obj->attr_mask, 200));
     }
@@ -132,7 +125,6 @@ static void test_mask_rejects_missing_attr_and_method(void **state) {
     assert_int_equal(dcu_698_read(MK_OAD(OI_METER_ARCHIVE, 3), &(uint16_t){0}), -1);
     assert_int_equal(dcu_698_read(MK_OAD(OI_METER_ARCHIVE, 18), &(uint16_t){0}), -1);
 
-    /* 6000 方法 6 不存在 -> -1；方法 2 存在但拒绝执行 -> 处理器的 -4。 */
     assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 6), NULL, NULL), -1);
     assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 2), NULL, NULL), -4);
 
@@ -166,7 +158,6 @@ static void test_legacy_methods_127_and_128_dispatch(void **state) {
     assert_int_equal(dcu_698_read(MK_OAD(OI_METER_ARCHIVE, 2), &count), 0);
     assert_int_equal(count, 0);
 
-    /* 129 未实现，不得因“127/128 可用”被误置位。 */
     assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 129), NULL, NULL), -1);
 
     dcu_poller_destroy(&poller);
@@ -206,7 +197,6 @@ static void test_facade_and_table_api_agree(void **state) {
     dcu_poller_t poller;
     init_model(&inv, &poller);
 
-    /* 同一 OMD：门面与表驱动 API 必须给同一个返回码。 */
     assert_int_equal(dcu_router_action(MK_OMD(OI_METER_ARCHIVE, 2), NULL, NULL),
                      dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 2), NULL, NULL));
     assert_int_equal(dcu_router_action(MK_OMD(OI_METER_ARCHIVE, 200), NULL, NULL),

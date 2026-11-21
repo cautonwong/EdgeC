@@ -1,0 +1,55 @@
+== environment ==
+branch: dcu/D0-09-class-ids
+base: 438ed230 (D0-08a merged)
+commit before review: fcb10511
+worktree: /tmp/dcu-baseline-worktree
+gcc: gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0
+
+== clean build after comment review: cmake .. -GNinja -DCMAKE_BUILD_TYPE=Release; cmake --build . -j8 ==
+build_exit=0
+compiler_errors=0 warnings=0
+
+== check_build_warnings.py --log build-warn/build.log --root . ==
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+warn_exit=0
+
+== ctest -R 'dcu|dlt698' --output-on-failure ==
+100% tests passed, 0 tests failed out of 28
+Total Test time (real) =  17.40 sec
+      Start  17: test_dcu_router
+ 8/28 Test  #17: test_dcu_router ..................   Passed    0.11 sec
+      Start  19: test_dcu_advanced_modules
+10/28 Test  #19: test_dcu_advanced_modules ........   Passed    0.10 sec
+      Start  24: test_dcu_698_object_model
+15/28 Test  #24: test_dcu_698_object_model ........   Passed    0.03 sec
+ctest_exit=0
+
+== ci/scripts/check_dcu_698_catalog.py --root . ==
+[DCU_698_CATALOG] catalog matches docs/698_parsed.md
+catalog_exit=0
+
+== ci/scripts/run_guard_selftest.py --root . ==
+  ✅ [LIVE_PASS] check_iems_stdout_line_buffered.py
+
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+guards_exit=0
+
+== ./test.sh --omnis dcu (TESTPLATFORM=/workspaces/test-platform) ==
+任务 dcu-acceptance(产品 dcu)·设备清单 /tmp/dcu-baseline-worktree/acceptance/dcu/configs/devices.yaml · 筛选 tag:验收 · 模拟从站 []
+2 passed in 1.09s
+任务 dcu-acceptance 结束,退出码 0
+任务 dcu-northbound(产品 dcu)·设备清单 /tmp/dcu-baseline-worktree/acceptance/dcu/configs/devices_north.yaml · 筛选 tag:北向 · 模拟从站 []
+4 passed in 0.13s
+任务 dcu-northbound 结束,退出码 0
+全部合格:2 个验收任务
+✨ 验收通过
+acceptance_exit=0
+
+== git diff --check ==
+diff_check_exit=0
+
+== catalog diff vs 438ed230 ==
+ docs/design/DCU_698_OI_CATALOG.json | 7 +++++++
+ docs/design/DCU_698_OI_CATALOG.md   | 5 +++--
+ 2 files changed, 10 insertions(+), 2 deletions(-)
+only F100 is added (parsed_class 21, source_line 9082); conflicts stay 79; no row added or removed.
