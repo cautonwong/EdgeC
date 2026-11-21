@@ -159,9 +159,9 @@ grep -ln 'req_slave_exchange' modules/edge_io/src/*.c
 # 族 B：哪些产品真的接了从站
 grep -rn 'setup_slave' --include=*.c cmd/
 
-# DCU：698 服务端有没有接（预期：无输出）
-grep -rn 'NORTHBOUND' cmd/dcu/manifest.yaml
-grep -n 'setup_slave' cmd/dcu/main.c
+# DCU：698 从站接在哪（预期：dcu_north_adapter.c）
+grep -rn 'setup_slave' --include=*.c cmd/dcu/
+grep -n 'dcu_north_slave_attach\|dcu_north_cloud_attach' cmd/dcu/main.c
 ```
 
 ### 4.2 族 A 缺口
@@ -183,9 +183,9 @@ grep -n 'setup_slave' cmd/dcu/main.c
 
 | 编号 | 问题 | 证据 | 状态 |
 |---|---|---|---|
-| B-P1-1 | 8 个驱动有从站能力，只有 IEMS 1 个接了线 | `setup_slave` 唯一调用点 `iems_app.c:535` | ❌ N3 |
+| B-P1-1 | 8 个驱动有从站能力；IEMS 与 DCU 已接线，其余产品未接 | `cmd/iems/iems_app.c:276`、`cmd/iems/iems_north_iec104.c:110`、`cmd/dcu/dcu_north_adapter.c:116` | ⚠️ N3 |
 | B-P1-2 | OPC UA 是死代码（`opcua_engine_create` 无人调用） | `opcua_engine.c:68` | ❌ N5 |
-| B-P1-3 | DCU 无任何北向从站（而 698 正是它的北向） | 见 §4.4 | ❌ N3 |
+| B-P1-3 | DCU 的 698 从站已接线（曾经无从站） | `cmd/dcu/dcu_north_adapter.c:112`，见 §4.4 | ✅ N3 |
 | B-P2-1 | `enumerate` 只有部分产品实现 | — | ❌ N3 |
 
 ### 4.4 DCU 北向 = DL/T 698.45：需求 vs 现状
@@ -206,20 +206,40 @@ prd 划分的 7 个模块：对象字典路由 / 通信与安全（F100 ESAM、F
 F200-209）/ 实时数据 / 采集调度（6000·6012·6014）/ 冻结（5000-5011）/
 异常事件（3xxx、class 14）/ 负荷控制（8000·8001·81xx）。
 
-**现状**：
+**现状**（按代码核对）：
 
-| 需求项 | 代码现状 | 结论 |
+北向有两条独立通道，都在 `cmd/dcu/main.c:179-180` 装配：
+
+| 通道 | 实现 | 说明 |
 |---|---|---|
-| 对象字典 + 路由 | `dcu_router.c` 有 9 个 OI，`get_attr`/`set_attr`/`action` 齐备 | ✅ 模型在 |
-| 上述入口的调用方 | 只有测试与 `main.c` 本地 demo | ❌ 产品路径无调用 |
-| 698 服务端接总线 | `manifest.yaml` 0 条 NORTHBOUND；`main.c` 只 `setup_master` | ❌ 没接 |
-| 从站取数端口 | `dcu_driver_adapter.c` 无 `edge_slave_source_ops_t` | ❌ 没实现 |
-| `GET` | `dlt698_req_slave_exchange` 只处理单 OAD，固定回 2 字节 | ⚠️ 半成品 |
-| `SET` / `ACTION` / `GET-Record` / `REPORT` / 4400 | 无 | ❌ |
-| OI 8000 遥控 | `_oi_8000_execute` 明确 `return -4` | ❌ 控制断链 |
-| 异常应答 | 出错静默，主站只能超时 | ❌ |
+| 698 从站（主站召测与遥控） | `cmd/dcu/dcu_north_adapter.c:112` `dcu_north_slave_attach` | UDS 监听 `DCU_NORTH_SOCK`，缺省 `/tmp/dcu_north_slave.sock`；`bus_orchestrator_setup_slave(orch, DCU_NORTH_BUS, "DLT698", 1)` |
+| MQTT 云北向（族 A） | `cmd/dcu/dcu_north_adapter.c:157` `dcu_north_cloud_attach` | `northbound_mgr` 加 `dcu_north_source.c` 的取数端口 |
 
-**一句话**：对象模型齐了、服务端只做了 GET 一半、通道没配、控制断链。
+698 服务覆盖：
+
+| 服务 | 现状 | 依据 |
+|---|---|---|
+| 帧校验 | HCS 与 FCS 都校验 | `foundation/src/protocol/dlt698_codec.c:230-236`（D0-05a） |
+| GET-Request-Normal | 已实现：按 OAD 取数并编码应答 | `adapters/io_drivers/src/driver_dlt698.c:295` |
+| GET-Request-NormalList | 已实现：逐项回结果，读不到回 DAR=6，编码失败回 DAR=7 | 同文件 `:261` |
+| ACTION | 驱动分支已实现；产品钩子对全部方法返回失败，驱动按 DAR=2（暂时失效）应答 | `:315`；`cmd/dcu/dcu_north_adapter.c:74` |
+| SET-Request | 未实现 | 驱动无 SET 分支（D1-14） |
+| GET-Record 与 RSD | 未实现 | D1-15 |
+| REPORT.notification | 未实现 | D1-16 |
+| Class 20 与 4400 应用连接 | 未实现 | D1-17 |
+
+对象与类型：
+
+- 对象表在 `cmd/dcu/dcu_698_object_model.{h,c}`，17 个 OI；`cmd/dcu/dcu_router.c` 只剩查表门面（`dcu_router_get_attr` 转 `dcu_698_read`）（D1-03）。
+- 变量类（Class 1/3/4/6）的类型化读取在 `cmd/dcu/dcu_698_var.{h,c}`，首批支持 OI 0010、0020、2000、2001、2004、200A、200F（D1-04）。
+- 从站的 A-XDR 端口定义在 `docs/adr/0013-698-slave-axdr-port.md`（D1-12/D1-13）。
+
+已知限制：
+
+- ACTION 的 OI 8000 方法 129/130 参数是 `array structure{继电器 OAD, 告警延时, 限电时间, 自动合闸}`（标准表 A.9），产品钩子未解参，主站收到 DAR=2 而不是执行结果（`dcu_north_adapter.c:74`）。
+- GET-Request-Normal 读不到对象时静默不应答，主站侧表现为超时（`driver_dlt698.c:303`）。NormalList 已经按项回 DAR，两条路径行为不一致。
+
+**一句话**：698 从站已接线，GET 两类请求可用且帧校验完整；SET、Record、REPORT、应用连接与遥控参数仍是缺口，见 D1-14 到 D1-17。
 
 ### 4.5 698 报文：已按标准原文校正（曾存疑）
 
