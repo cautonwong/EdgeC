@@ -1,10 +1,10 @@
 # DCU-D0-05b 证据包：DAR 对齐 DL/T 698.45 6.3.3.11
 
 - 分支：`dcu/D0-05b-dar`
-- 起点：`15a51c80`（main），rebase 到 `9e458af6`（D0-08 merge）
+- 起点：`15a51c80`（main），rebase 到 `f21e8c6a`（D0-08 follow-up）
 - 提交：`fix(DCU-D0-05b): align 698 DAR values with 6.3.3.11`
 - 性质：状态值修正 + 缺失应答路径，不改对象表。
-- Rebase：`tests/test_dlt698_conformance_suite.c` 冲突按 D0-08 的 `decode_frame_borrows` 解决；DAR 用例与字节向量保留，既有向量未改。
+- Rebase：先在 `9e458af6` 解决 `decode_frame_borrows` 调用形状，再落到带长度上界的 `f21e8c6a`；DAR 用例与字节向量保留，既有向量未改。
 
 ## 改了什么
 
@@ -49,7 +49,8 @@
 
 | 命令 | 结果 |
 | --- | --- |
-| `cmake --build build -j8` | exit 0；1 条 warning 在 D0-08 的 `decode_frame_borrows`（`size_t`→`uint16_t`），非本单代码 |
+| `cmake --build build -j8` | exit 0，0 warning |
+| `python3 ci/scripts/check_build_warnings.py --log <build.log> --root .` | No new violations |
 | `cd build && ctest --output-on-failure -R 'dcu\|dlt698'` | 28/28 通过 |
 | ASAN `ctest -R dlt698` | 6/6 通过 |
 | `./build/tests/test_dcu_698_axdr` | 10/10 通过 |
