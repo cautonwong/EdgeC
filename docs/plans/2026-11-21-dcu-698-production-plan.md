@@ -766,11 +766,11 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D0-04 | 已合并 | `dcu/D0-04-baseline` | `5c808baf` | `docs/evidence/DCU-P0/` | 合并提交 `5c808baf`；Release/UBSAN/验收/覆盖率通过；ASAN 发现测试帧生命周期缺陷（另立 D0-08）；覆盖率 `cmd` 依赖先跑 `app_platform_e2e`，复现顺序已记录 |
 | D0-05 | 已合并 | `dcu/D0-05-frame-vectors` | `0f45d0e2` | `docs/evidence/DCU-D0-05/` | 26/26 目标测试、套件 21 例 19 过 2 skip；`/no-comments` 删 26 行；DAR 向量改 6；HCS 归 D0-05a，DAR 代码对齐归 D0-05b |
 | D0-05a | 已合并 | `dcu/D0-05a-hcs` | `ff845789` | `docs/evidence/DCU-D0-05a/` | 27/27、套件 20 过 1 skip、守卫、验收通过；HCS 5.1.5 已校验 |
-| D0-05b | 进行中 | `dcu/D0-05b-dar` | `15a51c80` | `/tmp/dcu-dev-worktree/docs/evidence/DCU-D0-05b/` | dcu-dev 执行中；对齐 DAR 4/5/6/7，GET-Normal 缺失对象回 DAR |
+| D0-05b | 已合并 | `dcu/D0-05b-dar` | `731b1331` | `docs/evidence/DCU-D0-05b/` | 合并提交 `731b1331`；DAR 0/2/4/5/6/7 与失败码枚举；GET-Normal 缺对象回 DAR；合并后 28/28、ASAN 6/6、告警门禁、守卫、验收全过 |
 | D0-06 | 已合并 | `dcu/D0-06-docs` | `50feb55e` | `docs/evidence/DCU-D0-06/` | 文档与代码对齐；`git diff --check`、目录检查、守卫通过；文档任务不做 `/no-comments` 代码注释审查 |
 | D0-07 | 已合并 | `dcu/D0-07-catalog-ci` | `355c8251` | `docs/evidence/DCU-D0-07/` | 合并提交 `355c8251`；目录门禁进 CI 与守卫自检，parity 11 条；动态真实文档副本正反夹具；`/no-comments` 删 10 行 |
 | D0-08 | 已合并 | `dcu/D0-08-asan-frame-lifetime` | `9e458af6` | `docs/evidence/DCU-D0-08/` | 合并提交 `9e458af6`；`decode_frame_borrows` 借用调用方帧，删本地 512 字节存储；ASAN 全量 330/330、目标 6/6；合并后 main 再跑 ASAN 6/6、守卫全绿 |
-| D0-08a | 进行中 | `dcu/D0-08-frame-len` | `118d47b9` | `docs/evidence/DCU-D0-08/` | 合并后 clean build 暴露 `-Wconversion`：`size_t`→`uint16_t`；补显式上界与强转，恢复构建告警门禁 |
+| D0-08a | 已合并 | `dcu/D0-08-frame-len` | `438ed230` | `docs/evidence/DCU-D0-08/` | 合并提交 `438ed230`；`len > UINT16_MAX` 拒绝，`(uint16_t)` 显式收窄；clean build 告警门禁 0 new |
 | D0-09 | 进行中 | `dcu/D0-09-class-ids` | `118d47b9` | `docs/evidence/DCU-D0-09/` | D1-10 发现的真实数据错：F100→21、F200→22、3000/3005→24；生成器按 7.3 小节解析，F100 不再被 CJK 过滤丢弃 |
 | D1-00 | 已合并 | `main` | `355c8251` | `scripts/extract_dcu_698_catalog.py` | 生成器、目录与 `--check` 门禁均已入库；D0-07 接入 CI 与守卫自检 |
 | D1-01 | 未开始 | - | - | - | 以 `698.pdf` 重抽 79 行 OCR 列错位 |
@@ -817,6 +817,8 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | 2026-11-21 | D1-13 | 已合并 | `docs/evidence/DCU-D1-13/` | 合并提交 `68f4de69`；合并后 28/28 目标测试、守卫全绿、验收 2+4 通过；流式逐项编码替代 8×2048；`/no-comments` 23 行，DAR 字面量改 `DLT698_DAR_*` |
 | 2026-11-21 | D0-07 | 已合并 | `docs/evidence/DCU-D0-07/` | 合并提交 `355c8251`；合并后目录门禁 0、parity 11 条、守卫自检全绿、28/28、验收 2+4；临时真实文档副本改坏后拒收 |
 | 2026-11-21 | D0-08 | 已合并 | `docs/evidence/DCU-D0-08/` | 合并提交 `9e458af6`；ASAN 全量 330/330、目标 6/6；合并后 main 的 ASAN 目标 6/6、release 28/28、守卫全绿；`/no-comments` 采纳 1 条 MUST KILL，helper 改名 `decode_frame_borrows` |
+| 2026-11-21 | D0-08a | 已合并 | `docs/evidence/DCU-D0-08/` | 合并提交 `438ed230`；clean build 的 `-Wconversion` 归零；`check_build_warnings.py` 0 new |
+| 2026-11-21 | D0-05b | 已合并 | `docs/evidence/DCU-D0-05b/` | 合并提交 `731b1331`；28/28、ASAN 6/6、告警门禁、守卫、验收 2+4；ADR-0013 2.1 记录失败码与 DAR 映射 |
 
 ### 12.4 并行工作树
 
