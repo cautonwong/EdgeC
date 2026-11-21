@@ -1,11 +1,18 @@
+=== rebase ===
+base=9e458af6 (D0-08 merge)
+
 === build ===
-[282/284] Linking C executable tests/test_iems_north_iec104
-[283/284] Linking C executable tests/test_iems_cli_write
-[284/284] Linking C executable tests/test_iems_dlt645_uart_pty
-warnings=0
+[431/433] Linking C executable tests/test_iems_tcp_link
+[432/433] Linking C executable tests/test_iems_modbus_tcp_loopback
+[433/433] Linking C executable tests/test_iems_cli_write
+warnings=1
+warning note: test_dlt698_conformance_suite.c:149 decode_frame_borrows size_t->uint16_t, introduced by D0-08 (9e458af6), outside D0-05b scope
 
 === ctest -R 'dcu|dlt698' ===
 100% tests passed, 0 tests failed out of 28
+
+=== ASAN ctest -R dlt698 ===
+100% tests passed, 0 tests failed out of 6
 
 === test_dcu_698_axdr ===
 [ RUN      ] test_product_variable_axdr_types
