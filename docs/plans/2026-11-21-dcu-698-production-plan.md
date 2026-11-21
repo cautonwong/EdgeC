@@ -765,7 +765,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-00 | 进行中 | `main` | `8d8089bf` | `scripts/extract_dcu_698_catalog.py` | 生成器与目录已提交，`--check` 通过；CI 接入待 D0-07 |
 | D1-01 | 未开始 | - | - | - | 以 `698.pdf` 重抽 79 行 OCR 列错位 |
 | D1-02 | 待验收 | `main` | `8d8089bf` | `docs/design/DCU_698_OBJECT_MODEL.md` | 设计文档已提交，待架构评审 |
-| D1-03 | 未开始 | - | - | - | - |
+| D1-03 | 待验收 | `dcu/D1-03-object-model` | `aebf6a6e` | `/tmp/dcu-dev-worktree/docs/evidence/DCU-D1-03/` | 重构完成；review 发现 16 位 mask 放不下方法 127 到 134，已退回补 256 位位图与门面预检 |
 | D1-04 | 未开始 | - | - | - | - |
 | D1-05 | 阻塞 | - | - | - | 依赖 D1-13 |
 | D1-06 | 阻塞 | - | - | - | 依赖 D1-13、D1-14 |
@@ -792,6 +792,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | 2026-11-21 | D0-02 | 已合并 | `docs/evidence/DCU-D0-02/` | 合并提交 `d0eb1f43`；合并后 `ctest -R dcu` 25/25，`run_guard_selftest.py` 全绿，验收 `dcu-acceptance` 2 项、`dcu-northbound` 4 项通过 |
 | 2026-11-21 | D0-03 | 已合并 | `docs/evidence/DCU-D0-03/` | 合并提交 `3bfc4237`；合并后 25/25 目标测试、守卫正反夹具、验收 2+4 全过；stdout 守卫扩到全部 `cmd/*/main.c` |
 | 2026-11-21 | D1-12 | 已合并 | `docs/evidence/DCU-D1-12/` | 合并提交 `076e0e04`；ADR-0013 Proposed；独立核对 55 处引用、14 个 designated 初始化点、0 个位置初始化；守卫与目录检查通过 |
+| 2026-11-21 | D1-03 | 待验收 | `/tmp/dcu-dev-worktree/docs/evidence/DCU-D1-03/` | 构建与 20/20 目标测试通过；`dcu_router.c` 664 到 96 行；review 发现 `uint16_t` mask 覆盖不了方法 127 到 134 与属性 18，门面绕过预检属 workaround；设计改为 256 位位图，已退回补实现 |
 
 ## Appendix A. 698 覆盖明细
 
