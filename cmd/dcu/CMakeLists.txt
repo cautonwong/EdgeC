@@ -9,6 +9,7 @@ add_library(dcu_app_lib STATIC
     dcu_bus_source.c
     dcu_storage.c
     dcu_698_object_model.c
+    dcu_698_var.c
     dcu_router.c
     dcu_north_source.c
     dcu_security.c
