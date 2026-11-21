@@ -1,0 +1,12 @@
+== git diff --check ==
+exit=0
+
+== python3 -I scripts/extract_dcu_698_catalog.py --check ==
+exit=0
+
+== python3 ci/scripts/run_guard_selftest.py --root . ==
+  ✅ [LIVE_PASS] check_iems_control_slave.py
+  ✅ [LIVE_PASS] check_iems_stdout_line_buffered.py
+
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+exit=0
