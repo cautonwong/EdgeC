@@ -43,6 +43,9 @@ static int mock_read_shadow(void *ctx, uint32_t tag_id, uint32_t device_id, void
         case OAD_ACTIVE_POWER_TOTAL:
             value = 1234.5;
             break;
+        case OAD_POWER_FACTOR_TOTAL:
+            value = 0.95;
+            break;
         case OAD_GRID_FREQUENCY:
             value = 50.01;
             break;
@@ -105,8 +108,8 @@ static void test_six_ois_values_and_type_tags(void **state) {
     dcu_poller_t poller;
     init_model(&inv, &poller, mock_read_shadow);
 
-    assert_value(OAD_ACTIVE_ENERGY, 12345.0, DCU_698_TAG_LONG64_UNSIGNED);
-    assert_value(OAD_REACTIVE_ENERGY, 6789.0, DCU_698_TAG_LONG64_UNSIGNED);
+    assert_value(OAD_ACTIVE_ENERGY, 12345.0, DCU_698_TAG_DOUBLE_LONG_UNSIGNED);
+    assert_value(OAD_REACTIVE_ENERGY, 6789.0, DCU_698_TAG_DOUBLE_LONG_UNSIGNED);
     assert_value(OAD_VOLTAGE, 220.5, DCU_698_TAG_FLOAT32);
     assert_value(OAD_CURRENT, 4.95, DCU_698_TAG_FLOAT32);
     assert_value(OAD_ACTIVE_POWER_TOTAL, 1234.5, DCU_698_TAG_FLOAT32);
@@ -127,6 +130,10 @@ static void test_six_ois_values_and_type_tags(void **state) {
     assert_non_null(obj);
     assert_int_equal(obj->class_id, IC_POWER);
     assert_true(dcu_mask_test(obj->attr_mask, 2));
+
+    obj = dcu_698_find(0x200A);
+    assert_non_null(obj);
+    assert_int_equal(obj->class_id, IC_POWER);
 
     obj = dcu_698_find(OI_GRID_FREQUENCY_200F);
     assert_non_null(obj);
@@ -184,13 +191,62 @@ static void test_legacy_scalar_output_types(void **state) {
     assert_int_equal(dcu_698_read(OAD_VOLTAGE, &voltage), 0);
     assert_float_equal(voltage, 220.5f, 0.001f);
 
-    uint64_t energy = 0;
+    uint32_t energy = 0;
     assert_int_equal(dcu_698_read(OAD_ACTIVE_ENERGY, &energy), 0);
     assert_int_equal(energy, 12345U);
+
+    uint64_t energy_hp = 0;
+    assert_int_equal(dcu_698_read(MK_OAD(0x0010, 4), &energy_hp), 0);
+    assert_int_equal(energy_hp, 12345U);
 
     uint16_t freq = 0;
     assert_int_equal(dcu_698_read(MK_OAD(OI_GRID_FREQUENCY_200F, 2), &freq), 0);
     assert_int_equal(freq, 50);
+
+    dcu_poller_destroy(&poller);
+    dcu_inventory_destroy(&inv);
+}
+
+static void test_energy_attr2_and_attr4_type_tags(void **state) {
+    (void)state;
+    dcu_inventory_t inv;
+    dcu_poller_t poller;
+    init_model(&inv, &poller, mock_read_shadow);
+
+    const uint32_t oads[] = {OAD_ACTIVE_ENERGY, OAD_REACTIVE_ENERGY};
+    for (size_t i = 0; i < sizeof(oads) / sizeof(oads[0]); i++) {
+        uint16_t oi = (uint16_t)(oads[i] >> 16);
+        dcu_value_t attr2;
+        dcu_value_t attr4;
+        assert_int_equal(dcu_698_var_read_value(MK_OAD(oi, 2), &attr2), 0);
+        assert_int_equal(dcu_698_var_read_value(MK_OAD(oi, 4), &attr4), 0);
+        assert_int_equal(attr2.type_tag, DCU_698_TAG_DOUBLE_LONG_UNSIGNED);
+        assert_int_equal(attr4.type_tag, DCU_698_TAG_LONG64_UNSIGNED);
+        assert_float_equal((float)attr2.value, (float)attr4.value, 0.001f);
+    }
+
+    dcu_poller_destroy(&poller);
+    dcu_inventory_destroy(&inv);
+}
+
+static void test_power_factor_and_frequency_are_separated(void **state) {
+    (void)state;
+    dcu_inventory_t inv;
+    dcu_poller_t poller;
+    init_model(&inv, &poller, mock_read_shadow);
+
+    /* 宏必须落在标准 OI：200A 功率因数、200F 频率。 */
+    assert_int_equal(OAD_POWER_FACTOR_TOTAL, 0x200A0200U);
+    assert_int_equal(OAD_GRID_FREQUENCY, 0x200F0200U);
+
+    dcu_value_t pf;
+    dcu_value_t freq;
+    assert_int_equal(dcu_698_var_read_value(OAD_POWER_FACTOR_TOTAL, &pf), 0);
+    assert_int_equal(dcu_698_var_read_value(OAD_GRID_FREQUENCY, &freq), 0);
+    assert_float_equal((float)pf.value, 0.95f, 0.001f);
+    assert_float_equal((float)freq.value, 50.01f, 0.001f);
+    assert_int_equal(pf.type_tag, DCU_698_TAG_LONG);
+    assert_int_equal(freq.type_tag, DCU_698_TAG_LONG_UNSIGNED);
 
     dcu_poller_destroy(&poller);
     dcu_inventory_destroy(&inv);
@@ -218,6 +274,9 @@ int main(void) {
         cmocka_unit_test_setup_teardown(test_shadow_missing_returns_minus_one, setup, teardown),
         cmocka_unit_test_setup_teardown(test_unsupported_attr_rejected_by_mask, setup, teardown),
         cmocka_unit_test_setup_teardown(test_legacy_scalar_output_types, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_energy_attr2_and_attr4_type_tags, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_power_factor_and_frequency_are_separated, setup,
+                                        teardown),
         cmocka_unit_test_setup_teardown(test_repeat_reads_are_consistent, setup, teardown),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);

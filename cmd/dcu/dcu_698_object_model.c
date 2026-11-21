@@ -94,8 +94,12 @@ static dcu_698_object_t g_objects[] = {
      .scope = DCU_OBJ_PER_METER,
      .read = dcu_698_var_read,
      .attr_mask = {[BYTE(2)] = BIT(2)}},
-    /* 目录里 200F 是频率（200A 是功率因数）；阴影源见 dcu_698_var.c 的说明。 */
-    {.oi = 0x200F,
+    {.oi = (uint16_t)((OAD_POWER_FACTOR_TOTAL >> 16) & 0xFFFF),
+     .class_id = IC_POWER,
+     .scope = DCU_OBJ_PER_METER,
+     .read = dcu_698_var_read,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    {.oi = (uint16_t)((OAD_GRID_FREQUENCY >> 16) & 0xFFFF),
      .class_id = IC_DATA_VARIABLE,
      .scope = DCU_OBJ_PER_METER,
      .read = dcu_698_var_read,
@@ -621,8 +625,7 @@ int dcu_698_snapshot(uint16_t oi, uint32_t device_id, void *out_msgs, int max_co
                 captured++;
             }
         }
-    }
-    else if (obj->class_id == IC_RECORD) {
+    } else if (obj->class_id == IC_RECORD) {
         // 目前先返回空，后续对接 Attr 3 结构体数组
     }
 

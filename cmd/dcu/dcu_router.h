@@ -52,8 +52,8 @@
 #define OAD_ACTIVE_POWER_B 0x20040400        // B相有功功率 (OI 2004 属性 4)
 #define OAD_ACTIVE_POWER_C 0x20040500        // C相有功功率 (OI 2004 属性 5)
 #define OAD_REACTIVE_POWER_TOTAL 0x20050200  // 总无功功率 (OI 2005 属性 2)
-#define OAD_POWER_FACTOR_TOTAL 0x20090200    // 总功率因数 (OI 2009 属性 2)
-#define OAD_GRID_FREQUENCY 0x200A0200        // 电网频率 (OI 200A 属性 2)
+#define OAD_POWER_FACTOR_TOTAL 0x200A0200    // 总功率因数 (OI 200A 属性 2)
+#define OAD_GRID_FREQUENCY 0x200F0200        // 电网频率 (OI 200F 属性 2)
 
 // 💡 2. 异常越限告警监控事件类标准 OI (16-bit OI)
 #define OI_VOLTAGE_DROP 0x3000  // 失压事件 OI

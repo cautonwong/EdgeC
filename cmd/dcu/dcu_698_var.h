@@ -17,6 +17,8 @@
 extern "C" {
 #endif
 
+#define DCU_698_TAG_DOUBLE_LONG_UNSIGNED 0x06
+#define DCU_698_TAG_LONG 0x11
 #define DCU_698_TAG_LONG64_UNSIGNED 0x15
 #define DCU_698_TAG_LONG_UNSIGNED 0x12
 #define DCU_698_TAG_FLOAT32 0x17
@@ -33,7 +35,7 @@ typedef struct {
 /**
  * @brief 按 OAD 取带类型标签的变量值。
  *
- * 支持的首批 OI：0010、0020（Class 1）、2000、2001（Class 3）、2004（Class 4）、
+ * 支持的首批 OI：0010、0020（Class 1）、2000、2001（Class 3）、2004、200A（Class 4）、
  * 200F（Class 6）。影子缺失、OI 未登记或属性不支持返回 -1。
  */
 int dcu_698_var_read_value(uint32_t oad, dcu_value_t *out);
