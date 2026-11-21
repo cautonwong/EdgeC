@@ -1,0 +1,12 @@
+ acceptance/dcu/configs/devices_north.yaml   |  42 +++++++++-
+ acceptance/dcu/tests/test_dcu_northbound.py |  42 +++++++++-
+ ci/baseline/composition_root_budget.txt     |   3 +-
+ cmd/dcu/dcu_698_axdr.c                      |  28 +++----
+ cmd/dcu/dcu_698_var.c                       | 121 ++++++++++++++++++++++++++++
+ cmd/dcu/dcu_698_var.h                       |  13 +++
+ cmd/dcu/dcu_node.c                          |  10 +--
+ cmd/dcu/dcu_north_adapter.c                 |  50 +++++-------
+ cmd/dcu/dcu_north_adapter.h                 |   5 ++
+ tests/CMakeLists.txt                        |   4 +
+ tests/test_dcu_698_axdr.c                   |   4 +-
+ 11 files changed, 263 insertions(+), 59 deletions(-)

@@ -65,9 +65,9 @@ static int _node_read_shadow(void *ctx, uint32_t tag_id, uint32_t device_id, voi
 }
 
 static int _node_count_freezes(void *ctx, uint16_t *out_count) {
-    dcu_node_t *node = (dcu_node_t *)ctx;
-    if (!node) return -1;
-    return dcu_storage_count_freezes(&node->storage, out_count);
+    dcu_storage_t *storage = (dcu_storage_t *)ctx;
+    if (!storage) return -1;
+    return dcu_storage_count_freezes(storage, out_count);
 }
 
 extern int dcu_tag_map_fn(uint32_t tag_id, uint32_t device_id);
@@ -157,8 +157,8 @@ dcu_node_t *dcu_node_create_in(void *storage, size_t storage_size, uv_loop_t *lo
 
     /* 5. Initialize Poller and Wire Router Operations */
     dcu_poller_init(&node->poller);
-    uint32_t oads[1] = {0x20000200};
-    dcu_poller_add_scheme(&node->poller, 1, 0, oads, 1);
+    uint32_t oads[3] = {OAD_VOLTAGE, OAD_CURRENT, OAD_ACTIVE_POWER_TOTAL};
+    dcu_poller_add_scheme(&node->poller, 1, 0, oads, 3);
     dcu_poller_add_task(&node->poller, 1, 5, 1);
 
     poller_sink_ops_t poller_sink = {.ctx = &node->storage,
