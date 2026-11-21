@@ -47,7 +47,7 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 | `dcu/D1-05-resolve-table` | D1-05 | merged `ac7b8dfe` | one OAD→type table; acceptance 7 cases; fixed count_freezes ctx OOB |
 | `dcu/D1-15b-record-driver` | D1-15b | merged `7658967a` | ADR-0014 record port, Selector1, driver GET [3]; acceptance flaked once |
 | `dcu/D1-08-normal-list` | D1-08 | merged `c291f3e7` | empty list legal per Table 73, mixed DAR, duplicate OAD; acceptance 8 |
-| `dcu/D0-10-atomic-bus-log` | D0-10 | active, edgec-dev-0 | atomic bus.json write; root cause of the acceptance flake |
+| `dcu/D0-10-atomic-bus-log` | D0-10 | merged `28b0363f` | atomic bus.json write; post-merge acceptance twice green |
 | `dcu/D1-15a-record-codec` | D1-15a | merged `87185420` | RSD [0]/[2], RCSD, Table 74 streaming; H.3.3 exact; 0 skips |
 | `dcu/D1-14-set` | D1-14 | active, dcu-dev | SET-Request, accept_axdr write, SET-Response DAR |
 | `dcu/D0-08-frame-len` | D0-08a | merged `438ed230` | explicit `uint16_t` bound; warning gate 0 new |
@@ -116,6 +116,7 @@ and `./test.sh --omnis dcu`.
 | D1-05 | `ac7b8dfe` | one OAD→type table; 7-case acceptance; count_freezes OOB fix |
 | D1-15b | `7658967a` | ADR-0014 record port, Selector1, driver GET [3] |
 | D1-08 | `c291f3e7` | empty list legal, mixed per-item DAR, duplicate OAD |
+| D0-10 | `28b0363f` | atomic `bus.json` write and concurrent-read guard |
 
 Plus `chore(ci)` budget refresh (`72394924`) and the plan/status doc commits.
 

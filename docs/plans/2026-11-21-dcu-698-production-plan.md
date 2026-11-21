@@ -772,7 +772,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D0-08 | 已合并 | `dcu/D0-08-asan-frame-lifetime` | `9e458af6` | `docs/evidence/DCU-D0-08/` | 合并提交 `9e458af6`；`decode_frame_borrows` 借用调用方帧，删本地 512 字节存储；ASAN 全量 330/330、目标 6/6；合并后 main 再跑 ASAN 6/6、守卫全绿 |
 | D0-08a | 已合并 | `dcu/D0-08-frame-len` | `438ed230` | `docs/evidence/DCU-D0-08/` | 合并提交 `438ed230`；`len > UINT16_MAX` 拒绝，`(uint16_t)` 显式收窄；clean build 告警门禁 0 new |
 | D0-09 | 已合并 | `dcu/D0-09-class-ids` | `6638ce23` | `docs/evidence/DCU-D0-09/` | 合并提交 `6638ce23`；F100→21、F200→22、3000/3005→24；生成器按 7.3 小节解析，F100 入目录（513→514）；快照改按处理器族分派；合并后告警、目录、28/28、守卫、验收全过 |
-| D0-10 | 进行中 | `dcu/D0-10-atomic-bus-log` | `7658967a` | `docs/evidence/DCU-D0-10/` | 验收偶发读到空 `bus.json`：`write_text` 先截断后写；改同目录临时文件 + `os.replace`，加并发读解析守卫 |
+| D0-10 | 已合并 | `dcu/D0-10-atomic-bus-log` | `28b0363f` | `docs/evidence/DCU-D0-10/` | 合并提交 `28b0363f`；`dump_json_atomic`（同目录 mkstemp+fsync+replace）替换 4 处 `write_text`；并发读守卫；合并后验收连跑 2 次绿 |
 | D1-00 | 已合并 | `main` | `355c8251` | `scripts/extract_dcu_698_catalog.py` | 生成器、目录与 `--check` 门禁均已入库；D0-07 接入 CI 与守卫自检 |
 | D1-01 | 未开始 | - | - | - | 以 `698.pdf` 重抽 79 行 OCR 列错位 |
 | D1-02 | 待验收 | `main` | `8d8089bf` | `docs/design/DCU_698_OBJECT_MODEL.md` | 设计文档已提交，待架构评审 |
@@ -828,6 +828,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | 2026-11-22 | D1-05 | 已合并 | `docs/evidence/DCU-D1-05/` | 合并提交 `ac7b8dfe`；单类型表；验收 7 例；修 `_node_count_freezes` 的 ctx 越界；30/30、全量 332/332、ASAN、守卫、验收通过 |
 | 2026-11-22 | D1-15b | 已合并 | `docs/evidence/DCU-D1-15b/` | 合并提交 `7658967a`；ADR-0014；驱动 10/10、套件 30/30；验收一次 flake（空 bus.json），重跑通过，已立 D0-10 |
 | 2026-11-22 | D1-08 | 已合并 | `docs/evidence/DCU-D1-08/` | 合并提交 `c291f3e7`；空列表按表73 无下限改为合法；验收 8 例；平台解析器不支持逐项 DAR/空列表，测试直读 APDU，平台更新另记 |
+| 2026-11-22 | D0-10 | 已合并 | `docs/evidence/DCU-D0-10/` | 合并提交 `28b0363f`；原子写消除 `bus.json` 半截读；并发守卫；合并后验收 2 次绿；复核恢复了 7 条被删的运行约束 |
 
 ### 12.4 并行工作树
 
