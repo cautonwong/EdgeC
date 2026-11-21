@@ -1,0 +1,14 @@
+commit 7ede2b984ec2d48ec0a5dc0ab1afc36193e234d3
+Author: 800900 <992878191@qq.com>
+Date:   Sat Nov 21 15:47:43 2026 +0800
+
+    fix(DCU-D0-02): gate demo heartbeat behavior behind DCU_DEMO_MODE
+    
+    Co-Authored-By: Claude Code <noreply@anthropic.com>
+
+ acceptance/dcu/dcu_product.py   |   5 +-
+ cmd/dcu/dcu_heartbeat.c         | 105 +++++++++++++-------
+ cmd/dcu/dcu_heartbeat.h         |  23 ++++-
+ tests/CMakeLists.txt            |   4 +
+ tests/test_dcu_runtime_health.c | 209 ++++++++++++++++++++++++++++++++++++++++
+ 5 files changed, 305 insertions(+), 41 deletions(-)
