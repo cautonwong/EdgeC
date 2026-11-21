@@ -561,6 +561,12 @@ const dcu_698_object_t *dcu_698_find(uint16_t oi) {
     return _find_mut(oi);
 }
 
+size_t dcu_698_object_count(void) { return OBJECT_COUNT; }
+
+const dcu_698_object_t *dcu_698_object_at(size_t index) {
+    return index < OBJECT_COUNT ? &g_objects[index] : NULL;
+}
+
 const router_bus_ops_t *dcu_698_object_model_bus_ops(void) {
     return &g_router_bus_ops;
 }

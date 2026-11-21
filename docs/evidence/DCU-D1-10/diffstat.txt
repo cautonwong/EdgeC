@@ -1,0 +1,12 @@
+ ci/scripts/run_guard_selftest.py          |   4 +
+ cmd/dcu/dcu_698_object_model.c            |   6 +
+ cmd/dcu/dcu_698_object_model.h            |   6 +
+ docs/evidence/DCU-D1-10/comments.md       |  21 ++
+ docs/evidence/DCU-D1-10/runtime.log       |  73 ++++
+ docs/evidence/DCU-D1-10/summary.md        |  57 +++
+ docs/evidence/DCU-D1-10/tests.log         |  61 ++++
+ scripts/extract_dcu_698_catalog.py        |  82 ++++-
+ tests/CMakeLists.txt                      |   6 +
+ tests/fixtures/dcu_698_catalog_expected.h | 566 ++++++++++++++++++++++++++++++
+ tests/test_dcu_698_catalog.c              |  70 ++++
+ 11 files changed, 950 insertions(+), 2 deletions(-)
