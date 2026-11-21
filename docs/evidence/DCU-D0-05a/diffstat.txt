@@ -1,3 +1,8 @@
- foundation/src/protocol/dlt698_codec.c | 19 ++++++++++++++++---
- tests/test_dlt698_conformance_suite.c  | 25 +++++++++++++++++++------
- 2 files changed, 35 insertions(+), 9 deletions(-)
+ docs/evidence/DCU-D0-05a/comments.md   | 19 ++++++++
+ docs/evidence/DCU-D0-05a/diffstat.txt  |  3 ++
+ docs/evidence/DCU-D0-05a/runtime.log   | 17 +++++++
+ docs/evidence/DCU-D0-05a/summary.md    | 37 ++++++++++++++
+ docs/evidence/DCU-D0-05a/tests.log     | 88 ++++++++++++++++++++++++++++++++++
+ foundation/src/protocol/dlt698_codec.c | 17 +++++--
+ tests/test_dlt698_conformance_suite.c  | 24 +++++++---
+ 7 files changed, 196 insertions(+), 9 deletions(-)
