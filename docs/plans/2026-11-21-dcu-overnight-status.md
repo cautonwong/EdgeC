@@ -46,6 +46,7 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 | `dcu/D1-10-catalog-consistency` | D1-10 | merged `5a4fda20` | generated fixture + strict table/catalog test; post-merge 29/29 |
 | `dcu/D1-05-resolve-table` | D1-05 | merged `ac7b8dfe` | one OAD→type table; acceptance 7 cases; fixed count_freezes ctx OOB |
 | `dcu/D1-15b-record-driver` | D1-15b | active, edgec-dev-0 | ADR-0014 record port, driver GET [3], pagination |
+| `dcu/D1-08-normal-list` | D1-08 | active, dcu-dev | mixed per-item DAR, empty list, duplicate OAD |
 | `dcu/D1-15a-record-codec` | D1-15a | merged `87185420` | RSD [0]/[2], RCSD, Table 74 streaming; H.3.3 exact; 0 skips |
 | `dcu/D1-14-set` | D1-14 | active, dcu-dev | SET-Request, accept_axdr write, SET-Response DAR |
 | `dcu/D0-08-frame-len` | D0-08a | merged `438ed230` | explicit `uint16_t` bound; warning gate 0 new |
