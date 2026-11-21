@@ -48,7 +48,7 @@ DCU 是台区侧配电终端，向北对配网主站讲 DL/T 698.45（服务端�
 - ACTION 的 OI 8000 方法 129/130 参数是 `array structure{...}`（标准表 A.9）。当前未解参，主站收到 DAR=2（`dcu_north_adapter.c:74`）。
 - GET-Request-Normal 读不到对象时静默不应答（`driver_dlt698.c:303`），NormalList 则按项回 DAR。主站侧表现为超时。
 
-A-XDR 结构属性端口目前只有 ADR，没有代码（`docs/adr/0013-698-slave-axdr-port.md`，D1-12/D1-13）。`edge_slave_plane.h` 现在只有标量 `resolve` 与 `accept_action`。
+A-XDR 结构属性端口已实现（`docs/adr/0013-698-slave-axdr-port.md`，D1-13）。`edge_slave_plane.h` 提供 `resolve_axdr`/`accept_axdr`，调用方给缓冲，NULL 时回退标量路径；NormalList 用流式逐项编码，单缓冲复用。`accept_axdr` 的 SET 侧随 D1-14。
 
 ## 运行与验收
 
