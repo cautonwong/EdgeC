@@ -34,7 +34,8 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 | `dcu/D1-04-var-handlers` | D1-04 | merged `100f9a41` | done |
 | `dcu/D0-05a-hcs` | D0-05a | merged `ff845789` | done |
 | `dcu/D1-13-axdr-port` | D1-13 | returned for fix | 28/28 passed, but the driver used an 8×2048 TLS list buffer, violating ADR-0013 §3; streaming per-item encode and `EDGE_SLAVE_AXDR_MAX` rename pending |
-| `dcu/D0-06-docs` | D0-06 | active, edgec-dev-0 | sync northbound and DCU context docs |
+| `dcu/D0-06-docs` | D0-06 | merged `50feb55e` | done |
+| `dcu/D0-01-readme` | D0-01 | active, edgec-dev-0 | rewrite DCU README against the current architecture |
 | `dcu/D0-05b-dar` | D0-05b | queued after D1-13 | align DAR 4/5/6/7 in driver/adapter |
 
 ## Landing log
