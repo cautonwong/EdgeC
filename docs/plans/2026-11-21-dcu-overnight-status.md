@@ -30,17 +30,19 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 
 | Branch | Task | State | Next gate |
 | --- | --- | --- | --- |
-| `dcu/D0-05-frame-vectors` | D0-05 | rebased to `ac239d2e`; 26/26 target tests; suite 21 cases, 19 pass, 2 skip (HCS, Record/RSD) | `/no-comments` review, then merge |
-| `dcu/D1-04-var-handlers` | D1-04 | review found 2009/200A/200F macro drift and 0010/0020 attr2/4 type-tag mixing; dcu-dev fixing and rebasing to `149d2634` | fix, `/no-comments`, verify, merge |
-| `dcu/D0-05a-hcs` | D0-05a | queued; needs D0-05 merged | fix HCS validation, unskip `test_reject_bad_hcs` |
-| `dcu/D1-13-axdr-port` | D1-13 | queued after D1-04 | port callbacks, then D1-05/06/07 |
+| `dcu/D0-05-frame-vectors` | D0-05 | merged `0f45d0e2` | done |
+| `dcu/D1-04-var-handlers` | D1-04 | merged `100f9a41` | done |
+| `dcu/D0-05a-hcs` | D0-05a | active, edgec-dev-0 | fix HCS validation, unskip `test_reject_bad_hcs`, then `/no-comments`, verify, merge |
+| `dcu/D1-13-axdr-port` | D1-13 | active, dcu-dev | port callbacks and 698 GET wiring, then `/no-comments`, verify, merge |
+| `dcu/D0-05b-dar` | D0-05b | queued after D0-05a | align DAR 4/5/6/7 in driver/adapter |
 
 ## Landing log
 
 | Time | Task | Result | Evidence |
 | --- | --- | --- | --- |
-| 2026-11-21 | D0-05 | verification passed, comment review running | 26/26, suite 19/2 skip |
-| 2026-11-21 | D1-04 | verification failed review, returned | OI macro drift, type tags |
+| 2026-11-21 | D0-05 | merged `0f45d0e2` | 26/26, suite 19/2 skip; DAR vector corrected to 6 |
+| 2026-11-21 | D1-04 | merged `100f9a41` | 27/27, guards, acceptance; 200A/200F and attr2/attr4 aligned |
+| 2026-11-21 | D0-05a / D1-13 | dispatched in parallel | HCS codec; A-XDR port |
 
 ## Morning report
 

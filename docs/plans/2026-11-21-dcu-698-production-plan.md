@@ -765,7 +765,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D0-03 | 已合并 | `dcu/D0-03-stdout-guard` | `3bfc4237` | `docs/evidence/DCU-D0-03/` | 构建、25/25 目标测试、守卫正反夹具、验收 2+4 通过；5 个产品入口补 `_IOLBF`，组合根预算相应 +1 到 +2 |
 | D0-04 | 未开始 | - | - | - | - |
 | D0-05 | 已合并 | `dcu/D0-05-frame-vectors` | `0f45d0e2` | `docs/evidence/DCU-D0-05/` | 26/26 目标测试、套件 21 例 19 过 2 skip；`/no-comments` 删 26 行；DAR 向量改 6；HCS 归 D0-05a，DAR 代码对齐归 D0-05b |
-| D0-05a | 未开始 | - | - | - | 依赖 D0-05；修 698 HCS 校验 |
+| D0-05a | 进行中 | `dcu/D0-05a-hcs` | - | `/tmp/dcu-docs-worktree/docs/evidence/DCU-D0-05a/` | edgec-dev-0 执行中；修 698 HCS 校验 |
 | D0-05b | 未开始 | - | - | - | 依赖 D0-05；对齐 DAR 4/5/6/7 |
 | D0-06 | 未开始 | - | - | - | - |
 | D0-07 | 阻塞 | - | - | - | 依赖 D1-00 |
@@ -773,7 +773,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-01 | 未开始 | - | - | - | 以 `698.pdf` 重抽 79 行 OCR 列错位 |
 | D1-02 | 待验收 | `main` | `8d8089bf` | `docs/design/DCU_698_OBJECT_MODEL.md` | 设计文档已提交，待架构评审 |
 | D1-03 | 已合并 | `dcu/D1-03-object-model` | `81730385` | `docs/evidence/DCU-D1-03/` | router 664→76 行；256 位 mask，门面走预检；object_model 709 行待 D1-04 拆；合并后 26/26 测试、守卫、验收全过 |
-| D1-04 | 待验收 | `dcu/D1-04-var-handlers` | `a28d6a7f` | `/tmp/dcu-dev-worktree/docs/evidence/DCU-D1-04/` | 构建与 21/21 通过；review 发现 2009/200A/200F 宏错位与 0010/0020 attr2/4 类型标签混用；已退回并 rebase 到 `5e145714` |
+| D1-04 | 已合并 | `dcu/D1-04-var-handlers` | `100f9a41` | `docs/evidence/DCU-D1-04/` | 27/27 目标测试、守卫、验收 2+4 通过；200A/200F 与 attr2/attr4 类型对齐；`/no-comments` 删 5 条并修 `IC_VARIABLE` 过期示例；704 行待后续拆 |
 | D1-05 | 阻塞 | - | - | - | 依赖 D1-13 |
 | D1-06 | 阻塞 | - | - | - | 依赖 D1-13、D1-14 |
 | D1-07 | 阻塞 | - | - | - | 依赖 D1-13、D1-15 |
@@ -782,7 +782,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-10 | 未开始 | - | - | - | - |
 | D1-11 | 阻塞 | - | - | - | 依赖 D1-06、D1-07 |
 | D1-12 | 已合并 | `dcu/D1-12-axdr-port-adr` | `076e0e04` | `docs/evidence/DCU-D1-12/` | ADR-0013 已合并，状态 Proposed；14 个初始化点全为 designated，无位置初始化；架构签字待补 |
-| D1-13 | 未开始 | - | - | - | - |
+| D1-13 | 进行中 | `dcu/D1-13-axdr-port` | - | `/tmp/dcu-dev-worktree/docs/evidence/DCU-D1-13/` | dcu-dev 执行中；A-XDR 端口与 698 GET 接线 |
 | D1-14 | 未开始 | - | - | - | - |
 | D1-15 | 未开始 | - | - | - | - |
 | D1-16 | 未开始 | - | - | - | - |
@@ -806,13 +806,15 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | 2026-11-21 | D1-03 注释 | 已合并 | `docs/evidence/DCU-D1-03/comments.md` | `/no-comments` 删除 100 行注释、0 行代码；构建、26/26 测试、守卫、验收 2+4 通过；提交 `5e145714` |
 | 2026-11-21 | D1-04 | 待验收 | `/tmp/dcu-dev-worktree/docs/evidence/DCU-D1-04/` | 构建与 21/21 通过；review 发现 `OAD_POWER_FACTOR_TOTAL` 指 2009、`OAD_GRID_FREQUENCY` 指 200A，标准应为 200A/200F；0010/0020 attr2 应为 0x06、attr4 为 0x15；已退回修宏与逐属性类型标签，并 rebase 到 5e145714 |
 | 2026-11-21 | D0-05 | 已合并 | `docs/evidence/DCU-D0-05/` | 合并提交 `0f45d0e2`；26/26 目标测试、守卫、验收 2+4 通过；套件 21 例 19 过 2 skip；`/no-comments` 删 26 行；DAR 向量从 5 改 6，设计文档 DAR 表改为 4/5/6/7；HCS 立 D0-05a，DAR 代码对齐立 D0-05b |
+| 2026-11-21 | D1-04 | 已合并 | `docs/evidence/DCU-D1-04/` | 合并提交 `100f9a41`；27/27 目标测试、守卫、验收 2+4 通过；200A/200F 与 attr2/attr4 对齐；`/no-comments` 删 5 条并修 `IC_VARIABLE` 过期示例 |
+| 2026-11-21 | 派单 | D1-13、D0-05a | - | 两个独立工作树并行；D1-13 走端口与驱动 GET，D0-05a 走 codec HCS 与测试 |
 
 ### 12.4 并行工作树
 
 | 工作树 | 分支 | 负责人 | 任务 | 文件边界 |
 | --- | --- | --- | --- | --- |
-| `/tmp/dcu-dev-worktree` | `dcu/D1-04-var-handlers` | dcu-dev | D1-04 变量类处理器，随后 D1-13 | `cmd/dcu/`、`tests/`、`foundation/include/edge_slave_plane.h`、`adapters/io_drivers/src/driver_dlt698.c` |
-| `/tmp/dcu-docs-worktree` | `dcu/D0-05-frame-vectors` | edgec-dev-0 | D0-05 真实帧向量，随后 D0-01、D0-06 | `tests/test_dlt698_*`、`docs/evidence/DCU-D0-05/` |
+| `/tmp/dcu-dev-worktree` | `dcu/D1-13-axdr-port` | dcu-dev | D1-13 A-XDR 端口与驱动 GET 接线 | `foundation/include/edge_slave_plane.h`、`adapters/io_drivers/src/driver_dlt698.c`、`cmd/dcu/`、`tests/` |
+| `/tmp/dcu-docs-worktree` | `dcu/D0-05a-hcs` | edgec-dev-0 | D0-05a 698 HCS 校验与测试 unskip | `foundation/src/protocol/dlt698_codec.c`、`tests/test_dlt698_conformance_suite.c`、`docs/evidence/DCU-D0-05a/` |
 
 并行只跨文件边界。`driver_dlt698.c`、`dcu_698_object_model.c`、`dcu_router.c` 是串行冲突域，同一时刻只允许一个工作树改。
 
