@@ -94,3 +94,48 @@ Update this section before stopping. Name:
 3. Flakes observed and the rerun that cleared them.
 4. Remaining plan tasks and their blockers.
 5. Worktrees and branches removed.
+
+### Night of 2026-11-21 → 2026-11-22
+
+**Merged into `main` (in order).** Every one has an independent PASS verdict, post-merge
+`check_build_warnings.py` on a clean build, `ctest -R 'dcu|dlt698'`, `run_guard_selftest.py`,
+and `./test.sh --omnis dcu`.
+
+| Task | Merge SHA | What landed |
+| --- | --- | --- |
+| D1-13 | `68f4de69` | A-XDR slave port, streaming NormalList, no `N × 2048` |
+| D0-07 | `355c8251` | 698 catalog `--check` in CI and the guard selftest |
+| D0-04 | `5c808baf` | P0 baseline evidence; ASAN failure found |
+| D0-08 | `9e458af6` | `decode_frame_borrows` fixes the stack-use-after-scope |
+| D0-08a | `438ed230` | explicit `uint16_t` bound; warning gate green |
+| D0-05b | `731b1331` | DAR 0/2/4/5/6/7 and GET-Normal DAR response |
+| D0-09 | `6638ce23` | class ids F100/F200/3000/3005; F100 in the catalog |
+| D1-14 | `b5b95f62` | SET-Request, `accept_axdr`, SET-Response DAR |
+| D1-10 | `5a4fda20` | 514-OI generated fixture; table/catalog consistency test |
+| D1-15a | `87185420` | GetRecord/RSD/RCSD codec, Table 74 streaming |
+| D1-05 | `ac7b8dfe` | one OAD→type table; 7-case acceptance; count_freezes OOB fix |
+| D1-15b | `7658967a` | ADR-0014 record port, Selector1, driver GET [3] |
+| D1-08 | `c291f3e7` | empty list legal, mixed per-item DAR, duplicate OAD |
+
+Plus `chore(ci)` budget refresh (`72394924`) and the plan/status doc commits.
+
+**Not merged.** None at the time of writing; D0-10 and D1-06 were still in flight. If either
+fails after this file is written, its branch and log path are in the Current stack table.
+
+**Flakes observed.**
+- `./test.sh --omnis dcu` failed once on the D1-15b branch and once on main with
+  `JSONDecodeError` in `_bus_requests` reading an empty `bus.json`. Reruns passed both times.
+  Root cause: `dcu_product.py` truncates then writes the file. D0-10 makes the write atomic
+  and adds a concurrent-read guard; it is the fix, not a test skip.
+
+**Remaining work.**
+- D1-06 ACTION (in flight), D1-07 record storage wiring, D1-11 four-service acceptance.
+- D1-01: 79 OCR class conflicts, including 8000 (Table A.9 says class 8, catalog infers 13).
+- P2–P5 blocked on the COM components (plan §11.3 B6); P6 hardware bench is out of scope.
+- Known gaps: F200 attribute semantics, 3000/3005 Class 7-style masks, generator line window,
+  per-class A.7 method maxima, test-platform parser rejects per-item DAR and empty lists.
+
+**Cleanup.** `/tmp/dcu-docs-worktree` removed; merged branches deleted as they landed;
+`/home/EdgeC/build-asan` kept for the remaining ASAN checks. `/tmp/dcu-*.log` verifier logs
+could not be deleted (auto-mode blocked the shared-scratch sweep); they are small.
+
