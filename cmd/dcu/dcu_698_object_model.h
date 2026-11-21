@@ -73,6 +73,12 @@ void dcu_698_object_model_set_control_sink(dcu_control_sink_t fn, void *ctx);
 /** @brief 按 OI 查表；未初始化或不存在返回 NULL。 */
 const dcu_698_object_t *dcu_698_find(uint16_t oi);
 
+/** @brief 对象表行数。 */
+size_t dcu_698_object_count(void);
+
+/** @brief 取第 index 行；越界返回 NULL。 */
+const dcu_698_object_t *dcu_698_object_at(size_t index);
+
 /** @brief 取当前注入的影子读取端口（变量类处理器用）；未初始化时为全零。 */
 const router_bus_ops_t *dcu_698_object_model_bus_ops(void);
 

@@ -463,7 +463,9 @@ def main():
     catalog_guard = os.path.join(SCRIPTS_DIR, "check_dcu_698_catalog.py")
     with tempfile.TemporaryDirectory(prefix="dcu698-catalog-") as tmp:
         design = os.path.join(tmp, "docs", "design")
+        fixtures = os.path.join(tmp, "tests", "fixtures")
         os.makedirs(design)
+        os.makedirs(fixtures)
         for src, dst in (
             (os.path.join(REPO_ROOT, "docs", "698_parsed.md"),
              os.path.join(tmp, "docs", "698_parsed.md")),
@@ -471,6 +473,8 @@ def main():
              os.path.join(design, "DCU_698_OI_CATALOG.md")),
             (os.path.join(REPO_ROOT, "docs", "design", "DCU_698_OI_CATALOG.json"),
              os.path.join(design, "DCU_698_OI_CATALOG.json")),
+            (os.path.join(REPO_ROOT, "tests", "fixtures", "dcu_698_catalog_expected.h"),
+             os.path.join(fixtures, "dcu_698_catalog_expected.h")),
         ):
             shutil.copyfile(src, dst)
 
