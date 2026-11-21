@@ -41,7 +41,8 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 | `dcu/D0-05b-dar` | D0-05b | verified code, doc sync + rebase pending | mapping 0/2/4/5/6/7, GET-Normal DAR response; waits on D0-08 |
 | `dcu/D0-04-baseline` | D0-04 | merged `5c808baf` | baseline evidence; ASAN found a real test lifetime bug |
 | `dcu/D0-08-asan-frame-lifetime` | D0-08 | merged `9e458af6` | ASAN 330/330, dlt698 6/6; post-merge main ASAN 6/6 |
-| `dcu/D1-10-catalog-consistency` | D1-10 | active, edgec-dev-0 | table/catalog drift test + generated fixture |
+| `dcu/D1-10-catalog-consistency` | D1-10 | blocked on D0-09 | table/catalog classes disagree on F100/F200/3000/3005 |
+| `dcu/D0-09-class-ids` | D0-09 | active, edgec-dev-0 | fix four class_ids and the CJK-dropped F100 catalog row |
 | `dcu/D0-08-frame-len` | D0-08a | active, dcu-dev | explicit `uint16_t` bound, clears the `-Wconversion` warning |
 
 ## Landing log
@@ -62,6 +63,8 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 | 2026-11-21 | D0-08 | merged `9e458af6` | ASAN before 8 / after 0; full 330/330, dlt698 6/6; post-merge main ASAN 6/6, release 28/28, guards green |
 | 2026-11-21 | D0-08a | found and dispatched | clean build on main: `check_build_warnings.py` red on `size_t` -> `uint16_t` in `decode_frame_borrows`; test-only checks missed it |
 | 2026-11-21 | D0-05b | rebased on `9e458af6` | conflicts in the helper call sites resolved to `decode_frame_borrows`; 28/28, ASAN 6/6, guards, acceptance |
+| 2026-11-21 | D0-09 | dispatched | D1-10 found real class_id drift: F100 10->21, F200 10->22, 3000/3005 7->24; catalog drops F100 because its name is ASCII |
+| 2026-11-21 | D1-10 | blocked | table/catalog consistency cannot pass honestly until D0-09 lands; no exemption list |
 | 2026-11-21 | D0-05b | code verified, waiting | DAR mapping and GET-Normal DAR response good; needs ADR/design sync and rebase onto D0-08 |
 
 ## Morning report

@@ -770,7 +770,8 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D0-06 | 已合并 | `dcu/D0-06-docs` | `50feb55e` | `docs/evidence/DCU-D0-06/` | 文档与代码对齐；`git diff --check`、目录检查、守卫通过；文档任务不做 `/no-comments` 代码注释审查 |
 | D0-07 | 已合并 | `dcu/D0-07-catalog-ci` | `355c8251` | `docs/evidence/DCU-D0-07/` | 合并提交 `355c8251`；目录门禁进 CI 与守卫自检，parity 11 条；动态真实文档副本正反夹具；`/no-comments` 删 10 行 |
 | D0-08 | 已合并 | `dcu/D0-08-asan-frame-lifetime` | `9e458af6` | `docs/evidence/DCU-D0-08/` | 合并提交 `9e458af6`；`decode_frame_borrows` 借用调用方帧，删本地 512 字节存储；ASAN 全量 330/330、目标 6/6；合并后 main 再跑 ASAN 6/6、守卫全绿 |
-| D0-08a | 进行中 | `dcu/D0-08-frame-len` | `b4333f15` | `docs/evidence/DCU-D0-08/` | 合并后 clean build 暴露 `-Wconversion`：`size_t`→`uint16_t`；补显式上界与强转，恢复构建告警门禁 |
+| D0-08a | 进行中 | `dcu/D0-08-frame-len` | `118d47b9` | `docs/evidence/DCU-D0-08/` | 合并后 clean build 暴露 `-Wconversion`：`size_t`→`uint16_t`；补显式上界与强转，恢复构建告警门禁 |
+| D0-09 | 进行中 | `dcu/D0-09-class-ids` | `118d47b9` | `docs/evidence/DCU-D0-09/` | D1-10 发现的真实数据错：F100→21、F200→22、3000/3005→24；生成器按 7.3 小节解析，F100 不再被 CJK 过滤丢弃 |
 | D1-00 | 已合并 | `main` | `355c8251` | `scripts/extract_dcu_698_catalog.py` | 生成器、目录与 `--check` 门禁均已入库；D0-07 接入 CI 与守卫自检 |
 | D1-01 | 未开始 | - | - | - | 以 `698.pdf` 重抽 79 行 OCR 列错位 |
 | D1-02 | 待验收 | `main` | `8d8089bf` | `docs/design/DCU_698_OBJECT_MODEL.md` | 设计文档已提交，待架构评审 |
@@ -781,7 +782,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-07 | 阻塞 | - | - | - | 依赖 D1-13、D1-15 |
 | D1-08 | 未开始 | - | - | - | - |
 | D1-09 | 未开始 | - | - | - | - |
-| D1-10 | 进行中 | `dcu/D1-10-catalog-consistency` | `b70ad5bd` | `docs/evidence/DCU-D1-10/` | edgec-dev-0 执行中；生成 C 目录夹具 + 只读访问器，表与目录对拍 |
+| D1-10 | 阻塞 | - | - | - | 依赖 D0-09：表里 F100/F200/3000/3005 的 class_id 先按标准修正，测试不能带豁免 |
 | D1-11 | 阻塞 | - | - | - | 依赖 D1-06、D1-07 |
 | D1-12 | 已合并 | `dcu/D1-12-axdr-port-adr` | `076e0e04` | `docs/evidence/DCU-D1-12/` | ADR-0013 已合并，状态 Proposed；14 个初始化点全为 designated，无位置初始化；架构签字待补 |
 | D1-13 | 已合并 | `dcu/D1-13-axdr-port` | `68f4de69` | `docs/evidence/DCU-D1-13/` | 合并提交 `68f4de69`；合并后 28/28、守卫、验收 2+4 全过；流式逐项编码，单缓冲复用，无 8×2048；`/no-comments` 删 23 行、DAR 字面量改常量 |
