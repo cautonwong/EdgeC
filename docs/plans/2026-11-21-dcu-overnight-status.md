@@ -45,6 +45,7 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 | `dcu/D0-09-class-ids` | D0-09 | merged `6638ce23` | four class_ids, F100 in catalog, snapshot by handler family; post-merge all gates green |
 | `dcu/D1-10-catalog-consistency` | D1-10 | merged `5a4fda20` | generated fixture + strict table/catalog test; post-merge 29/29 |
 | `dcu/D1-05-resolve-table` | D1-05 | active, dcu-dev | one OAD→type source for scalar resolve and A-XDR |
+| `dcu/D1-15a-record-codec` | D1-15a | active, edgec-dev-0 | codec-level GetRecord/RSD, Selector 0 and 2 |
 | `dcu/D1-14-set` | D1-14 | active, dcu-dev | SET-Request, accept_axdr write, SET-Response DAR |
 | `dcu/D0-08-frame-len` | D0-08a | merged `438ed230` | explicit `uint16_t` bound; warning gate 0 new |
 

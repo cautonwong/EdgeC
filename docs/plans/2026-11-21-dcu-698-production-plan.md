@@ -787,7 +787,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-12 | 已合并 | `dcu/D1-12-axdr-port-adr` | `076e0e04` | `docs/evidence/DCU-D1-12/` | ADR-0013 已合并，状态 Proposed；14 个初始化点全为 designated，无位置初始化；架构签字待补 |
 | D1-13 | 已合并 | `dcu/D1-13-axdr-port` | `68f4de69` | `docs/evidence/DCU-D1-13/` | 合并提交 `68f4de69`；合并后 28/28、守卫、验收 2+4 全过；流式逐项编码，单缓冲复用，无 8×2048；`/no-comments` 删 23 行、DAR 字面量改常量 |
 | D1-14 | 已合并 | `dcu/D1-14-set` | `b5b95f62` | `docs/evidence/DCU-D1-14/` | 合并提交 `b5b95f62`；SET-Request、`accept_axdr` 写入、SET-Response DAR；拒绝非标量回落假成功；LONG64 无 UB；DENIED 3 与 CLASS_MISMATCH 5 分开；合并后告警、28/28、ASAN、守卫、验收全过 |
-| D1-15 | 未开始 | - | - | - | - |
+| D1-15 | 进行中 | `dcu/D1-15a-record-codec` | `f78ac2fa` | `docs/evidence/DCU-D1-15a/` | 拆两半：D1-15a 先做 codec 层 GetRecord/RSD（Selector 0 与 2，其余明确拒绝）；驱动与端口接线随后 |
 | D1-16 | 未开始 | - | - | - | - |
 | D1-17 | 未开始 | - | - | - | - |
 | D2 到 D5 | 阻塞 | - | - | - | 依赖 COM 组件，见 11.3 B6 |
