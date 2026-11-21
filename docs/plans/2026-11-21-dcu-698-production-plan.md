@@ -769,7 +769,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-01 | 未开始 | - | - | - | 以 `698.pdf` 重抽 79 行 OCR 列错位 |
 | D1-02 | 待验收 | `main` | `8d8089bf` | `docs/design/DCU_698_OBJECT_MODEL.md` | 设计文档已提交，待架构评审 |
 | D1-03 | 已合并 | `dcu/D1-03-object-model` | `81730385` | `docs/evidence/DCU-D1-03/` | router 664→76 行；256 位 mask，门面走预检；object_model 709 行待 D1-04 拆；合并后 26/26 测试、守卫、验收全过 |
-| D1-04 | 进行中 | `dcu/D1-04-var-handlers` | - | `/tmp/dcu-dev-worktree/docs/evidence/DCU-D1-04/` | dcu-dev 执行中；拆 `dcu_698_object_model.c` 的变量类处理器 |
+| D1-04 | 待验收 | `dcu/D1-04-var-handlers` | `a28d6a7f` | `/tmp/dcu-dev-worktree/docs/evidence/DCU-D1-04/` | 构建与 21/21 通过；review 发现 2009/200A/200F 宏错位与 0010/0020 attr2/4 类型标签混用；已退回并 rebase 到 `5e145714` |
 | D1-05 | 阻塞 | - | - | - | 依赖 D1-13 |
 | D1-06 | 阻塞 | - | - | - | 依赖 D1-13、D1-14 |
 | D1-07 | 阻塞 | - | - | - | 依赖 D1-13、D1-15 |
@@ -799,7 +799,8 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | 2026-11-21 | D0-05 | 已派单 | - | edgec-dev-0 在 `/tmp/dcu-docs-worktree` 执行；真实帧向量从 `docs/698.pdf` 摘 |
 | 2026-11-21 | D1-03 | 已合并 | `docs/evidence/DCU-D1-03/` | 合并提交 `81730385`；26/26 目标测试、7/7 新测试、守卫、验收 2+4 全过；`dcu_router.c` 664→76；mask 改 256 位并删门面绕过 |
 | 2026-11-21 | 清理 | 完成 | - | 删除 `dcu/D1-03-object-model` 分支；删除本会话 `/tmp` 日志与 scratch；删除被忽略的 `reports/`；工作树切到 `dcu/D1-04-var-handlers` |
-| 2026-11-21 | D1-03 注释 | 已合并 | `docs/evidence/DCU-D1-03/comments.md` | `/no-comments` 删除 100 行注释、0 行代码；构建、26/26 测试、守卫、验收 2+4 通过 |
+| 2026-11-21 | D1-03 注释 | 已合并 | `docs/evidence/DCU-D1-03/comments.md` | `/no-comments` 删除 100 行注释、0 行代码；构建、26/26 测试、守卫、验收 2+4 通过；提交 `5e145714` |
+| 2026-11-21 | D1-04 | 待验收 | `/tmp/dcu-dev-worktree/docs/evidence/DCU-D1-04/` | 构建与 21/21 通过；review 发现 `OAD_POWER_FACTOR_TOTAL` 指 2009、`OAD_GRID_FREQUENCY` 指 200A，标准应为 200A/200F；0010/0020 attr2 应为 0x06、attr4 为 0x15；已退回修宏与逐属性类型标签，并 rebase 到 5e145714 |
 
 ### 12.4 并行工作树
 
