@@ -212,6 +212,7 @@ static int _oi_6000_execute(const dcu_698_object_t *obj, uint8_t method_id, cons
         return 0;
     }
 
+    // [Legacy/Testing mapping] 保留原来的 127/128 映射以免中断外部测试用例
     if (method_id == 127) {
         int ret = dcu_inventory_add(inv, (const char *)param, "DLT698", 9600, 1);
         if (result) *(int *)result = ret;
@@ -275,6 +276,8 @@ static int _oi_5004_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t e
     return -2;
 }
 
+/* Class 9 方法 3/4/5/7/8 已登记进 mask，但实现随 D1-15 的 GetRecord/RSD 落地。
+ * 现在明确回 -4（存在但拒绝执行），不得返回 0 让主站误以为冻结已执行。 */
 static int _oi_5004_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
                             void *result) {
     (void)obj;

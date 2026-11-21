@@ -53,3 +53,11 @@ diff_check_exit=0
  docs/design/DCU_698_OI_CATALOG.md   | 5 +++--
  2 files changed, 10 insertions(+), 2 deletions(-)
 only F100 is added (parsed_class 21, source_line 9082); conflicts stay 79; no row added or removed.
+
+== 注释恢复后（仅注释）：git diff --check 与增量构建 ==
+diff_check_exit=0
+[2/303] Building C object tests/CMakeFiles/test_datahub_dds_mesh.dir/test_datahub_dds_mesh.c.o
+build_exit=0 warnings=0（全量构建 + 本次增量）
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+warn_exit=0
+ctest 未重跑：本次只改注释，二进制行为不变，前一轮 28/28 仍然有效。

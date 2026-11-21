@@ -1,11 +1,12 @@
- cmd/dcu/dcu_698_object_model.c      | 32 +++++++--------------
- cmd/dcu/dcu_router.h                | 47 ++++++++++--------------------
- docs/design/DCU_698_OI_CATALOG.json |  7 +++++
- docs/design/DCU_698_OI_CATALOG.md   |  5 ++--
- docs/evidence/DCU-D0-09/comments.md | 31 ++++++++++++++++++++
- docs/evidence/DCU-D0-09/runtime.log | 40 ++++++++++++++++++++++++++
- docs/evidence/DCU-D0-09/summary.md  | 57 +++++++++++++++++++++++++++++++++++++
- docs/evidence/DCU-D0-09/tests.log   | 55 +++++++++++++++++++++++++++++++++++
- scripts/extract_dcu_698_catalog.py  | 12 +++++---
- tests/test_dcu_698_object_model.c   | 18 +++---------
- 10 files changed, 230 insertions(+), 74 deletions(-)
+ cmd/dcu/dcu_698_object_model.c       | 29 ++++++-----------
+ cmd/dcu/dcu_router.h                 | 47 +++++++++------------------
+ docs/design/DCU_698_OI_CATALOG.json  |  7 ++++
+ docs/design/DCU_698_OI_CATALOG.md    |  5 +--
+ docs/evidence/DCU-D0-09/comments.md  | 40 +++++++++++++++++++++++
+ docs/evidence/DCU-D0-09/diffstat.txt | 11 +++++++
+ docs/evidence/DCU-D0-09/runtime.log  | 40 +++++++++++++++++++++++
+ docs/evidence/DCU-D0-09/summary.md   | 57 ++++++++++++++++++++++++++++++++
+ docs/evidence/DCU-D0-09/tests.log    | 63 ++++++++++++++++++++++++++++++++++++
+ scripts/extract_dcu_698_catalog.py   | 12 ++++---
+ tests/test_dcu_698_object_model.c    | 18 +++--------
+ 11 files changed, 258 insertions(+), 71 deletions(-)

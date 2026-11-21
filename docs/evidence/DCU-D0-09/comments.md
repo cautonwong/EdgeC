@@ -18,6 +18,15 @@
 
 理由：这一行是 D0-09 派工明确要求的说明（“with a one-line comment why class_id is not the discriminator”），不是对代码的复述；删掉后 `obj->read == _oi_event_read` 这个类型标签式判断就没有任何依据可查。
 
+## 派工方要求恢复（reviewer 复核）
+
+verifier 复核后指出两处非显然的“为什么”被过度删除，已按原文恢复：
+
+- `_oi_5004_execute`：Class 9 方法 3/4/5/7/8 已登记进 mask，实现随 D1-15 的 GetRecord/RSD 落地；现在明确回 `-4`，避免主站把未实现的方法读成已冻结。
+- `_oi_6000_execute`：127/128 是保留的 legacy/testing 映射，避免外部测试用例中断；没有这行的话，标准里不存在的方法号看起来像复制粘贴错误。
+
+未恢复 `_oi_8000_execute` 的聚合根说明（与 `dcu_router.h` 的 `dcu_control_sink_t` 文档重复），也未恢复影子容量与线程所有权说明（`dcu_node.h` / `dcu_inventory.h` 已有并被执行）。
+
 ## MUST KILL / HOLD（记录，不在本单处理）
 
 - 快照用 `obj->read == _oi_event_read` 当类型标签，且 `IC_RECORD` 分支为空。审查建议加显式的对象类别字段或谓词。本单按派工选择处理器族判断；改成字段是结构性改动，另立。
