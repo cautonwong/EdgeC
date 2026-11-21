@@ -319,6 +319,7 @@ flowchart LR
 - 验收任务：`acceptance/dist_terminal/tasks/` 至少四条，四遥、SOE 与时钟、故障记录、FA。产品壳照 `acceptance/iems/iems_product.py` 四步：准备 SQLite、起从站、分配端口、exec 产品。
 - 合并后跑 `run_guard_selftest.py` 与 `test.sh`；CI 的 ASAN/TSAN/UBSAN、arm64、trimmed 矩阵覆盖新组件，不新增豁免。
 - 覆盖率：新增目录在 `ci/baseline/coverage_floor.txt` 登记下限，只升不降。
+- 实时动态与指标：按 `docs/plans/2026-11-21-webui-live-dynamics-plan.md` 的必选要求，产品要提供事件源、快照、指标与面板；缺一项不算完成。
 
 ## 10. 风险与开放问题
 
