@@ -29,11 +29,13 @@ cmd/edge_mcp_server/main.c|184
 cmd/iems/iems_app.c|578
 cmd/iems/iems_north_listener.c|170
 # 2026-11-19: cmd/iems/iems_north_iec104.c 基线 203；IEC104 TCP 监听 + 从站 source ops 接线适配器。
-cmd/iems/iems_north_iec104.c|203
+# 2026-11-22: cmd/iems/iems_north_iec104.c 203 -> 180；既有改动缩小了根，刷新基线（只降不升）。
+cmd/iems/iems_north_iec104.c|180
 # 2026-11-18: cmd/iems/iems_southbound_adapter.c 133 -> 178；南向按 conn->type 选 UART，CAN 真设备明确未实现，UDS 路径保留。
 # 2026-11-18: cmd/iems/iems_southbound_adapter.c 178 -> 199；Modbus TCP 设备走 tcp://host:port，连不上仍计入缺失摘要。
 # 2026-11-19: cmd/iems/iems_southbound_adapter.c 199 -> 218；BAUD 环境变量严格解析，非法/未支持速率拒绝整条总线并日志。
-cmd/iems/iems_southbound_adapter.c|218
+# 2026-11-22: cmd/iems/iems_southbound_adapter.c 218 -> 215；既有改动缩小了根，刷新基线（只降不升）。
+cmd/iems/iems_southbound_adapter.c|215
 # 2026-11-19: cmd/iems/main.c 109 -> 111；stdout 行缓冲 (setvbuf _IOLBF)，裸 printf 状态行不再等下一次 flush 才落盘。
 cmd/iems/main.c|111
 # 2026-11-16: 组合根忽略 SIGPIPE（+1 调用 +1 include），应用崩溃后的 IPC 写入不得打死网关。
