@@ -2,6 +2,7 @@
 #define EDGE_DLT698_CODEC_H
 
 #include <stdint.h>
+
 #include "net_buf.h"
 
 #ifdef __cplusplus
@@ -12,7 +13,7 @@ extern "C" {
  * @brief DLT698.45 (面向对象规约) 基础常量
  */
 #define DLT698_HEAD 0x68
-#define DLT698_END  0x16
+#define DLT698_END 0x16
 
 /**
  * @brief 时间标签：本实现不使用，按标准填 0（含义是"没有时间标签"）。
@@ -27,23 +28,31 @@ extern "C" {
 #define DLT698_NO_FOLLOW_REPORT 0x00
 
 // 服务标识 (Service Tags)
-#define DLT698_SVC_GET_REQ      0x05
-#define DLT698_SVC_GET_RES      0x85
-#define DLT698_SVC_SET_REQ      0x06
-#define DLT698_SVC_SET_RES      0x86
-#define DLT698_SVC_ACTION_REQ   0x07
-#define DLT698_SVC_ACTION_RES   0x87
-#define DLT698_SVC_REPORT_RES   0x88
+#define DLT698_SVC_GET_REQ 0x05
+#define DLT698_SVC_GET_RES 0x85
+#define DLT698_SVC_SET_REQ 0x06
+#define DLT698_SVC_SET_RES 0x86
+#define DLT698_SVC_ACTION_REQ 0x07
+#define DLT698_SVC_ACTION_RES 0x87
+#define DLT698_SVC_REPORT_RES 0x88
+
+/* DAR 值（标准 6.3.3.11）。驱动与产品共用，不写字面量。 */
+#define DLT698_DAR_SUCCESS 0u
+#define DLT698_DAR_TEMPORARY_FAILURE 2u
+#define DLT698_DAR_OBJECT_UNDEFINED 4u
+#define DLT698_DAR_OBJECT_CLASS_MISMATCH 5u
+#define DLT698_DAR_OBJECT_NOT_FOUND 6u
+#define DLT698_DAR_TYPE_MISMATCH 7u
 
 /* GET-Request / GET-Response 的 CHOICE 标签（标准 6.3.8 表64 / 表70）。
  * [1] Normal 读一个对象属性；[2] NormalList 一次读若干个对象属性。
  * 注意：[3]/[4] Record 是"读记录型对象属性"（冻结量/事件，带选择条件），
  * 与"一次读多个 OAD"不是一回事，别用错服务。 */
-#define DLT698_CHOICE_GET_NORMAL      0x01
+#define DLT698_CHOICE_GET_NORMAL 0x01
 #define DLT698_CHOICE_GET_NORMAL_LIST 0x02
-#define DLT698_GET_RESULT_DATA        0x01
+#define DLT698_GET_RESULT_DATA 0x01
 /** 一次列表读最多几个 OAD（防御：不让请求里的 count 撑爆栈上暂存）。 */
-#define DLT698_GET_LIST_MAX           8
+#define DLT698_GET_LIST_MAX 8
 
 /**
  * @brief DLT698 地址类型
@@ -51,7 +60,7 @@ extern "C" {
 typedef struct {
     uint8_t addr[16];
     uint8_t len;
-    uint8_t type; // 0: Single, 1: Group, 2: Broadcast
+    uint8_t type;  // 0: Single, 1: Group, 2: Broadcast
 } dlt698_addr_t;
 
 /* --- 校验工具 --- */
@@ -88,7 +97,7 @@ int dlt698_encode_set_request(const dlt698_addr_t *sa, uint8_t piid, uint32_t oa
  * @param dlen 数据字节长度
  * @param out 输出网络缓冲区
  */
-int dlt698_encode_get_response(const dlt698_addr_t *sa, uint8_t piid, uint32_t oad, 
+int dlt698_encode_get_response(const dlt698_addr_t *sa, uint8_t piid, uint32_t oad,
                                const uint8_t *data, size_t dlen, net_buf_t *out);
 
 /**
@@ -100,8 +109,8 @@ int dlt698_encode_get_response(const dlt698_addr_t *sa, uint8_t piid, uint32_t o
  */
 typedef struct {
     uint32_t oad;
-    uint8_t dar;          /* 0 = 成功；非 0 时按标准 6.3.3.11 填错误信息 */
-    const uint8_t *data;  /* dar==0 时用，必须含 A-XDR 类型标签 */
+    uint8_t dar;         /* 0 = 成功；非 0 时按标准 6.3.3.11 填错误信息 */
+    const uint8_t *data; /* dar==0 时用，必须含 A-XDR 类型标签 */
     size_t dlen;
 } dlt698_get_item_t;
 
@@ -112,6 +121,25 @@ typedef struct {
  */
 int dlt698_encode_get_response_list(const dlt698_addr_t *sa, uint8_t piid,
                                     const dlt698_get_item_t *items, size_t n, net_buf_t *out);
+
+/**
+ * @brief 流式 GET-Response-NormalList：逐项取、逐项编码，调用方只需一个数据缓冲。
+ *
+ * begin 写帧头与 `n`；item/item_dar 追加一项；end 补尾部并封帧。
+ * 这样驱动不必同时持有 `n` 份 A-XDR 缓冲（ADR-0013 §3）。
+ */
+typedef struct {
+    size_t start_len;
+    size_t len_off;
+    size_t hcs_off;
+} dlt698_list_stream_t;
+
+int dlt698_encode_get_response_list_begin(dlt698_list_stream_t *stream, const dlt698_addr_t *sa,
+                                          uint8_t piid, size_t n, net_buf_t *out);
+int dlt698_encode_get_response_list_item(net_buf_t *out, uint32_t oad, const uint8_t *data,
+                                         size_t dlen);
+int dlt698_encode_get_response_list_item_dar(net_buf_t *out, uint32_t oad, uint8_t dar);
+int dlt698_encode_get_response_list_end(const dlt698_list_stream_t *stream, net_buf_t *out);
 
 /**
  * @brief 构造 ACTION-Request.Normal（操作一个对象方法）。
@@ -130,9 +158,8 @@ int dlt698_encode_get_response_list(const dlt698_addr_t *sa, uint8_t piid,
  * @param out     输出缓冲区
  * @return 0 成功，<0 参数非法
  */
-int dlt698_encode_action_request(const dlt698_addr_t *sa, uint8_t piid, uint16_t oi,
-                                 uint8_t method, uint8_t mode, const uint8_t *data, size_t dlen,
-                                 net_buf_t *out);
+int dlt698_encode_action_request(const dlt698_addr_t *sa, uint8_t piid, uint16_t oi, uint8_t method,
+                                 uint8_t mode, const uint8_t *data, size_t dlen, net_buf_t *out);
 
 /**
  * @brief 构造 ACTION-Response.Normal（对一次方法操作的应答）。
@@ -163,8 +190,8 @@ int dlt698_encode_action_response(const dlt698_addr_t *sa, uint8_t piid, uint16_
  * @param payload_len 载荷长度
  * @return 0 成功, 1 数据不足, <0 格式/校验错误
  */
-int dlt698_decode_frame(struct net_buf_simple *in, dlt698_addr_t *sa, uint8_t *svc, 
-                        uint8_t *piid, uint8_t **payload_out, size_t *payload_len);
+int dlt698_decode_frame(struct net_buf_simple *in, dlt698_addr_t *sa, uint8_t *svc, uint8_t *piid,
+                        uint8_t **payload_out, size_t *payload_len);
 
 /**
  * @brief 同上，但把 APDU 的 CHOICE 标签一并输出（[1] Normal / [2] NormalList）。
@@ -243,10 +270,14 @@ int dlt698_decode_long_unsigned(const uint8_t *buf, uint16_t len, uint16_t *offs
 int dlt698_encode_double_long(uint8_t *buf, uint16_t len, uint16_t *offset, int32_t val);
 int dlt698_decode_double_long(const uint8_t *buf, uint16_t len, uint16_t *offset, int32_t *val);
 
-int dlt698_encode_date_time_s(uint8_t *buf, uint16_t len, uint16_t *offset, uint16_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t min, uint8_t sec);
-int dlt698_decode_date_time_s(const uint8_t *buf, uint16_t len, uint16_t *offset, uint16_t *year, uint8_t *month, uint8_t *day, uint8_t *hour, uint8_t *min, uint8_t *sec);
+int dlt698_encode_date_time_s(uint8_t *buf, uint16_t len, uint16_t *offset, uint16_t year,
+                              uint8_t month, uint8_t day, uint8_t hour, uint8_t min, uint8_t sec);
+int dlt698_decode_date_time_s(const uint8_t *buf, uint16_t len, uint16_t *offset, uint16_t *year,
+                              uint8_t *month, uint8_t *day, uint8_t *hour, uint8_t *min,
+                              uint8_t *sec);
 
-int dlt698_encode_get_response(const dlt698_addr_t *sa, uint8_t piid, uint32_t oad, const uint8_t *data, size_t dlen, net_buf_t *out);
+int dlt698_encode_get_response(const dlt698_addr_t *sa, uint8_t piid, uint32_t oad,
+                               const uint8_t *data, size_t dlen, net_buf_t *out);
 
 #ifdef __cplusplus
 }

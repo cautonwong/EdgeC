@@ -7,6 +7,7 @@
 
 #include "bus_orchestrator.h"
 #include "datahub.h"
+#include "dcu_698_axdr.h"
 #include "dcu_node.h"
 #include "dcu_north_source.h"
 #include "dcu_router.h"
@@ -14,9 +15,9 @@
 #include "edge_slave_plane.h"
 #include "io_executor.h"
 #include "mqtt_producer.h"
-#include "northbound_mgr.h"
 #include "north_driver_adapter.h"
 #include "north_source_datahub_adapter.h"
+#include "northbound_mgr.h"
 
 typedef struct {
     bus_orchestrator_t* orch;
@@ -78,8 +79,8 @@ static int _dcu_nb_accept_action(void* ctx, uint32_t omd, const uint8_t* axdr, s
     uint16_t oi = (uint16_t)(omd >> 16);
     uint8_t method = (uint8_t)((omd >> 8) & 0xFF);
     LOG_WARN(LOG_CAT_NB,
-             "DCU north ACTION OI=0x%04X method=%u：参数结构未实现（见标准表 A.9），回 DAR=2",
-             oi, method);
+             "DCU north ACTION OI=0x%04X method=%u：参数结构未实现（见标准表 A.9），回 DAR=2", oi,
+             method);
     return -1;
 }
 
@@ -120,6 +121,8 @@ void dcu_north_slave_attach(uv_loop_t* loop, datahub_t* hub, bus_orchestrator_t*
     static const edge_slave_source_ops_t src = {
         .resolve = _dcu_nb_resolve,
         .accept_action = _dcu_nb_accept_action,
+        .resolve_axdr = dcu_north_resolve_axdr,
+        .accept_axdr = dcu_north_accept_axdr,
     };
     bus_orchestrator_set_slave_source(orch, DCU_NORTH_BUS, &src, NULL);
 
@@ -131,8 +134,8 @@ void dcu_north_slave_attach(uv_loop_t* loop, datahub_t* hub, bus_orchestrator_t*
     srv.data = &g_dcu_north_ctx;
     unlink(path);
     int bind_rc = uv_pipe_bind(&srv, path);
-    int listen_rc = (bind_rc == 0) ? uv_listen((uv_stream_t*)&srv, 16, _on_dcu_north_connect)
-                                   : bind_rc;
+    int listen_rc =
+        (bind_rc == 0) ? uv_listen((uv_stream_t*)&srv, 16, _on_dcu_north_connect) : bind_rc;
     if (bind_rc == 0 && listen_rc == 0) {
         LOG_INFO(LOG_CAT_NB, "DCU northbound: 698 slave listening at %s", path);
     } else {
@@ -170,8 +173,7 @@ void dcu_north_cloud_attach(datahub_t* hub) {
     nb_source_ops_t nb_source = northbound_source_from_datahub(hub);
     g_nb_transport = mqtt_producer_create(mqtt_url, mqtt_client_id);
     northbound_mgr_init_ex(&g_north, nb_source, "DCU", NULL, g_nb_transport);
-    northbound_mgr_set_driver_port(&g_north,
-                                   north_driver_adapter_init(&g_north_driver_storage));
+    northbound_mgr_set_driver_port(&g_north, north_driver_adapter_init(&g_north_driver_storage));
     northbound_mgr_set_address(&g_north, NULL, group_id, node_id);
     /* 北向取数端口：metric 名与当前值都由产品给，驱动不反查 datahub。
      * 不注入的话驱动只能把点位编成 tag_<数字>，主站看不出是什么量。 */
@@ -182,16 +184,15 @@ void dcu_north_cloud_attach(datahub_t* hub) {
     if (nb_proto && *nb_proto && northbound_mgr_set_protocol(&g_north, nb_proto) != 0) {
         LOG_WARN(LOG_CAT_NB, "Northbound: unknown protocol '%s', keeping default", nb_proto);
     }
-    LOG_INFO(LOG_CAT_NB, "🌐 Northbound assembled: broker=%s group=%s node=%s", mqtt_url,
-             group_id, node_id);
+    LOG_INFO(LOG_CAT_NB, "🌐 Northbound assembled: broker=%s group=%s node=%s", mqtt_url, group_id,
+             node_id);
 }
-
 
 void dcu_north_stop(void) {
     northbound_mgr_stop(&g_north);
 }
 
-northbound_mgr_t *dcu_north_mgr(void) {
+northbound_mgr_t* dcu_north_mgr(void) {
     return &g_north;
 }
 

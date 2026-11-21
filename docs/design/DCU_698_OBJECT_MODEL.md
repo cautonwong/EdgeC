@@ -181,7 +181,7 @@ int (*accept_axdr)(void *ctx, uint32_t oad, const uint8_t *axdr, size_t len);
 
 驱动对 698 的 GET 先调 `resolve_axdr`，回调为 NULL 时才回落到标量 `resolve`；SET 先调 `accept_axdr`，回调为 NULL 时才回落到标量 `accept`。回调已实现但返回非 0 是真实失败，不得再回落——否则结构属性会在一次解码错误后悄悄退化成截断值。这样 IEC104 与 Modbus 的标量路径不变，698 的结构路径有独立通道，驱动仍然不认识点位模型。
 
-单条属性的 A-XDR 上限设为 `DCU_698_AXDR_MAX`，首版 2048 字节。超过上限的记录型属性走 GetRecord 分页，不把整张表塞进一个响应。缓冲由调用方提供，不引入动态内存。
+单条属性的 A-XDR 上限设为 `EDGE_SLAVE_AXDR_MAX`，首版 2048 字节。超过上限的记录型属性走 GetRecord 分页，不把整张表塞进一个响应。缓冲由调用方提供，不引入动态内存。
 
 ## 5. 编码与访问
 

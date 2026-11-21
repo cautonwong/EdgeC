@@ -1,0 +1,21 @@
+ adapters/io_drivers/src/driver_dlt698.c | 148 ++++++++----
+ ci/baseline/composition_root_budget.txt |   3 +-
+ cmd/dcu/CMakeLists.txt                  |   1 +
+ cmd/dcu/dcu_698_axdr.c                  | 103 ++++++++
+ cmd/dcu/dcu_698_axdr.h                  |  18 ++
+ cmd/dcu/dcu_north_adapter.c             |  23 +-
+ cmd/dcu/dcu_north_adapter.h             |   2 +
+ docs/adr/0013-698-slave-axdr-port.md    |   2 +-
+ docs/design/DCU_698_OBJECT_MODEL.md     |   2 +-
+ docs/design/slave_plane_architecture.md |   2 +-
+ docs/evidence/DCU-D1-13/comments.md     |  33 +++
+ docs/evidence/DCU-D1-13/diffstat.txt    |  17 ++
+ docs/evidence/DCU-D1-13/runtime.log     |  32 +++
+ docs/evidence/DCU-D1-13/summary.md      |  66 +++++
+ docs/evidence/DCU-D1-13/tests.log       |  40 +++
+ foundation/include/dlt698_codec.h       |  77 ++++--
+ foundation/include/edge_slave_plane.h   |  25 +-
+ foundation/src/protocol/dlt698_codec.c  | 222 +++++++++++------
+ tests/CMakeLists.txt                    |   4 +
+ tests/test_dcu_698_axdr.c               | 414 ++++++++++++++++++++++++++++++++
+ 20 files changed, 1067 insertions(+), 167 deletions(-)

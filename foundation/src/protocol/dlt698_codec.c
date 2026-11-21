@@ -1,27 +1,33 @@
 #include "dlt698_codec.h"
-#include <string.h>
-#include <stdlib.h>
+
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 // --- DLT698 FCS16 Table ---
 static const uint16_t DLT698_FCS_TAB[256] = {
-    0x0000, 0x1189, 0x2312, 0x329b, 0x4624, 0x57ad, 0x6536, 0x74bf, 0x8c48, 0x9dc1, 0xaf5a, 0xbed3, 0xca6c, 0xdbe5, 0xe97e, 0xf8f7,
-    0x1081, 0x0108, 0x3393, 0x221a, 0x56a5, 0x472c, 0x75b7, 0x643e, 0x9cc9, 0x8d40, 0xbfdb, 0xae52, 0xdaed, 0xcb64, 0xf9ff, 0xe876,
-    0x2102, 0x308b, 0x0210, 0x1399, 0x6726, 0x76af, 0x4434, 0x55bd, 0xad4a, 0xbcc3, 0x8e58, 0x9fd1, 0xeb6e, 0xfae7, 0xc87c, 0xd9f5,
-    0x3183, 0x200a, 0x1291, 0x0318, 0x77a7, 0x662e, 0x54b5, 0x453c, 0xbdcb, 0xac42, 0x9ed9, 0x8f50, 0xfbef, 0xea66, 0xd8fd, 0xc974,
-    0x4204, 0x538d, 0x6116, 0x709f, 0x0420, 0x15a9, 0x2732, 0x36bb, 0xce4c, 0xdfc5, 0xed5e, 0xfcd7, 0x8868, 0x99e1, 0xab7a, 0xbaf3,
-    0x5285, 0x430c, 0x7197, 0x601e, 0x14a1, 0x0528, 0x37b3, 0x263a, 0xdecd, 0xcf44, 0xfddf, 0xec56, 0x98e9, 0x8960, 0xbbfb, 0xaa72,
-    0x6306, 0x728f, 0x4014, 0x519d, 0x2522, 0x34ab, 0x0630, 0x17b9, 0xef4e, 0xfec7, 0xcc5c, 0xddd5, 0xa96a, 0xb8e3, 0x8a78, 0x9bf1,
-    0x7387, 0x620e, 0x5095, 0x411c, 0x35a3, 0x242a, 0x16b1, 0x0738, 0xffcf, 0xee46, 0xdcdd, 0xcd54, 0xb9eb, 0xa862, 0x9af9, 0x8b70,
-    0x8408, 0x9581, 0xa71a, 0xb693, 0xc22c, 0xd3a5, 0xe13e, 0xf0b7, 0x0840, 0x19c9, 0x2b52, 0x3adb, 0x4e64, 0x5fed, 0x6d76, 0x7cff,
-    0x9489, 0x8500, 0xb79b, 0xa612, 0xd2ad, 0xc324, 0xf1bf, 0xe036, 0x18c1, 0x0948, 0x3bd3, 0x2a5a, 0x5ee5, 0x4f6c, 0x7df7, 0x6c7e,
-    0xa50a, 0xb483, 0x8618, 0x9791, 0xe32e, 0xf2a7, 0xc03c, 0xd1b5, 0x2942, 0x38cb, 0x0a50, 0x1bd9, 0x6f66, 0x7eef, 0x4c74, 0x5dfd,
-    0xb58b, 0xa402, 0x9699, 0x8710, 0xf3af, 0xe226, 0xd0bd, 0xc134, 0x39c3, 0x284a, 0x1ad1, 0x0b58, 0x7fe7, 0x6e6e, 0x5cf5, 0x4d7c,
-    0xc60c, 0xd785, 0xe51e, 0xf497, 0x8028, 0x91a1, 0xa33a, 0xb2b3, 0x4a44, 0x5bcd, 0x6956, 0x78df, 0x0c60, 0x1de9, 0x2f72, 0x3efb,
-    0xd68d, 0xc704, 0xf59f, 0xe416, 0x90a9, 0x8120, 0xb3bb, 0xa232, 0x5ac5, 0x4b4c, 0x79d7, 0x685e, 0x1ce1, 0x0d68, 0x3ff3, 0x2e7a,
-    0xe70e, 0xf687, 0xc41c, 0xd595, 0xa12a, 0xb0a3, 0x8238, 0x93b1, 0x6b46, 0x7acf, 0x4854, 0x59dd, 0x2d62, 0x3ceb, 0x0e70, 0x1ff9,
-    0xf78f, 0xe606, 0xd49d, 0xc514, 0xb1ab, 0xa022, 0x92b9, 0x8330, 0x7bc7, 0x6a4e, 0x58d5, 0x495c, 0x3de3, 0x2c6a, 0x1ef1, 0x0f78
-};
+    0x0000, 0x1189, 0x2312, 0x329b, 0x4624, 0x57ad, 0x6536, 0x74bf, 0x8c48, 0x9dc1, 0xaf5a, 0xbed3,
+    0xca6c, 0xdbe5, 0xe97e, 0xf8f7, 0x1081, 0x0108, 0x3393, 0x221a, 0x56a5, 0x472c, 0x75b7, 0x643e,
+    0x9cc9, 0x8d40, 0xbfdb, 0xae52, 0xdaed, 0xcb64, 0xf9ff, 0xe876, 0x2102, 0x308b, 0x0210, 0x1399,
+    0x6726, 0x76af, 0x4434, 0x55bd, 0xad4a, 0xbcc3, 0x8e58, 0x9fd1, 0xeb6e, 0xfae7, 0xc87c, 0xd9f5,
+    0x3183, 0x200a, 0x1291, 0x0318, 0x77a7, 0x662e, 0x54b5, 0x453c, 0xbdcb, 0xac42, 0x9ed9, 0x8f50,
+    0xfbef, 0xea66, 0xd8fd, 0xc974, 0x4204, 0x538d, 0x6116, 0x709f, 0x0420, 0x15a9, 0x2732, 0x36bb,
+    0xce4c, 0xdfc5, 0xed5e, 0xfcd7, 0x8868, 0x99e1, 0xab7a, 0xbaf3, 0x5285, 0x430c, 0x7197, 0x601e,
+    0x14a1, 0x0528, 0x37b3, 0x263a, 0xdecd, 0xcf44, 0xfddf, 0xec56, 0x98e9, 0x8960, 0xbbfb, 0xaa72,
+    0x6306, 0x728f, 0x4014, 0x519d, 0x2522, 0x34ab, 0x0630, 0x17b9, 0xef4e, 0xfec7, 0xcc5c, 0xddd5,
+    0xa96a, 0xb8e3, 0x8a78, 0x9bf1, 0x7387, 0x620e, 0x5095, 0x411c, 0x35a3, 0x242a, 0x16b1, 0x0738,
+    0xffcf, 0xee46, 0xdcdd, 0xcd54, 0xb9eb, 0xa862, 0x9af9, 0x8b70, 0x8408, 0x9581, 0xa71a, 0xb693,
+    0xc22c, 0xd3a5, 0xe13e, 0xf0b7, 0x0840, 0x19c9, 0x2b52, 0x3adb, 0x4e64, 0x5fed, 0x6d76, 0x7cff,
+    0x9489, 0x8500, 0xb79b, 0xa612, 0xd2ad, 0xc324, 0xf1bf, 0xe036, 0x18c1, 0x0948, 0x3bd3, 0x2a5a,
+    0x5ee5, 0x4f6c, 0x7df7, 0x6c7e, 0xa50a, 0xb483, 0x8618, 0x9791, 0xe32e, 0xf2a7, 0xc03c, 0xd1b5,
+    0x2942, 0x38cb, 0x0a50, 0x1bd9, 0x6f66, 0x7eef, 0x4c74, 0x5dfd, 0xb58b, 0xa402, 0x9699, 0x8710,
+    0xf3af, 0xe226, 0xd0bd, 0xc134, 0x39c3, 0x284a, 0x1ad1, 0x0b58, 0x7fe7, 0x6e6e, 0x5cf5, 0x4d7c,
+    0xc60c, 0xd785, 0xe51e, 0xf497, 0x8028, 0x91a1, 0xa33a, 0xb2b3, 0x4a44, 0x5bcd, 0x6956, 0x78df,
+    0x0c60, 0x1de9, 0x2f72, 0x3efb, 0xd68d, 0xc704, 0xf59f, 0xe416, 0x90a9, 0x8120, 0xb3bb, 0xa232,
+    0x5ac5, 0x4b4c, 0x79d7, 0x685e, 0x1ce1, 0x0d68, 0x3ff3, 0x2e7a, 0xe70e, 0xf687, 0xc41c, 0xd595,
+    0xa12a, 0xb0a3, 0x8238, 0x93b1, 0x6b46, 0x7acf, 0x4854, 0x59dd, 0x2d62, 0x3ceb, 0x0e70, 0x1ff9,
+    0xf78f, 0xe606, 0xd49d, 0xc514, 0xb1ab, 0xa022, 0x92b9, 0x8330, 0x7bc7, 0x6a4e, 0x58d5, 0x495c,
+    0x3de3, 0x2c6a, 0x1ef1, 0x0f78};
 
 uint16_t dlt698_calculate_fcs(const uint8_t *p, size_t len) {
     uint16_t fcs = 0xFFFF;
@@ -58,8 +64,11 @@ static uint8_t *_frame_begin(struct net_buf_simple *b, const dlt698_addr_t *sa, 
     return start;
 }
 
-static void _frame_seal(struct net_buf_simple *b, uint8_t *start, uint8_t *len_ptr,
-                        uint8_t *hcs_ptr) {
+static void _frame_seal_offsets(struct net_buf_simple *b, size_t start_len, size_t len_off,
+                                size_t hcs_off) {
+    uint8_t *start = b->data + start_len;
+    uint8_t *len_ptr = b->data + len_off;
+    uint8_t *hcs_ptr = b->data + hcs_off;
     size_t total_len = (size_t)(b->data + b->len - start) + 3; /* +2 FCS +1 END */
     /* 长度域 = 帧长 - 2（标准 5.1.2："除起始字符和结束字符之外的帧字节数"）。
      * 原来写的是 -1，整帧多算一个字节。用附录 H.1 的登录帧可以一眼看出：
@@ -77,6 +86,12 @@ static void _frame_seal(struct net_buf_simple *b, uint8_t *start, uint8_t *len_p
     uint16_t fcs = dlt698_calculate_fcs(start + 1, (size_t)(b->data + b->len - (start + 1)));
     net_buf_simple_add_le16(b, fcs);
     net_buf_simple_add_u8(b, DLT698_END);
+}
+
+static void _frame_seal(struct net_buf_simple *b, uint8_t *start, uint8_t *len_ptr,
+                        uint8_t *hcs_ptr) {
+    _frame_seal_offsets(b, (size_t)(start - b->data), (size_t)(len_ptr - b->data),
+                        (size_t)(hcs_ptr - b->data));
 }
 
 int dlt698_encode_set_request(const dlt698_addr_t *sa, uint8_t piid, uint32_t oad,
@@ -146,9 +161,8 @@ int dlt698_encode_get_response(const dlt698_addr_t *sa, uint8_t piid, uint32_t o
     return 0;
 }
 
-int dlt698_encode_action_request(const dlt698_addr_t *sa, uint8_t piid, uint16_t oi,
-                                 uint8_t method, uint8_t mode, const uint8_t *data, size_t dlen,
-                                 net_buf_t *out) {
+int dlt698_encode_action_request(const dlt698_addr_t *sa, uint8_t piid, uint16_t oi, uint8_t method,
+                                 uint8_t mode, const uint8_t *data, size_t dlen, net_buf_t *out) {
     if (!sa || !out || (dlen > 0 && !data)) return -1;
     if (method == 0) return -1; /* 标准 6.3.3.12：方法标识取值 1…255 */
 
@@ -211,7 +225,8 @@ int dlt698_encode_action_response(const dlt698_addr_t *sa, uint8_t piid, uint16_
 }
 
 int dlt698_decode_frame_ex(struct net_buf_simple *in, dlt698_addr_t *sa, uint8_t *svc,
-                           uint8_t *choice, uint8_t *piid, uint8_t **payload_out, size_t *payload_len) {
+                           uint8_t *choice, uint8_t *piid, uint8_t **payload_out,
+                           size_t *payload_len) {
     if (in->len < 12) return 1;
     if (in->data[0] != DLT698_HEAD) return -2;
 
@@ -249,8 +264,8 @@ int dlt698_decode_frame_ex(struct net_buf_simple *in, dlt698_addr_t *sa, uint8_t
     return 0;
 }
 
-int dlt698_decode_frame(struct net_buf_simple *in, dlt698_addr_t *sa, uint8_t *svc,
-                        uint8_t *piid, uint8_t **payload_out, size_t *payload_len) {
+int dlt698_decode_frame(struct net_buf_simple *in, dlt698_addr_t *sa, uint8_t *svc, uint8_t *piid,
+                        uint8_t **payload_out, size_t *payload_len) {
     /* 旧接口不关心 CHOICE，保持所有既有调用点不变 */
     return dlt698_decode_frame_ex(in, sa, svc, NULL, piid, payload_out, payload_len);
 }
@@ -285,6 +300,53 @@ int dlt698_encode_get_response_list(const dlt698_addr_t *sa, uint8_t piid,
     net_buf_simple_add_u8(b, DLT698_NO_FOLLOW_REPORT);
     net_buf_simple_add_u8(b, DLT698_NO_TIME_TAG);
     _frame_seal(b, start, len_ptr, hcs_ptr);
+    return 0;
+}
+
+int dlt698_encode_get_response_list_begin(dlt698_list_stream_t *stream, const dlt698_addr_t *sa,
+                                          uint8_t piid, size_t n, net_buf_t *out) {
+    if (!stream || !sa || !out || n == 0 || n > DLT698_GET_LIST_MAX) return -1;
+
+    struct net_buf_simple *b = &out->b;
+    stream->start_len = b->len;
+    uint8_t *len_ptr = NULL;
+    uint8_t *hcs_ptr = NULL;
+    (void)_frame_begin(b, sa, 0xC3, &len_ptr, &hcs_ptr);
+    stream->len_off = (size_t)(len_ptr - b->data);
+    stream->hcs_off = (size_t)(hcs_ptr - b->data);
+
+    net_buf_simple_add_u8(b, DLT698_SVC_GET_RES);
+    net_buf_simple_add_u8(b, DLT698_CHOICE_GET_NORMAL_LIST);
+    net_buf_simple_add_u8(b, piid);
+    net_buf_simple_add_u8(b, (uint8_t)n);
+    return 0;
+}
+
+int dlt698_encode_get_response_list_item(net_buf_t *out, uint32_t oad, const uint8_t *data,
+                                         size_t dlen) {
+    if (!out || (dlen > 0 && !data)) return -1;
+    struct net_buf_simple *b = &out->b;
+    net_buf_simple_add_be32(b, oad);
+    net_buf_simple_add_u8(b, DLT698_GET_RESULT_DATA);
+    if (dlen > 0) net_buf_simple_add_mem(b, data, dlen);
+    return 0;
+}
+
+int dlt698_encode_get_response_list_item_dar(net_buf_t *out, uint32_t oad, uint8_t dar) {
+    if (!out) return -1;
+    struct net_buf_simple *b = &out->b;
+    net_buf_simple_add_be32(b, oad);
+    net_buf_simple_add_u8(b, 0x00); /* CHOICE [0] DAR */
+    net_buf_simple_add_u8(b, dar);
+    return 0;
+}
+
+int dlt698_encode_get_response_list_end(const dlt698_list_stream_t *stream, net_buf_t *out) {
+    if (!stream || !out) return -1;
+    struct net_buf_simple *b = &out->b;
+    net_buf_simple_add_u8(b, DLT698_NO_FOLLOW_REPORT);
+    net_buf_simple_add_u8(b, DLT698_NO_TIME_TAG);
+    _frame_seal_offsets(b, stream->start_len, stream->len_off, stream->hcs_off);
     return 0;
 }
 
@@ -337,17 +399,17 @@ int dlt698_decode_data(const uint8_t *buf, uint16_t len, uint16_t *offset, dlt69
             return 0;
         }
 
-        case DLT698_TAG_DOUBLE_LONG: // int32
+        case DLT698_TAG_DOUBLE_LONG:  // int32
             if (*offset + 4 > len) return -1;
-            res->val.i32 = (int32_t)((buf[*offset] << 24) | (buf[*offset+1] << 16) | 
-                                     (buf[*offset+2] << 8) | buf[*offset+3]);
+            res->val.i32 = (int32_t)((buf[*offset] << 24) | (buf[*offset + 1] << 16) |
+                                     (buf[*offset + 2] << 8) | buf[*offset + 3]);
             *offset += 4;
             return 0;
 
-        case DLT698_TAG_DOUBLE_LONG_UNSIGNED: // uint32
+        case DLT698_TAG_DOUBLE_LONG_UNSIGNED:  // uint32
             if (*offset + 4 > len) return -1;
-            res->val.u32 = (uint32_t)((buf[*offset] << 24) | (buf[*offset+1] << 16) | 
-                                      (buf[*offset+2] << 8) | buf[*offset+3]);
+            res->val.u32 = (uint32_t)((buf[*offset] << 24) | (buf[*offset + 1] << 16) |
+                                      (buf[*offset + 2] << 8) | buf[*offset + 3]);
             *offset += 4;
             return 0;
 
@@ -365,25 +427,25 @@ int dlt698_decode_data(const uint8_t *buf, uint16_t len, uint16_t *offset, dlt69
             return 0;
         }
 
-        case DLT698_TAG_INTEGER: // int8
+        case DLT698_TAG_INTEGER:  // int8
             if (*offset >= len) return -1;
             res->val.i8 = (int8_t)buf[(*offset)++];
             return 0;
 
-        case DLT698_TAG_UNSIGNED: // uint8
+        case DLT698_TAG_UNSIGNED:  // uint8
             if (*offset >= len) return -1;
             res->val.u8 = buf[(*offset)++];
             return 0;
 
-        case DLT698_TAG_LONG: // int16
+        case DLT698_TAG_LONG:  // int16
             if (*offset + 2 > len) return -1;
-            res->val.i16 = (int16_t)((buf[*offset] << 8) | buf[*offset+1]);
+            res->val.i16 = (int16_t)((buf[*offset] << 8) | buf[*offset + 1]);
             *offset += 2;
             return 0;
 
-        case DLT698_TAG_LONG_UNSIGNED: // uint16
+        case DLT698_TAG_LONG_UNSIGNED:  // uint16
             if (*offset + 2 > len) return -1;
-            res->val.u16 = (uint16_t)((buf[*offset] << 8) | buf[*offset+1]);
+            res->val.u16 = (uint16_t)((buf[*offset] << 8) | buf[*offset + 1]);
             *offset += 2;
             return 0;
 
@@ -416,11 +478,11 @@ int dlt698_encode_long_unsigned(uint8_t *buf, uint16_t len, uint16_t *offset, ui
     if (!buf || !offset || *offset + 3 > len) {
         return -1;
     }
-    
-    buf[(*offset)++] = 18;  // 写入 long-unsigned 类型标识 Tag = 18
+
+    buf[(*offset)++] = 18;                            // 写入 long-unsigned 类型标识 Tag = 18
     buf[(*offset)++] = (uint8_t)((val >> 8) & 0xFF);  // 高字节大端序写入
     buf[(*offset)++] = (uint8_t)(val & 0xFF);         // 低字节大端序写入
-    
+
     return 0;
 }
 
@@ -432,17 +494,17 @@ int dlt698_decode_long_unsigned(const uint8_t *buf, uint16_t len, uint16_t *offs
     if (!buf || !offset || !val || *offset + 3 > len) {
         return -1;
     }
-    
+
     // 类型校验
     if (buf[*offset] != 18) {
-        return -2; // 类型 Tag 匹配错误
+        return -2;  // 类型 Tag 匹配错误
     }
-    (*offset)++; // 跳过 Tag 字节
-    
+    (*offset)++;  // 跳过 Tag 字节
+
     // 大端序拼装数据
     *val = (uint16_t)((buf[*offset] << 8) | buf[*offset + 1]);
     *offset += 2;
-    
+
     return 0;
 }
 
@@ -454,13 +516,13 @@ int dlt698_encode_double_long(uint8_t *buf, uint16_t len, uint16_t *offset, int3
     if (!buf || !offset || *offset + 5 > len) {
         return -1;
     }
-    
-    buf[(*offset)++] = 5;  // 写入 double-long 类型标识 Tag = 5
-    buf[(*offset)++] = (uint8_t)((val >> 24) & 0xFF); // 大端序高字节
+
+    buf[(*offset)++] = 5;                              // 写入 double-long 类型标识 Tag = 5
+    buf[(*offset)++] = (uint8_t)((val >> 24) & 0xFF);  // 大端序高字节
     buf[(*offset)++] = (uint8_t)((val >> 16) & 0xFF);
     buf[(*offset)++] = (uint8_t)((val >> 8) & 0xFF);
     buf[(*offset)++] = (uint8_t)(val & 0xFF);
-    
+
     return 0;
 }
 
@@ -471,65 +533,65 @@ int dlt698_decode_double_long(const uint8_t *buf, uint16_t len, uint16_t *offset
     if (!buf || !offset || !val || *offset + 5 > len) {
         return -1;
     }
-    
+
     if (buf[*offset] != 5) {
-        return -2; // 类型 Tag 不匹配
+        return -2;  // 类型 Tag 不匹配
     }
     (*offset)++;
-    
+
     // 大端序还原 32 位有符号数
-    *val = (int32_t)(((uint32_t)buf[*offset] << 24) | 
-                     ((uint32_t)buf[*offset + 1] << 16) | 
-                     ((uint32_t)buf[*offset + 2] << 8) | 
-                     (uint32_t)buf[*offset + 3]);
+    *val = (int32_t)(((uint32_t)buf[*offset] << 24) | ((uint32_t)buf[*offset + 1] << 16) |
+                     ((uint32_t)buf[*offset + 2] << 8) | (uint32_t)buf[*offset + 3]);
     *offset += 4;
-    
+
     return 0;
 }
 
 /**
  * @brief 编码 date_time_s (Tag 28) 7字节高精度时间格式
  */
-int dlt698_encode_date_time_s(uint8_t *buf, uint16_t len, uint16_t *offset, uint16_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t min, uint8_t sec) {
+int dlt698_encode_date_time_s(uint8_t *buf, uint16_t len, uint16_t *offset, uint16_t year,
+                              uint8_t month, uint8_t day, uint8_t hour, uint8_t min, uint8_t sec) {
     // 边界安全检验：确保能容纳 8 字节 (1字节 tag + 7字节值)
     if (!buf || !offset || *offset + 8 > len) {
         return -1;
     }
-    
-    buf[(*offset)++] = 28; // 写入 date_time_s 类型标识 Tag = 28
-    buf[(*offset)++] = (uint8_t)((year >> 8) & 0xFF); // 年 (高字节)
-    buf[(*offset)++] = (uint8_t)(year & 0xFF);        // 年 (低字节)
-    buf[(*offset)++] = month;                         // 月
-    buf[(*offset)++] = day;                           // 日
-    buf[(*offset)++] = hour;                          // 时
-    buf[(*offset)++] = min;                           // 分
-    buf[(*offset)++] = sec;                           // 秒
-    
+
+    buf[(*offset)++] = 28;                             // 写入 date_time_s 类型标识 Tag = 28
+    buf[(*offset)++] = (uint8_t)((year >> 8) & 0xFF);  // 年 (高字节)
+    buf[(*offset)++] = (uint8_t)(year & 0xFF);         // 年 (低字节)
+    buf[(*offset)++] = month;                          // 月
+    buf[(*offset)++] = day;                            // 日
+    buf[(*offset)++] = hour;                           // 时
+    buf[(*offset)++] = min;                            // 分
+    buf[(*offset)++] = sec;                            // 秒
+
     return 0;
 }
 
 /**
  * @brief 解码 date_time_s (Tag 28)
  */
-int dlt698_decode_date_time_s(const uint8_t *buf, uint16_t len, uint16_t *offset, uint16_t *year, uint8_t *month, uint8_t *day, uint8_t *hour, uint8_t *min, uint8_t *sec) {
+int dlt698_decode_date_time_s(const uint8_t *buf, uint16_t len, uint16_t *offset, uint16_t *year,
+                              uint8_t *month, uint8_t *day, uint8_t *hour, uint8_t *min,
+                              uint8_t *sec) {
     if (!buf || !offset || !year || !month || !day || !hour || !min || !sec || *offset + 8 > len) {
         return -1;
     }
-    
+
     if (buf[*offset] != 28) {
-        return -2; // 类型 Tag 匹配错误
+        return -2;  // 类型 Tag 匹配错误
     }
     (*offset)++;
-    
+
     // 解析时间数据
     *year = (uint16_t)((buf[*offset] << 8) | buf[*offset + 1]);
     *month = buf[*offset + 2];
-    *day   = buf[*offset + 3];
-    *hour  = buf[*offset + 4];
-    *min   = buf[*offset + 5];
-    *sec   = buf[*offset + 6];
+    *day = buf[*offset + 3];
+    *hour = buf[*offset + 4];
+    *min = buf[*offset + 5];
+    *sec = buf[*offset + 6];
     *offset += 7;
-    
+
     return 0;
 }
-

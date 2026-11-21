@@ -117,7 +117,7 @@ int modbus_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_o
 **A-XDR 端口规则**（ADR-0013）：
 
 1. 缓冲由调用方提供，产品把完整 A-XDR 写入，**含类型标签**；单条属性上限
-   `DCU_698_AXDR_MAX`（首版 2048 字节），超限的记录走 GetRecord 分页。
+   `EDGE_SLAVE_AXDR_MAX`（首版 2048 字节），超限的记录走 GetRecord 分页。
 2. 回落只认 NULL：回调为 NULL 才走标量 `resolve` / `accept`；回调已实现但返回非 0
    是真实失败，回 DAR，不得回落。
 3. 两个字段只能追加在结构末尾。仓库内所有初始化点都是 designated initializer，

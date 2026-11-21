@@ -1,6 +1,8 @@
 #ifndef DCU_NORTH_ADAPTER_H
 #define DCU_NORTH_ADAPTER_H
 
+#include <stddef.h>
+#include <stdint.h>
 #include <uv.h>
 
 #include "northbound_mgr.h"
