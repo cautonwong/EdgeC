@@ -1,0 +1,241 @@
+# WebUI 系统动态图方案与计划（以 DCU 实时抄表为例）
+
+> 日期：2026-11-21　状态：草案，待评审后派活
+> 读者：前端、C 开发、验证、产品
+> 用法：§6 的任务表是派活单位，一任务一 issue 一 PR；§7 定跟踪口径。
+
+## How to read this
+
+一个任务行就是一个工作单元。每行都写了负责角色、估时、依赖、交付物和出口证据。一个任务就是一个工作单元，每个工作单元都写明检查它的证据。出口证据必须是能复现的东西：测试输出、抓包、截图、PR 链接或提交 SHA。没有证据就不算完成。
+
+测试通过只是必要条件。完成定义是仓库口径：静态分析、测试、运行时验证证据三者齐全（`AGENTS.md`）。落到每个 PR 上，就是单元、实机与性能三类证据都齐了才算验过。Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+## Program checklist
+
+- [ ] 评审本方案，§9 的开放问题 1、2、4 给出结论。
+- [ ] 按 §6 给 P0 到 P5 建 GitHub Milestone。
+- [ ] 按 §7.1 给每个任务建 issue，挂里程碑与标签。
+- [ ] 每周一认领，周五交证据并更新进度表。
+- [ ] 每个 PR 合入后，在目标分支重跑 `run_guard_selftest.py` 与前端测试。
+
+## 1. 结论
+
+WebUI 现在能看快照，看不到动态。前端实时通道的代码已经写好，服务端却没有这个接口；页面全部靠 REST 快照刷新。要做「DCU 实时抄表动态」，需要补齐三件事：
+
+1. 服务端的实时推送通道（首版用 SSE），带背压、合并与序号。
+2. 产品侧的事件桥：把 DataHub 与抄表调度的事件推给通道，并提供一份快照接口用于重同步。
+3. 前端传输层与一个动态图页面：按通道、表计显示空闲、抄读中、成功、失败，附吞吐与时延。
+
+复用现有前端契约（`LiveMessage`、topic、seq 与 resync 语义），不另起一套。
+
+## 2. 现状盘点
+
+| 能力 | 现状 | 证据 |
+| --- | --- | --- |
+| 前端实时客户端 | 已有 WebSocket 客户端，默认 `/api/v1/ws`，断线指数退避 | `web/core/src/sdk/live.ts` |
+| 前端实时 store | 已有，topic 为 alarm/task/config-transaction/telemetry，seq 断档触发 resync | `web/core/src/app/stores/live.ts` |
+| 启动时机 | `AppShell` 挂载即 `live.start()`，注释说「已登录才建立」，代码没有判断 | `web/core/src/app/layouts/AppShell.vue:44-48` |
+| 服务端推送 | 没有。`rest_server.c` 无 WebSocket、无 `text/event-stream` | 全文件检索 |
+| 快照接口 | 有单点最新值 `/api/v1/data/latest/<tag>` | `adapters/rest_api/src/rest_server.c:921` |
+| DCU 抄表 | 轮询器与最新值表已就绪 | `cmd/dcu/dcu_poller.c`、`cmd/dcu/dcu_storage.c:51`（`dcu_telemetry_latest`） |
+| DCU 页面 | 只有电表档案页，取 `/api/v1/dcu/meters` | `web/products/dcu/pages/MetersView.vue:31` |
+| 该路由的服务端实现 | 不存在，只有 mock 有 | `web/mock-server/server.mjs:1461`；`adapters/rest_api` 无此路由 |
+| 可视化积木 | 以热力图、拓扑、报文抓包命名的组件已有 | `web/core/src/modules/devices/ChannelTopologyHeatmap.vue`、`web/core/src/modules/dcu/PacketCapture.vue` |
+| 设计意图 | 明确弃短轮询，走 WebSocket 或 SSE | `docs/design/edgeos_web_ui_ux_masterplan.md:87` |
+
+两个已确认的缺口，计划内一并处理：AppShell 无条件连一个不存在的地址，会在控制台持续重连；电表档案页依赖的路由服务端没有实现。
+
+## 3. 实时契约
+
+复用前端已有的 `LiveMessage`，不改字段。
+
+```
+{ "type": "event", "seq": 1024, "ts": "2026-11-21T10:00:00.123Z",
+  "topic": "task", "payload": { ... } }
+```
+
+规则：
+
+- `seq` 单调递增，服务端不保留积压。客户端发现断档就整体重取快照，不能假设连续。
+- topic 首版四个：`telemetry`、`task`、`alarm`、`config-transaction`。动态图只用前两个。
+- 载荷（示例）：
+
+| topic | 事件 | 载荷 |
+| --- | --- | --- |
+| `task` | 抄表开始 | `{bus_id, meter, channel, started_at}` |
+| `task` | 抄表完成 | `{bus_id, meter, latency_ms, ok}` |
+| `task` | 抄表失败 | `{bus_id, meter, latency_ms, error}` |
+| `telemetry` | 点值变化 | `{point, value, quality, ts}`，按点合并 |
+| `alarm` | 告警 | 沿用现有告警对象 |
+
+背压与合并：服务端每 100 ms 合并一次，同一表计同一阶段只保留最后一条；每客户端队列上限 256 条，满则丢最旧并计入 `dropped`；单条事件上限 8 KB；每 15 秒发一次注释行保活。
+
+## 4. 架构与组件
+
+```
+DataHub / dcu_poller ──publish──> live_feed 适配器（SSE）──> 浏览器 EventSource
+        ▲                                   ▲
+        │ 快照 GET /api/v1/dcu/polling/state │ 配置与限流
+   产品装配（cmd/dcu）                       组合根
+```
+
+新组件 `adapters/live_feed`，端口放在 `foundation/include/live_feed_ports.h`，消费者定义：
+
+```
+int live_feed_publish(live_feed_t *feed, const char *topic, const char *json, size_t len);
+```
+
+产品只在装配时创建它并把 `publish` 注入事件源；适配器负责监听、订阅过滤、合并、限流、SSE 编码与断线清理。这样其他产品（IEMS、SmartBox）可以复用同一个适配器，只换事件源。
+
+前端改动集中在两处：`web/core/src/sdk/sse.ts` 新增 SSE 传输（与 `live.ts` 同一 `LiveChannel` 接口），`stores/live.ts` 按配置选择传输（`sse` 默认，`ws` 兼容，`poll` 降级为 2 秒快照）。`AppShell` 的启动加登录与能力判断。
+
+页面放在 `web/core/src/modules/live/MeterNetworkLive.vue`，DCU 与 IEMS 都能挂。展示内容：按通道分组的表计网格或拓扑，四种状态（空闲、抄读中、成功、失败），吞吐折线，时延分位数，失败明细。状态来自快照，动画来自事件。
+
+## 5. 关键设计决定
+
+### 5.1 首版用 SSE，不用 WebSocket
+
+| 维度 | SSE | WebSocket |
+| --- | --- | --- |
+| 服务端实现量 | 纯 HTTP chunked，约 300 行，含限流 | 需 RFC 6455 握手、掩码、分片、ping/pong，约 800 行且更易错 |
+| 方向 | 服务端到客户端，正好匹配只读推送 | 双向，本项目控制走 REST，用不上 |
+| 断线重连 | 浏览器自带 | 需自己实现（现有客户端已实现） |
+| 代理与防火墙 | 普通 HTTP，兼容好 | 需要 Upgrade 头，部分代理会拦 |
+| 现有前端 | 需加一个传输实现 | 已实现 |
+
+结论：首版 SSE。前端保留 `LiveChannel` 接口，后续要做双向再补 WS，不改调用方。
+
+### 5.2 事件量估算
+
+1000 只表、每只每分钟抄一次，平均约 17 条事件每秒，尖峰出现在轮询批次启动时。按 100 ms 合并、每客户端 256 条队列，8 个客户端时内存上界约 2 MB。这个量级 SSE 足够，不需要引入消息中间件。
+
+### 5.3 安全
+
+现有 REST 没有任何鉴权（`rest_server.c` 无 Cookie、Bearer 或权限检查），实时通道沿用它：绑定本机地址或放在网关后。若后续加鉴权，在订阅时校验，不在事件层。
+
+## 6. 工作分解与排期
+
+角色：A 架构，C C 开发，D 驱动或数据侧，F 前端，Q 验证，P 产品。人日为估算。
+
+### P0 契约与现状冻结（4 人日，第 1 周）
+
+| ID | 任务 | 角色 | 人日 | 依赖 | 交付物 | 出口证据 |
+| --- | --- | --- | --- | --- | --- | --- |
+| LIV-P0-01 | 实时契约冻结（事件、seq、合并、限流） | A+F | 2 | 无 | 契约文档与类型定义 | 评审记录，前端类型可编译 |
+| LIV-P0-02 | 事件源盘点（DCU 轮询与 DataHub 可订阅点） | D | 1 | 无 | 事件清单与采样频率 | 清单评审 |
+| LIV-P0-03 | 页面需求与非功能指标（帧率、事件率、时延） | P+Q | 1 | 01 | 指标表 | 指标表评审 |
+
+### P1 服务端 SSE 适配器（12 人日，第 2 到 3 周）
+
+| ID | 任务 | 角色 | 人日 | 依赖 | 交付物 | 出口证据 |
+| --- | --- | --- | --- | --- | --- | --- |
+| LIV-P1-01 | `live_feed_ports.h` 端口头 | A | 2 | P0-01 | 端口与类型 | 端口评审，无协议类型泄漏 |
+| LIV-P1-02 | `adapters/live_feed` 组件（监听、订阅过滤、合并、限流、SSE 编码、保活） | C | 6 | 01 | 组件与 `component.meta` | 契约测试：订阅、断线、队列满、保活 |
+| LIV-P1-03 | 客户端上限与丢弃计数可观测 | C | 2 | 02 | 计数接口与日志 | 压测下计数正确 |
+| LIV-P1-04 | 组件门禁登记（边界、预算、目标、自检夹具） | C | 2 | 02 | 门禁通过记录 | `run_guard_selftest.py` 绿 |
+
+### P2 DCU 事件源与快照（10 人日，第 3 到 4 周）
+
+| ID | 任务 | 角色 | 人日 | 依赖 | 交付物 | 出口证据 |
+| --- | --- | --- | --- | --- | --- | --- |
+| LIV-P2-01 | 轮询事件钩子（开始、完成、失败、时延） | D | 4 | P1-01 | `dcu_poller` 事件发布 | 单测：每阶段一条事件 |
+| LIV-P2-02 | 遥测合并事件（按点 200 ms 合并） | D | 2 | 01 | 事件桥 | 合并率与丢包计数用例 |
+| LIV-P2-03 | 快照接口 `/api/v1/dcu/polling/state` | C | 2 | 无 | REST 处理器 | 契约测试，含空库 |
+| LIV-P2-04 | 补 `/api/v1/dcu/meters` 服务端实现 | C | 2 | 无 | REST 处理器 | 与 mock 返回结构一致 |
+
+### P3 前端通道（10 人日，第 4 到 5 周）
+
+| ID | 任务 | 角色 | 人日 | 依赖 | 交付物 | 出口证据 |
+| --- | --- | --- | --- | --- | --- | --- |
+| LIV-P3-01 | SSE 传输（`sdk/sse.ts`，同一 `LiveChannel` 接口） | F | 4 | P1-02 | 传输实现 | 单测：重连、resync、脏数据丢弃 |
+| LIV-P3-02 | store 传输选择与降级（sse 默认、ws 兼容、poll 兜底） | F | 2 | 01 | 配置与选择逻辑 | 三种模式切换用例 |
+| LIV-P3-03 | AppShell 启动条件（登录与能力判断） | F | 1 | 01 | 启动门控 | 未登录不发起连接 |
+| LIV-P3-04 | mock server 支持 SSE 与事件脚本 | F | 3 | 01 | mock 端点 | 本地开发可复现动态 |
+
+### P4 动态图页面（12 人日，第 5 到 6 周）
+
+| ID | 任务 | 角色 | 人日 | 依赖 | 交付物 | 出口证据 |
+| --- | --- | --- | --- | --- | --- | --- |
+| LIV-P4-01 | 页面骨架：按通道分组的表计网格与状态色 | F | 4 | P2-03、P3-02 | `MeterNetworkLive.vue` | 截图，四种状态可见 |
+| LIV-P4-02 | 事件驱动动画与合并（100 ms 帧合并） | F | 3 | 01 | 动画层 | 截图对比，帧率达标 |
+| LIV-P4-03 | 吞吐与时延面板 | F | 2 | 01 | 折线与小指标 | 截图，数据与快照一致 |
+| LIV-P4-04 | 失败明细与筛选 | F | 2 | 01 | 列表与筛选 | 截图，筛选生效 |
+| LIV-P4-05 | 可访问性与降级（无事件时显示快照与提示） | F | 1 | 01 | 降级视图 | 断流截图 |
+
+### P5 验证与推广（6 人日，第 6 周）
+
+| ID | 任务 | 角色 | 人日 | 依赖 | 交付物 | 出口证据 |
+| --- | --- | --- | --- | --- | --- | --- |
+| LIV-P5-01 | Playwright E2E：真产品加 SSE，覆盖四态与断流重连 | Q | 3 | P4-02、P4-05 | E2E 用例 | 截图与视频归档 |
+| LIV-P5-02 | 性能：1000 表仿真下的浏览器 CPU 与事件吞吐 | Q | 2 | 01 | 性能记录 | 指标达标或不达标的结论 |
+| LIV-P5-03 | 复用说明：IEMS 接入事件源的步骤 | A | 1 | P2 | 接入文档 | 文档评审 |
+
+合计约 54 人日，6 周。P1 与 P2 可部分并行，P3 可与 P2 并行。
+
+## 7. 派活与跟踪
+
+### 7.1 一任务一 issue 一 PR
+
+- issue 标题：`[LIV-P1-02] adapters/live_feed SSE 组件`。
+- 标签：阶段 `P1`，组件 `component:live-feed` 或 `web:core`，类型 `type:feature|refactor|test|docs`，triage `needs-triage`，评审后换 `ready-for-agent` 或 `ready-for-human`。
+- 一个任务一个 PR，重构、缺陷、功能不混（仓库规则）。
+- 里程碑按 P0 到 P5 建。
+
+### 7.2 完成定义
+
+- C 侧：单元测试、组件门禁、SSE 契约测试（真实 socket）。
+- 前端：单元测试、Playwright 场景、截图证据。
+- 数据一致性：断流后重连能恢复（resync 生效），事件丢弃有计数。
+- 性能任务给数字，不给「感觉流畅」。
+
+### 7.3 每周节奏
+
+周一认领并确认依赖已合并；周五交证据链接，更新 §7.4 的表；阻塞超过一天升级。
+
+### 7.4 进度总览（模板）
+
+| 阶段 | 任务数 | 完成 | 进行中 | 阻塞 | 里程碑判据 |
+| --- | --- | --- | --- | --- | --- |
+| P0 | 3 | 0 | 0 | 0 | 契约、事件源、指标冻结 |
+| P1 | 4 | 0 | 0 | 0 | 适配器契约测试绿 |
+| P2 | 4 | 0 | 0 | 0 | 事件与快照可用 |
+| P3 | 4 | 0 | 0 | 0 | 前端三种传输可切 |
+| P4 | 5 | 0 | 0 | 0 | 页面四态与降级可见 |
+| P5 | 3 | 0 | 0 | 0 | E2E 与性能结论 |
+
+## 8. 验证与验收
+
+- SSE 契约：用测试客户端连真实端口，验证订阅过滤、合并、队列满丢弃、保活注释、断线清理。
+- 数据一致性：先取快照，再注入事件，模拟丢包触发 resync，页面回到正确状态。
+- E2E：用 `acceptance/dcu` 的启动壳拉起产品，Playwright 打开动态图，四条用例对应四种状态与断流。
+- 性能：1000 表仿真，记录事件率、浏览器主线程占用、页面帧率；不达标先合并再优化时，结论写清。
+- 合并后跑 `run_guard_selftest.py` 与前端测试；后端新组件进 CI 矩阵。
+
+## 9. 风险与开放问题
+
+需人拍板：
+
+1. 传输选 SSE 还是 WebSocket。本方案首版 SSE，理由见 §5.1。
+2. 动态图的默认视图：网格还是拓扑。拓扑需要台区拓扑数据，DCU 现有 `DistributionArea` 有分支结构，但页面是否要画线需要产品定。
+3. 事件保留：是否需要在服务端留短期回放（当前契约明确不保留，靠 resync 重取）。
+4. 鉴权：沿用现在的无鉴权模型，还是本任务顺带加一层（会影响 REST 与实时通道两边）。
+5. 事件率上限目标：1000 表每分钟一次之外，是否有更密集的采样需求。
+
+技术风险：
+
+- `rest_server` 没有流式响应能力，实时通道必须新起监听或改造，二者都要处理端口与防火墙。
+- 前端 store 的 resync 语义依赖消费者重新取数；新页面必须实现，否则断档会显示旧状态。
+- `AppShell` 现在无条件连接，修复顺序要在服务端上线之前，避免控制台持续报错掩盖问题。
+- 动态图在高刷新率下容易做成 CPU 黑洞，合并与降帧是硬要求，验收带数字。
+
+## Appendix A. Links and reading list
+
+- `web/core/src/sdk/live.ts`、`web/core/src/app/stores/live.ts`（前端实时契约）
+- `docs/design/edgeos_web_ui_ux_masterplan.md`（§3 可视化与 §4.1 流式渲染）
+- `adapters/rest_api/src/rest_server.c`（REST 路由与限制）
+- `cmd/dcu/dcu_poller.c`、`cmd/dcu/dcu_storage.c`（抄表与最新值表）
+- `web/products/dcu/product.yaml`、`web/products/dcu/pages/MetersView.vue`（产品前端装配）
+
+## Appendix B. Prototype evidence
+
+本轮没有跑原型。传输选型靠实现量与语义对比得出（§5.1），若评审要求实测，P0 可补一个最小 SSE 与 WebSocket 的对比原型，记录分支与 SHA。
