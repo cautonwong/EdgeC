@@ -141,8 +141,8 @@ typedef struct {
     dcu_attr_write_fn write;
     dcu_method_fn     method;
     const void       *instance;
-    uint16_t          attr_mask;
-    uint16_t          method_mask;
+    uint8_t           attr_mask[32];   /* 属性号 0..255 位图 */
+    uint8_t           method_mask[32]; /* 方法号 0..255 位图 */
 } dcu_698_object_t;
 ```
 
@@ -496,7 +496,7 @@ P1 分两段。P1A 是目录、对象模型与标量北向，23 人日，可立�
 | D1-00 | feature | 对象目录生成器落地。核对 26 个类与 513 行 OI，输出 `DCU_698_OI_CATALOG.md` 与 `.json`，提供 `--check` | D | 2 | 无 | `scripts/extract_dcu_698_catalog.py` 与生成物 | 26 类齐全，`--check` 通过，故意改原文会红 |
 | D1-01 | docs | 以 `docs/698.pdf` 为准重新抽取 79 行 IC 列错位，修正生成器与 override 表，写清每个 OI 的最终类。标准没有歧义，这是解析错误 | A+D | 2 | D1-00 | 核对表与设计文档更新 | 每个冲突行有 PDF 页码或附录 A 表号，重新抽取后冲突归零 |
 | D1-02 | docs | 写 `docs/design/DCU_698_OBJECT_MODEL.md`，定对象表结构、类处理器、DAR、访问控制、存储映射 | A | 2 | D1-01 | 设计文档 | 评审通过，26 个类都有等级与落点 |
-| D1-03 | feature | 新建 `dcu_698_object_model.{h,c}`，把 `dcu_router.c` 的 12 个 OI 迁进静态表。`dcu_router` 改查表门面 | C | 3 | D1-02 | 新模块与迁移后的 router | `test_dcu_router` 全绿，新增 `test_dcu_698_object_model` 覆盖查表与缺失 OI |
+| D1-03 | feature | 新建 `dcu_698_object_model.{h,c}`，把 `dcu_router.c` 的 12 个 OI 迁进静态表。`dcu_router` 改查表门面。属性/方法掩码用 256 位位图，覆盖方法号 127 到 134，门面不绕过 mask | C | 3 | D1-02 | 新模块与迁移后的 router | `test_dcu_router` 全绿，新增 `test_dcu_698_object_model` 覆盖查表、缺失 OI、方法 127/128、属性 18、掩码拒绝 |
 | D1-04 | feature | Class 1、3、4、6 的读取处理器，接 DataHub 影子与 `dcu_value_t` 类型标签 | C | 2 | D1-03 | `dcu_698_var.c` | 单元测试覆盖正常值、缺 OI、类型标签、质量码 |
 | D1-05 | feature | 北向 `resolve` 改表驱动，支持首批 Class 1、3、4、6、9、10 的标量属性；复杂属性走 D1-13 的 A-XDR 通道 | C | 2 | D1-04、D1-13 | `dcu_north_adapter.c` 改动 | 验收 `dcu-northbound` 读 2000、2001、2004、6000、6012、5004 全通过 |
 | D1-06 | feature | 北向 ACTION 与 SET 接对象表方法。先做 OI 8000 跳合闸与 8010 强制冻结，参数按标准表 A.9 解 | D | 3 | D1-03、D1-13、D1-14 | 方法处理器与 DAR 映射 | 单元测试覆盖合法参数、缺参、越权、目标离线；验收发送真实 ACTION 帧并收到正确应答 |

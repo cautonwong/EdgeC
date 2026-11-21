@@ -74,12 +74,23 @@ struct dcu_698_object_s {
     dcu_attr_write_fn write;      /* NULL 表示只读 */
     dcu_method_fn     method;     /* NULL 表示无方法 */
     const void       *instance;   /* 聚合根或实体指针 */
-    uint16_t          attr_mask;  /* 支持的属性号位图 */
-    uint16_t          method_mask;/* 支持的方法号位图 */
+    uint8_t           attr_mask[32];   /* 属性号 0..255 位图 */
+    uint8_t           method_mask[32]; /* 方法号 0..255 位图 */
 };
 ```
 
-`attr_mask` 与 `method_mask` 让“不支持”变成显式事实。缺属性返回 DAR=5，缺方法返回 DAR=5，不静默成功。
+`attr_mask` 与 `method_mask` 是 256 位位图，不是 16 位掩码。698 的方法号有 127 到 134，Class 23 的属性号到 18，16 位放不下。用 16 位再让门面绕过 mask，是把根因留成 workaround，禁止。
+
+```c
+static inline bool dcu_mask_test(const uint8_t mask[32], uint8_t id) {
+    return (mask[id >> 3] >> (id & 7)) & 1u;
+}
+static inline void dcu_mask_set(uint8_t mask[32], uint8_t id) {
+    mask[id >> 3] |= (uint8_t)(1u << (id & 7));
+}
+```
+
+`attr_mask` 与 `method_mask` 让“不支持”变成显式事实。缺属性返回 DAR=5，缺方法返回 DAR=5，不静默成功。门面的 `get_attr/set_attr/action` 必须走 `dcu_698_read/write/call` 的同一套 mask 预检，不得绕过。
 
 ### 4.2 处理器签名
 
