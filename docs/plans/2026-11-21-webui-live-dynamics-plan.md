@@ -12,8 +12,8 @@
 
 ## Program checklist
 
-- [ ] 评审本方案，§9 的开放问题 1、2、4 给出结论。
-- [ ] 按 §6 给 P0 到 P5 建 GitHub Milestone。
+- [ ] 评审本方案，§9 的开放问题 1、2、4、6 给出结论。
+- [ ] 按 §6 给 P0 到 P6 建 GitHub Milestone。
 - [ ] 按 §7.1 给每个任务建 issue，挂里程碑与标签。
 - [ ] 每周一认领，周五交证据并更新进度表。
 - [ ] 每个 PR 合入后，在目标分支重跑 `run_guard_selftest.py` 与前端测试。
@@ -25,6 +25,7 @@ WebUI 现在能看快照，看不到动态。前端实时通道的代码已经�
 1. 服务端的实时推送通道（首版用 SSE），带背压、合并与序号。
 2. 产品侧的事件桥：把 DataHub 与抄表调度的事件推给通道，并提供一份快照接口用于重同步。
 3. 前端传输层与一个动态图页面：按通道、表计显示空闲、抄读中、成功、失败，附吞吐与时延。
+4. 指标暴露：ADR-0001 的指标通道已有注册 API 却没有消费端，补 Prometheus 文本端点与看板，动态图上的吞吐与时延才有稳定数据源。
 
 复用现有前端契约（`LiveMessage`、topic、seq 与 resync 语义），不另起一套。
 
@@ -113,6 +114,25 @@ int live_feed_publish(live_feed_t *feed, const char *topic, const char *json, si
 
 现有 REST 没有任何鉴权（`rest_server.c` 无 Cookie、Bearer 或权限检查），实时通道沿用它：绑定本机地址或放在网关后。若后续加鉴权，在订阅时校验，不在事件层。
 
+### 5.4 与指标、链路追踪的关系
+
+实时推送和指标不是二选一。前者是事件级的，给页面画动画；后者是聚合与趋势，给值班、告警和对外监控。两者数据源相同，用途不同。
+
+| 需求 | 推送（本方案） | 指标 | 链路追踪 |
+| --- | --- | --- | --- |
+| 页面上的表计状态动画 | 需要，事件级 | 不需要 | 不需要 |
+| 成功率、时延分位、活跃表数 | 可用，但页面不在时无人记录 | 需要，可被 Prometheus 抓取并告警 | 不需要 |
+| 对外 Grafana 大屏与历史 | 不保留历史 | 需要 | 不需要 |
+| 定位一次慢抄表落在哪一段 | 只能看结果 | 只能看分布 | 需要时才有用 |
+
+仓库现状：ADR-0001 已批准，指标通道 API 已实现（`modules/edge_core/include/edge_metrics.h`，DataHub 已注册 12001 到 12004，见 `modules/edge_core/src/datahub_shm.c:180`），但**没有消费端**：没有任何地方读 `PIPEMSG_TYPE_METRIC`，也没有 `/metrics` 或 `/api/v1/system/metrics` 的处理器。`MetricsMatrix.vue` 只写了端点标签，没有取数逻辑。链路追踪全仓没有实现。
+
+结论：
+
+- 指标要做，而且是本方案的前置：先有计数与直方图，动态图上的吞吐与时延才有稳定数据源，值班也有告警依据。首版给 Prometheus 文本端点，不引入客户端库；Grafana 只交付看板 JSON 与部署说明，不做嵌入式图形栈。
+- 链路追踪首版不做。单进程 C 运行时加 app-host，一次抄读的路径短，用计数器加事件时延就能定位；OTLP 导出器、span 传播与采样策略是另一个量级的依赖，等出现跨进程或跨产品联调的真实需求再立项。
+- 指标与推送共用一套计数来源：产品侧把计数器注册到 `edge_metrics`，推送适配器与指标端点各取所需，避免两套口径。
+
 ## 6. 工作分解与排期
 
 角色：A 架构，C C 开发，D 驱动或数据侧，F 前端，Q 验证，P 产品。人日为估算。
@@ -170,7 +190,16 @@ int live_feed_publish(live_feed_t *feed, const char *topic, const char *json, si
 | LIV-P5-02 | 性能：1000 表仿真下的浏览器 CPU 与事件吞吐 | Q | 2 | 01 | 性能记录 | 指标达标或不达标的结论 |
 | LIV-P5-03 | 复用说明：IEMS 接入事件源的步骤 | A | 1 | P2 | 接入文档 | 文档评审 |
 
-合计约 54 人日，6 周。P1 与 P2 可部分并行，P3 可与 P2 并行。
+### P6 指标暴露与看板（12 人日，第 7 周）
+
+| ID | 任务 | 角色 | 人日 | 依赖 | 交付物 | 出口证据 |
+| --- | --- | --- | --- | --- | --- | --- |
+| LIV-P6-01 | DCU 计数器与直方图注册（成功、超时、活跃表、时延桶） | D | 4 | P2-01 | 计数器注册与上报 | 计数随仿真变化，指标名稳定 |
+| LIV-P6-02 | Prometheus 文本端点 `/api/v1/system/metrics` | C | 4 | 01、P2-03 | REST 处理器 | 抓取返回合法文本格式 |
+| LIV-P6-03 | Grafana 看板 JSON 与部署说明 | C+Q | 2 | 02 | 看板文件与 README | 导入后四张图有数据 |
+| LIV-P6-04 | 指标与推送口径对齐验收 | Q | 2 | 02 | 对比记录 | 同一计数器两处一致 |
+
+合计约 66 人日，7 周。P1 与 P2 可部分并行，P3 可与 P2 并行。
 
 ## 7. 派活与跟踪
 
@@ -202,6 +231,7 @@ int live_feed_publish(live_feed_t *feed, const char *topic, const char *json, si
 | P3 | 4 | 0 | 0 | 0 | 前端三种传输可切 |
 | P4 | 5 | 0 | 0 | 0 | 页面四态与降级可见 |
 | P5 | 3 | 0 | 0 | 0 | E2E 与性能结论 |
+| P6 | 4 | 0 | 0 | 0 | 指标端点与看板可用 |
 
 ## 8. 验证与验收
 
@@ -209,6 +239,7 @@ int live_feed_publish(live_feed_t *feed, const char *topic, const char *json, si
 - 数据一致性：先取快照，再注入事件，模拟丢包触发 resync，页面回到正确状态。
 - E2E：用 `acceptance/dcu` 的启动壳拉起产品，Playwright 打开动态图，四条用例对应四种状态与断流。
 - 性能：1000 表仿真，记录事件率、浏览器主线程占用、页面帧率；不达标先合并再优化时，结论写清。
+- 指标：抓取 `/api/v1/system/metrics` 两次，校验文本格式与计数变化；用同一仿真核对推送与指标两处口径。
 - 合并后跑 `run_guard_selftest.py` 与前端测试；后端新组件进 CI 矩阵。
 
 ## 9. 风险与开放问题
@@ -220,6 +251,7 @@ int live_feed_publish(live_feed_t *feed, const char *topic, const char *json, si
 3. 事件保留：是否需要在服务端留短期回放（当前契约明确不保留，靠 resync 重取）。
 4. 鉴权：沿用现在的无鉴权模型，还是本任务顺带加一层（会影响 REST 与实时通道两边）。
 5. 事件率上限目标：1000 表每分钟一次之外，是否有更密集的采样需求。
+6. 指标交付范围：只给 Prometheus 端点，还是连 Grafana 看板与 docker 示例一起交付；指标保留与抓取周期由谁定。
 
 技术风险：
 
@@ -235,6 +267,8 @@ int live_feed_publish(live_feed_t *feed, const char *topic, const char *json, si
 - `adapters/rest_api/src/rest_server.c`（REST 路由与限制）
 - `cmd/dcu/dcu_poller.c`、`cmd/dcu/dcu_storage.c`（抄表与最新值表）
 - `web/products/dcu/product.yaml`、`web/products/dcu/pages/MetersView.vue`（产品前端装配）
+- `docs/adr/0001-observability-metrics-channel.md`（指标通道 ADR）
+- `modules/edge_core/include/edge_metrics.h`（指标注册与上报 API）
 
 ## Appendix B. Prototype evidence
 
