@@ -798,7 +798,8 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | 2026-11-21 | D1-03 | 待验收 | `/tmp/dcu-dev-worktree/docs/evidence/DCU-D1-03/` | 构建与 20/20 目标测试通过；`dcu_router.c` 664 到 96 行；review 发现 `uint16_t` mask 覆盖不了方法 127 到 134 与属性 18，门面绕过预检属 workaround；设计改为 256 位位图，已退回补实现 |
 | 2026-11-21 | D0-05 | 已派单 | - | edgec-dev-0 在 `/tmp/dcu-docs-worktree` 执行；真实帧向量从 `docs/698.pdf` 摘 |
 | 2026-11-21 | D1-03 | 已合并 | `docs/evidence/DCU-D1-03/` | 合并提交 `81730385`；26/26 目标测试、7/7 新测试、守卫、验收 2+4 全过；`dcu_router.c` 664→76；mask 改 256 位并删门面绕过 |
-| 2026-11-21 | 清理 | 完成 | - | 删除 `dcu/D1-03-object-model` 分支；删除 `/tmp/dcu-*.log` 与 scratch；删除被忽略的 `reports/`；工作树切到 `dcu/D1-04-var-handlers` |
+| 2026-11-21 | 清理 | 完成 | - | 删除 `dcu/D1-03-object-model` 分支；删除本会话 `/tmp` 日志与 scratch；删除被忽略的 `reports/`；工作树切到 `dcu/D1-04-var-handlers` |
+| 2026-11-21 | D1-03 注释 | 已合并 | `docs/evidence/DCU-D1-03/comments.md` | `/no-comments` 删除 100 行注释、0 行代码；构建、26/26 测试、守卫、验收 2+4 通过 |
 
 ### 12.4 并行工作树
 

@@ -1,9 +1,6 @@
 /**
  * @file dcu_router.c
  * @brief 698 路由门面：对象表在 dcu_698_object_model.c，这里只做查表与转发。
- *
- * D1-03 起 `dcu_router` 不再持有注册表。公开 API 与返回码保持不变：
- * 缺失属性/方法仍由处理器返回 -2/-3/-4，门面不把处理器错误改写成 -1。
  */
 
 #include "dcu_router.h"

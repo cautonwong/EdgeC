@@ -3,9 +3,6 @@
  * @brief DCU 698 对象表：静态表 + 查表门面
  *
  * 设计见 `docs/design/DCU_698_OBJECT_MODEL.md` 4.1 到 4.5。
- *
- * D1-03 是重构：处理器签名与现有 `dcu_object_t` 一代保持一致（`void *` 取值/写入），
- * 行为不变。A-XDR 处理器签名（`dcu_axdr_buf_t`）在 D1-04 与 D1-13 迁移。
  */
 
 #ifndef DCU_698_OBJECT_MODEL_H
@@ -53,14 +50,13 @@ struct dcu_698_object_s {
     dcu_698_write_fn write;   /* NULL 表示只读 */
     dcu_698_method_fn method; /* NULL 表示无方法 */
     const void *instance;     /* 聚合根或实体指针；不拥有、不释放 */
-    uint8_t attr_mask[32];    /* 支持的属性号位图 0..255 */
-    uint8_t method_mask[32];  /* 支持的方法号位图 0..255 */
+    uint8_t attr_mask[32];
+    uint8_t method_mask[32];
 };
 
 /**
  * @brief 装配对象表的实例指针。表本身是文件作用域静态存储，init 后只读。
  *
- * 只填 instance 与端口上下文；不再逐个 `obj->oi = ...` 注册。
  * 可重复调用；每次先把全部 instance 清空再按参数填入。
  */
 int dcu_698_object_model_init(dcu_inventory_t *inv, dcu_poller_t *poller,
@@ -68,7 +64,7 @@ int dcu_698_object_model_init(dcu_inventory_t *inv, dcu_poller_t *poller,
                               dcu_discovery_t *discovery, dcu_event_obj_t *evt_3000,
                               dcu_event_obj_t *evt_3005, router_bus_ops_t bus_ops);
 
-/** @brief 清空实例指针并回到未初始化状态（旧 `dcu_router_destroy` 语义）。 */
+/** @brief 清空实例指针并回到未初始化状态。 */
 void dcu_698_object_model_reset(void);
 
 /** @brief 注入遥控动作下沉端口（转发到 8000 处理器）。 */

@@ -1,9 +1,6 @@
 /**
  * @file dcu_698_object_model.c
- * @brief DCU 698 静态对象表与类处理器（D1-03 从 dcu_router.c 迁移）
- *
- * 表是文件作用域静态存储：编译期给 oi/class/scope/mask/处理器，装配期只填
- * instance。查表无锁、无动态内存。
+ * @brief DCU 698 静态对象表与类处理器
  */
 
 #include "dcu_698_object_model.h"
@@ -19,7 +16,6 @@
 #define BIT(id) ((uint8_t)(1U << ((id)&7)))
 #define BYTE(id) ((id) >> 3)
 
-/* 先声明后定义，便于表内引用。 */
 static int _oi_6000_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
                          void *out_val);
 static int _oi_6000_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
@@ -55,11 +51,7 @@ static int _oi_event_write(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t
 static int _oi_event_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
                              void *result);
 
-/* ==============================================================================
- * 静态对象表（12 个 OI）。instance 在 init 时填入，其余字段初始化后只读。
- * ============================================================================== */
 static dcu_698_object_t g_objects[] = {
-    /* 1. 0x6000 采集档案配置表 (Class 10) */
     {.oi = OI_METER_ARCHIVE,
      .class_id = IC_ACQUISITION,
      .scope = DCU_OBJ_SHARED,
@@ -70,7 +62,6 @@ static dcu_698_object_t g_objects[] = {
                      [BYTE(127)] = BIT(127),
                      [BYTE(128)] = BIT(128)}},
 
-    /* 2. 0x6012 任务配置表 (Class 10) */
     {.oi = OI_TASK_SCHEDULER,
      .class_id = IC_ACQUISITION,
      .scope = DCU_OBJ_SHARED,
@@ -79,7 +70,6 @@ static dcu_698_object_t g_objects[] = {
      .attr_mask = {[BYTE(2)] = BIT(2)},
      .method_mask = {[BYTE(1)] = BIT(1)}},
 
-    /* 3. 0x2000 电压 / 0x2001 电流 (Class 3)，每块表一个实例 */
     {.oi = (uint16_t)((OAD_VOLTAGE >> 16) & 0xFFFF),
      .class_id = IC_VARIABLE,
      .scope = DCU_OBJ_PER_METER,
@@ -91,7 +81,6 @@ static dcu_698_object_t g_objects[] = {
      .read = _oi_variable_read,
      .attr_mask = {[BYTE(2)] = BIT(2)}},
 
-    /* 4. 0x5004 日冻结记录表 (Class 9)：方法 3/4/5/7/8 已登记，实现随 D1-15。 */
     {.oi = (uint16_t)((OAD_DAILY_FREEZE >> 16) & 0xFFFF),
      .class_id = IC_RECORD,
      .scope = DCU_OBJ_SHARED,
@@ -100,21 +89,18 @@ static dcu_698_object_t g_objects[] = {
      .attr_mask = {[BYTE(2)] = BIT(2)},
      .method_mask = {[BYTE(3)] = BIT(3) | BIT(4) | BIT(5) | BIT(7), [BYTE(8)] = BIT(8)}},
 
-    /* 5. 0x8000 远程负荷拉闸动作 (Class 13) */
     {.oi = OI_REMOTE_CONTROL,
      .class_id = IC_CONTROL,
      .scope = DCU_OBJ_SINGLETON,
      .method = _oi_8000_execute,
      .method_mask = {[BYTE(1)] = BIT(1)}},
 
-    /* 6. 0xF100 ESAM 安全 (Class 10) */
     {.oi = OI_ESAM_SECURITY,
      .class_id = IC_ACQUISITION,
      .scope = DCU_OBJ_SINGLETON,
      .method = _oi_f100_execute,
      .method_mask = {[BYTE(1)] = BIT(1)}},
 
-    /* 7. 0xF200 外设串口参数 (Class 10) */
     {.oi = OI_CHANNEL_CONFIG,
      .class_id = IC_ACQUISITION,
      .scope = DCU_OBJ_SINGLETON,
@@ -122,7 +108,6 @@ static dcu_698_object_t g_objects[] = {
      .write = _oi_f200_write,
      .attr_mask = {[BYTE(2)] = BIT(2) | BIT(3)}},
 
-    /* 8. 0x6002 搜表控制 / 0x6003 搜表结果 (Class 10) */
     {.oi = OI_METER_DISCOVERY,
      .class_id = IC_ACQUISITION,
      .scope = DCU_OBJ_SINGLETON,
@@ -136,7 +121,6 @@ static dcu_698_object_t g_objects[] = {
      .read = _oi_6003_read,
      .attr_mask = {[BYTE(2)] = BIT(2)}},
 
-    /* 9. 0x3000 失压 / 0x3005 过流事件 (Class 7) */
     {.oi = OI_VOLTAGE_DROP,
      .class_id = IC_EVENT,
      .scope = DCU_OBJ_SHARED,
@@ -166,22 +150,18 @@ static dcu_inventory_t *s_router_inv = NULL;
 static dcu_control_sink_t s_control_sink;
 static void *s_control_ctx;
 
-/* ==============================================================================
- * 1. OI 0x6000 采集档案配置表 (Class 10)
- * ============================================================================== */
 static int _oi_6000_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
                          void *out_val) {
     (void)elem_idx;
     dcu_inventory_t *inv = (dcu_inventory_t *)obj->instance;
     if (!inv || !out_val) return -1;
 
-    // 属性 2: 档案中的在线电能表总数
     if (attr_id == 2) {
         // 档案只在 uv 循环线程上被读写，这里不需要锁（见 dcu_inventory.h 的线程所有权说明）
         *(uint16_t *)out_val = inv->count;
         return 0;
     }
-    return -2;  // 属性未定义
+    return -2;
 }
 
 static int _oi_6000_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
@@ -189,29 +169,24 @@ static int _oi_6000_execute(const dcu_698_object_t *obj, uint8_t method_id, cons
     dcu_inventory_t *inv = (dcu_inventory_t *)obj->instance;
     if (!inv) return -1;
 
-    // [PRD Alignment] 方法 1: 添加 (Add)
     if (method_id == 1) {
         const char *addr = (const char *)param;
         int ret = dcu_inventory_add(inv, addr, "DLT698", 9600, 1);
         if (result) *(int *)result = ret;
         return ret;
     }
-    // [PRD Alignment] 方法 2: 批量添加 (AddBatch) 尚未实现
     if (method_id == 2) {
         return -4;  // 方法存在但拒绝执行：不得返回 0 让主站误以为已写入
     }
-    // [PRD Alignment] 方法 3: 更新基本/扩展信息 (Update) 尚未实现
     if (method_id == 3) {
         return -4;  // 方法存在但拒绝执行：不得返回 0 让主站误以为已更新
     }
-    // [PRD Alignment] 方法 4: 按序号或地址删除 (Delete)
     if (method_id == 4) {
         const char *addr = (const char *)param;
         int ret = dcu_inventory_remove(inv, addr);
         if (result) *(int *)result = ret;
         return 0;
     }
-    // [PRD Alignment] 方法 5: 清空档案表 (Clear)
     if (method_id == 5) {
         memset(inv->meters, 0, sizeof(inv->meters));
         inv->count = 0;
@@ -232,19 +207,15 @@ static int _oi_6000_execute(const dcu_698_object_t *obj, uint8_t method_id, cons
         return ret;
     }
 
-    return -2;  // 方法未定义
+    return -2;
 }
 
-/* ==============================================================================
- * 2. OI 0x6012 任务配置表 (Class 10)
- * ============================================================================== */
 static int _oi_6012_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
                          void *out_val) {
     (void)elem_idx;
     dcu_poller_t *poller = (dcu_poller_t *)obj->instance;
     if (!poller || !out_val) return -1;
 
-    // 属性 2: 方案配置库数量
     if (attr_id == 2) {
         uv_mutex_lock(&poller->lock);
         *(uint16_t *)out_val = poller->scheme_count;
@@ -259,7 +230,6 @@ static int _oi_6012_execute(const dcu_698_object_t *obj, uint8_t method_id, cons
     dcu_poller_t *poller = (dcu_poller_t *)obj->instance;
     if (!poller) return -1;
 
-    // 方法 1: Add Task
     if (method_id == 1) {
         const dcu_scheme_t *s = (const dcu_scheme_t *)param;
         if (s->type != SCHEME_TYPE_NORMAL)
@@ -272,9 +242,6 @@ static int _oi_6012_execute(const dcu_698_object_t *obj, uint8_t method_id, cons
     return -2;
 }
 
-/* ==============================================================================
- * 3. OI 0x2000 电压变量 / OI 0x2001 电流变量 (Class 3)
- * ============================================================================== */
 static int _oi_variable_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
                              void *out_val) {
     (void)elem_idx;
@@ -301,16 +268,12 @@ static int _oi_variable_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8
     return -2;
 }
 
-/* ==============================================================================
- * 4. OI 0x5004 日冻结记录表 (Class 9)
- * ============================================================================== */
 static int _oi_5004_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
                          void *out_val) {
     (void)obj;
     (void)elem_idx;
     if (!out_val) return -1;
 
-    // 属性 2: 获取历史日冻结数据记录总数
     if (attr_id == 2) {
         if (g_router_sink_ops.count_freezes) {
             return g_router_sink_ops.count_freezes(g_router_sink_ops.ctx, (uint16_t *)out_val);
@@ -335,9 +298,6 @@ static int _oi_5004_execute(const dcu_698_object_t *obj, uint8_t method_id, cons
     return -2;
 }
 
-/* ==============================================================================
- * 5. OI 0x8000 远程控制拉闸动作 (Class 13)
- * ============================================================================== */
 static int _oi_8000_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
                             void *result) {
     (void)obj;
@@ -367,24 +327,17 @@ static int _oi_8000_execute(const dcu_698_object_t *obj, uint8_t method_id, cons
     return rc;
 }
 
-/* ==============================================================================
- * 6. OI 0xF100 ESAM 安全模块 (Class 10)
- * ============================================================================== */
 static int _oi_f100_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
                             void *result) {
     dcu_esam_t *esam = (dcu_esam_t *)obj->instance;
     if (!esam || !param || !result) return -1;
 
-    // 方法 1: 身份鉴权 (Authenticate)
     if (method_id == 1) {
         return dcu_security_authenticate(esam, (const uint8_t *)param, (uint8_t *)result);
     }
     return -2;
 }
 
-/* ==============================================================================
- * 7. OI 0xF200 外设接口参数配置 (Class 10)
- * ============================================================================== */
 static dcu_channel_cfg_t g_f200_channel_cfg = {.baudrate = 9600, .parity = 0};
 
 static int _oi_f200_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
@@ -393,12 +346,10 @@ static int _oi_f200_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t e
     (void)elem_idx;
     if (!out_val) return -1;
 
-    // 属性 2: Baudrate
     if (attr_id == 2) {
         *(uint32_t *)out_val = g_f200_channel_cfg.baudrate;
         return 0;
     }
-    // 属性 3: Parity
     if (attr_id == 3) {
         *(uint8_t *)out_val = g_f200_channel_cfg.parity;
         return 0;
@@ -412,13 +363,11 @@ static int _oi_f200_write(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t 
     (void)elem_idx;
     if (!in_val) return -1;
 
-    // 属性 2: Baudrate
     if (attr_id == 2) {
         g_f200_channel_cfg.baudrate = *(const uint32_t *)in_val;
         printf("🔧 [CHANNEL] 动态配置外设串口波特率调整为: %u\n", g_f200_channel_cfg.baudrate);
         return 0;
     }
-    // 属性 3: Parity
     if (attr_id == 3) {
         g_f200_channel_cfg.parity = *(const uint8_t *)in_val;
         return 0;
@@ -426,23 +375,18 @@ static int _oi_f200_write(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t 
     return -2;
 }
 
-/* ==============================================================================
- * 8. OI 0x6002 搜表控制 & 0x6003 搜表结果 (Class 10)
- * ============================================================================== */
 static int _oi_6002_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
                          void *out_val) {
     (void)elem_idx;
     dcu_discovery_t *disc = (dcu_discovery_t *)obj->instance;
     if (!disc || !out_val) return -1;
 
-    // 属性 2: 搜表状态
     if (attr_id == 2) {
         uv_mutex_lock(&disc->lock);
         *(uint8_t *)out_val = disc->status;
         uv_mutex_unlock(&disc->lock);
         return 0;
     }
-    // 属性 3: 发现数量
     if (attr_id == 3) {
         uv_mutex_lock(&disc->lock);
         *(uint16_t *)out_val = disc->count;
@@ -457,7 +401,6 @@ static int _oi_6002_execute(const dcu_698_object_t *obj, uint8_t method_id, cons
     dcu_discovery_t *disc = (dcu_discovery_t *)obj->instance;
     if (!disc) return -1;
 
-    // 方法 127: 启动自动搜表
     if (method_id == 127) {
         uint32_t duration = param ? *(const uint32_t *)param : 15;
         int ret = dcu_discovery_start(disc, duration);
@@ -472,7 +415,6 @@ static int _oi_6003_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t e
     dcu_discovery_t *disc = (dcu_discovery_t *)obj->instance;
     if (!disc || !out_val) return -1;
 
-    // 属性 2: 发现的电表列表
     if (attr_id == 2) {
         uv_mutex_lock(&disc->lock);
         if (elem_idx < disc->count) {
@@ -487,9 +429,6 @@ static int _oi_6003_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t e
     return -2;
 }
 
-/* ==============================================================================
- * 9. Class 7 失压 & 过流事件对象
- * ============================================================================== */
 static int _oi_event_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
                           void *out_val) {
     dcu_event_obj_t *evt = (dcu_event_obj_t *)obj->instance;
@@ -503,7 +442,6 @@ static int _oi_event_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t 
         }
         return -3;
     }
-    // 属性 3: 关联对象属性表
     if (attr_id == 3) {
         if (elem_idx < evt->snapshot_count) {
             *(uint32_t *)out_val = evt->snapshot_oads[elem_idx];
@@ -512,32 +450,26 @@ static int _oi_event_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t 
         }
         return 0;
     }
-    // 属性 4: 当前记录数
     if (attr_id == 4) {
         *(uint16_t *)out_val = evt->record_count;
         return 0;
     }
-    // 属性 5: 最大记录数
     if (attr_id == 5) {
         *(uint16_t *)out_val = MAX_EVENT_RECORDS;
         return 0;
     }
-    // 属性 6: 配置参数 (门限阈值)
     if (attr_id == 6) {
         *(float *)out_val = evt->threshold;
         return 0;
     }
-    // 属性 8: 上报标识
     if (attr_id == 8) {
         *(uint8_t *)out_val = evt->report_flag;
         return 0;
     }
-    // 属性 9: 有效标识 (使能)
     if (attr_id == 9) {
         *(bool *)out_val = evt->is_enabled;
         return 0;
     }
-    // 属性 10: 最近一次发生/恢复时标
     if (attr_id == 10) {
         uint64_t *times = (uint64_t *)out_val;
         times[0] = evt->last_start_time;
@@ -553,19 +485,16 @@ static int _oi_event_write(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t
     dcu_event_obj_t *evt = (dcu_event_obj_t *)obj->instance;
     if (!evt || !in_val) return -1;
 
-    // 属性 6: 在线配置判定门限
     if (attr_id == 6) {
         evt->threshold = *(const float *)in_val;
         printf("🔧 [EVENT] 动态配置事件 %04X 触发判定门限阈值调整为: %.2f\n", evt->oi,
                evt->threshold);
         return 0;
     }
-    // 属性 8: 上报标识修改
     if (attr_id == 8) {
         evt->report_flag = *(const uint8_t *)in_val;
         return 0;
     }
-    // 属性 9: 使能开关修改
     if (attr_id == 9) {
         evt->is_enabled = *(const bool *)in_val;
         return 0;
@@ -579,7 +508,6 @@ static int _oi_event_execute(const dcu_698_object_t *obj, uint8_t method_id, con
     dcu_event_obj_t *evt = (dcu_event_obj_t *)obj->instance;
     if (!evt) return -1;
 
-    // 方法 1: 复位清空历史记录表 (Reset)
     if (method_id == 1) {
         evt->record_count = 0;
         memset(evt->records, 0, sizeof(evt->records));
@@ -593,9 +521,6 @@ static int _oi_event_execute(const dcu_698_object_t *obj, uint8_t method_id, con
     return -2;
 }
 
-/* ==============================================================================
- * 查表与分发
- * ============================================================================== */
 static dcu_698_object_t *_find_mut(uint16_t oi) {
     for (size_t i = 0; i < OBJECT_COUNT; i++) {
         if (g_objects[i].oi == oi) return &g_objects[i];
@@ -688,7 +613,6 @@ int dcu_698_snapshot(uint16_t oi, uint32_t device_id, void *out_msgs, int max_co
 
     int captured = 0;
 
-    // 💡 处理 Class 7 事件类抓拍
     if (obj->class_id == IC_EVENT) {
         dcu_event_obj_t *evt = (dcu_event_obj_t *)obj->instance;
         if (!evt) return 0;
@@ -700,7 +624,6 @@ int dcu_698_snapshot(uint16_t oi, uint32_t device_id, void *out_msgs, int max_co
             }
         }
     }
-    // 💡 处理 Class 9 冻结类抓拍 (待后续扩展 Attr 3 结构)
     else if (obj->class_id == IC_RECORD) {
         // 目前先返回空，后续对接 Attr 3 结构体数组
     }

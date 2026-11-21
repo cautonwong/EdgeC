@@ -115,8 +115,6 @@ typedef struct {
     int (*read_shadow)(void* ctx, uint32_t tag_id, uint32_t device_id, void* out_msg);
 } router_bus_ops_t;
 
-/* 对象表结构在 dcu_698_object_model.h（D1-03 起从本文件迁出）。 */
-
 /* --- 生产级 API 函数原型声明 --- */
 
 /**

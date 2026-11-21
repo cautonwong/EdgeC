@@ -1,6 +1,6 @@
 /**
  * @file test_dcu_698_object_model.c
- * @brief D1-03：静态 698 对象表——查表、256 位 mask 与分发。
+ * @brief 静态 698 对象表：查表、256 位 mask 与分发。
  */
 
 #include <cmocka.h>
@@ -35,8 +35,7 @@ static const uint8_t k_method_127[] = {127};
 static const uint8_t k_method_6000[] = {1, 2, 3, 4, 5, 127, 128};
 static const uint8_t k_method_5004[] = {3, 4, 5, 7, 8};
 
-/* 与 D1-03 迁移前 dcu_router_init_ex 注册的 12 个 OI 一致；
- * mask 按各处理器实际 case 填写。 */
+/* 12 个 OI 及其 mask 必须与处理器实现保持一致。 */
 static const expected_object_t k_expected[] = {
     {OI_METER_ARCHIVE, IC_ACQUISITION, DCU_OBJ_SHARED, k_attr_2, 1, k_method_6000, 7},
     {OI_TASK_SCHEDULER, IC_ACQUISITION, DCU_OBJ_SHARED, k_attr_2, 1, k_method_1, 1},
@@ -101,7 +100,6 @@ static void test_all_ois_resolvable_with_class_and_mask(void **state) {
         assert_false(dcu_mask_test(obj->attr_mask, 200));
     }
 
-    /* 缺失 OI 必须查不到。 */
     assert_null(dcu_698_find(0x1234));
     assert_int_equal(dcu_698_read(MK_OAD(0x1234, 2), &(uint16_t){0}), -1);
     assert_int_equal(dcu_698_call(MK_OMD(0x1234, 1), NULL, NULL), -1);
@@ -131,7 +129,6 @@ static void test_mask_rejects_missing_attr_and_method(void **state) {
     dcu_poller_t poller;
     init_model(&inv, &poller);
 
-    /* 6000 只支持属性 2；属性 3 与 18 在 mask 外，新的查表 API 直接拒绝。 */
     assert_int_equal(dcu_698_read(MK_OAD(OI_METER_ARCHIVE, 3), &(uint16_t){0}), -1);
     assert_int_equal(dcu_698_read(MK_OAD(OI_METER_ARCHIVE, 18), &(uint16_t){0}), -1);
 
@@ -139,10 +136,8 @@ static void test_mask_rejects_missing_attr_and_method(void **state) {
     assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 6), NULL, NULL), -1);
     assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 2), NULL, NULL), -4);
 
-    /* 方法号 200 超出任何 mask 位图 -> -1。 */
     assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 200), NULL, NULL), -1);
 
-    /* 支持的属性仍然可达。 */
     uint16_t count = 99;
     assert_int_equal(dcu_698_read(MK_OAD(OI_METER_ARCHIVE, 2), &count), 0);
     assert_int_equal(count, 0);
@@ -192,7 +187,6 @@ static void test_dispatch_read_write_call(void **state) {
     assert_int_equal(dcu_698_read(MK_OAD(OI_METER_ARCHIVE, 2), &count), 0);
     assert_int_equal(count, 1);
 
-    /* F200 读写：属性 2 = 波特率。 */
     uint32_t baud = 0;
     assert_int_equal(dcu_698_read(MK_OAD(OI_CHANNEL_CONFIG, 2), &baud), 0);
     assert_int_equal(baud, 9600);
