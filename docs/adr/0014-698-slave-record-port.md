@@ -59,3 +59,4 @@ struct {
 - DCU 在 D1-07 接上记录存储之前，从站对记录请求回 DAR 2；不再出现"空成功"。
 - 端口多三个函数指针，`edge_slave_source_ops_t` 的既有字段顺序不变，产品用指定初始化器，编译不受影响。
 - Selector1/2 之外的 RSD 仍返回 DAR 2，与 codec 的 `DLT698_RECORD_UNSUPPORTED_SELECTOR` 对齐。
+- 选择方法不支持时，解码器无法知道该选择方法的负载长度，也就定位不到请求里的 RCSD，因此 DAR 2 应答带**空 RCSD（个数 0）**：主站请求的列不会在错误应答里回显。标准允许 RCSD 为 0（表31：无 OAD 即全选），错误应答不带列信息可接受；Selector3..10 或 GetResponseNext 落地后应回显请求的列。

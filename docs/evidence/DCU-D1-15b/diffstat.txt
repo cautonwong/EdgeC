@@ -1,6 +1,7 @@
  adapters/io_drivers/src/driver_dlt698.c |  63 ++++++++
- docs/adr/0014-698-slave-record-port.md  |  61 ++++++++
+ docs/adr/0014-698-slave-record-port.md  |  62 ++++++++
  docs/evidence/DCU-D1-15b/comments.md    |  39 +++++
+ docs/evidence/DCU-D1-15b/diffstat.txt   |   0
  docs/evidence/DCU-D1-15b/runtime.log    |  56 ++++++++
  docs/evidence/DCU-D1-15b/summary.md     |  71 +++++++++
  docs/evidence/DCU-D1-15b/tests.log      |  64 +++++++++
@@ -9,4 +10,4 @@
  foundation/src/protocol/dlt698_codec.c  |  24 +++-
  tests/test_dlt698_conformance_suite.c   |  36 ++++-
  tests/test_driver_dlt698.c              | 247 ++++++++++++++++++++++++++++++++
- 11 files changed, 675 insertions(+), 16 deletions(-)
+ 12 files changed, 676 insertions(+), 16 deletions(-)
