@@ -6,6 +6,7 @@
 #include "dcu_698_var.h"
 #include "dcu_router.h"
 #include "edge_log.h"
+#include "edge_slave_plane.h"
 
 /**
  * @brief 把 `dcu_value_t` 编成完整 A-XDR 值（含类型标签）。
@@ -73,24 +74,26 @@ static int _encode_axdr_value(const dcu_value_t* v, uint8_t* buf, size_t cap, si
 
 int dcu_north_resolve_axdr(void* ctx, uint32_t oad, uint8_t* buf, size_t cap, size_t* len) {
     (void)ctx;
-    if (!buf || !len) return -1;
+    if (!buf || !len) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
 
     dcu_value_t v;
-    if (dcu_698_var_read_value(oad, &v) == 0) return _encode_axdr_value(&v, buf, cap, len);
+    if (dcu_698_var_read_value(oad, &v) == 0) {
+        return (_encode_axdr_value(&v, buf, cap, len) == 0) ? 0 : EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    }
 
     uint16_t oi = (uint16_t)(oad >> 16);
     uint8_t attr_id = (uint8_t)((oad >> 8) & 0xFF);
     if (oi == OI_METER_ARCHIVE && attr_id == 2) {
         uint16_t count = 0;
-        if (dcu_698_read(oad, &count) != 0) return -1;
+        if (dcu_698_read(oad, &count) != 0) return EDGE_SLAVE_SRC_NOT_FOUND;
         dcu_value_t cv = {.type_tag = DCU_698_TAG_LONG_UNSIGNED,
                           .raw = count,
                           .value = (double)count,
                           .ts_ms = (uint64_t)(uv_hrtime() / 1000000ULL),
                           .quality = 0};
-        return _encode_axdr_value(&cv, buf, cap, len);
+        return (_encode_axdr_value(&cv, buf, cap, len) == 0) ? 0 : EDGE_SLAVE_SRC_TYPE_MISMATCH;
     }
-    return -1;
+    return EDGE_SLAVE_SRC_NOT_FOUND;
 }
 
 int dcu_north_accept_axdr(void* ctx, uint32_t oad, const uint8_t* axdr, size_t len) {
@@ -99,5 +102,5 @@ int dcu_north_accept_axdr(void* ctx, uint32_t oad, const uint8_t* axdr, size_t l
     (void)axdr;
     (void)len;
     LOG_WARN(LOG_CAT_NB, "DCU north SET A-XDR: 698 SET 分支待 D1-14");
-    return -1;
+    return EDGE_SLAVE_SRC_TEMPORARY;
 }

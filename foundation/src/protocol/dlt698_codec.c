@@ -161,6 +161,28 @@ int dlt698_encode_get_response(const dlt698_addr_t *sa, uint8_t piid, uint32_t o
     return 0;
 }
 
+int dlt698_encode_get_response_dar(const dlt698_addr_t *sa, uint8_t piid, uint32_t oad, uint8_t dar,
+                                   net_buf_t *out) {
+    if (!sa || !out) return -1;
+    struct net_buf_simple *b = &out->b;
+    uint8_t *len_ptr = NULL;
+    uint8_t *hcs_ptr = NULL;
+    uint8_t *start = _frame_begin(b, sa, 0xC3, &len_ptr, &hcs_ptr);
+
+    /* APDU: GET-Response-Normal = 85 | 01 | PIID-ACD | OAD(4) | 00 | DAR | 00 | 00 */
+    net_buf_simple_add_u8(b, DLT698_SVC_GET_RES);
+    net_buf_simple_add_u8(b, 0x01);
+    net_buf_simple_add_u8(b, piid);
+    net_buf_simple_add_be32(b, oad);
+    net_buf_simple_add_u8(b, 0x00); /* CHOICE [0] DAR */
+    net_buf_simple_add_u8(b, dar);
+    net_buf_simple_add_u8(b, DLT698_NO_FOLLOW_REPORT);
+    net_buf_simple_add_u8(b, DLT698_NO_TIME_TAG);
+
+    _frame_seal(b, start, len_ptr, hcs_ptr);
+    return 0;
+}
+
 int dlt698_encode_action_request(const dlt698_addr_t *sa, uint8_t piid, uint16_t oi, uint8_t method,
                                  uint8_t mode, const uint8_t *data, size_t dlen, net_buf_t *out) {
     if (!sa || !out || (dlen > 0 && !data)) return -1;

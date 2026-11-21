@@ -234,6 +234,23 @@ static int _encode_axdr_value(const edge_point_value_t *v, uint8_t buf[8], size_
     return 0;
 }
 
+/* 产品取数回调的失败原因 → DL/T 698.45 6.3.3.11 的 DAR。 */
+static uint8_t _dar_for_source_rc(int rc) {
+    switch (rc) {
+        case EDGE_SLAVE_SRC_CLASS_MISMATCH:
+            return DLT698_DAR_OBJECT_CLASS_MISMATCH;
+        case EDGE_SLAVE_SRC_TYPE_MISMATCH:
+            return DLT698_DAR_TYPE_MISMATCH;
+        case EDGE_SLAVE_SRC_UNDEFINED:
+            return DLT698_DAR_OBJECT_UNDEFINED;
+        case EDGE_SLAVE_SRC_TEMPORARY:
+            return DLT698_DAR_TEMPORARY_FAILURE;
+        case EDGE_SLAVE_SRC_NOT_FOUND:
+        default:
+            return DLT698_DAR_OBJECT_NOT_FOUND;
+    }
+}
+
 static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *in, size_t in_len,
                                      const edge_slave_source_ops_t *src, void *src_ctx,
                                      net_buf_t *out, size_t *consumed) {
@@ -292,13 +309,11 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
                 size_t dlen = 0;
                 if (src && src->resolve_axdr) {
                     /* A-XDR 通道：完整值（含类型标签）。实现后不再回落标量；
-                     * 超限或失败按对象不存在回 DAR，不截断。单缓冲逐项复用。 */
-                    if (src->resolve_axdr(src_ctx, oad, s_axdr_buf, sizeof(s_axdr_buf), &dlen) !=
-                            0 ||
-                        dlen == 0 || dlen > sizeof(s_axdr_buf)) {
-                        if (dlt698_encode_get_response_list_item_dar(
-                                out, oad, DLT698_DAR_OBJECT_NOT_FOUND) != 0)
-                            return -1;
+                     * 失败按产品给的失败原因映射 DAR，不截断。单缓冲逐项复用。 */
+                    int rc = src->resolve_axdr(src_ctx, oad, s_axdr_buf, sizeof(s_axdr_buf), &dlen);
+                    if (rc != 0 || dlen == 0 || dlen > sizeof(s_axdr_buf)) {
+                        uint8_t dar = (rc != 0) ? _dar_for_source_rc(rc) : DLT698_DAR_TYPE_MISMATCH;
+                        if (dlt698_encode_get_response_list_item_dar(out, oad, dar) != 0) return -1;
                         continue;
                     }
                     if (dlt698_encode_get_response_list_item(out, oad, s_axdr_buf, dlen) != 0) {
@@ -308,16 +323,18 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
                 }
                 edge_point_value_t v;
                 memset(&v, 0, sizeof(v));
-                if (!src || !src->resolve || src->resolve(src_ctx, oad, NULL, 0, &v) != 0) {
-                    if (dlt698_encode_get_response_list_item_dar(
-                            out, oad, DLT698_DAR_OBJECT_NOT_FOUND) != 0)
+                int rc = (!src || !src->resolve) ? EDGE_SLAVE_SRC_NOT_FOUND
+                                                 : src->resolve(src_ctx, oad, NULL, 0, &v);
+                if (rc != 0) {
+                    if (dlt698_encode_get_response_list_item_dar(out, oad,
+                                                                 _dar_for_source_rc(rc)) != 0)
                         return -1;
                     continue;
                 }
                 uint8_t scalar[8];
                 if (_encode_axdr_value(&v, scalar, &dlen) != 0) {
-                    if (dlt698_encode_get_response_list_item_dar(
-                            out, oad, DLT698_DAR_TYPE_MISMATCH) != 0)
+                    if (dlt698_encode_get_response_list_item_dar(out, oad,
+                                                                 DLT698_DAR_TYPE_MISMATCH) != 0)
                         return -1;
                     continue;
                 }
@@ -334,9 +351,11 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
             (uint32_t)((payload[0] << 24) | (payload[1] << 16) | (payload[2] << 8) | payload[3]);
         if (src && src->resolve_axdr) {
             size_t dlen = 0;
-            if (src->resolve_axdr(src_ctx, oad, s_axdr_buf, sizeof(s_axdr_buf), &dlen) != 0 ||
-                dlen == 0 || dlen > sizeof(s_axdr_buf)) {
-                return -1;
+            int rc = src->resolve_axdr(src_ctx, oad, s_axdr_buf, sizeof(s_axdr_buf), &dlen);
+            if (rc != 0 || dlen == 0 || dlen > sizeof(s_axdr_buf)) {
+                uint8_t dar = (rc != 0) ? _dar_for_source_rc(rc) : DLT698_DAR_TYPE_MISMATCH;
+                dlt698_encode_get_response_dar(&sa, piid, oad, dar, out);
+                return 0;
             }
             dlt698_encode_get_response(&sa, piid, oad, s_axdr_buf, dlen, out);
             return 0;
@@ -344,14 +363,19 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
 
         edge_point_value_t v;
         memset(&v, 0, sizeof(v));
-        if (!src || !src->resolve || src->resolve(src_ctx, oad, NULL, 0, &v) != 0) {
-            /* 无此对象：不应答（[1] 的异常应答格式复杂，先保持静默，由主站超时） */
-            return -1;
+        int rc = (!src || !src->resolve) ? EDGE_SLAVE_SRC_NOT_FOUND
+                                         : src->resolve(src_ctx, oad, NULL, 0, &v);
+        if (rc != 0) {
+            dlt698_encode_get_response_dar(&sa, piid, oad, _dar_for_source_rc(rc), out);
+            return 0;
         }
 
         uint8_t data[8];
         size_t dlen = 0;
-        if (_encode_axdr_value(&v, data, &dlen) != 0) return -1;
+        if (_encode_axdr_value(&v, data, &dlen) != 0) {
+            dlt698_encode_get_response_dar(&sa, piid, oad, DLT698_DAR_TYPE_MISMATCH, out);
+            return 0;
+        }
 
         dlt698_encode_get_response(&sa, piid, oad, data, dlen, out);
         return 0;

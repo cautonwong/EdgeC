@@ -57,9 +57,26 @@ int (*accept_axdr)(void *ctx, uint32_t oad, const uint8_t *axdr, size_t len);
 - 698 GET：`src->resolve_axdr != NULL` 时只走 A-XDR；为 NULL 才回落到 `resolve`。
 - 698 SET：`src->accept_axdr != NULL` 时只走 A-XDR；为 NULL 才回落到 `accept(double)`。
 - `resolve_axdr` / `accept_axdr` 非 NULL 但返回非 0 时，是**真实失败**（无此对象、
-  类型不支持、参数非法），驱动回 DAR 或不应答，**不得再回落标量**。
+  类型不支持、参数非法），驱动回 DAR（见 2.1），**不得再回落标量**。
   否则一个已实现结构属性的产品会因为一次解码错误悄悄退回截断值，主站看到的是错值。
 - ACTION 不变：已有 `accept_action`（`edge_slave_plane.h:104`）本来就是原始 A-XDR。
+
+### 2.1 失败原因与 DAR
+
+`edge_slave_plane.h` 的 `edge_slave_src_rc_t` 是端口契约，驱动按它映射
+DL/T 698.45 6.3.3.11 的 DAR：
+
+| 源返回码 | DAR |
+| --- | --- |
+| `EDGE_SLAVE_SRC_NOT_FOUND` | 6 OBJECT_NOT_FOUND |
+| `EDGE_SLAVE_SRC_CLASS_MISMATCH` | 5 OBJECT_CLASS_MISMATCH |
+| `EDGE_SLAVE_SRC_TYPE_MISMATCH` | 7 TYPE_MISMATCH |
+| `EDGE_SLAVE_SRC_UNDEFINED` | 4 OBJECT_UNDEFINED |
+| `EDGE_SLAVE_SRC_TEMPORARY` | 2 TEMPORARY_FAILURE |
+| 0 | 0 SUCCESS |
+
+旧回调返回 `-1` 时按 `NOT_FOUND` 处理，保持兼容；其它非 0 未知码也按 `NOT_FOUND`。
+IEC104、Modbus 等驱动不解释这些码，仍只把非 0 当失败。
 
 ### 3. 缓冲上限与记录分页
 

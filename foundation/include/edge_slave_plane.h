@@ -53,6 +53,21 @@ typedef struct {
 } edge_point_value_t;
 
 /**
+ * @brief 从站取数/收数回调的失败原因。
+ *
+ * 698 驱动据此回 DAR（DL/T 698.45 6.3.3.11）；其它驱动只把非 0 当失败。
+ * 旧实现返回 -1 时按 NOT_FOUND 处理，保持兼容。
+ */
+typedef enum {
+    EDGE_SLAVE_SRC_OK = 0,
+    EDGE_SLAVE_SRC_NOT_FOUND = -20,      /**< 对象不在对象表 → DAR 6 */
+    EDGE_SLAVE_SRC_CLASS_MISMATCH = -21, /**< OAD 类与对象不匹配 → DAR 5 */
+    EDGE_SLAVE_SRC_TYPE_MISMATCH = -22,  /**< A-XDR 类型/宽度不匹配 → DAR 7 */
+    EDGE_SLAVE_SRC_UNDEFINED = -23,      /**< OI 在标准/目录中未定义 → DAR 4 */
+    EDGE_SLAVE_SRC_TEMPORARY = -24       /**< 暂时失效 → DAR 2 */
+} edge_slave_src_rc_t;
+
+/**
  * @brief 从站取数/收数端口。由 cmd 实现，组合根注入。
  *
  * 北向面（族 A）的取数端口**不在这里**——见 `edge_north_plane.h`。
