@@ -6,8 +6,11 @@
 #include "dcu_698_var.h"
 
 #include <string.h>
+#include <uv.h>
 
 #include "datahub.h"
+#include "dcu_router.h"
+#include "edge_slave_plane.h"
 
 typedef struct {
     uint16_t oi;
@@ -57,6 +60,124 @@ int dcu_698_var_read_value(uint32_t oad, dcu_value_t *out) {
     out->raw = (int64_t)msg.payload.val.f;
     out->ts_ms = msg.ts / 1000000ULL;
     out->quality = msg.quality;
+    return 0;
+}
+
+typedef enum { VK_U16, VK_U32, VK_U8, VK_BOOL, VK_F32 } value_kind_t;
+
+typedef struct {
+    uint16_t oi;
+    uint8_t attr_id;
+    value_kind_t kind;
+} scalar_desc_t;
+
+static const scalar_desc_t k_scalars[] = {
+    {OI_METER_ARCHIVE, 2, VK_U16},
+    {OI_TASK_SCHEDULER, 2, VK_U16},
+    {(uint16_t)((OAD_DAILY_FREEZE >> 16) & 0xFFFF), 2, VK_U16},
+    {OI_CHANNEL_CONFIG, 2, VK_U32},
+    {OI_CHANNEL_CONFIG, 3, VK_U8},
+    {OI_VOLTAGE_DROP, 4, VK_U16},
+    {OI_VOLTAGE_DROP, 5, VK_U16},
+    {OI_VOLTAGE_DROP, 6, VK_F32},
+    {OI_VOLTAGE_DROP, 8, VK_U8},
+    {OI_VOLTAGE_DROP, 9, VK_BOOL},
+    {OI_OVER_CURRENT, 4, VK_U16},
+    {OI_OVER_CURRENT, 5, VK_U16},
+    {OI_OVER_CURRENT, 6, VK_F32},
+    {OI_OVER_CURRENT, 8, VK_U8},
+    {OI_OVER_CURRENT, 9, VK_BOOL},
+};
+
+static const scalar_desc_t *_find_scalar(uint16_t oi, uint8_t attr_id) {
+    for (size_t i = 0; i < sizeof(k_scalars) / sizeof(k_scalars[0]); i++) {
+        if (k_scalars[i].oi == oi && k_scalars[i].attr_id == attr_id) return &k_scalars[i];
+    }
+    return NULL;
+}
+
+uint8_t dcu_698_tag_width(uint8_t tag) {
+    switch (tag) {
+        case DCU_698_TAG_BOOLEAN:
+        case DCU_698_TAG_UNSIGNED:
+            return 1;
+        case DCU_698_TAG_LONG:
+        case DCU_698_TAG_LONG_UNSIGNED:
+            return 2;
+        case DCU_698_TAG_DOUBLE_LONG_UNSIGNED:
+        case DCU_698_TAG_FLOAT32:
+            return 4;
+        case DCU_698_TAG_LONG64_UNSIGNED:
+            return 8;
+        default:
+            return 0;
+    }
+}
+
+int dcu_698_value_for_oad(uint32_t oad, dcu_value_t *out) {
+    if (!out) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    if (dcu_698_var_read_value(oad, out) == 0) {
+        out->width = dcu_698_tag_width(out->type_tag);
+        return 0;
+    }
+
+    uint16_t oi = (uint16_t)(oad >> 16);
+    uint8_t attr_id = (uint8_t)((oad >> 8) & 0xFF);
+    const scalar_desc_t *desc = _find_scalar(oi, attr_id);
+    if (!desc) {
+        /* 属性存在但没有标量表示（数组/结构）时明确拒绝，不截断。 */
+        const dcu_698_object_t *obj = dcu_698_find(oi);
+        if (obj && dcu_mask_test(obj->attr_mask, attr_id)) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+        return EDGE_SLAVE_SRC_NOT_FOUND;
+    }
+
+    memset(out, 0, sizeof(*out));
+    switch (desc->kind) {
+        case VK_U16: {
+            uint16_t x = 0;
+            if (dcu_698_read(oad, &x) != 0) return EDGE_SLAVE_SRC_NOT_FOUND;
+            out->type_tag = DCU_698_TAG_LONG_UNSIGNED;
+            out->raw = x;
+            out->value = (double)x;
+            break;
+        }
+        case VK_U32: {
+            uint32_t x = 0;
+            if (dcu_698_read(oad, &x) != 0) return EDGE_SLAVE_SRC_NOT_FOUND;
+            out->type_tag = DCU_698_TAG_DOUBLE_LONG_UNSIGNED;
+            out->raw = x;
+            out->value = (double)x;
+            break;
+        }
+        case VK_U8: {
+            uint8_t x = 0;
+            if (dcu_698_read(oad, &x) != 0) return EDGE_SLAVE_SRC_NOT_FOUND;
+            out->type_tag = DCU_698_TAG_UNSIGNED;
+            out->raw = x;
+            out->value = (double)x;
+            break;
+        }
+        case VK_BOOL: {
+            bool x = false;
+            if (dcu_698_read(oad, &x) != 0) return EDGE_SLAVE_SRC_NOT_FOUND;
+            out->type_tag = DCU_698_TAG_BOOLEAN;
+            out->raw = x ? 1 : 0;
+            out->value = x ? 1.0 : 0.0;
+            break;
+        }
+        case VK_F32: {
+            float x = 0.0f;
+            if (dcu_698_read(oad, &x) != 0) return EDGE_SLAVE_SRC_NOT_FOUND;
+            out->type_tag = DCU_698_TAG_FLOAT32;
+            out->raw = (int64_t)x;
+            out->value = (double)x;
+            break;
+        }
+        default:
+            return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    }
+    out->width = dcu_698_tag_width(out->type_tag);
+    out->ts_ms = (uint64_t)(uv_hrtime() / 1000000ULL);
     return 0;
 }
 

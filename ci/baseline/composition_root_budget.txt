@@ -12,7 +12,8 @@
 # 2026-11-09: cmd/dcu/main.c 213 -> 214; driver manager 改为调用方存储 (driver_manager_create_in)。
 # 2026-11-09: cmd/edge_mcp_server/main.c 174 -> 182; 行业 MCP 工具包改为组合根显式注册。
 # 2026-11-21: cmd/dcu/dcu_north_adapter.c 201 -> 203; D1-13 A-XDR 端口接线（include + ops 两行，编码体在 dcu_698_axdr.c）。
-cmd/dcu/dcu_north_adapter.c|203
+# 2026-11-22: cmd/dcu/dcu_north_adapter.c 203 -> 190; D1-05 删掉适配器里的 OI 链，标量 resolve 复用 dcu_698_value_for_oad 的类型表。
+cmd/dcu/dcu_north_adapter.c|190
 cmd/dcu/dcu_bus_adapter.c|43
 cmd/dcu/main.c|225
 cmd/edge_mcp_server/main.c|184

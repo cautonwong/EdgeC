@@ -145,13 +145,51 @@ def test_master_reads_all_oads_in_one_frame(meter):
     result = meter.read_all()
     frames = _north_frames()[before:]
 
-    assert "电压" in result.readings and "档案计数" in result.readings, (
+    assert {"电压", "电流", "总有功功率", "档案计数"} <= set(result.readings), (
+        f"read_all 没交齐整张点表：{result.readings}"
+    )
+    assert {"任务方案数", "日冻结记录数"} <= set(result.readings), (
         f"read_all 没交齐整张点表：{result.readings}"
     )
     assert len(frames) == 1, (
-        f"读 2 个 OAD 发了 {len(frames)} 帧（期望 1 帧 [2]）："
+        f"读 6 个 OAD 发了 {len(frames)} 帧（期望 1 帧 [2]）："
         f"{[f['choice'] for f in frames]}"
     )
     assert frames[0]["choice"] == 0x02, (
         f"这一帧的 CHOICE 是 {frames[0]['choice']!r}，不是 [2] NormalList"
     )
+
+
+@case(id="D_00_00_02_000005", clause="free: 698 读取 2001 电流 / 2004 总有功功率", tags=["北向"])
+@pytest.mark.contract
+@pytest.mark.requires_capability("电流")
+def test_master_reads_current_and_active_power(meter):
+    """2001/2004 属性 2 都是 float32；台架对这两个 DI 回 0，值应是 0.0。
+
+    单独验是因为它们和被抄表的 OAD 不同：轮询方案必须真的把这两个点采回来，
+    没采到就会是 DAR 失败、read_all 里根本没有这个键 —— 而不是读出一个假 0。
+    """
+    meter.connect()
+    readings = meter.read_all().readings
+    assert readings["电流"] == 0.0, f"电流 {readings['电流']}，台架给的是 0"
+    assert readings["总有功功率"] == 0.0, f"总有功功率 {readings['总有功功率']}，台架给的是 0"
+
+
+@case(id="D_00_00_02_000006", clause="free: 698 读取 6012 任务方案数", tags=["北向"])
+@pytest.mark.contract
+@pytest.mark.requires_capability("任务方案数")
+def test_master_reads_task_scheme_count(meter):
+    """6012 属性 2 是 uint16；读得出来就同时证明类型标签是 long-unsigned。"""
+    meter.connect()
+    readings = meter.read_all().readings
+    assert int(readings["任务方案数"]) >= 1, f"方案数 {readings['任务方案数']}，至少应有默认方案"
+
+
+@case(id="D_00_00_02_000007", clause="free: 698 读取 5004 日冻结记录数", tags=["北向"])
+@pytest.mark.contract
+@pytest.mark.requires_capability("日冻结记录数")
+def test_master_reads_freeze_count(meter):
+    """5004 属性 2 是 uint16 计数；值是 0 也合法，类型标签必须对。"""
+    meter.connect()
+    readings = meter.read_all().readings
+    assert int(readings["日冻结记录数"]) >= 0

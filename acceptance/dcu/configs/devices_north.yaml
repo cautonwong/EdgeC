@@ -12,16 +12,28 @@ criteria_profiles:
     - quantity: 电压
       min: 198
       max: 242
+    - quantity: 电流
+      min: 0
+      max: 100
+    - quantity: 总有功功率
+      min: -100000
+      max: 100000
     - quantity: 档案计数
       min: 1
       max: 64
+    - quantity: 任务方案数
+      min: 1
+      max: 16
+    - quantity: 日冻结记录数
+      min: 0
+      max: 65535
 
 models:
   dcu_698_image:
     type: meter
     protocol: dlt698
     criteria: dcu_698_live
-    capabilities: [电压, 档案计数]
+    capabilities: [电压, 电流, 总有功功率, 档案计数, 任务方案数, 日冻结记录数]
     # OAD 是 32 位，点表里写成十六进制串。A-XDR 类型由 encoding 决定
     # （float32 = 0x17，long-unsigned = 0x12）；驱动在标签与点表不符时直接报错，
     # 不会把错类型的字节当值解出来。
@@ -33,6 +45,20 @@ models:
         scale: 1
         byteorder: big
         unit: V
+      电流:
+        address: "20010200"
+        length: 4
+        encoding: float32
+        scale: 1
+        byteorder: big
+        unit: A
+      总有功功率:
+        address: "20040200"
+        length: 4
+        encoding: float32
+        scale: 1
+        byteorder: big
+        unit: kW
       档案计数:
         address: "60000200"
         length: 2
@@ -40,6 +66,20 @@ models:
         scale: 1
         byteorder: big
         unit: 只
+      任务方案数:
+        address: "60120200"
+        length: 2
+        encoding: uint
+        scale: 1
+        byteorder: big
+        unit: 个
+      日冻结记录数:
+        address: "50040200"
+        length: 2
+        encoding: uint
+        scale: 1
+        byteorder: big
+        unit: 条
 
 devices:
   - id: dcu_north_01

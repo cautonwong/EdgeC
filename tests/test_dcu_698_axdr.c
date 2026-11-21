@@ -125,8 +125,8 @@ static void test_product_axdr_rejects_small_buffer_and_complex(void **state) {
     assert_int_equal(dcu_north_resolve_axdr(NULL, OAD_VOLTAGE, buf, 4, &len),
                      EDGE_SLAVE_SRC_TYPE_MISMATCH);
 
-    assert_int_equal(dcu_north_resolve_axdr(NULL, OAD_DAILY_FREEZE, buf, sizeof(buf), &len),
-                     EDGE_SLAVE_SRC_NOT_FOUND);
+    assert_int_equal(dcu_north_resolve_axdr(NULL, OAD_DAILY_FREEZE, buf, sizeof(buf), &len), 0);
+    assert_int_equal(buf[0], DCU_698_TAG_LONG_UNSIGNED);
     assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x6000, 3), buf, sizeof(buf), &len),
                      EDGE_SLAVE_SRC_NOT_FOUND);
 

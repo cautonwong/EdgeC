@@ -68,6 +68,14 @@ static int _encode_axdr_value(const dcu_value_t* v, uint8_t* buf, size_t cap, si
             *len = 5;
             return 0;
         }
+        case DCU_698_TAG_BOOLEAN:
+        case DCU_698_TAG_UNSIGNED: {
+            if (cap < 2) return -1;
+            buf[0] = v->type_tag;
+            buf[1] = (uint8_t)v->raw;
+            *len = 2;
+            return 0;
+        }
         default:
             return -1;
     }
@@ -78,23 +86,9 @@ int dcu_north_resolve_axdr(void* ctx, uint32_t oad, uint8_t* buf, size_t cap, si
     if (!buf || !len) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
 
     dcu_value_t v;
-    if (dcu_698_var_read_value(oad, &v) == 0) {
-        return (_encode_axdr_value(&v, buf, cap, len) == 0) ? 0 : EDGE_SLAVE_SRC_TYPE_MISMATCH;
-    }
-
-    uint16_t oi = (uint16_t)(oad >> 16);
-    uint8_t attr_id = (uint8_t)((oad >> 8) & 0xFF);
-    if (oi == OI_METER_ARCHIVE && attr_id == 2) {
-        uint16_t count = 0;
-        if (dcu_698_read(oad, &count) != 0) return EDGE_SLAVE_SRC_NOT_FOUND;
-        dcu_value_t cv = {.type_tag = DCU_698_TAG_LONG_UNSIGNED,
-                          .raw = count,
-                          .value = (double)count,
-                          .ts_ms = (uint64_t)(uv_hrtime() / 1000000ULL),
-                          .quality = 0};
-        return (_encode_axdr_value(&cv, buf, cap, len) == 0) ? 0 : EDGE_SLAVE_SRC_TYPE_MISMATCH;
-    }
-    return EDGE_SLAVE_SRC_NOT_FOUND;
+    int rc = dcu_698_value_for_oad(oad, &v);
+    if (rc != 0) return rc;
+    return (_encode_axdr_value(&v, buf, cap, len) == 0) ? 0 : EDGE_SLAVE_SRC_TYPE_MISMATCH;
 }
 
 typedef enum { W_U32, W_U8, W_BOOL, W_F32 } write_kind_t;

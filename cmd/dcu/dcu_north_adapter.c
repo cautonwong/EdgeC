@@ -8,6 +8,7 @@
 #include "bus_orchestrator.h"
 #include "datahub.h"
 #include "dcu_698_axdr.h"
+#include "dcu_698_var.h"
 #include "dcu_node.h"
 #include "dcu_north_source.h"
 #include "dcu_router.h"
@@ -26,40 +27,27 @@ typedef struct {
 
 static dcu_north_ctx_t g_dcu_north_ctx;
 
-/**
- * @brief OAD → 当前值。类型标签由这里给（`width=2` 是 long 还是 long-unsigned
- * 只有点位模型知道，驱动不该猜 —— ADR-002）。
- */
-static int _dcu_nb_resolve(void* ctx, uint32_t oad, const void* desc, size_t desc_len,
-                           edge_point_value_t* out) {
+int dcu_north_resolve_scalar(void* ctx, uint32_t oad, const void* desc, size_t desc_len,
+                             edge_point_value_t* out) {
     (void)ctx;
     (void)desc;
     (void)desc_len;
-    if (!out) return -1;
-    memset(out, 0, sizeof(*out));
+    if (!out) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
 
-    uint16_t oi = (uint16_t)(oad >> 16);
-    if (oi == 0x2000 || oi == 0x2001 || oi == 0x2004) {
-        /* 实时参量（电压/电流/功率）：DCU 侧是 float，698 用 float32 */
-        float v = 0.0f;
-        if (dcu_router_get_attr(oad, &v) != 0) return -1;
-        out->value = (double)v;
-        out->width = 4;
-        out->type = 0x17; /* float32 */
-    } else if (oi == 0x6000) {
-        /* 档案类计数：uint16 */
-        uint16_t v = 0;
-        if (dcu_router_get_attr(oad, &v) != 0) return -1;
-        out->value = (double)v;
-        out->raw = (int32_t)v;
-        out->width = 2;
-        out->type = 0x12; /* long-unsigned */
-    } else {
-        /* 其它 OI 的属性类型没在本文件里定义过，猜一个类型标签会让主站解出错值
-         * 且不报错。宁可不应答（主站超时），也不发一个"看起来对"的报文。 */
-        return -1;
-    }
-    out->ts_ms = (uint64_t)(uv_hrtime() / 1000000ULL);
+    dcu_value_t v;
+    int rc = dcu_698_value_for_oad(oad, &v);
+    if (rc != 0) return rc;
+
+    /* 端口 raw 是 int32；64 位类型不能截断后冒充成功，交给 resolve_axdr。 */
+    if (v.width == 0 || v.width > sizeof(out->raw)) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+
+    memset(out, 0, sizeof(*out));
+    out->value = v.value;
+    out->raw = (int32_t)v.raw;
+    out->width = v.width;
+    out->type = v.type_tag;
+    out->quality = v.quality;
+    out->ts_ms = v.ts_ms;
     return 0;
 }
 
@@ -119,7 +107,7 @@ void dcu_north_slave_attach(uv_loop_t* loop, datahub_t* hub, bus_orchestrator_t*
         return;
     }
     static const edge_slave_source_ops_t src = {
-        .resolve = _dcu_nb_resolve,
+        .resolve = dcu_north_resolve_scalar,
         .accept_action = _dcu_nb_accept_action,
         .resolve_axdr = dcu_north_resolve_axdr,
         .accept_axdr = dcu_north_accept_axdr,
