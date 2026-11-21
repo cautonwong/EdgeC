@@ -29,10 +29,13 @@
 #define IC_VARIABLE 3       // 分相变量接口类 (如电压、电流、相角)
 #define IC_POWER 4          // 功率接口类 (如 2004 有功功率)
 #define IC_DATA_VARIABLE 6  // 数据变量接口类 (如 200F 频率)
-#define IC_EVENT 7          // 事件对象接口类 (如失压 3000, 过流 3005)
+#define IC_EVENT 7          // 事件对象接口类
 #define IC_RECORD 9         // 记录/冻结数据接口类 (如日冻结 5004)
-#define IC_ACQUISITION 10   // 采集监控配置类 (如 6000 档案, 6012 任务, F100 ESAM)
+#define IC_ACQUISITION 10   // 采集监控接口类 (如 6000 档案, 6012 任务)
 #define IC_CONTROL 13       // 控制/继电器动作类 (如 8000 远程拉合闸)
+#define IC_ESAM 21          // ESAM 接口类 (F100)
+#define IC_PERIPHERAL 22    // 输入输出设备接口类 (F200 串口)
+#define IC_SUB_EVENT 24     // 分项事件对象接口类 (3000 失压, 3005 过流)
 
 // ==============================================================================
 // DLT 698.45 标准寻址 OI 与 OAD 契约宏 (消灭所有 Hardcoded 魔数)

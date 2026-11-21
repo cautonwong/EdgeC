@@ -38,7 +38,6 @@ CLASS_HEAD = re.compile(r"7\.3\.(\d+)\s+(.*?)（class_id=(\d+)）")
 ATTR = re.compile(r"^(\d+)[．.]\s*(.+?)\s*[（(](static|dyn\.?)[）)]\s*(.*)$")
 METHOD = re.compile(r"^(\d+)[．.]\s*(.+?)(?:\s{2,}(必选|可选))?\s*$")
 OI_ROW = re.compile(r"^([0-9A-Fa-f]{4})\s+(\d{1,2})\s+(.+)$")
-CJK = re.compile(r"[一-鿿]")
 
 # OIs whose class is not the obvious range owner. Values come from the class
 # definitions in 7.3 and the object tables in 7.4 and Appendix A.
@@ -166,7 +165,7 @@ def parse_classes(lines: list[str]) -> list[dict]:
     return classes
 
 
-def parse_ois(lines: list[str]) -> list[dict]:
+def parse_ois(lines: list[str], class_ids: set[int]) -> list[dict]:
     rows = []
     split_oi = re.compile(r"^([0-9A-Fa-f]{2})\s+([0-9A-Fa-f]{2})\s+(\d{1,2})\s+(.+)$")
     for i, line in enumerate(lines):
@@ -185,7 +184,9 @@ def parse_ois(lines: list[str]) -> list[dict]:
             oi = int(m.group(1) + m.group(2), 16)
             name = m.group(4).strip()
             parsed_class = int(m.group(3))
-        if not CJK.search(name):
+        # The class column is the section a row belongs to. A row whose IC is
+        # not one of the parsed 7.3 classes is OCR debris, not an object.
+        if parsed_class not in class_ids or not name:
             continue
         rows.append({
             "oi": f"{oi:04X}",
@@ -275,13 +276,16 @@ def main() -> int:
 
     lines = source.read_text(encoding="utf-8").splitlines()
     classes = parse_classes(lines)
-    ois = parse_ois(lines)
+    ois = parse_ois(lines, {cls["class_id"] for cls in classes})
 
     if len(classes) != 26:
         print(f"expected 26 classes, parsed {len(classes)}", file=sys.stderr)
         return 1
     if len(ois) < 400:
         print(f"expected at least 400 OI rows, parsed {len(ois)}", file=sys.stderr)
+        return 1
+    if not any(row["oi"] == "F100" and row["parsed_class"] == 21 for row in ois):
+        print("expected F100 in class 21 (ESAM); it is missing or misfiled", file=sys.stderr)
         return 1
 
     markdown = render(classes, ois)

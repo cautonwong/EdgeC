@@ -46,12 +46,12 @@ static const expected_object_t k_expected[] = {
     {(uint16_t)((OAD_DAILY_FREEZE >> 16) & 0xFFFF), IC_RECORD, DCU_OBJ_SHARED, k_attr_2, 1,
      k_method_5004, 5},
     {OI_REMOTE_CONTROL, IC_CONTROL, DCU_OBJ_SINGLETON, NULL, 0, k_method_1, 1},
-    {OI_ESAM_SECURITY, IC_ACQUISITION, DCU_OBJ_SINGLETON, NULL, 0, k_method_1, 1},
-    {OI_CHANNEL_CONFIG, IC_ACQUISITION, DCU_OBJ_SINGLETON, k_attr_23, 2, NULL, 0},
+    {OI_ESAM_SECURITY, IC_ESAM, DCU_OBJ_SINGLETON, NULL, 0, k_method_1, 1},
+    {OI_CHANNEL_CONFIG, IC_PERIPHERAL, DCU_OBJ_SINGLETON, k_attr_23, 2, NULL, 0},
     {OI_METER_DISCOVERY, IC_ACQUISITION, DCU_OBJ_SINGLETON, k_attr_23, 2, k_method_127, 1},
     {OI_DISCOVERY_RESULT, IC_ACQUISITION, DCU_OBJ_SINGLETON, k_attr_2, 1, NULL, 0},
-    {OI_VOLTAGE_DROP, IC_EVENT, DCU_OBJ_SHARED, k_attr_event, 8, k_method_1, 1},
-    {OI_OVER_CURRENT, IC_EVENT, DCU_OBJ_SHARED, k_attr_event, 8, k_method_1, 1},
+    {OI_VOLTAGE_DROP, IC_SUB_EVENT, DCU_OBJ_SHARED, k_attr_event, 8, k_method_1, 1},
+    {OI_OVER_CURRENT, IC_SUB_EVENT, DCU_OBJ_SHARED, k_attr_event, 8, k_method_1, 1},
 };
 
 static int setup(void **state) {

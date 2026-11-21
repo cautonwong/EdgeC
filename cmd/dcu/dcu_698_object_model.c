@@ -120,13 +120,13 @@ static dcu_698_object_t g_objects[] = {
      .method_mask = {[BYTE(1)] = BIT(1)}},
 
     {.oi = OI_ESAM_SECURITY,
-     .class_id = IC_ACQUISITION,
+     .class_id = IC_ESAM,
      .scope = DCU_OBJ_SINGLETON,
      .method = _oi_f100_execute,
      .method_mask = {[BYTE(1)] = BIT(1)}},
 
     {.oi = OI_CHANNEL_CONFIG,
-     .class_id = IC_ACQUISITION,
+     .class_id = IC_PERIPHERAL,
      .scope = DCU_OBJ_SINGLETON,
      .read = _oi_f200_read,
      .write = _oi_f200_write,
@@ -146,7 +146,7 @@ static dcu_698_object_t g_objects[] = {
      .attr_mask = {[BYTE(2)] = BIT(2)}},
 
     {.oi = OI_VOLTAGE_DROP,
-     .class_id = IC_EVENT,
+     .class_id = IC_SUB_EVENT,
      .scope = DCU_OBJ_SHARED,
      .read = _oi_event_read,
      .write = _oi_event_write,
@@ -155,7 +155,7 @@ static dcu_698_object_t g_objects[] = {
                    [BYTE(8)] = BIT(8) | BIT(9) | BIT(10)},
      .method_mask = {[BYTE(1)] = BIT(1)}},
     {.oi = OI_OVER_CURRENT,
-     .class_id = IC_EVENT,
+     .class_id = IC_SUB_EVENT,
      .scope = DCU_OBJ_SHARED,
      .read = _oi_event_read,
      .write = _oi_event_write,
@@ -615,7 +615,8 @@ int dcu_698_snapshot(uint16_t oi, uint32_t device_id, void *out_msgs, int max_co
 
     int captured = 0;
 
-    if (obj->class_id == IC_EVENT) {
+    /* class_id 是标准接口类（3xxx 为 24）；快照按处理器族分派。 */
+    if (obj->read == _oi_event_read) {
         dcu_event_obj_t *evt = (dcu_event_obj_t *)obj->instance;
         if (!evt) return 0;
         for (int i = 0; i < evt->snapshot_count && captured < max_count; i++) {
