@@ -788,7 +788,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-13 | 已合并 | `dcu/D1-13-axdr-port` | `68f4de69` | `docs/evidence/DCU-D1-13/` | 合并提交 `68f4de69`；合并后 28/28、守卫、验收 2+4 全过；流式逐项编码，单缓冲复用，无 8×2048；`/no-comments` 删 23 行、DAR 字面量改常量 |
 | D1-14 | 已合并 | `dcu/D1-14-set` | `b5b95f62` | `docs/evidence/DCU-D1-14/` | 合并提交 `b5b95f62`；SET-Request、`accept_axdr` 写入、SET-Response DAR；拒绝非标量回落假成功；LONG64 无 UB；DENIED 3 与 CLASS_MISMATCH 5 分开；合并后告警、28/28、ASAN、守卫、验收全过 |
 | D1-15 | 部分合并 | `dcu/D1-15a-record-codec` | `87185420` | `docs/evidence/DCU-D1-15a/` | D1-15a codec 层已合并：GetRecord 解码、RSD [0]/[2]、RCSD、表74 流式响应、H.3.3 向量；驱动与端口接线见 D1-15b |
-| D1-15b | 未开始 | - | - | - | 驱动 GET [3] 分支、记录查询端口、分页；依赖 D1-15a |
+| D1-15b | 进行中 | `dcu/D1-15b-record-driver` | `a85217aa` | `docs/evidence/DCU-D1-15b/` | edgec-dev-0 执行中；先写 ADR-0014 记录端口，再接驱动 GET [3] 与分页 |
 | D1-16 | 未开始 | - | - | - | - |
 | D1-17 | 未开始 | - | - | - | - |
 | D2 到 D5 | 阻塞 | - | - | - | 依赖 COM 组件，见 11.3 B6 |
