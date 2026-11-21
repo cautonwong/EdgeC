@@ -12,7 +12,7 @@
 | `cmd/dcu/dcu_heartbeat.h` | 记录 `demo_mode`、`max_cycles` 与 4 个可观测计数（冻结/跳闸/遥控/自退）；更新契约注释。 |
 | `tests/test_dcu_runtime_health.c` | 新增单元测试，覆盖默认生产模式与演示模式两条路径。 |
 | `tests/CMakeLists.txt` | 用 `add_edge_test` 注册 `test_dcu_runtime_health`，链接 `dcu_app_lib`。 |
-| `acceptance/dcu/dcu_product.py` | 台架启动环境显式设置 `DCU_DEMO_MODE=1`，并加入 env 白名单。 |
+| `acceptance/dcu/dcu_product.py` | 台架启动环境显式设置 `DCU_DEMO_MODE=1`，且不放进转发白名单，避免外层环境覆盖成 0。 |
 
 未改 `modules/`、`foundation/`、`adapters/`。
 
