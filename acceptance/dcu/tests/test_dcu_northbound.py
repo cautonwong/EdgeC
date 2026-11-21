@@ -23,6 +23,7 @@
 import json
 import os
 import socket
+import struct
 
 import pytest
 
@@ -193,3 +194,32 @@ def test_master_reads_freeze_count(meter):
     meter.connect()
     readings = meter.read_all().readings
     assert int(readings["日冻结记录数"]) >= 0
+
+
+@case(id="D_00_00_02_000008", clause="free: 列表里未实现的 OAD 逐项回 DAR，不丢其它读数", tags=["北向"])
+@pytest.mark.contract
+def test_unimplemented_oad_gets_per_item_dar():
+    """一帧 [2] 里混一个未实现的 OI：该项回 [0] DAR 6，另一项的数据照常在同一帧。
+
+    台架点表只列产品支持的点，表达不了"主站问了一个不存在的对象"；这里直接发帧。
+    判据是**两项都在**：少返一项、或把失败项当数据跳过，主站会以为读全了。
+    """
+    valid = 0x20000200
+    missing = 0x99990000
+    frame = _exchange(dlt698.get_request_list(0x01, [valid, missing]))
+    apdu = frame.apdu
+
+    assert apdu[0] == 0x85 and apdu[1] == 0x02, f"不是 [2] 响应：{apdu.hex()}"
+    assert apdu[3] == 2, f"结果个数 {apdu[3]}，请求了 2 项"
+
+    body = apdu[4:]
+    assert body[:4] == valid.to_bytes(4, "big")
+    assert body[4] == 0x01, "电压项应是 Data，不是 DAR"
+    assert body[5] == 0x17, f"电压项类型标签是 0x{body[5]:02X}，不是 float32"
+    got = struct.unpack(">f", body[6:10])[0]
+    assert abs(got - BENCH_VOLTAGE) <= TOLERANCE_V, f"电压项 {got}，台架给 {BENCH_VOLTAGE}"
+
+    rest = body[10:]
+    assert rest[:4] == missing.to_bytes(4, "big")
+    assert rest[4] == 0x00, "失败项必须回 [0] DAR"
+    assert rest[5] == 6, f"未实现的 OI 应回 DAR 6（对象未找到），回了 {rest[5]}"

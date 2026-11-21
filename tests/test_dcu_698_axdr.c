@@ -379,6 +379,123 @@ static void test_driver_normal_list_uses_axdr_per_item(void **state) {
     net_buf_pool_destroy(pool);
 }
 
+static int mixed_list_resolve(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, size_t *len) {
+    (void)ctx;
+    static const uint8_t voltage[] = {0x17, 0x43, 0x67, 0xB3, 0x33};
+    static const uint8_t power[] = {0x17, 0x00, 0x00, 0x00, 0x00};
+    const uint8_t *data = NULL;
+    size_t n = 0;
+    if (oad == OAD_VOLTAGE) {
+        data = voltage;
+        n = sizeof(voltage);
+    } else if (oad == OAD_ACTIVE_POWER_TOTAL) {
+        data = power;
+        n = sizeof(power);
+    } else {
+        return EDGE_SLAVE_SRC_NOT_FOUND;
+    }
+    if (!buf || !len || cap < n) return -1;
+    memcpy(buf, data, n);
+    *len = n;
+    return 0;
+}
+
+static const edge_slave_source_ops_t k_mixed_list_src = {.resolve_axdr = mixed_list_resolve};
+
+static void assert_apdu(const net_buf_t *out, const uint8_t *want, size_t want_len) {
+    assert_int_equal(out->b.len, 9 + want_len + 3);
+    assert_memory_equal(out->b.data + 9, want, want_len);
+}
+
+static net_buf_t *run_list(const uint32_t *oads, size_t n,
+                           const edge_slave_source_ops_t *src, net_buf_pool_t **pool_out) {
+    uint8_t frame[128];
+    size_t frame_len = build_get_list(frame, oads, n);
+    net_buf_pool_t *pool = net_buf_pool_new(8, 4096, 0);
+    assert_non_null(pool);
+    net_buf_t *out = net_buf_alloc(pool, 0);
+    assert_non_null(out);
+    alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
+    memset(priv, 0, sizeof(priv));
+    size_t consumed = 0;
+    int rc =
+        dlt698_driver.req_slave_exchange(priv, NULL, frame, frame_len, src, NULL, out, &consumed);
+    assert_int_equal(rc, 0);
+    *pool_out = pool;
+    return out;
+}
+
+static void test_driver_normal_list_mixed_success_and_dar(void **state) {
+    (void)state;
+    const uint32_t oads[] = {OAD_VOLTAGE, OAD_CURRENT, OAD_ACTIVE_POWER_TOTAL};
+    net_buf_pool_t *pool = NULL;
+    net_buf_t *out = run_list(oads, 3, &k_mixed_list_src, &pool);
+
+    const uint8_t want[] = {
+        0x85, 0x02, 0x01, 0x03,
+        0x20, 0x00, 0x02, 0x00, 0x01, 0x17, 0x43, 0x67, 0xB3, 0x33,
+        0x20, 0x01, 0x02, 0x00, 0x00, DLT698_DAR_OBJECT_NOT_FOUND,
+        0x20, 0x04, 0x02, 0x00, 0x01, 0x17, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00,
+    };
+    assert_apdu(out, want, sizeof(want));
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(pool);
+}
+
+/* 表73 的 SEQUENCE OF 没有 SIZE 下限；标准对 RCSD 明确写了 0 项合法
+ * （docs/698_parsed.md:1880）。空请求要回空结果列表，不能当坏帧丢掉。 */
+static void test_driver_normal_list_empty_request(void **state) {
+    (void)state;
+    net_buf_pool_t *pool = NULL;
+    net_buf_t *out = run_list(NULL, 0, &k_mixed_list_src, &pool);
+
+    const uint8_t want[] = {0x85, 0x02, 0x01, 0x00, 0x00, 0x00};
+    assert_apdu(out, want, sizeof(want));
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(pool);
+}
+
+static int g_dup_calls;
+
+static int duplicate_list_resolve(void *ctx, uint32_t oad, uint8_t *buf, size_t cap,
+                                  size_t *len) {
+    (void)ctx;
+    (void)oad;
+    if (!buf || !len || cap < 3) return -1;
+    uint16_t value = (uint16_t)++g_dup_calls;
+    buf[0] = DCU_698_TAG_LONG_UNSIGNED;
+    buf[1] = (uint8_t)(value >> 8);
+    buf[2] = (uint8_t)value;
+    *len = 3;
+    return 0;
+}
+
+static const edge_slave_source_ops_t k_duplicate_list_src = {
+    .resolve_axdr = duplicate_list_resolve};
+
+static void test_driver_normal_list_duplicate_oad_each_answered(void **state) {
+    (void)state;
+    g_dup_calls = 0;
+    const uint32_t oads[] = {MK_OAD(OI_METER_ARCHIVE, 2), MK_OAD(OI_METER_ARCHIVE, 2)};
+    net_buf_pool_t *pool = NULL;
+    net_buf_t *out = run_list(oads, 2, &k_duplicate_list_src, &pool);
+
+    const uint8_t want[] = {
+        0x85, 0x02, 0x01, 0x02,
+        0x60, 0x00, 0x02, 0x00, 0x01, 0x12, 0x00, 0x01,
+        0x60, 0x00, 0x02, 0x00, 0x01, 0x12, 0x00, 0x02,
+        0x00, 0x00,
+    };
+    assert_apdu(out, want, sizeof(want));
+    assert_int_equal(g_dup_calls, 2);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(pool);
+}
+
 static int big_list_resolve(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, size_t *len) {
     (void)ctx;
     const size_t n = EDGE_SLAVE_AXDR_MAX - 8;
@@ -726,6 +843,9 @@ int main(void) {
         cmocka_unit_test(test_driver_carries_structure_axdr),
         cmocka_unit_test(test_driver_rejects_axdr_buffer_shortage),
         cmocka_unit_test(test_driver_normal_list_uses_axdr_per_item),
+        cmocka_unit_test(test_driver_normal_list_mixed_success_and_dar),
+        cmocka_unit_test(test_driver_normal_list_empty_request),
+        cmocka_unit_test(test_driver_normal_list_duplicate_oad_each_answered),
         cmocka_unit_test(test_driver_normal_list_reuses_one_buffer),
         cmocka_unit_test(test_get_normal_dar_mapping),
         cmocka_unit_test(test_get_normal_encode_type_mismatch_returns_dar),
