@@ -489,6 +489,7 @@ P1 分两段。P1A 是目录、对象模型与标量北向，23 人日，可立�
 | D0-04 | test | 记录基线：构建、`ctest -R dcu` 与 `ctest -R dlt698`、ASAN、UBSAN、`./test.sh --omnis dcu`、覆盖率 | Q | 1 | 无 | `docs/evidence/DCU-P0/` | 日志与 SHA 齐全，失败项逐条登记 |
 | D0-05 | test | 用真实帧向量替换 `test_dlt698_conformance_suite.c` 的常量断言，向量从 `docs/698.pdf` 摘 | D | 1 | 无 | 新帧向量测试 | 每条向量有 PDF 页码与附录 H 表号，正反例都跑 |
 | D0-05a | defect | 698 解码补 HCS 校验（5.1.5）；把 `test_reject_bad_hcs` 从 skip 改为断言 -1 | D | 1 | D0-05 | codec 修复与测试 | 坏 HCS 被拒；21 例 20 通过，仅剩 Record/RSD skip |
+| D0-05b | defect | 对齐 DAR 4/5/6/7：适配器区分 OI 未定义、属性/方法不支持、实例不存在、类型不匹配 | D | 1 | D0-05 | driver/adapter 修复与测试 | 4/5/6/7 各一例，不再是统一 6 |
 | D0-06 | docs | 更新 `docs/design/NORTHBOUND_ARCHITECTURE.md` 4.4 节与 `cmd/dcu/CONTEXT.md` 的状态，标注已实现与未实现 | A | 0.5 | D0-01 | 文档状态与代码一致 | 评审通过，文中每条结论有代码或测试引用 |
 | D0-07 | test | 把目录生成加入 CI，`--check` 失败即红；生成物进 `docs/design/` | C | 1 | D1-00 | CI 步骤 | 故意改一句原文后 `--check` 变红 |
 
@@ -749,7 +750,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 5. D1-00、D1-01、D1-02 目录、OCR 核对、对象模型设计。设计与目录已提交；OCR 核对待做，CI 接入由 D0-07 负责。
 6. D1-05、D1-06、D1-07、D1-11 北向五类请求。
 7. D0-01、D0-06 文档与 README。不阻塞代码，排在协议栈缺口之后。
-8. D0-04、D0-05 基线与真实帧向量；D0-05a 修 HCS 校验。
+8. D0-04、D0-05 基线与真实帧向量；D0-05a 修 HCS 校验，D0-05b 对齐 DAR。
 9. P2 到 P5 在公共组件与端口依赖满足后启动。
 10. P6 随各阶段并行，最后做发布判据。
 
@@ -763,8 +764,9 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D0-02 | 已合并 | `dcu/D0-02-remove-demo` | `d0eb1f43` | `docs/evidence/DCU-D0-02/` | 构建、25/25 目标测试、验收 2+4、全部守卫通过 |
 | D0-03 | 已合并 | `dcu/D0-03-stdout-guard` | `3bfc4237` | `docs/evidence/DCU-D0-03/` | 构建、25/25 目标测试、守卫正反夹具、验收 2+4 通过；5 个产品入口补 `_IOLBF`，组合根预算相应 +1 到 +2 |
 | D0-04 | 未开始 | - | - | - | - |
-| D0-05 | 待验收 | `dcu/D0-05-frame-vectors` | `ac239d2e` | `/tmp/dcu-docs-worktree/docs/evidence/DCU-D0-05/` | 26/26 目标测试、套件 21 例 19 过 2 skip；HCS 与 Record/RSD 是真实缺口；`/no-comments` 进行中 |
-| D0-05a | 未开始 | - | - | - | 依赖 D0-05 合并；修 698 HCS 校验 |
+| D0-05 | 已合并 | `dcu/D0-05-frame-vectors` | `0f45d0e2` | `docs/evidence/DCU-D0-05/` | 26/26 目标测试、套件 21 例 19 过 2 skip；`/no-comments` 删 26 行；DAR 向量改 6；HCS 归 D0-05a，DAR 代码对齐归 D0-05b |
+| D0-05a | 未开始 | - | - | - | 依赖 D0-05；修 698 HCS 校验 |
+| D0-05b | 未开始 | - | - | - | 依赖 D0-05；对齐 DAR 4/5/6/7 |
 | D0-06 | 未开始 | - | - | - | - |
 | D0-07 | 阻塞 | - | - | - | 依赖 D1-00 |
 | D1-00 | 进行中 | `main` | `8d8089bf` | `scripts/extract_dcu_698_catalog.py` | 生成器与目录已提交，`--check` 通过；CI 接入待 D0-07 |
@@ -803,7 +805,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | 2026-11-21 | 清理 | 完成 | - | 删除 `dcu/D1-03-object-model` 分支；删除本会话 `/tmp` 日志与 scratch；删除被忽略的 `reports/`；工作树切到 `dcu/D1-04-var-handlers` |
 | 2026-11-21 | D1-03 注释 | 已合并 | `docs/evidence/DCU-D1-03/comments.md` | `/no-comments` 删除 100 行注释、0 行代码；构建、26/26 测试、守卫、验收 2+4 通过；提交 `5e145714` |
 | 2026-11-21 | D1-04 | 待验收 | `/tmp/dcu-dev-worktree/docs/evidence/DCU-D1-04/` | 构建与 21/21 通过；review 发现 `OAD_POWER_FACTOR_TOTAL` 指 2009、`OAD_GRID_FREQUENCY` 指 200A，标准应为 200A/200F；0010/0020 attr2 应为 0x06、attr4 为 0x15；已退回修宏与逐属性类型标签，并 rebase 到 5e145714 |
-| 2026-11-21 | D0-05 | 待验收 | `/tmp/dcu-docs-worktree/docs/evidence/DCU-D0-05/` | rebase 到 `149d2634` 后 26/26 目标测试、守卫通过；一致性套件 21 例 19 过 2 skip（HCS 缺失、Record/RSD 未实现）；HCS 立 D0-05a，Record/RSD 归 D1-15；`/no-comments` 进行中 |
+| 2026-11-21 | D0-05 | 已合并 | `docs/evidence/DCU-D0-05/` | 合并提交 `0f45d0e2`；26/26 目标测试、守卫、验收 2+4 通过；套件 21 例 19 过 2 skip；`/no-comments` 删 26 行；DAR 向量从 5 改 6，设计文档 DAR 表改为 4/5/6/7；HCS 立 D0-05a，DAR 代码对齐立 D0-05b |
 
 ### 12.4 并行工作树
 
