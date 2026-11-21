@@ -52,24 +52,23 @@ int dcu_north_resolve_scalar(void* ctx, uint32_t oad, const void* desc, size_t d
 }
 
 /**
- * @brief 收一次对象方法操作（OI 8000 跳闸/合闸等）。
- *
- * **当前明确返回失败**：标准表 A.9 规定方法 129/130 的参数是
- * `array structure{继电器 OAD, 告警延时, 限电时间, 自动合闸}`，解它需要按 698
- * 第 7 章把结构拆出来，再映射到"哪只表的继电器"。语义没确认前不猜 ——
- * 驱动会把非 0 变成 DAR=2（暂时失效），主站看到的是"设备暂时不能执行"，
- * 而不是"执行成功"。
+ * 129/130/131 的参数是 `array<structure>`；产品目前没有继电器 OAD→电表地址的映射，
+ * 对象表会回 TEMPORARY（DAR 2），不假装执行成功。
  */
-static int _dcu_nb_accept_action(void* ctx, uint32_t omd, const uint8_t* axdr, size_t axdr_len) {
+int dcu_north_accept_action(void* ctx, uint32_t omd, const uint8_t* axdr, size_t axdr_len) {
     (void)ctx;
-    (void)axdr;
-    (void)axdr_len;
     uint16_t oi = (uint16_t)(omd >> 16);
     uint8_t method = (uint8_t)((omd >> 8) & 0xFF);
-    LOG_WARN(LOG_CAT_NB,
-             "DCU north ACTION OI=0x%04X method=%u：参数结构未实现（见标准表 A.9），回 DAR=2", oi,
-             method);
-    return -1;
+    if (oi != OI_REMOTE_CONTROL) return EDGE_SLAVE_SRC_NOT_FOUND;
+
+    dcu_action_param_t param = {0};
+    int rc = dcu_698_decode_action_param(method, axdr, axdr_len, &param);
+    if (rc != 0) {
+        LOG_WARN(LOG_CAT_NB, "DCU north ACTION OI=8000 method=%u：参数解码失败 rc=%d", method,
+                 rc);
+        return rc;
+    }
+    return dcu_698_call(omd, &param, NULL);
 }
 
 static void _on_dcu_north_connect(uv_stream_t* server, int status) {
@@ -108,7 +107,7 @@ void dcu_north_slave_attach(uv_loop_t* loop, datahub_t* hub, bus_orchestrator_t*
     }
     static const edge_slave_source_ops_t src = {
         .resolve = dcu_north_resolve_scalar,
-        .accept_action = _dcu_nb_accept_action,
+        .accept_action = dcu_north_accept_action,
         .resolve_axdr = dcu_north_resolve_axdr,
         .accept_axdr = dcu_north_accept_axdr,
     };

@@ -1,0 +1,25 @@
+== clean build (Ninja, Release) ==
+build ok (exit 0)
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+
+== Release unit tests: ctest -R 'dcu|dlt698' ==
+
+100% tests passed, 0 tests failed out of 30
+
+Total Test time (real) =  12.88 sec
+
+== ASAN unit tests: ctest -R 'dcu|dlt698' ==
+
+100% tests passed, 0 tests failed out of 30
+
+Total Test time (real) =  21.59 sec
+
+== guard selftest ==
+
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+
+== product acceptance ./test.sh --omnis dcu ==
+2 passed in 1.60s
+9 passed in 0.19s
+全部合格:2 个验收任务
+[32m✨ 验收通过[0m

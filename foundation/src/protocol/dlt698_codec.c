@@ -759,6 +759,15 @@ int dlt698_decode_data(const uint8_t *buf, uint16_t len, uint16_t *offset, dlt69
             return 0;
         }
 
+        case DLT698_TAG_OAD: {
+            /* 表24 的标记 81；内容见 6.3.3.5 表28：OI(2) | 属性及特征(1) | 元素索引(1)。 */
+            if (*offset + 4 > len) return -1;
+            res->val.u32 = (uint32_t)buf[*offset] << 24 | (uint32_t)buf[*offset + 1] << 16 |
+                           (uint32_t)buf[*offset + 2] << 8 | buf[*offset + 3];
+            *offset += 4;
+            return 0;
+        }
+
         default:
             // 暂不支持的类型
             return -2;

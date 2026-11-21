@@ -1,0 +1,17 @@
+ acceptance/dcu/tests/test_dcu_northbound.py |  32 ++++--
+ adapters/io_drivers/src/driver_dlt698.c     |  13 ++-
+ ci/baseline/composition_root_budget.txt     |   3 +-
+ cmd/dcu/dcu_698_axdr.c                      |  70 +++++++++++++
+ cmd/dcu/dcu_698_axdr.h                      |  11 +++
+ cmd/dcu/dcu_698_object_model.c              |  23 ++++-
+ cmd/dcu/dcu_698_object_model.h              |  14 +++
+ cmd/dcu/dcu_north_adapter.c                 |  29 +++---
+ cmd/dcu/dcu_north_adapter.h                 |   3 +
+ cmd/dcu/dcu_north_source.c                  |   6 +-
+ docs/design/NORTHBOUND_ARCHITECTURE.md      |  18 ++--
+ foundation/include/dlt698_codec.h           |   3 +-
+ foundation/include/edge_slave_plane.h       |   2 +-
+ foundation/src/protocol/dlt698_codec.c      |   9 ++
+ tests/test_dcu_698_axdr.c                   | 146 ++++++++++++++++++++++++++++
+ tests/test_dcu_698_object_model.c           |   3 +-
+ 16 files changed, 339 insertions(+), 46 deletions(-)

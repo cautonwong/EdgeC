@@ -253,6 +253,13 @@ static uint8_t _dar_for_source_rc(int rc) {
     }
 }
 
+static uint8_t _dar_for_action_rc(int rc) {
+    if (rc == 0) return DLT698_DAR_SUCCESS;
+    /* ACTION 的通用失败用 DAR 2；端口给出的具体原因仍按统一映射。 */
+    if (rc == EDGE_SLAVE_SRC_TEMPORARY || rc == -1) return DLT698_DAR_TEMPORARY_FAILURE;
+    return _dar_for_source_rc(rc);
+}
+
 static int _handle_set_request(const dlt698_addr_t *sa, uint8_t piid, const uint8_t *payload,
                                size_t payload_len, const edge_slave_source_ops_t *src,
                                void *src_ctx, net_buf_t *out) {
@@ -584,10 +591,8 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
             rc = -1;
         }
 
-        /* DAR 必须如实回：执行失败回 0（成功）就是"假成功"，主站会以为继电器动了。
-         * 非 0 一律回 2（暂时失效）—— 细分原因（未实现 / 越界 / 闭锁）在产品日志里，
-         * 驱动不该认识产品的错误码。 */
-        uint8_t dar = (rc == 0) ? DLT698_DAR_SUCCESS : DLT698_DAR_TEMPORARY_FAILURE;
+        /* DAR 必须如实回：执行失败回 0（成功）就是"假成功"，主站会以为继电器动了。 */
+        uint8_t dar = _dar_for_action_rc(rc);
         dlt698_encode_action_response(&sa, piid, (uint16_t)(omd >> 16),
                                       (uint8_t)((omd >> 8) & 0xFF), (uint8_t)(omd & 0xFF), dar,
                                       NULL, 0, out);
