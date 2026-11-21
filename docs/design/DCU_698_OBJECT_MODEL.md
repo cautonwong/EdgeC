@@ -304,7 +304,9 @@ DCU 等级 `full`，按 OI 白名单。首版实现日期时间、通信地址�
 
 实例数 0…n。属性：1 逻辑名、2 冻结数据表、3 关联对象属性表。方法：1 复位、2 执行、3 触发一次冻结、4 添加一个冻结对象属性、5 删除一个冻结对象属性、7 批量添加冻结对象属性、8 清除关联对象属性表。
 
-DCU 等级 `full`。覆盖 5000 到 5011 共 13 个 OI。冻结记录落 `dcu_freeze_record_t`，查询走 `dcu_storage_query_freeze`，RSD 解析在 `dcu_698_freeze_read`。方法 3 是 ACTION 8010 的落点。
+DCU 等级 `full`。覆盖 5000 到 5011 共 13 个 OI。冻结记录落 `dcu_freeze_record_t`，查询走 `dcu_storage_query_freeze`，RSD 解析在 `dcu_698_freeze_read`。方法 3 触发一次冻结。
+
+记录型对象的表计寻址：OAD 的元素索引字节（`oad & 0xFF`）选档案槽位，0 到 `count-1`；越界回 DAR 6。Class 20 的对象列表只做访问控制，不承担表计寻址。GetRecord 的行列由 RCSD 选列，时间范围由 RSD Selector1/2 选行。
 
 ### Class 10 采集监控接口类
 
