@@ -700,6 +700,8 @@ docs/evidence/DCU-<ID>/comments.md    # /no-comments 审查结果：删除、保
 4. 冻结保留策略。日、月、曲线冻结各保留多久，决定 SQLite 容量与清理任务。
 5. 多主站与备用通道是否首版必需。当前北向从站是单监听路径。
 6. 实机台架是否纳入本次产品化验收。模拟台架不能替代硬件兼容性。
+7. 5004 记录型对象的寻址。主站如何指定要读哪块表的冻结记录：Class 20 会话绑定、OAD 元素索引选实例，还是返回台区聚合记录。三种口径的记录列与行数不同，D1-07 的端口实现取决于此。
+8. OI 8000 的继电器映射。表 A.9 的参数用“继电器 OAD”寻址，产品目前只有电表地址/槽位；需要产品定义继电器 OAD → 电表地址或 DO 通道，D1-06 的 129/130/131 才能执行。
 
 ### 11.2 技术风险
 
@@ -774,13 +776,13 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D0-09 | 已合并 | `dcu/D0-09-class-ids` | `6638ce23` | `docs/evidence/DCU-D0-09/` | 合并提交 `6638ce23`；F100→21、F200→22、3000/3005→24；生成器按 7.3 小节解析，F100 入目录（513→514）；快照改按处理器族分派；合并后告警、目录、28/28、守卫、验收全过 |
 | D0-10 | 已合并 | `dcu/D0-10-atomic-bus-log` | `28b0363f` | `docs/evidence/DCU-D0-10/` | 合并提交 `28b0363f`；`dump_json_atomic`（同目录 mkstemp+fsync+replace）替换 4 处 `write_text`；并发读守卫；合并后验收连跑 2 次绿 |
 | D1-00 | 已合并 | `main` | `355c8251` | `scripts/extract_dcu_698_catalog.py` | 生成器、目录与 `--check` 门禁均已入库；D0-07 接入 CI 与守卫自检 |
-| D1-01 | 未开始 | - | - | - | 以 `698.pdf` 重抽 79 行 OCR 列错位 |
+| D1-01 | 进行中 | `dcu/D1-01-catalog-classes` | `21ca75f0` | `docs/evidence/DCU-D1-01/` | dcu-dev 执行中；逐行用 7.3/7.4/附录 A 定类，冲突归零，生成器对未解释差异变红 |
 | D1-02 | 待验收 | `main` | `8d8089bf` | `docs/design/DCU_698_OBJECT_MODEL.md` | 设计文档已提交，待架构评审 |
 | D1-03 | 已合并 | `dcu/D1-03-object-model` | `81730385` | `docs/evidence/DCU-D1-03/` | router 664→76 行；256 位 mask，门面走预检；object_model 709 行待 D1-04 拆；合并后 26/26 测试、守卫、验收全过 |
 | D1-04 | 已合并 | `dcu/D1-04-var-handlers` | `100f9a41` | `docs/evidence/DCU-D1-04/` | 27/27 目标测试、守卫、验收 2+4 通过；200A/200F 与 attr2/attr4 类型对齐；`/no-comments` 删 5 条并修 `IC_VARIABLE` 过期示例；704 行待后续拆 |
 | D1-05 | 已合并 | `dcu/D1-05-resolve-table` | `ac7b8dfe` | `docs/evidence/DCU-D1-05/` | 合并提交 `ac7b8dfe`；`dcu_698_value_for_oad` 成为 OAD→类型唯一来源；验收扩到 2000/2001/2004/6000/6012/5004 七例；顺带修 5004 计数回调的 ~900KB 越界（ctx 二次取址） |
 | D1-06 | 部分合并 | `dcu/D1-06-action` | `9a7fb7f9` | `docs/evidence/DCU-D1-06/` | 合并提交 `9a7fb7f9`；127–131 参数按表 A.9 解码，错形状回 DAR 7；129–131 因产品没有继电器 OAD→电表地址映射，诚实回 DAR 2（不假装执行）；127/128 无告警输出同回 2；继电器映射需产品拍板 |
-| D1-07 | 阻塞 | - | - | - | 依赖 D1-13、D1-15 |
+| D1-07 | 阻塞 | - | - | - | 依赖已满足（D1-13、D1-15 已合并）；卡在 §11.1 第 7 项，5004 记录寻址口径未拍板 |
 | D1-08 | 已合并 | `dcu/D1-08-normal-list` | `c291f3e7` | `docs/evidence/DCU-D1-08/` | 合并提交 `c291f3e7`；混合成败、空列表（表73 无下限）、重复 OAD、验收未知 OI 逐项 DAR；修正 codec 对 n==0 的旧拒绝 |
 | D1-09 | 未开始 | - | - | - | - |
 | D1-10 | 已合并 | `dcu/D1-10-catalog-consistency` | `5a4fda20` | `docs/evidence/DCU-D1-10/` | 合并提交 `5a4fda20`；生成 514 OI + 26 类夹具，表→目录严格对拍、mask 范围、OI 唯一；红色对照 F200 改类；合并后 29/29、目录门禁、守卫、验收全过 |
@@ -791,7 +793,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-15 | 已合并 | `dcu/D1-15a-record-codec` + `dcu/D1-15b-record-driver` | `7658967a` | `docs/evidence/DCU-D1-15a/`、`DCU-D1-15b/` | D1-15a codec 层 GetRecord/RSD/RCSD；D1-15b ADR-0014 记录端口、Selector1、驱动 GET [3]、分页；产品记录取数留 D1-07 |
 | D1-15b | 已合并 | `dcu/D1-15b-record-driver` | `7658967a` | `docs/evidence/DCU-D1-15b/` | 合并提交 `7658967a`；端口三回调协议中立；行失败整条回 DAR；>255 回 DAR 2；不支持选择方法空 RCSD 限制已入 ADR |
 | D1-16 | 未开始 | - | - | - | - |
-| D1-17 | 未开始 | - | - | - | - |
+| D1-17 | 进行中 | `dcu/D1-17-appconn` | `21ca75f0` | `docs/evidence/DCU-D1-17/` | edgec-dev-0 执行中；先写 ADR-0015 会话端口，再接 4400 应用连接与对象列表 ACL |
 | D2 到 D5 | 阻塞 | - | - | - | 依赖 COM 组件，见 11.3 B6 |
 | D6 | 未开始 | - | - | - | 随各阶段并行 |
 
