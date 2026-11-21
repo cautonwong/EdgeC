@@ -11,6 +11,9 @@ parsed standard changes, and let --check fail when the checked-in catalog is sta
 Usage:
     python3 scripts/extract_dcu_698_catalog.py
     python3 scripts/extract_dcu_698_catalog.py --check
+    python3 scripts/extract_dcu_698_catalog.py --check --root <dir>
+
+--root 让门禁能对临时目录里的真实文档副本运行；默认是仓库根。
 """
 
 from __future__ import annotations
@@ -22,9 +25,15 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SOURCE = ROOT / "docs" / "698_parsed.md"
-OUT_MD = ROOT / "docs" / "design" / "DCU_698_OI_CATALOG.md"
-OUT_JSON = ROOT / "docs" / "design" / "DCU_698_OI_CATALOG.json"
+
+
+def catalog_paths(root: Path) -> tuple[Path, Path, Path]:
+    """解析源与两份产物相对给定根的路径。相对路径由 CLI 的 --root 决定。"""
+    return (
+        root / "docs" / "698_parsed.md",
+        root / "docs" / "design" / "DCU_698_OI_CATALOG.md",
+        root / "docs" / "design" / "DCU_698_OI_CATALOG.json",
+    )
 
 CLASS_HEAD = re.compile(r"7\.3\.(\d+)\s+(.*?)（class_id=(\d+)）")
 ATTR = re.compile(r"^(\d+)[．.]\s*(.+?)\s*[（(](static|dyn\.?)[）)]\s*(.*)$")
@@ -254,9 +263,18 @@ def render(classes: list[dict], ois: list[dict]) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--root", default=None,
+                        help="repository root holding docs/; defaults to the script's repo")
     args = parser.parse_args()
 
-    lines = SOURCE.read_text(encoding="utf-8").splitlines()
+    root = Path(args.root).resolve() if args.root else ROOT
+    source, out_md, out_json = catalog_paths(root)
+
+    if not source.exists():
+        print(f"missing source: {source}", file=sys.stderr)
+        return 1
+
+    lines = source.read_text(encoding="utf-8").splitlines()
     classes = parse_classes(lines)
     ois = parse_ois(lines)
 
@@ -272,19 +290,19 @@ def main() -> int:
 
     if args.check:
         stale = []
-        if not OUT_MD.exists() or OUT_MD.read_text(encoding="utf-8") != markdown:
-            stale.append(str(OUT_MD))
-        if not OUT_JSON.exists() or OUT_JSON.read_text(encoding="utf-8") != payload:
-            stale.append(str(OUT_JSON))
+        if not out_md.exists() or out_md.read_text(encoding="utf-8") != markdown:
+            stale.append(str(out_md))
+        if not out_json.exists() or out_json.read_text(encoding="utf-8") != payload:
+            stale.append(str(out_json))
         for path in stale:
             print(f"stale: {path}", file=sys.stderr)
         return 1 if stale else 0
 
-    OUT_MD.parent.mkdir(parents=True, exist_ok=True)
-    OUT_MD.write_text(markdown, encoding="utf-8")
-    OUT_JSON.write_text(payload, encoding="utf-8")
-    print(f"wrote {OUT_MD.relative_to(ROOT)} ({len(classes)} classes, {len(ois)} OIs)")
-    print(f"wrote {OUT_JSON.relative_to(ROOT)}")
+    out_md.parent.mkdir(parents=True, exist_ok=True)
+    out_md.write_text(markdown, encoding="utf-8")
+    out_json.write_text(payload, encoding="utf-8")
+    print(f"wrote {out_md.relative_to(root)} ({len(classes)} classes, {len(ois)} OIs)")
+    print(f"wrote {out_json.relative_to(root)}")
     return 0
 
 

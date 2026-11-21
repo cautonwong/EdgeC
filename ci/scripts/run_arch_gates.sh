@@ -25,6 +25,7 @@ cleanup() {
 trap cleanup EXIT
 
 python3 ci/scripts/run_guard_selftest.py
+python3 ci/scripts/check_dcu_698_catalog.py --root .
 python3 ci/scripts/check_sbom.py --out "$BUILD_DIR/sbom"
 python3 ci/scripts/check_component_budgets.py --root . --build "$BUILD_DIR"
 python3 ci/scripts/check_resource_discipline.py --root .

@@ -1,0 +1,5 @@
+ .github/workflows/ci.yml           |  1 +
+ ci/scripts/run_arch_gates.sh       |  1 +
+ ci/scripts/run_guard_selftest.py   | 63 ++++++++++++++++++++++++++++++++++++++
+ scripts/extract_dcu_698_catalog.py | 44 ++++++++++++++++++--------
+ 4 files changed, 96 insertions(+), 13 deletions(-)

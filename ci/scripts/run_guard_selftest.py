@@ -8,6 +8,8 @@ Implements the "Testing the Gates" paradigm:
 3. Validates that no architectural guard script can become insensitive or silent.
 """
 
+import re
+import shutil
 import sys
 import os
 import subprocess
@@ -273,6 +275,15 @@ TEST_MATRIX = [
         "arg_flag": "--root"
     },
     {
+        # 负例是动态的：把真实 docs 复制到临时目录再改坏一行，
+        # 见 main() 里的 "DCU 698 catalog" 段。
+        "guard_name": "check_dcu_698_catalog.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_dcu_698_catalog.py"),
+        "good_target": REPO_ROOT,
+        "bad_target": None,
+        "arg_flag": "--root"
+    },
+    {
         "guard_name": "check_ci_gate_parity.py",
         "script": os.path.join(SCRIPTS_DIR, "check_ci_gate_parity.py"),
         "good_target": os.path.join(FIXTURES_DIR, "good_ci_gate_parity"),
@@ -444,6 +455,57 @@ def main():
                 print(msg)
                 failures.append(msg)
 
+    # ---- DCU 698 catalog gate: real docs copy, one line corrupted ----------
+    # 目录门禁不能只用一把小夹具：生成器对 26 个类与 400 行以上有断言，小夹具
+    # 走不到那段逻辑。所以复制真实的 docs 到临时目录，改坏目录里一行，要求拒收。
+    print("\n" + "=" * 80)
+    print("📚 [CATALOG_GATE] Testing the 698 catalog gate on a real docs copy")
+    print("=" * 80)
+    catalog_guard = os.path.join(SCRIPTS_DIR, "check_dcu_698_catalog.py")
+    with tempfile.TemporaryDirectory(prefix="dcu698-catalog-") as tmp:
+        design = os.path.join(tmp, "docs", "design")
+        os.makedirs(design)
+        for src, dst in (
+            (os.path.join(REPO_ROOT, "docs", "698_parsed.md"),
+             os.path.join(tmp, "docs", "698_parsed.md")),
+            (os.path.join(REPO_ROOT, "docs", "design", "DCU_698_OI_CATALOG.md"),
+             os.path.join(design, "DCU_698_OI_CATALOG.md")),
+            (os.path.join(REPO_ROOT, "docs", "design", "DCU_698_OI_CATALOG.json"),
+             os.path.join(design, "DCU_698_OI_CATALOG.json")),
+        ):
+            shutil.copyfile(src, dst)
+
+        total_tests += 1
+        rc, out, err = run_cmd([sys.executable, catalog_guard, "--root", tmp])
+        if rc == 0:
+            print("  ✅ [PASS] check_dcu_698_catalog.py (unmodified copy accepted)")
+            passed_tests += 1
+        else:
+            msg = f"❌ [FAIL] check_dcu_698_catalog.py rejected an unmodified copy:\n{out}\n{err}"
+            print(msg)
+            failures.append(msg)
+
+        total_tests += 1
+        catalog_md = os.path.join(design, "DCU_698_OI_CATALOG.md")
+        with open(catalog_md, encoding="utf-8") as f:
+            text = f.read()
+        corrupted = re.sub(r"Classes: \d+\.", "Classes: 99.", text, count=1)
+        if corrupted == text:
+            msg = "❌ [FIXTURE] catalog header line changed shape; the corruption no longer applies"
+            print(msg)
+            failures.append(msg)
+        else:
+            with open(catalog_md, "w", encoding="utf-8") as f:
+                f.write(corrupted)
+            rc_bad, out_bad, err_bad = run_cmd([sys.executable, catalog_guard, "--root", tmp])
+            if rc_bad != 0:
+                print("  ✅ [PASS] check_dcu_698_catalog.py (corrupted copy rejected)")
+                passed_tests += 1
+            else:
+                msg = "❌ [REFUTATION_FAIL] check_dcu_698_catalog.py accepted a corrupted catalog"
+                print(msg)
+                failures.append(msg)
+
     # ---- Coverage floor gate: good info passes, low info fails ---------------
     print("\n" + "=" * 80)
     print("📈 [COVERAGE_GATE] Testing coverage floor sensitivity")
@@ -550,6 +612,7 @@ def main():
         "check_sdk_signature.py",
         "check_protocol_selection.py",
         "check_privileged_test_runs.py",
+        "check_dcu_698_catalog.py",
         "check_iems_control_slave.py",
         "check_iems_stdout_line_buffered.py",
     ]:

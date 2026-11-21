@@ -1,0 +1,28 @@
+== run_guard_selftest.py --root . ==
+📚 [CATALOG_GATE] Testing the 698 catalog gate on a real docs copy
+================================================================================
+  ✅ [PASS] check_dcu_698_catalog.py (unmodified copy accepted)
+  ✅ [PASS] check_dcu_698_catalog.py (corrupted copy rejected)
+
+  ✅ [LIVE_PASS] check_iems_control_slave.py
+  ✅ [LIVE_PASS] check_iems_stdout_line_buffered.py
+
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+exit=0
+
+== check_ci_gate_parity.py --root . ==
+✅ [CI_GATE_PARITY] local runner matches CI (11 gates)
+exit=0
+
+== 故意改坏仓库目录：门禁必须变红 ==
+[DCU_698_CATALOG] catalog is stale; regenerate with python3 scripts/extract_dcu_698_catalog.py
+stale: /tmp/dcu-docs-worktree/docs/design/DCU_698_OI_CATALOG.md
+broken_exit=1
+-- 恢复后 --
+[DCU_698_CATALOG] catalog matches docs/698_parsed.md
+restored_exit=0
+
+== 临时目录的负例（selftest 内的真实副本） ==
+  ✅ [PASS] check_dcu_698_catalog.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_dcu_698_catalog.py (unmodified copy accepted)
+  ✅ [PASS] check_dcu_698_catalog.py (corrupted copy rejected)
