@@ -1,0 +1,122 @@
+== BEFORE the fix: ASAN stack-use-after-scope (build-asan/tests/test_dlt698_conformance_suite at 15a51c80) ==
+==62287==ERROR: AddressSanitizer: stack-use-after-scope on address 0x7ffc049ad73c at pc 0x560c84df6b53 bp 0x7ffc049ad4d0 sp 0x7ffc049ad4c0
+READ of size 1 at 0x7ffc049ad73c thread T0
+    #0 0x560c84df6b52 in test_get_request_normal (/tmp/dcu-baseline-worktree/build-asan/tests/test_dlt698_conformance_suite+0xfb52)
+    #1 0x560c84dfed16 in cmocka_run_one_test_or_fixture (/tmp/dcu-baseline-worktree/build-asan/tests/test_dlt698_conformance_suite+0x17d16)
+    #2 0x560c84dff87a in _cmocka_run_group_tests (/tmp/dcu-baseline-worktree/build-asan/tests/test_dlt698_conformance_suite+0x1887a)
+    #3 0x560c84def1fb in main (/tmp/dcu-baseline-worktree/build-asan/tests/test_dlt698_conformance_suite+0x81fb)
+    #4 0x7fa9c0eead8f  (/lib/x86_64-linux-gnu/libc.so.6+0x29d8f)
+    #5 0x7fa9c0eeae3f in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29e3f)
+    #6 0x560c84def324 in _start (/tmp/dcu-baseline-worktree/build-asan/tests/test_dlt698_conformance_suite+0x8324)
+
+Address 0x7ffc049ad73c is located in stack of thread T0 at offset 524 in frame
+    #0 0x560c84df606f in test_get_request_normal (/tmp/dcu-baseline-worktree/build-asan/tests/test_dlt698_conformance_suite+0xf06f)
+
+  This frame has 13 object(s):
+    [48, 49) 'svc' (line 205)
+    [64, 65) 'choice' (line 205)
+    [80, 81) 'piid' (line 205)
+    [96, 104) 'apdu' (line 199)
+    [128, 136) 'payload' (line 206)
+    [160, 168) 'plen' (line 207)
+    [192, 216) 'b' (line 146)
+    [256, 274) 'sa' (line 194)
+    [320, 338) 'got_sa' (line 204)
+    [384, 402) 'sa' (line 96)
+    [448, 453) 'want_payload' (line 216)
+    [480, 488) 'want' (line 201)
+    [512, 1024) 'storage' (line 145) <== Memory access at offset 524 is inside this variable
+HINT: this may be a false positive if your program uses some custom stack unwind mechanism, swapcontext or vfork
+      (longjmp and C++ exceptions *are* supported)
+SUMMARY: AddressSanitizer: stack-use-after-scope (/tmp/dcu-baseline-worktree/build-asan/tests/test_dlt698_conformance_suite+0xfb52) in test_get_request_normal
+
+== AFTER the fix: same binary rebuilt from the final tree ==
+[==========] tests: Running 21 test(s).
+[NETBUF][INFO] NetBufPool 0x50d000000040: Created (Refs: 1)
+[ RUN      ] test_fcs_algorithm_known_answer
+[       OK ] test_fcs_algorithm_known_answer
+[ RUN      ] test_frame_known_answer_full_bytes
+[NETBUF][INFO] NetBufPool 0x50d000000040: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (2 -> 1)
+[       OK ] test_frame_known_answer_full_bytes
+[ RUN      ] test_get_request_normal
+[NETBUF][INFO] NetBufPool 0x50d000000040: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (2 -> 1)
+[       OK ] test_get_request_normal
+[ RUN      ] test_get_response_normal
+[NETBUF][INFO] NetBufPool 0x50d000000040: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (2 -> 1)
+[       OK ] test_get_response_normal
+[ RUN      ] test_get_request_normal_list_decode
+[       OK ] test_get_request_normal_list_decode
+[ RUN      ] test_get_response_normal_list
+[NETBUF][INFO] NetBufPool 0x50d000000040: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (2 -> 1)
+[       OK ] test_get_response_normal_list
+[ RUN      ] test_get_response_list_partial_dar
+[NETBUF][INFO] NetBufPool 0x50d000000040: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (2 -> 1)
+[       OK ] test_get_response_list_partial_dar
+[ RUN      ] test_get_record_and_rsd_not_implemented
+SKIP: GET-Request-Record([3]) 与 RSD 未实现，见 D1-15；附录 H.3.3 的冻结记录报文在实现后补向量。
+[  SKIPPED ] test_get_record_and_rsd_not_implemented
+[ RUN      ] test_set_request_normal
+[NETBUF][INFO] NetBufPool 0x50d000000040: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (2 -> 1)
+[       OK ] test_set_request_normal
+[ RUN      ] test_set_response_normal_decode
+[       OK ] test_set_response_normal_decode
+[ RUN      ] test_action_request_normal
+[NETBUF][INFO] NetBufPool 0x50d000000040: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (2 -> 1)
+[       OK ] test_action_request_normal
+[ RUN      ] test_action_response_dar0
+[NETBUF][INFO] NetBufPool 0x50d000000040: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (2 -> 1)
+[       OK ] test_action_response_dar0
+[ RUN      ] test_action_response_dar2
+[NETBUF][INFO] NetBufPool 0x50d000000040: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (2 -> 1)
+[       OK ] test_action_response_dar2
+[ RUN      ] test_action_response_with_data
+[NETBUF][INFO] NetBufPool 0x50d000000040: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (2 -> 1)
+[       OK ] test_action_response_with_data
+[ RUN      ] test_reject_bad_fcs
+[NETBUF][INFO] NetBufPool 0x50d000000040: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (2 -> 1)
+[       OK ] test_reject_bad_fcs
+[ RUN      ] test_reject_length_mismatch
+[NETBUF][INFO] NetBufPool 0x50d000000040: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (2 -> 1)
+[       OK ] test_reject_length_mismatch
+[ RUN      ] test_reject_truncated_frame
+[NETBUF][INFO] NetBufPool 0x50d000000040: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (2 -> 1)
+[       OK ] test_reject_truncated_frame
+[ RUN      ] test_reject_bad_head
+[NETBUF][INFO] NetBufPool 0x50d000000040: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (2 -> 1)
+[       OK ] test_reject_bad_head
+[ RUN      ] test_reject_bad_end
+[NETBUF][INFO] NetBufPool 0x50d000000040: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (2 -> 1)
+[       OK ] test_reject_bad_end
+[ RUN      ] test_passthrough_unknown_choice
+[NETBUF][INFO] NetBufPool 0x50d000000040: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (2 -> 1)
+[       OK ] test_passthrough_unknown_choice
+[ RUN      ] test_reject_bad_hcs
+[NETBUF][INFO] NetBufPool 0x50d000000040: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (2 -> 1)
+[       OK ] test_reject_bad_hcs
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (1 -> 0)
+[==========] tests: 21 test(s) run.
+[  PASSED  ] 20 test(s).
+[  SKIPPED ] tests: 1 test(s), listed below:
+[  SKIPPED ] test_get_record_and_rsd_not_implemented
+
+ 1 SKIPPED TEST(S)
+suite_exit=0 (no AddressSanitizer output)
