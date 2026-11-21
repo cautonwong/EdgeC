@@ -140,12 +140,12 @@ static size_t frame_apdu(const net_buf_t *out, uint8_t expect_ctrl, const uint8_
     return len - HEAD_LEN - TAIL_LEN;
 }
 
-static int decode_frame(const uint8_t *frame, size_t len, dlt698_addr_t *sa, uint8_t *svc,
-                        uint8_t *choice, uint8_t *piid, uint8_t **payload, size_t *payload_len) {
-    uint8_t storage[512];
+static int decode_frame_borrows(const uint8_t *frame, size_t len, dlt698_addr_t *sa,
+                                uint8_t *svc, uint8_t *choice, uint8_t *piid, uint8_t **payload,
+                                size_t *payload_len) {
     struct net_buf_simple b;
-    net_buf_simple_init_with_data(&b, storage, sizeof(storage));
-    net_buf_simple_add_mem(&b, frame, len);
+    net_buf_simple_init_with_data(&b, (void *)frame, len);
+    b.len = len;
     return dlt698_decode_frame_ex(&b, sa, svc, choice, piid, payload, payload_len);
 }
 
@@ -205,8 +205,8 @@ static void test_get_request_normal(void **state) {
     uint8_t svc = 0, choice = 0, piid = 0;
     uint8_t *payload = NULL;
     size_t plen = 0;
-    assert_int_equal(decode_frame(out->b.data, out->b.len, &got_sa, &svc, &choice, &piid, &payload,
-                                  &plen),
+    assert_int_equal(decode_frame_borrows(out->b.data, out->b.len, &got_sa, &svc, &choice, &piid,
+                                          &payload, &plen),
                      0);
     assert_int_equal(svc, DLT698_SVC_GET_REQ);
     assert_int_equal(choice, DLT698_CHOICE_GET_NORMAL);
@@ -239,8 +239,8 @@ static void test_get_response_normal(void **state) {
     uint8_t svc = 0, choice = 0, piid = 0;
     uint8_t *payload = NULL;
     size_t plen = 0;
-    assert_int_equal(decode_frame(out->b.data, out->b.len, &got_sa, &svc, &choice, &piid, &payload,
-                                  &plen),
+    assert_int_equal(decode_frame_borrows(out->b.data, out->b.len, &got_sa, &svc, &choice, &piid,
+                                          &payload, &plen),
                      0);
     assert_int_equal(svc, DLT698_SVC_GET_RES);
     assert_int_equal(choice, DLT698_CHOICE_GET_NORMAL);
@@ -267,7 +267,8 @@ static void test_get_request_normal_list_decode(void **state) {
     uint8_t svc = 0, choice = 0, piid = 0;
     uint8_t *payload = NULL;
     size_t plen = 0;
-    assert_int_equal(decode_frame(frame, flen, &sa, &svc, &choice, &piid, &payload, &plen), 0);
+    assert_int_equal(decode_frame_borrows(frame, flen, &sa, &svc, &choice, &piid, &payload, &plen),
+                     0);
     assert_int_equal(svc, DLT698_SVC_GET_REQ);
     assert_int_equal(choice, DLT698_CHOICE_GET_NORMAL_LIST);
     assert_int_equal(piid, 0x02);
@@ -378,7 +379,8 @@ static void test_set_response_normal_decode(void **state) {
     uint8_t svc = 0, choice = 0, piid = 0;
     uint8_t *payload = NULL;
     size_t plen = 0;
-    assert_int_equal(decode_frame(frame, flen, &sa, &svc, &choice, &piid, &payload, &plen), 0);
+    assert_int_equal(decode_frame_borrows(frame, flen, &sa, &svc, &choice, &piid, &payload, &plen),
+                     0);
     assert_int_equal(svc, DLT698_SVC_SET_RES);
     assert_int_equal(choice, 0x01);
     assert_int_equal(piid, 0x02);
@@ -480,8 +482,8 @@ static void test_reject_bad_fcs(void **state) {
     uint8_t svc, choice, piid;
     uint8_t *payload;
     size_t plen;
-    assert_int_equal(decode_frame(out->b.data, out->b.len, &sa, &svc, &choice, &piid, &payload,
-                                  &plen),
+    assert_int_equal(decode_frame_borrows(out->b.data, out->b.len, &sa, &svc, &choice, &piid,
+                                          &payload, &plen),
                      -1);
     net_buf_unref(out);
 }
@@ -495,8 +497,8 @@ static void test_reject_length_mismatch(void **state) {
     uint8_t svc, choice, piid;
     uint8_t *payload;
     size_t plen;
-    assert_int_equal(decode_frame(out->b.data, out->b.len, &sa, &svc, &choice, &piid, &payload,
-                                  &plen),
+    assert_int_equal(decode_frame_borrows(out->b.data, out->b.len, &sa, &svc, &choice, &piid,
+                                          &payload, &plen),
                      1);
     net_buf_unref(out);
 }
@@ -508,8 +510,8 @@ static void test_reject_truncated_frame(void **state) {
     uint8_t svc, choice, piid;
     uint8_t *payload;
     size_t plen;
-    assert_int_equal(decode_frame(out->b.data, out->b.len - 4, &sa, &svc, &choice, &piid, &payload,
-                                  &plen),
+    assert_int_equal(decode_frame_borrows(out->b.data, out->b.len - 4, &sa, &svc, &choice, &piid,
+                                          &payload, &plen),
                      1);
     net_buf_unref(out);
 }
@@ -523,8 +525,8 @@ static void test_reject_bad_head(void **state) {
     uint8_t svc, choice, piid;
     uint8_t *payload;
     size_t plen;
-    assert_int_equal(decode_frame(out->b.data, out->b.len, &sa, &svc, &choice, &piid, &payload,
-                                  &plen),
+    assert_int_equal(decode_frame_borrows(out->b.data, out->b.len, &sa, &svc, &choice, &piid,
+                                          &payload, &plen),
                      -2);
     net_buf_unref(out);
 }
@@ -538,8 +540,8 @@ static void test_reject_bad_end(void **state) {
     uint8_t svc, choice, piid;
     uint8_t *payload;
     size_t plen;
-    assert_int_equal(decode_frame(out->b.data, out->b.len, &sa, &svc, &choice, &piid, &payload,
-                                  &plen),
+    assert_int_equal(decode_frame_borrows(out->b.data, out->b.len, &sa, &svc, &choice, &piid,
+                                          &payload, &plen),
                      -2);
     net_buf_unref(out);
 }
@@ -564,8 +566,8 @@ static void test_passthrough_unknown_choice(void **state) {
     uint8_t svc = 0, choice = 0, piid = 0;
     uint8_t *payload = NULL;
     size_t plen = 0;
-    assert_int_equal(decode_frame(out->b.data, out->b.len, &got_sa, &svc, &choice, &piid, &payload,
-                                  &plen),
+    assert_int_equal(decode_frame_borrows(out->b.data, out->b.len, &got_sa, &svc, &choice, &piid,
+                                          &payload, &plen),
                      0);
     assert_int_equal(choice, 0x09);
     net_buf_unref(out);
@@ -589,8 +591,8 @@ static void test_reject_bad_hcs(void **state) {
     uint8_t svc, choice, piid;
     uint8_t *payload;
     size_t plen;
-    assert_int_equal(decode_frame(out->b.data, out->b.len, &sa, &svc, &choice, &piid, &payload,
-                                  &plen),
+    assert_int_equal(decode_frame_borrows(out->b.data, out->b.len, &sa, &svc, &choice, &piid,
+                                          &payload, &plen),
                      -1);
     net_buf_unref(out);
 }

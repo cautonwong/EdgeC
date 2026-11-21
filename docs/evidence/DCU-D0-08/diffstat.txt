@@ -1,0 +1,6 @@
+ docs/evidence/DCU-D0-08/comments.md   |  37 +++++++++++
+ docs/evidence/DCU-D0-08/runtime.log   | 122 ++++++++++++++++++++++++++++++++++
+ docs/evidence/DCU-D0-08/summary.md    |  46 +++++++++++++
+ docs/evidence/DCU-D0-08/tests.log     |  49 ++++++++++++++
+ tests/test_dlt698_conformance_suite.c |  52 ++++++++-------
+ 5 files changed, 281 insertions(+), 25 deletions(-)
