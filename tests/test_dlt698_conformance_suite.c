@@ -575,8 +575,7 @@ static void test_passthrough_unknown_choice(void **state) {
  * 5.1.5：HCS 错必须拒收。
  *
  * 关键在于**同时重算 FCS**：只改 HCS 会让 FCS 校验先失败，那样证明不了
- * HCS 被检查。改完 HCS 再把 FCS 按当前字节重算，帧只剩 HCS 一处错，
- * 解析器必须返回 -1。
+ * HCS 被检查。
  */
 static void test_reject_bad_hcs(void **state) {
     (void)state;

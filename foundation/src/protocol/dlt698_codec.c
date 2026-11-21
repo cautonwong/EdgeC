@@ -32,8 +32,7 @@ uint16_t dlt698_calculate_fcs(const uint8_t *p, size_t len) {
 }
 
 /* HCS 覆盖帧头里 68 之后到 HCS 之前的字节（标准 5.1.5）：
- * 长度域(2) + 控制码(1) + 地址域(1 + SA + CA)，其中 SA 长度可变。
- * 编码端 _frame_seal 用指针差值算的也是同一段，两边共用一个公式。 */
+ * 长度域(2) + 控制码(1) + 地址域(1 + SA + CA)，其中 SA 长度可变。 */
 #define DLT698_HCS_COVER_FIXED 5u
 static size_t _hcs_cover_len(uint8_t sa_len) {
     return DLT698_HCS_COVER_FIXED + sa_len;
@@ -226,8 +225,8 @@ int dlt698_decode_frame_ex(struct net_buf_simple *in, dlt698_addr_t *sa, uint8_t
     uint8_t sa_len = (uint8_t)((sa_cfg & 0x0F) + 1);
     if (frame_len < (size_t)(13 + sa_len)) return 1;
 
-    /* HCS 在 68 L L C SA配置 SA… CA 之后（标准 5.1.5）。先校帧头，再校整帧：
-     * 只校 FCS 时，"帧头被改、FCS 按改后的字节重算"的帧会被当成合法帧接受。 */
+    /* 先校帧头，再校整帧：只校 FCS 时，"帧头被改、FCS 按改后的字节重算"
+     * 的帧会被当成合法帧接受。 */
     size_t hcs_at = 6 + (size_t)sa_len;
     uint16_t hcs_rx = (uint16_t)(in->data[hcs_at] | (in->data[hcs_at + 1] << 8));
     if (dlt698_calculate_fcs(in->data + 1, _hcs_cover_len(sa_len)) != hcs_rx) return -1;
@@ -240,7 +239,6 @@ int dlt698_decode_frame_ex(struct net_buf_simple *in, dlt698_addr_t *sa, uint8_t
     sa->len = sa_len;
     memcpy(sa->addr, &in->data[5], sa->len);
 
-    /* APDU 紧跟在 HCS 之后；hcs_at 已在上面算过，不再重复推导。 */
     uint8_t *apdu_start = in->data + hcs_at + 2;
     *svc = apdu_start[0];
     if (choice) *choice = apdu_start[1];
