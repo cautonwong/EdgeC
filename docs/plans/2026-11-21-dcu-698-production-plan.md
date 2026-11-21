@@ -765,7 +765,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D0-03 | 已合并 | `dcu/D0-03-stdout-guard` | `3bfc4237` | `docs/evidence/DCU-D0-03/` | 构建、25/25 目标测试、守卫正反夹具、验收 2+4 通过；5 个产品入口补 `_IOLBF`，组合根预算相应 +1 到 +2 |
 | D0-04 | 未开始 | - | - | - | - |
 | D0-05 | 已合并 | `dcu/D0-05-frame-vectors` | `0f45d0e2` | `docs/evidence/DCU-D0-05/` | 26/26 目标测试、套件 21 例 19 过 2 skip；`/no-comments` 删 26 行；DAR 向量改 6；HCS 归 D0-05a，DAR 代码对齐归 D0-05b |
-| D0-05a | 进行中 | `dcu/D0-05a-hcs` | - | `/tmp/dcu-docs-worktree/docs/evidence/DCU-D0-05a/` | edgec-dev-0 执行中；修 698 HCS 校验 |
+| D0-05a | 待验收 | `dcu/D0-05a-hcs` | `30200b3c` | `/tmp/dcu-docs-worktree/docs/evidence/DCU-D0-05a/` | 27/27、套件 20 过 1 skip、守卫通过；`/no-comments` 进行中 |
 | D0-05b | 未开始 | - | - | - | 依赖 D0-05；对齐 DAR 4/5/6/7 |
 | D0-06 | 未开始 | - | - | - | - |
 | D0-07 | 阻塞 | - | - | - | 依赖 D1-00 |
