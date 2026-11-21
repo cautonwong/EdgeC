@@ -1,0 +1,17 @@
+Test project /tmp/dcu-docs-worktree/build
+    Start  9: test_dlt698_axdr
+1/6 Test  #9: test_dlt698_axdr .................   Passed    0.00 sec
+    Start 10: test_dlt698_action
+2/6 Test #10: test_dlt698_action ...............   Passed    0.00 sec
+    Start 11: test_dlt698_get_list
+3/6 Test #11: test_dlt698_get_list .............   Passed    0.00 sec
+    Start 26: test_dlt698_conformance_suite
+4/6 Test #26: test_dlt698_conformance_suite ....   Passed    0.00 sec
+    Start 71: test_fuzz_dlms_dlt698
+5/6 Test #71: test_fuzz_dlms_dlt698 ............   Passed    0.01 sec
+    Start 81: test_driver_dlt698
+6/6 Test #81: test_driver_dlt698 ...............   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 6
+
+Total Test time (real) =   0.03 sec
