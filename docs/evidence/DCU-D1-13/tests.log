@@ -1,0 +1,35 @@
+=== build ===
+[302/304] Linking C executable tests/test_iems_modbus_rtu_uart_pty
+[303/304] Linking C executable tests/test_iems_dlt645_uart_pty
+[304/304] Linking C executable tests/test_iems_cli_write
+warnings=0
+
+=== ctest -R 'dcu|dlt698' ===
+100% tests passed, 0 tests failed out of 28
+
+=== test_dcu_698_axdr ===
+[ RUN      ] test_product_variable_axdr_types
+[       OK ] test_product_variable_axdr_types
+[ RUN      ] test_product_axdr_rejects_small_buffer_and_complex
+[       OK ] test_product_axdr_rejects_small_buffer_and_complex
+[ RUN      ] test_driver_scalar_fallback_still_works
+[       OK ] test_driver_scalar_fallback_still_works
+[ RUN      ] test_driver_carries_structure_axdr
+[       OK ] test_driver_carries_structure_axdr
+[ RUN      ] test_driver_rejects_axdr_buffer_shortage
+[       OK ] test_driver_rejects_axdr_buffer_shortage
+[ RUN      ] test_driver_normal_list_uses_axdr_per_item
+[       OK ] test_driver_normal_list_uses_axdr_per_item
+[  PASSED  ] 6 test(s).
+
+=== ASAN test_dcu_698_axdr ===
+[  PASSED  ] 6 test(s).
+
+=== run_guard_selftest.py --root . ===
+📊 Injection coverage: 6 caught / 2 known gap(s) of 8 probes
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+exit=0
+
+=== composition budget ===
+⚠️  [COMPOSITION_ROOT_BUDGET] roots shrank; run --update-baseline: cmd/iems/iems_southbound_adapter.c 218 -> 215; cmd/iems/iems_north_iec104.c 203 -> 180; cmd/dcu/dcu_north_adapter.c 203 -> 202
+✅ [COMPOSITION_ROOT_BUDGET] clean. 16 root(s).
