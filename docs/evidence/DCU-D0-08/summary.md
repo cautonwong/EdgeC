@@ -44,3 +44,14 @@
 - 没改产品代码，没改 `docs/plans/`。
 
 完整输出见 `tests.log`，ASAN 前后报告见 `runtime.log`，注释审查见 `comments.md`。
+
+## 后续（D0-08 follow-up）
+
+`b.len = len` 的 `size_t` → `uint16_t` 收窄在 `check_build_warnings.py` 下是真实 gate 失败。补上界检查并显式转换：
+
+```c
+if (len > UINT16_MAX) return -1;
+b.len = (uint16_t)len;
+```
+
+借用语义、调用点与向量均不变。`python3 ci/scripts/check_build_warnings.py --log <build.log> --root .` 输出 `No new violations`。
