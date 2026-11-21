@@ -54,10 +54,6 @@ static int teardown(void **state) {
     return 0;
 }
 
-/* ------------------------------------------------------------------ */
-/* 独立校验实现（附录 D）                                              */
-/* ------------------------------------------------------------------ */
-
 /** 按附录 D 的 pppfcs16 逐位实现，不看 codec 的查表。 */
 static uint16_t orc_fcs16(const uint8_t *p, size_t len) {
     uint16_t fcs = 0xFFFF;
@@ -82,8 +78,8 @@ static size_t build_frame(uint8_t ctrl, const uint8_t *apdu, size_t apdu_len, ui
     out[i++] = (uint8_t)(l_field >> 8);
     out[i++] = ctrl;
     out[i++] = 0x00; /* SA 描述：类型 0、长度 1 字节 */
-    out[i++] = 0x01; /* SA */
-    out[i++] = 0x10; /* CA */
+    out[i++] = 0x01;
+    out[i++] = 0x10;
     uint16_t hcs = orc_fcs16(out + 1, i - 1);
     out[i++] = (uint8_t)(hcs & 0xFF);
     out[i++] = (uint8_t)(hcs >> 8);
@@ -95,10 +91,6 @@ static size_t build_frame(uint8_t ctrl, const uint8_t *apdu, size_t apdu_len, ui
     out[i++] = DLT698_END;
     return i;
 }
-
-/* ------------------------------------------------------------------ */
-/* 断言辅助                                                            */
-/* ------------------------------------------------------------------ */
 
 static dlt698_addr_t _sa(void) {
     dlt698_addr_t sa = {.len = 1, .type = 0};
@@ -157,10 +149,6 @@ static int decode_frame(const uint8_t *frame, size_t len, dlt698_addr_t *sa, uin
     return dlt698_decode_frame_ex(&b, sa, svc, choice, piid, payload, payload_len);
 }
 
-/* ------------------------------------------------------------------ */
-/* 帧层                                                                */
-/* ------------------------------------------------------------------ */
-
 /** 附录 D 的算法本身：PPP FCS-16 对 "123456789" 的检校值是 0x906E。 */
 static void test_fcs_algorithm_known_answer(void **state) {
     (void)state;
@@ -200,10 +188,6 @@ static void test_frame_known_answer_full_bytes(void **state) {
     net_buf_unref(out);
 }
 
-/* ------------------------------------------------------------------ */
-/* GET                                                                 */
-/* ------------------------------------------------------------------ */
-
 /** H.3.1（文档第 206 页）读取一个对象属性：05 01 01 40 01 02 00 00 */
 static void test_get_request_normal(void **state) {
     (void)state;
@@ -217,7 +201,6 @@ static void test_get_request_normal(void **state) {
     const uint8_t want[] = {0x05, 0x01, 0x01, 0x40, 0x01, 0x02, 0x00, 0x00};
     _expect_bytes(apdu, n, want, sizeof(want), "H.3.1 GET-Request");
 
-    /* 同一帧再解一遍：服务、CHOICE、PIID 与载荷都要对 */
     dlt698_addr_t got_sa;
     uint8_t svc = 0, choice = 0, piid = 0;
     uint8_t *payload = NULL;
@@ -337,7 +320,7 @@ static void test_get_response_list_partial_dar(void **state) {
     static const uint8_t volts[] = {0x12, 0x09, 0x6D};
     dlt698_get_item_t items[2] = {
         {.oad = 0x20000200U, .dar = 0, .data = volts, .dlen = sizeof(volts)},
-        {.oad = 0x20010200U, .dar = 5, .data = NULL, .dlen = 0}, /* 对象未定义 */
+        {.oad = 0x20010200U, .dar = 6, .data = NULL, .dlen = 0}, /* 对象不存在（表34：6） */
     };
     assert_int_equal(dlt698_encode_get_response_list(&sa, 0x02, items, 2, out), 0);
 
@@ -345,7 +328,7 @@ static void test_get_response_list_partial_dar(void **state) {
     size_t n = frame_apdu(out, 0xC3, &apdu);
     const uint8_t want[] = {0x85, 0x02, 0x02, 0x02,
                             0x20, 0x00, 0x02, 0x00, 0x01, 0x12, 0x09, 0x6D,
-                            0x20, 0x01, 0x02, 0x00, 0x00, 0x05,
+                            0x20, 0x01, 0x02, 0x00, 0x00, 0x06,
                             0x00, 0x00};
     _expect_bytes(apdu, n, want, sizeof(want), "GET-Response 部分失败");
     net_buf_unref(out);
@@ -361,10 +344,6 @@ static void test_get_record_and_rsd_not_implemented(void **state) {
            "附录 H.3.3 的冻结记录报文在实现后补向量。\n");
     skip();
 }
-
-/* ------------------------------------------------------------------ */
-/* SET                                                                 */
-/* ------------------------------------------------------------------ */
 
 /** H.4.1（文档第 213 页）设置时钟：06 01 02 40 00 02 00 1C <7 字节时间> 00 */
 static void test_set_request_normal(void **state) {
@@ -406,10 +385,6 @@ static void test_set_response_normal_decode(void **state) {
     const uint8_t want_payload[] = {0x40, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00};
     _expect_bytes(payload, plen, want_payload, sizeof(want_payload), "H.4.1 响应载荷");
 }
-
-/* ------------------------------------------------------------------ */
-/* ACTION                                                              */
-/* ------------------------------------------------------------------ */
 
 /** H.5.1（文档第 214 页）执行电能量复位：07 01 05 00 10 01 00 0F 00 00 */
 static void test_action_request_normal(void **state) {
@@ -488,10 +463,6 @@ static void test_action_response_with_data(void **state) {
     net_buf_unref(out);
 }
 
-/* ------------------------------------------------------------------ */
-/* 畸形帧                                                              */
-/* ------------------------------------------------------------------ */
-
 static net_buf_t *valid_get_frame(void) {
     dlt698_addr_t sa = _sa();
     net_buf_t *out = net_buf_alloc(g_pool, 0);
@@ -530,7 +501,6 @@ static void test_reject_length_mismatch(void **state) {
     net_buf_unref(out);
 }
 
-/** 截断帧（少 4 字节）必须拒收。 */
 static void test_reject_truncated_frame(void **state) {
     (void)state;
     net_buf_t *out = valid_get_frame();
