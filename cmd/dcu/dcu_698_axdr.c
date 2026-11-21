@@ -1,8 +1,3 @@
-/**
- * @file dcu_698_axdr.c
- * @brief 698 从站 A-XDR 取数/收数（ADR-0013 D1-13）
- */
-
 #include "dcu_698_axdr.h"
 
 #include <string.h>

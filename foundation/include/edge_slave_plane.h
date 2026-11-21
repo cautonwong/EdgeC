@@ -129,7 +129,7 @@ typedef struct {
     /**
      * @brief 收一个 OAD 的原始 A-XDR 值（含类型标签）。
      *
-     * 未实现时为 NULL，SET 回落标量 `accept`。D1-14 起接 SET 分支。
+     * 未实现时为 NULL，SET 回落标量 `accept`。
      */
     int (*accept_axdr)(void *ctx, uint32_t oad, const uint8_t *axdr, size_t len);
 } edge_slave_source_ops_t;

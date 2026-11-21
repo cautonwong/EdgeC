@@ -1,8 +1,3 @@
-/**
- * @file test_dcu_698_axdr.c
- * @brief D1-13：698 从站 A-XDR 端口（产品编码 + 驱动传输 + 标量回落）。
- */
-
 #include <cmocka.h>
 #include <setjmp.h>
 #include <stdalign.h>
@@ -108,11 +103,10 @@ static void test_product_variable_axdr_types(void **state) {
     const uint8_t want_reactive2[] = {DCU_698_TAG_DOUBLE_LONG_UNSIGNED, 0x00, 0x00, 0x1A, 0x85};
     assert_axdr(MK_OAD(0x0020, 2), want_reactive2, sizeof(want_reactive2));
 
-    /* 200F 频率：long-unsigned，50。 */
     const uint8_t want_freq[] = {DCU_698_TAG_LONG_UNSIGNED, 0x00, 0x32};
     assert_axdr(OAD_GRID_FREQUENCY, want_freq, sizeof(want_freq));
 
-    /* 6000 档案计数仍走标量对象，编码为 long-unsigned。 */
+    /* 6000 attr 2 档案计数在对象层单独编码为 long-unsigned。 */
     const uint8_t want_archive[] = {DCU_698_TAG_LONG_UNSIGNED, 0x00, 0x00};
     assert_axdr(MK_OAD(OI_METER_ARCHIVE, 2), want_archive, sizeof(want_archive));
 
@@ -135,8 +129,6 @@ static void test_product_axdr_rejects_small_buffer_and_complex(void **state) {
 
     dcu_698_object_model_reset();
 }
-
-/* ---------- 驱动传输：标量回落 / A-XDR 结构 / NormalList / 缓冲不足 ---------- */
 
 static const uint8_t k_structure[] = {0x01, 0x02, DCU_698_TAG_LONG_UNSIGNED, 0x00, 0x01, 0x12,
                                       0x00, 0x02}; /* array(2) long-unsigned */
@@ -354,7 +346,7 @@ static void test_driver_normal_list_uses_axdr_per_item(void **state) {
 
 static int big_list_resolve(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, size_t *len) {
     (void)ctx;
-    const size_t n = EDGE_SLAVE_AXDR_MAX - 8; /* 2040，接近单条上限 */
+    const size_t n = EDGE_SLAVE_AXDR_MAX - 8;
     if (!buf || !len || cap < n) return -1;
     uint8_t idx = (uint8_t)(oad & 0xFF);
     memset(buf, 0, n);

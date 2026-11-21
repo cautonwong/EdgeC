@@ -36,6 +36,14 @@ extern "C" {
 #define DLT698_SVC_ACTION_RES 0x87
 #define DLT698_SVC_REPORT_RES 0x88
 
+/* DAR 值（标准 6.3.3.11）。驱动与产品共用，不写字面量。 */
+#define DLT698_DAR_SUCCESS 0u
+#define DLT698_DAR_TEMPORARY_FAILURE 2u
+#define DLT698_DAR_OBJECT_UNDEFINED 4u
+#define DLT698_DAR_OBJECT_CLASS_MISMATCH 5u
+#define DLT698_DAR_OBJECT_NOT_FOUND 6u
+#define DLT698_DAR_TYPE_MISMATCH 7u
+
 /* GET-Request / GET-Response 的 CHOICE 标签（标准 6.3.8 表64 / 表70）。
  * [1] Normal 读一个对象属性；[2] NormalList 一次读若干个对象属性。
  * 注意：[3]/[4] Record 是"读记录型对象属性"（冻结量/事件，带选择条件），
@@ -121,9 +129,9 @@ int dlt698_encode_get_response_list(const dlt698_addr_t *sa, uint8_t piid,
  * 这样驱动不必同时持有 `n` 份 A-XDR 缓冲（ADR-0013 §3）。
  */
 typedef struct {
-    size_t start_len; /* out->b.len at begin */
-    size_t len_off;   /* 长度域偏移 */
-    size_t hcs_off;   /* HCS 占位偏移 */
+    size_t start_len;
+    size_t len_off;
+    size_t hcs_off;
 } dlt698_list_stream_t;
 
 int dlt698_encode_get_response_list_begin(dlt698_list_stream_t *stream, const dlt698_addr_t *sa,

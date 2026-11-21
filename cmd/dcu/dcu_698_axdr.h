@@ -1,8 +1,3 @@
-/**
- * @file dcu_698_axdr.h
- * @brief 698 从站 A-XDR 端口的产品实现（ADR-0013 D1-13）
- */
-
 #ifndef DCU_698_AXDR_H
 #define DCU_698_AXDR_H
 

@@ -296,7 +296,9 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
                     if (src->resolve_axdr(src_ctx, oad, s_axdr_buf, sizeof(s_axdr_buf), &dlen) !=
                             0 ||
                         dlen == 0 || dlen > sizeof(s_axdr_buf)) {
-                        if (dlt698_encode_get_response_list_item_dar(out, oad, 6) != 0) return -1;
+                        if (dlt698_encode_get_response_list_item_dar(
+                                out, oad, DLT698_DAR_OBJECT_NOT_FOUND) != 0)
+                            return -1;
                         continue;
                     }
                     if (dlt698_encode_get_response_list_item(out, oad, s_axdr_buf, dlen) != 0) {
@@ -307,12 +309,16 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
                 edge_point_value_t v;
                 memset(&v, 0, sizeof(v));
                 if (!src || !src->resolve || src->resolve(src_ctx, oad, NULL, 0, &v) != 0) {
-                    if (dlt698_encode_get_response_list_item_dar(out, oad, 6) != 0) return -1;
+                    if (dlt698_encode_get_response_list_item_dar(
+                            out, oad, DLT698_DAR_OBJECT_NOT_FOUND) != 0)
+                        return -1;
                     continue;
                 }
                 uint8_t scalar[8];
                 if (_encode_axdr_value(&v, scalar, &dlen) != 0) {
-                    if (dlt698_encode_get_response_list_item_dar(out, oad, 7) != 0) return -1;
+                    if (dlt698_encode_get_response_list_item_dar(
+                            out, oad, DLT698_DAR_TYPE_MISMATCH) != 0)
+                        return -1;
                     continue;
                 }
                 if (dlt698_encode_get_response_list_item(out, oad, scalar, dlen) != 0) return -1;
@@ -400,7 +406,7 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
         /* DAR 必须如实回：执行失败回 0（成功）就是"假成功"，主站会以为继电器动了。
          * 非 0 一律回 2（暂时失效）—— 细分原因（未实现 / 越界 / 闭锁）在产品日志里，
          * 驱动不该认识产品的错误码。 */
-        uint8_t dar = (rc == 0) ? 0 : 2;
+        uint8_t dar = (rc == 0) ? DLT698_DAR_SUCCESS : DLT698_DAR_TEMPORARY_FAILURE;
         dlt698_encode_action_response(&sa, piid, (uint16_t)(omd >> 16),
                                       (uint8_t)((omd >> 8) & 0xFF), (uint8_t)(omd & 0xFF), dar,
                                       NULL, 0, out);

@@ -3,7 +3,7 @@ Author: 800900 <992878191@qq.com>
 Date:   Sat Nov 21 18:10:26 2026 +0800
 
     fix(DCU-D1-13): stream NormalList A-XDR and rename the port cap
-    
+
     Co-Authored-By: Claude Code <noreply@anthropic.com>
 
  adapters/io_drivers/src/driver_dlt698.c |  41 +++---
