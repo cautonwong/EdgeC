@@ -26,7 +26,7 @@
 #define DCU_SHADOW_CAPACITY (DCU_APP_BASE + DCU_APP_SLOT_TOTAL)
 
 #define IC_ENERGY 1         // 电能量接口类 (0010, 0020)
-#define IC_VARIABLE 3       // 变量接口类 (如电压、电流、电能量)
+#define IC_VARIABLE 3       // 分相变量接口类 (如电压、电流、相角)
 #define IC_POWER 4          // 功率接口类 (如 2004 有功功率)
 #define IC_DATA_VARIABLE 6  // 数据变量接口类 (如 200F 频率)
 #define IC_EVENT 7          // 事件对象接口类 (如失压 3000, 过流 3005)

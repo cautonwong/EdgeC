@@ -1,6 +1,6 @@
 /**
  * @file test_dcu_698_var.c
- * @brief D1-04：变量类（Class 1/3/4/6）读取与类型标签。
+ * @brief 变量类（Class 1/3/4/6）读取与类型标签。
  */
 
 #include <cmocka.h>
@@ -115,7 +115,6 @@ static void test_six_ois_values_and_type_tags(void **state) {
     assert_value(OAD_ACTIVE_POWER_TOTAL, 1234.5, DCU_698_TAG_FLOAT32);
     assert_value(MK_OAD(OI_GRID_FREQUENCY_200F, 2), 50.01, DCU_698_TAG_LONG_UNSIGNED);
 
-    /* 对象表行必须带上正确的 class 与属性 mask。 */
     const dcu_698_object_t *obj = dcu_698_find(0x0010);
     assert_non_null(obj);
     assert_int_equal(obj->class_id, IC_ENERGY);
@@ -155,7 +154,6 @@ static void test_shadow_missing_returns_minus_one(void **state) {
     float f = 0.0f;
     assert_int_equal(dcu_698_read(OAD_VOLTAGE, &f), -1);
 
-    /* 未登记的 OI 也必须拒绝。 */
     assert_int_equal(dcu_698_var_read_value(MK_OAD(0x9999, 2), &v), -1);
 
     dcu_poller_destroy(&poller);
@@ -173,7 +171,6 @@ static void test_unsupported_attr_rejected_by_mask(void **state) {
     dcu_value_t v;
     assert_int_equal(dcu_698_var_read_value(MK_OAD(0x2000, 3), &v), -1);
 
-    /* Class 1 的属性 4 已登记，应可读；属性 3 未登记。 */
     assert_int_equal(dcu_698_var_read_value(MK_OAD(0x0010, 4), &v), 0);
     assert_int_equal(dcu_698_var_read_value(MK_OAD(0x0010, 3), &v), -1);
 

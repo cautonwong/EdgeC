@@ -1,6 +1,6 @@
 /**
  * @file dcu_698_var.c
- * @brief 698 变量类（Class 1/3/4/6）处理器（D1-04 从 dcu_698_object_model.c 迁出）
+ * @brief 698 变量类（Class 1/3/4/6）处理器
  */
 
 #include "dcu_698_var.h"
