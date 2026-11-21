@@ -777,7 +777,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-02 | 待验收 | `main` | `8d8089bf` | `docs/design/DCU_698_OBJECT_MODEL.md` | 设计文档已提交，待架构评审 |
 | D1-03 | 已合并 | `dcu/D1-03-object-model` | `81730385` | `docs/evidence/DCU-D1-03/` | router 664→76 行；256 位 mask，门面走预检；object_model 709 行待 D1-04 拆；合并后 26/26 测试、守卫、验收全过 |
 | D1-04 | 已合并 | `dcu/D1-04-var-handlers` | `100f9a41` | `docs/evidence/DCU-D1-04/` | 27/27 目标测试、守卫、验收 2+4 通过；200A/200F 与 attr2/attr4 类型对齐；`/no-comments` 删 5 条并修 `IC_VARIABLE` 过期示例；704 行待后续拆 |
-| D1-05 | 进行中 | `dcu/D1-05-resolve-table` | `5c7f5851` | `docs/evidence/DCU-D1-05/` | dcu-dev 执行中；OAD→类型单一来源，标量与 A-XDR 共用；验收扩到 2001/2004/6012/5004 |
+| D1-05 | 已合并 | `dcu/D1-05-resolve-table` | `ac7b8dfe` | `docs/evidence/DCU-D1-05/` | 合并提交 `ac7b8dfe`；`dcu_698_value_for_oad` 成为 OAD→类型唯一来源；验收扩到 2000/2001/2004/6000/6012/5004 七例；顺带修 5004 计数回调的 ~900KB 越界（ctx 二次取址） |
 | D1-06 | 阻塞 | - | - | - | 依赖 D1-13、D1-14 |
 | D1-07 | 阻塞 | - | - | - | 依赖 D1-13、D1-15 |
 | D1-08 | 未开始 | - | - | - | - |
@@ -824,6 +824,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | 2026-11-21 | D1-14 | 已合并 | `docs/evidence/DCU-D1-14/` | 合并提交 `b5b95f62`；SET 分支、`EDGE_SLAVE_SRC_DENIED`、codec 增加 BOOLEAN/LONG64/FLOAT 解码；复核退回三处：非标量回落、LONG64 UB、DAR 混用 |
 | 2026-11-21 | D1-10 | 已合并 | `docs/evidence/DCU-D1-10/` | 合并提交 `5a4fda20`；夹具随生成器 `--check` 一起校验；守卫自检临时根补 fixture；29/29 |
 | 2026-11-22 | D1-15a | 已合并 | `docs/evidence/DCU-D1-15a/` | 合并提交 `87185420`；H.3.3 响应逐字节复现；RSD [1]/[3..10] 明确返回不支持；29/29、0 skip、ASAN、守卫、验收通过 |
+| 2026-11-22 | D1-05 | 已合并 | `docs/evidence/DCU-D1-05/` | 合并提交 `ac7b8dfe`；单类型表；验收 7 例；修 `_node_count_freezes` 的 ctx 越界；30/30、全量 332/332、ASAN、守卫、验收通过 |
 
 ### 12.4 并行工作树
 
