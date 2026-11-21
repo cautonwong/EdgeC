@@ -283,6 +283,7 @@ def main() -> int:
     env = {"PATH": "/usr/local/bin:/usr/bin:/bin", "EDGEC_DATA_DIR": str(RUN_DIR)}
     # 台架显式开启演示行为（冻结、随机跳闸、遥控、3 周期自退）。生产默认关闭；
     # `test_dcu_sends_trip_control_frame` 依赖这条 2 秒遥控定时器，不能靠产品默认值。
+    # 不放进下面的转发白名单：台架必须固定开启，不能被外层环境覆盖成 0。
     env["DCU_DEMO_MODE"] = "1"
 
     # 北向 broker 由用例侧起（端口随机），只能经壳自己的环境传进来。
@@ -290,7 +291,7 @@ def main() -> int:
     # 用例会看到"一条都没发"——那不是产品的问题，是壳把配置丢了。
     # DCU_NORTH_SOCK：北向 698 从站的 socket，按任务隔离（同 IEMS 的理由）
     for _k in ("MQTT_BROKER", "MQTT_NODE_ID", "MQTT_GROUP_ID", "MQTT_PROTOCOL", "DCU_NORTH_SOCK",
-               "DCU_DEMO_MODE", "DCU_HEARTBEAT_CYCLES", "DCU_CONTROL_DELAY_MS"):
+               "DCU_HEARTBEAT_CYCLES", "DCU_CONTROL_DELAY_MS"):
         if os.environ.get(_k):
             env[_k] = os.environ[_k]
     if args.keep_alive:
