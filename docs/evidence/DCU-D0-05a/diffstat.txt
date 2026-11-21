@@ -1,0 +1,3 @@
+ foundation/src/protocol/dlt698_codec.c | 19 ++++++++++++++++---
+ tests/test_dlt698_conformance_suite.c  | 25 +++++++++++++++++++------
+ 2 files changed, 35 insertions(+), 9 deletions(-)

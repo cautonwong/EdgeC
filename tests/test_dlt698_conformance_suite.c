@@ -572,15 +572,28 @@ static void test_passthrough_unknown_choice(void **state) {
 }
 
 /**
- * 已知缺陷，先跳过，不在本单改生产代码：
- * 5.1.5 要求校验 HCS，但 dlt698_decode_frame_ex 只校验 FCS。
- * 构造"HCS 错、FCS 按错后的字节重算"的帧，解析器仍然返回 0（已实测）。
- * 不能写成 assert_true，否则等于把缺陷固化；修好后本条改为断言 -1。
+ * 5.1.5：HCS 错必须拒收。
+ *
+ * 关键在于**同时重算 FCS**：只改 HCS 会让 FCS 校验先失败，那样证明不了
+ * HCS 被检查。改完 HCS 再把 FCS 按当前字节重算，帧只剩 HCS 一处错，
+ * 解析器必须返回 -1。
  */
 static void test_reject_bad_hcs(void **state) {
     (void)state;
-    printf("SKIP: decode 未校验 HCS（5.1.5）。缺陷已上报，修好后本条改为断言 -1。\n");
-    skip();
+    net_buf_t *out = valid_get_frame();
+    out->b.data[7] ^= 0xFF; /* HCS 低字节改错 */
+    uint16_t fcs = orc_fcs16(out->b.data + 1, out->b.len - 4);
+    out->b.data[out->b.len - 3] = (uint8_t)(fcs & 0xFF);
+    out->b.data[out->b.len - 2] = (uint8_t)(fcs >> 8);
+
+    dlt698_addr_t sa;
+    uint8_t svc, choice, piid;
+    uint8_t *payload;
+    size_t plen;
+    assert_int_equal(decode_frame(out->b.data, out->b.len, &sa, &svc, &choice, &piid, &payload,
+                                  &plen),
+                     -1);
+    net_buf_unref(out);
 }
 
 int main(void) {
