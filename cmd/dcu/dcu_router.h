@@ -115,19 +115,7 @@ typedef struct {
     int (*read_shadow)(void* ctx, uint32_t tag_id, uint32_t device_id, void* out_msg);
 } router_bus_ops_t;
 
-// 通用 OI 实例虚拟方法表结构体
-typedef struct dcu_object_s dcu_object_t;
-
-struct dcu_object_s {
-    uint16_t oi;         // 16位对象标识 (例如 0x6000, 0x2000, 0x8000)
-    uint16_t class_id;   // 接口类 ID (如 IC_VARIABLE)
-    void* instance_ptr;  // 指向模块实体实例数据指针
-
-    // 面向对象 C 接口虚函数映射
-    int (*read_attr)(dcu_object_t* obj, uint8_t attr_id, uint8_t elem_idx, void* out_val);
-    int (*write_attr)(dcu_object_t* obj, uint8_t attr_id, uint8_t elem_idx, const void* in_val);
-    int (*execute_method)(dcu_object_t* obj, uint8_t method_id, const void* param, void* result);
-};
+/* 对象表结构在 dcu_698_object_model.h（D1-03 起从本文件迁出）。 */
 
 /* --- 生产级 API 函数原型声明 --- */
 
