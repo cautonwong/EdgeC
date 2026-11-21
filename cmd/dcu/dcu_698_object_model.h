@@ -11,6 +11,7 @@
 #ifndef DCU_698_OBJECT_MODEL_H
 #define DCU_698_OBJECT_MODEL_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -19,6 +20,15 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/** 256 位位图：属性号/方法号 0..255。698 的 Class 10 方法到 134，Class 23 属性到 18。 */
+static inline bool dcu_mask_test(const uint8_t mask[32], uint8_t id) {
+    return (mask[id >> 3] >> (id & 7)) & 1u;
+}
+
+static inline void dcu_mask_set(uint8_t mask[32], uint8_t id) {
+    mask[id >> 3] |= (uint8_t)(1u << (id & 7));
+}
 
 typedef enum {
     DCU_OBJ_SHARED,    /* 全设备一个实例，例如 6000 档案表 */
@@ -43,8 +53,8 @@ struct dcu_698_object_s {
     dcu_698_write_fn write;   /* NULL 表示只读 */
     dcu_698_method_fn method; /* NULL 表示无方法 */
     const void *instance;     /* 聚合根或实体指针；不拥有、不释放 */
-    uint16_t attr_mask;       /* 支持的属性号位图 */
-    uint16_t method_mask;     /* 支持的 698 方法号位图（0-15） */
+    uint8_t attr_mask[32];    /* 支持的属性号位图 0..255 */
+    uint8_t method_mask[32];  /* 支持的方法号位图 0..255 */
 };
 
 /**

@@ -15,8 +15,9 @@
 #include "datahub.h"
 #include "edge_log.h"
 
-#define ATTR(n) ((uint16_t)(1u << (n)))
-#define METHOD(n) ((uint16_t)(1u << (n)))
+/* 256 位位图的静态初始化：按字节下标与位号填，避免手算十六进制。 */
+#define BIT(id) ((uint8_t)(1U << ((id)&7)))
+#define BYTE(id) ((id) >> 3)
 
 /* 先声明后定义，便于表内引用。 */
 static int _oi_6000_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
@@ -31,6 +32,8 @@ static int _oi_variable_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8
                              void *out_val);
 static int _oi_5004_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
                          void *out_val);
+static int _oi_5004_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
+                            void *result);
 static int _oi_8000_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
                             void *result);
 static int _oi_f100_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
@@ -62,8 +65,10 @@ static dcu_698_object_t g_objects[] = {
      .scope = DCU_OBJ_SHARED,
      .read = _oi_6000_read,
      .method = _oi_6000_execute,
-     .attr_mask = ATTR(2),
-     .method_mask = METHOD(1) | METHOD(2) | METHOD(3) | METHOD(4) | METHOD(5)},
+     .attr_mask = {[BYTE(2)] = BIT(2)},
+     .method_mask = {[BYTE(1)] = BIT(1) | BIT(2) | BIT(3) | BIT(4) | BIT(5),
+                     [BYTE(127)] = BIT(127),
+                     [BYTE(128)] = BIT(128)}},
 
     /* 2. 0x6012 任务配置表 (Class 10) */
     {.oi = OI_TASK_SCHEDULER,
@@ -71,41 +76,43 @@ static dcu_698_object_t g_objects[] = {
      .scope = DCU_OBJ_SHARED,
      .read = _oi_6012_read,
      .method = _oi_6012_execute,
-     .attr_mask = ATTR(2),
-     .method_mask = METHOD(1)},
+     .attr_mask = {[BYTE(2)] = BIT(2)},
+     .method_mask = {[BYTE(1)] = BIT(1)}},
 
     /* 3. 0x2000 电压 / 0x2001 电流 (Class 3)，每块表一个实例 */
     {.oi = (uint16_t)((OAD_VOLTAGE >> 16) & 0xFFFF),
      .class_id = IC_VARIABLE,
      .scope = DCU_OBJ_PER_METER,
      .read = _oi_variable_read,
-     .attr_mask = ATTR(2)},
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
     {.oi = (uint16_t)((OAD_CURRENT >> 16) & 0xFFFF),
      .class_id = IC_VARIABLE,
      .scope = DCU_OBJ_PER_METER,
      .read = _oi_variable_read,
-     .attr_mask = ATTR(2)},
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
 
-    /* 4. 0x5004 日冻结记录表 (Class 9) */
+    /* 4. 0x5004 日冻结记录表 (Class 9)：方法 3/4/5/7/8 已登记，实现随 D1-15。 */
     {.oi = (uint16_t)((OAD_DAILY_FREEZE >> 16) & 0xFFFF),
      .class_id = IC_RECORD,
      .scope = DCU_OBJ_SHARED,
      .read = _oi_5004_read,
-     .attr_mask = ATTR(2)},
+     .method = _oi_5004_execute,
+     .attr_mask = {[BYTE(2)] = BIT(2)},
+     .method_mask = {[BYTE(3)] = BIT(3) | BIT(4) | BIT(5) | BIT(7), [BYTE(8)] = BIT(8)}},
 
     /* 5. 0x8000 远程负荷拉闸动作 (Class 13) */
     {.oi = OI_REMOTE_CONTROL,
      .class_id = IC_CONTROL,
      .scope = DCU_OBJ_SINGLETON,
      .method = _oi_8000_execute,
-     .method_mask = METHOD(1)},
+     .method_mask = {[BYTE(1)] = BIT(1)}},
 
     /* 6. 0xF100 ESAM 安全 (Class 10) */
     {.oi = OI_ESAM_SECURITY,
      .class_id = IC_ACQUISITION,
      .scope = DCU_OBJ_SINGLETON,
      .method = _oi_f100_execute,
-     .method_mask = METHOD(1)},
+     .method_mask = {[BYTE(1)] = BIT(1)}},
 
     /* 7. 0xF200 外设串口参数 (Class 10) */
     {.oi = OI_CHANNEL_CONFIG,
@@ -113,7 +120,7 @@ static dcu_698_object_t g_objects[] = {
      .scope = DCU_OBJ_SINGLETON,
      .read = _oi_f200_read,
      .write = _oi_f200_write,
-     .attr_mask = ATTR(2) | ATTR(3)},
+     .attr_mask = {[BYTE(2)] = BIT(2) | BIT(3)}},
 
     /* 8. 0x6002 搜表控制 / 0x6003 搜表结果 (Class 10) */
     {.oi = OI_METER_DISCOVERY,
@@ -121,14 +128,13 @@ static dcu_698_object_t g_objects[] = {
      .scope = DCU_OBJ_SINGLETON,
      .read = _oi_6002_read,
      .method = _oi_6002_execute,
-     .attr_mask = ATTR(2) | ATTR(3),
-     /* 处理器只实现遗留方法 127（测试/旧路径），不属于 698 方法集，故不置位。 */
-     .method_mask = 0},
+     .attr_mask = {[BYTE(2)] = BIT(2) | BIT(3)},
+     .method_mask = {[BYTE(127)] = BIT(127)}},
     {.oi = OI_DISCOVERY_RESULT,
      .class_id = IC_ACQUISITION,
      .scope = DCU_OBJ_SINGLETON,
      .read = _oi_6003_read,
-     .attr_mask = ATTR(2)},
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
 
     /* 9. 0x3000 失压 / 0x3005 过流事件 (Class 7) */
     {.oi = OI_VOLTAGE_DROP,
@@ -137,16 +143,18 @@ static dcu_698_object_t g_objects[] = {
      .read = _oi_event_read,
      .write = _oi_event_write,
      .method = _oi_event_execute,
-     .attr_mask = ATTR(2) | ATTR(3) | ATTR(4) | ATTR(5) | ATTR(6) | ATTR(8) | ATTR(9) | ATTR(10),
-     .method_mask = METHOD(1)},
+     .attr_mask = {[BYTE(2)] = BIT(2) | BIT(3) | BIT(4) | BIT(5) | BIT(6),
+                   [BYTE(8)] = BIT(8) | BIT(9) | BIT(10)},
+     .method_mask = {[BYTE(1)] = BIT(1)}},
     {.oi = OI_OVER_CURRENT,
      .class_id = IC_EVENT,
      .scope = DCU_OBJ_SHARED,
      .read = _oi_event_read,
      .write = _oi_event_write,
      .method = _oi_event_execute,
-     .attr_mask = ATTR(2) | ATTR(3) | ATTR(4) | ATTR(5) | ATTR(6) | ATTR(8) | ATTR(9) | ATTR(10),
-     .method_mask = METHOD(1)},
+     .attr_mask = {[BYTE(2)] = BIT(2) | BIT(3) | BIT(4) | BIT(5) | BIT(6),
+                   [BYTE(8)] = BIT(8) | BIT(9) | BIT(10)},
+     .method_mask = {[BYTE(1)] = BIT(1)}},
 };
 
 #define OBJECT_COUNT (sizeof(g_objects) / sizeof(g_objects[0]))
@@ -310,6 +318,19 @@ static int _oi_5004_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t e
             *(uint16_t *)out_val = 0;
             return 0;
         }
+    }
+    return -2;
+}
+
+/* Class 9 方法 3/4/5/7/8 已登记进 mask，但实现随 D1-15 的 GetRecord/RSD 落地。
+ * 现在明确回 -4（存在但拒绝执行），不得返回 0 让主站误以为冻结已执行。 */
+static int _oi_5004_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
+                            void *result) {
+    (void)obj;
+    (void)param;
+    (void)result;
+    if (method_id == 3 || method_id == 4 || method_id == 5 || method_id == 7 || method_id == 8) {
+        return -4;
     }
     return -2;
 }
@@ -633,7 +654,7 @@ int dcu_698_read(uint32_t oad, void *out_val) {
 
     const dcu_698_object_t *obj = dcu_698_find(oi);
     if (!obj || !obj->read) return -1;
-    if (attr_id >= 16 || !(obj->attr_mask & ATTR(attr_id))) return -1;
+    if (!dcu_mask_test(obj->attr_mask, attr_id)) return -1;
     return obj->read(obj, attr_id, elem_idx, out_val);
 }
 
@@ -644,7 +665,7 @@ int dcu_698_write(uint32_t oad, const void *in_val) {
 
     const dcu_698_object_t *obj = dcu_698_find(oi);
     if (!obj || !obj->write) return -1;
-    if (attr_id >= 16 || !(obj->attr_mask & ATTR(attr_id))) return -1;
+    if (!dcu_mask_test(obj->attr_mask, attr_id)) return -1;
     return obj->write(obj, attr_id, elem_idx, in_val);
 }
 
@@ -654,7 +675,7 @@ int dcu_698_call(uint32_t omd, const void *param, void *result) {
 
     const dcu_698_object_t *obj = dcu_698_find(oi);
     if (!obj || !obj->method) return -1;
-    if (method_id >= 16 || !(obj->method_mask & METHOD(method_id))) return -1;
+    if (!dcu_mask_test(obj->method_mask, method_id)) return -1;
     return obj->method(obj, method_id, param, result);
 }
 

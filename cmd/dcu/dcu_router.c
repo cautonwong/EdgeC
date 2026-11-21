@@ -52,35 +52,15 @@ int dcu_router_init(dcu_inventory_t* inv, dcu_poller_t* poller, void* storage) {
 }
 
 int dcu_router_get_attr(uint32_t oad, void* out_val) {
-    uint16_t oi = (uint16_t)((oad >> 16) & 0xFFFF);
-    uint8_t attr_id = (uint8_t)((oad >> 8) & 0xFF);
-    uint8_t elem_idx = (uint8_t)(oad & 0xFF);
-
-    /* 门面直接调处理器，不走 dcu_698_read 的 mask 检查：
-     * 现有调用方依赖处理器自己的 -2/-3 返回码，改写成 -1 就是行为变更。 */
-    const dcu_698_object_t* obj = dcu_698_find(oi);
-    if (!obj || !obj->read) return -1;
-    return obj->read(obj, attr_id, elem_idx, out_val);
+    return dcu_698_read(oad, out_val);
 }
 
 int dcu_router_set_attr(uint32_t oad, const void* in_val) {
-    uint16_t oi = (uint16_t)((oad >> 16) & 0xFFFF);
-    uint8_t attr_id = (uint8_t)((oad >> 8) & 0xFF);
-    uint8_t elem_idx = (uint8_t)(oad & 0xFF);
-
-    const dcu_698_object_t* obj = dcu_698_find(oi);
-    if (!obj || !obj->write) return -1;
-    return obj->write(obj, attr_id, elem_idx, in_val);
+    return dcu_698_write(oad, in_val);
 }
 
 int dcu_router_action(uint32_t omd, const void* param, void* result) {
-    uint16_t oi = (uint16_t)((omd >> 16) & 0xFFFF);
-    uint8_t method_id = (uint8_t)((omd >> 8) & 0xFF);
-
-    /* 同上：遗留测试用方法 127/128 不在 16 位 mask 内，门面必须直达处理器。 */
-    const dcu_698_object_t* obj = dcu_698_find(oi);
-    if (!obj || !obj->method) return -1;
-    return obj->method(obj, method_id, param, result);
+    return dcu_698_call(omd, param, result);
 }
 
 int dcu_obj_snapshot(uint16_t oi, uint32_t device_id, void* out_msgs, int max_count) {
