@@ -760,7 +760,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 
 | 任务 | 状态 | 分支 | HEAD | 证据 | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| D0-01 | 进行中 | `dcu/D0-01-readme` | - | `/tmp/dcu-docs-worktree/docs/evidence/DCU-D0-01/` | edgec-dev-0 执行中；README 对齐当前架构 |
+| D0-01 | 已合并 | `dcu/D0-01-readme` | `ea775f3f` | `docs/evidence/DCU-D0-01/` | README 307→83 行，按代码现状重写；文档任务跳过 `/no-comments`；D1-13 合并后补 A-XDR 现状一行 |
 | D0-02 | 已合并 | `dcu/D0-02-remove-demo` | `d0eb1f43` | `docs/evidence/DCU-D0-02/` | 构建、25/25 目标测试、验收 2+4、全部守卫通过 |
 | D0-03 | 已合并 | `dcu/D0-03-stdout-guard` | `3bfc4237` | `docs/evidence/DCU-D0-03/` | 构建、25/25 目标测试、守卫正反夹具、验收 2+4 通过；5 个产品入口补 `_IOLBF`，组合根预算相应 +1 到 +2 |
 | D0-04 | 未开始 | - | - | - | - |
@@ -768,7 +768,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D0-05a | 已合并 | `dcu/D0-05a-hcs` | `ff845789` | `docs/evidence/DCU-D0-05a/` | 27/27、套件 20 过 1 skip、守卫、验收通过；HCS 5.1.5 已校验 |
 | D0-05b | 未开始 | - | - | - | 依赖 D0-05；对齐 DAR 4/5/6/7 |
 | D0-06 | 已合并 | `dcu/D0-06-docs` | `50feb55e` | `docs/evidence/DCU-D0-06/` | 文档与代码对齐；`git diff --check`、目录检查、守卫通过；文档任务不做 `/no-comments` 代码注释审查 |
-| D0-07 | 阻塞 | - | - | - | 依赖 D1-00 |
+| D0-07 | 进行中 | `dcu/D0-07-catalog-ci` | - | `/tmp/dcu-docs-worktree/docs/evidence/DCU-D0-07/` | edgec-dev-0 执行中；目录 `--check` 进 CI 与守卫 |
 | D1-00 | 进行中 | `main` | `8d8089bf` | `scripts/extract_dcu_698_catalog.py` | 生成器与目录已提交，`--check` 通过；CI 接入待 D0-07 |
 | D1-01 | 未开始 | - | - | - | 以 `698.pdf` 重抽 79 行 OCR 列错位 |
 | D1-02 | 待验收 | `main` | `8d8089bf` | `docs/design/DCU_698_OBJECT_MODEL.md` | 设计文档已提交，待架构评审 |
@@ -810,13 +810,14 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | 2026-11-21 | 派单 | D1-13、D0-05a | - | 两个独立工作树并行；D1-13 走端口与驱动 GET，D0-05a 走 codec HCS 与测试 |
 | 2026-11-21 | D0-05a | 已合并 | `docs/evidence/DCU-D0-05a/` | 合并提交 `ff845789`；27/27、套件 20 过 1 skip、守卫、验收通过；HCS 范围 5+sa_len，先 HCS 后 FCS |
 | 2026-11-21 | D0-06 | 已合并 | `docs/evidence/DCU-D0-06/` | 合并提交 `50feb55e`；北向与 DCU 上下文文档按代码现状重写；文档任务跳过 `/no-comments` 代码注释审查 |
+| 2026-11-21 | D0-01 | 已合并 | `docs/evidence/DCU-D0-01/` | 合并提交 `ea775f3f`；README 307→83 行；文档任务跳过 `/no-comments`；D1-13 合并后补 A-XDR 一行 |
 
 ### 12.4 并行工作树
 
 | 工作树 | 分支 | 负责人 | 任务 | 文件边界 |
 | --- | --- | --- | --- | --- |
 | `/tmp/dcu-dev-worktree` | `dcu/D1-13-axdr-port` | dcu-dev | D1-13 A-XDR 端口与驱动 GET 接线 | `foundation/include/edge_slave_plane.h`、`adapters/io_drivers/src/driver_dlt698.c`、`cmd/dcu/`、`tests/` |
-| `/tmp/dcu-docs-worktree` | `dcu/D0-01-readme` | edgec-dev-0 | D0-01 README，随后 D0-05b | `cmd/dcu/README.md`、`docs/evidence/DCU-D0-01/` |
+| `/tmp/dcu-docs-worktree` | `dcu/D0-07-catalog-ci` | edgec-dev-0 | D0-07 目录 CI 门禁，随后 D0-05b | `ci/scripts/`、`.github/workflows/`、`tests/guards/`、`docs/evidence/DCU-D0-07/` |
 
 并行只跨文件边界。`driver_dlt698.c`、`dcu_698_object_model.c`、`dcu_router.c` 是串行冲突域，同一时刻只允许一个工作树改。
 
