@@ -763,12 +763,13 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D0-01 | 已合并 | `dcu/D0-01-readme` | `ea775f3f` | `docs/evidence/DCU-D0-01/` | README 307→83 行，按代码现状重写；文档任务跳过 `/no-comments`；D1-13 合并后补 A-XDR 现状一行 |
 | D0-02 | 已合并 | `dcu/D0-02-remove-demo` | `d0eb1f43` | `docs/evidence/DCU-D0-02/` | 构建、25/25 目标测试、验收 2+4、全部守卫通过 |
 | D0-03 | 已合并 | `dcu/D0-03-stdout-guard` | `3bfc4237` | `docs/evidence/DCU-D0-03/` | 构建、25/25 目标测试、守卫正反夹具、验收 2+4 通过；5 个产品入口补 `_IOLBF`，组合根预算相应 +1 到 +2 |
-| D0-04 | 进行中 | `dcu/D0-04-baseline` | `15a51c80` | `docs/evidence/DCU-P0/` | edgec-dev-0 执行中；构建、目标测试、ASAN、UBSAN、验收、覆盖率基线 |
+| D0-04 | 已合并 | `dcu/D0-04-baseline` | `5c808baf` | `docs/evidence/DCU-P0/` | 合并提交 `5c808baf`；Release/UBSAN/验收/覆盖率通过；ASAN 发现测试帧生命周期缺陷（另立 D0-08）；覆盖率 `cmd` 依赖先跑 `app_platform_e2e`，复现顺序已记录 |
 | D0-05 | 已合并 | `dcu/D0-05-frame-vectors` | `0f45d0e2` | `docs/evidence/DCU-D0-05/` | 26/26 目标测试、套件 21 例 19 过 2 skip；`/no-comments` 删 26 行；DAR 向量改 6；HCS 归 D0-05a，DAR 代码对齐归 D0-05b |
 | D0-05a | 已合并 | `dcu/D0-05a-hcs` | `ff845789` | `docs/evidence/DCU-D0-05a/` | 27/27、套件 20 过 1 skip、守卫、验收通过；HCS 5.1.5 已校验 |
 | D0-05b | 进行中 | `dcu/D0-05b-dar` | `15a51c80` | `/tmp/dcu-dev-worktree/docs/evidence/DCU-D0-05b/` | dcu-dev 执行中；对齐 DAR 4/5/6/7，GET-Normal 缺失对象回 DAR |
 | D0-06 | 已合并 | `dcu/D0-06-docs` | `50feb55e` | `docs/evidence/DCU-D0-06/` | 文档与代码对齐；`git diff --check`、目录检查、守卫通过；文档任务不做 `/no-comments` 代码注释审查 |
 | D0-07 | 已合并 | `dcu/D0-07-catalog-ci` | `355c8251` | `docs/evidence/DCU-D0-07/` | 合并提交 `355c8251`；目录门禁进 CI 与守卫自检，parity 11 条；动态真实文档副本正反夹具；`/no-comments` 删 10 行 |
+| D0-08 | 进行中 | `dcu/D0-08-asan-frame-lifetime` | `5c808baf` | `docs/evidence/DCU-D0-08/` | D0-04 基线发现的真实红门禁：`test_dlt698_conformance_suite.c` 的 `decode_frame` 返回指向自身栈帧的 payload，ASAN `stack-use-after-scope`；CI `x86_64_asan` 跑全量 ctest，故 main 自 D0-05 起红 |
 | D1-00 | 已合并 | `main` | `355c8251` | `scripts/extract_dcu_698_catalog.py` | 生成器、目录与 `--check` 门禁均已入库；D0-07 接入 CI 与守卫自检 |
 | D1-01 | 未开始 | - | - | - | 以 `698.pdf` 重抽 79 行 OCR 列错位 |
 | D1-02 | 待验收 | `main` | `8d8089bf` | `docs/design/DCU_698_OBJECT_MODEL.md` | 设计文档已提交，待架构评审 |
