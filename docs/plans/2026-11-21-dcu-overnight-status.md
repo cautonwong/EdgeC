@@ -33,11 +33,11 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 | `dcu/D0-05-frame-vectors` | D0-05 | merged `0f45d0e2` | done |
 | `dcu/D1-04-var-handlers` | D1-04 | merged `100f9a41` | done |
 | `dcu/D0-05a-hcs` | D0-05a | merged `ff845789` | done |
-| `dcu/D1-13-axdr-port` | D1-13 | verified after fix | 28/28, guards, acceptance passed; streaming per-item A-XDR, `EDGE_SLAVE_AXDR_MAX`; `/no-comments` running |
+| `dcu/D1-13-axdr-port` | D1-13 | merged `68f4de69` | post-merge 28/28, guards, acceptance 2+4 passed; `/no-comments` 23 lines |
 | `dcu/D0-06-docs` | D0-06 | merged `50feb55e` | done |
 | `dcu/D0-01-readme` | D0-01 | merged `ea775f3f` | done |
-| `dcu/D0-07-catalog-ci` | D0-07 | active, edgec-dev-0 | gate the 698 catalog `--check` in CI and the guard selftest |
-| `dcu/D0-05b-dar` | D0-05b | queued after D1-13 | align DAR 4/5/6/7 in driver/adapter |
+| `dcu/D0-07-catalog-ci` | D0-07 | merged `355c8251` | post-merge catalog 0, parity 11, guards, 28/28, acceptance 2+4 |
+| `dcu/D0-05b-dar` | D0-05b | dispatched to dcu-dev | align DAR 4/5/6/7 in driver/adapter |
 
 ## Landing log
 
@@ -49,6 +49,9 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 | 2026-11-21 | D0-05a | merged `ff845789` | 27/27, suite 20/1 skip, guards, acceptance |
 | 2026-11-21 | D1-13 | verification failed review, returned | ADR-0013 §3 forbids 8×2048; constant name is product-specific in foundation |
 | 2026-11-21 | D1-13 | fixed and verified | streaming per-item encode; 28/28, guards, acceptance; comment review running |
+| 2026-11-21 | D1-13 | merged `68f4de69` | post-merge build 0, 28/28, guards all green, acceptance 2+4; README A-XDR line updated |
+| 2026-11-21 | D0-07 | verified | catalog gate 0 on live tree, parity 11 gates, selftest accepts copy and rejects corrupted copy |
+| 2026-11-21 | D0-07 | merged `355c8251` | post-merge catalog 0, parity 11, guards all green, 28/28, acceptance 2+4; `/no-comments` deleted 10 lines |
 
 ## Morning report
 
