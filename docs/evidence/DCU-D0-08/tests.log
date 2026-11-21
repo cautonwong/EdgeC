@@ -47,3 +47,7 @@ release_ctest_exit=0
 
 == git diff --check ==
 diff_check_exit=0
+
+== D0-08 follow-up: bounded frame length ==
+build_exit=0 warnings=0
+check_build_warnings.py --log /tmp/dcu-d0-08-fl-build.log --root . -> ✅ No new violations

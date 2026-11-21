@@ -145,7 +145,8 @@ static int decode_frame_borrows(const uint8_t *frame, size_t len, dlt698_addr_t 
                                 size_t *payload_len) {
     struct net_buf_simple b;
     net_buf_simple_init_with_data(&b, (void *)frame, len);
-    b.len = len;
+    if (len > UINT16_MAX) return -1;
+    b.len = (uint16_t)len;
     return dlt698_decode_frame_ex(&b, sa, svc, choice, piid, payload, payload_len);
 }
 
