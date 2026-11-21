@@ -25,6 +25,7 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 - If it passes on rerun with the diff unchanged, record the flake and continue.
 - If it fails consistently, do not merge. Record `BLOCKED` with the command and the log path.
 - Never skip, delete, weaken, or comment out a test or a gate to make a branch land.
+- Every merge check includes `check_build_warnings.py` on a clean-build log. D0-08 merged with a `-Wconversion` warning the test-only checks missed; D0-08a fixes it.
 
 ## Current stack
 
@@ -41,6 +42,7 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 | `dcu/D0-04-baseline` | D0-04 | merged `5c808baf` | baseline evidence; ASAN found a real test lifetime bug |
 | `dcu/D0-08-asan-frame-lifetime` | D0-08 | merged `9e458af6` | ASAN 330/330, dlt698 6/6; post-merge main ASAN 6/6 |
 | `dcu/D1-10-catalog-consistency` | D1-10 | active, edgec-dev-0 | table/catalog drift test + generated fixture |
+| `dcu/D0-08-frame-len` | D0-08a | active, dcu-dev | explicit `uint16_t` bound, clears the `-Wconversion` warning |
 
 ## Landing log
 
@@ -58,6 +60,8 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 | 2026-11-21 | D0-04 | merged `5c808baf` | Release/UBSAN/acceptance/coverage pass; ASAN red reproduced standalone, test helper lifetime bug; coverage `cmd` depends on running app_platform_e2e first |
 | 2026-11-21 | D0-08 | dispatched | fix `decode_frame`, restore CI x86_64_asan; ASAN full ctest is the guard |
 | 2026-11-21 | D0-08 | merged `9e458af6` | ASAN before 8 / after 0; full 330/330, dlt698 6/6; post-merge main ASAN 6/6, release 28/28, guards green |
+| 2026-11-21 | D0-08a | found and dispatched | clean build on main: `check_build_warnings.py` red on `size_t` -> `uint16_t` in `decode_frame_borrows`; test-only checks missed it |
+| 2026-11-21 | D0-05b | rebased on `9e458af6` | conflicts in the helper call sites resolved to `decode_frame_borrows`; 28/28, ASAN 6/6, guards, acceptance |
 | 2026-11-21 | D0-05b | code verified, waiting | DAR mapping and GET-Normal DAR response good; needs ADR/design sync and rebase onto D0-08 |
 
 ## Morning report
