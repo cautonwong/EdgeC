@@ -37,7 +37,8 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 | `dcu/D0-06-docs` | D0-06 | merged `50feb55e` | done |
 | `dcu/D0-01-readme` | D0-01 | merged `ea775f3f` | done |
 | `dcu/D0-07-catalog-ci` | D0-07 | merged `355c8251` | post-merge catalog 0, parity 11, guards, 28/28, acceptance 2+4 |
-| `dcu/D0-05b-dar` | D0-05b | dispatched to dcu-dev | align DAR 4/5/6/7 in driver/adapter |
+| `dcu/D0-05b-dar` | D0-05b | active, dcu-dev | `/tmp/dcu-dev-worktree`; align DAR 4/5/6/7 in driver/adapter |
+| `dcu/D0-04-baseline` | D0-04 | active, edgec-dev-0 | `/tmp/dcu-baseline-worktree`; P0 build/test/sanitizer/coverage baseline |
 
 ## Landing log
 
