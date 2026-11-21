@@ -51,3 +51,11 @@ guards_exit=0
 
 == git diff --check ==
 diff_check_exit=0
+
+== 注释恢复后（仅注释）：py_compile、git diff --check、一次验收 ==
+compile_exit=0 diff_check_exit=0
+3 passed in 2.02s
+7 passed in 0.22s
+全部合格:2 个验收任务
+✨ 验收通过
+acceptance_exit=0

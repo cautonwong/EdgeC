@@ -14,6 +14,7 @@ import yaml
 HERE = Path(__file__).resolve().parent
 DEVICES = HERE / "configs" / "devices.yaml"
 
+# 运行目录可由 DCU_RUN_DIR 覆盖；并发任务共用默认目录会互相踩（数据被抢、被杀）。
 RUN_DIR = Path(os.environ.get("DCU_RUN_DIR") or "/tmp/edgec-acceptance-run")
 DB_PATH = RUN_DIR / "dcu_runtime.db"
 BUS_LOG = RUN_DIR / "bus.json"
@@ -44,6 +45,7 @@ from build_probe import describe, resolve_product_binary, staleness  # noqa: E40
 _REPO_ROOT = HERE.parents[1]
 DCU_SRC_DIRS = (_REPO_ROOT / "cmd" / "dcu", _REPO_ROOT / "modules")
 
+# 二进制身份与过期判定必须先于任何结论：三周前的旧二进制曾跑出过假绿。
 DCU_BIN = resolve_product_binary("dcu", explicit=os.environ.get("DCU_BIN"))
 
 CHANNELS = list(range(22, 32))

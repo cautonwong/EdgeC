@@ -1,8 +1,9 @@
- acceptance/dcu/bench.py                     | 26 +++++++---
- acceptance/dcu/dcu_product.py               | 80 ++++++++---------------------
- acceptance/dcu/tests/test_atomic_bus_log.py | 44 ++++++++++++++++
- docs/evidence/DCU-D0-10/comments.md         | 33 ++++++++++++
+ acceptance/dcu/bench.py                     | 28 ++++++++--
+ acceptance/dcu/dcu_product.py               | 85 +++++++++--------------------
+ acceptance/dcu/tests/test_atomic_bus_log.py | 44 +++++++++++++++
+ docs/evidence/DCU-D0-10/comments.md         | 37 +++++++++++++
+ docs/evidence/DCU-D0-10/diffstat.txt        |  8 +++
  docs/evidence/DCU-D0-10/runtime.log         | 37 +++++++++++++
  docs/evidence/DCU-D0-10/summary.md          | 34 ++++++++++++
- docs/evidence/DCU-D0-10/tests.log           | 53 +++++++++++++++++++
- 7 files changed, 242 insertions(+), 65 deletions(-)
+ docs/evidence/DCU-D0-10/tests.log           | 61 +++++++++++++++++++++
+ 8 files changed, 270 insertions(+), 64 deletions(-)

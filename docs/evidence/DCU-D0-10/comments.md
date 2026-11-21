@@ -20,6 +20,10 @@
 
 - “`DCU_DEMO_MODE=1` 设在 env 白名单之前，外部环境可覆盖”：不成立。转发白名单只有 `MQTT_*`、`DCU_NORTH_SOCK`、`DCU_HEARTBEAT_CYCLES`、`DCU_CONTROL_DELAY_MS`，不包含 `DCU_DEMO_MODE`，外部值不会被转发。
 
+## 派工方要求恢复（reviewer 复核）
+
+verifier 指出注释删得过多，按要求在代码处恢复了 7 条简短约束（不写旧行号，每条 1-2 行）：运行目录可被 `DCU_RUN_DIR` 覆盖且并发共用会互相踩；二进制身份与过期判定必须先于结论；`DCU_DEMO_MODE` 固定为 1 且刻意不转发；env 是白名单，未转发变量落默认值会被误读成沉默；`_connect_north` 的短重试是因为刚被杀的产品可能拒绝一次连接；记录 CHOICE 是为了验证合批；`proc.wait()` 后壳不能跟着退出（平台记 `product_exit=self_exit`）。模块 docstring 补回了压缩版壳的理由（DCU 不读 argv、只从 env 取配置、启动时一次性连 rs485）。
+
 ## 记录未修（超出本单）
 
 - `:249` 的 `time.sleep(0.5)` 是打开就绪端口前唯一的屏障；改成事件需要 `_unix_buses` 暴露“已开始服务”状态，属台架启动顺序的小重构。

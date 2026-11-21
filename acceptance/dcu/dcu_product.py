@@ -1,5 +1,8 @@
 """DCU 产品壳:把 test-platform 的 launch 契约翻译成 DCU 能接受的形态。
 
+DCU 不读 argv、只从 env 取配置，并在启动时一次性连 rs485 从站 socket；
+所以壳必须先起从站、备好数据库，再拉起 DCU。
+
 壳做四件事,顺序不能换:
   ① 起 DLT645 从站(/tmp/rs485_22..31.sock),并把收到的请求数记进 bus.json
   ② provision 一份临时 sqlite(40 只 DLT645 表,通道 22-31)
@@ -136,6 +139,7 @@ NORTH_BRIDGE_PORT = 19212
 
 def _connect_north() -> socket.socket:
     path = os.environ.get("DCU_NORTH_SOCK") or str(RUN_DIR / "north.sock")
+    # 上一次产品刚被杀掉时 socket 可能还会拒绝一次连接；单次失败会丢掉整帧。
     deadline = time.time() + 1.0
     while True:
         up = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -152,7 +156,8 @@ def _connect_north() -> socket.socket:
 
 def _record_north_frame(req: bytes) -> None:
     """帧头（DL/T 698.45）：`68 | L(2) | C(1) | SA描述(1) | SA(n) | CA(1) | HCS(2) | APDU`；
-    APDU 起点 = 8 + SA 长度，`APDU[0]` 是服务码、`APDU[1]` 是 CHOICE。"""
+    APDU 起点 = 8 + SA 长度，`APDU[0]` 是服务码、`APDU[1]` 是 CHOICE。
+    记录 CHOICE 是为了验证合批：[2] 一帧与 [1] 多帧携带相同的值。"""
     choice = None
     try:
         if req and req[0] == 0x68 and len(req) >= 12:
@@ -252,8 +257,10 @@ def main() -> int:
     ready.wait(5)
 
     env = {"PATH": "/usr/local/bin:/usr/bin:/bin", "EDGEC_DATA_DIR": str(RUN_DIR)}
+    # 台架固定 demo=1，且刻意不放进下面的转发白名单：外部 env 不能把它关掉。
     env["DCU_DEMO_MODE"] = "1"
 
+    # env 是白名单：没转发的变量落到产品默认值，用例会把这种"沉默"误读成产品没反应。
     for _k in ("MQTT_BROKER", "MQTT_NODE_ID", "MQTT_GROUP_ID", "MQTT_PROTOCOL", "DCU_NORTH_SOCK",
                "DCU_HEARTBEAT_CYCLES", "DCU_CONTROL_DELAY_MS"):
         if os.environ.get(_k):
