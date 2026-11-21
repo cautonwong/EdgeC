@@ -1,0 +1,8 @@
+ docs/evidence/DCU-D1-15a/comments.md   |  37 +++++++
+ docs/evidence/DCU-D1-15a/runtime.log   |  63 +++++++++++
+ docs/evidence/DCU-D1-15a/summary.md    |  72 ++++++++++++
+ docs/evidence/DCU-D1-15a/tests.log     |  57 ++++++++++
+ foundation/include/dlt698_codec.h      |  87 +++++++++++++++
+ foundation/src/protocol/dlt698_codec.c | 195 +++++++++++++++++++++++++++++++++
+ tests/test_dlt698_conformance_suite.c  | 159 +++++++++++++++++++++++++--
+ 7 files changed, 662 insertions(+), 8 deletions(-)

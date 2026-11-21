@@ -393,6 +393,201 @@ int dlt698_encode_get_response_list_end(const dlt698_list_stream_t *stream, net_
     return 0;
 }
 
+/* 区间值只接受 date_time（0x19）与 date_time_s（0x1C）。 */
+static int _record_date_data(const uint8_t *p, size_t avail, size_t *out_len) {
+    if (avail == 0) return -1;
+    size_t need = 0;
+    if (p[0] == 0x19) {
+        need = 11;
+    } else if (p[0] == 0x1C) {
+        need = 8;
+    } else {
+        return DLT698_RECORD_UNSUPPORTED_DATA;
+    }
+    if (avail < need) return -1;
+    *out_len = need;
+    return 0;
+}
+
+/* 间隔只接受 NULL（0x00）与 TI（0x54）。 */
+static int _record_interval_data(const uint8_t *p, size_t avail, size_t *out_len) {
+    if (avail == 0) return -1;
+    size_t need = 0;
+    if (p[0] == 0x00) {
+        need = 1;
+    } else if (p[0] == 0x54) {
+        need = 4;
+    } else {
+        return DLT698_RECORD_UNSUPPORTED_DATA;
+    }
+    if (avail < need) return -1;
+    *out_len = need;
+    return 0;
+}
+
+static uint32_t _read_be32(const uint8_t *p) {
+    return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) | p[3];
+}
+
+int dlt698_decode_get_record_request(const uint8_t *apdu, size_t len, uint32_t *oad,
+                                     dlt698_record_sel_t *sel, dlt698_rcsd_t *rcsd) {
+    if (!apdu || !oad || !sel || !rcsd) return -1;
+    memset(sel, 0, sizeof(*sel));
+    memset(rcsd, 0, sizeof(*rcsd));
+
+    size_t off = 0;
+    if (len < 5) return -1;
+    *oad = _read_be32(apdu);
+    off = 4;
+
+    sel->selector = apdu[off++];
+    if (sel->selector == DLT698_RSD_SELECTOR2) {
+        if (len - off < 4) return -1;
+        sel->oad = _read_be32(apdu + off);
+        off += 4;
+
+        size_t n = 0;
+        int rc = _record_date_data(apdu + off, len - off, &n);
+        if (rc != 0) return rc;
+        memcpy(sel->start, apdu + off, n);
+        sel->start_len = (uint8_t)n;
+        off += n;
+
+        rc = _record_date_data(apdu + off, len - off, &n);
+        if (rc != 0) return rc;
+        memcpy(sel->end, apdu + off, n);
+        sel->end_len = (uint8_t)n;
+        off += n;
+
+        rc = _record_interval_data(apdu + off, len - off, &n);
+        if (rc != 0) return rc;
+        memcpy(sel->interval, apdu + off, n);
+        sel->interval_len = (uint8_t)n;
+        off += n;
+    } else if (sel->selector != DLT698_RSD_NO_SELECTION) {
+        return DLT698_RECORD_UNSUPPORTED_SELECTOR;
+    }
+
+    if (off >= len) return -1;
+    uint8_t count = apdu[off++];
+    if (count > DLT698_RCSD_MAX) return -1;
+    rcsd->count = count;
+    for (uint8_t i = 0; i < count; i++) {
+        if (off >= len) return -1;
+        uint8_t tag = apdu[off++];
+        dlt698_csd_t *csd = &rcsd->items[i];
+        if (tag == 0x00) {
+            if (len - off < 4) return -1;
+            csd->kind = DLT698_CSD_OAD;
+            csd->oad = _read_be32(apdu + off);
+            off += 4;
+        } else if (tag == 0x01) {
+            if (len - off < 5) return -1;
+            csd->kind = DLT698_CSD_ROAD;
+            csd->oad = _read_be32(apdu + off);
+            off += 4;
+            csd->related_count = apdu[off++];
+            if (csd->related_count > DLT698_ROAD_MAX) return -1;
+            if (len - off < (size_t)csd->related_count * 4) return -1;
+            for (uint8_t j = 0; j < csd->related_count; j++) {
+                csd->related[j] = _read_be32(apdu + off);
+                off += 4;
+            }
+        } else {
+            return -1;
+        }
+    }
+
+    /* 请求末尾的时间标签：本实现按标准填 0；这里的 APDU 允许带这一个字节。 */
+    if (off < len) {
+        if (len - off != 1 || apdu[off] != DLT698_NO_TIME_TAG) return -1;
+    }
+    return 0;
+}
+
+static int _add_rcsd(struct net_buf_simple *b, const dlt698_csd_t *rcsd, size_t n) {
+    if (n > DLT698_RCSD_MAX) return -1;
+    net_buf_simple_add_u8(b, (uint8_t)n);
+    for (size_t i = 0; i < n; i++) {
+        if (rcsd[i].kind == DLT698_CSD_OAD) {
+            net_buf_simple_add_u8(b, 0x00); /* CSD [0] OAD */
+            net_buf_simple_add_be32(b, rcsd[i].oad);
+        } else if (rcsd[i].kind == DLT698_CSD_ROAD) {
+            if (rcsd[i].related_count > DLT698_ROAD_MAX) return -1;
+            net_buf_simple_add_u8(b, 0x01); /* CSD [1] ROAD */
+            net_buf_simple_add_be32(b, rcsd[i].oad);
+            net_buf_simple_add_u8(b, rcsd[i].related_count);
+            for (uint8_t j = 0; j < rcsd[i].related_count; j++) {
+                net_buf_simple_add_be32(b, rcsd[i].related[j]);
+            }
+        } else {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+int dlt698_encode_get_record_response_begin(dlt698_record_stream_t *stream, const dlt698_addr_t *sa,
+                                            uint8_t piid, uint32_t oad, const dlt698_csd_t *rcsd,
+                                            size_t n, size_t record_count, net_buf_t *out) {
+    if (!stream || !sa || !out || !rcsd || record_count > 0xFF) return -1;
+
+    struct net_buf_simple *b = &out->b;
+    stream->start_len = b->len;
+    uint8_t *len_ptr = NULL;
+    uint8_t *hcs_ptr = NULL;
+    (void)_frame_begin(b, sa, 0xC3, &len_ptr, &hcs_ptr);
+    stream->len_off = (size_t)(len_ptr - b->data);
+    stream->hcs_off = (size_t)(hcs_ptr - b->data);
+
+    net_buf_simple_add_u8(b, DLT698_SVC_GET_RES);
+    net_buf_simple_add_u8(b, DLT698_CHOICE_GET_RECORD);
+    net_buf_simple_add_u8(b, piid);
+    net_buf_simple_add_be32(b, oad);
+    if (_add_rcsd(b, rcsd, n) != 0) return -1;
+    net_buf_simple_add_u8(b, DLT698_RECORD_RESULT_ROWS);
+    net_buf_simple_add_u8(b, (uint8_t)record_count);
+    return 0;
+}
+
+int dlt698_encode_get_record_row(net_buf_t *out, const uint8_t *row, size_t row_len) {
+    if (!out || !row || row_len == 0) return -1;
+    net_buf_simple_add_mem(&out->b, row, row_len);
+    return 0;
+}
+
+int dlt698_encode_get_record_response_end(const dlt698_record_stream_t *stream, net_buf_t *out) {
+    if (!stream || !out) return -1;
+    struct net_buf_simple *b = &out->b;
+    net_buf_simple_add_u8(b, DLT698_NO_FOLLOW_REPORT);
+    net_buf_simple_add_u8(b, DLT698_NO_TIME_TAG);
+    _frame_seal_offsets(b, stream->start_len, stream->len_off, stream->hcs_off);
+    return 0;
+}
+
+int dlt698_encode_get_record_response_dar(const dlt698_addr_t *sa, uint8_t piid, uint32_t oad,
+                                          const dlt698_csd_t *rcsd, size_t n, uint8_t dar,
+                                          net_buf_t *out) {
+    if (!sa || !out || !rcsd) return -1;
+    struct net_buf_simple *b = &out->b;
+    uint8_t *len_ptr = NULL;
+    uint8_t *hcs_ptr = NULL;
+    uint8_t *start = _frame_begin(b, sa, 0xC3, &len_ptr, &hcs_ptr);
+
+    net_buf_simple_add_u8(b, DLT698_SVC_GET_RES);
+    net_buf_simple_add_u8(b, DLT698_CHOICE_GET_RECORD);
+    net_buf_simple_add_u8(b, piid);
+    net_buf_simple_add_be32(b, oad);
+    if (_add_rcsd(b, rcsd, n) != 0) return -1;
+    net_buf_simple_add_u8(b, DLT698_RECORD_RESULT_DAR);
+    net_buf_simple_add_u8(b, dar);
+    net_buf_simple_add_u8(b, DLT698_NO_FOLLOW_REPORT);
+    net_buf_simple_add_u8(b, DLT698_NO_TIME_TAG);
+
+    _frame_seal(b, start, len_ptr, hcs_ptr);
+    return 0;
+}
+
 /* ==============================================================================
  * A-XDR 基础数据类型编解码实现 (TDD Task 1)
  * ============================================================================== */
