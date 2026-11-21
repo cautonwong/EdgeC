@@ -183,6 +183,27 @@ int dlt698_encode_get_response_dar(const dlt698_addr_t *sa, uint8_t piid, uint32
     return 0;
 }
 
+int dlt698_encode_set_response(const dlt698_addr_t *sa, uint8_t piid, uint32_t oad, uint8_t dar,
+                               net_buf_t *out) {
+    if (!sa || !out) return -1;
+    struct net_buf_simple *b = &out->b;
+    uint8_t *len_ptr = NULL;
+    uint8_t *hcs_ptr = NULL;
+    uint8_t *start = _frame_begin(b, sa, 0xC3, &len_ptr, &hcs_ptr);
+
+    /* APDU: SET-Response-Normal = 86 | 01 | PIID-ACD | OAD(4) | DAR | 00 | 00 */
+    net_buf_simple_add_u8(b, DLT698_SVC_SET_RES);
+    net_buf_simple_add_u8(b, 0x01);
+    net_buf_simple_add_u8(b, piid);
+    net_buf_simple_add_be32(b, oad);
+    net_buf_simple_add_u8(b, dar);
+    net_buf_simple_add_u8(b, DLT698_NO_FOLLOW_REPORT);
+    net_buf_simple_add_u8(b, DLT698_NO_TIME_TAG);
+
+    _frame_seal(b, start, len_ptr, hcs_ptr);
+    return 0;
+}
+
 int dlt698_encode_action_request(const dlt698_addr_t *sa, uint8_t piid, uint16_t oi, uint8_t method,
                                  uint8_t mode, const uint8_t *data, size_t dlen, net_buf_t *out) {
     if (!sa || !out || (dlen > 0 && !data)) return -1;
@@ -475,6 +496,43 @@ int dlt698_decode_data(const uint8_t *buf, uint16_t len, uint16_t *offset, dlt69
             if (*offset >= len) return -1;
             res->val.u8 = buf[(*offset)++];
             return 0;
+
+        case DLT698_TAG_BOOLEAN:
+            if (*offset >= len) return -1;
+            res->val.u8 = buf[(*offset)++] ? 1 : 0;
+            return 0;
+
+        case DLT698_TAG_LONG64:
+            if (*offset + 8 > len) return -1;
+            res->val.i64 = 0;
+            for (int i = 0; i < 8; i++) res->val.i64 = (res->val.i64 << 8) | buf[*offset + i];
+            *offset += 8;
+            return 0;
+
+        case DLT698_TAG_LONG64_UNSIGNED:
+            if (*offset + 8 > len) return -1;
+            res->val.u64 = 0;
+            for (int i = 0; i < 8; i++) res->val.u64 = (res->val.u64 << 8) | buf[*offset + i];
+            *offset += 8;
+            return 0;
+
+        case DLT698_TAG_FLOAT32: {
+            if (*offset + 4 > len) return -1;
+            uint32_t bits = (uint32_t)buf[*offset] << 24 | (uint32_t)buf[*offset + 1] << 16 |
+                            (uint32_t)buf[*offset + 2] << 8 | buf[*offset + 3];
+            memcpy(&res->val.f32, &bits, sizeof(bits));
+            *offset += 4;
+            return 0;
+        }
+
+        case DLT698_TAG_FLOAT64: {
+            if (*offset + 8 > len) return -1;
+            uint64_t bits = 0;
+            for (int i = 0; i < 8; i++) bits = (bits << 8) | buf[*offset + i];
+            memcpy(&res->val.f64, &bits, sizeof(bits));
+            *offset += 8;
+            return 0;
+        }
 
         case DLT698_TAG_DATE_TIME_S: {
             if (*offset + 7 > len) return -1;

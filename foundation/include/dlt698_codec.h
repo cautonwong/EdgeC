@@ -39,6 +39,7 @@ extern "C" {
 /* DAR 值（标准 6.3.3.11）。驱动与产品共用，不写字面量。 */
 #define DLT698_DAR_SUCCESS 0u
 #define DLT698_DAR_TEMPORARY_FAILURE 2u
+#define DLT698_DAR_DENIED 3u
 #define DLT698_DAR_OBJECT_UNDEFINED 4u
 #define DLT698_DAR_OBJECT_CLASS_MISMATCH 5u
 #define DLT698_DAR_OBJECT_NOT_FOUND 6u
@@ -108,6 +109,14 @@ int dlt698_encode_get_response(const dlt698_addr_t *sa, uint8_t piid, uint32_t o
  */
 int dlt698_encode_get_response_dar(const dlt698_addr_t *sa, uint8_t piid, uint32_t oad, uint8_t dar,
                                    net_buf_t *out);
+
+/**
+ * @brief 构造 SET-Response-Normal（标准 6.3.9 / 6.3.3.11）。
+ *
+ * APDU：`86 | 01 | PIID | OAD(4) | DAR | 00 | 00`
+ */
+int dlt698_encode_set_response(const dlt698_addr_t *sa, uint8_t piid, uint32_t oad, uint8_t dar,
+                               net_buf_t *out);
 
 /**
  * @brief GET-Response-NormalList 的一个结果项（标准 6.3.8.2.2 表73）。
@@ -221,6 +230,7 @@ typedef enum {
     DLT698_TAG_NULL = 0,
     DLT698_TAG_ARRAY = 1,
     DLT698_TAG_STRUCTURE = 2,
+    DLT698_TAG_BOOLEAN = 3,
     DLT698_TAG_DOUBLE_LONG = 5,
     DLT698_TAG_DOUBLE_LONG_UNSIGNED = 6,
     DLT698_TAG_OCTET_STRING = 9,

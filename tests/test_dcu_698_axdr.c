@@ -2,6 +2,7 @@
 #include <setjmp.h>
 #include <stdalign.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -127,6 +128,32 @@ static void test_product_axdr_rejects_small_buffer_and_complex(void **state) {
     assert_int_equal(dcu_north_resolve_axdr(NULL, OAD_DAILY_FREEZE, buf, sizeof(buf), &len),
                      EDGE_SLAVE_SRC_NOT_FOUND);
     assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x6000, 3), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+
+    dcu_698_object_model_reset();
+}
+
+static void test_product_accept_set_paths(void **state) {
+    (void)state;
+    init_product_model();
+
+    const uint8_t baud[] = {0x06, 0x00, 0x00, 0x09, 0x60}; /* 2400, double-long-unsigned */
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_CHANNEL_CONFIG, 2), baud, sizeof(baud)),
+                     0);
+    uint32_t got = 0;
+    assert_int_equal(dcu_698_read(MK_OAD(OI_CHANNEL_CONFIG, 2), &got), 0);
+    assert_int_equal(got, 2400);
+
+    const uint8_t wrong[] = {0x0A, 0x01, 0x41}; /* visible-string，不是 baudrate */
+    assert_int_equal(
+        dcu_north_accept_axdr(NULL, MK_OAD(OI_CHANNEL_CONFIG, 2), wrong, sizeof(wrong)),
+        EDGE_SLAVE_SRC_TYPE_MISMATCH);
+
+    const uint8_t like_float[] = {0x17, 0x43, 0x67, 0xB3, 0x33};
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x2000, 2), like_float, sizeof(like_float)),
+                     EDGE_SLAVE_SRC_DENIED);
+
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x9999, 2), baud, sizeof(baud)),
                      EDGE_SLAVE_SRC_NOT_FOUND);
 
     dcu_698_object_model_reset();
@@ -530,6 +557,135 @@ static void test_normal_list_dar_mapping(void **state) {
     net_buf_pool_destroy(pool);
 }
 
+static int g_set_rc;
+static int g_set_calls;
+static uint32_t g_set_oad;
+
+static int set_accept(void *ctx, uint32_t oad, const uint8_t *axdr, size_t len) {
+    (void)ctx;
+    (void)axdr;
+    (void)len;
+    g_set_calls++;
+    g_set_oad = oad;
+    return g_set_rc;
+}
+
+static const edge_slave_source_ops_t k_set_src = {.accept_axdr = set_accept};
+
+static double g_scalar_value;
+
+static int scalar_accept(void *ctx, uint32_t oad, double value) {
+    (void)ctx;
+    (void)oad;
+    g_scalar_value = value;
+    return 0;
+}
+
+static const edge_slave_source_ops_t k_scalar_accept_src = {.accept = scalar_accept};
+
+static size_t build_set(uint8_t *frame, uint32_t oad, const uint8_t *data, size_t dlen,
+                        bool with_time_tag) {
+    uint8_t apdu[64] = {DLT698_SVC_SET_REQ, 0x01, 0x01};
+    size_t i = 3;
+    apdu[i++] = (uint8_t)(oad >> 24);
+    apdu[i++] = (uint8_t)(oad >> 16);
+    apdu[i++] = (uint8_t)(oad >> 8);
+    apdu[i++] = (uint8_t)oad;
+    if (data && dlen > 0) {
+        memcpy(apdu + i, data, dlen);
+        i += dlen;
+    }
+    if (with_time_tag) apdu[i++] = DLT698_NO_TIME_TAG;
+    return build_request(frame, apdu, i);
+}
+
+static net_buf_t *run_set(uint8_t *frame, size_t frame_len, const edge_slave_source_ops_t *src,
+                          net_buf_pool_t **pool_out) {
+    net_buf_pool_t *pool = net_buf_pool_new(8, 4096, 0);
+    assert_non_null(pool);
+    net_buf_t *out = net_buf_alloc(pool, 0);
+    assert_non_null(out);
+
+    alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
+    memset(priv, 0, sizeof(priv));
+    size_t consumed = 0;
+    int rc =
+        dlt698_driver.req_slave_exchange(priv, NULL, frame, frame_len, src, NULL, out, &consumed);
+    assert_int_equal(rc, 0);
+    *pool_out = pool;
+    return out;
+}
+
+static void assert_set_dar(uint32_t oad, const uint8_t *data, size_t dlen, bool with_time_tag,
+                           int src_rc, uint8_t want_dar) {
+    g_set_rc = src_rc;
+    int calls_before = g_set_calls;
+    uint8_t frame[128];
+    size_t frame_len = build_set(frame, oad, data, dlen, with_time_tag);
+
+    net_buf_pool_t *pool = NULL;
+    net_buf_t *out = run_set(frame, frame_len, &k_set_src, &pool);
+    /* APDU: 86 | 01 | PIID | OAD(4) | DAR | 00 | 00，APDU 从偏移 9 起。 */
+    assert_int_equal(out->b.data[9], DLT698_SVC_SET_RES);
+    assert_int_equal(out->b.data[10], 0x01);
+    assert_int_equal(out->b.data[16], want_dar);
+    assert_int_equal(out->b.data[17], 0x00);
+    assert_int_equal(out->b.data[18], 0x00);
+    if (want_dar == DLT698_DAR_SUCCESS) assert_int_equal(g_set_calls, calls_before + 1);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(pool);
+}
+
+static void test_set_response_dar_paths(void **state) {
+    (void)state;
+    const uint32_t oad = MK_OAD(OI_CHANNEL_CONFIG, 2);
+    const uint8_t baud[] = {0x06, 0x00, 0x00, 0x09, 0x60};
+
+    assert_set_dar(oad, baud, sizeof(baud), true, 0, DLT698_DAR_SUCCESS);
+    assert_int_equal(g_set_oad, oad);
+    const uint8_t f32[] = {0x17, 0x43, 0x67, 0xB3, 0x33};
+    assert_set_dar(oad, f32, sizeof(f32), true, 0, DLT698_DAR_SUCCESS);
+    assert_set_dar(oad, baud, sizeof(baud), true, EDGE_SLAVE_SRC_TYPE_MISMATCH,
+                   DLT698_DAR_TYPE_MISMATCH);
+    assert_set_dar(oad, baud, sizeof(baud), true, EDGE_SLAVE_SRC_DENIED, DLT698_DAR_DENIED);
+    assert_set_dar(oad, baud, sizeof(baud), true, EDGE_SLAVE_SRC_NOT_FOUND,
+                   DLT698_DAR_OBJECT_NOT_FOUND);
+}
+
+static void test_set_missing_data_dar7(void **state) {
+    (void)state;
+    g_set_calls = 0;
+    g_set_rc = 0;
+    uint8_t frame[128];
+    size_t frame_len = build_set(frame, MK_OAD(OI_CHANNEL_CONFIG, 2), NULL, 0, false);
+
+    net_buf_pool_t *pool = NULL;
+    net_buf_t *out = run_set(frame, frame_len, &k_set_src, &pool);
+    assert_int_equal(out->b.data[9], DLT698_SVC_SET_RES);
+    assert_int_equal(out->b.data[16], DLT698_DAR_TYPE_MISMATCH);
+    assert_int_equal(g_set_calls, 0);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(pool);
+}
+
+static void test_set_scalar_fallback(void **state) {
+    (void)state;
+    const uint8_t value[] = {0x12, 0x09, 0x60}; /* long-unsigned 2400 */
+    uint8_t frame[128];
+    size_t frame_len = build_set(frame, MK_OAD(OI_CHANNEL_CONFIG, 2), value, sizeof(value), true);
+
+    g_scalar_value = 0.0;
+    net_buf_pool_t *pool = NULL;
+    net_buf_t *out = run_set(frame, frame_len, &k_scalar_accept_src, &pool);
+    assert_int_equal(out->b.data[16], DLT698_DAR_SUCCESS);
+    assert_float_equal((float)g_scalar_value, 2400.0f, 0.001f);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(pool);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_product_variable_axdr_types),
@@ -542,6 +698,10 @@ int main(void) {
         cmocka_unit_test(test_get_normal_dar_mapping),
         cmocka_unit_test(test_get_normal_encode_type_mismatch_returns_dar),
         cmocka_unit_test(test_normal_list_dar_mapping),
+        cmocka_unit_test(test_product_accept_set_paths),
+        cmocka_unit_test(test_set_response_dar_paths),
+        cmocka_unit_test(test_set_missing_data_dar7),
+        cmocka_unit_test(test_set_scalar_fallback),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

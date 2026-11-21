@@ -141,8 +141,8 @@ static size_t frame_apdu(const net_buf_t *out, uint8_t expect_ctrl, const uint8_
     return len - HEAD_LEN - TAIL_LEN;
 }
 
-static int decode_frame_borrows(const uint8_t *frame, size_t len, dlt698_addr_t *sa,
-                                uint8_t *svc, uint8_t *choice, uint8_t *piid, uint8_t **payload,
+static int decode_frame_borrows(const uint8_t *frame, size_t len, dlt698_addr_t *sa, uint8_t *svc,
+                                uint8_t *choice, uint8_t *piid, uint8_t **payload,
                                 size_t *payload_len) {
     struct net_buf_simple b;
     net_buf_simple_init_with_data(&b, (void *)frame, len);
@@ -261,6 +261,22 @@ static void test_get_response_normal_dar(void **state) {
     size_t n = frame_apdu(out, 0xC3, &apdu);
     const uint8_t want[] = {0x85, 0x01, 0x01, 0x50, 0x04, 0x02, 0x00, 0x00, 0x06, 0x00, 0x00};
     _expect_bytes(apdu, n, want, sizeof(want), "GET-Response DAR=6");
+    net_buf_unref(out);
+}
+
+/** SET-Response-Normal：86 01 PIID OAD(4) DAR 00 00（6.3.9 / 6.3.3.11）。 */
+static void test_set_response_normal(void **state) {
+    (void)state;
+    dlt698_addr_t sa = _sa();
+    net_buf_t *out = net_buf_alloc(g_pool, 0);
+    assert_non_null(out);
+    assert_int_equal(dlt698_encode_set_response(&sa, 0x01, 0xF2000200U, DLT698_DAR_SUCCESS, out),
+                     0);
+
+    const uint8_t *apdu = NULL;
+    size_t n = frame_apdu(out, 0xC3, &apdu);
+    const uint8_t want[] = {0x86, 0x01, 0x01, 0xF2, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00};
+    _expect_bytes(apdu, n, want, sizeof(want), "SET-Response DAR=0");
     net_buf_unref(out);
 }
 
@@ -488,9 +504,9 @@ static void test_reject_bad_fcs(void **state) {
     uint8_t svc, choice, piid;
     uint8_t *payload;
     size_t plen;
-    assert_int_equal(decode_frame_borrows(out->b.data, out->b.len, &sa, &svc, &choice, &piid,
-                                          &payload, &plen),
-                     -1);
+    assert_int_equal(
+        decode_frame_borrows(out->b.data, out->b.len, &sa, &svc, &choice, &piid, &payload, &plen),
+        -1);
     net_buf_unref(out);
 }
 
@@ -503,9 +519,9 @@ static void test_reject_length_mismatch(void **state) {
     uint8_t svc, choice, piid;
     uint8_t *payload;
     size_t plen;
-    assert_int_equal(decode_frame_borrows(out->b.data, out->b.len, &sa, &svc, &choice, &piid,
-                                          &payload, &plen),
-                     1);
+    assert_int_equal(
+        decode_frame_borrows(out->b.data, out->b.len, &sa, &svc, &choice, &piid, &payload, &plen),
+        1);
     net_buf_unref(out);
 }
 
@@ -531,9 +547,9 @@ static void test_reject_bad_head(void **state) {
     uint8_t svc, choice, piid;
     uint8_t *payload;
     size_t plen;
-    assert_int_equal(decode_frame_borrows(out->b.data, out->b.len, &sa, &svc, &choice, &piid,
-                                          &payload, &plen),
-                     -2);
+    assert_int_equal(
+        decode_frame_borrows(out->b.data, out->b.len, &sa, &svc, &choice, &piid, &payload, &plen),
+        -2);
     net_buf_unref(out);
 }
 
@@ -546,9 +562,9 @@ static void test_reject_bad_end(void **state) {
     uint8_t svc, choice, piid;
     uint8_t *payload;
     size_t plen;
-    assert_int_equal(decode_frame_borrows(out->b.data, out->b.len, &sa, &svc, &choice, &piid,
-                                          &payload, &plen),
-                     -2);
+    assert_int_equal(
+        decode_frame_borrows(out->b.data, out->b.len, &sa, &svc, &choice, &piid, &payload, &plen),
+        -2);
     net_buf_unref(out);
 }
 
@@ -597,9 +613,9 @@ static void test_reject_bad_hcs(void **state) {
     uint8_t svc, choice, piid;
     uint8_t *payload;
     size_t plen;
-    assert_int_equal(decode_frame_borrows(out->b.data, out->b.len, &sa, &svc, &choice, &piid,
-                                          &payload, &plen),
-                     -1);
+    assert_int_equal(
+        decode_frame_borrows(out->b.data, out->b.len, &sa, &svc, &choice, &piid, &payload, &plen),
+        -1);
     net_buf_unref(out);
 }
 
@@ -611,6 +627,7 @@ int main(void) {
         cmocka_unit_test(test_get_request_normal),
         cmocka_unit_test(test_get_response_normal),
         cmocka_unit_test(test_get_response_normal_dar),
+        cmocka_unit_test(test_set_response_normal),
         cmocka_unit_test(test_get_request_normal_list_decode),
         cmocka_unit_test(test_get_response_normal_list),
         cmocka_unit_test(test_get_response_list_partial_dar),
