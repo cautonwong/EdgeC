@@ -40,6 +40,7 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 | `dcu/D0-05b-dar` | D0-05b | verified code, doc sync + rebase pending | mapping 0/2/4/5/6/7, GET-Normal DAR response; waits on D0-08 |
 | `dcu/D0-04-baseline` | D0-04 | merged `5c808baf` | baseline evidence; ASAN found a real test lifetime bug |
 | `dcu/D0-08-asan-frame-lifetime` | D0-08 | merged `9e458af6` | ASAN 330/330, dlt698 6/6; post-merge main ASAN 6/6 |
+| `dcu/D1-10-catalog-consistency` | D1-10 | active, edgec-dev-0 | table/catalog drift test + generated fixture |
 
 ## Landing log
 
