@@ -442,7 +442,7 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
         if (choice == DLT698_CHOICE_GET_NORMAL_LIST) {
             if (payload_len < 2) return -1;
             size_t n = payload[0];
-            if (n == 0 || n > DLT698_GET_LIST_MAX) return -1;
+            if (n > DLT698_GET_LIST_MAX) return -1;
             /* 长度必须精确匹配：多一字节少一字节都不能"凑着解"，
              * 错位解出来的值是错的，而帧校验完全正常。 */
             if (payload_len != 1 + 4 * n + 1) return -1;

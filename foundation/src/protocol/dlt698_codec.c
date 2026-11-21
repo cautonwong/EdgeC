@@ -315,7 +315,7 @@ int dlt698_decode_frame(struct net_buf_simple *in, dlt698_addr_t *sa, uint8_t *s
 
 int dlt698_encode_get_response_list(const dlt698_addr_t *sa, uint8_t piid,
                                     const dlt698_get_item_t *items, size_t n, net_buf_t *out) {
-    if (!sa || !out || !items || n == 0 || n > DLT698_GET_LIST_MAX) return -1;
+    if (!sa || !out || (!items && n > 0) || n > DLT698_GET_LIST_MAX) return -1;
 
     struct net_buf_simple *b = &out->b;
     uint8_t *len_ptr = NULL;
@@ -348,7 +348,7 @@ int dlt698_encode_get_response_list(const dlt698_addr_t *sa, uint8_t piid,
 
 int dlt698_encode_get_response_list_begin(dlt698_list_stream_t *stream, const dlt698_addr_t *sa,
                                           uint8_t piid, size_t n, net_buf_t *out) {
-    if (!stream || !sa || !out || n == 0 || n > DLT698_GET_LIST_MAX) return -1;
+    if (!stream || !sa || !out || n > DLT698_GET_LIST_MAX) return -1;
 
     struct net_buf_simple *b = &out->b;
     stream->start_len = b->len;

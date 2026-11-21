@@ -150,7 +150,7 @@ typedef struct {
 /**
  * @brief 构造 GET-Response-NormalList：
  * `85 | 02 | PIID-ACD | n | (OAD(4) | 01 | Data) | ... | 00 | 00`
- * @param items n 个结果，n ∈ [1, DLT698_GET_LIST_MAX]
+ * @param items n 个结果，n ∈ [0, DLT698_GET_LIST_MAX]；n==0 时 items 可为 NULL
  */
 int dlt698_encode_get_response_list(const dlt698_addr_t *sa, uint8_t piid,
                                     const dlt698_get_item_t *items, size_t n, net_buf_t *out);
