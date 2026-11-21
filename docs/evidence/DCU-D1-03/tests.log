@@ -1,36 +1,37 @@
 === build ===
-[23/25] Linking C executable tests/test_dcu_power_quality
-[24/25] Linking C executable tests/test_dcu_runtime_health
-[25/25] Linking C executable tests/test_driver_registry_dcu
+[309/311] Linking C executable tests/test_iems_north_iec104
+[310/311] Linking C executable tests/test_datahub_subscription_capacity
+[311/311] Linking C executable tests/test_iems_cli_write
 warnings=0
 
 === ctest -R dcu ===
 
 100% tests passed, 0 tests failed out of 20
 
-Total Test time (real) =  17.35 sec
+Total Test time (real) =  16.28 sec
 
 === test_dcu_698_object_model ===
+[ RUN      ] test_all_ois_resolvable_with_class_and_mask
+[       OK ] test_all_ois_resolvable_with_class_and_mask
+[ RUN      ] test_mask_bitmap_supports_wide_ids
+[       OK ] test_mask_bitmap_supports_wide_ids
+[ RUN      ] test_mask_rejects_missing_attr_and_method
 [       OK ] test_mask_rejects_missing_attr_and_method
+[ RUN      ] test_legacy_methods_127_and_128_dispatch
+[       OK ] test_legacy_methods_127_and_128_dispatch
 [ RUN      ] test_dispatch_read_write_call
-🔧 [CHANNEL] 动态配置外设串口波特率调整为: 2400
 [       OK ] test_dispatch_read_write_call
+[ RUN      ] test_facade_and_table_api_agree
+[       OK ] test_facade_and_table_api_agree
 [ RUN      ] test_reset_returns_to_uninitialized
 [       OK ] test_reset_returns_to_uninitialized
-[==========] tests: 4 test(s) run.
-[  PASSED  ] 4 test(s).
+[  PASSED  ] 7 test(s).
 
-=== ASAN: new + affected tests ===
+=== ASAN ===
 -- test_dcu_698_object_model
-[  PASSED  ] 4 test(s).
+[  PASSED  ] 7 test(s).
 -- test_dcu_router
 [  PASSED  ] 3 test(s).
--- test_dcu_advanced_modules
-[  PASSED  ] 1 test(s).
-==11752==ERROR: LeakSanitizer: detected memory leaks
-SUMMARY: AddressSanitizer: 7488 byte(s) leaked in 3 allocation(s).
--- test_dcu_business_engines
-[  PASSED  ] 8 test(s).
 
 === run_guard_selftest.py --root . ===
 📊 Injection coverage: 6 caught / 2 known gap(s) of 8 probes
@@ -38,6 +39,6 @@ SUMMARY: AddressSanitizer: 7488 byte(s) leaked in 3 allocation(s).
 exit=0
 
 === line counts ===
-dcu_router.c: was 664, now 96
-dcu_router.h: was 196, now 184
-dcu_698_object_model.c: 688
+dcu_router.c: 664 -> 76
+dcu_698_object_model.c: 709
+dcu_698_object_model.h: 97
