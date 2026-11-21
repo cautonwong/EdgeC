@@ -33,7 +33,7 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 | `dcu/D0-05-frame-vectors` | D0-05 | merged `0f45d0e2` | done |
 | `dcu/D1-04-var-handlers` | D1-04 | merged `100f9a41` | done |
 | `dcu/D0-05a-hcs` | D0-05a | merged `ff845789` | done |
-| `dcu/D1-13-axdr-port` | D1-13 | returned for fix | 28/28 passed, but the driver used an 8×2048 TLS list buffer, violating ADR-0013 §3; streaming per-item encode and `EDGE_SLAVE_AXDR_MAX` rename pending |
+| `dcu/D1-13-axdr-port` | D1-13 | verified after fix | 28/28, guards, acceptance passed; streaming per-item A-XDR, `EDGE_SLAVE_AXDR_MAX`; `/no-comments` running |
 | `dcu/D0-06-docs` | D0-06 | merged `50feb55e` | done |
 | `dcu/D0-01-readme` | D0-01 | active, edgec-dev-0 | rewrite DCU README against the current architecture |
 | `dcu/D0-05b-dar` | D0-05b | queued after D1-13 | align DAR 4/5/6/7 in driver/adapter |
@@ -47,6 +47,7 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 | 2026-11-21 | D0-05a / D1-13 | dispatched in parallel | HCS codec; A-XDR port |
 | 2026-11-21 | D0-05a | merged `ff845789` | 27/27, suite 20/1 skip, guards, acceptance |
 | 2026-11-21 | D1-13 | verification failed review, returned | ADR-0013 §3 forbids 8×2048; constant name is product-specific in foundation |
+| 2026-11-21 | D1-13 | fixed and verified | streaming per-item encode; 28/28, guards, acceptance; comment review running |
 
 ## Morning report
 
