@@ -29,6 +29,11 @@
  * 同一线程并行处理多路 698 从站时，需改为调用方/池缓冲（ADR-0013 §3）。 */
 static _Thread_local uint8_t s_axdr_buf[EDGE_SLAVE_AXDR_MAX];
 
+/* 逐字节提升到 uint32_t 再移位：0xF2 高字节左移 24 位在 int 里是 UB。 */
+static uint32_t _read_be32(const uint8_t *p) {
+    return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) | (uint32_t)p[3];
+}
+
 /** 请求私有数据：驱动认识的全部信息 */
 typedef struct {
     uint32_t oad; /**< 对象标识，698 原生点位 */
@@ -151,8 +156,7 @@ static int dlt698_req_decode(void *priv, void *session, const uint8_t *buf, size
 
     if (svc != DLT698_SVC_GET_RES || payload_len < 5) return -1;
 
-    uint32_t oad_rx =
-        (uint32_t)((payload[0] << 24) | (payload[1] << 16) | (payload[2] << 8) | payload[3]);
+    uint32_t oad_rx = _read_be32(payload);
     /* 不是本请求的对象：不认，让调用方继续找 */
     if (oad_rx != p->oad) return EDGE_ERR_INCOMPLETE;
 
@@ -266,7 +270,7 @@ static int _handle_set_request(const dlt698_addr_t *sa, uint8_t piid, const uint
     /* SET-Request-Normal：payload = OAD(4) | Data(A-XDR) | 时间标签。 */
     if (!sa || !payload || !out || payload_len < 4) return -1;
     uint32_t oad =
-        (uint32_t)((payload[0] << 24) | (payload[1] << 16) | (payload[2] << 8) | payload[3]);
+        _read_be32(payload);
 
     int rc = EDGE_SLAVE_SRC_TYPE_MISMATCH;
     if (payload_len > 4) {
@@ -458,8 +462,7 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
             if (dlt698_encode_get_response_list_begin(&stream, &sa, piid, n, out) != 0) return -1;
             for (size_t k = 0; k < n; k++) {
                 const uint8_t *oad_bytes = payload + 1 + 4 * k;
-                uint32_t oad = (uint32_t)((oad_bytes[0] << 24) | (oad_bytes[1] << 16) |
-                                          (oad_bytes[2] << 8) | oad_bytes[3]);
+                uint32_t oad = _read_be32(oad_bytes);
                 size_t dlen = 0;
                 if (src && src->resolve_axdr) {
                     /* A-XDR 通道：完整值（含类型标签）。实现后不再回落标量；
@@ -507,7 +510,7 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
         if (payload_len < 4) return -1;
 
         uint32_t oad =
-            (uint32_t)((payload[0] << 24) | (payload[1] << 16) | (payload[2] << 8) | payload[3]);
+            _read_be32(payload);
         if (src && src->resolve_axdr) {
             size_t dlen = 0;
             int rc = src->resolve_axdr(src_ctx, oad, s_axdr_buf, sizeof(s_axdr_buf), &dlen);
@@ -549,7 +552,7 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
         /* ACTION-Request-Normal：payload = OMD(4) | Data | 时间标签（PIID 已由 decode 取出） */
         if (payload_len < 4) return -1;
         uint32_t omd =
-            (uint32_t)((payload[0] << 24) | (payload[1] << 16) | (payload[2] << 8) | payload[3]);
+            _read_be32(payload);
 
         double param = 0.0;
         if (payload_len > 4) {

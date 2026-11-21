@@ -181,6 +181,22 @@ static int scalar_resolve(void *ctx, uint32_t oad, const void *desc, size_t desc
 
 static const edge_slave_source_ops_t k_scalar_src = {.resolve = scalar_resolve};
 
+static int high_oad_resolve(void *ctx, uint32_t oad, const void *desc, size_t desc_len,
+                            edge_point_value_t *out) {
+    (void)ctx;
+    (void)desc;
+    (void)desc_len;
+    if (!out || oad != 0xF2000200U) return -1;
+    memset(out, 0, sizeof(*out));
+    out->value = 9600.0;
+    out->raw = 9600;
+    out->width = 4;
+    out->type = DLT698_TAG_DOUBLE_LONG;
+    return 0;
+}
+
+static const edge_slave_source_ops_t k_high_oad_src = {.resolve = high_oad_resolve};
+
 static int structure_resolve(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, size_t *len) {
     (void)ctx;
     (void)oad;
@@ -976,11 +992,43 @@ static void test_action_rejects_other_methods_and_trailing_bytes(void **state) {
     assert_action_dar(127, trailing, sizeof(trailing), DLT698_DAR_TYPE_MISMATCH);
 }
 
+static void test_driver_high_byte_oad_has_no_signed_shift(void **state) {
+    (void)state;
+    uint8_t frame[128];
+
+    size_t frame_len = build_get_normal(frame, 0xF2000200U);
+    net_buf_pool_t *pool = NULL;
+    net_buf_t *out = run_get_normal(frame, frame_len, &k_high_oad_src, &pool);
+    assert_int_equal(out->b.data[9], DLT698_SVC_GET_RES);
+    assert_int_equal(out->b.data[10], DLT698_CHOICE_GET_NORMAL);
+    assert_int_equal(out->b.data[12], 0xF2);
+    assert_int_equal(out->b.data[13], 0x00);
+    assert_int_equal(out->b.data[14], 0x02);
+    assert_int_equal(out->b.data[15], 0x00);
+    assert_int_equal(out->b.data[16], 0x01);
+    assert_int_equal(out->b.data[17], DLT698_TAG_DOUBLE_LONG);
+    net_buf_unref(out);
+    net_buf_pool_destroy(pool);
+
+    const uint8_t value[] = {DLT698_TAG_DOUBLE_LONG, 0x00, 0x00, 0x25, 0x80};
+    frame_len = build_set(frame, 0xF2000200U, value, sizeof(value), true);
+    out = run_set(frame, frame_len, &k_set_src, &pool);
+    assert_int_equal(out->b.data[9], DLT698_SVC_SET_RES);
+    assert_int_equal(out->b.data[12], 0xF2);
+    assert_int_equal(out->b.data[13], 0x00);
+    assert_int_equal(out->b.data[14], 0x02);
+    assert_int_equal(out->b.data[15], 0x00);
+    assert_int_equal(out->b.data[16], DLT698_DAR_SUCCESS);
+    net_buf_unref(out);
+    net_buf_pool_destroy(pool);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_product_variable_axdr_types),
         cmocka_unit_test(test_product_axdr_rejects_small_buffer_and_complex),
         cmocka_unit_test(test_driver_scalar_fallback_still_works),
+        cmocka_unit_test(test_driver_high_byte_oad_has_no_signed_shift),
         cmocka_unit_test(test_driver_carries_structure_axdr),
         cmocka_unit_test(test_driver_rejects_axdr_buffer_shortage),
         cmocka_unit_test(test_driver_normal_list_uses_axdr_per_item),
