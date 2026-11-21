@@ -1,8 +1,8 @@
- docs/evidence/DCU-D0-05/diffstat.txt  |   0
+ docs/evidence/DCU-D0-05/comments.md   |  34 ++
+ docs/evidence/DCU-D0-05/diffstat.txt  |   8 +
+ docs/evidence/DCU-D0-05/runtime.log   |  17 +
+ docs/evidence/DCU-D0-05/summary.md    |  60 ++++
  docs/evidence/DCU-D0-05/tests.log     |  88 +++++
- tests/CMakeLists.txt                  |   3 +-
- tests/test_dlt698_conformance_suite.c | 664 +++++++++++++++++++++++++++++++---
- 4 files changed, 698 insertions(+), 57 deletions(-)
- tests/CMakeLists.txt                  |   3 +-
- tests/test_dlt698_conformance_suite.c | 664 +++++++++++++++++++++++++++++++---
- 2 files changed, 610 insertions(+), 57 deletions(-)
+ tests/CMakeLists.txt                  |   2 -
+ tests/test_dlt698_conformance_suite.c | 634 +++++++++++++++++++++++++++++++---
+ 7 files changed, 786 insertions(+), 57 deletions(-)
