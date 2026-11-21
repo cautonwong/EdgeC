@@ -1,0 +1,42 @@
+=== build ===
+[324/326] Linking C executable tests/test_iems_dlt645_uart_pty
+[325/326] Linking C executable tests/test_iems_north_iec104
+[326/326] Linking C executable tests/test_iems_cli_write
+warnings=0
+
+=== ctest -R dcu ===
+
+100% tests passed, 0 tests failed out of 21
+
+Total Test time (real) =  17.08 sec
+
+=== test_dcu_698_var ===
+[ RUN      ] test_six_ois_values_and_type_tags
+[       OK ] test_six_ois_values_and_type_tags
+[ RUN      ] test_shadow_missing_returns_minus_one
+[       OK ] test_shadow_missing_returns_minus_one
+[ RUN      ] test_unsupported_attr_rejected_by_mask
+[       OK ] test_unsupported_attr_rejected_by_mask
+[ RUN      ] test_legacy_scalar_output_types
+[       OK ] test_legacy_scalar_output_types
+[ RUN      ] test_repeat_reads_are_consistent
+[       OK ] test_repeat_reads_are_consistent
+[  PASSED  ] 5 test(s).
+
+=== ASAN ===
+-- test_dcu_698_var
+[  PASSED  ] 5 test(s).
+-- test_dcu_698_object_model
+[  PASSED  ] 7 test(s).
+-- test_dcu_router
+[  PASSED  ] 3 test(s).
+
+=== run_guard_selftest.py --root . ===
+📊 Injection coverage: 6 caught / 2 known gap(s) of 8 probes
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+exit=0
+
+=== line counts ===
+dcu_698_object_model.c: 709 -> 704
+dcu_698_var.c: 87
+dcu_698_var.h: 48
