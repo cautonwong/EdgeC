@@ -48,6 +48,7 @@ static void print_usage(const char *prog) {
 }
 
 int main(int argc, char **argv) {
+    setvbuf(stdout, NULL, _IOLBF, 0);
     bool use_stdio = false;
     bool use_uds = false;
     bool disable_ws = false;

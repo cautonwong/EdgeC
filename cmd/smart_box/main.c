@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <uv.h>
 #include "thread_port_uv.h"
 
@@ -14,6 +15,7 @@
 #include "wasm_mgr.h"
 
 int main(int argc, char **argv) {
+    setvbuf(stdout, NULL, _IOLBF, 0);
     edge_thread_port_install_uv();
     (void)argc;
     (void)argv;
