@@ -51,9 +51,23 @@ extern "C" {
  * 与"一次读多个 OAD"不是一回事，别用错服务。 */
 #define DLT698_CHOICE_GET_NORMAL 0x01
 #define DLT698_CHOICE_GET_NORMAL_LIST 0x02
+#define DLT698_CHOICE_GET_RECORD 0x03
 #define DLT698_GET_RESULT_DATA 0x01
 /** 一次列表读最多几个 OAD（防御：不让请求里的 count 撑爆栈上暂存）。 */
 #define DLT698_GET_LIST_MAX 8
+
+/* 记录型读的 CHOICE 与 RSD 子集（标准 6.3.3.7 表30、6.3.8.2.3 表74）。 */
+#define DLT698_RECORD_RESULT_DAR 0x00
+#define DLT698_RECORD_RESULT_ROWS 0x01
+#define DLT698_RSD_NO_SELECTION 0x00
+#define DLT698_RSD_SELECTOR2 0x02
+#define DLT698_RCSD_MAX 8
+#define DLT698_ROAD_MAX 4
+#define DLT698_RECORD_DATE_MAX 11 /* 标签 + date_time 的 10 字节值 */
+#define DLT698_RECORD_UNSUPPORTED_SELECTOR (-2)
+#define DLT698_RECORD_UNSUPPORTED_DATA (-3)
+#define DLT698_CSD_OAD 0x00
+#define DLT698_CSD_ROAD 0x01
 
 /**
  * @brief DLT698 地址类型
@@ -158,6 +172,79 @@ int dlt698_encode_get_response_list_item(net_buf_t *out, uint32_t oad, const uin
                                          size_t dlen);
 int dlt698_encode_get_response_list_item_dar(net_buf_t *out, uint32_t oad, uint8_t dar);
 int dlt698_encode_get_response_list_end(const dlt698_list_stream_t *stream, net_buf_t *out);
+
+/**
+ * @brief 记录选择描述符（RSD，标准 6.3.3.7 表30）的解码结果。
+ *
+ * 目前只解 `[0]` 不选择与 `[2] Selector2`（指定 OAD 的区间连续值）。
+ * `start` / `end` 保留 Data 的原始字节（含类型标签），区间按标准是前闭后开。
+ * `interval` 为 NULL 表示无间隔；为 TI 时保存原始 4 字节。
+ */
+typedef struct {
+    uint8_t selector;
+    uint32_t oad;
+    uint8_t start[DLT698_RECORD_DATE_MAX];
+    uint8_t start_len;
+    uint8_t end[DLT698_RECORD_DATE_MAX];
+    uint8_t end_len;
+    uint8_t interval[4];
+    uint8_t interval_len;
+} dlt698_record_sel_t;
+
+/**
+ * @brief 列选择描述符（CSD，标准 6.3.3.9 表32）：`[0] OAD` 或 `[1] ROAD`。
+ */
+typedef struct {
+    uint8_t kind;
+    uint32_t oad;
+    uint32_t related[DLT698_ROAD_MAX];
+    uint8_t related_count;
+} dlt698_csd_t;
+
+/** @brief 记录列选择描述符（RCSD，标准 6.3.3.8 表31）：SEQUENCE OF CSD。 */
+typedef struct {
+    dlt698_csd_t items[DLT698_RCSD_MAX];
+    uint8_t count;
+} dlt698_rcsd_t;
+
+/**
+ * @brief 解码 GetRecord 序号内容：`OAD | RSD | RCSD`，允许末尾的时间标签。
+ *
+ * @param apdu 指向 PIID 之后的 OAD 首字节（即 GetRecord SEQUENCE 的内容）。
+ * @return 0 成功；-1 报文截断或结构错；`DLT698_RECORD_UNSUPPORTED_SELECTOR`
+ *         表示选择方法不在支持子集；`DLT698_RECORD_UNSUPPORTED_DATA` 表示
+ *         区间值不是 date_time / date_time_s / NULL / TI。
+ */
+int dlt698_decode_get_record_request(const uint8_t *apdu, size_t len, uint32_t *oad,
+                                     dlt698_record_sel_t *sel, dlt698_rcsd_t *rcsd);
+
+/** @brief 流式 GET-Response-Record 的封帧游标。 */
+typedef struct {
+    size_t start_len;
+    size_t len_off;
+    size_t hcs_off;
+} dlt698_record_stream_t;
+
+/**
+ * @brief 开始 GET-Response-Record（标准 6.3.8.2.3 表74）：
+ * `85 | 03 | PIID-ACD | OAD | RCSD | 01 | M`，随后由调用方逐行追加。
+ *
+ * @param record_count M，单帧最多 255 行（标准用一字节个数）；分页由驱动决定。
+ */
+int dlt698_encode_get_record_response_begin(dlt698_record_stream_t *stream, const dlt698_addr_t *sa,
+                                            uint8_t piid, uint32_t oad, const dlt698_csd_t *rcsd,
+                                            size_t n, size_t record_count, net_buf_t *out);
+
+/** @brief 追加一行记录：N 列 Data 已按 RCSD 顺序拼好（含各自的类型标签）。 */
+int dlt698_encode_get_record_row(net_buf_t *out, const uint8_t *row, size_t row_len);
+
+/** @brief 结束 GET-Response-Record：补 FollowReport、时间标签并封帧。 */
+int dlt698_encode_get_record_response_end(const dlt698_record_stream_t *stream, net_buf_t *out);
+
+/** @brief 构造只带 DAR 的 GET-Response-Record（CHOICE [0]，无记录行）。 */
+int dlt698_encode_get_record_response_dar(const dlt698_addr_t *sa, uint8_t piid, uint32_t oad,
+                                          const dlt698_csd_t *rcsd, size_t n, uint8_t dar,
+                                          net_buf_t *out);
 
 /**
  * @brief 构造 ACTION-Request.Normal（操作一个对象方法）。

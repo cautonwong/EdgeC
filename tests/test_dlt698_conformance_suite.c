@@ -11,6 +11,7 @@
  *   附录 D      校验算法（PPP FCS-16：初值 0xFFFF，多项式 0x8408，末取反，低字节在前）
  *   H.3.1       读取一个对象属性（文档第 206 页）
  *   H.3.2       读取多个对象属性（文档第 206-207 页）
+ *   H.3.3       读取一个记录型对象属性（文档第 207 页）
  *   H.4.1       设置一个对象属性（文档第 213 页）
  *   H.5.1       操作一个对象方法（文档第 214-215 页）
  *
@@ -362,15 +363,151 @@ static void test_get_response_list_partial_dar(void **state) {
 }
 
 /**
- * 记录型对象属性（GET-Request-Record，CHOICE [3]）与 RSD 尚未实现。
- * 这条不算通过：skip 掉并把缺口指向 D1-15，避免"没实现"被当成"已实现"。
+ * 表30 / 表67 的 Selector2 请求：OAD | [2] | OAD | 起始值 | 结束值 | 间隔 | RCSD。
+ * 标准没有给出 Selector2 的整帧例子（H.3.3 用的是 [1]），按表30 的字段顺序构造。
  */
-static void test_get_record_and_rsd_not_implemented(void **state) {
+static void test_get_record_request_selector2(void **state) {
     (void)state;
-    printf(
-        "SKIP: GET-Request-Record([3]) 与 RSD 未实现，见 D1-15；"
-        "附录 H.3.3 的冻结记录报文在实现后补向量。\n");
-    skip();
+    static const uint8_t apdu[] = {
+        0x50, 0x04, 0x02, 0x00, 0x02, 0x20, 0x21, 0x02, 0x00,
+        0x1C, 0x07, 0xE0, 0x01, 0x14, 0x00, 0x00, 0x00,
+        0x1C, 0x07, 0xE0, 0x01, 0x15, 0x00, 0x00, 0x00,
+        0x00, 0x02, 0x00, 0x20, 0x21, 0x02, 0x00, 0x00, 0x00, 0x10, 0x02, 0x00,
+        0x00,
+    };
+    uint32_t oad = 0;
+    dlt698_record_sel_t sel;
+    dlt698_rcsd_t rcsd;
+    assert_int_equal(dlt698_decode_get_record_request(apdu, sizeof(apdu), &oad, &sel, &rcsd), 0);
+    assert_int_equal(oad, 0x50040200U);
+    assert_int_equal(sel.selector, DLT698_RSD_SELECTOR2);
+    assert_int_equal(sel.oad, 0x20210200U);
+    const uint8_t want_start[] = {0x1C, 0x07, 0xE0, 0x01, 0x14, 0x00, 0x00, 0x00};
+    const uint8_t want_end[] = {0x1C, 0x07, 0xE0, 0x01, 0x15, 0x00, 0x00, 0x00};
+    assert_int_equal(sel.start_len, sizeof(want_start));
+    assert_memory_equal(sel.start, want_start, sizeof(want_start));
+    assert_int_equal(sel.end_len, sizeof(want_end));
+    assert_memory_equal(sel.end, want_end, sizeof(want_end));
+    assert_int_equal(sel.interval_len, 1);
+    assert_int_equal(sel.interval[0], 0x00);
+    assert_int_equal(rcsd.count, 2);
+    assert_int_equal(rcsd.items[0].oad, 0x20210200U);
+    assert_int_equal(rcsd.items[1].oad, 0x00100200U);
+}
+
+/** 表30 的 [0] 不选择：没有区间字段，直接跟 RCSD。 */
+static void test_get_record_request_no_selection(void **state) {
+    (void)state;
+    static const uint8_t apdu[] = {
+        0x50, 0x04, 0x02, 0x00, 0x00, 0x01, 0x00, 0x00, 0x10, 0x02, 0x00, 0x00,
+    };
+    uint32_t oad = 0;
+    dlt698_record_sel_t sel;
+    dlt698_rcsd_t rcsd;
+    assert_int_equal(dlt698_decode_get_record_request(apdu, sizeof(apdu), &oad, &sel, &rcsd), 0);
+    assert_int_equal(oad, 0x50040200U);
+    assert_int_equal(sel.selector, DLT698_RSD_NO_SELECTION);
+    assert_int_equal(rcsd.count, 1);
+    assert_int_equal(rcsd.items[0].oad, 0x00100200U);
+}
+
+/** H.3.3（1）（文档第 207 页）的请求用 [1] Selector1：本子集明确拒收，不静默忽略。 */
+static void test_get_record_request_rejects_unsupported_selector(void **state) {
+    (void)state;
+    static const uint8_t apdu[] = {
+        0x50, 0x04, 0x02, 0x00, 0x01, 0x20, 0x21, 0x02, 0x00,
+        0x1C, 0x07, 0xE0, 0x01, 0x14, 0x00, 0x00, 0x00,
+        0x02, 0x00, 0x20, 0x21, 0x02, 0x00, 0x00, 0x00, 0x10, 0x02, 0x00,
+        0x00,
+    };
+    uint32_t oad = 0;
+    dlt698_record_sel_t sel;
+    dlt698_rcsd_t rcsd;
+    assert_int_equal(dlt698_decode_get_record_request(apdu, sizeof(apdu), &oad, &sel, &rcsd),
+                     DLT698_RECORD_UNSUPPORTED_SELECTOR);
+}
+
+static void test_get_record_request_truncated(void **state) {
+    (void)state;
+    static const uint8_t apdu[] = {
+        0x50, 0x04, 0x02, 0x00, 0x02, 0x20, 0x21, 0x02, 0x00, 0x1C, 0x07,
+    };
+    uint32_t oad = 0;
+    dlt698_record_sel_t sel;
+    dlt698_rcsd_t rcsd;
+    assert_int_equal(dlt698_decode_get_record_request(apdu, sizeof(apdu), &oad, &sel, &rcsd), -1);
+}
+
+static void test_get_record_request_rejects_non_date_range(void **state) {
+    (void)state;
+    static const uint8_t apdu[] = {
+        0x50, 0x04, 0x02, 0x00, 0x02, 0x20, 0x21, 0x02, 0x00,
+        0x12, 0x00, 0x01, 0x12, 0x00, 0x02, 0x00,
+    };
+    uint32_t oad = 0;
+    dlt698_record_sel_t sel;
+    dlt698_rcsd_t rcsd;
+    assert_int_equal(dlt698_decode_get_record_request(apdu, sizeof(apdu), &oad, &sel, &rcsd),
+                     DLT698_RECORD_UNSUPPORTED_DATA);
+}
+
+/** H.3.3（1）（文档第 207 页）日冻结单条记录：响应 APDU 逐字节对照。 */
+static void test_get_record_response_matches_h_3_3(void **state) {
+    (void)state;
+    dlt698_addr_t sa = _sa();
+    net_buf_t *out = net_buf_alloc(g_pool, 0);
+    assert_non_null(out);
+
+    const dlt698_csd_t cols[2] = {
+        {.kind = DLT698_CSD_OAD, .oad = 0x20210200U},
+        {.kind = DLT698_CSD_OAD, .oad = 0x00100200U},
+    };
+    dlt698_record_stream_t stream;
+    assert_int_equal(
+        dlt698_encode_get_record_response_begin(&stream, &sa, 0x03, 0x50040200U, cols, 2, 1, out),
+        0);
+    static const uint8_t row[] = {
+        0x1C, 0x07, 0xE0, 0x01, 0x14, 0x00, 0x00, 0x00, /* 冻结时间 */
+        0x01, 0x05, 0x06, 0x00, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x00,
+        0x06, 0x00, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x00, 0x06, 0x00,
+        0x00, 0x00, 0x00,
+    };
+    assert_int_equal(dlt698_encode_get_record_row(out, row, sizeof(row)), 0);
+    assert_int_equal(dlt698_encode_get_record_response_end(&stream, out), 0);
+
+    const uint8_t *apdu = NULL;
+    size_t n = frame_apdu(out, 0xC3, &apdu);
+    const uint8_t want[] = {
+        0x85, 0x03, 0x03, 0x50, 0x04, 0x02, 0x00, 0x02, 0x00, 0x20, 0x21, 0x02, 0x00,
+        0x00, 0x00, 0x10, 0x02, 0x00, 0x01, 0x01,
+        0x1C, 0x07, 0xE0, 0x01, 0x14, 0x00, 0x00, 0x00,
+        0x01, 0x05, 0x06, 0x00, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x00,
+        0x06, 0x00, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x00, 0x06, 0x00,
+        0x00, 0x00, 0x00,
+        0x00, 0x00,
+    };
+    _expect_bytes(apdu, n, want, sizeof(want), "H.3.3 GET-Response-Record");
+    net_buf_unref(out);
+}
+
+/** 表74 的错误分支：CHOICE [0] DAR，没有记录行。 */
+static void test_get_record_response_dar(void **state) {
+    (void)state;
+    dlt698_addr_t sa = _sa();
+    net_buf_t *out = net_buf_alloc(g_pool, 0);
+    assert_non_null(out);
+
+    const dlt698_csd_t cols[1] = {{.kind = DLT698_CSD_OAD, .oad = 0x20210200U}};
+    assert_int_equal(dlt698_encode_get_record_response_dar(
+                         &sa, 0x07, 0x50040200U, cols, 1, DLT698_DAR_OBJECT_NOT_FOUND, out),
+                     0);
+
+    const uint8_t *apdu = NULL;
+    size_t n = frame_apdu(out, 0xC3, &apdu);
+    const uint8_t want[] = {0x85, 0x03, 0x07, 0x50, 0x04, 0x02, 0x00, 0x01, 0x00,
+                            0x20, 0x21, 0x02, 0x00, 0x00, 0x06, 0x00, 0x00};
+    _expect_bytes(apdu, n, want, sizeof(want), "GET-Response-Record DAR");
+    net_buf_unref(out);
 }
 
 /** H.4.1（文档第 213 页）设置时钟：06 01 02 40 00 02 00 1C <7 字节时间> 00 */
@@ -631,7 +768,13 @@ int main(void) {
         cmocka_unit_test(test_get_request_normal_list_decode),
         cmocka_unit_test(test_get_response_normal_list),
         cmocka_unit_test(test_get_response_list_partial_dar),
-        cmocka_unit_test(test_get_record_and_rsd_not_implemented),
+        cmocka_unit_test(test_get_record_request_selector2),
+        cmocka_unit_test(test_get_record_request_no_selection),
+        cmocka_unit_test(test_get_record_request_rejects_unsupported_selector),
+        cmocka_unit_test(test_get_record_request_truncated),
+        cmocka_unit_test(test_get_record_request_rejects_non_date_range),
+        cmocka_unit_test(test_get_record_response_matches_h_3_3),
+        cmocka_unit_test(test_get_record_response_dar),
 
         cmocka_unit_test(test_set_request_normal),
         cmocka_unit_test(test_set_response_normal_decode),
