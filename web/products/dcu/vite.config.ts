@@ -45,9 +45,8 @@ export default defineConfig({
     rollupOptions: {
       output: {
         // 图表库单独成 vendor chunk：既便于缓存，也让 entry 预算只度量真正的首屏代码
-        manualChunks: {
-          echarts: ['echarts'],
-        },
+        manualChunks: (id) =>
+          id.includes('node_modules/echarts') ? 'echarts' : undefined,
       },
     },
   },
