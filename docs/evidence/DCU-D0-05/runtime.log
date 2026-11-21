@@ -1,0 +1,88 @@
+[==========] tests: Running 21 test(s).
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Created (Refs: 1)
+[ RUN      ] test_fcs_algorithm_known_answer
+[       OK ] test_fcs_algorithm_known_answer
+[ RUN      ] test_frame_known_answer_full_bytes
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Unref (2 -> 1)
+[       OK ] test_frame_known_answer_full_bytes
+[ RUN      ] test_get_request_normal
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Unref (2 -> 1)
+[       OK ] test_get_request_normal
+[ RUN      ] test_get_response_normal
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Unref (2 -> 1)
+[       OK ] test_get_response_normal
+[ RUN      ] test_get_request_normal_list_decode
+[       OK ] test_get_request_normal_list_decode
+[ RUN      ] test_get_response_normal_list
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Unref (2 -> 1)
+[       OK ] test_get_response_normal_list
+[ RUN      ] test_get_response_list_partial_dar
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Unref (2 -> 1)
+[       OK ] test_get_response_list_partial_dar
+[ RUN      ] test_get_record_and_rsd_not_implemented
+SKIP: GET-Request-Record([3]) 与 RSD 未实现，见 D1-15；附录 H.3.3 的冻结记录报文在实现后补向量。
+[  SKIPPED ] test_get_record_and_rsd_not_implemented
+[ RUN      ] test_set_request_normal
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Unref (2 -> 1)
+[       OK ] test_set_request_normal
+[ RUN      ] test_set_response_normal_decode
+[       OK ] test_set_response_normal_decode
+[ RUN      ] test_action_request_normal
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Unref (2 -> 1)
+[       OK ] test_action_request_normal
+[ RUN      ] test_action_response_dar0
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Unref (2 -> 1)
+[       OK ] test_action_response_dar0
+[ RUN      ] test_action_response_dar2
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Unref (2 -> 1)
+[       OK ] test_action_response_dar2
+[ RUN      ] test_action_response_with_data
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Unref (2 -> 1)
+[       OK ] test_action_response_with_data
+[ RUN      ] test_reject_bad_fcs
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Unref (2 -> 1)
+[       OK ] test_reject_bad_fcs
+[ RUN      ] test_reject_length_mismatch
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Unref (2 -> 1)
+[       OK ] test_reject_length_mismatch
+[ RUN      ] test_reject_truncated_frame
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Unref (2 -> 1)
+[       OK ] test_reject_truncated_frame
+[ RUN      ] test_reject_bad_head
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Unref (2 -> 1)
+[       OK ] test_reject_bad_head
+[ RUN      ] test_reject_bad_end
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Unref (2 -> 1)
+[       OK ] test_reject_bad_end
+[ RUN      ] test_passthrough_unknown_choice
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Unref (2 -> 1)
+[       OK ] test_passthrough_unknown_choice
+[ RUN      ] test_reject_bad_hcs
+SKIP: decode 未校验 HCS（5.1.5）。缺陷已上报，修好后本条改为断言 -1。
+[  SKIPPED ] test_reject_bad_hcs
+[NETBUF][INFO] NetBufPool 0x55c31a6e96b0: Unref (1 -> 0)
+[==========] tests: 21 test(s) run.
+[  PASSED  ] 19 test(s).
+[  SKIPPED ] tests: 2 test(s), listed below:
+[  SKIPPED ] test_get_record_and_rsd_not_implemented
+[  SKIPPED ] test_reject_bad_hcs
+
+ 2 SKIPPED TEST(S)

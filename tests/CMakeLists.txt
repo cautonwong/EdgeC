@@ -105,8 +105,6 @@ target_include_directories(test_dcu_698_object_model PRIVATE "${CMAKE_SOURCE_DIR
 target_link_libraries(test_dcu_698_object_model PRIVATE dcu_app_lib)
 
 add_edge_test(test_dlt698_conformance_suite test_dlt698_conformance_suite.c)
-target_include_directories(test_dlt698_conformance_suite PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
-target_link_libraries(test_dlt698_conformance_suite PRIVATE dcu_app_lib edge_infra edge_security_policy)
 
 
 
