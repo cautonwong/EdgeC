@@ -3,8 +3,10 @@
 台架真值不在这里写死 —— 从 configs/devices.yaml 的 simulated_645 读,
 保证"平台认为的表值"和"喂给 DCU 的字节"是同一份。
 """
+import json
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 import yaml
@@ -12,15 +14,29 @@ import yaml
 HERE = Path(__file__).resolve().parent
 DEVICES = HERE / "configs" / "devices.yaml"
 
-# 运行目录:产品壳把 db 和总线计数写在这里,用例从这里读。
-# 运行目录可覆盖:多个人/多个任务同时跑时共用一个目录会互相踩(数据被抢、被杀)。
+# 运行目录可由 DCU_RUN_DIR 覆盖；并发任务共用默认目录会互相踩（数据被抢、被杀）。
 RUN_DIR = Path(os.environ.get("DCU_RUN_DIR") or "/tmp/edgec-acceptance-run")
 DB_PATH = RUN_DIR / "dcu_runtime.db"
 BUS_LOG = RUN_DIR / "bus.json"
 
-# DCU 二进制的位置与"是否过期"由 acceptance/build_probe.py 统一判定:
-# 构建根走 EDGEC_BUILD_DIR(CI 用 build/,开发常在 /tmp),产品级仍可用 DCU_BIN 覆盖。
-# 写死仓库内 build/ 踩过一次:对着三周前的二进制跑,新 env 变量全被无视。
+
+def dump_json_atomic(path: Path, obj) -> None:
+    """同目录临时文件 + fsync + os.replace：读者只会看到完整的旧文件或新文件。"""
+    path = Path(path)
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=path.name + ".", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(json.dumps(obj, ensure_ascii=False))
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass
+        raise
+
 _ACCEPTANCE_ROOT = HERE.parent
 if str(_ACCEPTANCE_ROOT) not in sys.path:
     sys.path.insert(0, str(_ACCEPTANCE_ROOT))
@@ -29,9 +45,9 @@ from build_probe import describe, resolve_product_binary, staleness  # noqa: E40
 _REPO_ROOT = HERE.parents[1]
 DCU_SRC_DIRS = (_REPO_ROOT / "cmd" / "dcu", _REPO_ROOT / "modules")
 
+# 二进制身份与过期判定必须先于任何结论：三周前的旧二进制曾跑出过假绿。
 DCU_BIN = resolve_product_binary("dcu", explicit=os.environ.get("DCU_BIN"))
 
-# 台架只开 DLT645 通道:main.c 把 0-21 硬编码成 DLT698。
 CHANNELS = list(range(22, 32))
 PER_CHANNEL = 4
 METER_ADDRESS = "000000000001"
