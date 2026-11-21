@@ -239,7 +239,7 @@ int (*accept_axdr)(void *ctx, uint32_t oad, const uint8_t *axdr, size_t len);
 | 密码错或未授权 | 15 |
 | 资源不足，例如记录表满 | 2 |
 
-错误不静默。北向出错时回明确的 DAR，主站才不会只看到超时。驱动按 `edge_slave_plane.h` 的 `edge_slave_src_rc_t` 映射本表；旧回调返回 `-1` 按 6（对象不存在）处理。
+错误不静默。北向出错时回明确的 DAR，主站才不会只看到超时。驱动按 `edge_slave_plane.h` 的 `edge_slave_src_rc_t` 映射本表（含 `EDGE_SLAVE_SRC_DENIED` → 3）；旧回调返回 `-1` 按 6（对象不存在）处理。
 
 ## 6. 类逐项规定
 

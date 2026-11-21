@@ -245,10 +245,99 @@ static uint8_t _dar_for_source_rc(int rc) {
             return DLT698_DAR_OBJECT_UNDEFINED;
         case EDGE_SLAVE_SRC_TEMPORARY:
             return DLT698_DAR_TEMPORARY_FAILURE;
+        case EDGE_SLAVE_SRC_DENIED:
+            return DLT698_DAR_DENIED;
         case EDGE_SLAVE_SRC_NOT_FOUND:
         default:
             return DLT698_DAR_OBJECT_NOT_FOUND;
     }
+}
+
+static int _handle_set_request(const dlt698_addr_t *sa, uint8_t piid, const uint8_t *payload,
+                               size_t payload_len, const edge_slave_source_ops_t *src,
+                               void *src_ctx, net_buf_t *out) {
+    /* SET-Request-Normal：payload = OAD(4) | Data(A-XDR) | 时间标签。 */
+    if (!sa || !payload || !out || payload_len < 4) return -1;
+    uint32_t oad =
+        (uint32_t)((payload[0] << 24) | (payload[1] << 16) | (payload[2] << 8) | payload[3]);
+
+    int rc = EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    if (payload_len > 4) {
+        dlt698_data_t d;
+        memset(&d, 0, sizeof(d));
+        uint16_t off = 0;
+        if (dlt698_decode_data(payload + 4, (uint16_t)(payload_len - 4), &off, &d) == 0) {
+            double value = 0.0;
+            bool scalar = false;
+            switch (d.tag) {
+                case DLT698_TAG_INTEGER:
+                    value = (double)d.val.i8;
+                    scalar = true;
+                    break;
+                case DLT698_TAG_UNSIGNED:
+                    value = (double)d.val.u8;
+                    scalar = true;
+                    break;
+                case DLT698_TAG_LONG:
+                    value = (double)d.val.i16;
+                    scalar = true;
+                    break;
+                case DLT698_TAG_LONG_UNSIGNED:
+                    value = (double)d.val.u16;
+                    scalar = true;
+                    break;
+                case DLT698_TAG_ENUM:
+                    value = (double)d.val.u8;
+                    scalar = true;
+                    break;
+                case DLT698_TAG_BOOLEAN:
+                    value = (double)d.val.u8;
+                    scalar = true;
+                    break;
+                case DLT698_TAG_DOUBLE_LONG:
+                    value = (double)d.val.i32;
+                    scalar = true;
+                    break;
+                case DLT698_TAG_DOUBLE_LONG_UNSIGNED:
+                    value = (double)d.val.u32;
+                    scalar = true;
+                    break;
+                case DLT698_TAG_LONG64:
+                    value = (double)d.val.i64;
+                    scalar = true;
+                    break;
+                case DLT698_TAG_LONG64_UNSIGNED:
+                    value = (double)d.val.u64;
+                    scalar = true;
+                    break;
+                case DLT698_TAG_FLOAT32:
+                    value = (double)d.val.f32;
+                    scalar = true;
+                    break;
+                case DLT698_TAG_FLOAT64:
+                    value = d.val.f64;
+                    scalar = true;
+                    break;
+                default:
+                    break;
+            }
+            dlt698_free_data(&d);
+
+            if (src && src->accept_axdr) {
+                rc = src->accept_axdr(src_ctx, oad, payload + 4, off);
+            } else if (src && src->accept && scalar) {
+                rc = src->accept(src_ctx, oad, value);
+            } else if (src && src->accept) {
+                rc = EDGE_SLAVE_SRC_TYPE_MISMATCH;
+            } else {
+                rc = EDGE_SLAVE_SRC_NOT_FOUND;
+            }
+        }
+    }
+
+    uint8_t dar = (rc == 0) ? DLT698_DAR_SUCCESS : _dar_for_source_rc(rc);
+    dlt698_encode_set_response(sa, piid, oad, dar, out);
+    return 0;
 }
 
 static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *in, size_t in_len,
@@ -379,6 +468,11 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
 
         dlt698_encode_get_response(&sa, piid, oad, data, dlen, out);
         return 0;
+    }
+
+    if (svc == DLT698_SVC_SET_REQ) {
+        if (choice != 0x01) return -1;
+        return _handle_set_request(&sa, piid, payload, payload_len, src, src_ctx, out);
     }
 
     if (svc == DLT698_SVC_ACTION_REQ) {

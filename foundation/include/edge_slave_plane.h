@@ -64,7 +64,8 @@ typedef enum {
     EDGE_SLAVE_SRC_CLASS_MISMATCH = -21, /**< OAD 类与对象不匹配 → DAR 5 */
     EDGE_SLAVE_SRC_TYPE_MISMATCH = -22,  /**< A-XDR 类型/宽度不匹配 → DAR 7 */
     EDGE_SLAVE_SRC_UNDEFINED = -23,      /**< OI 在标准/目录中未定义 → DAR 4 */
-    EDGE_SLAVE_SRC_TEMPORARY = -24       /**< 暂时失效 → DAR 2 */
+    EDGE_SLAVE_SRC_TEMPORARY = -24,      /**< 暂时失效 → DAR 2 */
+    EDGE_SLAVE_SRC_DENIED = -25          /**< 读写被拒绝（只读/闭锁）→ DAR 3 */
 } edge_slave_src_rc_t;
 
 /**
