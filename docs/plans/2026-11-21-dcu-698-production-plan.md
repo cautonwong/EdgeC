@@ -759,7 +759,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D0-02 | 已合并 | `dcu/D0-02-remove-demo` | `d0eb1f43` | `docs/evidence/DCU-D0-02/` | 构建、25/25 目标测试、验收 2+4、全部守卫通过 |
 | D0-03 | 已合并 | `dcu/D0-03-stdout-guard` | `3bfc4237` | `docs/evidence/DCU-D0-03/` | 构建、25/25 目标测试、守卫正反夹具、验收 2+4 通过；5 个产品入口补 `_IOLBF`，组合根预算相应 +1 到 +2 |
 | D0-04 | 未开始 | - | - | - | - |
-| D0-05 | 未开始 | - | - | - | - |
+| D0-05 | 进行中 | `dcu/D0-05-frame-vectors` | - | `/tmp/dcu-docs-worktree/docs/evidence/DCU-D0-05/` | edgec-dev-0 执行中；独立 worktree，只改 tests 与证据 |
 | D0-06 | 未开始 | - | - | - | - |
 | D0-07 | 阻塞 | - | - | - | 依赖 D1-00 |
 | D1-00 | 进行中 | `main` | `8d8089bf` | `scripts/extract_dcu_698_catalog.py` | 生成器与目录已提交，`--check` 通过；CI 接入待 D0-07 |
@@ -793,6 +793,16 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | 2026-11-21 | D0-03 | 已合并 | `docs/evidence/DCU-D0-03/` | 合并提交 `3bfc4237`；合并后 25/25 目标测试、守卫正反夹具、验收 2+4 全过；stdout 守卫扩到全部 `cmd/*/main.c` |
 | 2026-11-21 | D1-12 | 已合并 | `docs/evidence/DCU-D1-12/` | 合并提交 `076e0e04`；ADR-0013 Proposed；独立核对 55 处引用、14 个 designated 初始化点、0 个位置初始化；守卫与目录检查通过 |
 | 2026-11-21 | D1-03 | 待验收 | `/tmp/dcu-dev-worktree/docs/evidence/DCU-D1-03/` | 构建与 20/20 目标测试通过；`dcu_router.c` 664 到 96 行；review 发现 `uint16_t` mask 覆盖不了方法 127 到 134 与属性 18，门面绕过预检属 workaround；设计改为 256 位位图，已退回补实现 |
+| 2026-11-21 | D0-05 | 已派单 | - | edgec-dev-0 在 `/tmp/dcu-docs-worktree` 执行；真实帧向量从 `docs/698.pdf` 摘 |
+
+### 12.4 并行工作树
+
+| 工作树 | 分支 | 负责人 | 任务 | 文件边界 |
+| --- | --- | --- | --- | --- |
+| `/tmp/dcu-dev-worktree` | `dcu/D1-03-object-model` | dcu-dev | D1-03 补 mask，随后 D1-04、D1-13 | `cmd/dcu/`、`tests/`、`foundation/include/edge_slave_plane.h`、`adapters/io_drivers/src/driver_dlt698.c` |
+| `/tmp/dcu-docs-worktree` | `dcu/D0-05-frame-vectors` | edgec-dev-0 | D0-05 真实帧向量，随后 D0-01、D0-06 | `tests/test_dlt698_*`、`docs/evidence/DCU-D0-05/` |
+
+并行只跨文件边界。`driver_dlt698.c`、`dcu_698_object_model.c`、`dcu_router.c` 是串行冲突域，同一时刻只允许一个工作树改。
 
 ## Appendix A. 698 覆盖明细
 
