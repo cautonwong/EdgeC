@@ -7,7 +7,7 @@ EdgeC 是面向工业边缘设备的 C11 运行时。一个产品进程把现场
 ## 系统边界与数据流
 
 ```mermaid
-flowchart LR
+flowchart TD
     meters[表计 / PLC / BMS / PCS]
     drivers[协议驱动<br/>adapters/io_drivers]
     hub[DataHub<br/>进程内 API + SHM]
