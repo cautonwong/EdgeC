@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "datahub.h"
+#include "dcu_698_var.h"
 #include "edge_log.h"
 
 /* 256 位位图的静态初始化：按字节下标与位号填，避免手算十六进制。 */
@@ -24,8 +25,6 @@ static int _oi_6012_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t e
                          void *out_val);
 static int _oi_6012_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
                             void *result);
-static int _oi_variable_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
-                             void *out_val);
 static int _oi_5004_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
                          void *out_val);
 static int _oi_5004_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
@@ -70,15 +69,40 @@ static dcu_698_object_t g_objects[] = {
      .attr_mask = {[BYTE(2)] = BIT(2)},
      .method_mask = {[BYTE(1)] = BIT(1)}},
 
+    {.oi = (uint16_t)((OAD_ACTIVE_ENERGY >> 16) & 0xFFFF),
+     .class_id = IC_ENERGY,
+     .scope = DCU_OBJ_PER_METER,
+     .read = dcu_698_var_read,
+     .attr_mask = {[BYTE(2)] = BIT(2) | BIT(4)}},
+    {.oi = (uint16_t)((OAD_REACTIVE_ENERGY >> 16) & 0xFFFF),
+     .class_id = IC_ENERGY,
+     .scope = DCU_OBJ_PER_METER,
+     .read = dcu_698_var_read,
+     .attr_mask = {[BYTE(2)] = BIT(2) | BIT(4)}},
     {.oi = (uint16_t)((OAD_VOLTAGE >> 16) & 0xFFFF),
      .class_id = IC_VARIABLE,
      .scope = DCU_OBJ_PER_METER,
-     .read = _oi_variable_read,
+     .read = dcu_698_var_read,
      .attr_mask = {[BYTE(2)] = BIT(2)}},
     {.oi = (uint16_t)((OAD_CURRENT >> 16) & 0xFFFF),
      .class_id = IC_VARIABLE,
      .scope = DCU_OBJ_PER_METER,
-     .read = _oi_variable_read,
+     .read = dcu_698_var_read,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    {.oi = (uint16_t)((OAD_ACTIVE_POWER_TOTAL >> 16) & 0xFFFF),
+     .class_id = IC_POWER,
+     .scope = DCU_OBJ_PER_METER,
+     .read = dcu_698_var_read,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    {.oi = (uint16_t)((OAD_POWER_FACTOR_TOTAL >> 16) & 0xFFFF),
+     .class_id = IC_POWER,
+     .scope = DCU_OBJ_PER_METER,
+     .read = dcu_698_var_read,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    {.oi = (uint16_t)((OAD_GRID_FREQUENCY >> 16) & 0xFFFF),
+     .class_id = IC_DATA_VARIABLE,
+     .scope = DCU_OBJ_PER_METER,
+     .read = dcu_698_var_read,
      .attr_mask = {[BYTE(2)] = BIT(2)}},
 
     {.oi = (uint16_t)((OAD_DAILY_FREEZE >> 16) & 0xFFFF),
@@ -238,32 +262,6 @@ static int _oi_6012_execute(const dcu_698_object_t *obj, uint8_t method_id, cons
                                         s->data.normal.csd_list, s->data.normal.csd_count);
         if (result) *(int *)result = ret;
         return ret;
-    }
-    return -2;
-}
-
-static int _oi_variable_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
-                             void *out_val) {
-    (void)elem_idx;
-    if (!out_val) return -1;
-
-    // 属性 2: 实时参量物理数值反馈 (Strict Physical Truth from DataHub)
-    if (attr_id == 2) {
-        float val = 0.0f;
-        uint32_t target_oad = OAD_VOLTAGE;
-        if (obj->oi == ((OAD_CURRENT >> 16) & 0xFFFF)) {
-            target_oad = OAD_CURRENT;
-        }
-
-        if (g_router_bus_ops.read_shadow) {
-            pipe_msg_t msg;
-            memset(&msg, 0, sizeof(pipe_msg_t));
-            if (g_router_bus_ops.read_shadow(g_router_bus_ops.ctx, target_oad, 0, &msg) == 0) {
-                val = (float)msg.payload.val.f;
-            }
-        }
-        *(float *)out_val = val;
-        return 0;
     }
     return -2;
 }
@@ -572,6 +570,10 @@ const dcu_698_object_t *dcu_698_find(uint16_t oi) {
     return _find_mut(oi);
 }
 
+const router_bus_ops_t *dcu_698_object_model_bus_ops(void) {
+    return &g_router_bus_ops;
+}
+
 int dcu_698_read(uint32_t oad, void *out_val) {
     uint16_t oi = (uint16_t)((oad >> 16) & 0xFFFF);
     uint8_t attr_id = (uint8_t)((oad >> 8) & 0xFF);
@@ -623,8 +625,7 @@ int dcu_698_snapshot(uint16_t oi, uint32_t device_id, void *out_msgs, int max_co
                 captured++;
             }
         }
-    }
-    else if (obj->class_id == IC_RECORD) {
+    } else if (obj->class_id == IC_RECORD) {
         // 目前先返回空，后续对接 Attr 3 结构体数组
     }
 
