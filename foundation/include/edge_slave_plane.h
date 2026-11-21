@@ -148,6 +148,22 @@ typedef struct {
      * 未实现时为 NULL，SET 回落标量 `accept`。
      */
     int (*accept_axdr)(void *ctx, uint32_t oad, const uint8_t *axdr, size_t len);
+
+    /**
+     * @brief 记录型对象属性的分页取数端口（ADR-0014）。
+     *
+     * 三个回调全为 NULL 表示产品不支持记录读取，驱动据此回 DAR 2。
+     * `selection` 是协议原样的选择条件字节（698 为 RSD+RCSD），端口不认识
+     * 具体类型；产品用 codec 自行解码。`row` 写一行的 N 列 Data，含类型标签，
+     * 缓冲由调用方给；返回非 0 或写不下都算失败。续页按绝对行号重查。
+     */
+    struct {
+        int (*begin)(void *ctx, uint32_t oad, const uint8_t *selection, size_t selection_len,
+                     size_t *row_count);
+        int (*row)(void *ctx, uint32_t oad, size_t index, uint8_t *row, size_t cap,
+                   size_t *row_len);
+        int (*end)(void *ctx, uint32_t oad);
+    } record;
 } edge_slave_source_ops_t;
 
 #ifdef __cplusplus

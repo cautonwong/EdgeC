@@ -340,6 +340,64 @@ static int _handle_set_request(const dlt698_addr_t *sa, uint8_t piid, const uint
     return 0;
 }
 
+/* GetRequestRecord：表74 只有整条结果的 DAR，没有行级 DAR；任何一行失败都丢弃
+ * 整页，按产品返回码回 CHOICE [0] DAR（ADR-0014）。 */
+static int _handle_get_record(const dlt698_addr_t *sa, uint8_t piid, const uint8_t *payload,
+                              size_t payload_len, const edge_slave_source_ops_t *src,
+                              void *src_ctx, net_buf_t *out) {
+    uint32_t oad = 0;
+    dlt698_record_sel_t sel;
+    dlt698_rcsd_t rcsd;
+    size_t used = 0;
+    int rc = dlt698_decode_get_record_request(payload, payload_len, &oad, &sel, &rcsd, &used);
+    if (rc == DLT698_RECORD_UNSUPPORTED_SELECTOR || rc == DLT698_RECORD_UNSUPPORTED_DATA) {
+        return dlt698_encode_get_record_response_dar(sa, piid, oad, rcsd.items, rcsd.count,
+                                                     DLT698_DAR_TEMPORARY_FAILURE, out);
+    }
+    if (rc != 0) return -1; /* 报文截断/结构错：不应答 */
+    if (!src || !src->record.begin || !src->record.row || !src->record.end) {
+        return dlt698_encode_get_record_response_dar(sa, piid, oad, rcsd.items, rcsd.count,
+                                                     DLT698_DAR_TEMPORARY_FAILURE, out);
+    }
+
+    size_t total = 0;
+    rc = src->record.begin(src_ctx, oad, payload + 4, used - 4, &total);
+    if (rc != 0) {
+        return dlt698_encode_get_record_response_dar(sa, piid, oad, rcsd.items, rcsd.count,
+                                                     _dar_for_source_rc(rc), out);
+    }
+    if (total > 0xFF) {
+        /* 单帧条数是一字节；没有 GetResponseNext，不能截断成假完整。 */
+        src->record.end(src_ctx, oad);
+        return dlt698_encode_get_record_response_dar(sa, piid, oad, rcsd.items, rcsd.count,
+                                                     DLT698_DAR_TEMPORARY_FAILURE, out);
+    }
+
+    dlt698_record_stream_t stream;
+    if (dlt698_encode_get_record_response_begin(&stream, sa, piid, oad, rcsd.items, rcsd.count,
+                                                total, out) != 0) {
+        src->record.end(src_ctx, oad);
+        return -1;
+    }
+    for (size_t i = 0; i < total; i++) {
+        size_t row_len = 0;
+        rc = src->record.row(src_ctx, oad, i, s_axdr_buf, sizeof(s_axdr_buf), &row_len);
+        if (rc != 0 || row_len == 0) {
+            src->record.end(src_ctx, oad);
+            out->b.len = (uint16_t)stream.start_len;
+            uint8_t dar = (rc != 0) ? _dar_for_source_rc(rc) : DLT698_DAR_TYPE_MISMATCH;
+            return dlt698_encode_get_record_response_dar(sa, piid, oad, rcsd.items, rcsd.count,
+                                                         dar, out);
+        }
+        if (dlt698_encode_get_record_row(out, s_axdr_buf, row_len) != 0) {
+            src->record.end(src_ctx, oad);
+            return -1;
+        }
+    }
+    src->record.end(src_ctx, oad);
+    return dlt698_encode_get_record_response_end(&stream, out);
+}
+
 static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *in, size_t in_len,
                                      const edge_slave_source_ops_t *src, void *src_ctx,
                                      net_buf_t *out, size_t *consumed) {
@@ -430,6 +488,11 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
                 if (dlt698_encode_get_response_list_item(out, oad, scalar, dlen) != 0) return -1;
             }
             return dlt698_encode_get_response_list_end(&stream, out);
+        }
+
+        /* [3] GetRequestRecord：payload = OAD(4) | RSD | RCSD | 时间标签（表67）。 */
+        if (choice == DLT698_CHOICE_GET_RECORD) {
+            return _handle_get_record(&sa, piid, payload, payload_len, src, src_ctx, out);
         }
 
         /* [1] GetRequestNormal：payload = OAD(4) | 时间标签(1) */

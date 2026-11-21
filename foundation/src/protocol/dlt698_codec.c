@@ -430,10 +430,12 @@ static uint32_t _read_be32(const uint8_t *p) {
 }
 
 int dlt698_decode_get_record_request(const uint8_t *apdu, size_t len, uint32_t *oad,
-                                     dlt698_record_sel_t *sel, dlt698_rcsd_t *rcsd) {
+                                     dlt698_record_sel_t *sel, dlt698_rcsd_t *rcsd,
+                                     size_t *consumed) {
     if (!apdu || !oad || !sel || !rcsd) return -1;
     memset(sel, 0, sizeof(*sel));
     memset(rcsd, 0, sizeof(*rcsd));
+    if (consumed) *consumed = 0;
 
     size_t off = 0;
     if (len < 5) return -1;
@@ -441,7 +443,18 @@ int dlt698_decode_get_record_request(const uint8_t *apdu, size_t len, uint32_t *
     off = 4;
 
     sel->selector = apdu[off++];
-    if (sel->selector == DLT698_RSD_SELECTOR2) {
+    if (sel->selector == DLT698_RSD_SELECTOR1) {
+        if (len - off < 4) return -1;
+        sel->oad = _read_be32(apdu + off);
+        off += 4;
+
+        size_t n = 0;
+        int rc = _record_date_data(apdu + off, len - off, &n);
+        if (rc != 0) return rc;
+        memcpy(sel->value, apdu + off, n);
+        sel->value_len = (uint8_t)n;
+        off += n;
+    } else if (sel->selector == DLT698_RSD_SELECTOR2) {
         if (len - off < 4) return -1;
         sel->oad = _read_be32(apdu + off);
         off += 4;
@@ -502,11 +515,12 @@ int dlt698_decode_get_record_request(const uint8_t *apdu, size_t len, uint32_t *
     if (off < len) {
         if (len - off != 1 || apdu[off] != DLT698_NO_TIME_TAG) return -1;
     }
+    if (consumed) *consumed = off;
     return 0;
 }
 
 static int _add_rcsd(struct net_buf_simple *b, const dlt698_csd_t *rcsd, size_t n) {
-    if (n > DLT698_RCSD_MAX) return -1;
+    if (n > DLT698_RCSD_MAX || (n > 0 && !rcsd)) return -1;
     net_buf_simple_add_u8(b, (uint8_t)n);
     for (size_t i = 0; i < n; i++) {
         if (rcsd[i].kind == DLT698_CSD_OAD) {
@@ -530,7 +544,7 @@ static int _add_rcsd(struct net_buf_simple *b, const dlt698_csd_t *rcsd, size_t 
 int dlt698_encode_get_record_response_begin(dlt698_record_stream_t *stream, const dlt698_addr_t *sa,
                                             uint8_t piid, uint32_t oad, const dlt698_csd_t *rcsd,
                                             size_t n, size_t record_count, net_buf_t *out) {
-    if (!stream || !sa || !out || !rcsd || record_count > 0xFF) return -1;
+    if (!stream || !sa || !out || (n > 0 && !rcsd) || record_count > 0xFF) return -1;
 
     struct net_buf_simple *b = &out->b;
     stream->start_len = b->len;
@@ -568,7 +582,7 @@ int dlt698_encode_get_record_response_end(const dlt698_record_stream_t *stream, 
 int dlt698_encode_get_record_response_dar(const dlt698_addr_t *sa, uint8_t piid, uint32_t oad,
                                           const dlt698_csd_t *rcsd, size_t n, uint8_t dar,
                                           net_buf_t *out) {
-    if (!sa || !out || !rcsd) return -1;
+    if (!sa || !out || (n > 0 && !rcsd)) return -1;
     struct net_buf_simple *b = &out->b;
     uint8_t *len_ptr = NULL;
     uint8_t *hcs_ptr = NULL;
