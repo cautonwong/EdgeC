@@ -765,8 +765,8 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-00 | 进行中 | `main` | `8d8089bf` | `scripts/extract_dcu_698_catalog.py` | 生成器与目录已提交，`--check` 通过；CI 接入待 D0-07 |
 | D1-01 | 未开始 | - | - | - | 以 `698.pdf` 重抽 79 行 OCR 列错位 |
 | D1-02 | 待验收 | `main` | `8d8089bf` | `docs/design/DCU_698_OBJECT_MODEL.md` | 设计文档已提交，待架构评审 |
-| D1-03 | 待验收 | `dcu/D1-03-object-model` | `aebf6a6e` | `/tmp/dcu-dev-worktree/docs/evidence/DCU-D1-03/` | 重构完成；review 发现 16 位 mask 放不下方法 127 到 134，已退回补 256 位位图与门面预检 |
-| D1-04 | 未开始 | - | - | - | - |
+| D1-03 | 已合并 | `dcu/D1-03-object-model` | `81730385` | `docs/evidence/DCU-D1-03/` | router 664→76 行；256 位 mask，门面走预检；object_model 709 行待 D1-04 拆；合并后 26/26 测试、守卫、验收全过 |
+| D1-04 | 进行中 | `dcu/D1-04-var-handlers` | - | `/tmp/dcu-dev-worktree/docs/evidence/DCU-D1-04/` | dcu-dev 执行中；拆 `dcu_698_object_model.c` 的变量类处理器 |
 | D1-05 | 阻塞 | - | - | - | 依赖 D1-13 |
 | D1-06 | 阻塞 | - | - | - | 依赖 D1-13、D1-14 |
 | D1-07 | 阻塞 | - | - | - | 依赖 D1-13、D1-15 |
@@ -794,12 +794,14 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | 2026-11-21 | D1-12 | 已合并 | `docs/evidence/DCU-D1-12/` | 合并提交 `076e0e04`；ADR-0013 Proposed；独立核对 55 处引用、14 个 designated 初始化点、0 个位置初始化；守卫与目录检查通过 |
 | 2026-11-21 | D1-03 | 待验收 | `/tmp/dcu-dev-worktree/docs/evidence/DCU-D1-03/` | 构建与 20/20 目标测试通过；`dcu_router.c` 664 到 96 行；review 发现 `uint16_t` mask 覆盖不了方法 127 到 134 与属性 18，门面绕过预检属 workaround；设计改为 256 位位图，已退回补实现 |
 | 2026-11-21 | D0-05 | 已派单 | - | edgec-dev-0 在 `/tmp/dcu-docs-worktree` 执行；真实帧向量从 `docs/698.pdf` 摘 |
+| 2026-11-21 | D1-03 | 已合并 | `docs/evidence/DCU-D1-03/` | 合并提交 `81730385`；26/26 目标测试、7/7 新测试、守卫、验收 2+4 全过；`dcu_router.c` 664→76；mask 改 256 位并删门面绕过 |
+| 2026-11-21 | 清理 | 完成 | - | 删除 `dcu/D1-03-object-model` 分支；删除 `/tmp/dcu-*.log` 与 scratch；删除被忽略的 `reports/`；工作树切到 `dcu/D1-04-var-handlers` |
 
 ### 12.4 并行工作树
 
 | 工作树 | 分支 | 负责人 | 任务 | 文件边界 |
 | --- | --- | --- | --- | --- |
-| `/tmp/dcu-dev-worktree` | `dcu/D1-03-object-model` | dcu-dev | D1-03 补 mask，随后 D1-04、D1-13 | `cmd/dcu/`、`tests/`、`foundation/include/edge_slave_plane.h`、`adapters/io_drivers/src/driver_dlt698.c` |
+| `/tmp/dcu-dev-worktree` | `dcu/D1-04-var-handlers` | dcu-dev | D1-04 变量类处理器，随后 D1-13 | `cmd/dcu/`、`tests/`、`foundation/include/edge_slave_plane.h`、`adapters/io_drivers/src/driver_dlt698.c` |
 | `/tmp/dcu-docs-worktree` | `dcu/D0-05-frame-vectors` | edgec-dev-0 | D0-05 真实帧向量，随后 D0-01、D0-06 | `tests/test_dlt698_*`、`docs/evidence/DCU-D0-05/` |
 
 并行只跨文件边界。`driver_dlt698.c`、`dcu_698_object_model.c`、`dcu_router.c` 是串行冲突域，同一时刻只允许一个工作树改。
