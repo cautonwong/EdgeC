@@ -431,6 +431,7 @@ static int caller_is_root(int fd) {
 }
 
 int main(int argc, char **argv) {
+    setvbuf(stdout, NULL, _IOLBF, 0);
     if (argc != 2) return 2;
     int status_fd = atoi(argv[1]);
     if (status_fd < 3 || fcntl(status_fd, F_GETFD) < 0) return 2;

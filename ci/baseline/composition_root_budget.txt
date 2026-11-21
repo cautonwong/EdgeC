@@ -14,7 +14,7 @@
 cmd/dcu/dcu_north_adapter.c|201
 cmd/dcu/dcu_bus_adapter.c|43
 cmd/dcu/main.c|225
-cmd/edge_mcp_server/main.c|183
+cmd/edge_mcp_server/main.c|184
 # 2026-11-13: cmd/iems/iems_app.c 558 -> 559；参数服务改用调用方存储。
 # 2026-11-17: cmd/iems/iems_app.c 559 -> 560；升级恢复注入 authz store，用于 grant 快照回放。
 # 2026-11-18: cmd/iems/iems_app.c 560 -> 572；北向控制写按点位路由，注入 route_for_tag 端口。
@@ -35,8 +35,9 @@ cmd/iems/iems_southbound_adapter.c|218
 # 2026-11-19: cmd/iems/main.c 109 -> 111；stdout 行缓冲 (setvbuf _IOLBF)，裸 printf 状态行不再等下一次 flush 才落盘。
 cmd/iems/main.c|111
 # 2026-11-16: 组合根忽略 SIGPIPE（+1 调用 +1 include），应用崩溃后的 IPC 写入不得打死网关。
-cmd/nexus_lab/main.c|156
-cmd/smart_box/main.c|90
+# 2026-11-21: DCU-D0-03 产品 stdout 行缓冲：所有产品组合根入口 setvbuf(_IOLBF)（mcp +1, nexus_lab +1, smart_box +2）。
+cmd/nexus_lab/main.c|157
+cmd/smart_box/main.c|92
 # 2026-11-09: core service 不再持有北向管理器；产品组合根显式 start/stop 北向 (+4 DCU, +1 IEMS)。
 # 2026-11-10: cmd/iems/iems_app.c 343 -> 347; SnF store port injection (+4).
 # 2026-11-10: north source adapter moved to bootstrap; product include adds one line (DCU 196->197, IEMS 347->348).
