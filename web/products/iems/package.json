@@ -9,12 +9,12 @@
     "test:e2e": "playwright test -c ../../playwright.config.ts"
   },
   "dependencies": {
-    "axios": "^1.4.0",
+    "axios": "^1.21.1",
     "echarts": "^6.1.0",
-    "js-yaml": "^4.1.0",
-    "pinia": "^2.1.0",
+    "js-yaml": "^5.5.0",
+    "pinia": "^4.1.0",
     "vue": "^3.3.0",
-    "vue-router": "^4.2.0"
+    "vue-router": "^5.5.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
@@ -27,7 +27,7 @@
     "vue-tsc": "^1.6.0"
   },
   "optionalDependencies": {
-    "@esbuild/linux-arm64": "0.18.20",
-    "@esbuild/linux-x64": "0.18.20"
+    "@esbuild/linux-arm64": "0.28.2",
+    "@esbuild/linux-x64": "0.28.2"
   }
 }
