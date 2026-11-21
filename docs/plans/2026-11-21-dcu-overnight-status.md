@@ -29,28 +29,31 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 
 ## Current stack
 
-| Branch | Task | State | Next gate |
+Final state at the end of the night. Every row has an independent PASS verdict and a green
+post-merge gate run on `main`.
+
+| Branch | Task | State | Note |
 | --- | --- | --- | --- |
-| `dcu/D0-05-frame-vectors` | D0-05 | merged `0f45d0e2` | done |
-| `dcu/D1-04-var-handlers` | D1-04 | merged `100f9a41` | done |
-| `dcu/D0-05a-hcs` | D0-05a | merged `ff845789` | done |
-| `dcu/D1-13-axdr-port` | D1-13 | merged `68f4de69` | post-merge 28/28, guards, acceptance 2+4 passed; `/no-comments` 23 lines |
-| `dcu/D0-06-docs` | D0-06 | merged `50feb55e` | done |
-| `dcu/D0-01-readme` | D0-01 | merged `ea775f3f` | done |
-| `dcu/D0-07-catalog-ci` | D0-07 | merged `355c8251` | post-merge catalog 0, parity 11, guards, 28/28, acceptance 2+4 |
-| `dcu/D0-05b-dar` | D0-05b | merged `731b1331` | DAR 0/2/4/5/6/7, GET-Normal DAR response; post-merge all gates green |
-| `dcu/D0-04-baseline` | D0-04 | merged `5c808baf` | baseline evidence; ASAN found a real test lifetime bug |
-| `dcu/D0-08-asan-frame-lifetime` | D0-08 | merged `9e458af6` | ASAN 330/330, dlt698 6/6; post-merge main ASAN 6/6 |
-| `dcu/D1-10-catalog-consistency` | D1-10 | blocked on D0-09 | table/catalog classes disagree on F100/F200/3000/3005 |
-| `dcu/D0-09-class-ids` | D0-09 | merged `6638ce23` | four class_ids, F100 in catalog, snapshot by handler family; post-merge all gates green |
-| `dcu/D1-10-catalog-consistency` | D1-10 | merged `5a4fda20` | generated fixture + strict table/catalog test; post-merge 29/29 |
-| `dcu/D1-05-resolve-table` | D1-05 | merged `ac7b8dfe` | one OAD→type table; acceptance 7 cases; fixed count_freezes ctx OOB |
-| `dcu/D1-15b-record-driver` | D1-15b | merged `7658967a` | ADR-0014 record port, Selector1, driver GET [3]; acceptance flaked once |
-| `dcu/D1-08-normal-list` | D1-08 | merged `c291f3e7` | empty list legal per Table 73, mixed DAR, duplicate OAD; acceptance 8 |
-| `dcu/D0-10-atomic-bus-log` | D0-10 | merged `28b0363f` | atomic bus.json write; post-merge acceptance twice green |
-| `dcu/D1-15a-record-codec` | D1-15a | merged `87185420` | RSD [0]/[2], RCSD, Table 74 streaming; H.3.3 exact; 0 skips |
-| `dcu/D1-14-set` | D1-14 | active, dcu-dev | SET-Request, accept_axdr write, SET-Response DAR |
-| `dcu/D0-08-frame-len` | D0-08a | merged `438ed230` | explicit `uint16_t` bound; warning gate 0 new |
+| `dcu/D0-05-frame-vectors` | D0-05 | merged `0f45d0e2` | real 698 frame vectors |
+| `dcu/D1-04-var-handlers` | D1-04 | merged `100f9a41` | typed variable-class reads |
+| `dcu/D0-05a-hcs` | D0-05a | merged `ff845789` | HCS validation |
+| `dcu/D1-13-axdr-port` | D1-13 | merged `68f4de69` | A-XDR port, streaming NormalList |
+| `dcu/D0-06-docs` | D0-06 | merged `50feb55e` | architecture docs sync |
+| `dcu/D0-01-readme` | D0-01 | merged `ea775f3f` | README rewrite |
+| `dcu/D0-07-catalog-ci` | D0-07 | merged `355c8251` | catalog CI gate |
+| `dcu/D0-05b-dar` | D0-05b | merged `731b1331` | DAR mapping and GET-Normal DAR |
+| `dcu/D0-04-baseline` | D0-04 | merged `5c808baf` | P0 baseline; found the ASAN bug |
+| `dcu/D0-08-asan-frame-lifetime` | D0-08 | merged `9e458af6` | borrowed frame lifetime fix |
+| `dcu/D0-08-frame-len` | D0-08a | merged `438ed230` | explicit `uint16_t` bound |
+| `dcu/D0-09-class-ids` | D0-09 | merged `6638ce23` | four class_ids, F100 in catalog |
+| `dcu/D1-14-set` | D1-14 | merged `b5b95f62` | SET-Request and write path |
+| `dcu/D1-10-catalog-consistency` | D1-10 | merged `5a4fda20` | generated fixture and drift test |
+| `dcu/D1-15a-record-codec` | D1-15a | merged `87185420` | GetRecord/RSD/RCSD codec |
+| `dcu/D1-05-resolve-table` | D1-05 | merged `ac7b8dfe` | one OAD→type table |
+| `dcu/D1-15b-record-driver` | D1-15b | merged `7658967a` | ADR-0014 record port |
+| `dcu/D1-08-normal-list` | D1-08 | merged `c291f3e7` | empty list, mixed DAR, duplicate OAD |
+| `dcu/D0-10-atomic-bus-log` | D0-10 | merged `28b0363f` | atomic `bus.json` |
+| `dcu/D1-06-action` | D1-06 | merged `9a7fb7f9` (partial) | A.9 decode; 129–131 DAR 2 pending relay mapping |
 
 ## Landing log
 
@@ -117,11 +120,12 @@ and `./test.sh --omnis dcu`.
 | D1-15b | `7658967a` | ADR-0014 record port, Selector1, driver GET [3] |
 | D1-08 | `c291f3e7` | empty list legal, mixed per-item DAR, duplicate OAD |
 | D0-10 | `28b0363f` | atomic `bus.json` write and concurrent-read guard |
+| D1-06 | `9a7fb7f9` | A.9 ACTION params decoded; relay methods honestly DAR 2 |
 
-Plus `chore(ci)` budget refresh (`72394924`) and the plan/status doc commits.
+Plus `chore(ci)` budget refreshes (`72394924`, `57846715`) and the plan/status doc commits.
 
-**Not merged.** None at the time of writing; D0-10 and D1-06 were still in flight. If either
-fails after this file is written, its branch and log path are in the Current stack table.
+**Not merged.** None. D1-06 landed partially: parameters decode, but 129–131 stay DAR 2 until
+the product defines a relay OAD → meter/DO mapping. Nothing else is left unmerged.
 
 **Flakes observed.**
 - `./test.sh --omnis dcu` failed once on the D1-15b branch and once on main with
@@ -130,7 +134,8 @@ fails after this file is written, its branch and log path are in the Current sta
   and adds a concurrent-read guard; it is the fix, not a test skip.
 
 **Remaining work.**
-- D1-06 ACTION (in flight), D1-07 record storage wiring, D1-11 four-service acceptance.
+- D1-06 follow-up: product decision on relay OAD mapping, then 129/130/131 can execute.
+- D1-07 record storage wiring; D1-11 four-service acceptance.
 - D1-01: 79 OCR class conflicts, including 8000 (Table A.9 says class 8, catalog infers 13).
 - P2–P5 blocked on the COM components (plan §11.3 B6); P6 hardware bench is out of scope.
 - Known gaps: F200 attribute semantics, 3000/3005 Class 7-style masks, generator line window,

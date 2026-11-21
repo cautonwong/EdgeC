@@ -779,12 +779,12 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-03 | 已合并 | `dcu/D1-03-object-model` | `81730385` | `docs/evidence/DCU-D1-03/` | router 664→76 行；256 位 mask，门面走预检；object_model 709 行待 D1-04 拆；合并后 26/26 测试、守卫、验收全过 |
 | D1-04 | 已合并 | `dcu/D1-04-var-handlers` | `100f9a41` | `docs/evidence/DCU-D1-04/` | 27/27 目标测试、守卫、验收 2+4 通过；200A/200F 与 attr2/attr4 类型对齐；`/no-comments` 删 5 条并修 `IC_VARIABLE` 过期示例；704 行待后续拆 |
 | D1-05 | 已合并 | `dcu/D1-05-resolve-table` | `ac7b8dfe` | `docs/evidence/DCU-D1-05/` | 合并提交 `ac7b8dfe`；`dcu_698_value_for_oad` 成为 OAD→类型唯一来源；验收扩到 2000/2001/2004/6000/6012/5004 七例；顺带修 5004 计数回调的 ~900KB 越界（ctx 二次取址） |
-| D1-06 | 进行中 | `dcu/D1-06-action` | `2df90d85` | `docs/evidence/DCU-D1-06/` | dcu-dev 执行中；只做 OI 8000 方法 127–131；计划里的“8010 强制冻结”无标准依据（`698_parsed.md` 无此 OI），强制冻结是 5004 方法 3 |
+| D1-06 | 部分合并 | `dcu/D1-06-action` | `9a7fb7f9` | `docs/evidence/DCU-D1-06/` | 合并提交 `9a7fb7f9`；127–131 参数按表 A.9 解码，错形状回 DAR 7；129–131 因产品没有继电器 OAD→电表地址映射，诚实回 DAR 2（不假装执行）；127/128 无告警输出同回 2；继电器映射需产品拍板 |
 | D1-07 | 阻塞 | - | - | - | 依赖 D1-13、D1-15 |
 | D1-08 | 已合并 | `dcu/D1-08-normal-list` | `c291f3e7` | `docs/evidence/DCU-D1-08/` | 合并提交 `c291f3e7`；混合成败、空列表（表73 无下限）、重复 OAD、验收未知 OI 逐项 DAR；修正 codec 对 n==0 的旧拒绝 |
 | D1-09 | 未开始 | - | - | - | - |
 | D1-10 | 已合并 | `dcu/D1-10-catalog-consistency` | `5a4fda20` | `docs/evidence/DCU-D1-10/` | 合并提交 `5a4fda20`；生成 514 OI + 26 类夹具，表→目录严格对拍、mask 范围、OI 唯一；红色对照 F200 改类；合并后 29/29、目录门禁、守卫、验收全过 |
-| D1-11 | 阻塞 | - | - | - | 依赖 D1-06、D1-07 |
+| D1-11 | 阻塞 | - | - | - | 依赖 D1-06 的继电器映射与 D1-07 的记录取数；当前 ACTION 只有 DAR 失败路径 |
 | D1-12 | 已合并 | `dcu/D1-12-axdr-port-adr` | `076e0e04` | `docs/evidence/DCU-D1-12/` | ADR-0013 已合并，状态 Proposed；14 个初始化点全为 designated，无位置初始化；架构签字待补 |
 | D1-13 | 已合并 | `dcu/D1-13-axdr-port` | `68f4de69` | `docs/evidence/DCU-D1-13/` | 合并提交 `68f4de69`；合并后 28/28、守卫、验收 2+4 全过；流式逐项编码，单缓冲复用，无 8×2048；`/no-comments` 删 23 行、DAR 字面量改常量 |
 | D1-14 | 已合并 | `dcu/D1-14-set` | `b5b95f62` | `docs/evidence/DCU-D1-14/` | 合并提交 `b5b95f62`；SET-Request、`accept_axdr` 写入、SET-Response DAR；拒绝非标量回落假成功；LONG64 无 UB；DENIED 3 与 CLASS_MISMATCH 5 分开；合并后告警、28/28、ASAN、守卫、验收全过 |
@@ -829,6 +829,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | 2026-11-22 | D1-15b | 已合并 | `docs/evidence/DCU-D1-15b/` | 合并提交 `7658967a`；ADR-0014；驱动 10/10、套件 30/30；验收一次 flake（空 bus.json），重跑通过，已立 D0-10 |
 | 2026-11-22 | D1-08 | 已合并 | `docs/evidence/DCU-D1-08/` | 合并提交 `c291f3e7`；空列表按表73 无下限改为合法；验收 8 例；平台解析器不支持逐项 DAR/空列表，测试直读 APDU，平台更新另记 |
 | 2026-11-22 | D0-10 | 已合并 | `docs/evidence/DCU-D0-10/` | 合并提交 `28b0363f`；原子写消除 `bus.json` 半截读；并发守卫；合并后验收 2 次绿；复核恢复了 7 条被删的运行约束 |
+| 2026-11-22 | D1-06 | 部分合并 | `docs/evidence/DCU-D1-06/` | 合并提交 `9a7fb7f9`；A.9 参数解码与 DAR 7；129–131 因缺继电器映射回 DAR 2；codec 补 OAD 标签；验收 9 例；组合根台账修正 `57846715` |
 
 ### 12.4 并行工作树
 
@@ -851,6 +852,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | A.7 方法上限按类聚合 | 夹具把某 OI 的 A.7 方法号并进该类的 `max_method`，范围检查对同类其它 OI 也放行 | 只能发现越界，发现不了“方法放错 OI” | 后续把夹具改成 per-OI 方法集合 |
 | 生成器行窗口 | `parse_ois` 与 `parse_oi_methods` 都写死 6298..9450 | 原文行号变化会静默丢行 | 改为按附录标题定位 |
 | test-platform 解析器 | `testplatform.protocol.dlt698.parse_get_response_list` 遇到逐项 DAR 抛错、拒绝 count 0；`get_request_list` 仍拒绝空列表 | 验收只能直读 APDU，平台侧无法表达合法空列表与混合结果 | 外部 pinned 仓库更新；本仓不改 |
+| 继电器 OAD 映射 | A.9 的 129/130/131 用“继电器 OAD”寻址，产品只有 `dcu_inventory_by_slot()` 的槽位身份 | ACTION 129–131 只能回 DAR 2，无法真正跳合闸 | 产品点位表拍板：继电器 OAD → 电表地址/DO 通道；另立任务实现 |
 
 ## Appendix A. 698 覆盖明细
 
