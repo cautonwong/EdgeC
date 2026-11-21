@@ -163,12 +163,259 @@ static void test_set_rejects_bad_input(void** state) {
     net_buf_pool_destroy(&pool);
 }
 
+static size_t build_slave_frame(uint8_t* out, const uint8_t* apdu, size_t apdu_len) {
+    size_t n = 0;
+    out[n++] = DLT698_HEAD;
+    size_t len_off = n;
+    n += 2;
+    out[n++] = 0x43;
+    out[n++] = 0x00; /* SA: type 0, len 1 */
+    out[n++] = 0x01;
+    out[n++] = 0x10; /* CA */
+
+    uint16_t l = (uint16_t)(9 + apdu_len + 3 - 2);
+    out[len_off] = (uint8_t)(l & 0xFF);
+    out[len_off + 1] = (uint8_t)(l >> 8);
+    uint16_t hcs = dlt698_calculate_fcs(out + 1, n - 1);
+    out[n++] = (uint8_t)(hcs & 0xFF);
+    out[n++] = (uint8_t)(hcs >> 8);
+
+    memcpy(out + n, apdu, apdu_len);
+    n += apdu_len;
+
+    uint16_t fcs = dlt698_calculate_fcs(out + 1, n - 1);
+    out[n++] = (uint8_t)(fcs & 0xFF);
+    out[n++] = (uint8_t)(fcs >> 8);
+    out[n++] = DLT698_END;
+    return n;
+}
+
+typedef struct {
+    size_t total;
+    int begin_rc;
+    bool row_fails;
+    size_t fail_index;
+    int row_rc;
+    int begin_calls;
+    int end_calls;
+    size_t seen_sel_len;
+} fake_record_t;
+
+static int fake_begin(void* ctx, uint32_t oad, const uint8_t* selection, size_t selection_len,
+                      size_t* row_count) {
+    fake_record_t* f = (fake_record_t*)ctx;
+    (void)oad;
+    (void)selection;
+    f->begin_calls++;
+    f->seen_sel_len = selection_len;
+    if (f->begin_rc != 0) return f->begin_rc;
+    *row_count = f->total;
+    return 0;
+}
+
+static int fake_row(void* ctx, uint32_t oad, size_t index, uint8_t* row, size_t cap,
+                    size_t* row_len) {
+    fake_record_t* f = (fake_record_t*)ctx;
+    (void)oad;
+    if (f->row_fails && index == f->fail_index) return f->row_rc;
+    static const uint8_t row_a[] = {0x1C, 0x07, 0xE0, 0x01, 0x14, 0x00, 0x00, 0x00};
+    static const uint8_t row_b[] = {0x1C, 0x07, 0xE0, 0x01, 0x15, 0x00, 0x00, 0x00};
+    const uint8_t* src = (index == 0) ? row_a : row_b;
+    if (cap < sizeof(row_a)) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    memcpy(row, src, sizeof(row_a));
+    *row_len = sizeof(row_a);
+    return 0;
+}
+
+static int fake_end(void* ctx, uint32_t oad) {
+    fake_record_t* f = (fake_record_t*)ctx;
+    (void)oad;
+    f->end_calls++;
+    return 0;
+}
+
+static void assert_slave_response(const net_buf_t* out, const uint8_t* want, size_t want_len) {
+    struct net_buf_simple nb;
+    net_buf_simple_init_with_data(&nb, out->b.data, out->b.len);
+    nb.len = (uint16_t)out->b.len;
+    dlt698_addr_t sa;
+    uint8_t svc = 0, choice = 0, piid = 0;
+    uint8_t* payload = NULL;
+    size_t payload_len = 0;
+    assert_int_equal(dlt698_decode_frame_ex(&nb, &sa, &svc, &choice, &piid, &payload,
+                                            &payload_len),
+                     0);
+    size_t apdu_len = payload_len + 3;
+    assert_int_equal(apdu_len, want_len);
+    assert_memory_equal(payload - 3, want, want_len);
+}
+
+static int run_record_case(const uint8_t* apdu, size_t apdu_len, fake_record_t* f, bool with_port,
+                           net_buf_t* out) {
+    uint8_t req_apdu[256];
+    req_apdu[0] = DLT698_SVC_GET_REQ;
+    req_apdu[1] = DLT698_CHOICE_GET_RECORD;
+    req_apdu[2] = 0x05; /* PIID */
+    memcpy(req_apdu + 3, apdu, apdu_len);
+    uint8_t frame[320];
+    size_t flen = build_slave_frame(frame, req_apdu, apdu_len + 3);
+    edge_slave_source_ops_t src;
+    memset(&src, 0, sizeof(src));
+    if (with_port) {
+        src.record.begin = fake_begin;
+        src.record.row = fake_row;
+        src.record.end = fake_end;
+    }
+    alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
+    memset(priv, 0, sizeof(priv));
+    size_t consumed = 0;
+    return dlt698_driver.req_slave_exchange(priv, NULL, frame, flen, &src, f, out, &consumed);
+}
+
+static void test_slave_get_record_page(void** state) {
+    (void)state;
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 4, 512, 0, NULL, NULL), 0);
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+
+    static const uint8_t req[] = {0x50, 0x04, 0x02, 0x00, 0x00, 0x01, 0x00,
+                                  0x20, 0x21, 0x02, 0x00, 0x00};
+    fake_record_t f = {.total = 2};
+    assert_int_equal(run_record_case(req, sizeof(req), &f, true, out), 0);
+    assert_int_equal(f.begin_calls, 1);
+    assert_int_equal(f.end_calls, 1);
+    assert_int_equal(f.seen_sel_len, 7); /* RSD(1) + RCSD 计数(1) + CSD(5)，不含时间标签 */
+
+    static const uint8_t want[] = {
+        0x85, 0x03, 0x05, 0x50, 0x04, 0x02, 0x00, 0x01, 0x00, 0x20, 0x21, 0x02, 0x00,
+        0x01, 0x02, 0x1C, 0x07, 0xE0, 0x01, 0x14, 0x00, 0x00, 0x00, 0x1C, 0x07, 0xE0,
+        0x01, 0x15, 0x00, 0x00, 0x00, 0x00, 0x00,
+    };
+    assert_slave_response(out, want, sizeof(want));
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+}
+
+static void test_slave_get_record_unsupported_selector(void** state) {
+    (void)state;
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 4, 512, 0, NULL, NULL), 0);
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+
+    static const uint8_t req[] = {0x50, 0x04, 0x02, 0x00, 0x03};
+    fake_record_t f = {.total = 0};
+    assert_int_equal(run_record_case(req, sizeof(req), &f, true, out), 0);
+    assert_int_equal(f.begin_calls, 0);
+
+    static const uint8_t want[] = {0x85, 0x03, 0x05, 0x50, 0x04, 0x02, 0x00, 0x00,
+                                   0x00, 0x02, 0x00, 0x00};
+    assert_slave_response(out, want, sizeof(want));
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+}
+
+static void test_slave_get_record_begin_failure(void** state) {
+    (void)state;
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 4, 512, 0, NULL, NULL), 0);
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+
+    static const uint8_t req[] = {0x50, 0x04, 0x02, 0x00, 0x00, 0x01, 0x00,
+                                  0x20, 0x21, 0x02, 0x00, 0x00};
+    fake_record_t f = {.total = 2, .begin_rc = EDGE_SLAVE_SRC_NOT_FOUND};
+    assert_int_equal(run_record_case(req, sizeof(req), &f, true, out), 0);
+    assert_int_equal(f.begin_calls, 1);
+    assert_int_equal(f.end_calls, 0);
+
+    static const uint8_t want[] = {
+        0x85, 0x03, 0x05, 0x50, 0x04, 0x02, 0x00, 0x01, 0x00, 0x20, 0x21, 0x02, 0x00,
+        0x00, 0x06, 0x00, 0x00,
+    };
+    assert_slave_response(out, want, sizeof(want));
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+}
+
+static void test_slave_get_record_row_failure_aborts_page(void** state) {
+    (void)state;
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 4, 512, 0, NULL, NULL), 0);
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+
+    static const uint8_t req[] = {0x50, 0x04, 0x02, 0x00, 0x00, 0x01, 0x00,
+                                  0x20, 0x21, 0x02, 0x00, 0x00};
+    fake_record_t f = {.total = 2, .row_fails = true, .fail_index = 1, .row_rc = EDGE_SLAVE_SRC_TEMPORARY};
+    assert_int_equal(run_record_case(req, sizeof(req), &f, true, out), 0);
+    assert_int_equal(f.end_calls, 1);
+
+    static const uint8_t want[] = {
+        0x85, 0x03, 0x05, 0x50, 0x04, 0x02, 0x00, 0x01, 0x00, 0x20, 0x21, 0x02, 0x00,
+        0x00, 0x02, 0x00, 0x00,
+    };
+    assert_slave_response(out, want, sizeof(want));
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+}
+
+static void test_slave_get_record_port_absent(void** state) {
+    (void)state;
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 4, 512, 0, NULL, NULL), 0);
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+
+    static const uint8_t req[] = {0x50, 0x04, 0x02, 0x00, 0x00, 0x01, 0x00,
+                                  0x20, 0x21, 0x02, 0x00, 0x00};
+    fake_record_t f = {.total = 1};
+    assert_int_equal(run_record_case(req, sizeof(req), &f, false, out), 0);
+
+    static const uint8_t want[] = {
+        0x85, 0x03, 0x05, 0x50, 0x04, 0x02, 0x00, 0x01, 0x00, 0x20, 0x21, 0x02, 0x00,
+        0x00, 0x02, 0x00, 0x00,
+    };
+    assert_slave_response(out, want, sizeof(want));
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+}
+
+/* 截断的 GetRecord 不应答：坏报文不能伪装成 DAR 2 的应答。 */
+static void test_slave_get_record_malformed_is_dropped(void** state) {
+    (void)state;
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 4, 512, 0, NULL, NULL), 0);
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+
+    static const uint8_t req[] = {0x50, 0x04, 0x02, 0x00, 0x02, 0x20};
+    fake_record_t f = {.total = 1};
+    assert_int_equal(run_record_case(req, sizeof(req), &f, true, out), -1);
+    assert_int_equal(out->b.len, 0);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_get_request_layout),
         cmocka_unit_test(test_set_long_unsigned),
         cmocka_unit_test(test_set_double_long),
         cmocka_unit_test(test_set_rejects_bad_input),
+        cmocka_unit_test(test_slave_get_record_page),
+        cmocka_unit_test(test_slave_get_record_unsupported_selector),
+        cmocka_unit_test(test_slave_get_record_begin_failure),
+        cmocka_unit_test(test_slave_get_record_row_failure_aborts_page),
+        cmocka_unit_test(test_slave_get_record_port_absent),
+        cmocka_unit_test(test_slave_get_record_malformed_is_dropped),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

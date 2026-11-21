@@ -60,6 +60,7 @@ extern "C" {
 #define DLT698_RECORD_RESULT_DAR 0x00
 #define DLT698_RECORD_RESULT_ROWS 0x01
 #define DLT698_RSD_NO_SELECTION 0x00
+#define DLT698_RSD_SELECTOR1 0x01
 #define DLT698_RSD_SELECTOR2 0x02
 #define DLT698_RCSD_MAX 8
 #define DLT698_ROAD_MAX 4
@@ -176,13 +177,16 @@ int dlt698_encode_get_response_list_end(const dlt698_list_stream_t *stream, net_
 /**
  * @brief 记录选择描述符（RSD，标准 6.3.3.7 表30）的解码结果。
  *
- * 目前只解 `[0]` 不选择与 `[2] Selector2`（指定 OAD 的区间连续值）。
- * `start` / `end` 保留 Data 的原始字节（含类型标签），区间按标准是前闭后开。
- * `interval` 为 NULL 表示无间隔；为 TI 时保存原始 4 字节。
+ * 目前只解 `[0]` 不选择、`[1] Selector1`（指定 OAD 的单个值）与 `[2] Selector2`
+ * （指定 OAD 的区间连续值）。`value` / `start` / `end` 保留 Data 的原始字节
+ * （含类型标签），区间按标准是前闭后开。`interval` 为 NULL 表示无间隔；
+ * 为 TI 时保存原始 4 字节。
  */
 typedef struct {
     uint8_t selector;
     uint32_t oad;
+    uint8_t value[DLT698_RECORD_DATE_MAX];
+    uint8_t value_len;
     uint8_t start[DLT698_RECORD_DATE_MAX];
     uint8_t start_len;
     uint8_t end[DLT698_RECORD_DATE_MAX];
@@ -211,12 +215,14 @@ typedef struct {
  * @brief 解码 GetRecord 序号内容：`OAD | RSD | RCSD`，允许末尾的时间标签。
  *
  * @param apdu 指向 PIID 之后的 OAD 首字节（即 GetRecord SEQUENCE 的内容）。
+ * @param consumed 输出 RSD+RCSD 的字节数（不含末尾可选的时标），供端口原样传选择条件。
  * @return 0 成功；-1 报文截断或结构错；`DLT698_RECORD_UNSUPPORTED_SELECTOR`
  *         表示选择方法不在支持子集；`DLT698_RECORD_UNSUPPORTED_DATA` 表示
  *         区间值不是 date_time / date_time_s / NULL / TI。
  */
 int dlt698_decode_get_record_request(const uint8_t *apdu, size_t len, uint32_t *oad,
-                                     dlt698_record_sel_t *sel, dlt698_rcsd_t *rcsd);
+                                     dlt698_record_sel_t *sel, dlt698_rcsd_t *rcsd,
+                                     size_t *consumed);
 
 /** @brief 流式 GET-Response-Record 的封帧游标。 */
 typedef struct {

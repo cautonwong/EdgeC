@@ -378,7 +378,7 @@ static void test_get_record_request_selector2(void **state) {
     uint32_t oad = 0;
     dlt698_record_sel_t sel;
     dlt698_rcsd_t rcsd;
-    assert_int_equal(dlt698_decode_get_record_request(apdu, sizeof(apdu), &oad, &sel, &rcsd), 0);
+    assert_int_equal(dlt698_decode_get_record_request(apdu, sizeof(apdu), &oad, &sel, &rcsd, NULL), 0);
     assert_int_equal(oad, 0x50040200U);
     assert_int_equal(sel.selector, DLT698_RSD_SELECTOR2);
     assert_int_equal(sel.oad, 0x20210200U);
@@ -404,15 +404,15 @@ static void test_get_record_request_no_selection(void **state) {
     uint32_t oad = 0;
     dlt698_record_sel_t sel;
     dlt698_rcsd_t rcsd;
-    assert_int_equal(dlt698_decode_get_record_request(apdu, sizeof(apdu), &oad, &sel, &rcsd), 0);
+    assert_int_equal(dlt698_decode_get_record_request(apdu, sizeof(apdu), &oad, &sel, &rcsd, NULL), 0);
     assert_int_equal(oad, 0x50040200U);
     assert_int_equal(sel.selector, DLT698_RSD_NO_SELECTION);
     assert_int_equal(rcsd.count, 1);
     assert_int_equal(rcsd.items[0].oad, 0x00100200U);
 }
 
-/** H.3.3（1）（文档第 207 页）的请求用 [1] Selector1：本子集明确拒收，不静默忽略。 */
-static void test_get_record_request_rejects_unsupported_selector(void **state) {
+/** H.3.3（1）（文档第 207 页）的请求：Selector1 + date_time_s 选择值。 */
+static void test_get_record_request_selector1(void **state) {
     (void)state;
     static const uint8_t apdu[] = {
         0x50, 0x04, 0x02, 0x00, 0x01, 0x20, 0x21, 0x02, 0x00,
@@ -423,7 +423,28 @@ static void test_get_record_request_rejects_unsupported_selector(void **state) {
     uint32_t oad = 0;
     dlt698_record_sel_t sel;
     dlt698_rcsd_t rcsd;
-    assert_int_equal(dlt698_decode_get_record_request(apdu, sizeof(apdu), &oad, &sel, &rcsd),
+    size_t used = 0;
+    assert_int_equal(dlt698_decode_get_record_request(apdu, sizeof(apdu), &oad, &sel, &rcsd, &used),
+                     0);
+    assert_int_equal(oad, 0x50040200U);
+    assert_int_equal(sel.selector, DLT698_RSD_SELECTOR1);
+    assert_int_equal(sel.oad, 0x20210200U);
+    const uint8_t want_value[] = {0x1C, 0x07, 0xE0, 0x01, 0x14, 0x00, 0x00, 0x00};
+    assert_int_equal(sel.value_len, sizeof(want_value));
+    assert_memory_equal(sel.value, want_value, sizeof(want_value));
+    assert_int_equal(rcsd.count, 2);
+    assert_int_equal(used, sizeof(apdu) - 1); /* 不含末尾时间标签 */
+}
+
+static void test_get_record_request_rejects_unsupported_selector(void **state) {
+    (void)state;
+    static const uint8_t apdu[] = {
+        0x50, 0x04, 0x02, 0x00, 0x03,
+    };
+    uint32_t oad = 0;
+    dlt698_record_sel_t sel;
+    dlt698_rcsd_t rcsd;
+    assert_int_equal(dlt698_decode_get_record_request(apdu, sizeof(apdu), &oad, &sel, &rcsd, NULL),
                      DLT698_RECORD_UNSUPPORTED_SELECTOR);
 }
 
@@ -435,7 +456,7 @@ static void test_get_record_request_truncated(void **state) {
     uint32_t oad = 0;
     dlt698_record_sel_t sel;
     dlt698_rcsd_t rcsd;
-    assert_int_equal(dlt698_decode_get_record_request(apdu, sizeof(apdu), &oad, &sel, &rcsd), -1);
+    assert_int_equal(dlt698_decode_get_record_request(apdu, sizeof(apdu), &oad, &sel, &rcsd, NULL), -1);
 }
 
 static void test_get_record_request_rejects_non_date_range(void **state) {
@@ -447,7 +468,7 @@ static void test_get_record_request_rejects_non_date_range(void **state) {
     uint32_t oad = 0;
     dlt698_record_sel_t sel;
     dlt698_rcsd_t rcsd;
-    assert_int_equal(dlt698_decode_get_record_request(apdu, sizeof(apdu), &oad, &sel, &rcsd),
+    assert_int_equal(dlt698_decode_get_record_request(apdu, sizeof(apdu), &oad, &sel, &rcsd, NULL),
                      DLT698_RECORD_UNSUPPORTED_DATA);
 }
 
@@ -769,6 +790,7 @@ int main(void) {
         cmocka_unit_test(test_get_response_normal_list),
         cmocka_unit_test(test_get_response_list_partial_dar),
         cmocka_unit_test(test_get_record_request_selector2),
+        cmocka_unit_test(test_get_record_request_selector1),
         cmocka_unit_test(test_get_record_request_no_selection),
         cmocka_unit_test(test_get_record_request_rejects_unsupported_selector),
         cmocka_unit_test(test_get_record_request_truncated),

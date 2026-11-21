@@ -1,0 +1,64 @@
+== environment ==
+branch: dcu/D1-15b-record-driver
+base: a85217aa (D1-15a merged)
+worktree: /tmp/dcu-baseline-worktree
+gcc: gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0
+
+== clean build: cmake --build build --clean-first -j8 ==
+build_rc=0 warnings=0 errors=0
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+warn_exit=0
+
+== driver record tests (direct run, 10 cases) ==
+[ RUN      ] test_slave_get_record_page
+[       OK ] test_slave_get_record_page
+[ RUN      ] test_slave_get_record_unsupported_selector
+[       OK ] test_slave_get_record_unsupported_selector
+[ RUN      ] test_slave_get_record_begin_failure
+[       OK ] test_slave_get_record_begin_failure
+[ RUN      ] test_slave_get_record_row_failure_aborts_page
+[       OK ] test_slave_get_record_row_failure_aborts_page
+[ RUN      ] test_slave_get_record_port_absent
+[       OK ] test_slave_get_record_port_absent
+[ RUN      ] test_slave_get_record_malformed_is_dropped
+[       OK ] test_slave_get_record_malformed_is_dropped
+[  PASSED  ] 10 test(s).
+driver_test_exit=0
+
+== conformance suite ==
+[==========] tests: 30 test(s) run.
+[  PASSED  ] 30 test(s).
+suite_exit=0
+
+== ctest -R 'dcu|dlt698' ==
+100% tests passed, 0 tests failed out of 29
+Total Test time (real) =  13.04 sec
+ctest_exit=0
+
+== ASAN: build-asan + ctest -R dlt698 + driver test ==
+[287/288] Linking C executable tests/test_iems_dlt645_uart_pty
+[288/288] Linking C executable tests/test_datahub_subscription_capacity
+100% tests passed, 0 tests failed out of 6
+[==========] tests: 10 test(s) run.
+[  PASSED  ] 10 test(s).
+asan_exit=0
+
+== run_guard_selftest.py --root . ==
+  ✅ [LIVE_PASS] check_iems_stdout_line_buffered.py
+
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+guards_exit=0
+
+== ./test.sh --omnis dcu ==
+任务 dcu-acceptance(产品 dcu)·设备清单 /tmp/dcu-baseline-worktree/acceptance/dcu/configs/devices.yaml · 筛选 tag:验收 · 模拟从站 []
+2 passed in 0.10s
+任务 dcu-acceptance 结束,退出码 0
+任务 dcu-northbound(产品 dcu)·设备清单 /tmp/dcu-baseline-worktree/acceptance/dcu/configs/devices_north.yaml · 筛选 tag:北向 · 模拟从站 []
+4 passed in 0.13s
+任务 dcu-northbound 结束,退出码 0
+全部合格:2 个验收任务
+✨ 验收通过
+acceptance_exit=0
+
+== git diff --check ==
+diff_check_exit=0
