@@ -48,9 +48,8 @@ export default defineConfig({
     // 首屏预算靠分包控制：图表、编辑器按需异步加载（§6.8）
     rollupOptions: {
       output: {
-        manualChunks: {
-          echarts: ['echarts'],
-        },
+        manualChunks: (id) =>
+          id.includes('node_modules/echarts') ? 'echarts' : undefined,
       },
     },
   },
