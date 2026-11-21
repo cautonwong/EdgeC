@@ -506,7 +506,7 @@ P1 分两段。P1A 是目录、对象模型与标量北向，23 人日，可立�
 | D1-10 | test | 对象表一致性测试，表里每个 OI 的类、属性位图、方法位图与目录一致 | Q | 1.5 | D1-03 | `test_dcu_698_catalog` | 目录里每个 OI 都能在表里找到，反之亦然 |
 | D1-11 | test | 北向验收扩展到 GET、SET、ACTION、Record 四类，每条判据独立 | Q | 1 | D1-06、D1-07 | `acceptance/dcu/tasks/dcu_northbound.yaml` | `./test.sh --omnis dcu` 通过，失败可归因到单条判据 |
 | D1-12 | docs | 写 ADR 与设计文档，定从站 A-XDR 端口 `resolve_axdr` 与 `accept_axdr` 的签名、缓冲上限、向后兼容与标量回落 | A | 2 | D1-02 | `docs/adr/0013-698-slave-axdr-port.md`、设计文档 4.5 节 | 评审通过，IEC104 与 Modbus 标量路径不变 |
-| D1-13 | feature | 扩展 `edge_slave_source_ops_t`，实现 `resolve_axdr` 与 `accept_axdr`，批量属性与结构属性走调用方缓冲 | C | 3 | D1-12 | `foundation/include/edge_slave_plane.h`、`cmd/dcu/dcu_north_adapter.c` | 标量回落用例通过，结构属性用例通过，无动态内存 |
+| D1-13 | feature | 扩展 `edge_slave_source_ops_t`，实现 `resolve_axdr` 与 `accept_axdr`，批量属性与结构属性走调用方缓冲 | C | 3 | D1-12、D1-03 | `foundation/include/edge_slave_plane.h`、`cmd/dcu/dcu_north_adapter.c` | 标量回落用例通过，结构属性用例通过，无动态内存 |
 | D1-14 | feature | 698 从站补 SET-Request 分支，解 A-XDR 参数，调 `accept_axdr`，按标准回 DAR | D | 2 | D1-12 | `adapters/io_drivers/src/driver_dlt698.c` | 合法写、缺参、错类型、越权四类用例通过 |
 | D1-15 | feature | 698 编解码与从站补 GetRecord 与 RSD，支持时间范围与列选择，超长记录分页 | D | 4 | D1-12、D1-13 | `foundation/src/protocol/dlt698_codec.c`、`driver_dlt698.c` | 5004 按时间范围与列选择查询通过，空范围返回空记录 |
 | D1-16 | feature | 补 REPORT.notification 端口回调、驱动编码与产品上报源 | D | 2 | D1-12、D1-13 | `edge_slave_plane.h`、`driver_dlt698.c`、`cmd/dcu/dcu_event_monitor.c` | 主动上报用例通过，断链后 SnF 补齐 |
@@ -740,9 +740,9 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 
 1. D0-02 去掉演示行为。已合并。
 2. D0-03 stdout 行缓冲与守卫。已合并。
-3. D1-12 到 D1-17 协议栈缺口。当前优先，解除 B1 到 B5，解锁 D1-05 到 D1-07 与 P2 到 P4。
-4. D1-00、D1-01、D1-02 目录、OCR 核对、对象模型设计。设计与目录已随本计划提交，核对与 CI 接入待做。
-5. D1-03、D1-04、D1-08、D1-09、D1-10 对象表与标量读取。
+3. D1-03、D1-04 对象表与标量读取。当前优先，D1-13 的端口需要对象表可调。
+4. D1-13 到 D1-17 协议栈缺口。D1-12 已合并，端口实现依赖 D1-03。
+5. D1-00、D1-01、D1-02 目录、OCR 核对、对象模型设计。设计与目录已提交；OCR 核对待做，CI 接入由 D0-07 负责。
 6. D1-05、D1-06、D1-07、D1-11 北向五类请求。
 7. D0-01、D0-06 文档与 README。不阻塞代码，排在协议栈缺口之后。
 8. D0-04、D0-05 基线与真实帧向量。
@@ -774,7 +774,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-09 | 未开始 | - | - | - | - |
 | D1-10 | 未开始 | - | - | - | - |
 | D1-11 | 阻塞 | - | - | - | 依赖 D1-06、D1-07 |
-| D1-12 | 进行中 | `dcu/D1-12-axdr-port-adr` | - | `/tmp/dcu-dev-worktree/docs/evidence/DCU-D1-12/` | dcu-dev 执行中；解除 B1 |
+| D1-12 | 已合并 | `dcu/D1-12-axdr-port-adr` | `076e0e04` | `docs/evidence/DCU-D1-12/` | ADR-0013 已合并，状态 Proposed；14 个初始化点全为 designated，无位置初始化；架构签字待补 |
 | D1-13 | 未开始 | - | - | - | - |
 | D1-14 | 未开始 | - | - | - | - |
 | D1-15 | 未开始 | - | - | - | - |
@@ -791,6 +791,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | 2026-11-21 | D0-02 | 已派单 | - | dcu-dev 在 `/tmp/dcu-dev-worktree` 执行 |
 | 2026-11-21 | D0-02 | 已合并 | `docs/evidence/DCU-D0-02/` | 合并提交 `d0eb1f43`；合并后 `ctest -R dcu` 25/25，`run_guard_selftest.py` 全绿，验收 `dcu-acceptance` 2 项、`dcu-northbound` 4 项通过 |
 | 2026-11-21 | D0-03 | 已合并 | `docs/evidence/DCU-D0-03/` | 合并提交 `3bfc4237`；合并后 25/25 目标测试、守卫正反夹具、验收 2+4 全过；stdout 守卫扩到全部 `cmd/*/main.c` |
+| 2026-11-21 | D1-12 | 已合并 | `docs/evidence/DCU-D1-12/` | 合并提交 `076e0e04`；ADR-0013 Proposed；独立核对 55 处引用、14 个 designated 初始化点、0 个位置初始化；守卫与目录检查通过 |
 
 ## Appendix A. 698 覆盖明细
 
