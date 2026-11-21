@@ -111,7 +111,11 @@ static dcu_698_object_t g_objects[] = {
      .class_id = IC_CONTROL,
      .scope = DCU_OBJ_SINGLETON,
      .method = _oi_8000_execute,
-     .method_mask = {[BYTE(1)] = BIT(1)}},
+     .method_mask = {[BYTE(1)] = BIT(1),
+                     [BYTE(DCU_ACTION_METHOD_FIRST)] = BIT(DCU_ACTION_METHOD_FIRST),
+                     [BYTE(DCU_ACTION_METHOD_FIRST + 1)] =
+                         BIT(DCU_ACTION_METHOD_FIRST + 1) | BIT(DCU_ACTION_METHOD_FIRST + 2) |
+                         BIT(DCU_ACTION_METHOD_FIRST + 3) | BIT(DCU_ACTION_METHOD_FIRST + 4)}},
 
     {.oi = OI_ESAM_SECURITY,
      .class_id = IC_ESAM,
@@ -292,7 +296,22 @@ static int _oi_5004_execute(const dcu_698_object_t *obj, uint8_t method_id, cons
 static int _oi_8000_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
                             void *result) {
     (void)obj;
-    if (method_id != 1) return -2;
+
+    if (method_id >= DCU_ACTION_METHOD_FIRST && method_id <= DCU_ACTION_METHOD_LAST) {
+        if (method_id <= DCU_ACTION_METHOD_FIRST + 1) {
+            LOG_WARN(LOG_CAT_CORE, "OI 8000 method %u: 产品没有告警输出，拒绝执行", method_id);
+            return EDGE_SLAVE_SRC_TEMPORARY;
+        }
+        if (!param) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+        const dcu_action_param_t *p = (const dcu_action_param_t *)param;
+        LOG_WARN(LOG_CAT_CORE,
+                 "OI 8000 method %u: 参数已解码（%u 项，继电器 OAD=0x%08X），但产品没有"
+                 "继电器 OAD→电表地址映射，拒绝执行",
+                 method_id, p->count, p->relay_oad);
+        return EDGE_SLAVE_SRC_TEMPORARY;
+    }
+
+    if (method_id != 1) return EDGE_SLAVE_SRC_NOT_FOUND;
 
     uint32_t slot = param ? (uint32_t)(uintptr_t)param : 0;
     uint8_t action = result ? *(uint8_t *)result : 1; /* 1=跳闸 0=合闸允许 */

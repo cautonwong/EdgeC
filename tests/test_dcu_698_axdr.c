@@ -835,6 +835,147 @@ static void test_set_scalar_fallback_rejects_structure(void **state) {
     net_buf_pool_destroy(pool);
 }
 
+/* ACTION-Request-Normal：07 | 01 | PIID | OMD(4) | Data | 时间标签。 */
+static size_t build_action(uint8_t *frame, uint8_t method, const uint8_t *param,
+                           size_t param_len) {
+    uint8_t apdu[256] = {DLT698_SVC_ACTION_REQ, 0x01, 0x05, (uint8_t)(OI_REMOTE_CONTROL >> 8),
+                         (uint8_t)OI_REMOTE_CONTROL, method, 0x00};
+    size_t i = 7;
+    assert_true(i + param_len + 1 <= sizeof(apdu));
+    if (param_len > 0) memcpy(apdu + i, param, param_len);
+    i += param_len;
+    apdu[i++] = DLT698_NO_TIME_TAG;
+    return build_request(frame, apdu, i);
+}
+
+static const edge_slave_source_ops_t k_action_src = {.accept_action = dcu_north_accept_action};
+
+static uint8_t run_action_dar(uint8_t method, const uint8_t *param, size_t param_len) {
+    uint8_t frame[512];
+    size_t frame_len = build_action(frame, method, param, param_len);
+
+    net_buf_pool_t *pool = net_buf_pool_new(8, 4096, 0);
+    assert_non_null(pool);
+    net_buf_t *out = net_buf_alloc(pool, 0);
+    assert_non_null(out);
+    alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
+    memset(priv, 0, sizeof(priv));
+    size_t consumed = 0;
+    int rc = dlt698_driver.req_slave_exchange(priv, NULL, frame, frame_len, &k_action_src, NULL, out,
+                                              &consumed);
+    assert_int_equal(rc, 0);
+    assert_int_equal(out->b.data[9], DLT698_SVC_ACTION_RES);
+    assert_int_equal(out->b.data[10], 0x01);
+    uint8_t dar = out->b.data[16];
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(pool);
+    return dar;
+}
+
+static void assert_action_dar(uint8_t method, const uint8_t *param, size_t param_len,
+                              uint8_t want_dar) {
+    assert_int_equal(run_action_dar(method, param, param_len), want_dar);
+}
+
+/* 表 A.9：129 = array<structure{OAD, unsigned, long-unsigned, bool}>。 */
+static const uint8_t k_trip_param[] = {0x01, 0x01, 0x02, 0x04, 0x51, 0x20, 0x00, 0x04,
+                                       0x00, 0x11, 0x05, 0x12, 0x00, 0x0A, 0x03, 0x01};
+
+static void test_action_127_128_null_param(void **state) {
+    (void)state;
+    const uint8_t null_param[] = {0x00};
+    assert_action_dar(127, null_param, sizeof(null_param), DLT698_DAR_TEMPORARY_FAILURE);
+    assert_action_dar(128, null_param, sizeof(null_param), DLT698_DAR_TEMPORARY_FAILURE);
+
+    const uint8_t wrong[] = {0x11, 0x00};
+    assert_action_dar(127, wrong, sizeof(wrong), DLT698_DAR_TYPE_MISMATCH);
+    assert_action_dar(128, wrong, sizeof(wrong), DLT698_DAR_TYPE_MISMATCH);
+}
+
+static void test_action_129_trip_param(void **state) {
+    (void)state;
+    dcu_action_param_t p;
+    assert_int_equal(dcu_698_decode_action_param(129, k_trip_param, sizeof(k_trip_param), &p), 0);
+    assert_int_equal(p.count, 1);
+    assert_int_equal(p.relay_oad, 0x20000400U);
+    assert_int_equal(p.alarm_delay_min, 5);
+    assert_int_equal(p.limit_minutes, 10);
+    assert_true(p.auto_close);
+
+    const uint8_t two_items[] = {0x01, 0x02, 0x02, 0x04, 0x51, 0x20, 0x00, 0x04, 0x00, 0x11,
+                                 0x05, 0x12, 0x00, 0x0A, 0x03, 0x01, 0x02, 0x04, 0x51, 0x20,
+                                 0x00, 0x04, 0x01, 0x11, 0x06, 0x12, 0x00, 0x0B, 0x03, 0x00};
+    assert_int_equal(dcu_698_decode_action_param(129, two_items, sizeof(two_items), &p), 0);
+    assert_int_equal(p.count, 2);
+    assert_int_equal(p.relay_oad, 0x20000400U);
+    assert_action_dar(129, two_items, sizeof(two_items), DLT698_DAR_TEMPORARY_FAILURE);
+
+    assert_action_dar(129, k_trip_param, sizeof(k_trip_param), DLT698_DAR_TEMPORARY_FAILURE);
+
+    const uint8_t missing_field[] = {0x01, 0x01, 0x02, 0x03, 0x51, 0x20, 0x00,
+                                     0x04, 0x00, 0x11, 0x05, 0x12, 0x00, 0x0A};
+    assert_action_dar(129, missing_field, sizeof(missing_field), DLT698_DAR_TYPE_MISMATCH);
+
+    const uint8_t extra_field[] = {0x01, 0x01, 0x02, 0x05, 0x51, 0x20, 0x00, 0x04, 0x00,
+                                   0x11, 0x05, 0x12, 0x00, 0x0A, 0x03, 0x01, 0x11, 0x00};
+    assert_action_dar(129, extra_field, sizeof(extra_field), DLT698_DAR_TYPE_MISMATCH);
+
+    const uint8_t bad_oad_type[] = {0x01, 0x01, 0x02, 0x04, 0x12, 0x00, 0x04, 0x00,
+                                    0x11, 0x05, 0x12, 0x00, 0x0A, 0x03, 0x01};
+    assert_action_dar(129, bad_oad_type, sizeof(bad_oad_type), DLT698_DAR_TYPE_MISMATCH);
+
+    const uint8_t empty_array[] = {0x01, 0x00};
+    assert_action_dar(129, empty_array, sizeof(empty_array), DLT698_DAR_TYPE_MISMATCH);
+
+    const uint8_t too_many[] = {0x01, 0x09};
+    assert_action_dar(129, too_many, sizeof(too_many), DLT698_DAR_TYPE_MISMATCH);
+}
+
+/* 表 A.9：130 = array<structure{OAD, enum}>。 */
+static const uint8_t k_close_param[] = {0x01, 0x01, 0x02, 0x02, 0x51, 0x20,
+                                        0x00, 0x04, 0x00, 0x16, 0x01};
+
+static void test_action_130_close_param(void **state) {
+    (void)state;
+    assert_action_dar(130, k_close_param, sizeof(k_close_param), DLT698_DAR_TEMPORARY_FAILURE);
+
+    const uint8_t wrong_command[] = {0x01, 0x01, 0x02, 0x02, 0x51, 0x20, 0x00, 0x04, 0x00, 0x11, 0x01};
+    assert_action_dar(130, wrong_command, sizeof(wrong_command), DLT698_DAR_TYPE_MISMATCH);
+
+    const uint8_t missing_command[] = {0x01, 0x01, 0x02, 0x01, 0x51, 0x20, 0x00, 0x04, 0x00};
+    assert_action_dar(130, missing_command, sizeof(missing_command), DLT698_DAR_TYPE_MISMATCH);
+}
+
+/* 表 A.9：131 = array<structure{OAD, enum, visible-string}>。 */
+static const uint8_t k_plain_close_param[] = {0x01, 0x01, 0x02, 0x03, 0x51, 0x20, 0x00, 0x04, 0x00,
+                                              0x16, 0x00, 0x0A, 0x06, 0x31, 0x32, 0x33, 0x34, 0x35,
+                                              0x36};
+
+static void test_action_131_password_close_param(void **state) {
+    (void)state;
+    assert_action_dar(131, k_plain_close_param, sizeof(k_plain_close_param),
+                      DLT698_DAR_TEMPORARY_FAILURE);
+
+    const uint8_t missing_password[] = {0x01, 0x01, 0x02, 0x02, 0x51, 0x20,
+                                        0x00, 0x04, 0x00, 0x16, 0x00};
+    assert_action_dar(131, missing_password, sizeof(missing_password), DLT698_DAR_TYPE_MISMATCH);
+
+    const uint8_t wrong_password_type[] = {0x01, 0x01, 0x02, 0x03, 0x51, 0x20, 0x00, 0x04,
+                                           0x00, 0x16, 0x00, 0x09, 0x06, 0x31, 0x32, 0x33,
+                                           0x34, 0x35, 0x36};
+    assert_action_dar(131, wrong_password_type, sizeof(wrong_password_type),
+                      DLT698_DAR_TYPE_MISMATCH);
+}
+
+static void test_action_rejects_other_methods_and_trailing_bytes(void **state) {
+    (void)state;
+    assert_action_dar(126, k_close_param, sizeof(k_close_param), DLT698_DAR_OBJECT_NOT_FOUND);
+
+    const uint8_t trailing[] = {0x00, 0xFF, 0xFF};
+    assert_action_dar(127, trailing, sizeof(trailing), DLT698_DAR_TYPE_MISMATCH);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_product_variable_axdr_types),
@@ -855,6 +996,11 @@ int main(void) {
         cmocka_unit_test(test_set_missing_data_dar7),
         cmocka_unit_test(test_set_scalar_fallback),
         cmocka_unit_test(test_set_scalar_fallback_rejects_structure),
+        cmocka_unit_test(test_action_127_128_null_param),
+        cmocka_unit_test(test_action_129_trip_param),
+        cmocka_unit_test(test_action_130_close_param),
+        cmocka_unit_test(test_action_131_password_close_param),
+        cmocka_unit_test(test_action_rejects_other_methods_and_trailing_bytes),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

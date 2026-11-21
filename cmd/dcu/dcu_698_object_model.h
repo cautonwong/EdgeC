@@ -42,6 +42,20 @@ typedef int (*dcu_698_write_fn)(const dcu_698_object_t *obj, uint8_t attr_id, ui
 typedef int (*dcu_698_method_fn)(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
                                  void *result);
 
+/** 表 A.9 的 OI 8000 方法范围（127…131）。 */
+#define DCU_ACTION_METHOD_FIRST 127
+#define DCU_ACTION_METHOD_LAST 131
+
+/** 表 A.9 中 8000 方法 129/130/131 的解码结果；127/128 参数为 NULL，不填。 */
+typedef struct {
+    uint8_t count;           /* 本次请求的继电器项数；执行落地前只保留首项 */
+    uint32_t relay_oad;
+    uint8_t alarm_delay_min; /* 129: unsigned，分钟 */
+    uint16_t limit_minutes;  /* 129: long-unsigned，0 = 永久限电 */
+    bool auto_close;         /* 129: bool */
+    uint8_t command;         /* 130/131: enum 0=合闸允许 1=直接合闸 */
+} dcu_action_param_t;
+
 struct dcu_698_object_s {
     uint16_t oi;
     uint8_t class_id;

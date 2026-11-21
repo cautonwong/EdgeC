@@ -118,7 +118,7 @@ typedef struct {
      * 限电时间, 自动合闸}`（标准表 A.9）。把结构压成一个 double 只能靠猜。
      *
      * 驱动只负责"解出是哪一次操作 + 把参数字节原样交给产品"，语义归产品。
-     * 未实现时返回非 0 —— 驱动据此回 DAR=2（暂时失效），**不许回 0**。
+     * 失败时返回 `EDGE_SLAVE_SRC_*`，驱动据此映射 DAR（7/3/6/2）；**不许回 0**。
      */
     int (*accept_action)(void *ctx, uint32_t omd, const uint8_t *axdr, size_t axdr_len);
 

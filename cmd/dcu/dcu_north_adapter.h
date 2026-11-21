@@ -17,6 +17,9 @@ typedef struct bus_orchestrator_s bus_orchestrator_t;
 int dcu_north_resolve_scalar(void *ctx, uint32_t oad, const void *desc, size_t desc_len,
                              edge_point_value_t *out);
 
+/** @brief ACTION 入口：解 A.9 参数并交给对象表分派；测试直接调用。 */
+int dcu_north_accept_action(void *ctx, uint32_t omd, const uint8_t *axdr, size_t axdr_len);
+
 void dcu_north_slave_attach(uv_loop_t *loop, datahub_t *hub, bus_orchestrator_t *orch);
 void dcu_north_cloud_attach(datahub_t *hub);
 void dcu_north_stop(void);

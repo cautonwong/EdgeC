@@ -91,6 +91,76 @@ int dcu_north_resolve_axdr(void* ctx, uint32_t oad, uint8_t* buf, size_t cap, si
     return (_encode_axdr_value(&v, buf, cap, len) == 0) ? 0 : EDGE_SLAVE_SRC_TYPE_MISMATCH;
 }
 
+/* 表 A.9：8000 的告警状态与命令状态都是 8 路继电器，一次操作最多 8 项。 */
+#define ACTION_MAX_ITEMS 8
+
+static int _decode_action_item(uint8_t method, const dlt698_data_t* item,
+                               dcu_action_param_t* out) {
+    uint8_t want = (method == 129) ? 4 : (method == 130) ? 2 : 3;
+    if (item->tag != DLT698_TAG_STRUCTURE || item->val.container.count != want ||
+        !item->val.container.items) {
+        return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    }
+    const dlt698_data_t* f = item->val.container.items;
+    if (f[0].tag != DLT698_TAG_OAD) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    out->relay_oad = f[0].val.u32;
+
+    if (method == 129) {
+        if (f[1].tag != DLT698_TAG_UNSIGNED || f[2].tag != DLT698_TAG_LONG_UNSIGNED ||
+            f[3].tag != DLT698_TAG_BOOLEAN) {
+            return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+        }
+        out->alarm_delay_min = f[1].val.u8;
+        out->limit_minutes = f[2].val.u16;
+        out->auto_close = f[3].val.u8 != 0;
+        return 0;
+    }
+
+    if (f[1].tag != DLT698_TAG_ENUM) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    out->command = f[1].val.u8;
+    if (method == 131 && f[2].tag != DLT698_TAG_VISIBLE_STRING) {
+        return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    }
+    return 0;
+}
+
+int dcu_698_decode_action_param(uint8_t method, const uint8_t* buf, size_t len,
+                                dcu_action_param_t* out) {
+    if (!buf || !out || len > UINT16_MAX) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+
+    uint16_t off = 0;
+    dlt698_data_t d;
+    memset(&d, 0, sizeof(d));
+    if (dlt698_decode_data(buf, (uint16_t)len, &off, &d) != 0) {
+        return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    }
+    /* ACTION-Request 的 Data 后允许一个时间标签字节。 */
+    if ((size_t)off + 1 < len) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+
+    if (method == DCU_ACTION_METHOD_FIRST || method == DCU_ACTION_METHOD_FIRST + 1) {
+        return (d.tag == DLT698_TAG_NULL) ? 0 : EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    }
+    if (method < DCU_ACTION_METHOD_FIRST || method > DCU_ACTION_METHOD_LAST) {
+        return EDGE_SLAVE_SRC_NOT_FOUND;
+    }
+    if (d.tag != DLT698_TAG_ARRAY || !d.val.container.items ||
+        d.val.container.count == 0 || d.val.container.count > ACTION_MAX_ITEMS) {
+        return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    }
+
+    uint8_t count = (uint8_t)d.val.container.count;
+    dcu_action_param_t first = {0};
+    for (uint8_t i = 0; i < count; i++) {
+        dcu_action_param_t item = {0};
+        int rc = _decode_action_item(method, &d.val.container.items[i], &item);
+        if (rc != 0) return rc;
+        if (i == 0) first = item;
+    }
+    *out = first;
+    out->count = count;
+    return 0;
+}
+
 typedef enum { W_U32, W_U8, W_BOOL, W_F32 } write_kind_t;
 
 static int _write_kind_for(uint16_t oi, uint8_t attr_id, write_kind_t* kind) {

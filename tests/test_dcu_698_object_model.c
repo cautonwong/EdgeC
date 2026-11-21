@@ -27,6 +27,7 @@ static const uint8_t k_attr_23[] = {2, 3};
 static const uint8_t k_attr_event[] = {2, 3, 4, 5, 6, 8, 9, 10};
 static const uint8_t k_method_1[] = {1};
 static const uint8_t k_method_127[] = {127};
+static const uint8_t k_method_8000[] = {1, 127, 128, 129, 130, 131};
 static const uint8_t k_method_6000[] = {1, 2, 3, 4, 5, 127, 128};
 static const uint8_t k_method_5004[] = {3, 4, 5, 7, 8};
 
@@ -39,7 +40,7 @@ static const expected_object_t k_expected[] = {
      0},
     {(uint16_t)((OAD_DAILY_FREEZE >> 16) & 0xFFFF), IC_RECORD, DCU_OBJ_SHARED, k_attr_2, 1,
      k_method_5004, 5},
-    {OI_REMOTE_CONTROL, IC_CONTROL, DCU_OBJ_SINGLETON, NULL, 0, k_method_1, 1},
+    {OI_REMOTE_CONTROL, IC_CONTROL, DCU_OBJ_SINGLETON, NULL, 0, k_method_8000, 6},
     {OI_ESAM_SECURITY, IC_ESAM, DCU_OBJ_SINGLETON, NULL, 0, k_method_1, 1},
     {OI_CHANNEL_CONFIG, IC_PERIPHERAL, DCU_OBJ_SINGLETON, k_attr_23, 2, NULL, 0},
     {OI_METER_DISCOVERY, IC_ACQUISITION, DCU_OBJ_SINGLETON, k_attr_23, 2, k_method_127, 1},

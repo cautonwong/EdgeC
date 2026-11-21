@@ -98,24 +98,38 @@ def test_master_reads_archive_count_as_long_unsigned(meter):
     )
 
 
-@case(id="D_00_00_02_000003", clause="free: 未实现的操作必须回失败 DAR，不许假成功", tags=["北向"])
+@case(id="D_00_00_02_000003", clause="free: 未实现的 ACTION 必须回失败 DAR，不许假成功", tags=["北向"])
 @pytest.mark.contract
 def test_action_returns_failure_dar_not_fake_success():
-    """跳闸（OI 8000 方法 129）当前**未实现**，必须回 DAR=2（暂时失效）。
+    """跳闸（OI 8000 方法 129）参数合法，但产品没有继电器 OAD→电表地址映射，必须回 DAR=2。
 
-    为什么"验失败"也是验收：标准表 A.9 规定方法 129 的参数是
-    `array<structure{继电器 OAD, 告警延时, 限电时间, 自动合闸}>`，我们还没解它。
-    这时候如果从站回 DAR=0（成功），主站会认为继电器已经动了 —— 那是比"不支持"
-    危险得多的错，因为没人会去复查。
+    为什么"验失败"也是验收：129 的参数是表 A.9 的
+    `array<structure{继电器 OAD, 告警延时, 限电时间, 自动合闸}>`。如果从站回
+    DAR=0（成功），主站会认为继电器已经动了 —— 那是比"不支持"危险得多的错，
+    因为没人会去复查。
     """
-    # 参数段随便给一个结构（只为触发方法分派），重点看 DAR
-    apdu = dlt698.action_request(0x07, 0x8000, 129, param=bytes.fromhex("01 01 00 00 00"))
+    param = bytes.fromhex("01 01 02 04 51 20 00 04 00 11 05 12 00 0A 03 01")
+    apdu = dlt698.action_request(0x07, 0x8000, 129, param=param)
     frame = _exchange(apdu)
     res = dlt698.parse_action_response(frame.apdu)
 
     assert res.oi == 0x8000 and res.method == 129, f"回的操作不是 OI8000/129：{res}"
-    assert not res.ok, "跳闸还没实现，却回了成功（DAR=0）—— 这是假成功"
+    assert not res.ok, "没有继电器映射，却回了成功（DAR=0）—— 这是假成功"
     assert res.dar == 2, f"期望 DAR=2（暂时失效），回的是 {res.dar}（{res.error}）"
+
+    # 产品必须还活着：同一个从站再读一次电压。
+    assert _exchange(dlt698.get_request(0x01, 0x20000200)).apdu[0] == 0x85
+
+
+@case(id="D_00_00_02_000009", clause="free: 形状不符的 ACTION 参数回 DAR 7", tags=["北向"])
+@pytest.mark.contract
+def test_action_wrong_shape_returns_type_mismatch():
+    """129 的结构少一个字段（没有 bool 自动合闸），必须回 DAR 7，不能按 DAR 2 混过去。"""
+    param = bytes.fromhex("01 01 02 03 51 20 00 04 00 11 05 12 00 0A")
+    frame = _exchange(dlt698.action_request(0x07, 0x8000, 129, param=param))
+    res = dlt698.parse_action_response(frame.apdu)
+
+    assert res.dar == 7, f"形状错误应回 DAR 7（类型不匹配），回了 {res.dar}（{res.error}）"
 
 
 def _north_frames() -> list:
