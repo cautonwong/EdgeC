@@ -10,29 +10,37 @@
  *   - 从站：解 GET 请求 → src->resolve(oad) → 组应答，驱动不认识点位模型
  */
 
+#include "driver_dlt698.h"
+
 #include <stdint.h>
 #include <string.h>
 
-#include "dlt698_codec.h"
 #include "dlt645_codec.h"
-#include "driver_dlt698.h"
+#include "dlt698_codec.h"
 #include "driver_manager.h"
 #include "edge_driver.h"
 #include "edge_log.h"
+#include "edge_slave_plane.h"
 #include "net_buf.h"
 
 #define DLT698_ADDR_LEN 6
 
+/* A-XDR 编码缓冲：从站交换在 io 线程一问一答串行执行，缓冲按线程复用，
+ * 不进栈（单条 2048、列表 8×2048），也不引入动态内存。若未来同一线程并行
+ * 处理多路 698 从站，需要改为调用方/池缓冲。 */
+static _Thread_local uint8_t s_axdr_buf[DCU_698_AXDR_MAX];
+static _Thread_local uint8_t s_axdr_list_buf[DLT698_GET_LIST_MAX][DCU_698_AXDR_MAX];
+
 /** 请求私有数据：驱动认识的全部信息 */
 typedef struct {
-    uint32_t oad;                  /**< 对象标识，698 原生点位 */
-    uint8_t piid;                  /**< 服务序号 */
+    uint32_t oad; /**< 对象标识，698 原生点位 */
+    uint8_t piid; /**< 服务序号 */
     uint8_t sa_addr[DLT698_ADDR_LEN];
     uint8_t sa_len;
-    int32_t raw;                   /**< 解码出的原始值 */
-    bool is_write;                 /**< 本次是 SET 还是 GET */
-    uint8_t write_type;            /**< A-XDR 类型标签 */
-    double write_value;            /**< 写入值（raw） */
+    int32_t raw;        /**< 解码出的原始值 */
+    bool is_write;      /**< 本次是 SET 还是 GET */
+    uint8_t write_type; /**< A-XDR 类型标签 */
+    double write_value; /**< 写入值（raw） */
 } dlt698_req_t;
 
 /* PIID 是协议层序号，不依赖任何全局服务 */
@@ -46,10 +54,9 @@ static void _fill_sa(dlt698_req_t *p, uint32_t slave_id) {
 
 /* ==================== 主站侧 ==================== */
 
-static int dlt698_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id, const void *meta_list,
-                              uint32_t meta_list_len, const void *point_desc,
-                              size_t point_desc_len,
-                              bool is_write, double value) {
+static int dlt698_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id,
+                              const void *meta_list, uint32_t meta_list_len, const void *point_desc,
+                              size_t point_desc_len, bool is_write, double value) {
     (void)meta_list;
     (void)meta_list_len;
     dlt698_req_t *p = (dlt698_req_t *)priv;
@@ -120,8 +127,8 @@ static int dlt698_req_encode(void *priv, void *session, net_buf_t *out) {
     return dlt698_encode_set_request(&sa, p->piid, p->oad, axdr, off, out);
 }
 
-static int dlt698_req_decode(void *priv, void *session, const uint8_t *buf, size_t len, size_t *consumed,
-                             double *out_value) {
+static int dlt698_req_decode(void *priv, void *session, const uint8_t *buf, size_t len,
+                             size_t *consumed, double *out_value) {
     (void)session; /* 无会话状态：这一帧自成一体 */
     dlt698_req_t *p = (dlt698_req_t *)priv;
     if (!p || !buf || !consumed) return -1;
@@ -146,8 +153,8 @@ static int dlt698_req_decode(void *priv, void *session, const uint8_t *buf, size
 
     if (svc != DLT698_SVC_GET_RES || payload_len < 5) return -1;
 
-    uint32_t oad_rx = (uint32_t)((payload[0] << 24) | (payload[1] << 16) | (payload[2] << 8) |
-                                 payload[3]);
+    uint32_t oad_rx =
+        (uint32_t)((payload[0] << 24) | (payload[1] << 16) | (payload[2] << 8) | payload[3]);
     /* 不是本请求的对象：不认，让调用方继续找 */
     if (oad_rx != p->oad) return EDGE_ERR_INCOMPLETE;
 
@@ -157,12 +164,24 @@ static int dlt698_req_decode(void *priv, void *session, const uint8_t *buf, size
 
     double val = 0.0;
     switch (res.tag) {
-        case DLT698_TAG_UNSIGNED: val = (double)res.val.u8; break;
-        case DLT698_TAG_LONG_UNSIGNED: val = (double)res.val.u16; break;
-        case DLT698_TAG_DOUBLE_LONG_UNSIGNED: val = (double)res.val.u32; break;
-        case DLT698_TAG_INTEGER: val = (double)res.val.i8; break;
-        case DLT698_TAG_LONG: val = (double)res.val.i16; break;
-        case DLT698_TAG_DOUBLE_LONG: val = (double)res.val.i32; break;
+        case DLT698_TAG_UNSIGNED:
+            val = (double)res.val.u8;
+            break;
+        case DLT698_TAG_LONG_UNSIGNED:
+            val = (double)res.val.u16;
+            break;
+        case DLT698_TAG_DOUBLE_LONG_UNSIGNED:
+            val = (double)res.val.u32;
+            break;
+        case DLT698_TAG_INTEGER:
+            val = (double)res.val.i8;
+            break;
+        case DLT698_TAG_LONG:
+            val = (double)res.val.i16;
+            break;
+        case DLT698_TAG_DOUBLE_LONG:
+            val = (double)res.val.i32;
+            break;
         default:
             dlt698_free_data(&res);
             return -1;
@@ -273,14 +292,27 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
                 const uint8_t *oad_bytes = payload + 1 + 4 * k;
                 uint32_t oad = (uint32_t)((oad_bytes[0] << 24) | (oad_bytes[1] << 16) |
                                           (oad_bytes[2] << 8) | oad_bytes[3]);
+                items[k].oad = oad;
+                size_t dlen = 0;
+                if (src && src->resolve_axdr) {
+                    /* A-XDR 通道：完整值（含类型标签）。实现后不再回落标量；
+                     * 超限或失败按对象不存在回 DAR，不截断。 */
+                    if (src->resolve_axdr(src_ctx, oad, s_axdr_list_buf[k],
+                                          sizeof(s_axdr_list_buf[k]), &dlen) != 0 ||
+                        dlen == 0 || dlen > sizeof(s_axdr_list_buf[k])) {
+                        items[k].dar = 6;
+                        continue;
+                    }
+                    items[k].data = s_axdr_list_buf[k];
+                    items[k].dlen = dlen;
+                    continue;
+                }
                 edge_point_value_t v;
                 memset(&v, 0, sizeof(v));
-                items[k].oad = oad;
                 if (!src || !src->resolve || src->resolve(src_ctx, oad, NULL, 0, &v) != 0) {
                     items[k].dar = 6; /* DAR: 对象不存在（标准 6.3.3.11） */
                     continue;
                 }
-                size_t dlen = 0;
                 if (_encode_axdr_value(&v, bufs[k], &dlen) != 0) {
                     items[k].dar = 7; /* DAR: 类型不匹配 */
                     continue;
@@ -295,8 +327,18 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
         if (choice != DLT698_CHOICE_GET_NORMAL) return -1;
         if (payload_len < 4) return -1;
 
-        uint32_t oad = (uint32_t)((payload[0] << 24) | (payload[1] << 16) | (payload[2] << 8) |
-                                  payload[3]);
+        uint32_t oad =
+            (uint32_t)((payload[0] << 24) | (payload[1] << 16) | (payload[2] << 8) | payload[3]);
+        if (src && src->resolve_axdr) {
+            size_t dlen = 0;
+            if (src->resolve_axdr(src_ctx, oad, s_axdr_buf, sizeof(s_axdr_buf), &dlen) != 0 ||
+                dlen == 0 || dlen > sizeof(s_axdr_buf)) {
+                return -1;
+            }
+            dlt698_encode_get_response(&sa, piid, oad, s_axdr_buf, dlen, out);
+            return 0;
+        }
+
         edge_point_value_t v;
         memset(&v, 0, sizeof(v));
         if (!src || !src->resolve || src->resolve(src_ctx, oad, NULL, 0, &v) != 0) {
@@ -315,8 +357,8 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
     if (svc == DLT698_SVC_ACTION_REQ) {
         /* ACTION-Request-Normal：payload = OMD(4) | Data | 时间标签（PIID 已由 decode 取出） */
         if (payload_len < 4) return -1;
-        uint32_t omd = (uint32_t)((payload[0] << 24) | (payload[1] << 16) | (payload[2] << 8) |
-                                  payload[3]);
+        uint32_t omd =
+            (uint32_t)((payload[0] << 24) | (payload[1] << 16) | (payload[2] << 8) | payload[3]);
 
         double param = 0.0;
         if (payload_len > 4) {
@@ -325,12 +367,23 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
             uint16_t off = 0;
             if (dlt698_decode_data(payload + 4, (uint16_t)(payload_len - 4), &off, &d) == 0) {
                 switch (d.tag) {
-                    case DLT698_TAG_INTEGER: param = (double)d.val.i8; break;
-                    case DLT698_TAG_UNSIGNED: param = (double)d.val.u8; break;
-                    case DLT698_TAG_LONG: param = (double)d.val.i16; break;
-                    case DLT698_TAG_LONG_UNSIGNED: param = (double)d.val.u16; break;
-                    case DLT698_TAG_ENUM: param = (double)d.val.u8; break;
-                    default: break;
+                    case DLT698_TAG_INTEGER:
+                        param = (double)d.val.i8;
+                        break;
+                    case DLT698_TAG_UNSIGNED:
+                        param = (double)d.val.u8;
+                        break;
+                    case DLT698_TAG_LONG:
+                        param = (double)d.val.i16;
+                        break;
+                    case DLT698_TAG_LONG_UNSIGNED:
+                        param = (double)d.val.u16;
+                        break;
+                    case DLT698_TAG_ENUM:
+                        param = (double)d.val.u8;
+                        break;
+                    default:
+                        break;
                 }
                 dlt698_free_data(&d);
             }
@@ -370,8 +423,8 @@ const edge_driver_t dlt698_driver = {
     .req_slave_exchange = dlt698_req_slave_exchange,
 };
 
-
 /* File-local prototypes. */
 int dlt698_driver_register(driver_manager_t *mgr);
-int dlt698_driver_register(driver_manager_t *mgr) {    return driver_manager_register(mgr, &dlt698_driver);
+int dlt698_driver_register(driver_manager_t *mgr) {
+    return driver_manager_register(mgr, &dlt698_driver);
 }

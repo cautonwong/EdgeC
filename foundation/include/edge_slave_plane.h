@@ -32,11 +32,14 @@
 extern "C" {
 #endif
 
+/** 单条属性的 A-XDR 上限（ADR-0013）；超过的记录型属性走 GetRecord 分页。 */
+#define DCU_698_AXDR_MAX 2048
+
 /** 从站应答需要的一个点位取值 */
 typedef struct {
-    double value;    /**< 工程值（已标定） */
-    int32_t raw;     /**< 未标定原始值；驱动编码字节用这个 */
-    uint8_t width;   /**< 数据宽度：645 是字节数(2/4)，Modbus 是寄存器个数 */
+    double value;  /**< 工程值（已标定） */
+    int32_t raw;   /**< 未标定原始值；驱动编码字节用这个 */
+    uint8_t width; /**< 数据宽度：645 是字节数(2/4)，Modbus 是寄存器个数 */
     /**
      * @brief A-XDR 类型标签（698 用）。0 = 让驱动按 width 推断。
      *
@@ -113,6 +116,22 @@ typedef struct {
      * @return 0 = 已发出关闭；-1 = 没有活动连接（驱动忽略返回值）
      */
     int (*close_link)(void *ctx);
+
+    /**
+     * @brief 取一个 OAD 的完整 A-XDR 值（含类型标签）。
+     *
+     * 缓冲由调用方提供；产品只写 `cap` 以内，超限返回非 0，驱动不得截断。
+     * 未实现时为 NULL，驱动回落标量 `resolve`；已实现但返回非 0 是真实失败，
+     * 不得回落（ADR-0013）。
+     */
+    int (*resolve_axdr)(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, size_t *len);
+
+    /**
+     * @brief 收一个 OAD 的原始 A-XDR 值（含类型标签）。
+     *
+     * 未实现时为 NULL，SET 回落标量 `accept`。D1-14 起接 SET 分支。
+     */
+    int (*accept_axdr)(void *ctx, uint32_t oad, const uint8_t *axdr, size_t len);
 } edge_slave_source_ops_t;
 
 #ifdef __cplusplus
