@@ -46,7 +46,7 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 | `dcu/D1-10-catalog-consistency` | D1-10 | merged `5a4fda20` | generated fixture + strict table/catalog test; post-merge 29/29 |
 | `dcu/D1-05-resolve-table` | D1-05 | merged `ac7b8dfe` | one OAD→type table; acceptance 7 cases; fixed count_freezes ctx OOB |
 | `dcu/D1-15b-record-driver` | D1-15b | merged `7658967a` | ADR-0014 record port, Selector1, driver GET [3]; acceptance flaked once |
-| `dcu/D1-08-normal-list` | D1-08 | active, dcu-dev | mixed per-item DAR, empty list, duplicate OAD |
+| `dcu/D1-08-normal-list` | D1-08 | merged `c291f3e7` | empty list legal per Table 73, mixed DAR, duplicate OAD; acceptance 8 |
 | `dcu/D0-10-atomic-bus-log` | D0-10 | active, edgec-dev-0 | atomic bus.json write; root cause of the acceptance flake |
 | `dcu/D1-15a-record-codec` | D1-15a | merged `87185420` | RSD [0]/[2], RCSD, Table 74 streaming; H.3.3 exact; 0 skips |
 | `dcu/D1-14-set` | D1-14 | active, dcu-dev | SET-Request, accept_axdr write, SET-Response DAR |
@@ -81,6 +81,7 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 | 2026-11-22 | D1-15a | merged `87185420` | codec only; H.3.3 response byte-exact; unsupported selectors explicit; post-merge 29/29 |
 | 2026-11-22 | D1-05 | merged `ac7b8dfe` | single type table; found and fixed a ~900 KB OOB in the 5004 count sink; post-merge 30/30, full 332/332, ASAN, guards, acceptance 7 |
 | 2026-11-22 | D1-15b | merged `7658967a` | ADR-0014; driver 10/10; acceptance failed once on an empty `bus.json`, rerun green; D0-10 dispatched to make the write atomic |
+| 2026-11-22 | D1-08 | merged `c291f3e7` | empty list legal (Table 73), mixed DAR, duplicate OAD; post-merge 30/30 and acceptance 8 green |
 | 2026-11-21 | D1-10 | blocked | table/catalog consistency cannot pass honestly until D0-09 lands; no exemption list |
 | 2026-11-21 | D0-05b | code verified, waiting | DAR mapping and GET-Normal DAR response good; needs ADR/design sync and rebase onto D0-08 |
 
