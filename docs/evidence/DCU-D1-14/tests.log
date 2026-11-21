@@ -1,7 +1,7 @@
 === build ===
-[297/299] Linking C executable tests/test_iems_north_iec104
-[298/299] Linking C executable tests/test_iems_dlt645_uart_pty
-[299/299] Linking C executable tests/test_iems_cli_write
+[292/294] Linking C executable tests/test_iems_north_iec104
+[293/294] Linking C executable tests/test_iems_dlt645_uart_pty
+[294/294] Linking C executable tests/test_iems_cli_write
 warnings=0
 
 === check_build_warnings.py ===
@@ -43,7 +43,9 @@ exit=0
 [       OK ] test_set_missing_data_dar7
 [ RUN      ] test_set_scalar_fallback
 [       OK ] test_set_scalar_fallback
-[  PASSED  ] 14 test(s).
+[ RUN      ] test_set_scalar_fallback_rejects_structure
+[       OK ] test_set_scalar_fallback_rejects_structure
+[  PASSED  ] 15 test(s).
 
 === test_dlt698_conformance_suite ===
 [  PASSED  ] 22 test(s).

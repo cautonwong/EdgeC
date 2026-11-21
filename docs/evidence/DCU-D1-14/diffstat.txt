@@ -1,19 +1,13 @@
-commit 7a1fc32d10d181e708dd1d3632330c1597b3381b
+commit 0331da71bce4d88815eba662fd655969965a941d
 Author: 800900 <992878191@qq.com>
-Date:   Sat Nov 21 23:27:20 2026 +0800
+Date:   Sat Nov 21 23:41:35 2026 +0800
 
-    feat(DCU-D1-14): implement 698 SET-Request path
+    fix(DCU-D1-14): reject non-scalar fallback and split DAR causes
     
     Co-Authored-By: Claude Code <noreply@anthropic.com>
 
- adapters/io_drivers/src/driver_dlt698.c |  79 ++++++++++++++++
- cmd/dcu/README.md                       |   8 +-
- cmd/dcu/dcu_698_axdr.c                  | 136 ++++++++++++++++++++++++++-
- docs/adr/0013-698-slave-axdr-port.md    |   1 +
- docs/design/DCU_698_OBJECT_MODEL.md     |   2 +-
- foundation/include/dlt698_codec.h       |  10 ++
- foundation/include/edge_slave_plane.h   |   3 +-
- foundation/src/protocol/dlt698_codec.c  |  58 ++++++++++++
- tests/test_dcu_698_axdr.c               | 160 ++++++++++++++++++++++++++++++++
- tests/test_dlt698_conformance_suite.c   |  51 ++++++----
- 10 files changed, 480 insertions(+), 28 deletions(-)
+ adapters/io_drivers/src/driver_dlt698.c | 17 ++++++++++++++++-
+ cmd/dcu/dcu_698_axdr.c                  |  3 ++-
+ foundation/src/protocol/dlt698_codec.c  | 28 +++++++++++++++++-----------
+ tests/test_dcu_698_axdr.c               | 33 +++++++++++++++++++++++++++++++++
+ 4 files changed, 68 insertions(+), 13 deletions(-)
