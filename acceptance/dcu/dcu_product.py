@@ -281,6 +281,10 @@ def main() -> int:
     ready.wait(5)
 
     env = {"PATH": "/usr/local/bin:/usr/bin:/bin", "EDGEC_DATA_DIR": str(RUN_DIR)}
+    # 台架显式开启演示行为（冻结、随机跳闸、遥控、3 周期自退）。生产默认关闭；
+    # `test_dcu_sends_trip_control_frame` 依赖这条 2 秒遥控定时器，不能靠产品默认值。
+    # 不放进下面的转发白名单：台架必须固定开启，不能被外层环境覆盖成 0。
+    env["DCU_DEMO_MODE"] = "1"
 
     # 北向 broker 由用例侧起（端口随机），只能经壳自己的环境传进来。
     # 必须显式转发：env 是白名单字典，不转发就等于产品永远连默认 1883，
