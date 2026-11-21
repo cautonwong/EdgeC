@@ -769,7 +769,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D0-05b | 进行中 | `dcu/D0-05b-dar` | `15a51c80` | `/tmp/dcu-dev-worktree/docs/evidence/DCU-D0-05b/` | dcu-dev 执行中；对齐 DAR 4/5/6/7，GET-Normal 缺失对象回 DAR |
 | D0-06 | 已合并 | `dcu/D0-06-docs` | `50feb55e` | `docs/evidence/DCU-D0-06/` | 文档与代码对齐；`git diff --check`、目录检查、守卫通过；文档任务不做 `/no-comments` 代码注释审查 |
 | D0-07 | 已合并 | `dcu/D0-07-catalog-ci` | `355c8251` | `docs/evidence/DCU-D0-07/` | 合并提交 `355c8251`；目录门禁进 CI 与守卫自检，parity 11 条；动态真实文档副本正反夹具；`/no-comments` 删 10 行 |
-| D0-08 | 进行中 | `dcu/D0-08-asan-frame-lifetime` | `5c808baf` | `docs/evidence/DCU-D0-08/` | D0-04 基线发现的真实红门禁：`test_dlt698_conformance_suite.c` 的 `decode_frame` 返回指向自身栈帧的 payload，ASAN `stack-use-after-scope`；CI `x86_64_asan` 跑全量 ctest，故 main 自 D0-05 起红 |
+| D0-08 | 已合并 | `dcu/D0-08-asan-frame-lifetime` | `9e458af6` | `docs/evidence/DCU-D0-08/` | 合并提交 `9e458af6`；`decode_frame_borrows` 借用调用方帧，删本地 512 字节存储；ASAN 全量 330/330、目标 6/6；合并后 main 再跑 ASAN 6/6、守卫全绿 |
 | D1-00 | 已合并 | `main` | `355c8251` | `scripts/extract_dcu_698_catalog.py` | 生成器、目录与 `--check` 门禁均已入库；D0-07 接入 CI 与守卫自检 |
 | D1-01 | 未开始 | - | - | - | 以 `698.pdf` 重抽 79 行 OCR 列错位 |
 | D1-02 | 待验收 | `main` | `8d8089bf` | `docs/design/DCU_698_OBJECT_MODEL.md` | 设计文档已提交，待架构评审 |
@@ -814,6 +814,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | 2026-11-21 | D0-01 | 已合并 | `docs/evidence/DCU-D0-01/` | 合并提交 `ea775f3f`；README 307→83 行；文档任务跳过 `/no-comments`；D1-13 合并后补 A-XDR 一行 |
 | 2026-11-21 | D1-13 | 已合并 | `docs/evidence/DCU-D1-13/` | 合并提交 `68f4de69`；合并后 28/28 目标测试、守卫全绿、验收 2+4 通过；流式逐项编码替代 8×2048；`/no-comments` 23 行，DAR 字面量改 `DLT698_DAR_*` |
 | 2026-11-21 | D0-07 | 已合并 | `docs/evidence/DCU-D0-07/` | 合并提交 `355c8251`；合并后目录门禁 0、parity 11 条、守卫自检全绿、28/28、验收 2+4；临时真实文档副本改坏后拒收 |
+| 2026-11-21 | D0-08 | 已合并 | `docs/evidence/DCU-D0-08/` | 合并提交 `9e458af6`；ASAN 全量 330/330、目标 6/6；合并后 main 的 ASAN 目标 6/6、release 28/28、守卫全绿；`/no-comments` 采纳 1 条 MUST KILL，helper 改名 `decode_frame_borrows` |
 
 ### 12.4 并行工作树
 
