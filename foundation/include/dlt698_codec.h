@@ -101,6 +101,15 @@ int dlt698_encode_get_response(const dlt698_addr_t *sa, uint8_t piid, uint32_t o
                                const uint8_t *data, size_t dlen, net_buf_t *out);
 
 /**
+ * @brief 构造带 DAR 的 GET-Response-Normal（标准 6.3.8.2 / 6.3.3.11）。
+ *
+ * APDU：`85 | 01 | PIID | OAD(4) | 00 | DAR | 00 | 00`
+ * CHOICE [0] 表示本次没有数据，只有 DAR。
+ */
+int dlt698_encode_get_response_dar(const dlt698_addr_t *sa, uint8_t piid, uint32_t oad, uint8_t dar,
+                                   net_buf_t *out);
+
+/**
  * @brief GET-Response-NormalList 的一个结果项（标准 6.3.8.2.2 表73）。
  *
  * `A-ResultNormal = SEQUENCE { OAD, Get-Result }`，Get-Result 是 CHOICE：

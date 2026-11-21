@@ -98,8 +98,8 @@ static dlt698_addr_t _sa(void) {
     return sa;
 }
 
-static void _expect_bytes(const uint8_t *got, size_t got_len, const uint8_t *want,
-                          size_t want_len, const char *what) {
+static void _expect_bytes(const uint8_t *got, size_t got_len, const uint8_t *want, size_t want_len,
+                          const char *what) {
     if (got_len != want_len) {
         printf("%s 长度不符：实际 %zu，期望 %zu\n实际: ", what, got_len, want_len);
         for (size_t i = 0; i < got_len; i++) printf("%02X ", got[i]);
@@ -107,7 +107,8 @@ static void _expect_bytes(const uint8_t *got, size_t got_len, const uint8_t *wan
     }
     assert_int_equal(got_len, want_len);
     for (size_t i = 0; i < want_len; i++) {
-        if (got[i] != want[i]) printf("%s 第 %zu 字节：实际 %02X 期望 %02X\n", what, i, got[i], want[i]);
+        if (got[i] != want[i])
+            printf("%s 第 %zu 字节：实际 %02X 期望 %02X\n", what, i, got[i], want[i]);
         assert_int_equal(got[i], want[i]);
     }
 }
@@ -169,9 +170,8 @@ static void test_frame_known_answer_full_bytes(void **state) {
 
     /* H.3.1 发送：05 01 01 40 01 02 00 00 */
     assert_int_equal(dlt698_encode_get_request(&sa, 0x01, 0x40010200U, out), 0);
-    const uint8_t want_req[] = {0x68, 0x12, 0x00, 0x43, 0x00, 0x01, 0x10, 0x4A, 0x87,
-                                0x05, 0x01, 0x01, 0x40, 0x01, 0x02, 0x00, 0x00, 0xC6, 0x07,
-                                0x16};
+    const uint8_t want_req[] = {0x68, 0x12, 0x00, 0x43, 0x00, 0x01, 0x10, 0x4A, 0x87, 0x05,
+                                0x01, 0x01, 0x40, 0x01, 0x02, 0x00, 0x00, 0xC6, 0x07, 0x16};
     _expect_bytes(out->b.data, out->b.len, want_req, sizeof(want_req), "GET-Request 整帧");
     net_buf_unref(out);
 
@@ -179,9 +179,8 @@ static void test_frame_known_answer_full_bytes(void **state) {
     out = net_buf_alloc(g_pool, 0);
     assert_non_null(out);
     static const uint8_t addr456[] = {0x09, 0x06, 0x12, 0x34, 0x56, 0x78, 0x90, 0x12};
-    assert_int_equal(dlt698_encode_get_response(&sa, 0x01, 0x40010200U, addr456, sizeof(addr456),
-                                                out),
-                     0);
+    assert_int_equal(
+        dlt698_encode_get_response(&sa, 0x01, 0x40010200U, addr456, sizeof(addr456), out), 0);
     const uint8_t want_res[] = {0x68, 0x1C, 0x00, 0xC3, 0x00, 0x01, 0x10, 0x86, 0x93, 0x85,
                                 0x01, 0x01, 0x40, 0x01, 0x02, 0x00, 0x01, 0x09, 0x06, 0x12,
                                 0x34, 0x56, 0x78, 0x90, 0x12, 0x00, 0x00, 0xCB, 0x89, 0x16};
@@ -226,9 +225,8 @@ static void test_get_response_normal(void **state) {
     net_buf_t *out = net_buf_alloc(g_pool, 0);
     assert_non_null(out);
     static const uint8_t addr_bytes[] = {0x09, 0x06, 0x12, 0x34, 0x56, 0x78, 0x90, 0x12};
-    assert_int_equal(dlt698_encode_get_response(&sa, 0x01, 0x40010200U, addr_bytes,
-                                                sizeof(addr_bytes), out),
-                     0);
+    assert_int_equal(
+        dlt698_encode_get_response(&sa, 0x01, 0x40010200U, addr_bytes, sizeof(addr_bytes), out), 0);
 
     const uint8_t *apdu = NULL;
     size_t n = frame_apdu(out, 0xC3, &apdu);
@@ -249,6 +247,23 @@ static void test_get_response_normal(void **state) {
     net_buf_unref(out);
 }
 
+/** GET-Response-Normal 带 DAR：85 01 01 OAD(4) 00 DAR 00 00（6.3.8.2 / 6.3.3.11）。 */
+static void test_get_response_normal_dar(void **state) {
+    (void)state;
+    dlt698_addr_t sa = _sa();
+    net_buf_t *out = net_buf_alloc(g_pool, 0);
+    assert_non_null(out);
+    assert_int_equal(
+        dlt698_encode_get_response_dar(&sa, 0x01, 0x50040200U, DLT698_DAR_OBJECT_NOT_FOUND, out),
+        0);
+
+    const uint8_t *apdu = NULL;
+    size_t n = frame_apdu(out, 0xC3, &apdu);
+    const uint8_t want[] = {0x85, 0x01, 0x01, 0x50, 0x04, 0x02, 0x00, 0x00, 0x06, 0x00, 0x00};
+    _expect_bytes(apdu, n, want, sizeof(want), "GET-Response DAR=6");
+    net_buf_unref(out);
+}
+
 /**
  * H.3.2（文档第 206-207 页）请求：05 02 02 02 <OAD1> <OAD2> 00
  *
@@ -258,8 +273,8 @@ static void test_get_response_normal(void **state) {
  */
 static void test_get_request_normal_list_decode(void **state) {
     (void)state;
-    static const uint8_t apdu[] = {0x05, 0x02, 0x02, 0x02, 0x20, 0x00, 0x02, 0x00,
-                                   0x20, 0x01, 0x02, 0x00, 0x00};
+    static const uint8_t apdu[] = {0x05, 0x02, 0x02, 0x02, 0x20, 0x00, 0x02,
+                                   0x00, 0x20, 0x01, 0x02, 0x00, 0x00};
     uint8_t frame[64];
     size_t flen = build_frame(0x43, apdu, sizeof(apdu), frame, sizeof(frame));
     assert_true(flen > 0);
@@ -284,10 +299,10 @@ static void test_get_response_normal_list(void **state) {
     net_buf_t *out = net_buf_alloc(g_pool, 0);
     assert_non_null(out);
 
-    static const uint8_t volts[] = {0x01, 0x03, 0x12, 0x09, 0x6D, 0x12, 0x09, 0x6D,
-                                    0x12, 0x09, 0x6D};
-    static const uint8_t amps[] = {0x01, 0x03, 0x05, 0x00, 0x00, 0x03, 0xE8, 0x05,
-                                   0x00, 0x00, 0x03, 0xE8, 0x05, 0x00, 0x00, 0x03, 0xE8};
+    static const uint8_t volts[] = {0x01, 0x03, 0x12, 0x09, 0x6D, 0x12,
+                                    0x09, 0x6D, 0x12, 0x09, 0x6D};
+    static const uint8_t amps[] = {0x01, 0x03, 0x05, 0x00, 0x00, 0x03, 0xE8, 0x05, 0x00,
+                                   0x00, 0x03, 0xE8, 0x05, 0x00, 0x00, 0x03, 0xE8};
     dlt698_get_item_t items[2] = {
         {.oad = 0x20000200U, .dar = 0, .data = volts, .dlen = sizeof(volts)},
         {.oad = 0x20010200U, .dar = 0, .data = amps, .dlen = sizeof(amps)},
@@ -297,13 +312,9 @@ static void test_get_response_normal_list(void **state) {
     const uint8_t *apdu = NULL;
     size_t n = frame_apdu(out, 0xC3, &apdu);
     const uint8_t want[] = {
-        0x85, 0x02, 0x02, 0x02,
-        0x20, 0x00, 0x02, 0x00, 0x01, 0x01, 0x03, 0x12, 0x09, 0x6D,
-        0x12, 0x09, 0x6D, 0x12, 0x09, 0x6D,
-        0x20, 0x01, 0x02, 0x00, 0x01, 0x01, 0x03,
-        0x05, 0x00, 0x00, 0x03, 0xE8, 0x05, 0x00, 0x00, 0x03, 0xE8,
-        0x05, 0x00, 0x00, 0x03, 0xE8,
-        0x00, 0x00,
+        0x85, 0x02, 0x02, 0x02, 0x20, 0x00, 0x02, 0x00, 0x01, 0x01, 0x03, 0x12, 0x09, 0x6D, 0x12,
+        0x09, 0x6D, 0x12, 0x09, 0x6D, 0x20, 0x01, 0x02, 0x00, 0x01, 0x01, 0x03, 0x05, 0x00, 0x00,
+        0x03, 0xE8, 0x05, 0x00, 0x00, 0x03, 0xE8, 0x05, 0x00, 0x00, 0x03, 0xE8, 0x00, 0x00,
     };
     _expect_bytes(apdu, n, want, sizeof(want), "H.3.2 GET-Response");
     net_buf_unref(out);
@@ -328,10 +339,8 @@ static void test_get_response_list_partial_dar(void **state) {
 
     const uint8_t *apdu = NULL;
     size_t n = frame_apdu(out, 0xC3, &apdu);
-    const uint8_t want[] = {0x85, 0x02, 0x02, 0x02,
-                            0x20, 0x00, 0x02, 0x00, 0x01, 0x12, 0x09, 0x6D,
-                            0x20, 0x01, 0x02, 0x00, 0x00, 0x06,
-                            0x00, 0x00};
+    const uint8_t want[] = {0x85, 0x02, 0x02, 0x02, 0x20, 0x00, 0x02, 0x00, 0x01, 0x12,
+                            0x09, 0x6D, 0x20, 0x01, 0x02, 0x00, 0x00, 0x06, 0x00, 0x00};
     _expect_bytes(apdu, n, want, sizeof(want), "GET-Response 部分失败");
     net_buf_unref(out);
 }
@@ -342,8 +351,9 @@ static void test_get_response_list_partial_dar(void **state) {
  */
 static void test_get_record_and_rsd_not_implemented(void **state) {
     (void)state;
-    printf("SKIP: GET-Request-Record([3]) 与 RSD 未实现，见 D1-15；"
-           "附录 H.3.3 的冻结记录报文在实现后补向量。\n");
+    printf(
+        "SKIP: GET-Request-Record([3]) 与 RSD 未实现，见 D1-15；"
+        "附录 H.3.3 的冻结记录报文在实现后补向量。\n");
     skip();
 }
 
@@ -397,9 +407,8 @@ static void test_action_request_normal(void **state) {
     assert_non_null(out);
 
     static const uint8_t arg[] = {0x0F, 0x00}; /* integer 0 */
-    assert_int_equal(dlt698_encode_action_request(&sa, 0x05, 0x0010, 0x01, 0x00, arg, sizeof(arg),
-                                                  out),
-                     0);
+    assert_int_equal(
+        dlt698_encode_action_request(&sa, 0x05, 0x0010, 0x01, 0x00, arg, sizeof(arg), out), 0);
 
     const uint8_t *apdu = NULL;
     size_t n = frame_apdu(out, 0x43, &apdu);
@@ -414,14 +423,12 @@ static void test_action_response_dar0(void **state) {
     dlt698_addr_t sa = _sa();
     net_buf_t *out = net_buf_alloc(g_pool, 0);
     assert_non_null(out);
-    assert_int_equal(dlt698_encode_action_response(&sa, 0x05, 0x0010, 0x01, 0x00, 0x00, NULL, 0,
-                                                   out),
-                     0);
+    assert_int_equal(
+        dlt698_encode_action_response(&sa, 0x05, 0x0010, 0x01, 0x00, 0x00, NULL, 0, out), 0);
 
     const uint8_t *apdu = NULL;
     size_t n = frame_apdu(out, 0xC3, &apdu);
-    const uint8_t want[] = {0x87, 0x01, 0x05, 0x00, 0x10, 0x01, 0x00,
-                            0x00, 0x00, 0x00, 0x00};
+    const uint8_t want[] = {0x87, 0x01, 0x05, 0x00, 0x10, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00};
     _expect_bytes(apdu, n, want, sizeof(want), "H.5.1 ACTION-Response(DAR=0)");
     net_buf_unref(out);
 }
@@ -435,14 +442,12 @@ static void test_action_response_dar2(void **state) {
     dlt698_addr_t sa = _sa();
     net_buf_t *out = net_buf_alloc(g_pool, 0);
     assert_non_null(out);
-    assert_int_equal(dlt698_encode_action_response(&sa, 0x05, 0x0010, 0x01, 0x00, 0x02, NULL, 0,
-                                                   out),
-                     0);
+    assert_int_equal(
+        dlt698_encode_action_response(&sa, 0x05, 0x0010, 0x01, 0x00, 0x02, NULL, 0, out), 0);
 
     const uint8_t *apdu = NULL;
     size_t n = frame_apdu(out, 0xC3, &apdu);
-    const uint8_t want[] = {0x87, 0x01, 0x05, 0x00, 0x10, 0x01, 0x00,
-                            0x02, 0x00, 0x00, 0x00};
+    const uint8_t want[] = {0x87, 0x01, 0x05, 0x00, 0x10, 0x01, 0x00, 0x02, 0x00, 0x00, 0x00};
     _expect_bytes(apdu, n, want, sizeof(want), "ACTION-Response(DAR=2)");
     net_buf_unref(out);
 }
@@ -454,14 +459,14 @@ static void test_action_response_with_data(void **state) {
     net_buf_t *out = net_buf_alloc(g_pool, 0);
     assert_non_null(out);
     static const uint8_t ret[] = {0x12, 0x00, 0x64}; /* long-unsigned 100 */
-    assert_int_equal(dlt698_encode_action_response(&sa, 0x05, 0x0010, 0x01, 0x00, 0x00, ret,
-                                                   sizeof(ret), out),
-                     0);
+    assert_int_equal(
+        dlt698_encode_action_response(&sa, 0x05, 0x0010, 0x01, 0x00, 0x00, ret, sizeof(ret), out),
+        0);
 
     const uint8_t *apdu = NULL;
     size_t n = frame_apdu(out, 0xC3, &apdu);
-    const uint8_t want[] = {0x87, 0x01, 0x05, 0x00, 0x10, 0x01, 0x00, 0x00,
-                            0x01, 0x12, 0x00, 0x64, 0x00, 0x00};
+    const uint8_t want[] = {0x87, 0x01, 0x05, 0x00, 0x10, 0x01, 0x00,
+                            0x00, 0x01, 0x12, 0x00, 0x64, 0x00, 0x00};
     _expect_bytes(apdu, n, want, sizeof(want), "ACTION-Response(带返回数据)");
     net_buf_unref(out);
 }
@@ -605,6 +610,7 @@ int main(void) {
 
         cmocka_unit_test(test_get_request_normal),
         cmocka_unit_test(test_get_response_normal),
+        cmocka_unit_test(test_get_response_normal_dar),
         cmocka_unit_test(test_get_request_normal_list_decode),
         cmocka_unit_test(test_get_response_normal_list),
         cmocka_unit_test(test_get_response_list_partial_dar),

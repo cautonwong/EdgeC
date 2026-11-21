@@ -120,12 +120,14 @@ static void test_product_axdr_rejects_small_buffer_and_complex(void **state) {
     uint8_t buf[EDGE_SLAVE_AXDR_MAX];
     size_t len = 0;
 
-    /* 电压需要 5 字节；cap=4 必须失败，不截断。 */
-    assert_int_equal(dcu_north_resolve_axdr(NULL, OAD_VOLTAGE, buf, 4, &len), -1);
+    /* 电压需要 5 字节；cap=4 必须失败，不截断 -> 类型/宽度不匹配。 */
+    assert_int_equal(dcu_north_resolve_axdr(NULL, OAD_VOLTAGE, buf, 4, &len),
+                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
 
-    /* 复杂属性还没有 A-XDR 处理器：返回 -1，不降级成标量。 */
-    assert_int_equal(dcu_north_resolve_axdr(NULL, OAD_DAILY_FREEZE, buf, sizeof(buf), &len), -1);
-    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x6000, 3), buf, sizeof(buf), &len), -1);
+    assert_int_equal(dcu_north_resolve_axdr(NULL, OAD_DAILY_FREEZE, buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x6000, 3), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
 
     dcu_698_object_model_reset();
 }
@@ -311,7 +313,10 @@ static void test_driver_rejects_axdr_buffer_shortage(void **state) {
     size_t consumed = 0;
     int rc = dlt698_driver.req_slave_exchange(priv, NULL, frame, frame_len, &k_too_big_src, NULL,
                                               out, &consumed);
-    assert_int_not_equal(rc, 0);
+    assert_int_equal(rc, 0);
+    /* 缓冲不足现在是明确的 DAR 应答（-1 按 NOT_FOUND 处理），不是静默超时。 */
+    assert_int_equal(out->b.data[16], 0x00);
+    assert_int_equal(out->b.data[17], DLT698_DAR_OBJECT_NOT_FOUND);
 
     net_buf_unref(out);
     net_buf_pool_destroy(pool);
@@ -400,6 +405,131 @@ static void test_driver_normal_list_reuses_one_buffer(void **state) {
     net_buf_pool_destroy(pool);
 }
 
+static int g_src_rc;
+
+static int dar_scalar_resolve(void *ctx, uint32_t oad, const void *desc, size_t desc_len,
+                              edge_point_value_t *out) {
+    (void)ctx;
+    (void)oad;
+    (void)desc;
+    (void)desc_len;
+    (void)out;
+    return g_src_rc;
+}
+
+static const edge_slave_source_ops_t k_dar_src = {.resolve = dar_scalar_resolve};
+
+static int bad_type_resolve(void *ctx, uint32_t oad, const void *desc, size_t desc_len,
+                            edge_point_value_t *out) {
+    (void)ctx;
+    (void)desc;
+    (void)desc_len;
+    if (!out || oad != OAD_VOLTAGE) return EDGE_SLAVE_SRC_NOT_FOUND;
+    memset(out, 0, sizeof(*out));
+    out->value = 220.5;
+    out->width = 4;
+    out->type = 0x99; /* 没有对应编码器 */
+    return 0;
+}
+
+static const edge_slave_source_ops_t k_bad_type_src = {.resolve = bad_type_resolve};
+
+static net_buf_t *run_get_normal(const uint8_t *frame, size_t frame_len,
+                                 const edge_slave_source_ops_t *src, net_buf_pool_t **pool_out) {
+    net_buf_pool_t *pool = net_buf_pool_new(8, 4096, 0);
+    assert_non_null(pool);
+    net_buf_t *out = net_buf_alloc(pool, 0);
+    assert_non_null(out);
+
+    alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
+    memset(priv, 0, sizeof(priv));
+    size_t consumed = 0;
+    int rc =
+        dlt698_driver.req_slave_exchange(priv, NULL, frame, frame_len, src, NULL, out, &consumed);
+    assert_int_equal(rc, 0);
+    *pool_out = pool;
+    return out;
+}
+
+static void assert_get_normal_dar(int src_rc, uint8_t want_dar) {
+    g_src_rc = src_rc;
+    uint8_t frame[128];
+    size_t frame_len = build_get_normal(frame, OAD_VOLTAGE);
+
+    net_buf_pool_t *pool = NULL;
+    net_buf_t *out = run_get_normal(frame, frame_len, &k_dar_src, &pool);
+    /* APDU: 85 | 01 | PIID | OAD(4) | 00 | DAR | 00 | 00，APDU 从偏移 9 起。 */
+    assert_int_equal(out->b.data[9], DLT698_SVC_GET_RES);
+    assert_int_equal(out->b.data[10], DLT698_CHOICE_GET_NORMAL);
+    assert_int_equal(out->b.data[16], 0x00);
+    assert_int_equal(out->b.data[17], want_dar);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(pool);
+}
+
+static void test_get_normal_dar_mapping(void **state) {
+    (void)state;
+    assert_get_normal_dar(EDGE_SLAVE_SRC_NOT_FOUND, DLT698_DAR_OBJECT_NOT_FOUND);
+    assert_get_normal_dar(EDGE_SLAVE_SRC_CLASS_MISMATCH, DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    assert_get_normal_dar(EDGE_SLAVE_SRC_TYPE_MISMATCH, DLT698_DAR_TYPE_MISMATCH);
+    assert_get_normal_dar(EDGE_SLAVE_SRC_UNDEFINED, DLT698_DAR_OBJECT_UNDEFINED);
+    assert_get_normal_dar(EDGE_SLAVE_SRC_TEMPORARY, DLT698_DAR_TEMPORARY_FAILURE);
+}
+
+static void test_get_normal_encode_type_mismatch_returns_dar(void **state) {
+    (void)state;
+    uint8_t frame[128];
+    size_t frame_len = build_get_normal(frame, OAD_VOLTAGE);
+
+    net_buf_pool_t *pool = NULL;
+    net_buf_t *out = run_get_normal(frame, frame_len, &k_bad_type_src, &pool);
+    assert_int_equal(out->b.data[16], 0x00);
+    assert_int_equal(out->b.data[17], DLT698_DAR_TYPE_MISMATCH);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(pool);
+}
+
+static int list_class_mismatch(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, size_t *len) {
+    (void)ctx;
+    (void)oad;
+    (void)buf;
+    (void)cap;
+    (void)len;
+    return EDGE_SLAVE_SRC_CLASS_MISMATCH;
+}
+
+static const edge_slave_source_ops_t k_list_class_mismatch = {.resolve_axdr = list_class_mismatch};
+
+static void test_normal_list_dar_mapping(void **state) {
+    (void)state;
+    uint32_t oads[] = {OAD_VOLTAGE};
+    uint8_t frame[128];
+    size_t frame_len = build_get_list(frame, oads, 1);
+
+    net_buf_pool_t *pool = net_buf_pool_new(8, 4096, 0);
+    assert_non_null(pool);
+    net_buf_t *out = net_buf_alloc(pool, 0);
+    assert_non_null(out);
+
+    alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
+    memset(priv, 0, sizeof(priv));
+    size_t consumed = 0;
+    int rc = dlt698_driver.req_slave_exchange(priv, NULL, frame, frame_len, &k_list_class_mismatch,
+                                              NULL, out, &consumed);
+    assert_int_equal(rc, 0);
+    /* APDU: 85 | 02 | PIID | n | OAD(4) | 00 | DAR ...，APDU 从偏移 9 起。 */
+    assert_int_equal(out->b.data[9], DLT698_SVC_GET_RES);
+    assert_int_equal(out->b.data[10], DLT698_CHOICE_GET_NORMAL_LIST);
+    assert_int_equal(out->b.data[12], 1);
+    assert_int_equal(out->b.data[17], 0x00);
+    assert_int_equal(out->b.data[18], DLT698_DAR_OBJECT_CLASS_MISMATCH);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(pool);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_product_variable_axdr_types),
@@ -409,6 +539,9 @@ int main(void) {
         cmocka_unit_test(test_driver_rejects_axdr_buffer_shortage),
         cmocka_unit_test(test_driver_normal_list_uses_axdr_per_item),
         cmocka_unit_test(test_driver_normal_list_reuses_one_buffer),
+        cmocka_unit_test(test_get_normal_dar_mapping),
+        cmocka_unit_test(test_get_normal_encode_type_mismatch_returns_dar),
+        cmocka_unit_test(test_normal_list_dar_mapping),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
