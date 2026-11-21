@@ -1,0 +1,5327 @@
+{
+ "classes": [
+  {
+   "sequence": 1,
+   "class_id": 1,
+   "name": "电能量接口类",
+   "attributes": [
+    {
+     "no": 1,
+     "name": "逻辑名",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 2,
+     "name": "总及费率电能量数组",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 3,
+     "name": "换算及单位",
+     "kind": "static",
+     "type": "Scaler_Unit"
+    },
+    {
+     "no": 4,
+     "name": "高精度总及费率电能量数组",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 5,
+     "name": "高精度换算及单位",
+     "kind": "static",
+     "type": "Scaler_Unit"
+    }
+   ],
+   "methods": [
+    {
+     "no": 1,
+     "name": "复位",
+     "requirement": "可选"
+    },
+    {
+     "no": 2,
+     "name": "执行",
+     "requirement": "可选"
+    }
+   ]
+  },
+  {
+   "sequence": 2,
+   "class_id": 2,
+   "name": "最大需量接口类",
+   "attributes": [
+    {
+     "no": 1,
+     "name": "逻辑名",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 2,
+     "name": "总及费率最大需量数组",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 3,
+     "name": "换算及单位",
+     "kind": "static",
+     "type": "Scaler_Unit"
+    }
+   ],
+   "methods": [
+    {
+     "no": 1,
+     "name": "复位",
+     "requirement": "可选"
+    },
+    {
+     "no": 2,
+     "name": "执行",
+     "requirement": "可选"
+    }
+   ]
+  },
+  {
+   "sequence": 3,
+   "class_id": 3,
+   "name": "分相变量接口类",
+   "attributes": [
+    {
+     "no": 1,
+     "name": "逻辑名",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 2,
+     "name": "分相数值组",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 3,
+     "name": "换算及单位",
+     "kind": "static",
+     "type": "Scaler_Unit"
+    }
+   ],
+   "methods": [
+    {
+     "no": 1,
+     "name": "复位",
+     "requirement": "可选"
+    },
+    {
+     "no": 2,
+     "name": "执行",
+     "requirement": "可选"
+    }
+   ]
+  },
+  {
+   "sequence": 4,
+   "class_id": 4,
+   "name": "功率接口类",
+   "attributes": [
+    {
+     "no": 1,
+     "name": "逻辑名",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 2,
+     "name": "总及分相数值组",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 3,
+     "name": "换算及单位",
+     "kind": "static",
+     "type": "Scaler_Unit"
+    }
+   ],
+   "methods": [
+    {
+     "no": 1,
+     "name": "复位",
+     "requirement": "可选"
+    },
+    {
+     "no": 2,
+     "name": "执行",
+     "requirement": "可选"
+    }
+   ]
+  },
+  {
+   "sequence": 5,
+   "class_id": 5,
+   "name": "谐波变量接口类",
+   "attributes": [
+    {
+     "no": 1,
+     "name": "逻辑名",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 2,
+     "name": "A 相 n 次数值组",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 3,
+     "name": "B 相 n 次数值组",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 4,
+     "name": "C 相 n 次数值组",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 5,
+     "name": "谐波次数 n",
+     "kind": "static",
+     "type": "unsigned"
+    },
+    {
+     "no": 6,
+     "name": "换算及单位",
+     "kind": "static",
+     "type": "Scaler_Unit"
+    }
+   ],
+   "methods": [
+    {
+     "no": 1,
+     "name": "复位",
+     "requirement": "可选"
+    },
+    {
+     "no": 2,
+     "name": "执行",
+     "requirement": "可选"
+    }
+   ]
+  },
+  {
+   "sequence": 6,
+   "class_id": 6,
+   "name": "数据变量接口类",
+   "attributes": [
+    {
+     "no": 1,
+     "name": "逻辑名",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 2,
+     "name": "数值",
+     "kind": "dyn",
+     "type": "instance-specific"
+    },
+    {
+     "no": 3,
+     "name": "换算及单位",
+     "kind": "static",
+     "type": "Scaler_Unit"
+    }
+   ],
+   "methods": [
+    {
+     "no": 1,
+     "name": "复位",
+     "requirement": "可选"
+    },
+    {
+     "no": 2,
+     "name": "执行",
+     "requirement": "可选"
+    }
+   ]
+  },
+  {
+   "sequence": 7,
+   "class_id": 7,
+   "name": "事件对象接口类",
+   "attributes": [
+    {
+     "no": 1,
+     "name": "逻辑名",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 2,
+     "name": "事件记录表",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 3,
+     "name": "关联对象属性表",
+     "kind": "static",
+     "type": "array"
+    },
+    {
+     "no": 4,
+     "name": "当前记录数",
+     "kind": "dyn",
+     "type": "long-unsigned"
+    },
+    {
+     "no": 5,
+     "name": "最大记录数",
+     "kind": "static",
+     "type": "long-unsigned"
+    },
+    {
+     "no": 6,
+     "name": "配置参数",
+     "kind": "static",
+     "type": "structure"
+    },
+    {
+     "no": 7,
+     "name": "当前值记录表",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 8,
+     "name": "上报标识",
+     "kind": "static",
+     "type": "enum"
+    },
+    {
+     "no": 9,
+     "name": "有效标识",
+     "kind": "static",
+     "type": "bool"
+    },
+    {
+     "no": 10,
+     "name": "时间状态记录表",
+     "kind": "static",
+     "type": "array"
+    }
+   ],
+   "methods": [
+    {
+     "no": 1,
+     "name": "复位",
+     "requirement": "可选"
+    },
+    {
+     "no": 2,
+     "name": "执行",
+     "requirement": "可选"
+    },
+    {
+     "no": 4,
+     "name": "添加一个事件关联对象属性",
+     "requirement": "可选"
+    },
+    {
+     "no": 5,
+     "name": "删除一个事件关联对象属性",
+     "requirement": "可选"
+    }
+   ]
+  },
+  {
+   "sequence": 8,
+   "class_id": 8,
+   "name": "参数变量接口类",
+   "attributes": [
+    {
+     "no": 1,
+     "name": "逻辑名",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 2,
+     "name": "参数",
+     "kind": "static",
+     "type": "instance-specific"
+    }
+   ],
+   "methods": [
+    {
+     "no": 1,
+     "name": "复位",
+     "requirement": "可选"
+    },
+    {
+     "no": 2,
+     "name": "执行",
+     "requirement": "可选"
+    }
+   ]
+  },
+  {
+   "sequence": 9,
+   "class_id": 9,
+   "name": "冻结数据接口类",
+   "attributes": [
+    {
+     "no": 1,
+     "name": "逻辑名",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 2,
+     "name": "冻结数据表",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 3,
+     "name": "关联对象属性表",
+     "kind": "static",
+     "type": "array"
+    }
+   ],
+   "methods": [
+    {
+     "no": 1,
+     "name": "复位",
+     "requirement": "可选"
+    },
+    {
+     "no": 2,
+     "name": "执行",
+     "requirement": "可选"
+    },
+    {
+     "no": 3,
+     "name": "触发一次冻结",
+     "requirement": "可选"
+    },
+    {
+     "no": 4,
+     "name": "添加一个冻结对象属性",
+     "requirement": "可选"
+    },
+    {
+     "no": 5,
+     "name": "删除一个冻结对象属性",
+     "requirement": "可选"
+    },
+    {
+     "no": 7,
+     "name": "批量添加冻结对象属性",
+     "requirement": "可选"
+    },
+    {
+     "no": 8,
+     "name": "清除关联对象属性表",
+     "requirement": "可选"
+    }
+   ]
+  },
+  {
+   "sequence": 10,
+   "class_id": 10,
+   "name": "采集监控接口类",
+   "attributes": [
+    {
+     "no": 1,
+     "name": "逻辑名",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 2,
+     "name": "配置表",
+     "kind": "static",
+     "type": "array"
+    },
+    {
+     "no": 3,
+     "name": "记录表",
+     "kind": "dyn",
+     "type": "array"
+    }
+   ],
+   "methods": [
+    {
+     "no": 1,
+     "name": "复位",
+     "requirement": "可选"
+    },
+    {
+     "no": 2,
+     "name": "执行",
+     "requirement": "可选"
+    },
+    {
+     "no": 3,
+     "name": "清空记录表",
+     "requirement": "可选"
+    }
+   ]
+  },
+  {
+   "sequence": 11,
+   "class_id": 11,
+   "name": "集合接口类",
+   "attributes": [
+    {
+     "no": 1,
+     "name": "逻辑名",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 2,
+     "name": "集合",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 3,
+     "name": "当前元素个数",
+     "kind": "dyn",
+     "type": "long-unsigned"
+    },
+    {
+     "no": 4,
+     "name": "最大元素个数",
+     "kind": "static",
+     "type": "long-unsigned"
+    }
+   ],
+   "methods": [
+    {
+     "no": 1,
+     "name": "复位",
+     "requirement": "可选"
+    },
+    {
+     "no": 2,
+     "name": "执行",
+     "requirement": "可选"
+    }
+   ]
+  },
+  {
+   "sequence": 12,
+   "class_id": 12,
+   "name": "脉冲计量接口类",
+   "attributes": [
+    {
+     "no": 1,
+     "name": "逻辑名",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 2,
+     "name": "通信地址",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 3,
+     "name": "互感器倍率",
+     "kind": "static",
+     "type": "structure"
+    },
+    {
+     "no": 4,
+     "name": "脉冲配置",
+     "kind": "static",
+     "type": "array"
+    },
+    {
+     "no": 5,
+     "name": "有功功率",
+     "kind": "dyn",
+     "type": "double-long"
+    },
+    {
+     "no": 6,
+     "name": "无功功率",
+     "kind": "dyn",
+     "type": "double-long"
+    },
+    {
+     "no": 7,
+     "name": "当日正向有功电量",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 8,
+     "name": "当月正向有功电量",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 9,
+     "name": "当日反向有功电量",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 10,
+     "name": "当月反向有功电量",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 11,
+     "name": "当日正向无功电量",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 12,
+     "name": "当月正向无功电量",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 13,
+     "name": "当日反向无功电量",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 14,
+     "name": "当月反向无功电量",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 15,
+     "name": "正向有功电能示值",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 16,
+     "name": "正向无功电能示值",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 17,
+     "name": "反向有功电能示值",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 18,
+     "name": "反向无功电能示值",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 19,
+     "name": "换算及单位",
+     "kind": "static",
+     "type": "structure"
+    }
+   ],
+   "methods": [
+    {
+     "no": 1,
+     "name": "复位",
+     "requirement": "可选"
+    },
+    {
+     "no": 2,
+     "name": "执行",
+     "requirement": "可选"
+    },
+    {
+     "no": 3,
+     "name": "添加脉冲输入单元",
+     "requirement": "必选"
+    },
+    {
+     "no": 4,
+     "name": "删除脉冲输入单元",
+     "requirement": "必选"
+    }
+   ]
+  },
+  {
+   "sequence": 13,
+   "class_id": 13,
+   "name": "负荷控制对象接口类",
+   "attributes": [
+    {
+     "no": 1,
+     "name": "逻辑名",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 2,
+     "name": "控制方案集",
+     "kind": "static",
+     "type": "array"
+    },
+    {
+     "no": 3,
+     "name": "控制投入状态",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 4,
+     "name": "控制输出状态",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 5,
+     "name": "越限告警状态",
+     "kind": "dyn",
+     "type": "array"
+    }
+   ],
+   "methods": [
+    {
+     "no": 1,
+     "name": "复位",
+     "requirement": "可选"
+    },
+    {
+     "no": 2,
+     "name": "执行",
+     "requirement": "可选"
+    },
+    {
+     "no": 3,
+     "name": "添加控制单元",
+     "requirement": "必选"
+    },
+    {
+     "no": 4,
+     "name": "删除控制单元",
+     "requirement": "必选"
+    },
+    {
+     "no": 5,
+     "name": "更新控制单元",
+     "requirement": "必选"
+    },
+    {
+     "no": 6,
+     "name": "控制投入",
+     "requirement": "必选"
+    },
+    {
+     "no": 7,
+     "name": "控制解除",
+     "requirement": "必选"
+    }
+   ]
+  },
+  {
+   "sequence": 14,
+   "class_id": 14,
+   "name": "区间统计接口类",
+   "attributes": [
+    {
+     "no": 1,
+     "name": "逻辑名",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 2,
+     "name": "统计结果表",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 3,
+     "name": "关联对象属性表",
+     "kind": "static",
+     "type": "array"
+    }
+   ],
+   "methods": [
+    {
+     "no": 1,
+     "name": "复位",
+     "requirement": "可选"
+    },
+    {
+     "no": 2,
+     "name": "执行",
+     "requirement": "可选"
+    },
+    {
+     "no": 3,
+     "name": "添加一个统计对象属性",
+     "requirement": "可选"
+    },
+    {
+     "no": 4,
+     "name": "删除一个统计对象属性",
+     "requirement": "可选"
+    }
+   ]
+  },
+  {
+   "sequence": 15,
+   "class_id": 15,
+   "name": "累加平均接口类",
+   "attributes": [
+    {
+     "no": 1,
+     "name": "逻辑名",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 2,
+     "name": "运算结果",
+     "kind": "dyn",
+     "type": "structure"
+    },
+    {
+     "no": 3,
+     "name": "关联对象属性表",
+     "kind": "static",
+     "type": "array"
+    }
+   ],
+   "methods": [
+    {
+     "no": 1,
+     "name": "复位",
+     "requirement": "可选"
+    },
+    {
+     "no": 2,
+     "name": "执行",
+     "requirement": "可选"
+    },
+    {
+     "no": 3,
+     "name": "添加一个关联对象属性",
+     "requirement": "可选"
+    },
+    {
+     "no": 4,
+     "name": "删除一个关联对象属性",
+     "requirement": "可选"
+    }
+   ]
+  },
+  {
+   "sequence": 16,
+   "class_id": 16,
+   "name": "极值工具接口类",
+   "attributes": [
+    {
+     "no": 1,
+     "name": "逻辑名",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 2,
+     "name": "极值结果表",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 3,
+     "name": "关联对象属性表",
+     "kind": "static",
+     "type": "array"
+    }
+   ],
+   "methods": [
+    {
+     "no": 1,
+     "name": "复位",
+     "requirement": "可选"
+    },
+    {
+     "no": 2,
+     "name": "执行",
+     "requirement": "可选"
+    },
+    {
+     "no": 3,
+     "name": "添加一个关联对象属性",
+     "requirement": "可选"
+    },
+    {
+     "no": 4,
+     "name": "删除一个关联对象属性",
+     "requirement": "可选"
+    }
+   ]
+  },
+  {
+   "sequence": 17,
+   "class_id": 17,
+   "name": "显示接口类",
+   "attributes": [
+    {
+     "no": 1,
+     "name": "逻辑名",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 2,
+     "name": "显示对象列表",
+     "kind": "static",
+     "type": "array"
+    },
+    {
+     "no": 3,
+     "name": "显示时间",
+     "kind": "static",
+     "type": "long-unsigned"
+    },
+    {
+     "no": 4,
+     "name": "显示参数",
+     "kind": "static",
+     "type": "structure"
+    }
+   ],
+   "methods": [
+    {
+     "no": 1,
+     "name": "复位",
+     "requirement": "可选"
+    },
+    {
+     "no": 2,
+     "name": "执行",
+     "requirement": "可选"
+    },
+    {
+     "no": 3,
+     "name": "下翻",
+     "requirement": "可选"
+    },
+    {
+     "no": 4,
+     "name": "上翻",
+     "requirement": "可选"
+    },
+    {
+     "no": 5,
+     "name": "显示查看",
+     "requirement": "可选"
+    },
+    {
+     "no": 6,
+     "name": "全显",
+     "requirement": "可选"
+    }
+   ]
+  },
+  {
+   "sequence": 18,
+   "class_id": 18,
+   "name": "文件传输接口类",
+   "attributes": [
+    {
+     "no": 1,
+     "name": "逻辑名",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 2,
+     "name": "文件信息",
+     "kind": "dyn",
+     "type": "structure"
+    },
+    {
+     "no": 3,
+     "name": "命令结果",
+     "kind": "dyn",
+     "type": "enum"
+    }
+   ],
+   "methods": [
+    {
+     "no": 1,
+     "name": "复位",
+     "requirement": "可选"
+    },
+    {
+     "no": 2,
+     "name": "执行",
+     "requirement": "可选"
+    },
+    {
+     "no": 3,
+     "name": "删除",
+     "requirement": "可选"
+    },
+    {
+     "no": 4,
+     "name": "校验",
+     "requirement": "可选"
+    },
+    {
+     "no": 5,
+     "name": "代发",
+     "requirement": "可选"
+    },
+    {
+     "no": 6,
+     "name": "代收",
+     "requirement": "可选"
+    },
+    {
+     "no": 7,
+     "name": "上传",
+     "requirement": "可选"
+    },
+    {
+     "no": 8,
+     "name": "下载",
+     "requirement": "可选"
+    }
+   ]
+  },
+  {
+   "sequence": 19,
+   "class_id": 19,
+   "name": "设备管理接口类",
+   "attributes": [
+    {
+     "no": 1,
+     "name": "逻辑名",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 2,
+     "name": "设备描述符",
+     "kind": "static",
+     "type": "visible-string"
+    },
+    {
+     "no": 3,
+     "name": "版本信息",
+     "kind": "static",
+     "type": "structure"
+    },
+    {
+     "no": 4,
+     "name": "生产日期",
+     "kind": "static",
+     "type": "date_time_s"
+    },
+    {
+     "no": 5,
+     "name": "子设备列表",
+     "kind": "static",
+     "type": "array"
+    },
+    {
+     "no": 6,
+     "name": "支持规约列表",
+     "kind": "static",
+     "type": "array"
+    },
+    {
+     "no": 7,
+     "name": "允许跟随上报",
+     "kind": "static",
+     "type": "bool"
+    },
+    {
+     "no": 8,
+     "name": "允许主动上报",
+     "kind": "static",
+     "type": "bool"
+    },
+    {
+     "no": 9,
+     "name": "允许与主站通话",
+     "kind": "static",
+     "type": "bool"
+    },
+    {
+     "no": 10,
+     "name": "上报通道",
+     "kind": "static",
+     "type": "array"
+    }
+   ],
+   "methods": [
+    {
+     "no": 1,
+     "name": "复位",
+     "requirement": "必选"
+    },
+    {
+     "no": 2,
+     "name": "执行",
+     "requirement": "可选"
+    },
+    {
+     "no": 3,
+     "name": "数据初始化",
+     "requirement": "必选"
+    },
+    {
+     "no": 4,
+     "name": "恢复出厂参数",
+     "requirement": "必选"
+    },
+    {
+     "no": 5,
+     "name": "事件初始化",
+     "requirement": "必选"
+    },
+    {
+     "no": 6,
+     "name": "需量初始化",
+     "requirement": "可选"
+    }
+   ]
+  },
+  {
+   "sequence": 20,
+   "class_id": 20,
+   "name": "应用连接接口类",
+   "attributes": [
+    {
+     "no": 1,
+     "name": "逻辑名",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 2,
+     "name": "对象列表",
+     "kind": "static",
+     "type": "array"
+    },
+    {
+     "no": 3,
+     "name": "应用语境信息",
+     "kind": "static",
+     "type": "structure"
+    },
+    {
+     "no": 4,
+     "name": "当前连接的客户机地址",
+     "kind": "dyn",
+     "type": "unsigned"
+    },
+    {
+     "no": 5,
+     "name": "身份验证机制",
+     "kind": "static",
+     "type": "enum"
+    }
+   ],
+   "methods": [
+    {
+     "no": 1,
+     "name": "复位",
+     "requirement": "可选"
+    },
+    {
+     "no": 2,
+     "name": "执行",
+     "requirement": "可选"
+    }
+   ]
+  },
+  {
+   "sequence": 21,
+   "class_id": 21,
+   "name": "ESAM 接口类",
+   "attributes": [
+    {
+     "no": 1,
+     "name": "逻辑名",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 2,
+     "name": "ESAM 序列号",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 3,
+     "name": "ESAM 版本号",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 4,
+     "name": "对称密钥版本",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 5,
+     "name": "会话时效门限",
+     "kind": "static",
+     "type": "double-long-unsigned"
+    },
+    {
+     "no": 6,
+     "name": "会话时效剩余时间",
+     "kind": "dyn",
+     "type": "double-long-unsigned"
+    },
+    {
+     "no": 7,
+     "name": "当前计数器",
+     "kind": "static",
+     "type": "structure"
+    },
+    {
+     "no": 8,
+     "name": "证书版本",
+     "kind": "static",
+     "type": "structure"
+    },
+    {
+     "no": 9,
+     "name": "终端证书序列号",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 10,
+     "name": "终端证书",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 11,
+     "name": "主站证书序列号",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 12,
+     "name": "主站证书",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 13,
+     "name": "ESAM 安全存储对象列表",
+     "kind": "static",
+     "type": "array"
+    },
+    {
+     "no": 14,
+     "name": "红外认证时效门限",
+     "kind": "static",
+     "type": "double-long-unsigned"
+    },
+    {
+     "no": 15,
+     "name": "红外认证剩余时间",
+     "kind": "dyn",
+     "type": "double-long-unsigned"
+    }
+   ],
+   "methods": [
+    {
+     "no": 1,
+     "name": "复位",
+     "requirement": "可选"
+    },
+    {
+     "no": 2,
+     "name": "执行",
+     "requirement": "可选"
+    },
+    {
+     "no": 3,
+     "name": "ESAM 数据读取",
+     "requirement": "可选"
+    },
+    {
+     "no": 4,
+     "name": "数据更新",
+     "requirement": "可选"
+    },
+    {
+     "no": 5,
+     "name": "协商失效",
+     "requirement": "可选"
+    },
+    {
+     "no": 6,
+     "name": "钱包操作（开户、充值、退费）",
+     "requirement": "可选"
+    },
+    {
+     "no": 7,
+     "name": "密钥更新",
+     "requirement": "可选"
+    },
+    {
+     "no": 8,
+     "name": "证书更新",
+     "requirement": "可选"
+    },
+    {
+     "no": 9,
+     "name": "设置协商时效",
+     "requirement": "可选"
+    },
+    {
+     "no": 10,
+     "name": "钱包初始化",
+     "requirement": "可选"
+    },
+    {
+     "no": 11,
+     "name": "红外认证请求",
+     "requirement": "可选"
+    },
+    {
+     "no": 12,
+     "name": "红外认证指令",
+     "requirement": "可选"
+    }
+   ]
+  },
+  {
+   "sequence": 22,
+   "class_id": 22,
+   "name": "输入输出设备接口类",
+   "attributes": [
+    {
+     "no": 1,
+     "name": "逻辑名",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 2,
+     "name": "设备对象列表",
+     "kind": "static",
+     "type": "array"
+    },
+    {
+     "no": 3,
+     "name": "设备对象数量",
+     "kind": "static",
+     "type": "unsigned"
+    },
+    {
+     "no": 4,
+     "name": "配置参数",
+     "kind": "static",
+     "type": "instance-specific"
+    }
+   ],
+   "methods": [
+    {
+     "no": 1,
+     "name": "复位",
+     "requirement": "可选"
+    },
+    {
+     "no": 2,
+     "name": "执行",
+     "requirement": "可选"
+    }
+   ]
+  },
+  {
+   "sequence": 23,
+   "class_id": 23,
+   "name": "总加组接口类",
+   "attributes": [
+    {
+     "no": 1,
+     "name": "逻辑名",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 2,
+     "name": "总加配置表",
+     "kind": "static",
+     "type": "array"
+    },
+    {
+     "no": 3,
+     "name": "总加有功功率",
+     "kind": "dyn",
+     "type": "long64"
+    },
+    {
+     "no": 4,
+     "name": "总加无功功率",
+     "kind": "dyn",
+     "type": "long64"
+    },
+    {
+     "no": 5,
+     "name": "总加滑差时间内平均有功功率",
+     "kind": "dyn",
+     "type": "long64"
+    },
+    {
+     "no": 6,
+     "name": "总加滑差时间内平均无功功率",
+     "kind": "dyn",
+     "type": "long64"
+    },
+    {
+     "no": 7,
+     "name": "总加日有功电量",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 8,
+     "name": "总加日无功电量",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 9,
+     "name": "总加月有功电量",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 10,
+     "name": "总加月无功电量",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 11,
+     "name": "总加剩余电量（费）",
+     "kind": "dyn",
+     "type": "long64"
+    },
+    {
+     "no": 12,
+     "name": "当前功率下浮控控后总加有功功率冻结值",
+     "kind": "dyn",
+     "type": "long64"
+    },
+    {
+     "no": 13,
+     "name": "总加组滑差时间周期",
+     "kind": "static",
+     "type": "unsigned"
+    },
+    {
+     "no": 14,
+     "name": "总加组功控轮次配置",
+     "kind": "static",
+     "type": "bit-string"
+    },
+    {
+     "no": 15,
+     "name": "总加组电控轮次配置",
+     "kind": "static",
+     "type": "bit-string"
+    },
+    {
+     "no": 16,
+     "name": "总加组控制设置状态",
+     "kind": "dyn",
+     "type": "structure"
+    },
+    {
+     "no": 17,
+     "name": "总加组当前控制状态",
+     "kind": "dyn",
+     "type": "structure"
+    },
+    {
+     "no": 18,
+     "name": "换算及单位",
+     "kind": "static",
+     "type": "structure"
+    }
+   ],
+   "methods": [
+    {
+     "no": 1,
+     "name": "清空总加配置单元 必选",
+     "requirement": ""
+    },
+    {
+     "no": 2,
+     "name": "执行 可选",
+     "requirement": ""
+    },
+    {
+     "no": 3,
+     "name": "添加一个总加配置单元 可选",
+     "requirement": ""
+    },
+    {
+     "no": 4,
+     "name": "批量添加总加配置单元 可选",
+     "requirement": ""
+    },
+    {
+     "no": 5,
+     "name": "删除一个总加配置单元 可选",
+     "requirement": ""
+    }
+   ]
+  },
+  {
+   "sequence": 24,
+   "class_id": 24,
+   "name": "分项事件对象接口类",
+   "attributes": [
+    {
+     "no": 1,
+     "name": "逻辑名",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 2,
+     "name": "关联对象属性表",
+     "kind": "static",
+     "type": "array"
+    },
+    {
+     "no": 3,
+     "name": "当前记录数",
+     "kind": "dyn",
+     "type": "structure"
+    },
+    {
+     "no": 4,
+     "name": "最大记录数",
+     "kind": "static",
+     "type": "long-unsigned"
+    },
+    {
+     "no": 5,
+     "name": "配置参数",
+     "kind": "static",
+     "type": "structure"
+    },
+    {
+     "no": 6,
+     "name": "事件记录表 1",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 7,
+     "name": "事件记录表 2",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 8,
+     "name": "事件记录表 3",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 9,
+     "name": "事件记录表 4",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 10,
+     "name": "当前值记录表",
+     "kind": "dyn",
+     "type": "array"
+    },
+    {
+     "no": 11,
+     "name": "上报标识",
+     "kind": "static",
+     "type": "enum"
+    },
+    {
+     "no": 12,
+     "name": "有效标识",
+     "kind": "static",
+     "type": "bool"
+    },
+    {
+     "no": 14,
+     "name": "时间状态记录表",
+     "kind": "dyn",
+     "type": "array"
+    }
+   ],
+   "methods": [
+    {
+     "no": 1,
+     "name": "复位",
+     "requirement": "可选"
+    },
+    {
+     "no": 2,
+     "name": "执行",
+     "requirement": "可选"
+    },
+    {
+     "no": 4,
+     "name": "添加一个事件关联对象属性",
+     "requirement": "可选"
+    },
+    {
+     "no": 5,
+     "name": "删除一个事件关联对象属性",
+     "requirement": "可选"
+    }
+   ]
+  },
+  {
+   "sequence": 25,
+   "class_id": 25,
+   "name": "无线公网通信接口类",
+   "attributes": [
+    {
+     "no": 1,
+     "name": "逻辑名",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 2,
+     "name": "通信配置",
+     "kind": "static",
+     "type": "structure"
+    },
+    {
+     "no": 3,
+     "name": "主站通信参数表",
+     "kind": "static",
+     "type": "array"
+    },
+    {
+     "no": 4,
+     "name": "短信通信参数",
+     "kind": "static",
+     "type": "structure"
+    },
+    {
+     "no": 5,
+     "name": "版本信息",
+     "kind": "static",
+     "type": "structure"
+    },
+    {
+     "no": 6,
+     "name": "支持规约列表",
+     "kind": "static",
+     "type": "array"
+    },
+    {
+     "no": 7,
+     "name": "SIM 卡的 ICCID",
+     "kind": "static",
+     "type": "visible-string(SIZE(20))"
+    },
+    {
+     "no": 8,
+     "name": "IMSI",
+     "kind": "static",
+     "type": "visible-string(SIZE(15))"
+    },
+    {
+     "no": 9,
+     "name": "信号强度",
+     "kind": "dyn",
+     "type": "long，单位：dBm"
+    },
+    {
+     "no": 10,
+     "name": "SIM 卡号码",
+     "kind": "dyn",
+     "type": "visible-string(SIZE(16))"
+    },
+    {
+     "no": 11,
+     "name": "拨号 IP",
+     "kind": "dyn",
+     "type": "octet-string"
+    }
+   ],
+   "methods": [
+    {
+     "no": 1,
+     "name": "复位",
+     "requirement": "可选"
+    }
+   ]
+  },
+  {
+   "sequence": 26,
+   "class_id": 26,
+   "name": "以太网通信接口类",
+   "attributes": [
+    {
+     "no": 1,
+     "name": "逻辑名",
+     "kind": "static",
+     "type": "octet-string"
+    },
+    {
+     "no": 2,
+     "name": "通信配置",
+     "kind": "static",
+     "type": "structure"
+    },
+    {
+     "no": 3,
+     "name": "主站通信参数表",
+     "kind": "static",
+     "type": "array"
+    },
+    {
+     "no": 4,
+     "name": "终端 IP",
+     "kind": "static",
+     "type": "structure"
+    },
+    {
+     "no": 5,
+     "name": "MAC 地址",
+     "kind": "static",
+     "type": "octet-string"
+    }
+   ],
+   "methods": [
+    {
+     "no": 1,
+     "name": "复位",
+     "requirement": "可选"
+    }
+   ]
+  }
+ ],
+ "ois": [
+  {
+   "oi": "0000",
+   "name": "组合有功电能          电能量∷=double-long；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6306
+  },
+  {
+   "oi": "0010",
+   "name": "正向有功电能          电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6308
+  },
+  {
+   "oi": "0011",
+   "name": "A 相正向有功电能       电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6310
+  },
+  {
+   "oi": "0012",
+   "name": "B 相正向有功电能       电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6312
+  },
+  {
+   "oi": "0013",
+   "name": "C 相正向有功电能       电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6314
+  },
+  {
+   "oi": "0020",
+   "name": "反向有功电能          电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6316
+  },
+  {
+   "oi": "0021",
+   "name": "A 相反向有功电能       电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6318
+  },
+  {
+   "oi": "0022",
+   "name": "B 相反向有功电能       电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6320
+  },
+  {
+   "oi": "0023",
+   "name": "C 相反向有功电能       电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6322
+  },
+  {
+   "oi": "0030",
+   "name": "组合无功 1 电能       电能量∷=double-long；单位：kvarh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6324
+  },
+  {
+   "oi": "0031",
+   "name": "A 相组合无功 1 电能    电能量∷=double-long；单位：kvarh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6326
+  },
+  {
+   "oi": "0032",
+   "name": "B 相组合无功 1 电能    电能量∷=double-long；单位：kvarh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6328
+  },
+  {
+   "oi": "0033",
+   "name": "C 相组合无功 1 电能    电能量∷=double-long；单位：kvarh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6330
+  },
+  {
+   "oi": "0040",
+   "name": "组合无功 2 电能       电能量∷=double-long；单位：kvarh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6332
+  },
+  {
+   "oi": "0041",
+   "name": "A 相组合无功 2 电能    电能量∷=double-long；单位：kvarh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6334
+  },
+  {
+   "oi": "0042",
+   "name": "B 相组合无功 2 电能   电能量∷=double-long；单位：kvarh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6339
+  },
+  {
+   "oi": "0043",
+   "name": "C 相组合无功 2 电能   电能量∷=double-long；单位：kvarh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6341
+  },
+  {
+   "oi": "0050",
+   "name": "第一象限无功电能       电能量∷=double-long-unsigned；单位：kvarh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6343
+  },
+  {
+   "oi": "0051",
+   "name": "A 相第一象限无功电能    电能量∷=double-long-unsigned；单位：kvarh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6345
+  },
+  {
+   "oi": "0052",
+   "name": "B 相第一象限无功电能    电能量∷=double-long-unsigned；单位：kvarh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6347
+  },
+  {
+   "oi": "0053",
+   "name": "C 相第一象限无功电能    电能量∷=double-long-unsigned；单位：kvarh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6349
+  },
+  {
+   "oi": "0060",
+   "name": "第二象限无功电能       电能量∷=double-long-unsigned；单位：kvarh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6351
+  },
+  {
+   "oi": "0061",
+   "name": "A 相第二象限无功电能    电能量∷=double-long-unsigned；单位：kvarh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6353
+  },
+  {
+   "oi": "0062",
+   "name": "B 相第二象限无功电能    电能量∷=double-long-unsigned；单位：kvarh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6355
+  },
+  {
+   "oi": "0063",
+   "name": "C 相第二象限无功电能    电能量∷=double-long-unsigned；单位：kvarh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6357
+  },
+  {
+   "oi": "0070",
+   "name": "第三象限无功电能       电能量∷=double-long-unsigned；单位：kvarh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6359
+  },
+  {
+   "oi": "0071",
+   "name": "A 相第三象限无功电能    电能量∷=double-long-unsigned；单位：kvarh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6361
+  },
+  {
+   "oi": "0072",
+   "name": "B 相第三象限无功电能    电能量∷=double-long-unsigned；单位：kvarh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6363
+  },
+  {
+   "oi": "0073",
+   "name": "C 相第三象限无功电能    电能量∷=double-long-unsigned；单位：kvarh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6365
+  },
+  {
+   "oi": "0080",
+   "name": "第四象限无功电能       电能量∷=double-long-unsigned；单位：kvarh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6367
+  },
+  {
+   "oi": "0081",
+   "name": "A 相第四象限无功电能    电能量∷=double-long-unsigned；单位：kvarh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6369
+  },
+  {
+   "oi": "0082",
+   "name": "B 相第四象限无功电能    电能量∷=double-long-unsigned；单位：kvarh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6371
+  },
+  {
+   "oi": "0083",
+   "name": "C 相第四象限无功电能    电能量∷=double-long-unsigned；单位：kvarh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6373
+  },
+  {
+   "oi": "0090",
+   "name": "正向视在电能         电能量∷=double-long-unsigned；单位：kVAh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6375
+  },
+  {
+   "oi": "0091",
+   "name": "A 相正向视在电能      电能量∷=double-long-unsigned；单位：kVAh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6377
+  },
+  {
+   "oi": "0092",
+   "name": "B 相正向视在电能      电能量∷=double-long-unsigned；单位：kVAh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6379
+  },
+  {
+   "oi": "0093",
+   "name": "C 相正向视在电能     电能量∷=double-long-unsigned；单位：kVAh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6384
+  },
+  {
+   "oi": "00A0",
+   "name": "反向视在电能        电能量∷=double-long-unsigned；单位：kVAh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6386
+  },
+  {
+   "oi": "00A1",
+   "name": "A 相反向视在电能     电能量∷=double-long-unsigned；单位：kVAh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6388
+  },
+  {
+   "oi": "00A2",
+   "name": "B 相反向视在电能     电能量∷=double-long-unsigned；单位：kVAh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6390
+  },
+  {
+   "oi": "00A3",
+   "name": "C 相反向视在电能     电能量∷=double-long-unsigned；单位：kVAh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6392
+  },
+  {
+   "oi": "0110",
+   "name": "正向有功基波总电能     电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6394
+  },
+  {
+   "oi": "0111",
+   "name": "A 相正向有功基波电能   电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6396
+  },
+  {
+   "oi": "0112",
+   "name": "B 相正向有功基波电能   电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6398
+  },
+  {
+   "oi": "0113",
+   "name": "C 相正向有功基波电能   电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6400
+  },
+  {
+   "oi": "0120",
+   "name": "反向有功基波总电能     电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6402
+  },
+  {
+   "oi": "0121",
+   "name": "A 相反向有功基波电能   电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6404
+  },
+  {
+   "oi": "0122",
+   "name": "B 相反向有功基波电能   电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6406
+  },
+  {
+   "oi": "0123",
+   "name": "C 相反向有功基波电能   电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6408
+  },
+  {
+   "oi": "0210",
+   "name": "正向有功谐波总电能     电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6410
+  },
+  {
+   "oi": "0211",
+   "name": "A 相正向有功谐波电能   电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6412
+  },
+  {
+   "oi": "0212",
+   "name": "B 相正向有功谐波电能   电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6414
+  },
+  {
+   "oi": "0213",
+   "name": "C 相正向有功谐波电能   电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6416
+  },
+  {
+   "oi": "0220",
+   "name": "反向有功谐波总电能     电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6418
+  },
+  {
+   "oi": "0221",
+   "name": "A 相反向有功谐波电能   电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6420
+  },
+  {
+   "oi": "0222",
+   "name": "B 相反向有功谐波电能   电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6422
+  },
+  {
+   "oi": "0223",
+   "name": "C 相反向有功谐波电能   电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6424
+  },
+  {
+   "oi": "0300",
+   "name": "铜损有功总电能补偿量     电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6429
+  },
+  {
+   "oi": "0301",
+   "name": "A 相铜损有功电能补偿量   电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6431
+  },
+  {
+   "oi": "0302",
+   "name": "B 相铜损有功电能补偿量   电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6433
+  },
+  {
+   "oi": "0303",
+   "name": "C 相铜损有功电能补偿量   电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6435
+  },
+  {
+   "oi": "0400",
+   "name": "铁损有功总电能补偿量     电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6437
+  },
+  {
+   "oi": "0401",
+   "name": "A 相铁损有功电能补偿量   电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6439
+  },
+  {
+   "oi": "0402",
+   "name": "B 相铁损有功电能补偿量   电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6441
+  },
+  {
+   "oi": "0403",
+   "name": "C 相铁损有功电能补偿量   电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6443
+  },
+  {
+   "oi": "0500",
+   "name": "关联总电能          电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6445
+  },
+  {
+   "oi": "0501",
+   "name": "A 相关联电能        电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6447
+  },
+  {
+   "oi": "0502",
+   "name": "B 相关联电能        电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6449
+  },
+  {
+   "oi": "0503",
+   "name": "C 相关联电能        电能量∷=double-long-unsigned；单位：kWh，换算：-2",
+   "parsed_class": 1,
+   "inferred_class": 1,
+   "source_line": 6451
+  },
+  {
+   "oi": "1010",
+   "name": "正向有功最大需量         最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6464
+  },
+  {
+   "oi": "1011",
+   "name": "A 相正向有功最大需量      最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6466
+  },
+  {
+   "oi": "1012",
+   "name": "B 相正向有功最大需量      最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6468
+  },
+  {
+   "oi": "1013",
+   "name": "C 相正向有功最大需量      最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6470
+  },
+  {
+   "oi": "1020",
+   "name": "反向有功最大需量           最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6475
+  },
+  {
+   "oi": "1021",
+   "name": "A 相反向有功最大需量        最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6477
+  },
+  {
+   "oi": "1022",
+   "name": "B 相反向有功最大需量        最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6479
+  },
+  {
+   "oi": "1023",
+   "name": "C 相反向有功最大需量        最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6481
+  },
+  {
+   "oi": "1030",
+   "name": "组合无功 1 最大需量        最大需量值∷=double-long",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6483
+  },
+  {
+   "oi": "1031",
+   "name": "A 相组合无功 1 最大需量     最大需量值∷=double-long",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6485
+  },
+  {
+   "oi": "1032",
+   "name": "B 相组合无功 1 最大需量     最大需量值∷=double-long",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6487
+  },
+  {
+   "oi": "1033",
+   "name": "C 相组合无功 1 最大需量     最大需量值∷=double-long",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6489
+  },
+  {
+   "oi": "1040",
+   "name": "组合无功 2 最大需量        最大需量值∷=double-long",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6491
+  },
+  {
+   "oi": "1041",
+   "name": "A 相组合无功 2 最大需量     最大需量值∷=double-long",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6493
+  },
+  {
+   "oi": "1042",
+   "name": "B 相组合无功 2 最大需量     最大需量值∷=double-long",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6495
+  },
+  {
+   "oi": "1043",
+   "name": "C 相组合无功 2 最大需量     最大需量值∷=double-long",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6497
+  },
+  {
+   "oi": "1050",
+   "name": "第一象限最大需量           最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6499
+  },
+  {
+   "oi": "1051",
+   "name": "A 相第一象限最大需量        最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6501
+  },
+  {
+   "oi": "1052",
+   "name": "B 相第一象限最大需量        最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6503
+  },
+  {
+   "oi": "1053",
+   "name": "C 相第一象限最大需量        最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6505
+  },
+  {
+   "oi": "1060",
+   "name": "第二象限最大需量           最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6507
+  },
+  {
+   "oi": "1061",
+   "name": "A 相第二象限最大需量        最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6509
+  },
+  {
+   "oi": "1062",
+   "name": "B 相第二象限最大需量        最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6511
+  },
+  {
+   "oi": "1063",
+   "name": "C 相第二象限最大需量        最大需量值∷=double-long-unsigned，单",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6513
+  },
+  {
+   "oi": "1070",
+   "name": "第三象限最大需量           最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6515
+  },
+  {
+   "oi": "1071",
+   "name": "A 相第三象限最大需量           最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6520
+  },
+  {
+   "oi": "1072",
+   "name": "B 相第三象限最大需量           最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6522
+  },
+  {
+   "oi": "1073",
+   "name": "C 相第三象限最大需量           最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6524
+  },
+  {
+   "oi": "1080",
+   "name": "第四象限最大需量              最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6526
+  },
+  {
+   "oi": "1081",
+   "name": "A 相第四象限最大需量           最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6528
+  },
+  {
+   "oi": "1082",
+   "name": "B 相第四象限最大需量           最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6530
+  },
+  {
+   "oi": "1083",
+   "name": "C 相第四象限最大需量           最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6532
+  },
+  {
+   "oi": "1090",
+   "name": "正向视在最大需量              最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6534
+  },
+  {
+   "oi": "1091",
+   "name": "A 相正向视在最大需量           最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6536
+  },
+  {
+   "oi": "1092",
+   "name": "B 相正向视在最大需量           最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6538
+  },
+  {
+   "oi": "1093",
+   "name": "C 相正向视在最大需量           最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6540
+  },
+  {
+   "oi": "10A0",
+   "name": "反向视在最大需量              最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6542
+  },
+  {
+   "oi": "10A1",
+   "name": "A 相反向视在最大需量           最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6544
+  },
+  {
+   "oi": "10A2",
+   "name": "B 相反向视在最大需量           最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6546
+  },
+  {
+   "oi": "10A3",
+   "name": "C 相反向视在最大需量           最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6548
+  },
+  {
+   "oi": "1110",
+   "name": "冻结周期内正向有功最大需量         最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6550
+  },
+  {
+   "oi": "1111",
+   "name": "冻结周期内 A 相正向有功最大需量     最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6552
+  },
+  {
+   "oi": "1112",
+   "name": "冻结周期内 B 相正向有功最大需量     最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6554
+  },
+  {
+   "oi": "1113",
+   "name": "冻结周期内 C 相正向有功最大需量     最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6556
+  },
+  {
+   "oi": "1120",
+   "name": "冻结周期内反向有功最大需量         最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6558
+  },
+  {
+   "oi": "1121",
+   "name": "冻结周期内 A 相反向有功最大需量     最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6560
+  },
+  {
+   "oi": "1122",
+   "name": "冻结周期内 B 相反向有功最大需量        最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6565
+  },
+  {
+   "oi": "1123",
+   "name": "冻结周期内 C 相反向有功最大需量        最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6567
+  },
+  {
+   "oi": "1130",
+   "name": "冻结周期内组合无功 1 最大需量         最大需量值∷=double-long",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6569
+  },
+  {
+   "oi": "1131",
+   "name": "冻结周期内 A 相组合无功 1 最大需量     最大需量值∷=double-long",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6571
+  },
+  {
+   "oi": "1132",
+   "name": "冻结周期内 B 相组合无功 1 最大需量     最大需量值∷=double-long",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6573
+  },
+  {
+   "oi": "1133",
+   "name": "冻结周期内 C 相组合无功 1 最大需量     最大需量值∷=double-long",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6575
+  },
+  {
+   "oi": "1140",
+   "name": "冻结周期内组合无功 2 最大需量         最大需量值∷=double-long",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6577
+  },
+  {
+   "oi": "1141",
+   "name": "冻结周期内 A 相组合无功 2 最大需量     最大需量值∷=double-long",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6579
+  },
+  {
+   "oi": "1142",
+   "name": "冻结周期内 B 相组合无功 2 最大需量     最大需量值∷=double-long",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6581
+  },
+  {
+   "oi": "1143",
+   "name": "冻结周期内 C 相组合无功 2 最大需量     最大需量值∷=double-long",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6583
+  },
+  {
+   "oi": "1150",
+   "name": "冻结周期内第一象限最大需量            最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6585
+  },
+  {
+   "oi": "1151",
+   "name": "冻结周期内 A 相第一象限最大需量        最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6587
+  },
+  {
+   "oi": "1152",
+   "name": "冻结周期内 B 相第一象限最大需量        最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6589
+  },
+  {
+   "oi": "1153",
+   "name": "冻结周期内 C 相第一象限最大需量        最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6591
+  },
+  {
+   "oi": "1160",
+   "name": "冻结周期内第二象限最大需量            最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6593
+  },
+  {
+   "oi": "1161",
+   "name": "冻结周期内 A 相第二象限最大需量        最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6595
+  },
+  {
+   "oi": "1162",
+   "name": "冻结周期内 B 相第二象限最大需量        最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6597
+  },
+  {
+   "oi": "1163",
+   "name": "冻结周期内 C 相第二象限最大需量        最大需量值∷=double-long-unsigned，单",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6599
+  },
+  {
+   "oi": "1170",
+   "name": "冻结周期内第三象限最大需量            最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6601
+  },
+  {
+   "oi": "1171",
+   "name": "冻结周期内 A 相第三象限最大需量        最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6603
+  },
+  {
+   "oi": "1172",
+   "name": "冻结周期内 B 相第三象限最大需量        最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6605
+  },
+  {
+   "oi": "1173",
+   "name": "冻结周期内 C 相第三象限最大需量     最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6610
+  },
+  {
+   "oi": "1180",
+   "name": "冻结周期内第四象限最大需量         最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6612
+  },
+  {
+   "oi": "1181",
+   "name": "冻结周期内 A 相第四象限最大需量     最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6614
+  },
+  {
+   "oi": "1182",
+   "name": "冻结周期内 B 相第四象限最大需量     最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6616
+  },
+  {
+   "oi": "1183",
+   "name": "冻结周期内 C 相第四象限最大需量     最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6618
+  },
+  {
+   "oi": "1190",
+   "name": "冻结周期内正向视在最大需量         最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6620
+  },
+  {
+   "oi": "1191",
+   "name": "冻结周期内 A 相正向视在最大需量     最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6622
+  },
+  {
+   "oi": "1192",
+   "name": "冻结周期内 B 相正向视在最大需量     最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6624
+  },
+  {
+   "oi": "1193",
+   "name": "冻结周期内 C 相正向视在最大需量     最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6626
+  },
+  {
+   "oi": "11A0",
+   "name": "冻结周期内反向视在最大需量         最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6628
+  },
+  {
+   "oi": "11A1",
+   "name": "冻结周期内 A 相反向视在最大需量     最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6630
+  },
+  {
+   "oi": "11A2",
+   "name": "冻结周期内 B 相反向视在最大需量     最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6632
+  },
+  {
+   "oi": "11A3",
+   "name": "冻结周期内 C 相反向视在最大需量     最大需量值∷=double-long-unsigned",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6634
+  },
+  {
+   "oi": "2000",
+   "name": "电压                数据类型：long-unsigned，单位：V，换算：-1",
+   "parsed_class": 3,
+   "inferred_class": 3,
+   "source_line": 6649
+  },
+  {
+   "oi": "2001",
+   "name": "电流                数据类型：double-long，单位：A 换算：-3",
+   "parsed_class": 3,
+   "inferred_class": 3,
+   "source_line": 6650
+  },
+  {
+   "oi": "2002",
+   "name": "电压相角              数据类型：long-unsigned，单位：度，换算：-1",
+   "parsed_class": 3,
+   "inferred_class": 3,
+   "source_line": 6652
+  },
+  {
+   "oi": "2003",
+   "name": "电压电流相角          数据类型：long-unsigned，单位：度，换算：-1",
+   "parsed_class": 3,
+   "inferred_class": 3,
+   "source_line": 6656
+  },
+  {
+   "oi": "2004",
+   "name": "有功功率            数据类型：double-long，单位：W，换算：-1",
+   "parsed_class": 4,
+   "inferred_class": 4,
+   "source_line": 6657
+  },
+  {
+   "oi": "2005",
+   "name": "无功功率            数据类型：double-long，单位：var，换算：-1",
+   "parsed_class": 4,
+   "inferred_class": 4,
+   "source_line": 6658
+  },
+  {
+   "oi": "2006",
+   "name": "视在功率            数据类型：double-long，单位：VA，换算：-1",
+   "parsed_class": 4,
+   "inferred_class": 4,
+   "source_line": 6659
+  },
+  {
+   "oi": "2007",
+   "name": "一分钟平均有功功率       数据类型：double-long，单位：W，换算：-1",
+   "parsed_class": 4,
+   "inferred_class": 4,
+   "source_line": 6660
+  },
+  {
+   "oi": "2008",
+   "name": "一分钟平均无功功率       数据类型：double-long，单位：var，换算：-1",
+   "parsed_class": 4,
+   "inferred_class": 4,
+   "source_line": 6661
+  },
+  {
+   "oi": "2009",
+   "name": "一分钟平均视在功率       数据类型：double-long，单位：VA，换算：-1",
+   "parsed_class": 4,
+   "inferred_class": 4,
+   "source_line": 6662
+  },
+  {
+   "oi": "200A",
+   "name": "功率因数            数据类型：long，单位：无，换算：-3",
+   "parsed_class": 4,
+   "inferred_class": 4,
+   "source_line": 6663
+  },
+  {
+   "oi": "200B",
+   "name": "电压波形失真度         数据类型：long，单位：%，换算：-2",
+   "parsed_class": 3,
+   "inferred_class": 3,
+   "source_line": 6664
+  },
+  {
+   "oi": "200C",
+   "name": "电流波形失真度         数据类型：long，单位：%，换算：-2",
+   "parsed_class": 3,
+   "inferred_class": 3,
+   "source_line": 6665
+  },
+  {
+   "oi": "200D",
+   "name": "电压谐波含有量（总及 2…n  数据类型：long，单位：%，换算：-2",
+   "parsed_class": 5,
+   "inferred_class": 5,
+   "source_line": 6666
+  },
+  {
+   "oi": "200E",
+   "name": "电流谐波含有量（总及 2…n  数据类型：long，单位：%，换算：-2",
+   "parsed_class": 5,
+   "inferred_class": 5,
+   "source_line": 6668
+  },
+  {
+   "oi": "200F",
+   "name": "电网频率            数据类型：long-unsigned，单位：Hz，换算：-2",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6670
+  },
+  {
+   "oi": "2010",
+   "name": "表内温度            数据类型：long，单位：℃，换算：-1",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6671
+  },
+  {
+   "oi": "2011",
+   "name": "时钟电池电压          数据类型：long-unsigned，单位：V，换算：-2",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6672
+  },
+  {
+   "oi": "2012",
+   "name": "停电抄表电池电压        数据类型：long-unsigned，单位：V，换算：-2",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6673
+  },
+  {
+   "oi": "2013",
+   "name": "时钟电池工作时间        数据类型：double-long-unsigned，单位：分钟，无换",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6674
+  },
+  {
+   "oi": "2014",
+   "name": "电能表运行状态字        数据类型：array bit-string，无单位，无换算，包括",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6676
+  },
+  {
+   "oi": "2015",
+   "name": "电能表跟随上报状态字      数据类型：bit-string(SIZE(32))，无单位，无换算，",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6678
+  },
+  {
+   "oi": "2017",
+   "name": "当前有功需量          数据类型：double-long，单位：kW，换算：-4",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6684
+  },
+  {
+   "oi": "2018",
+   "name": "当前无功需量          数据类型：double-long，单位：kvar，换算：-4",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6685
+  },
+  {
+   "oi": "2019",
+   "name": "当前视在需量          数据类型：double-long，单位：kVA，换算：-4",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6686
+  },
+  {
+   "oi": "201A",
+   "name": "当前电价            数据类型：double-long-unsigned，单位：元/kWh，换",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6687
+  },
+  {
+   "oi": "201B",
+   "name": "当前费率电价          数据类型：double-long-unsigned，单位：元/kWh，换",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6689
+  },
+  {
+   "oi": "201C",
+   "name": "当前阶梯电价          数据类型：double-long-unsigned，单位：元/kWh，换",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6691
+  },
+  {
+   "oi": "201E",
+   "name": "事件发生时间          数据类型：date_time_s",
+   "parsed_class": 8,
+   "inferred_class": 6,
+   "source_line": 6693
+  },
+  {
+   "oi": "2020",
+   "name": "事件结束时间          数据类型：date_time_s",
+   "parsed_class": 8,
+   "inferred_class": 6,
+   "source_line": 6694
+  },
+  {
+   "oi": "2021",
+   "name": "数据冻结时间          数据类型：date_time_s",
+   "parsed_class": 8,
+   "inferred_class": 6,
+   "source_line": 6695
+  },
+  {
+   "oi": "2022",
+   "name": "事件记录序号          数据类型：double-long-unsigned",
+   "parsed_class": 8,
+   "inferred_class": 6,
+   "source_line": 6696
+  },
+  {
+   "oi": "2023",
+   "name": "冻结记录序号          数据类型：double-long-unsigned",
+   "parsed_class": 8,
+   "inferred_class": 6,
+   "source_line": 6697
+  },
+  {
+   "oi": "2024",
+   "name": "事件发生源       具体对象定义。",
+   "parsed_class": 8,
+   "inferred_class": 6,
+   "source_line": 6701
+  },
+  {
+   "oi": "2025",
+   "name": "事件当前值       structure",
+   "parsed_class": 8,
+   "inferred_class": 6,
+   "source_line": 6702
+  },
+  {
+   "oi": "2026",
+   "name": "电压不平衡率      数据类型：long-unsigned，单位：%，换算：-2",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6708
+  },
+  {
+   "oi": "2027",
+   "name": "电流不平衡率      数据类型：long-unsigned，单位：%，换算：-2",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6709
+  },
+  {
+   "oi": "2028",
+   "name": "负载率         数据类型：long-unsigned，单位：%，换算：-2",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6710
+  },
+  {
+   "oi": "2029",
+   "name": "安时值         属性 2安时数值∷=array 相安时值",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6711
+  },
+  {
+   "oi": "202A",
+   "name": "目标服务器地址     属性 2∷=TSA",
+   "parsed_class": 8,
+   "inferred_class": 6,
+   "source_line": 6715
+  },
+  {
+   "oi": "202C",
+   "name": "（当前）钱包文件    数值∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 6,
+   "source_line": 6716
+  },
+  {
+   "oi": "202D",
+   "name": "（当前）透支金额    数据类型：double-long-unsigned，单位：元，换算：",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6722
+  },
+  {
+   "oi": "202E",
+   "name": "累计购电金额      数据类型：double-long-unsigned，单位：元，换算：",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6724
+  },
+  {
+   "oi": "2031",
+   "name": "月度用电量       属性 2用电量∷=double-long-unsigned，",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6726
+  },
+  {
+   "oi": "2032",
+   "name": "阶梯结算用电量     属性 2用电量∷=double-long-unsigned，",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6728
+  },
+  {
+   "oi": "2040",
+   "name": "控制命令执行状态字   数据类型：bit-string(SIZE(16))，无单位，无换算",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6730
+  },
+  {
+   "oi": "2041",
+   "name": "控制命令错误状态字   数据类型：bit-string(SIZE(16))，无单位，无换算",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6731
+  },
+  {
+   "oi": "2100",
+   "name": "分钟区间统计      统计周期单位为分钟",
+   "parsed_class": 14,
+   "inferred_class": 14,
+   "source_line": 6732
+  },
+  {
+   "oi": "2101",
+   "name": "小时区间统计      统计周期单位为小时",
+   "parsed_class": 14,
+   "inferred_class": 14,
+   "source_line": 6733
+  },
+  {
+   "oi": "2102",
+   "name": "日区间统计       统计周期单位为日",
+   "parsed_class": 14,
+   "inferred_class": 14,
+   "source_line": 6734
+  },
+  {
+   "oi": "2103",
+   "name": "月区间统计       统计周期单位为月",
+   "parsed_class": 14,
+   "inferred_class": 14,
+   "source_line": 6735
+  },
+  {
+   "oi": "2104",
+   "name": "年区间统计       统计周期单位为年",
+   "parsed_class": 14,
+   "inferred_class": 14,
+   "source_line": 6736
+  },
+  {
+   "oi": "2110",
+   "name": "分钟平均        统计周期单位为分钟",
+   "parsed_class": 15,
+   "inferred_class": 15,
+   "source_line": 6737
+  },
+  {
+   "oi": "2111",
+   "name": "小时平均        统计周期单位为时",
+   "parsed_class": 15,
+   "inferred_class": 15,
+   "source_line": 6738
+  },
+  {
+   "oi": "2112",
+   "name": "日平均         统计周期单位为日",
+   "parsed_class": 15,
+   "inferred_class": 15,
+   "source_line": 6739
+  },
+  {
+   "oi": "2113",
+   "name": "月平均         统计周期单位为月",
+   "parsed_class": 15,
+   "inferred_class": 15,
+   "source_line": 6740
+  },
+  {
+   "oi": "2114",
+   "name": "年平均         统计周期单位为年",
+   "parsed_class": 15,
+   "inferred_class": 15,
+   "source_line": 6741
+  },
+  {
+   "oi": "2120",
+   "name": "分钟极值        统计周期单位为分钟",
+   "parsed_class": 16,
+   "inferred_class": 16,
+   "source_line": 6742
+  },
+  {
+   "oi": "2121",
+   "name": "小时极值        统计周期单位为时",
+   "parsed_class": 16,
+   "inferred_class": 16,
+   "source_line": 6743
+  },
+  {
+   "oi": "2122",
+   "name": "日极值            统计周期单位为日",
+   "parsed_class": 16,
+   "inferred_class": 16,
+   "source_line": 6747
+  },
+  {
+   "oi": "2123",
+   "name": "月极值            统计周期单位为月",
+   "parsed_class": 16,
+   "inferred_class": 16,
+   "source_line": 6748
+  },
+  {
+   "oi": "2124",
+   "name": "年极值            统计周期单位为年",
+   "parsed_class": 16,
+   "inferred_class": 16,
+   "source_line": 6749
+  },
+  {
+   "oi": "2131",
+   "name": "当月 A 相电压合格率    属性  2（电压合格率数据）∷=structure",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6750
+  },
+  {
+   "oi": "2132",
+   "name": "当月 B 相电压合格率    同 2131",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6767
+  },
+  {
+   "oi": "2133",
+   "name": "当月 C 相电压合格率    同 2131",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6768
+  },
+  {
+   "oi": "2140",
+   "name": "日最大有功功率及发生时间   最大功率及发生时间∷=structure",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6769
+  },
+  {
+   "oi": "2141",
+   "name": "月最大有功功率及发生时间   同 2140。",
+   "parsed_class": 2,
+   "inferred_class": 2,
+   "source_line": 6775
+  },
+  {
+   "oi": "2200",
+   "name": "通信流量           数值∷=structure",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6776
+  },
+  {
+   "oi": "2203",
+   "name": "供电时间           数值∷=structure",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6782
+  },
+  {
+   "oi": "2204",
+   "name": "复位次数           数值∷=structure",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6788
+  },
+  {
+   "oi": "2301",
+   "name": "总加组 1",
+   "parsed_class": 23,
+   "inferred_class": 23,
+   "source_line": 6795
+  },
+  {
+   "oi": "2302",
+   "name": "总加组 2",
+   "parsed_class": 23,
+   "inferred_class": 23,
+   "source_line": 6796
+  },
+  {
+   "oi": "2303",
+   "name": "总加组 3",
+   "parsed_class": 23,
+   "inferred_class": 23,
+   "source_line": 6797
+  },
+  {
+   "oi": "2304",
+   "name": "总加组 4",
+   "parsed_class": 23,
+   "inferred_class": 23,
+   "source_line": 6798
+  },
+  {
+   "oi": "2305",
+   "name": "总加组 5",
+   "parsed_class": 23,
+   "inferred_class": 23,
+   "source_line": 6799
+  },
+  {
+   "oi": "2306",
+   "name": "总加组 6",
+   "parsed_class": 23,
+   "inferred_class": 23,
+   "source_line": 6800
+  },
+  {
+   "oi": "2307",
+   "name": "总加组 7",
+   "parsed_class": 23,
+   "inferred_class": 23,
+   "source_line": 6801
+  },
+  {
+   "oi": "2308",
+   "name": "总加组 8",
+   "parsed_class": 23,
+   "inferred_class": 23,
+   "source_line": 6802
+  },
+  {
+   "oi": "2401",
+   "name": "脉冲计量 1",
+   "parsed_class": 12,
+   "inferred_class": 12,
+   "source_line": 6803
+  },
+  {
+   "oi": "2402",
+   "name": "脉冲计量 2",
+   "parsed_class": 12,
+   "inferred_class": 12,
+   "source_line": 6804
+  },
+  {
+   "oi": "2403",
+   "name": "脉冲计量 3",
+   "parsed_class": 12,
+   "inferred_class": 12,
+   "source_line": 6805
+  },
+  {
+   "oi": "2404",
+   "name": "脉冲计量 4",
+   "parsed_class": 12,
+   "inferred_class": 12,
+   "source_line": 6806
+  },
+  {
+   "oi": "2405",
+   "name": "脉冲计量 5",
+   "parsed_class": 12,
+   "inferred_class": 12,
+   "source_line": 6807
+  },
+  {
+   "oi": "2406",
+   "name": "脉冲计量 6",
+   "parsed_class": 12,
+   "inferred_class": 12,
+   "source_line": 6808
+  },
+  {
+   "oi": "2407",
+   "name": "脉冲计量 7",
+   "parsed_class": 12,
+   "inferred_class": 12,
+   "source_line": 6809
+  },
+  {
+   "oi": "2408",
+   "name": "脉冲计量 8",
+   "parsed_class": 12,
+   "inferred_class": 12,
+   "source_line": 6810
+  },
+  {
+   "oi": "2500",
+   "name": "累计水（热）流量      数据类型：double-long-unsigned，单位：m³，换算：-4",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6811
+  },
+  {
+   "oi": "2501",
+   "name": "累计气流量         数据类型：double-long-unsigned，单位：m³，换算：-4",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6813
+  },
+  {
+   "oi": "2502",
+   "name": "累计热量          数据类型：double-long-unsigned，单位：J，换算：-2",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6814
+  },
+  {
+   "oi": "2503",
+   "name": "热功率           数据类型：double-long-unsigned，单位：J/h，换算：",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6815
+  },
+  {
+   "oi": "2504",
+   "name": "累计工作时间        数据类型：double-long-unsigned，单位：小时，换算：",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6817
+  },
+  {
+   "oi": "2505",
+   "name": "水温            数值∷=structure",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6819
+  },
+  {
+   "oi": "2506",
+   "name": "（仪表）状态 ST     数值∷=structure",
+   "parsed_class": 6,
+   "inferred_class": 6,
+   "source_line": 6825
+  },
+  {
+   "oi": "3000",
+   "name": "电能表失压事件    属性 5（配置参数）∷=structure",
+   "parsed_class": 24,
+   "inferred_class": 24,
+   "source_line": 6854
+  },
+  {
+   "oi": "3001",
+   "name": "电能表欠压事件   属性 5（配置参数）∷=structure",
+   "parsed_class": 24,
+   "inferred_class": 24,
+   "source_line": 6876
+  },
+  {
+   "oi": "3002",
+   "name": "电能表过压事件   属性 5（配置参数）∷=structure",
+   "parsed_class": 24,
+   "inferred_class": 24,
+   "source_line": 6881
+  },
+  {
+   "oi": "3003",
+   "name": "电能表断相事件      属性  5（配置参数）∷=structure",
+   "parsed_class": 24,
+   "inferred_class": 24,
+   "source_line": 6888
+  },
+  {
+   "oi": "3004",
+   "name": "电能表失流事件      属性  5（配置参数）∷=structure",
+   "parsed_class": 24,
+   "inferred_class": 24,
+   "source_line": 6894
+  },
+  {
+   "oi": "3005",
+   "name": "电能表过流事件      属性  5（配置参数）∷=structure",
+   "parsed_class": 24,
+   "inferred_class": 24,
+   "source_line": 6901
+  },
+  {
+   "oi": "3006",
+   "name": "电能表断流事件      属性  5（配置参数）∷=structure",
+   "parsed_class": 24,
+   "inferred_class": 7,
+   "source_line": 6906
+  },
+  {
+   "oi": "3007",
+   "name": "电能表功率反向事件    属性  5（配置参数）∷=structure",
+   "parsed_class": 24,
+   "inferred_class": 7,
+   "source_line": 6912
+  },
+  {
+   "oi": "3008",
+   "name": "电能表过载事件      属性  5（配置参数）∷=structure",
+   "parsed_class": 24,
+   "inferred_class": 7,
+   "source_line": 6917
+  },
+  {
+   "oi": "3009",
+   "name": "电能表正向有功需量超限  属性  2（事件记录表）∷=array 电能表需量超限事件单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 6922
+  },
+  {
+   "oi": "300A",
+   "name": "电能表反向有功需量超限  属性  2（事件记录表）∷=array 电能表需量超限事件单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 6933
+  },
+  {
+   "oi": "300B",
+   "name": "电能表无功需量超限事件  属性  5（配置参数）∷=structure",
+   "parsed_class": 24,
+   "inferred_class": 24,
+   "source_line": 6940
+  },
+  {
+   "oi": "300C",
+   "name": "电能表功率因数超下限事  属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 6949
+  },
+  {
+   "oi": "300D",
+   "name": "电能表全失压事件     属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 6956
+  },
+  {
+   "oi": "300E",
+   "name": "电能表辅助电源掉电事件  属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 6961
+  },
+  {
+   "oi": "300F",
+   "name": "电能表电压逆相序事件   属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 6967
+  },
+  {
+   "oi": "3010",
+   "name": "电能表电流逆相序事件   属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 6973
+  },
+  {
+   "oi": "3011",
+   "name": "电能表掉电事件      属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 6982
+  },
+  {
+   "oi": "3012",
+   "name": "电能表编程事件      属性  2（事件记录表）∷=array 编程记录事件单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 6988
+  },
+  {
+   "oi": "3013",
+   "name": "电能表清零事件      属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 6992
+  },
+  {
+   "oi": "3014",
+   "name": "电能表需量清零事件    属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 6997
+  },
+  {
+   "oi": "3015",
+   "name": "电能表事件清零事件    属性  2（事件记录表）∷=array 事件清零事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7002
+  },
+  {
+   "oi": "3016",
+   "name": "电能表校时事件      属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7007
+  },
+  {
+   "oi": "3017",
+   "name": "电能表时段表编程事件   属性  2（事件记录表）∷=array 电能表时段表编程事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7013
+  },
+  {
+   "oi": "3018",
+   "name": "电能表时区表编程事件   属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7018
+  },
+  {
+   "oi": "3019",
+   "name": "电能表周休日编程事件   属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7026
+  },
+  {
+   "oi": "301A",
+   "name": "电能表结算日编程事件   属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7031
+  },
+  {
+   "oi": "301B",
+   "name": "电能表开盖事件      属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7036
+  },
+  {
+   "oi": "301C",
+   "name": "电能表开端钮盒事件    属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7041
+  },
+  {
+   "oi": "301D",
+   "name": "电能表电压不平衡事件   属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7046
+  },
+  {
+   "oi": "301E",
+   "name": "电能表电流不平衡事件   属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7053
+  },
+  {
+   "oi": "301F",
+   "name": "电能表跳闸事件      属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7060
+  },
+  {
+   "oi": "3020",
+   "name": "电能表合闸事件      属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7065
+  },
+  {
+   "oi": "3021",
+   "name": "电能表节假日编程事件    属性  2（事件记录表）∷=array 电能表节假日编程事件单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7073
+  },
+  {
+   "oi": "3022",
+   "name": "电能表 有功组合方式编程  属性  2（事件记录表）∷=array  标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7078
+  },
+  {
+   "oi": "3023",
+   "name": "电能表 无功组合方式编程  属性  2（事件记录表）∷=array  标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7083
+  },
+  {
+   "oi": "3024",
+   "name": "电能表 费率参数表编程事  属性  2（事件记录表）∷=array  标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7092
+  },
+  {
+   "oi": "3025",
+   "name": "电能表阶梯表编程事件    属性  2（事件记录表）∷=array  标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7097
+  },
+  {
+   "oi": "3026",
+   "name": "电能表密钥更新事件     属性  2（事件记录表）∷=array  标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7102
+  },
+  {
+   "oi": "3027",
+   "name": "电能表异常插卡事件     属性  2（事件记录表）∷=array 电能表异常插卡记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7107
+  },
+  {
+   "oi": "3028",
+   "name": "电能表购电记录       属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7114
+  },
+  {
+   "oi": "3029",
+   "name": "电能表退费记录        属性  2（事件记录表）∷=array 电能表退费记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7122
+  },
+  {
+   "oi": "302A",
+   "name": "电能表恒定磁场干扰事件    属性  2（事件记录表）∷=array  标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7127
+  },
+  {
+   "oi": "302B",
+   "name": "电能表负荷开关误动作事    属性  2（事件记录表）∷=array  标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7129
+  },
+  {
+   "oi": "302C",
+   "name": "电能表电源异常事件      属性  2（事件记录表）∷=array  标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7131
+  },
+  {
+   "oi": "302D",
+   "name": "电能表 电流严重不平衡 事  属性  2（事件记录表）∷=array  标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7133
+  },
+  {
+   "oi": "302E",
+   "name": "电能表时钟故障事件      属性  2（事件记录表）∷=array  标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7140
+  },
+  {
+   "oi": "302F",
+   "name": "电能表计量芯片故障事件    属性  2（事件记录表）∷=array  标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7146
+  },
+  {
+   "oi": "3030",
+   "name": "通信模块变更事件       属性  2（事件记录表）∷=array  通信模块变更事件单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7152
+  },
+  {
+   "oi": "3100",
+   "name": "终端初始化事件        属性  2（事件记录表）∷=array  标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7159
+  },
+  {
+   "oi": "3101",
+   "name": "终端版本变更事件    属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7167
+  },
+  {
+   "oi": "3104",
+   "name": "终端状态量变位事件   属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7172
+  },
+  {
+   "oi": "3105",
+   "name": "电能表时钟超差事件   属性  2（事件记录表）∷=array 电能表时钟超差记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7177
+  },
+  {
+   "oi": "3106",
+   "name": "终端停/上电事件    属性  2（事件记录表）∷=array 停/上电事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7185
+  },
+  {
+   "oi": "3107",
+   "name": "终端直流模拟量越上限事  属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7212
+  },
+  {
+   "oi": "3108",
+   "name": "终端直流模拟量越下限事  属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7218
+  },
+  {
+   "oi": "3109",
+   "name": "终端消息认证错误事件   属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7224
+  },
+  {
+   "oi": "310A",
+   "name": "设备故障记录       属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7229
+  },
+  {
+   "oi": "310B",
+   "name": "电能表示度下降事件    属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7244
+  },
+  {
+   "oi": "310C",
+   "name": "电能量超差事件      属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7251
+  },
+  {
+   "oi": "310D",
+   "name": "电能表飞走事件     属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7262
+  },
+  {
+   "oi": "310E",
+   "name": "电能表停走事件     属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7270
+  },
+  {
+   "oi": "310F",
+   "name": "终端抄表失败事件    属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7278
+  },
+  {
+   "oi": "3110",
+   "name": "月通信流量超限事件   属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7285
+  },
+  {
+   "oi": "3111",
+   "name": "发现未知电能表事件   属性  2（事件记录表）∷=array       发现未知电能表事件单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7291
+  },
+  {
+   "oi": "3112",
+   "name": "跨台区电能表事件    属性  2（事件记录表）∷=array 垮台区电能表事件单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7295
+  },
+  {
+   "oi": "3114",
+   "name": "终端对时事件       属性  2（事件记录表）∷=array    标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7302
+  },
+  {
+   "oi": "3115",
+   "name": "遥控跳闸记录       属性  2（事件记录表）∷=array    遥控事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7307
+  },
+  {
+   "oi": "3116",
+   "name": "有功总电能量差动越限事  属性  2（事件记录表）∷=array       差动越限事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7312
+  },
+  {
+   "oi": "3117",
+   "name": "输出回路接入状态变位事  属性  2（事件记录表）∷=array    标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7335
+  },
+  {
+   "oi": "3118",
+   "name": "终端编程记录       属性  2（事件记录表）∷=array    编程记录事件单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7339
+  },
+  {
+   "oi": "3119",
+   "name": "终端电流回路异常事件   属性  2（事件记录表）∷=array    标准记录事件单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7343
+  },
+  {
+   "oi": "311A",
+   "name": "电能表在网状态切换事件  属性  2（事件记录表）∷=array 电能表在网状态切换事件单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7350
+  },
+  {
+   "oi": "311B",
+   "name": "终端对电表校时记录    属性  2（事件记录表）∷=array  终端对电表校时记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7357
+  },
+  {
+   "oi": "311C",
+   "name": "电能表数据变更监控记录  属性  2（事件记录表）∷=array 电能表数据变更监控记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7361
+  },
+  {
+   "oi": "3200",
+   "name": "功控跳闸记录       属性  2（事件记录表）∷=array 功控跳闸记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7367
+  },
+  {
+   "oi": "3201",
+   "name": "电控跳闸记录       属性  2（事件记录表）∷=array 电控跳闸记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7371
+  },
+  {
+   "oi": "3202",
+   "name": "购电参数设置记录     属性  2（事件记录表）∷=array 标准事件记录单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7375
+  },
+  {
+   "oi": "3203",
+   "name": "电控告警事件记录     属性  2（事件记录表）∷=array 电控告警事件单元",
+   "parsed_class": 7,
+   "inferred_class": 7,
+   "source_line": 7380
+  },
+  {
+   "oi": "3300",
+   "name": "事件上报状态       事件上报状态∷=array 通道上报状态",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7384
+  },
+  {
+   "oi": "3301",
+   "name": "标准事件记录单元     标准事件记录单元∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7398
+  },
+  {
+   "oi": "3302",
+   "name": "编程记录事件单元     编程记录事件单元∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7409
+  },
+  {
+   "oi": "3303",
+   "name": "发现未知电能表事件单元  发现未知电能表事件∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 7,
+   "source_line": 7421
+  },
+  {
+   "oi": "3304",
+   "name": "跨台区电能表事件单元   跨台区电能表事件单元∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 7,
+   "source_line": 7430
+  },
+  {
+   "oi": "3305",
+   "name": "功控跳闸记录单元     功控跳闸记录单元∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 7,
+   "source_line": 7444
+  },
+  {
+   "oi": "3306",
+   "name": "电控跳闸记录单元     电控跳闸记录单元∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 7,
+   "source_line": 7460
+  },
+  {
+   "oi": "3307",
+   "name": "电控告警事件单元     电控告警事件单元∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 7,
+   "source_line": 7480
+  },
+  {
+   "oi": "3308",
+   "name": "电能表需量超限事件单元  电能表需量超限事件单元∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 7,
+   "source_line": 7493
+  },
+  {
+   "oi": "3309",
+   "name": "停/上电事件记录单元    停/上电事件记录单元∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 7,
+   "source_line": 7508
+  },
+  {
+   "oi": "330A",
+   "name": "遥控事件记录单元     遥控事件记录单元∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 7,
+   "source_line": 7526
+  },
+  {
+   "oi": "330B",
+   "name": "有功总电能量差动越限事  有功总电能量差动越限事件记录单元∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 7,
+   "source_line": 7538
+  },
+  {
+   "oi": "330C",
+   "name": "事件清零事件记录单元    事件清零事件记录单元∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 7,
+   "source_line": 7553
+  },
+  {
+   "oi": "330D",
+   "name": "终端对电表校时记录单元   终端对电表校时记录单元∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 7,
+   "source_line": 7562
+  },
+  {
+   "oi": "330E",
+   "name": "电能表在网状态切换事件   电能表在网状态切换事件单元∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 7,
+   "source_line": 7572
+  },
+  {
+   "oi": "330F",
+   "name": "电能表 数据变更监控记录  电能表数据变更监控记录单元∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 7,
+   "source_line": 7585
+  },
+  {
+   "oi": "3310",
+   "name": "异常插卡事件记录单元   异常插卡事件记录单元∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 7,
+   "source_line": 7600
+  },
+  {
+   "oi": "3311",
+   "name": "退费事件记录单元     退费事件记录单元∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 7,
+   "source_line": 7615
+  },
+  {
+   "oi": "3312",
+   "name": "通信模块变更事件单元   通信模块变更事件单元∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 7,
+   "source_line": 7627
+  },
+  {
+   "oi": "3313",
+   "name": "电能表时钟超差记录单元  电能表时钟超差记录单元∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 7,
+   "source_line": 7639
+  },
+  {
+   "oi": "3314",
+   "name": "电能表 时段表编程事件记  电能表时段表编程事件记录单元∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 7,
+   "source_line": 7655
+  },
+  {
+   "oi": "3315",
+   "name": "电能表节假日编程事件记   电能表节假日编程事件记录单元∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 7,
+   "source_line": 7675
+  },
+  {
+   "oi": "3320",
+   "name": "新增上报事件列表    属性  2（新增上报事件列表，只读）∷=    array OAD",
+   "parsed_class": 8,
+   "inferred_class": 7,
+   "source_line": 7695
+  },
+  {
+   "oi": "4000",
+   "name": "日期时间            属性  2∷=",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7710
+  },
+  {
+   "oi": "4001",
+   "name": "通信地址          属性  2∷=",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7731
+  },
+  {
+   "oi": "4002",
+   "name": "表号            属性  2∷=octet-",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7733
+  },
+  {
+   "oi": "4003",
+   "name": "客户编号          属性  2∷=octet-",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7735
+  },
+  {
+   "oi": "4004",
+   "name": "设备地理位置        属性  2∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7737
+  },
+  {
+   "oi": "4005",
+   "name": "组地址          属性  2∷=array octet-string",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7758
+  },
+  {
+   "oi": "4006",
+   "name": "时钟源          属性  2（只读）∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7759
+  },
+  {
+   "oi": "4007",
+   "name": "LCD 参数        属性  2∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7772
+  },
+  {
+   "oi": "4008",
+   "name": "备用套时区表切换时间   属性  2∷=",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7785
+  },
+  {
+   "oi": "4009",
+   "name": "备用套日时段切换时间   属性  2∷=",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7788
+  },
+  {
+   "oi": "400A",
+   "name": "备用套分时费率切换时间  属性  2∷=",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7794
+  },
+  {
+   "oi": "400B",
+   "name": "备用套阶梯电价切换时间  属性  2∷=",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7797
+  },
+  {
+   "oi": "400C",
+   "name": "时区时段数        属性  2∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7800
+  },
+  {
+   "oi": "400D",
+   "name": "阶梯数          属性  2∷=unsigned        ，无单位，无换算",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7808
+  },
+  {
+   "oi": "400E",
+   "name": "谐波分析次数       属性  2∷=unsigned        ，无单位，无换算",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7809
+  },
+  {
+   "oi": "400F",
+   "name": "密钥总条数        属性  2∷=unsigned        ，无单位，无换算",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7810
+  },
+  {
+   "oi": "4010",
+   "name": "计量元件数        属性  2（只读）∷=unsigned   ，无单位，无换算",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7811
+  },
+  {
+   "oi": "4011",
+   "name": "公共假日表        属性  2∷=array 公共假日",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7813
+  },
+  {
+   "oi": "4012",
+   "name": "周休日特征字       属性  2∷=bit-",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7819
+  },
+  {
+   "oi": "4013",
+   "name": "周休日釆用的日时段表号  属性  2∷=unsigned        ，无单位，无换算",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7821
+  },
+  {
+   "oi": "4014",
+   "name": "当前套时区表       属性  2∷=array 时区",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7822
+  },
+  {
+   "oi": "4015",
+   "name": "备用套时区表       同 4014",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7829
+  },
+  {
+   "oi": "4016",
+   "name": "当前套日时段表      属性  2∷=",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7830
+  },
+  {
+   "oi": "4017",
+   "name": "备用套日时段表      同 4016",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7840
+  },
+  {
+   "oi": "4018",
+   "name": "当前套费率电价    属性  2（只读）∷=array 费率电价",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7843
+  },
+  {
+   "oi": "4019",
+   "name": "备用套费率电价    属性  2∷=array 费率电价",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7846
+  },
+  {
+   "oi": "401A",
+   "name": "当前套阶梯电价    属性  2(阶梯参数，只读)∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7849
+  },
+  {
+   "oi": "401B",
+   "name": "备用套阶梯电价    同 401A",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7868
+  },
+  {
+   "oi": "401C",
+   "name": "电流互感器变比    属性  2∷=double          -long-unsigned，无单位，无换算",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7869
+  },
+  {
+   "oi": "401D",
+   "name": "电压互感器变比    属性  2∷=double          -long-unsigned，无单位，无换算",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7870
+  },
+  {
+   "oi": "401E",
+   "name": "报警金额限值     属性  2（参数）∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7871
+  },
+  {
+   "oi": "401F",
+   "name": "其它金额限值     属性  2（参数）∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7877
+  },
+  {
+   "oi": "4020",
+   "name": "报警电量限值     属性  2∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7884
+  },
+  {
+   "oi": "4021",
+   "name": "其它电量限值       属性  2∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7893
+  },
+  {
+   "oi": "4022",
+   "name": "插卡状态字        属性  2（只读）∷=bit-",
+   "parsed_class": 6,
+   "inferred_class": 8,
+   "source_line": 7900
+  },
+  {
+   "oi": "4024",
+   "name": "剔除           属性  2∷=",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7903
+  },
+  {
+   "oi": "4025",
+   "name": "采集器远程升级结果表   属性  2（升级结果列表，只读）∷=array    采集器升级结果",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7905
+  },
+  {
+   "oi": "4026",
+   "name": "采集器升级结果      属性  2（升级结果）∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7911
+  },
+  {
+   "oi": "4030",
+   "name": "电压合格率参数       属性  2∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7931
+  },
+  {
+   "oi": "4100",
+   "name": "最大需量周期       属性  2∷=unsigned ，单位：分钟，换算：0",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7941
+  },
+  {
+   "oi": "4101",
+   "name": "滑差时间         属性  2∷=unsigned ，单位：分钟，换算：0",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7942
+  },
+  {
+   "oi": "4102",
+   "name": "校表脉冲宽度       属性  2（只读）∷=unsigned ，单位：毫秒，换算：0",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7943
+  },
+  {
+   "oi": "4103",
+   "name": "资产管理编码       属性  2∷=visible-",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7944
+  },
+  {
+   "oi": "4104",
+   "name": "额定电压         属性  2（只读）∷=visible-",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7946
+  },
+  {
+   "oi": "4105",
+   "name": "额定电流/基本电流    属性  2（只读）∷=visible-",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7948
+  },
+  {
+   "oi": "4106",
+   "name": "最大电流         属性  2（只读）∷=visible-",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7950
+  },
+  {
+   "oi": "4107",
+   "name": "有功准确度等级      属性  2（只读）∷=visible-",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7952
+  },
+  {
+   "oi": "4108",
+   "name": "无功准确度等级      属性  2（只读）∷=visible-",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7954
+  },
+  {
+   "oi": "4109",
+   "name": "电能表有功常数      属性  2（只读）∷=double -long-unsigned",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7956
+  },
+  {
+   "oi": "410A",
+   "name": "电能表无功常数      属性  2（只读）∷=double -long-unsigned",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7958
+  },
+  {
+   "oi": "410B",
+   "name": "电能表型号        属性  2（只读）∷=visible-",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7960
+  },
+  {
+   "oi": "410C",
+   "name": "ABC 各相电导系数   属性  2∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7962
+  },
+  {
+   "oi": "410D",
+   "name": "ABC 各相电抗系数   属性  2∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7968
+  },
+  {
+   "oi": "410E",
+   "name": "ABC 各相电阻系数   属性  2∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7974
+  },
+  {
+   "oi": "410F",
+   "name": "ABC 各相电纳系数   属性  2∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7980
+  },
+  {
+   "oi": "4111",
+   "name": "软件备案号        属性  2（只读）∷=visible-",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7986
+  },
+  {
+   "oi": "4112",
+   "name": "有功组合方式特征字      属性  2∷=bit-",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7990
+  },
+  {
+   "oi": "4113",
+   "name": "无功组合方式 1 特征字   属性  2∷=bit-",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7992
+  },
+  {
+   "oi": "4114",
+   "name": "无功组合方式 2 特征字   属性  2∷=bit-",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7994
+  },
+  {
+   "oi": "4116",
+   "name": "结算日            属性  2（配置参数）∷=array 结算日日期",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 7996
+  },
+  {
+   "oi": "4117",
+   "name": "期间需量冻结周期       属性  2（配置参数）∷=TI",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 8002
+  },
+  {
+   "oi": "4202",
+   "name": "级联通信参数         属性  2∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 8003
+  },
+  {
+   "oi": "4204",
+   "name": "终端广播校时          属性  2（终端广播校时参数）∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 8014
+  },
+  {
+   "oi": "4300",
+   "name": "电气设备",
+   "parsed_class": 19,
+   "inferred_class": 19,
+   "source_line": 8027
+  },
+  {
+   "oi": "4307",
+   "name": "水表             方法 127：出厂启用（参数）",
+   "parsed_class": 19,
+   "inferred_class": 19,
+   "source_line": 8028
+  },
+  {
+   "oi": "4308",
+   "name": "气表             方法 127：出厂启用（参数）",
+   "parsed_class": 19,
+   "inferred_class": 19,
+   "source_line": 8035
+  },
+  {
+   "oi": "4309",
+   "name": "热表             方法 127：出厂启用（参数）",
+   "parsed_class": 19,
+   "inferred_class": 19,
+   "source_line": 8045
+  },
+  {
+   "oi": "4400",
+   "name": "应用连接",
+   "parsed_class": 20,
+   "inferred_class": 20,
+   "source_line": 8057
+  },
+  {
+   "oi": "4401",
+   "name": "认证密码         属性 2（只写）∷=visible-",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 8058
+  },
+  {
+   "oi": "4500",
+   "name": "公网通信模块 1",
+   "parsed_class": 25,
+   "inferred_class": 25,
+   "source_line": 8060
+  },
+  {
+   "oi": "4501",
+   "name": "公网通信模块 2",
+   "parsed_class": 25,
+   "inferred_class": 25,
+   "source_line": 8061
+  },
+  {
+   "oi": "4510",
+   "name": "以太网通信模块 1",
+   "parsed_class": 26,
+   "inferred_class": 26,
+   "source_line": 8062
+  },
+  {
+   "oi": "4511",
+   "name": "以太网通信模块 2",
+   "parsed_class": 26,
+   "inferred_class": 26,
+   "source_line": 8063
+  },
+  {
+   "oi": "4512",
+   "name": "以太网通信模块 3",
+   "parsed_class": 26,
+   "inferred_class": 26,
+   "source_line": 8064
+  },
+  {
+   "oi": "4513",
+   "name": "以太网通信模块 4",
+   "parsed_class": 26,
+   "inferred_class": 26,
+   "source_line": 8065
+  },
+  {
+   "oi": "4514",
+   "name": "以太网通信模块 5",
+   "parsed_class": 26,
+   "inferred_class": 26,
+   "source_line": 8066
+  },
+  {
+   "oi": "4515",
+   "name": "以太网通信模块 6",
+   "parsed_class": 26,
+   "inferred_class": 26,
+   "source_line": 8067
+  },
+  {
+   "oi": "4516",
+   "name": "以太网通信模块 7",
+   "parsed_class": 26,
+   "inferred_class": 26,
+   "source_line": 8068
+  },
+  {
+   "oi": "4517",
+   "name": "以太网通信模块 8",
+   "parsed_class": 26,
+   "inferred_class": 26,
+   "source_line": 8069
+  },
+  {
+   "oi": "4520",
+   "name": "公网远程通信多接入点备  属性 2∷=",
+   "parsed_class": 8,
+   "inferred_class": 8,
+   "source_line": 8070
+  },
+  {
+   "oi": "5000",
+   "name": "瞬时冻结",
+   "parsed_class": 9,
+   "inferred_class": 9,
+   "source_line": 8105
+  },
+  {
+   "oi": "5001",
+   "name": "秒冻结",
+   "parsed_class": 9,
+   "inferred_class": 9,
+   "source_line": 8106
+  },
+  {
+   "oi": "5002",
+   "name": "分钟冻结",
+   "parsed_class": 9,
+   "inferred_class": 9,
+   "source_line": 8107
+  },
+  {
+   "oi": "5003",
+   "name": "小时冻结",
+   "parsed_class": 9,
+   "inferred_class": 9,
+   "source_line": 8108
+  },
+  {
+   "oi": "5004",
+   "name": "日冻结",
+   "parsed_class": 9,
+   "inferred_class": 9,
+   "source_line": 8109
+  },
+  {
+   "oi": "5005",
+   "name": "结算日冻结",
+   "parsed_class": 9,
+   "inferred_class": 9,
+   "source_line": 8110
+  },
+  {
+   "oi": "5006",
+   "name": "月冻结",
+   "parsed_class": 9,
+   "inferred_class": 9,
+   "source_line": 8111
+  },
+  {
+   "oi": "5007",
+   "name": "年冻结",
+   "parsed_class": 9,
+   "inferred_class": 9,
+   "source_line": 8112
+  },
+  {
+   "oi": "5008",
+   "name": "时区表切换冻结",
+   "parsed_class": 9,
+   "inferred_class": 9,
+   "source_line": 8113
+  },
+  {
+   "oi": "5009",
+   "name": "日时段表切换冻结",
+   "parsed_class": 9,
+   "inferred_class": 9,
+   "source_line": 8114
+  },
+  {
+   "oi": "500A",
+   "name": "费率电价切换冻结",
+   "parsed_class": 9,
+   "inferred_class": 9,
+   "source_line": 8115
+  },
+  {
+   "oi": "500B",
+   "name": "阶梯切换冻结",
+   "parsed_class": 9,
+   "inferred_class": 9,
+   "source_line": 8116
+  },
+  {
+   "oi": "5011",
+   "name": "阶梯结算冻结",
+   "parsed_class": 9,
+   "inferred_class": 9,
+   "source_line": 8117
+  },
+  {
+   "oi": "6000",
+   "name": "采集档案配置表      属性  2（配置表，只读）∷=array 采集档案配置单元",
+   "parsed_class": 11,
+   "inferred_class": 10,
+   "source_line": 8128
+  },
+  {
+   "oi": "6001",
+   "name": "采集档案配置单元   属性 2（Acqui sition document definition）∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 10,
+   "source_line": 8165
+  },
+  {
+   "oi": "6002",
+   "name": "搜表     属性   2（所有搜表结果）∷=array     一个搜表结果",
+   "parsed_class": 11,
+   "inferred_class": 10,
+   "source_line": 8219
+  },
+  {
+   "oi": "6003",
+   "name": "一个搜表结果     一个搜表结果∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 10,
+   "source_line": 8255
+  },
+  {
+   "oi": "6004",
+   "name": "一个跨台区结果     一个跨台区结果∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 10,
+   "source_line": 8280
+  },
+  {
+   "oi": "6012",
+   "name": "任务配置表       属性  2（配置表）∷=array  任务配置单元",
+   "parsed_class": 10,
+   "inferred_class": 10,
+   "source_line": 8286
+  },
+  {
+   "oi": "6013",
+   "name": "任务配置单元       属性  2（任务配置单元）∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 10,
+   "source_line": 8312
+  },
+  {
+   "oi": "6014",
+   "name": "普通采集方案集     属性 2∷=array 普通采集方案",
+   "parsed_class": 11,
+   "inferred_class": 10,
+   "source_line": 8354
+  },
+  {
+   "oi": "6015",
+   "name": "普通采集方案     属性     2（普通采集方案）∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 10,
+   "source_line": 8372
+  },
+  {
+   "oi": "6016",
+   "name": "事件采集方案集     属性  2∷=array  事件采集方案",
+   "parsed_class": 11,
+   "inferred_class": 10,
+   "source_line": 8409
+  },
+  {
+   "oi": "6017",
+   "name": "事件采集方案      属性   2（事件采集方案    Event acq plan）∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 10,
+   "source_line": 8423
+  },
+  {
+   "oi": "6018",
+   "name": "透明方案集       属性   2∷=array    透明方案",
+   "parsed_class": 11,
+   "inferred_class": 10,
+   "source_line": 8440
+  },
+  {
+   "oi": "6019",
+   "name": "透明方案     属性 2（透明方案）∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 10,
+   "source_line": 8467
+  },
+  {
+   "oi": "601A",
+   "name": "透明方案结果集     属性    2∷=",
+   "parsed_class": 11,
+   "inferred_class": 10,
+   "source_line": 8503
+  },
+  {
+   "oi": "601B",
+   "name": "一个透明方案结果    一个透明方案结果∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 10,
+   "source_line": 8505
+  },
+  {
+   "oi": "601C",
+   "name": "上报方案集       属性    2∷=array 上报方案",
+   "parsed_class": 11,
+   "inferred_class": 10,
+   "source_line": 8518
+  },
+  {
+   "oi": "601D",
+   "name": "上报方案        属性    2（上报方案   report plan）∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 10,
+   "source_line": 8526
+  },
+  {
+   "oi": "601E",
+   "name": "采集规则库      属性 2（采集规则库）∷=array     采集规则",
+   "parsed_class": 11,
+   "inferred_class": 10,
+   "source_line": 8551
+  },
+  {
+   "oi": "601F",
+   "name": "采集规则       属性 2∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 10,
+   "source_line": 8559
+  },
+  {
+   "oi": "6032",
+   "name": "采集状态集      属性 2∷=array  一个采集状态",
+   "parsed_class": 11,
+   "inferred_class": 10,
+   "source_line": 8582
+  },
+  {
+   "oi": "6033",
+   "name": "一个采集状态     一个采集状态∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 10,
+   "source_line": 8583
+  },
+  {
+   "oi": "6034",
+   "name": "采集任务监控集     属性  2∷=array 采集任务监控单元",
+   "parsed_class": 11,
+   "inferred_class": 10,
+   "source_line": 8597
+  },
+  {
+   "oi": "6035",
+   "name": "采集任务监控单元    采集任务监控单元∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 10,
+   "source_line": 8598
+  },
+  {
+   "oi": "6040",
+   "name": "采集启动时标      属性  2∷=",
+   "parsed_class": 8,
+   "inferred_class": 10,
+   "source_line": 8616
+  },
+  {
+   "oi": "6041",
+   "name": "采集成功时标      属性  2∷=",
+   "parsed_class": 8,
+   "inferred_class": 10,
+   "source_line": 8618
+  },
+  {
+   "oi": "6042",
+   "name": "采集存储时标      属性  2∷=",
+   "parsed_class": 8,
+   "inferred_class": 10,
+   "source_line": 8620
+  },
+  {
+   "oi": "7000",
+   "name": "文件集合        方法 127：WriteFile（参数）",
+   "parsed_class": 11,
+   "inferred_class": 11,
+   "source_line": 8632
+  },
+  {
+   "oi": "7001",
+   "name": "文件       属性  2：文件",
+   "parsed_class": 8,
+   "inferred_class": 11,
+   "source_line": 8648
+  },
+  {
+   "oi": "7010",
+   "name": "脚本集合     属性 2∷=array 脚本",
+   "parsed_class": 11,
+   "inferred_class": 11,
+   "source_line": 8668
+  },
+  {
+   "oi": "7011",
+   "name": "脚本       属性 2∷=脚本",
+   "parsed_class": 8,
+   "inferred_class": 11,
+   "source_line": 8679
+  },
+  {
+   "oi": "7012",
+   "name": "脚本执行结果集     属性 2∷=array 一个脚本执行结果",
+   "parsed_class": 11,
+   "inferred_class": 11,
+   "source_line": 8690
+  },
+  {
+   "oi": "7013",
+   "name": "一个脚本执行结果    脚本执行结果∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 11,
+   "source_line": 8691
+  },
+  {
+   "oi": "7100",
+   "name": "扩展变量对象集合    属性 2∷=扩展变量对象集合",
+   "parsed_class": 11,
+   "inferred_class": 11,
+   "source_line": 8699
+  },
+  {
+   "oi": "7101",
+   "name": "扩展参变量对象集合   属性 2∷=扩展参变量对象集合",
+   "parsed_class": 11,
+   "inferred_class": 11,
+   "source_line": 8702
+  },
+  {
+   "oi": "8000",
+   "name": "远程控制       属性 2（配置参数)∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 13,
+   "source_line": 8716
+  },
+  {
+   "oi": "8001",
+   "name": "保电     属性 2（保电状态，只读）∷=enum{解除（0），保电（1），自动保电（2）}",
+   "parsed_class": 8,
+   "inferred_class": 13,
+   "source_line": 8756
+  },
+  {
+   "oi": "8002",
+   "name": "催费告警   属性 2（催费告警状态，只读）∷=enum{未告警(0)，告警(1)}",
+   "parsed_class": 8,
+   "inferred_class": 13,
+   "source_line": 8778
+  },
+  {
+   "oi": "8003",
+   "name": "一般中文信息    属性 2∷=array ChineseInfo",
+   "parsed_class": 11,
+   "inferred_class": 13,
+   "source_line": 8793
+  },
+  {
+   "oi": "8004",
+   "name": "重要中文信息    属性 2∷=array ChineseInfo",
+   "parsed_class": 11,
+   "inferred_class": 13,
+   "source_line": 8810
+  },
+  {
+   "oi": "8100",
+   "name": "终端保安定值   终端保安定值∷=long64（单位：W，换算：-1）",
+   "parsed_class": 8,
+   "inferred_class": 13,
+   "source_line": 8821
+  },
+  {
+   "oi": "8101",
+   "name": "终端功控时段   属性 2（配置参数）∷=array unsigned",
+   "parsed_class": 8,
+   "inferred_class": 13,
+   "source_line": 8822
+  },
+  {
+   "oi": "8102",
+   "name": "功控告警时间   属性 2（配置参数）∷=array unsigned",
+   "parsed_class": 8,
+   "inferred_class": 13,
+   "source_line": 8824
+  },
+  {
+   "oi": "8103",
+   "name": "时段功控     属性 2（控制方案集）∷=array 时段功控配置单元",
+   "parsed_class": 13,
+   "inferred_class": 13,
+   "source_line": 8826
+  },
+  {
+   "oi": "8104",
+   "name": "厂休控        属性 2（控制方案集）∷=array 厂休控配置单元",
+   "parsed_class": 13,
+   "inferred_class": 13,
+   "source_line": 8844
+  },
+  {
+   "oi": "8105",
+   "name": "营业报停控      属性 2（控制方案集）∷=array 营业报停控配置单元",
+   "parsed_class": 13,
+   "inferred_class": 13,
+   "source_line": 8845
+  },
+  {
+   "oi": "8106",
+   "name": "当前功率下浮控    属性 2：不可访问",
+   "parsed_class": 13,
+   "inferred_class": 13,
+   "source_line": 8846
+  },
+  {
+   "oi": "8107",
+   "name": "购电控        属性 2（控制方案集）∷=array 购电控配置单元",
+   "parsed_class": 13,
+   "inferred_class": 13,
+   "source_line": 8864
+  },
+  {
+   "oi": "8108",
+   "name": "月电控        属性 2（控制方案集）∷=array 月电控配置单元",
+   "parsed_class": 13,
+   "inferred_class": 13,
+   "source_line": 8865
+  },
+  {
+   "oi": "8109",
+   "name": "时段功控配置单元   属性 2∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 13,
+   "source_line": 8866
+  },
+  {
+   "oi": "810A",
+   "name": "厂休控配置单元    属性 2∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 13,
+   "source_line": 8894
+  },
+  {
+   "oi": "810B",
+   "name": "营业报停控配置单元  属性 2∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 13,
+   "source_line": 8903
+  },
+  {
+   "oi": "810C",
+   "name": "购电控配置单元    属性 2∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 13,
+   "source_line": 8910
+  },
+  {
+   "oi": "810D",
+   "name": "月电控配置单元     属性 2∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 13,
+   "source_line": 8924
+  },
+  {
+   "oi": "810E",
+   "name": "控制对象",
+   "parsed_class": 8,
+   "inferred_class": 13,
+   "source_line": 8931
+  },
+  {
+   "oi": "810F",
+   "name": "跳闸轮次",
+   "parsed_class": 8,
+   "inferred_class": 13,
+   "source_line": 8932
+  },
+  {
+   "oi": "8110",
+   "name": "电控定值",
+   "parsed_class": 8,
+   "inferred_class": 13,
+   "source_line": 8933
+  },
+  {
+   "oi": "F000",
+   "name": "文件分帧传输管理    属性4（文件内容）∷=octet-string",
+   "parsed_class": 18,
+   "inferred_class": 18,
+   "source_line": 8966
+  },
+  {
+   "oi": "F001",
+   "name": "文件分块传输管理   属性       4（传输块状态字，只读）∷=bit-string",
+   "parsed_class": 18,
+   "inferred_class": 18,
+   "source_line": 8977
+  },
+  {
+   "oi": "F002",
+   "name": "文件扩展传输管理   属性  4（服务器信息）∷=structure",
+   "parsed_class": 18,
+   "inferred_class": 18,
+   "source_line": 9035
+  },
+  {
+   "oi": "F101",
+   "name": "安全模式参数            属性  2（安全模式选择）∷=",
+   "parsed_class": 8,
+   "inferred_class": 21,
+   "source_line": 9083
+  },
+  {
+   "oi": "F200",
+   "name": "RS232       属性 2（设备对象列表，只读）∷=array    端口",
+   "parsed_class": 22,
+   "inferred_class": 22,
+   "source_line": 9134
+  },
+  {
+   "oi": "F201",
+   "name": "RS485       同 F200",
+   "parsed_class": 22,
+   "inferred_class": 22,
+   "source_line": 9148
+  },
+  {
+   "oi": "F202",
+   "name": "红外          属性 2（设备对象列表，只读）∷=array     红外端口",
+   "parsed_class": 22,
+   "inferred_class": 22,
+   "source_line": 9149
+  },
+  {
+   "oi": "F203",
+   "name": "开关量输入     属性 2（设备对象列表，只读）∷=array    开关量单元",
+   "parsed_class": 22,
+   "inferred_class": 22,
+   "source_line": 9164
+  },
+  {
+   "oi": "F204",
+   "name": "直流模拟量     属性   2（设备对象列表，只读）∷=array  直流模拟量",
+   "parsed_class": 22,
+   "inferred_class": 22,
+   "source_line": 9186
+  },
+  {
+   "oi": "F205",
+   "name": "继电器输出     属性   2（设备对象列表，只读）∷=array  继电器单元",
+   "parsed_class": 22,
+   "inferred_class": 22,
+   "source_line": 9195
+  },
+  {
+   "oi": "F206",
+   "name": "告警输出         属性 2（设备对象列表，只读）∷=array        告警输出",
+   "parsed_class": 22,
+   "inferred_class": 22,
+   "source_line": 9212
+  },
+  {
+   "oi": "F207",
+   "name": "多功能端子        属性 2（设备对象列表，只读）∷=array        端子功能",
+   "parsed_class": 22,
+   "inferred_class": 22,
+   "source_line": 9223
+  },
+  {
+   "oi": "F208",
+   "name": "交采接口         属性       2（设备对象列表，只读）∷=array  交采单元",
+   "parsed_class": 22,
+   "inferred_class": 22,
+   "source_line": 9236
+  },
+  {
+   "oi": "F209",
+   "name": "载波/微功率无线接口   属性       2（设备对象列表，只读）∷=array  本地通信模块单元",
+   "parsed_class": 22,
+   "inferred_class": 22,
+   "source_line": 9241
+  },
+  {
+   "oi": "F20A",
+   "name": "脉冲输入设备        属性  2（设备对象列表，只读）∷=array       脉冲输入端口描述符",
+   "parsed_class": 22,
+   "inferred_class": 22,
+   "source_line": 9274
+  },
+  {
+   "oi": "F20B",
+   "name": "蓝牙            属性  2（设备对象列表，只读）∷=array       蓝牙模块",
+   "parsed_class": 22,
+   "inferred_class": 22,
+   "source_line": 9276
+  },
+  {
+   "oi": "F20C",
+   "name": "230M 无线专网接口   属性  2（设备对象列表，只读）∷=array 230       无线专网模块",
+   "parsed_class": 22,
+   "inferred_class": 22,
+   "source_line": 9288
+  },
+  {
+   "oi": "F210",
+   "name": "从节点单元     属性 2∷=structure",
+   "parsed_class": 8,
+   "inferred_class": 22,
+   "source_line": 9300
+  },
+  {
+   "oi": "F300",
+   "name": "自动轮显",
+   "parsed_class": 17,
+   "inferred_class": 17,
+   "source_line": 9317
+  },
+  {
+   "oi": "F301",
+   "name": "按键轮显",
+   "parsed_class": 17,
+   "inferred_class": 17,
+   "source_line": 9318
+  }
+ ]
+}
