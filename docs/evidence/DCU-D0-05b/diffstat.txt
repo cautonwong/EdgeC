@@ -1,0 +1,17 @@
+commit 5687d08b3fce79eff064dcdfc9cfba9f3b2052b4
+Author: 800900 <992878191@qq.com>
+Date:   Sat Nov 21 21:45:04 2026 +0800
+
+    fix(DCU-D0-05b): align 698 DAR values with 6.3.3.11
+    
+    Co-Authored-By: Claude Code <noreply@anthropic.com>
+
+ adapters/io_drivers/src/driver_dlt698.c |  62 +++++++++----
+ cmd/dcu/README.md                       |   5 +-
+ cmd/dcu/dcu_698_axdr.c                  |  15 ++--
+ foundation/include/dlt698_codec.h       |   9 ++
+ foundation/include/edge_slave_plane.h   |  15 ++++
+ foundation/src/protocol/dlt698_codec.c  |  22 +++++
+ tests/test_dcu_698_axdr.c               | 145 +++++++++++++++++++++++++++++--
+ tests/test_dlt698_conformance_suite.c   | 149 ++++++++++++++++----------------
+ 8 files changed, 313 insertions(+), 109 deletions(-)
