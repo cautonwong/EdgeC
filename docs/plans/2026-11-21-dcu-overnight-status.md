@@ -32,9 +32,10 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 | --- | --- | --- | --- |
 | `dcu/D0-05-frame-vectors` | D0-05 | merged `0f45d0e2` | done |
 | `dcu/D1-04-var-handlers` | D1-04 | merged `100f9a41` | done |
-| `dcu/D0-05a-hcs` | D0-05a | active, edgec-dev-0 | fix HCS validation, unskip `test_reject_bad_hcs`, then `/no-comments`, verify, merge |
+| `dcu/D0-05a-hcs` | D0-05a | merged `ff845789` | done |
 | `dcu/D1-13-axdr-port` | D1-13 | active, dcu-dev | port callbacks and 698 GET wiring, then `/no-comments`, verify, merge |
-| `dcu/D0-05b-dar` | D0-05b | queued after D0-05a | align DAR 4/5/6/7 in driver/adapter |
+| `dcu/D0-06-docs` | D0-06 | active, edgec-dev-0 | sync northbound and DCU context docs |
+| `dcu/D0-05b-dar` | D0-05b | queued after D1-13 | align DAR 4/5/6/7 in driver/adapter |
 
 ## Landing log
 
