@@ -25,11 +25,9 @@
 
 #define DLT698_ADDR_LEN 6
 
-/* A-XDR 编码缓冲：从站交换在 io 线程一问一答串行执行，缓冲按线程复用，
- * 不进栈（单条 2048、列表 8×2048），也不引入动态内存。若未来同一线程并行
- * 处理多路 698 从站，需要改为调用方/池缓冲。 */
-static _Thread_local uint8_t s_axdr_buf[DCU_698_AXDR_MAX];
-static _Thread_local uint8_t s_axdr_list_buf[DLT698_GET_LIST_MAX][DCU_698_AXDR_MAX];
+/* A-XDR 编码缓冲：单线程事件循环，一问一答串行复用；不进栈、不引入动态内存。
+ * 同一线程并行处理多路 698 从站时，需改为调用方/池缓冲（ADR-0013 §3）。 */
+static _Thread_local uint8_t s_axdr_buf[EDGE_SLAVE_AXDR_MAX];
 
 /** 请求私有数据：驱动认识的全部信息 */
 typedef struct {
@@ -285,42 +283,41 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
              * 错位解出来的值是错的，而帧校验完全正常。 */
             if (payload_len != 1 + 4 * n + 1) return -1;
 
-            dlt698_get_item_t items[DLT698_GET_LIST_MAX];
-            uint8_t bufs[DLT698_GET_LIST_MAX][8];
-            memset(items, 0, sizeof(items));
+            dlt698_list_stream_t stream;
+            if (dlt698_encode_get_response_list_begin(&stream, &sa, piid, n, out) != 0) return -1;
             for (size_t k = 0; k < n; k++) {
                 const uint8_t *oad_bytes = payload + 1 + 4 * k;
                 uint32_t oad = (uint32_t)((oad_bytes[0] << 24) | (oad_bytes[1] << 16) |
                                           (oad_bytes[2] << 8) | oad_bytes[3]);
-                items[k].oad = oad;
                 size_t dlen = 0;
                 if (src && src->resolve_axdr) {
                     /* A-XDR 通道：完整值（含类型标签）。实现后不再回落标量；
-                     * 超限或失败按对象不存在回 DAR，不截断。 */
-                    if (src->resolve_axdr(src_ctx, oad, s_axdr_list_buf[k],
-                                          sizeof(s_axdr_list_buf[k]), &dlen) != 0 ||
-                        dlen == 0 || dlen > sizeof(s_axdr_list_buf[k])) {
-                        items[k].dar = 6;
+                     * 超限或失败按对象不存在回 DAR，不截断。单缓冲逐项复用。 */
+                    if (src->resolve_axdr(src_ctx, oad, s_axdr_buf, sizeof(s_axdr_buf), &dlen) !=
+                            0 ||
+                        dlen == 0 || dlen > sizeof(s_axdr_buf)) {
+                        if (dlt698_encode_get_response_list_item_dar(out, oad, 6) != 0) return -1;
                         continue;
                     }
-                    items[k].data = s_axdr_list_buf[k];
-                    items[k].dlen = dlen;
+                    if (dlt698_encode_get_response_list_item(out, oad, s_axdr_buf, dlen) != 0) {
+                        return -1;
+                    }
                     continue;
                 }
                 edge_point_value_t v;
                 memset(&v, 0, sizeof(v));
                 if (!src || !src->resolve || src->resolve(src_ctx, oad, NULL, 0, &v) != 0) {
-                    items[k].dar = 6; /* DAR: 对象不存在（标准 6.3.3.11） */
+                    if (dlt698_encode_get_response_list_item_dar(out, oad, 6) != 0) return -1;
                     continue;
                 }
-                if (_encode_axdr_value(&v, bufs[k], &dlen) != 0) {
-                    items[k].dar = 7; /* DAR: 类型不匹配 */
+                uint8_t scalar[8];
+                if (_encode_axdr_value(&v, scalar, &dlen) != 0) {
+                    if (dlt698_encode_get_response_list_item_dar(out, oad, 7) != 0) return -1;
                     continue;
                 }
-                items[k].data = bufs[k];
-                items[k].dlen = dlen;
+                if (dlt698_encode_get_response_list_item(out, oad, scalar, dlen) != 0) return -1;
             }
-            return dlt698_encode_get_response_list(&sa, piid, items, n, out);
+            return dlt698_encode_get_response_list_end(&stream, out);
         }
 
         /* [1] GetRequestNormal：payload = OAD(4) | 时间标签(1) */

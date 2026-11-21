@@ -63,7 +63,7 @@ int (*accept_axdr)(void *ctx, uint32_t oad, const uint8_t *axdr, size_t len);
 
 ### 3. 缓冲上限与记录分页
 
-- `DCU_698_AXDR_MAX` 首版 **2048** 字节，是**单条属性**的上限，由调用方提供缓冲。
+- `EDGE_SLAVE_AXDR_MAX` 首版 **2048** 字节，是**单条属性**的上限，由调用方提供缓冲。
 - 超过 2048 的记录型属性（Class 9 冻结、Class 7/24 事件等）走 GetRecord 分页，
   不把整张表塞进一个 Get 响应。分页由 D1-15 实现。
 - 不允许 `N × 2048` 的列表缓冲。`GetRequestNormalList` 最多 8 项

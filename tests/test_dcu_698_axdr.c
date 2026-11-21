@@ -81,7 +81,7 @@ static void init_product_model(void) {
 }
 
 static void assert_axdr(uint32_t oad, const uint8_t *want, size_t want_len) {
-    uint8_t buf[DCU_698_AXDR_MAX];
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
     size_t len = 0;
     assert_int_equal(dcu_north_resolve_axdr(NULL, oad, buf, sizeof(buf), &len), 0);
     assert_int_equal(len, want_len);
@@ -123,7 +123,7 @@ static void test_product_axdr_rejects_small_buffer_and_complex(void **state) {
     (void)state;
     init_product_model();
 
-    uint8_t buf[DCU_698_AXDR_MAX];
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
     size_t len = 0;
 
     /* 电压需要 5 字节；cap=4 必须失败，不截断。 */
@@ -352,6 +352,62 @@ static void test_driver_normal_list_uses_axdr_per_item(void **state) {
     net_buf_pool_destroy(pool);
 }
 
+static int big_list_resolve(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, size_t *len) {
+    (void)ctx;
+    const size_t n = EDGE_SLAVE_AXDR_MAX - 8; /* 2040，接近单条上限 */
+    if (!buf || !len || cap < n) return -1;
+    uint8_t idx = (uint8_t)(oad & 0xFF);
+    memset(buf, 0, n);
+    buf[0] = 0xA0;
+    buf[1] = idx;
+    buf[2] = 0xB0;
+    buf[3] = idx;
+    buf[n - 2] = 0xC0;
+    buf[n - 1] = idx;
+    *len = n;
+    return 0;
+}
+
+static const edge_slave_source_ops_t k_big_list_src = {.resolve_axdr = big_list_resolve};
+
+static void test_driver_normal_list_reuses_one_buffer(void **state) {
+    (void)state;
+    uint32_t oads[8];
+    for (size_t i = 0; i < 8; i++) oads[i] = 0x50000000U | (uint32_t)i;
+
+    uint8_t frame[128];
+    size_t frame_len = build_get_list(frame, oads, 8);
+
+    net_buf_pool_t *pool = net_buf_pool_new(2, 32768, 0);
+    assert_non_null(pool);
+    net_buf_t *out = net_buf_alloc(pool, 0);
+    assert_non_null(out);
+
+    alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
+    memset(priv, 0, sizeof(priv));
+    size_t consumed = 0;
+    int rc = dlt698_driver.req_slave_exchange(priv, NULL, frame, frame_len, &k_big_list_src, NULL,
+                                              out, &consumed);
+    assert_int_equal(rc, 0);
+
+    /* 帧头 9 字节后：85 | 02 | PIID | n。 */
+    assert_true(out->b.len > 16000);
+    assert_int_equal(out->b.data[9], DLT698_SVC_GET_RES);
+    assert_int_equal(out->b.data[10], DLT698_CHOICE_GET_NORMAL_LIST);
+    assert_int_equal(out->b.data[12], 8);
+
+    /* 每项的首尾标记都必须在：证明 8 份 2040 字节都被完整写入、没有互相覆盖。 */
+    for (uint8_t k = 0; k < 8; k++) {
+        const uint8_t head[] = {0xA0, k, 0xB0, k};
+        const uint8_t tail[] = {0xC0, k};
+        assert_true(contains(out->b.data, out->b.len, head, sizeof(head)));
+        assert_true(contains(out->b.data, out->b.len, tail, sizeof(tail)));
+    }
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(pool);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_product_variable_axdr_types),
@@ -360,6 +416,7 @@ int main(void) {
         cmocka_unit_test(test_driver_carries_structure_axdr),
         cmocka_unit_test(test_driver_rejects_axdr_buffer_shortage),
         cmocka_unit_test(test_driver_normal_list_uses_axdr_per_item),
+        cmocka_unit_test(test_driver_normal_list_reuses_one_buffer),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

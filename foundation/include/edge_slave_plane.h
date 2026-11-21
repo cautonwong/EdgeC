@@ -33,7 +33,7 @@ extern "C" {
 #endif
 
 /** 单条属性的 A-XDR 上限（ADR-0013）；超过的记录型属性走 GetRecord 分页。 */
-#define DCU_698_AXDR_MAX 2048
+#define EDGE_SLAVE_AXDR_MAX 2048
 
 /** 从站应答需要的一个点位取值 */
 typedef struct {
