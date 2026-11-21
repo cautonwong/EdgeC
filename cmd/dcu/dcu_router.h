@@ -9,12 +9,6 @@
 #include "dcu_poller.h"
 #include "dcu_security.h"
 
-// ==============================================================================
-// 698 协议接口类 (Interface Class ID) 与标准 OI 定义
-// ==============================================================================
-/* 每只表在影子表里占的槽位数。**影子表容量必须 >= MAX_METERS × 这个数**，
- * 否则 idx 越界、写入被静默丢弃（见 dcu_node.c 的 datahub_capacity 推导）。
- * 改这个值要同步改容量推导，否则就是数据丢失。 */
 #define DCU_SLOTS_PER_DEVICE 32
 
 /* 应用点位区：tag_id 落在 [DCU_APP_BASE, DCU_APP_BASE + DCU_APP_SLOT_TOTAL)
@@ -29,15 +23,14 @@
 #define IC_VARIABLE 3       // 分相变量接口类 (如电压、电流、相角)
 #define IC_POWER 4          // 功率接口类 (如 2004 有功功率)
 #define IC_DATA_VARIABLE 6  // 数据变量接口类 (如 200F 频率)
-#define IC_EVENT 7          // 事件对象接口类 (如失压 3000, 过流 3005)
+#define IC_EVENT 7          // 事件对象接口类
 #define IC_RECORD 9         // 记录/冻结数据接口类 (如日冻结 5004)
-#define IC_ACQUISITION 10   // 采集监控配置类 (如 6000 档案, 6012 任务, F100 ESAM)
+#define IC_ACQUISITION 10   // 采集监控接口类 (如 6000 档案, 6012 任务)
 #define IC_CONTROL 13       // 控制/继电器动作类 (如 8000 远程拉合闸)
+#define IC_ESAM 21          // ESAM 接口类 (F100)
+#define IC_PERIPHERAL 22    // 输入输出设备接口类 (F200 串口)
+#define IC_SUB_EVENT 24     // 分项事件对象接口类 (3000 失压, 3005 过流)
 
-// ==============================================================================
-// DLT 698.45 标准寻址 OI 与 OAD 契约宏 (消灭所有 Hardcoded 魔数)
-// ==============================================================================
-// 💡 1. 实时测点标量变量类标准 OAD (OI 2字节 + 属性 1字节 + 索引 1字节)
 #define OAD_ACTIVE_ENERGY 0x00100200         // 累计正向有功电能量 (OI 0010 属性 2)
 #define OAD_REACTIVE_ENERGY 0x00200200       // 累计反向有功电能量 (OI 0020 属性 2)
 #define OAD_VOLTAGE 0x20000200               // A相实时电压 (OI 2000 属性 2)
@@ -55,15 +48,12 @@
 #define OAD_POWER_FACTOR_TOTAL 0x200A0200    // 总功率因数 (OI 200A 属性 2)
 #define OAD_GRID_FREQUENCY 0x200F0200        // 电网频率 (OI 200F 属性 2)
 
-// 💡 2. 异常越限告警监控事件类标准 OI (16-bit OI)
 #define OI_VOLTAGE_DROP 0x3000  // 失压事件 OI
 #define OI_OVER_CURRENT 0x3005  // 过流事件 OI
 
-// 💡 3. 定期归档冻结数据类标准 OAD
 #define OAD_DAILY_FREEZE \
     0x50040200  // 日冻结记录表属性 2 (日冻结 OAD 既作为定时流触发 Tag，也是存储召测 Target)
 
-// 💡 4. 集中器控制、搜表与安全接口类标准 OI
 #define OI_METER_ARCHIVE 0x6000     // 采集档案配置表 OI
 #define OI_TASK_SCHEDULER 0x6012    // 任务配置表 OI
 #define OI_METER_DISCOVERY 0x6002   // 搜表发现控制器 OI
@@ -78,31 +68,30 @@
  * @brief Class 7 单个事件记录结构体 (与电力契约数据严格对齐)
  */
 typedef struct {
-    uint16_t index;        // 事件记录序号，单调递增
-    uint64_t start_time;   // 事件发生挂钟时间戳 (秒)
-    uint64_t end_time;     // 事件恢复挂钟时间戳 (秒)
-    float snapshot_value;  // 发生/恢复时的物理量实时快照值 (如电压/电流)
-    bool is_active;        // 事件当前是否处于激活/发生状态
+    uint16_t index;
+    uint64_t start_time;
+    uint64_t end_time;
+    float snapshot_value;
+    bool is_active;
 } dcu_event_record_t;
 
 /**
  * @brief Class 7 异常事件监控对象结构体
  */
 typedef struct {
-    uint16_t oi;                                    // 事件对象 OID (如 OI_VOLTAGE_DROP)
+    uint16_t oi;
     dcu_event_record_t records[MAX_EVENT_RECORDS];  // 倒序排列的事件记录表 (属性 2)
     uint16_t record_count;                          // 当前记录条数 (属性 4)
     uint32_t snapshot_oads[8];  // [Align Attr 3] 关联抓取的快照 OAD 列表
-    uint8_t snapshot_count;     // 快照列表长度
+    uint8_t snapshot_count;
     float threshold;            // 判定门限值 (属性 6 配置参数)
-    uint32_t delay_s;           // 判定触发延时时间 (秒)
+    uint32_t delay_s;
     uint8_t report_flag;        // 上报标识 (属性 8)
     bool is_enabled;            // 是否使能有效 (属性 9)
     uint64_t last_start_time;   // 最近发生时间 (属性 10 的部分元素)
-    uint64_t last_end_time;     // 最近恢复时间
+    uint64_t last_end_time;
 } dcu_event_obj_t;
 
-// === [Consumer-Defined Interfaces] ===
 typedef struct {
     void* ctx;
     int (*record_telemetry)(void* ctx, const char* meter_addr, uint32_t meter_idx, uint32_t tag_id,
@@ -118,12 +107,6 @@ typedef struct {
     int (*read_shadow)(void* ctx, uint32_t tag_id, uint32_t device_id, void* out_msg);
 } router_bus_ops_t;
 
-/* --- 生产级 API 函数原型声明 --- */
-
-/**
- * @brief 影子映射：物理矩阵映射 (Index = MeterIdx * 10 + Offset)
- * 用于将 698 OAD 或物理测点映射到 DataHub 影子寄存器槽位
- */
 int dcu_tag_map_fn(uint32_t tag_id, uint32_t device_id);
 
 /**
@@ -182,4 +165,4 @@ int dcu_obj_snapshot(uint16_t oi, uint32_t device_id, void* out_msgs, int max_co
  */
 void dcu_router_destroy(void);
 
-#endif  // DCU_ROUTER_H
+#endif

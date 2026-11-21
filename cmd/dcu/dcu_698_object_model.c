@@ -1,8 +1,3 @@
-/**
- * @file dcu_698_object_model.c
- * @brief DCU 698 静态对象表与类处理器
- */
-
 #include "dcu_698_object_model.h"
 
 #include <stdint.h>
@@ -13,7 +8,6 @@
 #include "dcu_698_var.h"
 #include "edge_log.h"
 
-/* 256 位位图的静态初始化：按字节下标与位号填，避免手算十六进制。 */
 #define BIT(id) ((uint8_t)(1U << ((id)&7)))
 #define BYTE(id) ((id) >> 3)
 
@@ -120,13 +114,13 @@ static dcu_698_object_t g_objects[] = {
      .method_mask = {[BYTE(1)] = BIT(1)}},
 
     {.oi = OI_ESAM_SECURITY,
-     .class_id = IC_ACQUISITION,
+     .class_id = IC_ESAM,
      .scope = DCU_OBJ_SINGLETON,
      .method = _oi_f100_execute,
      .method_mask = {[BYTE(1)] = BIT(1)}},
 
     {.oi = OI_CHANNEL_CONFIG,
-     .class_id = IC_ACQUISITION,
+     .class_id = IC_PERIPHERAL,
      .scope = DCU_OBJ_SINGLETON,
      .read = _oi_f200_read,
      .write = _oi_f200_write,
@@ -146,7 +140,7 @@ static dcu_698_object_t g_objects[] = {
      .attr_mask = {[BYTE(2)] = BIT(2)}},
 
     {.oi = OI_VOLTAGE_DROP,
-     .class_id = IC_EVENT,
+     .class_id = IC_SUB_EVENT,
      .scope = DCU_OBJ_SHARED,
      .read = _oi_event_read,
      .write = _oi_event_write,
@@ -155,7 +149,7 @@ static dcu_698_object_t g_objects[] = {
                    [BYTE(8)] = BIT(8) | BIT(9) | BIT(10)},
      .method_mask = {[BYTE(1)] = BIT(1)}},
     {.oi = OI_OVER_CURRENT,
-     .class_id = IC_EVENT,
+     .class_id = IC_SUB_EVENT,
      .scope = DCU_OBJ_SHARED,
      .read = _oi_event_read,
      .write = _oi_event_write,
@@ -181,7 +175,6 @@ static int _oi_6000_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t e
     if (!inv || !out_val) return -1;
 
     if (attr_id == 2) {
-        // 档案只在 uv 循环线程上被读写，这里不需要锁（见 dcu_inventory.h 的线程所有权说明）
         *(uint16_t *)out_val = inv->count;
         return 0;
     }
@@ -200,10 +193,10 @@ static int _oi_6000_execute(const dcu_698_object_t *obj, uint8_t method_id, cons
         return ret;
     }
     if (method_id == 2) {
-        return -4;  // 方法存在但拒绝执行：不得返回 0 让主站误以为已写入
+        return -4;
     }
     if (method_id == 3) {
-        return -4;  // 方法存在但拒绝执行：不得返回 0 让主站误以为已更新
+        return -4;
     }
     if (method_id == 4) {
         const char *addr = (const char *)param;
@@ -214,7 +207,7 @@ static int _oi_6000_execute(const dcu_698_object_t *obj, uint8_t method_id, cons
     if (method_id == 5) {
         memset(inv->meters, 0, sizeof(inv->meters));
         inv->count = 0;
-        inv->revision++;  // 清档也是一次变更：poller 靠它退休表级状态
+        inv->revision++;
         if (result) *(int *)result = 0;
         return 0;
     }
@@ -257,7 +250,7 @@ static int _oi_6012_execute(const dcu_698_object_t *obj, uint8_t method_id, cons
     if (method_id == 1) {
         const dcu_scheme_t *s = (const dcu_scheme_t *)param;
         if (s->type != SCHEME_TYPE_NORMAL)
-            return -1;  // Only support routing NORMAL schemes through this legacy path
+            return -1;
         int ret = dcu_poller_add_scheme(poller, s->scheme_id, s->data.normal.capture_mode,
                                         s->data.normal.csd_list, s->data.normal.csd_count);
         if (result) *(int *)result = ret;
@@ -310,8 +303,6 @@ static int _oi_8000_execute(const dcu_698_object_t *obj, uint8_t method_id, cons
         return -3;
     }
 
-    /* 领域动作必须过聚合根：在线状态、遥控白名单、五防闭锁都在那边。
-     * 路由直连总线会把"南向控制严禁穿透"破掉（架构原则 3）。 */
     if (!s_control_sink) {
         LOG_ERROR(LOG_CAT_CORE, "OI 8000: 控制下沉端口未注入，拒绝执行 dev=%s", m->address);
         return -4;
@@ -615,7 +606,8 @@ int dcu_698_snapshot(uint16_t oi, uint32_t device_id, void *out_msgs, int max_co
 
     int captured = 0;
 
-    if (obj->class_id == IC_EVENT) {
+    /* class_id 是标准接口类（3xxx 为 24）；快照按处理器族分派。 */
+    if (obj->read == _oi_event_read) {
         dcu_event_obj_t *evt = (dcu_event_obj_t *)obj->instance;
         if (!evt) return 0;
         for (int i = 0; i < evt->snapshot_count && captured < max_count; i++) {
@@ -626,7 +618,6 @@ int dcu_698_snapshot(uint16_t oi, uint32_t device_id, void *out_msgs, int max_co
             }
         }
     } else if (obj->class_id == IC_RECORD) {
-        // 目前先返回空，后续对接 Attr 3 结构体数组
     }
 
     return captured;
