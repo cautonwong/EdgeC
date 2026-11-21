@@ -1,7 +1,7 @@
 === build ===
-[302/304] Linking C executable tests/test_iems_modbus_rtu_uart_pty
-[303/304] Linking C executable tests/test_iems_dlt645_uart_pty
-[304/304] Linking C executable tests/test_iems_cli_write
+[361/363] Linking C executable tests/test_iems_cli_write
+[362/363] Linking C executable tests/test_iems_tcp_link
+[363/363] Linking C executable tests/test_iems_modbus_tcp_loopback
 warnings=0
 
 === ctest -R 'dcu|dlt698' ===
@@ -20,10 +20,12 @@ warnings=0
 [       OK ] test_driver_rejects_axdr_buffer_shortage
 [ RUN      ] test_driver_normal_list_uses_axdr_per_item
 [       OK ] test_driver_normal_list_uses_axdr_per_item
-[  PASSED  ] 6 test(s).
+[ RUN      ] test_driver_normal_list_reuses_one_buffer
+[       OK ] test_driver_normal_list_reuses_one_buffer
+[  PASSED  ] 7 test(s).
 
 === ASAN test_dcu_698_axdr ===
-[  PASSED  ] 6 test(s).
+[  PASSED  ] 7 test(s).
 
 === run_guard_selftest.py --root . ===
 📊 Injection coverage: 6 caught / 2 known gap(s) of 8 probes
@@ -33,3 +35,6 @@ exit=0
 === composition budget ===
 ⚠️  [COMPOSITION_ROOT_BUDGET] roots shrank; run --update-baseline: cmd/iems/iems_southbound_adapter.c 218 -> 215; cmd/iems/iems_north_iec104.c 203 -> 180; cmd/dcu/dcu_north_adapter.c 203 -> 202
 ✅ [COMPOSITION_ROOT_BUDGET] clean. 16 root(s).
+
+=== driver buffers ===
+30:static _Thread_local uint8_t s_axdr_buf[EDGE_SLAVE_AXDR_MAX];

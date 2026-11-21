@@ -1,19 +1,17 @@
-commit 06c2604e54dae264deb01c37cee25367d071d7b4
+commit 210cd0478a0153e8bb1f106fd64c8cf13ef40a3b
 Author: 800900 <992878191@qq.com>
-Date:   Sat Nov 21 17:57:42 2026 +0800
+Date:   Sat Nov 21 18:10:26 2026 +0800
 
-    feat(DCU-D1-13): add 698 A-XDR slave port
+    fix(DCU-D1-13): stream NormalList A-XDR and rename the port cap
     
     Co-Authored-By: Claude Code <noreply@anthropic.com>
 
- adapters/io_drivers/src/driver_dlt698.c | 125 +++++++----
- ci/baseline/composition_root_budget.txt |   3 +-
- cmd/dcu/CMakeLists.txt                  |   1 +
- cmd/dcu/dcu_698_axdr.c                  | 108 ++++++++++
- cmd/dcu/dcu_698_axdr.h                  |  23 ++
- cmd/dcu/dcu_north_adapter.c             |  23 +-
- cmd/dcu/dcu_north_adapter.h             |   2 +
- foundation/include/edge_slave_plane.h   |  25 ++-
- tests/CMakeLists.txt                    |   4 +
- tests/test_dcu_698_axdr.c               | 365 ++++++++++++++++++++++++++++++++
- 10 files changed, 628 insertions(+), 51 deletions(-)
+ adapters/io_drivers/src/driver_dlt698.c |  41 +++---
+ docs/adr/0013-698-slave-axdr-port.md    |   2 +-
+ docs/design/DCU_698_OBJECT_MODEL.md     |   2 +-
+ docs/design/slave_plane_architecture.md |   2 +-
+ foundation/include/dlt698_codec.h       |  69 ++++++----
+ foundation/include/edge_slave_plane.h   |   2 +-
+ foundation/src/protocol/dlt698_codec.c  | 224 ++++++++++++++++++++------------
+ tests/test_dcu_698_axdr.c               |  61 ++++++++-
+ 8 files changed, 271 insertions(+), 132 deletions(-)
