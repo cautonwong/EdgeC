@@ -771,7 +771,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D0-07 | 已合并 | `dcu/D0-07-catalog-ci` | `355c8251` | `docs/evidence/DCU-D0-07/` | 合并提交 `355c8251`；目录门禁进 CI 与守卫自检，parity 11 条；动态真实文档副本正反夹具；`/no-comments` 删 10 行 |
 | D0-08 | 已合并 | `dcu/D0-08-asan-frame-lifetime` | `9e458af6` | `docs/evidence/DCU-D0-08/` | 合并提交 `9e458af6`；`decode_frame_borrows` 借用调用方帧，删本地 512 字节存储；ASAN 全量 330/330、目标 6/6；合并后 main 再跑 ASAN 6/6、守卫全绿 |
 | D0-08a | 已合并 | `dcu/D0-08-frame-len` | `438ed230` | `docs/evidence/DCU-D0-08/` | 合并提交 `438ed230`；`len > UINT16_MAX` 拒绝，`(uint16_t)` 显式收窄；clean build 告警门禁 0 new |
-| D0-09 | 进行中 | `dcu/D0-09-class-ids` | `118d47b9` | `docs/evidence/DCU-D0-09/` | D1-10 发现的真实数据错：F100→21、F200→22、3000/3005→24；生成器按 7.3 小节解析，F100 不再被 CJK 过滤丢弃 |
+| D0-09 | 已合并 | `dcu/D0-09-class-ids` | `6638ce23` | `docs/evidence/DCU-D0-09/` | 合并提交 `6638ce23`；F100→21、F200→22、3000/3005→24；生成器按 7.3 小节解析，F100 入目录（513→514）；快照改按处理器族分派；合并后告警、目录、28/28、守卫、验收全过 |
 | D1-00 | 已合并 | `main` | `355c8251` | `scripts/extract_dcu_698_catalog.py` | 生成器、目录与 `--check` 门禁均已入库；D0-07 接入 CI 与守卫自检 |
 | D1-01 | 未开始 | - | - | - | 以 `698.pdf` 重抽 79 行 OCR 列错位 |
 | D1-02 | 待验收 | `main` | `8d8089bf` | `docs/design/DCU_698_OBJECT_MODEL.md` | 设计文档已提交，待架构评审 |
@@ -782,7 +782,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-07 | 阻塞 | - | - | - | 依赖 D1-13、D1-15 |
 | D1-08 | 未开始 | - | - | - | - |
 | D1-09 | 未开始 | - | - | - | - |
-| D1-10 | 阻塞 | - | - | - | 依赖 D0-09：表里 F100/F200/3000/3005 的 class_id 先按标准修正，测试不能带豁免 |
+| D1-10 | 进行中 | `dcu/D1-10-catalog-consistency` | `6638ce23` | `docs/evidence/DCU-D1-10/` | edgec-dev-0 执行中；严格断言 OI/class，属性与方法范围取 7.3 ∪ A.7 |
 | D1-11 | 阻塞 | - | - | - | 依赖 D1-06、D1-07 |
 | D1-12 | 已合并 | `dcu/D1-12-axdr-port-adr` | `076e0e04` | `docs/evidence/DCU-D1-12/` | ADR-0013 已合并，状态 Proposed；14 个初始化点全为 designated，无位置初始化；架构签字待补 |
 | D1-13 | 已合并 | `dcu/D1-13-axdr-port` | `68f4de69` | `docs/evidence/DCU-D1-13/` | 合并提交 `68f4de69`；合并后 28/28、守卫、验收 2+4 全过；流式逐项编码，单缓冲复用，无 8×2048；`/no-comments` 删 23 行、DAR 字面量改常量 |
@@ -819,15 +819,26 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | 2026-11-21 | D0-08 | 已合并 | `docs/evidence/DCU-D0-08/` | 合并提交 `9e458af6`；ASAN 全量 330/330、目标 6/6；合并后 main 的 ASAN 目标 6/6、release 28/28、守卫全绿；`/no-comments` 采纳 1 条 MUST KILL，helper 改名 `decode_frame_borrows` |
 | 2026-11-21 | D0-08a | 已合并 | `docs/evidence/DCU-D0-08/` | 合并提交 `438ed230`；clean build 的 `-Wconversion` 归零；`check_build_warnings.py` 0 new |
 | 2026-11-21 | D0-05b | 已合并 | `docs/evidence/DCU-D0-05b/` | 合并提交 `731b1331`；28/28、ASAN 6/6、告警门禁、守卫、验收 2+4；ADR-0013 2.1 记录失败码与 DAR 映射 |
+| 2026-11-21 | D0-09 | 已合并 | `docs/evidence/DCU-D0-09/` | 合并提交 `6638ce23`；class_id 四处修正，F100 入目录，快照按处理器族；复核恢复了 2 条被过度删除的 why 注释 |
 
 ### 12.4 并行工作树
 
 | 工作树 | 分支 | 负责人 | 任务 | 文件边界 |
 | --- | --- | --- | --- | --- |
-| `/tmp/dcu-dev-worktree` | `dcu/D1-13-axdr-port` | dcu-dev | D1-13 A-XDR 端口与驱动 GET 接线 | `foundation/include/edge_slave_plane.h`、`adapters/io_drivers/src/driver_dlt698.c`、`cmd/dcu/`、`tests/` |
-| `/tmp/dcu-docs-worktree` | `dcu/D0-07-catalog-ci` | edgec-dev-0 | D0-07 目录 CI 门禁，随后 D0-05b | `ci/scripts/`、`.github/workflows/`、`tests/guards/`、`docs/evidence/DCU-D0-07/` |
+| `/tmp/dcu-dev-worktree` | `dcu/D1-14-set` | dcu-dev | D1-14 SET-Request | `driver_dlt698.c`、`foundation/src/protocol/`、`cmd/dcu/dcu_698_axdr.c`、`tests/` |
+| `/tmp/dcu-baseline-worktree` | `dcu/D1-10-catalog-consistency` | edgec-dev-0 | D1-10 目录一致性测试 | `scripts/extract_dcu_698_catalog.py`、`cmd/dcu/dcu_698_object_model.*`、`tests/` |
+| `/tmp/dcu-docs-worktree` | detached | - | 空闲，D0-07 已完成 | - |
 
 并行只跨文件边界。`driver_dlt698.c`、`dcu_698_object_model.c`、`dcu_router.c` 是串行冲突域，同一时刻只允许一个工作树改。
+
+### 12.5 已知缺口（不阻塞本轮合并，需另立任务或产品拍板）
+
+| 项 | 现状 | 影响 | 去向 |
+| --- | --- | --- | --- |
+| F200 属性语义 | 产品把 attr2 当波特率（uint32）、attr3 当校验位（uint8）；目录 Class 22 里 attr2 是设备对象列表（array）、attr3 是数量（unsigned） | 主站按标准读 F200 会拿到类型不符的值；D1-14 的合法写用例沿用了现有产品口径 | 产品点位表拍板后另立 defect；D1-10 只断言位号范围，不判定语义 |
+| 3000/3005 属性号 | `class_id` 已改 24，但 `attr_mask` 仍用 Class 7 的属性号（2–6、8–10），Class 24 的属性定义不同 | 主站按 Class 24 读会落到未定义属性；位号范围检查发现不了 | P3 事件任务（D3-02 起）按 Class 24 重排并加验收 |
+| codec 魔数标签 | `dlt698_codec.c` 既有编码器里仍有 `18`/`5`/`28` 字面量，未用 `DLT698_TAG_*` | 可读性，易与新标签漂移 | 随下一次 codec 改动清理，单独 commit |
+| D1-01 OCR 冲突 | 目录仍有 79 行 IC 列错位；D0-09 只补了 F100 这一行 | 类归属可能错 | D1-01 按 PDF 逐行核对后归零 |
 
 ## Appendix A. 698 覆盖明细
 

@@ -42,7 +42,8 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 | `dcu/D0-04-baseline` | D0-04 | merged `5c808baf` | baseline evidence; ASAN found a real test lifetime bug |
 | `dcu/D0-08-asan-frame-lifetime` | D0-08 | merged `9e458af6` | ASAN 330/330, dlt698 6/6; post-merge main ASAN 6/6 |
 | `dcu/D1-10-catalog-consistency` | D1-10 | blocked on D0-09 | table/catalog classes disagree on F100/F200/3000/3005 |
-| `dcu/D0-09-class-ids` | D0-09 | active, edgec-dev-0 | fix four class_ids and the CJK-dropped F100 catalog row |
+| `dcu/D0-09-class-ids` | D0-09 | merged `6638ce23` | four class_ids, F100 in catalog, snapshot by handler family; post-merge all gates green |
+| `dcu/D1-10-catalog-consistency` | D1-10 | active, edgec-dev-0 | strict table/catalog consistency on the corrected base |
 | `dcu/D1-14-set` | D1-14 | active, dcu-dev | SET-Request, accept_axdr write, SET-Response DAR |
 | `dcu/D0-08-frame-len` | D0-08a | merged `438ed230` | explicit `uint16_t` bound; warning gate 0 new |
 
@@ -67,6 +68,8 @@ verified before morning. The full P2 to P5 program is blocked on the COM compone
 | 2026-11-21 | D0-08a | merged `438ed230` | bound check + cast; clean-build warning gate 0 new |
 | 2026-11-21 | D0-05b | merged `731b1331` | post-merge 28/28, ASAN 6/6, warning gate, guards, acceptance 2+4 all green |
 | 2026-11-21 | D0-09 | dispatched | D1-10 found real class_id drift: F100 10->21, F200 10->22, 3000/3005 7->24; catalog drops F100 because its name is ASCII |
+| 2026-11-21 | D0-09 | merged `6638ce23` | catalog 513->514 with F100; comment review restored 2 over-deleted why notes; post-merge build/warning/catalog/28/28/guards/acceptance green |
+| 2026-11-21 | D1-10 | resumed | strict assertions on the corrected base; known gap: 3000/3005 masks still use Class 7 numbers |
 | 2026-11-21 | D1-10 | blocked | table/catalog consistency cannot pass honestly until D0-09 lands; no exemption list |
 | 2026-11-21 | D0-05b | code verified, waiting | DAR mapping and GET-Normal DAR response good; needs ADR/design sync and rebase onto D0-08 |
 
