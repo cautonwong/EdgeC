@@ -782,7 +782,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-10 | 未开始 | - | - | - | - |
 | D1-11 | 阻塞 | - | - | - | 依赖 D1-06、D1-07 |
 | D1-12 | 已合并 | `dcu/D1-12-axdr-port-adr` | `076e0e04` | `docs/evidence/DCU-D1-12/` | ADR-0013 已合并，状态 Proposed；14 个初始化点全为 designated，无位置初始化；架构签字待补 |
-| D1-13 | 待验收 | `dcu/D1-13-axdr-port` | `dc2b83ea` | `/tmp/dcu-dev-worktree/docs/evidence/DCU-D1-13/` | 28/28 通过；review 发现驱动用 8×2048 TLS 列表缓冲，违反 ADR-0013 §3；已退回改流式逐项编码并把 `DCU_698_AXDR_MAX` 改为通用名 |
+| D1-13 | 待验收 | `dcu/D1-13-axdr-port` | `3b2d1c9e` | `/tmp/dcu-dev-worktree/docs/evidence/DCU-D1-13/` | 28/28、守卫、验收通过；8×2048 已改流式逐项编码，常量改 `EDGE_SLAVE_AXDR_MAX`；`/no-comments` 进行中 |
 | D1-14 | 未开始 | - | - | - | - |
 | D1-15 | 未开始 | - | - | - | - |
 | D1-16 | 未开始 | - | - | - | - |
