@@ -793,7 +793,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-14a | 已合并 | `dcu/D1-14a-be32` | `e2ce657d` | `docs/evidence/DCU-D1-14a/` | 合并提交 `e2ce657d`；`_read_be32` 统一 5 处大端读取；高字节 ≥0x80 用例；合并后 UBSAN 全量 332/332、0 runtime error |
 | D1-15 | 已合并 | `dcu/D1-15a-record-codec` + `dcu/D1-15b-record-driver` | `7658967a` | `docs/evidence/DCU-D1-15a/`、`DCU-D1-15b/` | D1-15a codec 层 GetRecord/RSD/RCSD；D1-15b ADR-0014 记录端口、Selector1、驱动 GET [3]、分页；产品记录取数留 D1-07 |
 | D1-15b | 已合并 | `dcu/D1-15b-record-driver` | `7658967a` | `docs/evidence/DCU-D1-15b/` | 合并提交 `7658967a`；端口三回调协议中立；行失败整条回 DAR；>255 回 DAR 2；不支持选择方法空 RCSD 限制已入 ADR |
-| D1-16 | 未开始 | - | - | - | - |
+| D1-16 | 进行中 | `dcu/D1-16-report` | `f14fddeb` | `docs/evidence/DCU-D1-16/` | dcu-dev-1 执行中；ADR-0017 上报源端口、REPORT-Notification 编码、事件驱动上报与确认 |
 | D1-17 | 已合并 | `dcu/D1-17-appconn` | `5494f506` | `docs/evidence/DCU-D1-17/` | 合并提交 `5494f506`；ADR-0015 会话与 ACL；CONNECT/RELEASE 无 CHOICE 解析；未授权 DAR 3；预连接窗口按产品列表；32/32、ASAN、守卫、验收通过 |
 | D1-18 | 审计完成 | 只读 | `4f864e29` | `docs/design/DCU_698_OAD_STATUS.md` | 56 个已暴露位：0 real、37 partial、12 stub、3 unimplemented、4 masked-but-undefined；按 P0/P1 拆成 D1-18a 到 D1-18d |
 | D1-18a | 已合并 | `dcu/D1-18a-variable-shapes` | `8acf47fe` | `docs/evidence/DCU-D1-18a/` | 合并提交 `8acf47fe`；Class 1/3/4 attr2 标准数组、attr3 Scaler_Unit、整数类型、元素索引选槽位；修正错误 tag 常量；合并后 32/32、ASAN、守卫、验收通过 |
