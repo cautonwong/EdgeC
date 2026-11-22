@@ -271,29 +271,21 @@ static uint8_t _dar_for_action_rc(int rc) {
 
 #define DLT698_OI_CONN 0x4400u
 #define DLT698_OI_CONN_OBJECT_LIST 0x44000200u
-#define DLT698_ACL_MAX_OBJECTS 20
-#define DLT698_ACL_MAX_ATTRS 12
+#define DLT698_ACL_MAX_OBJECTS 28
+#define DLT698_ACL_MAX_ATTRS 16
 #define DLT698_ACL_MAX_METHODS 8
 #define DLT698_ATTR_RIGHT_READ 1u
 #define DLT698_ATTR_RIGHT_WRITE 2u
 #define DLT698_ATTR_RIGHT_RW 3u
 
-typedef struct {
-    uint8_t id;
-    uint8_t rights;
-} dlt698_acl_attr_t;
-
-typedef struct {
-    uint8_t id;
-    uint8_t allowed;
-} dlt698_acl_method_t;
-
+/* 28 个对象 × 16 B = 448 B；旧的内联数组（20 × 44 B）在 28 个对象时会超
+ * DRIVER_PRIV_SIZE(1024)。属性权限用每位 2 bit 压进 32 位，方法只存已允许的 id。 */
 typedef struct {
     uint16_t oi;
     uint8_t n_attrs;
     uint8_t n_methods;
-    dlt698_acl_attr_t attrs[DLT698_ACL_MAX_ATTRS];
-    dlt698_acl_method_t methods[DLT698_ACL_MAX_METHODS];
+    uint32_t attr_rights; /* 属性 id 1..16，各 2 bit */
+    uint8_t method_ids[DLT698_ACL_MAX_METHODS];
 } dlt698_acl_object_t;
 
 typedef struct {
@@ -313,6 +305,8 @@ typedef struct {
     uint64_t report_sent_ms;
     dlt698_acl_t acl;
 } dlt698_session_t;
+
+_Static_assert(sizeof(dlt698_session_t) <= 1024, "DLT698 session exceeds DRIVER_PRIV_SIZE");
 
 /* 对象列表结构（7.3.20 表182）：array { structure { OI, structure { attr[], method[] } } }，
  * 字段是 A-XDR Data；越界即不可用。 */
@@ -340,24 +334,29 @@ static bool _acl_parse(const uint8_t *buf, size_t len, dlt698_acl_t *acl) {
         uint8_t na = buf[off++];
         if (na > DLT698_ACL_MAX_ATTRS) return false;
         obj->n_attrs = na;
+        obj->attr_rights = 0;
         for (uint8_t a = 0; a < na; a++) {
             if (_acl_take(buf, len, &off, 0x02) != 0 || off >= len || buf[off++] != 2) return false;
             if (_acl_take(buf, len, &off, 0x11) != 0 || off >= len) return false;
-            obj->attrs[a].id = buf[off++];
+            uint8_t attr_id = buf[off++];
+            if (attr_id == 0 || attr_id > DLT698_ACL_MAX_ATTRS) return false;
             if (_acl_take(buf, len, &off, 0x16) != 0 || off >= len) return false;
-            obj->attrs[a].rights = buf[off++];
+            uint32_t rights = (uint32_t)(buf[off++] & 3u);
+            obj->attr_rights |= rights << ((attr_id - 1u) * 2u);
         }
 
         if (_acl_take(buf, len, &off, 0x01) != 0 || off >= len) return false;
         uint8_t nm = buf[off++];
         if (nm > DLT698_ACL_MAX_METHODS) return false;
-        obj->n_methods = nm;
+        obj->n_methods = 0;
         for (uint8_t m = 0; m < nm; m++) {
             if (_acl_take(buf, len, &off, 0x02) != 0 || off >= len || buf[off++] != 2) return false;
             if (_acl_take(buf, len, &off, 0x11) != 0 || off >= len) return false;
-            obj->methods[m].id = buf[off++];
+            uint8_t method_id = buf[off++];
             if (_acl_take(buf, len, &off, 0x03) != 0 || off >= len) return false;
-            obj->methods[m].allowed = buf[off++];
+            if (buf[off++] != 0) {
+                obj->method_ids[obj->n_methods++] = method_id;
+            }
         }
     }
     if (off != len) return false;
@@ -390,18 +389,16 @@ static const dlt698_acl_object_t *_acl_find(const dlt698_session_t *s, uint16_t 
 }
 
 static bool _acl_attr_allowed(const dlt698_acl_object_t *obj, uint8_t attr_id, bool write) {
-    for (uint8_t i = 0; i < obj->n_attrs; i++) {
-        if (obj->attrs[i].id != attr_id) continue;
-        uint8_t r = obj->attrs[i].rights;
-        return write ? (r == DLT698_ATTR_RIGHT_WRITE || r == DLT698_ATTR_RIGHT_RW)
-                     : (r == DLT698_ATTR_RIGHT_READ || r == DLT698_ATTR_RIGHT_RW);
-    }
-    return false;
+    if (!obj || attr_id == 0 || attr_id > DLT698_ACL_MAX_ATTRS) return false;
+    uint8_t r = (uint8_t)((obj->attr_rights >> ((attr_id - 1u) * 2u)) & 3u);
+    return write ? (r == DLT698_ATTR_RIGHT_WRITE || r == DLT698_ATTR_RIGHT_RW)
+                 : (r == DLT698_ATTR_RIGHT_READ || r == DLT698_ATTR_RIGHT_RW);
 }
 
 static bool _acl_method_allowed(const dlt698_acl_object_t *obj, uint8_t method_id) {
+    if (!obj) return false;
     for (uint8_t i = 0; i < obj->n_methods; i++) {
-        if (obj->methods[i].id == method_id) return obj->methods[i].allowed != 0;
+        if (obj->method_ids[i] == method_id) return true;
     }
     return false;
 }
