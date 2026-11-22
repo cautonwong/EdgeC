@@ -84,8 +84,8 @@ static void test_dcu_router_dispatch(void** state) {
     assert_int_equal(test_inv.count, 0);
 
     int method_res = -1;
-    ret = dcu_router_action(((uint32_t)OI_METER_ARCHIVE << 16) | 0x7F00, "20000001", &method_res);
-    assert_int_equal(ret, EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    ret = dcu_router_action(((uint32_t)OI_METER_ARCHIVE << 16) | 0x7F00, NULL, &method_res);
+    assert_int_equal(ret, EDGE_SLAVE_SRC_TYPE_MISMATCH);
     assert_int_equal(test_inv.count, 0);
 
     // 5. 6012 方法 127 添加方案，方法 1 复位清空方案表

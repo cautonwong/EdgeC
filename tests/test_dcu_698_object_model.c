@@ -28,12 +28,15 @@ static const uint8_t k_attr_3[] = {3};
 static const uint8_t k_attr_23[] = {2, 3};
 static const uint8_t k_attr_event[] = {4, 11, 12};
 static const uint8_t k_method_1[] = {1};
+static const uint8_t k_attr_2_6000[] = {2};
+static const uint8_t k_method_6000[] = {127, 128, 129, 130, 131, 132, 133, 134};
 static const uint8_t k_method_127[] = {127};
 static const uint8_t k_method_1_127[] = {1, 127};
 static const uint8_t k_method_8000[] = {127, 128, 129, 130, 131};
 
 static const expected_object_t k_expected[] = {
-    {OI_METER_ARCHIVE, IC_ACQUISITION, DCU_OBJ_SHARED, NULL, 0, NULL, 0},
+    {OI_METER_ARCHIVE, IC_ACQUISITION, DCU_OBJ_SHARED, k_attr_2_6000, 1, k_method_6000, 8},
+    {OI_ARCHIVE_UNIT, IC_PARAM, DCU_OBJ_SINGLETON, k_attr_2_6000, 1, NULL, 0},
     {OI_TASK_SCHEDULER, IC_ACQUISITION, DCU_OBJ_SHARED, NULL, 0, k_method_1_127, 2},
     {(uint16_t)((OAD_VOLTAGE >> 16) & 0xFFFF), IC_VARIABLE, DCU_OBJ_PER_METER, k_attr_23, 2,
      NULL, 0},
@@ -132,8 +135,9 @@ static void test_mask_rejects_missing_attr_and_method(void **state) {
                      EDGE_SLAVE_SRC_CLASS_MISMATCH);
     assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 2), NULL, NULL),
                      EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    /* 127 已广告，但 C API 需要解码后的参数结构；空参数如实报 DAR 7。 */
     assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 127), NULL, NULL),
-                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
     assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 200), NULL, NULL),
                      EDGE_SLAVE_SRC_UNDEFINED);
     assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 6), NULL, NULL),

@@ -11,7 +11,17 @@
 static dcu_698_object_t g_objects[] = {
     {.oi = OI_METER_ARCHIVE,
      .class_id = IC_ACQUISITION,
-     .scope = DCU_OBJ_SHARED},
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(2)] = BIT(2)},
+     .method = dcu_698_acq_6000_execute,
+     .method_mask = {[BYTE(127)] = BIT(127),
+                     [BYTE(128)] = BIT(128) | BIT(129) | BIT(130) | BIT(131) | BIT(132) |
+                                   BIT(133) | BIT(134)}},
+
+    {.oi = OI_ARCHIVE_UNIT,
+     .class_id = IC_PARAM,
+     .scope = DCU_OBJ_SINGLETON,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
 
     {.oi = OI_TASK_SCHEDULER,
      .class_id = IC_ACQUISITION,
@@ -142,6 +152,7 @@ int dcu_698_object_model_init(dcu_inventory_t *inv, dcu_poller_t *poller,
     g_initialized = true;
 
     _set_instance(OI_METER_ARCHIVE, inv);
+    _set_instance(OI_ARCHIVE_UNIT, inv);
     _set_instance(OI_TASK_SCHEDULER, poller);
     _set_instance(OI_ESAM_SECURITY, esam);
     _set_instance(OI_METER_DISCOVERY, discovery);

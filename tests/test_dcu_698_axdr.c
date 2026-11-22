@@ -172,12 +172,15 @@ static void test_product_variable_axdr_types(void **state) {
     const uint8_t want_freq[] = {DCU_698_TAG_LONG_UNSIGNED, 0x13, 0x89};
     assert_axdr(OAD_GRID_FREQUENCY, want_freq, sizeof(want_freq));
 
-    /* 6000 A2 是配置数组，标量/结构通道都还不支持：必须明确拒绝。 */
+    /* 6000 A2 是配置数组：空档案回空数组，不是标量、也不是 DAR。 */
     uint8_t probe[EDGE_SLAVE_AXDR_MAX];
     size_t probe_len = 0;
     assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(OI_METER_ARCHIVE, 2), probe,
                                             sizeof(probe), &probe_len),
-                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+                     0);
+    assert_int_equal(probe_len, 2);
+    assert_int_equal(probe[0], DCU_698_TAG_ARRAY);
+    assert_int_equal(probe[1], 0);
     const uint8_t want_discovery_count[] = {DCU_698_TAG_LONG_UNSIGNED, 0x00, 0x05};
     assert_axdr(MK_OAD(OI_METER_DISCOVERY, 3), want_discovery_count,
                 sizeof(want_discovery_count));

@@ -24,6 +24,7 @@
 #define IC_POWER 4          // 功率接口类 (如 2004 有功功率)
 #define IC_DATA_VARIABLE 6  // 数据变量接口类 (如 200F 频率)
 #define IC_EVENT 7          // 事件对象接口类
+#define IC_PARAM 8          // 参数变量接口类（如 6001 采集档案配置单元）
 #define IC_RECORD 9         // 记录/冻结数据接口类 (如日冻结 5004)
 #define IC_ACQUISITION 10   // 采集监控接口类 (如 6000 档案, 6012 任务)
 #define IC_CONTROL 13       // 控制/继电器动作类 (如 8000 远程拉合闸)
@@ -64,6 +65,7 @@
     0x50040200  // 日冻结记录表属性 2 (日冻结 OAD 既作为定时流触发 Tag，也是存储召测 Target)
 
 #define OI_METER_ARCHIVE 0x6000     // 采集档案配置表 OI
+#define OI_ARCHIVE_UNIT 0x6001      // 采集档案配置单元 OI（标准 A.7，IC 8）
 #define OI_TASK_SCHEDULER 0x6012    // 任务配置表 OI
 #define OI_METER_DISCOVERY 0x6002   // 搜表发现控制器 OI
 #define OI_DISCOVERY_RESULT 0x6003  // 搜表结果表 OI
@@ -106,6 +108,10 @@ typedef struct {
     int (*record_telemetry)(void* ctx, const char* meter_addr, uint32_t meter_idx, uint32_t tag_id,
                             double val);
     int (*count_freezes)(void* ctx, uint16_t* out_count);
+    /* 档案持久化端口（6000 方法用）：成功 0，失败非 0。ctx 为存储实例。 */
+    int (*archive_save)(void* ctx, const production_meter_t* m);
+    int (*archive_delete)(void* ctx, const char* address);
+    int (*archive_clear)(void* ctx);
 } router_sink_ops_t;
 
 typedef struct {

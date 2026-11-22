@@ -1,11 +1,30 @@
 #ifndef DCU_698_OBJECT_INTERNAL_H
 #define DCU_698_OBJECT_INTERNAL_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include "dcu_698_object_model.h"
 
+/* 一帧最多带 8 个配置单元；更多时按 DAR 7 拒绝，不静默截断。 */
+#define DCU_ARCHIVE_BATCH_MAX 8
+
+typedef struct {
+    uint8_t method;           /* 127–134 */
+    uint16_t config_seq;      /* 129/130/131 的配置序号 */
+    uint16_t unit_count;      /* 127/128/129/130/132 的单元数 */
+    bool has_annex;           /* 附属信息非空：产品没有存储路径 */
+    dcu_archive_unit_t units[DCU_ARCHIVE_BATCH_MAX];
+} dcu_archive_op_t;
+
 /* 类族处理器只由 dcu_698_object_model.c 的对象表与快照分派引用。 */
+int dcu_698_acq_6000_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
+                             void *result);
+int dcu_698_decode_archive_op(uint8_t method, const uint8_t *buf, size_t len,
+                              dcu_archive_op_t *out);
+int dcu_698_accept_archive_action(uint32_t omd, const uint8_t *axdr, size_t axdr_len);
+int dcu_698_archive_encode_axdr(const dcu_inventory_t *inv, uint32_t oad, uint8_t *buf, size_t cap,
+                                size_t *len);
 int dcu_698_acq_6012_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
                              void *result);
 int dcu_698_acq_6002_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
