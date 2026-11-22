@@ -22,6 +22,7 @@
 """
 import os
 import socket
+import time
 
 import pytest
 
@@ -274,3 +275,36 @@ def test_unimplemented_oad_gets_per_item_dar():
     # ADR-0015：对象不在 Class 20 对象列表即未授权，DAR 3（拒绝读写），
     # 而不是先落到处不存在的 DAR 6 —— 列表是访问控制的事实来源。
     assert rest[5] == 3, f"列表外的 OI 应回 DAR 3（拒绝读写），回了 {rest[5]}"
+
+
+@case(id="D_00_00_02_000010", clause="free: 5004 GetRecord 按时间范围返回冻结行", tags=["北向"])
+@pytest.mark.contract
+def test_master_reads_freeze_records():
+    """GetRecord 5004 属性 2：列 = 冻结时间 + 正向有功电能，RSD Selector2 时间范围。
+
+    台架预置 2026-11-22/23 两行；范围 [22 日, 24 日) 必须正好回两行。
+    """
+    rsd = bytes.fromhex("0220210200") + bytes.fromhex("1c07ea0b16000000") + bytes.fromhex(
+        "1c07ea0b18000000"
+    ) + bytes.fromhex("00")
+    rcsd = bytes.fromhex("0200202102000000100200")
+    req = bytes([0x05, 0x03, 0x01]) + (0x50040200).to_bytes(4, "big") + rsd + rcsd + b"\x00"
+
+    apdu = _exchange(req).apdu
+    assert apdu[0] == 0x85 and apdu[1] == 0x03, f"不是 [3] 记录响应：{apdu.hex()}"
+    assert apdu[3:7] == b"\x50\x04\x02\x00", "响应 OAD 与请求不一致"
+    assert apdu[7] == 2, f"RCSD 列数 {apdu[7]}，请求了 2 列"
+    assert apdu[18] == 0x01, f"记录结果 CHOICE 0x{apdu[18]:02X}，DAR={apdu[19]}"
+    assert apdu[19] == 2, f"范围内应有 2 行，回了 {apdu[19]}"
+
+    want = [1234500, 1234600]
+    i = 20
+    for row in range(2):
+        assert apdu[i] == 0x1C, f"第 {row + 1} 行第 1 列应是 date_time_s"
+        day = apdu[i + 4]
+        i += 8
+        assert apdu[i] == 0x06, f"第 {row + 1} 行第 2 列应是 double-long-unsigned"
+        raw = int.from_bytes(apdu[i + 1 : i + 5], "big")
+        i += 5
+        assert day == 22 + row, f"第 {row + 1} 行日期 {day}，期望 {22 + row}"
+        assert raw == want[row], f"第 {row + 1} 行电量 {raw}，期望 {want[row]}"

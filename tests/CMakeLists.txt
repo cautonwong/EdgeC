@@ -127,6 +127,10 @@ add_edge_test(test_dcu_698_axdr test_dcu_698_axdr.c)
 target_include_directories(test_dcu_698_axdr PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
 target_link_libraries(test_dcu_698_axdr PRIVATE dcu_app_lib)
 
+add_edge_test(test_dcu_698_record test_dcu_698_record.c)
+target_include_directories(test_dcu_698_record PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_dcu_698_record PRIVATE dcu_app_lib)
+
 add_edge_test(test_dcu_698_value_table test_dcu_698_value_table.c)
 target_include_directories(test_dcu_698_value_table PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
 target_link_libraries(test_dcu_698_value_table PRIVATE dcu_app_lib)

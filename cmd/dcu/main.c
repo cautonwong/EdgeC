@@ -176,7 +176,7 @@ int main(int argc, char** argv) {
 
     dcu_bus_attach_channels(loop, hub, io_orch, driver_runtime.manager, inv);
 
-    dcu_north_slave_attach(loop, hub, io_orch);
+    dcu_north_slave_attach(loop, hub, io_orch, g_dcu_node);
     dcu_north_cloud_attach(hub);
 
     service_t* svc = service_new(loop, hub, arbiter_ctx, NULL, NULL);

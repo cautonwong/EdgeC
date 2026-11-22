@@ -71,6 +71,20 @@ def provision() -> None:
             addr = f"{n:012d}"
             rows.append((addr, "DLT645", 2400, chan, 1, "123456789012", addr, 1, 1))
     cur.executemany("INSERT INTO meter_inventory VALUES (?,?,?,?,?,?,?,?,?)", rows)
+    # 台架心跳不产生冻结行；预置两行供 GetRecord 验收。
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS dcu_freeze_history (
+        meter_address TEXT, freeze_oad INTEGER, freeze_time INTEGER,
+        source_oad INTEGER, frozen_value REAL,
+        PRIMARY KEY (meter_address, freeze_oad, freeze_time, source_oad)
+    )""")
+    cur.executemany(
+        "INSERT OR REPLACE INTO dcu_freeze_history VALUES (?,?,?,?,?)",
+        [
+            ("000000000001", 0x50040200, 1795305600, 0x00100200, 12345.0),
+            ("000000000001", 0x50040200, 1795392000, 0x00100200, 12346.0),
+        ],
+    )
     # 其余表由 DCU 自己建:CREATE TABLE IF NOT EXISTS 对已存在的表是 no-op。
     conn.commit()
     conn.close()

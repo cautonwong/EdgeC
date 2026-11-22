@@ -9,6 +9,7 @@
 #include "datahub.h"
 #include "dcu_698_axdr.h"
 #include "dcu_698_appconn.h"
+#include "dcu_698_record.h"
 #include "dcu_698_var.h"
 #include "dcu_node.h"
 #include "dcu_north_source.h"
@@ -98,7 +99,10 @@ static void _on_dcu_north_connect(uv_stream_t* server, int status) {
     uv_close((uv_handle_t*)client, (uv_close_cb)free);
 }
 
-void dcu_north_slave_attach(uv_loop_t* loop, datahub_t* hub, bus_orchestrator_t* orch) {
+static dcu_698_record_ctx_t g_record_ctx;
+
+void dcu_north_slave_attach(uv_loop_t* loop, datahub_t* hub, bus_orchestrator_t* orch,
+                            dcu_node_t* node) {
     const char* path = getenv("DCU_NORTH_SOCK");
     if (!path || !path[0]) path = "/tmp/dcu_north_slave.sock";
 
@@ -106,14 +110,20 @@ void dcu_north_slave_attach(uv_loop_t* loop, datahub_t* hub, bus_orchestrator_t*
         LOG_ERROR(LOG_CAT_NB, "DCU northbound: 698 从站引擎建不起来，北向不可用");
         return;
     }
+    if (node) {
+        dcu_698_record_init(&g_record_ctx, dcu_node_get_storage(node), dcu_node_get_inventory(node));
+    }
     static const edge_slave_source_ops_t src = {
         .resolve = dcu_north_resolve_scalar,
         .accept_action = dcu_north_accept_action,
         .resolve_axdr = dcu_north_resolve_axdr,
         .accept_axdr = dcu_north_accept_axdr,
         .object_list = dcu_698_appconn_resolve,
+        .record = {.begin = dcu_698_record_begin,
+                   .row = dcu_698_record_row,
+                   .end = dcu_698_record_end},
     };
-    bus_orchestrator_set_slave_source(orch, DCU_NORTH_BUS, &src, NULL);
+    bus_orchestrator_set_slave_source(orch, DCU_NORTH_BUS, &src, &g_record_ctx);
 
     g_dcu_north_ctx.orch = orch;
     g_dcu_north_ctx.hub = hub;
