@@ -795,7 +795,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-18d | 已合并 | `dcu/D1-18d-control-security` | `f0ec96fe` | `docs/evidence/DCU-D1-18d/` | 合并提交 `f0ec96fe`；8000 方法号归位，F100 reset 真实，F200 假配置撤下，A11/A12 SET 真实；DAR 5/4 统一；合并后 35/35、守卫、验收通过 |
 | D2-02 | 已合并 | `dcu/D2-02-class10` | `42516ae6` | `docs/evidence/DCU-D2-02/` | 合并提交 `42516ae6`；6000 A2 数组、127-134 持久化、6001 单元、ACL 16→20；合并后 36/36、守卫、验收 2 任务通过；40 表全量 A2 仍受 2048 缓冲限回 DAR 2 |
 | D2-03 | 已合并 | `dcu/D2-03-tasks` | `b4bb8829` | `docs/evidence/DCU-D2-03/` | 合并提交 `b4bb8829`；6012 M1/127/128/129/130 与 6013 A2 真实，严格 A-XDR 解码，SQLite 持久化与回滚；ACL 18 对象；验收 2 任务 3+18 例；ACTION 验收待 D1-20a 接线后启用 |
-| D3-06 | 已退回 | `dcu/D3-06-params` | `12c4bdbe` | `docs/evidence/DCU-D3-06/` | 退回：4000 A2 SET 只写 RAM 影子却回 DAR 0，属假成功。要求接真实时钟端口（成功才回 0，EPERM 回 2/3）或改只读回 DAR 3；同时修 000019 验收用例撞号（改 000022） |
+| D3-06 | 已合并 | `dcu/D3-06-params` | `74798b0d` | `docs/evidence/DCU-D3-06/` | 合并提交 `74798b0d`；4000 A2 走真实时钟端口（EPERM/EINVAL 回 DAR 2 且时间不变），A3/A4 与 4001–4021 持久化 + 审计并按 (oi,attr) 建键；ACL Class 8 行由 `DCU_698_PARAM_OIS` 生成；明确存储语义未接消费方；合并后 341/341、ASAN、守卫、验收 2/2（20 例） |
 | D1-08 | 已合并 | `dcu/D1-08-normal-list` | `c291f3e7` | `docs/evidence/DCU-D1-08/` | 合并提交 `c291f3e7`；混合成败、空列表（表73 无下限）、重复 OAD、验收未知 OI 逐项 DAR；修正 codec 对 n==0 的旧拒绝 |
 | D1-09 | 未开始 | - | - | - | - |
 | D1-10 | 已合并 | `dcu/D1-10-catalog-consistency` | `5a4fda20` | `docs/evidence/DCU-D1-10/` | 合并提交 `5a4fda20`；生成 514 OI + 26 类夹具，表→目录严格对拍、mask 范围、OI 唯一；红色对照 F200 改类；合并后 29/29、目录门禁、守卫、验收全过 |
@@ -804,7 +804,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-20a | 已合并 | `dcu/D1-20a-action-route` | `564ff4c5` | `docs/evidence/DCU-D1-20a/` | 合并提交 `564ff4c5`；非 8000 ACTION 走对象表，6012 M127 严格 A-XDR，短帧 DAR 7 不改状态；TimeTag 有值三处统一 DAR 7（不静默忽略）；000019 作北向 19 例；合并后 340/340、ASAN 12/12、守卫、验收 2/2 |
 | D3-05a | 已合并 | `dcu/D3-05a-event-records` | `3e291b74` | `docs/evidence/DCU-D3-05a/` | 合并提交 `3e291b74`；A2 关联 OAD 数组、A3 四表计数、A4/A11/A12 真实；A5 配置与 A6/A14 记录因来源不成立撤 mask 回 DAR 5 |
 | D3-04a | 已合并 | `dcu/D3-04a-event-wallclock` | `34271061` | `docs/evidence/DCU-D3-04a/` | 合并提交 `34271061`；date_time_s 设备本地公历单 helper（冻结与 A6/A14 共用，测试 `TZ=CST-8`）；A6 未结束编表 49 非法值 1C FF×7，A14 编 NULL；旧 event_history 行不渲染；合并后 340/340、ASAN 12/12、守卫、验收 2/2 |
-| D2-04 | 进行中 | `dcu/D2-04-schemes` | `1488eb4f` | `docs/evidence/DCU-D2-04/` | dcu-dev 执行中；6014/6015 普通采集方案与 CSD 列选择接 poller，未选列不得出现 |
+| D2-04 | 进行中 | `dcu/D2-04-schemes` | `f98019d6` | `docs/evidence/DCU-D2-04/` | 已退回 rebase 到含 D1-20a/D3-06 的 main：6014 必须走解码入口（原路径把原始 A-XDR 当 `dcu_scheme_op_t*` 解引用）；套用 TimeTag 规则；ACL 31 对象、上限 32；000020 改北向 |
 | D1-12 | 已合并 | `dcu/D1-12-axdr-port-adr` | `076e0e04` | `docs/evidence/DCU-D1-12/` | ADR-0013 已合并，状态 Proposed；14 个初始化点全为 designated，无位置初始化；架构签字待补 |
 | D1-13 | 已合并 | `dcu/D1-13-axdr-port` | `68f4de69` | `docs/evidence/DCU-D1-13/` | 合并提交 `68f4de69`；合并后 28/28、守卫、验收 2+4 全过；流式逐项编码，单缓冲复用，无 8×2048；`/no-comments` 删 23 行、DAR 字面量改常量 |
 | D1-14 | 已合并 | `dcu/D1-14-set` | `b5b95f62` | `docs/evidence/DCU-D1-14/` | 合并提交 `b5b95f62`；SET-Request、`accept_axdr` 写入、SET-Response DAR；拒绝非标量回落假成功；LONG64 无 UB；DENIED 3 与 CLASS_MISMATCH 5 分开；合并后告警、28/28、ASAN、守卫、验收全过 |
