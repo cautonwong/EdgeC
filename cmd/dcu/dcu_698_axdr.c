@@ -173,35 +173,28 @@ int dcu_698_decode_action_param(uint8_t method, const uint8_t* buf, size_t len,
     return 0;
 }
 
-typedef enum { W_U32, W_U8, W_BOOL, W_F32 } write_kind_t;
+typedef enum { W_U8, W_BOOL } write_kind_t;
 
 static int _write_kind_for(uint16_t oi, uint8_t attr_id, write_kind_t* kind) {
     if (!kind) return -1;
-    if (oi == OI_CHANNEL_CONFIG) {
-        if (attr_id == 2) {
-            *kind = W_U32;
-            return 0;
-        }
-        if (attr_id == 3) {
-            *kind = W_U8;
-            return 0;
-        }
-    }
     if (oi == OI_VOLTAGE_DROP || oi == OI_OVER_CURRENT) {
-        if (attr_id == 6) {
-            *kind = W_F32;
-            return 0;
-        }
-        if (attr_id == 8) {
+        if (attr_id == 11) {
             *kind = W_U8;
             return 0;
         }
-        if (attr_id == 9) {
+        if (attr_id == 12) {
             *kind = W_BOOL;
             return 0;
         }
     }
     return -1;
+}
+
+/* 处理器回 -2 表示值不合法（如枚举越界），如实报类型不匹配而非暂时失效。 */
+static int _write_via_table(uint32_t oad, const void* value) {
+    int rc = dcu_698_write(oad, value);
+    if (rc == 0) return 0;
+    return rc == -2 ? EDGE_SLAVE_SRC_TYPE_MISMATCH : EDGE_SLAVE_SRC_TEMPORARY;
 }
 
 /* 用 codec 的 A-XDR 解码器取类型与值：标签宽度只有这一处来源。 */
@@ -286,24 +279,15 @@ int dcu_north_accept_axdr(void* ctx, uint32_t oad, const uint8_t* axdr, size_t l
     if (rc != 0) return rc;
 
     switch (kind) {
-        case W_U32: {
-            if (is_float || i < 0 || i > (int64_t)UINT32_MAX) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
-            uint32_t value = (uint32_t)i;
-            return (dcu_698_write(oad, &value) == 0) ? 0 : EDGE_SLAVE_SRC_TEMPORARY;
-        }
         case W_U8: {
             if (is_float || i < 0 || i > UINT8_MAX) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
             uint8_t value = (uint8_t)i;
-            return (dcu_698_write(oad, &value) == 0) ? 0 : EDGE_SLAVE_SRC_TEMPORARY;
+            return _write_via_table(oad, &value);
         }
         case W_BOOL: {
             if (is_float || (i != 0 && i != 1)) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
             bool value = (i != 0);
-            return (dcu_698_write(oad, &value) == 0) ? 0 : EDGE_SLAVE_SRC_TEMPORARY;
-        }
-        case W_F32: {
-            float value = is_float ? (float)f : (float)i;
-            return (dcu_698_write(oad, &value) == 0) ? 0 : EDGE_SLAVE_SRC_TEMPORARY;
+            return _write_via_table(oad, &value);
         }
         default:
             return EDGE_SLAVE_SRC_TYPE_MISMATCH;

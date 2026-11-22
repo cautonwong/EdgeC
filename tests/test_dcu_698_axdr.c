@@ -101,6 +101,47 @@ static void init_product_model(void) {
         dcu_698_object_model_init(&inv, &poller, sink, NULL, &discovery, NULL, NULL, bus), 0);
 }
 
+static void init_product_model_with_events(void);
+
+/* 标准 7.3.24 表193：A11 enum 上报标识（0–3），A12 bool 有效标识。 */
+static void test_product_accept_set_event_attrs(void **state) {
+    (void)state;
+    dcu_698_object_model_reset();
+    init_product_model_with_events();
+
+    const uint8_t enum1[] = {0x16, 0x01};
+    assert_int_equal(
+        dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 11), enum1, sizeof(enum1)), 0);
+    uint8_t flag = 0xFF;
+    assert_int_equal(dcu_698_read(MK_OAD(OI_VOLTAGE_DROP, 11), &flag), 0);
+    assert_int_equal(flag, 1);
+
+    const uint8_t bool_false[] = {0x03, 0x00};
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 12), bool_false,
+                                           sizeof(bool_false)),
+                     0);
+    bool enabled = true;
+    assert_int_equal(dcu_698_read(MK_OAD(OI_VOLTAGE_DROP, 12), &enabled), 0);
+    assert_false(enabled);
+
+    const uint8_t enum4[] = {0x16, 0x04};
+    assert_int_equal(
+        dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 11), enum4, sizeof(enum4)),
+        EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    assert_int_equal(dcu_698_read(MK_OAD(OI_VOLTAGE_DROP, 11), &flag), 0);
+    assert_int_equal(flag, 1);
+
+    const uint8_t u8_one[] = {0x11, 0x01};
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_CHANNEL_CONFIG, 4), u8_one,
+                                           sizeof(u8_one)),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(
+        dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 6), u8_one, sizeof(u8_one)),
+        EDGE_SLAVE_SRC_CLASS_MISMATCH);
+
+    dcu_698_object_model_reset();
+}
+
 static void assert_axdr(uint32_t oad, const uint8_t *want, size_t want_len) {
     uint8_t buf[EDGE_SLAVE_AXDR_MAX];
     size_t len = 0;
@@ -170,16 +211,11 @@ static void test_product_accept_set_paths(void **state) {
     init_product_model();
 
     const uint8_t baud[] = {0x06, 0x00, 0x00, 0x09, 0x60}; /* 2400, double-long-unsigned */
+    /* F200 的 A2/A3/A4 没有真实可落地的串口重配路径，全部不对外。 */
     assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_CHANNEL_CONFIG, 2), baud, sizeof(baud)),
-                     0);
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
     uint32_t got = 0;
-    assert_int_equal(dcu_698_read(MK_OAD(OI_CHANNEL_CONFIG, 2), &got), 0);
-    assert_int_equal(got, 2400);
-
-    const uint8_t wrong[] = {0x0A, 0x01, 0x41}; /* visible-string，不是 baudrate */
-    assert_int_equal(
-        dcu_north_accept_axdr(NULL, MK_OAD(OI_CHANNEL_CONFIG, 2), wrong, sizeof(wrong)),
-        EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    assert_int_equal(dcu_698_read(MK_OAD(OI_CHANNEL_CONFIG, 2), &got), -1);
 
     const uint8_t like_float[] = {0x17, 0x43, 0x67, 0xB3, 0x33};
     assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x2000, 2), like_float, sizeof(like_float)),
@@ -1011,6 +1047,7 @@ static size_t build_action(uint8_t *frame, uint8_t method, const uint8_t *param,
 static const edge_slave_source_ops_t k_action_src = {.accept_action = dcu_north_accept_action};
 
 static uint8_t run_action_dar(uint8_t method, const uint8_t *param, size_t param_len) {
+    init_product_model();
     uint8_t frame[512];
     size_t frame_len = build_action(frame, method, param, param_len);
 
@@ -1185,6 +1222,7 @@ int main(void) {
         cmocka_unit_test(test_get_normal_encode_type_mismatch_returns_dar),
         cmocka_unit_test(test_normal_list_dar_mapping),
         cmocka_unit_test(test_product_accept_set_paths),
+        cmocka_unit_test(test_product_accept_set_event_attrs),
         cmocka_unit_test(test_set_response_dar_paths),
         cmocka_unit_test(test_set_missing_data_dar7),
         cmocka_unit_test(test_set_scalar_fallback),

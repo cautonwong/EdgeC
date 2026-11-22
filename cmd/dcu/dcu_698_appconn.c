@@ -37,7 +37,7 @@ static const acl_attr_t k_attrs_6002[] = {{2, 1}, {3, 1}};
 static const acl_attr_t k_attrs_6003[] = {{2, 1}};
 static const acl_attr_t k_attrs_f200[] = {{2, 1}, {3, 1}};
 static const acl_attr_t k_attrs_event[] = {{2, 1}, {3, 1}, {4, 1}, {5, 1}, {6, 3}, {8, 3}, {9, 3}, {10, 1}};
-static const uint8_t k_methods_8000[] = {1, 126, 127, 128, 129, 130, 131};
+static const uint8_t k_methods_8000[] = {127, 128, 129, 130, 131};
 
 static const acl_object_t k_objects[] = {
     {0x0010, k_attrs_0010, 4, NULL, 0},
@@ -54,7 +54,7 @@ static const acl_object_t k_objects[] = {
     {0x6002, k_attrs_6002, 2, NULL, 0},
     {0x6003, k_attrs_6003, 1, NULL, 0},
     {0x6012, k_attrs_6012, 1, NULL, 0},
-    {0x8000, NULL, 0, k_methods_8000, 7},
+    {0x8000, NULL, 0, k_methods_8000, 5},
     {0xF200, k_attrs_f200, 2, NULL, 0},
 };
 

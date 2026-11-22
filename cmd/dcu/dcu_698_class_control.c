@@ -1,12 +1,38 @@
 #include "dcu_698_object_internal.h"
 
+#include <stdint.h>
+
 #include "dcu_inventory.h"
 #include "edge_log.h"
 #include "edge_slave_plane.h"
 
+int dcu_698_control_legacy_action(uint32_t slot, uint8_t action) {
+    const production_meter_t *m = dcu_inventory_by_slot(dcu_698_internal_inventory(), slot);
+    if (!m) {
+        LOG_WARN(LOG_CAT_CORE, "DCU control: slot %u 不在档案里，拒绝执行", slot);
+        return EDGE_SLAVE_SRC_NOT_FOUND;
+    }
+
+    dcu_control_sink_t sink = NULL;
+    void *sink_ctx = NULL;
+    dcu_698_internal_control_sink(&sink, &sink_ctx);
+    if (!sink) {
+        LOG_ERROR(LOG_CAT_CORE, "DCU control: 控制下沉端口未注入，拒绝执行 dev=%s", m->address);
+        return EDGE_SLAVE_SRC_DENIED;
+    }
+
+    int rc = sink(sink_ctx, m->address, (uint16_t)OI_REMOTE_CONTROL, action != 0);
+    if (rc != 0) {
+        LOG_WARN(LOG_CAT_CORE, "DCU control: 聚合根拒绝/下发失败 dev=%s action=%u rc=%d",
+                 m->address, action, rc);
+    }
+    return rc;
+}
+
 int dcu_698_control_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
                             void *result) {
     (void)obj;
+    (void)result;
 
     if (method_id >= DCU_ACTION_METHOD_FIRST && method_id <= DCU_ACTION_METHOD_LAST) {
         if (method_id <= DCU_ACTION_METHOD_FIRST + 1) {
@@ -22,29 +48,5 @@ int dcu_698_control_execute(const dcu_698_object_t *obj, uint8_t method_id, cons
         return EDGE_SLAVE_SRC_TEMPORARY;
     }
 
-    if (method_id != 1) return EDGE_SLAVE_SRC_NOT_FOUND;
-
-    uint32_t slot = param ? (uint32_t)(uintptr_t)param : 0;
-    uint8_t action = result ? *(uint8_t *)result : 1; /* 1=跳闸 0=合闸允许 */
-
-    const production_meter_t *m = dcu_inventory_by_slot(dcu_698_internal_inventory(), slot);
-    if (!m) {
-        LOG_WARN(LOG_CAT_CORE, "OI 8000: slot %u 不在档案里，拒绝执行", slot);
-        return -3;
-    }
-
-    dcu_control_sink_t sink = NULL;
-    void *sink_ctx = NULL;
-    dcu_698_internal_control_sink(&sink, &sink_ctx);
-    if (!sink) {
-        LOG_ERROR(LOG_CAT_CORE, "OI 8000: 控制下沉端口未注入，拒绝执行 dev=%s", m->address);
-        return -4;
-    }
-
-    int rc = sink(sink_ctx, m->address, (uint16_t)OI_REMOTE_CONTROL, action != 0);
-    if (rc != 0) {
-        LOG_WARN(LOG_CAT_CORE, "OI 8000: 聚合根拒绝/下发失败 dev=%s action=%u rc=%d", m->address,
-                 action, rc);
-    }
-    return rc;
+    return EDGE_SLAVE_SRC_CLASS_MISMATCH;
 }
