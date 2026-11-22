@@ -58,6 +58,16 @@ int dcu_698_var_encode_axdr(uint32_t oad, uint8_t *buf, size_t cap, size_t *len)
 size_t dcu_698_var_poll_tags(uint32_t *out, size_t cap);
 
 /**
+ * @brief 影子 tag 的北向 metric 名；不在变量点表里返回 NULL。
+ *
+ * 名字与影子元素同表定义，北向端口只做转发，不另存一份 OAD→名字表。
+ */
+const char *dcu_698_var_metric_name(uint32_t tag);
+
+/** @brief metric 名 → 影子 tag（`dcu_698_var_metric_name` 的反函数）；未知返回 -1。 */
+int dcu_698_var_metric_resolve(const char *name, uint32_t *tag);
+
+/**
  * @brief 按 OAD 取带类型标签的变量值。
  *
  * 只服务 Class 6 的属性 2（当前 200F）；Class 1/3/4 的属性 2 是数组，

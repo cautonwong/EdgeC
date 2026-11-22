@@ -13,11 +13,16 @@
 #include "edge_slave_plane.h"
 
 typedef struct {
+    uint32_t tag;
+    const char *name; /* 北向 metric 名；NULL 表示该元素不上报 */
+} var_element_t;
+
+typedef struct {
     uint8_t count;
     uint8_t tag;
     int8_t scaler;
     uint8_t unit;
-    uint32_t shadow[4];
+    var_element_t elements[4];
 } var_shape_t;
 
 typedef struct {
@@ -27,20 +32,33 @@ typedef struct {
     var_shape_t attr4; /* tag == 0 表示没有高精度属性 */
 } var_desc_t;
 
+/* 名字与 IEMS 的 edge_tag_meta_t.name 同风格（大写蛇形），云端字段名不随设备变形。 */
 static const var_desc_t k_vars[] = {
-    {0x0010, 1, {1, DCU_698_TAG_DOUBLE_LONG_UNSIGNED, -2, 33, {OAD_ACTIVE_ENERGY}},
-     {1, DCU_698_TAG_LONG64_UNSIGNED, -4, 33, {OAD_ACTIVE_ENERGY}}},
-    {0x0020, 1, {1, DCU_698_TAG_DOUBLE_LONG_UNSIGNED, -2, 33, {OAD_REACTIVE_ENERGY}},
-     {1, DCU_698_TAG_LONG64_UNSIGNED, -4, 33, {OAD_REACTIVE_ENERGY}}},
-    {0x2000, 3, {3, DCU_698_TAG_LONG_UNSIGNED, -1, 38,
-                 {OAD_VOLTAGE, TAG_VOLTAGE_B, TAG_VOLTAGE_C}}, {0}},
-    {0x2001, 3, {3, DCU_698_TAG_DOUBLE_LONG, -3, 36,
-                 {OAD_CURRENT, TAG_CURRENT_B, TAG_CURRENT_C}}, {0}},
-    {0x2004, 4, {4, DCU_698_TAG_DOUBLE_LONG, -1, 27,
-                 {OAD_ACTIVE_POWER_TOTAL, TAG_ACTIVE_POWER_A, TAG_ACTIVE_POWER_B,
-                  TAG_ACTIVE_POWER_C}}, {0}},
-    {0x200A, 4, {1, DCU_698_TAG_LONG, -3, 0, {OAD_POWER_FACTOR_TOTAL}}, {0}},
-    {0x200F, 6, {1, DCU_698_TAG_LONG_UNSIGNED, -2, 47, {OAD_GRID_FREQUENCY}}, {0}},
+    {0x0010, 1,
+     {1, DCU_698_TAG_DOUBLE_LONG_UNSIGNED, -2, 33, {{OAD_ACTIVE_ENERGY, "ACTIVE_ENERGY"}}},
+     {1, DCU_698_TAG_LONG64_UNSIGNED, -4, 33, {{OAD_ACTIVE_ENERGY, NULL}}}},
+    {0x0020, 1,
+     {1, DCU_698_TAG_DOUBLE_LONG_UNSIGNED, -2, 33, {{OAD_REACTIVE_ENERGY, "REACTIVE_ENERGY"}}},
+     {1, DCU_698_TAG_LONG64_UNSIGNED, -4, 33, {{OAD_REACTIVE_ENERGY, NULL}}}},
+    {0x2000, 3,
+     {3, DCU_698_TAG_LONG_UNSIGNED, -1, 38,
+      {{OAD_VOLTAGE, "VOLTAGE_A"}, {TAG_VOLTAGE_B, "VOLTAGE_B"}, {TAG_VOLTAGE_C, "VOLTAGE_C"}}},
+     {0}},
+    {0x2001, 3,
+     {3, DCU_698_TAG_DOUBLE_LONG, -3, 36,
+      {{OAD_CURRENT, "CURRENT_A"}, {TAG_CURRENT_B, "CURRENT_B"}, {TAG_CURRENT_C, "CURRENT_C"}}},
+     {0}},
+    {0x2004, 4,
+     {4, DCU_698_TAG_DOUBLE_LONG, -1, 27,
+      {{OAD_ACTIVE_POWER_TOTAL, "ACTIVE_POWER_TOTAL"},
+       {TAG_ACTIVE_POWER_A, "ACTIVE_POWER_A"},
+       {TAG_ACTIVE_POWER_B, "ACTIVE_POWER_B"},
+       {TAG_ACTIVE_POWER_C, "ACTIVE_POWER_C"}}},
+     {0}},
+    {0x200A, 4, {1, DCU_698_TAG_LONG, -3, 0, {{OAD_POWER_FACTOR_TOTAL, "POWER_FACTOR_TOTAL"}}}, {0}},
+    {0x200F, 6,
+     {1, DCU_698_TAG_LONG_UNSIGNED, -2, 47, {{OAD_GRID_FREQUENCY, "GRID_FREQUENCY"}}},
+     {0}},
 };
 
 static const var_desc_t *_find_var(uint16_t oi) {
@@ -57,10 +75,34 @@ size_t dcu_698_var_poll_tags(uint32_t *out, size_t cap) {
     size_t n = 0;
     for (size_t i = 0; i < sizeof(k_vars) / sizeof(k_vars[0]); i++) {
         for (uint8_t e = 0; e < k_vars[i].attr2.count && n < cap; e++) {
-            out[n++] = k_vars[i].attr2.shadow[e];
+            out[n++] = k_vars[i].attr2.elements[e].tag;
         }
     }
     return n;
+}
+
+const char *dcu_698_var_metric_name(uint32_t tag) {
+    for (size_t i = 0; i < sizeof(k_vars) / sizeof(k_vars[0]); i++) {
+        const var_shape_t *shape = &k_vars[i].attr2;
+        for (uint8_t e = 0; e < shape->count; e++) {
+            if (shape->elements[e].tag == tag) return shape->elements[e].name;
+        }
+    }
+    return NULL;
+}
+
+int dcu_698_var_metric_resolve(const char *name, uint32_t *tag) {
+    if (!name || !tag) return -1;
+    for (size_t i = 0; i < sizeof(k_vars) / sizeof(k_vars[0]); i++) {
+        const var_shape_t *shape = &k_vars[i].attr2;
+        for (uint8_t e = 0; e < shape->count; e++) {
+            if (shape->elements[e].name && strcmp(shape->elements[e].name, name) == 0) {
+                *tag = shape->elements[e].tag;
+                return 0;
+            }
+        }
+    }
+    return -1;
 }
 
 /* 工程值 → 标准整数（raw = value * 10^-scaler），四舍五入，不截断。 */
@@ -80,7 +122,7 @@ static int _read_element(const var_shape_t *shape, uint8_t slot, uint8_t elem, i
 
     pipe_msg_t msg;
     memset(&msg, 0, sizeof(msg));
-    if (bus->read_shadow(bus->ctx, shape->shadow[elem], slot, &msg) != 0) return -1;
+    if (bus->read_shadow(bus->ctx, shape->elements[elem].tag, slot, &msg) != 0) return -1;
     *value = msg.payload.val.f;
     *raw = _scale_to_raw(*value, shape->scaler);
     *ts_ms = msg.ts / 1000000ULL;

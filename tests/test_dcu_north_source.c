@@ -16,6 +16,7 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "dcu_698_var.h"
 #include "dcu_north_source.h"
 #include "dcu_router.h"
 
@@ -33,8 +34,12 @@ static void test_name_maps_realtime_oads(void** state) {
 
     assert_string_equal(ops->name(NULL, OAD_CURRENT), "CURRENT_A");
     assert_string_equal(ops->name(NULL, OAD_ACTIVE_POWER_TOTAL), "ACTIVE_POWER_TOTAL");
+    assert_string_equal(ops->name(NULL, TAG_ACTIVE_POWER_A), "ACTIVE_POWER_A");
+    assert_string_equal(ops->name(NULL, TAG_ACTIVE_POWER_B), "ACTIVE_POWER_B");
+    assert_string_equal(ops->name(NULL, TAG_ACTIVE_POWER_C), "ACTIVE_POWER_C");
     assert_string_equal(ops->name(NULL, OAD_GRID_FREQUENCY), "GRID_FREQUENCY");
     assert_string_equal(ops->name(NULL, OAD_ACTIVE_ENERGY), "ACTIVE_ENERGY");
+    assert_string_equal(ops->name(NULL, OAD_REACTIVE_ENERGY), "REACTIVE_ENERGY");
 }
 
 static void test_name_unknown_returns_null(void** state) {
@@ -46,6 +51,45 @@ static void test_name_unknown_returns_null(void** state) {
     assert_null(ops->name(NULL, (uint32_t)OI_METER_ARCHIVE << 16));
     assert_null(ops->name(NULL, (uint32_t)OI_REMOTE_CONTROL << 16));
     assert_null(ops->name(NULL, 0xDEADBEEF));
+}
+
+static const dcu_698_object_t* object_for_oi(uint16_t oi) {
+    for (size_t i = 0; i < dcu_698_object_count(); i++) {
+        const dcu_698_object_t* obj = dcu_698_object_at(i);
+        if (obj->oi == oi) return obj;
+    }
+    return NULL;
+}
+
+/* 名字必须从变量点表派生；任何一处单独改表都会让这条测试变红。 */
+static void test_names_derive_from_point_model(void** state) {
+    (void)state;
+    const edge_north_source_ops_t* ops = dcu_north_source_ops();
+    uint32_t tags[64];
+    size_t n = dcu_698_var_poll_tags(tags, sizeof(tags) / sizeof(tags[0]));
+    assert_true(n > 0);
+
+    for (size_t i = 0; i < n; i++) {
+        const char* name = ops->name(NULL, tags[i]);
+        assert_non_null(name);
+
+        uint32_t back = 0;
+        assert_int_equal(ops->resolve_name(NULL, name, &back), 0);
+        assert_int_equal(back, tags[i]);
+
+        const dcu_698_object_t* obj = object_for_oi((uint16_t)(tags[i] >> 16));
+        assert_non_null(obj);
+        assert_true((obj->attr_mask[0] & 0x04) != 0); /* 属性 2 已广告 */
+
+        for (size_t j = 0; j < i; j++) assert_string_not_equal(name, ops->name(NULL, tags[j]));
+    }
+}
+
+static void test_names_exclude_points_absent_from_object_table(void** state) {
+    (void)state;
+    const edge_north_source_ops_t* ops = dcu_north_source_ops();
+    assert_null(ops->name(NULL, OAD_ZERO_SEQ_CURRENT));
+    assert_null(ops->name(NULL, OAD_REACTIVE_POWER_TOTAL));
 }
 
 static void test_peek_rejects_null_ctx(void** state) {
@@ -62,6 +106,8 @@ int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_name_maps_realtime_oads),
         cmocka_unit_test(test_name_unknown_returns_null),
+        cmocka_unit_test(test_names_derive_from_point_model),
+        cmocka_unit_test(test_names_exclude_points_absent_from_object_table),
         cmocka_unit_test(test_peek_rejects_null_ctx),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
