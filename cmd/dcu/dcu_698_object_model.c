@@ -97,6 +97,13 @@ static dcu_698_object_t g_objects[] = {
      .read = dcu_698_var_read,
      .attr_mask = {[BYTE(2)] = BIT(2) | BIT(3)}},
 
+    {.oi = 0x1010, .class_id = IC_MAX_DEMAND, .scope = DCU_OBJ_PER_METER},
+    {.oi = 0x1011, .class_id = IC_MAX_DEMAND, .scope = DCU_OBJ_PER_METER},
+    {.oi = 0x1012, .class_id = IC_MAX_DEMAND, .scope = DCU_OBJ_PER_METER},
+    {.oi = 0x1013, .class_id = IC_MAX_DEMAND, .scope = DCU_OBJ_PER_METER},
+    {.oi = 0x200D, .class_id = IC_HARMONIC, .scope = DCU_OBJ_PER_METER},
+    {.oi = 0x200E, .class_id = IC_HARMONIC, .scope = DCU_OBJ_PER_METER},
+
     /* 5004 只走 GetRecord（D1-07）：A2 是冻结数据数组而不是条数，把条数当属性值
      * 就是假语义。属性与方法一律不暴露，类内定义交给 class_defines_* 决定 DAR。 */
     {.oi = (uint16_t)((OAD_DAILY_FREEZE >> 16) & 0xFFFF),

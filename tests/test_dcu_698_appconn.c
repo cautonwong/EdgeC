@@ -21,7 +21,7 @@ static void test_object_list_shape_and_capacity(void **state) {
     assert_int_equal(dcu_698_appconn_object_list(buf, sizeof(buf), &len), 0);
     assert_true(len > 0);
     assert_int_equal(buf[0], 0x01); /* array */
-    assert_int_equal(buf[1], 31);
+    assert_int_equal(buf[1], 37);
     assert_int_equal(buf[2], 0x02); /* structure */
     assert_int_equal(buf[3], 0x02);
 

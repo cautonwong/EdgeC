@@ -48,6 +48,9 @@ static const acl_attr_t k_attrs_4000[] = {{2, 3}, {3, 3}, {4, 3}};
 static const acl_attr_t k_attrs_param[] = {{2, 3}};
 static const acl_attr_t k_attrs_event[] = {{2, 1}, {3, 1},  {4, 1},  {5, 1},  {6, 3}, {8, 3},
                                            {9, 3}, {10, 1}, {11, 3}, {12, 3}, {14, 1}};
+static const acl_attr_t k_attrs_demand[] = {{1, 1}, {2, 1}, {3, 1}};
+static const acl_attr_t k_attrs_harmonic[] = {{1, 1}, {2, 1}, {3, 1}, {4, 1}, {5, 1}, {6, 1}};
+static const uint8_t k_methods_reset_exec[] = {1, 2};
 static const uint8_t k_methods_8000[] = {127, 128, 129, 130, 131};
 static const uint8_t k_methods_6000[] = {127, 128, 129, 130, 131, 132, 133, 134};
 static const uint8_t k_methods_6012[] = {1, 127, 128, 129, 130};
@@ -63,6 +66,12 @@ static const acl_object_t k_objects[] = {
     {0x6002, k_attrs_6002, 2, NULL, 0},           {0x6003, k_attrs_6003, 1, NULL, 0},
     {0x6012, k_attrs_6012, 1, k_methods_6012, 5}, {0x6013, k_attrs_6013, 1, NULL, 0},
     {0x6014, k_attrs_6014, 1, k_methods_6014, 4}, {0x6015, k_attrs_6015, 1, NULL, 0},
+    {0x1010, k_attrs_demand, 3, k_methods_reset_exec, 2},
+    {0x1011, k_attrs_demand, 3, k_methods_reset_exec, 2},
+    {0x1012, k_attrs_demand, 3, k_methods_reset_exec, 2},
+    {0x1013, k_attrs_demand, 3, k_methods_reset_exec, 2},
+    {0x200D, k_attrs_harmonic, 6, k_methods_reset_exec, 2},
+    {0x200E, k_attrs_harmonic, 6, k_methods_reset_exec, 2},
     {0x8000, NULL, 0, k_methods_8000, 5},         {0xF200, k_attrs_f200, 3, NULL, 0},
 };
 
@@ -122,12 +131,12 @@ int dcu_698_appconn_object_list(uint8_t *buf, size_t cap, size_t *len) {
             return -1;
         }
     }
-#define PUT_PARAM_OBJECT(oi)                                                                       \
-    do {                                                                                           \
-        int rc = (oi) == 0x4000                                                                    \
-                     ? _put_object(buf, cap, &off, 0x4000, k_attrs_4000, 3, NULL, 0)               \
-                     : _put_object(buf, cap, &off, (uint16_t)(oi), k_attrs_param, 1, NULL, 0);     \
-        if (rc != 0) return -1;                                                                    \
+#define PUT_PARAM_OBJECT(oi)                                                                   \
+    do {                                                                                       \
+        int rc = (oi) == 0x4000                                                                \
+                     ? _put_object(buf, cap, &off, 0x4000, k_attrs_4000, 3, NULL, 0)           \
+                     : _put_object(buf, cap, &off, (uint16_t)(oi), k_attrs_param, 1, NULL, 0); \
+        if (rc != 0) return -1;                                                                \
     } while (0);
     DCU_698_PARAM_OIS(PUT_PARAM_OBJECT)
 #undef PUT_PARAM_OBJECT
