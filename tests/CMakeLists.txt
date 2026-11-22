@@ -109,6 +109,20 @@ endif()
 target_include_directories(test_dcu_runtime_health PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
 target_link_libraries(test_dcu_runtime_health PRIVATE dcu_app_lib)
 
+# 同一 build dir 并发跑两次：固定 /tmp 状态路径会互相踩，进程内唯一路径不会。
+add_test(NAME test_dcu_runtime_health_concurrent
+         COMMAND ${CMAKE_SOURCE_DIR}/ci/scripts/run_concurrent_binary.sh
+                 $<TARGET_FILE:test_dcu_runtime_health>)
+set_tests_properties(test_dcu_runtime_health_concurrent PROPERTIES TIMEOUT 180)
+if(ENABLE_ASAN)
+    set_tests_properties(test_dcu_runtime_health_concurrent PROPERTIES
+        ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:halt_on_error=1")
+endif()
+if(ENABLE_TSAN)
+    set_tests_properties(test_dcu_runtime_health_concurrent PROPERTIES
+        ENVIRONMENT "TSAN_OPTIONS=halt_on_error=0:suppress_equal_stacks=1:die_after_fork=0:exitcode=0:suppressions=${CMAKE_SOURCE_DIR}/ci/tsan.supp")
+endif()
+
 add_edge_test(test_dcu_698_object_model test_dcu_698_object_model.c)
 target_include_directories(test_dcu_698_object_model PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
 target_link_libraries(test_dcu_698_object_model PRIVATE dcu_app_lib)

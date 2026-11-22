@@ -12,6 +12,7 @@
 #include <stdarg.h>
 #include <pthread.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,6 +44,11 @@ static int teardown(void **state) {
     while (uv_loop_close(loop) == UV_EBUSY) uv_run(loop, UV_RUN_ONCE);
     free(loop);
     return 0;
+}
+
+static const char *unique_db_path(char *buf, size_t cap, const char *tag) {
+    snprintf(buf, cap, "/tmp/%s_%ld.db", tag, (long)getpid());
+    return buf;
 }
 
 static void seed_inventory(const char *db_path, int meter_count) {
@@ -119,7 +125,8 @@ static int count_rows(sqlite3 *db, const char *table) {
 /* 默认生产模式：3 个周期内不冻结、不跳闸、不触发遥控、不退出，但仍刷盘。 */
 static void test_production_cycle_has_no_demo_behavior(void **state) {
     uv_loop_t *loop = (uv_loop_t *)*state;
-    const char *db_path = "/tmp/test_dcu_runtime_health_prod.db";
+    char db_file[96];
+    const char *db_path = unique_db_path(db_file, sizeof(db_file), "test_dcu_runtime_health_prod");
     unsetenv("DCU_DEMO_MODE");
     unsetenv("DCU_HEARTBEAT_CYCLES");
     unsetenv("DCU_CONTROL_DELAY_MS");
@@ -159,7 +166,8 @@ static void test_production_cycle_has_no_demo_behavior(void **state) {
  * 产品的从站/采集/存储共用 uv 循环线程，cmd/dcu 不创建线程。 */
 static void test_node_lifecycle_runs_on_one_thread(void **state) {
     uv_loop_t *loop = (uv_loop_t *)*state;
-    const char *db_path = "/tmp/test_dcu_runtime_health_thread.db";
+    char db_file[96];
+    const char *db_path = unique_db_path(db_file, sizeof(db_file), "test_dcu_runtime_health_thread");
     seed_inventory(db_path, 1);
 
     pthread_t before = pthread_self();
@@ -187,7 +195,8 @@ static void test_node_lifecycle_runs_on_one_thread(void **state) {
 /* 演示模式：冻结、随机跳闸、遥控、3 周期自退全部按旧行为触发。 */
 static void test_demo_mode_restores_bench_behavior(void **state) {
     uv_loop_t *loop = (uv_loop_t *)*state;
-    const char *db_path = "/tmp/test_dcu_runtime_health_demo.db";
+    char db_file[96];
+    const char *db_path = unique_db_path(db_file, sizeof(db_file), "test_dcu_runtime_health_demo");
     setenv("DCU_DEMO_MODE", "1", 1);
     setenv("DCU_HEARTBEAT_CYCLES", "3", 1);
     setenv("DCU_CONTROL_DELAY_MS", "0", 1);
