@@ -800,12 +800,12 @@ static void decode_payload(const net_buf_t* out, uint8_t** payload, uint8_t* svc
                      0);
 }
 
-static void test_slave_accepts_product_object_list_31(void** state) {
+static void test_slave_accepts_product_object_list_37(void** state) {
     (void)state;
     uint8_t list[2048];
     size_t list_len = 0;
     assert_int_equal(dcu_698_appconn_object_list(list, sizeof(list), &list_len), 0);
-    assert_int_equal(list[1], 31);
+    assert_int_equal(list[1], 37);
 
     static const dcu_clock_port_t clock = {.now = slave_clock_now, .set = slave_clock_set};
     dcu_698_param_set_clock(&clock);
@@ -862,18 +862,18 @@ static void test_slave_set_read_only_is_denied(void** state) {
     net_buf_pool_destroy(&pool);
 }
 
-static void test_slave_rejects_33_object_list(void** state) {
+static void test_slave_rejects_41_object_list(void** state) {
     (void)state;
     net_buf_pool_t pool;
     assert_int_equal(net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL), 0);
     net_buf_t* out = net_buf_alloc(&pool, 0);
     assert_non_null(out);
 
-    uint16_t ois[33];
-    for (size_t i = 0; i < 33; i++) ois[i] = (uint16_t)(0x2000 + i);
+    uint16_t ois[41];
+    for (size_t i = 0; i < 41; i++) ois[i] = (uint16_t)(0x2000 + i);
     fake_record_t f;
     memset(&f, 0, sizeof(f));
-    f.acl_len = build_acl(f.acl, ois, 33);
+    f.acl_len = build_acl(f.acl, ois, 41);
 
     edge_slave_source_ops_t src;
     memset(&src, 0, sizeof(src));
@@ -910,9 +910,9 @@ int main(void) {
         cmocka_unit_test(test_report_confirm_clears_pending),
         cmocka_unit_test(test_report_timeout_unblocks),
         cmocka_unit_test(test_get_maps_source_rc_to_dar),
-        cmocka_unit_test(test_slave_accepts_product_object_list_31),
+        cmocka_unit_test(test_slave_accepts_product_object_list_37),
         cmocka_unit_test(test_slave_set_read_only_is_denied),
-        cmocka_unit_test(test_slave_rejects_33_object_list),
+        cmocka_unit_test(test_slave_rejects_41_object_list),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

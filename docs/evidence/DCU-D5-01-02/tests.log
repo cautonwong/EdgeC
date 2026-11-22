@@ -1,0 +1,23 @@
+== focused tests ==
+test_dcu_698_axdr: PASS (class 2/5 DAR 5/4/6 and methods 1/2/3)
+test_dcu_698_appconn: PASS (ACL 35 objects)
+test_dcu_698_object_model: PASS (36 objects)
+test_driver_dlt698: PASS (35-object list accepted, 41 rejected)
+
+== full ctest (clean rebuild) ==
+100% tests passed, 0 tests failed out of 341
+
+== ASAN (-DENABLE_ASAN=ON) ==
+test_dcu_698_axdr, test_dcu_698_appconn, test_dcu_698_object_model,
+test_driver_dlt698, test_dcu_698_catalog: 5/5 passed
+
+== warning gate (clean build) ==
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+
+== guards ==
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+
+== acceptance (./test.sh --omnis dcu) ==
+3 passed in 5.38s
+21 passed in 0.77s
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.

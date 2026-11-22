@@ -725,6 +725,24 @@ def test_set_datetime_moves_clock_or_reports_failure():
         assert apdu[8:16] != when, f"DAR {dar} 却把时间改成了 {when.hex()}"
 
 
+@case(
+    id="D_00_00_02_000023",
+    clause="free: 类 2/5 无产品数据源时 GET 必须回 DAR 5，不得回 0 或空数组",
+    tags=["北向"],
+)
+@pytest.mark.contract
+def test_class2_and_class5_read_reports_class_mismatch():
+    oads = [
+        0x10100200, 0x10110200, 0x10120200, 0x10130200,
+        0x200D0200, 0x200D0300, 0x200D0400, 0x200D0500, 0x200D0600,
+        0x200E0200,
+    ]
+    for oad in oads:
+        apdu = _exchange(dlt698.get_request(0x01, oad)).apdu
+        assert apdu[7] == 0x00, f"OAD {oad:08X} 应回 DAR 而不是 Data：{apdu.hex()}"
+        assert apdu[8] == 5, f"OAD {oad:08X} 应回 DAR 5，收到 {apdu[8]}（{apdu.hex()}）"
+
+
 @case(id="D_00_00_02_000014", clause="free: SET 已关闭属性必须回 DAR 5", tags=["北向"])
 @pytest.mark.contract
 def test_set_masked_f200_attr_returns_class_mismatch():

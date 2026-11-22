@@ -1,0 +1,11 @@
+ acceptance/dcu/tests/test_dcu_northbound.py | 18 +++++++
+ adapters/io_drivers/src/driver_dlt698.c     |  2 +-
+ cmd/dcu/dcu_698_appconn.c                   | 48 +++++++++++++------
+ cmd/dcu/dcu_698_object_model.c              |  7 +++
+ cmd/dcu/dcu_router.h                        |  2 +
+ docs/design/DCU_698_OBJECT_MODEL.md         |  8 +++-
+ tests/test_dcu_698_appconn.c                |  2 +-
+ tests/test_dcu_698_axdr.c                   | 73 ++++++++++++++++++++++-------
+ tests/test_dcu_698_object_model.c           |  2 +-
+ tests/test_driver_dlt698.c                  | 16 +++----
+ 10 files changed, 134 insertions(+), 44 deletions(-)

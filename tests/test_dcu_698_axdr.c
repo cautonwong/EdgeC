@@ -355,6 +355,49 @@ static void test_product_class8_datetime_round_trip(void **state) {
     dcu_698_object_model_reset();
 }
 
+static void test_product_class2_and_5_have_no_value_yet(void **state) {
+    (void)state;
+    init_product_model();
+
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = 0;
+    static const uint16_t defined[] = {0x1010, 0x1011, 0x1012, 0x1013};
+    for (size_t i = 0; i < sizeof(defined) / sizeof(defined[0]); i++) {
+        for (uint8_t attr = 1; attr <= 3; attr++) {
+            assert_int_equal(
+                dcu_north_resolve_axdr(NULL, MK_OAD(defined[i], attr), buf, sizeof(buf), &len),
+                EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        }
+    }
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x1010, 4), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+
+    for (uint8_t attr = 1; attr <= 6; attr++) {
+        assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x200D, attr), buf, sizeof(buf), &len),
+                         EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    }
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x200D, 7), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x200E, 2), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x2141, 2), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x9999, 2), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OAD(0x1010, 1), NULL, 0),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OAD(0x1010, 2), NULL, 0),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OAD(0x1010, 3), NULL, 0),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OAD(0x200D, 1), NULL, 0),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OAD(0x200E, 2), NULL, 0),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+}
+
 static const uint8_t k_structure[] = {0x01, 0x02, DCU_698_TAG_LONG_UNSIGNED, 0x00, 0x01, 0x12,
                                       0x00, 0x02}; /* array(2) long-unsigned */
 
@@ -550,8 +593,7 @@ static int routing_object_list(void *ctx, uint32_t oad, uint8_t *buf, size_t cap
 }
 
 static int test_exchange_with(void *priv, const uint8_t *frame, size_t frame_len,
-                              const edge_slave_source_ops_t *src, net_buf_t *out,
-                              size_t *consumed,
+                              const edge_slave_source_ops_t *src, net_buf_t *out, size_t *consumed,
                               int (*object_list)(void *, uint32_t, uint8_t *, size_t, size_t *)) {
     edge_slave_source_ops_t wrapped = *src;
     wrapped.object_list = object_list;
@@ -1273,8 +1315,9 @@ static void test_set_scalar_fallback_rejects_structure(void **state) {
 /* ACTION-Request-Normal：07 | 01 | PIID | OMD(4) | Data | 时间标签。 */
 static size_t build_action_omd(uint8_t *frame, uint32_t omd, const uint8_t *param,
                                size_t param_len) {
-    uint8_t apdu[256] = {DLT698_SVC_ACTION_REQ, 0x01, 0x05, (uint8_t)(omd >> 24),
-                         (uint8_t)(omd >> 16), (uint8_t)(omd >> 8), (uint8_t)omd};
+    uint8_t apdu[256] = {
+        DLT698_SVC_ACTION_REQ, 0x01,        0x05, (uint8_t)(omd >> 24), (uint8_t)(omd >> 16),
+        (uint8_t)(omd >> 8),   (uint8_t)omd};
     size_t i = 7;
     assert_true(i + param_len + 1 <= sizeof(apdu));
     if (param_len > 0) memcpy(apdu + i, param, param_len);
@@ -1299,8 +1342,7 @@ static uint8_t run_action_dar_omd_acl_initialized(uint32_t omd, const uint8_t *p
     alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
     memset(priv, 0, sizeof(priv));
     size_t consumed = 0;
-    int rc = test_exchange_with(priv, frame, frame_len, &k_action_src, out, &consumed,
-                                object_list);
+    int rc = test_exchange_with(priv, frame, frame_len, &k_action_src, out, &consumed, object_list);
     assert_int_equal(rc, 0);
     assert_int_equal(out->b.data[9], DLT698_SVC_ACTION_RES);
     assert_int_equal(out->b.data[10], 0x01);
@@ -1323,8 +1365,8 @@ static uint8_t run_action_dar_omd(uint32_t omd, const uint8_t *param, size_t par
 }
 
 static uint8_t run_action_dar(uint8_t method, const uint8_t *param, size_t param_len) {
-    return run_action_dar_omd(((uint32_t)OI_REMOTE_CONTROL << 16) | ((uint32_t)method << 8),
-                              param, param_len);
+    return run_action_dar_omd(((uint32_t)OI_REMOTE_CONTROL << 16) | ((uint32_t)method << 8), param,
+                              param_len);
 }
 
 static void assert_action_dar(uint8_t method, const uint8_t *param, size_t param_len,
@@ -1439,19 +1481,17 @@ static void test_action_non8000_class_defined_unexposed_dar5(void **state) {
     (void)state;
     const uint8_t null_param[] = {0x00};
     /* 5004 方法 3：Class 9 定义。 */
-    assert_int_equal(
-        run_action_dar_omd_acl(((uint32_t)0x5004 << 16) | (3u << 8), null_param,
-                               sizeof(null_param), routing_object_list),
-        5);
+    assert_int_equal(run_action_dar_omd_acl(((uint32_t)0x5004 << 16) | (3u << 8), null_param,
+                                            sizeof(null_param), routing_object_list),
+                     5);
 }
 
 static void test_action_unknown_oi_dar6(void **state) {
     (void)state;
     const uint8_t null_param[] = {0x00};
-    assert_int_equal(
-        run_action_dar_omd_acl(((uint32_t)0x9999 << 16) | (1u << 8), null_param,
-                               sizeof(null_param), routing_object_list),
-        6);
+    assert_int_equal(run_action_dar_omd_acl(((uint32_t)0x9999 << 16) | (1u << 8), null_param,
+                                            sizeof(null_param), routing_object_list),
+                     6);
 }
 
 static void test_action_non8000_reaches_handler(void **state) {
@@ -1564,6 +1604,7 @@ int main(void) {
         cmocka_unit_test(test_normal_list_dar_mapping),
         cmocka_unit_test(test_product_accept_set_paths),
         cmocka_unit_test(test_product_class8_datetime_round_trip),
+        cmocka_unit_test(test_product_class2_and_5_have_no_value_yet),
         cmocka_unit_test(test_product_accept_set_event_attrs),
         cmocka_unit_test(test_set_response_dar_paths),
         cmocka_unit_test(test_set_missing_data_dar7),
