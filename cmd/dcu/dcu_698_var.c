@@ -123,8 +123,7 @@ typedef struct {
 } scalar_desc_t;
 
 static const scalar_desc_t k_scalars[] = {
-    {OI_METER_ARCHIVE, 2, VK_U16},
-    {OI_TASK_SCHEDULER, 2, VK_U16},
+    {OI_METER_DISCOVERY, 3, VK_U16},
     {(uint16_t)((OAD_DAILY_FREEZE >> 16) & 0xFFFF), 2, VK_U16},
     {OI_CHANNEL_CONFIG, 2, VK_U32},
     {OI_CHANNEL_CONFIG, 3, VK_U8},

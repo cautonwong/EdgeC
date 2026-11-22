@@ -11,6 +11,7 @@
 #include "dcu_698_axdr.h"
 #include "dcu_698_object_model.h"
 #include "dcu_698_var.h"
+#include "dcu_discovery.h"
 #include "dcu_inventory.h"
 #include "dcu_north_adapter.h"
 #include "dcu_poller.h"
@@ -89,12 +90,15 @@ static int mock_shadow(void *ctx, uint32_t tag_id, uint32_t device_id, void *out
 static void init_product_model(void) {
     static dcu_inventory_t inv;
     static dcu_poller_t poller;
+    static dcu_discovery_t discovery;
     assert_int_equal(dcu_inventory_init(&inv), 0);
     assert_int_equal(dcu_poller_init(&poller), 0);
+    dcu_discovery_init(&discovery);
+    discovery.count = 5;
     router_sink_ops_t sink = {0};
     router_bus_ops_t bus = {.msg_size = sizeof(pipe_msg_t), .read_shadow = mock_shadow};
-    assert_int_equal(dcu_698_object_model_init(&inv, &poller, sink, NULL, NULL, NULL, NULL, bus),
-                     0);
+    assert_int_equal(
+        dcu_698_object_model_init(&inv, &poller, sink, NULL, &discovery, NULL, NULL, bus), 0);
 }
 
 static void assert_axdr(uint32_t oad, const uint8_t *want, size_t want_len) {
@@ -127,9 +131,15 @@ static void test_product_variable_axdr_types(void **state) {
     const uint8_t want_freq[] = {DCU_698_TAG_LONG_UNSIGNED, 0x13, 0x89};
     assert_axdr(OAD_GRID_FREQUENCY, want_freq, sizeof(want_freq));
 
-    /* 6000 attr 2 档案计数在对象层单独编码为 long-unsigned。 */
-    const uint8_t want_archive[] = {DCU_698_TAG_LONG_UNSIGNED, 0x00, 0x00};
-    assert_axdr(MK_OAD(OI_METER_ARCHIVE, 2), want_archive, sizeof(want_archive));
+    /* 6000 A2 是配置数组，标量/结构通道都还不支持：必须明确拒绝。 */
+    uint8_t probe[EDGE_SLAVE_AXDR_MAX];
+    size_t probe_len = 0;
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(OI_METER_ARCHIVE, 2), probe,
+                                            sizeof(probe), &probe_len),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    const uint8_t want_discovery_count[] = {DCU_698_TAG_LONG_UNSIGNED, 0x00, 0x05};
+    assert_axdr(MK_OAD(OI_METER_DISCOVERY, 3), want_discovery_count,
+                sizeof(want_discovery_count));
 
     dcu_698_object_model_reset();
 }

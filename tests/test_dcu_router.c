@@ -76,29 +76,33 @@ static void test_dcu_router_dispatch(void** state) {
                              router_bus);
     assert_int_equal(ret, 0);
 
-    // 3. 读取 OI 6000 (档案表) 属性 2 -> 当前初始电表数应为 0
+    // 3. 6000 A2 是配置数组，数组通道未落地：明确拒绝而不是返回计数标量
     uint16_t meter_count = 999;
     ret = dcu_router_get_attr(((uint32_t)OI_METER_ARCHIVE << 16) | 0x0200, &meter_count);
-    assert_int_equal(ret, 0);
-    assert_int_equal(meter_count, 0);
+    assert_int_equal(ret, -1);
+    assert_int_equal(test_inv.count, 0);
 
-    // 4. 通过 OMD 方法路由调用 ACTION 注册新表计 (Method 127)
     int method_res = -1;
     ret = dcu_router_action(((uint32_t)OI_METER_ARCHIVE << 16) | 0x7F00, "20000001", &method_res);
-    assert_int_equal(ret, 0);
-    assert_int_equal(method_res, 0);  // 注册成功返回 0
+    assert_int_equal(ret, -1);
+    assert_int_equal(test_inv.count, 0);
 
-    // 5. 再次通过 OAD 读取属性 2 -> 注册数应升为 1
-    meter_count = 0;
-    ret = dcu_router_get_attr(((uint32_t)OI_METER_ARCHIVE << 16) | 0x0200, &meter_count);
+    // 5. 6012 方法 127 添加方案，方法 1 复位清空方案表
+    uint32_t csd = OAD_VOLTAGE;
+    dcu_scheme_t scheme = {.scheme_id = 9,
+                           .type = SCHEME_TYPE_NORMAL,
+                           .data.normal = {.capture_mode = 1, .csd_list = {csd}, .csd_count = 1}};
+    ret = dcu_router_action(((uint32_t)OI_TASK_SCHEDULER << 16) | 0x7F00, &scheme, &method_res);
     assert_int_equal(ret, 0);
-    assert_int_equal(meter_count, 1);
+    assert_non_null(dcu_poller_get_scheme(&poller, 9));
+    ret = dcu_router_action(((uint32_t)OI_TASK_SCHEDULER << 16) | 0x0100, NULL, &method_res);
+    assert_int_equal(ret, 0);
+    assert_null(dcu_poller_get_scheme(&poller, 9));
 
-    // 5b. 未实现的批量添加(方法 2)与更新(方法 3)必须明确拒绝，不得伪装成功
     ret = dcu_router_action(((uint32_t)OI_METER_ARCHIVE << 16) | 0x0200, NULL, NULL);
-    assert_int_equal(ret, -4);
+    assert_int_equal(ret, -1);
     ret = dcu_router_action(((uint32_t)OI_METER_ARCHIVE << 16) | 0x0300, NULL, NULL);
-    assert_int_equal(ret, -4);
+    assert_int_equal(ret, -1);
 
     float voltage = 0.0f;
     ret = dcu_router_get_attr(OAD_VOLTAGE, &voltage);
@@ -117,6 +121,7 @@ static void test_dcu_router_dispatch(void** state) {
      * 现在断言 -4：**路由是通的**（不是 -2「方法不存在」），但动作明确拒绝，
      * 绝不伪装成功。等 698 ACTION-Request 的编码器和报文样例齐了再改成真下发。 */
     method_res = -1;
+    assert_int_equal(dcu_inventory_add(&test_inv, "20000001", "DLT698", 9600, 1), 0);
     ret = dcu_router_action(((uint32_t)OI_REMOTE_CONTROL << 16) | 0x0100, NULL, &method_res);
     assert_int_equal(ret, -4);
 

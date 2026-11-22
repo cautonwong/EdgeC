@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "dcu_698_object_model.h"
+#include "dcu_discovery.h"
 #include "dcu_inventory.h"
 #include "dcu_poller.h"
 
@@ -23,17 +24,18 @@ typedef struct {
 } expected_object_t;
 
 static const uint8_t k_attr_2[] = {2};
+static const uint8_t k_attr_3[] = {3};
 static const uint8_t k_attr_23[] = {2, 3};
 static const uint8_t k_attr_event[] = {4, 11, 12};
 static const uint8_t k_method_1[] = {1};
 static const uint8_t k_method_127[] = {127};
+static const uint8_t k_method_1_127[] = {1, 127};
 static const uint8_t k_method_8000[] = {1, 127, 128, 129, 130, 131};
-static const uint8_t k_method_6000[] = {1, 2, 3, 4, 5, 127, 128};
 static const uint8_t k_method_5004[] = {3, 4, 5, 7, 8};
 
 static const expected_object_t k_expected[] = {
-    {OI_METER_ARCHIVE, IC_ACQUISITION, DCU_OBJ_SHARED, k_attr_2, 1, k_method_6000, 7},
-    {OI_TASK_SCHEDULER, IC_ACQUISITION, DCU_OBJ_SHARED, k_attr_2, 1, k_method_1, 1},
+    {OI_METER_ARCHIVE, IC_ACQUISITION, DCU_OBJ_SHARED, NULL, 0, NULL, 0},
+    {OI_TASK_SCHEDULER, IC_ACQUISITION, DCU_OBJ_SHARED, NULL, 0, k_method_1_127, 2},
     {(uint16_t)((OAD_VOLTAGE >> 16) & 0xFFFF), IC_VARIABLE, DCU_OBJ_PER_METER, k_attr_23, 2,
      NULL, 0},
     {(uint16_t)((OAD_CURRENT >> 16) & 0xFFFF), IC_VARIABLE, DCU_OBJ_PER_METER, k_attr_23, 2, NULL,
@@ -43,8 +45,8 @@ static const expected_object_t k_expected[] = {
     {OI_REMOTE_CONTROL, IC_CONTROL, DCU_OBJ_SINGLETON, NULL, 0, k_method_8000, 6},
     {OI_ESAM_SECURITY, IC_ESAM, DCU_OBJ_SINGLETON, NULL, 0, k_method_1, 1},
     {OI_CHANNEL_CONFIG, IC_PERIPHERAL, DCU_OBJ_SINGLETON, k_attr_23, 2, NULL, 0},
-    {OI_METER_DISCOVERY, IC_ACQUISITION, DCU_OBJ_SINGLETON, k_attr_23, 2, k_method_127, 1},
-    {OI_DISCOVERY_RESULT, IC_ACQUISITION, DCU_OBJ_SINGLETON, k_attr_2, 1, NULL, 0},
+    {OI_METER_DISCOVERY, IC_ACQUISITION, DCU_OBJ_SINGLETON, k_attr_3, 1, k_method_127, 1},
+    {OI_DISCOVERY_RESULT, IC_ACQUISITION, DCU_OBJ_SINGLETON, NULL, 0, NULL, 0},
     {OI_VOLTAGE_DROP, IC_SUB_EVENT, DCU_OBJ_SHARED, k_attr_event, 3, k_method_1, 1},
     {OI_OVER_CURRENT, IC_SUB_EVENT, DCU_OBJ_SHARED, k_attr_event, 3, k_method_1, 1},
 };
@@ -123,43 +125,65 @@ static void test_mask_rejects_missing_attr_and_method(void **state) {
     dcu_poller_t poller;
     init_model(&inv, &poller);
 
+    assert_int_equal(dcu_698_read(MK_OAD(OI_METER_ARCHIVE, 2), &(uint16_t){0}), -1);
     assert_int_equal(dcu_698_read(MK_OAD(OI_METER_ARCHIVE, 3), &(uint16_t){0}), -1);
     assert_int_equal(dcu_698_read(MK_OAD(OI_METER_ARCHIVE, 18), &(uint16_t){0}), -1);
 
-    assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 6), NULL, NULL), -1);
-    assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 2), NULL, NULL), -4);
-
+    assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 1), NULL, NULL), -1);
+    assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 2), NULL, NULL), -1);
+    assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 127), NULL, NULL), -1);
     assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 200), NULL, NULL), -1);
 
-    uint16_t count = 99;
-    assert_int_equal(dcu_698_read(MK_OAD(OI_METER_ARCHIVE, 2), &count), 0);
-    assert_int_equal(count, 0);
+    assert_int_equal(dcu_698_read(MK_OAD(OI_DISCOVERY_RESULT, 2), &(uint16_t){0}), -1);
+    assert_int_equal(dcu_698_read(MK_OAD(OI_METER_DISCOVERY, 2), &(uint16_t){0}), -1);
 
     dcu_poller_destroy(&poller);
     dcu_inventory_destroy(&inv);
 }
 
-static void test_legacy_methods_127_and_128_dispatch(void **state) {
+static void test_task_scheduler_reset_and_add(void **state) {
     (void)state;
     dcu_inventory_t inv;
     dcu_poller_t poller;
     init_model(&inv, &poller);
 
+    uint32_t csd = OAD_VOLTAGE;
+    dcu_scheme_t scheme = {.scheme_id = 7,
+                           .type = SCHEME_TYPE_NORMAL,
+                           .data.normal = {.capture_mode = 1, .csd_list = {csd}, .csd_count = 1}};
     int method_res = -1;
-    assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 127), "20000001", &method_res), 0);
+    assert_int_equal(dcu_698_call(MK_OMD(OI_TASK_SCHEDULER, 127), &scheme, &method_res), 0);
     assert_int_equal(method_res, 0);
+    assert_non_null(dcu_poller_get_scheme(&poller, 7));
+
+    assert_int_equal(dcu_698_call(MK_OMD(OI_TASK_SCHEDULER, 1), NULL, &method_res), 0);
+    assert_int_equal(method_res, 0);
+    assert_null(dcu_poller_get_scheme(&poller, 7));
+
+    assert_int_equal(dcu_698_call(MK_OMD(OI_TASK_SCHEDULER, 128), &scheme, &method_res), -1);
+
+    dcu_poller_destroy(&poller);
+    dcu_inventory_destroy(&inv);
+}
+
+static void test_discovery_count_is_the_only_exposed_attribute(void **state) {
+    (void)state;
+    dcu_inventory_t inv;
+    dcu_poller_t poller;
+    dcu_discovery_t discovery;
+    assert_int_equal(dcu_inventory_init(&inv), 0);
+    assert_int_equal(dcu_poller_init(&poller), 0);
+    dcu_discovery_init(&discovery);
+    discovery.count = 2;
+    router_sink_ops_t sink = {0};
+    router_bus_ops_t bus = {0};
+    assert_int_equal(
+        dcu_698_object_model_init(&inv, &poller, sink, NULL, &discovery, NULL, NULL, bus), 0);
 
     uint16_t count = 0;
-    assert_int_equal(dcu_698_read(MK_OAD(OI_METER_ARCHIVE, 2), &count), 0);
-    assert_int_equal(count, 1);
-
-    method_res = -1;
-    assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 128), "20000001", &method_res), 0);
-    assert_int_equal(method_res, 0);
-    assert_int_equal(dcu_698_read(MK_OAD(OI_METER_ARCHIVE, 2), &count), 0);
-    assert_int_equal(count, 0);
-
-    assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 129), NULL, NULL), -1);
+    assert_int_equal(dcu_698_read(MK_OAD(OI_METER_DISCOVERY, 3), &count), 0);
+    assert_int_equal(count, 2);
+    assert_int_equal(dcu_698_read(MK_OAD(OI_METER_DISCOVERY, 2), &(uint16_t){0}), -1);
 
     dcu_poller_destroy(&poller);
     dcu_inventory_destroy(&inv);
@@ -170,14 +194,6 @@ static void test_dispatch_read_write_call(void **state) {
     dcu_inventory_t inv;
     dcu_poller_t poller;
     init_model(&inv, &poller);
-
-    int method_res = -1;
-    assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 1), "20000001", &method_res), 0);
-    assert_int_equal(method_res, 0);
-
-    uint16_t count = 0;
-    assert_int_equal(dcu_698_read(MK_OAD(OI_METER_ARCHIVE, 2), &count), 0);
-    assert_int_equal(count, 1);
 
     uint32_t baud = 0;
     assert_int_equal(dcu_698_read(MK_OAD(OI_CHANNEL_CONFIG, 2), &baud), 0);
@@ -333,7 +349,9 @@ int main(void) {
                                         teardown),
         cmocka_unit_test_setup_teardown(test_mask_bitmap_supports_wide_ids, setup, teardown),
         cmocka_unit_test_setup_teardown(test_mask_rejects_missing_attr_and_method, setup, teardown),
-        cmocka_unit_test_setup_teardown(test_legacy_methods_127_and_128_dispatch, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_task_scheduler_reset_and_add, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_discovery_count_is_the_only_exposed_attribute, setup,
+                                        teardown),
         cmocka_unit_test_setup_teardown(test_dispatch_read_write_call, setup, teardown),
         cmocka_unit_test_setup_teardown(test_event_class24_attr_reads, setup, teardown),
         cmocka_unit_test_setup_teardown(test_event_class24_attr_writes, setup, teardown),
