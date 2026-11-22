@@ -32,6 +32,18 @@ int dcu_698_acq_6012_execute(const dcu_698_object_t *obj, uint8_t method_id, con
     return sink->task_apply(sink->ctx, poller, op);
 }
 
+int dcu_698_acq_6014_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
+                             void *result) {
+    (void)result;
+    dcu_poller_t *poller = (dcu_poller_t *)obj->instance;
+    if (!poller) return EDGE_SLAVE_SRC_TEMPORARY;
+    const dcu_scheme_op_t *op = (const dcu_scheme_op_t *)param;
+    if (!op || op->method != method_id) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    const router_sink_ops_t *sink = dcu_698_internal_sink_ops();
+    if (!sink || !sink->scheme_apply) return EDGE_SLAVE_SRC_TEMPORARY;
+    return sink->scheme_apply(sink->ctx, poller, op);
+}
+
 int dcu_698_acq_6002_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
                           void *out_val) {
     (void)elem_idx;

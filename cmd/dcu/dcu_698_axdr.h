@@ -26,6 +26,28 @@ int dcu_698_accept_action_axdr(uint32_t omd, const uint8_t *axdr, size_t axdr_le
 int dcu_698_task_encode_axdr(const dcu_poller_t *poller, uint32_t oad, uint8_t *buf, size_t cap,
                              size_t *len);
 
+/* CSD/MS 是 698 的构造类型，线上标签只有本标准一处使用。 */
+#define DCU_698_TAG_CSD 0x5B
+#define DCU_698_TAG_MS 0x5C
+
+/**
+ * @brief 解 6014 方法 127/128/129/130 的参数。
+ *
+ * 截断、错标签、错个数、尾随字节、坏 CHOICE、采集类型 > 4、MS choice > 7
+ * → DAR 7。数组超过 MAX_SCHEMES / MAX_SCHEME_OADS → DAR 2（容量）。
+ * 标准允许但产品不执行的取值解码成功，由 store 报 DAR 2。
+ */
+int dcu_698_decode_scheme_op(uint8_t method, const uint8_t *buf, size_t len,
+                             dcu_scheme_op_t *out);
+
+/**
+ * @brief 6014 A2 数组 / 6015 A2 单元（元素索引 = 方案编号，0 = 最小现有 ID）。
+ *
+ * CSD 编成 `5B 00 + 4 字节 OAD`，MS 编成 `5C 01`。缓冲区不够返回 DAR 2，不截断。
+ */
+int dcu_698_scheme_encode_axdr(const dcu_poller_t *poller, uint32_t oad, uint8_t *buf,
+                               size_t cap, size_t *len);
+
 /**
  * @brief 编码 date_time_s：UNIX 整秒 → tag 0x1C + 设备本地公历 7 字节。
  *
