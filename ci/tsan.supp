@@ -1,0 +1,5 @@
+# SQLite 的内部互斥量在 open 路径按 G→C 获取、close 路径按 C→G 获取；
+# 产品对 storage 只有一个 uv 循环线程（cmd/dcu 不创建线程，create/flush/destroy
+# 都在同一个循环线程上），所以这个环不是可达的死锁，属第三方库内部顺序。
+# pthreadMutexEnter 是 SQLite 自己的 unix mutex 包装；uv 的锁不走这里。
+deadlock:pthreadMutexEnter

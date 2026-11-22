@@ -22,6 +22,10 @@ static void _flush_timer_cb(uv_timer_t* timer) {
 
 /**
  * @brief 初始化 SQLite 数据库与事务合并存储服务 (单线程模型 - 绝无死锁)
+ *
+ * 所有权约定：storage 只由创建它的 uv 循环线程使用（cmd/dcu 不创建线程）。
+ * SQLite 内部互斥量在 open/close 上顺序相反，TSAN 会报 lock-order-inversion；
+ * 单线程下没有可并发的另一路径，属第三方库内部顺序，见 ci/tsan.supp。
  */
 int dcu_storage_init(dcu_storage_t* storage, uv_loop_t* loop, const char* db_path) {
     if (!storage || !loop || !db_path) return -1;

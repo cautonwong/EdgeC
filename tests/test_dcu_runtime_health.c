@@ -10,6 +10,7 @@
 #include <setjmp.h>
 #include <sqlite3.h>
 #include <stdarg.h>
+#include <pthread.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -154,6 +155,35 @@ static void test_production_cycle_has_no_demo_behavior(void **state) {
     unlink(db_path);
 }
 
+/* 证明 storage 的创建、写入、刷盘、销毁都发生在同一个线程上：
+ * 产品的从站/采集/存储共用 uv 循环线程，cmd/dcu 不创建线程。 */
+static void test_node_lifecycle_runs_on_one_thread(void **state) {
+    uv_loop_t *loop = (uv_loop_t *)*state;
+    const char *db_path = "/tmp/test_dcu_runtime_health_thread.db";
+    seed_inventory(db_path, 1);
+
+    pthread_t before = pthread_self();
+    void *mem = NULL;
+    dcu_node_t *node = create_node(loop, db_path, &mem);
+    pthread_t after_create = pthread_self();
+
+    dcu_storage_t *storage = dcu_node_get_storage(node);
+    assert_int_equal(dcu_storage_write_telemetry(storage, "000000000001", 0, OAD_VOLTAGE, 220.0),
+                     0);
+    dcu_storage_flush(storage);
+    pthread_t after_write = pthread_self();
+
+    dcu_node_destroy(node);
+    pthread_t after_destroy = pthread_self();
+
+    assert_true(pthread_equal(before, after_create));
+    assert_true(pthread_equal(before, after_write));
+    assert_true(pthread_equal(before, after_destroy));
+
+    free(mem);
+    unlink(db_path);
+}
+
 /* 演示模式：冻结、随机跳闸、遥控、3 周期自退全部按旧行为触发。 */
 static void test_demo_mode_restores_bench_behavior(void **state) {
     uv_loop_t *loop = (uv_loop_t *)*state;
@@ -204,6 +234,7 @@ int main(void) {
         cmocka_unit_test_setup_teardown(test_production_cycle_has_no_demo_behavior, setup,
                                         teardown),
         cmocka_unit_test_setup_teardown(test_demo_mode_restores_bench_behavior, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_node_lifecycle_runs_on_one_thread, setup, teardown),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

@@ -53,7 +53,7 @@ macro(add_edge_test TEST_NAME)
         set_tests_properties(${TEST_NAME} PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:halt_on_error=1")
     endif()
     if(ENABLE_TSAN)
-        set_tests_properties(${TEST_NAME} PROPERTIES ENVIRONMENT "TSAN_OPTIONS=halt_on_error=0:suppress_equal_stacks=1:die_after_fork=0:exitcode=0")
+        set_tests_properties(${TEST_NAME} PROPERTIES ENVIRONMENT "TSAN_OPTIONS=halt_on_error=0:suppress_equal_stacks=1:die_after_fork=0:exitcode=0:suppressions=${CMAKE_SOURCE_DIR}/ci/tsan.supp")
     endif()
     if(ENABLE_UBSAN)
         set_tests_properties(${TEST_NAME} PROPERTIES ENVIRONMENT "UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1")
@@ -873,7 +873,7 @@ add_test(NAME test_datahub_dds_mesh COMMAND test_datahub_dds_mesh)
 # race 判定，避免第三方实现让本仓库的门禁变红。
 if(ENABLE_TSAN)
     set_tests_properties(test_datahub_dds_mesh PROPERTIES
-        ENVIRONMENT "TSAN_OPTIONS=halt_on_error=0:suppress_equal_stacks=1:die_after_fork=0:exitcode=0")
+        ENVIRONMENT "TSAN_OPTIONS=halt_on_error=0:suppress_equal_stacks=1:die_after_fork=0:exitcode=0:suppressions=${CMAKE_SOURCE_DIR}/ci/tsan.supp")
 endif()
 
 # AEP-450: Eclipse Cyclone DDS IDL 强类型契约编译闭环与 C CDR 描述符生成测试 (Issue #142)
@@ -1678,7 +1678,7 @@ add_test(NAME test_caller_allocated_storage COMMAND test_caller_allocated_storag
 # 构不成死锁（没有第二个线程），与其它单线程用例一样关掉该判定。
 if(ENABLE_TSAN)
     set_tests_properties(test_caller_allocated_storage PROPERTIES
-        ENVIRONMENT "TSAN_OPTIONS=halt_on_error=0:suppress_equal_stacks=1:die_after_fork=0:exitcode=0")
+        ENVIRONMENT "TSAN_OPTIONS=halt_on_error=0:suppress_equal_stacks=1:die_after_fork=0:exitcode=0:suppressions=${CMAKE_SOURCE_DIR}/ci/tsan.supp")
 endif()
 
 # AEP-723 ~ AEP-730 构网型虚拟同步发电机 (VSG) 控制算法单测
@@ -1845,7 +1845,7 @@ foreach(t
         set_tests_properties(${t} PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:halt_on_error=1")
     endif()
     if(ENABLE_TSAN)
-        set_tests_properties(${t} PROPERTIES ENVIRONMENT "TSAN_OPTIONS=halt_on_error=0:suppress_equal_stacks=1:die_after_fork=0:exitcode=0")
+        set_tests_properties(${t} PROPERTIES ENVIRONMENT "TSAN_OPTIONS=halt_on_error=0:suppress_equal_stacks=1:die_after_fork=0:exitcode=0:suppressions=${CMAKE_SOURCE_DIR}/ci/tsan.supp")
     endif()
     if(ENABLE_UBSAN)
         set_tests_properties(${t} PROPERTIES ENVIRONMENT "UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1")
