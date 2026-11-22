@@ -165,6 +165,10 @@ add_edge_test(test_dcu_698_tasks test_dcu_698_tasks.c)
 target_include_directories(test_dcu_698_tasks PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
 target_link_libraries(test_dcu_698_tasks PRIVATE dcu_app_lib)
 
+add_edge_test(test_dcu_698_schemes test_dcu_698_schemes.c)
+target_include_directories(test_dcu_698_schemes PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_dcu_698_schemes PRIVATE dcu_app_lib)
+
 add_edge_test(test_dlt698_conformance_suite test_dlt698_conformance_suite.c)
 
 
