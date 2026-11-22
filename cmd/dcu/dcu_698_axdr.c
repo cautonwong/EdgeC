@@ -92,6 +92,10 @@ int dcu_north_resolve_axdr(void* ctx, uint32_t oad, uint8_t* buf, size_t cap, si
                                                                : EDGE_SLAVE_SRC_TYPE_MISMATCH;
     }
 
+    if (dcu_698_var_is_oi((uint16_t)(oad >> 16))) {
+        return dcu_698_var_encode_axdr(oad, buf, cap, len);
+    }
+
     dcu_value_t v;
     int rc = dcu_698_value_for_oad(oad, &v);
     if (rc != 0) return rc;

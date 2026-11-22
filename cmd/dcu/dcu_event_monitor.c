@@ -34,7 +34,7 @@ static stage_ret_t _monitor_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
 
     // 💡 1. 拦截电压实时刷新事件 (OAD_VOLTAGE) -> 失压判定
     if (ev->type == PIPEMSG_TYPE_SCALAR &&
-        (ev->tag_id == OAD_VOLTAGE || ev->tag_id == 0x20000300)) {
+        (ev->tag_id == OAD_VOLTAGE || ev->tag_id == TAG_VOLTAGE_B)) {
         dcu_event_obj_t* evt = ctx->evt_3000;
         if (evt && evt->is_enabled) {
             float voltage = (float)ev->payload.val.f;
@@ -90,7 +90,7 @@ static stage_ret_t _monitor_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
 
     // 💡 2. 拦截电流实时刷新事件 (OAD_CURRENT) -> 过流判定
     if (ev->type == PIPEMSG_TYPE_SCALAR &&
-        (ev->tag_id == OAD_CURRENT || ev->tag_id == 0x20010300)) {
+        (ev->tag_id == OAD_CURRENT || ev->tag_id == TAG_CURRENT_B)) {
         dcu_event_obj_t* evt = ctx->evt_3005;
         if (evt && evt->is_enabled) {
             float current = (float)ev->payload.val.f;
@@ -316,7 +316,7 @@ static stage_ret_t _freeze_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
             voltage = shadow_msg.payload.val.f;
         }
         // 抓拍电流 (Offset 2)
-        if (datahub_read_shadow_device(ctx->hub, 0x20010200, dev, &shadow_msg) == 0) {
+        if (datahub_read_shadow_device(ctx->hub, OAD_CURRENT, dev, &shadow_msg) == 0) {
             current = shadow_msg.payload.val.f;
         }
 
@@ -327,7 +327,7 @@ static stage_ret_t _freeze_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
             ctx->sink_ops.archive_freeze(ctx->sink_ops.ctx, addr, OAD_DAILY_FREEZE, freeze_ts,
                                          OAD_VOLTAGE, voltage);
             ctx->sink_ops.archive_freeze(ctx->sink_ops.ctx, addr, OAD_DAILY_FREEZE, freeze_ts,
-                                         0x20010200, current);
+                                         OAD_CURRENT, current);
         }
 
         return STAGE_DROP;

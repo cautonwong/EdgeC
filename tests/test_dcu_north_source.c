@@ -28,8 +28,8 @@ static void test_name_maps_realtime_oads(void** state) {
 
     /* 三个相电压必须各自有名字——只给一个 VOLTAGE 会让云端三相互相覆盖 */
     assert_string_equal(ops->name(NULL, OAD_VOLTAGE), "VOLTAGE_A");
-    assert_string_equal(ops->name(NULL, OAD_VOLTAGE_B), "VOLTAGE_B");
-    assert_string_equal(ops->name(NULL, OAD_VOLTAGE_C), "VOLTAGE_C");
+    assert_string_equal(ops->name(NULL, TAG_VOLTAGE_B), "VOLTAGE_B");
+    assert_string_equal(ops->name(NULL, TAG_VOLTAGE_C), "VOLTAGE_C");
 
     assert_string_equal(ops->name(NULL, OAD_CURRENT), "CURRENT_A");
     assert_string_equal(ops->name(NULL, OAD_ACTIVE_POWER_TOTAL), "ACTIVE_POWER_TOTAL");

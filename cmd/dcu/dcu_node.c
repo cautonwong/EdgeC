@@ -4,6 +4,7 @@
  */
 
 #include "dcu_driver_adapter.h"
+#include "dcu_698_var.h"
 #include "dcu_node.h"
 
 #include <stdlib.h>
@@ -157,8 +158,10 @@ dcu_node_t *dcu_node_create_in(void *storage, size_t storage_size, uv_loop_t *lo
 
     /* 5. Initialize Poller and Wire Router Operations */
     dcu_poller_init(&node->poller);
-    uint32_t oads[3] = {OAD_VOLTAGE, OAD_CURRENT, OAD_ACTIVE_POWER_TOTAL};
-    dcu_poller_add_scheme(&node->poller, 1, 0, oads, 3);
+    /* 变量类属性 2 是数组，相/总通道都要采集，否则整条读取按 DAR 6 失败。 */
+    uint32_t oads[32];
+    uint16_t oad_count = (uint16_t)dcu_698_var_poll_tags(oads, 32);
+    dcu_poller_add_scheme(&node->poller, 1, 0, oads, oad_count);
     dcu_poller_add_task(&node->poller, 1, 5, 1);
 
     poller_sink_ops_t poller_sink = {.ctx = &node->storage,

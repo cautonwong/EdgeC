@@ -31,22 +31,31 @@
 #define IC_PERIPHERAL 22    // 输入输出设备接口类 (F200 串口)
 #define IC_SUB_EVENT 24     // 分项事件对象接口类 (3000 失压, 3005 过流)
 
-#define OAD_ACTIVE_ENERGY 0x00100200         // 累计正向有功电能量 (OI 0010 属性 2)
-#define OAD_REACTIVE_ENERGY 0x00200200       // 累计反向有功电能量 (OI 0020 属性 2)
-#define OAD_VOLTAGE 0x20000200               // A相实时电压 (OI 2000 属性 2)
-#define OAD_VOLTAGE_B 0x20000300             // B相实时电压 (OI 2000 属性 3)
-#define OAD_VOLTAGE_C 0x20000400             // C相实时电压 (OI 2000 属性 4)
-#define OAD_CURRENT 0x20010200               // A相实时电流 (OI 2001 属性 2)
-#define OAD_CURRENT_B 0x20010300             // B相实时电流 (OI 2001 属性 3)
-#define OAD_CURRENT_C 0x20010400             // C相实时电流 (OI 2001 属性 4)
+#define OAD_ACTIVE_ENERGY 0x00100200         // 0010 属性 2（总及费率电能数组）
+#define OAD_REACTIVE_ENERGY 0x00200200       // 0020 属性 2（总及费率电能数组）
+#define OAD_VOLTAGE 0x20000200               // 2000 属性 2（A/B/C 电压数组）
+#define TAG_VOLTAGE_B 0x20000300             // B 相影子 tag（数组元素，非 698 OAD）
+#define TAG_VOLTAGE_C 0x20000400             // C 相影子 tag（数组元素，非 698 OAD）
+#define OAD_CURRENT 0x20010200               // 2001 属性 2（A/B/C 电流数组）
+#define TAG_CURRENT_B 0x20010300             // B 相影子 tag（数组元素，非 698 OAD）
+#define TAG_CURRENT_C 0x20010400             // C 相影子 tag（数组元素，非 698 OAD）
 #define OAD_ZERO_SEQ_CURRENT 0x20020200      // 零序电流 (OI 2002 属性 2)
-#define OAD_ACTIVE_POWER_TOTAL 0x20040200    // 总有功功率 (OI 2004 属性 2)
-#define OAD_ACTIVE_POWER_A 0x20040300        // A相有功功率 (OI 2004 属性 3)
-#define OAD_ACTIVE_POWER_B 0x20040400        // B相有功功率 (OI 2004 属性 4)
-#define OAD_ACTIVE_POWER_C 0x20040500        // C相有功功率 (OI 2004 属性 5)
+#define OAD_ACTIVE_POWER_TOTAL 0x20040200    // 2004 属性 2（总/A/B/C 功率数组）
+#define TAG_ACTIVE_POWER_A 0x20040300        // A 相影子 tag（数组元素，非 698 OAD）
+#define TAG_ACTIVE_POWER_B 0x20040400        // B 相影子 tag（数组元素，非 698 OAD）
+#define TAG_ACTIVE_POWER_C 0x20040500        // C 相影子 tag（数组元素，非 698 OAD）
 #define OAD_REACTIVE_POWER_TOTAL 0x20050200  // 总无功功率 (OI 2005 属性 2)
-#define OAD_POWER_FACTOR_TOTAL 0x200A0200    // 总功率因数 (OI 200A 属性 2)
-#define OAD_GRID_FREQUENCY 0x200F0200        // 电网频率 (OI 200F 属性 2)
+#define OAD_POWER_FACTOR_TOTAL 0x200A0200    // 200A 属性 2（功率因数数组）
+#define OAD_GRID_FREQUENCY 0x200F0200        // 200F 属性 2（Class 6 单值）
+
+/* 南向读数组元素：索引字节是属性内元素，不是北向的表槽位（ADR-0016）。 */
+#define OAD_VOLTAGE_B_ELEM 0x20000201
+#define OAD_VOLTAGE_C_ELEM 0x20000202
+#define OAD_CURRENT_B_ELEM 0x20010201
+#define OAD_CURRENT_C_ELEM 0x20010202
+#define OAD_ACTIVE_POWER_A_ELEM 0x20040201
+#define OAD_ACTIVE_POWER_B_ELEM 0x20040202
+#define OAD_ACTIVE_POWER_C_ELEM 0x20040203
 
 #define OI_VOLTAGE_DROP 0x3000  // 失压事件 OI
 #define OI_OVER_CURRENT 0x3005  // 过流事件 OI

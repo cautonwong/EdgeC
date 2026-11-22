@@ -207,8 +207,8 @@ int (*accept_axdr)(void *ctx, uint32_t oad, const uint8_t *axdr, size_t len);
 | float64 | 0x18 | 8 |
 | date_time_s | 0x1C | 7 |
 | long-unsigned | 0x12 | 2 |
-| long | 0x11 | 2 |
-| unsigned | 0x13 | 1 |
+| long | 0x10 | 2 |
+| unsigned | 0x11 | 1 |
 | integer | 0x0F | 1 |
 
 完整表以 `docs/698.pdf` 6.3 节为准，`docs/698_parsed.md` 只作检索。标签只在编解码器与对象模型出现，业务层用 `dcu_value_t`。

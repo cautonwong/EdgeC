@@ -56,8 +56,8 @@ static void test_dcu_point_translation(void) {
     assert(dcu_driver_adapter_proto_to_oad("DLT645", 0x02010100) == OAD_VOLTAGE);
     assert(dcu_driver_adapter_scale("DLT645", 0x02010100) > 0.0);
 
-    assert(dcu_driver_adapter_proto_to_oad("DLT645", 0x02010200) == OAD_VOLTAGE_B);
-    assert(dcu_driver_adapter_proto_to_oad("DLT645", 0x02010300) == OAD_VOLTAGE_C);
+    assert(dcu_driver_adapter_proto_to_oad("DLT645", 0x02010200) == TAG_VOLTAGE_B);
+    assert(dcu_driver_adapter_proto_to_oad("DLT645", 0x02010300) == TAG_VOLTAGE_C);
     assert(dcu_driver_adapter_proto_to_oad("DLT645", 0x02800002) == OAD_GRID_FREQUENCY);
 
     /* 未注册的协议号/未知协议必须返回 0，而不是猜一个 */
@@ -67,13 +67,13 @@ static void test_dcu_point_translation(void) {
 
     /* 2. DLT698：三相与功率、频率都要能翻成协议号 */
     assert(dcu_driver_adapter_oad_to_proto("DLT698", OAD_VOLTAGE) != 0);
-    assert(dcu_driver_adapter_oad_to_proto("DLT698", OAD_VOLTAGE_B) != 0);
-    assert(dcu_driver_adapter_oad_to_proto("DLT698", OAD_VOLTAGE_C) != 0);
+    assert(dcu_driver_adapter_oad_to_proto("DLT698", TAG_VOLTAGE_B) != 0);
+    assert(dcu_driver_adapter_oad_to_proto("DLT698", TAG_VOLTAGE_C) != 0);
     assert(dcu_driver_adapter_oad_to_proto("DLT698", OAD_ACTIVE_POWER_TOTAL) != 0);
     assert(dcu_driver_adapter_oad_to_proto("DLT698", OAD_GRID_FREQUENCY) != 0);
 
     /* 3. Modbus：点位标识 = 地址 + 寄存器个数，长度不能丢 */
-    uint32_t mb_vb = dcu_driver_adapter_oad_to_proto("ModbusRTU", OAD_VOLTAGE_B);
+    uint32_t mb_vb = dcu_driver_adapter_oad_to_proto("ModbusRTU", TAG_VOLTAGE_B);
     assert(mb_vb != 0);
     assert(MODBUS_NATIVE_ADDR(mb_vb) == 1);
     uint32_t mb_freq = dcu_driver_adapter_oad_to_proto("ModbusRTU", OAD_GRID_FREQUENCY);
@@ -93,8 +93,8 @@ static void test_dcu_slot_mapping(void) {
     assert(dcu_tag_map_fn(OAD_CURRENT, 1) == 32 + 2);
 
     /* Dynamic hashing without array: device slots are strictly isolated */
-    int slot_dev1 = dcu_tag_map_fn(OAD_VOLTAGE_B, 1);
-    int slot_dev2 = dcu_tag_map_fn(OAD_VOLTAGE_B, 2);
+    int slot_dev1 = dcu_tag_map_fn(TAG_VOLTAGE_B, 1);
+    int slot_dev2 = dcu_tag_map_fn(TAG_VOLTAGE_B, 2);
     assert(slot_dev1 >= 32 && slot_dev1 < 64);
     assert(slot_dev2 >= 64 && slot_dev2 < 96);
     assert(slot_dev1 + 32 == slot_dev2);

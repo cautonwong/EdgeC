@@ -43,11 +43,32 @@ static int mock_shadow(void *ctx, uint32_t tag_id, uint32_t device_id, void *out
         case OAD_VOLTAGE:
             value = 220.5;
             break;
+        case TAG_VOLTAGE_B:
+            value = 220.1;
+            break;
+        case TAG_VOLTAGE_C:
+            value = 219.9;
+            break;
         case OAD_CURRENT:
             value = 4.95;
             break;
+        case TAG_CURRENT_B:
+            value = 5.0;
+            break;
+        case TAG_CURRENT_C:
+            value = 5.05;
+            break;
         case OAD_ACTIVE_POWER_TOTAL:
             value = 1234.5;
+            break;
+        case TAG_ACTIVE_POWER_A:
+            value = 400.0;
+            break;
+        case TAG_ACTIVE_POWER_B:
+            value = 410.0;
+            break;
+        case TAG_ACTIVE_POWER_C:
+            value = 420.0;
             break;
         case OAD_POWER_FACTOR_TOTAL:
             value = 0.95;
@@ -88,23 +109,22 @@ static void test_product_variable_axdr_types(void **state) {
     (void)state;
     init_product_model();
 
-    const float v = 220.5f;
-    uint32_t bits = 0;
-    memcpy(&bits, &v, sizeof(bits));
-    const uint8_t want_voltage[] = {DCU_698_TAG_FLOAT32, (uint8_t)(bits >> 24),
-                                    (uint8_t)(bits >> 16), (uint8_t)(bits >> 8), (uint8_t)bits};
+    const uint8_t want_voltage[] = {0x01, 0x03, 0x12, 0x08, 0x9D, 0x12, 0x08, 0x99, 0x12, 0x08,
+                                    0x97};
     assert_axdr(OAD_VOLTAGE, want_voltage, sizeof(want_voltage));
 
-    /* 0010/0020：属性 2 是 double-long-unsigned，属性 4 是 long64-unsigned。 */
-    const uint8_t want_energy2[] = {DCU_698_TAG_DOUBLE_LONG_UNSIGNED, 0x00, 0x00, 0x30, 0x39};
+    /* 0010/0020：属性 2/4 是数组；第一项是总电能量。 */
+    const uint8_t want_energy2[] = {0x01, 0x01, DCU_698_TAG_DOUBLE_LONG_UNSIGNED, 0x00, 0x12,
+                                    0xD6, 0x44};
     assert_axdr(MK_OAD(0x0010, 2), want_energy2, sizeof(want_energy2));
-    const uint8_t want_energy4[] = {
-        DCU_698_TAG_LONG64_UNSIGNED, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x30, 0x39};
+    const uint8_t want_energy4[] = {0x01, 0x01, DCU_698_TAG_LONG64_UNSIGNED, 0x00, 0x00, 0x00,
+                                    0x00, 0x07, 0x5B, 0xB2, 0x90};
     assert_axdr(MK_OAD(0x0010, 4), want_energy4, sizeof(want_energy4));
-    const uint8_t want_reactive2[] = {DCU_698_TAG_DOUBLE_LONG_UNSIGNED, 0x00, 0x00, 0x1A, 0x85};
+    const uint8_t want_reactive2[] = {0x01, 0x01, DCU_698_TAG_DOUBLE_LONG_UNSIGNED, 0x00, 0x0A,
+                                      0x5B, 0xF4};
     assert_axdr(MK_OAD(0x0020, 2), want_reactive2, sizeof(want_reactive2));
 
-    const uint8_t want_freq[] = {DCU_698_TAG_LONG_UNSIGNED, 0x00, 0x32};
+    const uint8_t want_freq[] = {DCU_698_TAG_LONG_UNSIGNED, 0x13, 0x89};
     assert_axdr(OAD_GRID_FREQUENCY, want_freq, sizeof(want_freq));
 
     /* 6000 attr 2 档案计数在对象层单独编码为 long-unsigned。 */
@@ -121,8 +141,8 @@ static void test_product_axdr_rejects_small_buffer_and_complex(void **state) {
     uint8_t buf[EDGE_SLAVE_AXDR_MAX];
     size_t len = 0;
 
-    /* 电压需要 5 字节；cap=4 必须失败，不截断 -> 类型/宽度不匹配。 */
-    assert_int_equal(dcu_north_resolve_axdr(NULL, OAD_VOLTAGE, buf, 4, &len),
+    /* 三相电压数组需要 11 字节；cap=10 必须失败，不截断。 */
+    assert_int_equal(dcu_north_resolve_axdr(NULL, OAD_VOLTAGE, buf, 10, &len),
                      EDGE_SLAVE_SRC_TYPE_MISMATCH);
 
     assert_int_equal(dcu_north_resolve_axdr(NULL, OAD_DAILY_FREEZE, buf, sizeof(buf), &len), 0);
