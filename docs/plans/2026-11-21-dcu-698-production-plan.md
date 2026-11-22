@@ -794,7 +794,8 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-14a | 已合并 | `dcu/D1-14a-be32` | `e2ce657d` | `docs/evidence/DCU-D1-14a/` | 合并提交 `e2ce657d`；`_read_be32` 统一 5 处大端读取；高字节 ≥0x80 用例；合并后 UBSAN 全量 332/332、0 runtime error |
 | D1-15 | 已合并 | `dcu/D1-15a-record-codec` + `dcu/D1-15b-record-driver` | `7658967a` | `docs/evidence/DCU-D1-15a/`、`DCU-D1-15b/` | D1-15a codec 层 GetRecord/RSD/RCSD；D1-15b ADR-0014 记录端口、Selector1、驱动 GET [3]、分页；产品记录取数留 D1-07 |
 | D1-15b | 已合并 | `dcu/D1-15b-record-driver` | `7658967a` | `docs/evidence/DCU-D1-15b/` | 合并提交 `7658967a`；端口三回调协议中立；行失败整条回 DAR；>255 回 DAR 2；不支持选择方法空 RCSD 限制已入 ADR |
-| D1-16 | 进行中 | `dcu/D1-16-report` | `7687612d` | `docs/evidence/DCU-D1-16/` | dcu-dev-1 执行中；ADR-0017 上报源端口，已实现，正在 rebase 到拆分后的 main；CHOICE[1] 列表已通，记录列表与 SnF 延后 |
+| D1-16 | 已合并 | `dcu/D1-16-report` | `479017fd` | `docs/evidence/DCU-D1-16/` | 合并提交 `479017fd`；ADR-0017 上报端口、CHOICE[1] 列表、确认匹配、5 秒超时解锁；生产队列在 A3/记录列表就绪前保持空；34/34、守卫、验收通过 |
+| D1-18e | 进行中 | `dcu/D1-18e-freeze` | `479017fd` | `docs/evidence/DCU-D1-18e/` | dcu-dev-1 执行中；5004 A2 数组或撤 mask，方法 3/4/5/7/8 实现或撤回 |
 | D1-18c | 已合并 | `dcu/D1-18c-acq-shapes` | `78fd6083` | `docs/evidence/DCU-D1-18c/` | 合并提交 `78fd6083`；6000/6002/6003 按标准形状撤 mask，6012 reset 真实，AddScheme 移到 127；DAR 5/4 规则统一；合并后目标测试重跑绿 |
 | D0-11 | 进行中 | `dcu/D0-11-test-tmp` | `78fd6083` | `docs/evidence/DCU-D0-11/` | 并行 worktree 共用 `/tmp` 测试库导致 SQLITE_IOERR/READONLY 偶发；改为每进程唯一路径并加并发对拍 |
 | D1-17 | 已合并 | `dcu/D1-17-appconn` | `5494f506` | `docs/evidence/DCU-D1-17/` | 合并提交 `5494f506`；ADR-0015 会话与 ACL；CONNECT/RELEASE 无 CHOICE 解析；未授权 DAR 3；预连接窗口按产品列表；32/32、ASAN、守卫、验收通过 |
