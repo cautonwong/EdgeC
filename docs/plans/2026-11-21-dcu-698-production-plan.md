@@ -788,7 +788,8 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-08 | 已合并 | `dcu/D1-08-normal-list` | `c291f3e7` | `docs/evidence/DCU-D1-08/` | 合并提交 `c291f3e7`；混合成败、空列表（表73 无下限）、重复 OAD、验收未知 OI 逐项 DAR；修正 codec 对 n==0 的旧拒绝 |
 | D1-09 | 未开始 | - | - | - | - |
 | D1-10 | 已合并 | `dcu/D1-10-catalog-consistency` | `5a4fda20` | `docs/evidence/DCU-D1-10/` | 合并提交 `5a4fda20`；生成 514 OI + 26 类夹具，表→目录严格对拍、mask 范围、OI 唯一；红色对照 F200 改类；合并后 29/29、目录门禁、守卫、验收全过 |
-| D1-11 | 进行中 | `dcu/D1-11-acceptance` | `1ca7130a` | `docs/evidence/DCU-D1-11/` | edgec-dev-0 执行中；GET/SET/ACTION/Record/Class20 五组独立验收，每例单独判据 |
+| D1-11 | 已合并 | `dcu/D1-11-acceptance` | `7f5ce300` | `docs/evidence/DCU-D1-11/` | 合并提交 `7f5ce300`；GET/SET/ACTION/Record/Class20 共 16 例独立验收；修复过期 ACL 对象列表（A11/A12/F200 A4），ACL 属性上限 8→12 |
+| D0-12 | 进行中 | `dcu/D0-12-accept-completeness` | `7f5ce300` | `docs/evidence/DCU-D0-12/` | edgec-dev-0 执行中；按 tasks 目录核对预期任务数，任务加载失败或非零退出必须失败 |
 | D1-12 | 已合并 | `dcu/D1-12-axdr-port-adr` | `076e0e04` | `docs/evidence/DCU-D1-12/` | ADR-0013 已合并，状态 Proposed；14 个初始化点全为 designated，无位置初始化；架构签字待补 |
 | D1-13 | 已合并 | `dcu/D1-13-axdr-port` | `68f4de69` | `docs/evidence/DCU-D1-13/` | 合并提交 `68f4de69`；合并后 28/28、守卫、验收 2+4 全过；流式逐项编码，单缓冲复用，无 8×2048；`/no-comments` 删 23 行、DAR 字面量改常量 |
 | D1-14 | 已合并 | `dcu/D1-14-set` | `b5b95f62` | `docs/evidence/DCU-D1-14/` | 合并提交 `b5b95f62`；SET-Request、`accept_axdr` 写入、SET-Response DAR；拒绝非标量回落假成功；LONG64 无 UB；DENIED 3 与 CLASS_MISMATCH 5 分开；合并后告警、28/28、ASAN、守卫、验收全过 |
