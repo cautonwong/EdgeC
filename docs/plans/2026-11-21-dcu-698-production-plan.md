@@ -797,8 +797,8 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-17 | 已合并 | `dcu/D1-17-appconn` | `5494f506` | `docs/evidence/DCU-D1-17/` | 合并提交 `5494f506`；ADR-0015 会话与 ACL；CONNECT/RELEASE 无 CHOICE 解析；未授权 DAR 3；预连接窗口按产品列表；32/32、ASAN、守卫、验收通过 |
 | D1-18 | 审计完成 | 只读 | `4f864e29` | `docs/design/DCU_698_OAD_STATUS.md` | 56 个已暴露位：0 real、37 partial、12 stub、3 unimplemented、4 masked-but-undefined；按 P0/P1 拆成 D1-18a 到 D1-18d |
 | D1-18a | 已合并 | `dcu/D1-18a-variable-shapes` | `8acf47fe` | `docs/evidence/DCU-D1-18a/` | 合并提交 `8acf47fe`；Class 1/3/4 attr2 标准数组、attr3 Scaler_Unit、整数类型、元素索引选槽位；修正错误 tag 常量；合并后 32/32、ASAN、守卫、验收通过 |
-| D1-18b | 进行中 | `dcu/D1-18b-event-class24` | `b6af6b3d` | `docs/evidence/DCU-D1-18b/` | edgec-dev-0 执行中；3000/3005 按 Class 24 重排，能实现则实现，不能实现则撤 mask 回 DAR 5 |
-| D1-19 | 未开始 | - | - | - | 拆 `dcu_698_object_model.c` 为变量/事件/采集/控制/安全五个类族文件，消除多 dev 并行冲突；行为不变 |
+| D1-18b | 已合并 | `dcu/D1-18b-event-class24` | `e5906b65` | `docs/evidence/DCU-D1-18b/` | 合并提交 `e5906b65`；3000/3005 attrs 收为 {4,11,12}，A11 enum、A12 bool 真实；未暴露的类定义属性回 DAR 5，越类回 DAR 4；reset 真实清记录 |
+| D1-19 | 进行中 | `dcu/D1-19-split` | `e5906b65` | `docs/evidence/DCU-D1-19/` | edgec-dev-0 执行中；对象模型按变量/事件/采集/控制/安全拆五个类族文件，纯重构，公开 API 不变 |
 | D6-08a | 已合并 | `dcu/D6-08a-tsan-lock` | `6509c68f` | `docs/evidence/DCU-D6-08a/` | 合并提交 `6509c68f`；SQLite 内部锁序对三个 storage 用例定向抑制，第一方 pthread 锁序 A/B 仍会报；TSAN 目标 32/32、0 行 |
 | D2 到 D5 | 阻塞 | - | - | - | 依赖 COM 组件，见 11.3 B6 |
 | D6-08 | 已完成 | `main` | `6509c68f` | `docs/evidence/DCU-D6-08/` | ASAN 334/334、UBSAN 334/334（0 runtime error）、TSAN 334/334（0 行）、fanalyzer 3 known 0 new |
@@ -846,6 +846,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | 2026-11-22 | D6-08a | 已合并 | `docs/evidence/DCU-D6-08a/` | 合并提交 `6509c68f`；SQLite 锁序定向抑制到 3 个用例；A/B 证明第一方锁序仍报；ASAN/UBSAN/fanalyzer 已清，全量 TSAN 在跑 |
 | 2026-11-22 | D6-08 | 完成 | `docs/evidence/DCU-D6-08/` | 全量 ASAN/UBSAN/TSAN 各 334/334，UBSAN 0 runtime error，TSAN 0 ThreadSanitizer 行；fanalyzer 0 new |
 | 2026-11-22 | D1-18a | 已合并 | `docs/evidence/DCU-D1-18a/` | 合并提交 `8acf47fe`；标准数组与 Scaler_Unit；元素索引选表槽位；修 tag 常量与南向相位键；验收改为解析 APDU 数组 |
+| 2026-11-22 | D1-18b | 已合并 | `docs/evidence/DCU-D1-18b/` | 合并提交 `e5906b65`；Class 24 位表、DAR 5/4 规则、A11/A12 真实、旧行清理；合并后 32/32、守卫、验收通过 |
 
 ### 12.4 并行工作树
 
