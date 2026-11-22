@@ -96,9 +96,80 @@ add_edge_test(test_dcu_node test_dcu_node.c)
 target_include_directories(test_dcu_node PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu" "${CMAKE_SOURCE_DIR}/modules/edge_bootstrap/include")
 target_link_libraries(test_dcu_node PRIVATE dcu_app_lib edge_bootstrap)
 
+add_edge_test(test_dcu_runtime_health test_dcu_runtime_health.c)
+
+if(ENABLE_TSAN)
+    # 只有同时打开 storage 与档案库的用例会触发 SQLite 内部 open/close 相反的
+    # 锁序；抑制文件只挂在这些用例上，其他用例保持无抑制。
+    foreach(tsan_sqlite_test test_dcu_node test_dcu_runtime_health)
+        set_tests_properties(${tsan_sqlite_test} PROPERTIES ENVIRONMENT
+            "TSAN_OPTIONS=halt_on_error=0:suppress_equal_stacks=1:die_after_fork=0:exitcode=0:suppressions=${CMAKE_SOURCE_DIR}/ci/tsan.supp")
+    endforeach()
+endif()
+target_include_directories(test_dcu_runtime_health PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_dcu_runtime_health PRIVATE dcu_app_lib)
+
+# 同一 build dir 并发跑两次：固定 /tmp 状态路径会互相踩，进程内唯一路径不会。
+add_test(NAME test_dcu_runtime_health_concurrent
+         COMMAND ${CMAKE_SOURCE_DIR}/ci/scripts/run_concurrent_binary.sh
+                 $<TARGET_FILE:test_dcu_runtime_health>)
+set_tests_properties(test_dcu_runtime_health_concurrent PROPERTIES TIMEOUT 180)
+if(ENABLE_ASAN)
+    set_tests_properties(test_dcu_runtime_health_concurrent PROPERTIES
+        ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:halt_on_error=1")
+endif()
+if(ENABLE_TSAN)
+    set_tests_properties(test_dcu_runtime_health_concurrent PROPERTIES
+        ENVIRONMENT "TSAN_OPTIONS=halt_on_error=0:suppress_equal_stacks=1:die_after_fork=0:exitcode=0:suppressions=${CMAKE_SOURCE_DIR}/ci/tsan.supp")
+endif()
+
+add_edge_test(test_dcu_698_object_model test_dcu_698_object_model.c)
+target_include_directories(test_dcu_698_object_model PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_dcu_698_object_model PRIVATE dcu_app_lib)
+
+add_edge_test(test_dcu_698_archive test_dcu_698_archive.c)
+target_include_directories(test_dcu_698_archive PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_dcu_698_archive PRIVATE dcu_app_lib)
+
+add_edge_test(test_dcu_698_catalog test_dcu_698_catalog.c)
+target_include_directories(test_dcu_698_catalog PRIVATE
+    "${CMAKE_SOURCE_DIR}/cmd/dcu"
+    "${CMAKE_SOURCE_DIR}/tests/fixtures")
+target_link_libraries(test_dcu_698_catalog PRIVATE dcu_app_lib)
+
+add_edge_test(test_dcu_698_var test_dcu_698_var.c)
+target_include_directories(test_dcu_698_var PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_dcu_698_var PRIVATE dcu_app_lib)
+
+add_edge_test(test_dcu_698_report test_dcu_698_report.c)
+target_include_directories(test_dcu_698_report PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_dcu_698_report PRIVATE dcu_app_lib)
+
+add_edge_test(test_dcu_698_axdr test_dcu_698_axdr.c)
+target_include_directories(test_dcu_698_axdr PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_dcu_698_axdr PRIVATE dcu_app_lib)
+
+add_edge_test(test_dcu_698_param test_dcu_698_param.c)
+target_include_directories(test_dcu_698_param PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_dcu_698_param PRIVATE dcu_app_lib)
+
+add_edge_test(test_dcu_698_record test_dcu_698_record.c)
+target_include_directories(test_dcu_698_record PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_dcu_698_record PRIVATE dcu_app_lib)
+
+add_edge_test(test_dcu_698_value_table test_dcu_698_value_table.c)
+target_include_directories(test_dcu_698_value_table PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_dcu_698_value_table PRIVATE dcu_app_lib)
+
+add_edge_test(test_dcu_698_tasks test_dcu_698_tasks.c)
+target_include_directories(test_dcu_698_tasks PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_dcu_698_tasks PRIVATE dcu_app_lib)
+
+add_edge_test(test_dcu_698_schemes test_dcu_698_schemes.c)
+target_include_directories(test_dcu_698_schemes PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_dcu_698_schemes PRIVATE dcu_app_lib)
+
 add_edge_test(test_dlt698_conformance_suite test_dlt698_conformance_suite.c)
-target_include_directories(test_dlt698_conformance_suite PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
-target_link_libraries(test_dlt698_conformance_suite PRIVATE dcu_app_lib edge_infra edge_security_policy)
 
 
 
@@ -206,6 +277,15 @@ add_edge_test(test_driver_dlt645 test_driver_dlt645.c)
 target_include_directories(test_driver_dlt645 PRIVATE ${CMAKE_SOURCE_DIR}/modules/edge_io/src)
 add_edge_test(test_driver_dlt698 test_driver_dlt698.c)
 target_include_directories(test_driver_dlt698 PRIVATE ${CMAKE_SOURCE_DIR}/modules/edge_io/src)
+target_include_directories(test_driver_dlt698 PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_driver_dlt698 PRIVATE dcu_app_lib)
+
+add_edge_test(test_dlt698_appconn test_dlt698_appconn.c)
+target_include_directories(test_dlt698_appconn PRIVATE ${CMAKE_SOURCE_DIR}/modules/edge_io/src)
+
+add_edge_test(test_dcu_698_appconn test_dcu_698_appconn.c)
+target_include_directories(test_dcu_698_appconn PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_dcu_698_appconn PRIVATE dcu_app_lib)
 add_edge_test(test_driver_iec104 test_driver_iec104.c)
 add_edge_test(test_driver_v3 test_driver_v3.c)
 add_edge_test(test_modbus_v3 test_modbus_v3.c)
@@ -1820,6 +1900,12 @@ foreach(t
         set_tests_properties(${t} PROPERTIES ENVIRONMENT "UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1")
     endif()
 endforeach()
+
+if(ENABLE_TSAN)
+    # 同上的 SQLite 内部锁序；只给 storage 多线程用例挂抑制文件。
+    set_tests_properties(test_dcu_mutex_marathon PROPERTIES ENVIRONMENT
+        "TSAN_OPTIONS=halt_on_error=0:suppress_equal_stacks=1:die_after_fork=0:exitcode=0:suppressions=${CMAKE_SOURCE_DIR}/ci/tsan.supp")
+endif()
 
 add_edge_test(test_iec_cp56time test_iec_cp56time.c)
 

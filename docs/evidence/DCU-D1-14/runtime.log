@@ -1,0 +1,32 @@
+[35m🚀 产品验收 (test-platform)[0m
+[33m  🧹 Nuclear Cleanup...[0m
+平台: /workspaces/test-platform
+解释器: /workspaces/test-platform/.venv/bin/python
+平台版本: faad172bdce0 (锁定 faad172bdce0)
+产品: dcu
+
+北向 broker 已就绪：tcp://127.0.0.1:46871（协议 MqttJson）
+[dcu] dcu_acceptance.yaml
+任务 dcu-acceptance(产品 dcu)·设备清单 /tmp/dcu-dev-worktree/acceptance/dcu/configs/devices.yaml · 筛选 tag:验收 · 模拟从站 []
+..                                                                       [100%]
+一轮归因(哪些设备不合格 / 哪些测试无效 / 断在哪一步): python tools/attribute_round.py /tmp/dcu-dev-worktree/reports/acceptance/dcu/dcu_acceptance
+2 passed in 1.10s
+任务 dcu-acceptance 结束,退出码 0
+[dcu] dcu_acceptance 退出码 0
+
+[dcu] dcu_northbound.yaml
+任务 dcu-northbound(产品 dcu)·设备清单 /tmp/dcu-dev-worktree/acceptance/dcu/configs/devices_north.yaml · 筛选 tag:北向 · 模拟从站 []
+....                                                                     [100%]
+一轮归因(哪些设备不合格 / 哪些测试无效 / 断在哪一步): python tools/attribute_round.py /tmp/dcu-dev-worktree/reports/acceptance/dcu/dcu_northbound
+4 passed in 0.12s
+任务 dcu-northbound 结束,退出码 0
+[dcu] dcu_northbound 退出码 0
+
+
+门禁:
+全部合格:2 个验收任务
+
+报告: /tmp/dcu-dev-worktree/reports/acceptance
+归因: /workspaces/test-platform/.venv/bin/python /workspaces/test-platform/tools/attribute_round.py /tmp/dcu-dev-worktree/reports/acceptance/<产品>
+[33m  🧹 Nuclear Cleanup...[0m
+[32m✨ 验收通过[0m

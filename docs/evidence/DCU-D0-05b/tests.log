@@ -1,0 +1,55 @@
+=== rebase ===
+base=f21e8c6a (D0-08 follow-up), clean rebase, no conflicts
+
+=== build ===
+[433/435] Linking C executable tests/test_iems_cli_write
+[434/435] Linking C executable tests/test_datahub_subscription_capacity
+[435/435] Linking C executable tests/test_iems_dlt645_uart_pty
+warnings=0
+
+=== check_build_warnings.py ===
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+exit=0
+
+=== ctest -R 'dcu|dlt698' ===
+100% tests passed, 0 tests failed out of 28
+
+=== ASAN ctest -R dlt698 ===
+100% tests passed, 0 tests failed out of 6
+
+=== test_dcu_698_axdr ===
+[ RUN      ] test_product_variable_axdr_types
+[       OK ] test_product_variable_axdr_types
+[ RUN      ] test_product_axdr_rejects_small_buffer_and_complex
+[       OK ] test_product_axdr_rejects_small_buffer_and_complex
+[ RUN      ] test_driver_scalar_fallback_still_works
+[       OK ] test_driver_scalar_fallback_still_works
+[ RUN      ] test_driver_carries_structure_axdr
+[       OK ] test_driver_carries_structure_axdr
+[ RUN      ] test_driver_rejects_axdr_buffer_shortage
+[       OK ] test_driver_rejects_axdr_buffer_shortage
+[ RUN      ] test_driver_normal_list_uses_axdr_per_item
+[       OK ] test_driver_normal_list_uses_axdr_per_item
+[ RUN      ] test_driver_normal_list_reuses_one_buffer
+[       OK ] test_driver_normal_list_reuses_one_buffer
+[ RUN      ] test_get_normal_dar_mapping
+[       OK ] test_get_normal_dar_mapping
+[ RUN      ] test_get_normal_encode_type_mismatch_returns_dar
+[       OK ] test_get_normal_encode_type_mismatch_returns_dar
+[ RUN      ] test_normal_list_dar_mapping
+[       OK ] test_normal_list_dar_mapping
+[  PASSED  ] 10 test(s).
+
+=== test_dlt698_conformance_suite ===
+[  PASSED  ] 21 test(s).
+[  SKIPPED ] tests: 1 test(s), listed below:
+[  SKIPPED ] test_get_record_and_rsd_not_implemented
+ 1 SKIPPED TEST(S)
+
+=== run_guard_selftest.py --root . ===
+📊 Injection coverage: 6 caught / 2 known gap(s) of 8 probes
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+exit=0
+
+=== git diff --check ===
+exit=0

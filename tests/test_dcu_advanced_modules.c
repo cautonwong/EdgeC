@@ -1,8 +1,10 @@
 #include <cmocka.h>
 #include <setjmp.h>
+#include <sqlite3.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -10,6 +12,8 @@
 #include <uv.h>
 
 #include "datahub.h"
+#include "datahub_priv.h"
+#include "dcu_698_axdr.h"
 #include "dcu_discovery.h"
 #include "dcu_event_monitor.h"
 #include "dcu_inventory.h"
@@ -17,9 +21,73 @@
 #include "dcu_router.h"
 #include "dcu_security.h"
 #include "dcu_storage.h"
-#include "stream_engine.h"
 #include "stream_bus_datahub_adapter.h"
-#include "datahub_priv.h"
+#include "stream_engine.h"
+
+#define MK_OAD(oi, attr) (((uint32_t)(oi) << 16) | ((uint32_t)(attr) << 8))
+
+/* date_time_s 是设备本地民用时间：固定东八区，线上下发与回读才有确定语义。 */
+static char g_saved_tz[128];
+static int g_had_tz;
+
+static int setup_timezone(void** state) {
+    (void)state;
+    const char* tz = getenv("TZ");
+    g_had_tz = tz != NULL;
+    if (g_had_tz) snprintf(g_saved_tz, sizeof(g_saved_tz), "%s", tz);
+    setenv("TZ", "CST-8", 1);
+    tzset();
+    return 0;
+}
+
+static int teardown_timezone(void** state) {
+    (void)state;
+    if (g_had_tz) {
+        setenv("TZ", g_saved_tz, 1);
+    } else {
+        unsetenv("TZ");
+    }
+    tzset();
+    return 0;
+}
+
+/* 测试只读 event_history 的实际落库值，验证存储单位；产品侧没有事件读取路径。 */
+static void _event_row_times(dcu_storage_t* storage, uint16_t oi, uint64_t* start, uint64_t* end) {
+    *start = 0;
+    *end = 0;
+    sqlite3_stmt* stmt = NULL;
+    if (sqlite3_prepare_v2(storage->db,
+                           "SELECT start_time, end_time FROM event_history WHERE oi = ?;", -1,
+                           &stmt, NULL) != SQLITE_OK) {
+        return;
+    }
+    sqlite3_bind_int(stmt, 1, oi);
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        *start = (uint64_t)sqlite3_column_int64(stmt, 0);
+        *end = (uint64_t)sqlite3_column_int64(stmt, 1);
+    }
+    sqlite3_finalize(stmt);
+}
+
+static void _event_row_times_for(dcu_storage_t* storage, const char* addr, uint16_t oi,
+                                 uint64_t* start, uint64_t* end) {
+    *start = 0;
+    *end = 0;
+    sqlite3_stmt* stmt = NULL;
+    if (sqlite3_prepare_v2(storage->db,
+                           "SELECT start_time, end_time FROM event_history WHERE meter_address = ? "
+                           "AND oi = ? ORDER BY rowid DESC LIMIT 1;",
+                           -1, &stmt, NULL) != SQLITE_OK) {
+        return;
+    }
+    sqlite3_bind_text(stmt, 1, addr, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt, 2, oi);
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        *start = (uint64_t)sqlite3_column_int64(stmt, 0);
+        *end = (uint64_t)sqlite3_column_int64(stmt, 1);
+    }
+    sqlite3_finalize(stmt);
+}
 
 static int _mock_count_freezes(void* ctx, uint16_t* out_count) {
     return dcu_storage_count_freezes((dcu_storage_t*)ctx, out_count);
@@ -92,8 +160,8 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     evt_3000.delay_s = 5;
     evt_3000.report_flag = 1;
     evt_3000.is_enabled = true;
-    evt_3000.last_start_time = 0;
-    evt_3000.last_end_time = 0;
+    evt_3000.last_start_time = (dcu_event_stamp_t){0};
+    evt_3000.last_end_time = (dcu_event_stamp_t){0};
 
     dcu_event_obj_t evt_3005;
     evt_3005.oi = OI_OVER_CURRENT;
@@ -105,8 +173,8 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     evt_3005.delay_s = 3;
     evt_3005.report_flag = 1;
     evt_3005.is_enabled = true;
-    evt_3005.last_start_time = 0;
-    evt_3005.last_end_time = 0;
+    evt_3005.last_start_time = (dcu_event_stamp_t){0};
+    evt_3005.last_end_time = (dcu_event_stamp_t){0};
 
     router_sink_ops_t router_sink = {.ctx = &storage,
                                      .record_telemetry = (void*)dcu_storage_write_telemetry,
@@ -128,13 +196,9 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     uint8_t master_challenge[8] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
     uint8_t esam_response[8] = {0};
 
-    // 验证方法 1 路由调用 (OMD: OI_ESAM_SECURITY 方法 1)
-    ret = dcu_router_action(((uint32_t)OI_ESAM_SECURITY << 16) | 0x0100, master_challenge,
-                            esam_response);
-    assert_int_equal(ret, 0);
-    assert_true(esam.is_authenticated);  // 身份应鉴权成功
-
-    // 比对响应密文
+    /* 鉴权是安全模块的单元能力；OI F100 方法 1 是标准复位，不是鉴权。 */
+    assert_int_equal(dcu_security_authenticate(&esam, master_challenge, esam_response), 0);
+    assert_true(esam.is_authenticated);
     for (int i = 0; i < 8; i++) {
         assert_int_equal(esam_response[i], (uint8_t)(master_challenge[i] ^ 0xA5 ^ (uint8_t)i));
     }
@@ -151,68 +215,45 @@ static void test_dcu_advanced_features_dispatch(void** state) {
 
     uint8_t invalid_mac[4] = {0, 0, 0, 0};
     mac_valid = dcu_security_verify_mac(&esam, test_payload, 4, invalid_mac);
-    assert_false(mac_valid);  // 篡改后的 MAC 应拒绝通过
+    assert_false(mac_valid);
 
-    // ==============================================================================
-    // 3. 验证外设 RS485 参数动态微调 (OI_CHANNEL_CONFIG OAD 读写)
-    // ==============================================================================
+    ret = dcu_router_action(((uint32_t)OI_ESAM_SECURITY << 16) | 0x0100, NULL, NULL);
+    assert_int_equal(ret, 0);
+    assert_false(esam.is_authenticated);
+    for (int i = 0; i < 16; i++) assert_int_equal(esam.session_key[i], 0);
+
+    // 3. F200 的 A2/A3/A4 类已定义但未广告（DAR 5）；没有真实串口重配路径，全部不对外
     uint32_t baudrate = 0;
-    ret = dcu_router_get_attr(((uint32_t)OI_CHANNEL_CONFIG << 16) | 0x0200,
-                              &baudrate);  // 获取默认波特率 (9600)
-    assert_int_equal(ret, 0);
-    assert_int_equal(baudrate, 9600);
-
+    ret = dcu_router_get_attr(((uint32_t)OI_CHANNEL_CONFIG << 16) | 0x0200, &baudrate);
+    assert_int_equal(ret, -1);
     uint32_t new_baud = 2400;
-    ret = dcu_router_set_attr(((uint32_t)OI_CHANNEL_CONFIG << 16) | 0x0200,
-                              &new_baud);  // SET 波特率修改为 2400
-    assert_int_equal(ret, 0);
+    ret = dcu_router_set_attr(((uint32_t)OI_CHANNEL_CONFIG << 16) | 0x0200, &new_baud);
+    assert_int_equal(ret, -1);
 
-    baudrate = 0;
-    ret = dcu_router_get_attr(((uint32_t)OI_CHANNEL_CONFIG << 16) | 0x0200,
-                              &baudrate);  // 重新 GET 校验修改结果
-    assert_int_equal(ret, 0);
-    assert_int_equal(baudrate, 2400);
-
-    // ==============================================================================
-    // 4. 验证下行自动搜表机制 (6002 OMD 启动, 6003 OAD 召测结果)
-    // ==============================================================================
+    // 4. 没有下行搜表驱动：方法 127 回 DAR 2，状态保持空闲（表 A.7 A10）
     uint8_t disc_status = 99;
-    ret = dcu_router_get_attr(((uint32_t)OI_METER_DISCOVERY << 16) | 0x0200,
-                              &disc_status);  // GET 搜表状态，应为 IDLE (0)
-    assert_int_equal(ret, 0);
-    assert_int_equal(disc_status, DISCOVERY_STATUS_IDLE);
-
+    ret = dcu_router_get_attr(((uint32_t)OI_METER_DISCOVERY << 16) | 0x0200, &disc_status);
+    assert_int_equal(ret, -2);
     uint32_t duration = 10;
     int action_res = -1;
-    ret = dcu_router_action(((uint32_t)OI_METER_DISCOVERY << 16) | 0x7F00, &duration,
-                            &action_res);  // OMD 方法 127 实时启动扫表
-    assert_int_equal(ret, 0);
-    assert_int_equal(action_res, 0);
-
-    ret = dcu_router_get_attr(((uint32_t)OI_METER_DISCOVERY << 16) | 0x0200,
-                              &disc_status);  // 应切换为 SCANNING (1)
-    assert_int_equal(ret, 0);
-    assert_int_equal(disc_status, DISCOVERY_STATUS_SCANNING);
-
-    // 模拟后台物理广播探测帧捕获
-    dcu_discovery_tick_simulate(&discovery);
-
-    ret = dcu_router_get_attr(((uint32_t)OI_METER_DISCOVERY << 16) | 0x0200,
-                              &disc_status);  // 扫表完成后应变为 COMPLETED (2)
-    assert_int_equal(ret, 0);
-    assert_int_equal(disc_status, DISCOVERY_STATUS_COMPLETED);
+    ret = dcu_router_action(((uint32_t)OI_METER_DISCOVERY << 16) | 0x7F00, &duration, &action_res);
+    assert_int_equal(ret, EDGE_SLAVE_SRC_TEMPORARY);
+    assert_int_equal(discovery.status, DISCOVERY_STATUS_IDLE);
 
     uint16_t found_count = 0;
     ret = dcu_router_get_attr(((uint32_t)OI_METER_DISCOVERY << 16) | 0x0300,
-                              &found_count);  // 发现野生电表数应为 1
+                              &found_count);  // Class 11 A3 当前元素个数
     assert_int_equal(ret, 0);
-    assert_int_equal(found_count, 1);
+    assert_int_equal(found_count, 0);
+    ret = dcu_router_get_attr(((uint32_t)OI_METER_DISCOVERY << 16) | 0x0600,
+                              &found_count);  // 表 A.7 A6 所有搜表结果记录数
+    assert_int_equal(ret, 0);
+    assert_int_equal(found_count, 0);
 
     char discovered_addr[32] = {0};
-    ret = dcu_router_get_attr(((uint32_t)OI_DISCOVERY_RESULT << 16) | 0x0200,
-                              discovered_addr);  // 从 6003 结果中召测捕获的地址
-    assert_int_equal(ret, 0);
-    assert_string_equal(discovered_addr, "10000003");  // 地址匹配
+    ret = dcu_router_get_attr(((uint32_t)0x6003 << 16) | 0x0200,
+                              discovered_addr);  // 6003 是结构，不是独立对象
+    assert_int_equal(ret, -1);
 
     // ==============================================================================
     // 5. 验证流式失压与过流事件监控管线 (Class 7 Event Monitor & Logger Pipeline)
@@ -269,14 +310,37 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     // 断言第 5 秒及以后应在失压对象中生成首条失压事件记录！
     assert_int_equal(evt_3000.record_count, 1);
 
-    dcu_event_record_t first_evt_rec;
-    ret = dcu_router_get_attr(((uint32_t)OI_VOLTAGE_DROP << 16) | 0x0200,
-                              &first_evt_rec);  // 通过 OAD 召测首条事件记录
-    assert_int_equal(ret, 0);
+    /* 复杂属性不走标量入口。 */
+    dcu_event_record_t first_evt_rec = evt_3000.records[0];
+    ret = dcu_router_get_attr(((uint32_t)OI_VOLTAGE_DROP << 16) | 0x0200, &first_evt_rec);
+    assert_int_equal(ret, -2);
+
+    first_evt_rec = evt_3000.records[0];
     assert_int_equal(first_evt_rec.index, 1);
     assert_float_equal(first_evt_rec.snapshot_value, 150.0f, 0.01f);  // 快照电压 150V
     assert_true(first_evt_rec.is_active);                             // 事件处于发生状态
-    assert_int_equal(first_evt_rec.start_time, base_ts + 5ULL * 1000000000ULL);  // 触发点正确
+    assert_int_equal(first_evt_rec.start_time.mono_ns, base_ts + 5ULL * 1000000000ULL);
+
+    /* 墙钟来自 CLOCK_REALTIME，不是 ev->ts（单调纳秒）；容差 5s 覆盖调度抖动。 */
+    uint64_t wall_now = (uint64_t)time(NULL);
+    assert_true(first_evt_rec.start_time.epoch_s >= wall_now - 5 &&
+                first_evt_rec.start_time.epoch_s <= wall_now + 5);
+
+    uint8_t a6[256];
+    size_t a6_len = 0;
+    assert_int_equal(
+        dcu_north_resolve_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 6), a6, sizeof(a6), &a6_len), 0);
+    enum { A6_ARRAY_HDR = 2, A6_STRUCT_HDR = 2, A6_INDEX_BYTES = 5 };
+    uint64_t wire_epoch = 0;
+    assert_int_equal(dcu_698_date_time_s_to_epoch(
+                         a6 + A6_ARRAY_HDR + A6_STRUCT_HDR + A6_INDEX_BYTES, 8, &wire_epoch),
+                     0);
+    assert_true(wire_epoch >= wall_now - 5 && wire_epoch <= wall_now + 5);
+
+    uint64_t row_start = 0, row_end = 0;
+    _event_row_times(&storage, OI_VOLTAGE_DROP, &row_start, &row_end);
+    assert_true(row_start >= wall_now - 5 && row_start <= wall_now + 5);
+    assert_int_equal(row_end, 0);
 
     // 💡 C. 注入电压恢复 220.5V 标量，失压事件应消除
     scalar_msg.ts = base_ts + 10ULL * 1000000000ULL;
@@ -284,10 +348,34 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     stream_engine_push(stream_engine, &scalar_msg);
 
     // 消除时记录序号不变，但 is_active 状态应改变，且时标填充
-    ret = dcu_router_get_attr(((uint32_t)OI_VOLTAGE_DROP << 16) | 0x0200, &first_evt_rec);
-    assert_int_equal(ret, 0);
+    first_evt_rec = evt_3000.records[0];
     assert_false(first_evt_rec.is_active);  // 状态成功变更为恢复 (false)
-    assert_int_equal(first_evt_rec.end_time, base_ts + 10ULL * 1000000000ULL);  // 消除时标正确
+    assert_int_equal(first_evt_rec.end_time.mono_ns, base_ts + 10ULL * 1000000000ULL);
+    wall_now = (uint64_t)time(NULL);
+    assert_true(first_evt_rec.end_time.epoch_s >= wall_now - 5 &&
+                first_evt_rec.end_time.epoch_s <= wall_now + 5);
+
+    assert_int_equal(first_evt_rec.start_time.epoch_s, row_start);
+    _event_row_times(&storage, OI_VOLTAGE_DROP, &row_start, &row_end);
+    assert_int_equal(row_start, first_evt_rec.start_time.epoch_s);
+    assert_int_equal(row_end, first_evt_rec.end_time.epoch_s);
+
+    /* 旧行单位是单调纳秒：没有产品读取路径，未来读取必须按单位/版本识别，
+     * 公历区间判定只做最后拒绝，旧行不得被渲染成日期。 */
+    assert_int_equal(dcu_storage_write_event(&storage, "LegacyMeter", OI_VOLTAGE_DROP,
+                                             1716500000000000000ULL, 0, 1.0f),
+                     0);
+    uint64_t legacy_start = 0, legacy_end = 0;
+    _event_row_times_for(&storage, "LegacyMeter", OI_VOLTAGE_DROP, &legacy_start, &legacy_end);
+    assert_int_equal(legacy_start, 1716500000000000000ULL);
+    assert_false(dcu_698_epoch_is_civil(legacy_start));
+
+    dcu_event_stamp_t saved_start = evt_3000.records[0].start_time;
+    evt_3000.records[0].start_time = (dcu_event_stamp_t){.mono_ns = 1, .epoch_s = legacy_start};
+    assert_int_equal(
+        dcu_north_resolve_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 6), a6, sizeof(a6), &a6_len),
+        EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    evt_3000.records[0].start_time = saved_start;
 
     // ==============================================================================
     // 6. 验证日冻结管线与 SQLite RSD 持久化 (Class 9 Freezing & Query)
@@ -314,11 +402,10 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     trigger_msg.ts = base_ts;
     stream_engine_push(stream_engine, &trigger_msg);
 
-    // 校验冻结数据总数应为 3 (电能量、电压、电流快照)
+    // 5004 A2 是冻结数据数组，不再用条数冒充冻结表。
     uint16_t freeze_count = 0;
     ret = dcu_router_get_attr(OAD_DAILY_FREEZE, &freeze_count);
-    assert_int_equal(ret, 0);
-    assert_int_equal(freeze_count, 3);
+    assert_int_not_equal(ret, 0);
 
     // 模拟北向发起 RSD 选择性历史召测 (GET.Record 时间区间内检索)
     dcu_freeze_record_t query_results[5];
@@ -355,5 +442,5 @@ int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_dcu_advanced_features_dispatch),
     };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    return cmocka_run_group_tests(tests, setup_timezone, teardown_timezone);
 }

@@ -1,0 +1,6 @@
+# SQLite 在 open 路径按 G→C、close 路径按 C→G 获取内部互斥量；两帧都是
+# SQLite 的 pthreadMutexEnter 包装。uv 锁与第一方 pthread_mutex_lock 都不经过
+# 该函数，所以这个抑制只覆盖 SQLite 内部锁序；本文件也只挂在同时打开 storage
+# 与档案库的三个用例上（tests/CMakeLists.txt），不是全局 TSAN_OPTIONS。
+# 第一方 pthread 锁序仍会被报告（A/B 见 docs/evidence/DCU-D6-08a）。
+deadlock:pthreadMutexEnter

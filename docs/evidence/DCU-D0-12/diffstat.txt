@@ -1,0 +1,19 @@
+ acceptance/run.sh                                  | 17 ++++-
+ ci/scripts/check_acceptance_tasks.py               | 85 ++++++++++++++++++++++
+ ci/scripts/run_guard_selftest.py                   | 14 ++++
+ docs/evidence/DCU-D0-12/comments.md                | 15 ++++
+ docs/evidence/DCU-D0-12/diffstat.txt               |  0
+ docs/evidence/DCU-D0-12/negative.log               | 46 ++++++++++++
+ docs/evidence/DCU-D0-12/runtime.log                | 34 +++++++++
+ docs/evidence/DCU-D0-12/summary.md                 | 46 ++++++++++++
+ docs/evidence/DCU-D0-12/tests.log                  | 11 +++
+ .../bad_missing/dcu/tasks/dcu_acceptance.yaml      |  1 +
+ .../bad_missing/dcu/tasks/dcu_northbound.yaml      |  1 +
+ .../acceptance_tasks/bad_missing/status.txt        |  1 +
+ .../bad_nonzero/dcu/tasks/dcu_acceptance.yaml      |  1 +
+ .../bad_nonzero/dcu/tasks/dcu_northbound.yaml      |  1 +
+ .../acceptance_tasks/bad_nonzero/status.txt        |  2 +
+ .../good/dcu/tasks/dcu_acceptance.yaml             |  1 +
+ .../good/dcu/tasks/dcu_northbound.yaml             |  1 +
+ .../fixtures/acceptance_tasks/good/status.txt      |  2 +
+ 18 files changed, 278 insertions(+), 1 deletion(-)

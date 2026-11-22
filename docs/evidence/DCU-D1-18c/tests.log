@@ -1,0 +1,14 @@
+== full ctest ==
+100% tests passed, 0 tests failed out of 335
+
+== asan ==
+100% tests passed, 0 tests failed out of 8
+
+== warning gate ==
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+
+== guards ==
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+== post-audit rerun ==
+[==========] tests: 3 test(s) run.
+[  PASSED  ] 3 test(s).

@@ -32,11 +32,17 @@
 extern "C" {
 #endif
 
+/** 单条属性的 A-XDR 上限（ADR-0013）；超过的记录型属性走 GetRecord 分页。 */
+#define EDGE_SLAVE_AXDR_MAX 2048
+
+/** Class 20 对象列表的对象数上限：产品对象表与驱动 ACL 存储共用一处，避免两处漂移。 */
+#define EDGE_SLAVE_ACL_MAX_OBJECTS 40u
+
 /** 从站应答需要的一个点位取值 */
 typedef struct {
-    double value;    /**< 工程值（已标定） */
-    int32_t raw;     /**< 未标定原始值；驱动编码字节用这个 */
-    uint8_t width;   /**< 数据宽度：645 是字节数(2/4)，Modbus 是寄存器个数 */
+    double value;  /**< 工程值（已标定） */
+    int32_t raw;   /**< 未标定原始值；驱动编码字节用这个 */
+    uint8_t width; /**< 数据宽度：645 是字节数(2/4)，Modbus 是寄存器个数 */
     /**
      * @brief A-XDR 类型标签（698 用）。0 = 让驱动按 width 推断。
      *
@@ -48,6 +54,37 @@ typedef struct {
     uint8_t quality; /**< 质量码：645 不用；IEC104 需要 */
     uint64_t ts_ms;  /**< 取值时标 */
 } edge_point_value_t;
+
+/**
+ * @brief 从站取数/收数回调的失败原因。
+ *
+ * 698 驱动据此回 DAR（DL/T 698.45 6.3.3.11）；其它驱动只把非 0 当失败。
+ * 旧实现返回 -1 时按 NOT_FOUND 处理，保持兼容。
+ */
+typedef enum {
+    EDGE_SLAVE_SRC_OK = 0,
+    EDGE_SLAVE_SRC_NOT_FOUND = -20,      /**< 对象不在对象表 → DAR 6 */
+    EDGE_SLAVE_SRC_CLASS_MISMATCH = -21, /**< OAD 类与对象不匹配 → DAR 5 */
+    EDGE_SLAVE_SRC_TYPE_MISMATCH = -22,  /**< A-XDR 类型/宽度不匹配 → DAR 7 */
+    EDGE_SLAVE_SRC_UNDEFINED = -23,      /**< OI 在标准/目录中未定义 → DAR 4 */
+    EDGE_SLAVE_SRC_TEMPORARY = -24,      /**< 暂时失效 → DAR 2 */
+    EDGE_SLAVE_SRC_DENIED = -25          /**< 读写被拒绝（只读/闭锁）→ DAR 3 */
+} edge_slave_src_rc_t;
+
+/**
+ * @brief 从站主动上报端口（REPORT-Notification，ADR-0017）。
+ *
+ * `next` 写一帧上报的 **APDU 体**（服务标识之后）：CHOICE | PIID | 个数 | 结果项。
+ * 返回 0 且 `*len == 0` 表示当前没有待上报内容。产品用 codec 组体，驱动补服务
+ * 标识、时间标签并封帧，因此端口里不出现 698 类型。
+ *
+ * `ctx` 是这个端口自己的上下文，**不复用** `slave_src_ctx`：后者是所有取数回调
+ * 共享的点位模型，上报队列是另一个拥有者。
+ */
+typedef struct {
+    int (*next)(void *ctx, uint8_t *body, size_t cap, size_t *len);
+    void *ctx;
+} edge_slave_report_ops_t;
 
 /**
  * @brief 从站取数/收数端口。由 cmd 实现，组合根注入。
@@ -99,7 +136,7 @@ typedef struct {
      * 限电时间, 自动合闸}`（标准表 A.9）。把结构压成一个 double 只能靠猜。
      *
      * 驱动只负责"解出是哪一次操作 + 把参数字节原样交给产品"，语义归产品。
-     * 未实现时返回非 0 —— 驱动据此回 DAR=2（暂时失效），**不许回 0**。
+     * 失败时返回 `EDGE_SLAVE_SRC_*`，驱动据此映射 DAR（7/3/6/2）；**不许回 0**。
      */
     int (*accept_action)(void *ctx, uint32_t omd, const uint8_t *axdr, size_t axdr_len);
 
@@ -113,6 +150,50 @@ typedef struct {
      * @return 0 = 已发出关闭；-1 = 没有活动连接（驱动忽略返回值）
      */
     int (*close_link)(void *ctx);
+
+    /**
+     * @brief 取一个 OAD 的完整 A-XDR 值（含类型标签）。
+     *
+     * 缓冲由调用方提供；产品只写 `cap` 以内，超限返回非 0，驱动不得截断。
+     * 未实现时为 NULL，驱动回落标量 `resolve`；已实现但返回非 0 是真实失败，
+     * 不得回落（ADR-0013）。
+     */
+    int (*resolve_axdr)(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, size_t *len);
+
+    /**
+     * @brief 收一个 OAD 的原始 A-XDR 值（含类型标签）。
+     *
+     * 未实现时为 NULL，SET 回落标量 `accept`。
+     */
+    int (*accept_axdr)(void *ctx, uint32_t oad, const uint8_t *axdr, size_t len);
+
+    /**
+     * @brief 取对象列表类属性的原始字节（ADR-0015）。
+     *
+     * 698 用它取 Class 20 的对象列表做会话 ACL。与 `resolve_axdr` 分开，
+     * 是为了不改变普通取值路径"有 A-XDR 就走 A-XDR、否则回落标量"的判定。
+     * 未实现时为 NULL，驱动据此判定 ACL 不可用并拒绝数据请求。
+     */
+    int (*object_list)(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, size_t *len);
+
+    /**
+     * @brief 记录型对象属性的分页取数端口（ADR-0014）。
+     *
+     * 三个回调全为 NULL 表示产品不支持记录读取，驱动据此回 DAR 2。
+     * `selection` 是协议原样的选择条件字节（698 为 RSD+RCSD），端口不认识
+     * 具体类型；产品用 codec 自行解码。`row` 写一行的 N 列 Data，含类型标签，
+     * 缓冲由调用方给；返回非 0 或写不下都算失败。续页按绝对行号重查。
+     */
+    struct {
+        int (*begin)(void *ctx, uint32_t oad, const uint8_t *selection, size_t selection_len,
+                     size_t *row_count);
+        int (*row)(void *ctx, uint32_t oad, size_t index, uint8_t *row, size_t cap,
+                   size_t *row_len);
+        int (*end)(void *ctx, uint32_t oad);
+    } record;
+
+    /** @brief 主动上报取数（ADR-0017）；`next` 为 NULL 表示不支持上报。 */
+    edge_slave_report_ops_t report;
 } edge_slave_source_ops_t;
 
 #ifdef __cplusplus

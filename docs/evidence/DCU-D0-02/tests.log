@@ -1,0 +1,126 @@
+=== commit ===
+7ede2b98 fix(DCU-D0-02): gate demo heartbeat behavior behind DCU_DEMO_MODE
+
+=== build (cmake --build build -j8) ===
+No default extensibility provided. For one or more of the aggregated types in the IDL the extensibility is not explicitly set. Currently the default extensibility for these types is 'final', but this may change to 'appendable' in a future release because that is the default in the DDS XTypes specification.
+[1084/1085] Building C object tests/CMakeFiles/test_idl_generated_serialization.dir/test_idl_generated_serialization.c.o
+[1085/1085] Linking C executable tests/test_idl_generated_serialization
+
+=== ctest -R dcu ===
+Test project /tmp/dcu-dev-worktree/build
+      Start  13: test_dcu_inventory
+ 1/19 Test  #13: test_dcu_inventory ...............   Passed    0.02 sec
+      Start  14: test_dcu_polling_loop
+ 2/19 Test  #14: test_dcu_polling_loop ............   Passed    0.00 sec
+      Start  15: test_dcu_storage
+ 3/19 Test  #15: test_dcu_storage .................   Passed    0.00 sec
+      Start  16: test_dcu_integration
+ 4/19 Test  #16: test_dcu_integration .............   Passed   10.02 sec
+      Start  17: test_dcu_router
+ 5/19 Test  #17: test_dcu_router ..................   Passed    0.01 sec
+      Start  18: test_dcu_north_source
+ 6/19 Test  #18: test_dcu_north_source ............   Passed    0.00 sec
+      Start  19: test_dcu_advanced_modules
+ 7/19 Test  #19: test_dcu_advanced_modules ........   Passed    0.01 sec
+      Start  20: test_dcu_business_engines
+ 8/19 Test  #20: test_dcu_business_engines ........   Passed    0.01 sec
+      Start  21: test_dcu_phase1_delivery
+ 9/19 Test  #21: test_dcu_phase1_delivery .........   Passed    0.00 sec
+      Start  22: test_dcu_node
+10/19 Test  #22: test_dcu_node ....................   Passed    0.09 sec
+      Start  23: test_dcu_runtime_health
+11/19 Test  #23: test_dcu_runtime_health ..........   Passed    1.04 sec
+      Start 115: test_dcu_poller
+12/19 Test #115: test_dcu_poller ..................   Passed    0.00 sec
+      Start 119: test_dcu_scale_benchmark
+13/19 Test #119: test_dcu_scale_benchmark .........   Passed    3.76 sec
+      Start 152: test_dcu
+14/19 Test #152: test_dcu .........................   Passed    0.00 sec
+      Start 203: test_driver_registry_dcu
+15/19 Test #203: test_driver_registry_dcu .........   Passed    0.00 sec
+      Start 223: test_dcu_power_quality
+16/19 Test #223: test_dcu_power_quality ...........   Passed    0.00 sec
+      Start 231: test_web_dcu_power_quality
+17/19 Test #231: test_web_dcu_power_quality .......   Passed    0.00 sec
+      Start 304: test_dcu_mutex_marathon
+18/19 Test #304: test_dcu_mutex_marathon ..........   Passed    0.80 sec
+      Start 305: test_dcu_topology_phase_id
+19/19 Test #305: test_dcu_topology_phase_id .......   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 19
+
+Total Test time (real) =  15.79 sec
+
+=== test_dcu_runtime_health (verbose) ===
+[==========] tests: Running 2 test(s).
+[ RUN      ] test_production_cycle_has_no_demo_behavior
+[2026-11-21 15:48:07][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-21 15:48:07][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 2052 KB)
+ [Metrics] Registered: Tag=12001, Name=datahub.ring.watermark
+ [Metrics] Registered: Tag=12002, Name=datahub.ring.drop_count
+ [Metrics] Registered: Tag=12003, Name=datahub.ring.read_latency
+ [Metrics] Registered: Tag=12004, Name=datahub.shadow.write_count
+[2026-11-21 15:48:07][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 1)
+[2026-11-21 15:48:07][INFO][SCHED] 💓 [HEARTBEAT] Cycle 1 completed (saved=0)
+[2026-11-21 15:48:07][INFO][SCHED] 💓 [HEARTBEAT] Cycle 2 completed (saved=0)
+[2026-11-21 15:48:07][INFO][SCHED] 💓 [HEARTBEAT] Cycle 3 completed (saved=0)
+[       OK ] test_production_cycle_has_no_demo_behavior
+[ RUN      ] test_demo_mode_restores_bench_behavior
+[2026-11-21 15:48:08][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-21 15:48:08][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 2052 KB)
+[2026-11-21 15:48:08][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 201)
+[2026-11-21 15:48:08][INFO][BUS] 🏁 [TEST] Triggering Remote Control ACTION (8000) for Meter 10000001...
+[2026-11-21 15:48:08][WARN][CORE] OI 8000: 聚合根拒绝/下发失败 dev=000000000001 action=1 rc=-4
+[2026-11-21 15:48:08][INFO][SCHED] 💓 [HEARTBEAT] Cycle 1 completed (saved=1)
+💓 [HEARTBEAT] Marathon Cycle 1 Completed. Database Flushed.
+🎛️ [RELAY] Dev 200: Triggering Action 1 (OI 8000 Attr 1)
+[2026-11-21 15:48:08][WARN][CORE] OI 8000: 聚合根拒绝/下发失败 dev=000000000201 action=1 rc=-4
+[2026-11-21 15:48:08][INFO][SCHED] 💓 [HEARTBEAT] Cycle 2 completed (saved=0)
+[2026-11-21 15:48:08][INFO][SCHED] 💓 [HEARTBEAT] Cycle 3 completed (saved=0)
+[2026-11-21 15:48:08][INFO][SCHED] 🏁 [TEST] Marathon Completed. Self-terminating...
+[       OK ] test_demo_mode_restores_bench_behavior
+[==========] tests: 2 test(s) run.
+[  PASSED  ] 2 test(s).
+
+=== A/B red: demo forced on (pre-fix simulation) ===
+[  FAILED  ] test_production_cycle_has_no_demo_behavior
+[  PASSED  ] 1 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_production_cycle_has_no_demo_behavior
+ 1 FAILED TEST(S)
+
+=== ASAN build + run ===
+[372/373] Building C object tests/CMakeFiles/test_dcu_runtime_health.dir/test_dcu_runtime_health.c.o
+[373/373] Linking C executable tests/test_dcu_runtime_health
+[==========] tests: Running 2 test(s).
+[ RUN      ] test_production_cycle_has_no_demo_behavior
+[2026-11-21 15:48:08][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-21 15:48:08][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 2052 KB)
+ [Metrics] Registered: Tag=12001, Name=datahub.ring.watermark
+ [Metrics] Registered: Tag=12002, Name=datahub.ring.drop_count
+ [Metrics] Registered: Tag=12003, Name=datahub.ring.read_latency
+ [Metrics] Registered: Tag=12004, Name=datahub.shadow.write_count
+[2026-11-21 15:48:08][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 1)
+[2026-11-21 15:48:08][INFO][SCHED] 💓 [HEARTBEAT] Cycle 1 completed (saved=0)
+[2026-11-21 15:48:08][INFO][SCHED] 💓 [HEARTBEAT] Cycle 2 completed (saved=0)
+[2026-11-21 15:48:08][INFO][SCHED] 💓 [HEARTBEAT] Cycle 3 completed (saved=0)
+[       OK ] test_production_cycle_has_no_demo_behavior
+[ RUN      ] test_demo_mode_restores_bench_behavior
+[2026-11-21 15:48:09][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-21 15:48:09][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 2052 KB)
+[2026-11-21 15:48:09][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 201)
+[2026-11-21 15:48:09][INFO][BUS] 🏁 [TEST] Triggering Remote Control ACTION (8000) for Meter 10000001...
+[2026-11-21 15:48:09][WARN][CORE] OI 8000: 聚合根拒绝/下发失败 dev=000000000001 action=1 rc=-4
+[2026-11-21 15:48:09][INFO][SCHED] 💓 [HEARTBEAT] Cycle 1 completed (saved=1)
+💓 [HEARTBEAT] Marathon Cycle 1 Completed. Database Flushed.
+🎛️ [RELAY] Dev 200: Triggering Action 1 (OI 8000 Attr 1)
+[2026-11-21 15:48:09][WARN][CORE] OI 8000: 聚合根拒绝/下发失败 dev=000000000201 action=1 rc=-4
+[2026-11-21 15:48:09][INFO][SCHED] 💓 [HEARTBEAT] Cycle 2 completed (saved=0)
+[2026-11-21 15:48:09][INFO][SCHED] 💓 [HEARTBEAT] Cycle 3 completed (saved=0)
+[2026-11-21 15:48:09][INFO][SCHED] 🏁 [TEST] Marathon Completed. Self-terminating...
+[       OK ] test_demo_mode_restores_bench_behavior
+[==========] tests: 2 test(s) run.
+[  PASSED  ] 2 test(s).
+
+=== fanalyzer (cmd/dcu,tests) changed-file findings ===
+changed-file findings: 0 (pre-existing tests/ findings are outside ledger; unrelated)

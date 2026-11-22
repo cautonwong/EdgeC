@@ -9,12 +9,6 @@
 #include "dcu_poller.h"
 #include "dcu_security.h"
 
-// ==============================================================================
-// 698 协议接口类 (Interface Class ID) 与标准 OI 定义
-// ==============================================================================
-/* 每只表在影子表里占的槽位数。**影子表容量必须 >= MAX_METERS × 这个数**，
- * 否则 idx 越界、写入被静默丢弃（见 dcu_node.c 的 datahub_capacity 推导）。
- * 改这个值要同步改容量推导，否则就是数据丢失。 */
 #define DCU_SLOTS_PER_DEVICE 32
 
 /* 应用点位区：tag_id 落在 [DCU_APP_BASE, DCU_APP_BASE + DCU_APP_SLOT_TOTAL)
@@ -25,86 +19,126 @@
 #define DCU_APP_SLOT_TOTAL 4096
 #define DCU_SHADOW_CAPACITY (DCU_APP_BASE + DCU_APP_SLOT_TOTAL)
 
-#define IC_VARIABLE 3      // 变量接口类 (如电压、电流、电能量)
-#define IC_EVENT 7         // 事件对象接口类 (如失压 3000, 过流 3005)
-#define IC_RECORD 9        // 记录/冻结数据接口类 (如日冻结 5004)
-#define IC_ACQUISITION 10  // 采集监控配置类 (如 6000 档案, 6012 任务, F100 ESAM)
-#define IC_CONTROL 13      // 控制/继电器动作类 (如 8000 远程拉合闸)
+#define IC_ENERGY 1         // 电能量接口类 (0010, 0020)
+#define IC_MAX_DEMAND 2     // 最大需量接口类 (1010)
+#define IC_VARIABLE 3       // 分相变量接口类 (如电压、电流、相角)
+#define IC_POWER 4          // 功率接口类 (如 2004 有功功率)
+#define IC_HARMONIC 5       // 谐波接口类 (200D, 200E)
+#define IC_DATA_VARIABLE 6  // 数据变量接口类 (如 200F 频率)
+#define IC_EVENT 7          // 事件对象接口类
+#define IC_PARAM 8          // 参数变量接口类（如 6001 采集档案配置单元）
+#define IC_RECORD 9         // 记录/冻结数据接口类 (如日冻结 5004)
+#define IC_ACQUISITION 10   // 采集监控接口类 (如 6000 档案, 6012 任务)
+#define IC_COLLECTION 11    // 集合接口类 (如 6014 普通采集方案集, 6002 搜表)
+#define IC_CONTROL 13       // 控制/继电器动作类 (如 8000 远程拉合闸)
+#define IC_ESAM 21          // ESAM 接口类 (F100)
+#define IC_PERIPHERAL 22    // 输入输出设备接口类 (F200 串口)
+#define IC_SUB_EVENT 24     // 分项事件对象接口类 (3000 失压, 3005 过流)
 
-// ==============================================================================
-// DLT 698.45 标准寻址 OI 与 OAD 契约宏 (消灭所有 Hardcoded 魔数)
-// ==============================================================================
-// 💡 1. 实时测点标量变量类标准 OAD (OI 2字节 + 属性 1字节 + 索引 1字节)
-#define OAD_ACTIVE_ENERGY       0x00100200  // 累计正向有功电能量 (OI 0010 属性 2)
-#define OAD_REACTIVE_ENERGY     0x00200200  // 累计反向有功电能量 (OI 0020 属性 2)
-#define OAD_VOLTAGE             0x20000200  // A相实时电压 (OI 2000 属性 2)
-#define OAD_VOLTAGE_B           0x20000300  // B相实时电压 (OI 2000 属性 3)
-#define OAD_VOLTAGE_C           0x20000400  // C相实时电压 (OI 2000 属性 4)
-#define OAD_CURRENT             0x20010200  // A相实时电流 (OI 2001 属性 2)
-#define OAD_CURRENT_B           0x20010300  // B相实时电流 (OI 2001 属性 3)
-#define OAD_CURRENT_C           0x20010400  // C相实时电流 (OI 2001 属性 4)
-#define OAD_ZERO_SEQ_CURRENT    0x20020200  // 零序电流 (OI 2002 属性 2)
-#define OAD_ACTIVE_POWER_TOTAL  0x20040200  // 总有功功率 (OI 2004 属性 2)
-#define OAD_ACTIVE_POWER_A      0x20040300  // A相有功功率 (OI 2004 属性 3)
-#define OAD_ACTIVE_POWER_B      0x20040400  // B相有功功率 (OI 2004 属性 4)
-#define OAD_ACTIVE_POWER_C      0x20040500  // C相有功功率 (OI 2004 属性 5)
-#define OAD_REACTIVE_POWER_TOTAL 0x20050200 // 总无功功率 (OI 2005 属性 2)
-#define OAD_POWER_FACTOR_TOTAL  0x20090200  // 总功率因数 (OI 2009 属性 2)
-#define OAD_GRID_FREQUENCY      0x200A0200  // 电网频率 (OI 200A 属性 2)
+#define OAD_ACTIVE_ENERGY 0x00100200         // 0010 属性 2（总及费率电能数组）
+#define OAD_REACTIVE_ENERGY 0x00200200       // 0020 属性 2（总及费率电能数组）
+#define OAD_VOLTAGE 0x20000200               // 2000 属性 2（A/B/C 电压数组）
+#define TAG_VOLTAGE_B 0x20000300             // B 相影子 tag（数组元素，非 698 OAD）
+#define TAG_VOLTAGE_C 0x20000400             // C 相影子 tag（数组元素，非 698 OAD）
+#define OAD_CURRENT 0x20010200               // 2001 属性 2（A/B/C 电流数组）
+#define TAG_CURRENT_B 0x20010300             // B 相影子 tag（数组元素，非 698 OAD）
+#define TAG_CURRENT_C 0x20010400             // C 相影子 tag（数组元素，非 698 OAD）
+#define OAD_ZERO_SEQ_CURRENT 0x20020200      // 零序电流 (OI 2002 属性 2)
+#define OAD_ACTIVE_POWER_TOTAL 0x20040200    // 2004 属性 2（总/A/B/C 功率数组）
+#define TAG_ACTIVE_POWER_A 0x20040300        // A 相影子 tag（数组元素，非 698 OAD）
+#define TAG_ACTIVE_POWER_B 0x20040400        // B 相影子 tag（数组元素，非 698 OAD）
+#define TAG_ACTIVE_POWER_C 0x20040500        // C 相影子 tag（数组元素，非 698 OAD）
+#define OAD_REACTIVE_POWER_TOTAL 0x20050200  // 总无功功率 (OI 2005 属性 2)
+#define OAD_POWER_FACTOR_TOTAL 0x200A0200    // 200A 属性 2（功率因数数组）
+#define OAD_GRID_FREQUENCY 0x200F0200        // 200F 属性 2（Class 6 单值）
 
-// 💡 2. 异常越限告警监控事件类标准 OI (16-bit OI)
+/* 南向读数组元素：索引字节是属性内元素，不是北向的表槽位（ADR-0016）。 */
+#define OAD_VOLTAGE_B_ELEM 0x20000201
+#define OAD_VOLTAGE_C_ELEM 0x20000202
+#define OAD_CURRENT_B_ELEM 0x20010201
+#define OAD_CURRENT_C_ELEM 0x20010202
+#define OAD_ACTIVE_POWER_A_ELEM 0x20040201
+#define OAD_ACTIVE_POWER_B_ELEM 0x20040202
+#define OAD_ACTIVE_POWER_C_ELEM 0x20040203
+
 #define OI_VOLTAGE_DROP 0x3000  // 失压事件 OI
 #define OI_OVER_CURRENT 0x3005  // 过流事件 OI
 
-// 💡 3. 定期归档冻结数据类标准 OAD
 #define OAD_DAILY_FREEZE \
     0x50040200  // 日冻结记录表属性 2 (日冻结 OAD 既作为定时流触发 Tag，也是存储召测 Target)
 
-// 💡 4. 集中器控制、搜表与安全接口类标准 OI
 #define OI_METER_ARCHIVE 0x6000     // 采集档案配置表 OI
+#define OI_ARCHIVE_UNIT 0x6001      // 采集档案配置单元 OI（标准 A.7，IC 8）
 #define OI_TASK_SCHEDULER 0x6012    // 任务配置表 OI
-#define OI_METER_DISCOVERY 0x6002   // 搜表发现控制器 OI
-#define OI_DISCOVERY_RESULT 0x6003  // 搜表结果表 OI
+#define OI_TASK_UNIT 0x6013         // 任务配置单元 OI（标准 A.7，IC 8）
+#define OI_NORMAL_SCHEME 0x6014     // 普通采集方案集 OI（标准 A.7，IC 11）
+#define OI_NORMAL_SCHEME_UNIT 0x6015 // 普通采集方案 OI（标准 A.7，IC 8）
+#define OI_METER_DISCOVERY 0x6002   // 搜表（Class 11 集合对象）
 #define OI_REMOTE_CONTROL 0x8000    // 远程拉闸动作控制 OI
 #define OI_ESAM_SECURITY 0xF100     // ESAM 北向鉴权加密芯片 OI
 #define OI_CHANNEL_CONFIG 0xF200    // 外设串口信道物理配置 OI
 
 #define MAX_EVENT_RECORDS 10
+#define MAX_EVENT_SNAPSHOTS 8
+#define DCU_EVENT_SNAPSHOT_BYTES 64
+
+/**
+ * @brief 事件时标的两个口径：mono_ns 是产生记录时的单调纳秒副本，epoch_s 是墙钟整秒
+ *        （date_time_s 与 event_history 落库）。
+ *
+ * uv_hrtime 是开机以来单调纳秒，不能当公历时间；CLOCK_REALTIME 才是 epoch 来源。
+ * 两者必须一起存，任何一侧缺失都如实回 NULL 或类型不匹配，不互相换算冒充。
+ */
+typedef struct {
+    uint64_t mono_ns;
+    uint64_t epoch_s;
+} dcu_event_stamp_t;
 
 /**
  * @brief Class 7 单个事件记录结构体 (与电力契约数据严格对齐)
  */
 typedef struct {
-    uint16_t index;        // 事件记录序号，单调递增
-    uint64_t start_time;   // 事件发生挂钟时间戳 (秒)
-    uint64_t end_time;     // 事件恢复挂钟时间戳 (秒)
-    float snapshot_value;  // 发生/恢复时的物理量实时快照值 (如电压/电流)
-    bool is_active;        // 事件当前是否处于激活/发生状态
+    uint16_t index;
+    dcu_event_stamp_t start_time;
+    dcu_event_stamp_t end_time;
+    float snapshot_value;
+    bool is_active;
+    /* 生成记录时抓到的关联对象属性 A-XDR 值（A6 记录单元的 Data 字段）。len 0 = 未取到，编 NULL。
+     */
+    uint8_t snapshot_len[MAX_EVENT_SNAPSHOTS];
+    uint8_t snapshot[MAX_EVENT_SNAPSHOTS][DCU_EVENT_SNAPSHOT_BYTES];
 } dcu_event_record_t;
 
 /**
- * @brief Class 7 异常事件监控对象结构体
+ * @brief 分项事件对象存储（Class 24，3000/3005）
  */
 typedef struct {
-    uint16_t oi;                                    // 事件对象 OID (如 OI_VOLTAGE_DROP)
-    dcu_event_record_t records[MAX_EVENT_RECORDS];  // 倒序排列的事件记录表 (属性 2)
-    uint16_t record_count;                          // 当前记录条数 (属性 4)
-    uint32_t snapshot_oads[8];  // [Align Attr 3] 关联抓取的快照 OAD 列表
-    uint8_t snapshot_count;     // 快照列表长度
-    float threshold;            // 判定门限值 (属性 6 配置参数)
-    uint32_t delay_s;           // 判定触发延时时间 (秒)
-    uint8_t report_flag;        // 上报标识 (属性 8)
-    bool is_enabled;            // 是否使能有效 (属性 9)
-    uint64_t last_start_time;   // 最近发生时间 (属性 10 的部分元素)
-    uint64_t last_end_time;     // 最近恢复时间
+    uint16_t oi;
+    dcu_event_record_t records[MAX_EVENT_RECORDS];  // 事件记录表 1 (A6)
+    uint16_t record_count;                          // 记录表 1 当前条数 (A3 四表结构)
+    uint32_t snapshot_oads[MAX_EVENT_SNAPSHOTS];    // 关联对象属性表 OAD (A2)
+    uint8_t snapshot_count;
+    float threshold;  // 触发门限 (A5 配置参数结构未暴露)
+    uint32_t delay_s;
+    uint8_t report_flag;                // 上报标识 (A11)
+    bool is_enabled;                    // 有效标识 (A12)
+    dcu_event_stamp_t last_start_time;  // 最近发生时间 (A14)
+    dcu_event_stamp_t last_end_time;    // 最近结束时间 (A14)
 } dcu_event_obj_t;
 
-// === [Consumer-Defined Interfaces] ===
 typedef struct {
     void* ctx;
     int (*record_telemetry)(void* ctx, const char* meter_addr, uint32_t meter_idx, uint32_t tag_id,
                             double val);
     int (*count_freezes)(void* ctx, uint16_t* out_count);
+    /* 档案持久化端口（6000 方法用）：成功 0，失败非 0。ctx 为存储实例。 */
+    int (*archive_save)(void* ctx, const production_meter_t* m);
+    int (*archive_delete)(void* ctx, const char* address);
+    int (*archive_clear)(void* ctx);
+    /* 6012 任务持久化端口：op 已解码，ctx 是存储实例；返回 EDGE_SLAVE_SRC_*。 */
+    int (*task_apply)(void* ctx, dcu_poller_t* poller, const dcu_task_op_t* op);
+    /* 6014 方案持久化端口：op 已解码，ctx 是存储实例；返回 EDGE_SLAVE_SRC_*。 */
+    int (*scheme_apply)(void* ctx, dcu_poller_t* poller, const dcu_scheme_op_t* op);
 } router_sink_ops_t;
 
 typedef struct {
@@ -115,26 +149,6 @@ typedef struct {
     int (*read_shadow)(void* ctx, uint32_t tag_id, uint32_t device_id, void* out_msg);
 } router_bus_ops_t;
 
-// 通用 OI 实例虚拟方法表结构体
-typedef struct dcu_object_s dcu_object_t;
-
-struct dcu_object_s {
-    uint16_t oi;         // 16位对象标识 (例如 0x6000, 0x2000, 0x8000)
-    uint16_t class_id;   // 接口类 ID (如 IC_VARIABLE)
-    void* instance_ptr;  // 指向模块实体实例数据指针
-
-    // 面向对象 C 接口虚函数映射
-    int (*read_attr)(dcu_object_t* obj, uint8_t attr_id, uint8_t elem_idx, void* out_val);
-    int (*write_attr)(dcu_object_t* obj, uint8_t attr_id, uint8_t elem_idx, const void* in_val);
-    int (*execute_method)(dcu_object_t* obj, uint8_t method_id, const void* param, void* result);
-};
-
-/* --- 生产级 API 函数原型声明 --- */
-
-/**
- * @brief 影子映射：物理矩阵映射 (Index = MeterIdx * 10 + Offset)
- * 用于将 698 OAD 或物理测点映射到 DataHub 影子寄存器槽位
- */
 int dcu_tag_map_fn(uint32_t tag_id, uint32_t device_id);
 
 /**
@@ -193,4 +207,4 @@ int dcu_obj_snapshot(uint16_t oi, uint32_t device_id, void* out_msgs, int max_co
  */
 void dcu_router_destroy(void);
 
-#endif  // DCU_ROUTER_H
+#endif

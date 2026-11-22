@@ -116,8 +116,11 @@ static dcu_meter_poll_state_t* _meter_state(dcu_poller_t* poller, const char* ad
     return mp;
 }
 
-/* 本任务这一轮是否到期。interval_s==0 视为每轮都跑。 */
+/* 本任务这一轮是否到期。TI value 0 = 无周期触发；C API 的 interval_s==0
+ * 仍表示"每轮"，但要求 has_interval 为真。 */
 static bool _task_due(dcu_task_unit_t* task) {
+    if (task->status != DCU_TASK_STATUS_NORMAL) return false;
+    if (!task->has_interval) return false;
     if (task->interval_s == 0) return true;
     uint64_t ticks = 0;
     return edge_periodic_clock_check(&task->clock, &ticks) > 0;
@@ -220,6 +223,8 @@ static void _chain_finish_visit(dcu_poller_t* poller, dcu_chain_t* c) {
         st->last_success_ts = uv_hrtime() / 1000000ULL;
         if (mp) mp->consecutive_fails = 0;
         for (int t = 0; t < poller->task_count; t++) {
+            if (!poller->task_due[t]) continue;
+            if (poller->tasks[t].status != DCU_TASK_STATUS_NORMAL) continue;
             if (mp && mp->task_mask_set && !(mp->task_mask & (1u << t))) continue;
             poller->tasks[t].monitor.success_meters++;
         }
@@ -436,6 +441,60 @@ int dcu_poller_add_scheme(dcu_poller_t* poller, uint32_t scheme_id, uint8_t mode
     return 0;
 }
 
+int dcu_task_interval_seconds(uint8_t unit, uint16_t value, uint32_t* out_seconds) {
+    if (!out_seconds) return -1;
+    uint64_t seconds;
+    switch (unit) {
+        case 0:
+            seconds = value;
+            break;
+        case 1:
+            seconds = (uint64_t)value * 60ULL;
+            break;
+        case 2:
+            seconds = (uint64_t)value * 3600ULL;
+            break;
+        case 3:
+            seconds = (uint64_t)value * 86400ULL;
+            break;
+        default:
+            return -1; /* 月/年没有固定秒数 */
+    }
+    if (seconds > UINT32_MAX) return -1;
+    *out_seconds = (uint32_t)seconds;
+    return 0;
+}
+
+/* 旧 C API 只有秒：反推一个 A2 能精确读回的 TI（不影响调度）。 */
+static void _best_effort_ti(uint32_t interval_s, uint8_t* unit, uint16_t* value) {
+    if (interval_s <= UINT16_MAX) {
+        *unit = 0;
+        *value = (uint16_t)interval_s;
+    } else if (interval_s % 60 == 0 && interval_s / 60 <= UINT16_MAX) {
+        *unit = 1;
+        *value = (uint16_t)(interval_s / 60);
+    } else if (interval_s % 3600 == 0 && interval_s / 3600 <= UINT16_MAX) {
+        *unit = 2;
+        *value = (uint16_t)(interval_s / 3600);
+    } else {
+        *unit = 3;
+        uint64_t days = interval_s / 86400ULL;
+        *value = days <= UINT16_MAX ? (uint16_t)days : 0;
+    }
+}
+
+static void _task_clock_init(dcu_task_unit_t* task) {
+    edge_periodic_clock_config_t cfg = {
+        .interval_us = (task->interval_s > 0) ? ((uint64_t)task->interval_s * 1000000ULL) : 1ULL,
+        .policy = EDGE_OVERRUN_SKIP,
+        .wall_clock_align = (task->interval_s > 0),
+        .custom_clock = NULL,
+        .clock_ctx = NULL,
+    };
+    edge_periodic_clock_init(&task->clock, &cfg);
+    task->clock.next_tick_us = 0; /* 首次允许立即执行 */
+}
+
 int dcu_poller_add_task_ex(dcu_poller_t* poller, uint32_t task_id, uint32_t interval_s,
                            uint32_t scheme_id, uint32_t item_mask) {
     if (!poller || poller->task_count >= MAX_TASKS) return -1;
@@ -443,21 +502,15 @@ int dcu_poller_add_task_ex(dcu_poller_t* poller, uint32_t task_id, uint32_t inte
     memset(t, 0, sizeof(*t));
     t->task_id = task_id;
     t->interval_s = interval_s;
+    t->has_interval = true;
+    t->status = DCU_TASK_STATUS_NORMAL;
     t->scheme_id = scheme_id;
     t->item_mask = item_mask;
     t->last_run_time = 0;
     t->cursor_meter_idx = 0;
+    _best_effort_ti(interval_s, &t->interval_unit, &t->interval_value);
 
-    edge_periodic_clock_config_t clk_cfg = {
-        .interval_us = (interval_s > 0) ? ((uint64_t)interval_s * 1000000ULL) : 1ULL,
-        .policy = EDGE_OVERRUN_SKIP,
-        .wall_clock_align = (interval_s > 0),
-        .custom_clock = NULL,
-        .clock_ctx = NULL,
-    };
-    edge_periodic_clock_init(&t->clock, &clk_cfg);
-    // 首次允许立即执行
-    t->clock.next_tick_us = 0;
+    _task_clock_init(t);
     return 0;
 }
 
@@ -465,6 +518,116 @@ int dcu_poller_add_task(dcu_poller_t* poller, uint32_t task_id, uint32_t interva
                         uint32_t scheme_id) {
     /* 旧签名没有项维度：0 在调度里解释为"全部 CSD" */
     return dcu_poller_add_task_ex(poller, task_id, interval_s, scheme_id, 0);
+}
+
+const dcu_task_unit_t* dcu_poller_task_find(const dcu_poller_t* poller, uint32_t task_id) {
+    if (!poller) return NULL;
+    for (int i = 0; i < poller->task_count; i++) {
+        if (poller->tasks[i].status != DCU_TASK_STATUS_FREE &&
+            poller->tasks[i].task_id == task_id) {
+            return &poller->tasks[i];
+        }
+    }
+    return NULL;
+}
+
+const dcu_task_unit_t* dcu_poller_task_at(const dcu_poller_t* poller, uint16_t slot) {
+    if (!poller || slot >= poller->task_count) return NULL;
+    return &poller->tasks[slot];
+}
+
+int dcu_poller_upsert_task(dcu_poller_t* poller, const dcu_task_unit_t* task) {
+    if (!poller || !task || task->task_id == 0) return -1;
+
+    int slot = -1;
+    for (int i = 0; i < poller->task_count; i++) {
+        if (poller->tasks[i].status != DCU_TASK_STATUS_FREE &&
+            poller->tasks[i].task_id == task->task_id) {
+            slot = i;
+            break;
+        }
+    }
+
+    if (slot < 0) {
+        for (int i = 0; i < poller->task_count; i++) {
+            if (poller->tasks[i].status == DCU_TASK_STATUS_FREE) {
+                slot = i;
+                break;
+            }
+        }
+        if (slot < 0) {
+            if (poller->task_count >= MAX_TASKS) return -1;
+            slot = poller->task_count++;
+        }
+        memset(&poller->tasks[slot], 0, sizeof(poller->tasks[slot]));
+        poller->tasks[slot].task_id = task->task_id;
+        poller->tasks[slot].interval_s = task->interval_s;
+        poller->tasks[slot].interval_unit = task->interval_unit;
+        poller->tasks[slot].interval_value = task->interval_value;
+        poller->tasks[slot].has_interval = task->has_interval;
+        poller->tasks[slot].status = task->status;
+        poller->tasks[slot].period_type = task->period_type;
+        poller->tasks[slot].scheme_type = task->scheme_type;
+        poller->tasks[slot].scheme_id = task->scheme_id;
+        _task_clock_init(&poller->tasks[slot]);
+        return 0;
+    }
+
+    dcu_task_unit_t* cur = &poller->tasks[slot];
+    bool interval_changed = cur->has_interval != task->has_interval ||
+                            cur->interval_s != task->interval_s ||
+                            cur->interval_unit != task->interval_unit ||
+                            cur->interval_value != task->interval_value;
+    bool resumed = cur->status == DCU_TASK_STATUS_DISABLED &&
+                   task->status == DCU_TASK_STATUS_NORMAL;
+
+    cur->interval_s = task->interval_s;
+    cur->interval_unit = task->interval_unit;
+    cur->interval_value = task->interval_value;
+    cur->has_interval = task->has_interval;
+    cur->status = task->status;
+    cur->period_type = task->period_type;
+    cur->scheme_type = task->scheme_type;
+    cur->scheme_id = task->scheme_id;
+    /* cursor/last_run/monitor 是运行态，配置变化不重置。 */
+    if (interval_changed || resumed) _task_clock_init(cur);
+    return 0;
+}
+
+int dcu_poller_remove_task(dcu_poller_t* poller, uint32_t task_id) {
+    if (!poller) return -1;
+    for (int i = 0; i < poller->task_count; i++) {
+        if (poller->tasks[i].status != DCU_TASK_STATUS_FREE &&
+            poller->tasks[i].task_id == task_id) {
+            /* 不压缩：task_mask 的位是注册槽，压缩会把表悄悄改指别的任务。 */
+            memset(&poller->tasks[i], 0, sizeof(poller->tasks[i]));
+            return 0;
+        }
+    }
+    return -1;
+}
+
+int dcu_poller_clear_tasks(dcu_poller_t* poller) {
+    if (!poller) return -1;
+    memset(poller->tasks, 0, sizeof(poller->tasks));
+    poller->task_count = 0;
+    return 0;
+}
+
+int dcu_poller_set_task_status(dcu_poller_t* poller, uint32_t task_id, uint8_t status) {
+    if (!poller || (status != DCU_TASK_STATUS_NORMAL && status != DCU_TASK_STATUS_DISABLED)) {
+        return -1;
+    }
+    for (int i = 0; i < poller->task_count; i++) {
+        dcu_task_unit_t* t = &poller->tasks[i];
+        if (t->status == DCU_TASK_STATUS_FREE || t->task_id != task_id) continue;
+        if (t->status == DCU_TASK_STATUS_DISABLED && status == DCU_TASK_STATUS_NORMAL) {
+            _task_clock_init(t); /* 恢复时从新周期开始，不补发停用期间的拍 */
+        }
+        t->status = status;
+        return 0;
+    }
+    return -1;
 }
 
 int dcu_poller_set_meter_tasks(dcu_poller_t* poller, const char* address, uint8_t channel_id,
@@ -483,6 +646,56 @@ dcu_scheme_t* dcu_poller_get_scheme(dcu_poller_t* poller, uint32_t scheme_id) {
         if (poller->schemes[i].scheme_id == scheme_id) return &poller->schemes[i];
     }
     return NULL;
+}
+
+int dcu_poller_upsert_scheme(dcu_poller_t* poller, const dcu_scheme_t* scheme) {
+    if (!poller || !scheme) return -1;
+    dcu_scheme_t* existing = dcu_poller_get_scheme(poller, scheme->scheme_id);
+    if (existing) {
+        *existing = *scheme;
+        return 0;
+    }
+    if (poller->scheme_count >= MAX_SCHEMES) return -1;
+    poller->schemes[poller->scheme_count++] = *scheme;
+    return 0;
+}
+
+int dcu_poller_remove_scheme(dcu_poller_t* poller, uint32_t scheme_id) {
+    if (!poller) return -1;
+    for (int i = 0; i < poller->scheme_count; i++) {
+        if (poller->schemes[i].scheme_id != scheme_id) continue;
+        memmove(&poller->schemes[i], &poller->schemes[i + 1],
+                sizeof(poller->schemes[0]) * (size_t)(poller->scheme_count - i - 1));
+        poller->scheme_count--;
+        return 0;
+    }
+    return -1;
+}
+
+int dcu_poller_clear_schemes(dcu_poller_t* poller) {
+    if (!poller) return -1;
+    memset(poller->schemes, 0, sizeof(poller->schemes));
+    poller->scheme_count = 0;
+    return 0;
+}
+
+bool dcu_poller_scheme_referenced(const dcu_poller_t* poller, uint32_t scheme_id) {
+    if (!poller) return false;
+    for (int i = 0; i < poller->task_count; i++) {
+        const dcu_task_unit_t* t = &poller->tasks[i];
+        if (t->status != DCU_TASK_STATUS_FREE && t->scheme_id == scheme_id) return true;
+    }
+    return false;
+}
+
+bool dcu_poller_scheme_masked(const dcu_poller_t* poller, uint32_t scheme_id) {
+    if (!poller) return false;
+    for (int i = 0; i < poller->task_count; i++) {
+        const dcu_task_unit_t* t = &poller->tasks[i];
+        if (t->status != DCU_TASK_STATUS_FREE && t->scheme_id == scheme_id && t->item_mask != 0)
+            return true;
+    }
+    return false;
 }
 
 void dcu_poller_destroy(dcu_poller_t* poller) {

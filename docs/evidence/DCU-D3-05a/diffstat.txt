@@ -1,0 +1,10 @@
+ cmd/dcu/dcu_698_appconn.c         |   6 +-
+ cmd/dcu/dcu_698_axdr.c            |   4 ++
+ cmd/dcu/dcu_698_class_event.c     | 141 ++++++++++++++++++++++++++++++++++++++
+ cmd/dcu/dcu_698_object_internal.h |   8 +++
+ cmd/dcu/dcu_698_object_model.c    |   6 +-
+ tests/test_dcu_698_axdr.c         |  92 ++++++++++++++++++++++---
+ tests/test_dcu_698_object_model.c |  22 ++++--
+ tests/test_dcu_698_value_table.c  |  20 ++++--
+ tests/test_dcu_advanced_modules.c |   4 +-
+ 9 files changed, 272 insertions(+), 31 deletions(-)

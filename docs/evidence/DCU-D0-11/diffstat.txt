@@ -1,0 +1,7 @@
+ ci/scripts/run_concurrent_binary.sh   | 25 +++++++++++++++++++++++++
+ tests/CMakeLists.txt                  | 14 ++++++++++++++
+ tests/test_caller_allocated_storage.c |  9 +++++++--
+ tests/test_dcu_inventory.c            | 10 +++++++++-
+ tests/test_dcu_node.c                 | 15 ++++++++++++---
+ tests/test_dcu_runtime_health.c       | 15 ++++++++++++---
+ 6 files changed, 79 insertions(+), 9 deletions(-)

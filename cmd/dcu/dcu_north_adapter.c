@@ -7,6 +7,12 @@
 
 #include "bus_orchestrator.h"
 #include "datahub.h"
+#include "dcu_698_axdr.h"
+#include "dcu_698_appconn.h"
+#include "dcu_698_object_internal.h"
+#include "dcu_698_record.h"
+#include "dcu_698_report.h"
+#include "dcu_698_var.h"
 #include "dcu_node.h"
 #include "dcu_north_source.h"
 #include "dcu_router.h"
@@ -14,9 +20,9 @@
 #include "edge_slave_plane.h"
 #include "io_executor.h"
 #include "mqtt_producer.h"
-#include "northbound_mgr.h"
 #include "north_driver_adapter.h"
 #include "north_source_datahub_adapter.h"
+#include "northbound_mgr.h"
 
 typedef struct {
     bus_orchestrator_t* orch;
@@ -25,62 +31,47 @@ typedef struct {
 
 static dcu_north_ctx_t g_dcu_north_ctx;
 
-/**
- * @brief OAD → 当前值。类型标签由这里给（`width=2` 是 long 还是 long-unsigned
- * 只有点位模型知道，驱动不该猜 —— ADR-002）。
- */
-static int _dcu_nb_resolve(void* ctx, uint32_t oad, const void* desc, size_t desc_len,
-                           edge_point_value_t* out) {
+int dcu_north_resolve_scalar(void* ctx, uint32_t oad, const void* desc, size_t desc_len,
+                             edge_point_value_t* out) {
     (void)ctx;
     (void)desc;
     (void)desc_len;
-    if (!out) return -1;
-    memset(out, 0, sizeof(*out));
+    if (!out) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
 
-    uint16_t oi = (uint16_t)(oad >> 16);
-    if (oi == 0x2000 || oi == 0x2001 || oi == 0x2004) {
-        /* 实时参量（电压/电流/功率）：DCU 侧是 float，698 用 float32 */
-        float v = 0.0f;
-        if (dcu_router_get_attr(oad, &v) != 0) return -1;
-        out->value = (double)v;
-        out->width = 4;
-        out->type = 0x17; /* float32 */
-    } else if (oi == 0x6000) {
-        /* 档案类计数：uint16 */
-        uint16_t v = 0;
-        if (dcu_router_get_attr(oad, &v) != 0) return -1;
-        out->value = (double)v;
-        out->raw = (int32_t)v;
-        out->width = 2;
-        out->type = 0x12; /* long-unsigned */
-    } else {
-        /* 其它 OI 的属性类型没在本文件里定义过，猜一个类型标签会让主站解出错值
-         * 且不报错。宁可不应答（主站超时），也不发一个"看起来对"的报文。 */
-        return -1;
-    }
-    out->ts_ms = (uint64_t)(uv_hrtime() / 1000000ULL);
+    dcu_value_t v;
+    int rc = dcu_698_value_for_oad(oad, &v);
+    if (rc != 0) return rc;
+
+    /* 端口 raw 是 int32；64 位类型不能截断后冒充成功，交给 resolve_axdr。 */
+    if (v.width == 0 || v.width > sizeof(out->raw)) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+
+    memset(out, 0, sizeof(*out));
+    out->value = v.value;
+    out->raw = (int32_t)v.raw;
+    out->width = v.width;
+    out->type = v.type_tag;
+    out->quality = v.quality;
+    out->ts_ms = v.ts_ms;
     return 0;
 }
 
-/**
- * @brief 收一次对象方法操作（OI 8000 跳闸/合闸等）。
- *
- * **当前明确返回失败**：标准表 A.9 规定方法 129/130 的参数是
- * `array structure{继电器 OAD, 告警延时, 限电时间, 自动合闸}`，解它需要按 698
- * 第 7 章把结构拆出来，再映射到"哪只表的继电器"。语义没确认前不猜 ——
- * 驱动会把非 0 变成 DAR=2（暂时失效），主站看到的是"设备暂时不能执行"，
- * 而不是"执行成功"。
- */
-static int _dcu_nb_accept_action(void* ctx, uint32_t omd, const uint8_t* axdr, size_t axdr_len) {
+int dcu_north_accept_action(void* ctx, uint32_t omd, const uint8_t* axdr, size_t axdr_len) {
     (void)ctx;
-    (void)axdr;
-    (void)axdr_len;
     uint16_t oi = (uint16_t)(omd >> 16);
     uint8_t method = (uint8_t)((omd >> 8) & 0xFF);
-    LOG_WARN(LOG_CAT_NB,
-             "DCU north ACTION OI=0x%04X method=%u：参数结构未实现（见标准表 A.9），回 DAR=2",
-             oi, method);
-    return -1;
+    if (oi == OI_METER_ARCHIVE) return dcu_698_accept_archive_action(omd, axdr, axdr_len);
+    if (oi == OI_TASK_SCHEDULER || oi == OI_NORMAL_SCHEME || oi == OI_METER_DISCOVERY)
+        return dcu_698_accept_action_axdr(omd, axdr, axdr_len);
+    if (oi != OI_REMOTE_CONTROL) return dcu_698_call(omd, axdr, NULL);
+
+    dcu_action_param_t param = {0};
+    int rc = dcu_698_decode_action_param(method, axdr, axdr_len, &param);
+    if (rc != 0) {
+        LOG_WARN(LOG_CAT_NB, "DCU north ACTION OI=8000 method=%u：参数解码失败 rc=%d", method,
+                 rc);
+        return rc;
+    }
+    return dcu_698_call(omd, &param, NULL);
 }
 
 static void _on_dcu_north_connect(uv_stream_t* server, int status) {
@@ -109,7 +100,10 @@ static void _on_dcu_north_connect(uv_stream_t* server, int status) {
     uv_close((uv_handle_t*)client, (uv_close_cb)free);
 }
 
-void dcu_north_slave_attach(uv_loop_t* loop, datahub_t* hub, bus_orchestrator_t* orch) {
+static dcu_698_record_ctx_t g_record_ctx;
+
+void dcu_north_slave_attach(uv_loop_t* loop, datahub_t* hub, bus_orchestrator_t* orch,
+                            dcu_node_t* node) {
     const char* path = getenv("DCU_NORTH_SOCK");
     if (!path || !path[0]) path = "/tmp/dcu_north_slave.sock";
 
@@ -117,11 +111,21 @@ void dcu_north_slave_attach(uv_loop_t* loop, datahub_t* hub, bus_orchestrator_t*
         LOG_ERROR(LOG_CAT_NB, "DCU northbound: 698 从站引擎建不起来，北向不可用");
         return;
     }
+    if (node) {
+        dcu_698_record_init(&g_record_ctx, dcu_node_get_storage(node), dcu_node_get_inventory(node));
+    }
     static const edge_slave_source_ops_t src = {
-        .resolve = _dcu_nb_resolve,
-        .accept_action = _dcu_nb_accept_action,
+        .resolve = dcu_north_resolve_scalar,
+        .accept_action = dcu_north_accept_action,
+        .resolve_axdr = dcu_north_resolve_axdr,
+        .accept_axdr = dcu_north_accept_axdr,
+        .object_list = dcu_698_appconn_resolve,
+        .record = {.begin = dcu_698_record_begin,
+                   .row = dcu_698_record_row,
+                   .end = dcu_698_record_end},
+        .report = {.next = dcu_698_report_next},
     };
-    bus_orchestrator_set_slave_source(orch, DCU_NORTH_BUS, &src, NULL);
+    bus_orchestrator_set_slave_source(orch, DCU_NORTH_BUS, &src, &g_record_ctx);
 
     g_dcu_north_ctx.orch = orch;
     g_dcu_north_ctx.hub = hub;
@@ -131,8 +135,8 @@ void dcu_north_slave_attach(uv_loop_t* loop, datahub_t* hub, bus_orchestrator_t*
     srv.data = &g_dcu_north_ctx;
     unlink(path);
     int bind_rc = uv_pipe_bind(&srv, path);
-    int listen_rc = (bind_rc == 0) ? uv_listen((uv_stream_t*)&srv, 16, _on_dcu_north_connect)
-                                   : bind_rc;
+    int listen_rc =
+        (bind_rc == 0) ? uv_listen((uv_stream_t*)&srv, 16, _on_dcu_north_connect) : bind_rc;
     if (bind_rc == 0 && listen_rc == 0) {
         LOG_INFO(LOG_CAT_NB, "DCU northbound: 698 slave listening at %s", path);
     } else {
@@ -170,8 +174,7 @@ void dcu_north_cloud_attach(datahub_t* hub) {
     nb_source_ops_t nb_source = northbound_source_from_datahub(hub);
     g_nb_transport = mqtt_producer_create(mqtt_url, mqtt_client_id);
     northbound_mgr_init_ex(&g_north, nb_source, "DCU", NULL, g_nb_transport);
-    northbound_mgr_set_driver_port(&g_north,
-                                   north_driver_adapter_init(&g_north_driver_storage));
+    northbound_mgr_set_driver_port(&g_north, north_driver_adapter_init(&g_north_driver_storage));
     northbound_mgr_set_address(&g_north, NULL, group_id, node_id);
     /* 北向取数端口：metric 名与当前值都由产品给，驱动不反查 datahub。
      * 不注入的话驱动只能把点位编成 tag_<数字>，主站看不出是什么量。 */
@@ -182,16 +185,15 @@ void dcu_north_cloud_attach(datahub_t* hub) {
     if (nb_proto && *nb_proto && northbound_mgr_set_protocol(&g_north, nb_proto) != 0) {
         LOG_WARN(LOG_CAT_NB, "Northbound: unknown protocol '%s', keeping default", nb_proto);
     }
-    LOG_INFO(LOG_CAT_NB, "🌐 Northbound assembled: broker=%s group=%s node=%s", mqtt_url,
-             group_id, node_id);
+    LOG_INFO(LOG_CAT_NB, "🌐 Northbound assembled: broker=%s group=%s node=%s", mqtt_url, group_id,
+             node_id);
 }
-
 
 void dcu_north_stop(void) {
     northbound_mgr_stop(&g_north);
 }
 
-northbound_mgr_t *dcu_north_mgr(void) {
+northbound_mgr_t* dcu_north_mgr(void) {
     return &g_north;
 }
 

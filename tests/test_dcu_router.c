@@ -13,6 +13,7 @@
 #include "dcu_poller.h"
 #include "dcu_router.h"
 #include "dcu_storage.h"
+#include "edge_slave_plane.h"
 #include "shmring.h"
 
 static int _mock_count_freezes(void* ctx, uint16_t* out_count) {
@@ -28,6 +29,9 @@ static int _mock_read_shadow(void* ctx, uint32_t tag_id, uint32_t device_id, voi
         return 0;
     } else if (tag_id == OAD_CURRENT || tag_id == 1002) {  // 电流
         pipe_msg_init_scalar(msg, OAD_CURRENT, 4.95, uv_hrtime());
+        return 0;
+    } else if (tag_id == OAD_GRID_FREQUENCY) {  // 频率（Class 6 单值）
+        pipe_msg_init_scalar(msg, OAD_GRID_FREQUENCY, 50.01, uv_hrtime());
         return 0;
     }
     return -1;
@@ -73,51 +77,50 @@ static void test_dcu_router_dispatch(void** state) {
                              router_bus);
     assert_int_equal(ret, 0);
 
-    // 3. 读取 OI 6000 (档案表) 属性 2 -> 当前初始电表数应为 0
+    // 3. 6000 A2 是配置数组，数组通道未落地：明确拒绝而不是返回计数标量
     uint16_t meter_count = 999;
     ret = dcu_router_get_attr(((uint32_t)OI_METER_ARCHIVE << 16) | 0x0200, &meter_count);
-    assert_int_equal(ret, 0);
-    assert_int_equal(meter_count, 0);
+    assert_int_equal(ret, -1);
+    assert_int_equal(test_inv.count, 0);
 
-    // 4. 通过 OMD 方法路由调用 ACTION 注册新表计 (Method 127)
     int method_res = -1;
-    ret = dcu_router_action(((uint32_t)OI_METER_ARCHIVE << 16) | 0x7F00, "20000001", &method_res);
-    assert_int_equal(ret, 0);
-    assert_int_equal(method_res, 0);  // 注册成功返回 0
+    ret = dcu_router_action(((uint32_t)OI_METER_ARCHIVE << 16) | 0x7F00, NULL, &method_res);
+    assert_int_equal(ret, EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    assert_int_equal(test_inv.count, 0);
 
-    // 5. 再次通过 OAD 读取属性 2 -> 注册数应升为 1
-    meter_count = 0;
-    ret = dcu_router_get_attr(((uint32_t)OI_METER_ARCHIVE << 16) | 0x0200, &meter_count);
-    assert_int_equal(ret, 0);
-    assert_int_equal(meter_count, 1);
+    uint32_t csd = OAD_VOLTAGE;
+    dcu_task_op_t task_op = {.method = 127, .unit_count = 0};
+    ret = dcu_router_action(((uint32_t)OI_TASK_SCHEDULER << 16) | 0x7F00, &task_op, &method_res);
+    assert_int_equal(ret, EDGE_SLAVE_SRC_TEMPORARY); /* 测试没接持久化端口 */
+    assert_null(dcu_poller_get_scheme(&poller, 9));
 
-    // 5b. 未实现的批量添加(方法 2)与更新(方法 3)必须明确拒绝，不得伪装成功
+    // Class 10 复位只清运行态，方案由 129 Clear 管理。
+    assert_int_equal(dcu_poller_add_scheme(&poller, 9, 1, &csd, 1), 0);
+    ret = dcu_router_action(((uint32_t)OI_TASK_SCHEDULER << 16) | 0x0100, NULL, &method_res);
+    assert_int_equal(ret, 0);
+    assert_non_null(dcu_poller_get_scheme(&poller, 9));
+
     ret = dcu_router_action(((uint32_t)OI_METER_ARCHIVE << 16) | 0x0200, NULL, NULL);
-    assert_int_equal(ret, -4);
+    assert_int_equal(ret, EDGE_SLAVE_SRC_CLASS_MISMATCH);
     ret = dcu_router_action(((uint32_t)OI_METER_ARCHIVE << 16) | 0x0300, NULL, NULL);
-    assert_int_equal(ret, -4);
+    assert_int_equal(ret, EDGE_SLAVE_SRC_CLASS_MISMATCH);
 
-    // 6. 验证实时变量读取 OI 0x2000 (A相电压) -> 应返回 220.5V
     float voltage = 0.0f;
     ret = dcu_router_get_attr(OAD_VOLTAGE, &voltage);
-    assert_int_equal(ret, 0);
-    assert_float_equal(voltage, 220.5f, 0.01f);
+    assert_int_equal(ret, -1);
 
-    // 7. 验证实时变量读取 OI 0x2001 (A相电流) -> 应返回 4.95A
-    float current = 0.0f;
-    ret = dcu_router_get_attr(OAD_CURRENT, &current);
+    // 7. Class 6 频率仍是单值：50.01 Hz × 100 = 5001
+    uint16_t freq = 0;
+    ret = dcu_router_get_attr(OAD_GRID_FREQUENCY, &freq);
     assert_int_equal(ret, 0);
-    assert_float_equal(current, 4.95f, 0.01f);
+    assert_int_equal(freq, 5001);
 
-    /* 8. 远程负荷控制 ACTION 8000：**动作明确未实现**（缺 698 ACTION-Request 编码器）。
-     *
-     * 这条断言以前是 `ret == 0` —— 那是在给"假成功"背书：处理函数只把动作值写进
-     * 影子表就返回成功，主站以为拉闸成功，继电器根本没动。
-     * 现在断言 -4：**路由是通的**（不是 -2「方法不存在」），但动作明确拒绝，
-     * 绝不伪装成功。等 698 ACTION-Request 的编码器和报文样例齐了再改成真下发。 */
+    /* 8. 远程负荷控制 ACTION 8000：方法 1 是 Class 13 的复位，产品不广告，
+     * 类已定义但未广告 → DAR 5；绝不拿演示跳合闸冒充复位。 */
     method_res = -1;
+    assert_int_equal(dcu_inventory_add(&test_inv, "20000001", "DLT698", 9600, 1), 0);
     ret = dcu_router_action(((uint32_t)OI_REMOTE_CONTROL << 16) | 0x0100, NULL, &method_res);
-    assert_int_equal(ret, -4);
+    assert_int_equal(ret, EDGE_SLAVE_SRC_CLASS_MISMATCH);
 
     // 9. 验证影子抓拍引擎 (Generic Snapshot Engine)
     dcu_event_obj_t evt_3000 = {

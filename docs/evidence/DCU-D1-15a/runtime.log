@@ -1,0 +1,63 @@
+== conformance suite: record tests (direct run) ==
+[ RUN      ] test_get_record_request_selector2
+[       OK ] test_get_record_request_selector2
+[ RUN      ] test_get_record_request_no_selection
+[       OK ] test_get_record_request_no_selection
+[ RUN      ] test_get_record_request_rejects_unsupported_selector
+[       OK ] test_get_record_request_rejects_unsupported_selector
+[ RUN      ] test_get_record_request_truncated
+[       OK ] test_get_record_request_truncated
+[ RUN      ] test_get_record_request_rejects_non_date_range
+[       OK ] test_get_record_request_rejects_non_date_range
+[ RUN      ] test_get_record_response_matches_h_3_3
+[       OK ] test_get_record_response_matches_h_3_3
+[ RUN      ] test_get_record_response_dar
+[       OK ] test_get_record_response_dar
+
+== full suite result ==
+[NETBUF][INFO] NetBufPool 0x55fc9e306830: Unref (1 -> 0)
+[==========] tests: 29 test(s) run.
+[  PASSED  ] 29 test(s).
+
+== ASAN ctest -R dlt698 ==
+1/6 Test  #9: test_dlt698_axdr .................   Passed    0.01 sec
+2/6 Test #10: test_dlt698_action ...............   Passed    0.01 sec
+3/6 Test #11: test_dlt698_get_list .............   Passed    0.01 sec
+4/6 Test #28: test_dlt698_conformance_suite ....   Passed    0.01 sec
+5/6 Test #73: test_fuzz_dlms_dlt698 ............   Passed    0.02 sec
+6/6 Test #83: test_driver_dlt698 ...............   Passed    0.01 sec
+100% tests passed, 0 tests failed out of 6
+
+== acceptance runtime ==
+🚀 产品验收 (test-platform)
+  🧹 Nuclear Cleanup...
+平台: /workspaces/test-platform
+解释器: /workspaces/test-platform/.venv/bin/python
+平台版本: faad172bdce0 (锁定 faad172bdce0)
+产品: dcu
+
+北向 broker 已就绪：tcp://127.0.0.1:43603（协议 MqttJson）
+[dcu] dcu_acceptance.yaml
+任务 dcu-acceptance(产品 dcu)·设备清单 /tmp/dcu-baseline-worktree/acceptance/dcu/configs/devices.yaml · 筛选 tag:验收 · 模拟从站 []
+..                                                                       [100%]
+一轮归因(哪些设备不合格 / 哪些测试无效 / 断在哪一步): python tools/attribute_round.py /tmp/dcu-baseline-worktree/reports/acceptance/dcu/dcu_acceptance
+2 passed in 1.09s
+任务 dcu-acceptance 结束,退出码 0
+[dcu] dcu_acceptance 退出码 0
+
+[dcu] dcu_northbound.yaml
+任务 dcu-northbound(产品 dcu)·设备清单 /tmp/dcu-baseline-worktree/acceptance/dcu/configs/devices_north.yaml · 筛选 tag:北向 · 模拟从站 []
+....                                                                     [100%]
+一轮归因(哪些设备不合格 / 哪些测试无效 / 断在哪一步): python tools/attribute_round.py /tmp/dcu-baseline-worktree/reports/acceptance/dcu/dcu_northbound
+4 passed in 0.11s
+任务 dcu-northbound 结束,退出码 0
+[dcu] dcu_northbound 退出码 0
+
+
+门禁:
+全部合格:2 个验收任务
+
+报告: /tmp/dcu-baseline-worktree/reports/acceptance
+归因: /workspaces/test-platform/.venv/bin/python /workspaces/test-platform/tools/attribute_round.py /tmp/dcu-baseline-worktree/reports/acceptance/<产品>
+  🧹 Nuclear Cleanup...
+✨ 验收通过

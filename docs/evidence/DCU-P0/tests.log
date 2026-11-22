@@ -1,0 +1,208 @@
+== environment ==
+commit: 15a51c80b2dd1f6ff94c3ce90bed35ca0027d578
+branch: dcu/D0-04-baseline
+worktree: /tmp/dcu-baseline-worktree
+gcc: gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0
+cmake: cmake version 3.22.1
+ninja: 1.10.1
+lcov: lcov: LCOV version 1.14
+python: Python 3.10.12
+nproc: 8
+uname: 5.15.153.1-microsoft-standard-WSL2
+uid: 0 (sudo binary: absent)
+
+== 1. clean build: cmake .. -GNinja -DCMAKE_BUILD_TYPE=Release -DCOVERAGE=ON && cmake --build . -j8 ==
+[1093/1094] Building C object tests/CMakeFiles/test_idl_generated_serialization.dir/test_idl_generated_serialization.c.o
+[1094/1094] Linking C executable tests/test_idl_generated_serialization
+compiler_errors=0; last target: [1094/1094] (exit 0)
+
+== 2a. ctest -R dcu ==
+10/22 Test  #22: test_dcu_node ....................   Passed    0.10 sec
+11/22 Test  #23: test_dcu_runtime_health ..........   Passed    1.52 sec
+12/22 Test  #24: test_dcu_698_object_model ........   Passed    0.00 sec
+13/22 Test  #25: test_dcu_698_var .................   Passed    0.00 sec
+14/22 Test  #26: test_dcu_698_axdr ................   Passed    0.00 sec
+15/22 Test #118: test_dcu_poller ..................   Passed    0.00 sec
+16/22 Test #122: test_dcu_scale_benchmark .........   Passed    0.35 sec
+17/22 Test #155: test_dcu .........................   Passed    0.00 sec
+18/22 Test #206: test_driver_registry_dcu .........   Passed    0.00 sec
+19/22 Test #226: test_dcu_power_quality ...........   Passed    0.00 sec
+20/22 Test #234: test_web_dcu_power_quality .......   Passed    0.00 sec
+21/22 Test #307: test_dcu_mutex_marathon ..........   Passed    1.10 sec
+22/22 Test #308: test_dcu_topology_phase_id .......   Passed    0.00 sec
+100% tests passed, 0 tests failed out of 22
+Total Test time (real) =  13.29 sec
+1/6 Test  #9: test_dlt698_axdr .................   Passed    0.01 sec
+2/6 Test #10: test_dlt698_action ...............   Passed    0.00 sec
+3/6 Test #11: test_dlt698_get_list .............   Passed    0.01 sec
+4/6 Test #27: test_dlt698_conformance_suite ....   Passed    0.00 sec
+5/6 Test #72: test_fuzz_dlms_dlt698 ............   Passed    0.01 sec
+6/6 Test #82: test_driver_dlt698 ...............   Passed    0.01 sec
+100% tests passed, 0 tests failed out of 6
+Total Test time (real) =   0.05 sec
+
+== 2b. ctest -R dlt698 ==
+Total Test time (real) =  13.29 sec
+1/6 Test  #9: test_dlt698_axdr .................   Passed    0.01 sec
+2/6 Test #10: test_dlt698_action ...............   Passed    0.00 sec
+3/6 Test #11: test_dlt698_get_list .............   Passed    0.01 sec
+4/6 Test #27: test_dlt698_conformance_suite ....   Passed    0.00 sec
+5/6 Test #72: test_fuzz_dlms_dlt698 ............   Passed    0.01 sec
+6/6 Test #82: test_driver_dlt698 ...............   Passed    0.01 sec
+100% tests passed, 0 tests failed out of 6
+Total Test time (real) =   0.05 sec
+
+== 2c. full suite for coverage: ctest --output-on-failure -E '^app_platform_e2e$' ==
+100% tests passed, 0 tests failed out of 330
+Total Test time (real) = 185.03 sec
+
+== 2d. app_platform_e2e (CI runs it privileged; this env has no sudo, ran as root directly) ==
+1/1 Test #328: app_platform_e2e .................   Passed    2.97 sec
+100% tests passed, 0 tests failed out of 1
+Total Test time (real) =   2.99 sec
+== 3. coverage: lcov capture/remove then ci/scripts/check_coverage.py ==
+-- run A: before app_platform_e2e (not CI-equivalent, kept to show the delta) --
+== coverage gate ==
+❌ [COVERAGE_GATE] cmd: 75.9% < floor 76.5%
+scope                         lines   floor  result
+ALL                           77.1%   74.5%    PASS
+adapters                      74.5%   66.5%    PASS
+cmd                           75.9%   76.5%    FAIL
+foundation                    96.5%   87.0%    PASS
+modules/edge_core             75.6%   75.0%    PASS
+modules/edge_io               62.1%   60.0%    PASS
+modules/edge_mgmt             87.3%   87.0%    PASS
+modules/edge_stream           69.3%   65.0%    PASS
+coverage_exit=1
+
+-- run B: after app_platform_e2e (CI-equivalent order) --
+== lcov capture (after all tests incl. e2e) ==
+Finished .info-file creation
+== lcov remove ==
+== lcov list summary ==
+modules/edge_io/src/guard_port.c               |60.0%     5|50.0%   2|    -    0
+modules/edge_io/src/passthrough_mgr.c          |79.6%    93|77.8%   9|    -    0
+modules/edge_io/src/protocol_bridge.c          | 100%    35| 100%   7|    -    0
+modules/edge_io/src/re...ts/req_driver_legacy.c|77.2%   101| 100%   6|    -    0
+modules/edge_io/src/requests/req_raw_io.c      | 0.0%    40| 0.0%   6|    -    0
+modules/edge_io/src/sched_engine.c             |25.0%    56|30.0%  10|    -    0
+modules/edge_io/src/ws_proto.c                 |25.3%    91|28.6%   7|    -    0
+modules/edge_mgmt/src/api/console_ws.c         |94.4%    71| 100%   4|    -    0
+modules/edge_mgmt/src/api/sniffer_ws.c         |86.8%   257| 100%   8|    -    0
+modules/edge_mgmt/src/app_manifest.c           |93.8%   356| 100%  26|    -    0
+modules/edge_mgmt/src/app_pressure.c           |93.3%   165|93.8%  16|    -    0
+modules/edge_mgmt/src/app_secret.c             |73.1%    52|80.0%   5|    -    0
+modules/edge_mgmt/src/app_settings.c           |84.2%   266| 100%  19|    -    0
+modules/edge_mgmt/src/app_task.c               | 100%    49| 100%   4|    -    0
+modules/edge_mgmt/src/app_upgrade_grants.c     |82.2%   146|86.7%  15|    -    0
+modules/edge_mgmt/src/audit/console_audit.c    |82.4%   125|88.9%   9|    -    0
+modules/edge_mgmt/src/auth/console_rbac.c      |84.5%    84| 100%   8|    -    0
+modules/edge_mgmt/src/edge_app_mgr.c           |81.8%   807|92.5%  67|    -    0
+modules/edge_mgmt/src/edge_authz.c             |93.7%   174| 100%  20|    -    0
+modules/edge_mgmt/src/edge_eapp.c              |94.7%   132| 100%   6|    -    0
+modules/edge_mgmt/src/point_history.c          | 100%   106| 100%  10|    -    0
+modules/edge_north/src/northbound_mgr.c        |80.3%   284|90.6%  32|    -    0
+modules/edge_north/src/snf_manager.c           |87.5%   104| 100%   7|    -    0
+modules/edge_security_policy/src/edge_acl.c    |82.8%    29|75.0%   4|    -    0
+modules/edge_stream/include/js_arbiter_port.h  | 0.0%     2|    -   0|    -    0
+modules/edge_stream/include/stream_bus_port.h  | 100%     8|    -   0|    -    0
+modules/edge_stream/in...e/stream_sqlite_port.h| 100%     1|    -   0|    -    0
+modules/edge_stream/src/aggregator.c           | 0.0%    14| 0.0%   2|    -    0
+modules/edge_stream/src/dsp_stages.c           | 100%    39| 100%   3|    -    0
+modules/edge_stream/src/edge_tensor_pipeline.c | 100%    40| 100%   3|    -    0
+modules/edge_stream/src/energy_integrator.c    |37.2%    43|75.0%   4|    -    0
+modules/edge_stream/src/js_engine.c            |24.3%   107|30.8%  13|    -    0
+modules/edge_stream/src/js_stage.c             | 0.0%    69| 0.0%   7|    -    0
+modules/edge_stream/src/mpc_dispatcher.c       |87.2%    86|62.5%   8|    -    0
+modules/edge_stream/src/pipeline_loader.c      |86.3%   306|96.2%  26|    -    0
+modules/edge_stream/src/script_loader.c        | 0.0%    54| 0.0%   7|    -    0
+modules/edge_stream/src/stage_advanced_pid.c   | 0.0%    35| 0.0%   3|    -    0
+modules/edge_stream/src/stage_ahrs_quaternion.c|93.2%    59|75.0%   4|    -    0
+modules/edge_stream/sr...age_anomaly_baseline.c| 0.0%    45| 0.0%   4|    -    0
+modules/edge_stream/src/stage_compactor.c      |81.6%    38|75.0%   4|    -    0
+modules/edge_stream/src/stage_dsp_rms.c        |47.1%    34|75.0%   4|    -    0
+modules/edge_stream/src/stage_ecg_anomaly.c    |95.7%    47|75.0%   4|    -    0
+modules/edge_stream/src/stage_ekf_soc.c        |95.7%    92|75.0%   4|    -    0
+modules/edge_stream/src/stage_foc_core.c       |92.0%    50|75.0%   4|    -    0
+modules/edge_stream/src/stage_iir_filter.c     | 0.0%    27| 0.0%   2|    -    0
+modules/edge_stream/src/stage_kinematics.c     |87.0%    46|75.0%   4|    -    0
+modules/edge_stream/src/stage_linear_system.c  | 0.0%    46| 0.0%   3|    -    0
+modules/edge_stream/src/stage_mpc_dispatcher.c |97.3%    74| 100%   4|    -    0
+modules/edge_stream/src/stage_notch_filter.c   |83.3%    48|80.0%   5|    -    0
+modules/edge_stream/src/stage_radar_tracker.c  |91.1%    45|75.0%   4|    -    0
+modules/edge_stream/src/stage_rul_prediction.c |71.4%    42|50.0%   4|    -    0
+modules/edge_stream/src/stage_sensor_fusion.c  |95.4%    87|75.0%   4|    -    0
+modules/edge_stream/src/stage_sliding_window.c | 0.0%    33| 0.0%   3|    -    0
+modules/edge_stream/src/stage_tinyml_wasm.c    |65.6%    64| 100%   3|    -    0
+modules/edge_stream/sr...ge_transfer_function.c| 0.0%    19| 0.0%   2|    -    0
+modules/edge_stream/sr...e_vibration_features.c|79.7%    64|80.0%   5|    -    0
+modules/edge_stream/src/stage_vpp_logger.c     |61.1%    36|50.0%   4|    -    0
+modules/edge_stream/src/stage_wasm.c           |92.9%    42| 100%   4|    -    0
+modules/edge_stream/src/stage_wavelet_anomaly.c|92.9%    42|75.0%   4|    -    0
+modules/edge_stream/src/standard_stages.c      |41.1%   360|43.3%  60|    -    0
+modules/edge_stream/src/stream_dump.c          |41.7%    24| 100%   1|    -    0
+modules/edge_stream/src/stream_engine.c        |82.2%   314|82.1%  28|    -    0
+modules/edge_stream/src/stream_sql_dag.c       |64.7%    68| 100%   4|    -    0
+modules/edge_stream/sr...e/wasm_app_scheduler.c|82.5%   177| 100%  11|    -    0
+modules/edge_stream/src/wasm_runtime/wasm_mgr.c|72.5%   200|81.8%  22|    -    0
+modules/edge_stream/sr...asm_sandbox_watchdog.c| 100%    11| 100%   2|    -    0
+sdk/c/edge_app_sdk.c                           |69.0%   335|82.8%  29|    -    0
+tools/edgeos-pack/main.c                       |69.0%   184| 100%  10|    -    0
+================================================================================
+                                         Total:|77.2% 26641|81.5%  2k|    -    0
+== coverage gate ==
+scope                         lines   floor  result
+ALL                           77.2%   74.5%    PASS
+adapters                      74.4%   66.5%    PASS
+cmd                           78.0%   76.5%    PASS
+foundation                    96.5%   87.0%    PASS
+modules/edge_core             76.3%   75.0%    PASS
+modules/edge_io               62.0%   60.0%    PASS
+modules/edge_mgmt             87.3%   87.0%    PASS
+modules/edge_stream           66.2%   65.0%    PASS
+✅ [COVERAGE_GATE] all scopes meet their floors
+coverage_exit=0
+
+== 4a. ASAN build: cmake .. -GNinja -DCMAKE_BUILD_TYPE=Release -DENABLE_ASAN=ON && cmake --build . -j8 ==
+[1093/1094] Building C object tests/CMakeFiles/test_idl_generated_serialization.dir/test_idl_generated_serialization.c.o
+[1094/1094] Linking C executable tests/test_idl_generated_serialization
+build_exit=0
+
+== 4b. ASAN ctest -R dcu ==
+100% tests passed, 0 tests failed out of 22
+Total Test time (real) =  14.07 sec
+asan_dcu_exit=0
+== 4c. ASAN ctest -R dlt698 ==
+1/6 Test  #9: test_dlt698_axdr .................   Passed    0.01 sec
+2/6 Test #10: test_dlt698_action ...............   Passed    0.01 sec
+3/6 Test #11: test_dlt698_get_list .............   Passed    0.01 sec
+4/6 Test #27: test_dlt698_conformance_suite ....***Failed    0.08 sec
+5/6 Test #72: test_fuzz_dlms_dlt698 ............   Passed    0.02 sec
+6/6 Test #82: test_driver_dlt698 ...............   Passed    0.01 sec
+83% tests passed, 1 tests failed out of 6
+Total Test time (real) =   0.16 sec
+asan_dlt698_exit=8
+ASAN failure summary:
+==60418==ERROR: AddressSanitizer: stack-use-after-scope on address 0x7ffd9420e6dc at pc 0x562e3bc7db53 bp 0x7ffd9420e470 sp 0x7ffd9420e460
+SUMMARY: AddressSanitizer: stack-use-after-scope (/tmp/dcu-baseline-worktree/build-asan/tests/test_dlt698_conformance_suite+0xfb52) in test_get_request_normal
+
+== 5a. UBSAN build ==
+[1093/1094] Building C object tests/CMakeFiles/test_idl_generated_serialization.dir/test_idl_generated_serialization.c.o
+[1094/1094] Linking C executable tests/test_idl_generated_serialization
+build_exit=0
+== 5b. UBSAN ctest -R dcu / -R dlt698 ==
+100% tests passed, 0 tests failed out of 22
+Total Test time (real) =  15.53 sec
+ubsan_dcu_exit=0
+100% tests passed, 0 tests failed out of 6
+Total Test time (real) =   0.07 sec
+ubsan_dlt698_exit=0
+
+== 6. conformance suite direct run (release build), skip accounting ==
+[==========] tests: 21 test(s) run.
+[  PASSED  ] 20 test(s).
+[  SKIPPED ] tests: 1 test(s), listed below:
+[  SKIPPED ] test_get_record_and_rsd_not_implemented
+
+ 1 SKIPPED TEST(S)
+suite_exit=0

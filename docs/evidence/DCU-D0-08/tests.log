@@ -1,0 +1,53 @@
+== environment ==
+branch: dcu/D0-08-asan-frame-lifetime
+base commit: 5c808baf
+worktree: /tmp/dcu-baseline-worktree
+gcc: gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0
+
+== BEFORE the fix (15a51c80, from docs/evidence/DCU-P0): ASAN ctest -R dlt698 ==
+asan_dcu_exit=0
+1/6 Test  #9: test_dlt698_axdr .................   Passed    0.01 sec
+2/6 Test #10: test_dlt698_action ...............   Passed    0.01 sec
+3/6 Test #11: test_dlt698_get_list .............   Passed    0.01 sec
+4/6 Test #27: test_dlt698_conformance_suite ....***Failed    0.08 sec
+5/6 Test #72: test_fuzz_dlms_dlt698 ............   Passed    0.02 sec
+6/6 Test #82: test_driver_dlt698 ...............   Passed    0.01 sec
+83% tests passed, 1 tests failed out of 6
+asan_dlt698_exit=8
+==60418==ERROR: AddressSanitizer: stack-use-after-scope on address 0x7ffd9420e6dc at pc 0x562e3bc7db53 bp 0x7ffd9420e470 sp 0x7ffd9420e460
+SUMMARY: AddressSanitizer: stack-use-after-scope (/tmp/dcu-baseline-worktree/build-asan/tests/test_dlt698_conformance_suite+0xfb52) in test_get_request_normal
+before_exit=8
+
+== AFTER the fix: ASAN build (cmake --build build-asan -j8) ==
+      |             ^~~
+[2/2] Linking C executable tests/test_dlt698_conformance_suite
+
+== AFTER the fix: ASAN ctest -R dlt698 ==
+1/6 Test  #9: test_dlt698_axdr .................   Passed    0.01 sec
+2/6 Test #10: test_dlt698_action ...............   Passed    0.01 sec
+3/6 Test #11: test_dlt698_get_list .............   Passed    0.01 sec
+4/6 Test #27: test_dlt698_conformance_suite ....   Passed    0.01 sec
+5/6 Test #72: test_fuzz_dlms_dlt698 ............   Passed    0.02 sec
+6/6 Test #82: test_driver_dlt698 ...............   Passed    0.01 sec
+100% tests passed, 0 tests failed out of 6
+Total Test time (real) =   0.07 sec
+asan_dlt698_exit=0
+
+== AFTER the fix: ASAN full suite ctest --output-on-failure -E '^app_platform_e2e$' ==
+100% tests passed, 0 tests failed out of 330
+Total Test time (real) = 186.08 sec
+asan_full_exit=0
+
+== AFTER the fix: release build + ctest -R 'dcu|dlt698' ==
+      |             ^~~
+[2/2] Linking C executable tests/test_dlt698_conformance_suite
+100% tests passed, 0 tests failed out of 28
+Total Test time (real) =  13.08 sec
+release_ctest_exit=0
+
+== git diff --check ==
+diff_check_exit=0
+
+== D0-08 follow-up: bounded frame length ==
+build_exit=0 warnings=0
+check_build_warnings.py --log /tmp/dcu-d0-08-fl-build.log --root . -> ✅ No new violations

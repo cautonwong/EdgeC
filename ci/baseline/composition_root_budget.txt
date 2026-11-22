@@ -11,10 +11,18 @@
 # 2026-11-09: cmd/iems/iems_app.c 336 -> 342; app control port (rest_control_port_t) 初始化接线。
 # 2026-11-09: cmd/dcu/main.c 213 -> 214; driver manager 改为调用方存储 (driver_manager_create_in)。
 # 2026-11-09: cmd/edge_mcp_server/main.c 174 -> 182; 行业 MCP 工具包改为组合根显式注册。
-cmd/dcu/dcu_north_adapter.c|201
+# 2026-11-21: cmd/dcu/dcu_north_adapter.c 201 -> 203; D1-13 A-XDR 端口接线（include + ops 两行，编码体在 dcu_698_axdr.c）。
+# 2026-11-22: cmd/dcu/dcu_north_adapter.c 203 -> 190; D1-05 删掉适配器里的 OI 链，标量 resolve 复用 dcu_698_value_for_oad 的类型表。
+# 2026-11-22: cmd/dcu/dcu_north_adapter.c 190 -> 189; D1-06 ACTION 入口解 A.9 参数后转对象表分派（解码在 dcu_698_axdr.c）。
+# 2026-11-22: cmd/dcu/dcu_north_adapter.c 189 -> 191; D1-17 接线 object_list 端口（include + ops 一行，列表在 dcu_698_appconn.c）。
+# 2026-11-22: cmd/dcu/dcu_north_adapter.c 191 -> 201; D1-07 接线 record 端口与记录上下文（实现与分页在 dcu_698_record.c）。
+# 2026-11-22: cmd/dcu/dcu_north_adapter.c 201 -> 203; D1-16 接线上报端口（include + ops 一行，队列在 dcu_698_report.c）。
+# 2026-11-22: cmd/dcu/dcu_north_adapter.c 203 -> 204; D1-20a 增加 6012 分支，原始 A-XDR 交 dcu_698_accept_action_axdr 解码。
+# 2026-11-22: cmd/dcu/dcu_north_adapter.c 204 -> 205; D2-09 6002 与 6012 共用同一 A-XDR 解码入口。
+cmd/dcu/dcu_north_adapter.c|205
 cmd/dcu/dcu_bus_adapter.c|43
 cmd/dcu/main.c|225
-cmd/edge_mcp_server/main.c|183
+cmd/edge_mcp_server/main.c|184
 # 2026-11-13: cmd/iems/iems_app.c 558 -> 559；参数服务改用调用方存储。
 # 2026-11-17: cmd/iems/iems_app.c 559 -> 560；升级恢复注入 authz store，用于 grant 快照回放。
 # 2026-11-18: cmd/iems/iems_app.c 560 -> 572；北向控制写按点位路由，注入 route_for_tag 端口。
@@ -27,16 +35,19 @@ cmd/edge_mcp_server/main.c|183
 cmd/iems/iems_app.c|578
 cmd/iems/iems_north_listener.c|170
 # 2026-11-19: cmd/iems/iems_north_iec104.c 基线 203；IEC104 TCP 监听 + 从站 source ops 接线适配器。
-cmd/iems/iems_north_iec104.c|203
+# 2026-11-22: cmd/iems/iems_north_iec104.c 203 -> 180；既有改动缩小了根，刷新基线（只降不升）。
+cmd/iems/iems_north_iec104.c|180
 # 2026-11-18: cmd/iems/iems_southbound_adapter.c 133 -> 178；南向按 conn->type 选 UART，CAN 真设备明确未实现，UDS 路径保留。
 # 2026-11-18: cmd/iems/iems_southbound_adapter.c 178 -> 199；Modbus TCP 设备走 tcp://host:port，连不上仍计入缺失摘要。
 # 2026-11-19: cmd/iems/iems_southbound_adapter.c 199 -> 218；BAUD 环境变量严格解析，非法/未支持速率拒绝整条总线并日志。
-cmd/iems/iems_southbound_adapter.c|218
+# 2026-11-22: cmd/iems/iems_southbound_adapter.c 218 -> 215；既有改动缩小了根，刷新基线（只降不升）。
+cmd/iems/iems_southbound_adapter.c|215
 # 2026-11-19: cmd/iems/main.c 109 -> 111；stdout 行缓冲 (setvbuf _IOLBF)，裸 printf 状态行不再等下一次 flush 才落盘。
 cmd/iems/main.c|111
 # 2026-11-16: 组合根忽略 SIGPIPE（+1 调用 +1 include），应用崩溃后的 IPC 写入不得打死网关。
-cmd/nexus_lab/main.c|156
-cmd/smart_box/main.c|90
+# 2026-11-21: DCU-D0-03 产品 stdout 行缓冲：所有产品组合根入口 setvbuf(_IOLBF)（mcp +1, nexus_lab +1, smart_box +2）。
+cmd/nexus_lab/main.c|157
+cmd/smart_box/main.c|92
 # 2026-11-09: core service 不再持有北向管理器；产品组合根显式 start/stop 北向 (+4 DCU, +1 IEMS)。
 # 2026-11-10: cmd/iems/iems_app.c 343 -> 347; SnF store port injection (+4).
 # 2026-11-10: north source adapter moved to bootstrap; product include adds one line (DCU 196->197, IEMS 347->348).

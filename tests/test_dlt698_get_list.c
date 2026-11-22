@@ -139,10 +139,25 @@ static void test_rejects_bad_arguments(void **state) {
 
     dlt698_get_item_t one = {.oad = 0x20000200U, .data = V_FLOAT, .dlen = sizeof(V_FLOAT)};
     assert_int_not_equal(dlt698_encode_get_response_list(&sa, 1, NULL, 1, out), 0);
-    assert_int_not_equal(dlt698_encode_get_response_list(&sa, 1, &one, 0, out), 0);
     assert_int_not_equal(
         dlt698_encode_get_response_list(&sa, 1, &one, DLT698_GET_LIST_MAX + 1, out), 0);
     assert_int_not_equal(dlt698_encode_get_response_list(NULL, 1, &one, 1, out), 0);
+    net_buf_unref(out);
+}
+
+/** 表73 的 SEQUENCE OF 没有 SIZE 下限；0 项要回一条合法的空结果列表。 */
+static void test_empty_list_is_legal(void **state) {
+    (void)state;
+    dlt698_addr_t sa = _sa();
+    net_buf_t *out = net_buf_alloc(g_pool, 0);
+    assert_non_null(out);
+
+    assert_int_equal(dlt698_encode_get_response_list(&sa, 0x01, NULL, 0, out), 0);
+
+    const uint8_t *apdu = NULL;
+    size_t n = _apdu(out, &apdu);
+    const uint8_t want[] = {0x85, 0x02, 0x01, 0x00, 0x00, 0x00};
+    _expect(apdu, n, want, sizeof(want));
     net_buf_unref(out);
 }
 
@@ -214,6 +229,7 @@ int main(void) {
         cmocka_unit_test(test_list_response_matches_standard_layout),
         cmocka_unit_test(test_failed_item_is_reported_as_dar),
         cmocka_unit_test(test_rejects_bad_arguments),
+        cmocka_unit_test(test_empty_list_is_legal),
         cmocka_unit_test(test_decode_ex_reports_choice),
         cmocka_unit_test(test_decode_rejects_truncated_frames),
     };

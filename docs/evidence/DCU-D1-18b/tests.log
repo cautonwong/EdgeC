@@ -1,0 +1,24 @@
+== focused tests ==
+[       OK ] test_reset_returns_to_uninitialized
+[==========] tests: 11 test(s) run.
+[  PASSED  ] 11 test(s).
+[       OK ] test_resolve_axdr_for_north_list_oads
+[==========] tests: 7 test(s) run.
+[  PASSED  ] 7 test(s).
+[==========] tests: 4 test(s) run.
+[  PASSED  ] 4 test(s).
+[       OK ] test_action_rejects_other_methods_and_trailing_bytes
+[==========] tests: 25 test(s) run.
+[  PASSED  ] 25 test(s).
+
+== full ctest ==
+100% tests passed, 0 tests failed out of 335
+
+== asan ==
+100% tests passed, 0 tests failed out of 8
+
+== warning gate ==
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+
+== guards ==
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!

@@ -1,0 +1,17 @@
+ .audit/d5.todo.md                           | 63 +++++++++++++++++++++++++
+ acceptance/dcu/tests/test_dcu_northbound.py | 18 +++++++
+ cmd/dcu/dcu_698_appconn.c                   | 21 ++++++---
+ cmd/dcu/dcu_698_object_model.c              |  7 +++
+ cmd/dcu/dcu_router.h                        |  2 +
+ docs/design/DCU_698_OBJECT_MODEL.md         |  8 +++-
+ docs/evidence/DCU-D5-01-02/comments.md      | 22 +++++++++
+ docs/evidence/DCU-D5-01-02/diffstat.txt     |  0
+ docs/evidence/DCU-D5-01-02/runtime.log      | 34 ++++++++++++++
+ docs/evidence/DCU-D5-01-02/summary.md       | 53 +++++++++++++++++++++
+ docs/evidence/DCU-D5-01-02/tests.log        | 23 +++++++++
+ foundation/include/edge_slave_plane.h       |  2 +-
+ tests/test_dcu_698_appconn.c                |  2 +-
+ tests/test_dcu_698_axdr.c                   | 73 ++++++++++++++++++++++-------
+ tests/test_dcu_698_object_model.c           |  2 +-
+ tests/test_driver_dlt698.c                  | 16 +++----
+ 16 files changed, 311 insertions(+), 35 deletions(-)

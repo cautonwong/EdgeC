@@ -77,7 +77,7 @@ static int _create_dcu_node(uv_loop_t *loop, const dcu_node_config_t *cfg) {
 
 int main(int argc, char** argv) {
     edge_thread_port_install_uv();
-    setvbuf(stdout, NULL, _IONBF, 0);
+    setvbuf(stdout, NULL, _IOLBF, 0);
     (void)argc;
     (void)argv;
     LOG_INFO(LOG_CAT_SCHED, "🚀 Starting EdgeC DCU (Series 6xxx) - Digital Twin Marathon");
@@ -176,7 +176,7 @@ int main(int argc, char** argv) {
 
     dcu_bus_attach_channels(loop, hub, io_orch, driver_runtime.manager, inv);
 
-    dcu_north_slave_attach(loop, hub, io_orch);
+    dcu_north_slave_attach(loop, hub, io_orch, g_dcu_node);
     dcu_north_cloud_attach(hub);
 
     service_t* svc = service_new(loop, hub, arbiter_ctx, NULL, NULL);

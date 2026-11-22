@@ -1,0 +1,22 @@
+ acceptance/dcu/tests/test_dcu_northbound.py |   6 +-
+ adapters/io_drivers/src/driver_dlt698.c     | 443 +++++++++++++++++++++-------
+ ci/baseline/composition_root_budget.txt     |   3 +-
+ cmd/dcu/CMakeLists.txt                      |   1 +
+ cmd/dcu/dcu_698_appconn.c                   | 115 ++++++++
+ cmd/dcu/dcu_698_appconn.h                   |  14 +
+ cmd/dcu/dcu_698_axdr.c                      |   7 +
+ cmd/dcu/dcu_north_adapter.c                 |   2 +
+ docs/adr/0015-appconn-session-acl.md        |  46 +++
+ docs/evidence/DCU-D1-17/comments.md         |  37 +++
+ docs/evidence/DCU-D1-17/runtime.log         |  48 +++
+ docs/evidence/DCU-D1-17/summary.md          |  64 ++++
+ docs/evidence/DCU-D1-17/tests.log           |  41 +++
+ foundation/include/dlt698_codec.h           |  21 ++
+ foundation/include/edge_slave_plane.h       |   9 +
+ foundation/src/protocol/dlt698_codec.c      |  61 +++-
+ tests/CMakeLists.txt                        |   7 +
+ tests/test_dcu_698_appconn.c                |  30 ++
+ tests/test_dcu_698_axdr.c                   |  70 ++++-
+ tests/test_dlt698_appconn.c                 | 357 ++++++++++++++++++++++
+ tests/test_driver_dlt698.c                  |  52 +++-
+ 21 files changed, 1316 insertions(+), 118 deletions(-)

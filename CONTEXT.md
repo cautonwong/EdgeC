@@ -96,6 +96,31 @@ A logical communication channel representing one physical interface (UART, TCP s
 
 ---
 
+## Architecture Vocabulary
+
+### Caller-Allocated Storage (调用方分配)
+The caller owns and provides the buffer; the callee only writes into it and never retains ownership or allocates. Used on hot paths and in components where dynamic memory is forbidden.
+
+### Aggregate (聚合)
+A cluster of domain objects that must change together to stay consistent. External code never mutates its members directly.
+
+### Aggregate Root (聚合根)
+The single entry point and identity of an Aggregate. All state changes go through it, so invariants (online state, interlocks, whitelists) cannot be bypassed. Example: `dcu_node` is the DCU aggregate root.
+
+### Bounded Context (有界上下文)
+A boundary inside which one domain model and its terminology stay consistent. The same word may mean different things across contexts; translation happens at the boundary.
+
+### Composition Root (组合根)
+The one place where concrete implementations are assembled and injected. Product entry points (`cmd/<product>/main.c`) are composition roots; domain modules never construct their own dependencies.
+
+### Opaque Pointer (不透明指针)
+A public header exposes only `struct X;` and `X *`; the layout lives in the `.c` file. Callers cannot depend on fields, so the implementation can change without breaking them.
+
+### Consumer-Defined Interface (消费者定接口)
+A port declared by the code that consumes it, not by the code that implements it. Implementations adapt to the port; the consumer does not import the implementation. Example: `foundation/include/*_plane.h` ports implemented by `cmd/` products.
+
+---
+
 ## Product Lines
 
 ### Grid-Core

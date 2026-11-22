@@ -1,0 +1,25 @@
+== Release unit tests: ctest -R 'dcu|dlt698' ==
+
+100% tests passed, 0 tests failed out of 30
+
+Total Test time (real) =  16.61 sec
+
+== UBSAN unit tests: ctest -R 'dcu|dlt698' ==
+
+100% tests passed, 0 tests failed out of 30
+
+Total Test time (real) =  20.84 sec
+runtime-error lines: 0
+
+== warning gate ==
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+
+== guard selftest ==
+
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+
+== product acceptance ./test.sh --omnis dcu ==
+3 passed in 2.10s
+9 passed in 0.23s
+全部合格:2 个验收任务
+[32m✨ 验收通过[0m

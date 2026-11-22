@@ -4,9 +4,16 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "dcu_inventory.h"
+
+static const char *unique_db_path(char *buf, size_t cap, const char *tag) {
+    snprintf(buf, cap, "/tmp/%s_%ld.db", tag, (long)getpid());
+    return buf;
+}
 
 // 1. 验证档案初始化与添加电表
 static void test_inventory_add_remove(void** state) {
@@ -88,7 +95,8 @@ static void test_inventory_channel_protocol(void** state) {
 // 3. 装载只按真正入库的行数递增 revision（超容量被丢的行不算变更）
 static void test_inventory_load_revision(void** state) {
     (void)state;
-    const char* db_path = "/tmp/test_dcu_inv_load.db";
+    char db_file[96];
+    const char *db_path = unique_db_path(db_file, sizeof(db_file), "test_dcu_inv_load");
     remove(db_path);
 
     sqlite3* db = NULL;

@@ -1,0 +1,13 @@
+commit 0331da71bce4d88815eba662fd655969965a941d
+Author: 800900 <992878191@qq.com>
+Date:   Sat Nov 21 23:41:35 2026 +0800
+
+    fix(DCU-D1-14): reject non-scalar fallback and split DAR causes
+    
+    Co-Authored-By: Claude Code <noreply@anthropic.com>
+
+ adapters/io_drivers/src/driver_dlt698.c | 17 ++++++++++++++++-
+ cmd/dcu/dcu_698_axdr.c                  |  3 ++-
+ foundation/src/protocol/dlt698_codec.c  | 28 +++++++++++++++++-----------
+ tests/test_dcu_698_axdr.c               | 33 +++++++++++++++++++++++++++++++++
+ 4 files changed, 68 insertions(+), 13 deletions(-)

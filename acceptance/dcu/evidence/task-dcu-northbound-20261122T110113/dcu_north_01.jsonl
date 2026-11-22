@@ -1,0 +1,2 @@
+{"at": "2026-11-22T11:01:22.936+00:00", "device": "dcu_north_01", "kind": "frame", "direction": "send", "hex": "681300430001106183050201013000040000ed5a16"}
+{"at": "2026-11-22T11:01:24.938+00:00", "device": "dcu_north_01", "kind": "frame", "direction": "receive", "error": "timeout", "timeout": 2.0, "waited": 2.002}

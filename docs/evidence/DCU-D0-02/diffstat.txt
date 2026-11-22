@@ -1,0 +1,10 @@
+ acceptance/dcu/dcu_product.py        |   4 +
+ cmd/dcu/dcu_heartbeat.c              | 105 ++++++++++++------
+ cmd/dcu/dcu_heartbeat.h              |  23 +++-
+ docs/evidence/DCU-D0-02/diffstat.txt |  14 +++
+ docs/evidence/DCU-D0-02/runtime.log  |  32 ++++++
+ docs/evidence/DCU-D0-02/summary.md   |  57 ++++++++++
+ docs/evidence/DCU-D0-02/tests.log    | 126 +++++++++++++++++++++
+ tests/CMakeLists.txt                 |   4 +
+ tests/test_dcu_runtime_health.c      | 209 +++++++++++++++++++++++++++++++++++
+ 9 files changed, 534 insertions(+), 40 deletions(-)

@@ -1,0 +1,74 @@
+== ASAN runtime report: build-asan/tests/test_dlt698_conformance_suite (direct) ==
+==62287==ERROR: AddressSanitizer: stack-use-after-scope on address 0x7ffc049ad73c at pc 0x560c84df6b53 bp 0x7ffc049ad4d0 sp 0x7ffc049ad4c0
+READ of size 1 at 0x7ffc049ad73c thread T0
+    #0 0x560c84df6b52 in test_get_request_normal (/tmp/dcu-baseline-worktree/build-asan/tests/test_dlt698_conformance_suite+0xfb52)
+    #1 0x560c84dfed16 in cmocka_run_one_test_or_fixture (/tmp/dcu-baseline-worktree/build-asan/tests/test_dlt698_conformance_suite+0x17d16)
+    #2 0x560c84dff87a in _cmocka_run_group_tests (/tmp/dcu-baseline-worktree/build-asan/tests/test_dlt698_conformance_suite+0x1887a)
+    #3 0x560c84def1fb in main (/tmp/dcu-baseline-worktree/build-asan/tests/test_dlt698_conformance_suite+0x81fb)
+    #4 0x7fa9c0eead8f  (/lib/x86_64-linux-gnu/libc.so.6+0x29d8f)
+    #5 0x7fa9c0eeae3f in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x29e3f)
+    #6 0x560c84def324 in _start (/tmp/dcu-baseline-worktree/build-asan/tests/test_dlt698_conformance_suite+0x8324)
+
+Address 0x7ffc049ad73c is located in stack of thread T0 at offset 524 in frame
+    #0 0x560c84df606f in test_get_request_normal (/tmp/dcu-baseline-worktree/build-asan/tests/test_dlt698_conformance_suite+0xf06f)
+
+  This frame has 13 object(s):
+    [48, 49) 'svc' (line 205)
+    [64, 65) 'choice' (line 205)
+    [80, 81) 'piid' (line 205)
+    [96, 104) 'apdu' (line 199)
+    [128, 136) 'payload' (line 206)
+    [160, 168) 'plen' (line 207)
+    [192, 216) 'b' (line 146)
+    [256, 274) 'sa' (line 194)
+    [320, 338) 'got_sa' (line 204)
+    [384, 402) 'sa' (line 96)
+    [448, 453) 'want_payload' (line 216)
+    [480, 488) 'want' (line 201)
+    [512, 1024) 'storage' (line 145) <== Memory access at offset 524 is inside this variable
+HINT: this may be a false positive if your program uses some custom stack unwind mechanism, swapcontext or vfork
+      (longjmp and C++ exceptions *are* supported)
+SUMMARY: AddressSanitizer: stack-use-after-scope (/tmp/dcu-baseline-worktree/build-asan/tests/test_dlt698_conformance_suite+0xfb52) in test_get_request_normal
+
+== app_platform_e2e runtime (root, no sudo in this image) ==
+Test project /tmp/dcu-baseline-worktree/build
+    Start 328: app_platform_e2e
+1/1 Test #328: app_platform_e2e .................   Passed    2.97 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   2.99 sec
+
+== acceptance: TESTPLATFORM=/workspaces/test-platform ./test.sh --omnis dcu ==
+🚀 产品验收 (test-platform)
+  🧹 Nuclear Cleanup...
+平台: /workspaces/test-platform
+解释器: /workspaces/test-platform/.venv/bin/python
+平台版本: faad172bdce0 (锁定 faad172bdce0)
+产品: dcu
+
+北向 broker 已就绪：tcp://127.0.0.1:59237（协议 MqttJson）
+[dcu] dcu_acceptance.yaml
+任务 dcu-acceptance(产品 dcu)·设备清单 /tmp/dcu-baseline-worktree/acceptance/dcu/configs/devices.yaml · 筛选 tag:验收 · 模拟从站 []
+..                                                                       [100%]
+一轮归因(哪些设备不合格 / 哪些测试无效 / 断在哪一步): python tools/attribute_round.py /tmp/dcu-baseline-worktree/reports/acceptance/dcu/dcu_acceptance
+2 passed in 1.12s
+任务 dcu-acceptance 结束,退出码 0
+[dcu] dcu_acceptance 退出码 0
+
+[dcu] dcu_northbound.yaml
+任务 dcu-northbound(产品 dcu)·设备清单 /tmp/dcu-baseline-worktree/acceptance/dcu/configs/devices_north.yaml · 筛选 tag:北向 · 模拟从站 []
+....                                                                     [100%]
+一轮归因(哪些设备不合格 / 哪些测试无效 / 断在哪一步): python tools/attribute_round.py /tmp/dcu-baseline-worktree/reports/acceptance/dcu/dcu_northbound
+4 passed in 0.14s
+任务 dcu-northbound 结束,退出码 0
+[dcu] dcu_northbound 退出码 0
+
+
+门禁:
+全部合格:2 个验收任务
+
+报告: /tmp/dcu-baseline-worktree/reports/acceptance
+归因: /workspaces/test-platform/.venv/bin/python /workspaces/test-platform/tools/attribute_round.py /tmp/dcu-baseline-worktree/reports/acceptance/<产品>
+  🧹 Nuclear Cleanup...
+✨ 验收通过

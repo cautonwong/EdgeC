@@ -1402,7 +1402,10 @@ static void test_edge_telemetry_store_caller_allocated_storage(void **state) {
     pipe_msg_t mem_records[32];
     pipe_msg_t snf_queue[32];
 
-    const char *wal_path = "/tmp/test_telemetry_caller_alloc.wal";
+    char wal_buf[96];
+    snprintf(wal_buf, sizeof(wal_buf), "/tmp/test_telemetry_caller_alloc_%ld.wal",
+             (long)getpid());
+    const char *wal_path = wal_buf;
     unlink(wal_path);
 
     edge_telemetry_store_cfg_t cfg = {.wal_path = wal_path,
@@ -1430,7 +1433,9 @@ static void test_sqlite_svc_caller_allocated_storage(void **state) {
     uv_loop_t loop;
     uv_loop_init(&loop);
 
-    const char *db_path = "/tmp/test_sqlite_caller_alloc.db";
+    char db_buf[96];
+    snprintf(db_buf, sizeof(db_buf), "/tmp/test_sqlite_caller_alloc_%ld.db", (long)getpid());
+    const char *db_path = db_buf;
     unlink(db_path);
 
     sqlite_config_t cfg = {.strategy = STRATEGY_SERIES,

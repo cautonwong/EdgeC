@@ -10,6 +10,32 @@
 
 #include "contract_data_types.h"
 
+typedef struct sqlite3 sqlite3;
+
+/**
+ * @brief 6001 采集档案配置单元（标准 A.7 的 Basic + Extended）。
+ *
+ * 6000 的 Add/AddBatch/Update 参数与 6001 A2 都按这个结构搬运，
+ * RAM 与 SQLite 落同一份字段。
+ */
+typedef struct {
+    uint16_t config_seq;          // 配置序号（0 表示新增时由档案分配）
+    char address[MAX_ADDR_LEN];   // 通信地址 TSA
+    uint8_t baud_code;            // 波特率 enum（0–10，255 自适应）
+    uint8_t protocol_code;        // 规约类型 enum（1/2 DL/T645，3 DL/T698.45，4 CJ/T188）
+    uint8_t port;                 // 端口 OAD 的末字节 = 产品通道号
+    char password[16];            // 通信密码（octet-string，按文本保存）
+    uint8_t tariff_count;         // 费率个数
+    uint8_t user_type;            // 用户类型
+    uint8_t wiring_mode;          // 接线方式 enum（0–3）
+    uint16_t rated_voltage;       // 额定电压（换算 -1）
+    uint16_t rated_current;       // 额定电流（换算 -1）
+    uint16_t pt_ratio;            // PT
+    uint16_t ct_ratio;            // CT
+    char collector_addr[16];      // 采集器地址 TSA
+    char asset_no[32];            // 资产号（octet-string，按文本保存）
+} dcu_archive_unit_t;
+
 /**
  * @brief 工业生产级电能表档案实体 (对应 OI 6001 采集档案配置单元)
  */
@@ -18,6 +44,9 @@ typedef struct {
     char protocol[16];           // 通信协议类型 (dlt698, dlt645 等)
     uint32_t baud_rate;          // 串口波特率
     uint8_t channel_id;          // 关联的物理通道/串口 ID
+    uint8_t baud_code;           // 6001 Basic 的波特率 enum（回读用）
+    uint8_t protocol_code;       // 6001 Basic 的规约类型 enum（回读用）
+    uint16_t config_seq;         // 6001 配置序号（设备分配、持久化）
 
     // [PRD Alignment] 6001 附加属性
     uint8_t wiring_mode;      // 接线方式
@@ -25,6 +54,11 @@ typedef struct {
     char asset_no[32];        // 资产号
     uint32_t pt_ratio;        // PT变比
     uint32_t ct_ratio;        // CT变比
+    char password[16];        // 通信密码（文本）
+    uint8_t tariff_count;     // 费率个数
+    uint8_t user_type;        // 用户类型
+    uint16_t rated_voltage;   // 额定电压（换算 -1）
+    uint16_t rated_current;   // 额定电流（换算 -1）
 
     bool is_online;      // 状态：true 表示 ACTIVE, false 表示 SUSPENDED (熔断离线)
     uint32_t last_poll_time_s;                  // 上一次被调度抄读的挂钟时间戳 (秒)
@@ -54,6 +88,7 @@ typedef struct {
     uint16_t count;
     uint32_t revision;  // 档案变更版本号：删除后又新增同数目不会变 count，靠它察觉
     uint32_t next_slot; // 下一个待分配的 slot_id（单调递增，耗尽后才回收）
+    uint16_t next_config_seq;  // 下一个待分配的 6001 配置序号
 } dcu_inventory_t;
 
 /* --- 生产级 API 函数原型声明 --- */
@@ -68,6 +103,47 @@ int dcu_inventory_init(dcu_inventory_t* inv);
  */
 int dcu_inventory_add(dcu_inventory_t* inv, const char* addr, const char* proto, uint32_t baud,
                       uint8_t channel);
+
+/**
+ * @brief 按 6001 配置单元新增一台表（6000 方法 127/128 用）。
+ * @return 0 成功；-2 地址重复；-3 容器已满
+ */
+int dcu_inventory_add_unit(dcu_inventory_t* inv, const dcu_archive_unit_t* unit);
+
+/**
+ * @brief 按配置序号改基本信息（6000 方法 129）；地址变化时重设主键。
+ * @return 0 成功；-1 未找到；-2 新地址与其它表冲突
+ */
+int dcu_inventory_update_basic(dcu_inventory_t* inv, uint16_t config_seq,
+                               const dcu_archive_unit_t* unit);
+
+/**
+ * @brief 按配置序号改扩展/附属信息（6000 方法 130）。
+ * @return 0 成功；-1 未找到；-2 附属信息非空（未实现存储）
+ */
+int dcu_inventory_update_extended(dcu_inventory_t* inv, uint16_t config_seq,
+                                  const dcu_archive_unit_t* unit, bool has_annex);
+
+/**
+ * @brief 按配置序号删除（6000 方法 131）。
+ */
+int dcu_inventory_remove_seq(dcu_inventory_t* inv, uint16_t config_seq);
+
+/**
+ * @brief 清空整张档案表（6000 方法 134）。
+ */
+int dcu_inventory_clear(dcu_inventory_t* inv);
+
+const production_meter_t* dcu_inventory_by_seq(const dcu_inventory_t* inv, uint16_t config_seq);
+
+/**
+ * @brief 把一只表的完整档案写入 SQLite（新增或更新）。
+ */
+int dcu_inventory_save_meter(sqlite3* db, const production_meter_t* m);
+
+int dcu_inventory_delete_meter(sqlite3* db, const char* address);
+
+int dcu_inventory_clear_db(sqlite3* db);
 
 /**
  * @brief 按 slot_id 反查档案（影子表用的是 slot_id，不是数组下标）。

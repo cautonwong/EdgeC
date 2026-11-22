@@ -5,41 +5,25 @@
 # "读档案计数"这条就会跑到 645 电表上、报 KeyError —— 失败原因和被测对象无关。
 # 一份清单一台 DUT，是这套台架一直的约定。
 #
+# 点表只声明一个标量（3000 属性 4 最大事件记录数），给平台提供设备级读数；电压/电流/功率
+# 是数组，平台的标量点表驱动取不了，由 test_dcu_northbound.py 直接发帧解析。
+# 5004 A2 是冻结数据数组而不是条数，不进点表；记录由 GetRecord 用例验证。
+#
 # 链路：dcu_product.py 把 DCU 的 unix socket 桥成 127.0.0.1:19212，
 # 平台按 access: tcp 连上去问属性（平台的传输层只认 serial/tcp，不认 unix socket）。
-criteria_profiles:
-  dcu_698_live:
-    - quantity: 电压
-      min: 198
-      max: 242
-    - quantity: 档案计数
-      min: 1
-      max: 64
-
 models:
   dcu_698_image:
     type: meter
     protocol: dlt698
-    criteria: dcu_698_live
-    capabilities: [电压, 档案计数]
-    # OAD 是 32 位，点表里写成十六进制串。A-XDR 类型由 encoding 决定
-    # （float32 = 0x17，long-unsigned = 0x12）；驱动在标签与点表不符时直接报错，
-    # 不会把错类型的字节当值解出来。
+    capabilities: [最大事件记录数]
     point_table:
-      电压:
-        address: "20000200"
-        length: 4
-        encoding: float32
-        scale: 1
-        byteorder: big
-        unit: V
-      档案计数:
-        address: "60000200"
+      最大事件记录数:
+        address: "30000400"
         length: 2
         encoding: uint
         scale: 1
         byteorder: big
-        unit: 只
+        unit: 条
 
 devices:
   - id: dcu_north_01

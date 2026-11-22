@@ -140,6 +140,7 @@ static void demo_transformations_encyclopedia(void) {
 }
 
 int main(void) {
+    setvbuf(stdout, NULL, _IOLBF, 0);
     printf("\033[36m======================================================================\n");
     printf("      Nexus Lab V6.0 Encyclopedia: EdgeC 工业算法百科全书 (Final)\n");
     printf("======================================================================\033[0m\n");

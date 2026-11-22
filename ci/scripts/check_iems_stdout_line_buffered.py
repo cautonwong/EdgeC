@@ -5,11 +5,17 @@
 `[PHYSICS-SUCCESS] ... CONNECTED` 迟到二十秒才落盘，用例把「重连成功」
 判成「重连没发生」。根因修复是 main 入口的 setvbuf；台架的 stdbuf 只是
 掩盖，必须禁止回潮。
+
+D0-03 起不再只扫 iEMS：`cmd/*/main.c` 每个产品入口都必须是行缓冲，
+`acceptance/*/*_product.py` 都不得出现 stdbuf。
 """
 import argparse
+import glob
 import os
 import re
 import sys
+
+_SETVBUF_LINE_BUFFERED = r"setvbuf\s*\(\s*stdout\s*,\s*NULL\s*,\s*_IOLBF\s*,\s*0\s*\)"
 
 
 def _read(path):
@@ -25,14 +31,16 @@ def main():
     parser.add_argument("--root", required=True)
     args = parser.parse_args()
 
-    main_c = _read(os.path.join(args.root, "cmd/iems/main.c"))
-    shell = _read(os.path.join(args.root, "acceptance/iems/iems_product.py"))
-
     errors = []
-    if not re.search(r"setvbuf\s*\(\s*stdout\s*,\s*NULL\s*,\s*_IOLBF\s*,\s*0\s*\)", main_c):
-        errors.append("cmd/iems/main.c 缺少 setvbuf(stdout, NULL, _IOLBF, 0)")
-    if "stdbuf" in shell:
-        errors.append("acceptance/iems/iems_product.py 仍依赖 stdbuf，掩盖产品缓冲缺陷")
+    for path in sorted(glob.glob(os.path.join(args.root, "cmd", "*", "main.c"))):
+        rel = os.path.relpath(path, args.root)
+        if not re.search(_SETVBUF_LINE_BUFFERED, _read(path)):
+            errors.append(f"{rel} 缺少 setvbuf(stdout, NULL, _IOLBF, 0)")
+
+    for path in sorted(glob.glob(os.path.join(args.root, "acceptance", "*", "*_product.py"))):
+        rel = os.path.relpath(path, args.root)
+        if "stdbuf" in _read(path):
+            errors.append(f"{rel} 仍依赖 stdbuf，掩盖产品缓冲缺陷")
 
     for err in errors:
         print(f"❌ [STDOUT_LINE_BUFFERED] {err}")

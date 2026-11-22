@@ -3,17 +3,21 @@
  * @brief DCU Edge Collector Domain Aggregate Root Implementation (Issue #375)
  */
 
-#include "dcu_driver_adapter.h"
 #include "dcu_node.h"
+#include "dcu_scheme_store.h"
+#include "dcu_task_store.h"
 
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
+#include "dcu_698_param.h"
+#include "dcu_698_var.h"
+#include "dcu_driver_adapter.h"
+#include "dcu_task_store.h"
 #include "dlt645_codec.h"
 #include "edge_api.h"
 #include "edge_log.h"
-
 
 struct dcu_node_s {
     uv_loop_t *loop;
@@ -26,6 +30,7 @@ struct dcu_node_s {
     dcu_storage_t storage;
     dcu_event_obj_t evt_3000;
     dcu_event_obj_t evt_3005;
+    dcu_discovery_t discovery;
     uv_timer_t poller_timer;
     bool poller_timer_inited;
     dcu_event_handler_t event_handler;
@@ -65,9 +70,52 @@ static int _node_read_shadow(void *ctx, uint32_t tag_id, uint32_t device_id, voi
 }
 
 static int _node_count_freezes(void *ctx, uint16_t *out_count) {
-    dcu_node_t *node = (dcu_node_t *)ctx;
-    if (!node) return -1;
-    return dcu_storage_count_freezes(&node->storage, out_count);
+    dcu_storage_t *storage = (dcu_storage_t *)ctx;
+    if (!storage) return -1;
+    return dcu_storage_count_freezes(storage, out_count);
+}
+
+/* 6000 档案写端口：存储句柄就是唯一连接，档案不另开第二个 SQLite。 */
+static int _node_archive_save(void *ctx, const production_meter_t *m) {
+    dcu_storage_t *storage = (dcu_storage_t *)ctx;
+    if (!storage || !storage->db) return -1;
+    return dcu_inventory_save_meter(storage->db, m);
+}
+
+static int _node_archive_delete(void *ctx, const char *address) {
+    dcu_storage_t *storage = (dcu_storage_t *)ctx;
+    if (!storage || !storage->db) return -1;
+    return dcu_inventory_delete_meter(storage->db, address);
+}
+
+static int _node_archive_clear(void *ctx) {
+    dcu_storage_t *storage = (dcu_storage_t *)ctx;
+    if (!storage || !storage->db) return -1;
+    return dcu_inventory_clear_db(storage->db);
+}
+
+/* 6012 任务持久化端口：解码后的 op 交给 store，在同一连接上事务化落地。 */
+static int _node_task_apply(void *ctx, dcu_poller_t *poller, const dcu_task_op_t *op) {
+    return dcu_task_store_apply((dcu_storage_t *)ctx, poller, op);
+}
+
+/* Class 8 参数端口：4000 A2 走时钟端口，其余参数从这里落盘。 */
+static int _node_param_save(void *ctx, uint16_t oi, uint8_t attr, const uint8_t *buf, size_t len) {
+    dcu_storage_t *storage = (dcu_storage_t *)ctx;
+    if (!storage || !storage->db) return -1;
+    return dcu_storage_param_save(storage, oi, attr, buf, len, "dlt698");
+}
+
+static int _node_param_load(void *ctx, uint16_t oi, uint8_t attr, uint8_t *buf, size_t cap,
+                            size_t *len) {
+    dcu_storage_t *storage = (dcu_storage_t *)ctx;
+    if (!storage || !storage->db) return -1;
+    return dcu_storage_param_load(storage, oi, attr, buf, cap, len);
+}
+
+/* 6014 方案持久化端口：同一存储连接，不另开 SQLite。 */
+static int _node_scheme_apply(void *ctx, dcu_poller_t *poller, const dcu_scheme_op_t *op) {
+    return dcu_scheme_store_apply((dcu_storage_t *)ctx, poller, op);
 }
 
 extern int dcu_tag_map_fn(uint32_t tag_id, uint32_t device_id);
@@ -155,11 +203,33 @@ dcu_node_t *dcu_node_create_in(void *storage, size_t storage_size, uv_loop_t *lo
     node->evt_3005.snapshot_count = 1;
     node->evt_3005.snapshot_oads[0] = OAD_CURRENT;
 
+    dcu_discovery_init(&node->discovery);
+
     /* 5. Initialize Poller and Wire Router Operations */
     dcu_poller_init(&node->poller);
-    uint32_t oads[1] = {0x20000200};
-    dcu_poller_add_scheme(&node->poller, 1, 0, oads, 1);
-    dcu_poller_add_task(&node->poller, 1, 5, 1);
+    /* 变量类属性 2 是数组，相/总通道都要采集，否则整条读取按 DAR 6 失败。 */
+    uint32_t default_tags[MAX_SCHEME_OADS];
+    uint16_t tag_count = (uint16_t)dcu_698_var_poll_tags(default_tags, MAX_SCHEME_OADS);
+    /* 方案配置以库为准：只在全新库播种方案 1，之后主站 Clear 过的库保持为空。
+     * 任务必须先有方案可引用，所以方案先装载。 */
+    if (node->storage.db) {
+        int rc = dcu_scheme_store_init(&node->storage, default_tags, tag_count);
+        if (rc == 0) rc = dcu_scheme_store_load(&node->storage, &node->poller);
+        if (rc != 0) {
+            LOG_WARN(LOG_CAT_CORE, "DCU Node: 方案配置装载失败，回退内存默认方案");
+            dcu_poller_clear_schemes(&node->poller);
+            dcu_poller_add_scheme(&node->poller, 1, 0, default_tags, tag_count);
+        }
+        rc = dcu_task_store_init(&node->storage);
+        if (rc == 0) rc = dcu_task_store_load(&node->storage, &node->poller);
+        if (rc != 0) {
+            LOG_WARN(LOG_CAT_CORE, "DCU Node: 任务配置装载失败，回退内存默认任务");
+            dcu_poller_add_task(&node->poller, 1, 5, 1);
+        }
+    } else {
+        dcu_poller_add_scheme(&node->poller, 1, 0, default_tags, tag_count);
+        dcu_poller_add_task(&node->poller, 1, 5, 1);
+    }
 
     poller_sink_ops_t poller_sink = {.ctx = &node->storage,
                                      .record_telemetry = (void *)dcu_storage_write_telemetry,
@@ -170,13 +240,22 @@ dcu_node_t *dcu_node_create_in(void *storage, size_t storage_size, uv_loop_t *lo
 
     router_sink_ops_t router_sink = {.ctx = &node->storage,
                                      .record_telemetry = (void *)dcu_storage_write_telemetry,
-                                     .count_freezes = _node_count_freezes};
+                                     .count_freezes = _node_count_freezes,
+                                     .archive_save = _node_archive_save,
+                                     .archive_delete = _node_archive_delete,
+                                     .archive_clear = _node_archive_clear,
+                                     .task_apply = _node_task_apply,
+                                     .scheme_apply = _node_scheme_apply};
     router_bus_ops_t router_bus = {.ctx = node,
                                    .msg_size = sizeof(pipe_msg_t),
                                    .publish_realtime = _node_publish_realtime,
                                    .read_shadow = _node_read_shadow};
-    dcu_router_init_ex(&node->inventory, &node->poller, router_sink, NULL, NULL, &node->evt_3000,
-                       &node->evt_3005, router_bus);
+    dcu_router_init_ex(&node->inventory, &node->poller, router_sink, NULL, &node->discovery,
+                       &node->evt_3000, &node->evt_3005, router_bus);
+    dcu_param_store_t param_store = {
+        .ctx = &node->storage, .save = _node_param_save, .load = _node_param_load};
+    dcu_698_param_set_clock(dcu_clock_port_system());
+    dcu_698_param_init(&param_store);
     /* 遥控动作下沉到聚合根：路由只认识对象，发 645 控制帧是领域动作 */
     dcu_router_set_control_sink(_node_control_sink, node);
 
@@ -288,14 +367,15 @@ int dcu_node_set_event_handler(dcu_node_t *node, dcu_event_handler_t handler, vo
     return 0;
 }
 
-int dcu_node_feed_meter_reading(dcu_node_t *node, const char *meter_addr, uint32_t oad,
-                                double val, uint64_t ts_ns) {
+int dcu_node_feed_meter_reading(dcu_node_t *node, const char *meter_addr, uint32_t oad, double val,
+                                uint64_t ts_ns) {
     if (!node || !meter_addr) return -1;
 
     /* 1. 领域不变量检查：电表是否在当前档案中 */
     production_meter_t *meter = dcu_inventory_get(&node->inventory, meter_addr);
     if (!meter) {
-        LOG_WARN(LOG_CAT_CORE, "DCU Feed Reading: Meter '%s' not registered in inventory", meter_addr);
+        LOG_WARN(LOG_CAT_CORE, "DCU Feed Reading: Meter '%s' not registered in inventory",
+                 meter_addr);
         return -2;
     }
 
@@ -364,8 +444,8 @@ static void _deadline_bcd(unsigned offset_sec, uint8_t out[6]) {
     out[2] = (uint8_t)(((tmv.tm_hour / 10) << 4) | (tmv.tm_hour % 10));
     out[3] = (uint8_t)((((tmv.tm_mday) / 10) << 4) | ((tmv.tm_mday) % 10));
     out[4] = (uint8_t)((((tmv.tm_mon + 1) / 10) << 4) | ((tmv.tm_mon + 1) % 10));
-    out[5] = (uint8_t)((((tmv.tm_year + 1900) % 100) / 10) << 4 |
-                       (((tmv.tm_year + 1900) % 100) % 10));
+    out[5] =
+        (uint8_t)((((tmv.tm_year + 1900) % 100) / 10) << 4 | (((tmv.tm_year + 1900) % 100) % 10));
 }
 
 int dcu_node_execute_control(dcu_node_t *node, const char *meter_addr, uint16_t control_oi,
@@ -423,13 +503,14 @@ int dcu_node_execute_control(dcu_node_t *node, const char *meter_addr, uint16_t 
     /* edge_api_raw_io 接管 tx 的所有权（失败时它自己 unref），这里不能再动 */
     int rc = edge_api_raw_io(meter->channel_id, tx, NULL);
     if (rc != 0) {
-        LOG_ERROR(LOG_CAT_CORE, "DCU Control: 645 控制帧下发失败 meter=%s ch=%u rc=%d",
-                  meter_addr, (unsigned)meter->channel_id, rc);
+        LOG_ERROR(LOG_CAT_CORE, "DCU Control: 645 控制帧下发失败 meter=%s ch=%u rc=%d", meter_addr,
+                  (unsigned)meter->channel_id, rc);
         return -5;
     }
 
-    LOG_INFO(LOG_CAT_CORE, "DCU Control: 645 控制帧已下发 meter=%s ch=%u cmd=%02X(1A跳闸/1B合闸允许)",
-             meter_addr, (unsigned)meter->channel_id, cmd);
+    LOG_INFO(LOG_CAT_CORE,
+             "DCU Control: 645 控制帧已下发 meter=%s ch=%u cmd=%02X(1A跳闸/1B合闸允许)", meter_addr,
+             (unsigned)meter->channel_id, cmd);
     return 0;
 }
 
@@ -444,6 +525,7 @@ void dcu_node_destroy(dcu_node_t *node) {
         node->poller_timer_inited = false;
     }
     dcu_storage_destroy(&node->storage);
+    dcu_discovery_destroy(&node->discovery);
     edge_composition_root_destroy(node->comp_root);
     if (node->loop) {
         uv_run(node->loop, UV_RUN_NOWAIT);

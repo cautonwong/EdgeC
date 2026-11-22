@@ -1,0 +1,41 @@
+# D1-09 gate logs (final, base dc1778e5)
+
+## clean build + warning gate
+[34/35] Linking C executable tests/test_dcu_mutex_marathon
+[35/35] Linking C executable tests/test_driver_registry_dcu
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+
+## dcu/dlt698 subset
+100% tests passed, 0 tests failed out of 39
+
+Total Test time (real) =  22.22 sec
+
+## full ctest
+100% tests passed, 0 tests failed out of 342
+
+Total Test time (real) =  62.41 sec
+
+## ASAN
+[8/9] Linking C executable tests/test_dcu_698_var
+[9/9] Linking C executable tests/test_dcu_north_source
+(ctest) 2/2 passed
+
+## UBSAN
+[8/9] Linking C executable tests/test_dcu_north_source
+[9/9] Linking C executable tests/test_dcu_698_var
+(ctest) 2/2 passed
+
+## guards
+
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+
+## fanalyzer
+✅ [FANALYZER] 3 known finding(s), no new reports
+
+## acceptance
+21 passed in 0.46s
+全部合格:2 个验收任务
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+
+## git diff --check
+clean

@@ -1,0 +1,29 @@
+ .audit/d3-06.todo.md                        |  14 +
+ .audit/design.md                            | 197 +++++++++++
+ .audit/grounding.md                         |  60 ++++
+ acceptance/dcu/tests/test_dcu_northbound.py |  32 ++
+ adapters/io_drivers/src/driver_dlt698.c     |  78 ++---
+ cmd/dcu/CMakeLists.txt                      |   2 +
+ cmd/dcu/dcu_698_appconn.c                   | 101 +++---
+ cmd/dcu/dcu_698_axdr.c                      |   5 +
+ cmd/dcu/dcu_698_object_model.c              |  27 +-
+ cmd/dcu/dcu_698_param.c                     | 464 ++++++++++++++++++++++++++
+ cmd/dcu/dcu_698_param.h                     |  73 +++++
+ cmd/dcu/dcu_clock_port.c                    |  28 ++
+ cmd/dcu/dcu_clock_port.h                    |  23 ++
+ cmd/dcu/dcu_node.c                          |  46 ++-
+ cmd/dcu/dcu_storage.c                       | 133 +++++++-
+ cmd/dcu/dcu_storage.h                       |  17 +
+ docs/design/DCU_698_OBJECT_MODEL.md         |  21 ++
+ docs/evidence/DCU-D3-06/comments.md         |  44 +++
+ docs/evidence/DCU-D3-06/diffstat.txt        |   0
+ docs/evidence/DCU-D3-06/runtime.log         |  30 ++
+ docs/evidence/DCU-D3-06/summary.md          |  67 ++++
+ docs/evidence/DCU-D3-06/tests.log           |  25 ++
+ tests/CMakeLists.txt                        |   6 +
+ tests/test_dcu_698_appconn.c                |  16 +-
+ tests/test_dcu_698_axdr.c                   |  84 ++++-
+ tests/test_dcu_698_object_model.c           |  13 +
+ tests/test_dcu_698_param.c                  | 491 ++++++++++++++++++++++++++++
+ tests/test_driver_dlt698.c                  | 223 ++++++++++---
+ 28 files changed, 2171 insertions(+), 149 deletions(-)

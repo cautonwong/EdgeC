@@ -1,0 +1,73 @@
+== test_dcu_698_catalog (green, 3 cases) ==
+[==========] tests: Running 3 test(s).
+[ RUN      ] test_every_table_oi_is_in_the_catalog
+[       OK ] test_every_table_oi_is_in_the_catalog
+[ RUN      ] test_masks_stay_within_the_class_definition
+[       OK ] test_masks_stay_within_the_class_definition
+[ RUN      ] test_no_duplicate_ois
+[       OK ] test_no_duplicate_ois
+[==========] tests: 3 test(s) run.
+[  PASSED  ] 3 test(s).
+
+== the same binary against a deliberately wrong F200 class (red) ==
+Test project /tmp/dcu-baseline-worktree/build-warn
+    Start 25: test_dcu_698_catalog
+1/1 Test #25: test_dcu_698_catalog .............***Failed    0.00 sec
+[==========] tests: Running 3 test(s).
+[ RUN      ] test_every_table_oi_is_in_the_catalog
+[  ERROR   ] --- 10 != 22
+[   LINE   ] --- /tmp/dcu-baseline-worktree/tests/test_dcu_698_catalog.c:39: error: Failure!
+[  FAILED  ] test_every_table_oi_is_in_the_catalog
+[ RUN      ] test_masks_stay_within_the_class_definition
+[       OK ] test_masks_stay_within_the_class_definition
+[ RUN      ] test_no_duplicate_ois
+[       OK ] test_no_duplicate_ois
+[==========] tests: 3 test(s) run.
+[  PASSED  ] 2 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_every_table_oi_is_in_the_catalog
+
+ 1 FAILED TEST(S)
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   0.01 sec
+
+The following tests FAILED:
+	 25 - test_dcu_698_catalog (Failed)
+Errors while running CTest
+
+== acceptance runtime ==
+🚀 产品验收 (test-platform)
+  🧹 Nuclear Cleanup...
+平台: /workspaces/test-platform
+解释器: /workspaces/test-platform/.venv/bin/python
+平台版本: faad172bdce0 (锁定 faad172bdce0)
+产品: dcu
+
+北向 broker 已就绪：tcp://127.0.0.1:44039（协议 MqttJson）
+[dcu] dcu_acceptance.yaml
+任务 dcu-acceptance(产品 dcu)·设备清单 /tmp/dcu-baseline-worktree/acceptance/dcu/configs/devices.yaml · 筛选 tag:验收 · 模拟从站 []
+..                                                                       [100%]
+一轮归因(哪些设备不合格 / 哪些测试无效 / 断在哪一步): python tools/attribute_round.py /tmp/dcu-baseline-worktree/reports/acceptance/dcu/dcu_acceptance
+2 passed in 0.13s
+任务 dcu-acceptance 结束,退出码 0
+[dcu] dcu_acceptance 退出码 0
+
+[dcu] dcu_northbound.yaml
+任务 dcu-northbound(产品 dcu)·设备清单 /tmp/dcu-baseline-worktree/acceptance/dcu/configs/devices_north.yaml · 筛选 tag:北向 · 模拟从站 []
+....                                                                     [100%]
+一轮归因(哪些设备不合格 / 哪些测试无效 / 断在哪一步): python tools/attribute_round.py /tmp/dcu-baseline-worktree/reports/acceptance/dcu/dcu_northbound
+4 passed in 0.10s
+任务 dcu-northbound 结束,退出码 0
+[dcu] dcu_northbound 退出码 0
+
+
+门禁:
+全部合格:2 个验收任务
+
+报告: /tmp/dcu-baseline-worktree/reports/acceptance
+归因: /workspaces/test-platform/.venv/bin/python /workspaces/test-platform/tools/attribute_round.py /tmp/dcu-baseline-worktree/reports/acceptance/<产品>
+  🧹 Nuclear Cleanup...
+✨ 验收通过

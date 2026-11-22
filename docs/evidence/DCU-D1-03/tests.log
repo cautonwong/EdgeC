@@ -1,0 +1,44 @@
+=== build ===
+[309/311] Linking C executable tests/test_iems_north_iec104
+[310/311] Linking C executable tests/test_datahub_subscription_capacity
+[311/311] Linking C executable tests/test_iems_cli_write
+warnings=0
+
+=== ctest -R dcu ===
+
+100% tests passed, 0 tests failed out of 20
+
+Total Test time (real) =  16.28 sec
+
+=== test_dcu_698_object_model ===
+[ RUN      ] test_all_ois_resolvable_with_class_and_mask
+[       OK ] test_all_ois_resolvable_with_class_and_mask
+[ RUN      ] test_mask_bitmap_supports_wide_ids
+[       OK ] test_mask_bitmap_supports_wide_ids
+[ RUN      ] test_mask_rejects_missing_attr_and_method
+[       OK ] test_mask_rejects_missing_attr_and_method
+[ RUN      ] test_legacy_methods_127_and_128_dispatch
+[       OK ] test_legacy_methods_127_and_128_dispatch
+[ RUN      ] test_dispatch_read_write_call
+[       OK ] test_dispatch_read_write_call
+[ RUN      ] test_facade_and_table_api_agree
+[       OK ] test_facade_and_table_api_agree
+[ RUN      ] test_reset_returns_to_uninitialized
+[       OK ] test_reset_returns_to_uninitialized
+[  PASSED  ] 7 test(s).
+
+=== ASAN ===
+-- test_dcu_698_object_model
+[  PASSED  ] 7 test(s).
+-- test_dcu_router
+[  PASSED  ] 3 test(s).
+
+=== run_guard_selftest.py --root . ===
+📊 Injection coverage: 6 caught / 2 known gap(s) of 8 probes
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+exit=0
+
+=== line counts ===
+dcu_router.c: 664 -> 76
+dcu_698_object_model.c: 709
+dcu_698_object_model.h: 97

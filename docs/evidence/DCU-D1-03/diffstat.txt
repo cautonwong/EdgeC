@@ -1,0 +1,13 @@
+commit 93172b4e9aee397be3fe86f258bf7797c7c9f838
+Author: 800900 <992878191@qq.com>
+Date:   Sat Nov 21 16:38:52 2026 +0800
+
+    refactor(DCU-D1-03): cover full 698 attribute and method id range
+    
+    Co-Authored-By: Claude Code <noreply@anthropic.com>
+
+ cmd/dcu/dcu_698_object_model.c    |  69 +++++++++++++-------
+ cmd/dcu/dcu_698_object_model.h    |  14 +++-
+ cmd/dcu/dcu_router.c              |  26 +-------
+ tests/test_dcu_698_object_model.c | 133 +++++++++++++++++++++++++++++++-------
+ 4 files changed, 170 insertions(+), 72 deletions(-)

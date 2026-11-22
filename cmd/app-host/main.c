@@ -292,6 +292,7 @@ frame_out:
 }
 
 int main(int argc, char **argv) {
+    setvbuf(stdout, NULL, _IOLBF, 0);
     signal(SIGPIPE, SIG_IGN);
     if (app_host_install_no_exec_filter() != 0) {
         const char *allow_degraded = getenv("EDGEC_APP_HOST_ALLOW_DEGRADED");

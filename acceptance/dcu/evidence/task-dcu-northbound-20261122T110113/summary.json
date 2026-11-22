@@ -1,0 +1,199 @@
+{
+  "task": "dcu-northbound",
+  "kind": "acceptance",
+  "product": "dcu",
+  "select": "tag:北向",
+  "verdict": "incomplete",
+  "pytest_exit_code": 1,
+  "note": "没有不合格也没有无效判定,但存在申报外未测或平台错误:不能判合格",
+  "reason": null,
+  "columns": {
+    "devices": {
+      "passed": 1,
+      "total": 1
+    },
+    "scenarios": {
+      "passed": 0,
+      "total": 0
+    }
+  },
+  "denominator": {
+    "collected": 20,
+    "deselected": 3
+  },
+  "untested": {
+    "declared": [],
+    "outside": [
+      {
+        "case": "D_00_00_02_000001",
+        "nodeid": "tests/test_dcu_northbound.py::test_master_reads_voltage_over_698",
+        "ref": "run-scope.json#skipped[0]",
+        "kind": "skip",
+        "reason": "理由不在申报的四类里:Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+      },
+      {
+        "case": "D_00_00_02_000002",
+        "nodeid": "tests/test_dcu_northbound.py::test_master_gets_honest_dar_for_oversized_archive_array",
+        "ref": "run-scope.json#skipped[1]",
+        "kind": "skip",
+        "reason": "理由不在申报的四类里:Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+      },
+      {
+        "case": "D_00_00_02_000003",
+        "nodeid": "tests/test_dcu_northbound.py::test_action_returns_failure_dar_not_fake_success",
+        "ref": "run-scope.json#skipped[2]",
+        "kind": "skip",
+        "reason": "理由不在申报的四类里:Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+      },
+      {
+        "case": "D_00_00_02_000009",
+        "nodeid": "tests/test_dcu_northbound.py::test_action_wrong_shape_returns_type_mismatch",
+        "ref": "run-scope.json#skipped[3]",
+        "kind": "skip",
+        "reason": "理由不在申报的四类里:Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+      },
+      {
+        "case": "D_00_00_02_000004",
+        "nodeid": "tests/test_dcu_northbound.py::test_master_reads_all_oads_in_one_frame",
+        "ref": "run-scope.json#skipped[4]",
+        "kind": "skip",
+        "reason": "理由不在申报的四类里:Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+      },
+      {
+        "case": "D_00_00_02_000005",
+        "nodeid": "tests/test_dcu_northbound.py::test_master_reads_current_and_active_power",
+        "ref": "run-scope.json#skipped[5]",
+        "kind": "skip",
+        "reason": "理由不在申报的四类里:Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+      },
+      {
+        "case": "D_00_00_02_000006",
+        "nodeid": "tests/test_dcu_northbound.py::test_master_gets_task_config_array",
+        "ref": "run-scope.json#skipped[6]",
+        "kind": "skip",
+        "reason": "理由不在申报的四类里:Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+      },
+      {
+        "case": "D_00_00_02_000007",
+        "nodeid": "tests/test_dcu_northbound.py::test_master_gets_class_mismatch_for_freeze_array",
+        "ref": "run-scope.json#skipped[7]",
+        "kind": "skip",
+        "reason": "理由不在申报的四类里:Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+      },
+      {
+        "case": "D_00_00_02_000008",
+        "nodeid": "tests/test_dcu_northbound.py::test_unimplemented_oad_gets_per_item_dar",
+        "ref": "run-scope.json#skipped[8]",
+        "kind": "skip",
+        "reason": "理由不在申报的四类里:Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+      },
+      {
+        "case": "D_00_00_02_000018",
+        "nodeid": "tests/test_dcu_northbound.py::test_master_adds_and_removes_archive_unit",
+        "ref": "run-scope.json#skipped[9]",
+        "kind": "skip",
+        "reason": "理由不在申报的四类里:Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+      },
+      {
+        "case": "D_00_00_02_000019",
+        "nodeid": "tests/test_dcu_northbound.py::test_master_changes_task_config_via_action",
+        "ref": "run-scope.json#skipped[10]",
+        "kind": "skip",
+        "reason": "理由不在申报的四类里:Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+      },
+      {
+        "case": "D_00_00_02_000010",
+        "nodeid": "tests/test_dcu_northbound.py::test_master_reads_freeze_records",
+        "ref": "run-scope.json#skipped[11]",
+        "kind": "skip",
+        "reason": "理由不在申报的四类里:Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+      },
+      {
+        "case": "D_00_00_02_000011",
+        "nodeid": "tests/test_dcu_northbound.py::test_set_event_report_flag_round_trip",
+        "ref": "run-scope.json#skipped[12]",
+        "kind": "skip",
+        "reason": "理由不在申报的四类里:Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+      },
+      {
+        "case": "D_00_00_02_000012",
+        "nodeid": "tests/test_dcu_northbound.py::test_set_event_valid_flag_round_trip",
+        "ref": "run-scope.json#skipped[13]",
+        "kind": "skip",
+        "reason": "理由不在申报的四类里:Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+      },
+      {
+        "case": "D_00_00_02_000013",
+        "nodeid": "tests/test_dcu_northbound.py::test_set_event_wrong_type_returns_type_mismatch",
+        "ref": "run-scope.json#skipped[14]",
+        "kind": "skip",
+        "reason": "理由不在申报的四类里:Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+      },
+      {
+        "case": "D_00_00_02_000014",
+        "nodeid": "tests/test_dcu_northbound.py::test_set_masked_f200_attr_returns_class_mismatch",
+        "ref": "run-scope.json#skipped[15]",
+        "kind": "skip",
+        "reason": "理由不在申报的四类里:Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+      },
+      {
+        "case": "D_00_00_02_000015",
+        "nodeid": "tests/test_dcu_northbound.py::test_empty_record_range_returns_no_rows",
+        "ref": "run-scope.json#skipped[16]",
+        "kind": "skip",
+        "reason": "理由不在申报的四类里:Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+      },
+      {
+        "case": "D_00_00_02_000016",
+        "nodeid": "tests/test_dcu_northbound.py::test_class20_session_and_object_list_acl",
+        "ref": "run-scope.json#skipped[17]",
+        "kind": "skip",
+        "reason": "理由不在申报的四类里:Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+      },
+      {
+        "case": "D_00_00_02_000020",
+        "nodeid": "tests/test_dcu_northbound.py::test_master_starts_search_and_reads_standard_result_shapes",
+        "ref": "run-scope.json#skipped[18]",
+        "kind": "skip",
+        "reason": "理由不在申报的四类里:Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+      },
+      {
+        "kind": "failed_without_evidence",
+        "case": "D_00_00_02_000017",
+        "nodeid": "tests/test_dcu_northbound.py::test_master_reads_event_max_records[dcu_north_01]",
+        "reason": "pytest 报了失败,证据里没有结论:testplatform.transport.interfaces.IncompleteFrameError: TCP 127.0.0.1:19212: 2.0 秒内没收满一帧(收到 0 字节,整帧需要 未知 字节),半帧不交给上层:",
+        "ref": "run-scope.json#failed[0]"
+      }
+    ]
+  },
+  "failures": [],
+  "scenarios": [],
+  "invalid": [],
+  "platform_errors": [],
+  "evidence_gaps": [],
+  "devices_without_readings": [],
+  "out_of_scope_devices": [],
+  "product_exit": [
+    {
+      "kind": "product_exit",
+      "how": "platform_killed",
+      "code": null,
+      "signal": 15,
+      "at": "2026-11-22T11:01:28.326+00:00"
+    }
+  ],
+  "task_error": null,
+  "runtime": {
+    "startup_seconds": 1.327,
+    "first_reading_seconds": null,
+    "total_seconds": 15.201
+  },
+  "env": {
+    "commit": "b90c22cb38b35e992b7ec21fc2255c861f612576",
+    "platform_version": "unknown",
+    "platform_source": "package",
+    "platform_sha256": "9e2b2de678aa46e4a23ab90852c1d6388c3fedc404989a0b0ee4fc69834d905e",
+    "product_sha256": "5b88a42e6a954e088124c2708372599ddceb3eef07f927719d555c3a7b5e4a26",
+    "simulator_version": "c2402e70da3ebc7bd14605d2cd3f1526ef15bf81caf3fa37223060f577201262"
+  }
+}

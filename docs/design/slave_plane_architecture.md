@@ -96,6 +96,37 @@ int modbus_v3_handle_rx(edge_driver_ctx_t *ctx, net_buf_t *in, net_buf_t *resp_o
 
 ---
 
+## 3.3 从站取数端口（Consumer Ports）
+
+> 第 2 节的 `handle_rx` → `read_shadow` 序列是 ADR-0002 之前的形态，保留作历史背景。
+> 现行实现是消费方定义的端口：驱动在应答时**现传** `edge_slave_source_ops_t`，
+> 端口由产品实现、组合根注入，驱动不反向读 DataHub。见
+> `foundation/include/edge_slave_plane.h` 与 ADR-0010、ADR-0011。
+
+`edge_slave_source_ops_t` 的字段按用途分组：
+
+| 字段 | 用途 | 使用者 |
+| --- | --- | --- |
+| `resolve` / `accept` | 标量取值 / 收值 | 645、Modbus、IEC104 |
+| `enumerate` | 总召唤逐点遍历 | IEC101、IEC104 |
+| `deadband` | 自发上报死区 | IEC104 |
+| `accept_action` | 方法参数原始 A-XDR | 698 ACTION |
+| `close_link` | 协议定时器到期断链 | IEC104 |
+| `resolve_axdr` / `accept_axdr` | 完整 A-XDR 取值 / 收值（含结构、数组） | 698 GET / SET |
+
+**A-XDR 端口规则**（ADR-0013）：
+
+1. 缓冲由调用方提供，产品把完整 A-XDR 写入，**含类型标签**；单条属性上限
+   `EDGE_SLAVE_AXDR_MAX`（首版 2048 字节），超限的记录走 GetRecord 分页。
+2. 回落只认 NULL：回调为 NULL 才走标量 `resolve` / `accept`；回调已实现但返回非 0
+   是真实失败，回 DAR，不得回落。
+3. 两个字段只能追加在结构末尾。仓库内所有初始化点都是 designated initializer，
+   追加后未指定成员按 C 标准零初始化为 NULL；一旦存在位置初始化或字段插到中间，
+   必须在同一改动里迁移全部初始化点（清单见 ADR-0013）。
+4. IEC104 与 Modbus 不读新字段，标量路径不变。
+
+---
+
 ## 4. 安全防护与控制写路径 ACL (Security & Write ACL)
 
 根据 ADR-0010 与《整洁架构守卫规范》：

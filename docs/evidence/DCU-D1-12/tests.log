@@ -1,0 +1,32 @@
+=== grep -rn edge_slave_source_ops_t (direct init + copies) ===
+tests/test_modbus_write_guard.c:369:static const edge_slave_source_ops_t k_accept_ok = {.accept = _accept_ok};
+tests/test_modbus_write_guard.c:370:static const edge_slave_source_ops_t k_accept_reject = {.accept = _accept_reject};
+tests/test_dlt645_codec.c:296:    edge_slave_source_ops_t src = {.resolve = _mock_resolve, .accept = _mock_accept};
+tests/test_dlt645_codec.c:330:    edge_slave_source_ops_t src = {.resolve = _mock_resolve, .accept = _mock_accept};
+tests/test_dlt645_codec.c:360:    edge_slave_source_ops_t src = {.resolve = _mock_resolve, .accept = _mock_accept};
+tests/test_protocol_loopback.c:117:    static const edge_slave_source_ops_t s_src = {.resolve = mock_resolve, .accept = NULL};
+tests/test_iems_full_stack.c:198:    static edge_slave_source_ops_t s_iec_src = {.resolve = NULL, .accept = _mock_iec_accept};
+tests/test_iems_full_stack.c:205:    static edge_slave_source_ops_t s_mb_src = {.resolve = _mock_slave_resolve, .accept = NULL};
+tests/test_cia402.c:78:    edge_slave_source_ops_t s_slave = {.resolve = NULL, .accept = _test_accept};
+tests/test_driver_iec104.c:205:static const edge_slave_source_ops_t k_slave_src = {
+tests/test_driver_iec104.c:560:static const edge_slave_source_ops_t k_slave_src_with_close = {
+tests/test_iems_iec104_north.c:177:    const edge_slave_source_ops_t *ops = iems_north_iec104_source_ops();
+cmd/dcu/dcu_north_adapter.c:120:    static const edge_slave_source_ops_t src = {
+cmd/iems/iems_north_adapter.c:138:    static const edge_slave_source_ops_t ops = {
+cmd/iems/iems_north_adapter.c:240:    static const edge_slave_source_ops_t ops = {
+cmd/iems/iems_north_iec104.c:116:        edge_slave_source_ops_t ops = *iems_north_iec104_source_ops();
+modules/edge_session/src/session_manager.c:55:void session_manager_set_slave_source(session_manager_t *sm, const edge_slave_source_ops_t *ops,
+modules/edge_io/include/bus_orchestrator.h:47:                                      const edge_slave_source_ops_t *ops, void *user_ctx);
+modules/edge_io/src/bus_orchestrator.c:122:                                      const edge_slave_source_ops_t *ops, void *user_ctx) {
+modules/edge_io/src/engines/slave_engine.c:150:static int _slave_set_source(bus_engine_t *self, const edge_slave_source_ops_t *ops, void *ctx) {
+
+=== git diff --check ===
+exit=0
+
+=== run_guard_selftest.py --root . ===
+  ✅ [LIVE_PASS] check_protocol_selection.py
+  ✅ [LIVE_PASS] check_privileged_test_runs.py
+  ✅ [LIVE_PASS] check_iems_control_slave.py
+  ✅ [LIVE_PASS] check_iems_stdout_line_buffered.py
+
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!

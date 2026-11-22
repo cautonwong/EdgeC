@@ -1,0 +1,92 @@
+== TSAN reproduction log (before suppression) ==
+WARNING: ThreadSanitizer: lock-order-inversion (potential deadlock) (pid=56849)
+  Cycle in lock order graph: M18 (0x5607518d6ec8) => M28 (0x7b0c000000f8) => M18
+
+  Mutex M28 acquired here while holding mutex M18 in main thread:
+    #0 pthread_mutex_lock ../../../../src/libsanitizer/sanitizer_common/sanitizer_common_interceptors.inc:4240 (libtsan.so.0+0x53908)
+    #1 pthreadMutexEnter <null> (test_dcu_runtime_health+0xde76b)
+    #2 dcu_node_create_in <null> (test_dcu_runtime_health+0x22da7)
+    #3 create_node.constprop.0 <null> (test_dcu_runtime_health+0x18f63)
+    #4 test_production_cycle_has_no_demo_behavior <null> (test_dcu_runtime_health+0x19a0f)
+    #5 cmocka_run_one_test_or_fixture <null> (test_dcu_runtime_health+0x1fb46)
+    #6 <null> <null> (libc.so.6+0x29d8f)
+
+    Hint: use TSAN_OPTIONS=second_deadlock_stack=1 to get more informative warning message
+
+  Mutex M18 acquired here while holding mutex M28 in main thread:
+    #0 pthread_mutex_lock ../../../../src/libsanitizer/sanitizer_common/sanitizer_common_interceptors.inc:4240 (libtsan.so.0+0x53908)
+    #1 pthreadMutexEnter <null> (test_dcu_runtime_health+0xde76b)
+    #2 dcu_node_destroy <null> (test_dcu_runtime_health+0x23d78)
+    #3 test_production_cycle_has_no_demo_behavior <null> (test_dcu_runtime_health+0x19cc9)
+    #4 cmocka_run_one_test_or_fixture <null> (test_dcu_runtime_health+0x1fb46)
+    #5 <null> <null> (libc.so.6+0x29d8f)
+
+SUMMARY: ThreadSanitizer: lock-order-inversion (potential deadlock) (/tmp/dcu-d6-08a/build-tsan/tests/test_dcu_runtime_health+0xde76b) in pthreadMutexEnter
+WARNING: ThreadSanitizer: lock-order-inversion (potential deadlock) (pid=56849)
+  Cycle in lock order graph: M18 (0x5607518d6ec8) => M43 (0x7b0c000000c8) => M18
+
+  Mutex M43 acquired here while holding mutex M18 in main thread:
+    #0 pthread_mutex_lock ../../../../src/libsanitizer/sanitizer_common/sanitizer_common_interceptors.inc:4240 (libtsan.so.0+0x53908)
+    #1 pthreadMutexEnter <null> (test_dcu_runtime_health+0xde76b)
+    #2 dcu_node_create_in <null> (test_dcu_runtime_health+0x22da7)
+    #3 create_node.constprop.0 <null> (test_dcu_runtime_health+0x18f63)
+    #4 test_demo_mode_restores_bench_behavior <null> (test_dcu_runtime_health+0x192f6)
+    #5 cmocka_run_one_test_or_fixture <null> (test_dcu_runtime_health+0x1fb46)
+    #6 <null> <null> (libc.so.6+0x29d8f)
+
+    Hint: use TSAN_OPTIONS=second_deadlock_stack=1 to get more informative warning message
+
+  Mutex M18 acquired here while holding mutex M43 in main thread:
+    #0 pthread_mutex_lock ../../../../src/libsanitizer/sanitizer_common/sanitizer_common_interceptors.inc:4240 (libtsan.so.0+0x53908)
+    #1 pthreadMutexEnter <null> (test_dcu_runtime_health+0xde76b)
+    #2 dcu_node_destroy <null> (test_dcu_runtime_health+0x23d78)
+    #3 test_demo_mode_restores_bench_behavior <null> (test_dcu_runtime_health+0x194d9)
+    #4 cmocka_run_one_test_or_fixture <null> (test_dcu_runtime_health+0x1fb46)
+    #5 <null> <null> (libc.so.6+0x29d8f)
+
+
+== suppression file ==
+# SQLite 的内部互斥量在 open 路径按 G→C 获取、close 路径按 C→G 获取；
+# 产品对 storage 只有一个 uv 循环线程（cmd/dcu 不创建线程，create/flush/destroy
+# 都在同一个循环线程上），所以这个环不是可达的死锁，属第三方库内部顺序。
+# pthreadMutexEnter 是 SQLite 自己的 unix mutex 包装；uv 的锁不走这里。
+deadlock:pthreadMutexEnter
+
+== single-thread test ==
+[ RUN      ] test_node_lifecycle_runs_on_one_thread
+[       OK ] test_node_lifecycle_runs_on_one_thread
+[  PASSED  ] 3 test(s).
+
+== acceptance runtime ==
+🚀 产品验收 (test-platform)
+  🧹 Nuclear Cleanup...
+平台: /workspaces/test-platform
+解释器: /workspaces/test-platform/.venv/bin/python
+平台版本: faad172bdce0 (锁定 faad172bdce0)
+产品: dcu
+
+北向 broker 已就绪：tcp://127.0.0.1:38101（协议 MqttJson）
+[dcu] dcu_acceptance.yaml
+任务 dcu-acceptance(产品 dcu)·设备清单 /tmp/dcu-d6-08a/acceptance/dcu/configs/devices.yaml · 筛选 tag:验收 · 模拟从站 []
+...                                                                      [100%]
+一轮归因(哪些设备不合格 / 哪些测试无效 / 断在哪一步): python tools/attribute_round.py /tmp/dcu-d6-08a/reports/acceptance/dcu/dcu_acceptance
+3 passed in 5.06s
+任务 dcu-acceptance 结束,退出码 0
+[dcu] dcu_acceptance 退出码 0
+
+[dcu] dcu_northbound.yaml
+任务 dcu-northbound(产品 dcu)·设备清单 /tmp/dcu-d6-08a/acceptance/dcu/configs/devices_north.yaml · 筛选 tag:北向 · 模拟从站 []
+.........                                                                [100%]
+一轮归因(哪些设备不合格 / 哪些测试无效 / 断在哪一步): python tools/attribute_round.py /tmp/dcu-d6-08a/reports/acceptance/dcu/dcu_northbound
+9 passed in 0.54s
+任务 dcu-northbound 结束,退出码 0
+[dcu] dcu_northbound 退出码 0
+
+
+门禁:
+全部合格:2 个验收任务
+
+报告: /tmp/dcu-d6-08a/reports/acceptance
+归因: /workspaces/test-platform/.venv/bin/python /workspaces/test-platform/tools/attribute_round.py /tmp/dcu-d6-08a/reports/acceptance/<产品>
+  🧹 Nuclear Cleanup...
+✨ 验收通过

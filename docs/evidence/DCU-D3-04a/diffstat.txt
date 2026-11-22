@@ -1,0 +1,21 @@
+ cmd/dcu/dcu_698_axdr.c                | 156 +++++++++++++-------
+ cmd/dcu/dcu_698_axdr.h                |  22 +++
+ cmd/dcu/dcu_698_class_event.c         |  84 ++++++++++-
+ cmd/dcu/dcu_698_object_internal.h     |  17 +--
+ cmd/dcu/dcu_698_object_model.c        |  46 +++---
+ cmd/dcu/dcu_698_record.c              |  93 +++---------
+ cmd/dcu/dcu_event_monitor.c           |  47 +++++--
+ cmd/dcu/dcu_event_monitor.h           |   1 +
+ cmd/dcu/dcu_router.h                  |  38 +++--
+ docs/design/DCU_698_OBJECT_MODEL.md   |   8 +-
+ docs/evidence/DCU-D3-04a/comments.md  |  25 ++++
+ docs/evidence/DCU-D3-04a/diffstat.txt |   0
+ docs/evidence/DCU-D3-04a/runtime.log  |  34 +++++
+ docs/evidence/DCU-D3-04a/summary.md   | 105 ++++++++++++++
+ docs/evidence/DCU-D3-04a/tests.log    | 102 ++++++++++++++
+ tests/test_dcu_698_axdr.c             | 258 +++++++++++++++++++++-------------
+ tests/test_dcu_698_object_model.c     |  30 ++--
+ tests/test_dcu_698_record.c           |  64 ++++++---
+ tests/test_dcu_698_value_table.c      |  23 ++-
+ tests/test_dcu_advanced_modules.c     | 134 ++++++++++++++++--
+ 20 files changed, 946 insertions(+), 341 deletions(-)

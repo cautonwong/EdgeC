@@ -8,6 +8,20 @@ add_library(dcu_app_lib STATIC
     dcu_poller.c
     dcu_bus_source.c
     dcu_storage.c
+    dcu_task_store.c
+    dcu_scheme_store.c
+    dcu_698_object_model.c
+    dcu_698_class_acq.c
+    dcu_698_class_event.c
+    dcu_698_class_control.c
+    dcu_698_class_security.c
+    dcu_698_axdr.c
+    dcu_698_param.c
+    dcu_clock_port.c
+    dcu_698_appconn.c
+    dcu_698_var.c
+    dcu_698_record.c
+    dcu_698_report.c
     dcu_router.c
     dcu_north_source.c
     dcu_security.c
