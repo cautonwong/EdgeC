@@ -16,6 +16,8 @@
    台架喂给 DCU 的就是这个值，所以这条同时验了"南向采集 → 聚合根 → 698 编码"整条链
 2. 6000/6012 属性 2 是配置数组，数组通道未落地时必须回 DAR=5，不能用计数冒充
 3. ACTION（OI 8000 方法 129 跳闸）必须回 **DAR=2 暂时失效**，不能回 0
+4. SET 3000 A11/A12 合法值回 DAR 0 且可读回；类型不符 DAR 7；未声明属性 DAR 5
+5. Class 20：同一 socket 上预连接 → CONNECT → ACL → RELEASE 全链路
 
 第 3 条刻意"验失败"：参数结构（标准表 A.9 的 array<structure>）还没实现，
 如果它回 0，主站会以为继电器动了 —— 那是最危险的假成功。
@@ -93,6 +95,65 @@ def _read_scaler_unit(oad: int) -> tuple[int, int]:
         f"Scaler_Unit 形状不符：{apdu.hex()}"
     )
     return int.from_bytes(apdu[11:12], "big", signed=True), apdu[13]
+
+
+def _recv_frame(sock: socket.socket) -> dlt698.Frame:
+    buf = b""
+    while True:
+        need = dlt698.response_length(buf)
+        if need is not None and len(buf) >= need:
+            return dlt698.parse_frame(buf[:need])
+        chunk = sock.recv(4096)
+        assert chunk, "从站关闭了连接"
+        buf += chunk
+
+
+class _NorthSession:
+    """One socket, many frames: CONNECT/RELEASE and the ACL live in the session."""
+
+    def __init__(self):
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.sock.settimeout(TIMEOUT_S)
+        self.sock.connect(_north_sock())
+
+    def exchange(self, apdu: bytes) -> dlt698.Frame:
+        self.sock.sendall(dlt698.build_frame(apdu, sa=b"\x01"))
+        return _recv_frame(self.sock)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        self.sock.close()
+
+
+def _set_request(piid: int, oad: int, data: bytes) -> bytes:
+    """SET-Request-Normal：`06 | 01 | PIID | OAD(4) | Data | 时间标签`。"""
+    return bytes([0x06, 0x01, piid]) + oad.to_bytes(4, "big") + data + b"\x00"
+
+
+def _connect_request(piid: int = 0x01) -> bytes:
+    """CONNECT-Request：版本 0x0010，窗口 1，APDU 上限 1024，超时 60 s。"""
+    body = (
+        bytes([0x00, 0x10])
+        + bytes(8)
+        + bytes(16)
+        + bytes([0x00, 0x04, 0x00, 0x04, 0x01])
+        + bytes([0x04, 0x00])
+        + bytes([0x00, 0x00, 0x00, 0x3C])
+        + b"\x00"
+    )
+    return bytes([0x02, piid]) + body + b"\x00"
+
+
+def _release_request(piid: int = 0x01) -> bytes:
+    return bytes([0x03, piid, 0x00])
+
+
+def _get_dar(apdu: bytes) -> int:
+    assert apdu[0] == 0x85 and apdu[1] == 0x01, f"不是 [1] 响应：{apdu.hex()}"
+    assert apdu[7] == 0x00, "Get-Result 应为 DAR"
+    return apdu[8]
 
 
 @case(id="D_00_00_02_000001", clause="free: 主站能通过 698 GET 读到 DCU 的实时量", tags=["北向"])
@@ -309,3 +370,95 @@ def test_master_reads_freeze_records():
         i += 5
         assert day == 22 + row, f"第 {row + 1} 行日期 {day}，期望 {22 + row}"
         assert raw == want[row], f"第 {row + 1} 行电量 {raw}，期望 {want[row]}"
+
+
+@case(id="D_00_00_02_000011", clause="free: SET 3000 A11 枚举合法值回 DAR 0 且可读回", tags=["北向"])
+@pytest.mark.contract
+def test_set_event_report_flag_round_trip():
+    oad = 0x30000B00
+    res = _exchange(_set_request(0x01, oad, bytes([0x16, 0x01]))).apdu
+    assert res[0] == 0x86 and res[1] == 0x01, f"不是 SET 响应：{res.hex()}"
+    assert res[3:7] == oad.to_bytes(4, "big"), "响应 OAD 与请求不一致"
+    assert res[7] == 0, f"合法 SET 应回 DAR 0，收到 {res[7]}"
+
+    apdu = _exchange(dlt698.get_request(0x01, oad)).apdu
+    assert apdu[7] == 0x01 and apdu[8] == 0x16, f"A11 应是 enum：{apdu.hex()}"
+    assert apdu[9] == 1, f"读回的上报标识是 {apdu[9]}，SET 写的是 1"
+
+
+@case(id="D_00_00_02_000012", clause="free: SET 3000 A12 布尔合法值回 DAR 0 且可读回", tags=["北向"])
+@pytest.mark.contract
+def test_set_event_valid_flag_round_trip():
+    oad = 0x30000C00
+    res = _exchange(_set_request(0x01, oad, bytes([0x03, 0x00]))).apdu
+    assert res[7] == 0, f"合法 SET 应回 DAR 0，收到 {res[7]}"
+
+    apdu = _exchange(dlt698.get_request(0x01, oad)).apdu
+    assert apdu[7] == 0x01 and apdu[8] == 0x03, f"A12 应是 bool：{apdu.hex()}"
+    assert apdu[9] == 0, f"读回的有效标识是 {apdu[9]}，SET 写的是 0"
+
+
+@case(id="D_00_00_02_000013", clause="free: SET 类型不符必须回 DAR 7", tags=["北向"])
+@pytest.mark.contract
+def test_set_event_wrong_type_returns_type_mismatch():
+    oad = 0x30000B00
+    res = _exchange(_set_request(0x01, oad, bytes([0x0A, 0x01, 0x41]))).apdu
+    assert res[7] == 7, f"类型不符应回 DAR 7，收到 {res[7]}（{res.hex()}）"
+
+
+@case(id="D_00_00_02_000014", clause="free: SET 已关闭属性必须回 DAR 5", tags=["北向"])
+@pytest.mark.contract
+def test_set_masked_f200_attr_returns_class_mismatch():
+    """F200 A4 在类定义里但实例未声明：SET 必须回 DAR 5，不能静默成功。"""
+    oad = 0xF2000400
+    res = _exchange(_set_request(0x01, oad, bytes([0x12, 0x25, 0x80]))).apdu
+    assert res[7] == 5, f"未声明属性应回 DAR 5，收到 {res[7]}（{res.hex()}）"
+
+
+@case(id="D_00_00_02_000015", clause="free: 5004 GetRecord 空范围回空记录表", tags=["北向"])
+@pytest.mark.contract
+def test_empty_record_range_returns_no_rows():
+    """范围 [25 日, 26 日) 没有冻结行：结果 CHOICE 仍是 rows，行数为 0，帧完整。"""
+    rsd = (
+        bytes.fromhex("0220210200")
+        + bytes.fromhex("1c07ea0b19000000")
+        + bytes.fromhex("1c07ea0b1a000000")
+        + bytes.fromhex("00")
+    )
+    rcsd = bytes.fromhex("0200202102000000100200")
+    req = bytes([0x05, 0x03, 0x01]) + (0x50040200).to_bytes(4, "big") + rsd + rcsd + b"\x00"
+
+    apdu = _exchange(req).apdu
+    assert apdu[0] == 0x85 and apdu[1] == 0x03, f"不是 [3] 记录响应：{apdu.hex()}"
+    assert apdu[18] == 0x01, f"记录结果 CHOICE 0x{apdu[18]:02X}，DAR={apdu[19]}"
+    assert apdu[19] == 0, f"空范围应回 0 行，回了 {apdu[19]}"
+    assert len(apdu) == 22, f"空记录表帧长 {len(apdu)}，应只有头尾：{apdu.hex()}"
+
+
+@case(id="D_00_00_02_000016", clause="free: Class 20 连接会话与对象列表 ACL", tags=["北向"])
+@pytest.mark.contract
+def test_class20_session_and_object_list_acl():
+    """同一 socket 上走完 预连接 → CONNECT → 未列对象 DAR 3 → RELEASE。
+
+    预连接窗口允许读类 20 属性 2（否则主站无从得知窗口）；CONNECT 后对象列表
+    成为 ACL：列表外 OAD 回 DAR 3，列表内照常读；RELEASE 清掉会话。
+    """
+    with _NorthSession() as sess:
+        pre = sess.exchange(dlt698.get_request(0x01, 0x44000200)).apdu
+        assert pre[7] == 0x01 and pre[8] == 0x01, f"预连接读对象列表失败：{pre.hex()}"
+
+        conn = sess.exchange(_connect_request()).apdu
+        assert conn[0] == 0x82, f"不是 CONNECT 响应：{conn.hex()}"
+        assert conn[71] == 0, f"CONNECT 结果 {conn[71]}，期望 0"
+
+        denied = sess.exchange(dlt698.get_request(0x01, 0x99990000)).apdu
+        assert _get_dar(denied) == 3, f"列表外 OI 应回 DAR 3，收到 {denied[8]}"
+
+        allowed = sess.exchange(dlt698.get_request(0x01, 0x20000200)).apdu
+        assert allowed[7] == 0x01 and allowed[8] == 0x01, f"列表内 OI 应可读：{allowed.hex()}"
+
+        rel = sess.exchange(_release_request()).apdu
+        assert rel[0] == 0x83 and rel[2] == 0, f"RELEASE 失败：{rel.hex()}"
+
+        again = sess.exchange(dlt698.get_request(0x01, 0x99990000)).apdu
+        assert _get_dar(again) == 3, "RELEASE 后仍在预连接窗口，列表外 OI 仍是 DAR 3"
