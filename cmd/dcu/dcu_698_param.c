@@ -41,17 +41,11 @@ typedef struct {
     uint32_t height_cm;
 } dcu_param_geo_t;
 
-/**
- * @brief 一行 = 一个可访问的 OI/属性。
- *
- * 4000 有三个属性，所以值表按描述行（13 行）而不是按 OI（11 个）索引；
- * 其余 OI 只有属性 2。
- */
 typedef struct {
     uint16_t oi;
     uint8_t attr;
     dcu_param_kind_t kind;
-    uint8_t count; /* octet 最大长度，或结构字段数 */
+    uint8_t octet_max;
     union {
         dcu_param_when_t when;
         uint8_t enum8;
@@ -68,17 +62,17 @@ typedef struct {
 static dcu_param_t g_params[] = {
     {.oi = OI_DATETIME, .attr = 2, .kind = P_DATETIME_S},
     {.oi = OI_DATETIME, .attr = 3, .kind = P_ENUM},
-    {.oi = OI_DATETIME, .attr = 4, .kind = P_UNSIGNED5, .count = 5},
-    {.oi = 0x4001, .attr = 2, .kind = P_OCTETS, .count = 31},
-    {.oi = 0x4002, .attr = 2, .kind = P_OCTETS, .count = 31},
-    {.oi = 0x4003, .attr = 2, .kind = P_OCTETS, .count = 31},
+    {.oi = OI_DATETIME, .attr = 4, .kind = P_UNSIGNED5},
+    {.oi = 0x4001, .attr = 2, .kind = P_OCTETS, .octet_max = 31},
+    {.oi = 0x4002, .attr = 2, .kind = P_OCTETS, .octet_max = 31},
+    {.oi = 0x4003, .attr = 2, .kind = P_OCTETS, .octet_max = 31},
     {.oi = 0x4004, .attr = 2, .kind = P_GEO},
     {.oi = 0x401C, .attr = 2, .kind = P_DLU},
     {.oi = 0x401D, .attr = 2, .kind = P_DLU},
-    {.oi = 0x401E, .attr = 2, .kind = P_DLU2, .count = 2},
-    {.oi = 0x401F, .attr = 2, .kind = P_DLU3, .count = 3},
-    {.oi = 0x4020, .attr = 2, .kind = P_DLU2, .count = 2},
-    {.oi = 0x4021, .attr = 2, .kind = P_DLU3, .count = 3},
+    {.oi = 0x401E, .attr = 2, .kind = P_DLU2},
+    {.oi = 0x401F, .attr = 2, .kind = P_DLU3},
+    {.oi = 0x4020, .attr = 2, .kind = P_DLU2},
+    {.oi = 0x4021, .attr = 2, .kind = P_DLU3},
 };
 
 #define PARAM_COUNT (sizeof(g_params) / sizeof(g_params[0]))
@@ -214,7 +208,7 @@ static int _encode_value(const dcu_param_t *p, uint8_t *buf, size_t cap, size_t 
             }
             break;
         case P_OCTETS:
-            if (p->v.octets.len > p->count) return -1;
+            if (p->v.octets.len > p->octet_max) return -1;
             if (_put8(buf, cap, &off, DLT698_TAG_OCTET_STRING) != 0 ||
                 _put8(buf, cap, &off, p->v.octets.len) != 0 || off + p->v.octets.len > cap) {
                 return -1;
@@ -333,7 +327,7 @@ static int _decode_value(dcu_param_t *next, const uint8_t *axdr, size_t len) {
             }
             break;
         case P_OCTETS:
-            if (d.tag == DLT698_TAG_OCTET_STRING && d.val.str.len <= next->count && d.val.str.ptr) {
+            if (d.tag == DLT698_TAG_OCTET_STRING && d.val.str.len <= next->octet_max && d.val.str.ptr) {
                 next->v.octets.len = (uint8_t)d.val.str.len;
                 memcpy(next->v.octets.bytes, d.val.str.ptr, d.val.str.len);
                 rc = 0;

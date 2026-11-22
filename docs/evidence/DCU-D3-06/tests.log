@@ -1,35 +1,25 @@
-# Focused ctest (Debug)
-1/9 Test #15: test_dcu_storage .................   Passed    0.01 sec
-2/9 Test #22: test_dcu_node ....................   Passed    0.21 sec
-3/9 Test #25: test_dcu_698_object_model ........   Passed    0.01 sec
-4/9 Test #27: test_dcu_698_catalog .............   Passed    0.00 sec
-5/9 Test #30: test_dcu_698_axdr ................   Passed    0.03 sec
-6/9 Test #31: test_dcu_698_param ...............   Passed    0.04 sec
-7/9 Test #89: test_driver_dlt698 ...............   Passed    5.11 sec
-8/9 Test #90: test_dlt698_appconn ..............   Passed    0.01 sec
-9/9 Test #91: test_dcu_698_appconn .............   Passed    0.01 sec
-100% tests passed, 0 tests failed out of 9
+== focused ctest (post-audit) ==
+100% tests passed, 0 tests failed out of 5
 
-# Full ctest (Debug)
+Total Test time (real) =   5.28 sec
 
+== full ctest ==
 100% tests passed, 0 tests failed out of 340
 
-Total Test time (real) =  90.97 sec
+== ASAN ==
+100% tests passed, 0 tests failed out of 3
 
-# ASAN focused ctest
-    Start 31: test_dcu_698_param
-4/7 Test #31: test_dcu_698_param ...............   Passed    0.07 sec
-    Start 89: test_driver_dlt698
-5/7 Test #89: test_driver_dlt698 ...............   Passed    5.11 sec
-    Start 90: test_dlt698_appconn
-6/7 Test #90: test_dlt698_appconn ..............   Passed    0.01 sec
-    Start 91: test_dcu_698_appconn
-7/7 Test #91: test_dcu_698_appconn .............   Passed    0.01 sec
+Total Test time (real) =   5.27 sec
 
-100% tests passed, 0 tests failed out of 7
+== warning gate (clean build before audit) ==
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+post-audit incremental build warnings:
+0
 
-Total Test time (real) =   5.40 sec
-
-# Guard selftest
-
+== guards ==
 🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+
+== acceptance after audit ==
+3 passed in 3.08s
+19 passed in 0.29s
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.

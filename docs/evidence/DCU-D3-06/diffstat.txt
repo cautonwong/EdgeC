@@ -1,21 +1,24 @@
- acceptance/dcu/tests/test_dcu_northbound.py |  19 ++++
- adapters/io_drivers/src/driver_dlt698.c     |  51 +++++------
+ acceptance/dcu/tests/test_dcu_northbound.py |  19 ++
+ adapters/io_drivers/src/driver_dlt698.c     |  51 ++--
  cmd/dcu/CMakeLists.txt                      |   1 +
- cmd/dcu/dcu_698_appconn.c                   |  14 +++
- cmd/dcu/dcu_698_axdr.c                      |   7 ++
- cmd/dcu/dcu_698_object_model.c              |  10 +++
- cmd/dcu/dcu_node.c                          |  19 ++++
- cmd/dcu/dcu_storage.c                       | 127 +++++++++++++++++++++++++-
- cmd/dcu/dcu_storage.h                       |  17 ++++
- tests/CMakeLists.txt                        |   6 ++
- tests/test_dcu_698_appconn.c                |  19 +++-
- tests/test_dcu_698_axdr.c                   |  45 +++++++++-
- tests/test_dcu_698_object_model.c           |  15 ++++
- tests/test_driver_dlt698.c                  | 135 +++++++++++++++++++++++++++-
- 14 files changed, 453 insertions(+), 32 deletions(-)
-
-# New files
-  449 cmd/dcu/dcu_698_param.c
-   68 cmd/dcu/dcu_698_param.h
-  415 tests/test_dcu_698_param.c
-  932 total
+ cmd/dcu/dcu_698_appconn.c                   |  14 +
+ cmd/dcu/dcu_698_axdr.c                      |   7 +
+ cmd/dcu/dcu_698_object_model.c              |  10 +
+ cmd/dcu/dcu_698_param.c                     | 443 ++++++++++++++++++++++++++++
+ cmd/dcu/dcu_698_param.h                     |  68 +++++
+ cmd/dcu/dcu_node.c                          |  19 ++
+ cmd/dcu/dcu_storage.c                       | 127 +++++++-
+ cmd/dcu/dcu_storage.h                       |  17 ++
+ docs/design/DCU_698_OBJECT_MODEL.md         |  15 +
+ docs/evidence/DCU-D3-06/comments.md         |  22 ++
+ docs/evidence/DCU-D3-06/diffstat.txt        |   0
+ docs/evidence/DCU-D3-06/runtime.log         |  34 +++
+ docs/evidence/DCU-D3-06/summary.md          |  63 ++++
+ docs/evidence/DCU-D3-06/tests.log           |  25 ++
+ tests/CMakeLists.txt                        |   6 +
+ tests/test_dcu_698_appconn.c                |  19 +-
+ tests/test_dcu_698_axdr.c                   |  45 ++-
+ tests/test_dcu_698_object_model.c           |  15 +
+ tests/test_dcu_698_param.c                  | 413 ++++++++++++++++++++++++++
+ tests/test_driver_dlt698.c                  | 135 ++++++++-
+ 23 files changed, 1536 insertions(+), 32 deletions(-)

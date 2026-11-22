@@ -2,7 +2,7 @@
  * @file dcu_698_param.h
  * @brief Class 8 白名单参数的 A-XDR 编解码、RAM 值表与持久化端口
  *
- * 设计见 `docs/design/DCU_698_PARAMETERS.md`：属性 2 是标准参数值，
+ * 设计见 `docs/design/DCU_698_OBJECT_MODEL.md` 的 Class 8 一节：属性 2 是标准参数值，
  * 4000 另有 OI 专属的属性 3（时钟模式）与属性 4（精确时间参数）。
  */
 

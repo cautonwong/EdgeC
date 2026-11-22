@@ -205,7 +205,6 @@ static void test_geo_nesting_and_validation(void **state) {
     assert_int_equal(dcu_698_param_accept_axdr(mk_oad(0x4004, 2), geo, sizeof(geo)), 0);
     assert_encode(mk_oad(0x4004, 2), geo, sizeof(geo));
 
-    /* 方向 2、经度 181、纬度 91、高度类型错、顶层少一项都必须拒绝。 */
     uint8_t bad[sizeof(geo)];
     memcpy(bad, geo, sizeof(bad));
     bad[5] = 0x02;
@@ -378,7 +377,6 @@ static void test_persistence_reload_and_audit(void **state) {
     assert_int_equal(
         query_int(storage.db, "SELECT count(*) FROM dcu_param_audit WHERE oi = 0x4000;"), 0);
 
-    /* 复位后从同一连接重载，GET 恢复最后一次写入的值。 */
     dcu_698_param_reset();
     dcu_698_param_init(&port);
     assert_encode(mk_oad(0x4001, 2), de, sizeof(de));

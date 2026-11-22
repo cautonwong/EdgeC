@@ -300,6 +300,21 @@ DCU 等级 `full`。事件记录落 `dcu_event_record_t`，存储走 `edge_event
 
 DCU 等级 `full`，按 OI 白名单。首版实现日期时间、通信地址、表号、客户编号、设备地理位置、互感器变比、限值等需要现场配置的参数。写操作走 Class 20 授权与审计。
 
+已落地的白名单与形状（`cmd/dcu/dcu_698_param.c`）：
+
+| OI | 属性 | A-XDR 形状 |
+| --- | --- | --- |
+| 4000 | 2 | date_time_s |
+| 4000 | 3 | enum 校时模式（0/1/2/255） |
+| 4000 | 4 | structure，5 × unsigned |
+| 4001/4002/4003 | 2 | octet-string，最多 31 字节 |
+| 4004 | 2 | structure{经度, 纬度, double-long-unsigned 高度}，经纬度各为 {enum 方位, unsigned 度/分/秒} |
+| 401C/401D | 2 | double-long-unsigned，无换算 |
+| 401E/4020 | 2 | structure，2 × double-long-unsigned，换算 −2 |
+| 401F/4021 | 2 | structure，3 × double-long-unsigned，换算 −2，字段顺序按 A.5 |
+
+4001 到 4021 的参数值写 `dcu_params` 并在 `dcu_param_audit` 留 old/new 审计；4000 是本次上电的 RAM 影子，不落盘，重启后 GET 反映系统时钟。对象表只广告属性 2（生成的目录把 Class 8 上限钉在属性 2），4000 的 A3/A4 由参数模块在通用 mask 检查之前处理。方法 127 广播校时保持关闭：驱动的 ACTION 统一走 `dcu_north_adapter.c` 的 `accept_action`，该文件由 D1-20a 持有。
+
 ### Class 9 冻结数据接口类
 
 实例数 0…n。属性：1 逻辑名、2 冻结数据表、3 关联对象属性表。方法：1 复位、2 执行、3 触发一次冻结、4 添加一个冻结对象属性、5 删除一个冻结对象属性、7 批量添加冻结对象属性、8 清除关联对象属性表。
