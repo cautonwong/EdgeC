@@ -100,7 +100,6 @@ static void init_model(void) {
     memset(&g_evt_3000, 0, sizeof(g_evt_3000));
     g_evt_3000.oi = OI_VOLTAGE_DROP;
     g_evt_3000.record_count = 3;
-    g_evt_3000.threshold = 5.0f;
     g_evt_3000.report_flag = 1;
     g_evt_3000.is_enabled = true;
 
@@ -193,9 +192,15 @@ static void test_object_model_scalar_type_tags(void **state) {
     assert_value(MK_OAD(OI_VOLTAGE_DROP, 4), DCU_698_TAG_LONG_UNSIGNED, MAX_EVENT_RECORDS);
     assert_value(MK_OAD(OI_VOLTAGE_DROP, 11), DCU_698_TAG_ENUM, 1.0);
     assert_value(MK_OAD(OI_VOLTAGE_DROP, 12), DCU_698_TAG_BOOLEAN, 1.0);
-    static const uint8_t removed[] = {2, 3, 5, 6, 8, 9, 10, 14};
-    for (size_t i = 0; i < sizeof(removed) / sizeof(removed[0]); i++) {
-        assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_VOLTAGE_DROP, removed[i]), &v),
+    /* 复杂属性已暴露但没有标量表示；仍屏蔽的属性回类不匹配。 */
+    static const uint8_t complex[] = {2, 3};
+    for (size_t i = 0; i < sizeof(complex) / sizeof(complex[0]); i++) {
+        assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_VOLTAGE_DROP, complex[i]), &v),
+                         EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    }
+    static const uint8_t masked[] = {5, 6, 8, 9, 10, 14};
+    for (size_t i = 0; i < sizeof(masked) / sizeof(masked[0]); i++) {
+        assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_VOLTAGE_DROP, masked[i]), &v),
                          EDGE_SLAVE_SRC_CLASS_MISMATCH);
     }
     assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_VOLTAGE_DROP, 18), &v),
@@ -228,18 +233,20 @@ static void test_scalar_callback_type_and_width(void **state) {
     teardown_model();
 }
 
-static void test_unexposed_event_attrs_report_class_mismatch(void **state) {
+static void test_masked_event_attrs_report_class_mismatch(void **state) {
     (void)state;
     init_model();
 
     dcu_value_t v;
     assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_VOLTAGE_DROP, 2), &v),
+                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_VOLTAGE_DROP, 7), &v),
                      EDGE_SLAVE_SRC_CLASS_MISMATCH);
     assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_VOLTAGE_DROP, 18), &v),
                      EDGE_SLAVE_SRC_UNDEFINED);
 
     edge_point_value_t p;
-    assert_int_equal(dcu_north_resolve_scalar(NULL, MK_OAD(OI_VOLTAGE_DROP, 2), NULL, 0, &p),
+    assert_int_equal(dcu_north_resolve_scalar(NULL, MK_OAD(OI_VOLTAGE_DROP, 7), NULL, 0, &p),
                      EDGE_SLAVE_SRC_CLASS_MISMATCH);
 
     teardown_model();
@@ -309,7 +316,7 @@ int main(void) {
         cmocka_unit_test(test_scalar_callback_type_and_width),
         cmocka_unit_test(test_masked_f200_attrs_agree_on_class_mismatch),
         cmocka_unit_test(test_scalar_rejects_64bit_raw),
-        cmocka_unit_test(test_unexposed_event_attrs_report_class_mismatch),
+        cmocka_unit_test(test_masked_event_attrs_report_class_mismatch),
         cmocka_unit_test(test_resolve_axdr_for_north_list_oads),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);

@@ -135,6 +135,7 @@ static void test_product_accept_set_event_attrs(void **state) {
     assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_CHANNEL_CONFIG, 4), u8_one,
                                            sizeof(u8_one)),
                      EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    /* A6 未暴露：事件时标是单调纳秒，不能编成日历时间；掩码位回类不匹配。 */
     assert_int_equal(
         dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 6), u8_one, sizeof(u8_one)),
         EDGE_SLAVE_SRC_CLASS_MISMATCH);
@@ -407,9 +408,10 @@ static const uint8_t k_test_acl[] = {
     0x01, 0x02, 0x02, 0x11, 0x7E, 0x03, 0x01, 0x02, 0x02, 0x11, 0x7F, 0x03,
     0x01, 0x02, 0x02, 0x11, 0x80, 0x03, 0x01, 0x02, 0x02, 0x11, 0x81, 0x03,
     0x01, 0x02, 0x02, 0x11, 0x82, 0x03, 0x01, 0x02, 0x02, 0x11, 0x83, 0x03,
-    0x01, 0x02, 0x02, 0x50, 0x30, 0x00, 0x02, 0x02, 0x01, 0x04, 0x02, 0x02,
+    0x01, 0x02, 0x02, 0x50, 0x30, 0x00, 0x02, 0x02, 0x01, 0x05, 0x02, 0x02,
     0x11, 0x04, 0x16, 0x01, 0x02, 0x02, 0x11, 0x06, 0x16, 0x01, 0x02, 0x02,
-    0x11, 0x0B, 0x16, 0x01, 0x02, 0x02, 0x11, 0x0C, 0x16, 0x01, 0x01, 0x00,
+    0x11, 0x0B, 0x16, 0x01, 0x02, 0x02, 0x11, 0x0C, 0x16, 0x01, 0x02, 0x02,
+    0x11, 0x08, 0x16, 0x01, 0x01, 0x00,
 };
 
 static int test_object_list(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, size_t *len) {
@@ -743,20 +745,25 @@ static net_buf_t *run_get_normal(const uint8_t *frame, size_t frame_len,
     return out;
 }
 
+static dcu_event_obj_t s_evt_3000;
+static dcu_event_obj_t s_evt_3005;
+
 static void init_product_model_with_events(void) {
     static dcu_inventory_t inv;
     static dcu_poller_t poller;
-    static dcu_event_obj_t evt_3000;
     assert_int_equal(dcu_inventory_init(&inv), 0);
     assert_int_equal(dcu_poller_init(&poller), 0);
-    memset(&evt_3000, 0, sizeof(evt_3000));
-    evt_3000.oi = OI_VOLTAGE_DROP;
-    evt_3000.report_flag = 2;
-    evt_3000.is_enabled = true;
+    memset(&s_evt_3000, 0, sizeof(s_evt_3000));
+    s_evt_3000.oi = OI_VOLTAGE_DROP;
+    s_evt_3000.report_flag = 2;
+    s_evt_3000.is_enabled = true;
+    memset(&s_evt_3005, 0, sizeof(s_evt_3005));
+    s_evt_3005.oi = OI_OVER_CURRENT;
     router_sink_ops_t sink = {0};
     router_bus_ops_t bus = {.msg_size = sizeof(pipe_msg_t), .read_shadow = mock_shadow};
     assert_int_equal(
-        dcu_698_object_model_init(&inv, &poller, sink, NULL, NULL, &evt_3000, NULL, bus), 0);
+        dcu_698_object_model_init(&inv, &poller, sink, NULL, NULL, &s_evt_3000, &s_evt_3005, bus),
+        0);
 }
 
 static int product_resolve_axdr(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, size_t *len) {
@@ -788,12 +795,61 @@ static void test_event_class24_attrs_on_the_wire(void **state) {
     net_buf_unref(out);
     net_buf_pool_destroy(pool);
 
-    frame_len = build_get_normal(frame, MK_OAD(OI_VOLTAGE_DROP, 6));
+    /* A8 已进 ACL 但对象表未声明：源层类不匹配，线上 DAR 5。 */
+    frame_len = build_get_normal(frame, MK_OAD(OI_VOLTAGE_DROP, 8));
     out = run_get_normal(frame, frame_len, &k_product_axdr_src, &pool);
     assert_int_equal(out->b.data[16], 0x00);
     assert_int_equal(out->b.data[17], DLT698_DAR_OBJECT_CLASS_MISMATCH);
     net_buf_unref(out);
     net_buf_pool_destroy(pool);
+
+    dcu_698_object_model_reset();
+}
+
+/* 表194：A2/A3 的线格式；A5/A6/A14 屏蔽（A5 待 A.4 存储，A6/A14 因事件时标为单调 uv_hrtime ns）。 */
+static void test_event_class24_complex_attrs(void **state) {
+    (void)state;
+    init_product_model_with_events();
+
+    const uint8_t a4[] = {0x12, 0x00, 0x0A};
+    assert_axdr(MK_OAD(OI_VOLTAGE_DROP, 4), a4, sizeof(a4));
+
+    const uint8_t a2_empty[] = {0x01, 0x00};
+    assert_axdr(MK_OAD(OI_VOLTAGE_DROP, 2), a2_empty, sizeof(a2_empty));
+
+    s_evt_3000.snapshot_count = 2;
+    s_evt_3000.snapshot_oads[0] = OAD_VOLTAGE;
+    s_evt_3000.snapshot_oads[1] = OAD_ACTIVE_ENERGY;
+    const uint8_t a2_two[] = {0x01, 0x02, 0x51, 0x20, 0x00, 0x02,
+                              0x00, 0x51, 0x00, 0x10, 0x02, 0x00};
+    assert_axdr(MK_OAD(OI_VOLTAGE_DROP, 2), a2_two, sizeof(a2_two));
+
+    s_evt_3000.record_count = 3;
+    const uint8_t a3[] = {0x02, 0x04, 0x12, 0x00, 0x03, 0x12, 0x00,
+                          0x00, 0x12, 0x00, 0x00, 0x12, 0x00, 0x00};
+    assert_axdr(MK_OAD(OI_VOLTAGE_DROP, 3), a3, sizeof(a3));
+
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = 0;
+    /* A5 未暴露：表A.4 对 3000 要求 4 字段、对 3005 要求 2 字段结构，dcu_event_obj_t 未存储。 */
+    assert_int_equal(
+        dcu_north_resolve_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 5), buf, sizeof(buf), &len),
+        EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(
+        dcu_north_resolve_axdr(NULL, MK_OAD(OI_OVER_CURRENT, 5), buf, sizeof(buf), &len),
+        EDGE_SLAVE_SRC_CLASS_MISMATCH);
+
+    /* 事件时标是 uv_hrtime 单调纳秒，编成 date_time_s 会伪造墙钟；A6/A14 不暴露。 */
+    assert_int_equal(
+        dcu_north_resolve_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 6), buf, sizeof(buf), &len),
+        EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(
+        dcu_north_resolve_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 14), buf, sizeof(buf), &len),
+        EDGE_SLAVE_SRC_CLASS_MISMATCH);
+
+    assert_int_equal(
+        dcu_north_resolve_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 7), buf, sizeof(buf), &len),
+        EDGE_SLAVE_SRC_CLASS_MISMATCH);
 
     dcu_698_object_model_reset();
 }
@@ -1212,6 +1268,7 @@ int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_product_variable_axdr_types),
         cmocka_unit_test(test_event_class24_attrs_on_the_wire),
+        cmocka_unit_test(test_event_class24_complex_attrs),
         cmocka_unit_test(test_product_axdr_rejects_small_buffer_and_complex),
         cmocka_unit_test(test_driver_scalar_fallback_still_works),
         cmocka_unit_test(test_driver_high_byte_oad_has_no_signed_shift),
