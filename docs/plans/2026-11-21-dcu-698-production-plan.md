@@ -784,12 +784,12 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-06 | 部分合并 | `dcu/D1-06-action` | `9a7fb7f9` | `docs/evidence/DCU-D1-06/` | 合并提交 `9a7fb7f9`；127–131 参数按表 A.9 解码，错形状回 DAR 7；129–131 因产品没有继电器 OAD→电表地址映射，诚实回 DAR 2（不假装执行）；127/128 无告警输出同回 2；继电器映射需产品拍板 |
 | D1-07 | 已合并 | `dcu/D1-07-record-storage` | `2ee06750` | `docs/evidence/DCU-D1-07/` | 合并提交 `2ee06750`；5004 记录端口接存储，Selector1/2 与 RCSD 列编码，UTC 时间基；合并后 33/33、ASAN、守卫、验收通过（一次控制帧 flake，重跑通过） |
 | D1-18d | 已合并 | `dcu/D1-18d-control-security` | `f0ec96fe` | `docs/evidence/DCU-D1-18d/` | 合并提交 `f0ec96fe`；8000 方法号归位，F100 reset 真实，F200 假配置撤下，A11/A12 SET 真实；DAR 5/4 统一；合并后 35/35、守卫、验收通过 |
-| D2-02 | 进行中 | `dcu/D2-02-acq-persist` | `f0ec96fe` | `docs/evidence/DCU-D2-02/` | dcu-dev 执行中；6000 Add/AddBatch/Update/Delete/Clear 落 SQLite 与档案，重开对应方法位；D2-01 保持 §12.6 迁移项 |
+| D2-02 | 已合并 | `dcu/D2-02-class10` | `42516ae6` | `docs/evidence/DCU-D2-02/` | 合并提交 `42516ae6`；6000 A2 数组、127-134 持久化、6001 单元、ACL 16→20；合并后 36/36、守卫、验收 2 任务通过；40 表全量 A2 仍受 2048 缓冲限回 DAR 2 |
 | D1-08 | 已合并 | `dcu/D1-08-normal-list` | `c291f3e7` | `docs/evidence/DCU-D1-08/` | 合并提交 `c291f3e7`；混合成败、空列表（表73 无下限）、重复 OAD、验收未知 OI 逐项 DAR；修正 codec 对 n==0 的旧拒绝 |
 | D1-09 | 未开始 | - | - | - | - |
 | D1-10 | 已合并 | `dcu/D1-10-catalog-consistency` | `5a4fda20` | `docs/evidence/DCU-D1-10/` | 合并提交 `5a4fda20`；生成 514 OI + 26 类夹具，表→目录严格对拍、mask 范围、OI 唯一；红色对照 F200 改类；合并后 29/29、目录门禁、守卫、验收全过 |
 | D1-11 | 已合并 | `dcu/D1-11-acceptance` | `7f5ce300` | `docs/evidence/DCU-D1-11/` | 合并提交 `7f5ce300`；GET/SET/ACTION/Record/Class20 共 16 例独立验收；修复过期 ACL 对象列表（A11/A12/F200 A4），ACL 属性上限 8→12 |
-| D0-12 | 进行中 | `dcu/D0-12-accept-completeness` | `7f5ce300` | `docs/evidence/DCU-D0-12/` | edgec-dev-0 执行中；按 tasks 目录核对预期任务数，任务加载失败或非零退出必须失败 |
+| D0-12 | 已合并 | `dcu/D0-12-acceptance-gate` | `e8b242bc` | `docs/evidence/DCU-D0-12/` | 合并提交 `e8b242bc`；`acceptance/run.sh` 记录逐任务退出码，`check_acceptance_tasks.py` 按 tasks 目录核对；正反夹具进守卫自检 |
 | D1-20a | 进行中 | `dcu/D1-20a-action-route` | `996a09f7` | `docs/evidence/DCU-D1-20a/` | dcu-dev-1 执行中；非 8000 的 ACTION 原样转对象表，消除适配器与对象表两套 DAR |
 | D1-12 | 已合并 | `dcu/D1-12-axdr-port-adr` | `076e0e04` | `docs/evidence/DCU-D1-12/` | ADR-0013 已合并，状态 Proposed；14 个初始化点全为 designated，无位置初始化；架构签字待补 |
 | D1-13 | 已合并 | `dcu/D1-13-axdr-port` | `68f4de69` | `docs/evidence/DCU-D1-13/` | 合并提交 `68f4de69`；合并后 28/28、守卫、验收 2+4 全过；流式逐项编码，单缓冲复用，无 8×2048；`/no-comments` 删 23 行、DAR 字面量改常量 |
