@@ -157,3 +157,10 @@ not implement. D1-18a/b/c/d is the fix queue; D1-18a is in flight.
 `/home/EdgeC/build-asan` kept for the remaining ASAN checks. `/tmp/dcu-*.log` verifier logs
 could not be deleted (auto-mode blocked the shared-scratch sweep); they are small.
 
+| 2026-11-22 | D2-02 | merged `42516ae6` | 6000 A2 array, 127–134 persisted, Class 20 ACL 16→20; 36/36, guards, 2 acceptance tasks |
+| 2026-11-22 | D2-03 | merged `b4bb8829` | 6012 M1/127–130 and 6013 A2 real; strict A-XDR decode; SQLite config with rollback; 3+18 acceptance cases |
+| 2026-11-22 | D3-05a | merged `3e291b74` | Class 24 A2/A3/A4/A11/A12 real; A5/A6/A14 masked pending a real source |
+| 2026-11-22 | D3-04a | returned to dcu-dev-1 | date_time_s moves to device-local civil through the one helper (`TZ=CST-8` tests); unended A6 end uses Table 49 invalid encoding `1C FF×7`, A14 keeps NULL |
+| 2026-11-22 | D3-06 | returned to edgec-dev-0 | 4000 A2 SET still RAM-shadow-only with DAR 0: real clock port or read-only; acceptance case `000019` collides, renumber to `000022` |
+| 2026-11-22 | cleanup | 11 merged worktrees removed | d0-11, d1-07, d1-11, d1-16, d1-18a/b/d/e, d2-02, d2-03, d3-05a; `/tmp/dcu-*.log` sweep blocked by auto-mode (small, kept) |
+| 2026-11-22 | plan | `1a689fe9` | §11.1 decisions 9/10 (time zone, unended end encoding), §12.1 queue rewritten, D3-04a/D3-06/D1-20a statuses current |
