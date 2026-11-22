@@ -797,7 +797,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-16 | 已合并 | `dcu/D1-16-report` | `479017fd` | `docs/evidence/DCU-D1-16/` | 合并提交 `479017fd`；ADR-0017 上报端口、CHOICE[1] 列表、确认匹配、5 秒超时解锁；生产队列在 A3/记录列表就绪前保持空；34/34、守卫、验收通过 |
 | D1-18e | 进行中 | `dcu/D1-18e-freeze` | `479017fd` | `docs/evidence/DCU-D1-18e/` | dcu-dev-1 执行中；5004 A2 数组或撤 mask，方法 3/4/5/7/8 实现或撤回 |
 | D1-18c | 已合并 | `dcu/D1-18c-acq-shapes` | `78fd6083` | `docs/evidence/DCU-D1-18c/` | 合并提交 `78fd6083`；6000/6002/6003 按标准形状撤 mask，6012 reset 真实，AddScheme 移到 127；DAR 5/4 规则统一；合并后目标测试重跑绿 |
-| D0-11 | 进行中 | `dcu/D0-11-test-tmp` | `78fd6083` | `docs/evidence/DCU-D0-11/` | 并行 worktree 共用 `/tmp` 测试库导致 SQLITE_IOERR/READONLY 偶发；改为每进程唯一路径并加并发对拍 |
+| D0-11 | 已合并 | `dcu/D0-11-test-tmp` | `174d6bf4` | `docs/evidence/DCU-D0-11/` | 合并提交 `174d6bf4`；4 个 DCU 测试改每进程唯一路径，新增并发双跑守卫；合并后 36 目标测试与验收绿；另有 10 个非 DCU 测试固定路径待清理 |
 | D1-17 | 已合并 | `dcu/D1-17-appconn` | `5494f506` | `docs/evidence/DCU-D1-17/` | 合并提交 `5494f506`；ADR-0015 会话与 ACL；CONNECT/RELEASE 无 CHOICE 解析；未授权 DAR 3；预连接窗口按产品列表；32/32、ASAN、守卫、验收通过 |
 | D1-18 | 审计完成 | 只读 | `4f864e29` | `docs/design/DCU_698_OAD_STATUS.md` | 56 个已暴露位：0 real、37 partial、12 stub、3 unimplemented、4 masked-but-undefined；按 P0/P1 拆成 D1-18a 到 D1-18d |
 | D1-18a | 已合并 | `dcu/D1-18a-variable-shapes` | `8acf47fe` | `docs/evidence/DCU-D1-18a/` | 合并提交 `8acf47fe`；Class 1/3/4 attr2 标准数组、attr3 Scaler_Unit、整数类型、元素索引选槽位；修正错误 tag 常量；合并后 32/32、ASAN、守卫、验收通过 |
