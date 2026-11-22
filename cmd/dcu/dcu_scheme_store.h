@@ -14,7 +14,6 @@ int dcu_scheme_store_init(dcu_storage_t *storage, const uint32_t *default_tags,
 int dcu_scheme_store_load(dcu_storage_t *storage, dcu_poller_t *poller);
 
 /** @brief 6014 方法 127/128/129/130 的事务化落地；失败回滚 DB 与 RAM。 */
-int dcu_scheme_store_apply(dcu_storage_t *storage, dcu_poller_t *poller,
-                           const dcu_scheme_op_t *op);
+int dcu_scheme_store_apply(dcu_storage_t *storage, dcu_poller_t *poller, const dcu_scheme_op_t *op);
 
 #endif /* DCU_SCHEME_STORE_H */

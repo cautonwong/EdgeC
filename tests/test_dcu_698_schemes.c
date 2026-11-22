@@ -86,9 +86,8 @@ static int _bench_init(scheme_bench_t *b) {
     assert_int_equal(dcu_scheme_store_init(&b->storage, seed, 2), 0);
     assert_int_equal(dcu_scheme_store_load(&b->storage, &b->poller), 0);
 
-    router_sink_ops_t sink = {.ctx = &b->storage,
-                              .task_apply = _apply_task,
-                              .scheme_apply = _apply_scheme};
+    router_sink_ops_t sink = {
+        .ctx = &b->storage, .task_apply = _apply_task, .scheme_apply = _apply_scheme};
     router_bus_ops_t bus = {0};
     assert_int_equal(
         dcu_698_object_model_init(&b->inv, &b->poller, sink, NULL, NULL, NULL, NULL, bus), 0);
@@ -112,7 +111,9 @@ static void _bench_free(scheme_bench_t *b) {
 
 /* ---- A-XDR 构造 ---- */
 
-static void _u8(body_t *b, uint8_t v) { b->b[b->n++] = v; }
+static void _u8(body_t *b, uint8_t v) {
+    b->b[b->n++] = v;
+}
 
 static void _u16(body_t *b, uint8_t tag, uint16_t v) {
     _u8(b, tag);
@@ -203,8 +204,8 @@ static void _ms_payload(body_t *b, uint8_t choice) {
     }
 }
 
-static void _unit(body_t *b, uint8_t id, uint16_t depth, uint8_t capture_type,
-                  const uint32_t *csds, uint8_t csd_count, uint8_t ms_choice, uint8_t label) {
+static void _unit(body_t *b, uint8_t id, uint16_t depth, uint8_t capture_type, const uint32_t *csds,
+                  uint8_t csd_count, uint8_t ms_choice, uint8_t label) {
     _u8(b, DLT698_TAG_STRUCTURE);
     _u8(b, 6);
     _u8(b, DLT698_TAG_UNSIGNED);
@@ -367,8 +368,7 @@ static void test_shape_errors_return_7(void **state) {
     _add_begin(&good, 1);
     _unit(&good, 7, 0, 0, csds, 2, 1, 0);
 
-    assert_int_equal(dcu_698_accept_action_axdr(MK_OMD(OI_NORMAL_SCHEME, 127), good.b,
-                                                good.n - 1),
+    assert_int_equal(dcu_698_accept_action_axdr(MK_OMD(OI_NORMAL_SCHEME, 127), good.b, good.n - 1),
                      EDGE_SLAVE_SRC_TYPE_MISMATCH);
     body_t wrong_tag = good;
     wrong_tag.b[2] = DLT698_TAG_ARRAY;
@@ -415,9 +415,8 @@ static void test_shape_errors_return_7(void **state) {
     _u8(&bad_ms, DCU_698_TAG_MS);
     _u8(&bad_ms, 2);
     _u8(&bad_ms, 1); /* 声明 1 个 unsigned，却没有值 */
-    assert_int_equal(
-        dcu_698_accept_action_axdr(MK_OMD(OI_NORMAL_SCHEME, 127), bad_ms.b, bad_ms.n),
-        EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    assert_int_equal(dcu_698_accept_action_axdr(MK_OMD(OI_NORMAL_SCHEME, 127), bad_ms.b, bad_ms.n),
+                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
 
     /* ROAD 关联列表截断：形状坏 -> 7。 */
     body_t bad_road = {0};
@@ -602,18 +601,14 @@ static void test_masks_and_unknown_methods(void **state) {
     assert_int_equal(_bench_init(&b), 0);
     const uint8_t null_param[] = {DLT698_TAG_NULL};
 
-    assert_int_equal(
-        dcu_698_accept_action_axdr(MK_OMD(OI_NORMAL_SCHEME, 1), null_param, 1),
-        EDGE_SLAVE_SRC_CLASS_MISMATCH);
-    assert_int_equal(
-        dcu_698_accept_action_axdr(MK_OMD(OI_NORMAL_SCHEME, 131), null_param, 1),
-        EDGE_SLAVE_SRC_UNDEFINED);
-    assert_int_equal(
-        dcu_698_accept_action_axdr(MK_OMD(OI_NORMAL_SCHEME_UNIT, 1), null_param, 1),
-        EDGE_SLAVE_SRC_CLASS_MISMATCH);
-    assert_int_equal(
-        dcu_698_accept_action_axdr(MK_OMD(OI_NORMAL_SCHEME_UNIT, 127), null_param, 1),
-        EDGE_SLAVE_SRC_UNDEFINED);
+    assert_int_equal(dcu_698_accept_action_axdr(MK_OMD(OI_NORMAL_SCHEME, 1), null_param, 1),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_698_accept_action_axdr(MK_OMD(OI_NORMAL_SCHEME, 131), null_param, 1),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+    assert_int_equal(dcu_698_accept_action_axdr(MK_OMD(OI_NORMAL_SCHEME_UNIT, 1), null_param, 1),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_698_accept_action_axdr(MK_OMD(OI_NORMAL_SCHEME_UNIT, 127), null_param, 1),
+                     EDGE_SLAVE_SRC_UNDEFINED);
     assert_int_equal(dcu_698_accept_action_axdr(MK_OMD(0x9999, 1), null_param, 1),
                      EDGE_SLAVE_SRC_NOT_FOUND);
 
@@ -681,12 +676,11 @@ static void test_sql_failure_rolls_back_db_and_ram(void **state) {
     (void)state;
     scheme_bench_t b;
     assert_int_equal(_bench_init(&b), 0);
-    assert_int_equal(
-        sqlite3_exec(b.storage.db,
-                     "CREATE TRIGGER fail_scheme_csd BEFORE INSERT ON dcu_scheme_csd "
-                     "BEGIN SELECT RAISE(ABORT, 'boom'); END;",
-                     NULL, NULL, NULL),
-        SQLITE_OK);
+    assert_int_equal(sqlite3_exec(b.storage.db,
+                                  "CREATE TRIGGER fail_scheme_csd BEFORE INSERT ON dcu_scheme_csd "
+                                  "BEGIN SELECT RAISE(ABORT, 'boom'); END;",
+                                  NULL, NULL, NULL),
+                     SQLITE_OK);
 
     uint32_t csds[] = {OAD_VOLTAGE, OAD_CURRENT};
     assert_int_equal(_add_one(7, 0, 0, csds, 2, 1, 0), EDGE_SLAVE_SRC_TEMPORARY);
@@ -695,8 +689,7 @@ static void test_sql_failure_rolls_back_db_and_ram(void **state) {
     assert_non_null(s);
     assert_int_equal(s->data.normal.csd_count, 2);
 
-    assert_int_equal(sqlite3_exec(b.storage.db, "DROP TRIGGER fail_scheme_csd;", NULL, NULL,
-                                  NULL),
+    assert_int_equal(sqlite3_exec(b.storage.db, "DROP TRIGGER fail_scheme_csd;", NULL, NULL, NULL),
                      SQLITE_OK);
     dcu_poller_t reloaded;
     assert_int_equal(dcu_poller_init(&reloaded), 0);
