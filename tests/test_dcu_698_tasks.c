@@ -176,14 +176,13 @@ static void test_add_task_changes_plan_and_persists(void **state) {
     assert_int_equal(t->status, DCU_TASK_STATUS_NORMAL);
     assert_int_equal(t->period_type, 2);
 
-    /* 重启路径：同一连接读回，配置不丢。 */
     dcu_poller_t reloaded;
     assert_int_equal(dcu_poller_init(&reloaded), 0);
     assert_int_equal(dcu_task_store_load(&bench.storage, &reloaded), 0);
     const dcu_task_unit_t *r = dcu_poller_task_find(&reloaded, 7);
     assert_non_null(r);
     assert_int_equal(r->interval_s, 120);
-    assert_non_null(dcu_poller_task_find(&reloaded, 1)); /* 首次启动的默认任务还在 */
+    assert_non_null(dcu_poller_task_find(&reloaded, 1));
     dcu_poller_destroy(&reloaded);
 
     _bench_free(&bench);

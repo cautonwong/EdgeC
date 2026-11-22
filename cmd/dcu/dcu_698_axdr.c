@@ -84,8 +84,6 @@ static int _encode_axdr_value(const dcu_value_t* v, uint8_t* buf, size_t cap, si
     }
 }
 
-/* --- 6012/6013：带长度游标的严格解码与 A2 编码 --- */
-
 typedef struct {
     const uint8_t *p;
     size_t len;

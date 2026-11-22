@@ -77,7 +77,7 @@ typedef struct {
     uint8_t interval_unit;        /* TI 原样保留，供 A2 精确读回 */
     uint16_t interval_value;
     bool has_interval;            /* TI value == 0 表示无周期触发，不是"每轮" */
-    uint8_t status;               /* FREE / NORMAL / DISABLED */
+    uint8_t status;
     uint8_t period_type;          /* 空时段表也接受的类型，A2 读回 */
     uint8_t scheme_type;
     uint32_t scheme_id;

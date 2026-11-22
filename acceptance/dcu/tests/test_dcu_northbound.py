@@ -67,7 +67,6 @@ def _exchange(apdu: bytes) -> dlt698.Frame:
 _INT_SIZE = {0x03: 1, 0x05: 4, 0x06: 4, 0x10: 2, 0x11: 1, 0x12: 2, 0x16: 1, 0x15: 8}
 _SIGNED = {0x05, 0x10}
 
-# 固定宽度标签；array/structure/string/TI 在 _skip_axdr 里单独处理。
 _AXDR_FIXED = {
     0x03: 1, 0x05: 4, 0x06: 4, 0x0F: 1, 0x10: 2, 0x11: 1, 0x12: 2, 0x14: 8,
     0x15: 8, 0x16: 1, 0x17: 4, 0x18: 8, 0x1B: 7, 0x1C: 7, 0x51: 4, 0x54: 3,
@@ -75,7 +74,6 @@ _AXDR_FIXED = {
 
 
 def _skip_axdr(data: bytes, i: int) -> int:
-    """跳过任意 A-XDR 值（含嵌套 array/structure），返回下一个字节下标。"""
     tag = data[i]
     i += 1
     if tag == 0x00:
@@ -358,11 +356,6 @@ def test_master_reads_current_and_active_power():
 @case(id="D_00_00_02_000006", clause="free: 6012 属性 2 是任务配置数组，首启播种默认任务", tags=["北向"])
 @pytest.mark.contract
 def test_master_gets_task_config_array():
-    """6012 属性 2 是 array<6013 任务配置单元>，不是方案计数。
-
-    产品首次启动在库为空时播种一条默认任务（任务 ID 1、TI 5 秒、方案 1）。
-    判据是 A-XDR 形状是数组且首项就是这条默认配置，而不是一个标量计数。
-    """
     units = _read_task_units(0x60120200)
     assert units, "6012 A2 不应是空数组：首启必须播种默认任务"
     first = units[0]
@@ -502,19 +495,9 @@ def _task_unit_param(task_id: int, unit: int, value: int, status: int = 1,
     )
 
 
-# 6012 ACTION 要等 D1-20a 把 dcu_north_adapter.c 的 raw ACTION 分支接入才可达。
-# 本分支把它标成"待接入"而不是"北向"：任务 select: tag:北向 不会选中它，
-# 既不伪造路由，也不把 skip 计成"申报外未测"拖红 dcu-northbound。
 @case(id="D_00_00_02_000019", clause="free: 6012 ACTION 127 改周期 / 127 重下发 / 128 删除，A2 全程可回读", tags=["待接入"])
 @pytest.mark.contract
 def test_master_changes_task_config_via_action():
-    """ACTION 127 Add → A2 读回 → 127 改周期 → A2 读回 → 128 Delete → A2 回读。
-
-    D2-03 只落地解码/存储/轮询层；北向 raw ACTION 入口由 D1-20a 接入。本分支的
-    `dcu_north_adapter.c` 对非 6000/8000 的 ACTION 仍直接回 NOT_FOUND（DAR 6）。
-    用例标成"待接入"（不在 tag:北向 的选择集里）；D1-20a 合并后把标签改回"北向"
-    即可真跑，不需要改判据。
-    """
     add = dlt698.action_request(0x07, 0x6012, 127, param=_task_unit_param(7, 0, 60))
     res = dlt698.parse_action_response(_exchange(add).apdu)
     if res.dar == 6:

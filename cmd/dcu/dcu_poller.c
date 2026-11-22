@@ -223,8 +223,6 @@ static void _chain_finish_visit(dcu_poller_t* poller, dcu_chain_t* c) {
         st->last_success_ts = uv_hrtime() / 1000000ULL;
         if (mp) mp->consecutive_fails = 0;
         for (int t = 0; t < poller->task_count; t++) {
-            /* 只有本轮真正到期且启用的任务才记成功；被 task_mask 排除或
-             * DISABLED 的任务不能凭空累计假成功。 */
             if (!poller->task_due[t]) continue;
             if (poller->tasks[t].status != DCU_TASK_STATUS_NORMAL) continue;
             if (mp && mp->task_mask_set && !(mp->task_mask & (1u << t))) continue;

@@ -1,0 +1,13 @@
+ .audit/d2-03-design.md                      | 31 ++++++++++++++++++++++
+ .audit/d2-03.todo.md                        | 35 +++++++++++++++++++++++++
+ acceptance/dcu/tests/test_dcu_northbound.py | 17 ------------
+ cmd/dcu/dcu_698_axdr.c                      |  2 --
+ cmd/dcu/dcu_poller.c                        |  2 --
+ cmd/dcu/dcu_poller.h                        |  2 +-
+ docs/evidence/DCU-D2-03/comments.md         | 20 +++++++++++++++
+ docs/evidence/DCU-D2-03/summary.md          | 40 +++++++++++++++++++++++++++++
+ docs/evidence/DCU-D2-03/tests.log           | 24 +++++++++++++++++
+ tests/test_dcu_698_tasks.c                  |  3 +--
+ tests/test_dcu_poller.c                     |  1 -
+ tests/test_dcu_router.c                     |  1 -
+ 12 files changed, 152 insertions(+), 26 deletions(-)

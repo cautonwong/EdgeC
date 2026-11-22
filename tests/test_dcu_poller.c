@@ -296,7 +296,6 @@ static void test_gc_retires_deleted_meter(void** state) {
     assert_true(g_submit_count <= 1);
 }
 
-/* 成功只记在本轮到期且启用的任务上；DISABLED / 无周期任务不能累计假成功。 */
 static void test_success_counts_only_due_enabled_tasks(void** state) {
     (void)state;
     dcu_inventory_t inv;

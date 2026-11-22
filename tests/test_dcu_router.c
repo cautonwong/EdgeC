@@ -88,7 +88,6 @@ static void test_dcu_router_dispatch(void** state) {
     assert_int_equal(ret, EDGE_SLAVE_SRC_TYPE_MISMATCH);
     assert_int_equal(test_inv.count, 0);
 
-    // 5. 6012 方法 127 现在是任务配置（解码后的 op），不再把方案指针当参数。
     uint32_t csd = OAD_VOLTAGE;
     dcu_task_op_t task_op = {.method = 127, .unit_count = 0};
     ret = dcu_router_action(((uint32_t)OI_TASK_SCHEDULER << 16) | 0x7F00, &task_op, &method_res);
