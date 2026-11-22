@@ -196,8 +196,9 @@ static void test_product_axdr_rejects_small_buffer_and_complex(void **state) {
     assert_int_equal(dcu_north_resolve_axdr(NULL, OAD_VOLTAGE, buf, 10, &len),
                      EDGE_SLAVE_SRC_TYPE_MISMATCH);
 
-    assert_int_equal(dcu_north_resolve_axdr(NULL, OAD_DAILY_FREEZE, buf, sizeof(buf), &len), 0);
-    assert_int_equal(buf[0], DCU_698_TAG_LONG_UNSIGNED);
+    /* 5004 A2 是冻结数据数组而不是条数；Normal GET 不暴露，回 DAR 5。 */
+    assert_int_equal(dcu_north_resolve_axdr(NULL, OAD_DAILY_FREEZE, buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
     assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x6000, 3), buf, sizeof(buf), &len),
                      EDGE_SLAVE_SRC_CLASS_MISMATCH);
     assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x6000, 18), buf, sizeof(buf), &len),

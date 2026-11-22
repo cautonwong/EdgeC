@@ -1,0 +1,16 @@
+ acceptance/dcu/configs/devices_north.yaml   | 20 +++---
+ acceptance/dcu/tests/test_dcu_northbound.py | 31 +++++++---
+ cmd/dcu/dcu_698_class_acq.c                 | 31 ----------
+ cmd/dcu/dcu_698_object_internal.h           |  4 --
+ cmd/dcu/dcu_698_object_model.c              | 10 +--
+ cmd/dcu/dcu_698_var.c                       |  1 -
+ docs/evidence/DCU-D1-18e/diffstat.txt       |  5 ++
+ docs/evidence/DCU-D1-18e/summary.md         | 94 +++++++++++++++++++++++++++++
+ docs/evidence/DCU-D1-18e/tests.log          | 41 +++++++++++++
+ tests/test_dcu_698_axdr.c                   |  5 +-
+ tests/test_dcu_698_object_model.c           | 13 ++--
+ tests/test_dcu_698_value_table.c            | 14 ++++-
+ tests/test_dcu_advanced_modules.c           |  5 +-
+ tests/test_dcu_router.c                     |  1 +
+ tests/test_driver_dlt698.c                  | 70 +++++++++++++++++++++
+ 15 files changed, 270 insertions(+), 75 deletions(-)

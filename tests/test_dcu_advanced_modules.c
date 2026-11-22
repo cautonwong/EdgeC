@@ -294,11 +294,10 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     trigger_msg.ts = base_ts;
     stream_engine_push(stream_engine, &trigger_msg);
 
-    // 校验冻结数据总数应为 3 (电能量、电压、电流快照)
+    // 5004 A2 是冻结数据数组，不再用条数冒充冻结表。
     uint16_t freeze_count = 0;
     ret = dcu_router_get_attr(OAD_DAILY_FREEZE, &freeze_count);
-    assert_int_equal(ret, 0);
-    assert_int_equal(freeze_count, 3);
+    assert_int_not_equal(ret, 0);
 
     // 模拟北向发起 RSD 选择性历史召测 (GET.Record 时间区间内检索)
     dcu_freeze_record_t query_results[5];
