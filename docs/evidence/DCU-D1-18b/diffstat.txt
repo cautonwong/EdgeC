@@ -1,0 +1,17 @@
+ cmd/dcu/dcu_698_axdr.c                |   5 +-
+ cmd/dcu/dcu_698_object_model.c        |  74 +++++++++-------------
+ cmd/dcu/dcu_698_object_model.h        |   3 +
+ cmd/dcu/dcu_698_var.c                 |  36 +++++++----
+ cmd/dcu/dcu_router.h                  |  16 ++---
+ docs/design/DCU_698_OBJECT_MODEL.md   |   6 ++
+ docs/evidence/DCU-D1-18b/comments.md  |  21 +++++++
+ docs/evidence/DCU-D1-18b/diffstat.txt |   0
+ docs/evidence/DCU-D1-18b/runtime.log  |  32 ++++++++++
+ docs/evidence/DCU-D1-18b/summary.md   |  61 ++++++++++++++++++
+ docs/evidence/DCU-D1-18b/tests.log    |  24 +++++++
+ tests/test_dcu_698_axdr.c             |  71 ++++++++++++++++++++-
+ tests/test_dcu_698_catalog.c          |  12 ++++
+ tests/test_dcu_698_object_model.c     | 114 +++++++++++++++++++++++++++++++++-
+ tests/test_dcu_698_value_table.c      |  54 +++++++++-------
+ tests/test_dcu_advanced_modules.c     |  13 ++--
+ 16 files changed, 440 insertions(+), 102 deletions(-)

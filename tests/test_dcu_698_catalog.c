@@ -60,10 +60,22 @@ static void test_no_duplicate_ois(void **state) {
     }
 }
 
+static void test_class_attr_limit_matches_catalog(void **state) {
+    (void)state;
+    for (size_t i = 0; i < CATALOG_CLASS_COUNT; i++) {
+        const dcu698_catalog_class_t *cls = &dcu698_catalog_classes[i];
+        for (unsigned attr = 0; attr <= 255; attr++) {
+            bool want = (attr >= 1 && attr <= cls->max_attr);
+            assert_int_equal(dcu_698_class_defines_attr(cls->class_id, (uint8_t)attr), want);
+        }
+    }
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_every_table_oi_is_in_the_catalog),
         cmocka_unit_test(test_masks_stay_within_the_class_definition),
+        cmocka_unit_test(test_class_attr_limit_matches_catalog),
         cmocka_unit_test(test_no_duplicate_ois),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);

@@ -149,8 +149,7 @@ static dcu_698_object_t g_objects[] = {
      .read = _oi_event_read,
      .write = _oi_event_write,
      .method = _oi_event_execute,
-     .attr_mask = {[BYTE(2)] = BIT(2) | BIT(3) | BIT(4) | BIT(5) | BIT(6),
-                   [BYTE(8)] = BIT(8) | BIT(9) | BIT(10)},
+     .attr_mask = {[BYTE(4)] = BIT(4), [BYTE(11)] = BIT(11) | BIT(12)},
      .method_mask = {[BYTE(1)] = BIT(1)}},
     {.oi = OI_OVER_CURRENT,
      .class_id = IC_SUB_EVENT,
@@ -158,8 +157,7 @@ static dcu_698_object_t g_objects[] = {
      .read = _oi_event_read,
      .write = _oi_event_write,
      .method = _oi_event_execute,
-     .attr_mask = {[BYTE(2)] = BIT(2) | BIT(3) | BIT(4) | BIT(5) | BIT(6),
-                   [BYTE(8)] = BIT(8) | BIT(9) | BIT(10)},
+     .attr_mask = {[BYTE(4)] = BIT(4), [BYTE(11)] = BIT(11) | BIT(12)},
      .method_mask = {[BYTE(1)] = BIT(1)}},
 };
 
@@ -439,49 +437,21 @@ static int _oi_6003_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t e
 
 static int _oi_event_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
                           void *out_val) {
+    (void)elem_idx;
     dcu_event_obj_t *evt = (dcu_event_obj_t *)obj->instance;
     if (!evt || !out_val) return -1;
 
-    // 属性 2: 事件记录表 (按发生次序倒序读取)
-    if (attr_id == 2) {
-        if (elem_idx < evt->record_count) {
-            *(dcu_event_record_t *)out_val = evt->records[elem_idx];
-            return 0;
-        }
-        return -3;
-    }
-    if (attr_id == 3) {
-        if (elem_idx < evt->snapshot_count) {
-            *(uint32_t *)out_val = evt->snapshot_oads[elem_idx];
-        } else {
-            *(uint32_t *)out_val = evt->snapshot_oads[0];
-        }
-        return 0;
-    }
+    // 7.3.24 表193：A4 最大记录数、A11 上报标识、A12 有效标识。
     if (attr_id == 4) {
-        *(uint16_t *)out_val = evt->record_count;
-        return 0;
-    }
-    if (attr_id == 5) {
         *(uint16_t *)out_val = MAX_EVENT_RECORDS;
         return 0;
     }
-    if (attr_id == 6) {
-        *(float *)out_val = evt->threshold;
-        return 0;
-    }
-    if (attr_id == 8) {
+    if (attr_id == 11) {
         *(uint8_t *)out_val = evt->report_flag;
         return 0;
     }
-    if (attr_id == 9) {
+    if (attr_id == 12) {
         *(bool *)out_val = evt->is_enabled;
-        return 0;
-    }
-    if (attr_id == 10) {
-        uint64_t *times = (uint64_t *)out_val;
-        times[0] = evt->last_start_time;
-        times[1] = evt->last_end_time;
         return 0;
     }
     return -2;
@@ -493,17 +463,13 @@ static int _oi_event_write(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t
     dcu_event_obj_t *evt = (dcu_event_obj_t *)obj->instance;
     if (!evt || !in_val) return -1;
 
-    if (attr_id == 6) {
-        evt->threshold = *(const float *)in_val;
-        printf("🔧 [EVENT] 动态配置事件 %04X 触发判定门限阈值调整为: %.2f\n", evt->oi,
-               evt->threshold);
+    if (attr_id == 11) {
+        uint8_t v = *(const uint8_t *)in_val;
+        if (v > 3) return -2;
+        evt->report_flag = v;
         return 0;
     }
-    if (attr_id == 8) {
-        evt->report_flag = *(const uint8_t *)in_val;
-        return 0;
-    }
-    if (attr_id == 9) {
+    if (attr_id == 12) {
         evt->is_enabled = *(const bool *)in_val;
         return 0;
     }
@@ -584,6 +550,24 @@ size_t dcu_698_object_count(void) { return OBJECT_COUNT; }
 
 const dcu_698_object_t *dcu_698_object_at(size_t index) {
     return index < OBJECT_COUNT ? &g_objects[index] : NULL;
+}
+
+/* 附录 A 的类定义上限。 */
+static const struct {
+    uint8_t class_id;
+    uint8_t max_attr;
+} k_class_max_attr[] = {
+    {1, 5},  {2, 3},  {3, 3},  {4, 3},  {5, 6},  {6, 3},  {7, 10}, {8, 2},  {9, 3},
+    {10, 3}, {11, 4}, {12, 19}, {13, 5}, {14, 3}, {15, 3}, {16, 3}, {17, 4}, {18, 3},
+    {19, 10}, {20, 5}, {21, 15}, {22, 4}, {23, 18}, {24, 14}, {25, 11}, {26, 5},
+};
+
+bool dcu_698_class_defines_attr(uint8_t class_id, uint8_t attr_id) {
+    if (attr_id == 0) return false;
+    for (size_t i = 0; i < sizeof(k_class_max_attr) / sizeof(k_class_max_attr[0]); i++) {
+        if (k_class_max_attr[i].class_id == class_id) return attr_id <= k_class_max_attr[i].max_attr;
+    }
+    return false;
 }
 
 const router_bus_ops_t *dcu_698_object_model_bus_ops(void) {

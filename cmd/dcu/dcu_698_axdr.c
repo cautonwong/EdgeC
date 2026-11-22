@@ -70,6 +70,7 @@ static int _encode_axdr_value(const dcu_value_t* v, uint8_t* buf, size_t cap, si
             return 0;
         }
         case DCU_698_TAG_BOOLEAN:
+        case DCU_698_TAG_ENUM:
         case DCU_698_TAG_UNSIGNED: {
             if (cap < 2) return -1;
             buf[0] = v->type_tag;
@@ -270,7 +271,9 @@ int dcu_north_accept_axdr(void* ctx, uint32_t oad, const uint8_t* axdr, size_t l
     uint8_t attr_id = (uint8_t)((oad >> 8) & 0xFF);
     const dcu_698_object_t* obj = dcu_698_find(oi);
     if (!obj) return EDGE_SLAVE_SRC_NOT_FOUND;
-    if (!dcu_mask_test(obj->attr_mask, attr_id)) return EDGE_SLAVE_SRC_CLASS_MISMATCH;
+    if (!dcu_mask_test(obj->attr_mask, attr_id))
+        return dcu_698_class_defines_attr(obj->class_id, attr_id) ? EDGE_SLAVE_SRC_CLASS_MISMATCH
+                                                                  : EDGE_SLAVE_SRC_UNDEFINED;
     if (!obj->write) return EDGE_SLAVE_SRC_DENIED;
 
     write_kind_t kind;

@@ -114,7 +114,7 @@ int dcu_698_var_read_value(uint32_t oad, dcu_value_t *out) {
     return 0;
 }
 
-typedef enum { VK_U16, VK_U32, VK_U8, VK_BOOL, VK_F32 } value_kind_t;
+typedef enum { VK_U16, VK_U32, VK_U8, VK_BOOL, VK_ENUM, VK_F32 } value_kind_t;
 
 typedef struct {
     uint16_t oi;
@@ -129,15 +129,11 @@ static const scalar_desc_t k_scalars[] = {
     {OI_CHANNEL_CONFIG, 2, VK_U32},
     {OI_CHANNEL_CONFIG, 3, VK_U8},
     {OI_VOLTAGE_DROP, 4, VK_U16},
-    {OI_VOLTAGE_DROP, 5, VK_U16},
-    {OI_VOLTAGE_DROP, 6, VK_F32},
-    {OI_VOLTAGE_DROP, 8, VK_U8},
-    {OI_VOLTAGE_DROP, 9, VK_BOOL},
+    {OI_VOLTAGE_DROP, 11, VK_ENUM},
+    {OI_VOLTAGE_DROP, 12, VK_BOOL},
     {OI_OVER_CURRENT, 4, VK_U16},
-    {OI_OVER_CURRENT, 5, VK_U16},
-    {OI_OVER_CURRENT, 6, VK_F32},
-    {OI_OVER_CURRENT, 8, VK_U8},
-    {OI_OVER_CURRENT, 9, VK_BOOL},
+    {OI_OVER_CURRENT, 11, VK_ENUM},
+    {OI_OVER_CURRENT, 12, VK_BOOL},
 };
 
 static const scalar_desc_t *_find_scalar(uint16_t oi, uint8_t attr_id) {
@@ -281,6 +277,12 @@ int dcu_698_var_encode_axdr(uint32_t oad, uint8_t *buf, size_t cap, size_t *len)
     return 0;
 }
 
+static int _unadvertised_attr_rc(const dcu_698_object_t *obj, uint8_t attr_id) {
+    /* 类定义了但对象没有声明 → 类不匹配（DAR 5）；类里没有这个属性号 → 未定义（DAR 4）。 */
+    return dcu_698_class_defines_attr(obj->class_id, attr_id) ? EDGE_SLAVE_SRC_CLASS_MISMATCH
+                                                              : EDGE_SLAVE_SRC_UNDEFINED;
+}
+
 int dcu_698_value_for_oad(uint32_t oad, dcu_value_t *out) {
     if (!out) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
 
@@ -292,13 +294,15 @@ int dcu_698_value_for_oad(uint32_t oad, dcu_value_t *out) {
         return EDGE_SLAVE_SRC_NOT_FOUND;
     }
 
+    const dcu_698_object_t *obj = dcu_698_find(oi);
     const scalar_desc_t *desc = _find_scalar(oi, attr_id);
     if (!desc) {
         /* 属性存在但没有标量表示（数组/结构）时明确拒绝，不截断。 */
-        const dcu_698_object_t *obj = dcu_698_find(oi);
-        if (obj && dcu_mask_test(obj->attr_mask, attr_id)) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
-        return EDGE_SLAVE_SRC_NOT_FOUND;
+        if (!obj) return EDGE_SLAVE_SRC_NOT_FOUND;
+        if (dcu_mask_test(obj->attr_mask, attr_id)) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+        return _unadvertised_attr_rc(obj, attr_id);
     }
+    if (obj && !dcu_mask_test(obj->attr_mask, attr_id)) return _unadvertised_attr_rc(obj, attr_id);
 
     memset(out, 0, sizeof(*out));
     switch (desc->kind) {
@@ -322,6 +326,14 @@ int dcu_698_value_for_oad(uint32_t oad, dcu_value_t *out) {
             uint8_t x = 0;
             if (dcu_698_read(oad, &x) != 0) return EDGE_SLAVE_SRC_NOT_FOUND;
             out->type_tag = DCU_698_TAG_UNSIGNED;
+            out->raw = x;
+            out->value = (double)x;
+            break;
+        }
+        case VK_ENUM: {
+            uint8_t x = 0;
+            if (dcu_698_read(oad, &x) != 0) return EDGE_SLAVE_SRC_NOT_FOUND;
+            out->type_tag = DCU_698_TAG_ENUM;
             out->raw = x;
             out->value = (double)x;
             break;
