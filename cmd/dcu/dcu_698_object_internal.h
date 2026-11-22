@@ -6,12 +6,6 @@
 #include "dcu_698_object_model.h"
 
 /* 类族处理器只由 dcu_698_object_model.c 的对象表与快照分派引用。 */
-int dcu_698_acq_6000_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
-                          void *out_val);
-int dcu_698_acq_6000_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
-                             void *result);
-int dcu_698_acq_6012_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
-                          void *out_val);
 int dcu_698_acq_6012_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
                              void *result);
 int dcu_698_acq_5004_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
@@ -22,8 +16,6 @@ int dcu_698_acq_6002_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t 
                           void *out_val);
 int dcu_698_acq_6002_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
                              void *result);
-int dcu_698_acq_6003_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
-                          void *out_val);
 
 int dcu_698_event_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
                        void *out_val);

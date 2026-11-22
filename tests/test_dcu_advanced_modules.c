@@ -174,45 +174,35 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     assert_int_equal(baudrate, 2400);
 
     // ==============================================================================
-    // 4. 验证下行自动搜表机制 (6002 OMD 启动, 6003 OAD 召测结果)
+    // 4. 验证下行自动搜表机制 (6002 只暴露计数, 6003 是结构不是对象)
     // ==============================================================================
     uint8_t disc_status = 99;
     ret = dcu_router_get_attr(((uint32_t)OI_METER_DISCOVERY << 16) | 0x0200,
-                              &disc_status);  // GET 搜表状态，应为 IDLE (0)
-    assert_int_equal(ret, 0);
-    assert_int_equal(disc_status, DISCOVERY_STATUS_IDLE);
-
+                              &disc_status);  // 6002 A2 是搜表结果数组，当前关闭
+    assert_int_equal(ret, -1);
     uint32_t duration = 10;
     int action_res = -1;
     ret = dcu_router_action(((uint32_t)OI_METER_DISCOVERY << 16) | 0x7F00, &duration,
                             &action_res);  // OMD 方法 127 实时启动扫表
     assert_int_equal(ret, 0);
     assert_int_equal(action_res, 0);
-
-    ret = dcu_router_get_attr(((uint32_t)OI_METER_DISCOVERY << 16) | 0x0200,
-                              &disc_status);  // 应切换为 SCANNING (1)
-    assert_int_equal(ret, 0);
-    assert_int_equal(disc_status, DISCOVERY_STATUS_SCANNING);
+    assert_int_equal(discovery.status, DISCOVERY_STATUS_SCANNING);
 
     // 模拟后台物理广播探测帧捕获
     dcu_discovery_tick_simulate(&discovery);
-
-    ret = dcu_router_get_attr(((uint32_t)OI_METER_DISCOVERY << 16) | 0x0200,
-                              &disc_status);  // 扫表完成后应变为 COMPLETED (2)
-    assert_int_equal(ret, 0);
-    assert_int_equal(disc_status, DISCOVERY_STATUS_COMPLETED);
+    assert_int_equal(discovery.status, DISCOVERY_STATUS_COMPLETED);
 
     uint16_t found_count = 0;
     ret = dcu_router_get_attr(((uint32_t)OI_METER_DISCOVERY << 16) | 0x0300,
-                              &found_count);  // 发现野生电表数应为 1
+                              &found_count);  // 6002 A3 是搜表结果记录数
     assert_int_equal(ret, 0);
     assert_int_equal(found_count, 1);
 
     char discovered_addr[32] = {0};
     ret = dcu_router_get_attr(((uint32_t)OI_DISCOVERY_RESULT << 16) | 0x0200,
-                              discovered_addr);  // 从 6003 结果中召测捕获的地址
-    assert_int_equal(ret, 0);
-    assert_string_equal(discovered_addr, "10000003");  // 地址匹配
+                              discovered_addr);  // 6003 是结果结构，不是对象
+    assert_int_equal(ret, -1);
+    assert_string_equal(discovery.discovered_tsas[0], "10000003");  // 地址匹配
 
     // ==============================================================================
     // 5. 验证流式失压与过流事件监控管线 (Class 7 Event Monitor & Logger Pipeline)

@@ -10,6 +10,7 @@
 #include "dcu_698_axdr.h"
 #include "dcu_698_object_model.h"
 #include "dcu_698_var.h"
+#include "dcu_discovery.h"
 #include "dcu_inventory.h"
 #include "dcu_north_adapter.h"
 #include "dcu_poller.h"
@@ -86,12 +87,15 @@ static int mock_count_freezes(void *ctx, uint16_t *out) {
 
 static dcu_inventory_t g_inv;
 static dcu_poller_t g_poller;
+static dcu_discovery_t g_discovery;
 static dcu_event_obj_t g_evt_3000;
 
 static void init_model(void) {
     assert_int_equal(dcu_inventory_init(&g_inv), 0);
     assert_int_equal(dcu_poller_init(&g_poller), 0);
     assert_int_equal(dcu_inventory_add(&g_inv, "000000000001", "DLT645", 2400, 22), 0);
+    dcu_discovery_init(&g_discovery);
+    g_discovery.count = 5;
 
     memset(&g_evt_3000, 0, sizeof(g_evt_3000));
     g_evt_3000.oi = OI_VOLTAGE_DROP;
@@ -103,7 +107,9 @@ static void init_model(void) {
     router_sink_ops_t sink = {.ctx = NULL, .count_freezes = mock_count_freezes};
     router_bus_ops_t bus = {.msg_size = sizeof(pipe_msg_t), .read_shadow = mock_shadow};
     assert_int_equal(
-        dcu_698_object_model_init(&g_inv, &g_poller, sink, NULL, NULL, &g_evt_3000, NULL, bus), 0);
+        dcu_698_object_model_init(&g_inv, &g_poller, sink, NULL, &g_discovery, &g_evt_3000, NULL,
+                                  bus),
+        0);
 }
 
 static void teardown_model(void) {
@@ -159,8 +165,15 @@ static void test_object_model_scalar_type_tags(void **state) {
     (void)state;
     init_model();
 
-    assert_value(MK_OAD(OI_METER_ARCHIVE, 2), DCU_698_TAG_LONG_UNSIGNED, 1.0);
-    assert_value(MK_OAD(OI_TASK_SCHEDULER, 2), DCU_698_TAG_LONG_UNSIGNED, 0.0);
+    assert_value(MK_OAD(OI_METER_DISCOVERY, 3), DCU_698_TAG_LONG_UNSIGNED, 5.0);
+    static const uint32_t unexposed[] = {MK_OAD(OI_METER_ARCHIVE, 2),
+                                         MK_OAD(OI_TASK_SCHEDULER, 2),
+                                         MK_OAD(OI_METER_DISCOVERY, 2),
+                                         MK_OAD(OI_DISCOVERY_RESULT, 2)};
+    for (size_t i = 0; i < sizeof(unexposed) / sizeof(unexposed[0]); i++) {
+        dcu_value_t v;
+        assert_int_equal(dcu_698_value_for_oad(unexposed[i], &v), EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    }
     assert_value(MK_OAD((uint16_t)((OAD_DAILY_FREEZE >> 16) & 0xFFFF), 2),
                  DCU_698_TAG_LONG_UNSIGNED, 7.0);
     assert_value(MK_OAD(OI_CHANNEL_CONFIG, 2), DCU_698_TAG_DOUBLE_LONG_UNSIGNED, 9600.0);
@@ -187,10 +200,11 @@ static void test_scalar_callback_type_and_width(void **state) {
 
     edge_point_value_t p;
     memset(&p, 0, sizeof(p));
-    assert_int_equal(dcu_north_resolve_scalar(NULL, MK_OAD(OI_METER_ARCHIVE, 2), NULL, 0, &p), 0);
+    assert_int_equal(dcu_north_resolve_scalar(NULL, MK_OAD(OI_METER_DISCOVERY, 3), NULL, 0, &p),
+                     0);
     assert_int_equal(p.type, DCU_698_TAG_LONG_UNSIGNED);
     assert_int_equal(p.width, 2);
-    assert_float_equal((float)p.value, 1.0f, 0.001f);
+    assert_float_equal((float)p.value, 5.0f, 0.001f);
 
     memset(&p, 0, sizeof(p));
     assert_int_equal(dcu_north_resolve_scalar(NULL, OAD_GRID_FREQUENCY, NULL, 0, &p), 0);
@@ -266,8 +280,7 @@ static void test_resolve_axdr_for_north_list_oads(void **state) {
     init_model();
 
     const uint32_t oads[] = {OAD_VOLTAGE, OAD_CURRENT, OAD_ACTIVE_POWER_TOTAL,
-                             MK_OAD(OI_METER_ARCHIVE, 2), MK_OAD(OI_TASK_SCHEDULER, 2),
-                             OAD_DAILY_FREEZE};
+                             MK_OAD(OI_METER_DISCOVERY, 3), OAD_DAILY_FREEZE};
     for (size_t i = 0; i < sizeof(oads) / sizeof(oads[0]); i++) {
         uint8_t buf[EDGE_SLAVE_AXDR_MAX];
         size_t len = 0;

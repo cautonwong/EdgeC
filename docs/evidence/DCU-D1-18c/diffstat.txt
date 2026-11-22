@@ -1,0 +1,12 @@
+ acceptance/dcu/configs/devices_north.yaml   |  25 +----
+ acceptance/dcu/tests/test_dcu_northbound.py |  45 ++++-----
+ cmd/dcu/dcu_698_class_acq.c                 | 143 +++++-----------------------
+ cmd/dcu/dcu_698_object_internal.h           |   8 --
+ cmd/dcu/dcu_698_object_model.c              |  18 +---
+ cmd/dcu/dcu_698_var.c                       |   3 +-
+ tests/test_dcu_698_axdr.c                   |  20 +++-
+ tests/test_dcu_698_object_model.c           |  80 ++++++++++------
+ tests/test_dcu_698_value_table.c            |  27 ++++--
+ tests/test_dcu_advanced_modules.c           |  28 ++----
+ tests/test_dcu_router.c                     |  32 ++++---
+ 11 files changed, 168 insertions(+), 261 deletions(-)

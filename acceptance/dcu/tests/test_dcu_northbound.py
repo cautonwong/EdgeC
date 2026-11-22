@@ -2,7 +2,8 @@
 
 ## 标量走设备模型，数组直接看 APDU
 
-计数类 OAD（6000/6012/5004）走平台设备模型：`meter.read_all()`，报告里有设备级归属。
+计数类 OAD 只剩 5004 走平台设备模型：`meter.read_all()`，报告里有设备级归属。
+6000/6012 的属性 2 在标准里是数组，标量通道不再冒充；这两条直接发帧验 DAR=5。
 变量类属性 2 自 ADR-0016 起是标准数组（如 2000 是 A/B/C 三相），平台点表只认标量，
 所以这些用例直接发帧、按 A-XDR 形状解析；这是平台能力缺口，不是放弃判据。
 
@@ -13,7 +14,7 @@
 
 1. 电压 OAD（20000200）读回三相数组，A 相 2317（231.7 V，scale −1）——
    台架喂给 DCU 的就是这个值，所以这条同时验了"南向采集 → 聚合根 → 698 编码"整条链
-2. 档案计数 OAD（60000200）读回 40 —— 台架档案就是 40 只表，类型是 long-unsigned
+2. 6000/6012 属性 2 是配置数组，数组通道未落地时必须回 DAR=5，不能用计数冒充
 3. ACTION（OI 8000 方法 129 跳闸）必须回 **DAR=2 暂时失效**，不能回 0
 
 第 3 条刻意"验失败"：参数结构（标准表 A.9 的 array<structure>）还没实现，
@@ -30,7 +31,6 @@ from testplatform.protocol import dlt698
 
 TOLERANCE_V = 0.5
 BENCH_VOLTAGE = 231.7
-BENCH_METER_COUNT = 40
 TIMEOUT_S = 3.0
 
 
@@ -114,21 +114,20 @@ def test_master_reads_voltage_over_698():
     assert scaler == -1 and unit == 38, f"电压 Scaler_Unit 错：{scaler}, {unit}"
 
 
-@case(id="D_00_00_02_000002", clause="free: 698 应答的 A-XDR 类型标签必须与点位类型一致", tags=["北向"])
+@case(id="D_00_00_02_000002", clause="free: 配置数组属性未实现时必须回 DAR=5", tags=["北向"])
 @pytest.mark.contract
-@pytest.mark.requires_capability("档案计数")
-def test_master_reads_archive_count_as_long_unsigned(meter):
-    """档案计数：值 40，类型必须是 long-unsigned。
+def test_master_gets_class_mismatch_for_archive_config_array():
+    """6000 A2 是采集档案配置数组，不是计数。
 
-    单独验这条是因为它和电压的**形状不同**：电压是 long-unsigned 的三相数组，
-    计数是标量 long-unsigned。从站如果一律按同一个形状编，主站解出来就是垃圾值。
+    数组通道没落地时，从站必须回 DAR=5（对象接口类不符合）。回一个 long-unsigned
+    计数会让主站把表数当成配置表的第一项，比明确失败更难发现。
     """
-    meter.connect()
-    readings = meter.read_all().readings
-    got = readings["档案计数"]
-    assert int(got) == BENCH_METER_COUNT, (
-        f"档案计数 {got}，台架档案是 {BENCH_METER_COUNT} 只表"
-    )
+    oad = 0x60000200
+    apdu = _exchange(dlt698.get_request(0x01, oad)).apdu
+    assert apdu[0] == 0x85 and apdu[1] == 0x01, f"不是 [1] 响应：{apdu.hex()}"
+    assert apdu[3:7] == oad.to_bytes(4, "big"), "响应 OAD 与请求不一致"
+    assert apdu[7] == 0x00, "Get-Result 应为 DAR"
+    assert apdu[8] == 5, f"6000 A2 应回 DAR=5，收到 {apdu[8]}（{apdu.hex()}）"
 
 
 @case(id="D_00_00_02_000003", clause="free: 未实现的 ACTION 必须回失败 DAR，不许假成功", tags=["北向"])
@@ -219,14 +218,16 @@ def test_master_reads_current_and_active_power():
     assert power == [0, 0, 0, 0], f"台架回 0，功率数组应为 0：{power}"
 
 
-@case(id="D_00_00_02_000006", clause="free: 698 读取 6012 任务方案数", tags=["北向"])
+@case(id="D_00_00_02_000006", clause="free: 6012 配置数组未实现时必须回 DAR=5", tags=["北向"])
 @pytest.mark.contract
-@pytest.mark.requires_capability("任务方案数")
-def test_master_reads_task_scheme_count(meter):
-    """6012 属性 2 是 uint16；读得出来就同时证明类型标签是 long-unsigned。"""
-    meter.connect()
-    readings = meter.read_all().readings
-    assert int(readings["任务方案数"]) >= 1, f"方案数 {readings['任务方案数']}，至少应有默认方案"
+def test_master_gets_class_mismatch_for_task_config_array():
+    """6012 属性 2 是任务配置数组，不是方案计数；未实现时回 DAR=5。"""
+    oad = 0x60120200
+    apdu = _exchange(dlt698.get_request(0x01, oad)).apdu
+    assert apdu[0] == 0x85 and apdu[1] == 0x01, f"不是 [1] 响应：{apdu.hex()}"
+    assert apdu[3:7] == oad.to_bytes(4, "big"), "响应 OAD 与请求不一致"
+    assert apdu[7] == 0x00, "Get-Result 应为 DAR"
+    assert apdu[8] == 5, f"6012 A2 应回 DAR=5，收到 {apdu[8]}（{apdu.hex()}）"
 
 
 @case(id="D_00_00_02_000007", clause="free: 698 读取 5004 日冻结记录数", tags=["北向"])
