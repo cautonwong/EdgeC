@@ -315,7 +315,6 @@ int dcu_698_var_encode_axdr(uint32_t oad, uint8_t *buf, size_t cap, size_t *len)
 }
 
 static int _unadvertised_attr_rc(const dcu_698_object_t *obj, uint8_t attr_id) {
-    /* 类/OI 定义了但对象没有声明 → 类不匹配（DAR 5）；都没定义 → 未定义（DAR 4）。 */
     return dcu_698_oi_defines_attr(obj->oi, obj->class_id, attr_id) ? EDGE_SLAVE_SRC_CLASS_MISMATCH
                                                                     : EDGE_SLAVE_SRC_UNDEFINED;
 }

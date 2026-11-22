@@ -47,3 +47,10 @@ dcu-acceptance: 3 passed, task exit 0
 dcu-northbound: 21 passed, task exit 0
 ✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
 ✨ 验收通过
+
+## verifier pass after rebase and the DAR-2 ruling
+clean build 0 warnings; check_build_warnings 0 new
+full ctest 342/342
+ASAN targeted 14/14
+run_guard_selftest all pass
+./test.sh --omnis dcu: 3 + 23 passed (000024 runs 北向), 2/2 tasks

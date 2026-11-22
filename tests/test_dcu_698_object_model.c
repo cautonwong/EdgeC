@@ -458,68 +458,22 @@ static void test_facade_and_table_api_agree(void **state) {
     dcu_inventory_destroy(&inv);
 }
 
-static void test_discovery_start_completes_on_duration_tick(void **state) {
+static void test_discovery_snapshot_and_clear(void **state) {
     (void)state;
     dcu_discovery_t disc;
     dcu_discovery_init(&disc);
 
-    assert_int_equal(dcu_discovery_start(&disc, 1), 0);
-    assert_int_equal(disc.status, DISCOVERY_STATUS_SCANNING);
-
-    dcu_discovery_tick(&disc, disc.started_ms + 59999);
-    assert_int_equal(disc.status, DISCOVERY_STATUS_SCANNING);
-
-    /* 到期：标准只有空闲/搜表中，回到空闲；没有结果时计数为 0。 */
-    dcu_discovery_tick(&disc, disc.started_ms + 60000);
-    assert_int_equal(disc.status, DISCOVERY_STATUS_IDLE);
-    assert_int_equal(disc.count, 0);
-
-    dcu_discovery_destroy(&disc);
-}
-
-static void test_discovery_duplicate_start_is_denied(void **state) {
-    (void)state;
-    dcu_discovery_t disc;
-    dcu_discovery_init(&disc);
-
-    assert_int_equal(dcu_discovery_start(&disc, 5), 0);
-    uint64_t first_started = disc.started_ms;
-    assert_int_equal(dcu_discovery_start(&disc, 10), EDGE_SLAVE_SRC_DENIED);
-    assert_int_equal(disc.duration_min, 5);
-    assert_int_equal(disc.started_ms, first_started);
-    assert_int_equal(disc.status, DISCOVERY_STATUS_SCANNING);
-
-    dcu_discovery_destroy(&disc);
-}
-
-static void test_discovery_duration_zero_has_no_timeout(void **state) {
-    (void)state;
-    dcu_discovery_t disc;
-    dcu_discovery_init(&disc);
-
-    /* 0 = 不限时间直至搜表结束；没有扫描引擎宣告结束，保持搜表中。 */
-    assert_int_equal(dcu_discovery_start(&disc, 0), 0);
-    dcu_discovery_tick(&disc, disc.started_ms + 365ULL * 24 * 60 * 60000);
-    assert_int_equal(disc.status, DISCOVERY_STATUS_SCANNING);
-
-    dcu_discovery_destroy(&disc);
-}
-
-static void test_discovery_clear_and_restart_with_no_results(void **state) {
-    (void)state;
-    dcu_discovery_t disc;
-    dcu_discovery_init(&disc);
+    uint8_t status = 99;
+    uint16_t count = 99;
+    dcu_discovery_snapshot(&disc, &status, &count);
+    assert_int_equal(status, DISCOVERY_STATUS_IDLE);
+    assert_int_equal(count, 0);
 
     disc.count = 5;
     dcu_discovery_clear(&disc);
-    assert_int_equal(disc.count, 0);
-
-    assert_int_equal(dcu_discovery_start(&disc, 1), 0);
-    dcu_discovery_tick(&disc, disc.started_ms + 60000);
-    assert_int_equal(disc.status, DISCOVERY_STATUS_IDLE);
-    assert_int_equal(dcu_discovery_start(&disc, 1), 0);
-    assert_int_equal(disc.status, DISCOVERY_STATUS_SCANNING);
-    assert_int_equal(disc.count, 0);
+    dcu_discovery_snapshot(&disc, &status, &count);
+    assert_int_equal(count, 0);
+    assert_int_equal(status, DISCOVERY_STATUS_IDLE);
 
     dcu_discovery_destroy(&disc);
 }
@@ -559,10 +513,7 @@ int main(void) {
                                         teardown),
         cmocka_unit_test_setup_teardown(test_event_method1_resets_records, setup, teardown),
         cmocka_unit_test_setup_teardown(test_facade_and_table_api_agree, setup, teardown),
-        cmocka_unit_test(test_discovery_start_completes_on_duration_tick),
-        cmocka_unit_test(test_discovery_duplicate_start_is_denied),
-        cmocka_unit_test(test_discovery_duration_zero_has_no_timeout),
-        cmocka_unit_test(test_discovery_clear_and_restart_with_no_results),
+        cmocka_unit_test_setup_teardown(test_discovery_snapshot_and_clear, setup, teardown),
         cmocka_unit_test_setup_teardown(test_reset_returns_to_uninitialized, setup, teardown),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);

@@ -1599,10 +1599,11 @@ static void test_discovery_standard_attribute_shapes(void **state) {
     const uint8_t idle[] = {DLT698_TAG_ENUM, DISCOVERY_STATUS_IDLE};
     assert_axdr(MK_OAD(OI_METER_DISCOVERY, 10), idle, sizeof(idle));
 
-    assert_int_equal(dcu_discovery_start(&g_discovery, 1), 0);
-    const uint8_t scanning[] = {DLT698_TAG_ENUM, DISCOVERY_STATUS_SCANNING};
-    assert_axdr(MK_OAD(OI_METER_DISCOVERY, 10), scanning, sizeof(scanning));
-    dcu_discovery_tick(&g_discovery, g_discovery.started_ms + 60000);
+    /* 方法 127 不改变状态：没有驱动时 A10 始终空闲。 */
+    const uint8_t duration_1[] = {DLT698_TAG_LONG_UNSIGNED, 0x00, 0x01};
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(OI_METER_DISCOVERY, 127), duration_1,
+                                             sizeof(duration_1)),
+                     EDGE_SLAVE_SRC_TEMPORARY);
     assert_axdr(MK_OAD(OI_METER_DISCOVERY, 10), idle, sizeof(idle));
     assert_axdr(MK_OAD(OI_METER_DISCOVERY, 2), empty_array, sizeof(empty_array));
     assert_axdr(MK_OAD(OI_METER_DISCOVERY, 3), zero_count, sizeof(zero_count));
@@ -1644,15 +1645,12 @@ static void test_discovery_action_start_duplicate_and_clear(void **state) {
     dcu_698_object_model_reset();
     init_product_model();
 
+    /* 没有下行搜表驱动：启动回 DAR 2，状态保持空闲，不假装扫过一遍。 */
     const uint8_t duration_1[] = {DLT698_TAG_LONG_UNSIGNED, 0x00, 0x01};
     assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(OI_METER_DISCOVERY, 127), duration_1,
                                              sizeof(duration_1)),
-                     0);
-    assert_int_equal(g_discovery.status, DISCOVERY_STATUS_SCANNING);
-
-    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(OI_METER_DISCOVERY, 127), duration_1,
-                                             sizeof(duration_1)),
-                     EDGE_SLAVE_SRC_DENIED);
+                     EDGE_SLAVE_SRC_TEMPORARY);
+    assert_int_equal(g_discovery.status, DISCOVERY_STATUS_IDLE);
 
     /* 参数形状：unsigned 不是 long-unsigned -> DAR 7。 */
     const uint8_t wrong_tag[] = {DLT698_TAG_UNSIGNED, 0x01};

@@ -531,6 +531,8 @@ int dcu_698_decode_scheme_op(uint8_t method, const uint8_t *buf, size_t len,
             return EDGE_SLAVE_SRC_CLASS_MISMATCH;
     }
     return _time_tag_absent(buf, c.off, c.len) ? 0 : EDGE_SLAVE_SRC_TYPE_MISMATCH;
+}
+
 static int _accept_discovery_action(uint32_t omd, const uint8_t *axdr, size_t axdr_len) {
     uint8_t method = (uint8_t)((omd >> 8) & 0xFF);
 

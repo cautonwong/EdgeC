@@ -801,19 +801,18 @@ def test_class20_session_and_object_list_acl():
         assert _get_dar(again) == 3, "RELEASE 后仍在预连接窗口，列表外 OI 仍是 DAR 3"
 
 
-@case(id="D_00_00_02_000020", clause="free: 6002 搜表启动后按表 A.7 返回结果数组/记录数/状态", tags=["北向"])
+@case(id="D_00_00_02_000024", clause="free: 6002 无扫描驱动时方法 127 回 DAR 2，A2/A6/A10 形状诚实", tags=["北向"])
 @pytest.mark.contract
 def test_master_starts_search_and_reads_standard_result_shapes():
     """表 A.7：6002 方法 127 启动搜表；A2 是 `array 一个搜表结果`、A6 是记录数、A10 是状态。
 
-    产品没有下行搜表驱动，结果集只能为空。判据是标准形状与诚实计数：A2 不能回标量
-    计数，A6 和结果数组长度必须一致，A10 在启动后是"搜表中"。
-    同一产品进程里重复跑本用例时，第二次启动按文档回 DAR 3（拒绝），仍可读形状。
+    产品没有下行搜表驱动，启动动作不能执行：方法 127 必须回 DAR 2，A10 保持空闲，
+    A2 是空数组、A6 为 0。不能进入"搜表中"再自行结束，那会让主站以为扫过一遍且没找到表。
     """
     start = dlt698.action_request(0x07, 0x6002, 127, param=bytes([0x12, 0x00, 0x01]))
     res = dlt698.parse_action_response(_exchange(start).apdu)
-    if not res.ok:
-        assert res.dar == 3, f"只有已在搜表中才允许拒绝重复启动，回 DAR {res.dar}（{res.error}）"
+    assert not res.ok, f"没有扫描驱动时启动不应回 DAR 0（{res.error}）"
+    assert res.dar == 2, f"没有扫描驱动时启动应回 DAR 2，收到 {res.dar}"
 
     apdu = _exchange(dlt698.get_request(0x01, 0x60020200)).apdu
     assert apdu[0] == 0x85 and apdu[1] == 0x01, f"不是 [1] 响应：{apdu.hex()}"
@@ -827,4 +826,4 @@ def test_master_starts_search_and_reads_standard_result_shapes():
 
     apdu = _exchange(dlt698.get_request(0x01, 0x60020A00)).apdu
     assert apdu[7] == 0x01 and apdu[8] == 0x16, f"6002 A10 应是 enum：{apdu.hex()}"
-    assert apdu[9] == 1, f"启动后 A10 应是搜表中（1）：{apdu.hex()}"
+    assert apdu[9] == 0, f"启动被拒后 A10 应保持空闲（0）：{apdu.hex()}"

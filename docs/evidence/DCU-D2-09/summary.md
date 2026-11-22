@@ -23,12 +23,12 @@
 | A2 | `array`，元素个数等于结果记录数。产品没有下行搜表驱动，结果集恒为空数组（`array(0)`） | 表 A.7 @8219 |
 | A3 / A6 | `long-unsigned` 记录数；无结果时为 0 | 7.3.11 / 表 A.7 @8221 |
 | A10 | `enum`：空闲 0 / 搜表中 1 | 表 A.7 @8244 |
-| 127 | 置搜表中，记下时长与单调起始时刻；已在搜表中回 DAR 3，不静默重开 | 表 A.7 @8248 |
+| 127 | 没有下行搜表驱动，不执行启动：回 DAR 2（暂时失效），状态保持空闲 | 表 A.7 @8248 |
 | 128 | 清空 RAM 计数；结果集本来为空，操作幂等 | 表 A.7 @8251 |
 | 129 | 产品没有跨台区结果集，清空无对象可清，回成功；不等同于清 A2 | 表 A.7 @8253 |
 | 5 / 7 / 8 / 9 | 未暴露。产品没有跨台区搜表与周期搜表能力，类/OI 定义据此回 DAR 5 | 表 A.7 @8220-8243 |
 
-搜表完成走现有 `dcu_node_pump()` 定时器路径：`dcu_node_pump()` 每轮调用 `dcu_discovery_tick()`，时长到期后状态从搜表中回到空闲。没有第二个定时器，也没有旁路状态机。时长为 0 表示不限时；由于没有扫描引擎能宣告结束，状态会一直停在搜表中，直到进程重启。
+`dcu_discovery` 的计时状态机保留给后续扫描驱动；产品没有驱动，方法 127 不启动它，因此 A10 恒为空闲，也不存在“到期自动完成”的假生命周期。
 
 ## 6003 目录决策
 
@@ -43,7 +43,7 @@
 - 没有搜到任何表时：A2 为空数组，A3/A6 为 0，不返回占位行。
 - 产品没有扫描驱动，也没有搜表结果存储表；状态与计数只在 RAM，进程重启即复位。这一点同时写在 `dcu_discovery.h`、`dcu_node.c` 和 `docs/design/DCU_698_OAD_STATUS.md` 4.9。
 - 若计数非 0 而代码没有真实的 6003 记录可编码，A2 回 DAR 2，不编造通信地址、信号品质等硬件字段。当前没有任何路径会把计数推到非 0。
-- 重复启动 127 回 DAR 3（`EDGE_SLAVE_SRC_DENIED`），文档与测试都固定这一选择。
+- 方法 127 一律回 DAR 2：既不改状态，也不进入“搜表中”，避免主站把“没扫过”读成“扫过且没找到表”。
 
 ## 测试
 
@@ -55,11 +55,11 @@
   - `test_discovery_exposes_results_count_and_status`：A3/A6/A10 的标量类型与读数。
   - `test_discovery_oi_attributes_beyond_class_table`：A5..A10 由表 A.7 定义，A11 未定义。
 - `tests/test_dcu_698_axdr.c`
-  - `test_discovery_standard_attribute_shapes`：A2 空数组、A3/A6 为 0、A10 空闲；启动后 A10 搜表中；到期回空闲后 A2/A3 仍为空/0；A5/A8 回 DAR 5，A11 回 DAR 4。
-  - `test_discovery_action_start_duplicate_and_clear`：127 参数类型、重复启动 DAR 3、128 参数 NULL 与错误类型。
+  - `test_discovery_standard_attribute_shapes`：A2 空数组、A3/A6 为 0、A10 空闲；方法 127 被拒后 A10 仍空闲；A5/A8 回 DAR 5，A11 回 DAR 4。
+  - `test_discovery_action_start_duplicate_and_clear`：127 参数类型、启动回 DAR 2 且状态不变、128 参数 NULL 与错误类型。
 - `tests/test_dcu_698_catalog.c`：对象 mask 不得超过 7.3 类表或附录 A 的 OI 属性上限。
 - `tests/test_dcu_advanced_modules.c`：路由层启动、tick 完成、A3/A6 为 0、6003 不再是对象。
-- 验收 `acceptance/dcu/tests/test_dcu_northbound.py::test_master_starts_search_and_reads_standard_result_shapes`，用例 `D_00_00_02_000020`：通过从站启动搜表，读 A2 空数组、A6 为 0、A10 为搜表中。
+- 验收 `acceptance/dcu/tests/test_dcu_northbound.py::test_master_starts_search_and_reads_standard_result_shapes`，用例 `D_00_00_02_000024`：方法 127 回 DAR 2，A2 空数组、A6 为 0、A10 空闲。
 
 ## 验证
 
@@ -72,4 +72,13 @@
 
 1. 工单写 “A3 = 记录数”，表 A.7 写 A6 = 所有搜表结果记录数；7.3.11 的 A3 是通用“当前元素个数”。实现同时提供 A3 与 A6，两者读同一个计数，避免按工单文字改标准。
 2. 6002 A2 与 A5 都按“结果数组”定义，A5 是跨台区结果；产品没有跨台区能力，A5 不暴露，方法 129 只做空操作。
-3. 标准没有“搜表完成”状态，只有空闲/搜表中；时长为 0 时没有扫描引擎可以宣告结束，实现保持搜表中。
+3. 标准没有“搜表完成”状态，只有空闲/搜表中；产品没有扫描引擎，因此方法 127 回 DAR 2，不进入搜表中。
+
+## verifier 复核（rebase 到含 D2-04/D5/D1-09 的 main）
+
+- 冲突解决：保留 6014/6015 与 Class 2/5 行；6003 从对象表与 ACL 删除后，对象数 37、ACL 36；
+  驱动测试接受 36 个对象、拒绝 41 个。验收用例改号 `000024`（原 `000020` 与 D2-04 撞号）。
+- 规则收紧：方法 127 回 DAR 2 后，启动/计时状态机在生产无调用，按 MUST KILL 删除；
+  `dcu_discovery_t` 只剩状态与计数，`dcu_node_pump()` 不再推进 tick。
+- 独立门禁：干净构建 + 告警门禁 0、全量 342/342、ASAN 14/14、守卫自测、
+  `./test.sh --omnis dcu` 2/2（北向 23 例）、`/no-comments`（3 删除 + 2 结构修复）。

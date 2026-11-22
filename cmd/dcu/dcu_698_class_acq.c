@@ -72,16 +72,16 @@ int dcu_698_acq_6002_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t 
 
 int dcu_698_acq_6002_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
                              void *result) {
+    (void)result;
     dcu_discovery_t *disc = (dcu_discovery_t *)obj->instance;
     if (!disc) return EDGE_SLAVE_SRC_TEMPORARY;
 
     switch (method_id) {
         case 127: {
             if (!param) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
-            uint32_t duration_min = *(const uint32_t *)param;
-            int ret = dcu_discovery_start(disc, duration_min);
-            if (result) *(int *)result = ret;
-            return ret;
+            /* 没有下行搜表驱动：启动动作不能执行，回 DAR 2（暂时失效），
+             * 不进入"搜表中"再自行结束——那会让主站以为扫过一遍且没找到表。 */
+            return EDGE_SLAVE_SRC_TEMPORARY;
         }
         case 128:
             dcu_discovery_clear(disc);

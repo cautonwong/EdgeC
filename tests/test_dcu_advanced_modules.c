@@ -230,22 +230,14 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     ret = dcu_router_set_attr(((uint32_t)OI_CHANNEL_CONFIG << 16) | 0x0200, &new_baud);
     assert_int_equal(ret, -1);
 
-    // ==============================================================================
-    // 4. 验证下行自动搜表机制（表 A.7：A2 结果数组、A3/A6 计数、A10 状态）
-    // ==============================================================================
+    // 4. 没有下行搜表驱动：方法 127 回 DAR 2，状态保持空闲（表 A.7 A10）
     uint8_t disc_status = 99;
     ret = dcu_router_get_attr(((uint32_t)OI_METER_DISCOVERY << 16) | 0x0200, &disc_status);
     assert_int_equal(ret, -2);
     uint32_t duration = 10;
     int action_res = -1;
-    ret = dcu_router_action(((uint32_t)OI_METER_DISCOVERY << 16) | 0x7F00, &duration,
-                            &action_res);  // OMD 方法 127 实时启动搜表，参数单位分钟
-    assert_int_equal(ret, 0);
-    assert_int_equal(action_res, 0);
-    assert_int_equal(discovery.status, DISCOVERY_STATUS_SCANNING);
-
-    // 搜表时长到期由现有 tick 路径推进；标准没有"已完成"状态，回到空闲。
-    dcu_discovery_tick(&discovery, discovery.started_ms + (uint64_t)duration * 60000);
+    ret = dcu_router_action(((uint32_t)OI_METER_DISCOVERY << 16) | 0x7F00, &duration, &action_res);
+    assert_int_equal(ret, EDGE_SLAVE_SRC_TEMPORARY);
     assert_int_equal(discovery.status, DISCOVERY_STATUS_IDLE);
 
     uint16_t found_count = 0;

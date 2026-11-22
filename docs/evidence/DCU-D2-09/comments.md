@@ -30,3 +30,13 @@ Reviewer: `pstack:comment-sicko` (opus), scope `a3f8d40f..HEAD` plus worktree ch
 
 - The catalog parser's `6298..9450` source window is duplicated in `parse_ois`, `parse_oi_methods`, and the new `parse_oi_attributes`. Pre-existing; anchoring on section headings is a separate generator refactor.
 - `tests/test_dcu_698_catalog.c` checks advertised attributes against `max(OI Appendix A max, class max)`. For 6002 every id 1..10 is standard-defined, so the bound is exact today. A set-based check (attribute is in the class table or the OI's Appendix A set) would be stronger.
+
+## verifier 复审计（第三轮）
+
+- 删除 3 处注释复述：`dcu_698_var.c` 的 DAR 5/4 三元说明、`dcu_discovery.h` 的状态字段
+  旁注、`test_dcu_advanced_modules.c` 的章节横幅。
+- MUST KILL（结构）：方法 127 已诚实回 DAR 2，`dcu_discovery_start`、SCANNING 计时分支、
+  `duration_min`/`started_ms` 全部没有生产调用，删掉这套假生命周期；`dcu_discovery_t`
+  只保留状态/计数/锁，`dcu_node_pump()` 不再调 `tick`。
+- MUST KILL：`status` 字段改为枚举类型，字段名不再需要注释解释。
+- 保留：表 A.7 A2/A3/A6/A10 映射、6003 作为元素类型的说明、"无驱动回 DAR 2"的产品规则。

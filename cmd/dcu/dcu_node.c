@@ -300,7 +300,6 @@ int dcu_node_stop(dcu_node_t *node) {
 
 int dcu_node_pump(dcu_node_t *node) {
     if (!node) return -1;
-    dcu_discovery_tick(&node->discovery, uv_hrtime() / 1000000ULL);
     dcu_poller_pump(&node->poller, &node->inventory);
     return 0;
 }
