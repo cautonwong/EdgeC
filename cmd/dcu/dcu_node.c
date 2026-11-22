@@ -6,6 +6,7 @@
 #include "dcu_driver_adapter.h"
 #include "dcu_698_var.h"
 #include "dcu_node.h"
+#include "dcu_task_store.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -88,6 +89,11 @@ static int _node_archive_clear(void *ctx) {
     dcu_storage_t *storage = (dcu_storage_t *)ctx;
     if (!storage || !storage->db) return -1;
     return dcu_inventory_clear_db(storage->db);
+}
+
+/* 6012 任务持久化端口：解码后的 op 交给 store，在同一连接上事务化落地。 */
+static int _node_task_apply(void *ctx, dcu_poller_t *poller, const dcu_task_op_t *op) {
+    return dcu_task_store_apply((dcu_storage_t *)ctx, poller, op);
 }
 
 extern int dcu_tag_map_fn(uint32_t tag_id, uint32_t device_id);
@@ -181,7 +187,17 @@ dcu_node_t *dcu_node_create_in(void *storage, size_t storage_size, uv_loop_t *lo
     uint32_t oads[32];
     uint16_t oad_count = (uint16_t)dcu_698_var_poll_tags(oads, 32);
     dcu_poller_add_scheme(&node->poller, 1, 0, oads, oad_count);
-    dcu_poller_add_task(&node->poller, 1, 5, 1);
+    /* 任务配置以库为准：首次启动播种默认任务，之后 Clear 过的库保持为空。 */
+    if (node->storage.db) {
+        int rc = dcu_task_store_init(&node->storage);
+        if (rc == 0) rc = dcu_task_store_load(&node->storage, &node->poller);
+        if (rc != 0) {
+            LOG_WARN(LOG_CAT_CORE, "DCU Node: 任务配置装载失败，回退内存默认任务");
+            dcu_poller_add_task(&node->poller, 1, 5, 1);
+        }
+    } else {
+        dcu_poller_add_task(&node->poller, 1, 5, 1);
+    }
 
     poller_sink_ops_t poller_sink = {.ctx = &node->storage,
                                      .record_telemetry = (void *)dcu_storage_write_telemetry,
@@ -195,7 +211,8 @@ dcu_node_t *dcu_node_create_in(void *storage, size_t storage_size, uv_loop_t *lo
                                      .count_freezes = _node_count_freezes,
                                      .archive_save = _node_archive_save,
                                      .archive_delete = _node_archive_delete,
-                                     .archive_clear = _node_archive_clear};
+                                     .archive_clear = _node_archive_clear,
+                                     .task_apply = _node_task_apply};
     router_bus_ops_t router_bus = {.ctx = node,
                                    .msg_size = sizeof(pipe_msg_t),
                                    .publish_realtime = _node_publish_realtime,

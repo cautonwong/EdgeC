@@ -169,8 +169,11 @@ static void test_object_model_scalar_type_tags(void **state) {
     dcu_value_t v6000;
     assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_METER_ARCHIVE, 2), &v6000),
                      EDGE_SLAVE_SRC_TYPE_MISMATCH);
-    static const uint32_t unexposed[] = {MK_OAD(OI_TASK_SCHEDULER, 2),
-                                         MK_OAD(OI_METER_DISCOVERY, 2),
+    /* 6012 A2 现在是任务配置数组，标量端口明确拒绝。 */
+    dcu_value_t v6012;
+    assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_TASK_SCHEDULER, 2), &v6012),
+                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    static const uint32_t unexposed[] = {MK_OAD(OI_METER_DISCOVERY, 2),
                                          MK_OAD(OI_DISCOVERY_RESULT, 2)};
     for (size_t i = 0; i < sizeof(unexposed) / sizeof(unexposed[0]); i++) {
         dcu_value_t v;
@@ -305,6 +308,15 @@ static void test_resolve_axdr_for_north_list_oads(void **state) {
     size_t len = 0;
     assert_int_equal(dcu_north_resolve_axdr(NULL, OAD_DAILY_FREEZE, buf, sizeof(buf), &len),
                      EDGE_SLAVE_SRC_CLASS_MISMATCH);
+
+    /* 6012 A2 是任务数组；空配置回空数组，不是计数标量。 */
+    len = 0;
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(OI_TASK_SCHEDULER, 2), buf, sizeof(buf),
+                                            &len),
+                     0);
+    assert_int_equal(len, 2);
+    assert_int_equal(buf[0], 0x01);
+    assert_int_equal(buf[1], 0);
 
     teardown_model();
 }

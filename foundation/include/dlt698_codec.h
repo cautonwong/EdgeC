@@ -391,6 +391,9 @@ typedef enum {
     DLT698_TAG_OAD = 81
 } dlt698_data_tag_t;
 
+/* 表 24：TI 是 4 字节扁平包装，不是 structure{enum,long-unsigned}。 */
+#define DLT698_TAG_TI 0x54
+
 #define MAX_DLT698_STRING_LEN 64
 
 /**

@@ -1,0 +1,24 @@
+== 干净构建 + 告警门禁（rebase 到 d21cb6f9 后）==
+build=0
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+
+== 全量 ctest ==
+100% tests passed, 0 tests failed out of 340
+
+== 聚焦测试 ==
+test_dcu_698_tasks（15 例）、test_dcu_poller、test_dcu_router、test_dcu_698_object_model、test_dcu_698_axdr、test_dcu_698_appconn 全绿
+
+== ASAN + UBSAN（受影响目标，串行）==
+100% tests passed, 0 tests failed out of 6（rebase 后复跑）
+
+== 架构守卫 ==
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+
+== GCC -fanalyzer（cmd/dcu）==
+✅ [FANALYZER] 0 known finding(s), no new reports
+
+== 验收 ==
+dcu-acceptance 3/3；dcu-northbound 18/18（2/2 任务退出 0）。6012 A2 用例改为真实数组；ACTION 127/128 加/改/删用例标记待接入（见 summary 的限制）。
+
+== git diff --check ==
+干净

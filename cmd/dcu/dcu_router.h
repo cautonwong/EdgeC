@@ -67,6 +67,7 @@
 #define OI_METER_ARCHIVE 0x6000     // 采集档案配置表 OI
 #define OI_ARCHIVE_UNIT 0x6001      // 采集档案配置单元 OI（标准 A.7，IC 8）
 #define OI_TASK_SCHEDULER 0x6012    // 任务配置表 OI
+#define OI_TASK_UNIT 0x6013         // 任务配置单元 OI（标准 A.7，IC 8）
 #define OI_METER_DISCOVERY 0x6002   // 搜表发现控制器 OI
 #define OI_DISCOVERY_RESULT 0x6003  // 搜表结果表 OI
 #define OI_REMOTE_CONTROL 0x8000    // 远程拉闸动作控制 OI
@@ -112,6 +113,8 @@ typedef struct {
     int (*archive_save)(void* ctx, const production_meter_t* m);
     int (*archive_delete)(void* ctx, const char* address);
     int (*archive_clear)(void* ctx);
+    /* 6012 任务持久化端口：op 已解码，ctx 是存储实例；返回 EDGE_SLAVE_SRC_*。 */
+    int (*task_apply)(void* ctx, dcu_poller_t* poller, const dcu_task_op_t* op);
 } router_sink_ops_t;
 
 typedef struct {

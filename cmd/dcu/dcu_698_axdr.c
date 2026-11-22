@@ -84,6 +84,306 @@ static int _encode_axdr_value(const dcu_value_t* v, uint8_t* buf, size_t cap, si
     }
 }
 
+typedef struct {
+    const uint8_t *p;
+    size_t len;
+    size_t off;
+} axdr_cursor_t;
+
+static bool _take(axdr_cursor_t *c, size_t n, const uint8_t **out) {
+    if (c->off + n < c->off || c->off + n > c->len) return false;
+    if (out) *out = c->p + c->off;
+    c->off += n;
+    return true;
+}
+
+static int _take_u8(axdr_cursor_t *c, uint8_t tag, uint8_t *out) {
+    const uint8_t *p = NULL;
+    if (!_take(c, 2, &p) || p[0] != tag) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    if (out) *out = p[1];
+    return 0;
+}
+
+static int _take_u16(axdr_cursor_t *c, uint8_t tag, uint16_t *out) {
+    const uint8_t *p = NULL;
+    if (!_take(c, 3, &p) || p[0] != tag) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    if (out) *out = (uint16_t)((p[1] << 8) | p[2]);
+    return 0;
+}
+
+/* 表 24：TI = 0x54 | unit | value_be16，没有内层标签。 */
+static int _take_ti(axdr_cursor_t *c, uint8_t *unit, uint16_t *value) {
+    const uint8_t *p = NULL;
+    if (!_take(c, 4, &p) || p[0] != DLT698_TAG_TI) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    if (unit) *unit = p[1];
+    if (value) *value = (uint16_t)((p[2] << 8) | p[3]);
+    return 0;
+}
+
+static int _take_date_time(axdr_cursor_t *c, uint8_t out[7]) {
+    const uint8_t *p = NULL;
+    if (!_take(c, 8, &p) || p[0] != DLT698_TAG_DATE_TIME_S)
+        return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    memcpy(out, p + 1, 7);
+    return 0;
+}
+
+static int _take_head(axdr_cursor_t *c, uint8_t tag, uint8_t count) {
+    const uint8_t *p = NULL;
+    if (!_take(c, 2, &p) || p[0] != tag || p[1] != count) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    return 0;
+}
+
+static int _take_array(axdr_cursor_t *c, uint8_t *count) {
+    const uint8_t *p = NULL;
+    if (!_take(c, 2, &p) || p[0] != DLT698_TAG_ARRAY) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    *count = p[1];
+    return 0;
+}
+
+static int _decode_task_unit(axdr_cursor_t *c, dcu_task_config_t *u) {
+    uint8_t delay_unit = 0;
+    uint16_t delay_value = 0;
+    int rc = _take_head(c, DLT698_TAG_STRUCTURE, 12);
+    if (rc == 0) rc = _take_u8(c, DLT698_TAG_UNSIGNED, &u->task_id);
+    if (rc == 0) rc = _take_ti(c, &u->interval_unit, &u->interval_value);
+    if (rc == 0) rc = _take_u8(c, DLT698_TAG_ENUM, &u->scheme_type);
+    if (rc == 0) rc = _take_u8(c, DLT698_TAG_UNSIGNED, &u->scheme_id);
+    if (rc == 0) rc = _take_date_time(c, u->start_time);
+    if (rc == 0) rc = _take_date_time(c, u->end_time);
+    if (rc == 0) rc = _take_ti(c, &delay_unit, &delay_value);
+    if (rc == 0) rc = _take_u8(c, DLT698_TAG_UNSIGNED, &u->priority);
+    if (rc == 0) rc = _take_u8(c, DLT698_TAG_ENUM, &u->status);
+    if (rc == 0) rc = _take_u16(c, DLT698_TAG_LONG_UNSIGNED, &u->pre_script);
+    if (rc == 0) rc = _take_u16(c, DLT698_TAG_LONG_UNSIGNED, &u->post_script);
+    if (rc != 0) return rc;
+
+    /* 时段表：structure{enum type, array<4 字节时段>}。数量解码后用，存储拒绝非空。 */
+    uint8_t count = 0;
+    rc = _take_head(c, DLT698_TAG_STRUCTURE, 2);
+    if (rc == 0) rc = _take_u8(c, DLT698_TAG_ENUM, &u->period_type);
+    if (rc == 0) rc = _take_array(c, &count);
+    if (rc == 0 && !_take(c, (size_t)count * 4u, NULL)) rc = EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    if (rc != 0) return rc;
+
+    u->delay_unit = delay_unit;
+    u->delay_value = delay_value;
+    u->period_count = count;
+
+    /* 枚举越界是形状错误（7）；标准允许但产品不支持的取值留给 store 报 2。 */
+    if (u->interval_unit > 5 || u->delay_unit > 5) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    if (u->scheme_type < 1 || u->scheme_type > 5) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    if (u->status != DCU_TASK_STATUS_NORMAL && u->status != DCU_TASK_STATUS_DISABLED)
+        return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    if (u->period_type > 3) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    return 0;
+}
+
+int dcu_698_decode_task_op(uint8_t method, const uint8_t *buf, size_t len, dcu_task_op_t *out) {
+    if (!buf || !out || len == 0 || len > UINT16_MAX) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+
+    axdr_cursor_t c = {.p = buf, .len = len, .off = 0};
+    memset(out, 0, sizeof(*out));
+    out->method = method;
+
+    uint8_t count = 0;
+    int rc = 0;
+    switch (method) {
+        case 127:
+            rc = _take_array(&c, &count);
+            if (rc != 0) return rc;
+            if (count == 0) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+            if (count > MAX_TASKS) return EDGE_SLAVE_SRC_TEMPORARY;
+            for (uint8_t i = 0; i < count; i++) {
+                rc = _decode_task_unit(&c, &out->units[i]);
+                if (rc != 0) return rc;
+                for (uint8_t j = 0; j < i; j++) {
+                    if (out->units[j].task_id == out->units[i].task_id)
+                        return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+                }
+            }
+            out->unit_count = count;
+            break;
+        case 128:
+            rc = _take_array(&c, &count);
+            if (rc != 0) return rc;
+            if (count == 0) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+            if (count > MAX_TASKS) return EDGE_SLAVE_SRC_TEMPORARY;
+            for (uint8_t i = 0; i < count; i++) {
+                rc = _take_u8(&c, DLT698_TAG_UNSIGNED, &out->ids[i]);
+                if (rc != 0) return rc;
+            }
+            out->id_count = count;
+            break;
+        case 129: {
+            const uint8_t *p = NULL;
+            if (!_take(&c, 1, &p) || p[0] != DLT698_TAG_NULL)
+                return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+            break;
+        }
+        case 130: {
+            rc = _take_head(&c, DLT698_TAG_STRUCTURE, 2);
+            if (rc == 0) rc = _take_u8(&c, DLT698_TAG_UNSIGNED, &out->units[0].task_id);
+            if (rc == 0) rc = _take_u8(&c, DLT698_TAG_ENUM, &out->units[0].status);
+            if (rc != 0) return rc;
+            if (out->units[0].status != DCU_TASK_STATUS_NORMAL &&
+                out->units[0].status != DCU_TASK_STATUS_DISABLED) {
+                return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+            }
+            out->unit_count = 1;
+            break;
+        }
+        default:
+            return EDGE_SLAVE_SRC_CLASS_MISMATCH;
+    }
+
+    return c.off == c.len ? 0 : EDGE_SLAVE_SRC_TYPE_MISMATCH;
+}
+
+int dcu_698_accept_action_axdr(uint32_t omd, const uint8_t *axdr, size_t axdr_len) {
+    const dcu_698_object_t *obj = NULL;
+    int rc = dcu_698_check_call(omd, &obj);
+    if (rc != 0) return rc;
+
+    uint16_t oi = (uint16_t)(omd >> 16);
+    uint8_t method = (uint8_t)((omd >> 8) & 0xFF);
+    if (oi == OI_TASK_SCHEDULER && method == 1) {
+        /* Class 10 复位无参数：线上就是一个 NULL，形状不符仍是 DAR 7。 */
+        if (!axdr || axdr_len != 1 || axdr[0] != DLT698_TAG_NULL)
+            return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+        return dcu_698_call(omd, NULL, NULL);
+    }
+    if (oi != OI_TASK_SCHEDULER) {
+        /* 本票只定义 6012 任务的线格式；其它 OI 的处理器不读参数。 */
+        return dcu_698_call(omd, NULL, NULL);
+    }
+
+    dcu_poller_t *poller = (dcu_poller_t *)obj->instance;
+    if (!poller) return EDGE_SLAVE_SRC_TEMPORARY;
+    rc = dcu_698_decode_task_op(method, axdr, axdr_len, &poller->task_op);
+    if (rc != 0) return rc;
+    return dcu_698_call(omd, &poller->task_op, NULL);
+}
+
+static int _put_tagged_u8(uint8_t *buf, size_t cap, size_t *off, uint8_t tag, uint8_t v) {
+    if (*off + 2 > cap) return -1;
+    buf[(*off)++] = tag;
+    buf[(*off)++] = v;
+    return 0;
+}
+
+static int _put_tagged_u16(uint8_t *buf, size_t cap, size_t *off, uint8_t tag, uint16_t v) {
+    if (*off + 3 > cap) return -1;
+    buf[(*off)++] = tag;
+    buf[(*off)++] = (uint8_t)(v >> 8);
+    buf[(*off)++] = (uint8_t)v;
+    return 0;
+}
+
+static int _put_ti(uint8_t *buf, size_t cap, size_t *off, uint8_t unit, uint16_t value) {
+    if (*off + 4 > cap) return -1;
+    buf[(*off)++] = DLT698_TAG_TI;
+    buf[(*off)++] = unit;
+    buf[(*off)++] = (uint8_t)(value >> 8);
+    buf[(*off)++] = (uint8_t)value;
+    return 0;
+}
+
+static int _put_empty_time(uint8_t *buf, size_t cap, size_t *off) {
+    if (*off + 8 > cap) return -1;
+    buf[(*off)++] = DLT698_TAG_DATE_TIME_S;
+    for (int i = 0; i < 7; i++) buf[(*off)++] = 0;
+    return 0;
+}
+
+/* 6013 A2：12 字段结构，与解码顺序一一对应。 */
+static int _encode_task_unit(uint8_t *buf, size_t cap, size_t *off,
+                             const dcu_task_unit_t *t) {
+    if (_put_tagged_u8(buf, cap, off, DLT698_TAG_STRUCTURE, 12) != 0 ||
+        _put_tagged_u8(buf, cap, off, DLT698_TAG_UNSIGNED, (uint8_t)t->task_id) != 0 ||
+        _put_ti(buf, cap, off, t->interval_unit, t->interval_value) != 0 ||
+        _put_tagged_u8(buf, cap, off, DLT698_TAG_ENUM, t->scheme_type) != 0 ||
+        _put_tagged_u8(buf, cap, off, DLT698_TAG_UNSIGNED, (uint8_t)t->scheme_id) != 0 ||
+        _put_empty_time(buf, cap, off) != 0 || _put_empty_time(buf, cap, off) != 0 ||
+        _put_ti(buf, cap, off, 0, 0) != 0 ||
+        _put_tagged_u8(buf, cap, off, DLT698_TAG_UNSIGNED, 0) != 0 ||
+        _put_tagged_u8(buf, cap, off, DLT698_TAG_ENUM, t->status) != 0 ||
+        _put_tagged_u16(buf, cap, off, DLT698_TAG_LONG_UNSIGNED, 0) != 0 ||
+        _put_tagged_u16(buf, cap, off, DLT698_TAG_LONG_UNSIGNED, 0) != 0 ||
+        _put_tagged_u8(buf, cap, off, DLT698_TAG_STRUCTURE, 2) != 0 ||
+        _put_tagged_u8(buf, cap, off, DLT698_TAG_ENUM, t->period_type) != 0 ||
+        _put_tagged_u8(buf, cap, off, DLT698_TAG_ARRAY, 0) != 0) {
+        return -1;
+    }
+    return 0;
+}
+
+static uint16_t _live_task_count(const dcu_poller_t *poller) {
+    uint16_t n = 0;
+    for (int i = 0; i < poller->task_count; i++) {
+        if (poller->tasks[i].status != DCU_TASK_STATUS_FREE) n++;
+    }
+    return n;
+}
+
+static const dcu_task_unit_t *_next_task(const dcu_poller_t *poller, uint32_t after,
+                                         bool have_after) {
+    const dcu_task_unit_t *best = NULL;
+    for (int i = 0; i < poller->task_count; i++) {
+        const dcu_task_unit_t *t = &poller->tasks[i];
+        if (t->status == DCU_TASK_STATUS_FREE) continue;
+        if (have_after && t->task_id <= after) continue;
+        if (!best || t->task_id < best->task_id) best = t;
+    }
+    return best;
+}
+
+int dcu_698_task_encode_axdr(const dcu_poller_t *poller, uint32_t oad, uint8_t *buf, size_t cap,
+                             size_t *len) {
+    if (!poller || !buf || !len) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+
+    uint16_t oi = (uint16_t)(oad >> 16);
+    uint8_t attr_id = (uint8_t)((oad >> 8) & 0xFF);
+    uint8_t elem = (uint8_t)(oad & 0xFF);
+    size_t off = 0;
+
+    if (oi == OI_TASK_SCHEDULER) {
+        if (attr_id != 2) {
+            return dcu_698_class_defines_attr(IC_ACQUISITION, attr_id)
+                       ? EDGE_SLAVE_SRC_CLASS_MISMATCH
+                       : EDGE_SLAVE_SRC_UNDEFINED;
+        }
+        uint16_t count = _live_task_count(poller);
+        if (count > 255) return EDGE_SLAVE_SRC_TEMPORARY;
+        if (_put_tagged_u8(buf, cap, &off, DLT698_TAG_ARRAY, (uint8_t)count) != 0)
+            return EDGE_SLAVE_SRC_TEMPORARY;
+        uint32_t after = 0;
+        bool have_after = false;
+        for (uint16_t i = 0; i < count; i++) {
+            const dcu_task_unit_t *t = _next_task(poller, after, have_after);
+            if (!t) return EDGE_SLAVE_SRC_TEMPORARY;
+            if (_encode_task_unit(buf, cap, &off, t) != 0) return EDGE_SLAVE_SRC_TEMPORARY;
+            after = t->task_id;
+            have_after = true;
+        }
+    } else if (oi == OI_TASK_UNIT) {
+        if (attr_id != 2) {
+            return dcu_698_class_defines_attr(IC_PARAM, attr_id) ? EDGE_SLAVE_SRC_CLASS_MISMATCH
+                                                                 : EDGE_SLAVE_SRC_UNDEFINED;
+        }
+        /* 元素索引是 task_id：0 表示最小现有 ID，绝不按数组位置寻址。 */
+        const dcu_task_unit_t *t = elem ? dcu_poller_task_find(poller, elem)
+                                        : _next_task(poller, 0, false);
+        if (!t) return EDGE_SLAVE_SRC_NOT_FOUND;
+        if (_encode_task_unit(buf, cap, &off, t) != 0) return EDGE_SLAVE_SRC_TEMPORARY;
+    } else {
+        return EDGE_SLAVE_SRC_NOT_FOUND;
+    }
+
+    *len = off;
+    return 0;
+}
+
 int dcu_north_resolve_axdr(void* ctx, uint32_t oad, uint8_t* buf, size_t cap, size_t* len) {
     (void)ctx;
     if (!buf || !len) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
@@ -104,6 +404,12 @@ int dcu_north_resolve_axdr(void* ctx, uint32_t oad, uint8_t* buf, size_t cap, si
     const dcu_698_object_t *event_obj = dcu_698_find(oi);
     if (event_obj && event_obj->class_id == IC_SUB_EVENT) {
         return dcu_698_event_encode_axdr(event_obj, oad, buf, cap, len);
+    }
+    if (oi == OI_TASK_SCHEDULER || oi == OI_TASK_UNIT) {
+        const dcu_698_object_t *task_obj = dcu_698_find(OI_TASK_SCHEDULER);
+        dcu_poller_t *poller = task_obj ? (dcu_poller_t *)task_obj->instance : NULL;
+        if (!poller) return EDGE_SLAVE_SRC_NOT_FOUND;
+        return dcu_698_task_encode_axdr(poller, oad, buf, cap, len);
     }
 
     dcu_value_t v;

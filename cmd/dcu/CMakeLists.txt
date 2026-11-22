@@ -8,6 +8,7 @@ add_library(dcu_app_lib STATIC
     dcu_poller.c
     dcu_bus_source.c
     dcu_storage.c
+    dcu_task_store.c
     dcu_698_object_model.c
     dcu_698_class_acq.c
     dcu_698_class_event.c

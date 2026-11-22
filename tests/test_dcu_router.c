@@ -88,17 +88,17 @@ static void test_dcu_router_dispatch(void** state) {
     assert_int_equal(ret, EDGE_SLAVE_SRC_TYPE_MISMATCH);
     assert_int_equal(test_inv.count, 0);
 
-    // 5. 6012 方法 127 添加方案，方法 1 复位清空方案表
     uint32_t csd = OAD_VOLTAGE;
-    dcu_scheme_t scheme = {.scheme_id = 9,
-                           .type = SCHEME_TYPE_NORMAL,
-                           .data.normal = {.capture_mode = 1, .csd_list = {csd}, .csd_count = 1}};
-    ret = dcu_router_action(((uint32_t)OI_TASK_SCHEDULER << 16) | 0x7F00, &scheme, &method_res);
-    assert_int_equal(ret, 0);
-    assert_non_null(dcu_poller_get_scheme(&poller, 9));
+    dcu_task_op_t task_op = {.method = 127, .unit_count = 0};
+    ret = dcu_router_action(((uint32_t)OI_TASK_SCHEDULER << 16) | 0x7F00, &task_op, &method_res);
+    assert_int_equal(ret, EDGE_SLAVE_SRC_TEMPORARY); /* 测试没接持久化端口 */
+    assert_null(dcu_poller_get_scheme(&poller, 9));
+
+    // Class 10 复位只清运行态，方案由 129 Clear 管理。
+    assert_int_equal(dcu_poller_add_scheme(&poller, 9, 1, &csd, 1), 0);
     ret = dcu_router_action(((uint32_t)OI_TASK_SCHEDULER << 16) | 0x0100, NULL, &method_res);
     assert_int_equal(ret, 0);
-    assert_null(dcu_poller_get_scheme(&poller, 9));
+    assert_non_null(dcu_poller_get_scheme(&poller, 9));
 
     ret = dcu_router_action(((uint32_t)OI_METER_ARCHIVE << 16) | 0x0200, NULL, NULL);
     assert_int_equal(ret, EDGE_SLAVE_SRC_CLASS_MISMATCH);

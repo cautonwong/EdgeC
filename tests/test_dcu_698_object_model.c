@@ -31,13 +31,14 @@ static const uint8_t k_method_1[] = {1};
 static const uint8_t k_attr_2_6000[] = {2};
 static const uint8_t k_method_6000[] = {127, 128, 129, 130, 131, 132, 133, 134};
 static const uint8_t k_method_127[] = {127};
-static const uint8_t k_method_1_127[] = {1, 127};
+static const uint8_t k_method_6012[] = {1, 127, 128, 129, 130};
 static const uint8_t k_method_8000[] = {127, 128, 129, 130, 131};
 
 static const expected_object_t k_expected[] = {
     {OI_METER_ARCHIVE, IC_ACQUISITION, DCU_OBJ_SHARED, k_attr_2_6000, 1, k_method_6000, 8},
     {OI_ARCHIVE_UNIT, IC_PARAM, DCU_OBJ_SINGLETON, k_attr_2_6000, 1, NULL, 0},
-    {OI_TASK_SCHEDULER, IC_ACQUISITION, DCU_OBJ_SHARED, NULL, 0, k_method_1_127, 2},
+    {OI_TASK_SCHEDULER, IC_ACQUISITION, DCU_OBJ_SHARED, k_attr_2_6000, 1, k_method_6012, 5},
+    {OI_TASK_UNIT, IC_PARAM, DCU_OBJ_SHARED, k_attr_2_6000, 1, NULL, 0},
     {(uint16_t)((OAD_VOLTAGE >> 16) & 0xFFFF), IC_VARIABLE, DCU_OBJ_PER_METER, k_attr_23, 2,
      NULL, 0},
     {(uint16_t)((OAD_CURRENT >> 16) & 0xFFFF), IC_VARIABLE, DCU_OBJ_PER_METER, k_attr_23, 2, NULL,
@@ -202,21 +203,36 @@ static void test_task_scheduler_reset_and_add(void **state) {
     init_model(&inv, &poller);
 
     uint32_t csd = OAD_VOLTAGE;
-    dcu_scheme_t scheme = {.scheme_id = 7,
-                           .type = SCHEME_TYPE_NORMAL,
-                           .data.normal = {.capture_mode = 1, .csd_list = {csd}, .csd_count = 1}};
-    int method_res = -1;
-    assert_int_equal(dcu_698_call(MK_OMD(OI_TASK_SCHEDULER, 127), &scheme, &method_res), 0);
-    assert_int_equal(method_res, 0);
-    assert_non_null(dcu_poller_get_scheme(&poller, 7));
+    assert_int_equal(dcu_poller_add_scheme(&poller, 7, 1, &csd, 1), 0);
+    assert_int_equal(dcu_poller_add_task(&poller, 5, 60, 7), 0);
+    poller.tasks[0].cursor_meter_idx = 3;
+    poller.tasks[0].last_run_time = 99;
+    poller.tasks[0].monitor.success_meters = 4;
 
+    /* Class 10 方法 1 只复位运行态，不碰方案/任务配置（Clear 是 129）。 */
+    int method_res = -1;
     assert_int_equal(dcu_698_call(MK_OMD(OI_TASK_SCHEDULER, 1), NULL, &method_res), 0);
     assert_int_equal(method_res, 0);
-    assert_null(dcu_poller_get_scheme(&poller, 7));
+    assert_non_null(dcu_poller_get_scheme(&poller, 7));
+    assert_non_null(dcu_poller_task_find(&poller, 5));
+    assert_int_equal(poller.tasks[0].cursor_meter_idx, 0);
+    assert_int_equal(poller.tasks[0].last_run_time, 0);
+    assert_int_equal(poller.tasks[0].monitor.success_meters, 0);
 
-    /* 6012 未定义方法 128（Class 1 只有 1–2），按规则回 DAR 4。 */
-    assert_int_equal(dcu_698_call(MK_OMD(OI_TASK_SCHEDULER, 128), &scheme, &method_res),
+    /* 127–130 现在是任务配置 op；没有持久化端口时如实回 DAR 2，不加方案。 */
+    dcu_task_op_t op = {.method = 127, .unit_count = 0};
+    dcu_task_op_t delete_op = {.method = 128, .id_count = 0};
+    assert_int_equal(dcu_698_call(MK_OMD(OI_TASK_SCHEDULER, 127), &op, &method_res),
+                     EDGE_SLAVE_SRC_TEMPORARY);
+    assert_int_equal(dcu_698_call(MK_OMD(OI_TASK_SCHEDULER, 128), &delete_op, &method_res),
+                     EDGE_SLAVE_SRC_TEMPORARY);
+    assert_null(dcu_poller_get_scheme(&poller, 9));
+
+    /* 131 不在 127–130；Class 10 方法上限 3，按 DAR 4。方法 2 类定义但未广告 → DAR 5。 */
+    assert_int_equal(dcu_698_call(MK_OMD(OI_TASK_SCHEDULER, 131), &op, &method_res),
                      EDGE_SLAVE_SRC_UNDEFINED);
+    assert_int_equal(dcu_698_call(MK_OMD(OI_TASK_SCHEDULER, 2), NULL, &method_res),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
 
     dcu_poller_destroy(&poller);
     dcu_inventory_destroy(&inv);

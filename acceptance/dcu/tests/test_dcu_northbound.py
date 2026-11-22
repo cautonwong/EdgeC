@@ -3,7 +3,8 @@
 ## 数组/记录型属性直接看 APDU
 
 6000/6012/5004 的属性 2 在标准里是数组（5004 是冻结数据数组），标量通道不再冒充；
-这三条直接发帧验 DAR=5。5004 的冻结记录由 GetRecord 读取，单独按时间范围验。
+6000 超缓冲回 DAR=2、5004 未落地回 DAR=5；6012 A2 已按 array<6013 单元> 返回。
+5004 的冻结记录由 GetRecord 读取，单独按时间范围验。
 设备级标量读数走 3000 属性 4（最大事件记录数），让北向任务有设备级归属。
 变量类属性 2 自 ADR-0016 起是标准数组（如 2000 是 A/B/C 三相），平台点表只认标量，
 所以这些用例直接发帧、按 A-XDR 形状解析；这是平台能力缺口，不是放弃判据。
@@ -16,7 +17,7 @@
 1. 电压 OAD（20000200）读回三相数组，A 相 2317（231.7 V，scale −1）——
    台架喂给 DCU 的就是这个值，所以这条同时验了"南向采集 → 聚合根 → 698 编码"整条链
 2. 6000 属性 2 是配置数组：超出 A-XDR 缓冲时回 DAR=2（暂时失效），不能用计数冒充；
-   6012/5004 属性 2 未落地，回 DAR=5
+   6012 属性 2 是任务配置数组（首启播种默认任务）；5004 属性 2 未落地，回 DAR=5
 3. ACTION（OI 8000 方法 129 跳闸）必须回 **DAR=2 暂时失效**，不能回 0
 4. SET 3000 A11/A12 合法值回 DAR 0 且可读回；类型不符 DAR 7；未声明属性 DAR 5
 5. Class 20：同一 socket 上预连接 → CONNECT → ACL → RELEASE 全链路
@@ -65,6 +66,82 @@ def _exchange(apdu: bytes) -> dlt698.Frame:
 
 _INT_SIZE = {0x03: 1, 0x05: 4, 0x06: 4, 0x10: 2, 0x11: 1, 0x12: 2, 0x16: 1, 0x15: 8}
 _SIGNED = {0x05, 0x10}
+
+_AXDR_FIXED = {
+    0x03: 1, 0x05: 4, 0x06: 4, 0x0F: 1, 0x10: 2, 0x11: 1, 0x12: 2, 0x14: 8,
+    0x15: 8, 0x16: 1, 0x17: 4, 0x18: 8, 0x1B: 7, 0x1C: 7, 0x51: 4, 0x54: 3,
+}
+
+
+def _skip_axdr(data: bytes, i: int) -> int:
+    tag = data[i]
+    i += 1
+    if tag == 0x00:
+        return i
+    if tag in (0x01, 0x02):
+        count = data[i]
+        i += 1
+        for _ in range(count):
+            i = _skip_axdr(data, i)
+        return i
+    if tag in (0x09, 0x0A):
+        n = data[i]
+        return i + 1 + n
+    assert tag in _AXDR_FIXED, f"未知 A-XDR 标签 0x{tag:02X}（{data[max(0, i - 8):i + 8].hex()}）"
+    return i + _AXDR_FIXED[tag]
+
+
+def _parse_task_units(apdu: bytes, count_index: int) -> list[dict]:
+    """解析 6012 A2 的 array<6013 结构>，只取验收关心的字段。"""
+    count = apdu[count_index]
+    i = count_index + 1
+    units = []
+    for _ in range(count):
+        assert apdu[i] == 0x02 and apdu[i + 1] == 12, f"6013 单元结构形状错：{apdu[i:i + 4].hex()}"
+        i += 2
+        assert apdu[i] == 0x11
+        task_id = apdu[i + 1]
+        i += 2
+        assert apdu[i] == 0x54, "TI 必须是 0x54 | unit | value_be16"
+        unit = apdu[i + 1]
+        value = int.from_bytes(apdu[i + 2 : i + 4], "big")
+        i += 4
+        scheme_type = apdu[i + 1]
+        i += 2
+        scheme_id = apdu[i + 1]
+        i += 2
+        i += 8  # 开始时间 date_time_s
+        i += 8  # 结束时间
+        i += 4  # 延时 TI
+        i += 2  # 优先级 unsigned
+        status = apdu[i + 1]
+        i += 2
+        i += 3  # 前脚本 long-unsigned
+        i += 3  # 后脚本
+        assert apdu[i] == 0x02 and apdu[i + 1] == 2
+        period_type = apdu[i + 3]
+        periods = apdu[i + 5]
+        i += 6 + 4 * periods
+        units.append(
+            {
+                "task_id": task_id,
+                "unit": unit,
+                "value": value,
+                "scheme_type": scheme_type,
+                "scheme_id": scheme_id,
+                "status": status,
+                "period_type": period_type,
+            }
+        )
+    return units
+
+
+def _read_task_units(oad: int = 0x60120200) -> list[dict]:
+    apdu = _exchange(dlt698.get_request(0x01, oad)).apdu
+    assert apdu[0] == 0x85 and apdu[1] == 0x01, f"不是 [1] 响应：{apdu.hex()}"
+    assert apdu[7] == 0x01, f"6012 A2 应是 Data，不是 DAR：{apdu.hex()}"
+    assert apdu[8] == 0x01, f"6012 A2 应是 array，收到 0x{apdu[8]:02X}"
+    return _parse_task_units(apdu, 9)
 
 
 def _read_variable(oad: int) -> tuple[list[int], list[int]]:
@@ -254,14 +331,7 @@ def test_master_reads_all_oads_in_one_frame():
             seen.append((oad, None))
             continue
         tag = apdu[i]
-        if tag == 0x01:
-            n = apdu[i + 1]
-            i += 2
-            for _ in range(n):
-                size = _INT_SIZE[apdu[i]]
-                i += 1 + size
-        else:
-            i += 1 + _INT_SIZE[tag]
+        i = _skip_axdr(apdu, i)
         seen.append((oad, tag))
     assert [oad for oad, _ in seen] == oads, f"响应项顺序/内容不符：{seen}"
 
@@ -283,16 +353,15 @@ def test_master_reads_current_and_active_power():
     assert power == [0, 0, 0, 0], f"台架回 0，功率数组应为 0：{power}"
 
 
-@case(id="D_00_00_02_000006", clause="free: 6012 配置数组未实现时必须回 DAR=5", tags=["北向"])
+@case(id="D_00_00_02_000006", clause="free: 6012 属性 2 是任务配置数组，首启播种默认任务", tags=["北向"])
 @pytest.mark.contract
-def test_master_gets_class_mismatch_for_task_config_array():
-    """6012 属性 2 是任务配置数组，不是方案计数；未实现时回 DAR=5。"""
-    oad = 0x60120200
-    apdu = _exchange(dlt698.get_request(0x01, oad)).apdu
-    assert apdu[0] == 0x85 and apdu[1] == 0x01, f"不是 [1] 响应：{apdu.hex()}"
-    assert apdu[3:7] == oad.to_bytes(4, "big"), "响应 OAD 与请求不一致"
-    assert apdu[7] == 0x00, "Get-Result 应为 DAR"
-    assert apdu[8] == 5, f"6012 A2 应回 DAR=5，收到 {apdu[8]}（{apdu.hex()}）"
+def test_master_gets_task_config_array():
+    units = _read_task_units(0x60120200)
+    assert units, "6012 A2 不应是空数组：首启必须播种默认任务"
+    first = units[0]
+    assert first["task_id"] == 1, f"默认任务 ID 应是 1，收到 {first}"
+    assert (first["unit"], first["value"]) == (0, 5), f"默认周期应是 5 秒：{first}"
+    assert first["scheme_type"] == 1 and first["scheme_id"] == 1, f"默认方案应是 1：{first}"
 
 
 @case(id="D_00_00_02_000007", clause="free: 5004 属性 2 是冻结数据数组，Normal GET 未实现时回 DAR=5", tags=["北向"])
@@ -400,6 +469,60 @@ def test_master_adds_and_removes_archive_unit():
 
     apdu = _exchange(dlt698.get_request(0x01, oad)).apdu
     assert apdu[7] == 0x00 and apdu[8] == 6, f"删除后 6001 A2 应回 DAR 6：{apdu.hex()}"
+
+
+def _task_unit_param(task_id: int, unit: int, value: int, status: int = 1,
+                     period_type: int = 0) -> bytes:
+    """6012 方法 127 的参数：array<6013 任务配置单元>。
+
+    TI 是表 24 的扁平形式 0x54 | unit | value_be16，不是内层结构。
+    """
+    return (
+        bytes([0x01, 0x01])          # array[1]
+        + bytes([0x02, 12])         # structure[12]
+        + bytes([0x11, task_id])    # 任务 ID
+        + bytes([0x54, unit]) + value.to_bytes(2, "big")  # 执行频率 TI
+        + bytes([0x16, 1])          # 方案类型 normal
+        + bytes([0x11, 1])          # 方案编号 1
+        + bytes([0x1C]) + bytes(7)  # 开始时间：无窗口
+        + bytes([0x1C]) + bytes(7)  # 结束时间：无窗口
+        + bytes([0x54, 0, 0, 0])    # 延时 TI 0
+        + bytes([0x11, 0])          # 优先级 0
+        + bytes([0x16, status])     # 状态
+        + bytes([0x12, 0, 0])       # 前脚本 0
+        + bytes([0x12, 0, 0])       # 后脚本 0
+        + bytes([0x02, 2, 0x16, period_type, 0x01, 0])  # 时段：空表
+    )
+
+
+@case(id="D_00_00_02_000019", clause="free: 6012 ACTION 127 改周期 / 127 重下发 / 128 删除，A2 全程可回读", tags=["待接入"])
+@pytest.mark.contract
+def test_master_changes_task_config_via_action():
+    add = dlt698.action_request(0x07, 0x6012, 127, param=_task_unit_param(7, 0, 60))
+    res = dlt698.parse_action_response(_exchange(add).apdu)
+    if res.dar == 6:
+        pytest.skip(
+            "6012 ACTION 未接入北向：dcu_north_adapter.c 对非 6000/8000 的 ACTION 仍回 "
+            "NOT_FOUND（DAR 6），raw ACTION 分支由 D1-20a 接入；本分支 D2-03 的 6012 用例"
+            "由 tests/test_dcu_698_tasks.c 直接覆盖"
+        )
+    assert res.ok, f"Add 应成功，回 DAR {res.dar}（{res.error}）"
+
+    units = {u["task_id"]: u for u in _read_task_units()}
+    assert 7 in units, f"Add 后 A2 应读到任务 7：{units}"
+    assert (units[7]["unit"], units[7]["value"]) == (0, 60), f"周期应是 60 秒：{units[7]}"
+
+    change = dlt698.action_request(0x07, 0x6012, 127, param=_task_unit_param(7, 0, 120))
+    res = dlt698.parse_action_response(_exchange(change).apdu)
+    assert res.ok, f"改周期应成功，回 DAR {res.dar}（{res.error}）"
+    units = {u["task_id"]: u for u in _read_task_units()}
+    assert (units[7]["unit"], units[7]["value"]) == (0, 120), f"周期应变为 120 秒：{units[7]}"
+
+    delete = dlt698.action_request(0x07, 0x6012, 128, param=bytes([0x01, 0x01, 0x11, 7]))
+    res = dlt698.parse_action_response(_exchange(delete).apdu)
+    assert res.ok, f"Delete 应成功，回 DAR {res.dar}（{res.error}）"
+    units = {u["task_id"]: u for u in _read_task_units()}
+    assert 7 not in units, f"Delete 后 A2 不应再有任务 7：{units}"
 
 
 @case(id="D_00_00_02_000010", clause="free: 5004 GetRecord 按时间范围返回冻结行", tags=["北向"])
