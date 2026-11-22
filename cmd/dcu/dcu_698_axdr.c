@@ -316,74 +316,55 @@ int dcu_698_decode_task_op(uint8_t method, const uint8_t *buf, size_t len, dcu_t
 #define AXDR_TAG_OI 80
 #define AXDR_TAG_TSA 85
 
+/* Data 标签的定长载荷（不含标签本身）；查表后只剩三种变长/递归形状。 */
+static const struct {
+    uint8_t tag;
+    uint8_t len;
+} k_axdr_fixed_len[] = {
+    {DLT698_TAG_NULL, 0},
+    {DLT698_TAG_BOOLEAN, 1},
+    {DLT698_TAG_UNSIGNED, 1},
+    {DLT698_TAG_ENUM, 1},
+    {DLT698_TAG_INTEGER, 1},
+    {DLT698_TAG_LONG, 2},
+    {DLT698_TAG_LONG_UNSIGNED, 2},
+    {DLT698_TAG_DOUBLE_LONG, 4},
+    {DLT698_TAG_DOUBLE_LONG_UNSIGNED, 4},
+    {DLT698_TAG_FLOAT32, 4},
+    {DLT698_TAG_LONG64, 8},
+    {DLT698_TAG_LONG64_UNSIGNED, 8},
+    {DLT698_TAG_FLOAT64, 8},
+    {AXDR_TAG_DATE_TIME, 8},
+    {DLT698_TAG_DATE_TIME_S, 7},
+    {AXDR_TAG_DATE, 5},
+    {AXDR_TAG_TIME, 3},
+    {AXDR_TAG_OI, 2},
+    {DLT698_TAG_OAD, 4},
+    {DLT698_TAG_TI, 3},
+};
+
 static int _skip_value(axdr_cursor_t *c, int depth) {
     if (depth > 8) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
     const uint8_t *p = NULL;
     if (!_take(c, 1, &p)) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
-    size_t n = 0;
-    switch (p[0]) {
-        case DLT698_TAG_NULL:
-            return 0;
-        case DLT698_TAG_BOOLEAN:
-        case DLT698_TAG_UNSIGNED:
-        case DLT698_TAG_ENUM:
-        case DLT698_TAG_INTEGER:
-            n = 1;
-            break;
-        case DLT698_TAG_LONG:
-        case DLT698_TAG_LONG_UNSIGNED:
-            n = 2;
-            break;
-        case DLT698_TAG_DOUBLE_LONG:
-        case DLT698_TAG_DOUBLE_LONG_UNSIGNED:
-        case DLT698_TAG_FLOAT32:
-            n = 4;
-            break;
-        case DLT698_TAG_LONG64:
-        case DLT698_TAG_LONG64_UNSIGNED:
-        case DLT698_TAG_FLOAT64:
-        case AXDR_TAG_DATE_TIME:
-            n = 8;
-            break;
-        case DLT698_TAG_DATE_TIME_S:
-            n = 7;
-            break;
-        case AXDR_TAG_DATE:
-            n = 5;
-            break;
-        case AXDR_TAG_TIME:
-            n = 3;
-            break;
-        case AXDR_TAG_OI:
-            n = 2;
-            break;
-        case DLT698_TAG_OAD:
-            n = 4;
-            break;
-        case DLT698_TAG_TI:
-            n = 3;
-            break;
-        case AXDR_TAG_TSA:
-        case DLT698_TAG_OCTET_STRING:
-        case DLT698_TAG_VISIBLE_STRING:
-            if (!_take(c, 1, &p)) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
-            n = p[0];
-            break;
-        case DLT698_TAG_ARRAY:
-        case DLT698_TAG_STRUCTURE: {
-            uint8_t count = 0;
-            if (!_take(c, 1, &p)) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
-            count = p[0];
-            for (uint8_t i = 0; i < count; i++) {
-                int rc = _skip_value(c, depth + 1);
-                if (rc != 0) return rc;
-            }
-            return 0;
-        }
-        default:
-            return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    uint8_t tag = p[0];
+    for (size_t i = 0; i < sizeof(k_axdr_fixed_len) / sizeof(k_axdr_fixed_len[0]); i++) {
+        if (k_axdr_fixed_len[i].tag == tag)
+            return _take(c, k_axdr_fixed_len[i].len, NULL) ? 0 : EDGE_SLAVE_SRC_TYPE_MISMATCH;
     }
-    return _take(c, n, NULL) ? 0 : EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    if (tag == DLT698_TAG_ARRAY || tag == DLT698_TAG_STRUCTURE) {
+        if (!_take(c, 1, &p)) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+        for (uint8_t i = 0; i < p[0]; i++) {
+            int rc = _skip_value(c, depth + 1);
+            if (rc != 0) return rc;
+        }
+        return 0;
+    }
+    if (tag == AXDR_TAG_TSA || tag == DLT698_TAG_OCTET_STRING || tag == DLT698_TAG_VISIBLE_STRING) {
+        if (!_take(c, 1, &p)) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+        return _take(c, p[0], NULL) ? 0 : EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    }
+    return EDGE_SLAVE_SRC_TYPE_MISMATCH;
 }
 
 /* 采集类型 0..4 的采集内容形状；类型 > 4 在调用方已按 DAR 7 拒绝。 */
