@@ -751,10 +751,8 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 
 当前在飞（2026-11-22）：
 
-1. D3-04a 事件墙钟：已退回补本地公历与 A6 未结束编码，dcu-dev-1。
-2. D3-06 Class 8 参数：已退回补真实时钟端口或只读，edgec-dev-0。
-3. D1-20a ACTION 路由：rebase 中，6012 M127 严格解码后启用验收 000019，dcu-dev-1 之后接。
-4. D2-04 6014/6015 采集方案与 CSD 列选择，dcu-dev。
+1. D2-09 6002/6003 搜表：dcu-dev-1；搜表必须真跑完，A2/A3 才有结果。
+2. 其余本波任务（D1-20a、D3-04a、D3-06、D2-04、D5-01/02、D1-09）均已合并，证据见 §12.2。
 
 下一批（按 §12.6 迁移登记，先在 `cmd/dcu` 内实现，公共组件到位后迁走）：
 
@@ -797,13 +795,14 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D2-03 | 已合并 | `dcu/D2-03-tasks` | `b4bb8829` | `docs/evidence/DCU-D2-03/` | 合并提交 `b4bb8829`；6012 M1/127/128/129/130 与 6013 A2 真实，严格 A-XDR 解码，SQLite 持久化与回滚；ACL 18 对象；验收 2 任务 3+18 例；ACTION 验收待 D1-20a 接线后启用 |
 | D3-06 | 已合并 | `dcu/D3-06-params` | `74798b0d` | `docs/evidence/DCU-D3-06/` | 合并提交 `74798b0d`；4000 A2 走真实时钟端口（EPERM/EINVAL 回 DAR 2 且时间不变），A3/A4 与 4001–4021 持久化 + 审计并按 (oi,attr) 建键；ACL Class 8 行由 `DCU_698_PARAM_OIS` 生成；明确存储语义未接消费方；合并后 341/341、ASAN、守卫、验收 2/2（20 例） |
 | D1-08 | 已合并 | `dcu/D1-08-normal-list` | `c291f3e7` | `docs/evidence/DCU-D1-08/` | 合并提交 `c291f3e7`；混合成败、空列表（表73 无下限）、重复 OAD、验收未知 OI 逐项 DAR；修正 codec 对 n==0 的旧拒绝 |
-| D1-09 | 未开始 | - | - | - | - |
+| D1-09 | 已合并 | `dcu/D1-09-name-source` | `f51fe322` | `docs/evidence/DCU-D1-09/` | 合并提交 `f51fe322`；名字随影子 tag 放进 `var_element_t {tag, name}`，`dcu_north_source.c` 只转发；删掉两个无对象行的死名（ZERO_SEQ_CURRENT、REACTIVE_POWER_TOTAL）；双向对拍测试；合并后 342/342、ASAN、守卫、验收 2/2（22 例） |
 | D1-10 | 已合并 | `dcu/D1-10-catalog-consistency` | `5a4fda20` | `docs/evidence/DCU-D1-10/` | 合并提交 `5a4fda20`；生成 514 OI + 26 类夹具，表→目录严格对拍、mask 范围、OI 唯一；红色对照 F200 改类；合并后 29/29、目录门禁、守卫、验收全过 |
 | D1-11 | 已合并 | `dcu/D1-11-acceptance` | `7f5ce300` | `docs/evidence/DCU-D1-11/` | 合并提交 `7f5ce300`；GET/SET/ACTION/Record/Class20 共 16 例独立验收；修复过期 ACL 对象列表（A11/A12/F200 A4），ACL 属性上限 8→12 |
 | D0-12 | 已合并 | `dcu/D0-12-acceptance-gate` | `e8b242bc` | `docs/evidence/DCU-D0-12/` | 合并提交 `e8b242bc`；`acceptance/run.sh` 记录逐任务退出码，`check_acceptance_tasks.py` 按 tasks 目录核对；正反夹具进守卫自检 |
 | D1-20a | 已合并 | `dcu/D1-20a-action-route` | `564ff4c5` | `docs/evidence/DCU-D1-20a/` | 合并提交 `564ff4c5`；非 8000 ACTION 走对象表，6012 M127 严格 A-XDR，短帧 DAR 7 不改状态；TimeTag 有值三处统一 DAR 7（不静默忽略）；000019 作北向 19 例；合并后 340/340、ASAN 12/12、守卫、验收 2/2 |
 | D3-05a | 已合并 | `dcu/D3-05a-event-records` | `3e291b74` | `docs/evidence/DCU-D3-05a/` | 合并提交 `3e291b74`；A2 关联 OAD 数组、A3 四表计数、A4/A11/A12 真实；A5 配置与 A6/A14 记录因来源不成立撤 mask 回 DAR 5 |
 | D3-04a | 已合并 | `dcu/D3-04a-event-wallclock` | `34271061` | `docs/evidence/DCU-D3-04a/` | 合并提交 `34271061`；date_time_s 设备本地公历单 helper（冻结与 A6/A14 共用，测试 `TZ=CST-8`）；A6 未结束编表 49 非法值 1C FF×7，A14 编 NULL；旧 event_history 行不渲染；合并后 340/340、ASAN 12/12、守卫、验收 2/2 |
+| D5-01/02 | 部分合并 | `dcu/D5-01-02-readonly` | `febc5345` | `docs/evidence/DCU-D5-01-02/` | 合并提交 `febc5345`；类 2/5 无数据源，登记 1010–1013、200D/200E 空掩码 + 只读 ACL，定义未广告回 DAR 5、类外回 DAR 4、未知 OI 回 DAR 6；不广告任何值；需量/频谱 producer 列为后续 |
 | D2-04 | 已合并 | `dcu/D2-04-schemes` | `dc1778e5` | `docs/evidence/DCU-D2-04/` | 合并提交 `dc1778e5`；6014 A2/M127-130 与 6015 A2 由 `dcu_scheme_config/csd/meta` 事务化落地；6014 走严格解码入口，套用 TimeTag 规则；ACL 上限改为 `EDGE_SLAVE_ACL_MAX_OBJECTS` 单一来源，31/32；000020 北向 21 例；合并后 342/342、ASAN、守卫、验收 2/2 |
 | D1-12 | 已合并 | `dcu/D1-12-axdr-port-adr` | `076e0e04` | `docs/evidence/DCU-D1-12/` | ADR-0013 已合并，状态 Proposed；14 个初始化点全为 designated，无位置初始化；架构签字待补 |
 | D1-13 | 已合并 | `dcu/D1-13-axdr-port` | `68f4de69` | `docs/evidence/DCU-D1-13/` | 合并提交 `68f4de69`；合并后 28/28、守卫、验收 2+4 全过；流式逐项编码，单缓冲复用，无 8×2048；`/no-comments` 删 23 行、DAR 字面量改常量 |
@@ -891,6 +890,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | 生成器行窗口 | `parse_ois` 与 `parse_oi_methods` 都写死 6298..9450 | 原文行号变化会静默丢行 | 改为按附录标题定位 |
 | test-platform 解析器 | `testplatform.protocol.dlt698.parse_get_response_list` 遇到逐项 DAR 抛错、拒绝 count 0；`get_request_list` 仍拒绝空列表 | 验收只能直读 APDU，平台侧无法表达合法空列表与混合结果 | 外部 pinned 仓库更新；本仓不改 |
 | 继电器 OAD 映射 | A.9 的 129/130/131 用“继电器 OAD”寻址，产品只有 `dcu_inventory_by_slot()` 的槽位身份 | ACTION 129–131 只能回 DAR 2，无法真正跳合闸 | 产品点位表拍板：继电器 OAD → 电表地址/DO 通道；另立任务实现 |
+| `OAD_ZERO_SEQ_CURRENT` 的 OI 编号 | `dcu_router.h` 把它定义成 `0x20020200`，但目录里 OI 2002 属性 2 是电压相角；驱动点表按零序电流命名映射它 | 当前没有对象行或方案引用它，北向名已删；一旦有人按零序电流使用会读错量 | 先确认标准 OI（2002 是相角），改常量或改用正确 OI；另立任务，不在本轮改 |
 
 ### 12.6 COM 迁移登记（2026-11-22 解阻塞后）
 
