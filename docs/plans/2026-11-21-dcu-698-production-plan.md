@@ -797,7 +797,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-15 | 已合并 | `dcu/D1-15a-record-codec` + `dcu/D1-15b-record-driver` | `7658967a` | `docs/evidence/DCU-D1-15a/`、`DCU-D1-15b/` | D1-15a codec 层 GetRecord/RSD/RCSD；D1-15b ADR-0014 记录端口、Selector1、驱动 GET [3]、分页；产品记录取数留 D1-07 |
 | D1-15b | 已合并 | `dcu/D1-15b-record-driver` | `7658967a` | `docs/evidence/DCU-D1-15b/` | 合并提交 `7658967a`；端口三回调协议中立；行失败整条回 DAR；>255 回 DAR 2；不支持选择方法空 RCSD 限制已入 ADR |
 | D1-16 | 已合并 | `dcu/D1-16-report` | `479017fd` | `docs/evidence/DCU-D1-16/` | 合并提交 `479017fd`；ADR-0017 上报端口、CHOICE[1] 列表、确认匹配、5 秒超时解锁；生产队列在 A3/记录列表就绪前保持空；34/34、守卫、验收通过 |
-| D1-18e | 进行中 | `dcu/D1-18e-freeze` | `f9cdd58b` | `docs/evidence/DCU-D1-18e/` | dcu-dev-1 执行中；5004 A/P 位已撤回，但验收配置删除必填字段导致北向任务未加载，正在补回并核对任务数 |
+| D1-18e | 已合并 | `dcu/D1-18e-freeze` | `c8caeb8a` | `docs/evidence/DCU-D1-18e/` | 合并提交 `c8caeb8a`；5004 属性/方法位全部撤回，GetRecord 是唯一记录路径；验收 2 任务 3+17 例；方法 3 受 north adapter 非 8000 ACTION 路由限制仍不可达 |
 | D0-12 | 待派 | - | - | - | 验收门禁假绿：任务加载失败（退出 4）仍输出“全部合格:1 个验收任务”并以 0 退出；需按 tasks 目录核对任务数与非零退出 |
 | D1-18c | 已合并 | `dcu/D1-18c-acq-shapes` | `78fd6083` | `docs/evidence/DCU-D1-18c/` | 合并提交 `78fd6083`；6000/6002/6003 按标准形状撤 mask，6012 reset 真实，AddScheme 移到 127；DAR 5/4 规则统一；合并后目标测试重跑绿 |
 | D0-11 | 已合并 | `dcu/D0-11-test-tmp` | `174d6bf4` | `docs/evidence/DCU-D0-11/` | 合并提交 `174d6bf4`；4 个 DCU 测试改每进程唯一路径，新增并发双跑守卫；合并后 36 目标测试与验收绿；另有 10 个非 DCU 测试固定路径待清理 |
