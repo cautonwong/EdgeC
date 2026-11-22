@@ -1,0 +1,21 @@
+== 聚焦单元测试（dcu / dlt698）==
+100% tests passed, 0 tests failed out of 36
+
+== 干净构建 + 告警门禁 ==
+build=0
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+
+== 全量 ctest（commit 前，父 f0ec96fe）==
+100% tests passed, 0 tests failed out of 339
+
+== ASAN + UBSAN（dcu / dlt698）==
+（见下一节，rebase 后复跑）
+
+== 架构守卫 ==
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+
+== 验收 ==
+dcu-acceptance 3/3；dcu-northbound 11/11（含新用例 D_00_00_02_000016 加表/读回/删表）
+
+== git diff --check ==
+干净

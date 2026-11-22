@@ -71,6 +71,25 @@ static int _node_count_freezes(void *ctx, uint16_t *out_count) {
     return dcu_storage_count_freezes(storage, out_count);
 }
 
+/* 6000 档案写端口：存储句柄就是唯一连接，档案不另开第二个 SQLite。 */
+static int _node_archive_save(void *ctx, const production_meter_t *m) {
+    dcu_storage_t *storage = (dcu_storage_t *)ctx;
+    if (!storage || !storage->db) return -1;
+    return dcu_inventory_save_meter(storage->db, m);
+}
+
+static int _node_archive_delete(void *ctx, const char *address) {
+    dcu_storage_t *storage = (dcu_storage_t *)ctx;
+    if (!storage || !storage->db) return -1;
+    return dcu_inventory_delete_meter(storage->db, address);
+}
+
+static int _node_archive_clear(void *ctx) {
+    dcu_storage_t *storage = (dcu_storage_t *)ctx;
+    if (!storage || !storage->db) return -1;
+    return dcu_inventory_clear_db(storage->db);
+}
+
 extern int dcu_tag_map_fn(uint32_t tag_id, uint32_t device_id);
 
 /** 路由 → 聚合根的适配：签名不同，转一层（路由不持有节点指针，见端口说明）。 */
@@ -173,7 +192,10 @@ dcu_node_t *dcu_node_create_in(void *storage, size_t storage_size, uv_loop_t *lo
 
     router_sink_ops_t router_sink = {.ctx = &node->storage,
                                      .record_telemetry = (void *)dcu_storage_write_telemetry,
-                                     .count_freezes = _node_count_freezes};
+                                     .count_freezes = _node_count_freezes,
+                                     .archive_save = _node_archive_save,
+                                     .archive_delete = _node_archive_delete,
+                                     .archive_clear = _node_archive_clear};
     router_bus_ops_t router_bus = {.ctx = node,
                                    .msg_size = sizeof(pipe_msg_t),
                                    .publish_realtime = _node_publish_realtime,

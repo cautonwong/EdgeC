@@ -1,0 +1,24 @@
+ acceptance/dcu/tests/test_dcu_northbound.py |  62 +++++-
+ adapters/io_drivers/src/driver_dlt698.c     |   2 +-
+ cmd/dcu/dcu_698_appconn.c                   |   5 +-
+ cmd/dcu/dcu_698_axdr.c                      | 193 +++++++++++++++++-
+ cmd/dcu/dcu_698_class_acq.c                 | 241 ++++++++++++++++++++++
+ cmd/dcu/dcu_698_object_internal.h           |  19 ++
+ cmd/dcu/dcu_698_object_model.c              |  13 +-
+ cmd/dcu/dcu_inventory.c                     | 262 ++++++++++++++++++++++--
+ cmd/dcu/dcu_inventory.h                     |  76 +++++++
+ cmd/dcu/dcu_node.c                          |  24 ++-
+ cmd/dcu/dcu_north_adapter.c                 |   8 +-
+ cmd/dcu/dcu_router.h                        |   6 +
+ docs/as-is/dcu-698-class10.md               | 114 +++++++++++
+ docs/design/DCU_698_OAD_STATUS.md           |   9 +
+ docs/evidence/DCU-D2-02/summary.md          |  48 +++++
+ docs/evidence/DCU-D2-02/tests.log           |  21 ++
+ tests/CMakeLists.txt                        |   4 +
+ tests/test_dcu_698_appconn.c                |   4 +-
+ tests/test_dcu_698_archive.c                | 296 ++++++++++++++++++++++++++++
+ tests/test_dcu_698_axdr.c                   |   7 +-
+ tests/test_dcu_698_object_model.c           |   8 +-
+ tests/test_dcu_698_value_table.c            |   7 +-
+ tests/test_dcu_router.c                     |   4 +-
+ 23 files changed, 1389 insertions(+), 44 deletions(-)

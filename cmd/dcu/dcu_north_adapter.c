@@ -9,6 +9,7 @@
 #include "datahub.h"
 #include "dcu_698_axdr.h"
 #include "dcu_698_appconn.h"
+#include "dcu_698_object_internal.h"
 #include "dcu_698_record.h"
 #include "dcu_698_report.h"
 #include "dcu_698_var.h"
@@ -54,14 +55,13 @@ int dcu_north_resolve_scalar(void* ctx, uint32_t oad, const void* desc, size_t d
     return 0;
 }
 
-/**
- * 129/130/131 的参数是 `array<structure>`；产品目前没有继电器 OAD→电表地址的映射，
- * 对象表会回 TEMPORARY（DAR 2），不假装执行成功。
- */
+/* 8000 的 129–131 无继电器映射时对象表回 DAR 2；6000 走 A.7 档案方法。 */
 int dcu_north_accept_action(void* ctx, uint32_t omd, const uint8_t* axdr, size_t axdr_len) {
     (void)ctx;
     uint16_t oi = (uint16_t)(omd >> 16);
     uint8_t method = (uint8_t)((omd >> 8) & 0xFF);
+
+    if (oi == OI_METER_ARCHIVE) return dcu_698_accept_archive_action(omd, axdr, axdr_len);
     if (oi != OI_REMOTE_CONTROL) return EDGE_SLAVE_SRC_NOT_FOUND;
 
     dcu_action_param_t param = {0};

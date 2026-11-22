@@ -166,8 +166,11 @@ static void test_object_model_scalar_type_tags(void **state) {
     init_model();
 
     assert_value(MK_OAD(OI_METER_DISCOVERY, 3), DCU_698_TAG_LONG_UNSIGNED, 5.0);
-    static const uint32_t unexposed[] = {MK_OAD(OI_METER_ARCHIVE, 2),
-                                         MK_OAD(OI_TASK_SCHEDULER, 2),
+    /* 6000 A2 现在是数组属性：标量通道仍然明确拒绝。 */
+    dcu_value_t v6000;
+    assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_METER_ARCHIVE, 2), &v6000),
+                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    static const uint32_t unexposed[] = {MK_OAD(OI_TASK_SCHEDULER, 2),
                                          MK_OAD(OI_METER_DISCOVERY, 2),
                                          MK_OAD(OI_DISCOVERY_RESULT, 2)};
     for (size_t i = 0; i < sizeof(unexposed) / sizeof(unexposed[0]); i++) {

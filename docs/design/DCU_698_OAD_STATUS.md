@@ -127,6 +127,15 @@ out->raw = (int64_t)msg.payload.val.f;   /* cmd/dcu/dcu_698_var.c:57-60 */
 
 ### 4.3 6000：方法号是两套账
 
+**2026-11-22 D2-02 更新**：产品已按 A.7 实现 6000 方法 127–134 与 6001 A2：
+- 广告位只有 127–134；Class 10 的 1–5 不再广告（类定义过，未广告 → DAR 5）。
+- Add/AddBatch/Update/Delete/Clear 经 `router_sink_ops_t` 的 archive 端口写 `meter_inventory`，失败回 DAR 2/3，不再只改 RAM。
+- 6000 A2 是 `array 采集档案配置单元`；整组放不进 2048 字节 A-XDR 缓冲或超过 255 只表时回 DAR 2。
+- 6001 A2 是单个配置单元结构，按 OAD 元素索引（= 配置序号）取。
+- 129 `Update` 的附属信息（Annex）没有存储路径：非空时回 DAR 2。
+
+下面两段保留为修复前的历史记录。
+
 对象表同时声明了两套方法：
 - 1–5：Class 10 的通用方法号（1 复位、2 执行、3 清空记录表；4/5 Class 10 未定义）。
 - 127/128：附录 A.7 的 6000 Add/AddBatch。
