@@ -7,6 +7,7 @@
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -14,6 +15,11 @@
 
 #include "dcu_inventory.h"
 #include "dcu_node.h"
+
+static const char *unique_db_path(char *buf, size_t cap, const char *tag) {
+    snprintf(buf, cap, "/tmp/%s_%ld.db", tag, (long)getpid());
+    return buf;
+}
 
 static void on_walk_close(uv_handle_t *handle, void *arg) {
     (void)arg;
@@ -37,7 +43,8 @@ static int teardown(void **state) {
 
 static void test_dcu_node_lifecycle(void **state) {
     uv_loop_t *loop = (uv_loop_t *)*state;
-    const char *db_path = "/tmp/test_dcu_node.db";
+    char db_file[96];
+    const char *db_path = unique_db_path(db_file, sizeof(db_file), "test_dcu_node");
     unlink(db_path);
 
     dcu_node_config_t cfg = {.product_name = "DCU_Test",
@@ -90,7 +97,8 @@ static void on_test_domain_event(const dcu_domain_event_t *event, void *user_dat
 
 static void test_dcu_node_domain_methods_and_events(void **state) {
     uv_loop_t *loop = (uv_loop_t *)*state;
-    const char *db_path = "/tmp/test_dcu_node_events.db";
+    char db_file[96];
+    const char *db_path = unique_db_path(db_file, sizeof(db_file), "test_dcu_node_events");
     unlink(db_path);
 
     dcu_node_config_t cfg = {.product_name = "DCU_Event_Test",
@@ -173,7 +181,8 @@ static int _stub_submit(void *ctx, uint32_t meter_idx, uint32_t tag_id,
 /* setter 装进去的数据源必须真的被 poller 用上（否则组合根登记等于空转） */
 static void test_dcu_node_set_source_ops_is_used(void **state) {
     uv_loop_t *loop = (uv_loop_t *)*state;
-    const char *db_path = "/tmp/test_dcu_node_srcops.db";
+    char db_file[96];
+    const char *db_path = unique_db_path(db_file, sizeof(db_file), "test_dcu_node_srcops");
     unlink(db_path);
 
     dcu_node_config_t cfg = {.product_name = "DCU_Test",
