@@ -1,0 +1,50 @@
+# DCU-D1-16 REPORT.notification 单元测试与门禁记录
+
+基于 `ed104b2b`（D1-18a/b/c、D1-19、D1-07 已合入），分支 `dcu/D1-16-report`。
+
+```
+$ ctest -R 'test_driver_dlt698|test_dcu_698_report' --output-on-failure
+1/2 Test #27: test_dcu_698_report ..............   Passed
+2/2 Test #85: test_driver_dlt698 ...............   Passed
+100% tests passed, 0 tests failed out of 2
+
+$ ctest --output-on-failure        # 全量（timeout 修正前，同一 D1-07 rebase 树）
+100% tests passed, 0 tests failed out of 337
+
+$ cmake -DENABLE_ASAN=ON ...; ctest -R 'test_driver_dlt698|test_dcu_698_report'
+100% tests passed, 0 tests failed out of 2
+
+$ python3 ci/scripts/run_fanalyzer.py --paths foundation/src/protocol,adapters/io_drivers/src,cmd/dcu,modules/edge_io/src,modules/edge_session/src
+[FANALYZER] 0 known finding(s), no new reports
+
+$ python3 ci/scripts/check_composition_root_budget.py
+[COMPOSITION_ROOT_BUDGET] clean. 16 root(s).   # dcu_north_adapter.c 实测 203，与登记 201 -> 203 一致
+
+$ git diff main..HEAD --check
+(clean)
+
+全量构建：0 warning、0 error。
+```
+
+timeout 修正后，D1-16 目标测试 2/2、ASAN 2/2；修正确实让 `test_driver_dlt698` 多跑 5s（超时用例）。
+全量重跑时本机被另一 DCU 会话的 `ctest -j` 与构建占满（load 8-14），不同次分别触发
+`test_dcu_runtime_health`（两进程共用写死的 `/tmp/test_dcu_runtime_health_*.db`，`sqlite3_step`
+返回 SQLITE_READONLY）与 `test_pcp_mutex_multithread_contention`（调度抖动）；两者单独跑 3/3 通过，
+且都不涉及 D1-16 的代码路径。机器空闲时应能复现 337/337。
+
+rebase 后 `dcu_north_adapter.c` 保留 main 的变量形状/类拆分与 D1-07 record 回调，只叠加 include 与
+`.report = {.next = dcu_698_report_next}`；组合根登记 `201 -> 203` 与实际行数 203 一致
+（D1-07 记录回调 191 -> 201，本项 201 -> 203）。
+
+## A4 假语义修正
+
+D1-18b 后 Class 24 的 A4 是最大记录数（常量），A3（当前记录数，四表结构）尚未由对象模型暴露。
+`dcu_event_monitor.c` 不再入队，避免把 A4 当当前数上报；端口与驱动保留，`test_driver_dlt698`
+仍用合成条目验证组帧/确认逻辑，`test_dcu_698_report` 用合成入队验证队列与编码。
+生产上报等 D1-07 的 `CHOICE [2]` 记录路径接入后再接。上面全部门禁在本修正后重跑通过。
+
+## 上报活锁修正
+
+`req_tick` 原来在 `report_pending` 为真时直接返回，只有 PIID 匹配的 `REPORT-Response` 才清；
+一次确认丢失会让后续上报永久卡住。现加 5s 有界解锁（`DLT698_REPORT_TIMEOUT_MS`）：超时只清 pending，
+不重发同一帧。新增 `test_report_timeout_unblocks`（慢测，真等 5.1s），断言超时后下一帧能发。

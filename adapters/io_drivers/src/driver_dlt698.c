@@ -25,6 +25,9 @@
 
 #define DLT698_ADDR_LEN 6
 
+/* 上报未确认的有界解锁时间：确认丢了不能把后续上报永远卡死（ADR-0017）。 */
+#define DLT698_REPORT_TIMEOUT_MS 5000u
+
 /* A-XDR 编码缓冲：单线程事件循环，一问一答串行复用；不进栈、不引入动态内存。
  * 同一线程并行处理多路 698 从站时，需改为调用方/池缓冲（ADR-0013 §3）。 */
 static _Thread_local uint8_t s_axdr_buf[EDGE_SLAVE_AXDR_MAX];
@@ -302,6 +305,12 @@ typedef struct {
 typedef struct {
     bool connected;
     uint8_t client_addr;
+    /* CONNECT 时主站用的 SA：主动上报没有入站帧可抄地址，必须记下来（ADR-0017）。 */
+    uint8_t sa_addr[16];
+    uint8_t sa_len;
+    bool report_pending;
+    uint8_t report_piid;
+    uint64_t report_sent_ms;
     dlt698_acl_t acl;
 } dlt698_session_t;
 
@@ -456,6 +465,8 @@ static int _handle_connect(const dlt698_addr_t *sa, uint8_t piid, const uint8_t 
         } else {
             s->connected = true;
             s->client_addr = sa->len ? sa->addr[sa->len - 1] : 0;
+            s->sa_len = sa->len <= sizeof(s->sa_addr) ? sa->len : (uint8_t)sizeof(s->sa_addr);
+            memcpy(s->sa_addr, sa->addr, s->sa_len);
             result = 0;
         }
     }
@@ -475,6 +486,13 @@ static int _handle_release(const dlt698_addr_t *sa, uint8_t piid, void *session,
     if (s) memset(s, 0, sizeof(*s));
     if (!sa || !out) return -1;
     return dlt698_encode_release_response(sa, piid, out);
+}
+
+/* 会话建立/重建时清掉跨帧状态。`session_manager_reset_sessions` 在新连接接管时
+ * 调它：旧的 connected / 待确认上报 / ACL 都不能带进新会话（ADR-0017）。 */
+static int dlt698_on_init(edge_driver_ctx_t *ctx) {
+    if (ctx && ctx->priv) memset(ctx->priv, 0, sizeof(dlt698_session_t));
+    return 0;
 }
 
 static int _handle_set_request(const dlt698_addr_t *sa, uint8_t piid, const uint8_t *payload,
@@ -774,6 +792,14 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
         return _handle_release(&sa, piid, session, out);
     }
 
+    if (svc == DLT698_SVC_REPORT_RES) {
+        /* REPORT-Response（表99）：PIID 相等才算确认了本次上报；不等就忽略，
+         * 免得一条串会话的响应用错了 pending（ADR-0017）。确认不产生应答帧。 */
+        dlt698_session_t *s = (dlt698_session_t *)session;
+        if (s && s->report_pending && piid == s->report_piid) s->report_pending = false;
+        return 0;
+    }
+
     if (svc == DLT698_SVC_GET_REQ) {
         return _handle_get_request(&sa, piid, choice, payload, payload_len, src, src_ctx, session,
                                    out);
@@ -846,14 +872,59 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
     return -1;
 }
 
+/* 周期发帧：只有活动连接上有待上报内容才发一帧（ADR-0017）。
+ * 上一帧没确认前不发下一帧，避免同一会话里堆叠未确认上报。 */
+static int dlt698_req_tick(void *priv, const edge_north_source_ops_t *north, void *north_ctx,
+                           const edge_slave_source_ops_t *slave, void *slave_ctx,
+                           net_buf_pool_t *pool, net_buf_t **out_tx) {
+    (void)north;
+    (void)north_ctx;
+    (void)slave_ctx;
+    if (!out_tx) return -1;
+    *out_tx = NULL;
+
+    dlt698_session_t *s = (dlt698_session_t *)priv;
+    if (!s || !s->connected || !pool) return 0;
+
+    uint64_t now = uv_hrtime() / 1000000ULL;
+    if (s->report_pending) {
+        if (now - s->report_sent_ms < DLT698_REPORT_TIMEOUT_MS) return 0;
+        /* 确认丢了只解锁，不重发同一帧（ADR-0017：重发/SnF 另立）。 */
+        s->report_pending = false;
+    }
+    if (!slave || !slave->report.next || !s->sa_len) return 0;
+
+    size_t blen = 0;
+    int rc = slave->report.next(slave->report.ctx, s_axdr_buf, sizeof(s_axdr_buf), &blen);
+    if (rc != 0 || blen == 0) return 0;
+    if (blen < 2) return -1;            /* 体至少 CHOICE + PIID */
+
+    dlt698_addr_t sa = {.len = s->sa_len, .type = 0};
+    memcpy(sa.addr, s->sa_addr, s->sa_len);
+
+    net_buf_t *tx = net_buf_alloc(pool, 0);
+    if (!tx) return 0;
+    if (dlt698_encode_report_frame(&sa, s_axdr_buf, blen, tx) != 0) {
+        net_buf_unref(tx);
+        return 0;
+    }
+    s->report_pending = true;
+    s->report_piid = s_axdr_buf[1];
+    s->report_sent_ms = now;
+    *out_tx = tx;
+    return 0;
+}
+
 const edge_driver_t dlt698_driver = {
     .name = "DLT698",
     .ctx_size = sizeof(dlt698_session_t), /* Class 20 会话与 ACL（ADR-0015） */
+    .on_init = dlt698_on_init,
     .req_priv_size = sizeof(dlt698_req_t),
     .req_prepare = dlt698_req_prepare,
     .req_encode = dlt698_req_encode,
     .req_decode = dlt698_req_decode,
     .req_slave_exchange = dlt698_req_slave_exchange,
+    .req_tick = dlt698_req_tick,
 };
 
 /* File-local prototypes. */
