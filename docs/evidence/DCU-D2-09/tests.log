@@ -1,0 +1,49 @@
+== focused tests (final tree) ==
+test_dcu_698_object_model: PASS (18/18)
+test_dcu_698_axdr: PASS (36/36)
+test_dcu_698_catalog: PASS (4/4)
+test_dcu_698_appconn: PASS (1/1)
+test_dcu_698_value_table: PASS (7/7)
+test_dcu_advanced_modules: PASS (1/1)
+test_driver_dlt698: PASS (18/18)
+
+== clean build (Release, build-d2-09) ==
+cmake .. -GNinja -DCMAKE_BUILD_TYPE=Release
+cmake --build . -j8: exit 0
+0 compiler warnings in build.log
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+
+== full ctest (serial, same clean build) ==
+100% tests passed, 0 tests failed out of 341
+Total Test time (real) = 293.46 sec
+
+== ASAN (-DENABLE_ASAN=ON, affected targets) ==
+test_dcu_698_object_model, test_dcu_698_axdr, test_dcu_698_catalog,
+test_dcu_698_appconn, test_dcu_698_value_table, test_dcu_advanced_modules,
+test_driver_dlt698, test_dcu_node: 8/8 passed (ASAN_OPTIONS=detect_leaks=1)
+
+== UBSAN (-DENABLE_UBSAN=ON, affected targets) ==
+same 8 targets: 8/8 passed (UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1)
+
+== guards (ci/scripts, --root .) ==
+14/14 rc=0:
+check_composition_root_budget.py, check_composition_root.py, check_plane_isolation.py,
+check_component_boundary.py, check_no_dynamic_memory.py, check_stack_usage.py,
+check_caller_allocated_storage.py, check_public_structs.py,
+check_resource_discipline.py, check_test_registration.py,
+check_strncpy_bounds.py, check_alloc_null.py, check_net_buf_alloc_timeout.py,
+check_dcu_698_catalog.py
+
+== run_guard_selftest.py ==
+Injection coverage: 6 caught / 2 known gap(s) of 8 probes
+37 live guards: all PASS
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+
+== run_fanalyzer.py (cmd/dcu) ==
+✅ [FANALYZER] 0 known finding(s), no new reports
+
+== acceptance (./test.sh --omnis dcu) ==
+dcu-acceptance: 3 passed, task exit 0
+dcu-northbound: 21 passed, task exit 0
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+✨ 验收通过

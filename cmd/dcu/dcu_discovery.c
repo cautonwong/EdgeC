@@ -1,85 +1,81 @@
 #include "dcu_discovery.h"
 
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
-/**
- * @brief 初始化自动搜表模块
- */
+#include "edge_slave_plane.h"
+
+#define MS_PER_MINUTE 60000ULL
+
 void dcu_discovery_init(dcu_discovery_t* disc) {
     if (!disc) return;
 
     disc->status = DISCOVERY_STATUS_IDLE;
+    disc->duration_min = 0;
+    disc->started_ms = 0;
     disc->count = 0;
-    memset(disc->discovered_tsas, 0, sizeof(disc->discovered_tsas));
 
     uv_mutex_init(&disc->lock);
 }
 
-/**
- * @brief 启动自动/物理搜表方法 127 (Start Discovery)
- * 【搜表底层物理设计意图】：在配电网现场，由于新表更换或拓扑变动，经常存在未建档的“野生”电表。
- * 主站下发“实时搜表方法 (127)”，终端会切换下行 RS485
- * 通道至搜表规约，以广播或快速轮询地址段的方式发送链路探测帧。
- */
-int dcu_discovery_start(dcu_discovery_t* disc, uint32_t duration_sec) {
-    if (!disc) return -1;
+int dcu_discovery_start(dcu_discovery_t* disc, uint32_t duration_min) {
+    if (!disc) return EDGE_SLAVE_SRC_TEMPORARY;
 
     uv_mutex_lock(&disc->lock);
-
-    // 如果已经在搜表中，静默返回成功，防止重复触发导致冲突
     if (disc->status == DISCOVERY_STATUS_SCANNING) {
         uv_mutex_unlock(&disc->lock);
-        return 0;
+        return EDGE_SLAVE_SRC_DENIED;
     }
 
     disc->status = DISCOVERY_STATUS_SCANNING;
+    disc->duration_min = duration_min;
+    disc->started_ms = uv_hrtime() / 1000000ULL;
+    /* 标准 A8 的"每次搜表前清空"选项；产品未暴露 A8，固定按该选项处理。 */
     disc->count = 0;
-    memset(disc->discovered_tsas, 0, sizeof(disc->discovered_tsas));
-
     uv_mutex_unlock(&disc->lock);
 
-    printf("📡 [DISCOVERY] 搜表物理动作已激活！启动下行 RS485 广播扫描，持续 %u 秒...\n",
-           duration_sec);
+    printf("[DISCOVERY] 搜表计时开始：%u 分钟%s\n", duration_min,
+           duration_min == 0 ? "（不限时）" : "");
     return 0;
 }
 
-/**
- * @brief 模拟搜表后台物理扫描帧捕获
- * 搜表引擎在物理扫描时发现新的 TSA 电表地址，将其写入 `0x6003` 搜表结果中
- */
-void dcu_discovery_tick_simulate(dcu_discovery_t* disc) {
+void dcu_discovery_clear(dcu_discovery_t* disc) {
     if (!disc) return;
 
     uv_mutex_lock(&disc->lock);
-    if (disc->status != DISCOVERY_STATUS_SCANNING) {
-        uv_mutex_unlock(&disc->lock);
-        return;
-    }
-
-    // 模拟扫描到了一个未登记的野生表计 (TSA: 10000003)
-    if (disc->count < MAX_DISCOVERED_METERS) {
-        char* wild_meter = "10000003";
-
-        // 边界安全拷贝
-        strncpy(disc->discovered_tsas[disc->count], wild_meter, DISCOVERY_ADDR_LEN - 1);
-        disc->discovered_tsas[disc->count][DISCOVERY_ADDR_LEN - 1] = '\0';
-        disc->count++;
-
-        printf("🔍 [DISCOVERY] 物理通道发现新表计信号！成功捕获野生 TSA 地址: %s\n", wild_meter);
-    }
-
-    // 模拟扫描瞬间完成，状态转换为 COMPLETED，生成 6003 结果集供召测
-    disc->status = DISCOVERY_STATUS_COMPLETED;
-
+    disc->count = 0;
     uv_mutex_unlock(&disc->lock);
-    printf("📡 [DISCOVERY] 物理扫表过程已顺利完成，生成 6003 搜表结果，等待北向同步。\n");
 }
 
-/**
- * @brief 销毁搜表管理器
- */
+void dcu_discovery_tick(dcu_discovery_t* disc, uint64_t now_ms) {
+    if (!disc) return;
+
+    int completed = 0;
+    uint16_t count = 0;
+    uv_mutex_lock(&disc->lock);
+    if (disc->status == DISCOVERY_STATUS_SCANNING && disc->duration_min != 0) {
+        uint64_t duration_ms = (uint64_t)disc->duration_min * MS_PER_MINUTE;
+        /* 时长为 0 表示不限时；没有扫描引擎能宣告结束，保持搜表中。 */
+        if (now_ms >= disc->started_ms && now_ms - disc->started_ms >= duration_ms) {
+            disc->status = DISCOVERY_STATUS_IDLE;
+            count = disc->count;
+            completed = 1;
+        }
+    }
+    uv_mutex_unlock(&disc->lock);
+
+    if (completed)
+        printf("[DISCOVERY] 搜表时长到期，状态回到空闲；结果记录数 %u\n", (unsigned)count);
+}
+
+void dcu_discovery_snapshot(dcu_discovery_t* disc, uint8_t* out_status, uint16_t* out_count) {
+    if (!disc) return;
+
+    uv_mutex_lock(&disc->lock);
+    if (out_status) *out_status = disc->status;
+    if (out_count) *out_count = disc->count;
+    uv_mutex_unlock(&disc->lock);
+}
+
 void dcu_discovery_destroy(dcu_discovery_t* disc) {
     if (!disc) return;
     uv_mutex_destroy(&disc->lock);

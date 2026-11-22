@@ -30,6 +30,7 @@ extern const edge_driver_t dlt698_driver;
 #define SA_LEN 1
 #define TS_NS (1234567890ULL * 1000000ULL)
 #define MK_OAD(oi, attr) (((uint32_t)(oi) << 16) | ((uint32_t)(attr) << 8))
+#define MK_OMD(oi, method) (((uint32_t)(oi) << 16) | ((uint32_t)(method) << 8))
 
 /* date_time_s 是设备本地民用时间：固定东八区，期望字节才能确定。 */
 static char g_saved_tz[128];
@@ -151,6 +152,7 @@ static int mock_shadow(void *ctx, uint32_t tag_id, uint32_t device_id, void *out
 }
 
 static dcu_poller_t g_poller;
+static dcu_discovery_t g_discovery;
 static dcu_task_op_t g_applied_op;
 static int g_apply_calls;
 
@@ -164,15 +166,15 @@ static int test_task_apply(void *ctx, dcu_poller_t *poller, const dcu_task_op_t 
 
 static void init_product_model(void) {
     static dcu_inventory_t inv;
-    static dcu_discovery_t discovery;
     assert_int_equal(dcu_inventory_init(&inv), 0);
     assert_int_equal(dcu_poller_init(&g_poller), 0);
-    dcu_discovery_init(&discovery);
-    discovery.count = 5;
+    dcu_discovery_init(&g_discovery);
+    g_discovery.count = 0;
+    g_discovery.status = DISCOVERY_STATUS_IDLE;
     router_sink_ops_t sink = {.task_apply = test_task_apply};
     router_bus_ops_t bus = {.msg_size = sizeof(pipe_msg_t), .read_shadow = mock_shadow};
     assert_int_equal(
-        dcu_698_object_model_init(&inv, &g_poller, sink, NULL, &discovery, NULL, NULL, bus), 0);
+        dcu_698_object_model_init(&inv, &g_poller, sink, NULL, &g_discovery, NULL, NULL, bus), 0);
 }
 
 static void init_product_model_with_events(void);
@@ -254,7 +256,7 @@ static void test_product_variable_axdr_types(void **state) {
     assert_int_equal(probe_len, 2);
     assert_int_equal(probe[0], DCU_698_TAG_ARRAY);
     assert_int_equal(probe[1], 0);
-    const uint8_t want_discovery_count[] = {DCU_698_TAG_LONG_UNSIGNED, 0x00, 0x05};
+    const uint8_t want_discovery_count[] = {DCU_698_TAG_LONG_UNSIGNED, 0x00, 0x00};
     assert_axdr(MK_OAD(OI_METER_DISCOVERY, 3), want_discovery_count, sizeof(want_discovery_count));
 
     dcu_698_object_model_reset();
@@ -1583,9 +1585,103 @@ static void test_driver_high_byte_oad_has_no_signed_shift(void **state) {
     net_buf_pool_destroy(pool);
 }
 
+/* 表 A.7：A2 结果数组、A3/A6 记录数、A10 空闲/搜表中。 */
+static void test_discovery_standard_attribute_shapes(void **state) {
+    (void)state;
+    dcu_698_object_model_reset();
+    init_product_model();
+
+    const uint8_t empty_array[] = {DLT698_TAG_ARRAY, 0x00};
+    assert_axdr(MK_OAD(OI_METER_DISCOVERY, 2), empty_array, sizeof(empty_array));
+    const uint8_t zero_count[] = {DLT698_TAG_LONG_UNSIGNED, 0x00, 0x00};
+    assert_axdr(MK_OAD(OI_METER_DISCOVERY, 3), zero_count, sizeof(zero_count));
+    assert_axdr(MK_OAD(OI_METER_DISCOVERY, 6), zero_count, sizeof(zero_count));
+    const uint8_t idle[] = {DLT698_TAG_ENUM, DISCOVERY_STATUS_IDLE};
+    assert_axdr(MK_OAD(OI_METER_DISCOVERY, 10), idle, sizeof(idle));
+
+    assert_int_equal(dcu_discovery_start(&g_discovery, 1), 0);
+    const uint8_t scanning[] = {DLT698_TAG_ENUM, DISCOVERY_STATUS_SCANNING};
+    assert_axdr(MK_OAD(OI_METER_DISCOVERY, 10), scanning, sizeof(scanning));
+    dcu_discovery_tick(&g_discovery, g_discovery.started_ms + 60000);
+    assert_axdr(MK_OAD(OI_METER_DISCOVERY, 10), idle, sizeof(idle));
+    assert_axdr(MK_OAD(OI_METER_DISCOVERY, 2), empty_array, sizeof(empty_array));
+    assert_axdr(MK_OAD(OI_METER_DISCOVERY, 3), zero_count, sizeof(zero_count));
+
+    /* 结果非空时缺 6003 的硬件字段：A2 回 DAR 2，不编造。 */
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = 0;
+    g_discovery.count = 1;
+    assert_int_equal(
+        dcu_north_resolve_axdr(NULL, MK_OAD(OI_METER_DISCOVERY, 2), buf, sizeof(buf), &len),
+        EDGE_SLAVE_SRC_TEMPORARY);
+    g_discovery.count = 0;
+
+    /* 输出缓冲不足是暂时失效（DAR 2），不是帧类型错误。 */
+    uint8_t tiny[1];
+    assert_int_equal(
+        dcu_north_resolve_axdr(NULL, MK_OAD(OI_METER_DISCOVERY, 2), tiny, sizeof(tiny), &len),
+        EDGE_SLAVE_SRC_TEMPORARY);
+    assert_int_equal(
+        dcu_north_resolve_axdr(NULL, MK_OAD(OI_METER_DISCOVERY, 3), tiny, sizeof(tiny), &len),
+        EDGE_SLAVE_SRC_TEMPORARY);
+
+    /* A5/A7/A8/A9 由表 A.7 定义但未暴露 -> DAR 5；A11 未定义 -> DAR 4。 */
+    assert_int_equal(
+        dcu_north_resolve_axdr(NULL, MK_OAD(OI_METER_DISCOVERY, 5), buf, sizeof(buf), &len),
+        EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(
+        dcu_north_resolve_axdr(NULL, MK_OAD(OI_METER_DISCOVERY, 8), buf, sizeof(buf), &len),
+        EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(
+        dcu_north_resolve_axdr(NULL, MK_OAD(OI_METER_DISCOVERY, 11), buf, sizeof(buf), &len),
+        EDGE_SLAVE_SRC_UNDEFINED);
+
+    dcu_698_object_model_reset();
+}
+
+static void test_discovery_action_start_duplicate_and_clear(void **state) {
+    (void)state;
+    dcu_698_object_model_reset();
+    init_product_model();
+
+    const uint8_t duration_1[] = {DLT698_TAG_LONG_UNSIGNED, 0x00, 0x01};
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(OI_METER_DISCOVERY, 127), duration_1,
+                                             sizeof(duration_1)),
+                     0);
+    assert_int_equal(g_discovery.status, DISCOVERY_STATUS_SCANNING);
+
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(OI_METER_DISCOVERY, 127), duration_1,
+                                             sizeof(duration_1)),
+                     EDGE_SLAVE_SRC_DENIED);
+
+    /* 参数形状：unsigned 不是 long-unsigned -> DAR 7。 */
+    const uint8_t wrong_tag[] = {DLT698_TAG_UNSIGNED, 0x01};
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(OI_METER_DISCOVERY, 127), wrong_tag,
+                                             sizeof(wrong_tag)),
+                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
+
+    /* 128 参数是 NULL；给 long-unsigned -> DAR 7。 */
+    const uint8_t null_param[] = {DLT698_TAG_NULL};
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(OI_METER_DISCOVERY, 128), null_param,
+                                             sizeof(null_param)),
+                     0);
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(OI_METER_DISCOVERY, 128), duration_1,
+                                             sizeof(duration_1)),
+                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(OI_METER_DISCOVERY, 129), NULL, 0),
+                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    const uint8_t empty[1] = {0};
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(OI_METER_DISCOVERY, 129), empty, 0),
+                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
+
+    dcu_698_object_model_reset();
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_product_variable_axdr_types),
+        cmocka_unit_test(test_discovery_standard_attribute_shapes),
+        cmocka_unit_test(test_discovery_action_start_duplicate_and_clear),
         cmocka_unit_test(test_event_class24_attrs_on_the_wire),
         cmocka_unit_test(test_event_class24_complex_attrs),
         cmocka_unit_test(test_event_class24_record_and_status_times),

@@ -46,6 +46,7 @@ ATTR = re.compile(r"^(\d+)[．.]\s*(.+?)\s*[（(](static|dyn\.?)[）)]\s*(.*)$")
 METHOD = re.compile(r"^(\d+)[．.]\s*(.+?)(?:\s{2,}(必选|可选))?\s*$")
 OI_ROW = re.compile(r"^([0-9A-Fa-f]{4})\s+(\d{1,2})\s+(.+)$")
 METHOD_IN_ROW = re.compile(r"方法\s*(\d+)\s*[：:（(]")
+ATTR_IN_ROW = re.compile(r"属性\s*(\d+)")
 
 # OIs whose class is not the obvious range owner. Values come from the class
 # definitions in 7.3 and the object tables in 7.4 and Appendix A.
@@ -111,8 +112,8 @@ OI_CLASS_DECISIONS: dict[int, ClassDecision] = {
     0x4022: ClassDecision(6, 8, "表A.5 @7900（相邻 4021/4024 为 8）", False),
     0x6000: ClassDecision(11, 10, "表A.7 @8128", True),
     0x6001: ClassDecision(8, 8, "表A.7 @8165", False),
-    0x6002: ClassDecision(11, 10, "表A.7 @8219", True),
-    0x6003: ClassDecision(8, 10, "表A.7 @8255", True),
+    0x6002: ClassDecision(11, 11, "表A.7 @8219", False),
+    0x6003: ClassDecision(8, 8, "表A.7 @8255", False),
     0x6004: ClassDecision(8, 8, "表A.7 @8280", False),
     0x6013: ClassDecision(8, 8, "表A.7 @8312", False),
     0x6014: ClassDecision(11, 11, "表A.7 @8354", False),
@@ -348,8 +349,35 @@ def parse_oi_methods(lines: list[str]) -> dict[str, set[int]]:
     return methods
 
 
-def render_header(classes: list[dict], ois: list[dict],
-                  oi_methods: dict[str, set[int]]) -> str:
+def parse_oi_attributes(lines: list[str]) -> dict[str, set[int]]:
+    """Attributes an OI defines in Appendix A, which the 7.3 class tables omit.
+
+    6002 的 A5..A10 只出现在表 A.7，不在 7.3.11 的类定义里。目录把它们单独列成
+    OI 级上限，避免把 7.3 类表撑大后改变其它 OI 的 DAR 4/5 判定。
+    """
+    attrs: dict[str, set[int]] = {}
+    current: str | None = None
+    split_oi = re.compile(r"^([0-9A-Fa-f]{2})\s+([0-9A-Fa-f]{2})\s+(\d{1,2})\s+(.+)$")
+    for i, line in enumerate(lines):
+        if i < 6298 or i > 9450:
+            current = None
+            continue
+        text = line.strip()
+        m = OI_ROW.match(text)
+        if m:
+            current = f"{int(m.group(1), 16):04X}"
+        elif split_oi.match(text):
+            s = split_oi.match(text)
+            current = f"{int(s.group(1) + s.group(2), 16):04X}"
+        if current is None:
+            continue
+        for am in ATTR_IN_ROW.finditer(text):
+            attrs.setdefault(current, set()).add(int(am.group(1)))
+    return attrs
+
+
+def render_header(classes: list[dict], ois: list[dict], oi_methods: dict[str, set[int]],
+                  oi_attrs: dict[str, set[int]]) -> str:
     class_attr = {cls["class_id"]: max((a["no"] for a in cls["attributes"]), default=0)
                   for cls in classes}
     class_method = {cls["class_id"]: max((m["no"] for m in cls["methods"]), default=0)
@@ -376,6 +404,25 @@ def render_header(classes: list[dict], ois: list[dict],
     out.append("static const dcu698_catalog_oi_t dcu698_catalog_ois[] = {")
     for row in sorted(ois, key=lambda r: int(r["oi"], 16)):
         out.append(f"    {{0x{row['oi']}, {row['inferred_class']}}},")
+    out.append("};")
+    out.append("")
+    out.append("/* 附录 A 的实例属性上限，只列超出 7.3 类表的 OI。 */")
+    out.append("typedef struct {")
+    out.append("    uint16_t oi;")
+    out.append("    uint8_t max_attr;")
+    out.append("} dcu698_catalog_oi_attr_t;")
+    out.append("")
+    out.append("static const dcu698_catalog_oi_attr_t dcu698_catalog_oi_attrs[] = {")
+    attr_rows = []
+    for row in sorted(ois, key=lambda r: int(r["oi"], 16)):
+        cid = row["inferred_class"]
+        oi_max = max(oi_attrs.get(row["oi"], {0}))
+        if oi_max > class_attr.get(cid, 0):
+            attr_rows.append(f"    {{0x{row['oi']}, {oi_max}}},")
+    if attr_rows:
+        out.extend(attr_rows)
+    else:
+        out.append("    {0x0000, 0}, /* 无超出类表的实例属性 */")
     out.append("};")
     out.append("")
     out.append("typedef struct {")
@@ -506,6 +553,7 @@ def main() -> int:
     classes = parse_classes(lines)
     ois = parse_ois(lines, {cls["class_id"] for cls in classes})
     oi_methods = parse_oi_methods(lines)
+    oi_attrs = parse_oi_attributes(lines)
 
     if len(classes) != 26:
         print(f"expected 26 classes, parsed {len(classes)}", file=sys.stderr)
@@ -532,7 +580,7 @@ def main() -> int:
 
     markdown = render(classes, ois)
     payload = json.dumps({"classes": classes, "ois": ois}, ensure_ascii=False, indent=1) + "\n"
-    header = render_header(classes, ois, oi_methods)
+    header = render_header(classes, ois, oi_methods, oi_attrs)
     reconciliation = render_reconciliation(ois)
     out_recon = reconciliation_path(root)
 

@@ -1,0 +1,3 @@
+{"at": "2026-11-22T11:03:33.308+00:00", "device": "dcu_north_01", "kind": "frame", "direction": "send", "hex": "681300430001106183050201013000040000ed5a16"}
+{"at": "2026-11-22T11:03:33.319+00:00", "device": "dcu_north_01", "kind": "frame", "direction": "receive", "hex": "681800c30001102a8385020101300004000112000a00001ac216"}
+{"at": "2026-11-22T11:03:33.523+00:00", "device": "dcu_north_01", "kind": "reading", "mode": "real", "case": null, "criteria": {"profile": "dcu_north_01", "overridden": [], "criteria": []}, "readings": {"最大事件记录数": 10.0}, "evaluation": {"passed": true, "breaches": []}, "events": []}

@@ -22,7 +22,7 @@
 
 1. **没有任何一位是 standard-correct 的。** 变量类全部返回未换算的工程值；对象类大量属性号照搬 Class 7 编号；结构/数组属性在北向 A-XDR 通道上不可达。
 2. **每表寻址没有实现。** `dcu_698_var_read_value()` 固定用 `device_id=0` 读影子（`cmd/dcu/dcu_698_var.c:53`），`dcu_698_var_read()` 忽略 `elem_idx`（同文件 186 行），`dcu_698_value_for_oad()` 完全不看 OAD 低字节。所有 `DCU_OBJ_PER_METER` 行实际都读 0 号表。
-3. **产品装配把三个 OI 挂成 NULL。** `dcu_node_create_in()` 调 `dcu_router_init_ex(..., NULL, NULL, ...)`（`cmd/dcu/dcu_node.c:178`），而 `dcu_security_init()` / `dcu_discovery_init()` 在生产代码中从未调用。因此 F100、6002、6003 在生产中所有读写和方法都返回 `-1`；它们只在测试里被临时实例化。
+3. **F100 仍挂成 NULL；6002 已装配（D2-09）。** `dcu_node_create_in()` 把 `esam` 传 NULL，F100 的读写和方法因此返回 `-1`；6002 搜表对象由 `dcu_node_create_in()` 持有并传入，`dcu_node_pump()` 推进其状态。6003 不再是独立对象。
 
 ## 2. 状态口径
 
@@ -75,10 +75,12 @@
 | F100 | 21 | M1 | method | `_oi_f100_execute` | unimplemented | `dcu_security_authenticate`（测试实例） | `test_dcu_advanced_modules::test_dcu_advanced_features_dispatch` | 生产传 `esam=NULL` 必返 `-1`；测试里是 XOR 模拟“鉴权”；Class 21 方法 1 实际是复位 |
 | F200 | 22 | A2 | attr | `_oi_f200_read` | partial | 静态 `g_f200_channel_cfg.baudrate` | `test_dcu_698_object_model::test_dispatch_read_write_call`、`test_dcu_advanced_modules::test_dcu_advanced_features_dispatch`、`test_dcu_698_axdr::test_product_accept_set_paths` | 标准 A.13 属性 2 是只读 `array 端口`；这里返回波特率标量；写只改 RAM，不落盘、不作用于 UART |
 | F200 | 22 | A3 | attr | `_oi_f200_read` | partial | 静态 `g_f200_channel_cfg.parity` | `test_dcu_698_value_table::test_object_model_scalar_type_tags`、`test_dcu_698_object_model::test_dispatch_read_write_call` | 标准 Class 22 属性 3 是“设备对象数量”；这里返回校验位；配置参数应在属性 4 |
-| 6002 | 10 | A2 | attr | `_oi_6002_read` | unimplemented | `dcu_discovery.status`（测试实例） | `test_dcu_advanced_modules::test_dcu_advanced_features_dispatch` | 标准 A.7 属性 2 是 `array 搜表结果`；这里返回状态字节。生产实例 NULL |
-| 6002 | 10 | A3 | attr | `_oi_6002_read` | masked-but-undefined | `dcu_discovery.count`（测试实例） | `test_dcu_advanced_modules::test_dcu_advanced_features_dispatch` | 标准 6002 没有属性 3；记录数是属性 6 |
-| 6002 | 10 | M127 | method | `_oi_6002_execute` | unimplemented | `dcu_discovery_start` 状态位 | `test_dcu_advanced_modules::test_dcu_advanced_features_dispatch` | 标准 127 是实时启动搜表；产品只置状态，`dcu_discovery_tick_simulate` 只在测试调用，生产永远停在 SCANNING |
-| 6003 | 10 | A2 | attr | `_oi_6003_read` | masked-but-undefined | `dcu_discovery.discovered_tsas[]`（测试实例） | `test_dcu_advanced_modules::test_dcu_advanced_features_dispatch` | 标准 6003 是“一个搜表结果”结构，不是带属性 2 的 Class 10 对象；生产实例 NULL |
+| 6002 | 11 | A2 | attr | `dcu_698_acq_6002_encode` | partial | RAM 计数（恒 0） | `test_dcu_698_axdr::test_discovery_standard_attribute_shapes` | 标准 A.7 是 `array 搜表结果`；产品没有下行搜表驱动，结果集恒空；计数非 0 时回 DAR 2，不编造 6003 字段（D2-09） |
+| 6002 | 11 | A3 | attr | `dcu_698_acq_6002_read` | implemented | `dcu_discovery.count` | `test_dcu_698_object_model::test_discovery_exposes_results_count_and_status` | Class 11 当前元素个数（D2-09） |
+| 6002 | 11 | A6 | attr | `dcu_698_acq_6002_read` | implemented | `dcu_discovery.count` | 同上 | 表 A.7 所有搜表结果记录数（D2-09） |
+| 6002 | 11 | A10 | attr | `dcu_698_acq_6002_read` | implemented | `dcu_discovery.status` | 同上 | 表 A.7 空闲/搜表中（D2-09） |
+| 6002 | 11 | M127 | method | `dcu_698_acq_6002_execute` | implemented | `dcu_discovery_start` 状态机 | `test_dcu_698_axdr::test_discovery_action_start_duplicate_and_clear` | 时长单位分钟，0 = 不限时；重复启动 DAR 3；由 `dcu_node_pump()` tick 到期回空闲（D2-09） |
+| 6002 | 11 | M128/M129 | method | `dcu_698_acq_6002_execute` | implemented | `dcu_discovery_clear` | 同上 | 128 清结果；129 无跨台区结果可清，回成功（D2-09） |
 | 3000 | 24 | A2 | attr | `_oi_event_read` | partial | `dcu_event_obj_t.records[]`（RAM） | `test_dcu_advanced_modules::test_dcu_advanced_features_dispatch`、`test_dcu_router::test_dcu_router_dispatch` | 标准 Class 24 属性 2 是关联对象属性表；这里返回事件记录结构；AXDR 通道不可达 |
 | 3000 | 24 | A3 | attr | `_oi_event_read` | partial | `snapshot_oads[]` | 无 | 标准属性 3 是四张记录表的当前记录数结构；这里返回抓拍 OAD 列表 |
 | 3000 | 24 | A4 | attr | `_oi_event_read` | partial | `record_count` | `test_dcu_698_value_table::test_object_model_scalar_type_tags` | 标准属性 4 是最大记录数；这里返回当前记录数 |
@@ -186,12 +188,13 @@ out->raw = (int64_t)msg.payload.val.f;   /* cmd/dcu/dcu_698_var.c:57-60 */
 - 写入只改文件作用域 `g_f200_channel_cfg`（`cmd/dcu/dcu_698_object_model.c:349-384`），不落盘，也不调用任何串口重配置。主站 SET 成功，波特率实际不变。
 - 没有暴露方法 127，也没有属性 4。
 
-### 4.9 6002 / 6003：搜表是演示状态机，且生产未装配
+### 4.9 6002 / 6003：搜表（D2-09 已按标准重做）
 
-- 标准 A.7：6002 属性 2 = 所有搜表结果数组、5 = 跨台区结果、6/7 = 记录数、8 = 配置、9 = 周期参数、10 = 状态（空闲/搜表中）；方法 127/128/129。
-- 代码：属性 2 = 状态字节、属性 3 = 数量（标准无属性 3）；方法 127 只把 `status` 置 `SCANNING`，`dcu_discovery_tick_simulate()` 只在测试里调用，生产没有后台扫描推进，状态会永远停在 SCANNING。
-- 6003 在标准里是“一个搜表结果”结构，通常作为 6002 属性 2 的元素，不是独立 Class 10 对象。代码把它做成带属性 2 的单例，用元素索引取 `discovered_tsas[]`，且生产实例 NULL。
-- 生产装配：`dcu_router_init_ex(..., NULL, NULL, ...)` 把 discovery 置 NULL，所以 6002/6003 的处理器全部在第一个判空处返回 `-1`。
+- 标准 A.7：6002 IC=11（集合接口类），属性 2 = 所有搜表结果数组、5 = 跨台区结果、6/7 = 记录数、8 = 配置、9 = 周期参数、10 = 状态（空闲/搜表中）；方法 127/128/129。
+- 代码：6002 `class_id` 改为 `IC_COLLECTION`（11），广告 A2/A3/A6/A10 与 127/128/129。A2 编成 `array(0)`；A3/A6 都是 RAM 计数（无扫描驱动时恒 0）；A10 是空闲/搜表中。方法 127 的时长按分钟，重复启动回 DAR 3；到期由 `dcu_node_pump()` 的 `dcu_discovery_tick()` 回到空闲。
+- 结果集只在 RAM，没有搜表结果存储表。产品没有广播/地址段扫描驱动，因此不会发现新表；不伪造 6003 的通信地址/信号品质等硬件字段。计数非 0 时 A2 回 DAR 2。
+- 6003 是“一个搜表结果”结构（IC=8），只作为 6002 A2（以及 3303 事件）的元素，不再是独立对象。对象表与 Class 20 ACL 删除 6003 行；目录仍保留它的类型定义。
+- 生产装配：`dcu_node_create_in()` 持有 `dcu_discovery_t` 并传给 `dcu_router_init_ex()`，不再传 NULL。
 
 ### 4.10 3000 / 3005：Class 24 的属性号被写成了 Class 7 的
 
@@ -214,19 +217,16 @@ out->raw = (int64_t)msg.payload.val.f;   /* cmd/dcu/dcu_698_var.c:57-60 */
 
 也就是说，代码把 Class 7 的编号（2/3/4/5/6/8/9/10）直接搬到了 Class 24。事件数据本身是真实的（`dcu_event_monitor.c` 的流式判定 + `records[]` 环），但按标准读 3000 A2 会得到 NOT_FOUND/TYPE_MISMATCH（无标量表示），按 A6 会得到门限而不是记录表。写入 A6/A8/A9 只改 RAM，不持久化，而且改的是错误属性。
 
-### 4.11 北向 A-XDR 通道只支持标量
+### 4.11 北向 A-XDR 的数组/结构通道（D2-09 更新）
 
-`dcu_north_resolve_axdr()`（`cmd/dcu/dcu_698_axdr.c:84-92`）只调用 `dcu_698_value_for_oad()`，后者只返回 `dcu_value_t` 标量。因此：
-- 3000/3005 属性 2 的事件记录表、5004 属性 2 的冻结表、6000 属性 2 的档案数组、6003 属性 2 的搜表结果，全部无法编码成标准数组/结构。
-- 当前行为：有标量替代的（5004 A2 条数、6000 A2 计数）返回标量；没有的（3000 A2、6003 A2）返回 `EDGE_SLAVE_SRC_TYPE_MISMATCH`。
-- 设计 `DCU_698_OBJECT_MODEL.md` 4.5 要求的 `resolve_axdr` 结构通道没有在对象模型处理器里实现。
+`dcu_north_resolve_axdr()` 已按 OI 分派数组/结构编码：3000/3005 事件表、6000/6001 档案、6002 搜表、6012/6013 任务以及 Class 8 参数各有编码器。6002 A2 返回 `array 一个搜表结果`（产品没有扫描驱动时为空数组），A3/A6 是 `long-unsigned`，A10 是 `enum`。6003 不再是独立对象，只作为 A2 的元素类型。
+标量回退仍走 `dcu_698_value_for_oad()`；5004 A2 是冻结记录表，Normal GET 仍不暴露。
 
 ### 4.12 装配事实
 
-- `dcu_node_create_in()` 调用 `dcu_router_init_ex(&node->inventory, &node->poller, router_sink, NULL, NULL, &evt_3000, &evt_3005, router_bus)`。
-- 第 4/5 个参数是 `esam`/`discovery`，都是 NULL。
-- `dcu_security_init()` / `dcu_discovery_init()` 在 `cmd/dcu` 的生产路径中没有任何调用点。
-- 结论：F100、6002、6003 三行的处理器虽然存在于表中，但产品运行期不可达；测试通过自己提供实例才覆盖到。
+- `dcu_node_create_in()` 把 `esam` 传 NULL，把节点持有的 `&node->discovery` 传给 `dcu_router_init_ex()`。
+- `dcu_discovery_init()` 在生产路径中调用；`dcu_node_pump()` 每轮调用 `dcu_discovery_tick()`。
+- 结论：F100 的运行期仍不可达；6002 已装配且可读可调用；6003 不再是对象行。
 
 ## 5. 产品 OAD 常量解析表
 
@@ -249,14 +249,14 @@ out->raw = (int64_t)msg.payload.val.f;   /* cmd/dcu/dcu_698_var.c:57-60 */
 | `OAD_DAILY_FREEZE` | 0x50040200 | 5004 A2 | 是 | 返回冻结条数，不是冻结表 |
 | `dcu_soe_event_engine.h` 的 `OAD_EVT_*` | 0x3000 等 | 无 | **否** | 实际存的是 OI，不是 OAD；SOE 引擎硬编码，且 0x3000 被注释成“过压”，标准是失压 |
 
-对象表内部还会用无名字面量构造 OAD，例如 `0x60000200`、`0x60120200`、`0x60020200/0300`、`0x60030200`、`0xF2000200/0300`、`0x30000200`、`0x30050200` 等；这些没有对应的 `OAD_*` 宏，测试里手写。北向 resolve 对它们走 `dcu_698_value_for_oad()`：只有带 `k_scalars` 项的才能返回标量。
+对象表内部还会用无名字面量构造 OAD，例如 `0x60000200`、`0x60120200`、`0x60020200/0300/0600/0A00`、`0xF2000200/0300`、`0x30000200`、`0x30050200` 等；这些没有对应的 `OAD_*` 宏，测试里手写。北向 resolve 对 6002 走 `dcu_698_acq_6002_encode()`，其余标量走 `dcu_698_value_for_oad()`。
 
 ## 6. 标准与实现的错位汇总
 
 | 项 | 标准 | 代码 | 影响 |
 | --- | --- | --- | --- |
 | 6000 类 | A.7 IC 列写 11；7.3.10 是 Class 10 | 10 | 项目 catalog 也取 10；视为原文 OCR 列错位，非代码缺陷 |
-| 6002/6003 类 | A.7 IC 列写 11/8 | 10 | 同上；6003 本身是结构类型，不是对象 |
+| 6002/6003 类 | A.7 IC 列写 11/8 | 6002=11，6003 无对象行 | D2-09 按标准修正；6003 本身是结构类型，只作为 6002 A2 的元素 |
 | 8000 类 | A.9 IC 列写 8；7.3.13 是 Class 13 | 13 | 项目 catalog 取 13；视为原文列错位 |
 | 6000 方法 | 127–134 | 1–5、127、128 | 1–5 是产品自定义；128 语义错；129–134 缺失 |
 | 6012 方法 | 127–130 | 1、127–130 | 已按 A.7 实现；方法 1 是运行态复位 |
@@ -280,8 +280,8 @@ out->raw = (int64_t)msg.payload.val.f;   /* cmd/dcu/dcu_698_var.c:57-60 */
 6. **F200 属性 2/3 假写**。写只改静态全局，不落盘、不重配串口；标准属性 2 是只读端口列表、属性 3 是数量、属性 4 是配置。按 A.13/Class 22 重做。
 7. **8000 方法 1 挂错语义**。真实拉/合闸在 Class 13 方法 1（复位）下执行；标准 129/130/131 是跳闸/合闸/明文合闸，却返回 TEMPORARY。把控制下沉接到 129/130/131；方法 1 恢复为复位。
 8. **F100 方法 1 假鉴权**。XOR 模拟把 `is_authenticated` 置 true 并返回 0；Class 21 方法 1 是复位。安全路径要么接真实 ESAM，要么明确 DAR 5，不能返回成功。
-9. **6002 搜表假启动**。方法 127 只置 `SCANNING`，生产没有 `dcu_discovery_tick_simulate()` 调用，状态永远不完成；属性 2/3 也不是标准的结果数组/记录数。按 A.7 重做或返回 DAR 5。
-10. **北向结构属性不可达**。`dcu_north_resolve_axdr()` 只支持标量；3000 A2/A10、5004 A2、6000 A2、6003 A2 无法按标准编码。必须实现对象模型侧的 A-XDR 结构编码，或明确 DAR 5。
+9. ~~**6002 搜表假启动**~~（D2-09 已修）：方法 127 走真实状态机，`dcu_node_pump()` tick 到期回空闲；A2/A3/A6/A10 按表 A.7 暴露；6003 不再作为独立对象。
+10. **北向结构属性部分可达（D2-09 更新）**。`dcu_north_resolve_axdr()` 已支持 3000/6000/6002 的数组/结构编码；5004 的冻结记录走 GetRecord，Normal GET 仍回 DAR 5。6003 作为 6002 A2 元素，产品没有扫描驱动时结果集为空。
 
 ### P1 — 已声明但占位（-2/-4/TEMPORARY/NULL）
 
@@ -289,7 +289,7 @@ out->raw = (int64_t)msg.payload.val.f;   /* cmd/dcu/dcu_698_var.c:57-60 */
 2. 5004 方法 3、4、5、7、8：`-4`（触发冻结、增删冻结对象、批量添加、清空关联表全不可用）。
 3. 8000 方法 127、128：TEMPORARY（产品无告警输出）。
 4. 8000 方法 129、130、131：参数解码真实，但无继电器 OAD→电表地址映射，全 TEMPORARY。
-5. F100、6002、6003：生产装配传 NULL，所有调用返回 `-1`；需要 `dcu_security_init()` / `dcu_discovery_init()` 并挂实例，或从对象表移除，避免主站看到“已定义但永远失败”的 OI。
+5. F100：生产装配传 NULL，所有调用返回 `-1`；需要 `dcu_security_init()` 并挂实例，或从对象表移除。（6002 已在 D2-09 装配。）
 
 ### P2 — 标准定义但未暴露
 
@@ -299,15 +299,15 @@ out->raw = (int64_t)msg.payload.val.f;   /* cmd/dcu/dcu_698_var.c:57-60 */
 4. 8000：属性 2、4、5。
 5. F100：属性 2–15；方法 2–12。
 6. F200：属性 4；方法 127。
-7. 6002：属性 5–10；方法 128、129。
-8. 6003：作为 6002 属性 2 的元素/结构，而不是独立 Class 10 对象。
+7. 6002：属性 5、7、8、9（跨台区结果/配置/周期参数）未暴露；产品没有对应的跨台区与周期搜表能力。
+8. 6003：保留为 6002 A2 的元素/结构类型，不再作为独立对象。
 9. 变量类：属性 1 逻辑名、属性 3 换算及单位、Class 1 属性 5；Class 3/4 属性 2 的分相/总分相数组表示。
 10. 3000/3005：属性 1、7、11、12、14；方法 2、4、5。
 11. 标准 OI 2002（零序电流）、2005（无功功率）、2003、200B–200E、2010+ 等未进对象表，尽管驱动点表/北向 metric 已使用其中一部分。
 
 ### P3 — 一致性与可维护性
 
-1. `_oi_6002_execute()` 无论 `dcu_discovery_start()` 返回什么都返回 0；应透传。
+1. ~~`_oi_6002_execute()` 无论 `dcu_discovery_start()` 返回什么都返回 0；应透传。~~（D2-09 已透传，重复启动回 DAR 3。）
 2. `_oi_6000_execute()` 方法 4 删除失败时 result 写 `-2`，函数仍返回 0；应统一。
 3. `dcu_698_read/write/call` 对 mask 未命中返回 `-1`，驱动按 NOT_FOUND（DAR 4）映射；设计 4.1 要求属性/方法不支持返回 DAR 5。应在门面层区分“OI 不存在”和“位未定义”。
 4. 测试 `test_dcu_698_var` / `test_dcu_698_value_table` / `test_dcu_698_axdr` 断言的是当前非标准标签和截断值，等于给错误背书；修 P0 时必须同步改测试向量。
@@ -343,4 +343,6 @@ out->raw = (int64_t)msg.payload.val.f;   /* cmd/dcu/dcu_698_var.c:57-60 */
 | masked-but-undefined | 4 |
 | **合计** | **56** |
 
-按 OI 汇总的已声明位数：6000 8、6012 2、0010 2、0020 2、2000 1、2001 1、2004 1、200A 1、200F 1、5004 6、8000 6、F100 1、F200 2、6002 3、6003 1、3000 9、3005 9，合计 56。
+按 OI 汇总的已声明位数（D2-09 前的审计快照）：6000 8、6012 2、0010 2、0020 2、2000 1、2001 1、2004 1、200A 1、200F 1、5004 6、8000 6、F100 1、F200 2、6002 3、6003 1、3000 9、3005 9，合计 56。
+
+D2-09 后 6002 声明 A2/A3/A6/A10 四个属性与 127/128/129 三个方法；6003 不再有对象行。上表其余行的状态与计数未重算。

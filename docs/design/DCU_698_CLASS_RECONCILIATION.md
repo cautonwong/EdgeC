@@ -8,7 +8,7 @@ IC; `chosen` is the class the catalog uses. 201E..202C and 4022 are OCR
 misreads: their neighbouring rows and 7.3.6 win. Deferred rows keep the
 product class until the object table is corrected in a separate defect.
 
-Decisions: 75 resolved, 4 deferred.
+Decisions: 77 resolved, 2 deferred.
 
 | OI | parsed | chosen | source |
 | --- | --- | --- | --- |
@@ -47,8 +47,8 @@ Decisions: 75 resolved, 4 deferred.
 | 4022 | 6 | 8 | 表A.5 @7900（相邻 4021/4024 为 8） |
 | 6000 | 11 | 10 | 表A.7 @8128；对象表仍用 10，另立缺陷 |
 | 6001 | 8 | 8 | 表A.7 @8165 |
-| 6002 | 11 | 10 | 表A.7 @8219；对象表仍用 10，另立缺陷 |
-| 6003 | 8 | 10 | 表A.7 @8255；对象表仍用 10，另立缺陷 |
+| 6002 | 11 | 11 | 表A.7 @8219 |
+| 6003 | 8 | 8 | 表A.7 @8255 |
 | 6004 | 8 | 8 | 表A.7 @8280 |
 | 6013 | 8 | 8 | 表A.7 @8312 |
 | 6014 | 11 | 11 | 表A.7 @8354 |

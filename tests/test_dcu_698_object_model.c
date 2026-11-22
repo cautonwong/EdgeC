@@ -24,13 +24,13 @@ typedef struct {
     size_t method_count;
 } expected_object_t;
 
-static const uint8_t k_attr_3[] = {3};
 static const uint8_t k_attr_23[] = {2, 3};
+static const uint8_t k_attr_6002[] = {2, 3, 6, 10};
 static const uint8_t k_attr_event[] = {2, 3, 4, 6, 11, 12, 14};
 static const uint8_t k_method_1[] = {1};
 static const uint8_t k_attr_2_6000[] = {2};
 static const uint8_t k_method_6000[] = {127, 128, 129, 130, 131, 132, 133, 134};
-static const uint8_t k_method_127[] = {127};
+static const uint8_t k_method_6002[] = {127, 128, 129};
 static const uint8_t k_method_6012[] = {1, 127, 128, 129, 130};
 static const uint8_t k_method_8000[] = {127, 128, 129, 130, 131};
 
@@ -47,8 +47,7 @@ static const expected_object_t k_expected[] = {
     {OI_REMOTE_CONTROL, IC_CONTROL, DCU_OBJ_SINGLETON, NULL, 0, k_method_8000, 5},
     {OI_ESAM_SECURITY, IC_ESAM, DCU_OBJ_SINGLETON, NULL, 0, k_method_1, 1},
     {OI_CHANNEL_CONFIG, IC_PERIPHERAL, DCU_OBJ_SINGLETON, NULL, 0, NULL, 0},
-    {OI_METER_DISCOVERY, IC_ACQUISITION, DCU_OBJ_SINGLETON, k_attr_3, 1, k_method_127, 1},
-    {OI_DISCOVERY_RESULT, IC_ACQUISITION, DCU_OBJ_SINGLETON, NULL, 0, NULL, 0},
+    {OI_METER_DISCOVERY, IC_COLLECTION, DCU_OBJ_SINGLETON, k_attr_6002, 4, k_method_6002, 3},
     {OI_VOLTAGE_DROP, IC_SUB_EVENT, DCU_OBJ_SHARED, k_attr_event, 7, k_method_1, 1},
     {OI_OVER_CURRENT, IC_SUB_EVENT, DCU_OBJ_SHARED, k_attr_event, 7, k_method_1, 1},
     {0x4000, IC_PARAM, DCU_OBJ_SINGLETON, k_attr_2_6000, 1, NULL, 0},
@@ -96,7 +95,7 @@ static void test_all_ois_resolvable_with_class_and_mask(void **state) {
     dcu_poller_t poller;
     init_model(&inv, &poller);
 
-    assert_int_equal(dcu_698_object_count(), 38);
+    assert_int_equal(dcu_698_object_count(), 37);
 
     for (size_t i = 0; i < sizeof(k_expected) / sizeof(k_expected[0]); i++) {
         const dcu_698_object_t *obj = dcu_698_find(k_expected[i].oi);
@@ -138,7 +137,13 @@ static void test_mask_rejects_missing_attr_and_method(void **state) {
     (void)state;
     dcu_inventory_t inv;
     dcu_poller_t poller;
+    dcu_discovery_t discovery;
     init_model(&inv, &poller);
+    dcu_discovery_init(&discovery);
+    router_sink_ops_t sink = {0};
+    router_bus_ops_t bus = {0};
+    assert_int_equal(
+        dcu_698_object_model_init(&inv, &poller, sink, NULL, &discovery, NULL, NULL, bus), 0);
 
     assert_int_equal(dcu_698_read(MK_OAD(OI_METER_ARCHIVE, 2), &(uint16_t){0}), -1);
     assert_int_equal(dcu_698_read(MK_OAD(OI_METER_ARCHIVE, 3), &(uint16_t){0}), -1);
@@ -162,11 +167,35 @@ static void test_mask_rejects_missing_attr_and_method(void **state) {
     assert_int_equal(dcu_698_call(MK_OMD(oi_5004, 3), NULL, NULL), EDGE_SLAVE_SRC_CLASS_MISMATCH);
     assert_int_equal(dcu_698_call(MK_OMD(oi_5004, 6), NULL, NULL), EDGE_SLAVE_SRC_UNDEFINED);
 
-    assert_int_equal(dcu_698_read(MK_OAD(OI_DISCOVERY_RESULT, 2), &(uint16_t){0}), -1);
-    assert_int_equal(dcu_698_read(MK_OAD(OI_METER_DISCOVERY, 2), &(uint16_t){0}), -1);
+    assert_int_equal(dcu_698_read(MK_OAD(0x6003, 2), &(uint16_t){0}), -1);
+    /* 6002 A2 是结果数组：已广告，但不是标量；A5 是 OI 定义但未广告。 */
+    assert_int_equal(dcu_698_read(MK_OAD(OI_METER_DISCOVERY, 2), &(uint16_t){0}), -2);
+    assert_int_equal(dcu_698_read(MK_OAD(OI_METER_DISCOVERY, 5), &(uint16_t){0}), -1);
 
+    /* 6002 方法 127/128/129 已广告；130 未定义 -> 4，方法 1 类定义未暴露 -> 5。 */
+    assert_int_equal(dcu_698_call(MK_OMD(OI_METER_DISCOVERY, 127), NULL, NULL),
+                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    assert_int_equal(dcu_698_call(MK_OMD(OI_METER_DISCOVERY, 130), NULL, NULL),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+    assert_int_equal(dcu_698_call(MK_OMD(OI_METER_DISCOVERY, 1), NULL, NULL),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_698_call(MK_OMD(OI_METER_DISCOVERY, 200), NULL, NULL),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+    assert_int_equal(dcu_698_call(MK_OMD(0x6003, 1), NULL, NULL), EDGE_SLAVE_SRC_NOT_FOUND);
+
+    dcu_discovery_destroy(&discovery);
     dcu_poller_destroy(&poller);
     dcu_inventory_destroy(&inv);
+}
+
+static void test_discovery_oi_attributes_beyond_class_table(void **state) {
+    (void)state;
+    /* 7.3.11 类表到 A4；6002 的 A5..A10 在表 A.7，仍是标准定义。 */
+    assert_false(dcu_698_class_defines_attr(IC_COLLECTION, 5));
+    assert_true(dcu_698_oi_defines_attr(OI_METER_DISCOVERY, IC_COLLECTION, 5));
+    assert_true(dcu_698_oi_defines_attr(OI_METER_DISCOVERY, IC_COLLECTION, 10));
+    assert_false(dcu_698_oi_defines_attr(OI_METER_DISCOVERY, IC_COLLECTION, 11));
+    assert_false(dcu_698_oi_defines_attr(OI_TASK_SCHEDULER, IC_ACQUISITION, 4));
 }
 
 static void test_dar_classification_by_class_definition(void **state) {
@@ -249,7 +278,7 @@ static void test_task_scheduler_reset_and_add(void **state) {
     dcu_inventory_destroy(&inv);
 }
 
-static void test_discovery_count_is_the_only_exposed_attribute(void **state) {
+static void test_discovery_exposes_results_count_and_status(void **state) {
     (void)state;
     dcu_inventory_t inv;
     dcu_poller_t poller;
@@ -258,6 +287,7 @@ static void test_discovery_count_is_the_only_exposed_attribute(void **state) {
     assert_int_equal(dcu_poller_init(&poller), 0);
     dcu_discovery_init(&discovery);
     discovery.count = 2;
+    discovery.status = DISCOVERY_STATUS_SCANNING;
     router_sink_ops_t sink = {0};
     router_bus_ops_t bus = {0};
     assert_int_equal(
@@ -266,8 +296,16 @@ static void test_discovery_count_is_the_only_exposed_attribute(void **state) {
     uint16_t count = 0;
     assert_int_equal(dcu_698_read(MK_OAD(OI_METER_DISCOVERY, 3), &count), 0);
     assert_int_equal(count, 2);
-    assert_int_equal(dcu_698_read(MK_OAD(OI_METER_DISCOVERY, 2), &(uint16_t){0}), -1);
+    assert_int_equal(dcu_698_read(MK_OAD(OI_METER_DISCOVERY, 6), &count), 0);
+    assert_int_equal(count, 2);
 
+    uint8_t status = 0;
+    assert_int_equal(dcu_698_read(MK_OAD(OI_METER_DISCOVERY, 10), &status), 0);
+    assert_int_equal(status, DISCOVERY_STATUS_SCANNING);
+
+    assert_int_equal(dcu_698_read(MK_OAD(OI_METER_DISCOVERY, 2), &(uint16_t){0}), -2);
+
+    dcu_discovery_destroy(&discovery);
     dcu_poller_destroy(&poller);
     dcu_inventory_destroy(&inv);
 }
@@ -420,6 +458,72 @@ static void test_facade_and_table_api_agree(void **state) {
     dcu_inventory_destroy(&inv);
 }
 
+static void test_discovery_start_completes_on_duration_tick(void **state) {
+    (void)state;
+    dcu_discovery_t disc;
+    dcu_discovery_init(&disc);
+
+    assert_int_equal(dcu_discovery_start(&disc, 1), 0);
+    assert_int_equal(disc.status, DISCOVERY_STATUS_SCANNING);
+
+    dcu_discovery_tick(&disc, disc.started_ms + 59999);
+    assert_int_equal(disc.status, DISCOVERY_STATUS_SCANNING);
+
+    /* 到期：标准只有空闲/搜表中，回到空闲；没有结果时计数为 0。 */
+    dcu_discovery_tick(&disc, disc.started_ms + 60000);
+    assert_int_equal(disc.status, DISCOVERY_STATUS_IDLE);
+    assert_int_equal(disc.count, 0);
+
+    dcu_discovery_destroy(&disc);
+}
+
+static void test_discovery_duplicate_start_is_denied(void **state) {
+    (void)state;
+    dcu_discovery_t disc;
+    dcu_discovery_init(&disc);
+
+    assert_int_equal(dcu_discovery_start(&disc, 5), 0);
+    uint64_t first_started = disc.started_ms;
+    assert_int_equal(dcu_discovery_start(&disc, 10), EDGE_SLAVE_SRC_DENIED);
+    assert_int_equal(disc.duration_min, 5);
+    assert_int_equal(disc.started_ms, first_started);
+    assert_int_equal(disc.status, DISCOVERY_STATUS_SCANNING);
+
+    dcu_discovery_destroy(&disc);
+}
+
+static void test_discovery_duration_zero_has_no_timeout(void **state) {
+    (void)state;
+    dcu_discovery_t disc;
+    dcu_discovery_init(&disc);
+
+    /* 0 = 不限时间直至搜表结束；没有扫描引擎宣告结束，保持搜表中。 */
+    assert_int_equal(dcu_discovery_start(&disc, 0), 0);
+    dcu_discovery_tick(&disc, disc.started_ms + 365ULL * 24 * 60 * 60000);
+    assert_int_equal(disc.status, DISCOVERY_STATUS_SCANNING);
+
+    dcu_discovery_destroy(&disc);
+}
+
+static void test_discovery_clear_and_restart_with_no_results(void **state) {
+    (void)state;
+    dcu_discovery_t disc;
+    dcu_discovery_init(&disc);
+
+    disc.count = 5;
+    dcu_discovery_clear(&disc);
+    assert_int_equal(disc.count, 0);
+
+    assert_int_equal(dcu_discovery_start(&disc, 1), 0);
+    dcu_discovery_tick(&disc, disc.started_ms + 60000);
+    assert_int_equal(disc.status, DISCOVERY_STATUS_IDLE);
+    assert_int_equal(dcu_discovery_start(&disc, 1), 0);
+    assert_int_equal(disc.status, DISCOVERY_STATUS_SCANNING);
+    assert_int_equal(disc.count, 0);
+
+    dcu_discovery_destroy(&disc);
+}
+
 static void test_reset_returns_to_uninitialized(void **state) {
     (void)state;
     dcu_inventory_t inv;
@@ -441,8 +545,10 @@ int main(void) {
                                         teardown),
         cmocka_unit_test_setup_teardown(test_mask_bitmap_supports_wide_ids, setup, teardown),
         cmocka_unit_test_setup_teardown(test_mask_rejects_missing_attr_and_method, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_discovery_oi_attributes_beyond_class_table, setup,
+                                        teardown),
         cmocka_unit_test_setup_teardown(test_task_scheduler_reset_and_add, setup, teardown),
-        cmocka_unit_test_setup_teardown(test_discovery_count_is_the_only_exposed_attribute, setup,
+        cmocka_unit_test_setup_teardown(test_discovery_exposes_results_count_and_status, setup,
                                         teardown),
         cmocka_unit_test_setup_teardown(test_dar_classification_by_class_definition, setup,
                                         teardown),
@@ -453,6 +559,10 @@ int main(void) {
                                         teardown),
         cmocka_unit_test_setup_teardown(test_event_method1_resets_records, setup, teardown),
         cmocka_unit_test_setup_teardown(test_facade_and_table_api_agree, setup, teardown),
+        cmocka_unit_test(test_discovery_start_completes_on_duration_tick),
+        cmocka_unit_test(test_discovery_duplicate_start_is_denied),
+        cmocka_unit_test(test_discovery_duration_zero_has_no_timeout),
+        cmocka_unit_test(test_discovery_clear_and_restart_with_no_results),
         cmocka_unit_test_setup_teardown(test_reset_returns_to_uninitialized, setup, teardown),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);

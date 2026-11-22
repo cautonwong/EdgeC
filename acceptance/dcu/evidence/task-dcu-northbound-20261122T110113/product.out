@@ -1,0 +1,146 @@
+产品二进制：/tmp/dcu-d2-09/build/products/dcu/bin/dcu（编译于 2026-11-22 18:57:05，3245120 字节）
+[2026-11-22 11:01:15][INFO][SCHED] 🚀 Starting EdgeC DCU (Series 6xxx) - Digital Twin Marathon
+[2026-11-22 11:01:15][WARN][SCHED] datahub_capacity=32768 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-22 11:01:15][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 2052 KB)
+ [Metrics] Registered: Tag=12001, Name=datahub.ring.watermark
+ [Metrics] Registered: Tag=12002, Name=datahub.ring.drop_count
+ [Metrics] Registered: Tag=12003, Name=datahub.ring.read_latency
+ [Metrics] Registered: Tag=12004, Name=datahub.shadow.write_count
+[2026-11-22 11:01:15][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 40)
+[2026-11-22 11:01:15][INFO][SCHED] 📖 [ARCHIVE] Loaded 40 meters from Digital Twin database.
+[2026-11-22 11:01:15][INFO][IO] Registered Protocol Template: ModbusRTU
+[2026-11-22 11:01:15][INFO][IO] Registered Protocol Template: DLT645
+[2026-11-22 11:01:15][INFO][IO] Registered Protocol Template: DLT698
+🔗 [ORCHESTRATOR] Bus 22: Early-Attached IO 0x55687b7e4980 to Engine 0x55687b80be20
+[2026-11-22 11:01:15][INFO][BUS] Bus 22: Physical I/O attached (Type: 0)
+🔗 [ORCHESTRATOR] Bus 23: Early-Attached IO 0x55687b7ecbe0 to Engine 0x55687b80dfe0
+[2026-11-22 11:01:15][INFO][BUS] Bus 23: Physical I/O attached (Type: 0)
+🔗 [ORCHESTRATOR] Bus 24: Early-Attached IO 0x55687b7ef060 to Engine 0x55687b7ecd60
+[2026-11-22 11:01:15][INFO][BUS] Bus 24: Physical I/O attached (Type: 0)
+🔗 [ORCHESTRATOR] Bus 25: Early-Attached IO 0x55687b7f14e0 to Engine 0x55687b7ef1e0
+[2026-11-22 11:01:15][INFO][BUS] Bus 25: Physical I/O attached (Type: 0)
+🔗 [ORCHESTRATOR] Bus 26: Early-Attached IO 0x55687b7f3960 to Engine 0x55687b7f1660
+[2026-11-22 11:01:15][INFO][BUS] Bus 26: Physical I/O attached (Type: 0)
+🔗 [ORCHESTRATOR] Bus 27: Early-Attached IO 0x55687b7f3c90 to Engine 0x55687b7f3ae0
+[2026-11-22 11:01:15][INFO][BUS] Bus 27: Physical I/O attached (Type: 0)
+🔗 [ORCHESTRATOR] Bus 28: Early-Attached IO 0x55687b7f3fc0 to Engine 0x55687b7f3e10
+[2026-11-22 11:01:15][INFO][BUS] Bus 28: Physical I/O attached (Type: 0)
+🔗 [ORCHESTRATOR] Bus 29: Early-Attached IO 0x55687b7f42f0 to Engine 0x55687b7f4140
+[2026-11-22 11:01:15][INFO][BUS] Bus 29: Physical I/O attached (Type: 0)
+🔗 [ORCHESTRATOR] Bus 30: Early-Attached IO 0x55687b7f4620 to Engine 0x55687b7f4470
+[2026-11-22 11:01:15][INFO][BUS] Bus 30: Physical I/O attached (Type: 0)
+🔗 [ORCHESTRATOR] Bus 31: Early-Attached IO 0x55687b7ff030 to Engine 0x55687b7f47a0
+[2026-11-22 11:01:15][INFO][BUS] Bus 31: Physical I/O attached (Type: 0)
+[2026-11-22 11:01:15][INFO][IO] Session Created: DLT698:1 (Total: 1)
+[2026-11-22 11:01:15][INFO][NB] DCU northbound: 698 slave listening at /tmp/dcu_north_slave.sock
+[2026-11-22 11:01:15][INFO][NB] Northbound: transport #1 attached (1 total)
+[2026-11-22 11:01:15][INFO][NB] Northbound: address template 'spBv1.0/{group}/{kind}/{node}' -> 'spBv1.0/EdgeOS/NDATA/DCU_Node_A'
+[2026-11-22 11:01:15][ERROR][NB] [PRODUCER] MQTT connect failed (code -1).
+[2026-11-22 11:01:15][INFO][NB] Northbound: source port attached (peek=yes name=yes downlink=yes)
+[2026-11-22 11:01:15][INFO][NB] 🌐 Northbound assembled: broker=tcp://127.0.0.1:1883 group=EdgeOS node=DCU_Node_A
+[2026-11-22 11:01:15][INFO][CORE] WASM: Secure Runtime initialized
+[2026-11-22 11:01:15][INFO][CORE] DCU Node started with polling interval 5000 ms
+[2026-11-22 11:01:15][INFO][IO] Registered Protocol Template: SparkplugB
+[2026-11-22 11:01:15][INFO][IO] Session Created: DLT645:0 (Total: 1)
+[2026-11-22 11:01:15][INFO][IO] Session Created: DLT645:4 (Total: 1)
+[2026-11-22 11:01:15][INFO][NB] Northbound: event-driven drain enabled (poll fallback 500ms)
+[2026-11-22 11:01:15][INFO][IO] Session Created: DLT645:8 (Total: 1)
+[2026-11-22 11:01:15][INFO][IO] Session Created: DLT645:12 (Total: 1)
+[2026-11-22 11:01:15][INFO][IO] Session Created: DLT645:16 (Total: 1)
+[2026-11-22 11:01:15][INFO][IO] Session Created: DLT645:20 (Total: 1)
+[2026-11-22 11:01:15][INFO][IO] Session Created: DLT645:24 (Total: 1)
+[2026-11-22 11:01:15][INFO][IO] Session Created: DLT645:28 (Total: 1)
+[2026-11-22 11:01:15][INFO][IO] Session Created: DLT645:32 (Total: 1)
+[2026-11-22 11:01:15][INFO][IO] Session Created: DLT645:36 (Total: 1)
+[2026-11-22 11:01:16][INFO][NB] Northbound: downlink subscribed on 'spBv1.0/EdgeOS/NCMD/DCU_Node_A'
+[2026-11-22 11:01:16][INFO][IO] Session Created: DLT645:1 (Total: 2)
+[2026-11-22 11:01:16][INFO][IO] Session Created: DLT645:5 (Total: 2)
+[2026-11-22 11:01:16][INFO][IO] Session Created: DLT645:9 (Total: 2)
+[2026-11-22 11:01:16][INFO][IO] Session Created: DLT645:13 (Total: 2)
+[2026-11-22 11:01:16][INFO][IO] Session Created: DLT645:17 (Total: 2)
+[2026-11-22 11:01:16][INFO][IO] Session Created: DLT645:21 (Total: 2)
+[2026-11-22 11:01:16][INFO][IO] Session Created: DLT645:25 (Total: 2)
+[2026-11-22 11:01:16][INFO][IO] Session Created: DLT645:29 (Total: 2)
+[2026-11-22 11:01:16][INFO][IO] Session Created: DLT645:33 (Total: 2)
+[2026-11-22 11:01:16][INFO][IO] Session Created: DLT645:37 (Total: 2)
+[2026-11-22 11:01:17][INFO][BUS] 🏁 [TEST] Triggering demo relay control for Meter 10000001...
+[2026-11-22 11:01:17][INFO][CORE] DCU Control: 645 控制帧已下发 meter=000000000001 ch=22 cmd=1A(1A跳闸/1B合闸允许)
+[2026-11-22 11:01:17][INFO][IO] Session Created: DLT645:6 (Total: 3)
+[2026-11-22 11:01:17][INFO][IO] Session Created: DLT645:10 (Total: 3)
+[2026-11-22 11:01:17][INFO][IO] Session Created: DLT645:14 (Total: 3)
+[2026-11-22 11:01:17][INFO][IO] Session Created: DLT645:18 (Total: 3)
+[2026-11-22 11:01:17][INFO][IO] Session Created: DLT645:22 (Total: 3)
+[2026-11-22 11:01:17][INFO][IO] Session Created: DLT645:26 (Total: 3)
+[2026-11-22 11:01:17][INFO][IO] Session Created: DLT645:30 (Total: 3)
+[2026-11-22 11:01:17][INFO][IO] Session Created: DLT645:34 (Total: 3)
+[2026-11-22 11:01:17][INFO][IO] Session Created: DLT645:38 (Total: 3)
+[2026-11-22 11:01:17][INFO][IO] Session Created: DLT645:2 (Total: 3)
+[2026-11-22 11:01:18][INFO][IO] Session Created: DLT645:7 (Total: 4)
+[2026-11-22 11:01:18][INFO][IO] Session Created: DLT645:11 (Total: 4)
+[2026-11-22 11:01:18][INFO][IO] Session Created: DLT645:15 (Total: 4)
+[2026-11-22 11:01:18][INFO][IO] Session Created: DLT645:19 (Total: 4)
+[2026-11-22 11:01:18][INFO][IO] Session Created: DLT645:23 (Total: 4)
+[2026-11-22 11:01:18][INFO][IO] Session Created: DLT645:27 (Total: 4)
+[2026-11-22 11:01:18][INFO][IO] Session Created: DLT645:31 (Total: 4)
+[2026-11-22 11:01:18][INFO][IO] Session Created: DLT645:35 (Total: 4)
+[2026-11-22 11:01:18][INFO][IO] Session Created: DLT645:39 (Total: 4)
+[2026-11-22 11:01:18][INFO][IO] Session Created: DLT645:3 (Total: 4)
+[2026-11-22 11:01:20][INFO][SCHED] 💓 [HEARTBEAT] Cycle 1 completed (saved=0)
+[2026-11-22 11:01:25][INFO][SCHED] 💓 [HEARTBEAT] Cycle 2 completed (saved=0)
+[SRC-ERR] reason=read-fail meter=39 tag=20040400 extra=-2
+[2026-11-22 11:01:30][INFO][SCHED] 💓 [HEARTBEAT] Cycle 3 completed (saved=0)
+[SRC-ERR] reason=read-fail meter=0 tag=00100200 extra=-2
+[2026-11-22 11:01:35][INFO][SCHED] 💓 [HEARTBEAT] Cycle 4 completed (saved=0)
+[SRC-ERR] reason=read-fail meter=0 tag=00100200 extra=-2
+[2026-11-22 11:01:40][INFO][SCHED] 💓 [HEARTBEAT] Cycle 5 completed (saved=0)
+[SRC-ERR] reason=read-fail meter=0 tag=00100200 extra=-2
+[2026-11-22 11:01:45][INFO][SCHED] 💓 [HEARTBEAT] Cycle 6 completed (saved=0)
+[SRC-ERR] reason=read-fail meter=0 tag=00100200 extra=-2
+[2026-11-22 11:01:45][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000004 (ch 22) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:45][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000008 (ch 23) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:45][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000012 (ch 24) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:45][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000016 (ch 25) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:45][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000020 (ch 26) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:45][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000024 (ch 27) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:45][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000028 (ch 28) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:45][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000032 (ch 29) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:45][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000036 (ch 30) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:45][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000040 (ch 31) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][INFO][SCHED] 💓 [HEARTBEAT] Cycle 7 completed (saved=0)
+[SRC-ERR] reason=read-fail meter=0 tag=00100200 extra=-2
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000001 (ch 22) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000005 (ch 23) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000009 (ch 24) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000013 (ch 25) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000017 (ch 26) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000021 (ch 27) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000025 (ch 28) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000029 (ch 29) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000033 (ch 30) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000037 (ch 31) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000002 (ch 22) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000006 (ch 23) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000010 (ch 24) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000014 (ch 25) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000018 (ch 26) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000022 (ch 27) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000026 (ch 28) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000030 (ch 29) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000034 (ch 30) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000038 (ch 31) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000003 (ch 22) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000007 (ch 23) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000011 (ch 24) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000015 (ch 25) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000019 (ch 26) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000023 (ch 27) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000027 (ch 28) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000031 (ch 29) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000035 (ch 30) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:50][ERROR][IO] 🚨 [DCU-Poller] Meter 000000000039 (ch 31) circuit breaker tripped (fails: 5 >= threshold: 5)
+[2026-11-22 11:01:55][INFO][SCHED] 💓 [HEARTBEAT] Cycle 8 completed (saved=0)
+[2026-11-22 11:02:00][INFO][SCHED] 💓 [HEARTBEAT] Cycle 9 completed (saved=0)
+[2026-11-22 11:02:05][INFO][SCHED] 💓 [HEARTBEAT] Cycle 10 completed (saved=0)
+[2026-11-22 11:02:10][INFO][SCHED] 💓 [HEARTBEAT] Cycle 11 completed (saved=0)
+[2026-11-22 11:02:15][INFO][SCHED] 🏁 [SAFETY] Timeout reached, initiating clean shutdown...
+[2026-11-22 11:02:15][INFO][CORE] DCU Node stopped successfully

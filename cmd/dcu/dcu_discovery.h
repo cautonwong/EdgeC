@@ -5,47 +5,49 @@
 #include <stdint.h>
 #include <uv.h>
 
-#define MAX_DISCOVERED_METERS 16
-#define DISCOVERY_ADDR_LEN 32
-
-typedef enum {
-    DISCOVERY_STATUS_IDLE = 0,      // 空闲状态
-    DISCOVERY_STATUS_SCANNING = 1,  // 正在扫描下行物理总线中
-    DISCOVERY_STATUS_COMPLETED = 2  // 扫描完成
-} discovery_status_t;
+/**
+ * @brief 搜表状态（表 A.7 6002 属性 10 的枚举，只有空闲/搜表中两种）。
+ *
+ * 标准没有"已完成"状态：搜表时长到期即回到空闲，计数保留到方法 128 清空。
+ */
+typedef enum { DISCOVERY_STATUS_IDLE = 0, DISCOVERY_STATUS_SCANNING = 1 } discovery_status_t;
 
 /**
- * @brief 自动搜表发现业务管理器 (OI 6002/6003 核心模型)
+ * @brief 自动搜表业务管理器 (OI 6002)
+ *
+ * 产品没有下行搜表驱动（没有广播/地址段扫描实现），因此结果集只能为空；
+ * 本结构只维护标准要求的状态与计数，不伪造搜到的 TSA。
  */
 typedef struct {
-    uint8_t status;  // 当前搜表状态 (discovery_status_t)
-    char discovered_tsas[MAX_DISCOVERED_METERS]
-                        [DISCOVERY_ADDR_LEN];  // 发现的未登记电表 TSA 物理地址数组
-    uint16_t count;                            // 搜出的新表数量
-    uv_mutex_t lock;                           // 线程安全互斥锁
+    uint8_t status;         // 当前搜表状态 (discovery_status_t)
+    uint32_t duration_min;  // 本次搜表时长（分钟，方法 127 参数）；0 = 不限时间
+    uint64_t started_ms;    // 启动时刻，单调毫秒（uv_hrtime/1e6）
+    uint16_t count;         // 搜表结果记录数（A3/A6）；无扫描驱动时恒为 0
+    uv_mutex_t lock;
 } dcu_discovery_t;
 
-/**
- * @brief 初始化自动搜表模块
- */
 void dcu_discovery_init(dcu_discovery_t* disc);
 
 /**
- * @brief 启动自动/物理搜表方法 127 (Start Discovery)
- * @param duration_sec 搜表持续时间 (秒)
- * @return 0 成功，负数失败
+ * @brief 实时启动搜表（表 A.7 6002 方法 127）
+ * @param duration_min 搜表时长，单位分钟；0 表示不限时间直至搜表结束
+ * @return 0 成功；EDGE_SLAVE_SRC_DENIED 表示已在搜表中，拒绝第二次启动
  */
-int dcu_discovery_start(dcu_discovery_t* disc, uint32_t duration_sec);
+int dcu_discovery_start(dcu_discovery_t* disc, uint32_t duration_min);
 
 /**
- * @brief 模拟搜表后台物理扫描帧捕获 (在任务循环或管线中触发)
- * 扫描并搜出新的表计 TSA 物理地址，写入搜表结果
+ * @brief 清空搜表结果（表 A.7 6002 方法 128）
  */
-void dcu_discovery_tick_simulate(dcu_discovery_t* disc);
+void dcu_discovery_clear(dcu_discovery_t* disc);
 
 /**
- * @brief 销毁搜表管理器
+ * @brief 搜表状态推进（由现有轮询定时器路径 `dcu_node_pump()` 调用）
+ * @param now_ms 单调毫秒时刻；时长到期后状态回到空闲
  */
+void dcu_discovery_tick(dcu_discovery_t* disc, uint64_t now_ms);
+
+void dcu_discovery_snapshot(dcu_discovery_t* disc, uint8_t* out_status, uint16_t* out_count);
+
 void dcu_discovery_destroy(dcu_discovery_t* disc);
 
 #endif  // DCU_DISCOVERY_H

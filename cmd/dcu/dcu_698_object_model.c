@@ -128,13 +128,13 @@ static dcu_698_object_t g_objects[] = {
     {.oi = OI_CHANNEL_CONFIG, .class_id = IC_PERIPHERAL, .scope = DCU_OBJ_SINGLETON},
 
     {.oi = OI_METER_DISCOVERY,
-     .class_id = IC_ACQUISITION,
+     .class_id = IC_COLLECTION,
      .scope = DCU_OBJ_SINGLETON,
      .read = dcu_698_acq_6002_read,
      .method = dcu_698_acq_6002_execute,
-     .attr_mask = {[BYTE(3)] = BIT(3)},
-     .method_mask = {[BYTE(127)] = BIT(127)}},
-    {.oi = OI_DISCOVERY_RESULT, .class_id = IC_ACQUISITION, .scope = DCU_OBJ_SINGLETON},
+     /* A2 结果数组、A3 当前元素个数、A6 记录数、A10 空闲/搜表中。 */
+     .attr_mask = {[BYTE(2)] = BIT(2) | BIT(3) | BIT(6), [BYTE(10)] = BIT(10)},
+     .method_mask = {[BYTE(127)] = BIT(127), [BYTE(128)] = BIT(128) | BIT(129)}},
 
     {.oi = OI_VOLTAGE_DROP,
      .class_id = IC_SUB_EVENT,
@@ -194,7 +194,6 @@ int dcu_698_object_model_init(dcu_inventory_t *inv, dcu_poller_t *poller,
     _set_instance(OI_NORMAL_SCHEME, poller);
     _set_instance(OI_ESAM_SECURITY, esam);
     _set_instance(OI_METER_DISCOVERY, discovery);
-    _set_instance(OI_DISCOVERY_RESULT, discovery);
     _set_instance(OI_VOLTAGE_DROP, evt_3000);
     _set_instance(OI_OVER_CURRENT, evt_3005);
     return 0;
@@ -246,6 +245,24 @@ bool dcu_698_class_defines_attr(uint8_t class_id, uint8_t attr_id) {
     return false;
 }
 
+/* 附录 A 的实例属性上限：7.3 类表没有这些号，但它们仍由标准为该 OI 定义。
+ * 6002 的 A5..A10 在表 A.7，不在 7.3.11。 */
+static const struct {
+    uint16_t oi;
+    uint8_t max_attr;
+} k_oi_max_attr[] = {
+    {OI_METER_DISCOVERY, 10},
+};
+
+bool dcu_698_oi_defines_attr(uint16_t oi, uint8_t class_id, uint8_t attr_id) {
+    if (dcu_698_class_defines_attr(class_id, attr_id)) return true;
+    if (attr_id == 0) return false;
+    for (size_t i = 0; i < sizeof(k_oi_max_attr) / sizeof(k_oi_max_attr[0]); i++) {
+        if (k_oi_max_attr[i].oi == oi) return attr_id <= k_oi_max_attr[i].max_attr;
+    }
+    return false;
+}
+
 /* 附录 A 各接口类自身方法号的上限（OCI 专属的 127+ 方法另算）。 */
 static const struct {
     uint8_t class_id;
@@ -264,6 +281,7 @@ static bool _class_defines_method(uint8_t class_id, uint16_t oi, uint8_t method_
         return true;
     }
     if (oi == OI_METER_ARCHIVE && method_id >= 127 && method_id <= 134) return true;
+    if (oi == OI_METER_DISCOVERY && method_id >= 127 && method_id <= 129) return true;
     if (oi == OI_TASK_SCHEDULER && method_id >= 127 && method_id <= 130) return true;
     for (size_t i = 0; i < sizeof(k_class_max_method) / sizeof(k_class_max_method[0]); i++) {
         if (k_class_max_method[i].class_id == class_id) {

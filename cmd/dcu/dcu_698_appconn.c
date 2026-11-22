@@ -41,8 +41,7 @@ static const acl_attr_t k_attrs_6012[] = {{2, 1}};
 static const acl_attr_t k_attrs_6013[] = {{2, 1}};
 static const acl_attr_t k_attrs_6014[] = {{2, 1}};
 static const acl_attr_t k_attrs_6015[] = {{2, 1}};
-static const acl_attr_t k_attrs_6002[] = {{2, 1}, {3, 1}};
-static const acl_attr_t k_attrs_6003[] = {{2, 1}};
+static const acl_attr_t k_attrs_6002[] = {{2, 1}, {3, 1}, {6, 1}, {10, 1}};
 static const acl_attr_t k_attrs_f200[] = {{2, 1}, {3, 1}, {4, 3}};
 static const acl_attr_t k_attrs_4000[] = {{2, 3}, {3, 3}, {4, 3}};
 static const acl_attr_t k_attrs_param[] = {{2, 3}};
@@ -53,6 +52,7 @@ static const acl_attr_t k_attrs_harmonic[] = {{1, 1}, {2, 1}, {3, 1}, {4, 1}, {5
 static const uint8_t k_methods_reset_exec[] = {1, 2};
 static const uint8_t k_methods_8000[] = {127, 128, 129, 130, 131};
 static const uint8_t k_methods_6000[] = {127, 128, 129, 130, 131, 132, 133, 134};
+static const uint8_t k_methods_6002[] = {127, 128, 129};
 static const uint8_t k_methods_6012[] = {1, 127, 128, 129, 130};
 static const uint8_t k_methods_6014[] = {127, 128, 129, 130};
 
@@ -63,7 +63,7 @@ static const acl_object_t k_objects[] = {
     {0x200F, k_attrs_200F, 2, NULL, 0},           {0x3000, k_attrs_event, 11, NULL, 0},
     {0x3005, k_attrs_event, 11, NULL, 0},         {0x5004, k_attrs_5004, 1, NULL, 0},
     {0x6000, k_attrs_6000, 1, k_methods_6000, 8}, {0x6001, k_attrs_6001, 1, NULL, 0},
-    {0x6002, k_attrs_6002, 2, NULL, 0},           {0x6003, k_attrs_6003, 1, NULL, 0},
+    {0x6002, k_attrs_6002, 4, k_methods_6002, 3},
     {0x6012, k_attrs_6012, 1, k_methods_6012, 5}, {0x6013, k_attrs_6013, 1, NULL, 0},
     {0x6014, k_attrs_6014, 1, k_methods_6014, 4}, {0x6015, k_attrs_6015, 1, NULL, 0},
     {0x1010, k_attrs_demand, 3, k_methods_reset_exec, 2},

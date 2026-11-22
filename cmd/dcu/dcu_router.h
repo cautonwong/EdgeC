@@ -29,7 +29,7 @@
 #define IC_PARAM 8          // 参数变量接口类（如 6001 采集档案配置单元）
 #define IC_RECORD 9         // 记录/冻结数据接口类 (如日冻结 5004)
 #define IC_ACQUISITION 10   // 采集监控接口类 (如 6000 档案, 6012 任务)
-#define IC_COLLECTION 11    // 集合接口类 (如 6014 普通采集方案集)
+#define IC_COLLECTION 11    // 集合接口类 (如 6014 普通采集方案集, 6002 搜表)
 #define IC_CONTROL 13       // 控制/继电器动作类 (如 8000 远程拉合闸)
 #define IC_ESAM 21          // ESAM 接口类 (F100)
 #define IC_PERIPHERAL 22    // 输入输出设备接口类 (F200 串口)
@@ -73,8 +73,7 @@
 #define OI_TASK_UNIT 0x6013         // 任务配置单元 OI（标准 A.7，IC 8）
 #define OI_NORMAL_SCHEME 0x6014     // 普通采集方案集 OI（标准 A.7，IC 11）
 #define OI_NORMAL_SCHEME_UNIT 0x6015 // 普通采集方案 OI（标准 A.7，IC 8）
-#define OI_METER_DISCOVERY 0x6002   // 搜表发现控制器 OI
-#define OI_DISCOVERY_RESULT 0x6003  // 搜表结果表 OI
+#define OI_METER_DISCOVERY 0x6002   // 搜表（Class 11 集合对象）
 #define OI_REMOTE_CONTROL 0x8000    // 远程拉闸动作控制 OI
 #define OI_ESAM_SECURITY 0xF100     // ESAM 北向鉴权加密芯片 OI
 #define OI_CHANNEL_CONFIG 0xF200    // 外设串口信道物理配置 OI

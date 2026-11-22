@@ -165,14 +165,11 @@ typedef struct {
 } scalar_desc_t;
 
 static const scalar_desc_t k_scalars[] = {
-    {OI_METER_DISCOVERY, 3, VK_U16},
-    {OI_CHANNEL_CONFIG, 2, VK_U32},
-    {OI_CHANNEL_CONFIG, 3, VK_U8},
-    {OI_VOLTAGE_DROP, 4, VK_U16},
-    {OI_VOLTAGE_DROP, 11, VK_ENUM},
-    {OI_VOLTAGE_DROP, 12, VK_BOOL},
-    {OI_OVER_CURRENT, 4, VK_U16},
-    {OI_OVER_CURRENT, 11, VK_ENUM},
+    {OI_METER_DISCOVERY, 3, VK_U16},   {OI_METER_DISCOVERY, 6, VK_U16},
+    {OI_METER_DISCOVERY, 10, VK_ENUM}, {OI_CHANNEL_CONFIG, 2, VK_U32},
+    {OI_CHANNEL_CONFIG, 3, VK_U8},     {OI_VOLTAGE_DROP, 4, VK_U16},
+    {OI_VOLTAGE_DROP, 11, VK_ENUM},    {OI_VOLTAGE_DROP, 12, VK_BOOL},
+    {OI_OVER_CURRENT, 4, VK_U16},      {OI_OVER_CURRENT, 11, VK_ENUM},
     {OI_OVER_CURRENT, 12, VK_BOOL},
 };
 
@@ -318,9 +315,9 @@ int dcu_698_var_encode_axdr(uint32_t oad, uint8_t *buf, size_t cap, size_t *len)
 }
 
 static int _unadvertised_attr_rc(const dcu_698_object_t *obj, uint8_t attr_id) {
-    /* 类定义了但对象没有声明 → 类不匹配（DAR 5）；类里没有这个属性号 → 未定义（DAR 4）。 */
-    return dcu_698_class_defines_attr(obj->class_id, attr_id) ? EDGE_SLAVE_SRC_CLASS_MISMATCH
-                                                              : EDGE_SLAVE_SRC_UNDEFINED;
+    /* 类/OI 定义了但对象没有声明 → 类不匹配（DAR 5）；都没定义 → 未定义（DAR 4）。 */
+    return dcu_698_oi_defines_attr(obj->oi, obj->class_id, attr_id) ? EDGE_SLAVE_SRC_CLASS_MISMATCH
+                                                                    : EDGE_SLAVE_SRC_UNDEFINED;
 }
 
 int dcu_698_value_for_oad(uint32_t oad, dcu_value_t *out) {

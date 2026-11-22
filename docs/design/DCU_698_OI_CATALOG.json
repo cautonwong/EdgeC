@@ -4809,14 +4809,14 @@
    "oi": "6002",
    "name": "搜表     属性   2（所有搜表结果）∷=array     一个搜表结果",
    "parsed_class": 11,
-   "inferred_class": 10,
+   "inferred_class": 11,
    "source_line": 8219
   },
   {
    "oi": "6003",
    "name": "一个搜表结果     一个搜表结果∷=structure",
    "parsed_class": 8,
-   "inferred_class": 10,
+   "inferred_class": 8,
    "source_line": 8255
   },
   {
