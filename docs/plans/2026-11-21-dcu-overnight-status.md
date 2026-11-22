@@ -121,6 +121,9 @@ and `./test.sh --omnis dcu`.
 | D1-08 | `c291f3e7` | empty list legal, mixed per-item DAR, duplicate OAD |
 | D0-10 | `28b0363f` | atomic `bus.json` write and concurrent-read guard |
 | D1-06 | `9a7fb7f9` | A.9 ACTION params decoded; relay methods honestly DAR 2 |
+| D1-14a | `e2ce657d` | big-endian reads no longer signed-shift UB |
+| D1-17 | `5494f506` | Class 20 session and object-list ACL |
+| D1-01 | `ceb6a576` | 79 catalog class conflicts reconciled, gate added |
 
 Plus `chore(ci)` budget refreshes (`72394924`, `57846715`) and the plan/status doc commits.
 
@@ -134,9 +137,18 @@ the product defines a relay OAD → meter/DO mapping. Nothing else is left unmer
   and adds a concurrent-read guard; it is the fix, not a test skip.
 
 **Remaining work.**
-- D1-06 follow-up: product decision on relay OAD mapping, then 129/130/131 can execute.
+- D1-06 follow-up: product decision on the relay OAD mapping, then 129/130/131 can execute.
+- D1-18a variable-class standard shapes, then D1-18b/c/d for events, records/acquisition, control.
 - D1-07 record storage wiring; D1-11 four-service acceptance.
-- D1-01: 79 OCR class conflicts, including 8000 (Table A.9 says class 8, catalog infers 13).
+- D6-08a TSAN lock-order; then D6-08 needs ASAN/UBSAN/TSAN full clean.
+
+**OAD soundness audit (2026-11-22).** `docs/design/DCU_698_OAD_STATUS.md` covers all
+56 advertised attribute/method bits. Result: 0 real, 37 partial, 12 stub, 3 unimplemented,
+4 masked-but-undefined. Main causes: variable classes return scalars with wrong integer types
+and no scaling; OAD element index is ignored for meter/phase selection; 3000/3005 advertise
+Class 7 attribute numbers on Class 24 objects; 5004/6000/6012/F200 advertise semantics they do
+not implement. D1-18a/b/c/d is the fix queue; D1-18a is in flight.
+
 - P2–P5 blocked on the COM components (plan §11.3 B6); P6 hardware bench is out of scope.
 - Known gaps: F200 attribute semantics, 3000/3005 Class 7-style masks, generator line window,
   per-class A.7 method maxima, test-platform parser rejects per-item DAR and empty lists.
