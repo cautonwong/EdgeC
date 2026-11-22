@@ -254,8 +254,6 @@ int dcu_698_accept_action_axdr(uint32_t omd, const uint8_t *axdr, size_t axdr_le
     uint16_t oi = (uint16_t)(omd >> 16);
     uint8_t method = (uint8_t)((omd >> 8) & 0xFF);
     if (oi == OI_TASK_SCHEDULER && method == 1) {
-        /* Class 10 复位无参数：线上就是一个 NULL，可选再跟一个 0x00 无时标；
-         * 带真实 TimeTag 的帧不做时效判定，按 DAR 7 拒绝。 */
         if (!axdr || axdr[0] != DLT698_TAG_NULL || !_time_tag_absent(axdr, 1, axdr_len))
             return EDGE_SLAVE_SRC_TYPE_MISMATCH;
         return dcu_698_call(omd, NULL, NULL);
@@ -468,7 +466,6 @@ int dcu_698_decode_action_param(uint8_t method, const uint8_t* buf, size_t len,
     if (dlt698_decode_data(buf, (uint16_t)len, &off, &d) != 0) {
         return EDGE_SLAVE_SRC_TYPE_MISMATCH;
     }
-    /* ACTION-Request 的 Data 后可以没有时间标签，或是一个 0x00（无时标）。 */
     if (!_time_tag_absent(buf, off, len)) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
 
     if (method == DCU_ACTION_METHOD_FIRST || method == DCU_ACTION_METHOD_FIRST + 1) {

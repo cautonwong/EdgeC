@@ -55,7 +55,7 @@ int dcu_north_resolve_scalar(void* ctx, uint32_t oad, const void* desc, size_t d
     return 0;
 }
 
-/* 6000 A.7 档案；6012 A2 解码；其余 OI 原始 A-XDR 交对象表，8000 129–131 无映射回 DAR 2。 */
+/* 6000 按 A.7 档案方法解码，6012 按 A2 任务方案解码。 */
 int dcu_north_accept_action(void* ctx, uint32_t omd, const uint8_t* axdr, size_t axdr_len) {
     (void)ctx;
     uint16_t oi = (uint16_t)(omd >> 16);

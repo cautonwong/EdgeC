@@ -106,3 +106,12 @@ $ git clang-format --binary clang-format-14 --diff
 说明：整个文件用 clang-format 14 重排会与仓库既有代码产生大量无关差异（基线文件
 本身不是 14.0 的 clean 状态，DCU-D0-03 已有同样结论）。本次只格式化本单新增/修改
 的行，未整文件重排以免扩大 diff。
+
+## verifier re-run 2026-11-22 on 8f9a6a69 + comment trims, base 2b7bf199
+clean build: rc 0, 0 warning/error lines
+check_build_warnings.py: rc 0, no new violations
+full ctest: 340/340 passed
+ASAN build: rc 0; targeted suite (test_dcu_698*, test_driver_dlt698, test_dcu_north*): 12/12 passed
+run_guard_selftest.py: rc 0, all LIVE_PASS
+./test.sh --omnis dcu: exit 0, dcu-acceptance 3 passed, dcu-northbound 19 passed, 2/2 tasks
+no-comments: 4 deletions, 4 trims (see comments.md)

@@ -435,7 +435,7 @@ static int test_object_list(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, s
 }
 
 /* 只给 ACTION 路由用例用的 ACL：放行 5004 方法 3、6012 方法 1/127、未知 OI 9999 方法 1，
- * 让请求越过 ACL 到达适配器/对象表，单独验证适配器不再一刀切 NOT_FOUND。 */
+ * 让请求越过 ACL 到达适配器/对象表。 */
 static const uint8_t k_routing_acl[] = {
     0x01, 0x03, 0x02, 0x02, 0x50, 0x50, 0x04, 0x02, 0x02, 0x01, 0x00, 0x01, 0x01, 0x02, 0x02,
     0x11, 0x03, 0x03, 0x01, 0x02, 0x02, 0x50, 0x60, 0x12, 0x02, 0x02, 0x01, 0x00, 0x01, 0x02,
@@ -1291,11 +1291,10 @@ static void test_action_rejects_other_methods_and_trailing_bytes(void **state) {
     assert_action_dar(127, ti_present, sizeof(ti_present), DLT698_DAR_TYPE_MISMATCH);
 }
 
-/* 非 8000 ACTION 走对象表：类定义但未暴露 -> CLASS_MISMATCH -> DAR 5（不是适配器的一刀切 6）。 */
 static void test_action_non8000_class_defined_unexposed_dar5(void **state) {
     (void)state;
     const uint8_t null_param[] = {0x00};
-    /* 5004 方法 3：Class 9 定义，D1-18e 起不暴露。 */
+    /* 5004 方法 3：Class 9 定义。 */
     assert_int_equal(
         run_action_dar_omd_acl(((uint32_t)0x5004 << 16) | (3u << 8), null_param,
                                sizeof(null_param), routing_object_list),
@@ -1311,7 +1310,6 @@ static void test_action_unknown_oi_dar6(void **state) {
         6);
 }
 
-/* 非 8000 的真实 handler 能到达：6012 方法 1（复位）忽略参数，返回成功 -> DAR 0。 */
 static void test_action_non8000_reaches_handler(void **state) {
     (void)state;
     const uint8_t null_param[] = {0x00};
@@ -1320,7 +1318,7 @@ static void test_action_non8000_reaches_handler(void **state) {
                      0);
 }
 
-/* 6012 方法 127 的 A2 单元：array<structure<12 字段>>，形状同 tests/test_dcu_698_tasks.c。 */
+/* 6012 方法 127 的 A2 单元，形状同 tests/test_dcu_698_tasks.c。 */
 static const uint8_t k_add_task_7_60s[] = {
     0x01, 0x01,             /* array[1] */
     0x02, 0x0C,             /* structure[12] */
