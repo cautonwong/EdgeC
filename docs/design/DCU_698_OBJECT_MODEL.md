@@ -317,7 +317,7 @@ DCU 等级 `full`，按 OI 白名单。首版实现日期时间、通信地址�
 
 4000 A3/A4 与 4001–4004、401C–4021 目前只有配置存储与审计语义：SET 成功表示值已持久化并可回读，产品还没有功能消费这些值，设备行为不会因此改变。接入对应功能（校时策略、通信参数等）时另立任务，届时补上行为测试；在此之前不得把这些参数的成功回写说成设备已按新配置运行。
 
-对象表只广告属性 2（生成的目录把 Class 8 上限钉在属性 2），4000 的 A3/A4 由参数模块在通用 mask 检查之前处理。产品对象表共 30 个 OI（0xF100 ESAM 不在 Class 20 ACL 里），Class 20 ACL 共 29 个对象，超过驱动原来的 28 对象上限；改用每属性 2 bit 的 16 字节紧凑对象后，`DLT698_ACL_MAX_OBJECTS` 抬到 30，属性 id 按 1..16 编码、越界即拒绝（fail-closed），`_Static_assert(sizeof(dlt698_session_t) <= 1024)` 守住会话私有不超 `DRIVER_PRIV_SIZE`。
+对象表只广告属性 2（生成的目录把 Class 8 上限钉在属性 2），4000 的 A3/A4 由参数模块在通用 mask 检查之前处理。产品对象表共 30 个 OI（0xF100 ESAM 不在 Class 20 ACL 里），Class 20 ACL 共 29 个对象；驱动用每属性 2 bit 的 16 字节紧凑对象承载，`DLT698_ACL_MAX_OBJECTS` 为 30，属性 id 按 1..16 编码、越界即拒绝（fail-closed），`_Static_assert(sizeof(dlt698_session_t) <= 1024)` 守住会话私有不超 `DRIVER_PRIV_SIZE`。ACL 的 Class 8 行由 `DCU_698_PARAM_OIS` 生成，不再手写第二份白名单。
 
 方法 127 广播校时保持关闭：驱动的 ACTION 统一走 `dcu_north_adapter.c` 的 `accept_action`，该文件由 D1-20a 持有。
 

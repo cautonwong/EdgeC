@@ -23,3 +23,13 @@ run_fanalyzer.py --paths cmd/dcu,adapters/io_drivers/src: 0 new reports
 3 passed in 3.72s
 19 passed in 0.38s
 ✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+
+## verifier third pass, base main (D1-20a + D3-04a merged)
+clean build 0 warnings; check_build_warnings 0 new
+full ctest 341/341
+ASAN targeted 13/13
+run_guard_selftest all pass
+./test.sh --omnis dcu: 3 + 20 passed, 2/2 tasks, ACCEPTANCE_TASKS 2/2
+fanalyzer: 3 known, 0 new
+/no-comments third pass: 6 findings applied; ACL Class 8 rows derived from DCU_698_PARAM_OIS;
+attr_rights accessors added; wrong comment corrected

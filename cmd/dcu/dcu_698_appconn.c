@@ -10,6 +10,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "dcu_698_param.h"
+
 typedef struct {
     uint8_t id;
     uint8_t rights;
@@ -56,15 +58,12 @@ static const acl_object_t k_objects[] = {
     {0x6002, k_attrs_6002, 2, NULL, 0},           {0x6003, k_attrs_6003, 1, NULL, 0},
     {0x6012, k_attrs_6012, 1, k_methods_6012, 5}, {0x6013, k_attrs_6013, 1, NULL, 0},
     {0x8000, NULL, 0, k_methods_8000, 5},         {0xF200, k_attrs_f200, 3, NULL, 0},
-    {0x4000, k_attrs_4000, 3, NULL, 0},           {0x4001, k_attrs_param, 1, NULL, 0},
-    {0x4002, k_attrs_param, 1, NULL, 0},          {0x4003, k_attrs_param, 1, NULL, 0},
-    {0x4004, k_attrs_param, 1, NULL, 0},          {0x401C, k_attrs_param, 1, NULL, 0},
-    {0x401D, k_attrs_param, 1, NULL, 0},          {0x401E, k_attrs_param, 1, NULL, 0},
-    {0x401F, k_attrs_param, 1, NULL, 0},          {0x4020, k_attrs_param, 1, NULL, 0},
-    {0x4021, k_attrs_param, 1, NULL, 0},
 };
 
-#define OBJECT_COUNT (sizeof(k_objects) / sizeof(k_objects[0]))
+#define COUNT_PARAM_OI(oi) +1
+#define PARAM_OI_COUNT (0 DCU_698_PARAM_OIS(COUNT_PARAM_OI))
+
+#define OBJECT_COUNT (sizeof(k_objects) / sizeof(k_objects[0]) + PARAM_OI_COUNT)
 
 static int _put(uint8_t *buf, size_t cap, size_t *off, const uint8_t *src, size_t n) {
     if (*off + n > cap) return -1;
@@ -76,37 +75,53 @@ static int _put_u8(uint8_t *buf, size_t cap, size_t *off, uint8_t v) {
     return _put(buf, cap, off, &v, 1);
 }
 
+static int _put_object(uint8_t *buf, size_t cap, size_t *off, uint16_t oi, const acl_attr_t *attrs,
+                       uint8_t n_attrs, const uint8_t *methods, uint8_t n_methods) {
+    uint8_t head[5] = {0x02, 0x02, 0x50, (uint8_t)(oi >> 8), (uint8_t)oi};
+    if (_put(buf, cap, off, head, sizeof(head)) != 0) return -1;
+    if (_put_u8(buf, cap, off, 0x02) != 0 || _put_u8(buf, cap, off, 0x02) != 0 ||
+        _put_u8(buf, cap, off, 0x01) != 0 || _put_u8(buf, cap, off, n_attrs) != 0) {
+        return -1;
+    }
+    for (uint8_t a = 0; a < n_attrs; a++) {
+        uint8_t attr[5] = {0x02, 0x02, 0x11, attrs[a].id, 0x16};
+        if (_put(buf, cap, off, attr, sizeof(attr)) != 0 ||
+            _put_u8(buf, cap, off, attrs[a].rights) != 0) {
+            return -1;
+        }
+    }
+    if (_put_u8(buf, cap, off, 0x01) != 0 || _put_u8(buf, cap, off, n_methods) != 0) return -1;
+    for (uint8_t m = 0; m < n_methods; m++) {
+        uint8_t meth[5] = {0x02, 0x02, 0x11, methods[m], 0x03};
+        if (_put(buf, cap, off, meth, sizeof(meth)) != 0 || _put_u8(buf, cap, off, 1) != 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
 int dcu_698_appconn_object_list(uint8_t *buf, size_t cap, size_t *len) {
     if (!buf || !len) return -1;
     size_t off = 0;
     if (_put_u8(buf, cap, &off, 0x01) != 0 || _put_u8(buf, cap, &off, OBJECT_COUNT) != 0) {
         return -1;
     }
-    for (size_t i = 0; i < OBJECT_COUNT; i++) {
+    for (size_t i = 0; i < sizeof(k_objects) / sizeof(k_objects[0]); i++) {
         const acl_object_t *obj = &k_objects[i];
-        uint8_t head[5] = {0x02, 0x02, 0x50, (uint8_t)(obj->oi >> 8), (uint8_t)obj->oi};
-        if (_put(buf, cap, &off, head, sizeof(head)) != 0) return -1;
-        if (_put_u8(buf, cap, &off, 0x02) != 0 || _put_u8(buf, cap, &off, 0x02) != 0 ||
-            _put_u8(buf, cap, &off, 0x01) != 0 || _put_u8(buf, cap, &off, obj->n_attrs) != 0) {
+        if (_put_object(buf, cap, &off, obj->oi, obj->attrs, obj->n_attrs, obj->methods,
+                        obj->n_methods) != 0) {
             return -1;
-        }
-        for (uint8_t a = 0; a < obj->n_attrs; a++) {
-            uint8_t attr[5] = {0x02, 0x02, 0x11, obj->attrs[a].id, 0x16};
-            if (_put(buf, cap, &off, attr, sizeof(attr)) != 0 ||
-                _put_u8(buf, cap, &off, obj->attrs[a].rights) != 0) {
-                return -1;
-            }
-        }
-        if (_put_u8(buf, cap, &off, 0x01) != 0 || _put_u8(buf, cap, &off, obj->n_methods) != 0) {
-            return -1;
-        }
-        for (uint8_t m = 0; m < obj->n_methods; m++) {
-            uint8_t meth[5] = {0x02, 0x02, 0x11, obj->methods[m], 0x03};
-            if (_put(buf, cap, &off, meth, sizeof(meth)) != 0 || _put_u8(buf, cap, &off, 1) != 0) {
-                return -1;
-            }
         }
     }
+#define PUT_PARAM_OBJECT(oi)                                                                       \
+    do {                                                                                           \
+        int rc = (oi) == 0x4000                                                                    \
+                     ? _put_object(buf, cap, &off, 0x4000, k_attrs_4000, 3, NULL, 0)               \
+                     : _put_object(buf, cap, &off, (uint16_t)(oi), k_attrs_param, 1, NULL, 0);     \
+        if (rc != 0) return -1;                                                                    \
+    } while (0);
+    DCU_698_PARAM_OIS(PUT_PARAM_OBJECT)
+#undef PUT_PARAM_OBJECT
     *len = off;
     return 0;
 }

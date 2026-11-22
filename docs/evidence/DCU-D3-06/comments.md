@@ -27,6 +27,18 @@
 
 `dcu_698_param.c` 的文件头 `@file/@brief` 按本仓库惯例保留；`dcu_698_param.h`、`dcu_clock_port.h`、`dcu_storage.h` 的 Doxygen 属公开 API 契约；`driver_dlt698.c` 的 `DRIVER_PRIV_SIZE` 预算说明有 `_Static_assert` 与 1024 上限佐证。
 
+## 第三轮（verifier 复核）
+
+- 删除 `driver_dlt698.c` 的 30×16 预算叙述与 `attr_rights` 位域注释；按 MUST KILL 抽出
+  `_attr_rights_get/_attr_rights_set`，读写不再依赖注释解释位布局。
+- 删除 `dcu_698_param.h` 的 `dcu_698_param_is_oi` 复述行；`accept_axdr` 注释删掉实现叙述，
+  只留 DAR 合同。`dcu_698_param.c` 的 `@file/@brief` 按仓库惯例保留。
+- 修复失实声明：`DCU_698_PARAM_OIS` 原本只被对象表使用，Class 20 ACL 另有 11 行手写。
+  现在 ACL 的 Class 8 行由该宏生成（4000 仍带 A2/A3/A4，其余 A2），两份白名单合并为一份；
+  `appconn` 的编码抽成 `_put_object`，对象数与字节序不变。
+- `dcu_clock_port.h` 的 now 说明改为"读系统时间"（实现是 `time` + `localtime_r`）。
+- 设计文档删去分支内部历史数字，补一句 ACL 行由宏生成。
+
 ## 行为核对
 
 删除与 `_default_rc` 改写后重新跑：干净构建 + warning gate 0、全量 ctest 341/341、ASAN 5/5、守卫自测、fanalyzer 0 新报告、验收 2/2（northbound 20/20）。

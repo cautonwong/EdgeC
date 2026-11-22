@@ -46,7 +46,6 @@ void dcu_698_param_set_clock(const dcu_clock_port_t *clock);
 /** @brief 恢复默认值并清掉存储端口（对象表 reset 用于测试隔离）；时钟端口保留。 */
 void dcu_698_param_reset(void);
 
-/** @brief OI 是否在白名单内。 */
 bool dcu_698_param_is_oi(uint16_t oi);
 
 /** @brief 该 OI/属性是否有参数行（4000 的 2/3/4，其余只有 2）。 */
@@ -62,8 +61,7 @@ int dcu_698_param_encode_axdr(uint32_t oad, uint8_t *buf, size_t cap, size_t *le
 /**
  * @brief 严格解码并提交一次参数 SET。
  *
- * 先解到临时值，校验形状/范围且要求 `off == len`，编码后交端口保存；保存失败
- * 返回 `EDGE_SLAVE_SRC_TEMPORARY` 且旧值不变。4000 A2 调时钟端口，失败同样返回
+ * 保存失败返回 `EDGE_SLAVE_SRC_TEMPORARY` 且旧值不变。4000 A2 调时钟端口，失败同样返回
  * `EDGE_SLAVE_SRC_TEMPORARY`，时间保持旧值。
  */
 int dcu_698_param_accept_axdr(uint32_t oad, const uint8_t *axdr, size_t len);

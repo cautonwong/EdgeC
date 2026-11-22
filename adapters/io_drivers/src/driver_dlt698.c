@@ -278,15 +278,22 @@ static uint8_t _dar_for_action_rc(int rc) {
 #define DLT698_ATTR_RIGHT_WRITE 2u
 #define DLT698_ATTR_RIGHT_RW 3u
 
-/* 30 个对象 × 16 B = 480 B；旧的内联数组（20 × 44 B）在 28 个对象时会超
- * DRIVER_PRIV_SIZE(1024)。属性权限用每位 2 bit 压进 32 位，方法只存已允许的 id。 */
 typedef struct {
     uint16_t oi;
     uint8_t n_attrs;
     uint8_t n_methods;
-    uint32_t attr_rights; /* 属性 id 1..16，各 2 bit */
+    uint32_t attr_rights;
     uint8_t method_ids[DLT698_ACL_MAX_METHODS];
 } dlt698_acl_object_t;
+
+/* 属性权限按 attr id 1..16 各 2 bit 压进 32 位；越界由调用方先拒绝。 */
+static uint8_t _attr_rights_get(const dlt698_acl_object_t *obj, uint8_t attr_id) {
+    return (uint8_t)((obj->attr_rights >> ((attr_id - 1u) * 2u)) & 3u);
+}
+
+static void _attr_rights_set(dlt698_acl_object_t *obj, uint8_t attr_id, uint8_t rights) {
+    obj->attr_rights |= ((uint32_t)rights & 3u) << ((attr_id - 1u) * 2u);
+}
 
 typedef struct {
     bool loaded;
@@ -342,7 +349,7 @@ static bool _acl_parse(const uint8_t *buf, size_t len, dlt698_acl_t *acl) {
             if (attr_id == 0 || attr_id > DLT698_ACL_MAX_ATTRS) return false;
             if (_acl_take(buf, len, &off, 0x16) != 0 || off >= len) return false;
             uint32_t rights = (uint32_t)(buf[off++] & 3u);
-            obj->attr_rights |= rights << ((attr_id - 1u) * 2u);
+            _attr_rights_set(obj, attr_id, (uint8_t)rights);
         }
 
         if (_acl_take(buf, len, &off, 0x01) != 0 || off >= len) return false;
@@ -390,7 +397,7 @@ static const dlt698_acl_object_t *_acl_find(const dlt698_session_t *s, uint16_t 
 
 static bool _acl_attr_allowed(const dlt698_acl_object_t *obj, uint8_t attr_id, bool write) {
     if (!obj || attr_id == 0 || attr_id > DLT698_ACL_MAX_ATTRS) return false;
-    uint8_t r = (uint8_t)((obj->attr_rights >> ((attr_id - 1u) * 2u)) & 3u);
+    uint8_t r = _attr_rights_get(obj, attr_id);
     return write ? (r == DLT698_ATTR_RIGHT_WRITE || r == DLT698_ATTR_RIGHT_RW)
                  : (r == DLT698_ATTR_RIGHT_READ || r == DLT698_ATTR_RIGHT_RW);
 }
