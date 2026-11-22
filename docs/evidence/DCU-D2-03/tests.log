@@ -1,4 +1,4 @@
-== 干净构建 + 告警门禁（合并 dcu/D2-03-impl 后）==
+== 干净构建 + 告警门禁（rebase 到 d21cb6f9 后）==
 build=0
 ✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
 
@@ -9,7 +9,7 @@ build=0
 test_dcu_698_tasks（15 例）、test_dcu_poller、test_dcu_router、test_dcu_698_object_model、test_dcu_698_axdr、test_dcu_698_appconn 全绿
 
 == ASAN + UBSAN（受影响目标，串行）==
-100% tests passed, 0 tests failed out of 6（注释审计后复跑）
+100% tests passed, 0 tests failed out of 6（rebase 后复跑）
 
 == 架构守卫 ==
 🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!

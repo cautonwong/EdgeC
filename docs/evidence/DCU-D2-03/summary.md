@@ -1,6 +1,8 @@
 # DCU-D2-03 Class 10 任务配置（6012/6013）
 
-基线与分支：`dcu/D2-03-tasks`，父提交 `4233a7c0`；实现分支 `dcu/D2-03-impl` 合并入库。
+基线与分支：`dcu/D2-03-tasks`，已 rebase 到 `d21cb6f9`（含 D3-05a）；实现分支 `dcu/D2-03-impl` 合并入库。
+
+rebase 冲突：`cmd/dcu/dcu_698_axdr.c` 的 GET 分派。两边都保留：事件类（D3-05a）走 `dcu_698_event_encode_axdr`，6012/6013 走 `dcu_698_task_encode_axdr`；对象表与 ACL 两边行并存，ACL 对象数 18（事件属性 11 项 + 6012 五方法 + 6013 A2）。
 
 ## 目的
 
