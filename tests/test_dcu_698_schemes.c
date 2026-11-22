@@ -579,6 +579,17 @@ static void test_a2_bytes_are_exact(void **state) {
     assert_int_equal(len, both.n);
     assert_memory_equal(buf, both.b, len);
 
+    /* 6014 A2 忽略元素索引：带任意元素号仍回完整数组，和 6012 A2 一致。 */
+    len = 0;
+    assert_int_equal(_a2(MK_OAD(OI_NORMAL_SCHEME, 2) | 5, buf, sizeof(buf), &len), 0);
+    assert_int_equal(len, both.n);
+    assert_memory_equal(buf, both.b, len);
+
+    /* 缓冲区不够：DAR 2，绝不回截断的字节。 */
+    uint8_t tiny[8];
+    assert_int_equal(_a2(MK_OAD(OI_NORMAL_SCHEME, 2), tiny, sizeof(tiny), &len),
+                     EDGE_SLAVE_SRC_TEMPORARY);
+
     len = 0;
     assert_int_equal(_a2(MK_OAD(OI_NORMAL_SCHEME_UNIT, 2) | 7, buf, sizeof(buf), &len), 0);
     body_t seven = {0};
