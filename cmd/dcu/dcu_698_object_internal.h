@@ -23,6 +23,10 @@ int dcu_698_acq_6000_execute(const dcu_698_object_t *obj, uint8_t method_id, con
 int dcu_698_decode_archive_op(uint8_t method, const uint8_t *buf, size_t len,
                               dcu_archive_op_t *out);
 int dcu_698_accept_archive_action(uint32_t omd, const uint8_t *axdr, size_t axdr_len);
+int dcu_698_decode_task_op(uint8_t method, const uint8_t *buf, size_t len, dcu_task_op_t *out);
+
+/* 对象表检查的唯一来源：0 = 可分派且 *obj_out 已填；否则回 DAR 6/5/4。 */
+int dcu_698_check_call(uint32_t omd, const dcu_698_object_t **obj_out);
 int dcu_698_archive_encode_axdr(const dcu_inventory_t *inv, uint32_t oad, uint8_t *buf, size_t cap,
                                 size_t *len);
 int dcu_698_acq_6012_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,

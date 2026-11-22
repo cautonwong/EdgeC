@@ -26,8 +26,17 @@ static dcu_698_object_t g_objects[] = {
     {.oi = OI_TASK_SCHEDULER,
      .class_id = IC_ACQUISITION,
      .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(2)] = BIT(2)},
      .method = dcu_698_acq_6012_execute,
-     .method_mask = {[BYTE(1)] = BIT(1), [BYTE(127)] = BIT(127)}},
+     .method_mask = {[BYTE(1)] = BIT(1),
+                     [BYTE(127)] = BIT(127),
+                     [BYTE(128)] = BIT(128) | BIT(129) | BIT(130)}},
+
+    /* 6013 实例由 6012 A2 的 task_id 寻址；A2 由 resolve_axdr 编码，无标量读数。 */
+    {.oi = OI_TASK_UNIT,
+     .class_id = IC_PARAM,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
 
     {.oi = (uint16_t)((OAD_ACTIVE_ENERGY >> 16) & 0xFFFF),
      .class_id = IC_ENERGY,
@@ -224,6 +233,7 @@ static bool _class_defines_method(uint8_t class_id, uint16_t oi, uint8_t method_
         return true;
     }
     if (oi == OI_METER_ARCHIVE && method_id >= 127 && method_id <= 134) return true;
+    if (oi == OI_TASK_SCHEDULER && method_id >= 127 && method_id <= 130) return true;
     for (size_t i = 0; i < sizeof(k_class_max_method) / sizeof(k_class_max_method[0]); i++) {
         if (k_class_max_method[i].class_id == class_id) {
             return method_id <= k_class_max_method[i].max_method;
@@ -267,7 +277,8 @@ int dcu_698_write(uint32_t oad, const void *in_val) {
     return obj->write(obj, attr_id, elem_idx, in_val);
 }
 
-int dcu_698_call(uint32_t omd, const void *param, void *result) {
+int dcu_698_check_call(uint32_t omd, const dcu_698_object_t **obj_out) {
+    if (obj_out) *obj_out = NULL;
     uint16_t oi = (uint16_t)((omd >> 16) & 0xFFFF);
     uint8_t method_id = (uint8_t)((omd >> 8) & 0xFF);
 
@@ -278,6 +289,15 @@ int dcu_698_call(uint32_t omd, const void *param, void *result) {
                    ? EDGE_SLAVE_SRC_CLASS_MISMATCH
                    : EDGE_SLAVE_SRC_UNDEFINED;
     }
+    if (obj_out) *obj_out = obj;
+    return 0;
+}
+
+int dcu_698_call(uint32_t omd, const void *param, void *result) {
+    uint8_t method_id = (uint8_t)((omd >> 8) & 0xFF);
+    const dcu_698_object_t *obj = NULL;
+    int rc = dcu_698_check_call(omd, &obj);
+    if (rc != 0) return rc;
     return obj->method(obj, method_id, param, result);
 }
 
