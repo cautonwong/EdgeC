@@ -1,0 +1,102 @@
+DCU-D3-04a Class 24 事件记录墙钟时标（3000/3005）
+=================================================
+
+基线：2f502b50（D2-03 已合并）。原分支基于 b9c0d7c7，本轮 rebase 到 2f502b50 后重新
+应用评审裁决。分支 dcu/D3-04a-event-wallclock，工作树 /tmp/dcu-d3-04a。
+
+本轮评审裁决
+------------
+1. 设备本地民用时间，取代 UTC。表49 date_time_s 不带时区；中国主站必须看到设备本地
+   民用时间。dcu_698_put_date_time_s / dcu_698_date_time_s_to_epoch 经 localtime_r /
+   mktime 转换，进程 TZ 即设备配置时区。运维要求：部署设备必须配置 TZ。
+   期望字节（TZ=CST-8）：epoch 1700000000 = 2023-11-15 06:13:20 →
+   `1C 07E7 0B 0F 06 0D 14`；epoch 1700003600 → `1C 07E7 0B 0F 07 0D 14`。
+2. A6 未结束结束时间用表49 非法时标 `1C FF FF FF FF FF FF FF`，不是 NULL；时标存在但
+   不可民用编码则 TYPE_MISMATCH。A14 未发生/未结束按表194 编 NULL(0x00)。
+
+时间源
+------
+事件墙钟在 dcu_event_monitor.c 的 logger 阶段每条记录取一次
+clock_gettime(CLOCK_REALTIME) 整秒；date_time_s 分辨率是 1 s，只存 tv_sec。监测阶段的
+延时倒计时继续只用 ev->ts（单调纳秒）。
+
+域模型
+------
+dcu_event_stamp_t { uint64_t mono_ns; uint64_t epoch_s; } 同时保存两个时标：
+- mono_ns：uv_hrtime 副本，只作存在性判定与审计。
+- epoch_s：CLOCK_REALTIME 整秒，用于 date_time_s 与 event_history 落库。
+每条记录另有 snapshot_{len,data}[8]，保存生成记录时抓到的关联对象 A-XDR 值。
+
+A6/A14 线格式（表194）
+----------------------
+A6 事件记录表 1：array(record_count) < structure {
+  序号 double-long-unsigned;
+  发生时间 date_time_s;             // 必填，无墙钟回 TYPE_MISMATCH
+  结束时间 date_time_s;             // 未结束 -> 表49 非法时标 1C FF×7
+  上报状态 array(0);                // 无按通道存储
+  n×关联数据 Data;                  // 抓拍不到 -> NULL
+} >
+A14 时间状态记录表：array(1) < structure {
+  最近一次发生时间 date_time_s 或 NULL;
+  最近一次结束时间 date_time_s 或 NULL  // mono_ns == 0 -> 0x00
+} >
+
+旧行迁移规则
+------------
+event_history 旧行是单调纳秒：不迁移、不渲染。该表没有产品读取路径；幅度不能可靠区分
+两种单位，dcu_698_epoch_is_civil() 只是最后一道拒绝。未来读取必须先加单位/版本字段。
+
+门禁原始输出
+------------
+$ cmake --build build --clean-first -j$(nproc)   # 最终树
+build_exit=0
+warning count: 0
+error count: 0
+
+$ python3 ci/scripts/check_build_warnings.py --log /tmp/d3-04a-build.log --root .
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+
+$ cd build && ctest --output-on-failure
+100% tests passed, 0 tests failed out of 340
+Total Test time (real) = 206.67 sec
+（第一轮全量曾出现 app_platform_e2e 的 MQTT connect failed(code -1) 瞬时失败；
+ 单独重跑与最终全量均通过。该测试不涉及本单文件。）
+
+$ cmake --build build-asan --target <受影响 5 个测试> -j$(nproc)
+asan_build_exit=0；受影响文件 0 warning
+$ ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 ctest -R "<受影响 5 个测试>"
+100% tests passed, 0 tests failed out of 5
+Total Test time (real) =   0.27 sec
+
+$ python3 ci/scripts/run_guard_selftest.py
+exit=0；全部 LIVE_PASS（含 plane/component/no_dynamic_memory/strncpy/alloc_null/test_registration）
+
+$ guards (--root .)
+check_composition_root_budget.py  rc=0
+check_plane_isolation.py          rc=0
+check_component_boundary.py       rc=0
+check_no_dynamic_memory.py        rc=0
+check_stack_usage.py              rc=0
+check_caller_allocated_storage.py rc=0
+check_public_structs.py           rc=0
+check_resource_discipline.py      rc=0
+check_test_registration.py        rc=0
+check_strncpy_bounds.py           rc=0
+check_alloc_null.py               rc=0
+check_net_buf_alloc_timeout.py    rc=0
+
+$ git diff --check
+(no output)
+$ clang-format --dry-run --Werror <touched .c/.h>
+exit=0（全部 touched 文件）
+
+$ ./test.sh --omnis dcu
+任务 dcu-acceptance 结束,退出码 0
+任务 dcu-northbound 结束,退出码 0
+门禁: 全部合格:2 个验收任务
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+（原始输出见 runtime.log）
+
+说明：check_component_budgets.py 报 modules/edge_app_host ROM 22627 > 22528。该目录
+在本 diff 中未改动（`git diff --stat 2f502b50 -- modules/edge_app_host` 为空），属基线/
+环境已有预算问题，与本单无关；不在本单门禁清单内。

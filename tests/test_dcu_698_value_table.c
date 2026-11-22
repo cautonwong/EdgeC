@@ -105,10 +105,9 @@ static void init_model(void) {
 
     router_sink_ops_t sink = {.ctx = NULL, .count_freezes = mock_count_freezes};
     router_bus_ops_t bus = {.msg_size = sizeof(pipe_msg_t), .read_shadow = mock_shadow};
-    assert_int_equal(
-        dcu_698_object_model_init(&g_inv, &g_poller, sink, NULL, &g_discovery, &g_evt_3000, NULL,
-                                  bus),
-        0);
+    assert_int_equal(dcu_698_object_model_init(&g_inv, &g_poller, sink, NULL, &g_discovery,
+                                               &g_evt_3000, NULL, bus),
+                     0);
 }
 
 static void teardown_model(void) {
@@ -138,8 +137,7 @@ static void test_class6_scalar_type_tags(void **state) {
     assert_float_equal((float)v.value, 50.01f, 0.001f);
 
     /* Class 1/3/4 的属性 2 是数组，标量端口必须拒绝。 */
-    assert_int_equal(dcu_698_value_for_oad(OAD_ACTIVE_ENERGY, &v),
-                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    assert_int_equal(dcu_698_value_for_oad(OAD_ACTIVE_ENERGY, &v), EDGE_SLAVE_SRC_TYPE_MISMATCH);
     assert_int_equal(dcu_698_value_for_oad(OAD_VOLTAGE, &v), EDGE_SLAVE_SRC_TYPE_MISMATCH);
     assert_int_equal(dcu_698_value_for_oad(OAD_CURRENT, &v), EDGE_SLAVE_SRC_TYPE_MISMATCH);
     assert_int_equal(dcu_698_value_for_oad(OAD_ACTIVE_POWER_TOTAL, &v),
@@ -181,9 +179,9 @@ static void test_object_model_scalar_type_tags(void **state) {
     }
     /* 5004 A2 是冻结数据数组而不是条数；Normal GET 不暴露，回 CLASS_MISMATCH。 */
     dcu_value_t v;
-    assert_int_equal(dcu_698_value_for_oad(
-                         MK_OAD((uint16_t)((OAD_DAILY_FREEZE >> 16) & 0xFFFF), 2), &v),
-                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(
+        dcu_698_value_for_oad(MK_OAD((uint16_t)((OAD_DAILY_FREEZE >> 16) & 0xFFFF), 2), &v),
+        EDGE_SLAVE_SRC_CLASS_MISMATCH);
     assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_CHANNEL_CONFIG, 2), &v),
                      EDGE_SLAVE_SRC_CLASS_MISMATCH);
     assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_CHANNEL_CONFIG, 3), &v),
@@ -196,12 +194,12 @@ static void test_object_model_scalar_type_tags(void **state) {
     assert_value(MK_OAD(OI_VOLTAGE_DROP, 11), DCU_698_TAG_ENUM, 1.0);
     assert_value(MK_OAD(OI_VOLTAGE_DROP, 12), DCU_698_TAG_BOOLEAN, 1.0);
     /* 复杂属性已暴露但没有标量表示；仍屏蔽的属性回类不匹配。 */
-    static const uint8_t complex[] = {2, 3};
+    static const uint8_t complex[] = {2, 3, 6, 14};
     for (size_t i = 0; i < sizeof(complex) / sizeof(complex[0]); i++) {
         assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_VOLTAGE_DROP, complex[i]), &v),
                          EDGE_SLAVE_SRC_TYPE_MISMATCH);
     }
-    static const uint8_t masked[] = {5, 6, 8, 9, 10, 14};
+    static const uint8_t masked[] = {5, 8, 9, 10};
     for (size_t i = 0; i < sizeof(masked) / sizeof(masked[0]); i++) {
         assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_VOLTAGE_DROP, masked[i]), &v),
                          EDGE_SLAVE_SRC_CLASS_MISMATCH);
@@ -218,8 +216,7 @@ static void test_scalar_callback_type_and_width(void **state) {
 
     edge_point_value_t p;
     memset(&p, 0, sizeof(p));
-    assert_int_equal(dcu_north_resolve_scalar(NULL, MK_OAD(OI_METER_DISCOVERY, 3), NULL, 0, &p),
-                     0);
+    assert_int_equal(dcu_north_resolve_scalar(NULL, MK_OAD(OI_METER_DISCOVERY, 3), NULL, 0, &p), 0);
     assert_int_equal(p.type, DCU_698_TAG_LONG_UNSIGNED);
     assert_int_equal(p.width, 2);
     assert_float_equal((float)p.value, 5.0f, 0.001f);

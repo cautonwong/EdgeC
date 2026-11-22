@@ -5,7 +5,10 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "datahub.h"
 #include "dcu_698_axdr.h"
@@ -26,6 +29,31 @@ extern const edge_driver_t dlt698_driver;
 #define SA_LEN 1
 #define TS_NS (1234567890ULL * 1000000ULL)
 #define MK_OAD(oi, attr) (((uint32_t)(oi) << 16) | ((uint32_t)(attr) << 8))
+
+/* date_time_s 是设备本地民用时间：固定东八区，期望字节才能确定。 */
+static char g_saved_tz[128];
+static bool g_had_tz;
+
+static int setup_timezone(void **state) {
+    (void)state;
+    const char *tz = getenv("TZ");
+    g_had_tz = tz != NULL;
+    if (g_had_tz) snprintf(g_saved_tz, sizeof(g_saved_tz), "%s", tz);
+    setenv("TZ", "CST-8", 1);
+    tzset();
+    return 0;
+}
+
+static int teardown_timezone(void **state) {
+    (void)state;
+    if (g_had_tz) {
+        setenv("TZ", g_saved_tz, 1);
+    } else {
+        unsetenv("TZ");
+    }
+    tzset();
+    return 0;
+}
 
 static int mock_shadow(void *ctx, uint32_t tag_id, uint32_t device_id, void *out_msg) {
     (void)ctx;
@@ -121,35 +149,34 @@ static void test_product_accept_set_event_attrs(void **state) {
     init_product_model_with_events();
 
     const uint8_t enum1[] = {0x16, 0x01};
-    assert_int_equal(
-        dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 11), enum1, sizeof(enum1)), 0);
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 11), enum1, sizeof(enum1)),
+                     0);
     uint8_t flag = 0xFF;
     assert_int_equal(dcu_698_read(MK_OAD(OI_VOLTAGE_DROP, 11), &flag), 0);
     assert_int_equal(flag, 1);
 
     const uint8_t bool_false[] = {0x03, 0x00};
-    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 12), bool_false,
-                                           sizeof(bool_false)),
-                     0);
+    assert_int_equal(
+        dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 12), bool_false, sizeof(bool_false)),
+        0);
     bool enabled = true;
     assert_int_equal(dcu_698_read(MK_OAD(OI_VOLTAGE_DROP, 12), &enabled), 0);
     assert_false(enabled);
 
     const uint8_t enum4[] = {0x16, 0x04};
-    assert_int_equal(
-        dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 11), enum4, sizeof(enum4)),
-        EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 11), enum4, sizeof(enum4)),
+                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
     assert_int_equal(dcu_698_read(MK_OAD(OI_VOLTAGE_DROP, 11), &flag), 0);
     assert_int_equal(flag, 1);
 
     const uint8_t u8_one[] = {0x11, 0x01};
-    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_CHANNEL_CONFIG, 4), u8_one,
-                                           sizeof(u8_one)),
-                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
-    /* A6 未暴露：事件时标是单调纳秒，不能编成日历时间；掩码位回类不匹配。 */
+    assert_int_equal(
+        dcu_north_accept_axdr(NULL, MK_OAD(OI_CHANNEL_CONFIG, 4), u8_one, sizeof(u8_one)),
+        EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    /* A6 已暴露但记录单元没有标量写入语义：类型不匹配，不假装能改记录表。 */
     assert_int_equal(
         dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 6), u8_one, sizeof(u8_one)),
-        EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        EDGE_SLAVE_SRC_TYPE_MISMATCH);
 
     dcu_698_object_model_reset();
 }
@@ -166,16 +193,16 @@ static void test_product_variable_axdr_types(void **state) {
     (void)state;
     init_product_model();
 
-    const uint8_t want_voltage[] = {0x01, 0x03, 0x12, 0x08, 0x9D, 0x12, 0x08, 0x99, 0x12, 0x08,
-                                    0x97};
+    const uint8_t want_voltage[] = {0x01, 0x03, 0x12, 0x08, 0x9D, 0x12,
+                                    0x08, 0x99, 0x12, 0x08, 0x97};
     assert_axdr(OAD_VOLTAGE, want_voltage, sizeof(want_voltage));
 
     /* 0010/0020：属性 2/4 是数组；第一项是总电能量。 */
     const uint8_t want_energy2[] = {0x01, 0x01, DCU_698_TAG_DOUBLE_LONG_UNSIGNED, 0x00, 0x12,
                                     0xD6, 0x44};
     assert_axdr(MK_OAD(0x0010, 2), want_energy2, sizeof(want_energy2));
-    const uint8_t want_energy4[] = {0x01, 0x01, DCU_698_TAG_LONG64_UNSIGNED, 0x00, 0x00, 0x00,
-                                    0x00, 0x07, 0x5B, 0xB2, 0x90};
+    const uint8_t want_energy4[] = {
+        0x01, 0x01, DCU_698_TAG_LONG64_UNSIGNED, 0x00, 0x00, 0x00, 0x00, 0x07, 0x5B, 0xB2, 0x90};
     assert_axdr(MK_OAD(0x0010, 4), want_energy4, sizeof(want_energy4));
     const uint8_t want_reactive2[] = {0x01, 0x01, DCU_698_TAG_DOUBLE_LONG_UNSIGNED, 0x00, 0x0A,
                                       0x5B, 0xF4};
@@ -187,15 +214,14 @@ static void test_product_variable_axdr_types(void **state) {
     /* 6000 A2 是配置数组：空档案回空数组，不是标量、也不是 DAR。 */
     uint8_t probe[EDGE_SLAVE_AXDR_MAX];
     size_t probe_len = 0;
-    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(OI_METER_ARCHIVE, 2), probe,
-                                            sizeof(probe), &probe_len),
-                     0);
+    assert_int_equal(
+        dcu_north_resolve_axdr(NULL, MK_OAD(OI_METER_ARCHIVE, 2), probe, sizeof(probe), &probe_len),
+        0);
     assert_int_equal(probe_len, 2);
     assert_int_equal(probe[0], DCU_698_TAG_ARRAY);
     assert_int_equal(probe[1], 0);
     const uint8_t want_discovery_count[] = {DCU_698_TAG_LONG_UNSIGNED, 0x00, 0x05};
-    assert_axdr(MK_OAD(OI_METER_DISCOVERY, 3), want_discovery_count,
-                sizeof(want_discovery_count));
+    assert_axdr(MK_OAD(OI_METER_DISCOVERY, 3), want_discovery_count, sizeof(want_discovery_count));
 
     dcu_698_object_model_reset();
 }
@@ -240,8 +266,9 @@ static void test_product_accept_set_paths(void **state) {
     assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_CHANNEL_CONFIG, 4), baud, sizeof(baud)),
                      EDGE_SLAVE_SRC_CLASS_MISMATCH);
 
+    /* A6 已暴露但没有标量写入路径：类型不匹配，不假装能改记录表。 */
     assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 6), baud, sizeof(baud)),
-                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
     assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 18), baud, sizeof(baud)),
                      EDGE_SLAVE_SRC_UNDEFINED);
 
@@ -393,36 +420,29 @@ static bool contains(const uint8_t *hay, size_t hay_len, const uint8_t *needle, 
 }
 
 static const uint8_t k_test_acl[] = {
-    0x01, 0x0E, 0x02, 0x02, 0x50, 0x00, 0x10, 0x02, 0x02, 0x01, 0x02, 0x02,
-    0x02, 0x11, 0x02, 0x16, 0x03, 0x02, 0x02, 0x11, 0x04, 0x16, 0x03, 0x01,
-    0x00, 0x02, 0x02, 0x50, 0x00, 0x20, 0x02, 0x02, 0x01, 0x01, 0x02, 0x02,
-    0x11, 0x02, 0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x20, 0x00, 0x02,
-    0x02, 0x01, 0x04, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x02, 0x02, 0x11,
-    0x03, 0x16, 0x03, 0x02, 0x02, 0x11, 0x04, 0x16, 0x03, 0x02, 0x02, 0x11,
-    0x05, 0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x20, 0x01, 0x02, 0x02,
-    0x01, 0x04, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x02, 0x02, 0x11, 0x03,
-    0x16, 0x03, 0x02, 0x02, 0x11, 0x04, 0x16, 0x03, 0x02, 0x02, 0x11, 0x05,
-    0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x20, 0x04, 0x02, 0x02, 0x01,
-    0x02, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x02, 0x02, 0x11, 0x03, 0x16,
-    0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x20, 0x0A, 0x02, 0x02, 0x01, 0x01,
-    0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x20,
-    0x0F, 0x02, 0x02, 0x01, 0x01, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x01,
-    0x00, 0x02, 0x02, 0x50, 0x50, 0x00, 0x02, 0x02, 0x01, 0x01, 0x02, 0x02,
-    0x11, 0x00, 0x16, 0x01, 0x01, 0x00, 0x02, 0x02, 0x50, 0x50, 0x04, 0x02,
-    0x02, 0x01, 0x01, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x01, 0x00, 0x02,
-    0x02, 0x50, 0x60, 0x00, 0x02, 0x02, 0x01, 0x01, 0x02, 0x02, 0x11, 0x02,
-    0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x60, 0x12, 0x02, 0x02, 0x01,
-    0x01, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50,
-    0xF2, 0x00, 0x02, 0x02, 0x01, 0x02, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03,
-    0x02, 0x02, 0x11, 0x03, 0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x80,
-    0x00, 0x02, 0x02, 0x01, 0x00, 0x01, 0x07, 0x02, 0x02, 0x11, 0x01, 0x03,
-    0x01, 0x02, 0x02, 0x11, 0x7E, 0x03, 0x01, 0x02, 0x02, 0x11, 0x7F, 0x03,
-    0x01, 0x02, 0x02, 0x11, 0x80, 0x03, 0x01, 0x02, 0x02, 0x11, 0x81, 0x03,
-    0x01, 0x02, 0x02, 0x11, 0x82, 0x03, 0x01, 0x02, 0x02, 0x11, 0x83, 0x03,
-    0x01, 0x02, 0x02, 0x50, 0x30, 0x00, 0x02, 0x02, 0x01, 0x05, 0x02, 0x02,
-    0x11, 0x04, 0x16, 0x01, 0x02, 0x02, 0x11, 0x06, 0x16, 0x01, 0x02, 0x02,
-    0x11, 0x0B, 0x16, 0x01, 0x02, 0x02, 0x11, 0x0C, 0x16, 0x01, 0x02, 0x02,
-    0x11, 0x08, 0x16, 0x01, 0x01, 0x00,
+    0x01, 0x0E, 0x02, 0x02, 0x50, 0x00, 0x10, 0x02, 0x02, 0x01, 0x02, 0x02, 0x02, 0x11, 0x02, 0x16,
+    0x03, 0x02, 0x02, 0x11, 0x04, 0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x00, 0x20, 0x02, 0x02,
+    0x01, 0x01, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x20, 0x00, 0x02,
+    0x02, 0x01, 0x04, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x02, 0x02, 0x11, 0x03, 0x16, 0x03, 0x02,
+    0x02, 0x11, 0x04, 0x16, 0x03, 0x02, 0x02, 0x11, 0x05, 0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50,
+    0x20, 0x01, 0x02, 0x02, 0x01, 0x04, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x02, 0x02, 0x11, 0x03,
+    0x16, 0x03, 0x02, 0x02, 0x11, 0x04, 0x16, 0x03, 0x02, 0x02, 0x11, 0x05, 0x16, 0x03, 0x01, 0x00,
+    0x02, 0x02, 0x50, 0x20, 0x04, 0x02, 0x02, 0x01, 0x02, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x02,
+    0x02, 0x11, 0x03, 0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x20, 0x0A, 0x02, 0x02, 0x01, 0x01,
+    0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x20, 0x0F, 0x02, 0x02, 0x01,
+    0x01, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x50, 0x00, 0x02, 0x02,
+    0x01, 0x01, 0x02, 0x02, 0x11, 0x00, 0x16, 0x01, 0x01, 0x00, 0x02, 0x02, 0x50, 0x50, 0x04, 0x02,
+    0x02, 0x01, 0x01, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x60, 0x00,
+    0x02, 0x02, 0x01, 0x01, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x60,
+    0x12, 0x02, 0x02, 0x01, 0x01, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50,
+    0xF2, 0x00, 0x02, 0x02, 0x01, 0x02, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x02, 0x02, 0x11, 0x03,
+    0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x80, 0x00, 0x02, 0x02, 0x01, 0x00, 0x01, 0x07, 0x02,
+    0x02, 0x11, 0x01, 0x03, 0x01, 0x02, 0x02, 0x11, 0x7E, 0x03, 0x01, 0x02, 0x02, 0x11, 0x7F, 0x03,
+    0x01, 0x02, 0x02, 0x11, 0x80, 0x03, 0x01, 0x02, 0x02, 0x11, 0x81, 0x03, 0x01, 0x02, 0x02, 0x11,
+    0x82, 0x03, 0x01, 0x02, 0x02, 0x11, 0x83, 0x03, 0x01, 0x02, 0x02, 0x50, 0x30, 0x00, 0x02, 0x02,
+    0x01, 0x05, 0x02, 0x02, 0x11, 0x04, 0x16, 0x01, 0x02, 0x02, 0x11, 0x06, 0x16, 0x01, 0x02, 0x02,
+    0x11, 0x0B, 0x16, 0x01, 0x02, 0x02, 0x11, 0x0C, 0x16, 0x01, 0x02, 0x02, 0x11, 0x08, 0x16, 0x01,
+    0x01, 0x00,
 };
 
 static int test_object_list(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, size_t *len) {
@@ -460,8 +480,8 @@ static int test_exchange_with(void *priv, const uint8_t *frame, size_t frame_len
     wrapped.object_list = object_list;
     static uint8_t session[1024];
     memset(session, 0, sizeof(session));
-    return dlt698_driver.req_slave_exchange(priv, session, frame, frame_len, &wrapped,
-                                            (void *)src, out, consumed);
+    return dlt698_driver.req_slave_exchange(priv, session, frame, frame_len, &wrapped, (void *)src,
+                                            out, consumed);
 }
 
 static int test_exchange(void *priv, const uint8_t *frame, size_t frame_len,
@@ -524,8 +544,7 @@ static void test_driver_rejects_axdr_buffer_shortage(void **state) {
     alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
     memset(priv, 0, sizeof(priv));
     size_t consumed = 0;
-    int rc = test_exchange(priv, frame, frame_len, &k_too_big_src, NULL,
-                                              out, &consumed);
+    int rc = test_exchange(priv, frame, frame_len, &k_too_big_src, NULL, out, &consumed);
     assert_int_equal(rc, 0);
     /* 缓冲不足现在是明确的 DAR 应答（-1 按 NOT_FOUND 处理），不是静默超时。 */
     assert_int_equal(out->b.data[16], 0x00);
@@ -549,8 +568,7 @@ static void test_driver_normal_list_uses_axdr_per_item(void **state) {
     alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
     memset(priv, 0, sizeof(priv));
     size_t consumed = 0;
-    int rc = test_exchange(priv, frame, frame_len, &k_list_src, NULL, out,
-                                              &consumed);
+    int rc = test_exchange(priv, frame, frame_len, &k_list_src, NULL, out, &consumed);
     assert_int_equal(rc, 0);
 
     const uint8_t voltage[] = {0x17, 0x43, 0x67, 0xB3, 0x33};
@@ -590,8 +608,8 @@ static void assert_apdu(const net_buf_t *out, const uint8_t *want, size_t want_l
     assert_memory_equal(out->b.data + 9, want, want_len);
 }
 
-static net_buf_t *run_list(const uint32_t *oads, size_t n,
-                           const edge_slave_source_ops_t *src, net_buf_pool_t **pool_out) {
+static net_buf_t *run_list(const uint32_t *oads, size_t n, const edge_slave_source_ops_t *src,
+                           net_buf_pool_t **pool_out) {
     uint8_t frame[128];
     size_t frame_len = build_get_list(frame, oads, n);
     net_buf_pool_t *pool = net_buf_pool_new(8, 4096, 0);
@@ -601,8 +619,7 @@ static net_buf_t *run_list(const uint32_t *oads, size_t n,
     alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
     memset(priv, 0, sizeof(priv));
     size_t consumed = 0;
-    int rc =
-        test_exchange(priv, frame, frame_len, src, NULL, out, &consumed);
+    int rc = test_exchange(priv, frame, frame_len, src, NULL, out, &consumed);
     assert_int_equal(rc, 0);
     *pool_out = pool;
     return out;
@@ -615,9 +632,8 @@ static void test_driver_normal_list_mixed_success_and_dar(void **state) {
     net_buf_t *out = run_list(oads, 3, &k_mixed_list_src, &pool);
 
     const uint8_t want[] = {
-        0x85, 0x02, 0x01, 0x03,
-        0x20, 0x00, 0x02, 0x00, 0x01, 0x17, 0x43, 0x67, 0xB3, 0x33,
-        0x20, 0x01, 0x02, 0x00, 0x00, DLT698_DAR_OBJECT_NOT_FOUND,
+        0x85, 0x02, 0x01, 0x03, 0x20, 0x00, 0x02, 0x00, 0x01, 0x17,
+        0x43, 0x67, 0xB3, 0x33, 0x20, 0x01, 0x02, 0x00, 0x00, DLT698_DAR_OBJECT_NOT_FOUND,
         0x20, 0x04, 0x02, 0x00, 0x01, 0x17, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00,
     };
@@ -643,8 +659,7 @@ static void test_driver_normal_list_empty_request(void **state) {
 
 static int g_dup_calls;
 
-static int duplicate_list_resolve(void *ctx, uint32_t oad, uint8_t *buf, size_t cap,
-                                  size_t *len) {
+static int duplicate_list_resolve(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, size_t *len) {
     (void)ctx;
     (void)oad;
     if (!buf || !len || cap < 3) return -1;
@@ -656,8 +671,8 @@ static int duplicate_list_resolve(void *ctx, uint32_t oad, uint8_t *buf, size_t 
     return 0;
 }
 
-static const edge_slave_source_ops_t k_duplicate_list_src = {
-    .resolve_axdr = duplicate_list_resolve};
+static const edge_slave_source_ops_t k_duplicate_list_src = {.resolve_axdr =
+                                                                 duplicate_list_resolve};
 
 static void test_driver_normal_list_duplicate_oad_each_answered(void **state) {
     (void)state;
@@ -667,10 +682,8 @@ static void test_driver_normal_list_duplicate_oad_each_answered(void **state) {
     net_buf_t *out = run_list(oads, 2, &k_duplicate_list_src, &pool);
 
     const uint8_t want[] = {
-        0x85, 0x02, 0x01, 0x02,
-        0x60, 0x00, 0x02, 0x00, 0x01, 0x12, 0x00, 0x01,
-        0x60, 0x00, 0x02, 0x00, 0x01, 0x12, 0x00, 0x02,
-        0x00, 0x00,
+        0x85, 0x02, 0x01, 0x02, 0x60, 0x00, 0x02, 0x00, 0x01, 0x12, 0x00,
+        0x01, 0x60, 0x00, 0x02, 0x00, 0x01, 0x12, 0x00, 0x02, 0x00, 0x00,
     };
     assert_apdu(out, want, sizeof(want));
     assert_int_equal(g_dup_calls, 2);
@@ -713,8 +726,7 @@ static void test_driver_normal_list_reuses_one_buffer(void **state) {
     alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
     memset(priv, 0, sizeof(priv));
     size_t consumed = 0;
-    int rc = test_exchange(priv, frame, frame_len, &k_big_list_src, NULL,
-                                              out, &consumed);
+    int rc = test_exchange(priv, frame, frame_len, &k_big_list_src, NULL, out, &consumed);
     assert_int_equal(rc, 0);
 
     /* 帧头 9 字节后：85 | 02 | PIID | n。 */
@@ -774,8 +786,7 @@ static net_buf_t *run_get_normal(const uint8_t *frame, size_t frame_len,
     alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
     memset(priv, 0, sizeof(priv));
     size_t consumed = 0;
-    int rc =
-        test_exchange(priv, frame, frame_len, src, NULL, out, &consumed);
+    int rc = test_exchange(priv, frame, frame_len, src, NULL, out, &consumed);
     assert_int_equal(rc, 0);
     *pool_out = pool;
     return out;
@@ -842,7 +853,7 @@ static void test_event_class24_attrs_on_the_wire(void **state) {
     dcu_698_object_model_reset();
 }
 
-/* 表194：A2/A3 的线格式；A5/A6/A14 屏蔽（A5 待 A.4 存储，A6/A14 因事件时标为单调 uv_hrtime ns）。 */
+/* 表194：A2/A3 的线格式；A5 仍屏蔽（待 A.4 存储）。 */
 static void test_event_class24_complex_attrs(void **state) {
     (void)state;
     init_product_model_with_events();
@@ -875,17 +886,76 @@ static void test_event_class24_complex_attrs(void **state) {
         dcu_north_resolve_axdr(NULL, MK_OAD(OI_OVER_CURRENT, 5), buf, sizeof(buf), &len),
         EDGE_SLAVE_SRC_CLASS_MISMATCH);
 
-    /* 事件时标是 uv_hrtime 单调纳秒，编成 date_time_s 会伪造墙钟；A6/A14 不暴露。 */
+    /* 表194 明确允许 A14 未发生/未结束时编 NULL；A6 有记录条数但记录里没有墙钟，
+     * 发生时间必填，必须拒绝而不是编 1970。 */
+    const uint8_t a14_empty[] = {0x01, 0x01, 0x02, 0x02, 0x00, 0x00};
+    assert_axdr(MK_OAD(OI_VOLTAGE_DROP, 14), a14_empty, sizeof(a14_empty));
     assert_int_equal(
         dcu_north_resolve_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 6), buf, sizeof(buf), &len),
-        EDGE_SLAVE_SRC_CLASS_MISMATCH);
-    assert_int_equal(
-        dcu_north_resolve_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 14), buf, sizeof(buf), &len),
-        EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        EDGE_SLAVE_SRC_TYPE_MISMATCH);
 
     assert_int_equal(
         dcu_north_resolve_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 7), buf, sizeof(buf), &len),
         EDGE_SLAVE_SRC_CLASS_MISMATCH);
+
+    dcu_698_object_model_reset();
+}
+
+/* A6/A14 的时标只从 epoch_s 编 date_time_s；没有墙钟就拒绝，不把单调纳秒编成公历。 */
+static void test_event_class24_record_and_status_times(void **state) {
+    (void)state;
+    init_product_model_with_events();
+
+    s_evt_3000.record_count = 1;
+    s_evt_3000.records[0].index = 1;
+    s_evt_3000.records[0].start_time = (dcu_event_stamp_t){.mono_ns = 123, .epoch_s = 1700000000};
+    s_evt_3000.records[0].end_time = (dcu_event_stamp_t){0};
+
+    /* epoch 1700000000 在 TZ=CST-8 下是 2023-11-15T06:13:20；
+     * 未结束的 A6 结束时间编表49 非法时标（年 FFFFH、其余 FFH），不是 NULL。 */
+    const uint8_t a6_no_snapshots[] = {0x01, 0x01, 0x02, 0x04, 0x06, 0x00, 0x00, 0x00, 0x01,
+                                       0x1C, 0x07, 0xE7, 0x0B, 0x0F, 0x06, 0x0D, 0x14, 0x1C,
+                                       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01, 0x00};
+    assert_axdr(MK_OAD(OI_VOLTAGE_DROP, 6), a6_no_snapshots, sizeof(a6_no_snapshots));
+
+    s_evt_3000.snapshot_count = 2;
+    s_evt_3000.records[0].snapshot_len[0] = 3;
+    s_evt_3000.records[0].snapshot[0][0] = 0x12;
+    s_evt_3000.records[0].snapshot[0][1] = 0x08;
+    s_evt_3000.records[0].snapshot[0][2] = 0x9D;
+    s_evt_3000.records[0].snapshot_len[1] = 0;
+    const uint8_t a6_with_snapshots[] = {0x01, 0x01, 0x02, 0x06, 0x06, 0x00, 0x00, 0x00,
+                                         0x01, 0x1C, 0x07, 0xE7, 0x0B, 0x0F, 0x06, 0x0D,
+                                         0x14, 0x1C, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+                                         0xFF, 0x01, 0x00, 0x12, 0x08, 0x9D, 0x00};
+    assert_axdr(MK_OAD(OI_VOLTAGE_DROP, 6), a6_with_snapshots, sizeof(a6_with_snapshots));
+
+    s_evt_3000.last_start_time = (dcu_event_stamp_t){.mono_ns = 456, .epoch_s = 1700000000};
+    s_evt_3000.records[0].end_time = (dcu_event_stamp_t){.mono_ns = 789, .epoch_s = 1700003600};
+    s_evt_3000.last_end_time = s_evt_3000.records[0].end_time;
+    /* 2023-11-15T06:13:20 / 07:13:20（CST-8）。 */
+    const uint8_t a14_two_times[] = {0x01, 0x01, 0x02, 0x02, 0x1C, 0x07, 0xE7, 0x0B, 0x0F, 0x06,
+                                     0x0D, 0x14, 0x1C, 0x07, 0xE7, 0x0B, 0x0F, 0x07, 0x0D, 0x14};
+    assert_axdr(MK_OAD(OI_VOLTAGE_DROP, 14), a14_two_times, sizeof(a14_two_times));
+
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = 0;
+    /* 单调纳秒冒充 epoch（远大于 2100）与 epoch 0 都必须拒绝。 */
+    s_evt_3000.records[0].start_time =
+        (dcu_event_stamp_t){.mono_ns = 123, .epoch_s = 1716500000000000000ULL};
+    assert_int_equal(
+        dcu_north_resolve_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 6), buf, sizeof(buf), &len),
+        EDGE_SLAVE_SRC_TYPE_MISMATCH);
+
+    s_evt_3000.records[0].start_time = (dcu_event_stamp_t){.mono_ns = 123, .epoch_s = 0};
+    assert_int_equal(
+        dcu_north_resolve_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 6), buf, sizeof(buf), &len),
+        EDGE_SLAVE_SRC_TYPE_MISMATCH);
+
+    s_evt_3000.last_start_time = (dcu_event_stamp_t){.mono_ns = 456, .epoch_s = 0};
+    assert_int_equal(
+        dcu_north_resolve_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 14), buf, sizeof(buf), &len),
+        EDGE_SLAVE_SRC_TYPE_MISMATCH);
 
     dcu_698_object_model_reset();
 }
@@ -955,8 +1025,7 @@ static void test_normal_list_dar_mapping(void **state) {
     alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
     memset(priv, 0, sizeof(priv));
     size_t consumed = 0;
-    int rc = test_exchange(priv, frame, frame_len, &k_list_class_mismatch,
-                                              NULL, out, &consumed);
+    int rc = test_exchange(priv, frame, frame_len, &k_list_class_mismatch, NULL, out, &consumed);
     assert_int_equal(rc, 0);
     /* APDU: 85 | 02 | PIID | n | OAD(4) | 00 | DAR ...，APDU 从偏移 9 起。 */
     assert_int_equal(out->b.data[9], DLT698_SVC_GET_RES);
@@ -1023,8 +1092,7 @@ static net_buf_t *run_set(uint8_t *frame, size_t frame_len, const edge_slave_sou
     alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
     memset(priv, 0, sizeof(priv));
     size_t consumed = 0;
-    int rc =
-        test_exchange(priv, frame, frame_len, src, NULL, out, &consumed);
+    int rc = test_exchange(priv, frame, frame_len, src, NULL, out, &consumed);
     assert_int_equal(rc, 0);
     *pool_out = pool;
     return out;
@@ -1251,7 +1319,8 @@ static void test_action_130_close_param(void **state) {
     (void)state;
     assert_action_dar(130, k_close_param, sizeof(k_close_param), DLT698_DAR_TEMPORARY_FAILURE);
 
-    const uint8_t wrong_command[] = {0x01, 0x01, 0x02, 0x02, 0x51, 0x20, 0x00, 0x04, 0x00, 0x11, 0x01};
+    const uint8_t wrong_command[] = {0x01, 0x01, 0x02, 0x02, 0x51, 0x20,
+                                     0x00, 0x04, 0x00, 0x11, 0x01};
     assert_action_dar(130, wrong_command, sizeof(wrong_command), DLT698_DAR_TYPE_MISMATCH);
 
     const uint8_t missing_command[] = {0x01, 0x01, 0x02, 0x01, 0x51, 0x20, 0x00, 0x04, 0x00};
@@ -1259,9 +1328,9 @@ static void test_action_130_close_param(void **state) {
 }
 
 /* 表 A.9：131 = array<structure{OAD, enum, visible-string}>。 */
-static const uint8_t k_plain_close_param[] = {0x01, 0x01, 0x02, 0x03, 0x51, 0x20, 0x00, 0x04, 0x00,
-                                              0x16, 0x00, 0x0A, 0x06, 0x31, 0x32, 0x33, 0x34, 0x35,
-                                              0x36};
+static const uint8_t k_plain_close_param[] = {0x01, 0x01, 0x02, 0x03, 0x51, 0x20, 0x00,
+                                              0x04, 0x00, 0x16, 0x00, 0x0A, 0x06, 0x31,
+                                              0x32, 0x33, 0x34, 0x35, 0x36};
 
 static void test_action_131_password_close_param(void **state) {
     (void)state;
@@ -1272,9 +1341,9 @@ static void test_action_131_password_close_param(void **state) {
                                         0x00, 0x04, 0x00, 0x16, 0x00};
     assert_action_dar(131, missing_password, sizeof(missing_password), DLT698_DAR_TYPE_MISMATCH);
 
-    const uint8_t wrong_password_type[] = {0x01, 0x01, 0x02, 0x03, 0x51, 0x20, 0x00, 0x04,
-                                           0x00, 0x16, 0x00, 0x09, 0x06, 0x31, 0x32, 0x33,
-                                           0x34, 0x35, 0x36};
+    const uint8_t wrong_password_type[] = {0x01, 0x01, 0x02, 0x03, 0x51, 0x20, 0x00,
+                                           0x04, 0x00, 0x16, 0x00, 0x09, 0x06, 0x31,
+                                           0x32, 0x33, 0x34, 0x35, 0x36};
     assert_action_dar(131, wrong_password_type, sizeof(wrong_password_type),
                       DLT698_DAR_TYPE_MISMATCH);
 }
@@ -1404,6 +1473,7 @@ int main(void) {
         cmocka_unit_test(test_product_variable_axdr_types),
         cmocka_unit_test(test_event_class24_attrs_on_the_wire),
         cmocka_unit_test(test_event_class24_complex_attrs),
+        cmocka_unit_test(test_event_class24_record_and_status_times),
         cmocka_unit_test(test_product_axdr_rejects_small_buffer_and_complex),
         cmocka_unit_test(test_driver_scalar_fallback_still_works),
         cmocka_unit_test(test_driver_high_byte_oad_has_no_signed_shift),
@@ -1434,5 +1504,5 @@ int main(void) {
         cmocka_unit_test(test_action_6012_method127_valid_body_dar0),
         cmocka_unit_test(test_action_6012_method127_truncated_body_dar7_no_state_change),
     };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    return cmocka_run_group_tests(tests, setup_timezone, teardown_timezone);
 }

@@ -7,9 +7,9 @@
 
 #include "dcu_698_object_model.h"
 #include "dcu_discovery.h"
-#include "edge_slave_plane.h"
 #include "dcu_inventory.h"
 #include "dcu_poller.h"
+#include "edge_slave_plane.h"
 
 #define MK_OAD(oi, attr) (((uint32_t)(oi) << 16) | ((uint32_t)(attr) << 8))
 #define MK_OMD(oi, method) (((uint32_t)(oi) << 16) | ((uint32_t)(method) << 8))
@@ -26,7 +26,7 @@ typedef struct {
 
 static const uint8_t k_attr_3[] = {3};
 static const uint8_t k_attr_23[] = {2, 3};
-static const uint8_t k_attr_event[] = {2, 3, 4, 11, 12};
+static const uint8_t k_attr_event[] = {2, 3, 4, 6, 11, 12, 14};
 static const uint8_t k_method_1[] = {1};
 static const uint8_t k_attr_2_6000[] = {2};
 static const uint8_t k_method_6000[] = {127, 128, 129, 130, 131, 132, 133, 134};
@@ -39,8 +39,8 @@ static const expected_object_t k_expected[] = {
     {OI_ARCHIVE_UNIT, IC_PARAM, DCU_OBJ_SINGLETON, k_attr_2_6000, 1, NULL, 0},
     {OI_TASK_SCHEDULER, IC_ACQUISITION, DCU_OBJ_SHARED, k_attr_2_6000, 1, k_method_6012, 5},
     {OI_TASK_UNIT, IC_PARAM, DCU_OBJ_SHARED, k_attr_2_6000, 1, NULL, 0},
-    {(uint16_t)((OAD_VOLTAGE >> 16) & 0xFFFF), IC_VARIABLE, DCU_OBJ_PER_METER, k_attr_23, 2,
-     NULL, 0},
+    {(uint16_t)((OAD_VOLTAGE >> 16) & 0xFFFF), IC_VARIABLE, DCU_OBJ_PER_METER, k_attr_23, 2, NULL,
+     0},
     {(uint16_t)((OAD_CURRENT >> 16) & 0xFFFF), IC_VARIABLE, DCU_OBJ_PER_METER, k_attr_23, 2, NULL,
      0},
     {(uint16_t)((OAD_DAILY_FREEZE >> 16) & 0xFFFF), IC_RECORD, DCU_OBJ_SHARED, NULL, 0, NULL, 0},
@@ -49,8 +49,8 @@ static const expected_object_t k_expected[] = {
     {OI_CHANNEL_CONFIG, IC_PERIPHERAL, DCU_OBJ_SINGLETON, NULL, 0, NULL, 0},
     {OI_METER_DISCOVERY, IC_ACQUISITION, DCU_OBJ_SINGLETON, k_attr_3, 1, k_method_127, 1},
     {OI_DISCOVERY_RESULT, IC_ACQUISITION, DCU_OBJ_SINGLETON, NULL, 0, NULL, 0},
-    {OI_VOLTAGE_DROP, IC_SUB_EVENT, DCU_OBJ_SHARED, k_attr_event, 5, k_method_1, 1},
-    {OI_OVER_CURRENT, IC_SUB_EVENT, DCU_OBJ_SHARED, k_attr_event, 5, k_method_1, 1},
+    {OI_VOLTAGE_DROP, IC_SUB_EVENT, DCU_OBJ_SHARED, k_attr_event, 7, k_method_1, 1},
+    {OI_OVER_CURRENT, IC_SUB_EVENT, DCU_OBJ_SHARED, k_attr_event, 7, k_method_1, 1},
 };
 
 static int setup(void **state) {
@@ -146,10 +146,8 @@ static void test_mask_rejects_missing_attr_and_method(void **state) {
 
     /* 5004：Class 9 的方法 3 类定义但未暴露 → 5；方法 6 类里没有 → 4。 */
     uint16_t oi_5004 = (uint16_t)((OAD_DAILY_FREEZE >> 16) & 0xFFFF);
-    assert_int_equal(dcu_698_call(MK_OMD(oi_5004, 3), NULL, NULL),
-                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_698_call(MK_OMD(oi_5004, 3), NULL, NULL), EDGE_SLAVE_SRC_CLASS_MISMATCH);
     assert_int_equal(dcu_698_call(MK_OMD(oi_5004, 6), NULL, NULL), EDGE_SLAVE_SRC_UNDEFINED);
-
 
     assert_int_equal(dcu_698_read(MK_OAD(OI_DISCOVERY_RESULT, 2), &(uint16_t){0}), -1);
     assert_int_equal(dcu_698_read(MK_OAD(OI_METER_DISCOVERY, 2), &(uint16_t){0}), -1);
@@ -342,8 +340,8 @@ static void test_event_class7_attr_numbers_are_not_served(void **state) {
     init_model_with_events(&inv, &poller, &evt_3000, &evt_3005);
 
     static const uint16_t ois[] = {OI_VOLTAGE_DROP, OI_OVER_CURRENT};
-    static const uint8_t masked[] = {5, 6, 7, 8, 9, 10, 13, 14};
-    static const uint8_t exposed_but_not_scalar[] = {2, 3};
+    static const uint8_t masked[] = {5, 7, 8, 9, 10, 13};
+    static const uint8_t exposed_but_not_scalar[] = {2, 3, 6, 14};
     for (size_t i = 0; i < sizeof(ois) / sizeof(ois[0]); i++) {
         for (size_t k = 0; k < sizeof(masked) / sizeof(masked[0]); k++) {
             uint64_t buf = 0;
@@ -369,8 +367,8 @@ static void test_event_method1_resets_records(void **state) {
     dcu_poller_t poller;
     dcu_event_obj_t evt_3000 = {.oi = OI_VOLTAGE_DROP,
                                 .record_count = 2,
-                                .last_start_time = 111,
-                                .last_end_time = 222};
+                                .last_start_time = {.mono_ns = 111, .epoch_s = 1716500000},
+                                .last_end_time = {.mono_ns = 222, .epoch_s = 1716500010}};
     evt_3000.records[0].is_active = true;
     init_model_with_events(&inv, &poller, &evt_3000, NULL);
 
@@ -379,8 +377,10 @@ static void test_event_method1_resets_records(void **state) {
     assert_int_equal(result, 0);
     assert_int_equal(evt_3000.record_count, 0);
     assert_false(evt_3000.records[0].is_active);
-    assert_int_equal(evt_3000.last_start_time, 0);
-    assert_int_equal(evt_3000.last_end_time, 0);
+    assert_int_equal(evt_3000.last_start_time.mono_ns, 0);
+    assert_int_equal(evt_3000.last_start_time.epoch_s, 0);
+    assert_int_equal(evt_3000.last_end_time.mono_ns, 0);
+    assert_int_equal(evt_3000.last_end_time.epoch_s, 0);
 
     /* Class 24 定义了方法 2，但 3000 只暴露复位 → 类不匹配（DAR 5）。 */
     assert_int_equal(dcu_698_call(MK_OMD(OI_VOLTAGE_DROP, 2), NULL, NULL),

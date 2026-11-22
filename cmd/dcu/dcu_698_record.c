@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "dcu_698_axdr.h"
 #include "dcu_router.h"
 #include "dlt698_codec.h"
 
@@ -15,9 +16,13 @@ typedef struct {
 } record_col_t;
 
 static const record_col_t k_cols[] = {
-    {OAD_ACTIVE_ENERGY, 0x06, -2}, {OAD_REACTIVE_ENERGY, 0x06, -2}, {OAD_VOLTAGE, 0x12, -1},
-    {OAD_CURRENT, 0x05, -3}, {OAD_ACTIVE_POWER_TOTAL, 0x05, -1},
-    {OAD_POWER_FACTOR_TOTAL, 0x10, -3}, {OAD_GRID_FREQUENCY, 0x12, -2},
+    {OAD_ACTIVE_ENERGY, 0x06, -2},
+    {OAD_REACTIVE_ENERGY, 0x06, -2},
+    {OAD_VOLTAGE, 0x12, -1},
+    {OAD_CURRENT, 0x05, -3},
+    {OAD_ACTIVE_POWER_TOTAL, 0x05, -1},
+    {OAD_POWER_FACTOR_TOTAL, 0x10, -3},
+    {OAD_GRID_FREQUENCY, 0x12, -2},
 };
 
 static const record_col_t *_find_col(uint32_t oad) {
@@ -27,68 +32,7 @@ static const record_col_t *_find_col(uint32_t oad) {
     return NULL;
 }
 
-/* UNIX 秒 ↔ 公历（UTC），不依赖本地时区（timegm/mktime 都带进程状态）。 */
-static int64_t _days_from_civil(int y, int m, int d) {
-    y -= m <= 2;
-    int era = (y >= 0 ? y : y - 399) / 400;
-    int yoe = y - era * 400;
-    int doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
-    int doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    return (int64_t)era * 146097 + doe - 719468;
-}
-
-static void _civil_from_days(int64_t z, int *y, int *m, int *d) {
-    z += 719468;
-    int64_t era = (z >= 0 ? z : z - 146096) / 146097;
-    unsigned doe = (unsigned)(z - era * 146097);
-    unsigned yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-    int64_t yy = (int64_t)yoe + era * 400;
-    unsigned doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    unsigned mp = (5 * doy + 2) / 153;
-    *d = (int)(doy - (153 * mp + 2) / 5 + 1);
-    *m = (int)mp + (mp < 10 ? 3 : -9);
-    *y = (int)(yy + (*m <= 2));
-}
-
-static int _date_time_s_to_epoch(const uint8_t *data, uint8_t len, uint64_t *out) {
-    if (!data || !out) return -1;
-    int offset;
-    if (len == 11 && data[0] == 0x19) {
-        /* 表48：year(2) month day weekday hour minute second millisecond(2) */
-        offset = 1;
-    } else if (len == 8 && data[0] == 0x1C) {
-        offset = 0;
-    } else {
-        return -1;
-    }
-    int year = ((int)data[1] << 8) | data[2];
-    int month = data[3], day = data[4];
-    int hour = data[5 + offset], minute = data[6 + offset], sec = data[7 + offset];
-    if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59 || sec > 59) {
-        return -1;
-    }
-    int64_t days = _days_from_civil(year, month, day);
-    *out = (uint64_t)(days * 86400 + (int64_t)hour * 3600 + minute * 60 + sec);
-    return 0;
-}
-
-static int _put_date_time_s(uint64_t epoch, uint8_t *buf, size_t cap, size_t *off) {
-    if (*off + 8 > cap) return -1;
-    int64_t days = (int64_t)(epoch / 86400);
-    uint64_t rem = epoch % 86400;
-    int year = 0;
-    int month = 0, day = 0;
-    _civil_from_days(days, &year, &month, &day);
-    buf[(*off)++] = 0x1C;
-    buf[(*off)++] = (uint8_t)((unsigned)year >> 8);
-    buf[(*off)++] = (uint8_t)year;
-    buf[(*off)++] = (uint8_t)month;
-    buf[(*off)++] = (uint8_t)day;
-    buf[(*off)++] = (uint8_t)(rem / 3600);
-    buf[(*off)++] = (uint8_t)((rem % 3600) / 60);
-    buf[(*off)++] = (uint8_t)(rem % 60);
-    return 0;
-}
+/* UNIX 秒 ↔ 设备本地公历只有 `dcu_698_axdr.c` 一份实现，冻结记录与事件记录共用。 */
 
 static int64_t _scale_to_raw(double value, int8_t scaler) {
     double factor = 1.0;
@@ -150,8 +94,8 @@ static size_t _distinct_times(const dcu_freeze_record_t *page, size_t n, uint64_
     return count;
 }
 
-int dcu_698_record_begin(void *opaque, uint32_t oad, const uint8_t *selection,
-                         size_t selection_len, size_t *row_count) {
+int dcu_698_record_begin(void *opaque, uint32_t oad, const uint8_t *selection, size_t selection_len,
+                         size_t *row_count) {
     dcu_698_record_ctx_t *ctx = (dcu_698_record_ctx_t *)opaque;
     if (!ctx || !ctx->storage || !ctx->inventory || !row_count) {
         return EDGE_SLAVE_SRC_NOT_FOUND;
@@ -180,8 +124,8 @@ int dcu_698_record_begin(void *opaque, uint32_t oad, const uint8_t *selection,
     dlt698_record_sel_t sel;
     dlt698_rcsd_t rcsd;
     size_t used = 0;
-    int rc = dlt698_decode_get_record_request(req, 4 + selection_len, &parsed_oad, &sel, &rcsd,
-                                              &used);
+    int rc =
+        dlt698_decode_get_record_request(req, 4 + selection_len, &parsed_oad, &sel, &rcsd, &used);
     if (rc == DLT698_RECORD_UNSUPPORTED_SELECTOR || rc == DLT698_RECORD_UNSUPPORTED_DATA) {
         return EDGE_SLAVE_SRC_TEMPORARY;
     }
@@ -198,7 +142,7 @@ int dcu_698_record_begin(void *opaque, uint32_t oad, const uint8_t *selection,
     uint64_t start = 0, end = (uint64_t)INT64_MAX;
     if (sel.selector == DLT698_RSD_SELECTOR1) {
         if (sel.oad != OAD_FREEZE_TIME) return EDGE_SLAVE_SRC_TEMPORARY;
-        if (_date_time_s_to_epoch(sel.value, sel.value_len, &start) != 0) {
+        if (dcu_698_date_time_s_to_epoch(sel.value, sel.value_len, &start) != 0) {
             return EDGE_SLAVE_SRC_TYPE_MISMATCH;
         }
         end = start;
@@ -208,10 +152,10 @@ int dcu_698_record_begin(void *opaque, uint32_t oad, const uint8_t *selection,
         if (sel.interval_len > 1 || (sel.interval_len == 1 && sel.interval[0] != 0x00)) {
             return EDGE_SLAVE_SRC_TEMPORARY;
         }
-        if (_date_time_s_to_epoch(sel.start, sel.start_len, &start) != 0) {
+        if (dcu_698_date_time_s_to_epoch(sel.start, sel.start_len, &start) != 0) {
             return EDGE_SLAVE_SRC_TYPE_MISMATCH;
         }
-        if (_date_time_s_to_epoch(sel.end, sel.end_len, &end) != 0) {
+        if (dcu_698_date_time_s_to_epoch(sel.end, sel.end_len, &end) != 0) {
             return EDGE_SLAVE_SRC_TYPE_MISMATCH;
         }
         if (end != (uint64_t)INT64_MAX && end > 0) end -= 1;
@@ -253,7 +197,7 @@ int dcu_698_record_begin(void *opaque, uint32_t oad, const uint8_t *selection,
 }
 
 static const dcu_freeze_record_t *_find_cell(const dcu_698_record_ctx_t *ctx, uint64_t time,
-                                            uint32_t source_oad) {
+                                             uint32_t source_oad) {
     for (size_t i = 0; i < ctx->page_count; i++) {
         if (ctx->page[i].freeze_time == time && ctx->page[i].source_oad == source_oad) {
             return &ctx->page[i];
@@ -289,7 +233,8 @@ int dcu_698_record_row(void *opaque, uint32_t oad, size_t index, uint8_t *row, s
     for (uint8_t c = 0; c < ctx->cols[0]; c++) {
         uint32_t col = ctx->col_oad[c];
         if (col == OAD_FREEZE_TIME) {
-            if (_put_date_time_s(time, row, cap, &off) != 0) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+            if (dcu_698_put_date_time_s(time, row, cap, &off) != 0)
+                return EDGE_SLAVE_SRC_TYPE_MISMATCH;
             continue;
         }
         const record_col_t *desc = _find_col(col);

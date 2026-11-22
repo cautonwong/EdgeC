@@ -1,12 +1,13 @@
 #include <cmocka.h>
 #include <fcntl.h>
 #include <setjmp.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 #include <uv.h>
 
@@ -40,12 +41,10 @@ static int setup(void **state) {
     assert_int_equal(dcu_storage_write_freeze(&g_storage, addr, OAD_DAILY_FREEZE, T1,
                                               OAD_ACTIVE_ENERGY, 12345.0),
                      0);
-    assert_int_equal(dcu_storage_write_freeze(&g_storage, addr, OAD_DAILY_FREEZE, T1, OAD_VOLTAGE,
-                                              231.7),
-                     0);
-    assert_int_equal(dcu_storage_write_freeze(&g_storage, addr, OAD_DAILY_FREEZE, T1, OAD_CURRENT,
-                                              4.951),
-                     0);
+    assert_int_equal(
+        dcu_storage_write_freeze(&g_storage, addr, OAD_DAILY_FREEZE, T1, OAD_VOLTAGE, 231.7), 0);
+    assert_int_equal(
+        dcu_storage_write_freeze(&g_storage, addr, OAD_DAILY_FREEZE, T1, OAD_CURRENT, 4.951), 0);
     assert_int_equal(dcu_storage_write_freeze(&g_storage, addr, OAD_DAILY_FREEZE, T2,
                                               OAD_ACTIVE_ENERGY, 12346.0),
                      0);
@@ -96,8 +95,8 @@ static size_t mk_no_sel(uint8_t *sel, const uint32_t *cols, size_t n) {
     return i;
 }
 
-static size_t mk_range(uint8_t *sel, const uint8_t *start, const uint8_t *end,
-                       const uint32_t *cols, size_t n) {
+static size_t mk_range(uint8_t *sel, const uint8_t *start, const uint8_t *end, const uint32_t *cols,
+                       size_t n) {
     size_t i = 0;
     sel[i++] = 0x02;
     sel[i++] = 0x20;
@@ -134,15 +133,15 @@ static void test_record_all_rows_two_columns(void **state) {
     size_t row_len = 0;
     assert_int_equal(dcu_698_record_row(&g_ctx, OAD_DAILY_FREEZE, 0, row, sizeof(row), &row_len),
                      0);
-    const uint8_t want0[] = {0x1C, 0x07, 0xEA, 0x0B, 0x16, 0x00, 0x00, 0x00,
-                             0x06, 0x00, 0x12, 0xD6, 0x44};
+    const uint8_t want0[] = {0x1C, 0x07, 0xEA, 0x0B, 0x16, 0x08, 0x00,
+                             0x00, 0x06, 0x00, 0x12, 0xD6, 0x44};
     assert_int_equal(row_len, sizeof(want0));
     assert_memory_equal(row, want0, sizeof(want0));
 
     assert_int_equal(dcu_698_record_row(&g_ctx, OAD_DAILY_FREEZE, 1, row, sizeof(row), &row_len),
                      0);
-    const uint8_t want1[] = {0x1C, 0x07, 0xEA, 0x0B, 0x17, 0x00, 0x00, 0x00,
-                             0x06, 0x00, 0x12, 0xD6, 0xA8};
+    const uint8_t want1[] = {0x1C, 0x07, 0xEA, 0x0B, 0x17, 0x08, 0x00,
+                             0x00, 0x06, 0x00, 0x12, 0xD6, 0xA8};
     assert_int_equal(row_len, sizeof(want1));
     assert_memory_equal(row, want1, sizeof(want1));
     assert_int_equal(dcu_698_record_end(&g_ctx, OAD_DAILY_FREEZE), 0);
@@ -203,10 +202,10 @@ static void test_record_slot_selects_meter(void **state) {
 
 static void test_record_selector1_date_time_layout(void **state) {
     (void)state;
-    /* 表48 date_time：weekday 在 hour 前；用 07 当日、00 时区分两种解析。 */
-    const uint8_t sel[] = {0x01, 0x20, 0x21, 0x02, 0x00, 0x19, 0x07, 0xEA, 0x0B, 0x16,
-                           0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x20, 0x21,
-                           0x02, 0x00};
+    /* 表48 date_time：weekday 在 hour 前；weekday=07、hour=08 区分两种解析。
+     * T1 是 2026-11-22T00:00Z，CST-8 下本地 08:00，Selector1 精确匹配该时刻。 */
+    const uint8_t sel[] = {0x01, 0x20, 0x21, 0x02, 0x00, 0x19, 0x07, 0xEA, 0x0B, 0x16, 0x07,
+                           0x08, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x20, 0x21, 0x02, 0x00};
     size_t rows = 0;
     assert_int_equal(dcu_698_record_begin(&g_ctx, OAD_DAILY_FREEZE, sel, sizeof(sel), &rows), 0);
     assert_int_equal(rows, 1);
@@ -217,7 +216,7 @@ static void test_record_selector1_date_time_layout(void **state) {
                      0);
     assert_int_equal(row_len, 8);
     assert_int_equal(row[0], 0x1C);
-    assert_int_equal(row[5], 0x00); /* hour */
+    assert_int_equal(row[5], 0x08);
     dcu_698_record_end(&g_ctx, OAD_DAILY_FREEZE);
 }
 
@@ -260,6 +259,31 @@ static void test_record_missing_column_fails_row(void **state) {
     dcu_698_record_end(&g_ctx, OAD_DAILY_FREEZE);
 }
 
+/* date_time_s 是设备本地民用时间：固定东八区，冻结记录字节与区间窗口才可确定。 */
+static char g_saved_tz[128];
+static int g_had_tz;
+
+static int setup_timezone(void **state) {
+    (void)state;
+    const char *tz = getenv("TZ");
+    g_had_tz = tz != NULL;
+    if (g_had_tz) snprintf(g_saved_tz, sizeof(g_saved_tz), "%s", tz);
+    setenv("TZ", "CST-8", 1);
+    tzset();
+    return 0;
+}
+
+static int teardown_timezone(void **state) {
+    (void)state;
+    if (g_had_tz) {
+        setenv("TZ", g_saved_tz, 1);
+    } else {
+        unsetenv("TZ");
+    }
+    tzset();
+    return 0;
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_record_all_rows_two_columns, setup, teardown),
@@ -270,5 +294,5 @@ int main(void) {
         cmocka_unit_test_setup_teardown(test_record_rcsd_zero_means_all_columns, setup, teardown),
         cmocka_unit_test_setup_teardown(test_record_missing_column_fails_row, setup, teardown),
     };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    return cmocka_run_group_tests(tests, setup_timezone, teardown_timezone);
 }

@@ -7,6 +7,7 @@
 // === [Consumer-Defined Interfaces] ===
 typedef struct {
     void* ctx;
+    /* start_time/end_time 是墙钟 UNIX 整秒；end_time 为 0 表示未结束。 */
     int (*archive_event)(void* ctx, const char* addr, uint16_t event_code, uint64_t start_time,
                          uint64_t end_time, float snapshot_val);
     int (*archive_freeze)(void* ctx, const char* addr, uint32_t freeze_oad, uint64_t freeze_time,

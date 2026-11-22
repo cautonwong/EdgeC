@@ -1,8 +1,8 @@
-#include "dcu_698_object_internal.h"
-
 #include <stdio.h>
 #include <string.h>
 
+#include "dcu_698_axdr.h"
+#include "dcu_698_object_internal.h"
 #include "dcu_698_var.h"
 
 int dcu_698_event_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
@@ -82,6 +82,43 @@ static int _put_oad(uint8_t *buf, size_t cap, size_t *off, uint32_t oad) {
     return _put_u32(buf, cap, off, 0x51, oad);
 }
 
+static int _put_null(uint8_t *buf, size_t cap, size_t *off) {
+    if (*off + 1 > cap) return -1;
+    buf[(*off)++] = 0x00;
+    return 0;
+}
+
+/* 没有墙钟就拒绝，不把单调时标或 0 编成公历日期。 */
+static int _put_required_stamp(const dcu_event_stamp_t *stamp, uint8_t *buf, size_t cap,
+                               size_t *off) {
+    if (stamp->mono_ns == 0 || !dcu_698_epoch_is_civil(stamp->epoch_s)) return -1;
+    return dcu_698_put_date_time_s(stamp->epoch_s, buf, cap, off);
+}
+
+/* 表49 的非法 date_time_s：年 0xFFFF，其余字段 0xFF。不由 _put_date_time_s 产生。 */
+static int _put_invalid_stamp(uint8_t *buf, size_t cap, size_t *off) {
+    if (*off + 8 > cap) return -1;
+    buf[(*off)++] = 0x1C;
+    for (int i = 0; i < 7; i++) buf[(*off)++] = 0xFF;
+    return 0;
+}
+
+/* 表194 A6 结束时间没有 NULL 槽位：事件未结束编表49 非法时标；有墙钟但不可编码则拒绝。 */
+static int _put_a6_end_stamp(const dcu_event_stamp_t *stamp, uint8_t *buf, size_t cap,
+                             size_t *off) {
+    if (stamp->mono_ns == 0) return _put_invalid_stamp(buf, cap, off);
+    if (!dcu_698_epoch_is_civil(stamp->epoch_s)) return -1;
+    return dcu_698_put_date_time_s(stamp->epoch_s, buf, cap, off);
+}
+
+/* 表194 A14 明确允许 NULL：未发生/未结束编 0x00。 */
+static int _put_optional_stamp(const dcu_event_stamp_t *stamp, uint8_t *buf, size_t cap,
+                               size_t *off) {
+    if (stamp->mono_ns == 0) return _put_null(buf, cap, off);
+    if (!dcu_698_epoch_is_civil(stamp->epoch_s)) return -1;
+    return dcu_698_put_date_time_s(stamp->epoch_s, buf, cap, off);
+}
+
 int dcu_698_event_encode_axdr(const dcu_698_object_t *obj, uint32_t oad, uint8_t *buf, size_t cap,
                               size_t *len) {
     if (!obj || !buf || !len) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
@@ -117,6 +154,42 @@ int dcu_698_event_encode_axdr(const dcu_698_object_t *obj, uint32_t oad, uint8_t
         for (int i = 0; rc == 0 && i < 3; i++) {
             rc = _put_u16(buf, cap, &off, DCU_698_TAG_LONG_UNSIGNED, 0);
         }
+    } else if (attr_id == 6) {
+        /* 表194：事件记录表1 = array<structure{序号, 发生时间, 结束时间, 上报状态 array,
+         * n×关联数据}>。表2-4 未实例化；上报状态没有按通道存储，编空数组。关联数据在
+         * 生成记录时抓拍，取不到就编 NULL，不拿读取时的当前值冒充。 */
+        uint16_t count = evt->record_count;
+        if (count > MAX_EVENT_RECORDS) count = MAX_EVENT_RECORDS;
+        uint8_t n = evt->snapshot_count;
+        if (n > MAX_EVENT_SNAPSHOTS) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+        rc = _put_head(buf, cap, &off, DCU_698_TAG_ARRAY, (uint8_t)count);
+        for (uint16_t i = 0; rc == 0 && i < count; i++) {
+            const dcu_event_record_t *rec = &evt->records[i];
+            rc = _put_head(buf, cap, &off, DCU_698_TAG_STRUCTURE, (uint8_t)(4 + n));
+            if (rc == 0) {
+                rc = _put_u32(buf, cap, &off, DCU_698_TAG_DOUBLE_LONG_UNSIGNED, rec->index);
+            }
+            if (rc == 0) rc = _put_required_stamp(&rec->start_time, buf, cap, &off);
+            if (rc == 0) rc = _put_a6_end_stamp(&rec->end_time, buf, cap, &off);
+            if (rc == 0) rc = _put_head(buf, cap, &off, DCU_698_TAG_ARRAY, 0);
+            for (uint8_t k = 0; rc == 0 && k < n; k++) {
+                uint8_t blob_len = rec->snapshot_len[k];
+                if (blob_len == 0) {
+                    rc = _put_null(buf, cap, &off);
+                } else if (off + blob_len > cap) {
+                    rc = -1;
+                } else {
+                    memcpy(buf + off, rec->snapshot[k], blob_len);
+                    off += blob_len;
+                }
+            }
+        }
+    } else if (attr_id == 14) {
+        /* 表194：时间状态记录表 = array<structure{最近一次发生时间, 最近一次结束时间}>。 */
+        rc = _put_head(buf, cap, &off, DCU_698_TAG_ARRAY, 1);
+        if (rc == 0) rc = _put_head(buf, cap, &off, DCU_698_TAG_STRUCTURE, 2);
+        if (rc == 0) rc = _put_optional_stamp(&evt->last_start_time, buf, cap, &off);
+        if (rc == 0) rc = _put_optional_stamp(&evt->last_end_time, buf, cap, &off);
     } else {
         return EDGE_SLAVE_SRC_CLASS_MISMATCH;
     }
@@ -135,10 +208,11 @@ int dcu_698_event_execute(const dcu_698_object_t *obj, uint8_t method_id, const 
     if (method_id == 1) {
         evt->record_count = 0;
         memset(evt->records, 0, sizeof(evt->records));
-        evt->last_start_time = 0;
-        evt->last_end_time = 0;
+        evt->last_start_time = (dcu_event_stamp_t){0};
+        evt->last_end_time = (dcu_event_stamp_t){0};
         if (result) *(int *)result = 0;
-        printf("🧹 [EVENT] ACTION: 成功复位事件 %04X 的历史事件记录表。\n", evt->oi);
+        printf("🧹 [EVENT] ACTION: 成功复位事件 %04X 的历史事件记录表。\n",
+               evt->oi);
         return 0;
     }
     return -2;
