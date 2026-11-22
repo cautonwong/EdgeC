@@ -23,13 +23,13 @@ typedef struct {
     uint8_t n_methods;
 } acl_object_t;
 
-static const acl_attr_t k_attrs_0010[] = {{2, 1}, {4, 1}};
-static const acl_attr_t k_attrs_0020[] = {{2, 1}};
-static const acl_attr_t k_attrs_2000[] = {{2, 1}};
-static const acl_attr_t k_attrs_2001[] = {{2, 1}};
-static const acl_attr_t k_attrs_2004[] = {{2, 1}};
-static const acl_attr_t k_attrs_200A[] = {{2, 1}};
-static const acl_attr_t k_attrs_200F[] = {{2, 1}};
+static const acl_attr_t k_attrs_0010[] = {{2, 1}, {3, 1}, {4, 1}, {5, 1}};
+static const acl_attr_t k_attrs_0020[] = {{2, 1}, {3, 1}, {4, 1}, {5, 1}};
+static const acl_attr_t k_attrs_2000[] = {{2, 1}, {3, 1}};
+static const acl_attr_t k_attrs_2001[] = {{2, 1}, {3, 1}};
+static const acl_attr_t k_attrs_2004[] = {{2, 1}, {3, 1}};
+static const acl_attr_t k_attrs_200A[] = {{2, 1}, {3, 1}};
+static const acl_attr_t k_attrs_200F[] = {{2, 1}, {3, 1}};
 static const acl_attr_t k_attrs_5004[] = {{2, 1}};
 static const acl_attr_t k_attrs_6000[] = {{2, 1}};
 static const acl_attr_t k_attrs_6012[] = {{2, 1}};
@@ -40,13 +40,13 @@ static const acl_attr_t k_attrs_event[] = {{2, 1}, {3, 1}, {4, 1}, {5, 1}, {6, 3
 static const uint8_t k_methods_8000[] = {1, 126, 127, 128, 129, 130, 131};
 
 static const acl_object_t k_objects[] = {
-    {0x0010, k_attrs_0010, 2, NULL, 0},
-    {0x0020, k_attrs_0020, 1, NULL, 0},
-    {0x2000, k_attrs_2000, 1, NULL, 0},
-    {0x2001, k_attrs_2001, 1, NULL, 0},
-    {0x2004, k_attrs_2004, 1, NULL, 0},
-    {0x200A, k_attrs_200A, 1, NULL, 0},
-    {0x200F, k_attrs_200F, 1, NULL, 0},
+    {0x0010, k_attrs_0010, 4, NULL, 0},
+    {0x0020, k_attrs_0020, 4, NULL, 0},
+    {0x2000, k_attrs_2000, 2, NULL, 0},
+    {0x2001, k_attrs_2001, 2, NULL, 0},
+    {0x2004, k_attrs_2004, 2, NULL, 0},
+    {0x200A, k_attrs_200A, 2, NULL, 0},
+    {0x200F, k_attrs_200F, 2, NULL, 0},
     {0x3000, k_attrs_event, 8, NULL, 0},
     {0x3005, k_attrs_event, 8, NULL, 0},
     {0x5004, k_attrs_5004, 1, NULL, 0},

@@ -35,11 +35,32 @@ static int mock_shadow(void *ctx, uint32_t tag_id, uint32_t device_id, void *out
         case OAD_VOLTAGE:
             value = 220.5;
             break;
+        case TAG_VOLTAGE_B:
+            value = 220.1;
+            break;
+        case TAG_VOLTAGE_C:
+            value = 219.9;
+            break;
         case OAD_CURRENT:
             value = 4.95;
             break;
+        case TAG_CURRENT_B:
+            value = 5.0;
+            break;
+        case TAG_CURRENT_C:
+            value = 5.05;
+            break;
         case OAD_ACTIVE_POWER_TOTAL:
             value = 1234.5;
+            break;
+        case TAG_ACTIVE_POWER_A:
+            value = 400.0;
+            break;
+        case TAG_ACTIVE_POWER_B:
+            value = 410.0;
+            break;
+        case TAG_ACTIVE_POWER_C:
+            value = 420.0;
             break;
         case OAD_POWER_FACTOR_TOTAL:
             value = 0.95;
@@ -100,18 +121,36 @@ static void assert_value(uint32_t oad, uint8_t want_tag, double want_value) {
     assert_float_equal((float)v.value, (float)want_value, 0.001f);
 }
 
-static void test_variable_ois_type_tags(void **state) {
+static void test_class6_scalar_type_tags(void **state) {
     (void)state;
     init_model();
 
-    assert_value(OAD_ACTIVE_ENERGY, DCU_698_TAG_DOUBLE_LONG_UNSIGNED, 12345.0);
-    assert_value(OAD_REACTIVE_ENERGY, DCU_698_TAG_DOUBLE_LONG_UNSIGNED, 6789.0);
-    assert_value(OAD_VOLTAGE, DCU_698_TAG_FLOAT32, 220.5);
-    assert_value(OAD_CURRENT, DCU_698_TAG_FLOAT32, 4.95);
-    assert_value(OAD_ACTIVE_POWER_TOTAL, DCU_698_TAG_FLOAT32, 1234.5);
-    assert_value(OAD_POWER_FACTOR_TOTAL, DCU_698_TAG_LONG, 0.95);
-    assert_value(OAD_GRID_FREQUENCY, DCU_698_TAG_LONG_UNSIGNED, 50.01);
-    assert_value(MK_OAD(0x0010, 4), DCU_698_TAG_LONG64_UNSIGNED, 12345.0);
+    dcu_value_t v;
+    memset(&v, 0, sizeof(v));
+    assert_int_equal(dcu_698_value_for_oad(OAD_GRID_FREQUENCY, &v), 0);
+    assert_int_equal(v.type_tag, DCU_698_TAG_LONG_UNSIGNED);
+    assert_int_equal(v.raw, 5001);
+    assert_float_equal((float)v.value, 50.01f, 0.001f);
+
+    /* Class 1/3/4 的属性 2 是数组，标量端口必须拒绝。 */
+    assert_int_equal(dcu_698_value_for_oad(OAD_ACTIVE_ENERGY, &v),
+                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    assert_int_equal(dcu_698_value_for_oad(OAD_VOLTAGE, &v), EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    assert_int_equal(dcu_698_value_for_oad(OAD_CURRENT, &v), EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    assert_int_equal(dcu_698_value_for_oad(OAD_ACTIVE_POWER_TOTAL, &v),
+                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    assert_int_equal(dcu_698_value_for_oad(OAD_POWER_FACTOR_TOTAL, &v),
+                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
+
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = 0;
+    assert_int_equal(dcu_north_resolve_axdr(NULL, OAD_POWER_FACTOR_TOTAL, buf, sizeof(buf), &len),
+                     0);
+    assert_int_equal(buf[0], DCU_698_TAG_ARRAY);
+    assert_int_equal(buf[1], 1);
+    assert_int_equal(buf[2], DCU_698_TAG_LONG);
+    assert_int_equal(buf[3], 0x03);
+    assert_int_equal(buf[4], 0xB6);
 
     teardown_model();
 }
@@ -147,9 +186,13 @@ static void test_scalar_callback_type_and_width(void **state) {
     assert_float_equal((float)p.value, 1.0f, 0.001f);
 
     memset(&p, 0, sizeof(p));
-    assert_int_equal(dcu_north_resolve_scalar(NULL, OAD_VOLTAGE, NULL, 0, &p), 0);
-    assert_int_equal(p.type, DCU_698_TAG_FLOAT32);
-    assert_int_equal(p.width, 4);
+    assert_int_equal(dcu_north_resolve_scalar(NULL, OAD_GRID_FREQUENCY, NULL, 0, &p), 0);
+    assert_int_equal(p.type, DCU_698_TAG_LONG_UNSIGNED);
+    assert_int_equal(p.width, 2);
+
+    memset(&p, 0, sizeof(p));
+    assert_int_equal(dcu_north_resolve_scalar(NULL, OAD_VOLTAGE, NULL, 0, &p),
+                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
 
     teardown_model();
 }
@@ -205,7 +248,9 @@ static void test_scalar_rejects_64bit_raw(void **state) {
     uint8_t buf[EDGE_SLAVE_AXDR_MAX];
     size_t len = 0;
     assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x0010, 4), buf, sizeof(buf), &len), 0);
-    assert_int_equal(buf[0], DCU_698_TAG_LONG64_UNSIGNED);
+    assert_int_equal(buf[0], DCU_698_TAG_ARRAY);
+    assert_int_equal(buf[1], 1);
+    assert_int_equal(buf[2], DCU_698_TAG_LONG64_UNSIGNED);
 
     teardown_model();
 }
@@ -229,7 +274,7 @@ static void test_resolve_axdr_for_north_list_oads(void **state) {
 
 int main(void) {
     const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_variable_ois_type_tags),
+        cmocka_unit_test(test_class6_scalar_type_tags),
         cmocka_unit_test(test_object_model_scalar_type_tags),
         cmocka_unit_test(test_scalar_callback_type_and_width),
         cmocka_unit_test(test_scalar_and_axdr_agree_on_width_one_types),

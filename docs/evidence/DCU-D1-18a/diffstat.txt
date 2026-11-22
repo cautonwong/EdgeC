@@ -1,0 +1,21 @@
+ acceptance/dcu/configs/devices_north.yaml   |  37 +---
+ acceptance/dcu/tests/test_dcu_northbound.py | 179 +++++++++++--------
+ cmd/dcu/dcu_698_appconn.c                   |  28 +--
+ cmd/dcu/dcu_698_axdr.c                      |   4 +
+ cmd/dcu/dcu_698_object_model.c              |  14 +-
+ cmd/dcu/dcu_698_var.c                       | 230 ++++++++++++++++++++----
+ cmd/dcu/dcu_698_var.h                       |  33 +++-
+ cmd/dcu/dcu_driver_adapter.c                |  42 ++---
+ cmd/dcu/dcu_event_monitor.c                 |   8 +-
+ cmd/dcu/dcu_node.c                          |   7 +-
+ cmd/dcu/dcu_north_source.c                  |  14 +-
+ cmd/dcu/dcu_router.h                        |  37 ++--
+ docs/design/DCU_698_OBJECT_MODEL.md         |   4 +-
+ tests/test_dcu_698_axdr.c                   |  46 +++--
+ tests/test_dcu_698_object_model.c           |   6 +-
+ tests/test_dcu_698_value_table.c            |  73 ++++++--
+ tests/test_dcu_698_var.c                    | 261 ++++++++++++++++------------
+ tests/test_dcu_driver_adapter.c             |  14 +-
+ tests/test_dcu_north_source.c               |   4 +-
+ tests/test_dcu_router.c                     |  15 +-
+ 20 files changed, 683 insertions(+), 373 deletions(-)

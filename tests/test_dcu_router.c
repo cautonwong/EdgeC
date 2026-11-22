@@ -29,6 +29,9 @@ static int _mock_read_shadow(void* ctx, uint32_t tag_id, uint32_t device_id, voi
     } else if (tag_id == OAD_CURRENT || tag_id == 1002) {  // 电流
         pipe_msg_init_scalar(msg, OAD_CURRENT, 4.95, uv_hrtime());
         return 0;
+    } else if (tag_id == OAD_GRID_FREQUENCY) {  // 频率（Class 6 单值）
+        pipe_msg_init_scalar(msg, OAD_GRID_FREQUENCY, 50.01, uv_hrtime());
+        return 0;
     }
     return -1;
 }
@@ -97,17 +100,15 @@ static void test_dcu_router_dispatch(void** state) {
     ret = dcu_router_action(((uint32_t)OI_METER_ARCHIVE << 16) | 0x0300, NULL, NULL);
     assert_int_equal(ret, -4);
 
-    // 6. 验证实时变量读取 OI 0x2000 (A相电压) -> 应返回 220.5V
     float voltage = 0.0f;
     ret = dcu_router_get_attr(OAD_VOLTAGE, &voltage);
-    assert_int_equal(ret, 0);
-    assert_float_equal(voltage, 220.5f, 0.01f);
+    assert_int_equal(ret, -1);
 
-    // 7. 验证实时变量读取 OI 0x2001 (A相电流) -> 应返回 4.95A
-    float current = 0.0f;
-    ret = dcu_router_get_attr(OAD_CURRENT, &current);
+    // 7. Class 6 频率仍是单值：50.01 Hz × 100 = 5001
+    uint16_t freq = 0;
+    ret = dcu_router_get_attr(OAD_GRID_FREQUENCY, &freq);
     assert_int_equal(ret, 0);
-    assert_float_equal(current, 4.95f, 0.01f);
+    assert_int_equal(freq, 5001);
 
     /* 8. 远程负荷控制 ACTION 8000：**动作明确未实现**（缺 698 ACTION-Request 编码器）。
      *

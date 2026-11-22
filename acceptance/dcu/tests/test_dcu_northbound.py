@@ -1,18 +1,18 @@
 """DCU 北向（族 B，DL/T 698.45 从站）验收：主站能不能真的读到 DCU 的量。
 
-## 走设备模型，不自己拼帧
+## 标量走设备模型，数组直接看 APDU
 
-平台侧有 698 主站驱动（`drivers/dlt698_master_driver.py`），所以这里和读 Modbus/645
-设备一样：`meter.read_all().readings["电压"]`。好处不只是少写几行 —— 读数进设备模型，
-报告里才有设备级归属（平台规定"没验到设备就不算验过"）。
+计数类 OAD（6000/6012/5004）走平台设备模型：`meter.read_all()`，报告里有设备级归属。
+变量类属性 2 自 ADR-0016 起是标准数组（如 2000 是 A/B/C 三相），平台点表只认标量，
+所以这些用例直接发帧、按 A-XDR 形状解析；这是平台能力缺口，不是放弃判据。
 
 链路：`dcu_product.py` 把 DCU 的 unix socket 桥成 `127.0.0.1:19212`，
 平台按 `access: tcp` 连上去问属性。
 
 ## 判据
 
-1. 电压 OAD（20000200）读回 231.7±0.5 —— 台架喂给 DCU 的就是这个值，
-   所以这条同时验了"南向采集 → 聚合根 → 698 编码"整条链
+1. 电压 OAD（20000200）读回三相数组，A 相 2317（231.7 V，scale −1）——
+   台架喂给 DCU 的就是这个值，所以这条同时验了"南向采集 → 聚合根 → 698 编码"整条链
 2. 档案计数 OAD（60000200）读回 40 —— 台架档案就是 40 只表，类型是 long-unsigned
 3. ACTION（OI 8000 方法 129 跳闸）必须回 **DAR=2 暂时失效**，不能回 0
 
@@ -20,14 +20,11 @@
 如果它回 0，主站会以为继电器动了 —— 那是最危险的假成功。
 它不走设备模型，因为"操作"不是"读一个点"，这里直接用协议层发一帧。
 """
-import json
 import os
 import socket
-import struct
 
 import pytest
 
-from bench import BUS_LOG
 from testplatform.cases import case
 from testplatform.protocol import dlt698
 
@@ -61,23 +58,60 @@ def _exchange(apdu: bytes) -> dlt698.Frame:
     return dlt698.parse_frame(data)
 
 
+_INT_SIZE = {0x03: 1, 0x05: 4, 0x06: 4, 0x10: 2, 0x11: 1, 0x12: 2, 0x16: 1, 0x15: 8}
+_SIGNED = {0x05, 0x10}
+
+
+def _read_variable(oad: int) -> tuple[list[int], list[int]]:
+    """直接发 [1] 读变量类属性 2，返回 (元素标签, 整数列表)。
+
+    平台点表只认标量，变量类的标准数组形状（ADR-0016）由这里解析 APDU 验证。
+    """
+    apdu = _exchange(dlt698.get_request(0x01, oad)).apdu
+    assert apdu[0] == 0x85 and apdu[1] == 0x01, f"不是 [1] 响应：{apdu.hex()}"
+    assert apdu[3:7] == oad.to_bytes(4, "big"), "响应 OAD 与请求不一致"
+    assert apdu[7] == 0x01, "A-Result 不是 Data"
+    assert apdu[8] == 0x01, f"变量类属性 2 应为 array，收到 0x{apdu[8]:02X}"
+    count = apdu[9]
+    tags, values = [], []
+    i = 10
+    for _ in range(count):
+        tag = apdu[i]
+        size = _INT_SIZE[tag]
+        raw = int.from_bytes(apdu[i + 1 : i + 1 + size], "big", signed=tag in _SIGNED)
+        tags.append(tag)
+        values.append(raw)
+        i += 1 + size
+    return tags, values
+
+
+def _read_scaler_unit(oad: int) -> tuple[int, int]:
+    apdu = _exchange(dlt698.get_request(0x01, oad)).apdu
+    assert apdu[7] == 0x01 and apdu[8] == 0x02, f"不是 structure：{apdu.hex()}"
+    assert apdu[9] == 2 and apdu[10] == 0x0F and apdu[12] == 0x16, (
+        f"Scaler_Unit 形状不符：{apdu.hex()}"
+    )
+    return int.from_bytes(apdu[11:12], "big", signed=True), apdu[13]
+
+
 @case(id="D_00_00_02_000001", clause="free: 主站能通过 698 GET 读到 DCU 的实时量", tags=["北向"])
 @pytest.mark.contract
-@pytest.mark.requires_capability("电压")
-def test_master_reads_voltage_over_698(meter):
-    """主站读 A 相电压：值必须等于台架喂给 DCU 的 231.7V。
+def test_master_reads_voltage_over_698():
+    """Class 3 属性 2 是 A/B/C 三相数组，元素是 long-unsigned（scale −1）。
 
-    这条把「台架 → 南向 645 采集 → 聚合根 → 698 GET-Response」整条链串起来比对。
-    只验"收到一帧"是假绿：类型标签写错时值会整体错位，而帧本身完全合法 ——
-    所以 698 主站驱动在类型标签与点表 encoding 不一致时直接报错。
+    台架给 A 相 231.7 V，所以第一个元素应是 2317；数组长度与类型标签同时验证
+    "分相在数组里，不在属性字节里"（ADR-0016）。
     """
-    meter.connect()
-    readings = meter.read_all().readings
-    got = readings["电压"]
+    tags, values = _read_variable(0x20000200)
+    assert len(values) == 3, f"电压数组应有 3 项，收到 {values}"
+    assert all(tag == 0x12 for tag in tags), f"电压元素类型应为 long-unsigned：{tags}"
+    got = values[0] / 10.0
     assert abs(got - BENCH_VOLTAGE) <= TOLERANCE_V, (
-        f"698 读回 {got}，台架给的是 {BENCH_VOLTAGE}±{TOLERANCE_V} —— "
-        "链路里某一环改了值（量纲、类型标签、或者根本不是同一个 OAD）"
+        f"698 读回 {got} V，台架给的是 {BENCH_VOLTAGE}±{TOLERANCE_V}"
     )
+
+    scaler, unit = _read_scaler_unit(0x20000300)
+    assert scaler == -1 and unit == 38, f"电压 Scaler_Unit 错：{scaler}, {unit}"
 
 
 @case(id="D_00_00_02_000002", clause="free: 698 应答的 A-XDR 类型标签必须与点位类型一致", tags=["北向"])
@@ -86,9 +120,8 @@ def test_master_reads_voltage_over_698(meter):
 def test_master_reads_archive_count_as_long_unsigned(meter):
     """档案计数：值 40，类型必须是 long-unsigned。
 
-    单独验这条是因为它和电压的**类型不同**：电压 float32、计数 long-unsigned。
-    从站如果一律按同一个类型编，主站解出来就是垃圾值，而帧校验还是过的 ——
-    驱动在类型标签与点表不符时直接报错，这条就是那个约束的端到端验证。
+    单独验这条是因为它和电压的**形状不同**：电压是 long-unsigned 的三相数组，
+    计数是标量 long-unsigned。从站如果一律按同一个形状编，主站解出来就是垃圾值。
     """
     meter.connect()
     readings = meter.read_all().readings
@@ -132,62 +165,58 @@ def test_action_wrong_shape_returns_type_mismatch():
     assert res.dar == 7, f"形状错误应回 DAR 7（类型不匹配），回了 {res.dar}（{res.error}）"
 
 
-def _north_frames() -> list:
-    """台架北向桥记下的主站请求帧（按任务隔离的 bus.json）。"""
-    if not BUS_LOG.exists():
-        return []
-    try:
-        return json.loads(BUS_LOG.read_text(encoding="utf-8")).get("north_frames", [])
-    except json.JSONDecodeError:
-        return []
-
-
-@case(id="D_00_00_02_000004", clause="free: 读整张点表必须一帧 GET-Request-NormalList 完成", tags=["北向"])
+@case(id="D_00_00_02_000004", clause="free: 一帧 GET-Request-NormalList 读整张点表", tags=["北向"])
 @pytest.mark.contract
-@pytest.mark.requires_capability("电压")
-def test_master_reads_all_oads_in_one_frame(meter):
-    """一次读多个 OAD，从**读数**上看不出来是一帧还是 N 帧 —— 两种都对。
+def test_master_reads_all_oads_in_one_frame():
+    """一帧 [2] 请求 6 个 OAD，从站必须在一帧响应里逐项回答 6 项。
 
-    标准 6.3.8.1.2 的 `[2] GetRequestNormalList` 就是为省往返准备的：
-    `SEQUENCE { PIID, SEQUENCE OF OAD }`。这条判据看台架实际收到的帧，
-    断言读完整张点表只发了一帧、且 CHOICE=0x02。
-
-    为什么不数"帧数变少"就算完：如果驱动悄悄退回逐点 [1] 读，功能照样可用、
-    读数照样正确，只是批量这件事根本没发生 —— 那是最容易被漏掉的假绿。
+    平台点表只能列标量，变量类的数组形状在这里直接看 APDU；重点仍是"一帧请求、
+    一帧响应、6 项都在"，不是逐点往返。
     """
-    meter.connect()
-    before = len(_north_frames())
-    result = meter.read_all()
-    frames = _north_frames()[before:]
+    oads = [0x20000200, 0x20010200, 0x20040200, 0x60000200, 0x60120200, 0x50040200]
+    apdu = _exchange(dlt698.get_request_list(0x01, oads)).apdu
 
-    assert {"电压", "电流", "总有功功率", "档案计数"} <= set(result.readings), (
-        f"read_all 没交齐整张点表：{result.readings}"
-    )
-    assert {"任务方案数", "日冻结记录数"} <= set(result.readings), (
-        f"read_all 没交齐整张点表：{result.readings}"
-    )
-    assert len(frames) == 1, (
-        f"读 6 个 OAD 发了 {len(frames)} 帧（期望 1 帧 [2]）："
-        f"{[f['choice'] for f in frames]}"
-    )
-    assert frames[0]["choice"] == 0x02, (
-        f"这一帧的 CHOICE 是 {frames[0]['choice']!r}，不是 [2] NormalList"
-    )
+    assert apdu[0] == 0x85 and apdu[1] == 0x02, f"不是 [2] 响应：{apdu.hex()}"
+    assert apdu[3] == len(oads), f"结果个数 {apdu[3]}，请求了 {len(oads)} 项"
+
+    seen = []
+    i = 4
+    for _ in range(apdu[3]):
+        oad = int.from_bytes(apdu[i : i + 4], "big")
+        flag = apdu[i + 4]
+        i += 5
+        if flag == 0x00:
+            i += 1
+            seen.append((oad, None))
+            continue
+        tag = apdu[i]
+        if tag == 0x01:
+            n = apdu[i + 1]
+            i += 2
+            for _ in range(n):
+                size = _INT_SIZE[apdu[i]]
+                i += 1 + size
+        else:
+            i += 1 + _INT_SIZE[tag]
+        seen.append((oad, tag))
+    assert [oad for oad, _ in seen] == oads, f"响应项顺序/内容不符：{seen}"
 
 
 @case(id="D_00_00_02_000005", clause="free: 698 读取 2001 电流 / 2004 总有功功率", tags=["北向"])
 @pytest.mark.contract
-@pytest.mark.requires_capability("电流")
-def test_master_reads_current_and_active_power(meter):
-    """2001/2004 属性 2 都是 float32；台架对这两个 DI 回 0，值应是 0.0。
+def test_master_reads_current_and_active_power():
+    """2001 是 3 项 double-long，2004 是 4 项 double-long（总/A/B/C）。
 
-    单独验是因为它们和被抄表的 OAD 不同：轮询方案必须真的把这两个点采回来，
-    没采到就会是 DAR 失败、read_all 里根本没有这个键 —— 而不是读出一个假 0。
+    台架对这两个 DI 回 0，所以值是 0；这条验的是"轮询采到了数组需要的每个通道"
+    与标准类型，而不是假 0。
     """
-    meter.connect()
-    readings = meter.read_all().readings
-    assert readings["电流"] == 0.0, f"电流 {readings['电流']}，台架给的是 0"
-    assert readings["总有功功率"] == 0.0, f"总有功功率 {readings['总有功功率']}，台架给的是 0"
+    tags, current = _read_variable(0x20010200)
+    assert len(current) == 3 and all(tag == 0x05 for tag in tags), f"电流数组：{tags},{current}"
+    assert current == [0, 0, 0], f"台架回 0，电流数组应为 0：{current}"
+
+    tags, power = _read_variable(0x20040200)
+    assert len(power) == 4 and all(tag == 0x05 for tag in tags), f"功率数组：{tags},{power}"
+    assert power == [0, 0, 0, 0], f"台架回 0，功率数组应为 0：{power}"
 
 
 @case(id="D_00_00_02_000006", clause="free: 698 读取 6012 任务方案数", tags=["北向"])
@@ -229,11 +258,17 @@ def test_unimplemented_oad_gets_per_item_dar():
     body = apdu[4:]
     assert body[:4] == valid.to_bytes(4, "big")
     assert body[4] == 0x01, "电压项应是 Data，不是 DAR"
-    assert body[5] == 0x17, f"电压项类型标签是 0x{body[5]:02X}，不是 float32"
-    got = struct.unpack(">f", body[6:10])[0]
+    assert body[5] == 0x01 and body[6] == 3, f"电压项应是三相数组：{body[:8].hex()}"
+    i = 7
+    voltages = []
+    for _ in range(3):
+        assert body[i] == 0x12, f"电压元素类型错：0x{body[i]:02X}"
+        voltages.append(int.from_bytes(body[i + 1 : i + 3], "big"))
+        i += 3
+    got = voltages[0] / 10.0
     assert abs(got - BENCH_VOLTAGE) <= TOLERANCE_V, f"电压项 {got}，台架给 {BENCH_VOLTAGE}"
 
-    rest = body[10:]
+    rest = body[i:]
     assert rest[:4] == missing.to_bytes(4, "big")
     assert rest[4] == 0x00, "失败项必须回 [0] DAR"
     # ADR-0015：对象不在 Class 20 对象列表即未授权，DAR 3（拒绝读写），

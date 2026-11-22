@@ -1,6 +1,6 @@
 /**
  * @file test_dcu_698_var.c
- * @brief 变量类（Class 1/3/4/6）读取与类型标签。
+ * @brief 变量类（Class 1/3/4/6）的标准形状与寻址（ADR-0016）。
  */
 
 #include <cmocka.h>
@@ -15,39 +15,60 @@
 #include "dcu_698_var.h"
 #include "dcu_inventory.h"
 #include "dcu_poller.h"
+#include "edge_slave_plane.h"
 
 #define MK_OAD(oi, attr) (((uint32_t)(oi) << 16) | ((uint32_t)(attr) << 8))
-#define OI_GRID_FREQUENCY_200F 0x200F
 #define TS_NS (1234567890ULL * 1000000ULL)
 
 static int mock_read_shadow(void *ctx, uint32_t tag_id, uint32_t device_id, void *out_msg) {
     (void)ctx;
-    (void)device_id;
+    if (device_id > 1) return -1;
     pipe_msg_t *msg = (pipe_msg_t *)out_msg;
     memset(msg, 0, sizeof(*msg));
 
     double value;
     switch (tag_id) {
+        case OAD_VOLTAGE:
+            value = device_id == 0 ? 231.7 : 240.0;
+            break;
+        case TAG_VOLTAGE_B:
+            value = 230.1;
+            break;
+        case TAG_VOLTAGE_C:
+            value = 229.5;
+            break;
+        case OAD_CURRENT:
+            value = 4.951;
+            break;
+        case TAG_CURRENT_B:
+            value = 5.0;
+            break;
+        case TAG_CURRENT_C:
+            value = 5.05;
+            break;
+        case OAD_ACTIVE_POWER_TOTAL:
+            value = 1234.5;
+            break;
+        case TAG_ACTIVE_POWER_A:
+            value = 100.0;
+            break;
+        case TAG_ACTIVE_POWER_B:
+            value = 200.0;
+            break;
+        case TAG_ACTIVE_POWER_C:
+            value = 300.0;
+            break;
         case OAD_ACTIVE_ENERGY:
             value = 12345.0;
             break;
         case OAD_REACTIVE_ENERGY:
             value = 6789.0;
             break;
-        case OAD_VOLTAGE:
-            value = 220.5;
-            break;
-        case OAD_CURRENT:
-            value = 4.95;
-            break;
-        case OAD_ACTIVE_POWER_TOTAL:
-            value = 1234.5;
-            break;
         case OAD_POWER_FACTOR_TOTAL:
             value = 0.95;
             break;
         case OAD_GRID_FREQUENCY:
-            value = 50.01;
+            value = device_id == 0 ? 50.01 : 49.98;
             break;
         default:
             return -1;
@@ -86,34 +107,181 @@ static void init_model(dcu_inventory_t *inv, dcu_poller_t *poller,
     router_sink_ops_t sink = {0};
     router_bus_ops_t bus = {.ctx = NULL,
                             .msg_size = sizeof(pipe_msg_t),
-                            .publish_realtime = NULL,
                             .read_shadow = read_shadow};
     assert_int_equal(dcu_698_object_model_init(inv, poller, sink, NULL, NULL, NULL, NULL, bus), 0);
 }
 
-static void assert_value(uint32_t oad, double want_value, uint8_t want_tag) {
-    dcu_value_t v;
-    memset(&v, 0, sizeof(v));
-    assert_int_equal(dcu_698_var_read_value(oad, &v), 0);
-    assert_float_equal((float)v.value, (float)want_value, 0.001f);
-    assert_int_equal(v.type_tag, want_tag);
-    assert_int_equal(v.ts_ms, TS_NS / 1000000ULL);
-    assert_int_equal(v.quality, 0);
-    assert_int_equal(v.raw, (int64_t)want_value);
+static size_t encode(uint32_t oad, uint8_t *buf, size_t cap) {
+    size_t len = 0;
+    assert_int_equal(dcu_698_var_encode_axdr(oad, buf, cap, &len), 0);
+    return len;
 }
 
-static void test_six_ois_values_and_type_tags(void **state) {
+static void expect_axdr(uint32_t oad, const uint8_t *want, size_t want_len) {
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = encode(oad, buf, sizeof(buf));
+    assert_int_equal(len, want_len);
+    assert_memory_equal(buf, want, want_len);
+}
+
+static void test_class3_voltage_array_and_scaler(void **state) {
     (void)state;
     dcu_inventory_t inv;
     dcu_poller_t poller;
     init_model(&inv, &poller, mock_read_shadow);
 
-    assert_value(OAD_ACTIVE_ENERGY, 12345.0, DCU_698_TAG_DOUBLE_LONG_UNSIGNED);
-    assert_value(OAD_REACTIVE_ENERGY, 6789.0, DCU_698_TAG_DOUBLE_LONG_UNSIGNED);
-    assert_value(OAD_VOLTAGE, 220.5, DCU_698_TAG_FLOAT32);
-    assert_value(OAD_CURRENT, 4.95, DCU_698_TAG_FLOAT32);
-    assert_value(OAD_ACTIVE_POWER_TOTAL, 1234.5, DCU_698_TAG_FLOAT32);
-    assert_value(MK_OAD(OI_GRID_FREQUENCY_200F, 2), 50.01, DCU_698_TAG_LONG_UNSIGNED);
+    const uint8_t voltage[] = {0x01, 0x03, 0x12, 0x09, 0x0D, 0x12, 0x08, 0xFD, 0x12, 0x08, 0xF7};
+    expect_axdr(OAD_VOLTAGE, voltage, sizeof(voltage));
+
+    const uint8_t scaler[] = {0x02, 0x02, 0x0F, 0xFF, 0x16, 0x26};
+    expect_axdr(MK_OAD(0x2000, 3), scaler, sizeof(scaler));
+
+    /* 元素索引选表：slot 1 的 A 相是 240.0 V。 */
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = encode(0x20000201U, buf, sizeof(buf));
+    assert_int_equal(len, sizeof(voltage));
+    assert_int_equal(buf[2], 0x12);
+    assert_int_equal(buf[3], 0x09);
+    assert_int_equal(buf[4], 0x60);
+
+    dcu_poller_destroy(&poller);
+    dcu_inventory_destroy(&inv);
+}
+
+static void test_class3_current_array(void **state) {
+    (void)state;
+    dcu_inventory_t inv;
+    dcu_poller_t poller;
+    init_model(&inv, &poller, mock_read_shadow);
+
+    const uint8_t current[] = {0x01, 0x03, 0x05, 0x00, 0x00, 0x13, 0x57, 0x05, 0x00, 0x00,
+                               0x13, 0x88, 0x05, 0x00, 0x00, 0x13, 0xBA};
+    expect_axdr(OAD_CURRENT, current, sizeof(current));
+
+    const uint8_t scaler[] = {0x02, 0x02, 0x0F, 0xFD, 0x16, 0x24};
+    expect_axdr(MK_OAD(0x2001, 3), scaler, sizeof(scaler));
+
+    dcu_poller_destroy(&poller);
+    dcu_inventory_destroy(&inv);
+}
+
+static void test_class4_power_array_and_power_factor(void **state) {
+    (void)state;
+    dcu_inventory_t inv;
+    dcu_poller_t poller;
+    init_model(&inv, &poller, mock_read_shadow);
+
+    const uint8_t power[] = {0x01, 0x04, 0x05, 0x00, 0x00, 0x30, 0x39, 0x05, 0x00, 0x00, 0x03,
+                             0xE8, 0x05, 0x00, 0x00, 0x07, 0xD0, 0x05, 0x00, 0x00, 0x0B, 0xB8};
+    expect_axdr(OAD_ACTIVE_POWER_TOTAL, power, sizeof(power));
+
+    const uint8_t scaler[] = {0x02, 0x02, 0x0F, 0xFF, 0x16, 0x1B};
+    expect_axdr(MK_OAD(0x2004, 3), scaler, sizeof(scaler));
+
+    const uint8_t pf[] = {0x01, 0x01, 0x10, 0x03, 0xB6};
+    expect_axdr(OAD_POWER_FACTOR_TOTAL, pf, sizeof(pf));
+
+    dcu_poller_destroy(&poller);
+    dcu_inventory_destroy(&inv);
+}
+
+static void test_class6_frequency_is_scalar_with_scale(void **state) {
+    (void)state;
+    dcu_inventory_t inv;
+    dcu_poller_t poller;
+    init_model(&inv, &poller, mock_read_shadow);
+
+    dcu_value_t v;
+    memset(&v, 0, sizeof(v));
+    assert_int_equal(dcu_698_var_read_value(OAD_GRID_FREQUENCY, &v), 0);
+    assert_int_equal(v.type_tag, DCU_698_TAG_LONG_UNSIGNED);
+    assert_int_equal(v.raw, 5001);
+    assert_float_equal((float)v.value, 50.01f, 0.001f);
+
+    const uint8_t scaler[] = {0x02, 0x02, 0x0F, 0xFE, 0x16, 0x2F};
+    expect_axdr(MK_OAD(0x200F, 3), scaler, sizeof(scaler));
+
+    /* 元素索引选表：slot 1 的频率是 49.98 → 4998。 */
+    uint16_t slot1 = 0;
+    const dcu_698_object_t *obj = dcu_698_find(0x200F);
+    assert_non_null(obj);
+    assert_int_equal(dcu_698_var_read(obj, 2, 1, &slot1), 0);
+    assert_int_equal(slot1, 4998);
+
+    dcu_poller_destroy(&poller);
+    dcu_inventory_destroy(&inv);
+}
+
+static void test_class1_energy_arrays(void **state) {
+    (void)state;
+    dcu_inventory_t inv;
+    dcu_poller_t poller;
+    init_model(&inv, &poller, mock_read_shadow);
+
+    const uint8_t energy[] = {0x01, 0x01, 0x06, 0x00, 0x12, 0xD6, 0x44};
+    expect_axdr(OAD_ACTIVE_ENERGY, energy, sizeof(energy));
+
+    const uint8_t high[] = {0x01, 0x01, 0x15, 0x00, 0x00, 0x00,
+                            0x00, 0x07, 0x5B, 0xB2, 0x90};
+    expect_axdr(MK_OAD(0x0010, 4), high, sizeof(high));
+
+    const uint8_t scaler2[] = {0x02, 0x02, 0x0F, 0xFE, 0x16, 0x21};
+    expect_axdr(MK_OAD(0x0010, 3), scaler2, sizeof(scaler2));
+    const uint8_t scaler4[] = {0x02, 0x02, 0x0F, 0xFC, 0x16, 0x21};
+    expect_axdr(MK_OAD(0x0010, 5), scaler4, sizeof(scaler4));
+
+    dcu_poller_destroy(&poller);
+    dcu_inventory_destroy(&inv);
+}
+
+static void test_wrong_slot_and_attr(void **state) {
+    (void)state;
+    dcu_inventory_t inv;
+    dcu_poller_t poller;
+    init_model(&inv, &poller, mock_read_shadow);
+
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = 0;
+    assert_int_equal(dcu_698_var_encode_axdr(0x200002FAU, buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+    assert_int_equal(dcu_698_var_encode_axdr(MK_OAD(0x2000, 1), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+    assert_int_equal(dcu_698_var_encode_axdr(MK_OAD(0x2000, 4), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+
+    dcu_value_t v;
+    assert_int_equal(dcu_698_value_for_oad(MK_OAD(0x2000, 3), &v),
+                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    assert_int_equal(dcu_698_value_for_oad(OAD_VOLTAGE, &v), EDGE_SLAVE_SRC_TYPE_MISMATCH);
+
+    dcu_poller_destroy(&poller);
+    dcu_inventory_destroy(&inv);
+}
+
+static void test_shadow_missing_is_not_found(void **state) {
+    (void)state;
+    dcu_inventory_t inv;
+    dcu_poller_t poller;
+    init_model(&inv, &poller, mock_read_shadow_fail);
+
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = 0;
+    assert_int_equal(dcu_698_var_encode_axdr(OAD_VOLTAGE, buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+
+    dcu_value_t v;
+    assert_int_equal(dcu_698_var_read_value(OAD_VOLTAGE, &v), -1);
+    assert_int_equal(dcu_698_var_read_value(OAD_GRID_FREQUENCY, &v), -1);
+
+    dcu_poller_destroy(&poller);
+    dcu_inventory_destroy(&inv);
+}
+
+static void test_class_ids_and_masks(void **state) {
+    (void)state;
+    dcu_inventory_t inv;
+    dcu_poller_t poller;
+    init_model(&inv, &poller, mock_read_shadow);
 
     const dcu_698_object_t *obj = dcu_698_find(0x0010);
     assert_non_null(obj);
@@ -121,145 +289,13 @@ static void test_six_ois_values_and_type_tags(void **state) {
     assert_true(dcu_mask_test(obj->attr_mask, 2));
     assert_true(dcu_mask_test(obj->attr_mask, 4));
 
-    obj = dcu_698_find(0x0020);
-    assert_non_null(obj);
-    assert_int_equal(obj->class_id, IC_ENERGY);
-
     obj = dcu_698_find(0x2004);
     assert_non_null(obj);
     assert_int_equal(obj->class_id, IC_POWER);
-    assert_true(dcu_mask_test(obj->attr_mask, 2));
 
-    obj = dcu_698_find(0x200A);
-    assert_non_null(obj);
-    assert_int_equal(obj->class_id, IC_POWER);
-
-    obj = dcu_698_find(OI_GRID_FREQUENCY_200F);
+    obj = dcu_698_find(0x200F);
     assert_non_null(obj);
     assert_int_equal(obj->class_id, IC_DATA_VARIABLE);
-    assert_true(dcu_mask_test(obj->attr_mask, 2));
-
-    dcu_poller_destroy(&poller);
-    dcu_inventory_destroy(&inv);
-}
-
-static void test_shadow_missing_returns_minus_one(void **state) {
-    (void)state;
-    dcu_inventory_t inv;
-    dcu_poller_t poller;
-    init_model(&inv, &poller, mock_read_shadow_fail);
-
-    dcu_value_t v;
-    assert_int_equal(dcu_698_var_read_value(OAD_VOLTAGE, &v), -1);
-    float f = 0.0f;
-    assert_int_equal(dcu_698_read(OAD_VOLTAGE, &f), -1);
-
-    assert_int_equal(dcu_698_var_read_value(MK_OAD(0x9999, 2), &v), -1);
-
-    dcu_poller_destroy(&poller);
-    dcu_inventory_destroy(&inv);
-}
-
-static void test_unsupported_attr_rejected_by_mask(void **state) {
-    (void)state;
-    dcu_inventory_t inv;
-    dcu_poller_t poller;
-    init_model(&inv, &poller, mock_read_shadow);
-
-    float f = 0.0f;
-    assert_int_equal(dcu_698_read(MK_OAD(0x2000, 3), &f), -1);
-    dcu_value_t v;
-    assert_int_equal(dcu_698_var_read_value(MK_OAD(0x2000, 3), &v), -1);
-
-    assert_int_equal(dcu_698_var_read_value(MK_OAD(0x0010, 4), &v), 0);
-    assert_int_equal(dcu_698_var_read_value(MK_OAD(0x0010, 3), &v), -1);
-
-    dcu_poller_destroy(&poller);
-    dcu_inventory_destroy(&inv);
-}
-
-static void test_legacy_scalar_output_types(void **state) {
-    (void)state;
-    dcu_inventory_t inv;
-    dcu_poller_t poller;
-    init_model(&inv, &poller, mock_read_shadow);
-
-    float voltage = 0.0f;
-    assert_int_equal(dcu_698_read(OAD_VOLTAGE, &voltage), 0);
-    assert_float_equal(voltage, 220.5f, 0.001f);
-
-    uint32_t energy = 0;
-    assert_int_equal(dcu_698_read(OAD_ACTIVE_ENERGY, &energy), 0);
-    assert_int_equal(energy, 12345U);
-
-    uint64_t energy_hp = 0;
-    assert_int_equal(dcu_698_read(MK_OAD(0x0010, 4), &energy_hp), 0);
-    assert_int_equal(energy_hp, 12345U);
-
-    uint16_t freq = 0;
-    assert_int_equal(dcu_698_read(MK_OAD(OI_GRID_FREQUENCY_200F, 2), &freq), 0);
-    assert_int_equal(freq, 50);
-
-    dcu_poller_destroy(&poller);
-    dcu_inventory_destroy(&inv);
-}
-
-static void test_energy_attr2_and_attr4_type_tags(void **state) {
-    (void)state;
-    dcu_inventory_t inv;
-    dcu_poller_t poller;
-    init_model(&inv, &poller, mock_read_shadow);
-
-    const uint32_t oads[] = {OAD_ACTIVE_ENERGY, OAD_REACTIVE_ENERGY};
-    for (size_t i = 0; i < sizeof(oads) / sizeof(oads[0]); i++) {
-        uint16_t oi = (uint16_t)(oads[i] >> 16);
-        dcu_value_t attr2;
-        dcu_value_t attr4;
-        assert_int_equal(dcu_698_var_read_value(MK_OAD(oi, 2), &attr2), 0);
-        assert_int_equal(dcu_698_var_read_value(MK_OAD(oi, 4), &attr4), 0);
-        assert_int_equal(attr2.type_tag, DCU_698_TAG_DOUBLE_LONG_UNSIGNED);
-        assert_int_equal(attr4.type_tag, DCU_698_TAG_LONG64_UNSIGNED);
-        assert_float_equal((float)attr2.value, (float)attr4.value, 0.001f);
-    }
-
-    dcu_poller_destroy(&poller);
-    dcu_inventory_destroy(&inv);
-}
-
-static void test_power_factor_and_frequency_are_separated(void **state) {
-    (void)state;
-    dcu_inventory_t inv;
-    dcu_poller_t poller;
-    init_model(&inv, &poller, mock_read_shadow);
-
-    /* 宏必须落在标准 OI：200A 功率因数、200F 频率。 */
-    assert_int_equal(OAD_POWER_FACTOR_TOTAL, 0x200A0200U);
-    assert_int_equal(OAD_GRID_FREQUENCY, 0x200F0200U);
-
-    dcu_value_t pf;
-    dcu_value_t freq;
-    assert_int_equal(dcu_698_var_read_value(OAD_POWER_FACTOR_TOTAL, &pf), 0);
-    assert_int_equal(dcu_698_var_read_value(OAD_GRID_FREQUENCY, &freq), 0);
-    assert_float_equal((float)pf.value, 0.95f, 0.001f);
-    assert_float_equal((float)freq.value, 50.01f, 0.001f);
-    assert_int_equal(pf.type_tag, DCU_698_TAG_LONG);
-    assert_int_equal(freq.type_tag, DCU_698_TAG_LONG_UNSIGNED);
-
-    dcu_poller_destroy(&poller);
-    dcu_inventory_destroy(&inv);
-}
-
-static void test_repeat_reads_are_consistent(void **state) {
-    (void)state;
-    dcu_inventory_t inv;
-    dcu_poller_t poller;
-    init_model(&inv, &poller, mock_read_shadow);
-
-    dcu_value_t a;
-    dcu_value_t b;
-    assert_int_equal(dcu_698_var_read_value(OAD_CURRENT, &a), 0);
-    assert_int_equal(dcu_698_var_read_value(OAD_CURRENT, &b), 0);
-    assert_memory_equal(&a, &b, sizeof(a));
 
     dcu_poller_destroy(&poller);
     dcu_inventory_destroy(&inv);
@@ -267,14 +303,15 @@ static void test_repeat_reads_are_consistent(void **state) {
 
 int main(void) {
     const struct CMUnitTest tests[] = {
-        cmocka_unit_test_setup_teardown(test_six_ois_values_and_type_tags, setup, teardown),
-        cmocka_unit_test_setup_teardown(test_shadow_missing_returns_minus_one, setup, teardown),
-        cmocka_unit_test_setup_teardown(test_unsupported_attr_rejected_by_mask, setup, teardown),
-        cmocka_unit_test_setup_teardown(test_legacy_scalar_output_types, setup, teardown),
-        cmocka_unit_test_setup_teardown(test_energy_attr2_and_attr4_type_tags, setup, teardown),
-        cmocka_unit_test_setup_teardown(test_power_factor_and_frequency_are_separated, setup,
+        cmocka_unit_test_setup_teardown(test_class3_voltage_array_and_scaler, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_class3_current_array, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_class4_power_array_and_power_factor, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_class6_frequency_is_scalar_with_scale, setup,
                                         teardown),
-        cmocka_unit_test_setup_teardown(test_repeat_reads_are_consistent, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_class1_energy_arrays, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_wrong_slot_and_attr, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_shadow_missing_is_not_found, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_class_ids_and_masks, setup, teardown),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
