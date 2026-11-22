@@ -596,9 +596,7 @@ def _read_schemes(oad: int = 0x60140200) -> list[dict]:
 @case(id="D_00_00_02_000020", clause="free: 6014 ACTION 127 添加/选择、6015 A2 读回、128 删除普通采集方案", tags=["北向"])
 @pytest.mark.contract
 def test_master_configures_normal_scheme():
-    """6014 Add → 6014 A2 / 6015 A2 读回 → 6014 Delete。
-
-    H.5.4 原帧的深度/时标是 1，本产品按 DAR 2 拒绝；判据帧改成产品 profile
+    """H.5.4 原帧的深度/时标是 1，本产品按 DAR 2 拒绝；判据帧改成产品 profile
     （深度 0、时标 0），其余字段与标准一致。
     """
     csds = [0x00100200, 0x20000200]

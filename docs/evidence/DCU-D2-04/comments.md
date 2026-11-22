@@ -21,3 +21,17 @@
 ## rebase 后第二轮
 
 删除 7 行叙述：ticket 范围说明、测试旁白与重复块注释、重启步骤复述、种子方案算术说明。保留时间标签/路由/DAR/ACL 上限约束注释。另修两处非注释问题：`test_driver_dlt698.c` 的 `ois[31]` 配 33 项越界读取改为 `ois[33]`；`dcu_north_adapter.c` 的 6000/6012 注释补上 6014。
+
+## verifier 复审计（第三轮）
+
+- 删除 5 处复述/叙述：`dcu_698_axdr.c` 的定长载荷导语与 6015 单元导语、`dcu_north_adapter.c`
+  的派发说明、`test_dcu_698_schemes.c` 的两条 fixture 旁白。`_decode_capture_content`
+  只留下调用方不变量（类型 > 4 已按 DAR 7 拒绝）。
+- MUST KILL 1：ACL 对象上限改为 `edge_slave_plane.h` 的 `EDGE_SLAVE_ACL_MAX_OBJECTS`，
+  驱动与 `dcu_698_appconn.c` 的 `_Static_assert` 共用一处，删掉"必须一致"的文字约定。
+- MUST KILL 2：`test_dcu_698_schemes.c` 的 `bad_content.b[13]` 改成用 `_add_begin/_u8/
+  _csd_oad/_ms_payload` 显式构造错误采集内容，删掉魔数偏移注释。
+- 验收 docstring 删掉叙述测试步骤的第一行，保留 H.5.4 profile 偏差说明。
+- 保留：6.1.1.5 时间标签规则、A.7 6015 六字段布局、6014 持久化端口的"同一 SQLite 连接"
+  设计约束（`dcu_node.c`）、`dcu_scheme_store.c` 的回滚不变量。
+- 同时从分支移除误提交的 `.audit/` 草稿目录。

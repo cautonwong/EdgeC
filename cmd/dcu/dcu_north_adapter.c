@@ -55,7 +55,6 @@ int dcu_north_resolve_scalar(void* ctx, uint32_t oad, const void* desc, size_t d
     return 0;
 }
 
-/* 6000/6012/6014 各有自己的线格式解码；其余 OI 交对象表。 */
 int dcu_north_accept_action(void* ctx, uint32_t omd, const uint8_t* axdr, size_t axdr_len) {
     (void)ctx;
     uint16_t oi = (uint16_t)(omd >> 16);

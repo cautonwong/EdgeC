@@ -314,7 +314,6 @@ int dcu_698_decode_task_op(uint8_t method, const uint8_t *buf, size_t len, dcu_t
 #define AXDR_TAG_OI 80
 #define AXDR_TAG_TSA 85
 
-/* Data 标签的定长载荷（不含标签本身）；查表后只剩三种变长/递归形状。 */
 static const struct {
     uint8_t tag;
     uint8_t len;
@@ -365,7 +364,7 @@ static int _skip_value(axdr_cursor_t *c, int depth) {
     return EDGE_SLAVE_SRC_TYPE_MISMATCH;
 }
 
-/* 采集类型 0..4 的采集内容形状；类型 > 4 在调用方已按 DAR 7 拒绝。 */
+/* 类型 > 4 在调用方已按 DAR 7 拒绝，这里只处理 0..4。 */
 static int _decode_capture_content(axdr_cursor_t *c, uint8_t type) {
     switch (type) {
         case 0:
@@ -707,7 +706,6 @@ static int _put_csd_list(uint8_t *buf, size_t cap, size_t *off, const dcu_scheme
     return 0;
 }
 
-/* 6015 A2 单元，与解码顺序一一对应。 */
 static int _encode_scheme_unit(uint8_t *buf, size_t cap, size_t *off,
                                const dcu_scheme_t *s) {
     if (s->type != SCHEME_TYPE_NORMAL || s->data.normal.capture_mode != 0 ||

@@ -391,15 +391,32 @@ static void test_shape_errors_return_7(void **state) {
     assert_int_equal(_add_one(7, 0, 5, csds, 2, 1, 0), EDGE_SLAVE_SRC_TYPE_MISMATCH);
 
     /* 采集内容：类型 0 必须恰好是 NULL。 */
-    body_t bad_content = good;
-    bad_content.b[13] = DLT698_TAG_UNSIGNED; /* 第 13 字节是采集内容的首字节 */
+    body_t bad_content = {0};
+    _add_begin(&bad_content, 1);
+    _u8(&bad_content, DLT698_TAG_STRUCTURE);
+    _u8(&bad_content, 6);
+    _u8(&bad_content, DLT698_TAG_UNSIGNED);
+    _u8(&bad_content, 7);
+    _u16(&bad_content, DLT698_TAG_LONG_UNSIGNED, 0);
+    _u8(&bad_content, DLT698_TAG_STRUCTURE);
+    _u8(&bad_content, 2);
+    _u8(&bad_content, DLT698_TAG_UNSIGNED);
+    _u8(&bad_content, 0);
+    _u8(&bad_content, DLT698_TAG_UNSIGNED);
+    _u8(&bad_content, 0);
+    _u8(&bad_content, DLT698_TAG_ARRAY);
+    _u8(&bad_content, 2);
+    _csd_oad(&bad_content, csds[0]);
+    _csd_oad(&bad_content, csds[1]);
+    _ms_payload(&bad_content, 1);
+    _u8(&bad_content, DLT698_TAG_ENUM);
+    _u8(&bad_content, 0);
     assert_int_equal(
         dcu_698_accept_action_axdr(MK_OMD(OI_NORMAL_SCHEME, 127), bad_content.b, bad_content.n),
         EDGE_SLAVE_SRC_TYPE_MISMATCH);
 
     assert_int_equal(_add_one(7, 0, 0, csds, 2, 8, 0), EDGE_SLAVE_SRC_TYPE_MISMATCH);
 
-    /* MS choice 2 的值截断：形状坏 -> 7。 */
     body_t bad_ms = {0};
     _add_begin(&bad_ms, 1);
     _u8(&bad_ms, DLT698_TAG_STRUCTURE);
@@ -421,7 +438,6 @@ static void test_shape_errors_return_7(void **state) {
     assert_int_equal(dcu_698_accept_action_axdr(MK_OMD(OI_NORMAL_SCHEME, 127), bad_ms.b, bad_ms.n),
                      EDGE_SLAVE_SRC_TYPE_MISMATCH);
 
-    /* ROAD 关联列表截断：形状坏 -> 7。 */
     body_t bad_road = {0};
     _add_begin(&bad_road, 1);
     _u8(&bad_road, DLT698_TAG_STRUCTURE);

@@ -35,6 +35,9 @@ extern "C" {
 /** 单条属性的 A-XDR 上限（ADR-0013）；超过的记录型属性走 GetRecord 分页。 */
 #define EDGE_SLAVE_AXDR_MAX 2048
 
+/** Class 20 对象列表的对象数上限：产品对象表与驱动 ACL 存储共用一处，避免两处漂移。 */
+#define EDGE_SLAVE_ACL_MAX_OBJECTS 32u
+
 /** 从站应答需要的一个点位取值 */
 typedef struct {
     double value;  /**< 工程值（已标定） */

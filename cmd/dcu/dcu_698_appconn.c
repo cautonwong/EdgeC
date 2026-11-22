@@ -10,6 +10,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "edge_slave_plane.h"
+
 #include "dcu_698_param.h"
 
 typedef struct {
@@ -69,10 +71,8 @@ static const acl_object_t k_objects[] = {
 
 #define OBJECT_COUNT (sizeof(k_objects) / sizeof(k_objects[0]) + PARAM_OI_COUNT)
 
-/* 必须与 adapters/io_drivers/src/driver_dlt698.c 的 DLT698_ACL_MAX_OBJECTS 一致：
- * 驱动拒绝超过 32 个对象，这里多一个就是运行期静默少一个。 */
-#define DCU_ACL_OBJECT_CAP 32
-_Static_assert(OBJECT_COUNT <= DCU_ACL_OBJECT_CAP, "object list exceeds the 698 driver ACL cap");
+_Static_assert(OBJECT_COUNT <= EDGE_SLAVE_ACL_MAX_OBJECTS,
+               "object list exceeds the 698 driver ACL cap");
 
 static int _put(uint8_t *buf, size_t cap, size_t *off, const uint8_t *src, size_t n) {
     if (*off + n > cap) return -1;
