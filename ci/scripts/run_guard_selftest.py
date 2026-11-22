@@ -312,6 +312,20 @@ TEST_MATRIX = [
         "arg_flag": "--root"
     },
     {
+        "guard_name": "check_acceptance_tasks.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_acceptance_tasks.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "acceptance_tasks", "good"),
+        "bad_target": os.path.join(FIXTURES_DIR, "acceptance_tasks", "bad_missing"),
+        "arg_flag": "--root"
+    },
+    {
+        "guard_name": "check_acceptance_tasks.py (nonzero)",
+        "script": os.path.join(SCRIPTS_DIR, "check_acceptance_tasks.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "acceptance_tasks", "good"),
+        "bad_target": os.path.join(FIXTURES_DIR, "acceptance_tasks", "bad_nonzero"),
+        "arg_flag": "--root"
+    },
+    {
         "guard_name": "check_test_io_eintr.py",
         "script": os.path.join(SCRIPTS_DIR, "check_test_io_eintr.py"),
         "good_target": os.path.join(FIXTURES_DIR, "good_test_io_eintr"),
