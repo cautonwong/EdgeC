@@ -800,7 +800,8 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-18b | 未开始 | - | - | - | 3000/3005 按 Class 24 重排属性，删除 Class 7 号位的假语义 |
 | D6-08a | 已合并 | `dcu/D6-08a-tsan-lock` | `6509c68f` | `docs/evidence/DCU-D6-08a/` | 合并提交 `6509c68f`；SQLite 内部锁序对三个 storage 用例定向抑制，第一方 pthread 锁序 A/B 仍会报；TSAN 目标 32/32、0 行 |
 | D2 到 D5 | 阻塞 | - | - | - | 依赖 COM 组件，见 11.3 B6 |
-| D6 | 未开始 | - | - | - | 随各阶段并行 |
+| D6-08 | 已完成 | `main` | `6509c68f` | `docs/evidence/DCU-D6-08/` | ASAN 334/334、UBSAN 334/334（0 runtime error）、TSAN 334/334（0 行）、fanalyzer 3 known 0 new |
+| D6 | 未开始 | - | - | - | 随各阶段并行；D6-08 已完成 |
 
 ### 12.3 本轮验收记录
 
@@ -842,6 +843,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | 2026-11-22 | D1-01 | 已合并 | `docs/evidence/DCU-D1-01/` | 合并提交 `ceb6a576`；75 条按标准、4 条保留产品类并记录；生成器与守卫自检覆盖无决策/再 OCR 两类回退 |
 | 2026-11-22 | D1-18 | 审计完成 | `docs/design/DCU_698_OAD_STATUS.md` | 56 位中 0 real；变量类类型/缩放/数组形状、逐表寻址、事件/记录/采集类假语义是 P0 主因 |
 | 2026-11-22 | D6-08a | 已合并 | `docs/evidence/DCU-D6-08a/` | 合并提交 `6509c68f`；SQLite 锁序定向抑制到 3 个用例；A/B 证明第一方锁序仍报；ASAN/UBSAN/fanalyzer 已清，全量 TSAN 在跑 |
+| 2026-11-22 | D6-08 | 完成 | `docs/evidence/DCU-D6-08/` | 全量 ASAN/UBSAN/TSAN 各 334/334，UBSAN 0 runtime error，TSAN 0 ThreadSanitizer 行；fanalyzer 0 new |
 
 ### 12.4 并行工作树
 

@@ -1,0 +1,20 @@
+ASAN (build-asan, -E '^app_platform_e2e$'):
+100% tests passed, 0 tests failed out of 334
+
+Total Test time (real) = 187.24 sec
+
+UBSAN (build-ubsan, -E '^app_platform_e2e$'):
+100% tests passed, 0 tests failed out of 334
+
+Total Test time (real) = 267.88 sec
+
+runtime-error lines in UBSAN log: 0
+
+TSAN (build-tsan, -E '^app_platform_e2e$'):
+100% tests passed, 0 tests failed out of 334
+
+Total Test time (real) = 222.10 sec
+ThreadSanitizer lines in TSAN log: 0
+
+fanalyzer:
+✅ [FANALYZER] 3 known finding(s), no new reports
