@@ -100,3 +100,12 @@ $ ./test.sh --omnis dcu
 说明：check_component_budgets.py 报 modules/edge_app_host ROM 22627 > 22528。该目录
 在本 diff 中未改动（`git diff --stat 2f502b50 -- modules/edge_app_host` 为空），属基线/
 环境已有预算问题，与本单无关；不在本单门禁清单内。
+
+## verifier re-run after the D1-20a rebase, base 564ff4c5
+clean build: 0 warnings; check_build_warnings 0 new
+full ctest: 340/340
+ASAN targeted: 12/12
+run_guard_selftest.py: all pass
+./test.sh --omnis dcu: dcu-acceptance 3 passed, dcu-northbound 19 passed, 2/2 tasks
+no-comments second pass: 10 deletions, 3 trims, one wrong comment corrected (unit_count
+now lists 133); see comments.md

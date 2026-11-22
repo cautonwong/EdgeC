@@ -69,7 +69,6 @@ static void _event_row_times(dcu_storage_t* storage, uint16_t oi, uint64_t* star
     sqlite3_finalize(stmt);
 }
 
-/* 同 OI 可能有多条历史行，按地址精确取最近一条。 */
 static void _event_row_times_for(dcu_storage_t* storage, const char* addr, uint16_t oi,
                                  uint64_t* start, uint64_t* end) {
     *start = 0;
@@ -317,7 +316,7 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     // 断言第 5 秒及以后应在失压对象中生成首条失压事件记录！
     assert_int_equal(evt_3000.record_count, 1);
 
-    // Class 24 的 A6 走 A-XDR；旧标量入口对复杂属性仍拒绝。
+    /* 复杂属性不走标量入口。 */
     dcu_event_record_t first_evt_rec = evt_3000.records[0];
     ret = dcu_router_get_attr(((uint32_t)OI_VOLTAGE_DROP << 16) | 0x0200, &first_evt_rec);
     assert_int_equal(ret, -2);
@@ -333,17 +332,17 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     assert_true(first_evt_rec.start_time.epoch_s >= wall_now - 5 &&
                 first_evt_rec.start_time.epoch_s <= wall_now + 5);
 
-    /* 线上 A6 的 date_time_s 往返解码回记录里的 epoch_s，而不是 1970 或单调纳秒算出的日期。 */
     uint8_t a6[256];
     size_t a6_len = 0;
     assert_int_equal(
         dcu_north_resolve_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 6), a6, sizeof(a6), &a6_len), 0);
-    // array 头(2) + structure 头(2) + 序号(5) 之后是事件发生时间。
+    enum { A6_ARRAY_HDR = 2, A6_STRUCT_HDR = 2, A6_INDEX_BYTES = 5 };
     uint64_t wire_epoch = 0;
-    assert_int_equal(dcu_698_date_time_s_to_epoch(a6 + 9, 8, &wire_epoch), 0);
+    assert_int_equal(dcu_698_date_time_s_to_epoch(
+                         a6 + A6_ARRAY_HDR + A6_STRUCT_HDR + A6_INDEX_BYTES, 8, &wire_epoch),
+                     0);
     assert_true(wire_epoch >= wall_now - 5 && wire_epoch <= wall_now + 5);
 
-    /* 落库单位同步为墙钟整秒；产品侧没有 event_history 读取路径，这里只核对写入值。 */
     uint64_t row_start = 0, row_end = 0;
     _event_row_times(&storage, OI_VOLTAGE_DROP, &row_start, &row_end);
     assert_true(row_start >= wall_now - 5 && row_start <= wall_now + 5);
@@ -367,9 +366,8 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     assert_int_equal(row_start, first_evt_rec.start_time.epoch_s);
     assert_int_equal(row_end, first_evt_rec.end_time.epoch_s);
 
-    /* 旧行策略：旧代码在 event_history 里写的是 uv_hrtime 单调纳秒，不是公历时间。
-     * 没有产品读取路径；未来读取必须按单位/版本识别旧行，公历区间判定只做最后拒绝。
-     * 这里把旧行值喂给同一判定和 A6 编码，锁定旧行永远不会被渲染成日期。 */
+    /* 旧行单位是单调纳秒：没有产品读取路径，未来读取必须按单位/版本识别，
+     * 公历区间判定只做最后拒绝，旧行不得被渲染成日期。 */
     assert_int_equal(dcu_storage_write_event(&storage, "LegacyMeter", OI_VOLTAGE_DROP,
                                              1716500000000000000ULL, 0, 1.0f),
                      0);

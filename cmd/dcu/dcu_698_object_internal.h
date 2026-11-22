@@ -12,7 +12,7 @@
 typedef struct {
     uint8_t method;      /* 127–134 */
     uint16_t config_seq; /* 129/130/131 的配置序号 */
-    uint16_t unit_count; /* 127/128/129/130/132 的单元数 */
+    uint16_t unit_count; /* 127/128/129/130/132/133 的单元数 */
     bool has_annex;      /* 附属信息非空：产品没有存储路径 */
     dcu_archive_unit_t units[DCU_ARCHIVE_BATCH_MAX];
 } dcu_archive_op_t;

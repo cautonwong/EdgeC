@@ -178,7 +178,6 @@ static uint64_t _wall_epoch_s(void) {
     return (uint64_t)ts.tv_sec;
 }
 
-/* 关联对象属性的 A-XDR 值在生成记录时抓拍；取不到就留空，A6 编 NULL 而不是当前值。 */
 static void _capture_record_snapshots(const dcu_event_obj_t* evt, dcu_event_record_t* rec) {
     for (uint8_t i = 0; i < evt->snapshot_count && i < MAX_EVENT_SNAPSHOTS; i++) {
         size_t len = 0;

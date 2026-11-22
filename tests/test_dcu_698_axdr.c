@@ -173,7 +173,6 @@ static void test_product_accept_set_event_attrs(void **state) {
     assert_int_equal(
         dcu_north_accept_axdr(NULL, MK_OAD(OI_CHANNEL_CONFIG, 4), u8_one, sizeof(u8_one)),
         EDGE_SLAVE_SRC_CLASS_MISMATCH);
-    /* A6 已暴露但记录单元没有标量写入语义：类型不匹配，不假装能改记录表。 */
     assert_int_equal(
         dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 6), u8_one, sizeof(u8_one)),
         EDGE_SLAVE_SRC_TYPE_MISMATCH);
@@ -266,7 +265,6 @@ static void test_product_accept_set_paths(void **state) {
     assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_CHANNEL_CONFIG, 4), baud, sizeof(baud)),
                      EDGE_SLAVE_SRC_CLASS_MISMATCH);
 
-    /* A6 已暴露但没有标量写入路径：类型不匹配，不假装能改记录表。 */
     assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 6), baud, sizeof(baud)),
                      EDGE_SLAVE_SRC_TYPE_MISMATCH);
     assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 18), baud, sizeof(baud)),
@@ -853,7 +851,7 @@ static void test_event_class24_attrs_on_the_wire(void **state) {
     dcu_698_object_model_reset();
 }
 
-/* 表194：A2/A3 的线格式；A5 仍屏蔽（待 A.4 存储）。 */
+/* 表194：A2/A3 的线格式。 */
 static void test_event_class24_complex_attrs(void **state) {
     (void)state;
     init_product_model_with_events();
@@ -901,7 +899,6 @@ static void test_event_class24_complex_attrs(void **state) {
     dcu_698_object_model_reset();
 }
 
-/* A6/A14 的时标只从 epoch_s 编 date_time_s；没有墙钟就拒绝，不把单调纳秒编成公历。 */
 static void test_event_class24_record_and_status_times(void **state) {
     (void)state;
     init_product_model_with_events();
@@ -940,7 +937,6 @@ static void test_event_class24_record_and_status_times(void **state) {
 
     uint8_t buf[EDGE_SLAVE_AXDR_MAX];
     size_t len = 0;
-    /* 单调纳秒冒充 epoch（远大于 2100）与 epoch 0 都必须拒绝。 */
     s_evt_3000.records[0].start_time =
         (dcu_event_stamp_t){.mono_ns = 123, .epoch_s = 1716500000000000000ULL};
     assert_int_equal(

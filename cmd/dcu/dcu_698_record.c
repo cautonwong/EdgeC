@@ -32,8 +32,6 @@ static const record_col_t *_find_col(uint32_t oad) {
     return NULL;
 }
 
-/* UNIX 秒 ↔ 设备本地公历只有 `dcu_698_axdr.c` 一份实现，冻结记录与事件记录共用。 */
-
 static int64_t _scale_to_raw(double value, int8_t scaler) {
     double factor = 1.0;
     for (int i = 0; i < -scaler; i++) factor *= 10.0;
