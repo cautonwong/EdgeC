@@ -593,7 +593,7 @@ def _read_schemes(oad: int = 0x60140200) -> list[dict]:
     return units
 
 
-@case(id="D_00_00_02_000020", clause="free: 6014 ACTION 127 添加/选择、6015 A2 读回、128 删除普通采集方案", tags=["待接入"])
+@case(id="D_00_00_02_000020", clause="free: 6014 ACTION 127 添加/选择、6015 A2 读回、128 删除普通采集方案", tags=["北向"])
 @pytest.mark.contract
 def test_master_configures_normal_scheme():
     """6014 Add → 6014 A2 / 6015 A2 读回 → 6014 Delete。

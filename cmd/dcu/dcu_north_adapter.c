@@ -55,12 +55,11 @@ int dcu_north_resolve_scalar(void* ctx, uint32_t oad, const void* desc, size_t d
     return 0;
 }
 
-/* 6000 按 A.7 档案方法解码，6012 按 A2 任务方案解码。 */
+/* 6000/6012/6014 各有自己的线格式解码；其余 OI 交对象表。 */
 int dcu_north_accept_action(void* ctx, uint32_t omd, const uint8_t* axdr, size_t axdr_len) {
     (void)ctx;
     uint16_t oi = (uint16_t)(omd >> 16);
     uint8_t method = (uint8_t)((omd >> 8) & 0xFF);
-
     if (oi == OI_METER_ARCHIVE) return dcu_698_accept_archive_action(omd, axdr, axdr_len);
     if (oi == OI_TASK_SCHEDULER || oi == OI_NORMAL_SCHEME)
         return dcu_698_accept_action_axdr(omd, axdr, axdr_len);

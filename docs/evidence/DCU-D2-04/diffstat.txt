@@ -1,8 +1,10 @@
- .audit/d2-04-design.md              | 15 +++++++++++++++
- .audit/d2-04.todo.md                | 17 +++++++++++++++++
- cmd/dcu/dcu_698_axdr.c              |  2 --
- docs/evidence/DCU-D2-04/comments.md | 19 +++++++++++++++++++
- docs/evidence/DCU-D2-04/summary.md  | 34 ++++++++++++++++++++++++++++++++++
- docs/evidence/DCU-D2-04/tests.log   | 24 ++++++++++++++++++++++++
- tests/test_dcu_698_schemes.c        | 14 --------------
- 7 files changed, 109 insertions(+), 16 deletions(-)
+ acceptance/dcu/tests/test_dcu_northbound.py |  2 +-
+ cmd/dcu/dcu_698_axdr.c                      |  1 -
+ cmd/dcu/dcu_north_adapter.c                 |  3 +-
+ docs/evidence/DCU-D2-04/comments.md         |  4 ++
+ docs/evidence/DCU-D2-04/summary.md          |  7 ++++
+ docs/evidence/DCU-D2-04/tests.log           | 14 +++----
+ tests/test_dcu_698_object_model.c           |  2 +-
+ tests/test_dcu_698_schemes.c                | 59 ++++++++++++++++++++++++-----
+ tests/test_driver_dlt698.c                  | 16 ++++----
+ 9 files changed, 79 insertions(+), 29 deletions(-)

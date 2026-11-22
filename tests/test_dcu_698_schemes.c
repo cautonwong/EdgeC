@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include "dcu_698_axdr.h"
+#include "dcu_north_adapter.h"
 #include "dcu_698_object_model.h"
 #include "dcu_inventory.h"
 #include "dcu_poller.h"
@@ -325,7 +326,7 @@ static void test_set_csd_replaces_and_delete_stops(void **state) {
     assert_int_equal(_delete_ids((const uint8_t[]){7}, 1), 0);
     assert_null(dcu_poller_get_scheme(&b.poller, 7));
     _step(&b);
-    assert_int_equal(g_trace_n, 0); /* 没有任务引用任何方案，链上没有可抄项 */
+    assert_int_equal(g_trace_n, 0);
     _bench_free(&b);
 }
 
@@ -372,10 +373,20 @@ static void test_shape_errors_return_7(void **state) {
     assert_int_equal(
         dcu_698_accept_action_axdr(MK_OMD(OI_NORMAL_SCHEME, 127), wrong_count.b, wrong_count.n),
         EDGE_SLAVE_SRC_TYPE_MISMATCH);
-    body_t trailing = good;
-    _u8(&trailing, 0);
+    body_t zero_tag = good;
+    _u8(&zero_tag, 0); /* 无时间标签标记 */
     assert_int_equal(
-        dcu_698_accept_action_axdr(MK_OMD(OI_NORMAL_SCHEME, 127), trailing.b, trailing.n),
+        dcu_698_accept_action_axdr(MK_OMD(OI_NORMAL_SCHEME, 127), zero_tag.b, zero_tag.n), 0);
+    body_t bad_tag = good;
+    _u8(&bad_tag, 0x01); /* 有值的时间标签需要时效检查：DAR 7 */
+    assert_int_equal(
+        dcu_698_accept_action_axdr(MK_OMD(OI_NORMAL_SCHEME, 127), bad_tag.b, bad_tag.n),
+        EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    body_t two_tags = good;
+    _u8(&two_tags, 0);
+    _u8(&two_tags, 0);
+    assert_int_equal(
+        dcu_698_accept_action_axdr(MK_OMD(OI_NORMAL_SCHEME, 127), two_tags.b, two_tags.n),
         EDGE_SLAVE_SRC_TYPE_MISMATCH);
     assert_int_equal(_add_one(7, 0, 5, csds, 2, 1, 0), EDGE_SLAVE_SRC_TYPE_MISMATCH);
 
@@ -406,7 +417,7 @@ static void test_shape_errors_return_7(void **state) {
     _csd_oad(&bad_ms, OAD_VOLTAGE);
     _u8(&bad_ms, DCU_698_TAG_MS);
     _u8(&bad_ms, 2);
-    _u8(&bad_ms, 1); /* 声明 1 个 unsigned，却没有值 */
+    _u8(&bad_ms, 1);
     assert_int_equal(dcu_698_accept_action_axdr(MK_OMD(OI_NORMAL_SCHEME, 127), bad_ms.b, bad_ms.n),
                      EDGE_SLAVE_SRC_TYPE_MISMATCH);
 
@@ -428,13 +439,13 @@ static void test_shape_errors_return_7(void **state) {
     _u8(&bad_road, DCU_698_TAG_CSD);
     _u8(&bad_road, 1);
     _oad(&bad_road, OAD_DAILY_FREEZE);
-    _u8(&bad_road, 4); /* 声明 4 个关联 OAD，一个都没给 */
+    _u8(&bad_road, 4);
     assert_int_equal(
         dcu_698_accept_action_axdr(MK_OMD(OI_NORMAL_SCHEME, 127), bad_road.b, bad_road.n),
         EDGE_SLAVE_SRC_TYPE_MISMATCH);
 
-    assert_null(dcu_poller_get_scheme(&b.poller, 7));
-    assert_int_equal(b.poller.scheme_count, 1);
+    assert_non_null(dcu_poller_get_scheme(&b.poller, 7));
+    assert_int_equal(b.poller.scheme_count, 2);
     _bench_free(&b);
 }
 
@@ -622,6 +633,36 @@ static void test_masks_and_unknown_methods(void **state) {
     _bench_free(&b);
 }
 
+static void test_north_route_6014_and_time_tag(void **state) {
+    (void)state;
+    scheme_bench_t b;
+    assert_int_equal(_bench_init(&b), 0);
+
+    body_t body = {0};
+    uint32_t csds[] = {OAD_VOLTAGE, OAD_CURRENT};
+    _add_begin(&body, 1);
+    _unit(&body, 7, 0, 0, csds, 2, 1, 0);
+
+    assert_int_equal(
+        dcu_north_accept_action(NULL, MK_OMD(OI_NORMAL_SCHEME, 127), body.b, body.n), 0);
+    assert_non_null(dcu_poller_get_scheme(&b.poller, 7));
+
+    assert_int_equal(
+        dcu_north_accept_action(NULL, MK_OMD(OI_NORMAL_SCHEME, 127), body.b, 3),
+        EDGE_SLAVE_SRC_TYPE_MISMATCH);
+
+    body_t tagged = body;
+    _u8(&tagged, 0x01); /* 有值的时间标签需要 6.1.1.5 时效检查：DAR 7 */
+    assert_int_equal(
+        dcu_north_accept_action(NULL, MK_OMD(OI_NORMAL_SCHEME, 127), tagged.b, tagged.n),
+        EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    const dcu_scheme_t *s = dcu_poller_get_scheme(&b.poller, 7);
+    assert_non_null(s);
+    assert_int_equal(s->data.normal.csd_count, 2);
+
+    _bench_free(&b);
+}
+
 static void test_persistence_reload_and_seed_once(void **state) {
     (void)state;
     scheme_bench_t b;
@@ -633,7 +674,6 @@ static void test_persistence_reload_and_seed_once(void **state) {
     assert_int_equal(_add_one(8, 0, 0, csds, 2, 1, 0), 0);
     assert_int_equal(_delete_ids((const uint8_t[]){8}, 1), 0);
 
-    /* 重启：先清空 RAM，再从库装载。 */
     uint32_t stale[] = {OAD_VOLTAGE};
     assert_int_equal(dcu_poller_add_scheme(&b.poller, 99, 0, stale, 1), 0);
     assert_int_equal(dcu_scheme_store_init(&b.storage, NULL, 0), 0);
@@ -707,6 +747,7 @@ int main(void) {
         cmocka_unit_test(test_a2_bytes_are_exact),
         cmocka_unit_test(test_masks_and_unknown_methods),
         cmocka_unit_test(test_persistence_reload_and_seed_once),
+        cmocka_unit_test(test_north_route_6014_and_time_tag),
         cmocka_unit_test(test_clear_persists_across_reload),
         cmocka_unit_test(test_sql_failure_rolls_back_db_and_ram),
     };

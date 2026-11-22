@@ -554,7 +554,6 @@ int dcu_698_accept_action_axdr(uint32_t omd, const uint8_t *axdr, size_t axdr_le
         return dcu_698_call(omd, &poller->scheme_op, NULL);
     }
     if (oi != OI_TASK_SCHEDULER) {
-        /* 本票只定义 6012/6014 的线格式；其它 OI 的处理器不读参数。 */
         return dcu_698_call(omd, NULL, NULL);
     }
 
