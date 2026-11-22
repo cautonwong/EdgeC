@@ -1,0 +1,9 @@
+ acceptance/dcu/dcu_product.py               | 14 ++++++++++++
+ acceptance/dcu/tests/test_dcu_northbound.py | 34 +++++++++++++++++++++++++++++
+ ci/baseline/composition_root_budget.txt     |  3 ++-
+ cmd/dcu/CMakeLists.txt                      |  1 +
+ cmd/dcu/dcu_north_adapter.c                 | 14 ++++++++++--
+ cmd/dcu/dcu_north_adapter.h                 |  4 +++-
+ cmd/dcu/main.c                              |  2 +-
+ tests/CMakeLists.txt                        |  4 ++++
+ 8 files changed, 71 insertions(+), 5 deletions(-)
