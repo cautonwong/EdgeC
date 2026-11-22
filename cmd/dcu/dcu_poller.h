@@ -66,9 +66,19 @@ typedef struct {
 } dcu_scheme_t;
 
 
+/* 任务槽状态。FREE 是删除后的占位：槽位不压缩，表级 task_mask 的位含义才不会漂。 */
+#define DCU_TASK_STATUS_FREE 0
+#define DCU_TASK_STATUS_NORMAL 1
+#define DCU_TASK_STATUS_DISABLED 2
+
 typedef struct {
     uint32_t task_id;
     uint32_t interval_s;
+    uint8_t interval_unit;        /* TI 原样保留，供 A2 精确读回 */
+    uint16_t interval_value;
+    bool has_interval;            /* TI value == 0 表示无周期触发，不是"每轮" */
+    uint8_t status;               /* FREE / NORMAL / DISABLED */
+    uint8_t period_type;          /* 空时段表也接受的类型，A2 读回 */
     uint8_t scheme_type;
     uint32_t scheme_id;
     /* 本任务要方案里的哪些 CSD：位 i = scheme->csd_list[i]。
@@ -79,6 +89,34 @@ typedef struct {
     edge_periodic_clock_t clock;  // [Issue #216] 统一抗漂移单调时钟
     dcu_task_monitor_t monitor;
 } dcu_task_unit_t;
+
+/* 6013 采集任务配置单元（A.7）。字段宽度按线上 unsigned/enum 收窄。 */
+typedef struct {
+    uint8_t task_id;
+    uint8_t interval_unit;
+    uint16_t interval_value;
+    uint8_t scheme_type;
+    uint8_t scheme_id;
+    uint8_t start_time[7];        /* date_time_s 值；全 0 = 无窗口 */
+    uint8_t end_time[7];
+    uint8_t delay_unit;
+    uint16_t delay_value;
+    uint8_t priority;
+    uint8_t status;
+    uint16_t pre_script;
+    uint16_t post_script;
+    uint8_t period_type;
+    uint8_t period_count;         /* 仅用于形状校验；>0 在本产品被拒 */
+} dcu_task_config_t;
+
+/* 6012 方法的解码结果。整帧先完整解码（DAR 7），再做字段策略（DAR 2/3/6）。 */
+typedef struct {
+    uint8_t method;
+    uint8_t unit_count;
+    uint8_t id_count;
+    dcu_task_config_t units[MAX_TASKS];
+    uint8_t ids[MAX_TASKS];
+} dcu_task_op_t;
 
 // === [Consumer-Defined Interfaces] ===
 // 1. 数据持久化接口
@@ -175,7 +213,10 @@ typedef struct {
     uint16_t scheme_count;
 
     uv_timer_t timer;
-    uv_mutex_t lock;
+
+    /* 6012 解码暂存：op 超过 512 字节，放聚合里而不是调用栈上。
+     * 只在 uv 循环线程使用，和 tasks[] 的所有权一致。 */
+    dcu_task_op_t task_op;
 
     // [New] 契约接口
     poller_sink_ops_t sink_ops;
@@ -215,6 +256,29 @@ int dcu_poller_add_task(dcu_poller_t* poller, uint32_t task_id, uint32_t interva
  */
 int dcu_poller_add_task_ex(dcu_poller_t* poller, uint32_t task_id, uint32_t interval_s,
                            uint32_t scheme_id, uint32_t item_mask);
+
+/**
+ * @brief 把 TI (单位 0..3) 折算成秒；单位 4/5 或溢出返回 -1。
+ */
+int dcu_task_interval_seconds(uint8_t unit, uint16_t value, uint32_t* out_seconds);
+
+/** @brief 按 task_id 增/改一条任务；周期变化才重置时钟，其余运行态保留。 */
+int dcu_poller_upsert_task(dcu_poller_t* poller, const dcu_task_unit_t* task);
+
+/** @brief 删除任务：槽位置 FREE，不压缩，避免 task_mask 位改指别的任务。 */
+int dcu_poller_remove_task(dcu_poller_t* poller, uint32_t task_id);
+
+/** @brief 清空全部任务配置。 */
+int dcu_poller_clear_tasks(dcu_poller_t* poller);
+
+/** @brief 只改状态；DISABLED→NORMAL 重置时钟，恢复后不补发。 */
+int dcu_poller_set_task_status(dcu_poller_t* poller, uint32_t task_id, uint8_t status);
+
+/** @brief 按 task_id 找任务；FREE 槽不算命中。 */
+const dcu_task_unit_t* dcu_poller_task_find(const dcu_poller_t* poller, uint32_t task_id);
+
+/** @brief 取槽位；slot 越界返回 NULL。FREE 槽也返回，调用方需看 status。 */
+const dcu_task_unit_t* dcu_poller_task_at(const dcu_poller_t* poller, uint16_t slot);
 
 /**
  * @brief 声明某块表归哪些任务采集（位 i = 任务注册顺序）。

@@ -296,11 +296,42 @@ static void test_gc_retires_deleted_meter(void** state) {
     assert_true(g_submit_count <= 1);
 }
 
+/* 成功只记在本轮到期且启用的任务上；DISABLED / 无周期任务不能累计假成功。 */
+static void test_success_counts_only_due_enabled_tasks(void** state) {
+    (void)state;
+    dcu_inventory_t inv;
+    dcu_poller_t poller;
+    dcu_inventory_init(&inv);
+    dcu_poller_init(&poller);
+
+    dcu_inventory_add(&inv, "70000001", "dlt698", 9600, 1);
+
+    uint32_t csds[1] = {OAD_VOLTAGE};
+    dcu_poller_add_scheme(&poller, 1, 0, csds, 1);
+    dcu_poller_add_task(&poller, 1, 0, 1);
+    dcu_poller_add_task(&poller, 2, 0, 1);
+    dcu_poller_add_task(&poller, 3, 0, 1);
+    assert_int_equal(dcu_poller_set_task_status(&poller, 2, DCU_TASK_STATUS_DISABLED), 0);
+    poller.tasks[2].has_interval = false; /* TI 0：无周期触发 */
+
+    poller_sink_ops_t sink;
+    memset(&sink, 0, sizeof(sink));
+    dcu_poller_start(&poller, _src(), _bus(), sink);
+
+    _trace_reset();
+    dcu_poller_step(&poller, &inv, 0);
+
+    assert_int_equal(poller.tasks[0].monitor.success_meters, 1);
+    assert_int_equal(poller.tasks[1].monitor.success_meters, 0);
+    assert_int_equal(poller.tasks[2].monitor.success_meters, 0);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_task_and_scheme_add),
         cmocka_unit_test(test_add_scheme_bounds),
         cmocka_unit_test(test_chain_visits_each_meter_once),
+        cmocka_unit_test(test_success_counts_only_due_enabled_tasks),
         cmocka_unit_test(test_dedup_overlapping_tasks),
         cmocka_unit_test(test_submit_failure_does_not_stall),
         cmocka_unit_test(test_breaker_skips_meter),

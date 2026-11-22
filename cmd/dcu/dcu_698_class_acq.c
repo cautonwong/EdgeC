@@ -11,25 +11,25 @@
 int dcu_698_acq_6012_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
                              void *result) {
     dcu_poller_t *poller = (dcu_poller_t *)obj->instance;
-    if (!poller) return -1;
+    if (!poller) return EDGE_SLAVE_SRC_TEMPORARY;
 
     if (method_id == 1) {
-        uv_mutex_lock(&poller->lock);
-        poller->scheme_count = 0;
-        memset(poller->schemes, 0, sizeof(poller->schemes));
-        uv_mutex_unlock(&poller->lock);
+        /* Class 10 复位只清运行态；配置与落库要等 129 Clear。 */
+        for (int i = 0; i < poller->task_count; i++) {
+            poller->tasks[i].cursor_meter_idx = 0;
+            poller->tasks[i].last_run_time = 0;
+            memset(&poller->tasks[i].monitor, 0, sizeof(poller->tasks[i].monitor));
+        }
         if (result) *(int *)result = 0;
         return 0;
     }
-    if (method_id == 127) {
-        const dcu_scheme_t *s = (const dcu_scheme_t *)param;
-        if (!s || s->type != SCHEME_TYPE_NORMAL) return -1;
-        int ret = dcu_poller_add_scheme(poller, s->scheme_id, s->data.normal.capture_mode,
-                                        s->data.normal.csd_list, s->data.normal.csd_count);
-        if (result) *(int *)result = ret;
-        return ret;
-    }
-    return -2;
+
+    const dcu_task_op_t *op = (const dcu_task_op_t *)param;
+    if (!op || op->method != method_id) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+
+    const router_sink_ops_t *sink = dcu_698_internal_sink_ops();
+    if (!sink || !sink->task_apply) return EDGE_SLAVE_SRC_TEMPORARY;
+    return sink->task_apply(sink->ctx, poller, op);
 }
 
 int dcu_698_acq_6002_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
