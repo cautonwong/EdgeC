@@ -18,6 +18,9 @@
 #include <string.h>
 
 #include "dlt698_codec.h"
+#include "dcu_698_appconn.h"
+#include "dcu_698_axdr.h"
+#include "dcu_698_param.h"
 #include "driver_dlt698.h"
 #include "edge_driver.h"
 #include "net_buf.h"
@@ -194,7 +197,7 @@ typedef struct {
     size_t total;
     int begin_rc;
     bool row_fails;
-    uint8_t acl[128];
+    uint8_t acl[1024];
     size_t acl_len;
     size_t fail_index;
     int row_rc;
@@ -755,6 +758,133 @@ static void test_get_maps_source_rc_to_dar(void** state) {
     }
 }
 
+static int run_slave_apdu(const uint8_t* apdu, size_t apdu_len,
+                          const edge_slave_source_ops_t* src, void* src_ctx, net_buf_t* out) {
+    uint8_t frame[512];
+    size_t flen = build_slave_frame(frame, apdu, apdu_len);
+    alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
+    memset(priv, 0, sizeof(priv));
+    static uint8_t session[1024];
+    memset(session, 0, sizeof(session));
+    size_t consumed = 0;
+    return dlt698_driver.req_slave_exchange(priv, session, frame, flen, src, src_ctx, out,
+                                            &consumed);
+}
+
+static int product_object_list(void* ctx, uint32_t oad, uint8_t* buf, size_t cap, size_t* len) {
+    (void)ctx;
+    if (oad != 0x44000200u) return EDGE_SLAVE_SRC_NOT_FOUND;
+    return dcu_698_appconn_object_list(buf, cap, len) == 0 ? 0
+                                                           : EDGE_SLAVE_SRC_TYPE_MISMATCH;
+}
+
+static void decode_payload(const net_buf_t* out, uint8_t** payload, uint8_t* svc) {
+    struct net_buf_simple nb;
+    net_buf_simple_init_with_data(&nb, out->b.data, out->b.len);
+    nb.len = (uint16_t)out->b.len;
+    dlt698_addr_t sa;
+    uint8_t choice = 0, piid = 0;
+    size_t payload_len = 0;
+    assert_int_equal(dlt698_decode_frame_ex(&nb, &sa, svc, &choice, &piid, payload,
+                                            &payload_len),
+                     0);
+}
+
+/* 28 个对象的真实产品列表必须能被紧凑 ACL 解析；4000 A2 走参数模块。 */
+static void test_slave_accepts_product_object_list_28(void** state) {
+    (void)state;
+    uint8_t list[2048];
+    size_t list_len = 0;
+    assert_int_equal(dcu_698_appconn_object_list(list, sizeof(list), &list_len), 0);
+    assert_int_equal(list[1], 28);
+
+    dcu_698_param_reset();
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL), 0);
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+
+    static const uint8_t get_4000[] = {0x05, 0x01, 0x05, 0x40, 0x00, 0x02, 0x00, 0x00};
+    edge_slave_source_ops_t src;
+    memset(&src, 0, sizeof(src));
+    src.object_list = product_object_list;
+    src.resolve_axdr = dcu_north_resolve_axdr;
+    assert_int_equal(run_slave_apdu(get_4000, sizeof(get_4000), &src, NULL, out), 0);
+
+    uint8_t* payload = NULL;
+    uint8_t svc = 0;
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_GET_RES);
+    assert_memory_equal(payload, get_4000 + 3, 4);
+    assert_int_equal(payload[4], 0x01); /* A-Result Data */
+    assert_int_equal(payload[5], DLT698_TAG_DATE_TIME_S);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+}
+
+/* 列表内但权限=1（只读）的对象，SET 必须回 DAR 3。 */
+static void test_slave_set_read_only_is_denied(void** state) {
+    (void)state;
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL), 0);
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+
+    fake_record_t f;
+    memset(&f, 0, sizeof(f));
+    static const uint16_t ois[] = {0x5004};
+    f.acl_len = build_acl(f.acl, ois, 1);
+
+    edge_slave_source_ops_t src;
+    memset(&src, 0, sizeof(src));
+    src.object_list = fake_object_list;
+    static const uint8_t set_5004[] = {0x06, 0x01, 0x05, 0x50, 0x04, 0x02,
+                                       0x00, 0x09, 0x00, 0x00};
+    assert_int_equal(run_slave_apdu(set_5004, sizeof(set_5004), &src, &f, out), 0);
+
+    uint8_t* payload = NULL;
+    uint8_t svc = 0;
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_SET_RES);
+    assert_int_equal(payload[4], DLT698_DAR_DENIED);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+}
+
+/* 超容量（29 对象）的列表整体拒绝，任何 OI 都按未授权 DAR 3 处理。 */
+static void test_slave_rejects_29_object_list(void** state) {
+    (void)state;
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL), 0);
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+
+    uint16_t ois[29];
+    for (size_t i = 0; i < 29; i++) ois[i] = (uint16_t)(0x2000 + i);
+    fake_record_t f;
+    memset(&f, 0, sizeof(f));
+    f.acl_len = build_acl(f.acl, ois, 29);
+
+    edge_slave_source_ops_t src;
+    memset(&src, 0, sizeof(src));
+    src.object_list = fake_object_list;
+    src.resolve_axdr = fake_resolve_axdr;
+    static const uint8_t get_2000[] = {0x05, 0x01, 0x05, 0x20, 0x00, 0x02, 0x00, 0x00};
+    assert_int_equal(run_slave_apdu(get_2000, sizeof(get_2000), &src, &f, out), 0);
+
+    uint8_t* payload = NULL;
+    uint8_t svc = 0;
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_GET_RES);
+    assert_int_equal(payload[4], 0x00); /* [0] DAR */
+    assert_int_equal(payload[5], DLT698_DAR_DENIED);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_get_request_layout),
@@ -772,6 +902,9 @@ int main(void) {
         cmocka_unit_test(test_report_confirm_clears_pending),
         cmocka_unit_test(test_report_timeout_unblocks),
         cmocka_unit_test(test_get_maps_source_rc_to_dar),
+        cmocka_unit_test(test_slave_accepts_product_object_list_28),
+        cmocka_unit_test(test_slave_set_read_only_is_denied),
+        cmocka_unit_test(test_slave_rejects_29_object_list),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

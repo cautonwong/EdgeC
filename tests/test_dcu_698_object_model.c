@@ -51,6 +51,17 @@ static const expected_object_t k_expected[] = {
     {OI_DISCOVERY_RESULT, IC_ACQUISITION, DCU_OBJ_SINGLETON, NULL, 0, NULL, 0},
     {OI_VOLTAGE_DROP, IC_SUB_EVENT, DCU_OBJ_SHARED, k_attr_event, 7, k_method_1, 1},
     {OI_OVER_CURRENT, IC_SUB_EVENT, DCU_OBJ_SHARED, k_attr_event, 7, k_method_1, 1},
+    {0x4000, IC_PARAM, DCU_OBJ_SINGLETON, k_attr_2_6000, 1, NULL, 0},
+    {0x4001, IC_PARAM, DCU_OBJ_SINGLETON, k_attr_2_6000, 1, NULL, 0},
+    {0x4002, IC_PARAM, DCU_OBJ_SINGLETON, k_attr_2_6000, 1, NULL, 0},
+    {0x4003, IC_PARAM, DCU_OBJ_SINGLETON, k_attr_2_6000, 1, NULL, 0},
+    {0x4004, IC_PARAM, DCU_OBJ_SINGLETON, k_attr_2_6000, 1, NULL, 0},
+    {0x401C, IC_PARAM, DCU_OBJ_SINGLETON, k_attr_2_6000, 1, NULL, 0},
+    {0x401D, IC_PARAM, DCU_OBJ_SINGLETON, k_attr_2_6000, 1, NULL, 0},
+    {0x401E, IC_PARAM, DCU_OBJ_SINGLETON, k_attr_2_6000, 1, NULL, 0},
+    {0x401F, IC_PARAM, DCU_OBJ_SINGLETON, k_attr_2_6000, 1, NULL, 0},
+    {0x4020, IC_PARAM, DCU_OBJ_SINGLETON, k_attr_2_6000, 1, NULL, 0},
+    {0x4021, IC_PARAM, DCU_OBJ_SINGLETON, k_attr_2_6000, 1, NULL, 0},
 };
 
 static int setup(void **state) {
@@ -84,6 +95,9 @@ static void test_all_ois_resolvable_with_class_and_mask(void **state) {
     dcu_inventory_t inv;
     dcu_poller_t poller;
     init_model(&inv, &poller);
+
+    /* 基线 18 行 + 类 8 白名单 11 行；Class 20 ACL 是 17 → 28 行。 */
+    assert_int_equal(dcu_698_object_count(), 29);
 
     for (size_t i = 0; i < sizeof(k_expected) / sizeof(k_expected[0]); i++) {
         const dcu_698_object_t *obj = dcu_698_find(k_expected[i].oi);

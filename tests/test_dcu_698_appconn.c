@@ -3,8 +3,17 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "dcu_698_appconn.h"
+
+static int contains(const uint8_t *hay, size_t hay_len, const uint8_t *needle,
+                    size_t needle_len) {
+    for (size_t i = 0; i + needle_len <= hay_len; i++) {
+        if (memcmp(hay + i, needle, needle_len) == 0) return 1;
+    }
+    return 0;
+}
 
 static void test_object_list_shape_and_capacity(void **state) {
     (void)state;
@@ -13,9 +22,17 @@ static void test_object_list_shape_and_capacity(void **state) {
     assert_int_equal(dcu_698_appconn_object_list(buf, sizeof(buf), &len), 0);
     assert_true(len > 0);
     assert_int_equal(buf[0], 0x01); /* array */
-    assert_int_equal(buf[1], 18);
+    assert_int_equal(buf[1], 29);
     assert_int_equal(buf[2], 0x02); /* structure */
     assert_int_equal(buf[3], 0x02);
+
+    /* 4000 是唯一列出属性 3/4 的类 8 对象（A3/A4 是 OI 专属定义）。 */
+    static const uint8_t param_4000[] = {
+        0x02, 0x02, 0x50, 0x40, 0x00, 0x02, 0x02, 0x01, 0x03,
+        0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x02, 0x02, 0x11, 0x03, 0x16, 0x03,
+        0x02, 0x02, 0x11, 0x04, 0x16, 0x03, 0x01, 0x00,
+    };
+    assert_true(contains(buf, len, param_4000, sizeof(param_4000)));
 
     uint8_t small[4];
     size_t small_len = 0;
