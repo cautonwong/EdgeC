@@ -31,6 +31,8 @@ int dcu_698_archive_encode_axdr(const dcu_inventory_t *inv, uint32_t oad, uint8_
                                 size_t *len);
 int dcu_698_acq_6012_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
                              void *result);
+int dcu_698_acq_6014_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
+                             void *result);
 int dcu_698_acq_6002_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
                           void *out_val);
 int dcu_698_acq_6002_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,

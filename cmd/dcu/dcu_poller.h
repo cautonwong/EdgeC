@@ -55,15 +55,38 @@ typedef struct {
     dcu_scheme_type_t type;
     union {
         struct {
-            uint8_t capture_mode;
-            uint8_t ms_type;
+            uint8_t capture_mode;      /* 6014 采集类型；只有 0 可执行 */
+            uint8_t ms_type;           /* 1 = 全部用户地址 */
+            uint16_t storage_depth;    /* 0 = 只采集当前数据 */
+            uint8_t storage_time;      /* 0 = 未定义时标 */
             char ms_addrs[8][MAX_ADDR_LEN];
             uint8_t ms_count;
-            uint32_t csd_list[MAX_SCHEME_OADS];
+            uint32_t csd_list[MAX_SCHEME_OADS]; /* DataHub tag，不是标准 OAD */
             uint16_t csd_count;
         } normal;
     } data;
 } dcu_scheme_t;
+
+/* 6014 A2 单元（标准 A.7）。CSD 保留线上 OAD；store 在落库前翻成 DataHub tag。 */
+typedef struct {
+    uint8_t scheme_id;
+    uint16_t storage_depth;
+    uint8_t capture_type;
+    uint8_t storage_time;
+    uint8_t ms_choice;
+    bool has_road;
+    uint8_t csd_count;
+    uint32_t csd_oads[MAX_SCHEME_OADS];
+} dcu_scheme_cfg_t;
+
+/* 6014 方法的解码结果。整帧先完整解码（DAR 7），再做字段策略（DAR 2/3/6）。 */
+typedef struct {
+    uint8_t method;
+    uint8_t unit_count;
+    uint8_t id_count;
+    dcu_scheme_cfg_t units[MAX_SCHEMES];
+    uint8_t ids[MAX_SCHEMES];
+} dcu_scheme_op_t;
 
 
 /* 任务槽状态。FREE 是删除后的占位：槽位不压缩，表级 task_mask 的位含义才不会漂。 */
@@ -214,9 +237,10 @@ typedef struct {
 
     uv_timer_t timer;
 
-    /* 6012 解码暂存：op 超过 512 字节，放聚合里而不是调用栈上。
-     * 只在 uv 循环线程使用，和 tasks[] 的所有权一致。 */
+    /* 6012/6014 解码暂存：op 都超过 512 字节，放聚合里而不是调用栈上。
+     * 只在 uv 循环线程使用，和 tasks[]/schemes[] 的所有权一致。 */
     dcu_task_op_t task_op;
+    dcu_scheme_op_t scheme_op;
 
     // [New] 契约接口
     poller_sink_ops_t sink_ops;
@@ -293,6 +317,22 @@ int dcu_poller_set_meter_tasks(dcu_poller_t* poller, const char* address, uint8_
 int dcu_poller_add_scheme(dcu_poller_t* poller, uint32_t scheme_id, uint8_t mode,
                           const uint32_t* csds, uint16_t csd_count);
 dcu_scheme_t* dcu_poller_get_scheme(dcu_poller_t* poller, uint32_t scheme_id);
+
+/** @brief 按 scheme_id 增/改一个方案；表满返回 -1。 */
+int dcu_poller_upsert_scheme(dcu_poller_t* poller, const dcu_scheme_t* scheme);
+
+/** @brief 删除方案并压缩数组（方案槽位不是外部身份，任务只认 scheme_id）。 */
+int dcu_poller_remove_scheme(dcu_poller_t* poller, uint32_t scheme_id);
+
+/** @brief 清空全部方案配置。 */
+int dcu_poller_clear_schemes(dcu_poller_t* poller);
+
+/** @brief 是否有活动任务引用该方案（FREE 槽不算）。 */
+bool dcu_poller_scheme_referenced(const dcu_poller_t* poller, uint32_t scheme_id);
+
+/** @brief 引用该方案的活动任务里是否有按位选列的（item_mask != 0）。 */
+bool dcu_poller_scheme_masked(const dcu_poller_t* poller, uint32_t scheme_id);
+
 int dcu_poller_start(dcu_poller_t* poller, poller_source_ops_t source_ops, poller_bus_ops_t bus_ops,
                      poller_sink_ops_t sink_ops);
 

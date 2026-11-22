@@ -10,6 +10,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "edge_slave_plane.h"
+
 #include "dcu_698_param.h"
 
 typedef struct {
@@ -37,6 +39,8 @@ static const acl_attr_t k_attrs_6000[] = {{2, 1}};
 static const acl_attr_t k_attrs_6001[] = {{2, 1}};
 static const acl_attr_t k_attrs_6012[] = {{2, 1}};
 static const acl_attr_t k_attrs_6013[] = {{2, 1}};
+static const acl_attr_t k_attrs_6014[] = {{2, 1}};
+static const acl_attr_t k_attrs_6015[] = {{2, 1}};
 static const acl_attr_t k_attrs_6002[] = {{2, 1}, {3, 1}};
 static const acl_attr_t k_attrs_6003[] = {{2, 1}};
 static const acl_attr_t k_attrs_f200[] = {{2, 1}, {3, 1}, {4, 3}};
@@ -47,6 +51,7 @@ static const acl_attr_t k_attrs_event[] = {{2, 1}, {3, 1},  {4, 1},  {5, 1},  {6
 static const uint8_t k_methods_8000[] = {127, 128, 129, 130, 131};
 static const uint8_t k_methods_6000[] = {127, 128, 129, 130, 131, 132, 133, 134};
 static const uint8_t k_methods_6012[] = {1, 127, 128, 129, 130};
+static const uint8_t k_methods_6014[] = {127, 128, 129, 130};
 
 static const acl_object_t k_objects[] = {
     {0x0010, k_attrs_0010, 4, NULL, 0},           {0x0020, k_attrs_0020, 4, NULL, 0},
@@ -57,6 +62,7 @@ static const acl_object_t k_objects[] = {
     {0x6000, k_attrs_6000, 1, k_methods_6000, 8}, {0x6001, k_attrs_6001, 1, NULL, 0},
     {0x6002, k_attrs_6002, 2, NULL, 0},           {0x6003, k_attrs_6003, 1, NULL, 0},
     {0x6012, k_attrs_6012, 1, k_methods_6012, 5}, {0x6013, k_attrs_6013, 1, NULL, 0},
+    {0x6014, k_attrs_6014, 1, k_methods_6014, 4}, {0x6015, k_attrs_6015, 1, NULL, 0},
     {0x8000, NULL, 0, k_methods_8000, 5},         {0xF200, k_attrs_f200, 3, NULL, 0},
 };
 
@@ -64,6 +70,9 @@ static const acl_object_t k_objects[] = {
 #define PARAM_OI_COUNT (0 DCU_698_PARAM_OIS(COUNT_PARAM_OI))
 
 #define OBJECT_COUNT (sizeof(k_objects) / sizeof(k_objects[0]) + PARAM_OI_COUNT)
+
+_Static_assert(OBJECT_COUNT <= EDGE_SLAVE_ACL_MAX_OBJECTS,
+               "object list exceeds the 698 driver ACL cap");
 
 static int _put(uint8_t *buf, size_t cap, size_t *off, const uint8_t *src, size_t n) {
     if (*off + n > cap) return -1;

@@ -1,0 +1,33 @@
+== 干净构建 + 告警门禁（rebase 到 bdf89a25 后）==
+build=0
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+
+== 全量 ctest ==
+100% tests passed, 0 tests failed out of 342（首次并行运行 3 个无关应用/IEMS 用例受负载影响失败，单跑全部通过）
+
+== 聚焦测试 ==
+test_dcu_698_schemes（12 例，含驱动帧 6014 路由与时间标签）、test_driver_dlt698（ACL 31 接收 / 33 拒绝）、test_dcu_698_appconn、test_dcu_698_object_model（32 个对象）全绿
+
+== ASAN + UBSAN（受影响目标，串行）==
+100% tests passed, 0 tests failed out of 6
+
+== 架构守卫 ==
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!（north_adapter 预算回到 204 行）
+
+== GCC -fanalyzer（cmd/dcu, adapters/io_drivers/src）==
+✅ [FANALYZER] 0 known finding(s), no new reports
+
+== 验收 ==
+dcu-acceptance 3/3；dcu-northbound 21/21（2/2 任务退出 0，含 D_00_00_02_000020 方案加/选/删）
+
+== git diff --check ==
+干净
+
+## verifier pass after rebase onto main (D1-20a, D3-04a, D3-06 merged)
+clean build 0 warnings; check_build_warnings 0 new
+full ctest 342/342
+ASAN targeted 14/14
+run_guard_selftest all pass
+./test.sh --omnis dcu: 3 + 21 passed (000020 runs as 北向), 2/2 tasks, ACCEPTANCE_TASKS 2/2
+/no-comments third pass: 5 deletions, 2 structural fixes (shared ACL cap, explicit bad frame);
+.audit/ removed from the branch

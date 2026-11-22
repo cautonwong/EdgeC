@@ -47,6 +47,20 @@ static dcu_698_object_t g_objects[] = {
      .scope = DCU_OBJ_SHARED,
      .attr_mask = {[BYTE(2)] = BIT(2)}},
 
+    {.oi = OI_NORMAL_SCHEME,
+     .class_id = IC_COLLECTION,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(2)] = BIT(2)},
+     .method = dcu_698_acq_6014_execute,
+     .method_mask = {[BYTE(127)] = BIT(127),
+                     [BYTE(128)] = BIT(128) | BIT(129) | BIT(130)}},
+
+    /* 6015 实例由 6014 A2 的方案编号寻址；A2 由 resolve_axdr 编码。 */
+    {.oi = OI_NORMAL_SCHEME_UNIT,
+     .class_id = IC_PARAM,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+
     {.oi = (uint16_t)((OAD_ACTIVE_ENERGY >> 16) & 0xFFFF),
      .class_id = IC_ENERGY,
      .scope = DCU_OBJ_PER_METER,
@@ -170,6 +184,7 @@ int dcu_698_object_model_init(dcu_inventory_t *inv, dcu_poller_t *poller,
     _set_instance(OI_METER_ARCHIVE, inv);
     _set_instance(OI_ARCHIVE_UNIT, inv);
     _set_instance(OI_TASK_SCHEDULER, poller);
+    _set_instance(OI_NORMAL_SCHEME, poller);
     _set_instance(OI_ESAM_SECURITY, esam);
     _set_instance(OI_METER_DISCOVERY, discovery);
     _set_instance(OI_DISCOVERY_RESULT, discovery);

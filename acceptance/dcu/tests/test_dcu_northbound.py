@@ -520,6 +520,113 @@ def test_master_changes_task_config_via_action():
     assert 7 not in units, f"Delete 后 A2 不应再有任务 7：{units}"
 
 
+def _scheme_unit_param(scheme_id: int, csds: list[int]) -> bytes:
+    """6014 方法 127 的参数：array<6015 普通采集方案>。
+
+    H.5.4 的采集当前数据帧用存储深度 1、存储时标 1；本产品只执行深度 0 +
+    未定义时标 + 全部用户地址，所以判据帧把这两个字段改成 0（其余字节与标准一致）。
+    """
+    body = bytes([0x01, 0x01, 0x02, 0x06])        # array[1], structure[6]
+    body += bytes([0x11, scheme_id])               # 方案编号
+    body += bytes([0x12, 0x00, 0x00])              # 存储深度 0
+    body += bytes([0x02, 0x02, 0x11, 0x00, 0x00])  # 采集类型 0 + NULL 内容
+    body += bytes([0x01, len(csds)])
+    for oad in csds:
+        body += bytes([0x5B, 0x00]) + oad.to_bytes(4, "big")
+    body += bytes([0x5C, 0x01])                    # 电能表集合：全部用户地址
+    body += bytes([0x16, 0x00])                    # 存储时标：未定义
+    return body
+
+
+def _parse_one_scheme(data: bytes, i: int) -> tuple[dict, int]:
+    """6015 单元：structure 6 {编号, 深度, {类型, Data}, array CSD, MS, 时标}。"""
+    assert data[i] == 0x02 and data[i + 1] == 6, f"方案不是 6 字段结构：{data[i:i + 2].hex()}"
+    i += 2
+    assert data[i] == 0x11
+    scheme_id = data[i + 1]
+    i += 2
+    assert data[i] == 0x12
+    depth = int.from_bytes(data[i + 1 : i + 3], "big")
+    i += 3
+    assert data[i] == 0x02 and data[i + 1] == 2
+    i += 2
+    assert data[i] == 0x11
+    capture_type = data[i + 1]
+    i += 2
+    assert data[i] == 0x00, f"采集内容应是 NULL：0x{data[i]:02X}"
+    i += 1
+    assert data[i] == 0x01
+    csd_count = data[i + 1]
+    i += 2
+    csds = []
+    for _ in range(csd_count):
+        assert data[i] == 0x5B and data[i + 1] == 0x00, f"CSD 应是 [0] OAD：{data[i:i + 2].hex()}"
+        csds.append(int.from_bytes(data[i + 2 : i + 6], "big"))
+        i += 6
+    assert data[i] == 0x5C and data[i + 1] == 0x01, f"MS 应是全部用户地址：{data[i:i + 2].hex()}"
+    i += 2
+    assert data[i] == 0x16
+    time_label = data[i + 1]
+    i += 2
+    return (
+        {
+            "id": scheme_id,
+            "depth": depth,
+            "capture_type": capture_type,
+            "csds": csds,
+            "time_label": time_label,
+        },
+        i,
+    )
+
+
+def _read_schemes(oad: int = 0x60140200) -> list[dict]:
+    apdu = _exchange(dlt698.get_request(0x01, oad)).apdu
+    assert apdu[0] == 0x85 and apdu[1] == 0x01, f"不是 [1] 响应：{apdu.hex()}"
+    assert apdu[7] == 0x01, f"6014 A2 应是 Data，不是 DAR：{apdu.hex()}"
+    assert apdu[8] == 0x01, f"6014 A2 应是 array，收到 0x{apdu[8]:02X}"
+    i = 10
+    units = []
+    for _ in range(apdu[9]):
+        unit, i = _parse_one_scheme(apdu, i)
+        units.append(unit)
+    return units
+
+
+@case(id="D_00_00_02_000020", clause="free: 6014 ACTION 127 添加/选择、6015 A2 读回、128 删除普通采集方案", tags=["北向"])
+@pytest.mark.contract
+def test_master_configures_normal_scheme():
+    """H.5.4 原帧的深度/时标是 1，本产品按 DAR 2 拒绝；判据帧改成产品 profile
+    （深度 0、时标 0），其余字段与标准一致。
+    """
+    csds = [0x00100200, 0x20000200]
+    add = dlt698.action_request(0x07, 0x6014, 127, param=_scheme_unit_param(9, csds))
+    res = dlt698.parse_action_response(_exchange(add).apdu)
+    if res.dar == 6:
+        pytest.skip(
+            "6014 ACTION 未接入北向：dcu_north_adapter.c 对非 6000/8000 的 ACTION 仍回 "
+            "NOT_FOUND（DAR 6），raw ACTION 分支由 D1-20a 接入；本用例的行为面由 "
+            "tests/test_dcu_698_schemes.c 直接覆盖"
+        )
+    assert res.ok, f"Add 应成功，回 DAR {res.dar}（{res.error}）"
+
+    schemes = {s["id"]: s for s in _read_schemes()}
+    assert 9 in schemes, f"Add 后 6014 A2 应读到方案 9：{schemes}"
+    assert schemes[9]["csds"] == csds, f"CSD 应原样读回：{schemes[9]}"
+    assert (schemes[9]["depth"], schemes[9]["time_label"]) == (0, 0)
+
+    # 6015 A2 的元素索引 = 方案编号（不是数组位置）。
+    apdu = _exchange(dlt698.get_request(0x01, 0x60150200 | 9)).apdu
+    assert apdu[7] == 0x01, f"6015 A2 应是 Data，不是 DAR：{apdu.hex()}"
+    unit, _ = _parse_one_scheme(apdu, 8)
+    assert unit["id"] == 9 and unit["csds"] == csds, f"6015 A2 应回方案 9：{unit}"
+
+    delete = dlt698.action_request(0x07, 0x6014, 128, param=bytes([0x01, 0x01, 0x11, 9]))
+    res = dlt698.parse_action_response(_exchange(delete).apdu)
+    assert res.ok, f"Delete 应成功，回 DAR {res.dar}（{res.error}）"
+    assert 9 not in {s["id"] for s in _read_schemes()}, "Delete 后 6014 A2 不应再有方案 9"
+
+
 @case(id="D_00_00_02_000010", clause="free: 5004 GetRecord 按时间范围返回冻结行", tags=["北向"])
 @pytest.mark.contract
 def test_master_reads_freeze_records():
