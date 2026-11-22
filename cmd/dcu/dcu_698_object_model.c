@@ -2,6 +2,7 @@
 
 #include "dcu_698_object_internal.h"
 #include "dcu_698_var.h"
+#include "dcu_698_param.h"
 #include "edge_slave_plane.h"
 
 #define BIT(id) ((uint8_t)(1U << ((id)&7)))
@@ -21,6 +22,14 @@ static dcu_698_object_t g_objects[] = {
      .class_id = IC_PARAM,
      .scope = DCU_OBJ_SINGLETON,
      .attr_mask = {[BYTE(2)] = BIT(2)}},
+
+    /* 类 8 白名单：对象行只广告属性 2（目录把类 8 上限钉在 2），
+     * 4000 的 A3/A4 由参数模块在通用 mask 检查之前接管。 */
+#define PARAM_ROW(v)                                                                   \
+    {.oi = (v), .class_id = IC_PARAM, .scope = DCU_OBJ_SINGLETON, .attr_mask = {       \
+         [BYTE(2)] = BIT(2)}},
+    DCU_698_PARAM_OIS(PARAM_ROW)
+#undef PARAM_ROW
 
     {.oi = OI_TASK_SCHEDULER,
      .class_id = IC_ACQUISITION,
@@ -174,6 +183,7 @@ void dcu_698_object_model_reset(void) {
     g_router_bus_ops = (router_bus_ops_t){0};
     g_router_sink_ops = (router_sink_ops_t){0};
     s_router_inv = NULL;
+    dcu_698_param_reset();
 }
 
 void dcu_698_object_model_set_control_sink(dcu_control_sink_t fn, void *ctx) {

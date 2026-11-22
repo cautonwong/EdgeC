@@ -6,6 +6,7 @@
 
 #include "dcu_698_appconn.h"
 #include "dcu_698_object_internal.h"
+#include "dcu_698_param.h"
 #include "dcu_698_var.h"
 #include "dcu_router.h"
 #include "dlt698_codec.h"
@@ -467,6 +468,9 @@ int dcu_north_resolve_axdr(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, si
     if (event_obj && event_obj->class_id == IC_SUB_EVENT) {
         return dcu_698_event_encode_axdr(event_obj, oad, buf, cap, len);
     }
+    if (dcu_698_param_is_oi(oi)) {
+        return dcu_698_param_encode_axdr(oad, buf, cap, len);
+    }
     if (oi == OI_TASK_SCHEDULER || oi == OI_TASK_UNIT) {
         const dcu_698_object_t *task_obj = dcu_698_find(OI_TASK_SCHEDULER);
         dcu_poller_t *poller = task_obj ? (dcu_poller_t *)task_obj->instance : NULL;
@@ -639,6 +643,9 @@ int dcu_north_accept_axdr(void *ctx, uint32_t oad, const uint8_t *axdr, size_t l
     uint8_t attr_id = (uint8_t)((oad >> 8) & 0xFF);
     const dcu_698_object_t *obj = dcu_698_find(oi);
     if (!obj) return EDGE_SLAVE_SRC_NOT_FOUND;
+    /* 类 8 的 A3/A4 不在对象表 mask 内（目录把类 8 上限钉在属性 2），
+     * 参数模块在通用 mask 检查之前接管整类 8 的读写。 */
+    if (dcu_698_param_is_oi(oi)) return dcu_698_param_accept_axdr(oad, axdr, len);
     if (!dcu_mask_test(obj->attr_mask, attr_id))
         return dcu_698_class_defines_attr(obj->class_id, attr_id) ? EDGE_SLAVE_SRC_CLASS_MISMATCH
                                                                   : EDGE_SLAVE_SRC_UNDEFINED;

@@ -38,6 +38,9 @@ static const acl_attr_t k_attrs_6013[] = {{2, 1}};
 static const acl_attr_t k_attrs_6002[] = {{2, 1}, {3, 1}};
 static const acl_attr_t k_attrs_6003[] = {{2, 1}};
 static const acl_attr_t k_attrs_f200[] = {{2, 1}, {3, 1}, {4, 3}};
+/* 类 8 白名单：4000 另有 OI 专属属性 3/4（参数模块实现），其余只有属性 2。 */
+static const acl_attr_t k_attrs_4000[] = {{2, 3}, {3, 3}, {4, 3}};
+static const acl_attr_t k_attrs_param[] = {{2, 3}};
 static const acl_attr_t k_attrs_event[] = {{2, 1}, {3, 1}, {4, 1}, {5, 1}, {6, 3},
                                            {8, 3}, {9, 3}, {10, 1}, {11, 3}, {12, 3}, {14, 1}};
 static const uint8_t k_methods_8000[] = {127, 128, 129, 130, 131};
@@ -63,6 +66,17 @@ static const acl_object_t k_objects[] = {
     {0x6013, k_attrs_6013, 1, NULL, 0},
     {0x8000, NULL, 0, k_methods_8000, 5},
     {0xF200, k_attrs_f200, 3, NULL, 0},
+    {0x4000, k_attrs_4000, 3, NULL, 0},
+    {0x4001, k_attrs_param, 1, NULL, 0},
+    {0x4002, k_attrs_param, 1, NULL, 0},
+    {0x4003, k_attrs_param, 1, NULL, 0},
+    {0x4004, k_attrs_param, 1, NULL, 0},
+    {0x401C, k_attrs_param, 1, NULL, 0},
+    {0x401D, k_attrs_param, 1, NULL, 0},
+    {0x401E, k_attrs_param, 1, NULL, 0},
+    {0x401F, k_attrs_param, 1, NULL, 0},
+    {0x4020, k_attrs_param, 1, NULL, 0},
+    {0x4021, k_attrs_param, 1, NULL, 0},
 };
 
 #define OBJECT_COUNT (sizeof(k_objects) / sizeof(k_objects[0]))
