@@ -1,0 +1,68 @@
+/**
+ * @file dcu_698_param.h
+ * @brief Class 8 白名单参数的 A-XDR 编解码、RAM 值表与持久化端口
+ *
+ * 设计见 `docs/design/DCU_698_PARAMETERS.md`：属性 2 是标准参数值，
+ * 4000 另有 OI 专属的属性 3（时钟模式）与属性 4（精确时间参数）。
+ */
+
+#ifndef DCU_698_PARAM_H
+#define DCU_698_PARAM_H
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/** 产品白名单（标准 7.3.8 / A.5）；对象表与 Class 20 ACL 都从这里派生。 */
+#define DCU_698_PARAM_OIS(X)                                                                  \
+    X(0x4000)                                                                                 \
+    X(0x4001) X(0x4002) X(0x4003) X(0x4004) X(0x401C) X(0x401D) X(0x401E) X(0x401F) X(0x4020) \
+        X(0x4021)
+
+/** 持久化端口：产品提供 SQLite 适配，模块不认识存储。 */
+typedef struct {
+    void *ctx;
+    int (*save)(void *ctx, uint16_t oi, const uint8_t *buf, size_t len);
+    int (*load)(void *ctx, uint16_t oi, uint8_t *buf, size_t cap, size_t *len);
+} dcu_param_store_t;
+
+/**
+ * @brief 复制端口并把已落盘的参数读回 RAM。
+ *
+ * 未落盘或落盘值解不开时保留默认值；4000 不落盘，GET 永远反映本次上电。
+ */
+void dcu_698_param_init(const dcu_param_store_t *store);
+
+/** @brief 恢复默认值并清掉端口（对象表 reset 用于测试隔离）。 */
+void dcu_698_param_reset(void);
+
+/** @brief OI 是否在白名单内。 */
+bool dcu_698_param_is_oi(uint16_t oi);
+
+/** @brief 该 OI/属性是否有参数行（4000 的 2/3/4，其余只有 2）。 */
+bool dcu_698_param_has_attr(uint16_t oi, uint8_t attr);
+
+/**
+ * @brief 编码一个参数属性为 A-XDR Data。
+ *
+ * 返回 0 或 `EDGE_SLAVE_SRC_*`（5 类定义但本对象未实现、4 未定义、6 无此 OI、7 缓冲不足）。
+ */
+int dcu_698_param_encode_axdr(uint32_t oad, uint8_t *buf, size_t cap, size_t *len);
+
+/**
+ * @brief 严格解码并提交一次参数 SET。
+ *
+ * 先解到临时值，校验形状/范围且要求 `off == len`，编码后交端口保存；保存失败
+ * 返回 `EDGE_SLAVE_SRC_TEMPORARY` 且 RAM 不变。4000 只改 RAM，不调用保存。
+ */
+int dcu_698_param_accept_axdr(uint32_t oad, const uint8_t *axdr, size_t len);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* DCU_698_PARAM_H */
