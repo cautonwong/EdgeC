@@ -211,6 +211,13 @@ static void test_decode_add_param_from_axdr(void **state) {
     assert_int_equal(op.units[0].rated_voltage, 2200);
     assert_int_equal(op.units[0].rated_current, 500);
     assert_false(op.has_annex);
+
+    /* 有值时间标签：不做时效判定，按类型不符拒绝，不能静默丢弃。 */
+    uint8_t ti_present[sizeof(axdr)];
+    memcpy(ti_present, axdr, sizeof(axdr));
+    ti_present[sizeof(ti_present) - 1] = 0x05;
+    assert_int_equal(dcu_698_decode_archive_op(127, ti_present, sizeof(ti_present), &op),
+                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
 }
 
 static void test_load_assigns_config_seq_from_one(void **state) {

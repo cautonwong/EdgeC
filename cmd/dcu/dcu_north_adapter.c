@@ -55,14 +55,15 @@ int dcu_north_resolve_scalar(void* ctx, uint32_t oad, const void* desc, size_t d
     return 0;
 }
 
-/* 8000 的 129–131 无继电器映射时对象表回 DAR 2；6000 走 A.7 档案方法。 */
+/* 6000 按 A.7 档案方法解码，6012 按 A2 任务方案解码。 */
 int dcu_north_accept_action(void* ctx, uint32_t omd, const uint8_t* axdr, size_t axdr_len) {
     (void)ctx;
     uint16_t oi = (uint16_t)(omd >> 16);
     uint8_t method = (uint8_t)((omd >> 8) & 0xFF);
 
     if (oi == OI_METER_ARCHIVE) return dcu_698_accept_archive_action(omd, axdr, axdr_len);
-    if (oi != OI_REMOTE_CONTROL) return EDGE_SLAVE_SRC_NOT_FOUND;
+    if (oi == OI_TASK_SCHEDULER) return dcu_698_accept_action_axdr(omd, axdr, axdr_len);
+    if (oi != OI_REMOTE_CONTROL) return dcu_698_call(omd, axdr, NULL);
 
     dcu_action_param_t param = {0};
     int rc = dcu_698_decode_action_param(method, axdr, axdr_len, &param);

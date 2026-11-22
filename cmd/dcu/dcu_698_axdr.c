@@ -11,6 +11,12 @@
 #include "edge_log.h"
 #include "edge_slave_plane.h"
 
+/* ACTION-Request 的 TimeTag 可选：线格式要么没有这个字节，要么就是一个 0x00。
+ * 真实 TimeTag 要做传输时效判定（6.1.1.5），本实现不做，按 DAR 7 拒绝，不静默忽略。 */
+static int _time_tag_absent(const uint8_t *buf, size_t off, size_t len) {
+    return off == len || (off + 1 == len && buf[off] == DLT698_NO_TIME_TAG);
+}
+
 /**
  * @brief 把 `dcu_value_t` 编成完整 A-XDR 值（含类型标签）。
  *
@@ -237,7 +243,7 @@ int dcu_698_decode_task_op(uint8_t method, const uint8_t *buf, size_t len, dcu_t
             return EDGE_SLAVE_SRC_CLASS_MISMATCH;
     }
 
-    return c.off == c.len ? 0 : EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    return _time_tag_absent(buf, c.off, c.len) ? 0 : EDGE_SLAVE_SRC_TYPE_MISMATCH;
 }
 
 int dcu_698_accept_action_axdr(uint32_t omd, const uint8_t *axdr, size_t axdr_len) {
@@ -248,8 +254,7 @@ int dcu_698_accept_action_axdr(uint32_t omd, const uint8_t *axdr, size_t axdr_le
     uint16_t oi = (uint16_t)(omd >> 16);
     uint8_t method = (uint8_t)((omd >> 8) & 0xFF);
     if (oi == OI_TASK_SCHEDULER && method == 1) {
-        /* Class 10 复位无参数：线上就是一个 NULL，形状不符仍是 DAR 7。 */
-        if (!axdr || axdr_len != 1 || axdr[0] != DLT698_TAG_NULL)
+        if (!axdr || axdr[0] != DLT698_TAG_NULL || !_time_tag_absent(axdr, 1, axdr_len))
             return EDGE_SLAVE_SRC_TYPE_MISMATCH;
         return dcu_698_call(omd, NULL, NULL);
     }
@@ -461,8 +466,7 @@ int dcu_698_decode_action_param(uint8_t method, const uint8_t* buf, size_t len,
     if (dlt698_decode_data(buf, (uint16_t)len, &off, &d) != 0) {
         return EDGE_SLAVE_SRC_TYPE_MISMATCH;
     }
-    /* ACTION-Request 的 Data 后允许一个时间标签字节。 */
-    if ((size_t)off + 1 < len) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    if (!_time_tag_absent(buf, off, len)) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
 
     if (method == DCU_ACTION_METHOD_FIRST || method == DCU_ACTION_METHOD_FIRST + 1) {
         return (d.tag == DLT698_TAG_NULL) ? 0 : EDGE_SLAVE_SRC_TYPE_MISMATCH;
@@ -709,7 +713,7 @@ int dcu_698_decode_archive_op(uint8_t method, const uint8_t* buf, size_t len,
         dlt698_free_data(&d);
         return EDGE_SLAVE_SRC_TYPE_MISMATCH;
     }
-    if ((size_t)off + 1 < len) {
+    if (!_time_tag_absent(buf, off, len)) {
         dlt698_free_data(&d);
         return EDGE_SLAVE_SRC_TYPE_MISMATCH;
     }

@@ -87,18 +87,29 @@ static int mock_shadow(void *ctx, uint32_t tag_id, uint32_t device_id, void *out
     return 0;
 }
 
+static dcu_poller_t g_poller;
+static dcu_task_op_t g_applied_op;
+static int g_apply_calls;
+
+static int test_task_apply(void *ctx, dcu_poller_t *poller, const dcu_task_op_t *op) {
+    (void)ctx;
+    (void)poller;
+    g_apply_calls++;
+    if (op) g_applied_op = *op;
+    return 0;
+}
+
 static void init_product_model(void) {
     static dcu_inventory_t inv;
-    static dcu_poller_t poller;
     static dcu_discovery_t discovery;
     assert_int_equal(dcu_inventory_init(&inv), 0);
-    assert_int_equal(dcu_poller_init(&poller), 0);
+    assert_int_equal(dcu_poller_init(&g_poller), 0);
     dcu_discovery_init(&discovery);
     discovery.count = 5;
-    router_sink_ops_t sink = {0};
+    router_sink_ops_t sink = {.task_apply = test_task_apply};
     router_bus_ops_t bus = {.msg_size = sizeof(pipe_msg_t), .read_shadow = mock_shadow};
     assert_int_equal(
-        dcu_698_object_model_init(&inv, &poller, sink, NULL, &discovery, NULL, NULL, bus), 0);
+        dcu_698_object_model_init(&inv, &g_poller, sink, NULL, &discovery, NULL, NULL, bus), 0);
 }
 
 static void init_product_model_with_events(void);
@@ -423,16 +434,41 @@ static int test_object_list(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, s
     return 0;
 }
 
-static int test_exchange(void *priv, const uint8_t *frame, size_t frame_len,
-                         const edge_slave_source_ops_t *src, void *src_ctx, net_buf_t *out,
-                         size_t *consumed) {
-    (void)src_ctx;
+/* 只给 ACTION 路由用例用的 ACL：放行 5004 方法 3、6012 方法 1/127、未知 OI 9999 方法 1，
+ * 让请求越过 ACL 到达适配器/对象表。 */
+static const uint8_t k_routing_acl[] = {
+    0x01, 0x03, 0x02, 0x02, 0x50, 0x50, 0x04, 0x02, 0x02, 0x01, 0x00, 0x01, 0x01, 0x02, 0x02,
+    0x11, 0x03, 0x03, 0x01, 0x02, 0x02, 0x50, 0x60, 0x12, 0x02, 0x02, 0x01, 0x00, 0x01, 0x02,
+    0x02, 0x02, 0x11, 0x01, 0x03, 0x01, 0x02, 0x02, 0x11, 0x7F, 0x03, 0x01, 0x02, 0x02, 0x50,
+    0x99, 0x99, 0x02, 0x02, 0x01, 0x00, 0x01, 0x01, 0x02, 0x02, 0x11, 0x01, 0x03, 0x01,
+};
+
+static int routing_object_list(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, size_t *len) {
+    (void)ctx;
+    if (oad != 0x44000200u) return -1;
+    if (sizeof(k_routing_acl) > cap) return -1;
+    memcpy(buf, k_routing_acl, sizeof(k_routing_acl));
+    *len = sizeof(k_routing_acl);
+    return 0;
+}
+
+static int test_exchange_with(void *priv, const uint8_t *frame, size_t frame_len,
+                              const edge_slave_source_ops_t *src, net_buf_t *out,
+                              size_t *consumed,
+                              int (*object_list)(void *, uint32_t, uint8_t *, size_t, size_t *)) {
     edge_slave_source_ops_t wrapped = *src;
-    wrapped.object_list = test_object_list;
+    wrapped.object_list = object_list;
     static uint8_t session[1024];
     memset(session, 0, sizeof(session));
     return dlt698_driver.req_slave_exchange(priv, session, frame, frame_len, &wrapped,
                                             (void *)src, out, consumed);
+}
+
+static int test_exchange(void *priv, const uint8_t *frame, size_t frame_len,
+                         const edge_slave_source_ops_t *src, void *src_ctx, net_buf_t *out,
+                         size_t *consumed) {
+    (void)src_ctx;
+    return test_exchange_with(priv, frame, frame_len, src, out, consumed, test_object_list);
 }
 
 static void exchange_and_check(const uint8_t *frame, size_t frame_len,
@@ -1092,10 +1128,10 @@ static void test_set_scalar_fallback_rejects_structure(void **state) {
 }
 
 /* ACTION-Request-Normal：07 | 01 | PIID | OMD(4) | Data | 时间标签。 */
-static size_t build_action(uint8_t *frame, uint8_t method, const uint8_t *param,
-                           size_t param_len) {
-    uint8_t apdu[256] = {DLT698_SVC_ACTION_REQ, 0x01, 0x05, (uint8_t)(OI_REMOTE_CONTROL >> 8),
-                         (uint8_t)OI_REMOTE_CONTROL, method, 0x00};
+static size_t build_action_omd(uint8_t *frame, uint32_t omd, const uint8_t *param,
+                               size_t param_len) {
+    uint8_t apdu[256] = {DLT698_SVC_ACTION_REQ, 0x01, 0x05, (uint8_t)(omd >> 24),
+                         (uint8_t)(omd >> 16), (uint8_t)(omd >> 8), (uint8_t)omd};
     size_t i = 7;
     assert_true(i + param_len + 1 <= sizeof(apdu));
     if (param_len > 0) memcpy(apdu + i, param, param_len);
@@ -1106,10 +1142,12 @@ static size_t build_action(uint8_t *frame, uint8_t method, const uint8_t *param,
 
 static const edge_slave_source_ops_t k_action_src = {.accept_action = dcu_north_accept_action};
 
-static uint8_t run_action_dar(uint8_t method, const uint8_t *param, size_t param_len) {
-    init_product_model();
+static uint8_t run_action_dar_omd_acl_initialized(uint32_t omd, const uint8_t *param,
+                                                  size_t param_len,
+                                                  int (*object_list)(void *, uint32_t, uint8_t *,
+                                                                     size_t, size_t *)) {
     uint8_t frame[512];
-    size_t frame_len = build_action(frame, method, param, param_len);
+    size_t frame_len = build_action_omd(frame, omd, param, param_len);
 
     net_buf_pool_t *pool = net_buf_pool_new(8, 4096, 0);
     assert_non_null(pool);
@@ -1118,8 +1156,8 @@ static uint8_t run_action_dar(uint8_t method, const uint8_t *param, size_t param
     alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
     memset(priv, 0, sizeof(priv));
     size_t consumed = 0;
-    int rc = test_exchange(priv, frame, frame_len, &k_action_src, NULL, out,
-                                              &consumed);
+    int rc = test_exchange_with(priv, frame, frame_len, &k_action_src, out, &consumed,
+                                object_list);
     assert_int_equal(rc, 0);
     assert_int_equal(out->b.data[9], DLT698_SVC_ACTION_RES);
     assert_int_equal(out->b.data[10], 0x01);
@@ -1128,6 +1166,22 @@ static uint8_t run_action_dar(uint8_t method, const uint8_t *param, size_t param
     net_buf_unref(out);
     net_buf_pool_destroy(pool);
     return dar;
+}
+
+static uint8_t run_action_dar_omd_acl(uint32_t omd, const uint8_t *param, size_t param_len,
+                                      int (*object_list)(void *, uint32_t, uint8_t *, size_t,
+                                                         size_t *)) {
+    init_product_model();
+    return run_action_dar_omd_acl_initialized(omd, param, param_len, object_list);
+}
+
+static uint8_t run_action_dar_omd(uint32_t omd, const uint8_t *param, size_t param_len) {
+    return run_action_dar_omd_acl(omd, param, param_len, test_object_list);
+}
+
+static uint8_t run_action_dar(uint8_t method, const uint8_t *param, size_t param_len) {
+    return run_action_dar_omd(((uint32_t)OI_REMOTE_CONTROL << 16) | ((uint32_t)method << 8),
+                              param, param_len);
 }
 
 static void assert_action_dar(uint8_t method, const uint8_t *param, size_t param_len,
@@ -1231,6 +1285,87 @@ static void test_action_rejects_other_methods_and_trailing_bytes(void **state) {
 
     const uint8_t trailing[] = {0x00, 0xFF, 0xFF};
     assert_action_dar(127, trailing, sizeof(trailing), DLT698_DAR_TYPE_MISMATCH);
+
+    /* 带真实 TimeTag 的帧不做时效判定，必须回 DAR 7，不能静默忽略时标。 */
+    const uint8_t ti_present[] = {0x00, 0x05};
+    assert_action_dar(127, ti_present, sizeof(ti_present), DLT698_DAR_TYPE_MISMATCH);
+}
+
+static void test_action_non8000_class_defined_unexposed_dar5(void **state) {
+    (void)state;
+    const uint8_t null_param[] = {0x00};
+    /* 5004 方法 3：Class 9 定义。 */
+    assert_int_equal(
+        run_action_dar_omd_acl(((uint32_t)0x5004 << 16) | (3u << 8), null_param,
+                               sizeof(null_param), routing_object_list),
+        5);
+}
+
+static void test_action_unknown_oi_dar6(void **state) {
+    (void)state;
+    const uint8_t null_param[] = {0x00};
+    assert_int_equal(
+        run_action_dar_omd_acl(((uint32_t)0x9999 << 16) | (1u << 8), null_param,
+                               sizeof(null_param), routing_object_list),
+        6);
+}
+
+static void test_action_non8000_reaches_handler(void **state) {
+    (void)state;
+    const uint8_t null_param[] = {0x00};
+    assert_int_equal(run_action_dar_omd_acl(((uint32_t)OI_TASK_SCHEDULER << 16) | (1u << 8),
+                                            null_param, sizeof(null_param), routing_object_list),
+                     0);
+}
+
+/* 6012 方法 127 的 A2 单元，形状同 tests/test_dcu_698_tasks.c。 */
+static const uint8_t k_add_task_7_60s[] = {
+    0x01, 0x01,             /* array[1] */
+    0x02, 0x0C,             /* structure[12] */
+    0x11, 0x07,             /* 任务 ID */
+    0x54, 0x00, 0x00, 0x3C, /* 周期 TI：0 单位 x 60 */
+    0x16, 0x01, 0x11, 0x01, /* 方案类型 / 编号 */
+    0x1C, 0,    0,    0,    0,    0,    0,    0,    0x1C, 0, 0, 0, 0, 0, 0, 0, /* 起止时间 */
+    0x54, 0x00, 0x00, 0x00, 0x11, 0x00,             /* 延时 / 优先级 */
+    0x16, 0x01, 0x12, 0x00, 0x00, 0x12, 0x00, 0x00, /* 状态 / 前后脚本 */
+    0x02, 0x02, 0x16, 0x00, 0x01, 0x00,             /* 时段：空表 */
+};
+
+static void test_action_6012_method127_valid_body_dar0(void **state) {
+    (void)state;
+    g_apply_calls = 0;
+    assert_int_equal(
+        run_action_dar_omd_acl(((uint32_t)OI_TASK_SCHEDULER << 16) | (127u << 8), k_add_task_7_60s,
+                               sizeof(k_add_task_7_60s), routing_object_list),
+        DLT698_DAR_SUCCESS);
+    assert_int_equal(g_apply_calls, 1);
+    assert_int_equal(g_applied_op.method, 127);
+    assert_int_equal(g_applied_op.units[0].task_id, 7);
+    assert_int_equal(g_applied_op.units[0].interval_unit, 0);
+    assert_int_equal(g_applied_op.units[0].interval_value, 60);
+    dcu_698_object_model_reset();
+}
+
+static void test_action_6012_method127_truncated_body_dar7_no_state_change(void **state) {
+    (void)state;
+    init_product_model();
+    assert_int_equal(dcu_poller_add_task(&g_poller, 1, 60, 1), 0);
+    const dcu_task_unit_t *existing = dcu_poller_task_find(&g_poller, 1);
+    assert_non_null(existing);
+    dcu_task_unit_t before = *existing;
+    uint16_t count_before = g_poller.task_count;
+    g_apply_calls = 0;
+
+    const uint8_t truncated[] = {0x01, 0x01, 0x02, 0x0C, 0x11, 0x07, 0x54, 0x00, 0x00, 0x3C};
+    assert_int_equal(
+        run_action_dar_omd_acl_initialized(((uint32_t)OI_TASK_SCHEDULER << 16) | (127u << 8),
+                                           truncated, sizeof(truncated), routing_object_list),
+        DLT698_DAR_TYPE_MISMATCH);
+    assert_int_equal(g_apply_calls, 0);
+    assert_int_equal(g_poller.task_count, count_before);
+    assert_null(dcu_poller_task_find(&g_poller, 7));
+    assert_memory_equal(existing, &before, sizeof(before));
+    dcu_698_object_model_reset();
 }
 
 static void test_driver_high_byte_oad_has_no_signed_shift(void **state) {
@@ -1293,6 +1428,11 @@ int main(void) {
         cmocka_unit_test(test_action_130_close_param),
         cmocka_unit_test(test_action_131_password_close_param),
         cmocka_unit_test(test_action_rejects_other_methods_and_trailing_bytes),
+        cmocka_unit_test(test_action_non8000_class_defined_unexposed_dar5),
+        cmocka_unit_test(test_action_unknown_oi_dar6),
+        cmocka_unit_test(test_action_non8000_reaches_handler),
+        cmocka_unit_test(test_action_6012_method127_valid_body_dar0),
+        cmocka_unit_test(test_action_6012_method127_truncated_body_dar7_no_state_change),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
