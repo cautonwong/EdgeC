@@ -52,13 +52,15 @@ SET 先解到临时值并校验形状与范围，再编码、写库、提交 RAM
 
 4000 A2 的 GET 调 `dcu_clock_port_t::now`（系统实现读 `CLOCK_REALTIME`），SET 调 `set`（系统实现 `mktime` + `clock_settime(CLOCK_REALTIME)`）。端口由 `dcu_node.c` 在组合根注入，测试注入可控假端口。SET 返回 0 只在系统时钟真的接受新值之后；没有端口、`mktime` 失败或 `clock_settime` 返回 EPERM/EINVAL 都回 DAR 2，GET 仍读到旧时间。不存在只改内存、下一次 GET 就"成功"的路径。
 
+4000 A3/A4 与 4001–4004、401C–4021 只有存储与审计语义：SET 成功 = 已持久化并可回读，产品尚无功能消费这些值，设备行为不变。这一点写进设计文档；接入功能时另立任务并补行为测试。
+
 ## 验证
 
 - 干净构建（`ninja -C build clean` 后全量重建）+ `check_build_warnings.py`：0 warning
 - 全量 `ctest -j8`：341/341
 - ASAN（`-DENABLE_ASAN=ON` 全量构建）：5 个相关目标全过
 - `run_guard_selftest.py`：全部通过
-- 验收：`dcu-acceptance` 3/3、`dcu-northbound` 19/19，两个任务退出 0，`ACCEPTANCE_TASKS` 2/2
+- 验收：`dcu-acceptance` 3/3、`dcu-northbound` 20/20（新增 000022），两个任务退出 0，`ACCEPTANCE_TASKS` 2/2
 - `run_fanalyzer.py --paths cmd/dcu,adapters/io_drivers/src`：0 新报告
 - `git diff --check`：干净
 

@@ -29,4 +29,4 @@
 
 ## 行为核对
 
-删除与 `_default_rc` 改写后重新跑：干净构建 + warning gate 0、全量 ctest 341/341、ASAN 5/5、守卫自测、fanalyzer 0 新报告、验收 2/2（northbound 19/19）。
+删除与 `_default_rc` 改写后重新跑：干净构建 + warning gate 0、全量 ctest 341/341、ASAN 5/5、守卫自测、fanalyzer 0 新报告、验收 2/2（northbound 20/20）。
