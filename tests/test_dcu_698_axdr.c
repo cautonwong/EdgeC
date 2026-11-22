@@ -1285,6 +1285,10 @@ static void test_action_rejects_other_methods_and_trailing_bytes(void **state) {
 
     const uint8_t trailing[] = {0x00, 0xFF, 0xFF};
     assert_action_dar(127, trailing, sizeof(trailing), DLT698_DAR_TYPE_MISMATCH);
+
+    /* 带真实 TimeTag 的帧不做时效判定，必须回 DAR 7，不能静默忽略时标。 */
+    const uint8_t ti_present[] = {0x00, 0x05};
+    assert_action_dar(127, ti_present, sizeof(ti_present), DLT698_DAR_TYPE_MISMATCH);
 }
 
 /* 非 8000 ACTION 走对象表：类定义但未暴露 -> CLASS_MISMATCH -> DAR 5（不是适配器的一刀切 6）。 */

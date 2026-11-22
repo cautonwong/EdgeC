@@ -233,6 +233,12 @@ static void test_wrong_tag_and_count_return_7(void **state) {
         dcu_698_accept_action_axdr(MK_OMD(OI_TASK_SCHEDULER, 127), trailing.b, trailing.n),
         EDGE_SLAVE_SRC_TYPE_MISMATCH);
 
+    body_t ti_present = body;
+    _u8(&ti_present, 0x05); /* 有值时标：不做时效判定，整条拒 */
+    assert_int_equal(
+        dcu_698_accept_action_axdr(MK_OMD(OI_TASK_SCHEDULER, 127), ti_present.b, ti_present.n),
+        EDGE_SLAVE_SRC_TYPE_MISMATCH);
+
     assert_null(dcu_poller_task_find(&bench.poller, 7));
     _bench_free(&bench);
 }
